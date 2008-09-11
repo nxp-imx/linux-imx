@@ -32,10 +32,14 @@ static void flush_pfn_alias(unsigned long pfn, unsigned long vaddr)
 
 	asm(	"mcrr	p15, 0, %1, %0, c14\n"
 	"	mcr	p15, 0, %2, c7, c10, 4\n"
+#ifndef CONFIG_ARM_ERRATA_411920
 	"	mcr	p15, 0, %2, c7, c5, 0\n"
+#else
+	"	bl	v6_icache_inval_all\n"
+#endif
 	    :
 	    : "r" (to), "r" (to + PAGE_SIZE - L1_CACHE_BYTES), "r" (zero)
-	    : "cc");
+	    : "r0", "r1", "lr");
 }
 
 void flush_cache_mm(struct mm_struct *mm)
@@ -48,11 +52,15 @@ void flush_cache_mm(struct mm_struct *mm)
 
 	if (cache_is_vipt_aliasing()) {
 		asm(	"mcr	p15, 0, %0, c7, c14, 0\n"
+		"	mcr	p15, 0, %0, c7, c10, 4\n"
+#ifndef CONFIG_ARM_ERRATA_411920
 		"	mcr	p15, 0, %0, c7, c5, 0\n"
-		"	mcr	p15, 0, %0, c7, c10, 4"
+#else
+		"	bl	v6_icache_inval_all\n"
+#endif
 		    :
 		    : "r" (0)
-		    : "cc");
+		    : "r0", "r1", "lr", "cc");
 	}
 }
 
@@ -67,11 +75,15 @@ void flush_cache_range(struct vm_area_struct *vma, unsigned long start, unsigned
 
 	if (cache_is_vipt_aliasing()) {
 		asm(	"mcr	p15, 0, %0, c7, c14, 0\n"
+		"	mcr	p15, 0, %0, c7, c10, 4\n"
+#ifndef CONFIG_ARM_ERRATA_411920
 		"	mcr	p15, 0, %0, c7, c5, 0\n"
-		"	mcr	p15, 0, %0, c7, c10, 4"
+#else
+		"	bl	v6_icache_inval_all\n"
+#endif
 		    :
 		    : "r" (0)
-		    : "cc");
+		    : "r0", "r1", "lr", "cc");
 	}
 }
 
