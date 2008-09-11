@@ -772,6 +772,19 @@ config ARM_ERRATA_411920
 	  It does not affect the MPCore. This option enables the ARM Ltd.
 	  recommended workaround.
 
+config ARM_ERRATA_364296
+	bool "Enable partial low interrupt latency mode for ARM1136"
+	depends on CPU_V6 && !SMP
+	default n
+	help
+	  This options enables the workaround for the 364296 ARM1136
+	  r0pX errata (possible cache data corruption with
+	  hit-under-miss enabled). It sets the undocumented bit 31 in
+	  the auxiliary control register and the FI bit in the control
+	  register, thus disabling hit-under-miss without putting the
+	  processor into full low interrupt latency mode. ARM11MPCore
+	  is not affected.
+
 config ARM_ERRATA_430973
 	bool "ARM errata: Stale prediction on replaced interworking branch"
 	depends on CPU_V7
