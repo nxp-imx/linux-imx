@@ -11,6 +11,7 @@ config SND_SOC_ALL_CODECS
 	select SND_SOC_TLV320AIC26
 	select SND_SOC_TLV320AIC3X
 	select SND_SOC_UDA1380
+	select SND_SOC_WM8350
 	select SND_SOC_WM8510
 	select SND_SOC_WM8580
 	select SND_SOC_WM8731
@@ -77,6 +78,9 @@ config SND_SOC_TLV320AIC3X
 
 config SND_SOC_UDA1380
         tristate
+
+config SND_SOC_WM8350
+	tristate
 
 config SND_SOC_WM8510
 	tristate
