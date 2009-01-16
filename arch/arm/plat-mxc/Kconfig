@@ -154,4 +154,10 @@ config MXC_USB_DB4
 
 endchoice
 
+config MXC_PWM
+	tristate "Enable PWM driver"
+	depends on ARCH_MXC
+	help
+	  Enable support for the i.MX PWM controller(s).
+
 endif

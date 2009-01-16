@@ -56,3 +56,6 @@ ifneq ($(CONFIG_USB_EHCI_ARC_H2),)
 obj-y += serialxc.o
 endif
 endif
+
+obj-$(CONFIG_MXC_PWM)  += pwm.o
+
