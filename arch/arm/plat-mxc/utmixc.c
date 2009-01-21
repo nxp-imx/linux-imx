@@ -20,7 +20,6 @@
 #include <linux/err.h>
 #include <linux/platform_device.h>
 #include <linux/fsl_devices.h>
-#include <linux/pmic_external.h>
 #include <linux/usb/fsl_xcvr.h>
 #include <linux/pmic_external.h>
 
