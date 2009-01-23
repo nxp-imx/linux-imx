@@ -671,6 +671,13 @@ config RTC_DRV_MXC_V2
 	help
 	  Support for Freescale SRTC MXC
 
+config RTC_DRV_IMXDI
+	tristate "Freescale IMX DryIce Real Time Clock"
+	depends on ARCH_MXC
+	depends on RTC_CLASS
+	help
+	  Support for Freescale IMX DryIce RTC
+
 config RTC_MC13892
 	tristate "Freescale MC13892 Real Time Clock"
 	depends on ARCH_MXC && MXC_PMIC_MC13892
