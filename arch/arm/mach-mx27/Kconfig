@@ -1,0 +1,43 @@
+menu "MX27 Options"
+	depends on ARCH_MX27
+
+config MX27_OPTIONS
+	bool
+	default y
+	select CPU_ARM926T
+	select MXC_EMMA
+	select USB_ARCH_HAS_EHCI
+
+config MACH_MX27ADS
+	bool "Support MX27ADS platforms"
+	default y
+	help
+	  Include support for MX27ADS platform. This includes specific
+	  configurations for the board and its peripherals.
+
+config ARCH_MXC_HAS_NFC_V1
+        bool "MXC NFC Hardware Version 1"
+        default y
+        help
+           This selects the Freescale MXC Nand Flash Controller Hardware Version 1
+           If unsure, say N.
+
+menu "Device options"
+
+config I2C_MXC_SELECT1
+	bool "Enable I2C1 module"
+	default y
+	depends on I2C_MXC
+	help
+	  Enable MX31 I2C1 module.
+
+config I2C_MXC_SELECT2
+	bool "Enable I2C2 module"
+	default n
+	depends on I2C_MXC
+	help
+	  Enable MX31 I2C2 module.
+
+endmenu
+
+endmenu

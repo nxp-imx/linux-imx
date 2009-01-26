@@ -1,0 +1,13 @@
+#
+# ASRC configuration
+#
+
+menu "MXC Asynchronous Sample Rate Converter support"
+
+config MXC_ASRC
+	tristate "ASRC support"
+	depends on ARCH_MX35
+	---help---
+         Say Y to get the ASRC service.
+
+endmenu

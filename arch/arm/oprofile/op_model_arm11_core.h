@@ -35,6 +35,8 @@
 #define CCNT 2
 
 #define CPU_COUNTER(cpu, counter)	((cpu) * 3 + (counter))
+#define PMU_ENABLE		0x001	/* Enable counters */
+#define PMU_OVERFLOWBIT_MASK	0x700
 
 int arm11_setup_pmu(void);
 int arm11_start_pmu(void);
@@ -42,4 +44,15 @@ int arm11_stop_pmu(void);
 int arm11_request_interrupts(int *, int);
 void arm11_release_interrupts(int *, int);
 
+#ifdef CONFIG_OPROFILE_ARM11_EVTMON
+extern int arm11_evtmon_setup_ctrs(void);
+extern void arm11_evtmon_stop(void);
+extern int arm11_evtmon_start(void);
+extern int arm11_evtmon_detect(void);
+#else
+#define arm11_evtmon_setup_ctrs() do {} while(0)
+#define arm11_evtmon_stop() do {} while(0)
+#define arm11_evtmon_start() do {} while(0)
+#define arm11_evtmon_detect() do {} while(0)
+#endif
 #endif

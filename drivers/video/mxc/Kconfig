@@ -1,0 +1,82 @@
+config FB_MXC
+	tristate "MXC Framebuffer support"
+	depends on FB && (MXC_IPU || ARCH_MX21 || ARCH_MX27 || ARCH_MX25)
+	select FB_CFB_FILLRECT
+	select FB_CFB_COPYAREA
+	select FB_CFB_IMAGEBLIT
+	default y
+	help
+	  This is a framebuffer device for the MXC LCD Controller.
+	  See <http://www.linux-fbdev.org/> for information on framebuffer
+	  devices.
+
+	  If you plan to use the LCD display with your MXC system, say
+	  Y here.
+
+config FB_MXC_SYNC_PANEL
+	depends on FB_MXC
+	tristate "Synchronous Panel Framebuffer"
+	default y
+
+config FB_MXC_EPSON_VGA_SYNC_PANEL
+	depends on FB_MXC_SYNC_PANEL
+	tristate "Epson VGA Panel"
+	default n
+
+config FB_MXC_TVOUT_TVE
+	tristate "MXC TVE TV Out Encoder"
+	depends on FB_MXC_SYNC_PANEL
+	depends on MXC_IPU_V3
+
+config FB_MXC_CLAA_WVGA_SYNC_PANEL
+	depends on FB_MXC_SYNC_PANEL
+	tristate "CLAA WVGA Panel"
+
+config FB_MXC_TVOUT
+	bool "FS453 TV Out Encoder"
+	depends on FB_MXC_SYNC_PANEL
+
+config FB_MXC_TVOUT_CH7024
+	tristate "CH7024 TV Out Encoder"
+	depends on FB_MXC_SYNC_PANEL
+
+config FB_MXC_LOW_PWR_DISPLAY
+	bool "Low Power Display Refresh Mode"
+	depends on FB_MXC_SYNC_PANEL && MXC_FB_IRAM
+	default y
+
+config FB_MXC_INTERNAL_MEM
+	bool "Framebuffer in Internal RAM"
+	depends on FB_MXC_SYNC_PANEL && MXC_FB_IRAM
+	default y
+
+config FB_MXC_ASYNC_PANEL
+	depends on FB_MXC
+	bool "Asynchronous Panels"
+	default n
+
+menu "Asynchronous Panel Type"
+	depends on FB_MXC_ASYNC_PANEL && FB_MXC
+
+config FB_MXC_EPSON_PANEL
+    depends on FB_MXC_ASYNC_PANEL
+	default n
+	bool "Epson 176x220 Panel"
+
+endmenu
+
+choice
+	prompt "Async Panel Interface Type"
+	depends on FB_MXC_ASYNC_PANEL && FB_MXC
+	default FB_MXC_ASYNC_PANEL_IFC_16_BIT
+
+config FB_MXC_ASYNC_PANEL_IFC_8_BIT
+	bool "8-bit Parallel Bus Interface"
+
+config FB_MXC_ASYNC_PANEL_IFC_16_BIT
+	bool "16-bit Parallel Bus Interface"
+
+config FB_MXC_ASYNC_PANEL_IFC_SERIAL
+	bool "Serial Bus Interface"
+
+endchoice

@@ -162,7 +162,11 @@ ep_matches (
 	desc->bEndpointAddress &= USB_DIR_IN;
 	if (isdigit (ep->name [2])) {
 		u8	num = simple_strtol (&ep->name [2], NULL, 10);
-		desc->bEndpointAddress |= num;
+		if (desc->bEndpointAddress & 0x7) {
+			if (num != (desc->bEndpointAddress & 0x7))
+				return 0;
+		} else
+			desc->bEndpointAddress |= num;
 #ifdef	MANY_ENDPOINTS
 	} else if (desc->bEndpointAddress & USB_DIR_IN) {
 		if (++in_epnum > 15)

@@ -1,0 +1,13 @@
+#
+# Bluetooth configuration
+#
+
+menu "MXC Bluetooth support"
+
+config MXC_BLUETOOTH
+	tristate "MXC Bluetooth support"
+	depends on MACH_MX31_3DS || MACH_MX35_3DS || MACH_MX37_3DS || MACH_MX51_3DS
+	---help---
+         Say Y to get the third party Bluetooth service.
+
+endmenu

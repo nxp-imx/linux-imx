@@ -342,5 +342,9 @@ config MCS_FIR
 	  To compile it as a module, choose M here: the module will be called
 	  mcs7780.
 
+config MXC_FIR
+	tristate "Freescale MXC FIR driver"
+	depends on ARCH_MXC && IRDA
+
 endmenu
 

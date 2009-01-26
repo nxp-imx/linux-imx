@@ -1,0 +1,5 @@
+config MXC_IPU_V1
+	bool
+
+source "drivers/mxc/ipu/pf/Kconfig"
+

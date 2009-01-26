@@ -421,11 +421,12 @@ config ARCH_MV78XX0
 
 config ARCH_MXC
 	bool "Freescale MXC/iMX-based"
+	select ARCH_MTD_XIP
 	select GENERIC_TIME
 	select GENERIC_CLOCKEVENTS
-	select ARCH_MTD_XIP
-	select GENERIC_GPIO
-	select ARCH_REQUIRE_GPIOLIB
+#	select GENERIC_GPIO
+#	select ARCH_REQUIRE_GPIOLIB
+	select ZONE_DMA
 	help
 	  Support for Freescale MXC/iMX-based family of processors
 
@@ -899,7 +900,7 @@ config LEDS
 		   ARCH_OMAP || ARCH_P720T || ARCH_PXA_IDP || \
 		   ARCH_SA1100 || ARCH_SHARK || ARCH_VERSATILE || \
 		   ARCH_AT91 || ARCH_DAVINCI || \
-		   ARCH_KS8695 || MACH_RD88F5182
+		   ARCH_KS8695 || MACH_RD88F5182 || ARCH_MXC
 	help
 	  If you say Y here, the LEDs on your machine will be used
 	  to provide useful information about your current system status.
@@ -1060,7 +1061,7 @@ endmenu
 
 menu "CPU Power Management"
 
-if (ARCH_SA1100 || ARCH_INTEGRATOR || ARCH_OMAP || ARCH_IMX || ARCH_PXA)
+if (ARCH_SA1100 || ARCH_INTEGRATOR || ARCH_OMAP || ARCH_IMX || ARCH_PXA || ARCH_MXC)
 
 source "drivers/cpufreq/Kconfig"
 
@@ -1099,6 +1100,12 @@ config CPU_FREQ_PXA
 	depends on CPU_FREQ && ARCH_PXA && PXA25x
 	default y
 	select CPU_FREQ_DEFAULT_GOV_USERSPACE
+
+config CPU_FREQ_IMX
+         tristate "CPUfreq driver for i.MX CPUs"
+         depends on ARCH_MXC && CPU_FREQ && REGULATOR
+         help
+           This enables the CPUfreq driver for i.MX CPUs.
 
 endif
 
@@ -1247,6 +1254,8 @@ source "drivers/char/Kconfig"
 
 source "drivers/i2c/Kconfig"
 
+source "drivers/i2c-slave/Kconfig"
+
 source "drivers/spi/Kconfig"
 
 source "drivers/gpio/Kconfig"
@@ -1298,6 +1307,10 @@ source "drivers/auxdisplay/Kconfig"
 source "drivers/regulator/Kconfig"
 
 source "drivers/uio/Kconfig"
+
+if ARCH_MXC
+source "drivers/mxc/Kconfig"
+endif
 
 endmenu
 

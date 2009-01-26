@@ -52,6 +52,14 @@
 
 #ifdef SMC_USE_PXA_DMA
 #define SMC_USE_DMA
+  #define SMC_USE_32BIT		1
+  #define SMC_IRQ_SENSE		IRQF_TRIGGER_LOW
+#endif
+
+#ifdef CONFIG_ARCH_MXC
+  #define SMC_USE_16BIT		0
+  #define SMC_USE_32BIT		1
+  #define SMC_IRQ_SENSE		IRQF_TRIGGER_LOW
 #endif
 
 /* store this information for the driver.. */

@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2007 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2004-2008 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -19,6 +19,36 @@
  * defines the hardware clock tick rate
  */
 #define CLOCK_TICK_RATE		16625000
+
+/*!
+ * Register an interrupt handler for the SMN as well as the SCC.  In some
+ * implementations, the SMN is not connected at all, and in others, it is
+ * on the same interrupt line as the SCM. Comment this line out accordingly
+ */
+#define USE_SMN_INTERRUPT
+
+/*
+ * UART Chip level Configuration that a user may not have to edit. These
+ * configuration vary depending on how the UART module is integrated with
+ * the ARM core
+ */
+#define MXC_UART_NR 5
+/*!
+ * This option is used to set or clear the RXDMUXSEL bit in control reg 3.
+ * Certain platforms need this bit to be set in order to receive Irda data.
+ */
+#define MXC_UART_IR_RXDMUX      0x0004
+/*!
+ * This option is used to set or clear the RXDMUXSEL bit in control reg 3.
+ * Certain platforms need this bit to be set in order to receive UART data.
+ */
+#define MXC_UART_RXDMUX         0x0004
+
+/*!
+ * This option is used to set or clear the dspdma bit in the SDMA config
+ * register.
+ */
+#define MXC_SDMA_DSPDMA         0
 
 /*
  * MX31 memory map:
@@ -44,32 +74,24 @@
  * FC320000	B8000000	64K	NAND, SDRAM, WEIM, M3IF, EMI controllers
  *         	C0000000	64M	PCMCIA/CF
  */
-
-#define CS0_BASE_ADDR		0xA0000000
-#define CS1_BASE_ADDR		0xA8000000
-#define CS2_BASE_ADDR		0xB0000000
-#define CS3_BASE_ADDR		0xB2000000
-
-#define CS4_BASE_ADDR		0xB4000000
-#define CS4_BASE_ADDR_VIRT	0xF4000000
-#define CS4_SIZE		SZ_32M
-
-#define CS5_BASE_ADDR		0xB6000000
-#define PCMCIA_MEM_BASE_ADDR	0xBC000000
-
 /*
  * IRAM
  */
 #define IRAM_BASE_ADDR		0x1FFC0000	/* internal ram */
-#define IRAM_BASE_ADDR_VIRT	0xF8000000
+#define IRAM_BASE_ADDR_VIRT	0xF80C0000
 #define IRAM_SIZE		SZ_16K
+
+#define USB_IRAM_BASE_ADDR	(IRAM_BASE_ADDR)
+#ifdef CONFIG_USB_STATIC_IRAM
+#define USB_IRAM_SIZE	(2*SZ_8K)
+#else
+#define USB_IRAM_SIZE 0
+#endif
 
 /*
  * L2CC
  */
 #define L2CC_BASE_ADDR		0x30000000
-#define L2CC_BASE_ADDR_VIRT	0xF9000000
-#define L2CC_SIZE		SZ_1M
 
 /*
  * AIPS 1
@@ -120,6 +142,59 @@
 #define MSHC2_BASE_ADDR		(SPBA0_BASE_ADDR + 0x00024000)
 #define SPBA_CTRL_BASE_ADDR	(SPBA0_BASE_ADDR + 0x0003C000)
 
+/*!
+ * defines for SPBA modules
+ */
+#define SPBA_SDHC1	0x04
+#define SPBA_SDHC2	0x08
+#define SPBA_UART3	0x0C
+#define SPBA_CSPI2	0x10
+#define SPBA_SSI2	0x14
+#define SPBA_SIM	0x18
+#define SPBA_IIM	0x1C
+#define SPBA_ATA	0x20
+
+/*!
+ * Defines for modules using static and dynamic DMA channels
+ */
+
+#ifdef CONFIG_SDMA_IRAM
+#define MXC_DMA_CHANNEL_IRAM         30
+#endif				/*CONFIG_SDMA_IRAM */
+
+#define MXC_DMA_CHANNEL_UART1_RX  MXC_DMA_DYNAMIC_CHANNEL
+#define MXC_DMA_CHANNEL_UART1_TX  MXC_DMA_DYNAMIC_CHANNEL
+#define MXC_DMA_CHANNEL_UART2_RX  MXC_DMA_DYNAMIC_CHANNEL
+#define MXC_DMA_CHANNEL_UART2_TX  MXC_DMA_DYNAMIC_CHANNEL
+#define MXC_DMA_CHANNEL_UART3_RX  MXC_DMA_DYNAMIC_CHANNEL
+#define MXC_DMA_CHANNEL_UART3_TX  MXC_DMA_DYNAMIC_CHANNEL
+#define MXC_DMA_CHANNEL_UART4_RX  MXC_DMA_DYNAMIC_CHANNEL
+#define MXC_DMA_CHANNEL_UART4_TX  MXC_DMA_DYNAMIC_CHANNEL
+#define MXC_DMA_CHANNEL_UART5_RX  MXC_DMA_DYNAMIC_CHANNEL
+#define MXC_DMA_CHANNEL_UART5_TX  MXC_DMA_DYNAMIC_CHANNEL
+#define MXC_DMA_CHANNEL_MMC1  MXC_DMA_DYNAMIC_CHANNEL
+#define MXC_DMA_CHANNEL_MMC2  MXC_DMA_DYNAMIC_CHANNEL
+#define MXC_DMA_CHANNEL_SSI1_TX  MXC_DMA_DYNAMIC_CHANNEL
+#define MXC_DMA_CHANNEL_SSI1_RX  MXC_DMA_DYNAMIC_CHANNEL
+#define MXC_DMA_CHANNEL_SSI2_RX  MXC_DMA_DYNAMIC_CHANNEL
+
+#ifdef CONFIG_SDMA_IRAM
+#define MXC_DMA_CHANNEL_SSI2_TX  (MXC_DMA_CHANNEL_IRAM + 1)
+#else				/*CONFIG_SDMA_IRAM */
+#define MXC_DMA_CHANNEL_SSI2_TX  MXC_DMA_DYNAMIC_CHANNEL
+#endif				/*CONFIG_SDMA_IRAM */
+
+#define MXC_DMA_CHANNEL_FIR_RX  MXC_DMA_DYNAMIC_CHANNEL
+#define MXC_DMA_CHANNEL_FIR_TX  MXC_DMA_DYNAMIC_CHANNEL
+#define MXC_DMA_CHANNEL_CSPI1_RX  MXC_DMA_DYNAMIC_CHANNEL
+#define MXC_DMA_CHANNEL_CSPI1_TX  MXC_DMA_DYNAMIC_CHANNEL
+#define MXC_DMA_CHANNEL_CSPI2_RX  MXC_DMA_DYNAMIC_CHANNEL
+#define MXC_DMA_CHANNEL_CSPI2_TX  MXC_DMA_DYNAMIC_CHANNEL
+#define MXC_DMA_CHANNEL_ATA_RX  MXC_DMA_DYNAMIC_CHANNEL
+#define MXC_DMA_CHANNEL_ATA_TX  MXC_DMA_DYNAMIC_CHANNEL
+#define MXC_DMA_CHANNEL_MEMORY  MXC_DMA_DYNAMIC_CHANNEL
+#define MXC_DMA_CHANNEL_FIFO_MEMORY  MXC_DMA_DYNAMIC_CHANNEL
+
 /*
  * AIPS 2
  */
@@ -140,11 +215,12 @@
 #define IPU_CTRL_BASE_ADDR	(AIPS2_BASE_ADDR + 0x000C0000)
 #define AUDMUX_BASE_ADDR	(AIPS2_BASE_ADDR + 0x000C4000)
 #define MPEG4_ENC_BASE_ADDR	(AIPS2_BASE_ADDR + 0x000C8000)
+#define VPU_BASE_ADDR		MPEG4_ENC_BASE_ADDR
 #define GPIO1_BASE_ADDR		(AIPS2_BASE_ADDR + 0x000CC000)
 #define GPIO2_BASE_ADDR		(AIPS2_BASE_ADDR + 0x000D0000)
 #define SDMA_BASE_ADDR		(AIPS2_BASE_ADDR + 0x000D4000)
 #define RTC_BASE_ADDR		(AIPS2_BASE_ADDR + 0x000D8000)
-#define WDOG_BASE_ADDR		(AIPS2_BASE_ADDR + 0x000DC000)
+#define WDOG1_BASE_ADDR		(AIPS2_BASE_ADDR + 0x000DC000)
 #define PWM_BASE_ADDR		(AIPS2_BASE_ADDR + 0x000E0000)
 #define RTIC_BASE_ADDR		(AIPS2_BASE_ADDR + 0x000EC000)
 
@@ -191,6 +267,11 @@
 #define CS5_BASE_ADDR		0xB6000000
 #define PCMCIA_MEM_BASE_ADDR	0xBC000000
 
+/*
+ * VL2CC for i.MX32
+ */
+#define VL2CC_BASE_ADDR		0xE0000000
+
 /*!
  * This macro defines the physical to virtual address mapping for all the
  * peripheral modules. It is used by passing in the physical address as x
@@ -198,9 +279,7 @@
  * it returns 0xDEADBEEF
  */
 #define IO_ADDRESS(x)   \
-	(void __iomem *) \
 	(((x >= IRAM_BASE_ADDR) && (x < (IRAM_BASE_ADDR + IRAM_SIZE))) ? IRAM_IO_ADDRESS(x):\
-	((x >= L2CC_BASE_ADDR) && (x < (L2CC_BASE_ADDR + L2CC_SIZE))) ? L2CC_IO_ADDRESS(x):\
 	((x >= AIPS1_BASE_ADDR) && (x < (AIPS1_BASE_ADDR + AIPS1_SIZE))) ? AIPS1_IO_ADDRESS(x):\
 	((x >= SPBA0_BASE_ADDR) && (x < (SPBA0_BASE_ADDR + SPBA0_SIZE))) ? SPBA0_IO_ADDRESS(x):\
 	((x >= AIPS2_BASE_ADDR) && (x < (AIPS2_BASE_ADDR + AIPS2_SIZE))) ? AIPS2_IO_ADDRESS(x):\
@@ -216,9 +295,6 @@
 
 #define IRAM_IO_ADDRESS(x)  \
 	(((x) - IRAM_BASE_ADDR) + IRAM_BASE_ADDR_VIRT)
-
-#define L2CC_IO_ADDRESS(x)  \
-	(((x) - L2CC_BASE_ADDR) + L2CC_BASE_ADDR_VIRT)
 
 #define AIPS1_IO_ADDRESS(x)  \
 	(((x) - AIPS1_BASE_ADDR) + AIPS1_BASE_ADDR_VIRT)
@@ -244,8 +320,47 @@
 #define PCMCIA_IO_ADDRESS(x) \
 	(((x) - X_MEMC_BASE_ADDR) + X_MEMC_BASE_ADDR_VIRT)
 
-/* Start of physical RAM - On many MX31 platforms, this is the first SDRAM bank (CSD0) */
-#define PHYS_OFFSET             CSD0_BASE_ADDR
+/*
+ * DMA request assignments
+ */
+#define DMA_REQ_ECT        31
+#define DMA_REQ_NFC        30
+#define DMA_REQ_SSI1_TX1   29
+#define DMA_REQ_SSI1_RX1   28
+#define DMA_REQ_SSI1_TX2   27
+#define DMA_REQ_SSI1_RX2   26
+#define DMA_REQ_SSI2_TX1   25
+#define DMA_REQ_SSI2_RX1   24
+#define DMA_REQ_SSI2_TX2   23
+#define DMA_REQ_SSI2_RX2   22
+#define DMA_REQ_SDHC2      21
+#define DMA_REQ_SDHC1      20
+#define DMA_REQ_UART1_TX   19
+#define DMA_REQ_UART1_RX   18
+#define DMA_REQ_FIRI_TX    17
+#define DMA_REQ_FIRI_RX    16
+#define DMA_REQ_UART2_TX   17
+#define DMA_REQ_UART2_RX   16
+#define DMA_REQ_EXTREQ1    15
+#define DMA_REQ_EXTREQ2    14
+#define DMA_REQ_UART4_TX   13
+#define DMA_REQ_UART4_RX   12
+#define DMA_REQ_CSPI3_TX   11
+#define DMA_REQ_CSPI3_RX   10
+#define DMA_REQ_UART5_TX   11
+#define DMA_REQ_UART5_RX   10
+#define DMA_REQ_CSPI1_TX   9
+#define DMA_REQ_CSPI1_RX   8
+#define DMA_REQ_UART3_TX   9
+#define DMA_REQ_UART3_RX   8
+#define DMA_REQ_CSPI2_TX   7
+#define DMA_REQ_CSPI2_RX   6
+#define DMA_REQ_SIM        5
+#define DMA_REQ_ATA_RX     4
+#define DMA_REQ_ATA_TX     3
+#define DMA_REQ_ATA_TX_END 2
+#define DMA_REQ_CCM        1
+#define DMA_REQ_EXTREQ0    0
 
 /*
  * Interrupt numbers
@@ -255,7 +370,7 @@
 #define MXC_INT_CS8900A		2
 #define MXC_INT_I2C3		3
 #define MXC_INT_I2C2		4
-#define MXC_INT_MPEG4_ENCODER	5
+#define MXC_INT_MPEG4_ENC	5
 #define MXC_INT_RTIC		6
 #define MXC_INT_FIRI		7
 #define MXC_INT_MMC_SDHC2	8
@@ -267,12 +382,13 @@
 #define MXC_INT_CSPI1		14
 #define MXC_INT_ATA		15
 #define MXC_INT_MBX		16
+#define MXC_INT_VPU		MXC_INT_MBX
 #define MXC_INT_CSPI3		17
 #define MXC_INT_UART3		18
 #define MXC_INT_IIM		19
 #define MXC_INT_SIM2		20
 #define MXC_INT_SIM1		21
-#define MXC_INT_RNGA		22
+#define MXC_INT_RNG		22
 #define MXC_INT_EVTMON		23
 #define MXC_INT_KPP		24
 #define MXC_INT_RTC		25
@@ -281,7 +397,7 @@
 #define MXC_INT_EPIT1		28
 #define MXC_INT_GPT		29
 #define MXC_INT_RESV30		30
-#define MXC_INT_RESV31		31
+#define MXC_INT_DVFS		31
 #define MXC_INT_UART2		32
 #define MXC_INT_NANDFC		33
 #define MXC_INT_SDMA		34
@@ -318,10 +434,11 @@
 #define MXC_MAX_INT_LINES	64
 
 #define MXC_GPIO_INT_BASE	MXC_MAX_INT_LINES
-#define MXC_MAX_GPIO_LINES      (GPIO_NUM_PIN * GPIO_PORT_NUM)
-#define MXC_MAX_VIRTUAL_INTS	16
 
-#define NR_IRQS (MXC_MAX_INT_LINES + MXC_MAX_GPIO_LINES + MXC_MAX_VIRTUAL_INTS)
+/*!
+ * Interrupt Number for ARM11 PMU
+ */
+#define ARM11_PMU_IRQ		MXC_INT_EVTMON
 
 /*!
  * Number of GPIO port as defined in the IC Spec
@@ -332,54 +449,12 @@
  */
 #define GPIO_NUM_PIN		32
 
-#define PROD_SIGNATURE		0x1	/* For MX31 */
-
-/* silicon revisions specific to i.MX31 */
-#define CHIP_REV_1_0		0x10
-#define CHIP_REV_1_1		0x11
-#define CHIP_REV_1_2		0x12
-#define CHIP_REV_1_3		0x13
-#define CHIP_REV_2_0		0x20
-#define CHIP_REV_2_1		0x21
-#define CHIP_REV_2_2		0x22
-#define CHIP_REV_2_3		0x23
-#define CHIP_REV_3_0		0x30
-#define CHIP_REV_3_1		0x31
-#define CHIP_REV_3_2		0x32
-
-#define SYSTEM_REV_MIN		CHIP_REV_1_0
-#define SYSTEM_REV_NUM		3
-
-/* gpio and gpio based interrupt handling */
-#define GPIO_DR		 	0x00
-#define GPIO_GDIR	 	0x04
-#define GPIO_PSR	 	0x08
-#define GPIO_ICR1	 	0x0C
-#define GPIO_ICR2	 	0x10
-#define GPIO_IMR	 	0x14
-#define GPIO_ISR	 	0x18
-#define GPIO_INT_LOW_LEV	0x0
-#define GPIO_INT_HIGH_LEV	0x1
-#define GPIO_INT_RISE_EDGE	0x2
-#define GPIO_INT_FALL_EDGE	0x3
-#define GPIO_INT_NONE		0x4
-
-/* Mandatory defines used globally */
-
-/* this CPU supports up to 96 GPIOs */
-#define ARCH_NR_GPIOS		96
-
-#if !defined(__ASSEMBLY__) && !defined(__MXC_BOOT_UNCOMPRESS)
-
-/* this is a i.MX31 CPU */
-#define cpu_is_mx31()		(1)
-
-extern unsigned int system_rev;
-
-static inline int mx31_revision(void)
-{
-	return system_rev;
-}
-#endif
+/*!
+ * NFMS bit in RCSR register for pagesize of nandflash
+ */
+#define NFMS (*((volatile u32 *)IO_ADDRESS(CCM_BASE_ADDR+0xc)))
+#define NFMS_BIT 30
+#define NFMS_NF_DWIDTH 		31
+#define NFMS_NF_PG_SZ 		30
 
 #endif /*  __ASM_ARCH_MXC_MX31_H__ */

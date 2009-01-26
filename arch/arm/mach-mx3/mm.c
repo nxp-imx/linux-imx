@@ -22,18 +22,10 @@
 
 #include <linux/mm.h>
 #include <linux/init.h>
-#include <mach/hardware.h>
 #include <asm/pgtable.h>
 #include <asm/mach/map.h>
 #include <mach/common.h>
-
-/*!
- * @file mm.c
- *
- * @brief This file creates static virtual to physical mappings, common to all MX3 boards.
- *
- * @ingroup Memory
- */
+#include <mach/hardware.h>
 
 /*!
  * This table defines static virtual address mappings for I/O regions.
@@ -41,16 +33,40 @@
  */
 static struct map_desc mxc_io_desc[] __initdata = {
 	{
-		.virtual	= X_MEMC_BASE_ADDR_VIRT,
-		.pfn		= __phys_to_pfn(X_MEMC_BASE_ADDR),
-		.length		= X_MEMC_SIZE,
-		.type		= MT_DEVICE
-	}, {
-		.virtual	= AVIC_BASE_ADDR_VIRT,
-		.pfn		= __phys_to_pfn(AVIC_BASE_ADDR),
-		.length		= AVIC_SIZE,
-		.type		= MT_DEVICE_NONSHARED
-	},
+	 .virtual = IRAM_BASE_ADDR_VIRT & 0xFFF00000,
+	 .pfn = __phys_to_pfn(IRAM_BASE_ADDR & 0xFFF00000),
+	 .length = SZ_1M,
+	 .type = MT_DEVICE_NONSHARED},
+	{
+	 .virtual = X_MEMC_BASE_ADDR_VIRT,
+	 .pfn = __phys_to_pfn(X_MEMC_BASE_ADDR),
+	 .length = X_MEMC_SIZE,
+	 .type = MT_DEVICE},
+	{
+	 .virtual = AVIC_BASE_ADDR_VIRT,
+	 .pfn = __phys_to_pfn(AVIC_BASE_ADDR),
+	 .length = AVIC_SIZE,
+	 .type = MT_DEVICE_NONSHARED},
+	{
+	 .virtual = AIPS1_BASE_ADDR_VIRT,
+	 .pfn = __phys_to_pfn(AIPS1_BASE_ADDR),
+	 .length = AIPS1_SIZE,
+	 .type = MT_DEVICE_NONSHARED},
+	{
+	 .virtual = SPBA0_BASE_ADDR_VIRT,
+	 .pfn = __phys_to_pfn(SPBA0_BASE_ADDR),
+	 .length = SPBA0_SIZE,
+	 .type = MT_DEVICE_NONSHARED},
+	{
+	 .virtual = AIPS2_BASE_ADDR_VIRT,
+	 .pfn = __phys_to_pfn(AIPS2_BASE_ADDR),
+	 .length = AIPS2_SIZE,
+	 .type = MT_DEVICE_NONSHARED},
+	{
+	 .virtual = CS4_BASE_ADDR_VIRT,
+	 .pfn = __phys_to_pfn(CS4_BASE_ADDR),
+	 .length = CS4_SIZE,
+	 .type = MT_DEVICE},
 };
 
 /*!

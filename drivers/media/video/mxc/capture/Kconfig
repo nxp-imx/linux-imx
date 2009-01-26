@@ -1,0 +1,111 @@
+if VIDEO_MXC_CAMERA
+
+menu "MXC Camera/V4L2 PRP Features support"
+config VIDEO_MXC_IPU_CAMERA
+	bool
+	depends on VIDEO_MXC_CAMERA && MXC_IPU
+	default y
+
+config VIDEO_MXC_EMMA_CAMERA
+	tristate "MX27 eMMA support"
+	depends on VIDEO_MXC_CAMERA && MXC_EMMA && FB_MXC_SYNC_PANEL
+	select VIDEO_MXC_OPL
+	default y
+
+config VIDEO_MXC_CSI_DMA
+	bool "CSI-DMA Still Image Capture support"
+	depends on VIDEO_MXC_EMMA_CAMERA
+	default n
+	---help---
+	  Use CSI-DMA method instead of CSI-PrP link to capture still image. This allows
+	  to use less physical contiguous memory to capture big resolution still image. But
+	  with this method the CSC (Color Space Conversion) and resize are not supported.
+	  If unsure, say N.
+
+choice
+	prompt "Select Camera/TV Decoder"
+	default MXC_CAMERA_OV3640
+	depends on VIDEO_MXC_CAMERA
+
+config MXC_CAMERA_MC521DA
+	tristate "Magnachip mc521da camera support"
+	select I2C_MXC
+	depends on VIDEO_MXC_EMMA_CAMERA
+	---help---
+	  If you plan to use the mc521da Camera with your MXC system, say Y here.
+
+config MXC_EMMA_CAMERA_MICRON111
+	tristate "Micron mt9v111 camera support with eMMA"
+	select I2C_MXC
+	depends on VIDEO_MXC_EMMA_CAMERA
+	---help---
+	  If you plan to use the mt9v111 Camera with your MXC system, say Y here.
+
+config MXC_CAMERA_OV2640_EMMA
+	tristate "OmniVision ov2640 camera support with eMMA"
+	depends on VIDEO_MXC_EMMA_CAMERA
+	---help---
+	  If you plan to use the ov2640 Camera with your MXC system, say Y here.
+
+config MXC_CAMERA_MICRON111
+	tristate "Micron mt9v111 camera support"
+	select I2C_MXC
+	depends on ! VIDEO_MXC_EMMA_CAMERA
+	---help---
+	  If you plan to use the mt9v111 Camera with your MXC system, say Y here.
+
+config MXC_CAMERA_OV2640
+	tristate "OmniVision ov2640 camera support"
+	depends on !VIDEO_MXC_EMMA_CAMERA
+	---help---
+	  If you plan to use the ov2640 Camera with your MXC system, say Y here.
+
+config MXC_CAMERA_OV3640
+	tristate "OmniVision ov3640 camera support"
+	depends on !VIDEO_MXC_EMMA_CAMERA
+	---help---
+	  If you plan to use the ov3640 Camera with your MXC system, say Y here.
+
+config MXC_TVIN_ADV7180
+	tristate "Analog Device adv7180 TV Decoder Input support"
+	depends on MACH_MX35_3DS
+	---help---
+	  If you plan to use the adv7180 video decoder with your MXC system, say Y here.
+
+endchoice
+
+config MXC_IPU_PRP_VF_SDC
+	tristate "Pre-Processor VF SDC library"
+	depends on VIDEO_MXC_IPU_CAMERA && FB_MXC_SYNC_PANEL
+	default y
+	---help---
+	  Use case PRP_VF_SDC:
+		Preprocessing image from smart sensor for viewfinder and
+		displaying it on synchronous display with SDC use case.
+		If SDC BG is selected, Rotation will not be supported.
+		CSI -> IC (PRP VF) -> MEM
+		MEM -> IC (ROT) -> MEM
+		MEM -> SDC (FG/BG)
+
+config MXC_IPU_PRP_VF_ADC
+	tristate "Pre-Processor VF ADC library"
+	depends on VIDEO_MXC_IPU_CAMERA && FB_MXC_ASYNC_PANEL
+	default y
+	---help---
+	  Use case PRP_VF_ADC:
+		Preprocessing image from smart sensor for viewfinder and
+		displaying it on asynchronous display.
+		CSI -> IC (PRP VF) -> ADC2
+
+config MXC_IPU_PRP_ENC
+	tristate "Pre-processor Encoder library"
+	depends on VIDEO_MXC_IPU_CAMERA
+	default y
+	---help---
+	  Use case PRP_ENC:
+		Preprocessing image from smart sensor for encoder.
+		CSI -> IC (PRP ENC) -> MEM
+
+endmenu
+
+endif

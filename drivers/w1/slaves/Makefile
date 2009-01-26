@@ -7,3 +7,5 @@ obj-$(CONFIG_W1_SLAVE_SMEM)	+= w1_smem.o
 obj-$(CONFIG_W1_SLAVE_DS2433)	+= w1_ds2433.o
 obj-$(CONFIG_W1_SLAVE_DS2760)	+= w1_ds2760.o
 obj-$(CONFIG_W1_SLAVE_BQ27000)	+= w1_bq27000.o
+obj-$(CONFIG_W1_SLAVE_DS2751)	+= w1_ds2751.o
+obj-$(CONFIG_W1_SLAVE_DS2438)	+= w1_ds2438.o

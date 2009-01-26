@@ -1,0 +1,85 @@
+menu "MX51 Options"
+	depends on ARCH_MX51
+
+config MX51_OPTIONS
+	bool
+	default y
+	select CPU_V7
+	select USB_ARCH_HAS_EHCI
+	select MXC_TZIC
+
+config MACH_MX51_3DS
+	bool "Support MX51 3-Stack platforms"
+	default y
+	help
+	  Include support for MX51 3-Stack platform. This includes specific
+	  configurations for the board and its peripherals.
+
+config MXC_SDMA_API
+        bool "Use SDMA API"
+        default y
+        help
+           This selects the Freescale MXC SDMA API.
+           If unsure, say N.
+
+config ARCH_MXC_HAS_NFC_V3
+        bool "MXC NFC Hardware Version 3"
+        depends on ARCH_MX51
+        default y
+        help
+           This selects the Freescale MXC Nand Flash Controller Hardware Version 3
+           If unsure, say N.
+
+config ARCH_MXC_HAS_NFC_V3_2
+        bool "MXC NFC Hardware Version 3.2"
+        depends on ARCH_MXC_HAS_NFC_V3
+        default y
+        help
+           This selects the Freescale MXC Nand Flash Controller Hardware Version 3.1
+           If unsure, say N.
+
+menu "SDMA options"
+        depends on MXC_SDMA_API
+
+config SDMA_IRAM
+        bool "Use Internal RAM for SDMA transfer"
+        default n
+	help
+           Support Internal RAM as SDMA buffer or control structures
+
+config SDMA_IRAM_SIZE
+        hex "Reserved bytes of IRAM for SDMA (0x800-0x1000)"
+        range 0x800 0x1000
+        depends on SDMA_IRAM
+        default "0x1000"
+        help
+           Set the size of IRAM for SDMA. It must be a multiple of 512bytes.
+endmenu
+
+menu "Device options"
+
+config I2C_MXC_SELECT1
+	bool "Enable I2C1 module"
+	default y
+	depends on I2C_MXC
+	help
+	  Enable MX51 I2C1 module.
+
+config I2C_MXC_SELECT2
+	bool "Enable I2C2 module"
+	default n
+	depends on I2C_MXC
+	help
+	  Enable MX51 I2C2 module.
+
+config I2C_MXC_SELECT3
+	bool "Enable I2C3 module"
+	default n
+	depends on I2C_MXC
+	help
+	  Enable MX51 I2C3 module.
+
+endmenu
+
+endmenu
+

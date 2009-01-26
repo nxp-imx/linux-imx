@@ -1,0 +1,19 @@
+#
+# PMIC Modules configuration
+#
+
+config MXC_PMIC_MC9SDZ60
+	tristate "MC9sDZ60 PMIC"
+	depends on ARCH_MXC && I2C
+	  ---help---
+	  This is the MXC MC9sDZ60(MCU) PMIC support.
+
+config MXC_MC9SDZ60_RTC
+	tristate "MC9SDZ60 Real Time Clock (RTC) support"
+	depends on MXC_PMIC_MC9SDZ60
+	---help---
+	This is the MC9SDZ60 RTC module driver. This module provides kernel API
+	for RTC part of MC9SDZ60.
+	If you want MC9SDZ60 RTC support, you should say Y here
+	
+

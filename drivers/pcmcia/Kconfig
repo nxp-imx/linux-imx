@@ -275,6 +275,14 @@ config AT91_CF
 	  Say Y here to support the CompactFlash controller on AT91 chips.
 	  Or choose M to compile the driver as a module named "at91_cf".
 
+config PCMCIA_MX31ADS
+	tristate "MX31ADS PCMCIA support"
+	depends on ARM && MACH_MX31ADS && PCMCIA
+	help
+	  Say Y here to include support for the Freescale i.MX31 PCMCIA controller.
+
+	  This driver is also available as a module called mx31ads_pcmcia.
+
 config ELECTRA_CF
 	tristate "Electra CompactFlash Controller"
 	depends on PCMCIA && PPC_PASEMI

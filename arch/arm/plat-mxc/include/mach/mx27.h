@@ -24,6 +24,35 @@
 #error "Do not include directly."
 #endif
 
+/*!
+ * defines the OS clock tick rate
+ */
+#define CLOCK_TICK_RATE         13300000
+
+/*!
+ * Register an interrupt handler for the SMN as well as the SCC.  In some
+ * implementations, the SMN is not connected at all, and in others, it is
+ * on the same interrupt line as the SCM. Comment this line out accordingly
+ */
+#define USE_SMN_INTERRUPT
+
+/*!
+ * UART Chip level Configuration that a user may not have to edit. These
+ * configuration vary depending on how the UART module is integrated with
+ * the ARM core
+ */
+#define MXC_UART_NR 6
+/*!
+ * This option is used to set or clear the RXDMUXSEL bit in control reg 3.
+ * Certain platforms need this bit to be set in order to receive Irda data.
+ */
+#define MXC_UART_IR_RXDMUX      0x0004
+/*!
+ * This option is used to set or clear the RXDMUXSEL bit in control reg 3.
+ * Certain platforms need this bit to be set in order to receive UART data.
+ */
+#define MXC_UART_RXDMUX         0x0004
+
 /* IRAM */
 #define IRAM_BASE_ADDR          0xFFFF4C00	/* internal ram */
 
@@ -33,7 +62,7 @@
 #define AIPI_SIZE               SZ_1M
 
 #define DMA_BASE_ADDR           (AIPI_BASE_ADDR + 0x01000)
-#define WDOG_BASE_ADDR          (AIPI_BASE_ADDR + 0x02000)
+#define WDOG1_BASE_ADDR         (AIPI_BASE_ADDR + 0x02000)
 #define GPT1_BASE_ADDR          (AIPI_BASE_ADDR + 0x03000)
 #define GPT2_BASE_ADDR          (AIPI_BASE_ADDR + 0x04000)
 #define GPT3_BASE_ADDR          (AIPI_BASE_ADDR + 0x05000)
@@ -118,6 +147,8 @@
 #define CS2_BASE_ADDR           0xD0000000
 #define CS3_BASE_ADDR           0xD2000000
 #define CS4_BASE_ADDR           0xD4000000
+#define CS4_BASE_ADDR_VIRT      0xF4300000
+#define CS4_SIZE                SZ_1M
 #define CS5_BASE_ADDR           0xD6000000
 #define PCMCIA_MEM_BASE_ADDR    0xDC000000
 
@@ -154,6 +185,11 @@
 #define PCMCIA_IO_ADDRESS(x) \
 	(((x) - X_MEMC_BASE_ADDR) + X_MEMC_BASE_ADDR_VIRT)
 
+#define IS_MEM_DEVICE_NONSHARED(x)		0
+
+/*
+ *  MX27 ADS Interrupt numbers
+ */
 /* fixed interrput numbers */
 #define MXC_INT_CCM		63
 #define MXC_INT_IIM		62
@@ -195,7 +231,7 @@
 #define MXC_INT_GPT1		26
 #define MXC_INT_GPT2		25
 #define MXC_INT_GPT3		24
-#define MXC_INT_GPT		INT_GPT1
+#define MXC_INT_GPT		MXC_INT_GPT1
 #define MXC_INT_PWM		23
 #define MXC_INT_RTC		22
 #define MXC_INT_KPP		21
@@ -219,6 +255,21 @@
 #define MXC_INT_GPT5		3
 #define MXC_INT_GPT6		2
 #define MXC_INT_I2C2		1
+
+#define MXC_MAX_INT_LINES       64
+#define MXC_MAX_EXT_LINES       0
+
+#define MXC_MUX_GPIO_INTERRUPTS 1
+#define MXC_GPIO_INT_BASE	(MXC_MAX_INT_LINES)
+
+/*!
+ * Number of GPIO port as defined in the IC Spec
+ */
+#define GPIO_PORT_NUM           6
+/*!
+ * Number of GPIO pins per port
+ */
+#define GPIO_NUM_PIN            32
 
 /* fixed DMA request numbers */
 #define DMA_REQ_NFC             37
@@ -258,44 +309,19 @@
 #define DMA_REQ_CSPI3_TX        2
 #define DMA_REQ_CSPI3_RX        1
 
-/* silicon revisions specific to i.MX27 */
-#define CHIP_REV_1_0		0x00
-#define CHIP_REV_2_0		0x01
+#define MXC_TIMER_GPT1          1
+#define MXC_TIMER_GPT2          2
+#define MXC_TIMER_GPT3          3
+#define MXC_TIMER_GPT4          4
+#define MXC_TIMER_GPT5          5
+#define MXC_TIMER_GPT6          6
 
-#ifndef __ASSEMBLY__
-extern int mx27_revision(void);
-#endif
+/*!
+ * NFMS bit in FMCR register for pagesize of nandflash
+ */
+#define NFMS (*((volatile u32 *)IO_ADDRESS(SYSCTRL_BASE_ADDR+0x14)))
 
-/* gpio and gpio based interrupt handling */
-#define GPIO_DR		 	0x1C
-#define GPIO_GDIR	 	0x00
-#define GPIO_PSR	 	0x24
-#define GPIO_ICR1	 	0x28
-#define GPIO_ICR2	 	0x2C
-#define GPIO_IMR	 	0x30
-#define GPIO_ISR	 	0x34
-#define GPIO_INT_LOW_LEV	0x3
-#define GPIO_INT_HIGH_LEV	0x2
-#define GPIO_INT_RISE_EDGE 	0x0
-#define GPIO_INT_FALL_EDGE	0x1
-#define GPIO_INT_NONE		0x4
-
-/* Mandatory defines used globally */
-
-/* this is an i.MX27 CPU */
-#define cpu_is_mx27()		(1)
-
-/* this CPU supports up to 192 GPIOs (don't forget the baseboard!) */
-#define ARCH_NR_GPIOS		(192 + 16)
-
-/* OS clock tick rate */
-#define CLOCK_TICK_RATE         13300000
-
-/* Start of RAM */
-#define PHYS_OFFSET		SDRAM_BASE_ADDR
-
-/* max interrupt lines count */
-#define NR_IRQS			256
+#define NFMS_BIT 5
 
 /* count of internal interrupt sources */
 #define MXC_MAX_INT_LINES	64

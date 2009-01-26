@@ -970,13 +970,25 @@ config SMC911X
 	help
 	  This is a driver for SMSC's LAN911x series of Ethernet chipsets
 	  including the new LAN9115, LAN9116, LAN9117, and LAN9118.
-	  Say Y if you want it compiled into the kernel, 
+	  Say Y if you want it compiled into the kernel,
 	  and read the Ethernet-HOWTO, available from
 	  <http://www.linuxdoc.org/docs.html#howto>.
 
-	  This driver is also available as a module. The module will be 
-	  called smc911x.  If you want to compile it as a module, say M 
+	  This driver is also available as a module. The module will be
+	  called smc911x.  If you want to compile it as a module, say M
 	  here and read <file:Documentation/kbuild/modules.txt>
+
+config SMSC911X
+	tristate "SMSC LAN911x/LAN921x families embedded ethernet support"
+	depends on NET_ETHERNET
+	select CRC32
+	select MII
+	---help---
+	  Say Y here if you want support for SMSC LAN911x and LAN921x families
+	  of ethernet controllers.
+	  To compile this driver as a module, choose M here and read
+	  <file:Documentation/networking/net-modules.txt>. The module
+	  will be called smsc911x.
 
 config NET_VENDOR_RACAL
 	bool "Racal-Interlan (Micom) NI cards"
@@ -1393,7 +1405,7 @@ config FORCEDETH_NAPI
 config CS89x0
 	tristate "CS89x0 support"
 	depends on NET_ETHERNET && (ISA || EISA || MACH_IXDP2351 \
-		|| ARCH_IXDP2X01 || ARCH_PNX010X || MACH_MX31ADS)
+		|| ARCH_IXDP2X01 || ARCH_PNX010X || ARCH_MXC)
 	---help---
 	  Support for CS89x0 chipset based Ethernet cards. If you have a
 	  network (Ethernet) card of this type, say Y and read the
@@ -1407,7 +1419,7 @@ config CS89x0
 config CS89x0_NONISA_IRQ
 	def_bool y
 	depends on CS89x0 != n
-	depends on MACH_IXDP2351 || ARCH_IXDP2X01 || ARCH_PNX010X || MACH_MX31ADS
+	depends on MACH_IXDP2351 || ARCH_IXDP2X01 || ARCH_PNX010X || ARCH_MXC
 
 config TC35815
 	tristate "TOSHIBA TC35815 Ethernet support"
@@ -1433,9 +1445,9 @@ config E100
 	select MII
 	---help---
 	  This driver supports Intel(R) PRO/100 family of adapters.
-	  To verify that your adapter is supported, find the board ID number 
-	  on the adapter. Look for a label that has a barcode and a number 
-	  in the format 123456-001 (six digits hyphen three digits). 
+	  To verify that your adapter is supported, find the board ID number
+	  on the adapter. Look for a label that has a barcode and a number
+	  in the format 123456-001 (six digits hyphen three digits).
 
 	  Use the above information and the Adapter & Driver ID Guide at:
 
@@ -1447,7 +1459,7 @@ config E100
 
 	  <http://appsr.intel.com/scripts-df/support_intel.asp>
 
-	  More specific information on configuring the driver is in 
+	  More specific information on configuring the driver is in
 	  <file:Documentation/networking/e100.txt>.
 
 	  To compile this driver as a module, choose M here. The module
@@ -1810,11 +1822,11 @@ config 68360_ENET
 	  the Motorola 68360 processor.
 
 config FEC
-	bool "FEC ethernet controller (of ColdFire CPUs)"
-	depends on M523x || M527x || M5272 || M528x || M520x
+	tristate "FEC ethernet controller"
+	depends on M523x || M527x || M5272 || M528x || M520x || ARCH_MX27 || ARCH_MX37 || ARCH_MX35 || ARCH_MX51 || ARCH_MX25
 	help
 	  Say Y here if you want to use the built-in 10/100 Fast ethernet
-	  controller on some Motorola ColdFire processors.
+	  controller on some Motorola/Freescale processors.
 
 config FEC2
 	bool "Second FEC ethernet controller (on some ColdFire CPUs)"
@@ -1935,7 +1947,7 @@ config E1000
 	depends on PCI
 	---help---
 	  This driver supports Intel(R) PRO/1000 gigabit ethernet family of
-	  adapters.  For more information on how to identify your adapter, go 
+	  adapters.  For more information on how to identify your adapter, go
 	  to the Adapter & Driver ID Guide at:
 
 	  <http://support.intel.com/support/network/adapter/pro100/21397.htm>
@@ -1945,7 +1957,7 @@ config E1000
 
 	  <http://support.intel.com>
 
-	  More specific information on configuring the driver is in 
+	  More specific information on configuring the driver is in
 	  <file:Documentation/networking/e1000.txt>.
 
 	  To compile this driver as a module, choose M here. The module
@@ -2122,7 +2134,7 @@ config SKGE
 	  and related Gigabit Ethernet adapters. It is a new smaller driver
 	  with better performance and more complete ethtool support.
 
-	  It does not support the link failover and network management 
+	  It does not support the link failover and network management
 	  features that "portable" vendor supplied sk98lin driver does.
 
 	  This driver supports adapters based on the original Yukon chipset:
@@ -2466,7 +2478,7 @@ config IXGB
 
 	  <http://support.intel.com>
 
-	  More specific information on configuring the driver is in 
+	  More specific information on configuring the driver is in
 	  <file:Documentation/networking/ixgb.txt>.
 
 	  To compile this driver as a module, choose M here. The module
@@ -2476,8 +2488,8 @@ config S2IO
 	tristate "S2IO 10Gbe XFrame NIC"
 	depends on PCI
 	---help---
-	  This driver supports the 10Gbe XFrame NIC of S2IO. 
-	  More specific information on configuring the driver is in 
+	  This driver supports the 10Gbe XFrame NIC of S2IO.
+	  More specific information on configuring the driver is in
 	  <file:Documentation/networking/s2io.txt>.
 
 config MYRI10GE
@@ -2897,9 +2909,9 @@ config PPPOE
 	  Support for PPP over Ethernet.
 
 	  This driver requires the latest version of pppd from the CVS
-	  repository at cvs.samba.org.  Alternatively, see the 
+	  repository at cvs.samba.org.  Alternatively, see the
 	  RoaringPenguin package (<http://www.roaringpenguin.com/pppoe>)
-	  which contains instruction on how to use this driver (under 
+	  which contains instruction on how to use this driver (under
 	  the heading "Kernel mode PPPoE").
 
 config PPPOATM

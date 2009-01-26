@@ -16,7 +16,11 @@ struct platform_device;
 extern void mxc_map_io(void);
 extern void mxc_init_irq(void);
 extern void mxc_timer_init(const char *clk_timer);
-extern int mxc_clocks_init(unsigned long fref);
+extern int __init mxc_clocks_init(unsigned long ckil, unsigned long osc, unsigned long ckih1, unsigned long ckih2);
+extern int mxc_init_devices(void);
+extern void mxc_cpu_init(void) __init;
+extern void mxc_cpu_common_init(void);
+extern void __init early_console_setup(char *);
 extern int mxc_register_gpios(void);
 extern int mxc_register_device(struct platform_device *pdev, void *data);
 

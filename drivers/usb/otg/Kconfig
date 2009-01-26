@@ -1,0 +1,5 @@
+config TRANSCEIVER_MXC_OTG
+	tristate "usb otg pin detect support"
+	depends on (MC13783_MXC || ISP1504_MXC) && USB_GADGET && USB_EHCI_HCD && USB_OTG
+	help
+	  Support for USB OTG PIN detect on MXC platforms.

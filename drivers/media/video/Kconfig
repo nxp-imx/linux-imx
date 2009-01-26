@@ -531,6 +531,33 @@ config VIDEO_W9966
 	  Check out <file:Documentation/video4linux/w9966.txt> for more
 	  information.
 
+config VIDEO_MXC_CAMERA
+	tristate "MXC Video For Linux Camera"
+	depends on VIDEO_DEV && ARCH_MXC
+	default y
+	---help---
+	  This is the video4linux2 capture driver based on MXC IPU/eMMA module.
+
+source "drivers/media/video/mxc/capture/Kconfig"
+
+config VIDEO_MXC_OUTPUT
+	tristate "MXC Video For Linux Video Output"
+	depends on VIDEO_DEV && ARCH_MXC
+	default y
+	---help---
+	  This is the video4linux2 output driver based on MXC IPU/eMMA module.
+
+source "drivers/media/video/mxc/output/Kconfig"
+
+config VIDEO_MXC_OPL
+	tristate
+	depends on VIDEO_DEV && ARCH_MXC
+	default n
+	---help---
+	  This is the ARM9-optimized OPL (Open Primitives Library) software
+	  rotation/mirroring implementation. It may be used by eMMA video
+	  capture or output device.
+
 config VIDEO_CPIA
 	tristate "CPiA Video For Linux"
 	depends on VIDEO_V4L1

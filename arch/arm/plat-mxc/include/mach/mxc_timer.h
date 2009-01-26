@@ -65,9 +65,8 @@ static void gpt_irq_acknowledge(void)
 {
 	__raw_writel(0, TIMER_BASE + MXC_TSTAT);
 }
-#endif /* CONFIG_ARCH_IMX */
 
-#ifdef CONFIG_ARCH_MX2
+#elif defined(CONFIG_ARCH_MX2)
 #define TIMER_BASE		IO_ADDRESS(GPT1_BASE_ADDR)
 #define TIMER_INTERRUPT		MXC_INT_GPT1
 
@@ -103,15 +102,15 @@ static void gpt_irq_acknowledge(void)
 {
 	__raw_writel(TSTAT_CAPT | TSTAT_COMP, TIMER_BASE + MXC_TSTAT);
 }
-#endif /* CONFIG_ARCH_MX2 */
 
-#ifdef CONFIG_ARCH_MX3
+#else
 #define TIMER_BASE		IO_ADDRESS(GPT1_BASE_ADDR)
 #define TIMER_INTERRUPT		MXC_INT_GPT
 
 #define MXC_TCTL   0x00
-#define TCTL_VAL		(TCTL_CLK_IPG | TCTL_WAITEN)
+#define TCTL_VAL		(TCTL_CLK_HIGH_FREQ | TCTL_WAITEN)
 #define TCTL_CLK_IPG		(1<<6)
+#define TCTL_CLK_HIGH_FREQ	(2<<6)
 #define TCTL_FRR		(1<<9)
 #define TCTL_WAITEN		(1<<3)
 

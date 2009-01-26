@@ -1,0 +1,24 @@
+#
+# MPEG4 Encoder kernel module  configuration
+#
+
+menu "MXC MPEG4 Encoder Kernel module support"
+
+config MXC_HMP4E
+	tristate "MPEG4 Encoder support"
+	depends on ARCH_MXC
+	depends on !ARCH_MX27
+	default y
+	---help---
+	  Say Y to get the MPEG4 Encoder kernel module available on
+	  MXC platform.
+
+config MXC_HMP4E_DEBUG
+	bool "MXC MPEG4 Debug messages"
+	depends on MXC_HMP4E != n
+	default n
+	---help---
+	  Say Y here if you need the Encoder driver to print debug messages.
+	  This is an option for developers, most people should say N here.
+
+endmenu

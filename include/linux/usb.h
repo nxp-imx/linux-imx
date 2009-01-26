@@ -1349,6 +1349,9 @@ struct urb {
 	usb_complete_t complete;	/* (in) completion routine */
 	struct usb_iso_packet_descriptor iso_frame_desc[0];
 					/* (in) ISO ONLY */
+#ifdef CONFIG_USB_STATIC_IRAM
+	int use_iram;
+#endif
 };
 
 /* ----------------------------------------------------------------------- */

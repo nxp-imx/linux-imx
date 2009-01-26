@@ -1,0 +1,14 @@
+#
+# i.MX ADC devices
+#
+
+menu "i.MX ADC support"
+
+config IMX_ADC
+	tristate "i.MX ADC"
+	depends on ARCH_MXC
+	default n
+	help
+	   This selects the Freescale i.MX on-chip ADC driver.
+
+endmenu

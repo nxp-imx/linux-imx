@@ -418,6 +418,11 @@ config SGI_MBCS
          If you have an SGI Altix with an attached SABrick
          say Y or M here, otherwise say N.
 
+config FM_SI4702
+	tristate "SI4702 FM device driver"
+	depends on (MACH_MX31_3DS || MACH_MX35_3DS || MACH_MX37_3DS)
+	default n
+
 source "drivers/serial/Kconfig"
 
 config UNIX98_PTYS

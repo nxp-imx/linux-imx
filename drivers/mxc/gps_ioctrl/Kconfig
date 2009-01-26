@@ -1,0 +1,14 @@
+#
+# BROADCOM GPS configuration
+#
+
+menu "Broadcom GPS ioctrl support"
+
+config GPS_IOCTRL
+	tristate "GPS ioctrl support"
+	depends on MACH_MX31_3DS || MACH_MX35_3DS || MACH_MX37_3DS
+	default m
+	---help---
+	  Say Y to enable Broadcom GPS ioctrl on MXC platform.
+
+endmenu

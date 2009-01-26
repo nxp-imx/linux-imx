@@ -34,6 +34,8 @@ struct clk {
 	struct clk *parent;
 	/* Secondary clock to enable/disable with this clock */
 	struct clk *secondary;
+	/* Current clock rate */
+	unsigned long rate;
 	/* Reference count of clock enable/disable */
 	__s8 usecount;
 	/* Register bit position for clock's enable/disable control. */
@@ -41,8 +43,9 @@ struct clk {
 	/* Register address for clock's enable/disable control. */
 	void __iomem *enable_reg;
 	u32 flags;
-	/* get the current clock rate (always a fresh value) */
-	unsigned long (*get_rate) (struct clk *);
+	/* Function ptr to recalculate the clock's rate based on parent
+	   clock's rate */
+	void (*recalc) (struct clk *);
 	/* Function ptr to set the clock to a new rate. The rate must match a
 	   supported rate returned from round_rate. Leave blank if clock is not
 	   programmable */
@@ -62,6 +65,14 @@ struct clk {
 
 int clk_register(struct clk *clk);
 void clk_unregister(struct clk *clk);
+int clk_get_usecount(struct clk *clk);
+int clk_set_pll_dither(struct clk *clk, unsigned int pll_ppm);
 
+/* Clock flags */
+#define RATE_PROPAGATES		(1 << 0)	/* Program children too */
+#define ALWAYS_ENABLED		(1 << 1)	/* Clock cannot be disabled */
+#define RATE_FIXED		(1 << 2)	/* Fixed clock rate */
+#define CPU_FREQ_TRIG_UPDATE	(1 << 3)	/* CPUFREQ trig update */
+ 
 #endif /* __ASSEMBLY__ */
 #endif /* __ASM_ARCH_MXC_CLOCK_H__ */

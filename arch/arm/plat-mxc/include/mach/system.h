@@ -1,7 +1,7 @@
 /*
  *  Copyright (C) 1999 ARM Limited
  *  Copyright (C) 2000 Deep Blue Solutions Ltd
- *  Copyright 2004-2007 Freescale Semiconductor, Inc. All Rights Reserved.
+ *  Copyright 2004-2008 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -21,14 +21,17 @@
 #ifndef __ASM_ARCH_MXC_SYSTEM_H__
 #define __ASM_ARCH_MXC_SYSTEM_H__
 
-static inline void arch_idle(void)
-{
-	cpu_do_idle();
-}
+/*!
+ * This function puts the CPU into idle mode. It is called by default_idle()
+ * in process.c file.
+ */
+extern void arch_idle(void);
 
-static inline void arch_reset(char mode)
-{
-	cpu_reset(0);
-}
+/*
+ * This function resets the system. It is called by machine_restart().
+ *
+ * @param  mode         indicates different kinds of resets
+ */
+extern void arch_reset(char mode);
 
-#endif /* __ASM_ARCH_MXC_SYSTEM_H__ */
+#endif				/* __ASM_ARCH_MXC_SYSTEM_H__ */

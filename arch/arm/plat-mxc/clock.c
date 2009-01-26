@@ -4,7 +4,7 @@
  * Copyright (C) 2004 - 2005 Nokia corporation
  * Written by Tuukka Tikkanen <tuukka.tikkanen@elektrobit.com>
  * Modified for omap shared clock framework by Tony Lindgren <tony@atomide.com>
- * Copyright 2007 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2007-2009 Freescale Semiconductor, Inc. All Rights Reserved.
  * Copyright 2008 Juergen Beisert, kernel@pengutronix.de
  *
  * This program is free software; you can redistribute it and/or
@@ -25,6 +25,7 @@
 /* #define DEBUG */
 
 #include <linux/clk.h>
+#include <linux/cpufreq.h>
 #include <linux/err.h>
 #include <linux/errno.h>
 #include <linux/init.h>
@@ -42,6 +43,7 @@
 
 static LIST_HEAD(clocks);
 static DEFINE_MUTEX(clocks_mutex);
+static DEFINE_SPINLOCK(clockfw_lock);
 
 /*-------------------------------------------------------------------------
  * Standard clock functions defined in include/linux/clk.h
@@ -113,14 +115,16 @@ EXPORT_SYMBOL(clk_get);
 
 static void __clk_disable(struct clk *clk)
 {
-	if (clk == NULL || IS_ERR(clk))
+	if (clk == NULL || IS_ERR(clk) || !clk->usecount)
 		return;
 
-	__clk_disable(clk->parent);
-	__clk_disable(clk->secondary);
+	if (!(--clk->usecount)) {
+		if (clk->disable)
+			clk->disable(clk);
 
-	if (!(--clk->usecount) && clk->disable)
-		clk->disable(clk);
+		__clk_disable(clk->parent);
+		__clk_disable(clk->secondary);
+	}
 }
 
 static int __clk_enable(struct clk *clk)
@@ -128,12 +132,13 @@ static int __clk_enable(struct clk *clk)
 	if (clk == NULL || IS_ERR(clk))
 		return -EINVAL;
 
-	__clk_enable(clk->parent);
-	__clk_enable(clk->secondary);
+	if (clk->usecount++ == 0) {
+		__clk_enable(clk->parent);
+		__clk_enable(clk->secondary);
 
-	if (clk->usecount++ == 0 && clk->enable)
-		clk->enable(clk);
-
+		if (clk->enable)
+			clk->enable(clk);
+	}
 	return 0;
 }
 
@@ -142,15 +147,23 @@ static int __clk_enable(struct clk *clk)
  */
 int clk_enable(struct clk *clk)
 {
+	unsigned long flags;
 	int ret = 0;
 
 	if (clk == NULL || IS_ERR(clk))
 		return -EINVAL;
 
-	mutex_lock(&clocks_mutex);
-	ret = __clk_enable(clk);
-	mutex_unlock(&clocks_mutex);
+	spin_lock_irqsave(&clockfw_lock, flags);
 
+	ret = __clk_enable(clk);
+
+	spin_unlock_irqrestore(&clockfw_lock, flags);
+
+#if defined(CONFIG_CPU_FREQ)
+	if ((clk->flags & CPU_FREQ_TRIG_UPDATE)
+	    && (clk_get_usecount(clk) == 1))
+		cpufreq_update_policy(0);
+#endif
 	return ret;
 }
 EXPORT_SYMBOL(clk_enable);
@@ -161,14 +174,43 @@ EXPORT_SYMBOL(clk_enable);
  */
 void clk_disable(struct clk *clk)
 {
+	unsigned long flags;
+
 	if (clk == NULL || IS_ERR(clk))
 		return;
 
-	mutex_lock(&clocks_mutex);
+	spin_lock_irqsave(&clockfw_lock, flags);
+
 	__clk_disable(clk);
-	mutex_unlock(&clocks_mutex);
+
+	spin_unlock_irqrestore(&clockfw_lock, flags);
+
+#if defined(CONFIG_CPU_FREQ)
+	if ((clk->flags & CPU_FREQ_TRIG_UPDATE)
+	    && (clk_get_usecount(clk) == 0))
+		cpufreq_update_policy(0);
+#endif
 }
 EXPORT_SYMBOL(clk_disable);
+
+/*!
+ * @brief Function to get the usage count for the requested clock.
+ *
+ * This function returns the reference count for the clock.
+ *
+ * @param clk 	Handle to clock to disable.
+ *
+ * @return Returns the usage count for the requested clock.
+ */
+int clk_get_usecount(struct clk *clk)
+{
+	if (clk == NULL || IS_ERR(clk))
+		return 0;
+
+	return clk->usecount;
+}
+
+EXPORT_SYMBOL(clk_get_usecount);
 
 /* Retrieve the *current* clock rate. If the clock itself
  * does not provide a special calculation routine, ask
@@ -180,10 +222,7 @@ unsigned long clk_get_rate(struct clk *clk)
 	if (clk == NULL || IS_ERR(clk))
 		return 0UL;
 
-	if (clk->get_rate)
-		return clk->get_rate(clk);
-
-	return clk_get_rate(clk->parent);
+	return clk->rate;
 }
 EXPORT_SYMBOL(clk_get_rate);
 
@@ -208,19 +247,48 @@ long clk_round_rate(struct clk *clk, unsigned long rate)
 }
 EXPORT_SYMBOL(clk_round_rate);
 
+/* Propagate rate to children */
+void propagate_rate(struct clk *tclk)
+{
+	struct clk *clkp;
+
+	if (tclk == NULL || IS_ERR(tclk))
+		return;
+
+	pr_debug("mxc clock: finding children of %s-%d\n", tclk->name,
+		 tclk->id);
+	list_for_each_entry(clkp, &clocks, node) {
+		if (likely(clkp->parent != tclk))
+			continue;
+		pr_debug("mxc clock: %s-%d: recalculating rate: old = %lu, ",
+			 clkp->name, clkp->id, clkp->rate);
+		if (likely((u32) clkp->recalc))
+			clkp->recalc(clkp);
+		else
+			clkp->rate = tclk->rate;
+		pr_debug("new = %lu\n", clkp->rate);
+		propagate_rate(clkp);
+	}
+}
+
 /* Set the clock to the requested clock rate. The rate must
  * match a supported rate exactly based on what clk_round_rate returns
  */
 int clk_set_rate(struct clk *clk, unsigned long rate)
 {
+	unsigned long flags;
 	int ret = -EINVAL;
 
 	if (clk == NULL || IS_ERR(clk) || clk->set_rate == NULL || rate == 0)
 		return ret;
 
-	mutex_lock(&clocks_mutex);
+	spin_lock_irqsave(&clockfw_lock, flags);
+
 	ret = clk->set_rate(clk, rate);
-	mutex_unlock(&clocks_mutex);
+	if (unlikely((ret == 0) && (clk->flags & RATE_PROPAGATES)))
+		propagate_rate(clk);
+
+	spin_unlock_irqrestore(&clockfw_lock, flags);
 
 	return ret;
 }
@@ -229,17 +297,35 @@ EXPORT_SYMBOL(clk_set_rate);
 /* Set the clock's parent to another clock source */
 int clk_set_parent(struct clk *clk, struct clk *parent)
 {
+	unsigned long flags;
 	int ret = -EINVAL;
+	struct clk *prev_parent = clk->parent;
 
 	if (clk == NULL || IS_ERR(clk) || parent == NULL ||
 	    IS_ERR(parent) || clk->set_parent == NULL)
 		return ret;
 
-	mutex_lock(&clocks_mutex);
+	if (clk->usecount != 0) {
+		clk_enable(parent);
+	}
+
+	spin_lock_irqsave(&clockfw_lock, flags);
 	ret = clk->set_parent(clk, parent);
-	if (ret == 0)
+	if (ret == 0) {
 		clk->parent = parent;
-	mutex_unlock(&clocks_mutex);
+		if (clk->recalc) {
+			clk->recalc(clk);
+		} else {
+			clk->rate = parent->rate;
+		}
+		if (unlikely(clk->flags & RATE_PROPAGATES))
+			propagate_rate(clk);
+	}
+	spin_unlock_irqrestore(&clockfw_lock, flags);
+
+	if (clk->usecount != 0) {
+		clk_disable(prev_parent);
+	}
 
 	return ret;
 }

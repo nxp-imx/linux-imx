@@ -862,6 +862,10 @@ static void autoconfig_16550a(struct uart_8250_port *up)
 	 * Check for presence of the EFR when DLAB is set.
 	 * Only ST16C650V1 UARTs pass this test.
 	 */
+#ifndef CONFIG_ARCH_MXC
+	/* This test fails as EFR reads 0, but our uart requires LCR=0xBF
+	 *  to access EFR.
+	 */
 	serial_outp(up, UART_LCR, UART_LCR_DLAB);
 	if (serial_in(up, UART_EFR) == 0) {
 		serial_outp(up, UART_EFR, 0xA8);
@@ -875,6 +879,7 @@ static void autoconfig_16550a(struct uart_8250_port *up)
 		serial_outp(up, UART_EFR, 0);
 		return;
 	}
+#endif
 
 	/*
 	 * Maybe it requires 0xbf to be written to the LCR.
@@ -1397,7 +1402,12 @@ static void transmit_chars(struct uart_8250_port *up)
 
 	count = up->tx_loadsz;
 	do {
+#ifdef CONFIG_ARCH_MXC
+		/* Seems like back-to-back accesses are a problem */
+		serial_out_sync(up, UART_TX, xmit->buf[xmit->tail]);
+#else
 		serial_out(up, UART_TX, xmit->buf[xmit->tail]);
+#endif
 		xmit->tail = (xmit->tail + 1) & (UART_XMIT_SIZE - 1);
 		up->port.icount.tx++;
 		if (uart_circ_empty(xmit))

@@ -1,0 +1,48 @@
+#
+# PMIC Modules configuration
+#
+
+config MXC_MC13892_ADC
+	tristate "MC13892 ADC support"
+	depends on MXC_PMIC_MC13892
+	---help---
+	This is the MC13892 ADC module driver. This module provides kernel API
+	for the ADC system of MC13892.
+	It controls also the touch screen interface.
+	If you want MC13892 ADC support, you should say Y here
+
+config MXC_MC13892_RTC
+	tristate "MC13892 Real Time Clock (RTC) support"
+	depends on MXC_PMIC_MC13892
+	---help---
+	This is the MC13892 RTC module driver. This module provides kernel API
+	for RTC part of MC13892.
+	If you want MC13892 RTC support, you should say Y here
+config MXC_MC13892_LIGHT
+	tristate "MC13892 Light and Backlight support"
+	depends on MXC_PMIC_MC13892
+	---help---
+	This is the MC13892 Light module driver. This module provides kernel API
+	for led and backlight control part of MC13892.
+	If you want MC13892 Light support, you should say Y here
+config MXC_MC13892_BATTERY
+	tristate "MC13892 Battery API support"
+	depends on MXC_PMIC_MC13892
+	---help---
+	This is the MC13892 battery module driver. This module provides kernel API
+	for battery control part of MC13892.
+	If you want MC13892 battery support, you should say Y here
+config MXC_MC13892_CONNECTIVITY
+	tristate "MC13892 Connectivity API support"
+	depends on MXC_PMIC_MC13892
+	---help---
+	This is the MC13892 connectivity module driver. This module provides kernel API
+	for USB/RS232 connectivity control part of MC13892.
+	If you want MC13892 connectivity support, you should say Y here
+config MXC_MC13892_POWER
+	tristate "MC13892 Power API support"
+	depends on MXC_PMIC_MC13892
+	---help---
+	This is the MC13892 power and supplies module driver. This module provides kernel API
+	for power and regulator control part of MC13892.
+	If you want MC13892 power support, you should say Y here

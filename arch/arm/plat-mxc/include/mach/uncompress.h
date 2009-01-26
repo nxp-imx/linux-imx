@@ -27,6 +27,8 @@
 
 #include <mach/hardware.h>
 
+unsigned int system_rev;
+
 #define UART(x) (*(volatile unsigned long *)(serial_port + (x)))
 
 #define USR2 0x98

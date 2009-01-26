@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2007 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2004-2008 Freescale Semiconductor, Inc. All Rights Reserved.
  * Copyright (C) 2008 by Sascha Hauer <kernel@pengutronix.de>
  *
  * This program is free software; you can redistribute it and/or
@@ -24,7 +24,7 @@
 #define CKIH_CLK_FREQ_27MHZ     27000000
 #define CKIL_CLK_FREQ           32768
 
-#define MXC_CCM_BASE		IO_ADDRESS(CCM_BASE_ADDR)
+#define MXC_CCM_BASE		((char *)IO_ADDRESS(CCM_BASE_ADDR))
 
 /* Register addresses */
 #define MXC_CCM_CCMR		(MXC_CCM_BASE + 0x00)
@@ -55,6 +55,7 @@
 #define MXC_CCM_PDR2		(MXC_CCM_BASE + 0x64)
 
 /* Register bit definitions */
+#define MXC_CCM_CCMR_VSTBY                      (1 << 28)
 #define MXC_CCM_CCMR_WBEN                       (1 << 27)
 #define MXC_CCM_CCMR_CSCS                       (1 << 25)
 #define MXC_CCM_CCMR_PERCS                      (1 << 24)
@@ -66,6 +67,7 @@
 #define MXC_CCM_CCMR_LPM_MASK                   (0x3 << 14)
 #define MXC_CCM_CCMR_FIRS_OFFSET                11
 #define MXC_CCM_CCMR_FIRS_MASK                  (0x3 << 11)
+#define MXC_CCM_CCMR_WAMO                       (1 << 10)
 #define MXC_CCM_CCMR_UPE                        (1 << 9)
 #define MXC_CCM_CCMR_SPE                        (1 << 8)
 #define MXC_CCM_CCMR_MDS                        (1 << 7)
