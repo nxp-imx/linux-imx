@@ -119,8 +119,8 @@
 	.long	0x00						@ unused
 	.long	PTE_CACHEABLE | PTE_BUFFERABLE			@ L_PTE_MT_DEV_CACHED
 	.long	PTE_EXT_TEX(2)					@ L_PTE_MT_DEV_NONSHARED
-	.long	0x00						@ unused
-	.long	0x00						@ unused
+	.long	PTE_EXT_TEX(4) | PTE_CACHEABLE | PTE_BUFFERABLE	@ L_PTE_MT_OUTER_UNCACHED
+	.long	PTE_EXT_TEX(6) | PTE_CACHEABLE | PTE_BUFFERABLE	@ L_PTE_MT_OUTER_WRITETHRU
 	.long	0x00						@ unused
 	.endm
 

@@ -186,6 +186,8 @@ extern void __pgd_error(const char *file, int line, unsigned long val);
 #define L_PTE_MT_DEV_NONSHARED	(0x0c << 2)	/* 1100 */
 #define L_PTE_MT_DEV_WC		(0x09 << 2)	/* 1001 */
 #define L_PTE_MT_DEV_CACHED	(0x0b << 2)	/* 1011 */
+#define L_PTE_MT_OUTER_UNCACHED	(0x0d << 2)	/* 1101 */
+#define L_PTE_MT_OUTER_WRITETHRU (0x0e << 2)	/* 1110 */
 #define L_PTE_MT_MASK		(0x0f << 2)
 
 #ifndef __ASSEMBLY__
@@ -304,6 +306,19 @@ static inline pte_t pte_mkspecial(pte_t pte) { return pte; }
 	__pgprot((pgprot_val(prot) & ~L_PTE_MT_MASK) | L_PTE_MT_UNCACHED)
 #define pgprot_writecombine(prot) \
 	__pgprot((pgprot_val(prot) & ~L_PTE_MT_MASK) | L_PTE_MT_BUFFERABLE)
+#define pgprot_writethru(prot) \
+	__pgprot((pgprot_val(prot) & ~L_PTE_MT_MASK) | L_PTE_MT_WRITETHROUGH)
+#define pgprot_nonshareddev(prot) \
+	__pgprot((pgprot_val(prot) & ~L_PTE_MT_MASK) | L_PTE_MT_DEV_NONSHARED)
+
+/* Extended configurations for inner writeback cacheable */
+#define pgprot_writealloc(prot) \
+	__pgprot((pgprot_val(prot) & ~L_PTE_MT_MASK) | L_PTE_MT_WRITEALLOC)
+#define pgprot_outer_wrthru(prot) \
+	__pgprot((pgprot_val(prot) & ~L_PTE_MT_MASK) | L_PTE_MT_OUTER_WRITETHRU)
+#define pgprot_outer_noncached(prot) \
+	__pgprot((pgprot_val(prot) & ~L_PTE_MT_MASK) | L_PTE_MT_OUTER_UNCACHED)
+
 
 #define pmd_none(pmd)		(!pmd_val(pmd))
 #define pmd_present(pmd)	(pmd_val(pmd))
