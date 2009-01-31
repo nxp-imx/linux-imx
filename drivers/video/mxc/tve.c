@@ -29,8 +29,8 @@
 #include <linux/irq.h>
 #include <linux/sysfs.h>
 #include <linux/platform_device.h>
-#include <linux/regulator/regulator.h>
 #include <linux/mxcfb.h>
+#include <linux/regulator/consumer.h>
 #include <asm/uaccess.h>
 #include <asm/atomic.h>
 #include <mach/gpio.h>
@@ -360,13 +360,13 @@ static int tve_probe(struct platform_device *pdev)
 
 	tve.dac_reg = regulator_get(&pdev->dev, plat_data->dac_reg);
 	if (!IS_ERR(tve.dac_reg)) {
-		regulator_set_voltage(tve.dac_reg, 2500000);
+		regulator_set_voltage(tve.dac_reg, 2500000, 2500000);
 		regulator_enable(tve.dac_reg);
 	}
 
 	tve.dig_reg = regulator_get(&pdev->dev, plat_data->dig_reg);
 	if (!IS_ERR(tve.dig_reg)) {
-		regulator_set_voltage(tve.dig_reg, 1250000);
+		regulator_set_voltage(tve.dig_reg, 1250000, 1250000);
 		regulator_enable(tve.dig_reg);
 	}
 

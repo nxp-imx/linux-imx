@@ -34,7 +34,7 @@
 #include <linux/fb.h>
 #include <linux/init.h>
 #include <linux/platform_device.h>
-#include <linux/regulator/regulator.h>
+#include <linux/regulator/consumer.h>
 #include <linux/spi/spi.h>
 #include <linux/mxcfb.h>
 #include <linux/ipu.h>
@@ -132,12 +132,12 @@ static int __devinit lcd_probe(struct device *dev)
 	if (plat) {
 		io_reg = regulator_get(dev, plat->io_reg);
 		if (!IS_ERR(io_reg)) {
-			regulator_set_voltage(io_reg, 1800000);
+			regulator_set_voltage(io_reg, 1800000, 1800000);
 			regulator_enable(io_reg);
 		}
 		core_reg = regulator_get(dev, plat->core_reg);
 		if (!IS_ERR(core_reg)) {
-			regulator_set_voltage(core_reg, 2800000);
+			regulator_set_voltage(core_reg, 2800000, 2800000);
 			regulator_enable(core_reg);
 		}
 
@@ -191,8 +191,8 @@ static int __devexit lcd_remove(struct device *dev)
 {
 	fb_unregister_client(&nb);
 	lcd_poweroff();
-	regulator_put(io_reg, dev);
-	regulator_put(core_reg, dev);
+	regulator_put(io_reg);
+	regulator_put(core_reg);
 
 	return 0;
 }

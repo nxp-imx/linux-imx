@@ -36,7 +36,7 @@
 #include <linux/sysdev.h>
 #include <linux/delay.h>
 #include <linux/clk.h>
-#include <linux/regulator/regulator.h>
+#include <linux/regulator/consumer.h>
 #include <mach/hardware.h>
 #include "crm_regs.h"
 
@@ -287,6 +287,8 @@ static void dvfs_workqueue_handler(struct work_struct *work)
 					     dvfs_wp_tbl[curr_dvfs].cpu_rate);
 				regulator_set_voltage(core_reg,
 						      dvfs_wp_tbl[curr_dvfs].
+						      core_voltage,
+						      dvfs_wp_tbl[curr_dvfs].
 						      core_voltage);
 				pr_info("Decrease frequency to: %ld \n",
 					dvfs_wp_tbl[curr_dvfs].cpu_rate);
@@ -296,6 +298,8 @@ static void dvfs_workqueue_handler(struct work_struct *work)
 				dvfs_nr_up[dvsup]++;
 				/*Increase voltage and then frequency */
 				regulator_set_voltage(core_reg,
+						      dvfs_wp_tbl[curr_dvfs].
+						      core_voltage,
 						      dvfs_wp_tbl[curr_dvfs].
 						      core_voltage);
 				clk_set_rate(cpu_clk,
@@ -413,6 +417,7 @@ static void stop_dvfs(void)
 			}
 			clk_set_rate(cpu_clk, stored_cpu_rate);
 			regulator_set_voltage(core_reg,
+					      dvfs_wp_tbl[index].core_voltage,
 					      dvfs_wp_tbl[index].core_voltage);
 		} else if (stored_cpu_rate > curr_cpu) {
 			for (index = 0; index < dvfs_wp_num; index++) {
@@ -421,6 +426,7 @@ static void stop_dvfs(void)
 					break;
 			}
 			regulator_set_voltage(core_reg,
+					      dvfs_wp_tbl[index].core_voltage,
 					      dvfs_wp_tbl[index].core_voltage);
 			clk_set_rate(cpu_clk, stored_cpu_rate);
 		}
@@ -547,6 +553,7 @@ static int __init dvfs_init(void)
 	for (index = 0; index < dvfs_wp_num; index++) {
 		if (dvfs_wp_tbl[index].cpu_rate == curr_cpu) {
 			regulator_set_voltage(core_reg,
+					      dvfs_wp_tbl[index].core_voltage,
 					      dvfs_wp_tbl[index].core_voltage);
 			break;
 		}
@@ -587,7 +594,7 @@ static void __exit dvfs_cleanup(void)
 	dvfs_sysdev_ctrl_exit();
 
 	clk_put(cpu_clk);
-	regulator_put(core_reg, NULL);
+	regulator_put(core_reg);
 }
 
 module_init(dvfs_init);

@@ -36,7 +36,7 @@
 #include <asm/mach/flash.h>
 #endif
 
-#include <linux/regulator/regulator.h>
+#include <linux/regulator/consumer.h>
 #include <mach/hardware.h>
 #include <mach/spba.h>
 #include <asm/irq.h>
@@ -89,7 +89,7 @@ struct cpu_wp *get_cpu_wp(int *wp)
 	return cpu_wp_auto;
 }
 
-static void mc13892_reg_int(void)
+static int __init mc13892_reg_int(void)
 {
 	int i = 0;
 	struct regulator *regulator;
@@ -127,22 +127,18 @@ static void mc13892_reg_int(void)
 
 	for (i = 0; i < ARRAY_SIZE(reg_name); i++) {
 		regulator = regulator_get(NULL, reg_name[i]);
-		if (regulator != ERR_PTR(-ENOENT)) {
-			regulator_enable(regulator);
-			regulator_put(regulator, NULL);
-		}
-	}
-	for (i = 0; i < ARRAY_SIZE(reg_name); i++) {
+		if (regulator == ERR_PTR(-ENOENT))
+			continue;
+
+		regulator_enable(regulator);
 		if ((strcmp(reg_name[i], "VIOHI") == 0) ||
 			(strcmp(reg_name[i], "VPLL") == 0) ||
 			(strcmp(reg_name[i], "VDIG") == 0) ||
 			(strcmp(reg_name[i], "VGEN2") == 0))
 			continue;
-		regulator = regulator_get(NULL, reg_name[i]);
-		if (regulator != ERR_PTR(-ENOENT)) {
-			regulator_disable(regulator);
-			regulator_put(regulator, NULL);
-		}
+
+		regulator_disable(regulator);
+		regulator_put(regulator);
 	}
 
 	gp = regulator_get(NULL, "SW1_STBY");
@@ -167,6 +163,8 @@ static void mc13892_reg_int(void)
 
 	regulator_put(gp);
 	regulator_put(lp);
+
+	return 0;
 }
 
 late_initcall(mc13892_reg_int);
@@ -407,7 +405,8 @@ static struct i2c_board_info mxc_i2c1_board_info[] __initdata = {
 	 .type = "mc13892",
 	 .addr = 0x08,
 	 .platform_data = (void *)MX51_PIN_GPIO1_5,
-	 },
+	 .irq  = IOMUX_TO_IRQ(MX51_PIN_GPIO1_5),
+	},
 	{
 	 .type = "wm8903-i2c",
 	 .addr = 0x1a,

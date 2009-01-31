@@ -36,7 +36,7 @@
 #include <linux/mmc/mmc.h>
 #include <linux/mmc/card.h>
 #include <linux/clk.h>
-#include <linux/regulator/regulator.h>
+#include <linux/regulator/consumer.h>
 
 #include <asm/dma.h>
 #include <asm/io.h>
@@ -854,7 +854,8 @@ static void sdhci_set_power(struct sdhci_host *host, unsigned short power)
 				voltage = 1800000;
 			else if (power >= 8)
 				voltage = 2000000 + (power - 8) * 100000;
-			regulator_set_voltage(host->regulator_mmc, voltage);
+			regulator_set_voltage(host->regulator_mmc,
+					      voltage, voltage);
 
 			if (regulator_enable(host->regulator_mmc) == 0) {
 				DBG("mmc power on\n");

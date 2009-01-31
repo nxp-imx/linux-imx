@@ -23,8 +23,8 @@
 #include <linux/platform_device.h>
 #include <linux/i2c.h>
 #include <linux/err.h>
-#include <linux/regulator/regulator.h>
-#include <linux/regulator/regulator-platform.h>
+#include <linux/regulator/consumer.h>
+#include <linux/regulator/machine.h>
 #include <linux/regulator/wm8350/wm8350.h>
 #include <linux/regulator/wm8350/wm8350-pmic.h>
 #include <linux/regulator/wm8350/wm8350-gpio.h>

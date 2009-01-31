@@ -37,7 +37,7 @@
 #include <linux/sysdev.h>
 #include <linux/delay.h>
 #include <linux/clk.h>
-#include <linux/regulator/regulator.h>
+#include <linux/regulator/consumer.h>
 #include <linux/input.h>
 #include <linux/platform_device.h>
 
@@ -286,7 +286,7 @@ static void dvfs_core_workqueue_handler(struct work_struct *work)
 			__raw_writel(reg, dvfs_data->gpc_vcr_reg_addr);
 
 			/* Set the voltage for the GP domain. */
-			ret = regulator_set_voltage(core_regulator, uvol);
+			ret = regulator_set_voltage(core_regulator, uvol, uvol);
 			if (ret < 0) {
 				printk(KERN_DEBUG
 				       "COULD NOT SET CORE VOLTAGE!!!!!\n");
@@ -314,7 +314,8 @@ static void dvfs_core_workqueue_handler(struct work_struct *work)
 			__raw_writel(reg, dvfs_data->gpc_vcr_reg_addr);
 
 			ret = regulator_set_voltage(core_regulator,
-										cpu_wp_tbl[curr_wp].cpu_voltage);
+						cpu_wp_tbl[curr_wp].cpu_voltage,
+						cpu_wp_tbl[curr_wp].cpu_voltage);
 			if (ret < 0) {
 				printk(KERN_DEBUG
 				       "COULD NOT SET CORE VOLTAGE!!!!\n");
@@ -371,8 +372,10 @@ static void stop_dvfs(void)
 		curr_cpu = clk_get_rate(cpu_clk);
 		if (curr_cpu != cpu_wp_tbl[curr_wp].cpu_rate) {
 			if (regulator_set_voltage(core_regulator,
-									  cpu_wp_tbl[curr_wp].cpu_voltage) == 0)
-				clk_set_rate(cpu_clk, cpu_wp_tbl[curr_wp].cpu_rate);
+					cpu_wp_tbl[curr_wp].cpu_voltage,
+					cpu_wp_tbl[curr_wp].cpu_voltage) == 0)
+				clk_set_rate(cpu_clk,
+					     cpu_wp_tbl[curr_wp].cpu_rate);
 		}
 
 		clk_disable(dvfs_clk);

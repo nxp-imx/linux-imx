@@ -35,7 +35,7 @@
 #include <linux/kthread.h>
 #include <linux/input.h>
 #include <linux/delay.h>
-#include <linux/regulator/regulator.h>
+#include <linux/regulator/consumer.h>
 #include <asm/mach/irq.h>
 
 #define DRIVER_NAME "tsc2007"
@@ -344,7 +344,7 @@ static int tsc2007_i2c_remove(struct i2c_client *client)
 
 	if (d->vdd_reg) {
 		regulator_disable(d->vdd_reg);
-		regulator_put(d->vdd_reg, &client->dev);
+		regulator_put(d->vdd_reg);
 		d->vdd_reg = NULL;
 	}
 	return 0;

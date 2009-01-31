@@ -36,7 +36,7 @@
 #include <linux/platform_device.h>
 #include <mach/clock.h>
 #include <mach/hardware.h>
-#include <linux/regulator/regulator-platform.h>
+#include <linux/regulator/consumer.h>
 #include "crm_regs.h"
 
 #define ARM_LP_CLK  200000000
@@ -112,7 +112,7 @@ void enter_lp_video_mode(void)
 	else
 		gp_core = regulator_get(NULL, "SW1");
 
-	ret = regulator_set_voltage(gp_core, GP_LPM_VOLTAGE);
+	ret = regulator_set_voltage(gp_core, GP_LPM_VOLTAGE, GP_LPM_VOLTAGE);
 	if (ret < 0)
 		printk(KERN_DEBUG "COULD NOT SET GP VOLTAGE!!!\n");
 
@@ -131,7 +131,7 @@ void exit_lp_video_mode(void)
 	else
 		gp_core = regulator_get(NULL, "SW1");
 
-	ret = regulator_set_voltage(gp_core, GP_NORMAL_VOLTAGE);
+	ret = regulator_set_voltage(gp_core, GP_NORMAL_VOLTAGE, GP_NORMAL_VOLTAGE);
 	if (ret < 0)
 		printk(KERN_DEBUG "COULD NOT SET GP VOLTAGE!!!!\n");
 
@@ -221,7 +221,7 @@ void enter_lp_audio_mode(void)
 		lp_core = regulator_get(NULL, "SW2");
 
 	if (lp_core != NULL) {
-		ret = regulator_set_voltage(lp_core, LP_LPM_VOLTAGE);
+		ret = regulator_set_voltage(lp_core, LP_LPM_VOLTAGE, LP_LPM_VOLTAGE);
 		if (ret < 0)
 			printk(KERN_DEBUG "COULD NOT SET GP VOLTAGE!!!!!!\n");
 	}
@@ -240,7 +240,7 @@ void enter_lp_audio_mode(void)
 		gp_core = regulator_get(NULL, "SW1");
 
 	if (gp_core != NULL) {
-		ret = regulator_set_voltage(gp_core, GP_LPM_VOLTAGE);
+		ret = regulator_set_voltage(gp_core, GP_LPM_VOLTAGE, GP_LPM_VOLTAGE);
 		if (ret < 0)
 			printk(KERN_DEBUG "COULD NOT SET GP VOLTAGE!!!!!\n");
 	}
@@ -264,7 +264,7 @@ void exit_lp_audio_mode(void)
 		lp_core = regulator_get(NULL, "SW2");
 
 	if (lp_core != NULL) {
-		ret = regulator_set_voltage(lp_core, LP_NORMAL_VOLTAGE);
+		ret = regulator_set_voltage(lp_core, LP_NORMAL_VOLTAGE, LP_NORMAL_VOLTAGE);
 		if (ret < 0)
 			printk(KERN_DEBUG "COULD NOT SET GP VOLTAGE!!!!!!\n");
 	}
@@ -275,7 +275,7 @@ void exit_lp_audio_mode(void)
 	else
 		gp_core = regulator_get(NULL, "SW1");
 
-	ret = regulator_set_voltage(gp_core, GP_NORMAL_VOLTAGE);
+	ret = regulator_set_voltage(gp_core, GP_NORMAL_VOLTAGE, GP_NORMAL_VOLTAGE);
 	if (ret < 0)
 		printk(KERN_DEBUG "COULD NOT SET GP VOLTAGE!!!!\n");
 

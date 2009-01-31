@@ -26,7 +26,7 @@
 #include <linux/delay.h>
 #include <linux/device.h>
 #include <linux/i2c.h>
-#include <linux/regulator/regulator.h>
+#include <linux/regulator/consumer.h>
 
 #include <media/v4l2-int-device.h>
 #include "mxc_v4l2_capture.h"
@@ -598,12 +598,12 @@ static int ioctl_dev_init(struct v4l2_int_device *s)
 	ov2640_data.on = true;
 
 	if (!IS_ERR_VALUE((unsigned long)io_regulator)) {
-		regulator_set_voltage(io_regulator, 2800000);
+		regulator_set_voltage(io_regulator, 2800000, 2800000);
 		if (regulator_enable(io_regulator) != 0)
 			return -EIO;
 	}
 	if (!IS_ERR_VALUE((unsigned long)core_regulator)) {
-		regulator_set_voltage(core_regulator, 1300000);
+		regulator_set_voltage(core_regulator, 1300000, 1300000);
 		if (regulator_enable(core_regulator) != 0)
 			return -EIO;
 		}
@@ -614,8 +614,8 @@ static int ioctl_dev_init(struct v4l2_int_device *s)
 		}
 	}
 	if (!IS_ERR_VALUE((unsigned long)analog_regulator)) {
-		/* regulator_set_voltage(analog_regulator, 2800000); */
-		regulator_set_voltage(analog_regulator, 2000000);
+		/* regulator_set_voltage(analog_regulator, 2800000, 2800000); */
+		regulator_set_voltage(analog_regulator, 2000000, 2000000);
 		if (regulator_enable(analog_regulator) != 0)
 			return -EIO;
 	}
@@ -731,22 +731,22 @@ static int ov2640_remove(struct i2c_client *client)
 
 	if (!IS_ERR_VALUE((unsigned long)gpo_regulator)) {
 		regulator_disable(gpo_regulator);
-		regulator_put(gpo_regulator, &client->dev);
+		regulator_put(gpo_regulator);
 	}
 
 	if (!IS_ERR_VALUE((unsigned long)analog_regulator)) {
 		regulator_disable(analog_regulator);
-		regulator_put(analog_regulator, &client->dev);
+		regulator_put(analog_regulator);
 	}
 
 	if (!IS_ERR_VALUE((unsigned long)core_regulator)) {
 		regulator_disable(core_regulator);
-		regulator_put(core_regulator, &client->dev);
+		regulator_put(core_regulator);
 	}
 
 	if (!IS_ERR_VALUE((unsigned long)io_regulator)) {
 		regulator_disable(io_regulator);
-		regulator_put(io_regulator, &client->dev);
+		regulator_put(io_regulator);
 	}
 
 	return 0;

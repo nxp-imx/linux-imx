@@ -16,7 +16,7 @@
 #include <linux/platform_device.h>
 #include <linux/fsl_devices.h>
 #include <linux/usb/fsl_xcvr.h>
-#include <linux/regulator/regulator.h>
+#include <linux/regulator/consumer.h>
 #include <mach/arc_otg.h>
 #include "usb.h"
 
@@ -67,12 +67,12 @@ void usbh2_put_xcvr_power(struct device *dev)
 	usbh2_regux = ((struct fsl_usb2_platform_data *)dev->
 			platform_data)->xcvr_pwr->regu2;
 	regulator_disable(usbh2_regux);
-	regulator_put(usbh2_regux, dev);
+	regulator_put(usbh2_regux);
 
 	usbh2_regux = ((struct fsl_usb2_platform_data *)dev->
 			platform_data)->xcvr_pwr->regu1;
 	regulator_disable(usbh2_regux);
-	regulator_put(usbh2_regux, dev);
+	regulator_put(usbh2_regux);
 }
 EXPORT_SYMBOL(usbh2_put_xcvr_power);
 

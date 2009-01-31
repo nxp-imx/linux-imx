@@ -1,5 +1,5 @@
 /*
- * Copyright 2008 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2008-2009 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -24,7 +24,7 @@
 
 #include <linux/list.h>
 #include <linux/platform_device.h>
-#include <linux/regulator/regulator.h>
+#include <linux/regulator/consumer.h>
 #include <linux/clk.h>
 #include <linux/can.h>
 #include <linux/can/core.h>

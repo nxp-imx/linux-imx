@@ -32,8 +32,8 @@
 #include <linux/fsl_devices.h>
 #include <linux/spi/spi.h>
 #include <linux/i2c.h>
-#include <linux/regulator/regulator-platform.h>
-#include <linux/regulator/regulator.h>
+#include <linux/regulator/machine.h>
+#include <linux/regulator/consumer.h>
 #include <linux/ata.h>
 #if defined(CONFIG_MTD) || defined(CONFIG_MTD_MODULE)
 #include <linux/mtd/mtd.h>
@@ -590,7 +590,7 @@ static int __init mxc_init_regulator(void)
 	gpo2 = regulator_get(NULL, "GPO2");
 	gpo3 = regulator_get(NULL, "GPO3");
 	gpo4 = regulator_get(NULL, "GPO4");
-
+#if 0
 	err = regulator_set_platform_source(gpo2, gpo1);
 	if (err)
 		printk(KERN_ERR "Unable to set GPO1 be the parent of GPO2\n");
@@ -602,7 +602,7 @@ static int __init mxc_init_regulator(void)
 	err = regulator_set_platform_source(gpo4, gpo1);
 	if (err)
 		printk(KERN_ERR "Unable to set GPO1 be the parent of GPO4\n");
-
+#endif
 	return 0;
 }
 

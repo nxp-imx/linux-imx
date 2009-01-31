@@ -1,5 +1,5 @@
 /*
- * Copyright 2008 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2008-2009 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -27,7 +27,7 @@
 #include <linux/ctype.h>
 #include <linux/delay.h>
 #include <linux/err.h>
-#include <linux/regulator/regulator.h>
+#include <linux/regulator/consumer.h>
 
 enum isl29003_width {
 	ISL29003_WIDTH_16 = 0,
@@ -331,7 +331,7 @@ exit2:
 	kfree(data);
 exit1:
 	if (vdd_reg) {
-		regulator_put(vdd_reg, &client->dev);
+		regulator_put(vdd_reg);
 		vdd_reg = NULL;
 	}
 	isl29003_client = NULL;
@@ -344,7 +344,7 @@ static int isl29003_i2c_remove(struct i2c_client *client)
 	struct isl29003_data *data = i2c_get_clientdata(client);
 
 	if (data->vdd_reg) {
-		regulator_put(data->vdd_reg, &isl29003_client->dev);
+		regulator_put(data->vdd_reg);
 		data->vdd_reg = NULL;
 	}
 	hwmon_device_unregister(data->hwmon_dev);

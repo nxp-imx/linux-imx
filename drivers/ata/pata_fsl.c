@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright 2007-2008 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2007-2009 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -25,7 +25,7 @@
 #include <linux/platform_device.h>
 #include <linux/fsl_devices.h>
 #include <linux/clk.h>
-#include <linux/regulator/regulator.h>
+#include <linux/regulator/consumer.h>
 #include <asm/dma.h>
 
 #define DRV_NAME "pata_fsl"
@@ -928,11 +928,11 @@ static int __devexit pata_fsl_remove(struct platform_device *pdev)
 	/* Disable Core regulator & IO Regulator */
 	if (plat->core_reg != NULL) {
 		regulator_disable(core_reg);
-		regulator_put(core_reg, &pdev->dev);
+		regulator_put(core_reg);
 	}
 	if (plat->io_reg != NULL) {
 		regulator_disable(io_reg);
-		regulator_put(io_reg, &pdev->dev);
+		regulator_put(io_reg);
 	}
 
 	if (plat->exit)

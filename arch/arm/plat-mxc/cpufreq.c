@@ -27,7 +27,7 @@
 #include <linux/cpufreq.h>
 #include <linux/init.h>
 #include <linux/proc_fs.h>
-#include <linux/regulator/regulator.h>
+#include <linux/regulator/consumer.h>
 #include <linux/clk.h>
 #include <linux/delay.h>
 #include <linux/io.h>
@@ -93,7 +93,7 @@ static int set_cpu_freq(int freq)
 
 	/*Set the voltage for the GP domain. */
 	if (freq > org_cpu_rate) {
-		ret = regulator_set_voltage(gp_regulator, gp_volt);
+		ret = regulator_set_voltage(gp_regulator, gp_volt, gp_volt);
 		if (ret < 0) {
 			printk(KERN_DEBUG "COULD NOT SET GP VOLTAGE!!!!\n");
 			return ret;
@@ -107,7 +107,7 @@ static int set_cpu_freq(int freq)
 	}
 
 	if (freq < org_cpu_rate) {
-		ret = regulator_set_voltage(gp_regulator, gp_volt);
+		ret = regulator_set_voltage(gp_regulator, gp_volt, gp_volt);
 		if (ret < 0) {
 			printk(KERN_DEBUG "COULD NOT SET GP VOLTAGE!!!!\n");
 			return ret;
@@ -166,7 +166,7 @@ static int set_low_bus_freq(void)
 		clk_set_parent(vpu_core_clk, amode_parent_clk);
 
 	/* Set the voltage to 1.0v for the LP domain. */
-	ret = regulator_set_voltage(lp_regulator, 1000000);
+	ret = regulator_set_voltage(lp_regulator, 1000000, 1000000);
 	if (ret < 0) {
 		printk(KERN_DEBUG "COULD NOT SET GP VOLTAGE!!!!!!\n");
 		return ret;
@@ -192,7 +192,7 @@ static int set_high_bus_freq(void)
 	low_bus_freq_mode = 0;
 
 	/* Set the voltage to 1.2v for the LP domain. */
-	ret = regulator_set_voltage(lp_regulator, 1200000);
+	ret = regulator_set_voltage(lp_regulator, 1200000, 1200000);
 	if (ret < 0) {
 		printk(KERN_DEBUG "COULD NOT SET LP VOLTAGE!!!!!!\n");
 		return ret;
@@ -520,8 +520,8 @@ static int __init mxc_cpufreq_driver_init(struct cpufreq_policy *policy)
 			clk_put(osc);
 		}
 
-		regulator_put(gp_regulator, NULL);
-		regulator_put(lp_regulator, NULL);
+		regulator_put(gp_regulator);
+		regulator_put(lp_regulator);
 		printk(KERN_ERR "%s: failed to register i.MXC CPUfreq\n",
 		       __func__);
 		return ret;
@@ -562,8 +562,8 @@ static int mxc_cpufreq_driver_exit(struct cpufreq_policy *policy)
 		clk_put(lp_apm);
 		clk_put(osc);
 	}
-	regulator_put(gp_regulator, NULL);
-	regulator_put(lp_regulator, NULL);
+	regulator_put(gp_regulator);
+	regulator_put(lp_regulator);
 	return 0;
 }
 

@@ -16,7 +16,7 @@
 #include <linux/kernel.h>
 #include <linux/clk.h>
 #include <linux/platform_device.h>
-#include <linux/regulator/regulator.h>
+#include <linux/regulator/consumer.h>
 #include <linux/suspend.h>
 #include "crm_regs.h"
 

@@ -30,7 +30,7 @@
 #include <linux/wait.h>
 #include <linux/videodev2.h>
 #include <linux/workqueue.h>
-#include <linux/regulator/regulator.h>
+#include <linux/regulator/consumer.h>
 #include <media/v4l2-int-device.h>
 #include <linux/regulator/mcu_max8660-bus.h>
 #include "mxc_v4l2_capture.h"
@@ -805,7 +805,7 @@ static int adv7180_probe(struct i2c_client *client,
 		dvddio_regulator =
 		    regulator_get(&client->dev, plat_data->dvddio_reg);
 		if (!IS_ERR_VALUE((unsigned long)dvddio_regulator)) {
-			regulator_set_voltage(dvddio_regulator, 3300000);
+			regulator_set_voltage(dvddio_regulator, 3300000, 3300000);
 			if (regulator_enable(dvddio_regulator) != 0)
 				return -ENODEV;
 		}
@@ -815,7 +815,7 @@ static int adv7180_probe(struct i2c_client *client,
 		dvdd_regulator =
 		    regulator_get(&client->dev, plat_data->dvdd_reg);
 		if (!IS_ERR_VALUE((unsigned long)dvdd_regulator)) {
-			regulator_set_voltage(dvdd_regulator, 1800000);
+			regulator_set_voltage(dvdd_regulator, 1800000, 1800000);
 			if (regulator_enable(dvdd_regulator) != 0)
 				return -ENODEV;
 		}
@@ -825,7 +825,7 @@ static int adv7180_probe(struct i2c_client *client,
 		avdd_regulator =
 		    regulator_get(&client->dev, plat_data->avdd_reg);
 		if (!IS_ERR_VALUE((unsigned long)avdd_regulator)) {
-			regulator_set_voltage(avdd_regulator, 1800000);
+			regulator_set_voltage(avdd_regulator, 1800000, 1800000);
 			if (regulator_enable(avdd_regulator) != 0)
 				return -ENODEV;
 		}
@@ -835,7 +835,7 @@ static int adv7180_probe(struct i2c_client *client,
 		pvdd_regulator =
 		    regulator_get(&client->dev, plat_data->pvdd_reg);
 		if (!IS_ERR_VALUE((unsigned long)pvdd_regulator)) {
-			regulator_set_voltage(pvdd_regulator, 1800000);
+			regulator_set_voltage(pvdd_regulator, 1800000, 1800000);
 			if (regulator_enable(pvdd_regulator) != 0)
 				return -ENODEV;
 		}
@@ -910,22 +910,22 @@ static int adv7180_detach(struct i2c_client *client)
 
 	if (dvddio_regulator) {
 		regulator_disable(dvddio_regulator);
-		regulator_put(dvddio_regulator, &client->dev);
+		regulator_put(dvddio_regulator);
 	}
 
 	if (dvdd_regulator) {
 		regulator_disable(dvdd_regulator);
-		regulator_put(dvdd_regulator, &client->dev);
+		regulator_put(dvdd_regulator);
 	}
 
 	if (avdd_regulator) {
 		regulator_disable(avdd_regulator);
-		regulator_put(avdd_regulator, &client->dev);
+		regulator_put(avdd_regulator);
 	}
 
 	if (pvdd_regulator) {
 		regulator_disable(pvdd_regulator);
-		regulator_put(pvdd_regulator, &client->dev);
+		regulator_put(pvdd_regulator);
 	}
 
 	v4l2_int_device_unregister(&adv7180_int_device);

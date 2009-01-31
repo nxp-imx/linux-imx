@@ -1,5 +1,5 @@
 /*
- * Copyright 2008 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2008-2009 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -506,7 +506,7 @@ static int flexcan_device_attach(struct flexcan_device *flexcan)
 	return 0;
       plat_err:
 	if (flexcan->core_reg) {
-		regulator_put(flexcan->core_reg, &pdev->dev);
+		regulator_put(flexcan->core_reg);
 		flexcan->core_reg = NULL;
 	}
       no_irq_err:
@@ -524,12 +524,12 @@ static void flexcan_device_detach(struct flexcan_device *flexcan)
 	}
 
 	if (flexcan->io_reg) {
-		regulator_put(flexcan->io_reg, &pdev->dev);
+		regulator_put(flexcan->io_reg);
 		flexcan->io_reg = NULL;
 	}
 
 	if (flexcan->core_reg) {
-		regulator_put(flexcan->core_reg, &pdev->dev);
+		regulator_put(flexcan->core_reg);
 		flexcan->core_reg = NULL;
 	}
 

@@ -24,7 +24,7 @@
 #include <linux/clk.h>
 #include <linux/interrupt.h>
 #include <linux/platform_device.h>
-#include <linux/regulator/regulator.h>
+#include <linux/regulator/consumer.h>
 #include <linux/mxc_mlb.h>
 
 #include <asm/irq.h>
@@ -937,7 +937,7 @@ static int __devinit mxc_mlb_probe(struct platform_device *pdev)
 	/* power on MLB */
 	reg_nvcc = regulator_get(&pdev->dev, plat_data->reg_nvcc);
 	/* set MAX LDO6 for NVCC to 2.5V */
-	regulator_set_voltage(reg_nvcc, 2500000);
+	regulator_set_voltage(reg_nvcc, 2500000, 2500000);
 	regulator_enable(reg_nvcc);
 
 	/* enable clock */
@@ -979,7 +979,7 @@ static int __devexit mxc_mlb_remove(struct platform_device *pdev)
 
 	/* disable mlb power */
 	regulator_disable(reg_nvcc);
-	regulator_put(reg_nvcc, &pdev->dev);
+	regulator_put(reg_nvcc);
 
 	/* inactive GPIO */
 	gpio_mlb_inactive();

@@ -19,7 +19,7 @@
 #include <linux/err.h>
 #include <linux/input-polldev.h>
 #include <linux/hwmon.h>
-#include <linux/regulator/regulator.h>
+#include <linux/regulator/consumer.h>
 #include <linux/irq.h>
 #include <linux/interrupt.h>
 #include <mach/mxc.h>
@@ -634,7 +634,7 @@ static int mma7450_probe(struct i2c_client *client,
 	if (reg_avdd != ERR_PTR(-ENOENT))
 		regulator_enable(reg_avdd);
 	else {
-		regulator_put(reg_dvdd_io, &client->dev);
+		regulator_put(reg_dvdd_io);
 		return -EINVAL;
 	}
 
@@ -731,8 +731,8 @@ static int mma7450_probe(struct i2c_client *client,
       error_disable_power:
 	regulator_disable(reg_dvdd_io);	/*shall I check the return value */
 	regulator_disable(reg_avdd);
-	regulator_put(reg_dvdd_io, &client->dev);
-	regulator_put(reg_avdd, &client->dev);
+	regulator_put(reg_dvdd_io);
+	regulator_put(reg_avdd);
 
 	return ret;
 }
@@ -748,8 +748,8 @@ static int mma7450_remove(struct i2c_client *client)
 	device_remove_file(&client->dev, &mma7450_dev_attr);
 	regulator_disable(reg_dvdd_io);	/*shall I check the return value */
 	regulator_disable(reg_avdd);
-	regulator_put(reg_dvdd_io, &client->dev);
-	regulator_put(reg_avdd, &client->dev);
+	regulator_put(reg_dvdd_io);
+	regulator_put(reg_avdd);
 	return 0;
 }
 

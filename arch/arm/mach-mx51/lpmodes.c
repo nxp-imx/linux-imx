@@ -36,7 +36,7 @@
 #include <linux/platform_device.h>
 #include <mach/clock.h>
 #include <mach/hardware.h>
-#include <linux/regulator/regulator-platform.h>
+#include <linux/regulator/machine.h>
 #include "crm_regs.h"
 
 #define ARM_LP_CLK  200000000
@@ -71,7 +71,7 @@ void enter_lp_audio_mode(void)
 	clk_put(tclk);
 
 	/* Set the voltage to 0.775v for the GP domain. */
-	ret = regulator_set_voltage(gp_core, GP_LPM_VOLTAGE);
+	ret = regulator_set_voltage(gp_core, GP_LPM_VOLTAGE, GP_LPM_VOLTAGE);
 	if (ret < 0)
 		printk(KERN_DEBUG "COULD NOT SET GP VOLTAGE!!!\n");
 
@@ -84,7 +84,8 @@ void exit_lp_audio_mode(void)
 	int ret;
 
 	/* Set the voltage to 1.05v for the GP domain. */
-	ret = regulator_set_voltage(gp_core, GP_NORMAL_VOLTAGE);
+	ret = regulator_set_voltage(gp_core,
+				    GP_NORMAL_VOLTAGE, GP_NORMAL_VOLTAGE);
 	if (ret < 0)
 		printk(KERN_DEBUG "COULD NOT SET GP VOLTAGE!!!\n");
 

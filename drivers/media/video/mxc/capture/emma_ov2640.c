@@ -1,5 +1,5 @@
 /*
- * Copyright 2005-2008 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2005-2009 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -18,7 +18,7 @@
 #include <linux/delay.h>
 #include <linux/device.h>
 #include <linux/i2c.h>
-#include <linux/regulator/regulator.h>
+#include <linux/regulator/consumer.h>
 
 #include "mxc_v4l2_capture.h"
 
@@ -210,22 +210,22 @@ static int ov2640_remove(struct i2c_client *client)
 
 	if (!IS_ERR_VALUE((unsigned long)io_regulator)) {
 		regulator_disable(io_regulator);
-		regulator_put(io_regulator, NULL);
+		regulator_put(io_regulator);
 	}
 
 	if (!IS_ERR_VALUE((unsigned long)core_regulator)) {
 		regulator_disable(core_regulator);
-		regulator_put(core_regulator, NULL);
+		regulator_put(core_regulator);
 	}
 
 	if (!IS_ERR_VALUE((unsigned long)gpo_regulator)) {
 		regulator_disable(gpo_regulator);
-		regulator_put(gpo_regulator, NULL);
+		regulator_put(gpo_regulator);
 	}
 
 	if (!IS_ERR_VALUE((unsigned long)analog_regulator)) {
 		regulator_disable(analog_regulator);
-		regulator_put(analog_regulator, NULL);
+		regulator_put(analog_regulator);
 	}
 
 	return 0;
@@ -323,7 +323,7 @@ static sensor_interface *ov2640_config(int *frame_rate, int high_quality)
 
 	/*set io votage */
 	if (!IS_ERR_VALUE((unsigned long)io_regulator)) {
-		regulator_set_voltage(io_regulator, 2800000);
+		regulator_set_voltage(io_regulator, 2800000, 2800000);
 		if (regulator_enable(io_regulator) != 0) {
 			dev_dbg(&ov2640_i2c_client->dev,
 				"%s:io set voltage error\n", __func__);
@@ -336,7 +336,7 @@ static sensor_interface *ov2640_config(int *frame_rate, int high_quality)
 
 	/*core votage */
 	if (!IS_ERR_VALUE((unsigned long)core_regulator)) {
-		regulator_set_voltage(core_regulator, 1300000);
+		regulator_set_voltage(core_regulator, 1300000, 1300000);
 		if (regulator_enable(core_regulator) != 0) {
 			dev_dbg(&ov2640_i2c_client->dev,
 				"%s:core set voltage error\n", __func__);
@@ -360,7 +360,7 @@ static sensor_interface *ov2640_config(int *frame_rate, int high_quality)
 	}
 
 	if (!IS_ERR_VALUE((unsigned long)analog_regulator)) {
-		regulator_set_voltage(analog_regulator, 2000000);
+		regulator_set_voltage(analog_regulator, 2000000, 2000000);
 		if (regulator_enable(analog_regulator) != 0) {
 			dev_dbg(&ov2640_i2c_client->dev,
 				"%s:analog set voltage error\n", __func__);

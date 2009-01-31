@@ -16,7 +16,7 @@
 #include <linux/fb.h>
 #include <linux/platform_device.h>
 #include <linux/backlight.h>
-#include <linux/regulator/regulator.h>
+#include <linux/regulator/consumer.h>
 #include <linux/regulator/wm8350/wm8350-bus.h>
 
 struct wm8350_backlight {
@@ -184,14 +184,14 @@ static int wm8350_bl_probe(struct platform_device *pdev)
 		pdata->dcdc == WM8350_DCDC_2 ? "DCDC2" : "DCDC5");
 	if (IS_ERR(dcdc) || dcdc == NULL) {
 		printk(KERN_ERR "%s: cant get DCDC\n", __func__);
-		regulator_put(isink, &pdev->dev);
+		regulator_put(isink);
 		return PTR_ERR(dcdc);
 	}
 
 	bl = kzalloc(sizeof(*bl), GFP_KERNEL);
 	if (bl == NULL) {
-		regulator_put(isink, &pdev->dev);
-		regulator_put(dcdc, &pdev->dev);
+		regulator_put(isink);
+		regulator_put(dcdc);
 		return -ENOMEM;
 	}
 
@@ -212,8 +212,8 @@ static int wm8350_bl_probe(struct platform_device *pdev)
 		bl, &wm8350_bl_ops);
 	if (IS_ERR(bl->device)) {
 		ret =  PTR_ERR(bl->device);
-		regulator_put(dcdc, &pdev->dev);
-		regulator_put(isink, &pdev->dev);
+		regulator_put(dcdc);
+		regulator_put(isink);
 		kfree(bl);
 		return ret;
 	}
@@ -269,8 +269,8 @@ static int wm8350_bl_remove(struct platform_device *pdev)
 	regulator_disable(isink);
 	regulator_unregister_client(isink, &bl->notifier);
 	regulator_unregister_client(dcdc, &bl->notifier);
-	regulator_put(isink, &pdev->dev);
-	regulator_put(dcdc, &pdev->dev);
+	regulator_put(isink);
+	regulator_put(dcdc);
 	return 0;
 }
 

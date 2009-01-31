@@ -59,7 +59,7 @@ static void set_power(struct fsl_xcvr_ops *this,
 		} else {
 			regulator_disable(usbotg_regux);
 		}
-		regulator_put(usbotg_regux, dev);
+		regulator_put(usbotg_regux);
 #if defined(CONFIG_MXC_PMIC_MC13892_MODULE) || defined(CONFIG_MXC_PMIC_MC13892)
 	} else if (machine_is_mx51_3ds()) {
 		unsigned int value;
@@ -69,7 +69,7 @@ static void set_power(struct fsl_xcvr_ops *this,
 			regulator_enable(usbotg_regux);
 		else
 			regulator_disable(usbotg_regux);
-		regulator_put(usbotg_regux, dev);
+		regulator_put(usbotg_regux);
 
 		/* VUSBIN */
 		pmic_read_reg(REG_USB1, &value, 0xffffff);
@@ -85,7 +85,7 @@ static void set_power(struct fsl_xcvr_ops *this,
 			regulator_enable(usbotg_regux);
 		else
 			regulator_disable(usbotg_regux);
-		regulator_put(usbotg_regux, dev);
+		regulator_put(usbotg_regux);
 #endif
 	}
 }

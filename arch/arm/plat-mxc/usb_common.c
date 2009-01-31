@@ -40,7 +40,7 @@
 #include <linux/fsl_devices.h>
 #include <linux/usb/otg.h>
 #include <linux/usb/fsl_xcvr.h>
-#include <linux/regulator/regulator.h>
+#include <linux/regulator/consumer.h>
 #include <mach/arc_otg.h>
 #include <asm/mach-types.h>
 

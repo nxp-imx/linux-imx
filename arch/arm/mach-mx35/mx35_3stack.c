@@ -30,7 +30,7 @@
 #include <linux/mtd/partitions.h>
 #include <linux/delay.h>
 #include <linux/regulator/mcu_max8660-bus.h>
-#include <linux/regulator/regulator.h>
+#include <linux/regulator/consumer.h>
 
 #include <asm/mach/flash.h>
 #endif
@@ -699,8 +699,8 @@ static int __init mxc_init_pmic(void)
 		/* TBD: If core voltage is expected to be updated above 1.375v,
 		* this code needs to be moved before entering standby mode,
 		* which is decided by MC13892 Hi bit behavior */
-		regulator_set_voltage(sw2_stby_reg, 1000000);
-		regulator_put(sw2_stby_reg, NULL);
+		regulator_set_voltage(sw2_stby_reg, 1000000, 1000000);
+		regulator_put(sw2_stby_reg);
 #endif
 	}
 	return 0;

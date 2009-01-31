@@ -23,7 +23,7 @@
 #include <asm/uaccess.h>	/* for get_user, put_user, access_ok */
 #include <linux/sched.h>	/* jiffies */
 #include <linux/poll.h>
-#include <linux/regulator/regulator.h>
+#include <linux/regulator/consumer.h>
 #include <linux/delay.h>
 #include <linux/platform_device.h>
 #include "agpsgpiodev.h"
@@ -193,9 +193,9 @@ static int __init gps_ioctrl_probe(struct platform_device *pdev)
 		gps_regu =
 		    regulator_get(&(pdev->dev), mxc_gps_ioctrl_data->core_reg);
 		if (!IS_ERR_VALUE((u32)gps_regu)) {
-			regulator_set_voltage(gps_regu, 1800000);
+			regulator_set_voltage(gps_regu, 1800000, 1800000);
 			regulator_enable(gps_regu);
-			regulator_put(gps_regu, &(pdev->dev));
+			regulator_put(gps_regu);
 		} else {
 			return -1;
 		}
@@ -206,9 +206,9 @@ static int __init gps_ioctrl_probe(struct platform_device *pdev)
 		    regulator_get(&(pdev->dev),
 				  mxc_gps_ioctrl_data->analog_reg);
 		if (!IS_ERR_VALUE((u32)gps_regu)) {
-			regulator_set_voltage(gps_regu, 2800000);
+			regulator_set_voltage(gps_regu, 2800000, 2800000);
 			regulator_enable(gps_regu);
-			regulator_put(gps_regu, &(pdev->dev));
+			regulator_put(gps_regu);
 		} else {
 			return -1;
 		}
@@ -236,7 +236,7 @@ static int gps_ioctrl_remove(struct platform_device *pdev)
 		gps_regu =
 		    regulator_get(&(pdev->dev), mxc_gps_ioctrl_data->core_reg);
 		regulator_disable(gps_regu);
-		regulator_put(gps_regu, &(pdev->dev));
+		regulator_put(gps_regu);
 	}
 	/* close GPS GPO1 2v8 for GL gps */
 	if (mxc_gps_ioctrl_data->analog_reg != NULL) {
@@ -244,7 +244,7 @@ static int gps_ioctrl_remove(struct platform_device *pdev)
 		    regulator_get(&(pdev->dev),
 				  mxc_gps_ioctrl_data->analog_reg);
 		regulator_disable(gps_regu);
-		regulator_put(gps_regu, &(pdev->dev));
+		regulator_put(gps_regu);
 	}
 
 	return 0;

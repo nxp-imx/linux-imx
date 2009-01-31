@@ -42,12 +42,21 @@
 #include <linux/clk.h>
 #include <linux/workqueue.h>
 #include <linux/platform_device.h>
-#include <linux/regulator/regulator.h>
+#include <linux/regulator/consumer.h>
 
 #include <mach/clock.h>
 #include <mach/gpio.h>
 #include <mach/hardware.h>
 #include <mach/mxc_dptc.h>
+
+/*
+ * Convenience conversion.
+ * Here atm, maybe there is somewhere better for this.
+ */
+#define mV_to_uV(mV) (mV * 1000)
+#define uV_to_mV(uV) (uV / 1000)
+#define V_to_uV(V) (mV_to_uV(V * 1000))
+#define uV_to_V(uV) (uV_to_mV(uV) / 1000)
 
 enum {
 	DPTC_PTVAI_NOCHANGE = 0x0,
@@ -92,7 +101,7 @@ static void update_dptc_wp(struct dptc_device *drv_data, u32 wp)
 	int voltage_uV;
 	int ret = 0;
 
-	voltage_uV = mV_to_uV(dptc_data->dptc_wp_allfreq[wp].voltage);
+	voltage_uV = dptc_data->dptc_wp_allfreq[wp].voltage * 1000;
 
 	__raw_writel(dptc_data->dptc_wp_allfreq[wp].dcvr0,
 		     dptc_data->dcvr0_reg_addr);
@@ -104,7 +113,7 @@ static void update_dptc_wp(struct dptc_device *drv_data, u32 wp)
 		     dptc_data->dcvr0_reg_addr + 0xC);
 
 	/* Set the voltage */
-	ret = regulator_set_voltage(drv_data->dptc_reg, voltage_uV);
+	ret = regulator_set_voltage(drv_data->dptc_reg, voltage_uV, voltage_uV);
 	if (ret < 0)
 		printk(KERN_DEBUG "COULD NOT SET VOLTAGE!!!!!\n");
 
@@ -195,12 +204,12 @@ static int start_dptc(struct device *dev)
 	u32 dptccr;
 	unsigned long flags;
 	unsigned long clk_rate;
-	int voltage_mV;
+	int voltage_uV;
 
 	/* Get the voltage */
-	voltage_mV = uV_to_mV(regulator_get_voltage(drv_data->dptc_reg));
+	voltage_uV = regulator_get_voltage(drv_data->dptc_reg);
 	drv_data->curr_wp =
-	    (dptc_data->dptc_wp_allfreq[0].voltage - voltage_mV) / 25;
+	    (dptc_data->dptc_wp_allfreq[0].voltage - (voltage_uV / 1000)) / 25;
 
 	update_dptc_wp(drv_data, drv_data->curr_wp);
 
@@ -260,7 +269,7 @@ static void stop_dptc(struct device *dev)
 	update_dptc_wp(drv_data, 0);
 	drv_data->curr_wp = 0;
 
-	regulator_put(drv_data->dptc_reg, NULL);
+	regulator_put(drv_data->dptc_reg);
 
 	pr_info("DPTC has been stopped\n");
 }

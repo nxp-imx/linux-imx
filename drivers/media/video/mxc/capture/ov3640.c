@@ -18,7 +18,7 @@
 #include <linux/delay.h>
 #include <linux/device.h>
 #include <linux/i2c.h>
-#include <linux/regulator/regulator.h>
+#include <linux/regulator/consumer.h>
 #include <media/v4l2-int-device.h>
 #include "mxc_v4l2_capture.h"
 
@@ -955,7 +955,8 @@ static int ov3640_probe(struct i2c_client *client,
 
 	io_regulator = regulator_get(&client->dev, plat_data->io_regulator);
 	if (!IS_ERR_VALUE((u32)io_regulator)) {
-		regulator_set_voltage(io_regulator, OV3640_VOLTAGE_DIGITAL_IO);
+		regulator_set_voltage(io_regulator, OV3640_VOLTAGE_DIGITAL_IO,
+				      OV3640_VOLTAGE_DIGITAL_IO);
 		if (regulator_enable(io_regulator) != 0) {
 			pr_err("%s:io set voltage error\n", __func__);
 			goto err1;
@@ -968,6 +969,7 @@ static int ov3640_probe(struct i2c_client *client,
 	core_regulator = regulator_get(&client->dev, plat_data->core_regulator);
 	if (!IS_ERR_VALUE((u32)core_regulator)) {
 		regulator_set_voltage(core_regulator,
+				      OV3640_VOLTAGE_DIGITAL_CORE,
 				      OV3640_VOLTAGE_DIGITAL_CORE);
 		if (regulator_enable(core_regulator) != 0) {
 			pr_err("%s:core set voltage error\n", __func__);
@@ -981,7 +983,8 @@ static int ov3640_probe(struct i2c_client *client,
 	analog_regulator =
 		regulator_get(&client->dev, plat_data->analog_regulator);
 	if (!IS_ERR_VALUE((u32)analog_regulator)) {
-		regulator_set_voltage(analog_regulator, OV3640_VOLTAGE_ANALOG);
+		regulator_set_voltage(analog_regulator, OV3640_VOLTAGE_ANALOG,
+				      OV3640_VOLTAGE_ANALOG);
 		if (regulator_enable(analog_regulator) != 0) {
 			pr_err("%s:analog set voltage error\n", __func__);
 			goto err3;
@@ -1010,17 +1013,17 @@ static int ov3640_probe(struct i2c_client *client,
 err4:
 	if (!IS_ERR_VALUE((u32)analog_regulator)) {
 		regulator_disable(analog_regulator);
-		regulator_put(analog_regulator, &client->dev);
+		regulator_put(analog_regulator);
 	}
 err3:
 	if (!IS_ERR_VALUE((u32)core_regulator)) {
 		regulator_disable(core_regulator);
-		regulator_put(core_regulator, &client->dev);
+		regulator_put(core_regulator);
 	}
 err2:
 	if (!IS_ERR_VALUE((u32)io_regulator)) {
 		regulator_disable(io_regulator);
-		regulator_put(io_regulator, &client->dev);
+		regulator_put(io_regulator);
 	}
 err1:
 	return -1;
@@ -1040,22 +1043,22 @@ static int ov3640_remove(struct i2c_client *client)
 
 	if (!IS_ERR_VALUE((unsigned long)gpo_regulator)) {
 		regulator_disable(gpo_regulator);
-		regulator_put(gpo_regulator, &client->dev);
+		regulator_put(gpo_regulator);
 	}
 
 	if (!IS_ERR_VALUE((unsigned long)analog_regulator)) {
 		regulator_disable(analog_regulator);
-		regulator_put(analog_regulator, &client->dev);
+		regulator_put(analog_regulator);
 	}
 
 	if (!IS_ERR_VALUE((unsigned long)core_regulator)) {
 		regulator_disable(core_regulator);
-		regulator_put(core_regulator, &client->dev);
+		regulator_put(core_regulator);
 	}
 
 	if (!IS_ERR_VALUE((unsigned long)io_regulator)) {
 		regulator_disable(io_regulator);
-		regulator_put(io_regulator, &client->dev);
+		regulator_put(io_regulator);
 	}
 
 	return 0;

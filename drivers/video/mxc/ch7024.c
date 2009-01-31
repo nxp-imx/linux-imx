@@ -27,8 +27,8 @@
 #include <linux/interrupt.h>
 #include <linux/irq.h>
 #include <linux/sysfs.h>
-#include <linux/regulator/regulator.h>
 #include <linux/mxcfb.h>
+#include <linux/regulator/consumer.h>
 #include <asm/uaccess.h>
 #include <asm/atomic.h>
 #include <mach/gpio.h>
@@ -781,9 +781,9 @@ static int ch7024_remove(struct i2c_client *client)
 {
 	free_irq(client->irq, client);
 
-	regulator_put(io_reg, &client->dev);
-	regulator_put(core_reg, &client->dev);
-	regulator_put(analog_reg, &client->dev);
+	regulator_put(io_reg);
+	regulator_put(core_reg);
+	regulator_put(analog_reg);
 
 	driver_remove_file(&client->driver->driver, &driver_attr_headphone);
 	driver_remove_file(&client->driver->driver, &driver_attr_brightness);

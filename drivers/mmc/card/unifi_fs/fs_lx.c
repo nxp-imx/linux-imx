@@ -40,7 +40,7 @@
 #include <mach/gpio.h>
 
 #include <linux/platform_device.h>
-#include <linux/regulator/regulator.h>
+#include <linux/regulator/consumer.h>
 
 #include "fs_sdio_api.h"
 
@@ -264,13 +264,14 @@ static void fs_unifi_power_on(int check_card)
 		tmp = regulator_get_voltage(reg_unifi->reg_1v5_ana_bb);
 		if (tmp < 1500000)
 			regulator_set_voltage(reg_unifi->reg_1v5_ana_bb,
-					     1500000);
+					     1500000, 1500000);
 		regulator_enable(reg_unifi->reg_1v5_ana_bb);
 	}
 	if (reg_unifi->reg_vdd_vpa) {
 		tmp = regulator_get_voltage(reg_unifi->reg_vdd_vpa);
 		if (tmp < 3000000)
-			regulator_set_voltage(reg_unifi->reg_vdd_vpa, 3000000);
+			regulator_set_voltage(reg_unifi->reg_vdd_vpa,
+					      3000000, 3000000);
 		regulator_enable(reg_unifi->reg_vdd_vpa);
 	}
 	/* WL_1V5DD should come on last, 10ms after other supplies */
@@ -278,7 +279,8 @@ static void fs_unifi_power_on(int check_card)
 	if (reg_unifi->reg_1v5_dd) {
 		tmp = regulator_get_voltage(reg_unifi->reg_1v5_dd);
 		if (tmp < 1500000)
-			regulator_set_voltage(reg_unifi->reg_1v5_dd, 1500000);
+			regulator_set_voltage(reg_unifi->reg_1v5_dd,
+					      1500000, 1500000);
 		regulator_enable(reg_unifi->reg_1v5_dd);
 	}
 	msleep(10);
@@ -605,16 +607,16 @@ static int fs_unifi_init(void)
 
 err_reg_1v5_dd:
 	if (reg_unifi->reg_vdd_vpa)
-		regulator_put(reg_unifi->reg_vdd_vpa, NULL);
+		regulator_put(reg_unifi->reg_vdd_vpa);
 err_reg_vdd_vpa:
 	if (reg_unifi->reg_1v5_ana_bb)
-		regulator_put(reg_unifi->reg_1v5_ana_bb, NULL);
+		regulator_put(reg_unifi->reg_1v5_ana_bb);
 err_reg_1v5_ana_bb:
 	if (reg_unifi->reg_gpo2)
-		regulator_put(reg_unifi->reg_gpo2, NULL);
+		regulator_put(reg_unifi->reg_gpo2);
 err_reg_gpo2:
 	if (reg_unifi->reg_gpo1)
-		regulator_put(reg_unifi->reg_gpo1, NULL);
+		regulator_put(reg_unifi->reg_gpo1);
 err_reg_gpo1:
 	kfree(reg_unifi);
 	return err;
@@ -628,18 +630,18 @@ int fs_unifi_remove(void)
 	plat_data->priv = NULL;
 
 	if (reg_unifi->reg_1v5_dd)
-		regulator_put(reg_unifi->reg_1v5_dd, NULL);
+		regulator_put(reg_unifi->reg_1v5_dd);
 	if (reg_unifi->reg_vdd_vpa)
-		regulator_put(reg_unifi->reg_vdd_vpa, NULL);
+		regulator_put(reg_unifi->reg_vdd_vpa);
 
 	if (reg_unifi->reg_1v5_ana_bb)
-		regulator_put(reg_unifi->reg_1v5_ana_bb, NULL);
+		regulator_put(reg_unifi->reg_1v5_ana_bb);
 
 	if (reg_unifi->reg_gpo2)
-		regulator_put(reg_unifi->reg_gpo2, NULL);
+		regulator_put(reg_unifi->reg_gpo2);
 
 	if (reg_unifi->reg_gpo1)
-		regulator_put(reg_unifi->reg_gpo1, NULL);
+		regulator_put(reg_unifi->reg_gpo1);
 
 	kfree(reg_unifi);
 	return 0;

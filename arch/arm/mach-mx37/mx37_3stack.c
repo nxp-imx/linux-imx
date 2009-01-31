@@ -25,7 +25,7 @@
 #include <linux/spi/spi.h>
 #include <linux/i2c.h>
 #include <linux/ata.h>
-#include <linux/regulator/regulator.h>
+#include <linux/regulator/consumer.h>
 #if defined(CONFIG_MTD) || defined(CONFIG_MTD_MODULE)
 #include <linux/mtd/mtd.h>
 #include <linux/mtd/map.h>
@@ -144,7 +144,7 @@ static void mc13892_reg_int(void)
 		regulator = regulator_get(NULL, reg_name[i]);
 		if (regulator != ERR_PTR(-ENOENT)) {
 			regulator_enable(regulator);
-			regulator_put(regulator, NULL);
+			regulator_put(regulator);
 		}
 	}
 	for (i = 0; i < ARRAY_SIZE(reg_name); i++) {
@@ -156,7 +156,7 @@ static void mc13892_reg_int(void)
 		regulator = regulator_get(NULL, reg_name[i]);
 		if (regulator != ERR_PTR(-ENOENT)) {
 			regulator_disable(regulator);
-			regulator_put(regulator, NULL);
+			regulator_put(regulator);
 		}
 	}
 
@@ -541,7 +541,7 @@ static void mxc_unifi_hardreset(void)
 		gpo4 = regulator_get(NULL, "GPO4");
 		if (!IS_ERR(gpo4))
 			regulator_enable(gpo4);
-		regulator_put(gpo4, NULL);
+		regulator_put(gpo4);
 	} else {
 		mxc_request_iomux(MX37_PIN_AUD5_RXC, IOMUX_CONFIG_GPIO);
 		mxc_set_gpio_dataout(MX37_PIN_AUD5_RXC, 1);
@@ -695,7 +695,7 @@ static void bt_reset(void)
 		gpo4 = regulator_get(NULL, "GPO4");
 		if (!IS_ERR(gpo4))
 			regulator_enable(gpo4);
-		regulator_put(gpo4, NULL);
+		regulator_put(gpo4);
 	} else {
 		mxc_request_iomux(MX37_PIN_AUD5_RXC, IOMUX_CONFIG_GPIO);
 		mxc_set_gpio_dataout(MX37_PIN_AUD5_RXC, 1);

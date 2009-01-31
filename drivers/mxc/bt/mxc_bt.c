@@ -1,5 +1,5 @@
 /*
- * Copyright 2008 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2008-2009 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -22,7 +22,7 @@
 #include <linux/platform_device.h>
 #include <linux/kernel.h>
 #include <linux/init.h>
-#include <linux/regulator/regulator.h>
+#include <linux/regulator/consumer.h>
 
 static struct regulator *bt_vdd;
 static struct regulator *bt_vdd_parent;
@@ -76,19 +76,19 @@ static int mxc_bt_remove(struct platform_device *pdev)
 	platform_data = (struct mxc_bt_platform_data *)pdev->dev.platform_data;
 	if (bt_vdd) {
 		regulator_disable(bt_vdd);
-		regulator_put(bt_vdd, &pdev->dev);
+		regulator_put(bt_vdd);
 	}
 	if (bt_vdd_parent) {
 		regulator_disable(bt_vdd_parent);
-		regulator_put(bt_vdd_parent, &pdev->dev);
+		regulator_put(bt_vdd_parent);
 	}
 	if (bt_vusb) {
 		regulator_disable(bt_vusb);
-		regulator_put(bt_vusb, &pdev->dev);
+		regulator_put(bt_vusb);
 	}
 	if (bt_vusb_parent) {
 		regulator_disable(bt_vusb_parent);
-		regulator_put(bt_vusb_parent, &pdev->dev);
+		regulator_put(bt_vusb_parent);
 	}
 	return 0;
 

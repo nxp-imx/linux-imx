@@ -41,7 +41,7 @@
 #include <linux/kernel.h>
 #include <linux/err.h>
 #include <linux/suspend.h>
-#include <linux/regulator/regulator-platform.h>
+#include <linux/regulator/machine.h>
 #include <mach/mxc_pm.h>
 
 /*
@@ -75,9 +75,9 @@ static int mx31_suspend_prepare(void)
 		printk(KERN_ERR "Get regulator SW1A_STBY fail\n");
 		return -1;
 	}
-	regulator_set_voltage(reg_core, 1250000);
+	regulator_set_voltage(reg_core, 1250000, 1250000);
 	regulator_set_mode(reg_core, REGULATOR_MODE_STANDBY);
-	regulator_put(reg_core, NULL);
+	regulator_put(reg_core);
 
 	return 0;
 }

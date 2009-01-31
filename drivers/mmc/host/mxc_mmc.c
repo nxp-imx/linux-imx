@@ -55,7 +55,7 @@
 #include <linux/delay.h>
 #include <linux/timer.h>
 #include <linux/clk.h>
-#include <linux/regulator/regulator.h>
+#include <linux/regulator/consumer.h>
 
 #include <asm/dma.h>
 #include <asm/io.h>
@@ -1009,7 +1009,7 @@ static void mxcmci_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
 			voltage = 1800000;
 		else if (ios->vdd >= 8)
 			voltage = 2000000 + (ios->vdd - 8) * 100000;
-		regulator_set_voltage(host->regulator_mmc, voltage);
+		regulator_set_voltage(host->regulator_mmc, voltage, voltage);
 	}
 	host->current_vdd = ios->vdd;
 
@@ -1326,7 +1326,7 @@ static int mxcmci_probe(struct platform_device *pdev)
       out2:
 	clk_disable(host->clk);
 	regulator_disable(host->regulator_mmc);
-	regulator_put(host->regulator_mmc, &pdev->dev);
+	regulator_put(host->regulator_mmc);
       out1:
 	gpio_sdhc_inactive(pdev->id);
       out0:
@@ -1362,7 +1362,7 @@ static int mxcmci_remove(struct platform_device *pdev)
 				   host->res->end - host->res->start + 1);
 		mmc_free_host(mmc);
 		if (NULL != host->regulator_mmc)
-			regulator_put(host->regulator_mmc, &pdev->dev);
+			regulator_put(host->regulator_mmc);
 		gpio_sdhc_inactive(pdev->id);
 	}
 	platform_set_drvdata(pdev, NULL);

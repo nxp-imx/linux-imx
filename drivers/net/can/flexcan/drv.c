@@ -26,7 +26,7 @@
 #include <linux/if_arp.h>
 #include <linux/if_ether.h>
 #include <linux/platform_device.h>
-#include <linux/regulator/regulator.h>
+#include <linux/regulator/consumer.h>
 #include <linux/clk.h>
 
 #include <asm/io.h>

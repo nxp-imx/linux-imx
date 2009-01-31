@@ -1,7 +1,7 @@
 #ifndef __LINUX_USB_FSL_XCVR_H
 #define __LINUX_USB_FSL_XCVR_H
 #include <linux/platform_device.h>
-#include <linux/regulator/regulator.h>
+#include <linux/regulator/consumer.h>
 
 struct fsl_usb2_platform_data;
 

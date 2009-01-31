@@ -20,7 +20,7 @@
 #include <linux/i2c.h>
 #include <linux/delay.h>
 #include <linux/fs.h>
-#include <linux/regulator/regulator.h>
+#include <linux/regulator/consumer.h>
 #include <asm/uaccess.h>
 #include <linux/err.h>
 #include <linux/mxc_si4702.h>
@@ -151,13 +151,13 @@ static int __devinit si4702_probe(struct i2c_client *client, const struct i2c_de
 	if (reg_vio == ERR_PTR(-ENOENT))
 		return -ENOENT;
 	regulator_enable(reg_vio);	/*shall i check the return value */
-	regulator_put(reg_vio, &client->dev);
+	regulator_put(reg_vio);
 
 	reg_vdd = regulator_get(&client->dev, data->reg_vdd);
 	if (reg_vdd == ERR_PTR(-ENOENT))
 		return -ENOENT;
 	regulator_enable(reg_vdd);
-	regulator_put(reg_vdd, &client->dev);
+	regulator_put(reg_vdd);
 	/*attach client and check device id */
 	if (SI4702_DEVICE_ID != si4702_id_detect(client)) {
 		dev_info(&client->dev, "id wrong.\n");
@@ -229,13 +229,13 @@ static int __devinit si4702_probe(struct i2c_client *client, const struct i2c_de
 	if (reg_vio == ERR_PTR(-ENOENT))
 		return -ENOENT;
 	regulator_disable(reg_vio);	/*shall i check the return value */
-	regulator_put(reg_vio, &client->dev);
+	regulator_put(reg_vio);
 
 	reg_vdd = regulator_get(&client->dev, data->reg_vdd);
 	if (reg_vdd == ERR_PTR(-ENOENT))
 		return -ENOENT;
 	regulator_disable(reg_vdd);
-	regulator_put(reg_vdd, &client->dev);
+	regulator_put(reg_vdd);
 
 	return 0;
 }
@@ -256,13 +256,13 @@ static int __devexit si4702_remove(struct i2c_client *client)
 	if (reg_vio == ERR_PTR(-ENOENT))
 		return -ENOENT;
 	regulator_disable(reg_vio);	/*shall i check the return value */
-	regulator_put(reg_vio, &client->dev);
+	regulator_put(reg_vio);
 
 	reg_vdd = regulator_get(&client->dev, data->reg_vdd);
 	if (reg_vdd == ERR_PTR(-ENOENT))
 		return -ENOENT;
 	regulator_disable(reg_vdd);
-	regulator_put(reg_vdd, &client->dev);
+	regulator_put(reg_vdd);
 
 	return 0;
 }

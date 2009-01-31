@@ -33,7 +33,7 @@
 #include <linux/kthread.h>
 #include <linux/input.h>
 #include <linux/delay.h>
-#include <linux/regulator/regulator.h>
+#include <linux/regulator/consumer.h>
 #include <asm/mach/irq.h>
 #include <mach/gpio.h>
 
@@ -304,7 +304,7 @@ static int mpr084_i2c_remove(struct i2c_client *client)
 	/*Disable the Regulator*/
 	if (keypad->vdd_reg) {
 		regulator_disable(vdd_reg);
-		regulator_put(vdd_reg, &client->dev);
+		regulator_put(vdd_reg);
 	}
 
 	err = i2c_detach_client(client);
@@ -461,7 +461,7 @@ exit_free:
 	/*disable the Regulator*/
 	if (vdd_reg) {
 		regulator_disable(vdd_reg);
-		regulator_put(vdd_reg, &client->dev);
+		regulator_put(vdd_reg);
 		vdd_reg = NULL;
 	}
 	kfree(data);
