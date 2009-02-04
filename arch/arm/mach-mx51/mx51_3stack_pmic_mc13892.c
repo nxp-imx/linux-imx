@@ -216,10 +216,25 @@ static struct regulator_init_data vgen3_init = {
 	}
 };
 
+/*!
+ * the event handler for power on event
+ */
+static void power_on_evt_handler(void)
+{
+	pr_info("pwr on event1 is received \n");
+}
+
 static int mc13892_regulator_init(struct mc13892 *mc13892)
 {
+	pmic_event_callback_t power_key_event;
+
 	if (mxc_cpu_is_rev(CHIP_REV_2_0) < 0)
 		sw2_init.constraints.state_mem.uV = 1100000;
+
+	/* subscribe PWRON1 event to enable ON_OFF key */
+	power_key_event.param = NULL;
+	power_key_event.func = (void *)power_on_evt_handler;
+	pmic_event_subscribe(EVENT_PWRONI, power_key_event);
 
 	mc13892_register_regulator(mc13892, MC13892_SW1, &sw1_init);
 	mc13892_register_regulator(mc13892, MC13892_SW2, &sw2_init);
