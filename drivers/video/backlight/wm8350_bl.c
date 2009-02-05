@@ -17,7 +17,8 @@
 #include <linux/platform_device.h>
 #include <linux/backlight.h>
 #include <linux/regulator/consumer.h>
-#include <linux/regulator/wm8350/wm8350-bus.h>
+#include <linux/mfd/wm8350/pmic.h>
+#include <linux/mfd/wm8350/bl.h>
 
 struct wm8350_backlight {
 	struct backlight_properties props;
@@ -54,8 +55,8 @@ static void bl_work(struct work_struct *work)
 	if (bl->intensity >= 0 &&
 		bl->intensity < ARRAY_SIZE(intensity_huA)) {
 		bl->retries = 0;
-		regulator_set_current(isink,
-			intensity_huA[bl->intensity] / 100);
+		regulator_set_current_limit(isink,
+			0, intensity_huA[bl->intensity] / 100);
 	} else
 		printk(KERN_ERR "wm8350: Backlight intensity error\n");
 	mutex_unlock(&bl->mutex);
@@ -77,7 +78,7 @@ static int wm8350_bl_notifier(struct notifier_block *self,
 	if (bl->retries) {
 		bl->retries--;
 		regulator_disable(isink);
-		regulator_set_current(isink, bl->intensity);
+		regulator_set_current_limit(isink, 0, bl->intensity);
 		regulator_enable(isink);
 	} else {
 		printk(KERN_ERR
@@ -152,7 +153,7 @@ static int wm8350_bl_probe(struct platform_device *pdev)
 	struct regulator *isink, *dcdc;
 	struct wm8350_backlight *bl;
 	struct wm8350_bl_platform_data *pdata = pdev->dev.platform_data;
-	struct wm8350_pmic *pmic;
+	struct wm8350 *pmic;
 	int ret;
 
 	if (pdata == NULL) {
@@ -219,17 +220,11 @@ static int wm8350_bl_probe(struct platform_device *pdev)
 	}
 
 	bl->notifier.notifier_call = wm8350_bl_notifier;
-	regulator_register_client(dcdc, &bl->notifier);
-	regulator_register_client(isink, &bl->notifier);
+	regulator_register_notifier(dcdc, &bl->notifier);
+	regulator_register_notifier(isink, &bl->notifier);
 	bl->device->props = bl->props;
 
-	/* WM8350 ISINK & DCDC setup */
-	if (pdata->isink == WM8350_ISINK_A)
-		pmic->isink_A_dcdc = pdata->dcdc;
-	else
-		pmic->isink_B_dcdc = pdata->dcdc;
-
-	regulator_set_current(isink, 20000);
+	regulator_set_current_limit(isink, 0, 20000);
 
 	wm8350_isink_set_flash(pmic, pdata->isink,
 		WM8350_ISINK_FLASH_DISABLE,
@@ -265,10 +260,10 @@ static int wm8350_bl_remove(struct platform_device *pdev)
 	flush_scheduled_work();
 	backlight_device_unregister(bl->device);
 
-	regulator_set_current(isink, 0);
+	regulator_set_current_limit(isink, 0, 0);
 	regulator_disable(isink);
-	regulator_unregister_client(isink, &bl->notifier);
-	regulator_unregister_client(dcdc, &bl->notifier);
+	regulator_unregister_notifier(isink, &bl->notifier);
+	regulator_unregister_notifier(dcdc, &bl->notifier);
 	regulator_put(isink);
 	regulator_put(dcdc);
 	return 0;
