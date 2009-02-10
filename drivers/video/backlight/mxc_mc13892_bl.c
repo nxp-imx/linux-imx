@@ -31,28 +31,34 @@
 
 #define MXC_INTENSITY_OFF 	0
 
-static int intensity;
+struct mxcbl_dev_data {
+	int intensity;
+	int suspend;
+};
 
 static int mxcbl_set_intensity(struct backlight_device *bd)
 {
 	int brightness = bd->props.brightness;
+	struct mxcbl_dev_data *devdata = dev_get_drvdata(&bd->dev);
 
 	if (bd->props.power != FB_BLANK_UNBLANK)
 		brightness = 0;
 	if (bd->props.fb_blank != FB_BLANK_UNBLANK)
 		brightness = 0;
+	if (devdata->suspend)
+		brightness = 0;
 
 	brightness = brightness / 4;
 	mc13892_bklit_set_dutycycle(LIT_MAIN, brightness);
-
-	intensity = brightness;
+	devdata->intensity = brightness;
 
 	return 0;
 }
 
 static int mxcbl_get_intensity(struct backlight_device *bd)
 {
-	return intensity;
+	struct mxcbl_dev_data *devdata = dev_get_drvdata(&bd->dev);
+	return devdata->intensity;
 }
 
 static int mxcbl_check_fb(struct fb_info *info)
@@ -71,17 +77,22 @@ static int __init mxcbl_probe(struct platform_device *pdev)
 {
 	int ret = 0;
 	struct backlight_device *bd;
+	struct mxcbl_dev_data *devdata;
 
 	pr_debug("mc13892 backlight start probe\n");
+
+	devdata = kzalloc(sizeof(struct mxcbl_dev_data), GFP_KERNEL);
+	if (!devdata)
+		return -ENOMEM;
 
 	bl_ops.check_fb = mxcbl_check_fb;
 	bl_ops.get_brightness = mxcbl_get_intensity;
 	bl_ops.update_status = mxcbl_set_intensity;
-	bd = backlight_device_register(pdev->dev.bus_id, &pdev->dev, NULL,
+	bd = backlight_device_register(pdev->dev.bus_id, &pdev->dev, devdata,
 				       &bl_ops);
 	if (IS_ERR(bd)) {
 		ret = PTR_ERR(bd);
-		return ret;
+		goto err0;
 	}
 
 	platform_set_drvdata(pdev, bd);
@@ -95,22 +106,48 @@ static int __init mxcbl_probe(struct platform_device *pdev)
 	bd->props.fb_blank = FB_BLANK_UNBLANK;
 	backlight_update_status(bd);
 	pr_debug("mc13892 backlight probed successfully\n");
-
 	return 0;
+
+      err0:
+	kfree(devdata);
+	return ret;
 }
 
 static int mxcbl_remove(struct platform_device *pdev)
 {
 	struct backlight_device *bd = platform_get_drvdata(pdev);
+	struct mxcbl_dev_data *devdata = dev_get_drvdata(&bd->dev);
 
+	kfree(devdata);
 	backlight_device_unregister(bd);
+	return 0;
+}
 
+static int mxcbl_suspend(struct platform_device *pdev, pm_message_t state)
+{
+	struct backlight_device *bd = platform_get_drvdata(pdev);
+	struct mxcbl_dev_data *devdata = dev_get_drvdata(&bd->dev);
+
+	devdata->suspend = 1;
+	backlight_update_status(bd);
+	return 0;
+}
+
+static int mxcbl_resume(struct platform_device *pdev)
+{
+	struct backlight_device *bd = platform_get_drvdata(pdev);
+	struct mxcbl_dev_data *devdata = dev_get_drvdata(&bd->dev);
+
+	devdata->suspend = 0;
+	backlight_update_status(bd);
 	return 0;
 }
 
 static struct platform_driver mxcbl_driver = {
 	.probe = mxcbl_probe,
 	.remove = mxcbl_remove,
+	.suspend = mxcbl_suspend,
+	.resume = mxcbl_resume,
 	.driver = {
 		   .name = "mxc_mc13892_bl",
 		   },

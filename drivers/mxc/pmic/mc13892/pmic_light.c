@@ -86,21 +86,6 @@
 #define BIT_BP_GREEN_WID	2
 #define BIT_BP_BLUE_WID		2
 
-/*!
- * Number of users waiting in suspendq
- */
-static int swait;
-
-/*!
- * To indicate whether any of the light devices are suspending
- */
-static int suspend_flag;
-
-/*!
- * The suspendq is used to block application calls
- */
-static wait_queue_head_t suspendq;
-
 int pmic_light_init_reg(void)
 {
 	CHECK_ERROR(pmic_write_reg(REG_LED_CTL0, 0, PMIC_ALL_BITS));
@@ -113,21 +98,11 @@ int pmic_light_init_reg(void)
 
 static int pmic_light_suspend(struct platform_device *dev, pm_message_t state)
 {
-	suspend_flag = 1;
-	/* switch off all leds and backlights */
-	CHECK_ERROR(pmic_light_init_reg());
-
 	return 0;
 };
 
 static int pmic_light_resume(struct platform_device *pdev)
 {
-	suspend_flag = 0;
-	while (swait > 0) {
-		swait--;
-		wake_up_interruptible(&suspendq);
-	}
-
 	return 0;
 };
 
@@ -136,9 +111,6 @@ PMIC_STATUS mc13892_bklit_set_hi_current(enum lit_channel channel, int mode)
 	unsigned int mask;
 	unsigned int value;
 	int reg;
-
-	if (suspend_flag == 1)
-		return -EBUSY;
 
 	switch (channel) {
 	case LIT_MAIN:
@@ -168,9 +140,6 @@ PMIC_STATUS mc13892_bklit_get_hi_current(enum lit_channel channel, int *mode)
 	unsigned int mask;
 	int reg;
 
-	if (suspend_flag == 1)
-		return -EBUSY;
-
 	switch (channel) {
 	case LIT_MAIN:
 		mask = BITFMASK(BIT_HC_MAIN);
@@ -198,9 +167,6 @@ PMIC_STATUS mc13892_bklit_set_current(enum lit_channel channel,
 	unsigned int mask;
 	unsigned int value;
 	int reg;
-
-	if (suspend_flag == 1)
-		return -EBUSY;
 
 	if (level > LIT_CURR_HI_42)
 		return PMIC_PARAMETER_ERROR;
@@ -254,9 +220,6 @@ PMIC_STATUS mc13892_bklit_get_current(enum lit_channel channel,
 	unsigned int reg_value = 0;
 	unsigned int mask = 0;
 	int reg, mode;
-
-	if (suspend_flag == 1)
-		return -EBUSY;
 
 	CHECK_ERROR(mc13892_bklit_get_hi_current(channel, &mode));
 
@@ -327,9 +290,6 @@ PMIC_STATUS mc13892_bklit_set_dutycycle(enum lit_channel channel,
 	unsigned int value;
 	int reg;
 
-	if (suspend_flag == 1)
-		return -EBUSY;
-
 	switch (channel) {
 	case LIT_MAIN:
 		value = BITFVAL(BIT_DC_MAIN, dc);
@@ -375,9 +335,6 @@ PMIC_STATUS mc13892_bklit_get_dutycycle(enum lit_channel channel,
 	int reg;
 	unsigned int reg_value = 0;
 
-	if (suspend_flag == 1)
-		return -EBUSY;
-
 	switch (channel) {
 	case LIT_MAIN:
 		mask = BITFMASK(BIT_DC_MAIN);
@@ -416,9 +373,6 @@ PMIC_STATUS mc13892_bklit_set_ramp(enum lit_channel channel, int flag)
 	unsigned int mask;
 	unsigned int value;
 	int reg;
-
-	if (suspend_flag == 1)
-		return -EBUSY;
 
 	switch (channel) {
 	case LIT_MAIN:
@@ -463,9 +417,6 @@ PMIC_STATUS mc13892_bklit_get_ramp(enum lit_channel channel, int *flag)
 	unsigned int mask;
 	int reg;
 
-	if (suspend_flag == 1)
-		return -EBUSY;
-
 	switch (channel) {
 	case LIT_MAIN:
 		mask = BITFMASK(BIT_RP_MAIN);
@@ -505,9 +456,6 @@ PMIC_STATUS mc13892_bklit_set_blink_p(enum lit_channel channel, int period)
 	unsigned int value;
 	int reg;
 
-	if (suspend_flag == 1)
-		return -EBUSY;
-
 	switch (channel) {
 	case LIT_RED:
 		value = BITFVAL(BIT_BP_RED, period);
@@ -535,9 +483,6 @@ PMIC_STATUS mc13892_bklit_get_blink_p(enum lit_channel channel, int *period)
 {
 	unsigned int mask;
 	int reg;
-
-	if (suspend_flag == 1)
-		return -EBUSY;
 
 	switch (channel) {
 	case LIT_RED:
@@ -695,15 +640,6 @@ static int pmic_light_probe(struct platform_device *pdev)
 	if (ret) {
 		pr_debug("Can't create device file!\n");
 		return -ENODEV;
-	}
-
-	init_waitqueue_head(&suspendq);
-
-	while (suspend_flag == 1) {
-		swait++;
-		/* Block if the device is suspended */
-		if (wait_event_interruptible(suspendq, (suspend_flag == 0)))
-			return -ERESTARTSYS;
 	}
 
 	pmic_light_init_reg();
