@@ -835,16 +835,7 @@ static inline void mxc_sgtl5000_init(void)
 
 static void bt_reset(void)
 {
-	int err;
-
-	err = mxc_request_iomux(MX51_PIN_EIM_D19, IOMUX_CONFIG_GPIO);
-	if (err) {
-		printk(KERN_ERR "Error: bt reset request gpio failed!\n");
-		return;
-	}
 	mxc_set_gpio_dataout(MX51_PIN_EIM_D19, 1);
-	mxc_set_gpio_direction(MX51_PIN_EIM_D19, 0);
-	mxc_free_iomux(MX51_PIN_EIM_D19, IOMUX_CONFIG_GPIO);
 }
 
 static struct mxc_bt_platform_data mxc_bt_data = {
@@ -868,6 +859,34 @@ static void mxc_init_bluetooth(void)
 {
 	(void)platform_device_register(&mxc_bt_device);
 }
+
+#if defined(CONFIG_SDIO_UNIFI_FS) || defined(CONFIG_SDIO_UNIFI_FS_MODULE)
+static void mxc_unifi_hardreset(void)
+{
+	mxc_set_gpio_dataout(MX51_PIN_EIM_D19, 0);
+	msleep(100);
+	mxc_set_gpio_dataout(MX51_PIN_EIM_D19, 1);
+}
+
+static struct mxc_unifi_platform_data unifi_data = {
+	.hardreset = mxc_unifi_hardreset,
+	.reg_vdd_vpa = "VSD",
+	.reg_1v5_dd = "VGEN1",
+	.host_id = 1,
+};
+
+struct mxc_unifi_platform_data *get_unifi_plat_data(void)
+{
+	return &unifi_data;
+}
+#else
+struct mxc_unifi_platform_data *get_unifi_plat_data(void)
+{
+	return NULL;
+}
+#endif
+
+EXPORT_SYMBOL(get_unifi_plat_data);
 
 /*!
  * Board specific fixup function. It is called by \b setup_arch() in
@@ -901,6 +920,8 @@ static void __init fixup_mxc_board(struct machine_desc *desc, struct tag *tags,
  */
 static void __init mxc_board_init(void)
 {
+	int err;
+
 	mxc_cpu_common_init();
 	mxc_gpio_init();
 	early_console_setup(saved_command_line);
@@ -938,6 +959,12 @@ static void __init mxc_board_init(void)
 
 	mxc_sgtl5000_init();
 	mxc_init_bluetooth();
+
+	err = mxc_request_iomux(MX51_PIN_EIM_D19, IOMUX_CONFIG_GPIO);
+	if (err)
+		printk(KERN_ERR "Error: bt reset request gpio failed!\n");
+	else
+	mxc_set_gpio_direction(MX51_PIN_EIM_D19, 0);
 }
 
 static void __init mx51_3stack_timer_init(void)
