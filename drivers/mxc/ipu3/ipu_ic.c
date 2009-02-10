@@ -374,6 +374,7 @@ int _ipu_ic_idma_init(int dma_chan, uint16_t width, uint16_t height,
 {
 	u32 ic_idmac_1, ic_idmac_2, ic_idmac_3;
 	u32 temp_rot = bitrev8(rot) >> 5;
+	bool need_hor_flip = false;
 
 	if ((burst_size != 8) && (burst_size != 16)) {
 		dev_dbg(g_ipu_dev, "Illegal burst length for IC\n");
@@ -383,6 +384,9 @@ int _ipu_ic_idma_init(int dma_chan, uint16_t width, uint16_t height,
 	width--;
 	height--;
 
+	if (temp_rot & 0x2)	/* Need horizontal flip */
+		need_hor_flip = true;
+
 	ic_idmac_1 = __raw_readl(IC_IDMAC_1);
 	ic_idmac_2 = __raw_readl(IC_IDMAC_2);
 	ic_idmac_3 = __raw_readl(IC_IDMAC_3);
@@ -391,6 +395,11 @@ int _ipu_ic_idma_init(int dma_chan, uint16_t width, uint16_t height,
 			ic_idmac_1 |= IC_IDMAC_1_CB2_BURST_16;
 		else
 			ic_idmac_1 &= ~IC_IDMAC_1_CB2_BURST_16;
+
+		if (need_hor_flip)
+			ic_idmac_1 |= IC_IDMAC_1_PP_FLIP_RS;
+		else
+			ic_idmac_1 &= ~IC_IDMAC_1_PP_FLIP_RS;
 
 		ic_idmac_2 &= ~IC_IDMAC_2_PP_HEIGHT_MASK;
 		ic_idmac_2 |= height << IC_IDMAC_2_PP_HEIGHT_OFFSET;
@@ -421,6 +430,11 @@ int _ipu_ic_idma_init(int dma_chan, uint16_t width, uint16_t height,
 		else
 			ic_idmac_1 &= ~IC_IDMAC_1_CB0_BURST_16;
 
+		if (need_hor_flip)
+			ic_idmac_1 |= IC_IDMAC_1_PRPENC_FLIP_RS;
+		else
+			ic_idmac_1 &= ~IC_IDMAC_1_PRPENC_FLIP_RS;
+
 		ic_idmac_2 &= ~IC_IDMAC_2_PRPENC_HEIGHT_MASK;
 		ic_idmac_2 |= height << IC_IDMAC_2_PRPENC_HEIGHT_OFFSET;
 
@@ -437,6 +451,11 @@ int _ipu_ic_idma_init(int dma_chan, uint16_t width, uint16_t height,
 			ic_idmac_1 |= IC_IDMAC_1_CB1_BURST_16;
 		else
 			ic_idmac_1 &= ~IC_IDMAC_1_CB1_BURST_16;
+
+		if (need_hor_flip)
+			ic_idmac_1 |= IC_IDMAC_1_PRPVF_FLIP_RS;
+		else
+			ic_idmac_1 &= ~IC_IDMAC_1_PRPVF_FLIP_RS;
 
 		ic_idmac_2 &= ~IC_IDMAC_2_PRPVF_HEIGHT_MASK;
 		ic_idmac_2 |= height << IC_IDMAC_2_PRPVF_HEIGHT_OFFSET;
