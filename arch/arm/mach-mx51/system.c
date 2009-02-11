@@ -181,6 +181,11 @@ void arch_idle(void)
  */
 void arch_reset(char mode)
 {
+	/* Workaround to reset NFC_CONFIG3 register
+	 * due to the chip warm reset does not reset it
+	 */
+	__raw_writel(0x20600, IO_ADDRESS(NFC_BASE_ADDR) + 0x28);
+
 	/* Assert SRS signal */
 	mxc_wd_reset();
 }
