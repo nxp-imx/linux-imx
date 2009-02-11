@@ -143,6 +143,8 @@
 #define USB_PHY_CTR_FUNC	USBOTHER_REG(0x08)      /* OTG UTMI PHY Function Control register */
 #define USB_PHY_CTR_FUNC2	USBOTHER_REG(0x0c)      /* OTG UTMI PHY Function Control register */
 #define USB_CTRL_1		USBOTHER_REG(0x10)	/* USB Cotrol Register 1*/
+#define USBCTRL_HOST2		USBOTHER_REG(0x14)	/* USB Cotrol Register 1*/
+#define USBCTRL_HOST3		USBOTHER_REG(0x18)	/* USB Cotrol Register 1*/
 
 /*
  * register bits
@@ -247,10 +249,17 @@
 #define UCTRL_H2SIC_SU6		(2 << 21)	/* single-ended/unidirectional 6 wire */
 #define UCTRL_H2SIC_SB3		(3 << 21)	/* single-ended/bidirectional  3 wire */
 
+#ifdef CONFIG_ARCH_MX51
+#define UCTRL_H2UIE		(1 << 8)	/* HOST2 ULPI intr enable */
+#define UCTRL_H2WIE		(1 << 7)	/* HOST2 wakeup intr enable */
+#define UCTRL_H2PP		0	/* Power Polarity for uh2 */
+#define UCTRL_H2PM		(1 << 4)	/* HOST2 power mask */
+#else
 #define UCTRL_H2UIE		(1 << 20)	/* HOST2 ULPI intr enable */
 #define UCTRL_H2WIE		(1 << 19)	/* HOST2 wakeup intr enable */
 #define UCTRL_H2PP		(1 << 18)	/* Power Polarity for uh2 */
 #define UCTRL_H2PM		(1 << 16)	/* HOST2 power mask */
+#endif
 
 #define UCTRL_H1WIR		(1 << 15)	/* HOST1 wakeup intr request received */
 #define UCTRL_H1SIC_MASK	(3 << 13)	/* HOST1 Serial Interface Config: */
@@ -309,6 +318,7 @@
 
 /* USB_CTRL_1 */
 #define USB_CTRL_UH1_EXT_CLK_EN			(1 << 25)
+#define USB_CTRL_UH2_EXT_CLK_EN			(1 << 26)
 
 /* ULPIVIEW register bits */
 #define ULPIVW_OFF		(0x170)

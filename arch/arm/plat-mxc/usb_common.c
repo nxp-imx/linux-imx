@@ -388,6 +388,7 @@ static void usbh2_set_serial_xcvr(void)
 extern void usbh2_get_xcvr_power(struct device *dev);
 extern void usbh2_put_xcvr_power(struct device *dev);
 extern void gpio_usbh1_setback_stp(void);
+extern void gpio_usbh2_setback_stp(void);
 
 int fsl_usb_host_init(struct platform_device *pdev)
 {
@@ -448,8 +449,20 @@ int fsl_usb_host_init(struct platform_device *pdev)
 			usbh1_set_serial_xcvr();
 	} else if (xops->xcvr_type == PORTSC_PTS_ULPI) {
 		if (cpu_is_mx51()) {
+#ifdef CONFIG_USB_EHCI_ARC_H1
+		if (pdata->name == "Host 1") {
 			usbh1_set_ulpi_xcvr();
+			if (cpu_is_mx51())
 			gpio_usbh1_setback_stp();
+			}
+#endif
+#ifdef CONFIG_USB_EHCI_ARC_H2
+		if (pdata->name == "Host 2") {
+			usbh2_set_ulpi_xcvr();
+			if (cpu_is_mx51())
+				gpio_usbh2_setback_stp();
+			}
+#endif
 		} else
 			usbh2_set_ulpi_xcvr();
 	}

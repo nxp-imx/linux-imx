@@ -39,7 +39,7 @@ ifneq ($(strip $(CONFIG_USB_EHCI_FSL_UTMI) $(CONFIG_USB_GADGET_FSL_UTMI)),)
 obj-y += utmixc.o
 endif
 
-ifneq ($(CONFIG_USB_EHCI_ARC_H1),)
+ifneq ($(CONFIG_USB_EHCI_ARC_H1)$(CONFIG_USB_EHCI_ARC_H2),)
 ifneq ($(CONFIG_ARCH_MX51),y)
 obj-y += serialxc.o
 else
