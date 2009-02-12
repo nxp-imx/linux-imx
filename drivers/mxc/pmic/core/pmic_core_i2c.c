@@ -51,11 +51,11 @@
 /*
  * Global variables
  */
-static pmic_version_t mxc_pmic_version;
-unsigned int active_events[MAX_ACTIVE_EVENTS];
 struct i2c_client *mc13892_client;
 
-static struct workqueue_struct *pmic_event_wq;
+extern struct workqueue_struct *pmic_event_wq;
+extern pmic_version_t mxc_pmic_version;
+extern irqreturn_t pmic_irq_handler(int irq, void *dev_id);
 
 /*
  * Platform device structure for PMIC client drivers
@@ -117,56 +117,6 @@ static void pmic_pdev_unregister(void)
 	platform_device_unregister(&power_ldm);
 	platform_device_unregister(&light_ldm);
 }
-
-void pmic_bh_handler(struct work_struct *work);
-
-/*!
- * Bottom half handler of PMIC event handling.
- */
-DECLARE_WORK(pmic_ws, pmic_bh_handler);
-
-/*!
- * This function is called when pmic interrupt occurs on the processor.
- * It is the interrupt handler for the pmic module.
- *
- * @param        irq        the irq number
- * @param        dev_id     the pointer on the device
- *
- * @return       The function returns IRQ_HANDLED when handled.
- */
-static irqreturn_t pmic_irq_handler(int irq, void *dev_id)
-{
-	/* prepare a task */
-	queue_work(pmic_event_wq, &pmic_ws);
-
-	return IRQ_HANDLED;
-}
-
-/*!
- * This function is the bottom half handler of the PMIC interrupt.
- * It checks for active events and launches callback for the
- * active events.
- */
-void pmic_bh_handler(struct work_struct *work)
-{
-	unsigned int loop;
-	unsigned int count = 0;
-
-	count = pmic_get_active_events(active_events);
-	pr_debug("active events number %d\n", count);
-
-	for (loop = 0; loop < count; loop++)
-		pmic_event_callback(active_events[loop]);
-
-	return;
-}
-
-pmic_version_t pmic_get_version(void)
-{
-	return mxc_pmic_version;
-}
-
-EXPORT_SYMBOL(pmic_get_version);
 
 static int __devinit is_chip_onboard(struct i2c_client *client)
 {
@@ -283,6 +233,12 @@ static int __devinit pmic_probe(struct i2c_client *client,
 	if (ret != PMIC_SUCCESS)
 		return PMIC_ERROR;
 
+	pmic_event_wq = create_workqueue("mc13892");
+	if (!pmic_event_wq) {
+		pr_err("mc13892 pmic driver init: fail to create work queue");
+		return -EFAULT;
+	}
+
 	/* Set and install PMIC IRQ handler */
 	pmic_irq = (int)(client->irq);
 	if (pmic_irq == 0)
@@ -320,6 +276,9 @@ static int pmic_remove(struct i2c_client *client)
 {
 	int pmic_irq = (int)(client->dev.platform_data);
 
+	if (pmic_event_wq)
+		destroy_workqueue(pmic_event_wq);
+
 	free_irq(pmic_irq, 0);
 	pmic_pdev_unregister();
 	return 0;
@@ -356,19 +315,11 @@ static struct i2c_driver pmic_driver = {
 
 static int __init pmic_init(void)
 {
-	pmic_event_wq = create_workqueue(pmic_driver.driver.name);
-	if (!pmic_event_wq) {
-		pr_err("mc13892 pmic driver init: fail to create work queue");
-		return -EFAULT;
-	}
 	return i2c_add_driver(&pmic_driver);
 }
 
 static void __exit pmic_exit(void)
 {
-	if (pmic_event_wq)
-		destroy_workqueue(pmic_event_wq);
-
 	i2c_del_driver(&pmic_driver);
 }
 

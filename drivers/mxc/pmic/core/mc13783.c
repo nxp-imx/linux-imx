@@ -47,7 +47,7 @@
 
 static unsigned int events_enabled0 = 0;
 static unsigned int events_enabled1 = 0;
-static struct mxc_pmic pmic_drv_data;
+struct mxc_pmic pmic_drv_data;
 
 /*!
  * This function is called to read a register on PMIC.

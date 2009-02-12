@@ -42,6 +42,18 @@
  * Defines
  */
 #define MC13892_I2C_RETRY_TIMES 10
+#define MXC_PMIC_FRAME_MASK		0x00FFFFFF
+#define MXC_PMIC_MAX_REG_NUM		0x3F
+#define MXC_PMIC_REG_NUM_SHIFT		0x19
+#define MXC_PMIC_WRITE_BIT_SHIFT		31
+
+static unsigned int events_enabled0;
+static unsigned int events_enabled1;
+static struct mxc_pmic pmic_drv_data;
+#ifndef CONFIG_MXC_PMIC_I2C
+struct i2c_client *mc13892_client;
+#endif
+
 int pmic_i2c_24bit_read(struct i2c_client *client, unsigned int reg_num,
 			unsigned int *value)
 {
@@ -89,21 +101,71 @@ int pmic_i2c_24bit_write(struct i2c_client *client,
 
 int pmic_read(int reg_num, unsigned int *reg_val)
 {
-	if (mc13892_client == NULL)
-		return PMIC_ERROR;
+	unsigned int frame = 0;
+	int ret = 0;
 
-	if (pmic_i2c_24bit_read(mc13892_client, reg_num, reg_val) == -1)
-		return PMIC_ERROR;
+	if (pmic_drv_data.spi != NULL) {
+		if (reg_num > MXC_PMIC_MAX_REG_NUM)
+			return PMIC_ERROR;
+
+		frame |= reg_num << MXC_PMIC_REG_NUM_SHIFT;
+
+		ret = spi_rw(pmic_drv_data.spi, (u8 *) &frame, 1);
+
+		*reg_val = frame & MXC_PMIC_FRAME_MASK;
+	} else {
+		if (mc13892_client == NULL)
+			return PMIC_ERROR;
+
+		if (pmic_i2c_24bit_read(mc13892_client, reg_num, reg_val) == -1)
+			return PMIC_ERROR;
+	}
 
 	return PMIC_SUCCESS;
 }
 
 int pmic_write(int reg_num, const unsigned int reg_val)
 {
-	if (mc13892_client == NULL)
-		return PMIC_ERROR;
+	unsigned int frame = 0;
+	int ret = 0;
 
-	return pmic_i2c_24bit_write(mc13892_client, reg_num, reg_val);
+	if (pmic_drv_data.spi != NULL) {
+		if (reg_num > MXC_PMIC_MAX_REG_NUM)
+			return PMIC_ERROR;
+
+		frame |= (1 << MXC_PMIC_WRITE_BIT_SHIFT);
+
+		frame |= reg_num << MXC_PMIC_REG_NUM_SHIFT;
+
+		frame |= reg_val & MXC_PMIC_FRAME_MASK;
+
+		ret = spi_rw(pmic_drv_data.spi, (u8 *) &frame, 1);
+
+		return ret;
+	} else {
+		if (mc13892_client == NULL)
+			return PMIC_ERROR;
+
+		return pmic_i2c_24bit_write(mc13892_client, reg_num, reg_val);
+	}
+}
+
+/*!
+ * This function initializes the SPI device parameters for this PMIC.
+ *
+ * @param    spi	the SPI slave device(PMIC)
+ *
+ * @return   None
+ */
+int pmic_spi_setup(struct spi_device *spi)
+{
+	/* Setup the SPI slave i.e.PMIC */
+	pmic_drv_data.spi = spi;
+
+	spi->mode = SPI_MODE_0 | SPI_CS_HIGH;
+	spi->bits_per_word = 32;
+
+	return spi_setup(spi);
 }
 
 int pmic_init_registers(void)
@@ -117,11 +179,9 @@ int pmic_init_registers(void)
 		CHECK_ERROR(pmic_write(REG_CHARGE, 0xB40003));
 
 	pm_power_off = mc13892_power_off;
+
 	return PMIC_SUCCESS;
 }
-
-static unsigned int events_enabled0;
-static unsigned int events_enabled1;
 
 unsigned int pmic_get_active_events(unsigned int *active_events)
 {
@@ -217,6 +277,34 @@ int pmic_event_mask(type_event event)
 	pr_debug("Disable Event : %d\n", event);
 
 	return ret;
+}
+
+/*!
+ * This function returns the PMIC version in system.
+ *
+ * @param 	ver	pointer to the pmic_version_t structure
+ *
+ * @return       This function returns PMIC version.
+ */
+void pmic_get_revision(pmic_version_t *ver)
+{
+	int rev_id = 0;
+	int rev1 = 0;
+	int rev2 = 0;
+	int finid = 0;
+	int icid = 0;
+
+	ver->id = PMIC_MC13892;
+	pmic_read(REG_IDENTIFICATION, &rev_id);
+
+	rev1 = (rev_id & 0x018) >> 3;
+	rev2 = (rev_id & 0x007);
+	icid = (rev_id & 0x01C0) >> 6;
+	finid = (rev_id & 0x01E00) >> 9;
+
+	ver->revision = ((rev1 * 10) + rev2);
+	printk(KERN_INFO "mc13892 Rev %d.%d FinVer %x detected\n", rev1,
+	       rev2, finid);
 }
 
 void mc13892_power_off(void)

@@ -40,17 +40,10 @@
 #include "pmic.h"
 
 /*
- * Global variables
- */
-static pmic_version_t mxc_pmic_version;
-unsigned int active_events[MAX_ACTIVE_EVENTS];
-
-/*
  * Static functions
  */
 static void pmic_pdev_register(void);
 static void pmic_pdev_unregister(void);
-void pmic_bh_handler(struct work_struct *work);
 
 /*
  * Platform device structure for PMIC client drivers
@@ -75,6 +68,18 @@ static struct platform_device light_ldm = {
 	.name = "pmic_light",
 	.id = 1,
 };
+static struct platform_device rleds_ldm = {
+	.name = "pmic_leds",
+	.id = 'r',
+};
+static struct platform_device gleds_ldm = {
+	.name = "pmic_leds",
+	.id = 'g',
+};
+static struct platform_device bleds_ldm = {
+	.name = "pmic_leds",
+	.id = 'b',
+};
 
 /*
  * External functions
@@ -82,11 +87,9 @@ static struct platform_device light_ldm = {
 extern void pmic_event_list_init(void);
 extern void pmic_event_callback(type_event event);
 extern void gpio_pmic_active(void);
-
-/*!
- * Bottom half handler of PMIC event handling.
- */
-DECLARE_WORK(pmic_ws, pmic_bh_handler);
+extern irqreturn_t pmic_irq_handler(int irq, void *dev_id);
+extern pmic_version_t mxc_pmic_version;
+extern struct workqueue_struct *pmic_event_wq;
 
 /*!
  * This function registers platform device structures for
@@ -99,6 +102,9 @@ static void pmic_pdev_register(void)
 	platform_device_register(&rtc_ldm);
 	platform_device_register(&power_ldm);
 	platform_device_register(&light_ldm);
+	platform_device_register(&rleds_ldm);
+	platform_device_register(&gleds_ldm);
+	platform_device_register(&bleds_ldm);
 }
 
 /*!
@@ -113,55 +119,6 @@ static void pmic_pdev_unregister(void)
 	platform_device_unregister(&power_ldm);
 	platform_device_unregister(&light_ldm);
 }
-
-/*!
- * This function is called when pmic interrupt occurs on the processor.
- * It is the interrupt handler for the pmic module.
- *
- * @param        irq        the irq number
- * @param        dev_id     the pointer on the device
- *
- * @return       The function returns IRQ_HANDLED when handled.
- */
-static irqreturn_t pmic_irq_handler(int irq, void *dev_id)
-{
-	/* prepare a task */
-	schedule_work(&pmic_ws);
-
-	return IRQ_HANDLED;
-}
-
-/*!
- * This function is the bottom half handler of the PMIC interrupt.
- * It checks for active events and launches callback for the
- * active events.
- */
-void pmic_bh_handler(struct work_struct *work)
-{
-	unsigned int loop;
-	unsigned int count = 0;
-
-	count = pmic_get_active_events(active_events);
-
-	for (loop = 0; loop < count; loop++) {
-		pmic_event_callback(active_events[loop]);
-	}
-
-	return;
-}
-
-/*!
- * This function is used to determine the PMIC type and its revision.
- *
- * @return      Returns the PMIC type and its revision.
- */
-
-pmic_version_t pmic_get_version(void)
-{
-	return mxc_pmic_version;
-}
-
-EXPORT_SYMBOL(pmic_get_version);
 
 /*!
  * This function puts the SPI slave device in low-power mode/state.
@@ -187,6 +144,8 @@ static int pmic_resume(struct spi_device *spi)
 {
 	return PMIC_SUCCESS;
 }
+
+static struct spi_driver pmic_driver;
 
 /*!
  * This function is called whenever the SPI slave device is detected.
@@ -248,6 +207,12 @@ static int __devinit pmic_probe(struct spi_device *spi)
 		return PMIC_ERROR;
 	}
 
+	pmic_event_wq = create_workqueue("pmic_spi");
+	if (!pmic_event_wq) {
+		pr_err("mc13892 pmic driver init: fail to create work queue");
+		return -EFAULT;
+	}
+
 	/* Set and install PMIC IRQ handler */
 	set_irq_type(spi->irq, IRQF_TRIGGER_RISING);
 	ret = request_irq(spi->irq, pmic_irq_handler, 0, "PMIC_IRQ", 0);
@@ -280,6 +245,9 @@ static int __devinit pmic_probe(struct spi_device *spi)
  */
 static int __devexit pmic_remove(struct spi_device *spi)
 {
+	if (pmic_event_wq)
+		destroy_workqueue(pmic_event_wq);
+
 	free_irq(spi->irq, 0);
 
 	pmic_pdev_unregister();
