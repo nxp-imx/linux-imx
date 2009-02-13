@@ -141,6 +141,8 @@ struct mxc_spi_unique_def {
 	unsigned int rx_cnt_mask;
 	/* Reset start */
 	unsigned int reset_start;
+	/* SCLK control inactive state shift */
+	unsigned int sclk_ctl_shift;
 };
 
 struct mxc_spi;
@@ -215,7 +217,7 @@ static struct spi_chip_info lb_chip_info = {
 static struct spi_board_info loopback_info[] = {
 #ifdef CONFIG_SPI_MXC_SELECT1
 	{
-	 .modalias = "loopback_spi",
+	 .modalias = "spidev",
 	 .controller_data = &lb_chip_info,
 	 .irq = 0,
 	 .max_speed_hz = 4000000,
@@ -225,7 +227,7 @@ static struct spi_board_info loopback_info[] = {
 #endif
 #ifdef CONFIG_SPI_MXC_SELECT2
 	{
-	 .modalias = "loopback_spi",
+	 .modalias = "spidev",
 	 .controller_data = &lb_chip_info,
 	 .irq = 0,
 	 .max_speed_hz = 4000000,
@@ -235,7 +237,7 @@ static struct spi_board_info loopback_info[] = {
 #endif
 #ifdef CONFIG_SPI_MXC_SELECT3
 	{
-	 .modalias = "loopback_spi",
+	 .modalias = "spidev",
 	 .controller_data = &lb_chip_info,
 	 .irq = 0,
 	 .max_speed_hz = 4000000,
@@ -279,6 +281,7 @@ static struct mxc_spi_unique_def spi_ver_2_3 = {
 	.rx_cnt_off = 8,
 	.rx_cnt_mask = (0x7F << 8),
 	.reset_start = 0,
+	.sclk_ctl_shift = 20,
 };
 
 static struct mxc_spi_unique_def spi_ver_0_7 = {
@@ -586,9 +589,8 @@ void mxc_spi_chipselect(struct spi_device *spi, int is_active)
 		    ((spi->chip_select & MXC_CSPICTRL_CSMASK) << spi_ver_def->
 		     cs_shift);
 		ctrl_reg |=
-		    (((1 << spi->
-		       chip_select) & spi_ver_def->mode_mask) <<
-		     spi_ver_def->mode_shift);
+		    (((1 << (spi->chip_select & MXC_CSPICTRL_CSMASK)) &
+		      spi_ver_def->mode_mask) << spi_ver_def->mode_shift);
 		ctrl_reg |=
 		    spi_find_baudrate(master_drv_data, spi->max_speed_hz);
 		ctrl_reg |=
@@ -597,22 +599,28 @@ void mxc_spi_chipselect(struct spi_device *spi, int is_active)
 
 		if (spi->mode & SPI_CPHA)
 			config_reg |=
-			    (((1 << spi->
-			       chip_select) & spi_ver_def->
-			      mode_mask) << spi_ver_def->pha_shift);
-		if ((spi->mode & SPI_CPOL))
+			    (((1 << (spi->chip_select & MXC_CSPICTRL_CSMASK)) &
+			      spi_ver_def->mode_mask) <<
+			     spi_ver_def->pha_shift);
+
+		if ((spi->mode & SPI_CPOL)) {
 			config_reg |=
-			    (((1 << spi->
-			       chip_select) & spi_ver_def->mode_mask) <<
+			    (((1 << (spi->chip_select & MXC_CSPICTRL_CSMASK)) &
+			      spi_ver_def->mode_mask) <<
 			     spi_ver_def->low_pol_shift);
+			config_reg |=
+			    (((1 << (spi->chip_select & MXC_CSPICTRL_CSMASK)) &
+			      spi_ver_def->mode_mask) <<
+			     spi_ver_def->sclk_ctl_shift);
+		}
 		if (spi->mode & SPI_CS_HIGH)
 			config_reg |=
-			    (((1 << spi->
-			       chip_select) & spi_ver_def->
-			      mode_mask) << spi_ver_def->ss_pol_shift);
+			    (((1 << (spi->chip_select & MXC_CSPICTRL_CSMASK)) &
+			      spi_ver_def->mode_mask) <<
+			     spi_ver_def->ss_pol_shift);
 		config_reg |=
-		    (((1 << spi->chip_select) & spi_ver_def->
-		      mode_mask) << spi_ver_def->ss_ctrl_shift);
+		    (((1 << (spi->chip_select & MXC_CSPICTRL_CSMASK)) &
+		      spi_ver_def->mode_mask) << spi_ver_def->ss_ctrl_shift);
 
 		__raw_writel(ctrl_reg, master_drv_data->base + MXC_CSPICTRL);
 		__raw_writel(config_reg,
@@ -824,7 +832,6 @@ int mxc_spi_transfer(struct spi_device *spi, struct spi_transfer *t)
 	master_drv_data = spi_master_get_devdata(spi->master);
 
 	clk_enable(master_drv_data->clk);
-
 	/* Modify the Tx, Rx, Count */
 	master_drv_data->transfer.tx_buf = t->tx_buf;
 	master_drv_data->transfer.rx_buf = t->rx_buf;
@@ -844,7 +851,6 @@ int mxc_spi_transfer(struct spi_device *spi, struct spi_transfer *t)
 	spi_put_tx_data(master_drv_data->base, count, master_drv_data);
 
 	/* Wait for transfer completion */
-
 	wait_for_completion(&master_drv_data->xfer_done);
 
 	/* Disable the Rx Interrupts */
@@ -912,7 +918,9 @@ static int mxc_spi_probe(struct platform_device *pdev)
 
 	master->bus_num = pdev->id + 1;
 	master->num_chipselect = mxc_platform_info->maxchipselect;
-
+#ifdef CONFIG_SPI_MXC_TEST_LOOPBACK
+	master->num_chipselect += 1;
+#endif
 	/* Set the master controller driver data for this master */
 
 	master_drv_data = spi_master_get_devdata(master);

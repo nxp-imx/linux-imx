@@ -214,6 +214,7 @@ config SPI_MXC
 config SPI_MXC_TEST_LOOPBACK
 	bool "LOOPBACK Testing of CSPIs"
 	depends on SPI_MXC
+	select SPI_SPIDEV
 	default n
 
 config SPI_MXC_SELECT1
