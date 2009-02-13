@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # Linux kernel version: 2.6.26
-# Thu Jan 15 17:18:26 2009
+# Fri Feb 13 16:01:04 2009
 #
 CONFIG_ARM=y
 CONFIG_SYS_SUPPORTS_APM_EMULATION=y
@@ -1369,6 +1369,7 @@ CONFIG_RTC_INTF_DEV=y
 #
 CONFIG_RTC_MXC=y
 # CONFIG_RTC_DRV_MXC_V2 is not set
+# CONFIG_RTC_DRV_IMXDI is not set
 CONFIG_RTC_MC13892=y
 # CONFIG_UIO is not set
 
@@ -1395,6 +1396,8 @@ CONFIG_MXC_IPU_PF=y
 CONFIG_MXC_PMIC=y
 # CONFIG_MXC_PMIC_MC13783 is not set
 CONFIG_MXC_PMIC_MC13892=y
+CONFIG_MXC_PMIC_I2C=y
+# CONFIG_MXC_PMIC_SPI is not set
 # CONFIG_MXC_PMIC_MC34704 is not set
 # CONFIG_MXC_PMIC_CHARDEV is not set
 
@@ -1457,6 +1460,11 @@ CONFIG_GPS_IOCTRL=m
 # MXC Media Local Bus Driver
 #
 CONFIG_MXC_MLB=m
+
+#
+# i.MX ADC support
+#
+# CONFIG_IMX_ADC is not set
 
 #
 # File systems
