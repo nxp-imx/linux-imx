@@ -1971,6 +1971,14 @@ static int smsc911x_init(struct net_device *dev)
 		}
 		break;
 
+	case 0x92100000UL:
+	case 0x92110000UL:
+	case 0x92200000UL:
+	case 0x92210000UL:
+		/* LAN9210/LAN9211/LAN9220/LAN9221 */
+		pdata->generation = 4;
+		break;
+
 	default:
 		SMSC_WARNING("LAN911x not identified, idrev: 0x%08X",
 			     pdata->idrev);
