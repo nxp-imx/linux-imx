@@ -19,7 +19,7 @@
 #include <linux/fb.h>
 #include <linux/backlight.h>
 
-#include <mach/pmic_light.h>
+#include <linux/pmic_light.h>
 
 /*
 #define MXC_MAX_INTENSITY 	255

@@ -32,7 +32,7 @@
 #include <linux/sched.h>
 #include <linux/time.h>
 #include <linux/wait.h>
-#include <mach/imx_adc.h>
+#include <linux/imx_adc.h>
 #include "imx_adc_reg.h"
 
 static int imx_adc_major;

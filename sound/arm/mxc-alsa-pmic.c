@@ -44,28 +44,25 @@
 #include <linux/slab.h>
 #include <linux/dma-mapping.h>
 #include <linux/soundcard.h>
-
-#ifdef CONFIG_PM
+#include <linux/pmic_external.h>
 #include <linux/pm.h>
-#endif				/* CONFIG_PM */
+#include <linux/fs.h>
+#include <linux/clk.h>
+#include <sound/core.h>
+#include <sound/pcm.h>
+#include <sound/initval.h>
+#include <sound/control.h>
 
+#include <mach/pmic_audio.h>
 #include <mach/dma.h>
 #include <asm/mach-types.h>
 
 #include <ssi/ssi.h>
 #include <ssi/registers.h>
 #include <dam/dam.h>
-#include <mach/pmic_external.h>
-#include <mach/pmic_audio.h>
 
-#include <sound/core.h>
-#include <sound/pcm.h>
-#include <sound/initval.h>
-#include <sound/control.h>
 #include "mxc-alsa-pmic.h"
 #include "mxc-alsa-common.h"
-#include <linux/fs.h>
-#include <linux/clk.h>
 
 /*
  * PMIC driver buffer policy.

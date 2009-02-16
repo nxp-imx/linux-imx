@@ -35,7 +35,7 @@
 #include <linux/init.h>
 #include <linux/platform_device.h>
 #include <linux/regulator/regulator.h>
-#include <mach/mxcfb.h>
+#include <linux/mxcfb.h>
 
 static void lcd_poweron(void);
 static void lcd_poweroff(void);

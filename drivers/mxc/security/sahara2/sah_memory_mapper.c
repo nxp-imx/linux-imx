@@ -40,9 +40,9 @@
 #include <sah_queue_manager.h>
 #include <sah_memory_mapper.h>
 #ifdef FSL_HAVE_SCC2
-#include <mach/mxc_scc2_driver.h>
+#include <linux/mxc_scc2_driver.h>
 #else
-#include <mach/mxc_scc_driver.h>
+#include <linux/mxc_scc_driver.h>
 #endif
 
 #if defined(DIAG_DRV_IF) || defined(DIAG_MEM) || defined(DO_DBG)

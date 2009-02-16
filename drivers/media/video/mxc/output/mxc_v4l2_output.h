@@ -30,8 +30,8 @@
 
 #ifdef __KERNEL__
 
-#include <mach/ipu.h>
-#include <mach/mxc_v4l2.h>
+#include <linux/ipu.h>
+#include <linux/mxc_v4l2.h>
 
 #define MIN_FRAME_NUM 2
 #define MAX_FRAME_NUM 30

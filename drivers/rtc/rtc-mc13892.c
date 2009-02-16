@@ -15,8 +15,8 @@
 #include <linux/module.h>
 #include <linux/platform_device.h>
 
-#include <mach/pmic_status.h>
-#include <mach/pmic_external.h>
+#include <linux/pmic_status.h>
+#include <linux/pmic_external.h>
 
 #define RTC_TIME_LSH		0
 #define RTC_DAY_LSH		0

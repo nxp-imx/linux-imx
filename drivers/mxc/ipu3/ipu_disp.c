@@ -22,9 +22,9 @@
 #include <linux/errno.h>
 #include <linux/delay.h>
 #include <linux/spinlock.h>
+#include <linux/io.h>
+#include <linux/ipu.h>
 #include <asm/atomic.h>
-#include <asm/io.h>
-#include <mach/ipu.h>
 #include "ipu_prv.h"
 #include "ipu_regs.h"
 #include "ipu_param_mem.h"

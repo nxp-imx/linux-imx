@@ -31,9 +31,9 @@
 #include <linux/major.h>
 #include <linux/init.h>
 #include <linux/fs.h>
+#include <linux/pmic_external.h>
 
 #include <asm/uaccess.h>
-#include <mach/pmic_external.h>
 
 #define PMIC_NAME	"pmic"
 #define CIRC_BUF_MAX	16

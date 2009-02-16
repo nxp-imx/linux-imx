@@ -24,8 +24,8 @@
 #include <linux/platform_device.h>
 #include <linux/delay.h>
 #include <linux/fs.h>
-#include <mach/pmic_light.h>
-#include <mach/pmic_status.h>
+#include <linux/pmic_light.h>
+#include <linux/pmic_status.h>
 #include "pmic_light_defs.h"
 
 #define NB_LIGHT_REG      6

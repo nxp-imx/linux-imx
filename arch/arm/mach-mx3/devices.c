@@ -9,7 +9,7 @@
  * licensed "as is" without any warranty of any kind, whether express
  * or implied.
  *
- * Copyright 2005-2008 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2005-2009 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 #include <linux/module.h>
 #include <linux/kernel.h>
@@ -17,12 +17,12 @@
 #include <linux/io.h>
 #include <linux/platform_device.h>
 #include <linux/clk.h>
-#include <linux/io.h>
+#include <linux/pmic_external.h>
+
 #include <linux/spi/spi.h>
 
 #include <asm/mach-types.h>
 #include <mach/hardware.h>
-#include <mach/pmic_external.h>
 #include <mach/pmic_power.h>
 #include <mach/spba.h>
 #include <mach/sdma.h>

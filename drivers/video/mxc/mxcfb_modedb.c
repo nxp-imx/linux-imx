@@ -12,7 +12,7 @@
  */
 
 #include <linux/kernel.h>
-#include <mach/mxcfb.h>
+#include <linux/mxcfb.h>
 
 struct fb_videomode mxcfb_modedb[] = {
 	{

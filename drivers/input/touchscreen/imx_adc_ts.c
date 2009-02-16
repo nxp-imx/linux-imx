@@ -34,7 +34,7 @@
 #include <linux/init.h>
 #include <linux/delay.h>
 #include <linux/freezer.h>
-#include <mach/imx_adc.h>
+#include <linux/imx_adc.h>
 
 #define IMX_ADC_TS_NAME	"imx_adc_ts"
 

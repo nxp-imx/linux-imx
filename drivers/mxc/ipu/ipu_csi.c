@@ -24,7 +24,7 @@
 #include <linux/errno.h>
 #include <linux/spinlock.h>
 #include <linux/delay.h>
-#include <mach/ipu.h>
+#include <linux/ipu.h>
 
 #include "ipu_prv.h"
 #include "ipu_regs.h"

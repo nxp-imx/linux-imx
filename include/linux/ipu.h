@@ -824,10 +824,10 @@ void ipu_uninit_channel(ipu_channel_t channel);
 
 static inline bool ipu_can_rotate_in_place(ipu_rotate_mode_t rot)
 {
-#ifdef CONFIG_MXC_IPU_V1
-	return (rot < IPU_ROTATE_90_RIGHT);
-#else
+#ifdef CONFIG_MXC_IPU_V3D
 	return (rot < IPU_ROTATE_HORIZ_FLIP);
+#else
+	return (rot < IPU_ROTATE_90_RIGHT);
 #endif
 }
 

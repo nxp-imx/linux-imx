@@ -32,10 +32,8 @@
 #include <linux/errno.h>
 #include <linux/interrupt.h>
 #include <linux/list.h>
-
-#include <asm/uaccess.h>
-#include <mach/pmic_external.h>
-#include <mach/pmic_status.h>
+#include <linux/pmic_external.h>
+#include <linux/pmic_status.h>
 #include "pmic.h"
 
 /*!

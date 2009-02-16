@@ -31,12 +31,11 @@
 #include <linux/interrupt.h>
 #include <linux/irq.h>
 #include <linux/i2c.h>
+#include <linux/pmic_external.h>
+#include <linux/pmic_status.h>
 
 #include <asm/uaccess.h>
-#include <mach/gpio.h>
 
-#include <mach/pmic_external.h>
-#include <mach/pmic_status.h>
 #include "pmic.h"
 
 #define MC13892_GENERATION_ID_LSH	6

@@ -1,5 +1,5 @@
 /*
- * Copyright 2008 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2008-2009 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -33,8 +33,8 @@
  * @ingroup PMIC_CORE
  */
 
-#include <asm/ioctl.h>
-#include <mach/pmic_status.h>
+#include <linux/ioctl.h>
+#include <linux/pmic_status.h>
 
 /*!
  * This is the enumeration of versions of PMIC
@@ -1111,9 +1111,9 @@ static inline int reg_mc13783_probe(void)
 #endif
 
 #ifdef CONFIG_REGULATOR_MC13892
-int reg_mc13892_probe(void);
+int reg_mc13892_probe(struct device *dev);
 #else
-static inline int reg_mc13892_probe(void)
+static inline int reg_mc13892_probe(struct device *dev)
 {
 	return 0;
 };
@@ -1127,7 +1127,6 @@ static inline int reg_mc34704_probe(void)
 	return 0;
 };
 #endif
-
 #endif				/*CONFIG_MXC_PMIC*/
 #endif				/* __KERNEL__ */
 /* CONFIG_MXC_PMIC_MC13783 || CONFIG_MXC_PMIC_MC9SDZ60 */

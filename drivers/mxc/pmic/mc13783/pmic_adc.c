@@ -28,10 +28,8 @@
 #include <linux/time.h>
 #include <linux/delay.h>
 #include <linux/wait.h>
-
-#include <mach/pmic_adc.h>
-#include <mach/pmic_power.h>
-#include <mach/pmic_status.h>
+#include <linux/pmic_adc.h>
+#include <linux/pmic_status.h>
 
 #include "../core/pmic.h"
 #include "pmic_adc_defs.h"

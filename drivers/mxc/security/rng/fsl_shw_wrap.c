@@ -101,7 +101,7 @@
 #if defined(__KERNEL__) && defined(FSL_HAVE_DRYICE)
 
 #include "../dryice.h"
-#include <asm/arch/mxc_scc_driver.h>
+#include <linux/mxc_scc_driver.h>
 
 #include "portable_os.h"
 #include "fsl_shw_keystore.h"

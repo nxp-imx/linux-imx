@@ -25,15 +25,16 @@
 #include <linux/fs.h>
 #include <linux/slab.h>
 #include <linux/ctype.h>
+#include <linux/io.h>
 #include <linux/semaphore.h>
 #include <linux/pagemap.h>
 #include <linux/vmalloc.h>
 #include <linux/types.h>
 #include <linux/fb.h>
 #include <linux/dma-mapping.h>
+#include <linux/mxcfb.h>
 #include <media/v4l2-ioctl.h>
 #include <media/v4l2-int-device.h>
-#include <mach/mxcfb.h>
 #include "mxc_v4l2_capture.h"
 #include "ipu_prp_sw.h"
 

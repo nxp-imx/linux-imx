@@ -41,9 +41,9 @@
 #include <linux/sched.h>	/* for interrupt.h */
 #include <linux/spinlock.h>
 #include <linux/interrupt.h>	/* IRQ / interrupt definitions */
-#include <asm/io.h>		/* ioremap() */
+#include <linux/io.h>		/* ioremap() */
 #endif
-#include <mach/mxc_scc_driver.h>
+#include <linux/mxc_scc_driver.h>
 
 /* Get handle on certain per-platform symbols */
 #ifdef TAHITI

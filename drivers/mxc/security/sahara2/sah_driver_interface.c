@@ -29,9 +29,9 @@
 #include <fsl_shw_keystore.h>
 #include <adaptor.h>
 #ifdef FSL_HAVE_SCC
-#include <mach/mxc_scc_driver.h>
+#include <linux/mxc_scc_driver.h>
 #else
-#include <mach/mxc_scc2_driver.h>
+#include <linux/mxc_scc2_driver.h>
 #endif
 
 #ifdef DIAG_DRV_IF

@@ -25,9 +25,9 @@
 #include <linux/spinlock.h>
 #include <linux/delay.h>
 #include <linux/interrupt.h>
-#include <asm/io.h>
-#include <mach/ipu.h>
-#include <mach/clock.h>
+#include <linux/io.h>
+#include <linux/ipu.h>
+#include <linux/clk.h>
 
 #include "ipu_prv.h"
 #include "ipu_regs.h"

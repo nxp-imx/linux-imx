@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2007 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2004-2009 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -29,9 +29,9 @@
 /*
  * Includes
  */
-#include <asm/ioctl.h>
-#include <mach/pmic_status.h>
-#include <mach/pmic_external.h>
+#include <linux/ioctl.h>
+#include <linux/pmic_status.h>
+#include <linux/pmic_external.h>
 
 #define         PMIC_RTC_SET_TIME                    _IOWR('p',0xd1, int)
 #define         PMIC_RTC_GET_TIME                    _IOWR('p',0xd2, int)

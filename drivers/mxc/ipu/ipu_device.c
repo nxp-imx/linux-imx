@@ -31,8 +31,8 @@
 #include <linux/time.h>
 #include <linux/wait.h>
 #include <linux/dma-mapping.h>
-#include <asm/io.h>
-#include <mach/ipu.h>
+#include <linux/io.h>
+#include <linux/ipu.h>
 
 #include "ipu_prv.h"
 #include "ipu_regs.h"

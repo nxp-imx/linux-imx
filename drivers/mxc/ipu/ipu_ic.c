@@ -22,8 +22,8 @@
 #include <linux/init.h>
 #include <linux/errno.h>
 #include <linux/spinlock.h>
-#include <asm/io.h>
-#include <mach/ipu.h>
+#include <linux/io.h>
+#include <linux/ipu.h>
 
 #include "ipu_prv.h"
 #include "ipu_regs.h"

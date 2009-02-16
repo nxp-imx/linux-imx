@@ -16,10 +16,10 @@
 #include <linux/platform_device.h>
 #include <linux/delay.h>
 #include <linux/irq.h>
+#include <linux/pmic_adc.h>
 #include <linux/io.h>
 #include <mach/hardware.h>
 #include <mach/gpio.h>
-#include <mach/pmic_adc.h>
 #include "board-mx3_3stack.h"
 #include "iomux.h"
 

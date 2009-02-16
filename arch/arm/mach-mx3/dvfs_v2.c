@@ -36,9 +36,7 @@
 #include <linux/sysdev.h>
 #include <linux/delay.h>
 #include <linux/clk.h>
-
-#include <mach/gpio.h>
-#include <mach/pmic_external.h>
+#include <linux/pmic_external.h>
 #include <mach/pmic_power.h>
 
 #include "iomux.h"

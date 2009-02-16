@@ -30,12 +30,11 @@
 #include <linux/spi/spi.h>
 #include <linux/i2c.h>
 #include <linux/delay.h>
+#include <linux/pmic_external.h>
+#include <linux/pmic_status.h>
 
 #include <asm/mach-types.h>
 #include <asm/uaccess.h>
-#include <mach/gpio.h>
-#include <mach/pmic_external.h>
-#include <mach/pmic_status.h>
 
 #include "pmic.h"
 

@@ -18,7 +18,6 @@
 #include <linux/platform_device.h>
 #include <linux/clk.h>
 #include <linux/pmic_external.h>
-#include <mach/pmic_power.h>
 
 #include <linux/spi/spi.h>
 

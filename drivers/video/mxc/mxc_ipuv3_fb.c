@@ -41,12 +41,12 @@
 #include <linux/dma-mapping.h>
 #include <linux/clk.h>
 #include <linux/console.h>
-#include <mach/hardware.h>
-#include <asm/io.h>
+#include <linux/io.h>
+#include <linux/ipu.h>
+#include <linux/mxcfb.h>
 #include <asm/mach-types.h>
 #include <asm/uaccess.h>
-#include <mach/ipu.h>
-#include <mach/mxcfb.h>
+#include <mach/hardware.h>
 
 /*
  * Driver name

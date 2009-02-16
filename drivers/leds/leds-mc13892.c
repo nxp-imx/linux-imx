@@ -15,8 +15,7 @@
 #include <linux/init.h>
 #include <linux/platform_device.h>
 #include <linux/leds.h>
-
-#include <mach/pmic_light.h>
+#include <linux/pmic_light.h>
 
 static void mc13892_led_set(struct led_classdev *led_cdev,
 			    enum led_brightness value)

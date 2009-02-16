@@ -25,7 +25,7 @@
 #if defined(__KERNEL__) && defined(FSL_HAVE_DRYICE)
 
 #include "../dryice.h"
-#include <asm/arch/mxc_scc_driver.h>
+#include <linux/mxc_scc_driver.h>
 #ifdef DIAG_SECURITY_FUNC
 #include "apihelp.h"
 #endif

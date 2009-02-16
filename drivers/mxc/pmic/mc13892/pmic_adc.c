@@ -18,9 +18,8 @@
 #include <linux/wait.h>
 #include <linux/device.h>
 
-#include <mach/pmic_adc.h>
-#include <mach/pmic_power.h>
-#include <mach/pmic_status.h>
+#include <linux/pmic_adc.h>
+#include <linux/pmic_status.h>
 
 #include "../core/pmic.h"
 

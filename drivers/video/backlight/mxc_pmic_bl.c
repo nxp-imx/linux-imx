@@ -33,9 +33,9 @@
 #include <linux/spinlock.h>
 #include <linux/fb.h>
 #include <linux/backlight.h>
+#include <linux/pmic_light.h>
 
 #include <mach/pmic_power.h>
-#include <mach/pmic_light.h>
 
 #define MXC_MAX_INTENSITY 	255
 #define MXC_DEFAULT_INTENSITY 	127

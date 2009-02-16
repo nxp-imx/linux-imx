@@ -23,6 +23,7 @@
 #include <linux/platform_device.h>
 #include <linux/fsl_devices.h>
 #include <linux/ata.h>
+#include <linux/pmic_external.h>
 #if defined(CONFIG_MTD) || defined(CONFIG_MTD_MODULE)
 #include <linux/mtd/mtd.h>
 #include <linux/mtd/map.h>
@@ -45,7 +46,6 @@
 #include <mach/memory.h>
 #include <mach/gpio.h>
 #include <mach/mmc.h>
-#include <mach/pmic_external.h>
 
 #include "board-mx35_3stack.h"
 #include "crm_regs.h"

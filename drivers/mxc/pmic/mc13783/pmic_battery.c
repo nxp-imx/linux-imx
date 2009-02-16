@@ -28,9 +28,9 @@
 #include <linux/delay.h>
 #include <linux/wait.h>
 
-#include <mach/pmic_battery.h>
-#include <mach/pmic_adc.h>
-#include <mach/pmic_status.h>
+#include <linux/pmic_battery.h>
+#include <linux/pmic_adc.h>
+#include <linux/pmic_status.h>
 
 #include "pmic_battery_defs.h"
 

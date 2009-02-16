@@ -30,10 +30,10 @@
 #include <linux/sysfs.h>
 #include <linux/platform_device.h>
 #include <linux/regulator/regulator.h>
+#include <linux/mxcfb.h>
 #include <asm/uaccess.h>
 #include <asm/atomic.h>
 #include <mach/gpio.h>
-#include <mach/mxcfb.h>
 
 #define TVE_COM_CONF_REG	0
 #define TVE_CD_CONT_REG		0x14

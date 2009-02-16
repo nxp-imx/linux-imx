@@ -28,10 +28,10 @@
 #include <linux/irq.h>
 #include <linux/sysfs.h>
 #include <linux/regulator/regulator.h>
+#include <linux/mxcfb.h>
 #include <asm/uaccess.h>
 #include <asm/atomic.h>
 #include <mach/gpio.h>
-#include <mach/mxcfb.h>
 #include <mach/hw_events.h>
 
 /*!

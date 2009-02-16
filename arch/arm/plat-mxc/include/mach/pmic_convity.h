@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2007 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2004-2009 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -34,8 +34,8 @@
  * @ingroup PMIC_CONNECTIVITY
  */
 
-#include <mach/pmic_status.h>
-#include <mach/pmic_external.h>
+#include <linux/pmic_status.h>
+#include <linux/pmic_external.h>
 
 /***************************************************************************
  *                       TYPEDEFS AND ENUMERATIONS                         *

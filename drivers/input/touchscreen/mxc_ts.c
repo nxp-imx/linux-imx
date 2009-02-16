@@ -33,8 +33,8 @@
 #include <linux/init.h>
 #include <linux/delay.h>
 #include <linux/freezer.h>
-#include <mach/pmic_external.h>
-#include <mach/pmic_adc.h>
+#include <linux/pmic_external.h>
+#include <linux/pmic_adc.h>
 
 #define MXC_TS_NAME	"mxc_ts"
 

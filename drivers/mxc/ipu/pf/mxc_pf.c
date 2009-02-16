@@ -29,8 +29,8 @@
 #include <linux/poll.h>
 #include <linux/delay.h>
 #include <linux/dma-mapping.h>
-#include <mach/ipu.h>
-#include <mach/mxc_pf.h>
+#include <linux/ipu.h>
+#include <linux/mxc_pf.h>
 
 struct mxc_pf_data {
 	pf_operation_t mode;

@@ -24,8 +24,8 @@
 #include <linux/wait.h>
 #include <linux/poll.h>
 #include <linux/platform_device.h>
-#include <mach/pmic_rtc.h>
-#include <mach/pmic_status.h>
+#include <linux/pmic_rtc.h>
+#include <linux/pmic_status.h>
 
 #include "pmic_rtc_defs.h"
 

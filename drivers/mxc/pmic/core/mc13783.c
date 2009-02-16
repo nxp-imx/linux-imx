@@ -27,12 +27,11 @@
 #include <linux/init.h>
 #include <linux/slab.h>
 #include <linux/device.h>
+#include <linux/pmic_external.h>
+#include <linux/pmic_status.h>
 #include <linux/spi/spi.h>
 
 #include <asm/uaccess.h>
-#include <mach/gpio.h>
-#include <mach/pmic_external.h>
-#include <mach/pmic_status.h>
 
 #include "pmic.h"
 

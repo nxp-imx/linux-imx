@@ -36,8 +36,8 @@
 #include <linux/platform_device.h>
 #include <linux/regulator/regulator.h>
 #include <linux/spi/spi.h>
-#include <mach/mxcfb.h>
-#include <mach/ipu.h>
+#include <linux/mxcfb.h>
+#include <linux/ipu.h>
 #include <asm/mach-types.h>
 
 static struct spi_device *lcd_spi;

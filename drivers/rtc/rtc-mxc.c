@@ -123,7 +123,7 @@ struct rtc_plat_data {
 
 #if defined(CONFIG_MXC_PMIC_SC55112_RTC) || defined(CONFIG_MXC_MC13783_RTC) ||\
     defined(CONFIG_MXC_MC9SDZ60_RTC)
-#include <mach/pmic_rtc.h>
+#include <linux/pmic_rtc.h>
 #else
 #define pmic_rtc_get_time(args)	MXC_EXTERNAL_RTC_NONE
 #define pmic_rtc_set_time(args)	MXC_EXTERNAL_RTC_NONE

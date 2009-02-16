@@ -20,13 +20,13 @@
 #include <linux/clk.h>
 #include <linux/delay.h>
 #include <linux/spi/spi.h>
+#include <linux/mxc_scc2_driver.h>
 #include <mach/hardware.h>
 #include <mach/spba.h>
 #include "iomux.h"
 #include "crm_regs.h"
 #include <mach/sdma.h>
 #include "sdma_script_code.h"
-#include <mach/mxc_scc2_driver.h>
 
 /* Flag used to indicate when IRAM has been initialized */
 int iram_ready;

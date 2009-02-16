@@ -34,10 +34,10 @@
 #include <linux/interrupt.h>
 #include <linux/proc_fs.h>
 #include <linux/dma-mapping.h>
+#include <linux/mxc_asrc.h>
 #include <asm/irq.h>
 #include <asm/memory.h>
 #include <mach/dma.h>
-#include <mach/mxc_asrc.h>
 
 static int asrc_major;
 static struct class *asrc_class;

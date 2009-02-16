@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2008 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2004-2009 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -25,9 +25,9 @@
  * @ingroup PMIC_BATTERY
  */
 
-#include <asm/ioctl.h>
-#include <mach/pmic_status.h>
-#include <mach/pmic_external.h>
+#include <linux/ioctl.h>
+#include <linux/pmic_status.h>
+#include <linux/pmic_external.h>
 
 /*!
  * @name IOCTL user space interface

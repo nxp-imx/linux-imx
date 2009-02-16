@@ -19,10 +19,10 @@
  * @ingroup IPU
  */
 
-#include "mxc_v4l2_capture.h"
-#include <mach/ipu.h>
-#include "ipu_prp_sw.h"
 #include <linux/dma-mapping.h>
+#include <linux/ipu.h>
+#include "mxc_v4l2_capture.h"
+#include "ipu_prp_sw.h"
 
 #ifdef CAMERA_DBG
 	#define CAMERA_TRACE(x) (printk)x

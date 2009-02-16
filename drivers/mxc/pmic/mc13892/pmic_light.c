@@ -25,8 +25,8 @@
 #include <linux/platform_device.h>
 #include <linux/delay.h>
 #include <linux/fs.h>
-#include <mach/pmic_light.h>
-#include <mach/pmic_status.h>
+#include <linux/pmic_light.h>
+#include <linux/pmic_status.h>
 
 #define BIT_CL_MAIN_LSH		9
 #define BIT_CL_AUX_LSH		21

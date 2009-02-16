@@ -23,12 +23,12 @@
  */
 
 #include <linux/platform_device.h>
-#include <asm/ioctl.h>
-#include <mach/pmic_power.h>
-#include <mach/pmic_status.h>
+#include <linux/ioctl.h>
+#include <linux/pmic_status.h>
 #include <linux/irq.h>
 #include <linux/interrupt.h>
 #include <linux/kernel.h>
+#include <mach/pmic_power.h>
 
 #include "pmic_power_defs.h"
 

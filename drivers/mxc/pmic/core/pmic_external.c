@@ -26,12 +26,9 @@
 #include <linux/wait.h>
 #include <linux/init.h>
 #include <linux/errno.h>
-#include <asm/io.h>
-#include <asm/irq.h>
-#include <asm/uaccess.h>
 
-#include <mach/pmic_external.h>
-#include <mach/pmic_status.h>
+#include <linux/pmic_external.h>
+#include <linux/pmic_status.h>
 
 /*
  * External Functions
