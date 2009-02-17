@@ -789,6 +789,9 @@ static void __init mxc_init_audio(void)
 
 #if defined(CONFIG_SND_SOC_IMX_3STACK_SGTL5000) \
     || defined(CONFIG_SND_SOC_IMX_3STACK_SGTL5000_MODULE)
+static int mxc_sgtl5000_plat_init(void);
+static int mxc_sgtl5000_plat_finit(void);
+static int mxc_sgtl5000_amp_enable(int enable);
 
 static struct mxc_sgtl5000_platform_data sgtl5000_data = {
 	.ssi_num = 1,
@@ -796,11 +799,13 @@ static struct mxc_sgtl5000_platform_data sgtl5000_data = {
 	.ext_port = 3,
 	.hp_irq = IOMUX_TO_IRQ(MX51_PIN_EIM_A26),
 	.hp_status = headphone_det_status,
-	.amp_gpo = "GPO2",
+	.amp_enable = mxc_sgtl5000_amp_enable,
 	.vddio = 1800000,
 	.vdda = 1800000,
 	.vddd = 12000000,
 	.sysclk = 12000000,
+	.init = mxc_sgtl5000_plat_init,
+	.finit = mxc_sgtl5000_plat_finit,
 };
 
 static struct platform_device sgtl5000_device = {
@@ -810,6 +815,41 @@ static struct platform_device sgtl5000_device = {
 		.platform_data = &sgtl5000_data,
 	},
 };
+
+static int mxc_sgtl5000_plat_init(void)
+{
+	struct regulator *reg;
+	reg = regulator_get(&sgtl5000_device.dev, "GPO2");
+	if (IS_ERR(reg))
+		return -EINVAL;
+	sgtl5000_data.priv = reg;
+	return 0;
+}
+
+static int mxc_sgtl5000_plat_finit(void)
+{
+	struct regulator *reg;
+	reg = sgtl5000_data.priv;
+	if (reg) {
+		regulator_put(reg, &sgtl5000_device.dev);
+		sgtl5000_data.priv = NULL;
+	}
+	return 0;
+}
+
+static int mxc_sgtl5000_amp_enable(int enable)
+{
+	struct regulator *reg;
+	reg = sgtl5000_data.priv;
+
+	if (!reg)
+		return -EINVAL;
+	if (enable)
+		regulator_enable(reg);
+	else
+		regulator_disable(reg);
+	return 0;
+}
 
 static void mxc_sgtl5000_init(void)
 {
