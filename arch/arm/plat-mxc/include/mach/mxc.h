@@ -302,11 +302,16 @@ struct mxc_sgtl5000_platform_data {
 
 	char *vddio_reg;
 	char *vdda_reg;
-	char *amp_gpo;
+	char *vddd_reg;
 	int vddio;	/* voltage of VDDIO (uv) */
 	int vdda;	/* voltage of vdda (uv) */
 	int vddd;	/* voldtage of vddd (uv), zero if not connected */
 	int sysclk;
+
+	int (*init)(void); /* board specific init */
+	int (*amp_enable)(int enable);
+	int (*finit)(void); /* board specific finit */
+	void *priv; /* used by board specific functions */
 };
 
 extern void mxc_wd_reset(void);
