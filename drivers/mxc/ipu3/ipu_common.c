@@ -323,8 +323,7 @@ int32_t ipu_init_channel(ipu_channel_t channel, ipu_channel_params_t *params)
 	__raw_writel(0xFFFFFFFF, IPU_INT_CTRL(9));
 	__raw_writel(0xFFFFFFFF, IPU_INT_CTRL(10));
 
-	ipu_conf = __raw_readl(IPU_CONF);
-	if (ipu_conf == 0) {
+	if (g_ipu_clk_enabled == false) {
 		g_ipu_clk_enabled = true;
 		clk_enable(g_ipu_clk);
 	}
@@ -525,6 +524,7 @@ int32_t ipu_init_channel(ipu_channel_t channel, ipu_channel_params_t *params)
 
 	/* Enable IPU sub module */
 	g_channel_init_mask |= 1L << IPU_CHAN_ID(channel);
+	ipu_conf = __raw_readl(IPU_CONF);
 	if (ipu_ic_use_count == 1)
 		ipu_conf |= IPU_CONF_IC_EN;
 	if (ipu_rot_use_count == 1)
