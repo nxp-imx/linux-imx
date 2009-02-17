@@ -79,6 +79,7 @@ struct tsc2007_data {
 	int penirq;
 	int penup_threshold;
 	struct regulator *vdd_reg;
+	int opened;
 };
 
 static int tsc2007_read(struct tsc2007_data *data,
@@ -231,7 +232,7 @@ static int tsc2007_suspend(struct i2c_client *client, pm_message_t state)
 {
 	struct tsc2007_data *d = i2c_get_clientdata(client);
 
-	if (!IS_ERR(d->tstask))
+	if (!IS_ERR(d->tstask) && d->opened)
 		kthread_stop(d->tstask);
 
 	return 0;
@@ -249,7 +250,8 @@ static int tsc2007_resume(struct i2c_client *client)
 {
 	struct tsc2007_data *d = i2c_get_clientdata(client);
 
-	d->tstask = kthread_run(tsc2007ts_thread, d, DRIVER_NAME "tsd");
+	if (d->opened)
+		d->tstask = kthread_run(tsc2007ts_thread, d, DRIVER_NAME "tsd");
 
 	return 0;
 }
@@ -267,6 +269,8 @@ static int tsc2007_idev_open(struct input_dev *idev)
 	d->tstask = kthread_run(tsc2007ts_thread, d, DRIVER_NAME "tsd");
 	if (IS_ERR(d->tstask))
 		ret = PTR_ERR(d->tstask);
+	else
+		d->opened++;
 
 	return ret;
 }
@@ -278,6 +282,9 @@ static void tsc2007_idev_close(struct input_dev *idev)
 		kthread_stop(d->tstask);
 
 	del_timer_sync(&d->penirq_timer);
+
+	if (d->opened > 0)
+		d->opened--;
 }
 
 static int tsc2007_driver_register(struct tsc2007_data *data)

@@ -88,6 +88,7 @@ struct mpr084_data {
 	struct completion kpirq_completion;
 	int kpirq;
 	int kp_thread_cnt;
+	int opened;
 };
 
 static int kpstatus[KEY_COUNT];
@@ -219,7 +220,7 @@ static int mpr084_suspend(struct i2c_client *client, pm_message_t state)
 {
 	struct mpr084_data *d = i2c_get_clientdata(client);
 
-	if (!IS_ERR(d->tstask))
+	if (!IS_ERR(d->tstask) && d->opened)
 		kthread_stop(d->tstask);
 
 	return 0;
@@ -237,7 +238,8 @@ static int mpr084_resume(struct i2c_client *client)
 {
 	struct mpr084_data *d = i2c_get_clientdata(client);
 
-	d->tstask = kthread_run(mpr084ts_thread, d, DRIVER_NAME "kpd");
+	if (d->opened)
+		d->tstask = kthread_run(mpr084ts_thread, d, DRIVER_NAME "kpd");
 
 	return 0;
 }
@@ -250,6 +252,8 @@ static int mpr084_idev_open(struct input_dev *idev)
 	d->tstask = kthread_run(mpr084ts_thread, d, DRIVER_NAME "kpd");
 	if (IS_ERR(d->tstask))
 		ret = PTR_ERR(d->tstask);
+	else
+		d->opened++;
 	return ret;
 }
 
@@ -259,6 +263,8 @@ static void mpr084_idev_close(struct input_dev *idev)
 
 	if (!IS_ERR(d->tstask))
 		kthread_stop(d->tstask);
+	if (d->opened > 0)
+		d->opened--;
 }
 
 static int mpr084_driver_register(struct mpr084_data *data)
