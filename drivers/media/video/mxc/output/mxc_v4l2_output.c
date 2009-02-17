@@ -221,6 +221,22 @@ static u32 fmt_to_bpp(u32 pixelformat)
 	return bpp;
 }
 
+static bool format_is_yuv(u32 pixelformat)
+{
+	u32 bpp;
+
+	switch (pixelformat) {
+	case V4L2_PIX_FMT_YUV420:
+	case V4L2_PIX_FMT_UYVY:
+	case V4L2_PIX_FMT_YUV422P:
+	case V4L2_PIX_FMT_YVU420:
+	case V4L2_PIX_FMT_NV12:
+		return true;
+		break;
+	}
+	return false;
+}
+
 static u32 bpp_to_fmt(struct fb_info *fbi)
 {
 	if (fbi->var.nonstd)
@@ -590,7 +606,10 @@ static int mxc_v4l2out_streamon(vout_data * vout)
 		if (vout->cur_disp_output == 3) {
 			vout->display_ch = MEM_FG_SYNC;
 			fbvar.bits_per_pixel = 16;
-			fbvar.nonstd = IPU_PIX_FMT_UYVY;
+			if (format_is_yuv(vout->v2f.fmt.pix.pixelformat))
+				fbvar.nonstd = IPU_PIX_FMT_UYVY;
+			else
+				fbvar.nonstd = 0;
 
 			fbvar.xres = fbvar.xres_virtual = out_width;
 			fbvar.yres = out_height;
