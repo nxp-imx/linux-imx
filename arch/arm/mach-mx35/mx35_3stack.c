@@ -863,6 +863,10 @@ unsigned int headphone_det_status(void)
 	return ret;
 }
 
+static int mxc_sgtl5000_plat_init(void);
+static int mxc_sgtl5000_plat_finit(void);
+static int mxc_sgtl5000_amp_enable(int enable);
+
 static struct mxc_sgtl5000_platform_data sgtl5000_data = {
 	.ssi_num = 1,
 	.src_port = 1,
@@ -871,11 +875,13 @@ static struct mxc_sgtl5000_platform_data sgtl5000_data = {
 	.hp_status = headphone_det_status,
 	.vddio_reg = NULL,
 	.vdda_reg = "VCAM",
-	.amp_gpo = "SPKR",
+	.amp_enable = mxc_sgtl5000_amp_enable,
 	.vddio = 0,
 	.vdda = 3000000,
 	.vddd = 0,
 	.sysclk = 12000000,
+	.init = mxc_sgtl5000_plat_init,
+	.finit = mxc_sgtl5000_plat_finit,
 };
 
 static struct platform_device sgtl5000_device = {
@@ -885,6 +891,41 @@ static struct platform_device sgtl5000_device = {
 		.platform_data = &sgtl5000_data,
 		} ,
 };
+
+static int mxc_sgtl5000_plat_init(void)
+{
+	struct regulator *reg;
+	reg = regulator_get(&sgtl5000_device.dev, "SPKR");
+	if (IS_ERR(reg))
+		return -EINVAL;
+	sgtl5000_data.priv = reg;
+	return 0;
+}
+
+static int mxc_sgtl5000_plat_finit(void)
+{
+	struct regulator *reg;
+	reg = sgtl5000_data.priv;
+	if (reg) {
+		regulator_put(reg, &sgtl5000_device.dev);
+		sgtl5000_data.priv = NULL;
+	}
+	return 0;
+}
+
+static int mxc_sgtl5000_amp_enable(int enable)
+{
+	struct regulator *reg;
+	reg = sgtl5000_data.priv;
+
+	if (!reg)
+		return -EINVAL;
+	if (enable)
+		regulator_enable(reg);
+	else
+		regulator_disable(reg);
+	return 0;
+}
 
 static void mxc_sgtl5000_init(void)
 {
