@@ -2182,9 +2182,56 @@ out_0:
 	return retval;
 }
 
+static int smsc911x_drv_suspend(struct platform_device *pdev,
+				       pm_message_t state)
+{
+	unsigned long flags;
+	struct net_device *dev;
+	struct smsc911x_data *pdata;
+
+	dev = platform_get_drvdata(pdev);
+	BUG_ON(!dev);
+	pdata = netdev_priv(dev);
+	BUG_ON(!pdata);
+	BUG_ON(!pdata->ioaddr);
+
+	spin_lock_irqsave(&pdata->phy_lock, flags);
+	smsc911x_phy_write(pdata, MII_BMCR, BMCR_PDOWN);
+	spin_unlock_irqrestore(&pdata->phy_lock, flags);
+
+	smsc911x_reg_write(PMT_CTRL_PM_MODE_D2_, pdata, PMT_CTRL);
+
+	return 0;
+}
+
+static int smsc911x_drv_resume(struct platform_device *pdev)
+{
+	unsigned long flags;
+	struct net_device *dev;
+	struct smsc911x_data *pdata;
+	unsigned int temp;
+
+	dev = platform_get_drvdata(pdev);
+	BUG_ON(!dev);
+	pdata = netdev_priv(dev);
+	BUG_ON(!pdata);
+	BUG_ON(!pdata->ioaddr);
+
+	smsc911x_reg_write(0xFFFFFFFF, pdata, BYTE_TEST);
+	while (!(smsc911x_reg_read(pdata, PMT_CTRL) & PMT_CTRL_READY_))
+		;
+
+	spin_lock_irqsave(&pdata->phy_lock, flags);
+	smsc911x_phy_write(pdata, MII_BMCR, BMCR_ANENABLE | BMCR_ANRESTART);
+	spin_unlock_irqrestore(&pdata->phy_lock, flags);
+	return 0;
+}
+
 static struct platform_driver smsc911x_driver = {
 	.probe = smsc911x_drv_probe,
 	.remove = smsc911x_drv_remove,
+	.suspend = smsc911x_drv_suspend,
+	.resume = smsc911x_drv_resume,
 	.driver = {
 		.name = SMSC_CHIPNAME,
 	},
