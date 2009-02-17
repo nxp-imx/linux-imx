@@ -283,6 +283,16 @@ static struct platform_device mxc_lcd_device = {
 		},
 };
 
+static struct mxc_lcd_platform_data lcd_wvga_data;
+
+static struct platform_device lcd_wvga_device = {
+	.name = "lcd_claa",
+	.dev = {
+		.release = mxc_nop_release,
+		.platform_data = &lcd_wvga_data,
+		},
+};
+
 extern void gpio_lcd_active(void);
 
 static void mxc_init_fb(void)
@@ -293,6 +303,7 @@ static void mxc_init_fb(void)
 		lcd_data.reset = lcd_reset_to2;
 
 	(void)platform_device_register(&mxc_lcd_device);
+	(void)platform_device_register(&lcd_wvga_device);
 
 	(void)platform_device_register(&mxc_fb_device[0]);
 	(void)platform_device_register(&mxc_fb_device[1]);

@@ -797,8 +797,10 @@ EXPORT_SYMBOL(sdhc_write_protect);
 void gpio_lcd_active(void)
 {
 	if (cpu_is_mx51_rev(CHIP_REV_2_0) > 0) {
+#ifndef CONFIG_FB_MXC_CLAA_WVGA_SYNC_PANEL
 		mxc_request_iomux(MX51_PIN_DI1_D1_CS, IOMUX_CONFIG_ALT4);
 		mxc_set_gpio_direction(MX51_PIN_DI1_D1_CS, 0);
+#endif
 		mxc_request_iomux(MX51_PIN_DI1_D0_CS, IOMUX_CONFIG_ALT1);
 		mxc_request_iomux(MX51_PIN_DI1_PIN11, IOMUX_CONFIG_ALT1);
 		mxc_request_iomux(MX51_PIN_DI1_PIN12, IOMUX_CONFIG_ALT1);
@@ -808,6 +810,14 @@ void gpio_lcd_active(void)
 		mxc_request_iomux(MX51_PIN_DI_GP2, IOMUX_CONFIG_ALT0);
 		mxc_request_iomux(MX51_PIN_DI_GP3, IOMUX_CONFIG_ALT0);
 	}
+#ifdef CONFIG_FB_MXC_CLAA_WVGA_SYNC_PANEL
+	mxc_request_iomux(MX51_PIN_DI1_D1_CS, IOMUX_CONFIG_ALT4);
+	mxc_set_gpio_direction(MX51_PIN_DI1_D1_CS, 0);
+	mxc_set_gpio_dataout(MX51_PIN_DI1_D1_CS, 1);
+	mxc_request_iomux(MX51_PIN_DISPB2_SER_DIO, IOMUX_CONFIG_ALT4);
+	mxc_set_gpio_direction(MX51_PIN_DISPB2_SER_DIO, 0);
+	mxc_set_gpio_dataout(MX51_PIN_DISPB2_SER_DIO, 0);
+#endif
 }
 
 /*!
