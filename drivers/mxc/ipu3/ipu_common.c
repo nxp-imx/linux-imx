@@ -1720,6 +1720,8 @@ ipu_color_space_t format_to_colorspace(uint32_t fmt)
 	case IPU_PIX_FMT_RGB32:
 	case IPU_PIX_FMT_RGBA32:
 	case IPU_PIX_FMT_ABGR32:
+	case IPU_PIX_FMT_LVDS666:
+	case IPU_PIX_FMT_LVDS888:
 		return RGB;
 		break;
 

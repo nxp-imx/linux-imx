@@ -565,6 +565,18 @@ void _ipu_init_dc_mappings(void)
 	_ipu_dc_map_config(2, 0, 15, 0xFF);
 	_ipu_dc_map_config(2, 1, 23, 0xFF);
 	_ipu_dc_map_config(2, 2, 7, 0xFF);
+
+	/* IPU_PIX_FMT_RGB565 */
+	_ipu_dc_map_clear(3);
+	_ipu_dc_map_config(3, 0, 4, 0xF8);
+	_ipu_dc_map_config(3, 1, 10, 0xFC);
+	_ipu_dc_map_config(3, 2, 15, 0xF8);
+
+	/* IPU_PIX_FMT_LVDS666 */
+	_ipu_dc_map_clear(4);
+	_ipu_dc_map_config(4, 0, 5, 0xFC);
+	_ipu_dc_map_config(4, 1, 13, 0xFC);
+	_ipu_dc_map_config(4, 2, 21, 0xFC);
 }
 
 int _ipu_pixfmt_to_map(uint32_t fmt)
@@ -577,6 +589,10 @@ int _ipu_pixfmt_to_map(uint32_t fmt)
 		return 1;
 	case IPU_PIX_FMT_YUV444:
 		return 2;
+	case IPU_PIX_FMT_RGB565:
+		return 3;
+	case IPU_PIX_FMT_LVDS666:
+		return 4;
 	}
 
 	return -1;
