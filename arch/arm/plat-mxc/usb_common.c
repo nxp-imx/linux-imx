@@ -385,8 +385,6 @@ static void usbh2_set_serial_xcvr(void)
 	msleep(100);
 }
 
-extern void usbh2_get_xcvr_power(struct device *dev);
-extern void usbh2_put_xcvr_power(struct device *dev);
 extern void gpio_usbh1_setback_stp(void);
 extern void gpio_usbh2_setback_stp(void);
 
@@ -409,17 +407,6 @@ int fsl_usb_host_init(struct platform_device *pdev)
 	if (fsl_check_usbclk() != 0)
 		return -EINVAL;
 
-	/* set host2 usb phy usb3317 power supply for imx31 3 stack */
-	if ((pdata->xcvr_type == PORTSC_PTS_ULPI) && (machine_is_mx31_3ds())) {
-		pdata->xcvr_pwr =
-		    kmalloc(sizeof(struct fsl_xcvr_power), GFP_KERNEL);
-		if (!(pdata->xcvr_pwr))
-			return -ENOMEM;
-
-		pdata->xcvr_pwr->usb_pdev = pdev;
-		usbh2_get_xcvr_power(&(pdev->dev));
-	}
-
 	pr_debug("%s: grab pins\n", __func__);
 	if (pdata->gpio_usb_active())
 		return -EINVAL;
@@ -433,6 +420,14 @@ int fsl_usb_host_init(struct platform_device *pdev)
 		usb_clk = clk_get(NULL, "usboh3_clk");
 		clk_enable(usb_clk);
 		clk_put(usb_clk);
+	}
+
+	/* enable board power supply for xcvr */
+	if (pdata->xcvr_pwr) {
+		if (pdata->xcvr_pwr->regu1)
+			regulator_enable(pdata->xcvr_pwr->regu1);
+		if (pdata->xcvr_pwr->regu2)
+			regulator_enable(pdata->xcvr_pwr->regu2);
 	}
 
 	if (xops->init)
@@ -493,10 +488,13 @@ void fsl_usb_host_uninit(struct fsl_usb2_platform_data *pdata)
 			USBCTRL |= UCTRL_XCSH2;
 		clk_disable(usb_clk);
 	}
-	else if ((pdata->xcvr_type == PORTSC_PTS_ULPI)
-		 && (machine_is_mx31_3ds())) {
-		usbh2_put_xcvr_power(&(pdata->xcvr_pwr->usb_pdev->dev));
-		kfree(pdata->xcvr_pwr);
+
+	/* disable board power supply for xcvr */
+	if (pdata->xcvr_pwr) {
+		if (pdata->xcvr_pwr->regu1)
+			regulator_disable(pdata->xcvr_pwr->regu1);
+		if (pdata->xcvr_pwr->regu2)
+			regulator_disable(pdata->xcvr_pwr->regu2);
 	}
 
 	if (cpu_is_mx51()) {

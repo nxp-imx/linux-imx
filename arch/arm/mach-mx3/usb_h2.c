@@ -13,6 +13,7 @@
 
 #include <linux/kernel.h>
 #include <linux/types.h>
+#include <asm/mach-types.h>
 #include <linux/platform_device.h>
 #include <linux/fsl_devices.h>
 #include <linux/usb/fsl_xcvr.h>
@@ -44,42 +45,22 @@ static struct resource usbh2_resources[] = {
 	},
 };
 
-void usbh2_get_xcvr_power(struct device *dev)
-{
-	struct regulator *usbh2_regux;
-
-	usbh2_regux = regulator_get(dev, "GPO1");
-	regulator_enable(usbh2_regux);
-	((struct fsl_usb2_platform_data *)dev->platform_data)->
-		xcvr_pwr->regu1 = usbh2_regux;
-
-	usbh2_regux = regulator_get(dev, "GPO3");
-	regulator_enable(usbh2_regux);
-	((struct fsl_usb2_platform_data *)dev->platform_data)->
-		xcvr_pwr->regu2 = usbh2_regux;
-}
-EXPORT_SYMBOL(usbh2_get_xcvr_power);
-
-void usbh2_put_xcvr_power(struct device *dev)
-{
-	struct regulator *usbh2_regux;
-
-	usbh2_regux = ((struct fsl_usb2_platform_data *)dev->
-			platform_data)->xcvr_pwr->regu2;
-	regulator_disable(usbh2_regux);
-	regulator_put(usbh2_regux);
-
-	usbh2_regux = ((struct fsl_usb2_platform_data *)dev->
-			platform_data)->xcvr_pwr->regu1;
-	regulator_disable(usbh2_regux);
-	regulator_put(usbh2_regux);
-}
-EXPORT_SYMBOL(usbh2_put_xcvr_power);
-
-
 static int __init usbh2_init(void)
 {
 	pr_debug("%s: \n", __func__);
+
+	if (machine_is_mx31_3ds()) {
+		struct regulator *usbh2_regux;
+		usbh2_config.xcvr_pwr =
+			kmalloc(sizeof(struct fsl_xcvr_power), GFP_KERNEL);
+		if (!(usbh2_config.xcvr_pwr))
+			return -ENOMEM;
+
+		usbh2_regux = regulator_get(NULL, "GPO1");
+		usbh2_config.xcvr_pwr->regu1 = usbh2_regux;
+		usbh2_regux = regulator_get(NULL, "GPO3");
+		usbh2_config.xcvr_pwr->regu2 = usbh2_regux;
+	}
 
 	host_pdev_register(usbh2_resources, ARRAY_SIZE(usbh2_resources),
 			   &usbh2_config);
