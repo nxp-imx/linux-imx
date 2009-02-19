@@ -231,6 +231,22 @@ struct mxc_fm_platform_data {
 	void (*gpio_put) (void);
 	void (*reset) (void);
 	void (*clock_ctl) (int flag);
+	u8	sksnr; /*0,disable;1,most stop;0xf,fewest stop*/
+	u8	skcnt; /*0,disable;1,most stop;0xf,fewest stop*/
+	/*
+	00 = 87.5-108 MHz (USA,Europe) (Default).
+	01 = 76-108 MHz (Japan wide band).
+	10 = 76-90 MHz (Japan).
+	11 = Reserved.
+	*/
+	u8	band;
+	/*
+	00 = 200 kHz (USA, Australia) (default).
+	01 = 100 kHz (Europe, Japan).
+	10 = 50 kHz.
+	*/
+	u8	space;
+	u8	seekth;
 };
 
 struct mxc_mma7450_platform_data {
