@@ -29,6 +29,20 @@
 #include "ipu_regs.h"
 #include "ipu_param_mem.h"
 
+enum csc_type_t {
+	RGB2YUV = 0,
+	YUV2RGB,
+	RGB2RGB,
+	YUV2YUV,
+	CSC_NONE,
+	CSC_NUM
+};
+
+struct dp_csc_param_t {
+	int mode;
+	void *coeff;
+};
+
 #define SYNC_WAVE 0
 #define ASYNC_SER_WAVE 6
 
@@ -235,14 +249,61 @@ static int _rgb_to_yuv(int n, int red, int green, int blue)
 	return c;
 }
 
+/*
+ * Row is for BG: 	RGB2YUV YUV2RGB RGB2RGB YUV2YUV CSC_NONE
+ * Column is for FG:	RGB2YUV YUV2RGB RGB2RGB YUV2YUV CSC_NONE
+ */
+static struct dp_csc_param_t dp_csc_array[CSC_NUM][CSC_NUM] = {
+{{DP_COM_CONF_CSC_DEF_BOTH, &rgb2ycbcr_coeff}, {0, 0}, {0, 0}, {DP_COM_CONF_CSC_DEF_BG, &rgb2ycbcr_coeff}, {DP_COM_CONF_CSC_DEF_BG, &rgb2ycbcr_coeff} },
+{{0, 0}, {DP_COM_CONF_CSC_DEF_BOTH, &ycbcr2rgb_coeff}, {DP_COM_CONF_CSC_DEF_BG, &ycbcr2rgb_coeff}, {0, 0}, {DP_COM_CONF_CSC_DEF_BG, &ycbcr2rgb_coeff} },
+{{0, 0}, {DP_COM_CONF_CSC_DEF_FG, &ycbcr2rgb_coeff}, {0, 0}, {0, 0}, {0, 0} },
+{{DP_COM_CONF_CSC_DEF_FG, &rgb2ycbcr_coeff}, {0, 0}, {0, 0}, {0, 0}, {0, 0} },
+{{DP_COM_CONF_CSC_DEF_FG, &rgb2ycbcr_coeff}, {DP_COM_CONF_CSC_DEF_FG, &ycbcr2rgb_coeff}, {0, 0}, {0, 0}, {0, 0} }
+};
+
+static enum csc_type_t fg_csc_type = CSC_NONE, bg_csc_type = CSC_NONE;
+
+void __ipu_dp_csc_setup(int dp, struct dp_csc_param_t dp_csc_param)
+{
+	u32 reg;
+	const int (*coeff)[5][3];
+
+	if (dp_csc_param.mode >= 0) {
+		reg = __raw_readl(DP_COM_CONF(dp));
+		reg &= ~DP_COM_CONF_CSC_DEF_MASK;
+		reg |= dp_csc_param.mode;
+		__raw_writel(reg, DP_COM_CONF(dp));
+	}
+
+	coeff = dp_csc_param.coeff;
+
+	if (coeff) {
+		__raw_writel(mask_a((*coeff)[0][0]) |
+				(mask_a((*coeff)[0][1]) << 16), DP_CSC_A_0(dp));
+		__raw_writel(mask_a((*coeff)[0][2]) |
+				(mask_a((*coeff)[1][0]) << 16), DP_CSC_A_1(dp));
+		__raw_writel(mask_a((*coeff)[1][1]) |
+				(mask_a((*coeff)[1][2]) << 16), DP_CSC_A_2(dp));
+		__raw_writel(mask_a((*coeff)[2][0]) |
+				(mask_a((*coeff)[2][1]) << 16), DP_CSC_A_3(dp));
+		__raw_writel(mask_a((*coeff)[2][2]) |
+				(mask_b((*coeff)[3][0]) << 16) |
+				((*coeff)[4][0] << 30), DP_CSC_0(dp));
+		__raw_writel(mask_b((*coeff)[3][1]) | ((*coeff)[4][1] << 14) |
+				(mask_b((*coeff)[3][2]) << 16) |
+				((*coeff)[4][2] << 30), DP_CSC_1(dp));
+	}
+
+	reg = __raw_readl(IPU_SRM_PRI2) | 0x8;
+	__raw_writel(reg, IPU_SRM_PRI2);
+}
+
 int _ipu_dp_init(ipu_channel_t channel, uint32_t in_pixel_fmt,
 		 uint32_t out_pixel_fmt)
 {
-	u32 reg;
 	int in_fmt, out_fmt;
 	int dp;
 	int partial = false;
-	const int (*coeff)[5][3];
 
 	if (channel == MEM_FG_SYNC) {
 		dp = DP_SYNC;
@@ -259,38 +320,40 @@ int _ipu_dp_init(ipu_channel_t channel, uint32_t in_pixel_fmt,
 
 	in_fmt = format_to_colorspace(in_pixel_fmt);
 	out_fmt = format_to_colorspace(out_pixel_fmt);
-	if (in_fmt != out_fmt) {
-		reg = __raw_readl(DP_COM_CONF(dp));
-		if (reg & DP_COM_CONF_CSC_DEF_MASK) {
-			dev_err(g_ipu_dev, "DP CSC already in use.\n");
-			return -EBUSY;
-		}
-		reg &= ~DP_COM_CONF_CSC_DEF_MASK;
-		if (partial) {
-			dev_info(g_ipu_dev, "Enable DP CSC for FG\n");
-			reg |= DP_COM_CONF_CSC_DEF_FG;
-		} else {
-			dev_info(g_ipu_dev, "Enable DP CSC for BG\n");
-			reg |= DP_COM_CONF_CSC_DEF_BG;
-		}
-		__raw_writel(reg, DP_COM_CONF(dp));
 
-		if ((in_fmt == RGB) && (out_fmt == YCbCr))
-			coeff = &rgb2ycbcr_coeff;
-		else
-			coeff = &ycbcr2rgb_coeff;
-		_ipu_dp_set_csc_coefficients(channel, (void *) *coeff);
+	if (partial) {
+		if (in_fmt == RGB) {
+			if (out_fmt == RGB)
+				fg_csc_type = RGB2RGB;
+			else
+				fg_csc_type = RGB2YUV;
+		} else {
+			if (out_fmt == RGB)
+				fg_csc_type = YUV2RGB;
+			else
+				fg_csc_type = YUV2YUV;
+		}
+	} else {
+		if (in_fmt == RGB) {
+			if (out_fmt == RGB)
+				bg_csc_type = RGB2RGB;
+			else
+				bg_csc_type = RGB2YUV;
+		} else {
+			if (out_fmt == RGB)
+				bg_csc_type = YUV2RGB;
+			else
+				bg_csc_type = YUV2YUV;
+		}
 	}
 
-	reg = __raw_readl(IPU_SRM_PRI2) | 0x8;
-	__raw_writel(reg, IPU_SRM_PRI2);
+	__ipu_dp_csc_setup(dp, dp_csc_array[bg_csc_type][fg_csc_type]);
 
 	return 0;
 }
 
 void _ipu_dp_uninit(ipu_channel_t channel)
 {
-	u32 reg, csc;
 	int dp;
 	int partial = false;
 
@@ -307,19 +370,12 @@ void _ipu_dp_uninit(ipu_channel_t channel)
 		return;
 	}
 
-	reg = __raw_readl(DP_COM_CONF(dp));
-	csc = reg & DP_COM_CONF_CSC_DEF_MASK;
-	if (partial && (csc != DP_COM_CONF_CSC_DEF_FG))
-		return;
-	if (!partial && (csc != DP_COM_CONF_CSC_DEF_BG))
-		return;
+	if (partial)
+		fg_csc_type = CSC_NONE;
+	else
+		bg_csc_type = CSC_NONE;
 
-	dev_info(g_ipu_dev, "Disable DP CSC for %s\n", partial ? "FG" : "BG");
-	reg &= ~DP_COM_CONF_CSC_DEF_MASK;
-	__raw_writel(reg, DP_COM_CONF(dp));
-
-	reg = __raw_readl(IPU_SRM_PRI2) | 0x8;
-	__raw_writel(reg, IPU_SRM_PRI2);
+	__ipu_dp_csc_setup(dp, dp_csc_array[bg_csc_type][fg_csc_type]);
 }
 
 void _ipu_dc_init(int dc_chan, int di, bool interlaced)
@@ -611,8 +667,8 @@ int _ipu_pixfmt_to_map(uint32_t fmt)
  */
 void _ipu_dp_set_csc_coefficients(ipu_channel_t channel, int32_t param[][3])
 {
-	u32 reg;
 	int dp;
+	struct dp_csc_param_t dp_csc_param;
 
 	if (channel == MEM_FG_SYNC)
 		dp = DP_SYNC;
@@ -623,23 +679,9 @@ void _ipu_dp_set_csc_coefficients(ipu_channel_t channel, int32_t param[][3])
 	else
 		return;
 
-	__raw_writel(mask_a(param[0][0]) |
-		     (mask_a(param[0][1]) << 16), DP_CSC_A_0(dp));
-	__raw_writel(mask_a(param[0][2]) |
-		     (mask_a(param[1][0]) << 16), DP_CSC_A_1(dp));
-	__raw_writel(mask_a(param[1][1]) |
-		     (mask_a(param[1][2]) << 16), DP_CSC_A_2(dp));
-	__raw_writel(mask_a(param[2][0]) |
-		     (mask_a(param[2][1]) << 16), DP_CSC_A_3(dp));
-	__raw_writel(mask_a(param[2][2]) |
-		     (mask_b(param[3][0]) << 16) |
-		     (param[4][0] << 30), DP_CSC_0(dp));
-	__raw_writel(mask_b(param[3][1]) | (param[4][1] << 14) |
-		     (mask_b(param[3][2]) << 16) |
-		     (param[4][2] << 30), DP_CSC_1(dp));
-
-	reg = __raw_readl(IPU_SRM_PRI2) | 0x8;
-	__raw_writel(reg, IPU_SRM_PRI2);
+	dp_csc_param.mode = -1;
+	dp_csc_param.coeff = &param;
+	__ipu_dp_csc_setup(dp, dp_csc_param);
 }
 
 /*!
