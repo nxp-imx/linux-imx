@@ -1398,6 +1398,10 @@ static void esdhc_cd_callback(struct work_struct *work)
 	spin_lock_irqsave(&host->lock, flags);
 
 	if (!(host->flags & SDHCI_CD_PRESENT)) {
+		printk(KERN_INFO
+		       "%s: Card removed and resetting controller.\n",
+		       mmc_hostname(host->mmc));
+		sdhci_init(host);
 		if (host->mrq) {
 			printk(KERN_ERR
 			       "%s: Card removed during transfer!\n",
