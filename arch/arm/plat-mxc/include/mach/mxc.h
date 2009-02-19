@@ -86,17 +86,38 @@ struct mxc_ir_platform_data {
 struct mxc_i2c_platform_data {
 	u32 i2c_clk;
 };
-/*This struct is to define the number of SSIs on a platform,
-DAM source port config, DAM external port config, and Regulator names*/
+
+/*
+ * This struct is to define the number of SSIs on a platform,
+ * DAM source port config, DAM external port config,
+ * regulator names, and other stuff audio needs.
+ */
 struct mxc_audio_platform_data {
 	int ssi_num;
 	int src_port;
 	int ext_port;
+
 	int intr_id_hp;
 	int ext_ram;
 	struct clk *ssi_clk[2];
 	char *regulator1;
 	char *regulator2;
+
+	int hp_irq;
+	int (*hp_status) (void);
+
+	char *vddio_reg;
+	char *vdda_reg;
+	char *vddd_reg;
+	int vddio;		/* voltage of VDDIO (uv) */
+	int vdda;		/* voltage of vdda (uv) */
+	int vddd;		/* voltage of vddd (uv), 0 if not connected */
+	int sysclk;
+
+	int (*init) (void);	/* board specific init */
+	int (*amp_enable) (int enable);
+	int (*finit) (void);	/* board specific finit */
+	void *priv;		/* used by board specific functions */
 };
 
 struct mxc_spdif_platform_data {
@@ -315,27 +336,6 @@ struct tve_platform_data {
 	char *dig_reg;
 };
 
-struct mxc_sgtl5000_platform_data {
-	int ssi_num;
-	int src_port;
-	int ext_port;
-	int hp_irq;
-	int (*hp_status)(void);
-
-	char *vddio_reg;
-	char *vdda_reg;
-	char *vddd_reg;
-	int vddio;	/* voltage of VDDIO (uv) */
-	int vdda;	/* voltage of vdda (uv) */
-	int vddd;	/* voldtage of vddd (uv), zero if not connected */
-	int sysclk;
-
-	int (*init)(void); /* board specific init */
-	int (*amp_enable)(int enable);
-	int (*finit)(void); /* board specific finit */
-	void *priv; /* used by board specific functions */
-};
-
 extern void mxc_wd_reset(void);
 unsigned long board_get_ckih_rate(void);
 
@@ -401,7 +401,8 @@ enum mxc_cpu_pwr_mode {
 
 void mxc_cpu_lp_set(enum mxc_cpu_pwr_mode mode);
 int tzic_enable_wake(int is_idle);
+void gpio_activate_audio_ports(void);
 
 #endif
 
-#endif /*  __ASM_ARCH_MXC_H__ */
+#endif				/*  __ASM_ARCH_MXC_H__ */

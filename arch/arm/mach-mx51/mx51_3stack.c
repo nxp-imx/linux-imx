@@ -365,10 +365,10 @@ static struct i2c_board_info mxc_i2c1_board_info[] __initdata = {
 	 .type = "wm8903-i2c",
 	 .addr = 0x1a,
 	 },
-	 {
-	.type = "sgtl5000-i2c",
-	.addr = 0x0a,
-	},
+	{
+	 .type = "sgtl5000-i2c",
+	 .addr = 0x0a,
+	 },
 	{
 	 .type = "tsc2007",
 	 .addr = 0x48,
@@ -804,33 +804,33 @@ static int __init mxc_init_srpgconfig(void)
 
 #if defined(CONFIG_SND_SOC_IMX_3STACK_WM8903) \
     || defined(CONFIG_SND_SOC_IMX_3STACK_WM8903_MODULE)
-static struct mxc_audio_platform_data mxc_audio_data;
+static struct mxc_audio_platform_data wm8903_data;
 
-static struct platform_device mxc_alsa_device = {
+static struct platform_device mxc_wm8903_device = {
 	.name = "imx-3stack-wm8903",
 	.id = 0,
 	.dev = {
 		.release = mxc_nop_release,
-		.platform_data = &mxc_audio_data,
+		.platform_data = &wm8903_data,
 		},
 };
 
-static void __init mxc_init_audio(void)
+static void __init mxc_init_wm8903(void)
 {
-	mxc_audio_data.ssi_clk[0] = clk_get(NULL, "ssi_clk.0");
-	clk_put(mxc_audio_data.ssi_clk[0]);
+	wm8903_data.ssi_clk[0] = clk_get(NULL, "ssi_clk.0");
+	clk_put(wm8903_data.ssi_clk[0]);
 
-	mxc_audio_data.ssi_clk[1] = clk_get(NULL, "ssi_clk.1");
-	clk_put(mxc_audio_data.ssi_clk[1]);
+	wm8903_data.ssi_clk[1] = clk_get(NULL, "ssi_clk.1");
+	clk_put(wm8903_data.ssi_clk[1]);
 
-	mxc_audio_data.ssi_num = 1;
-	mxc_audio_data.src_port = 2;
-	mxc_audio_data.ext_port = 3;
+	wm8903_data.ssi_num = 1;
+	wm8903_data.src_port = 2;
+	wm8903_data.ext_port = 3;
 
-	(void)platform_device_register(&mxc_alsa_device);
+	(void)platform_device_register(&mxc_wm8903_device);
 }
 #else
-static void __init mxc_init_audio(void)
+static void __init mxc_init_wm8903(void)
 {
 }
 #endif
@@ -846,7 +846,7 @@ int headphone_det_status(void)
 	return mxc_get_gpio_datain(MX51_PIN_EIM_A26);
 }
 
-static struct mxc_sgtl5000_platform_data sgtl5000_data = {
+static struct mxc_audio_platform_data sgtl5000_data = {
 	.ssi_num = 1,
 	.src_port = 2,
 	.ext_port = 3,
@@ -861,18 +861,18 @@ static struct mxc_sgtl5000_platform_data sgtl5000_data = {
 	.finit = mxc_sgtl5000_plat_finit,
 };
 
-static struct platform_device sgtl5000_device = {
-	.name = "sgtl5000-imx",
+static struct platform_device mxc_sgtl5000_device = {
+	.name = "imx-3stack-sgtl5000",
 	.dev = {
 		.release = mxc_nop_release,
 		.platform_data = &sgtl5000_data,
-	},
+		},
 };
 
 static int mxc_sgtl5000_plat_init(void)
 {
 	struct regulator *reg;
-	reg = regulator_get(&sgtl5000_device.dev, "GPO2");
+	reg = regulator_get(&mxc_sgtl5000_device.dev, "GPO2");
 	if (IS_ERR(reg))
 		return -EINVAL;
 	sgtl5000_data.priv = reg;
@@ -884,7 +884,7 @@ static int mxc_sgtl5000_plat_finit(void)
 	struct regulator *reg;
 	reg = sgtl5000_data.priv;
 	if (reg) {
-		regulator_put(reg, &sgtl5000_device.dev);
+		regulator_put(reg);
 		sgtl5000_data.priv = NULL;
 	}
 	return 0;
@@ -904,12 +904,12 @@ static int mxc_sgtl5000_amp_enable(int enable)
 	return 0;
 }
 
-static void mxc_sgtl5000_init(void)
+static void mxc_init_sgtl5000(void)
 {
-	platform_device_register(&sgtl5000_device);
+	platform_device_register(&mxc_sgtl5000_device);
 }
 #else
-static inline void mxc_sgtl5000_init(void)
+static inline void mxc_init_sgtl5000(void)
 {
 }
 #endif
@@ -1038,9 +1038,8 @@ static void __init mxc_board_init(void)
 
 #endif
 	mxc_init_touchscreen();
-	mxc_init_audio();
-
-	mxc_sgtl5000_init();
+	mxc_init_wm8903();
+	mxc_init_sgtl5000();
 	mxc_init_bluetooth();
 
 	err = mxc_request_iomux(MX51_PIN_EIM_D19, IOMUX_CONFIG_GPIO);

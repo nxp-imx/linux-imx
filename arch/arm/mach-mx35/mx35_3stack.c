@@ -437,8 +437,8 @@ static struct i2c_board_info mxc_i2c_board_info[] __initdata = {
 	 .platform_data = (void *)&camera_data,
 	 },
 	{
-	.type = "sgtl5000-i2c",
-	.addr = 0x0a,
+	 .type = "sgtl5000-i2c",
+	 .addr = 0x0a,
 	 },
 	{
 	 .type = "ak4647-i2c",
@@ -872,7 +872,7 @@ static int mxc_sgtl5000_plat_init(void);
 static int mxc_sgtl5000_plat_finit(void);
 static int mxc_sgtl5000_amp_enable(int enable);
 
-static struct mxc_sgtl5000_platform_data sgtl5000_data = {
+static struct mxc_audio_platform_data sgtl5000_data = {
 	.ssi_num = 1,
 	.src_port = 1,
 	.ext_port = 4,
@@ -889,18 +889,18 @@ static struct mxc_sgtl5000_platform_data sgtl5000_data = {
 	.finit = mxc_sgtl5000_plat_finit,
 };
 
-static struct platform_device sgtl5000_device = {
-	.name = "sgtl5000-imx",
+static struct platform_device mxc_sgtl5000_device = {
+	.name = "imx-3stack-sgtl5000",
 	.dev = {
 		.release = mxc_nop_release,
 		.platform_data = &sgtl5000_data,
-		} ,
+		},
 };
 
 static int mxc_sgtl5000_plat_init(void)
 {
 	struct regulator *reg;
-	reg = regulator_get(&sgtl5000_device.dev, "SPKR");
+	reg = regulator_get(&mxc_sgtl5000_device.dev, "SPKR");
 	if (IS_ERR(reg))
 		return -EINVAL;
 	sgtl5000_data.priv = reg;
@@ -912,7 +912,7 @@ static int mxc_sgtl5000_plat_finit(void)
 	struct regulator *reg;
 	reg = sgtl5000_data.priv;
 	if (reg) {
-		regulator_put(reg, &sgtl5000_device.dev);
+		regulator_put(reg);
 		sgtl5000_data.priv = NULL;
 	}
 	return 0;
@@ -932,13 +932,13 @@ static int mxc_sgtl5000_amp_enable(int enable)
 	return 0;
 }
 
-static void mxc_sgtl5000_init(void)
+static void mxc_init_sgtl5000(void)
 {
 	int err;
 	struct clk *cko1, *parent;
 	unsigned long rate;
 
-	/* for board v1.1 do nothing*/
+	/* for board v1.1 do nothing */
 	if (!board_is_mx35(BOARD_REV_2))
 		return;
 
@@ -952,18 +952,18 @@ static void mxc_sgtl5000_init(void)
 	rate = clk_round_rate(cko1, 12000000);
 	if (rate < 8000000 || rate > 27000000) {
 		printk(KERN_ERR "Error: SGTL5000 mclk freq %d out of range!\n",
-			rate);
+		       rate);
 		clk_put(parent);
 		clk_put(cko1);
 		return;
-		}
+	}
 	clk_set_rate(cko1, rate);
 	clk_enable(cko1);
 	sgtl5000_data.sysclk = rate;
-	platform_device_register(&sgtl5000_device);
+	platform_device_register(&mxc_sgtl5000_device);
 }
 #else
-static void mxc_sgtl5000_init(void)
+static void mxc_init_sgtl5000(void)
 {
 }
 #endif
@@ -1066,7 +1066,7 @@ static void __init mxc_board_init(void)
 	mxc_init_lcd();
 	mxc_init_fb();
 	mxc_init_bl();
-	mxc_sgtl5000_init();
+	mxc_init_sgtl5000();
 
 	i2c_register_board_info(0, mxc_i2c_board_info,
 				ARRAY_SIZE(mxc_i2c_board_info));

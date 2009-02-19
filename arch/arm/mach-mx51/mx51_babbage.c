@@ -427,7 +427,7 @@ static int headphone_det_status(void)
 	return mxc_get_gpio_datain(MX51_PIN_NANDF_CS0);
 }
 
-static struct mxc_sgtl5000_platform_data sgtl5000_data = {
+static struct mxc_audio_platform_data sgtl5000_data = {
 	.ssi_num = 1,
 	.src_port = 2,
 	.ext_port = 3,
@@ -443,8 +443,8 @@ static struct mxc_sgtl5000_platform_data sgtl5000_data = {
 	.sysclk = 12288000,
 };
 
-static struct platform_device sgtl5000_device = {
-	.name = "sgtl5000-imx",
+static struct platform_device mxc_sgtl5000_device = {
+	.name = "imx-3stack-sgtl5000",
 	.dev = {
 		.release = mxc_nop_release,
 		.platform_data = &sgtl5000_data,
@@ -457,17 +457,15 @@ static int mxc_sgtl5000_amp_enable(int enable)
 	return 0;
 }
 
-static void mxc_sgtl5000_init(void)
+static void mxc_init_sgtl5000(void)
 {
-	int err, pin;
-
 	mxc_set_gpio_direction(MX51_PIN_NANDF_CS0, 1);
 	mxc_set_gpio_direction(MX51_PIN_EIM_A23, 0);
 
-	platform_device_register(&sgtl5000_device);
+	platform_device_register(&mxc_sgtl5000_device);
 }
 #else
-static inline void mxc_sgtl5000_init(void)
+static inline void mxc_init_sgtl5000(void)
 {
 }
 #endif
@@ -588,10 +586,8 @@ static void __init mxc_board_init(void)
 #endif
 
 #endif
-
 	pm_power_off = mxc_power_off;
-
-	mxc_sgtl5000_init();
+	mxc_init_sgtl5000();
 }
 
 static void __init mx51_babbage_timer_init(void)

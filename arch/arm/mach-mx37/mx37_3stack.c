@@ -138,7 +138,7 @@ static int mc13892_reg_int(void)
 		"GPO4",
 	};
 
-	/* for board v1.1 do nothing*/
+	/* for board v1.1 do nothing */
 	if (!board_is_mx37(BOARD_REV_2))
 		return -EINVAL;
 
@@ -151,9 +151,9 @@ static int mc13892_reg_int(void)
 	}
 	for (i = 0; i < ARRAY_SIZE(reg_name); i++) {
 		if ((strcmp(reg_name[i], "VIOHI") == 0) ||
-			(strcmp(reg_name[i], "VPLL") == 0) ||
-			(strcmp(reg_name[i], "VDIG") == 0) ||
-			(strcmp(reg_name[i], "VGEN2") == 0))
+		    (strcmp(reg_name[i], "VPLL") == 0) ||
+		    (strcmp(reg_name[i], "VDIG") == 0) ||
+		    (strcmp(reg_name[i], "VGEN2") == 0))
 			continue;
 		regulator = regulator_get(NULL, reg_name[i]);
 		if (regulator != ERR_PTR(-ENOENT)) {
@@ -740,7 +740,7 @@ static int mxc_sgtl5000_plat_init(void);
 static int mxc_sgtl5000_plat_finit(void);
 static int mxc_sgtl5000_amp_enable(int enable);
 
-static struct mxc_sgtl5000_platform_data sgtl5000_data = {
+static struct mxc_audio_platform_data sgtl5000_data = {
 	.ssi_num = 1,
 	.src_port = 2,
 	.ext_port = 5,
@@ -756,8 +756,8 @@ static struct mxc_sgtl5000_platform_data sgtl5000_data = {
 	.finit = mxc_sgtl5000_plat_finit,
 };
 
-static struct platform_device sgtl5000_device = {
-	.name = "sgtl5000-imx",
+static struct platform_device mxc_sgtl5000_device = {
+	.name = "imx-3stack-sgtl5000",
 	.dev = {
 		.release = mxc_nop_release,
 		.platform_data = &sgtl5000_data,
@@ -767,7 +767,7 @@ static struct platform_device sgtl5000_device = {
 static int mxc_sgtl5000_plat_init(void)
 {
 	struct regulator *reg;
-	reg = regulator_get(&sgtl5000_device.dev, "GPO2");
+	reg = regulator_get(&mxc_sgtl5000_device.dev, "GPO2");
 	if (IS_ERR(reg))
 		return -EINVAL;
 	sgtl5000_data.priv = reg;
@@ -779,7 +779,7 @@ static int mxc_sgtl5000_plat_finit(void)
 	struct regulator *reg;
 	reg = sgtl5000_data.priv;
 	if (reg) {
-		regulator_put(reg, &sgtl5000_device.dev);
+		regulator_put(reg);
 		sgtl5000_data.priv = NULL;
 	}
 	return 0;
@@ -799,13 +799,13 @@ static int mxc_sgtl5000_amp_enable(int enable)
 	return 0;
 }
 
-static void mxc_sgtl5000_init(void)
+static void mxc_init_sgtl5000(void)
 {
 	int err, pin;
 	struct clk *cko1, *parent;
 	unsigned long rate;
 
-	/* for board v1.1 do nothing*/
+	/* for board v1.1 do nothing */
 	if (!board_is_mx37(BOARD_REV_2))
 		return;
 
@@ -832,7 +832,7 @@ static void mxc_sgtl5000_init(void)
 	rate = clk_round_rate(cko1, 13000000);
 	if (rate < 8000000 || rate > 27000000) {
 		printk(KERN_ERR "Error: SGTL5000 mclk freq %d out of range!\n",
-			rate);
+		       rate);
 		clk_put(parent);
 		clk_put(cko1);
 		return;
@@ -840,10 +840,10 @@ static void mxc_sgtl5000_init(void)
 	clk_set_rate(cko1, rate);
 	clk_enable(cko1);
 	sgtl5000_data.sysclk = rate;
-	platform_device_register(&sgtl5000_device);
+	platform_device_register(&mxc_sgtl5000_device);
 }
 #else
-static inline void mxc_sgtl5000_init(void)
+static inline void mxc_init_sgtl5000(void)
 {
 }
 #endif
@@ -925,7 +925,7 @@ static void __init mxc_board_init(void)
 	mxc_init_bl();
 	mxc_init_bluetooth();
 	mxc_init_gps();
-	mxc_sgtl5000_init();
+	mxc_init_sgtl5000();
 }
 
 static void __init mx37_3stack_timer_init(void)
