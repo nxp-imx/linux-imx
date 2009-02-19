@@ -1939,16 +1939,6 @@ static void reset_irq(struct fsl_udc *udc)
 	temp = fsl_readl(&dr_regs->endptcomplete);
 	fsl_writel(temp, &dr_regs->endptcomplete);
 
-	timeout = jiffies + 100;
-	while (fsl_readl(&dr_regs->endpointprime)) {
-		/* Wait until all endptprime bits cleared */
-		if (time_after(jiffies, timeout)) {
-			ERR("Timeout for reset\n");
-			break;
-		}
-		cpu_relax();
-	}
-
 	/* Write 1s to the flush register */
 	fsl_writel(0xffffffff, &dr_regs->endptflush);
 
