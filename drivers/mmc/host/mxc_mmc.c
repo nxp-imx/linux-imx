@@ -586,10 +586,24 @@ static int mxcmci_cmd_done(struct mxcmci_host *host, unsigned int stat)
 		__raw_writel(STATUS_TIME_OUT_RESP, host->base + MMC_STATUS);
 		pr_debug("%s: CMD TIMEOUT\n", DRIVER_NAME);
 		cmd->error = -ETIMEDOUT;
+		/*
+		 * Reinitialized the controller to clear the unknown
+		 * error state.
+		 */
+		mxcmci_softreset(host);
+		__raw_writel(READ_TO_VALUE, host->base + MMC_READ_TO);
+		__raw_writel(INT_CNTR_END_CMD_RES, host->base + MMC_INT_CNTR);
 	} else if (stat & STATUS_RESP_CRC_ERR && cmd->flags & MMC_RSP_CRC) {
 		__raw_writel(STATUS_RESP_CRC_ERR, host->base + MMC_STATUS);
 		printk(KERN_ERR "%s: cmd crc error\n", DRIVER_NAME);
 		cmd->error = -EILSEQ;
+		/*
+		 * Reinitialized the controller to clear the unknown
+		 * error state.
+		 */
+		mxcmci_softreset(host);
+		__raw_writel(READ_TO_VALUE, host->base + MMC_READ_TO);
+		__raw_writel(INT_CNTR_END_CMD_RES, host->base + MMC_INT_CNTR);
 	}
 
 	/* Read response from the card */
@@ -680,12 +694,28 @@ static int mxcmci_cmd_done(struct mxcmci_host *host, unsigned int stat)
 			data->error = -ETIMEDOUT;
 			__raw_writel(STATUS_TIME_OUT_READ,
 				     host->base + MMC_STATUS);
+			/*
+			 * Reinitialized the controller to clear the unknown
+			 * error state.
+			 */
+			mxcmci_softreset(host);
+			__raw_writel(READ_TO_VALUE, host->base + MMC_READ_TO);
+			__raw_writel(INT_CNTR_END_CMD_RES,
+				     host->base + MMC_INT_CNTR);
 		} else if (status & STATUS_READ_CRC_ERR) {
 			pr_debug("%s: Read CRC error occurred\n", DRIVER_NAME);
 			if (SD_APP_SEND_SCR != cmd->opcode)
 				data->error = -EILSEQ;
 			__raw_writel(STATUS_READ_CRC_ERR,
 				     host->base + MMC_STATUS);
+			/*
+			 * Reinitialized the controller to clear the unknown
+			 * error state.
+			 */
+			mxcmci_softreset(host);
+			__raw_writel(READ_TO_VALUE, host->base + MMC_READ_TO);
+			__raw_writel(INT_CNTR_END_CMD_RES,
+				     host->base + MMC_INT_CNTR);
 		}
 		__raw_writel(STATUS_READ_OP_DONE, host->base + MMC_STATUS);
 
