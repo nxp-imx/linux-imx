@@ -263,7 +263,8 @@ static struct dp_csc_param_t dp_csc_array[CSC_NUM][CSC_NUM] = {
 
 static enum csc_type_t fg_csc_type = CSC_NONE, bg_csc_type = CSC_NONE;
 
-void __ipu_dp_csc_setup(int dp, struct dp_csc_param_t dp_csc_param)
+void __ipu_dp_csc_setup(int dp, struct dp_csc_param_t dp_csc_param,
+			bool srm_mode_update)
 {
 	u32 reg;
 	const int (*coeff)[5][3];
@@ -294,8 +295,10 @@ void __ipu_dp_csc_setup(int dp, struct dp_csc_param_t dp_csc_param)
 				((*coeff)[4][2] << 30), DP_CSC_1(dp));
 	}
 
-	reg = __raw_readl(IPU_SRM_PRI2) | 0x8;
-	__raw_writel(reg, IPU_SRM_PRI2);
+	if (srm_mode_update) {
+		reg = __raw_readl(IPU_SRM_PRI2) | 0x8;
+		__raw_writel(reg, IPU_SRM_PRI2);
+	}
 }
 
 int _ipu_dp_init(ipu_channel_t channel, uint32_t in_pixel_fmt,
@@ -347,7 +350,7 @@ int _ipu_dp_init(ipu_channel_t channel, uint32_t in_pixel_fmt,
 		}
 	}
 
-	__ipu_dp_csc_setup(dp, dp_csc_array[bg_csc_type][fg_csc_type]);
+	__ipu_dp_csc_setup(dp, dp_csc_array[bg_csc_type][fg_csc_type], true);
 
 	return 0;
 }
@@ -375,7 +378,7 @@ void _ipu_dp_uninit(ipu_channel_t channel)
 	else
 		bg_csc_type = CSC_NONE;
 
-	__ipu_dp_csc_setup(dp, dp_csc_array[bg_csc_type][fg_csc_type]);
+	__ipu_dp_csc_setup(dp, dp_csc_array[bg_csc_type][fg_csc_type], false);
 }
 
 void _ipu_dc_init(int dc_chan, int di, bool interlaced)
@@ -486,8 +489,6 @@ void _ipu_dp_dc_enable(ipu_channel_t channel)
 		reg = __raw_readl(DP_COM_CONF(DP_SYNC));
 		__raw_writel(reg | DP_COM_CONF_FG_EN, DP_COM_CONF(DP_SYNC));
 
-		reg = __raw_readl(IPU_SRM_PRI2) | 0x8;
-		__raw_writel(reg, IPU_SRM_PRI2);
 		return;
 	}
 
@@ -568,9 +569,6 @@ void _ipu_dp_dc_disable(ipu_channel_t channel)
 
 		reg &= ~DP_COM_CONF_FG_EN;
 		__raw_writel(reg, DP_COM_CONF(DP_SYNC));
-
-		reg = __raw_readl(IPU_SRM_PRI2) | 0x8;
-		__raw_writel(reg, IPU_SRM_PRI2);
 
 		spin_unlock_irqrestore(&ipu_lock, lock_flags);
 
@@ -681,7 +679,7 @@ void _ipu_dp_set_csc_coefficients(ipu_channel_t channel, int32_t param[][3])
 
 	dp_csc_param.mode = -1;
 	dp_csc_param.coeff = &param;
-	__ipu_dp_csc_setup(dp, dp_csc_param);
+	__ipu_dp_csc_setup(dp, dp_csc_param, true);
 }
 
 /*!
