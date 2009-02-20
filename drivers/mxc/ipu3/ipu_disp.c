@@ -731,7 +731,7 @@ int32_t ipu_init_sync_panel(int disp, uint32_t pixel_clk,
 	uint32_t field1_offset;
 	uint32_t reg;
 	uint32_t disp_gen, di_gen, vsync_cnt;
-	uint32_t div, up;
+	uint32_t div;
 	uint32_t h_total, v_total;
 	int map;
 	struct clk *di_clk;
@@ -750,22 +750,26 @@ int32_t ipu_init_sync_panel(int disp, uint32_t pixel_clk,
 		di_clk = g_di_clk[disp];
 	else
 		di_clk = g_ipu_clk;
+
+	/*
+	 * Calculate divider
+	 * Fractional part is 4 bits,
+	 * so simply multiply by 2^4 to get fractional part.
+	 */
 	div = (clk_get_rate(di_clk) * 16) / pixel_clk;
+	if (div < 0x10)	/* Min DI disp clock divider is 1 */
+		div = 0x10;
+	/*
+	 * DI disp clock offset is zero,
+	 * and fractional part is rounded off to 0.5.
+	 */
+	div &= 0xFF8;
+
 	reg = __raw_readl(DI_GENERAL(disp));
-	if (sig.ext_clk) {
+	if (sig.ext_clk)
 		__raw_writel(reg | DI_GEN_DI_CLK_EXT, DI_GENERAL(disp));
-		if (div < 0x10)
-			div = 0x10;
-	} else {
+	else
 		__raw_writel(reg & ~DI_GEN_DI_CLK_EXT, DI_GENERAL(disp));
-		/* Calculate divider */
-		/* fractional part is 4 bits,
-		   so simply multiply by 2^4 to get fractional part */
-		if (div < 0x40) {	/* Divider less than 4 */
-			dev_dbg(g_ipu_dev, "Pixel clock divider less than 4\n");
-			div = 0x40;
-		}
-	}
 
 	spin_lock_irqsave(&ipu_lock, lock_flags);
 
@@ -777,13 +781,9 @@ int32_t ipu_init_sync_panel(int disp, uint32_t pixel_clk,
 
 	/* Setup pixel clock timing */
 	/* FIXME: needs to be more flexible */
-	if (disp) {
-		/* down time is half of period */
-		__raw_writel((div / 16) << 16, DI_BS_CLKGEN1(disp));
-	} else {
-		up = div / 16 - 2;
-		__raw_writel(((up * 2) << 16) | up, DI_BS_CLKGEN1(disp));
-	}
+	/* Down time is half of period */
+	__raw_writel((div / 16) << 16, DI_BS_CLKGEN1(disp));
+
 	_ipu_di_data_wave_config(disp, SYNC_WAVE, div / 16 - 1, div / 16 - 1);
 	_ipu_di_data_pin_config(disp, SYNC_WAVE, DI_PIN15, 3, 0, div / 16 * 2);
 
