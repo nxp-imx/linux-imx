@@ -272,6 +272,10 @@ OS_DEV_INIT(rng_init)
 		/* Self Testing For RNG */
 		do {
 			RNG_CLEAR_ERR();
+
+			/* wait for Clearing Erring finished */
+			msleep(1);
+
 			RNG_UNMASK_ALL_INTERRUPTS();
 			RNG_SELF_TEST();
 #if !defined(FSL_HAVE_RNGA)
