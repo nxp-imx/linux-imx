@@ -26,6 +26,7 @@
 #include <linux/i2c.h>
 #include <linux/ata.h>
 #include <linux/regulator/consumer.h>
+#include <linux/pmic_external.h>
 #if defined(CONFIG_MTD) || defined(CONFIG_MTD_MODULE)
 #include <linux/mtd/mtd.h>
 #include <linux/mtd/map.h>
@@ -100,9 +101,10 @@ struct cpu_wp *get_cpu_wp(int *wp)
 	return cpu_wp_auto;
 }
 
-static void mc13892_reg_int(void)
+static int mc13892_reg_int(void)
 {
 	int i = 0;
+	unsigned int value;
 	struct regulator *regulator;
 	struct cpu_wp *cpu_wp_tbl1;
 	int cpu_wp_nr1;
@@ -138,7 +140,7 @@ static void mc13892_reg_int(void)
 
 	/* for board v1.1 do nothing*/
 	if (!board_is_mx37(BOARD_REV_2))
-		return;
+		return -EINVAL;
 
 	for (i = 0; i < ARRAY_SIZE(reg_name); i++) {
 		regulator = regulator_get(NULL, reg_name[i]);
@@ -164,6 +166,13 @@ static void mc13892_reg_int(void)
 	cpu_wp_tbl1 = get_cpu_wp(&cpu_wp_nr1);
 	for (i = 0; i < cpu_wp_nr1; i++)
 		cpu_wp_tbl1[i].cpu_voltage += 50000;
+
+	/* Bit 4 DRM: keep VSRTC and CLK32KMCU on for all states */
+	pmic_read_reg(REG_POWER_CTL0, &value, 0xffffff);
+	value |= 0x000010;
+	pmic_write_reg(REG_POWER_CTL0, value, 0xffffff);
+
+	return 0;
 }
 
 late_initcall(mc13892_reg_int);

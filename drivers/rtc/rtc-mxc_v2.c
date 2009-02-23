@@ -571,9 +571,9 @@ static int mxc_rtc_probe(struct platform_device *pdev)
 	srtc_secmode_addr = ioremap(plat_data->srtc_sec_mode_addr, 1);
 
 	/* Check SRTC security mode */
-	if ((__raw_readl(srtc_secmode_addr) & SRTC_SECMODE_MASK) ==
-	    SRTC_SECMODE_LOW) {
-		/* Low security mode */
+	if (((__raw_readl(srtc_secmode_addr) & SRTC_SECMODE_MASK) ==
+	    SRTC_SECMODE_LOW) && (cpu_is_mx51_rev(CHIP_REV_1_0) == 1)) {
+		/* Workaround for MX51 TO1 due to inaccurate CKIL clock */
 		__raw_writel(SRTC_LPCR_EN_LP, ioaddr + SRTC_LPCR);
 		rtc_write_sync_lp_no_wait(ioaddr);
 	} else {
