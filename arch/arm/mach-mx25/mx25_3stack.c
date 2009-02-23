@@ -235,7 +235,7 @@ static struct i2c_board_info mxc_i2c_board_info[] __initdata = {
 
 #if defined(CONFIG_SND_SOC_IMX_3STACK_SGTL5000) \
     || defined(CONFIG_SND_SOC_IMX_3STACK_SGTL5000_MODULE)
-static struct mxc_sgtl5000_platform_data sgtl5000_data = {
+static struct mxc_audio_platform_data sgtl5000_data = {
 	.ssi_num = 2,
 	.src_port = 1,
 	.ext_port = 4,
@@ -247,15 +247,15 @@ static struct mxc_sgtl5000_platform_data sgtl5000_data = {
 	.sysclk = 8300000,
 };
 
-static struct platform_device sgtl5000_device = {
-	.name = "sgtl5000-imx",
+static struct platform_device mxc_sgtl5000_device = {
+	.name = "imx-3stack-sgtl5000",
 	.dev = {
 		.release = mxc_nop_release,
 		.platform_data = &sgtl5000_data,
 		},
 };
 
-static void mxc_sgtl5000_init(void)
+static void mxc_init_sgtl5000(void)
 {
 	struct clk *cko1, *parent;
 	unsigned long rate;
@@ -281,10 +281,10 @@ static void mxc_sgtl5000_init(void)
 	clk_enable(cko1);
 	sgtl5000_data.sysclk = rate;
 	sgtl5000_enable_amp();
-	platform_device_register(&sgtl5000_device);
+	platform_device_register(&mxc_sgtl5000_device);
 }
 #else
-static inline void mxc_sgtl5000_init(void)
+static inline void mxc_init_sgtl5000(void)
 {
 }
 #endif
@@ -486,7 +486,7 @@ static void __init mxc_board_init(void)
 	mxc_init_fb();
 	mxc_init_bl();
 	mxc_init_nand_mtd();
-	mxc_sgtl5000_init();
+	mxc_init_sgtl5000();
 	mxc_init_mmc();
 }
 
