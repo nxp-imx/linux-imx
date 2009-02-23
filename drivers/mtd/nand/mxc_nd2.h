@@ -196,6 +196,8 @@ do { \
 #define NFC_RB				(1 << 29)
 #endif
 
+#define NFC_ONE_CYCLE			(1 << 2)
+
 #ifdef CONFIG_ARCH_MXC_HAS_NFC_V3_2	/* mx51 */
 #define NFC_INT_MSK			(1 << 15)
 #define NFC_AUTO_PROG_DONE_MSK 		(1 << 14)
@@ -316,6 +318,7 @@ do { \
 #define REG_UNLOCK_BLK_ADD2		NFC_WRPROT_UNLOCK_BLK_ADD2
 #define REG_UNLOCK_BLK_ADD3		NFC_WRPROT_UNLOCK_BLK_ADD3
 #define REG_NFC_WPC			NFC_WRPROT
+#define REG_NFC_ONE_CYCLE		NFC_CONFIG2
 
 /* NFC V3 Specific MACRO functions definitions */
 #define raw_write(v,a)		__raw_writel(v,a)
@@ -622,6 +625,7 @@ do {	\
 #define REG_START_BLKADDR      		NFC_UNLOCKSTART_BLKADDR
 #define REG_END_BLKADDR        		NFC_UNLOCKEND_BLKADDR
 #define REG_NFC_RST			NFC_CONFIG1
+#define REG_NFC_ONE_CYCLE		NFC_CONFIG1
 
 /* NFC V1/V2 Specific MACRO functions definitions */
 
