@@ -75,8 +75,7 @@ static struct fb_videomode video_modes[] = {
 	 121, 16,
 	 17, 5,
 	 1, 1,
-	 FB_SYNC_HOR_HIGH_ACT | FB_SYNC_VERT_HIGH_ACT | FB_SYNC_OE_ACT_HIGH |
-	 FB_SYNC_EXT,
+	 FB_SYNC_HOR_HIGH_ACT | FB_SYNC_VERT_HIGH_ACT | FB_SYNC_EXT,
 	 FB_VMODE_INTERLACED,
 	 0,},
 	{
@@ -85,8 +84,7 @@ static struct fb_videomode video_modes[] = {
 	 131, 12,
 	 21, 3,
 	 1, 1,
-	 FB_SYNC_HOR_HIGH_ACT | FB_SYNC_VERT_HIGH_ACT | FB_SYNC_OE_ACT_HIGH |
-	 FB_SYNC_EXT,
+	 FB_SYNC_HOR_HIGH_ACT | FB_SYNC_VERT_HIGH_ACT | FB_SYNC_EXT,
 	 FB_VMODE_INTERLACED | FB_VMODE_ODD_FLD_FIRST,
 	 0,},
 };

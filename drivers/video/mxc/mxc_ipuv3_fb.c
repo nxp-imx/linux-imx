@@ -59,6 +59,7 @@ struct mxcfb_info {
 	int blank;
 	ipu_channel_t ipu_ch;
 	int ipu_di;
+	u32 ipu_di_pix_fmt;
 	bool overlay;
 	uint32_t ipu_ch_irq;
 	uint32_t cur_ipu_buf;
@@ -78,9 +79,7 @@ struct mxcfb_alloc_list {
 
 static char *fb_mode;
 static unsigned long default_bpp = 16;
-#ifdef CONFIG_FB_MXC_INTERNAL_MEM
-static struct clk *iram_clk;
-#endif
+static bool g_dp_in_use;
 LIST_HEAD(fb_alloc_list);
 
 static uint32_t bpp_to_pixfmt(struct fb_info *fbi)
@@ -106,7 +105,7 @@ static uint32_t bpp_to_pixfmt(struct fb_info *fbi)
 
 static irqreturn_t mxcfb_irq_handler(int irq, void *dev_id);
 static int mxcfb_blank(int blank, struct fb_info *info);
-static int mxcfb_map_video_memory(struct fb_info *fbi, bool use_internal_ram);
+static int mxcfb_map_video_memory(struct fb_info *fbi);
 static int mxcfb_unmap_video_memory(struct fb_info *fbi);
 
 /*
@@ -138,7 +137,6 @@ static int mxcfb_set_fix(struct fb_info *info)
 static int mxcfb_set_par(struct fb_info *fbi)
 {
 	int retval;
-	bool use_iram = false;
 	u32 mem_len;
 	ipu_di_signal_cfg_t sig_cfg;
 	ipu_channel_params_t params;
@@ -153,15 +151,11 @@ static int mxcfb_set_par(struct fb_info *fbi)
 	mxcfb_set_fix(fbi);
 
 	mem_len = fbi->var.yres_virtual * fbi->fix.line_length;
-	if (mem_len > fbi->fix.smem_len) {
+	if (!fbi->fix.smem_start || (mem_len > fbi->fix.smem_len)) {
 		if (fbi->fix.smem_start)
 			mxcfb_unmap_video_memory(fbi);
 
-#ifdef CONFIG_FB_MXC_INTERNAL_MEM
-		if (mxc_fbi->ipu_ch == MEM_BG_SYNC)
-			use_iram = true;
-#endif
-		if (mxcfb_map_video_memory(fbi, use_iram) < 0)
+		if (mxcfb_map_video_memory(fbi) < 0)
 			return -ENOMEM;
 	}
 #ifdef CONFIG_MXC_IPU_V1
@@ -175,7 +169,10 @@ static int mxcfb_set_par(struct fb_info *fbi)
 		params.mem_dp_bg_sync.interlaced = true;
 		params.mem_dp_bg_sync.out_pixel_fmt = IPU_PIX_FMT_YUV444;
 	} else {
-		params.mem_dp_bg_sync.out_pixel_fmt = IPU_PIX_FMT_RGB666;
+		if (mxc_fbi->ipu_di_pix_fmt)
+			params.mem_dp_bg_sync.out_pixel_fmt = mxc_fbi->ipu_di_pix_fmt;
+		else
+			params.mem_dp_bg_sync.out_pixel_fmt = IPU_PIX_FMT_RGB666;
 	}
 	params.mem_dp_bg_sync.in_pixel_fmt = bpp_to_pixfmt(fbi);
 	ipu_init_channel(mxc_fbi->ipu_ch, &params);
@@ -193,11 +190,11 @@ static int mxcfb_set_par(struct fb_info *fbi)
 			sig_cfg.Hsync_pol = true;
 		if (fbi->var.sync & FB_SYNC_VERT_HIGH_ACT)
 			sig_cfg.Vsync_pol = true;
-		if (fbi->var.sync & FB_SYNC_CLK_INVERT)
+		if (!(fbi->var.sync & FB_SYNC_CLK_LAT_FALL))
 			sig_cfg.clk_pol = true;
 		if (fbi->var.sync & FB_SYNC_DATA_INVERT)
 			sig_cfg.data_pol = true;
-		if (fbi->var.sync & FB_SYNC_OE_ACT_HIGH)
+		if (!(fbi->var.sync & FB_SYNC_OE_LOW_ACT))
 			sig_cfg.enable_pol = true;
 		if (fbi->var.sync & FB_SYNC_CLK_IDLE_EN)
 			sig_cfg.clkidle_en = true;
@@ -285,21 +282,9 @@ static int mxcfb_check_var(struct fb_var_screeninfo *var, struct fb_info *info)
 	if (var->yres_virtual < var->yres)
 		var->yres_virtual = var->yres;
 
-#ifdef CONFIG_FB_MXC_INTERNAL_MEM
-	if ((info->fix.smem_start == FB_RAM_BASE_ADDR) &&
-	    ((var->yres_virtual * var->xres_virtual * var->bits_per_pixel / 8) >
-	     FB_RAM_SIZE))
-		return -EINVAL;
-#endif
-
 	if ((var->bits_per_pixel != 32) && (var->bits_per_pixel != 24) &&
 	    (var->bits_per_pixel != 16))
 		var->bits_per_pixel = default_bpp;
-
-	if (mxc_fbi->ipu_ch == MEM_DC_SYNC && mxc_fbi->ipu_di == 1) {
-		var->bits_per_pixel = 16;
-		var->nonstd = IPU_PIX_FMT_UYVY;
-	}
 
 	switch (var->bits_per_pixel) {
 	case 16:
@@ -695,9 +680,8 @@ static int mxcfb_mmap(struct fb_info *fbi, struct vm_area_struct *vma)
 	if (vma->vm_end - vma->vm_start > len)
 		return -EINVAL;
 
-	/* make buffers write-thru cacheable */
-	vma->vm_page_prot = __pgprot(pgprot_val(vma->vm_page_prot) &
-				     ~L_PTE_BUFFERABLE);
+	/* make buffers bufferable */
+	vma->vm_page_prot = pgprot_writecombine(vma->vm_page_prot);
 
 	vma->vm_flags |= VM_IO | VM_RESERVED;
 
@@ -793,64 +777,23 @@ static int mxcfb_resume(struct platform_device *pdev)
  *
  * @param       fbi     framebuffer information pointer
  *
- * @param       use_internal_ram flag on whether to use internal RAM for memory
- *
  * @return      Error code indicating success or failure
  */
-static int mxcfb_map_video_memory(struct fb_info *fbi, bool use_internal_ram)
+static int mxcfb_map_video_memory(struct fb_info *fbi)
 {
-	int retval = 0;
-
-#ifdef CONFIG_FB_MXC_INTERNAL_MEM
-	if (use_internal_ram) {
-		fbi->fix.smem_len = FB_RAM_SIZE;
-		fbi->fix.smem_start = FB_RAM_BASE_ADDR;
-		if (fbi->fix.smem_len <
-		    (fbi->var.yres_virtual * fbi->fix.line_length)) {
-			dev_err(fbi->device,
-				"Not enough internal RAM for fb config\n");
-			retval = -EINVAL;
-			goto err0;
-		}
-
-		if (request_mem_region(fbi->fix.smem_start, fbi->fix.smem_len,
-				       fbi->device->driver->name) == NULL) {
-			dev_err(fbi->device,
-				"Unable to request internal RAM\n");
-			retval = -ENOMEM;
-			goto err0;
-		}
-
-		fbi->screen_base = ioremap(fbi->fix.smem_start,
-					   fbi->fix.smem_len);
-		if (!fbi->screen_base) {
-			dev_err(fbi->device,
-				"Unable to map fb memory to virtual address\n");
-			release_mem_region(fbi->fix.smem_start,
-					   fbi->fix.smem_len);
-			retval = -EIO;
-			goto err0;
-		}
-
-		iram_clk = clk_get(NULL, "iram_clk");
-		clk_enable(iram_clk);
-	} else
-#endif
-	{
+	if (fbi->fix.smem_len < fbi->var.yres_virtual * fbi->fix.line_length)
 		fbi->fix.smem_len = fbi->var.yres_virtual *
-		    fbi->fix.line_length;
-		fbi->screen_base =
-		    dma_alloc_writecombine(fbi->device,
-					   fbi->fix.smem_len,
-					   (dma_addr_t *) &fbi->fix.smem_start,
-					   GFP_DMA);
+				    fbi->fix.line_length;
 
-		if (fbi->screen_base == 0) {
-			dev_err(fbi->device,
-				"Unable to allocate framebuffer memory\n");
-			retval = -EBUSY;
-			goto err0;
-		}
+	fbi->screen_base = dma_alloc_writecombine(fbi->device,
+				fbi->fix.smem_len,
+				(dma_addr_t *)&fbi->fix.smem_start,
+				GFP_DMA);
+	if (fbi->screen_base == 0) {
+		dev_err(fbi->device, "Unable to allocate framebuffer memory\n");
+		fbi->fix.smem_len = 0;
+		fbi->fix.smem_start = 0;
+		return -EBUSY;
 	}
 
 	dev_dbg(fbi->device, "allocated fb @ paddr=0x%08X, size=%d.\n",
@@ -862,12 +805,6 @@ static int mxcfb_map_video_memory(struct fb_info *fbi, bool use_internal_ram)
 	memset((char *)fbi->screen_base, 0, fbi->fix.smem_len);
 
 	return 0;
-
-err0:
-	fbi->fix.smem_len = 0;
-	fbi->fix.smem_start = 0;
-	fbi->screen_base = NULL;
-	return retval;
 }
 
 /*!
@@ -879,19 +816,8 @@ err0:
  */
 static int mxcfb_unmap_video_memory(struct fb_info *fbi)
 {
-#ifdef CONFIG_FB_MXC_INTERNAL_MEM
-	if (fbi->fix.smem_start == FB_RAM_BASE_ADDR) {
-		iounmap(fbi->screen_base);
-		release_mem_region(fbi->fix.smem_start, fbi->fix.smem_len);
-		fbi->fix.smem_start = 0;
-		fbi->fix.smem_len = 0;
-		clk_disable(iram_clk);
-	} else
-#endif
-	{
-		dma_free_writecombine(fbi->device, fbi->fix.smem_len,
-				      fbi->screen_base, fbi->fix.smem_start);
-	}
+	dma_free_writecombine(fbi->device, fbi->fix.smem_len,
+			      fbi->screen_base, fbi->fix.smem_start);
 	fbi->screen_base = 0;
 	fbi->fix.smem_start = 0;
 	fbi->fix.smem_len = 0;
@@ -947,6 +873,8 @@ static int mxcfb_probe(struct platform_device *pdev)
 {
 	struct fb_info *fbi;
 	struct mxcfb_info *mxcfbi;
+	struct mxc_fb_platform_data *plat_data = pdev->dev.platform_data;
+	struct resource *res;
 	int ret = 0;
 
 	/*
@@ -968,9 +896,16 @@ static int mxcfb_probe(struct platform_device *pdev)
 		mxcfbi->blank = FB_BLANK_UNBLANK;
 
 		strcpy(fbi->fix.id, "DISP3 BG");
+		g_dp_in_use = true;
 	} else if (pdev->id == 1) {
-		mxcfbi->ipu_ch_irq = IPU_IRQ_DC_SYNC_EOF;
-		mxcfbi->ipu_ch = MEM_DC_SYNC;
+		if (!g_dp_in_use) {
+			mxcfbi->ipu_ch_irq = IPU_IRQ_BG_SYNC_EOF;
+			mxcfbi->ipu_ch = MEM_BG_SYNC;
+		} else {
+			mxcfbi->ipu_ch_irq = IPU_IRQ_DC_SYNC_EOF;
+			mxcfbi->ipu_ch = MEM_DC_SYNC;
+			fbi->var.nonstd = IPU_PIX_FMT_UYVY;
+		}
 		mxcfbi->ipu_di = pdev->id;
 		mxcfbi->blank = FB_BLANK_POWERDOWN;
 
@@ -994,13 +929,24 @@ static int mxcfb_probe(struct platform_device *pdev)
 	ipu_disable_irq(mxcfbi->ipu_ch_irq);
 
 	/* Default Y virtual size is 2x panel size */
-#ifndef CONFIG_FB_MXC_INTERNAL_MEM
 	fbi->var.yres_virtual = fbi->var.yres * 2;
-#endif
+
+	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+	if (res) {
+		fbi->fix.smem_len = res->end - res->start + 1;
+		fbi->fix.smem_start = res->start;
+		fbi->screen_base = ioremap(fbi->fix.smem_start, fbi->fix.smem_len);
+	}
 
 	/* Need dummy values until real panel is configured */
 	fbi->var.xres = 240;
 	fbi->var.yres = 320;
+
+	if (plat_data) {
+		mxcfbi->ipu_di_pix_fmt = plat_data->interface_pix_fmt;
+		if (plat_data->mode)
+			fb_videomode_to_var(&fbi->var, plat_data->mode);
+	}
 
 	mxcfb_check_var(&fbi->var, fbi);
 	mxcfb_set_fix(fbi);

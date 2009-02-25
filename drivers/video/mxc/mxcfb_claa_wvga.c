@@ -49,7 +49,7 @@ static struct fb_videomode video_modes[] = {
 	{
 	 /* 800x480 @ 55 Hz , pixel clk @ 25MHz */
 	 "CLAA-WVGA", 55, 800, 480, 40000, 80, 0, 10, 0, 20, 10,
-	 FB_SYNC_OE_ACT_HIGH,
+	 FB_SYNC_CLK_LAT_FALL,
 	 FB_VMODE_NONINTERLACED,
 	 0,},
 };

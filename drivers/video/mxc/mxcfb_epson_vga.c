@@ -55,7 +55,7 @@ static struct fb_videomode video_modes[] = {
 	{
 	 /* 480x640 @ 60 Hz */
 	 "Epson-VGA", 60, 480, 640, 41701, 60, 41, 10, 5, 20, 10,
-	 FB_SYNC_CLK_INVERT | FB_SYNC_OE_ACT_HIGH,
+	 0,
 	 FB_VMODE_NONINTERLACED,
 	 0,},
 };

@@ -67,6 +67,7 @@
 #define CH7024_IN_TIMING10	0x1A
 #define CH7024_IN_TIMING11	0x1B
 #define CH7024_ACIV		0x1C
+#define CH7024_CLK_TREE		0x1D
 #define CH7024_OUT_TIMING1	0x1E
 #define CH7024_OUT_TIMING2	0x1F
 #define CH7024_V_POS1		0x20
@@ -227,7 +228,7 @@ static struct fb_videomode video_modes[] = {
 	 0, 101,
 	 0, 54,
 	 60, 20,
-	 FB_SYNC_HOR_HIGH_ACT | FB_SYNC_VERT_HIGH_ACT | FB_SYNC_OE_ACT_HIGH,
+	 FB_SYNC_HOR_HIGH_ACT | FB_SYNC_VERT_HIGH_ACT,
 	 FB_VMODE_NONINTERLACED,
 	 0,},
 	{
@@ -236,7 +237,7 @@ static struct fb_videomode video_modes[] = {
 	 0, 250,
 	 0, 40,
 	 60, 40,
-	 FB_SYNC_HOR_HIGH_ACT | FB_SYNC_VERT_HIGH_ACT | FB_SYNC_OE_ACT_HIGH,
+	 FB_SYNC_HOR_HIGH_ACT | FB_SYNC_VERT_HIGH_ACT,
 	 FB_VMODE_NONINTERLACED,
 	 0,},
 };
@@ -280,6 +281,7 @@ static int ch7024_setup(int vos)
 	ch7024_write_reg(CH7024_SYNC, 0x0D);	/* SLAVE mode, and TTL */
 	ch7024_write_reg(CH7024_IDF1, 0x00);
 	ch7024_write_reg(CH7024_TVFILTER1, 0x00);	/* set XCH=0 */
+	ch7024_write_reg(CH7024_CLK_TREE, 0x9E);	/* Invert input clk */
 
 	/* set input clock and divider */
 	/* set PLL */

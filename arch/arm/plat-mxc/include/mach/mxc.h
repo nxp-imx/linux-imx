@@ -128,9 +128,15 @@ struct mxc_lightsensor_platform_data {
 	int rext;
 };
 
+struct mxc_fb_platform_data {
+	struct fb_videomode *mode;
+	u32 interface_pix_fmt;
+};
+
 struct mxc_lcd_platform_data {
 	char *io_reg;
 	char *core_reg;
+	char *analog_reg;
 	void (*reset) (void);
 };
 
