@@ -280,8 +280,13 @@ static int isl29003_i2c_probe(struct i2c_client *client,
 	if (vdd_reg)
 		regulator_enable(vdd_reg);
 	msleep(100);
-	if (isl29003_read(client, ISL29003_CMD))
+
+	if (isl29003_write(client, ISL29003_CMD, 0))
 		err = -ENODEV;
+
+	if (!err)
+		if (isl29003_read(client, ISL29003_CMD))
+			err = -ENODEV;
 
 	if (vdd_reg)
 		regulator_disable(vdd_reg);
