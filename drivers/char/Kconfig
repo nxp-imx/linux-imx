@@ -420,7 +420,7 @@ config SGI_MBCS
 
 config FM_SI4702
 	tristate "SI4702 FM device driver"
-	depends on (MACH_MX31_3DS || MACH_MX35_3DS || MACH_MX37_3DS)
+	depends on (MACH_MX31_3DS || MACH_MX35_3DS || MACH_MX37_3DS || MACH_MX51_3DS)
 	default n
 
 source "drivers/serial/Kconfig"

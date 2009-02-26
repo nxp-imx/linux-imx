@@ -324,6 +324,44 @@ static inline void mxc_init_bl(void)
 	platform_device_register(&mxcbl_device);
 }
 
+void si4702_reset(void)
+{
+	mxc_set_gpio_dataout(MX51_PIN_EIM_DTACK, 0);
+	msleep(100);
+	mxc_set_gpio_dataout(MX51_PIN_EIM_DTACK, 1);
+	msleep(100);
+}
+
+void si4702_clock_ctl(int flag)
+{
+}
+
+static void si4702_gpio_get(void)
+{
+	/* reset pin */
+	mxc_request_iomux(MX51_PIN_EIM_DTACK, IOMUX_CONFIG_GPIO);
+	mxc_set_gpio_direction(MX51_PIN_EIM_DTACK, 0);
+}
+
+static void si4702_gpio_put(void)
+{
+	mxc_free_iomux(MX51_PIN_EIM_DTACK, IOMUX_CONFIG_GPIO);
+}
+
+static struct mxc_fm_platform_data si4702_data = {
+	.reg_vio = "SW4",
+	.reg_vdd = "VIOHI",
+	.gpio_get = si4702_gpio_get,
+	.gpio_put = si4702_gpio_put,
+	.reset = si4702_reset,
+	.clock_ctl = si4702_clock_ctl,
+	.sksnr = 0,
+	.skcnt = 0,
+	.band = 0,
+	.space = 100,
+	.seekth = 0xa,
+};
+
 #if defined(CONFIG_I2C_MXC) || defined(CONFIG_I2C_MXC_MODULE)
 
 #ifdef CONFIG_I2C_MXC_SELECT1
@@ -345,6 +383,11 @@ static struct i2c_board_info mxc_i2c1_board_info[] __initdata = {
 	 .addr = 0x48,
 	 .irq  = IOMUX_TO_IRQ(MX51_PIN_GPIO1_5),
 	},
+	{
+	 .type = "si4702",
+	 .addr = 0x10,
+	 .platform_data = (void *)&si4702_data,
+	 },
 };
 #endif
 #if defined(CONFIG_I2C_MXC_HS) || defined(CONFIG_I2C_MXC_HS_MODULE)
