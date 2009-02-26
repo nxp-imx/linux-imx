@@ -346,15 +346,18 @@ static inline void mxc_init_scc(void)
 	}
 
 	for (partition_no = 0; partition_no < iram_partitions; partition_no++) {
+		/*De-allocate a Partition*/
 		reg_value = ((partition_no << SCM_ZCMD_PART_SHIFT) &
 			     SCM_ZCMD_PART_MASK) | ((0x03 <<
 						     SCM_ZCMD_CCMD_SHIFT)
 						    & SCM_ZCMD_CCMD_MASK);
 		__raw_writel(reg_value, scc_base + SCM_ZCMD_REG);
-
+		msleep(1);
 		while ((__raw_readl(scc_base + SCM_STATUS_REG) &
 			SCM_STATUS_SRS_READY) != SCM_STATUS_SRS_READY) ;
 
+		/*In Supervisor mode claims a partition for it's own use
+		    by writing zero to SMID register.*/
 		__raw_writel(0, scc_base + (SCM_SMID0_REG + 8 * partition_no));
 
 		reg_mask |= (3 << (2 * (partition_no)));
@@ -392,7 +395,7 @@ static inline void mxc_init_scc(void)
 						     SCM_ZCMD_CCMD_SHIFT)
 						    & SCM_ZCMD_CCMD_MASK);
 		__raw_writel(reg_value, scc_base + SCM_ZCMD_REG);
-
+		msleep(1);
 		while ((__raw_readl(scc_base + SCM_STATUS_REG) &
 			SCM_STATUS_SRS_READY) != SCM_STATUS_SRS_READY) ;
 	}
