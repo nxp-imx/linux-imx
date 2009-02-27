@@ -697,7 +697,14 @@ static int __init mxc_init_pmic(void)
 		pmic_read_reg(REG_POWER_CTL2, &value, 0xffffff);
 		/* Bit 11 (STANDBYSECINV): Active Low */
 		value |= 0x00800;
+		/* Bit 12 (WDIRESET): enable */
+		value |= 0x01000;
 		pmic_write_reg(REG_POWER_CTL2, value, 0xffffff);
+
+		/* Battery charger default settings */
+		/* current limit = 1200mA, PLIM = 1000mw */
+		value = 0x10068;
+		pmic_write_reg(REG_CHARGE, value, 0x018078);
 
 		sw2_stby_reg = regulator_get(NULL, "SW2_STBY");
 
