@@ -387,7 +387,9 @@ struct cpu_wp {
 	u32 cpu_podf;
 };
 
+#ifndef CONFIG_ARCH_MX51
 struct cpu_wp *get_cpu_wp(int *wp);
+#endif
 
 enum mxc_cpu_pwr_mode {
 	WAIT_CLOCKED,		/* wfi only */

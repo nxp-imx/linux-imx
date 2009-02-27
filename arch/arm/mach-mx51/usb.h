@@ -1,5 +1,5 @@
 /*
- * Copyright 2005-2008 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2005-2009 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -21,8 +21,6 @@ extern struct platform_device *host_pdev_register(struct resource *res,
 
 extern int fsl_usb_host_init(struct platform_device *pdev);
 extern void fsl_usb_host_uninit(struct fsl_usb2_platform_data *pdata);
-extern int gpio_usbh1_active(void);
-extern void gpio_usbh1_inactive(void);
 extern int gpio_usbotg_utmi_active(void);
 extern void gpio_usbotg_utmi_inactive(void);
 

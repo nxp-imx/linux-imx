@@ -13,10 +13,60 @@
 
 #include <linux/kernel.h>
 #include <linux/types.h>
+#include <linux/delay.h>
 #include <linux/platform_device.h>
 #include <linux/fsl_devices.h>
 #include <mach/arc_otg.h>
+#include <asm/mach-types.h>
+#include <asm/mach/arch.h>
 #include "usb.h"
+#include "iomux.h"
+
+
+/*
+ * USB Host1 HS port
+ */
+static int gpio_usbh1_active(void)
+{
+	/* Set USBH1_STP to GPIO and toggle it */
+	mxc_request_iomux(MX51_PIN_USBH1_STP, IOMUX_CONFIG_GPIO |
+			  IOMUX_CONFIG_SION);
+	mxc_set_gpio_direction(MX51_PIN_USBH1_STP, 0);
+	mxc_set_gpio_dataout(MX51_PIN_USBH1_STP, 1);
+
+	/* Signal only used on MX51-3DS for reset to PHY.*/
+	if (machine_is_mx51_3ds()) {
+		mxc_request_iomux(MX51_PIN_EIM_D17, IOMUX_CONFIG_ALT1);
+		mxc_iomux_set_pad(MX51_PIN_EIM_D17, PAD_CTL_DRV_HIGH |
+			  PAD_CTL_HYS_NONE | PAD_CTL_PUE_KEEPER |
+			  PAD_CTL_100K_PU | PAD_CTL_ODE_OPENDRAIN_NONE |
+			  PAD_CTL_PKE_ENABLE | PAD_CTL_SRE_FAST);
+		mxc_set_gpio_direction(MX51_PIN_EIM_D17, 0);
+		mxc_set_gpio_dataout(MX51_PIN_EIM_D17, 1);
+	}
+
+	msleep(100);
+
+	return 0;
+}
+
+void gpio_usbh1_setback_stp(void)
+{
+	/* setback USBH1_STP to be function */
+	mxc_request_iomux(MX51_PIN_USBH1_STP, IOMUX_CONFIG_ALT0);
+	mxc_iomux_set_pad(MX51_PIN_USBH1_STP, PAD_CTL_SRE_FAST |
+			  PAD_CTL_DRV_HIGH | PAD_CTL_ODE_OPENDRAIN_NONE |
+			  PAD_CTL_PUE_KEEPER | PAD_CTL_PKE_ENABLE |
+			  PAD_CTL_HYS_ENABLE | PAD_CTL_DDR_INPUT_CMOS |
+			  PAD_CTL_DRV_VOT_LOW);
+}
+EXPORT_SYMBOL(gpio_usbh1_setback_stp);
+
+static void gpio_usbh1_inactive(void)
+{
+	mxc_request_gpio(MX51_PIN_USBH1_STP);
+	mxc_free_iomux(MX51_PIN_USBH1_STP, IOMUX_CONFIG_GPIO);
+}
 
 static struct fsl_usb2_platform_data usbh1_config = {
 	.name = "Host 1",

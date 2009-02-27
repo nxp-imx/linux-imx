@@ -70,6 +70,9 @@ static struct cpufreq_frequency_table imx_freq_table[4];
 
 extern int dvfs_core_is_active;
 extern int cpu_wp_nr;
+#ifdef CONFIG_ARCH_MX51
+extern struct cpu_wp *(*get_cpu_wp)(int *wp);
+#endif
 
 static int set_cpu_freq(int freq)
 {

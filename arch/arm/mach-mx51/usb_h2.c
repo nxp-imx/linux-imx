@@ -20,6 +20,34 @@
 #include "usb.h"
 #include "iomux.h"
 
+/*
+ * USB Host2 HS port
+ */
+static int gpio_usbh2_active(void)
+{
+	/* Set USBH2_STP to GPIO and toggle it */
+	mxc_request_iomux(MX51_PIN_EIM_A26, IOMUX_CONFIG_GPIO);
+	mxc_set_gpio_direction(MX51_PIN_EIM_A26, 0);
+	mxc_set_gpio_dataout(MX51_PIN_EIM_A26, 1);
+
+	msleep(100);
+
+	return 0;
+}
+
+void gpio_usbh2_setback_stp(void)
+{
+	/* setback USBH2_STP to be function */
+	mxc_request_iomux(MX51_PIN_EIM_A26, IOMUX_CONFIG_ALT2);
+}
+EXPORT_SYMBOL(gpio_usbh2_setback_stp);
+
+static void gpio_usbh2_inactive(void)
+{
+	mxc_request_gpio(MX51_PIN_EIM_A26);
+	mxc_free_iomux(MX51_PIN_EIM_A26, IOMUX_CONFIG_GPIO);
+}
+
 static struct fsl_usb2_platform_data usbh2_config = {
 	.name = "Host 2",
 	.platform_init = fsl_usb_host_init,

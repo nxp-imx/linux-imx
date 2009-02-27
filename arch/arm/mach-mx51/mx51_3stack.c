@@ -60,6 +60,8 @@
  *
  * @ingroup MSL_MX51
  */
+extern void __init mx51_3stack_io_init(void);
+extern struct cpu_wp *(*get_cpu_wp)(int *wp);
 
 /* working point(wp): 0 - 800MHz; 1 - 200MHz; */
 static struct cpu_wp cpu_wp_auto[] = {
@@ -83,7 +85,7 @@ static struct cpu_wp cpu_wp_auto[] = {
 	 .cpu_voltage = 775000,},
 };
 
-struct cpu_wp *get_cpu_wp(int *wp)
+struct cpu_wp *mx51_3stack_get_cpu_wp(int *wp)
 {
 	*wp = 2;
 	return cpu_wp_auto;
@@ -253,14 +255,6 @@ static void lcd_reset_to2(void)
 
 static void lcd_reset(void)
 {
-	static int first;
-
-	/* ensure that LCDIO(1.8V) has been turn on */
-	/* active reset line GPIO */
-	if (!first) {
-		mxc_request_iomux(MX51_PIN_DISPB2_SER_RS, IOMUX_CONFIG_GPIO);
-		first = 1;
-	}
 	mxc_set_gpio_dataout(MX51_PIN_DISPB2_SER_RS, 0);
 	mxc_set_gpio_direction(MX51_PIN_DISPB2_SER_RS, 0);
 	/* do reset */
@@ -293,11 +287,8 @@ static struct platform_device lcd_wvga_device = {
 		},
 };
 
-extern void gpio_lcd_active(void);
-
 static void mxc_init_fb(void)
 {
-	gpio_lcd_active();
 
 	if (cpu_is_mx51_rev(CHIP_REV_2_0) > 0)
 		lcd_data.reset = lcd_reset_to2;
@@ -455,13 +446,36 @@ static inline void mxc_init_enet(void)
 }
 #endif
 
-#if defined(CONFIG_FEC) || defined(CONFIG_FEC_MODULE)
-unsigned int expio_intr_fec;
-
-EXPORT_SYMBOL(expio_intr_fec);
-#endif
-
 #if defined(CONFIG_MMC_IMX_ESDHCI) || defined(CONFIG_MMC_IMX_ESDHCI_MODULE)
+/*!
+ * Get WP pin value to detect write protection
+ */
+int sdhc_write_protect(struct device *dev)
+{
+	unsigned short rc = 0;
+
+	if (to_platform_device(dev)->id == 0)
+		rc = mxc_get_gpio_datain(MX51_PIN_GPIO1_1);
+	else
+		rc = 0;
+	return rc;
+}
+
+/*
+ * Probe for the card. If present the GPIO data would be set.
+ */
+int sdhc_get_card_det_status(struct device *dev)
+{
+	int ret;
+
+	if (to_platform_device(dev)->id == 0) {
+		ret = mxc_get_gpio_datain(MX51_PIN_GPIO1_0);
+		return ret;
+	} else {		/* config the det pin for SDHC2 */
+		return 0;
+	}
+}
+
 static struct mxc_mmc_platform_data mmc_data = {
 	.ocr_mask = MMC_VDD_32_33,
 	.caps = MMC_CAP_4_BIT_DATA,
@@ -489,8 +503,8 @@ static struct resource mxcsdhc1_resources[] = {
 	       .flags = IORESOURCE_IRQ,
 	       },
 	[2] = {
-	       .start = 0,
-	       .end = 0,
+	       .start = IOMUX_TO_IRQ(MX51_PIN_GPIO1_0),
+	       .end = IOMUX_TO_IRQ(MX51_PIN_GPIO1_0),
 	       .flags = IORESOURCE_IRQ,
 	       },
 };
@@ -542,20 +556,6 @@ static struct platform_device mxcsdhc2_device = {
 
 static inline void mxc_init_mmc(void)
 {
-	int cd_irq;
-
-	cd_irq = sdhc_init_card_det(0);
-	if (cd_irq) {
-		mxcsdhc1_device.resource[2].start = cd_irq;
-		mxcsdhc1_device.resource[2].end = cd_irq;
-	}
-
-	cd_irq = sdhc_init_card_det(1);
-	if (cd_irq) {
-		mxcsdhc2_device.resource[2].start = cd_irq;
-		mxcsdhc2_device.resource[2].end = cd_irq;
-	}
-
 	(void)platform_device_register(&mxcsdhc1_device);
 	(void)platform_device_register(&mxcsdhc2_device);
 }
@@ -683,7 +683,6 @@ static int __init mxc_expio_init(void)
 	/*
 	 * Configure INT line as GPIO input
 	 */
-	mxc_request_iomux(MX51_PIN_GPIO1_6, IOMUX_CONFIG_GPIO);
 	mxc_set_gpio_direction(MX51_PIN_GPIO1_6, 1);
 
 	/* disable the interrupt and clear the status */
@@ -768,11 +767,6 @@ static void __init mxc_init_pata(void)
 
 static int __init mxc_init_touchscreen(void)
 {
-	int pad_val;
-
-	mxc_request_iomux(MX51_PIN_GPIO1_5, IOMUX_CONFIG_GPIO);
-	pad_val = PAD_CTL_PKE_ENABLE | PAD_CTL_100K_PU;
-	mxc_iomux_set_pad(MX51_PIN_GPIO1_5, pad_val);
 	mxc_set_gpio_direction(MX51_PIN_GPIO1_5, 1);
 
 	return 0;
@@ -847,6 +841,11 @@ static int mxc_sgtl5000_plat_init(void);
 static int mxc_sgtl5000_plat_finit(void);
 static int mxc_sgtl5000_amp_enable(int enable);
 
+int headphone_det_status(void)
+{
+	return mxc_get_gpio_datain(MX51_PIN_EIM_A26);
+}
+
 static struct mxc_sgtl5000_platform_data sgtl5000_data = {
 	.ssi_num = 1,
 	.src_port = 2,
@@ -907,18 +906,6 @@ static int mxc_sgtl5000_amp_enable(int enable)
 
 static void mxc_sgtl5000_init(void)
 {
-	int err, pin;
-
-	pin = MX51_PIN_EIM_A26;
-	err = mxc_request_iomux(pin, IOMUX_CONFIG_GPIO);
-	if (err) {
-		sgtl5000_data.hp_irq = -1;
-		printk(KERN_ERR "Error: sgtl5000_init request gpio failed!\n");
-		return;
-	}
-	mxc_iomux_set_pad(pin, PAD_CTL_PKE_ENABLE | PAD_CTL_100K_PU);
-	mxc_set_gpio_direction(pin, 1);
-
 	platform_device_register(&sgtl5000_device);
 }
 #else
@@ -998,6 +985,7 @@ static void __init fixup_mxc_board(struct machine_desc *desc, struct tag *tags,
 {
 	mxc_cpu_init();
 
+	get_cpu_wp = mx51_3stack_get_cpu_wp;
 #ifdef CONFIG_DISCONTIGMEM
 	do {
 		int nid;
@@ -1018,6 +1006,7 @@ static void __init mxc_board_init(void)
 
 	mxc_cpu_common_init();
 	mxc_gpio_init();
+	mx51_3stack_io_init();
 	early_console_setup(saved_command_line);
 	mxc_init_devices();
 

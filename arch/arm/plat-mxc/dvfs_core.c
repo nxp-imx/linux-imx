@@ -102,6 +102,10 @@ static struct clk *cpu_clk;
 static struct clk *dvfs_clk;
 static struct regulator *core_regulator;
 
+#ifdef CONFIG_ARCH_MX51
+extern struct cpu_wp *(*get_cpu_wp)(int *wp);
+#endif
+
 enum {
 	FSVAI_FREQ_NOCHANGE = 0x0,
 	FSVAI_FREQ_INCREASE,

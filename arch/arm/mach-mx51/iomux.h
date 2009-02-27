@@ -187,6 +187,14 @@ typedef enum iomux_input_config {
 	INPUT_CTL_PATH7,
 } iomux_input_config_t;
 
+struct mxc_iomux_pin_cfg {
+	iomux_pin_name_t pin;
+	u8 mux_mode;
+	u16 pad_cfg;
+	u8 in_select;
+	u8 in_mode;
+};
+
 /*!
  * Request ownership for an IO pin. This function has to be the first one
  * being called before that pin is used. The caller has to check the

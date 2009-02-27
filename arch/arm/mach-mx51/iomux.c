@@ -42,7 +42,7 @@ enum iomux_reg_addr {
 	IOMUXSW_INPUT_CTL = IO_ADDRESS(IOMUXC_BASE_ADDR),
 };
 
-#define MUX_PIN_NUM_MAX	(((MUX_I_END - MUX_I_START) >> 2) + 1)
+#define MUX_PIN_NUM_MAX        ((MUX_I_END >> 2) + 1)
 
 static u8 iomux_pin_res_table[MUX_PIN_NUM_MAX];
 static DEFINE_SPINLOCK(gpio_mux_lock);

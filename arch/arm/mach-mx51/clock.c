@@ -53,6 +53,7 @@ extern int mxc_jtag_enabled;
 
 static int cpu_clk_set_wp(int wp);
 extern void propagate_rate(struct clk *tclk);
+struct cpu_wp *(*get_cpu_wp)(int *wp);
 
 static void __calc_pre_post_dividers(u32 div, u32 *pre, u32 *post)
 {
