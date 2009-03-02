@@ -1,0 +1,622 @@
+/*
+ * Copyright 2009 Freescale Semiconductor, Inc. All Rights Reserved.
+ */
+
+/*
+ * The code contained herein is licensed under the GNU General Public
+ * License. You may obtain a copy of the GNU General Public License
+ * Version 2 or later at the following locations:
+ *
+ * http://www.opensource.org/licenses/gpl-license.html
+ * http://www.gnu.org/copyleft/gpl.html
+ */
+
+#include <linux/types.h>
+#include <linux/sched.h>
+#include <linux/delay.h>
+#include <linux/pm.h>
+#include <linux/interrupt.h>
+#include <linux/irq.h>
+#include <linux/init.h>
+#include <linux/input.h>
+#include <linux/nodemask.h>
+#include <linux/clk.h>
+#include <linux/platform_device.h>
+#include <linux/fsl_devices.h>
+#include <linux/spi/spi.h>
+#include <linux/i2c.h>
+#include <linux/ata.h>
+#include <linux/mtd/mtd.h>
+#include <linux/mtd/map.h>
+#include <linux/mtd/partitions.h>
+#include <linux/spi/flash.h>
+#include <linux/regulator/consumer.h>
+#include <linux/pmic_external.h>
+#include <linux/pmic_status.h>
+#include <linux/ipu.h>
+#include <linux/mxcfb.h>
+#include <mach/common.h>
+#include <mach/hardware.h>
+#include <mach/spba.h>
+#include <asm/irq.h>
+#include <asm/setup.h>
+#include <asm/mach-types.h>
+#include <asm/mach/arch.h>
+#include <asm/mach/time.h>
+#include <asm/mach/keypad.h>
+#include <mach/memory.h>
+#include <mach/gpio.h>
+#include <mach/mmc.h>
+#include "board-mx51_babbage.h"
+#include "iomux.h"
+#include "crm_regs.h"
+
+/*!
+ * @file mach-mx51/mx51_babbage.c
+ *
+ * @brief This file contains the board specific initialization routines.
+ *
+ * @ingroup MSL_MX51
+ */
+extern void __init mx51_babbage_io_init(void);
+extern struct cpu_wp *(*get_cpu_wp)(int *wp);
+
+/* working point(wp): 0 - 800MHz; 1 - 200MHz; */
+static struct cpu_wp cpu_wp_auto[] = {
+	{
+	 .pll_rate = 800000000,
+	 .cpu_rate = 800000000,
+	 .pdf = 0,
+	 .mfi = 8,
+	 .mfd = 2,
+	 .mfn = 1,
+	 .cpu_podf = 0,
+	 .cpu_voltage = 1050000,},
+	{
+	 .pll_rate = 800000000,
+	 .cpu_rate = 200000000,
+	 .pdf = 3,
+	 .mfi = 8,
+	 .mfd = 2,
+	 .mfn = 1,
+	 .cpu_podf = 3,
+	 .cpu_voltage = 775000,},
+};
+
+struct cpu_wp *mx51_babbage_get_cpu_wp(int *wp)
+{
+	*wp = 2;
+	return cpu_wp_auto;
+}
+
+static void mxc_nop_release(struct device *dev)
+{
+	/* Nothing */
+}
+
+#if defined(CONFIG_FB_MXC_SYNC_PANEL) || \
+	defined(CONFIG_FB_MXC_SYNC_PANEL_MODULE)
+static struct resource mxcfb_resources[] = {
+	[0] = {
+	       .flags = IORESOURCE_MEM,
+	       },
+};
+
+static struct mxc_fb_platform_data fb_data[] = {
+	{
+	 .interface_pix_fmt = IPU_PIX_FMT_RGB24,
+	 },
+	{
+	 .interface_pix_fmt = IPU_PIX_FMT_RGB565,
+	 },
+};
+
+static struct platform_device mxc_fb_device[] = {
+	{
+	 .name = "mxc_sdc_fb",
+	 .id = 0,
+	 .dev = {
+		 .release = mxc_nop_release,
+		 .coherent_dma_mask = 0xFFFFFFFF,
+		 .platform_data = &fb_data[0],
+		 },
+	 },
+	{
+	 .name = "mxc_sdc_fb",
+	 .id = 1,
+	 .dev = {
+		 .release = mxc_nop_release,
+		 .coherent_dma_mask = 0xFFFFFFFF,
+		 .platform_data = &fb_data[1],
+		 },
+	 },
+	{
+	 .name = "mxc_sdc_fb",
+	 .id = 2,
+	 .dev = {
+		 .release = mxc_nop_release,
+		 .coherent_dma_mask = 0xFFFFFFFF,
+		 },
+	 },
+};
+
+static void mxc_init_fb(void)
+{
+	(void)platform_device_register(&mxc_fb_device[1]);
+	(void)platform_device_register(&mxc_fb_device[2]);
+}
+#else
+static inline void mxc_init_fb(void)
+{
+}
+#endif
+
+static struct platform_device mxcbl_device = {
+	.name = "mxc_mc13892_bl",
+};
+
+static inline void mxc_init_bl(void)
+{
+	platform_device_register(&mxcbl_device);
+}
+
+static void dvi_reset(void)
+{
+	mxc_set_gpio_direction(MX51_PIN_DISPB2_SER_DIN, 0);
+	mxc_set_gpio_dataout(MX51_PIN_DISPB2_SER_DIN, 0);
+	msleep(50);
+
+	/* do reset */
+	mxc_set_gpio_dataout(MX51_PIN_DISPB2_SER_DIN, 1);
+	msleep(20);		/* tRES >= 50us */
+
+	mxc_set_gpio_dataout(MX51_PIN_DISPB2_SER_DIN, 0);
+}
+
+static struct mxc_lcd_platform_data dvi_data = {
+	.core_reg = "VGEN1",
+	.io_reg = "VGEN3",
+	.reset = dvi_reset,
+};
+
+static void vga_reset(void)
+{
+	mxc_set_gpio_direction(MX51_PIN_EIM_A19, 0);
+	mxc_set_gpio_dataout(MX51_PIN_EIM_A19, 0);
+	msleep(50);
+	/* do reset */
+	mxc_set_gpio_dataout(MX51_PIN_EIM_A19, 1);
+	msleep(10);		/* tRES >= 50us */
+	mxc_set_gpio_dataout(MX51_PIN_EIM_A19, 0);
+}
+
+static struct mxc_lcd_platform_data vga_data = {
+	.core_reg = "VCAM",
+	.io_reg = "VGEN3",
+	.analog_reg = "VAUDIO",
+	.reset = vga_reset,
+};
+
+static void si4702_reset(void)
+{
+	return;
+	mxc_set_gpio_dataout(MX51_PIN_EIM_A21, 0);
+	msleep(100);
+	mxc_set_gpio_dataout(MX51_PIN_EIM_A21, 1);
+	msleep(100);
+}
+
+static void si4702_clock_ctl(int flag)
+{
+	mxc_set_gpio_dataout(MX51_PIN_EIM_A18, flag);
+	msleep(100);
+}
+
+static void si4702_gpio_get(void)
+{
+	mxc_set_gpio_direction(MX51_PIN_EIM_A18, 0);
+}
+
+static void si4702_gpio_put(void)
+{
+}
+
+static struct mxc_fm_platform_data si4702_data = {
+	.reg_vio = "SW4",
+	.reg_vdd = "VIOHI",
+	.gpio_get = si4702_gpio_get,
+	.gpio_put = si4702_gpio_put,
+	.reset = si4702_reset,
+	.clock_ctl = si4702_clock_ctl,
+};
+
+#if defined(CONFIG_I2C_MXC) || defined(CONFIG_I2C_MXC_MODULE)
+
+#ifdef CONFIG_I2C_MXC_SELECT1
+static struct i2c_board_info mxc_i2c0_board_info[] __initdata = {
+};
+#endif
+#ifdef CONFIG_I2C_MXC_SELECT2
+static struct i2c_board_info mxc_i2c1_board_info[] __initdata = {
+	{
+	 .type = "sgtl5000-i2c",
+	 .addr = 0x0a,
+	 },
+};
+#endif
+
+#if defined(CONFIG_I2C_MXC_HS) || defined(CONFIG_I2C_MXC_HS_MODULE)
+static struct i2c_board_info mxc_i2c_hs_board_info[] __initdata = {
+	{
+	 .type = "sii9022",
+	 .addr = 0x39,
+	 .platform_data = &dvi_data,
+	 },
+	{
+	 .type = "ch7026",
+	 .addr = 0x75,
+	 .platform_data = &vga_data,
+	 },
+	{
+	 .type = "si4702",
+	 .addr = 0x10,
+	 .platform_data = (void *)&si4702_data,
+	 },
+};
+#endif
+
+#endif
+
+#if defined(CONFIG_MTD) || defined(CONFIG_MTD_MODULE)
+static struct mtd_partition mxc_spi_flash_partitions[] = {
+	{
+		.name = "bootloader",
+		.offset = 0,
+		.size = 0x00040000,
+		.mask_flags = MTD_CAP_ROM},
+	{
+		.name = "kernel",
+		.offset = MTDPART_OFS_APPEND,
+		.size = MTDPART_SIZ_FULL},
+};
+
+static struct flash_platform_data mxc_spi_flash_data = {
+	.name = "mxc_spi_nor",
+	.parts = mxc_spi_flash_partitions,
+	.nr_parts = ARRAY_SIZE(mxc_spi_flash_partitions),
+	.type = "sst25vf016b",
+};
+#endif
+
+static struct spi_board_info mxc_spi_board_info[] __initdata = {
+#if defined(CONFIG_MTD) || defined(CONFIG_MTD_MODULE)
+	{
+	 .modalias = "mxc_spi_nor",
+	 .max_speed_hz = 25000000, /* max spi clock (SCK) speed in HZ */
+	 .bus_num = 1,
+	 .chip_select = 1,
+	 .platform_data = &mxc_spi_flash_data,
+	},
+#endif
+};
+
+#if defined(CONFIG_FEC) || defined(CONFIG_FEC_MODULE)
+unsigned int expio_intr_fec;
+
+EXPORT_SYMBOL(expio_intr_fec);
+#endif
+
+#if defined(CONFIG_MMC_IMX_ESDHCI) || defined(CONFIG_MMC_IMX_ESDHCI_MODULE)
+static int sdhc_write_protect(struct device *dev)
+{
+	unsigned short rc = 0;
+
+	if (to_platform_device(dev)->id == 0)
+		rc = mxc_get_gpio_datain(MX51_PIN_GPIO1_1);
+
+	return rc;
+}
+
+static unsigned int sdhc_get_card_det_status(struct device *dev)
+{
+	int ret;
+
+	if (to_platform_device(dev)->id == 0) {
+		ret = mxc_get_gpio_datain(MX51_PIN_GPIO1_0);
+		return ret;
+	} else {		/* config the det pin for SDHC2 */
+		return 0;
+	}
+}
+
+static struct mxc_mmc_platform_data mmc_data = {
+	.ocr_mask = MMC_VDD_31_32,
+	.caps = MMC_CAP_4_BIT_DATA,
+	.min_clk = 400000,
+	.max_clk = 52000000,
+	.card_inserted_state = 1,
+	.status = sdhc_get_card_det_status,
+	.wp_status = sdhc_write_protect,
+	.clock_mmc = "esdhc_clk",
+	.power_mmc = NULL,
+};
+
+/*!
+ * Resource definition for the SDHC1
+ */
+static struct resource mxcsdhc1_resources[] = {
+	[0] = {
+	       .start = MMC_SDHC1_BASE_ADDR,
+	       .end = MMC_SDHC1_BASE_ADDR + SZ_4K - 1,
+	       .flags = IORESOURCE_MEM,
+	       },
+	[1] = {
+	       .start = MXC_INT_MMC_SDHC1,
+	       .end = MXC_INT_MMC_SDHC1,
+	       .flags = IORESOURCE_IRQ,
+	       },
+	[2] = {
+	       .start = IOMUX_TO_IRQ(MX51_PIN_GPIO1_0),
+	       .end = IOMUX_TO_IRQ(MX51_PIN_GPIO1_0),
+	       .flags = IORESOURCE_IRQ,
+	       },
+};
+
+/*!
+ * Resource definition for the SDHC2
+ */
+static struct resource mxcsdhc2_resources[] = {
+	[0] = {
+	       .start = MMC_SDHC2_BASE_ADDR,
+	       .end = MMC_SDHC2_BASE_ADDR + SZ_4K - 1,
+	       .flags = IORESOURCE_MEM,
+	       },
+	[1] = {
+	       .start = MXC_INT_MMC_SDHC2,
+	       .end = MXC_INT_MMC_SDHC2,
+	       .flags = IORESOURCE_IRQ,
+	       },
+	[2] = {
+	       .start = 0,
+	       .end = 0,
+	       .flags = IORESOURCE_IRQ,
+	       },
+};
+
+/*! Device Definition for MXC SDHC1 */
+static struct platform_device mxcsdhc1_device = {
+	.name = "mxsdhci",
+	.id = 0,
+	.dev = {
+		.release = mxc_nop_release,
+		.platform_data = &mmc_data,
+		},
+	.num_resources = ARRAY_SIZE(mxcsdhc1_resources),
+	.resource = mxcsdhc1_resources,
+};
+
+/*! Device Definition for MXC SDHC2 */
+static struct platform_device mxcsdhc2_device = {
+	.name = "mxsdhci",
+	.id = 1,
+	.dev = {
+		.release = mxc_nop_release,
+		.platform_data = &mmc_data,
+		},
+	.num_resources = ARRAY_SIZE(mxcsdhc2_resources),
+	.resource = mxcsdhc2_resources,
+};
+
+static inline void mxc_init_mmc(void)
+{
+	(void)platform_device_register(&mxcsdhc1_device);
+	(void)platform_device_register(&mxcsdhc2_device);
+}
+#else
+static inline void mxc_init_mmc(void)
+{
+}
+#endif
+
+#if defined(CONFIG_SND_SOC_IMX_3STACK_SGTL5000) \
+    || defined(CONFIG_SND_SOC_IMX_3STACK_SGTL5000_MODULE)
+static int mxc_sgtl5000_amp_enable(int enable);
+
+static int headphone_det_status(void)
+{
+	return mxc_get_gpio_datain(MX51_PIN_NANDF_CS0);
+}
+
+static struct mxc_sgtl5000_platform_data sgtl5000_data = {
+	.ssi_num = 1,
+	.src_port = 2,
+	.ext_port = 3,
+	.hp_irq = IOMUX_TO_IRQ(MX51_PIN_NANDF_CS0),
+	.hp_status = headphone_det_status,
+	.vddio_reg = "VVIDEO",
+	.vdda_reg = "VDIG",
+	.vddd_reg = "VGEN1",
+	.amp_enable = mxc_sgtl5000_amp_enable,
+	.vddio = 2775000,
+	.vdda = 1650000,
+	.vddd = 12000000,
+	.sysclk = 12288000,
+};
+
+static struct platform_device sgtl5000_device = {
+	.name = "sgtl5000-imx",
+	.dev = {
+		.release = mxc_nop_release,
+		.platform_data = &sgtl5000_data,
+		},
+};
+
+static int mxc_sgtl5000_amp_enable(int enable)
+{
+	mxc_set_gpio_dataout(MX51_PIN_EIM_A23, enable ? 1 : 0);
+	return 0;
+}
+
+static void mxc_sgtl5000_init(void)
+{
+	int err, pin;
+
+	mxc_set_gpio_direction(MX51_PIN_NANDF_CS0, 1);
+	mxc_set_gpio_direction(MX51_PIN_EIM_A23, 0);
+
+	platform_device_register(&sgtl5000_device);
+}
+#else
+static inline void mxc_sgtl5000_init(void)
+{
+}
+#endif
+
+#if defined(CONFIG_GPIO_BUTTON_MXC) || \
+	defined(CONFIG_GPIO_BUTTON_MXC_MODULE)
+
+#define MXC_BUTTON_GPIO_PIN MX51_PIN_EIM_DTACK
+
+static struct mxc_gpio_button_data gpio_button_data = {
+	.name = "Power Button (CM)",
+	.gpio = MXC_BUTTON_GPIO_PIN,
+	.irq = IOMUX_TO_IRQ(MXC_BUTTON_GPIO_PIN),
+	.key = KEY_POWER,
+};
+
+static struct platform_device gpio_button_device = {
+	.name = "gpio_button",
+	.dev = {
+		.release = mxc_nop_release,
+		.platform_data = &gpio_button_data,
+		},
+};
+
+static inline void mxc_init_gpio_button(void)
+{
+	mxc_set_gpio_direction(MXC_BUTTON_GPIO_PIN, 1);
+	platform_device_register(&gpio_button_device);
+}
+#else
+static inline void mxc_init_gpio_button(void)
+{
+}
+#endif
+
+/*!
+ * Board specific fixup function. It is called by \b setup_arch() in
+ * setup.c file very early on during kernel starts. It allows the user to
+ * statically fill in the proper values for the passed-in parameters. None of
+ * the parameters is used currently.
+ *
+ * @param  desc         pointer to \b struct \b machine_desc
+ * @param  tags         pointer to \b struct \b tag
+ * @param  cmdline      pointer to the command line
+ * @param  mi           pointer to \b struct \b meminfo
+ */
+static void __init fixup_mxc_board(struct machine_desc *desc, struct tag *tags,
+				   char **cmdline, struct meminfo *mi)
+{
+	struct tag *t;
+
+	mxc_cpu_init();
+
+	get_cpu_wp = mx51_babbage_get_cpu_wp;
+
+	for_each_tag(t, tags) {
+		if (t->hdr.tag != ATAG_MEM)
+			continue;
+
+		if (t->u.mem.size == SZ_512M)
+			t->u.mem.size -= SZ_32M;
+		mxcfb_resources[0].start = t->u.mem.start + t->u.mem.size;
+		mxcfb_resources[0].end = t->u.mem.start + SZ_512M - 1;
+	}
+}
+
+#define PWGT1SPIEN (1<<15)
+#define PWGT2SPIEN (1<<16)
+#define USEROFFSPI (1<<3)
+
+static void mxc_power_off(void)
+{
+	/* We can do power down one of two ways:
+	   Set the power gating
+	   Set USEROFFSPI */
+
+	/* Set the power gate bits to power down */
+	pmic_write_reg(REG_POWER_MISC, (PWGT1SPIEN|PWGT2SPIEN),
+		(PWGT1SPIEN|PWGT2SPIEN));
+}
+
+/*!
+ * Board specific initialization.
+ */
+static void __init mxc_board_init(void)
+{
+	struct regulator *regulator;
+
+	mxc_cpu_common_init();
+	mxc_gpio_init();
+	mx51_babbage_io_init();
+	early_console_setup(saved_command_line);
+
+	mxc_init_devices();
+
+	mxc_init_fb();
+	mxc_init_bl();
+	mxc_init_mmc();
+	mxc_init_gpio_button();
+	mx51_babbage_init_mc13892();
+
+	spi_register_board_info(mxc_spi_board_info,
+				ARRAY_SIZE(mxc_spi_board_info));
+
+#if defined(CONFIG_I2C_MXC) || defined(CONFIG_I2C_MXC_MODULE)
+
+#ifdef CONFIG_I2C_MXC_SELECT1
+	i2c_register_board_info(0, mxc_i2c0_board_info,
+				ARRAY_SIZE(mxc_i2c0_board_info));
+#endif
+#ifdef CONFIG_I2C_MXC_SELECT2
+	i2c_register_board_info(1, mxc_i2c1_board_info,
+				ARRAY_SIZE(mxc_i2c1_board_info));
+#endif
+#if defined(CONFIG_I2C_MXC_HS) || defined(CONFIG_I2C_MXC_HS_MODULE)
+	i2c_register_board_info(3, mxc_i2c_hs_board_info,
+				ARRAY_SIZE(mxc_i2c_hs_board_info));
+#endif
+
+#endif
+
+	pm_power_off = mxc_power_off;
+
+	mxc_sgtl5000_init();
+}
+
+static void __init mx51_babbage_timer_init(void)
+{
+	mxc_clocks_init(32768, 24000000, 22579200, 24576000);
+	mxc_timer_init("gpt_clk.0");
+}
+
+static struct sys_timer mxc_timer = {
+	.init	= mx51_babbage_timer_init,
+};
+
+/*
+ * The following uses standard kernel macros define in arch.h in order to
+ * initialize __mach_desc_MX51_BABBAGE data structure.
+ */
+/* *INDENT-OFF* */
+MACHINE_START(MX51_BABBAGE, "Freescale MX51 Babbage Board")
+	/* Maintainer: Freescale Semiconductor, Inc. */
+	.phys_io = AIPS1_BASE_ADDR,
+	.io_pg_offst = ((AIPS1_BASE_ADDR_VIRT) >> 18) & 0xfffc,
+	.boot_params = PHYS_OFFSET + 0x100,
+	.fixup = fixup_mxc_board,
+	.map_io = mxc_map_io,
+	.init_irq = mxc_init_irq,
+	.init_machine = mxc_board_init,
+	.timer = &mxc_timer,
+MACHINE_END

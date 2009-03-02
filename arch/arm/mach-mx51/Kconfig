@@ -15,6 +15,12 @@ config MACH_MX51_3DS
 	  Include support for MX51 3-Stack platform. This includes specific
 	  configurations for the board and its peripherals.
 
+config MACH_MX51_BABBAGE
+	bool "Support MX51 BABBAGE platforms"
+	help
+	  Include support for MX51 Babbage platform. This includes specific
+	  configurations for the board and its peripherals.
+
 config MXC_SDMA_API
         bool "Use SDMA API"
         default y

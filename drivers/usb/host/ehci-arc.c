@@ -23,6 +23,7 @@
 #include <linux/platform_device.h>
 #include <linux/fsl_devices.h>
 #include <linux/usb/otg.h>
+#include <asm/mach-types.h>
 
 #include "ehci-fsl.h"
 
@@ -405,20 +406,41 @@ static const struct hc_driver ehci_fsl_hc_driver = {
 
 static int ehci_fsl_drv_probe(struct platform_device *pdev)
 {
+	struct fsl_usb2_platform_data *pdata = pdev->dev.platform_data;
+
 	if (usb_disabled())
 		return -ENODEV;
 
-	return usb_hcd_fsl_probe(&ehci_fsl_hc_driver, pdev);
+	if (pdata->name[5] == '2') {
+		if (!machine_is_mx51_3ds())
+			return usb_hcd_fsl_probe(&ehci_fsl_hc_driver, pdev);
+	} else
+		return usb_hcd_fsl_probe(&ehci_fsl_hc_driver, pdev);
 }
 
 static int ehci_fsl_drv_remove(struct platform_device *pdev)
 {
+	struct fsl_usb2_platform_data *pdata = pdev->dev.platform_data;
 	struct usb_hcd *hcd = platform_get_drvdata(pdev);
 
-	usb_hcd_fsl_remove(hcd, pdev);
+	if (pdata->name[5] == '2') {
+		if (!machine_is_mx51_3ds())
+			usb_hcd_fsl_remove(hcd, pdev);
+	} else
+		usb_hcd_fsl_remove(hcd, pdev);
 	return 0;
 }
 
+static int ehci_fsl_drv_shutdown(struct platform_device *pdev)
+{
+	struct fsl_usb2_platform_data *pdata = pdev->dev.platform_data;
+
+	if (pdata->name[5] == '2') {
+		if (!machine_is_mx51_3ds())
+			usb_hcd_platform_shutdown(pdev);
+	} else
+		usb_hcd_platform_shutdown(pdev);
+}
 
 #ifdef CONFIG_PM
 /* suspend/resume, section 4.3 */
@@ -564,7 +586,7 @@ MODULE_ALIAS("fsl-ehci");
 static struct platform_driver ehci_fsl_driver = {
 	.probe = ehci_fsl_drv_probe,
 	.remove = ehci_fsl_drv_remove,
-	.shutdown = usb_hcd_platform_shutdown,
+	.shutdown = ehci_fsl_drv_shutdown,
 #ifdef CONFIG_PM
 	.suspend = ehci_fsl_drv_suspend,
 	.resume = ehci_fsl_drv_resume,
