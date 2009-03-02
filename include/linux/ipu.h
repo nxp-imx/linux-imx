@@ -850,6 +850,7 @@ int32_t ipu_select_buffer(ipu_channel_t channel,
 int32_t ipu_link_channels(ipu_channel_t src_ch, ipu_channel_t dest_ch);
 int32_t ipu_unlink_channels(ipu_channel_t src_ch, ipu_channel_t dest_ch);
 
+int32_t ipu_is_channel_busy(ipu_channel_t channel);
 int32_t ipu_enable_channel(ipu_channel_t channel);
 int32_t ipu_disable_channel(ipu_channel_t channel, bool wait_for_stop);
 
@@ -1156,9 +1157,10 @@ typedef struct _ipu_mem_info {
 #define IPU_CSI_SET_WIN_SIZE          _IOW('I',0x1F,ipu_csi_window_size)
 #define IPU_CSI_SET_WINDOW            _IOW('I',0x20,ipu_csi_window)
 #define IPU_PF_SET_PAUSE_ROW          _IOW('I',0x21, uint32_t)
-#define IPU_REGISTER_GENERIC_ISR      _IOW('I',0x22,ipu_event_info)
-#define IPU_GET_EVENT                 _IOR('I',0x23,ipu_event_info)
+#define IPU_REGISTER_GENERIC_ISR      _IOW('I', 0x22, ipu_event_info)
+#define IPU_GET_EVENT                 _IOWR('I', 0x23, ipu_event_info)
 #define IPU_ALOC_MEM		      _IOWR('I', 0x24, ipu_mem_info)
 #define IPU_FREE_MEM		      _IOW('I', 0x25, ipu_mem_info)
+#define IPU_IS_CHAN_BUSY	      _IOW('I', 0x26, ipu_channel_t)
 
 #endif

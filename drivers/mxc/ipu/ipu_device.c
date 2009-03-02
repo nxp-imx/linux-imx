@@ -53,28 +53,50 @@ static int pending_events = 0;
 int read_ptr = 0;
 int write_ptr = 0;
 
-typedef struct _event_type {
-	int irq;
-	void *dev;
-} event_type;
-
-event_type events[MAX_Q_SIZE];
+ipu_event_info events[MAX_Q_SIZE];
 
 int register_ipu_device(void);
 
 /* Static functions */
 
-int get_events(event_type * p)
+int get_events(ipu_event_info *p)
 {
 	unsigned long flags;
-	int ret = 0;
+	int ret = 0, i, cnt, found = 0;
 	spin_lock_irqsave(&queue_lock, flags);
 	if (pending_events != 0) {
-		*p = events[read_ptr];
-		read_ptr++;
-		pending_events--;
-		if (read_ptr >= MAX_Q_SIZE)
-			read_ptr = 0;
+		if (write_ptr > read_ptr)
+			cnt = write_ptr - read_ptr;
+		else
+			cnt = MAX_Q_SIZE - read_ptr + write_ptr;
+		for (i = 0; i < cnt; i++) {
+			if (p->irq == events[read_ptr].irq) {
+				*p = events[read_ptr];
+				events[read_ptr].irq = 0;
+				read_ptr++;
+				if (read_ptr >= MAX_Q_SIZE)
+					read_ptr = 0;
+				found = 1;
+				break;
+			}
+
+			if (events[read_ptr].irq) {
+				events[write_ptr] = events[read_ptr];
+				events[read_ptr].irq = 0;
+				write_ptr++;
+				if (write_ptr >= MAX_Q_SIZE)
+					write_ptr = 0;
+			} else
+				pending_events--;
+
+			read_ptr++;
+			if (read_ptr >= MAX_Q_SIZE)
+				read_ptr = 0;
+		}
+		if (found)
+			pending_events--;
+		else
+			ret = -1;
 	} else {
 		ret = -1;
 	}
@@ -85,7 +107,8 @@ int get_events(event_type * p)
 
 static irqreturn_t mxc_ipu_generic_handler(int irq, void *dev_id)
 {
-	event_type e;
+	ipu_event_info e;
+
 	e.irq = irq;
 	e.dev = dev_id;
 	events[write_ptr] = e;
@@ -377,20 +400,25 @@ static int mxc_ipu_ioctl(struct inode *inode, struct file *file,
 	case IPU_GET_EVENT:
 		/* User will have to allocate event_type structure and pass the pointer in arg */
 		{
-			event_type ev;
+			ipu_event_info info;
 			int r = -1;
-			r = get_events(&ev);
+
+			if (copy_from_user
+					(&info, (ipu_event_info *) arg,
+					 sizeof(ipu_event_info)))
+				return -EFAULT;
+
+			r = get_events(&info);
 			if (r == -1) {
-				wait_event_interruptible(waitq,
-							 (pending_events != 0));
-				r = get_events(&ev);
+				wait_event_interruptible_timeout(waitq,
+						(pending_events != 0), 2 * HZ);
+				r = get_events(&info);
 			}
 			ret = -1;
 			if (r == 0) {
-				if (!copy_to_user((event_type *) arg, &ev,
-						  sizeof(event_type))) {
+				if (!copy_to_user((ipu_event_info *) arg,
+					&info, sizeof(ipu_event_info)))
 					ret = 0;
-				}
 			}
 		}
 		break;
@@ -579,6 +607,20 @@ static int mxc_ipu_ioctl(struct inode *inode, struct file *file,
 						info.vaddr, info.paddr);
 			else
 				return -EFAULT;
+		}
+		break;
+	case IPU_IS_CHAN_BUSY:
+		{
+			ipu_channel_t chan;
+			if (copy_from_user
+					(&chan, (ipu_channel_t *)arg,
+					 sizeof(ipu_channel_t)))
+				return -EFAULT;
+
+			if (ipu_is_channel_busy(chan))
+				ret = 1;
+			else
+				ret = 0;
 		}
 		break;
 	default:

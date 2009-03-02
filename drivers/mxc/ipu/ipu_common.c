@@ -283,7 +283,8 @@ int32_t ipu_init_channel(ipu_channel_t channel, ipu_channel_params_t * params)
 		break;
 	default:
 		dev_err(g_ipu_dev, "Missing channel initialization\n");
-		break;
+		spin_unlock_irqrestore(&ipu_lock, lock_flags);
+		return -EINVAL;
 	}
 
 	/* Enable IPU sub module */
@@ -1050,6 +1051,31 @@ int32_t ipu_unlink_channels(ipu_channel_t src_ch, ipu_channel_t dest_ch)
 	spin_unlock_irqrestore(&ipu_lock, lock_flags);
 	return 0;
 }
+
+/*!
+ * This function check whether a logical channel was enabled.
+ *
+ * @param       channel         Input parameter for the logical channel ID.
+ *
+ * @return      This function returns 1 while request channel is enabled or
+ *              0 for not enabled.
+ */
+int32_t ipu_is_channel_busy(ipu_channel_t channel)
+{
+	uint32_t reg;
+	uint32_t in_dma;
+	uint32_t out_dma;
+
+	out_dma = channel_2_dma(channel, IPU_OUTPUT_BUFFER);
+	in_dma = channel_2_dma(channel, IPU_INPUT_BUFFER);
+
+	reg = __raw_readl(IDMAC_CHA_EN);
+
+	if (reg & ((1UL << out_dma) | (1UL << in_dma)))
+		return 1;
+	return 0;
+}
+EXPORT_SYMBOL(ipu_is_channel_busy);
 
 /*!
  * This function enables a logical channel.

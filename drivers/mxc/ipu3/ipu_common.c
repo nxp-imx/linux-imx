@@ -51,6 +51,7 @@ int g_ipu_irq[2];
 int g_ipu_hw_rev;
 bool g_sec_chan_en[21];
 uint32_t g_channel_init_mask;
+uint32_t g_channel_enable_mask;
 DEFINE_SPINLOCK(ipu_lock);
 struct device *g_ipu_dev;
 
@@ -65,6 +66,14 @@ static int ipu_ic_use_count;
 static int ipu_rot_use_count;
 static int ipu_di_use_count[2];
 static int ipu_csi_use_count[2];
+
+/* for power gating */
+static uint32_t ipu_conf_reg;
+static uint32_t ic_conf_reg;
+static uint32_t ipu_cha_db_mode_reg[4];
+static uint32_t ipu_cha_cur_buf_reg[4];
+static uint32_t idma_enable_reg[2];
+static uint32_t buf_ready_reg[8];
 
 u32 *ipu_cm_reg;
 u32 *ipu_idmac_reg;
@@ -1275,6 +1284,33 @@ err:
 EXPORT_SYMBOL(ipu_unlink_channels);
 
 /*!
+ * This function check whether a logical channel was enabled.
+ *
+ * @param       channel         Input parameter for the logical channel ID.
+ *
+ * @return      This function returns 1 while request channel is enabled or
+ *              0 for not enabled.
+ */
+int32_t ipu_is_channel_busy(ipu_channel_t channel)
+{
+	uint32_t reg;
+	uint32_t in_dma;
+	uint32_t out_dma;
+
+	out_dma = channel_2_dma(channel, IPU_OUTPUT_BUFFER);
+	in_dma = channel_2_dma(channel, IPU_VIDEO_IN_BUFFER);
+
+	reg = __raw_readl(IDMAC_CHA_EN(in_dma));
+	if (reg & idma_mask(in_dma))
+		return 1;
+	reg = __raw_readl(IDMAC_CHA_EN(out_dma));
+	if (reg & idma_mask(out_dma))
+		return 1;
+	return 0;
+}
+EXPORT_SYMBOL(ipu_is_channel_busy);
+
+/*!
  * This function enables a logical channel.
  *
  * @param       channel         Input parameter for the logical channel ID.
@@ -1288,6 +1324,11 @@ int32_t ipu_enable_channel(ipu_channel_t channel)
 	unsigned long lock_flags;
 	uint32_t in_dma;
 	uint32_t out_dma;
+
+	if (g_channel_enable_mask & (1L << IPU_CHAN_ID(channel))) {
+		dev_err(g_ipu_dev, "Warning: channel already enabled %d\n",
+			IPU_CHAN_ID(channel));
+	}
 
 	/* Get input and output dma channels */
 	out_dma = channel_2_dma(channel, IPU_OUTPUT_BUFFER);
@@ -1312,7 +1353,10 @@ int32_t ipu_enable_channel(ipu_channel_t channel)
 		_ipu_is_irt_chan(in_dma) || _ipu_is_irt_chan(out_dma))
 		_ipu_ic_enable_task(channel);
 
+	g_channel_enable_mask |= 1L << IPU_CHAN_ID(channel);
+
 	spin_unlock_irqrestore(&ipu_lock, lock_flags);
+
 	return 0;
 }
 EXPORT_SYMBOL(ipu_enable_channel);
@@ -1336,13 +1380,20 @@ int32_t ipu_disable_channel(ipu_channel_t channel, bool wait_for_stop)
 	uint32_t out_dma;
 	uint32_t timeout;
 
+	if ((g_channel_enable_mask & (1L << IPU_CHAN_ID(channel))) == 0) {
+		dev_err(g_ipu_dev, "Channel already disabled %d\n",
+			IPU_CHAN_ID(channel));
+		return 0;
+	}
+
 	/* Get input and output dma channels */
 	out_dma = channel_2_dma(channel, IPU_OUTPUT_BUFFER);
 	in_dma = channel_2_dma(channel, IPU_VIDEO_IN_BUFFER);
 
-	if (idma_is_valid(in_dma) && !idma_is_set(IDMAC_CHA_EN, in_dma))
-		return -EINVAL;
-	if (idma_is_valid(out_dma) && !idma_is_set(IDMAC_CHA_EN, out_dma))
+	if ((idma_is_valid(in_dma) &&
+		!idma_is_set(IDMAC_CHA_EN, in_dma))
+		&& (idma_is_valid(out_dma) &&
+		!idma_is_set(IDMAC_CHA_EN, out_dma)))
 		return -EINVAL;
 
 	if ((channel == MEM_BG_SYNC) || (channel == MEM_FG_SYNC) ||
@@ -1405,6 +1456,8 @@ int32_t ipu_disable_channel(ipu_channel_t channel, bool wait_for_stop)
 		}
 	}
 	__raw_writel(0x0, IPU_GPR); /* write one to set */
+
+	g_channel_enable_mask &= ~(1L << IPU_CHAN_ID(channel));
 
 	spin_unlock_irqrestore(&ipu_lock, lock_flags);
 
@@ -1740,7 +1793,67 @@ EXPORT_SYMBOL(ipu_set_csc_coefficients);
 
 static int ipu_suspend(struct platform_device *pdev, pm_message_t state)
 {
+	if (g_ipu_clk_enabled) {
+		/* save and disable enabled channels*/
+		idma_enable_reg[0] = __raw_readl(IDMAC_CHA_EN(0));
+		idma_enable_reg[1] = __raw_readl(IDMAC_CHA_EN(32));
+		while ((__raw_readl(IDMAC_CHA_BUSY(0)) & idma_enable_reg[0])
+			|| (__raw_readl(IDMAC_CHA_BUSY(32)) &
+				idma_enable_reg[1])) {
+			/* disable channel not busy already */
+			uint32_t chan_should_disable, timeout = 1000, time = 0;
+
+			chan_should_disable =
+				__raw_readl(IDMAC_CHA_BUSY(0))
+					^ idma_enable_reg[0];
+			__raw_writel((~chan_should_disable) &
+					idma_enable_reg[0], IDMAC_CHA_EN(0));
+			chan_should_disable =
+				__raw_readl(IDMAC_CHA_BUSY(1))
+					^ idma_enable_reg[1];
+			__raw_writel((~chan_should_disable) &
+					idma_enable_reg[1], IDMAC_CHA_EN(32));
+			msleep(2);
+			time += 2;
+			if (time >= timeout)
+				return -1;
+		}
+		__raw_writel(0, IDMAC_CHA_EN(0));
+		__raw_writel(0, IDMAC_CHA_EN(32));
+
+		/* save double buffer select regs */
+		ipu_cha_db_mode_reg[0] = __raw_readl(IPU_CHA_DB_MODE_SEL(0));
+		ipu_cha_db_mode_reg[1] = __raw_readl(IPU_CHA_DB_MODE_SEL(32));
+		ipu_cha_db_mode_reg[2] =
+			__raw_readl(IPU_ALT_CHA_DB_MODE_SEL(0));
+		ipu_cha_db_mode_reg[3] =
+			__raw_readl(IPU_ALT_CHA_DB_MODE_SEL(32));
+
+		/* save current buffer regs */
+		ipu_cha_cur_buf_reg[0] = __raw_readl(IPU_CHA_CUR_BUF(0));
+		ipu_cha_cur_buf_reg[1] = __raw_readl(IPU_CHA_CUR_BUF(32));
+		ipu_cha_cur_buf_reg[2] = __raw_readl(IPU_ALT_CUR_BUF0);
+		ipu_cha_cur_buf_reg[3] = __raw_readl(IPU_ALT_CUR_BUF1);
+
+		/* save sub-modules status and disable all */
+		ic_conf_reg = __raw_readl(IC_CONF);
+		__raw_writel(0, IC_CONF);
+		ipu_conf_reg = __raw_readl(IPU_CONF);
+		__raw_writel(0, IPU_CONF);
+
+		/* save buf ready regs */
+		buf_ready_reg[0] = __raw_readl(IPU_CHA_BUF0_RDY(0));
+		buf_ready_reg[1] = __raw_readl(IPU_CHA_BUF0_RDY(32));
+		buf_ready_reg[2] = __raw_readl(IPU_CHA_BUF1_RDY(0));
+		buf_ready_reg[3] = __raw_readl(IPU_CHA_BUF1_RDY(32));
+		buf_ready_reg[4] = __raw_readl(IPU_ALT_CHA_BUF0_RDY(0));
+		buf_ready_reg[5] = __raw_readl(IPU_ALT_CHA_BUF0_RDY(32));
+		buf_ready_reg[6] = __raw_readl(IPU_ALT_CHA_BUF1_RDY(0));
+		buf_ready_reg[7] = __raw_readl(IPU_ALT_CHA_BUF1_RDY(32));
+	}
+
 	mxc_pg_enable(pdev);
+
 	return 0;
 }
 
@@ -1748,15 +1861,49 @@ static int ipu_resume(struct platform_device *pdev)
 {
 	mxc_pg_disable(pdev);
 
-	clk_enable(g_ipu_clk);
+	if (g_ipu_clk_enabled) {
 
-	_ipu_dmfc_init();
-	_ipu_init_dc_mappings();
+		/* restore buf ready regs */
+		__raw_writel(buf_ready_reg[0], IPU_CHA_BUF0_RDY(0));
+		__raw_writel(buf_ready_reg[1], IPU_CHA_BUF0_RDY(32));
+		__raw_writel(buf_ready_reg[2], IPU_CHA_BUF1_RDY(0));
+		__raw_writel(buf_ready_reg[3], IPU_CHA_BUF1_RDY(32));
+		__raw_writel(buf_ready_reg[4], IPU_ALT_CHA_BUF0_RDY(0));
+		__raw_writel(buf_ready_reg[5], IPU_ALT_CHA_BUF0_RDY(32));
+		__raw_writel(buf_ready_reg[6], IPU_ALT_CHA_BUF1_RDY(0));
+		__raw_writel(buf_ready_reg[7], IPU_ALT_CHA_BUF1_RDY(32));
 
-	/* Set sync refresh channels as high priority */
-	__raw_writel(0x18800000L, IDMAC_CHA_PRI(0));
+		/* re-enable sub-modules*/
+		__raw_writel(ipu_conf_reg, IPU_CONF);
+		__raw_writel(ic_conf_reg, IC_CONF);
 
-	clk_disable(g_ipu_clk);
+		/* restore double buffer select regs */
+		__raw_writel(ipu_cha_db_mode_reg[0], IPU_CHA_DB_MODE_SEL(0));
+		__raw_writel(ipu_cha_db_mode_reg[1], IPU_CHA_DB_MODE_SEL(32));
+		__raw_writel(ipu_cha_db_mode_reg[2],
+				IPU_ALT_CHA_DB_MODE_SEL(0));
+		__raw_writel(ipu_cha_db_mode_reg[3],
+				IPU_ALT_CHA_DB_MODE_SEL(32));
+
+		/* restore current buffer select regs */
+		__raw_writel(~(ipu_cha_cur_buf_reg[0]), IPU_CHA_CUR_BUF(0));
+		__raw_writel(~(ipu_cha_cur_buf_reg[1]), IPU_CHA_CUR_BUF(32));
+		__raw_writel(~(ipu_cha_cur_buf_reg[2]), IPU_ALT_CUR_BUF0);
+		__raw_writel(~(ipu_cha_cur_buf_reg[3]), IPU_ALT_CUR_BUF1);
+
+		/* restart idma channel*/
+		__raw_writel(idma_enable_reg[0], IDMAC_CHA_EN(0));
+		__raw_writel(idma_enable_reg[1], IDMAC_CHA_EN(32));
+	} else {
+		clk_enable(g_ipu_clk);
+		_ipu_dmfc_init();
+		_ipu_init_dc_mappings();
+
+		/* Set sync refresh channels as high priority */
+		__raw_writel(0x18800000L, IDMAC_CHA_PRI(0));
+		clk_disable(g_ipu_clk);
+	}
+
 	return 0;
 }
 
