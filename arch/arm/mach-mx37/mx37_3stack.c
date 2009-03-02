@@ -585,7 +585,7 @@ EXPORT_SYMBOL(get_unifi_plat_data);
 static struct mxc_mmc_platform_data mmc_data = {
 	.ocr_mask = MMC_VDD_32_33,
 	.caps = MMC_CAP_4_BIT_DATA,
-	.min_clk = 400000,
+	.min_clk = 150000,
 	.max_clk = 52000000,
 	.card_inserted_state = 0,
 	.status = sdhc_get_card_det_status,

@@ -524,7 +524,7 @@ static struct mxc_mmc_platform_data mmc0_data = {
 #else
 	.caps = MMC_CAP_8_BIT_DATA,
 #endif
-	.min_clk = 400000,
+	.min_clk = 150000,
 	.max_clk = 52000000,
 	.card_inserted_state = 0,
 	.status = sdhc_get_card_det_status,
