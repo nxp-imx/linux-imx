@@ -684,7 +684,7 @@ void _ipu_dp_set_csc_coefficients(ipu_channel_t channel, int32_t param[][3])
 		return;
 
 	dp_csc_param.mode = -1;
-	dp_csc_param.coeff = &param;
+	dp_csc_param.coeff = param;
 	__ipu_dp_csc_setup(dp, dp_csc_param, true);
 }
 
