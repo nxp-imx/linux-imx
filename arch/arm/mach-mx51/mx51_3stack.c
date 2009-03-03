@@ -89,86 +89,6 @@ struct cpu_wp *get_cpu_wp(int *wp)
 	return cpu_wp_auto;
 }
 
-static int __init mc13892_reg_int(void)
-{
-	int i = 0;
-	struct regulator *regulator;
-	struct regulator *gp;
-	struct regulator *lp;
-	char *reg_name[] = {
-		"SW1",
-		"SW2",
-		"SW3",
-		"SW4",
-		"SW1_STBY",
-		"SW2_STBY",
-		"SW3_STBY",
-		"SW4_STBY",
-		"SW1_DVS",
-		"SW2_DVS",
-		"SWBST",
-		"VIOHI",
-		"VPLL",
-		"VDIG",
-		"VSD",
-		"VUSB2",
-		"VVIDEO",
-		"VAUDIO",
-		"VCAM",
-		"VGEN1",
-		"VGEN2",
-		"VGEN3",
-		"USB",
-		"GPO1",
-		"GPO2",
-		"GPO3",
-		"GPO4",
-	};
-
-	for (i = 0; i < ARRAY_SIZE(reg_name); i++) {
-		regulator = regulator_get(NULL, reg_name[i]);
-		if (regulator == ERR_PTR(-ENOENT))
-			continue;
-
-		regulator_enable(regulator);
-		if ((strcmp(reg_name[i], "VIOHI") == 0) ||
-			(strcmp(reg_name[i], "VPLL") == 0) ||
-			(strcmp(reg_name[i], "VDIG") == 0) ||
-			(strcmp(reg_name[i], "VGEN2") == 0))
-			continue;
-
-		regulator_disable(regulator);
-		regulator_put(regulator);
-	}
-
-	gp = regulator_get(NULL, "SW1_STBY");
-	lp = regulator_get(NULL, "SW2_STBY");
-	regulator_enable(gp);
-	regulator_enable(lp);
-
-	if (regulator_set_voltage(gp, 700000, 700000))
-		printk(KERN_INFO "cannot set GP STBY voltage\n");
-
-	if ((mxc_cpu_is_rev(CHIP_REV_2_0)) < 0) {
-		if (regulator_set_voltage(lp, 1100000, 1100000))
-			printk(KERN_INFO "cannot set LP STBY voltage\n");
-	} else {
-		/* Cannot drop voltage for TO2.0 */
-		if (regulator_set_voltage(lp, 900000, 900000))
-			printk(KERN_INFO "cannot set LP STBY voltage\n");
-	}
-
-	regulator_disable(gp);
-	regulator_disable(lp);
-
-	regulator_put(gp);
-	regulator_put(lp);
-
-	return 0;
-}
-
-late_initcall(mc13892_reg_int);
-
 static void mxc_nop_release(struct device *dev)
 {
 	/* Nothing */
@@ -401,12 +321,6 @@ static struct i2c_board_info mxc_i2c0_board_info[] __initdata = {
 #endif
 #ifdef CONFIG_I2C_MXC_SELECT2
 static struct i2c_board_info mxc_i2c1_board_info[] __initdata = {
-	{
-	 .type = "mc13892",
-	 .addr = 0x08,
-	 .platform_data = (void *)MX51_PIN_GPIO1_5,
-	 .irq  = IOMUX_TO_IRQ(MX51_PIN_GPIO1_5),
-	},
 	{
 	 .type = "wm8903-i2c",
 	 .addr = 0x1a,
@@ -1001,6 +915,7 @@ static void __init mxc_board_init(void)
 	mxc_init_nand_mtd();
 	mxc_init_mmc();
 	mxc_init_srpgconfig();
+	mx51_3stack_init_mc13892();
 
 #if defined(CONFIG_I2C_MXC) || defined(CONFIG_I2C_MXC_MODULE)
 

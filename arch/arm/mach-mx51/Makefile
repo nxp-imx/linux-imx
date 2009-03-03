@@ -9,7 +9,7 @@ obj-y   := system.o iomux.o cpu.o mm.o clock.o devices.o serial.o dma.o lpmodes.
 
 obj-$(CONFIG_CPU_V7)        += wfi.o suspend.o
 
-obj-$(CONFIG_MACH_MX51_3DS) += mx51_3stack.o mx51_3stack_gpio.o
+obj-$(CONFIG_MACH_MX51_3DS) += mx51_3stack.o mx51_3stack_gpio.o mx51_3stack_pmic_mc13892.o
 
 obj-$(CONFIG_USB_EHCI_ARC_H1)   += usb_h1.o
 

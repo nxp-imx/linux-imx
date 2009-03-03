@@ -124,5 +124,6 @@ extern unsigned int sdhc_get_card_det_status(struct device *dev);
 extern int sdhc_write_protect(struct device *dev);
 extern int sdhc_init_card_det(int id);
 extern int headphone_det_status(void);
+extern int __init mx51_3stack_init_mc13892(void);
 
 #endif				/* __ASM_ARCH_MXC_BOARD_MX51_3STACK_H__ */
