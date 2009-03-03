@@ -92,6 +92,7 @@ static struct delayed_work dvfs_core_work;
 static struct mxc_dvfs_platform_data *dvfs_data;
 static struct device *dvfs_dev;
 static struct cpu_wp *cpu_wp_tbl;
+int dvfs_core_resume;
 int curr_wp;
 int dvfs_core_is_active;
 
@@ -216,7 +217,7 @@ static irqreturn_t dvfs_irq(int irq, void *dev_id)
 
 	/* Check if DVFS0 (ARM) id requesting for freqency/voltage update */
 	if ((__raw_readl(dvfs_data->gpc_cntr_reg_addr) & MXC_GPCCNTR_DVFS0CR) ==
-		0)
+	    0)
 		return IRQ_NONE;
 
 	/* Mask DVFS irq */
@@ -327,7 +328,8 @@ static void dvfs_core_workqueue_handler(struct work_struct *work)
 			}
 			udelay(dvfs_data->delay_time);
 
-			ret = clk_set_rate(cpu_clk, cpu_wp_tbl[curr_wp].cpu_rate);
+			ret =
+			    clk_set_rate(cpu_clk, cpu_wp_tbl[curr_wp].cpu_rate);
 			if (ret != 0)
 				printk(KERN_DEBUG
 				       "cannot set CPU clock rate\n");
@@ -341,7 +343,7 @@ END:			/* Set MAXF, MINF */
 	reg |= maxf << MXC_DVFSCNTR_MAXF_OFFSET;
 	reg |= minf << MXC_DVFSCNTR_MINF_OFFSET;
 
-	/* Enable FVFS interrupt */
+	/* Enable DVFS interrupt */
 	/* FSVAIM=0 */
 	reg = (reg & ~MXC_DVFSCNTR_FSVAIM);
 	/* LBFL=1 */
@@ -493,6 +495,7 @@ static int __devinit mxc_dvfs_core_probe(struct platform_device *pdev)
 	/* Set the current working point. */
 	cpu_wp_tbl = get_cpu_wp(&cpu_wp_nr);
 	curr_wp = 0;
+	dvfs_core_resume = 0;
 
 	return err;
 
@@ -502,7 +505,7 @@ err1:
 }
 
 /*!
- * This function is called to put DPTC in a low power state.
+ * This function is called to put DVFS in a low power state.
  *
  * @param   pdev  the device structure
  * @param   state the power state the device is entering
@@ -512,8 +515,10 @@ err1:
 static int mxc_dvfs_core_suspend(struct platform_device *pdev,
 				 pm_message_t state)
 {
-	if (dvfs_core_is_active)
+	if (dvfs_core_is_active) {
+		dvfs_core_resume = 1;
 		stop_dvfs();
+	}
 
 	return 0;
 }
@@ -529,8 +534,10 @@ static int mxc_dvfs_core_suspend(struct platform_device *pdev,
  */
 static int mxc_dvfs_core_resume(struct platform_device *pdev)
 {
-	if (dvfs_core_is_active)
+	if (dvfs_core_resume) {
+		dvfs_core_resume = 0;
 		start_dvfs();
+	}
 
 	return 0;
 }
