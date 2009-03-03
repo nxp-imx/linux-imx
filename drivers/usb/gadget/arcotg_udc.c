@@ -910,8 +910,8 @@ fsl_ep_queue(struct usb_ep *_ep, struct usb_request *_req, gfp_t gfp_flags)
 	int is_iso = 0;
 
 	/* catch various bogus parameters */
-	if (!_req || !req->req.buf || (ep_index(ep)
-				      && !list_empty(&req->queue))) {
+	if (!_req || !req->req.complete || !req->req.buf
+			|| !list_empty(&req->queue)) {
 		VDBG("%s, bad params\n", __func__);
 		return -EINVAL;
 	}
@@ -965,6 +965,10 @@ fsl_ep_queue(struct usb_ep *_ep, struct usb_request *_req, gfp_t gfp_flags)
 		spin_unlock_irqrestore(&udc->lock, flags);
 		return -ENOMEM;
 	}
+
+	/* Update ep0 state */
+	if ((ep_index(ep) == 0))
+		udc->ep0_state = DATA_STATE_XMIT;
 
 	/* irq handler advances the queue */
 	if (req != NULL)
@@ -1095,6 +1099,7 @@ static int fsl_ep_set_halt(struct usb_ep *_ep, int value)
 	spin_unlock_irqrestore(&ep->udc->lock, flags);
 
 	if (ep_index(ep) == 0) {
+		udc->ep0_state = WAIT_FOR_SETUP;
 		udc->ep0_dir = 0;
 	}
 out:
@@ -1306,6 +1311,7 @@ static void ep0stall(struct fsl_udc *udc)
 	tmp = fsl_readl(&dr_regs->endptctrl[0]);
 	tmp |= EPCTRL_TX_EP_STALL | EPCTRL_RX_EP_STALL;
 	fsl_writel(tmp, &dr_regs->endptctrl[0]);
+	udc->ep0_state = WAIT_FOR_SETUP;
 	udc->ep0_dir = 0;
 }
 
@@ -1320,10 +1326,26 @@ static int ep0_prime_status(struct fsl_udc *udc, int direction)
 		udc->ep0_dir = USB_DIR_IN;
 	else
 		udc->ep0_dir = USB_DIR_OUT;
+
 	ep = &udc->eps[0];
+	udc->ep0_state = WAIT_FOR_OUT_STATUS;
+
 	req->ep = ep;
 	req->req.length = 0;
-	status = fsl_ep_queue(&ep->ep, &req->req, GFP_ATOMIC);
+	req->req.status = -EINPROGRESS;
+	req->req.actual = 0;
+	req->req.complete = NULL;
+	req->dtd_count = 0;
+
+	if (fsl_req_to_dtd(req) == 0)
+		status = fsl_queue_td(ep, req);
+	else
+		return -ENOMEM;
+
+	if (status)
+		ERR("Can't queue ep0 status request \n");
+	list_add_tail(&req->queue, &ep->queue);
+
 	return status;
 }
 
@@ -1389,20 +1411,29 @@ static void ch9getstatus(struct fsl_udc *udc, u8 request_type, u16 value,
 	}
 
 	udc->ep0_dir = USB_DIR_IN;
-	/* Borrow the per device data_req */
-	/* status_req had been used to prime status */
-	req = udc->data_req;
+	/* Borrow the per device status_req */
+	req = udc->status_req;
 	/* Fill in the reqest structure */
 	*((u16 *) req->req.buf) = cpu_to_le16(tmp);
 	req->ep = ep;
 	req->req.length = 2;
+	req->req.status = -EINPROGRESS;
+	req->req.actual = 0;
+	req->req.complete = NULL;
+	req->dtd_count = 0;
 
-	status = fsl_ep_queue(&ep->ep, &req->req, GFP_ATOMIC);
+	/* prime the data phase */
+	if ((fsl_req_to_dtd(req) == 0))
+		status = fsl_queue_td(ep, req);
+	else			/* no mem */
+		goto stall;
+
 	if (status) {
-		udc_reset_ep_queue(udc, 0);
 		ERR("Can't respond to getstatus request \n");
 		goto stall;
 	}
+	list_add_tail(&req->queue, &ep->queue);
+	udc->ep0_state = DATA_STATE_XMIT;
 	return;
 stall:
 	ep0stall(udc);
@@ -1416,10 +1447,7 @@ static void setup_received_irq(struct fsl_udc *udc,
 	u16 wLength = le16_to_cpu(setup->wLength);
 
 	udc_reset_ep_queue(udc, 0);
-	if (setup->bRequestType & USB_DIR_IN) {
-		if (ep0_prime_status(udc, EP_DIR_OUT))
-			ep0stall(udc);
-	}
+
 	/* We process some stardard setup requests here */
 	switch (setup->bRequest) {
 	case USB_REQ_GET_STATUS:
@@ -1510,11 +1538,11 @@ static void setup_received_irq(struct fsl_udc *udc,
 				?  USB_DIR_IN : USB_DIR_OUT;
 		spin_unlock(&udc->lock);
 		if (udc->driver->setup(&udc->gadget,
-				&udc->local_setup_buff) < 0) {
-			/* cancel status phase */
-			udc_reset_ep_queue(udc, 0);
+				&udc->local_setup_buff) < 0)
 			ep0stall(udc);
-		}
+		spin_lock(&udc->lock);
+		udc->ep0_state = (setup->bRequestType & USB_DIR_IN)
+				?  DATA_STATE_XMIT : DATA_STATE_RECV;
 	} else {
 		/* No data phase, IN status from gadget */
 		udc->ep0_dir = USB_DIR_IN;
@@ -1522,8 +1550,9 @@ static void setup_received_irq(struct fsl_udc *udc,
 		if (udc->driver->setup(&udc->gadget,
 				&udc->local_setup_buff) < 0)
 			ep0stall(udc);
+		spin_lock(&udc->lock);
+		udc->ep0_state = WAIT_FOR_OUT_STATUS;
 	}
-	spin_lock(&udc->lock);
 }
 
 /* Process request for Data or Status phase of ep0
@@ -1537,7 +1566,30 @@ static void ep0_req_complete(struct fsl_udc *udc, struct fsl_ep *ep0,
 		fsl_writel(new_address << USB_DEVICE_ADDRESS_BIT_POS,
 				&dr_regs->deviceaddr);
 	}
+
 	done(ep0, req, 0);
+
+	switch (udc->ep0_state) {
+	case DATA_STATE_XMIT:
+		/* receive status phase */
+		if (ep0_prime_status(udc, EP_DIR_OUT))
+			ep0stall(udc);
+		break;
+	case DATA_STATE_RECV:
+		/* send status phase */
+		if (ep0_prime_status(udc, EP_DIR_IN))
+			ep0stall(udc);
+		break;
+	case WAIT_FOR_OUT_STATUS:
+		udc->ep0_state = WAIT_FOR_SETUP;
+		break;
+	case WAIT_FOR_SETUP:
+		ERR("Unexpect ep0 packets \n");
+		break;
+	default:
+		ep0stall(udc);
+		break;
+	}
 }
 
 /* Tripwire mechanism to ensure a setup packet payload is extracted without
@@ -1905,6 +1957,7 @@ static void reset_irq(struct fsl_udc *udc)
 	/* Clear usb state */
 	udc->resume_state = 0;
 	udc->ep0_dir = 0;
+	udc->ep0_state = WAIT_FOR_SETUP;
 	udc->remote_wakeup = 0;	/* default to 0 on reset */
 	udc->gadget.b_hnp_enable = 0;
 	udc->gadget.a_hnp_support = 0;
@@ -2104,6 +2157,7 @@ int usb_gadget_register_driver(struct usb_gadget_driver *driver)
 		/* Enable DR IRQ reg and Set usbcmd reg  Run bit */
 		dr_controller_run(udc_controller);
 		udc_controller->usb_state = USB_STATE_ATTACHED;
+		udc_controller->ep0_state = WAIT_FOR_SETUP;
 		udc_controller->ep0_dir = 0;
 	}
 	printk(KERN_INFO "%s: bind to driver %s \n",
@@ -2136,6 +2190,7 @@ int usb_gadget_unregister_driver(struct usb_gadget_driver *driver)
 
 	/* in fact, no needed */
 	udc_controller->usb_state = USB_STATE_ATTACHED;
+	udc_controller->ep0_state = WAIT_FOR_SETUP;
 	udc_controller->ep0_dir = 0;
 
 	/* stand operation */
@@ -2485,14 +2540,9 @@ static int __init struct_udc_setup(struct fsl_udc *udc,
 	/* FIXME: fsl_alloc_request() ignores ep argument */
 	udc->status_req = container_of(fsl_alloc_request(NULL, GFP_KERNEL),
 			struct fsl_req, req);
-	/* for future use */
+	/* allocate a small amount of memory to get valid address */
 	udc->status_req->req.buf = kmalloc(8, GFP_KERNEL);
 	udc->status_req->req.dma = virt_to_phys(udc->status_req->req.buf);
-	/* Initialize ep0 data request structure */
-	udc->data_req = container_of(fsl_alloc_request(NULL, GFP_KERNEL),
-			struct fsl_req, req);
-	udc->data_req->req.buf = kmalloc(8, GFP_KERNEL);
-	udc->data_req->req.dma = virt_to_phys(udc->data_req->req.buf);
 
 	udc->resume_state = USB_STATE_NOTATTACHED;
 	udc->usb_state = USB_STATE_POWERED;
@@ -2750,8 +2800,6 @@ static int __exit fsl_udc_remove(struct platform_device *pdev)
 	/* Free allocated memory */
 	kfree(udc_controller->status_req->req.buf);
 	kfree(udc_controller->status_req);
-	kfree(udc_controller->data_req->req.buf);
-	kfree(udc_controller->data_req);
 	kfree(udc_controller->eps);
 
 	dma_pool_destroy(udc_controller->td_pool);
@@ -2892,6 +2940,7 @@ static int fsl_udc_resume(struct platform_device *pdev)
 		dr_controller_run(udc_controller);
 	}
 	udc_controller->usb_state = USB_STATE_ATTACHED;
+	udc_controller->ep0_state = WAIT_FOR_SETUP;
 	udc_controller->ep0_dir = 0;
 
 	printk(KERN_INFO "USB Gadget resumed\n");
