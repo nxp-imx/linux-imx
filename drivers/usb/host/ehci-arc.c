@@ -541,17 +541,17 @@ static int ehci_fsl_drv_suspend(struct platform_device *pdev,
 	tmp = ehci_readl(ehci, &ehci->regs->port_status[0]);
 	tmp |= PORT_SUSPEND;
 	ehci_writel(ehci, tmp, &ehci->regs->port_status[0]);
+
+	/* Disable PHY clock */
+	tmp = ehci_readl(ehci, &ehci->regs->port_status[0]);
+	tmp |= PORT_PHCD;
+	ehci_writel(ehci, tmp, &ehci->regs->port_status[0]);
 #else
 	/* clear PP to cut power to the port */
 	tmp = ehci_readl(ehci, &ehci->regs->port_status[0]);
 	tmp &= ~PORT_POWER;
 	ehci_writel(ehci, tmp, &ehci->regs->port_status[0]);
 #endif
-	/* Disable PHY clock */
-	tmp = ehci_readl(ehci, &ehci->regs->port_status[0]);
-	tmp |= PORT_PHCD;
-	ehci_writel(ehci, tmp, &ehci->regs->port_status[0]);
-
 	return 0;
 }
 
