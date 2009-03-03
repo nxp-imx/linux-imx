@@ -118,7 +118,10 @@ static int __init usb_dr_init(void)
 	dr_register_otg();
 	dr_register_host(otg_resources, ARRAY_SIZE(otg_resources));
 	dr_register_udc();
-
+#ifdef CONFIG_USB_GADGET_WAKE_UP
+	/* set udc may and should wakeup */
+	device_init_wakeup(&(dr_udc_device.dev), 1);
+#endif
 	return 0;
 }
 

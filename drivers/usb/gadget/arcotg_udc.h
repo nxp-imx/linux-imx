@@ -90,6 +90,8 @@ struct usb_dr_device {
 	u32 endptstatus;	/* Endpoint Status Register */
 	u32 endptcomplete;	/* Endpoint Complete Register */
 	u32 endptctrl[8 * 2];	/* Endpoint Control Registers */
+	u32 res8[256];
+	u32 usbctrl;
 };
 
  /* non-EHCI USB system interface registers (Big Endian) */
@@ -330,6 +332,8 @@ struct usb_sys_interface {
 /* control Register Bit Masks */
 #define  USB_CTRL_IOENB                       (0x00000004)
 #define  USB_CTRL_ULPI_INT0EN                 (0x00000001)
+#define  USB_CTRL_OTG_WUIR                   (0x80000000)
+#define  USB_CTRL_OTG_WUIE                   (0x08000000)
 
 /*!
  * Endpoint Queue Head data struct

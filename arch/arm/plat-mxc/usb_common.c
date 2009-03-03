@@ -33,6 +33,7 @@
 #include <linux/types.h>
 #include <linux/errno.h>
 #include <linux/init.h>
+#include <linux/interrupt.h>
 #include <linux/clk.h>
 #include <linux/err.h>
 #include <linux/delay.h>
@@ -383,6 +384,37 @@ static void usbh2_set_serial_xcvr(void)
 	while (UH2_USBCMD & UCMD_RESET) ;
 
 	msleep(100);
+}
+
+/*!
+ * Register remote wakeup by this usb controller
+ *
+ * @param pdev: platform_device for this usb controller
+ *
+ * @return 0 or negative error code in case not supportted.
+ */
+static int usb_register_remote_wakeup(struct platform_device *pdev)
+{
+	pr_debug("%s: pdev=0x%p \n", __func__, pdev);
+
+	if (device_may_wakeup(&pdev->dev)) {
+		struct resource *res;
+		int irq;
+
+		res = platform_get_resource(pdev, IORESOURCE_IRQ, 0);
+		if (!res) {
+			dev_err(&pdev->dev,
+			"Found HC with no IRQ. Check %s setup!\n",
+			pdev->dev.bus_id);
+			return -ENODEV;
+		}
+		irq = res->start;
+		enable_irq_wake(irq);
+
+		return 0;
+	}
+
+	return -EINVAL;
 }
 
 extern void gpio_usbh1_setback_stp(void);
@@ -736,6 +768,9 @@ int usbotg_init(struct platform_device *pdev)
 		if (xops->init)
 			xops->init(xops);
 
+		if (usb_register_remote_wakeup(pdev))
+			pr_debug("DR is not a wakeup source.\n");
+
 		if (xops->xcvr_type == PORTSC_PTS_SERIAL) {
 			if (pdata->operating_mode == FSL_USB2_DR_HOST) {
 				otg_set_serial_host();
@@ -750,6 +785,9 @@ int usbotg_init(struct platform_device *pdev)
 		} else if (xops->xcvr_type == PORTSC_PTS_UTMI) {
 			otg_set_utmi_xcvr();
 		}
+
+		/* disable remote wakeup irq */
+		USBCTRL &= ~UCTRL_OWIE;
 	}
 
 	otg_used++;
