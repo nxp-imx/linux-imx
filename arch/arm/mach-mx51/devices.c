@@ -240,7 +240,7 @@ static void mxc_init_ipu(void)
 	if (cpu_is_mx51_rev(CHIP_REV_2_0) > 0)
 		mxc_ipu_data.rev = 2;
 
-	mxc_ipu_data.di_clk[1] = clk_get(NULL, "ipu_di_clk");
+	mxc_ipu_data.di_clk[1] = clk_get(NULL, "ipu_di1_clk");
 	clk = clk_get(NULL, "tve_clk");
 	clk_set_parent(mxc_ipu_data.di_clk[1], clk);
 	clk_put(clk);

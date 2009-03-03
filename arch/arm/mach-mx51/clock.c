@@ -279,6 +279,49 @@ static void _clk_pll_recalc(struct clk *clk)
 	clk->rate = temp;
 }
 
+static int _clk_pll_set_rate(struct clk *clk, unsigned long rate)
+{
+	u32 reg;
+	u32 pllbase;
+
+	long mfi, pdf, mfn, mfd = 999999;
+	s64 temp64;
+	unsigned long quad_parent_rate;
+	unsigned long pll_hfsm, dp_ctl;
+
+	pllbase = _get_pll_base(clk);
+
+	quad_parent_rate = 4*clk->parent->rate;
+	pdf = mfi = -1;
+	while (++pdf < 16 && mfi < 5)
+		mfi = rate * (pdf+1) / quad_parent_rate;
+	if (mfi > 15)
+		return -1;
+	pdf--;
+
+	temp64 = rate*(pdf+1) - quad_parent_rate*mfi;
+	do_div(temp64, quad_parent_rate/1000000);
+	mfn = (long)temp64;
+
+	dp_ctl = __raw_readl(pllbase + MXC_PLL_DP_CTL);
+	/* use dpdck0_2 */
+	__raw_writel(dp_ctl | 0x1000L, pllbase + MXC_PLL_DP_CTL);
+	pll_hfsm = dp_ctl & MXC_PLL_DP_CTL_HFSM;
+	if (pll_hfsm == 0) {
+		reg = mfi<<4 | pdf;
+		__raw_writel(reg, pllbase + MXC_PLL_DP_OP);
+		__raw_writel(mfd, pllbase + MXC_PLL_DP_MFD);
+		__raw_writel(mfn, pllbase + MXC_PLL_DP_MFN);
+	} else {
+		reg = mfi<<4 | pdf;
+		__raw_writel(reg, pllbase + MXC_PLL_DP_HFS_OP);
+		__raw_writel(mfd, pllbase + MXC_PLL_DP_HFS_MFD);
+		__raw_writel(mfn, pllbase + MXC_PLL_DP_HFS_MFN);
+	}
+
+	return 0;
+}
+
 static int _clk_pll_enable(struct clk *clk)
 {
 	u32 reg;
@@ -383,6 +426,7 @@ static struct clk pll2_sw_clk = {
 static struct clk pll3_sw_clk = {
 	.name = "pll3",
 	.parent = &osc_clk,
+	.set_rate = _clk_pll_set_rate,
 	.recalc = _clk_pll_recalc,
 	.enable = _clk_pll_enable,
 	.disable = _clk_pll_disable,
@@ -960,17 +1004,17 @@ static int _clk_ipu_di_set_parent(struct clk *clk, struct clk *parent)
 	u32 reg;
 
 	reg = __raw_readl(MXC_CCM_CSCMR2);
-	reg &= ~MXC_CCM_CSCMR2_DI_CLK_SEL_MASK;
+	reg &= ~MXC_CCM_CSCMR2_DI_CLK_SEL_MASK(clk->id);
 	if (parent == &pll3_sw_clk)
 		;
 	else if (parent == &osc_clk)
-		reg |= 1 << MXC_CCM_CSCMR2_DI_CLK_SEL_OFFSET;
+		reg |= 1 << MXC_CCM_CSCMR2_DI_CLK_SEL_OFFSET(clk->id);
 	else if (parent == &ckih_clk)
-		reg |= 2 << MXC_CCM_CSCMR2_DI_CLK_SEL_OFFSET;
+		reg |= 2 << MXC_CCM_CSCMR2_DI_CLK_SEL_OFFSET(clk->id);
 	else if (parent == &tve_clk)
-		reg |= 3 << MXC_CCM_CSCMR2_DI_CLK_SEL_OFFSET;
-	else	/* Assume any other clock is external clock pin */
-		reg |= 4 << MXC_CCM_CSCMR2_DI_CLK_SEL_OFFSET;
+		reg |= 3 << MXC_CCM_CSCMR2_DI_CLK_SEL_OFFSET(clk->id);
+	else		/* Assume any other clock is external clock pin */
+		reg |= 4 << MXC_CCM_CSCMR2_DI_CLK_SEL_OFFSET(clk->id);
 	__raw_writel(reg, MXC_CCM_CSCMR2);
 
 	return 0;
@@ -981,8 +1025,8 @@ static void _clk_ipu_di_recalc(struct clk *clk)
 	u32 reg, div, mux;
 
 	reg = __raw_readl(MXC_CCM_CSCMR2);
-	mux = (reg & MXC_CCM_CSCMR2_DI_CLK_SEL_MASK) >>
-		MXC_CCM_CSCMR2_DI_CLK_SEL_OFFSET;
+	mux = (reg & MXC_CCM_CSCMR2_DI_CLK_SEL_MASK(clk->id)) >>
+		MXC_CCM_CSCMR2_DI_CLK_SEL_OFFSET(clk->id);
 	if (mux == 0) {
 		reg = __raw_readl(MXC_CCM_CDCDR) &
 		    MXC_CCM_CDCDR_DI_CLK_PRED_MASK;
@@ -995,15 +1039,29 @@ static void _clk_ipu_di_recalc(struct clk *clk)
 	}
 }
 
-static struct clk ipu_di_clk = {
-	.name = "ipu_di_clk",
+static struct clk ipu_di_clk[] = {
+	{
+	.name = "ipu_di0_clk",
+	.id = 0,
 	.parent = &pll3_sw_clk,
-	.enable_reg = MXC_CCM_CCGR5,
-	.enable_shift = MXC_CCM_CCGR5_CG6_OFFSET,
+	.enable_reg = MXC_CCM_CCGR6,
+	.enable_shift = MXC_CCM_CCGR6_CG5_OFFSET,
 	.recalc = _clk_ipu_di_recalc,
 	.set_parent = _clk_ipu_di_set_parent,
 	.enable = _clk_enable,
 	.disable = _clk_disable,
+	},
+	{
+	.name = "ipu_di1_clk",
+	.id = 1,
+	.parent = &pll3_sw_clk,
+	.enable_reg = MXC_CCM_CCGR6,
+	.enable_shift = MXC_CCM_CCGR6_CG6_OFFSET,
+	.recalc = _clk_ipu_di_recalc,
+	.set_parent = _clk_ipu_di_set_parent,
+	.enable = _clk_enable,
+	.disable = _clk_disable,
+	},
 };
 
 static int _clk_csi0_set_parent(struct clk *clk, struct clk *parent)
@@ -2701,7 +2759,8 @@ static struct clk *mxc_clks[] = {
 	&sdma_clk[1],
 	&ipu_clk[0],
 	&ipu_clk[1],
-	&ipu_di_clk,
+	&ipu_di_clk[0],
+	&ipu_di_clk[1],
 	&tve_clk,
 	&csi0_clk,
 	&csi1_clk,

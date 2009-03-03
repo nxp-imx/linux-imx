@@ -737,7 +737,7 @@ int32_t ipu_init_sync_panel(int disp, uint32_t pixel_clk,
 	uint32_t field1_offset;
 	uint32_t reg;
 	uint32_t disp_gen, di_gen, vsync_cnt;
-	uint32_t div;
+	uint32_t div, up;
 	uint32_t h_total, v_total;
 	int map;
 	struct clk *di_clk;
@@ -797,6 +797,7 @@ int32_t ipu_init_sync_panel(int disp, uint32_t pixel_clk,
 
 	map = _ipu_pixfmt_to_map(pixel_fmt);
 	if (map < 0) {
+		dev_dbg(g_ipu_dev, "IPU_DISP: No MAP\n");
 		spin_unlock_irqrestore(&ipu_lock, lock_flags);
 		return -EINVAL;
 	}
@@ -805,83 +806,259 @@ int32_t ipu_init_sync_panel(int disp, uint32_t pixel_clk,
 	if (sig.ext_clk)
 		di_gen |= DI_GEN_DI_CLK_EXT;
 
-	/* Setup internal HSYNC waveform */
-	_ipu_di_sync_config(disp, 1, h_total - 1, DI_SYNC_CLK,
-			    0, DI_SYNC_NONE, 0, DI_SYNC_NONE, 0, DI_SYNC_NONE,
-			    DI_SYNC_NONE, 0, 0);
 	if (sig.interlaced) {
-		field1_offset = v_sync_width + v_start_width + height / 2 +
-		    v_end_width;
-		if (sig.odd_field_first) {
-			field0_offset = field1_offset - 1;
-			field1_offset = 0;
+		if (cpu_is_mx51_rev(CHIP_REV_2_0)) {
+			/* Setup internal HSYNC waveform */
+			_ipu_di_sync_config(
+					disp, 			/* display */
+					1, 				/* counter */
+					h_total/2 - 1, 	/* run count */
+					DI_SYNC_CLK,		 /* run_resolution */
+					0, 				/* offset */
+					DI_SYNC_NONE, 	/* offset resolution */
+					0, 				/* repeat count */
+					DI_SYNC_NONE, 	/* CNT_CLR_SEL */
+					0, 				/* CNT_POLARITY_GEN_EN */
+					DI_SYNC_NONE, 	/* CNT_POLARITY_CLR_SEL */
+					DI_SYNC_NONE, 	/* CNT_POLARITY_TRIGGER_SEL */
+					0, 				/* COUNT UP */
+					0				/* COUNT DOWN */
+					);
+
+			/* Field 1 VSYNC waveform */
+			_ipu_di_sync_config(
+					disp, 			/* display */
+					2, 				/* counter */
+					h_total - 1, 		/* run count */
+					DI_SYNC_CLK,		/* run_resolution */
+					0, 				/* offset */
+					DI_SYNC_NONE, 	/* offset resolution */
+					0, 				/* repeat count */
+					DI_SYNC_NONE, 	/* CNT_CLR_SEL */
+					0, 				/* CNT_POLARITY_GEN_EN */
+					DI_SYNC_NONE, 	/* CNT_POLARITY_CLR_SEL */
+					DI_SYNC_NONE, 	/* CNT_POLARITY_TRIGGER_SEL */
+					0, 				/* COUNT UP */
+					4				/* COUNT DOWN */
+					);
+
+			/* Setup internal HSYNC waveform */
+			_ipu_di_sync_config(
+					disp, 			/* display */
+					3, 				/* counter */
+					v_total*2 - 1, 	/* run count */
+					DI_SYNC_INT_HSYNC,	/* run_resolution */
+					1, 				/* offset */
+					DI_SYNC_INT_HSYNC, 	/* offset resolution */
+					0, 				/* repeat count */
+					DI_SYNC_NONE, 	/* CNT_CLR_SEL */
+					0, 				/* CNT_POLARITY_GEN_EN */
+					DI_SYNC_NONE, 	/* CNT_POLARITY_CLR_SEL */
+					DI_SYNC_NONE, 	/* CNT_POLARITY_TRIGGER_SEL */
+					0, 				/* COUNT UP */
+					4				/* COUNT DOWN */
+					);
+
+			/* Active Field ? */
+			_ipu_di_sync_config(
+					disp, 			/* display */
+					4, 				/* counter */
+					v_total/2 - 1, 	/* run count */
+					DI_SYNC_HSYNC,	/* run_resolution */
+					v_start_width, 	/*  offset */
+					DI_SYNC_HSYNC, 	/* offset resolution */
+					2, 				/* repeat count */
+					DI_SYNC_VSYNC, 	/* CNT_CLR_SEL */
+					0, 				/* CNT_POLARITY_GEN_EN */
+					DI_SYNC_NONE, 	/* CNT_POLARITY_CLR_SEL */
+					DI_SYNC_NONE, 	/* CNT_POLARITY_TRIGGER_SEL */
+					0, 				/* COUNT UP */
+					0				/* COUNT DOWN */
+					);
+
+			/* Active Line */
+			_ipu_di_sync_config(
+					disp, 			/* display */
+					5, 				/* counter */
+					0, 				/* run count */
+					DI_SYNC_HSYNC,	/* run_resolution */
+					0, 				/*  offset */
+					DI_SYNC_NONE, 	/* offset resolution */
+					height/2, 		/* repeat count */
+					4, 				/* CNT_CLR_SEL */
+					0, 				/* CNT_POLARITY_GEN_EN */
+					DI_SYNC_NONE, 	/* CNT_POLARITY_CLR_SEL */
+					DI_SYNC_NONE, 	/* CNT_POLARITY_TRIGGER_SEL */
+					0, 				/* COUNT UP */
+					0				/* COUNT DOWN */
+					);
+
+			/* Field 0 VSYNC waveform */
+			_ipu_di_sync_config(
+					disp, 			/* display */
+					6, 				/* counter */
+					v_total - 1, 	/* run count */
+					DI_SYNC_HSYNC,	/* run_resolution */
+					0, 				/* offset */
+					DI_SYNC_NONE, 	/* offset resolution */
+					0, 				/* repeat count */
+					DI_SYNC_NONE, 	/* CNT_CLR_SEL  */
+					0, 				/* CNT_POLARITY_GEN_EN */
+					DI_SYNC_NONE, 	/* CNT_POLARITY_CLR_SEL */
+					DI_SYNC_NONE, 	/* CNT_POLARITY_TRIGGER_SEL */
+					0, 				/* COUNT UP */
+					0				/* COUNT DOWN */
+					);
+
+			/* DC VSYNC waveform */
+			vsync_cnt = 7;
+			_ipu_di_sync_config(
+					disp, 			/* display */
+					7, 				/* counter */
+					v_total/2 - 1, 	/* run count */
+					DI_SYNC_HSYNC,	/* run_resolution  */
+					9, 				/* offset  */
+					DI_SYNC_HSYNC, 	/* offset resolution */
+					2, 				/* repeat count */
+					DI_SYNC_VSYNC, 	/* CNT_CLR_SEL */
+					0, 				/* CNT_POLARITY_GEN_EN */
+					DI_SYNC_NONE, 	/* CNT_POLARITY_CLR_SEL */
+					DI_SYNC_NONE, 	/* CNT_POLARITY_TRIGGER_SEL */
+					0, 				/* COUNT UP */
+					0				/* COUNT DOWN */
+					);
+
+			/* active pixel waveform */
+			_ipu_di_sync_config(
+					disp, 			/* display */
+					8, 				/* counter */
+					0, 	/* run count  */
+					DI_SYNC_CLK,	/* run_resolution */
+					h_start_width, 				/* offset  */
+					DI_SYNC_CLK, 	/* offset resolution */
+					width, 				/* repeat count  */
+					5, 	/* CNT_CLR_SEL  */
+					0, 				/* CNT_POLARITY_GEN_EN  */
+					DI_SYNC_NONE, 	/* CNT_POLARITY_CLR_SEL */
+					DI_SYNC_NONE, 	/* CNT_POLARITY_TRIGGER_SEL  */
+					0, 				/* COUNT UP  */
+					0				/* COUNT DOWN */
+					);
+
+			/* ??? */
+			_ipu_di_sync_config(
+					disp, 			/* display */
+					9, 				/* counter */
+					v_total - 1, 	/* run count */
+					DI_SYNC_INT_HSYNC,	/* run_resolution */
+					v_total/2, 			/* offset  */
+					DI_SYNC_INT_HSYNC, 	/* offset resolution  */
+					0, 				/* repeat count */
+					DI_SYNC_HSYNC, 	/* CNT_CLR_SEL */
+					0, 				/* CNT_POLARITY_GEN_EN  */
+					DI_SYNC_NONE, 	/* CNT_POLARITY_CLR_SEL  */
+					DI_SYNC_NONE, 	/* CNT_POLARITY_TRIGGER_SEL */
+					0, 				/* COUNT UP */
+					4				/* COUNT DOWN */
+					);
+
+			/* set gentime select and tag sel */
+			reg = __raw_readl(DI_SW_GEN1(disp, 9));
+			reg &= 0x1FFFFFFF;
+			reg |= (3-1)<<29 | 0x00008000;
+			__raw_writel(reg, DI_SW_GEN1(disp, 9));
+
+			__raw_writel(v_total / 2 - 1, DI_SCR_CONF(disp));
+
+			/* set y_sel = 1 */
+			di_gen |= 0x10000000;
+			di_gen |= DI_GEN_POLARITY_5;
+			di_gen |= DI_GEN_POLARITY_8;
+		} else {
+			/* Setup internal HSYNC waveform */
+			_ipu_di_sync_config(disp, 1, h_total - 1, DI_SYNC_CLK,
+					0, DI_SYNC_NONE, 0, DI_SYNC_NONE, 0, DI_SYNC_NONE,
+					DI_SYNC_NONE, 0, 0);
+
+			field1_offset = v_sync_width + v_start_width + height / 2 +
+				v_end_width;
+			if (sig.odd_field_first) {
+				field0_offset = field1_offset - 1;
+				field1_offset = 0;
+			}
+			v_total += v_start_width + v_end_width;
+
+			/* Field 1 VSYNC waveform */
+			_ipu_di_sync_config(disp, 2, v_total - 1, 1,
+					field0_offset,
+					field0_offset ? 1 : DI_SYNC_NONE,
+					0, DI_SYNC_NONE, 0,
+					DI_SYNC_NONE, DI_SYNC_NONE, 0, 4);
+
+			/* Setup internal HSYNC waveform */
+			_ipu_di_sync_config(disp, 3, h_total - 1, DI_SYNC_CLK,
+					0, DI_SYNC_NONE, 0, DI_SYNC_NONE, 0,
+					DI_SYNC_NONE, DI_SYNC_NONE, 0, 4);
+
+			/* Active Field ? */
+			_ipu_di_sync_config(disp, 4,
+					field0_offset ?
+					field0_offset : field1_offset - 2,
+					1, v_start_width + v_sync_width, 1, 2, 2,
+					0, DI_SYNC_NONE, DI_SYNC_NONE, 0, 0);
+
+			/* Active Line */
+			_ipu_di_sync_config(disp, 5, 0, 1,
+					0, DI_SYNC_NONE,
+					height / 2, 4, 0, DI_SYNC_NONE,
+					DI_SYNC_NONE, 0, 0);
+
+			/* Field 0 VSYNC waveform */
+			_ipu_di_sync_config(disp, 6, v_total - 1, 1,
+					0, DI_SYNC_NONE,
+					0, DI_SYNC_NONE, 0, DI_SYNC_NONE,
+					DI_SYNC_NONE, 0, 0);
+
+			/* DC VSYNC waveform */
+			vsync_cnt = 7;
+			_ipu_di_sync_config(disp, 7, 0, 1,
+					field1_offset,
+					field1_offset ? 1 : DI_SYNC_NONE,
+					1, 2, 0, DI_SYNC_NONE, DI_SYNC_NONE, 0, 0);
+
+			/* active pixel waveform */
+			_ipu_di_sync_config(disp, 8, 0, DI_SYNC_CLK,
+					h_sync_width + h_start_width, DI_SYNC_CLK,
+					width, 5, 0, DI_SYNC_NONE, DI_SYNC_NONE,
+					0, 0);
+
+			/* ??? */
+			_ipu_di_sync_config(disp, 9, v_total - 1, 2,
+					0, DI_SYNC_NONE,
+					0, DI_SYNC_NONE, 6, DI_SYNC_NONE,
+					DI_SYNC_NONE, 0, 0);
+
+			reg = __raw_readl(DI_SW_GEN1(disp, 9));
+			reg |= 0x8000;
+			__raw_writel(reg, DI_SW_GEN1(disp, 9));
+
+			__raw_writel(v_sync_width + v_start_width +
+					v_end_width + height / 2 - 1, DI_SCR_CONF(disp));
 		}
-		v_total += v_start_width + v_end_width;
-
-		/* Field 1 VSYNC waveform */
-		_ipu_di_sync_config(disp, 2, v_total - 1, 1,
-				    field0_offset,
-				    field0_offset ? 1 : DI_SYNC_NONE,
-				    0, DI_SYNC_NONE, 0,
-				    DI_SYNC_NONE, DI_SYNC_NONE, 0, 4);
-
-		/* Setup internal HSYNC waveform */
-		_ipu_di_sync_config(disp, 3, h_total - 1, DI_SYNC_CLK,
-				    0, DI_SYNC_NONE, 0, DI_SYNC_NONE, 0,
-				    DI_SYNC_NONE, DI_SYNC_NONE, 0, 4);
-
-		/* Active Field ? */
-		_ipu_di_sync_config(disp, 4,
-				    field0_offset ?
-				    field0_offset : field1_offset - 2,
-				    1, v_start_width + v_sync_width, 1, 2, 2,
-				    0, DI_SYNC_NONE, DI_SYNC_NONE, 0, 0);
-
-		/* Active Line */
-		_ipu_di_sync_config(disp, 5, 0, 1,
-				    0, DI_SYNC_NONE,
-				    height / 2, 4, 0, DI_SYNC_NONE,
-				    DI_SYNC_NONE, 0, 0);
-
-		/* Field 0 VSYNC waveform */
-		_ipu_di_sync_config(disp, 6, v_total - 1, 1,
-				    0, DI_SYNC_NONE,
-				    0, DI_SYNC_NONE, 0, DI_SYNC_NONE,
-				    DI_SYNC_NONE, 0, 0);
-
-		/* DC VSYNC waveform */
-		vsync_cnt = 7;
-		_ipu_di_sync_config(disp, 7, 0, 1,
-				    field1_offset,
-				    field1_offset ? 1 : DI_SYNC_NONE,
-				    1, 2, 0, DI_SYNC_NONE, DI_SYNC_NONE, 0, 0);
-
-		/* active pixel waveform */
-		_ipu_di_sync_config(disp, 8, 0, DI_SYNC_CLK,
-				    h_sync_width + h_start_width, DI_SYNC_CLK,
-				    width, 5, 0, DI_SYNC_NONE, DI_SYNC_NONE,
-				    0, 0);
-
-		/* ??? */
-		_ipu_di_sync_config(disp, 9, v_total - 1, 2,
-				    0, DI_SYNC_NONE,
-				    0, DI_SYNC_NONE, 6, DI_SYNC_NONE,
-				    DI_SYNC_NONE, 0, 0);
-		reg = __raw_readl(DI_SW_GEN1(disp, 9));
-		reg |= 0x8000;
-		__raw_writel(reg, DI_SW_GEN1(disp, 9));
 
 		/* Init template microcode */
 		_ipu_dc_write_tmpl(0, WROD(0), 0, map, SYNC_WAVE, 0, 8);
-
-		__raw_writel(v_sync_width + v_start_width +
-			     v_end_width + height / 2 - 1, DI_SCR_CONF(disp));
 
 		if (sig.Hsync_pol)
 			di_gen |= DI_GEN_POLARITY_3;
 		if (sig.Vsync_pol)
 			di_gen |= DI_GEN_POLARITY_2;
 	} else {
+		/* Setup internal HSYNC waveform */
+		_ipu_di_sync_config(disp, 1, h_total - 1, DI_SYNC_CLK,
+					0, DI_SYNC_NONE, 0, DI_SYNC_NONE, 0, DI_SYNC_NONE,
+					DI_SYNC_NONE, 0, 0);
+
 		/* Setup external (delayed) HSYNC waveform */
 		_ipu_di_sync_config(disp, DI_SYNC_HSYNC, h_total - 1,
 				    DI_SYNC_CLK, div * v_to_h_sync, DI_SYNC_CLK,
