@@ -47,6 +47,8 @@ static struct resource usbh2_resources[] = {
 
 static int __init usbh2_init(void)
 {
+	struct platform_device *h2_pdev;
+
 	pr_debug("%s: \n", __func__);
 
 	if (machine_is_mx31_3ds()) {
@@ -62,8 +64,12 @@ static int __init usbh2_init(void)
 		usbh2_config.xcvr_pwr->regu2 = usbh2_regux;
 	}
 
-	host_pdev_register(usbh2_resources, ARRAY_SIZE(usbh2_resources),
-			   &usbh2_config);
+	h2_pdev = host_pdev_register(usbh2_resources,
+			ARRAY_SIZE(usbh2_resources), &usbh2_config);
+#ifdef CONFIG_USB_EHCI_ARC_H2_WAKE_UP
+	/* set host2 may and should wakeup */
+	device_init_wakeup(&(h2_pdev->dev), 1);
+#endif
 	return 0;
 }
 module_init(usbh2_init);

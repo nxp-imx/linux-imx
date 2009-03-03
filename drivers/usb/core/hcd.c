@@ -117,6 +117,11 @@ static inline int is_root_hub(struct usb_device *udev)
 	return (udev->parent == NULL);
 }
 
+#if defined(CONFIG_USB_EHCI_ARC_H2_WAKE_UP) || \
+	defined(CONFIG_USB_EHCI_ARC_OTG_WAKE_UP)
+extern int usb_wakeup_irq(struct device *wkup_dev);
+extern void usb_wakeup_set(struct device *wkup_dev, int para);
+#endif
 /*-------------------------------------------------------------------------*/
 
 /*
@@ -1724,10 +1729,22 @@ irqreturn_t usb_hcd_irq (int irq, void *__hcd)
 	 * assume it's never used.
 	 */
 	local_irq_save(flags);
-
-	if (unlikely(hcd->state == HC_STATE_HALT ||
-		     !test_bit(HCD_FLAG_HW_ACCESSIBLE, &hcd->flags))) {
+#if defined(CONFIG_USB_EHCI_ARC_H2_WAKE_UP) || \
+	defined(CONFIG_USB_EHCI_ARC_OTG_WAKE_UP)
+	/* if receive a remote wakeup interrrupt when suspend */
+	if (usb_wakeup_irq(hcd->self.controller)) {
+		/* disable remote wake up irq */
+		usb_wakeup_set(hcd->self.controller, 0);
+		set_bit(HCD_FLAG_HW_ACCESSIBLE, &hcd->flags);
+		rc = hcd->driver->irq(hcd);
+	} else if (unlikely(hcd->state == HC_STATE_HALT ||
+		!test_bit(HCD_FLAG_HW_ACCESSIBLE, &hcd->flags))) {
 		rc = IRQ_NONE;
+#else
+	if (unlikely(hcd->state == HC_STATE_HALT ||
+		!test_bit(HCD_FLAG_HW_ACCESSIBLE, &hcd->flags))) {
+		rc = IRQ_NONE;
+#endif
 	} else if (hcd->driver->irq(hcd) == IRQ_NONE) {
 		rc = IRQ_NONE;
 	} else {

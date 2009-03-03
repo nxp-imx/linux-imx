@@ -465,6 +465,9 @@ int fsl_usb_host_init(struct platform_device *pdev)
 	if (xops->init)
 		xops->init(xops);
 
+	if (usb_register_remote_wakeup(pdev))
+		pr_debug("Host is not a wakeup source.\n");
+
 	if (xops->xcvr_type == PORTSC_PTS_SERIAL) {
 		if (cpu_is_mx35()) {
 			usbh2_set_serial_xcvr();
@@ -493,6 +496,10 @@ int fsl_usb_host_init(struct platform_device *pdev)
 		} else
 			usbh2_set_ulpi_xcvr();
 	}
+
+	if (pdata->name == "Host 2")
+		/* disable remote wakeup irq */
+		USBCTRL &= ~UCTRL_H2WIE;
 
 	pr_debug("%s: %s success\n", __func__, pdata->name);
 	return 0;
@@ -819,3 +826,38 @@ void usbotg_uninit(struct fsl_usb2_platform_data *pdata)
 	}
 }
 EXPORT_SYMBOL(usbotg_uninit);
+
+#if defined(CONFIG_USB_EHCI_ARC_H2_WAKE_UP) || \
+	defined(CONFIG_USB_EHCI_ARC_OTG_WAKE_UP)
+int usb_wakeup_irq(struct device *wkup_dev)
+{
+	int wakeup_req = 0;
+	struct fsl_usb2_platform_data *pdata = wkup_dev->platform_data;
+
+	if (pdata->name == "Host 2")
+		wakeup_req = USBCTRL & UCTRL_H2WIR;
+	else if (pdata->name == "DR")
+		wakeup_req = USBCTRL & UCTRL_OWIR;
+
+	return wakeup_req;
+}
+EXPORT_SYMBOL(usb_wakeup_irq);
+
+void usb_wakeup_set(struct device *wkup_dev, int para)
+{
+	struct fsl_usb2_platform_data *pdata = wkup_dev->platform_data;
+
+	if (pdata->name == "Host 2") {
+		if (para)
+			USBCTRL |= UCTRL_H2WIE;
+		else
+			USBCTRL &= ~UCTRL_H2WIE;
+	} else if (pdata->name == "DR") {
+		if (para)
+			USBCTRL |= UCTRL_OWIE;
+		else
+			USBCTRL &= ~UCTRL_OWIE;
+	}
+}
+EXPORT_SYMBOL(usb_wakeup_set);
+#endif

@@ -336,8 +336,12 @@ void mxc_pm_lowpower(int mode)
 		/* wake up by keypad and usbotg */
 		reg = __raw_readl(MXC_CCM_WIMR);
 		reg &= ~(1 << 18);
-#ifdef CONFIG_USB_GADGET_WAKE_UP
+#if defined(CONFIG_USB_GADGET_WAKE_UP) || \
+		defined(CONFIG_USB_EHCI_ARC_OTG_WAKE_UP)
 		reg &= ~(1 << 5);
+#endif
+#ifdef CONFIG_USB_EHCI_ARC_H2_WAKE_UP
+		reg &= ~(1 << 6);
 #endif
 		__raw_writel(reg, MXC_CCM_WIMR);
 
