@@ -808,6 +808,33 @@ static inline void mxc_init_vpu(void)
 }
 #endif
 
+#if defined(CONFIG_HW_RANDOM_FSL_RNGA) || \
+defined(CONFIG_HW_RANDOM_FSL_RNGA_MODULE)
+static struct resource rnga_resources[] = {
+	{
+	 .start = RNGA_BASE_ADDR,
+	 .end = RNGA_BASE_ADDR + 0x28,
+	 .flags = IORESOURCE_MEM,
+	 },
+};
+
+static struct platform_device fsl_rnga_device = {
+	.name = "fsl_rnga",
+	.id = -1,
+	.num_resources = 1,
+	.resource = rnga_resources,
+};
+
+static inline void mxc_init_rnga(void)
+{
+	platform_device_register(&fsl_rnga_device);
+}
+#else
+static inline void mxc_init_rnga(void)
+{
+}
+#endif
+
 int __init mxc_init_devices(void)
 {
 	mxc_init_wdt();
@@ -825,6 +852,7 @@ int __init mxc_init_devices(void)
 	ckih_clk = clk_get(NULL, "ckih");
 	mxc_init_dptc();
 	mxc_init_vpu();
+	mxc_init_rnga();
 
 	/* SPBA configuration for SSI2 - SDMA and MCU are set */
 	spba_take_ownership(SPBA_SSI2, SPBA_MASTER_C | SPBA_MASTER_A);

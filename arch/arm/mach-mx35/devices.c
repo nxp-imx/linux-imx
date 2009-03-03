@@ -707,6 +707,37 @@ static inline void mxc_init_flexcan(void)
 }
 #endif
 
+#if defined(CONFIG_HW_RANDOM_FSL_RNGC) || \
+defined(CONFIG_HW_RANDOM_FSL_RNGC_MODULE)
+static struct resource rngc_resources[] = {
+	{
+	 .start = RNGC_BASE_ADDR,
+	 .end = RNGC_BASE_ADDR + 0x34,
+	 .flags = IORESOURCE_MEM,
+	 },
+	{
+	 .start = MXC_INT_RNG,
+	 .flags = IORESOURCE_IRQ,
+	 },
+};
+
+static struct platform_device fsl_rngc_device = {
+	.name = "fsl_rngc",
+	.id = -1,
+	.num_resources = ARRAY_SIZE(rngc_resources),
+	.resource = rngc_resources,
+};
+
+static inline void mxc_init_rngc(void)
+{
+	platform_device_register(&fsl_rngc_device);
+}
+#else
+static inline void mxc_init_rngc(void)
+{
+}
+#endif
+
 int __init mxc_init_devices(void)
 {
 	mxc_init_wdt();
@@ -722,6 +753,7 @@ int __init mxc_init_devices(void)
 	mxc_init_surround_audio();
 	mxc_init_asrc();
 	mxc_init_flexcan();
+	mxc_init_rngc();
 
 	/* SPBA configuration for SSI2 - SDMA and MCU are set */
 	spba_take_ownership(SPBA_SSI2, SPBA_MASTER_C | SPBA_MASTER_A);

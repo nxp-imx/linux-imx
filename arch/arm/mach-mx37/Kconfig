@@ -11,6 +11,7 @@ config MX37_OPTIONS
 	select USB_ARCH_HAS_EHCI
 	select ARCH_HAS_EVTMON
 	select MXC_TZIC
+	select ARCH_HAS_RNGC
 
 config MACH_MX37_3DS
 	bool "Support MX37 3-Stack platforms"

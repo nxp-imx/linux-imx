@@ -57,6 +57,14 @@ config MXC_TZIC
 	bool
 	depends on ARCH_MXC
 
+config ARCH_HAS_RNGA
+	bool
+	depends on ARCH_MXC
+
+config ARCH_HAS_RNGC
+	bool
+	depends on ARCH_MXC
+
 config MXC_DSP_BRINGUP
 	bool
 	depends on ARCH_MXC

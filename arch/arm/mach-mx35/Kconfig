@@ -11,6 +11,7 @@ config MX35_OPTIONS
 	select OUTER_CACHE
 	select USB_ARCH_HAS_EHCI
 	select ARCH_HAS_EVTMON
+	select ARCH_HAS_RNGC
 
 config MACH_MX35_3DS
 	bool "Support MX35 3STACK platforms"
