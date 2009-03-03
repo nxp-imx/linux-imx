@@ -1102,18 +1102,18 @@ void pmic_event_list_init(void);
  *
  * @return      Returns 0.
  */
-int reg_mc13783_probe(void);
+int reg_mc13783_probe(struct device *dev);
 #else
-static inline int reg_mc13783_probe(void)
+static inline int reg_mc13783_probe(struct device *dev)
 {
 	return 0;
 };
 #endif
 
 #ifdef CONFIG_REGULATOR_MC13892
-int reg_mc13892_probe(struct device *dev);
+int mc13892_regulator_i2c_init(struct i2c_client *client);
 #else
-static inline int reg_mc13892_probe(struct device *dev)
+static inline int mc13892_regulator_i2c_init(struct i2c_client *client)
 {
 	return 0;
 };

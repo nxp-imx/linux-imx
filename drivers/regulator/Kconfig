@@ -73,4 +73,10 @@ config REGULATOR_DA903X
 	  Say y here to support the BUCKs and LDOs regulators found on
 	  Dialog Semiconductor DA9030/DA9034 PMIC.
 
+config REGULATOR_MC13892
+	tristate "MC13892 Regulator Support"
+	depends on REGULATOR
+	depends on MXC_PMIC_MC13892
+	default y
+
 endif

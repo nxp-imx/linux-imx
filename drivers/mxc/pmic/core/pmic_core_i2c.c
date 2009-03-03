@@ -31,6 +31,7 @@
 #include <linux/interrupt.h>
 #include <linux/irq.h>
 #include <linux/i2c.h>
+#include <linux/mfd/mc13892/core.h>
 #include <linux/pmic_external.h>
 #include <linux/pmic_status.h>
 
@@ -92,7 +93,7 @@ static struct platform_device bleds_ldm = {
 	.id = 'b',
 };
 
-static void pmic_pdev_register(void)
+static void pmic_pdev_register(struct device *dev)
 {
 	platform_device_register(&adc_ldm);
 	platform_device_register(&battery_ldm);
@@ -252,11 +253,20 @@ static int __devinit pmic_probe(struct i2c_client *client,
 {
 	int ret = 0;
 	int pmic_irq;
+	struct mc13892 *mc13892;
+	struct mc13892_platform_data *plat_data = client->dev.platform_data;
 
 	ret = is_chip_onboard(client);
-
 	if (ret == -1)
 		return -ENODEV;
+
+	mc13892 = kzalloc(sizeof(struct mc13892), GFP_KERNEL);
+	if (mc13892 == NULL)
+		return -ENOMEM;
+
+	i2c_set_clientdata(client, mc13892);
+	mc13892->dev = &client->dev;
+	mc13892->i2c_client = client;
 
 	/* so far, we got matched chip on board */
 
@@ -274,7 +284,7 @@ static int __devinit pmic_probe(struct i2c_client *client,
 		return PMIC_ERROR;
 
 	/* Set and install PMIC IRQ handler */
-	pmic_irq = (int)(client->dev.platform_data);
+	pmic_irq = (int)(client->irq);
 	if (pmic_irq == 0)
 		return PMIC_ERROR;
 
@@ -289,13 +299,17 @@ static int __devinit pmic_probe(struct i2c_client *client,
 	}
 	enable_irq_wake(IOMUX_TO_IRQ(pmic_irq));
 
-	reg_mc13892_probe();
+	if (plat_data && plat_data->init) {
+		ret = plat_data->init(mc13892);
+		if (ret != 0)
+			return PMIC_ERROR;
+	}
 
 	ret = device_create_file(&client->dev, &mc13892_dev_attr);
 	if (ret)
 		dev_err(&client->dev, "create device file failed!\n");
 
-	pmic_pdev_register();
+	pmic_pdev_register(&client->dev);
 
 	dev_info(&client->dev, "Loaded\n");
 

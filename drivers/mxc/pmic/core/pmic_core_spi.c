@@ -31,6 +31,7 @@
 #include <linux/interrupt.h>
 #include <linux/irq.h>
 #include <linux/spi/spi.h>
+#include <linux/mfd/mc13892/core.h>
 #include <linux/pmic_external.h>
 #include <linux/pmic_status.h>
 
@@ -98,7 +99,6 @@ static void pmic_pdev_register(void)
 	platform_device_register(&rtc_ldm);
 	platform_device_register(&power_ldm);
 	platform_device_register(&light_ldm);
-	reg_mc13783_probe();
 }
 
 /*!
@@ -198,6 +198,8 @@ static int pmic_resume(struct spi_device *spi)
 static int __devinit pmic_probe(struct spi_device *spi)
 {
 	int ret = 0;
+	struct mc13892 *mc13892;
+	struct mc13892_platform_data *plat_data = spi->dev.platform_data;
 
 	if (!strcmp(spi->dev.bus_id, PMIC_ARBITRATION)) {
 		if (PMIC_SUCCESS != pmic_fix_arbitration(spi)) {
@@ -232,6 +234,14 @@ static int __devinit pmic_probe(struct spi_device *spi)
 			mxc_pmic_version.revision);
 	}
 
+	mc13892 = kzalloc(sizeof(struct mc13892), GFP_KERNEL);
+	if (mc13892 == NULL)
+		return -ENOMEM;
+
+	spi_set_drvdata(spi, mc13892);
+	mc13892->dev = &spi->dev;
+	mc13892->spi_device = spi;
+
 	/* Initialize the PMIC parameters */
 	ret = pmic_init_registers();
 	if (ret != PMIC_SUCCESS) {
@@ -244,6 +254,12 @@ static int __devinit pmic_probe(struct spi_device *spi)
 	if (ret) {
 		dev_err((struct device *)spi, "gpio1: irq%d error.", spi->irq);
 		return ret;
+	}
+
+	if (plat_data && plat_data->init) {
+		ret = plat_data->init(mc13892);
+		if (ret != 0)
+			return PMIC_ERROR;
 	}
 
 	power_ldm.dev.platform_data = spi->dev.platform_data;
