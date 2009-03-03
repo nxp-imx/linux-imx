@@ -137,6 +137,12 @@ static void _ipu_di_sync_config(int di, int wave_gen,
 				int cnt_polarity_trigger_src,
 				int cnt_up, int cnt_down)
 {
+	if ((run_count >= 0x1000) || (offset_count >= 0x1000) || (repeat_count >= 0x1000) ||
+		(cnt_up >= 0x400) || (cnt_down >= 0x400)) {
+		dev_err(g_ipu_dev, "DI%d counters out of range.\n", di);
+		return;
+	}
+
 	u32 reg;
 	reg = (run_count << 19) | (++run_src << 16) |
 	    (offset_count << 3) | ++offset_src;
@@ -879,8 +885,8 @@ int32_t ipu_init_sync_panel(int disp, uint32_t pixel_clk,
 		/* Setup external (delayed) HSYNC waveform */
 		_ipu_di_sync_config(disp, DI_SYNC_HSYNC, h_total - 1,
 				    DI_SYNC_CLK, div * v_to_h_sync, DI_SYNC_CLK,
-				    0, DI_SYNC_NONE, 0, DI_SYNC_NONE,
-				    DI_SYNC_NONE, 0, div * h_sync_width * 2);
+				    0, DI_SYNC_NONE, 1, DI_SYNC_NONE,
+				    DI_SYNC_CLK, 0, h_sync_width * 2);
 		/* Setup VSYNC waveform */
 		vsync_cnt = DI_SYNC_VSYNC;
 		_ipu_di_sync_config(disp, DI_SYNC_VSYNC, v_total - 1,
