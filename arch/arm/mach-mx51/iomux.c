@@ -219,7 +219,7 @@ EXPORT_SYMBOL(mxc_iomux_get_pad);
  *      */
 void mxc_iomux_set_input(iomux_input_select_t input, u32 config)
 {
-	u32 reg = IOMUXSW_INPUT_CTL + (input << 2);
+	u32 reg;
 
 	if (cpu_is_mx51_rev(CHIP_REV_2_0) < 0) {
 		if (input == MUX_IN_IPU_IPP_DI_0_IND_DISPB_SD_D_SELECT_INPUT)
@@ -237,11 +237,10 @@ void mxc_iomux_set_input(iomux_input_select_t input, u32 config)
 		else if (input >= MUX_IN_CCM_PLL1_BYPASS_CLK_SELECT_INPUT)
 			input -= 1;
 
-		reg += INPUT_CTL_START_TO1;
+		reg = IOMUXSW_INPUT_CTL + (input << 2) + INPUT_CTL_START_TO1;
 	} else {
-		reg += INPUT_CTL_START;
+		reg = IOMUXSW_INPUT_CTL + (input << 2) + INPUT_CTL_START;
 	}
-
 
 	BUG_ON(input >= MUX_INPUT_NUM_MUX);
 	__raw_writel(config, reg);
