@@ -1888,13 +1888,6 @@ static void suspend_irq(struct fsl_udc *udc)
 	/* report suspend to the driver, serial.c does not support this */
 	if (udc->driver->suspend)
 		udc->driver->suspend(&udc->gadget);
-
-	/* if PHCD is 0, then set 1 to disable phy clock */
-	port_status = fsl_readl(&dr_regs->portsc1);
-	if (!(port_status & PORTSCX_PHY_LOW_POWER_SPD)) {
-		port_status |= PORTSCX_PHY_LOW_POWER_SPD;
-		fsl_writel(port_status, &dr_regs->portsc1);
-	}
 }
 
 #ifdef CONFIG_USB_GADGET_WAKE_UP
@@ -1914,13 +1907,6 @@ static void wake_up_irq(struct fsl_udc *udc)
 
 static void bus_resume(struct fsl_udc *udc)
 {
-	/* enable PHY clock if PHCD is still 1 */
-	u32 port_status = fsl_readl(&dr_regs->portsc1);
-	if (port_status & PORTSCX_PHY_LOW_POWER_SPD) {
-		port_status &= ~PORTSCX_PHY_LOW_POWER_SPD;
-		fsl_writel(port_status, &dr_regs->portsc1);
-	}
-
 	udc->usb_state = udc->resume_state;
 	udc->resume_state = 0;
 
