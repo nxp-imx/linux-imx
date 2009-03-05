@@ -519,7 +519,7 @@ module_exit(scc_cleanup);
 
 
 /* Tell Linux this is not GPL code */
-MODULE_LICENSE("Proprietary");
+MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Freescale Semiconductor, Inc.");
 MODULE_DESCRIPTION("Device Driver for SCC (SMN/SCM)");
 
