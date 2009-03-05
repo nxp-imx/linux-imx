@@ -306,7 +306,8 @@ static void timer_work_func(struct work_struct *work)
 	if (index != -1) {
 		/* if timestamp is 0, then default to 30fps */
 		if ((vout->v4l2_bufs[index].timestamp.tv_sec == 0)
-		    && (vout->v4l2_bufs[index].timestamp.tv_usec == 0))
+		    && (vout->v4l2_bufs[index].timestamp.tv_usec == 0)
+		    && vout->start_jiffies)
 			timeout =
 			    vout->start_jiffies + vout->frame_count * HZ / 30;
 		else
@@ -1180,7 +1181,6 @@ static int mxc_v4l2out_close(struct inode *inode, struct file *file)
 		/* capture off */
 		wake_up_interruptible(&vout->v4l_bufq);
 
-		schedule_work(&vout->timer_work);
 		flush_scheduled_work();
 	}
 
