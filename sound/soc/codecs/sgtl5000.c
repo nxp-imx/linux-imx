@@ -35,7 +35,21 @@ struct sgtl5000_priv {
 static int sgtl5000_set_bias_level(struct snd_soc_codec *codec,
 				   enum snd_soc_bias_level level);
 
-static unsigned int sgtl5000_read(struct snd_soc_codec *codec, unsigned int reg)
+#define SGTL5000_MAX_CACHED_REG SGTL5000_CHIP_SHORT_CTRL
+static u16 sgtl5000_regs[(SGTL5000_MAX_CACHED_REG >> 1) + 1];
+
+static unsigned int sgtl5000_read_reg_cache(struct snd_soc_codec *codec,
+					    unsigned int reg)
+{
+	u16 *cache = codec->reg_cache;
+	unsigned int offset = reg >> 1;
+	if (offset >= ARRAY_SIZE(sgtl5000_regs))
+		return -EINVAL;
+	return cache[offset];
+}
+
+static unsigned int sgtl5000_hw_read(struct snd_soc_codec *codec,
+				     unsigned int reg)
 {
 	struct i2c_client *client = codec->control_data;
 	int i2c_ret;
@@ -62,6 +76,26 @@ static unsigned int sgtl5000_read(struct snd_soc_codec *codec, unsigned int reg)
 	return value;
 }
 
+static unsigned int sgtl5000_read(struct snd_soc_codec *codec, unsigned int reg)
+{
+	if ((reg == SGTL5000_CHIP_ID) ||
+	    (reg == SGTL5000_CHIP_ADCDAC_CTRL) ||
+	    (reg == SGTL5000_CHIP_ANA_STATUS) ||
+	    (reg > SGTL5000_MAX_CACHED_REG))
+		return sgtl5000_hw_read(codec, reg);
+	else
+		return sgtl5000_read_reg_cache(codec, reg);
+}
+
+static inline void sgtl5000_write_reg_cache(struct snd_soc_codec *codec,
+					    u16 reg, unsigned int value)
+{
+	u16 *cache = codec->reg_cache;
+	unsigned int offset = reg >> 1;
+	if (offset < ARRAY_SIZE(sgtl5000_regs))
+		cache[offset] = value;
+}
+
 static int sgtl5000_write(struct snd_soc_codec *codec, unsigned int reg,
 			  unsigned int value)
 {
@@ -72,6 +106,7 @@ static int sgtl5000_write(struct snd_soc_codec *codec, unsigned int reg,
 	int i2c_ret;
 	struct i2c_msg msg = { addr, flags, 4, buf };
 
+	sgtl5000_write_reg_cache(codec, reg, value);
 	pr_debug("w r:%02x,v:%04x\n", reg, value);
 	buf[0] = (reg & 0xff00) >> 8;
 	buf[1] = reg & 0xff;
@@ -88,7 +123,27 @@ static int sgtl5000_write(struct snd_soc_codec *codec, unsigned int reg,
 	return i2c_ret;
 }
 
-#ifdef DEBUG
+static void sgtl5000_sync_reg_cache(struct snd_soc_codec *codec)
+{
+	int reg;
+	for (reg = 0; reg <= SGTL5000_MAX_CACHED_REG; reg += 2)
+		sgtl5000_write_reg_cache(codec, reg,
+					 sgtl5000_hw_read(codec, reg));
+}
+
+static int sgtl5000_restore_reg(struct snd_soc_codec *codec, unsigned int reg)
+{
+	unsigned int cached_val, hw_val;
+
+	cached_val = sgtl5000_read_reg_cache(codec, reg);
+	hw_val = sgtl5000_hw_read(codec, reg);
+
+	if (hw_val != cached_val)
+		return sgtl5000_write(codec, reg, cached_val);
+
+	return 0;
+}
+
 static int all_reg[] = {
 	SGTL5000_CHIP_ID,
 	SGTL5000_CHIP_DIG_POWER,
@@ -113,6 +168,7 @@ static int all_reg[] = {
 	SGTL5000_CHIP_SHORT_CTRL,
 };
 
+#ifdef DEBUG
 static void dump_reg(struct snd_soc_codec *codec)
 {
 	int i, reg;
@@ -703,6 +759,20 @@ static int sgtl5000_resume(struct platform_device *pdev)
 {
 	struct snd_soc_device *socdev = platform_get_drvdata(pdev);
 	struct snd_soc_codec *codec = socdev->codec;
+	unsigned int i;
+
+	/* Restore refs first in same order as in sgtl5000_init */
+	sgtl5000_restore_reg(codec, SGTL5000_CHIP_LINREG_CTRL);
+	sgtl5000_restore_reg(codec, SGTL5000_CHIP_ANA_POWER);
+	msleep(10);
+	sgtl5000_restore_reg(codec, SGTL5000_CHIP_REF_CTRL);
+	sgtl5000_restore_reg(codec, SGTL5000_CHIP_LINE_OUT_CTRL);
+
+	/* Restore everythine else */
+	for (i = 1; i < sizeof(all_reg) / sizeof(int); i++)
+		sgtl5000_restore_reg(codec, all_reg[i]);
+
+	sgtl5000_write(codec, SGTL5000_DAP_CTRL, 0);
 
 	/* Bring the codec back up to standby first to minimise pop/clicks */
 	sgtl5000_set_bias_level(codec, SND_SOC_BIAS_STANDBY);
@@ -743,12 +813,19 @@ static int sgtl5000_init(struct snd_soc_device *socdev)
 
 	codec->name = "SGTL5000";
 	codec->owner = THIS_MODULE;
-	codec->read = sgtl5000_read;
+	codec->read = sgtl5000_read_reg_cache;
 	codec->write = sgtl5000_write;
 	codec->bias_level = SND_SOC_BIAS_OFF;
 	codec->set_bias_level = sgtl5000_set_bias_level;
 	codec->dai = &sgtl5000_dai;
 	codec->num_dai = 1;
+	codec->reg_cache_size = sizeof(sgtl5000_regs);
+	codec->reg_cache_step = 2;
+	codec->reg_cache = (void *)&sgtl5000_regs;
+	if (codec->reg_cache == NULL) {
+		dev_err(&client->dev, "Failed to allocate register cache\n");
+		return -ENOMEM;
+	}
 
 	/* register pcms */
 	ret = snd_soc_new_pcms(socdev, SNDRV_DEFAULT_IDX1, SNDRV_DEFAULT_STR1);
@@ -756,6 +833,8 @@ static int sgtl5000_init(struct snd_soc_device *socdev)
 		dev_err(&client->dev, "failed to create pcms\n");
 		return ret;
 	}
+
+	sgtl5000_sync_reg_cache(codec);
 
 	/* reset value */
 	ana_pwr = SGTL5000_DAC_STERO |
