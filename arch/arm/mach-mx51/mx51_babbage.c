@@ -439,7 +439,7 @@ static struct mxc_audio_platform_data sgtl5000_data = {
 	.amp_enable = mxc_sgtl5000_amp_enable,
 	.vddio = 2775000,
 	.vdda = 1650000,
-	.vddd = 12000000,
+	.vddd = 1200000,
 	.sysclk = 12288000,
 };
 
