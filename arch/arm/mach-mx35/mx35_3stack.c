@@ -354,7 +354,7 @@ static struct mxc_tsc_platform_data tsc2007_data = {
 static struct mxc_camera_platform_data camera_data = {
 	.core_regulator = "SW1",
 	.io_regulator = "VAUDIO",
-	.analog_regulator = "VIOHI",
+	.analog_regulator = NULL,
 	.gpo_regulator = "PWGT1",
 	.mclk = 27000000,
 };
