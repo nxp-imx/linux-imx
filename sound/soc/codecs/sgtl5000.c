@@ -18,7 +18,6 @@
 #include <sound/core.h>
 #include <sound/pcm.h>
 #include <sound/pcm_params.h>
-#include <sound/tlv.h>
 #include <sound/soc.h>
 #include <sound/soc-dapm.h>
 #include <sound/initval.h>
@@ -649,12 +648,28 @@ static int sgtl5000_set_bias_level(struct snd_soc_codec *codec,
 	u16 reg;
 	pr_debug("dapm level %d\n", level);
 	switch (level) {
-	case SND_SOC_BIAS_ON:	/* full On */
+	case SND_SOC_BIAS_ON:		/* full On */
 	case SND_SOC_BIAS_PREPARE:	/* partial On */
+		if ((codec->bias_level == SND_SOC_BIAS_ON) ||
+		    (codec->bias_level == SND_SOC_BIAS_PREPARE))
+			break;
+
+		/* must power up hp/line out before vag & dac to
+		   avoid pops. */
 		reg = sgtl5000_read(codec, SGTL5000_CHIP_ANA_POWER);
-		reg |= SGTL5000_HP_POWERUP;
-		reg |= SGTL5000_LINE_OUT_POWERUP;
-		sgtl5000_write(codec, SGTL5000_CHIP_ANA_POWER, reg);
+		if ((reg & SGTL5000_HP_POWERUP) == 0) {
+			reg |= SGTL5000_HP_POWERUP;
+			reg |= SGTL5000_LINE_OUT_POWERUP;
+			sgtl5000_write(codec, SGTL5000_CHIP_ANA_POWER, reg);
+			msleep(10);
+
+			reg |= SGTL5000_VAG_POWERUP;
+			reg |= SGTL5000_REFTOP_POWERUP;
+			reg |= SGTL5000_DAC_POWERUP;
+			reg |= SGTL5000_ADC_POWERUP;
+			sgtl5000_write(codec, SGTL5000_CHIP_ANA_POWER, reg);
+			msleep(400);
+		}
 
 		reg = sgtl5000_read(codec, SGTL5000_CHIP_MIC_CTRL);
 		reg &= ~SGTL5000_BIAS_R_MASK;
@@ -677,29 +692,19 @@ static int sgtl5000_set_bias_level(struct snd_soc_codec *codec,
 		reg &= ~SGTL5000_HP_ZCD_EN;
 		reg &= ~SGTL5000_ADC_ZCD_EN;
 		sgtl5000_write(codec, SGTL5000_CHIP_ANA_CTRL, reg);
-
-		reg = sgtl5000_read(codec, SGTL5000_CHIP_ANA_POWER);
-		if (codec->bias_level == SND_SOC_BIAS_OFF) {
-			reg |= SGTL5000_VAG_POWERUP;
-			reg |= SGTL5000_REFTOP_POWERUP;
-			reg |= SGTL5000_DAC_POWERUP;
-			reg |= SGTL5000_ADC_POWERUP;
-		}
-		/*reg &= ~SGTL5000_PLL_POWERUP;
-		   reg &= ~SGTL5000_VCOAMP_POWERUP; */
-		reg &= ~SGTL5000_HP_POWERUP;
-		reg &= ~SGTL5000_CAPLESS_HP_POWERUP;
-		reg &= ~SGTL5000_LINE_OUT_POWERUP;
-		sgtl5000_write(codec, SGTL5000_CHIP_ANA_POWER, reg);
-
-		msleep(400);
-
 		break;
 
 	case SND_SOC_BIAS_OFF:	/* Off, without power */
+		/* must power down hp/line out after vag & dac to
+		   avoid pops. */
 		reg = sgtl5000_read(codec, SGTL5000_CHIP_ANA_POWER);
 		reg &= ~SGTL5000_VAG_POWERUP;
 		reg &= ~SGTL5000_REFTOP_POWERUP;
+		sgtl5000_write(codec, SGTL5000_CHIP_ANA_POWER, reg);
+		msleep(600);
+
+		reg &= ~SGTL5000_HP_POWERUP;
+		reg &= ~SGTL5000_LINE_OUT_POWERUP;
 		reg &= ~SGTL5000_DAC_POWERUP;
 		reg &= ~SGTL5000_ADC_POWERUP;
 		sgtl5000_write(codec, SGTL5000_CHIP_ANA_POWER, reg);
