@@ -342,6 +342,8 @@ EXPORT_SYMBOL(gpio_activate_audio_ports);
  */
 void gpio_sdhc_active(int module)
 {
+	unsigned int pad_val;
+
 	switch (module) {
 	case 0:
 		mxc_request_iomux(MX37_PIN_SD1_CLK,
@@ -359,37 +361,37 @@ void gpio_sdhc_active(int module)
 
 		mxc_iomux_set_pad(MX37_PIN_SD1_CMD,
 				  PAD_CTL_DRV_MAX | PAD_CTL_DRV_VOT_HIGH |
-				  PAD_CTL_HYS_NONE | PAD_CTL_PUE_PULL |
+				  PAD_CTL_HYS_ENABLE | PAD_CTL_PUE_PULL |
 				  PAD_CTL_47K_PU |
 				  PAD_CTL_ODE_OPENDRAIN_NONE |
 				  PAD_CTL_PKE_ENABLE | PAD_CTL_SRE_FAST);
 		mxc_iomux_set_pad(MX37_PIN_SD1_CLK,
 				  PAD_CTL_DRV_MAX | PAD_CTL_DRV_VOT_HIGH |
-				  PAD_CTL_HYS_NONE | PAD_CTL_PUE_KEEPER |
+				  PAD_CTL_HYS_NONE | PAD_CTL_PUE_PULL |
 				  PAD_CTL_47K_PU |
 				  PAD_CTL_ODE_OPENDRAIN_NONE |
 				  PAD_CTL_PKE_ENABLE | PAD_CTL_SRE_FAST);
 		mxc_iomux_set_pad(MX37_PIN_SD1_DATA0,
 				  PAD_CTL_DRV_MAX | PAD_CTL_DRV_VOT_HIGH |
-				  PAD_CTL_HYS_NONE | PAD_CTL_PUE_KEEPER |
+				  PAD_CTL_HYS_ENABLE | PAD_CTL_PUE_PULL |
 				  PAD_CTL_47K_PU |
 				  PAD_CTL_ODE_OPENDRAIN_NONE |
 				  PAD_CTL_PKE_ENABLE | PAD_CTL_SRE_FAST);
 		mxc_iomux_set_pad(MX37_PIN_SD1_DATA1,
 				  PAD_CTL_DRV_MAX | PAD_CTL_DRV_VOT_HIGH |
-				  PAD_CTL_HYS_NONE | PAD_CTL_PUE_KEEPER |
+				  PAD_CTL_HYS_ENABLE | PAD_CTL_PUE_PULL |
 				  PAD_CTL_47K_PU |
 				  PAD_CTL_ODE_OPENDRAIN_NONE |
 				  PAD_CTL_PKE_ENABLE | PAD_CTL_SRE_FAST);
 		mxc_iomux_set_pad(MX37_PIN_SD1_DATA2,
 				  PAD_CTL_DRV_MAX | PAD_CTL_DRV_VOT_HIGH |
-				  PAD_CTL_HYS_NONE | PAD_CTL_PUE_KEEPER |
+				  PAD_CTL_HYS_ENABLE | PAD_CTL_PUE_PULL |
 				  PAD_CTL_47K_PU |
 				  PAD_CTL_ODE_OPENDRAIN_NONE |
 				  PAD_CTL_PKE_ENABLE | PAD_CTL_SRE_FAST);
 		mxc_iomux_set_pad(MX37_PIN_SD1_DATA3,
 				  PAD_CTL_DRV_MAX | PAD_CTL_DRV_VOT_HIGH |
-				  PAD_CTL_HYS_NONE | PAD_CTL_PUE_PULL |
+				  PAD_CTL_HYS_ENABLE | PAD_CTL_PUE_PULL |
 				  PAD_CTL_47K_PU |
 				  PAD_CTL_ODE_OPENDRAIN_NONE |
 				  PAD_CTL_PKE_ENABLE | PAD_CTL_SRE_FAST);
