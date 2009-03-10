@@ -33,6 +33,9 @@
 #define V_to_uV(V) (mV_to_uV(V * 1000))
 #define uV_to_V(uV) (uV_to_mV(uV) / 1000)
 
+#define STANDBYSECINV_LSH 11
+#define STANDBYSECINV_WID 1
+
 /* CPU */
 static struct regulator_consumer_supply sw1_consumers[] = {
 	{
@@ -72,7 +75,7 @@ static struct regulator_init_data sw2_init = {
 		.boot_on = 1,
 		.initial_state = PM_SUSPEND_MEM,
 		.state_mem = {
-			.uV = 900000,
+			.uV = 1200000,
 			.mode = REGULATOR_MODE_NORMAL,
 			.enabled = 1,
 		},
@@ -228,6 +231,7 @@ static int mc13892_regulator_init(struct mc13892 *mc13892)
 {
 	unsigned int value;
 	pmic_event_callback_t power_key_event;
+	int register_mask;
 
 	if (mxc_cpu_is_rev(CHIP_REV_2_0) < 0)
 		sw2_init.constraints.state_mem.uV = 1100000;
@@ -241,6 +245,14 @@ static int mc13892_regulator_init(struct mc13892 *mc13892)
 	pmic_read_reg(REG_POWER_CTL0, &value, 0xffffff);
 	value |= 0x000010;
 	pmic_write_reg(REG_POWER_CTL0, value, 0xffffff);
+
+	/* Set the STANDBYSECINV bit, so that STANDBY pin is
+	 * interpreted as active low.
+	 */
+	value = BITFVAL(STANDBYSECINV, 1);
+	register_mask = BITFMASK(STANDBYSECINV);
+	pmic_write_reg(REG_POWER_CTL2, value, register_mask);
+
 
 	mc13892_register_regulator(mc13892, MC13892_SW1, &sw1_init);
 	mc13892_register_regulator(mc13892, MC13892_SW2, &sw2_init);
