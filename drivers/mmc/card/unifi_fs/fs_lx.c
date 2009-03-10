@@ -360,8 +360,8 @@ int fs_sdio_register_driver(struct fs_driver *driver)
 {
 	int ret;
 
-	/* Switch us on */
-	fs_unifi_power_on(-1);
+	/* Switch us on, sdio device may exist if power is on by default. */
+	fs_unifi_power_on(available_sdio_dev ? 0 : 1);
 
 	/* Store the context to the device driver to the global */
 	available_driver = driver;
