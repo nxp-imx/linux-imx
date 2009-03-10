@@ -1114,7 +1114,7 @@ static int __devinit si4702_probe(struct i2c_client *client,
 		goto char_dev_remove;
 	}
 
-	dev = device_create(drv_data->radio_class, NULL,
+	dev = device_create(drv_data->radio_class, NULL, NULL,
 			    MKDEV(drv_data->major, drv_data->minor), "si4702");
 	if (IS_ERR(dev)) {
 		dev_err(&client->dev,
@@ -1141,12 +1141,12 @@ gpio_put:
 disable_vdd:
 	if (plat_data->reg_vdd) {
 		regulator_disable(drv_data->vdd);
-		regulator_put(drv_data->vdd, &client->dev);
+		regulator_put(drv_data->vdd);
 	}
 disable_vio:
 	if (plat_data->reg_vio) {
 		regulator_disable(drv_data->vio);
-		regulator_put(drv_data->vio, &client->dev);
+		regulator_put(drv_data->vio);
 	}
 
 free_drv_data:
@@ -1170,10 +1170,10 @@ static int __devexit si4702_remove(struct i2c_client *client)
 	si4702_gpio_put();
 
 	if (plat_data->reg_vdd)
-		regulator_put(drv_data->vdd, &client->dev);
+		regulator_put(drv_data->vdd);
 
 	if (plat_data->reg_vio)
-		regulator_put(drv_data->vio, &client->dev);
+		regulator_put(drv_data->vio);
 
 	kfree(si4702_drvdata);
 	si4702_drvdata = NULL;

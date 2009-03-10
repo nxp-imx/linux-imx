@@ -274,7 +274,7 @@ static int __devinit pmic_probe(struct i2c_client *client,
 
 static int pmic_remove(struct i2c_client *client)
 {
-	int pmic_irq = (int)(client->dev.platform_data);
+	int pmic_irq = (int)(client->irq);
 
 	if (pmic_event_wq)
 		destroy_workqueue(pmic_event_wq);
