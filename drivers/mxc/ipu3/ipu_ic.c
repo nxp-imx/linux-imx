@@ -311,7 +311,7 @@ void _ipu_ic_init_pp(ipu_channel_params_t *params)
 		if ((out_fmt == YCbCr) || (out_fmt == YUV)) {
 			/* Enable RGB->YCBCR CSC */
 			_init_csc(IC_TASK_POST_PROCESSOR, RGB, out_fmt);
-			ic_conf |= IC_CONF_PP_CSC2;
+			ic_conf |= IC_CONF_PP_CSC1;
 		}
 	}
 	if ((in_fmt == YCbCr) || (in_fmt == YUV)) {
