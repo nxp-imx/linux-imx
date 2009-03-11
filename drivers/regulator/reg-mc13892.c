@@ -402,7 +402,7 @@ static int mc13892_sw_get_voltage(struct regulator_dev *reg)
 	hi = mc13892_get_sw_hi_bit(sw);
 	mV = mc13892_get_voltage_mV(hi, voltage);
 
-	return mV;
+	return mV * 1000;
 }
 
 static int mc13892_sw_stby_enable(struct regulator_dev *reg)
