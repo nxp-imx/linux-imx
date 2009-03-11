@@ -218,8 +218,33 @@ static struct regulator_init_data vgen3_init = {
 	}
 };
 
+static struct regulator_init_data gpo1_init = {
+	.constraints = {
+		.name = "GPO1",
+	}
+};
+
+static struct regulator_init_data gpo2_init = {
+	.constraints = {
+		.name = "GPO2",
+	}
+};
+
+static struct regulator_init_data gpo3_init = {
+	.constraints = {
+		.name = "GPO3",
+	}
+};
+
+static struct regulator_init_data gpo4_init = {
+	.constraints = {
+		.name = "GPO4",
+	}
+};
+
 static int mc13892_regulator_init(struct mc13892 *mc13892)
 {
+	printk("Initializing regulators for Babbage.\n");
 	if (mxc_cpu_is_rev(CHIP_REV_2_0) < 0)
 		sw2_init.constraints.state_mem.uV = 1100000;
 
@@ -240,6 +265,10 @@ static int mc13892_regulator_init(struct mc13892 *mc13892)
 	mc13892_register_regulator(mc13892, MC13892_VGEN2, &vgen2_init);
 	mc13892_register_regulator(mc13892, MC13892_VGEN3, &vgen3_init);
 	mc13892_register_regulator(mc13892, MC13892_VUSB, &vusb_init);
+	mc13892_register_regulator(mc13892, MC13892_GPO1, &gpo1_init);
+	mc13892_register_regulator(mc13892, MC13892_GPO2, &gpo2_init);
+	mc13892_register_regulator(mc13892, MC13892_GPO3, &gpo3_init);
+	mc13892_register_regulator(mc13892, MC13892_GPO4, &gpo4_init);
 
 	return 0;
 }
