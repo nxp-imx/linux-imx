@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2008 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2004-2009 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -758,8 +758,8 @@ static struct platform_driver mxci2c_driver = {
 		   },
 	.probe = mxci2c_probe,
 	.remove = mxci2c_remove,
-	.suspend = mxci2c_suspend,
-	.resume = mxci2c_resume,
+	.suspend_late = mxci2c_suspend,
+	.resume_early = mxci2c_resume,
 };
 
 /*!

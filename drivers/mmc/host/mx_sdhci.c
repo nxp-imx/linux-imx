@@ -1582,7 +1582,6 @@ static int sdhci_resume(struct platform_device *pdev)
 {
 	struct sdhci_chip *chip;
 	int i, ret;
-	unsigned int cd_status = 0;
 
 	chip = dev_get_drvdata(&pdev->dev);
 	if (!chip)
@@ -1603,14 +1602,6 @@ static int sdhci_resume(struct platform_device *pdev)
 			return ret;
 		sdhci_init(chip->hosts[i]);
 		mmiowb();
-
-		cd_status = chip->hosts[i]->plat_data->status(chip->hosts[i]->
-							      mmc->parent);
-		if (cd_status)
-			chip->hosts[i]->flags &= ~SDHCI_CD_PRESENT;
-		else
-			chip->hosts[i]->flags |= SDHCI_CD_PRESENT;
-
 		ret = mmc_resume_host(chip->hosts[i]->mmc);
 		if (ret)
 			return ret;
