@@ -966,6 +966,12 @@ void gpio_ata_active(void)
 {
 	unsigned int ata_ctl_pad_cfg, ata_dat_pad_cfg;
 
+	/* HDD_ENBALE */
+	pmic_gpio_set_bit_val(MCU_GPIO_REG_GPIO_CONTROL_1, 3, 0);
+	/* Power On the HDD */
+	pmic_gpio_set_bit_val(MCU_GPIO_REG_GPIO_CONTROL_1, 4, 1);
+	msleep(300);
+
 	/*IOMUX Settings */
 	/*PATA_DIOR */
 	mxc_request_iomux(MX35_PIN_ATA_DIOR, MUX_CONFIG_FUNC);
@@ -1072,12 +1078,6 @@ void gpio_ata_active(void)
 	mxc_iomux_set_pad(MX35_PIN_ATA_DA1, ata_ctl_pad_cfg);
 	mxc_iomux_set_pad(MX35_PIN_ATA_DA2, ata_ctl_pad_cfg);
 	mxc_iomux_set_pad(MX35_PIN_ATA_BUFF_EN, ata_ctl_pad_cfg);
-
-	/* HDD_ENBALE */
-	pmic_gpio_set_bit_val(MCU_GPIO_REG_GPIO_CONTROL_1, 3, 0);
-	/* Power On the HDD */
-	pmic_gpio_set_bit_val(MCU_GPIO_REG_GPIO_CONTROL_1, 4, 1);
-	msleep(300);
 }
 
 EXPORT_SYMBOL(gpio_ata_active);

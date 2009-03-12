@@ -959,6 +959,8 @@ static int pata_fsl_suspend(struct platform_device *pdev, pm_message_t state)
 	    pdev->dev.platform_data;
 	u8 *ata_regs = priv->fsl_ata_regs;
 
+	ata_host_suspend(host, state);
+
 	/* Disable interrupts. */
 	__raw_writel(0, ata_regs + FSL_ATA_INT_EN);
 
@@ -1000,6 +1002,8 @@ static int pata_fsl_resume(struct platform_device *pdev)
 	else
 		__raw_writel(FSL_ATA_INTR_ATA_INTRQ2,
 			     ata_regs + FSL_ATA_INT_EN);
+
+	ata_host_resume(host);
 
 	return 0;
 }
