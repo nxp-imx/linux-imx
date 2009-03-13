@@ -835,6 +835,37 @@ static inline void mxc_init_rnga(void)
 }
 #endif
 
+#if defined(CONFIG_MXC_IIM) || defined(CONFIG_MXC_IIM_MODULE)
+static struct resource mxc_iim_resources[] = {
+	{
+	 .start = IIM_BASE_ADDR,
+	 .end = IIM_BASE_ADDR + SZ_4K - 1,
+	 .flags = IORESOURCE_MEM,
+	 },
+};
+
+static struct platform_device mxc_iim_device = {
+	.name = "mxc_iim",
+	.id = 0,
+	.dev = {
+		.release = mxc_nop_release,
+		},
+	.num_resources = ARRAY_SIZE(mxc_iim_resources),
+	.resource = mxc_iim_resources
+};
+
+static inline void mxc_init_iim(void)
+{
+	if (platform_device_register(&mxc_iim_device) < 0)
+		dev_err(&mxc_iim_device.dev,
+			"Unable to register mxc iim device\n");
+}
+#else
+static inline void mxc_init_iim(void)
+{
+}
+#endif
+
 int __init mxc_init_devices(void)
 {
 	mxc_init_wdt();
@@ -853,6 +884,7 @@ int __init mxc_init_devices(void)
 	mxc_init_dptc();
 	mxc_init_vpu();
 	mxc_init_rnga();
+	mxc_init_iim();
 
 	/* SPBA configuration for SSI2 - SDMA and MCU are set */
 	spba_take_ownership(SPBA_SSI2, SPBA_MASTER_C | SPBA_MASTER_A);
