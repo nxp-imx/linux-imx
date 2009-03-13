@@ -423,6 +423,12 @@ config FM_SI4702
 	depends on (MACH_MX31_3DS || MACH_MX35_3DS || MACH_MX37_3DS || MACH_MX51_3DS)
 	default n
 
+config MXC_IIM
+	tristate "MXC IIM device driver"
+	depends on ARCH_MXC
+	help
+	  Support for access to MXC IIM device, most people should say N here.
+
 source "drivers/serial/Kconfig"
 
 config UNIX98_PTYS
