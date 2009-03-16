@@ -19,7 +19,7 @@
  * Copyright (c) 2004-2006 Macq Electronique SA.
  */
 /*
- * Copyright 2006-2009 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2006-2008 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 #include <linux/module.h>
@@ -2617,8 +2617,6 @@ fec_enet_open(struct net_device *dev)
 	fep->sequence_done = 0;
 	fep->link = 0;
 
-	/* no phy,  go full duplex,  it's most likely a hub chip */
-	fec_restart(dev, 1);
 	if (fep->phy) {
 		mii_do_cmd(dev, fep->phy->ack_int);
 		mii_do_cmd(dev, fep->phy->config);
@@ -2636,14 +2634,18 @@ fec_enet_open(struct net_device *dev)
 
 		mii_do_cmd(dev, fep->phy->startup);
 
+		/* Set the initial link state to true. A lot of hardware
+		 * based on this device does not implement a PHY interrupt,
+		 * so we are never notified of link change.
+		 */
+		fep->link = 1;
+	} else {
+		fep->link = 1; /* lets just try it and see */
+		/* no phy,  go full duplex,  it's most likely a hub chip */
+		fec_restart(dev, 1);
 	}
-	/* Set the initial link state to true. A lot of hardware
-	 * based on this device does not implement a PHY interrupt,
-	 * so we are never notified of link change.
-	 */
-	fep->link = 1;
+
 	fep->opened = 1;
-	netif_start_queue(dev);
 	return 0;		/* Success */
 }
 
@@ -3052,8 +3054,7 @@ fec_restart(struct net_device *dev, int duplex)
 	fecp->fec_ecntrl = 2;
 	fecp->fec_r_des_active = 0x01000000;
 
-	if (fep->link)
-		netif_start_queue(dev);
+	netif_start_queue(dev);
 }
 
 static void
