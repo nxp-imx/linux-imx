@@ -19,7 +19,7 @@
  * Copyright (c) 2004-2006 Macq Electronique SA.
  */
 /*
- * Copyright 2006-2008 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2006-2009 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 #include <linux/module.h>
@@ -270,7 +270,7 @@ static void __inline__ fec_dcache_flush_range(void * start, void * end);
  *     And the max size of tcp & ip header is 128bytes. Normally it is 40bytes.
  *     So I set the default value between 128 to 256.
  */
-static int fec_copy_threshold = 192;
+static int fec_copy_threshold = -1;
 
 /* MII processing.  We keep this as simple as possible.  Requests are
  * placed on the list (if there is room).  When the request is finished
@@ -673,7 +673,6 @@ while (!((status = bdp->cbd_sc) & BD_ENET_RX_EMPTY)) {
 	pkt_len = bdp->cbd_datlen;
 	dev->stats.rx_bytes += pkt_len;
 	data = (__u8*)__va(bdp->cbd_bufaddr);
-	fec_dcache_inv_range(data, data+pkt_len -4);
 
 	/* This does 16 byte alignment, exactly what we need.
 	 * The packet length includes FCS, but we don't want to
@@ -693,10 +692,12 @@ while (!((status = bdp->cbd_sc) & BD_ENET_RX_EMPTY)) {
 		if ((pkt_len - 4) < fec_copy_threshold) {
 			skb_reserve(skb, 2);    /*skip 2bytes, so ipheader is align 4bytes*/
 			skb_put(skb,pkt_len-4); /* Make room */
-		skb_copy_to_linear_data(skb, data, pkt_len-4);
+			skb_copy_to_linear_data(skb, data, pkt_len-4);
 		} else {
 			struct sk_buff * pskb = fep->rx_skbuff[rx_index];
 
+			fec_dcache_inv_range(skb->data, skb->data +
+					     FEC_ENET_RX_FRSIZE);
 			fep->rx_skbuff[rx_index] = skb;
 			skb->data = FEC_ADDR_ALIGNMENT(skb->data);
 			bdp->cbd_bufaddr = __pa(skb->data);
@@ -2209,7 +2210,9 @@ static void __inline__ fec_localhw_setup(struct net_device *dev)
  */
 static void __inline__ fec_dcache_inv_range(void * start, void * end)
 {
-	dmac_inv_range(start, end);
+	dma_sync_single_for_device(NULL, (unsigned long)__pa(start),
+				   (unsigned long)(end - start),
+				   DMA_FROM_DEVICE);
 	return ;
 }
 
@@ -2218,7 +2221,8 @@ static void __inline__ fec_dcache_inv_range(void * start, void * end)
  */
 static void __inline__ fec_dcache_flush_range(void * start, void * end)
 {
-	dmac_flush_range(start, end);
+	dma_sync_single_for_device(NULL, (unsigned long)__pa(start),
+				   (unsigned long)(end - start), DMA_TO_DEVICE);
 	return ;
 }
 
@@ -2850,6 +2854,8 @@ int __init fec_enet_init(struct net_device *dev)
 			return -ENOMEM;
 		}
 		fep->rx_skbuff[i] = pskb;
+		fec_dcache_inv_range(pskb->data, pskb->data +
+				     FEC_ENET_RX_FRSIZE);
 		pskb->data = FEC_ADDR_ALIGNMENT(pskb->data);
 		bdp->cbd_sc = BD_ENET_RX_EMPTY;
 		bdp->cbd_bufaddr = __pa(pskb->data);
