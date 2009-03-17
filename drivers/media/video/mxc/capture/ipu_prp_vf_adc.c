@@ -75,7 +75,7 @@ static int prpvf_start(void *private)
 
 	vf.csi_prp_vf_adc.out_top = cam->win.w.top;
 
-	if (cam->rotation >= IPU_ROTATE_90_RIGHT) {
+	if (cam->vf_rotation >= IPU_ROTATE_90_RIGHT) {
 		vf.csi_prp_vf_adc.out_width = cam->win.w.height;
 		vf.csi_prp_vf_adc.out_height = cam->win.w.width;
 
@@ -193,7 +193,7 @@ static int prpvf_start(void *private)
 					      vf.csi_prp_vf_mem.out_width,
 					      vf.csi_prp_vf_mem.out_height,
 					      vf.csi_prp_vf_mem.out_width,
-					      cam->rotation, cam->vf_bufs[0],
+					      cam->vf_rotation, cam->vf_bufs[0],
 					      cam->vf_bufs[1], 0, 0);
 		if (err != 0) {
 			printk(KERN_ERR "prpvf_start: Error "
@@ -273,7 +273,7 @@ static int prpvf_start(void *private)
 		ipu_select_buffer(MEM_ROT_VF_MEM, IPU_OUTPUT_BUFFER, 1);
 	}
 #ifndef CONFIG_MXC_IPU_PRP_VF_SDC
-	else if (cam->rotation == IPU_ROTATE_NONE) {
+	else if (cam->vf_rotation == IPU_ROTATE_NONE) {
 		vf.csi_prp_vf_adc.out_pixel_fmt = IPU_PIX_FMT_BGR32;
 		err = ipu_init_channel(CSI_PRP_VF_ADC, &vf);
 		if (err != 0) {
@@ -352,7 +352,7 @@ static int prpvf_start(void *private)
 					      vf.csi_prp_vf_mem.out_width,
 					      vf.csi_prp_vf_mem.out_height,
 					      vf.csi_prp_vf_mem.out_width,
-					      cam->rotation,
+					      cam->vf_rotation,
 					      cam->vf_bufs[0], cam->vf_bufs[1],
 					      0, 0);
 		if (err != 0) {
@@ -415,7 +415,7 @@ static int prpvf_start(void *private)
       out_1:
 	ipu_uninit_channel(ADC_SYS2);
       out_2:
-	if (cam->rotation >= IPU_ROTATE_90_RIGHT) {
+	if (cam->vf_rotation >= IPU_ROTATE_90_RIGHT) {
 		ipu_uninit_channel(MEM_ROT_VF_MEM);
 	}
       out_3:
@@ -463,7 +463,7 @@ static int prpvf_stop(void *private)
 	if (cam->overlay_active == false)
 		return 0;
 
-	if (cam->rotation >= IPU_ROTATE_90_RIGHT) {
+	if (cam->vf_rotation >= IPU_ROTATE_90_RIGHT) {
 		ipu_unlink_channels(CSI_PRP_VF_MEM, MEM_ROT_VF_MEM);
 		ipu_unlink_channels(MEM_ROT_VF_MEM, ADC_SYS2);
 
@@ -478,7 +478,7 @@ static int prpvf_stop(void *private)
 		ipu_csi_enable_mclk_if(CSI_MCLK_VF, cam->csi, false, false);
 	}
 #ifndef CONFIG_MXC_IPU_PRP_VF_SDC
-	else if (cam->rotation == IPU_ROTATE_NONE) {
+	else if (cam->vf_rotation == IPU_ROTATE_NONE) {
 		ipu_disable_channel(CSI_PRP_VF_ADC, false);
 		ipu_uninit_channel(CSI_PRP_VF_ADC);
 		ipu_csi_enable_mclk_if(CSI_MCLK_VF, cam->csi, false, false);

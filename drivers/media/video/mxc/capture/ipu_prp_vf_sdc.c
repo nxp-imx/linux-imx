@@ -59,7 +59,7 @@ static int prpvf_start(void *private)
 	vf.csi_prp_vf_mem.out_width = cam->win.w.width;
 	vf.csi_prp_vf_mem.out_height = cam->win.w.height;
 	vf.csi_prp_vf_mem.csi = cam->csi;
-	if (cam->rotation >= IPU_ROTATE_90_RIGHT) {
+	if (cam->vf_rotation >= IPU_ROTATE_90_RIGHT) {
 		vf.csi_prp_vf_mem.out_width = cam->win.w.height;
 		vf.csi_prp_vf_mem.out_height = cam->win.w.width;
 	}
@@ -108,7 +108,7 @@ static int prpvf_start(void *private)
 	}
 	pr_debug("vf_bufs %x %x\n", cam->vf_bufs[0], cam->vf_bufs[1]);
 
-	if (cam->rotation >= IPU_ROTATE_90_RIGHT) {
+	if (cam->vf_rotation >= IPU_ROTATE_90_RIGHT) {
 		err = ipu_init_channel_buffer(CSI_PRP_VF_MEM, IPU_OUTPUT_BUFFER,
 					      format,
 					      vf.csi_prp_vf_mem.out_width,
@@ -178,7 +178,7 @@ static int prpvf_start(void *private)
 					      vf.csi_prp_vf_mem.out_width,
 					      vf.csi_prp_vf_mem.out_height,
 					      vf.csi_prp_vf_mem.out_width,
-					      cam->rotation, cam->vf_bufs[0],
+					      cam->vf_rotation, cam->vf_bufs[0],
 					      cam->vf_bufs[1], 0, 0);
 		if (err != 0) {
 			printk(KERN_ERR "Error MEM_ROT_VF_MEM input buffer\n");
@@ -247,7 +247,7 @@ static int prpvf_start(void *private)
 		err = ipu_init_channel_buffer(CSI_PRP_VF_MEM, IPU_OUTPUT_BUFFER,
 					      format, cam->win.w.width,
 					      cam->win.w.height,
-					      cam->win.w.width, cam->rotation,
+					      cam->win.w.width, cam->vf_rotation,
 					      cam->vf_bufs[0], cam->vf_bufs[1],
 					      0, 0);
 		if (err != 0) {
@@ -294,7 +294,7 @@ static int prpvf_start(void *private)
       out_1:
 	ipu_uninit_channel(MEM_FG_SYNC);
       out_2:
-	if (cam->rotation >= IPU_ROTATE_90_RIGHT) {
+	if (cam->vf_rotation >= IPU_ROTATE_90_RIGHT) {
 		ipu_uninit_channel(MEM_ROT_VF_MEM);
 	}
       out_3:
@@ -347,7 +347,7 @@ static int prpvf_stop(void *private)
 
 	ipu_disp_set_window_pos(MEM_FG_SYNC, 0, 0);
 
-	if (cam->rotation >= IPU_ROTATE_90_RIGHT) {
+	if (cam->vf_rotation >= IPU_ROTATE_90_RIGHT) {
 		ipu_unlink_channels(CSI_PRP_VF_MEM, MEM_ROT_VF_MEM);
 		ipu_unlink_channels(MEM_ROT_VF_MEM, MEM_FG_SYNC);
 	} else {
@@ -357,7 +357,7 @@ static int prpvf_stop(void *private)
 	ipu_disable_channel(MEM_FG_SYNC, true);
 	ipu_disable_channel(CSI_PRP_VF_MEM, true);
 
-	if (cam->rotation >= IPU_ROTATE_90_RIGHT) {
+	if (cam->vf_rotation >= IPU_ROTATE_90_RIGHT) {
 		ipu_disable_channel(MEM_ROT_VF_MEM, true);
 		ipu_uninit_channel(MEM_ROT_VF_MEM);
 	}

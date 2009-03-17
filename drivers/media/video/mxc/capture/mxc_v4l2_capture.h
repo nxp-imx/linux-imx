@@ -139,7 +139,8 @@ typedef struct _cam_data {
 
 	/* v4l2 format */
 	struct v4l2_format v2f;
-	int rotation;
+	int rotation;	/* for IPUv1 and IPUv3, this means encoder rotation */
+	int vf_rotation; /* viewfinder rotation only for IPUv1 and IPUv3 */
 	struct v4l2_mxc_offset offset;
 
 	/* V4l2 control bit */

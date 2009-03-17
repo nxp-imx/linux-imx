@@ -841,6 +841,7 @@ static int mxc_v4l2_g_ctrl(cam_data *cam, struct v4l2_control *c)
 static int mxc_v4l2_s_ctrl(cam_data *cam, struct v4l2_control *c)
 {
 	int ret = 0;
+	int tmp_rotation = IPU_ROTATE_NONE;
 
 	pr_debug("In MVC:mxc_v4l2_s_ctrl\n");
 
@@ -876,35 +877,42 @@ static int mxc_v4l2_s_ctrl(cam_data *cam, struct v4l2_control *c)
 		}
 		break;
 	case V4L2_CID_MXC_ROT:
+	case V4L2_CID_MXC_VF_ROT:
 		/* This is done by the IPU */
 		switch (c->value) {
 		case V4L2_MXC_ROTATE_NONE:
-			cam->rotation = IPU_ROTATE_NONE;
+			tmp_rotation = IPU_ROTATE_NONE;
 			break;
 		case V4L2_MXC_ROTATE_VERT_FLIP:
-			cam->rotation = IPU_ROTATE_VERT_FLIP;
+			tmp_rotation = IPU_ROTATE_VERT_FLIP;
 			break;
 		case V4L2_MXC_ROTATE_HORIZ_FLIP:
-			cam->rotation = IPU_ROTATE_HORIZ_FLIP;
+			tmp_rotation = IPU_ROTATE_HORIZ_FLIP;
 			break;
 		case V4L2_MXC_ROTATE_180:
-			cam->rotation = IPU_ROTATE_180;
+			tmp_rotation = IPU_ROTATE_180;
 			break;
 		case V4L2_MXC_ROTATE_90_RIGHT:
-			cam->rotation = IPU_ROTATE_90_RIGHT;
+			tmp_rotation = IPU_ROTATE_90_RIGHT;
 			break;
 		case V4L2_MXC_ROTATE_90_RIGHT_VFLIP:
-			cam->rotation = IPU_ROTATE_90_RIGHT_VFLIP;
+			tmp_rotation = IPU_ROTATE_90_RIGHT_VFLIP;
 			break;
 		case V4L2_MXC_ROTATE_90_RIGHT_HFLIP:
-			cam->rotation = IPU_ROTATE_90_RIGHT_HFLIP;
+			tmp_rotation = IPU_ROTATE_90_RIGHT_HFLIP;
 			break;
 		case V4L2_MXC_ROTATE_90_LEFT:
-			cam->rotation = IPU_ROTATE_90_LEFT;
+			tmp_rotation = IPU_ROTATE_90_LEFT;
 			break;
 		default:
 			ret = -EINVAL;
 		}
+
+		if (c->id == V4L2_CID_MXC_VF_ROT)
+			cam->vf_rotation = tmp_rotation;
+		else
+			cam->rotation = tmp_rotation;
+
 		break;
 	case V4L2_CID_HUE:
 		cam->hue = c->value;

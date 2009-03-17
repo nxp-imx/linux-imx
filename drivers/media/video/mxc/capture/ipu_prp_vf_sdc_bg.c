@@ -128,7 +128,7 @@ static int prpvf_start(void *private)
 	vf.csi_prp_vf_mem.out_width = cam->win.w.width;
 	vf.csi_prp_vf_mem.out_height = cam->win.w.height;
 	vf.csi_prp_vf_mem.csi = cam->csi;
-	if (cam->rotation >= IPU_ROTATE_90_RIGHT) {
+	if (cam->vf_rotation >= IPU_ROTATE_90_RIGHT) {
 		vf.csi_prp_vf_mem.out_width = cam->win.w.height;
 		vf.csi_prp_vf_mem.out_height = cam->win.w.width;
 	}
@@ -192,14 +192,14 @@ static int prpvf_start(void *private)
 				      format, vf.csi_prp_vf_mem.out_width,
 				      vf.csi_prp_vf_mem.out_height,
 				      vf.csi_prp_vf_mem.out_width,
-				      cam->rotation, cam->vf_bufs[0],
+				      cam->vf_rotation, cam->vf_bufs[0],
 				      cam->vf_bufs[1], 0, 0);
 	if (err != 0) {
 		printk(KERN_ERR "Error MEM_ROT_VF_MEM input buffer\n");
 		goto out_2;
 	}
 
-	if (cam->rotation >= IPU_ROTATE_90_RIGHT) {
+	if (cam->vf_rotation >= IPU_ROTATE_90_RIGHT) {
 		err = ipu_init_channel_buffer(MEM_ROT_VF_MEM, IPU_OUTPUT_BUFFER,
 					      format,
 					      vf.csi_prp_vf_mem.out_height,
