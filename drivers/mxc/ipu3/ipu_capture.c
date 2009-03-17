@@ -30,8 +30,6 @@
 #include "ipu_prv.h"
 #include "ipu_regs.h"
 
-static bool gipu_csi_get_mclk_flag[2] = {false, false};
-
 /*!
  * ipu_csi_init_interface
  *	Sets initial values for the CSI registers.
@@ -174,24 +172,11 @@ int _ipu_csi_mclk_set(uint32_t pixel_clk, uint32_t csi)
 int ipu_csi_enable_mclk(int csi, bool flag, bool wait)
 {
 	if (flag) {
-		if (gipu_csi_get_mclk_flag[csi] == true) {
-			printk(KERN_WARNING "The clock of CSI%d has been enabled\n", csi);
-			return 0;
-		}
-
 		clk_enable(g_csi_clk[csi]);
 		if (wait == true)
 			msleep(10);
-		gipu_csi_get_mclk_flag[csi] = true;
-	} else {
-		if (gipu_csi_get_mclk_flag[csi] == false) {
-			printk(KERN_WARNING "The clock of CSI%d has been disabled\n", csi);
-			return 0;
-		}
-
+	} else
 		clk_disable(g_csi_clk[csi]);
-		gipu_csi_get_mclk_flag[csi] = false;
-	}
 
 	return 0;
 }
