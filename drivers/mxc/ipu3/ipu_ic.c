@@ -601,14 +601,21 @@ static bool _calc_resize_coeffs(uint32_t inSize, uint32_t outSize,
 	uint32_t tempSize;
 	uint32_t tempDownsize;
 
+	/* Input size cannot be more than 4096 */
+	/* Output size cannot be more than 1024 */
+	if ((inSize > 4096) || (outSize > 1024))
+		return false;
+
 	/* Cannot downsize more than 8:1 */
 	if ((outSize << 3) < inSize)
 		return false;
 
-	/* compute downsizing coefficient */
+	/* Compute downsizing coefficient */
+	/* Output of downsizing unit cannot be more than 1024 */
 	tempDownsize = 0;
 	tempSize = inSize;
-	while ((tempSize >= outSize * 2) && (tempDownsize < 2)) {
+	while (((tempSize > 1024) || (tempSize >= outSize * 2)) &&
+	       (tempDownsize < 2)) {
 		tempSize >>= 1;
 		tempDownsize++;
 	}
