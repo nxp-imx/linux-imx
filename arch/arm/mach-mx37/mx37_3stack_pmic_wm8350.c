@@ -317,7 +317,8 @@ static __init int wm8350_regulator_init(void)
 	/* for board v2.0 later, do nothing here */
 	if (board_is_mx37(BOARD_REV_2))
 		return 0;
-	while (!IS_ERR_VALUE(
+	while ((i < ARRAY_SIZE(wm8350_global_regulator)) &&
+		!IS_ERR_VALUE(
 			(unsigned long)(regulator =
 					regulator_get(NULL,
 						wm8350_global_regulator
