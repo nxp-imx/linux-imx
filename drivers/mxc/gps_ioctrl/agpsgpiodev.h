@@ -1,5 +1,5 @@
 /*
- * Copyright 2008 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2008-2009 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -39,7 +39,7 @@
 #define AGPSGPIO_DEVICE_FILE_NAME "agpsgpio"
 
 /* Exported prototypes */
-int init_chrdev(void);
+int init_chrdev(struct device *dev);
 void cleanup_chrdev(void);
 void wakeup(void);
 

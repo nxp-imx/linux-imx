@@ -26,6 +26,7 @@
 #include <linux/regulator/consumer.h>
 #include <linux/delay.h>
 #include <linux/platform_device.h>
+#include <linux/cdev.h>
 #include "agpsgpiodev.h"
 
 extern void gpio_gps_active(void);
@@ -34,6 +35,10 @@ extern int gpio_gps_access(int para);
 
 struct mxc_gps_platform_data *mxc_gps_ioctrl_data;
 static int Device_Open;		/* Only allow a single user of this device */
+static struct cdev mxc_gps_cdev;
+static dev_t agps_gpio_dev;
+static struct class *gps_class;
+static struct device *gps_class_dev;
 
 /* Write GPIO from user space */
 static int ioctl_writegpio(int arg)
@@ -144,35 +149,63 @@ struct file_operations Fops = {
 };
 
 /* Initialize the module - Register the character device */
-int init_chrdev(void)
+int init_chrdev(struct device *dev)
 {
-	/* NOTE : THIS IS THE OLD-SCHOOL WAY TO REGISTER A CHAR DEVICE.
-	   THE RECOMMENDED APPROACH IS TO USE cdev_alloc, cdev_init, cdev_add,
-	   cdev_del. REFER TO CHAPTER 3 IN THE DEVICE DRIVER BOOK! */
+	int ret, gps_major;
 
-	/* Register the character device (at least try) */
-	int ret_val =
-	    register_chrdev(MAJOR_NUM, AGPSGPIO_DEVICE_FILE_NAME, &Fops);
+	ret = alloc_chrdev_region(&agps_gpio_dev, 1, 1,	"agps_gpio");
+	gps_major = MAJOR(agps_gpio_dev);
+	if (ret < 0) {
+		dev_err(dev, "can't get major %d\n", gps_major);
+		goto err3;
+	}
 
-	/* Negative values signify an error */
-	if (ret_val < 0) {
-		printk(KERN_ERR
-		       "init_chrdev() - Failed to register"
-		       "char device (error %d)\n", ret_val);
-		return ret_val;
+	cdev_init(&mxc_gps_cdev, &Fops);
+	mxc_gps_cdev.owner = THIS_MODULE;
+
+	ret = cdev_add(&mxc_gps_cdev, agps_gpio_dev, 1);
+	if (ret) {
+		dev_err(dev, "can't add cdev\n");
+		goto err2;
+	}
+
+	/* create class and device for udev information */
+	gps_class = class_create(THIS_MODULE, "gps");
+	if (IS_ERR(gps_class)) {
+		dev_err(dev, "failed to create gps class\n");
+		ret = -ENOMEM;
+		goto err1;
+	}
+
+	gps_class_dev = device_create(gps_class, NULL, MKDEV(gps_major, 1), NULL,
+					AGPSGPIO_DEVICE_FILE_NAME);
+	if (IS_ERR(gps_class_dev)) {
+		dev_err(dev, "failed to create gps gpio class device\n");
+		ret = -ENOMEM;
+		goto err0;
 	}
 
 	return 0;
+err0:
+	class_destroy(gps_class);
+err1:
+	cdev_del(&mxc_gps_cdev);
+err2:
+	unregister_chrdev_region(agps_gpio_dev, 1);
+err3:
+	return ret;
 }
 
 /* Cleanup - unregister the appropriate file from /proc. */
 void cleanup_chrdev(void)
 {
-	/* Unregister the device
-	   int ret = unregister_chrdev(MAJOR_NUM, AGPSGPIO_DEVICE_FILE_NAME);
-	   change for 2.6.24 since its declarationis as below:
-	   extern void unregister_chrdev(unsigned int, const char *); */
-	unregister_chrdev(MAJOR_NUM, AGPSGPIO_DEVICE_FILE_NAME);
+	/* destroy gps device class */
+	device_destroy(gps_class, MKDEV(MAJOR(agps_gpio_dev), 1));
+	class_destroy(gps_class);
+
+	/* Unregister the device */
+	cdev_del(&mxc_gps_cdev);
+	unregister_chrdev_region(agps_gpio_dev, 1);
 }
 
 /*!
@@ -216,7 +249,7 @@ static int __init gps_ioctrl_probe(struct platform_device *pdev)
 	gpio_gps_active();
 
 	/* Register character device */
-	init_chrdev();
+	init_chrdev(&(pdev->dev));
 	return 0;
 }
 
