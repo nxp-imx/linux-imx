@@ -248,12 +248,13 @@ static int pmic_adc_suspend(struct platform_device *pdev, pm_message_t state)
 static int pmic_adc_resume(struct platform_device *pdev)
 {
 	/* nothing for mc13892 adc */
-	unsigned int adc_0_reg, adc_1_reg;
+	unsigned int adc_0_reg, adc_1_reg, reg_mask;
 	suspend_flag = 0;
 
 	/* let interrupt of TSI again */
 	adc_0_reg = ADC_WAIT_TSI_0;
-	CHECK_ERROR(pmic_write_reg(REG_ADC0, adc_0_reg, PMIC_ALL_BITS));
+	reg_mask = ADC_WAIT_TSI_0;
+	CHECK_ERROR(pmic_write_reg(REG_ADC0, adc_0_reg, reg_mask));
 	adc_1_reg = ADC_WAIT_TSI_1 | (ADC_BIS * adc_ts);
 	CHECK_ERROR(pmic_write_reg(REG_ADC1, adc_1_reg, PMIC_ALL_BITS));
 
