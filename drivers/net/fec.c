@@ -2650,6 +2650,7 @@ fec_enet_open(struct net_device *dev)
 	}
 
 	fep->opened = 1;
+	netif_start_queue(dev);
 	return 0;		/* Success */
 }
 
@@ -3059,8 +3060,6 @@ fec_restart(struct net_device *dev, int duplex)
 	*/
 	fecp->fec_ecntrl = 2;
 	fecp->fec_r_des_active = 0x01000000;
-
-	netif_start_queue(dev);
 }
 
 static void
