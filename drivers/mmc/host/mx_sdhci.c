@@ -654,7 +654,7 @@ static void sdhci_send_command(struct sdhci_host *host, struct mmc_command *cmd)
 	WARN_ON(host->cmd);
 
 	/* Wait max 10 ms */
-	timeout = 10;
+	timeout = 5000;
 
 	mask = SDHCI_CMD_INHIBIT;
 	if ((cmd->data != NULL) || (cmd->flags & MMC_RSP_BUSY))
@@ -675,7 +675,7 @@ static void sdhci_send_command(struct sdhci_host *host, struct mmc_command *cmd)
 			return;
 		}
 		timeout--;
-		mdelay(1);
+		udelay(20);
 	}
 
 	mod_timer(&host->timer, jiffies + 10 * HZ);
@@ -827,10 +827,10 @@ static void sdhci_set_clock(struct sdhci_host *host, unsigned int clock)
 		       host->ioaddr + SDHCI_CLOCK_CONTROL);
 
 	/* Wait max 10 ms */
-	timeout = 10;
+	timeout = 5000;
 	while (timeout > 0) {
 		timeout--;
-		mdelay(1);
+		udelay(20);
 	}
 
       out:
@@ -1712,8 +1712,8 @@ static int __devinit sdhci_probe_slot(struct platform_device
 	else
 		host->flags |= SDHCI_CD_PRESENT;
 
-	DBG("slot %d at 0x%x, irq %d\n", slot, host->res->start, host->irq);
       no_detect_irq:
+	DBG("slot %d at 0x%x, irq %d \n", slot, host->res->start, host->irq);
 	if (!request_mem_region(host->res->start,
 				host->res->end -
 				host->res->start + 1, pdev->name)) {
