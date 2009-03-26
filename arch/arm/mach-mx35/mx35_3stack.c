@@ -303,12 +303,9 @@ static inline void mxc_init_mlb(void)
 }
 #endif
 
-#if defined(CONFIG_SDIO_UNIFI_FS) || defined(CONFIG_SDIO_UNIFI_FS_MODULE)
-static void mxc_unifi_hardreset(void)
+static void mxc_unifi_hardreset(int pin_level)
 {
-	pmic_gpio_set_bit_val(MCU_GPIO_REG_RESET_1, 1, 0);
-	msleep(100);
-	pmic_gpio_set_bit_val(MCU_GPIO_REG_RESET_1, 1, 1);
+	pmic_gpio_set_bit_val(MCU_GPIO_REG_RESET_1, 1, pin_level & 0x01);
 }
 
 static void mxc_unifi_enable(int en)
@@ -335,12 +332,6 @@ struct mxc_unifi_platform_data *get_unifi_plat_data(void)
 {
 	return &unifi_data;
 }
-#else
-struct mxc_unifi_platform_data *get_unifi_plat_data(void)
-{
-	return NULL;
-}
-#endif
 
 EXPORT_SYMBOL(get_unifi_plat_data);
 

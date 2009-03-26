@@ -129,8 +129,6 @@ void mxc_mmc_force_detect(int id)
 	if (!mxc_fix_chips[id])
 		return;
 	host = mxc_fix_chips[id]->hosts[0];
-	if (host->flags & SDHCI_CD_PRESENT)
-		return;
 	if (host->detect_irq)
 		return;
 

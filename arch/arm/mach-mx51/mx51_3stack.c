@@ -952,12 +952,9 @@ static void mxc_init_bluetooth(void)
 	(void)platform_device_register(&mxc_bt_device);
 }
 
-#if defined(CONFIG_SDIO_UNIFI_FS) || defined(CONFIG_SDIO_UNIFI_FS_MODULE)
-static void mxc_unifi_hardreset(void)
+static void mxc_unifi_hardreset(int pin_level)
 {
-	mxc_set_gpio_dataout(MX51_PIN_EIM_D19, 0);
-	msleep(100);
-	mxc_set_gpio_dataout(MX51_PIN_EIM_D19, 1);
+	mxc_set_gpio_dataout(MX51_PIN_EIM_D19, pin_level & 0x01);
 }
 
 static struct mxc_unifi_platform_data unifi_data = {
@@ -971,12 +968,6 @@ struct mxc_unifi_platform_data *get_unifi_plat_data(void)
 {
 	return &unifi_data;
 }
-#else
-struct mxc_unifi_platform_data *get_unifi_plat_data(void)
-{
-	return NULL;
-}
-#endif
 
 EXPORT_SYMBOL(get_unifi_plat_data);
 

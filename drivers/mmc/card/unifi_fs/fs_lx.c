@@ -245,7 +245,7 @@ EXPORT_SYMBOL(fs_sdio_set_block_size);
  *
  * ---------------------------------------------------------------------------
  */
-static void fs_unifi_power_on(int check_card)
+static void fs_unifi_power_on(void)
 {
 	struct regulator_unifi *reg_unifi;
 	unsigned int tmp;
@@ -284,11 +284,6 @@ static void fs_unifi_power_on(int check_card)
 		regulator_enable(reg_unifi->reg_1v5_dd);
 	}
 	msleep(10);
-	if (check_card) {
-		do_sdio_hard_reset(NULL);
-		msleep(500);
-		mxc_mmc_force_detect(plat_data->host_id);
-	}
 }
 
 /*
@@ -298,7 +293,7 @@ static void fs_unifi_power_on(int check_card)
  *
  * ---------------------------------------------------------------------------
  */
-static void fs_unifi_power_off(int check_card)
+static void fs_unifi_power_off(void)
 {
 	struct regulator_unifi *reg_unifi;
 
@@ -319,10 +314,6 @@ static void fs_unifi_power_off(int check_card)
 
 	if (reg_unifi->reg_gpo1)
 		regulator_disable(reg_unifi->reg_gpo1);
-
-	if (check_card)
-		mxc_mmc_force_detect(plat_data->host_id);
-
 }
 
 /* This should be made conditional on being slot 2 too - so we can
@@ -333,12 +324,6 @@ int fs_sdio_hard_reset(struct sdio_dev *fdev)
 	return 0;
 }
 EXPORT_SYMBOL(fs_sdio_hard_reset);
-
-static int do_sdio_hard_reset(struct sdio_dev *fdev)
-{
-	plat_data->hardreset();
-	return 0;
-}
 
 static const struct sdio_device_id fs_sdio_ids[] = {
 	{SDIO_DEVICE(0x032a, 0x0001)},
@@ -358,11 +343,32 @@ static struct sdio_driver sdio_unifi_driver = {
 
 int fs_sdio_register_driver(struct fs_driver *driver)
 {
-	int ret;
+	int ret, retry;
 
 	/* Switch us on, sdio device may exist if power is on by default. */
-	fs_unifi_power_on(available_sdio_dev ? 0 : 1);
-
+	plat_data->hardreset(0);
+	mxc_mmc_force_detect(plat_data->host_id);
+	/* Wait for card removed */
+	for (retry = 0; retry < 100; retry++) {
+		if (!available_sdio_dev)
+			break;
+		msleep(100);
+	}
+	if (retry == 100)
+		printk(KERN_ERR "fs_sdio_register_driver: sdio device exists, "
+				"timeout for card removed");
+	fs_unifi_power_on();
+	plat_data->hardreset(1);
+	msleep(500);
+	mxc_mmc_force_detect(plat_data->host_id);
+	for (retry = 0; retry < 100; retry++) {
+		if (available_sdio_dev)
+			break;
+		msleep(50);
+	}
+	if (retry == 1000)
+		printk(KERN_ERR "fs_sdio_register_driver: Timeout waiting"
+				" for card added\n");
 	/* Store the context to the device driver to the global */
 	available_driver = driver;
 
@@ -392,6 +398,7 @@ EXPORT_SYMBOL(fs_sdio_register_driver);
 
 void fs_sdio_unregister_driver(struct fs_driver *driver)
 {
+	int retry;
 	/*
 	 * If available_sdio_dev is not NULL, probe has been called,
 	 * so pass the remove to the registered driver to clean up.
@@ -421,9 +428,8 @@ void fs_sdio_unregister_driver(struct fs_driver *driver)
 	/* invalidate the context to the device driver to the global */
 	available_driver = NULL;
 	/* Power down the UniFi */
-	fs_unifi_power_off(-1);
-	/* Wait for card removed */
-	msleep(100);
+	fs_unifi_power_off();
+
 }
 EXPORT_SYMBOL(fs_sdio_unregister_driver);
 
@@ -487,23 +493,6 @@ static int fs_sdio_probe(struct sdio_func *func,
 	/* Store our context in the MMC driver */
 	printk(KERN_INFO "fs_sdio_probe: Add glue driver\n");
 	sdio_set_drvdata(func, fdev);
-
-	/* TODO: If a device driver is registered, call it's probe here */
-	if (available_driver) {
-		/* Store the context to the device driver */
-		fdev->driver = available_driver;
-
-		printk(KERN_INFO "fs_sdio_probe: Add device driver and "
-		       "register IRQ\n");
-		available_driver->probe(fdev);
-
-		/* Register the IRQ handler to the SDIO IRQ. */
-		sdio_claim_host(fdev->func);
-		ret = sdio_claim_irq(func, fs_sdio_irq);
-		sdio_release_host(fdev->func);
-		if (ret)
-			return ret;
-	}
 
 	return 0;
 }

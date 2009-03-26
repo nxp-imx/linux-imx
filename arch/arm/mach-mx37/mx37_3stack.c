@@ -544,19 +544,21 @@ static void __init fixup_mxc_board(struct machine_desc *desc, struct tag *tags,
 #endif
 }
 
-#if defined(CONFIG_SDIO_UNIFI_FS) || defined(CONFIG_SDIO_UNIFI_FS_MODULE)
-static void mxc_unifi_hardreset(void)
+static void mxc_unifi_hardreset(int pin_level)
 {
 	struct regulator *gpo4;
 
 	if (board_is_mx37(BOARD_REV_2)) {
 		gpo4 = regulator_get(NULL, "GPO4");
 		if (!IS_ERR(gpo4))
-			regulator_enable(gpo4);
+			if (pin_level & 0x01)
+				regulator_enable(gpo4);
+			else
+				regulator_disable(gpo4);
 		regulator_put(gpo4);
 	} else {
 		mxc_request_iomux(MX37_PIN_AUD5_RXC, IOMUX_CONFIG_GPIO);
-		mxc_set_gpio_dataout(MX37_PIN_AUD5_RXC, 1);
+		mxc_set_gpio_dataout(MX37_PIN_AUD5_RXC, pin_level & 0x01);
 		mxc_set_gpio_direction(MX37_PIN_AUD5_RXC, 0);
 		mxc_free_iomux(MX37_PIN_AUD5_RXC, IOMUX_CONFIG_GPIO);
 	}
@@ -575,12 +577,6 @@ struct mxc_unifi_platform_data *get_unifi_plat_data(void)
 {
 	return &unifi_data;
 }
-#else
-struct mxc_unifi_platform_data *get_unifi_plat_data(void)
-{
-	return NULL;
-}
-#endif
 
 EXPORT_SYMBOL(get_unifi_plat_data);
 
@@ -629,7 +625,6 @@ static struct platform_device mxcsdhc1_device = {
 	.resource = mxcsdhc1_resources,
 };
 
-#if defined(CONFIG_SDIO_UNIFI_FS) || defined(CONFIG_SDIO_UNIFI_FS_MODULE)
 static struct mxc_mmc_platform_data mmc1_data = {
 	.ocr_mask = MMC_VDD_27_28 | MMC_VDD_28_29 | MMC_VDD_29_30 |
 	    MMC_VDD_31_32,
@@ -670,7 +665,6 @@ static struct platform_device mxcsdhc2_device = {
 	.num_resources = ARRAY_SIZE(mxcsdhc2_resources),
 	.resource = mxcsdhc2_resources,
 };
-#endif
 
 static inline void mxc_init_mmc(void)
 {
@@ -684,7 +678,6 @@ static inline void mxc_init_mmc(void)
 
 	spba_take_ownership(SPBA_SDHC1, SPBA_MASTER_A | SPBA_MASTER_C);
 	(void)platform_device_register(&mxcsdhc1_device);
-#if defined(CONFIG_SDIO_UNIFI_FS) || defined(CONFIG_SDIO_UNIFI_FS_MODULE)
 	cd_irq = sdhc_init_card_det(1);
 	if (cd_irq) {
 		mxcsdhc2_device.resource[2].start = cd_irq;
@@ -692,7 +685,6 @@ static inline void mxc_init_mmc(void)
 	}
 	spba_take_ownership(SPBA_SDHC2, SPBA_MASTER_A | SPBA_MASTER_C);
 	(void)platform_device_register(&mxcsdhc2_device);
-#endif
 }
 #else
 static inline void mxc_init_mmc(void)
@@ -869,11 +861,9 @@ static void mx37_3stack_fixup_for_board_v1(void)
 	mxc_bt_data.bt_vdd = "DCDC3";
 	mxc_bt_data.bt_vusb = "DCDC6";
 	mxc_init_touchscreen();
-#if defined(CONFIG_SDIO_UNIFI_FS) || defined(CONFIG_SDIO_UNIFI_FS_MODULE)
 	unifi_data.reg_1v5_ana_bb = NULL;	/* VMAIN is used on v1 board */
 	unifi_data.reg_vdd_vpa = NULL;
 	unifi_data.reg_1v5_dd = NULL;
-#endif
 #if defined(CONFIG_KEYBOARD_MPR084) || defined(CONFIG_KEYBOARD_MPR084_MODULE)
 	keypad_data.vdd_reg = "DCDC3";
 #endif

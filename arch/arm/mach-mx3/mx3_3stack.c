@@ -881,11 +881,9 @@ static void mxc_init_bluetooth(void)
 	(void)platform_device_register(&mxc_bt_device);
 }
 
-static void mxc_unifi_hardreset(void)
+static void mxc_unifi_hardreset(int pin_level)
 {
-	mxc_set_gpio_dataout(MX31_PIN_DCD_DCE1, 0);
-	msleep(100);
-	mxc_set_gpio_dataout(MX31_PIN_DCD_DCE1, 1);
+	mxc_set_gpio_dataout(MX31_PIN_DCD_DCE1, pin_level & 0x01);
 }
 
 static struct mxc_unifi_platform_data unifi_data = {
