@@ -145,6 +145,7 @@ static unsigned long _clk_round_rate(struct clk *clk, unsigned long rate)
 static int __switch_cpu_wp(struct clk *clk, unsigned long rate)
 {
 	int i;
+	u32 reg_value;
 	if (cpu_wp_tbl[cpu_curr_wp].cpu_rate < rate) {
 		for (i = cpu_curr_wp + 2; i < cpu_wp_nr; i += 2) {
 			if (rate == cpu_wp_tbl[i].cpu_rate)
@@ -159,7 +160,11 @@ static int __switch_cpu_wp(struct clk *clk, unsigned long rate)
 		return -EINVAL;
 	}
       found:
-	__raw_writel(cpu_wp_tbl[i].pdr0_reg, MXC_CCM_PDR0);
+	reg_value = __raw_readl(MXC_CCM_PDR0);
+	reg_value = (reg_value & ~(MXC_CCM_PDR0_CON_MUX_DIV_MASK |
+				   MXC_CCM_PDR0_AUTO_MUX_DIV_MASK)) |
+	    cpu_wp_tbl[i].pdr0_reg;
+	__raw_writel(reg_value, MXC_CCM_PDR0);
 
 	if (cpu_wp_tbl[i].pll_rate != cpu_wp_tbl[cpu_curr_wp].pll_rate)
 		clk_set_rate(clk->parent, cpu_wp_tbl[i].pll_rate);
@@ -173,6 +178,8 @@ static int __switch_cpu_rate(struct clk *clk, unsigned long rate)
 	int prev;
 	unsigned long tmp;
 	int arm_div, fi, fd, start, end;
+	u32 reg_value;
+
 	if (cpu_wp_tbl[cpu_curr_wp].cpu_rate < rate) {
 		start = cpu_curr_wp + 2;
 		end = cpu_wp_nr;
@@ -203,7 +210,11 @@ static int __switch_cpu_rate(struct clk *clk, unsigned long rate)
 	if (prev == cpu_curr_wp)
 		return 0;
 
-	__raw_writel(cpu_wp_tbl[prev].pdr0_reg, MXC_CCM_PDR0);
+	reg_value = __raw_readl(MXC_CCM_PDR0);
+	reg_value = (reg_value & ~(MXC_CCM_PDR0_CON_MUX_DIV_MASK |
+				   MXC_CCM_PDR0_AUTO_MUX_DIV_MASK)) |
+	    cpu_wp_tbl[prev].pdr0_reg;
+	__raw_writel(reg_value, MXC_CCM_PDR0);
 
 	cpu_curr_wp = prev;
 	clk->rate = rate;
