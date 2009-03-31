@@ -464,7 +464,7 @@ int sdhc_write_protect(struct device *dev)
 /*
  * Probe for the card. If present the GPIO data would be set.
  */
-int sdhc_get_card_det_status(struct device *dev)
+unsigned int sdhc_get_card_det_status(struct device *dev)
 {
 	int ret;
 
