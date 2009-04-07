@@ -228,6 +228,18 @@ static int __devinit pmic_probe(struct i2c_client *client,
 	/* Initialize GPIO for PMIC Interrupt */
 	gpio_pmic_active();
 
+	/* Get the PMIC Version */
+	pmic_get_revision(&mxc_pmic_version);
+	if (mxc_pmic_version.revision < 0) {
+		dev_err((struct device *)client,
+			"PMIC not detected!!! Access Failed\n");
+		return -ENODEV;
+	} else {
+		dev_dbg((struct device *)client,
+			"Detected pmic core IC version number is %d\n",
+			mxc_pmic_version.revision);
+	}
+
 	/* Initialize the PMIC parameters */
 	ret = pmic_init_registers();
 	if (ret != PMIC_SUCCESS)

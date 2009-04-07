@@ -20,6 +20,7 @@
 #include <linux/backlight.h>
 
 #include <linux/pmic_light.h>
+#include <linux/pmic_external.h>
 
 /*
 #define MXC_MAX_INTENSITY 	255
@@ -78,6 +79,7 @@ static int __init mxcbl_probe(struct platform_device *pdev)
 	int ret = 0;
 	struct backlight_device *bd;
 	struct mxcbl_dev_data *devdata;
+	pmic_version_t pmic_version;
 
 	pr_debug("mc13892 backlight start probe\n");
 
@@ -98,8 +100,12 @@ static int __init mxcbl_probe(struct platform_device *pdev)
 	platform_set_drvdata(pdev, bd);
 
 	/* according to LCD spec, current should be 18mA */
-	/* workaround for atlas hot issue, set current 15mA */
-	mc13892_bklit_set_current(LIT_MAIN, LIT_CURR_15);
+	/* workaround for MC13892 TO1.1 crash issue, set current 6mA */
+	pmic_version = pmic_get_version();
+	if (pmic_version.revision < 20)
+		mc13892_bklit_set_current(LIT_MAIN, LIT_CURR_6);
+	else
+		mc13892_bklit_set_current(LIT_MAIN, LIT_CURR_18);
 	bd->props.brightness = MXC_DEFAULT_INTENSITY;
 	bd->props.max_brightness = MXC_MAX_INTENSITY;
 	bd->props.power = FB_BLANK_UNBLANK;
