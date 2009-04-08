@@ -8,7 +8,7 @@ obj-y			:= system.o iomux.o cpu.o mm.o clock.o dptc.o devices.o serial.o dma.o m
 obj-$(CONFIG_MACH_MX31ADS)	+= mx31ads.o mx31ads_gpio.o
 obj-$(CONFIG_MACH_MX31LITE)	+= mx31lite.o
 obj-$(CONFIG_MACH_PCM037)	+= pcm037.o
-obj-$(CONFIG_MACH_MX31_3DS)	+= mx3_3stack.o mx3_3stack_gpio.o
+obj-$(CONFIG_MACH_MX31_3DS)	+= mx3_3stack.o mx3_3stack_gpio.o mx3_3stack_pmic_mc13783.o
 
 # power management
 obj-$(CONFIG_PM) 		+= pm.o

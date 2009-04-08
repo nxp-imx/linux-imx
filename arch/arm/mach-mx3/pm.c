@@ -69,16 +69,6 @@ static int mx31_suspend_enter(suspend_state_t state)
  */
 static int mx31_suspend_prepare(void)
 {
-	struct regulator *reg_core;
-	reg_core = regulator_get(NULL, "SW1A_STBY");
-	if (reg_core == NULL || IS_ERR(reg_core)) {
-		printk(KERN_ERR "Get regulator SW1A_STBY fail\n");
-		return -1;
-	}
-	regulator_set_voltage(reg_core, 1250000, 1250000);
-	regulator_set_mode(reg_core, REGULATOR_MODE_STANDBY);
-	regulator_put(reg_core);
-
 	return 0;
 }
 

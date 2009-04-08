@@ -678,7 +678,7 @@ static inline void mxc_init_hmp4e(void)
 	/* override fuse for Hantro HW clock */
 	if (__raw_readl(iim_reg + 0x808) == 0x4) {
 		if (!(__raw_readl(iim_reg + 0x800) & (1 << 5))) {
-			writel(__raw_readl(iim_reg + 0x808) & 0xfffffffb, 
+			writel(__raw_readl(iim_reg + 0x808) & 0xfffffffb,
 					   iim_reg + 0x808);
 		}
 	}
@@ -722,11 +722,11 @@ static struct resource dptc_resources[] = {
 
 /*! Platform Data for DPTC */
 static struct mxc_dptc_data dptc_data = {
-	.reg_id = "SW1A_NORMAL",
+	.reg_id = "SW1A",
 	.clk_id = "cpu_clk",
-	.dptccr_reg_addr = MXC_CCM_PMCR0,
-	.dcvr0_reg_addr = MXC_CCM_DCVR0,
-	.gpc_cntr_reg_addr = MXC_CCM_PMCR0,
+	.dptccr_reg_addr = (unsigned int)MXC_CCM_PMCR0,
+	.dcvr0_reg_addr = (int)MXC_CCM_DCVR0,
+	.gpc_cntr_reg_addr = (int)MXC_CCM_PMCR0,
 	.dptccr = 0xFFFFFFFF,
 	.dptc_wp_supported = DPTC_WP_SUPPORTED,
 	.dptc_wp_allfreq = dptc_wp_allfreq_26ckih,

@@ -146,5 +146,7 @@ extern unsigned int sdhc_get_card_det_status(struct device *dev);
 extern int sdhc_init_card_det(int id);
 extern int sdhc_write_protect(struct device *dev);
 
+extern int __init mx3_3stack_init_mc13783(void);
+
 #endif				/* CONFIG_MACH_MX31_3DS */
 #endif				/* __ASM_ARCH_MXC_BOARD_MX31PDK_H__ */

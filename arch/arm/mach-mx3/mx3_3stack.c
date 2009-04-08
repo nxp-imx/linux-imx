@@ -225,7 +225,7 @@ static struct mxc_lcd_platform_data lcd_data = {
 static struct mxc_camera_platform_data camera_data = {
 	.core_regulator = "VVIB",
 	.io_regulator = "VMMC1",
-	.analog_regulator = "SW2B_NORMAL",
+	.analog_regulator = "SW2B",
 	.gpo_regulator = "GPO3",
 	.mclk = 27000000,
 };
@@ -330,14 +330,15 @@ static struct spi_board_info mxc_spi_board_info[] __initdata = {
 	 .irq = IOMUX_TO_IRQ(MX31_PIN_GPIO1_3),
 	 .max_speed_hz = 4000000,
 	 .bus_num = 2,
-	 .platform_data = (void *)IOMUX_TO_IRQ(MX31_PIN_GPIO1_2),
-	 .chip_select = 2,},
+	 .chip_select = 2,
+	},
 	{
 	 .modalias = "lcd_spi",
 	 .platform_data = (void *)&lcd_data,
 	 .max_speed_hz = 5000000,
 	 .bus_num = 1,
-	 .chip_select = 2,},
+	 .chip_select = 2,
+	},
 };
 
 /*lan9217 device*/
@@ -577,36 +578,6 @@ static int __init mxc_expio_init(void)
 
 	return 0;
 }
-
-static int __init mxc_init_regulator(void)
-{
-	int err;
-	struct regulator *gpo1;
-	struct regulator *gpo2;
-	struct regulator *gpo3;
-	struct regulator *gpo4;
-
-	gpo1 = regulator_get(NULL, "GPO1");
-	gpo2 = regulator_get(NULL, "GPO2");
-	gpo3 = regulator_get(NULL, "GPO3");
-	gpo4 = regulator_get(NULL, "GPO4");
-#if 0
-	err = regulator_set_platform_source(gpo2, gpo1);
-	if (err)
-		printk(KERN_ERR "Unable to set GPO1 be the parent of GPO2\n");
-
-	err = regulator_set_platform_source(gpo3, gpo1);
-	if (err)
-		printk(KERN_ERR "Unable to set GPO1 be the parent of GPO3\n");
-
-	err = regulator_set_platform_source(gpo4, gpo1);
-	if (err)
-		printk(KERN_ERR "Unable to set GPO1 be the parent of GPO4\n");
-#endif
-	return 0;
-}
-
-module_init(mxc_init_regulator);
 
 #if (defined(CONFIG_MXC_PMIC_MC13783) || \
 	defined(CONFIG_MXC_PMIC_MC13783_MODULE)) \
@@ -1008,6 +979,7 @@ static void __init mxc_board_init(void)
 	mxc_init_enet();
 	mxc_init_nand_mtd();
 	mxc_init_ch7024();
+	mx3_3stack_init_mc13783();
 
 	i2c_register_board_info(0, mxc_i2c_board_info,
 				ARRAY_SIZE(mxc_i2c_board_info));
