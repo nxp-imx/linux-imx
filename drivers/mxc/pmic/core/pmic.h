@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2007 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2004-2009 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -128,5 +128,7 @@ static inline PMIC_STATUS pmic_fix_arbitration(struct spi_device *spi)
 	return PMIC_SUCCESS;
 }
 #endif
+
+void *pmic_alloc_data(struct device *dev);
 
 #endif				/* __PMIC_H__ */

@@ -953,55 +953,69 @@ static int ov3640_probe(struct i2c_client *client,
 	ov3640_data.streamcap.timeperframe.denominator = DEFAULT_FPS;
 	ov3640_data.streamcap.timeperframe.numerator = 1;
 
-	io_regulator = regulator_get(&client->dev, plat_data->io_regulator);
-	if (!IS_ERR_VALUE((u32)io_regulator)) {
-		regulator_set_voltage(io_regulator, OV3640_VOLTAGE_DIGITAL_IO,
-				      OV3640_VOLTAGE_DIGITAL_IO);
-		if (regulator_enable(io_regulator) != 0) {
-			pr_err("%s:io set voltage error\n", __func__);
-			goto err1;
-		} else {
-			dev_dbg(&client->dev,
-				"%s:io set voltage ok\n", __func__);
+	if (plat_data->io_regulator) {
+		io_regulator = regulator_get(&client->dev,
+					     plat_data->io_regulator);
+		if (!IS_ERR_VALUE((u32)io_regulator)) {
+			regulator_set_voltage(io_regulator,
+					      OV3640_VOLTAGE_DIGITAL_IO,
+					      OV3640_VOLTAGE_DIGITAL_IO);
+			if (regulator_enable(io_regulator) != 0) {
+				pr_err("%s:io set voltage error\n", __func__);
+				goto err1;
+			} else {
+				dev_dbg(&client->dev,
+					"%s:io set voltage ok\n", __func__);
+			}
 		}
 	}
 
-	core_regulator = regulator_get(&client->dev, plat_data->core_regulator);
-	if (!IS_ERR_VALUE((u32)core_regulator)) {
-		regulator_set_voltage(core_regulator,
-				      OV3640_VOLTAGE_DIGITAL_CORE,
-				      OV3640_VOLTAGE_DIGITAL_CORE);
-		if (regulator_enable(core_regulator) != 0) {
-			pr_err("%s:core set voltage error\n", __func__);
-			goto err2;
-		} else {
-			dev_dbg(&client->dev,
-				"%s:core set voltage ok\n", __func__);
+	if (plat_data->core_regulator) {
+		core_regulator = regulator_get(&client->dev,
+					       plat_data->core_regulator);
+		if (!IS_ERR_VALUE((u32)core_regulator)) {
+			regulator_set_voltage(core_regulator,
+					      OV3640_VOLTAGE_DIGITAL_CORE,
+					      OV3640_VOLTAGE_DIGITAL_CORE);
+			if (regulator_enable(core_regulator) != 0) {
+				pr_err("%s:core set voltage error\n", __func__);
+				goto err2;
+			} else {
+				dev_dbg(&client->dev,
+					"%s:core set voltage ok\n", __func__);
+			}
 		}
 	}
 
-	analog_regulator =
-		regulator_get(&client->dev, plat_data->analog_regulator);
-	if (!IS_ERR_VALUE((u32)analog_regulator)) {
-		regulator_set_voltage(analog_regulator, OV3640_VOLTAGE_ANALOG,
-				      OV3640_VOLTAGE_ANALOG);
-		if (regulator_enable(analog_regulator) != 0) {
-			pr_err("%s:analog set voltage error\n", __func__);
-			goto err3;
-		} else {
-			dev_dbg(&client->dev,
-				"%s:analog set voltage ok\n", __func__);
+	if (plat_data->analog_regulator) {
+		analog_regulator = regulator_get(&client->dev,
+						 plat_data->analog_regulator);
+		if (!IS_ERR_VALUE((u32)analog_regulator)) {
+			regulator_set_voltage(analog_regulator,
+					      OV3640_VOLTAGE_ANALOG,
+					      OV3640_VOLTAGE_ANALOG);
+			if (regulator_enable(analog_regulator) != 0) {
+				pr_err("%s:analog set voltage error\n",
+					__func__);
+				goto err3;
+			} else {
+				dev_dbg(&client->dev,
+					"%s:analog set voltage ok\n", __func__);
+			}
 		}
 	}
 
-	gpo_regulator = regulator_get(&client->dev, plat_data->gpo_regulator);
-	if (!IS_ERR_VALUE((u32)gpo_regulator)) {
-		if (regulator_enable(gpo_regulator) != 0) {
-			pr_err("%s:gpo3 enable error\n", __func__);
-			goto err4;
-		} else {
-			dev_dbg(&client->dev,
-				"%s:gpo3 enable ok\n", __func__);
+	if (plat_data->gpo_regulator) {
+		gpo_regulator = regulator_get(&client->dev,
+					      plat_data->gpo_regulator);
+		if (!IS_ERR_VALUE((u32)gpo_regulator)) {
+			if (regulator_enable(gpo_regulator) != 0) {
+				pr_err("%s:gpo3 enable error\n", __func__);
+				goto err4;
+			} else {
+				dev_dbg(&client->dev,
+					"%s:gpo3 enable ok\n", __func__);
+			}
 		}
 	}
 

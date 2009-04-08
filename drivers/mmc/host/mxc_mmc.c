@@ -1261,9 +1261,11 @@ static int mxcmci_probe(struct platform_device *pdev)
 			ret = PTR_ERR(host->regulator_mmc);
 			goto out1;
 		}
-		if (regulator_enable(host->regulator_mmc) == 0) {
-			pr_debug("mmc power on\n");
-			msleep(1);
+		if (!regulator_is_enabled(host->regulator_mmc)) {
+			if (regulator_enable(host->regulator_mmc) == 0) {
+				pr_debug("mmc power on\n");
+				msleep(1);
+			}
 		}
 	}
 
@@ -1467,7 +1469,7 @@ static int mxcmci_resume(struct platform_device *pdev)
 	}
 
 	/* enable pwr supply for SDHC */
-	if (host->regulator_mmc) {
+	if (host->regulator_mmc && !regulator_is_enabled(host->regulator_mmc)) {
 		regulator_enable(host->regulator_mmc);
 		msleep(1);
 	}

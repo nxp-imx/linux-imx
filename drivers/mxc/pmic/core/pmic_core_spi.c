@@ -31,7 +31,6 @@
 #include <linux/interrupt.h>
 #include <linux/irq.h>
 #include <linux/spi/spi.h>
-#include <linux/mfd/mc13892/core.h>
 #include <linux/pmic_external.h>
 #include <linux/pmic_status.h>
 
@@ -157,8 +156,7 @@ static struct spi_driver pmic_driver;
 static int __devinit pmic_probe(struct spi_device *spi)
 {
 	int ret = 0;
-	struct mc13892 *mc13892;
-	struct mc13892_platform_data *plat_data = spi->dev.platform_data;
+	struct pmic_platform_data *plat_data = spi->dev.platform_data;
 
 	if (!strcmp(spi->dev.bus_id, PMIC_ARBITRATION)) {
 		if (PMIC_SUCCESS != pmic_fix_arbitration(spi)) {
@@ -193,23 +191,21 @@ static int __devinit pmic_probe(struct spi_device *spi)
 			mxc_pmic_version.revision);
 	}
 
-	mc13892 = kzalloc(sizeof(struct mc13892), GFP_KERNEL);
-	if (mc13892 == NULL)
-		return -ENOMEM;
-
-	spi_set_drvdata(spi, mc13892);
-	mc13892->dev = &spi->dev;
-	mc13892->spi_device = spi;
+	spi_set_drvdata(spi, pmic_alloc_data(&(spi->dev)));
 
 	/* Initialize the PMIC parameters */
 	ret = pmic_init_registers();
 	if (ret != PMIC_SUCCESS) {
+		kfree(spi_get_drvdata(spi));
+		spi_set_drvdata(spi, NULL);
 		return PMIC_ERROR;
 	}
 
 	pmic_event_wq = create_workqueue("pmic_spi");
 	if (!pmic_event_wq) {
-		pr_err("mc13892 pmic driver init: fail to create work queue");
+		pr_err("pmic driver init: fail to create work queue");
+		kfree(spi_get_drvdata(spi));
+		spi_set_drvdata(spi, NULL);
 		return -EFAULT;
 	}
 
@@ -217,14 +213,19 @@ static int __devinit pmic_probe(struct spi_device *spi)
 	set_irq_type(spi->irq, IRQF_TRIGGER_RISING);
 	ret = request_irq(spi->irq, pmic_irq_handler, 0, "PMIC_IRQ", 0);
 	if (ret) {
+		kfree(spi_get_drvdata(spi));
+		spi_set_drvdata(spi, NULL);
 		dev_err((struct device *)spi, "gpio1: irq%d error.", spi->irq);
 		return ret;
 	}
 
 	if (plat_data && plat_data->init) {
-		ret = plat_data->init(mc13892);
-		if (ret != 0)
+		ret = plat_data->init(spi_get_drvdata(spi));
+		if (ret != 0) {
+			kfree(spi_get_drvdata(spi));
+			spi_set_drvdata(spi, NULL);
 			return PMIC_ERROR;
+		}
 	}
 
 	power_ldm.dev.platform_data = spi->dev.platform_data;
@@ -285,7 +286,6 @@ static struct spi_driver pmic_driver = {
  */
 static int __init pmic_init(void)
 {
-	pr_debug("Registering the PMIC Protocol Driver\n");
 	return spi_register_driver(&pmic_driver);
 }
 

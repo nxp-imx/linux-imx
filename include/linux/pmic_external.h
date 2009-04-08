@@ -1096,39 +1096,13 @@ PMIC_STATUS pmic_get_sensors(t_sensor_bits * sensor_bits);
 void pmic_event_callback(type_event event);
 void pmic_event_list_init(void);
 
-#ifdef CONFIG_REGULATOR_MC13783
-/*!
- * This function is used to initialize the regulator for MC13783.
- *
- * @return      Returns 0.
- */
-int reg_mc13783_probe(struct device *dev);
-#else
-static inline int reg_mc13783_probe(struct device *dev)
-{
-	return 0;
-};
-#endif
-
-#ifdef CONFIG_REGULATOR_MC13892
-int mc13892_regulator_i2c_init(struct i2c_client *client);
-#else
-static inline int mc13892_regulator_i2c_init(struct i2c_client *client)
-{
-	return 0;
-};
-#endif
-
-#ifdef CONFIG_REGULATOR_MC34704
-int reg_mc34704_probe(void);
-#else
-static inline int reg_mc34704_probe(void)
-{
-	return 0;
-};
-#endif
 #endif				/*CONFIG_MXC_PMIC*/
 #endif				/* __KERNEL__ */
 /* CONFIG_MXC_PMIC_MC13783 || CONFIG_MXC_PMIC_MC9SDZ60 */
+
+struct pmic_platform_data {
+	int (*init)(void *);
+	int power_key_irq;
+};
 
 #endif				/* __ASM_ARCH_MXC_PMIC_EXTERNAL_H__ */
