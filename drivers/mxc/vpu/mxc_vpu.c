@@ -421,6 +421,19 @@ static int vpu_ioctl(struct inode *inode, struct file *filp, u_int cmd,
 			}
 			break;
 		}
+	case VPU_IOC_SYS_SW_RESET:
+		{
+			u32 reg;
+
+#define SW_VPU_RST_BIT	0x02
+			reg = __raw_readl(IO_ADDRESS(SRC_BASE_ADDR));
+			reg |= SW_VPU_RST_BIT;
+			__raw_writel(reg, IO_ADDRESS(SRC_BASE_ADDR));
+			while (__raw_readl(IO_ADDRESS(SRC_BASE_ADDR)) &
+			       SW_VPU_RST_BIT)
+				;
+			break;
+		}
 	case VPU_IOC_REG_DUMP:
 		break;
 	case VPU_IOC_PHYMEM_DUMP:
@@ -755,7 +768,7 @@ static void __exit vpu_exit(void)
 }
 
 MODULE_AUTHOR("Freescale Semiconductor, Inc.");
-MODULE_DESCRIPTION("Linux VPU driver for Freescale i.MX27");
+MODULE_DESCRIPTION("Linux VPU driver for Freescale i.MX/MXC");
 MODULE_LICENSE("GPL");
 
 module_init(vpu_init);
