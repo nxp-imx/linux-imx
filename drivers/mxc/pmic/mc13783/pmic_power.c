@@ -3073,6 +3073,7 @@ static irqreturn_t power_key_int(int irq, void *dev_id)
 }
 
 extern void gpio_power_key_active(void);
+
 /*
  * Init and Exit
  */
@@ -3080,11 +3081,13 @@ extern void gpio_power_key_active(void);
 static int pmic_power_probe(struct platform_device *pdev)
 {
 	int irq, ret;
+	struct pmic_platform_data *ppd;
 
 	/* configure on/off button */
 	gpio_power_key_active();
 
-	irq = (int)pdev->dev.platform_data;
+	ppd = pdev->dev.platform_data;
+	irq = ppd->power_key_irq;
 
 	if (irq == 0) {
 		pr_info(KERN_INFO "PMIC Power has no platform data\n");

@@ -30,6 +30,7 @@
 #include <linux/pmic_external.h>
 #include <linux/pmic_status.h>
 #include <linux/spi/spi.h>
+#include <linux/mfd/mc13783/core.h>
 
 #include <asm/uaccess.h>
 
@@ -99,6 +100,19 @@ int pmic_write(int reg_num, const unsigned int reg_val)
 	ret = spi_rw(pmic_drv_data.spi, (u8 *) & frame, 1);
 
 	return ret;
+}
+
+void *pmic_alloc_data(struct device *dev)
+{
+	struct mc13783 *mc13783;
+
+	mc13783 = kzalloc(sizeof(struct mc13783), GFP_KERNEL);
+	if (mc13783 == NULL)
+		return NULL;
+
+	mc13783->dev = dev;
+
+	return (void *)mc13783;
 }
 
 /*!
