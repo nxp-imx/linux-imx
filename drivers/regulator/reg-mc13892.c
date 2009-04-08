@@ -461,102 +461,6 @@ static int mc13892_sw_stby_set_voltage(struct regulator_dev *reg, int uV)
 	return pmic_write_reg(register1, register_val, register_mask);
 }
 
-static int mc13892_sw_stby_get_voltage(struct regulator_dev *reg)
-{
-	unsigned int register_val = 0;
-	int voltage = 0, mV = 0, hi;
-	int sw = rdev_get_id(reg);
-
-	switch (sw) {
-	case MC13892_SW1:
-		CHECK_ERROR(pmic_read_reg(REG_SW_0,
-					  &register_val, PMIC_ALL_BITS));
-		voltage = BITFEXT(register_val, SW1_STDBY);
-		break;
-	case MC13892_SW2:
-		CHECK_ERROR(pmic_read_reg(REG_SW_1,
-					  &register_val, PMIC_ALL_BITS));
-		voltage = BITFEXT(register_val, SW2_STDBY);
-		break;
-	case MC13892_SW3:
-		CHECK_ERROR(pmic_read_reg(REG_SW_2,
-					  &register_val, PMIC_ALL_BITS));
-		voltage = BITFEXT(register_val, SW3_STDBY);
-		break;
-	case MC13892_SW4:
-		CHECK_ERROR(pmic_read_reg(REG_SW_3,
-					  &register_val, PMIC_ALL_BITS));
-		voltage = BITFEXT(register_val, SW4_STDBY);
-		break;
-	default:
-		return -EINVAL;
-	}
-
-	hi = mc13892_get_sw_hi_bit(sw);
-	mV = mc13892_get_voltage_mV(hi, voltage);
-
-	return mV;
-}
-
-static int mc13892_sw_dvs_set_voltage(struct regulator_dev *reg,
-				      int minuV, int uV)
-{
-	unsigned int register_val = 0, register_mask = 0;
-	unsigned int register1 = 0;
-	int voltage, mV = uV / 1000, hi;
-	int sw = rdev_get_id(reg);
-
-	hi = mc13892_get_sw_hi_bit(sw);
-	voltage = mc13892_get_voltage_value(&hi, mV);
-
-	switch (sw) {
-	case MC13892_SW1:
-		register1 = REG_SW_0;
-		register_val = BITFVAL(SW1_DVS, voltage);
-		register_mask = BITFMASK(SW1_DVS);
-		break;
-	case MC13892_SW2:
-		register1 = REG_SW_1;
-		register_val = BITFVAL(SW2_DVS, voltage);
-		register_mask = BITFMASK(SW2_DVS);
-		break;
-	default:
-		return -EINVAL;
-	}
-
-	register_val |= (hi << SWXHI_LSH);
-	register_mask |= (1 << SWXHI_LSH);
-
-	return pmic_write_reg(register1, register_val, register_mask);
-}
-
-static int mc13892_sw_dvs_get_voltage(struct regulator_dev *reg)
-{
-	unsigned int register_val = 0;
-	int voltage = 0, mV = 0, hi;
-	int sw = rdev_get_id(reg);
-
-	switch (sw) {
-	case MC13892_SW1:
-		CHECK_ERROR(pmic_read_reg(REG_SW_0,
-					  &register_val, PMIC_ALL_BITS));
-		voltage = BITFEXT(register_val, SW1_DVS);
-		break;
-	case MC13892_SW2:
-		CHECK_ERROR(pmic_read_reg(REG_SW_1,
-					  &register_val, PMIC_ALL_BITS));
-		voltage = BITFEXT(register_val, SW2_DVS);
-		break;
-	default:
-		return -EINVAL;
-	}
-
-	hi = mc13892_get_sw_hi_bit(sw);
-	mV = mc13892_get_voltage_mV(hi, voltage);
-
-	return mV;
-}
-
 static int mc13892_swbst_enable(struct regulator_dev *reg)
 {
 	unsigned int register_val = 0, register_mask = 0;
@@ -1565,17 +1469,14 @@ static int mc13892_power_gating_disable(struct regulator_dev *reg)
 }
 
 static struct regulator_ops mc13892_sw_ops = {
+	.enable = mc13892_sw_stby_enable,
+	.disable = mc13892_sw_stby_disable,
 	.set_voltage = mc13892_sw_set_voltage,
 	.get_voltage = mc13892_sw_get_voltage,
 	.set_suspend_voltage = mc13892_sw_stby_set_voltage,
 	.set_suspend_enable = mc13892_sw_stby_enable,
 	.set_suspend_disable = mc13892_sw_stby_disable,
 	.set_suspend_mode = mc13892_sw_stby_set_mode,
-};
-
-static struct regulator_ops mc13892_sw_dvs_ops = {
-	.set_voltage = mc13892_sw_dvs_set_voltage,
-	.get_voltage = mc13892_sw_dvs_get_voltage,
 };
 
 static struct regulator_ops mc13892_swbst_ops = {

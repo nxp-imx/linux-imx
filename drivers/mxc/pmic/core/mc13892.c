@@ -32,6 +32,7 @@
 #include <linux/delay.h>
 #include <linux/pmic_external.h>
 #include <linux/pmic_status.h>
+#include <linux/mfd/mc13892/core.h>
 
 #include <asm/mach-types.h>
 #include <asm/uaccess.h>
@@ -148,6 +149,19 @@ int pmic_write(int reg_num, const unsigned int reg_val)
 
 		return pmic_i2c_24bit_write(mc13892_client, reg_num, reg_val);
 	}
+}
+
+void *pmic_alloc_data(struct device *dev)
+{
+	struct mc13892 *mc13892;
+
+	mc13892 = kzalloc(sizeof(struct mc13892), GFP_KERNEL);
+	if (mc13892 == NULL)
+		return NULL;
+
+	mc13892->dev = dev;
+
+	return (void *)mc13892;
 }
 
 /*!
