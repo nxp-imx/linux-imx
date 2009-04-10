@@ -160,15 +160,10 @@ static inline void mxc_init_keypad(void)
 }
 #endif
 
-/* MTD NAND flash */
-#if defined(CONFIG_MTD_NAND_MXC) \
-	|| defined(CONFIG_MTD_NAND_MXC_MODULE) \
-	|| defined(CONFIG_MTD_NAND_MXC_V2) \
-	|| defined(CONFIG_MTD_NAND_MXC_V2_MODULE) \
-	|| defined(CONFIG_MTD_NAND_MXC_V3) \
-	|| defined(CONFIG_MTD_NAND_MXC_V3_MODULE)
+/* NAND Flash Partitions */
+#ifdef CONFIG_MTD_PARTITIONS
 
-static struct mtd_partition mxc_nand_partitions[] = {
+static struct mtd_partition nand_flash_partitions[] = {
 	{
 	 .name = "bootloader",
 	 .offset = 0,
@@ -191,6 +186,16 @@ static struct mtd_partition mxc_nand_partitions[] = {
 	 .size = MTDPART_SIZ_FULL},
 };
 
+#endif
+
+/* MTD NAND flash */
+#if defined(CONFIG_MTD_NAND_MXC) \
+	|| defined(CONFIG_MTD_NAND_MXC_MODULE) \
+	|| defined(CONFIG_MTD_NAND_MXC_V2) \
+	|| defined(CONFIG_MTD_NAND_MXC_V2_MODULE) \
+	|| defined(CONFIG_MTD_NAND_MXC_V3) \
+	|| defined(CONFIG_MTD_NAND_MXC_V3_MODULE)
+
 extern void gpio_nand_active(void);
 extern void gpio_nand_inactive(void);
 
@@ -208,8 +213,10 @@ static void nand_exit(void)
 }
 
 static struct flash_platform_data mxc_nand_data = {
-	.parts = mxc_nand_partitions,
-	.nr_parts = ARRAY_SIZE(mxc_nand_partitions),
+	#ifdef CONFIG_MTD_PARTITIONS
+		.parts = nand_flash_partitions,
+		.nr_parts = ARRAY_SIZE(nand_flash_partitions),
+	#endif
 	.width = 1,
 	.init = nand_init,
 	.exit = nand_exit,
@@ -233,6 +240,91 @@ static inline void mxc_init_nand_mtd(void)
 {
 }
 #endif
+
+/* i.MX MTD NAND Flash Controller */
+
+#if defined(CONFIG_MTD_NAND_IMX_NFC) || defined(CONFIG_MTD_NAND_IMX_NFC_MODULE)
+
+/* Resources for this device. */
+
+static struct resource imx_nfc_resources[] = {
+	{
+		.flags = IORESOURCE_MEM,
+		.start = NFC_BASE_ADDR_AXI + 0x0000,
+		.end   = NFC_BASE_ADDR_AXI + 0x1200 - 1,
+		.name  = IMX_NFC_BUFFERS_ADDR_RES_NAME,
+	},
+	{
+		.flags = IORESOURCE_MEM,
+		.start = NFC_BASE_ADDR_AXI + 0x1E00,
+		.end   = NFC_BASE_ADDR_AXI + 0x1E44 - 1,
+		.name  = IMX_NFC_PRIMARY_REGS_ADDR_RES_NAME,
+	},
+	{
+		.flags = IORESOURCE_MEM,
+		.start = NFC_BASE_ADDR + 0x00,
+		.end   = NFC_BASE_ADDR + 0x34 - 1,
+		.name  = IMX_NFC_SECONDARY_REGS_ADDR_RES_NAME,
+	},
+	{
+		.flags = IORESOURCE_IRQ,
+		.start = MXC_INT_NFC,
+		.end   = MXC_INT_NFC,
+		.name  = IMX_NFC_INTERRUPT_RES_NAME,
+	},
+};
+
+/*
+ * Platform-specific information about this device. Some of the details depend
+ * on the SoC. See imx_init_nfc() below for code that fills in the rest.
+ */
+
+static struct imx_nfc_platform_data imx_nfc_platform_data = {
+	.nfc_major_version  = 3,
+	.nfc_minor_version  = 2,
+	.force_ce           = false,
+	.target_cycle_in_ns = 30,
+	.clock_name         = "nfc_clk",
+	.set_page_size      = 0,
+	.interleave         = false,
+	#ifdef CONFIG_MTD_PARTITIONS
+		.partitions      = nand_flash_partitions,
+		.partition_count = ARRAY_SIZE(nand_flash_partitions),
+	#endif
+};
+
+/* The structure that represents the NFC device. */
+
+static struct platform_device imx_nfc_device = {
+	.name = IMX_NFC_DRIVER_NAME,
+	.id = 0,
+	.dev = {
+		.release       = mxc_nop_release,
+		.platform_data = &imx_nfc_platform_data,
+	},
+	.resource      = imx_nfc_resources,
+	.num_resources = ARRAY_SIZE(imx_nfc_resources),
+};
+
+/**
+ * imx_init_nfc() - Sets up the NFC for this platform.
+ *
+ * This function sets up data structures representing the NFC device on this
+ * platform and registers the device with the platform management system.
+ */
+
+static void imx_nfc_init(void)
+{
+	(void)platform_device_register(&imx_nfc_device);
+}
+
+#else
+
+static inline void imx_nfc_init(void)
+{
+}
+
+#endif /* i.MX MTD NAND Flash Controller */
 
 #if defined(CONFIG_FB_MXC_SYNC_PANEL) || \
 	defined(CONFIG_FB_MXC_SYNC_PANEL_MODULE)
@@ -1140,6 +1232,7 @@ static void __init mxc_board_init(void)
 	mxc_init_bl();
 	mxc_init_keypad();
 	mxc_init_nand_mtd();
+	imx_nfc_init();
 	mxc_init_mmc();
 	mxc_init_sim();
 	mxc_init_srpgconfig();

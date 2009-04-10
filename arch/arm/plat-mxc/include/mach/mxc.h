@@ -359,6 +359,100 @@ struct tve_platform_data {
 	char *dig_reg;
 };
 
+/* The name that links the i.MX NAND Flash Controller driver to its devices. */
+
+#define IMX_NFC_DRIVER_NAME  ("imx_nfc")
+
+/* Resource names for the i.MX NAND Flash Controller driver. */
+
+#define IMX_NFC_BUFFERS_ADDR_RES_NAME         \
+			("i.MX NAND Flash Controller Buffer")
+#define IMX_NFC_PRIMARY_REGS_ADDR_RES_NAME    \
+			("i.MX NAND Flash Controller Primary Registers")
+#define IMX_NFC_SECONDARY_REGS_ADDR_RES_NAME  \
+			("i.MX NAND Flash Controller Secondary Registers")
+#define IMX_NFC_INTERRUPT_RES_NAME            \
+			("i.MX NAND Flash Controller Interrupt")
+
+/**
+ * struct imx_nfc_platform_data - i.MX NFC driver platform data.
+ *
+ * This structure communicates information to the i.MX NFC driver that can't be
+ * expressed as resources.
+ *
+ * @nfc_major_version:  The "major version" of the NFC hardware.
+ * @nfc_minor_version:  The "minor version" of the NFC hardware.
+ * @force_ce:           If true, this flag causes the driver to assert the
+ *                      hardware chip enable signal for the currently selected
+ *                      chip as long as the MTD NAND Flash HAL has the chip
+ *                      selected (not just when an I/O transaction is in
+ *                      progress).
+ * @target_cycle_in_ns: The target read and write cycle period, in nanoseconds.
+ *                      NAND Flash part data sheets give minimum times for read
+ *                      and write cycles in nanoseconds (usually tRC and tWC,
+ *                      respectively). Set this value to the maximum of these
+ *                      two parameters. The driver will set the NFC clock as
+ *                      close as possible without violating this value.
+ * @clock_name:         The name of the clock used by the NAND Flash controller.
+ * @init:               A pointer to a function the driver must call so the
+ *                      platform can prepare for this device to operate. This
+ *                      pointer may be NULL.
+ * @exit:               A pointer to a function the driver must call so the
+ *                      platform clean up after this device stops operating.
+ *                      This pointer may be NULL.
+ * @set_page_size:      A pointer to a function the driver can call to set the
+ *                      page size. This pointer may be NULL.
+ *
+ *                      For some i.MX SoC's, the NFC gets information about the
+ *                      page size from signals driven by a system register
+ *                      outside the NFC. The address and format of this external
+ *                      register varies across SoC's. In other SoC's, the NFC
+ *                      still receives this signal, but it is overridden by a
+ *                      page size register in the NFC itself.
+ *
+ *                      For SoC's where the page size *must* be set in an
+ *                      external register, the driver must rely on a platform-
+ *                      specific function, and this member must point to it.
+ *
+ *                      For SoC's where the NFC has its own page size register,
+ *                      the driver will set that register itself and ignore the
+ *                      external signals. In this case, there's no need for the
+ *                      platform-specific function and this member must be NULL.
+ *
+ *                      This function accepts the page size in bytes (MTD calls
+ *                      this the "writesize") discovered by the NAND Flash MTD
+ *                      base driver (e.g., 512, 2048, 4096). This size refers
+ *                      specifically to the the data bytes in the page, *not*
+ *                      including out-of-band bytes. The return value is zero if
+ *                      the operation succeeded. The driver does *not* view a
+ *                      non-zero value as an error code - only an indication of
+ *                      failure. The driver will decide for itself what error
+ *                      code to return to its caller.
+ * @interleave:         Indicates that the driver should "interleave" the NAND
+ *                      Flash chips it finds. If true, the driver will aggregate
+ *                      the chips "horizontally" such that MTD will see a single
+ *                      chip with a potentially very large page size. This can
+ *                      improve write performance for some applications.
+ * @partitions:         An optional pointer to an array of partitions. If this
+ *                      is NULL, the driver will create a single MTD that
+ *                      represents the entire medium.
+ * @partition_count:    The number of elements in the partition array.
+ */
+
+struct imx_nfc_platform_data {
+	unsigned int          nfc_major_version;
+	unsigned int          nfc_minor_version;
+	int                   force_ce;
+	unsigned int          target_cycle_in_ns;
+	char                  *clock_name;
+	int                   (*init)(void);
+	void                  (*exit)(void);
+	int                   (*set_page_size)(unsigned int data_size_in_bytes);
+	int                   interleave;
+	struct mtd_partition  *partitions;
+	unsigned int	      partition_count;
+};
+
 extern void mxc_wd_reset(void);
 unsigned long board_get_ckih_rate(void);
 

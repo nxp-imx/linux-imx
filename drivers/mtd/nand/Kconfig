@@ -365,6 +365,12 @@ config MTD_NAND_NANDSIM
 	  The simulator may simulate various NAND flash chips for the
 	  MTD nand layer.
 
+config MTD_NAND_IMX_NFC
+	tristate "i.MX NAND Flash Controller driver"
+	depends on MTD_NAND
+	help
+	  Enables the i.MX NAND Flash controller driver.
+
 config MTD_NAND_MXC
 	tristate "MXC NAND support"
 	depends on MTD_NAND && ARCH_MXC_HAS_NFC_V1

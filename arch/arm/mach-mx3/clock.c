@@ -328,6 +328,44 @@ static void _clk_nfc_recalc(struct clk *clk)
 	nfc_pdf = PDR0(MXC_CCM_PDR0_NFC_PODF_MASK,
 		       MXC_CCM_PDR0_NFC_PODF_OFFSET);
 	clk->rate = clk->parent->rate / (nfc_pdf + 1);
+
+}
+
+static int _clk_nfc_set_rate(struct clk *clk, unsigned long rate)
+{
+	u32 reg;
+	u32 div;
+
+	div = clk->parent->rate / rate;
+
+	if ((clk->parent->rate / div) != rate)
+		return -EINVAL;
+
+	if (div > 8)
+		return -EINVAL;
+
+	reg = __raw_readl(MXC_CCM_PDR0) & ~MXC_CCM_PDR0_NFC_PODF_MASK;
+	reg |= (div - 1) << MXC_CCM_PDR0_NFC_PODF_OFFSET;
+	__raw_writel(reg, MXC_CCM_PDR0);
+
+	clk->rate = rate;
+
+	return 0;
+
+}
+
+static unsigned long _clk_nfc_round_rate(struct clk *clk, unsigned long rate)
+{
+	u32 div = clk->parent->rate / rate;
+
+	if (clk->parent->rate % rate)
+		div++;
+
+	if (div > 8)
+		return -EINVAL;
+
+	return clk->parent->rate / div;
+
 }
 
 static void _clk_hsp_recalc(struct clk *clk)
@@ -658,6 +696,8 @@ static struct clk nfc_clk = {
 	.name = "nfc_clk",
 	.parent = &ahb_clk,
 	.recalc = _clk_nfc_recalc,
+	.set_rate = _clk_nfc_set_rate,
+	.round_rate = _clk_nfc_round_rate,
 };
 
 static struct clk scc_clk = {

@@ -2836,12 +2836,38 @@ static unsigned long _clk_nfc_round_rate(struct clk *clk,
 {
 	u32 div;
 
+	/*
+	 * Compute the divider we'd have to use to reach the target rate.
+	 */
+
 	div = clk->parent->rate / rate;
-	if (div > 8)
-		div = 8;
-	else if (div == 0)
+
+	/*
+	 * If there's a remainder after the division, then we have to increment
+	 * the divider. There are two reasons for this:
+	 *
+	 * 1) The frequency we round to must be LESS THAN OR EQUAL to the
+	 *    target. We aren't allowed to round to a frequency that is higher
+	 *    than the target.
+	 *
+	 * 2) This also catches the case where target rate is less than the
+	 *    parent rate, which implies a divider of zero. We can't allow a
+	 *    divider of zero.
+	 */
+
+	if (clk->parent->rate % rate)
 		div++;
+
+	/*
+	 * The divider for this clock is 3 bits wide, so we can't possibly
+	 * divide the parent by more than eight.
+	 */
+
+	if (div > 8)
+		return -EINVAL;
+
 	return clk->parent->rate / div;
+
 }
 
 static int _clk_nfc_set_rate(struct clk *clk, unsigned long rate)

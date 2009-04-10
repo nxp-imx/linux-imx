@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2008 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2004-2009 Freescale Semiconductor, Inc. All Rights Reserved.
  * Copyright (C) 2008 by Sascha Hauer <kernel@pengutronix.de>
  *
  * This program is free software; you can redistribute it and/or
@@ -152,7 +152,8 @@
 #define MXC_CCM_PDR1_SSI1_PODF_MASK             0x3F
 
 /* Bit definitions for RCSR */
-#define MXC_CCM_RCSR_NF16B			0x80000000
+#define MXC_CCM_RCSR_NF16B			(0x1 << 31)
+#define MXC_CCM_RCSR_NFMS 			(0x1 << 30)
 
 /* Bit definitions for both MCU, USB and SR PLL control registers */
 #define MXC_CCM_PCTL_BRM                        0x80000000

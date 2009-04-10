@@ -1198,6 +1198,10 @@ static int __init mxcnd_probe(struct platform_device *pdev)
 	nfc_axi_base = IO_ADDRESS(NFC_AXI_BASE_ADDR);
 	nfc_ip_base = IO_ADDRESS(NFC_BASE_ADDR);
 
+	err = request_irq(MXC_INT_NANDFC, mxc_nfc_irq, 0, "mxc_nd", NULL);
+	if (err)
+		goto out;
+
 	/* init the nfc */
 	mxc_nfc_init();
 
@@ -1246,10 +1250,6 @@ static int __init mxcnd_probe(struct platform_device *pdev)
 	clk_enable(nfc_clk);
 
 	init_waitqueue_head(&irq_waitq);
-	err = request_irq(MXC_INT_NANDFC, mxc_nfc_irq, 0, "mxc_nd", NULL);
-	if (err) {
-		goto out_1;
-	}
 
 	if (hardware_ecc) {
 		this->ecc.read_page = mxc_nand_read_page;

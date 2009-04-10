@@ -1,0 +1,369 @@
+i.MX NAND Flash Controller Driver Documentation
+===============================================
+
+
+Definitions of Terms
+====================
+
+To avoid confusion, let's carefully define some of the terms we'll be using:
+
+    "NAND Flash Chip" or "Chip"
+        A NAND Flash storage array and controller (including a chip select
+        signal, ready/busy signal, data register, etc.).
+
+    "NAND Flash Package" or "Package"
+        A hardware package containing one or more NAND Flash chips that share
+        data lines and most control signals, but with separate chip select
+        and ready/busy signals. Package "boundaries" are unimportant to MTD.
+
+    "NAND Flash Medium" or "Medium"
+        A collection of one or more NAND Flash chips that the system views as
+        logically contiguous.
+
+    "Memory Technology Device" or "MTD"
+        An abstraction of underlying memory hardware, represented by a single
+        struct mtd_info.
+
+    "NAND Flash MTD"
+        An abstraction of a NAND Flash medium that is represented by a single
+        struct nand_chip (the name of this structure is misleading because it
+        has evolved to represent an entire medium, not just a single chip).
+        All the physical chips in a NAND Flash MTD medium have answered the
+        "Read ID" command with the same manufacturer code and device code and
+        are presumed to have identical characteristics.
+
+    "NAND Flash MTD Hardware-independent Layer" or "HIL"
+        The code that implements an MTD interface and drives all NAND Flash
+        MTDs.
+
+    "NAND Flash MTD Hardware Abstraction Layer" or "HAL"
+        Code that implements the internal NAND Flash hardware model and
+        matches it to specific hardware.
+
+    "NAND Flash MTD Reference Implementation"
+        A reference implementation of a HAL "stack."
+
+    "Out-of-Band" or "OOB"
+        An adjective describing information that is not part of the "data" in
+        a NAND Flash page. NAND Flash pages are generally described in terms
+        of the amount of data they can hold (e.g., "2K pages" or "4K pages").
+        The physical page size is actually larger than this and the
+        additional bytes are called "out-of-band."
+
+
+
+The Structure of the MTD NAND Flash System
+==========================================
+
+The following figure illustrates how control flows down from the system's
+MTD interface into the NAND Flash MTD system and down to the hardware-
+specific implementation (this driver):
+
+
+
+               /    +---------------------------------------+
+              |     |                  MTD                  |
+              |     +---------------------------------------+
+     MTD      |                         |
+              |                         |                 +----------+
+              |                         |                 |          |
+              |                         v                 v          |
+               \    ========================================         |
+                -               struct mtd_info                      |
+               /    ========================================         |
+              |                         |                            |
+              |                         v                            |
+              |     +---------------------------------------+        |
+              |     |            NAND Flash MTD             |        |
+ NAND Flash   |     |          Interface Functions          |        |
+  Hardware-   |     +---------------------------------------+        |
+ Independent  |                         |          |                 |
+    Layer     |                         |          v                 |
+    (HIL)     |       +-------------+   |   +-------------+   +-------------+
+              |       |     Init    |   |   |   Support   |   |  Reference  |
+              |       |  Functions  |   |   |  Functions  |   |BBT Functions|
+              |       +-------------+   |   +-------------+   +-------------+
+              |              |          |          |                 ^
+              |              v          v          v                 |
+               \    ========================================         |
+                -               struct nand_chip                     |
+               /    ========================================         |
+              |         |      ^          |      ^       |           |
+ NAND Flash   |         |      |          |      |       |           |
+  Hardware    |         v      |          v      |       |           |
+ Abstraction  |     +--------------+  +---------------+  |           |
+   Layer      |     |   Hardware-  |  |   Reference   |  +-----------+
+   (HAL)      |     |   Specific   |  |               |
+              |     |Implementation|  |Implementations|
+               \    +--------------+  +---------------+
+
+
+
+The function pointers and attributes in struct mtd_info embody an abstract
+model of memory technology devices.
+
+The struct nand_chip is an aggregation of two categories of function pointers
+and attributes:
+
+    - Function pointers and attributes used by the HIL. These members embody
+      an abstract model of NAND Flash media, or a hardware abstraction
+      layer (HAL).
+
+    - Function pointers and attributes used by the reference implementations.
+
+The single most confusing thing about the MTD NAND Flash system is that
+struct nand_chip contains all the main HAL members mixed up with all the
+members used only by the reference implementation, without any clear
+distinction. Recognizing the distinction is critical for understanding the
+relationship between the HIL and HAL, and can greatly simplify driver
+implementation.
+
+The fundamental operations represented by the function pointers in
+struct nand_chip fall into the following categories (from conceptually
+"low-level" to "high-level"):
+
+    - Signal Control
+    - Chip Control
+    - Low-level I/O
+    - ECC Control
+    - ECC-aware I/O
+    - Error Recovery
+    - High-level I/O
+    - Bad Block Management
+
+The HIL uses only the following "Replaceable" function pointers in
+struct nand_chip:
+
+    - Signal Control
+          - None
+    - Chip Control
+          - dev_ready
+          - select_chip
+          - cmdfunc
+          - waitfunc
+    - Low-level I/O
+          - read_byte
+    - ECC Control
+          - None
+    - ECC-aware I/O
+          - ecc.read_page
+          - ecc.read_page_raw
+    - Error Recovery
+          - None
+    - High-level I/O
+          - write_page
+          - ecc.read_oob
+          - ecc.write_oob
+    - Bad Block Management
+          - block_bad
+          - block_markbad
+          - scan_bbt
+
+Note that the HIL calls erase_cmd, but this member is marked "Internal."
+
+The HIL uses only the following commands with cmdfunc:
+
+    * NAND_CMD_STATUS
+          - nand_check_wp()       - Checks if the current chip is
+                                    write-protected.
+    * NAND_CMD_READID
+          - nand_get_flash_type() - Gets information about the first chip.
+          - nand_scan_ident()     - Scans for additional chips.
+    * NAND_CMD_RESET
+          - nand_do_write_oob()   - Clears a bug observed on the
+                                    Toshiba TC5832DC and DiskOnChip 2000.
+    * NAND_CMD_READ0
+          - nand_do_read_ops()    - Used to begin a full page read (both with
+                                    and without ECC).
+    * NAND_CMD_ERASE1
+          - single_erase_cmd()    - Starts a block erase operation.
+          - multi_erase_cmd()     - Starts a block erase operation.
+    * NAND_CMD_ERASE2
+          - single_erase_cmd()    - Finishes a block erase operation.
+          - multi_erase_cmd()     - Finishes a block erase operation.
+
+
+Since this is all the HIL uses, this is all a driver needs to implement.
+
+
+
+The Structure of the imx_nfc Driver
+===================================
+
+This driver supports many different versions of underlying controller, and
+also supports higher-level abstractions like interleaving. To facilitate this
+versatility, the code is layered as shown in the following diagram:
+
+
+            +--------------------------------------+
+            |                 MTD                  |
+            +--------------------------------------+
+            |            NAND Flash MTD            |
+            ======================================== <-- struct nand_chip
+         /  | MTD Interface Layer          (mil_*) |
+         |  |   +----------------------------------+
+         |  |   | Medium Abstraction Layer (mal_*) |
+ imx_nfc |  |   |                                  |
+  driver |  |   |         +------------------------+
+         |  |   |         | NFC Utils (nfc_util_*) |
+         |  ======================================== <-- struct nfc_hal
+         \  | NFC HAL                  (nfc_x_y_*) |
+            ======================================== <-- Hardware Interface
+            |             NFC Hardware             |
+            +--------------------------------------+
+
+
+MTD Interface Layer
+-------------------
+This layer includes functions that the NAND Flash MTD system calls directly.
+In a manner of speaking, this layer "parses" the function calls made by MTD
+and translates them into fundamental operations understood by the Medium
+Abstraction Layer. Some simple operations don't need any abstraction, so code
+in this layer can sometimes use the NFC HAL directly.
+
+
+Medium Abstraction Layer
+------------------------
+This layer implements the abstract model of the NAND Flash medium and hides
+details that shouldn't concern higher layers (e.g., interleaving).
+
+
+NFC Utilities
+-------------
+These functions make it easier to use the NFC HAL. Even though this layer
+is shown above the NFC HAL in the diagram, it's actually possible for the
+NFC HAL to call some of these functions.
+
+
+NFC HAL
+-------
+This layer implements the abstract model of an i.MX NAND Flash controller.
+
+
+Other Collections of Functions
+------------------------------
+
+- System Interface
+    - imx_nfc_*
+
+- sysfs Interface
+    - get_module_*
+    - set_module_*
+    - show_device_*
+    - store_device_*
+
+
+
+
+i.MX NAND Flash Controller Versions
+===================================
+
+The i.MX NAND Flash controller (NFC) has evolved over time. Both its memory
+layout and behaviors have changed. In this driver, we use major and minor
+version numbers to label these stages in the NFC's evolution. These version
+numbers are very useful, but they are entirely a figment of this driver's
+imagination -- you will never find them in Freescale hardware reference
+manuals.
+
+When the platform code instantiates an i.MX NFC device, it provides a struct
+imx_nfc_platform_data that contains platform-specific information. This
+includes the major and minor version numbers for the NFC. This driver uses
+the version numbers to select an appopriate NFC HAL structure.
+
+
+
+i.MX NFC Memory Map
+===================
+
+While many things have changed during the evolution of the NFC, much has
+remained the same. All i.MX NFCs have two or three essential memory-mapped
+regions: a set of buffers, and one or two sets of registers (one on the AXI
+bus and perhaps a second on the IP bus).
+
+The buffer area contains the captive memory to which the NFC writes data
+received from the NAND Flash medium. This area is subdivided into several
+contiguous "main" buffers that hold 512-byte chunks of data, and several
+"spare" buffers that hold varying-size chunks of out-of-band bytes. The
+number of main buffers is always the same as the number of spare buffers, but
+the exact count and the size of the spare buffers varies across NFC versions.
+
+The register areas contain the NFC's control interface. Some versions have
+only one set of registers, and some have two.
+
+The platform-specific resources passed to this driver include the starting
+and ending physical addresses of the buffer and register areas. This driver
+maps those physical addresses to virtual addresses, and then uses version-
+specific offsets and bit masks to operate the NFC.
+
+
+
+Matching the NAND Flash MTD Page Model with the i.MX NFC
+========================================================
+
+The NAND Flash MTD HAL model views a page as containing two essentially
+independent groups of bytes: "data" bytes and "out-of-band" bytes. If the
+underlying physical format has data and out-of-band bytes distributed across
+the page, they must be reassembled before being delivered to the caller
+(e.g., see the function nand_read_page_syndrome(), which is part of the
+reference implementation).
+
+The i.MX NFC hardware imposes both a physical page layout and a layout in its
+memory buffer that differ from the HAL model. The following figure shows how
+all these layouts relate to each other:
+
+
+        i.MX NFC              i.MX NFC
+        Physical               Memory              NAND Flash
+          Page                 Buffers             MTD Model
+
+       +--------+            +--------+            +--------+
+       |OOB[N-1]|            |OOB[N-1]|            |OOB[N-1]|
+       +--------+            +--------+            +--------+
+       |        |              <gap>               |OOB[ 1 ]|
+       | Data   |            +--------+            +--------+
+       |  [N-1] |            |OOB[ 1 ]|            |OOB[ 0 ]|
+       |        |            +--------+            +--------+
+       +--------+              <gap>
+          ...                +--------+            +--------+
+       +--------+            |OOB[ 0 ]|            |        |
+       |OOB[ 1 ]|            +--------+            | Data   |
+       +--------+            |        |            |  [N-1] |
+       |        |            | Data   |            |        |
+       | Data   |            |  [N-1] |            +--------+
+       |  [ 1 ] |            |        |            |        |
+       |        |            +--------+            | Data   |
+       +--------+               ...                |  [ 1 ] |
+       |OOB[ 0 ]|            +--------+            |        |
+       +--------+            |        |            +--------+
+       |        |            | Data   |            |        |
+       | Data   |            |  [ 1 ] |            | Data   |
+       |  [ 0 ] |            |        |            |  [ 0 ] |
+       |        |            +--------+            |        |
+       +--------+            |        |            +--------+
+                             | Data   |
+                             |  [ 0 ] |
+                             |        |
+                             +--------+
+
+
+The NFC memory is *almost* what we want, but not quite. The problems are:
+
+    1) There are gaps between the out-of-band fragments.
+
+    2) The NFC memory responds only to 16-byte or 32-byte reads and writes.
+
+To resolve these problems, we've encapsulated the NFC memory behind these
+functions:
+
+  nfc_util_copy_from_the_nfc() - Copies data to main memory from the the NFC.
+  nfc_util_copy_to_the_nfc()   - Copies data from main memory to the NFC.
+
+These functions don't take pointers to locations within the NFC memory - they
+take a "column address." These functions know how to skip over the gaps and
+handle the NFC memory such that it looks like all the data and out-of-band
+bytes are completely contiguous. They also handle copying arbitrary bytes
+from/to a memory that only responds to 16- or 32-byte reads/writes. If you're
+accessing the NFC memory without these functions, you're *probably* doing
+something wrong.
+
+
