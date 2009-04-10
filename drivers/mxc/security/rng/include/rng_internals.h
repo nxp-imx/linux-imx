@@ -144,6 +144,20 @@
 #endif				/* end DOXYGEN_HACK */
 
 /*!
+ * If this flag is defined, the driver will not attempt to put the RNG into
+ * High Assurance mode.
+
+ * If it is undefined, the driver will attempt to put the RNG into High
+ * Assurance mode.  If RNG fails to go into High Assurance mode, the driver
+ * will fail to initialize.
+
+ * In either case, if the RNG is already in this mode, the driver will operate
+ * normally.
+ *
+ */
+#define RNG_NO_FORCE_HIGH_ASSURANCE
+
+/*!
  * Read a 32-bit value from an RNG register.  This macro depends upon
  * #rng_base.  The os_read32() macro operates on 32-bit quantities, as do
  * all RNG register reads.
