@@ -50,6 +50,7 @@ static struct cpu_wp *cpu_wp_tbl;
 int cpu_wp_nr;
 
 extern int mxc_jtag_enabled;
+extern int cpufreq_trig_needed;
 
 static int cpu_clk_set_wp(int wp);
 extern void propagate_rate(struct clk *tclk);
@@ -3103,6 +3104,10 @@ static int cpu_clk_set_wp(int wp)
 		pll1_main_clk.rate = pll1_sw_clk.rate;
 		cpu_clk.rate = pll1_sw_clk.rate;
 	}
+
+#if defined(CONFIG_CPU_FREQ)
+	cpufreq_trig_needed = 1;
+#endif
 	return 0;
 }
 

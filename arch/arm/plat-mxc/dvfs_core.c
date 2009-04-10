@@ -40,6 +40,7 @@
 #include <linux/regulator/consumer.h>
 #include <linux/input.h>
 #include <linux/platform_device.h>
+#include <linux/cpufreq.h>
 
 #define MXC_DVFSTHRS_UPTHR_MASK               0x0FC00000
 #define MXC_DVFSTHRS_UPTHR_OFFSET             22
@@ -95,6 +96,7 @@ static struct cpu_wp *cpu_wp_tbl;
 int dvfs_core_resume;
 int curr_wp;
 int dvfs_core_is_active;
+int cpufreq_trig_needed;
 
 /*
  * Clock structures
@@ -119,7 +121,42 @@ enum {
  */
 #define DVFS_LTBRSR		(2 << MXC_DVFSCNTR_LTBRSR_OFFSET)
 
+extern int low_bus_freq_mode;
+extern int high_bus_freq_mode;
+extern int set_low_bus_freq(void);
+extern int set_high_bus_freq(void);
+extern int low_freq_bus_used(void);
+
 DEFINE_SPINLOCK(mxc_dvfs_core_lock);
+
+void dvfs_core_set_bus_freq(void)
+{
+	u32 reg;
+	int low_freq_bus_ready = 0;
+
+	/* Mask DVFS irq */
+	reg = __raw_readl(dvfs_data->dvfs_cntr_reg_addr);
+	/* FSVAIM=1 */
+	reg |= MXC_DVFSCNTR_FSVAIM;
+	__raw_writel(reg, dvfs_data->dvfs_cntr_reg_addr);
+
+	low_freq_bus_ready = low_freq_bus_used();
+
+	if ((curr_wp == dvfs_data->num_wp - 1) && (!low_bus_freq_mode)
+	    && (low_freq_bus_ready))
+		set_low_bus_freq();
+	else if ((curr_wp == dvfs_data->num_wp - 1) && (low_bus_freq_mode)
+		 && (!low_freq_bus_ready))
+		set_high_bus_freq();
+
+	/* Enable DVFS interrupt */
+	/* FSVAIM=0 */
+	reg = (reg & ~MXC_DVFSCNTR_FSVAIM);
+	/* LBFL=1 */
+	reg = (reg & ~MXC_DVFSCNTR_LBFL);
+	reg |= MXC_DVFSCNTR_LBFL;
+	__raw_writel(reg, dvfs_data->dvfs_cntr_reg_addr);
+}
 
 static void dvfs_load_config(void)
 {
@@ -135,6 +172,64 @@ static void dvfs_load_config(void)
 	reg |= dvfs_data->dncnt_val << MXC_DVFSCOUN_DNCNT_OFFSET;
 	reg |= dvfs_data->upcnt_val << MXC_DVFSCOUN_UPCNT_OFFSET;
 	__raw_writel(reg, dvfs_data->dvfs_coun_reg_addr);
+}
+
+static int set_cpu_freq(int wp)
+{
+	int ret = 0;
+	int org_cpu_rate;
+	unsigned long rate = 0;
+	int gp_volt = 0;
+	u32 reg;
+
+	org_cpu_rate = clk_get_rate(cpu_clk);
+	rate = cpu_wp_tbl[wp].cpu_rate;
+
+	if (org_cpu_rate == rate)
+		return ret;
+
+	gp_volt = cpu_wp_tbl[wp].cpu_voltage;
+
+	if (gp_volt == 0)
+		return ret;
+
+	/*Set the voltage for the GP domain. */
+	if (rate > org_cpu_rate) {
+		ret = regulator_set_voltage(core_regulator, gp_volt, gp_volt);
+		if (ret < 0) {
+			printk(KERN_DEBUG "COULD NOT SET GP VOLTAGE!!!!\n");
+			return ret;
+		}
+		udelay(dvfs_data->delay_time);
+	}
+
+	ret = clk_set_rate(cpu_clk, rate);
+	if (ret != 0) {
+		printk(KERN_DEBUG "cannot set CPU clock rate\n");
+		return ret;
+	}
+
+	/* START the GPC main control FSM */
+	/* set VINC */
+	reg = __raw_readl(dvfs_data->gpc_vcr_reg_addr);
+	reg &=
+	    ~(MXC_GPCVCR_VINC_MASK | MXC_GPCVCR_VCNTU_MASK |
+	      MXC_GPCVCR_VCNT_MASK);
+	reg |=
+	    (1 << MXC_GPCVCR_VCNTU_OFFSET) |
+	    (100 << MXC_GPCVCR_VCNT_OFFSET);
+	__raw_writel(reg, dvfs_data->gpc_vcr_reg_addr);
+
+	if (rate < org_cpu_rate) {
+		ret = regulator_set_voltage(core_regulator, gp_volt, gp_volt);
+		if (ret < 0) {
+			printk(KERN_DEBUG "COULD NOT SET GP VOLTAGE!!!!\n");
+			return ret;
+		}
+		udelay(dvfs_data->delay_time);
+	}
+
+	return ret;
 }
 
 static int start_dvfs(void)
@@ -236,10 +331,9 @@ static void dvfs_core_workqueue_handler(struct work_struct *work)
 	u32 fsvai;
 	u32 reg;
 	u32 curr_cpu;
-	unsigned long rate = 0;
 	int ret = 0;
-	int uvol;
 	int maxf = 0, minf = 0;
+	int low_freq_bus_ready = 0;
 
 	/* Check DVFS frequency adjustment interrupt status */
 	reg = __raw_readl(dvfs_data->dvfs_cntr_reg_addr);
@@ -267,37 +361,8 @@ static void dvfs_core_workqueue_handler(struct work_struct *work)
 				goto END;
 			}
 
-			rate = cpu_wp_tbl[curr_wp].cpu_rate;
-			uvol = cpu_wp_tbl[curr_wp].cpu_voltage;
 			if (curr_wp == dvfs_data->num_wp - 1)
 				minf = 1;
-
-			ret = clk_set_rate(cpu_clk, rate);
-			if (ret != 0) {
-				printk(KERN_DEBUG
-				       "cannot set CPU clock rate\n");
-				goto END;
-			}
-
-			/* START the GPC main control FSM */
-			/* set VINC */
-			reg = __raw_readl(dvfs_data->gpc_vcr_reg_addr);
-			reg &=
-			    ~(MXC_GPCVCR_VINC_MASK | MXC_GPCVCR_VCNTU_MASK |
-			      MXC_GPCVCR_VCNT_MASK);
-			reg |=
-			    (1 << MXC_GPCVCR_VCNTU_OFFSET) |
-			    (100 << MXC_GPCVCR_VCNT_OFFSET);
-			__raw_writel(reg, dvfs_data->gpc_vcr_reg_addr);
-
-			/* Set the voltage for the GP domain. */
-			ret = regulator_set_voltage(core_regulator, uvol, uvol);
-			if (ret < 0) {
-				printk(KERN_DEBUG
-				       "COULD NOT SET CORE VOLTAGE!!!!!\n");
-				goto END;
-			}
-			udelay(dvfs_data->delay_time);
 		}
 	} else {
 		if (curr_cpu == cpu_wp_tbl[0].cpu_rate) {
@@ -306,36 +371,33 @@ static void dvfs_core_workqueue_handler(struct work_struct *work)
 		} else {
 			/* freq up */
 			curr_wp = 0;
-			rate = cpu_wp_tbl[curr_wp].cpu_rate;
-			/* START the GPC main control FSM */
-			/* set VINC */
-			reg = __raw_readl(dvfs_data->gpc_vcr_reg_addr);
-			reg &=
-			    ~(MXC_GPCVCR_VINC_MASK | MXC_GPCVCR_VCNTU_MASK |
-			      MXC_GPCVCR_VCNT_MASK);
-			reg |=
-			    (1 << MXC_GPCVCR_VCNTU_OFFSET) |
-			    (100 << MXC_GPCVCR_VCNT_OFFSET);
-			__raw_writel(reg, dvfs_data->gpc_vcr_reg_addr);
-
-			ret = regulator_set_voltage(core_regulator,
-						cpu_wp_tbl[curr_wp].cpu_voltage,
-						cpu_wp_tbl[curr_wp].cpu_voltage);
-			if (ret < 0) {
-				printk(KERN_DEBUG
-				       "COULD NOT SET CORE VOLTAGE!!!!\n");
-				goto END;
-			}
-			udelay(dvfs_data->delay_time);
-
-			ret =
-			    clk_set_rate(cpu_clk, cpu_wp_tbl[curr_wp].cpu_rate);
-			if (ret != 0)
-				printk(KERN_DEBUG
-				       "cannot set CPU clock rate\n");
 			maxf = 1;
 		}
 	}
+
+	low_freq_bus_ready = low_freq_bus_used();
+	if ((curr_wp == dvfs_data->num_wp - 1) && (!low_bus_freq_mode)
+	    && (low_freq_bus_ready)) {
+		set_low_bus_freq();
+		ret = set_cpu_freq(curr_wp);
+	} else {
+		if (!high_bus_freq_mode)
+			set_high_bus_freq();
+
+		ret = set_cpu_freq(curr_wp);
+
+		if (low_bus_freq_mode) {
+			if (ret == 0)
+				set_high_bus_freq();
+		}
+			}
+
+#if defined(CONFIG_CPU_FREQ)
+	if (cpufreq_trig_needed == 1) {
+		cpufreq_trig_needed = 0;
+		cpufreq_update_policy(0);
+	}
+#endif
 
 END:			/* Set MAXF, MINF */
 	reg = __raw_readl(dvfs_data->dvfs_cntr_reg_addr);
@@ -377,11 +439,10 @@ static void stop_dvfs(void)
 		curr_wp = 0;
 		curr_cpu = clk_get_rate(cpu_clk);
 		if (curr_cpu != cpu_wp_tbl[curr_wp].cpu_rate) {
-			if (regulator_set_voltage(core_regulator,
-					cpu_wp_tbl[curr_wp].cpu_voltage,
-					cpu_wp_tbl[curr_wp].cpu_voltage) == 0)
-				clk_set_rate(cpu_clk,
-					     cpu_wp_tbl[curr_wp].cpu_rate);
+			if (!high_bus_freq_mode)
+				set_high_bus_freq();
+
+			set_cpu_freq(curr_wp);
 		}
 
 		clk_disable(dvfs_clk);
@@ -496,6 +557,7 @@ static int __devinit mxc_dvfs_core_probe(struct platform_device *pdev)
 	cpu_wp_tbl = get_cpu_wp(&cpu_wp_nr);
 	curr_wp = 0;
 	dvfs_core_resume = 0;
+	cpufreq_trig_needed = 0;
 
 	return err;
 

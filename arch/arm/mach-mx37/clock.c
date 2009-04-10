@@ -28,6 +28,7 @@
 #include "iomux.h"
 
 extern int mxc_jtag_enabled;
+extern int cpufreq_trig_needed;
 
 static unsigned long pll_base[] = {
 	(unsigned long)MXC_DPLL1_BASE,
@@ -2982,6 +2983,10 @@ static int cpu_clk_set_wp(int wp)
 	pll1_sw_clk.rate = cpu_wp_tbl[wp].cpu_rate;
 	pll1_main_clk.rate = pll1_sw_clk.rate;
 	cpu_clk.rate = pll1_sw_clk.rate;
+
+#if defined(CONFIG_CPU_FREQ)
+	cpufreq_trig_needed = 1;
+#endif
 
 	if (wp == 0)
 		dptc_resume(DPTC_GP_ID);

@@ -613,8 +613,8 @@ struct mxc_dvfs_platform_data dvfs_core_data = {
 	.div3ck_mask = 0x00000006,
 	.div3ck_offset = 1,
 	.div3ck_val = 3,
-	.emac_val = 0x10,
-	.upthr_val = 28,
+	.emac_val = 0x08,
+	.upthr_val = 30,
 	.dnthr_val = 10,
 	.pncthr_val = 33,
 	.upcnt_val = 5,
@@ -885,6 +885,19 @@ static inline void mx37_init_lpmode(void)
 	(void)platform_device_register(&mx37_lpmode_device);
 }
 
+static struct platform_device busfreq_device = {
+	.name = "busfreq",
+	.id = 0,
+	.dev = {
+		.release = mxc_nop_release,
+		},
+};
+
+static inline void mxc_init_busfreq(void)
+{
+	(void)platform_device_register(&busfreq_device);
+}
+
 #if defined(CONFIG_HW_RANDOM_FSL_RNGC) || \
 defined(CONFIG_HW_RANDOM_FSL_RNGC_MODULE)
 static struct resource rngc_resources[] = {
@@ -961,6 +974,7 @@ int __init mxc_init_devices(void)
 	mxc_init_spdif();
 	mxc_init_tve();
 	mx37_init_lpmode();
+	mxc_init_busfreq();
 	mxc_init_dvfs();
 	mxc_init_dptc();
 	mxc_init_rngc();
