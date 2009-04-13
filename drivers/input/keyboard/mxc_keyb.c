@@ -669,11 +669,13 @@ static void mxc_kpp_close(struct input_dev *dev)
  *                to suspend
  * @param   state the power state the device is entering
  *
- * @return  The function always returns 0.
+ * @return  return -1 when the keypad is pressed. Otherwise, return 0
  */
 static int mxc_kpp_suspend(struct platform_device *pdev, pm_message_t state)
 {
-	del_timer(&kpp_dev.poll_timer);
+	/* When the keypad is still pressed, clean up registers and timers */
+	if (timer_pending(&kpp_dev.poll_timer))
+		return -1;
 
 	if (device_may_wakeup(&pdev->dev)) {
 		enable_irq_wake(keypad->irq);
@@ -707,8 +709,6 @@ static int mxc_kpp_resume(struct platform_device *pdev)
 		key_pad_enabled = 1;
 		enable_irq(keypad->irq);
 	}
-
-	init_timer(&kpp_dev.poll_timer);
 
 	return 0;
 }
