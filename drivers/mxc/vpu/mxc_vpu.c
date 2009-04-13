@@ -69,6 +69,8 @@ static struct vpu_mem_desc user_data_mem = { 0 };
 
 /* IRAM setting */
 static struct iram_setting iram;
+/* store SRC base addr */
+static u32 src_base_addr;
 
 /* implement the blocking ioctl */
 static int codec_done = 0;
@@ -423,15 +425,15 @@ static int vpu_ioctl(struct inode *inode, struct file *filp, u_int cmd,
 		}
 	case VPU_IOC_SYS_SW_RESET:
 		{
-			u32 reg;
+			if (cpu_is_mx37() || cpu_is_mx51()) {
+				u32 reg;
 
-#define SW_VPU_RST_BIT	0x02
-			reg = __raw_readl(IO_ADDRESS(SRC_BASE_ADDR));
-			reg |= SW_VPU_RST_BIT;
-			__raw_writel(reg, IO_ADDRESS(SRC_BASE_ADDR));
-			while (__raw_readl(IO_ADDRESS(SRC_BASE_ADDR)) &
-			       SW_VPU_RST_BIT)
-				;
+				reg = __raw_readl(src_base_addr);
+				reg |= 0x02;	/* SW_VPU_RST_BIT */
+				__raw_writel(reg, src_base_addr);
+				while (__raw_readl(src_base_addr) & 0x02)
+					;
+			}
 			break;
 		}
 	case VPU_IOC_REG_DUMP:
@@ -551,7 +553,7 @@ static int vpu_dev_probe(struct platform_device *pdev)
 		res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 		if (!res) {
 			printk(KERN_ERR "vpu: unable to get VL2CC base\n");
-			return -ENOENT;
+			return -ENODEV;
 		}
 
 		err = vl2cc_init(res->start);
@@ -563,10 +565,17 @@ static int vpu_dev_probe(struct platform_device *pdev)
 		res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 		if (!res) {
 			printk(KERN_ERR "vpu: unable to get VPU IRAM base\n");
-			return -ENOENT;
+			return -ENODEV;
 		}
 		iram.start = res->start;
 		iram.end = res->end;
+
+		res = platform_get_resource(pdev, IORESOURCE_MEM, 1);
+		if (!res) {
+			printk(KERN_ERR "vpu: unable to get src base addr\n");
+			return -ENODEV;
+		}
+		src_base_addr = res->start;
 	}
 
 	vpu_major = register_chrdev(vpu_major, "mxc_vpu", &vpu_fops);

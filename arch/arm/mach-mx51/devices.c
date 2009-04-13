@@ -275,11 +275,16 @@ static inline void mxc_init_ipu(void)
 
 #if defined(CONFIG_MXC_VPU) || defined(CONFIG_MXC_VPU_MODULE)
 static struct resource vpu_resources[] = {
-	{
-	 .start = VPU_IRAM_BASE_ADDR,
-	 .end = VPU_IRAM_BASE_ADDR + VPU_IRAM_SIZE,
-	 .flags = IORESOURCE_MEM,
-	 },
+	[0] = {
+	       .start = VPU_IRAM_BASE_ADDR,
+	       .end = VPU_IRAM_BASE_ADDR + VPU_IRAM_SIZE,
+	       .flags = IORESOURCE_MEM,
+	       },
+	[1] = {
+	       .start = IO_ADDRESS(SRC_BASE_ADDR),
+	       .end = IO_ADDRESS(SRC_BASE_ADDR),
+	       .flags = IORESOURCE_MEM,
+	       },
 };
 
 /*! Platform Data for MXC VPU */
