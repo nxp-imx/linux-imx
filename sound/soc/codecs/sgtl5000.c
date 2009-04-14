@@ -321,10 +321,10 @@ static int dac_put_volsw(struct snd_kcontrol *kcontrol,
 	l = ucontrol->value.integer.value[0];
 	r = ucontrol->value.integer.value[1];
 
-	l = l < 0x3c ? 0x3c : l;
-	l = l > 0xfc ? 0xfc : l;
-	r = r < 0x3c ? 0x3c : r;
-	r = r > 0xfc ? 0xfc : r;
+	l = l < 0 ? 0 : l;
+	l = l > 0xfc - 0x3c ? 0xfc - 0x3c : l;
+	r = r < 0 ? 0 : r;
+	r = r > 0xfc - 0x3c ? 0xfc - 0x3c : r;
 	l = 0xfc - l;
 	r = 0xfc - r;
 
