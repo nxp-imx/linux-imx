@@ -101,6 +101,8 @@ struct cpu_wp *get_cpu_wp(int *wp)
 	return cpu_wp_auto;
 }
 
+#if defined(CONFIG_REGULATOR_MC13892) \
+    || defined(CONFIG_REGULATOR_MC13892_MODULE)
 static int mc13892_reg_int(void)
 {
 	int i = 0;
@@ -176,6 +178,7 @@ static int mc13892_reg_int(void)
 }
 
 late_initcall(mc13892_reg_int);
+#endif
 
 static void mxc_nop_release(struct device *dev)
 {

@@ -16,6 +16,7 @@ config MX37_OPTIONS
 config MACH_MX37_3DS
 	bool "Support MX37 3-Stack platforms"
 	default y
+	select MFD_WM8350_CONFIG_MODE_0
 	help
 	  Include support for MX37 3-Stack platform. This includes specific
 	  configurations for the board and its peripherals.
