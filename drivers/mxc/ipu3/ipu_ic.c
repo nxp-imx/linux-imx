@@ -36,7 +36,7 @@ enum {
 };
 
 static void _init_csc(uint8_t ic_task, ipu_color_space_t in_format,
-		      ipu_color_space_t out_format);
+		      ipu_color_space_t out_format, int csc_index);
 static bool _calc_resize_coeffs(uint32_t inSize, uint32_t outSize,
 				uint32_t *resizeCoeff,
 				uint32_t *downsizeCoeff);
@@ -145,15 +145,15 @@ void _ipu_ic_init_prpvf(ipu_channel_params_t *params, bool src_is_csi)
 	out_fmt = format_to_colorspace(params->mem_prp_vf_mem.out_pixel_fmt);
 	if (in_fmt == RGB) {
 		if ((out_fmt == YCbCr) || (out_fmt == YUV)) {
-			/* Enable RGB->YCBCR CSC */
-			_init_csc(IC_TASK_VIEWFINDER, RGB, out_fmt);
+			/* Enable RGB->YCBCR CSC1 */
+			_init_csc(IC_TASK_VIEWFINDER, RGB, out_fmt, 1);
 			ic_conf |= IC_CONF_PRPVF_CSC1;
 		}
 	}
 	if ((in_fmt == YCbCr) || (in_fmt == YUV)) {
 		if (out_fmt == RGB) {
-			/* Enable YCBCR->RGB CSC */
-			_init_csc(IC_TASK_VIEWFINDER, YCbCr, RGB);
+			/* Enable YCBCR->RGB CSC1 */
+			_init_csc(IC_TASK_VIEWFINDER, YCbCr, RGB, 1);
 			ic_conf |= IC_CONF_PRPVF_CSC1;
 		} else {
 			/* TODO: Support YUV<->YCbCr conversion? */
@@ -163,18 +163,44 @@ void _ipu_ic_init_prpvf(ipu_channel_params_t *params, bool src_is_csi)
 	if (params->mem_prp_vf_mem.graphics_combine_en) {
 		ic_conf |= IC_CONF_PRPVF_CMB;
 
-		/* need transparent CSC1 conversion */
-		_init_csc(IC_TASK_POST_PROCESSOR, RGB, RGB);
-		ic_conf |= IC_CONF_PRPVF_CSC1;	/* Enable RGB->RGB CSC */
+		if (!(ic_conf & IC_CONF_PRPVF_CSC1)) {
+			/* need transparent CSC1 conversion */
+			_init_csc(IC_TASK_VIEWFINDER, RGB, RGB, 1);
+			ic_conf |= IC_CONF_PRPVF_CSC1;  /* Enable RGB->RGB CSC */
+		}
+		in_fmt = format_to_colorspace(params->mem_prp_vf_mem.in_g_pixel_fmt);
+		out_fmt = format_to_colorspace(params->mem_prp_vf_mem.out_pixel_fmt);
+		if (in_fmt == RGB) {
+			if ((out_fmt == YCbCr) || (out_fmt == YUV)) {
+				/* Enable RGB->YCBCR CSC2 */
+				_init_csc(IC_TASK_VIEWFINDER, RGB, out_fmt, 2);
+				ic_conf |= IC_CONF_PRPVF_CSC2;
+			}
+		}
+		if ((in_fmt == YCbCr) || (in_fmt == YUV)) {
+			if (out_fmt == RGB) {
+				/* Enable YCBCR->RGB CSC2 */
+				_init_csc(IC_TASK_VIEWFINDER, YCbCr, RGB, 2);
+				ic_conf |= IC_CONF_PRPVF_CSC2;
+			} else {
+				/* TODO: Support YUV<->YCbCr conversion? */
+			}
+		}
 
-		if (params->mem_prp_vf_mem.global_alpha_en)
+		if (params->mem_prp_vf_mem.global_alpha_en) {
 			ic_conf |= IC_CONF_IC_GLB_LOC_A;
-		else
+			reg = __raw_readl(IC_CMBP_1);
+			reg &= ~(0xff);
+			reg |= params->mem_prp_vf_mem.alpha;
+			__raw_writel(reg, IC_CMBP_1);
+		} else
 			ic_conf &= ~IC_CONF_IC_GLB_LOC_A;
 
-		if (params->mem_prp_vf_mem.key_color_en)
+		if (params->mem_prp_vf_mem.key_color_en) {
 			ic_conf |= IC_CONF_KEY_COLOR_EN;
-		else
+			__raw_writel(params->mem_prp_vf_mem.key_color,
+					IC_CMBP_2);
+		} else
 			ic_conf &= ~IC_CONF_KEY_COLOR_EN;
 	} else {
 		ic_conf &= ~IC_CONF_PRPVF_CMB;
@@ -237,15 +263,15 @@ void _ipu_ic_init_prpenc(ipu_channel_params_t *params, bool src_is_csi)
 	out_fmt = format_to_colorspace(params->mem_prp_enc_mem.out_pixel_fmt);
 	if (in_fmt == RGB) {
 		if ((out_fmt == YCbCr) || (out_fmt == YUV)) {
-			/* Enable RGB->YCBCR CSC */
-			_init_csc(IC_TASK_ENCODER, RGB, out_fmt);
+			/* Enable RGB->YCBCR CSC1 */
+			_init_csc(IC_TASK_ENCODER, RGB, out_fmt, 1);
 			ic_conf |= IC_CONF_PRPENC_CSC1;
 		}
 	}
 	if ((in_fmt == YCbCr) || (in_fmt == YUV)) {
 		if (out_fmt == RGB) {
-			/* Enable YCBCR->RGB CSC */
-			_init_csc(IC_TASK_ENCODER, YCbCr, RGB);
+			/* Enable YCBCR->RGB CSC1 */
+			_init_csc(IC_TASK_ENCODER, YCbCr, RGB, 1);
 			ic_conf |= IC_CONF_PRPENC_CSC1;
 		} else {
 			/* TODO: Support YUV<->YCbCr conversion? */
@@ -309,15 +335,15 @@ void _ipu_ic_init_pp(ipu_channel_params_t *params)
 	out_fmt = format_to_colorspace(params->mem_pp_mem.out_pixel_fmt);
 	if (in_fmt == RGB) {
 		if ((out_fmt == YCbCr) || (out_fmt == YUV)) {
-			/* Enable RGB->YCBCR CSC */
-			_init_csc(IC_TASK_POST_PROCESSOR, RGB, out_fmt);
+			/* Enable RGB->YCBCR CSC1 */
+			_init_csc(IC_TASK_POST_PROCESSOR, RGB, out_fmt, 1);
 			ic_conf |= IC_CONF_PP_CSC1;
 		}
 	}
 	if ((in_fmt == YCbCr) || (in_fmt == YUV)) {
 		if (out_fmt == RGB) {
-			/* Enable YCBCR->RGB CSC */
-			_init_csc(IC_TASK_POST_PROCESSOR, YCbCr, RGB);
+			/* Enable YCBCR->RGB CSC1 */
+			_init_csc(IC_TASK_POST_PROCESSOR, YCbCr, RGB, 1);
 			ic_conf |= IC_CONF_PP_CSC1;
 		} else {
 			/* TODO: Support YUV<->YCbCr conversion? */
@@ -327,18 +353,45 @@ void _ipu_ic_init_pp(ipu_channel_params_t *params)
 	if (params->mem_pp_mem.graphics_combine_en) {
 		ic_conf |= IC_CONF_PP_CMB;
 
-		/* need transparent CSC1 conversion */
-		_init_csc(IC_TASK_POST_PROCESSOR, RGB, RGB);
-		ic_conf |= IC_CONF_PP_CSC1;	/* Enable RGB->RGB CSC */
+		if (!(ic_conf & IC_CONF_PP_CSC1)) {
+			/* need transparent CSC1 conversion */
+			_init_csc(IC_TASK_POST_PROCESSOR, RGB, RGB, 1);
+			ic_conf |= IC_CONF_PP_CSC1;  /* Enable RGB->RGB CSC */
+		}
 
-		if (params->mem_pp_mem.global_alpha_en)
+		in_fmt = format_to_colorspace(params->mem_pp_mem.in_g_pixel_fmt);
+		out_fmt = format_to_colorspace(params->mem_pp_mem.out_pixel_fmt);
+		if (in_fmt == RGB) {
+			if ((out_fmt == YCbCr) || (out_fmt == YUV)) {
+				/* Enable RGB->YCBCR CSC2 */
+				_init_csc(IC_TASK_POST_PROCESSOR, RGB, out_fmt, 2);
+				ic_conf |= IC_CONF_PP_CSC2;
+			}
+		}
+		if ((in_fmt == YCbCr) || (in_fmt == YUV)) {
+			if (out_fmt == RGB) {
+				/* Enable YCBCR->RGB CSC2 */
+				_init_csc(IC_TASK_POST_PROCESSOR, YCbCr, RGB, 2);
+				ic_conf |= IC_CONF_PP_CSC2;
+			} else {
+				/* TODO: Support YUV<->YCbCr conversion? */
+			}
+		}
+
+		if (params->mem_pp_mem.global_alpha_en) {
 			ic_conf |= IC_CONF_IC_GLB_LOC_A;
-		else
+			reg = __raw_readl(IC_CMBP_1);
+			reg &= ~(0xff00);
+			reg |= (params->mem_pp_mem.alpha << 8);
+			__raw_writel(reg, IC_CMBP_1);
+		} else
 			ic_conf &= ~IC_CONF_IC_GLB_LOC_A;
 
-		if (params->mem_pp_mem.key_color_en)
+		if (params->mem_pp_mem.key_color_en) {
 			ic_conf |= IC_CONF_KEY_COLOR_EN;
-		else
+			__raw_writel(params->mem_pp_mem.key_color,
+					IC_CMBP_2);
+		} else
 			ic_conf &= ~IC_CONF_KEY_COLOR_EN;
 	} else {
 		ic_conf &= ~IC_CONF_PP_CMB;
@@ -467,6 +520,19 @@ int _ipu_ic_idma_init(int dma_chan, uint16_t width, uint16_t height,
 		ic_idmac_1 &= ~IC_IDMAC_1_PRPVF_ROT_MASK;
 		ic_idmac_1 |= temp_rot << IC_IDMAC_1_PRPVF_ROT_OFFSET;
 	}
+
+	if (dma_chan == 14) {	/* PRP VF graphics combining input - CB3 */
+		if (burst_size == 16)
+			ic_idmac_1 |= IC_IDMAC_1_CB3_BURST_16;
+		else
+			ic_idmac_1 &= ~IC_IDMAC_1_CB3_BURST_16;
+	} else if (dma_chan == 15) {	/* PP graphics combining input - CB4 */
+		if (burst_size == 16)
+			ic_idmac_1 |= IC_IDMAC_1_CB4_BURST_16;
+		else
+			ic_idmac_1 &= ~IC_IDMAC_1_CB4_BURST_16;
+	}
+
 	__raw_writel(ic_idmac_1, IC_IDMAC_1);
 	__raw_writel(ic_idmac_2, IC_IDMAC_2);
 	__raw_writel(ic_idmac_3, IC_IDMAC_3);
@@ -475,7 +541,7 @@ int _ipu_ic_idma_init(int dma_chan, uint16_t width, uint16_t height,
 }
 
 static void _init_csc(uint8_t ic_task, ipu_color_space_t in_format,
-		      ipu_color_space_t out_format)
+		      ipu_color_space_t out_format, int csc_index)
 {
 
 /*     Y = R *  .299 + G *  .587 + B *  .114;
@@ -513,15 +579,21 @@ static void _init_csc(uint8_t ic_task, ipu_color_space_t in_format,
 	if (ic_task == IC_TASK_ENCODER) {
 		base = ipu_tpmem_base + 0x2008 / 4;
 	} else if (ic_task == IC_TASK_VIEWFINDER) {
-		base = ipu_tpmem_base + 0x4028 / 4;
+		if (csc_index == 1)
+			base = ipu_tpmem_base + 0x4028 / 4;
+		else
+			base = ipu_tpmem_base + 0x4040 / 4;
 	} else if (ic_task == IC_TASK_POST_PROCESSOR) {
-		base = ipu_tpmem_base + 0x6060 / 4;
+		if (csc_index == 1)
+			base = ipu_tpmem_base + 0x6060 / 4;
+		else
+			base = ipu_tpmem_base + 0x6078 / 4;
 	} else {
 		BUG();
 	}
 
 	if ((in_format == YCbCr) && (out_format == RGB)) {
-		/* Init CSC1 (YCbCr->RGB) */
+		/* Init CSC (YCbCr->RGB) */
 		param = (ycbcr2rgb_coeff[3][0] << 27) |
 			(ycbcr2rgb_coeff[0][0] << 18) |
 			(ycbcr2rgb_coeff[1][1] << 9) | ycbcr2rgb_coeff[2][2];
@@ -544,7 +616,7 @@ static void _init_csc(uint8_t ic_task, ipu_color_space_t in_format,
 		param = (ycbcr2rgb_coeff[3][2] >> 5);
 		__raw_writel(param, base++);
 	} else if ((in_format == RGB) && (out_format == YCbCr)) {
-		/* Init CSC1 (RGB->YCbCr) */
+		/* Init CSC (RGB->YCbCr) */
 		param = (rgb2ycbcr_coeff[3][0] << 27) |
 			(rgb2ycbcr_coeff[0][0] << 18) |
 			(rgb2ycbcr_coeff[1][1] << 9) | rgb2ycbcr_coeff[2][2];
@@ -567,7 +639,7 @@ static void _init_csc(uint8_t ic_task, ipu_color_space_t in_format,
 		param = (rgb2ycbcr_coeff[3][2] >> 5);
 		__raw_writel(param, base++);
 	} else if ((in_format == RGB) && (out_format == RGB)) {
-		/* Init CSC1 */
+		/* Init CSC */
 		param =
 		    (rgb2rgb_coeff[3][0] << 27) | (rgb2rgb_coeff[0][0] << 18) |
 		    (rgb2rgb_coeff[1][1] << 9) | rgb2rgb_coeff[2][2];

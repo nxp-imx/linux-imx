@@ -50,6 +50,7 @@ ipu_channel_t g_ipu_csi_channel[2];
 int g_ipu_irq[2];
 int g_ipu_hw_rev;
 bool g_sec_chan_en[21];
+bool g_thrd_chan_en[21];
 uint32_t g_channel_init_mask;
 uint32_t g_channel_enable_mask;
 DEFINE_SPINLOCK(ipu_lock);
@@ -438,6 +439,8 @@ int32_t ipu_init_channel(ipu_channel_t channel, ipu_channel_params_t *params)
 
 		if (params->mem_prp_vf_mem.graphics_combine_en)
 			g_sec_chan_en[IPU_CHAN_ID(channel)] = true;
+		if (params->mem_prp_vf_mem.alpha_chan_en)
+			g_thrd_chan_en[IPU_CHAN_ID(channel)] = true;
 
 		_ipu_ic_init_prpvf(params, false);
 		break;
@@ -460,6 +463,8 @@ int32_t ipu_init_channel(ipu_channel_t channel, ipu_channel_params_t *params)
 	case MEM_PP_MEM:
 		if (params->mem_pp_mem.graphics_combine_en)
 			g_sec_chan_en[IPU_CHAN_ID(channel)] = true;
+		if (params->mem_pp_mem.alpha_chan_en)
+			g_thrd_chan_en[IPU_CHAN_ID(channel)] = true;
 		_ipu_ic_init_pp(params);
 		ipu_ic_use_count++;
 		break;
@@ -607,6 +612,7 @@ void ipu_uninit_channel(ipu_channel_t channel)
 	__raw_writel(reg & ~idma_mask(out_dma), IPU_CHA_DB_MODE_SEL(out_dma));
 
 	g_sec_chan_en[IPU_CHAN_ID(channel)] = false;
+	g_thrd_chan_en[IPU_CHAN_ID(channel)] = false;
 
 	switch (channel) {
 	case CSI_MEM0:
@@ -1324,6 +1330,8 @@ int32_t ipu_enable_channel(ipu_channel_t channel)
 	unsigned long lock_flags;
 	uint32_t in_dma;
 	uint32_t out_dma;
+	uint32_t sec_dma;
+	uint32_t thrd_dma;
 
 	if (g_channel_enable_mask & (1L << IPU_CHAN_ID(channel))) {
 		dev_err(g_ipu_dev, "Warning: channel already enabled %d\n",
@@ -1343,6 +1351,19 @@ int32_t ipu_enable_channel(ipu_channel_t channel)
 	if (idma_is_valid(out_dma)) {
 		reg = __raw_readl(IDMAC_CHA_EN(out_dma));
 		__raw_writel(reg | idma_mask(out_dma), IDMAC_CHA_EN(out_dma));
+	}
+
+	if ((g_sec_chan_en[IPU_CHAN_ID(channel)]) &&
+		((channel == MEM_PP_MEM) || (channel == MEM_PRP_VF_MEM))) {
+		sec_dma = channel_2_dma(channel, IPU_GRAPH_IN_BUFFER);
+		reg = __raw_readl(IDMAC_CHA_EN(sec_dma));
+		__raw_writel(reg | idma_mask(sec_dma), IDMAC_CHA_EN(sec_dma));
+	}
+	if ((g_thrd_chan_en[IPU_CHAN_ID(channel)]) &&
+		((channel == MEM_PP_MEM) || (channel == MEM_PRP_VF_MEM))) {
+		thrd_dma = channel_2_dma(channel, IPU_ALPHA_IN_BUFFER);
+		reg = __raw_readl(IDMAC_CHA_EN(thrd_dma));
+		__raw_writel(reg | idma_mask(thrd_dma), IDMAC_CHA_EN(thrd_dma));
 	}
 
 	if ((channel == MEM_DC_SYNC) || (channel == MEM_BG_SYNC) ||
@@ -1378,6 +1399,8 @@ int32_t ipu_disable_channel(ipu_channel_t channel, bool wait_for_stop)
 	unsigned long lock_flags;
 	uint32_t in_dma;
 	uint32_t out_dma;
+	uint32_t sec_dma = NO_DMA;
+	uint32_t thrd_dma = NO_DMA;
 	uint32_t timeout;
 
 	if ((g_channel_enable_mask & (1L << IPU_CHAN_ID(channel))) == 0) {
@@ -1396,6 +1419,11 @@ int32_t ipu_disable_channel(ipu_channel_t channel, bool wait_for_stop)
 		!idma_is_set(IDMAC_CHA_EN, out_dma)))
 		return -EINVAL;
 
+	if (g_sec_chan_en[IPU_CHAN_ID(channel)])
+		sec_dma = channel_2_dma(channel, IPU_GRAPH_IN_BUFFER);
+	if (g_thrd_chan_en[IPU_CHAN_ID(channel)])
+		thrd_dma = channel_2_dma(channel, IPU_ALPHA_IN_BUFFER);
+
 	if ((channel == MEM_BG_SYNC) || (channel == MEM_FG_SYNC) ||
 	    (channel == MEM_DC_SYNC)) {
 		_ipu_dp_dc_disable(channel);
@@ -1403,6 +1431,10 @@ int32_t ipu_disable_channel(ipu_channel_t channel, bool wait_for_stop)
 		timeout = 40;
 		while (idma_is_set(IDMAC_CHA_BUSY, in_dma) ||
 		       idma_is_set(IDMAC_CHA_BUSY, out_dma) ||
+			(g_sec_chan_en[IPU_CHAN_ID(channel)] &&
+			idma_is_set(IDMAC_CHA_BUSY, sec_dma)) ||
+			(g_thrd_chan_en[IPU_CHAN_ID(channel)] &&
+			idma_is_set(IDMAC_CHA_BUSY, thrd_dma)) ||
 		       (_ipu_channel_status(channel) == TASK_STAT_ACTIVE)) {
 			timeout--;
 			msleep(10);
@@ -1432,6 +1464,16 @@ int32_t ipu_disable_channel(ipu_channel_t channel, bool wait_for_stop)
 		__raw_writel(reg & ~idma_mask(out_dma), IDMAC_CHA_EN(out_dma));
 		__raw_writel(idma_mask(out_dma), IPU_CHA_CUR_BUF(out_dma));
 	}
+	if (g_sec_chan_en[IPU_CHAN_ID(channel)] && idma_is_valid(sec_dma)) {
+		reg = __raw_readl(IDMAC_CHA_EN(sec_dma));
+		__raw_writel(reg & ~idma_mask(sec_dma), IDMAC_CHA_EN(sec_dma));
+		__raw_writel(idma_mask(sec_dma), IPU_CHA_CUR_BUF(sec_dma));
+	}
+	if (g_thrd_chan_en[IPU_CHAN_ID(channel)] && idma_is_valid(thrd_dma)) {
+		reg = __raw_readl(IDMAC_CHA_EN(thrd_dma));
+		__raw_writel(reg & ~idma_mask(thrd_dma), IDMAC_CHA_EN(thrd_dma));
+		__raw_writel(idma_mask(thrd_dma), IPU_CHA_CUR_BUF(thrd_dma));
+	}
 
 	/* Set channel buffers NOT to be ready */
 	__raw_writel(0xF0000000, IPU_GPR); /* write one to clear */
@@ -1453,6 +1495,26 @@ int32_t ipu_disable_channel(ipu_channel_t channel, bool wait_for_stop)
 		if (idma_is_set(IPU_CHA_BUF1_RDY, out_dma)) {
 			__raw_writel(idma_mask(out_dma),
 				     IPU_CHA_BUF1_RDY(out_dma));
+		}
+	}
+	if (g_sec_chan_en[IPU_CHAN_ID(channel)] && idma_is_valid(sec_dma)) {
+		if (idma_is_set(IPU_CHA_BUF0_RDY, sec_dma)) {
+			__raw_writel(idma_mask(sec_dma),
+				     IPU_CHA_BUF0_RDY(sec_dma));
+		}
+		if (idma_is_set(IPU_CHA_BUF1_RDY, sec_dma)) {
+			__raw_writel(idma_mask(sec_dma),
+				     IPU_CHA_BUF1_RDY(sec_dma));
+		}
+	}
+	if (g_thrd_chan_en[IPU_CHAN_ID(channel)] && idma_is_valid(thrd_dma)) {
+		if (idma_is_set(IPU_CHA_BUF0_RDY, thrd_dma)) {
+			__raw_writel(idma_mask(thrd_dma),
+				     IPU_CHA_BUF0_RDY(thrd_dma));
+		}
+		if (idma_is_set(IPU_CHA_BUF1_RDY, thrd_dma)) {
+			__raw_writel(idma_mask(thrd_dma),
+				     IPU_CHA_BUF1_RDY(thrd_dma));
 		}
 	}
 	__raw_writel(0x0, IPU_GPR); /* write one to set */

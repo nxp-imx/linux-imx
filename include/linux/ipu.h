@@ -347,6 +347,10 @@ typedef union {
 		bool graphics_combine_en;
 		bool global_alpha_en;
 		bool key_color_en;
+		uint32_t in_g_pixel_fmt;
+		uint8_t alpha;
+		uint32_t key_color;
+		bool alpha_chan_en;
 	} mem_prp_vf_mem;
 	struct {
 		uint32_t temp;
@@ -364,6 +368,10 @@ typedef union {
 		bool graphics_combine_en;
 		bool global_alpha_en;
 		bool key_color_en;
+		uint32_t in_g_pixel_fmt;
+		uint8_t alpha;
+		uint32_t key_color;
+		bool alpha_chan_en;
 	} mem_pp_mem;
 	struct {
 		uint32_t temp;
