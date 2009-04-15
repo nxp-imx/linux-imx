@@ -551,7 +551,8 @@ static int __init dvfs_init(void)
 
 	/*Set voltage */
 	for (index = 0; index < dvfs_wp_num; index++) {
-		if (dvfs_wp_tbl[index].cpu_rate == curr_cpu) {
+		if (dvfs_wp_tbl[index].cpu_rate == curr_cpu
+			&& !IS_ERR(core_reg)) {
 			regulator_set_voltage(core_reg,
 					      dvfs_wp_tbl[index].core_voltage,
 					      dvfs_wp_tbl[index].core_voltage);

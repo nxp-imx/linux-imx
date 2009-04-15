@@ -1,5 +1,5 @@
 /*
- * Copyright 2008 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2008-2009 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 /*
  * The code contained herein is licensed under the GNU General Public
@@ -11,8 +11,8 @@
  */
 
 /*!
- * @file mc9sdz60.h
- * @brief Driver for mc9sdz60
+ * @file mc9s08dz60.h
+ * @brief Driver for mc9s08dz60
  *
  * @ingroup pmic
  */
@@ -62,13 +62,13 @@
 #define MCU_INT_FLAG_1	0x27
 #define MCU_INT_FLAG_2	0x28
 #define MCU_DES_FLAG		0x29
-int mc9sdz60_read_reg(u8 reg, u8 *value);
-int mc9sdz60_write_reg(u8 reg, u8 value);
-int mc9sdz60_init(void);
-void mc9sdz60_exit(void);
+int mc9s08dz60_read_reg(u8 reg, u8 *value);
+int mc9s08dz60_write_reg(u8 reg, u8 value);
+int mc9s08dz60_init(void);
+void mc9s08dz60_exit(void);
 
-extern int reg_mc9sdz60_probe(void);
-extern int reg_mc9sdz60_remove(void);
+extern int reg_mc9s08dz60_probe(void);
+extern int reg_mc9s08dz60_remove(void);
 
 #endif	/* _MC9SDZ60_H_ */
 

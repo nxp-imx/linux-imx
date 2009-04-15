@@ -18,7 +18,7 @@
 #include <linux/io.h>
 #include <mach/hardware.h>
 #include <mach/gpio.h>
-#include <linux/regulator/mcu_max8660-bus.h>
+#include <linux/mfd/mc9s08dz60/pmic.h>
 #include "board-mx35_3stack.h"
 #include "iomux.h"
 

@@ -25,8 +25,9 @@
 #include <linux/spinlock.h>
 #include <linux/proc_fs.h>
 #include <linux/i2c.h>
-#include <linux/regulator/mcu_max8660-bus.h>
+#include <linux/mfd/mc9s08dz60/pmic.h>
 #include <asm/uaccess.h>
+#include "mcu_pmic_core.h"
 #include "max8660.h"
 
 /* I2C bus id and device address of mcu */

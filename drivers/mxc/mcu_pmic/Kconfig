@@ -2,11 +2,11 @@
 # PMIC Modules configuration
 #
 
-config MXC_PMIC_MC9SDZ60
-	tristate "MC9sDZ60 PMIC"
+config MXC_PMIC_MC9S08DZ60
+	tristate "MC9S08DZ60 PMIC"
 	depends on ARCH_MXC && I2C
 	  ---help---
-	  This is the MXC MC9sDZ60(MCU) PMIC support.
+	  This is the MXC MC9S08DZ60(MCU) PMIC support.
 
 config MXC_MC9SDZ60_RTC
 	tristate "MC9SDZ60 Real Time Clock (RTC) support"

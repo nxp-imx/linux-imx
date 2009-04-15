@@ -17,7 +17,7 @@
 #include <linux/init.h>
 #include <linux/platform_device.h>
 #include <linux/clk.h>
-#include <linux/regulator/mcu_max8660-bus.h>
+#include <linux/mfd/mc9s08dz60/pmic.h>
 
 #include <mach/hardware.h>
 #include <asm/irq.h>

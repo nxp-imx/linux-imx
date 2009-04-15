@@ -12,8 +12,8 @@
  */
 
 /*!
- * @file mc9sdz60/mcu_pmic_gpio.c
- * @brief This is the main file of mc9sdz60 Power Control driver.
+ * @file mc9s08dz60/mcu_pmic_gpio.c
+ * @brief This is the main file of mc9s08dz60 Power Control driver.
  *
  * @ingroup PMIC_POWER
  */
@@ -22,7 +22,7 @@
  * Includes
  */
 #include <linux/platform_device.h>
-#include <linux/regulator/mcu_max8660-bus.h>
+#include <linux/mfd/mc9s08dz60/pmic.h>
 #include <linux/pmic_status.h>
 #include <linux/ioctl.h>
 

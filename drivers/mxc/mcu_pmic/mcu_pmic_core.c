@@ -12,8 +12,8 @@
  */
 
 /*!
- * @file mc9sdz60/mcu_pmic_core.c
- * @brief This is the main file of mc9sdz60 Power Control driver.
+ * @file mc9s08dz60/mcu_pmic_core.c
+ * @brief This is the main file of mc9s08dz60 Power Control driver.
  *
  * @ingroup PMIC_POWER
  */
@@ -28,12 +28,13 @@
 #include <linux/platform_device.h>
 #include <linux/interrupt.h>
 #include <linux/irq.h>
-#include <linux/regulator/mcu_max8660-bus.h>
+#include <linux/mfd/mc9s08dz60/pmic.h>
 #include <asm/ioctl.h>
 #include <asm/uaccess.h>
 #include <mach/gpio.h>
 
-#include "mc9sdz60.h"
+#include "mcu_pmic_core.h"
+#include "mc9s08dz60.h"
 #include "max8660.h"
 
 /* bitfield macros for mcu pmic*/
@@ -97,7 +98,7 @@ static int mcu_pmic_read(int reg_num, unsigned int *reg_val)
 	u8 value = 0;
 	/* mcu ops */
 	if (reg_num >= REG_MCU_VERSION && reg_num <= REG_MCU_DES_FLAG)
-		ret = mc9sdz60_read_reg(mcu_pmic_reg_addr_table[reg_num],
+		ret = mc9s08dz60_read_reg(mcu_pmic_reg_addr_table[reg_num],
 					&value);
 	else if (reg_num >= REG_MAX8660_OUTPUT_ENABLE_1
 		   && reg_num <= REG_MAX8660_FORCE_PWM)
@@ -120,7 +121,8 @@ static int mcu_pmic_write(int reg_num, const unsigned int reg_val)
 	if (reg_num >= REG_MCU_VERSION && reg_num <= REG_MCU_DES_FLAG) {
 
 		ret =
-		    mc9sdz60_write_reg(mcu_pmic_reg_addr_table[reg_num], value);
+		    mc9s08dz60_write_reg(
+			mcu_pmic_reg_addr_table[reg_num], value);
 		if (ret < 0)
 			return -1;
 	} else if (reg_num >= REG_MAX8660_OUTPUT_ENABLE_1
@@ -176,7 +178,7 @@ int mcu_pmic_write_reg(int reg, unsigned int reg_value,
 }
 
 /*!
- * make max8660 - mc9sdz60 enter low-power mode
+ * make max8660 - mc9s08dz60 enter low-power mode
  */
 static void pmic_power_off(void)
 {
@@ -192,18 +194,15 @@ static int __init mcu_pmic_init(void)
 	if (err)
 		goto fail1;
 
-	err = mc9sdz60_init();
+	err = mc9s08dz60_init();
 	if (err)
 		goto fail1;
 
 	if (is_max8660_present()) {
-		pr_info("max8660 is present, reg_max8660_probe\n");
-//		reg_max8660_probe();
+		pr_info("max8660 is present \n");
 		pm_power_off = pmic_power_off;
-	} else {
-		pr_debug("max8660 is not present, reg_mc9sdz60_probe\n");
-//		reg_mc9sdz60_probe();
-	}
+	} else
+		pr_debug("max8660 is not present\n");
 	pr_info("mcu_pmic_init completed!\n");
 	return 0;
 
@@ -215,7 +214,7 @@ fail1:
 static void __exit mcu_pmic_exit(void)
 {
 	reg_max8660_remove();
-	mc9sdz60_exit();
+	mc9s08dz60_exit();
 	max8660_exit();
 }
 

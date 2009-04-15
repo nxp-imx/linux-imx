@@ -24,13 +24,13 @@
 #include <linux/fsl_devices.h>
 #include <linux/ata.h>
 #include <linux/pmic_external.h>
+#include <linux/mfd/mc9s08dz60/pmic.h>
+#include <linux/regulator/consumer.h>
 #if defined(CONFIG_MTD) || defined(CONFIG_MTD_MODULE)
 #include <linux/mtd/mtd.h>
 #include <linux/mtd/map.h>
 #include <linux/mtd/partitions.h>
 #include <linux/delay.h>
-#include <linux/regulator/mcu_max8660-bus.h>
-#include <linux/regulator/consumer.h>
 
 #include <asm/mach/flash.h>
 #endif
@@ -418,10 +418,6 @@ static struct mxc_tvin_platform_data adv7180_data = {
 
 static struct i2c_board_info mxc_i2c_board_info[] __initdata = {
 	{
-	 .type = "mc9sdz60",
-	 .addr = 0x69,
-	 },
-	{
 	 .type = "max8660",
 	 .addr = 0x34,
 	 },
@@ -459,11 +455,6 @@ static struct i2c_board_info mxc_i2c_board_info[] __initdata = {
 	 .type = "adv7180",
 	 .addr = 0x21,
 	 .platform_data = (void *)&adv7180_data,
-	 },
-	{
-	 .type = "mc13892",
-	 .addr = 0x08,
-	 .platform_data = (void *)MX35_PIN_GPIO2_0,
 	 },
 };
 
@@ -677,48 +668,6 @@ static void power_on_evt_handler(void)
 {
 	pr_info("pwr on event1 is received \n");
 }
-
-/*!
- * pmic board initialization code
- */
-static int __init mxc_init_pmic(void)
-{
-	if (board_is_mx35(BOARD_REV_2)) {
-#if defined(CONFIG_MXC_PMIC_MC13892_MODULE) || defined(CONFIG_MXC_PMIC_MC13892)
-		unsigned int value;
-		pmic_event_callback_t power_key_event;
-		struct regulator *sw2_stby_reg;
-
-		/* subscribe PWRON1 event. */
-		power_key_event.param = NULL;
-		power_key_event.func = (void *)power_on_evt_handler;
-		pmic_event_subscribe(EVENT_PWRONI, power_key_event);
-
-		pmic_read_reg(REG_POWER_CTL2, &value, 0xffffff);
-		/* Bit 11 (STANDBYSECINV): Active Low */
-		value |= 0x00800;
-		/* Bit 12 (WDIRESET): enable */
-		value |= 0x01000;
-		pmic_write_reg(REG_POWER_CTL2, value, 0xffffff);
-
-		/* Battery charger default settings */
-		/* current limit = 1200mA, PLIM = 1000mw, disable auto charge */
-		value = 0x210068;
-		pmic_write_reg(REG_CHARGE, value, 0x018078);
-
-		sw2_stby_reg = regulator_get(NULL, "SW2_STBY");
-
-		/* TBD: If core voltage is expected to be updated above 1.375v,
-		* this code needs to be moved before entering standby mode,
-		* which is decided by MC13892 Hi bit behavior */
-		regulator_set_voltage(sw2_stby_reg, 1000000, 1000000);
-		regulator_put(sw2_stby_reg);
-#endif
-	}
-	return 0;
-}
-
-late_initcall(mxc_init_pmic);
 
 #if defined(CONFIG_PATA_FSL) || defined(CONFIG_PATA_FSL_MODULE)
 extern void gpio_ata_active(void);
@@ -1070,6 +1019,8 @@ static void __init mxc_board_init(void)
 	mxc_init_nor_mtd();
 	mxc_init_nand_mtd();
 
+	mx35_3stack_init_mc13892();
+	mx35_3stack_init_mc9s08dz60();
 	mxc_init_lcd();
 	mxc_init_fb();
 	mxc_init_bl();
