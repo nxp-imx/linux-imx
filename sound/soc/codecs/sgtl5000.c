@@ -856,7 +856,8 @@ static int sgtl5000_init(struct snd_soc_device *socdev)
 	short_ctrl = 0;
 	sss = SGTL5000_DAC_SEL_I2S_IN << SGTL5000_DAC_SEL_SHIFT;
 
-	if (!plat->vddd) {
+	/* workaround for rev 0x11: use vddd linear regulator */
+	if (!plat->vddd || (sgtl5000->rev >= 0x11)) {
 		/* set VDDD to 1.2v */
 		lreg_ctrl |= 0x8 << SGTL5000_LINREG_VDDD_SHIFT;
 		/* power internal linear regulator */
@@ -916,6 +917,14 @@ static int sgtl5000_init(struct snd_soc_device *socdev)
 	sgtl5000_write(codec, SGTL5000_CHIP_LINREG_CTRL, lreg_ctrl);
 	sgtl5000_write(codec, SGTL5000_CHIP_ANA_POWER, ana_pwr);
 	msleep(10);
+
+	/* If vddd linear reg has been enabled, we can disable simple reg */
+	if (ana_pwr & SGTL5000_LINEREG_D_POWERUP) {
+		ana_pwr &= ~SGTL5000_LINREG_SIMPLE_POWERUP;
+		sgtl5000_write(codec, SGTL5000_CHIP_ANA_POWER, ana_pwr);
+		msleep(10);
+	}
+
 	sgtl5000_write(codec, SGTL5000_CHIP_REF_CTRL, ref_ctrl);
 	sgtl5000_write(codec, SGTL5000_CHIP_LINE_OUT_CTRL, lo_ctrl);
 	sgtl5000_write(codec, SGTL5000_CHIP_SHORT_CTRL, short_ctrl);
