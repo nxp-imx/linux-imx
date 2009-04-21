@@ -16,6 +16,7 @@
 #include <linux/delay.h>
 #include <linux/platform_device.h>
 #include <linux/fsl_devices.h>
+#include <asm/mach-types.h>
 #include <mach/arc_otg.h>
 #include "usb.h"
 #include "iomux.h"
@@ -75,6 +76,10 @@ static struct resource usbh2_resources[] = {
 static int __init usbh2_init(void)
 {
 	pr_debug("%s: \n", __func__);
+
+	if (machine_is_mx51_3ds() ||
+	    (machine_is_mx51_babbage() && (cpu_is_mx51_rev(CHIP_REV_2_0) >= 1)))
+		return 0;
 
 	host_pdev_register(usbh2_resources, ARRAY_SIZE(usbh2_resources),
 			   &usbh2_config);
