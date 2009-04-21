@@ -41,7 +41,7 @@
 
 static struct i2c_client *ch7026_client;
 
-static void lcd_init(void);
+static int lcd_init(void);
 static void lcd_poweron(struct fb_info *info);
 static void lcd_poweroff(void);
 
@@ -110,6 +110,7 @@ static struct notifier_block nb = {
  */
 static int __devinit lcd_probe(struct device *dev)
 {
+	int ret = 0;
 	int i;
 	struct mxc_lcd_platform_data *plat = dev->platform_data;
 
@@ -119,16 +120,23 @@ static int __devinit lcd_probe(struct device *dev)
 		if (!IS_ERR(io_reg)) {
 			regulator_set_voltage(io_reg, 1800000, 1800000);
 			regulator_enable(io_reg);
+		} else {
+			io_reg = NULL;
 		}
+
 		core_reg = regulator_get(dev, plat->core_reg);
 		if (!IS_ERR(core_reg)) {
 			regulator_set_voltage(core_reg, 2500000, 2500000);
 			regulator_enable(core_reg);
+		} else {
+			core_reg = NULL;
 		}
 		analog_reg = regulator_get(dev, plat->analog_reg);
 		if (!IS_ERR(analog_reg)) {
 			regulator_set_voltage(analog_reg, 2775000, 2775000);
 			regulator_enable(analog_reg);
+		} else {
+			analog_reg = NULL;
 		}
 		msleep(100);
 
@@ -139,16 +147,27 @@ static int __devinit lcd_probe(struct device *dev)
 
 	for (i = 0; i < num_registered_fb; i++) {
 		if (strcmp(registered_fb[i]->fix.id, "DISP3 BG - DI1") == 0) {
+			ret = lcd_init();
+			if (ret < 0)
+				goto err;
+
 			lcd_init_fb(registered_fb[i]);
 			fb_show_logo(registered_fb[i], 0);
-			lcd_init();
 			lcd_poweron(registered_fb[i]);
 		}
 	}
 
 	fb_register_client(&nb);
-
 	return 0;
+err:
+	if (io_reg)
+		regulator_disable(io_reg);
+	if (core_reg)
+		regulator_disable(core_reg);
+	if (analog_reg)
+		regulator_disable(analog_reg);
+
+	return ret;
 }
 
 static int __devinit ch7026_probe(struct i2c_client *client,
@@ -249,7 +268,7 @@ u8 reg_init[][2] = {
  * Send init commands to L4F00242T03
  *
  */
-static void lcd_init(void)
+static int lcd_init(void)
 {
 	int i;
 	int dat;
@@ -261,14 +280,15 @@ static void lcd_init(void)
 	dat = i2c_smbus_read_byte_data(ch7026_client, 0x00);
 	dev_dbg(&ch7026_client->dev, "read id = 0x%02X\n", dat);
 	if (dat != 0x54)
-		return;
+		return -ENODEV;
 
 	for (i = 0; i < REGMAP_LENGTH; ++i) {
 		if (i2c_smbus_write_byte_data
 		    (ch7026_client, reg_init[i][0], reg_init[i][1]) < 0)
-			return;
+			return -EIO;
 	}
 
+	return 0;
 }
 
 static int lcd_on;
