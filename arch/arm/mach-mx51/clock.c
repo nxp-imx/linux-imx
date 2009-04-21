@@ -2730,6 +2730,29 @@ static struct clk emi_garb_clk = {
 	.disable = _clk_disable,
 };
 
+static int _clk_gpu2d_set_parent(struct clk *clk, struct clk *parent)
+{
+	u32 reg, mux;
+
+	reg = __raw_readl(MXC_CCM_CBCMR);
+	mux = _get_mux(parent, &axi_a_clk, &axi_b_clk, &emi_slow_clk, &ahb_clk);
+	reg = (reg & ~MXC_CCM_CBCMR_GPU2D_CLK_SEL_MASK) |
+	    (mux << MXC_CCM_CBCMR_GPU2D_CLK_SEL_OFFSET);
+	__raw_writel(reg, MXC_CCM_CBCMR);
+
+	return 0;
+}
+
+static struct clk gpu2d_clk = {
+	.name = "gpu2d_clk",
+	.parent = &axi_a_clk,
+	.set_parent = _clk_gpu2d_set_parent,
+	.enable = _clk_enable,
+	.enable_reg = MXC_CCM_CCGR6,
+	.enable_shift = MXC_CCM_CCGR6_CG7_OFFSET,
+	.disable = _clk_disable,
+};
+
 static struct clk *mxc_clks[] = {
 	&osc_clk,
 	&ckih_clk,
@@ -2853,6 +2876,7 @@ static struct clk *mxc_clks[] = {
 	&garb_clk,
 	&emi_garb_clk,
 	&ddr_hf_clk,
+	&gpu2d_clk,
 };
 
 static void clk_tree_init(void)
