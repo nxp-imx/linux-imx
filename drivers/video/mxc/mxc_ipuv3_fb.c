@@ -901,13 +901,14 @@ static int mxcfb_probe(struct platform_device *pdev)
 		if (!g_dp_in_use) {
 			mxcfbi->ipu_ch_irq = IPU_IRQ_BG_SYNC_EOF;
 			mxcfbi->ipu_ch = MEM_BG_SYNC;
+			mxcfbi->blank = FB_BLANK_UNBLANK;
 		} else {
 			mxcfbi->ipu_ch_irq = IPU_IRQ_DC_SYNC_EOF;
 			mxcfbi->ipu_ch = MEM_DC_SYNC;
 			fbi->var.nonstd = IPU_PIX_FMT_UYVY;
+			mxcfbi->blank = FB_BLANK_POWERDOWN;
 		}
 		mxcfbi->ipu_di = pdev->id;
-		mxcfbi->blank = FB_BLANK_POWERDOWN;
 
 		strcpy(fbi->fix.id, "DISP3 BG - DI1");
 	} else if (pdev->id == 2) {	/* Overlay */
@@ -941,6 +942,13 @@ static int mxcfb_probe(struct platform_device *pdev)
 	/* Need dummy values until real panel is configured */
 	fbi->var.xres = 240;
 	fbi->var.yres = 320;
+
+	if (!fb_mode && plat_data && plat_data->mode_str)
+		fb_mode = plat_data->mode_str;
+
+	if (fb_mode)
+		fb_find_mode(&fbi->var, fbi, fb_mode, NULL, 0, NULL,
+			     default_bpp);
 
 	if (plat_data) {
 		mxcfbi->ipu_di_pix_fmt = plat_data->interface_pix_fmt;
