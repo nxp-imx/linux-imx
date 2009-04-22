@@ -38,14 +38,16 @@
 #endif
 
 #include <mach/hardware.h>
+#include <mach/common.h>
+#include <mach/memory.h>
+#include <mach/gpio.h>
 #include <asm/irq.h>
 #include <asm/setup.h>
 #include <asm/mach-types.h>
 #include <asm/mach/arch.h>
 #include <asm/mach/irq.h>
-#include <mach/memory.h>
-#include <mach/gpio.h>
 #include <asm/mach/keypad.h>
+#include <asm/mach/time.h>
 #include "gpio_mux.h"
 #include "board-mx27ads.h"
 
@@ -59,9 +61,7 @@
 extern void mxc_map_io(void);
 extern void mxc_init_irq(void);
 extern void mxc_cpu_init(void) __init;
-extern void mxc_clocks_init(void);
 extern void mxc_cpu_common_init(void);
-extern struct sys_timer mxc_timer;
 extern void __init early_console_setup(char *);
 
 static char command_line[COMMAND_LINE_SIZE];
@@ -798,6 +798,16 @@ static void __init fixup_mxc_board(struct machine_desc *desc, struct tag *tags,
 
 EXPORT_SYMBOL(mxc_card_detected);
 EXPORT_SYMBOL(mxc_board_is_ads);
+
+static void __init mx27ads_timer_init(void)
+{
+	mxc_clocks_init(32768, 0, board_get_ckih_rate(), 0);
+	mxc_timer_init("gpt_clk.0");
+}
+
+static struct sys_timer mxc_timer = {
+	.init = mx27ads_timer_init,
+};
 
 /*
  * The following uses standard kernel macros define in arch.h in order to
