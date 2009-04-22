@@ -1765,7 +1765,13 @@ static int ipu_suspend(struct platform_device *pdev, pm_message_t state)
 			g_channel_init_mask_backup = g_channel_init_mask;
 			g_channel_init_mask |= 2;
 		}
+	} else if (cpu_is_mx35()) {
+		g_ipu_config = __raw_readl(IPU_CONF);
+		/* Disable the clock of display otherwise the backlight cannot
+		 * be close after camera/tvin related test */
+		__raw_writel(g_ipu_config & 0xfbf, IPU_CONF);
 	}
+
 	return 0;
 }
 
@@ -1778,7 +1784,10 @@ static int ipu_resume(struct platform_device *pdev)
 			clk_disable(g_ipu_csi_clk);
 			g_channel_init_mask = g_channel_init_mask_backup;
 		}
-	}
+	} else if (cpu_is_mx35()) {
+		__raw_writel(g_ipu_config, IPU_CONF);
+    }
+
 	return 0;
 }
 

@@ -117,24 +117,24 @@ static video_fmt_t video_fmts[] = {
 	{			/*! NTSC */
 	 .v4l2_id = V4L2_STD_NTSC,
 	 .name = "NTSC",
-	 .raw_width = 720,	/* SENS_FRM_WIDTH */
-	 .raw_height = 288,	/* SENS_FRM_HEIGHT */
-	 .active_width = 720,	/* ACT_FRM_WIDTH */
-	 .active_height = (480 / 2),	/* ACT_FRM_WIDTH */
+	 .raw_width = 720 - 1,	/* SENS_FRM_WIDTH */
+	 .raw_height = 288 - 1,	/* SENS_FRM_HEIGHT */
+	 .active_width = 720,	/* ACT_FRM_WIDTH plus 1 */
+	 .active_height = (480 / 2),	/* ACT_FRM_WIDTH plus 1 */
 	 },
 	{			/*! (B, G, H, I, N) PAL */
 	 .v4l2_id = V4L2_STD_PAL,
 	 .name = "PAL",
-	 .raw_width = 720,
-	 .raw_height = (576 / 2) + 24 * 2,
+	 .raw_width = 720 - 1,
+	 .raw_height = (576 / 2) + 24 * 2 - 1,
 	 .active_width = 720,
 	 .active_height = (576 / 2),
 	 },
 	{			/*! Unlocked standard */
 	 .v4l2_id = V4L2_STD_ALL,
 	 .name = "Autodetect",
-	 .raw_width = 720,
-	 .raw_height = (576 / 2) + 24 * 2,
+	 .raw_width = 720 - 1,
+	 .raw_height = (576 / 2) + 24 * 2 - 1,
 	 .active_width = 720,
 	 .active_height = (576 / 2),
 	 },
@@ -160,6 +160,7 @@ static DECLARE_MUTEX(mutex);
 #define ADV7180_MANUAL_WIN_CTL         0x3d	/* Manual Window Control */
 #define ADV7180_SD_SATURATION_CB       0xe3	/* SD Saturation Cb */
 #define ADV7180_SD_SATURATION_CR       0xe4	/* SD Saturation Cr */
+#define ADV7180_PWR_MNG                0x0f     /* Power Management */
 
 /* supported controls */
 /* This hasn't been fully implemented yet.
@@ -331,12 +332,17 @@ static int ioctl_s_power(struct v4l2_int_device *s, int on)
 
 	dev_dbg(&adv7180_data.i2c_client->dev, "In adv7180:ioctl_s_power\n");
 
-	sensor->on = on;
-
-	if (on)
+	if (on && !sensor->on) {
 		gpio_sensor_active();
-	else
+		if (adv7180_write_reg(ADV7180_PWR_MNG, 0) != 0)
+			return -EIO;
+	} else if (!on && sensor->on) {
+		if (adv7180_write_reg(ADV7180_PWR_MNG, 0x24) != 0)
+			return -EIO;
 		gpio_sensor_inactive();
+	}
+
+	sensor->on = on;
 
 	return 0;
 }
@@ -859,6 +865,7 @@ static int adv7180_probe(struct i2c_client *client,
 	adv7180_data.pix.height = video_fmts[video_idx].raw_height;
 	adv7180_data.pix.pixelformat = V4L2_PIX_FMT_UYVY;  /* YUV422 */
 	adv7180_data.pix.priv = 1;  /* 1 is used to indicate TV in */
+	adv7180_data.on = true;
 
 	gpio_sensor_active();
 

@@ -98,18 +98,18 @@ static video_fmt_t video_fmts[] = {
 	{			/*! NTSC */
 	 .v4l2_id = V4L2_STD_NTSC,
 	 .name = "NTSC",
-	 .raw_width = 720,		/* SENS_FRM_WIDTH */
-	 .raw_height = 288,		/* SENS_FRM_HEIGHT */
-	 .active_width = 720,		/* ACT_FRM_WIDTH */
-	 .active_height = (480 / 2),	/* ACT_FRM_HEIGHT */
+	 .raw_width = 720 - 1,		/* SENS_FRM_WIDTH */
+	 .raw_height = 288 - 1,		/* SENS_FRM_HEIGHT */
+	 .active_width = 720,		/* ACT_FRM_WIDTH plus 1 */
+	 .active_height = (480 / 2),	/* ACT_FRM_HEIGHT plus 1 */
 	 .active_top = 12,
 	 .active_left = 0,
 	 },
 	{			/*! (B, G, H, I, N) PAL */
 	 .v4l2_id = V4L2_STD_PAL,
 	 .name = "PAL",
-	 .raw_width = 720,
-	 .raw_height = (576 / 2) + 24 * 2,
+	 .raw_width = 720 - 1,
+	 .raw_height = (576 / 2) + 24 * 2 - 1,
 	 .active_width = 720,
 	 .active_height = (576 / 2),
 	 .active_top = 0,
@@ -118,8 +118,8 @@ static video_fmt_t video_fmts[] = {
 	{			/*! Unlocked standard */
 	 .v4l2_id = V4L2_STD_ALL,
 	 .name = "Autodetect",
-	 .raw_width = 720,
-	 .raw_height = (576 / 2) + 24 * 2,
+	 .raw_width = 720 - 1,
+	 .raw_height = (576 / 2) + 24 * 2 - 1,
 	 .active_width = 720,
 	 .active_height = (576 / 2),
 	 .active_top = 0,
@@ -2265,12 +2265,12 @@ static int mxc_v4l2_resume(struct platform_device *pdev)
 
 	cam->low_power = false;
 	wake_up_interruptible(&cam->power_queue);
+	camera_power(cam, true);
 
 	if (cam->overlay_on == true)
 		start_preview(cam);
 	if (cam->capture_on == true)
 		mxc_streamon(cam);
-	camera_power(cam, true);
 
 	return 0;
 }
