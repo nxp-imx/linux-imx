@@ -494,6 +494,10 @@ static void sgtl5000_pcm_shutdown(struct snd_pcm_substream *substream)
 	reg = sgtl5000_read(codec, SGTL5000_CHIP_DIG_POWER);
 	reg &= ~(SGTL5000_I2S_IN_POWERUP | SGTL5000_I2S_OUT_POWERUP);
 	sgtl5000_write(codec, SGTL5000_CHIP_DIG_POWER, reg);
+
+	reg = sgtl5000_read(codec, SGTL5000_CHIP_I2S_CTRL);
+	reg &= ~SGTL5000_I2S_MASTER;
+	sgtl5000_write(codec, SGTL5000_CHIP_I2S_CTRL, reg);
 }
 
 /*
