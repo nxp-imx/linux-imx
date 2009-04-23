@@ -1199,12 +1199,12 @@ EXPORT_SYMBOL(gpio_activate_esai_ports);
 void gpio_deactivate_esai_ports(void)
 {
 
-	mxc_free_iomux(MX35_PIN_HCKT, MUX_CONFIG_GPIO);
-	mxc_free_iomux(MX35_PIN_SCKT, MUX_CONFIG_GPIO);
-	mxc_free_iomux(MX35_PIN_FST, MUX_CONFIG_GPIO);
-	mxc_free_iomux(MX35_PIN_TX0, MUX_CONFIG_GPIO);
-	mxc_free_iomux(MX35_PIN_TX1, MUX_CONFIG_GPIO);
-	mxc_free_iomux(MX35_PIN_TX2_RX3, MUX_CONFIG_GPIO);
+	mxc_free_iomux(MX35_PIN_HCKT, MUX_CONFIG_FUNC);
+	mxc_free_iomux(MX35_PIN_SCKT, MUX_CONFIG_FUNC);
+	mxc_free_iomux(MX35_PIN_FST, MUX_CONFIG_FUNC);
+	mxc_free_iomux(MX35_PIN_TX0, MUX_CONFIG_FUNC);
+	mxc_free_iomux(MX35_PIN_TX1, MUX_CONFIG_FUNC);
+	mxc_free_iomux(MX35_PIN_TX2_RX3, MUX_CONFIG_FUNC);
 	/*mxc_free_iomux(MX35_PIN_HCKR, MUX_CONFIG_GPIO);
 	mxc_free_iomux(MX35_PIN_SCKR, MUX_CONFIG_GPIO);
 	mxc_free_iomux(MX35_PIN_FSR, MUX_CONFIG_GPIO);

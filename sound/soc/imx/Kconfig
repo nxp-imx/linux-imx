@@ -12,6 +12,9 @@ if SND_MXC_SOC
 config SND_MXC_SOC_SSI
  tristate
 
+config SND_MXC_SOC_ESAI
+ tristate
+
 config SND_MXC_SOC_IRAM
  bool "Locate Audio DMA playback buffers in IRAM"
  help
@@ -32,6 +35,14 @@ config SND_SOC_IMX_3STACK_AK4647
  help
    Say Y if you want to add support for SoC audio on IMX 3STACK
    with the AK4647.
+
+config SND_SOC_IMX_3STACK_WM8580
+ tristate "SoC Audio support for IMX - WM8580"
+ select SND_MXC_SOC_ESAI
+ select SND_SOC_WM8580
+ help
+   Say Y if you want to add support for Soc audio on IMX 3STACK
+   with the WM8580
 
 endif
 

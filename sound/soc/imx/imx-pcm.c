@@ -6,7 +6,7 @@
  *         liam.girdwood@wolfsonmicro.com or linux@wolfsonmicro.com
  *
  * Based on imx31-pcm.c by Nicolas Pitre, (C) 2004 MontaVista Software, Inc.
- * and on mxc-alsa-mc13783 (C) 2006-2008 Freescale.
+ * and on mxc-alsa-mc13783 (C) 2006-2009 Freescale.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -32,9 +32,7 @@
 
 #include "imx-pcm.h"
 #include "imx-ssi.h"
-#if 0
 #include "imx-esai.h"
-#endif
 
 #ifdef CONFIG_SND_MXC_SOC_IRAM
 static bool UseIram = 1;
@@ -216,7 +214,6 @@ static int imx_get_sdma_transfer(int format, int dai_port, int stream_type)
 			else if (format == SNDRV_PCM_FORMAT_S20_3LE)
 				transfer = MXC_DMA_SSI2_24BIT_RX1;
 		}
-#if 0
 	} else if ((dai_port & IMX_DAI_ESAI_TX)
 		   || (dai_port & IMX_DAI_ESAI_RX)) {
 		if (stream_type == SNDRV_PCM_STREAM_PLAYBACK) {
@@ -234,7 +231,6 @@ static int imx_get_sdma_transfer(int format, int dai_port, int stream_type)
 			else if (format == SNDRV_PCM_FORMAT_S20_3LE)
 				transfer = MXC_DMA_ESAI_24BIT_RX;
 		}
-#endif
 	}
 
 	return transfer;

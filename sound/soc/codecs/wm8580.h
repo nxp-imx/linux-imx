@@ -28,7 +28,12 @@
 #define WM8580_CLKSRC_OSC  4
 #define WM8580_CLKSRC_NONE 5
 
+/*clock divider id's */
+#define WM8580_BCLK_CLKDIV   0
+#define WM8580_LRCLK_CLKDIV  1
+
 struct wm8580_setup_data {
+	unsigned short spi;
 	unsigned short i2c_address;
 };
 
