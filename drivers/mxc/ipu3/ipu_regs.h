@@ -222,6 +222,7 @@ extern u32 *ipu_vdi_reg;
 #define DMFC_GENERAL1		(ipu_dmfc_reg + 0x0014/4)
 #define DMFC_GENERAL2		(ipu_dmfc_reg + 0x0018/4)
 #define DMFC_IC_CTRL		(ipu_dmfc_reg + 0x001C/4)
+#define DMFC_STAT		(ipu_dmfc_reg + 0x0020/4)
 
 #define DC_MAP_CONF_PTR(n)	(ipu_dc_reg + 0x0108/4 + n/2)
 #define DC_MAP_CONF_VAL(n)	(ipu_dc_reg + 0x0144/4 + n/2)

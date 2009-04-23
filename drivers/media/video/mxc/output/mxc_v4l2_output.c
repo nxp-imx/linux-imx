@@ -1055,6 +1055,8 @@ static int mxc_v4l2out_streamon(vout_data * vout)
 	} else
 #endif
 	{			/* Use SDC */
+		unsigned int ipu_ch = CHAN_NONE;
+
 		dev_dbg(dev, "Using SDC channel\n");
 
 		/* Bypass IC if resizing and rotation not needed
@@ -1080,8 +1082,23 @@ static int mxc_v4l2out_streamon(vout_data * vout)
 
 		fbvar = fbi->var;
 
-		if (vout->cur_disp_output == 3) {
-			vout->display_ch = MEM_FG_SYNC;
+		if (fbi->fbops->fb_ioctl) {
+			old_fs = get_fs();
+			set_fs(KERNEL_DS);
+			fbi->fbops->fb_ioctl(fbi, MXCFB_GET_FB_IPU_CHAN,
+					(unsigned long)&ipu_ch);
+			set_fs(old_fs);
+		}
+
+		if (ipu_ch == CHAN_NONE) {
+			dev_err(dev,
+					"Can not get display ipu channel\n");
+			return -EINVAL;
+		}
+
+		vout->display_ch = ipu_ch;
+
+		if (vout->cur_disp_output == 3 || vout->cur_disp_output == 5) {
 			fbvar.bits_per_pixel = 16;
 			if (format_is_yuv(vout->v2f.fmt.pix.pixelformat))
 				fbvar.nonstd = IPU_PIX_FMT_UYVY;
@@ -1091,16 +1108,6 @@ static int mxc_v4l2out_streamon(vout_data * vout)
 			fbvar.xres = fbvar.xres_virtual = out_width;
 			fbvar.yres = out_height;
 			fbvar.yres_virtual = out_height * 2;
-		} else if (vout->cur_disp_output == 5) {
-			vout->display_ch = MEM_DC_SYNC;
-			fbvar.bits_per_pixel = 16;
-			fbvar.nonstd = IPU_PIX_FMT_UYVY;
-
-			fbvar.xres = fbvar.xres_virtual = out_width;
-			fbvar.yres = out_height;
-			fbvar.yres_virtual = out_height * 2;
-		} else {
-			vout->display_ch = MEM_BG_SYNC;
 		}
 
 		if (vout->ic_bypass) {
@@ -1984,8 +1991,9 @@ mxc_v4l2out_do_ioctl(struct inode *inode, struct file *file,
 				break;
 			}
 
-			/* only full screen supported for SDC BG */
-			if (vout->cur_disp_output == 4) {
+			/* only full screen supported for SDC BG and SDC DC */
+			if (vout->cur_disp_output == 4 ||
+			    vout->cur_disp_output == 5) {
 				crop->c = vout->crop_current;
 				break;
 			}
@@ -2061,8 +2069,40 @@ mxc_v4l2out_do_ioctl(struct inode *inode, struct file *file,
 			b = &vout->crop_bounds[vout->cur_disp_output];
 
 			fbnum = vout->output_fb_num[vout->cur_disp_output];
-			if (vout->cur_disp_output == 3)
-				fbnum = vout->output_fb_num[4];
+
+			/*
+			 * For FG overlay, it uses BG window parameter as
+			 * limitation reference; and BG must be enabled to
+			 * support FG.
+			 */
+			if (vout->cur_disp_output == 3) {
+				unsigned int i, ipu_ch = CHAN_NONE;
+				struct fb_info *fbi;
+				mm_segment_t old_fs;
+
+				for (i = 0; i < num_registered_fb; i++) {
+					fbi = registered_fb[i];
+					if (fbi->fbops->fb_ioctl) {
+						old_fs = get_fs();
+						set_fs(KERNEL_DS);
+						fbi->fbops->fb_ioctl(fbi,
+							MXCFB_GET_FB_IPU_CHAN,
+							(unsigned long)&ipu_ch);
+						set_fs(old_fs);
+					}
+					if (ipu_ch == CHAN_NONE) {
+						dev_err(vdev->dev,
+						"Can't get disp ipu channel\n");
+						retval = -EINVAL;
+						break;
+					}
+
+					if (ipu_ch == MEM_BG_SYNC) {
+						fbnum = i;
+						break;
+					}
+				}
+			}
 
 			b->width = registered_fb[fbnum]->var.xres;
 			b->height = registered_fb[fbnum]->var.yres;

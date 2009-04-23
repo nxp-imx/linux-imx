@@ -53,7 +53,7 @@ void _ipu_dp_uninit(ipu_channel_t channel);
 void _ipu_dc_init(int dc_chan, int di, bool interlaced);
 void _ipu_dc_uninit(int dc_chan);
 void _ipu_dp_dc_enable(ipu_channel_t channel);
-void _ipu_dp_dc_disable(ipu_channel_t channel);
+void _ipu_dp_dc_disable(ipu_channel_t channel, bool swap);
 void _ipu_dmfc_init(void);
 void _ipu_dmfc_set_wait4eot(int dma_chan, int width);
 int _ipu_chan_is_interlaced(ipu_channel_t channel);

@@ -77,10 +77,18 @@ struct mxcfb_alloc_list {
 	u32 size;
 };
 
+enum {
+	BOTH_ON,
+	SRC_ON,
+	TGT_ON,
+	BOTH_OFF
+};
+
 static char *fb_mode;
 static unsigned long default_bpp = 16;
 static bool g_dp_in_use;
 LIST_HEAD(fb_alloc_list);
+static struct fb_info *mxcfb_info[3];
 
 static uint32_t bpp_to_pixfmt(struct fb_info *fbi)
 {
@@ -129,6 +137,75 @@ static int mxcfb_set_fix(struct fb_info *info)
 	return 0;
 }
 
+static int _setup_disp_channel1(struct fb_info *fbi)
+{
+	ipu_channel_params_t params;
+	struct mxcfb_info *mxc_fbi = (struct mxcfb_info *)fbi->par;
+
+	memset(&params, 0, sizeof(params));
+	params.mem_dp_bg_sync.di = mxc_fbi->ipu_di;
+
+	/*
+	 * Assuming interlaced means yuv output, below setting also
+	 * valid for mem_dc_sync. FG should have the same vmode as BG.
+	 */
+	if (mxc_fbi->ipu_ch == MEM_FG_SYNC) {
+		struct mxcfb_info *mxc_fbi_tmp;
+		int i;
+
+		for (i = 0; i < num_registered_fb; i++) {
+			mxc_fbi_tmp = (struct mxcfb_info *)
+				(registered_fb[i]->par);
+			if (mxc_fbi_tmp->ipu_ch == MEM_BG_SYNC) {
+				fbi->var.vmode =
+				registered_fb[i]->var.vmode;
+				break;
+			}
+		}
+	}
+	if (fbi->var.vmode & FB_VMODE_INTERLACED) {
+		params.mem_dp_bg_sync.interlaced = true;
+		params.mem_dp_bg_sync.out_pixel_fmt =
+			IPU_PIX_FMT_YUV444;
+	} else {
+		if (mxc_fbi->ipu_di_pix_fmt)
+			params.mem_dp_bg_sync.out_pixel_fmt = mxc_fbi->ipu_di_pix_fmt;
+		else
+			params.mem_dp_bg_sync.out_pixel_fmt = IPU_PIX_FMT_RGB666;
+	}
+	params.mem_dp_bg_sync.in_pixel_fmt = bpp_to_pixfmt(fbi);
+
+	ipu_init_channel(mxc_fbi->ipu_ch, &params);
+
+	return 0;
+}
+
+static int _setup_disp_channel2(struct fb_info *fbi)
+{
+	int retval = 0;
+	struct mxcfb_info *mxc_fbi = (struct mxcfb_info *)fbi->par;
+
+	mxc_fbi->cur_ipu_buf = 1;
+	sema_init(&mxc_fbi->flip_sem, 1);
+	fbi->var.xoffset = fbi->var.yoffset = 0;
+
+	retval = ipu_init_channel_buffer(mxc_fbi->ipu_ch, IPU_INPUT_BUFFER,
+					 bpp_to_pixfmt(fbi),
+					 fbi->var.xres, fbi->var.yres,
+					 fbi->fix.line_length,
+					 IPU_ROTATE_NONE,
+					 fbi->fix.smem_start +
+					 (fbi->fix.line_length * fbi->var.yres),
+					 fbi->fix.smem_start,
+					 0, 0);
+	if (retval) {
+		dev_err(fbi->device,
+			"ipu_init_channel_buffer error %d\n", retval);
+	}
+
+	return retval;
+}
+
 /*
  * Set framebuffer parameters and change the operating mode.
  *
@@ -136,10 +213,9 @@ static int mxcfb_set_fix(struct fb_info *info)
  */
 static int mxcfb_set_par(struct fb_info *fbi)
 {
-	int retval;
+	int retval = 0;
 	u32 mem_len;
 	ipu_di_signal_cfg_t sig_cfg;
-	ipu_channel_params_t params;
 	struct mxcfb_info *mxc_fbi = (struct mxcfb_info *)fbi->par;
 
 	dev_dbg(fbi->device, "Reconfiguring framebuffer\n");
@@ -158,30 +234,25 @@ static int mxcfb_set_par(struct fb_info *fbi)
 		if (mxcfb_map_video_memory(fbi) < 0)
 			return -ENOMEM;
 	}
-#ifdef CONFIG_MXC_IPU_V1
-	ipu_init_channel(mxc_fbi->ipu_ch, NULL);
-#else
-	memset(&params, 0, sizeof(params));
-	params.mem_dp_bg_sync.di = mxc_fbi->ipu_di;
 
-	/* Assuming interlaced means YUV output */
-	if (fbi->var.vmode & FB_VMODE_INTERLACED) {
-		params.mem_dp_bg_sync.interlaced = true;
-		params.mem_dp_bg_sync.out_pixel_fmt = IPU_PIX_FMT_YUV444;
-	} else {
-		if (mxc_fbi->ipu_di_pix_fmt)
-			params.mem_dp_bg_sync.out_pixel_fmt = mxc_fbi->ipu_di_pix_fmt;
-		else
-			params.mem_dp_bg_sync.out_pixel_fmt = IPU_PIX_FMT_RGB666;
-	}
-	params.mem_dp_bg_sync.in_pixel_fmt = bpp_to_pixfmt(fbi);
-	ipu_init_channel(mxc_fbi->ipu_ch, &params);
-#endif
+	if (mxc_fbi->blank != FB_BLANK_UNBLANK)
+		return retval;
+
+	_setup_disp_channel1(fbi);
 
 	if (!mxc_fbi->overlay) {
+		uint32_t out_pixel_fmt;
+
 		memset(&sig_cfg, 0, sizeof(sig_cfg));
-		if (fbi->var.vmode & FB_VMODE_INTERLACED)
+		if (fbi->var.vmode & FB_VMODE_INTERLACED) {
 			sig_cfg.interlaced = true;
+			out_pixel_fmt = IPU_PIX_FMT_YUV444;
+		} else {
+			if (mxc_fbi->ipu_di_pix_fmt)
+				out_pixel_fmt = mxc_fbi->ipu_di_pix_fmt;
+			else
+				out_pixel_fmt = IPU_PIX_FMT_RGB666;
+		}
 		if (fbi->var.vmode & FB_VMODE_ODD_FLD_FIRST) /* PAL */
 			sig_cfg.odd_field_first = true;
 		if (fbi->var.sync & FB_SYNC_EXT)
@@ -202,23 +273,10 @@ static int mxcfb_set_par(struct fb_info *fbi)
 		dev_dbg(fbi->device, "pixclock = %ul Hz\n",
 			(u32) (PICOS2KHZ(fbi->var.pixclock) * 1000UL));
 
-#ifdef CONFIG_MXC_IPU_V1
-		if (ipu_sdc_init_panel(mode,
-				       (PICOS2KHZ(fbi->var.pixclock)) * 1000UL,
-				       fbi->var.xres, fbi->var.yres,
-				       (fbi->var.sync & FB_SYNC_SWAP_RGB) ?
-				       IPU_PIX_FMT_BGR666 : IPU_PIX_FMT_RGB666,
-				       fbi->var.left_margin,
-				       fbi->var.hsync_len,
-				       fbi->var.right_margin,
-				       fbi->var.upper_margin,
-				       fbi->var.vsync_len,
-				       fbi->var.lower_margin, sig_cfg) != 0) {
-#else
 		if (ipu_init_sync_panel(mxc_fbi->ipu_di,
 					(PICOS2KHZ(fbi->var.pixclock)) * 1000UL,
 					fbi->var.xres, fbi->var.yres,
-					params.mem_dp_bg_sync.out_pixel_fmt,
+					out_pixel_fmt,
 					fbi->var.left_margin,
 					fbi->var.hsync_len,
 					fbi->var.right_margin,
@@ -226,7 +284,6 @@ static int mxcfb_set_par(struct fb_info *fbi)
 					fbi->var.vsync_len,
 					fbi->var.lower_margin,
 					0, sig_cfg) != 0) {
-#endif
 			dev_err(fbi->device,
 				"mxcfb: Error initializing panel.\n");
 			return -EINVAL;
@@ -238,27 +295,132 @@ static int mxcfb_set_par(struct fb_info *fbi)
 		ipu_disp_set_window_pos(mxc_fbi->ipu_ch, 0, 0);
 	}
 
-	mxc_fbi->cur_ipu_buf = 1;
-	sema_init(&mxc_fbi->flip_sem, 1);
-	fbi->var.xoffset = fbi->var.yoffset = 0;
-
-	retval = ipu_init_channel_buffer(mxc_fbi->ipu_ch, IPU_INPUT_BUFFER,
-					 bpp_to_pixfmt(fbi),
-					 fbi->var.xres, fbi->var.yres,
-					 fbi->fix.line_length,
-					 IPU_ROTATE_NONE,
-					 fbi->fix.smem_start +
-					 (fbi->fix.line_length * fbi->var.yres),
-					 fbi->fix.smem_start,
-					 0, 0);
-	if (retval) {
-		dev_err(fbi->device,
-			"ipu_init_channel_buffer error %d\n", retval);
+	retval = _setup_disp_channel2(fbi);
+	if (retval)
 		return retval;
-	}
 
 	if (mxc_fbi->blank == FB_BLANK_UNBLANK) {
 		ipu_enable_channel(mxc_fbi->ipu_ch);
+	}
+
+	return retval;
+}
+
+static int _swap_channels(struct fb_info *fbi,
+			  struct fb_info *fbi_to, bool both_on)
+{
+	int retval, tmp;
+	ipu_channel_t old_ch;
+	struct mxcfb_info *mxc_fbi_from = (struct mxcfb_info *)fbi->par;
+	struct mxcfb_info *mxc_fbi_to = (struct mxcfb_info *)fbi_to->par;
+
+	if (both_on) {
+		ipu_disable_channel(mxc_fbi_to->ipu_ch, true);
+		ipu_uninit_channel(mxc_fbi_to->ipu_ch);
+	}
+
+	/* switch the mxc fbi parameters */
+	old_ch = mxc_fbi_from->ipu_ch;
+	mxc_fbi_from->ipu_ch = mxc_fbi_to->ipu_ch;
+	mxc_fbi_to->ipu_ch = old_ch;
+	tmp = mxc_fbi_from->ipu_ch_irq;
+	mxc_fbi_from->ipu_ch_irq = mxc_fbi_to->ipu_ch_irq;
+	mxc_fbi_to->ipu_ch_irq = tmp;
+
+	_setup_disp_channel1(fbi);
+	retval = _setup_disp_channel2(fbi);
+	if (retval)
+		return retval;
+
+	/* switch between dp and dc, disable old idmac, enable new idmac */
+	retval = ipu_swap_channel(old_ch, mxc_fbi_from->ipu_ch);
+	ipu_uninit_channel(old_ch);
+
+	if (both_on) {
+		_setup_disp_channel1(fbi_to);
+		retval = _setup_disp_channel2(fbi_to);
+		if (retval)
+			return retval;
+		ipu_enable_channel(mxc_fbi_to->ipu_ch);
+	}
+
+	return retval;
+}
+
+static int swap_channels(struct fb_info *fbi)
+{
+	int i;
+	int swap_mode;
+	ipu_channel_t ch_to;
+	struct mxcfb_info *mxc_fbi_from = (struct mxcfb_info *)fbi->par;
+	struct fb_info *fbi_to = NULL;
+	struct mxcfb_info *mxc_fbi_to;
+
+	/* what's the target channel? */
+	if (mxc_fbi_from->ipu_ch == MEM_BG_SYNC)
+		ch_to = MEM_DC_SYNC;
+	else
+		ch_to = MEM_BG_SYNC;
+
+	for (i = 0; i < num_registered_fb; i++) {
+		mxc_fbi_to =
+			(struct mxcfb_info *)mxcfb_info[i]->par;
+		if (mxc_fbi_to->ipu_ch == ch_to) {
+			fbi_to = mxcfb_info[i];
+			break;
+		}
+	}
+	if (fbi_to == NULL)
+		return -1;
+
+	if (mxc_fbi_from->blank == FB_BLANK_UNBLANK) {
+		if (mxc_fbi_to->blank == FB_BLANK_UNBLANK)
+			swap_mode = BOTH_ON;
+		else
+			swap_mode = SRC_ON;
+	} else {
+		if (mxc_fbi_to->blank == FB_BLANK_UNBLANK)
+			swap_mode = TGT_ON;
+		else
+			swap_mode = BOTH_OFF;
+	}
+
+	/* tvout di-1: for DC use UYVY, for DP use RGB */
+	if (mxc_fbi_from->ipu_di == 1 && ch_to == MEM_DC_SYNC) {
+		fbi->var.bits_per_pixel = 16;
+		fbi->var.nonstd = IPU_PIX_FMT_UYVY;
+	} else if (mxc_fbi_from->ipu_di == 1 && ch_to == MEM_BG_SYNC) {
+		fbi->var.nonstd = 0;
+	} else if (mxc_fbi_from->ipu_di == 0 && ch_to == MEM_DC_SYNC) {
+		fbi_to->var.nonstd = 0;
+	} else if (mxc_fbi_from->ipu_di == 0 && ch_to == MEM_BG_SYNC) {
+		fbi->var.bits_per_pixel = 16;
+		fbi->var.nonstd = IPU_PIX_FMT_UYVY;
+	}
+
+	switch (swap_mode) {
+	case BOTH_ON:
+		/* disable target->switch src->enable target */
+		_swap_channels(fbi, fbi_to, true);
+		break;
+	case SRC_ON:
+		/* just switch src */
+		_swap_channels(fbi, fbi_to, false);
+		break;
+	case TGT_ON:
+		/* just switch target */
+		_swap_channels(fbi_to, fbi, false);
+		break;
+	case BOTH_OFF:
+		/* switch directly, no more need to do */
+		mxc_fbi_to->ipu_ch = mxc_fbi_from->ipu_ch;
+		mxc_fbi_from->ipu_ch = ch_to;
+		i = mxc_fbi_from->ipu_ch_irq;
+		mxc_fbi_from->ipu_ch_irq = mxc_fbi_to->ipu_ch_irq;
+		mxc_fbi_to->ipu_ch_irq = i;
+		break;
+	default:
+		break;
 	}
 
 	return 0;
@@ -275,7 +437,6 @@ static int mxcfb_check_var(struct fb_var_screeninfo *var, struct fb_info *info)
 {
 	u32 vtotal;
 	u32 htotal;
-	struct mxcfb_info *mxc_fbi = (struct mxcfb_info *)info->par;
 
 	if (var->xres_virtual < var->xres)
 		var->xres_virtual = var->xres;
@@ -887,6 +1048,60 @@ static struct fb_info *mxcfb_init_fbinfo(struct device *dev, struct fb_ops *ops)
 	return fbi;
 }
 
+static ssize_t show_disp_chan(struct device *dev,
+			      struct device_attribute *attr, char *buf)
+{
+	struct fb_info *info = dev_get_drvdata(dev);
+	struct mxcfb_info *mxcfbi = (struct mxcfb_info *)info->par;
+
+	if (mxcfbi->ipu_ch == MEM_BG_SYNC)
+		return sprintf(buf, "2-layer-fb-bg\n");
+	else if (mxcfbi->ipu_ch == MEM_FG_SYNC)
+		return sprintf(buf, "2-layer-fb-fg\n");
+	else if (mxcfbi->ipu_ch == MEM_DC_SYNC)
+		return sprintf(buf, "1-layer-fb\n");
+	else
+		return sprintf(buf, "err: no display chan\n");
+}
+
+static ssize_t swap_disp_chan(struct device *dev,
+			      struct device_attribute *attr,
+			      const char *buf, size_t count)
+{
+	struct fb_info *info = dev_get_drvdata(dev);
+	struct mxcfb_info *mxcfbi = (struct mxcfb_info *)info->par;
+	struct mxcfb_info *fg_mxcfbi = NULL;
+
+	/* swap only happen between DP-BG and DC, while DP-FG disable */
+	if (((mxcfbi->ipu_ch == MEM_BG_SYNC) &&
+	     (strstr(buf, "1-layer-fb") != NULL)) ||
+	    ((mxcfbi->ipu_ch == MEM_DC_SYNC) &&
+	     (strstr(buf, "2-layer-fb-bg") != NULL))) {
+		int i;
+
+		for (i = 0; i < num_registered_fb; i++) {
+			fg_mxcfbi =
+				(struct mxcfb_info *)mxcfb_info[i]->par;
+			if (fg_mxcfbi->ipu_ch == MEM_FG_SYNC)
+				break;
+			else
+				fg_mxcfbi = NULL;
+		}
+		if (!fg_mxcfbi ||
+			fg_mxcfbi->blank == FB_BLANK_UNBLANK) {
+			dev_err(dev,
+				"Can not switch while fb2(fb-fg) is on.\n");
+			return count;
+		}
+
+		if (swap_channels(info) < 0)
+			dev_err(dev, "Swap display channel failed.\n");
+	}
+
+	return count;
+}
+DEVICE_ATTR(fsl_disp_property, 644, show_disp_chan, swap_disp_chan);
+
 /*!
  * Probe routine for the framebuffer driver. It is called during the
  * driver binding process.      The following functions are performed in
@@ -943,6 +1158,8 @@ static int mxcfb_probe(struct platform_device *pdev)
 		strcpy(fbi->fix.id, "DISP3 FG");
 	}
 
+	mxcfb_info[pdev->id] = fbi;
+
 	if (ipu_request_irq(mxcfbi->ipu_ch_irq, mxcfb_irq_handler, 0,
 			    MXCFB_NAME, fbi) != 0) {
 		dev_err(&pdev->dev, "Error registering BG irq handler.\n");
@@ -987,6 +1204,8 @@ static int mxcfb_probe(struct platform_device *pdev)
 		goto err2;
 
 	platform_set_drvdata(pdev, fbi);
+
+	device_create_file(fbi->dev, &dev_attr_fsl_disp_property);
 
 	dev_err(&pdev->dev, "fb registered, using mode %s\n", fb_mode);
 	return 0;

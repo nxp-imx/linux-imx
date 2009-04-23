@@ -416,14 +416,6 @@ void _ipu_dc_init(int dc_chan, int di, bool interlaced)
 		_ipu_dc_link_event(dc_chan, DC_EVT_NEW_CHAN, 0, 0);
 		_ipu_dc_link_event(dc_chan, DC_EVT_NEW_ADDR, 0, 0);
 
-		/* Make sure other DC sync channel is not assigned same DI */
-		reg = __raw_readl(DC_WR_CH_CONF(6 - dc_chan));
-		if ((di << 2) == (reg & DC_WR_CH_CONF_PROG_DI_ID)) {
-			reg &= ~DC_WR_CH_CONF_PROG_DI_ID;
-			reg |= di ? 0 : DC_WR_CH_CONF_PROG_DI_ID;
-			__raw_writel(reg, DC_WR_CH_CONF(6 - dc_chan));
-		}
-
 		reg = 0x2;
 		reg |= DC_DISP_ID_SYNC(di) << DC_WR_CH_CONF_PROG_DISP_ID_OFFSET;
 		reg |= di << 2;
@@ -485,6 +477,7 @@ int _ipu_chan_is_interlaced(ipu_channel_t channel)
 
 void _ipu_dp_dc_enable(ipu_channel_t channel)
 {
+	int di;
 	uint32_t reg;
 	uint32_t dc_chan;
 	int irq = 0;
@@ -508,55 +501,39 @@ void _ipu_dp_dc_enable(ipu_channel_t channel)
 		return;
 	}
 
+	di = g_dc_di_assignment[dc_chan];
+
+	/* Make sure other DC sync channel is not assigned same DI */
+	reg = __raw_readl(DC_WR_CH_CONF(6 - dc_chan));
+	if ((di << 2) == (reg & DC_WR_CH_CONF_PROG_DI_ID)) {
+		reg &= ~DC_WR_CH_CONF_PROG_DI_ID;
+		reg |= di ? 0 : DC_WR_CH_CONF_PROG_DI_ID;
+		__raw_writel(reg, DC_WR_CH_CONF(6 - dc_chan));
+	}
+
 	reg = __raw_readl(DC_WR_CH_CONF(dc_chan));
 	reg |= 4 << DC_WR_CH_CONF_PROG_TYPE_OFFSET;
 	__raw_writel(reg, DC_WR_CH_CONF(dc_chan));
 
 	reg = __raw_readl(IPU_DISP_GEN);
-	if (g_dc_di_assignment[dc_chan])
+	if (di)
 		reg |= DI1_COUNTER_RELEASE;
 	else
 		reg |= DI0_COUNTER_RELEASE;
 	__raw_writel(reg, IPU_DISP_GEN);
 }
 
+static bool dc_swap;
+
 static irqreturn_t dc_irq_handler(int irq, void *dev_id)
 {
-	u32 reg;
-	uint32_t dc_chan;
-	ipu_channel_t channel;
 	struct completion *comp = dev_id;
-
-	if (irq == IPU_IRQ_DP_SF_END) {
-		channel = MEM_BG_SYNC;
-		dc_chan = 5;
-	} else if (irq == IPU_IRQ_DC_FC_1) {
-		channel = MEM_DC_SYNC;
-		dc_chan = 1;
-	} else {
-		return IRQ_HANDLED;
-	}
-
-	reg = __raw_readl(IPU_DISP_GEN);
-	if (g_dc_di_assignment[dc_chan])
-		reg &= ~DI1_COUNTER_RELEASE;
-	else
-		reg &= ~DI0_COUNTER_RELEASE;
-	__raw_writel(reg, IPU_DISP_GEN);
-
-	reg = __raw_readl(DC_WR_CH_CONF(dc_chan));
-	reg &= ~DC_WR_CH_CONF_PROG_TYPE_MASK;
-	__raw_writel(reg, DC_WR_CH_CONF(dc_chan));
-
-	if (__raw_readl(IPUIRQ_2_STATREG(IPU_IRQ_VSYNC_PRE_0 + g_dc_di_assignment[dc_chan])) &
-		IPUIRQ_2_MASK(IPU_IRQ_VSYNC_PRE_0 + g_dc_di_assignment[dc_chan]))
-		dev_err(g_ipu_dev, "VSyncPre occurred before DI%d disable\n", g_dc_di_assignment[dc_chan]);
 
 	complete(comp);
 	return IRQ_HANDLED;
 }
 
-void _ipu_dp_dc_disable(ipu_channel_t channel)
+void _ipu_dp_dc_disable(ipu_channel_t channel, bool swap)
 {
 	int ret;
 	unsigned long lock_flags;
@@ -567,6 +544,8 @@ void _ipu_dp_dc_disable(ipu_channel_t channel)
 	int timeout = 50;
 	DECLARE_COMPLETION_ONSTACK(dc_comp);
 
+	dc_swap = swap;
+
 	if (channel == MEM_DC_SYNC) {
 		dc_chan = 1;
 		irq = IPU_IRQ_DC_FC_1;
@@ -575,6 +554,7 @@ void _ipu_dp_dc_disable(ipu_channel_t channel)
 		irq = IPU_IRQ_DP_SF_END;
 	} else if (channel == MEM_FG_SYNC) {
 		/* Disable FG channel */
+		dc_chan = 5;
 
 		spin_lock_irqsave(&ipu_lock, lock_flags);
 
@@ -600,13 +580,39 @@ void _ipu_dp_dc_disable(ipu_channel_t channel)
 			if (timeout <= 0)
 				break;
 		}
+
+		timeout = 50;
+
+		/*
+		 * Wait for DC triple buffer to empty,
+		 * this check is useful for tv overlay.
+		 */
+		if (g_dc_di_assignment[dc_chan] == 0)
+			while ((__raw_readl(DC_STAT) & 0x00000002)
+			       != 0x00000002) {
+				msleep(2);
+				timeout -= 2;
+				if (timeout <= 0)
+					break;
+			}
+		else if (g_dc_di_assignment[dc_chan] == 1)
+			while ((__raw_readl(DC_STAT) & 0x00000020)
+			       != 0x00000020) {
+				msleep(2);
+				timeout -= 2;
+				if (timeout <= 0)
+					break;
+			}
 		return;
 	} else {
 		return;
 	}
 
-	__raw_writel(IPUIRQ_2_MASK(IPU_IRQ_VSYNC_PRE_0 + g_dc_di_assignment[dc_chan]),
-		     IPUIRQ_2_STATREG(IPU_IRQ_VSYNC_PRE_0 + g_dc_di_assignment[dc_chan]));
+	if (!dc_swap)
+		__raw_writel(IPUIRQ_2_MASK(IPU_IRQ_VSYNC_PRE_0
+			+ g_dc_di_assignment[dc_chan]),
+		     IPUIRQ_2_STATREG(IPU_IRQ_VSYNC_PRE_0
+			+ g_dc_di_assignment[dc_chan]));
 	ipu_clear_irq(irq);
 	ret = ipu_request_irq(irq, dc_irq_handler, 0, NULL, &dc_comp);
 	if (ret < 0) {
@@ -617,6 +623,59 @@ void _ipu_dp_dc_disable(ipu_channel_t channel)
 
 	dev_dbg(g_ipu_dev, "DC stop timeout - %d * 10ms\n", 5 - ret);
 	ipu_free_irq(irq, &dc_comp);
+
+	if (dc_swap) {
+		spin_lock_irqsave(&ipu_lock, lock_flags);
+		/* Swap DC channel 1 and 5 settings, and disable old dc chan */
+		reg = __raw_readl(DC_WR_CH_CONF(dc_chan));
+		__raw_writel(reg, DC_WR_CH_CONF(6 - dc_chan));
+		reg &= ~DC_WR_CH_CONF_PROG_TYPE_MASK;
+		reg ^= DC_WR_CH_CONF_PROG_DI_ID;
+		__raw_writel(reg, DC_WR_CH_CONF(dc_chan));
+		spin_unlock_irqrestore(&ipu_lock, lock_flags);
+	} else {
+		timeout = 50;
+
+		/* Wait for DC triple buffer to empty */
+		if (g_dc_di_assignment[dc_chan] == 0)
+			while ((__raw_readl(DC_STAT) & 0x00000002)
+				!= 0x00000002) {
+				msleep(2);
+				timeout -= 2;
+				if (timeout <= 0)
+					break;
+			}
+		else if (g_dc_di_assignment[dc_chan] == 1)
+			while ((__raw_readl(DC_STAT) & 0x00000020)
+				!= 0x00000020) {
+				msleep(2);
+				timeout -= 2;
+				if (timeout <= 0)
+					break;
+			}
+
+		spin_lock_irqsave(&ipu_lock, lock_flags);
+		reg = __raw_readl(DC_WR_CH_CONF(dc_chan));
+		reg &= ~DC_WR_CH_CONF_PROG_TYPE_MASK;
+		__raw_writel(reg, DC_WR_CH_CONF(dc_chan));
+
+		reg = __raw_readl(IPU_DISP_GEN);
+		if (g_dc_di_assignment[dc_chan])
+			reg &= ~DI1_COUNTER_RELEASE;
+		else
+			reg &= ~DI0_COUNTER_RELEASE;
+		__raw_writel(reg, IPU_DISP_GEN);
+
+		spin_unlock_irqrestore(&ipu_lock, lock_flags);
+
+		if (__raw_readl(IPUIRQ_2_STATREG(IPU_IRQ_VSYNC_PRE_0
+			+ g_dc_di_assignment[dc_chan])) &
+			IPUIRQ_2_MASK(IPU_IRQ_VSYNC_PRE_0
+			+ g_dc_di_assignment[dc_chan]))
+			dev_dbg(g_ipu_dev,
+				"VSyncPre occurred before DI%d disable\n",
+				g_dc_di_assignment[dc_chan]);
+	}
 }
 
 void _ipu_init_dc_mappings(void)
