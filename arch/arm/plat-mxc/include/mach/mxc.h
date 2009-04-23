@@ -402,6 +402,7 @@ enum mxc_cpu_pwr_mode {
 void mxc_cpu_lp_set(enum mxc_cpu_pwr_mode mode);
 int tzic_enable_wake(int is_idle);
 void gpio_activate_audio_ports(void);
+void gpio_inactivate_audio_ports(void);
 
 #endif
 

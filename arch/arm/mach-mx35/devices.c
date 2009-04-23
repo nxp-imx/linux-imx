@@ -559,29 +559,6 @@ static inline void mxc_init_spdif(void)
 	platform_device_register(&mxc_alsa_spdif_device);
 }
 
-static struct mxc_audio_platform_data mxc_audio_data;
-
-static struct platform_device mxc_alsa_device = {
-	.name = "imx-3stack-ak4647",
-	.id = 0,
-	.dev = {
-		.release = mxc_nop_release,
-		.platform_data = &mxc_audio_data,
-		},
-
-};
-
-static void mxc_init_audio(void)
-{
-	if (board_is_mx35(BOARD_REV_2))
-		return;
-	mxc_audio_data.ssi_num = 1;
-	mxc_audio_data.src_port = 1;
-	mxc_audio_data.ext_port = 4;
-	mxc_audio_data.intr_id_hp = MXC_PSEUDO_IRQ_HEADPHONE;
-	platform_device_register(&mxc_alsa_device);
-}
-
 static struct platform_device mxc_alsa_surround_device = {
 	.name = "imx-3stack-wm8580",
 	.id = 0,
@@ -780,7 +757,6 @@ int __init mxc_init_devices(void)
 	mxc_init_dma();
 	mxc_init_bt_audio();
 	mxc_init_spdif();
-	mxc_init_audio();
 	mxc_init_surround_audio();
 	mxc_init_asrc();
 	mxc_init_flexcan();

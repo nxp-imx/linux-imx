@@ -919,6 +919,20 @@ void gpio_activate_audio_ports(void)
 EXPORT_SYMBOL(gpio_activate_audio_ports);
 
 /*!
+ * This function deactivates DAM ports 3 to disable
+ * audio I/O.
+ */
+void gpio_inactivate_audio_ports(void)
+{
+	mxc_free_iomux(MX35_PIN_STXD4, MUX_CONFIG_FUNC);
+	mxc_free_iomux(MX35_PIN_SRXD4, MUX_CONFIG_FUNC);
+	mxc_free_iomux(MX35_PIN_SCK4, MUX_CONFIG_FUNC);
+	mxc_free_iomux(MX35_PIN_STXFS4, MUX_CONFIG_FUNC);
+}
+
+EXPORT_SYMBOL(gpio_inactivate_audio_ports);
+
+/*!
  * This function activates DAM ports 5 to enable
  * audio I/O.
  */

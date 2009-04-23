@@ -8,4 +8,6 @@ obj-$(CONFIG_SND_MXC_SOC_SSI) += snd-soc-imx-ssi.o
 # i.MX Machine Support
 snd-soc-imx-3stack-sgtl5000-objs := imx-3stack-sgtl5000.o
 obj-$(CONFIG_SND_SOC_IMX_3STACK_SGTL5000) += snd-soc-imx-3stack-sgtl5000.o
+snd-soc-imx-3stack-ak4647-objs := imx-3stack-ak4647.o
+obj-$(CONFIG_SND_SOC_IMX_3STACK_AK4647) += snd-soc-imx-3stack-ak4647.o
 

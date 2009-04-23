@@ -807,7 +807,7 @@ static void mxc_init_bluetooth(void)
 #if defined(CONFIG_SND_SOC_IMX_3STACK_SGTL5000) \
     || defined(CONFIG_SND_SOC_IMX_3STACK_SGTL5000_MODULE)
 
-unsigned int headphone_det_status(void)
+static int sgtl5000_headphone_det_status(void)
 {
 	int ret = 0;
 	if (0 != pmic_gpio_get_designation_bit_val(0, &ret))
@@ -824,7 +824,7 @@ static struct mxc_audio_platform_data sgtl5000_data = {
 	.src_port = 1,
 	.ext_port = 4,
 	.hp_irq = MXC_PSEUDO_IRQ_HEADPHONE,
-	.hp_status = headphone_det_status,
+	.hp_status = sgtl5000_headphone_det_status,
 	.vddio_reg = NULL,
 	.vdda_reg = "VCAM",
 	.amp_enable = mxc_sgtl5000_amp_enable,
@@ -881,7 +881,6 @@ static int mxc_sgtl5000_amp_enable(int enable)
 
 static void mxc_init_sgtl5000(void)
 {
-	int err;
 	struct clk *cko1, *parent;
 	unsigned long rate;
 
@@ -899,7 +898,7 @@ static void mxc_init_sgtl5000(void)
 	rate = clk_round_rate(cko1, 12000000);
 	if (rate < 8000000 || rate > 27000000) {
 		printk(KERN_ERR "Error: SGTL5000 mclk freq %d out of range!\n",
-		       rate);
+		       (unsigned int)rate);
 		clk_put(parent);
 		clk_put(cko1);
 		return;
@@ -911,6 +910,60 @@ static void mxc_init_sgtl5000(void)
 }
 #else
 static void mxc_init_sgtl5000(void)
+{
+}
+#endif
+
+#if defined(CONFIG_SND_SOC_IMX_3STACK_AK4647) \
+    || defined(CONFIG_SND_SOC_IMX_3STACK_AK4647_MODULE)
+static int mxc_ak4647_amp_enable(int enable)
+{
+	pmic_gpio_set_bit_val(MCU_GPIO_REG_GPIO_CONTROL_1, 0, enable);
+	return 0;
+}
+
+static int mxc_ak4647_plat_init(void)
+{
+	pmic_gpio_set_bit_val(MCU_GPIO_REG_RESET_2, 1, 0);
+	msleep(1);
+	pmic_gpio_set_bit_val(MCU_GPIO_REG_RESET_2, 1, 1);
+	return 0;
+}
+
+static int ak4647_headphone_det_status(void)
+{
+	int ret = 0;
+	if (0 != pmic_gpio_get_designation_bit_val(0, &ret))
+		printk(KERN_ERR "Get headphone status error.");
+	return ret;
+}
+
+static struct mxc_audio_platform_data mxc_ak4647_data = {
+	.ssi_num = 1,
+	.src_port = 1,
+	.ext_port = 4,
+	.amp_enable = mxc_ak4647_amp_enable,
+	.init = mxc_ak4647_plat_init,
+	.hp_status = ak4647_headphone_det_status,
+	.intr_id_hp = MXC_PSEUDO_IRQ_HEADPHONE,
+};
+
+static struct platform_device mxc_alsa_device = {
+	.name = "imx-3stack-ak4647",
+	.id = 0,
+	.dev = {
+		.release = mxc_nop_release,
+		.platform_data = &mxc_ak4647_data,
+		},
+
+};
+
+static void mxc_init_ak4647(void)
+{
+	platform_device_register(&mxc_alsa_device);
+}
+#else
+static void mxc_init_ak4647(void)
 {
 }
 #endif
@@ -1016,6 +1069,7 @@ static void __init mxc_board_init(void)
 	mxc_init_fb();
 	mxc_init_bl();
 	mxc_init_sgtl5000();
+	mxc_init_ak4647();
 
 	i2c_register_board_info(0, mxc_i2c_board_info,
 				ARRAY_SIZE(mxc_i2c_board_info));
@@ -1145,7 +1199,7 @@ static void __init mx35_3stack_timer_init(void)
 }
 
 static struct sys_timer mxc_timer = {
-	.init	= mx35_3stack_timer_init,
+	.init = mx35_3stack_timer_init,
 };
 
 /*
