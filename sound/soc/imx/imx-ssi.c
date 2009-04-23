@@ -288,7 +288,6 @@ static int imx_ssi_set_dai_fmt(struct snd_soc_dai *cpu_dai, unsigned int fmt)
 	switch (fmt & SND_SOC_DAIFMT_MASTER_MASK) {
 	case SND_SOC_DAIFMT_CBS_CFS:
 		stcr |= SSI_STCR_TFDIR | SSI_STCR_TXDIR;
-		srcr |= SSI_SRCR_RFDIR | SSI_SRCR_RXDIR;
 		if (((fmt & SND_SOC_DAIFMT_FORMAT_MASK) == SND_SOC_DAIFMT_I2S)
 		    && (fmt & SND_SOC_DAIFMT_TDM)) {
 			scr &= ~SSI_SCR_I2S_MODE_MASK;
