@@ -1651,6 +1651,15 @@ static struct clk cko1_clk = {
 	.disable = _clk_cko1_disable,
 };
 
+static struct clk gpu2d_clk = {
+	.name = "gpu2d_clk",
+	.parent = &ahb_clk,
+	.enable = _clk_enable,
+	.enable_reg = MXC_CCM_CGR3,
+	.enable_shift = MXC_CCM_CGR3_GPU2D_OFFSET,
+	.disable = _clk_disable,
+};
+
 static struct clk *mxc_clks[] = {
 	&ckih_clk,
 	&ckil_clk,
@@ -1710,6 +1719,7 @@ static struct clk *mxc_clks[] = {
 	&iim_clk,
 	&nfc_clk,
 	&cko1_clk,
+	&gpu2d_clk,
 };
 
 extern void propagate_rate(struct clk *tclk);
