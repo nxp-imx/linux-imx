@@ -20,6 +20,15 @@ config SND_MXC_SOC_IRAM
  help
    Say Y if you don't want Audio playback buffers in external ram
 
+config SND_SOC_IMX_3STACK_WM8350
+ tristate "SoC Audio support for IMX - WM8350"
+ depends on MFD_WM8350
+ select SND_MXC_SOC_SSI
+ select SND_SOC_WM8350
+ help
+   Say Y if you want to add support for SoC audio on IMX 3STACK
+   with the WM8350.
+
 config SND_SOC_IMX_3STACK_SGTL5000
  tristate "SoC Audio support for IMX - SGTL5000"
  select SND_MXC_SOC_SSI
