@@ -213,7 +213,6 @@ static void headphone_detect_handler(struct work_struct *work)
 	int hp_status;
 
 	sysfs_notify(&pdev->dev.kobj, NULL, "headphone");
-
 	hp_status = plat->hp_status();
 	if (hp_status)
 		set_irq_type(plat->hp_irq, IRQ_TYPE_EDGE_FALLING);
@@ -380,11 +379,37 @@ static struct snd_soc_dai_link imx_3stack_dai = {
 	.ops = &imx_3stack_ops,
 };
 
+static int imx_3stack_machine_remove(struct platform_device *pdev)
+{
+	struct imx_3stack_priv *priv = &machine_priv;
+	struct mxc_audio_platform_data *plat;
+	if (priv->reg_vddio)
+		regulator_disable(priv->reg_vddio);
+	if (priv->reg_vddd)
+		regulator_disable(priv->reg_vddd);
+	if (priv->reg_vdda)
+		regulator_disable(priv->reg_vdda);
+	if (priv->reg_vdda)
+		regulator_put(priv->reg_vdda);
+	if (priv->reg_vddio)
+		regulator_put(priv->reg_vddio);
+	if (priv->reg_vddd)
+		regulator_put(priv->reg_vddd);
+	if (priv->pdev) {
+		plat = priv->pdev->dev.platform_data;
+		if (plat->finit)
+			plat->finit();
+	}
+
+	return 0;
+}
+
 /* imx_3stack audio machine driver */
 static struct snd_soc_machine snd_soc_machine_imx_3stack = {
 	.name = "imx-3stack",
 	.dai_link = &imx_3stack_dai,
 	.num_links = 1,
+	.remove = imx_3stack_machine_remove,
 };
 
 static struct snd_soc_device imx_3stack_snd_devdata = {
@@ -419,9 +444,9 @@ static int __devinit imx_3stack_sgtl5000_probe(struct platform_device *pdev)
 	imx_3stack_init_dam(plat->src_port, plat->ext_port);
 
 	if (plat->src_port == 2)
-		strcpy(imx_ssi_dai.name, "imx-ssi-3");
+		imx_ssi_dai.name = "imx-ssi-3";
 	else
-		strcpy(imx_ssi_dai.name, "imx-ssi-1");
+		imx_ssi_dai.name = "imx-ssi-1";
 
 	ret = driver_create_file(pdev->dev.driver, &driver_attr_headphone);
 	if (ret < 0) {
@@ -516,22 +541,9 @@ static int imx_3stack_sgtl5000_remove(struct platform_device *pdev)
 
 	free_irq(plat->hp_irq, priv);
 
-	if (priv->reg_vddio)
-		regulator_disable(priv->reg_vddio);
-	if (priv->reg_vddd)
-		regulator_disable(priv->reg_vddd);
-	if (priv->reg_vdda)
-		regulator_disable(priv->reg_vdda);
-	if (plat->amp_enable)
-		plat->amp_enable(0);
-	if (plat->finit)
-		plat->finit();
-	if (priv->reg_vdda)
-		regulator_put(priv->reg_vdda);
-	if (priv->reg_vddio)
-		regulator_put(priv->reg_vddio);
-	if (priv->reg_vddd)
-		regulator_put(priv->reg_vddd);
+	driver_remove_file(pdev->dev.driver, &driver_attr_headphone);
+
+	kfree(imx_3stack_snd_devdata.codec_data);
 
 	return 0;
 }
@@ -554,7 +566,7 @@ static int __init imx_3stack_init(void)
 	if (ret)
 		return -ENOMEM;
 
-	imx_3stack_snd_device = platform_device_alloc("soc-audio", -1);
+	imx_3stack_snd_device = platform_device_alloc("soc-audio", 2);
 	if (!imx_3stack_snd_device)
 		return -ENOMEM;
 

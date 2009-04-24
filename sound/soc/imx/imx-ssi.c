@@ -714,6 +714,18 @@ static int imx_ssi_probe(struct platform_device *pdev, struct snd_soc_dai *dai)
 	return 0;
 }
 
+static void imx_ssi_remove(struct platform_device *pdev,
+			   struct snd_soc_dai *dai)
+{
+	if ((!strcmp(dai->name, "imx-ssi-1")) ||
+	    (!strcmp(dai->name, "imx-ssi-2")))
+		free_irq(MXC_INT_SSI1, dai);
+
+	if ((!strcmp(dai->name, "imx-ssi-3")) ||
+	    (!strcmp(dai->name, "imx-ssi-4")))
+		free_irq(MXC_INT_SSI2, dai);
+}
+
 #define IMX_SSI_RATES \
 	(SNDRV_PCM_RATE_8000 | SNDRV_PCM_RATE_11025 | \
 	SNDRV_PCM_RATE_16000 | SNDRV_PCM_RATE_22050 | \
@@ -731,6 +743,7 @@ struct snd_soc_dai imx_ssi_dai = {
 	.type = SND_SOC_DAI_PCM,
 	.probe = imx_ssi_probe,
 	.suspend = imx_ssi_suspend,
+	.remove = imx_ssi_remove,
 	.resume = imx_ssi_resume,
 	.playback = {
 		     .channels_min = 1,

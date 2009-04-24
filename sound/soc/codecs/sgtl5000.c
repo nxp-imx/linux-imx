@@ -1037,10 +1037,8 @@ static int sgtl5000_remove(struct platform_device *pdev)
 
 	if (codec->control_data)
 		sgtl5000_set_bias_level(codec, SND_SOC_BIAS_OFF);
-
 	snd_soc_free_pcms(socdev);
 	snd_soc_dapm_free(socdev);
-	i2c_unregister_device(codec->control_data);
 	i2c_del_driver(&sgtl5000_i2c_driver);
 	kfree(codec->private_data);
 	kfree(codec);
