@@ -44,6 +44,12 @@
 #define NEED_IRAM(ep) ((g_iram_size) && \
 	((ep)->desc->bmAttributes == USB_ENDPOINT_XFER_BULK))
 
+#ifdef CONFIG_ARCH_MX51
+#define POSTPONE_FREE_LAST_DTD
+#else
+#undef POSTPONE_FREE_LAST_DTD
+#endif
+
 /* ### define USB registers here
  */
 #define USB_MAX_ENDPOINTS		8

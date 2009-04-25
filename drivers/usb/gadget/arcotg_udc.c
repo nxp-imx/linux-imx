@@ -76,6 +76,9 @@ volatile static struct usb_sys_interface *usb_sys_regs;
 /* it is initialized in probe()  */
 static struct fsl_udc *udc_controller;
 
+#ifdef POSTPONE_FREE_LAST_DTD
+static struct ep_td_struct *last_free_td;
+#endif
 static const struct usb_endpoint_descriptor
 fsl_ep0_desc = {
 	.bLength =		USB_DT_ENDPOINT_SIZE,
@@ -172,10 +175,21 @@ static void done(struct fsl_ep *ep, struct fsl_req *req, int status)
 	next_td = req->head;
 	for (j = 0; j < req->dtd_count; j++) {
 		curr_td = next_td;
-		if (j != req->dtd_count - 1)
+		if (j != req->dtd_count - 1) {
 			next_td = curr_td->next_td_virt;
+#ifdef POSTPONE_FREE_LAST_DTD
+			dma_pool_free(udc->td_pool, curr_td, curr_td->td_dma);
+		} else {
+			if (last_free_td != NULL)
+				dma_pool_free(udc->td_pool, last_free_td,
+						last_free_td->td_dma);
+			last_free_td = curr_td;
+		}
+#else
+		}
 
 		dma_pool_free(udc->td_pool, curr_td, curr_td->td_dma);
+#endif
 	}
 
 	if (USE_MSC_WR(req->req.length)) {
@@ -2744,7 +2758,9 @@ static int __init fsl_udc_probe(struct platform_device *pdev)
 			    IO_ADDRESS(udc_controller->iram_buffer[i]);
 		}
 	}
-
+#ifdef POSTPONE_FREE_LAST_DTD
+	last_free_td = NULL;
+#endif
 	create_proc_file();
 	return 0;
 
@@ -2787,7 +2803,11 @@ static int __exit fsl_udc_remove(struct platform_device *pdev)
 	kfree(udc_controller->status_req->req.buf);
 	kfree(udc_controller->status_req);
 	kfree(udc_controller->eps);
-
+#ifdef POSTPONE_FREE_LAST_DTD
+	if (last_free_td != NULL)
+		dma_pool_free(udc_controller->td_pool, last_free_td,
+				last_free_td->td_dma);
+#endif
 	dma_pool_destroy(udc_controller->td_pool);
 	free_irq(udc_controller->irq, udc_controller);
 	iounmap(dr_regs);
