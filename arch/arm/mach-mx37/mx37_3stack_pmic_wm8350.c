@@ -204,6 +204,16 @@ static struct platform_device mxc_wm8350_devices[] = {
 	 },
 };
 
+struct mxc_audio_platform_data imx_3stack_audio_platform_data = {
+	.ssi_num = 2,
+	.src_port = 2,
+	.ext_port = 5,
+	.regulator1 = "DCDC6",
+	.regulator2 = "DCDC3",
+};
+
+static struct platform_device *imx_snd_device;
+
 static int mx37_wm8350_init(struct wm8350 *wm8350)
 {
 	int i, ret;
@@ -245,7 +255,28 @@ static int mx37_wm8350_init(struct wm8350 *wm8350)
 	wm8350_register_regulator(wm8350, WM8350_LDO_4, &ldo4_data);
 	wm8350_register_regulator(wm8350, WM8350_ISINK_A, &isinka_data);
 
+	/* register sound */
+	pr_info("Registering imx37_snd_device");
+	imx_snd_device = platform_device_alloc("wm8350-imx-3stack-audio", -1);
+	if (!imx_snd_device) {
+		ret = -ENOMEM;
+		goto err;
+	}
+	imx_3stack_audio_platform_data.priv = wm8350;
+
+	imx_snd_device->dev.platform_data = &imx_3stack_audio_platform_data;
+	ret = platform_device_add(imx_snd_device);
+	if (ret)
+		goto snd_err;
+
 	return 0;
+
+snd_err:
+	platform_device_put(imx_snd_device);
+
+err:
+	kfree(wm8350->reg_cache);
+	return ret;
 }
 
 struct wm8350_platform_data __initdata mx37_wm8350_pdata = {
@@ -293,15 +324,3 @@ static __init int wm8350_regulator_init(void)
 }
 
 late_initcall(wm8350_regulator_init);
-
-/* extern const char imx_3stack_audio[32]; */
-
-struct mxc_audio_platform_data imx_3stack_audio_platform_data = {
-	.ssi_num = 2,
-	.src_port = 2,
-	.ext_port = 5,
-	.regulator1 = "DCDC6",
-	.regulator2 = "DCDC3"
-};
-
-static struct platform_device *imx_snd_device;
