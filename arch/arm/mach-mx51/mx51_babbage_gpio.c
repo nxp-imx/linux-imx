@@ -103,21 +103,25 @@ static struct mxc_iomux_pin_cfg __initdata mxc_iomux_pins[] = {
 	{
 	 MX51_PIN_EIM_A23, IOMUX_CONFIG_GPIO,
 	 },
+	/* USBH2_CLK */
 	{
 	 MX51_PIN_EIM_A24, IOMUX_CONFIG_ALT2,
 	 (PAD_CTL_SRE_FAST | PAD_CTL_DRV_HIGH | PAD_CTL_100K_PU |
 	  PAD_CTL_PUE_KEEPER | PAD_CTL_PKE_ENABLE | PAD_CTL_HYS_ENABLE),
 	 },
+	/* USBH2_DIR */
 	{
 	 MX51_PIN_EIM_A25, IOMUX_CONFIG_ALT2,
 	 (PAD_CTL_SRE_FAST | PAD_CTL_DRV_HIGH | PAD_CTL_100K_PU |
 	  PAD_CTL_PUE_KEEPER | PAD_CTL_PKE_ENABLE | PAD_CTL_HYS_ENABLE),
 	 },
+	/* USBH2_STP */
 	{
 	 MX51_PIN_EIM_A26, IOMUX_CONFIG_ALT2,
 	 (PAD_CTL_SRE_FAST | PAD_CTL_DRV_HIGH | PAD_CTL_100K_PU |
 	  PAD_CTL_PUE_KEEPER | PAD_CTL_PKE_ENABLE | PAD_CTL_HYS_ENABLE),
 	 },
+	/* USBH2_NXT */
 	{
 	 MX51_PIN_EIM_A27, IOMUX_CONFIG_ALT2,
 	 (PAD_CTL_SRE_FAST | PAD_CTL_DRV_HIGH | PAD_CTL_100K_PU |
@@ -182,7 +186,7 @@ static struct mxc_iomux_pin_cfg __initdata mxc_iomux_pins[] = {
 	 },
 	{
 	 MX51_PIN_NANDF_CS0, IOMUX_CONFIG_GPIO,
-	 (PAD_CTL_PKE_ENABLE | PAD_CTL_100K_PU),
+	 PAD_CTL_100K_PU,
 	 },
 	{
 	 MX51_PIN_NANDF_CS1, IOMUX_CONFIG_GPIO,
@@ -228,6 +232,10 @@ static struct mxc_iomux_pin_cfg __initdata mxc_iomux_pins[] = {
 	 0,
 	 MUX_IN_GPIO3_IPP_IND_G_IN_5_SELECT_INPUT,
 	 INPUT_CTL_PATH1,
+	 },
+	{
+	 MX51_PIN_NANDF_D12, IOMUX_CONFIG_GPIO,
+	 0,
 	 },
 	{
 	 MX51_PIN_I2C1_CLK, IOMUX_CONFIG_ALT0 | IOMUX_CONFIG_SION,
@@ -311,27 +319,33 @@ static struct mxc_iomux_pin_cfg __initdata mxc_iomux_pins[] = {
 	 },
 	{
 	 MX51_PIN_SD1_CMD, IOMUX_CONFIG_ALT0 | IOMUX_CONFIG_SION,
-	 (PAD_CTL_DRV_MAX | PAD_CTL_22K_PU | PAD_CTL_SRE_FAST),
+	 (PAD_CTL_PUE_KEEPER | PAD_CTL_PKE_ENABLE | PAD_CTL_DRV_HIGH |
+	  PAD_CTL_47K_PU | PAD_CTL_SRE_FAST),
 	 },
 	{
 	 MX51_PIN_SD1_CLK, IOMUX_CONFIG_ALT0 | IOMUX_CONFIG_SION,
-	 (PAD_CTL_DRV_MAX | PAD_CTL_22K_PU | PAD_CTL_SRE_FAST),
+	 (PAD_CTL_PUE_KEEPER | PAD_CTL_PKE_ENABLE | PAD_CTL_DRV_HIGH |
+	  PAD_CTL_47K_PU | PAD_CTL_SRE_FAST),
 	 },
 	{
 	 MX51_PIN_SD1_DATA0, IOMUX_CONFIG_ALT0,
-	 (PAD_CTL_DRV_MAX | PAD_CTL_22K_PU | PAD_CTL_SRE_FAST),
+	 (PAD_CTL_PUE_KEEPER | PAD_CTL_PKE_ENABLE | PAD_CTL_DRV_HIGH |
+	  PAD_CTL_47K_PU | PAD_CTL_SRE_FAST),
 	 },
 	{
 	 MX51_PIN_SD1_DATA1, IOMUX_CONFIG_ALT0,
-	 (PAD_CTL_DRV_MAX | PAD_CTL_22K_PU | PAD_CTL_SRE_FAST),
+	 (PAD_CTL_PUE_KEEPER | PAD_CTL_PKE_ENABLE | PAD_CTL_DRV_HIGH |
+	  PAD_CTL_47K_PU | PAD_CTL_SRE_FAST),
 	 },
 	{
 	 MX51_PIN_SD1_DATA2, IOMUX_CONFIG_ALT0,
-	 (PAD_CTL_DRV_MAX | PAD_CTL_22K_PU | PAD_CTL_SRE_FAST),
+	 (PAD_CTL_PUE_KEEPER | PAD_CTL_PKE_ENABLE | PAD_CTL_DRV_HIGH |
+	  PAD_CTL_47K_PU | PAD_CTL_SRE_FAST),
 	 },
 	{
 	 MX51_PIN_SD1_DATA3, IOMUX_CONFIG_ALT0,
-	 (PAD_CTL_DRV_MAX | PAD_CTL_22K_PU | PAD_CTL_SRE_FAST),
+	 (PAD_CTL_PUE_KEEPER | PAD_CTL_PKE_ENABLE | PAD_CTL_DRV_HIGH |
+	  PAD_CTL_47K_PU | PAD_CTL_SRE_FAST),
 	 },
 	{
 	 MX51_PIN_GPIO1_0, IOMUX_CONFIG_GPIO | IOMUX_CONFIG_SION,
@@ -401,31 +415,32 @@ void __init mx51_babbage_io_init(void)
 	mxc_iomux_set_pad(MX51_PIN_GPIO1_7, PAD_CTL_DRV_HIGH |
 			  PAD_CTL_PKE_ENABLE | PAD_CTL_SRE_FAST);
 	mxc_set_gpio_direction(MX51_PIN_GPIO1_7, 0);
-	mxc_set_gpio_dataout(MX51_PIN_GPIO1_7, 1);
 
-	/* Drive I2C1 SDA line low */
-	mxc_request_iomux(MX51_PIN_GPIO1_3, IOMUX_CONFIG_ALT0);
-	mxc_iomux_set_pad(MX51_PIN_GPIO1_3, PAD_CTL_DRV_HIGH |
-			  PAD_CTL_PKE_ENABLE | PAD_CTL_SRE_FAST);
-	mxc_set_gpio_direction(MX51_PIN_GPIO1_3, 0);
-	mxc_set_gpio_dataout(MX51_PIN_GPIO1_3, 0);
+	if (cpu_is_mx51_rev(CHIP_REV_1_1) == 1) {
+		/* Drive I2C1 SDA line low */
+		mxc_request_iomux(MX51_PIN_GPIO1_3, IOMUX_CONFIG_ALT0);
+		mxc_iomux_set_pad(MX51_PIN_GPIO1_3, PAD_CTL_DRV_HIGH |
+				  PAD_CTL_PKE_ENABLE | PAD_CTL_SRE_FAST);
+		mxc_set_gpio_direction(MX51_PIN_GPIO1_3, 0);
+		mxc_set_gpio_dataout(MX51_PIN_GPIO1_3, 0);
 
-	/* Drive I2C1 SCL line low */
-	mxc_request_iomux(MX51_PIN_GPIO1_2, IOMUX_CONFIG_ALT0);
-	mxc_iomux_set_pad(MX51_PIN_GPIO1_2, PAD_CTL_DRV_HIGH |
-			  PAD_CTL_PKE_ENABLE | PAD_CTL_SRE_FAST);
-	mxc_set_gpio_direction(MX51_PIN_GPIO1_2, 0);
-	mxc_set_gpio_dataout(MX51_PIN_GPIO1_2, 0);
+		/* Drive I2C1 SCL line low */
+		mxc_request_iomux(MX51_PIN_GPIO1_2, IOMUX_CONFIG_ALT0);
+		mxc_iomux_set_pad(MX51_PIN_GPIO1_2, PAD_CTL_DRV_HIGH |
+				  PAD_CTL_PKE_ENABLE | PAD_CTL_SRE_FAST);
+		mxc_set_gpio_direction(MX51_PIN_GPIO1_2, 0);
+		mxc_set_gpio_dataout(MX51_PIN_GPIO1_2, 0);
+
+		msleep(5);
+		mxc_free_iomux(MX51_PIN_GPIO1_2, IOMUX_CONFIG_ALT2);
+		mxc_free_iomux(MX51_PIN_GPIO1_3, IOMUX_CONFIG_ALT2);
+	}
 
 	/* USB HUB RESET - De-assert USB HUB RESET_N */
 	msleep(1);
 	mxc_set_gpio_dataout(MX51_PIN_GPIO1_7, 0);
-	msleep(5);
+	msleep(1);
 	mxc_set_gpio_dataout(MX51_PIN_GPIO1_7, 1);
-
-	msleep(5);
-	mxc_free_iomux(MX51_PIN_GPIO1_2, IOMUX_CONFIG_ALT2);
-	mxc_free_iomux(MX51_PIN_GPIO1_3, IOMUX_CONFIG_ALT2);
 
 	for (i = 0; i < ARRAY_SIZE(mxc_iomux_pins); i++) {
 		mxc_request_iomux(mxc_iomux_pins[i].pin,
@@ -454,9 +469,108 @@ void __init mx51_babbage_io_init(void)
 	msleep(10);
 	mxc_set_gpio_dataout(MX51_PIN_EIM_A21, 1);
 
-	/* MX51_PIN_EIM_CRE - De-assert USB PHY RESETB */
-	mxc_set_gpio_direction(MX51_PIN_EIM_CRE, 0);
-	mxc_set_gpio_dataout(MX51_PIN_EIM_CRE, 1);
+	if (cpu_is_mx51_rev(CHIP_REV_1_1) == 1) {
+		/* MX51_PIN_EIM_CRE - De-assert USB PHY RESETB */
+		mxc_set_gpio_direction(MX51_PIN_EIM_CRE, 0);
+		mxc_set_gpio_dataout(MX51_PIN_EIM_CRE, 1);
+
+		/* hphone_det_b */
+		mxc_set_gpio_direction(MX51_PIN_NANDF_CS0, 1);
+	} else {
+		mxc_free_iomux(MX51_PIN_EIM_D21, IOMUX_CONFIG_ALT2);
+		mxc_free_iomux(MX51_PIN_EIM_A24, IOMUX_CONFIG_ALT2);
+		mxc_free_iomux(MX51_PIN_EIM_A25, IOMUX_CONFIG_ALT2);
+		mxc_free_iomux(MX51_PIN_EIM_D18, IOMUX_CONFIG_ALT2);
+		mxc_free_iomux(MX51_PIN_EIM_D20, IOMUX_CONFIG_ALT2);
+		mxc_free_iomux(MX51_PIN_EIM_D21, IOMUX_CONFIG_ALT2);
+		mxc_free_iomux(MX51_PIN_EIM_D23, IOMUX_CONFIG_ALT2);
+		mxc_free_iomux(MX51_PIN_EIM_D16, IOMUX_CONFIG_ALT2);
+		mxc_free_iomux(MX51_PIN_EIM_D17, IOMUX_CONFIG_ALT2);
+		mxc_free_iomux(MX51_PIN_EIM_D19, IOMUX_CONFIG_ALT2);
+		mxc_free_iomux(MX51_PIN_GPIO1_2, IOMUX_CONFIG_ALT2);
+		mxc_free_iomux(MX51_PIN_GPIO1_3, IOMUX_CONFIG_ALT2);
+		mxc_free_iomux(MX51_PIN_EIM_LBA, IOMUX_CONFIG_GPIO);
+		mxc_free_iomux(MX51_PIN_NANDF_CS0, IOMUX_CONFIG_GPIO);
+
+		/* i2c1 SDA */
+		mxc_request_iomux(MX51_PIN_EIM_D16,
+				  IOMUX_CONFIG_ALT4 | IOMUX_CONFIG_SION);
+		mxc_iomux_set_input(MUX_IN_I2C1_IPP_SDA_IN_SELECT_INPUT,
+				    INPUT_CTL_PATH1);
+		mxc_iomux_set_pad(MX51_PIN_EIM_D16, PAD_CTL_SRE_FAST |
+				  PAD_CTL_ODE_OPENDRAIN_ENABLE |
+				  PAD_CTL_DRV_HIGH | PAD_CTL_100K_PU |
+				  PAD_CTL_HYS_ENABLE);
+
+		/* i2c1 SCL */
+		mxc_request_iomux(MX51_PIN_EIM_D19,
+				  IOMUX_CONFIG_ALT4 | IOMUX_CONFIG_SION);
+		mxc_iomux_set_input(MUX_IN_I2C1_IPP_SCL_IN_SELECT_INPUT,
+				    INPUT_CTL_PATH1);
+		mxc_iomux_set_pad(MX51_PIN_EIM_D19, PAD_CTL_SRE_FAST |
+				  PAD_CTL_ODE_OPENDRAIN_ENABLE |
+				  PAD_CTL_DRV_HIGH | PAD_CTL_100K_PU |
+				  PAD_CTL_HYS_ENABLE);
+
+		/* i2c2 SDA */
+		mxc_request_iomux(MX51_PIN_KEY_COL5,
+				  IOMUX_CONFIG_ALT3 | IOMUX_CONFIG_SION);
+		mxc_iomux_set_input(MUX_IN_I2C2_IPP_SDA_IN_SELECT_INPUT,
+				    INPUT_CTL_PATH1);
+		mxc_iomux_set_pad(MX51_PIN_KEY_COL5,
+				  PAD_CTL_SRE_FAST |
+				  PAD_CTL_ODE_OPENDRAIN_ENABLE |
+				  PAD_CTL_DRV_HIGH | PAD_CTL_100K_PU |
+				  PAD_CTL_HYS_ENABLE);
+
+		/* i2c2 SCL */
+		mxc_request_iomux(MX51_PIN_KEY_COL4,
+				  IOMUX_CONFIG_ALT3 | IOMUX_CONFIG_SION);
+		mxc_iomux_set_input(MUX_IN_I2C2_IPP_SCL_IN_SELECT_INPUT,
+				    INPUT_CTL_PATH1);
+		mxc_iomux_set_pad(MX51_PIN_KEY_COL4,
+				  PAD_CTL_SRE_FAST |
+				  PAD_CTL_ODE_OPENDRAIN_ENABLE |
+				  PAD_CTL_DRV_HIGH | PAD_CTL_100K_PU |
+				  PAD_CTL_HYS_ENABLE);
+
+		/* Drive 26M_OSC_EN line high */
+		mxc_request_iomux(MX51_PIN_DI1_PIN12, IOMUX_CONFIG_ALT4);
+		mxc_iomux_set_pad(MX51_PIN_DI1_PIN12, PAD_CTL_DRV_HIGH |
+				  PAD_CTL_PKE_ENABLE | PAD_CTL_SRE_FAST);
+		mxc_set_gpio_direction(MX51_PIN_DI1_PIN12, 0);
+		mxc_set_gpio_dataout(MX51_PIN_DI1_PIN12, 1);
+
+		/* Drive USB_CLK_EN_B line low */
+		mxc_request_iomux(MX51_PIN_EIM_D17, IOMUX_CONFIG_ALT1);
+		mxc_iomux_set_pad(MX51_PIN_EIM_D17, PAD_CTL_DRV_HIGH |
+				  PAD_CTL_PKE_ENABLE | PAD_CTL_SRE_FAST);
+		mxc_set_gpio_direction(MX51_PIN_EIM_D17, 0);
+		mxc_set_gpio_dataout(MX51_PIN_EIM_D17, 0);
+
+		/* MX51_PIN_EIM_D21 - De-assert USB PHY RESETB */
+		mxc_request_iomux(MX51_PIN_EIM_D21, IOMUX_CONFIG_ALT1);
+		mxc_iomux_set_pad(MX51_PIN_EIM_D21, PAD_CTL_DRV_HIGH |
+				  PAD_CTL_HYS_NONE | PAD_CTL_PUE_KEEPER |
+				  PAD_CTL_100K_PU | PAD_CTL_ODE_OPENDRAIN_NONE |
+				  PAD_CTL_PKE_ENABLE | PAD_CTL_SRE_FAST);
+		mxc_set_gpio_direction(MX51_PIN_EIM_D21, 0);
+		mxc_set_gpio_dataout(MX51_PIN_EIM_D21, 1);
+
+		/* hphone_det_b */
+		mxc_request_iomux(MX51_PIN_NANDF_D14, IOMUX_CONFIG_ALT3);
+		mxc_iomux_set_pad(MX51_PIN_NANDF_D14, PAD_CTL_100K_PU);
+		mxc_set_gpio_direction(MX51_PIN_NANDF_D14, 1);
+
+		/* audio_clk_en_b */
+		mxc_request_iomux(MX51_PIN_CSPI1_RDY, IOMUX_CONFIG_ALT3);
+		mxc_iomux_set_pad(MX51_PIN_CSPI1_RDY, PAD_CTL_DRV_HIGH |
+				  PAD_CTL_HYS_NONE | PAD_CTL_PUE_KEEPER |
+				  PAD_CTL_100K_PU | PAD_CTL_ODE_OPENDRAIN_NONE |
+				  PAD_CTL_PKE_ENABLE | PAD_CTL_SRE_FAST);
+		mxc_set_gpio_direction(MX51_PIN_CSPI1_RDY, 0);
+		mxc_set_gpio_dataout(MX51_PIN_CSPI1_RDY, 0);
+	}
 
 	/* Deassert VGA reset to free i2c bus */
 	mxc_set_gpio_direction(MX51_PIN_EIM_A19, 0);

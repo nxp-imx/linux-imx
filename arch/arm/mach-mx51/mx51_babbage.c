@@ -105,9 +105,11 @@ static struct resource mxcfb_resources[] = {
 static struct mxc_fb_platform_data fb_data[] = {
 	{
 	 .interface_pix_fmt = IPU_PIX_FMT_RGB24,
+	 .mode_str = "1024x768M-16@60",
 	 },
 	{
 	 .interface_pix_fmt = IPU_PIX_FMT_RGB565,
+	 .mode_str = "1024x768M-16@60",
 	 },
 };
 
@@ -140,11 +142,38 @@ static struct platform_device mxc_fb_device[] = {
 	 },
 };
 
-static void mxc_init_fb(void)
+static int __initdata enable_vga = { 0 };
+
+static void __init mxc_init_fb(void)
 {
-	(void)platform_device_register(&mxc_fb_device[1]);
+	if (cpu_is_mx51_rev(CHIP_REV_1_1) == 1) {
+		enable_vga = 1;
+		fb_data[0].mode_str = NULL;
+		fb_data[1].mode_str = NULL;
+	}
+	/* DVI Detect */
+	mxc_set_gpio_direction(MX51_PIN_NANDF_D12, 1);
+	/* DVI Reset - Assert for i2c disabled mode */
+	mxc_set_gpio_dataout(MX51_PIN_DISPB2_SER_DIN, 0);
+	mxc_set_gpio_direction(MX51_PIN_DISPB2_SER_DIN, 0);
+	/* DVI Power-down */
+	mxc_set_gpio_dataout(MX51_PIN_DISPB2_SER_DIO, 1);
+	mxc_set_gpio_direction(MX51_PIN_DISPB2_SER_DIO, 0);
+
+	if (!enable_vga)
+		(void)platform_device_register(&mxc_fb_device[0]);
+	else
+		(void)platform_device_register(&mxc_fb_device[1]);
 	(void)platform_device_register(&mxc_fb_device[2]);
 }
+
+static int __init vga_setup(char *__unused)
+{
+	enable_vga = 1;
+	return 1;
+}
+
+__setup("vga", vga_setup);
 #else
 static inline void mxc_init_fb(void)
 {
@@ -424,6 +453,9 @@ static int mxc_sgtl5000_amp_enable(int enable);
 
 static int headphone_det_status(void)
 {
+	if (cpu_is_mx51_rev(CHIP_REV_1_1) == 2)
+		return (mxc_get_gpio_datain(MX51_PIN_NANDF_D14) == 0);
+
 	return mxc_get_gpio_datain(MX51_PIN_NANDF_CS0);
 }
 
@@ -459,7 +491,12 @@ static int mxc_sgtl5000_amp_enable(int enable)
 
 static void mxc_init_sgtl5000(void)
 {
-	mxc_set_gpio_direction(MX51_PIN_NANDF_CS0, 1);
+	if (cpu_is_mx51_rev(CHIP_REV_1_1) == 2) {
+		sgtl5000_data.sysclk = 26000000;
+		sgtl5000_data.vddd_reg = NULL;
+		sgtl5000_data.vddd = 0;
+	}
+
 	mxc_set_gpio_direction(MX51_PIN_EIM_A23, 0);
 
 	platform_device_register(&mxc_sgtl5000_device);
@@ -552,8 +589,6 @@ static void mxc_power_off(void)
  */
 static void __init mxc_board_init(void)
 {
-	struct regulator *regulator;
-
 	mxc_cpu_common_init();
 	mxc_gpio_init();
 	mx51_babbage_io_init();
@@ -581,6 +616,11 @@ static void __init mxc_board_init(void)
 				ARRAY_SIZE(mxc_i2c1_board_info));
 #endif
 #if defined(CONFIG_I2C_MXC_HS) || defined(CONFIG_I2C_MXC_HS_MODULE)
+	if (cpu_is_mx51_rev(CHIP_REV_2_0) >= 1) {
+		vga_data.core_reg = NULL;
+		vga_data.io_reg = NULL;
+		vga_data.analog_reg = NULL;
+	}
 	i2c_register_board_info(3, mxc_i2c_hs_board_info,
 				ARRAY_SIZE(mxc_i2c_hs_board_info));
 #endif
