@@ -550,11 +550,12 @@ static void mxc_unifi_hardreset(int pin_level)
 
 	if (board_is_mx37(BOARD_REV_2)) {
 		gpo4 = regulator_get(NULL, "GPO4");
-		if (!IS_ERR(gpo4))
+		if (!IS_ERR(gpo4)) {
 			if (pin_level & 0x01)
 				regulator_enable(gpo4);
 			else
 				regulator_disable(gpo4);
+		}
 		regulator_put(gpo4);
 	} else {
 		mxc_request_iomux(MX37_PIN_AUD5_RXC, IOMUX_CONFIG_GPIO);

@@ -342,8 +342,6 @@ EXPORT_SYMBOL(gpio_activate_audio_ports);
  */
 void gpio_sdhc_active(int module)
 {
-	unsigned int pad_val;
-
 	switch (module) {
 	case 0:
 		mxc_request_iomux(MX37_PIN_SD1_CLK,

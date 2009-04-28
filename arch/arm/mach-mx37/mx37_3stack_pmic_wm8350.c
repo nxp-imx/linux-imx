@@ -25,6 +25,8 @@
 #include <linux/mfd/wm8350/gpio.h>
 #include <linux/mfd/wm8350/bl.h>
 
+#include "iomux.h"
+
 /* CPU */
 static struct regulator_consumer_supply dcdc1_consumers[] = {
 	{
@@ -253,7 +255,7 @@ struct wm8350_platform_data __initdata mx37_wm8350_pdata = {
 static struct i2c_board_info __initdata wm8350_i2c_device = {
 	I2C_BOARD_INFO("wm8350", 0x1a),
 	.platform_data = &mx37_wm8350_pdata,
-//	.irq = IOMUX_TO_IRQ(MX31_PIN_GPIO1_3),
+	.irq = IOMUX_TO_IRQ(MX37_PIN_GPIO1_4),
 };
 
 static __init int mxc_init_i2c(void)
