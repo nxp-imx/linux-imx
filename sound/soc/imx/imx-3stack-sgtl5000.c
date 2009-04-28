@@ -296,9 +296,6 @@ static const struct snd_soc_dapm_route audio_map[] = {
 	/* HP_OUT --> Headphone Jack */
 	{"Headphone Jack", NULL, "HP_OUT"},
 
-	/* LINE_OUT --> Line Out Jack */
-	{"Line Out Jack", NULL, "LINE_OUT"},
-
 	/* LINE_OUT --> Ext Speaker */
 	{"Ext Spk", NULL, "LINE_OUT"},
 };
@@ -403,9 +400,9 @@ static int sgtl5000_set_spk(struct snd_kcontrol *kcontrol,
 
 	sgtl5000_spk_func = ucontrol->value.enumerated.item[0];
 	if (sgtl5000_spk_func)
-		snd_soc_dapm_enable_pin(codec, "Line Out Jack");
+		snd_soc_dapm_enable_pin(codec, "Ext Spk");
 	else
-		snd_soc_dapm_disable_pin(codec, "Line Out Jack");
+		snd_soc_dapm_disable_pin(codec, "Ext Spk");
 
 	snd_soc_dapm_sync(codec);
 	return 1;
@@ -433,7 +430,6 @@ static int spk_amp_event(struct snd_soc_dapm_widget *w,
 static const struct snd_soc_dapm_widget imx_3stack_dapm_widgets[] = {
 	SND_SOC_DAPM_MIC("Mic Jack", NULL),
 	SND_SOC_DAPM_LINE("Line In Jack", NULL),
-	SND_SOC_DAPM_LINE("Line Out Jack", NULL),
 	SND_SOC_DAPM_SPK("Ext Spk", spk_amp_event),
 	SND_SOC_DAPM_HP("Headphone Jack", NULL),
 };
