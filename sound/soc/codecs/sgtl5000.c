@@ -252,6 +252,9 @@ static const struct snd_soc_dapm_widget sgtl5000_dapm_widgets[] = {
 	SND_SOC_DAPM_OUTPUT("HP_OUT"),
 	SND_SOC_DAPM_OUTPUT("LINE_OUT"),
 
+	SND_SOC_DAPM_PGA("HP", SGTL5000_CHIP_ANA_POWER, 4, 0, NULL, 0),
+	SND_SOC_DAPM_PGA("LO", SGTL5000_CHIP_ANA_POWER, 0, 0, NULL, 0),
+
 	SND_SOC_DAPM_MUX("ADC Mux", SND_SOC_NOPM, 0, 0, &adc_mux),
 	SND_SOC_DAPM_MUX("DAC Mux", SND_SOC_NOPM, 0, 0, &dac_mux),
 
@@ -265,8 +268,10 @@ static const struct snd_soc_dapm_route audio_map[] = {
 	{"ADC", NULL, "ADC Mux"},
 	{"DAC Mux", "DAC", "DAC"},
 	{"DAC Mux", "LINE_IN", "LINE_IN"},
-	{"LINE_OUT", NULL, "DAC"},
-	{"HP_OUT", NULL, "DAC Mux"},
+	{"LO", NULL, "DAC"},
+	{"HP", NULL, "DAC Mux"},
+	{"LINE_OUT", NULL, "LO"},
+	{"HP_OUT", NULL, "HP"},
 };
 
 static int sgtl5000_add_widgets(struct snd_soc_codec *codec)
@@ -662,11 +667,6 @@ static int sgtl5000_set_bias_level(struct snd_soc_codec *codec,
 		   avoid pops. */
 		reg = sgtl5000_read(codec, SGTL5000_CHIP_ANA_POWER);
 		if ((reg & SGTL5000_HP_POWERUP) == 0) {
-			reg |= SGTL5000_HP_POWERUP;
-			reg |= SGTL5000_LINE_OUT_POWERUP;
-			sgtl5000_write(codec, SGTL5000_CHIP_ANA_POWER, reg);
-			msleep(10);
-
 			reg |= SGTL5000_VAG_POWERUP;
 			reg |= SGTL5000_REFTOP_POWERUP;
 			reg |= SGTL5000_DAC_POWERUP;
