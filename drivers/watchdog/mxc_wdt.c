@@ -297,7 +297,7 @@ static int __init mxc_wdt_probe(struct platform_device *pdev)
 static void mxc_wdt_shutdown(struct platform_device *pdev)
 {
 	struct resource *res = platform_get_drvdata(pdev);
-	mxc_wdt_disable(res->start);
+	mxc_wdt_disable(wdt_base_reg);
 	pr_info("MXC Watchdog # %d shutdown\n", dev_num);
 }
 
@@ -323,7 +323,7 @@ static int mxc_wdt_suspend(struct platform_device *pdev, pm_message_t state)
 	struct resource *res = platform_get_drvdata(pdev);
 
 	if (mxc_wdt_users) {
-		mxc_wdt_disable(res->start);
+		mxc_wdt_disable(wdt_base_reg);
 	}
 	return 0;
 }
@@ -332,8 +332,8 @@ static int mxc_wdt_resume(struct platform_device *pdev)
 {
 	struct resource *res = platform_get_drvdata(pdev);
 	if (mxc_wdt_users) {
-		mxc_wdt_enable(res->start);
-		mxc_wdt_ping(res->start);
+		mxc_wdt_enable(wdt_base_reg);
+		mxc_wdt_ping(wdt_base_reg);
 	}
 	return 0;
 }
