@@ -3035,6 +3035,9 @@ int __init mxc_clocks_init(unsigned long ckil, unsigned long osc, unsigned long 
 		clk_set_parent(&vpu_clk[1], &axi_a_clk);
 	}
 
+	clk_set_parent(&gpu3d_clk, &ahb_clk);
+	clk_set_parent(&gpu2d_clk, &ahb_clk);
+
 	/* Set the current working point. */
 	cpu_wp_tbl = get_cpu_wp(&cpu_wp_nr);
 	for (i = 0; i < cpu_wp_nr; i++) {
