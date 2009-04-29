@@ -15,6 +15,7 @@
 #include <linux/pm.h>
 #include <linux/i2c.h>
 #include <linux/platform_device.h>
+#include <mach/hardware.h>
 #include <sound/core.h>
 #include <sound/pcm.h>
 #include <sound/pcm_params.h>
@@ -948,7 +949,10 @@ static int sgtl5000_init(struct snd_soc_device *socdev)
 	    SGTL5000_DAC_MUTE_RIGHT | SGTL5000_DAC_MUTE_LEFT;
 	sgtl5000_write(codec, SGTL5000_CHIP_ADCDAC_CTRL, reg);
 
-	sgtl5000_write(codec, SGTL5000_CHIP_PAD_STRENGTH, 0x015f);
+	if (cpu_is_mx25())
+		sgtl5000_write(codec, SGTL5000_CHIP_PAD_STRENGTH, 0x01df);
+	else
+		sgtl5000_write(codec, SGTL5000_CHIP_PAD_STRENGTH, 0x015f);
 
 	reg = sgtl5000_read(codec, SGTL5000_CHIP_ANA_ADC_CTRL);
 	reg &= ~SGTL5000_ADC_VOL_M6DB;
