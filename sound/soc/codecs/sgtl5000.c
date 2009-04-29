@@ -654,7 +654,7 @@ static int sgtl5000_pcm_hw_params(struct snd_pcm_substream *substream,
 static int sgtl5000_set_bias_level(struct snd_soc_codec *codec,
 				   enum snd_soc_bias_level level)
 {
-	u16 reg;
+	u16 reg, ana_pwr;
 	pr_debug("dapm level %d\n", level);
 	switch (level) {
 	case SND_SOC_BIAS_ON:		/* full On */
@@ -702,6 +702,7 @@ static int sgtl5000_set_bias_level(struct snd_soc_codec *codec,
 		/* must power down hp/line out after vag & dac to
 		   avoid pops. */
 		reg = sgtl5000_read(codec, SGTL5000_CHIP_ANA_POWER);
+		ana_pwr = reg;
 		reg &= ~SGTL5000_VAG_POWERUP;
 		reg &= ~SGTL5000_REFTOP_POWERUP;
 		sgtl5000_write(codec, SGTL5000_CHIP_ANA_POWER, reg);
@@ -712,6 +713,10 @@ static int sgtl5000_set_bias_level(struct snd_soc_codec *codec,
 		reg &= ~SGTL5000_DAC_POWERUP;
 		reg &= ~SGTL5000_ADC_POWERUP;
 		sgtl5000_write(codec, SGTL5000_CHIP_ANA_POWER, reg);
+
+		/* save ANA POWER register value for resume */
+		sgtl5000_write_reg_cache(codec, SGTL5000_CHIP_ANA_POWER,
+					 ana_pwr);
 		break;
 	}
 	codec->bias_level = level;
@@ -918,8 +923,9 @@ static int sgtl5000_init(struct snd_soc_device *socdev)
 	sgtl5000_write(codec, SGTL5000_CHIP_ANA_POWER, ana_pwr);
 	msleep(10);
 
-	/* If vddd linear reg has been enabled, we can disable simple reg */
-	if (ana_pwr & SGTL5000_LINEREG_D_POWERUP) {
+	/* For rev 0x11, if vddd linear reg has been enabled, we have
+	   to disable simple reg to get proper VDDD voltage.  */
+	if ((ana_pwr & SGTL5000_LINEREG_D_POWERUP) && (sgtl5000->rev >= 0x11)) {
 		ana_pwr &= ~SGTL5000_LINREG_SIMPLE_POWERUP;
 		sgtl5000_write(codec, SGTL5000_CHIP_ANA_POWER, ana_pwr);
 		msleep(10);
