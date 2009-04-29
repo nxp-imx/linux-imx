@@ -209,36 +209,6 @@ static struct mxc_iomux_pin_cfg __initdata mxc_iomux_pins[] = {
 	 MX51_PIN_EIM_CRE, IOMUX_CONFIG_GPIO,
 	 },
 	{
-	 MX51_PIN_NANDF_CS0, IOMUX_CONFIG_ALT0,
-	 },
-	{
-	 MX51_PIN_NANDF_CS1, IOMUX_CONFIG_ALT0,
-	 },
-	{
-	 MX51_PIN_NANDF_CS2, IOMUX_CONFIG_ALT0,
-	 },
-	{
-	 MX51_PIN_NANDF_CS3, IOMUX_CONFIG_ALT0,
-	 },
-	{
-	 MX51_PIN_NANDF_CS4, IOMUX_CONFIG_ALT0,
-	 },
-	{
-	 MX51_PIN_NANDF_CS5, IOMUX_CONFIG_ALT0,
-	 },
-	{
-	 MX51_PIN_NANDF_CS6, IOMUX_CONFIG_ALT0,
-	 },
-	{
-	 MX51_PIN_NANDF_CS7, IOMUX_CONFIG_ALT0,
-	 },
-	{ /* TO2 */
-	MX51_PIN_GPIO_NAND, IOMUX_CONFIG_ALT0,
-	},
-	{ /* TO1 */
-	MX51_PIN_NANDF_RB5, IOMUX_CONFIG_ALT0,
-	},
-	{
 	 MX51_PIN_DI_GP4, IOMUX_CONFIG_ALT2,
 	 },
 	{
@@ -471,9 +441,179 @@ static struct mxc_iomux_pin_cfg __initdata mxc_iomux_pins[] = {
 	 },
 };
 
+static struct mxc_iomux_pin_cfg __initdata ata_iomux_pins[] = {
+	{
+	 MX51_PIN_NANDF_ALE, IOMUX_CONFIG_ALT1,
+	 ATA_PAD_CONFIG,
+	 },
+	{
+	 MX51_PIN_NANDF_CS2, IOMUX_CONFIG_ALT1,
+	 ATA_PAD_CONFIG,
+	 },
+	{
+	 MX51_PIN_NANDF_CS3, IOMUX_CONFIG_ALT1,
+	 ATA_PAD_CONFIG,
+	 },
+	{
+	 MX51_PIN_NANDF_CS4, IOMUX_CONFIG_ALT1,
+	 ATA_PAD_CONFIG,
+	 },
+	{
+	 MX51_PIN_NANDF_CS5, IOMUX_CONFIG_ALT1,
+	 ATA_PAD_CONFIG,
+	 },
+	{
+	 MX51_PIN_NANDF_CS6, IOMUX_CONFIG_ALT1,
+	 ATA_PAD_CONFIG,
+	 },
+	{
+	 MX51_PIN_NANDF_RE_B, IOMUX_CONFIG_ALT1,
+	 ATA_PAD_CONFIG,
+	 },
+	{
+	 MX51_PIN_NANDF_WE_B, IOMUX_CONFIG_ALT1,
+	 ATA_PAD_CONFIG,
+	 },
+	{
+	 MX51_PIN_NANDF_CLE, IOMUX_CONFIG_ALT1,
+	 ATA_PAD_CONFIG,
+	 },
+	{
+	 MX51_PIN_NANDF_RB0, IOMUX_CONFIG_ALT1,
+	 ATA_PAD_CONFIG,
+	 },
+	{
+	 MX51_PIN_NANDF_WP_B, IOMUX_CONFIG_ALT1,
+	 ATA_PAD_CONFIG,
+	 },
+	/* TO 2.0 */
+	{
+	 MX51_PIN_GPIO_NAND, IOMUX_CONFIG_ALT1,
+	 ATA_PAD_CONFIG,
+	 },
+	/* TO 1.0 */
+	{
+	 MX51_PIN_NANDF_RB5, IOMUX_CONFIG_ALT1,
+	 ATA_PAD_CONFIG,
+	 },
+	{
+	 MX51_PIN_NANDF_RB1, IOMUX_CONFIG_ALT1,
+	 ATA_PAD_CONFIG,
+	 },
+	{
+	 MX51_PIN_NANDF_D0, IOMUX_CONFIG_ALT1,
+	 ATA_PAD_CONFIG,
+	 },
+	{
+	 MX51_PIN_NANDF_D1, IOMUX_CONFIG_ALT1,
+	 ATA_PAD_CONFIG,
+	 },
+	{
+	 MX51_PIN_NANDF_D2, IOMUX_CONFIG_ALT1,
+	 ATA_PAD_CONFIG,
+	 },
+	{
+	 MX51_PIN_NANDF_D3, IOMUX_CONFIG_ALT1,
+	 ATA_PAD_CONFIG,
+	 },
+	{
+	 MX51_PIN_NANDF_D4, IOMUX_CONFIG_ALT1,
+	 ATA_PAD_CONFIG,
+	 },
+	{
+	 MX51_PIN_NANDF_D5, IOMUX_CONFIG_ALT1,
+	 ATA_PAD_CONFIG,
+	 },
+	{
+	 MX51_PIN_NANDF_D6, IOMUX_CONFIG_ALT1,
+	 ATA_PAD_CONFIG,
+	 },
+	{
+	 MX51_PIN_NANDF_D7, IOMUX_CONFIG_ALT1,
+	 ATA_PAD_CONFIG,
+	 },
+	{
+	 MX51_PIN_NANDF_D8, IOMUX_CONFIG_ALT1,
+	 ATA_PAD_CONFIG,
+	 },
+	{
+	 MX51_PIN_NANDF_D9, IOMUX_CONFIG_ALT1,
+	 ATA_PAD_CONFIG,
+	 },
+	{
+	 MX51_PIN_NANDF_D10, IOMUX_CONFIG_ALT1,
+	 ATA_PAD_CONFIG,
+	 },
+	{
+	 MX51_PIN_NANDF_D11, IOMUX_CONFIG_ALT1,
+	 ATA_PAD_CONFIG,
+	 },
+	{
+	 MX51_PIN_NANDF_D12, IOMUX_CONFIG_ALT1,
+	 ATA_PAD_CONFIG,
+	 },
+	{
+	 MX51_PIN_NANDF_D13, IOMUX_CONFIG_ALT1,
+	 ATA_PAD_CONFIG,
+	 },
+	{
+	 MX51_PIN_NANDF_D14, IOMUX_CONFIG_ALT1,
+	 ATA_PAD_CONFIG,
+	 },
+	{
+	 MX51_PIN_NANDF_D15, IOMUX_CONFIG_ALT1,
+	 ATA_PAD_CONFIG,
+	 },
+};
+
+static struct mxc_iomux_pin_cfg __initdata nand_iomux_pins[] = {
+	{
+	 MX51_PIN_NANDF_CS0, IOMUX_CONFIG_ALT0,
+	 },
+	{
+	 MX51_PIN_NANDF_CS1, IOMUX_CONFIG_ALT0,
+	 },
+	{
+	 MX51_PIN_NANDF_CS2, IOMUX_CONFIG_ALT0,
+	 },
+	{
+	 MX51_PIN_NANDF_CS3, IOMUX_CONFIG_ALT0,
+	 },
+	{
+	 MX51_PIN_NANDF_CS4, IOMUX_CONFIG_ALT0,
+	 },
+	{
+	 MX51_PIN_NANDF_CS5, IOMUX_CONFIG_ALT0,
+	 },
+	{
+	 MX51_PIN_NANDF_CS6, IOMUX_CONFIG_ALT0,
+	 },
+	{
+	 MX51_PIN_NANDF_CS7, IOMUX_CONFIG_ALT0,
+	 },
+	/* TO2 */
+	{
+	 MX51_PIN_GPIO_NAND, IOMUX_CONFIG_ALT0,
+	 },
+	/* TO1 */
+	{
+	 MX51_PIN_NANDF_RB5, IOMUX_CONFIG_ALT0,
+	 },
+};
+
+static int __initdata enable_ata = { 0 };
+static int __init ata_setup(char *__unused)
+{
+	enable_ata = 1;
+	return 1;
+}
+
+__setup("ata", ata_setup);
+
 void __init mx51_3stack_io_init(void)
 {
-	int i;
+	int i, num;
+	struct mxc_iomux_pin_cfg *pin_ptr;
 
 	for (i = 0; i < ARRAY_SIZE(mxc_iomux_pins); i++) {
 		mxc_request_iomux(mxc_iomux_pins[i].pin,
@@ -483,7 +623,24 @@ void __init mx51_3stack_io_init(void)
 					  mxc_iomux_pins[i].pad_cfg);
 		if (mxc_iomux_pins[i].in_select)
 			mxc_iomux_set_input(mxc_iomux_pins[i].in_select,
-					    mxc_iomux_pins[i].in_mode);
+					  mxc_iomux_pins[i].in_mode);
+	}
+
+	if (enable_ata) {
+		pin_ptr = ata_iomux_pins;
+		num = ARRAY_SIZE(ata_iomux_pins);
+	} else {
+		pin_ptr = nand_iomux_pins;
+		num = ARRAY_SIZE(nand_iomux_pins);
+	}
+
+	for (i = 0; i < num; i++) {
+		mxc_request_iomux(pin_ptr[i].pin, pin_ptr[i].mux_mode);
+		if (pin_ptr[i].pad_cfg)
+			mxc_iomux_set_pad(pin_ptr[i].pin, pin_ptr[i].pad_cfg);
+		if (pin_ptr[i].in_select)
+			mxc_iomux_set_input(pin_ptr[i].in_select,
+					pin_ptr[i].in_mode);
 	}
 
 	/* Camera low power */
