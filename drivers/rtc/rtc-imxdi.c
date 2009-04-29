@@ -342,30 +342,42 @@ static irqreturn_t dryice_norm_irq(int irq, void *dev_id)
 	u32 dsr, dier;
 	irqreturn_t rc = IRQ_NONE;
 
-	/* DSR_WCF clears itself on DSR read */
-	dsr = di_read(pdata, DSR);
 	dier = di_read(pdata, DIER);
 
 	/* handle write complete and write error cases */
-	if ((dier & DIER_WCIE) && (dsr & (DSR_WCF | DSR_WEF))) {
-		/* mask the interrupt */
-		di_int_disable(pdata, DIER_WCIE);
+	if ((dier & DIER_WCIE)) {
+		/*If the write wait queue is empty then there is no pending
+		   operations. It means the interrupt is for DryIce -Security.
+		   IRQ must be returned as none.*/
+		if (list_empty_careful(&pdata->write_wait.task_list))
+			return rc;
 
-		/* save the dsr value for the wait queue */
-		pdata->dsr |= dsr;
+		/* DSR_WCF clears itself on DSR read */
+	    dsr = di_read(pdata, DSR);
+		if ((dsr & (DSR_WCF | DSR_WEF))) {
+			/* mask the interrupt */
+			di_int_disable(pdata, DIER_WCIE);
 
-		wake_up_interruptible(&pdata->write_wait);
-		rc = IRQ_HANDLED;
+			/* save the dsr value for the wait queue */
+			pdata->dsr |= dsr;
+
+			wake_up_interruptible(&pdata->write_wait);
+			rc = IRQ_HANDLED;
+		}
 	}
 
 	/* handle the alarm case */
-	if ((dier & DIER_CAIE) && (dsr & DSR_CAF)) {
-		/* mask the interrupt */
-		di_int_disable(pdata, DIER_CAIE);
+	if ((dier & DIER_CAIE)) {
+		/* DSR_WCF clears itself on DSR read */
+	    dsr = di_read(pdata, DSR);
+		if (dsr & DSR_CAF) {
+			/* mask the interrupt */
+			di_int_disable(pdata, DIER_CAIE);
 
-		/* finish alarm in user context */
-		schedule_work(&pdata->work);
-		rc = IRQ_HANDLED;
+			/* finish alarm in user context */
+			schedule_work(&pdata->work);
+			rc = IRQ_HANDLED;
+		}
 	}
 	return rc;
 }
@@ -440,7 +452,7 @@ static int dryice_rtc_probe(struct platform_device *pdev)
 	clk_enable(pdata->clk);
 
 	if (pdata->irq >= 0) {
-		if (request_irq(pdata->irq, dryice_norm_irq, IRQF_DISABLED,
+		if (request_irq(pdata->irq, dryice_norm_irq, IRQF_SHARED,
 				pdev->name, pdata) < 0) {
 			dev_warn(&pdev->dev, "interrupt not available.\n");
 			pdata->irq = -1;

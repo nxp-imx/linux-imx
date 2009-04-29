@@ -571,8 +571,10 @@ OS_DEV_INIT(dryice_init)
 	clk_enable(di->clk);
 
 	/* register for interrupts */
-	rc = os_register_interrupt("dry_ice", di->irq_norm.irq,
-				   OS_DEV_ISR_REF(dryice_norm_irq));
+	/* os_register_interrupt() dosen't support an option to make the
+	    interrupt as shared. Replaced it with request_irq().*/
+	rc = request_irq(di->irq_norm.irq, dryice_norm_irq, IRQF_SHARED,
+				"dry_ice", di);
 	if (rc)
 		goto err_irqs;
 	else
