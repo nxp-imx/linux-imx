@@ -38,7 +38,7 @@ struct fb_videomode mxcfb_modedb[] = {
 	{
 	 /* 640x480 @ 60 Hz */
 	 "CPT-VGA", 60, 640, 480, 39683, 45, 114, 33, 11, 1, 1,
-	 0,
+	 FB_SYNC_CLK_LAT_FALL,
 	 FB_VMODE_NONINTERLACED,
 	 0,},
 	{
