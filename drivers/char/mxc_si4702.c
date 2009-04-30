@@ -1114,8 +1114,8 @@ static int __devinit si4702_probe(struct i2c_client *client,
 		goto char_dev_remove;
 	}
 
-	dev = device_create(drv_data->radio_class, NULL, NULL,
-			    MKDEV(drv_data->major, drv_data->minor), "si4702");
+	dev = device_create(drv_data->radio_class, NULL,
+		    MKDEV(drv_data->major, drv_data->minor), NULL, "si4702");
 	if (IS_ERR(dev)) {
 		dev_err(&client->dev,
 			"SI4702: failed to create radio class device\n");
@@ -1162,7 +1162,8 @@ static int __devexit si4702_remove(struct i2c_client *client)
 
 	plat_data = (struct mxc_fm_platform_data *)client->dev.platform_data;
 
-	device_destroy(drv_data->radio_class, MKDEV(drv_data->major, 0));
+	device_destroy(drv_data->radio_class,
+		       MKDEV(drv_data->major, drv_data->minor));
 	class_destroy(drv_data->radio_class);
 
 	unregister_chrdev(drv_data->major, "si4702");
