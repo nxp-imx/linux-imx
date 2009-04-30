@@ -1,5 +1,5 @@
 /*
- * Copyright 2005-2008 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2005-2009 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -225,8 +225,8 @@ static inline void _ipu_ch_param_init(int ch,
 		if (uv_stride < stride / 2)
 			uv_stride = stride / 2;
 
-		u_offset = stride * height;
-		v_offset = u_offset + (uv_stride * height / 2);
+		u_offset = (u == 0) ? stride * height : u;
+		v_offset = (v == 0) ? u_offset + (uv_stride * height / 2) : v;
 		break;
 	case IPU_PIX_FMT_YVU422P:
 		/* BPP & pixel format */
