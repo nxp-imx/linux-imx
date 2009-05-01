@@ -74,12 +74,12 @@ static struct cpu_wp cpu_wp_auto[] = {
 	 .cpu_voltage = 1050000,},
 	{
 	 .pll_rate = 800000000,
-	 .cpu_rate = 200000000,
-	 .pdf = 3,
+	 .cpu_rate = 160000000,
+	 .pdf = 4,
 	 .mfi = 8,
 	 .mfd = 2,
 	 .mfn = 1,
-	 .cpu_podf = 3,
+	 .cpu_podf = 4,
 	 .cpu_voltage = 775000,},
 };
 
