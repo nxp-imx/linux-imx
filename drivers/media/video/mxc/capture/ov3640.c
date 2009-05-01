@@ -539,26 +539,26 @@ static int ioctl_s_power(struct v4l2_int_device *s, int on)
 
 	if (on && !sensor->on) {
 		gpio_sensor_active(ov3640_data.csi);
-		if (!IS_ERR_VALUE((unsigned long)io_regulator))
+		if (io_regulator)
 			if (regulator_enable(io_regulator) != 0)
 				return -EIO;
-		if (!IS_ERR_VALUE((unsigned long)core_regulator))
+		if (core_regulator)
 			if (regulator_enable(core_regulator) != 0)
 				return -EIO;
-		if (!IS_ERR_VALUE((unsigned long)gpo_regulator))
+		if (gpo_regulator)
 			if (regulator_enable(gpo_regulator) != 0)
 				return -EIO;
-		if (!IS_ERR_VALUE((unsigned long)analog_regulator))
+		if (analog_regulator)
 			if (regulator_enable(analog_regulator) != 0)
 				return -EIO;
 	} else if (!on && sensor->on) {
-		if (!IS_ERR_VALUE((unsigned long)analog_regulator))
+		if (analog_regulator)
 			regulator_disable(analog_regulator);
-		if (!IS_ERR_VALUE((unsigned long)core_regulator))
+		if (core_regulator)
 			regulator_disable(core_regulator);
-		if (!IS_ERR_VALUE((unsigned long)io_regulator))
+		if (io_regulator)
 			regulator_disable(io_regulator);
-		if (!IS_ERR_VALUE((unsigned long)gpo_regulator))
+		if (gpo_regulator)
 			regulator_disable(gpo_regulator);
 		gpio_sensor_inactive(ov3640_data.csi);
 	}
@@ -956,7 +956,7 @@ static int ov3640_probe(struct i2c_client *client,
 	if (plat_data->io_regulator) {
 		io_regulator = regulator_get(&client->dev,
 					     plat_data->io_regulator);
-		if (!IS_ERR_VALUE((u32)io_regulator)) {
+		if (!IS_ERR(io_regulator)) {
 			regulator_set_voltage(io_regulator,
 					      OV3640_VOLTAGE_DIGITAL_IO,
 					      OV3640_VOLTAGE_DIGITAL_IO);
@@ -967,13 +967,14 @@ static int ov3640_probe(struct i2c_client *client,
 				dev_dbg(&client->dev,
 					"%s:io set voltage ok\n", __func__);
 			}
-		}
+		} else
+			io_regulator = NULL;
 	}
 
 	if (plat_data->core_regulator) {
 		core_regulator = regulator_get(&client->dev,
 					       plat_data->core_regulator);
-		if (!IS_ERR_VALUE((u32)core_regulator)) {
+		if (!IS_ERR(core_regulator)) {
 			regulator_set_voltage(core_regulator,
 					      OV3640_VOLTAGE_DIGITAL_CORE,
 					      OV3640_VOLTAGE_DIGITAL_CORE);
@@ -984,13 +985,14 @@ static int ov3640_probe(struct i2c_client *client,
 				dev_dbg(&client->dev,
 					"%s:core set voltage ok\n", __func__);
 			}
-		}
+		} else
+			core_regulator = NULL;
 	}
 
 	if (plat_data->analog_regulator) {
 		analog_regulator = regulator_get(&client->dev,
 						 plat_data->analog_regulator);
-		if (!IS_ERR_VALUE((u32)analog_regulator)) {
+		if (!IS_ERR(analog_regulator)) {
 			regulator_set_voltage(analog_regulator,
 					      OV3640_VOLTAGE_ANALOG,
 					      OV3640_VOLTAGE_ANALOG);
@@ -1002,13 +1004,14 @@ static int ov3640_probe(struct i2c_client *client,
 				dev_dbg(&client->dev,
 					"%s:analog set voltage ok\n", __func__);
 			}
-		}
+		} else
+			analog_regulator = NULL;
 	}
 
 	if (plat_data->gpo_regulator) {
 		gpo_regulator = regulator_get(&client->dev,
 					      plat_data->gpo_regulator);
-		if (!IS_ERR_VALUE((u32)gpo_regulator)) {
+		if (!IS_ERR(gpo_regulator)) {
 			if (regulator_enable(gpo_regulator) != 0) {
 				pr_err("%s:gpo3 enable error\n", __func__);
 				goto err4;
@@ -1016,7 +1019,8 @@ static int ov3640_probe(struct i2c_client *client,
 				dev_dbg(&client->dev,
 					"%s:gpo3 enable ok\n", __func__);
 			}
-		}
+		} else
+			gpo_regulator = NULL;
 	}
 
 	ov3640_int_device.priv = &ov3640_data;
@@ -1025,17 +1029,17 @@ static int ov3640_probe(struct i2c_client *client,
 	return retval;
 
 err4:
-	if (!IS_ERR_VALUE((u32)analog_regulator)) {
+	if (analog_regulator) {
 		regulator_disable(analog_regulator);
 		regulator_put(analog_regulator);
 	}
 err3:
-	if (!IS_ERR_VALUE((u32)core_regulator)) {
+	if (core_regulator) {
 		regulator_disable(core_regulator);
 		regulator_put(core_regulator);
 	}
 err2:
-	if (!IS_ERR_VALUE((u32)io_regulator)) {
+	if (io_regulator) {
 		regulator_disable(io_regulator);
 		regulator_put(io_regulator);
 	}
@@ -1055,22 +1059,22 @@ static int ov3640_remove(struct i2c_client *client)
 
 	v4l2_int_device_unregister(&ov3640_int_device);
 
-	if (!IS_ERR_VALUE((unsigned long)gpo_regulator)) {
+	if (gpo_regulator) {
 		regulator_disable(gpo_regulator);
 		regulator_put(gpo_regulator);
 	}
 
-	if (!IS_ERR_VALUE((unsigned long)analog_regulator)) {
+	if (analog_regulator) {
 		regulator_disable(analog_regulator);
 		regulator_put(analog_regulator);
 	}
 
-	if (!IS_ERR_VALUE((unsigned long)core_regulator)) {
+	if (core_regulator) {
 		regulator_disable(core_regulator);
 		regulator_put(core_regulator);
 	}
 
-	if (!IS_ERR_VALUE((unsigned long)io_regulator)) {
+	if (io_regulator) {
 		regulator_disable(io_regulator);
 		regulator_put(io_regulator);
 	}
