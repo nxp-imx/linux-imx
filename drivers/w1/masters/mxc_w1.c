@@ -297,7 +297,7 @@ void search_ROM_accelerator(void *data, struct w1_master *master, u8 search_type
 			last_rn[0] = temp1;
 		}
 		last_disc = disc;
-		cb(data, rom_id);
+		cb(master, rom_id);
 	}
 }
 
