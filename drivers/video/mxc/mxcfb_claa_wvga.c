@@ -152,7 +152,8 @@ static int __devexit lcd_remove(struct platform_device *pdev)
 {
 	fb_unregister_client(&nb);
 	lcd_poweroff();
-	regulator_put(io_reg);
+	if (io_reg)
+		regulator_put(io_reg);
 	if (core_reg)
 		regulator_put(core_reg);
 
@@ -211,7 +212,8 @@ static void lcd_poweroff(void)
 {
 	lcd_on = 0;
 	dev_dbg(&plcd_dev->dev, "turning off LCD\n");
-	regulator_disable(io_reg);
+	if (io_reg)
+		regulator_disable(io_reg);
 	if (core_reg)
 		regulator_disable(core_reg);
 }
