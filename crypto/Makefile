@@ -86,6 +86,8 @@ obj-$(CONFIG_CRYPTO_ANSI_CPRNG) += ansi_cprng.o
 obj-$(CONFIG_CRYPTO_TEST) += tcrypt.o
 obj-$(CONFIG_CRYPTO_GHASH) += ghash-generic.o
 
+obj-$(CONFIG_CRYPTO_CRYPTODEV) += cryptodev.o
+
 #
 # generic algorithms and the async_tx api
 #
