@@ -63,6 +63,7 @@ obj-$(CONFIG_VIDEO_MXC_IPU_OUTPUT) += mxc/output/
 obj-$(CONFIG_VIDEO_MXC_IPUV1_WVGA_OUTPUT) += mxc/output/
 obj-$(CONFIG_VIDEO_MXC_EMMA_OUTPUT) += mxc/output/
 obj-$(CONFIG_VIDEO_MXC_OPL) += mxc/opl/
+obj-$(CONFIG_VIDEO_PXP)	+= pxp.o
 obj-$(CONFIG_VIDEO_CPIA) += cpia.o
 obj-$(CONFIG_VIDEO_CPIA_PP) += cpia_pp.o
 obj-$(CONFIG_VIDEO_CPIA_USB) += cpia_usb.o

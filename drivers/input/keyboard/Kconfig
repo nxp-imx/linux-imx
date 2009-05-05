@@ -338,4 +338,11 @@ config KEYBOARD_SH_KEYSC
 
 	  To compile this driver as a module, choose M here: the
 	  module will be called sh_keysc.
+
+config KEYBOARD_STMP3XXX
+	tristate "STMP3xxx keyboard"
+	depends on ARCH_STMP3XXX
+	help
+	 -to be written-
+
 endif

@@ -36,6 +36,7 @@
 #define DRV_VERSION	"1.01"
 
 #define SPI_OPLEN	1
+#define MAX_ENC_CARDS 	1
 
 #define ENC28J60_MSG_DEFAULT	\
 	(NETIF_MSG_PROBE | NETIF_MSG_IFUP | NETIF_MSG_IFDOWN | NETIF_MSG_LINK)
@@ -81,6 +82,42 @@ static struct {
 	u32 msg_enable;
 } debug = { -1 };
 
+static int random_mac;	/* = 0 */
+static char *mac[MAX_ENC_CARDS];
+
+static int enc28j60_get_mac(unsigned char *dev_addr, int idx)
+{
+	int i, r;
+	char *p, *item;
+	unsigned long v;
+	unsigned char sv[10];
+
+	if (idx < 0)
+		idx = 0;
+	if (idx > MAX_ENC_CARDS)
+		return false;
+
+	if (!mac[idx])
+		return false;
+
+	item = mac[idx];
+	for (i = 0; i < MAX_ADDR_LEN; i++) {
+		p = strchr(item, ':');
+		if (!p)
+			sprintf(sv, "0x%s", item);
+		else
+			sprintf(sv, "0x%*.*s", p - item, p-item, item);
+		r = strict_strtoul(sv, 0, &v);
+		dev_addr[i] = v;
+		if (p)
+			item = p + 1;
+		else
+			break;
+		if (r < 0)
+			return false;
+	}
+	return true;
+}
 /*
  * SPI read buffer
  * wait for the SPI transfer and copy received data to destination
@@ -196,16 +233,32 @@ static void enc28j60_soft_reset(struct enc28j60_net *priv)
  */
 static void enc28j60_set_bank(struct enc28j60_net *priv, u8 addr)
 {
-	if ((addr & BANK_MASK) != priv->bank) {
-		u8 b = (addr & BANK_MASK) >> 5;
+	u8 b = (addr & BANK_MASK) >> 5;
 
-		if (b != (ECON1_BSEL1 | ECON1_BSEL0))
+	/* These registers (EIE, EIR, ESTAT, ECON2, ECON1)
+	 * are present in all banks, no need to switch bank
+	 */
+	if (addr >= EIE && addr <= ECON1)
+		return;
+
+	/* Clear or set each bank selection bit as needed */
+	if ((b & ECON1_BSEL0) != (priv->bank & ECON1_BSEL0)) {
+		if (b & ECON1_BSEL0)
+			spi_write_op(priv, ENC28J60_BIT_FIELD_SET, ECON1,
+				     ECON1_BSEL0);
+		else
 			spi_write_op(priv, ENC28J60_BIT_FIELD_CLR, ECON1,
-				     ECON1_BSEL1 | ECON1_BSEL0);
-		if (b != 0)
-			spi_write_op(priv, ENC28J60_BIT_FIELD_SET, ECON1, b);
-		priv->bank = (addr & BANK_MASK);
+				     ECON1_BSEL0);
 	}
+	if ((b & ECON1_BSEL1) != (priv->bank & ECON1_BSEL1)) {
+		if (b & ECON1_BSEL1)
+			spi_write_op(priv, ENC28J60_BIT_FIELD_SET, ECON1,
+				     ECON1_BSEL1);
+		else
+			spi_write_op(priv, ENC28J60_BIT_FIELD_CLR, ECON1,
+				     ECON1_BSEL1);
+	}
+	priv->bank = b;
 }
 
 /*
@@ -930,7 +983,7 @@ static void enc28j60_hw_rx(struct net_device *ndev)
 	if (netif_msg_rx_status(priv))
 		enc28j60_dump_rsv(priv, __func__, next_packet, len, rxstat);
 
-	if (!RSV_GETBIT(rxstat, RSV_RXOK)) {
+	if (!RSV_GETBIT(rxstat, RSV_RXOK) || len > MAX_FRAMELEN) {
 		if (netif_msg_rx_err(priv))
 			dev_err(&ndev->dev, "Rx Error (%04x)\n", rxstat);
 		ndev->stats.rx_errors++;
@@ -938,6 +991,8 @@ static void enc28j60_hw_rx(struct net_device *ndev)
 			ndev->stats.rx_crc_errors++;
 		if (RSV_GETBIT(rxstat, RSV_LENCHECKERR))
 			ndev->stats.rx_frame_errors++;
+		if (len > MAX_FRAMELEN)
+			ndev->stats.rx_over_errors++;
 	} else {
 		skb = dev_alloc_skb(len + NET_IP_ALIGN);
 		if (!skb) {
@@ -1093,8 +1148,24 @@ static int enc28j60_rx_interrupt(struct net_device *ndev)
 				priv->max_pk_counter);
 	}
 	ret = pk_counter;
-	while (pk_counter-- > 0)
+	while (pk_counter-- > 0) {
+		if (!priv->full_duplex) {
+			/*
+			 * This works only in HALF DUPLEX mode:
+			 * when more than 2 packets are available, start
+			 * transmission of 11111.. frame by setting
+			 * FCON0 (0x01) in EFLOCON
+			 *
+			 * This bit can be cleared either explicitly, or by
+			 * trasmitting the packet in enc28j60_hw_tx.
+			 */
+			if (pk_counter > 2)
+				locked_reg_bfset(priv, EFLOCON, 0x01);
+			if (pk_counter == 1)
+				locked_reg_bfclr(priv, EFLOCON, 0x01);
+		}
 		enc28j60_hw_rx(ndev);
+	}
 
 	return ret;
 }
@@ -1220,6 +1291,11 @@ static void enc28j60_irq_work_handler(struct work_struct *work)
  */
 static void enc28j60_hw_tx(struct enc28j60_net *priv)
 {
+	if (!priv->tx_skb) {
+		enc28j60_tx_clear(priv->netdev, false);
+		return;
+	}
+
 	if (netif_msg_tx_queued(priv))
 		printk(KERN_DEBUG DRV_NAME
 			": Tx Packet Len:%d\n", priv->tx_skb->len);
@@ -1523,6 +1599,7 @@ static int __devinit enc28j60_probe(struct spi_device *spi)
 	struct net_device *dev;
 	struct enc28j60_net *priv;
 	int ret = 0;
+	int set;
 
 	if (netif_msg_drv(&debug))
 		dev_info(&spi->dev, DRV_NAME " Ethernet driver %s loaded\n",
@@ -1556,7 +1633,11 @@ static int __devinit enc28j60_probe(struct spi_device *spi)
 		ret = -EIO;
 		goto error_irq;
 	}
-	random_ether_addr(dev->dev_addr);
+
+	/* need a counter here, to count instances of enc28j60 devices */
+	set = enc28j60_get_mac(dev->dev_addr, -1);
+	if (!set || random_mac)
+		random_ether_addr(dev->dev_addr);
 	enc28j60_set_hw_macaddr(dev);
 
 	/* Board setup must set the relevant edge trigger type;
@@ -1616,6 +1697,40 @@ static int __devexit enc28j60_remove(struct spi_device *spi)
 	return 0;
 }
 
+#ifdef CONFIG_PM
+static int
+enc28j60_suspend(struct spi_device *spi, pm_message_t state)
+{
+	struct enc28j60_net *priv = dev_get_drvdata(&spi->dev);
+	struct net_device *net_dev = priv ? priv->netdev : NULL;
+
+	if (net_dev && netif_running(net_dev)) {
+		netif_stop_queue(net_dev);
+		netif_device_detach(net_dev);
+		disable_irq(spi->irq);
+	}
+	return 0;
+}
+
+static int
+enc28j60_resume(struct spi_device *spi)
+{
+	struct enc28j60_net *priv = dev_get_drvdata(&spi->dev);
+	struct net_device *net_dev = priv ? priv->netdev : NULL;
+
+	if (net_dev && netif_running(net_dev)) {
+		enable_irq(spi->irq);
+		netif_device_attach(net_dev);
+		netif_start_queue(net_dev);
+		schedule_work(&priv->restart_work);
+	}
+	return 0;
+}
+#else
+#define enc28j60_resume 	NULL
+#define enc28j60_suspend 	NULL
+#endif
+
 static struct spi_driver enc28j60_driver = {
 	.driver = {
 		   .name = DRV_NAME,
@@ -1623,6 +1738,8 @@ static struct spi_driver enc28j60_driver = {
 	 },
 	.probe = enc28j60_probe,
 	.remove = __devexit_p(enc28j60_remove),
+	.suspend = enc28j60_suspend,
+	.resume = enc28j60_resume,
 };
 
 static int __init enc28j60_init(void)
@@ -1645,4 +1762,6 @@ MODULE_DESCRIPTION(DRV_NAME " ethernet driver");
 MODULE_AUTHOR("Claudio Lanconelli <lanconelli.claudio@eptar.com>");
 MODULE_LICENSE("GPL");
 module_param_named(debug, debug.msg_enable, int, 0);
+module_param(random_mac, int, 0444);
+module_param_array(mac, charp, NULL, 0);
 MODULE_PARM_DESC(debug, "Debug verbosity level (0=none, ..., ffff=all)");

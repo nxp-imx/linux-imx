@@ -549,6 +549,18 @@ config VIDEO_MXC_OUTPUT
 
 source "drivers/media/video/mxc/output/Kconfig"
 
+config VIDEO_PXP
+	tristate "STMP3xxx PxP"
+	depends on VIDEO_DEV && VIDEO_V4L2 && ARCH_STMP3XXX
+	select VIDEOBUF_DMA_CONTIG
+	---help---
+	  This is a video4linux driver for the Freescale PxP
+	  (Pixel Pipeline). This module supports output overlay of
+	  the STMP3xxx framebuffer on a video stream.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called pxp.
+
 config VIDEO_MXC_OPL
 	tristate
 	depends on VIDEO_DEV && ARCH_MXC

@@ -202,6 +202,14 @@ config MMC_IMX_ESDHCI_PIO_MODE
 
 	  If unsure, say N.
 
+config MMC_STMP3XXX
+	tristate "STMP37xx/378x MMC support"
+	depends on MMC && ARCH_STMP3XXX
+	help
+	  Select Y if you would like to access STMP37xx/378x MMC support.
+
+	  If unsure, say N.
+
 config MMC_S3C
 	tristate "Samsung S3C SD/MMC Card Interface support"
 	depends on ARCH_S3C2410

@@ -387,4 +387,6 @@ config USB_MR800
 	  To compile this driver as a module, choose M here: the
 	  module will be called radio-mr800.
 
+source "drivers/media/radio/stfm1000/Kconfig"
+
 endif # RADIO_ADAPTERS

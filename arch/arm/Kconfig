@@ -550,6 +550,16 @@ config ARCH_MSM
 	  interface to the ARM9 modem processor which runs the baseband stack
 	  and controls some vital subsystems (clock and power control, etc).
 
+config ARCH_STMP3XXX
+	bool "SigmaTel STMP3xxx"
+	select ISA
+	select GENERIC_TIME
+	select GENERIC_CLOCKEVENTS
+	select GENERIC_GPIO
+	select USB_ARCH_HAS_EHCI
+	help
+	  Support for systems based on the SigmaTel 3xxx CPUs.
+
 endchoice
 
 source "arch/arm/mach-clps711x/Kconfig"
@@ -627,6 +637,8 @@ source "arch/arm/mach-davinci/Kconfig"
 source "arch/arm/mach-ks8695/Kconfig"
 
 source "arch/arm/mach-msm/Kconfig"
+
+source "arch/arm/mach-stmp3xxx/Kconfig"
 
 # Definitions to make life easier
 config ARCH_ACORN
@@ -1061,7 +1073,7 @@ endmenu
 
 menu "CPU Power Management"
 
-if (ARCH_SA1100 || ARCH_INTEGRATOR || ARCH_OMAP || ARCH_IMX || ARCH_PXA || ARCH_MXC)
+if (ARCH_SA1100 || ARCH_INTEGRATOR || ARCH_OMAP || ARCH_IMX || ARCH_PXA || ARCH_MXC || ARCH_STMP3XXX)
 
 source "drivers/cpufreq/Kconfig"
 

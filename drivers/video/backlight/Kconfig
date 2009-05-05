@@ -243,6 +243,14 @@ config BACKLIGHT_MXC_MC13892
 	depends on BACKLIGHT_MXC && MXC_MC13892_LIGHT
 	default y
 	
+config BACKLIGHT_STMP37XX
+	tristate "SigmaTel STMP37xx Backlight Driver"
+	depends on BACKLIGHT_CLASS_DEVICE && (ARCH_STMP37XX || ARCH_STMP378X)
+	default y
+	help
+	  If you have a STMP37xx, say y to enable the
+	  backlight driver.
+
 config BACKLIGHT_WM8350
     tristate "WM8350 Backlight Driver"
     depends on BACKLIGHT_MXC && REGULATOR_WM8350

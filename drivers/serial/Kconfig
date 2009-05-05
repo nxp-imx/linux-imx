@@ -1397,4 +1397,35 @@ config SPORT_BAUD_RATE
 	default 19200 if (SERIAL_SPORT_BAUD_RATE_19200)
 	default 9600 if (SERIAL_SPORT_BAUD_RATE_9600)
 
+config SERIAL_STMP_DBG
+        tristate "STMP debug serial port support"
+        depends on ARCH_STMP3XXX
+        select SERIAL_CORE
+        help
+          Driver for Sigmatel 36XX/37XX internal debug serial port
+
+config SERIAL_STMP_DBG_CONSOLE
+        bool "Support for console on STMP37XX DBG serial port"
+        depends on SERIAL_STMP_DBG=y
+        select SERIAL_CORE_CONSOLE
+        ---help---
+          Say Y here if you wish to use the STMP36XX/37XX debug serial port as the
+          system console (the system console is the device which receives all
+          kernel messages and warnings and which allows logins in single user
+          mode).
+
+          Even if you say Y here, the currently visible framebuffer console
+          (/dev/tty0) will still be used as the system console by default, but
+          you can alter that using a kernel command line option such as
+          "console=ttyAM0". (Try "man bootparam" or see the documentation of
+          your boot loader (lilo or loadlin) about how to pass options to the
+          kernel at boot time.)
+
+config SERIAL_STMP_APP
+        tristate "STMP app serial port support"
+        depends on ARCH_STMP3XXX
+        select SERIAL_CORE
+        help
+          Driver for Sigmatel 36XX/37XX internal application serial port
+
 endmenu

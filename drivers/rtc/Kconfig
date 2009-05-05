@@ -522,6 +522,17 @@ config RTC_DRV_S3C
 	  This driver can also be build as a module. If so, the module
 	  will be called rtc-s3c.
 
+config RTC_DRV_STMP3XXX
+	tristate "Sigmatel STMP3xxx series SoC RTC"
+	depends on ARCH_STMP3XXX && RTC_CLASS
+	help
+	  Say Y here to get support for the real-time clock peripheral
+	  on Sigmatel STMP3xxx series SoCs (tested on STMP3700).
+
+	  This driver can also be build as a module. If so, the module
+	  will be called rtc-stmp3xxx.
+
+
 config RTC_DRV_EP93XX
 	tristate "Cirrus Logic EP93XX"
 	depends on ARCH_EP93XX

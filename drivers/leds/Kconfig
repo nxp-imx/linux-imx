@@ -17,6 +17,14 @@ config LEDS_CLASS
 
 comment "LED drivers"
 
+config LEDS_STMP378X
+	tristate "Support for PWM LEDs on STMP378X"
+	depends on LEDS_CLASS && MACH_STMP378X
+	help
+	  This option enables support for the LEDs connected to PWM
+	  outputs on the Freescale STMP378X.
+
+
 config LEDS_ATMEL_PWM
 	tristate "LED Support using Atmel PWM outputs"
 	depends on LEDS_CLASS && ATMEL_PWM

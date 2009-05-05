@@ -200,4 +200,16 @@ config CRYPTO_DEV_IXP4XX
 	help
 	  Driver for the IXP4xx NPE crypto engine.
 
+config CRYPTO_DEV_STMP3XXX_DCP
+	tristate "Support for the STMP3xxx DCP engine"
+	depends on ARCH_STMP3XXX
+	select CRYPTO_ALGAPI
+	select CRYPTO_BLKCIPHER
+	help
+	  Say 'Y' here to use the STMP3XXX DCP AES
+	  engine for the CryptoAPI AES algorithm.
+
+	  To compile this driver as a module, choose M here: the module
+	  will be called geode-aes.
+
 endif # CRYPTO_HW

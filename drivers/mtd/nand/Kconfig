@@ -415,6 +415,46 @@ config MXC_NAND_LOW_LEVEL_ERASE
 	  This enables the erase of whole NAND flash. By
 	  default low level erase operation is disabled.
 
+config MTD_NAND_GPMI_LBA
+	tristate "GPMI LBA NAND driver"
+	depends on MTD_NAND && ARCH_STMP3XXX
+	help
+	 Enables support of LBA devices on GPMI on 37xx/378x SigmaTel
+	 boards
+
+config MTD_NAND_GPMI
+	tristate "GPMI NAND driver"
+	depends on MTD_NAND && ARCH_STMP3XXX && !MTD_NAND_GPMI_LBA
+	help
+	 Enables support of NAND devices on GPMI on 37xx/378x SigmaTel
+	 boards
+
+config MTD_NAND_GPMI_SYSFS_ENTRIES
+	bool "Create /sys entries for GPMI device"
+	depends on MTD_NAND_GPMI
+	help
+	  Check this to enable /sys entries for GPMI devices
+
+config MTD_NAND_GPMI_BCH
+	bool "Enable BCH HWECC"
+	depends on MTD_NAND_GPMI
+	depends on ARCH_STMP378X
+	default y
+	help
+	  Check this to enable /sys entries for GPMI devices
+
+config MTD_NAND_GPMI_TA1
+	bool "Support for TA1 NCB format (Hamming code 22,16)"
+	depends on MTD_NAND_GPMI
+	depends on ARCH_STMP378X
+	default y
+
+config MTD_NAND_GPMI_TA3
+	bool "Support for TA3 NCB format (Hamming code 13,8)"
+	depends on MTD_NAND_GPMI
+	depends on ARCH_STMP378X
+	default y
+
 config MTD_NAND_PLATFORM
 	tristate "Support for generic platform NAND driver"
 	depends on MTD_NAND
