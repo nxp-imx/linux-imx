@@ -29,7 +29,9 @@
 #ifdef __KERNEL__
 #include <linux/interrupt.h>
 #else
-#define bool char
+#ifndef __cplusplus
+typedef unsigned char bool;
+#endif
 #define irqreturn_t int
 #define dma_addr_t int
 #define u32 unsigned int
