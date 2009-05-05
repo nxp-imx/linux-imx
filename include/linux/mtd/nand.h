@@ -551,7 +551,10 @@ extern int nand_erase_nand(struct mtd_info *mtd, struct erase_info *instr,
 			   int allowbbt);
 extern int nand_do_read(struct mtd_info *mtd, loff_t from, size_t len,
 			size_t * retlen, uint8_t * buf);
-
+extern int nand_do_read_ops(struct mtd_info *mtd, loff_t from,
+			    struct mtd_oob_ops *ops);
+extern int nand_do_write_ops(struct mtd_info *mtd, loff_t to,
+			     struct mtd_oob_ops *ops);
 /*
 * Constants for oob configuration
 */
