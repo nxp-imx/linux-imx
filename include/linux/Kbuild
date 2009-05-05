@@ -51,6 +51,7 @@ header-y += comstats.h
 header-y += const.h
 header-y += cgroupstats.h
 header-y += cramfs_fs.h
+header-y += cryptodev.h
 header-y += cycx_cfm.h
 header-y += dcbnl.h
 header-y += dlmconstants.h
