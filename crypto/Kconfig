@@ -166,6 +166,14 @@ config CRYPTO_TEST
 	help
 	  Quick & dirty crypto test module.
 
+config CRYPTO_CRYPTODEV
+	tristate "Cryptodev (/dev/crypto) interface"
+	depends on CRYPTO
+	select CRYPTO_ALGAPI
+	help
+	  Device /dev/crypto gives userspace programs access to
+	  kernel crypto algorithms.
+
 comment "Authenticated Encryption with Associated Data"
 
 config CRYPTO_CCM
