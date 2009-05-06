@@ -1,6 +1,10 @@
 menu "MX35 Options"
 	depends on ARCH_MX35
 
+config FORCE_MAX_ZONEORDER
+    int "MAX_ORDER"
+    default "11"
+
 config MX35_OPTIONS
 	bool
 	default y
