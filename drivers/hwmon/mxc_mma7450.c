@@ -27,7 +27,7 @@
 /*macro define*/
 #define MMA7450_I2C_ADDR	0x1D
 #define DEVICE_NAME		"mma7450"
-#define POLL_INTERVAL		50
+#define POLL_INTERVAL		100
 #define DEBUG
 
 #define INPUT_FUZZ	4
@@ -527,7 +527,6 @@ static void report_abs(void)
 
 static void mma_bh_handler(struct work_struct *work)
 {
-	report_abs();
 }
 
 static void mma7450_dev_poll(struct input_polled_dev *dev)
@@ -715,6 +714,7 @@ static int mma7450_probe(struct i2c_client *client,
 
 	dev_info(&client->dev, "mma7450 device is probed successfully.\n");
 
+	set_mod(1);
 	return 0;		/*what value shall be return */
 
 	/*error handle */
