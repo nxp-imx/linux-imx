@@ -1,6 +1,10 @@
 menu "MX51 Options"
 	depends on ARCH_MX51
 
+config FORCE_MAX_ZONEORDER
+    int "MAX_ORDER"
+    default "11"
+
 config MX51_OPTIONS
 	bool
 	default y
