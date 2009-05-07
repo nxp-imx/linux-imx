@@ -3,7 +3,7 @@ menu "MX35 Options"
 
 config FORCE_MAX_ZONEORDER
     int "MAX_ORDER"
-    default "11"
+    default "13"
 
 config MX35_OPTIONS
 	bool
