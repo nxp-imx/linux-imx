@@ -249,6 +249,18 @@ static struct regulator_init_data gpo4_init = {
 	}
 };
 
+static struct regulator_init_data pwg1_init = {
+	.constraints = {
+		.name = "PWG1",
+	}
+};
+
+static struct regulator_init_data pwg2_init = {
+	.constraints = {
+		.name = "PWG2",
+	}
+};
+
 /*!
  * the event handler for power on event
  */
@@ -309,6 +321,8 @@ static int mc13892_regulator_init(struct mc13892 *mc13892)
 	mc13892_register_regulator(mc13892, MC13892_GPO2, &gpo2_init);
 	mc13892_register_regulator(mc13892, MC13892_GPO3, &gpo3_init);
 	mc13892_register_regulator(mc13892, MC13892_GPO4, &gpo4_init);
+	mc13892_register_regulator(mc13892, MC13892_PWGT1, &pwg1_init);
+	mc13892_register_regulator(mc13892, MC13892_PWGT2, &pwg2_init);
 
 	init_mc13892();
 	return 0;

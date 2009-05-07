@@ -1754,6 +1754,14 @@ static struct regulator_desc mc13892_reg[] = {
 		.type = REGULATOR_VOLTAGE,
 		.owner = THIS_MODULE
 	},
+	{
+		.name = "PWGT2",
+		.id = MC13892_PWGT2,
+		.ops = &mc13892_power_gating_ops,
+		.irq = 0,
+		.type = REGULATOR_VOLTAGE,
+		.owner = THIS_MODULE
+	},
 };
 
 static int mc13892_regulator_probe(struct platform_device *pdev)
