@@ -3,7 +3,7 @@ menu "MX51 Options"
 
 config FORCE_MAX_ZONEORDER
     int "MAX_ORDER"
-    default "11"
+    default "13"
 
 config MX51_OPTIONS
 	bool
