@@ -330,13 +330,11 @@ void si4702_clock_ctl(int flag)
 static void si4702_gpio_get(void)
 {
 	/* reset pin */
-	mxc_request_iomux(MX51_PIN_EIM_DTACK, IOMUX_CONFIG_GPIO);
 	mxc_set_gpio_direction(MX51_PIN_EIM_DTACK, 0);
 }
 
 static void si4702_gpio_put(void)
 {
-	mxc_free_iomux(MX51_PIN_EIM_DTACK, IOMUX_CONFIG_GPIO);
 }
 
 static struct mxc_fm_platform_data si4702_data = {

@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # Linux kernel version: 2.6.28
-# Wed Apr 29 10:11:33 2009
+# Thu May  7 08:51:48 2009
 #
 CONFIG_ARM=y
 CONFIG_SYS_SUPPORTS_APM_EMULATION=y
@@ -160,6 +160,7 @@ CONFIG_ARCH_MXC=y
 # CONFIG_ARCH_DAVINCI is not set
 # CONFIG_ARCH_OMAP is not set
 # CONFIG_ARCH_MSM is not set
+# CONFIG_ARCH_STMP3XXX is not set
 
 #
 # Boot options
@@ -739,7 +740,7 @@ CONFIG_HW_CONSOLE=y
 # CONFIG_VT_HW_CONSOLE_BINDING is not set
 CONFIG_DEVKMEM=y
 # CONFIG_SERIAL_NONSTANDARD is not set
-# CONFIG_FM_SI4702 is not set
+CONFIG_FM_SI4702=m
 CONFIG_MXC_IIM=y
 
 #
@@ -1827,6 +1828,7 @@ CONFIG_CRYPTO=y
 # CONFIG_CRYPTO_CRYPTD is not set
 # CONFIG_CRYPTO_AUTHENC is not set
 # CONFIG_CRYPTO_TEST is not set
+# CONFIG_CRYPTO_CRYPTODEV is not set
 
 #
 # Authenticated Encryption with Associated Data
