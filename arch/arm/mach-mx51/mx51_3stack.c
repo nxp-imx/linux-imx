@@ -444,6 +444,60 @@ static inline void mxc_init_enet(void)
 }
 #endif
 
+#if defined(CONFIG_IMX_SIM) || defined(CONFIG_IMX_SIM_MODULE)
+/* Used to configure the SIM bus */
+static struct mxc_sim_platform_data sim_data = {
+	.clk_rate = 4000000,
+	.clock_sim = "sim_clk",
+	.power_sim = NULL,
+	.init = NULL,
+	.exit = NULL,
+	.detect = 0,
+};
+
+/*!
+ * Resource definition for the SIM
+ */
+static struct resource mxc_sim_resources[] = {
+	[0] = {
+	       .start = SIM_BASE_ADDR,
+	       .end = SIM_BASE_ADDR + SZ_4K - 1,
+	       .flags = IORESOURCE_MEM,
+	       },
+	[1] = {
+	       .start = MXC_INT_SIM_IPB,
+	       .end = MXC_INT_SIM_IPB,
+	       .flags = IORESOURCE_IRQ,
+	       },
+	[2] = {
+	       .start = MXC_INT_SIM_DAT,
+	       .end = MXC_INT_SIM_DAT,
+	       .flags = IORESOURCE_IRQ,
+	       },
+};
+
+/*! Device Definition for IMX SIM */
+static struct platform_device mxc_sim_device = {
+	.name = "mxc_sim",
+	.id = 0,
+	.dev = {
+		.release = mxc_nop_release,
+		.platform_data = &sim_data,
+		},
+	.num_resources = ARRAY_SIZE(mxc_sim_resources),
+	.resource = mxc_sim_resources,
+};
+
+static inline void mxc_init_sim(void)
+{
+	(void)platform_device_register(&mxc_sim_device);
+}
+#else
+static inline void mxc_init_sim(void)
+{
+}
+#endif
+
 #if defined(CONFIG_MMC_IMX_ESDHCI) || defined(CONFIG_MMC_IMX_ESDHCI_MODULE)
 /*!
  * Get WP pin value to detect write protection
@@ -1018,6 +1072,7 @@ static void __init mxc_board_init(void)
 	mxc_init_keypad();
 	mxc_init_nand_mtd();
 	mxc_init_mmc();
+	mxc_init_sim();
 	mxc_init_srpgconfig();
 	mx51_3stack_init_mc13892();
 

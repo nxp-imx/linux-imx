@@ -601,6 +601,33 @@ static struct mxc_iomux_pin_cfg __initdata nand_iomux_pins[] = {
 	 },
 };
 
+static struct mxc_iomux_pin_cfg __initdata sim_iomux_pins[] = {
+	{
+	 MX51_PIN_NANDF_CS4, IOMUX_CONFIG_ALT6,
+	 PAD_CTL_DRV_HIGH | PAD_CTL_DRV_VOT_HIGH |
+	 PAD_CTL_HYS_NONE | PAD_CTL_47K_PU |
+	 PAD_CTL_PUE_KEEPER | PAD_CTL_ODE_OPENDRAIN_NONE | PAD_CTL_PKE_ENABLE,
+	 },
+	{
+	 MX51_PIN_NANDF_CS5, IOMUX_CONFIG_ALT6,
+	 PAD_CTL_DRV_HIGH | PAD_CTL_DRV_VOT_HIGH |
+	 PAD_CTL_HYS_NONE | PAD_CTL_47K_PU |
+	 PAD_CTL_PUE_KEEPER | PAD_CTL_ODE_OPENDRAIN_NONE | PAD_CTL_PKE_ENABLE,
+	 },
+	{
+	 MX51_PIN_NANDF_CS6, IOMUX_CONFIG_ALT6,
+	 PAD_CTL_DRV_HIGH | PAD_CTL_DRV_VOT_HIGH |
+	 PAD_CTL_HYS_NONE | PAD_CTL_100K_PD |
+	 PAD_CTL_PUE_PULL | PAD_CTL_ODE_OPENDRAIN_NONE | PAD_CTL_PKE_ENABLE,
+	 },
+	{
+	 MX51_PIN_NANDF_CS7, IOMUX_CONFIG_ALT6,
+	 PAD_CTL_DRV_HIGH | PAD_CTL_DRV_VOT_HIGH |
+	 PAD_CTL_HYS_NONE | PAD_CTL_22K_PU |
+	 PAD_CTL_PUE_PULL | PAD_CTL_ODE_OPENDRAIN_NONE | PAD_CTL_PKE_ENABLE,
+	 },
+};
+
 static int __initdata enable_ata = { 0 };
 static int __init ata_setup(char *__unused)
 {
@@ -609,6 +636,15 @@ static int __init ata_setup(char *__unused)
 }
 
 __setup("ata", ata_setup);
+
+static int __initdata enable_sim = { 0 };
+static int __init sim_setup(char *__unused)
+{
+	enable_sim = 1;
+	return 1;
+}
+
+__setup("sim", sim_setup);
 
 void __init mx51_3stack_io_init(void)
 {
@@ -629,6 +665,9 @@ void __init mx51_3stack_io_init(void)
 	if (enable_ata) {
 		pin_ptr = ata_iomux_pins;
 		num = ARRAY_SIZE(ata_iomux_pins);
+	} else if (enable_sim) {
+		pin_ptr = sim_iomux_pins;
+		num = ARRAY_SIZE(sim_iomux_pins);
 	} else {
 		pin_ptr = nand_iomux_pins;
 		num = ARRAY_SIZE(nand_iomux_pins);

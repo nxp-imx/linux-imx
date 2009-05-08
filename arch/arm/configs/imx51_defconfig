@@ -744,7 +744,12 @@ CONFIG_FM_SI4702=m
 CONFIG_MXC_IIM=y
 
 #
-# Serial drivers
+# IMX SIM support
+#
+CONFIG_IMX_SIM=m
+
+#
+ Serial drivers
 #
 # CONFIG_SERIAL_8250 is not set
 

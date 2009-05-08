@@ -11,6 +11,7 @@ obj-y	 += mem.o random.o tty_io.o n_tty.o tty_ioctl.o tty_ldisc.o tty_buffer.o t
 
 obj-$(CONFIG_FM_SI4702)		+= mxc_si4702.o
 obj-$(CONFIG_MXC_IIM)		+= mxc_iim.o
+obj-$(CONFIG_IMX_SIM) 		+= imx_sim.o
 
 obj-$(CONFIG_LEGACY_PTYS)	+= pty.o
 obj-$(CONFIG_UNIX98_PTYS)	+= pty.o

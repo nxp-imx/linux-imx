@@ -349,6 +349,15 @@ void mxc_pg_disable(struct platform_device *pdev);
 
 struct mxc_unifi_platform_data *get_unifi_plat_data(void);
 
+struct mxc_sim_platform_data {
+	unsigned int clk_rate;
+	char *clock_sim;
+	char *power_sim;
+	int (*init)(struct platform_device *pdev);
+	void (*exit)(void);
+	unsigned int detect; /* 1 have detect pin, 0 not */
+};
+
 #endif				/* __ASSEMBLY__ */
 
 #define MUX_IO_P		29

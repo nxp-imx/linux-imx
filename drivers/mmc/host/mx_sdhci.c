@@ -901,13 +901,14 @@ static void sdhci_request(struct mmc_host *mmc, struct mmc_request *mrq)
 			}
 		}
 	}
-	spin_unlock_irqrestore(&host->lock, flags);
 	host->mrq = mrq;
 	if (!(host->flags & SDHCI_CD_PRESENT)) {
 		host->mrq->cmd->error = -ENOMEDIUM;
 		tasklet_schedule(&host->finish_tasklet);
 	} else
 		sdhci_send_command(host, mrq->cmd);
+
+	spin_unlock_irqrestore(&host->lock, flags);
 
 	mmiowb();
 }
@@ -1491,7 +1492,8 @@ static irqreturn_t sdhci_irq(int irq, void *dev_id)
 			     SDHCI_TRNS_READ))
 				intmask &= ~SDHCI_INT_DATA_END_BIT;
 		}
-		sdhci_data_irq(host, intmask & SDHCI_INT_DATA_MASK);
+		if (intmask & SDHCI_INT_DATA_MASK)
+			sdhci_data_irq(host, intmask & SDHCI_INT_DATA_MASK);
 	}
 
 	intmask &= ~(SDHCI_INT_CMD_MASK | SDHCI_INT_DATA_MASK);

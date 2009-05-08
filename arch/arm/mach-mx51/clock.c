@@ -2324,6 +2324,92 @@ static struct clk esdhc4_clk[] = {
 	 },
 };
 
+static int _clk_sim_set_parent(struct clk *clk, struct clk *parent)
+{
+	u32 reg, mux;
+
+	mux = _get_mux(parent, &pll1_sw_clk, &pll2_sw_clk, &pll3_sw_clk, NULL);
+	reg = __raw_readl(MXC_CCM_CSCMR2) & ~MXC_CCM_CSCMR2_SIM_CLK_SEL_MASK;
+	reg |= mux << MXC_CCM_CSCMR2_SIM_CLK_SEL_OFFSET;
+	__raw_writel(reg, MXC_CCM_CSCMR2);
+
+	return 0;
+}
+
+static void _clk_sim_recalc(struct clk *clk)
+{
+	u32 reg, pred, podf;
+
+	reg = __raw_readl(MXC_CCM_CSCDR2);
+	pred = ((reg & MXC_CCM_CSCDR2_SIM_CLK_PRED_MASK) >>
+		MXC_CCM_CSCDR2_SIM_CLK_PRED_OFFSET) + 1;
+	podf = ((reg & MXC_CCM_CSCDR2_SIM_CLK_PODF_MASK) >>
+		MXC_CCM_CSCDR2_SIM_CLK_PODF_OFFSET) + 1;
+	clk->rate = clk->parent->rate / (pred * podf);
+}
+
+static unsigned long _clk_sim_round_rate(struct clk *clk, unsigned long rate)
+{
+	u32 pre, post;
+	u32 div = clk->parent->rate / rate;
+	if (clk->parent->rate % rate)
+		div++;
+
+	__calc_pre_post_dividers(div, &pre, &post);
+
+	return clk->parent->rate / (pre * post);
+}
+
+static int _clk_sim_set_rate(struct clk *clk, unsigned long rate)
+{
+	u32 reg;
+	u32 div;
+	u32 pre, post;
+
+	div = clk->parent->rate / rate;
+
+	if ((clk->parent->rate / div) != rate)
+		return -EINVAL;
+
+	__calc_pre_post_dividers(div, &pre, &post);
+
+	/* Set SIM clock divider */
+	reg = __raw_readl(MXC_CCM_CSCDR2) &
+	    ~(MXC_CCM_CSCDR2_SIM_CLK_PRED_MASK |
+	      MXC_CCM_CSCDR2_SIM_CLK_PODF_MASK);
+	reg |= (post - 1) << MXC_CCM_CSCDR2_SIM_CLK_PODF_OFFSET;
+	reg |= (pre - 1) << MXC_CCM_CSCDR2_SIM_CLK_PRED_OFFSET;
+	__raw_writel(reg, MXC_CCM_CSCDR2);
+
+	clk->rate = rate;
+	return 0;
+
+}
+
+static struct clk sim_clk[] = {
+	{
+	 .name = "sim_clk",
+	 .parent = &pll3_sw_clk,
+	 .set_parent = _clk_sim_set_parent,
+	 .secondary = &sim_clk[1],
+	 .recalc = _clk_sim_recalc,
+	 .round_rate = _clk_sim_round_rate,
+	 .set_rate = _clk_sim_set_rate,
+	 .enable = _clk_enable,
+	 .enable_reg = MXC_CCM_CCGR4,
+	 .enable_shift = MXC_CCM_CCGR4_CG2_OFFSET,
+	 .disable = _clk_disable,
+	 },
+	{
+	 .name = "sim_ipg_clk",
+	 .parent = &ipg_clk,
+	 .enable = _clk_enable,
+	 .enable_reg = MXC_CCM_CCGR4,
+	 .enable_shift = MXC_CCM_CCGR4_CG1_OFFSET,
+	 .disable = _clk_disable,
+	 },
+};
+
 static void _clk_nfc_recalc(struct clk *clk)
 {
 	u32 reg, div;
@@ -2844,6 +2930,8 @@ static struct clk *mxc_clks[] = {
 	&esdhc4_clk[0],
 	&esdhc4_clk[1],
 	&esdhc_dep_clks,
+	&sim_clk[0],
+	&sim_clk[1],
 	&emi_slow_clk,
 	&ddr_clk,
 	&emi_enfc_clk,
