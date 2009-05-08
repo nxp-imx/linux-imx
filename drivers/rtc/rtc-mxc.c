@@ -632,11 +632,10 @@ static int mxc_rtc_probe(struct platform_device *pdev)
 	struct clk *clk;
 	struct timespec tv;
 	struct resource *res;
-	struct rtc_time temp_time;
 	struct rtc_device *rtc;
 	struct rtc_plat_data *pdata = NULL;
-	u32 sec, reg;
-	int ret;
+	u32 reg;
+	int ret = 0;
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	if (!res)
@@ -672,16 +671,6 @@ static int mxc_rtc_probe(struct platform_device *pdev)
 	}
 	pdata->rtc = rtc;
 	platform_set_drvdata(pdev, pdata);
-	ret = get_ext_rtc_time(&sec);
-	if (ret == MXC_EXTERNAL_RTC_OK) {
-		rtc_time_to_tm(sec, &temp_time);
-		mxc_rtc_set_time(&pdev->dev, &temp_time);
-
-	} else if (ret == MXC_EXTERNAL_RTC_NONE) {
-		pr_info("No external RTC clock\n");
-	} else {
-		pr_info("Reading external RTC failed\n");
-	}
 	tv.tv_nsec = 0;
 	tv.tv_sec = get_alarm_or_time(&pdev->dev, MXC_RTC_TIME);
 	clk = clk_get(NULL, "ckil");
