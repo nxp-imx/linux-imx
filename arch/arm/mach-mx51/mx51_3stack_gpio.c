@@ -220,6 +220,9 @@ static struct mxc_iomux_pin_cfg __initdata mxc_iomux_pins[] = {
 	{
 	 MX51_PIN_DISPB2_SER_RS, IOMUX_CONFIG_GPIO,
 	 },
+	{
+	 MX51_PIN_DISPB2_SER_DIO, IOMUX_CONFIG_GPIO,
+	 },
 	{ /* TO2 */
 	MX51_PIN_DI1_D1_CS, IOMUX_CONFIG_ALT4,
 	},
@@ -700,5 +703,10 @@ void __init mx51_3stack_io_init(void)
 	/* osc_en is shared by SPDIF */
 	mxc_set_gpio_direction(MX51_PIN_EIM_D16, 0);
 	mxc_set_gpio_dataout(MX51_PIN_EIM_D16, 1);
+
+	/* LCD related gpio */
+	mxc_set_gpio_direction(MX51_PIN_DI1_D1_CS, 0);
+	mxc_set_gpio_direction(MX51_PIN_DISPB2_SER_DIO, 0);
+	mxc_set_gpio_dataout(MX51_PIN_DISPB2_SER_DIO, 0);
 }
 

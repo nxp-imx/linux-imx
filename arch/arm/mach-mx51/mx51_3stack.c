@@ -248,6 +248,7 @@ static struct platform_device mxc_fb_device[] = {
 
 static void lcd_reset_to2(void)
 {
+	mxc_set_gpio_dataout(MX51_PIN_DI1_D1_CS, 0);
 	ipu_reset_disp_panel();
 
 	return;
@@ -277,7 +278,14 @@ static struct platform_device mxc_lcd_device = {
 		},
 };
 
-static struct mxc_lcd_platform_data lcd_wvga_data;
+static void wvga_reset(void)
+{
+	mxc_set_gpio_dataout(MX51_PIN_DI1_D1_CS, 1);
+}
+
+static struct mxc_lcd_platform_data lcd_wvga_data = {
+	.reset = wvga_reset,
+};
 
 static struct platform_device lcd_wvga_device = {
 	.name = "lcd_claa",
