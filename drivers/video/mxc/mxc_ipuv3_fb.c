@@ -141,6 +141,7 @@ static int mxcfb_set_par(struct fb_info *fbi)
 	ipu_di_signal_cfg_t sig_cfg;
 	ipu_channel_params_t params;
 	struct mxcfb_info *mxc_fbi = (struct mxcfb_info *)fbi->par;
+	uint32_t v_to_h_sync;
 
 	dev_dbg(fbi->device, "Reconfiguring framebuffer\n");
 
@@ -215,6 +216,7 @@ static int mxcfb_set_par(struct fb_info *fbi)
 				       fbi->var.vsync_len,
 				       fbi->var.lower_margin, sig_cfg) != 0) {
 #else
+		v_to_h_sync = (mxc_fbi->ipu_di) ? 0 : 480;
 		if (ipu_init_sync_panel(mxc_fbi->ipu_di,
 					(PICOS2KHZ(fbi->var.pixclock)) * 1000UL,
 					fbi->var.xres, fbi->var.yres,
@@ -225,7 +227,7 @@ static int mxcfb_set_par(struct fb_info *fbi)
 					fbi->var.upper_margin,
 					fbi->var.vsync_len,
 					fbi->var.lower_margin,
-					480, sig_cfg) != 0) {
++					v_to_h_sync, sig_cfg) != 0) {
 #endif
 			dev_err(fbi->device,
 				"mxcfb: Error initializing panel.\n");

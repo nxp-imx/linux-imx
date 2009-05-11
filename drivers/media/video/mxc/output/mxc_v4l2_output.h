@@ -92,6 +92,7 @@ typedef struct _vout_data {
 	int output_fb_num[MXC_V4L2_OUT_NUM_OUTPUTS];
 	int output_enabled[MXC_V4L2_OUT_NUM_OUTPUTS];
 	struct v4l2_framebuffer v4l2_fb;
+	int ic_bypass;
 	ipu_channel_t display_ch;
 	ipu_channel_t post_proc_ch;
 
@@ -124,8 +125,6 @@ typedef struct _vout_data {
 	/* crop */
 	struct v4l2_rect crop_bounds[MXC_V4L2_OUT_NUM_OUTPUTS];
 	struct v4l2_rect crop_current;
-
-	struct work_struct timer_work;
 } vout_data;
 
 #endif

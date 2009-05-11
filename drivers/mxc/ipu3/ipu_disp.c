@@ -64,11 +64,11 @@ void _ipu_dmfc_init(void)
 	/* disable DMFC-IC channel*/
 	__raw_writel(0x2, DMFC_IC_CTRL);
 	/* 1 - segment 0 and 1; 2, 1C and 2C unused */
-	__raw_writel(0x00000090, DMFC_WR_CHAN);
+	__raw_writel(0x00000088, DMFC_WR_CHAN);
 	__raw_writel(0x20202000, DMFC_WR_CHAN_DEF);
 	/* 5B - segment 2 and 3; 5F - segment 4 and 5; */
 	/* 6B - segment 6; 6F - segment 7 */
-	__raw_writel(0x1F1E9492, DMFC_DP_CHAN);
+	__raw_writel(0x1F1E9694, DMFC_DP_CHAN);
 }
 
 void _ipu_dmfc_set_wait4eot(int dma_chan, int width)
@@ -397,9 +397,15 @@ void _ipu_dc_init(int dc_chan, int di, bool interlaced)
 			_ipu_dc_link_event(dc_chan, DC_EVT_EOL, 0, 2);
 			_ipu_dc_link_event(dc_chan, DC_EVT_NEW_DATA, 0, 1);
 		} else {
-			_ipu_dc_link_event(dc_chan, DC_EVT_NL, 2, 3);
-			_ipu_dc_link_event(dc_chan, DC_EVT_EOL, 3, 2);
-			_ipu_dc_link_event(dc_chan, DC_EVT_NEW_DATA, 4, 1);
+			if (di) {
+				_ipu_dc_link_event(dc_chan, DC_EVT_NL, 2, 3);
+				_ipu_dc_link_event(dc_chan, DC_EVT_EOL, 3, 2);
+				_ipu_dc_link_event(dc_chan, DC_EVT_NEW_DATA, 4, 1);
+			} else {
+				_ipu_dc_link_event(dc_chan, DC_EVT_NL, 5, 3);
+				_ipu_dc_link_event(dc_chan, DC_EVT_EOL, 6, 2);
+				_ipu_dc_link_event(dc_chan, DC_EVT_NEW_DATA, 7, 1);
+			}
 		}
 		_ipu_dc_link_event(dc_chan, DC_EVT_NF, 0, 0);
 		_ipu_dc_link_event(dc_chan, DC_EVT_NFIELD, 0, 0);
@@ -1087,10 +1093,32 @@ int32_t ipu_init_sync_panel(int disp, uint32_t pixel_clk,
 				    width, 4, 0, DI_SYNC_NONE, DI_SYNC_NONE, 0,
 				    0);
 
+		/* reset all unused counters */
+		__raw_writel(0, DI_SW_GEN0(disp, 6));
+		__raw_writel(0, DI_SW_GEN1(disp, 6));
+		__raw_writel(0, DI_SW_GEN0(disp, 7));
+		__raw_writel(0, DI_SW_GEN1(disp, 7));
+		__raw_writel(0, DI_SW_GEN0(disp, 8));
+		__raw_writel(0, DI_SW_GEN1(disp, 8));
+		__raw_writel(0, DI_SW_GEN0(disp, 9));
+		__raw_writel(0, DI_SW_GEN1(disp, 9));
+
+		reg = __raw_readl(DI_STP_REP(disp, 6));
+		reg &= 0x0000FFFF;
+		__raw_writel(reg, DI_STP_REP(disp, 6));
+		__raw_writel(0, DI_STP_REP(disp, 7));
+		__raw_writel(0, DI_STP_REP(disp, 9));
+
 		/* Init template microcode */
-		_ipu_dc_write_tmpl(2, WROD(0), 0, map, SYNC_WAVE, 8, 5);
-		_ipu_dc_write_tmpl(3, WROD(0), 0, map, SYNC_WAVE, 4, 5);
-		_ipu_dc_write_tmpl(4, WROD(0), 0, map, SYNC_WAVE, 0, 5);
+		if (disp) {
+		   _ipu_dc_write_tmpl(2, WROD(0), 0, map, SYNC_WAVE, 8, 5);
+		   _ipu_dc_write_tmpl(3, WROD(0), 0, map, SYNC_WAVE, 4, 5);
+		   _ipu_dc_write_tmpl(4, WROD(0), 0, map, SYNC_WAVE, 0, 5);
+		} else {
+		   _ipu_dc_write_tmpl(5, WROD(0), 0, map, SYNC_WAVE, 8, 5);
+		   _ipu_dc_write_tmpl(6, WROD(0), 0, map, SYNC_WAVE, 4, 5);
+		   _ipu_dc_write_tmpl(7, WROD(0), 0, map, SYNC_WAVE, 0, 5);
+		}
 
 		if (sig.Hsync_pol)
 			di_gen |= DI_GEN_POLARITY_2;

@@ -56,10 +56,12 @@
 #define TVE_STAND_MASK			(0x0F<<8)
 #define TVE_NTSC_STAND			(0UL<<8)
 #define TVE_PAL_STAND			(3UL<<8)
+#define TVE_HD720P60_STAND		(4UL<<8)
 
 #define TVOUT_FMT_OFF			0
 #define TVOUT_FMT_NTSC			1
 #define TVOUT_FMT_PAL			2
+#define TVOUT_FMT_720P60		3
 
 static int enabled;		/* enable power on or not */
 
@@ -67,6 +69,7 @@ static struct fb_info *tve_fbi;
 
 struct tve_data {
 	struct platform_device *pdev;
+	int revision;
 	int cur_mode;
 	int output_mode;
 	int detect;
@@ -140,6 +143,16 @@ static struct fb_videomode video_modes[] = {
 	 FB_SYNC_HOR_HIGH_ACT | FB_SYNC_VERT_HIGH_ACT | FB_SYNC_EXT,
 	 FB_VMODE_INTERLACED | FB_VMODE_ODD_FLD_FIRST,
 	 0,},
+	{
+	 /* 720p60 TV output */
+	 "720P60", 60, 1280, 720, 13468,
+	 260, 109,
+	 25, 4,
+	 1, 1,
+	 FB_SYNC_HOR_HIGH_ACT | FB_SYNC_VERT_HIGH_ACT |
+			FB_SYNC_EXT,
+	 FB_VMODE_NONINTERLACED,
+	 0,},
 };
 
 enum tvout_mode {
@@ -180,6 +193,20 @@ static void tve_set_tvout_mode(int mode)
 	__raw_writel(conf_reg, tve.base + tve_regs->tve_com_conf_reg);
 }
 
+static int _is_tvout_mode_hd_compatible(void)
+{
+	u32 conf_reg, mode;
+
+	conf_reg = __raw_readl(tve.base + tve_regs->tve_com_conf_reg);
+	mode = (conf_reg >> tve_reg_fields->tvout_mode_offset) & 7;
+	if (mode == YPBPR || mode == RGB) {
+		return 1;
+	} else {
+		return 0;
+	}
+}
+
+
 /**
  * tve_setup
  * initial the CH7024 chipset by setting register
@@ -192,14 +219,32 @@ static void tve_set_tvout_mode(int mode)
 static int tve_setup(int mode)
 {
 	u32 reg;
+	struct clk *pll3_clk;
+	unsigned long pll3_clock_rate = 216000000;
 
 	if (tve.cur_mode == mode)
 		return 0;
 
 	tve.cur_mode = mode;
 
-	if (!enabled)
-		clk_enable(tve.clk);
+	switch (mode) {
+	case TVOUT_FMT_PAL:
+	case TVOUT_FMT_NTSC:
+		pll3_clock_rate = 216000000;
+		break;
+	case TVOUT_FMT_720P60:
+		pll3_clock_rate = 297000000;
+		break;
+	}
+	if (enabled)
+		clk_disable(tve.clk);
+
+	pll3_clk = clk_get(NULL, "pll3");
+	clk_disable(pll3_clk);
+	clk_set_rate(pll3_clk, pll3_clock_rate);
+	clk_enable(pll3_clk);
+
+	clk_enable(tve.clk);
 
 	/* select output video format */
 	if (mode == TVOUT_FMT_PAL) {
@@ -212,6 +257,15 @@ static int tve_setup(int mode)
 		reg = (reg & ~TVE_STAND_MASK) | TVE_NTSC_STAND;
 		__raw_writel(reg, tve.base + tve_regs->tve_com_conf_reg);
 		pr_debug("TVE: change to NTSC video\n");
+	} else if (mode == TVOUT_FMT_720P60) {
+		if (!_is_tvout_mode_hd_compatible()) {
+			tve_set_tvout_mode(YPBPR);
+			pr_debug("The TV out mode is HD incompatible. Setting to YPBPR.");
+		}
+		reg = __raw_readl(tve.base + tve_regs->tve_com_conf_reg);
+		reg = (reg & ~TVE_STAND_MASK) | TVE_HD720P60_STAND;
+		__raw_writel(reg, tve.base + tve_regs->tve_com_conf_reg);
+		pr_debug("TVE: change to 720P60 video\n");
 	} else if (mode == TVOUT_FMT_OFF) {
 		__raw_writel(0x0, tve.base + tve_regs->tve_com_conf_reg);
 		pr_debug("TVE: change to OFF video\n");
@@ -265,7 +319,6 @@ static void tve_disable(void)
 		reg = __raw_readl(tve.base + tve_regs->tve_com_conf_reg);
 		__raw_writel(reg & ~TVE_ENABLE & ~TVE_IPU_CLK_ENABLE,
 				tve.base + tve_regs->tve_com_conf_reg);
-		tve_set_tvout_mode(TV_OFF);
 		clk_disable(tve.clk);
 		pr_debug("TVE power off.\n");
 	}
@@ -419,6 +472,7 @@ int tve_fb_event(struct notifier_block *nb, unsigned long val, void *v)
 		tve_fbi = fbi;
 		fb_add_videomode(&video_modes[0], &tve_fbi->modelist);
 		fb_add_videomode(&video_modes[1], &tve_fbi->modelist);
+		fb_add_videomode(&video_modes[2], &tve_fbi->modelist);
 		break;
 	case FB_EVENT_MODE_CHANGE:
 		if (tve_fbi != fbi)
@@ -441,6 +495,9 @@ int tve_fb_event(struct notifier_block *nb, unsigned long val, void *v)
 		} else if (fb_mode_is_equal(fbi->mode, &video_modes[1])) {
 			tve_setup(TVOUT_FMT_PAL);
 			tve_enable();
+		} else if (fb_mode_is_equal(fbi->mode, &video_modes[2])) {
+			tve_setup(TVOUT_FMT_720P60);
+			tve_enable();
 		} else {
 			tve_setup(TVOUT_FMT_OFF);
 		}
@@ -461,6 +518,13 @@ int tve_fb_event(struct notifier_block *nb, unsigned long val, void *v)
 				if (tve.cur_mode != TVOUT_FMT_PAL) {
 					tve_disable();
 					tve_setup(TVOUT_FMT_PAL);
+				}
+				tve_enable();
+			} else if (fb_mode_is_equal(fbi->mode,
+					&video_modes[2])) {
+				if (tve.cur_mode != TVOUT_FMT_720P60) {
+					tve_disable();
+					tve_setup(TVOUT_FMT_720P60);
 				}
 				tve_enable();
 			} else {
@@ -544,7 +608,6 @@ static int tve_probe(struct platform_device *pdev)
 		goto err0;
 	}
 
-	INIT_DELAYED_WORK(&tve.cd_work, cd_work_func);
 	ret = request_irq(tve.irq, tve_detect_handler, 0, pdev->name, pdev);
 	if (ret < 0)
 		goto err0;
@@ -575,6 +638,7 @@ static int tve_probe(struct platform_device *pdev)
 	if (tve_fbi != NULL) {
 		fb_add_videomode(&video_modes[0], &tve_fbi->modelist);
 		fb_add_videomode(&video_modes[1], &tve_fbi->modelist);
+		fb_add_videomode(&video_modes[2], &tve_fbi->modelist);
 	}
 
 	tve.dac_reg = regulator_get(&pdev->dev, plat_data->dac_reg);
@@ -593,7 +657,8 @@ static int tve_probe(struct platform_device *pdev)
 	clk_set_rate(tve.clk, 216000000);
 	clk_enable(tve.clk);
 
-	if (_tve_get_revision() == 1) {
+	tve.revision = _tve_get_revision();
+	if (tve.revision == 1) {
 		tve_regs = &tve_regs_v1;
 		tve_reg_fields = &tve_reg_fields_v1;
 	} else {
@@ -602,8 +667,11 @@ static int tve_probe(struct platform_device *pdev)
 	}
 
 	/* Setup cable detect, for YPrPb mode, default use channel#0 for Y */
-	__raw_writel(0x01067701, tve.base + tve_regs->tve_cd_cont_reg);
-	/* tve_man_detect(); not working */
+	INIT_DELAYED_WORK(&tve.cd_work, cd_work_func);
+	if (tve.revision == 1)
+		__raw_writel(0x01067701, tve.base + tve_regs->tve_cd_cont_reg);
+	else
+		__raw_writel(0x00770601, tve.base + tve_regs->tve_cd_cont_reg);
 
 	conf_reg = 0;
 	__raw_writel(conf_reg, tve.base + tve_regs->tve_com_conf_reg);
@@ -663,7 +731,12 @@ static int tve_resume(struct platform_device *pdev)
 		clk_enable(tve.clk);
 
 		/* Setup cable detect */
-		__raw_writel(0x01067701, tve.base + tve_regs->tve_cd_cont_reg);
+		if (tve.revision == 1)
+			__raw_writel(0x01067701,
+				tve.base + tve_regs->tve_cd_cont_reg);
+		else
+			__raw_writel(0x00770601,
+				tve.base + tve_regs->tve_cd_cont_reg);
 
 		if (tve.cur_mode == TVOUT_FMT_NTSC) {
 			tve_disable();
@@ -673,6 +746,10 @@ static int tve_resume(struct platform_device *pdev)
 			tve_disable();
 			tve.cur_mode = TVOUT_FMT_OFF;
 			tve_setup(TVOUT_FMT_PAL);
+		} else if (tve.cur_mode == TVOUT_FMT_720P60) {
+			tve_disable();
+			tve.cur_mode = TVOUT_FMT_OFF;
+			tve_setup(TVOUT_FMT_720P60);
 		}
 		tve_enable();
 	}

@@ -236,6 +236,16 @@ static inline void mxc_init_nand_mtd(void)
 
 #if defined(CONFIG_FB_MXC_SYNC_PANEL) || \
 	defined(CONFIG_FB_MXC_SYNC_PANEL_MODULE)
+
+static struct mxc_fb_platform_data fb_data[] = {
+	{
+	 .interface_pix_fmt = IPU_PIX_FMT_RGB666,
+	 },
+	{
+	 .interface_pix_fmt = IPU_PIX_FMT_YUV444,
+	 },
+};
+
 static struct platform_device mxc_fb_device[] = {
 	{
 	 .name = "mxc_sdc_fb",
@@ -243,6 +253,7 @@ static struct platform_device mxc_fb_device[] = {
 	 .dev = {
 		 .release = mxc_nop_release,
 		 .coherent_dma_mask = 0xFFFFFFFF,
+		 .platform_data = &fb_data[0],
 		 },
 	 },
 	{
@@ -251,6 +262,7 @@ static struct platform_device mxc_fb_device[] = {
 	 .dev = {
 		 .release = mxc_nop_release,
 		 .coherent_dma_mask = 0xFFFFFFFF,
+		 .platform_data = &fb_data[1],
 		 },
 	 },
 	{
