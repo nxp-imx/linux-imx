@@ -200,6 +200,18 @@ int fs_sdio_enable_interrupt(struct sdio_dev *fdev, int enable)
 }
 EXPORT_SYMBOL(fs_sdio_enable_interrupt);
 
+int fs_sdio_disable(struct sdio_dev *fdev)
+{
+	int err;
+	sdio_claim_host(fdev->func);
+	err = sdio_disable_func(fdev->func);
+	sdio_release_host(fdev->func);
+	if (err)
+		printk(KERN_ERR "fs_lx:fs_sdio_disable error,err=%d\n", err);
+	return err;
+}
+EXPORT_SYMBOL(fs_sdio_disable);
+
 int fs_sdio_enable(struct sdio_dev *fdev)
 {
 	int err = 0;
@@ -347,7 +359,8 @@ int fs_sdio_register_driver(struct fs_driver *driver)
 
 	/* Switch us on, sdio device may exist if power is on by default. */
 	plat_data->hardreset(0);
-	mxc_mmc_force_detect(plat_data->host_id);
+	if (available_sdio_dev)
+		mxc_mmc_force_detect(plat_data->host_id);
 	/* Wait for card removed */
 	for (retry = 0; retry < 100; retry++) {
 		if (!available_sdio_dev)
@@ -366,7 +379,7 @@ int fs_sdio_register_driver(struct fs_driver *driver)
 			break;
 		msleep(50);
 	}
-	if (retry == 1000)
+	if (retry == 100)
 		printk(KERN_ERR "fs_sdio_register_driver: Timeout waiting"
 				" for card added\n");
 	/* Store the context to the device driver to the global */
