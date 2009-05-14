@@ -127,10 +127,13 @@ spi_read_buf(struct enc28j60_net *priv, int len, u8 *data)
 {
 	u8 *rx_buf = priv->spi_transfer_buf + 4;
 	u8 *tx_buf = priv->spi_transfer_buf;
-	struct spi_transfer t = {
-		.tx_buf = tx_buf,
-		.rx_buf = rx_buf,
-		.len = SPI_OPLEN + len,
+	struct spi_transfer tt = {
+		.tx_buf	= tx_buf,
+		.len	= SPI_OPLEN,
+	};
+	struct spi_transfer tr = {
+		.rx_buf	= rx_buf,
+		.len	= len,
 	};
 	struct spi_message msg;
 	int ret;
@@ -139,10 +142,11 @@ spi_read_buf(struct enc28j60_net *priv, int len, u8 *data)
 	tx_buf[1] = tx_buf[2] = tx_buf[3] = 0;	/* don't care */
 
 	spi_message_init(&msg);
-	spi_message_add_tail(&t, &msg);
+	spi_message_add_tail(&tt, &msg);
+	spi_message_add_tail(&tr, &msg);
 	ret = spi_sync(priv->spi, &msg);
 	if (ret == 0) {
-		memcpy(data, &rx_buf[SPI_OPLEN], len);
+		memcpy(data, rx_buf, len);
 		ret = msg.status;
 	}
 	if (ret && netif_msg_drv(priv))
