@@ -215,9 +215,7 @@ static int set_cpu_freq(int wp)
 	reg &=
 	    ~(MXC_GPCVCR_VINC_MASK | MXC_GPCVCR_VCNTU_MASK |
 	      MXC_GPCVCR_VCNT_MASK);
-	reg |=
-	    (1 << MXC_GPCVCR_VCNTU_OFFSET) |
-	    (100 << MXC_GPCVCR_VCNT_OFFSET);
+	reg |= (1 << MXC_GPCVCR_VCNTU_OFFSET) | (100 << MXC_GPCVCR_VCNT_OFFSET);
 	__raw_writel(reg, dvfs_data->gpc_vcr_reg_addr);
 
 	if (rate < org_cpu_rate) {
@@ -301,7 +299,7 @@ static int init_dvfs_controller(void)
 
 	/* Set EMAC value */
 	__raw_writel((dvfs_data->emac_val << MXC_DVFSEMAC_EMAC_OFFSET),
-				 dvfs_data->dvfs_emac_reg_addr);
+		     dvfs_data->dvfs_emac_reg_addr);
 
 	return 0;
 }
@@ -390,7 +388,7 @@ static void dvfs_core_workqueue_handler(struct work_struct *work)
 			if (ret == 0)
 				set_high_bus_freq();
 		}
-			}
+	}
 
 #if defined(CONFIG_CPU_FREQ)
 	if (cpufreq_trig_needed == 1) {
@@ -443,6 +441,12 @@ static void stop_dvfs(void)
 				set_high_bus_freq();
 
 			set_cpu_freq(curr_wp);
+#if defined(CONFIG_CPU_FREQ)
+			if (cpufreq_trig_needed == 1) {
+				cpufreq_trig_needed = 0;
+				cpufreq_update_policy(0);
+			}
+#endif
 		}
 
 		clk_disable(dvfs_clk);
@@ -459,7 +463,6 @@ static ssize_t dvfs_enable_show(struct device *dev,
 	else
 		return sprintf(buf, "DVFS is disabled\n");
 }
-
 
 static ssize_t dvfs_enable_store(struct device *dev,
 				 struct device_attribute *attr,
