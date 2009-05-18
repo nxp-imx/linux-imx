@@ -250,6 +250,40 @@ struct platform_device stmp3xxx_mmc = {
 	.num_resources = ARRAY_SIZE(mmc1_resource),
 };
 
+static struct resource usb_resources[] = {
+	[0] = {
+		.start	= REGS_USBCTRL_BASE,
+		.end	= REGS_USBCTRL_BASE + SZ_4K,
+		.flags	= IORESOURCE_MEM,
+	},
+
+	[1] = {
+		.start	= IRQ_USB_CTRL,
+		.end	= IRQ_USB_CTRL,
+		.flags	= IORESOURCE_IRQ,
+	},
+};
+
+static struct fsl_usb2_platform_data udc_platform_data = {
+	.operating_mode = FSL_USB2_DR_DEVICE,
+	.phy_mode	= FSL_USB2_PHY_UTMI,
+	.port_enables	= FSL_USB2_DONT_REMAP,
+	.platform_init	= NULL,
+	.platform_uninit = NULL,
+};
+
+struct platform_device stmp3xxx_udc = {
+	.name		= "fsl-usb2-udc",
+	.id		= -1,
+	.dev		= {
+		.dma_mask		= &common_dmamask,
+		.coherent_dma_mask	= COMMON_COHERENT_DMAMASK,
+		.platform_data		= &udc_platform_data,
+	},
+	.num_resources	= ARRAY_SIZE(usb_resources),
+	.resource	= usb_resources,
+};
+
 struct platform_device stmp3xxx_rtc = {
 	.name		= "stmp3xxx-rtc",
 	.id		= -1,

@@ -57,7 +57,7 @@ struct stmp3xxx_platform_persistent_data {
 #define STMP3XXX_USB_DONT_REMAP 	0x00000001
 struct stmp3xxx_usb_platform_data {
 	unsigned flags;
-	void (*phy_enable)(void);
+	int (*phy_enable)(struct platform_device *);
 	void (*hw_init)(void);
 	void (*hw_release)(void);
 };

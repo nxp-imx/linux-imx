@@ -89,6 +89,7 @@ static struct platform_device *devices[] = {
 	&stmp3xxx_appuart,
 	&stmp3xxx_dbguart,
 	&stmp3xxx_watchdog,
+	&stmp3xxx_udc,
 	&stmp3xxx_rtc,
 	&stmp3xxx_framebuffer,
 	&stmp3xxx_backlight,
@@ -189,7 +190,7 @@ static struct gpmi_platform_data gpmi_partitions = {
 	},
 };
 
-static void usb_phy_enable(void)
+static int usb_phy_enable(struct platform_device *pdev)
 {
 	/*
 	 * Set these bits so that we can force the OTG bits high
@@ -226,16 +227,7 @@ static void usb_phy_enable(void)
 	/* enable disconnect detector */
 	HW_USBPHY_CTRL_SET(BM_USBPHY_CTRL_ENHOSTDISCONDETECT);
 #endif
-}
-
-static void usb_hwinit(void)
-{
-	stmp3xxx_request_pin_group(&usb_mux_pins, "usb");
-}
-
-static void usb_hwrelease(void)
-{
-	stmp3xxx_release_pin_group(&usb_mux_pins, "usb");
+	return 0;
 }
 
 static struct stmp37xx_spi_platform_data enc_data = {
@@ -368,6 +360,7 @@ static struct i2c_board_info __initdata stmp3xxx_i2c_devices[] = {
 
 static void __init stmp378x_devb_init(void)
 {
+	struct fsl_usb2_platform_data *udata;
 	int i;
 
 	stmp3xxx_init();
@@ -377,6 +370,8 @@ static void __init stmp378x_devb_init(void)
 	stmp3xxx_set_mmc_data(&stmp3xxx_mmc.dev);
 	stmp3xxx_gpmi.dev.platform_data = &gpmi_partitions;
 	stmp3xxx_keyboard.dev.platform_data = &keyboard_data;
+	udata = stmp3xxx_udc.dev.platform_data;
+	udata->platform_init = usb_phy_enable;
 	spi_register_board_info(spi_board_info, ARRAY_SIZE(spi_board_info));
 	stmp3xxx_ssp1_device_register();	/* MMC or SSP */
 	stmp3xxx_ssp2_device_register();	/* MMC or SSP */

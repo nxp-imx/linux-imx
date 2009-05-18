@@ -410,7 +410,7 @@ config USB_GOKU
 
 config USB_GADGET_ARC
 	boolean "Freescale USB Device Controller"
-	depends on ARCH_MXC
+	depends on ARCH_MXC || ARCH_STMP3XXX
 	select USB_GADGET_DUALSPEED if USB_GADGET_FSL_1504 || USB_GADGET_FSL_UTMI
 	help
 	   Some Freescale processors have a USBOTG controller,
@@ -489,7 +489,7 @@ config USB_GADGET_ARC_OTG
 
 config USB_GADGET_WAKE_UP
 	bool "Support gadget wake up by DR port"
-	depends on USB_GADGET_ARC_OTG
+	depends on USB_GADGET_ARC_OTG && ARCH_MXC
 	default n
 	help
 	  Enable system wake up from SR or DSM mode by connected host.
