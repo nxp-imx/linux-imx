@@ -62,9 +62,20 @@
  */
 extern void __init mx51_3stack_io_init(void);
 extern struct cpu_wp *(*get_cpu_wp)(int *wp);
+extern void (*set_num_cpu_wp)(int num);
+static int num_cpu_wp = 3;
 
-/* working point(wp): 0 - 800MHz; 1 - 200MHz; */
+/* working point(wp): 0 - 1GHz; 1 - 800MHz, 2 - 167MHz; */
 static struct cpu_wp cpu_wp_auto[] = {
+	{
+	 .pll_rate = 1000000000,
+	 .cpu_rate = 1000000000,
+	 .pdf = 0,
+	 .mfi = 10,
+	 .mfd = 11,
+	 .mfn = 5,
+	 .cpu_podf = 0,
+	 .cpu_voltage = 1175000,},
 	{
 	 .pll_rate = 800000000,
 	 .cpu_rate = 800000000,
@@ -76,7 +87,7 @@ static struct cpu_wp cpu_wp_auto[] = {
 	 .cpu_voltage = 1050000,},
 	{
 	 .pll_rate = 800000000,
-	 .cpu_rate = 160000000,
+	 .cpu_rate = 167000000,
 	 .pdf = 4,
 	 .mfi = 8,
 	 .mfd = 2,
@@ -87,8 +98,14 @@ static struct cpu_wp cpu_wp_auto[] = {
 
 struct cpu_wp *mx51_3stack_get_cpu_wp(int *wp)
 {
-	*wp = 2;
+	*wp = num_cpu_wp;
 	return cpu_wp_auto;
+}
+
+void mx51_3stack_set_num_cpu_wp(int num)
+{
+	num_cpu_wp = num;
+	return;
 }
 
 static void mxc_nop_release(struct device *dev)
@@ -1048,6 +1065,7 @@ static void __init fixup_mxc_board(struct machine_desc *desc, struct tag *tags,
 	mxc_cpu_init();
 
 	get_cpu_wp = mx51_3stack_get_cpu_wp;
+	set_num_cpu_wp = mx51_3stack_set_num_cpu_wp;
 #ifdef CONFIG_DISCONTIGMEM
 	do {
 		int nid;

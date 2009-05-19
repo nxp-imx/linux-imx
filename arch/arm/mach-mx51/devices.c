@@ -793,7 +793,7 @@ struct mxc_dvfs_platform_data dvfs_core_data = {
 	.upcnt_val = 10,
 	.dncnt_val = 10,
 	.delay_time = 30,
-	.num_wp = 2,
+	.num_wp = 3,
 };
 
 /*! Device Definition for MXC DVFS core */
