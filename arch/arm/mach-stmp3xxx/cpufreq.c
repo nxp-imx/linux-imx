@@ -368,7 +368,6 @@ static int __init stmp3xxx_cpu_init(struct cpufreq_policy *policy)
 	policy->cpuinfo.max_freq = profiles[ARRAY_SIZE(profiles) - 1].cpu;
 	policy->cpuinfo.transition_latency = 1000000; /* 1 ms, assumed */
 	clk_put(cpu_clk);
-//	stmp3xxx_platform_add_regulator("cpufreq", 1);
 
 	return 0;
 }

@@ -60,6 +60,8 @@ struct stmp3xxx_platform_regulator_data {
 	struct regulation_constraints *constraints;
 };
 
-int stmp3xxx_platform_add_regulator(const char *name, int count);
+int stmp3xxx_register_regulator(
+		struct stmp3xxx_regulator *reg_data, int reg,
+		      struct regulator_init_data *initdata);
 
 #endif /* __VOLTAGE_H */

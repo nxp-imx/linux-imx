@@ -361,8 +361,6 @@ static struct i2c_board_info __initdata stmp3xxx_i2c_devices[] = {
 static void __init stmp378x_devb_init(void)
 {
 	struct fsl_usb2_platform_data *udata;
-	int i;
-
 	stmp3xxx_init();
 
 	i2c_register_board_info(0, stmp3xxx_i2c_devices, ARRAY_SIZE(stmp3xxx_i2c_devices));
@@ -378,15 +376,6 @@ static void __init stmp378x_devb_init(void)
 	platform_add_devices(devices, ARRAY_SIZE(devices));
 	if (pwm_leds_enable)
 		platform_device_register(&stmp378x_leds);
-#if 0
-	for (i = 0; i < ARRAY_SIZE(devices); i++) {
-		struct platform_device *p = devices[i];
-		stmp3xxx_platform_add_regulator(p->name, 1);
-	}
-	stmp3xxx_platform_add_regulator("mmc_ssp", 2);
-	stmp3xxx_platform_add_regulator("charger", 1);
-	stmp3xxx_platform_add_regulator("power-test", 1);
-#endif
 }
 
 MACHINE_START(STMP378X, "STMP378X")
