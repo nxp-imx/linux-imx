@@ -70,7 +70,7 @@ enum asrc_status {
 	ASRC_ASRSTR_AOOLA = 0x20000,
 	ASRC_ASRSTR_AOOLB = 0x40000,
 	ASRC_ASRSTR_AOOLC = 0x80000,
-	ASRC_ASRSTR_ATQOA = 0x100000,
+	ASRC_ASRSTR_ATQOL = 0x100000,
 	ASRC_ASRSTR_DSLCNT = 0x200000,
 };
 
@@ -121,7 +121,6 @@ static int asrc_set_clock_ratio(enum asrc_pair_index index,
 
 	if (output_sample_rate == 0)
 		return -1;
-
 	while (input_sample_rate >= output_sample_rate) {
 		input_sample_rate -= output_sample_rate;
 		integ++;
@@ -144,7 +143,6 @@ static int asrc_set_clock_ratio(enum asrc_pair_index index,
 		     (asrc_vrt_base_addr + ASRC_ASRIDRLA_REG + (index << 3)));
 	__raw_writel((reg_val >> 24),
 		     (asrc_vrt_base_addr + ASRC_ASRIDRHA_REG + (index << 3)));
-
 	return 0;
 }
 
@@ -154,52 +152,75 @@ static int asrc_set_process_configuration(enum asrc_pair_index index,
 {
 	int i = 0, j = 0;
 	unsigned long reg;
-
-	if (input_sample_rate == 8000)
+	switch (input_sample_rate) {
+	case 8000:
 		i = 0;
-	else if (input_sample_rate == 12000)
+		break;
+	case 12000:
 		i = 1;
-	else if (input_sample_rate == 16000)
+		break;
+	case 16000:
 		i = 2;
-	else if (input_sample_rate == 24000)
+		break;
+	case 24000:
 		i = 3;
-	else if (input_sample_rate == 32000)
+		break;
+	case 32000:
 		i = 4;
-	else if (input_sample_rate == 44100)
+		break;
+	case 44100:
 		i = 5;
-	else if (input_sample_rate == 48000)
+		break;
+	case 48000:
 		i = 6;
-	else if (input_sample_rate == 64000)
+		break;
+	case 64000:
 		i = 7;
-	else if (input_sample_rate == 88200)
+		break;
+	case 88200:
 		i = 8;
-	else if (input_sample_rate == 96000)
+		break;
+	case 96000:
 		i = 9;
-	else if (input_sample_rate == 128000)
+		break;
+	case 128000:
 		i = 10;
-	else if (input_sample_rate == 192000)
+		break;
+	case 192000:
 		i = 11;
-	else
+		break;
+	default:
 		return -1;
+	}
 
-	if (output_sample_rate == 32000)
+	switch (output_sample_rate) {
+	case 32000:
 		j = 0;
-	else if (output_sample_rate == 44100)
+		break;
+	case 44100:
 		j = 1;
-	else if (output_sample_rate == 48000)
+		break;
+	case 48000:
 		j = 2;
-	else if (output_sample_rate == 64000)
+		break;
+	case 64000:
 		j = 3;
-	else if (output_sample_rate == 88200)
+		break;
+	case 88200:
 		j = 4;
-	else if (output_sample_rate == 96000)
+		break;
+	case 96000:
 		j = 5;
-	else if (output_sample_rate == 128000)
+		break;
+	case 128000:
 		j = 6;
-	else if (output_sample_rate == 192000)
+		break;
+	case 192000:
 		j = 7;
-	else
+		break;
+	default:
 		return -1;
+	}
 
 	reg = __raw_readl(asrc_vrt_base_addr + ASRC_ASRCFG_REG);
 	reg &= ~(0x0f << (6 + (index << 2)));
@@ -208,6 +229,84 @@ static int asrc_set_process_configuration(enum asrc_pair_index index,
 	     (asrc_process_table[i][j][1] << (8 + (index << 2))));
 	__raw_writel(reg, asrc_vrt_base_addr + ASRC_ASRCFG_REG);
 
+	return 0;
+}
+
+static int asrc_set_idealratio_clock_divider(enum asrc_pair_index index,
+					     int input_sample_rate,
+					     int output_sample_rate)
+{
+	int i = 0, j = 0;
+	unsigned long reg;
+	switch (input_sample_rate) {
+	case 8000:
+		i = 0;
+		break;
+	case 12000:
+		i = 1;
+		break;
+	case 16000:
+		i = 2;
+		break;
+	case 24000:
+		i = 3;
+		break;
+	case 32000:
+		i = 4;
+		break;
+	case 44100:
+		i = 5;
+		break;
+	case 48000:
+		i = 6;
+		break;
+	case 64000:
+		i = 7;
+		break;
+	case 88200:
+		i = 8;
+		break;
+	case 96000:
+		i = 9;
+		break;
+	case 128000:
+		i = 10;
+		break;
+	case 192000:
+		i = 11;
+		break;
+	default:
+		return -1;
+	}
+
+	switch (output_sample_rate) {
+	case 32000:
+		j = 0;
+		break;
+	case 44100:
+		j = 1;
+		break;
+	case 48000:
+		j = 2;
+		break;
+	case 64000:
+		j = 3;
+		break;
+	case 88200:
+		j = 4;
+		break;
+	case 96000:
+		j = 5;
+		break;
+	case 128000:
+		j = 6;
+		break;
+	case 192000:
+		j = 7;
+		break;
+	default:
+		return -1;
+	}
 	if (index == ASRC_PAIR_A) {
 		reg = __raw_readl(asrc_vrt_base_addr + ASRC_ASRCDR1_REG);
 		reg &= 0xfc0fc0;
@@ -274,8 +373,10 @@ void asrc_release_pair(enum asrc_pair_index index)
 {
 	unsigned long reg;
 	unsigned long lock_flags;
+
 	spin_lock_irqsave(&data_lock, lock_flags);
 	g_asrc_data->asrc_pair[index].active = 0;
+	g_asrc_data->asrc_pair[index].overload_error = 0;
 	/********Disable PAIR*************/
 	reg = __raw_readl(asrc_vrt_base_addr + ASRC_ASRCTR_REG);
 	reg &= ~(1 << (index + 1));
@@ -321,26 +422,100 @@ int asrc_config_pair(struct asrc_config *config)
 
 	__raw_writel(reg, asrc_vrt_base_addr + ASRC_ASRCSR_REG);
 
+	/* default setting */
+	/* automatic selection for processing mode */
 	reg = __raw_readl(asrc_vrt_base_addr + ASRC_ASRCTR_REG);
-	if ((config->inclk & 0x0f) != INCLK_NONE) {
-		reg |= (1 << (20 + config->pair));
-		reg &= ~(1 << (14 + (config->pair << 1)));
-		__raw_writel(reg, asrc_vrt_base_addr + ASRC_ASRCTR_REG);
+	reg |= (1 << (20 + config->pair));
+	reg &= ~(1 << (14 + (config->pair << 1)));
+
+	__raw_writel(reg, asrc_vrt_base_addr + ASRC_ASRCTR_REG);
+
+	reg = __raw_readl(asrc_vrt_base_addr + ASRC_ASRRA_REG);
+	reg &= 0xffbfffff;
+	__raw_writel(reg, asrc_vrt_base_addr + ASRC_ASRRA_REG);
+
+	reg = __raw_readl(asrc_vrt_base_addr + ASRC_ASRCTR_REG);
+	reg = reg & (~(1 << 23));
+	__raw_writel(reg, asrc_vrt_base_addr + ASRC_ASRCTR_REG);
+
+	reg = __raw_readl(asrc_vrt_base_addr + ASRC_ASRCDR1_REG);
+	if (config->pair == ASRC_PAIR_A) {
+		reg = __raw_readl(asrc_vrt_base_addr + ASRC_ASRCDR1_REG);
+		reg &= 0xfc0fc0;
+		if (config->word_width == 16 || config->word_width == 8)
+			reg |= 0x005005;
+		else if (config->word_width == 32 || config->word_width == 24)
+			reg |= 0x006006;
+		else
+			err = -EFAULT;
+		__raw_writel(reg, asrc_vrt_base_addr + ASRC_ASRCDR1_REG);
+	} else if (config->pair == ASRC_PAIR_B) {
+		reg = __raw_readl(asrc_vrt_base_addr + ASRC_ASRCDR1_REG);
+		reg &= 0x03f03f;
+		if (config->word_width == 16 || config->word_width == 8)
+			reg |= 0x140140;
+		else if (config->word_width == 32 || config->word_width == 24)
+			reg |= 0x180180;
+		else
+			err = -EFAULT;
+		__raw_writel(reg, asrc_vrt_base_addr + ASRC_ASRCDR1_REG);
 	} else {
+		reg = __raw_readl(asrc_vrt_base_addr + ASRC_ASRCDR2_REG);
+		if (config->word_width == 16 || config->word_width == 8)
+			reg |= 0x145;
+		else if (config->word_width == 32 || config->word_width == 24)
+			reg |= 0x186;
+		else
+			err = -EFAULT;
+		__raw_writel(reg, asrc_vrt_base_addr + ASRC_ASRCDR2_REG);
+	}
+
+	/* check whether ideal ratio is a must */
+	if ((config->inclk & 0x0f) == INCLK_NONE) {
+		reg = __raw_readl(asrc_vrt_base_addr + ASRC_ASRCTR_REG);
 		reg &= ~(1 << (20 + config->pair));
 		reg |= (0x03 << (13 + (config->pair << 1)));
 		__raw_writel(reg, asrc_vrt_base_addr + ASRC_ASRCTR_REG);
-		err =
-		    asrc_set_clock_ratio(config->pair,
-					 config->input_sample_rate,
-					 config->output_sample_rate);
+		err = asrc_set_clock_ratio(config->pair,
+					   config->input_sample_rate,
+					   config->output_sample_rate);
 		if (err < 0)
 			return err;
+
+		err = asrc_set_process_configuration(config->pair,
+						     config->input_sample_rate,
+						     config->
+						     output_sample_rate);
+		if (err < 0)
+			return err;
+
+		if ((config->outclk & 0xf) == OUTCLK_ASRCK1_CLK) {
+			err = asrc_set_idealratio_clock_divider(config->pair,
+								config->
+								input_sample_rate,
+								config->
+								output_sample_rate);
+			if (err < 0)
+				return err;
+		}
+	} else if ((config->inclk & 0x0f) == INCLK_ASRCK1_CLK) {
+		if (config->input_sample_rate == 44100
+		    || config->input_sample_rate == 88200) {
+			pr_info
+			    ("ASRC core clock cann't support sample rate %d\n",
+			     config->input_sample_rate);
+			err = -EFAULT;
+		}
+	} else if ((config->outclk & 0x0f) == OUTCLK_ASRCK1_CLK) {
+		if (config->output_sample_rate == 44100
+		    || config->output_sample_rate == 88200) {
+			pr_info
+			    ("ASRC core clock cann't support sample rate %d\n",
+			     config->input_sample_rate);
+			err = -EFAULT;
+		}
 	}
 
-	err = asrc_set_process_configuration(config->pair,
-					     config->input_sample_rate,
-					     config->output_sample_rate);
 	return err;
 }
 
@@ -348,14 +523,39 @@ EXPORT_SYMBOL(asrc_config_pair);
 
 void asrc_start_conv(enum asrc_pair_index index)
 {
-	int reg;
+	int reg, reg_1;
 	unsigned long lock_flags;
+	int i;
+
 	spin_lock_irqsave(&data_lock, lock_flags);
+
+	reg = __raw_readl(asrc_vrt_base_addr + ASRC_ASRSTR_REG);
+
 	reg = __raw_readl(asrc_vrt_base_addr + ASRC_ASRCTR_REG);
 	if ((reg & 0x0E) == 0)
 		clk_enable(mxc_asrc_data->asrc_audio_clk);
 	reg |= (1 << (1 + index));
 	__raw_writel(reg, asrc_vrt_base_addr + ASRC_ASRCTR_REG);
+
+	reg = __raw_readl(asrc_vrt_base_addr + ASRC_ASRCFG_REG);
+	while (!(reg & (1 << (index + 21))))
+		reg = __raw_readl(asrc_vrt_base_addr + ASRC_ASRCFG_REG);
+	reg_1 = __raw_readl(asrc_vrt_base_addr + ASRC_ASRSTR_REG);
+	for (i = 0; i < 20; i++) {
+		reg = 0;
+		__raw_writel(reg, asrc_vrt_base_addr + ASRC_ASRDIA_REG);
+		__raw_writel(reg, asrc_vrt_base_addr + ASRC_ASRDIA_REG);
+		__raw_writel(reg, asrc_vrt_base_addr + ASRC_ASRDIA_REG);
+		__raw_writel(reg, asrc_vrt_base_addr + ASRC_ASRDIA_REG);
+		__raw_writel(reg, asrc_vrt_base_addr + ASRC_ASRDIA_REG);
+		__raw_writel(reg, asrc_vrt_base_addr + ASRC_ASRDIA_REG);
+		__raw_writel(reg, asrc_vrt_base_addr + ASRC_ASRDIA_REG);
+		__raw_writel(reg, asrc_vrt_base_addr + ASRC_ASRDIA_REG);
+	}
+	reg = __raw_readl(asrc_vrt_base_addr + ASRC_ASRSTR_REG);
+
+	reg = __raw_readl(asrc_vrt_base_addr + ASRC_ASRCTR_REG);
+	__raw_writel(0x40, asrc_vrt_base_addr + ASRC_ASRIER_REG);
 	spin_unlock_irqrestore(&data_lock, lock_flags);
 	return;
 }
@@ -384,37 +584,83 @@ EXPORT_SYMBOL(asrc_stop_conv);
 static irqreturn_t asrc_isr(int irq, void *dev_id)
 {
 	unsigned long status;
-	status = __raw_readl(asrc_vrt_base_addr + ASRC_ASRSTR_REG);
+	int reg = 0x40;
 
-	if (status & ASRC_ASRSTR_AOLE) {
-		pr_info("asrc overload error\n");
-		/*****How to clear it, write 1 to this bit?*/
+	status = __raw_readl(asrc_vrt_base_addr + ASRC_ASRSTR_REG);
+	if (g_asrc_data->asrc_pair[ASRC_PAIR_A].active == 1) {
+		if (status & ASRC_ASRSTR_ATQOL)
+			g_asrc_data->asrc_pair[ASRC_PAIR_A].overload_error |=
+			    ASRC_TASK_Q_OVERLOAD;
+		if (status & ASRC_ASRSTR_AOOLA)
+			g_asrc_data->asrc_pair[ASRC_PAIR_A].overload_error |=
+			    ASRC_OUTPUT_TASK_OVERLOAD;
+		if (status & ASRC_ASRSTR_AIOLA)
+			g_asrc_data->asrc_pair[ASRC_PAIR_A].overload_error |=
+			    ASRC_INPUT_TASK_OVERLOAD;
+		if (status & ASRC_ASRSTR_AODOA)
+			g_asrc_data->asrc_pair[ASRC_PAIR_A].overload_error |=
+			    ASRC_OUTPUT_BUFFER_OVERFLOW;
+		if (status & ASRC_ASRSTR_AIDUA)
+			g_asrc_data->asrc_pair[ASRC_PAIR_A].overload_error |=
+			    ASRC_INPUT_BUFFER_UNDERRUN;
+	} else if (g_asrc_data->asrc_pair[ASRC_PAIR_B].active == 1) {
+		if (status & ASRC_ASRSTR_ATQOL)
+			g_asrc_data->asrc_pair[ASRC_PAIR_B].overload_error |=
+			    ASRC_TASK_Q_OVERLOAD;
+		if (status & ASRC_ASRSTR_AOOLB)
+			g_asrc_data->asrc_pair[ASRC_PAIR_B].overload_error |=
+			    ASRC_OUTPUT_TASK_OVERLOAD;
+		if (status & ASRC_ASRSTR_AIOLB)
+			g_asrc_data->asrc_pair[ASRC_PAIR_B].overload_error |=
+			    ASRC_INPUT_TASK_OVERLOAD;
+		if (status & ASRC_ASRSTR_AODOB)
+			g_asrc_data->asrc_pair[ASRC_PAIR_B].overload_error |=
+			    ASRC_OUTPUT_BUFFER_OVERFLOW;
+		if (status & ASRC_ASRSTR_AIDUB)
+			g_asrc_data->asrc_pair[ASRC_PAIR_B].overload_error |=
+			    ASRC_INPUT_BUFFER_UNDERRUN;
+	} else if (g_asrc_data->asrc_pair[ASRC_PAIR_C].active == 1) {
+		if (status & ASRC_ASRSTR_ATQOL)
+			g_asrc_data->asrc_pair[ASRC_PAIR_C].overload_error |=
+			    ASRC_TASK_Q_OVERLOAD;
+		if (status & ASRC_ASRSTR_AOOLC)
+			g_asrc_data->asrc_pair[ASRC_PAIR_C].overload_error |=
+			    ASRC_OUTPUT_TASK_OVERLOAD;
+		if (status & ASRC_ASRSTR_AIOLC)
+			g_asrc_data->asrc_pair[ASRC_PAIR_C].overload_error |=
+			    ASRC_INPUT_TASK_OVERLOAD;
+		if (status & ASRC_ASRSTR_AODOC)
+			g_asrc_data->asrc_pair[ASRC_PAIR_C].overload_error |=
+			    ASRC_OUTPUT_BUFFER_OVERFLOW;
+		if (status & ASRC_ASRSTR_AIDUC)
+			g_asrc_data->asrc_pair[ASRC_PAIR_C].overload_error |=
+			    ASRC_INPUT_BUFFER_UNDERRUN;
 	}
 
-	if (status & ASRC_ASRSTR_AIDUA)
-		pr_info("input data buffer A has underflowed\n");
-
-	if (status & ASRC_ASRSTR_AIDUB)
-		pr_info("input data buffer B has underflowed\n");
-
-	if (status & ASRC_ASRSTR_AIDUC)
-		pr_info("input data buffer C has underflowed\n");
-
-	if (status & ASRC_ASRSTR_AODOA)
-		pr_info("output data buffer A has overflowed\n");
-
-	if (status & ASRC_ASRSTR_AODOB)
-		pr_info("output data buffer B has overflowed\n");
-
-	if (status & ASRC_ASRSTR_AODOC)
-		pr_info("output data buffer C has overflowed\n");
+	/* try to clean the overload error  */
+	__raw_writel(reg, asrc_vrt_base_addr + ASRC_ASRSTR_REG);
 
 	return IRQ_HANDLED;
 }
 
+void asrc_get_status(struct asrc_status_flags *flags)
+{
+	unsigned int reg;
+	unsigned long lock_flags;
+	enum asrc_pair_index index;
+
+	spin_lock_irqsave(&data_lock, lock_flags);
+	index = flags->index;
+	flags->overload_error = g_asrc_data->asrc_pair[index].overload_error;
+
+	spin_unlock_irqrestore(&data_lock, lock_flags);
+	return;
+}
+
+EXPORT_SYMBOL(asrc_get_status);
+
 static int mxc_init_asrc(void)
 {
-
 	/* Halt ASRC internal FP when input FIFO needs data for pair A, B, C */
 	__raw_writel(0x0001, asrc_vrt_base_addr + ASRC_ASRCTR_REG);
 
@@ -432,6 +678,8 @@ static int mxc_init_asrc(void)
 	__raw_writel(0xff7280, asrc_vrt_base_addr + ASRC_ASRPM3_REG);
 	__raw_writel(0xff7280, asrc_vrt_base_addr + ASRC_ASRPM4_REG);
 	__raw_writel(0xff7280, asrc_vrt_base_addr + ASRC_ASRPM5_REG);
+
+	__raw_writel(0x001f00, asrc_vrt_base_addr + ASRC_ASRTFR1);
 
 	/* Set the processing clock for 76KHz, 133M  */
 	__raw_writel(0x06D6, asrc_vrt_base_addr + ASRC_ASR76K_REG);
@@ -479,6 +727,7 @@ static void asrc_input_dma_callback(void *data, int error, unsigned int count)
 	unsigned long lock_flags;
 
 	params = data;
+
 	spin_lock_irqsave(&input_int_lock, lock_flags);
 	params->input_queue_empty--;
 	if (!list_empty(&params->input_queue)) {
@@ -510,6 +759,7 @@ static void asrc_output_dma_callback(void *data, int error, unsigned int count)
 	unsigned long lock_flags;
 
 	params = data;
+
 	spin_lock_irqsave(&output_int_lock, lock_flags);
 	params->output_queue_empty--;
 
@@ -563,7 +813,6 @@ static void mxc_free_dma_buf(struct asrc_pair_params *params)
 static int mxc_allocate_dma_buf(struct asrc_pair_params *params)
 {
 	int i;
-
 	for (i = 0; i < ASRC_DMA_BUFFER_NUM; i++) {
 		params->input_dma[i].dma_vaddr =
 		    dma_alloc_coherent(0, params->input_buffer_size,
@@ -613,7 +862,6 @@ static int asrc_ioctl(struct inode *inode, struct file *file,
 
 	if (down_interruptible(&params->busy_lock))
 		return -EBUSY;
-
 	switch (cmd) {
 	case ASRC_REQ_PAIR:
 		{
@@ -633,7 +881,7 @@ static int asrc_ioctl(struct inode *inode, struct file *file,
 
 			break;
 		}
-	case ASRC_CONIFG_PAIR:
+	case ASRC_CONFIG_PAIR:
 		{
 			struct asrc_config config;
 			mxc_dma_device_t rx_id, tx_id;
@@ -645,8 +893,6 @@ static int asrc_ioctl(struct inode *inode, struct file *file,
 				err = -EFAULT;
 				break;
 			}
-			config.inclk = INCLK_NONE;
-			config.outclk = OUTCLK_ASRCK1_CLK;
 			err = asrc_config_pair(&config);
 			if (err < 0)
 				break;
@@ -748,7 +994,10 @@ static int asrc_ioctl(struct inode *inode, struct file *file,
 			mxc_dma_free(params->output_dma_channel);
 			mxc_free_dma_buf(params);
 			asrc_release_pair(index);
-			params->pair_hold = 0;
+			if (g_asrc_data->asrc_pair[ASRC_PAIR_A].active == 0
+			    && g_asrc_data->asrc_pair[ASRC_PAIR_A].active == 0
+			    && g_asrc_data->asrc_pair[ASRC_PAIR_A].active == 0)
+				params->pair_hold = 0;
 			break;
 		}
 	case ASRC_Q_INBUF:
@@ -782,7 +1031,6 @@ static int asrc_ioctl(struct inode *inode, struct file *file,
 					       input_dma_channel,
 					       &dma_request, 1,
 					       MXC_DMA_MODE_WRITE);
-				mxc_dma_enable(params->input_dma_channel);
 				params->input_queue_empty++;
 				list_del(params->input_queue.next);
 				list_add_tail(&block->queue,
@@ -860,7 +1108,6 @@ static int asrc_ioctl(struct inode *inode, struct file *file,
 					       output_dma_channel,
 					       &dma_request, 1,
 					       MXC_DMA_MODE_READ);
-				mxc_dma_enable(params->output_dma_channel);
 				list_del(params->output_queue.next);
 				list_add_tail(&block->queue,
 					      &params->output_done_queue);
@@ -966,9 +1213,9 @@ static int asrc_ioctl(struct inode *inode, struct file *file,
 			}
 			params->asrc_active = 1;
 
+			asrc_start_conv(index);
 			mxc_dma_enable(params->input_dma_channel);
 			mxc_dma_enable(params->output_dma_channel);
-			asrc_start_conv(index);
 			break;
 		}
 	case ASRC_STOP_CONV:{
@@ -983,7 +1230,25 @@ static int asrc_ioctl(struct inode *inode, struct file *file,
 			mxc_dma_disable(params->input_dma_channel);
 			mxc_dma_disable(params->output_dma_channel);
 			asrc_stop_conv(index);
-			params->asrc_active = 0;
+			if (g_asrc_data->asrc_pair[ASRC_PAIR_A].active == 0
+			    && g_asrc_data->asrc_pair[ASRC_PAIR_B].active == 0
+			    && g_asrc_data->asrc_pair[ASRC_PAIR_C].active == 0)
+				params->asrc_active = 0;
+			break;
+		}
+	case ASRC_STATUS:{
+			struct asrc_status_flags flags;
+			if (copy_from_user
+			    (&flags, (void __user *)arg,
+			     sizeof(struct asrc_status_flags))) {
+				err = -EFAULT;
+				break;
+			}
+			asrc_get_status(&flags);
+			if (copy_to_user
+			    ((void __user *)arg, &flags,
+			     sizeof(struct asrc_status_flags)))
+				err = -EFAULT;
 			break;
 		}
 	default:
@@ -1008,7 +1273,6 @@ static int mxc_asrc_open(struct inode *inode, struct file *file)
 {
 	int err = 0;
 	struct asrc_pair_params *pair_params;
-
 	if (signal_pending(current))
 		return -EINTR;
 
@@ -1034,7 +1298,6 @@ static int mxc_asrc_open(struct inode *inode, struct file *file)
 static int mxc_asrc_close(struct inode *inode, struct file *file)
 {
 	struct asrc_pair_params *pair_params;
-
 	pair_params = file->private_data;
 	if (pair_params->asrc_active == 1) {
 		mxc_dma_disable(pair_params->input_dma_channel);
@@ -1090,7 +1353,6 @@ static int asrc_read_proc_attr(char *page, char **start, off_t off,
 {
 	unsigned long reg;
 	int len = 0;
-
 	reg = __raw_readl(asrc_vrt_base_addr + ASRC_ASRCNCR_REG);
 
 	len += sprintf(page, "ANCA: %d\n",
@@ -1126,7 +1388,6 @@ static int asrc_write_proc_attr(struct file *file, const char *buffer,
 	int total;
 	if (count > 48)
 		return -EINVAL;
-
 	if (copy_from_user(buf, buffer, count)) {
 		pr_debug("Attr proc write, Failed to copy buffer from user\n");
 		return -EFAULT;
@@ -1153,7 +1414,6 @@ static int asrc_write_proc_attr(struct file *file, const char *buffer,
 static void asrc_proc_create(void)
 {
 	struct proc_dir_entry *proc_attr;
-
 	proc_asrc = proc_mkdir(ASRC_PROC_PATH, NULL);
 	if (proc_asrc) {
 		proc_attr = create_proc_entry("ChSettings",
@@ -1166,6 +1426,7 @@ static void asrc_proc_create(void)
 			proc_attr->uid = proc_attr->gid = 0;
 			proc_attr->owner = THIS_MODULE;
 		} else {
+			remove_proc_entry(ASRC_PROC_PATH, NULL);
 			pr_info("Failed to create proc attribute entry \n");
 		}
 	} else {
@@ -1185,7 +1446,6 @@ static int mxc_asrc_probe(struct platform_device *pdev)
 	int err = 0;
 	struct resource *res;
 	struct device *temp_class;
-
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	if (!res)
 		return -ENOENT;
@@ -1200,6 +1460,9 @@ static int mxc_asrc_probe(struct platform_device *pdev)
 	g_asrc_data->asrc_pair[0].chn_max = 2;
 	g_asrc_data->asrc_pair[1].chn_max = 2;
 	g_asrc_data->asrc_pair[2].chn_max = 6;
+	g_asrc_data->asrc_pair[0].overload_error = 0;
+	g_asrc_data->asrc_pair[1].overload_error = 0;
+	g_asrc_data->asrc_pair[3].overload_error = 0;
 
 	asrc_major = register_chrdev(asrc_major, "mxc_asrc", &asrc_fops);
 	if (asrc_major < 0) {
@@ -1261,7 +1524,8 @@ static int mxc_asrc_remove(struct platform_device *pdev)
 	clk_disable(mxc_asrc_data->asrc_core_clk);
 	mxc_asrc_data = NULL;
 	iounmap((unsigned long __iomem *)asrc_vrt_base_addr);
-	remove_proc_entry(proc_asrc->name, NULL);
+	remove_proc_entry("ChSettings", proc_asrc);
+	remove_proc_entry(ASRC_PROC_PATH, NULL);
 	device_destroy(asrc_class, MKDEV(asrc_major, 0));
 	class_destroy(asrc_class);
 	unregister_chrdev(asrc_major, "mxc_asrc");

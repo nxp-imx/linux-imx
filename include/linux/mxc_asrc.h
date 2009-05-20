@@ -25,7 +25,7 @@
 #define ASRC_IOC_MAGIC	'C'
 
 #define ASRC_REQ_PAIR	_IOWR(ASRC_IOC_MAGIC, 0, struct asrc_req)
-#define ASRC_CONIFG_PAIR	_IOWR(ASRC_IOC_MAGIC, 1, struct asrc_config)
+#define ASRC_CONFIG_PAIR	_IOWR(ASRC_IOC_MAGIC, 1, struct asrc_config)
 #define ASRC_RELEASE_PAIR	_IOW(ASRC_IOC_MAGIC, 2, enum asrc_pair_index)
 #define ASRC_QUERYBUF	_IOWR(ASRC_IOC_MAGIC, 3, struct asrc_buffer)
 #define ASRC_Q_INBUF	_IOW(ASRC_IOC_MAGIC, 4, struct asrc_buffer)
@@ -34,6 +34,7 @@
 #define ASRC_DQ_OUTBUF	_IOW(ASRC_IOC_MAGIC, 7, struct asrc_buffer)
 #define ASRC_START_CONV	_IOW(ASRC_IOC_MAGIC, 8, enum asrc_pair_index)
 #define ASRC_STOP_CONV	_IOW(ASRC_IOC_MAGIC, 9, enum asrc_pair_index)
+#define ASRC_STATUS	_IOW(ASRC_IOC_MAGIC, 10, struct asrc_status_flags)
 
 enum asrc_pair_index {
 	ASRC_PAIR_A,
@@ -76,6 +77,7 @@ struct asrc_config {
 	unsigned int dma_buffer_size;
 	unsigned int input_sample_rate;
 	unsigned int output_sample_rate;
+	unsigned int word_width;
 	enum asrc_inclk inclk;
 	enum asrc_outclk outclk;
 };
@@ -85,6 +87,7 @@ struct asrc_pair {
 	unsigned int chn_num;
 	unsigned int chn_max;
 	unsigned int active;
+	unsigned int overload_error;
 };
 
 struct asrc_req {
@@ -103,6 +106,11 @@ struct asrc_querybuf {
 struct asrc_buffer {
 	unsigned int index;
 	unsigned int length;
+};
+
+struct asrc_status_flags {
+	enum asrc_pair_index index;
+	unsigned int overload_error;
 };
 
 #ifdef __KERNEL__
@@ -187,9 +195,18 @@ char *asrc_pair_id[] = {
 	[5] = "ASRC TX PAIR C",
 };
 
+enum asrc_error_status {
+	ASRC_TASK_Q_OVERLOAD = 0x01,
+	ASRC_OUTPUT_TASK_OVERLOAD = 0x02,
+	ASRC_INPUT_TASK_OVERLOAD = 0x04,
+	ASRC_OUTPUT_BUFFER_OVERFLOW = 0x08,
+	ASRC_INPUT_BUFFER_UNDERRUN = 0x10,
+};
+
 extern int asrc_req_pair(int chn_num, enum asrc_pair_index *index);
 extern void asrc_release_pair(enum asrc_pair_index index);
 extern int asrc_config_pair(struct asrc_config *config);
+extern void asrc_get_status(struct asrc_status_flags *flags);
 extern void asrc_start_conv(enum asrc_pair_index index);
 extern void asrc_stop_conv(enum asrc_pair_index index);
 
