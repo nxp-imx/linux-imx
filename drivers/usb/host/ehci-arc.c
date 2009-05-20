@@ -170,7 +170,7 @@ static int usb_hcd_fsl_probe(const struct hc_driver *driver,
 
 		res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 		hcd->rsrc_start = res->start;
-		hcd->rsrc_len = res->end - res->start + 1;
+		hcd->rsrc_len = resource_size(res);
 
 		if (!request_mem_region(hcd->rsrc_start, hcd->rsrc_len,
 					driver->description)) {
