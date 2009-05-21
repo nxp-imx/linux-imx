@@ -45,6 +45,11 @@ static struct map_desc mxc_io_desc[] __initdata = {
 	 .length = NFC_SIZE,
 	 .type = MT_DEVICE},
 	{
+	 .virtual = ROMP_BASE_ADDR_VIRT,
+	 .pfn = __phys_to_pfn(ROMP_BASE_ADDR),
+	 .length = ROMP_SIZE,
+	 .type = MT_DEVICE},
+	{
 	 .virtual = ASIC_BASE_ADDR_VIRT,
 	 .pfn = __phys_to_pfn(ASIC_BASE_ADDR),
 	 .length = ASIC_SIZE,

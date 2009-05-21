@@ -67,6 +67,12 @@ config I2C_MXC_SELECT3
 	help
 	  Enable MX25 I2C3 module.
 
+config FLEXCAN_MXC_SELECT1
+	bool "Enable FlexCAN1 module"
+	depends on CAN_FLEXCAN
+	help
+	  Enable MX25 FlexCAN1 module.
+
 endmenu
 
 endmenu

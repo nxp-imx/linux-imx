@@ -23,10 +23,16 @@
 #define OSC24M_CLK_FREQ     24000000	/* 24M reference clk */
 #define OSC32K_CLK_FREQ     32768	/* 32.768k oscillator in */
 
+#if defined CONFIG_CPU_FREQ_IMX
+#define AHB_CLK_DEFAULT 133000000
+#define ARM_SRC_DEFAULT 532000000
+#endif
+
 static struct clk mpll_clk;
 static struct clk upll_clk;
 static struct clk ahb_clk;
 static struct clk upll_24610k_clk;
+int cpu_wp_nr;
 
 static int _clk_enable(struct clk *clk)
 {
@@ -145,9 +151,36 @@ static unsigned long _clk_cpu_round_rate(struct clk *clk, unsigned long rate)
 
 static int _clk_cpu_set_rate(struct clk *clk, unsigned long rate)
 {
-	int div, reg;
+	unsigned long div = 0x0, reg = 0x0;
 	unsigned long cctl = __raw_readl(MXC_CCM_CCTL);
 
+#if defined CONFIG_CPU_FREQ_IMX
+	struct cpu_wp *cpu_wp;
+	unsigned long ahb_clk_div = 0;
+	unsigned long arm_src = 0;
+	int i;
+
+	cpu_wp = get_cpu_wp(&cpu_wp_nr);
+	for (i = 0; i < cpu_wp_nr; i++) {
+		if (cpu_wp[i].cpu_rate == rate) {
+			div = cpu_wp[i].cpu_podf;
+			ahb_clk_div = cpu_wp[i].cpu_rate / AHB_CLK_DEFAULT - 1;
+			arm_src =
+			    (cpu_wp[i].pll_rate == ARM_SRC_DEFAULT) ? 0 : 1;
+			break;
+		}
+	}
+	if (i == cpu_wp_nr)
+		return -EINVAL;
+	reg = (cctl & ~MXC_CCM_CCTL_ARM_MASK) |
+	    (div << MXC_CCM_CCTL_ARM_OFFSET);
+	reg = (reg & ~MXC_CCM_CCTL_AHB_MASK) |
+	    (ahb_clk_div << MXC_CCM_CCTL_AHB_OFFSET);
+	reg = (reg & ~MXC_CCM_CCTL_ARM_SRC) |
+	    (arm_src << MXC_CCM_CCTL_ARM_SRC_OFFSET);
+	__raw_writel(reg, MXC_CCM_CCTL);
+	clk->rate = rate;
+#else
 	div = clk->parent->rate / rate;
 
 	if (div > 4 || div < 1 || ((clk->parent->rate / div) != rate))
@@ -158,6 +191,7 @@ static int _clk_cpu_set_rate(struct clk *clk, unsigned long rate)
 	    (cctl & ~MXC_CCM_CCTL_ARM_MASK) | (div << MXC_CCM_CCTL_ARM_OFFSET);
 	__raw_writel(reg, MXC_CCM_CCTL);
 	clk->rate = rate;
+#endif
 
 	return 0;
 }
@@ -422,7 +456,7 @@ static struct clk per_clk[] = {
 	{
 	 .name = "per_csi_clk",
 	 .id = 0,
-	 .parent = &ahb_clk,	/* can be AHB or UPLL */
+	 .parent = &upll_clk,	/* can be AHB or UPLL */
 	 .round_rate = _clk_perclkx_round_rate,
 	 .set_rate = _clk_perclkx_set_rate,
 	 .set_parent = _clk_perclkx_set_parent,
@@ -1613,6 +1647,21 @@ static struct clk *mxc_clks[] = {
 	&clko_clk,
 };
 
+/*!
+ * Function to get timer clock rate early in boot process before clock tree is
+ * initialized.
+ *
+ * @return	Clock rate for timer
+ */
+unsigned long __init clk_early_get_timer_rate(void)
+{
+	upll_clk.recalc(&upll_clk);
+	per_clk[5].recalc(&per_clk[5]);
+	per_clk[5].enable(&per_clk[5]);
+
+	return per_clk[5].rate;
+}
+
 extern void propagate_rate(struct clk *tclk);
 
 int __init mxc_clocks_init(unsigned long ckil, unsigned long osc, unsigned long ckih1, unsigned long ckih2)
@@ -1641,6 +1690,10 @@ int __init mxc_clocks_init(unsigned long ckil, unsigned long osc, unsigned long 
 	/* the NFC clock must be derived from AHB clock */
 	clk_set_parent(&per_clk[8], &ahb_clk);
 	clk_set_rate(&per_clk[8], ahb_clk.rate / 6);
+
+	/* the csi clock must be derived from UPLL clock */
+	clk_set_parent(&per_clk[0], &upll_clk);
+	clk_set_rate(&per_clk[0], upll_clk.rate / 5);
 
 	pr_info("Clock input source is %ld\n", osc24m_clk.rate);
 

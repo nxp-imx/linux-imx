@@ -56,6 +56,31 @@
 
 unsigned int mx25_3stack_board_io;
 
+/* working point(wp): 0 - 399MHz; 1 - 266MHz; 2 - 133MHz; */
+/* 24MHz input clock table */
+static struct cpu_wp cpu_wp_mx25[] = {
+	{
+	 .pll_rate = 399000000,
+	 .cpu_rate = 399000000,
+	 .cpu_podf = 0x0,
+	 .cpu_voltage = 1450000},
+	{
+	 .pll_rate = 532000000,
+	 .cpu_rate = 266000000,
+	 .cpu_podf = 0x1,
+	 .cpu_voltage = 1340000},
+	{
+	 .pll_rate = 532000000,
+	 .cpu_rate = 133000000,
+	 .cpu_podf = 0x3,
+	 .cpu_voltage = 1340000},
+};
+struct cpu_wp *get_cpu_wp(int *wp)
+{
+	*wp = 3;
+	return cpu_wp_mx25;
+}
+
 static void mxc_nop_release(struct device *dev)
 {
 	/* Nothing */
@@ -178,6 +203,18 @@ static struct platform_device mxc_fb_device = {
 		},
 };
 
+/*
+ * Power on/off CPT VGA panel.
+ */
+void board_power_lcd(int on)
+{
+	if (on)
+		mx2fb_set_brightness(MXC_DEFAULT_INTENSITY);
+	else
+		mx2fb_set_brightness(MXC_INTENSITY_OFF);
+}
+EXPORT_SYMBOL_GPL(board_power_lcd);
+
 static void mxc_init_fb(void)
 {
 	(void)platform_device_register(&mxc_fb_device);
@@ -220,6 +257,20 @@ static struct spi_board_info mxc_spi_board_info[] __initdata = {
 	 .chip_select = 0,
 	 .mode = SPI_MODE_2,
 	 },
+	{
+	 .modalias = "wm8580_spi",
+	 .max_speed_hz = 8000000,	/* max spi SCK clock speed in HZ */
+	 .bus_num = 1,
+	 .chip_select = 1,
+	 },
+};
+
+static struct mxc_camera_platform_data camera_data = {
+	.core_regulator = NULL,
+	.io_regulator = NULL,
+	.analog_regulator = NULL,
+	.gpo_regulator = NULL,
+	.mclk = 24000000,
 };
 
 static struct i2c_board_info mxc_i2c_board_info[] __initdata = {
@@ -230,6 +281,11 @@ static struct i2c_board_info mxc_i2c_board_info[] __initdata = {
 	{
 	 .type = "sgtl5000-i2c",
 	 .addr = 0x0a,
+	 },
+	{
+	 .type = "ov2640",
+	 .addr = 0x30,
+	 .platform_data = (void *)&camera_data,
 	 },
 };
 
@@ -439,6 +495,39 @@ static void __init mx25_3stack_timer_init(void)
 static struct sys_timer mxc_timer = {
 	.init	= mx25_3stack_timer_init,
 };
+
+#if defined(CONFIG_CAN_FLEXCAN) || defined(CONFIG_CAN_FLEXCAN_MODULE)
+static void flexcan_xcvr_enable(int id, int en)
+{
+	static int pwdn;
+
+	if (id != 1)		/* MX25 3-stack uses only CAN2 */
+		return;
+
+	if (en) {
+		if (!pwdn++)
+			mxc_set_gpio_dataout(MX25_PIN_D14, 0);
+	} else {
+		if (!--pwdn)
+			mxc_set_gpio_dataout(MX25_PIN_D14, 1);
+	}
+}
+
+struct flexcan_platform_data flexcan_data[] = {
+	{
+	 .core_reg = NULL,
+	 .io_reg = NULL,
+	 .xcvr_enable = flexcan_xcvr_enable,
+	 .active = gpio_can_active,
+	 .inactive = gpio_can_inactive,},
+	{
+	 .core_reg = NULL,
+	 .io_reg = NULL,
+	 .xcvr_enable = flexcan_xcvr_enable,
+	 .active = gpio_can_active,
+	 .inactive = gpio_can_inactive,},
+};
+#endif
 
 /*!
  * Board specific fixup function. It is called by \b setup_arch() in

@@ -45,6 +45,8 @@
 #define MXC_CCM_PMCR1               (MXC_CCM_BASE + 0x5C)
 #define MXC_CCM_PMCR2               (MXC_CCM_BASE + 0x60)
 #define MXC_CCM_MCR                 (MXC_CCM_BASE + 0x64)
+#define MXC_CCM_LPIMR0              (MXC_CCM_BASE + 0x68)
+#define MXC_CCM_LPIMR1              (MXC_CCM_BASE + 0x6C)
 
 #define MXC_CCM_MPCTL_BRMO          (1 << 31)
 #define MXC_CCM_MPCTL_PD_OFFSET     26
@@ -86,6 +88,7 @@
 #define MXC_CCM_CCTL_USB_DIV_MASK   (0x3 << 16)
 #define MXC_CCM_CCTL_CG_CTRL        (1 << 15)
 #define MXC_CCM_CCTL_ARM_SRC        (1 << 14)
+#define MXC_CCM_CCTL_ARM_SRC_OFFSET	14
 
 #define MXC_CCM_CGCR0_HCLK_ATA_OFFSET    16
 #define MXC_CCM_CGCR0_HCLK_BROM_OFFSET   17
@@ -172,9 +175,26 @@
 #define MXC_CCM_CGCR2_UART5_OFFSET       (50-32)
 #define MXC_CCM_CGCR2_WDOG_OFFSET        (51-32)
 
+#define MXC_CCM_CGCR0_STOP_MODE_MASK	\
+			((1 << MXC_CCM_CGCR0_HCLK_SLCDC_OFFSET) | \
+			 (1 << MXC_CCM_CGCR0_HCLK_RTIC_OFFSET) | \
+			 (1 << MXC_CCM_CGCR0_HCLK_EMI_OFFSET) | \
+			 (1 << MXC_CCM_CGCR0_HCLK_BROM_OFFSET))
+
+#define MXC_CCM_CGCR1_STOP_MODE_MASK	((1 << MXC_CCM_CGCR1_IIM_OFFSET) | \
+					 (1 << MXC_CCM_CGCR1_CAN2_OFFSET) | \
+					 (1 << MXC_CCM_CGCR1_CAN1_OFFSET))
+
+#define MXC_CCM_CGCR2_STOP_MODE_MASK	((1 << MXC_CCM_CGCR2_SPBA_OFFSET) | \
+					 (1 << MXC_CCM_CGCR2_SDMA_OFFSET) | \
+					 (1 << MXC_CCM_CGCR2_RTIC_OFFSET))
+
 #define MXC_CCM_PCDR1_PERDIV1_MASK       0x3f
 
 #define MXC_CCM_RCSR_NF16B               (1 << 14)
+
+#define MXC_CCM_PMCR2_VSTBY		(1 << 17)
+#define MXC_CCM_PMCR2_OSC24M_DOWN	(1 << 16)
 
 #define MXC_CCM_MCR_USB_XTAL_MUX_OFFSET  31
 #define MXC_CCM_MCR_CLKO_EN_OFFSET       30
@@ -188,5 +208,8 @@
 #define MXC_CCM_MCR_USB_CLK_MUX_OFFSET   16
 
 #define MXC_CCM_MCR_PER_CLK_MUX_MASK     (0xFFFF << 0)
+
+#define MXC_CCM_LPIMR0_MASK		0xFFFFFFFF
+#define MXC_CCM_LPIMR1_MASK		0xFFFFFFFF
 
 #endif				/* __ARCH_ARM_MACH_MX25_CRM_REGS_H__ */

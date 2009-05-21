@@ -25,6 +25,7 @@
 
 #include "iomux.h"
 #include "sdma_script_code.h"
+#include "board-mx25_3stack.h"
 
 void mxc_sdma_get_script_info(sdma_script_start_addrs * sdma_script_addr)
 {
@@ -484,6 +485,77 @@ static void imx_init_adc(void)
 }
 #endif
 
+#if defined(CONFIG_CAN_FLEXCAN) || defined(CONFIG_CAN_FLEXCAN_MODULE)
+
+static struct resource flexcan1_resources[] = {
+	{
+	 .start = CAN1_BASE_ADDR,
+	 .end = CAN1_BASE_ADDR + 0x97F,
+	 .flags = IORESOURCE_MEM,},
+	{
+	 .start = MXC_INT_CAN1,
+	 .end = MXC_INT_CAN1,
+	 .flags = IORESOURCE_IRQ,}
+};
+static struct resource flexcan2_resources[] = {
+	{
+	 .start = CAN3_BASE_ADDR,
+	 .end = CAN3_BASE_ADDR + 0x97F,
+	 .flags = IORESOURCE_MEM,},
+	{
+	 .start = MXC_INT_CAN2,
+	 .end = MXC_INT_CAN2,
+	 .flags = IORESOURCE_IRQ,}
+};
+
+static struct platform_device flexcan_devices[] = {
+	{
+	 .name = "FlexCAN",
+	 .id = 0,
+	 .dev = {
+		 .release = mxc_nop_release,
+		 .platform_data = &flexcan_data[0],
+		 },
+	 .num_resources = ARRAY_SIZE(flexcan1_resources),
+	 .resource = flexcan1_resources,},
+	{
+	 .name = "FlexCAN",
+	 .id = 1,
+	 .dev = {
+		 .release = mxc_nop_release,
+		 .platform_data = &flexcan_data[1],
+		 },
+	 .num_resources = ARRAY_SIZE(flexcan2_resources),
+	 .resource = flexcan2_resources,},
+};
+
+static inline void mxc_init_flexcan(void)
+{
+#ifdef CONFIG_FLEXCAN_MXC_SELECT1
+	/* MX25 3stack doesn't use CAN1 */
+	platform_device_register(&flexcan_devices[0]);
+#endif
+	platform_device_register(&flexcan_devices[1]);
+}
+#else
+static inline void mxc_init_flexcan(void)
+{
+}
+#endif
+
+static struct platform_device mxc_alsa_surround_device = {
+	.name = "imx-3stack-wm8580",
+	.id = 0,
+	.dev = {
+		.release = mxc_nop_release,
+		},
+};
+
+static void mxc_init_surround_audio(void)
+{
+	platform_device_register(&mxc_alsa_surround_device);
+}
+
 static int __init mxc_init_devices(void)
 {
 	mxc_init_wdt();
@@ -491,8 +563,10 @@ static int __init mxc_init_devices(void)
 	mxc_init_i2c();
 	mxc_init_dma();
 	mxc_init_ssi();
+	mxc_init_surround_audio();
 	mxc_init_rtc();
 	imx_init_adc();
+	mxc_init_flexcan();
 
 	return 0;
 }
