@@ -168,6 +168,9 @@ static inline void _ipu_ch_param_init(int ch,
 		ipu_ch_param_set_field(&params, 1, 78, 7, 31);	/* burst size */
 
 		_ipu_ch_params_set_packing(&params, 5, 0, 6, 5, 5, 11, 1, 16);
+		/* Set WID3 to be 8-bit for seperate alpha channel */
+		if (ch == 14 || ch == 15)
+			ipu_ch_param_set_field(&params, 1, 125, 3, 7);
 		break;
 	case IPU_PIX_FMT_BGR24:
 		ipu_ch_param_set_field(&params, 0, 107, 3, 1);	/* bits/pixel */
@@ -175,6 +178,9 @@ static inline void _ipu_ch_param_init(int ch,
 		ipu_ch_param_set_field(&params, 1, 78, 7, 19);	/* burst size */
 
 		_ipu_ch_params_set_packing(&params, 8, 0, 8, 8, 8, 16, 1, 24);
+		/* Set WID3 to be 8-bit for seperate alpha channel */
+		if (ch == 14 || ch == 15)
+			ipu_ch_param_set_field(&params, 1, 125, 3, 7);
 		break;
 	case IPU_PIX_FMT_RGB24:
 	case IPU_PIX_FMT_YUV444:
@@ -183,6 +189,9 @@ static inline void _ipu_ch_param_init(int ch,
 		ipu_ch_param_set_field(&params, 1, 78, 7, 19);	/* burst size */
 
 		_ipu_ch_params_set_packing(&params, 8, 16, 8, 8, 8, 0, 1, 24);
+		/* Set WID3 to be 8-bit for seperate alpha channel */
+		if (ch == 14 || ch == 15)
+			ipu_ch_param_set_field(&params, 1, 125, 3, 7);
 		break;
 	case IPU_PIX_FMT_BGRA32:
 	case IPU_PIX_FMT_BGR32:
@@ -312,6 +321,36 @@ static inline void _ipu_ch_param_set_rotation(uint32_t ch,
 static inline void _ipu_ch_param_set_block_mode(uint32_t ch)
 {
 	ipu_ch_param_mod_field(ipu_ch_param_addr(ch), 0, 117, 2, 1);
+};
+
+static inline void _ipu_ch_param_set_separate_alpha_channel(uint32_t ch)
+{
+	ipu_ch_param_mod_field(ipu_ch_param_addr(ch), 1, 89, 1, 1);
+};
+
+static inline void _ipu_ch_param_set_alpha_condition_read(uint32_t ch)
+{
+	ipu_ch_param_mod_field(ipu_ch_param_addr(ch), 1, 149, 1, 1);
+};
+
+static inline void _ipu_ch_param_set_alpha_buffer_memory(uint32_t ch)
+{
+	int alp_mem_idx;
+
+	switch (ch) {
+	case 14: /* PRP graphic */
+		alp_mem_idx = 0;
+		break;
+	case 15: /* PP graphic */
+		alp_mem_idx = 1;
+		break;
+	default:
+		dev_err(g_ipu_dev, "unsupported correlative channel of local "
+			"alpha channel\n");
+		return;
+	}
+
+	ipu_ch_param_mod_field(ipu_ch_param_addr(ch), 1, 90, 3, alp_mem_idx);
 };
 
 static inline void _ipu_ch_param_set_interlaced_scan(uint32_t ch)
