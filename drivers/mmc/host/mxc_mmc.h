@@ -61,8 +61,6 @@
 #define MMC_REM_BLK_SIZE                0x44	/* Remaining Block Size Reg */
 
 /* Bit definitions for STR_STP_CLK */
-#define STR_STP_CLK_IPG_CLK_GATE_DIS    (1<<15)
-#define STR_STP_CLK_IPG_PERCLK_GATE_DIS (1<<14)
 #define STR_STP_CLK_RESET               (1<<3)
 #define STR_STP_CLK_START_CLK           (1<<1)
 #define STR_STP_CLK_STOP_CLK            (1<<0)

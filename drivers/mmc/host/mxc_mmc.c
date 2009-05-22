@@ -331,9 +331,7 @@ static void mxcmci_stop_clock(struct mxcmci_host *host, bool wait)
 {
 	int wait_cnt = 0;
 	while (1) {
-		__raw_writel(STR_STP_CLK_IPG_CLK_GATE_DIS |
-			     STR_STP_CLK_IPG_PERCLK_GATE_DIS |
-			     STR_STP_CLK_STOP_CLK,
+		__raw_writel(STR_STP_CLK_STOP_CLK,
 			     host->base + MMC_STR_STP_CLK);
 
 		if (!wait)
@@ -369,9 +367,7 @@ static void mxcmci_start_clock(struct mxcmci_host *host, bool wait)
 #endif
 
 	while (1) {
-		__raw_writel(STR_STP_CLK_IPG_CLK_GATE_DIS |
-			     STR_STP_CLK_IPG_PERCLK_GATE_DIS |
-			     STR_STP_CLK_START_CLK,
+		__raw_writel(STR_STP_CLK_START_CLK,
 			     host->base + MMC_STR_STP_CLK);
 		if (!wait)
 			break;
@@ -518,13 +514,8 @@ static void mxcmci_start_cmd(struct mxcmci_host *host, struct mmc_command *cmd,
 
 	__raw_writel(cmdat, host->base + MMC_CMD_DAT_CONT);
 
-	if (!(cmdat & CMD_DAT_CONT_DATA_ENABLE) || (cmdat & CMD_DAT_CONT_WRITE)) {
+	if (!(__raw_readl(host->base + MMC_STATUS) & STATUS_CARD_BUS_CLK_RUN))
 		mxcmci_start_clock(host, true);
-	} else {
-		__raw_writel(STR_STP_CLK_IPG_CLK_GATE_DIS |
-			     STR_STP_CLK_IPG_PERCLK_GATE_DIS,
-			     host->base + MMC_STR_STP_CLK);
-	}
 }
 
 /*!
@@ -542,9 +533,6 @@ static void mxcmci_finish_request(struct mxcmci_host *host,
 	host->cmd = NULL;
 	host->data = NULL;
 
-	if (!(req->cmd->flags & MMC_KEEP_CLK_RUN)) {
-		mxcmci_stop_clock(host, true);
-	}
 	mmc_request_done(host->mmc, req);
 }
 
@@ -584,7 +572,7 @@ static int mxcmci_cmd_done(struct mxcmci_host *host, unsigned int stat)
 	/* check for Time out errors */
 	if (stat & STATUS_TIME_OUT_RESP) {
 		__raw_writel(STATUS_TIME_OUT_RESP, host->base + MMC_STATUS);
-		pr_debug("%s: CMD TIMEOUT\n", DRIVER_NAME);
+		pr_debug("%s: CMD %d TIMEOUT\n", DRIVER_NAME, cmd->opcode);
 		cmd->error = -ETIMEDOUT;
 		/*
 		 * Reinitialized the controller to clear the unknown
@@ -595,7 +583,8 @@ static int mxcmci_cmd_done(struct mxcmci_host *host, unsigned int stat)
 		__raw_writel(INT_CNTR_END_CMD_RES, host->base + MMC_INT_CNTR);
 	} else if (stat & STATUS_RESP_CRC_ERR && cmd->flags & MMC_RSP_CRC) {
 		__raw_writel(STATUS_RESP_CRC_ERR, host->base + MMC_STATUS);
-		printk(KERN_ERR "%s: cmd crc error\n", DRIVER_NAME);
+		printk(KERN_ERR "%s: cmd %d CRC error\n", DRIVER_NAME,
+		       cmd->opcode);
 		cmd->error = -EILSEQ;
 		/*
 		 * Reinitialized the controller to clear the unknown
@@ -690,7 +679,8 @@ static int mxcmci_cmd_done(struct mxcmci_host *host, unsigned int stat)
 		/* check for time out and CRC errors */
 		status = __raw_readl(host->base + MMC_STATUS);
 		if (status & STATUS_TIME_OUT_READ) {
-			pr_debug("%s: Read time out occurred\n", DRIVER_NAME);
+			printk(KERN_ERR "%s: Read time out occurred\n",
+			       DRIVER_NAME);
 			data->error = -ETIMEDOUT;
 			__raw_writel(STATUS_TIME_OUT_READ,
 				     host->base + MMC_STATUS);
@@ -703,7 +693,8 @@ static int mxcmci_cmd_done(struct mxcmci_host *host, unsigned int stat)
 			__raw_writel(INT_CNTR_END_CMD_RES,
 				     host->base + MMC_INT_CNTR);
 		} else if (status & STATUS_READ_CRC_ERR) {
-			pr_debug("%s: Read CRC error occurred\n", DRIVER_NAME);
+			printk(KERN_ERR "%s: Read CRC error occurred\n",
+			       DRIVER_NAME);
 			if (SD_APP_SEND_SCR != cmd->opcode)
 				data->error = -EILSEQ;
 			__raw_writel(STATUS_READ_CRC_ERR,
@@ -742,7 +733,8 @@ static int mxcmci_cmd_done(struct mxcmci_host *host, unsigned int stat)
 		/* check for CRC errors */
 		status = __raw_readl(host->base + MMC_STATUS);
 		if (status & STATUS_WRITE_CRC_ERR) {
-			pr_debug("%s: Write CRC error occurred\n", DRIVER_NAME);
+			printk(KERN_ERR "%s: Write CRC error occurred\n",
+			       DRIVER_NAME);
 			data->error = -EILSEQ;
 			__raw_writel(STATUS_WRITE_CRC_ERR,
 				     host->base + MMC_STATUS);
@@ -783,14 +775,15 @@ static int mxcmci_data_done(struct mxcmci_host *host, unsigned int stat)
 	}
 #endif
 	if (__raw_readl(host->base + MMC_STATUS) & STATUS_ERR_MASK) {
-		pr_debug("%s: request failed. status: 0x%08x\n",
-			 DRIVER_NAME, __raw_readl(host->base + MMC_STATUS));
+		printk(KERN_ERR "%s: request failed. status: 0x%08x\n",
+		       DRIVER_NAME, __raw_readl(host->base + MMC_STATUS));
 	}
 
 	host->data = NULL;
 	data->bytes_xfered = host->dma_size;
 
 	if (host->req->stop && !(data->error)) {
+		mxcmci_stop_clock(host, true);
 		mxcmci_start_cmd(host, host->req->stop, 0);
 	} else {
 		mxcmci_finish_request(host, host->req);
@@ -920,8 +913,9 @@ static irqreturn_t mxcmci_irq(int irq, void *devid)
 		/* check for CRC errors */
 		if (status & STATUS_WRITE_OP_DONE) {
 			if (status & STATUS_WRITE_CRC_ERR) {
-				pr_debug("%s: Write CRC error occurred\n",
-					 DRIVER_NAME);
+				printk(KERN_ERR
+				       "%s: Write CRC error occurred\n",
+				       DRIVER_NAME);
 				data->error = -EILSEQ;
 				__raw_writel(STATUS_WRITE_CRC_ERR,
 					     host->base + MMC_STATUS);
@@ -1027,7 +1021,7 @@ static void mxcmci_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
 		}
 		host->dma = mxc_dma_request(dev_id, "MXC MMC");
 		if (host->dma < 0) {
-			pr_debug("Cannot allocate MMC DMA channel\n");
+			printk(KERN_ERR "Cannot allocate MMC DMA channel\n");
 		}
 		host->mode = mmc->ios.bus_width;
 		mxc_dma_callback_set(host->dma, mxcmci_dma_irq, (void *)host);
@@ -1170,7 +1164,7 @@ static void mxcmci_dma_irq(void *devid, int error, unsigned int cnt)
 	mxc_dma_disable(host->dma);
 
 	if (error) {
-		pr_debug("Error in DMA transfer\n");
+		printk(KERN_ERR "Error in DMA transfer\n");
 		status = __raw_readl(host->base + MMC_STATUS);
 #ifdef CONFIG_MMC_DEBUG
 		dump_status(__FUNCTION__, status);
@@ -1309,9 +1303,11 @@ static int mxcmci_probe(struct platform_device *pdev)
 			card_gpio_status =
 			    host->plat_data->status(host->mmc->parent);
 			if (card_gpio_status)
-				set_irq_type(host->detect_irq, IRQF_TRIGGER_FALLING);
+				set_irq_type(host->detect_irq,
+					     IRQF_TRIGGER_FALLING);
 			else
-				set_irq_type(host->detect_irq, IRQF_TRIGGER_RISING);
+				set_irq_type(host->detect_irq,
+					     IRQF_TRIGGER_RISING);
 
 		} while (card_gpio_status !=
 			 host->plat_data->status(host->mmc->parent));
