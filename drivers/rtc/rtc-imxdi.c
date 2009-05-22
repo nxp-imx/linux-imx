@@ -31,6 +31,7 @@
 /* #define DEBUG */
 /* #define DI_DEBUG_REGIO */
 
+#include <linux/io.h>
 #include <linux/clk.h>
 #include <linux/delay.h>
 #include <linux/module.h>
