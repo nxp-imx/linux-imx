@@ -123,6 +123,9 @@ static int calc_frequency_khz(int target, unsigned int relation)
 {
 	int i;
 
+	if ((target * 1000) == clk_get_rate(cpu_clk))
+		return target;
+
 	if (relation == CPUFREQ_RELATION_H) {
 		for (i = ARRAY_SIZE(imx_freq_table) - 1; i > 0; i--) {
 			if (imx_freq_table[i].frequency <= target)
@@ -242,10 +245,10 @@ static int __init mxc_cpufreq_driver_init(struct cpufreq_policy *policy)
 	imx_freq_table[i].index = 0;
 	imx_freq_table[i].frequency = CPUFREQ_TABLE_END;
 
-	policy->cur = policy->min = policy->max = clk_get_rate(cpu_clk) / 1000;
+	policy->cur = clk_get_rate(cpu_clk) / 1000;
 	policy->governor = CPUFREQ_DEFAULT_GOVERNOR;
-	policy->cpuinfo.min_freq = cpu_freq_khz_min;
-	policy->cpuinfo.max_freq = cpu_freq_khz_max;
+	policy->min = policy->cpuinfo.min_freq = cpu_freq_khz_min;
+	policy->max = policy->cpuinfo.max_freq = cpu_freq_khz_max;
 
 	arm_lpm_clk = cpu_freq_khz_min * 1000;
 	arm_normal_clk = cpu_freq_khz_max * 1000;
@@ -254,6 +257,7 @@ static int __init mxc_cpufreq_driver_init(struct cpufreq_policy *policy)
 	policy->cpuinfo.transition_latency = 10;
 
 	ret = cpufreq_frequency_table_cpuinfo(policy, imx_freq_table);
+
 	if (ret < 0) {
 		clk_put(cpu_clk);
 		regulator_put(gp_regulator);
