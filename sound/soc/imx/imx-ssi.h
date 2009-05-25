@@ -213,6 +213,6 @@
 #define IMX_SSI_DIV_2_OFF		(~SSI_STCCR_DIV2)
 #define IMX_SSI_DIV_2_ON		SSI_STCCR_DIV2
 
-extern struct snd_soc_dai imx_ssi_dai;
+extern void imx_ssi_dai_init(struct snd_soc_dai *imx_ssi_dai);
 
 #endif

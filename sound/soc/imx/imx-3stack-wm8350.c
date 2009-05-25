@@ -576,11 +576,12 @@ static int imx_3stack_wm8350_init(struct snd_soc_codec *codec)
 
 }
 
+static struct snd_soc_dai imx_3stack_cpu_dai;
 /* imx_3stack digital audio interface glue - connects codec <--> CPU */
 static struct snd_soc_dai_link imx_3stack_dai = {
 	.name = "WM8350",
 	.stream_name = "WM8350",
-	.cpu_dai = &imx_ssi_dai,
+	.cpu_dai = &imx_3stack_cpu_dai,
 	.codec_dai = &wm8350_dai,
 	.init = imx_3stack_wm8350_init,
 	.ops = &imx_3stack_ops,
@@ -622,7 +623,9 @@ static int __devinit imx_3stack_wm8350_probe(struct platform_device *pdev)
 
 	priv->pdev = pdev;
 	priv->wm8350 = wm8350;
-	imx_ssi_dai.private_data = plat;
+
+	imx_ssi_dai_init(&imx_3stack_cpu_dai);
+	imx_3stack_cpu_dai.private_data = plat;
 
 	imx_3stack_wm8350_setup.regulator1 = plat->regulator1;
 	imx_3stack_wm8350_setup.regulator2 = plat->regulator2;
@@ -631,9 +634,9 @@ static int __devinit imx_3stack_wm8350_probe(struct platform_device *pdev)
 	imx_3stack_init_dam(plat->src_port, plat->ext_port);
 
 	if (plat->src_port == 2)
-		strcpy(imx_ssi_dai.name, "imx-ssi-3");
+		strcpy(imx_3stack_cpu_dai.name, "imx-ssi-3");
 	else
-		strcpy(imx_ssi_dai.name, "imx-ssi-1");
+		strcpy(imx_3stack_cpu_dai.name, "imx-ssi-1");
 
 	ret = driver_create_file(pdev->dev.driver, &driver_attr_headphone);
 	if (ret < 0) {

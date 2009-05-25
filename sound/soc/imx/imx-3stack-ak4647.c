@@ -319,10 +319,12 @@ static int imx_3stack_ak4647_init(struct snd_soc_codec *codec)
 	return 0;
 }
 
+static struct snd_soc_dai imx_3stack_cpu_dai;
+
 static struct snd_soc_dai_link imx_3stack_dai = {
 	.name = "ak4647",
 	.stream_name = "ak4647",
-	.cpu_dai = &imx_ssi_dai,
+	.cpu_dai = &imx_3stack_cpu_dai,
 	.codec_dai = &ak4647_hifi_dai,
 	.init = imx_3stack_ak4647_init,
 	.ops = &imx_3stack_hifi_ops,
@@ -354,10 +356,11 @@ static int __init imx_3stack_ak4647_probe(struct platform_device *pdev)
 	dev_data->init();
 
 	/* imx_3stack ak4647 hifi interface */
+	imx_ssi_dai_init(&imx_3stack_cpu_dai);
 	if (dev_data->src_port == 1)
-		imx_ssi_dai.name = "imx-ssi-1";
+		imx_3stack_cpu_dai.name = "imx-ssi-1";
 	else
-		imx_ssi_dai.name = "imx-ssi-3";
+		imx_3stack_cpu_dai.name = "imx-ssi-3";
 
 	/* Configure audio port 3 */
 	gpio_activate_audio_ports();

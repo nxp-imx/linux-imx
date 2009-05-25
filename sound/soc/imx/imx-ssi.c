@@ -736,41 +736,49 @@ static void imx_ssi_remove(struct platform_device *pdev,
 	(SNDRV_PCM_FMTBIT_S16_LE | SNDRV_PCM_FMTBIT_S20_3LE | \
 	SNDRV_PCM_FMTBIT_S24_LE)
 
-struct snd_soc_dai imx_ssi_dai = {
-	.name = "imx-ssi",
-	.id = 0,
-	.type = SND_SOC_DAI_PCM,
-	.probe = imx_ssi_probe,
-	.suspend = imx_ssi_suspend,
-	.remove = imx_ssi_remove,
-	.resume = imx_ssi_resume,
-	.playback = {
-		     .channels_min = 1,
-		     .channels_max = 2,
-		     .rates = IMX_SSI_RATES,
-		     .formats = IMX_SSI_FORMATS,
-		     },
-	.capture = {
-		    .channels_min = 1,
-		    .channels_max = 2,
-		    .rates = IMX_SSI_RATES,
-		    .formats = IMX_SSI_FORMATS,
-		    },
-	.ops = {
-		.startup = imx_ssi_startup,
-		.shutdown = imx_ssi_shutdown,
-		.trigger = imx_ssi_trigger,
-		.prepare = imx_ssi_prepare,
-		.hw_params = imx_ssi_hw_params,
-		},
-	.dai_ops = {
-		    .set_sysclk = imx_ssi_set_dai_sysclk,
-		    .set_clkdiv = imx_ssi_set_dai_clkdiv,
-		    .set_fmt = imx_ssi_set_dai_fmt,
-		    .set_tdm_slot = imx_ssi_set_dai_tdm_slot,
-		    },
+static struct snd_soc_pcm_stream imx_ssi_playback = {
+	.channels_min = 1,
+	.channels_max = 2,
+	.rates = IMX_SSI_RATES,
+	.formats = IMX_SSI_FORMATS,
 };
-EXPORT_SYMBOL_GPL(imx_ssi_dai);
+
+static struct snd_soc_pcm_stream imx_ssi_capture = {
+	.channels_min = 1,
+	.channels_max = 2,
+	.rates = IMX_SSI_RATES,
+	.formats = IMX_SSI_FORMATS,
+};
+
+static struct snd_soc_ops imx_ssi_ops = {
+	.startup = imx_ssi_startup,
+	.shutdown = imx_ssi_shutdown,
+	.trigger = imx_ssi_trigger,
+	.prepare = imx_ssi_prepare,
+	.hw_params = imx_ssi_hw_params,
+};
+
+static struct snd_soc_dai_ops imx_ssi_dai_ops = {
+	.set_sysclk = imx_ssi_set_dai_sysclk,
+	.set_clkdiv = imx_ssi_set_dai_clkdiv,
+	.set_fmt = imx_ssi_set_dai_fmt,
+	.set_tdm_slot = imx_ssi_set_dai_tdm_slot,
+};
+
+void imx_ssi_dai_init(struct snd_soc_dai *imx_ssi_dai)
+{
+	imx_ssi_dai->id = 0;
+	imx_ssi_dai->type = SND_SOC_DAI_PCM;
+	imx_ssi_dai->probe = imx_ssi_probe;
+	imx_ssi_dai->suspend = imx_ssi_suspend;
+	imx_ssi_dai->remove = imx_ssi_remove;
+	imx_ssi_dai->resume = imx_ssi_resume;
+	imx_ssi_dai->playback = imx_ssi_playback;
+	imx_ssi_dai->capture = imx_ssi_capture;
+	imx_ssi_dai->ops = imx_ssi_ops;
+	imx_ssi_dai->dai_ops = imx_ssi_dai_ops;
+};
+EXPORT_SYMBOL_GPL(imx_ssi_dai_init);
 
 MODULE_AUTHOR
     ("Liam Girdwood, liam.girdwood@wolfsonmicro.com, www.wolfsonmicro.com");

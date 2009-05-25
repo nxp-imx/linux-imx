@@ -130,3 +130,6 @@ config SND_SOC_STMP378X_CODEC
 config SND_SOC_STMP3XXX_SPDIF
 	tristate
 	depends on SND_SOC
+
+config SND_SOC_BLUETOOTH
+        tristate

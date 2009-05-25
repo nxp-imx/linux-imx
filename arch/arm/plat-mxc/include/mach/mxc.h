@@ -413,6 +413,8 @@ void mxc_cpu_lp_set(enum mxc_cpu_pwr_mode mode);
 int tzic_enable_wake(int is_idle);
 void gpio_activate_audio_ports(void);
 void gpio_inactivate_audio_ports(void);
+void gpio_activate_bt_audio_port(void);
+void gpio_inactivate_bt_audio_port(void);
 
 #endif
 
