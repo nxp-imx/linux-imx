@@ -1108,6 +1108,12 @@ static int gpmi_scan_middle(struct gpmi_nand_data *g)
 {
 	int oobsize = 0;
 
+	/* Limit to 2G size due to Kernel larger 4G space support */
+	if (g->mtd.size == 0) {
+		g->mtd.size = 1 << 31;
+		g->chip.chipsize = g->mtd.size / g->chip.numchips;
+	}
+
 	g->ecc_oob_bytes = 9;
 	switch (g->mtd.writesize) {
 	case 2048:	/* 2K page */
