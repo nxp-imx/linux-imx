@@ -982,7 +982,7 @@ static int mxc_spi_probe(struct platform_device *pdev)
 	}
 
 	master_drv_data->irq = platform_get_irq(pdev, 0);
-	if (!master_drv_data->irq) {
+	if (master_drv_data->irq < 0) {
 		dev_err(&pdev->dev, "can't get IRQ for CSPI%d\n",
 			master->bus_num);
 		ret = -EINVAL;
