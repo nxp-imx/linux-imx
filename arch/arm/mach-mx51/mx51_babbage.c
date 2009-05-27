@@ -585,6 +585,34 @@ static void mxc_power_off(void)
 }
 
 /*!
+ * Power Key interrupt handler.
+ */
+static irqreturn_t power_key_int(int irq, void *dev_id)
+{
+	pr_info(KERN_INFO "PWR key pressed\n");
+	return 0;
+}
+
+/*!
+ * Power Key initialization.
+ */
+static int __init mxc_init_power_key(void)
+{
+	/* Set power key as wakeup resource */
+	int irq, ret;
+	irq = IOMUX_TO_IRQ(MX51_PIN_EIM_A27);
+	set_irq_type(irq, IRQF_TRIGGER_RISING);
+	ret = request_irq(irq, power_key_int, 0, "power_key", 0);
+	if (ret)
+		pr_info("register on-off key interrupt failed\n");
+	else
+		enable_irq_wake(irq);
+	return ret;
+}
+
+late_initcall(mxc_init_power_key);
+
+/*!
  * Board specific initialization.
  */
 static void __init mxc_board_init(void)

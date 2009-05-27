@@ -121,12 +121,6 @@ static struct mxc_iomux_pin_cfg __initdata mxc_iomux_pins[] = {
 	 (PAD_CTL_SRE_FAST | PAD_CTL_DRV_HIGH | PAD_CTL_100K_PU |
 	  PAD_CTL_PUE_KEEPER | PAD_CTL_PKE_ENABLE | PAD_CTL_HYS_ENABLE),
 	 },
-	/* USBH2_NXT */
-	{
-	 MX51_PIN_EIM_A27, IOMUX_CONFIG_ALT2,
-	 (PAD_CTL_SRE_FAST | PAD_CTL_DRV_HIGH | PAD_CTL_100K_PU |
-	  PAD_CTL_PUE_KEEPER | PAD_CTL_PKE_ENABLE | PAD_CTL_HYS_ENABLE),
-	 },
 	{			/*MDIO */
 	 MX51_PIN_EIM_EB2, IOMUX_CONFIG_ALT3,
 	 (PAD_CTL_SRE_FAST | PAD_CTL_DRV_HIGH | PAD_CTL_ODE_OPENDRAIN_ENABLE |
@@ -570,6 +564,14 @@ void __init mx51_babbage_io_init(void)
 				  PAD_CTL_PKE_ENABLE | PAD_CTL_SRE_FAST);
 		mxc_set_gpio_direction(MX51_PIN_CSPI1_RDY, 0);
 		mxc_set_gpio_dataout(MX51_PIN_CSPI1_RDY, 0);
+
+		/* power key */
+		mxc_request_iomux(MX51_PIN_EIM_A27, IOMUX_CONFIG_ALT1);
+		mxc_iomux_set_pad(MX51_PIN_EIM_A27, PAD_CTL_SRE_FAST |
+				  PAD_CTL_ODE_OPENDRAIN_NONE |
+				  PAD_CTL_DRV_HIGH | PAD_CTL_100K_PU |
+				  PAD_CTL_HYS_NONE);
+		mxc_set_gpio_direction(MX51_PIN_EIM_A27, 1);
 	}
 
 	/* Deassert VGA reset to free i2c bus */
