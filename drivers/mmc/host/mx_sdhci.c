@@ -901,14 +901,14 @@ static void sdhci_request(struct mmc_host *mmc, struct mmc_request *mrq)
 			}
 		}
 	}
+	spin_unlock_irqrestore(&host->lock, flags);
+
 	host->mrq = mrq;
 	if (!(host->flags & SDHCI_CD_PRESENT)) {
 		host->mrq->cmd->error = -ENOMEDIUM;
 		tasklet_schedule(&host->finish_tasklet);
 	} else
 		sdhci_send_command(host, mrq->cmd);
-
-	spin_unlock_irqrestore(&host->lock, flags);
 
 	mmiowb();
 }

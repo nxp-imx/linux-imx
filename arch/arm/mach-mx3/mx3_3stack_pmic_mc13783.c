@@ -200,6 +200,7 @@ static struct regulator_init_data vrfbg_init = {
 
 static struct regulator_init_data gpo1_init = {
 	.constraints = {
+		.boot_on = 1,
 	}
 };
 

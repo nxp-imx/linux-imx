@@ -1,6 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # Linux kernel version: 2.6.28
+# Wed May 27 17:22:50 2009
 #
 CONFIG_ARM=y
 CONFIG_SYS_SUPPORTS_APM_EMULATION=y
@@ -159,6 +160,7 @@ CONFIG_ARCH_MXC=y
 # CONFIG_ARCH_DAVINCI is not set
 # CONFIG_ARCH_OMAP is not set
 # CONFIG_ARCH_MSM is not set
+# CONFIG_ARCH_STMP3XXX is not set
 
 #
 # Boot options
@@ -396,38 +398,7 @@ CONFIG_DEFAULT_TCP_CONG="cubic"
 # CONFIG_LAPB is not set
 # CONFIG_ECONET is not set
 # CONFIG_WAN_ROUTER is not set
-CONFIG_NET_SCHED=y
-
-#
-# Queueing/Scheduling
-#
-# CONFIG_NET_SCH_CBQ is not set
-# CONFIG_NET_SCH_HTB is not set
-# CONFIG_NET_SCH_HFSC is not set
-# CONFIG_NET_SCH_PRIO is not set
-# CONFIG_NET_SCH_MULTIQ is not set
-# CONFIG_NET_SCH_RED is not set
-# CONFIG_NET_SCH_SFQ is not set
-# CONFIG_NET_SCH_TEQL is not set
-# CONFIG_NET_SCH_TBF is not set
-# CONFIG_NET_SCH_GRED is not set
-# CONFIG_NET_SCH_DSMARK is not set
-# CONFIG_NET_SCH_NETEM is not set
-
-#
-# Classification
-#
-# CONFIG_NET_CLS_BASIC is not set
-# CONFIG_NET_CLS_TCINDEX is not set
-# CONFIG_NET_CLS_ROUTE4 is not set
-# CONFIG_NET_CLS_FW is not set
-# CONFIG_NET_CLS_U32 is not set
-# CONFIG_NET_CLS_RSVP is not set
-# CONFIG_NET_CLS_RSVP6 is not set
-# CONFIG_NET_CLS_FLOW is not set
-# CONFIG_NET_EMATCH is not set
-# CONFIG_NET_CLS_ACT is not set
-CONFIG_NET_SCH_FIFO=y
+# CONFIG_NET_SCHED is not set
 
 #
 # Network testing
@@ -1193,6 +1164,9 @@ CONFIG_SND_MXC_SOC_SSI=y
 # CONFIG_SND_MXC_SOC_IRAM is not set
 CONFIG_SND_SOC_IMX_3STACK_WM8350=y
 # CONFIG_SND_SOC_IMX_3STACK_SGTL5000 is not set
+# CONFIG_SND_SOC_IMX_3STACK_AK4647 is not set
+# CONFIG_SND_SOC_IMX_3STACK_WM8580 is not set
+# CONFIG_SND_SOC_IMX_3STACK_BLUETOOTH is not set
 # CONFIG_SND_SOC_ALL_CODECS is not set
 CONFIG_SND_SOC_WM8350=y
 # CONFIG_SOUND_PRIME is not set
@@ -1476,6 +1450,7 @@ CONFIG_RTC_INTF_DEV_UIE_EMUL=y
 #
 # CONFIG_RTC_MXC is not set
 CONFIG_RTC_DRV_MXC_V2=y
+# CONFIG_RTC_DRV_IMXDI is not set
 # CONFIG_DMADEVICES is not set
 CONFIG_REGULATOR=y
 # CONFIG_REGULATOR_DEBUG is not set
@@ -1509,6 +1484,7 @@ CONFIG_MXC_IPU_V3D=y
 # CONFIG_MXC_PMIC_MC13892 is not set
 # CONFIG_MXC_PMIC_MC34704 is not set
 # CONFIG_MXC_PMIC_MC9SDZ60 is not set
+# CONFIG_MXC_PMIC_MC9S08DZ60 is not set
 
 #
 # MXC Security Drivers
@@ -1759,6 +1735,7 @@ CONFIG_CRYPTO=y
 # CONFIG_CRYPTO_CRYPTD is not set
 # CONFIG_CRYPTO_AUTHENC is not set
 # CONFIG_CRYPTO_TEST is not set
+# CONFIG_CRYPTO_CRYPTODEV is not set
 
 #
 # Authenticated Encryption with Associated Data

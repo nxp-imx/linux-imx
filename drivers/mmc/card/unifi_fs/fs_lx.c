@@ -273,15 +273,13 @@ static void fs_unifi_power_on(void)
 		plat_data->enable(1);
 
 	if (reg_unifi->reg_1v5_ana_bb) {
-		tmp = regulator_get_voltage(reg_unifi->reg_1v5_ana_bb);
-		if (tmp < 1500000)
-			regulator_set_voltage(reg_unifi->reg_1v5_ana_bb,
-					     1500000, 1500000);
+		regulator_set_voltage(reg_unifi->reg_1v5_ana_bb,
+					1500000, 1500000);
 		regulator_enable(reg_unifi->reg_1v5_ana_bb);
 	}
 	if (reg_unifi->reg_vdd_vpa) {
 		tmp = regulator_get_voltage(reg_unifi->reg_vdd_vpa);
-		if (tmp < 3000000)
+		if (tmp < 3000000 || tmp > 3600000)
 			regulator_set_voltage(reg_unifi->reg_vdd_vpa,
 					      3000000, 3000000);
 		regulator_enable(reg_unifi->reg_vdd_vpa);
@@ -289,10 +287,8 @@ static void fs_unifi_power_on(void)
 	/* WL_1V5DD should come on last, 10ms after other supplies */
 	msleep(10);
 	if (reg_unifi->reg_1v5_dd) {
-		tmp = regulator_get_voltage(reg_unifi->reg_1v5_dd);
-		if (tmp < 1500000)
-			regulator_set_voltage(reg_unifi->reg_1v5_dd,
-					      1500000, 1500000);
+		regulator_set_voltage(reg_unifi->reg_1v5_dd,
+					1500000, 1500000);
 		regulator_enable(reg_unifi->reg_1v5_dd);
 	}
 	msleep(10);
