@@ -68,7 +68,7 @@ static struct cpu_wp cpu_wp_auto[] = {
 	 .mfi = 5,
 	 .mfd = 23,
 	 .mfn = 13,
-	 .cpu_voltage = 1000000,},
+	 .cpu_voltage = 1050000,},
 	{
 	 .pll_rate = 400000000,
 	 .cpu_rate = 400000000,
@@ -76,7 +76,7 @@ static struct cpu_wp cpu_wp_auto[] = {
 	 .mfi = 8,
 	 .mfd = 2,
 	 .mfn = 1,
-	 .cpu_voltage = 900000,},
+	 .cpu_voltage = 950000,},
 	{
 	 .pll_rate = 200000000,
 	 .cpu_rate = 200000000,

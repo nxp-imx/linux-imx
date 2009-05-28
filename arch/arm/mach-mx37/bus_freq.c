@@ -97,11 +97,11 @@ int set_low_bus_freq(void)
 	if (p_clk != amode_parent_clk)
 		clk_set_parent(vpu_core_clk, amode_parent_clk);
 
-	/* Set the voltage to 1.0v for the LP domain. */
-	ret = regulator_set_voltage(lp_regulator, 1000000, 1000000);
+	/* Set the voltage to 1.05V for the LP domain. */
+	ret = regulator_set_voltage(lp_regulator, 1050000, 1050000);
 	udelay(100);
 	if (ret < 0) {
-		printk(KERN_ERR "COULD NOT SET GP VOLTAGE!!!!!!\n");
+		printk(KERN_ERR "COULD NOT SET LP VOLTAGE!!!!!!\n");
 		return ret;
 	}
 
@@ -121,8 +121,8 @@ int set_high_bus_freq(void)
 
 	low_bus_freq_mode = 0;
 
-	/* Set the voltage to 1.2v for the LP domain. */
-	ret = regulator_set_voltage(lp_regulator, 1200000, 1200000);
+	/* Set the voltage to 1.25V for the LP domain. */
+	ret = regulator_set_voltage(lp_regulator, 1250000, 1250000);
 	udelay(100);
 	if (ret < 0) {
 		printk(KERN_ERR "COULD NOT SET LP VOLTAGE!!!!!!\n");
@@ -165,115 +165,102 @@ int low_freq_bus_used(void)
  */
 static int __devinit busfreq_probe(struct platform_device *pdev)
 {
-		main_bus_clk = clk_get(NULL, "main_bus_clk");
-		if (IS_ERR(main_bus_clk)) {
-			printk(KERN_DEBUG "%s: failed to get main_bus_clk\n",
-			       __func__);
-			return PTR_ERR(main_bus_clk);
-		}
+	main_bus_clk = clk_get(NULL, "main_bus_clk");
+	if (IS_ERR(main_bus_clk)) {
+		printk(KERN_DEBUG "%s: failed to get main_bus_clk\n", __func__);
+		return PTR_ERR(main_bus_clk);
+	}
 
-		pll2 = clk_get(NULL, "pll2");
-		if (IS_ERR(pll2)) {
-			printk(KERN_DEBUG "%s: failed to get pll2\n", __func__);
-			return PTR_ERR(pll2);
-		}
+	pll2 = clk_get(NULL, "pll2");
+	if (IS_ERR(pll2)) {
+		printk(KERN_DEBUG "%s: failed to get pll2\n", __func__);
+		return PTR_ERR(pll2);
+	}
 
-		axi_a_clk = clk_get(NULL, "axi_a_clk");
-		if (IS_ERR(axi_a_clk)) {
-			printk(KERN_DEBUG "%s: failed to get axi_a_clk\n",
-			       __func__);
-			return PTR_ERR(axi_a_clk);
-		}
+	axi_a_clk = clk_get(NULL, "axi_a_clk");
+	if (IS_ERR(axi_a_clk)) {
+		printk(KERN_DEBUG "%s: failed to get axi_a_clk\n", __func__);
+		return PTR_ERR(axi_a_clk);
+	}
 
-		axi_b_clk = clk_get(NULL, "axi_b_clk");
-		if (IS_ERR(axi_b_clk)) {
-			printk(KERN_DEBUG "%s: failed to get axi_b_clk\n",
-			       __func__);
-			return PTR_ERR(axi_b_clk);
-		}
+	axi_b_clk = clk_get(NULL, "axi_b_clk");
+	if (IS_ERR(axi_b_clk)) {
+		printk(KERN_DEBUG "%s: failed to get axi_b_clk\n", __func__);
+		return PTR_ERR(axi_b_clk);
+	}
 
-		axi_c_clk = clk_get(NULL, "axi_c_clk");
-		if (IS_ERR(axi_c_clk)) {
-			printk(KERN_DEBUG "%s: failed to get axi_c_clk\n",
-			       __func__);
-			return PTR_ERR(axi_c_clk);
-		}
+	axi_c_clk = clk_get(NULL, "axi_c_clk");
+	if (IS_ERR(axi_c_clk)) {
+		printk(KERN_DEBUG "%s: failed to get axi_c_clk\n", __func__);
+		return PTR_ERR(axi_c_clk);
+	}
 
-		emi_core_clk = clk_get(NULL, "emi_core_clk");
-		if (IS_ERR(emi_core_clk)) {
-			printk(KERN_DEBUG "%s: failed to get emi_core_clk\n",
-			       __func__);
-			return PTR_ERR(emi_core_clk);
-		}
+	emi_core_clk = clk_get(NULL, "emi_core_clk");
+	if (IS_ERR(emi_core_clk)) {
+		printk(KERN_DEBUG "%s: failed to get emi_core_clk\n", __func__);
+		return PTR_ERR(emi_core_clk);
+	}
 
-		nfc_clk = clk_get(NULL, "nfc_clk");
-		if (IS_ERR(nfc_clk)) {
-			printk(KERN_DEBUG "%s: failed to get nfc_clk\n",
-			       __func__);
-			return PTR_ERR(nfc_clk);
-		}
+	nfc_clk = clk_get(NULL, "nfc_clk");
+	if (IS_ERR(nfc_clk)) {
+		printk(KERN_DEBUG "%s: failed to get nfc_clk\n", __func__);
+		return PTR_ERR(nfc_clk);
+	}
 
-		ahb_clk = clk_get(NULL, "ahb_clk");
-		if (IS_ERR(ahb_clk)) {
-			printk(KERN_DEBUG "%s: failed to get ahb_clk\n",
-			       __func__);
-			return PTR_ERR(ahb_clk);
-		}
+	ahb_clk = clk_get(NULL, "ahb_clk");
+	if (IS_ERR(ahb_clk)) {
+		printk(KERN_DEBUG "%s: failed to get ahb_clk\n", __func__);
+		return PTR_ERR(ahb_clk);
+	}
 
-		vpu_core_clk = clk_get(NULL, "vpu_core_clk");
-		if (IS_ERR(vpu_core_clk)) {
-			printk(KERN_DEBUG "%s: failed to get vpu_core_clk\n",
-			       __func__);
-			return PTR_ERR(vpu_core_clk);
-		}
+	vpu_core_clk = clk_get(NULL, "vpu_core_clk");
+	if (IS_ERR(vpu_core_clk)) {
+		printk(KERN_DEBUG "%s: failed to get vpu_core_clk\n", __func__);
+		return PTR_ERR(vpu_core_clk);
+	}
 
-		arm_axi_clk = clk_get(NULL, "arm_axi_clk");
-		if (IS_ERR(arm_axi_clk)) {
-			printk(KERN_DEBUG "%s: failed to get arm_axi_clk\n",
-			       __func__);
-			return PTR_ERR(arm_axi_clk);
-		}
+	arm_axi_clk = clk_get(NULL, "arm_axi_clk");
+	if (IS_ERR(arm_axi_clk)) {
+		printk(KERN_DEBUG "%s: failed to get arm_axi_clk\n", __func__);
+		return PTR_ERR(arm_axi_clk);
+	}
 
-		ddr_clk = clk_get(NULL, "ddr_clk");
-		if (IS_ERR(ddr_clk)) {
-			printk(KERN_DEBUG "%s: failed to get ddr_clk\n",
-			       __func__);
-			return PTR_ERR(ddr_clk);
-		}
+	ddr_clk = clk_get(NULL, "ddr_clk");
+	if (IS_ERR(ddr_clk)) {
+		printk(KERN_DEBUG "%s: failed to get ddr_clk\n", __func__);
+		return PTR_ERR(ddr_clk);
+	}
 
-		ipu_clk = clk_get(NULL, "ipu_clk");
-		if (IS_ERR(ipu_clk)) {
-			printk(KERN_DEBUG "%s: failed to get ipu_clk\n",
-			       __func__);
-			return PTR_ERR(ipu_clk);
-		}
+	ipu_clk = clk_get(NULL, "ipu_clk");
+	if (IS_ERR(ipu_clk)) {
+		printk(KERN_DEBUG "%s: failed to get ipu_clk\n", __func__);
+		return PTR_ERR(ipu_clk);
+	}
 
-		vpu_clk = clk_get(NULL, "vpu_clk");
-		if (IS_ERR(vpu_clk)) {
-			printk(KERN_DEBUG "%s: failed to get vpu_clk\n",
-			       __func__);
-			return PTR_ERR(vpu_clk);
-		}
+	vpu_clk = clk_get(NULL, "vpu_clk");
+	if (IS_ERR(vpu_clk)) {
+		printk(KERN_DEBUG "%s: failed to get vpu_clk\n", __func__);
+		return PTR_ERR(vpu_clk);
+	}
 
-		periph_apm_clk = clk_get(NULL, "periph_apm_clk");
-		if (IS_ERR(periph_apm_clk)) {
-			printk(KERN_DEBUG "%s: failed to get periph_apm_clk\n",
-			       __func__);
-			return PTR_ERR(periph_apm_clk);
-		}
+	periph_apm_clk = clk_get(NULL, "periph_apm_clk");
+	if (IS_ERR(periph_apm_clk)) {
+		printk(KERN_DEBUG "%s: failed to get periph_apm_clk\n",
+		       __func__);
+		return PTR_ERR(periph_apm_clk);
+	}
 
-		lp_apm = clk_get(NULL, "lp_apm");
-		if (IS_ERR(lp_apm)) {
-			printk(KERN_DEBUG "%s: failed to get lp_apm\n",
-			       __func__);
-			return PTR_ERR(lp_apm);
-		}
+	lp_apm = clk_get(NULL, "lp_apm");
+	if (IS_ERR(lp_apm)) {
+		printk(KERN_DEBUG "%s: failed to get lp_apm\n", __func__);
+		return PTR_ERR(lp_apm);
+	}
 
-		osc = clk_get(NULL, "osc");
-		if (IS_ERR(osc)) {
-			printk(KERN_DEBUG "%s: failed to get osc\n", __func__);
-			return PTR_ERR(osc);
-		}
+	osc = clk_get(NULL, "osc");
+	if (IS_ERR(osc)) {
+		printk(KERN_DEBUG "%s: failed to get osc\n", __func__);
+		return PTR_ERR(osc);
+	}
 
 	lp_regulator = regulator_get(NULL, lp_reg_id);
 	if (IS_ERR(lp_regulator)) {
@@ -317,21 +304,21 @@ static void __exit busfreq_cleanup(void)
 	/* Unregister the device structure */
 	platform_driver_unregister(&busfreq_driver);
 
-		clk_put(main_bus_clk);
-		clk_put(pll2);
-		clk_put(axi_a_clk);
-		clk_put(axi_b_clk);
-		clk_put(axi_c_clk);
-		clk_put(emi_core_clk);
-		clk_put(nfc_clk);
-		clk_put(ahb_clk);
-		clk_put(vpu_core_clk);
-		clk_put(arm_axi_clk);
-		clk_put(ddr_clk);
-		clk_put(ipu_clk);
-		clk_put(periph_apm_clk);
-		clk_put(lp_apm);
-		clk_put(osc);
+	clk_put(main_bus_clk);
+	clk_put(pll2);
+	clk_put(axi_a_clk);
+	clk_put(axi_b_clk);
+	clk_put(axi_c_clk);
+	clk_put(emi_core_clk);
+	clk_put(nfc_clk);
+	clk_put(ahb_clk);
+	clk_put(vpu_core_clk);
+	clk_put(arm_axi_clk);
+	clk_put(ddr_clk);
+	clk_put(ipu_clk);
+	clk_put(periph_apm_clk);
+	clk_put(lp_apm);
+	clk_put(osc);
 	regulator_put(lp_regulator);
 
 }
@@ -342,4 +329,3 @@ module_exit(busfreq_cleanup);
 MODULE_AUTHOR("Freescale Semiconductor, Inc.");
 MODULE_DESCRIPTION("BusFreq driver");
 MODULE_LICENSE("GPL");
-

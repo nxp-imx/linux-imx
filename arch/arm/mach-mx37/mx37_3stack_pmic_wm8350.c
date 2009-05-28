@@ -44,7 +44,7 @@ static struct regulator_init_data dcdc1_data = {
 			.valid_modes_mask = REGULATOR_MODE_NORMAL |
 			REGULATOR_MODE_FAST,
 			.state_mem = {
-				      .uV = 1000000,
+				      .uV = 1050000,
 				      .mode = REGULATOR_MODE_NORMAL,
 				      .enabled = 1,
 				      },
@@ -61,9 +61,13 @@ static struct regulator_init_data dcdc4_data = {
 	.constraints = {
 			.name = "DCDC4",
 			.min_uV = 1000000,
-			.max_uV = 1200000,
+			.max_uV = 1250000,
+			.valid_ops_mask = REGULATOR_CHANGE_VOLTAGE |
+			REGULATOR_CHANGE_MODE,
+			.valid_modes_mask = REGULATOR_MODE_NORMAL |
+			REGULATOR_MODE_FAST,
 			.state_mem = {
-				      .uV = 1000000,
+				      .uV = 1250000,
 				      .mode = REGULATOR_MODE_NORMAL,
 				      .enabled = 1,
 				      },
@@ -300,6 +304,7 @@ subsys_initcall(mxc_init_i2c);
 static __init int wm8350_regulator_init(void)
 {
 	int i = 0;
+	int ret = 0;
 	struct regulator *regulator;
 	char *wm8350_global_regulator[] = {
 		"DCDC1",
@@ -318,9 +323,15 @@ static __init int wm8350_regulator_init(void)
 						wm8350_global_regulator
 						[i])))) {
 		regulator_enable(regulator);
+		if (wm8350_global_regulator[i] == "DCDC4")
+			ret =
+			    regulator_set_voltage(regulator, 1250000, 1250000);
+		else if (wm8350_global_regulator[i] == "DCDC1")
+			ret =
+			    regulator_set_voltage(regulator, 1050000, 1050000);
 		i++;
 	}
-	return 0;
+	return ret;
 }
 
 late_initcall(wm8350_regulator_init);
