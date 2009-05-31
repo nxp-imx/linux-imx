@@ -69,6 +69,13 @@ struct mxc_spi_master {
 	 * CSPI Hardware Version.
 	 */
 	unsigned int spi_version;
+	/*!
+	 * CSPI chipselect pin table.
+	 * Workaround for ecspi chipselect pin may not keep correct level when
+	 * idle.
+	 */
+	void (*chipselect_active) (int cspi_mode, int status, int chipselect);
+	void (*chipselect_inactive) (int cspi_mode, int status, int chipselect);
 };
 
 struct mxc_ipu_config {

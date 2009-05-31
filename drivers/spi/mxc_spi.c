@@ -203,6 +203,10 @@ struct mxc_spi {
 	void *test_addr;
 	/* Reset reg address */
 	void *reset_addr;
+	/* Chipselect active function */
+	void (*chipselect_active) (int cspi_mode, int status, int chipselect);
+	/* Chipselect inactive function */
+	void (*chipselect_inactive) (int cspi_mode, int status, int chipselect);
 };
 
 #ifdef CONFIG_SPI_MXC_TEST_LOOPBACK
@@ -568,6 +572,7 @@ void mxc_spi_chipselect(struct spi_device *spi, int is_active)
 	unsigned int ctrl_reg = 0;
 	unsigned int config_reg = 0;
 	unsigned int xfer_len;
+	unsigned int cs_value;
 
 	if (is_active == BITBANG_CS_INACTIVE) {
 		/*Need to deselect the slave */
@@ -613,10 +618,19 @@ void mxc_spi_chipselect(struct spi_device *spi, int is_active)
 			      spi_ver_def->mode_mask) <<
 			     spi_ver_def->sclk_ctl_shift);
 		}
-		if (spi->mode & SPI_CS_HIGH)
+		cs_value = (__raw_readl(MXC_CSPICONFIG +
+					master_drv_data->ctrl_addr) >>
+			    spi_ver_def->ss_pol_shift) & spi_ver_def->mode_mask;
+		if (spi->mode & SPI_CS_HIGH) {
 			config_reg |=
-			    (((1 << (spi->chip_select & MXC_CSPICTRL_CSMASK)) &
-			      spi_ver_def->mode_mask) <<
+			    ((((1 << (spi->chip_select & MXC_CSPICTRL_CSMASK)) &
+			       spi_ver_def->mode_mask) | cs_value) <<
+			     spi_ver_def->ss_pol_shift);
+		} else
+			config_reg |=
+			    ((~((1 << (spi->chip_select &
+				       MXC_CSPICTRL_CSMASK)) &
+				spi_ver_def->mode_mask) & cs_value) <<
 			     spi_ver_def->ss_pol_shift);
 		config_reg |=
 		    (((1 << (spi->chip_select & MXC_CSPICTRL_CSMASK)) &
@@ -779,11 +793,22 @@ int mxc_spi_poll_transfer(struct spi_device *spi, struct spi_transfer *t)
 	volatile unsigned int status;
 	u32 rx_tmp;
 	u32 fifo_size;
+	int chipselect_status;
 
 	mxc_spi_chipselect(spi, BITBANG_CS_ACTIVE);
 
 	/* Get the master controller driver data from spi device's master */
 	master_drv_data = spi_master_get_devdata(spi->master);
+
+	chipselect_status = __raw_readl(MXC_CSPICONFIG +
+					master_drv_data->ctrl_addr);
+	chipselect_status >>= master_drv_data->spi_ver_def->ss_pol_shift &
+	    master_drv_data->spi_ver_def->mode_mask;
+	if (master_drv_data->chipselect_active)
+		master_drv_data->chipselect_active(spi->master->bus_num,
+						   chipselect_status,
+						   (spi->chip_select &
+						    MXC_CSPICTRL_CSMASK) + 1);
 
 	clk_enable(master_drv_data->clk);
 
@@ -806,7 +831,11 @@ int mxc_spi_poll_transfer(struct spi_device *spi, struct spi_transfer *t)
 	}
 
 	clk_disable(master_drv_data->clk);
-
+	if (master_drv_data->chipselect_inactive)
+		master_drv_data->chipselect_inactive(spi->master->bus_num,
+						     chipselect_status,
+						     (spi->chip_select &
+						      MXC_CSPICTRL_CSMASK) + 1);
 	return 0;
 }
 
@@ -825,11 +854,22 @@ int mxc_spi_transfer(struct spi_device *spi, struct spi_transfer *t)
 {
 	struct mxc_spi *master_drv_data = NULL;
 	int count;
+	int chipselect_status;
 	u32 fifo_size;
 
 	/* Get the master controller driver data from spi device's master */
 
 	master_drv_data = spi_master_get_devdata(spi->master);
+
+	chipselect_status = __raw_readl(MXC_CSPICONFIG +
+					master_drv_data->ctrl_addr);
+	chipselect_status >>= master_drv_data->spi_ver_def->ss_pol_shift &
+	    master_drv_data->spi_ver_def->mode_mask;
+	if (master_drv_data->chipselect_active)
+		master_drv_data->chipselect_active(spi->master->bus_num,
+						   chipselect_status,
+						   (spi->chip_select &
+						    MXC_CSPICTRL_CSMASK) + 1);
 
 	clk_enable(master_drv_data->clk);
 	/* Modify the Tx, Rx, Count */
@@ -861,6 +901,11 @@ int mxc_spi_transfer(struct spi_device *spi, struct spi_transfer *t)
 				    rx_inten_dif));
 
 	clk_disable(master_drv_data->clk);
+	if (master_drv_data->chipselect_inactive)
+		master_drv_data->chipselect_inactive(spi->master->bus_num,
+						     chipselect_status,
+						     (spi->chip_select &
+						      MXC_CSPICTRL_CSMASK) + 1);
 	return (t->len - master_drv_data->transfer.count);
 }
 
@@ -925,6 +970,12 @@ static int mxc_spi_probe(struct platform_device *pdev)
 
 	master_drv_data = spi_master_get_devdata(master);
 	master_drv_data->mxc_bitbang.master = spi_master_get(master);
+	if (mxc_platform_info->chipselect_active)
+		master_drv_data->chipselect_active =
+		    mxc_platform_info->chipselect_active;
+	if (mxc_platform_info->chipselect_inactive)
+		master_drv_data->chipselect_inactive =
+		    mxc_platform_info->chipselect_inactive;
 
 	/* Identify SPI version */
 

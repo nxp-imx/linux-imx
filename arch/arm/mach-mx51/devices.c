@@ -431,10 +431,16 @@ static struct resource mxcspi1_resources[] = {
 	       },
 };
 
+extern void gpio_spi_chipselect_active(int cspi_mode, int status,
+				       int chipselect);
+extern void gpio_spi_chipselect_inactive(int cspi_mode, int status,
+					 int chipselect);
 /*! Platform Data for MXC CSPI1 */
 static struct mxc_spi_master mxcspi1_data = {
 	.maxchipselect = 4,
 	.spi_version = 23,
+	.chipselect_active = gpio_spi_chipselect_active,
+	.chipselect_inactive = gpio_spi_chipselect_inactive,
 };
 
 /*! Device Definition for MXC CSPI1 */
