@@ -167,6 +167,7 @@ extern void gpio_can_active(int id);
 extern void gpio_can_inactive(int id);
 extern struct flexcan_platform_data flexcan_data[];
 extern void mx2fb_set_brightness(uint8_t);
+extern int __init mx25_3stack_init_mc34704(void);
 
 #endif				/* CONFIG_MACH_MX25_3DS */
 #endif				/* __ASM_ARCH_MXC_BOARD_MX25_3STACK_H__ */

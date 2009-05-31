@@ -275,10 +275,6 @@ static struct mxc_camera_platform_data camera_data = {
 
 static struct i2c_board_info mxc_i2c_board_info[] __initdata = {
 	{
-	 .type = "mc34704",
-	 .addr = 0x54,
-	 },
-	{
 	 .type = "sgtl5000-i2c",
 	 .addr = 0x0a,
 	 },
@@ -572,6 +568,7 @@ static void __init mxc_board_init(void)
 #endif
 	spi_register_board_info(mxc_spi_board_info,
 				ARRAY_SIZE(mxc_spi_board_info));
+	mx25_3stack_init_mc34704();
 	mxc_init_fb();
 	mxc_init_bl();
 	mxc_init_nand_mtd();
