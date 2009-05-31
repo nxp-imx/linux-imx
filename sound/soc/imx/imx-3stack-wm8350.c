@@ -634,9 +634,9 @@ static int __devinit imx_3stack_wm8350_probe(struct platform_device *pdev)
 	imx_3stack_init_dam(plat->src_port, plat->ext_port);
 
 	if (plat->src_port == 2)
-		strcpy(imx_3stack_cpu_dai.name, "imx-ssi-3");
+		imx_3stack_cpu_dai.name =  "imx-ssi-3";
 	else
-		strcpy(imx_3stack_cpu_dai.name, "imx-ssi-1");
+		imx_3stack_cpu_dai.name =  "imx-ssi-1";
 
 	ret = driver_create_file(pdev->dev.driver, &driver_attr_headphone);
 	if (ret < 0) {
