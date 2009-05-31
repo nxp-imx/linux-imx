@@ -29,6 +29,7 @@
 #include <linux/interrupt.h>
 #include <linux/i2c.h>
 #include <linux/uaccess.h>
+#include <linux/mfd/mc34704/core.h>
 #include <linux/pmic_external.h>
 #include <linux/pmic_status.h>
 
@@ -236,11 +237,24 @@ static int __devinit pmic_probe(struct i2c_client *client,
 				const struct i2c_device_id *id)
 {
 	int ret = 0;
+	struct mc34704 *mc34704;
+	struct mc34704_platform_data *plat_data = client->dev.platform_data;
+
+	if (!plat_data || !plat_data->init)
+		return -ENODEV;
 
 	ret = is_chip_onboard(client);
 
 	if (ret == -1)
 		return -ENODEV;
+
+	mc34704 = kzalloc(sizeof(struct mc34704), GFP_KERNEL);
+	if (mc34704 == NULL)
+		return -ENOMEM;
+
+	i2c_set_clientdata(client, mc34704);
+	mc34704->dev = &client->dev;
+	mc34704->i2c_client = client;
 
 	mc34704_client = client;
 
@@ -251,8 +265,9 @@ static int __devinit pmic_probe(struct i2c_client *client,
 	if (pmic_init_registers() != PMIC_SUCCESS)
 		return PMIC_ERROR;
 
-	/* Tickle the regulator driver */
-	reg_mc34704_probe();
+	ret = plat_data->init(mc34704);
+	if (ret != 0)
+		return PMIC_ERROR;
 
 	dev_info(&client->dev, "Loaded\n");
 

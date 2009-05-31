@@ -85,6 +85,12 @@ config REGULATOR_MC13783
 	depends on MXC_PMIC_MC13783
 	default y
 
+config REGULATOR_MC34704
+	tristate "MC34704 Regulator Support"
+	depends on REGULATOR
+	depends on MXC_PMIC_MC34704
+	default y
+
 config REGULATOR_STMP3XXX
 	tristate "STMP3xxx Regulator Support"
 	depends on REGULATOR

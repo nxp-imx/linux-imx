@@ -45,13 +45,6 @@ config MXC_PMIC_MC9SDZ60
 	  ---help---
 	  This is the MXC MC9sDZ60(MCU) PMIC support.
 
-config MXC_PMIC_MC34704
-	tristate "MC34704 PMIC"
-	depends on ARCH_MXC && I2C
-	select MXC_PMIC
-	  ---help---
-	  This is the MXC MC34704 PMIC support.
-
 config MXC_PMIC_CHARDEV
 	tristate "MXC PMIC device interface"
 	depends on MXC_PMIC
