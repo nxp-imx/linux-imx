@@ -74,37 +74,41 @@ enum asrc_status {
 	ASRC_ASRSTR_DSLCNT = 0x200000,
 };
 
+/* Sample rates are aligned with that defined in pcm.h file */
 static const unsigned char asrc_process_table[][8][2] = {
-	/* 32kHz 44.1kHz 48kHz   64kHz   88.2kHz 96kHz  128kHz   192kHz */
+	/* 32kHz 44.1kHz 48kHz   64kHz   88.2kHz 96kHz  176kHz   192kHz */
+/*5512Hz*/
+	{{0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0},},
 /*8kHz*/
 	{{0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0},},
-/*12kHz*/
-	{{0, 1}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0},},
+/*11025Hz*/
+	{{0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0},},
 /*16kHz*/
 	{{0, 1}, {0, 1}, {0, 1}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0},},
-/*24kHz*/
-	{{0, 1}, {0, 1}, {0, 1}, {0, 1}, {0, 0}, {0, 0}, {0, 0}, {0, 0},},
+/*22050Hz*/
+	{{0, 1}, {0, 1}, {0, 1}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0},},
 /*32kHz*/
 	{{0, 1}, {0, 1}, {0, 1}, {0, 1}, {0, 1}, {0, 0}, {0, 0}, {0, 0},},
 /*44.1kHz*/
 	{{0, 2}, {0, 1}, {0, 1}, {0, 1}, {0, 1}, {0, 1}, {0, 0}, {0, 0},},
 /*48kHz*/
-	{{0, 2}, {0, 2}, {0, 1}, {0, 1}, {0, 1}, {0, 1}, {0, 1}, {0, 0},},
+	{{0, 2}, {0, 2}, {0, 1}, {0, 1}, {0, 1}, {0, 1}, {0, 0}, {0, 0},},
 /*64kHz*/
-	{{0, 2}, {0, 2}, {0, 2}, {0, 1}, {0, 1}, {0, 1}, {0, 1}, {0, 0},},
+	{{1, 2}, {0, 2}, {0, 2}, {0, 1}, {0, 1}, {0, 1}, {0, 1}, {0, 0},},
 /*88.2kHz*/
 	{{1, 2}, {1, 2}, {1, 2}, {1, 1}, {1, 1}, {1, 1}, {1, 1}, {1, 1},},
 /*96kHz*/
 	{{1, 2}, {1, 2}, {1, 2}, {1, 1}, {1, 1}, {1, 1}, {1, 1}, {1, 1},},
-/*128kHz*/
-	{{1, 2}, {1, 2}, {1, 2}, {1, 1}, {1, 1}, {1, 1}, {1, 1}, {1, 1},},
+/*176kHz*/
+	{{2, 2}, {2, 2}, {2, 2}, {2, 1}, {2, 1}, {2, 1}, {2, 1}, {2, 1},},
 /*192kHz*/
 	{{2, 2}, {2, 2}, {2, 2}, {2, 1}, {2, 1}, {2, 1}, {2, 1}, {2, 1},},
 };
 
 static const unsigned char asrc_divider_table[] = {
-/*8kHz 12kHz 16kHz 24kHz 32kHz 44.1kHz 48kHz 64kHz 88.2kHz 96kHz 128kHz 192kHz*/
-	0x15, 0x06, 0x14, 0x05, 0x13, 0x04, 0x04, 0x12, 0x03, 0x03, 0x11, 0x02,
+/*5500Hz 8kHz 11025Hz 16kHz 22050kHz 32kHz 44.1kHz 48kHz 64kHz 88.2kHz 96kHz 176400Hz 192kHz*/
+	0x07, 0x15, 0x06, 0x14, 0x05, 0x13, 0x04, 0x04, 0x12, 0x03, 0x03, 0x02,
+	0x02,
 };
 
 static struct asrc_data *g_asrc_data;
@@ -153,41 +157,43 @@ static int asrc_set_process_configuration(enum asrc_pair_index index,
 	int i = 0, j = 0;
 	unsigned long reg;
 	switch (input_sample_rate) {
-	case 8000:
+	case 5512:
 		i = 0;
-		break;
-	case 12000:
+	case 8000:
 		i = 1;
 		break;
-	case 16000:
+	case 11025:
 		i = 2;
 		break;
-	case 24000:
+	case 16000:
 		i = 3;
 		break;
-	case 32000:
+	case 22050:
 		i = 4;
 		break;
-	case 44100:
+	case 32000:
 		i = 5;
 		break;
-	case 48000:
+	case 44100:
 		i = 6;
 		break;
-	case 64000:
+	case 48000:
 		i = 7;
 		break;
-	case 88200:
+	case 64000:
 		i = 8;
 		break;
-	case 96000:
+	case 88200:
 		i = 9;
 		break;
-	case 128000:
+	case 96000:
 		i = 10;
 		break;
-	case 192000:
+	case 176400:
 		i = 11;
+		break;
+	case 192000:
+		i = 12;
 		break;
 	default:
 		return -1;
@@ -212,7 +218,7 @@ static int asrc_set_process_configuration(enum asrc_pair_index index,
 	case 96000:
 		j = 5;
 		break;
-	case 128000:
+	case 176400:
 		j = 6;
 		break;
 	case 192000:
@@ -239,41 +245,44 @@ static int asrc_set_idealratio_clock_divider(enum asrc_pair_index index,
 	int i = 0, j = 0;
 	unsigned long reg;
 	switch (input_sample_rate) {
-	case 8000:
+	case 5500:
 		i = 0;
 		break;
-	case 12000:
+	case 8000:
 		i = 1;
 		break;
-	case 16000:
+	case 11025:
 		i = 2;
 		break;
-	case 24000:
+	case 16000:
 		i = 3;
 		break;
-	case 32000:
+	case 22050:
 		i = 4;
 		break;
-	case 44100:
+	case 32000:
 		i = 5;
 		break;
-	case 48000:
+	case 44100:
 		i = 6;
 		break;
-	case 64000:
+	case 48000:
 		i = 7;
 		break;
-	case 88200:
+	case 64000:
 		i = 8;
 		break;
-	case 96000:
+	case 88200:
 		i = 9;
 		break;
-	case 128000:
+	case 96000:
 		i = 10;
 		break;
-	case 192000:
+	case 176400:
 		i = 11;
+		break;
+	case 192000:
+		i = 12;
 		break;
 	default:
 		return -1;
@@ -298,7 +307,7 @@ static int asrc_set_idealratio_clock_divider(enum asrc_pair_index index,
 	case 96000:
 		j = 5;
 		break;
-	case 128000:
+	case 176400:
 		j = 6;
 		break;
 	case 192000:
@@ -311,19 +320,19 @@ static int asrc_set_idealratio_clock_divider(enum asrc_pair_index index,
 		reg = __raw_readl(asrc_vrt_base_addr + ASRC_ASRCDR1_REG);
 		reg &= 0xfc0fc0;
 		reg |=
-		    (asrc_divider_table[i] | (asrc_divider_table[j + 4] << 12));
+		    (asrc_divider_table[i] | (asrc_divider_table[j + 5] << 12));
 		__raw_writel(reg, asrc_vrt_base_addr + ASRC_ASRCDR1_REG);
 	} else if (index == ASRC_PAIR_B) {
 		reg = __raw_readl(asrc_vrt_base_addr + ASRC_ASRCDR1_REG);
 		reg &= 0x3f03f;
 		reg |=
 		    ((asrc_divider_table[i] << 6) |
-		     (asrc_divider_table[j + 4] << 18));
+		     (asrc_divider_table[j + 5] << 18));
 		__raw_writel(reg, asrc_vrt_base_addr + ASRC_ASRCDR1_REG);
 	} else {
 		reg = __raw_readl(asrc_vrt_base_addr + ASRC_ASRCDR2_REG);
 		reg =
-		    (asrc_divider_table[i] | (asrc_divider_table[j + 4] << 6));
+		    (asrc_divider_table[i] | (asrc_divider_table[j + 5] << 6));
 		__raw_writel(reg, asrc_vrt_base_addr + ASRC_ASRCDR2_REG);
 	}
 
@@ -335,6 +344,7 @@ int asrc_req_pair(int chn_num, enum asrc_pair_index *index)
 	int err = 0;
 	unsigned long lock_flags;
 	spin_lock_irqsave(&data_lock, lock_flags);
+
 	if (chn_num > 2) {
 		if (g_asrc_data->asrc_pair[ASRC_PAIR_C].active
 		    || (chn_num > g_asrc_data->asrc_pair[ASRC_PAIR_C].chn_max))
@@ -529,8 +539,6 @@ void asrc_start_conv(enum asrc_pair_index index)
 
 	spin_lock_irqsave(&data_lock, lock_flags);
 
-	reg = __raw_readl(asrc_vrt_base_addr + ASRC_ASRSTR_REG);
-
 	reg = __raw_readl(asrc_vrt_base_addr + ASRC_ASRCTR_REG);
 	if ((reg & 0x0E) == 0)
 		clk_enable(mxc_asrc_data->asrc_audio_clk);
@@ -541,20 +549,35 @@ void asrc_start_conv(enum asrc_pair_index index)
 	while (!(reg & (1 << (index + 21))))
 		reg = __raw_readl(asrc_vrt_base_addr + ASRC_ASRCFG_REG);
 	reg_1 = __raw_readl(asrc_vrt_base_addr + ASRC_ASRSTR_REG);
-	for (i = 0; i < 20; i++) {
-		reg = 0;
-		__raw_writel(reg, asrc_vrt_base_addr + ASRC_ASRDIA_REG);
-		__raw_writel(reg, asrc_vrt_base_addr + ASRC_ASRDIA_REG);
-		__raw_writel(reg, asrc_vrt_base_addr + ASRC_ASRDIA_REG);
-		__raw_writel(reg, asrc_vrt_base_addr + ASRC_ASRDIA_REG);
-		__raw_writel(reg, asrc_vrt_base_addr + ASRC_ASRDIA_REG);
-		__raw_writel(reg, asrc_vrt_base_addr + ASRC_ASRDIA_REG);
-		__raw_writel(reg, asrc_vrt_base_addr + ASRC_ASRDIA_REG);
-		__raw_writel(reg, asrc_vrt_base_addr + ASRC_ASRDIA_REG);
-	}
-	reg = __raw_readl(asrc_vrt_base_addr + ASRC_ASRSTR_REG);
 
-	reg = __raw_readl(asrc_vrt_base_addr + ASRC_ASRCTR_REG);
+	reg = 0;
+	for (i = 0; i < 20; i++) {
+		__raw_writel(reg,
+			     asrc_vrt_base_addr + ASRC_ASRDIA_REG +
+			     (index << 3));
+		__raw_writel(reg,
+			     asrc_vrt_base_addr + ASRC_ASRDIA_REG +
+			     (index << 3));
+		__raw_writel(reg,
+			     asrc_vrt_base_addr + ASRC_ASRDIA_REG +
+			     (index << 3));
+		__raw_writel(reg,
+			     asrc_vrt_base_addr + ASRC_ASRDIA_REG +
+			     (index << 3));
+		__raw_writel(reg,
+			     asrc_vrt_base_addr + ASRC_ASRDIA_REG +
+			     (index << 3));
+		__raw_writel(reg,
+			     asrc_vrt_base_addr + ASRC_ASRDIA_REG +
+			     (index << 3));
+		__raw_writel(reg,
+			     asrc_vrt_base_addr + ASRC_ASRDIA_REG +
+			     (index << 3));
+		__raw_writel(reg,
+			     asrc_vrt_base_addr + ASRC_ASRDIA_REG +
+			     (index << 3));
+	}
+
 	__raw_writel(0x40, asrc_vrt_base_addr + ASRC_ASRIER_REG);
 	spin_unlock_irqrestore(&data_lock, lock_flags);
 	return;
@@ -645,7 +668,6 @@ static irqreturn_t asrc_isr(int irq, void *dev_id)
 
 void asrc_get_status(struct asrc_status_flags *flags)
 {
-	unsigned int reg;
 	unsigned long lock_flags;
 	enum asrc_pair_index index;
 
@@ -740,7 +762,6 @@ static void asrc_input_dma_callback(void *data, int error, unsigned int count)
 		dma_request.num_of_bytes = block->length;
 		mxc_dma_config(params->input_dma_channel, &dma_request,
 			       1, MXC_DMA_MODE_WRITE);
-		mxc_dma_enable(params->input_dma_channel);
 		list_del(params->input_queue.next);
 		list_add_tail(&block->queue, &params->input_done_queue);
 		params->input_queue_empty++;
@@ -773,12 +794,10 @@ static void asrc_output_dma_callback(void *data, int error, unsigned int count)
 		dma_request.num_of_bytes = block->length;
 		mxc_dma_config(params->output_dma_channel, &dma_request,
 			       1, MXC_DMA_MODE_READ);
-		mxc_dma_enable(params->output_dma_channel);
 		list_del(params->output_queue.next);
 		list_add_tail(&block->queue, &params->output_done_queue);
 		params->output_queue_empty++;
 	}
-
 	params->output_counter++;
 	wake_up_interruptible(&params->output_wait_queue);
 	spin_unlock_irqrestore(&output_int_lock, lock_flags);
@@ -875,6 +894,7 @@ static int asrc_ioctl(struct inode *inode, struct file *file,
 			if (err < 0)
 				break;
 			params->pair_hold = 1;
+			params->index = req.index;
 			if (copy_to_user
 			    ((void __user *)arg, &req, sizeof(struct asrc_req)))
 				err = -EFAULT;
@@ -994,10 +1014,7 @@ static int asrc_ioctl(struct inode *inode, struct file *file,
 			mxc_dma_free(params->output_dma_channel);
 			mxc_free_dma_buf(params);
 			asrc_release_pair(index);
-			if (g_asrc_data->asrc_pair[ASRC_PAIR_A].active == 0
-			    && g_asrc_data->asrc_pair[ASRC_PAIR_A].active == 0
-			    && g_asrc_data->asrc_pair[ASRC_PAIR_A].active == 0)
-				params->pair_hold = 0;
+			params->pair_hold = 0;
 			break;
 		}
 	case ASRC_Q_INBUF:
@@ -1017,7 +1034,8 @@ static int asrc_ioctl(struct inode *inode, struct file *file,
 			params->input_dma[buf.index].length = buf.length;
 			list_add_tail(&params->input_dma[buf.index].
 				      queue, &params->input_queue);
-			if (params->input_queue_empty == 0) {
+			if (params->asrc_active == 0
+			    || params->input_queue_empty == 0) {
 				block =
 				    list_entry(params->input_queue.next,
 					       struct dma_block, queue);
@@ -1036,6 +1054,7 @@ static int asrc_ioctl(struct inode *inode, struct file *file,
 				list_add_tail(&block->queue,
 					      &params->input_done_queue);
 			}
+
 			spin_unlock_irqrestore(&input_int_lock, lock_flags);
 			break;
 		}
@@ -1049,6 +1068,17 @@ static int asrc_ioctl(struct inode *inode, struct file *file,
 				err = -EFAULT;
 				break;
 			}
+			/* if ASRC is inactive, nonsense to DQ buffer */
+			if (params->asrc_active == 0) {
+				err = -EFAULT;
+				buf.buf_valid = ASRC_BUF_NA;
+				if (copy_to_user
+				    ((void __user *)arg, &buf,
+				     sizeof(struct asrc_buffer)))
+					err = -EFAULT;
+				break;
+			}
+
 			if (!wait_event_interruptible_timeout
 			    (params->input_wait_queue,
 			     params->input_counter != 0, 10 * HZ)) {
@@ -1071,6 +1101,7 @@ static int asrc_ioctl(struct inode *inode, struct file *file,
 			spin_unlock_irqrestore(&input_int_lock, lock_flags);
 			buf.index = block->index;
 			buf.length = block->length;
+			buf.buf_valid = ASRC_BUF_AV;
 			if (copy_to_user
 			    ((void __user *)arg, &buf,
 			     sizeof(struct asrc_buffer)))
@@ -1094,7 +1125,8 @@ static int asrc_ioctl(struct inode *inode, struct file *file,
 			params->output_dma[buf.index].length = buf.length;
 			list_add_tail(&params->output_dma[buf.index].
 				      queue, &params->output_queue);
-			if (params->output_queue_empty == 0) {
+			if (params->asrc_active == 0
+			    || params->output_queue_empty == 0) {
 				block =
 				    list_entry(params->output_queue.
 					       next, struct dma_block, queue);
@@ -1113,6 +1145,7 @@ static int asrc_ioctl(struct inode *inode, struct file *file,
 					      &params->output_done_queue);
 				params->output_queue_empty++;
 			}
+
 			spin_unlock_irqrestore(&output_int_lock, lock_flags);
 			break;
 		}
@@ -1124,6 +1157,16 @@ static int asrc_ioctl(struct inode *inode, struct file *file,
 			    (&buf, (void __user *)arg,
 			     sizeof(struct asrc_buffer))) {
 				err = -EFAULT;
+				break;
+			}
+			/* if ASRC is inactive, nonsense to DQ buffer */
+			if (params->asrc_active == 0) {
+				buf.buf_valid = ASRC_BUF_NA;
+				err = -EFAULT;
+				if (copy_to_user
+				    ((void __user *)arg, &buf,
+				     sizeof(struct asrc_buffer)))
+					err = -EFAULT;
 				break;
 			}
 
@@ -1149,6 +1192,7 @@ static int asrc_ioctl(struct inode *inode, struct file *file,
 			spin_unlock_irqrestore(&output_int_lock, lock_flags);
 			buf.index = block->index;
 			buf.length = block->length;
+			buf.buf_valid = ASRC_BUF_AV;
 			if (copy_to_user
 			    ((void __user *)arg, &buf,
 			     sizeof(struct asrc_buffer)))
@@ -1158,8 +1202,7 @@ static int asrc_ioctl(struct inode *inode, struct file *file,
 		}
 	case ASRC_START_CONV:{
 			enum asrc_pair_index index;
-			struct dma_block *block;
-			mxc_dma_requestbuf_t dma_request;
+			unsigned long lock_flags;
 			if (copy_from_user
 			    (&index, (void __user *)arg,
 			     sizeof(enum asrc_pair_index))) {
@@ -1167,50 +1210,14 @@ static int asrc_ioctl(struct inode *inode, struct file *file,
 				break;
 			}
 
-			if (list_empty(&params->input_queue)) {
+			spin_lock_irqsave(&input_int_lock, lock_flags);
+			if (params->input_queue_empty == 0) {
 				err = -EFAULT;
 				pr_info
 				    ("ASRC_START_CONV - no block available\n");
 				break;
 			}
-			while (!list_empty(&params->input_queue)) {
-				block =
-				    list_entry(params->input_queue.next,
-					       struct dma_block, queue);
-
-				dma_request.num_of_bytes = block->length;
-				dma_request.src_addr =
-				    (dma_addr_t) block->dma_paddr;
-				dma_request.dst_addr =
-				    (ASRC_BASE_ADDR + ASRC_ASRDIA_REG +
-				     (index << 3));
-				mxc_dma_config(params->input_dma_channel,
-					       &dma_request, 1,
-					       MXC_DMA_MODE_WRITE);
-				params->input_queue_empty++;
-				list_del(params->input_queue.next);
-				list_add_tail(&block->queue,
-					      &params->input_done_queue);
-			}
-
-			while (!list_empty(&params->output_queue)) {
-				block =
-				    list_entry(params->output_queue.next,
-					       struct dma_block, queue);
-				dma_request.num_of_bytes = block->length;
-				dma_request.src_addr =
-				    (ASRC_BASE_ADDR + ASRC_ASRDOA_REG +
-				     (index << 3));
-				dma_request.dst_addr =
-				    (dma_addr_t) block->dma_paddr;
-				mxc_dma_config(params->output_dma_channel,
-					       &dma_request, 1,
-					       MXC_DMA_MODE_READ);
-				params->output_queue_empty++;
-				list_del(params->output_queue.next);
-				list_add_tail(&block->queue,
-					      &params->output_done_queue);
-			}
+			spin_unlock_irqrestore(&input_int_lock, lock_flags);
 			params->asrc_active = 1;
 
 			asrc_start_conv(index);
@@ -1226,14 +1233,10 @@ static int asrc_ioctl(struct inode *inode, struct file *file,
 				err = -EFAULT;
 				break;
 			}
-
 			mxc_dma_disable(params->input_dma_channel);
 			mxc_dma_disable(params->output_dma_channel);
 			asrc_stop_conv(index);
-			if (g_asrc_data->asrc_pair[ASRC_PAIR_A].active == 0
-			    && g_asrc_data->asrc_pair[ASRC_PAIR_B].active == 0
-			    && g_asrc_data->asrc_pair[ASRC_PAIR_C].active == 0)
-				params->asrc_active = 0;
+			params->asrc_active = 0;
 			break;
 		}
 	case ASRC_STATUS:{
@@ -1249,6 +1252,63 @@ static int asrc_ioctl(struct inode *inode, struct file *file,
 			    ((void __user *)arg, &flags,
 			     sizeof(struct asrc_status_flags)))
 				err = -EFAULT;
+			break;
+		}
+	case ASRC_FLUSH:{
+			/* flush input dma buffer */
+			unsigned long lock_flags;
+			mxc_dma_device_t rx_id, tx_id;
+			char *rx_name, *tx_name;
+			int channel = -1;
+			spin_lock_irqsave(&input_int_lock, lock_flags);
+			while (!list_empty(&params->input_queue))
+				list_del(params->input_queue.next);
+			while (!list_empty(&params->input_done_queue))
+				list_del(params->input_done_queue.next);
+			params->input_counter = 0;
+			params->input_queue_empty = 0;
+			spin_unlock_irqrestore(&input_int_lock, lock_flags);
+
+			/* flush output dma buffer */
+			spin_lock_irqsave(&output_int_lock, lock_flags);
+			while (!list_empty(&params->output_queue))
+				list_del(params->output_queue.next);
+			while (!list_empty(&params->output_done_queue))
+				list_del(params->output_done_queue.next);
+			params->output_counter = 0;
+			params->output_queue_empty = 0;
+			spin_unlock_irqrestore(&output_int_lock, lock_flags);
+
+			/* release DMA and request again */
+			mxc_dma_free(params->input_dma_channel);
+			mxc_dma_free(params->output_dma_channel);
+			if (params->index == ASRC_PAIR_A) {
+				rx_id = MXC_DMA_ASRC_A_RX;
+				tx_id = MXC_DMA_ASRC_A_TX;
+				rx_name = asrc_pair_id[0];
+				tx_name = asrc_pair_id[1];
+			} else if (params->index == ASRC_PAIR_B) {
+				rx_id = MXC_DMA_ASRC_B_RX;
+				tx_id = MXC_DMA_ASRC_B_TX;
+				rx_name = asrc_pair_id[2];
+				tx_name = asrc_pair_id[3];
+			} else {
+				rx_id = MXC_DMA_ASRC_C_RX;
+				tx_id = MXC_DMA_ASRC_C_TX;
+				rx_name = asrc_pair_id[4];
+				tx_name = asrc_pair_id[5];
+			}
+			channel = mxc_dma_request(rx_id, rx_name);
+			params->input_dma_channel = channel;
+			err = mxc_dma_callback_set(channel, (mxc_dma_callback_t)
+						   asrc_input_dma_callback,
+						   (void *)params);
+			channel = mxc_dma_request(tx_id, tx_name);
+			params->output_dma_channel = channel;
+			err = mxc_dma_callback_set(channel, (mxc_dma_callback_t)
+						   asrc_output_dma_callback,
+						   (void *)params);
+
 			break;
 		}
 	default:
@@ -1275,7 +1335,6 @@ static int mxc_asrc_open(struct inode *inode, struct file *file)
 	struct asrc_pair_params *pair_params;
 	if (signal_pending(current))
 		return -EINTR;
-
 	pair_params = kzalloc(sizeof(struct asrc_pair_params), GFP_KERNEL);
 	if (pair_params == NULL) {
 		pr_debug("Failed to allocate pair_params\n");
@@ -1462,7 +1521,7 @@ static int mxc_asrc_probe(struct platform_device *pdev)
 	g_asrc_data->asrc_pair[2].chn_max = 6;
 	g_asrc_data->asrc_pair[0].overload_error = 0;
 	g_asrc_data->asrc_pair[1].overload_error = 0;
-	g_asrc_data->asrc_pair[3].overload_error = 0;
+	g_asrc_data->asrc_pair[2].overload_error = 0;
 
 	asrc_major = register_chrdev(asrc_major, "mxc_asrc", &asrc_fops);
 	if (asrc_major < 0) {

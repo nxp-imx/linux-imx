@@ -35,6 +35,7 @@
 #define ASRC_START_CONV	_IOW(ASRC_IOC_MAGIC, 8, enum asrc_pair_index)
 #define ASRC_STOP_CONV	_IOW(ASRC_IOC_MAGIC, 9, enum asrc_pair_index)
 #define ASRC_STATUS	_IOW(ASRC_IOC_MAGIC, 10, struct asrc_status_flags)
+#define ASRC_FLUSH	_IOW(ASRC_IOC_MAGIC, 11, enum asrc_pair_index)
 
 enum asrc_pair_index {
 	ASRC_PAIR_A,
@@ -106,11 +107,22 @@ struct asrc_querybuf {
 struct asrc_buffer {
 	unsigned int index;
 	unsigned int length;
+	int buf_valid;
 };
 
 struct asrc_status_flags {
 	enum asrc_pair_index index;
 	unsigned int overload_error;
+};
+
+#define ASRC_BUF_NA	    -35	/* ASRC DQ's buffer is NOT available */
+#define ASRC_BUF_AV	    35	/* ASRC DQ's buffer is available */
+enum asrc_error_status {
+	ASRC_TASK_Q_OVERLOAD = 0x01,
+	ASRC_OUTPUT_TASK_OVERLOAD = 0x02,
+	ASRC_INPUT_TASK_OVERLOAD = 0x04,
+	ASRC_OUTPUT_BUFFER_OVERFLOW = 0x08,
+	ASRC_INPUT_BUFFER_UNDERRUN = 0x10,
 };
 
 #ifdef __KERNEL__
@@ -193,14 +205,6 @@ char *asrc_pair_id[] = {
 	[3] = "ASRC TX PAIR B",
 	[4] = "ASRC RX PAIR C",
 	[5] = "ASRC TX PAIR C",
-};
-
-enum asrc_error_status {
-	ASRC_TASK_Q_OVERLOAD = 0x01,
-	ASRC_OUTPUT_TASK_OVERLOAD = 0x02,
-	ASRC_INPUT_TASK_OVERLOAD = 0x04,
-	ASRC_OUTPUT_BUFFER_OVERFLOW = 0x08,
-	ASRC_INPUT_BUFFER_UNDERRUN = 0x10,
 };
 
 extern int asrc_req_pair(int chn_num, enum asrc_pair_index *index);
