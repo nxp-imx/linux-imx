@@ -2987,7 +2987,7 @@ static int __init udc_init(void)
 	return platform_driver_register(&udc_driver);
 }
 
-module_init(udc_init);
+device_initcall_sync(udc_init);
 
 static void __exit udc_exit(void)
 {

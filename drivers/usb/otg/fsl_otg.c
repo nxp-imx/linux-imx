@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2008 Freescale semiconductor, Inc.
+ * Copyright 2005-2009 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * Author: Li Yang <LeoLi@freescale.com>
  *         Jerry Huang <Chang-Ming.Huang@freescale.com>
@@ -1148,7 +1148,7 @@ static int __init fsl_otg_probe(struct platform_device *pdev)
 	return status;
 }
 
-static int __exit fsl_otg_remove(struct platform_device *pdev)
+static int fsl_otg_remove(struct platform_device *pdev)
 {
 	struct fsl_usb2_platform_data *pdata = pdev->dev.platform_data;
 
