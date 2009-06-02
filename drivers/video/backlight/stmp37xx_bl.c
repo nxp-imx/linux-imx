@@ -119,7 +119,7 @@ static inline void bl_unregister_reg(struct stmp3xxx_platform_bl_data *pdata,
 	if (!pdata)
 		return;
 	if (pdata->regulator)
-		regulator_register_notifier(pdata->regulator,
+		regulator_unregister_notifier(pdata->regulator,
 					    &data->reg_nb);
 	if (pdata->regulator)
 		regulator_put(pdata->regulator);
