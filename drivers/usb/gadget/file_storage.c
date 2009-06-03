@@ -712,8 +712,10 @@ static void set_bulk_out_req_length(struct fsg_dev *fsg,
 	if (rem > 0)
 		length += fsg->bulk_out_maxpacket - rem;
 	bh->outreq->length = length;
+#if 0
 	if (bh->bulk_out_intended_length == 31)
 		bh->outreq->length = 31;
+#endif
 }
 
 static struct fsg_dev			*the_fsg;

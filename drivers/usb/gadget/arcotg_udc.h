@@ -575,6 +575,7 @@ struct fsl_udc {
 
 	struct ep_queue_head *ep_qh;	/* Endpoints Queue-Head */
 	struct fsl_req *status_req;	/* ep0 status request */
+	struct fsl_req *data_req;	/* ep0 data request */
 	struct dma_pool *td_pool;	/* dma pool for DTD */
 	enum fsl_usb2_phy_modes phy_mode;
 
@@ -587,7 +588,6 @@ struct fsl_udc {
 	u32 resume_state;	/* USB state to resume */
 	u32 usb_state;		/* USB current state */
 	u32 usb_next_state;	/* USB next state */
-	u32 ep0_state;		/* Endpoint zero state */
 	u32 ep0_dir;		/* Endpoint zero direction: can be
 				   USB_DIR_IN or USB_DIR_OUT */
 	u32 usb_sof_count;	/* SOF count */
@@ -643,7 +643,6 @@ static void dump_msg(const char *label, const u8 * buf, unsigned int length)
 #endif
 
 #define ERR(stuff...)		printk(KERN_ERR "udc: " stuff)
-#define WARN(stuff...)		printk(KERN_WARNING "udc: " stuff)
 #define INFO(stuff...)		printk(KERN_INFO "udc: " stuff)
 
 /*-------------------------------------------------------------------------*/
