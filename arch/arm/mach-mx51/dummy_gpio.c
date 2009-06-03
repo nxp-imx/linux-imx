@@ -20,6 +20,12 @@ EXPORT_SYMBOL(gpio_uart_active);
 void gpio_uart_inactive(int port, int no_irda) {}
 EXPORT_SYMBOL(gpio_uart_inactive);
 
+void gpio_gps_active(void) {}
+EXPORT_SYMBOL(gpio_gps_active);
+
+void gpio_gps_inactive(void) {}
+EXPORT_SYMBOL(gpio_gps_inactive);
+
 void config_uartdma_event(int port) {}
 EXPORT_SYMBOL(config_uartdma_event);
 

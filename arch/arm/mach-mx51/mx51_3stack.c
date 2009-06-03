@@ -1077,6 +1077,45 @@ static void __init fixup_mxc_board(struct machine_desc *desc, struct tag *tags,
 #endif
 }
 
+#if defined(CONFIG_GPS_IOCTRL) || defined(CONFIG_GPS_IOCTRL_MODULE)
+static struct mxc_gps_platform_data gps_data = {
+	.core_reg = "VIOHI",
+	.analog_reg = "SW4",
+};
+
+static struct platform_device mxc_gps_device = {
+	.name = "gps_ioctrl",
+	.id = -1,
+	.dev = {
+		.platform_data = &gps_data,
+	},
+};
+
+static void __init mxc_init_gps(void)
+{
+	(void)platform_device_register(&mxc_gps_device);
+}
+
+int gpio_gps_access(int para)
+{
+	iomux_pin_name_t pin;
+	pin = (para & 0x1) ? MX51_PIN_EIM_CS2 : MX51_PIN_EIM_CRE;
+
+	if (para & 0x4) /* Read GPIO */
+		return mxc_get_gpio_datain(pin);
+	else if (para & 0x2) /* Write GPIO */
+		mxc_set_gpio_dataout(pin, 1);
+	else
+		mxc_set_gpio_dataout(pin, 0);
+	return 0;
+}
+EXPORT_SYMBOL(gpio_gps_access);
+#else
+static void __init mxc_init_gps(void)
+{
+}
+#endif
+
 /*!
  * Board specific initialization.
  */
@@ -1122,6 +1161,7 @@ static void __init mxc_board_init(void)
 	mxc_init_wm8903();
 	mxc_init_sgtl5000();
 	mxc_init_bluetooth();
+	mxc_init_gps();
 
 	err = mxc_request_iomux(MX51_PIN_EIM_D19, IOMUX_CONFIG_GPIO);
 	if (err)

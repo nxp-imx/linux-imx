@@ -318,6 +318,8 @@ struct mxc_unifi_platform_data {
 struct mxc_gps_platform_data {
 	char *core_reg;
 	char *analog_reg;
+	struct regulator *gps_regu_core;
+	struct regulator *gps_regu_analog;
 };
 
 struct mxc_mlb_platform_data {

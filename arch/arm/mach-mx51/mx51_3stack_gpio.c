@@ -196,7 +196,14 @@ static struct mxc_iomux_pin_cfg __initdata mxc_iomux_pins[] = {
 	 (PAD_CTL_PKE_ENABLE | PAD_CTL_100K_PU),
 	 },
 	{
+	 MX51_PIN_EIM_CS2, IOMUX_CONFIG_GPIO,
+	 (PAD_CTL_DRV_HIGH | PAD_CTL_HYS_NONE | PAD_CTL_PUE_KEEPER |
+	  PAD_CTL_100K_PU | PAD_CTL_PKE_ENABLE | PAD_CTL_SRE_FAST),
+	 },
+	{
 	 MX51_PIN_EIM_CRE, IOMUX_CONFIG_GPIO,
+	 (PAD_CTL_DRV_HIGH | PAD_CTL_HYS_NONE | PAD_CTL_PUE_KEEPER |
+	  PAD_CTL_100K_PU | PAD_CTL_PKE_ENABLE | PAD_CTL_SRE_FAST),
 	 },
 	{
 	 MX51_PIN_DI_GP4, IOMUX_CONFIG_ALT2,
@@ -433,14 +440,14 @@ static struct mxc_iomux_pin_cfg __initdata mxc_iomux_pins[] = {
 	  PAD_CTL_DRV_HIGH | PAD_CTL_SRE_FAST),
 	 },
 	{
-	 MX51_PIN_UART3_RXD, IOMUX_CONFIG_ALT0,
+	 MX51_PIN_UART3_RXD, IOMUX_CONFIG_ALT1,
 	 (PAD_CTL_HYS_NONE | PAD_CTL_PKE_ENABLE | PAD_CTL_PUE_KEEPER |
 	  PAD_CTL_DRV_HIGH | PAD_CTL_SRE_FAST),
 	 MUX_IN_UART3_IPP_UART_RXD_MUX_SELECT_INPUT,
-	 INPUT_CTL_PATH0,
+	 INPUT_CTL_PATH4,
 	 },
 	{
-	 MX51_PIN_UART3_TXD, IOMUX_CONFIG_ALT0,
+	 MX51_PIN_UART3_TXD, IOMUX_CONFIG_ALT1,
 	 (PAD_CTL_HYS_NONE | PAD_CTL_PKE_ENABLE | PAD_CTL_PUE_KEEPER |
 	  PAD_CTL_DRV_HIGH | PAD_CTL_SRE_FAST),
 	 },
@@ -449,7 +456,7 @@ static struct mxc_iomux_pin_cfg __initdata mxc_iomux_pins[] = {
 	 (PAD_CTL_HYS_NONE | PAD_CTL_PKE_ENABLE | PAD_CTL_PUE_KEEPER |
 	  PAD_CTL_DRV_HIGH | PAD_CTL_SRE_FAST),
 	 MUX_IN_UART3_IPP_UART_RTS_B_SELECT_INPUT,
-	 INPUT_CTL_PATH2,
+	 INPUT_CTL_PATH3,
 	 },
 	{
 	 MX51_PIN_EIM_D24, IOMUX_CONFIG_ALT3,
@@ -722,6 +729,13 @@ void __init mx51_3stack_io_init(void)
 	mxc_set_gpio_direction(MX51_PIN_DI1_D1_CS, 0);
 	mxc_set_gpio_direction(MX51_PIN_DISPB2_SER_DIO, 0);
 	mxc_set_gpio_dataout(MX51_PIN_DISPB2_SER_DIO, 0);
+
+	/* GPS related gpio */
+	mxc_set_gpio_direction(MX51_PIN_EIM_CS2, 0);
+	mxc_set_gpio_dataout(MX51_PIN_EIM_CS2, 0);
+	mxc_set_gpio_direction(MX51_PIN_EIM_CRE, 0);
+	mxc_set_gpio_dataout(MX51_PIN_EIM_CRE, 0);
+	mxc_set_gpio_dataout(MX51_PIN_EIM_CRE, 1);
 }
 
 /* workaround for ecspi chipselect pin may not keep correct level when idle */

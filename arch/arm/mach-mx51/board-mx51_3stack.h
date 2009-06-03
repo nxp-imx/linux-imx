@@ -73,7 +73,7 @@
 #define UART2_IR		NO_IRDA
 #define UART2_ENABLED		1
 /* UART 3 configuration */
-#define UART3_MODE		MODE_DTE
+#define UART3_MODE		MODE_DCE
 #define UART3_IR		NO_IRDA
 #define UART3_ENABLED		1
 

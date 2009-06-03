@@ -223,25 +223,25 @@ static int __init gps_ioctrl_probe(struct platform_device *pdev)
 
 	/* open GPS GPO3 1v8 for GL gps support */
 	if (mxc_gps_ioctrl_data->core_reg != NULL) {
-		gps_regu =
+		mxc_gps_ioctrl_data->gps_regu_core =
 		    regulator_get(&(pdev->dev), mxc_gps_ioctrl_data->core_reg);
+		gps_regu = mxc_gps_ioctrl_data->gps_regu_core;
 		if (!IS_ERR_VALUE((u32)gps_regu)) {
 			regulator_set_voltage(gps_regu, 1800000, 1800000);
 			regulator_enable(gps_regu);
-			regulator_put(gps_regu);
 		} else {
 			return -1;
 		}
 	}
 	/* open GPS GPO1 2v8 for GL gps support */
 	if (mxc_gps_ioctrl_data->analog_reg != NULL) {
-		gps_regu =
+		mxc_gps_ioctrl_data->gps_regu_analog =
 		    regulator_get(&(pdev->dev),
 				  mxc_gps_ioctrl_data->analog_reg);
+		gps_regu = mxc_gps_ioctrl_data->gps_regu_analog;
 		if (!IS_ERR_VALUE((u32)gps_regu)) {
 			regulator_set_voltage(gps_regu, 2800000, 2800000);
 			regulator_enable(gps_regu);
-			regulator_put(gps_regu);
 		} else {
 			return -1;
 		}
@@ -265,17 +265,14 @@ static int gps_ioctrl_remove(struct platform_device *pdev)
 	gpio_gps_inactive();
 
 	/* close GPS GPO3 1v8 for GL gps */
+	gps_regu = mxc_gps_ioctrl_data->gps_regu_core;
 	if (mxc_gps_ioctrl_data->core_reg != NULL) {
-		gps_regu =
-		    regulator_get(&(pdev->dev), mxc_gps_ioctrl_data->core_reg);
 		regulator_disable(gps_regu);
 		regulator_put(gps_regu);
 	}
 	/* close GPS GPO1 2v8 for GL gps */
+	gps_regu = mxc_gps_ioctrl_data->gps_regu_analog;
 	if (mxc_gps_ioctrl_data->analog_reg != NULL) {
-		gps_regu =
-		    regulator_get(&(pdev->dev),
-				  mxc_gps_ioctrl_data->analog_reg);
 		regulator_disable(gps_regu);
 		regulator_put(gps_regu);
 	}
