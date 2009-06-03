@@ -397,13 +397,11 @@ static int sgtl5000_digital_mute(struct snd_soc_dai *codec_dai, int mute)
 	if (mute) {
 		reg1 |= SGTL5000_LINE_OUT_MUTE;
 		reg1 |= SGTL5000_HP_MUTE;
-		reg1 |= SGTL5000_ADC_MUTE;
 		reg2 |= SGTL5000_DAC_MUTE_LEFT;
 		reg2 |= SGTL5000_DAC_MUTE_RIGHT;
 	} else {
 		reg1 &= ~SGTL5000_LINE_OUT_MUTE;
 		reg1 &= ~SGTL5000_HP_MUTE;
-		reg1 &= ~SGTL5000_ADC_MUTE;
 		reg2 &= ~SGTL5000_DAC_MUTE_LEFT;
 		reg2 &= ~SGTL5000_DAC_MUTE_RIGHT;
 	}
@@ -950,7 +948,7 @@ static int sgtl5000_init(struct snd_soc_device *socdev)
 	    | (0xf << SGTL5000_ADC_VOL_RIGHT_SHIFT);
 	sgtl5000_write(codec, SGTL5000_CHIP_ANA_ADC_CTRL, reg);
 
-	reg = SGTL5000_LINE_OUT_MUTE | SGTL5000_HP_MUTE | SGTL5000_ADC_MUTE;
+	reg = SGTL5000_LINE_OUT_MUTE | SGTL5000_HP_MUTE;
 	sgtl5000_write(codec, SGTL5000_CHIP_ANA_CTRL, reg);
 
 	sgtl5000_write(codec, SGTL5000_CHIP_MIC_CTRL, 0);
