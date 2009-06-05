@@ -1085,7 +1085,7 @@ int32_t ipu_init_sync_panel(int disp, uint32_t pixel_clk,
 
 		/* Setup active data waveform to sync with DC */
 		_ipu_di_sync_config(disp, 4, 0, DI_SYNC_HSYNC,
-				    v_start_width, DI_SYNC_HSYNC, height,
+				    v_sync_width + v_start_width, DI_SYNC_HSYNC, height,
 				    DI_SYNC_VSYNC, 0, DI_SYNC_NONE,
 				    DI_SYNC_NONE, 0, 0);
 		_ipu_di_sync_config(disp, 5, 0, DI_SYNC_CLK,
