@@ -339,6 +339,21 @@ static void _clk_ipg_recalc(struct clk *clk)
 	clk->rate = clk->parent->rate / 2;	/* Always AHB / 2 */
 }
 
+static unsigned long _clk_parent_round_rate(struct clk *clk, unsigned long rate)
+{
+	return clk->parent->round_rate(clk->parent, rate);
+}
+
+static int _clk_parent_set_rate(struct clk *clk, unsigned long rate)
+{
+	int ret;
+
+	ret = clk->parent->set_rate(clk->parent, rate);
+	if (ret == 0)
+		clk->rate = rate;
+	return ret;
+}
+
 /* Top-level clocks */
 
 static struct clk osc24m_clk = {
@@ -1026,7 +1041,9 @@ struct clk lcdc_clk[] = {
 	 .name = "lcdc_clk",
 	 .id = 0,
 	 .parent = &per_clk[7],
-	 .secondary = &lcdc_clk[1],},
+	 .secondary = &lcdc_clk[1],
+	 .round_rate = _clk_parent_round_rate,
+	 .set_rate = _clk_parent_set_rate,},
 	{
 	 .name = "lcdc_ipg_clk",
 	 .id = 0,
