@@ -41,6 +41,27 @@
 #include "imx-ssi.h"
 #include "imx-pcm.h"
 
+#if defined(CONFIG_MXC_ASRC) || defined(CONFIG_MXC_ASRC_MODULE)
+#include <linux/mxc_asrc.h>
+
+static unsigned int sgtl5000_rates[] = {
+	0,
+	32000,
+	44100,
+	48000,
+	96000,
+};
+
+struct asrc_esai {
+	unsigned int cpu_dai_rates;
+	unsigned int codec_dai_rates;
+	enum asrc_pair_index asrc_index;
+	unsigned int output_sample_rate;
+};
+
+static struct asrc_esai asrc_ssi_data;
+#endif
+
 /* SSI BCLK and LRC master */
 #define SGTL5000_SSI_MASTER	1
 
@@ -63,6 +84,7 @@ static int imx_3stack_audio_hw_params(struct snd_pcm_substream *substream,
 	struct snd_soc_dai *cpu_dai = machine->cpu_dai;
 	struct snd_soc_dai *codec_dai = machine->codec_dai;
 	struct imx_3stack_priv *priv = &machine_priv;
+	unsigned int rate = params_rate(params);
 	int ret = 0;
 
 	unsigned int channels = params_channels(params);
@@ -73,7 +95,47 @@ static int imx_3stack_audio_hw_params(struct snd_pcm_substream *substream,
 		return 0;
 	priv->hw = 1;
 
-	snd_soc_dai_set_sysclk(codec_dai, 0, priv->sysclk, 0);
+#if defined(CONFIG_MXC_ASRC) || defined(CONFIG_MXC_ASRC_MODULE)
+	if ((asrc_ssi_data.output_sample_rate != 0)
+	    && (substream->stream == SNDRV_PCM_STREAM_PLAYBACK)) {
+		unsigned int asrc_input_rate = rate;
+		unsigned int channel = params_channels(params);
+		struct mxc_runtime_data *pcm_data =
+		    substream->runtime->private_data;
+		struct asrc_config config;
+		struct mxc_audio_platform_data *plat;
+		struct imx_3stack_priv *priv = &machine_priv;
+		int retVal = 0;
+		retVal = asrc_req_pair(channel, &asrc_ssi_data.asrc_index);
+		if (retVal < 0) {
+			pr_err("asrc_req_pair fail\n");
+			return -1;
+		}
+		config.pair = asrc_ssi_data.asrc_index;
+		config.channel_num = channel;
+		config.input_sample_rate = asrc_input_rate;
+		config.output_sample_rate = asrc_ssi_data.output_sample_rate;
+		config.inclk = INCLK_NONE;
+		config.word_width = 32;
+		plat = priv->pdev->dev.platform_data;
+		if (plat->src_port == 1)
+			config.outclk = OUTCLK_SSI1_TX;
+		else
+			config.outclk = OUTCLK_SSI2_TX;
+		retVal = asrc_config_pair(&config);
+		if (retVal < 0) {
+			pr_err("Fail to config asrc\n");
+			asrc_release_pair(asrc_ssi_data.asrc_index);
+			return retVal;
+		}
+		rate = asrc_ssi_data.output_sample_rate;
+		pcm_data->asrc_index = asrc_ssi_data.asrc_index;
+		pcm_data->asrc_enable = 1;
+	}
+#endif
+
+	snd_soc_dai_set_sysclk(codec_dai, SGTL5000_SYSCLK, priv->sysclk, 0);
+	snd_soc_dai_set_sysclk(codec_dai, SGTL5000_LRCLK, rate, 0);
 
 #if SGTL5000_SSI_MASTER
 	dai_format = SND_SOC_DAIFMT_I2S | SND_SOC_DAIFMT_NB_NF |
@@ -109,8 +171,7 @@ static int imx_3stack_audio_hw_params(struct snd_pcm_substream *substream,
 
 	/* set i.MX active slot mask */
 	snd_soc_dai_set_tdm_slot(cpu_dai,
-				 channels == 1 ? 0xfffffffe : 0xfffffffc,
-				 2);
+				 channels == 1 ? 0xfffffffe : 0xfffffffc, 2);
 
 	/* set the SSI system clock as input (unused) */
 	snd_soc_dai_set_sysclk(cpu_dai, IMX_SSP_SYS_CLK, 0, SND_SOC_CLOCK_IN);
@@ -118,9 +179,48 @@ static int imx_3stack_audio_hw_params(struct snd_pcm_substream *substream,
 	return 0;
 }
 
+static int imx_3stack_startup(struct snd_pcm_substream *substream)
+{
+#if defined(CONFIG_MXC_ASRC) || defined(CONFIG_MXC_ASRC_MODULE)
+	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
+		if (asrc_ssi_data.output_sample_rate != 0) {
+			struct snd_soc_pcm_runtime *rtd =
+			    substream->private_data;
+			struct snd_soc_dai_link *pcm_link = rtd->dai;
+			struct snd_soc_dai *cpu_dai = pcm_link->cpu_dai;
+			struct snd_soc_dai *codec_dai = pcm_link->codec_dai;
+			asrc_ssi_data.cpu_dai_rates = cpu_dai->playback.rates;
+			asrc_ssi_data.codec_dai_rates =
+			    codec_dai->playback.rates;
+			cpu_dai->playback.rates =
+			    SNDRV_PCM_RATE_8000_192000 | SNDRV_PCM_RATE_KNOT;
+			codec_dai->playback.rates =
+			    SNDRV_PCM_RATE_8000_192000 | SNDRV_PCM_RATE_KNOT;
+		}
+	}
+#endif
+	return 0;
+}
+
 static void imx_3stack_shutdown(struct snd_pcm_substream *substream)
 {
 	struct imx_3stack_priv *priv = &machine_priv;
+
+#if defined(CONFIG_MXC_ASRC) || defined(CONFIG_MXC_ASRC_MODULE)
+	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
+		if (asrc_ssi_data.output_sample_rate != 0) {
+			struct snd_soc_pcm_runtime *rtd =
+			    substream->private_data;
+			struct snd_soc_dai_link *pcm_link = rtd->dai;
+			struct snd_soc_dai *cpu_dai = pcm_link->cpu_dai;
+			struct snd_soc_dai *codec_dai = pcm_link->codec_dai;
+			codec_dai->playback.rates =
+			    asrc_ssi_data.codec_dai_rates;
+			cpu_dai->playback.rates = asrc_ssi_data.cpu_dai_rates;
+			asrc_release_pair(asrc_ssi_data.asrc_index);
+		}
+	}
+#endif
 
 	priv->hw = 0;
 }
@@ -129,6 +229,7 @@ static void imx_3stack_shutdown(struct snd_pcm_substream *substream)
  * imx_3stack SGTL5000 audio DAI opserations.
  */
 static struct snd_soc_ops imx_3stack_ops = {
+	.startup = imx_3stack_startup,
 	.shutdown = imx_3stack_shutdown,
 	.hw_params = imx_3stack_audio_hw_params,
 };
@@ -341,9 +442,55 @@ static const struct snd_kcontrol_new sgtl5000_machine_controls[] = {
 		     sgtl5000_set_spk),
 };
 
+#if defined(CONFIG_MXC_ASRC) || defined(CONFIG_MXC_ASRC_MODULE)
+static int asrc_func;
+
+static const char *asrc_function[] =
+    { "disable", "32KHz", "44.1KHz", "48KHz", "96KHz" };
+
+static const struct soc_enum asrc_enum[] = {
+	SOC_ENUM_SINGLE_EXT(5, asrc_function),
+};
+
+static int asrc_get_rate(struct snd_kcontrol *kcontrol,
+			 struct snd_ctl_elem_value *ucontrol)
+{
+	ucontrol->value.enumerated.item[0] = asrc_func;
+	return 0;
+}
+
+static int asrc_set_rate(struct snd_kcontrol *kcontrol,
+			 struct snd_ctl_elem_value *ucontrol)
+{
+	if (asrc_func == ucontrol->value.enumerated.item[0])
+		return 0;
+
+	asrc_func = ucontrol->value.enumerated.item[0];
+	asrc_ssi_data.output_sample_rate = sgtl5000_rates[asrc_func];
+
+	return 1;
+}
+
+static const struct snd_kcontrol_new asrc_controls[] = {
+	SOC_ENUM_EXT("ASRC", asrc_enum[0], asrc_get_rate,
+		     asrc_set_rate),
+};
+#endif
+
 static int imx_3stack_sgtl5000_init(struct snd_soc_codec *codec)
 {
 	int i, ret;
+
+#if defined(CONFIG_MXC_ASRC) || defined(CONFIG_MXC_ASRC_MODULE)
+	for (i = 0; i < ARRAY_SIZE(asrc_controls); i++) {
+		ret = snd_ctl_add(codec->card,
+				  snd_soc_cnew(&asrc_controls[i], codec, NULL));
+		if (ret < 0)
+			return ret;
+	}
+	asrc_ssi_data.output_sample_rate = sgtl5000_rates[asrc_func];
+
+#endif
 
 	/* Add imx_3stack specific controls */
 	for (i = 0; i < ARRAY_SIZE(sgtl5000_machine_controls); i++) {

@@ -35,6 +35,7 @@
 #include "imx-esai.h"
 
 #if defined(CONFIG_MXC_ASRC) || defined(CONFIG_MXC_ASRC_MODULE)
+#include <linux/delay.h>
 #include <linux/mxc_asrc.h>
 #endif
 
@@ -150,7 +151,27 @@ static int imx_get_sdma_transfer(int format, int dai_port,
 	struct snd_pcm_runtime *runtime = substream->runtime;
 	struct mxc_runtime_data *prtd = runtime->private_data;
 	if (prtd->asrc_enable == 1) {
-		if (dai_port & IMX_DAI_ESAI_TX) {
+		if (dai_port == IMX_DAI_SSI0) {
+			if (prtd->asrc_index == 0)
+				transfer = MXC_DMA_ASRCA_SSI1_TX0;
+			else if (prtd->asrc_index == 1)
+				transfer = MXC_DMA_ASRCB_SSI1_TX0;
+		} else if (dai_port == IMX_DAI_SSI1) {
+			if (prtd->asrc_index == 0)
+				transfer = MXC_DMA_ASRCA_SSI1_TX1;
+			else if (prtd->asrc_index == 1)
+				transfer = MXC_DMA_ASRCB_SSI1_TX1;
+		} else if (dai_port == IMX_DAI_SSI2) {
+			if (prtd->asrc_index == 0)
+				transfer = MXC_DMA_ASRCA_SSI2_TX0;
+			else if (prtd->asrc_index == 1)
+				transfer = MXC_DMA_ASRCB_SSI2_TX0;
+		} else if (dai_port == IMX_DAI_SSI3) {
+			if (prtd->asrc_index == 0)
+				transfer = MXC_DMA_ASRCA_SSI2_TX1;
+			else if (prtd->asrc_index == 1)
+				transfer = MXC_DMA_ASRCB_SSI2_TX1;
+		} else if (dai_port & IMX_DAI_ESAI_TX) {
 			if (prtd->asrc_index == 0)
 				transfer = MXC_DMA_ASRCA_ESAI;
 			else if (prtd->asrc_index == 1)
@@ -443,6 +464,9 @@ static int imx_pcm_trigger(struct snd_pcm_substream *substream, int cmd)
 		if (prtd->asrc_enable == 1) {
 			ret = mxc_dma_enable(prtd->dma_asrc);
 			asrc_start_conv(prtd->asrc_index);
+			/* There is underrun, if immediately enable SSI after
+			   start ASRC */
+			mdelay(1);
 		}
 #endif
 		break;
