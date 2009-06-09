@@ -1,5 +1,5 @@
 /*
- *  Copyright 2008 Freescale Semiconductor, Inc. All Rights Reserved.
+ *  Copyright 2008-2009 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -16,9 +16,6 @@
 
 static int mx37_suspend_enter(suspend_state_t state)
 {
-	if (tzic_enable_wake(0) != 0)
-		return -EAGAIN;
-
 	switch (state) {
 	case PM_SUSPEND_MEM:
 		mxc_cpu_lp_set(STOP_POWER_OFF);
@@ -29,6 +26,10 @@ static int mx37_suspend_enter(suspend_state_t state)
 	default:
 		return -EINVAL;
 	}
+
+	if (tzic_enable_wake(0) != 0)
+		return -EAGAIN;
+
 	cpu_do_idle();
 
 	return 0;

@@ -29,9 +29,6 @@ extern int iram_ready;
 
 static int mx51_suspend_enter(suspend_state_t state)
 {
-	if (tzic_enable_wake(0) != 0)
-		return -EAGAIN;
-
 	if (gpc_dvfs_clk == NULL)
 		gpc_dvfs_clk = clk_get(NULL, "gpc_dvfs_clk");
 	/* gpc clock is needed for SRPG */
@@ -46,6 +43,10 @@ static int mx51_suspend_enter(suspend_state_t state)
 	default:
 		return -EINVAL;
 	}
+
+	if (tzic_enable_wake(0) != 0)
+		return -EAGAIN;
+
 	if (state == PM_SUSPEND_MEM) {
 		cpu_do_suspend_workaround();
 		/*clear the EMPGC0/1 bits */
