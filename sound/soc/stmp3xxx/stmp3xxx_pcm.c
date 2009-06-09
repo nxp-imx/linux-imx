@@ -324,6 +324,12 @@ static int stmp3xxx_pcm_open(struct snd_pcm_substream *substream)
 	struct stmp3xxx_runtime_data *prtd;
 	int ret;
 
+	/* Ensure that buffer size is a multiple of the period size */
+	ret = snd_pcm_hw_constraint_integer(runtime,
+					SNDRV_PCM_HW_PARAM_PERIODS);
+	if (ret < 0)
+		return ret;
+
 	snd_soc_set_runtime_hwparams(substream, &stmp3xxx_pcm_hardware);
 
 	prtd = kzalloc(sizeof(struct stmp3xxx_runtime_data), GFP_KERNEL);
