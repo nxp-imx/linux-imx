@@ -457,11 +457,13 @@ static struct platform_device smsc_lan9217_device = {
 };
 static void mxc_init_enet(void)
 {
-	smsc_lan9217_device.resource[0].start =
-	    LAN9217_BASE_ADDR(cpld_base_addr);
-	smsc_lan9217_device.resource[0].end = LAN9217_BASE_ADDR(cpld_base_addr)
-	    + 0x100;
-	(void)platform_device_register(&smsc_lan9217_device);
+	if (cpld_base_addr) {
+		smsc_lan9217_device.resource[0].start =
+		    LAN9217_BASE_ADDR(cpld_base_addr);
+		smsc_lan9217_device.resource[0].end =
+		    LAN9217_BASE_ADDR(cpld_base_addr) + 0x100;
+		(void)platform_device_register(&smsc_lan9217_device);
+	}
 }
 #else
 static inline void mxc_init_enet(void)
@@ -748,19 +750,9 @@ static int __init mxc_expio_init(void)
 	if ((__raw_readw(brd_io + MAGIC_NUMBER1_REG) != 0xAAAA) ||
 	    (__raw_readw(brd_io + MAGIC_NUMBER2_REG) != 0x5555) ||
 	    (__raw_readw(brd_io + MAGIC_NUMBER3_REG) != 0xCAFE)) {
-		iounmap((void *)brd_io);
-		brd_io = (u32) ioremap(BOARD_IO_ADDR(CS1_BASE_ADDR), SZ_4K);
-		if (brd_io == 0)
-			return -ENOMEM;
-
-		if ((__raw_readw(brd_io + MAGIC_NUMBER1_REG) != 0xAAAA) ||
-		    (__raw_readw(brd_io + MAGIC_NUMBER2_REG) != 0x5555) ||
-		    (__raw_readw(brd_io + MAGIC_NUMBER3_REG) != 0xCAFE)) {
-			iounmap((void *)brd_io);
-			brd_io = 0;
-			return -ENODEV;
-		}
-		cpld_base_addr = CS1_BASE_ADDR;
+		pr_info("3-Stack Debug board not detected \n");
+		cpld_base_addr = 0;
+		return -ENODEV;
 	} else {
 		cpld_base_addr = CS5_BASE_ADDR;
 	}
