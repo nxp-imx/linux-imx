@@ -1,5 +1,5 @@
 /*
- * Copyright 2007-2008 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2007-2009 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -78,7 +78,7 @@ static ssize_t i2c_slave_write(struct file *fd, const char __user *buf,
 		goto error1;
 	}
 
-	ret = i2c_slave_device_write(dev, len, (u8 *) buf);
+	ret = i2c_slave_device_write(dev, len, (u8 *) kbuf);
 
       error1:
 	kfree(kbuf);
@@ -110,6 +110,9 @@ static int i2c_slave_open(struct inode *inode, struct file *fd)
 		ret = -ENODEV;
 		goto error;
 	}
+
+	i2c_slave_rb_clear(dev->receive_buffer);
+	i2c_slave_rb_clear(dev->send_buffer);
 
 	if (i2c_slave_device_start(dev)) {
 		ret = -EBUSY;

@@ -1,5 +1,5 @@
 /*
- * Copyright 2007-2008 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2007-2009 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -16,6 +16,7 @@
 #include <linux/device.h>
 #include <linux/kernel.h>
 #include <linux/sched.h>
+#include <linux/kdev_t.h>
 #include "i2c_slave_device.h"
 static i2c_slave_device_t *i2c_slave_devices[I2C_SLAVE_DEVICE_MAX];
 struct class *i2c_slave_class;
@@ -114,7 +115,7 @@ int i2c_slave_device_register(i2c_slave_device_t *device)
 {
 	device->dev = device_create(i2c_slave_class, NULL,
 				    MKDEV(i2c_slave_major, device->id),
-				    "slave-i2c-%d", device->id);
+				    NULL, "slave-i2c-%d", device->id);
 	if (!device->dev) {
 		return -1;
 	}
