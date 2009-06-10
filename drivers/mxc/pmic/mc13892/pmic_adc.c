@@ -83,6 +83,7 @@
 #define ADC_MODE_MASK           0x00003F
 
 #define ADC_INT_BISDONEI        0x02
+#define ADC_TSMODE_MASK 0x007000
 
 typedef enum adc_state {
 	ADC_FREE,
@@ -425,8 +426,7 @@ PMIC_STATUS mc13892_adc_convert(t_adc_param * adc_param)
 		wait_for_completion_interruptible(&adc_tsi);
 		wait_ts = false;
 	}
-	if (adc_param->read_ts == false)
-		down(&convert_mutex);
+	down(&convert_mutex);
 	use_bis = mc13892_adc_request(adc_param->read_ts);
 	if (use_bis < 0) {
 		pr_debug("process has received a signal and got interrupted\n");
@@ -538,6 +538,8 @@ PMIC_STATUS mc13892_adc_convert(t_adc_param * adc_param)
 		adc_param->ts_value.y_position1 = adc_param->value[3];
 		adc_param->ts_value.y_position2 = adc_param->value[4];
 		adc_param->ts_value.contact_resistance = adc_param->value[6];
+		CHECK_ERROR(pmic_write_reg(REG_ADC0, 0x0,
+				   ADC_TSMODE_MASK));
 	}
 
 	/*if (adc_param->read_ts) {
@@ -546,8 +548,7 @@ PMIC_STATUS mc13892_adc_convert(t_adc_param * adc_param)
 	   adc_param->ts_value.contact_resistance = adc_param->value[6];
 	   } */
 	mc13892_adc_release(use_bis);
-	if (adc_param->read_ts == false)
-		up(&convert_mutex);
+	up(&convert_mutex);
 
 	return PMIC_SUCCESS;
 }
