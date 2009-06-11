@@ -12,6 +12,10 @@ config VIDEO_MXC_EMMA_CAMERA
 	select VIDEO_MXC_OPL
 	default y
 
+config VIDEO_MXC_CSI_CAMERA
+	tristate "MX25 CSI camera support"
+	depends on !VIDEO_MXC_EMMA_CAMERA
+
 config VIDEO_MXC_CSI_DMA
 	bool "CSI-DMA Still Image Capture support"
 	depends on VIDEO_MXC_EMMA_CAMERA

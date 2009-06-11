@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2008 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2004-2009 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -24,7 +24,9 @@
 #include <linux/device.h>
 #include <linux/clk.h>
 
-#if defined(CONFIG_MXC_IPU_V1) || defined(CONFIG_VIDEO_MXC_EMMA_CAMERA)
+#if defined(CONFIG_MXC_IPU_V1) || defined(CONFIG_VIDEO_MXC_EMMA_CAMERA) \
+			       || defined(CONFIG_VIDEO_MXC_CSI_CAMERA_MODULE) \
+			       || defined(CONFIG_VIDEO_MXC_CSI_CAMERA)
 /*
  * set_mclk_rate
  *

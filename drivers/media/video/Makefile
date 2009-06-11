@@ -59,6 +59,7 @@ obj-$(CONFIG_VIDEO_VINO) += vino.o indycam.o
 obj-$(CONFIG_VIDEO_STRADIS) += stradis.o
 obj-$(CONFIG_VIDEO_MXC_IPU_CAMERA) += mxc/capture/
 obj-$(CONFIG_VIDEO_MXC_EMMA_CAMERA) += mxc/capture/
+obj-$(CONFIG_VIDEO_MXC_CSI_CAMERA) += mxc/capture/
 obj-$(CONFIG_VIDEO_MXC_IPU_OUTPUT) += mxc/output/
 obj-$(CONFIG_VIDEO_MXC_IPUV1_WVGA_OUTPUT) += mxc/output/
 obj-$(CONFIG_VIDEO_MXC_EMMA_OUTPUT) += mxc/output/
