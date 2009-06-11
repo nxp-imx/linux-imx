@@ -174,7 +174,7 @@ static struct regulator_init_data sw1_init = {
 static struct regulator_init_data sw_init = {
 	.constraints = {
 		.min_uV = mV_to_uV(1200), /* mc13783 allows min of 900. */
-		.max_uV = mV_to_uV(1600), /* mc13783 allows max of 2200. */
+		.max_uV = mV_to_uV(2200), /* mc13783 allows max of 2200. */
 		.valid_ops_mask = REGULATOR_CHANGE_VOLTAGE,
 		.boot_on = 1,
 	}

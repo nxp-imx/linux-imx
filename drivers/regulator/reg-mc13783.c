@@ -1927,6 +1927,16 @@ static int mc13783_sw_get_normal_voltage(struct regulator_dev *reg)
 	return mV * 1000;
 }
 
+static int mc13783_sw_normal_enable(struct regulator_dev *reg)
+{
+	return 0;
+}
+
+static int mc13783_sw_normal_disable(struct regulator_dev *reg)
+{
+	return 0;
+}
+
 static int mc13783_sw_stby_enable(struct regulator_dev *reg)
 {
 	return 0;
@@ -2347,6 +2357,8 @@ static struct regulator_ops mc13783_sw_normal_ops = {
 	.get_voltage = mc13783_sw_get_normal_voltage,
 	.get_mode = mc13783_sw_get_normal_mode,
 	.set_mode = mc13783_sw_set_normal_mode,
+	.enable = mc13783_sw_normal_enable,
+	.disable = mc13783_sw_normal_disable,
 };
 
 static struct regulator_desc reg_mc13783[] = {
