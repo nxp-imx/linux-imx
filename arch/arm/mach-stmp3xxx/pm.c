@@ -335,6 +335,11 @@ void stmp37xx_pm_idle(void)
 	local_irq_enable();
 }
 
+static void stmp37xx_pm_power_off(void)
+{
+	HW_POWER_RESET_WR((0x3e77 << 16) | 1);
+}
+
 static int __init stmp37xx_pm_init(void)
 {
 	saved_sram = kmalloc(0x4000, GFP_ATOMIC);
@@ -344,6 +349,7 @@ static int __init stmp37xx_pm_init(void)
 		return -ENOMEM;
 	}
 
+	pm_power_off = stmp37xx_pm_power_off;
 	pm_idle = stmp37xx_pm_idle;
 	suspend_set_ops(&stmp37xx_suspend_ops);
 	return 0;
