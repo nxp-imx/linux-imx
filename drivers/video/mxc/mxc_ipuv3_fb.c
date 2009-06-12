@@ -544,6 +544,15 @@ static int mxcfb_ioctl(struct fb_info *fbi, unsigned int cmd, unsigned long arg)
 							 pos.x, pos.y);
 			break;
 		}
+	case MXCFB_GET_FB_IPU_CHAN:
+		{
+			struct mxcfb_info *mxc_fbi =
+				(struct mxcfb_info *)fbi->par;
+
+			if (put_user(mxc_fbi->ipu_ch, argp))
+				return -EFAULT;
+			break;
+		}
 	default:
 		retval = -EINVAL;
 	}

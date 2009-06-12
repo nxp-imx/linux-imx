@@ -49,6 +49,7 @@ struct mxcfb_pos {
 #define MXCFB_SET_GBL_ALPHA     _IOW('F', 0x21, struct mxcfb_gbl_alpha)
 #define MXCFB_SET_CLR_KEY       _IOW('F', 0x22, struct mxcfb_color_key)
 #define MXCFB_SET_OVERLAY_POS   _IOW('F', 0x24, struct mxcfb_pos)
+#define MXCFB_GET_FB_IPU_CHAN   _IOR('F', 0x25, u_int32_t)
 
 #ifdef __KERNEL__
 
