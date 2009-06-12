@@ -385,7 +385,7 @@ static int __init init(void)
 {
 	return usb_composite_register(&eth_driver);
 }
-module_init(init);
+late_initcall(init);
 
 static void __exit cleanup(void)
 {

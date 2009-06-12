@@ -2950,7 +2950,7 @@ static int __init udc_init(void)
 	return platform_driver_register(&udc_driver);
 }
 
-device_initcall_sync(udc_init);
+late_initcall(udc_init);
 
 static void __exit udc_exit(void)
 {
