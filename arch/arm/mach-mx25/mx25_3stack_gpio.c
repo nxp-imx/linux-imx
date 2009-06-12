@@ -1090,19 +1090,6 @@ EXPORT_SYMBOL(gpio_activate_esai_ports);
  */
 void gpio_deactivate_esai_ports(void)
 {
-	mxc_request_gpio(MX25_PIN_CSI_D2); /*SCKR*/
-	mxc_request_gpio(MX25_PIN_CSI_D3); /*FSR*/
-	mxc_request_gpio(MX25_PIN_CSI_D4); /*HCKR*/
-	mxc_request_gpio(MX25_PIN_CSI_D5); /*SCKT*/
-	mxc_request_gpio(MX25_PIN_CSI_D6); /*FST*/
-	mxc_request_gpio(MX25_PIN_CSI_D7); /*HCKT*/
-	mxc_request_gpio(MX25_PIN_CSI_D8); /*TX5_RX0*/
-	mxc_request_gpio(MX25_PIN_CSI_D9); /*TX4_RX1*/
-	mxc_request_gpio(MX25_PIN_CSI_MCLK); /*TX3_RX2*/
-	mxc_request_gpio(MX25_PIN_CSI_VSYNC); /*TX2_RX3*/
-	mxc_request_gpio(MX25_PIN_CSI_HSYNC); /*TX1*/
-	mxc_request_gpio(MX25_PIN_CSI_PIXCLK); /*TX0*/
-
 	mxc_free_iomux(MX25_PIN_CSI_D2, MUX_CONFIG_FUNC);
 	mxc_free_iomux(MX25_PIN_CSI_D3, MUX_CONFIG_FUNC);
 	mxc_free_iomux(MX25_PIN_CSI_D4, MUX_CONFIG_FUNC);
