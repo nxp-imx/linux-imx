@@ -264,6 +264,17 @@ static struct resource usb_resources[] = {
 	},
 };
 
+struct platform_device stmp3xxx_usb = {
+		.name		= "stmp3xxx-usb",
+		.id		= -1,
+		.dev		= {
+		.dma_mask		= &common_dmamask,
+		.coherent_dma_mask	= COMMON_COHERENT_DMAMASK,
+	},
+	.num_resources	= ARRAY_SIZE(usb_resources),
+	.resource	= usb_resources,
+};
+
 static struct fsl_usb2_platform_data udc_platform_data = {
 	.operating_mode = FSL_USB2_DR_DEVICE,
 	.phy_mode	= FSL_USB2_PHY_UTMI,
@@ -279,9 +290,27 @@ struct platform_device stmp3xxx_udc = {
 		.dma_mask		= &common_dmamask,
 		.coherent_dma_mask	= COMMON_COHERENT_DMAMASK,
 		.platform_data		= &udc_platform_data,
+		.parent			= &stmp3xxx_usb.dev,
 	},
-	.num_resources	= ARRAY_SIZE(usb_resources),
-	.resource	= usb_resources,
+};
+
+static struct fsl_usb2_platform_data ehci_platform_data = {
+	.operating_mode = FSL_USB2_DR_HOST,
+	.phy_mode	= FSL_USB2_PHY_UTMI,
+	.port_enables	= FSL_USB2_DONT_REMAP,
+	.platform_init	= NULL,
+	.platform_uninit = NULL,
+};
+
+struct platform_device stmp3xxx_ehci = {
+	.name		= "fsl-ehci",
+	.id		= -1,
+	.dev		= {
+		.dma_mask		= &common_dmamask,
+		.coherent_dma_mask	= COMMON_COHERENT_DMAMASK,
+		.platform_data		= &ehci_platform_data,
+		.parent			= &stmp3xxx_usb.dev,
+	},
 };
 
 struct platform_device stmp3xxx_rtc = {

@@ -43,7 +43,7 @@
 #define FSL_SOC_USB_CTRL	0x500	/* NOTE: big-endian */
 #define SNOOP_SIZE_2GB		0x1e
 
-#ifdef CONFIG_ARCH_MXC
+#if defined(CONFIG_ARCH_MXC) || defined(CONFIG_ARCH_STMP3XXX)
 #include <mach/fsl_usb.h>
 #elif CONFIG_PPC32
 #include <asm/fsl_usb.h>

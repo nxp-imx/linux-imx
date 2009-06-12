@@ -37,6 +37,14 @@
 #endif
 #endif
 
+#ifdef CONFIG_ARCH_STMP3XXX
+#define STMP3XXX_USB_HOST_HACK
+#endif
+
+#ifdef STMP3XXX_USB_HOST_HACK
+#include <linux/fsl_devices.h>
+#endif
+
 struct usb_hub {
 	struct device		*intfdev;	/* the "interface" device */
 	struct usb_device	*hdev;
@@ -2840,6 +2848,27 @@ static void hub_port_connect_change(struct usb_hub *hub, int port1,
   			goto done;
 		return;
 	}
+
+#ifdef STMP3XXX_USB_HOST_HACK
+	{
+	/*
+	 * FIXME: the USBPHY of STMP3xxx SoC has bug. The usb port power
+	 * is never enabled during standard ehci reset procedure if the
+	 * external device once passed plug/unplug procedure. This work-
+	 * around resets and reinitiates USBPHY before the ehci port reset
+	 * sequence started.
+	 */
+		struct device *dev = hcd->self.controller;
+		struct fsl_usb2_platform_data *pdata;
+
+		pdata = (struct fsl_usb2_platform_data *)dev->platform_data;
+		if (dev->parent && dev->type) {
+			if (port1 == 1 && pdata->platform_init)
+				pdata->platform_init(NULL);
+		}
+	}
+
+#endif
 
 	for (i = 0; i < SET_CONFIG_TRIES; i++) {
 

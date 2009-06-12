@@ -2592,6 +2592,14 @@ static int __init fsl_udc_probe(struct platform_device *pdev)
 		return -ENODEV;
 	}
 #else
+	if ((pdev->dev.parent) &&
+		(to_platform_device(pdev->dev.parent)->resource)) {
+		pdev->resource =
+			to_platform_device(pdev->dev.parent)->resource;
+		pdev->num_resources =
+			to_platform_device(pdev->dev.parent)->num_resources;
+	}
+
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	if (!res) {
 		ret = -ENXIO;

@@ -26,6 +26,7 @@
 #include <linux/fsl_devices.h>
 #include <linux/spi/spi.h>
 #include <linux/i2c.h>
+#include <linux/usb/otg.h>
 
 #include <asm/setup.h>
 #include <asm/mach-types.h>
@@ -89,7 +90,9 @@ static struct platform_device *devices[] = {
 	&stmp3xxx_appuart,
 	&stmp3xxx_dbguart,
 	&stmp3xxx_watchdog,
+	&stmp3xxx_usb,
 	&stmp3xxx_udc,
+	&stmp3xxx_ehci,
 	&stmp3xxx_rtc,
 	&stmp3xxx_framebuffer,
 	&stmp3xxx_backlight,
@@ -369,6 +372,8 @@ static void __init stmp378x_devb_init(void)
 	stmp3xxx_gpmi.dev.platform_data = &gpmi_partitions;
 	stmp3xxx_keyboard.dev.platform_data = &keyboard_data;
 	udata = stmp3xxx_udc.dev.platform_data;
+	udata->platform_init = usb_phy_enable;
+	udata = stmp3xxx_ehci.dev.platform_data;
 	udata->platform_init = usb_phy_enable;
 	spi_register_board_info(spi_board_info, ARRAY_SIZE(spi_board_info));
 	stmp3xxx_ssp1_device_register();	/* MMC or SSP */
