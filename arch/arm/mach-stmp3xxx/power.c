@@ -506,8 +506,9 @@ static int __init regulators_init(void)
 {
 	int i;
 	int retval = 0;
+	u32 vddio = HW_POWER_VDDIOCTRL_RD() & ~0x1f;
 	pr_debug("regulators_init \n");
-	HW_POWER_VDDIOCTRL_WR(0x00022614);
+	HW_POWER_VDDIOCTRL_WR(vddio | 0x14);
 	vdddbo_reg.parent = &vddd_reg;
 	stmp3xxx_register_regulator(&vddd_reg, STMP3XXX_VDDD, &vddd_init);
 	stmp3xxx_register_regulator(&vdddbo_reg, STMP3XXX_VDDDBO, &vdddbo_init);
