@@ -159,6 +159,24 @@ static struct platform_device mxc_fb_device[] = {
 };
 
 static int __initdata enable_vga = { 0 };
+static int __initdata enable_wvga = { 0 };
+
+static void wvga_reset(void)
+{
+	mxc_set_gpio_dataout(MX51_PIN_DI1_D1_CS, 1);
+}
+
+static struct mxc_lcd_platform_data lcd_wvga_data = {
+	.reset = wvga_reset,
+};
+
+static struct platform_device lcd_wvga_device = {
+	.name = "lcd_claa",
+	.dev = {
+		.release = mxc_nop_release,
+		.platform_data = &lcd_wvga_data,
+		},
+};
 
 static void __init mxc_init_fb(void)
 {
@@ -167,6 +185,12 @@ static void __init mxc_init_fb(void)
 		fb_data[0].mode_str = NULL;
 		fb_data[1].mode_str = NULL;
 	}
+
+	if (enable_wvga) {
+		fb_data[1].interface_pix_fmt = IPU_PIX_FMT_RGB666;
+		fb_data[1].mode_str = "800x480M-16@55";
+	}
+
 	/* DVI Detect */
 	mxc_set_gpio_direction(MX51_PIN_NANDF_D12, 1);
 	/* DVI Reset - Assert for i2c disabled mode */
@@ -176,7 +200,9 @@ static void __init mxc_init_fb(void)
 	mxc_set_gpio_dataout(MX51_PIN_DISPB2_SER_DIO, 1);
 	mxc_set_gpio_direction(MX51_PIN_DISPB2_SER_DIO, 0);
 
-	if (!enable_vga)
+	(void)platform_device_register(&lcd_wvga_device);
+
+	if (!enable_vga && !enable_wvga)
 		(void)platform_device_register(&mxc_fb_device[0]);
 	else
 		(void)platform_device_register(&mxc_fb_device[1]);
@@ -190,6 +216,14 @@ static int __init vga_setup(char *__unused)
 }
 
 __setup("vga", vga_setup);
+
+static int __init wvga_setup(char *__unused)
+{
+	enable_wvga = 1;
+	return 1;
+}
+
+__setup("wvga", wvga_setup);
 #else
 static inline void mxc_init_fb(void)
 {

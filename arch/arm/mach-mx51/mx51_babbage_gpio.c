@@ -227,6 +227,20 @@ static struct mxc_iomux_pin_cfg __initdata mxc_iomux_pins[] = {
 	 MUX_IN_GPIO3_IPP_IND_G_IN_5_SELECT_INPUT,
 	 INPUT_CTL_PATH1,
 	 },
+#ifdef CONFIG_FB_MXC_CLAA_WVGA_SYNC_PANEL
+	{	/* DISP2_DAT16 */
+	 MX51_PIN_DISP1_DAT22, IOMUX_CONFIG_ALT5,
+	 },
+	{	/* DISP2_DAT17 */
+	 MX51_PIN_DISP1_DAT23, IOMUX_CONFIG_ALT5,
+	 },
+	{
+	 MX51_PIN_DI1_D1_CS, IOMUX_CONFIG_ALT4,
+	 (PAD_CTL_PKE_ENABLE | PAD_CTL_PUE_KEEPER | PAD_CTL_DRV_HIGH |
+	  PAD_CTL_SRE_FAST),
+	 MUX_IN_GPIO3_IPP_IND_G_IN_4_SELECT_INPUT, INPUT_CTL_PATH1,
+	 },
+#endif
 	{
 	 MX51_PIN_NANDF_D12, IOMUX_CONFIG_GPIO,
 	 0,
@@ -625,4 +639,7 @@ void __init mx51_babbage_io_init(void)
 	/* Deassert VGA reset to free i2c bus */
 	mxc_set_gpio_direction(MX51_PIN_EIM_A19, 0);
 	mxc_set_gpio_dataout(MX51_PIN_EIM_A19, 1);
+
+	/* LCD related gpio */
+	mxc_set_gpio_direction(MX51_PIN_DI1_D1_CS, 0);
 }
