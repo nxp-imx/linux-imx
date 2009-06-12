@@ -358,6 +358,8 @@ static int sdhc_write_protect(struct device *dev)
 
 	if (to_platform_device(dev)->id == 0)
 		rc = mxc_get_gpio_datain(MX51_PIN_GPIO1_1);
+	else
+		rc = mxc_get_gpio_datain(MX51_PIN_GPIO1_5);
 
 	return rc;
 }
@@ -370,7 +372,13 @@ static unsigned int sdhc_get_card_det_status(struct device *dev)
 		ret = mxc_get_gpio_datain(MX51_PIN_GPIO1_0);
 		return ret;
 	} else {		/* config the det pin for SDHC2 */
-		return 0;
+		if (board_is_babbage_2_5() == 1)
+			/* BB2.5 */
+			ret = mxc_get_gpio_datain(MX51_PIN_GPIO1_6);
+		else
+			/* BB2.0 */
+			ret = mxc_get_gpio_datain(MX51_PIN_GPIO1_4);
+		return ret;
 	}
 }
 
@@ -422,8 +430,8 @@ static struct resource mxcsdhc2_resources[] = {
 	       .flags = IORESOURCE_IRQ,
 	       },
 	[2] = {
-	       .start = 0,
-	       .end = 0,
+	       .start = IOMUX_TO_IRQ(MX51_PIN_GPIO1_4),
+	       .end = IOMUX_TO_IRQ(MX51_PIN_GPIO1_4),
 	       .flags = IORESOURCE_IRQ,
 	       },
 };
@@ -454,6 +462,14 @@ static struct platform_device mxcsdhc2_device = {
 
 static inline void mxc_init_mmc(void)
 {
+	if (board_is_babbage_2_5() == 1) {
+		/* BB2.5 */
+		mxcsdhc2_resources[2].start =
+			IOMUX_TO_IRQ(MX51_PIN_GPIO1_6);	/* SD2 CD */
+		mxcsdhc2_resources[2].end =
+			IOMUX_TO_IRQ(MX51_PIN_GPIO1_6);	/* SD2 CD */
+	}
+
 	(void)platform_device_register(&mxcsdhc1_device);
 	(void)platform_device_register(&mxcsdhc2_device);
 }

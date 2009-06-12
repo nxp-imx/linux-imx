@@ -350,6 +350,47 @@ static struct mxc_iomux_pin_cfg __initdata mxc_iomux_pins[] = {
 	 (PAD_CTL_HYS_ENABLE | PAD_CTL_100K_PU),
 	 },
 	{
+	 MX51_PIN_SD2_CMD, IOMUX_CONFIG_ALT0 | IOMUX_CONFIG_SION,
+	 (PAD_CTL_DRV_MAX | PAD_CTL_22K_PU | PAD_CTL_SRE_FAST),
+	 },
+	{
+	 MX51_PIN_SD2_CLK, IOMUX_CONFIG_ALT0 | IOMUX_CONFIG_SION,
+	 (PAD_CTL_DRV_MAX | PAD_CTL_22K_PU | PAD_CTL_SRE_FAST),
+	 },
+	{
+	 MX51_PIN_SD2_DATA0, IOMUX_CONFIG_ALT0,
+	 (PAD_CTL_DRV_MAX | PAD_CTL_22K_PU | PAD_CTL_SRE_FAST),
+	 },
+	{
+	 MX51_PIN_SD2_DATA1, IOMUX_CONFIG_ALT0,
+	 (PAD_CTL_DRV_MAX | PAD_CTL_22K_PU | PAD_CTL_SRE_FAST),
+	 },
+	{
+	 MX51_PIN_SD2_DATA2, IOMUX_CONFIG_ALT0,
+	 (PAD_CTL_DRV_MAX | PAD_CTL_22K_PU | PAD_CTL_SRE_FAST),
+	 },
+	{
+	 MX51_PIN_SD2_DATA3, IOMUX_CONFIG_ALT0,
+	 (PAD_CTL_DRV_MAX | PAD_CTL_22K_PU | PAD_CTL_SRE_FAST),
+	 },
+	{
+	 MX51_PIN_GPIO1_4, IOMUX_CONFIG_GPIO | IOMUX_CONFIG_SION,
+	 (PAD_CTL_HYS_ENABLE | PAD_CTL_100K_PU),
+	 },
+	{
+	 MX51_PIN_GPIO1_5, IOMUX_CONFIG_GPIO | IOMUX_CONFIG_SION,
+	 (PAD_CTL_HYS_ENABLE | PAD_CTL_100K_PU),
+	 },
+	{
+	 MX51_PIN_GPIO1_6, IOMUX_CONFIG_GPIO | IOMUX_CONFIG_SION,
+	 (PAD_CTL_HYS_ENABLE | PAD_CTL_100K_PU),
+	 },
+	{			/* Detect pin GPIO BB2.0 and BB2.5 */
+	 MX51_PIN_UART3_RXD, IOMUX_CONFIG_ALT3,
+	 (PAD_CTL_HYS_NONE | PAD_CTL_PKE_ENABLE | PAD_CTL_PUE_KEEPER |
+	  PAD_CTL_DRV_HIGH | PAD_CTL_SRE_FAST),
+	 },
+	{
 	 MX51_PIN_UART1_RXD, IOMUX_CONFIG_ALT0,
 	 (PAD_CTL_HYS_ENABLE | PAD_CTL_PKE_ENABLE | PAD_CTL_PUE_PULL |
 	  PAD_CTL_DRV_HIGH | PAD_CTL_SRE_FAST),
@@ -450,6 +491,13 @@ void __init mx51_babbage_io_init(void)
 	mxc_set_gpio_direction(MX51_PIN_GPIO1_8, 1);
 	mxc_set_gpio_direction(MX51_PIN_GPIO1_0, 1);	/* SD1 CD */
 	mxc_set_gpio_direction(MX51_PIN_GPIO1_1, 1);	/* SD1 WP */
+	if (board_is_babbage_2_5() == 1)
+		/* BB2.5 */
+		mxc_set_gpio_direction(MX51_PIN_GPIO1_6, 1);	/* SD2 CD */
+	else
+		/* BB2.0 */
+		mxc_set_gpio_direction(MX51_PIN_GPIO1_4, 1);	/* SD2 CD */
+	mxc_set_gpio_direction(MX51_PIN_GPIO1_5, 1);	/* SD2 WP */
 
 	/* reset FEC PHY */
 	mxc_set_gpio_direction(MX51_PIN_EIM_A20, 0);
