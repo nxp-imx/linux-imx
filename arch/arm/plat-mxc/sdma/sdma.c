@@ -342,10 +342,10 @@ static unsigned short sdma_get_pc(sdma_periphT peripheral_type,
 	} else if (peripheral_type == ASRC) {
 		switch (transfer_type) {
 		case per_2_emi:
-			res = sdma_script_addrs.mxc_sdma_shp_2_mcu_addr;
+			res = sdma_script_addrs.mxc_sdma_asrc_2_mcu_addr;
 			break;
 		case emi_2_per:
-			res = sdma_script_addrs.mxc_sdma_mcu_2_shp_addr;
+			res = sdma_script_addrs.mxc_sdma_asrc_2_mcu_addr;
 			break;
 		case per_2_per:
 			res = sdma_script_addrs.mxc_sdma_per_2_per_addr;
@@ -401,6 +401,77 @@ static unsigned short sdma_get_pc(sdma_periphT peripheral_type,
 
 }
 
+static inline int sdma_asrc_set_info(dma_channel_params *p,
+				     script_data *pcontext, int eflags)
+{
+	dma_channel_ext_params *ep = (dma_channel_ext_params *) p;
+	unsigned int wml, tmp, wml1, wml2;
+	struct dma_channel_asrc_info *info = &(ep->info.asrc);
+	wml = 0;
+	if (p->transfer_type == per_2_per) {
+		if (!p->ext)
+			return wml;
+		wml1 = p->watermark_level;
+		wml2 = ep->watermark_level2;
+		if (info->channs) {
+			wml |= (info->channs & SDMA_ASRC_INFO_N_MASK) <<
+			    SDMA_ASRC_INFO_N_OFF;
+			if (ep->p2p_dir)
+				wml2 *= info->channs & SDMA_ASRC_INFO_N_MASK;
+			else
+				wml1 *= info->channs & SDMA_ASRC_INFO_N_MASK;
+		}
+		if (info->channs & 1) {
+			if (ep->p2p_dir)
+				wml |= SDMA_ASRC_P2P_INFO_PS;
+			else
+				wml |= SDMA_ASRC_P2P_INFO_PA;
+		}
+		if (wml1 > wml2) {
+			tmp = wml2 & SDMA_ASRC_P2P_INFO_LWML_MASK;
+			wml |= tmp << SDMA_ASRC_P2P_INFO_LWML_OFF;
+			tmp = wml1 & SDMA_ASRC_P2P_INFO_HWML_MASK;
+			wml |= tmp << SDMA_ASRC_P2P_INFO_HWML_OFF;
+			if (eflags & (1 << 31))
+				wml |= SDMA_ASRC_P2P_INFO_LWE;
+			if (eflags & (1 << 30))
+				wml |= SDMA_ASRC_P2P_INFO_HWE;
+		} else {
+			tmp = wml1 & SDMA_ASRC_P2P_INFO_LWML_MASK;
+			wml |= tmp << SDMA_ASRC_P2P_INFO_LWML_OFF;
+			tmp = wml2 & SDMA_ASRC_P2P_INFO_HWML_MASK;
+			wml |= tmp << SDMA_ASRC_P2P_INFO_HWML_OFF;
+			wml |= eflags >> 2;
+			tmp = pcontext->event_mask2;
+			pcontext->event_mask2 = pcontext->event_mask1;
+			pcontext->event_mask1 = tmp;
+		}
+	} else {
+		if (p->ext && info->channs) {
+			wml |= (info->channs & SDMA_ASRC_INFO_N_MASK) <<
+			    SDMA_ASRC_INFO_N_OFF;
+			tmp = (info->channs * p->watermark_level) &
+			    SDMA_ASRC_INFO_WML_MASK;
+			wml |= tmp << SDMA_ASRC_INFO_WML_OFF;
+		} else {
+			tmp = (p->watermark_level & SDMA_ASRC_INFO_WML_MASK);
+			wml |= tmp << SDMA_ASRC_INFO_WML_OFF;
+		}
+
+		if (p->transfer_type == per_2_emi)
+			wml |= SDMA_ASRC_INFO_TXFR_DIR;
+
+		if (p->ext && (info->channs & 1)) {
+			if (p->transfer_type == per_2_emi)
+				wml |= SDMA_ASRC_INFO_PS;
+			else
+				wml |= SDMA_ASRC_INFO_PA;
+		}
+		wml |= eflags;
+	}
+	return wml;
+}
+
 /*!
  * Downloads channel context according to channel parameters
  *
@@ -413,6 +484,7 @@ static int sdma_load_context(int channel, dma_channel_params * p)
 	int res;
 	int event1_greater_than_32;
 	int event2_greater_than_32;
+	dma_channel_ext_params *ep = (dma_channel_ext_params *) p;
 
 	res = 0;
 
@@ -456,13 +528,24 @@ static int sdma_load_context(int channel, dma_channel_params * p)
 					    0x1 << (p->event_id - 32);
 				}
 			}
+
+			if (p->ext)
+				context.wml = ep->info_bits;
 			/* Watermark Level */
-			context.wml =
-			    event2_greater_than_32 | event1_greater_than_32 |
-			    p->watermark_level;
+			if (p->peripheral_type == ASRC) {
+				context.wml |= sdma_asrc_set_info(p,
+								  &context,
+								  event2_greater_than_32
+								  |
+								  event1_greater_than_32);
+			} else
+				context.wml |= event2_greater_than_32 |
+				    event1_greater_than_32 | p->watermark_level;
 
 			/* Address */
 			context.shp_addr = (unsigned long)(p->per_address);
+			if (p->ext)
+				context.per_addr = ep->per_address2;
 			iapi_IoCtl(sdma_data[channel].cd,
 				   IAPI_CHANGE_PERIPHADDR, p->per_address);
 		} else {
@@ -529,6 +612,7 @@ descriptors (0x%x)\n", err);
 		case int_2_per:
 		case per_2_int:
 		case per_2_emi:
+		case per_2_per:
 			/*
 			 * Peripheral <------> Memory
 			 * evtOvr = 0 dspOvr = 1

@@ -55,6 +55,28 @@
 
 #define MXC_FIFO_MEM_DEST_FIXED   0x1
 #define MXC_FIFO_MEM_SRC_FIXED    0x2
+
+#define SDMA_ASRC_INFO_WML_OFF	0
+#define SDMA_ASRC_INFO_WML_MASK ((1 << 10) - 1)
+#define SDMA_ASRC_INFO_PS	(1 << 10)
+#define SDMA_ASRC_INFO_PA	(1 << 11)
+#define SDMA_ASRC_INFO_TXFR_DIR	(1 << 14)
+#define SDMA_ASRC_INFO_N_OFF	(24)
+#define SDMA_ASRC_INFO_N_MASK	((1 << 4) - 1)
+
+#define SDMA_ASRC_P2P_INFO_LWML_OFF 0
+#define SDMA_ASRC_P2P_INFO_LWML_MASK ((1 << 8) - 1)
+#define SDMA_ASRC_P2P_INFO_PS	(1 << 8)
+#define SDMA_ASRC_P2P_INFO_PA	(1 << 9)
+#define SDMA_ASRC_P2P_INFO_SPDIF (1 << 10)
+#define SDMA_ASRC_P2P_INFO_SP (1 << 11)
+#define SDMA_ASRC_P2P_INFO_DP (1 << 12)
+#define SDMA_ASRC_P2P_INFO_HWML_OFF 14
+#define SDMA_ASRC_P2P_INFO_HWML_MASK ((1 << 10) - 1)
+#define SDMA_ASRC_P2P_INFO_LWE (1 << 28)
+#define SDMA_ASRC_P2P_INFO_HWE (1 << 29)
+#define SDMA_ASRC_P2P_INFO_CONT (1 << 31)
+
 /*!
  * This enumerates  transfer types
  */
@@ -136,9 +158,11 @@ typedef void (*dma_callback_t) (void *arg);
 typedef struct {
 	__u32 watermark_level;	/*!< Lower/upper threshold that
 				 *   triggers SDMA event
+				 *   for p2p, this is event1 watermark level
 				 */
 	__u32 per_address;	/*!< Peripheral source/destination
 				 *   physical address
+				 *   for p2p, this is destination address
 				 */
 	sdma_periphT peripheral_type;	/*!< Peripheral type */
 	sdma_transferT transfer_type;	/*!< Transfer type   */
@@ -159,7 +183,28 @@ typedef struct {
 	dma_callback_t callback;	/*!   callback function            */
 	void *arg;		/*!   callback argument            */
 	unsigned long word_size:8;	/*!< SDMA data access word size    */
+	unsigned long ext:1;	/*!< 1: extend parameter structure */
 } dma_channel_params;
+
+typedef struct {
+	dma_channel_params common;
+	unsigned long p2p_dir:1;	/*!< 0: per2 to per.
+					 * the device of peripheral_type is per.
+					 * 1: per to per2
+					 * the device of peripheral_type is per2
+					 */
+	unsigned long info_bits;	/*!< info field in context */
+	unsigned long info_mask;	/*!< info field mask in context */
+	__u32 watermark_level2;	/*!< event2 threshold that
+				 *   triggers SDMA event
+				 *   just valid for p2p.
+				 */
+	__u32 per_address2;	/*!< Peripheral source
+				 *   physical address.
+				 *   just valid for p2p.
+				 */
+	struct dma_channel_info info;	/*!< the channel special parameter */
+} dma_channel_ext_params;
 
 /*!
  * Structure containing sdma request  parameters.
@@ -285,13 +330,23 @@ typedef struct {
 
 /*! Structure to store the initialized dma_channel parameters */
 typedef struct mxc_sdma_channel_params {
-	/*! Channel params */
-	dma_channel_params chnl_params;
 	/*! Channel type (static channel number or dynamic channel) */
 	unsigned int channel_num;
 	/*! Channel priority [0x1(lowest) - 0x7(highest)] */
 	unsigned int chnl_priority;
+	/*! Channel params */
+	dma_channel_params chnl_params;
 } mxc_sdma_channel_params_t;
+
+/*! Structure to store the initialized dma_channel extend parameters */
+typedef struct mxc_sdma_channel_ext_params {
+	/*! Channel type (static channel number or dynamic channel) */
+	unsigned int channel_num;
+	/*! Channel priority [0x1(lowest) - 0x7(highest)] */
+	unsigned int chnl_priority;
+	/*! Channel extend params */
+	dma_channel_ext_params chnl_ext_params;
+} mxc_sdma_channel_ext_params_t;
 
 /*! Private SDMA data structure */
 typedef struct mxc_dma_channel_private {

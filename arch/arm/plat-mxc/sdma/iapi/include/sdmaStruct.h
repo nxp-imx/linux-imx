@@ -1,6 +1,6 @@
 /******************************************************************************
  *
- * Copyright 2007-2008 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2007-2009 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  *
  * The code contained herein is licensed under the GNU General Public
@@ -408,6 +408,7 @@ typedef struct iapi_script_data {
   unsigned short load_address;/**<start address of the script*/
   unsigned long  wml;		   /**<parameters for the channel descriptor*/
   unsigned long  shp_addr;    /**<shared peripheral base address*/
+  unsigned long  per_addr;    /**<peripheral base address for p2p source*/
   unsigned long  event_mask1; /**<First Event mask */
   unsigned long  event_mask2; /**<Second Event mask */
 } script_data;

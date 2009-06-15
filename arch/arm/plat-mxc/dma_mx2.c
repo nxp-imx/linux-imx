@@ -771,7 +771,8 @@ static inline int consume_dma_bd(mxc_dma_channel_t * dma, int error)
  * @return returns a negative number on error if request for a DMA channel did not
  *         succeed, returns the channel number to be used on success.
  */
-int mxc_dma_request(mxc_dma_device_t channel_id, char *dev_name)
+int mxc_dma_request_ext(mxc_dma_device_t channel_id, char *dev_name,
+			unsigned long data)
 {
 	mxc_dma_channel_t *dma;
 	mx2_dma_priv_t *dma_private = NULL;
@@ -1305,7 +1306,7 @@ int __init mxc_dma_init(void)
 
 arch_initcall(mxc_dma_init);
 
-EXPORT_SYMBOL(mxc_dma_request);
+EXPORT_SYMBOL(mxc_dma_request_ext);
 EXPORT_SYMBOL(mxc_dma_free);
 EXPORT_SYMBOL(mxc_dma_callback_set);
 EXPORT_SYMBOL(mxc_dma_enable);

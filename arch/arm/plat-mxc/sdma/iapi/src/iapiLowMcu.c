@@ -1,6 +1,6 @@
 /******************************************************************************
  *
- * Copyright 2007-2008 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2007-2009 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  *
  * The code contained herein is licensed under the GNU General Public
@@ -455,6 +455,8 @@ iapi_lowAssignScript(channelDescriptor * cd_p, script_data * data_p)
    chContext->gReg[1] = data_p->event_mask1;
    chContext->gReg[6] = data_p->shp_addr;
    chContext->gReg[7] = data_p->wml;
+   if (data_p->per_addr)
+	chContext->gReg[2] = data_p->per_addr;
 
    /* Set transmited data to the CD*/
    cd_p->watermarkLevel = data_p->wml;

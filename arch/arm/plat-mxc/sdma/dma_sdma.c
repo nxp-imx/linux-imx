@@ -93,16 +93,26 @@ static void mxc_sdma_channeltasklet(unsigned long arg)
  * @return returns a negative number on error if request for a DMA channel did not
  *         succeed, returns the channel number to be used on success.
  */
-int mxc_dma_request(mxc_dma_device_t channel_id, char *dev_name)
+int mxc_dma_request_ext(mxc_dma_device_t channel_id, char *dev_name,
+			struct dma_channel_info *info)
 {
 	mxc_sdma_channel_params_t *chnl;
 	mxc_dma_channel_private_t *data_priv;
 	int ret = 0, i = 0, channel_num = 0;
+	mxc_sdma_channel_ext_params_t *p;
 
 	chnl = mxc_sdma_get_channel_params(channel_id);
 	if (chnl == NULL) {
 		return -EINVAL;
 	}
+
+	if (info) {
+		if (!chnl->chnl_params.ext)
+			return -EINVAL;
+		p = (mxc_sdma_channel_ext_params_t *)chnl;
+		memcpy(&p->chnl_ext_params.info, info, sizeof(info));
+	}
+
 
 	/* Enable the SDMA clock */
 	clk_enable(mxc_sdma_ahb_clk);
@@ -333,7 +343,10 @@ int mxc_dma_config(int channel_num, mxc_dma_requestbuf_t * dma_buf,
 		}
 		request_t.destAddr = (__u8 *) dma_buf->dst_addr;
 		request_t.sourceAddr = (__u8 *) dma_buf->src_addr;
-		request_t.count = dma_buf->num_of_bytes;
+		if (chnl_param.peripheral_type == ASRC)
+			request_t.count = dma_buf->num_of_bytes / 4;
+		else
+			request_t.count = dma_buf->num_of_bytes;
 		request_t.bd_cont = 1;
 		ret = mxc_dma_set_config(channel_num, &request_t,
 					 chnl_info->curr_buf);
@@ -671,7 +684,7 @@ EXPORT_SYMBOL(sdma_virt_to_phys);
 
 #endif
 
-EXPORT_SYMBOL(mxc_dma_request);
+EXPORT_SYMBOL(mxc_dma_request_ext);
 EXPORT_SYMBOL(mxc_dma_free);
 EXPORT_SYMBOL(mxc_dma_config);
 EXPORT_SYMBOL(mxc_dma_sg_config);

@@ -49,7 +49,7 @@
 
 struct mxc_sdma_info_entry_s {
 	mxc_dma_device_t device;
-	mxc_sdma_channel_params_t *chnl_info;
+	void *chnl_info;
 };
 
 static mxc_sdma_channel_params_t mxc_sdma_uart1_rx_params = {

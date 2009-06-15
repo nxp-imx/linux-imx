@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2008 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2004-2009 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -133,6 +133,16 @@ typedef struct mxc_dma_requestbuf {
 	int num_of_bytes;	/*!< the length of this transfer : bytes */
 } mxc_dma_requestbuf_t;
 
+/*! This struct contains the information for asrc special*/
+struct dma_channel_asrc_info {
+	u32 channs;		/*!< data channels in asrc */
+};
+
+/*! This struct contains  the information for device special*/
+struct dma_channel_info {
+	struct dma_channel_asrc_info asrc;	/*!< asrc special information */
+};
+
 #if defined(CONFIG_ARCH_MX27) || defined(CONFIG_ARCH_MX21)
 #include <mach/mx2_dma.h>
 #else
@@ -152,10 +162,17 @@ typedef struct mxc_dma_requestbuf {
  *                     The DMA driver could use static or dynamic DMA channel
  *                     allocation.
  * @param dev_name     module name or device name
+ * @param data         the customized parameter for special channel.
  * @return returns a negative number on error if request for a DMA channel did not
  *         succeed, returns the channel number to be used on success.
  */
-extern int mxc_dma_request(mxc_dma_device_t channel_id, char *dev_name);
+extern int mxc_dma_request_ext(mxc_dma_device_t channel_id, char *dev_name,
+			       struct dma_channel_info *info);
+
+static inline int mxc_dma_request(mxc_dma_device_t channel_id, char *dev_name)
+{
+	return mxc_dma_request_ext(channel_id, dev_name, NULL);
+}
 
 /*!
  * This function is generally called by the driver at close time. The DMA
@@ -185,7 +202,7 @@ extern int mxc_dma_free(int channel_num);
  * @return This function returns a negative number on error if buffer could not be
  *         added with DMA for transfer. On Success, it returns 0
  */
-extern int mxc_dma_config(int channel_num, mxc_dma_requestbuf_t * dma_buf,
+extern int mxc_dma_config(int channel_num, mxc_dma_requestbuf_t *dma_buf,
 			  int num_buf, mxc_dma_mode_t mode);
 
 /*!
