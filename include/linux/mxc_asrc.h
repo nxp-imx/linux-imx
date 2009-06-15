@@ -198,15 +198,6 @@ struct asrc_data {
 	struct asrc_pair asrc_pair[3];
 };
 
-char *asrc_pair_id[] = {
-	[0] = "ASRC RX PAIR A",
-	[1] = "ASRC TX PAIR A",
-	[2] = "ASRC RX PAIR B",
-	[3] = "ASRC TX PAIR B",
-	[4] = "ASRC RX PAIR C",
-	[5] = "ASRC TX PAIR C",
-};
-
 extern int asrc_req_pair(int chn_num, enum asrc_pair_index *index);
 extern void asrc_release_pair(enum asrc_pair_index index);
 extern int asrc_config_pair(struct asrc_config *config);

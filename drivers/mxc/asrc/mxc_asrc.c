@@ -49,6 +49,15 @@ DEFINE_SPINLOCK(data_lock);
 DEFINE_SPINLOCK(input_int_lock);
 DEFINE_SPINLOCK(output_int_lock);
 
+char *asrc_pair_id[] = {
+	[0] = "ASRC RX PAIR A",
+	[1] = "ASRC TX PAIR A",
+	[2] = "ASRC RX PAIR B",
+	[3] = "ASRC TX PAIR B",
+	[4] = "ASRC RX PAIR C",
+	[5] = "ASRC TX PAIR C",
+};
+
 enum asrc_status {
 	ASRC_ASRSTR_AIDEA = 0x01,
 	ASRC_ASRSTR_AIDEB = 0x02,

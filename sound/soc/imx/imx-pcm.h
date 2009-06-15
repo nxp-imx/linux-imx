@@ -1,6 +1,9 @@
 /*
  * imx-pcm.h :- ASoC platform header for Freescale i.MX
  *
+ * Copyright 2006 Wolfson Microelectronics PLC.
+ * Copyright 2006, 2009 Freescale  Semiconductor, Inc. All Rights Reserved.
+ *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
  * published by the Free Software Foundation.
@@ -60,9 +63,19 @@
 #define AUDMUX_CNMCR_CNTHI(x)	(((x) & 0xff) << 8)
 #define AUDMUX_CNMCR_CNTLOW(x)	(((x) & 0xff) << 0)
 
-struct mxc_pcm_dma_params {
-	char *name;		/* stream identifier */
-	dma_channel_params params;
+
+struct mxc_runtime_data {
+	int dma_ch;
+	spinlock_t dma_lock;
+	int active, period, periods;
+	int dma_wchannel;
+	int dma_active;
+	int dma_alloc;
+#if defined(CONFIG_MXC_ASRC) || defined(CONFIG_MXC_ASRC_MODULE)
+	int dma_asrc;
+	int asrc_index;
+	int asrc_enable;
+#endif
 };
 
 extern struct snd_soc_platform imx_soc_platform;

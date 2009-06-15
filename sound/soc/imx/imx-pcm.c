@@ -34,6 +34,10 @@
 #include "imx-ssi.h"
 #include "imx-esai.h"
 
+#if defined(CONFIG_MXC_ASRC) || defined(CONFIG_MXC_ASRC_MODULE)
+#include <linux/mxc_asrc.h>
+#endif
+
 #ifdef CONFIG_SND_MXC_SOC_IRAM
 static bool UseIram = 1;
 #else
@@ -66,15 +70,6 @@ static const struct snd_pcm_hardware imx_pcm_hardware = {
 	.periods_min = 2,
 	.periods_max = 255,
 	.fifo_size = 0,
-};
-
-struct mxc_runtime_data {
-	int dma_ch;
-	spinlock_t dma_lock;
-	int active, period, periods;
-	int dma_wchannel;
-	int dma_active;
-	int dma_alloc;
 };
 
 static uint32_t audio_iram_phys_base_addr;
@@ -123,7 +118,7 @@ static int imx_iram_audio_playback_mmap(struct snd_pcm_substream *substream,
      phys_addr - physical address of iram buffer
      returns - virtual address of the iram buffer or NULL if fail
 */
-static void *imx_iram_init(dma_addr_t * phys_addr, size_t bytes)
+static void *imx_iram_init(dma_addr_t *phys_addr, size_t bytes)
 {
 	void *iram_base;
 
@@ -146,93 +141,111 @@ static void imx_iram_free(void)
 	iounmap(audio_iram_virt_base_addr);
 }
 
-static int imx_get_sdma_transfer(int format, int dai_port, int stream_type)
+static int imx_get_sdma_transfer(int format, int dai_port,
+				 struct snd_pcm_substream *substream)
 {
 	int transfer = -1;
 
-	if (dai_port == IMX_DAI_SSI0) {
-		if (stream_type == SNDRV_PCM_STREAM_PLAYBACK) {
-			if (format == SNDRV_PCM_FORMAT_S16_LE)
-				transfer = MXC_DMA_SSI1_16BIT_TX0;
-			else if (format == SNDRV_PCM_FORMAT_S24_LE)
-				transfer = MXC_DMA_SSI1_24BIT_TX0;
-			else if (format == SNDRV_PCM_FORMAT_S20_3LE)
-				transfer = MXC_DMA_SSI1_24BIT_TX0;
-		} else {
-			if (format == SNDRV_PCM_FORMAT_S16_LE)
-				transfer = MXC_DMA_SSI1_16BIT_RX0;
-			else if (format == SNDRV_PCM_FORMAT_S24_LE)
-				transfer = MXC_DMA_SSI1_24BIT_RX0;
-			else if (format == SNDRV_PCM_FORMAT_S20_3LE)
-				transfer = MXC_DMA_SSI1_24BIT_RX0;
+#if defined(CONFIG_MXC_ASRC) || defined(CONFIG_MXC_ASRC_MODULE)
+	struct snd_pcm_runtime *runtime = substream->runtime;
+	struct mxc_runtime_data *prtd = runtime->private_data;
+	if (prtd->asrc_enable == 1) {
+		if (dai_port & IMX_DAI_ESAI_TX) {
+			if (prtd->asrc_index == 0)
+				transfer = MXC_DMA_ASRCA_ESAI;
+			else if (prtd->asrc_index == 1)
+				transfer = MXC_DMA_ASRCB_ESAI;
+			else
+				transfer = MXC_DMA_ASRCC_ESAI;
 		}
-	} else if (dai_port == IMX_DAI_SSI1) {
-		if (stream_type == SNDRV_PCM_STREAM_PLAYBACK) {
-			if (format == SNDRV_PCM_FORMAT_S16_LE)
-				transfer = MXC_DMA_SSI1_16BIT_TX1;
-			else if (format == SNDRV_PCM_FORMAT_S24_LE)
-				transfer = MXC_DMA_SSI1_24BIT_TX1;
-			else if (format == SNDRV_PCM_FORMAT_S20_3LE)
-				transfer = MXC_DMA_SSI1_24BIT_TX1;
-		} else {
-			if (format == SNDRV_PCM_FORMAT_S16_LE)
-				transfer = MXC_DMA_SSI1_16BIT_RX1;
-			else if (format == SNDRV_PCM_FORMAT_S24_LE)
-				transfer = MXC_DMA_SSI1_24BIT_RX1;
-			else if (format == SNDRV_PCM_FORMAT_S20_3LE)
-				transfer = MXC_DMA_SSI1_24BIT_RX1;
-		}
-	} else if (dai_port == IMX_DAI_SSI2) {
-		if (stream_type == SNDRV_PCM_STREAM_PLAYBACK) {
-			if (format == SNDRV_PCM_FORMAT_S16_LE)
-				transfer = MXC_DMA_SSI2_16BIT_TX0;
-			else if (format == SNDRV_PCM_FORMAT_S24_LE)
-				transfer = MXC_DMA_SSI2_24BIT_TX0;
-			else if (format == SNDRV_PCM_FORMAT_S20_3LE)
-				transfer = MXC_DMA_SSI2_24BIT_TX0;
-		} else {
-			if (format == SNDRV_PCM_FORMAT_S16_LE)
-				transfer = MXC_DMA_SSI2_16BIT_RX0;
-			else if (format == SNDRV_PCM_FORMAT_S24_LE)
-				transfer = MXC_DMA_SSI2_24BIT_RX0;
-			else if (format == SNDRV_PCM_FORMAT_S20_3LE)
-				transfer = MXC_DMA_SSI2_24BIT_RX0;
-		}
-	} else if (dai_port == IMX_DAI_SSI3) {
-		if (stream_type == SNDRV_PCM_STREAM_PLAYBACK) {
-			if (format == SNDRV_PCM_FORMAT_S16_LE)
-				transfer = MXC_DMA_SSI2_16BIT_TX1;
-			else if (format == SNDRV_PCM_FORMAT_S24_LE)
-				transfer = MXC_DMA_SSI2_24BIT_TX1;
-			else if (format == SNDRV_PCM_FORMAT_S20_3LE)
-				transfer = MXC_DMA_SSI2_24BIT_TX1;
-		} else {
-			if (format == SNDRV_PCM_FORMAT_S16_LE)
-				transfer = MXC_DMA_SSI2_16BIT_RX1;
-			else if (format == SNDRV_PCM_FORMAT_S24_LE)
-				transfer = MXC_DMA_SSI2_24BIT_RX1;
-			else if (format == SNDRV_PCM_FORMAT_S20_3LE)
-				transfer = MXC_DMA_SSI2_24BIT_RX1;
-		}
-	} else if ((dai_port & IMX_DAI_ESAI_TX)
-		   || (dai_port & IMX_DAI_ESAI_RX)) {
-		if (stream_type == SNDRV_PCM_STREAM_PLAYBACK) {
-			if (format == SNDRV_PCM_FORMAT_S16_LE)
-				transfer = MXC_DMA_ESAI_16BIT_TX;
-			else if (format == SNDRV_PCM_FORMAT_S24_LE)
-				transfer = MXC_DMA_ESAI_24BIT_TX;
-			else if (format == SNDRV_PCM_FORMAT_S20_3LE)
-				transfer = MXC_DMA_ESAI_24BIT_TX;
-		} else {
-			if (format == SNDRV_PCM_FORMAT_S16_LE)
-				transfer = MXC_DMA_ESAI_16BIT_RX;
-			else if (format == SNDRV_PCM_FORMAT_S24_LE)
-				transfer = MXC_DMA_ESAI_24BIT_RX;
-			else if (format == SNDRV_PCM_FORMAT_S20_3LE)
-				transfer = MXC_DMA_ESAI_24BIT_RX;
-		}
-	}
+	} else {
+#endif
 
+		if (dai_port == IMX_DAI_SSI0) {
+			if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
+				if (format == SNDRV_PCM_FORMAT_S16_LE)
+					transfer = MXC_DMA_SSI1_16BIT_TX0;
+				else if (format == SNDRV_PCM_FORMAT_S24_LE)
+					transfer = MXC_DMA_SSI1_24BIT_TX0;
+				else if (format == SNDRV_PCM_FORMAT_S20_3LE)
+					transfer = MXC_DMA_SSI1_24BIT_TX0;
+			} else {
+				if (format == SNDRV_PCM_FORMAT_S16_LE)
+					transfer = MXC_DMA_SSI1_16BIT_RX0;
+				else if (format == SNDRV_PCM_FORMAT_S24_LE)
+					transfer = MXC_DMA_SSI1_24BIT_RX0;
+				else if (format == SNDRV_PCM_FORMAT_S20_3LE)
+					transfer = MXC_DMA_SSI1_24BIT_RX0;
+			}
+		} else if (dai_port == IMX_DAI_SSI1) {
+			if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
+				if (format == SNDRV_PCM_FORMAT_S16_LE)
+					transfer = MXC_DMA_SSI1_16BIT_TX1;
+				else if (format == SNDRV_PCM_FORMAT_S24_LE)
+					transfer = MXC_DMA_SSI1_24BIT_TX1;
+				else if (format == SNDRV_PCM_FORMAT_S20_3LE)
+					transfer = MXC_DMA_SSI1_24BIT_TX1;
+			} else {
+				if (format == SNDRV_PCM_FORMAT_S16_LE)
+					transfer = MXC_DMA_SSI1_16BIT_RX1;
+				else if (format == SNDRV_PCM_FORMAT_S24_LE)
+					transfer = MXC_DMA_SSI1_24BIT_RX1;
+				else if (format == SNDRV_PCM_FORMAT_S20_3LE)
+					transfer = MXC_DMA_SSI1_24BIT_RX1;
+			}
+		} else if (dai_port == IMX_DAI_SSI2) {
+			if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
+				if (format == SNDRV_PCM_FORMAT_S16_LE)
+					transfer = MXC_DMA_SSI2_16BIT_TX0;
+				else if (format == SNDRV_PCM_FORMAT_S24_LE)
+					transfer = MXC_DMA_SSI2_24BIT_TX0;
+				else if (format == SNDRV_PCM_FORMAT_S20_3LE)
+					transfer = MXC_DMA_SSI2_24BIT_TX0;
+			} else {
+				if (format == SNDRV_PCM_FORMAT_S16_LE)
+					transfer = MXC_DMA_SSI2_16BIT_RX0;
+				else if (format == SNDRV_PCM_FORMAT_S24_LE)
+					transfer = MXC_DMA_SSI2_24BIT_RX0;
+				else if (format == SNDRV_PCM_FORMAT_S20_3LE)
+					transfer = MXC_DMA_SSI2_24BIT_RX0;
+			}
+		} else if (dai_port == IMX_DAI_SSI3) {
+			if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
+				if (format == SNDRV_PCM_FORMAT_S16_LE)
+					transfer = MXC_DMA_SSI2_16BIT_TX1;
+				else if (format == SNDRV_PCM_FORMAT_S24_LE)
+					transfer = MXC_DMA_SSI2_24BIT_TX1;
+				else if (format == SNDRV_PCM_FORMAT_S20_3LE)
+					transfer = MXC_DMA_SSI2_24BIT_TX1;
+			} else {
+				if (format == SNDRV_PCM_FORMAT_S16_LE)
+					transfer = MXC_DMA_SSI2_16BIT_RX1;
+				else if (format == SNDRV_PCM_FORMAT_S24_LE)
+					transfer = MXC_DMA_SSI2_24BIT_RX1;
+				else if (format == SNDRV_PCM_FORMAT_S20_3LE)
+					transfer = MXC_DMA_SSI2_24BIT_RX1;
+			}
+		} else if ((dai_port & IMX_DAI_ESAI_TX)
+			   || (dai_port & IMX_DAI_ESAI_RX)) {
+			if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
+				if (format == SNDRV_PCM_FORMAT_S16_LE)
+					transfer = MXC_DMA_ESAI_16BIT_TX;
+				else if (format == SNDRV_PCM_FORMAT_S24_LE)
+					transfer = MXC_DMA_ESAI_24BIT_TX;
+				else if (format == SNDRV_PCM_FORMAT_S20_3LE)
+					transfer = MXC_DMA_ESAI_24BIT_TX;
+			} else {
+				if (format == SNDRV_PCM_FORMAT_S16_LE)
+					transfer = MXC_DMA_ESAI_16BIT_RX;
+				else if (format == SNDRV_PCM_FORMAT_S24_LE)
+					transfer = MXC_DMA_ESAI_24BIT_RX;
+				else if (format == SNDRV_PCM_FORMAT_S20_3LE)
+					transfer = MXC_DMA_ESAI_24BIT_RX;
+			}
+		}
+#if defined(CONFIG_MXC_ASRC) || defined(CONFIG_MXC_ASRC_MODULE)
+	}
+#endif
 	return transfer;
 }
 
@@ -252,8 +265,8 @@ static int dma_new_period(struct snd_pcm_substream *substream)
 
 	dbg("period pos  ALSA %x DMA %x\n", runtime->periods, prtd->period);
 	dbg("period size ALSA %x DMA %x Offset %x dmasize %x\n",
-	    (unsigned int)runtime->period_size, runtime->dma_bytes,
-	    offset, dma_size);
+	    (unsigned int)runtime->period_size,
+	    runtime->dma_bytes, offset, dma_size);
 	dbg("DMA addr %x\n", runtime->dma_addr + offset);
 
 	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK)
@@ -266,13 +279,13 @@ static int dma_new_period(struct snd_pcm_substream *substream)
 	sdma_request.num_of_bytes = dma_size;
 
 	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
-		mxc_dma_config(prtd->dma_wchannel, &sdma_request, 1,
-			       MXC_DMA_MODE_WRITE);
+		mxc_dma_config(prtd->dma_wchannel,
+			       &sdma_request, 1, MXC_DMA_MODE_WRITE);
 		ret = mxc_dma_enable(prtd->dma_wchannel);
 	} else {
 
-		mxc_dma_config(prtd->dma_wchannel, &sdma_request, 1,
-			       MXC_DMA_MODE_READ);
+		mxc_dma_config(prtd->dma_wchannel,
+			       &sdma_request, 1, MXC_DMA_MODE_READ);
 		ret = mxc_dma_enable(prtd->dma_wchannel);
 	}
 	prtd->dma_active = 1;
@@ -313,8 +326,39 @@ static int imx_pcm_prepare(struct snd_pcm_substream *substream)
 
 	/* only allocate the DMA chn once */
 	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
+#if defined(CONFIG_MXC_ASRC) || defined(CONFIG_MXC_ASRC_MODULE)
+		if (prtd->asrc_enable == 1) {
+			struct dma_channel_info info;
+			mxc_dma_requestbuf_t sdma_request;
+			info.asrc.channs = runtime->channels;
+			if (prtd->dma_asrc) {
+				mxc_dma_free(prtd->dma_asrc);
+				prtd->dma_asrc = 0;
+			}
+			memset(&sdma_request, 0, sizeof(mxc_dma_requestbuf_t));
+			/* num_of_bytes can be set any value except for zero */
+			sdma_request.num_of_bytes = 0x40;
+			channel =
+			    mxc_dma_request_ext(prtd->dma_ch,
+						"ALSA TX SDMA", &info);
 
+			mxc_dma_config(channel, &sdma_request,
+				       1, MXC_DMA_MODE_WRITE);
+			prtd->dma_asrc = channel;
+			if (prtd->asrc_index == 0)
+				prtd->dma_ch = MXC_DMA_ASRC_A_RX;
+			else if (prtd->asrc_index == 1)
+				prtd->dma_ch = MXC_DMA_ASRC_B_RX;
+			else
+				prtd->dma_ch = MXC_DMA_ASRC_C_RX;
+
+			channel =
+			    mxc_dma_request(MXC_DMA_ASRC_A_RX, "ALSA ASRC RX");
+		} else
+			channel = mxc_dma_request(prtd->dma_ch, "ALSA TX SDMA");
+#else
 		channel = mxc_dma_request(prtd->dma_ch, "ALSA TX SDMA");
+#endif
 		if (channel < 0) {
 			pr_err("imx-pcm: error requesting \
 					a write dma channel\n");
@@ -341,16 +385,16 @@ static int imx_pcm_prepare(struct snd_pcm_substream *substream)
 	return 0;
 }
 
-static int imx_pcm_hw_params(struct snd_pcm_substream *substream,
-			     struct snd_pcm_hw_params *params)
+static int imx_pcm_hw_params(struct snd_pcm_substream
+			     *substream, struct snd_pcm_hw_params *params)
 {
 	struct snd_pcm_runtime *runtime = substream->runtime;
 	struct mxc_runtime_data *prtd = runtime->private_data;
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 
-	prtd->dma_ch = imx_get_sdma_transfer(params_format(params),
-					     rtd->dai->cpu_dai->id,
-					     substream->stream);
+	prtd->dma_ch =
+	    imx_get_sdma_transfer(params_format(params),
+				  rtd->dai->cpu_dai->id, substream);
 
 	if (prtd->dma_ch < 0) {
 		printk(KERN_ERR "imx-pcm: invaild sdma transfer type");
@@ -372,6 +416,12 @@ static int imx_pcm_hw_free(struct snd_pcm_substream *substream)
 		prtd->dma_wchannel = 0;
 		prtd->dma_alloc = 0;
 	}
+#if defined(CONFIG_MXC_ASRC) || defined(CONFIG_MXC_ASRC_MODULE)
+	if ((prtd->asrc_enable == 1) && prtd->dma_asrc) {
+		mxc_dma_free(prtd->dma_asrc);
+		prtd->dma_asrc = 0;
+	}
+#endif
 
 	return 0;
 }
@@ -389,11 +439,23 @@ static int imx_pcm_trigger(struct snd_pcm_substream *substream, int cmd)
 		prtd->active = 1;
 		ret = dma_new_period(substream);
 		ret = dma_new_period(substream);
+#if defined(CONFIG_MXC_ASRC) || defined(CONFIG_MXC_ASRC_MODULE)
+		if (prtd->asrc_enable == 1) {
+			ret = mxc_dma_enable(prtd->dma_asrc);
+			asrc_start_conv(prtd->asrc_index);
+		}
+#endif
 		break;
 	case SNDRV_PCM_TRIGGER_STOP:
 	case SNDRV_PCM_TRIGGER_SUSPEND:
 	case SNDRV_PCM_TRIGGER_PAUSE_PUSH:
 		prtd->active = 0;
+#if defined(CONFIG_MXC_ASRC) || defined(CONFIG_MXC_ASRC_MODULE)
+		if (prtd->asrc_enable == 1) {
+			mxc_dma_disable(prtd->dma_asrc);
+			asrc_stop_conv(prtd->asrc_index);
+		}
+#endif
 		break;
 	default:
 		ret = -EINVAL;
@@ -403,7 +465,9 @@ static int imx_pcm_trigger(struct snd_pcm_substream *substream, int cmd)
 	return ret;
 }
 
-static snd_pcm_uframes_t imx_pcm_pointer(struct snd_pcm_substream *substream)
+static snd_pcm_uframes_t imx_pcm_pointer(struct
+					 snd_pcm_substream
+					 *substream)
 {
 	struct snd_pcm_runtime *runtime = substream->runtime;
 	struct mxc_runtime_data *prtd = runtime->private_data;
@@ -466,12 +530,14 @@ imx_pcm_mmap(struct snd_pcm_substream *substream, struct vm_area_struct *vma)
 	if (dev_data)
 		ext_ram = dev_data->ext_ram;
 
-	if ((substream->stream == SNDRV_PCM_STREAM_CAPTURE) || ext_ram
-	    || !UseIram) {
-		ret = dma_mmap_writecombine(substream->pcm->card->dev, vma,
-					    runtime->dma_area,
-					    runtime->dma_addr,
-					    runtime->dma_bytes);
+	if ((substream->stream == SNDRV_PCM_STREAM_CAPTURE)
+	    || ext_ram || !UseIram) {
+		ret =
+		    dma_mmap_writecombine(substream->pcm->card->
+					  dev, vma,
+					  runtime->dma_area,
+					  runtime->dma_addr,
+					  runtime->dma_bytes);
 		return ret;
 	} else
 		return imx_iram_audio_playback_mmap(substream, vma);
@@ -508,8 +574,9 @@ static int imx_pcm_preallocate_dma_buffer(struct snd_pcm *pcm, int stream)
 	buf->private_data = NULL;
 
 	if ((stream == SNDRV_PCM_STREAM_CAPTURE) || ext_ram || !UseIram)
-		buf->area = dma_alloc_writecombine(pcm->card->dev, size,
-						   &buf->addr, GFP_KERNEL);
+		buf->area =
+		    dma_alloc_writecombine(pcm->card->dev, size,
+					   &buf->addr, GFP_KERNEL);
 	else
 		buf->area = imx_iram_init(&buf->addr, size);
 
@@ -545,9 +612,10 @@ static void imx_pcm_free_dma_buffers(struct snd_pcm *pcm)
 		if (!buf->area)
 			continue;
 
-		if ((stream == SNDRV_PCM_STREAM_CAPTURE) || ext_ram || !UseIram)
-			dma_free_writecombine(pcm->card->dev, buf->bytes,
-					      buf->area, buf->addr);
+		if ((stream == SNDRV_PCM_STREAM_CAPTURE)
+		    || ext_ram || !UseIram)
+			dma_free_writecombine(pcm->card->dev,
+					      buf->bytes, buf->area, buf->addr);
 		else
 			imx_iram_free();
 		buf->area = NULL;
@@ -556,8 +624,8 @@ static void imx_pcm_free_dma_buffers(struct snd_pcm *pcm)
 
 static u64 imx_pcm_dmamask = 0xffffffff;
 
-static int imx_pcm_new(struct snd_card *card, struct snd_soc_dai *dai,
-		       struct snd_pcm *pcm)
+static int imx_pcm_new(struct snd_card *card,
+		       struct snd_soc_dai *dai, struct snd_pcm *pcm)
 {
 	int ret = 0;
 
@@ -579,7 +647,7 @@ static int imx_pcm_new(struct snd_card *card, struct snd_soc_dai *dai,
 		if (ret)
 			goto out;
 	}
-out:
+      out:
 	return ret;
 }
 
@@ -589,6 +657,7 @@ struct snd_soc_platform imx_soc_platform = {
 	.pcm_new = imx_pcm_new,
 	.pcm_free = imx_pcm_free_dma_buffers,
 };
+
 EXPORT_SYMBOL_GPL(imx_soc_platform);
 
 MODULE_AUTHOR("Liam Girdwood");

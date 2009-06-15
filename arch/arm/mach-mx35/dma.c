@@ -609,6 +609,84 @@ static mxc_sdma_channel_params_t mxc_sdma_asrcc_tx_params = {
 	.chnl_priority = MXC_SDMA_DEFAULT_PRIORITY,
 };
 
+static mxc_sdma_channel_ext_params_t mxc_sdma_asrca_esai_params = {
+	.chnl_ext_params = {
+			    .common = {
+				       .watermark_level =
+				       MXC_ASRC_FIFO_WML >> 1,
+				       .per_address =
+				       ESAI_BASE_ADDR + MXC_ESAI_TX_REG,
+				       .peripheral_type = ASRC,
+				       .transfer_type = per_2_per,
+				       .event_id = DMA_REQ_ESAI_TX,
+				       .event_id2 = DMA_REQ_ASRC_DMA4,
+				       .bd_number = 32,
+				       .word_size = TRANSFER_32BIT,
+				       .ext = 1,
+				       },
+			    .p2p_dir = 0,
+			    .info_bits =
+			    SDMA_ASRC_P2P_INFO_CONT | SDMA_ASRC_P2P_INFO_SP |
+			    SDMA_ASRC_P2P_INFO_DP,
+			    .watermark_level2 = MXC_ESAI_FIFO_WML,
+			    .per_address2 = ASRC_BASE_ADDR + MXC_ASRCA_TX_REG,
+			    },
+	.channel_num = MXC_DMA_CHANNEL_ASRCA_ESAI,
+	.chnl_priority = MXC_SDMA_DEFAULT_PRIORITY,
+};
+
+static mxc_sdma_channel_ext_params_t mxc_sdma_asrcb_esai_params = {
+	.chnl_ext_params = {
+			    .common = {
+				       .watermark_level =
+				       MXC_ASRC_FIFO_WML >> 1,
+				       .per_address =
+				       ESAI_BASE_ADDR + MXC_ESAI_TX_REG,
+				       .peripheral_type = ASRC,
+				       .transfer_type = per_2_per,
+				       .event_id = DMA_REQ_ESAI_TX,
+				       .event_id2 = DMA_REQ_ASRC_DMA5,
+				       .bd_number = 32,
+				       .word_size = TRANSFER_32BIT,
+				       .ext = 1,
+				       },
+			    .p2p_dir = 0,
+			    .info_bits =
+			    SDMA_ASRC_P2P_INFO_CONT | SDMA_ASRC_P2P_INFO_SP |
+			    SDMA_ASRC_P2P_INFO_DP,
+			    .watermark_level2 = MXC_ESAI_FIFO_WML,
+			    .per_address2 = ASRC_BASE_ADDR + MXC_ASRCB_TX_REG,
+			    },
+	.channel_num = MXC_DMA_CHANNEL_ASRCB_ESAI,
+	.chnl_priority = MXC_SDMA_DEFAULT_PRIORITY,
+};
+
+static mxc_sdma_channel_ext_params_t mxc_sdma_asrcc_esai_params = {
+	.chnl_ext_params = {
+			    .common = {
+				       .watermark_level =
+				       MXC_ASRC_FIFO_WML >> 1,
+				       .per_address =
+				       ESAI_BASE_ADDR + MXC_ESAI_TX_REG,
+				       .peripheral_type = ASRC,
+				       .transfer_type = per_2_per,
+				       .event_id = DMA_REQ_ESAI_TX,
+				       .event_id2 = DMA_REQ_ASRC_DMA6,
+				       .bd_number = 32,
+				       .word_size = TRANSFER_32BIT,
+				       .ext = 1,
+				       },
+			    .p2p_dir = 0,
+			    .info_bits =
+			    SDMA_ASRC_P2P_INFO_CONT | SDMA_ASRC_P2P_INFO_SP |
+			    SDMA_ASRC_P2P_INFO_DP,
+			    .watermark_level2 = MXC_ASRC_FIFO_WML,
+			    .per_address2 = ASRC_BASE_ADDR + MXC_ASRCC_TX_REG,
+			    },
+	.channel_num = MXC_DMA_CHANNEL_ASRCC_ESAI,
+	.chnl_priority = MXC_SDMA_DEFAULT_PRIORITY,
+};
+
 static mxc_sdma_channel_params_t mxc_sdma_esai_16bit_rx_params = {
 	.chnl_params = {
 			.watermark_level = MXC_ESAI_FIFO_WML,
@@ -705,6 +783,9 @@ static struct mxc_sdma_info_entry_s mxc_sdma_active_dma_info[] = {
 	{MXC_DMA_ASRC_B_TX, &mxc_sdma_asrcb_tx_params},
 	{MXC_DMA_ASRC_C_RX, &mxc_sdma_asrcc_rx_params},
 	{MXC_DMA_ASRC_C_TX, &mxc_sdma_asrcc_tx_params},
+	{MXC_DMA_ASRCA_ESAI, &mxc_sdma_asrca_esai_params},
+	{MXC_DMA_ASRCB_ESAI, &mxc_sdma_asrcb_esai_params},
+	{MXC_DMA_ASRCC_ESAI, &mxc_sdma_asrcc_esai_params},
 	{MXC_DMA_ESAI_16BIT_RX, &mxc_sdma_esai_16bit_rx_params},
 	{MXC_DMA_ESAI_16BIT_TX, &mxc_sdma_esai_16bit_tx_params},
 	{MXC_DMA_ESAI_24BIT_RX, &mxc_sdma_esai_24bit_rx_params},
