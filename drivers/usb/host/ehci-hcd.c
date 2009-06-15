@@ -594,6 +594,14 @@ static int ehci_run (struct usb_hcd *hcd)
 #endif
 	}
 
+	/* For those designs that contain both host & device capability,
+	 * the controller will default to an idle state and will need to
+	 * be initialized to the desired operating mode after reset.
+	 * For combination host/device controllers of FSL, SW need program
+	 * For combination host/device controllers of FSL, SW need program
+	 */
+	temp = readl(hcd->regs + 0x1a8);
+	writel(temp | (3 << 0), hcd->regs + 0x1a8);
 
 	// Philips, Intel, and maybe others need CMD_RUN before the
 	// root hub will detect new devices (why?); NEC doesn't
