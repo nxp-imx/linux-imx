@@ -14,6 +14,8 @@
 #include <linux/kernel.h>
 #include <linux/init.h>
 #include <linux/types.h>
+#include <linux/time.h>
+#include <linux/hrtimer.h>
 #include <linux/mm.h>
 #include <linux/errno.h>
 #include <linux/delay.h>
@@ -46,10 +48,15 @@ static struct clk ipu_clk[];
 static struct clk axi_a_clk;
 static struct clk axi_b_clk;
 static struct clk ddr_hf_clk;
+static struct clk mipi_hsp_clk;
 static int cpu_curr_wp;
 static struct cpu_wp *cpu_wp_tbl;
 
 int cpu_wp_nr;
+int lp_high_freq;
+int lp_med_freq;
+
+#define SPIN_DELAY	1000000 /* in nanoseconds */
 
 extern int mxc_jtag_enabled;
 extern int cpufreq_trig_needed;
@@ -95,6 +102,12 @@ static int _clk_enable(struct clk *clk)
 	reg |= MXC_CCM_CCGR_CG_MASK << clk->enable_shift;
 	__raw_writel(reg, clk->enable_reg);
 
+	if (clk->flags & AHB_HIGH_SET_POINT)
+		lp_high_freq++;
+	else if (clk->flags & AHB_MED_SET_POINT)
+		lp_med_freq++;
+
+
 	return 0;
 }
 
@@ -104,6 +117,12 @@ static void _clk_disable(struct clk *clk)
 	reg = __raw_readl(clk->enable_reg);
 	reg &= ~(MXC_CCM_CCGR_CG_MASK << clk->enable_shift);
 	__raw_writel(reg, clk->enable_reg);
+
+	if (clk->flags & AHB_HIGH_SET_POINT)
+		lp_high_freq--;
+	else if (clk->flags & AHB_MED_SET_POINT)
+		lp_med_freq--;
+
 }
 
 static void _clk_disable_inwait(struct clk *clk)
@@ -330,14 +349,20 @@ static int _clk_pll_enable(struct clk *clk)
 {
 	u32 reg;
 	u32 pllbase;
+	struct timespec nstimeofday;
+	struct timespec curtime;
 
 	pllbase = _get_pll_base(clk);
 	reg = __raw_readl(pllbase + MXC_PLL_DP_CTL) | MXC_PLL_DP_CTL_UPEN;
 	__raw_writel(reg, pllbase + MXC_PLL_DP_CTL);
 
 	/* Wait for lock */
-	while (!(__raw_readl(pllbase + MXC_PLL_DP_CTL) & MXC_PLL_DP_CTL_LRF)) ;
-
+	getnstimeofday(&nstimeofday);
+	while (!(__raw_readl(pllbase + MXC_PLL_DP_CTL) & MXC_PLL_DP_CTL_LRF)) {
+		getnstimeofday(&curtime);
+		if (curtime.tv_nsec - nstimeofday.tv_nsec > SPIN_DELAY)
+			panic("pll relock failed\n");
+	}
 	return 0;
 }
 
@@ -368,6 +393,13 @@ static int _clk_pll1_sw_set_parent(struct clk *clk, struct clk *parent)
 
 	if (parent == &pll1_main_clk) {
 		reg &= ~MXC_CCM_CCSR_PLL1_SW_CLK_SEL;
+		__raw_writel(reg, MXC_CCM_CCSR);
+		/* Set the step_clk parent to be lp_apm, to save power. */
+		mux = _get_mux(&lp_apm_clk, &lp_apm_clk, NULL, &pll2_sw_clk,
+			       &pll3_sw_clk);
+		reg = __raw_readl(MXC_CCM_CCSR);
+		reg = (reg & ~MXC_CCM_CCSR_STEP_SEL_MASK) |
+		    (mux << MXC_CCM_CCSR_STEP_SEL_OFFSET);
 	} else {
 		if (parent == &lp_apm_clk) {
 			reg |= MXC_CCM_CCSR_PLL1_SW_CLK_SEL;
@@ -416,6 +448,22 @@ static struct clk pll1_sw_clk = {
 	.flags = RATE_PROPAGATES,
 };
 
+static int _clk_pll2_sw_set_parent(struct clk *clk, struct clk *parent)
+{
+	u32 reg;
+
+	reg = __raw_readl(MXC_CCM_CCSR);
+
+	if (parent == &pll2_sw_clk) {
+		reg &= ~MXC_CCM_CCSR_PLL2_SW_CLK_SEL;
+	} else {
+		reg = (reg & ~MXC_CCM_CCSR_PLL2_SW_CLK_SEL);
+		reg |= MXC_CCM_CCSR_PLL2_SW_CLK_SEL;
+	}
+	__raw_writel(reg, MXC_CCM_CCSR);
+	return 0;
+}
+
 /* same as pll2_main_clk. These two clocks should always be the same */
 static struct clk pll2_sw_clk = {
 	.name = "pll2",
@@ -423,6 +471,8 @@ static struct clk pll2_sw_clk = {
 	.recalc = _clk_pll_recalc,
 	.enable = _clk_pll_enable,
 	.disable = _clk_pll_disable,
+	.set_rate = _clk_pll_set_rate,
+	.set_parent = _clk_pll2_sw_set_parent,
 	.flags = RATE_PROPAGATES,
 };
 
@@ -476,7 +526,7 @@ static int _clk_cpu_set_rate(struct clk *clk, unsigned long rate)
 		if (rate == cpu_wp_tbl[i].cpu_rate)
 			break;
 	}
-	if (i > cpu_wp_nr)
+	if (i >= cpu_wp_nr)
 		return -EINVAL;
 	cpu_clk_set_wp(i);
 
@@ -512,6 +562,8 @@ static struct clk cpu_clk = {
 static int _clk_periph_apm_set_parent(struct clk *clk, struct clk *parent)
 {
 	u32 reg, mux;
+	struct timespec nstimeofday;
+	struct timespec curtime;
 
 	mux = _get_mux(parent, &pll1_sw_clk, &pll3_sw_clk, &lp_apm_clk, NULL);
 
@@ -519,6 +571,13 @@ static int _clk_periph_apm_set_parent(struct clk *clk, struct clk *parent)
 	reg |= mux << MXC_CCM_CBCMR_PERIPH_CLK_SEL_OFFSET;
 	__raw_writel(reg, MXC_CCM_CBCMR);
 
+	getnstimeofday(&nstimeofday);
+	while (__raw_readl(MXC_CCM_CDHIPR) &
+			MXC_CCM_CDHIPR_PERIPH_CLK_SEL_BUSY) {
+		getnstimeofday(&curtime);
+		if (curtime.tv_nsec - nstimeofday.tv_nsec > SPIN_DELAY)
+			panic("pll _clk_periph_apm_set_parent failed\n");
+	}
 	return 0;
 }
 
@@ -545,8 +604,11 @@ static int _clk_main_bus_set_parent(struct clk *clk, struct clk *parent)
 		emi_fast_clk.enable(&emi_fast_clk);
 	if (emi_slow_clk.usecount == 0)
 		emi_slow_clk.enable(&emi_slow_clk);
-	if (emi_intr_clk.usecount == 0)
-		emi_intr_clk.enable(&emi_intr_clk);
+
+	if (ipu_clk[0].usecount == 0)
+		ipu_clk[0].enable(&ipu_clk[0]);
+	if (mipi_hsp_clk.usecount == 0)
+		mipi_hsp_clk.enable(&mipi_hsp_clk);
 
 	if (parent == &pll2_sw_clk) {
 		reg = __raw_readl(MXC_CCM_CBCDR) &
@@ -562,8 +624,11 @@ static int _clk_main_bus_set_parent(struct clk *clk, struct clk *parent)
 		emi_fast_clk.disable(&emi_fast_clk);
 	if (emi_slow_clk.usecount == 0)
 		emi_slow_clk.disable(&emi_slow_clk);
-	if (emi_intr_clk.usecount == 0)
-		emi_intr_clk.disable(&emi_intr_clk);
+
+	if (ipu_clk[0].usecount == 0)
+		ipu_clk[0].disable(&ipu_clk[0]);
+	if (mipi_hsp_clk.usecount == 0)
+		mipi_hsp_clk.disable(&mipi_hsp_clk);
 
 	return 0;
 }
@@ -586,10 +651,73 @@ static void _clk_axi_a_recalc(struct clk *clk)
 	clk->rate = clk->parent->rate / div;
 }
 
+static int _clk_axi_a_set_rate(struct clk *clk, unsigned long rate)
+{
+	u32 reg, div;
+	struct timespec nstimeofday;
+	struct timespec curtime;
+
+	div = clk->parent->rate / rate;
+	if (div == 0)
+		div++;
+	if (((clk->parent->rate / div) != rate) || (div > 8))
+		return -EINVAL;
+
+	if (emi_fast_clk.usecount == 0)
+		emi_fast_clk.enable(&emi_fast_clk);
+	if (emi_slow_clk.usecount == 0)
+		emi_slow_clk.enable(&emi_slow_clk);
+	if (ipu_clk[0].usecount == 0)
+		ipu_clk[0].enable(&ipu_clk[0]);
+	if (mipi_hsp_clk.usecount == 0)
+		mipi_hsp_clk.enable(&mipi_hsp_clk);
+
+	reg = __raw_readl(MXC_CCM_CBCDR);
+	reg &= ~MXC_CCM_CBCDR_AXI_A_PODF_MASK;
+	reg |= (div - 1) << MXC_CCM_CBCDR_AXI_A_PODF_OFFSET;
+	__raw_writel(reg, MXC_CCM_CBCDR);
+
+	getnstimeofday(&nstimeofday);
+	while (__raw_readl(MXC_CCM_CDHIPR) & MXC_CCM_CDHIPR_AXI_A_PODF_BUSY) {
+		getnstimeofday(&curtime);
+		if (curtime.tv_nsec - nstimeofday.tv_nsec > SPIN_DELAY)
+			panic("pll _clk_axi_a_set_rate failed\n");
+	}
+	clk->rate = rate;
+
+	if (emi_fast_clk.usecount == 0)
+		emi_fast_clk.disable(&emi_fast_clk);
+	if (emi_slow_clk.usecount == 0)
+		emi_slow_clk.disable(&emi_slow_clk);
+
+	if (ipu_clk[0].usecount == 0)
+		ipu_clk[0].disable(&ipu_clk[0]);
+	if (mipi_hsp_clk.usecount == 0)
+		mipi_hsp_clk.disable(&mipi_hsp_clk);
+
+	return 0;
+}
+
+static unsigned long _clk_axi_a_round_rate(struct clk *clk,
+						unsigned long rate)
+{
+	u32 div;
+
+	div = clk->parent->rate / rate;
+	if (div > 8)
+		div = 8;
+	else if (div == 0)
+		div++;
+	return clk->parent->rate / div;
+}
+
+
 static struct clk axi_a_clk = {
 	.name = "axi_a_clk",
 	.parent = &main_bus_clk,
 	.recalc = _clk_axi_a_recalc,
+	.set_rate = _clk_axi_a_set_rate,
+	.round_rate = _clk_axi_a_round_rate,
 	.flags = RATE_PROPAGATES,
 };
 
@@ -603,10 +731,63 @@ static void _clk_ddr_hf_recalc(struct clk *clk)
 	clk->rate = clk->parent->rate / div;
 }
 
+static unsigned long _clk_ddr_hf_round_rate(struct clk *clk,
+						unsigned long rate)
+{
+	u32 div;
+
+	div = clk->parent->rate / rate;
+	if (div > 8)
+		div = 8;
+	else if (div == 0)
+		div++;
+	return clk->parent->rate / div;
+}
+
+static int _clk_ddr_hf_set_rate(struct clk *clk, unsigned long rate)
+{
+	u32 reg, div;
+	struct timespec nstimeofday;
+	struct timespec curtime;
+
+	div = clk->parent->rate / rate;
+	if (div == 0)
+		div++;
+	if (((clk->parent->rate / div) != rate) || (div > 8))
+		return -EINVAL;
+
+	if (emi_fast_clk.usecount == 0)
+		emi_fast_clk.enable(&emi_fast_clk);
+	if (emi_slow_clk.usecount == 0)
+		emi_slow_clk.enable(&emi_slow_clk);
+
+	reg = __raw_readl(MXC_CCM_CBCDR);
+	reg &= ~MXC_CCM_CBCDR_DDR_PODF_MASK;
+	reg |= (div - 1) << MXC_CCM_CBCDR_DDR_PODF_OFFSET;
+	__raw_writel(reg, MXC_CCM_CBCDR);
+
+	getnstimeofday(&nstimeofday);
+	while (__raw_readl(MXC_CCM_CDHIPR) & MXC_CCM_CDHIPR_DDR_PODF_BUSY) {
+		getnstimeofday(&curtime);
+		if (curtime.tv_nsec - nstimeofday.tv_nsec > SPIN_DELAY)
+			panic("clk_ddr_hf_set_rate failed\n");
+	}
+	clk->rate = rate;
+
+	if (emi_fast_clk.usecount == 0)
+		emi_fast_clk.disable(&emi_fast_clk);
+	if (emi_slow_clk.usecount == 0)
+		emi_slow_clk.disable(&emi_slow_clk);
+
+	return 0;
+}
+
 static struct clk ddr_hf_clk = {
 	.name = "ddr_hf_clk",
 	.parent = &pll1_sw_clk,
 	.recalc = _clk_ddr_hf_recalc,
+	.round_rate = _clk_ddr_hf_round_rate,
+	.set_rate = _clk_ddr_hf_set_rate,
 	.flags = RATE_PROPAGATES,
 };
 
@@ -620,10 +801,75 @@ static void _clk_axi_b_recalc(struct clk *clk)
 	clk->rate = clk->parent->rate / div;
 }
 
+static int _clk_axi_b_set_rate(struct clk *clk, unsigned long rate)
+{
+	u32 reg, div;
+	struct timespec nstimeofday;
+	struct timespec curtime;
+
+	div = clk->parent->rate / rate;
+	if (div == 0)
+		div++;
+	if (((clk->parent->rate / div) != rate) || (div > 8))
+		return -EINVAL;
+
+	if (emi_fast_clk.usecount == 0)
+		emi_fast_clk.enable(&emi_fast_clk);
+	if (emi_slow_clk.usecount == 0)
+		emi_slow_clk.enable(&emi_slow_clk);
+
+	if (ipu_clk[0].usecount == 0)
+		ipu_clk[0].enable(&ipu_clk[0]);
+	if (mipi_hsp_clk.usecount == 0)
+		mipi_hsp_clk.enable(&mipi_hsp_clk);
+
+	reg = __raw_readl(MXC_CCM_CBCDR);
+	reg &= ~MXC_CCM_CBCDR_AXI_B_PODF_MASK;
+	reg |= (div - 1) << MXC_CCM_CBCDR_AXI_B_PODF_OFFSET;
+	__raw_writel(reg, MXC_CCM_CBCDR);
+
+	getnstimeofday(&nstimeofday);
+	while (__raw_readl(MXC_CCM_CDHIPR) & MXC_CCM_CDHIPR_AXI_B_PODF_BUSY) {
+		getnstimeofday(&curtime);
+		if (curtime.tv_nsec - nstimeofday.tv_nsec > SPIN_DELAY)
+			panic("_clk_axi_b_set_rate failed\n");
+	}
+
+	clk->rate = rate;
+
+	if (emi_fast_clk.usecount == 0)
+		emi_fast_clk.disable(&emi_fast_clk);
+	if (emi_slow_clk.usecount == 0)
+		emi_slow_clk.disable(&emi_slow_clk);
+
+	if (ipu_clk[0].usecount == 0)
+		ipu_clk[0].disable(&ipu_clk[0]);
+	if (mipi_hsp_clk.usecount == 0)
+		mipi_hsp_clk.disable(&mipi_hsp_clk);
+
+	return 0;
+}
+
+static unsigned long _clk_axi_b_round_rate(struct clk *clk,
+						unsigned long rate)
+{
+	u32 div;
+
+	div = clk->parent->rate / rate;
+	if (div > 8)
+		div = 8;
+	else if (div == 0)
+		div++;
+	return clk->parent->rate / div;
+}
+
+
 static struct clk axi_b_clk = {
 	.name = "axi_b_clk",
 	.parent = &main_bus_clk,
 	.recalc = _clk_axi_b_recalc,
+	.set_rate = _clk_axi_b_set_rate,
+	.round_rate = _clk_axi_b_round_rate,
 	.flags = RATE_PROPAGATES,
 };
 
@@ -637,10 +883,74 @@ static void _clk_ahb_recalc(struct clk *clk)
 	clk->rate = clk->parent->rate / div;
 }
 
+
+static int _clk_ahb_set_rate(struct clk *clk, unsigned long rate)
+{
+	u32 reg, div;
+	struct timespec nstimeofday;
+	struct timespec curtime;
+
+	div = clk->parent->rate / rate;
+	if (div == 0)
+		div++;
+	if (((clk->parent->rate / div) != rate) || (div > 8))
+		return -EINVAL;
+
+	if (emi_fast_clk.usecount == 0)
+		emi_fast_clk.enable(&emi_fast_clk);
+	if (emi_slow_clk.usecount == 0)
+		emi_slow_clk.enable(&emi_slow_clk);
+	if (ipu_clk[0].usecount == 0)
+		ipu_clk[0].enable(&ipu_clk[0]);
+	if (mipi_hsp_clk.usecount == 0)
+		mipi_hsp_clk.enable(&mipi_hsp_clk);
+
+	reg = __raw_readl(MXC_CCM_CBCDR);
+	reg &= ~MXC_CCM_CBCDR_AHB_PODF_MASK;
+	reg |= (div - 1) << MXC_CCM_CBCDR_AHB_PODF_OFFSET;
+	__raw_writel(reg, MXC_CCM_CBCDR);
+
+	getnstimeofday(&nstimeofday);
+	while (__raw_readl(MXC_CCM_CDHIPR) & MXC_CCM_CDHIPR_AHB_PODF_BUSY) {
+		getnstimeofday(&curtime);
+		if (curtime.tv_nsec - nstimeofday.tv_nsec > SPIN_DELAY)
+			panic("_clk_ahb_set_rate failed\n");
+	}
+	clk->rate = rate;
+
+	if (emi_fast_clk.usecount == 0)
+		emi_fast_clk.disable(&emi_fast_clk);
+	if (emi_slow_clk.usecount == 0)
+		emi_slow_clk.disable(&emi_slow_clk);
+
+	if (ipu_clk[0].usecount == 0)
+		ipu_clk[0].disable(&ipu_clk[0]);
+	if (mipi_hsp_clk.usecount == 0)
+		mipi_hsp_clk.disable(&mipi_hsp_clk);
+
+	return 0;
+}
+
+static unsigned long _clk_ahb_round_rate(struct clk *clk,
+						unsigned long rate)
+{
+	u32 div;
+
+	div = clk->parent->rate / rate;
+	if (div > 8)
+		div = 8;
+	else if (div == 0)
+		div++;
+	return clk->parent->rate / div;
+}
+
+
 static struct clk ahb_clk = {
 	.name = "ahb_clk",
 	.parent = &main_bus_clk,
 	.recalc = _clk_ahb_recalc,
+	.set_rate = _clk_ahb_set_rate,
+	.round_rate = _clk_ahb_round_rate,
 	.flags = RATE_PROPAGATES,
 };
 
@@ -685,6 +995,16 @@ static int _clk_emi_slow_set_parent(struct clk *clk, struct clk *parent)
 {
 	u32 reg;
 
+	if (emi_fast_clk.usecount == 0)
+		emi_fast_clk.enable(&emi_fast_clk);
+	if (emi_slow_clk.usecount == 0)
+		emi_slow_clk.enable(&emi_slow_clk);
+
+	if (ipu_clk[0].usecount == 0)
+		ipu_clk[0].enable(&ipu_clk[0]);
+	if (mipi_hsp_clk.usecount == 0)
+		mipi_hsp_clk.enable(&mipi_hsp_clk);
+
 	reg = __raw_readl(MXC_CCM_CBCDR);
 	if (parent == &ahb_clk) {
 		reg |= MXC_CCM_CBCDR_EMI_CLK_SEL;
@@ -694,6 +1014,16 @@ static int _clk_emi_slow_set_parent(struct clk *clk, struct clk *parent)
 		BUG();
 	}
 	__raw_writel(reg, MXC_CCM_CBCDR);
+
+	if (emi_fast_clk.usecount == 0)
+		emi_fast_clk.disable(&emi_fast_clk);
+	if (emi_slow_clk.usecount == 0)
+		emi_slow_clk.disable(&emi_slow_clk);
+
+	if (ipu_clk[0].usecount == 0)
+		ipu_clk[0].disable(&ipu_clk[0]);
+	if (mipi_hsp_clk.usecount == 0)
+		mipi_hsp_clk.disable(&mipi_hsp_clk);
 
 	return 0;
 }
@@ -711,6 +1041,8 @@ static void _clk_emi_slow_recalc(struct clk *clk)
 static int _clk_emi_slow_set_rate(struct clk *clk, unsigned long rate)
 {
 	u32 reg, div;
+	struct timespec nstimeofday;
+	struct timespec curtime;
 
 	div = clk->parent->rate / rate;
 	if (div == 0)
@@ -720,20 +1052,31 @@ static int _clk_emi_slow_set_rate(struct clk *clk, unsigned long rate)
 
 	if (emi_fast_clk.usecount == 0)
 		emi_fast_clk.enable(&emi_fast_clk);
-	if (emi_intr_clk.usecount == 0)
-		emi_intr_clk.enable(&emi_intr_clk);
+
+	if (ipu_clk[0].usecount == 0)
+		ipu_clk[0].enable(&ipu_clk[0]);
+	if (mipi_hsp_clk.usecount == 0)
+		mipi_hsp_clk.enable(&mipi_hsp_clk);
 
 	reg = __raw_readl(MXC_CCM_CBCDR);
 	reg &= ~MXC_CCM_CBCDR_EMI_PODF_MASK;
 	reg |= (div - 1) << MXC_CCM_CBCDR_EMI_PODF_OFFSET;
 	__raw_writel(reg, MXC_CCM_CBCDR);
-
+	getnstimeofday(&nstimeofday);
+	while (__raw_readl(MXC_CCM_CDHIPR) & MXC_CCM_CDHIPR_EMI_PODF_BUSY) {
+		getnstimeofday(&curtime);
+		if ((curtime.tv_nsec - nstimeofday.tv_nsec) > SPIN_DELAY)
+			panic("_clk_emi_slow_set_rate failed\n");
+	}
 	clk->rate = rate;
 
 	if (emi_fast_clk.usecount == 0)
 		emi_fast_clk.disable(&emi_fast_clk);
-	if (emi_intr_clk.usecount == 0)
-		emi_intr_clk.disable(&emi_intr_clk);
+
+	if (ipu_clk[0].usecount == 0)
+		ipu_clk[0].disable(&ipu_clk[0]);
+	if (mipi_hsp_clk.usecount == 0)
+		mipi_hsp_clk.disable(&mipi_hsp_clk);
 
 	return 0;
 }
@@ -781,7 +1124,6 @@ static struct clk ahbmux2_clk = {
 	.name = "ahbmux2_clk",
 	.id = 0,
 	.parent = &ahb_clk,
-	.secondary = &emi_intr_clk,
 	.enable = _clk_enable,
 	.enable_reg = MXC_CCM_CCGR0,
 	.enable_shift = MXC_CCM_CCGR0_CG9_OFFSET,
@@ -802,10 +1144,8 @@ static struct clk emi_intr_clk = {
 	.name = "emi_intr_clk",
 	.parent = &ahb_clk,
 	.secondary = &ahbmux2_clk,
-	.enable = _clk_enable,
 	.enable_reg = MXC_CCM_CCGR5,
 	.enable_shift = MXC_CCM_CCGR5_CG9_OFFSET,
-	.disable = _clk_disable_inwait,
 };
 
 static void _clk_ipg_recalc(struct clk *clk)
@@ -896,7 +1236,7 @@ static struct clk aips_tz2_clk = {
 
 static struct clk gpc_dvfs_clk = {
 	.name = "gpc_dvfs_clk",
-	.parent = &aips_tz1_clk,
+	.parent = &aips_tz2_clk,
 	.enable_reg = MXC_CCM_CCGR5,
 	.enable_shift = MXC_CCM_CCGR5_CG12_OFFSET,
 	.enable = _clk_enable,
@@ -933,7 +1273,6 @@ static struct clk sdma_clk[] = {
 	{
 	 .name = "sdma_ahb_clk",
 	 .parent = &ahb_clk,
-	 .secondary = &emi_fast_clk,
 	 .enable_reg = MXC_CCM_CCGR4,
 	 .enable_shift = MXC_CCM_CCGR4_CG15_OFFSET,
 	 .enable = _clk_sdma_enable,
@@ -985,6 +1324,19 @@ static void _clk_ipu_disable(struct clk *clk)
 
 }
 
+static int _clk_ipu_set_parent(struct clk *clk, struct clk *parent)
+{
+	u32 reg, mux;
+	reg = __raw_readl(MXC_CCM_CBCMR);
+	mux = _get_mux(parent, &axi_a_clk, &axi_b_clk, &ahb_clk,
+		       &emi_slow_clk);
+	reg = (reg & ~MXC_CCM_CBCMR_IPU_HSP_CLK_SEL_MASK) |
+	    (mux << MXC_CCM_CBCMR_IPU_HSP_CLK_SEL_OFFSET);
+	__raw_writel(reg, MXC_CCM_CBCMR);
+
+	return 0;
+}
+
 
 static struct clk ipu_clk[] = {
 	{
@@ -995,6 +1347,8 @@ static struct clk ipu_clk[] = {
 	.enable_shift = MXC_CCM_CCGR5_CG5_OFFSET,
 	.enable = _clk_ipu_enable,
 	.disable = _clk_ipu_disable,
+	.set_parent = _clk_ipu_set_parent,
+	 .flags = CPU_FREQ_TRIG_UPDATE | AHB_MED_SET_POINT,
 	},
 	{
 	 .name = "ipu_sec_clk",
@@ -1371,6 +1725,7 @@ static struct clk tve_clk = {
 	.set_rate = _clk_tve_set_rate,
 	.enable = _clk_enable,
 	.disable = _clk_disable,
+	.flags = AHB_HIGH_SET_POINT | CPU_FREQ_TRIG_UPDATE,
 };
 
 static struct clk spba_clk = {
@@ -1426,6 +1781,9 @@ static struct clk uart1_clk[] = {
 	 .enable_shift = MXC_CCM_CCGR1_CG4_OFFSET,
 	 .enable = _clk_enable,
 	 .disable = _clk_disable,
+#ifdef UART1_DMA_ENABLE
+	.flags = AHB_HIGH_SET_POINT | CPU_FREQ_TRIG_UPDATE,
+#endif
 	 },
 	{
 	 .name = "uart_ipg_clk",
@@ -1449,6 +1807,9 @@ static struct clk uart2_clk[] = {
 	 .enable_shift = MXC_CCM_CCGR1_CG6_OFFSET,
 	 .enable = _clk_enable,
 	 .disable = _clk_disable,
+#ifdef UART2_DMA_ENABLE
+	.flags = AHB_HIGH_SET_POINT | CPU_FREQ_TRIG_UPDATE,
+#endif
 	 },
 	{
 	 .name = "uart_ipg_clk",
@@ -1472,6 +1833,9 @@ static struct clk uart3_clk[] = {
 	 .enable_shift = MXC_CCM_CCGR1_CG8_OFFSET,
 	 .enable = _clk_enable,
 	 .disable = _clk_disable,
+#ifdef UART3_DMA_ENABLE
+	.flags = AHB_HIGH_SET_POINT | CPU_FREQ_TRIG_UPDATE,
+#endif
 	 },
 	{
 	 .name = "uart_ipg_clk",
@@ -1620,6 +1984,7 @@ static struct clk hsi2c_clk = {
 	.enable_shift = MXC_CCM_CCGR1_CG12_OFFSET,
 	.enable = _clk_enable,
 	.disable = _clk_disable,
+	.flags = AHB_HIGH_SET_POINT | CPU_FREQ_TRIG_UPDATE,
 };
 
 static void _clk_cspi_recalc(struct clk *clk)
@@ -2047,6 +2412,7 @@ static struct clk usboh3_clk[] = {
 	 .enable_shift = MXC_CCM_CCGR2_CG14_OFFSET,
 	 .disable = _clk_disable,
 	 .secondary = &usboh3_clk[1],
+	 .flags = AHB_HIGH_SET_POINT | CPU_FREQ_TRIG_UPDATE,
 	 },
 	{
 	 .name = "usb_ahb_clk",
@@ -2154,6 +2520,7 @@ static struct clk esdhc1_clk[] = {
 	 .enable_shift = MXC_CCM_CCGR3_CG1_OFFSET,
 	 .disable = _clk_disable,
 	 .secondary = &esdhc1_clk[1],
+	 .flags = AHB_HIGH_SET_POINT | CPU_FREQ_TRIG_UPDATE,
 	 },
 	{
 	 .name = "esdhc_ipg_clk",
@@ -2213,6 +2580,7 @@ static struct clk esdhc2_clk[] = {
 	 .enable_shift = MXC_CCM_CCGR3_CG3_OFFSET,
 	 .disable = _clk_disable,
 	 .secondary = &esdhc2_clk[1],
+	 .flags = AHB_HIGH_SET_POINT | CPU_FREQ_TRIG_UPDATE,
 	 },
 	{
 	 .name = "esdhc_ipg_clk",
@@ -2260,6 +2628,7 @@ static struct clk esdhc3_clk[] = {
 	 .enable_shift = MXC_CCM_CCGR3_CG5_OFFSET,
 	 .disable = _clk_disable,
 	 .secondary = &esdhc3_clk[1],
+	 .flags = AHB_HIGH_SET_POINT | CPU_FREQ_TRIG_UPDATE,
 	 },
 	{
 	 .name = "esdhc_ipg_clk",
@@ -2308,6 +2677,7 @@ static struct clk esdhc4_clk[] = {
 	 .enable_shift = MXC_CCM_CCGR3_CG7_OFFSET,
 	 .disable = _clk_disable,
 	 .secondary = &esdhc3_clk[1],
+	 .flags = AHB_HIGH_SET_POINT | CPU_FREQ_TRIG_UPDATE,
 	 },
 	{
 	 .name = "esdhc_ipg_clk",
@@ -2391,25 +2761,26 @@ static int _clk_sim_set_rate(struct clk *clk, unsigned long rate)
 
 static struct clk sim_clk[] = {
 	{
-	 .name = "sim_clk",
-	 .parent = &pll3_sw_clk,
-	 .set_parent = _clk_sim_set_parent,
-	 .secondary = &sim_clk[1],
-	 .recalc = _clk_sim_recalc,
-	 .round_rate = _clk_sim_round_rate,
-	 .set_rate = _clk_sim_set_rate,
-	 .enable = _clk_enable,
-	 .enable_reg = MXC_CCM_CCGR4,
-	 .enable_shift = MXC_CCM_CCGR4_CG2_OFFSET,
-	 .disable = _clk_disable,
+	.name = "sim_clk",
+	.parent = &pll3_sw_clk,
+	.set_parent = _clk_sim_set_parent,
+	.secondary = &sim_clk[1],
+	.recalc = _clk_sim_recalc,
+	.round_rate = _clk_sim_round_rate,
+	.set_rate = _clk_sim_set_rate,
+	.enable = _clk_enable,
+	.enable_reg = MXC_CCM_CCGR4,
+	.enable_shift = MXC_CCM_CCGR4_CG2_OFFSET,
+	.disable = _clk_disable,
+	.flags = AHB_HIGH_SET_POINT | CPU_FREQ_TRIG_UPDATE,
 	 },
 	{
-	 .name = "sim_ipg_clk",
-	 .parent = &ipg_clk,
-	 .enable = _clk_enable,
-	 .enable_reg = MXC_CCM_CCGR4,
-	 .enable_shift = MXC_CCM_CCGR4_CG1_OFFSET,
-	 .disable = _clk_disable,
+	.name = "sim_ipg_clk",
+	.parent = &ipg_clk,
+	.enable = _clk_enable,
+	.enable_reg = MXC_CCM_CCGR4,
+	.enable_shift = MXC_CCM_CCGR4_CG1_OFFSET,
+	.disable = _clk_disable,
 	 },
 };
 
@@ -2423,6 +2794,58 @@ static void _clk_nfc_recalc(struct clk *clk)
 	clk->rate = clk->parent->rate / div;
 }
 
+static unsigned long _clk_nfc_round_rate(struct clk *clk,
+						unsigned long rate)
+{
+	u32 div;
+
+	div = clk->parent->rate / rate;
+	if (div > 8)
+		div = 8;
+	else if (div == 0)
+		div++;
+	return clk->parent->rate / div;
+}
+
+static int _clk_nfc_set_rate(struct clk *clk, unsigned long rate)
+{
+	u32 reg, div;
+	struct timespec nstimeofday;
+	struct timespec curtime;
+
+	div = clk->parent->rate / rate;
+	if (div == 0)
+		div++;
+	if (((clk->parent->rate / div) != rate) || (div > 8))
+		return -EINVAL;
+
+	if (emi_fast_clk.usecount == 0)
+		emi_fast_clk.enable(&emi_fast_clk);
+	if (emi_slow_clk.usecount == 0)
+		emi_slow_clk.enable(&emi_slow_clk);
+
+
+	reg = __raw_readl(MXC_CCM_CBCDR);
+	reg &= ~MXC_CCM_CBCDR_NFC_PODF_MASK;
+	reg |= (div - 1) << MXC_CCM_CBCDR_NFC_PODF_OFFSET;
+	__raw_writel(reg, MXC_CCM_CBCDR);
+	getnstimeofday(&nstimeofday);
+	while (__raw_readl(MXC_CCM_CDHIPR) &
+			MXC_CCM_CDHIPR_NFC_IPG_INT_MEM_PODF_BUSY){
+		getnstimeofday(&curtime);
+		if ((curtime.tv_nsec - nstimeofday.tv_nsec) > SPIN_DELAY)
+			panic("_clk_nfc_set_rate failed\n");
+	}
+	clk->rate = rate;
+
+	if (emi_fast_clk.usecount == 0)
+		emi_fast_clk.disable(&emi_fast_clk);
+	if (emi_slow_clk.usecount == 0)
+		emi_slow_clk.disable(&emi_slow_clk);
+
+	return 0;
+}
+
 static struct clk emi_enfc_clk = {
 	.name = "nfc_clk",
 	.parent = &emi_slow_clk,
@@ -2431,6 +2854,8 @@ static struct clk emi_enfc_clk = {
 	.enable_shift = MXC_CCM_CCGR5_CG10_OFFSET,
 	.disable = _clk_disable_inwait,
 	.recalc = _clk_nfc_recalc,
+	.round_rate = _clk_nfc_round_rate,
+	.set_rate = _clk_nfc_set_rate,
 };
 
 static int _clk_spdif_xtal_set_parent(struct clk *clk, struct clk *parent)
@@ -2500,6 +2925,7 @@ static struct clk spdif0_clk[] = {
 	.enable_reg = MXC_CCM_CCGR5,
 	.enable_shift = MXC_CCM_CCGR5_CG13_OFFSET,
 	.disable = _clk_disable,
+	.flags = AHB_HIGH_SET_POINT | CPU_FREQ_TRIG_UPDATE,
 	},
 	{
 	 .name = "spdif_ipg_clk",
@@ -2558,6 +2984,7 @@ static struct clk spdif1_clk[] = {
 	.enable_reg = MXC_CCM_CCGR5,
 	.enable_shift = MXC_CCM_CCGR5_CG14_OFFSET,
 	.disable = _clk_disable,
+	.flags = AHB_HIGH_SET_POINT | CPU_FREQ_TRIG_UPDATE,
 	},
 	{
 	 .name = "spdif_ipg_clk",
@@ -2574,6 +3001,9 @@ static struct clk spdif1_clk[] = {
 static int _clk_ddr_set_parent(struct clk *clk, struct clk *parent)
 {
 	u32 reg, reg2, mux;
+	struct timespec nstimeofday;
+	struct timespec curtime;
+
 	reg = __raw_readl(MXC_CCM_CBCMR);
 	reg2 = __raw_readl(MXC_CCM_CBCDR);
 	mux = _get_mux_ddr(parent, &axi_a_clk, &axi_b_clk, &emi_slow_clk, &ahb_clk, &ddr_hf_clk);
@@ -2581,12 +3011,19 @@ static int _clk_ddr_set_parent(struct clk *clk, struct clk *parent)
 		reg = (reg & ~MXC_CCM_CBCMR_DDR_CLK_SEL_MASK) |
 		    (mux << MXC_CCM_CBCMR_DDR_CLK_SEL_OFFSET);
 		__raw_writel(reg, MXC_CCM_CBCMR);
+		reg2 = (reg2 & ~MXC_CCM_CBCDR_DDR_HF_SEL);
 	} else {
 		reg2 = (reg2 & ~MXC_CCM_CBCDR_DDR_HF_SEL) |
 			(MXC_CCM_CBCDR_DDR_HF_SEL);
-		__raw_writel(reg2, MXC_CCM_CBCDR);
 	}
-
+	__raw_writel(reg2, MXC_CCM_CBCDR);
+	getnstimeofday(&nstimeofday);
+	while (__raw_readl(MXC_CCM_CDHIPR) &
+		MXC_CCM_CDHIPR_DDR_HF_CLK_SEL_BUSY){
+		getnstimeofday(&curtime);
+		if ((curtime.tv_nsec - nstimeofday.tv_nsec) > SPIN_DELAY)
+			panic("_clk_ddr_set_parent failed\n");
+	}
 	return 0;
 }
 
@@ -2640,6 +3077,7 @@ static struct clk vpu_clk[] = {
 	 .enable_shift = MXC_CCM_CCGR5_CG4_OFFSET,
 	 .disable = _clk_disable,
 	 .secondary = &vpu_clk[1],
+	.flags = AHB_HIGH_SET_POINT | CPU_FREQ_TRIG_UPDATE,
 	 },
 	{
 	 .name = "vpu_core_clk",
@@ -2727,6 +3165,7 @@ static struct clk ata_clk = {
 	.enable_reg = MXC_CCM_CCGR4,
 	.enable_shift = MXC_CCM_CCGR4_CG0_OFFSET,
 	.disable = _clk_disable,
+	.flags = AHB_HIGH_SET_POINT | CPU_FREQ_TRIG_UPDATE,
 };
 
 static struct clk owire_clk = {
@@ -2748,6 +3187,7 @@ static struct clk fec_clk[] = {
 	.enable_reg = MXC_CCM_CCGR2,
 	.enable_shift = MXC_CCM_CCGR2_CG12_OFFSET,
 	.disable = _clk_disable,
+	.flags = AHB_HIGH_SET_POINT | CPU_FREQ_TRIG_UPDATE,
 	},
 	{
 	 .name = "fec_sec1_clk",
@@ -2799,6 +3239,7 @@ static struct clk gpu3d_clk = {
 	.enable_reg = MXC_CCM_CCGR5,
 	.enable_shift = MXC_CCM_CCGR5_CG1_OFFSET,
 	.disable = _clk_disable,
+	.flags = AHB_HIGH_SET_POINT | CPU_FREQ_TRIG_UPDATE,
 };
 
 static struct clk garb_clk = {
@@ -2840,6 +3281,7 @@ static struct clk gpu2d_clk = {
 	.enable_reg = MXC_CCM_CCGR6,
 	.enable_shift = MXC_CCM_CCGR6_CG7_OFFSET,
 	.disable = _clk_disable,
+	.flags = AHB_HIGH_SET_POINT | CPU_FREQ_TRIG_UPDATE,
 };
 
 static struct clk *mxc_clks[] = {
@@ -3082,13 +3524,15 @@ int __init mxc_clocks_init(unsigned long ckil, unsigned long osc, unsigned long 
 	__raw_writel(0, MXC_CCM_CCGR1);
 	__raw_writel(0, MXC_CCM_CCGR2);
 	__raw_writel(0, MXC_CCM_CCGR3);
-	__raw_writel(3 << MXC_CCM_CCGR4_CG8_OFFSET, MXC_CCM_CCGR4);
+	__raw_writel(1 << MXC_CCM_CCGR4_CG8_OFFSET, MXC_CCM_CCGR4);
+
 	__raw_writel(1 << MXC_CCM_CCGR5_CG2_OFFSET |
 		     1 << MXC_CCM_CCGR5_CG7_OFFSET |
 		     1 << MXC_CCM_CCGR5_CG8_OFFSET |
-		     1 << MXC_CCM_CCGR5_CG9_OFFSET |
+		     3 << MXC_CCM_CCGR5_CG9_OFFSET |
 		     1 << MXC_CCM_CCGR5_CG10_OFFSET |
 		     3 << MXC_CCM_CCGR5_CG11_OFFSET, MXC_CCM_CCGR5);
+
 	__raw_writel(1 << MXC_CCM_CCGR6_CG4_OFFSET, MXC_CCM_CCGR6);
 
 	/*Setup the LPM bypass bits */
@@ -3130,6 +3574,48 @@ int __init mxc_clocks_init(unsigned long ckil, unsigned long osc, unsigned long 
 	clk_set_parent(&gpu3d_clk, &ahb_clk);
 	clk_set_parent(&gpu2d_clk, &ahb_clk);
 
+	/* move cspi to 24MHz */
+	clk_set_parent(&cspi_main_clk, &lp_apm_clk);
+	clk_set_rate(&cspi_main_clk, 12000000);
+	/*move the spdif0 to spdif_xtal_ckl */
+	clk_set_parent(&spdif0_clk[0], &spdif_xtal_clk);
+	/*set the SPDIF dividers to 1 */
+	reg = __raw_readl(MXC_CCM_CDCDR);
+	reg &= ~MXC_CCM_CDCDR_SPDIF0_CLK_PODF_MASK;
+	reg &= ~MXC_CCM_CDCDR_SPDIF0_CLK_PRED_MASK;
+	__raw_writel(reg, MXC_CCM_CDCDR);
+
+	/* move the spdif1 to 24MHz */
+	clk_set_parent(&spdif1_clk[0], &spdif_xtal_clk);
+	/* set the spdif1 dividers to 1 */
+	reg = __raw_readl(MXC_CCM_CDCDR);
+	reg &= ~MXC_CCM_CDCDR_SPDIF1_CLK_PODF_MASK;
+	reg &= ~MXC_CCM_CDCDR_SPDIF1_CLK_PRED_MASK;
+	__raw_writel(reg, MXC_CCM_CDCDR);
+
+	/* Move SSI clocks to SSI_LP_APM clock */
+	clk_set_parent(&ssi_lp_apm_clk, &lp_apm_clk);
+
+	clk_set_parent(&ssi1_clk[0], &ssi_lp_apm_clk);
+	/* set the SSI dividers to divide by 2 */
+	reg = __raw_readl(MXC_CCM_CS1CDR);
+	reg &= ~MXC_CCM_CS1CDR_SSI1_CLK_PODF_MASK;
+	reg &= ~MXC_CCM_CS1CDR_SSI1_CLK_PRED_MASK;
+	reg |= 1 << MXC_CCM_CS1CDR_SSI1_CLK_PRED_OFFSET;
+	__raw_writel(reg, MXC_CCM_CS1CDR);
+
+	clk_set_parent(&ssi2_clk[0], &ssi_lp_apm_clk);
+	reg = __raw_readl(MXC_CCM_CS2CDR);
+	reg &= ~MXC_CCM_CS2CDR_SSI2_CLK_PODF_MASK;
+	reg &= ~MXC_CCM_CS2CDR_SSI2_CLK_PRED_MASK;
+	reg |= 1 << MXC_CCM_CS2CDR_SSI2_CLK_PRED_OFFSET;
+	__raw_writel(reg, MXC_CCM_CS2CDR);
+
+	/* Change the SSI_EXT1_CLK to be sourced from SSI1_CLK_ROOT */
+	clk_set_parent(&ssi_ext1_clk, &ssi1_clk[0]);
+	clk_set_parent(&ssi_ext2_clk, &ssi2_clk[0]);
+
+	/* Set the current working point. */
 	cpu_wp_tbl = get_cpu_wp(&cpu_wp_nr);
 	/* Update the cpu working point table based on the PLL1 freq
 	 * at boot time
@@ -3193,6 +3679,27 @@ int __init mxc_clocks_init(unsigned long ckil, unsigned long osc, unsigned long 
 	if (i > cpu_wp_nr)
 		BUG();
 
+	propagate_rate(&osc_clk);
+	propagate_rate(&pll1_sw_clk);
+	propagate_rate(&pll2_sw_clk);
+
+	/*Allow for automatic gating of the EMI internal clock.
+	 * If this is done, emi_intr CCGR bits should be set to 11.
+	 */
+	reg = __raw_readl((IO_ADDRESS(M4IF_BASE_ADDR) + 0x8c));
+	reg &= ~0x1;
+	__raw_writel(reg, (IO_ADDRESS(M4IF_BASE_ADDR) + 0x8c));
+
+	clk_set_parent(&arm_axi_clk, &axi_a_clk);
+	clk_set_parent(&ipu_clk[0], &axi_b_clk);
+	clk_set_parent(&uart_main_clk, &lp_apm_clk);
+
+	clk_set_parent(&emi_slow_clk, &ahb_clk);
+	clk_set_rate(&emi_slow_clk, clk_round_rate(&emi_slow_clk, 130000000));
+
+	/* Change the NFC clock rate to be 1:4 ratio with emi clock. */
+	clk_set_rate(&emi_enfc_clk, clk_round_rate(&emi_enfc_clk,
+			(clk_get_rate(&emi_slow_clk))/4));
 	return 0;
 }
 
@@ -3225,6 +3732,9 @@ static int cpu_clk_set_wp(int wp)
 		cpu_curr_wp = wp;
 		cpu_clk.rate = cpu_wp_tbl[wp].cpu_rate;
 	} else {
+		struct timespec nstimeofday;
+		struct timespec curtime;
+
 		/* Change the ARM clock to requested frequency */
 		/* First move the ARM clock to step clock which is running
 		 * at 24MHz.
@@ -3259,7 +3769,11 @@ static int cpu_clk_set_wp(int wp)
 		__raw_writel(reg, MXC_DPLL1_BASE + MXC_PLL_DP_CTL);
 
 		/* Wait for the PLL to lock */
+		getnstimeofday(&nstimeofday);
 		do {
+			getnstimeofday(&curtime);
+			if ((curtime.tv_nsec - nstimeofday.tv_nsec) > SPIN_DELAY)
+				panic("pll1 relock failed\n");
 			stat = __raw_readl(MXC_DPLL1_BASE + MXC_PLL_DP_CTL) &
 			    MXC_PLL_DP_CTL_LRF;
 		} while (!stat);

@@ -65,7 +65,7 @@ extern struct cpu_wp *(*get_cpu_wp)(int *wp);
 extern void (*set_num_cpu_wp)(int num);
 static int num_cpu_wp = 3;
 
-/* working point(wp): 0 - 1GHz; 1 - 800MHz, 2 - 167MHz; */
+/* working point(wp): 0 - 800MHz; 1 - 166.25MHz; */
 static struct cpu_wp cpu_wp_auto[] = {
 	{
 	 .pll_rate = 1000000000,
@@ -87,7 +87,7 @@ static struct cpu_wp cpu_wp_auto[] = {
 	 .cpu_voltage = 1050000,},
 	{
 	 .pll_rate = 800000000,
-	 .cpu_rate = 167000000,
+	 .cpu_rate = 166250000,
 	 .pdf = 4,
 	 .mfi = 8,
 	 .mfd = 2,
