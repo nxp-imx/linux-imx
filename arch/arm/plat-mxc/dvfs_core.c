@@ -124,7 +124,7 @@ enum {
 extern int low_bus_freq_mode;
 extern int high_bus_freq_mode;
 extern int set_low_bus_freq(void);
-extern int set_high_bus_freq(void);
+extern int set_high_bus_freq(int high_bus_speed);
 extern int low_freq_bus_used(void);
 
 DEFINE_SPINLOCK(mxc_dvfs_core_lock);
@@ -145,10 +145,8 @@ void dvfs_core_set_bus_freq(void)
 	if ((curr_wp == dvfs_data->num_wp - 1) && (!low_bus_freq_mode)
 	    && (low_freq_bus_ready))
 		set_low_bus_freq();
-	else if ((curr_wp == dvfs_data->num_wp - 1) && (low_bus_freq_mode)
-		 && (!low_freq_bus_ready))
-		set_high_bus_freq();
-
+	else if (!low_freq_bus_ready)
+		set_high_bus_freq(0);
 	/* Enable DVFS interrupt */
 	/* FSVAIM=0 */
 	reg = (reg & ~MXC_DVFSCNTR_FSVAIM);
@@ -380,13 +378,13 @@ static void dvfs_core_workqueue_handler(struct work_struct *work)
 		ret = set_cpu_freq(curr_wp);
 	} else {
 		if (!high_bus_freq_mode)
-			set_high_bus_freq();
+			set_high_bus_freq(0);
 
 		ret = set_cpu_freq(curr_wp);
 
 		if (low_bus_freq_mode) {
 			if (ret == 0)
-				set_high_bus_freq();
+				set_high_bus_freq(0);
 		}
 	}
 
@@ -435,11 +433,10 @@ static void stop_dvfs(void)
 		spin_unlock_irqrestore(&mxc_dvfs_core_lock, flags);
 
 		curr_wp = 0;
+		if (!high_bus_freq_mode)
+			set_high_bus_freq(1);
 		curr_cpu = clk_get_rate(cpu_clk);
 		if (curr_cpu != cpu_wp_tbl[curr_wp].cpu_rate) {
-			if (!high_bus_freq_mode)
-				set_high_bus_freq();
-
 			set_cpu_freq(curr_wp);
 #if defined(CONFIG_CPU_FREQ)
 			if (cpufreq_trig_needed == 1) {

@@ -43,6 +43,8 @@
 
 #if (defined(CONFIG_ARCH_MX51) || defined(CONFIG_ARCH_MX37))
 extern int dvfs_core_is_active;
+extern int lp_high_freq;
+extern int lp_med_freq;
 extern void dvfs_core_set_bus_freq(void);
 #else
 int dvfs_core_is_active;
@@ -174,7 +176,13 @@ int clk_enable(struct clk *clk)
 #if defined(CONFIG_CPU_FREQ)
 		if (dvfs_core_is_active)
 			dvfs_core_set_bus_freq();
+#if (defined(CONFIG_ARCH_MX51) || defined(CONFIG_ARCH_MX37))
+		else if ((lp_high_freq == 0 && lp_med_freq == 0) ||
+			(lp_high_freq == 1) ||
+			(lp_high_freq == 0 && lp_med_freq == 1))
+#else
 		else
+#endif
 			cpufreq_update_policy(0);
 #else
 		if (dvfs_core_is_active)
@@ -207,8 +215,12 @@ void clk_disable(struct clk *clk)
 #if defined(CONFIG_CPU_FREQ)
 		if (dvfs_core_is_active)
 			dvfs_core_set_bus_freq();
+#if (defined(CONFIG_ARCH_MX51) || defined(CONFIG_ARCH_MX37))
+		else if (lp_high_freq == 0)
+#else
 		else
-		cpufreq_update_policy(0);
+#endif
+			cpufreq_update_policy(0);
 #else
 		if (dvfs_core_is_active)
 			dvfs_core_set_bus_freq();

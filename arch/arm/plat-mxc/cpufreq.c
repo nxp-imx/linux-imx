@@ -50,8 +50,9 @@ extern int high_bus_freq_mode;
 extern int dvfs_core_is_active;
 extern int cpu_wp_nr;
 extern char *gp_reg_id;
+
 extern int set_low_bus_freq(void);
-extern int set_high_bus_freq(void);
+extern int set_high_bus_freq(int high_bus_speed);
 extern int low_freq_bus_used(void);
 #ifdef CONFIG_ARCH_MX51
 extern struct cpu_wp *(*get_cpu_wp)(int *wp);
@@ -170,9 +171,10 @@ static int mxc_set_target(struct cpufreq_policy *policy,
 	freqs.cpu = 0;
 	freqs.flags = 0;
 
-	if ((freqs.old == freqs.new) && (freqs.new != cpu_freq_khz_min))
+	if ((freqs.old == freqs.new) && (freqs.new != cpu_freq_khz_min)) {
+		set_high_bus_freq(0);
 		return 0;
-
+	}
 	low_freq_bus_ready = low_freq_bus_used();
 
 	cpufreq_notify_transition(&freqs, CPUFREQ_PRECHANGE);
@@ -184,14 +186,12 @@ static int mxc_set_target(struct cpufreq_policy *policy,
 			if (!dvfs_core_is_active)
 				ret = set_cpu_freq(freq_Hz);
 		} else {
-			if (!high_bus_freq_mode)
-				set_high_bus_freq();
-
+			set_high_bus_freq(0);
 			if (!dvfs_core_is_active)
 				ret = set_cpu_freq(freq_Hz);
 			if (low_bus_freq_mode) {
 				if (ret == 0)
-					set_high_bus_freq();
+					set_high_bus_freq(0);
 			}
 		}
 	}
@@ -277,9 +277,8 @@ static int mxc_cpufreq_driver_exit(struct cpufreq_policy *policy)
 	/* Reset CPU to 665MHz */
 	if (!dvfs_core_is_active)
 		set_cpu_freq(arm_normal_clk);
-
-	if (low_bus_freq_mode)
-		set_high_bus_freq();
+	if (!high_bus_freq_mode)
+		set_high_bus_freq(0);
 
 	clk_put(cpu_clk);
 	regulator_put(gp_regulator);

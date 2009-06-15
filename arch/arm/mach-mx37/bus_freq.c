@@ -110,7 +110,7 @@ int set_low_bus_freq(void)
 	return ret;
 }
 
-int set_high_bus_freq(void)
+int set_high_bus_freq(int high_bus_freq)
 {
 	struct clk *p_clk;
 	struct clk *rmode_parent_clk;

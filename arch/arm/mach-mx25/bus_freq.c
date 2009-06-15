@@ -38,7 +38,7 @@ int set_low_bus_freq(void)
 	return 0;
 }
 
-int set_high_bus_freq(void)
+int set_high_bus_freq(int high_bus_freq)
 {
 	return 0;
 }
