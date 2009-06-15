@@ -442,26 +442,26 @@ static int ioctl_s_power(struct v4l2_int_device *s, int on)
 
 	if (on && !sensor->on) {
 		gpio_sensor_active();
-		if (!IS_ERR_VALUE((unsigned long)io_regulator))
+		if (io_regulator)
 			if (regulator_enable(io_regulator) != 0)
 				return -EIO;
-		if (!IS_ERR_VALUE((unsigned long)core_regulator))
+		if (core_regulator)
 			if (regulator_enable(core_regulator) != 0)
 				return -EIO;
-		if (!IS_ERR_VALUE((unsigned long)gpo_regulator))
+		if (gpo_regulator)
 			if (regulator_enable(gpo_regulator) != 0)
 				return -EIO;
-		if (!IS_ERR_VALUE((unsigned long)analog_regulator))
+		if (analog_regulator)
 			if (regulator_enable(analog_regulator) != 0)
 				return -EIO;
 	} else if (!on && sensor->on) {
-		if (!IS_ERR_VALUE((unsigned long)analog_regulator))
+		if (analog_regulator)
 			regulator_disable(analog_regulator);
-		if (!IS_ERR_VALUE((unsigned long)core_regulator))
+		if (core_regulator)
 			regulator_disable(core_regulator);
-		if (!IS_ERR_VALUE((unsigned long)io_regulator))
+		if (io_regulator)
 			regulator_disable(io_regulator);
-		if (!IS_ERR_VALUE((unsigned long)gpo_regulator))
+		if (gpo_regulator)
 			regulator_disable(gpo_regulator);
 		gpio_sensor_inactive();
 	}
@@ -798,23 +798,23 @@ static int ioctl_dev_init(struct v4l2_int_device *s)
 	gpio_sensor_active();
 	ov2640_data.on = true;
 
-	if (!IS_ERR_VALUE((unsigned long)io_regulator)) {
+	if (io_regulator) {
 		regulator_set_voltage(io_regulator, 2800000, 2800000);
 		if (regulator_enable(io_regulator) != 0)
 			return -EIO;
 	}
-	if (!IS_ERR_VALUE((unsigned long)core_regulator)) {
+	if (core_regulator) {
 		regulator_set_voltage(core_regulator, 1300000, 1300000);
 		if (regulator_enable(core_regulator) != 0)
 			return -EIO;
-		}
+	}
 	/*GPO 3 */
-	if (!IS_ERR_VALUE((unsigned long)gpo_regulator)) {
+	if (gpo_regulator) {
 		if (regulator_enable(gpo_regulator) != 0) {
 			return -EIO;
 		}
 	}
-	if (!IS_ERR_VALUE((unsigned long)analog_regulator)) {
+	if (analog_regulator) {
 		/* regulator_set_voltage(analog_regulator, 2800000, 2800000); */
 		regulator_set_voltage(analog_regulator, 2000000, 2000000);
 		if (regulator_enable(analog_regulator) != 0)
@@ -903,11 +903,30 @@ static int ov2640_probe(struct i2c_client *client,
 	ov2640_data.streamcap.timeperframe.denominator = DEFAULT_FPS;
 	ov2640_data.streamcap.timeperframe.numerator = 1;
 
-	io_regulator = regulator_get(&client->dev, plat_data->io_regulator);
-	core_regulator = regulator_get(&client->dev, plat_data->core_regulator);
-	analog_regulator =
-		regulator_get(&client->dev, plat_data->analog_regulator);
-	gpo_regulator = regulator_get(&client->dev, plat_data->gpo_regulator);
+	if (plat_data->io_regulator) {
+		io_regulator =
+		    regulator_get(&client->dev, plat_data->io_regulator);
+		if (IS_ERR(io_regulator))
+			io_regulator = NULL;
+	}
+	if (plat_data->core_regulator) {
+		core_regulator =
+		    regulator_get(&client->dev, plat_data->core_regulator);
+		if (IS_ERR(core_regulator))
+			core_regulator = NULL;
+	}
+	if (plat_data->analog_regulator) {
+		analog_regulator =
+		    regulator_get(&client->dev, plat_data->analog_regulator);
+		if (IS_ERR(analog_regulator))
+			analog_regulator = NULL;
+	}
+	if (plat_data->gpo_regulator) {
+		gpo_regulator =
+		    regulator_get(&client->dev, plat_data->gpo_regulator);
+		if (IS_ERR(gpo_regulator))
+			gpo_regulator = NULL;
+	}
 
 	/* This function attaches this structure to the /dev/video0 device.
 	 * The pointer in priv points to the mt9v111_data structure here.*/
@@ -930,22 +949,22 @@ static int ov2640_remove(struct i2c_client *client)
 
 	v4l2_int_device_unregister(&ov2640_int_device);
 
-	if (!IS_ERR_VALUE((unsigned long)gpo_regulator)) {
+	if (gpo_regulator) {
 		regulator_disable(gpo_regulator);
 		regulator_put(gpo_regulator);
 	}
 
-	if (!IS_ERR_VALUE((unsigned long)analog_regulator)) {
+	if (analog_regulator) {
 		regulator_disable(analog_regulator);
 		regulator_put(analog_regulator);
 	}
 
-	if (!IS_ERR_VALUE((unsigned long)core_regulator)) {
+	if (core_regulator) {
 		regulator_disable(core_regulator);
 		regulator_put(core_regulator);
 	}
 
-	if (!IS_ERR_VALUE((unsigned long)io_regulator)) {
+	if (io_regulator) {
 		regulator_disable(io_regulator);
 		regulator_put(io_regulator);
 	}
