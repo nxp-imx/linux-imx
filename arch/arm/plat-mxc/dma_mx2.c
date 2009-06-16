@@ -772,7 +772,7 @@ static inline int consume_dma_bd(mxc_dma_channel_t * dma, int error)
  *         succeed, returns the channel number to be used on success.
  */
 int mxc_dma_request_ext(mxc_dma_device_t channel_id, char *dev_name,
-			unsigned long data)
+			struct dma_channel_info *info)
 {
 	mxc_dma_channel_t *dma;
 	mx2_dma_priv_t *dma_private = NULL;
