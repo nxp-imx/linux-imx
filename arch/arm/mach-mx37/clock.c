@@ -54,6 +54,8 @@ static int cpu_curr_wp;
 static struct cpu_wp *cpu_wp_tbl;
 
 int cpu_wp_nr;
+int lp_high_freq;
+int lp_med_freq;
 
 extern void propagate_rate(struct clk *tclk);
 extern void board_ref_clk_rate(unsigned long *ckil, unsigned long *osc,
