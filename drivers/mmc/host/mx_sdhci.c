@@ -613,7 +613,7 @@ static void sdhci_finish_data(struct sdhci_host *host)
 			     DMA_TO_DEVICE);
 	}
 	if ((host->flags & SDHCI_USE_EXTERNAL_DMA) &&
-	    (host->dma_size >= mxc_wml_value)) {
+	    (host->dma_size >= mxc_wml_value) && (data != NULL)) {
 		dma_unmap_sg(mmc_dev(host->mmc), data->sg,
 			     host->dma_len, host->dma_dir);
 		host->dma_size = 0;
@@ -1131,7 +1131,7 @@ static void sdhci_tasklet_card(unsigned long param)
 
 	spin_unlock_irqrestore(&host->lock, flags);
 
-	mmc_detect_change(host->mmc, msecs_to_jiffies(500));
+	mmc_detect_change(host->mmc, msecs_to_jiffies(200));
 }
 
 static void sdhci_tasklet_finish(unsigned long param)
@@ -1407,8 +1407,11 @@ static void esdhc_cd_callback(struct work_struct *work)
 		printk(KERN_INFO
 		       "%s: Card removed and resetting controller.\n",
 		       mmc_hostname(host->mmc));
-		sdhci_init(host);
 		if (host->mrq) {
+			struct mmc_data *data;
+			data = host->data;
+			host->data = NULL;
+
 			printk(KERN_ERR
 			       "%s: Card removed during transfer!\n",
 			       mmc_hostname(host->mmc));
@@ -1416,17 +1419,24 @@ static void esdhc_cd_callback(struct work_struct *work)
 			       "%s: Resetting controller.\n",
 			       mmc_hostname(host->mmc));
 
+			if ((host->flags & SDHCI_USE_EXTERNAL_DMA) &&
+			    (data != NULL)) {
+				dma_unmap_sg(mmc_dev(host->mmc), data->sg,
+					     host->dma_len, host->dma_dir);
+				host->dma_size = 0;
+			}
 			sdhci_reset(host, SDHCI_RESET_CMD);
 			sdhci_reset(host, SDHCI_RESET_DATA);
 
 			host->mrq->cmd->error = -ENOMEDIUM;
 			tasklet_schedule(&host->finish_tasklet);
 		}
+		sdhci_init(host);
 	}
 
 	spin_unlock_irqrestore(&host->lock, flags);
 
-	mmc_detect_change(host->mmc, msecs_to_jiffies(500));
+	mmc_detect_change(host->mmc, msecs_to_jiffies(200));
 
 	if (!host->detect_irq)
 		return;
