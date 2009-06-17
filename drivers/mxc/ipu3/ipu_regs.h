@@ -43,6 +43,8 @@
 #define IPU_TPM_REG_BASE	0x1F060000
 #define IPU_DC_TMPL_REG_BASE	0x1F080000
 #define IPU_ISP_TBPR_REG_BASE	0x1F0C0000
+#define IPU_VDI_REG_BASE	0x1E068000
+
 
 extern u32 *ipu_cm_reg;
 extern u32 *ipu_idmac_reg;
@@ -56,6 +58,7 @@ extern u32 *ipu_smfc_reg;
 extern u32 *ipu_csi_reg[];
 extern u32 *ipu_tpmem_base;
 extern u32 *ipu_disp_base[];
+extern u32 *ipu_vdi_reg;
 
 /* Register addresses */
 /* IPU Common registers */
@@ -122,6 +125,9 @@ extern u32 *ipu_disp_base[];
 #define IPUIRQ_2_STATREG(irq)	(IPU_INT_STAT(1) + ((irq) / 32))
 #define IPUIRQ_2_CTRLREG(irq)	(IPU_INT_CTRL(1) + ((irq) / 32))
 #define IPUIRQ_2_MASK(irq)	(1UL << ((irq) & 0x1F))
+
+#define VDI_FSIZE (ipu_vdi_reg)
+#define VDI_C (ipu_vdi_reg + 0x0004/4)
 
 /* CMOS Sensor Interface Registers */
 #define CSI_SENS_CONF(csi)	(ipu_csi_reg[csi])
@@ -299,6 +305,7 @@ enum {
 	IPU_CONF_DMFC_EN = 0x00000400,
 	IPU_CONF_SMFC_EN = 0x00000100,
 	IPU_CONF_DC_EN = 0x00000200,
+	IPU_CONF_VDI_EN = 0x00001000,
 	IPU_CONF_IDMAC_DIS = 0x00400000,
 	IPU_CONF_IC_DMFC_SEL = 0x02000000,
 	IPU_CONF_IC_DMFC_SYNC = 0x04000000,
@@ -324,6 +331,9 @@ enum {
 	FS_PRP_SRC_SEL_OFFSET = 24,
 	FS_VF_IN_VALID = 0x80000000,
 	FS_ENC_IN_VALID = 0x40000000,
+	FS_VDI_SRC_SEL_MASK = 0x30000000,
+	FS_VDI_SRC_SEL_OFFSET = 28,
+
 
 	FS_PRPENC_DEST_SEL_MASK = 0x0000000F,
 	FS_PRPENC_DEST_SEL_OFFSET = 0,
@@ -594,6 +604,19 @@ enum {
 	DI_SER_CONF_SERIAL_RS_POL = 0x00000004,
 	DI_SER_CONF_SERIAL_CS_POL = 0x00000002,
 	DI_SER_CONF_WAIT4SERIAL = 0x00000001,
+
+	VDI_C_CH_420 = 0x00000000,
+	VDI_C_CH_422 = 0x00000002,
+	VDI_C_MOT_SEL_FULL = 0x00000008,
+	VDI_C_MOT_SEL_HIGH = 0x00000004,
+	VDI_C_MOT_SEL_MED = 0x00000000,
+	VDI_C_BURST_SIZE1_4 = 0x00000030,
+	VDI_C_BURST_SIZE2_4 = 0x00000300,
+	VDI_C_BURST_SIZE3_4 = 0x00003000,
+	VDI_C_VWM1_SET_1 = 0x00000000,
+	VDI_C_VWM1_CLR_2 = 0x00010000,
+	VDI_C_VWM3_SET_1 = 0x00000000,
+	VDI_C_VWM3_CLR_2 = 0x02000000,
 };
 
 enum di_pins {

@@ -60,6 +60,8 @@ int _ipu_chan_is_interlaced(ipu_channel_t channel);
 void _ipu_ic_enable_task(ipu_channel_t channel);
 void _ipu_ic_disable_task(ipu_channel_t channel);
 void _ipu_ic_init_prpvf(ipu_channel_params_t *params, bool src_is_csi);
+void _ipu_vdi_init(ipu_channel_params_t *params);
+void _ipu_vdi_uninit(void);
 void _ipu_ic_uninit_prpvf(void);
 void _ipu_ic_init_rotate_vf(ipu_channel_params_t *params);
 void _ipu_ic_uninit_rotate_vf(void);

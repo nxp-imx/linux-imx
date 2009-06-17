@@ -32,6 +32,7 @@
 
 #include <linux/ipu.h>
 #include <linux/mxc_v4l2.h>
+#include <linux/videodev2.h>
 
 #define MIN_FRAME_NUM 2
 #define MAX_FRAME_NUM 30
@@ -125,6 +126,7 @@ typedef struct _vout_data {
 	/* crop */
 	struct v4l2_rect crop_bounds[MXC_V4L2_OUT_NUM_OUTPUTS];
 	struct v4l2_rect crop_current;
+	enum v4l2_field field_fmt;
 } vout_data;
 
 #endif

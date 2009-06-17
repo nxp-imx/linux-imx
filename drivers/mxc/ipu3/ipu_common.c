@@ -49,7 +49,7 @@ unsigned char g_dc_di_assignment[10];
 ipu_channel_t g_ipu_csi_channel[2];
 int g_ipu_irq[2];
 int g_ipu_hw_rev;
-bool g_sec_chan_en[21];
+bool g_sec_chan_en[22];
 bool g_thrd_chan_en[21];
 uint32_t g_channel_init_mask;
 uint32_t g_channel_enable_mask;
@@ -65,8 +65,11 @@ static int ipu_dmfc_use_count;
 static int ipu_smfc_use_count;
 static int ipu_ic_use_count;
 static int ipu_rot_use_count;
+static int ipu_vdi_use_count;
 static int ipu_di_use_count[2];
 static int ipu_csi_use_count[2];
+/* Set to the follow using IC direct channel, default non */
+static ipu_channel_t using_ic_dirct_ch;
 
 /* for power gating */
 static uint32_t ipu_conf_reg;
@@ -89,6 +92,7 @@ u32 *ipu_csi_reg[2];
 u32 *ipu_cpmem_base;
 u32 *ipu_tpmem_base;
 u32 *ipu_disp_base[2];
+u32 *ipu_vdi_reg;
 
 /* Static functions */
 static irqreturn_t ipu_irq_handler(int irq, void *desc);
@@ -188,7 +192,9 @@ static int ipu_probe(struct platform_device *pdev)
 	ipu_tpmem_base = ioremap(ipu_base + IPU_TPM_REG_BASE, SZ_64K);
 	ipu_dc_tmpl_reg = ioremap(ipu_base + IPU_DC_TMPL_REG_BASE, SZ_128K);
 	ipu_disp_base[1] = ioremap(ipu_base + IPU_DISP1_BASE, SZ_4K);
+	ipu_vdi_reg = ioremap(ipu_base + IPU_VDI_REG_BASE, PAGE_SIZE);
 
+	dev_dbg(g_ipu_dev, "IPU VDI Regs = %p\n", ipu_vdi_reg);
 	dev_dbg(g_ipu_dev, "IPU CM Regs = %p\n", ipu_cm_reg);
 	dev_dbg(g_ipu_dev, "IPU IC Regs = %p\n", ipu_ic_reg);
 	dev_dbg(g_ipu_dev, "IPU IDMAC Regs = %p\n", ipu_idmac_reg);
@@ -269,6 +275,7 @@ int ipu_remove(struct platform_device *pdev)
 	iounmap(ipu_tpmem_base);
 	iounmap(ipu_dc_tmpl_reg);
 	iounmap(ipu_disp_base[1]);
+	iounmap(ipu_vdi_reg);
 
 	return 0;
 }
@@ -384,6 +391,12 @@ int32_t ipu_init_channel(ipu_channel_t channel, ipu_channel_params_t *params)
 			ret = -EINVAL;
 			goto err;
 		}
+		if ((using_ic_dirct_ch != 0) &&
+			(using_ic_dirct_ch != MEM_PRP_ENC_MEM)) {
+			ret = -EINVAL;
+			goto err;
+		}
+		using_ic_dirct_ch = CSI_PRP_ENC_MEM;
 
 		ipu_ic_use_count++;
 		ipu_csi_use_count[params->csi_prp_enc_mem.csi]++;
@@ -413,6 +426,12 @@ int32_t ipu_init_channel(ipu_channel_t channel, ipu_channel_params_t *params)
 			ret = -EINVAL;
 			goto err;
 		}
+		if ((using_ic_dirct_ch != 0) &&
+			(using_ic_dirct_ch != MEM_PRP_VF_MEM)) {
+			ret = -EINVAL;
+			goto err;
+		}
+		using_ic_dirct_ch = CSI_PRP_VF_MEM;
 
 		ipu_ic_use_count++;
 		ipu_csi_use_count[params->csi_prp_vf_mem.csi]++;
@@ -448,6 +467,24 @@ int32_t ipu_init_channel(ipu_channel_t channel, ipu_channel_params_t *params)
 			g_thrd_chan_en[IPU_CHAN_ID(channel)] = true;
 
 		_ipu_ic_init_prpvf(params, false);
+		break;
+	case MEM_VDI_PRP_VF_MEM:
+		if ((using_ic_dirct_ch != 0) &&
+			(using_ic_dirct_ch != MEM_VDI_PRP_VF_MEM)) {
+			ret = -EINVAL;
+			goto err;
+		}
+		using_ic_dirct_ch = MEM_VDI_PRP_VF_MEM;
+		ipu_ic_use_count++;
+		ipu_vdi_use_count++;
+		reg = __raw_readl(IPU_FS_PROC_FLOW1);
+		reg &= ~FS_VDI_SRC_SEL_MASK;
+		__raw_writel(reg , IPU_FS_PROC_FLOW1);
+
+		if (params->mem_prp_vf_mem.graphics_combine_en)
+			g_sec_chan_en[IPU_CHAN_ID(channel)] = true;
+		_ipu_ic_init_prpvf(params, false);
+		_ipu_vdi_init(params);
 		break;
 	case MEM_ROT_VF_MEM:
 		ipu_ic_use_count++;
@@ -546,6 +583,10 @@ int32_t ipu_init_channel(ipu_channel_t channel, ipu_channel_params_t *params)
 	ipu_conf = __raw_readl(IPU_CONF);
 	if (ipu_ic_use_count == 1)
 		ipu_conf |= IPU_CONF_IC_EN;
+	if (ipu_vdi_use_count == 1) {
+		ipu_conf |= IPU_CONF_VDI_EN;
+		ipu_conf |= IPU_CONF_IC_INPUT;
+	}
 	if (ipu_rot_use_count == 1)
 		ipu_conf |= IPU_CONF_ROT_EN;
 	if (ipu_dc_use_count == 1)
@@ -635,6 +676,8 @@ void ipu_uninit_channel(ipu_channel_t channel)
 		break;
 	case CSI_PRP_ENC_MEM:
 		ipu_ic_use_count--;
+		if (using_ic_dirct_ch == CSI_PRP_ENC_MEM)
+			using_ic_dirct_ch = 0;
 		_ipu_ic_uninit_prpenc();
 		if (g_ipu_csi_channel[0] == channel) {
 			g_ipu_csi_channel[0] = CHAN_NONE;
@@ -646,6 +689,8 @@ void ipu_uninit_channel(ipu_channel_t channel)
 		break;
 	case CSI_PRP_VF_MEM:
 		ipu_ic_use_count--;
+		if (using_ic_dirct_ch == CSI_PRP_VF_MEM)
+			using_ic_dirct_ch = 0;
 		_ipu_ic_uninit_prpvf();
 		if (g_ipu_csi_channel[0] == channel) {
 			g_ipu_csi_channel[0] = CHAN_NONE;
@@ -658,6 +703,16 @@ void ipu_uninit_channel(ipu_channel_t channel)
 	case MEM_PRP_VF_MEM:
 		ipu_ic_use_count--;
 		_ipu_ic_uninit_prpvf();
+		reg = __raw_readl(IPU_FS_PROC_FLOW1);
+		__raw_writel(reg & ~FS_VF_IN_VALID, IPU_FS_PROC_FLOW1);
+		break;
+	case MEM_VDI_PRP_VF_MEM:
+		ipu_ic_use_count--;
+		ipu_vdi_use_count--;
+		if (using_ic_dirct_ch == MEM_VDI_PRP_VF_MEM)
+			using_ic_dirct_ch = 0;
+		_ipu_ic_uninit_prpvf();
+		_ipu_vdi_uninit();
 		reg = __raw_readl(IPU_FS_PROC_FLOW1);
 		__raw_writel(reg & ~FS_VF_IN_VALID, IPU_FS_PROC_FLOW1);
 		break;
@@ -726,6 +781,10 @@ void ipu_uninit_channel(ipu_channel_t channel)
 
 	if (ipu_ic_use_count == 0)
 		ipu_conf &= ~IPU_CONF_IC_EN;
+	if (ipu_vdi_use_count == 0) {
+		ipu_conf &= ~IPU_CONF_VDI_EN;
+		ipu_conf &= ~IPU_CONF_IC_INPUT;
+	}
 	if (ipu_rot_use_count == 0)
 		ipu_conf &= ~IPU_CONF_ROT_EN;
 	if (ipu_dc_use_count == 0)
@@ -759,6 +818,7 @@ void ipu_uninit_channel(ipu_channel_t channel)
 	}
 
 	WARN_ON(ipu_ic_use_count < 0);
+	WARN_ON(ipu_vdi_use_count < 0);
 	WARN_ON(ipu_rot_use_count < 0);
 	WARN_ON(ipu_dc_use_count < 0);
 	WARN_ON(ipu_dp_use_count < 0);
@@ -927,7 +987,6 @@ int32_t ipu_update_channel_buffer(ipu_channel_t channel, ipu_buffer_t type,
 	int ret = 0;
 	unsigned long lock_flags;
 	uint32_t dma_chan = channel_2_dma(channel, type);
-
 	if (dma_chan == IDMA_CHAN_INVALID)
 		return -EINVAL;
 
@@ -981,11 +1040,13 @@ EXPORT_SYMBOL(ipu_select_buffer);
 
 #define NA	-1
 static int proc_dest_sel[] =
-    { 0, 1, 1, 3, 5, 5, 4, 7, 8, 9, 10, 11, 12, 14, 15 };
+  { 0, 1, 1, 3, 5, 5, 4, 7, 8, 9, 10, 11, 12, 14, 15, 16,
+    0, 1, 1, 5, 5, 5, 5, 5, 7, 8, 9, 10, 11, 12, 14, 31 };
 static int proc_src_sel[] = { 0, 6, 7, 6, 7, 8, 5, NA, NA, NA,
-NA, NA, NA, NA, NA, 1, 2, 3, 4, 7, 8 };
+  NA, NA, NA, NA, NA,  1,  2,  3,  4,  7,  8, NA, NA, NA };
 static int disp_src_sel[] = { 0, 6, 7, 8, 3, 4, 5, NA, NA, NA,
-NA, NA, NA, NA, NA, 1, NA, 2, NA, 3, 4 };
+  NA, NA, NA, NA, NA,  1, NA,  2, NA,  3,  4,  4,  4,  4 };
+
 
 /*!
  * This function links 2 channels together for automatic frame
@@ -1084,6 +1145,12 @@ int32_t ipu_link_channels(ipu_channel_t src_ch, ipu_channel_t dest_ch)
 		    proc_dest_sel[IPU_CHAN_ID(dest_ch)] <<
 		    FS_PRPVF_DEST_SEL_OFFSET;
 		break;
+	case MEM_VDI_PRP_VF_MEM:
+		fs_proc_flow2 &= ~FS_PRPVF_DEST_SEL_MASK;
+		fs_proc_flow2 |=
+		    proc_dest_sel[IPU_CHAN_ID(dest_ch)] <<
+		    FS_PRPVF_DEST_SEL_OFFSET;
+		break;
 	case MEM_ROT_VF_MEM:
 		fs_proc_flow2 &= ~FS_PRPVF_ROT_DEST_SEL_MASK;
 		fs_proc_flow2 |=
@@ -1119,6 +1186,11 @@ int32_t ipu_link_channels(ipu_channel_t src_ch, ipu_channel_t dest_ch)
 		    FS_PRPENC_ROT_SRC_SEL_OFFSET;
 		break;
 	case MEM_PRP_VF_MEM:
+		fs_proc_flow1 &= ~FS_PRP_SRC_SEL_MASK;
+		fs_proc_flow1 |=
+		    proc_src_sel[IPU_CHAN_ID(src_ch)] << FS_PRP_SRC_SEL_OFFSET;
+		break;
+	case MEM_VDI_PRP_VF_MEM:
 		fs_proc_flow1 &= ~FS_PRP_SRC_SEL_MASK;
 		fs_proc_flow1 |=
 		    proc_src_sel[IPU_CHAN_ID(src_ch)] << FS_PRP_SRC_SEL_OFFSET;
@@ -1242,6 +1314,9 @@ int32_t ipu_unlink_channels(ipu_channel_t src_ch, ipu_channel_t dest_ch)
 	case MEM_PRP_VF_MEM:
 		fs_proc_flow2 &= ~FS_PRPVF_DEST_SEL_MASK;
 		break;
+	case MEM_VDI_PRP_VF_MEM:
+		fs_proc_flow2 &= ~FS_PRPVF_DEST_SEL_MASK;
+		break;
 	case MEM_ROT_VF_MEM:
 		fs_proc_flow2 &= ~FS_PRPVF_ROT_DEST_SEL_MASK;
 		break;
@@ -1264,6 +1339,9 @@ int32_t ipu_unlink_channels(ipu_channel_t src_ch, ipu_channel_t dest_ch)
 		fs_proc_flow1 &= ~FS_PRPENC_ROT_SRC_SEL_MASK;
 		break;
 	case MEM_PRP_VF_MEM:
+		fs_proc_flow1 &= ~FS_PRP_SRC_SEL_MASK;
+		break;
+	case MEM_VDI_PRP_VF_MEM:
 		fs_proc_flow1 &= ~FS_PRP_SRC_SEL_MASK;
 		break;
 	case MEM_ROT_VF_MEM:
@@ -1368,7 +1446,8 @@ int32_t ipu_enable_channel(ipu_channel_t channel)
 	}
 
 	if ((g_sec_chan_en[IPU_CHAN_ID(channel)]) &&
-		((channel == MEM_PP_MEM) || (channel == MEM_PRP_VF_MEM))) {
+		((channel == MEM_PP_MEM) || (channel == MEM_PRP_VF_MEM) ||
+		 (channel == MEM_VDI_PRP_VF_MEM))) {
 		sec_dma = channel_2_dma(channel, IPU_GRAPH_IN_BUFFER);
 		reg = __raw_readl(IDMAC_CHA_EN(sec_dma));
 		__raw_writel(reg | idma_mask(sec_dma), IDMAC_CHA_EN(sec_dma));
@@ -1782,6 +1861,9 @@ uint32_t _ipu_channel_status(ipu_channel_t channel)
 
 	switch (channel) {
 	case MEM_PRP_VF_MEM:
+		stat = (task_stat_reg & TSTAT_VF_MASK) >> TSTAT_VF_OFFSET;
+		break;
+	case MEM_VDI_PRP_VF_MEM:
 		stat = (task_stat_reg & TSTAT_VF_MASK) >> TSTAT_VF_OFFSET;
 		break;
 	case MEM_ROT_VF_MEM:

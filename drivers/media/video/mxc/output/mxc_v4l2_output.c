@@ -341,7 +341,6 @@ static void mxc_v4l2out_timer_handler(unsigned long arg)
 	unsigned long lock_flags = 0;
 	vout_data *vout = (vout_data *) arg;
 
-	dev_dbg(&vout->video_dev->dev, "timer handler: %lu\n", jiffies);
 
 	spin_lock_irqsave(&g_lock, lock_flags);
 
@@ -382,8 +381,8 @@ static void mxc_v4l2out_timer_handler(unsigned long arg)
 	}
 	if (ret < 0) {
 		dev_err(&vout->video_dev->dev,
-			"unable to update buffer %d address\n",
-			vout->next_rdy_ipu_buf);
+			"unable to update buffer %d address rc=%d\n",
+			vout->next_rdy_ipu_buf, ret);
 		goto exit0;
 	}
 
@@ -454,6 +453,260 @@ static irqreturn_t mxc_v4l2out_pp_in_irq_handler(int irq, void *dev_id)
 
 	return IRQ_HANDLED;
 }
+/*!
+ * Start the output stream
+ *
+ * @param vout      structure vout_data *
+ * out_width
+ * @return status  0 Success
+ */
+static int init_VDI(ipu_channel_params_t params, vout_data *vout,
+			struct device *dev, struct fb_info *fbi,
+			ipu_channel_t  *display_input_ch, u16 out_width,
+			u16 out_height)
+{
+	params.mem_prp_vf_mem.in_width = vout->v2f.fmt.pix.width;
+	params.mem_prp_vf_mem.in_height = vout->v2f.fmt.pix.height;
+	params.mem_prp_vf_mem.in_pixel_fmt = vout->v2f.fmt.pix.pixelformat;
+	params.mem_prp_vf_mem.out_width = out_width;
+	params.mem_prp_vf_mem.out_height = out_height;
+	if (vout->display_ch == ADC_SYS2)
+		params.mem_prp_vf_mem.out_pixel_fmt = SDC_FG_FB_FORMAT;
+	else
+		params.mem_prp_vf_mem.out_pixel_fmt = bpp_to_fmt(fbi);
+	if (ipu_init_channel(vout->post_proc_ch, &params) != 0) {
+		dev_err(dev, "Error initializing PRP channel\n");
+		return -EINVAL;
+	}
+
+	if (ipu_init_channel_buffer(vout->post_proc_ch,
+				    IPU_INPUT_BUFFER,
+				    params.mem_prp_vf_mem.in_pixel_fmt,
+				    params.mem_prp_vf_mem.in_width,
+				    params.mem_prp_vf_mem.in_height,
+				    vout->v2f.fmt.pix.bytesperline /
+				    bytes_per_pixel(params.mem_prp_vf_mem.
+						    in_pixel_fmt),
+				    IPU_ROTATE_NONE,
+				    vout->v4l2_bufs[vout->ipu_buf[0]].m.offset,
+				    vout->v4l2_bufs[vout->ipu_buf[1]].m.offset,
+				    vout->offset.u_offset,
+				    vout->offset.v_offset) != 0) {
+		dev_err(dev, "Error initializing PRP input buffer\n");
+		return -EINVAL;
+	}
+
+	if (!ipu_can_rotate_in_place(vout->rotate)) {
+		if (vout->rot_pp_bufs[0]) {
+			mxc_free_buffers(vout->rot_pp_bufs,
+					 vout->rot_pp_bufs_vaddr, 2,
+					 vout->display_buf_size);
+		}
+		if (mxc_allocate_buffers
+		    (vout->rot_pp_bufs, vout->rot_pp_bufs_vaddr, 2,
+		     vout->display_buf_size) < 0) {
+			return -ENOBUFS;
+		}
+
+		if (ipu_init_channel_buffer(vout->post_proc_ch,
+					    IPU_OUTPUT_BUFFER,
+					    params.mem_prp_vf_mem.
+					    out_pixel_fmt, out_width,
+					    out_height, out_width,
+					    IPU_ROTATE_NONE,
+					    vout->rot_pp_bufs[0],
+					    vout->rot_pp_bufs[1], 0, 0) != 0) {
+			dev_err(dev, "Error initializing PRP output buffer\n");
+			return -EINVAL;
+		}
+
+		if (ipu_init_channel(MEM_ROT_VF_MEM, NULL) != 0) {
+			dev_err(dev, "Error initializing PP ROT channel\n");
+			return -EINVAL;
+		}
+		if (ipu_init_channel_buffer(MEM_ROT_VF_MEM,
+					    IPU_INPUT_BUFFER,
+					    params.mem_prp_vf_mem.
+					    out_pixel_fmt, out_width,
+					    out_height, out_width,
+					    vout->rotate,
+					    vout->rot_pp_bufs[0],
+					    vout->rot_pp_bufs[1], 0, 0) != 0) {
+			dev_err(dev,
+				"Error initializing PP ROT input buffer\n");
+			return -EINVAL;
+		}
+
+		/* swap width and height */
+		if (vout->rotate >= IPU_ROTATE_90_RIGHT) {
+			out_width = vout->crop_current.width;
+			out_height = vout->crop_current.height;
+		}
+
+		if (ipu_init_channel_buffer(MEM_ROT_VF_MEM,
+					    IPU_OUTPUT_BUFFER,
+					    params.mem_prp_vf_mem.
+					    out_pixel_fmt, out_width,
+					    out_height, out_width,
+					    IPU_ROTATE_NONE,
+					    vout->display_bufs[0],
+					    vout->display_bufs[1], 0, 0) != 0) {
+			dev_err(dev,
+				"Error initializing PP-VDI output buffer\n");
+			return -EINVAL;
+		}
+
+		if (ipu_link_channels(vout->post_proc_ch, MEM_ROT_VF_MEM) < 0)
+			return -EINVAL;
+
+		ipu_select_buffer(MEM_ROT_VF_MEM, IPU_OUTPUT_BUFFER, 0);
+		ipu_select_buffer(MEM_ROT_VF_MEM, IPU_OUTPUT_BUFFER, 1);
+
+		ipu_enable_channel(MEM_ROT_VF_MEM);
+		*display_input_ch = MEM_ROT_VF_MEM;
+
+	} else {
+		if (ipu_init_channel_buffer(vout->post_proc_ch,
+					    IPU_OUTPUT_BUFFER,
+					    params.mem_prp_vf_mem.
+					    out_pixel_fmt, out_width,
+					    out_height, out_width,
+					    vout->rotate,
+					    vout->display_bufs[0],
+					    vout->display_bufs[1], 0, 0) != 0) {
+			dev_err(dev,
+				"Error initializing PP-VDI output buffer\n");
+			return -EINVAL;
+		}
+	}
+	return 0;
+}
+/*!
+ * Start the output stream
+ *
+ * @param vout      structure vout_data *
+ *
+ * @return status  0 Success
+ */
+static int init_PP(ipu_channel_params_t params, vout_data *vout,
+		   struct device *dev, struct fb_info *fbi,
+		   ipu_channel_t *display_input_ch, u16 out_width,
+		   u16 out_height)
+{
+	params.mem_pp_mem.in_width = vout->v2f.fmt.pix.width;
+	params.mem_pp_mem.in_height = vout->v2f.fmt.pix.height;
+	params.mem_pp_mem.in_pixel_fmt = vout->v2f.fmt.pix.pixelformat;
+	params.mem_pp_mem.out_width = out_width;
+	params.mem_pp_mem.out_height = out_height;
+	if (vout->display_ch == ADC_SYS2)
+		params.mem_pp_mem.out_pixel_fmt = SDC_FG_FB_FORMAT;
+	else
+		params.mem_pp_mem.out_pixel_fmt = bpp_to_fmt(fbi);
+	if (ipu_init_channel(vout->post_proc_ch, &params) != 0) {
+		dev_err(dev, "Error initializing PP channel\n");
+		return -EINVAL;
+	}
+
+	if (ipu_init_channel_buffer(vout->post_proc_ch,
+				    IPU_INPUT_BUFFER,
+				    params.mem_pp_mem.in_pixel_fmt,
+				    params.mem_pp_mem.in_width,
+				    params.mem_pp_mem.in_height,
+				    vout->v2f.fmt.pix.bytesperline /
+				    bytes_per_pixel(params.mem_pp_mem.
+						    in_pixel_fmt),
+				    IPU_ROTATE_NONE,
+				    vout->v4l2_bufs[vout->ipu_buf[0]].m.offset,
+				    vout->v4l2_bufs[vout->ipu_buf[1]].m.offset,
+				    vout->offset.u_offset,
+				    vout->offset.v_offset) != 0) {
+		dev_err(dev, "Error initializing PP input buffer\n");
+		return -EINVAL;
+	}
+
+	if (!ipu_can_rotate_in_place(vout->rotate)) {
+		if (vout->rot_pp_bufs[0]) {
+			mxc_free_buffers(vout->rot_pp_bufs,
+					 vout->rot_pp_bufs_vaddr, 2,
+					 vout->display_buf_size);
+		}
+		if (mxc_allocate_buffers
+		    (vout->rot_pp_bufs, vout->rot_pp_bufs_vaddr, 2,
+		     vout->display_buf_size) < 0) {
+			return -ENOBUFS;
+		}
+
+		if (ipu_init_channel_buffer(vout->post_proc_ch,
+					    IPU_OUTPUT_BUFFER,
+					    params.mem_pp_mem.
+					    out_pixel_fmt, out_width,
+					    out_height, out_width,
+					    IPU_ROTATE_NONE,
+					    vout->rot_pp_bufs[0],
+					    vout->rot_pp_bufs[1], 0, 0) != 0) {
+			dev_err(dev, "Error initializing PP output buffer\n");
+			return -EINVAL;
+		}
+
+		if (ipu_init_channel(MEM_ROT_PP_MEM, NULL) != 0) {
+			dev_err(dev, "Error initializing PP ROT channel\n");
+			return -EINVAL;
+		}
+		if (ipu_init_channel_buffer(MEM_ROT_PP_MEM,
+					    IPU_INPUT_BUFFER,
+					    params.mem_pp_mem.
+					    out_pixel_fmt, out_width,
+					    out_height, out_width,
+					    vout->rotate,
+					    vout->rot_pp_bufs[0],
+					    vout->rot_pp_bufs[1], 0, 0) != 0) {
+			dev_err(dev,
+				"Error initializing PP ROT input buffer\n");
+			return -EINVAL;
+		}
+
+		/* swap width and height */
+		if (vout->rotate >= IPU_ROTATE_90_RIGHT) {
+			out_width = vout->crop_current.width;
+			out_height = vout->crop_current.height;
+		}
+
+		if (ipu_init_channel_buffer(MEM_ROT_PP_MEM,
+					    IPU_OUTPUT_BUFFER,
+					    params.mem_pp_mem.
+					    out_pixel_fmt, out_width,
+					    out_height, out_width,
+					    IPU_ROTATE_NONE,
+					    vout->display_bufs[0],
+					    vout->display_bufs[1], 0, 0) != 0) {
+			dev_err(dev, "Error initializing PP output buffer\n");
+			return -EINVAL;
+		}
+
+		if (ipu_link_channels(vout->post_proc_ch, MEM_ROT_PP_MEM) < 0)
+			return -EINVAL;
+
+		ipu_select_buffer(MEM_ROT_PP_MEM, IPU_OUTPUT_BUFFER, 0);
+		ipu_select_buffer(MEM_ROT_PP_MEM, IPU_OUTPUT_BUFFER, 1);
+
+		ipu_enable_channel(MEM_ROT_PP_MEM);
+		*display_input_ch = MEM_ROT_PP_MEM;
+
+	} else {
+		if (ipu_init_channel_buffer(vout->post_proc_ch,
+					    IPU_OUTPUT_BUFFER,
+					    params.mem_pp_mem.
+					    out_pixel_fmt, out_width,
+					    out_height, out_width,
+					    vout->rotate,
+					    vout->display_bufs[0],
+					    vout->display_bufs[1], 0, 0) != 0) {
+			dev_err(dev, "Error initializing PP output buffer\n");
+			return -EINVAL;
+		}
+	}
+	return 0;
+}
 
 /*!
  * Start the output stream
@@ -473,9 +726,23 @@ static int mxc_v4l2out_streamon(vout_data * vout)
 	u16 out_width;
 	u16 out_height;
 	int disp_irq = 0;
-	ipu_channel_t display_input_ch = MEM_PP_MEM;
+	ipu_channel_t display_input_ch;
 	bool use_direct_adc = false;
 	mm_segment_t old_fs;
+
+	dev_dbg(dev, "mxc_v4l2out_streamon: field format=%d\n",
+		vout->field_fmt);
+	if (vout->field_fmt == V4L2_FIELD_ALTERNATE) {
+		ipu_request_irq(IPU_IRQ_PRP_VF_OUT_EOF,
+				mxc_v4l2out_pp_in_irq_handler,
+				0, &vout->video_dev->name, vout);
+		display_input_ch = MEM_VDI_PRP_VF_MEM;
+	} else {
+		ipu_request_irq(IPU_IRQ_PP_IN_EOF,
+				mxc_v4l2out_pp_in_irq_handler,
+				0, &vout->video_dev->name, vout);
+		display_input_ch = MEM_PP_MEM;
+	}
 
 	if (!vout)
 		return -EINVAL;
@@ -500,7 +767,10 @@ static int mxc_v4l2out_streamon(vout_data * vout)
 
 	/* Init Display Channel */
 #ifdef CONFIG_FB_MXC_ASYNC_PANEL
-	ipu_enable_irq(IPU_IRQ_PP_IN_EOF);
+	if (vout->field_fmt == V4L2_FIELD_ALTERNATE)
+		ipu_enable_irq(IPU_IRQ_PRP_VF_OUT_EOF);
+	else
+		ipu_enable_irq(IPU_IRQ_PP_IN_EOF);
 
 	if (vout->cur_disp_output < DISP3) {
 		mxcfb_set_refresh_mode(fbi, MXCFB_REFRESH_OFF, 0);
@@ -531,7 +801,6 @@ static int mxc_v4l2out_streamon(vout_data * vout)
 				dev_err(dev, "Error initializing PP chan\n");
 				return -EINVAL;
 			}
-
 			if (ipu_init_channel_buffer(vout->post_proc_ch,
 						    IPU_INPUT_BUFFER,
 						    params.mem_pp_adc.
@@ -670,149 +939,37 @@ static int mxc_v4l2out_streamon(vout_data * vout)
 		    (fbi->fix.line_length * fbi->var.yres);
 		vout->display_buf_size = vout->crop_current.width *
 		    vout->crop_current.height * fbi->var.bits_per_pixel / 8;
+		if (vout->field_fmt == V4L2_FIELD_ALTERNATE)
+			vout->post_proc_ch = MEM_VDI_PRP_VF_MEM;
+		else
+			vout->post_proc_ch = MEM_PP_MEM;
 	}
 
 	/* Init PP */
 	if (use_direct_adc == false && !vout->ic_bypass) {
-		vout->post_proc_ch = MEM_PP_MEM;
-		ipu_enable_irq(IPU_IRQ_PP_IN_EOF);
-
-		if (vout->rotate >= IPU_ROTATE_90_RIGHT) {
-			out_width = vout->crop_current.height;
-			out_height = vout->crop_current.width;
-		}
-		memset(&params, 0, sizeof(params));
-		params.mem_pp_mem.in_width = vout->v2f.fmt.pix.width;
-		params.mem_pp_mem.in_height = vout->v2f.fmt.pix.height;
-
-		if (vout->rotate >= IPU_ROTATE_90_RIGHT) {
-			out_width = vout->crop_current.height;
-			out_height = vout->crop_current.width;
-		}
-		memset(&params, 0, sizeof(params));
-		params.mem_pp_mem.in_width = vout->v2f.fmt.pix.width;
-		params.mem_pp_mem.in_height = vout->v2f.fmt.pix.height;
-		params.mem_pp_mem.in_pixel_fmt = vout->v2f.fmt.pix.pixelformat;
-		params.mem_pp_mem.out_width = out_width;
-		params.mem_pp_mem.out_height = out_height;
-		if (vout->display_ch == ADC_SYS2)
-			params.mem_pp_mem.out_pixel_fmt = SDC_FG_FB_FORMAT;
-		else
-			params.mem_pp_mem.out_pixel_fmt = bpp_to_fmt(fbi);
-		if (ipu_init_channel(vout->post_proc_ch, &params) != 0) {
-			dev_err(dev, "Error initializing PP channel\n");
-			return -EINVAL;
-		}
-
-		if (ipu_init_channel_buffer(vout->post_proc_ch,
-						IPU_INPUT_BUFFER,
-						params.mem_pp_mem.in_pixel_fmt,
-						params.mem_pp_mem.in_width,
-						params.mem_pp_mem.in_height,
-						vout->v2f.fmt.pix.bytesperline /
-						bytes_per_pixel(params.mem_pp_mem.
-								in_pixel_fmt),
-						IPU_ROTATE_NONE,
-						vout->v4l2_bufs[vout->ipu_buf[0]].m.
-						offset,
-						vout->v4l2_bufs[vout->ipu_buf[1]].m.
-						offset, vout->offset.u_offset,
-						vout->offset.v_offset) != 0) {
-			dev_err(dev, "Error initializing PP input buffer\n");
-			return -EINVAL;
-		}
-
-		if (!ipu_can_rotate_in_place(vout->rotate)) {
-			if (vout->rot_pp_bufs[0]) {
-				mxc_free_buffers(vout->rot_pp_bufs,
-						 vout->rot_pp_bufs_vaddr, 2,
-						 vout->display_buf_size);
-			}
-			if (mxc_allocate_buffers
-			    (vout->rot_pp_bufs, vout->rot_pp_bufs_vaddr, 2,
-			     vout->display_buf_size) < 0) {
-				return -ENOBUFS;
-			}
-
-			if (ipu_init_channel_buffer(vout->post_proc_ch,
-						    IPU_OUTPUT_BUFFER,
-						    params.mem_pp_mem.
-						    out_pixel_fmt, out_width,
-						    out_height, out_width,
-						    IPU_ROTATE_NONE,
-						    vout->rot_pp_bufs[0],
-						    vout->rot_pp_bufs[1], 0,
-						    0) != 0) {
-				dev_err(dev,
-					"Error initializing PP output buffer\n");
-				return -EINVAL;
-			}
-
-			if (ipu_init_channel(MEM_ROT_PP_MEM, NULL) != 0) {
-				dev_err(dev,
-					"Error initializing PP ROT channel\n");
-				return -EINVAL;
-			}
-
-			if (ipu_init_channel_buffer(MEM_ROT_PP_MEM,
-						    IPU_INPUT_BUFFER,
-						    params.mem_pp_mem.
-						    out_pixel_fmt, out_width,
-						    out_height, out_width,
-						    vout->rotate,
-						    vout->rot_pp_bufs[0],
-						    vout->rot_pp_bufs[1], 0,
-						    0) != 0) {
-				dev_err(dev,
-					"Error initializing PP ROT input buffer\n");
-				return -EINVAL;
-			}
-
-			/* swap width and height */
-			if (vout->rotate >= IPU_ROTATE_90_RIGHT) {
-				out_width = vout->crop_current.width;
-				out_height = vout->crop_current.height;
-			}
-
-			if (ipu_init_channel_buffer(MEM_ROT_PP_MEM,
-						    IPU_OUTPUT_BUFFER,
-						    params.mem_pp_mem.
-						    out_pixel_fmt, out_width,
-						    out_height, out_width,
-						    IPU_ROTATE_NONE,
-						    vout->display_bufs[0],
-						    vout->display_bufs[1], 0,
-						    0) != 0) {
-				dev_err(dev,
-					"Error initializing PP output buffer\n");
-				return -EINVAL;
-			}
-
-			if (ipu_link_channels(vout->post_proc_ch,
-					      MEM_ROT_PP_MEM) < 0) {
-				return -EINVAL;
-			}
-			ipu_select_buffer(MEM_ROT_PP_MEM, IPU_OUTPUT_BUFFER, 0);
-			ipu_select_buffer(MEM_ROT_PP_MEM, IPU_OUTPUT_BUFFER, 1);
-
-			ipu_enable_channel(MEM_ROT_PP_MEM);
-
-			display_input_ch = MEM_ROT_PP_MEM;
+		if (vout->field_fmt == V4L2_FIELD_ALTERNATE) {
+			vout->post_proc_ch = MEM_VDI_PRP_VF_MEM;
+			ipu_enable_irq(IPU_IRQ_PRP_VF_OUT_EOF);
 		} else {
-			if (ipu_init_channel_buffer(vout->post_proc_ch,
-						    IPU_OUTPUT_BUFFER,
-						    params.mem_pp_mem.
-						    out_pixel_fmt, out_width,
-						    out_height, out_width,
-						    vout->rotate,
-						    vout->display_bufs[0],
-						    vout->display_bufs[1], 0,
-						    0) != 0) {
-				dev_err(dev,
-					"Error initializing PP output buffer\n");
-				return -EINVAL;
-			}
+			vout->post_proc_ch = MEM_PP_MEM;
+			ipu_enable_irq(IPU_IRQ_PP_IN_EOF);
 		}
+
+		if (vout->rotate >= IPU_ROTATE_90_RIGHT) {
+			out_width = vout->crop_current.height;
+			out_height = vout->crop_current.width;
+		}
+		memset(&params, 0, sizeof(params));
+		int rc;
+		if (vout->field_fmt == V4L2_FIELD_ALTERNATE) {
+			rc = init_VDI(params, vout, dev, fbi, &display_input_ch,
+				      out_width, out_height);
+		} else {
+			rc = init_PP(params, vout, dev, fbi, &display_input_ch,
+				     out_width, out_height);
+		}
+		if (rc < 0)
+			return rc;
 		if (ipu_link_channels(display_input_ch, vout->display_ch) < 0) {
 			dev_err(dev, "Error linking ipu channels\n");
 			return -EINVAL;
@@ -889,6 +1046,11 @@ static int mxc_v4l2out_streamoff(vout_data * vout)
 		return 0;
 	}
 
+	if (vout->field_fmt == V4L2_FIELD_ALTERNATE)
+		ipu_free_irq(IPU_IRQ_PRP_VF_OUT_EOF, vout);
+	else
+		ipu_free_irq(IPU_IRQ_PP_IN_EOF, vout);
+
 	spin_lock_irqsave(&g_lock, lockflag);
 
 	del_timer(&vout->output_timer);
@@ -897,8 +1059,12 @@ static int mxc_v4l2out_streamoff(vout_data * vout)
 		vout->state = STATE_STREAM_STOPPING;
 	}
 
-	if (!vout->ic_bypass)
-		ipu_disable_irq(IPU_IRQ_PP_IN_EOF);
+	if (!vout->ic_bypass) {
+		if (vout->field_fmt == V4L2_FIELD_ALTERNATE)
+			ipu_disable_irq(IPU_IRQ_PRP_VF_OUT_EOF);
+		else
+			ipu_disable_irq(IPU_IRQ_PP_IN_EOF);
+	}
 
 	spin_unlock_irqrestore(&g_lock, lockflag);
 
@@ -921,11 +1087,23 @@ static int mxc_v4l2out_streamoff(vout_data * vout)
 		}
 	}
 
-	if (vout->post_proc_ch == MEM_PP_MEM) {	/* SDC or ADC with Rotation */
+	if (vout->post_proc_ch == MEM_PP_MEM ||
+	    vout->post_proc_ch == MEM_PRP_VF_MEM ||
+	    vout->post_proc_ch == MEM_VDI_PRP_VF_MEM) {
+		/* SDC or ADC with Rotation */
 		if (!ipu_can_rotate_in_place(vout->rotate)) {
-			ipu_unlink_channels(MEM_PP_MEM, MEM_ROT_PP_MEM);
-			ipu_unlink_channels(MEM_ROT_PP_MEM, vout->display_ch);
-			ipu_disable_channel(MEM_ROT_PP_MEM, true);
+			if (vout->field_fmt == V4L2_FIELD_ALTERNATE) {
+				ipu_unlink_channels(MEM_VDI_PRP_VF_MEM,
+						    MEM_ROT_VF_MEM);
+				ipu_unlink_channels(MEM_ROT_VF_MEM,
+						    vout->display_ch);
+				ipu_disable_channel(MEM_ROT_VF_MEM, true);
+			} else {
+				ipu_unlink_channels(MEM_PP_MEM, MEM_ROT_PP_MEM);
+				ipu_unlink_channels(MEM_ROT_PP_MEM,
+						    vout->display_ch);
+				ipu_disable_channel(MEM_ROT_PP_MEM, true);
+			}
 
 			if (vout->rot_pp_bufs[0]) {
 				mxc_free_buffers(vout->rot_pp_bufs,
@@ -933,9 +1111,18 @@ static int mxc_v4l2out_streamoff(vout_data * vout)
 						 vout->display_buf_size);
 			}
 		} else {
-			ipu_unlink_channels(MEM_PP_MEM, vout->display_ch);
+			if (vout->field_fmt == V4L2_FIELD_ALTERNATE)
+				ipu_unlink_channels(MEM_VDI_PRP_VF_MEM,
+						    vout->display_ch);
+			else
+				ipu_unlink_channels(MEM_PP_MEM,
+						    vout->display_ch);
 		}
-		ipu_disable_channel(MEM_PP_MEM, true);
+		if (vout->field_fmt == V4L2_FIELD_ALTERNATE) {
+			ipu_disable_channel(MEM_VDI_PRP_VF_MEM, true);
+		} else {
+			ipu_disable_channel(MEM_PP_MEM, true);
+		}
 
 		if (vout->display_ch == ADC_SYS2 ||
 			vout->display_ch == MEM_FG_SYNC) {
@@ -955,9 +1142,15 @@ static int mxc_v4l2out_streamoff(vout_data * vout)
 			vout->display_bufs[1] = 0;
 		}
 
-		ipu_uninit_channel(MEM_PP_MEM);
-		if (!ipu_can_rotate_in_place(vout->rotate))
-			ipu_uninit_channel(MEM_ROT_PP_MEM);
+		if (vout->field_fmt == V4L2_FIELD_ALTERNATE) {
+			ipu_uninit_channel(MEM_VDI_PRP_VF_MEM);
+			if (!ipu_can_rotate_in_place(vout->rotate))
+				ipu_uninit_channel(MEM_ROT_VF_MEM);
+		} else {
+			ipu_uninit_channel(MEM_PP_MEM);
+			if (!ipu_can_rotate_in_place(vout->rotate))
+				ipu_uninit_channel(MEM_ROT_PP_MEM);
+		}
 	} else {		/* ADC Direct */
 		ipu_disable_channel(MEM_PP_ADC, true);
 		ipu_uninit_channel(MEM_PP_ADC);
@@ -1058,6 +1251,25 @@ static int mxc_v4l2out_s_fmt(vout_data * vout, struct v4l2_format *f)
 		f->fmt.pix.bytesperline = bytesperline;
 	} else {
 		bytesperline = f->fmt.pix.bytesperline;
+	}
+
+	/* Based on http://v4l2spec.bytesex.org/spec/x6386.htm#V4L2-FIELD */
+	switch (f->fmt.pix.field) {
+		/* Images are in progressive format, not interlaced */
+	case V4L2_FIELD_NONE:
+		vout->field_fmt = V4L2_FIELD_NONE;
+		break;
+		/* The two fields of a frame are passed in separate buffers,
+		   in temporal order, i. e. the older one first. */
+	case V4L2_FIELD_ALTERNATE:
+	case V4L2_FIELD_INTERLACED_TB:
+	case V4L2_FIELD_INTERLACED_BT:
+		if (cpu_is_mx51())
+			vout->field_fmt = V4L2_FIELD_ALTERNATE;
+		break;
+	default:
+		vout->field_fmt = V4L2_FIELD_NONE;
+		break;
 	}
 
 	switch (f->fmt.pix.pixelformat) {
@@ -1178,11 +1390,8 @@ static int mxc_v4l2out_open(struct inode *inode, struct file *file)
 	if (signal_pending(current))
 		goto oops;
 
-	if (vout->open_count++ == 0) {
-		ipu_request_irq(IPU_IRQ_PP_IN_EOF,
-				mxc_v4l2out_pp_in_irq_handler,
-				0, dev->name, vout);
 
+	if (vout->open_count++ == 0) {
 		init_waitqueue_head(&vout->v4l_bufq);
 
 		init_timer(&vout->output_timer);
@@ -1223,8 +1432,6 @@ static int mxc_v4l2out_close(struct inode *inode, struct file *file)
 	if (--vout->open_count == 0) {
 		if (vout->state != STATE_STREAM_OFF)
 			mxc_v4l2out_streamoff(vout);
-
-		ipu_free_irq(IPU_IRQ_PP_IN_EOF, vout);
 
 		file->private_data = NULL;
 
@@ -1724,7 +1931,7 @@ static int mxc_v4l2out_mmap(struct file *file, struct vm_area_struct *vma)
 	}
 
 	/* make buffers inner write-back, outer write-thru cacheable */
-//	vma->vm_page_prot = pgprot_outer_wrthru(vma->vm_page_prot);
+	/* vma->vm_page_prot = pgprot_outer_wrthru(vma->vm_page_prot);*/
 
 	if (remap_pfn_range(vma, vma->vm_start,
 			    vma->vm_pgoff, size, vma->vm_page_prot)) {
@@ -1822,7 +2029,7 @@ static int mxc_v4l2out_probe(struct platform_device *pdev)
 	}
 	dev_info(&pdev->dev, "Registered device video%d\n",
 		 vout->video_dev->minor & 0x1f);
-//	vout->video_dev->dev = &pdev->dev;
+	/*vout->video_dev->dev = &pdev->dev;*/
 
 	video_set_drvdata(vout->video_dev, vout);
 
