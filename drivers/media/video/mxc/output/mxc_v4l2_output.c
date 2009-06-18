@@ -453,6 +453,8 @@ static irqreturn_t mxc_v4l2out_pp_in_irq_handler(int irq, void *dev_id)
 
 	return IRQ_HANDLED;
 }
+
+#ifdef CONFIG_MXC_IPU_V3EX
 /*!
  * Start the output stream
  *
@@ -581,6 +583,8 @@ static int init_VDI(ipu_channel_params_t params, vout_data *vout,
 	}
 	return 0;
 }
+#endif
+
 /*!
  * Start the output stream
  *
@@ -730,6 +734,7 @@ static int mxc_v4l2out_streamon(vout_data * vout)
 	bool use_direct_adc = false;
 	mm_segment_t old_fs;
 
+#ifdef CONFIG_MXC_IPU_V3EX
 	dev_dbg(dev, "mxc_v4l2out_streamon: field format=%d\n",
 		vout->field_fmt);
 	if (vout->field_fmt == V4L2_FIELD_ALTERNATE) {
@@ -737,7 +742,9 @@ static int mxc_v4l2out_streamon(vout_data * vout)
 				mxc_v4l2out_pp_in_irq_handler,
 				0, &vout->video_dev->name, vout);
 		display_input_ch = MEM_VDI_PRP_VF_MEM;
-	} else {
+	} else
+#endif
+	{
 		ipu_request_irq(IPU_IRQ_PP_IN_EOF,
 				mxc_v4l2out_pp_in_irq_handler,
 				0, &vout->video_dev->name, vout);
@@ -767,10 +774,14 @@ static int mxc_v4l2out_streamon(vout_data * vout)
 
 	/* Init Display Channel */
 #ifdef CONFIG_FB_MXC_ASYNC_PANEL
-	if (vout->field_fmt == V4L2_FIELD_ALTERNATE)
+#ifdef CONFIG_MXC_IPU_V3EX
+	if (vout->field_fmt == V4L2_FIELD_ALTERNATE) {
 		ipu_enable_irq(IPU_IRQ_PRP_VF_OUT_EOF);
-	else
+	} else
+#endif
+	{
 		ipu_enable_irq(IPU_IRQ_PP_IN_EOF);
+	}
 
 	if (vout->cur_disp_output < DISP3) {
 		mxcfb_set_refresh_mode(fbi, MXCFB_REFRESH_OFF, 0);
@@ -939,18 +950,25 @@ static int mxc_v4l2out_streamon(vout_data * vout)
 		    (fbi->fix.line_length * fbi->var.yres);
 		vout->display_buf_size = vout->crop_current.width *
 		    vout->crop_current.height * fbi->var.bits_per_pixel / 8;
-		if (vout->field_fmt == V4L2_FIELD_ALTERNATE)
+#ifdef CONFIG_MXC_IPU_V3EX
+		if (vout->field_fmt == V4L2_FIELD_ALTERNATE) {
 			vout->post_proc_ch = MEM_VDI_PRP_VF_MEM;
-		else
+		} else
+#endif
+		{
 			vout->post_proc_ch = MEM_PP_MEM;
+		}
 	}
 
 	/* Init PP */
 	if (use_direct_adc == false && !vout->ic_bypass) {
+#ifdef CONFIG_MXC_IPU_V3EX
 		if (vout->field_fmt == V4L2_FIELD_ALTERNATE) {
 			vout->post_proc_ch = MEM_VDI_PRP_VF_MEM;
 			ipu_enable_irq(IPU_IRQ_PRP_VF_OUT_EOF);
-		} else {
+		} else
+#endif
+		{
 			vout->post_proc_ch = MEM_PP_MEM;
 			ipu_enable_irq(IPU_IRQ_PP_IN_EOF);
 		}
@@ -961,10 +979,13 @@ static int mxc_v4l2out_streamon(vout_data * vout)
 		}
 		memset(&params, 0, sizeof(params));
 		int rc;
+#ifdef CONFIG_MXC_IPU_V3EX
 		if (vout->field_fmt == V4L2_FIELD_ALTERNATE) {
 			rc = init_VDI(params, vout, dev, fbi, &display_input_ch,
 				      out_width, out_height);
-		} else {
+		} else
+#endif
+		{
 			rc = init_PP(params, vout, dev, fbi, &display_input_ch,
 				     out_width, out_height);
 		}
@@ -1046,10 +1067,14 @@ static int mxc_v4l2out_streamoff(vout_data * vout)
 		return 0;
 	}
 
-	if (vout->field_fmt == V4L2_FIELD_ALTERNATE)
+#ifdef CONFIG_MXC_IPU_V3EX
+	if (vout->field_fmt == V4L2_FIELD_ALTERNATE) {
 		ipu_free_irq(IPU_IRQ_PRP_VF_OUT_EOF, vout);
-	else
+	} else
+#endif
+	{
 		ipu_free_irq(IPU_IRQ_PP_IN_EOF, vout);
+	}
 
 	spin_lock_irqsave(&g_lock, lockflag);
 
@@ -1060,10 +1085,14 @@ static int mxc_v4l2out_streamoff(vout_data * vout)
 	}
 
 	if (!vout->ic_bypass) {
-		if (vout->field_fmt == V4L2_FIELD_ALTERNATE)
+#ifdef CONFIG_MXC_IPU_V3EX
+		if (vout->field_fmt == V4L2_FIELD_ALTERNATE) {
 			ipu_disable_irq(IPU_IRQ_PRP_VF_OUT_EOF);
-		else
+		} else
+#endif
+		{
 			ipu_disable_irq(IPU_IRQ_PP_IN_EOF);
+		}
 	}
 
 	spin_unlock_irqrestore(&g_lock, lockflag);
@@ -1088,22 +1117,13 @@ static int mxc_v4l2out_streamoff(vout_data * vout)
 	}
 
 	if (vout->post_proc_ch == MEM_PP_MEM ||
-	    vout->post_proc_ch == MEM_PRP_VF_MEM ||
-	    vout->post_proc_ch == MEM_VDI_PRP_VF_MEM) {
+	    vout->post_proc_ch == MEM_PRP_VF_MEM) {
 		/* SDC or ADC with Rotation */
 		if (!ipu_can_rotate_in_place(vout->rotate)) {
-			if (vout->field_fmt == V4L2_FIELD_ALTERNATE) {
-				ipu_unlink_channels(MEM_VDI_PRP_VF_MEM,
-						    MEM_ROT_VF_MEM);
-				ipu_unlink_channels(MEM_ROT_VF_MEM,
-						    vout->display_ch);
-				ipu_disable_channel(MEM_ROT_VF_MEM, true);
-			} else {
-				ipu_unlink_channels(MEM_PP_MEM, MEM_ROT_PP_MEM);
-				ipu_unlink_channels(MEM_ROT_PP_MEM,
-						    vout->display_ch);
-				ipu_disable_channel(MEM_ROT_PP_MEM, true);
-			}
+			ipu_unlink_channels(MEM_PP_MEM, MEM_ROT_PP_MEM);
+			ipu_unlink_channels(MEM_ROT_PP_MEM,
+					    vout->display_ch);
+			ipu_disable_channel(MEM_ROT_PP_MEM, true);
 
 			if (vout->rot_pp_bufs[0]) {
 				mxc_free_buffers(vout->rot_pp_bufs,
@@ -1111,18 +1131,11 @@ static int mxc_v4l2out_streamoff(vout_data * vout)
 						 vout->display_buf_size);
 			}
 		} else {
-			if (vout->field_fmt == V4L2_FIELD_ALTERNATE)
-				ipu_unlink_channels(MEM_VDI_PRP_VF_MEM,
-						    vout->display_ch);
-			else
-				ipu_unlink_channels(MEM_PP_MEM,
-						    vout->display_ch);
+			ipu_unlink_channels(MEM_PP_MEM,
+					    vout->display_ch);
 		}
-		if (vout->field_fmt == V4L2_FIELD_ALTERNATE) {
-			ipu_disable_channel(MEM_VDI_PRP_VF_MEM, true);
-		} else {
-			ipu_disable_channel(MEM_PP_MEM, true);
-		}
+
+		ipu_disable_channel(MEM_PP_MEM, true);
 
 		if (vout->display_ch == ADC_SYS2 ||
 			vout->display_ch == MEM_FG_SYNC) {
@@ -1142,16 +1155,55 @@ static int mxc_v4l2out_streamoff(vout_data * vout)
 			vout->display_bufs[1] = 0;
 		}
 
-		if (vout->field_fmt == V4L2_FIELD_ALTERNATE) {
-			ipu_uninit_channel(MEM_VDI_PRP_VF_MEM);
-			if (!ipu_can_rotate_in_place(vout->rotate))
-				ipu_uninit_channel(MEM_ROT_VF_MEM);
+		ipu_uninit_channel(MEM_PP_MEM);
+		if (!ipu_can_rotate_in_place(vout->rotate))
+			ipu_uninit_channel(MEM_ROT_PP_MEM);
+	}
+#ifdef CONFIG_MXC_IPU_V3EX
+	 else if (vout->post_proc_ch == MEM_VDI_PRP_VF_MEM) {
+		if (!ipu_can_rotate_in_place(vout->rotate)) {
+			ipu_unlink_channels(MEM_VDI_PRP_VF_MEM,
+					    MEM_ROT_VF_MEM);
+			ipu_unlink_channels(MEM_ROT_VF_MEM,
+					    vout->display_ch);
+			ipu_disable_channel(MEM_ROT_VF_MEM, true);
+
+			if (vout->rot_pp_bufs[0]) {
+				mxc_free_buffers(vout->rot_pp_bufs,
+						 vout->rot_pp_bufs_vaddr, 2,
+						 vout->display_buf_size);
+			}
 		} else {
-			ipu_uninit_channel(MEM_PP_MEM);
-			if (!ipu_can_rotate_in_place(vout->rotate))
-				ipu_uninit_channel(MEM_ROT_PP_MEM);
+			ipu_unlink_channels(MEM_VDI_PRP_VF_MEM,
+					    vout->display_ch);
 		}
-	} else {		/* ADC Direct */
+
+		ipu_disable_channel(MEM_VDI_PRP_VF_MEM, true);
+
+		if (vout->display_ch == ADC_SYS2 ||
+			vout->display_ch == MEM_FG_SYNC) {
+			ipu_disable_channel(vout->display_ch, true);
+			ipu_uninit_channel(vout->display_ch);
+		} else {
+			fbi->var.activate |= FB_ACTIVATE_FORCE;
+			fb_set_var(fbi, &fbi->var);
+
+			if (vout->display_ch == MEM_FG_SYNC) {
+				acquire_console_sem();
+				fb_blank(fbi, FB_BLANK_POWERDOWN);
+				release_console_sem();
+			}
+
+			vout->display_bufs[0] = 0;
+			vout->display_bufs[1] = 0;
+		}
+
+		ipu_uninit_channel(MEM_VDI_PRP_VF_MEM);
+		if (!ipu_can_rotate_in_place(vout->rotate))
+			ipu_uninit_channel(MEM_ROT_VF_MEM);
+	}
+#endif
+	else {		/* ADC Direct */
 		ipu_disable_channel(MEM_PP_ADC, true);
 		ipu_uninit_channel(MEM_PP_ADC);
 	}
