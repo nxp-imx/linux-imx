@@ -1175,6 +1175,7 @@ void gpio_can_inactive(int id)
 
 		/* Disable input by setting PWDN/TLE6250.INH high */
 		mxc_set_gpio_dataout(MX25_PIN_D14, 1);
+		mxc_free_iomux(MX25_PIN_D14, MUX_CONFIG_ALT5);
 		break;
 	default:
 		break;
