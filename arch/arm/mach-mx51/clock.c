@@ -3692,7 +3692,14 @@ int __init mxc_clocks_init(unsigned long ckil, unsigned long osc, unsigned long 
 
 	clk_set_parent(&arm_axi_clk, &axi_a_clk);
 	clk_set_parent(&ipu_clk[0], &axi_b_clk);
-	clk_set_parent(&uart_main_clk, &lp_apm_clk);
+
+	/* set the UART dividers to divide by 3*/
+	reg = __raw_readl(MXC_CCM_CSCDR1);
+	reg &= ~MXC_CCM_CSCDR1_UART_CLK_PODF_MASK;
+	reg &= ~MXC_CCM_CSCDR1_UART_CLK_PRED_MASK;
+	reg |= 2 << MXC_CCM_CSCDR1_UART_CLK_PRED_OFFSET;
+	__raw_writel(reg, MXC_CCM_CSCDR1);
+	clk_set_parent(&uart_main_clk, &pll3_sw_clk);
 
 	clk_set_parent(&emi_slow_clk, &ahb_clk);
 	clk_set_rate(&emi_slow_clk, clk_round_rate(&emi_slow_clk, 130000000));
