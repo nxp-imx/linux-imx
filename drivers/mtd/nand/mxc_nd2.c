@@ -216,12 +216,11 @@ static int mxc_check_ecc_status(struct mtd_info *mtd);
  */
 static void auto_cmd_interleave(struct mtd_info *mtd, u16 cmd)
 {
-	u32 i;
+	u32 i, page_addr, ncs;
 	u32 j = num_of_interleave;
 	struct nand_chip *this = mtd->priv;
 	u32 addr_low = raw_read(NFC_FLASH_ADDR0);
 	u32 addr_high = raw_read(NFC_FLASH_ADDR8);
-	u32 page_addr = addr_low >> 16 | addr_high << 16;
 	u8 *dbuf = data_buf;
 	u8 *obuf = oob_buf;
 	u32 dlen = mtd->writesize / j;
@@ -230,17 +229,25 @@ static void auto_cmd_interleave(struct mtd_info *mtd, u16 cmd)
 	/* adjust the addr value
 	 * since ADD_OP mode is 01
 	 */
-	if (j > 1)
-		page_addr *= j;
+	if (cmd == NAND_CMD_ERASE2)
+		page_addr = addr_low;
 	else
+		page_addr = addr_low >> 16 | addr_high << 16;
+
+	ncs = page_addr >> (this->chip_shift - this->page_shift);
+
+	if (j > 1) {
+		page_addr *= j;
+	} else {
 		page_addr *= this->numchips;
+		page_addr += ncs;
+	}
 
 	switch (cmd) {
 	case NAND_CMD_PAGEPROG:
 		for (i = 0; i < j; i++) {
 			/* reset addr cycle */
-			if (j > 1)
-				mxc_do_addr_cycle(mtd, 0, page_addr++);
+			mxc_do_addr_cycle(mtd, 0, page_addr++);
 
 			/* data transfer */
 			memcpy(MAIN_AREA0, dbuf, dlen);
@@ -265,8 +272,7 @@ static void auto_cmd_interleave(struct mtd_info *mtd, u16 cmd)
 	case NAND_CMD_READSTART:
 		for (i = 0; i < j; i++) {
 			/* reset addr cycle */
-			if (j > 1)
-				mxc_do_addr_cycle(mtd, 0, page_addr++);
+			mxc_do_addr_cycle(mtd, 0, page_addr++);
 
 			NFC_SET_RBA(0);
 			ACK_OPS;
@@ -287,10 +293,6 @@ static void auto_cmd_interleave(struct mtd_info *mtd, u16 cmd)
 		break;
 	case NAND_CMD_ERASE2:
 		for (i = 0; i < j; i++) {
-			if (!i) {
-				page_addr = addr_low;
-				page_addr *= (j > 1 ? j : this->numchips);
-			}
 			mxc_do_addr_cycle(mtd, -1, page_addr++);
 			ACK_OPS;
 			raw_write(NFC_AUTO_ERASE, REG_NFC_OPS);
@@ -798,6 +800,7 @@ static void mxc_do_addr_cycle(struct mtd_info *mtd, int column, int page_addr)
 			  NFC_FLASH_ADDR8);
 	} else if (page_addr != -1) {
 		raw_write(page_addr, NFC_FLASH_ADDR0);
+		raw_write(0, NFC_FLASH_ADDR8);
 	}
 
 	DEBUG(MTD_DEBUG_LEVEL3,
@@ -1036,7 +1039,7 @@ static uint8_t mirror_pattern[] = { '1', 't', 'b', 'B' };
 
 static struct nand_bbt_descr bbt_main_descr = {
 	.options = NAND_BBT_LASTBLOCK | NAND_BBT_CREATE | NAND_BBT_WRITE
-	    | NAND_BBT_2BIT | NAND_BBT_VERSION | NAND_BBT_PERCHIP,
+	    | NAND_BBT_2BIT | NAND_BBT_VERSION,
 	.offs = 0,
 	.len = 4,
 	.veroffs = 4,
@@ -1046,7 +1049,7 @@ static struct nand_bbt_descr bbt_main_descr = {
 
 static struct nand_bbt_descr bbt_mirror_descr = {
 	.options = NAND_BBT_LASTBLOCK | NAND_BBT_CREATE | NAND_BBT_WRITE
-	    | NAND_BBT_2BIT | NAND_BBT_VERSION | NAND_BBT_PERCHIP,
+	    | NAND_BBT_2BIT | NAND_BBT_VERSION,
 	.offs = 0,
 	.len = 4,
 	.veroffs = 4,
@@ -1060,6 +1063,16 @@ static int mxc_nand_scan_bbt(struct mtd_info *mtd)
 
 	g_page_mask = this->pagemask;
 
+	/* limit to 2G size due to Kernel
+	 * larger 4G space support,need fix
+	 * it later
+	 */
+	if (mtd->size == 0) {
+		mtd->size = 1 << 31;
+		this->numchips = 1;
+		this->chipsize = mtd->size;
+	}
+
 	if (IS_2K_PAGE_NAND) {
 		NFC_SET_NFMS(1 << NFMS_NF_PG_SZ);
 		this->ecc.layout = &nand_hw_eccoob_2k;
@@ -1070,27 +1083,6 @@ static int mxc_nand_scan_bbt(struct mtd_info *mtd)
 		this->ecc.layout = &nand_hw_eccoob_512;
 	}
 
-	/* reconfig for interleave mode */
-#ifdef NFC_AUTO_MODE_ENABLE
-	if (this->numchips > 1) {
-		num_of_interleave = this->numchips;
-		this->numchips = 1;
-
-		/* FIXEME:need remove it
-		 * when kernel support
-		 * 4G larger space
-		 */
-		mtd->size = this->chipsize;
-		mtd->erasesize *= num_of_interleave;
-		mtd->writesize *= num_of_interleave;
-		mtd->oobsize *= num_of_interleave;
-		this->page_shift = ffs(mtd->writesize) - 1;
-		this->bbt_erase_shift =
-		    this->phys_erase_shift = ffs(mtd->erasesize) - 1;
-		this->chip_shift = ffs(this->chipsize) - 1;
-		this->oob_poi = this->buffers->databuf + mtd->writesize;
-	}
-#endif
 	/* propagate ecc.layout to mtd_info */
 	mtd->ecclayout = this->ecc.layout;
 
