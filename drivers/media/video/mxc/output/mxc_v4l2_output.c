@@ -907,6 +907,13 @@ static int mxc_v4l2out_streamon(vout_data * vout)
 			vout->ic_bypass = 0;
 		}
 
+#ifdef CONFIG_MXC_IPU_V1
+		/* IPUv1 needs IC to do CSC */
+		if (format_is_yuv(vout->v2f.fmt.pix.pixelformat) !=
+		    format_is_yuv(bpp_to_fmt(fbi)))
+			vout->ic_bypass = 0;
+#endif
+
 		fbvar = fbi->var;
 
 		if (vout->cur_disp_output == 3) {
