@@ -282,6 +282,9 @@ static irqreturn_t mxc_rtc_interrupt(int irq, void *dev_id)
  */
 static int mxc_rtc_open(struct device *dev)
 {
+	struct rtc_drv_data *pdata = dev_get_drvdata(dev);
+	clk_enable(pdata->clk);
+
 	if (test_and_set_bit(1, &rtc_status))
 		return -EBUSY;
 	return 0;
@@ -308,6 +311,7 @@ static void mxc_rtc_release(struct device *dev)
 	spin_unlock_irqrestore(&rtc_lock, lock_flags);
 
 	rtc_write_sync_lp(ioaddr);
+	clk_disable(pdata->clk);
 
 	rtc_status = 0;
 }
@@ -487,9 +491,11 @@ static int mxc_rtc_proc(struct device *dev, struct seq_file *seq)
 	struct rtc_drv_data *pdata = dev_get_drvdata(dev);
 	void __iomem *ioaddr = pdata->ioaddr;
 
+	clk_enable(pdata->clk);
 	seq_printf(seq, "alarm_IRQ\t: %s\n",
 		   (((__raw_readl(ioaddr + SRTC_LPCR)) & SRTC_LPCR_ALP) !=
 		    0) ? "yes" : "no");
+	clk_disable(pdata->clk);
 
 	return 0;
 }
@@ -619,6 +625,8 @@ static int mxc_rtc_probe(struct platform_device *pdev)
 	/* So srtc is set as "should wakeup" as it can */
 	device_init_wakeup(&pdev->dev, 1);
 
+	clk_disable(pdata->clk);
+
 	return ret;
 
 err_out:
@@ -640,7 +648,6 @@ static int __exit mxc_rtc_remove(struct platform_device *pdev)
 	clk_disable(pdata->clk);
 	clk_put(pdata->clk);
 	kfree(pdata);
-	mxc_rtc_release(NULL);
 	return 0;
 }
 
@@ -661,6 +668,7 @@ static int mxc_rtc_suspend(struct platform_device *pdev, pm_message_t state)
 	void __iomem *ioaddr = pdata->ioaddr;
 	struct timespec tv;
 
+	clk_enable(pdata->clk);
 	if (device_may_wakeup(&pdev->dev)) {
 		enable_irq_wake(pdata->irq);
 	} else {
@@ -719,6 +727,7 @@ static int mxc_rtc_resume(struct platform_device *pdev)
 		do_settimeofday(&ts);
 	}
 
+	clk_disable(pdata->clk);
 	return 0;
 }
 
