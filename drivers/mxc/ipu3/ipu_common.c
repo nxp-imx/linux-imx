@@ -903,10 +903,12 @@ int32_t ipu_init_channel_buffer(ipu_channel_t channel, ipu_buffer_t type,
 	/* Set correlative channel parameter of local alpha channel */
 	if (_ipu_is_ic_graphic_chan(dma_chan) &&
 	    (g_thrd_chan_en[IPU_CHAN_ID(channel)] == true)) {
-		_ipu_ch_param_set_separate_alpha_channel(dma_chan);
+		_ipu_ch_param_set_alpha_use_separate_channel(dma_chan, true);
 		_ipu_ch_param_set_alpha_buffer_memory(dma_chan);
 		_ipu_ch_param_set_alpha_condition_read(dma_chan);
-	}
+	} else if (_ipu_is_ic_graphic_chan(dma_chan) &&
+		   ipu_pixel_format_has_alpha(pixel_fmt))
+		_ipu_ch_param_set_alpha_use_separate_channel(dma_chan, false);
 
 	if (rot_mode)
 		_ipu_ch_param_set_rotation(dma_chan, rot_mode);
@@ -1949,6 +1951,21 @@ ipu_color_space_t format_to_colorspace(uint32_t fmt)
 		break;
 	}
 	return RGB;
+}
+
+bool ipu_pixel_format_has_alpha(uint32_t fmt)
+{
+	switch (fmt) {
+	case IPU_PIX_FMT_RGBA32:
+	case IPU_PIX_FMT_BGRA32:
+	case IPU_PIX_FMT_ABGR32:
+		return true;
+		break;
+	default:
+		return false;
+		break;
+	}
+	return false;
 }
 
 void ipu_set_csc_coefficients(ipu_channel_t channel, int32_t param[][3])

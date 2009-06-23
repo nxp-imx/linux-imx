@@ -40,6 +40,7 @@ struct ipu_channel {
 
 int register_ipu_device(void);
 ipu_color_space_t format_to_colorspace(uint32_t fmt);
+bool ipu_pixel_format_has_alpha(uint32_t fmt);
 
 void ipu_dump_registers(void);
 

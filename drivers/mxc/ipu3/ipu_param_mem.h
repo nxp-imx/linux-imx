@@ -337,9 +337,14 @@ static inline void _ipu_ch_param_set_block_mode(uint32_t ch)
 	ipu_ch_param_mod_field(ipu_ch_param_addr(ch), 0, 117, 2, 1);
 };
 
-static inline void _ipu_ch_param_set_separate_alpha_channel(uint32_t ch)
+static inline void _ipu_ch_param_set_alpha_use_separate_channel(uint32_t ch,
+								bool option)
 {
-	ipu_ch_param_mod_field(ipu_ch_param_addr(ch), 1, 89, 1, 1);
+	if (option) {
+		ipu_ch_param_mod_field(ipu_ch_param_addr(ch), 1, 89, 1, 1);
+	} else {
+		ipu_ch_param_mod_field(ipu_ch_param_addr(ch), 1, 89, 1, 0);
+	}
 };
 
 static inline void _ipu_ch_param_set_alpha_condition_read(uint32_t ch)
