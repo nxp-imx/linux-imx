@@ -306,6 +306,9 @@ static void mxc_rtc_release(struct device *dev)
 	__raw_writel(0xFFFFFFFF, ioaddr + SRTC_LPSR);
 
 	spin_unlock_irqrestore(&rtc_lock, lock_flags);
+
+	rtc_write_sync_lp(ioaddr);
+
 	rtc_status = 0;
 }
 
