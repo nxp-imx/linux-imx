@@ -1,7 +1,7 @@
 /*
  *  Copyright (C) 2000 Deep Blue Solutions Ltd
  *  Copyright (C) 2002 Shane Nay (shane@minirl.com)
- *  Copyright 2005-2008 Freescale Semiconductor, Inc. All Rights Reserved.
+ *  Copyright 2005-2009 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -631,7 +631,7 @@ int mxc_expio_init(void)
 extern unsigned int sdhc_get_card_det_status(struct device *dev);
 extern int sdhc_init_card_det(int id);
 
-static struct mxc_mmc_platform_data mmc0_data = {
+static struct mxc_mmc_platform_data mmc1_data = {
 	.ocr_mask = MMC_VDD_27_28 | MMC_VDD_28_29 | MMC_VDD_29_30,
 	.min_clk = 150000,
 	.max_clk = 25000000,
@@ -639,7 +639,7 @@ static struct mxc_mmc_platform_data mmc0_data = {
 	.status = sdhc_get_card_det_status,
 	.power_mmc = "VMMC1",
 };
-static struct mxc_mmc_platform_data mmc1_data = {
+static struct mxc_mmc_platform_data mmc2_data = {
 	.ocr_mask = MMC_VDD_27_28 | MMC_VDD_28_29 | MMC_VDD_29_30,
 	.min_clk = 150000,
 	.max_clk = 25000000,
@@ -696,7 +696,7 @@ static struct platform_device mxcsdhc1_device = {
 	.id = 0,
 	.dev = {
 		.release = mxc_nop_release,
-		.platform_data = &mmc0_data,
+		.platform_data = &mmc1_data,
 		},
 	.num_resources = ARRAY_SIZE(mxcsdhc1_resources),
 	.resource = mxcsdhc1_resources,
@@ -708,7 +708,7 @@ static struct platform_device mxcsdhc2_device = {
 	.id = 1,
 	.dev = {
 		.release = mxc_nop_release,
-		.platform_data = &mmc1_data,
+		.platform_data = &mmc2_data,
 		},
 	.num_resources = ARRAY_SIZE(mxcsdhc2_resources),
 	.resource = mxcsdhc2_resources,

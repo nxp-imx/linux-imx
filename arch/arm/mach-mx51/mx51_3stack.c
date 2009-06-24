@@ -567,7 +567,7 @@ unsigned int sdhc_get_card_det_status(struct device *dev)
 	}
 }
 
-static struct mxc_mmc_platform_data mmc_data = {
+static struct mxc_mmc_platform_data mmc1_data = {
 	.ocr_mask = MMC_VDD_32_33,
 	.caps = MMC_CAP_4_BIT_DATA,
 	.min_clk = 150000,
@@ -578,7 +578,7 @@ static struct mxc_mmc_platform_data mmc_data = {
 	.clock_mmc = "esdhc_clk",
 	.power_mmc = NULL,
 };
-static struct mxc_mmc_platform_data mmc1_data = {
+static struct mxc_mmc_platform_data mmc2_data = {
 	.ocr_mask = MMC_VDD_27_28 | MMC_VDD_28_29 | MMC_VDD_29_30 |
 	    MMC_VDD_31_32,
 	.caps = MMC_CAP_4_BIT_DATA,
@@ -638,7 +638,7 @@ static struct platform_device mxcsdhc1_device = {
 	.id = 0,
 	.dev = {
 		.release = mxc_nop_release,
-		.platform_data = &mmc_data,
+		.platform_data = &mmc1_data,
 		},
 	.num_resources = ARRAY_SIZE(mxcsdhc1_resources),
 	.resource = mxcsdhc1_resources,
@@ -650,7 +650,7 @@ static struct platform_device mxcsdhc2_device = {
 	.id = 1,
 	.dev = {
 		.release = mxc_nop_release,
-		.platform_data = &mmc1_data,
+		.platform_data = &mmc2_data,
 		},
 	.num_resources = ARRAY_SIZE(mxcsdhc2_resources),
 	.resource = mxcsdhc2_resources,
