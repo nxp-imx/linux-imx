@@ -214,6 +214,20 @@ static struct regulator_init_data gpo_init = {
 static int mc13783_regulator_init(void *data)
 {
 	struct mc13783 *mc13783 = data;
+	unsigned int value;
+
+	/*most regulators are controled by standby signal*/
+	/*except violo*/
+	pmic_read_reg(REG_REGULATOR_MODE_0, &value, 0xffffff);
+	value |= 0x492412;
+	pmic_write_reg(REG_REGULATOR_MODE_0, value, 0xffffff);
+	pmic_read_reg(REG_REGULATOR_MODE_1, &value, 0xffffff);
+	value |= 0x492492;
+	pmic_write_reg(REG_REGULATOR_MODE_1, value, 0xffffff);
+	/*also sw3 is controled by standby signal*/
+	pmic_read_reg(REG_SWITCHERS_5, &value, 0xffffff);
+	value |= 0x200000;
+	pmic_write_reg(REG_SWITCHERS_5, value, 0xffffff);
 
 	mc13783_register_regulator(mc13783, MC13783_SW1A, &sw1_init);
 	mc13783_register_regulator(mc13783, MC13783_SW1B, &sw_init);
