@@ -709,8 +709,8 @@ static inline void mxc_init_dma(void)
  */
 static struct resource dptc_resources[] = {
 	[0] = {
-	       .start = (resource_size_t) MXC_CCM_BASE,
-	       .end = (resource_size_t) MXC_CCM_BASE + SZ_4K - 1,
+	       .start = CCM_BASE_ADDR,
+	       .end = CCM_BASE_ADDR + SZ_4K - 1,
 	       .flags = IORESOURCE_MEM,
 	       },
 	[1] = {
