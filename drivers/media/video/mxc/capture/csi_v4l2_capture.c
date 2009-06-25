@@ -937,6 +937,8 @@ static int csi_v4l2_master_attach(struct v4l2_int_device *slave)
 static void csi_v4l2_master_detach(struct v4l2_int_device *slave)
 {
 	pr_debug("In MVC: %s\n", __func__);
+
+	vidioc_int_dev_exit(slave);
 }
 
 /*!

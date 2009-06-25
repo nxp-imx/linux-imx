@@ -2353,7 +2353,7 @@ static int mxc_v4l2_master_attach(struct v4l2_int_device *slave)
 static void mxc_v4l2_master_detach(struct v4l2_int_device *slave)
 {
 	pr_debug("In MVC:mxc_v4l2_master_detach\n");
-	/* vidioc_int_dev_exit(slave); */
+	vidioc_int_dev_exit(slave);
 }
 
 /*!
