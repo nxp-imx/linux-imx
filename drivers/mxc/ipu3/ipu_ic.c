@@ -202,7 +202,7 @@ void _ipu_ic_init_prpvf(ipu_channel_params_t *params, bool src_is_csi)
 
 		if (!(ic_conf & IC_CONF_PRPVF_CSC1)) {
 			/* need transparent CSC1 conversion */
-			_init_csc(IC_TASK_POST_PROCESSOR, RGB, RGB, 1);
+			_init_csc(IC_TASK_VIEWFINDER, RGB, RGB, 1);
 			ic_conf |= IC_CONF_PRPVF_CSC1;  /* Enable RGB->RGB CSC */
 		}
 		in_fmt = format_to_colorspace(params->mem_prp_vf_mem.in_g_pixel_fmt);
