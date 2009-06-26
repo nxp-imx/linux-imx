@@ -468,9 +468,8 @@ static int mc13892_battery_get_property(struct power_supply *psy,
 	switch (psp) {
 	case POWER_SUPPLY_PROP_STATUS:
 		if (di->battery_status == POWER_SUPPLY_STATUS_UNKNOWN) {
-
-			mc13892_battery_update_status(di);
 			mc13892_charger_update_status(di);
+			mc13892_battery_update_status(di);
 		}
 		val->intval = di->battery_status;
 		return 0;
@@ -489,6 +488,12 @@ static int mc13892_battery_get_property(struct power_supply *psy,
 		break;
 	case POWER_SUPPLY_PROP_CHARGE_NOW:
 		val->intval = di->accum_current_uAh;
+		break;
+	case POWER_SUPPLY_PROP_VOLTAGE_MAX_DESIGN:
+		val->intval = 3800000;
+		break;
+	case POWER_SUPPLY_PROP_VOLTAGE_MIN_DESIGN:
+		val->intval = 3300000;
 		break;
 	default:
 		return -EINVAL;
@@ -545,6 +550,7 @@ static int pmic_battery_probe(struct platform_device *pdev)
 	di->bat.properties = mc13892_battery_props;
 	di->bat.num_properties = ARRAY_SIZE(mc13892_battery_props);
 	di->bat.get_property = mc13892_battery_get_property;
+	di->bat.use_for_apm = 1;
 
 	di->battery_status = POWER_SUPPLY_STATUS_UNKNOWN;
 
