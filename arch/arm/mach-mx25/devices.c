@@ -556,6 +556,37 @@ static void mxc_init_surround_audio(void)
 	platform_device_register(&mxc_alsa_surround_device);
 }
 
+#if defined(CONFIG_MXC_IIM) || defined(CONFIG_MXC_IIM_MODULE)
+static struct resource mxc_iim_resources[] = {
+	{
+	 .start = IIM_BASE_ADDR,
+	 .end = IIM_BASE_ADDR + SZ_4K - 1,
+	 .flags = IORESOURCE_MEM,
+	 },
+};
+
+static struct platform_device mxc_iim_device = {
+	.name = "mxc_iim",
+	.id = 0,
+	.dev = {
+		.release = mxc_nop_release,
+		},
+	.num_resources = ARRAY_SIZE(mxc_iim_resources),
+	.resource = mxc_iim_resources
+};
+
+static inline void mxc_init_iim(void)
+{
+	if (platform_device_register(&mxc_iim_device) < 0)
+		dev_err(&mxc_iim_device.dev,
+			"Unable to register mxc iim device\n");
+}
+#else
+static inline void mxc_init_iim(void)
+{
+}
+#endif
+
 static int __init mxc_init_devices(void)
 {
 	mxc_init_wdt();
@@ -567,6 +598,7 @@ static int __init mxc_init_devices(void)
 	mxc_init_rtc();
 	imx_init_adc();
 	mxc_init_flexcan();
+	mxc_init_iim();
 
 	return 0;
 }
