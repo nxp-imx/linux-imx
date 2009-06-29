@@ -18,4 +18,5 @@ obj-$(CONFIG_FB_MXC_EPSON_VGA_SYNC_PANEL)   += mxcfb_epson_vga.o
 obj-$(CONFIG_FB_MXC_CLAA_WVGA_SYNC_PANEL)   += mxcfb_claa_wvga.o
 obj-$(CONFIG_FB_MXC_TVOUT_CH7024)           += ch7024.o
 obj-$(CONFIG_FB_MXC_TVOUT_TVE)              += tve.o
-obj-$(CONFIG_FB_MXC_CH7026)		    += mxcfb_ch7026.o
+obj-$(CONFIG_FB_MXC_CH7026)		    		+= mxcfb_ch7026.o
+obj-$(CONFIG_FB_MODE_HELPERS)				+= mxc_edid.o
