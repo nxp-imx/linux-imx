@@ -50,6 +50,7 @@
 #include "board-mx51_babbage.h"
 #include "iomux.h"
 #include "crm_regs.h"
+#include <mach/mxc_edid.h>
 
 /*!
  * @file mach-mx51/mx51_babbage.c
@@ -178,7 +179,38 @@ static struct platform_device lcd_wvga_device = {
 		},
 };
 
-static void __init mxc_init_fb(void)
+static int __init handle_edid(void)
+{
+	int err = 0;
+	int dvi = 0;
+	struct fb_var_screeninfo screeninfo;
+	struct i2c_adapter *adp;
+
+	memset(&screeninfo, 0, sizeof(screeninfo));
+
+	adp = i2c_get_adapter(1);
+	err = read_edid(adp, &screeninfo, &dvi);
+
+	if (!err) {
+		if (!dvi)
+			enable_vga = 1;
+
+		/* MX51 can't handle clock speeds for anything larger. */
+		if (screeninfo.xres > 1280 && screeninfo.yres > 1024) {
+			fb_data[0].mode_str = "1280x1024M-16@60";
+			fb_data[1].mode_str = fb_data[0].mode_str;
+		} else if (screeninfo.xres > 0 && screeninfo.yres > 0) {
+			fb_data[0].mode = kzalloc(sizeof(struct fb_videomode),
+							 GFP_KERNEL);
+			fb_var_to_videomode(fb_data[0].mode, &screeninfo);
+			fb_data[1].mode = fb_data[0].mode;
+		}
+	}
+
+	return 0;
+}
+
+static int __init mxc_init_fb(void)
 {
 	if (cpu_is_mx51_rev(CHIP_REV_1_1) == 1) {
 		enable_vga = 1;
@@ -202,12 +234,23 @@ static void __init mxc_init_fb(void)
 
 	(void)platform_device_register(&lcd_wvga_device);
 
-	if (!enable_vga && !enable_wvga)
-		(void)platform_device_register(&mxc_fb_device[0]);
+	if (cpu_is_mx51_rev(CHIP_REV_1_1) == 2)
+		handle_edid();
+
+	if (enable_vga)
+		printk(KERN_INFO "VGA monitor is primary\n");
 	else
-		(void)platform_device_register(&mxc_fb_device[1]);
+		printk(KERN_INFO "DVI monitor is primary\n");
+
+	if (!enable_vga && !enable_wvga)
+		(void)platform_device_register(&mxc_fb_device[0]); /* DVI */
+
+	(void)platform_device_register(&mxc_fb_device[1]); /* VGA */
 	(void)platform_device_register(&mxc_fb_device[2]);
+
+	return 0;
 }
+device_initcall(mxc_init_fb);
 
 static int __init vga_setup(char *__unused)
 {
@@ -703,7 +746,6 @@ static void __init mxc_board_init(void)
 
 	mxc_init_devices();
 
-	mxc_init_fb();
 	mxc_init_bl();
 	mxc_init_mmc();
 	mxc_init_gpio_button();
