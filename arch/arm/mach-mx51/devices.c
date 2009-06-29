@@ -16,10 +16,12 @@
 #include <linux/err.h>
 #include <linux/init.h>
 #include <linux/io.h>
+#include <linux/dma-mapping.h>
 #include <linux/platform_device.h>
 #include <linux/clk.h>
 #include <linux/delay.h>
 #include <linux/spi/spi.h>
+#include <linux/uio_driver.h>
 #include <linux/mxc_scc2_driver.h>
 #include <mach/hardware.h>
 #include <mach/spba.h>
@@ -984,6 +986,88 @@ static void __init mxc_init_gpu(void)
 	platform_device_register(&gpu_device);
 }
 
+static struct resource mxc_gpu2d_resources[] = {
+	{
+	 .start = GPU2D_BASE_ADDR,
+	 .end = GPU2D_BASE_ADDR + SZ_4K - 1,
+	 .flags = IORESOURCE_MEM,
+	 },
+	{
+	 .flags = IORESOURCE_MEM,
+	 },
+};
+
+#if defined(CONFIG_UIO_PDRV_GENIRQ) || defined(CONFIG_UIO_PDRV_GENIRQ_MODULE)
+static struct clk *gpu_clk;
+
+int gpu2d_open(struct uio_info *info, struct inode *inode)
+{
+	gpu_clk = clk_get(NULL, "gpu2d_clk");
+	if (IS_ERR(gpu_clk))
+		return PTR_ERR(gpu_clk);
+
+	return clk_enable(gpu_clk);
+}
+
+int gpu2d_release(struct uio_info *info, struct inode *inode)
+{
+	if (IS_ERR(gpu_clk))
+		return PTR_ERR(gpu_clk);
+
+	clk_disable(gpu_clk);
+	clk_put(gpu_clk);
+	return 0;
+}
+
+static int gpu2d_mmap(struct uio_info *info, struct vm_area_struct *vma)
+{
+	int mi = vma->vm_pgoff;
+	if (mi < 0)
+		return -EINVAL;
+
+	vma->vm_flags |= VM_IO | VM_RESERVED;
+	vma->vm_page_prot = pgprot_writecombine(vma->vm_page_prot);
+
+	return remap_pfn_range(vma,
+			       vma->vm_start,
+			       info->mem[mi].addr >> PAGE_SHIFT,
+			       vma->vm_end - vma->vm_start,
+			       vma->vm_page_prot);
+}
+
+static struct uio_info gpu2d_info = {
+	.name = "imx_gpu2d",
+	.version = "1",
+	.irq = MXC_INT_GPU2_IRQ,
+	.open = gpu2d_open,
+	.release = gpu2d_release,
+	.mmap = gpu2d_mmap,
+};
+
+static struct platform_device mxc_gpu2d_device = {
+	.name = "uio_pdrv_genirq",
+	.dev = {
+		.release = mxc_nop_release,
+		.platform_data = &gpu2d_info,
+		.coherent_dma_mask = 0xFFFFFFFF,
+		},
+	.num_resources = ARRAY_SIZE(mxc_gpu2d_resources),
+	.resource = mxc_gpu2d_resources,
+};
+
+static inline void mxc_init_gpu2d(void)
+{
+	dma_alloc_coherent(&mxc_gpu2d_device.dev, SZ_8K, &mxc_gpu2d_resources[1].start, GFP_DMA);
+	mxc_gpu2d_resources[1].end = mxc_gpu2d_resources[1].start + SZ_8K - 1;
+
+	platform_device_register(&mxc_gpu2d_device);
+}
+#else
+static inline void mxc_init_gpu2d(void)
+{
+}
+#endif
+
 int __init mxc_init_devices(void)
 {
 	mxc_init_wdt();
@@ -1003,5 +1087,6 @@ int __init mxc_init_devices(void)
 	mxc_init_dvfs();
 	mxc_init_iim();
 	mxc_init_gpu();
+	mxc_init_gpu2d();
 	return 0;
 }

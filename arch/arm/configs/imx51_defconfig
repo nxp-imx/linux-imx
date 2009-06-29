@@ -1,7 +1,6 @@
 #
 # Automatically generated make config: don't edit
 # Linux kernel version: 2.6.28
-# Thu Jun 25 13:57:07 2009
 #
 CONFIG_ARM=y
 CONFIG_SYS_SUPPORTS_APM_EMULATION=y
@@ -1506,7 +1505,11 @@ CONFIG_REGULATOR=y
 # CONFIG_REGULATOR_VIRTUAL_CONSUMER is not set
 # CONFIG_REGULATOR_BQ24022 is not set
 CONFIG_REGULATOR_MC13892=y
-# CONFIG_UIO is not set
+CONFIG_UIO=y
+# CONFIG_UIO_PDRV is not set
+CONFIG_UIO_PDRV_GENIRQ=y
+# CONFIG_UIO_SMX is not set
+# CONFIG_UIO_SERCOS3 is not set
 
 #
 # MXC support drivers

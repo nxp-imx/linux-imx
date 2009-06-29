@@ -120,6 +120,7 @@
  * Graphics Memory of GPU
  */
 #define GPU_BASE_ADDR			0x20000000
+#define GPU2D_BASE_ADDR			0xD0000000
 
 #define TZIC_BASE_ADDR		0x8FFFC000
 #define TZIC_BASE_ADDR_VIRT	0xFA100000
