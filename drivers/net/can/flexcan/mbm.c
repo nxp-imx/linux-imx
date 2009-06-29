@@ -1,5 +1,5 @@
 /*
- * Copyright 2008 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2008-2009 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -99,7 +99,7 @@ static void flexcan_mb_bottom(struct net_device *dev, int index)
 		skb->dev = dev;
 		skb->protocol = __constant_htons(ETH_P_CAN);
 		skb->ip_summed = CHECKSUM_UNNECESSARY;
-		netif_receive_skb(skb);
+		netif_rx(skb);
 	} else {
 		tmp = hwmb->mb_cs.data;
 		tmp = hwmb->mb_id;
@@ -156,7 +156,7 @@ static void flexcan_fifo_isr(struct net_device *dev, unsigned int iflag1)
 			skb->dev = dev;
 			skb->protocol = __constant_htons(ETH_P_CAN);
 			skb->ip_summed = CHECKSUM_UNNECESSARY;
-			netif_receive_skb(skb);
+			netif_rx(skb);
 		} else {
 			tmp = hwmb->mb_cs.data;
 			tmp = hwmb->mb_id;
@@ -183,7 +183,7 @@ static void flexcan_fifo_isr(struct net_device *dev, unsigned int iflag1)
 			skb->dev = dev;
 			skb->protocol = __constant_htons(ETH_P_CAN);
 			skb->ip_summed = CHECKSUM_UNNECESSARY;
-			netif_receive_skb(skb);
+			netif_rx(skb);
 		}
 	}
 }
