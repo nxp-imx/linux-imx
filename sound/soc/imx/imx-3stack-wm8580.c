@@ -127,6 +127,7 @@ static int imx_3stack_surround_hw_params(struct snd_pcm_substream *substream,
 	unsigned int rate = params_rate(params);
 	u32 dai_format;
 	unsigned int pll_out = 0, lrclk_ratio = 0;
+	unsigned int channel = params_channels(params);
 
 	if (clk_state.lr_clk_active > 1)
 		return 0;
@@ -134,7 +135,6 @@ static int imx_3stack_surround_hw_params(struct snd_pcm_substream *substream,
 #if defined(CONFIG_MXC_ASRC) || defined(CONFIG_MXC_ASRC_MODULE)
 	if (asrc_esai_data.output_sample_rate != 0) {
 		unsigned int asrc_input_rate = rate;
-		unsigned int channel = params_channels(params);
 		struct mxc_runtime_data *pcm_data =
 		    substream->runtime->private_data;
 		struct asrc_config config;
@@ -235,7 +235,7 @@ static int imx_3stack_surround_hw_params(struct snd_pcm_substream *substream,
 	snd_soc_dai_set_fmt(cpu_dai, dai_format);
 
 	/* set i.MX active slot mask */
-	snd_soc_dai_set_tdm_slot(cpu_dai, 0xffffffff, 32);
+	snd_soc_dai_set_tdm_slot(cpu_dai, channel == 1 ? 0x1 : 0x3, 2);
 
 	/* set the ESAI system clock as input (unused) */
 	snd_soc_dai_set_sysclk(cpu_dai, 0, 0, SND_SOC_CLOCK_IN);
