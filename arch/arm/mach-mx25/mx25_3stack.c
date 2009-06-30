@@ -279,6 +279,10 @@ static struct i2c_board_info mxc_i2c_board_info[] __initdata = {
 	 .addr = 0x0a,
 	 },
 	{
+	 .type = "ak5702-i2c",
+	 .addr = 0x13,
+	 },
+	{
 	 .type = "ov2640",
 	 .addr = 0x30,
 	 .platform_data = (void *)&camera_data,
@@ -337,6 +341,25 @@ static void mxc_init_sgtl5000(void)
 }
 #else
 static inline void mxc_init_sgtl5000(void)
+{
+}
+#endif
+
+#if defined(CONFIG_SND_SOC_IMX_3STACK_AK5702) \
+    || defined(CONFIG_SND_SOC_IMX_3STACK_AK5702_MODULE)
+static struct platform_device mxc_ak5702_device = {
+	.name = "imx-3stack-ak5702",
+	.dev = {
+		.release = mxc_nop_release,
+		},
+};
+
+static void mxc_init_ak5702(void)
+{
+	platform_device_register(&mxc_ak5702_device);
+}
+#else
+static inline void mxc_init_ak5702(void)
 {
 }
 #endif
@@ -489,7 +512,7 @@ static void __init mx25_3stack_timer_init(void)
 }
 
 static struct sys_timer mxc_timer = {
-	.init	= mx25_3stack_timer_init,
+	.init = mx25_3stack_timer_init,
 };
 
 #if defined(CONFIG_CAN_FLEXCAN) || defined(CONFIG_CAN_FLEXCAN_MODULE)
@@ -573,6 +596,7 @@ static void __init mxc_board_init(void)
 	mxc_init_bl();
 	mxc_init_nand_mtd();
 	mxc_init_sgtl5000();
+	mxc_init_ak5702();
 	mxc_init_mmc();
 }
 
