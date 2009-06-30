@@ -49,6 +49,75 @@ int mc9s08dz60_write_reg(u8 reg, u8 value)
 	return 0;
 }
 
+static ssize_t mc9s08dz60_show(struct device *dev,
+			    struct device_attribute *attr, char *buf)
+{
+	unsigned int i;
+	u8 value;
+	int offset = 7;
+
+	for (i = 0; i < 7; i++) {
+		mc9s08dz60_read_reg(i, &value);
+		pr_info("reg%02x: %02x\t", i, value);
+		mc9s08dz60_read_reg(i + offset, &value);
+		pr_info("reg%02x: %02x\t", i + offset, value);
+		mc9s08dz60_read_reg(i + offset * 2, &value);
+		pr_info("reg%02x: %02x\t", i + offset * 2, value);
+		mc9s08dz60_read_reg(i + offset * 3, &value);
+		pr_info("reg%02x: %02x\t", i + offset * 3, value);
+		mc9s08dz60_read_reg(i + offset * 4, &value);
+		pr_info("reg%02x: %02x\t", i + offset * 4, value);
+		mc9s08dz60_read_reg(i + offset * 5, &value);
+		pr_info("reg%02x: %02x\n", i + offset * 5, value);
+	}
+
+	return 0;
+}
+
+static ssize_t mc9s08dz60_store(struct device *dev,
+			     struct device_attribute *attr, const char *buf,
+			     size_t count)
+{
+	int ret;
+	unsigned long reg, new_value;
+	u8 value;
+	char *p;
+
+	strict_strtoul(buf, 16, &reg);
+
+	p = NULL;
+	p = memchr(buf, ' ', count);
+
+	if (p == NULL) {
+		mc9s08dz60_read_reg(reg, &value);
+		pr_info("reg%02lu: %06x\n", reg, value);
+		return count;
+	}
+
+	p += 1;
+
+	strict_strtoul(p, 16, &new_value);
+	value = new_value;
+
+	ret = mc9s08dz60_write_reg((u8)reg, value);
+	if (ret == 0)
+		pr_info("write reg%02lx: %06x\n", reg, value);
+	else
+		pr_info("register update failed\n");
+
+	return count;
+}
+
+static struct device_attribute mc9s08dz60_dev_attr = {
+	.attr = {
+		 .name = "mc9s08dz60_ctl",
+		 .mode = S_IRUSR | S_IWUSR,
+		 },
+	.show = mc9s08dz60_show,
+	.store = mc9s08dz60_store,
+};
+
+
 /*!
  * mc9s08dz60 I2C attach function
  *
@@ -76,6 +145,11 @@ static int mc9s08dz60_probe(struct i2c_client *client,
 		if (ret != 0)
 			return -1;
 	}
+
+	ret = device_create_file(&client->dev, &mc9s08dz60_dev_attr);
+	if (ret)
+		dev_err(&client->dev, "create device file failed!\n");
+
 
 	mc9s08dz60_i2c_client = client;
 

@@ -23,6 +23,7 @@
 #include <linux/regulator/machine.h>
 #include <linux/mfd/mc9s08dz60/core.h>
 #include "iomux.h"
+#include "board-mx35_3stack.h"
 
 static struct regulator_init_data lcd_init = {
 	.constraints = {
@@ -81,8 +82,24 @@ static struct i2c_board_info __initdata mc9s08dz60_i2c_device = {
 	.platform_data = &mc9s08dz60_plat,
 };
 
+static struct resource mc9s08dz60_keypad_resource = {
+	.start = MXC_PSEUDO_IRQ_KEYPAD,
+	.end = MXC_PSEUDO_IRQ_KEYPAD,
+	.flags = IORESOURCE_IRQ,
+};
+
+static struct platform_device mc9s08dz60_keypad_dev = {
+	.name = "mc9s08dz60keypad",
+	.num_resources = 1,
+	.resource = &mc9s08dz60_keypad_resource,
+};
+
 int __init mx35_3stack_init_mc9s08dz60(void)
 {
-	return i2c_register_board_info(0, &mc9s08dz60_i2c_device, 1);
+	int retval = 0;
+	retval = i2c_register_board_info(0, &mc9s08dz60_i2c_device, 1);
+	if (retval == 0)
+		platform_device_register(&mc9s08dz60_keypad_dev);
+	return retval;
 }
 
