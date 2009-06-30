@@ -381,7 +381,7 @@ static int __devinit imx_3stack_wm8580_probe(struct platform_device *pdev)
 {
 	struct wm8580_setup_data *setup;
 
-	imx_esai_dai.name = "imx-esai-tx";
+	imx_esai_dai.name = "imx-esai-txrx";
 
 	setup = kzalloc(sizeof(struct wm8580_setup_data), GFP_KERNEL);
 	setup->spi = 1;

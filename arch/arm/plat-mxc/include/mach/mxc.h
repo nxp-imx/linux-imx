@@ -424,6 +424,8 @@ void gpio_activate_audio_ports(void);
 void gpio_inactivate_audio_ports(void);
 void gpio_activate_bt_audio_port(void);
 void gpio_inactivate_bt_audio_port(void);
+void gpio_activate_esai_ports(void);
+void gpio_deactivate_esai_ports(void);
 
 #endif
 

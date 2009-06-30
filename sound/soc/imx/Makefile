@@ -16,6 +16,8 @@ snd-soc-imx-3stack-ak4647-objs := imx-3stack-ak4647.o
 obj-$(CONFIG_SND_SOC_IMX_3STACK_AK4647) += snd-soc-imx-3stack-ak4647.o
 snd-soc-imx-3stack-wm8580-objs := imx-3stack-wm8580.o
 obj-$(CONFIG_SND_SOC_IMX_3STACK_WM8580) += snd-soc-imx-3stack-wm8580.o
+snd-soc-imx-3stack-ak5702-objs := imx-3stack-ak5702.o
+obj-$(CONFIG_SND_SOC_IMX_3STACK_AK5702) += snd-soc-imx-3stack-ak5702.o
 snd-soc-imx-3stack-bt-objs := imx-3stack-bt.o
 obj-$(CONFIG_SND_SOC_IMX_3STACK_BLUETOOTH) += snd-soc-imx-3stack-bt.o
 

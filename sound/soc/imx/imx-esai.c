@@ -137,7 +137,7 @@
 #define ESAI_RFCR_RE0	(1 << 2)
 #define ESAI_RFCR_RFR	(1 << 1)
 #define ESAI_RFCR_RFEN	(1 << 0)
-#define ESAI_RFCR_RE(x) ((0xf >> (4 - ((x + 1) >> 1))) << 2)
+#define ESAI_RFCR_RE(x) ((0xf >> (4 - ((x + 1) >> 1))) << 3)
 #define ESAI_RFCR_RE_MASK	0xfffc3
 #define ESAI_RFCR_RFWM(x)       ((x-1) << 8)
 #define ESAI_RFCR_RWA_MASK	0xf8ffff
@@ -254,9 +254,9 @@
 #define ESAI_RCR_RE2	(1 << 2)
 #define ESAI_RCR_RE1	(1 << 1)
 #define ESAI_RCR_RE0	(1 << 0)
-#define ESAI_RCR_RE(x) (0xf >> (4 - ((x + 1) >> 1)))
+#define ESAI_RCR_RE(x) ((0xf >> (4 - ((x + 1) >> 1))) << 1)
 
-#define ESAI_TCR_RSWS_MASK	0xff83ff
+#define ESAI_RCR_RSWS_MASK	0xff83ff
 #define ESAI_RCR_RSWS_STL8_WDL8	(0x00 << 10)
 #define ESAI_RCR_RSWS_STL12_WDL8	(0x04 << 10)
 #define ESAI_RCR_RSWS_STL12_WDL12	(0x01 << 10)
@@ -544,11 +544,15 @@ static int imx_esai_set_dai_fmt(struct snd_soc_dai *cpu_dai, unsigned int fmt)
 		saicr |= ESAI_SAICR_SYNC;
 
 	tcr &= ESAI_TCR_TMOD_MASK;
+	rcr &= ESAI_RCR_RMOD_MASK;
 	/* tdm - only for stereo atm */
-	if (fmt & SND_SOC_DAIFMT_TDM)
+	if (fmt & SND_SOC_DAIFMT_TDM) {
 		tcr |= ESAI_TCR_TMOD_NETWORK;
-	else
+		rcr |= ESAI_RCR_RMOD_NETWORK;
+	} else {
 		tcr |= ESAI_TCR_TMOD_NORMAL;
+		rcr |= ESAI_RCR_RMOD_NORMAL;
+	}
 
 	if (cpu_dai->id & IMX_DAI_ESAI_TX) {
 		__raw_writel(tcr, ESAI_TCR);
@@ -684,26 +688,17 @@ static int imx_esai_hw_rx_params(struct snd_pcm_substream
 	rfcr &= ~ESAI_RFCR_RFR;
 
 	rfcr &= ESAI_RFCR_RWA_MASK;
-	rcr &= ESAI_TCR_RSWS_MASK;
+	rcr &= ESAI_RCR_RSWS_MASK;
 	switch (params_format(params)) {
 	case SNDRV_PCM_FORMAT_S16_LE:
 		rfcr |= ESAI_WORD_LEN_16;
-		rcr |= ESAI_RCR_RSHFD_MSB | ESAI_RCR_RSWS_STL32_WDL16;
-		break;
-	case SNDRV_PCM_FORMAT_S20_3LE:
-		rfcr |= ESAI_WORD_LEN_20;
-		rcr |= ESAI_RCR_RSHFD_MSB | ESAI_RCR_RSWS_STL32_WDL20;
-		break;
-	case SNDRV_PCM_FORMAT_S24_LE:
-		rfcr |= ESAI_WORD_LEN_24;
-		rcr |= ESAI_RCR_RSHFD_MSB | ESAI_RCR_RSWS_STL32_WDL24;
+		rcr |= ESAI_RCR_RSHFD_MSB | ESAI_RCR_RSWS_STL16_WDL16;
 		break;
 	}
 
 	channels = params_channels(params);
 	rfcr &= ESAI_RFCR_RE_MASK;
 	rfcr |= ESAI_RFCR_RE(channels);
-	rfcr |= ESAI_RFCR_RFEN;
 
 	rfcr |= ESAI_RFCR_RFWM(64);
 
@@ -724,7 +719,7 @@ static int imx_esai_hw_params(struct snd_pcm_substream
 			return 0;
 		return imx_esai_hw_tx_params(substream, params);
 	} else {
-		if (__raw_readl(ESAI_RCR) & ESAI_RCR_RE0)
+		if (__raw_readl(ESAI_RCR) & ESAI_RCR_RE1)
 			return 0;
 		return imx_esai_hw_rx_params(substream, params);
 	}
@@ -732,12 +727,13 @@ static int imx_esai_hw_params(struct snd_pcm_substream
 
 static int imx_esai_trigger(struct snd_pcm_substream *substream, int cmd)
 {
-	u32 reg, tfcr = 0;
+	u32 reg, tfcr = 0, rfcr = 0;
 
 	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
 		tfcr = __raw_readl(ESAI_TFCR);
 		reg = __raw_readl(ESAI_TCR);
 	} else {
+		rfcr = __raw_readl(ESAI_RFCR);
 		reg = __raw_readl(ESAI_RCR);
 	}
 	switch (cmd) {
@@ -751,6 +747,8 @@ static int imx_esai_trigger(struct snd_pcm_substream *substream, int cmd)
 			reg |= ESAI_TCR_TE(substream->runtime->channels);
 			__raw_writel(reg, ESAI_TCR);
 		} else {
+			rfcr |= ESAI_RFCR_RFEN;
+			__raw_writel(rfcr, ESAI_RFCR);
 			reg &= ~ESAI_RCR_RPR;
 			reg |= ESAI_RCR_RE(substream->runtime->channels);
 			__raw_writel(reg, ESAI_RCR);
@@ -772,6 +770,13 @@ static int imx_esai_trigger(struct snd_pcm_substream *substream, int cmd)
 		} else {
 			reg &= ~ESAI_RCR_RE(substream->runtime->channels);
 			__raw_writel(reg, ESAI_RCR);
+			reg |= ESAI_RCR_RPR;
+			__raw_writel(reg, ESAI_RCR);
+			rfcr |= ESAI_RFCR_RFR;
+			rfcr &= ~ESAI_RFCR_RFEN;
+			__raw_writel(rfcr, ESAI_RFCR);
+			rfcr &= ~ESAI_RFCR_RFR;
+			__raw_writel(rfcr, ESAI_RFCR);
 		}
 		break;
 	default:
