@@ -79,7 +79,7 @@ static int stmp3xxxmmc_hw_init_ssp1(void)
 		if (ret)
 			goto out_wp;
 
-		gpio_set_value(MMC_POWER, 0);
+		gpio_set_value(MMC_WP, 0);
 		gpio_direction_input(MMC_WP);
 	}
 
@@ -90,12 +90,6 @@ static int stmp3xxxmmc_hw_init_ssp1(void)
 			goto out_power;
 
 		gpio_direction_output(MMC_POWER, 0);
-
-		/* Drive power to MMC slot */
-		mdelay(100);
-		gpio_set_value(MMC_POWER, 1);
-		mdelay(100);
-		gpio_set_value(MMC_POWER, 0);
 		mdelay(100);
 	}
 
