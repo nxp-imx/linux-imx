@@ -914,7 +914,7 @@ static int mxcfb_probe(struct platform_device *pdev)
 		} else {
 			mxcfbi->ipu_ch_irq = IPU_IRQ_DC_SYNC_EOF;
 			mxcfbi->ipu_ch = MEM_DC_SYNC;
-			fbi->var.nonstd = IPU_PIX_FMT_UYVY;
+			/* fbi->var.nonstd = IPU_PIX_FMT_UYVY; */
 			mxcfbi->blank = FB_BLANK_POWERDOWN;
 		}
 		mxcfbi->ipu_di = pdev->id;
@@ -953,7 +953,8 @@ static int mxcfb_probe(struct platform_device *pdev)
 	fbi->var.yres = 320;
 
 	if (!fb_mode && plat_data && plat_data->mode_str)
-		fb_mode = plat_data->mode_str;
+		fb_find_mode(&fbi->var, fbi, plat_data->mode_str, NULL, 0, NULL,
+			     default_bpp);
 
 	if (fb_mode)
 		fb_find_mode(&fbi->var, fbi, fb_mode, NULL, 0, NULL,
