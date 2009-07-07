@@ -212,6 +212,9 @@ static int __init handle_edid(void)
 
 static int __init mxc_init_fb(void)
 {
+	if (!machine_is_mx51_babbage())
+		return 0;
+
 	if (cpu_is_mx51_rev(CHIP_REV_1_1) == 1) {
 		enable_vga = 1;
 		fb_data[0].mode_str = NULL;
