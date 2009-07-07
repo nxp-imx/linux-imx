@@ -126,7 +126,7 @@ static struct mxc_fb_platform_data fb_data[] = {
 	 },
 	{
 	 .interface_pix_fmt = IPU_PIX_FMT_RGB565,
-	 .mode_str = "1024x768M-16@60",
+	 .mode_str = "800x600M-16@60",
 	 },
 };
 
@@ -198,13 +198,15 @@ static int __init handle_edid(void)
 		/* MX51 can't handle clock speeds for anything larger. */
 		if (screeninfo.xres > 1280 && screeninfo.yres > 1024) {
 			fb_data[0].mode_str = "1280x1024M-16@60";
-			fb_data[1].mode_str = fb_data[0].mode_str;
 		} else if (screeninfo.xres > 0 && screeninfo.yres > 0) {
 			fb_data[0].mode = kzalloc(sizeof(struct fb_videomode),
 							 GFP_KERNEL);
 			fb_var_to_videomode(fb_data[0].mode, &screeninfo);
-			fb_data[1].mode = fb_data[0].mode;
+			if (!dvi)
+				fb_data[1].mode = fb_data[0].mode;
 		}
+		if (dvi)
+			fb_data[1].mode_str = "800x600M-16@60";
 	}
 
 	return 0;
