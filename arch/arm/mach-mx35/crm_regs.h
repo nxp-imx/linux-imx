@@ -16,6 +16,7 @@
 #define CKIH_CLK_FREQ           24000000
 #define CKIE_CLK_FREQ		24576000
 #define CKIL_CLK_FREQ           32000
+#define CKIL_EXT_FREQ		32768
 
 #define MXC_CCM_BASE		((char *)IO_ADDRESS(CCM_BASE_ADDR))
 
@@ -419,5 +420,11 @@
 #define MXC_CCM_PMCR0_LBFL_OFFSET   20
 #define MXC_CCM_PMCR0_DFSUP0_OFFSET 30
 #define MXC_CCM_PMCR0_DFSUP1_OFFSET 31
+
+/*
+ * PMCR2 register definitions
+ */
+#define MXC_CCM_PMCR2_OSC24M_DOWN	(1 << 16)
+#define MXC_CCM_PMCR2_OSC_AUDIO_DOWN	(1 << 17)
 
 #endif				/* __ARCH_ARM_MACH_MX3_CRM_REGS_H__ */

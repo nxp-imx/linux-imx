@@ -336,10 +336,10 @@ struct mxc_unifi_platform_data *get_unifi_plat_data(void)
 EXPORT_SYMBOL(get_unifi_plat_data);
 
 static struct mxc_tsc_platform_data tsc2007_data = {
-	.vdd_reg = "SW1",
+	.vdd_reg = NULL,
 	.penup_threshold = 30,
-	.active = gpio_tsc_active,
-	.inactive = gpio_tsc_inactive,
+	.active = NULL,
+	.inactive = NULL,
 };
 
 static struct mxc_camera_platform_data camera_data = {
@@ -1044,6 +1044,10 @@ static void mx35_3stack_fixup_for_board_v1(void)
 	flexcan_data[0].core_reg = "SW1";
 	flexcan_data[1].core_reg = "SW1";
 #endif
+
+	tsc2007_data.vdd_reg = "SW1";
+	tsc2007_data.active = gpio_tsc_active;
+	tsc2007_data.inactive = gpio_tsc_inactive;
 }
 
 /*!

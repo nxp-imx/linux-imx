@@ -41,6 +41,13 @@ void mx35_3stack_gpio_init(void)
 	/* config CS5 */
 	mxc_request_iomux(MX35_PIN_CS5, MUX_CONFIG_FUNC);
 
+	/* configure capture pin for ckil input */
+	mxc_request_iomux(MX35_PIN_CAPTURE, MUX_CONFIG_ALT4);
+	mxc_iomux_set_pad(MX35_PIN_CAPTURE,
+			  PAD_CTL_HYS_SCHMITZ | PAD_CTL_PKE_ENABLE |
+			  PAD_CTL_100K_PU | PAD_CTL_PUE_PUD);
+	mxc_iomux_set_input(MUX_IN_CCM_32K_MUXED, INPUT_CTL_PATH0);
+
 }
 
 /*!

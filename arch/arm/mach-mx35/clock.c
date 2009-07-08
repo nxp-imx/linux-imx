@@ -1001,10 +1001,44 @@ static struct clk ckih_clk = {
 	.flags = RATE_FIXED,
 };
 
-static struct clk ckil_clk = {
-	.name = "ckil",
+static struct clk int_32k_clk = {
+	.name = "int_32k",
 	.rate = CKIL_CLK_FREQ,
 	.flags = RATE_FIXED,
+};
+
+static struct clk ext_32k_clk = {
+	.name = "ext_32k",
+	.rate = CKIL_EXT_FREQ,
+	.flags = RATE_FIXED,
+};
+
+static int _clk_ckil_set_parent(struct clk *clk, struct clk *parent)
+{
+	u32 reg;
+	if (parent == &int_32k_clk) {
+		reg = __raw_readl(MXC_CCM_PDR0) & (~MXC_CCM_PDR0_CKIL_SEL);
+		clk->rate = parent->rate;
+	} else if (parent == &ext_32k_clk) {
+		reg = __raw_readl(MXC_CCM_PDR0) | MXC_CCM_PDR0_CKIL_SEL;
+		clk->rate = parent->rate;
+	} else
+		return -EINVAL;
+	__raw_writel(reg, MXC_CCM_PDR0);
+	return 0;
+}
+
+static int _clk_ckil_set_rate(struct clk *clk, unsigned long rate)
+{
+	clk->rate = clk->parent->rate;
+	return 0;
+}
+
+static struct clk ckil_clk = {
+	.name = "ckil",
+	.parent = &ext_32k_clk,
+	.set_parent = _clk_ckil_set_parent,
+	.set_rate = _clk_ckil_set_rate,
 };
 
 static struct clk ckie_clk = {
@@ -1661,6 +1695,8 @@ static struct clk gpu2d_clk = {
 };
 
 static struct clk *mxc_clks[] = {
+	&int_32k_clk,
+	&ext_32k_clk,
 	&ckih_clk,
 	&ckil_clk,
 	&ckie_clk,
@@ -1842,7 +1878,9 @@ int __init mxc_clocks_init(unsigned long ckil, unsigned long osc, unsigned long 
 		     MXC_CCM_CGR2_AUDMUX_MASK | MXC_CCM_CGR2_MAX_ENABLE,
 		     MXC_CCM_CGR2);
 	__raw_writel(MXC_CCM_CGR3_IIM_MASK, MXC_CCM_CGR3);
-
+	__raw_writel((__raw_readl(MXC_CCM_PMCR2) |
+		      MXC_CCM_PMCR2_OSC24M_DOWN |
+		      MXC_CCM_PMCR2_OSC_AUDIO_DOWN), MXC_CCM_PMCR2);
 	mxc_update_clocks();
 	pr_info("Clock input source is %ld\n", ckih_clk.rate);
 
@@ -1852,7 +1890,7 @@ int __init mxc_clocks_init(unsigned long ckil, unsigned long osc, unsigned long 
 
 	/* This will propagate to all children and init all the clock rates */
 	propagate_rate(&ckih_clk);
-	propagate_rate(&ckil_clk);
+	propagate_rate(&ext_32k_clk);
 	propagate_rate(&ckie_clk);
 
 	clk_enable(&mcu_pll_clk);
@@ -1867,4 +1905,3 @@ int __init mxc_clocks_init(unsigned long ckil, unsigned long osc, unsigned long 
 	clk_enable(&peri_pll_clk);
 	return 0;
 }
-
