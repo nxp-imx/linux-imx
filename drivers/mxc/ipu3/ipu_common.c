@@ -104,7 +104,7 @@ static inline uint32_t channel_2_dma(ipu_channel_t ch, ipu_buffer_t type)
 
 static inline int _ipu_is_ic_chan(uint32_t dma_chan)
 {
-	return ((dma_chan >= 11) && (dma_chan <= 22));
+	return ((dma_chan >= 11) && (dma_chan <= 22) && (dma_chan != 17) && (dma_chan != 18));
 }
 
 static inline int _ipu_is_ic_graphic_chan(uint32_t dma_chan)
