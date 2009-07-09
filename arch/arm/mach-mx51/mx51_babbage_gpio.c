@@ -156,9 +156,6 @@ static struct mxc_iomux_pin_cfg __initdata mxc_iomux_pins[] = {
 	 MX51_PIN_EIM_LBA, IOMUX_CONFIG_GPIO,
 	 },
 	{
-	 MX51_PIN_EIM_CRE, IOMUX_CONFIG_GPIO,
-	 },
-	{
 	 MX51_PIN_NANDF_RB2, IOMUX_CONFIG_ALT1,
 	 (PAD_CTL_HYS_ENABLE | PAD_CTL_PKE_ENABLE),
 	 },

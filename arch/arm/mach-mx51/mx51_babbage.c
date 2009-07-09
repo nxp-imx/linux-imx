@@ -284,7 +284,41 @@ static struct platform_device mxcbl_device = {
 
 static inline void mxc_init_bl(void)
 {
-	platform_device_register(&mxcbl_device);
+	int err, ret;
+
+	if (board_is_babbage_2_5() == 1) {
+		/* BB2.5 */
+		/* Check if the display card is attached.
+		   If yes, register device; otherwise do nothing. */
+		err = mxc_request_iomux(MX51_PIN_DI1_PIN13, IOMUX_CONFIG_GPIO);
+		if (err) {
+			printk(KERN_ERR
+			       "Error: request display card detect GPIO"
+			       "failed!\n");
+			return;
+		} else {
+			mxc_iomux_set_input
+				(MUX_IN_GPIO3_IPP_IND_G_IN_2_SELECT_INPUT,
+				 INPUT_CTL_PATH1);
+			mxc_set_gpio_direction(MX51_PIN_DI1_PIN13, 1);
+			ret = mxc_get_gpio_datain(MX51_PIN_DI1_PIN13);
+			mxc_free_iomux(MX51_PIN_DI1_PIN13, IOMUX_CONFIG_GPIO);
+			if (ret == 1) {
+				printk(KERN_INFO "No display card.\n");
+				return;
+			} else if (ret < 0) {
+				printk(KERN_ERR
+				       "Error: get display card detect GPIO"
+				       "failed!\n");
+				return;
+			} else {
+				printk(KERN_INFO "Display card detected.\n");
+				platform_device_register(&mxcbl_device);
+			}
+		}
+	} else
+		/* BB2.0 */
+		platform_device_register(&mxcbl_device);
 }
 
 static void dvi_reset(void)
