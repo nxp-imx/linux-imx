@@ -18,6 +18,7 @@
 #include <linux/power_supply.h>
 
 #include <linux/delay.h>
+#include <asm/mach-types.h>
 #include <linux/pmic_battery.h>
 #include <linux/pmic_adc.h>
 #include <linux/pmic_status.h>
@@ -533,6 +534,10 @@ static int pmic_battery_probe(struct platform_device *pdev)
 	pmic_version = pmic_get_version();
 	if (pmic_version.revision < 20) {
 		pr_debug("Battery driver is only applied for MC13892 V2.0\n");
+		return -1;
+	}
+	if (machine_is_mx51_babbage()) {
+		pr_debug("mc13892 charger is not used for this platform\n");
 		return -1;
 	}
 
