@@ -654,6 +654,10 @@ EXPORT_SYMBOL(mxc_sdma_get_channel_params);
  */
 void mxc_get_static_channels(mxc_dma_channel_t *chnl)
 {
-	/* No channels statically allocated for MX25 */
+#ifdef CONFIG_SDMA_IRAM
+	int i;
+	for (i = MXC_DMA_CHANNEL_IRAM; i < MAX_DMA_CHANNELS; i++)
+		chnl[i].dynamic = 0;
+#endif
 }
 EXPORT_SYMBOL(mxc_get_static_channels);

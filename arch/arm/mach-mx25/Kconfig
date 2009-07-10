@@ -28,6 +28,24 @@ config MXC_SDMA_API
            This selects the Freescale MXC SDMA API.
            If unsure, say N.
 
+menu "SDMA options"
+        depends on MXC_SDMA_API
+
+config SDMA_IRAM
+        bool "Use Internal RAM for SDMA transfer"
+        default n
+        help
+           Support Internal RAM as SDMA buffer or control structures
+
+config SDMA_IRAM_SIZE
+        hex "Reserved bytes of IRAM for SDMA (0x800-0x1000)"
+        range 0x800 0x1000
+        depends on SDMA_IRAM
+        default "0x1000"
+        help
+           Set the size of IRAM for SDMA. It must be a multiple of 512bytes.
+endmenu
+
 config ARCH_MXC_HAS_NFC_V2
         bool "MXC NFC Hardware Version 2"
         depends on ARCH_MX25
