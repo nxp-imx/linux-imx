@@ -148,6 +148,14 @@ static int __init mx25_3ds_cpld_init(void)
 }
 device_initcall(mx25_3ds_cpld_init);
 
+static int __initdata is_dbg_removed = { 0 };
+static int __init remove_dbg_setup(char *__unused)
+{
+	is_dbg_removed = 1;
+	return 0;
+}
+__setup("remove_dbg", remove_dbg_setup);
+
 static void mxc_expio_irq_handler(u32 irq, struct irq_desc *desc)
 {
 	u32 expio_irq;
@@ -204,6 +212,9 @@ static struct irq_chip expio_irq_chip = {
 static int __init mxc_expio_init(void)
 {
 	int i;
+
+	if (is_dbg_removed)
+		return 0;
 
 	/*
 	 * Configure INT line as GPIO input
