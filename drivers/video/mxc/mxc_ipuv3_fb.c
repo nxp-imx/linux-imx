@@ -896,30 +896,26 @@ static int mxcfb_probe(struct platform_device *pdev)
 	}
 	mxcfbi = (struct mxcfb_info *)fbi->par;
 
-	if (pdev->id == 0) {
+	if (!g_dp_in_use) {
 		mxcfbi->ipu_ch_irq = IPU_IRQ_BG_SYNC_EOF;
 		mxcfbi->ipu_ch = MEM_BG_SYNC;
-		mxcfbi->ipu_di = pdev->id;
-		ipu_disp_set_global_alpha(MEM_BG_SYNC, true, 0x80);
-		ipu_disp_set_color_key(MEM_BG_SYNC, false, 0);
 		mxcfbi->blank = FB_BLANK_UNBLANK;
+	} else {
+		mxcfbi->ipu_ch_irq = IPU_IRQ_DC_SYNC_EOF;
+		mxcfbi->ipu_ch = MEM_DC_SYNC;
+		mxcfbi->blank = FB_BLANK_POWERDOWN;
+	}
 
+	mxcfbi->ipu_di = pdev->id;
+
+	if (pdev->id == 0) {
+		ipu_disp_set_global_alpha(mxcfbi->ipu_ch, true, 0x80);
+		ipu_disp_set_color_key(mxcfbi->ipu_ch, false, 0);
 		strcpy(fbi->fix.id, "DISP3 BG");
 		g_dp_in_use = true;
 	} else if (pdev->id == 1) {
-		if (!g_dp_in_use) {
-			mxcfbi->ipu_ch_irq = IPU_IRQ_BG_SYNC_EOF;
-			mxcfbi->ipu_ch = MEM_BG_SYNC;
-			mxcfbi->blank = FB_BLANK_UNBLANK;
-		} else {
-			mxcfbi->ipu_ch_irq = IPU_IRQ_DC_SYNC_EOF;
-			mxcfbi->ipu_ch = MEM_DC_SYNC;
-			/* fbi->var.nonstd = IPU_PIX_FMT_UYVY; */
-			mxcfbi->blank = FB_BLANK_POWERDOWN;
-		}
-		mxcfbi->ipu_di = pdev->id;
-
 		strcpy(fbi->fix.id, "DISP3 BG - DI1");
+		g_dp_in_use = true;
 	} else if (pdev->id == 2) {	/* Overlay */
 		mxcfbi->ipu_ch_irq = IPU_IRQ_FG_SYNC_EOF;
 		mxcfbi->ipu_ch = MEM_FG_SYNC;
@@ -962,7 +958,7 @@ static int mxcfb_probe(struct platform_device *pdev)
 
 	if (plat_data) {
 		mxcfbi->ipu_di_pix_fmt = plat_data->interface_pix_fmt;
-		if (plat_data->mode)
+		if (!fb_mode && plat_data->mode)
 			fb_videomode_to_var(&fbi->var, plat_data->mode);
 	}
 

@@ -342,6 +342,7 @@ static int _clk_pll_set_rate(struct clk *clk, unsigned long rate)
 		__raw_writel(mfn, pllbase + MXC_PLL_DP_HFS_MFN);
 	}
 
+	clk->rate = rate;
 	return 0;
 }
 
@@ -1397,6 +1398,39 @@ static void _clk_ipu_di_recalc(struct clk *clk)
 	}
 }
 
+static int _clk_ipu_di_set_rate(struct clk *clk, unsigned long rate)
+{
+	u32 reg, div;
+
+	div = clk->parent->rate / rate;
+	if (div == 0)
+		div++;
+	if (((clk->parent->rate / div) != rate) || (div > 8))
+		return -EINVAL;
+
+	reg = __raw_readl(MXC_CCM_CDCDR);
+	reg &= ~MXC_CCM_CDCDR_DI_CLK_PRED_MASK;
+	reg |= (div - 1) << MXC_CCM_CDCDR_DI_CLK_PRED_OFFSET;
+	__raw_writel(reg, MXC_CCM_CDCDR);
+
+	clk->rate = rate;
+
+	return 0;
+}
+
+static unsigned long _clk_ipu_di_round_rate(struct clk *clk,
+					    unsigned long rate)
+{
+	u32 div;
+
+	div = clk->parent->rate / rate;
+	if (div > 8)
+		div = 8;
+	else if (div == 0)
+		div++;
+	return clk->parent->rate / div;
+}
+
 static struct clk ipu_di_clk[] = {
 	{
 	.name = "ipu_di0_clk",
@@ -1406,6 +1440,8 @@ static struct clk ipu_di_clk[] = {
 	.enable_shift = MXC_CCM_CCGR6_CG5_OFFSET,
 	.recalc = _clk_ipu_di_recalc,
 	.set_parent = _clk_ipu_di_set_parent,
+	.round_rate = _clk_ipu_di_round_rate,
+	.set_rate = _clk_ipu_di_set_rate,
 	.enable = _clk_enable,
 	.disable = _clk_disable,
 	},
@@ -1417,6 +1453,8 @@ static struct clk ipu_di_clk[] = {
 	.enable_shift = MXC_CCM_CCGR6_CG6_OFFSET,
 	.recalc = _clk_ipu_di_recalc,
 	.set_parent = _clk_ipu_di_set_parent,
+	.round_rate = _clk_ipu_di_round_rate,
+	.set_rate = _clk_ipu_di_set_rate,
 	.enable = _clk_enable,
 	.disable = _clk_disable,
 	},
