@@ -386,35 +386,62 @@ static struct i2c_board_info mxc_i2c_hs_board_info[] __initdata = {
 #endif
 
 #if defined(CONFIG_MTD) || defined(CONFIG_MTD_MODULE)
-static struct mtd_partition mxc_spi_flash_partitions[] = {
+static struct mtd_partition mxc_spi_nor_partitions[] = {
 	{
-		.name = "bootloader",
-		.offset = 0,
-		.size = 0x00040000,
-		.mask_flags = MTD_CAP_ROM},
+	 .name = "bootloader",
+	 .offset = 0,
+	 .size = 0x00040000,},
 	{
-		.name = "kernel",
-		.offset = MTDPART_OFS_APPEND,
-		.size = MTDPART_SIZ_FULL},
+	 .name = "kernel",
+	 .offset = MTDPART_OFS_APPEND,
+	 .size = MTDPART_SIZ_FULL,},
+
 };
 
-static struct flash_platform_data mxc_spi_flash_data = {
-	.name = "mxc_spi_nor",
-	.parts = mxc_spi_flash_partitions,
-	.nr_parts = ARRAY_SIZE(mxc_spi_flash_partitions),
-	.type = "sst25vf016b",
+static struct mtd_partition mxc_dataflash_partitions[] = {
+	{
+	 .name = "bootloader",
+	 .offset = 0,
+	 .size = 0x000100000,},
+	{
+	 .name = "kernel",
+	 .offset = MTDPART_OFS_APPEND,
+	 .size = MTDPART_SIZ_FULL,},
+};
+
+static struct flash_platform_data mxc_spi_flash_data[] = {
+	{
+	 .name = "mxc_spi_nor",
+	 .parts = mxc_spi_nor_partitions,
+	 .nr_parts = ARRAY_SIZE(mxc_spi_nor_partitions),
+	 .type = "sst25vf016b",},
+	{
+	 .name = "mxc_dataflash",
+	 .parts = mxc_dataflash_partitions,
+	 .nr_parts = ARRAY_SIZE(mxc_dataflash_partitions),
+	 .type = "at45db321d",}
 };
 #endif
 
-static struct spi_board_info mxc_spi_board_info[] __initdata = {
+static struct spi_board_info mxc_spi_nor_device[] __initdata = {
 #if defined(CONFIG_MTD) || defined(CONFIG_MTD_MODULE)
 	{
 	 .modalias = "mxc_spi_nor",
-	 .max_speed_hz = 25000000, /* max spi clock (SCK) speed in HZ */
+	 .max_speed_hz = 25000000,	/* max spi clock (SCK) speed in HZ */
 	 .bus_num = 1,
 	 .chip_select = 1,
-	 .platform_data = &mxc_spi_flash_data,
-	},
+	 .platform_data = &mxc_spi_flash_data[0],},
+#endif
+};
+
+static struct spi_board_info mxc_dataflash_device[] __initdata = {
+#if defined(CONFIG_MTD) || defined(CONFIG_MTD_MODULE)
+	{
+	 .modalias = "mxc_dataflash",
+	 .max_speed_hz = 25000000,	/* max spi clock (SCK) speed in HZ */
+	 .bus_num = 1,
+	 .chip_select = 1,
+	 .platform_data = &mxc_spi_flash_data[1],},
 #endif
 };
 
@@ -746,8 +773,14 @@ static void __init mxc_board_init(void)
 	mxc_init_gpio_button();
 	mx51_babbage_init_mc13892();
 
-	spi_register_board_info(mxc_spi_board_info,
-				ARRAY_SIZE(mxc_spi_board_info));
+	if (board_is_babbage_2_5() == 1)
+		/* BB2.5 */
+		spi_register_board_info(mxc_dataflash_device,
+					ARRAY_SIZE(mxc_dataflash_device));
+	else
+		/* BB2.0 */
+		spi_register_board_info(mxc_spi_nor_device,
+					ARRAY_SIZE(mxc_spi_nor_device));
 
 #if defined(CONFIG_I2C_MXC) || defined(CONFIG_I2C_MXC_MODULE)
 
