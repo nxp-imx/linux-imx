@@ -273,6 +273,11 @@ static struct mxc_fm_platform_data si4702_data = {
 	.gpio_put = si4702_gpio_put,
 	.reset = si4702_reset,
 	.clock_ctl = si4702_clock_ctl,
+	.sksnr = 0,
+	.skcnt = 0,
+	.band = 0,
+	.space = 100,
+	.seekth = 0xa,
 };
 
 /* setup GPIO for mma7450 */
