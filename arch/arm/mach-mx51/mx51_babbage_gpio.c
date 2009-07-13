@@ -449,6 +449,11 @@ static struct mxc_iomux_pin_cfg __initdata mxc_iomux_pins[] = {
 	  PAD_CTL_100K_PU | PAD_CTL_HYS_NONE | PAD_CTL_DDR_INPUT_CMOS |
 	  PAD_CTL_DRV_VOT_LOW),
 	 },
+	{
+	 MX51_PIN_CSPI1_SS1, IOMUX_CONFIG_ALT0,
+	 (PAD_CTL_HYS_ENABLE | PAD_CTL_PKE_ENABLE | PAD_CTL_DRV_HIGH |
+	  PAD_CTL_SRE_FAST),
+	 },
 };
 
 void __init mx51_babbage_io_init(void)
@@ -640,3 +645,68 @@ void __init mx51_babbage_io_init(void)
 	/* LCD related gpio */
 	mxc_set_gpio_direction(MX51_PIN_DI1_D1_CS, 0);
 }
+
+/* workaround for ecspi chipselect pin may not keep correct level when idle */
+void mx51_babbage_gpio_spi_chipselect_active(int cspi_mode, int status,
+					     int chipselect)
+{
+	switch (cspi_mode) {
+	case 1:
+		switch (chipselect) {
+		case 0x1:
+			mxc_request_iomux(MX51_PIN_CSPI1_SS0,
+					  IOMUX_CONFIG_ALT0);
+			mxc_iomux_set_pad(MX51_PIN_CSPI1_SS0,
+					  PAD_CTL_HYS_ENABLE |
+					  PAD_CTL_PKE_ENABLE |
+					  PAD_CTL_DRV_HIGH | PAD_CTL_SRE_FAST);
+			break;
+		case 0x2:
+			mxc_request_iomux(MX51_PIN_CSPI1_SS0,
+					  IOMUX_CONFIG_GPIO);
+			mxc_set_gpio_direction(MX51_PIN_CSPI1_SS0, 0);
+			mxc_set_gpio_dataout(MX51_PIN_CSPI1_SS0, 1 & (~status));
+			break;
+		default:
+			break;
+		}
+		break;
+	case 2:
+		break;
+	case 3:
+		break;
+	default:
+		break;
+	}
+}
+EXPORT_SYMBOL(mx51_babbage_gpio_spi_chipselect_active);
+
+void mx51_babbage_gpio_spi_chipselect_inactive(int cspi_mode, int status,
+					       int chipselect)
+{
+	switch (cspi_mode) {
+	case 1:
+		switch (chipselect) {
+		case 0x1:
+			mxc_free_iomux(MX51_PIN_CSPI1_SS0, IOMUX_CONFIG_ALT0);
+			mxc_request_iomux(MX51_PIN_CSPI1_SS0,
+					  IOMUX_CONFIG_GPIO);
+			mxc_free_iomux(MX51_PIN_CSPI1_SS0, IOMUX_CONFIG_GPIO);
+			break;
+		case 0x2:
+			mxc_free_iomux(MX51_PIN_CSPI1_SS0, IOMUX_CONFIG_GPIO);
+			break;
+		default:
+			break;
+		}
+		break;
+	case 2:
+		break;
+	case 3:
+		break;
+	default:
+		break;
+	}
+}
+EXPORT_SYMBOL(mx51_babbage_gpio_spi_chipselect_inactive);
+

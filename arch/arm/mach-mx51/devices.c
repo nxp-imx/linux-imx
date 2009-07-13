@@ -23,6 +23,7 @@
 #include <linux/mxc_scc2_driver.h>
 #include <mach/hardware.h>
 #include <mach/spba.h>
+#include <asm/mach-types.h>
 #include "iomux.h"
 #include "crm_regs.h"
 #include <mach/sdma.h>
@@ -431,16 +432,14 @@ static struct resource mxcspi1_resources[] = {
 	       },
 };
 
-extern void gpio_spi_chipselect_active(int cspi_mode, int status,
-				       int chipselect);
-extern void gpio_spi_chipselect_inactive(int cspi_mode, int status,
-					 int chipselect);
+extern void mx51_babbage_gpio_spi_chipselect_active(int cspi_mode, int status,
+						    int chipselect);
+extern void mx51_babbage_gpio_spi_chipselect_inactive(int cspi_mode, int status,
+						      int chipselect);
 /*! Platform Data for MXC CSPI1 */
 static struct mxc_spi_master mxcspi1_data = {
 	.maxchipselect = 4,
 	.spi_version = 23,
-	.chipselect_active = gpio_spi_chipselect_active,
-	.chipselect_inactive = gpio_spi_chipselect_inactive,
 };
 
 /*! Device Definition for MXC CSPI1 */
@@ -534,6 +533,12 @@ void __init mxc_init_spi(void)
 	/* SPBA configuration for CSPI2 - MCU is set */
 	spba_take_ownership(SPBA_CSPI1, SPBA_MASTER_A);
 #ifdef CONFIG_SPI_MXC_SELECT1
+	if (machine_is_mx51_babbage()) {
+		mxcspi1_data.chipselect_active =
+			mx51_babbage_gpio_spi_chipselect_active;
+		mxcspi1_data.chipselect_inactive =
+			mx51_babbage_gpio_spi_chipselect_inactive;
+	}
 	if (platform_device_register(&mxcspi1_device) < 0)
 		printk(KERN_ERR "Error: Registering the SPI Controller_1\n");
 #endif				/* CONFIG_SPI_MXC_SELECT1 */
