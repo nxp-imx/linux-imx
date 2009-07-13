@@ -426,6 +426,7 @@ typedef union {
 		bool interlaced;
 		uint32_t in_pixel_fmt;
 		uint32_t out_pixel_fmt;
+		bool alpha_chan_en;
 	} mem_dp_bg_sync;
 	struct {
 		uint32_t temp;
@@ -435,6 +436,7 @@ typedef union {
 		bool interlaced;
 		uint32_t in_pixel_fmt;
 		uint32_t out_pixel_fmt;
+		bool alpha_chan_en;
 	} mem_dp_fg_sync;
 	struct {
 		uint32_t di;

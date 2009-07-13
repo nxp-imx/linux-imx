@@ -172,23 +172,16 @@ static inline void _ipu_ch_param_init(int ch,
 	case IPU_PIX_FMT_RGB565:
 		ipu_ch_param_set_field(&params, 0, 107, 3, 3);	/* bits/pixel */
 		ipu_ch_param_set_field(&params, 1, 85, 4, 7);	/* pix format */
-		ipu_ch_param_set_field(&params, 1, 78, 7, 31);	/* burst size */
+		ipu_ch_param_set_field(&params, 1, 78, 7, 15);	/* burst size */
 
-
-		_ipu_ch_params_set_packing(&params, 5, 0, 6, 5, 5, 11, 1, 16);
-		/* Set WID3 to be 8-bit for seperate alpha channel */
-		if (ch == 14 || ch == 15)
-			ipu_ch_param_set_field(&params, 1, 125, 3, 7);
+		_ipu_ch_params_set_packing(&params, 5, 0, 6, 5, 5, 11, 8, 16);
 		break;
 	case IPU_PIX_FMT_BGR24:
 		ipu_ch_param_set_field(&params, 0, 107, 3, 1);	/* bits/pixel */
 		ipu_ch_param_set_field(&params, 1, 85, 4, 7);	/* pix format */
 		ipu_ch_param_set_field(&params, 1, 78, 7, 19);	/* burst size */
 
-		_ipu_ch_params_set_packing(&params, 8, 0, 8, 8, 8, 16, 1, 24);
-		/* Set WID3 to be 8-bit for seperate alpha channel */
-		if (ch == 14 || ch == 15)
-			ipu_ch_param_set_field(&params, 1, 125, 3, 7);
+		_ipu_ch_params_set_packing(&params, 8, 0, 8, 8, 8, 16, 8, 24);
 		break;
 	case IPU_PIX_FMT_RGB24:
 	case IPU_PIX_FMT_YUV444:
@@ -196,10 +189,7 @@ static inline void _ipu_ch_param_init(int ch,
 		ipu_ch_param_set_field(&params, 1, 85, 4, 7);	/* pix format */
 		ipu_ch_param_set_field(&params, 1, 78, 7, 19);	/* burst size */
 
-		_ipu_ch_params_set_packing(&params, 8, 16, 8, 8, 8, 0, 1, 24);
-		/* Set WID3 to be 8-bit for seperate alpha channel */
-		if (ch == 14 || ch == 15)
-			ipu_ch_param_set_field(&params, 1, 125, 3, 7);
+		_ipu_ch_params_set_packing(&params, 8, 16, 8, 8, 8, 0, 8, 24);
 		break;
 	case IPU_PIX_FMT_BGRA32:
 	case IPU_PIX_FMT_BGR32:
@@ -362,6 +352,12 @@ static inline void _ipu_ch_param_set_alpha_buffer_memory(uint32_t ch)
 		break;
 	case 15: /* PP graphic */
 		alp_mem_idx = 1;
+		break;
+	case 23: /* DP BG SYNC graphic */
+		alp_mem_idx = 4;
+		break;
+	case 27: /* DP FG SYNC graphic */
+		alp_mem_idx = 2;
 		break;
 	default:
 		dev_err(g_ipu_dev, "unsupported correlative channel of local "

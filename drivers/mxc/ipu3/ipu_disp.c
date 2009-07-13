@@ -1261,7 +1261,10 @@ EXPORT_SYMBOL(ipu_init_async_panel);
 
 /*!
  * This function sets the foreground and background plane global alpha blending
- * modes.
+ * modes. This function also sets the DP graphic plane according to the
+ * parameter of IPUv3 DP channel.
+ *
+ * @param	channel		IPUv3 DP channel
  *
  * @param       enable          Boolean to enable or disable global alpha
  *                              blending. If disabled, local blending is used.
@@ -1276,19 +1279,34 @@ int32_t ipu_disp_set_global_alpha(ipu_channel_t channel, bool enable,
 	uint32_t reg;
 	uint32_t flow;
 	unsigned long lock_flags;
+	bool bg_chan;
 
-	if (channel == MEM_BG_SYNC)
+	if (channel == MEM_BG_SYNC || channel == MEM_FG_SYNC)
 		flow = DP_SYNC;
-	else if (channel == MEM_BG_ASYNC0)
+	else if (channel == MEM_BG_ASYNC0 || channel == MEM_FG_ASYNC0)
 		flow = DP_ASYNC0;
-	else if (channel == MEM_BG_ASYNC1)
+	else if (channel == MEM_BG_ASYNC1 || channel == MEM_FG_ASYNC1)
 		flow = DP_ASYNC1;
 	else
 		return -EINVAL;
 
+	if (channel == MEM_BG_SYNC || channel == MEM_BG_ASYNC0 ||
+	    channel == MEM_BG_ASYNC1)
+		bg_chan = true;
+	else
+		bg_chan = false;
+
 	if (!g_ipu_clk_enabled)
 		clk_enable(g_ipu_clk);
 	spin_lock_irqsave(&ipu_lock, lock_flags);
+
+	if (bg_chan) {
+		reg = __raw_readl(DP_COM_CONF(flow));
+		__raw_writel(reg & ~DP_COM_CONF_GWSEL, DP_COM_CONF(flow));
+	} else {
+		reg = __raw_readl(DP_COM_CONF(flow));
+		__raw_writel(reg | DP_COM_CONF_GWSEL, DP_COM_CONF(flow));
+	}
 
 	if (enable) {
 		reg = __raw_readl(DP_GRAPH_WIND_CTRL(flow)) & 0x00FFFFFFL;
@@ -1332,11 +1350,11 @@ int32_t ipu_disp_set_color_key(ipu_channel_t channel, bool enable,
 	int red, green, blue;
 	unsigned long lock_flags;
 
-	if (channel == MEM_BG_SYNC)
+	if (channel == MEM_BG_SYNC || channel == MEM_FG_SYNC)
 		flow = DP_SYNC;
-	else if (channel == MEM_BG_ASYNC0)
+	else if (channel == MEM_BG_ASYNC0 || channel == MEM_FG_ASYNC0)
 		flow = DP_ASYNC0;
-	else if (channel == MEM_BG_ASYNC1)
+	else if (channel == MEM_BG_ASYNC1 || channel == MEM_FG_ASYNC1)
 		flow = DP_ASYNC1;
 	else
 		return -EINVAL;

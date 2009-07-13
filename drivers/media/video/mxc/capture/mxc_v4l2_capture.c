@@ -42,11 +42,11 @@ static int video_nr = -1;
 static cam_data *g_cam;
 
 /*! This data is used for the output to the display. */
-#define MXC_V4L2_CAPTURE_NUM_OUTPUTS        2
+#define MXC_V4L2_CAPTURE_NUM_OUTPUTS	3
 static struct v4l2_output mxc_capture_outputs[MXC_V4L2_CAPTURE_NUM_OUTPUTS] = {
 	{
 	 .index = 0,
-	 .name = "DISP3",
+	 .name = "DISP3 BG",
 	 .type = V4L2_OUTPUT_TYPE_ANALOG,
 	 .audioset = 0,
 	 .modulator = 0,
@@ -59,7 +59,15 @@ static struct v4l2_output mxc_capture_outputs[MXC_V4L2_CAPTURE_NUM_OUTPUTS] = {
 	 .audioset = 0,
 	 .modulator = 0,
 	 .std = V4L2_STD_UNKNOWN,
-	 }
+	 },
+	{
+	 .index = 2,
+	 .name = "DISP3 FG",
+	 .type = V4L2_OUTPUT_TYPE_ANALOG,
+	 .audioset = 0,
+	 .modulator = 0,
+	 .std = V4L2_STD_UNKNOWN,
+	 },
 };
 
 /*! List of TV input video formats supported. The video formats is corresponding
@@ -380,8 +388,10 @@ static int mxc_streamoff(cam_data *cam)
  */
 static int verify_preview(cam_data *cam, struct v4l2_window *win)
 {
-	int i = 0;
+	int i = 0, width_bound = 0, height_bound = 0;
 	int *width, *height;
+	struct fb_info *bg_fbi = NULL;
+	bool foregound_fb;
 
 	pr_debug("In MVC: verify_preview\n");
 
@@ -391,23 +401,41 @@ static int verify_preview(cam_data *cam, struct v4l2_window *win)
 			pr_err("ERROR: verify_preview frame buffer NULL.\n");
 			return -1;
 		}
-		if (strncmp(cam->overlay_fb->fix.id,
-			    mxc_capture_outputs[cam->output].name, 5) == 0) {
+		if (strcmp(cam->overlay_fb->fix.id, "DISP3 BG") == 0)
+			bg_fbi = cam->overlay_fb;
+		if (strcmp(cam->overlay_fb->fix.id,
+			    mxc_capture_outputs[cam->output].name) == 0) {
+			if (strcmp(cam->overlay_fb->fix.id, "DISP3 FG") == 0)
+				foregound_fb = true;
 			break;
 		}
 	} while (++i < FB_MAX);
 
-	/* 4 bytes alignment for both FG and BG */
-	if (cam->overlay_fb->var.bits_per_pixel == 24) {
-		win->w.left -= win->w.left % 4;
-	} else if (cam->overlay_fb->var.bits_per_pixel == 16) {
-		win->w.left -= win->w.left % 2;
-	}
+	if (foregound_fb) {
+		width_bound = bg_fbi->var.xres;
+		height_bound = bg_fbi->var.yres;
 
-	if (win->w.width + win->w.left > cam->overlay_fb->var.xres)
-		win->w.width = cam->overlay_fb->var.xres - win->w.left;
-	if (win->w.height + win->w.top > cam->overlay_fb->var.yres)
-		win->w.height = cam->overlay_fb->var.yres - win->w.top;
+		if (win->w.width + win->w.left > bg_fbi->var.xres ||
+		    win->w.height + win->w.top > bg_fbi->var.yres) {
+			pr_err("ERROR: FG window position exceeds.\n");
+			return -1;
+		}
+	} else {
+		/* 4 bytes alignment for BG */
+		width_bound = cam->overlay_fb->var.xres;
+		height_bound = cam->overlay_fb->var.yres;
+
+		if (cam->overlay_fb->var.bits_per_pixel == 24) {
+			win->w.left -= win->w.left % 4;
+		} else if (cam->overlay_fb->var.bits_per_pixel == 16) {
+			win->w.left -= win->w.left % 2;
+		}
+
+		if (win->w.width + win->w.left > cam->overlay_fb->var.xres)
+			win->w.width = cam->overlay_fb->var.xres - win->w.left;
+		if (win->w.height + win->w.top > cam->overlay_fb->var.yres)
+			win->w.height = cam->overlay_fb->var.yres - win->w.top;
+	}
 
 	/* stride line limitation */
 	win->w.height -= win->w.height % 8;
@@ -427,7 +455,7 @@ static int verify_preview(cam_data *cam, struct v4l2_window *win)
 		*width = cam->crop_bounds.width / 8;
 		if (*width % 8)
 			*width += 8 - *width % 8;
-		if (*width + win->w.left > cam->overlay_fb->var.xres) {
+		if (*width + win->w.left > width_bound) {
 			pr_err("ERROR: v4l2 capture: width exceeds "
 				"resize limit.\n");
 			return -1;
@@ -443,7 +471,7 @@ static int verify_preview(cam_data *cam, struct v4l2_window *win)
 		*height = cam->crop_bounds.height / 8;
 		if (*height % 8)
 			*height += 8 - *height % 8;
-		if (*height + win->w.top > cam->overlay_fb->var.yres) {
+		if (*height + win->w.top > height_bound) {
 			pr_err("ERROR: v4l2 capture: height exceeds "
 				"resize limit.\n");
 			return -1;
@@ -471,7 +499,7 @@ static int start_preview(cam_data *cam)
 
 #if defined(CONFIG_MXC_IPU_PRP_VF_SDC) || defined(CONFIG_MXC_IPU_PRP_VF_SDC_MODULE)
 	pr_debug("   This is an SDC display\n");
-	if (cam->output == 0) {
+	if (cam->output == 0 || cam->output == 2) {
 		if (cam->v4l2_fb.flags == V4L2_FBUF_FLAG_OVERLAY)
 			err = prp_vf_sdc_select(cam);
 		else if (cam->v4l2_fb.flags == V4L2_FBUF_FLAG_PRIMARY)
@@ -530,7 +558,7 @@ static int stop_preview(cam_data *cam)
 #endif
 
 #if defined(CONFIG_MXC_IPU_PRP_VF_SDC) || defined(CONFIG_MXC_IPU_PRP_VF_SDC_MODULE)
-	if (cam->output == 0) {
+	if (cam->output == 0 || cam->output == 2) {
 		if (cam->v4l2_fb.flags == V4L2_FBUF_FLAG_OVERLAY)
 			err = prp_vf_sdc_deselect(cam);
 		else if (cam->v4l2_fb.flags == V4L2_FBUF_FLAG_PRIMARY)

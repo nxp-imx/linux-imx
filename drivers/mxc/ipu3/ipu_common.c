@@ -112,6 +112,12 @@ static inline int _ipu_is_ic_graphic_chan(uint32_t dma_chan)
 	return (dma_chan == 14 || dma_chan == 15);
 }
 
+/* Either DP BG or DP FG can be graphic window */
+static inline int _ipu_is_dp_graphic_chan(uint32_t dma_chan)
+{
+	return (dma_chan == 23 || dma_chan == 27);
+}
+
 static inline int _ipu_is_irt_chan(uint32_t dma_chan)
 {
 	return ((dma_chan >= 45) && (dma_chan <= 50));
@@ -540,6 +546,9 @@ int32_t ipu_init_channel(ipu_channel_t channel, ipu_channel_params_t *params)
 			goto err;
 		}
 
+		if (params->mem_dp_bg_sync.alpha_chan_en)
+			g_thrd_chan_en[IPU_CHAN_ID(channel)] = true;
+
 		g_dc_di_assignment[5] = params->mem_dp_bg_sync.di;
 		_ipu_dp_init(channel, params->mem_dp_bg_sync.in_pixel_fmt,
 			     params->mem_dp_bg_sync.out_pixel_fmt);
@@ -553,6 +562,10 @@ int32_t ipu_init_channel(ipu_channel_t channel, ipu_channel_params_t *params)
 	case MEM_FG_SYNC:
 		_ipu_dp_init(channel, params->mem_dp_fg_sync.in_pixel_fmt,
 			     params->mem_dp_fg_sync.out_pixel_fmt);
+
+		if (params->mem_dp_fg_sync.alpha_chan_en)
+			g_thrd_chan_en[IPU_CHAN_ID(channel)] = true;
+
 		ipu_dc_use_count++;
 		ipu_dp_use_count++;
 		ipu_dmfc_use_count++;
@@ -907,7 +920,8 @@ int32_t ipu_init_channel_buffer(ipu_channel_t channel, ipu_buffer_t type,
 			   phyaddr_0, phyaddr_1);
 
 	/* Set correlative channel parameter of local alpha channel */
-	if (_ipu_is_ic_graphic_chan(dma_chan) &&
+	if ((_ipu_is_ic_graphic_chan(dma_chan) ||
+	     _ipu_is_dp_graphic_chan(dma_chan)) &&
 	    (g_thrd_chan_en[IPU_CHAN_ID(channel)] == true)) {
 		_ipu_ch_param_set_alpha_use_separate_channel(dma_chan, true);
 		_ipu_ch_param_set_alpha_buffer_memory(dma_chan);
@@ -1503,6 +1517,13 @@ int32_t ipu_enable_channel(ipu_channel_t channel)
 		sec_dma = channel_2_dma(channel, IPU_GRAPH_IN_BUFFER);
 		reg = __raw_readl(IDMAC_SEP_ALPHA);
 		__raw_writel(reg | idma_mask(sec_dma), IDMAC_SEP_ALPHA);
+	} else if ((g_thrd_chan_en[IPU_CHAN_ID(channel)]) &&
+		   ((channel == MEM_BG_SYNC) || (channel == MEM_FG_SYNC))) {
+		thrd_dma = channel_2_dma(channel, IPU_ALPHA_IN_BUFFER);
+		reg = __raw_readl(IDMAC_CHA_EN(thrd_dma));
+		__raw_writel(reg | idma_mask(thrd_dma), IDMAC_CHA_EN(thrd_dma));
+		reg = __raw_readl(IDMAC_SEP_ALPHA);
+		__raw_writel(reg | idma_mask(in_dma), IDMAC_SEP_ALPHA);
 	}
 
 	if ((channel == MEM_DC_SYNC) || (channel == MEM_BG_SYNC) ||
@@ -1613,8 +1634,13 @@ int32_t ipu_disable_channel(ipu_channel_t channel, bool wait_for_stop)
 	if (g_thrd_chan_en[IPU_CHAN_ID(channel)] && idma_is_valid(thrd_dma)) {
 		reg = __raw_readl(IDMAC_CHA_EN(thrd_dma));
 		__raw_writel(reg & ~idma_mask(thrd_dma), IDMAC_CHA_EN(thrd_dma));
-		reg = __raw_readl(IDMAC_SEP_ALPHA);
-		__raw_writel(reg & ~idma_mask(sec_dma), IDMAC_SEP_ALPHA);
+		if (channel == MEM_BG_SYNC || channel == MEM_FG_SYNC) {
+			reg = __raw_readl(IDMAC_SEP_ALPHA);
+			__raw_writel(reg & ~idma_mask(in_dma), IDMAC_SEP_ALPHA);
+		} else {
+			reg = __raw_readl(IDMAC_SEP_ALPHA);
+			__raw_writel(reg & ~idma_mask(sec_dma), IDMAC_SEP_ALPHA);
+		}
 		__raw_writel(idma_mask(thrd_dma), IPU_CHA_CUR_BUF(thrd_dma));
 	}
 

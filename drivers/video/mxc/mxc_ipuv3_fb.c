@@ -61,6 +61,10 @@ struct mxcfb_info {
 	int ipu_di;
 	u32 ipu_di_pix_fmt;
 	bool overlay;
+	bool alpha_chan_en;
+	dma_addr_t alpha_phy_addr;
+	void *alpha_virt_addr;
+	uint32_t alpha_mem_len;
 	uint32_t ipu_ch_irq;
 	uint32_t cur_ipu_buf;
 
@@ -174,6 +178,8 @@ static int _setup_disp_channel1(struct fb_info *fbi)
 			params.mem_dp_bg_sync.out_pixel_fmt = IPU_PIX_FMT_RGB666;
 	}
 	params.mem_dp_bg_sync.in_pixel_fmt = bpp_to_pixfmt(fbi);
+	if (mxc_fbi->alpha_chan_en)
+		params.mem_dp_bg_sync.alpha_chan_en = true;
 
 	ipu_init_channel(mxc_fbi->ipu_ch, &params);
 
@@ -203,6 +209,23 @@ static int _setup_disp_channel2(struct fb_info *fbi)
 			"ipu_init_channel_buffer error %d\n", retval);
 	}
 
+	if (mxc_fbi->alpha_chan_en) {
+		retval = ipu_init_channel_buffer(mxc_fbi->ipu_ch,
+						 IPU_ALPHA_IN_BUFFER,
+						 IPU_PIX_FMT_GENERIC,
+						 fbi->var.xres, fbi->var.yres,
+						 fbi->var.xres,
+						 IPU_ROTATE_NONE,
+						 mxc_fbi->alpha_phy_addr,
+						 mxc_fbi->alpha_phy_addr,
+						 0, 0);
+		if (retval) {
+			dev_err(fbi->device,
+				"ipu_init_channel_buffer error %d\n", retval);
+			return retval;
+		}
+	}
+
 	return retval;
 }
 
@@ -214,7 +237,7 @@ static int _setup_disp_channel2(struct fb_info *fbi)
 static int mxcfb_set_par(struct fb_info *fbi)
 {
 	int retval = 0;
-	u32 mem_len;
+	u32 mem_len, alpha_mem_len;
 	ipu_di_signal_cfg_t sig_cfg;
 	struct mxcfb_info *mxc_fbi = (struct mxcfb_info *)fbi->par;
 
@@ -233,6 +256,28 @@ static int mxcfb_set_par(struct fb_info *fbi)
 
 		if (mxcfb_map_video_memory(fbi) < 0)
 			return -ENOMEM;
+	}
+	if (mxc_fbi->alpha_chan_en) {
+		alpha_mem_len = fbi->var.xres * fbi->var.yres;
+		if (!mxc_fbi->alpha_phy_addr ||
+		    (alpha_mem_len > mxc_fbi->alpha_mem_len)) {
+			if (mxc_fbi->alpha_phy_addr)
+				dma_free_coherent(fbi->device,
+						  mxc_fbi->alpha_mem_len,
+						  mxc_fbi->alpha_virt_addr,
+						  mxc_fbi->alpha_phy_addr);
+			mxc_fbi->alpha_virt_addr =
+					dma_alloc_coherent(fbi->device,
+						  alpha_mem_len,
+						  &mxc_fbi->alpha_phy_addr,
+						  GFP_DMA | GFP_KERNEL);
+			if (mxc_fbi->alpha_virt_addr == NULL) {
+				dev_err(fbi->device, "mxcfb: dma alloc for"
+					" alpha buffer failed.\n");
+				return -ENOMEM;
+			}
+			mxc_fbi->alpha_mem_len = alpha_mem_len;
+		}
 	}
 
 	if (mxc_fbi->blank != FB_BLANK_UNBLANK)
@@ -606,16 +651,60 @@ static int mxcfb_ioctl(struct fb_info *fbi, unsigned int cmd, unsigned long arg)
 	case MXCFB_SET_GBL_ALPHA:
 		{
 			struct mxcfb_gbl_alpha ga;
+
 			if (copy_from_user(&ga, (void *)arg, sizeof(ga))) {
 				retval = -EFAULT;
 				break;
 			}
-			retval =
-			    ipu_disp_set_global_alpha(MEM_BG_SYNC,
-						      (bool) ga.enable,
-						      ga.alpha);
-			dev_dbg(fbi->device, "Set global alpha to %d\n",
-				ga.alpha);
+
+			if (ipu_disp_set_global_alpha(mxc_fbi->ipu_ch,
+						      (bool)ga.enable,
+						      ga.alpha)) {
+				retval = -EINVAL;
+				break;
+			}
+
+			if (ga.enable)
+				mxc_fbi->alpha_chan_en = false;
+
+			if (ga.enable)
+				dev_dbg(fbi->device,
+					"Set global alpha of %s to %d\n",
+					fbi->fix.id, ga.alpha);
+			break;
+		}
+	case MXCFB_SET_LOC_ALPHA:
+		{
+			struct mxcfb_loc_alpha la;
+
+			if (copy_from_user(&la, (void *)arg, sizeof(la))) {
+				retval = -EFAULT;
+				break;
+			}
+
+			if (ipu_disp_set_global_alpha(mxc_fbi->ipu_ch,
+						      !(bool)la.enable, 0)) {
+				retval = -EINVAL;
+				break;
+			}
+
+			if (la.enable)
+				mxc_fbi->alpha_chan_en = true;
+			else
+				mxc_fbi->alpha_chan_en = false;
+
+			mxcfb_set_par(fbi);
+
+			la.alpha_phy_addr = mxc_fbi->alpha_phy_addr;
+			if (copy_to_user((void *)arg, &la, sizeof(la))) {
+				retval = -EFAULT;
+				break;
+			}
+
+			if (la.enable)
+				dev_dbg(fbi->device,
+					"Enable DP local alpha for %s\n",
+					fbi->fix.id);
 			break;
 		}
 	case MXCFB_SET_CLR_KEY:
@@ -625,7 +714,8 @@ static int mxcfb_ioctl(struct fb_info *fbi, unsigned int cmd, unsigned long arg)
 				retval = -EFAULT;
 				break;
 			}
-			retval = ipu_disp_set_color_key(MEM_BG_SYNC, key.enable,
+			retval = ipu_disp_set_color_key(mxc_fbi->ipu_ch,
+							key.enable,
 							key.color_key);
 			dev_dbg(fbi->device, "Set color key to 0x%08X\n",
 				key.color_key);
@@ -846,11 +936,14 @@ static int mxcfb_mmap(struct fb_info *fbi, struct vm_area_struct *vma)
 	u32 len;
 	unsigned long offset = vma->vm_pgoff << PAGE_SHIFT;
 	struct mxcfb_alloc_list *mem;
+	struct mxcfb_info *mxc_fbi = (struct mxcfb_info *)fbi->par;
 
 	if (offset < fbi->fix.smem_len) {
 		/* mapping framebuffer memory */
 		len = fbi->fix.smem_len - offset;
 		vma->vm_pgoff = (fbi->fix.smem_start + offset) >> PAGE_SHIFT;
+	} else if (vma->vm_pgoff == (mxc_fbi->alpha_phy_addr >> PAGE_SHIFT)) {
+		len = mxc_fbi->alpha_mem_len;
 	} else {
 		list_for_each_entry(mem, &fb_alloc_list, list) {
 			if (offset == mem->phy_addr) {
