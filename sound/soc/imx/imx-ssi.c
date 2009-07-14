@@ -5,7 +5,7 @@
  * Author: Liam Girdwood
  *         liam.girdwood@wolfsonmicro.com or linux@wolfsonmicro.com
  *
- * Based on mxc-alsa-mc13783 (C) 2006-2008 Freescale Semiconductor, Inc.
+ * Based on mxc-alsa-mc13783 (C) 2006-2009 Freescale Semiconductor, Inc.
  *
  *  This program is free software; you can redistribute  it and/or modify it
  *  under  the terms of  the GNU General  Public License as published by the
@@ -576,9 +576,16 @@ static int imx_ssi_trigger(struct snd_pcm_substream *substream, int cmd)
 	case SNDRV_PCM_TRIGGER_START:
 	case SNDRV_PCM_TRIGGER_RESUME:
 	case SNDRV_PCM_TRIGGER_PAUSE_RELEASE:
-		if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK)
+		if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
+			if (scr & SSI_SCR_RE) {
+				if (cpu_dai->id == IMX_DAI_SSI0
+				    || cpu_dai->id == IMX_DAI_SSI1)
+					__raw_writel(0, SSI1_SCR);
+				else
+					__raw_writel(0, SSI2_SCR);
+			}
 			scr |= SSI_SCR_TE;
-		else
+		} else
 			scr |= SSI_SCR_RE;
 		break;
 	case SNDRV_PCM_TRIGGER_SUSPEND:
