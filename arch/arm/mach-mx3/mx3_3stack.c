@@ -143,7 +143,7 @@ static struct mtd_partition mxc_nand_partitions[] = {
 	{
 	 .name = "nand.rootfs",
 	 .offset = MTDPART_OFS_APPEND,
-	 .size = 96 * 1024 * 1024},
+	 .size = 180 * 1024 * 1024},
 	{
 	 .name = "nand.configure",
 	 .offset = MTDPART_OFS_APPEND,
