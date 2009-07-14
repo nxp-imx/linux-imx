@@ -283,10 +283,27 @@ static int mxcfb_check_var(struct fb_var_screeninfo *var, struct fb_info *info)
 		var->yres_virtual = var->yres;
 
 	if ((var->bits_per_pixel != 32) && (var->bits_per_pixel != 24) &&
-	    (var->bits_per_pixel != 16))
+	    (var->bits_per_pixel != 16) && (var->bits_per_pixel != 8))
 		var->bits_per_pixel = default_bpp;
 
 	switch (var->bits_per_pixel) {
+	case 8:
+		var->red.length = 3;
+		var->red.offset = 5;
+		var->red.msb_right = 0;
+
+		var->green.length = 3;
+		var->green.offset = 2;
+		var->green.msb_right = 0;
+
+		var->blue.length = 2;
+		var->blue.offset = 0;
+		var->blue.msb_right = 0;
+
+		var->transp.length = 0;
+		var->transp.offset = 0;
+		var->transp.msb_right = 0;
+		break;
 	case 16:
 		var->red.length = 5;
 		var->red.offset = 11;

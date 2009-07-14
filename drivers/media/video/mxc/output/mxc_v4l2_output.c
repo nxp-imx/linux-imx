@@ -939,6 +939,12 @@ static int mxc_v4l2out_streamon(vout_data * vout)
 			vout->display_ch = MEM_BG_SYNC;
 		}
 
+		if (vout->ic_bypass) {
+			fbvar.bits_per_pixel = 8*
+				bytes_per_pixel(vout->v2f.fmt.pix.pixelformat);
+			fbvar.nonstd = vout->v2f.fmt.pix.pixelformat;
+		}
+
 		fbvar.activate |= FB_ACTIVATE_FORCE;
 		fb_set_var(fbi, &fbvar);
 
@@ -1016,20 +1022,12 @@ static int mxc_v4l2out_streamon(vout_data * vout)
 
 			ipu_enable_channel(vout->post_proc_ch);
 		} else {
-			ipu_disable_channel(vout->display_ch, true);
-			ipu_init_channel_buffer(vout->display_ch,
-										IPU_INPUT_BUFFER,
-										vout->v2f.fmt.pix.pixelformat,
-										vout->v2f.fmt.pix.width,
-										vout->v2f.fmt.pix.height,
-										vout->v2f.fmt.pix.bytesperline /
-										bytes_per_pixel(vout->v2f.fmt.pix.pixelformat),
-										IPU_ROTATE_NONE,
-										vout->v4l2_bufs[vout->ipu_buf[0]].m.offset,
-										vout->v4l2_bufs[vout->ipu_buf[1]].m.offset,
-										vout->offset.u_offset,
-										vout->offset.v_offset);
-			ipu_enable_channel(vout->display_ch);
+			ipu_update_channel_buffer(vout->display_ch,
+				IPU_INPUT_BUFFER,
+				0, vout->v4l2_bufs[vout->ipu_buf[0]].m.offset);
+			ipu_update_channel_buffer(vout->display_ch,
+				IPU_INPUT_BUFFER,
+				1, vout->v4l2_bufs[vout->ipu_buf[1]].m.offset);
 
 			ipu_select_buffer(vout->display_ch, IPU_INPUT_BUFFER, 0);
 			ipu_select_buffer(vout->display_ch, IPU_INPUT_BUFFER, 1);
