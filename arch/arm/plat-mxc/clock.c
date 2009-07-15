@@ -36,6 +36,7 @@
 #include <linux/mutex.h>
 #include <linux/platform_device.h>
 #include <linux/proc_fs.h>
+#include <linux/seq_file.h>
 #include <linux/semaphore.h>
 #include <linux/string.h>
 
@@ -409,43 +410,164 @@ void clk_unregister(struct clk *clk)
 EXPORT_SYMBOL(clk_unregister);
 
 #ifdef CONFIG_PROC_FS
-static int mxc_clock_read_proc(char *page, char **start, off_t off,
-				int count, int *eof, void *data)
-{
-	struct clk *clkp;
-	char *p = page;
-	int len;
 
-	list_for_each_entry(clkp, &clocks, node) {
-		p += sprintf(p, "%s-%d:\t\t%lu, %d", clkp->name, clkp->id,
-				clk_get_rate(clkp), clkp->usecount);
-		if (clkp->parent)
-			p += sprintf(p, ", %s-%d\n", clkp->parent->name,
-				     clkp->parent->id);
-		else
-			p += sprintf(p, "\n");
+static void *mxc_proc_clocks_seq_start(struct seq_file *file, loff_t *index)
+{
+	unsigned int  i;
+	unsigned int  name_length;
+	unsigned int  longest_length = 0;
+	struct clk    *current_clock = 0;
+	struct clk    *clock;
+
+	/* Examine the clock list. */
+
+	i = 0;
+
+	list_for_each_entry(clock, &clocks, node) {
+		if (i++ == *index)
+			current_clock = clock;
+		name_length = strlen(clock->name);
+		if (name_length > longest_length)
+			longest_length = name_length;
 	}
 
-	len = (p - page) - off;
-	if (len < 0)
-		len = 0;
+	/* Check if we found the indicated clock. */
 
-	*eof = (len <= count) ? 1 : 0;
-	*start = page + off;
+	if (!current_clock)
+		return NULL;
 
-	return len;
+	/* Stash the length of the longest clock name for later use. */
+
+	file->private = (void *) longest_length;
+
+	/* Return success. */
+
+	return current_clock;
 }
+
+static void *mxc_proc_clocks_seq_next(struct seq_file *file, void *data,
+								loff_t *index)
+{
+	struct clk  *current_clock = (struct clk *) data;
+
+	/* Check for nonsense. */
+
+	if (!current_clock)
+		return NULL;
+
+	/* Check if the current clock is the last. */
+
+	if (list_is_last(&current_clock->node, &clocks))
+		return NULL;
+
+	/* Move to the next clock structure. */
+
+	current_clock = list_entry(current_clock->node.next,
+						typeof(*current_clock), node);
+
+	(*index)++;
+
+	/* Return the new current clock. */
+
+	return current_clock;
+
+}
+
+static void mxc_proc_clocks_seq_stop(struct seq_file *file, void *data)
+{
+}
+
+static int mxc_proc_clocks_seq_show(struct seq_file *file, void *data)
+{
+	int            result;
+	struct clk     *clock = (struct clk *) data;
+	struct clk     *parent = clock->parent;
+	unsigned int   longest_length = (unsigned int) file->private;
+	unsigned long  range_divisor;
+	const char     *range_units;
+
+	if (clock->rate >= 1000000) {
+		range_divisor = 1000000;
+		range_units   = "MHz";
+	} else if (clock->rate >= 1000) {
+		range_divisor = 1000;
+		range_units   = "KHz";
+	} else {
+		range_divisor = 1;
+		range_units   = "Hz";
+	}
+
+	if (parent)
+		result = seq_printf(file,
+			"%s-%-d%*s  %s-%-d%*s  %c%c%c%c%c%c  %3d",
+			clock->name,
+			clock->id,
+			longest_length - strlen(clock->name), "",
+			parent->name,
+			parent->id,
+			longest_length - strlen(parent->name), "",
+			(clock->flags & RATE_PROPAGATES)      ? 'P' : '_',
+			(clock->flags & ALWAYS_ENABLED)       ? 'A' : '_',
+			(clock->flags & RATE_FIXED)           ? 'F' : '_',
+			(clock->flags & CPU_FREQ_TRIG_UPDATE) ? 'T' : '_',
+			(clock->flags & AHB_HIGH_SET_POINT)   ? 'H' : '_',
+			(clock->flags & AHB_MED_SET_POINT)    ? 'M' : '_',
+			clock->usecount);
+	else
+		result = seq_printf(file,
+			"%s-%-d%*s  %*s  %c%c%c%c%c%c  %3d",
+			clock->name,
+			clock->id,
+			longest_length - strlen(clock->name), "",
+			longest_length + 2, "",
+			(clock->flags & RATE_PROPAGATES)      ? 'P' : '_',
+			(clock->flags & ALWAYS_ENABLED)       ? 'A' : '_',
+			(clock->flags & RATE_FIXED)           ? 'F' : '_',
+			(clock->flags & CPU_FREQ_TRIG_UPDATE) ? 'T' : '_',
+			(clock->flags & AHB_HIGH_SET_POINT)   ? 'H' : '_',
+			(clock->flags & AHB_MED_SET_POINT)    ? 'M' : '_',
+			clock->usecount);
+
+	if (result)
+		return result;
+
+	result = seq_printf(file, "  %10lu (%lu%s)\n",
+		clock->rate,
+		clock->rate / range_divisor, range_units);
+
+	return result;
+
+}
+
+static const struct seq_operations mxc_proc_clocks_seq_ops = {
+	.start = mxc_proc_clocks_seq_start,
+	.next  = mxc_proc_clocks_seq_next,
+	.stop  = mxc_proc_clocks_seq_stop,
+	.show  = mxc_proc_clocks_seq_show
+};
+
+static int mxc_proc_clocks_open(struct inode *inode, struct file *file)
+{
+	return seq_open(file, &mxc_proc_clocks_seq_ops);
+}
+
+static const struct file_operations mxc_proc_clocks_ops = {
+	.open    = mxc_proc_clocks_open,
+	.read    = seq_read,
+	.llseek  = seq_lseek,
+	.release = seq_release,
+};
 
 static int __init mxc_setup_proc_entry(void)
 {
 	struct proc_dir_entry *res;
 
-	res = create_proc_read_entry("cpu/clocks", 0, NULL,
-				     mxc_clock_read_proc, NULL);
+	res = create_proc_entry("cpu/clocks", 0, NULL);
 	if (!res) {
 		printk(KERN_ERR "Failed to create proc/cpu/clocks\n");
 		return -ENOMEM;
 	}
+	res->proc_fops = &mxc_proc_clocks_ops;
 	return 0;
 }
 
