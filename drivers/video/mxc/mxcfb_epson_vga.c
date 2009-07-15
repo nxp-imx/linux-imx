@@ -211,11 +211,17 @@ static int __devexit lcd_plat_remove(struct platform_device *pdev)
 
 static int lcd_suspend(struct spi_device *spi, pm_message_t message)
 {
+	lcd_poweroff();
 	return 0;
 }
 
 static int lcd_resume(struct spi_device *spi)
 {
+	if (lcd_reset)
+		lcd_reset();
+
+	lcd_init();
+	lcd_poweron();
 	return 0;
 }
 
@@ -254,7 +260,6 @@ static void lcd_init(void)
 	const u16 cmd[] = { 0x36, param(0), 0x3A, param(0x60) };
 
 	dev_dbg(lcd_dev, "initializing LCD\n");
-
 	if (lcd_spi) {
 		spi_write(lcd_spi, (const u8 *)cmd, ARRAY_SIZE(cmd));
 	} else {
@@ -277,7 +282,6 @@ static void lcd_poweron(void)
 	const u16 slpout = 0x11;
 	const u16 dison = 0x29;
 	ipu_channel_params_t param;
-
 	if (lcd_on)
 		return;
 
@@ -309,7 +313,6 @@ static void lcd_poweroff(void)
 	const u16 slpin = 0x10;
 	const u16 disoff = 0x28;
 	ipu_channel_params_t param;
-
 	if (!lcd_on)
 		return;
 
