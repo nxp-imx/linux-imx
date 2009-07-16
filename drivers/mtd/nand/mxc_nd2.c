@@ -892,6 +892,8 @@ static void mxc_nand_command(struct mtd_info *mtd, unsigned command,
 		}
 
 		g_nandfc_info.colAddr = column;
+		column = 0;
+
 		break;
 
 	case NAND_CMD_PAGEPROG:
