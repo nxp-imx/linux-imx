@@ -24,6 +24,7 @@
 #include <linux/init.h>
 #include <mach/hardware.h>
 #include <asm/io.h>
+#include "crm_regs.h"
 
 /*!
  * CPU initialization. It is called by fixup_mxc_board()
@@ -37,6 +38,10 @@ void __init mxc_cpu_init(void)
 static int __init post_cpu_init(void)
 {
 	unsigned int base, reg;
+
+	/* Set ALP bits to 000. Set ALP_EN bit in Arm Memory Controller reg. */
+	reg = 0x8;
+	__raw_writel(reg, MXC_CORTEXA8_PLAT_AMC);
 
 	base = IO_ADDRESS(AIPS1_BASE_ADDR);
 	__raw_writel(0x0, base + 0x40);
