@@ -3526,16 +3526,6 @@ int __init mxc_clocks_init(unsigned long ckil, unsigned long osc, unsigned long 
 	int i = 0, j = 0, reg;
 	int wp_cnt = 0;
 
-	ckil_clk.rate = ckil;
-	osc_clk.rate = osc;
-	ckih_clk.rate = ckih1;
-	ckih2_clk.rate = ckih2;
-
-	clk_tree_init();
-
-	for (clkp = mxc_clks; clkp < mxc_clks + ARRAY_SIZE(mxc_clks); clkp++)
-		clk_register(*clkp);
-
 	/* Turn off all possible clocks */
 	if (mxc_jtag_enabled) {
 		__raw_writel(1 << MXC_CCM_CCGR0_CG0_OFFSET |
@@ -3572,6 +3562,16 @@ int __init mxc_clocks_init(unsigned long ckil, unsigned long osc, unsigned long 
 		     3 << MXC_CCM_CCGR5_CG11_OFFSET, MXC_CCM_CCGR5);
 
 	__raw_writel(1 << MXC_CCM_CCGR6_CG4_OFFSET, MXC_CCM_CCGR6);
+
+	ckil_clk.rate = ckil;
+	osc_clk.rate = osc;
+	ckih_clk.rate = ckih1;
+	ckih2_clk.rate = ckih2;
+
+	clk_tree_init();
+
+	for (clkp = mxc_clks; clkp < mxc_clks + ARRAY_SIZE(mxc_clks); clkp++)
+		clk_register(*clkp);
 
 	/*Setup the LPM bypass bits */
 	reg = __raw_readl(MXC_CCM_CLPCR);

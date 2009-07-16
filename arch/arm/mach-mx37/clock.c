@@ -2781,16 +2781,6 @@ int __init mxc_clocks_init(unsigned long ckil, unsigned long osc, unsigned long 
 	u32 reg;
 	int i;
 
-	ckil_clk.rate = ckil;
-	ckih_clk.rate = ckih1;
-	osc_clk.rate = osc;
-
-	clk_tree_init();
-
-	for (clkp = mxc_clks; clkp < mxc_clks + ARRAY_SIZE(mxc_clks); clkp++) {
-		clk_register(*clkp);
-	}
-
 	/* Turn off all possible clocks */
 	if (mxc_jtag_enabled) {
 		__raw_writel((1 << MXC_CCM_CCGR0_CG0_OFFSET) |
@@ -2825,6 +2815,15 @@ int __init mxc_clocks_init(unsigned long ckil, unsigned long osc, unsigned long 
 		     (1 << MXC_CCM_CCGR5_CG13_OFFSET) |
 		     (1 << MXC_CCM_CCGR5_CG14_OFFSET) |
 		     MXC_CCM_CCGR5_CG11_MASK, MXC_CCM_CCGR5);
+
+	ckil_clk.rate = ckil;
+	ckih_clk.rate = ckih1;
+	osc_clk.rate = osc;
+
+	clk_tree_init();
+
+	for (clkp = mxc_clks; clkp < mxc_clks + ARRAY_SIZE(mxc_clks); clkp++)
+		clk_register(*clkp);
 
 	reg = __raw_readl(MXC_CCM_CCSR);
 	/*STEP_CLK - make sure its source is lp_apm */
