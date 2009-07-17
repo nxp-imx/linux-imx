@@ -429,6 +429,12 @@ config MXC_IIM
 	help
 	  Support for access to MXC IIM device, most people should say N here.
 
+config MXS_VIIM
+	tristate "MXS Virtual IIM device driver"
+	depends on ARCH_STMP3XXX
+	help
+	  Support for access to MXS Virtual IIM device, most people should say N here.
+
 config IMX_SIM
 	tristate "IMX SIM support"
 	depends on ARCH_MX51
