@@ -37,6 +37,8 @@
 #include <mach/regs-power.h>
 #include <mach/regs-pxp.h>
 #include <mach/regs-usbctrl.h>
+#include <mach/regs-digctl.h>
+#include <mach/regs-ocotp.h>
 #include <mach/ddi_bc.h>
 
 #include <mach/stmp3xxx.h>
@@ -630,4 +632,24 @@ struct platform_device stmp3xxx_battery = {
 	.dev    = {
 		.platform_data = &battery_data,
 	}
+};
+
+struct resource viim_resources[] = {
+	[0] = {
+		.start  = REGS_DIGCTL_BASE_PHYS,
+		.end    = REGS_DIGCTL_BASE_PHYS + PAGE_SIZE - 1,
+		.flags  = IORESOURCE_MEM,
+	},
+	[1] = {
+		.start  = REGS_OCOTP_BASE_PHYS,
+		.end    = REGS_OCOTP_BASE_PHYS + PAGE_SIZE - 1,
+		.flags  = IORESOURCE_MEM,
+	},
+};
+
+struct platform_device stmp3xxx_viim = {
+	.name   = "mxs_viim",
+	.id     = 0,
+	.resource = viim_resources,
+	.num_resources = ARRAY_SIZE(viim_resources),
 };

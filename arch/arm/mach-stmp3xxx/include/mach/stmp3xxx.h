@@ -76,7 +76,7 @@ extern struct platform_device stmp3xxx_appuart, stmp3xxx_dbguart,
 			      stmp3xxx_usb, stmp3xxx_battery,
 			      stmp3xxx_persistent, stmp3xxx_dcp_bootstream,
 			      stmp3xxx_dcp,
-			      stmp3xxx_mtest, stmp3xxx_pxp;
+			      stmp3xxx_mtest, stmp3xxx_pxp, stmp3xxx_viim;
 #ifdef CONFIG_PM
 suspend_state_t stmp37xx_pm_get_target(void);
 int stmp37xx_pm_sleep_was_deep(void);
