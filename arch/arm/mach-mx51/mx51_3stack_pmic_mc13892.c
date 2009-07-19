@@ -36,6 +36,23 @@
 #define STANDBYSECINV_LSH 11
 #define STANDBYSECINV_WID 1
 
+/* Coin cell charger enable */
+#define CIONCHEN_LSH	23
+#define CIONCHEN_WID	1
+/* Coin cell charger voltage setting */
+#define VCOIN_LSH	20
+#define VCOIN_WID	3
+
+/* Coin Charger voltage */
+#define VCOIN_2_5V	0x0
+#define VCOIN_2_7V	0x1
+#define VCOIN_2_8V	0x2
+#define VCOIN_2_9V	0x3
+#define VCOIN_3_0V	0x4
+#define VCOIN_3_1V	0x5
+#define VCOIN_3_2V	0x6
+#define VCOIN_3_3V	0x7
+
 /* CPU */
 static struct regulator_consumer_supply sw1_consumers[] = {
 	{
@@ -278,6 +295,11 @@ static int mc13892_regulator_init(struct mc13892 *mc13892)
 	value = BITFVAL(STANDBYSECINV, 1);
 	register_mask = BITFMASK(STANDBYSECINV);
 	pmic_write_reg(REG_POWER_CTL2, value, register_mask);
+
+	/* Enable coin cell charger */
+	value = BITFVAL(CIONCHEN, 1) | BITFVAL(VCOIN, VCOIN_3_0V);
+	register_mask = BITFMASK(CIONCHEN) | BITFMASK(VCOIN);
+	pmic_write_reg(REG_POWER_CTL0, value, register_mask);
 
 	mc13892_register_regulator(mc13892, MC13892_SW1, &sw1_init);
 	mc13892_register_regulator(mc13892, MC13892_SW2, &sw2_init);
