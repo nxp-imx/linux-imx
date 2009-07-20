@@ -53,6 +53,10 @@
 #define VCOIN_3_2V	0x6
 #define VCOIN_3_3V	0x7
 
+/* Keeps VSRTC and CLK32KMCU on for all states */
+#define DRM_LSH 4
+#define DRM_WID 1
+
 /* CPU */
 static struct regulator_consumer_supply sw1_consumers[] = {
 	{
@@ -285,10 +289,11 @@ static int mc13892_regulator_init(struct mc13892 *mc13892)
 	pmic_event_subscribe(EVENT_PWRONI, power_key_event);
 
 	/* Bit 4 DRM: keep VSRTC and CLK32KMCU on for all states */
-	pmic_read_reg(REG_POWER_CTL0, &value, 0xffffff);
-	value |= 0x000010;
-	pmic_write_reg(REG_POWER_CTL0, value, 0xffffff);
-
+#if defined(CONFIG_RTC_DRV_MXC_V2) || defined(CONFIG_RTC_DRV_MXC_V2_MODULE)
+	value = BITFVAL(DRM, 1);
+	register_mask = BITFMASK(DRM);
+	pmic_write_reg(REG_POWER_CTL0, value, register_mask);
+#endif
 	/* Set the STANDBYSECINV bit, so that STANDBY pin is
 	 * interpreted as active low.
 	 */
