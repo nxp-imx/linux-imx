@@ -73,6 +73,22 @@ static struct platform_device dr_udc_device = {
 	.num_resources = ARRAY_SIZE(otg_resources),
 };
 
+static u64 dr_otg_dmamask = ~(u32) 0;
+static void dr_otg_release(struct device *dev)
+{}
+
+static struct platform_device __maybe_unused dr_otg_device = {
+	.name = "fsl-usb2-otg",
+	.id = -1,
+	.dev  = {
+		.release           = dr_otg_release,
+		.dma_mask          = &dr_otg_dmamask,
+		.coherent_dma_mask = 0xffffffff,
+	},
+	.resource      = otg_resources,
+	.num_resources = ARRAY_SIZE(otg_resources),
+};
+
 /* Notes: configure USB clock*/
 static int usbotg_init_ext(struct platform_device *pdev)
 {
@@ -110,7 +126,7 @@ static int __init usb_dr_init(void)
 {
 	pr_debug("%s: \n", __func__);
 
-	/* dr_register_otg(); */
+	dr_register_otg();
 	dr_register_host(otg_resources, ARRAY_SIZE(otg_resources));
 	dr_register_udc();
 
