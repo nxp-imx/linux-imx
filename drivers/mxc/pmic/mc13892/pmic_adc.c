@@ -64,7 +64,7 @@
 #define ADC_DELAY_MASK          0x07F800
 #define ADC_ATO                 0x080000
 #define ASC_ADC                 0x100000
-#define ADC_WAIT_TSI_1		0x300001
+#define ADC_WAIT_TSI_1		0x200001
 #define ADC_NO_ADTRIG           0x200000
 
 /*
