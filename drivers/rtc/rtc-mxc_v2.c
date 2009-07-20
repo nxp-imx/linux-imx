@@ -170,21 +170,13 @@ static DEFINE_SPINLOCK(rtc_lock);
  */
 static inline void rtc_write_sync_lp(void __iomem *ioaddr)
 {
-	while ((__raw_readl(ioaddr + SRTC_HPISR) & SRTC_ISR_WPLP) != 0)
-		msleep(1);
-	while ((__raw_readl(ioaddr + SRTC_HPISR) & SRTC_ISR_WDLP) == 0)
-		msleep(1);
-	__raw_writel(SRTC_ISR_WDLP, ioaddr + SRTC_HPISR);
-	while ((__raw_readl(ioaddr + SRTC_HPISR) & SRTC_ISR_WPHP) != 0)
-		msleep(1);
-}
-
-static inline void rtc_write_sync_lp_no_wait(void __iomem *ioaddr)
-{
-	while ((__raw_readl(ioaddr + SRTC_HPISR) & SRTC_ISR_WPLP) != 0);
-	while ((__raw_readl(ioaddr + SRTC_HPISR) & SRTC_ISR_WDLP) == 0);
-	__raw_writel(SRTC_ISR_WDLP, ioaddr + SRTC_HPISR);
-	while ((__raw_readl(ioaddr + SRTC_HPISR) & SRTC_ISR_WPHP) != 0);
+	unsigned int i, count;
+	/* Wait for 3 CKIL cycles */
+	for (i = 0; i < 3; i++) {
+		count = __raw_readl(ioaddr + SRTC_LPSCLR);
+		while
+			((__raw_readl(ioaddr + SRTC_LPSCLR)) == count);
+	}
 }
 
 /*!
@@ -310,7 +302,6 @@ static void mxc_rtc_release(struct device *dev)
 
 	spin_unlock_irqrestore(&rtc_lock, lock_flags);
 
-	rtc_write_sync_lp(ioaddr);
 	clk_disable(pdata->clk);
 
 	rtc_status = 0;
@@ -568,11 +559,11 @@ static int mxc_rtc_probe(struct platform_device *pdev)
 
 	/* initialize glitch detect */
 	__raw_writel(SRTC_LPPDR_INIT, ioaddr + SRTC_LPPDR);
-	rtc_write_sync_lp_no_wait(ioaddr);
+	udelay(100);
 
 	/* clear lp interrupt status */
 	__raw_writel(0xFFFFFFFF, ioaddr + SRTC_LPSR);
-	rtc_write_sync_lp_no_wait(ioaddr);
+	udelay(100);;
 
 	plat_data = (struct mxc_srtc_platform_data *)pdev->dev.platform_data;
 	clk = clk_get(NULL, "iim_clk");
@@ -584,13 +575,13 @@ static int mxc_rtc_probe(struct platform_device *pdev)
 	    SRTC_SECMODE_LOW) && (cpu_is_mx51_rev(CHIP_REV_1_0) == 1)) {
 		/* Workaround for MX51 TO1 due to inaccurate CKIL clock */
 		__raw_writel(SRTC_LPCR_EN_LP, ioaddr + SRTC_LPCR);
-		rtc_write_sync_lp_no_wait(ioaddr);
+		udelay(100);
 	} else {
 		/* move out of init state */
 		__raw_writel((SRTC_LPCR_IE | SRTC_LPCR_NSA),
 			     ioaddr + SRTC_LPCR);
 
-		rtc_write_sync_lp_no_wait(ioaddr);
+		udelay(100);
 
 		while ((__raw_readl(ioaddr + SRTC_LPSR) & SRTC_LPSR_IES) == 0);
 
@@ -598,12 +589,12 @@ static int mxc_rtc_probe(struct platform_device *pdev)
 		__raw_writel((SRTC_LPCR_IE | SRTC_LPCR_NVE | SRTC_LPCR_NSA |
 			      SRTC_LPCR_EN_LP), ioaddr + SRTC_LPCR);
 
-		rtc_write_sync_lp_no_wait(ioaddr);
+		udelay(100);
 
 		while ((__raw_readl(ioaddr + SRTC_LPSR) & SRTC_LPSR_NVES) == 0);
 
 		__raw_writel(0xFFFFFFFF, ioaddr + SRTC_LPSR);
-		rtc_write_sync_lp_no_wait(ioaddr);
+		udelay(100);
 	}
 	clk_disable(clk);
 	clk_put(clk);
