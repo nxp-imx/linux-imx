@@ -176,6 +176,15 @@ static struct regulator_init_data dcdc5_data = {
 			},
 };
 
+static struct regulator_init_data dcdc2_data = {
+	.constraints = {
+			.name = "DCDC2",
+			.min_uV = 0,
+			.max_uV = 5000000,
+			.valid_modes_mask = REGULATOR_MODE_NORMAL,
+			},
+};
+
 static void wm8350_nop_release(struct device *dev)
 {
 	/* Nothing */
@@ -249,6 +258,7 @@ static int mx37_wm8350_init(struct wm8350 *wm8350)
 		printk(KERN_ERR "Error in setting USB VBUS enable pin\n");
 
 	wm8350_register_regulator(wm8350, WM8350_DCDC_1, &dcdc1_data);
+	wm8350_register_regulator(wm8350, WM8350_DCDC_2, &dcdc2_data);
 	wm8350_register_regulator(wm8350, WM8350_DCDC_3, &dcdc3_data);
 	wm8350_register_regulator(wm8350, WM8350_DCDC_4, &dcdc4_data);
 	wm8350_register_regulator(wm8350, WM8350_DCDC_5, &dcdc5_data);
@@ -308,6 +318,7 @@ static __init int wm8350_regulator_init(void)
 	struct regulator *regulator;
 	char *wm8350_global_regulator[] = {
 		"DCDC1",
+		"DCDC2",
 		"DCDC3",
 		"DCDC4",
 		"DCDC6",
