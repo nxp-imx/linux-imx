@@ -32,6 +32,8 @@ static struct device *iim_dev;
  */
 static int mxs_viim_mmap(struct file *file, struct vm_area_struct *vma)
 {
+	size_t size = vma->vm_end - vma->vm_start;
+
 	vma->vm_page_prot = pgprot_noncached(vma->vm_page_prot);
 
 	/* Remap-pfn-range will mark the range VM_IO and VM_RESERVED */
@@ -42,12 +44,14 @@ static int mxs_viim_mmap(struct file *file, struct vm_area_struct *vma)
 			    vma->vm_page_prot))
 		return -EAGAIN;
 
-	if (remap_pfn_range(vma,
-			    vma->vm_start + iim_reg_size0,
-			    iim_reg_base1 >> PAGE_SHIFT,
-			    iim_reg_size1,
-			    vma->vm_page_prot))
-		return -EAGAIN;
+	if (size > iim_reg_size0) {
+		if (remap_pfn_range(vma,
+				    vma->vm_start + iim_reg_size0,
+				    iim_reg_base1 >> PAGE_SHIFT,
+				    iim_reg_size1,
+				    vma->vm_page_prot))
+			return -EAGAIN;
+	}
 
 	return 0;
 }
