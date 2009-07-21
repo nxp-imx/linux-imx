@@ -219,6 +219,8 @@ static int __devinit pmic_probe(struct spi_device *spi)
 		return ret;
 	}
 
+	enable_irq_wake(spi->irq);
+
 	if (plat_data && plat_data->init) {
 		ret = plat_data->init(spi_get_drvdata(spi));
 		if (ret != 0) {
