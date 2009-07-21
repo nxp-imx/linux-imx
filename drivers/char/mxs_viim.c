@@ -32,11 +32,6 @@ static struct device *iim_dev;
  */
 static int mxs_viim_mmap(struct file *file, struct vm_area_struct *vma)
 {
-
-	/* Check the physical addresses which can be mapped */
-	if ((vma->vm_pgoff != 0))
-		return -EINVAL;
-
 	vma->vm_page_prot = pgprot_noncached(vma->vm_page_prot);
 
 	/* Remap-pfn-range will mark the range VM_IO and VM_RESERVED */
