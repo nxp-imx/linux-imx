@@ -961,7 +961,7 @@ static int ov2640_probe(struct i2c_client *client,
 	}
 
 	/* This function attaches this structure to the /dev/video0 device.
-	 * The pointer in priv points to the mt9v111_data structure here.*/
+	 * The pointer in priv points to the ov2640_data structure here.*/
 	ov2640_int_device.priv = &ov2640_data;
 	retval = v4l2_int_device_register(&ov2640_int_device);
 

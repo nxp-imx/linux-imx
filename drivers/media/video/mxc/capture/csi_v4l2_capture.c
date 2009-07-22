@@ -90,7 +90,6 @@ static int start_preview(cam_data *cam)
 	__raw_writel(__raw_readl(CSI_CSICR3) | BIT_DMA_REFLASH_RFF, CSI_CSICR3);
 
 	csi_enable_int(0);
-	csi_enable_mclk(CSI_MCLK_I2C, true, true);
 
 	return 0;
 }
@@ -104,7 +103,6 @@ static int start_preview(cam_data *cam)
  */
 static int stop_preview(cam_data *cam)
 {
-	csi_enable_mclk(CSI_MCLK_I2C, false, false);
 	csi_disable_int();
 
 	/* set CSI_CSIDMASA_FB1 and CSI_CSIDMASA_FB2 to default value */
@@ -325,9 +323,7 @@ static int csi_v4l2_s_param(cam_data *cam, struct v4l2_streamparm *parm)
 		 currentparm.parm.capture.timeperframe.denominator,
 		 parm->parm.capture.timeperframe.denominator);
 
-	csi_enable_mclk(CSI_MCLK_I2C, true, true);
 	err = vidioc_int_s_parm(cam->sensor, parm);
-	csi_enable_mclk(CSI_MCLK_I2C, false, false);
 	if (err) {
 		pr_err("%s: vidioc_int_s_parm returned an error %d\n",
 		       __func__, err);
@@ -382,7 +378,6 @@ static int csi_v4l_open(struct inode *inode, struct file *file)
 		cam_fmt.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
 		csi_enable_mclk(CSI_MCLK_I2C, true, true);
 		vidioc_int_init(cam->sensor);
-		csi_enable_mclk(CSI_MCLK_I2C, false, false);
 	}
 
 	file->private_data = dev;
@@ -424,6 +419,7 @@ static int csi_v4l_close(struct inode *inode, struct file *file)
 		wait_event_interruptible(cam->power_queue,
 					 cam->low_power == false);
 		file->private_data = NULL;
+		csi_enable_mclk(CSI_MCLK_I2C, false, false);
 	}
 
 	return err;
@@ -473,11 +469,9 @@ static ssize_t csi_v4l_read(struct file *file, char *buf, size_t count,
 		__raw_writel(__raw_readl(CSI_CSICR3) | BIT_FRMCNT_RST,
 			     CSI_CSICR3);
 		csi_enable_int(1);
-		csi_enable_mclk(CSI_MCLK_I2C, true, true);
 	}
 
 	wait_event_interruptible(cam->still_queue, cam->still_counter);
-	csi_enable_mclk(CSI_MCLK_I2C, false, false);
 	csi_disable_int();
 	err = copy_to_user(buf, cam->still_buf_vaddr,
 			   cam->v2f.fmt.pix.sizeimage);
@@ -544,9 +538,7 @@ static int csi_v4l_do_ioctl(struct inode *inode, struct file *file,
 			struct v4l2_format *sf = arg;
 			pr_debug("   case VIDIOC_S_FMT\n");
 			retval = csi_v4l2_s_fmt(cam, sf);
-			csi_enable_mclk(CSI_MCLK_I2C, true, true);
 			vidioc_int_s_fmt_cap(cam->sensor, sf);
-			csi_enable_mclk(CSI_MCLK_I2C, false, false);
 			break;
 		}
 
@@ -972,7 +964,7 @@ static __init int camera_init(void)
 	/* This function contains a bug that won't let this be rmmod'd. */
 	v4l2_int_device_register(&csi_v4l2_int_device);
 
-	/* Register the I2C device */
+	/* Register the platform device */
 	err = platform_device_register(&csi_v4l2_devices);
 	if (err != 0) {
 		pr_err("ERROR: v4l2 capture: camera_init: "
