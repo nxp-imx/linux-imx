@@ -123,6 +123,53 @@ static void mxc_nop_release(struct device *dev)
 	/* Nothing */
 }
 
+#if defined(CONFIG_KEYBOARD_MXC) || defined(CONFIG_KEYBOARD_MXC_MODULE)
+static u16 keymapping[24] = {
+	KEY_1, KEY_2, KEY_3, KEY_F1, KEY_UP, KEY_F2,
+	KEY_4, KEY_5, KEY_6, KEY_LEFT, KEY_SELECT, KEY_RIGHT,
+	KEY_7, KEY_8, KEY_9, KEY_F3, KEY_DOWN, KEY_F4,
+	KEY_0, KEY_OK, KEY_ESC, KEY_ENTER, KEY_MENU, KEY_BACK,
+};
+
+static struct resource mxc_kpp_resources[] = {
+	[0] = {
+	       .start = MXC_INT_KPP,
+	       .end = MXC_INT_KPP,
+	       .flags = IORESOURCE_IRQ,
+	       }
+};
+
+static struct keypad_data keypad_plat_data = {
+	.rowmax = 4,
+	.colmax = 6,
+	.irq = MXC_INT_KPP,
+	.learning = 0,
+	.delay = 2,
+	.matrix = keymapping,
+};
+
+/* mxc keypad driver */
+static struct platform_device mxc_keypad_device = {
+	.name = "mxc_keypad",
+	.id = 0,
+	.num_resources = ARRAY_SIZE(mxc_kpp_resources),
+	.resource = mxc_kpp_resources,
+	.dev = {
+		.release = mxc_nop_release,
+		.platform_data = &keypad_plat_data,
+		},
+};
+
+static void mxc_init_keypad(void)
+{
+	(void)platform_device_register(&mxc_keypad_device);
+}
+#else
+static inline void mxc_init_keypad(void)
+{
+}
+#endif
+
 #if defined(CONFIG_FB_MXC_SYNC_PANEL) || \
 	defined(CONFIG_FB_MXC_SYNC_PANEL_MODULE)
 static struct resource mxcfb_resources[] = {
@@ -874,6 +921,7 @@ static void __init mxc_board_init(void)
 
 	mxc_init_devices();
 
+	mxc_init_keypad();
 	mxc_init_mmc();
 	mxc_init_gpio_button();
 	mx51_babbage_init_mc13892();
