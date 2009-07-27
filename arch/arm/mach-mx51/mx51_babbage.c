@@ -198,6 +198,8 @@ static struct platform_device mxc_fb_device[] = {
 		 .coherent_dma_mask = 0xFFFFFFFF,
 		 .platform_data = &fb_data[0],
 		 },
+	 .num_resources = ARRAY_SIZE(mxcfb_resources),
+	 .resource = mxcfb_resources,
 	 },
 	{
 	 .name = "mxc_sdc_fb",
@@ -848,6 +850,8 @@ static inline void mxc_init_gpio_button(void)
 static void __init fixup_mxc_board(struct machine_desc *desc, struct tag *tags,
 				   char **cmdline, struct meminfo *mi)
 {
+	char *str;
+	int size = SZ_512M - SZ_32M;
 	struct tag *t;
 
 	mxc_cpu_init();
@@ -856,12 +860,24 @@ static void __init fixup_mxc_board(struct machine_desc *desc, struct tag *tags,
 	set_num_cpu_wp = mx51_babbage_set_num_cpu_wp;
 
 	for_each_tag(t, tags) {
+		if (t->hdr.tag != ATAG_CMDLINE)
+			continue;
+		str = t->u.cmdline.cmdline;
+		str = strstr(str, "mem=");
+		if (str != NULL) {
+			str += 4;
+			size = memparse(str, &str);
+			if (size == 0 || size == SZ_512M)
+				return;
+		}
+	}
+
+	for_each_tag(t, tags) {
 		if (t->hdr.tag != ATAG_MEM)
 			continue;
 
-		if (t->u.mem.size == SZ_512M)
-			t->u.mem.size -= SZ_32M;
-		mxcfb_resources[0].start = t->u.mem.start + t->u.mem.size;
+		t->u.mem.size = size;
+		mxcfb_resources[0].start = t->u.mem.start + size;
 		mxcfb_resources[0].end = t->u.mem.start + SZ_512M - 1;
 	}
 }
