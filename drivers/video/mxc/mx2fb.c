@@ -1012,7 +1012,7 @@ void mx2_gw_set(struct fb_gwinfo *gwinfo)
 static void _update_lcdc(struct fb_info *info)
 {
 	unsigned long base;
-	unsigned long perclk3, pcd, pcr;
+	unsigned long perclk, pcd, pcr;
 	struct fb_var_screeninfo *var = &info->var;
 	struct mx2fb_info *mx2fbi = (struct mx2fb_info *)info->par;
 
@@ -1038,15 +1038,14 @@ static void _update_lcdc(struct fb_info *info)
 	__raw_writel(info->var.xres_virtual >> 1, LCDC_REG(LCDC_LVPWR));
 
 	/* To setup LCDC pixel clock */
-	perclk3 = clk_round_rate(lcdc_clk, 134000000);
-	if (clk_set_rate(lcdc_clk, perclk3)) {
-		printk(KERN_INFO "mx2fb: Unable to set clock to %lu\n",
-		       perclk3);
-		perclk3 = clk_get_rate(lcdc_clk);
+	perclk = clk_round_rate(lcdc_clk, 134000000);
+	if (clk_set_rate(lcdc_clk, perclk)) {
+		printk(KERN_INFO "mx2fb: Unable to set clock to %lu\n", perclk);
+		perclk = clk_get_rate(lcdc_clk);
 	}
 
 	/* Calculate pixel clock divider, and round to the nearest integer */
-	pcd = (perclk3 * 8 / (PICOS2KHZ(var->pixclock) * 1000UL) + 4) / 8;
+	pcd = (perclk * 8 / (PICOS2KHZ(var->pixclock) * 1000UL) + 4) / 8;
 	if (--pcd > 0x3F)
 		pcd = 0x3F;
 
