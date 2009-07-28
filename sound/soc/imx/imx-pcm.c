@@ -67,7 +67,7 @@ static const struct snd_pcm_hardware imx_pcm_hardware = {
 	.buffer_bytes_max = 64 * 1024,
 	.period_bytes_max = 16 * 1024,
 #endif
-	.period_bytes_min = 64,
+	.period_bytes_min = 2 * SZ_1K,
 	.periods_min = 2,
 	.periods_max = 255,
 	.fifo_size = 0,
