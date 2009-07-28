@@ -97,6 +97,7 @@ void csi_init_interface(void)
 	val |= BIT_PACK_DIR;
 	val |= BIT_FCC;
 	val |= BIT_SWAP16_EN;
+	val |= 1 << SHIFT_MCLKDIV;
 	__raw_writel(val, CSI_CSICR1);
 
 	imag_para = (640 << 16) | 960;
@@ -221,7 +222,10 @@ static void csi_mclk_recalc(struct clk *clk)
 	u32 div;
 
 	div = (__raw_readl(CSI_CSICR1) & BIT_MCLKDIV) >> SHIFT_MCLKDIV;
-	div = (div + 1) * 2;
+	if (div == 0)
+		div = 1;
+	else
+		div = div * 2;
 
 	clk->rate = clk->parent->rate / div;
 }
@@ -241,6 +245,9 @@ int32_t __init csi_init_module(void)
 	int ret = 0;
 	struct clk *per_clk;
 
+	csihw_reset();
+	csi_init_interface();
+
 	per_clk = clk_get(NULL, "csi_clk");
 	if (IS_ERR(per_clk))
 		return PTR_ERR(per_clk);
@@ -251,9 +258,6 @@ int32_t __init csi_init_module(void)
 	clk_register(&csi_mclk);
 	clk_enable(per_clk);
 	csi_mclk_recalc(&csi_mclk);
-
-	csihw_reset();
-	csi_init_interface();
 
 	return ret;
 }
