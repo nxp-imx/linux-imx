@@ -505,7 +505,19 @@ static struct mxc_fm_platform_data si4702_data = {
 #if defined(CONFIG_I2C_MXC) || defined(CONFIG_I2C_MXC_MODULE)
 
 #ifdef CONFIG_I2C_MXC_SELECT1
+static struct mxc_camera_platform_data camera_data = {
+	.io_regulator = "SW4",
+	.analog_regulator = "VIOHI",
+	.mclk = 24000000,
+	.csi = 0,
+};
+
 static struct i2c_board_info mxc_i2c0_board_info[] __initdata = {
+	{
+	.type = "ov3640",
+	.addr = 0x3C,
+	.platform_data = (void *)&camera_data,
+	},
 };
 #endif
 #ifdef CONFIG_I2C_MXC_SELECT2
