@@ -101,7 +101,15 @@ struct usb_dr_device {
 	u32 endptcomplete;	/* Endpoint Complete Register */
 	u32 endptctrl[8 * 2];	/* Endpoint Control Registers */
 	u32 res8[256];
+#ifdef CONFIG_ARCH_MX51
+	u32 res9[128];		/* i.MX51 start from 0x800 */
+#endif
 	u32 usbctrl;
+	u32 otgmirror;
+	u32 phyctrl0;
+	u32 phyctrl1;
+	u32 ctrl1;
+	u32 uh2ctrl;
 };
 
  /* non-EHCI USB system interface registers (Big Endian) */
@@ -344,7 +352,15 @@ struct usb_sys_interface {
 #define  USB_CTRL_ULPI_INT0EN                 (0x00000001)
 #define  USB_CTRL_OTG_WUIR                   (0x80000000)
 #define  USB_CTRL_OTG_WUIE                   (0x08000000)
+#define  USB_CTRL_OTG_VWUE			(0x00001000)
+#define  USB_CTRL_OTG_IWUE			(0x00100000)
 
+/* PHY control0 Register Bit Masks */
+#define	PHY_CTRL0_CONF2			(1 << 26)
+
+/* USB UH2 CTRL Register Bits */
+#define USB_UH2_OVBWK_EN		(1 << 6) /* OTG VBUS Wakeup Enable */
+#define USB_UH2_OIDWK_EN		(1 << 5) /* OTG ID Wakeup Enable */
 /*!
  * Endpoint Queue Head data struct
  * Rem: all the variables of qh are LittleEndian Mode

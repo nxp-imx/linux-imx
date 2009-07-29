@@ -65,28 +65,12 @@ config USB_EHCI_ARC_H2
 	---help---
 	  Enable support for the USB Host2 port.
 
-config USB_EHCI_ARC_H2_WAKE_UP
-        bool "Support wake up from Freescale Host2 port"
-	depends on PM && USB_EHCI_ARC_H2
-	default n
-	---help---
-	  Enable support system wake up from Host2 port usb device
-	  connection and disconnection.
-
 config USB_EHCI_ARC_OTG
 	bool "Support for DR host port on Freescale controller"
 	depends on USB_EHCI_ARC
 	default y
 	---help---
 	  Enable support for the USB OTG port in HS/FS Host mode.
-
-config USB_EHCI_ARC_OTG_WAKE_UP
-        bool "Support wake up from Freescale OTG port"
-	depends on PM && ARCH_MXC && USB_EHCI_ARC_OTG
-	default n
-	---help---
-	  Enable support system wake up from Host1 port usb device
-	  connection and disconnection.
 
 config USB_STATIC_IRAM
 	bool "Use IRAM for USB"

@@ -64,6 +64,10 @@ EXPORT_SYMBOL(gpio_usbh1_setback_stp);
 
 static void gpio_usbh1_inactive(void)
 {
+	/* Signal only used on MX51-3DS for reset to PHY.*/
+	if (machine_is_mx51_3ds())
+		mxc_free_iomux(MX51_PIN_EIM_D17, IOMUX_CONFIG_GPIO);
+
 	mxc_request_gpio(MX51_PIN_USBH1_STP);
 	mxc_free_iomux(MX51_PIN_USBH1_STP, IOMUX_CONFIG_GPIO);
 }
@@ -96,8 +100,9 @@ static int __init usbh1_init(void)
 {
 	pr_debug("%s: \n", __func__);
 
-	host_pdev_register(usbh1_resources, ARRAY_SIZE(usbh1_resources),
-			   &usbh1_config);
+	host_pdev_register(usbh1_resources,
+			ARRAY_SIZE(usbh1_resources), &usbh1_config);
+
 	return 0;
 }
 

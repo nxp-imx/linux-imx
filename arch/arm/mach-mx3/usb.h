@@ -62,14 +62,8 @@ static struct fsl_usb2_platform_data __maybe_unused dr_13783_config;
 #ifdef CONFIG_USB_EHCI_ARC_OTG
 static inline void dr_register_host(struct resource *r, int rs)
 {
-	struct platform_device *dr_pdev;
-
 	PDATA->operating_mode = DR_HOST_MODE;
-	dr_pdev = host_pdev_register(r, rs, PDATA);
-#ifdef CONFIG_USB_EHCI_ARC_OTG_WAKE_UP
-	/* set host may and should wakeup */
-	device_init_wakeup(&(dr_pdev->dev), 1);
-#endif
+	host_pdev_register(r, rs, PDATA);
 }
 #else
 static inline void dr_register_host(struct resource *r, int rs)

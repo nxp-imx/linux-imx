@@ -397,24 +397,21 @@ static int usb_register_remote_wakeup(struct platform_device *pdev)
 {
 	pr_debug("%s: pdev=0x%p \n", __func__, pdev);
 
-	if (device_may_wakeup(&pdev->dev)) {
-		struct resource *res;
-		int irq;
+	struct resource *res;
+	int irq;
 
-		res = platform_get_resource(pdev, IORESOURCE_IRQ, 0);
-		if (!res) {
-			dev_err(&pdev->dev,
-			"Found HC with no IRQ. Check %s setup!\n",
-			pdev->dev.bus_id);
-			return -ENODEV;
-		}
-		irq = res->start;
-		enable_irq_wake(irq);
-
-		return 0;
+	res = platform_get_resource(pdev, IORESOURCE_IRQ, 0);
+	if (!res) {
+		dev_err(&pdev->dev,
+		"Found HC with no IRQ. Check %s setup!\n",
+		pdev->dev.bus_id);
+		return -ENODEV;
 	}
+	irq = res->start;
+	pdev->dev.power.can_wakeup = 1;
+	enable_irq_wake(irq);
 
-	return -EINVAL;
+	return 0;
 }
 
 extern void gpio_usbh1_setback_stp(void);
@@ -466,7 +463,7 @@ int fsl_usb_host_init(struct platform_device *pdev)
 		xops->init(xops);
 
 	if (usb_register_remote_wakeup(pdev))
-		pr_debug("Host is not a wakeup source.\n");
+		pr_debug("%s port is not a wakeup source.\n", pdata->name);
 
 	if (xops->xcvr_type == PORTSC_PTS_SERIAL) {
 		if (cpu_is_mx35()) {
@@ -480,14 +477,17 @@ int fsl_usb_host_init(struct platform_device *pdev)
 	} else if (xops->xcvr_type == PORTSC_PTS_ULPI) {
 		if (cpu_is_mx51()) {
 #ifdef CONFIG_USB_EHCI_ARC_H1
-		if (pdata->name == "Host 1") {
+		if (!strcmp("Host 1", pdata->name)) {
 			usbh1_set_ulpi_xcvr();
-			if (cpu_is_mx51())
-			gpio_usbh1_setback_stp();
+			if (cpu_is_mx51()) {
+				gpio_usbh1_setback_stp();
+				/* disable remote wakeup irq */
+				USBCTRL &= ~UCTRL_H1WIE;
 			}
+		}
 #endif
 #ifdef CONFIG_USB_EHCI_ARC_H2
-		if (pdata->name == "Host 2") {
+		if (!strcmp("Host 2", pdata->name)) {
 			usbh2_set_ulpi_xcvr();
 			if (cpu_is_mx51())
 				gpio_usbh2_setback_stp();
@@ -496,10 +496,6 @@ int fsl_usb_host_init(struct platform_device *pdev)
 		} else
 			usbh2_set_ulpi_xcvr();
 	}
-
-	if (pdata->name == "Host 2")
-		/* disable remote wakeup irq */
-		USBCTRL &= ~UCTRL_H2WIE;
 
 	pr_debug("%s: %s success\n", __func__, pdata->name);
 	return 0;
@@ -690,7 +686,7 @@ static void otg_set_utmi_xcvr(void)
 	}
 
 	USBCTRL &= ~UCTRL_OPM;	/* OTG Power Mask */
-	USBCTRL |= UCTRL_OWIE;	/* OTG Wakeup Intr Enable */
+	USBCTRL &= ~UCTRL_OWIE;	/* OTG Wakeup Intr Disable */
 
 	/* set UTMI xcvr */
 	tmp = UOG_PORTSC1 & ~PORTSC_PTS_MASK;
@@ -716,9 +712,6 @@ static void otg_set_utmi_xcvr(void)
 		USB_PHY_CTR_FUNC &= ~USB_UTMI_PHYCTRL_UTMI_ENABLE;
 		USB_PHY_CTR_FUNC |= USB_UTMI_PHYCTRL_UTMI_ENABLE;
 	}
-
-	if (UOG_HCSPARAMS & HCSPARAMS_PPC)
-		UOG_PORTSC1 |= PORTSC_PORT_POWER;
 
 	/* need to reset the controller here so that the ID pin
 	 * is correctly detected.
@@ -775,9 +768,6 @@ int usbotg_init(struct platform_device *pdev)
 		if (xops->init)
 			xops->init(xops);
 
-		if (usb_register_remote_wakeup(pdev))
-			pr_debug("DR is not a wakeup source.\n");
-
 		if (xops->xcvr_type == PORTSC_PTS_SERIAL) {
 			if (pdata->operating_mode == FSL_USB2_DR_HOST) {
 				otg_set_serial_host();
@@ -792,10 +782,10 @@ int usbotg_init(struct platform_device *pdev)
 		} else if (xops->xcvr_type == PORTSC_PTS_UTMI) {
 			otg_set_utmi_xcvr();
 		}
-
-		/* disable remote wakeup irq */
-		USBCTRL &= ~UCTRL_OWIE;
 	}
+
+	if (usb_register_remote_wakeup(pdev))
+		pr_debug("DR is not a wakeup source.\n");
 
 	otg_used++;
 	pr_debug("%s: success\n", __func__);
@@ -827,37 +817,44 @@ void usbotg_uninit(struct fsl_usb2_platform_data *pdata)
 }
 EXPORT_SYMBOL(usbotg_uninit);
 
-#if defined(CONFIG_USB_EHCI_ARC_H2_WAKE_UP) || \
-	defined(CONFIG_USB_EHCI_ARC_OTG_WAKE_UP)
-int usb_wakeup_irq(struct device *wkup_dev)
+int usb_host_wakeup_irq(struct device *wkup_dev)
 {
 	int wakeup_req = 0;
 	struct fsl_usb2_platform_data *pdata = wkup_dev->platform_data;
 
-	if (pdata->name == "Host 2")
-		wakeup_req = USBCTRL & UCTRL_H2WIR;
-	else if (pdata->name == "DR")
+	if (!strcmp("Host 1", pdata->name)) {
+		wakeup_req = USBCTRL & UCTRL_H1WIR;
+	} else if (!strcmp("DR", pdata->name)) {
 		wakeup_req = USBCTRL & UCTRL_OWIR;
+		/* If DR is in device mode, let udc handle it */
+		if (wakeup_req && ((UOG_USBMODE & 0x3) == 0x2))
+			wakeup_req = 0;
+	}
 
 	return wakeup_req;
 }
-EXPORT_SYMBOL(usb_wakeup_irq);
+EXPORT_SYMBOL(usb_host_wakeup_irq);
 
-void usb_wakeup_set(struct device *wkup_dev, int para)
+void usb_host_set_wakeup(struct device *wkup_dev, bool para)
 {
 	struct fsl_usb2_platform_data *pdata = wkup_dev->platform_data;
 
-	if (pdata->name == "Host 2") {
-		if (para)
-			USBCTRL |= UCTRL_H2WIE;
-		else
-			USBCTRL &= ~UCTRL_H2WIE;
-	} else if (pdata->name == "DR") {
-		if (para)
+	/* If this device may wakeup */
+	if (device_may_wakeup(wkup_dev) && para)
+		if (!strcmp("Host 1", pdata->name)) {
+			USBCTRL |= UCTRL_H1WIE;
+		} else if (!strcmp("DR", pdata->name)) {
 			USBCTRL |= UCTRL_OWIE;
-		else
+			/* Enable OTG ID Wakeup */
+			USBCTRL_HOST2 |= (1 << 5);
+		}
+
+	if (!para)
+		if (!strcmp("Host 1", pdata->name))
+			USBCTRL &= ~UCTRL_H1WIE;
+		else if (!strcmp("DR", pdata->name)) {
 			USBCTRL &= ~UCTRL_OWIE;
-	}
+			USBCTRL_HOST2 &= ~(1 << 5);
+		}
 }
-EXPORT_SYMBOL(usb_wakeup_set);
-#endif
+EXPORT_SYMBOL(usb_host_set_wakeup);

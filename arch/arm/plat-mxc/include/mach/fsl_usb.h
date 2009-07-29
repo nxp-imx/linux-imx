@@ -48,10 +48,20 @@ static inline void fsl_platform_set_host_mode(struct usb_hcd *hcd)
 	writel(temp | USBMODE_CM_HOST, hcd->regs + 0x1a8);
 }
 
-/* Needed for i2c/serial transceivers */
+/* Needed for enable PP and i2c/serial transceivers */
 static inline void
 fsl_platform_set_vbus_power(struct fsl_usb2_platform_data *pdata, int on)
 {
+	u32 temp;
+
+	/* HCSPARAMS */
+	temp = readl(pdata->regs + 0x104);
+	/* Port Power Control */
+	if (temp & HCSPARAMS_PPC) {
+		temp = readl(pdata->regs + FSL_SOC_USB_PORTSC1);
+		writel(temp | PORT_POWER, pdata->regs + FSL_SOC_USB_PORTSC1);
+	}
+
 	if (pdata->xcvr_ops && pdata->xcvr_ops->set_vbus_power)
 		pdata->xcvr_ops->set_vbus_power(pdata->xcvr_ops, pdata, on);
 }

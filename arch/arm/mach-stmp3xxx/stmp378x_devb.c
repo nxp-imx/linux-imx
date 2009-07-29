@@ -236,6 +236,17 @@ static int usb_phy_enable(struct platform_device *pdev)
 	return 0;
 }
 
+int usb_host_wakeup_irq(struct device *wkup_dev)
+{
+	return 0;
+}
+EXPORT_SYMBOL(usb_host_wakeup_irq);
+
+void usb_host_set_wakeup(struct device *wkup_dev, bool para)
+{
+}
+EXPORT_SYMBOL(usb_host_set_wakeup);
+
 static struct stmp37xx_spi_platform_data enc_data = {
 	.irq_pin = PINID_SSP1_DATA1,
 	.hw_init = stmp37xx_spi_enc_init,

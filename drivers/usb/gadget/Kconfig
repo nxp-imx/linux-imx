@@ -487,12 +487,6 @@ config USB_GADGET_ARC_OTG
 	help
 	  Enable support for the Freescale Dual Role port in peripheral mode.
 
-config USB_GADGET_WAKE_UP
-	bool "Support gadget wake up by DR port"
-	depends on USB_GADGET_ARC_OTG && ARCH_MXC
-	default n
-	help
-	  Enable system wake up from SR or DSM mode by connected host.
 choice
 	prompt "Select transceiver for DR port"
 	depends on USB_GADGET_ARC_OTG

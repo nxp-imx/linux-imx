@@ -256,6 +256,64 @@ static void nuke(struct fsl_ep *ep, int status)
 	Internal Hardware related function
  ------------------------------------------------------------------*/
 
+static void dr_phy_low_power_mode(struct fsl_udc *udc, bool enable)
+{
+	u32 temp;
+
+	if (!device_may_wakeup(&(udc->pdata->pdev->dev)))
+		return;
+
+	temp = fsl_readl(&dr_regs->portsc1);
+	if ((enable) && !(temp & PORTSCX_PHY_LOW_POWER_SPD)) {
+		temp |= PORTSCX_PHY_LOW_POWER_SPD;
+		fsl_writel(temp, &dr_regs->portsc1);
+
+		if (udc_controller->pdata->usb_clock_for_pm)
+			udc_controller->pdata->usb_clock_for_pm(false);
+	} else if ((!enable) && (temp & PORTSCX_PHY_LOW_POWER_SPD)) {
+		if (udc_controller->pdata->usb_clock_for_pm)
+			udc_controller->pdata->usb_clock_for_pm(true);
+
+		temp &= ~PORTSCX_PHY_LOW_POWER_SPD;
+		fsl_writel(temp, &dr_regs->portsc1);
+	}
+}
+
+static void dr_wake_up_enable(struct fsl_udc *udc, bool enable)
+{
+	u32 temp;
+
+	temp = fsl_readl(&dr_regs->usbctrl);
+
+	if (!enable) {
+		temp &= ~USB_CTRL_OTG_WUIE;
+		fsl_writel(temp, &dr_regs->usbctrl);
+
+		/* OTG vbus Wakeup disable */
+		temp = fsl_readl(&dr_regs->uh2ctrl);
+		temp &= ~USB_UH2_OVBWK_EN;
+		fsl_writel(temp, &dr_regs->uh2ctrl);
+
+		/* disable conf2 */
+		temp = fsl_readl(&dr_regs->phyctrl0);
+		temp &= ~PHY_CTRL0_CONF2;
+		fsl_writel(temp, &dr_regs->phyctrl0);
+	} else if (device_may_wakeup(&(udc->pdata->pdev->dev))) {
+		temp |= USB_CTRL_OTG_WUIE;
+		fsl_writel(temp, &dr_regs->usbctrl);
+
+		/* OTG vbus wakeup enable */
+		temp = fsl_readl(&dr_regs->uh2ctrl);
+		temp |= USB_UH2_OVBWK_EN;
+		fsl_writel(temp, &dr_regs->uh2ctrl);
+
+		/* enable conf2 */
+		temp = fsl_readl(&dr_regs->phyctrl0);
+		temp |= PHY_CTRL0_CONF2;
+		fsl_writel(temp, &dr_regs->phyctrl0);
+	}
+}
+
 static int dr_controller_setup(struct fsl_udc *udc)
 {
 	unsigned int tmp = 0, portctrl = 0;
@@ -1864,20 +1922,14 @@ static void suspend_irq(struct fsl_udc *udc)
 		udc->driver->suspend(&udc->gadget);
 }
 
-#ifdef CONFIG_USB_GADGET_WAKE_UP
 /* Process Wake up interrupt */
 static void wake_up_irq(struct fsl_udc *udc)
 {
-	u32 irq_src;
-
 	pr_debug("%s\n", __func__);
 
 	/* disable wake up irq */
-	irq_src = fsl_readl(&dr_regs->usbctrl);
-	irq_src &= ~USB_CTRL_OTG_WUIE;
-	fsl_writel(irq_src, &dr_regs->usbctrl);
+	dr_wake_up_enable(udc, false);
 }
-#endif
 
 static void bus_resume(struct fsl_udc *udc)
 {
@@ -1968,28 +2020,31 @@ static irqreturn_t fsl_udc_irq(int irq, void *_udc)
 	irqreturn_t status = IRQ_NONE;
 	unsigned long flags;
 
-#ifdef CONFIG_USB_GADGET_WAKE_UP
-	spin_lock_irqsave(&udc->lock, flags);
-	/* check USBCTRL register to see if wake up irq */
-	irq_src =  fsl_readl(&dr_regs->usbctrl);
-	if (irq_src & USB_CTRL_OTG_WUIR) {
-		wake_up_irq(udc);
-		irq_src = fsl_readl(&dr_regs->usbsts) &
-			fsl_readl(&dr_regs->usbintr);
-		if (irq_src)
-			udc->stopped = 0;
-		else
-			status = IRQ_HANDLED;
+	/* when udc is stopped, only handle wake up irq */
+	if (udc->stopped) {
+		if (!device_may_wakeup(&(udc->pdata->pdev->dev)))
+			return IRQ_NONE;
+
+		spin_lock_irqsave(&udc->lock, flags);
+		/* check to see if wake up irq */
+		irq_src =  fsl_readl(&dr_regs->usbctrl);
+		if (irq_src & USB_CTRL_OTG_WUIR) {
+			wake_up_irq(udc);
+			irq_src = fsl_readl(&dr_regs->usbsts) &
+				fsl_readl(&dr_regs->usbintr);
+			spin_unlock_irqrestore(&udc->lock, flags);
+			if (irq_src)
+				/* Some udc irq to be handled */
+				udc->stopped = 0;
+			else
+				return IRQ_HANDLED;
+		} else {
+			/* If udc is stopped and irq is not wake up */
+			spin_unlock_irqrestore(&udc->lock, flags);
+			return IRQ_NONE;
+		}
 	}
-	spin_unlock_irqrestore(&udc->lock, flags);
 
-	if (status == IRQ_HANDLED)
-		return IRQ_HANDLED;
-#endif
-
-	/* Disable ISR for OTG host mode */
-	if (udc->stopped)
-		return IRQ_NONE;
 	spin_lock_irqsave(&udc->lock, flags);
 	irq_src = fsl_readl(&dr_regs->usbsts) & fsl_readl(&dr_regs->usbintr);
 	/* Clear notification bits */
@@ -2095,6 +2150,8 @@ int usb_gadget_register_driver(struct usb_gadget_driver *driver)
 		/* Suspend the controller until OTG enable it */
 		udc_controller->stopped = 1;
 		printk(KERN_INFO "Suspend udc for OTG auto detect\n");
+		dr_wake_up_enable(udc_controller, true);
+		dr_phy_low_power_mode(udc_controller, true);
 
 		/* export udc suspend/resume call to OTG */
 		udc_controller->gadget.dev.driver->suspend = (dev_sus)fsl_udc_suspend;
@@ -2840,13 +2897,20 @@ static int udc_suspend(struct fsl_udc *udc)
 		return 0;
 	}
 
+	udc->stopped = 1;
+	/* if the suspend is not for switch to host in otg mode */
+	if ((!(udc->gadget.is_otg)) ||
+			(fsl_readl(&dr_regs->otgsc) & OTGSC_STS_USB_ID)) {
+		dr_wake_up_enable(udc, true);
+		dr_phy_low_power_mode(udc, true);
+	}
+
 	/* stop the controller */
 	usbcmd = fsl_readl(&dr_regs->usbcmd) & ~USB_CMD_RUN_STOP;
 	fsl_writel(usbcmd, &dr_regs->usbcmd);
 
 	printk(KERN_INFO "USB Gadget suspended\n");
 
-	udc->stopped = 1;
 	return 0;
 }
 
@@ -2856,34 +2920,9 @@ static int udc_suspend(struct fsl_udc *udc)
  -----------------------------------------------------------------*/
 static int fsl_udc_suspend(struct platform_device *pdev, pm_message_t state)
 {
-	unsigned int port_status, temp;
-
 	if ((udc_controller->usb_state > USB_STATE_POWERED) &&
 			(udc_controller->usb_state < USB_STATE_SUSPENDED))
 		return -EBUSY;
-
-#ifdef CONFIG_USB_GADGET_WAKE_UP
-	temp = fsl_readl(&dr_regs->usbctrl);
-	/* if usb wake up irq is disabled, enable it */
-	if (!(temp & USB_CTRL_OTG_WUIE)) {
-		temp |= USB_CTRL_OTG_WUIE;
-		fsl_writel(temp, &dr_regs->usbctrl);
-	}
-#else
-	temp = fsl_readl(&dr_regs->usbctrl);
-	/* if usb wake up irq is enabled, disable it */
-	if (temp & USB_CTRL_OTG_WUIE) {
-		temp &= ~USB_CTRL_OTG_WUIE;
-		fsl_writel(temp, &dr_regs->usbctrl);
-	}
-#endif
-
-	/* close UBS PHY clock if PHCD is 0 */
-	port_status = fsl_readl(&dr_regs->portsc1);
-	if (!(port_status & PORTSCX_PHY_LOW_POWER_SPD)) {
-		port_status |= PORTSCX_PHY_LOW_POWER_SPD;
-		fsl_writel(port_status, &dr_regs->portsc1);
-	}
 
 	return udc_suspend(udc_controller);
 }
@@ -2909,22 +2948,9 @@ static int fsl_udc_resume(struct platform_device *pdev)
 
 	/* Enable DR irq reg and set controller Run */
 	if (udc_controller->stopped) {
-		u32 temp;
-
-#ifdef CONFIG_USB_GADGET_WAKE_UP
-		/* disable wake up irq */
-		temp = fsl_readl(&dr_regs->usbctrl);
-		temp &= ~UCTRL_OWIE;
-		fsl_writel(temp, &dr_regs->usbctrl);
-#endif
-
-		/* Enable PHY clock if it's disabled */
-		temp = fsl_readl(&dr_regs->portsc1);
-		if (temp & PORTSCX_PHY_LOW_POWER_SPD) {
-			temp &= ~PORTSCX_PHY_LOW_POWER_SPD;
-			fsl_writel(temp, &dr_regs->portsc1);
-			mdelay(1);
-		}
+		dr_wake_up_enable(udc_controller, false);
+		dr_phy_low_power_mode(udc_controller, false);
+		mdelay(1);
 
 		dr_controller_setup(udc_controller);
 		dr_controller_run(udc_controller);
@@ -2958,7 +2984,7 @@ static int __init udc_init(void)
 	return platform_driver_register(&udc_driver);
 }
 
-late_initcall(udc_init);
+module_init(udc_init);
 
 static void __exit udc_exit(void)
 {

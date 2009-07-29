@@ -28,10 +28,20 @@
 #include <asm/mach-types.h>
 
 static struct regulator *usbotg_regux;
-static struct regulator *usbotg_regux1;
 
 static void usb_utmi_init(struct fsl_xcvr_ops *this)
 {
+#if defined(CONFIG_MXC_PMIC_MC13892_MODULE) || defined(CONFIG_MXC_PMIC_MC13892)
+	if (machine_is_mx51_3ds()) {
+		unsigned int value;
+
+		/* VUSBIN */
+		pmic_read_reg(REG_USB1, &value, 0xffffff);
+		value |= 0x1;
+		value |= (0x1 << 3);
+		pmic_write_reg(REG_USB1, value, 0xffffff);
+	}
+#endif
 }
 
 static void usb_utmi_uninit(struct fsl_xcvr_ops *this)
@@ -62,35 +72,6 @@ static void set_power(struct fsl_xcvr_ops *this,
 			regulator_disable(usbotg_regux);
 			regulator_put(usbotg_regux);
 		}
-#if defined(CONFIG_MXC_PMIC_MC13892_MODULE) || defined(CONFIG_MXC_PMIC_MC13892)
-	} else if (machine_is_mx51_3ds()) {
-		unsigned int value;
-
-		if (on) {
-			usbotg_regux = regulator_get(dev, "SWBST");
-			regulator_enable(usbotg_regux);
-		} else {
-			regulator_disable(usbotg_regux);
-			regulator_put(usbotg_regux);
-		}
-
-		/* VUSBIN */
-		pmic_read_reg(REG_USB1, &value, 0xffffff);
-		if (on)
-			value |= 0x1;
-		else
-			value &= ~0x1;
-		pmic_write_reg(REG_USB1, value, 0xffffff);
-
-		/* VUSBEN */
-		if (on) {
-			usbotg_regux1 = regulator_get(dev, "VUSB");
-			regulator_enable(usbotg_regux1);
-		} else {
-			regulator_disable(usbotg_regux1);
-			regulator_put(usbotg_regux1);
-		}
-#endif
 	}
 }
 

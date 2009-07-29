@@ -1,4 +1,4 @@
-/* Copyright (C) 2005-2008 Freescale Semiconductor, Inc.
+/* Copyright 2005-2009 Freescale Semiconductor, Inc.
  *
  * This program is free software; you can redistribute  it and/or modify it
  * under  the terms of  the GNU General  Public License as published by the
@@ -348,6 +348,9 @@ struct usb_dr_mmap {
 	u32 pri_ctrl;		/* Priority Control Register */
 	u32 si_ctrl;		/* System Interface Control Register */
 	u8 res10[236];
+#ifdef CONFIG_ARCH_MX51
+	u32 res11[128];
+#endif
 	u32 control;		/* General Purpose Control Register */
 };
 
