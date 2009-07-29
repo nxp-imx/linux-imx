@@ -712,7 +712,11 @@ static int sgtl5000_set_bias_level(struct snd_soc_codec *codec,
 		reg = sgtl5000_read(codec, SGTL5000_CHIP_ANA_POWER);
 		ana_pwr = reg;
 		reg &= ~SGTL5000_VAG_POWERUP;
-		reg &= ~SGTL5000_REFTOP_POWERUP;
+
+		/* Workaround for sgtl5000 rev 0x11 chip audio suspend failure
+		   issue on mx25 */
+		/* reg &= ~SGTL5000_REFTOP_POWERUP; */
+
 		sgtl5000_write(codec, SGTL5000_CHIP_ANA_POWER, reg);
 		msleep(600);
 
