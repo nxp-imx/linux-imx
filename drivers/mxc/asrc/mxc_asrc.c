@@ -49,6 +49,19 @@ DEFINE_SPINLOCK(data_lock);
 DEFINE_SPINLOCK(input_int_lock);
 DEFINE_SPINLOCK(output_int_lock);
 
+#define AICPA		0	/* Input Clock Divider A Offset */
+#define AICDA		3	/* Input Clock Prescaler A Offset */
+#define AICPB           6	/* Input Clock Divider B Offset */
+#define AICDB           9	/* Input Clock Prescaler B Offset */
+#define AOCPA           12	/* Output Clock Divider A Offset */
+#define AOCDA           15	/* Output Clock Prescaler A Offset */
+#define AOCPB           18	/* Output Clock Divider B Offset */
+#define AOCDB           21	/* Output Clock Prescaler B Offset */
+#define AICPC           0	/* Input Clock Divider C Offset */
+#define AICDC           3	/* Input Clock Prescaler C Offset */
+#define AOCDC           6	/* Output Clock Prescaler C Offset */
+#define AOCPC           9	/* Output Clock Divider C Offset */
+
 char *asrc_pair_id[] = {
 	[0] = "ASRC RX PAIR A",
 	[1] = "ASRC TX PAIR A",
@@ -247,13 +260,10 @@ static int asrc_set_process_configuration(enum asrc_pair_index index,
 	return 0;
 }
 
-static int asrc_set_idealratio_clock_divider(enum asrc_pair_index index,
-					     int input_sample_rate,
-					     int output_sample_rate)
+static int asrc_get_asrck_clock_divider(int sample_rate)
 {
-	int i = 0, j = 0;
-	unsigned long reg;
-	switch (input_sample_rate) {
+	int i = 0;
+	switch (sample_rate) {
 	case 5500:
 		i = 0;
 		break;
@@ -297,55 +307,7 @@ static int asrc_set_idealratio_clock_divider(enum asrc_pair_index index,
 		return -1;
 	}
 
-	switch (output_sample_rate) {
-	case 32000:
-		j = 0;
-		break;
-	case 44100:
-		j = 1;
-		break;
-	case 48000:
-		j = 2;
-		break;
-	case 64000:
-		j = 3;
-		break;
-	case 88200:
-		j = 4;
-		break;
-	case 96000:
-		j = 5;
-		break;
-	case 176400:
-		j = 6;
-		break;
-	case 192000:
-		j = 7;
-		break;
-	default:
-		return -1;
-	}
-	if (index == ASRC_PAIR_A) {
-		reg = __raw_readl(asrc_vrt_base_addr + ASRC_ASRCDR1_REG);
-		reg &= 0xfc0fc0;
-		reg |=
-		    (asrc_divider_table[i] | (asrc_divider_table[j + 5] << 12));
-		__raw_writel(reg, asrc_vrt_base_addr + ASRC_ASRCDR1_REG);
-	} else if (index == ASRC_PAIR_B) {
-		reg = __raw_readl(asrc_vrt_base_addr + ASRC_ASRCDR1_REG);
-		reg &= 0x3f03f;
-		reg |=
-		    ((asrc_divider_table[i] << 6) |
-		     (asrc_divider_table[j + 5] << 18));
-		__raw_writel(reg, asrc_vrt_base_addr + ASRC_ASRCDR1_REG);
-	} else {
-		reg = __raw_readl(asrc_vrt_base_addr + ASRC_ASRCDR2_REG);
-		reg =
-		    (asrc_divider_table[i] | (asrc_divider_table[j + 5] << 6));
-		__raw_writel(reg, asrc_vrt_base_addr + ASRC_ASRCDR2_REG);
-	}
-
-	return 0;
+	return asrc_divider_table[i];
 }
 
 int asrc_req_pair(int chn_num, enum asrc_pair_index *index)
@@ -457,36 +419,133 @@ int asrc_config_pair(struct asrc_config *config)
 	reg = reg & (~(1 << 23));
 	__raw_writel(reg, asrc_vrt_base_addr + ASRC_ASRCTR_REG);
 
+	/* Default Clock Divider Setting */
 	reg = __raw_readl(asrc_vrt_base_addr + ASRC_ASRCDR1_REG);
 	if (config->pair == ASRC_PAIR_A) {
 		reg = __raw_readl(asrc_vrt_base_addr + ASRC_ASRCDR1_REG);
 		reg &= 0xfc0fc0;
-		if (config->word_width == 16 || config->word_width == 8)
-			reg |= 0x005005;
-		else if (config->word_width == 32 || config->word_width == 24)
-			reg |= 0x006006;
-		else
-			err = -EFAULT;
+		/* Input Part */
+		if ((config->inclk & 0x0f) == INCLK_SPDIF_RX
+		    || (config->inclk & 0x0f) == INCLK_SPDIF_TX) {
+			reg |= 7 << AICPA;
+		} else if ((config->inclk & 0x0f) == INCLK_ASRCK1_CLK) {
+			tmp =
+			    asrc_get_asrck_clock_divider(config->
+							 input_sample_rate);
+			reg |= tmp << AICPA;
+		} else {
+			if (config->word_width == 16 || config->word_width == 8)
+				reg |= 5 << AICPA;
+			else if (config->word_width == 32
+				 || config->word_width == 24)
+				reg |= 6 << AICPA;
+			else
+				err = -EFAULT;
+		}
+		/* Output Part */
+		if ((config->outclk & 0x0f) == OUTCLK_SPDIF_RX
+		    || (config->outclk & 0x0f) == OUTCLK_SPDIF_TX) {
+			reg |= 7 << AOCPA;
+		} else if ((config->outclk & 0x0f) == OUTCLK_ASRCK1_CLK) {
+			tmp =
+			    asrc_get_asrck_clock_divider(config->
+							 output_sample_rate);
+			reg |= tmp << AOCPA;
+		} else {
+			if (config->word_width == 16 || config->word_width == 8)
+				reg |= 5 << AOCPA;
+			else if (config->word_width == 32
+				 || config->word_width == 24)
+				reg |= 6 << AOCPA;
+			else
+				err = -EFAULT;
+		}
+
 		__raw_writel(reg, asrc_vrt_base_addr + ASRC_ASRCDR1_REG);
+
 	} else if (config->pair == ASRC_PAIR_B) {
 		reg = __raw_readl(asrc_vrt_base_addr + ASRC_ASRCDR1_REG);
 		reg &= 0x03f03f;
-		if (config->word_width == 16 || config->word_width == 8)
-			reg |= 0x140140;
-		else if (config->word_width == 32 || config->word_width == 24)
-			reg |= 0x180180;
-		else
-			err = -EFAULT;
+		/* Input Part */
+		if ((config->inclk & 0x0f) == INCLK_SPDIF_RX
+		    || (config->inclk & 0x0f) == INCLK_SPDIF_TX) {
+			reg |= 7 << AICPB;
+		} else if ((config->inclk & 0x0f) == INCLK_ASRCK1_CLK) {
+			tmp =
+			    asrc_get_asrck_clock_divider(config->
+							 input_sample_rate);
+			reg |= tmp << AICPB;
+		} else {
+			if (config->word_width == 16 || config->word_width == 8)
+				reg |= 5 << AICPB;
+			else if (config->word_width == 32
+				 || config->word_width == 24)
+				reg |= 6 << AICPB;
+			else
+				err = -EFAULT;
+		}
+		/* Output Part */
+		if ((config->outclk & 0x0f) == INCLK_SPDIF_RX
+		    || (config->outclk & 0x0f) == INCLK_SPDIF_TX) {
+			reg |= 7 << AOCPB;
+		} else if ((config->outclk & 0x0f) == INCLK_ASRCK1_CLK) {
+			tmp =
+			    asrc_get_asrck_clock_divider(config->
+							 output_sample_rate);
+			reg |= tmp << AOCPB;
+		} else {
+			if (config->word_width == 16 || config->word_width == 8)
+				reg |= 5 << AOCPB;
+			else if (config->word_width == 32
+				 || config->word_width == 24)
+				reg |= 6 << AOCPB;
+			else
+				err = -EFAULT;
+		}
+
 		__raw_writel(reg, asrc_vrt_base_addr + ASRC_ASRCDR1_REG);
+
 	} else {
 		reg = __raw_readl(asrc_vrt_base_addr + ASRC_ASRCDR2_REG);
-		if (config->word_width == 16 || config->word_width == 8)
-			reg |= 0x145;
-		else if (config->word_width == 32 || config->word_width == 24)
-			reg |= 0x186;
-		else
-			err = -EFAULT;
+		reg &= 0;
+		/* Input Part */
+		if ((config->inclk & 0x0f) == INCLK_SPDIF_RX
+		    || (config->inclk & 0x0f) == INCLK_SPDIF_TX) {
+			reg |= 7 << AICPC;
+		} else if ((config->inclk & 0x0f) == INCLK_ASRCK1_CLK) {
+			tmp =
+			    asrc_get_asrck_clock_divider(config->
+							 input_sample_rate);
+			reg |= tmp << AICPC;
+		} else {
+			if (config->word_width == 16 || config->word_width == 8)
+				reg |= 5 << AICPC;
+			else if (config->word_width == 32
+				 || config->word_width == 24)
+				reg |= 6 << AICPC;
+			else
+				err = -EFAULT;
+		}
+		/* Output Part */
+		if ((config->outclk & 0x0f) == INCLK_SPDIF_RX
+		    || (config->outclk & 0x0f) == INCLK_SPDIF_TX) {
+			reg |= 7 << AOCPC;
+		} else if ((config->outclk & 0x0f) == INCLK_ASRCK1_CLK) {
+			tmp =
+			    asrc_get_asrck_clock_divider(config->
+							 output_sample_rate);
+			reg |= tmp << AOCPC;
+		} else {
+			if (config->word_width == 16 || config->word_width == 8)
+				reg |= 5 << AOCPC;
+			else if (config->word_width == 32
+				 || config->word_width == 24)
+				reg |= 6 << AOCPC;
+			else
+				err = -EFAULT;
+		}
 		__raw_writel(reg, asrc_vrt_base_addr + ASRC_ASRCDR2_REG);
+
 	}
 
 	/* check whether ideal ratio is a must */
@@ -507,16 +566,6 @@ int asrc_config_pair(struct asrc_config *config)
 						     output_sample_rate);
 		if (err < 0)
 			return err;
-
-		if ((config->outclk & 0xf) == OUTCLK_ASRCK1_CLK) {
-			err = asrc_set_idealratio_clock_divider(config->pair,
-								config->
-								input_sample_rate,
-								config->
-								output_sample_rate);
-			if (err < 0)
-				return err;
-		}
 	} else if ((config->inclk & 0x0f) == INCLK_ASRCK1_CLK) {
 		if (config->input_sample_rate == 44100
 		    || config->input_sample_rate == 88200) {
