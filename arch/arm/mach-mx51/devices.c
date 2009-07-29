@@ -956,6 +956,34 @@ static inline void mxc_init_iim(void)
 }
 #endif
 
+static struct resource mxc_gpu_resources[] = {
+	[0] = {
+		.start = MXC_INT_GPU2_IRQ,
+		.end = MXC_INT_GPU2_IRQ,
+		.name = "gpu_2d_irq",
+		.flags = IORESOURCE_IRQ,},
+	[1] = {
+		.start = MXC_INT_GPU,
+		.end = MXC_INT_GPU,
+		.name = "gpu_3d_irq",
+		.flags = IORESOURCE_IRQ,},
+};
+
+static struct platform_device gpu_device = {
+	.name = "mxc_gpu",
+	.id = 0,
+	.dev = {
+		.release = mxc_nop_release,
+		},
+	.num_resources = ARRAY_SIZE(mxc_gpu_resources),
+	.resource = mxc_gpu_resources,
+};
+
+static void __init mxc_init_gpu(void)
+{
+	platform_device_register(&gpu_device);
+}
+
 int __init mxc_init_devices(void)
 {
 	mxc_init_wdt();
@@ -974,5 +1002,6 @@ int __init mxc_init_devices(void)
 	mxc_init_busfreq();
 	mxc_init_dvfs();
 	mxc_init_iim();
+	mxc_init_gpu();
 	return 0;
 }

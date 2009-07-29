@@ -746,6 +746,30 @@ static inline void mxc_init_iim(void)
 }
 #endif
 
+static struct resource mxc_gpu_resources[] = {
+	{
+		.start = MXC_INT_GPU2D,
+		.end = MXC_INT_GPU2D,
+		.name = "gpu_2d_irq",
+		.flags = IORESOURCE_IRQ,
+	},
+};
+
+static struct platform_device gpu_device = {
+	.name = "mxc_gpu",
+	.id = 0,
+	.dev = {
+		.release = mxc_nop_release,
+		},
+	.num_resources = ARRAY_SIZE(mxc_gpu_resources),
+	.resource = mxc_gpu_resources,
+};
+
+static void __init mxc_init_gpu(void)
+{
+	platform_device_register(&gpu_device);
+}
+
 int __init mxc_init_devices(void)
 {
 	mxc_init_wdt();
@@ -762,6 +786,7 @@ int __init mxc_init_devices(void)
 	mxc_init_flexcan();
 	mxc_init_rngc();
 	mxc_init_iim();
+	mxc_init_gpu();
 
 	/* SPBA configuration for SSI2 - SDMA and MCU are set */
 	spba_take_ownership(SPBA_SSI2, SPBA_MASTER_C | SPBA_MASTER_A);
