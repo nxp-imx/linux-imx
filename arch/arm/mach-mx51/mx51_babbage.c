@@ -334,7 +334,7 @@ static int __init mxc_init_fb(void)
 	}
 
 	if (enable_wvga) {
-		fb_data[1].interface_pix_fmt = IPU_PIX_FMT_RGB666;
+		fb_data[1].interface_pix_fmt = IPU_PIX_FMT_RGB565;
 		fb_data[1].mode_str = "800x480M-16@55";
 	}
 
