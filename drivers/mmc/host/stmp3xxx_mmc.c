@@ -573,6 +573,12 @@ stmp3xxx_set_sclk_speed(struct stmp3xxx_mmc_host *host, unsigned int hz)
 	u32 div1, div2;
 	struct stmp3xxxmmc_platform_data *pdata = host->dev->platform_data;
 
+	if (get_evk_board_version() == 1) {
+		/*EVK Ver1 max clock is 12M*/
+		if (hz > 12000000)
+			hz = 12000000;
+	}
+
 	if (pdata && pdata->setclock) {
 		/*
 		   if the SSP is buggy and platform provides callback...

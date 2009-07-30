@@ -19,6 +19,7 @@
 #define __ASM_PLAT_STMP3XXX_H
 
 #include <linux/suspend.h>
+#include <mach/regs-ocotp.h>
 
 struct stmpkbd_keypair {
 	int raw;
@@ -87,5 +88,7 @@ extern int stmp3xxx_ssp2_device_register(void);
 
 extern int spdif_pinmux_request(void);
 extern void spdif_pinmux_release(void);
+
+extern int get_evk_board_version();
 
 #endif /* __ASM_PLAT_STMP3XXX_H */

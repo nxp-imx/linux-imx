@@ -48,6 +48,7 @@
 #include <mach/regs-icoll.h>
 #include <mach/regs-apbh.h>
 #include <mach/regs-apbx.h>
+#include <mach/regs-ocotp.h>
 
 #include "common.h"
 
@@ -395,3 +396,16 @@ void __init stmp378x_map_io(void)
 {
 	iotable_init(stmp378x_io_desc, ARRAY_SIZE(stmp378x_io_desc));
 }
+
+int get_evk_board_version()
+{
+	int boardid;
+	boardid = HW_OCOTP_CUSTCAP_RD();
+	if ((boardid & 0x30000000) == 0x10000000)
+		return 1;
+	else
+		return 0;
+}
+
+EXPORT_SYMBOL_GPL(get_evk_board_version);
+
