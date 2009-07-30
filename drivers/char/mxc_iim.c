@@ -25,6 +25,7 @@ static struct device *iim_dev;
 
 /*!
  * MXC IIM interface - memory map function
+ * This function maps 4KB IIM registers from IIM base address.
  *
  * @param file	     struct file *
  * @param vma	     structure vm_area_struct *
