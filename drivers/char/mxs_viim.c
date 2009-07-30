@@ -24,6 +24,10 @@ static struct device *iim_dev;
 
 /*!
  * MXS Virtual IIM interface - memory map function
+ * This function maps one page size VIIM registers from VIIM base address0
+ * if the size of the required virtual memory space is less than or equal to
+ * one page size, otherwise this function will also map one page size VIIM
+ * registers from VIIM base address1.
  *
  * @param file	     struct file *
  * @param vma	     structure vm_area_struct *
