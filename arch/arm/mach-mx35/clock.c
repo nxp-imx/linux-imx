@@ -1041,10 +1041,30 @@ static struct clk ckil_clk = {
 	.set_rate = _clk_ckil_set_rate,
 };
 
+static int _clk_ckie_enable(struct clk *clk)
+{
+	u32 reg;
+
+	reg = __raw_readl(MXC_CCM_PMCR2) & ~MXC_CCM_PMCR2_OSC_AUDIO_DOWN;
+	__raw_writel(reg, MXC_CCM_PMCR2);
+
+	return 0;
+}
+
+static void _clk_ckie_disable(struct clk *clk)
+{
+	u32 reg;
+
+	reg = __raw_readl(MXC_CCM_PMCR2) | MXC_CCM_PMCR2_OSC_AUDIO_DOWN;
+	__raw_writel(reg, MXC_CCM_PMCR2);
+}
+
 static struct clk ckie_clk = {
 	.name = "ckie",
 	.rate = CKIE_CLK_FREQ,
 	.flags = RATE_FIXED,
+	.enable = _clk_ckie_enable,
+	.disable = _clk_ckie_disable,
 };
 
 static struct clk mcu_pll_clk = {
