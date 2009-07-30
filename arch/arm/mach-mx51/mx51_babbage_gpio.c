@@ -443,6 +443,16 @@ static struct mxc_iomux_pin_cfg __initdata mxc_iomux_pins[] = {
 	 MX51_PIN_CSI1_HSYNC, IOMUX_CONFIG_ALT0,
 	 (PAD_CTL_HYS_NONE | PAD_CTL_SRE_SLOW),
 	 },
+	{
+	 MX51_PIN_OWIRE_LINE, IOMUX_CONFIG_ALT6,
+	 (PAD_CTL_DRV_HIGH | PAD_CTL_PKE_ENABLE |
+	  PAD_CTL_PUE_PULL | PAD_CTL_100K_PU | PAD_CTL_SRE_FAST),
+	 },
+	{
+	 MX51_PIN_EIM_D18, IOMUX_CONFIG_GPIO,
+	 (PAD_CTL_DRV_HIGH | PAD_CTL_PKE_ENABLE |
+	  PAD_CTL_PUE_KEEPER | PAD_CTL_100K_PU | PAD_CTL_SRE_FAST),
+	 },
 };
 
 void __init mx51_babbage_io_init(void)
@@ -640,6 +650,11 @@ void __init mx51_babbage_io_init(void)
 	/* Camera low power */
 	mxc_set_gpio_direction(MX51_PIN_CSI2_D19, 0);
 	mxc_set_gpio_dataout(MX51_PIN_CSI2_D19, 0);
+
+	/* OSC_EN */
+	mxc_set_gpio_direction(MX51_PIN_EIM_D18, 0);
+	mxc_set_gpio_dataout(MX51_PIN_EIM_D18, 1);
+
 }
 
 /* workaround for ecspi chipselect pin may not keep correct level when idle */
