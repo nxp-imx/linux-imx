@@ -322,11 +322,11 @@ static int _clk_perclkx_set_parent3(struct clk *clk, struct clk *parent)
 	}
 
 	if (parent == &upll_24610k_clk) {
-		mcr |= bit;
+		mcr |= 1 << bit;
 		__raw_writel(mcr, MXC_CCM_MCR);
 		clk->parent = parent;
 	} else {
-		mcr &= ~bit;
+		mcr &= ~(1 << bit);
 		__raw_writel(mcr, MXC_CCM_MCR);
 		return _clk_perclkx_set_parent(clk, parent);
 	}
