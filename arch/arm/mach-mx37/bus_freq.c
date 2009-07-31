@@ -25,17 +25,31 @@
 #include <linux/proc_fs.h>
 #include <linux/clk.h>
 #include <linux/delay.h>
+#include <linux/io.h>
 #include <linux/platform_device.h>
 #include <mach/clock.h>
 #include <mach/hardware.h>
 #include <linux/regulator/consumer.h>
+#include <mach/mxc_dvfs.h>
+
+#include "iomux.h"
+#include "crm_regs.h"
+
+#define GP_LPM_VOLTAGE 850000
+#define LP_LPM_VOLTAGE 1050000
+#define LP_LOWFREQ_VOLTAGE 1050000
+#define LP_NORMAL_VOLTAGE 1200000
+
+DEFINE_SPINLOCK(bus_freq_lock);
 
 struct clk *main_bus_clk;
 struct clk *pll2;
+struct clk *pll1;
 struct clk *axi_a_clk;
 struct clk *axi_b_clk;
 struct clk *axi_c_clk;
 struct clk *emi_core_clk;
+struct clk *emi_intr_clk;
 struct clk *nfc_clk;
 struct clk *ahb_clk;
 struct clk *vpu_clk;
@@ -45,25 +59,40 @@ struct clk *ddr_clk;
 struct clk *ipu_clk;
 struct clk *periph_apm_clk;
 struct clk *lp_apm;
+struct clk *cpu_clk;
 struct clk *osc;
+struct clk *uart_clk;
 struct regulator *lp_regulator;
 int low_bus_freq_mode;
 int high_bus_freq_mode;
 char *gp_reg_id = "SW1";
 char *lp_reg_id = "SW2";
+static struct cpu_wp *cpu_wp_tbl;
+
+struct dvfs_wp dvfs_core_setpoint[] = {{33, 7, 33, 10, 10, 0x10},
+					    {22, 0, 33, 10, 10, 0x10},};
 
 int set_low_bus_freq(void)
 {
 	int ret = 0;
 	unsigned long lp_lpm_clk;
+	unsigned long flags;
 
 	struct clk *p_clk;
 	struct clk *amode_parent_clk;
 
+	if (low_bus_freq_mode)
+		return ret;
+
+	if (clk_get_rate(cpu_clk) != 200000000)
+		return;
+
+	clk_disable(uart_clk);
+
 	lp_lpm_clk = clk_get_rate(lp_apm);
 	amode_parent_clk = lp_apm;
 	p_clk = clk_get_parent(periph_apm_clk);
-
+	spin_lock_irqsave(&bus_freq_lock, flags);
 	/* Make sure osc_clk is the parent of lp_apm. */
 	if (clk_get_parent(amode_parent_clk) != osc)
 		clk_set_parent(amode_parent_clk, osc);
@@ -76,12 +105,20 @@ int set_low_bus_freq(void)
 	/* Set the parent of main_bus_clk to be periph_apm_clk */
 	clk_set_parent(main_bus_clk, amode_parent_clk);
 
-	clk_set_rate(axi_a_clk, lp_lpm_clk);
-	clk_set_rate(axi_b_clk, lp_lpm_clk);
-	clk_set_rate(axi_c_clk, lp_lpm_clk);
-	clk_set_rate(emi_core_clk, lp_lpm_clk);
-	clk_set_rate(nfc_clk, 4800000);
 	clk_set_rate(ahb_clk, lp_lpm_clk);
+	/* Set the emi_internal clock to 24MHz */
+	clk_set_rate(emi_intr_clk, lp_lpm_clk);
+	if (clk_get_parent(emi_core_clk) != ahb_clk)
+		clk_set_rate(emi_core_clk, lp_lpm_clk);
+
+	if (clk_get_usecount(axi_a_clk) != 0)
+		clk_set_rate(axi_a_clk, lp_lpm_clk);
+
+	if (clk_get_usecount(axi_b_clk) != 0)
+		clk_set_rate(axi_b_clk, lp_lpm_clk);
+
+	if (clk_get_usecount(axi_c_clk) != 0)
+		clk_set_rate(axi_c_clk, lp_lpm_clk);
 
 	amode_parent_clk = emi_core_clk;
 
@@ -96,6 +133,7 @@ int set_low_bus_freq(void)
 	p_clk = clk_get_parent(vpu_core_clk);
 	if (p_clk != amode_parent_clk)
 		clk_set_parent(vpu_core_clk, amode_parent_clk);
+	spin_unlock_irqrestore(&bus_freq_lock, flags);
 
 	/* Set the voltage to 1.05V for the LP domain. */
 	ret = regulator_set_voltage(lp_regulator, 1050000, 1050000);
@@ -115,6 +153,7 @@ int set_high_bus_freq(int high_bus_freq)
 	struct clk *p_clk;
 	struct clk *rmode_parent_clk;
 	int ret = 0;
+	unsigned long flags;
 
 	if (!low_bus_freq_mode)
 		return ret;
@@ -130,18 +169,26 @@ int set_high_bus_freq(int high_bus_freq)
 	}
 
 	rmode_parent_clk = pll2;
+	spin_lock_irqsave(&bus_freq_lock, flags);
 
 	/* Set the dividers before setting the parent clock. */
-	clk_set_rate(axi_a_clk, 4800000);
-	clk_set_rate(axi_b_clk, 4000000);
-	clk_set_rate(axi_c_clk, 6000000);
+	if (clk_get_usecount(axi_a_clk) != 0)
+		clk_set_rate(axi_a_clk, 4800000);
+	if (clk_get_usecount(axi_b_clk) != 0)
+		clk_set_rate(axi_b_clk, 4000000);
+	if (clk_get_usecount(axi_c_clk) != 0)
+		clk_set_rate(axi_c_clk, 6000000);
+	if (clk_get_parent(emi_core_clk) != ahb_clk)
+		clk_set_rate(emi_core_clk, 4800000);
 
-	clk_set_rate(emi_core_clk, 4800000);
 	clk_set_rate(ahb_clk, 4800000);
-
+	/* Set emi_intr clock back to divide by 2. */
+	clk_set_rate(emi_intr_clk, 2400000);
 	/* Set the parent of main_bus_clk to be pll2 */
-	p_clk = clk_get_parent(main_bus_clk);
 	clk_set_parent(main_bus_clk, rmode_parent_clk);
+	spin_unlock_irqrestore(&bus_freq_lock, flags);
+
+	clk_enable(uart_clk);
 	high_bus_freq_mode = 1;
 	return ret;
 }
@@ -155,6 +202,56 @@ int low_freq_bus_used(void)
 		return 0;
 }
 
+void setup_pll(void)
+{
+	u32 reg;
+	u32 hfsm;
+	struct cpu_wp *p;
+
+	/* Setup the DPLL registers */
+	hfsm = __raw_readl(MXC_DPLL1_BASE + MXC_PLL_DP_CTL) &
+	       MXC_PLL_DP_CTL_HFSM;
+	reg = __raw_readl(MXC_DPLL1_BASE + MXC_PLL_DP_CONFIG);
+	reg &= ~MXC_PLL_DP_CONFIG_AREN;
+	__raw_writel(reg, MXC_DPLL1_BASE + MXC_PLL_DP_CONFIG);
+
+	if (hfsm) {
+		/* Running at lower frequency, need to bump up. */
+		p = &cpu_wp_tbl[0];
+		/* PDF and MFI */
+		reg = p->pdf | p->mfi << MXC_PLL_DP_OP_MFI_OFFSET;
+		__raw_writel(reg, MXC_DPLL1_BASE + MXC_PLL_DP_OP);
+
+		/* MFD */
+		__raw_writel(p->mfd, MXC_DPLL1_BASE + MXC_PLL_DP_MFD);
+
+		/* MFI */
+		__raw_writel(p->mfn, MXC_DPLL1_BASE + MXC_PLL_DP_MFN);
+	} else {
+		/* Running at high frequency, need to lower it. */
+		p = &cpu_wp_tbl[1];
+		/* PDF and MFI */
+		reg = p->pdf | p->mfi << MXC_PLL_DP_OP_MFI_OFFSET;
+		__raw_writel(reg, MXC_DPLL1_BASE + MXC_PLL_DP_HFS_OP);
+
+		/* MFD */
+		__raw_writel(p->mfd, MXC_DPLL1_BASE + MXC_PLL_DP_HFS_MFD);
+
+		/* MFN */
+		__raw_writel(p->mfn, MXC_DPLL1_BASE + MXC_PLL_DP_HFS_MFN);
+	}
+
+	/* Set PLL2_PODF to be 3 */
+	reg = __raw_readl(MXC_CCM_CCSR);
+	reg |= 2 << MXC_CCM_CCSR_PLL2_PODF_OFFSET;
+	__raw_writel(reg, MXC_CCM_CCSR);
+	/* Set the parent of STEP_CLK to be PLL2 */
+	reg = __raw_readl(MXC_CCM_CCSR);
+	reg = (reg & ~MXC_CCM_CCSR_STEP_SEL_MASK) |
+	    (2 << MXC_CCM_CCSR_STEP_SEL_OFFSET);
+	__raw_writel(reg, MXC_CCM_CCSR);
+}
+
 /*!
  * This is the probe routine for the bus frequency driver.
  *
@@ -165,6 +262,8 @@ int low_freq_bus_used(void)
  */
 static int __devinit busfreq_probe(struct platform_device *pdev)
 {
+	int cpu_wp_nr;
+
 	main_bus_clk = clk_get(NULL, "main_bus_clk");
 	if (IS_ERR(main_bus_clk)) {
 		printk(KERN_DEBUG "%s: failed to get main_bus_clk\n", __func__);
@@ -199,6 +298,12 @@ static int __devinit busfreq_probe(struct platform_device *pdev)
 	if (IS_ERR(emi_core_clk)) {
 		printk(KERN_DEBUG "%s: failed to get emi_core_clk\n", __func__);
 		return PTR_ERR(emi_core_clk);
+	}
+
+	emi_intr_clk = clk_get(NULL, "emi_intr_clk");
+	if (IS_ERR(emi_intr_clk)) {
+		printk(KERN_DEBUG "%s: failed to get emi_intr_clk\n", __func__);
+		return PTR_ERR(emi_intr_clk);
 	}
 
 	nfc_clk = clk_get(NULL, "nfc_clk");
@@ -256,11 +361,30 @@ static int __devinit busfreq_probe(struct platform_device *pdev)
 		return PTR_ERR(lp_apm);
 	}
 
+	cpu_clk = clk_get(NULL, "cpu_clk");
+	if (IS_ERR(cpu_clk)) {
+		printk(KERN_DEBUG "%s: failed to get cpu_clk\n", __func__);
+		return PTR_ERR(cpu_clk);
+	}
+
 	osc = clk_get(NULL, "osc");
 	if (IS_ERR(osc)) {
 		printk(KERN_DEBUG "%s: failed to get osc\n", __func__);
 		return PTR_ERR(osc);
 	}
+
+	uart_clk = clk_get(NULL, "uart_clk.0");
+	if (IS_ERR(uart_clk)) {
+		printk(KERN_DEBUG "%s: failed to get uart_clk-0\n", __func__);
+		return PTR_ERR(uart_clk);
+	}
+
+	pll1 = clk_get(NULL, "pll1_sw_clk");
+	if (IS_ERR(pll1)) {
+		printk(KERN_DEBUG "%s: failed to get pll1_sw_clk\n", __func__);
+		return PTR_ERR(pll1);
+	}
+
 
 	lp_regulator = regulator_get(NULL, lp_reg_id);
 	if (IS_ERR(lp_regulator)) {
@@ -271,6 +395,8 @@ static int __devinit busfreq_probe(struct platform_device *pdev)
 
 	low_bus_freq_mode = 0;
 	high_bus_freq_mode = 0;
+
+	cpu_wp_tbl = get_cpu_wp(&cpu_wp_nr);
 
 	return 0;
 }
@@ -310,6 +436,7 @@ static void __exit busfreq_cleanup(void)
 	clk_put(axi_b_clk);
 	clk_put(axi_c_clk);
 	clk_put(emi_core_clk);
+	clk_put(emi_intr_clk);
 	clk_put(nfc_clk);
 	clk_put(ahb_clk);
 	clk_put(vpu_core_clk);
@@ -319,6 +446,8 @@ static void __exit busfreq_cleanup(void)
 	clk_put(periph_apm_clk);
 	clk_put(lp_apm);
 	clk_put(osc);
+	clk_put(pll1);
+	clk_put(pll2);
 	regulator_put(lp_regulator);
 
 }

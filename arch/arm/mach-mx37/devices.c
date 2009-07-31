@@ -27,6 +27,7 @@
 #include <mach/sdma.h>
 #include "sdma_script_code.h"
 #include "crm_regs.h"
+#include <mach/mxc_dvfs.h>
 
 extern struct dptc_wp dptc_gp_wp_allfreq[DPTC_GP_WP_SUPPORTED];
 extern struct dptc_wp dptc_lp_wp_allfreq[DPTC_LP_WP_SUPPORTED];
@@ -606,10 +607,16 @@ struct mxc_dvfs_platform_data dvfs_core_data = {
 	.clk2_id = "gpc_dvfs_clk",
 	.gpc_cntr_reg_addr = MXC_GPC_CNTR,
 	.gpc_vcr_reg_addr = MXC_GPC_VCR,
+	.ccm_cdcr_reg_addr = MXC_CCM_CDCR,
+	.ccm_cacrr_reg_addr = MXC_CCM_CACRR,
+	.ccm_cdhipr_reg_addr = MXC_CCM_CDHIPR,
 	.dvfs_thrs_reg_addr = MXC_DVFSTHRS,
 	.dvfs_coun_reg_addr = MXC_DVFSCOUN,
 	.dvfs_emac_reg_addr = MXC_DVFSEMAC,
 	.dvfs_cntr_reg_addr = MXC_DVFSCNTR,
+	.prediv_mask = 0x3800,
+	.prediv_offset = 11,
+	.prediv_val = 1,
 	.div3ck_mask = 0x00000006,
 	.div3ck_offset = 1,
 	.div3ck_val = 3,

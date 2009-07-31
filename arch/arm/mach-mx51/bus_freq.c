@@ -28,6 +28,7 @@
 #include <linux/platform_device.h>
 #include <mach/clock.h>
 #include <mach/hardware.h>
+#include <mach/mxc_dvfs.h>
 #include <linux/regulator/consumer.h>
 
 #define LP_NORMAL_CLK			133000000
@@ -70,6 +71,9 @@ char *lp_reg_id = "SW2";
 extern int lp_high_freq;
 extern int lp_med_freq;
 extern int dvfs_core_is_active;
+
+struct dvfs_wp dvfs_core_setpoint[] = {{33, 7, 33, 20, 20, 0x10},
+					    {22, 0, 33, 20, 20, 0x10},};
 
 int set_low_bus_freq(void)
 {
@@ -158,6 +162,10 @@ int low_freq_bus_used(void)
 		return 1;
 	else
 		return 0;
+}
+
+void setup_pll(void)
+{
 }
 
 /*!

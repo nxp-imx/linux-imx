@@ -41,6 +41,7 @@
 #include <linux/input.h>
 #include <linux/platform_device.h>
 #include <linux/cpufreq.h>
+#include <mach/mxc_dvfs.h>
 
 #define MXC_DVFSTHRS_UPTHR_MASK               0x0FC00000
 #define MXC_DVFSTHRS_UPTHR_OFFSET             22
@@ -81,6 +82,7 @@
 #define MXC_GPCCNTR_FUPD                     0x00002000
 #define MXC_GPCCNTR_HTRI_MASK                0x0000000F
 #define MXC_GPCCNTR_HTRI_OFFSET              0
+#define MXC_GPCCNTR_GPCIRQM		     0x00200000
 
 #define MXC_GPCVCR_VINC_MASK                 0x00020000
 #define MXC_GPCVCR_VINC_OFFSET               17
@@ -89,18 +91,22 @@
 #define MXC_GPCVCR_VCNT_MASK                 0x00007FFF
 #define MXC_GPCVCR_VCNT_OFFSET               0
 
+extern void setup_pll(void);
 static struct delayed_work dvfs_core_work;
 static struct mxc_dvfs_platform_data *dvfs_data;
 static struct device *dvfs_dev;
 static struct cpu_wp *cpu_wp_tbl;
 int dvfs_core_resume;
 int curr_wp;
+int old_wp;
 int dvfs_core_is_active;
 int cpufreq_trig_needed;
+struct timeval core_prev_intr;
 
 /*
  * Clock structures
  */
+static struct clk *pll1_sw_clk;
 static struct clk *cpu_clk;
 static struct clk *dvfs_clk;
 static struct regulator *core_regulator;
@@ -121,11 +127,13 @@ enum {
  */
 #define DVFS_LTBRSR		(2 << MXC_DVFSCNTR_LTBRSR_OFFSET)
 
+extern struct dvfs_wp dvfs_core_setpoint[2];
 extern int low_bus_freq_mode;
 extern int high_bus_freq_mode;
 extern int set_low_bus_freq(void);
 extern int set_high_bus_freq(int high_bus_speed);
 extern int low_freq_bus_used(void);
+extern void propagate_rate(struct clk *tclk);
 
 DEFINE_SPINLOCK(mxc_dvfs_core_lock);
 
@@ -156,73 +164,191 @@ void dvfs_core_set_bus_freq(void)
 	__raw_writel(reg, dvfs_data->dvfs_cntr_reg_addr);
 }
 
-static void dvfs_load_config(void)
+static void dvfs_load_config(int set_point)
 {
 	u32 reg;
-
 	reg = 0;
-	reg |= dvfs_data->upthr_val << MXC_DVFSTHRS_UPTHR_OFFSET;
-	reg |= dvfs_data->dnthr_val << MXC_DVFSTHRS_DNTHR_OFFSET;
-	reg |= dvfs_data->pncthr_val;
+
+	reg |= dvfs_core_setpoint[set_point].upthr << MXC_DVFSTHRS_UPTHR_OFFSET;
+	reg |= dvfs_core_setpoint[set_point].downthr <<
+	    MXC_DVFSTHRS_DNTHR_OFFSET;
+	reg |= dvfs_core_setpoint[set_point].panicthr;
 	__raw_writel(reg, dvfs_data->dvfs_thrs_reg_addr);
 
 	reg = 0;
-	reg |= dvfs_data->dncnt_val << MXC_DVFSCOUN_DNCNT_OFFSET;
-	reg |= dvfs_data->upcnt_val << MXC_DVFSCOUN_UPCNT_OFFSET;
+	reg |= dvfs_core_setpoint[set_point].downcnt <<
+	    MXC_DVFSCOUN_DNCNT_OFFSET;
+	reg |= dvfs_core_setpoint[set_point].upcnt << MXC_DVFSCOUN_UPCNT_OFFSET;
 	__raw_writel(reg, dvfs_data->dvfs_coun_reg_addr);
 }
 
 static int set_cpu_freq(int wp)
 {
+	int arm_podf;
+	int podf;
+	int vinc = 0;
 	int ret = 0;
 	int org_cpu_rate;
 	unsigned long rate = 0;
 	int gp_volt = 0;
 	u32 reg;
+	u32 reg1;
 
-	org_cpu_rate = clk_get_rate(cpu_clk);
-	rate = cpu_wp_tbl[wp].cpu_rate;
+	if (cpu_wp_tbl[wp].pll_rate != cpu_wp_tbl[old_wp].pll_rate) {
+		/* PLL_RELOCK, set ARM_FREQ_SHIFT_DIVIDER */
+		reg = __raw_readl(dvfs_data->ccm_cdcr_reg_addr);
+		reg &= 0xFFFFFFFB;
+		__raw_writel(reg, dvfs_data->ccm_cdcr_reg_addr);
+		org_cpu_rate = clk_get_rate(cpu_clk);
+		rate = cpu_wp_tbl[wp].cpu_rate;
 
-	if (org_cpu_rate == rate)
-		return ret;
-
-	gp_volt = cpu_wp_tbl[wp].cpu_voltage;
-
-	if (gp_volt == 0)
-		return ret;
-
-	/*Set the voltage for the GP domain. */
-	if (rate > org_cpu_rate) {
-		ret = regulator_set_voltage(core_regulator, gp_volt, gp_volt);
-		if (ret < 0) {
-			printk(KERN_DEBUG "COULD NOT SET GP VOLTAGE!!!!\n");
+		if (org_cpu_rate == rate)
 			return ret;
-		}
-		udelay(dvfs_data->delay_time);
-	}
 
-	ret = clk_set_rate(cpu_clk, rate);
-	if (ret != 0) {
-		printk(KERN_DEBUG "cannot set CPU clock rate\n");
-		return ret;
-	}
+		gp_volt = cpu_wp_tbl[wp].cpu_voltage;
 
-	/* START the GPC main control FSM */
-	/* set VINC */
-	reg = __raw_readl(dvfs_data->gpc_vcr_reg_addr);
-	reg &=
-	    ~(MXC_GPCVCR_VINC_MASK | MXC_GPCVCR_VCNTU_MASK |
-	      MXC_GPCVCR_VCNT_MASK);
-	reg |= (1 << MXC_GPCVCR_VCNTU_OFFSET) | (100 << MXC_GPCVCR_VCNT_OFFSET);
-	__raw_writel(reg, dvfs_data->gpc_vcr_reg_addr);
-
-	if (rate < org_cpu_rate) {
-		ret = regulator_set_voltage(core_regulator, gp_volt, gp_volt);
-		if (ret < 0) {
-			printk(KERN_DEBUG "COULD NOT SET GP VOLTAGE!!!!\n");
+		if (gp_volt == 0)
 			return ret;
+
+		/*Set the voltage for the GP domain. */
+		if (rate > org_cpu_rate) {
+			ret = regulator_set_voltage(core_regulator, gp_volt,
+						    gp_volt);
+			if (ret < 0) {
+				printk(KERN_DEBUG "COULD NOT SET GP VOLTAGE\n");
+				return ret;
+			}
+			udelay(dvfs_data->delay_time);
 		}
-		udelay(dvfs_data->delay_time);
+
+		setup_pll();
+		/* START the GPC main control FSM */
+		/* set VINC */
+		reg = __raw_readl(dvfs_data->gpc_vcr_reg_addr);
+		reg &= ~(MXC_GPCVCR_VINC_MASK | MXC_GPCVCR_VCNTU_MASK |
+		    MXC_GPCVCR_VCNT_MASK);
+
+		if (rate > org_cpu_rate)
+			reg |= 1 << MXC_GPCVCR_VINC_OFFSET;
+
+		reg |= (1 << MXC_GPCVCR_VCNTU_OFFSET) |
+		    (100 << MXC_GPCVCR_VCNT_OFFSET);
+		__raw_writel(reg, dvfs_data->gpc_vcr_reg_addr);
+
+		reg = __raw_readl(dvfs_data->gpc_cntr_reg_addr);
+		reg |= MXC_GPCCNTR_FUPD;
+		reg |= MXC_GPCCNTR_ADU;
+		__raw_writel(reg, dvfs_data->gpc_cntr_reg_addr);
+
+		reg |= MXC_GPCCNTR_STRT;
+		__raw_writel(reg, dvfs_data->gpc_cntr_reg_addr);
+		while (__raw_readl(dvfs_data->gpc_cntr_reg_addr) & 0x4000)
+			udelay(10);
+
+		if (rate < org_cpu_rate) {
+			ret = regulator_set_voltage(core_regulator,
+						    gp_volt, gp_volt);
+			if (ret < 0) {
+				printk(KERN_DEBUG
+				       "COULD NOT SET GP VOLTAGE!!!!\n");
+				return ret;
+			}
+			old_wp = wp;
+		}
+
+		clk_set_rate(cpu_clk, rate);
+	} else {
+		podf = cpu_wp_tbl[wp].cpu_podf;
+		gp_volt = cpu_wp_tbl[wp].cpu_voltage;
+
+		/* Change arm_podf only */
+		/* set ARM_FREQ_SHIFT_DIVIDER */
+		reg = __raw_readl(dvfs_data->ccm_cdcr_reg_addr);
+		reg &= 0xFFFFFFFB;
+		reg |= 1 << 2;
+		__raw_writel(reg, dvfs_data->ccm_cdcr_reg_addr);
+
+		/* Get ARM_PODF */
+		reg = __raw_readl(dvfs_data->ccm_cacrr_reg_addr);
+		arm_podf = reg & 0x07;
+		if (podf == arm_podf) {
+			printk(KERN_DEBUG
+			       "No need to change freq and voltage!!!!\n");
+			return 0;
+		}
+
+		/* Check if FSVAI indicate freq up*/
+		if (podf < arm_podf) {
+			ret = regulator_set_voltage(core_regulator,
+						    gp_volt, gp_volt);
+			if (ret < 0) {
+				printk(KERN_DEBUG
+				       "COULD NOT SET GP VOLTAGE!!!!\n");
+				return 0;
+			}
+			udelay(dvfs_data->delay_time);
+			vinc = 1;
+			dvfs_load_config(0);
+		} else {
+			vinc = 0;
+			dvfs_load_config(1);
+		}
+
+		arm_podf = podf;
+		/* Set ARM_PODF */
+		reg &= 0xFFFFFFF8;
+		reg |= arm_podf;
+
+		reg1 = __raw_readl(dvfs_data->ccm_cdhipr_reg_addr);
+		if ((reg1 & 0x00010000) == 0)
+			__raw_writel(reg,
+				     dvfs_data->ccm_cacrr_reg_addr);
+		else {
+			printk(KERN_DEBUG "ARM_PODF still in busy!!!!\n");
+			return 0;
+		}
+
+		/* START the GPC main control FSM */
+		reg = __raw_readl(dvfs_data->gpc_cntr_reg_addr);
+		reg |= MXC_GPCCNTR_FUPD;
+		/* ADU=1, select ARM domain */
+		reg |= MXC_GPCCNTR_ADU;
+		__raw_writel(reg, dvfs_data->gpc_cntr_reg_addr);
+		/* set VINC */
+		reg = __raw_readl(dvfs_data->gpc_vcr_reg_addr);
+		reg &=
+		    ~(MXC_GPCVCR_VINC_MASK | MXC_GPCVCR_VCNTU_MASK |
+		      MXC_GPCVCR_VCNT_MASK);
+		reg |= (1 << MXC_GPCVCR_VCNTU_OFFSET) |
+		    (1000 << MXC_GPCVCR_VCNT_OFFSET) |
+		    (vinc << MXC_GPCVCR_VINC_OFFSET);
+		__raw_writel(reg, dvfs_data->gpc_vcr_reg_addr);
+
+		reg = __raw_readl(dvfs_data->gpc_cntr_reg_addr);
+		reg &= (~(MXC_GPCCNTR_ADU | MXC_GPCCNTR_FUPD));
+		reg |= MXC_GPCCNTR_ADU | MXC_GPCCNTR_FUPD | MXC_GPCCNTR_STRT;
+		__raw_writel(reg, dvfs_data->gpc_cntr_reg_addr);
+
+		/* Wait for arm podf Enable */
+		while ((__raw_readl(dvfs_data->gpc_cntr_reg_addr) &
+			MXC_GPCCNTR_STRT) == MXC_GPCCNTR_STRT) {
+			printk(KERN_DEBUG "Waiting arm_podf enabled!\n");
+			udelay(10);
+		}
+
+		if (vinc == 0) {
+			ret = regulator_set_voltage(core_regulator,
+						    gp_volt, gp_volt);
+			if (ret < 0) {
+				printk(KERN_DEBUG
+				       "COULD NOT SET GP VOLTAGE!!!!\n");
+				return ret;
+			}
+			udelay(dvfs_data->delay_time);
+		}
+
+		propagate_rate(pll1_sw_clk);
+		old_wp = wp;
 	}
 
 	return ret;
@@ -248,6 +374,12 @@ static int start_dvfs(void)
 	/* ADU=1, select ARM domain */
 	reg |= MXC_GPCCNTR_ADU;
 	__raw_writel(reg, dvfs_data->gpc_cntr_reg_addr);
+
+	/* Set PREDIV bits */
+	reg = __raw_readl(dvfs_data->dvfs_cntr_reg_addr);
+	reg = (reg & ~(dvfs_data->prediv_mask));
+	reg |= (dvfs_data->prediv_val) << (dvfs_data->prediv_offset);
+	__raw_writel(reg, dvfs_data->dvfs_cntr_reg_addr);
 
 	/* Enable DVFS interrupt */
 	reg = __raw_readl(dvfs_data->dvfs_cntr_reg_addr);
@@ -293,7 +425,7 @@ static int start_dvfs(void)
 static int init_dvfs_controller(void)
 {
 	/* DVFS loading config */
-	dvfs_load_config();
+	dvfs_load_config(0);
 
 	/* Set EMAC value */
 	__raw_writel((dvfs_data->emac_val << MXC_DVFSEMAC_EMAC_OFFSET),
@@ -316,6 +448,11 @@ static irqreturn_t dvfs_irq(int irq, void *dev_id)
 	/* FSVAIM=1 */
 	reg |= MXC_DVFSCNTR_FSVAIM;
 	__raw_writel(reg, dvfs_data->dvfs_cntr_reg_addr);
+
+	/* Mask GPC1 irq */
+	reg = __raw_readl(dvfs_data->gpc_cntr_reg_addr);
+	reg |= MXC_GPCCNTR_GPCIRQM | 0x1000000;
+	__raw_writel(reg, dvfs_data->gpc_cntr_reg_addr);
 
 	schedule_delayed_work(&dvfs_core_work, 0);
 
@@ -374,8 +511,8 @@ static void dvfs_core_workqueue_handler(struct work_struct *work)
 	low_freq_bus_ready = low_freq_bus_used();
 	if ((curr_wp == dvfs_data->num_wp - 1) && (!low_bus_freq_mode)
 	    && (low_freq_bus_ready)) {
-		set_low_bus_freq();
 		ret = set_cpu_freq(curr_wp);
+		set_low_bus_freq();
 	} else {
 		if (!high_bus_freq_mode)
 			set_high_bus_freq(0);
@@ -395,7 +532,7 @@ static void dvfs_core_workqueue_handler(struct work_struct *work)
 	}
 #endif
 
-END:			/* Set MAXF, MINF */
+END:	/* Set MAXF, MINF */
 	reg = __raw_readl(dvfs_data->dvfs_cntr_reg_addr);
 	reg = (reg & ~(MXC_DVFSCNTR_MAXF_MASK | MXC_DVFSCNTR_MINF_MASK));
 	reg |= maxf << MXC_DVFSCNTR_MAXF_OFFSET;
@@ -404,10 +541,15 @@ END:			/* Set MAXF, MINF */
 	/* Enable DVFS interrupt */
 	/* FSVAIM=0 */
 	reg = (reg & ~MXC_DVFSCNTR_FSVAIM);
+	reg |= FSVAI_FREQ_NOCHANGE;
 	/* LBFL=1 */
 	reg = (reg & ~MXC_DVFSCNTR_LBFL);
 	reg |= MXC_DVFSCNTR_LBFL;
 	__raw_writel(reg, dvfs_data->dvfs_cntr_reg_addr);
+	/*Unmask GPC1 IRQ */
+	reg = __raw_readl(dvfs_data->gpc_cntr_reg_addr);
+	reg &= ~MXC_GPCCNTR_GPCIRQM;
+	__raw_writel(reg, dvfs_data->gpc_cntr_reg_addr);
 }
 
 /*!
@@ -426,7 +568,6 @@ static void stop_dvfs(void)
 		reg = __raw_readl(dvfs_data->dvfs_cntr_reg_addr);
 		/* FSVAIM=1 */
 		reg |= MXC_DVFSCNTR_FSVAIM;
-		reg = (reg & ~MXC_DVFSCNTR_DVFEN);
 		__raw_writel(reg, dvfs_data->dvfs_cntr_reg_addr);
 
 		dvfs_core_is_active = 0;
@@ -435,9 +576,14 @@ static void stop_dvfs(void)
 		curr_wp = 0;
 		if (!high_bus_freq_mode)
 			set_high_bus_freq(1);
+
 		curr_cpu = clk_get_rate(cpu_clk);
 		if (curr_cpu != cpu_wp_tbl[curr_wp].cpu_rate) {
 			set_cpu_freq(curr_wp);
+			/* disable DVFS */
+			reg = __raw_readl(dvfs_data->dvfs_cntr_reg_addr);
+			reg = (reg & ~MXC_DVFSCNTR_DVFEN);
+			__raw_writel(reg, dvfs_data->dvfs_cntr_reg_addr);
 #if defined(CONFIG_CPU_FREQ)
 			if (cpufreq_trig_needed == 1) {
 				cpufreq_trig_needed = 0;
@@ -495,6 +641,12 @@ static int __devinit mxc_dvfs_core_probe(struct platform_device *pdev)
 	dvfs_data = pdev->dev.platform_data;
 
 	INIT_DELAYED_WORK(&dvfs_core_work, dvfs_core_workqueue_handler);
+
+	pll1_sw_clk = clk_get(NULL, "pll1_sw_clk");
+	if (IS_ERR(pll1_sw_clk)) {
+		printk(KERN_INFO "%s: failed to get pll1_sw_clk\n", __func__);
+		return PTR_ERR(pll1_sw_clk);
+	}
 
 	cpu_clk = clk_get(NULL, dvfs_data->clk1_id);
 	if (IS_ERR(cpu_clk)) {
@@ -555,6 +707,7 @@ static int __devinit mxc_dvfs_core_probe(struct platform_device *pdev)
 
 	/* Set the current working point. */
 	cpu_wp_tbl = get_cpu_wp(&cpu_wp_nr);
+	old_wp = 0;
 	curr_wp = 0;
 	dvfs_core_resume = 0;
 	cpufreq_trig_needed = 0;
@@ -620,8 +773,8 @@ static int __init dvfs_init(void)
 		return -ENODEV;
 	}
 
+	dvfs_core_is_active = 0;
 	printk(KERN_INFO "DVFS driver module loaded\n");
-
 	return 0;
 }
 
@@ -640,6 +793,7 @@ static void __exit dvfs_cleanup(void)
 	clk_put(cpu_clk);
 	clk_put(dvfs_clk);
 
+	dvfs_core_is_active = 0;
 	printk(KERN_INFO "DVFS driver module unloaded\n");
 
 }

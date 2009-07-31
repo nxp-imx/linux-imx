@@ -180,6 +180,12 @@ struct mxc_dvfs_platform_data {
 	unsigned int gpc_cntr_reg_addr;
 	/* GPC voltage counter reg address */
 	unsigned int gpc_vcr_reg_addr;
+	/* CCM DVFS control reg address */
+	unsigned int ccm_cdcr_reg_addr;
+	/* CCM ARM clock root reg address */
+	unsigned int ccm_cacrr_reg_addr;
+	/* CCM divider handshake in-progree reg address */
+	unsigned int ccm_cdhipr_reg_addr;
 	/* DVFS threshold reg address */
 	unsigned int dvfs_thrs_reg_addr;
 	/* DVFS counters reg address */
@@ -188,6 +194,12 @@ struct mxc_dvfs_platform_data {
 	unsigned int dvfs_emac_reg_addr;
 	/* DVFS control reg address */
 	unsigned int dvfs_cntr_reg_addr;
+	/* PREDIV mask */
+	u32 prediv_mask;
+	/* PREDIV offset */
+	int prediv_offset;
+	/* PREDIV value */
+	int prediv_val;
 	/* DIV3CK mask */
 	u32 div3ck_mask;
 	/* DIV3CK offset */
