@@ -1916,7 +1916,7 @@ static struct clk gpt_clk[] = {
 
 static struct clk pwm1_clk[] = {
 	{
-	 .name = "pwm_clk",
+	 .name = "pwm",
 	 .parent = &ipg_perclk,
 	 .id = 0,
 	 .enable_reg = MXC_CCM_CCGR2,
@@ -1943,7 +1943,7 @@ static struct clk pwm1_clk[] = {
 
 static struct clk pwm2_clk[] = {
 	{
-	 .name = "pwm_clk",
+	 .name = "pwm",
 	 .parent = &ipg_perclk,
 	 .id = 1,
 	 .enable_reg = MXC_CCM_CCGR2,

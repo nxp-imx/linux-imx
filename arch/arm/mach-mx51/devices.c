@@ -23,6 +23,7 @@
 #include <linux/spi/spi.h>
 #include <linux/uio_driver.h>
 #include <linux/mxc_scc2_driver.h>
+#include <linux/pwm_backlight.h>
 #include <mach/hardware.h>
 #include <mach/spba.h>
 #include <asm/mach-types.h>
@@ -197,6 +198,69 @@ static void mxc_init_wdt(void)
 #else
 static inline void mxc_init_wdt(void)
 {
+}
+#endif
+
+#if defined(CONFIG_MXC_PWM)
+static struct resource pwm_resources[] = {
+	{
+	 .start = PWM1_BASE_ADDR,
+	 .end = PWM1_BASE_ADDR + 0x14,
+	 .flags = IORESOURCE_MEM,
+	 },
+};
+
+static struct platform_device mxc_pwm_device = {
+	.name = "mxc_pwm",
+	.id = 0,
+	.dev = {
+		.release = mxc_nop_release,
+		},
+	.num_resources = ARRAY_SIZE(pwm_resources),
+	.resource = pwm_resources,
+};
+
+static void mxc_init_pwm(void)
+{
+	printk(KERN_INFO "mxc_pwm_device registered\n");
+	if (platform_device_register(&mxc_pwm_device) < 0)
+		printk(KERN_ERR "registration of mxc_pwm device failed\n");
+}
+#else
+static void mxc_init_pwm(void)
+{
+
+}
+#endif
+
+#if defined(CONFIG_BACKLIGHT_PWM)
+static struct platform_pwm_backlight_data mxc_pwm_backlight_data = {
+	.pwm_id = 0,
+	.max_brightness = 255,
+	.dft_brightness = 128,
+	.pwm_period_ns = 78770,
+};
+
+static struct platform_device mxc_pwm_backlight_device = {
+	.name = "pwm-backlight",
+	.id = -1,
+	.dev = {
+		.release = mxc_nop_release,
+		.platform_data = &mxc_pwm_backlight_data,
+		},
+};
+
+static void mxc_init_pwm_backlight(void)
+{
+	printk(KERN_INFO "pwm-backlight device registered\n");
+	if (platform_device_register(&mxc_pwm_backlight_device) < 0)
+		printk(KERN_ERR
+		       "registration of pwm-backlight device failed\n");
+}
+#else
+static void mxc_init_pwm_backlight(void)
+{
+
 }
 #endif
 
@@ -1094,5 +1158,7 @@ int __init mxc_init_devices(void)
 	mxc_init_iim();
 	mxc_init_gpu();
 	mxc_init_gpu2d();
+	mxc_init_pwm();
+	mxc_init_pwm_backlight();
 	return 0;
 }
