@@ -229,7 +229,9 @@ static int usb_phy_enable(struct platform_device *pdev)
 
 #if defined(CONFIG_USB_EHCI_HCD) || defined(CONFIG_USB_EHCI_HCD_MODULE)
 	/* enable disconnect detector */
-	HW_USBPHY_CTRL_SET(BM_USBPHY_CTRL_ENHOSTDISCONDETECT);
+	/* enable disconnect detector must be after entry high speed mode*/
+	/*HW_USBPHY_CTRL_SET(BM_USBPHY_CTRL_ENHOSTDISCONDETECT);
+	*/
 #endif
 	return 0;
 }
