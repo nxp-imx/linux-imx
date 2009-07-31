@@ -2613,6 +2613,7 @@ fec_enet_open(struct net_device *dev)
 {
 	struct fec_enet_private *fep = netdev_priv(dev);
 
+	fec_arch_init();
 	/* I should reset the ring buffers here, but I don't yet know
 	 * a simple way to do that.
 	 */
@@ -2665,6 +2666,7 @@ fec_enet_close(struct net_device *dev)
 	if (fep->link) {
 		fec_stop(dev);
 	}
+	fec_arch_exit();
 	return 0;
 }
 
@@ -3101,7 +3103,7 @@ fec_stop(struct net_device *dev)
 static int __init fec_enet_module_init(void)
 {
 	struct net_device *dev;
-	int i, err;
+	int i, err, ret = 0;
 	DECLARE_MAC_BUF(mac);
 
 	printk("FEC ENET Version 0.2\n");
@@ -3109,8 +3111,10 @@ static int __init fec_enet_module_init(void)
 
 	for (i = 0; (i < FEC_MAX_PORTS); i++) {
 		dev = alloc_etherdev(sizeof(struct fec_enet_private));
-		if (!dev)
-			return -ENOMEM;
+		if (!dev) {
+			ret = -ENOMEM;
+			goto exit;
+		}
 		err = fec_enet_init(dev);
 		if (err) {
 			free_netdev(dev);
@@ -3119,13 +3123,19 @@ static int __init fec_enet_module_init(void)
 		if (register_netdev(dev) != 0) {
 			/* XXX: missing cleanup here */
 			free_netdev(dev);
-			return -EIO;
+			ret = -EIO;
+			goto exit;
 		}
 
 		printk("%s: ethernet %s\n",
 		       dev->name, print_mac(mac, dev->dev_addr));
 	}
-	return 0;
+
+exit:
+	fec_arch_exit();
+	return ret;
+
+
 }
 
 module_init(fec_enet_module_init);
