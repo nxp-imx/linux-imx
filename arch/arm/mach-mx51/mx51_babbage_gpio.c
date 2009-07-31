@@ -171,6 +171,22 @@ static struct mxc_iomux_pin_cfg __initdata mxc_iomux_pins[] = {
 	 MUX_IN_GPIO3_IPP_IND_G_IN_4_SELECT_INPUT, INPUT_CTL_PATH1,
 	 },
 #endif
+	 /* LVDS GPIO control */
+	 {
+	 MX51_PIN_DI1_D0_CS, IOMUX_CONFIG_ALT4,
+	 (PAD_CTL_PKE_ENABLE | PAD_CTL_PUE_KEEPER | PAD_CTL_DRV_HIGH |
+	  PAD_CTL_SRE_FAST),
+	 },
+	{
+	 MX51_PIN_CSI2_D12, IOMUX_CONFIG_ALT3,
+	 (PAD_CTL_PKE_ENABLE | PAD_CTL_PUE_KEEPER | PAD_CTL_DRV_HIGH |
+	  PAD_CTL_SRE_FAST),
+	 },
+	{
+	 MX51_PIN_CSI2_D13, IOMUX_CONFIG_ALT3,
+	 (PAD_CTL_PKE_ENABLE | PAD_CTL_PUE_KEEPER | PAD_CTL_DRV_HIGH |
+	  PAD_CTL_SRE_FAST),
+	 },
 	{
 	 MX51_PIN_NANDF_D12, IOMUX_CONFIG_GPIO,
 	 0,
@@ -642,6 +658,9 @@ void __init mx51_babbage_io_init(void)
 
 	/* LCD related gpio */
 	mxc_set_gpio_direction(MX51_PIN_DI1_D1_CS, 0);
+	mxc_set_gpio_direction(MX51_PIN_DI1_D0_CS, 0);
+	mxc_set_gpio_direction(MX51_PIN_CSI2_D12, 0);
+	mxc_set_gpio_direction(MX51_PIN_CSI2_D13, 0);
 
 	/* Camera reset */
 	mxc_set_gpio_direction(MX51_PIN_EIM_D23, 0);

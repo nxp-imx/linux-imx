@@ -105,6 +105,15 @@ static struct fb_videomode video_modes[] = {
 	 FB_SYNC_HOR_HIGH_ACT | FB_SYNC_VERT_HIGH_ACT | FB_SYNC_EXT,
 	 FB_VMODE_NONINTERLACED,
 	 0,},
+	{
+	 /* MITSUBISHI LVDS panel */
+	 "XGA", 60, 1024, 768, 15385,
+	 220, 40,
+	 21, 7,
+	 60, 10,
+	 0,
+	 FB_VMODE_NONINTERLACED,
+	 0,},
 };
 
 struct cpu_wp *mx51_babbage_get_cpu_wp(int *wp)
@@ -223,6 +232,7 @@ static struct platform_device mxc_fb_device[] = {
 static int __initdata enable_vga = { 0 };
 static int __initdata enable_wvga = { 0 };
 static int __initdata enable_tv = { 0 };
+static int __initdata enable_mitsubishi_xga = { 0 };
 
 static void wvga_reset(void)
 {
@@ -338,6 +348,18 @@ static int __init mxc_init_fb(void)
 		fb_data[1].mode_str = "800x480M-16@55";
 	}
 
+	if (enable_mitsubishi_xga) {
+		fb_data[0].interface_pix_fmt = IPU_PIX_FMT_LVDS666;
+		fb_data[0].mode = &(video_modes[1]);
+
+		mxc_set_gpio_dataout(MX51_PIN_DI1_D0_CS, 0);
+		msleep(1);
+		mxc_set_gpio_dataout(MX51_PIN_DI1_D0_CS, 1);
+
+		mxc_set_gpio_dataout(MX51_PIN_CSI2_D12, 1);
+		mxc_set_gpio_dataout(MX51_PIN_CSI2_D13, 1);
+	}
+
 	/* DVI Detect */
 	mxc_set_gpio_direction(MX51_PIN_NANDF_D12, 1);
 	/* DVI Reset - Assert for i2c disabled mode */
@@ -416,6 +438,14 @@ static int __init wvga_setup(char *__unused)
 }
 
 __setup("wvga", wvga_setup);
+
+static int __init mitsubishi_xga_setup(char *__unused)
+{
+	enable_mitsubishi_xga = 1;
+	return 1;
+}
+
+__setup("mitsubishi_xga", mitsubishi_xga_setup);
 
 static int __init tv_setup(char *s)
 {
