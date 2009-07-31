@@ -67,6 +67,12 @@ static void stmp378x_ack_irq(unsigned int irq)
 	(void) HW_ICOLL_STAT_RD();
 }
 
+static void stmp378x_disable_irq(unsigned int irq)
+{
+	/* IRQ disable */
+	HW_ICOLL_INTERRUPTn_CLR(irq, BM_ICOLL_INTERRUPTn_ENABLE);
+}
+
 static void stmp378x_mask_irq(unsigned int irq)
 {
 	/* IRQ disable */
@@ -80,6 +86,7 @@ static void stmp378x_unmask_irq(unsigned int irq)
 }
 
 static struct irq_chip stmp378x_chip = {
+	.disable = stmp378x_disable_irq,
 	.ack	= stmp378x_ack_irq,
 	.mask	= stmp378x_mask_irq,
 	.unmask = stmp378x_unmask_irq,
@@ -92,6 +99,7 @@ static void stmp378x_gpio_ack_irq(unsigned int irq)
 }
 
 static struct irq_chip stmp378x_gpio_chip = {
+	.disable = stmp378x_disable_irq,
 	.ack	= stmp378x_gpio_ack_irq,
 	.mask	= stmp378x_mask_irq,
 	.unmask = stmp378x_unmask_irq,

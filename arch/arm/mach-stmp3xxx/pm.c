@@ -100,6 +100,7 @@ static inline void do_standby(void)
 	stmp37xx_cpu_standby_ptr = (void *)STMP3XXX_OCRAM_VA_BASE;
 	stmp37xx_cpu_standby_ptr();
 
+	pr_info("wakeup irq source = %d\n", HW_ICOLL_STAT_RD());
 	saved_sleep_state = 0;  /* waking from standby */
 	HW_POWER_CTRL_CLR(BM_POWER_CTRL_ENIRQ_PSWITCH |
 			  BM_POWER_CTRL_PSWITCH_IRQ);
