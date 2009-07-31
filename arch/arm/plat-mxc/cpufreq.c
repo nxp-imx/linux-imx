@@ -35,11 +35,13 @@
 #include <asm/setup.h>
 #include <mach/clock.h>
 #include <asm/cacheflush.h>
+#include <linux/hrtimer.h>
 
 int cpu_freq_khz_min;
 int cpu_freq_khz_max;
 int arm_lpm_clk;
 int arm_normal_clk;
+int cpufreq_suspended;
 
 static struct clk *cpu_clk;
 static struct regulator *gp_regulator;
@@ -54,6 +56,7 @@ extern char *gp_reg_id;
 extern int set_low_bus_freq(void);
 extern int set_high_bus_freq(int high_bus_speed);
 extern int low_freq_bus_used(void);
+
 #ifdef CONFIG_ARCH_MX51
 extern struct cpu_wp *(*get_cpu_wp)(int *wp);
 #endif
@@ -128,12 +131,12 @@ static int calc_frequency_khz(int target, unsigned int relation)
 		return target;
 
 	if (relation == CPUFREQ_RELATION_H) {
-		for (i = ARRAY_SIZE(imx_freq_table) - 1; i > 0; i--) {
+		for (i = cpu_wp_nr - 1; i >= 0; i--) {
 			if (imx_freq_table[i].frequency <= target)
 				return imx_freq_table[i].frequency;
 		}
 	} else if (relation == CPUFREQ_RELATION_L) {
-		for (i = 0; i < ARRAY_SIZE(imx_freq_table) - 1; i++) {
+		for (i = 0; i < cpu_wp_nr; i++) {
 			if (imx_freq_table[i].frequency >= target)
 				return imx_freq_table[i].frequency;
 		}
@@ -146,13 +149,28 @@ static int mxc_set_target(struct cpufreq_policy *policy,
 			  unsigned int target_freq, unsigned int relation)
 {
 	struct cpufreq_freqs freqs;
-	long freq_Hz;
+	int freq_Hz;
 	int low_freq_bus_ready = 0;
 	int ret = 0;
 
-	if (dvfs_core_is_active)
-		target_freq = clk_get_rate(cpu_clk) / 1000;
+	if (cpufreq_suspended)
+		return 0;
 
+	if (dvfs_core_is_active) {
+		target_freq = clk_get_rate(cpu_clk) / 1000;
+		freq_Hz = calc_frequency_khz(target_freq, relation) * 1000;
+		if (freq_Hz == arm_lpm_clk)
+			freqs.old = cpu_wp_tbl[cpu_wp_nr - 2].cpu_rate / 1000;
+		else
+			freqs.old = arm_lpm_clk / 1000;
+
+		freqs.new = freq_Hz / 1000;
+		freqs.cpu = 0;
+		freqs.flags = 0;
+		cpufreq_notify_transition(&freqs, CPUFREQ_PRECHANGE);
+		cpufreq_notify_transition(&freqs, CPUFREQ_POSTCHANGE);
+		return ret;
+	}
 	/*
 	 * Some governors do not respects CPU and policy lower limits
 	 * which leads to bad things (division by zero etc), ensure
@@ -170,29 +188,21 @@ static int mxc_set_target(struct cpufreq_policy *policy,
 	freqs.new = freq_Hz / 1000;
 	freqs.cpu = 0;
 	freqs.flags = 0;
-
-	if ((freqs.old == freqs.new) && (freqs.new != cpu_freq_khz_min)) {
-		set_high_bus_freq(0);
-		return 0;
-	}
 	low_freq_bus_ready = low_freq_bus_used();
 
 	cpufreq_notify_transition(&freqs, CPUFREQ_PRECHANGE);
-
 	if (!dvfs_core_is_active) {
 		if ((freq_Hz == arm_lpm_clk) && (!low_bus_freq_mode)
 		    && (low_freq_bus_ready)) {
+			if (freqs.old != freqs.new)
+				ret = set_cpu_freq(freq_Hz);
 			set_low_bus_freq();
-			if (!dvfs_core_is_active)
-				ret = set_cpu_freq(freq_Hz);
+
 		} else {
-			set_high_bus_freq(0);
-			if (!dvfs_core_is_active)
-				ret = set_cpu_freq(freq_Hz);
 			if (low_bus_freq_mode) {
-				if (ret == 0)
-					set_high_bus_freq(0);
+				set_high_bus_freq(0);
 			}
+			ret = set_cpu_freq(freq_Hz);
 		}
 	}
 
@@ -265,8 +275,33 @@ static int __init mxc_cpufreq_driver_init(struct cpufreq_policy *policy)
 		       __func__);
 		return ret;
 	}
-	cpufreq_frequency_table_get_attr(imx_freq_table, policy->cpu);
 
+	cpufreq_frequency_table_get_attr(imx_freq_table, policy->cpu);
+	return 0;
+}
+
+static int mxc_cpufreq_suspend(struct cpufreq_policy *policy,
+				     pm_message_t state)
+{
+	struct cpufreq_freqs freqs;
+	int ret = 0;
+	cpufreq_suspended = 1;
+
+	freqs.old = clk_get_rate(cpu_clk) / 1000;
+	freqs.new = arm_normal_clk / 1000;
+	freqs.cpu = 0;
+	freqs.flags = 0;
+
+	if (clk_get_rate(cpu_clk) != arm_normal_clk) {
+		set_high_bus_freq(0);
+		ret = set_cpu_freq(arm_normal_clk);
+	}
+	return ret;
+}
+
+static int mxc_cpufreq_resume(struct cpufreq_policy *policy)
+{
+	cpufreq_suspended = 0;
 	return 0;
 }
 
@@ -292,6 +327,8 @@ static struct cpufreq_driver mxc_driver = {
 	.get = mxc_get_speed,
 	.init = mxc_cpufreq_driver_init,
 	.exit = mxc_cpufreq_driver_exit,
+	.suspend = mxc_cpufreq_suspend,
+	.resume = mxc_cpufreq_resume,
 	.name = "imx",
 };
 
