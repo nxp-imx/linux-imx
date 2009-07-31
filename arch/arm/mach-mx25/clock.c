@@ -1185,7 +1185,7 @@ struct clk sdma_clk[] = {
 
 struct clk sim1_clk[] = {
 	{
-	 .name = "sim_clk",
+	 .name = "sim1_clk",
 	 .id = 0,
 	 .parent = &per_clk[11],
 	 .secondary = &sim1_clk[1],},
@@ -1201,7 +1201,7 @@ struct clk sim1_clk[] = {
 
 struct clk sim2_clk[] = {
 	{
-	 .name = "sim_clk",
+	 .name = "sim2_clk",
 	 .id = 1,
 	 .parent = &per_clk[12],
 	 .secondary = &sim2_clk[1],},
@@ -1702,6 +1702,9 @@ int __init mxc_clocks_init(unsigned long ckil, unsigned long osc, unsigned long 
 	/* the NFC clock must be derived from AHB clock */
 	clk_set_parent(&per_clk[8], &ahb_clk);
 	clk_set_rate(&per_clk[8], ahb_clk.rate / 6);
+
+	/* sim clock */
+	clk_set_rate(&per_clk[11], ahb_clk.rate / 2);
 
 	/* the csi clock must be derived from UPLL clock */
 	clk_set_parent(&per_clk[0], &upll_clk);

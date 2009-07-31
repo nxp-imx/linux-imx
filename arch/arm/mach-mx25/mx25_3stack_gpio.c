@@ -28,6 +28,82 @@
  *
  * @ingroup GPIO_MX25
  */
+static struct mxc_iomux_pin_cfg __initdata mxc_iomux_pins[] = {
+	/* SIM1 */
+	/* SIM1 CLK */
+	{
+	 MX25_PIN_CSI_D2, MUX_CONFIG_ALT4,
+	 PAD_CTL_SRE_FAST |
+	 PAD_CTL_DRV_HIGH | PAD_CTL_DRV_3_3V |
+	 PAD_CTL_HYS_CMOS | PAD_CTL_47K_PU |
+	 PAD_CTL_PUE_PULL | PAD_CTL_ODE_CMOS | PAD_CTL_PKE_ENABLE,
+	 },
+	/* SIM1 RST */
+	{
+	 MX25_PIN_CSI_D3, MUX_CONFIG_ALT4,
+	 PAD_CTL_DRV_HIGH | PAD_CTL_DRV_3_3V |
+	 PAD_CTL_HYS_CMOS | PAD_CTL_47K_PU |
+	 PAD_CTL_PUE_PULL | PAD_CTL_ODE_CMOS | PAD_CTL_PKE_ENABLE,
+	 },
+	/* SIM1 VEN */
+	{
+	 MX25_PIN_CSI_D4, MUX_CONFIG_ALT4,
+	 PAD_CTL_DRV_HIGH | PAD_CTL_DRV_3_3V |
+	 PAD_CTL_HYS_CMOS | PAD_CTL_100K_PU |
+	 PAD_CTL_PUE_PULL | PAD_CTL_ODE_CMOS | PAD_CTL_PKE_ENABLE,
+	 },
+	/* SIM1 TX */
+	{
+	 MX25_PIN_CSI_D5, MUX_CONFIG_ALT4,
+	 PAD_CTL_SRE_FAST |
+	 PAD_CTL_DRV_HIGH | PAD_CTL_DRV_3_3V |
+	 PAD_CTL_HYS_CMOS | PAD_CTL_22K_PU |
+	 PAD_CTL_PUE_PULL | PAD_CTL_ODE_OpenDrain | PAD_CTL_PKE_ENABLE,
+	 },
+	/* SIM1 PD */
+	{
+	 MX25_PIN_CSI_D6, MUX_CONFIG_ALT4,
+	 PAD_CTL_DRV_HIGH | PAD_CTL_DRV_3_3V |
+	 PAD_CTL_HYS_CMOS | PAD_CTL_22K_PU |
+	 PAD_CTL_PUE_PULL | PAD_CTL_ODE_CMOS | PAD_CTL_PKE_ENABLE,
+	 },
+	/* SIM2 */
+	/* SIM2 CLK */
+	{
+	 MX25_PIN_CSI_D8, MUX_CONFIG_ALT4,
+	 PAD_CTL_DRV_NORMAL | PAD_CTL_DRV_3_3V |
+	 PAD_CTL_HYS_SCHMITZ | PAD_CTL_100K_PU |
+	 PAD_CTL_PUE_KEEPER | PAD_CTL_ODE_CMOS | PAD_CTL_PKE_ENABLE,
+	 },
+	/* SIM2 RST */
+	{
+	 MX25_PIN_CSI_D9, MUX_CONFIG_ALT4,
+	 PAD_CTL_DRV_NORMAL | PAD_CTL_DRV_3_3V |
+	 PAD_CTL_HYS_SCHMITZ | PAD_CTL_100K_PU |
+	 PAD_CTL_PUE_KEEPER | PAD_CTL_ODE_CMOS | PAD_CTL_PKE_ENABLE,
+	 },
+	/* SIM2 VEN */
+	{
+	 MX25_PIN_CSI_MCLK, MUX_CONFIG_ALT4,
+	 PAD_CTL_DRV_NORMAL | PAD_CTL_DRV_3_3V |
+	 PAD_CTL_HYS_SCHMITZ | PAD_CTL_100K_PU |
+	 PAD_CTL_PUE_PULL | PAD_CTL_ODE_CMOS | PAD_CTL_PKE_NONE,
+	 },
+	/* SIM2 TX */
+	{
+	 MX25_PIN_CSI_VSYNC, MUX_CONFIG_ALT4,
+	 PAD_CTL_DRV_NORMAL | PAD_CTL_DRV_3_3V |
+	 PAD_CTL_HYS_SCHMITZ | PAD_CTL_100K_PU |
+	 PAD_CTL_PUE_KEEPER | PAD_CTL_ODE_CMOS | PAD_CTL_PKE_ENABLE,
+	 },
+	/* SIM2 PD */
+	{
+	 MX25_PIN_CSI_HSYNC, MUX_CONFIG_ALT4,
+	 PAD_CTL_DRV_NORMAL | PAD_CTL_DRV_3_3V |
+	 PAD_CTL_HYS_SCHMITZ | PAD_CTL_100K_PU |
+	 PAD_CTL_PUE_KEEPER | PAD_CTL_ODE_CMOS | PAD_CTL_PKE_ENABLE,
+	 },
+};
 
 /*!
  * This system-wide GPIO function initializes the pins during system startup.
@@ -36,8 +112,20 @@
  * \b fixup_mx25_3stack() during system startup. This function is board
  * specific.
  */
-void mx25_3stack_gpio_init(void)
+void __init mx25_3stack_gpio_init(void)
 {
+	int i;
+
+	for (i = 0; i < ARRAY_SIZE(mxc_iomux_pins); i++) {
+		mxc_request_iomux(mxc_iomux_pins[i].pin,
+				  mxc_iomux_pins[i].mux_mode);
+		if (mxc_iomux_pins[i].pad_cfg)
+			mxc_iomux_set_pad(mxc_iomux_pins[i].pin,
+					  mxc_iomux_pins[i].pad_cfg);
+		if (mxc_iomux_pins[i].in_select)
+			mxc_iomux_set_input(mxc_iomux_pins[i].in_select,
+					    mxc_iomux_pins[i].in_mode);
+	}
 }
 
 /*!

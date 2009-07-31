@@ -406,6 +406,60 @@ unsigned int expio_intr_fec = MXC_INT_POWER_FAIL;
 EXPORT_SYMBOL(expio_intr_fec);
 #endif
 
+#if defined(CONFIG_IMX_SIM) || defined(CONFIG_IMX_SIM_MODULE)
+/* Used to configure the SIM bus */
+static struct mxc_sim_platform_data sim1_data = {
+	.clk_rate = 5000000,
+	.clock_sim = "sim1_clk",
+	.power_sim = NULL,
+	.init = NULL,
+	.exit = NULL,
+	.detect = 1,
+};
+
+/*!
+ * Resource definition for the SIM
+ */
+static struct resource mxc_sim1_resources[] = {
+	[0] = {
+	       .start = SIM1_BASE_ADDR,
+	       .end = SIM1_BASE_ADDR + SZ_4K - 1,
+	       .flags = IORESOURCE_MEM,
+	       },
+	[1] = {
+	       .start = MXC_INT_SIM1,
+	       .end = MXC_INT_SIM1,
+	       .flags = IORESOURCE_IRQ,
+	       },
+	[2] = {
+	       .start = 0,
+	       .end = 0,
+	       .flags = IORESOURCE_IRQ,
+	       },
+};
+
+/*! Device Definition for IMX SIM */
+static struct platform_device mxc_sim1_device = {
+	.name = "mxc_sim",
+	.id = 0,
+	.dev = {
+		.release = mxc_nop_release,
+		.platform_data = &sim1_data,
+		},
+	.num_resources = ARRAY_SIZE(mxc_sim1_resources),
+	.resource = mxc_sim1_resources,
+};
+
+static inline void mxc_init_sim(void)
+{
+	(void)platform_device_register(&mxc_sim1_device);
+}
+#else
+static inline void mxc_init_sim(void)
+{
+}
+#endif
+
 #if defined(CONFIG_MMC_IMX_ESDHCI) || defined(CONFIG_MMC_IMX_ESDHCI_MODULE)
 static struct mxc_mmc_platform_data mmc1_data = {
 	.ocr_mask = MMC_VDD_29_30 | MMC_VDD_32_33,
@@ -598,6 +652,7 @@ static void __init mxc_board_init(void)
 	mxc_init_sgtl5000();
 	mxc_init_ak5702();
 	mxc_init_mmc();
+	mxc_init_sim();
 }
 
 /*

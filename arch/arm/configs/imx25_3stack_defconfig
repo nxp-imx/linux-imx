@@ -786,6 +786,11 @@ CONFIG_DEVKMEM=y
 CONFIG_MXC_IIM=y
 
 #
+# IMX SIM support
+#
+CONFIG_IMX_SIM=m
+
+#
 # Serial drivers
 #
 # CONFIG_SERIAL_8250 is not set
