@@ -306,6 +306,7 @@ static int sim_calc_param(uint32_t fi, uint32_t di, uint32_t *ptr_divisor,
 	uint32_t sample12 = 1;
 	uint32_t divisor = 31;
 
+	pr_debug("%s entering.\n", __func__);
 	if ((f > 0) || (d > 0)) {
 		if (stage2_fra == 0) {
 			if ((stage2_div % 12) == 0) {
@@ -358,6 +359,7 @@ static int sim_set_param(sim_t *sim, sim_param_t *param)
 	uint32_t divisor, sample12, reg_data;
 	int errval;
 
+	pr_debug("%s entering.\n", __func__);
 	errval = sim_calc_param(param->FI, param->DI, &divisor, &sample12);
 	if (errval == SIM_OK) {
 		__raw_writel(divisor, sim->ioaddr + DIVISOR);
@@ -390,6 +392,7 @@ static void sim_atr_received(sim_t *sim)
 	sim_param_t param_default = SIM_PARAM_DEFAULT;
 	sim->param_atr = param_default;
 
+	pr_debug("%s entering.\n", __func__);
 	if (sim->atrparser.ifc_valid & (1 << (SIM_IFC_TA1))) {
 		sim->param_atr.FI = sim->atrparser.TXI[SIM_IFC_TA1] >> 4;
 		sim->param_atr.DI = sim->atrparser.TXI[SIM_IFC_TA1] & 0x0f;
@@ -493,6 +496,7 @@ static void sim_xmt_start(sim_t *sim, int pos, int count)
 
 static void sim_atr_add(sim_t *sim, uint8_t data)
 {
+	pr_debug("%s entering.\n", __func__);
 	if (sim->atr.size < SIM_ATR_LENGTH_MAX)
 		sim->atr.t[sim->atr.size++] = data;
 	else
@@ -609,6 +613,9 @@ static void sim_fsm(sim_t *sim, uint16_t data)
 					printk(KERN_ERR "ERROR !\n");
 					break;
 				};
+
+				if (sim->atrparser.ifc_current_valid == 0)
+					goto sim_fsm_atr_thb;
 			} else {
 sim_fsm_atr_thb:
 				if (sim->atrparser.num_hb) {
@@ -779,6 +786,7 @@ static void sim_power_on(sim_t *sim)
 	uint32_t reg_data;
 
 	/* power on sequence */
+	pr_debug("%s Powering on the sim port.\n", __func__);
 	reg_data = __raw_readl(sim->ioaddr + PORT0_CNTL);
 	reg_data |= SIM_PORT_CNTL_SVEN;
 	__raw_writel(reg_data, sim->ioaddr + PORT0_CNTL);
@@ -803,6 +811,8 @@ static void sim_power_on(sim_t *sim)
 	reg_data = __raw_readl(sim->ioaddr + PORT0_CNTL);
 	reg_data |= SIM_PORT_CNTL_SRST;
 	__raw_writel(reg_data, sim->ioaddr + PORT0_CNTL);
+	pr_debug("%s port0_ctl is 0x%x.\n", __func__,
+		 __raw_readl(sim->ioaddr + PORT0_CNTL));
 	sim->power = SIM_POWER_ON;
 };
 
@@ -818,6 +828,7 @@ static void sim_power_off(sim_t *sim)
 {
 	uint32_t reg_data;
 
+	pr_debug("%s entering.\n", __func__);
 	/* sim_power_off sequence */
 	reg_data = __raw_readl(sim->ioaddr + PORT0_CNTL);
 	reg_data &= ~SIM_PORT_CNTL_SCEN;
@@ -850,6 +861,7 @@ static void sim_start(sim_t *sim)
 {
 	uint32_t reg_data, clk_rate, clk_div = 0;
 
+	pr_debug("%s entering.\n", __func__);
 	/* Configuring SIM for Operation */
 	reg_data = SIM_XMT_THRESHOLD_XTH(0) | SIM_XMT_THRESHOLD_TDT(4);
 	__raw_writel(reg_data, sim->ioaddr + XMT_THRESHOLD);
@@ -859,6 +871,7 @@ static void sim_start(sim_t *sim)
 	clk_div = clk_rate / sim->plat_data->clk_rate;
 	if (clk_rate % sim->plat_data->clk_rate)
 		clk_div++;
+	pr_debug("%s prescaler is 0x%x.\n", __func__, clk_div);
 	__raw_writel(clk_div, sim->ioaddr + CLK_PRESCALER);
 
 	reg_data = SIM_CNTL_GPCNT_CLK_SEL(0) | SIM_CNTL_BAUD_SEL(7)
@@ -922,6 +935,7 @@ static void sim_start(sim_t *sim)
 
 static void sim_stop(sim_t *sim)
 {
+	pr_debug("%s entering.\n", __func__);
 	__raw_writel(0, sim->ioaddr + SETUP);
 	__raw_writel(0, sim->ioaddr + ENABLE);
 	__raw_writel(0, sim->ioaddr + PORT0_CNTL);
@@ -974,6 +988,7 @@ static void sim_data_reset(sim_t *sim)
 
 static void sim_cold_reset(sim_t *sim)
 {
+	pr_debug("%s entering.\n", __func__);
 	if (sim->present != SIM_PRESENT_REMOVED) {
 		sim_power_off(sim);
 		sim_stop(sim);
@@ -999,6 +1014,7 @@ static void sim_warm_reset(sim_t *sim)
 {
 	uint32_t reg_data;
 
+	pr_debug("%s entering.\n", __func__);
 	if (sim->present != SIM_PRESENT_REMOVED) {
 		reg_data = __raw_readl(sim->ioaddr + PORT0_CNTL);
 		reg_data |= SIM_PORT_CNTL_SRST;
@@ -1023,6 +1039,7 @@ static int sim_card_lock(sim_t *sim)
 {
 	int errval;
 
+	pr_debug("%s entering.\n", __func__);
 	/* place holder for true physcial locking */
 	if (sim->present != SIM_PRESENT_REMOVED)
 		errval = SIM_OK;
@@ -1043,6 +1060,7 @@ static int sim_card_eject(sim_t *sim)
 {
 	int errval;
 
+	pr_debug("%s entering.\n", __func__);
 	/* place holder for true physcial locking */
 	if (sim->present != SIM_PRESENT_REMOVED)
 		errval = SIM_OK;
@@ -1066,6 +1084,7 @@ static int sim_ioctl(struct inode *inode, struct file *file,
 
 	sim_t *sim = (sim_t *) file->private_data;
 
+	pr_debug("%s entering.\n", __func__);
 	switch (cmd) {
 		pr_debug("ioctl cmd %d is issued...\n", cmd);
 
@@ -1251,6 +1270,7 @@ static int sim_ioctl(struct inode *inode, struct file *file,
 static int sim_fasync(int fd, struct file *file, int mode)
 {
 	sim_t *sim = (sim_t *) file->private_data;
+	pr_debug("%s entering.\n", __func__);
 	return fasync_helper(fd, file, mode, &sim->fasync);
 }
 
@@ -1268,6 +1288,7 @@ static int sim_open(struct inode *inode, struct file *file)
 	sim_t *sim = dev_get_drvdata(sim_dev.parent);
 	file->private_data = sim;
 
+	pr_debug("%s entering.\n", __func__);
 	if (!sim->ioaddr) {
 		errval = -ENOMEM;
 		return errval;
@@ -1297,6 +1318,7 @@ static int sim_release(struct inode *inode, struct file *file)
 
 	sim_t *sim = (sim_t *) file->private_data;
 
+	pr_debug("%s entering.\n", __func__);
 	if (sim->clk_flag) {
 		pr_debug("\n%s disable the clock\n", __func__);
 		clk_disable(sim->clk);
@@ -1376,13 +1398,8 @@ static int sim_probe(struct platform_device *pdev)
 	pr_debug("sim clock:%lu\n", clk_get_rate(sim->clk));
 
 	sim->ipb_irq = platform_get_irq(pdev, 0);
-	if (!sim->ipb_irq) {
-		ret = -ENOMEM;
-		goto out1;
-	}
-
 	sim->dat_irq = platform_get_irq(pdev, 1);
-	if (!sim->dat_irq) {
+	if (!(sim->ipb_irq | sim->dat_irq)) {
 		ret = -ENOMEM;
 		goto out1;
 	}
@@ -1396,12 +1413,13 @@ static int sim_probe(struct platform_device *pdev)
 	}
 
 	sim->ioaddr = (void *)ioremap(sim->res->start, sim->res->end -
-				       sim->res->start + 1);
-
-	ret = request_irq(sim->ipb_irq, sim_irq_handler,
-			  0, "mxc_sim_ipb", sim);
-	ret |= request_irq(sim->dat_irq, sim_irq_handler,
-			   0, "mxc_sim_dat", sim);
+				      sim->res->start + 1);
+	if (sim->ipb_irq)
+		ret = request_irq(sim->ipb_irq, sim_irq_handler,
+				  0, "mxc_sim_ipb", sim);
+	if (sim->dat_irq)
+		ret |= request_irq(sim->dat_irq, sim_irq_handler,
+				   0, "mxc_sim_dat", sim);
 
 	if (ret) {
 		printk(KERN_ERR "Can't get the irq\n");
@@ -1415,8 +1433,10 @@ static int sim_probe(struct platform_device *pdev)
 
 	return ret;
 out2:
-	free_irq(sim->ipb_irq, sim);
-	free_irq(sim->dat_irq, sim);
+	if (sim->ipb_irq)
+		free_irq(sim->ipb_irq, sim);
+	if (sim->dat_irq)
+		free_irq(sim->dat_irq, sim);
 	release_mem_region(sim->res->start,
 			   sim->res->end - sim->res->start + 1);
 out1:
@@ -1432,8 +1452,10 @@ static int sim_remove(struct platform_device *pdev)
 
 	clk_put(sim->clk);
 
-	free_irq(sim->ipb_irq, sim);
-	free_irq(sim->dat_irq, sim);
+	if (sim->ipb_irq)
+		free_irq(sim->ipb_irq, sim);
+	if (sim->dat_irq)
+		free_irq(sim->dat_irq, sim);
 
 	iounmap(sim->ioaddr);
 

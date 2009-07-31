@@ -437,7 +437,7 @@ config MXS_VIIM
 
 config IMX_SIM
 	tristate "IMX SIM support"
-	depends on ARCH_MX51
+	depends on (ARCH_MX51 || MACH_MX25_3DS)
 	---help---
          Say Y to enable the SIM driver support.
 
