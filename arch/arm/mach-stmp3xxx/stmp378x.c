@@ -409,10 +409,10 @@ int get_evk_board_version()
 {
 	int boardid;
 	boardid = HW_OCOTP_CUSTCAP_RD();
-	if ((boardid & 0x30000000) == 0x10000000)
-		return 1;
-	else
-		return 0;
+	boardid &= 0x30000000;
+	boardid = boardid >> 28;
+
+	return boardid;
 }
 
 EXPORT_SYMBOL_GPL(get_evk_board_version);

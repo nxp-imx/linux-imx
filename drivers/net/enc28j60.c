@@ -50,6 +50,10 @@
 /* Max TX retries in case of collision as suggested by errata datasheet */
 #define MAX_TX_RETRYCOUNT	16
 
+#ifdef CONFIG_ARCH_STMP3XXX
+#include <mach/stmp3xxx.h>
+#include <mach/regs-ocotp.h>
+#endif
 enum {
 	RXFILTER_NORMAL,
 	RXFILTER_MULTI,
@@ -97,8 +101,35 @@ static int enc28j60_get_mac(unsigned char *dev_addr, int idx)
 	if (idx > MAX_ENC_CARDS)
 		return false;
 
-	if (!mac[idx])
+	if (!mac[idx]) {
+#ifdef CONFIG_ARCH_STMP3XXX
+		if (get_evk_board_version() >= 1) {
+			int mac1 , mac2 , retry = 0;
+
+			HW_OCOTP_CTRL_SET(BM_OCOTP_CTRL_RD_BANK_OPEN);
+			while (HW_OCOTP_CTRL_RD() & BM_OCOTP_CTRL_BUSY) {
+				msleep(10);
+				retry++;
+				if (retry > 10)
+					return false;
+			}
+
+			mac1 = HW_OCOTP_CUSTn_RD(0);
+			mac2 = HW_OCOTP_CUSTn_RD(1);
+			if (MAX_ADDR_LEN < 6)
+				return false;
+
+			dev_addr[0] = (mac1 >> 24) & 0xFF;
+			dev_addr[1] = (mac1 >> 16) & 0xFF;
+			dev_addr[2] = (mac1 >> 8) & 0xFF;
+			dev_addr[3] = (mac1 >> 0) & 0xFF;
+			dev_addr[4] = (mac2 >> 8) & 0xFF;
+			dev_addr[5] = (mac2 >> 0) & 0xFF;
+			return true;
+		}
+#endif
 		return false;
+	}
 
 	item = mac[idx];
 	for (i = 0; i < MAX_ADDR_LEN; i++) {
