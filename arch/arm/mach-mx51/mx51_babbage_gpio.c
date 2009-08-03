@@ -460,16 +460,20 @@ static struct mxc_iomux_pin_cfg __initdata mxc_iomux_pins[] = {
 	 (PAD_CTL_HYS_NONE | PAD_CTL_SRE_SLOW),
 	 },
 	{
-	 MX51_PIN_OWIRE_LINE, IOMUX_CONFIG_ALT6,
-	 (PAD_CTL_DRV_HIGH | PAD_CTL_PKE_ENABLE |
-	  PAD_CTL_PUE_PULL | PAD_CTL_100K_PU | PAD_CTL_SRE_FAST),
-	 },
-	{
 	 MX51_PIN_EIM_D18, IOMUX_CONFIG_GPIO,
 	 (PAD_CTL_DRV_HIGH | PAD_CTL_PKE_ENABLE |
 	  PAD_CTL_PUE_KEEPER | PAD_CTL_100K_PU | PAD_CTL_SRE_FAST),
 	 },
 };
+
+static int __initdata enable_w1 = { 0 };
+static int __init w1_setup(char *__unused)
+{
+	enable_w1 = 1;
+	return 1;
+}
+
+__setup("w1", w1_setup);
 
 void __init mx51_babbage_io_init(void)
 {
@@ -674,6 +678,21 @@ void __init mx51_babbage_io_init(void)
 	mxc_set_gpio_direction(MX51_PIN_EIM_D18, 0);
 	mxc_set_gpio_dataout(MX51_PIN_EIM_D18, 1);
 
+	if (enable_w1) {
+		/* OneWire */
+		mxc_request_iomux(MX51_PIN_OWIRE_LINE, IOMUX_CONFIG_ALT0);
+		mxc_iomux_set_pad(MX51_PIN_OWIRE_LINE, PAD_CTL_HYS_ENABLE |
+				PAD_CTL_PKE_ENABLE |
+				PAD_CTL_ODE_OPENDRAIN_ENABLE |
+				PAD_CTL_DRV_HIGH | PAD_CTL_SRE_FAST |
+				PAD_CTL_100K_PU | PAD_CTL_PUE_PULL);
+	} else {
+		/* SPDIF Out */
+		mxc_request_iomux(MX51_PIN_OWIRE_LINE, IOMUX_CONFIG_ALT6);
+		mxc_iomux_set_pad(MX51_PIN_OWIRE_LINE, PAD_CTL_DRV_HIGH |
+				PAD_CTL_PKE_ENABLE | PAD_CTL_PUE_PULL |
+				PAD_CTL_100K_PU | PAD_CTL_SRE_FAST);
+	}
 }
 
 /* workaround for ecspi chipselect pin may not keep correct level when idle */
