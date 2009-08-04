@@ -112,6 +112,12 @@ static inline int type## _rev (int rev)		\
 #define cpu_is_mx27()		(0)
 #endif
 
+#define cpu_is_mx2()		\
+    (cpu_is_mx21() || cpu_is_mx25() || cpu_is_mx27())
+#define cpu_is_mx3()		\
+    (cpu_is_mx31() || cpu_is_mx35() || cpu_is_mx37())
+
+
 #ifndef __ASSEMBLY__
 /*
  * Create inline functions to test for cpu revision
