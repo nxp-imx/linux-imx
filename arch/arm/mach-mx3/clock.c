@@ -1,5 +1,5 @@
 /*
- * Copyright 2005-2008 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2005-2009 Freescale Semiconductor, Inc. All Rights Reserved.
  * Copyright (C) 2008 by Sascha Hauer <kernel@pengutronix.de>
  *
  * This program is free software; you can redistribute it and/or
@@ -627,10 +627,10 @@ static struct clk gpt_clk = {
 };
 
 static struct clk pwm_clk = {
-	.name = "pwm_clk",
+	.name = "pwm",
 	.parent = &perclk_clk,
 	.enable = _clk_enable,
-	.enable_reg = MXC_CCM_CGR0,
+	.enable_reg = MXC_CCM_CGR1,
 	.enable_shift = MXC_CCM_CGR1_PWM_OFFSET,
 	.disable = _clk_disable,
 };
