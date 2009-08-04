@@ -526,7 +526,7 @@ static struct clk per_clk[] = {
 	{
 	 .name = "per_gpt_clk",
 	 .id = 5,
-	 .parent = &upll_clk,	/* can be AHB or UPLL */
+	 .parent = &ahb_clk,	/* Must be AHB */
 	 .round_rate = _clk_perclkx_round_rate,
 	 .set_rate = _clk_perclkx_set_rate,
 	 .set_parent = _clk_perclkx_set_parent,
@@ -1698,6 +1698,9 @@ int __init mxc_clocks_init(unsigned long ckil, unsigned long osc, unsigned long 
 	/* This will propagate to all children and init all the clock rates */
 	propagate_rate(&osc24m_clk);
 	propagate_rate(&osc32k_clk);
+
+	/* GPT clock must be derived from AHB clock */
+	clk_set_rate(&per_clk[5], ahb_clk.rate / 10);
 
 	/* the NFC clock must be derived from AHB clock */
 	clk_set_parent(&per_clk[8], &ahb_clk);
