@@ -18,7 +18,7 @@ obj-$(CONFIG_ARCH_STMP37XX) += stmp37xx.o stmp37xx_lcdif.o
 obj-$(CONFIG_ARCH_STMP378X) += stmp378x.o stmp378x_lcdif.o
 
 obj-$(CONFIG_MACH_STMP37XX) += stmp37xx_devb.o
-obj-$(CONFIG_MACH_STMP378X) += stmp378x_devb.o stmp378x_i2c.o stmp378x_pwm_led.o
+obj-$(CONFIG_MACH_STMP378X) += stmp378x_devb.o stmp378x_i2c.o  stmp378x_pwm_led.o
 
 # Power Management
 obj-$(CONFIG_PM) += pm.o sleep.o
