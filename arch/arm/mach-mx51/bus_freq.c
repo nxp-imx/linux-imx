@@ -64,10 +64,11 @@ struct clk *osc;
 struct regulator *lp_regulator;
 int low_bus_freq_mode;
 int high_bus_freq_mode;
-
+int bus_freq_scaling_is_active;
 char *gp_reg_id = "SW1";
 char *lp_reg_id = "SW2";
 
+static struct device *busfreq_dev;
 extern int lp_high_freq;
 extern int lp_med_freq;
 extern int dvfs_core_is_active;
@@ -80,76 +81,87 @@ int set_low_bus_freq(void)
 	struct clk *p_clk;
 	struct clk *amode_parent_clk;
 
-	/*Change the DDR freq to 133Mhz. */
-	clk_set_rate(ddr_hf_clk, clk_round_rate(ddr_hf_clk, DDR_LOW_FREQ_CLK));
+	if (bus_freq_scaling_is_active) {
+		/*Change the DDR freq to 133Mhz. */
+		clk_set_rate(ddr_hf_clk,
+			     clk_round_rate(ddr_hf_clk, DDR_LOW_FREQ_CLK));
 
-	p_clk = clk_get_parent(periph_apm_clk);
-	/* Make sure osc_clk is the parent of lp_apm. */
-	clk_set_parent(lp_apm, osc);
-	/* Set the parent of periph_apm_clk to be lp_apm */
-	clk_set_parent(periph_apm_clk, lp_apm);
+		p_clk = clk_get_parent(periph_apm_clk);
+		/* Make sure osc_clk is the parent of lp_apm. */
+		clk_set_parent(lp_apm, osc);
+		/* Set the parent of periph_apm_clk to be lp_apm */
+		clk_set_parent(periph_apm_clk, lp_apm);
 
-	amode_parent_clk = periph_apm_clk;
+		amode_parent_clk = periph_apm_clk;
 
-	p_clk = clk_get_parent(main_bus_clk);
-	/* Set the parent of main_bus_clk to be periph_apm_clk */
-	clk_set_parent(main_bus_clk, amode_parent_clk);
+		p_clk = clk_get_parent(main_bus_clk);
+		/* Set the parent of main_bus_clk to be periph_apm_clk */
+		clk_set_parent(main_bus_clk, amode_parent_clk);
 
-	clk_set_rate(axi_a_clk, LP_APM_CLK);
-	clk_set_rate(axi_b_clk, LP_APM_CLK);
-	clk_set_rate(ahb_clk, LP_APM_CLK);
-	clk_set_rate(emi_slow_clk, LP_APM_CLK);
-	clk_set_rate(nfc_clk, NAND_LP_APM_CLK);
+		clk_set_rate(axi_a_clk, LP_APM_CLK);
+		clk_set_rate(axi_b_clk, LP_APM_CLK);
+		clk_set_rate(ahb_clk, LP_APM_CLK);
+		clk_set_rate(emi_slow_clk, LP_APM_CLK);
+		clk_set_rate(nfc_clk, NAND_LP_APM_CLK);
 
-	low_bus_freq_mode = 1;
-	high_bus_freq_mode = 0;
+		low_bus_freq_mode = 1;
+		high_bus_freq_mode = 0;
+	}
 
 	return 0;
 }
 
 int set_high_bus_freq(int high_bus_freq)
 {
-	if (clk_get_rate(main_bus_clk) == LP_APM_CLK) {
+	if (bus_freq_scaling_is_active) {
+		if (clk_get_rate(main_bus_clk) == LP_APM_CLK) {
 
-		clk_enable(pll2);
+			clk_enable(pll2);
 
-		/* Set the dividers before setting the parent clock. */
-		clk_set_rate(axi_a_clk, LP_APM_CLK/AXI_A_CLK_NORMAL_DIV);
-		clk_set_rate(axi_b_clk, LP_APM_CLK/AXI_B_CLK_NORMAL_DIV);
-		clk_set_rate(ahb_clk, LP_APM_CLK/AHB_CLK_NORMAL_DIV);
-		clk_set_rate(emi_slow_clk, LP_APM_CLK/EMI_SLOW_CLK_NORMAL_DIV);
-		clk_set_rate(nfc_clk,
+			/* Set the dividers before setting the parent clock. */
+			clk_set_rate(axi_a_clk,
+				     LP_APM_CLK/AXI_A_CLK_NORMAL_DIV);
+			clk_set_rate(axi_b_clk,
+				     LP_APM_CLK/AXI_B_CLK_NORMAL_DIV);
+			clk_set_rate(ahb_clk, LP_APM_CLK/AHB_CLK_NORMAL_DIV);
+			clk_set_rate(emi_slow_clk,
+				     LP_APM_CLK/EMI_SLOW_CLK_NORMAL_DIV);
+			clk_set_rate(nfc_clk,
 				clk_get_rate(emi_slow_clk)/NFC_CLK_NORMAL_DIV);
-		/* Set the parent of main_bus_clk to be pll2 */
-		clk_set_parent(main_bus_clk, pll2);
+			/* Set the parent of main_bus_clk to be pll2 */
+			clk_set_parent(main_bus_clk, pll2);
 
-		/*Change the DDR freq to 200MHz*/
-		clk_set_rate(ddr_hf_clk,
-				clk_round_rate(ddr_hf_clk, DDR_NORMAL_CLK));
+			/*Change the DDR freq to 200MHz*/
+			clk_set_rate(ddr_hf_clk,
+				    clk_round_rate(ddr_hf_clk, DDR_NORMAL_CLK));
 
-		low_bus_freq_mode = 0;
-	}
-	if (((clk_get_rate(ahb_clk) == LP_MED_CLK) && lp_high_freq) ||
-						high_bus_freq) {
-		/* Set to the high setpoint. */
-		high_bus_freq_mode = 1;
-		clk_set_rate(axi_a_clk,
-				clk_round_rate(axi_a_clk, AXI_A_NORMAL_CLK));
-		clk_set_rate(ahb_clk,
+			low_bus_freq_mode = 0;
+		}
+		if (((clk_get_rate(ahb_clk) == LP_MED_CLK) && lp_high_freq) ||
+							high_bus_freq) {
+			/* Set to the high setpoint. */
+			high_bus_freq_mode = 1;
+			clk_set_rate(axi_a_clk,
+				   clk_round_rate(axi_a_clk, AXI_A_NORMAL_CLK));
+			clk_set_rate(ahb_clk,
 				clk_round_rate(axi_b_clk, LP_NORMAL_CLK));
-		clk_set_rate(ddr_hf_clk,
+			clk_set_rate(ddr_hf_clk,
 				clk_round_rate(ddr_hf_clk, DDR_NORMAL_CLK));
 
-	}
-	if (lp_med_freq && !lp_high_freq && !high_bus_freq) {
-		/* Set to the medium setpoint. */
-		high_bus_freq_mode = 0;
-		low_bus_freq_mode = 0;
-		clk_set_rate(ddr_hf_clk,
+		}
+		if (lp_med_freq && !lp_high_freq && !high_bus_freq) {
+			/* Set to the medium setpoint. */
+			high_bus_freq_mode = 0;
+			low_bus_freq_mode = 0;
+			clk_set_rate(ddr_hf_clk,
 				clk_round_rate(ddr_hf_clk, DDR_LOW_FREQ_CLK));
-		clk_set_rate(axi_a_clk, clk_round_rate(axi_a_clk, LP_MED_CLK));
-		clk_set_rate(ahb_clk, clk_round_rate(axi_b_clk, LP_MED_CLK));
+			clk_set_rate(axi_a_clk,
+				     clk_round_rate(axi_a_clk, LP_MED_CLK));
+			clk_set_rate(ahb_clk,
+				     clk_round_rate(axi_b_clk, LP_MED_CLK));
+		}
 	}
+
 	return 0;
 }
 
@@ -168,6 +180,34 @@ void setup_pll(void)
 {
 }
 
+static ssize_t bus_freq_scaling_enable_show(struct device *dev,
+				struct device_attribute *attr, char *buf)
+{
+	if (bus_freq_scaling_is_active)
+		return sprintf(buf, "Bus frequency scaling is enabled\n");
+	else
+		return sprintf(buf, "Bus frequency scaling is disabled\n");
+}
+
+static ssize_t bus_freq_scaling_enable_store(struct device *dev,
+				 struct device_attribute *attr,
+				 const char *buf, size_t size)
+{
+	if (strstr(buf, "1") != NULL)
+		bus_freq_scaling_is_active = 1;
+	else if (strstr(buf, "0") != NULL) {
+		if (bus_freq_scaling_is_active)
+			set_high_bus_freq(1);
+
+		bus_freq_scaling_is_active = 0;
+	}
+
+	return size;
+}
+
+static DEVICE_ATTR(enable, 0644, bus_freq_scaling_enable_show,
+			bus_freq_scaling_enable_store);
+
 /*!
  * This is the probe routine for the bus frequency driver.
  *
@@ -178,6 +218,10 @@ void setup_pll(void)
  */
 static int __devinit busfreq_probe(struct platform_device *pdev)
 {
+	int err = 0;
+
+	busfreq_dev = &pdev->dev;
+
 	main_bus_clk = clk_get(NULL, "main_bus_clk");
 	if (IS_ERR(main_bus_clk)) {
 		printk(KERN_DEBUG "%s: failed to get main_bus_clk\n",
@@ -288,8 +332,16 @@ static int __devinit busfreq_probe(struct platform_device *pdev)
 		return PTR_ERR(osc);
 	}
 
+	err = sysfs_create_file(&busfreq_dev->kobj, &dev_attr_enable.attr);
+	if (err) {
+		printk(KERN_ERR
+		       "Unable to register sysdev entry for BUSFREQ");
+		return err;
+	}
+
 	low_bus_freq_mode = 0;
 	high_bus_freq_mode = 0;
+	bus_freq_scaling_is_active = 0;
 
 	return 0;
 }
@@ -320,6 +372,8 @@ static int __init busfreq_init(void)
 
 static void __exit busfreq_cleanup(void)
 {
+	sysfs_remove_file(&busfreq_dev->kobj, &dev_attr_enable.attr);
+
 	/* Unregister the device structure */
 	platform_driver_unregister(&busfreq_driver);
 }
