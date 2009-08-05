@@ -653,6 +653,15 @@ void __init mx51_babbage_io_init(void)
 		mxc_set_gpio_direction(MX51_PIN_EIM_A27, 1);
 	}
 
+	if (cpu_is_mx51_rev(CHIP_REV_3_0) > 0) {
+		/* DVI_I2C_ENB = 0 tristates the DVI I2C level shifter */
+		mxc_request_iomux(MX51_PIN_CSI2_HSYNC, IOMUX_CONFIG_ALT3);
+		mxc_iomux_set_pad(MX51_PIN_CSI2_HSYNC, PAD_CTL_DRV_HIGH |
+				  PAD_CTL_PKE_ENABLE | PAD_CTL_SRE_FAST);
+		mxc_set_gpio_direction(MX51_PIN_CSI2_HSYNC, 0);
+		mxc_set_gpio_dataout(MX51_PIN_CSI2_HSYNC, 0);
+	}
+
 	/* Deassert VGA reset to free i2c bus */
 	mxc_set_gpio_direction(MX51_PIN_EIM_A19, 0);
 	mxc_set_gpio_dataout(MX51_PIN_EIM_A19, 1);

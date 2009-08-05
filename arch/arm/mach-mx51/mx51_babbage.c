@@ -263,7 +263,14 @@ static int handle_edid(int *pixclk)
 	memset(&screeninfo, 0, sizeof(screeninfo));
 
 	adp = i2c_get_adapter(1);
+
+	if (cpu_is_mx51_rev(CHIP_REV_3_0) > 0) {
+		mxc_set_gpio_dataout(MX51_PIN_CSI2_HSYNC, 1);
+		msleep(1);
+	}
 	err = read_edid(adp, &screeninfo, &dvi);
+	if (cpu_is_mx51_rev(CHIP_REV_3_0) > 0)
+		mxc_set_gpio_dataout(MX51_PIN_CSI2_HSYNC, 0);
 
 	if (!err) {
 		printk(KERN_INFO " EDID read\n");
