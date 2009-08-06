@@ -557,6 +557,7 @@ config ARCH_STMP3XXX
 	select GENERIC_CLOCKEVENTS
 	select GENERIC_GPIO
 	select USB_ARCH_HAS_EHCI
+	select ZONE_DMA
 	help
 	  Support for systems based on the SigmaTel 3xxx CPUs.
 
