@@ -604,7 +604,7 @@ __stmp_dram_133M_values:
 	.word	7
 	.word	0x01000001
 	.word	11
-	.word	0x00070206
+	.word	0x00070204
 	.word	12
 	.word	0x02020000
 	.word	13
@@ -612,21 +612,21 @@ __stmp_dram_133M_values:
 	.word	15
 	.word	0x02040000
 	.word	17
-	.word	0x2200110a @ t_rc 0xa
+	.word	0x19000f08 @ t_rc 0xa
 	.word	19
-	.word	0x027f1313
+	.word	0x02021313
 	.word	20
 	.word	0x02061521
 	.word	21
 	.word	0x0000000a
 	.word	26
-	.word	0x00000408 /* 0x48b9 */
+	.word	0x000003f7 /* 0x48b9 */
 	.word	32
 	.word	0x000a23cd
 	.word	33
 	.word	0x000000c8 @ t_xsr 0xc8
 	.word	34
-	.word	0x00006808
+	.word	0x00006665
 	.word	40
 	.word	0x00010000
 
