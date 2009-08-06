@@ -68,6 +68,7 @@
 #define NFC_CONFIG2			(nfc_ip_base + 0x24)
 #define NFC_CONFIG3			(nfc_ip_base + 0x28)
 #define NFC_IPC				(nfc_ip_base + 0x2C)
+#define NFC_DELAY_LINE			(nfc_ip_base + 0x34)
 #else				/* skye */
 #define NFC_FLASH_ADDR_CMD		(nfc_axi_base + 0xE00)
 #define NFC_CONFIG1			(nfc_axi_base + 0xE04)
@@ -420,6 +421,7 @@ do { \
 #define NFC_CMD_1_SHIFT 8
 
 #define NUM_OF_ADDR_CYCLE (fls(g_page_mask) >> 3)
+#define SET_NFC_DELAY_LINE(val) raw_write((val), NFC_DELAY_LINE)
 
 /*should set the fw,ps,spas,ppb*/
 #define NFC_SET_NFMS(v)	\
@@ -446,6 +448,7 @@ do {	\
 		NFC_SET_ECC_MODE(GET_NAND_OOB_SIZE >> 1); \
 		NFC_SET_ST_CMD(0x70); \
 		raw_write(raw_read(NFC_CONFIG3) | 1 << 20, NFC_CONFIG3); \
+		SET_NFC_DELAY_LINE(0); \
 	} \
 } while (0)
 #endif
