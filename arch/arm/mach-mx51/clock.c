@@ -2450,22 +2450,21 @@ static struct clk usboh3_clk[] = {
 	 .enable_shift = MXC_CCM_CCGR2_CG14_OFFSET,
 	 .disable = _clk_disable,
 	 .secondary = &usboh3_clk[1],
-	 .flags = AHB_HIGH_SET_POINT | CPU_FREQ_TRIG_UPDATE,
-	 },
-	{
-	 .name = "usb_ahb_clk",
-	 .parent = &ipg_clk,
-	 .enable = _clk_enable,
-	 .enable_reg = MXC_CCM_CCGR2,
-	 .enable_shift = MXC_CCM_CCGR2_CG13_OFFSET,
-	 .disable = _clk_disable,
-	 .secondary = &usboh3_clk[2],
+	 .flags = AHB_MED_SET_POINT | CPU_FREQ_TRIG_UPDATE,
 	 },
 	{
 	 .name = "usb_sec_clk",
 	 .parent = &tmax2_clk,
 	 .secondary = &emi_fast_clk,
 	 },
+};
+static struct clk usb_ahb_clk = {
+	 .name = "usb_ahb_clk",
+	 .parent = &ipg_clk,
+	 .enable = _clk_enable,
+	 .enable_reg = MXC_CCM_CCGR2,
+	 .enable_shift = MXC_CCM_CCGR2_CG13_OFFSET,
+	 .disable = _clk_disable,
 };
 
 static void _clk_usb_phy_recalc(struct clk *clk)
@@ -3400,7 +3399,7 @@ static struct clk *mxc_clks[] = {
 	&tmax3_clk,
 	&usboh3_clk[0],
 	&usboh3_clk[1],
-	&usboh3_clk[2],
+	&usb_ahb_clk,
 	&usb_phy_clk,
 	&usb_utmi_clk,
 	&usb_clk,
@@ -3653,6 +3652,18 @@ int __init mxc_clocks_init(unsigned long ckil, unsigned long osc, unsigned long 
 	/* Change the SSI_EXT1_CLK to be sourced from SSI1_CLK_ROOT */
 	clk_set_parent(&ssi_ext1_clk, &ssi1_clk[0]);
 	clk_set_parent(&ssi_ext2_clk, &ssi2_clk[0]);
+
+	/* move usb_phy_clk to 24MHz */
+	clk_set_parent(&usb_phy_clk, &osc_clk);
+
+	/* set usboh3_clk to pll2 */
+	clk_set_parent(&usboh3_clk, &pll2_sw_clk);
+	reg = __raw_readl(MXC_CCM_CSCDR1);
+	reg &= ~MXC_CCM_CSCDR1_USBOH3_CLK_PODF_MASK;
+	reg &= ~MXC_CCM_CSCDR1_USBOH3_CLK_PRED_MASK;
+	reg |= 4 << MXC_CCM_CSCDR1_USBOH3_CLK_PRED_OFFSET;
+	reg |= 1 << MXC_CCM_CSCDR1_USBOH3_CLK_PODF_OFFSET;
+	__raw_writel(reg, MXC_CCM_CSCDR1);
 
 	/* Set the current working point. */
 	cpu_wp_tbl = get_cpu_wp(&cpu_wp_nr);

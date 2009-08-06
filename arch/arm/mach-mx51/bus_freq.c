@@ -144,12 +144,12 @@ int set_high_bus_freq(int high_bus_freq)
 			clk_set_rate(axi_a_clk,
 				   clk_round_rate(axi_a_clk, AXI_A_NORMAL_CLK));
 			clk_set_rate(ahb_clk,
-				clk_round_rate(axi_b_clk, LP_NORMAL_CLK));
+				clk_round_rate(ahb_clk, LP_NORMAL_CLK));
 			clk_set_rate(ddr_hf_clk,
 				clk_round_rate(ddr_hf_clk, DDR_NORMAL_CLK));
 
 		}
-		if (lp_med_freq && !lp_high_freq && !high_bus_freq) {
+		if (!lp_high_freq && !high_bus_freq) {
 			/* Set to the medium setpoint. */
 			high_bus_freq_mode = 0;
 			low_bus_freq_mode = 0;
@@ -158,7 +158,7 @@ int set_high_bus_freq(int high_bus_freq)
 			clk_set_rate(axi_a_clk,
 				     clk_round_rate(axi_a_clk, LP_MED_CLK));
 			clk_set_rate(ahb_clk,
-				     clk_round_rate(axi_b_clk, LP_MED_CLK));
+				     clk_round_rate(ahb_clk, LP_MED_CLK));
 		}
 	}
 

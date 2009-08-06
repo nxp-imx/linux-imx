@@ -189,7 +189,6 @@ static int mxc_set_target(struct cpufreq_policy *policy,
 	freqs.cpu = 0;
 	freqs.flags = 0;
 	low_freq_bus_ready = low_freq_bus_used();
-
 	cpufreq_notify_transition(&freqs, CPUFREQ_PRECHANGE);
 	if (!dvfs_core_is_active) {
 		if ((freq_Hz == arm_lpm_clk) && (!low_bus_freq_mode)
@@ -199,9 +198,7 @@ static int mxc_set_target(struct cpufreq_policy *policy,
 			set_low_bus_freq();
 
 		} else {
-			if (low_bus_freq_mode) {
-				set_high_bus_freq(0);
-			}
+			set_high_bus_freq(0);
 			ret = set_cpu_freq(freq_Hz);
 		}
 	}
@@ -313,7 +310,7 @@ static int mxc_cpufreq_driver_exit(struct cpufreq_policy *policy)
 	if (!dvfs_core_is_active)
 		set_cpu_freq(arm_normal_clk);
 	if (!high_bus_freq_mode)
-		set_high_bus_freq(0);
+		set_high_bus_freq(1);
 
 	clk_put(cpu_clk);
 	regulator_put(gp_regulator);
