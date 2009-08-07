@@ -111,6 +111,7 @@ static struct clk *cpu_clk;
 static struct clk *dvfs_clk;
 static struct regulator *core_regulator;
 
+extern int cpu_wp_nr;
 #ifdef CONFIG_ARCH_MX51
 extern struct cpu_wp *(*get_cpu_wp)(int *wp);
 #endif
@@ -150,7 +151,7 @@ void dvfs_core_set_bus_freq(void)
 
 	low_freq_bus_ready = low_freq_bus_used();
 
-	if ((curr_wp == dvfs_data->num_wp - 1) && (!low_bus_freq_mode)
+	if ((curr_wp == cpu_wp_nr - 1) && (!low_bus_freq_mode)
 	    && (low_freq_bus_ready))
 		set_low_bus_freq();
 	else if (!low_freq_bus_ready)
@@ -226,7 +227,7 @@ static int set_cpu_freq(int wp)
 		/* set VINC */
 		reg = __raw_readl(dvfs_data->gpc_vcr_reg_addr);
 		reg &= ~(MXC_GPCVCR_VINC_MASK | MXC_GPCVCR_VCNTU_MASK |
-		    MXC_GPCVCR_VCNT_MASK);
+			 MXC_GPCVCR_VCNT_MASK);
 
 		if (rate > org_cpu_rate)
 			reg |= 1 << MXC_GPCVCR_VINC_OFFSET;
@@ -277,7 +278,7 @@ static int set_cpu_freq(int wp)
 			return 0;
 		}
 
-		/* Check if FSVAI indicate freq up*/
+		/* Check if FSVAI indicate freq up */
 		if (podf < arm_podf) {
 			ret = regulator_set_voltage(core_regulator,
 						    gp_volt, gp_volt);
@@ -301,8 +302,7 @@ static int set_cpu_freq(int wp)
 
 		reg1 = __raw_readl(dvfs_data->ccm_cdhipr_reg_addr);
 		if ((reg1 & 0x00010000) == 0)
-			__raw_writel(reg,
-				     dvfs_data->ccm_cacrr_reg_addr);
+			__raw_writel(reg, dvfs_data->ccm_cacrr_reg_addr);
 		else {
 			printk(KERN_DEBUG "ARM_PODF still in busy!!!!\n");
 			return 0;
@@ -320,7 +320,7 @@ static int set_cpu_freq(int wp)
 		    ~(MXC_GPCVCR_VINC_MASK | MXC_GPCVCR_VCNTU_MASK |
 		      MXC_GPCVCR_VCNT_MASK);
 		reg |= (1 << MXC_GPCVCR_VCNTU_OFFSET) |
-		    (1000 << MXC_GPCVCR_VCNT_OFFSET) |
+		    (100 << MXC_GPCVCR_VCNT_OFFSET) |
 		    (vinc << MXC_GPCVCR_VINC_OFFSET);
 		__raw_writel(reg, dvfs_data->gpc_vcr_reg_addr);
 
@@ -486,18 +486,18 @@ static void dvfs_core_workqueue_handler(struct work_struct *work)
 	/* If FSVAI indicate freq down,
 	   check arm-clk is not in lowest frequency 200 MHz */
 	if (fsvai == FSVAI_FREQ_DECREASE) {
-		if (curr_cpu == cpu_wp_tbl[dvfs_data->num_wp - 1].cpu_rate) {
+		if (curr_cpu == cpu_wp_tbl[cpu_wp_nr - 1].cpu_rate) {
 			minf = 1;
 			goto END;
 		} else {
 			/* freq down */
 			curr_wp++;
-			if (curr_wp >= dvfs_data->num_wp) {
-				curr_wp = dvfs_data->num_wp - 1;
+			if (curr_wp >= cpu_wp_nr) {
+				curr_wp = cpu_wp_nr - 1;
 				goto END;
 			}
 
-			if (curr_wp == dvfs_data->num_wp - 1)
+			if (curr_wp == cpu_wp_nr - 1)
 				minf = 1;
 		}
 	} else {
@@ -512,20 +512,13 @@ static void dvfs_core_workqueue_handler(struct work_struct *work)
 	}
 
 	low_freq_bus_ready = low_freq_bus_used();
-	if ((curr_wp == dvfs_data->num_wp - 1) && (!low_bus_freq_mode)
+	if ((curr_wp == cpu_wp_nr - 1) && (!low_bus_freq_mode)
 	    && (low_freq_bus_ready)) {
 		ret = set_cpu_freq(curr_wp);
 		set_low_bus_freq();
 	} else {
-		if (!high_bus_freq_mode)
-			set_high_bus_freq(0);
-
+		set_high_bus_freq(0);
 		ret = set_cpu_freq(curr_wp);
-
-		if (low_bus_freq_mode) {
-			if (ret == 0)
-				set_high_bus_freq(0);
-		}
 	}
 
 #if defined(CONFIG_CPU_FREQ)
@@ -636,7 +629,6 @@ static int __devinit mxc_dvfs_core_probe(struct platform_device *pdev)
 {
 	int err = 0;
 	struct resource *res;
-	int cpu_wp_nr;
 	int irq;
 
 	printk(KERN_INFO "mxc_dvfs_core_probe\n");

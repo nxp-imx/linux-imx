@@ -74,7 +74,7 @@ extern int lp_med_freq;
 extern int dvfs_core_is_active;
 
 struct dvfs_wp dvfs_core_setpoint[] = {{33, 7, 33, 20, 20, 0x10},
-					    {22, 0, 33, 20, 20, 0x10},};
+					    {27, 0, 33, 20, 20, 0x10},};
 
 int set_low_bus_freq(void)
 {

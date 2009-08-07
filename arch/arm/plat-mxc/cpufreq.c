@@ -290,7 +290,7 @@ static int mxc_cpufreq_suspend(struct cpufreq_policy *policy,
 	freqs.flags = 0;
 
 	if (clk_get_rate(cpu_clk) != arm_normal_clk) {
-		set_high_bus_freq(0);
+		set_high_bus_freq(1);
 		ret = set_cpu_freq(arm_normal_clk);
 	}
 	return ret;
