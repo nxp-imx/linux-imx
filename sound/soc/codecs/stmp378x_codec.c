@@ -80,12 +80,22 @@ static u32 adc_regmap[] = {
 	HW_AUDIOIN_DATA_ADDR,
 };
 
+static u16 stmp378x_audio_regs[ADC_REGNUM];
+
 /*
  * ALSA core supports only 16 bit registers. It means we have to simulate it
  * by virtually splitting a 32bit ADC/DAC registers into two halves
  * high (bits 31:16) and low (bits 15:0). The routins abow detects which part
  * of 32bit register is accessed.
  */
+static void stmp378x_codec_write_cache(struct snd_soc_codec *codec,
+					unsigned int reg, unsigned int value)
+{
+	u16 *cache = codec->reg_cache;
+	if (reg < ADC_REGNUM)
+		cache[reg] = value;
+}
+
 static int stmp378x_codec_write(struct snd_soc_codec *codec,
 				unsigned int reg, unsigned int value)
 {
@@ -94,6 +104,8 @@ static int stmp378x_codec_write(struct snd_soc_codec *codec,
 
 	if (reg >= ADC_REGNUM)
 		return -EIO;
+
+	stmp378x_codec_write_cache(codec, reg, value);
 
 	if (reg & 0x1) {
 		mask <<= 16;
@@ -120,6 +132,37 @@ static unsigned int stmp378x_codec_read(struct snd_soc_codec *codec,
 		reg_val >>= 16;
 
 	return reg_val & 0xffff;
+}
+
+static unsigned int stmp378x_codec_read_cache(struct snd_soc_codec *codec,
+						unsigned int reg)
+{
+	u16 *cache = codec->reg_cache;
+	if (reg >= ADC_REGNUM)
+		return -EINVAL;
+	return cache[reg];
+}
+
+static void stmp378x_codec_sync_reg_cache(struct snd_soc_codec *codec)
+{
+	int reg;
+	for (reg = 0; reg < ADC_REGNUM; reg += 1)
+		stmp378x_codec_write_cache(codec, reg,
+					   stmp378x_codec_read(codec, reg));
+}
+
+
+static int stmp378x_codec_restore_reg(struct snd_soc_codec *codec, unsigned int reg)
+{
+	unsigned int cached_val, hw_val;
+
+	cached_val = stmp378x_codec_read_cache(codec, reg);
+	hw_val = stmp378x_codec_read(codec, reg);
+
+	if (hw_val != cached_val)
+		return stmp378x_codec_write(codec, reg, cached_val);
+
+	return 0;
 }
 
 static const char *stmp378x_codec_adc_input_sel[] =
@@ -572,6 +615,9 @@ stmp378x_codec_init(struct snd_soc_codec *codec)
 	stmp378x_codec_dac_enable(stmp378x_adc);
 	stmp378x_codec_adc_enable(stmp378x_adc);
 
+	/*Sync regs and cache*/
+	stmp378x_codec_sync_reg_cache(codec);
+
 	stmp378x_codec_add_controls(codec);
 	stmp378x_codec_add_widgets(codec);
 }
@@ -638,6 +684,9 @@ static int stmp378x_codec_probe(struct platform_device *pdev)
 	codec->write = stmp378x_codec_write;
 	codec->dai = &stmp378x_codec_dai;
 	codec->num_dai = 1;
+	codec->reg_cache_size = sizeof(stmp378x_audio_regs) >> 1;
+	codec->reg_cache_step = 1;
+	codec->reg_cache = (void *)&stmp378x_audio_regs;
 	socdev->codec = codec;
 
 	mutex_init(&codec->mutex);
@@ -751,6 +800,19 @@ static int stmp378x_codec_resume(struct platform_device *pdev)
 
 	stmp378x_codec_dac_enable(stmp378x_adc);
 	stmp378x_codec_adc_enable(stmp378x_adc);
+
+	/*restore registers relevant to amixer controls*/
+	stmp378x_codec_restore_reg(codec, DAC_CTRL_L);
+	stmp378x_codec_restore_reg(codec, DAC_VOLUME_L);
+	stmp378x_codec_restore_reg(codec, DAC_VOLUME_H);
+	stmp378x_codec_restore_reg(codec, DAC_HPVOL_L);
+	stmp378x_codec_restore_reg(codec, DAC_HPVOL_H);
+	stmp378x_codec_restore_reg(codec, DAC_SPEAKERCTRL_H);
+	stmp378x_codec_restore_reg(codec, ADC_VOLUME_L);
+	stmp378x_codec_restore_reg(codec, ADC_VOLUME_H);
+	stmp378x_codec_restore_reg(codec, ADC_ADCVOL_L);
+	stmp378x_codec_restore_reg(codec, ADC_ADCVOL_H);
+	stmp378x_codec_restore_reg(codec, ADC_MICLINE_L);
 
 	ret = 0;
 
