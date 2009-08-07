@@ -135,6 +135,7 @@ struct mxc_spdif_platform_data {
 	int spdif_clkid;
 	struct clk *spdif_clk;
 	struct clk *spdif_core_clk;
+	struct clk *spdif_audio_clk;
 };
 
 struct mxc_asrc_platform_data {

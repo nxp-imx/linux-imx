@@ -556,6 +556,8 @@ static inline void mxc_init_spdif(void)
 	clk_put(mxc_spdif_data.spdif_clk);
 	mxc_spdif_data.spdif_core_clk = clk_get(NULL, "spdif_clk");
 	clk_put(mxc_spdif_data.spdif_core_clk);
+	mxc_spdif_data.spdif_audio_clk = clk_get(NULL, "spdif_audio_clk");
+	clk_put(mxc_spdif_data.spdif_audio_clk);
 	platform_device_register(&mxc_alsa_spdif_device);
 }
 

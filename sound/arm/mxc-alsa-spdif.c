@@ -1195,6 +1195,7 @@ static int snd_card_mxc_spdif_playback_open(struct snd_pcm_substream *substream)
 	spdif_data = chip->card->dev->platform_data;
 	/* enable tx clock */
 	clk_enable(spdif_data->spdif_clk);
+	clk_enable(spdif_data->spdif_audio_clk);
 
 	runtime = substream->runtime;
 	chip->s[SNDRV_PCM_STREAM_PLAYBACK].stream = substream;
@@ -1237,6 +1238,7 @@ static int snd_card_mxc_spdif_playback_close(struct snd_pcm_substream
 	spdif_intr_status();
 	spdif_intr_enable(INT_TXFIFO_RESYNC, 0);
 	spdif_tx_uninit();
+	clk_disable(spdif_data->spdif_audio_clk);
 	clk_disable(spdif_data->spdif_clk);
 	mxc_dma_free(chip->s[SNDRV_PCM_STREAM_PLAYBACK].dma_wchannel);
 	chip->s[SNDRV_PCM_STREAM_PLAYBACK].dma_wchannel = 0;
