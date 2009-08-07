@@ -29,6 +29,9 @@
  * @ingroup GPIO_MX25
  */
 static struct mxc_iomux_pin_cfg __initdata mxc_iomux_pins[] = {
+};
+
+static struct mxc_iomux_pin_cfg __initdata sim_iomux_pins[] = {
 	/* SIM1 */
 	/* SIM1 CLK */
 	{
@@ -105,6 +108,15 @@ static struct mxc_iomux_pin_cfg __initdata mxc_iomux_pins[] = {
 	 },
 };
 
+static int __initdata enable_sim = { 0 };
+static int __init sim_setup(char *__unused)
+{
+	enable_sim = 1;
+	return 1;
+}
+
+__setup("sim", sim_setup);
+
 /*!
  * This system-wide GPIO function initializes the pins during system startup.
  * All the statically linked device drivers should put the proper GPIO
@@ -114,7 +126,8 @@ static struct mxc_iomux_pin_cfg __initdata mxc_iomux_pins[] = {
  */
 void __init mx25_3stack_gpio_init(void)
 {
-	int i;
+	int i, num = 0;
+	struct mxc_iomux_pin_cfg *pin_ptr;
 
 	for (i = 0; i < ARRAY_SIZE(mxc_iomux_pins); i++) {
 		mxc_request_iomux(mxc_iomux_pins[i].pin,
@@ -125,6 +138,20 @@ void __init mx25_3stack_gpio_init(void)
 		if (mxc_iomux_pins[i].in_select)
 			mxc_iomux_set_input(mxc_iomux_pins[i].in_select,
 					    mxc_iomux_pins[i].in_mode);
+	}
+
+	if (enable_sim) {
+		pin_ptr = sim_iomux_pins;
+		num = ARRAY_SIZE(sim_iomux_pins);
+	}
+
+	for (i = 0; i < num; i++) {
+		mxc_request_iomux(pin_ptr[i].pin, pin_ptr[i].mux_mode);
+		if (pin_ptr[i].pad_cfg)
+			mxc_iomux_set_pad(pin_ptr[i].pin, pin_ptr[i].pad_cfg);
+		if (pin_ptr[i].in_select)
+			mxc_iomux_set_input(pin_ptr[i].in_select,
+					pin_ptr[i].in_mode);
 	}
 }
 
