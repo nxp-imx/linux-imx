@@ -1628,7 +1628,7 @@ static void ahci_fill_cmd_slot(struct ahci_port_priv *pp, unsigned int tag,
 	pp->cmd_slot[tag].tbl_addr_hi = cpu_to_le32((cmd_tbl_dma >> 16) >> 16);
 }
 
-static int ahci_kick_engine(struct ata_port *ap, int force_restart)
+static int ahci_kick_engine(struct ata_port *ap)
 {
 	void __iomem *port_mmio = ahci_port_base(ap);
 	struct ahci_host_priv *hpriv = ap->host->private_data;
@@ -1636,18 +1636,16 @@ static int ahci_kick_engine(struct ata_port *ap, int force_restart)
 	u32 tmp;
 	int busy, rc;
 
-	/* do we need to kick the port? */
-	busy = status & (ATA_BUSY | ATA_DRQ);
-	if (!busy && !force_restart)
-		return 0;
-
 	/* stop engine */
 	rc = ahci_stop_engine(ap);
 	if (rc)
 		goto out_restart;
 
-	/* need to do CLO? */
-	if (!busy) {
+	/* need to do CLO?
+	 * always do CLO if PMP is attached (AHCI-1.3 9.2)
+	 */
+	busy = status & (ATA_BUSY | ATA_DRQ);
+	if (!busy && !sata_pmp_attached(ap)) {
 		rc = 0;
 		goto out_restart;
 	}
@@ -1695,7 +1693,7 @@ static int ahci_exec_polled_cmd(struct ata_port *ap, int pmp,
 		tmp = ata_wait_register(port_mmio + PORT_CMD_ISSUE, 0x1, 0x1,
 					1, timeout_msec);
 		if (tmp & 0x1) {
-			ahci_kick_engine(ap, 1);
+			ahci_kick_engine(ap);
 			return -EBUSY;
 		}
 	} else
@@ -1718,7 +1716,7 @@ static int ahci_do_softreset(struct ata_link *link, unsigned int *class,
 	DPRINTK("ENTER\n");
 
 	/* prepare for SRST (AHCI-1.1 10.4.1) */
-	rc = ahci_kick_engine(ap, 1);
+	rc = ahci_kick_engine(ap);
 	if (rc && rc != -EOPNOTSUPP)
 		ata_link_printk(link, KERN_WARNING,
 				"failed to reset engine (errno=%d)\n", rc);
@@ -1934,7 +1932,7 @@ static int ahci_p5wdh_hardreset(struct ata_link *link, unsigned int *class,
 		rc = ata_wait_after_reset(link, jiffies + 2 * HZ,
 					  ahci_check_ready);
 		if (rc)
-			ahci_kick_engine(ap, 0);
+			ahci_kick_engine(ap);
 	}
 	return rc;
 }
@@ -2315,7 +2313,7 @@ static void ahci_post_internal_cmd(struct ata_queued_cmd *qc)
 
 	/* make DMA engine forget about the failed command */
 	if (qc->flags & ATA_QCFLAG_FAILED)
-		ahci_kick_engine(ap, 1);
+		ahci_kick_engine(ap);
 }
 
 static void ahci_pmp_attach(struct ata_port *ap)
