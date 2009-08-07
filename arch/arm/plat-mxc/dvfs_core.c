@@ -348,6 +348,9 @@ static int set_cpu_freq(int wp)
 		}
 
 		propagate_rate(pll1_sw_clk);
+#if defined(CONFIG_CPU_FREQ)
+		cpufreq_trig_needed = 1;
+#endif
 		old_wp = wp;
 	}
 
