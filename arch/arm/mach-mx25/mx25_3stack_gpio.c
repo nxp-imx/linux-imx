@@ -433,8 +433,6 @@ void gpio_fec_inactive(void)
 	mxc_request_gpio(MX25_PIN_FEC_RDATA1);
 	mxc_request_gpio(MX25_PIN_FEC_TDATA1);
 
-	mxc_request_gpio(MX25_PIN_D12);	/* FEC_RESET_B */
-
 	mxc_free_iomux(MX25_PIN_FEC_TX_CLK, MUX_CONFIG_GPIO);
 	mxc_free_iomux(MX25_PIN_FEC_RX_DV, MUX_CONFIG_GPIO);
 	mxc_free_iomux(MX25_PIN_FEC_RDATA0, MUX_CONFIG_GPIO);
@@ -446,6 +444,7 @@ void gpio_fec_inactive(void)
 	mxc_free_iomux(MX25_PIN_FEC_TDATA1, MUX_CONFIG_GPIO);
 	mxc_request_iomux(MX25_PIN_POWER_FAIL, MUX_CONFIG_FUNC); /* PHY INT */
 
+	mxc_free_iomux(MX25_PIN_A17, MUX_CONFIG_GPIO);
 	mxc_free_iomux(MX25_PIN_D12, MUX_CONFIG_GPIO); /* FEC_RESET_B */
 
 	/* We keep pin A17, so FEC_ENABLE doesn't float */
