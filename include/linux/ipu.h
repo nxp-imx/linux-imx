@@ -26,6 +26,7 @@
 #define __ASM_ARCH_IPU_H__
 
 #include <linux/types.h>
+#include <linux/videodev2.h>
 #ifdef __KERNEL__
 #include <linux/interrupt.h>
 #else
@@ -71,6 +72,15 @@ typedef enum {
 	IPU_PANEL_SHARP_TFT,
 	IPU_PANEL_TFT,
 } ipu_panel_t;
+
+/*!
+ * Enumeration of VDI MOTION select
+ */
+typedef enum {
+	MED_MOTION = 0,
+	LOW_MOTION = 1,
+	HIGH_MOTION = 2,
+} ipu_motion_sel;
 
 /*  IPU Pixel format definitions */
 /*  Four-character-code (FOURCC) */
@@ -193,6 +203,9 @@ typedef enum {
 	MEM_DC_SYNC = CHAN_NONE,
 	DIRECT_ASYNC0 = CHAN_NONE,
 	DIRECT_ASYNC1 = CHAN_NONE,
+	MEM_VDI_PRP_VF_MEM_P = CHAN_NONE,
+	MEM_VDI_PRP_VF_MEM = CHAN_NONE,
+	MEM_VDI_PRP_VF_MEM_N = CHAN_NONE,
 #else
 	MEM_ROT_ENC_MEM = _MAKE_CHAN(1, 45, NO_DMA, NO_DMA, 48),
 	MEM_ROT_VF_MEM = _MAKE_CHAN(2, 46, NO_DMA, NO_DMA, 49),
@@ -357,6 +370,8 @@ typedef union {
 		uint8_t alpha;
 		uint32_t key_color;
 		bool alpha_chan_en;
+		ipu_motion_sel motion_sel;
+		enum v4l2_field field_fmt;
 	} mem_prp_vf_mem;
 	struct {
 		uint32_t temp;
@@ -812,6 +827,7 @@ enum {
 	STOP,
 };
 
+
 /*Define template constants*/
 #define     ATM_ADDR_RANGE      0x20	/*offset address of DISP */
 #define     TEMPLATE_BUF_SIZE   0x20	/*size of template */
@@ -860,6 +876,7 @@ int32_t ipu_update_channel_buffer(ipu_channel_t channel, ipu_buffer_t type,
 
 int32_t ipu_select_buffer(ipu_channel_t channel,
 			  ipu_buffer_t type, uint32_t bufNum);
+int32_t ipu_select_multi_vdi_buffer(uint32_t bufNum);
 
 int32_t ipu_link_channels(ipu_channel_t src_ch, ipu_channel_t dest_ch);
 int32_t ipu_unlink_channels(ipu_channel_t src_ch, ipu_channel_t dest_ch);

@@ -484,7 +484,13 @@ int32_t ipu_init_channel(ipu_channel_t channel, ipu_channel_params_t *params)
 		if (params->mem_prp_vf_mem.graphics_combine_en)
 			g_sec_chan_en[IPU_CHAN_ID(channel)] = true;
 		_ipu_ic_init_prpvf(params, false);
-		_ipu_vdi_init(params);
+		_ipu_vdi_init(channel, params);
+		break;
+	case MEM_VDI_PRP_VF_MEM_P:
+		_ipu_vdi_init(channel, params);
+		break;
+	case MEM_VDI_PRP_VF_MEM_N:
+		_ipu_vdi_init(channel, params);
 		break;
 	case MEM_ROT_VF_MEM:
 		ipu_ic_use_count++;
@@ -1036,9 +1042,40 @@ int32_t ipu_select_buffer(ipu_channel_t channel, ipu_buffer_t type,
 		/*Mark buffer 1 as ready. */
 		__raw_writel(idma_mask(dma_chan), IPU_CHA_BUF1_RDY(dma_chan));
 	}
+	if (channel == MEM_VDI_PRP_VF_MEM)
+		_ipu_vdi_toggle_top_field_man();
 	return 0;
 }
 EXPORT_SYMBOL(ipu_select_buffer);
+
+/*!
+ * This function is called to set a channel's buffer as ready.
+ *
+ * @param       bufNum          Input parameter for which buffer number set to
+ *                              ready state.
+ *
+ * @return      Returns 0 on success or negative error code on fail
+ */
+int32_t ipu_select_multi_vdi_buffer(uint32_t bufNum)
+{
+
+	uint32_t dma_chan = channel_2_dma(MEM_VDI_PRP_VF_MEM, IPU_INPUT_BUFFER);
+	uint32_t mask_bit =
+		idma_mask(channel_2_dma(MEM_VDI_PRP_VF_MEM_P, IPU_INPUT_BUFFER))|
+		idma_mask(dma_chan)|
+		idma_mask(channel_2_dma(MEM_VDI_PRP_VF_MEM_N, IPU_INPUT_BUFFER));
+
+	if (bufNum == 0) {
+		/*Mark buffer 0 as ready. */
+		__raw_writel(mask_bit, IPU_CHA_BUF0_RDY(dma_chan));
+	} else {
+		/*Mark buffer 1 as ready. */
+		__raw_writel(mask_bit, IPU_CHA_BUF1_RDY(dma_chan));
+	}
+	_ipu_vdi_toggle_top_field_man();
+	return 0;
+}
+EXPORT_SYMBOL(ipu_select_multi_vdi_buffer);
 
 #define NA	-1
 static int proc_dest_sel[] =
@@ -1654,7 +1691,6 @@ static irqreturn_t ipu_irq_handler(int irq, void *desc)
 			dev_err(g_ipu_dev,
 				"IPU Error - IPU_INT_STAT_%d = 0x%08X\n",
 				err_reg[i], int_stat);
-
 			/* Disable interrupts so we only get error once */
 			int_stat =
 			    __raw_readl(IPU_INT_CTRL(err_reg[i])) & ~int_stat;

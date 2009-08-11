@@ -41,6 +41,7 @@
 #define MXC_V4L2_OUT_2_SDC              0
 #define MXC_V4L2_OUT_2_ADC              1
 
+
 typedef struct {
 	int list[MAX_FRAME_NUM + 1];
 	int head;
@@ -87,6 +88,8 @@ typedef struct _vout_data {
 	s8 next_rdy_ipu_buf;
 	s8 next_done_ipu_buf;
 	s8 ipu_buf[2];
+	s8 ipu_buf_p[2];
+	s8 ipu_buf_n[2];
 	volatile v4lout_state state;
 
 	int cur_disp_output;
@@ -126,7 +129,9 @@ typedef struct _vout_data {
 	/* crop */
 	struct v4l2_rect crop_bounds[MXC_V4L2_OUT_NUM_OUTPUTS];
 	struct v4l2_rect crop_current;
+	u32 bytesperline;
 	enum v4l2_field field_fmt;
+	ipu_motion_sel motion_sel;
 } vout_data;
 
 #endif

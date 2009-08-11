@@ -42,6 +42,34 @@ static bool _calc_resize_coeffs(uint32_t inSize, uint32_t outSize,
 				uint32_t *resizeCoeff,
 				uint32_t *downsizeCoeff);
 
+void _ipu_vdi_set_top_field_man(bool top_field_0)
+{
+	uint32_t reg;
+
+	reg = __raw_readl(VDI_C);
+	if (top_field_0)
+		reg &= ~VDI_C_TOP_FIELD_MAN_1;
+	else
+		reg |= VDI_C_TOP_FIELD_MAN_1;
+	__raw_writel(reg, VDI_C);
+}
+
+void _ipu_vdi_set_motion(ipu_motion_sel motion_sel)
+{
+	uint32_t reg;
+
+	reg = __raw_readl(VDI_C);
+	reg &= ~(VDI_C_MOT_SEL_FULL | VDI_C_MOT_SEL_MED | VDI_C_MOT_SEL_LOW);
+	if (motion_sel == HIGH_MOTION)
+		reg |= VDI_C_MOT_SEL_FULL;
+	else if (motion_sel == MED_MOTION)
+		reg |= VDI_C_MOT_SEL_MED;
+	else
+		reg |= VDI_C_MOT_SEL_LOW;
+
+	__raw_writel(reg, VDI_C);
+}
+
 void ic_dump_register(void)
 {
 	printk(KERN_DEBUG "IC_CONF = \t0x%08X\n", __raw_readl(IC_CONF));
@@ -125,7 +153,7 @@ void _ipu_ic_disable_task(ipu_channel_t channel)
 	__raw_writel(ic_conf, IC_CONF);
 }
 
-void _ipu_vdi_init(ipu_channel_params_t *params)
+void _ipu_vdi_init(ipu_channel_t channel, ipu_channel_params_t *params)
 {
 	uint32_t reg;
 	uint32_t pixel_fmt;
@@ -140,17 +168,47 @@ void _ipu_vdi_init(ipu_channel_params_t *params)
 	    (params->mem_prp_vf_mem.in_pixel_fmt ==
 	     V4L2_PIX_FMT_YUV422P) ? VDI_C_CH_422 : VDI_C_CH_420;
 
-	reg = pixel_fmt | VDI_C_MOT_SEL_FULL | VDI_C_BURST_SIZE2_4;
+	reg = __raw_readl(VDI_C);
+	reg |= pixel_fmt;
+	switch (channel) {
+	case MEM_VDI_PRP_VF_MEM:
+		reg |= VDI_C_BURST_SIZE2_4;
+		break;
+	case MEM_VDI_PRP_VF_MEM_P:
+		reg |= VDI_C_BURST_SIZE1_4 | VDI_C_VWM1_SET_1 | VDI_C_VWM1_CLR_2;
+		break;
+	case MEM_VDI_PRP_VF_MEM_N:
+		reg |= VDI_C_BURST_SIZE3_4 | VDI_C_VWM3_SET_1 | VDI_C_VWM3_CLR_2;
+		break;
+	default:
+		break;
+	}
 	__raw_writel(reg, VDI_C);
+
+	bool top_field_0;
+	/* MED_MOTION and LOW_MOTION algorithm that are using 3 fields
+	 * should start presenting using the 2nd field.
+	 */
+	if (((params->mem_prp_vf_mem.field_fmt == V4L2_FIELD_INTERLACED_TB) &&
+	     (params->mem_prp_vf_mem.motion_sel != HIGH_MOTION)) ||
+	    ((params->mem_prp_vf_mem.field_fmt == V4L2_FIELD_INTERLACED_BT) &&
+	     (params->mem_prp_vf_mem.motion_sel == HIGH_MOTION)))
+		top_field_0 = false;
+	else
+		top_field_0 = true;
+
+	/* Buffer selection toggle the value therefore init val is inverted. */
+	_ipu_vdi_set_top_field_man(!top_field_0);
+
+	_ipu_vdi_set_motion(params->mem_prp_vf_mem.motion_sel);
 
 	reg = __raw_readl(IC_CONF);
 	reg &= ~IC_CONF_RWS_EN;
 	__raw_writel(reg, IC_CONF);
 }
 
-_ipu_vdi_uninit(void)
+void _ipu_vdi_uninit(void)
 {
-	uint32_t reg;
 	__raw_writel(0, VDI_FSIZE);
 	__raw_writel(0, VDI_C);
 }
@@ -746,3 +804,19 @@ static bool _calc_resize_coeffs(uint32_t inSize, uint32_t outSize,
 
 	return true;
 }
+
+void _ipu_vdi_toggle_top_field_man()
+{
+	uint32_t reg;
+	uint32_t mask_reg;
+
+	reg = __raw_readl(VDI_C);
+	mask_reg = reg & VDI_C_TOP_FIELD_MAN_1;
+	if (mask_reg == VDI_C_TOP_FIELD_MAN_1)
+		reg &= ~VDI_C_TOP_FIELD_MAN_1;
+	else
+		reg |= VDI_C_TOP_FIELD_MAN_1;
+
+	__raw_writel(reg, VDI_C);
+}
+
