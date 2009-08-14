@@ -426,7 +426,8 @@ do { \
 /*should set the fw,ps,spas,ppb*/
 #define NFC_SET_NFMS(v)	\
 do {	\
-	NFC_SET_FW(NFC_FW_8);	\
+	if (!(v)) \
+		NFC_SET_FW(NFC_FW_8);	\
 	if (((v) & (1 << NFMS_NF_DWIDTH)))	\
 		NFC_SET_FW(NFC_FW_16);	\
 	if (((v) & (1 << NFMS_NF_PG_SZ))) {	\
