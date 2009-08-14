@@ -108,7 +108,7 @@
 
 #define IS_4BIT_ECC \
 ( \
-	cpu_is_mx51_rev(CHIP_REV_2_0) == 1 ? \
+	cpu_is_mx51_rev(CHIP_REV_2_0) > 0 ? \
 		!((raw_read(NFC_CONFIG2) & NFC_ECC_MODE_4) >> 6) : \
 		((raw_read(NFC_CONFIG2) & NFC_ECC_MODE_4) >> 6) \
 )
@@ -120,7 +120,7 @@
 
 #define NFC_SET_ECC_MODE(v)		\
 do { \
-	if (cpu_is_mx51_rev(CHIP_REV_2_0) == 1) { \
+	if (cpu_is_mx51_rev(CHIP_REV_2_0) > 0) { \
 		if ((v) == NFC_SPAS_218 || (v) == NFC_SPAS_112) \
 			raw_write(((raw_read(NFC_CONFIG2) & \
 					NFC_ECC_MODE_MASK) | \
