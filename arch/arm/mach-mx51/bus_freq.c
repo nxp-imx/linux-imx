@@ -49,7 +49,7 @@ struct clk *pll2;
 struct clk *main_bus_clk;
 struct clk *axi_a_clk;
 struct clk *axi_b_clk;
-struct clk *pll1_sw_clk;
+struct clk *cpu_clk;
 struct clk *ddr_hf_clk;
 struct clk *nfc_clk;
 struct clk *ahb_clk;
@@ -68,10 +68,13 @@ int bus_freq_scaling_is_active;
 char *gp_reg_id = "SW1";
 char *lp_reg_id = "SW2";
 
+static struct cpu_wp *cpu_wp_tbl;
 static struct device *busfreq_dev;
 extern int lp_high_freq;
 extern int lp_med_freq;
 extern int dvfs_core_is_active;
+extern struct cpu_wp *(*get_cpu_wp)(int *wp);
+extern int cpu_wp_nr;
 
 struct dvfs_wp dvfs_core_setpoint[] = {{33, 7, 33, 20, 20, 0x10},
 					    {27, 0, 33, 20, 20, 0x10},};
@@ -137,12 +140,17 @@ int set_high_bus_freq(int high_bus_freq)
 
 			low_bus_freq_mode = 0;
 		}
+		/*
+		 * If the CPU freq is 800MHz, set the bus to the high setpoint
+		 * (133MHz) and DDR to 200MHz.
+		 */
+		if (clk_get_rate(cpu_clk) != cpu_wp_tbl[cpu_wp_nr - 1].cpu_rate)
+			high_bus_freq = 1;
+
 		if (((clk_get_rate(ahb_clk) == LP_MED_CLK) && lp_high_freq) ||
 							high_bus_freq) {
 			/* Set to the high setpoint. */
 			high_bus_freq_mode = 1;
-			clk_set_rate(axi_a_clk,
-				   clk_round_rate(axi_a_clk, AXI_A_NORMAL_CLK));
 			clk_set_rate(ahb_clk,
 				clk_round_rate(ahb_clk, LP_NORMAL_CLK));
 			clk_set_rate(ddr_hf_clk,
@@ -155,8 +163,6 @@ int set_high_bus_freq(int high_bus_freq)
 			low_bus_freq_mode = 0;
 			clk_set_rate(ddr_hf_clk,
 				clk_round_rate(ddr_hf_clk, DDR_LOW_FREQ_CLK));
-			clk_set_rate(axi_a_clk,
-				     clk_round_rate(axi_a_clk, LP_MED_CLK));
 			clk_set_rate(ahb_clk,
 				     clk_round_rate(ahb_clk, LP_MED_CLK));
 		}
@@ -291,11 +297,11 @@ static int __devinit busfreq_probe(struct platform_device *pdev)
 		return PTR_ERR(ddr_clk);
 	}
 
-	pll1_sw_clk = clk_get(NULL, "pll1_sw_clk");
-	if (IS_ERR(pll1_sw_clk)) {
-		printk(KERN_DEBUG "%s: failed to get pll1_sw_clk\n",
+	cpu_clk = clk_get(NULL, "cpu_clk");
+	if (IS_ERR(cpu_clk)) {
+		printk(KERN_DEBUG "%s: failed to get cpu_clk\n",
 		       __func__);
-		return PTR_ERR(pll1_sw_clk);
+		return PTR_ERR(cpu_clk);
 	}
 
 	ipu_clk = clk_get(NULL, "ipu_clk");
@@ -338,7 +344,7 @@ static int __devinit busfreq_probe(struct platform_device *pdev)
 		       "Unable to register sysdev entry for BUSFREQ");
 		return err;
 	}
-
+	cpu_wp_tbl = get_cpu_wp(&cpu_wp_nr);
 	low_bus_freq_mode = 0;
 	high_bus_freq_mode = 0;
 	bus_freq_scaling_is_active = 0;
