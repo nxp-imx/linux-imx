@@ -1146,12 +1146,10 @@ static void mxc_nfc_init(void)
 	/* Unlock Block Command for given address range */
 	raw_write(NFC_SET_WPC(NFC_WPC_UNLOCK), REG_NFC_WPC);
 
-#ifndef CONFIG_ARCH_MX51
 	/* Enable symetric mode by default except mx37TO1.0 */
 	if (!(cpu_is_mx37_rev(CHIP_REV_1_0) == 1))
 		raw_write(raw_read(REG_NFC_ONE_CYCLE) |
 			  NFC_ONE_CYCLE, REG_NFC_ONE_CYCLE);
-#endif
 }
 
 static int mxc_alloc_buf(void)
