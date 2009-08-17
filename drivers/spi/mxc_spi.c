@@ -635,7 +635,7 @@ void mxc_spi_chipselect(struct spi_device *spi, int is_active)
 		config_reg |=
 		    (((1 << (spi->chip_select & MXC_CSPICTRL_CSMASK)) &
 		      spi_ver_def->mode_mask) << spi_ver_def->ss_ctrl_shift);
-
+		__raw_writel(0, master_drv_data->base + MXC_CSPICTRL);
 		__raw_writel(ctrl_reg, master_drv_data->base + MXC_CSPICTRL);
 		__raw_writel(config_reg,
 			     MXC_CSPICONFIG + master_drv_data->ctrl_addr);
