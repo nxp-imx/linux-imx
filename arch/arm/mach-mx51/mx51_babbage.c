@@ -378,8 +378,10 @@ static int __init mxc_init_fb(void)
 
 	(void)platform_device_register(&lcd_wvga_device);
 
+#if 0
 	if (cpu_is_mx51_rev(CHIP_REV_1_1) == 2)
 		handle_edid(&pixclk);
+#endif
 
 	if (enable_vga)
 		printk(KERN_INFO "VGA monitor is primary\n");
