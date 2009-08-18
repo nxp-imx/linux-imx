@@ -65,10 +65,12 @@ void _ipu_dmfc_init(void)
 	__raw_writel(0x2, DMFC_IC_CTRL);
 	/* 1 - segment 0 and 1; 2, 1C and 2C unused */
 	__raw_writel(0x00000088, DMFC_WR_CHAN);
-	__raw_writel(0x20202000, DMFC_WR_CHAN_DEF);
+	__raw_writel(0x202020F6, DMFC_WR_CHAN_DEF);
 	/* 5B - segment 2 and 3; 5F - segment 4 and 5; */
 	/* 6B - segment 6; 6F - segment 7 */
 	__raw_writel(0x1F1E9694, DMFC_DP_CHAN);
+	/* Enable chan 5 watermark set at 5 bursts and clear at 7 bursts */
+	__raw_writel(0x2020F6F6, DMFC_DP_CHAN_DEF);
 }
 
 void _ipu_dmfc_set_wait4eot(int dma_chan, int width)
