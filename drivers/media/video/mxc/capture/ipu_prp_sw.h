@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2007 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2004-2009 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -22,6 +22,8 @@
 #ifndef _INCLUDE_IPU__PRP_SW_H_
 #define _INCLUDE_IPU__PRP_SW_H_
 
+int csi_enc_select(void *private);
+int csi_enc_deselect(void *private);
 int prp_enc_select(void *private);
 int prp_enc_deselect(void *private);
 int prp_vf_adc_select(void *private);

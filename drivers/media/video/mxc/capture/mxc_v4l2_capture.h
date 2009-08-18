@@ -182,6 +182,7 @@ typedef struct _cam_data {
 	bool low_power;
 	wait_queue_head_t power_queue;
 	unsigned int csi;
+	int current_input;
 
 	/* camera sensor interface */
 	struct camera_sensor *cam_sensor; 	/* old version */
