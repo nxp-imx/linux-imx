@@ -670,6 +670,11 @@ static int sgtl5000_set_bias_level(struct snd_soc_codec *codec,
 		if (codec->bias_level == SND_SOC_BIAS_ON)
 			break;
 
+		reg = sgtl5000_read(codec, SGTL5000_CHIP_MIC_CTRL);
+		reg &= ~SGTL5000_BIAS_R_MASK;
+		reg |= SGTL5000_BIAS_R_4k << SGTL5000_BIAS_R_SHIFT;
+		sgtl5000_write(codec, SGTL5000_CHIP_MIC_CTRL, reg);
+
 		/* must power up hp/line out before vag & dac to
 		   avoid pops. */
 		reg = sgtl5000_read(codec, SGTL5000_CHIP_ANA_POWER);
@@ -678,11 +683,6 @@ static int sgtl5000_set_bias_level(struct snd_soc_codec *codec,
 		reg |= SGTL5000_ADC_POWERUP;
 		sgtl5000_write(codec, SGTL5000_CHIP_ANA_POWER, reg);
 		msleep(400);
-
-		reg = sgtl5000_read(codec, SGTL5000_CHIP_MIC_CTRL);
-		reg &= ~SGTL5000_BIAS_R_MASK;
-		reg |= SGTL5000_BIAS_R_4k << SGTL5000_BIAS_R_SHIFT;
-		sgtl5000_write(codec, SGTL5000_CHIP_MIC_CTRL, reg);
 
 		break;
 
