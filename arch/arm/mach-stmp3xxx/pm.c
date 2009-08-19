@@ -21,6 +21,7 @@
 #include <linux/delay.h>
 #include <linux/clk.h>
 #include <linux/io.h>
+#include <linux/kthread.h>
 
 #include <asm/dma.h>
 #include <asm/cacheflush.h>
@@ -39,7 +40,7 @@
 #include "clock.h"
 #include "sleep.h"
 #include "common.h"
-
+#define PENDING_IRQ_RETRY 100
 static void *saved_sram;
 static int saved_sleep_state;
 
@@ -53,6 +54,7 @@ static inline void do_standby(void)
 	struct clk *cpu_parent = NULL;
 	int cpu_rate = 0;
 	int hbus_rate = 0;
+	int i, pending_irq;
 
 	/*
 	 * 1) switch clock domains from PLL to 24MHz
@@ -94,19 +96,27 @@ static inline void do_standby(void)
 
 	HW_POWER_CTRL_SET(BM_POWER_CTRL_ENIRQ_PSWITCH);
 	HW_ICOLL_INTERRUPTn_SET(IRQ_VDD5V, BM_ICOLL_INTERRUPTn_ENABLE);
-	/* clear pending interrupt, if any */
 
+	/* clear pending interrupt, if any */
+	for (i = 0; i < PENDING_IRQ_RETRY; i++) {
+		pending_irq = HW_ICOLL_STAT_RD() & 0x7f;
+		if (pending_irq == 0x7f)
+			break;
+		pr_info("irqn = %u\n", pending_irq);
+		/* Tell ICOLL to release IRQ line */
+		HW_ICOLL_VECTOR_WR(0x0);
+		/* ACK current interrupt */
+		HW_ICOLL_LEVELACK_WR(BV_ICOLL_LEVELACK_IRQLEVELACK__LEVEL0);
+		/* Barrier */
+		(void) HW_ICOLL_STAT_RD();
+	}
 	/* do suspend */
 	stmp37xx_cpu_standby_ptr = (void *)STMP3XXX_OCRAM_VA_BASE;
 	stmp37xx_cpu_standby_ptr();
 
 	pr_info("wakeup irq source = %d\n", HW_ICOLL_STAT_RD());
 	saved_sleep_state = 0;  /* waking from standby */
-	HW_POWER_CTRL_CLR(BM_POWER_CTRL_ENIRQ_PSWITCH |
-			  BM_POWER_CTRL_PSWITCH_IRQ);
-#ifndef CONFIG_BATTERY_STMP3XXX
-	HW_ICOLL_INTERRUPTn_CLR(IRQ_VDD5V, BM_ICOLL_INTERRUPTn_ENABLE);
-#endif
+	HW_POWER_CTRL_CLR(BM_POWER_CTRL_PSWITCH_IRQ);
 	stmp3xxx_resume_timer();
 	stmp3xxx_dma_resume();
 
@@ -341,6 +351,75 @@ static void stmp37xx_pm_power_off(void)
 	HW_POWER_RESET_WR((0x3e77 << 16) | 1);
 }
 
+struct stmp37xx_pswitch_state {
+	int dev_running;
+};
+
+static DECLARE_COMPLETION(suspend_request);
+
+static int suspend_thread_fn(void *data)
+{
+	while (1) {
+		wait_for_completion(&suspend_request);
+		pm_suspend(PM_SUSPEND_STANDBY);
+	}
+	return 0;
+}
+
+static struct stmp37xx_pswitch_state pswitch_state = {
+	.dev_running = 0,
+};
+
+static irqreturn_t pswitch_interrupt(int irq, void *dev)
+{
+	int pin_value, i;
+
+	/* check if irq by pswitch */
+	if (!(HW_POWER_CTRL_RD() & BM_POWER_CTRL_PSWITCH_IRQ))
+		return IRQ_HANDLED;
+	for (i = 0; i < 3000; i++) {
+		pin_value = HW_POWER_STS_RD() &
+			BF_POWER_STS_PSWITCH(0x1);
+		if (pin_value == 0)
+			break;
+		mdelay(1);
+	}
+	if (i < 3000) {
+		pr_info("pswitch goto suspend\n");
+		complete(&suspend_request);
+	} else {
+		pr_info("release pswitch to power down\n");
+		for (i = 0; i < 5000; i++) {
+			pin_value = HW_POWER_STS_RD() &
+				BF_POWER_STS_PSWITCH(0x1);
+			if (pin_value == 0)
+				break;
+			mdelay(1);
+		}
+		pr_info("pswitch power down\n");
+		stmp37xx_pm_power_off();
+	}
+	HW_POWER_CTRL_CLR(BM_POWER_CTRL_PSWITCH_IRQ);
+	return IRQ_HANDLED;
+}
+
+static struct irqaction pswitch_irq = {
+	.name		= "pswitch",
+	.flags		= IRQF_DISABLED | IRQF_SHARED,
+	.handler	= pswitch_interrupt,
+	.dev_id		= &pswitch_state,
+};
+
+static void init_pswitch(void)
+{
+	kthread_run(suspend_thread_fn, NULL, "pswitch");
+	HW_POWER_CTRL_CLR(BM_POWER_CTRL_PSWITCH_IRQ);
+	HW_POWER_CTRL_SET(BM_POWER_CTRL_POLARITY_PSWITCH |
+		BM_POWER_CTRL_ENIRQ_PSWITCH);
+	HW_POWER_CTRL_CLR(BM_POWER_CTRL_PSWITCH_IRQ);
+	setup_irq(IRQ_VDD5V, &pswitch_irq);
+}
+
 static int __init stmp37xx_pm_init(void)
 {
 	saved_sram = kmalloc(0x4000, GFP_ATOMIC);
@@ -353,6 +432,7 @@ static int __init stmp37xx_pm_init(void)
 	pm_power_off = stmp37xx_pm_power_off;
 	pm_idle = stmp37xx_pm_idle;
 	suspend_set_ops(&stmp37xx_suspend_ops);
+	init_pswitch();
 	return 0;
 }
 

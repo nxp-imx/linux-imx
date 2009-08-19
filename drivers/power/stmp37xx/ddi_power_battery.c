@@ -75,8 +75,9 @@
  * POWER_CTRL.VBUSVALID_IRQ is also affected and it's impossible to get
  * valid information about 5v presence.
  */
-static ddi_power_5vDetection_t DetectionMethod = DDI_POWER_5V_VDD5V_GT_VDDIO;
-//static ddi_power_5vDetection_t DetectionMethod = DDI_POWER_5V_VBUSVALID;
+/* static ddi_power_5vDetection_t DetectionMethod =
+			DDI_POWER_5V_VDD5V_GT_VDDIO; */
+static ddi_power_5vDetection_t DetectionMethod = DDI_POWER_5V_VBUSVALID;
 
 ////////////////////////////////////////////////////////////////////////////////
 // Code
