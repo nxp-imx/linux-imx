@@ -538,6 +538,10 @@ stmp378x_codec_adc_power_on(struct stmp378x_codec_priv *stmp378x_adc)
 	HW_AUDIOIN_ADCVOL_SET(
 	  BF_AUDIOIN_ADCVOL_SELECT_RIGHT(BV_AUDIOIN_ADCVOL_SELECT__MIC));
 
+	/* Supply bias voltage to microphone */
+	HW_AUDIOIN_MICLINE_SET(BF_AUDIOIN_MICLINE_MIC_RESISTOR(2));
+	HW_AUDIOIN_MICLINE_SET(BM_AUDIOIN_MICLINE_MIC_SELECT);
+
 	/* Set max ADC volume */
 	reg = HW_AUDIOIN_ADCVOLUME_RD();
 	reg &= ~BM_AUDIOIN_ADCVOLUME_VOLUME_LEFT;
@@ -560,6 +564,9 @@ stmp378x_codec_adc_power_down(struct stmp378x_codec_priv *stmp378x_adc)
 	/* Gate ADC clocks */
 	HW_AUDIOIN_CTRL_SET(BM_AUDIOIN_CTRL_CLKGATE);
 	HW_AUDIOIN_ANACLKCTRL_SET(BM_AUDIOIN_ANACLKCTRL_CLKGATE);
+
+	/* Disable bias voltage to microphone*/
+	HW_AUDIOIN_MICLINE_SET(BF_AUDIOIN_MICLINE_MIC_RESISTOR(0));
 }
 
 static void
