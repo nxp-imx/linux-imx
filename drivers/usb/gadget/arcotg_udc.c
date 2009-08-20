@@ -289,6 +289,7 @@ static void dr_wake_up_enable(struct fsl_udc *udc, bool enable)
 		temp &= ~USB_CTRL_OTG_WUIE;
 		fsl_writel(temp, &dr_regs->usbctrl);
 
+#if CONFIG_ARCH_MX51
 		/* OTG vbus Wakeup disable */
 		temp = fsl_readl(&dr_regs->uh2ctrl);
 		temp &= ~USB_UH2_OVBWK_EN;
@@ -298,10 +299,12 @@ static void dr_wake_up_enable(struct fsl_udc *udc, bool enable)
 		temp = fsl_readl(&dr_regs->phyctrl0);
 		temp &= ~PHY_CTRL0_CONF2;
 		fsl_writel(temp, &dr_regs->phyctrl0);
+#endif
 	} else if (device_may_wakeup(&(udc->pdata->pdev->dev))) {
 		temp |= USB_CTRL_OTG_WUIE;
 		fsl_writel(temp, &dr_regs->usbctrl);
 
+#if CONFIG_ARCH_MX51
 		/* OTG vbus wakeup enable */
 		temp = fsl_readl(&dr_regs->uh2ctrl);
 		temp |= USB_UH2_OVBWK_EN;
@@ -311,6 +314,7 @@ static void dr_wake_up_enable(struct fsl_udc *udc, bool enable)
 		temp = fsl_readl(&dr_regs->phyctrl0);
 		temp |= PHY_CTRL0_CONF2;
 		fsl_writel(temp, &dr_regs->phyctrl0);
+#endif
 	}
 }
 

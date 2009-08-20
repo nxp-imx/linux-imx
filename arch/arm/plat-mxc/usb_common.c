@@ -345,8 +345,8 @@ static void usbh2_set_serial_xcvr(void)
 	USBCTRL &= ~(UCTRL_H2SIC_MASK);	/* Disable bypass mode */
 	USBCTRL &= ~(UCTRL_H2PM);	/* Power Mask */
 	USBCTRL &= ~UCTRL_H2OCPOL;	/* OverCurrent Polarity is Low Active */
-	USBCTRL |= UCTRL_H2WIE |	/* Wakeup intr enable */
-	    UCTRL_IP_PUE_DOWN |	/* ipp_pue_pulldwn_dpdm */
+	USBCTRL &= ~UCTRL_H2WIE;	/* Wakeup intr disable */
+	USBCTRL |= UCTRL_IP_PUE_DOWN |	/* ipp_pue_pulldwn_dpdm */
 	    UCTRL_USBTE |	/* USBT is enabled */
 	    UCTRL_H2DT;		/* Disable H2 TLL */
 
@@ -395,10 +395,12 @@ static void usbh2_set_serial_xcvr(void)
  */
 static int usb_register_remote_wakeup(struct platform_device *pdev)
 {
-	pr_debug("%s: pdev=0x%p \n", __func__, pdev);
-
 	struct resource *res;
 	int irq;
+
+	pr_debug("%s: pdev=0x%p \n", __func__, pdev);
+	if (!cpu_is_mx51())
+		return -ECANCELED;
 
 	res = platform_get_resource(pdev, IORESOURCE_IRQ, 0);
 	if (!res) {
@@ -513,7 +515,7 @@ void fsl_usb_host_uninit(struct fsl_usb2_platform_data *pdata)
 
 	pdata->gpio_usb_inactive();
 	if (pdata->xcvr_type == PORTSC_PTS_SERIAL) {
-		/* Workaround an IC issue for 2.6.26 kernal:
+		/* Workaround an IC issue for ehci driver.
 		 * when turn off root hub port power, EHCI set
 		 * PORTSC reserved bits to be 0, but PTS with 0
 		 * means UTMI interface, so here force the Host2
@@ -698,20 +700,19 @@ static void otg_set_utmi_xcvr(void)
 		USB_PHY_CTR_FUNC2 &= ~USB_UTMI_PHYCTRL2_PLLDIV_MASK;
 		USB_PHY_CTR_FUNC2 |= 0x01;
 	}
-	if (!cpu_is_mx25()) {
-		/* Workaround an IC issue for 2.6.26 kernal:
-		 * when turn off root hub port power, EHCI set
-		 * PORTSC reserved bits to be 0, but PTW with 0
-		 * means 8 bits tranceiver width, here change
-		 * it back to be 16 bits and do PHY diable and
-		 * then enable.
-		 */
-		UOG_PORTSC1 |= PORTSC_PTW;
 
-		/* Enable UTMI interface in PHY control Reg */
-		USB_PHY_CTR_FUNC &= ~USB_UTMI_PHYCTRL_UTMI_ENABLE;
-		USB_PHY_CTR_FUNC |= USB_UTMI_PHYCTRL_UTMI_ENABLE;
-	}
+	/* Workaround an IC issue for ehci driver:
+	 * when turn off root hub port power, EHCI set
+	 * PORTSC reserved bits to be 0, but PTW with 0
+	 * means 8 bits tranceiver width, here change
+	 * it back to be 16 bits and do PHY diable and
+	 * then enable.
+	 */
+	UOG_PORTSC1 |= PORTSC_PTW;
+
+	/* Enable UTMI interface in PHY control Reg */
+	USB_PHY_CTR_FUNC &= ~USB_UTMI_PHYCTRL_UTMI_ENABLE;
+	USB_PHY_CTR_FUNC |= USB_UTMI_PHYCTRL_UTMI_ENABLE;
 
 	/* need to reset the controller here so that the ID pin
 	 * is correctly detected.
@@ -840,7 +841,7 @@ void usb_host_set_wakeup(struct device *wkup_dev, bool para)
 	struct fsl_usb2_platform_data *pdata = wkup_dev->platform_data;
 
 	/* If this device may wakeup */
-	if (device_may_wakeup(wkup_dev) && para)
+	if (device_may_wakeup(wkup_dev) && para) {
 		if (!strcmp("Host 1", pdata->name)) {
 			USBCTRL |= UCTRL_H1WIE;
 		} else if (!strcmp("DR", pdata->name)) {
@@ -848,13 +849,15 @@ void usb_host_set_wakeup(struct device *wkup_dev, bool para)
 			/* Enable OTG ID Wakeup */
 			USBCTRL_HOST2 |= (1 << 5);
 		}
+	}
 
-	if (!para)
+	if (!para) {
 		if (!strcmp("Host 1", pdata->name))
 			USBCTRL &= ~UCTRL_H1WIE;
 		else if (!strcmp("DR", pdata->name)) {
 			USBCTRL &= ~UCTRL_OWIE;
 			USBCTRL_HOST2 &= ~(1 << 5);
 		}
+	}
 }
 EXPORT_SYMBOL(usb_host_set_wakeup);
