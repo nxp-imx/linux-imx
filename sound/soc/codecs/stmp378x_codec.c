@@ -82,6 +82,13 @@ static u32 adc_regmap[] = {
 
 static u16 stmp378x_audio_regs[ADC_REGNUM];
 
+static u8 dac_volumn_control_word[] = {
+		0x37,  0x5e,  0x7e,  0x8e,
+		0x9e,  0xae,  0xb6,  0xbe,
+		0xc6,  0xce,  0xd6,  0xde,
+		0xe6,  0xee,  0xf6,  0xfe,
+};
+
 /*
  * ALSA core supports only 16 bit registers. It means we have to simulate it
  * by virtually splitting a 32bit ADC/DAC registers into two halves
@@ -165,6 +172,78 @@ static int stmp378x_codec_restore_reg(struct snd_soc_codec *codec, unsigned int 
 	return 0;
 }
 
+static int dac_info_volsw(struct snd_kcontrol *kcontrol,
+				struct snd_ctl_elem_info *uinfo)
+{
+	uinfo->type = SNDRV_CTL_ELEM_TYPE_INTEGER;
+	uinfo->count = 2;
+	uinfo->value.integer.min = 0;
+	uinfo->value.integer.max = 0xf;
+	return 0;
+}
+
+static int dac_get_volsw(struct snd_kcontrol *kcontrol,
+				struct snd_ctl_elem_value *ucontrol)
+{
+	struct snd_soc_codec *codec = snd_kcontrol_chip(kcontrol);
+	int reg, l, r;
+	int i;
+
+	reg = HW_AUDIOOUT_DACVOLUME_RD();
+
+	l = (reg & BM_AUDIOOUT_DACVOLUME_VOLUME_LEFT) >>
+			BP_AUDIOOUT_DACVOLUME_VOLUME_LEFT;
+	r = (reg & BM_AUDIOOUT_DACVOLUME_VOLUME_RIGHT) >>
+			BP_AUDIOOUT_DACVOLUME_VOLUME_RIGHT;
+	/*Left channel*/
+	i = 0;
+	while (i < 16) {
+		if (l == dac_volumn_control_word[i]) {
+			ucontrol->value.integer.value[0] = i;
+			break;
+		}
+		i++;
+	}
+	if (i == 16)
+		ucontrol->value.integer.value[0] = i;
+	/*Right channel*/
+	i = 0;
+	while (i < 16) {
+		if (r == dac_volumn_control_word[i]) {
+			ucontrol->value.integer.value[1] = i;
+			break;
+		}
+		i++;
+	}
+	if (i == 16)
+		ucontrol->value.integer.value[1] = i;
+
+	return 0;
+}
+
+static int dac_put_volsw(struct snd_kcontrol *kcontrol,
+				struct snd_ctl_elem_value *ucontrol)
+{
+	struct snd_soc_codec *codec = snd_kcontrol_chip(kcontrol);
+	int reg, l, r;
+	int i;
+
+	i = ucontrol->value.integer.value[0];
+	l = dac_volumn_control_word[i];
+	/*Get dac volume for left channel*/
+	reg = BF_AUDIOOUT_DACVOLUME_VOLUME_LEFT(l);
+
+	i = ucontrol->value.integer.value[1];
+	r = dac_volumn_control_word[i];
+	/*Get dac volume for right channel*/
+	reg = reg | BF_AUDIOOUT_DACVOLUME_VOLUME_RIGHT(r);
+
+	/*Clear left/right dac volume*/
+	HW_AUDIOOUT_DACVOLUME_CLR(BM_AUDIOOUT_DACVOLUME_VOLUME_LEFT |
+					BM_AUDIOOUT_DACVOLUME_VOLUME_RIGHT);
+	HW_AUDIOOUT_DACVOLUME_SET(reg);
+}
+
 static const char *stmp378x_codec_adc_input_sel[] =
 				{"Mic", "Line In 1", "Head Phone", "Line In 2"};
 
@@ -184,8 +263,15 @@ static const struct soc_enum stmp378x_codec_enum[] = {
 /* Codec controls */
 static const struct snd_kcontrol_new stmp378x_snd_controls[] = {
 	/* Playback Volume */
-	SOC_DOUBLE_R("DAC Playback Volume",
-			DAC_VOLUME_H, DAC_VOLUME_L, 0, 0xFF, 0),
+	{.iface = SNDRV_CTL_ELEM_IFACE_MIXER,
+	 .name = "DAC Playback Volume",
+	 .access = SNDRV_CTL_ELEM_ACCESS_READWRITE |
+		SNDRV_CTL_ELEM_ACCESS_VOLATILE,
+	 .info = dac_info_volsw,
+	 .get = dac_get_volsw,
+	 .put = dac_put_volsw,
+	},
+
 	SOC_DOUBLE_R("DAC Playback Switch",
 			DAC_VOLUME_H, DAC_VOLUME_L, 8, 0x01, 1),
 	SOC_DOUBLE("HP Playback Volume", DAC_HPVOL_L, 8, 0, 0x7F, 1),
