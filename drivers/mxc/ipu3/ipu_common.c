@@ -912,6 +912,9 @@ int32_t ipu_init_channel_buffer(ipu_channel_t channel, ipu_buffer_t type,
 		_ipu_ch_param_set_alpha_use_separate_channel(dma_chan, true);
 		_ipu_ch_param_set_alpha_buffer_memory(dma_chan);
 		_ipu_ch_param_set_alpha_condition_read(dma_chan);
+		/* fix alpha width as 8 and burst size as 16*/
+		_ipu_ch_params_set_alpha_width(dma_chan, 8);
+		_ipu_ch_param_set_burst_size(dma_chan, 16);
 	} else if (_ipu_is_ic_graphic_chan(dma_chan) &&
 		   ipu_pixel_format_has_alpha(pixel_fmt))
 		_ipu_ch_param_set_alpha_use_separate_channel(dma_chan, false);

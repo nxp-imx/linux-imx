@@ -387,4 +387,9 @@ static inline void _ipu_ch_param_set_high_priority(uint32_t ch)
 	ipu_ch_param_mod_field(ipu_ch_param_addr(ch), 1, 93, 2, 1);
 };
 
+static inline void _ipu_ch_params_set_alpha_width(uint32_t ch, int alpha_width)
+{
+	ipu_ch_param_set_field(ipu_ch_param_addr(ch), 1, 125, 3, alpha_width - 1);
+}
+
 #endif
