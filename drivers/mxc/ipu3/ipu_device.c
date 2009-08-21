@@ -41,20 +41,15 @@
 
 /* Strucutures and variables for exporting MXC IPU as device*/
 
-#define MAX_Q_SIZE 10
-
 static int mxc_ipu_major;
 static struct class *mxc_ipu_class;
 
-DEFINE_SPINLOCK(queue_lock);
-static DECLARE_MUTEX(user_mutex);
+DEFINE_SPINLOCK(event_lock);
 
-static wait_queue_head_t waitq;
-static int pending_events;
-int read_ptr;
-int write_ptr;
-
-ipu_event_info events[MAX_Q_SIZE];
+struct ipu_dev_irq_info {
+	wait_queue_head_t waitq;
+	int irq_pending;
+} irq_info[480];
 
 int register_ipu_device(void);
 
@@ -63,65 +58,24 @@ int register_ipu_device(void);
 int get_events(ipu_event_info *p)
 {
 	unsigned long flags;
-	int ret = 0, i, cnt, found = 0;
+	int ret = 0;
 
-	spin_lock_irqsave(&queue_lock, flags);
-	if (pending_events != 0) {
-		if (write_ptr > read_ptr)
-			cnt = write_ptr - read_ptr;
-		else
-			cnt = MAX_Q_SIZE - read_ptr + write_ptr;
-		for (i = 0; i < cnt; i++) {
-			if (p->irq == events[read_ptr].irq) {
-				*p = events[read_ptr];
-				events[read_ptr].irq = 0;
-				read_ptr++;
-				if (read_ptr >= MAX_Q_SIZE)
-					read_ptr = 0;
-				found = 1;
-				break;
-			}
-
-			if (events[read_ptr].irq) {
-				events[write_ptr] = events[read_ptr];
-				events[read_ptr].irq = 0;
-				write_ptr++;
-				if (write_ptr >= MAX_Q_SIZE)
-					write_ptr = 0;
-			} else
-				pending_events--;
-
-			read_ptr++;
-			if (read_ptr >= MAX_Q_SIZE)
-				read_ptr = 0;
-		}
-		if (found)
-			pending_events--;
-		else
-			ret = -1;
-	} else {
+	spin_lock_irqsave(&event_lock, flags);
+	if (irq_info[p->irq].irq_pending > 0)
+		irq_info[p->irq].irq_pending--;
+	else
 		ret = -1;
-	}
-
-	spin_unlock_irqrestore(&queue_lock, flags);
+	spin_unlock_irqrestore(&event_lock, flags);
 
 	return ret;
 }
 
 static irqreturn_t mxc_ipu_generic_handler(int irq, void *dev_id)
 {
-	ipu_event_info e;
-
-	e.irq = irq;
-	e.dev = dev_id;
-	events[write_ptr] = e;
-	write_ptr++;
-	if (write_ptr >= MAX_Q_SIZE)
-		write_ptr = 0;
-	pending_events++;
+	irq_info[irq].irq_pending++;
 
 	/* Wakeup any blocking user context */
-	wake_up_interruptible(&waitq);
+	wake_up_interruptible(&(irq_info[irq].waitq));
 	return IRQ_HANDLED;
 }
 
@@ -306,7 +260,6 @@ static int mxc_ipu_ioctl(struct inode *inode, struct file *file,
 	case IPU_FREE_IRQ:
 		{
 			ipu_irq_info info;
-			int i;
 
 			if (copy_from_user
 					(&info, (ipu_irq_info *) arg,
@@ -314,10 +267,7 @@ static int mxc_ipu_ioctl(struct inode *inode, struct file *file,
 				return -EFAULT;
 
 			ipu_free_irq(info.irq, info.dev_id);
-			for (i = 0; i < MAX_Q_SIZE; i++) {
-				if (events[i].irq == info.irq)
-					events[i].irq = 0;
-			}
+			irq_info[info.irq].irq_pending = 0;
 		}
 		break;
 	case IPU_REQUEST_IRQ_STATUS:
@@ -341,6 +291,8 @@ static int mxc_ipu_ioctl(struct inode *inode, struct file *file,
 				ipu_request_irq(info.irq,
 					mxc_ipu_generic_handler,
 					0, "video_sink", info.dev);
+			if (ret == 0)
+				init_waitqueue_head(&(irq_info[info.irq].waitq));
 		}
 		break;
 	case IPU_GET_EVENT:
@@ -357,8 +309,11 @@ static int mxc_ipu_ioctl(struct inode *inode, struct file *file,
 
 			r = get_events(&info);
 			if (r == -1) {
-				wait_event_interruptible_timeout(waitq,
-						(pending_events != 0), HZ/10);
+				if ((file->f_flags & O_NONBLOCK) &&
+					(irq_info[info.irq].irq_pending == 0))
+					return -EAGAIN;
+				wait_event_interruptible_timeout(irq_info[info.irq].waitq,
+						(irq_info[info.irq].irq_pending != 0), 2 * HZ);
 				r = get_events(&info);
 			}
 			ret = -1;
@@ -478,12 +433,7 @@ int register_ipu_device()
 		ret = PTR_ERR(temp);
 		goto err2;
 	}
-	spin_lock_init(&queue_lock);
-	init_waitqueue_head(&waitq);
-
-	pending_events = 0;
-	read_ptr = 0;
-	write_ptr = 0;
+	spin_lock_init(&event_lock);
 
 	return ret;
 
