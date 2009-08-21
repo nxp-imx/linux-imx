@@ -854,7 +854,11 @@ device_desc = {
 
 	.iManufacturer =	STRING_MANUFACTURER,
 	.iProduct =		STRING_PRODUCT,
+#ifdef CONFIG_STMP_UTP
+	.iSerialNumber = 0,
+#else
 	.iSerialNumber =	STRING_SERIAL,
+#endif
 	.bNumConfigurations =	1,
 };
 
