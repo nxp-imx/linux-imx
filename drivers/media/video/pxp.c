@@ -204,8 +204,8 @@ static void pxp_set_s0param(struct pxps *pxp)
 
 	s0param = BF_PXP_S0PARAM_XBASE(pxp->drect.left >> 3);
 	s0param |= BF_PXP_S0PARAM_YBASE(pxp->drect.top >> 3);
-	s0param |= BF_PXP_S0PARAM_WIDTH(pxp->srect.width >> 3);
-	s0param |= BF_PXP_S0PARAM_HEIGHT(pxp->srect.height >> 3);
+	s0param |= BF_PXP_S0PARAM_WIDTH(pxp->s0_width >> 3);
+	s0param |= BF_PXP_S0PARAM_HEIGHT(pxp->s0_height >> 3);
 	HW_PXP_S0PARAM_WR(s0param);
 }
 
@@ -418,8 +418,8 @@ static int pxp_g_fmt_video_output(struct file *file, void *fh,
 	struct pxps *pxp = video_get_drvdata(video_devdata(file));
 	struct pxp_data_format *fmt = pxp->s0_fmt;
 
-	pf->width = pxp->srect.width;
-	pf->height = pxp->srect.height;
+	pf->width = pxp->s0_width;
+	pf->height = pxp->s0_height;
 	pf->pixelformat = fmt->fourcc;
 	pf->field = V4L2_FIELD_NONE;
 	pf->bytesperline = fmt->bpp * pf->width;
@@ -478,8 +478,8 @@ static int pxp_s_fmt_video_output(struct file *file, void *fh,
 
 	if (ret == 0) {
 		pxp->s0_fmt = pxp_get_format(f);
-		pxp->srect.width = pf->width;
-		pxp->srect.height = pf->height;
+		pxp->s0_width = pf->width;
+		pxp->s0_height = pf->height;
 		pxp_set_ctrl(pxp);
 		pxp_set_s0param(pxp);
 	}
@@ -513,8 +513,11 @@ static int pxp_try_fmt_output_overlay(struct file *file, void *fh,
 {
 	struct pxps *pxp = video_get_drvdata(video_devdata(file));
 	struct v4l2_window *wf = &f->fmt.win;
+	struct v4l2_rect srect;
 	u32 chromakey = wf->chromakey;
 	u8 global_alpha = wf->global_alpha;
+
+	memcpy(&srect, &(wf->w), sizeof(struct v4l2_rect));
 
 	pxp_g_fmt_output_overlay(file, fh, f);
 
@@ -522,10 +525,10 @@ static int pxp_try_fmt_output_overlay(struct file *file, void *fh,
 	wf->global_alpha = global_alpha;
 
 	/* Constrain parameters to the input buffer */
-	wf->w.left = pxp->srect.left;
-	wf->w.top = pxp->srect.top;
-	wf->w.width = pxp->srect.width;
-	wf->w.height = pxp->srect.height;
+	wf->w.left = srect.left;
+	wf->w.top = srect.top;
+	wf->w.width = min(srect.width, ((__s32)pxp->s0_width - wf->w.left));
+	wf->w.height = min(srect.height, ((__s32)pxp->s0_height - wf->w.top));
 
 	return 0;
 }
@@ -625,7 +628,7 @@ static int pxp_buf_setup(struct videobuf_queue *q,
 {
 	struct pxps *pxp = q->priv_data;
 
-	*size = pxp->srect.width * pxp->srect.height * pxp->s0_fmt->bpp;
+	*size = pxp->s0_width * pxp->s0_height * pxp->s0_fmt->bpp;
 
 	if (0 == *count)
 		*count = PXP_DEF_BUFS;
@@ -650,8 +653,8 @@ static int pxp_buf_prepare(struct videobuf_queue *q,
 	struct pxps *pxp = q->priv_data;
 	int ret = 0;
 
-	vb->width = pxp->srect.width;
-	vb->height = pxp->srect.height;
+	vb->width = pxp->s0_width;
+	vb->height = pxp->s0_height;
 	vb->size = vb->width * vb->height * pxp->s0_fmt->bpp;
 	vb->field = V4L2_FIELD_NONE;
 	vb->state = VIDEOBUF_NEEDS_INIT;
@@ -682,8 +685,8 @@ static void pxp_buf_output(struct pxps *pxp)
 			int s = 1;	/* default to YUV 4:2:2 */
 			if (pxp->s0_fmt->fourcc == V4L2_PIX_FMT_YUV420)
 				s = 2;
-			U = Y + (pxp->srect.width * pxp->srect.height);
-			V = U + ((pxp->srect.width * pxp->srect.height) >> s);
+			U = Y + (pxp->s0_width * pxp->s0_height);
+			V = U + ((pxp->s0_width * pxp->s0_height) >> s);
 			HW_PXP_S0UBUF_WR(U);
 			HW_PXP_S0VBUF_WR(V);
 		}
@@ -919,8 +922,8 @@ static int pxp_hw_init(struct pxps *pxp)
 	pxp->s0_fmt = &pxp_s0_formats[0];
 	pxp->drect.left = pxp->srect.left = 0;
 	pxp->drect.top = pxp->srect.top = 0;
-	pxp->drect.width = pxp->srect.width = var.xres;
-	pxp->drect.height = pxp->srect.height = var.yres;
+	pxp->drect.width = pxp->srect.width = pxp->s0_width = var.xres;
+	pxp->drect.height = pxp->srect.height = pxp->s0_height = var.yres;
 	pxp->s0_bgcolor = 0;
 
 	pxp->output = 0;

@@ -38,6 +38,8 @@ struct pxps {
 
 	/* Current S0 configuration */
 	struct pxp_data_format *s0_fmt;
+	u32 s0_width;
+	u32 s0_height;
 	u32 s0_bgcolor;
 
 	struct v4l2_framebuffer fb;
