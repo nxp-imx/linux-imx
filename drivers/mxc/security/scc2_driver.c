@@ -650,6 +650,13 @@ static int scc_init(void)
 					      SCC_STATUS_FAILED) ? "FAILED" :
 		  "UNKNOWN");
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 18))
+			mxc_clks_disable(SCC_CLK);
+#else
+			if (scc_clk != ERR_PTR(ENOENT))
+				clk_disable(scc_clk);
+#endif
+
 	return return_value;
 }				/* scc_init */
 
@@ -721,6 +728,14 @@ static void scc_cleanup(void)
 	if (scc_crypto_lock != NULL)
 		os_lock_deallocate(scc_crypto_lock);
 
+    /*Disabling SCC Clock*/
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 18))
+			mxc_clks_disable(SCC_CLK);
+#else
+			if (scc_clk != ERR_PTR(ENOENT))
+				clk_disable(scc_clk);
+			clk_put(scc_clk);
+#endif
 	pr_debug("SCC2 driver cleaned up.\n");
 
 }				/* scc_cleanup */
@@ -1337,6 +1352,13 @@ scc_encrypt_region(uint32_t part_base, uint32_t offset_bytes,
 	uint32_t scm_command;
 	int offset_blocks = offset_bytes / SCC_BLOCK_SIZE_BYTES();
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 18))
+				mxc_clks_enable(SCC_CLK);
+#else
+				if (scc_clk != ERR_PTR(ENOENT))
+					clk_enable(scc_clk);
+#endif
+
 	scm_command = ((offset_blocks << SCM_CCMD_OFFSET_SHIFT) |
 		       (SCM_PART_NUMBER(part_base) << SCM_CCMD_PART_SHIFT));
 
@@ -1388,7 +1410,15 @@ scc_encrypt_region(uint32_t part_base, uint32_t offset_bytes,
 	}
 
 	os_unlock_restore_context(scc_crypto_lock, irq_flags);
+
 out:
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 18))
+					mxc_clks_disable(SCC_CLK);
+#else
+					if (scc_clk != ERR_PTR(ENOENT))
+						clk_disable(scc_clk);
+#endif
+
 	return status;
 }
 
@@ -1416,6 +1446,13 @@ scc_decrypt_region(uint32_t part_base, uint32_t offset_bytes,
 	uint32_t scm_command;
 	int offset_blocks = offset_bytes / SCC_BLOCK_SIZE_BYTES();
 
+    /*Enabling SCC clock.*/
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 18))
+			mxc_clks_enable(SCC_CLK);
+#else
+			if (scc_clk != ERR_PTR(ENOENT))
+				clk_enable(scc_clk);
+#endif
 	scm_command = ((offset_blocks << SCM_CCMD_OFFSET_SHIFT) |
 		       (SCM_PART_NUMBER(part_base) << SCM_CCMD_PART_SHIFT));
 
@@ -1466,6 +1503,13 @@ scc_decrypt_region(uint32_t part_base, uint32_t offset_bytes,
 
 	os_unlock_restore_context(scc_crypto_lock, irq_flags);
 out:
+    /*Disabling the Clock when the driver is not in use.*/
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 18))
+			mxc_clks_disable(SCC_CLK);
+#else
+			if (scc_clk != ERR_PTR(ENOENT))
+				clk_disable(scc_clk);
+#endif
 	return status;
 }
 
@@ -2256,6 +2300,7 @@ void dbg_scc_write_register(uint32_t offset, uint32_t value)
 					     REG_PRINT_BUFFER_SIZE)
 		 : "");
 	(void)__raw_writel(value, scc_base + offset);
+
 }
 
 #endif				/* SCC_REGISTER_DEBUG */

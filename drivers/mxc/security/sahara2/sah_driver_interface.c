@@ -155,6 +155,11 @@ static os_driver_reg_t reg_handle;
 static char Diag_msg[DIAG_MSG_SIZE];
 #endif
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 18))
+/** Pointer to Sahara clock information.  Initialized during os_dev_init(). */
+static struct clk *sah_clk;
+#endif
+
 /*!
 *******************************************************************************
 * This function gets called when the module is inserted (insmod) into  the
@@ -182,10 +187,9 @@ OS_DEV_INIT(sah_init)
 	    mxc_clks_enable(SAHARA2_CLK);
 #else
 	{
-		struct clk *clk = clk_get(NULL, "sahara_clk");
-		if (clk != ERR_PTR(ENOENT)) {
-			clk_enable(clk);
-		}
+		sah_clk = clk_get(NULL, "sahara_clk");
+		if (sah_clk != ERR_PTR(ENOENT))
+			clk_enable(sah_clk);
 	}
 #endif
 
@@ -366,6 +370,20 @@ OS_DEV_INIT(sah_init)
 	}
 #endif
 
+/* Disabling the Clock after the driver has been registered fine.
+    This is done to save power when Sahara is not in use.*/
+#ifdef DIAG_DRV_IF
+	LOG_KDIAG("SAHARA : Disabling the clocks\n")
+#endif				/* DIAG_DRV_IF */
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 18))
+		mxc_clks_disable(SAHARA2_CLK);
+#else
+	{
+		if (sah_clk != ERR_PTR(ENOENT))
+			clk_disable(sah_clk);
+	}
+#endif
+
 	os_dev_init_return(os_error_code);
 }
 
@@ -428,10 +446,9 @@ OS_DEV_SHUTDOWN(sah_cleanup)
 	    mxc_clks_disable(SAHARA2_CLK);
 #else
 	{
-		struct clk *clk = clk_get(NULL, "sahara_clk");
-		if (clk != ERR_PTR(ENOENT)) {
-			clk_disable(clk);
-		}
+		if (sah_clk != ERR_PTR(ENOENT))
+			clk_disable(sah_clk);
+		clk_put(sah_clk);
 	}
 #endif
 

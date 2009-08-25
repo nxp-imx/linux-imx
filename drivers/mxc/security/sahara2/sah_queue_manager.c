@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2007 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2004-2009 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -341,8 +341,25 @@ void sah_Queue_Manager_Prime(sah_Head_Desc * entry)
 
 #ifdef SAHARA_POWER_MANAGEMENT
 	/* check that dynamic power management is not asserted */
-	if (!sah_dpm_flag) {
+    if (!sah_dpm_flag) {
 #endif
+
+	/* Enable the SAHARA Clocks */
+#ifdef DIAG_DRV_IF
+			LOG_KDIAG("SAHARA : Enabling the IPG and AHB clocks\n")
+#endif				/*DIAG_DRV_IF */
+
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 18))
+		mxc_clks_enable(SAHARA2_CLK);
+#else
+		{
+			struct clk *clk = clk_get(NULL, "sahara_clk");
+			if (clk != ERR_PTR(ENOENT))
+				clk_enable(clk);
+			clk_put(clk);
+		}
+#endif
+
 		/* Make sure nothing is in the DAR */
 		if (sah_HW_Read_DAR() == 0) {
 #if defined(DIAG_DRV_IF)

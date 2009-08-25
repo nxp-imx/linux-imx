@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2008 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2004-2009 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -839,12 +839,9 @@ fsl_shw_return_t sah_add_two_in_desc(uint32_t header,
     sah_Link* link1 = NULL;
     sah_Link* link2 = NULL;
 
-	printk("Entering sah_add_two_in_desc \n");
-
-    if (in1 != NULL) {
-        status = sah_Create_Link(mu, &link1,
-                                 (sah_Oct_Str) in1, in1_length,
-                                 SAH_USES_LINK_DATA);
+	if (in1 != NULL) {
+		status = sah_Create_Link(mu, &link1,
+			(sah_Oct_Str) in1, in1_length, SAH_USES_LINK_DATA);
     }
 
     if ( (in2 != NULL) && (status == FSL_RETURN_OK_S) ) {
@@ -1104,13 +1101,10 @@ fsl_shw_return_t sah_add_two_out_desc(uint32_t header,
     sah_Link         *link2 = NULL;
 
 
-	printk("Entering sah_add_two_out_desc \n");
-
-    if (out1 != NULL) {
-        status = sah_Create_Link(mu, &link1,
-                                 (sah_Oct_Str) out1, out1_length,
-                                 SAH_OUTPUT_LINK |
-                                 SAH_USES_LINK_DATA);
+	if (out1 != NULL) {
+		status = sah_Create_Link(mu, &link1,
+			(sah_Oct_Str) out1, out1_length,
+			SAH_OUTPUT_LINK | SAH_USES_LINK_DATA);
     }
 
     if ( (out2 != NULL) && (status == FSL_RETURN_OK_S) ) {

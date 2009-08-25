@@ -3281,6 +3281,23 @@ static struct clk sahara_clk[] = {
 	}
 };
 
+static struct clk scc_clk[] = {
+	{
+	.name = "scc_clk",
+	.parent = &ahb_clk,
+	.secondary = &scc_clk[1],
+	.enable_reg = MXC_CCM_CCGR1,
+	.enable_shift = MXC_CCM_CCGR1_CG15_OFFSET,
+	.enable = _clk_enable,
+	.disable = _clk_disable,
+	},
+	{
+	.name = "scc_sec_clk",
+	.parent = &tmax1_clk,
+	.secondary = &emi_fast_clk,
+	}
+};
+
 static int _clk_gpu3d_set_parent(struct clk *clk, struct clk *parent)
 {
 	u32 reg, mux;
@@ -3473,6 +3490,7 @@ static struct clk *mxc_clks[] = {
 	&emi_garb_clk,
 	&ddr_hf_clk,
 	&gpu2d_clk,
+	&scc_clk,
 };
 
 static void clk_tree_init(void)
