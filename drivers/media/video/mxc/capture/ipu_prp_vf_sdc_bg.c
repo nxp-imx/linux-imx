@@ -224,6 +224,7 @@ static int prpvf_start(void *private)
 		}
 	}
 
+	ipu_clear_irq(IPU_IRQ_PRP_VF_OUT_EOF);
 	err = ipu_request_irq(IPU_IRQ_PRP_VF_OUT_EOF, prpvf_vf_eof_callback,
 			      0, "Mxc Camera", cam);
 	if (err != 0) {
@@ -232,6 +233,7 @@ static int prpvf_start(void *private)
 		goto out_2;
 	}
 
+	ipu_clear_irq(IPU_IRQ_BG_SF_END);
 	err = ipu_request_irq(IPU_IRQ_BG_SF_END, prpvf_sdc_vsync_callback,
 			      0, "Mxc Camera", NULL);
 	if (err != 0) {
