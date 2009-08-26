@@ -140,6 +140,7 @@ static int prp_still_start(void *private)
 		return err;
 	}
 #else
+	ipu_clear_irq(IPU_IRQ_CSI0_OUT_EOF);
 	err = ipu_request_irq(IPU_IRQ_CSI0_OUT_EOF, prp_still_callback,
 			      0, "Mxc Camera", cam);
 	if (err != 0) {
