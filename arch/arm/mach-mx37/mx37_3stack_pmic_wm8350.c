@@ -318,7 +318,6 @@ static __init int wm8350_regulator_init(void)
 	struct regulator *regulator;
 	char *wm8350_global_regulator[] = {
 		"DCDC1",
-		"DCDC2",
 		"DCDC3",
 		"DCDC4",
 		"DCDC6",
