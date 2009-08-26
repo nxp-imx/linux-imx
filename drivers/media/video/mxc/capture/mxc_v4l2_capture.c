@@ -1694,6 +1694,12 @@ static int mxc_v4l_do_ioctl(struct inode *inode, struct file *file,
 		struct v4l2_buffer *buf = arg;
 		pr_debug("   case VIDIOC_DQBUF\n");
 
+		if ((cam->enc_counter == 0) &&
+			(file->f_flags & O_NONBLOCK)) {
+			retval = -EAGAIN;
+			break;
+		}
+
 		retval = mxc_v4l_dqueue(cam, buf);
 
 		break;
