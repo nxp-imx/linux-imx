@@ -442,6 +442,7 @@ mxcfb_setcolreg(u_int regno, u_int red, u_int green, u_int blue,
 static int mxcfb_ioctl(struct fb_info *fbi, unsigned int cmd, unsigned long arg)
 {
 	int retval = 0;
+	int __user *argp = (void __user *)arg;
 
 	if ((retval = wait_event_interruptible(mxcfb_drv_data.suspend_wq,
 					       (mxcfb_drv_data.suspended ==
@@ -496,6 +497,16 @@ static int mxcfb_ioctl(struct fb_info *fbi, unsigned int cmd, unsigned long arg)
 				break;
 			}
 #endif
+			break;
+		}
+	case MXCFB_GET_FB_IPU_CHAN:
+		{
+			struct mxcfb_info *mxc_fbi =
+				(struct mxcfb_info *)fbi->par;
+
+			if (put_user(mxc_fbi->ipu_ch, argp))
+				return -EFAULT;
+
 			break;
 		}
 #ifdef CONFIG_FB_MXC_TVOUT
@@ -657,6 +668,16 @@ static int mxcfb_ioctl_ovl(struct fb_info *fbi, unsigned int cmd,
 			}
 			retval = ipu_disp_set_window_pos(mxc_fbi->ipu_ch,
 							pos.x, pos.y);
+			break;
+		}
+	case MXCFB_GET_FB_IPU_CHAN:
+		{
+			struct mxcfb_info *mxc_fbi =
+				(struct mxcfb_info *)fbi->par;
+
+			if (put_user(mxc_fbi->ipu_ch, argp))
+				return -EFAULT;
+
 			break;
 		}
 	default:
