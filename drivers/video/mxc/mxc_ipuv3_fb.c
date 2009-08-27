@@ -62,15 +62,19 @@ struct mxcfb_info {
 	u32 ipu_di_pix_fmt;
 	bool overlay;
 	bool alpha_chan_en;
-	dma_addr_t alpha_phy_addr;
-	void *alpha_virt_addr;
+	dma_addr_t alpha_phy_addr0;
+	dma_addr_t alpha_phy_addr1;
+	void *alpha_virt_addr0;
+	void *alpha_virt_addr1;
 	uint32_t alpha_mem_len;
 	uint32_t ipu_ch_irq;
 	uint32_t cur_ipu_buf;
+	uint32_t cur_ipu_alpha_buf;
 
 	u32 pseudo_palette[16];
 
 	struct semaphore flip_sem;
+	struct semaphore alpha_flip_sem;
 	struct completion vsync_complete;
 };
 
@@ -193,6 +197,10 @@ static int _setup_disp_channel2(struct fb_info *fbi)
 
 	mxc_fbi->cur_ipu_buf = 1;
 	sema_init(&mxc_fbi->flip_sem, 1);
+	if (mxc_fbi->alpha_chan_en) {
+		mxc_fbi->cur_ipu_alpha_buf = 1;
+		sema_init(&mxc_fbi->alpha_flip_sem, 1);
+	}
 	fbi->var.xoffset = fbi->var.yoffset = 0;
 
 	retval = ipu_init_channel_buffer(mxc_fbi->ipu_ch, IPU_INPUT_BUFFER,
@@ -216,8 +224,8 @@ static int _setup_disp_channel2(struct fb_info *fbi)
 						 fbi->var.xres, fbi->var.yres,
 						 fbi->var.xres,
 						 IPU_ROTATE_NONE,
-						 mxc_fbi->alpha_phy_addr,
-						 mxc_fbi->alpha_phy_addr,
+						 mxc_fbi->alpha_phy_addr0,
+						 mxc_fbi->alpha_phy_addr1,
 						 0, 0);
 		if (retval) {
 			dev_err(fbi->device,
@@ -259,21 +267,44 @@ static int mxcfb_set_par(struct fb_info *fbi)
 	}
 	if (mxc_fbi->alpha_chan_en) {
 		alpha_mem_len = fbi->var.xres * fbi->var.yres;
-		if (!mxc_fbi->alpha_phy_addr ||
+		if ((!mxc_fbi->alpha_phy_addr0 && !mxc_fbi->alpha_phy_addr1) ||
 		    (alpha_mem_len > mxc_fbi->alpha_mem_len)) {
-			if (mxc_fbi->alpha_phy_addr)
+			if (mxc_fbi->alpha_phy_addr0)
 				dma_free_coherent(fbi->device,
 						  mxc_fbi->alpha_mem_len,
-						  mxc_fbi->alpha_virt_addr,
-						  mxc_fbi->alpha_phy_addr);
-			mxc_fbi->alpha_virt_addr =
+						  mxc_fbi->alpha_virt_addr0,
+						  mxc_fbi->alpha_phy_addr0);
+			if (mxc_fbi->alpha_phy_addr1)
+				dma_free_coherent(fbi->device,
+						  mxc_fbi->alpha_mem_len,
+						  mxc_fbi->alpha_virt_addr1,
+						  mxc_fbi->alpha_phy_addr1);
+
+			mxc_fbi->alpha_virt_addr0 =
 					dma_alloc_coherent(fbi->device,
 						  alpha_mem_len,
-						  &mxc_fbi->alpha_phy_addr,
+						  &mxc_fbi->alpha_phy_addr0,
 						  GFP_DMA | GFP_KERNEL);
-			if (mxc_fbi->alpha_virt_addr == NULL) {
+
+			mxc_fbi->alpha_virt_addr1 =
+					dma_alloc_coherent(fbi->device,
+						  alpha_mem_len,
+						  &mxc_fbi->alpha_phy_addr1,
+						  GFP_DMA | GFP_KERNEL);
+			if (mxc_fbi->alpha_virt_addr0 == NULL ||
+			    mxc_fbi->alpha_virt_addr1 == NULL) {
 				dev_err(fbi->device, "mxcfb: dma alloc for"
 					" alpha buffer failed.\n");
+				if (mxc_fbi->alpha_virt_addr0)
+					dma_free_coherent(fbi->device,
+						  mxc_fbi->alpha_mem_len,
+						  mxc_fbi->alpha_virt_addr0,
+						  mxc_fbi->alpha_phy_addr0);
+				if (mxc_fbi->alpha_virt_addr1)
+					dma_free_coherent(fbi->device,
+						  mxc_fbi->alpha_mem_len,
+						  mxc_fbi->alpha_virt_addr1,
+						  mxc_fbi->alpha_phy_addr1);
 				return -ENOMEM;
 			}
 			mxc_fbi->alpha_mem_len = alpha_mem_len;
@@ -676,6 +707,8 @@ static int mxcfb_ioctl(struct fb_info *fbi, unsigned int cmd, unsigned long arg)
 	case MXCFB_SET_LOC_ALPHA:
 		{
 			struct mxcfb_loc_alpha la;
+			int i;
+			char *video_plane_idstr;
 
 			if (copy_from_user(&la, (void *)arg, sizeof(la))) {
 				retval = -EFAULT;
@@ -688,14 +721,28 @@ static int mxcfb_ioctl(struct fb_info *fbi, unsigned int cmd, unsigned long arg)
 				break;
 			}
 
-			if (la.enable)
+			if (la.enable) {
 				mxc_fbi->alpha_chan_en = true;
-			else
+
+				if (mxc_fbi->ipu_ch == MEM_FG_SYNC)
+					video_plane_idstr = "DISP3 BG";
+				else if (mxc_fbi->ipu_ch == MEM_BG_SYNC)
+					video_plane_idstr = "DISP3 FG";
+
+				for (i = 0; i < num_registered_fb; i++) {
+					char *idstr = registered_fb[i]->fix.id;
+					if (strcmp(idstr, "video_plane_idstr") == 0) {
+						((struct mxcfb_info *)(registered_fb[i]->par))->alpha_chan_en = false;
+						break;
+					}
+				}
+			} else
 				mxc_fbi->alpha_chan_en = false;
 
 			mxcfb_set_par(fbi);
 
-			la.alpha_phy_addr = mxc_fbi->alpha_phy_addr;
+			la.alpha_phy_addr0 = mxc_fbi->alpha_phy_addr0;
+			la.alpha_phy_addr1 = mxc_fbi->alpha_phy_addr1;
 			if (copy_to_user((void *)arg, &la, sizeof(la))) {
 				retval = -EFAULT;
 				break;
@@ -705,6 +752,60 @@ static int mxcfb_ioctl(struct fb_info *fbi, unsigned int cmd, unsigned long arg)
 				dev_dbg(fbi->device,
 					"Enable DP local alpha for %s\n",
 					fbi->fix.id);
+			break;
+		}
+	case MXCFB_SET_LOC_ALP_BUF:
+		{
+			unsigned long base;
+			uint32_t ipu_alp_ch_irq;
+
+			if (!(((mxc_fbi->ipu_ch == MEM_FG_SYNC) ||
+			     (mxc_fbi->ipu_ch == MEM_BG_SYNC)) &&
+			     (mxc_fbi->alpha_chan_en))) {
+				dev_err(fbi->device,
+					"Should use background or overlay "
+					"framebuffer to set the alpha buffer "
+					"number\n");
+				return -EINVAL;
+			}
+
+			if (get_user(base, argp))
+				return -EFAULT;
+
+			if (base != mxc_fbi->alpha_phy_addr0 &&
+			    base != mxc_fbi->alpha_phy_addr1) {
+				dev_err(fbi->device,
+					"Wrong alpha buffer physical address "
+					"%lu\n", base);
+				return -EINVAL;
+			}
+
+			if (mxc_fbi->ipu_ch == MEM_FG_SYNC)
+				ipu_alp_ch_irq = IPU_IRQ_FG_ALPHA_SYNC_EOF;
+			else
+				ipu_alp_ch_irq = IPU_IRQ_BG_ALPHA_SYNC_EOF;
+
+			down(&mxc_fbi->alpha_flip_sem);
+
+			mxc_fbi->cur_ipu_alpha_buf =
+						!mxc_fbi->cur_ipu_alpha_buf;
+			if (ipu_update_channel_buffer(mxc_fbi->ipu_ch,
+						      IPU_ALPHA_IN_BUFFER,
+						      mxc_fbi->
+							cur_ipu_alpha_buf,
+						      base) == 0) {
+				ipu_select_buffer(mxc_fbi->ipu_ch,
+						  IPU_ALPHA_IN_BUFFER,
+						  mxc_fbi->cur_ipu_alpha_buf);
+				ipu_clear_irq(ipu_alp_ch_irq);
+				ipu_enable_irq(ipu_alp_ch_irq);
+			} else {
+				dev_err(fbi->device,
+					"Error updating %s SDC alpha buf %d "
+					"to address=0x%08lX\n",
+					fbi->fix.id,
+					mxc_fbi->cur_ipu_alpha_buf, base);
+			}
 			break;
 		}
 	case MXCFB_SET_CLR_KEY:
@@ -942,7 +1043,10 @@ static int mxcfb_mmap(struct fb_info *fbi, struct vm_area_struct *vma)
 		/* mapping framebuffer memory */
 		len = fbi->fix.smem_len - offset;
 		vma->vm_pgoff = (fbi->fix.smem_start + offset) >> PAGE_SHIFT;
-	} else if (vma->vm_pgoff == (mxc_fbi->alpha_phy_addr >> PAGE_SHIFT)) {
+	} else if ((vma->vm_pgoff ==
+			(mxc_fbi->alpha_phy_addr0 >> PAGE_SHIFT)) ||
+		   (vma->vm_pgoff ==
+			(mxc_fbi->alpha_phy_addr1 >> PAGE_SHIFT))) {
 		len = mxc_fbi->alpha_mem_len;
 	} else {
 		list_for_each_entry(mem, &fb_alloc_list, list) {
@@ -1000,6 +1104,16 @@ static irqreturn_t mxcfb_irq_handler(int irq, void *dev_id)
 
 	complete(&mxc_fbi->vsync_complete);
 	up(&mxc_fbi->flip_sem);
+	ipu_disable_irq(irq);
+	return IRQ_HANDLED;
+}
+
+static irqreturn_t mxcfb_alpha_irq_handler(int irq, void *dev_id)
+{
+	struct fb_info *fbi = dev_id;
+	struct mxcfb_info *mxc_fbi = fbi->par;
+
+	up(&mxc_fbi->alpha_flip_sem);
 	ipu_disable_irq(irq);
 	return IRQ_HANDLED;
 }
@@ -1238,6 +1352,15 @@ static int mxcfb_probe(struct platform_device *pdev)
 		ipu_disp_set_color_key(mxcfbi->ipu_ch, false, 0);
 		strcpy(fbi->fix.id, "DISP3 BG");
 		g_dp_in_use = true;
+
+		if (ipu_request_irq(IPU_IRQ_BG_ALPHA_SYNC_EOF,
+				    mxcfb_alpha_irq_handler, 0,
+				    MXCFB_NAME, fbi) != 0) {
+			dev_err(&pdev->dev, "Error registering BG alpha irq "
+					    "handler.\n");
+			ret = -EBUSY;
+			goto err1;
+		}
 	} else if (pdev->id == 1) {
 		strcpy(fbi->fix.id, "DISP3 BG - DI1");
 		g_dp_in_use = true;
@@ -1249,6 +1372,15 @@ static int mxcfb_probe(struct platform_device *pdev)
 		mxcfbi->blank = FB_BLANK_POWERDOWN;
 
 		strcpy(fbi->fix.id, "DISP3 FG");
+
+		if (ipu_request_irq(IPU_IRQ_FG_ALPHA_SYNC_EOF,
+				    mxcfb_alpha_irq_handler, 0,
+				    MXCFB_NAME, fbi) != 0) {
+			dev_err(&pdev->dev, "Error registering FG alpha irq "
+					    "handler.\n");
+			ret = -EBUSY;
+			goto err1;
+		}
 	}
 
 	mxcfb_info[pdev->id] = fbi;

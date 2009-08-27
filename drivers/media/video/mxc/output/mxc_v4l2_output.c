@@ -2091,7 +2091,7 @@ mxc_v4l2out_do_ioctl(struct inode *inode, struct file *file,
 						set_fs(old_fs);
 					}
 					if (ipu_ch == CHAN_NONE) {
-						dev_err(vdev->dev,
+						dev_err(&vdev->dev,
 						"Can't get disp ipu channel\n");
 						retval = -EINVAL;
 						break;

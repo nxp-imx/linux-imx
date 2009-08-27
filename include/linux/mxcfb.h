@@ -37,7 +37,8 @@ struct mxcfb_gbl_alpha {
 
 struct mxcfb_loc_alpha {
 	int enable;
-	unsigned long alpha_phy_addr;
+	unsigned long alpha_phy_addr0;
+	unsigned long alpha_phy_addr1;
 };
 
 struct mxcfb_color_key {
@@ -56,6 +57,7 @@ struct mxcfb_pos {
 #define MXCFB_SET_OVERLAY_POS   _IOW('F', 0x24, struct mxcfb_pos)
 #define MXCFB_GET_FB_IPU_CHAN 	_IOR('F', 0x25, u_int32_t)
 #define MXCFB_SET_LOC_ALPHA     _IOWR('F', 0x26, struct mxcfb_loc_alpha)
+#define MXCFB_SET_LOC_ALP_BUF    _IOW('F', 0x27, unsigned long)
 
 #ifdef __KERNEL__
 

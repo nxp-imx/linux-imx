@@ -67,6 +67,18 @@ static int prpvf_start(void *private)
 		return -EPERM;
 	}
 
+	fbvar = fbi->var;
+	fbvar.bits_per_pixel = 16;
+	fbvar.nonstd = 0;
+	fbvar.xres = fbvar.xres_virtual = cam->win.w.width;
+	fbvar.yres = cam->win.w.height;
+	fbvar.yres_virtual = cam->win.w.height * 2;
+	fbvar.activate |= FB_ACTIVATE_FORCE;
+	fb_set_var(fbi, &fbvar);
+
+	ipu_disp_set_window_pos(MEM_FG_SYNC, cam->win.w.left,
+			cam->win.w.top);
+
 	memset(&vf, 0, sizeof(ipu_channel_params_t));
 	ipu_csi_get_window_size(&vf.csi_prp_vf_mem.in_width,
 				&vf.csi_prp_vf_mem.in_height, cam->csi);
@@ -124,20 +136,6 @@ static int prpvf_start(void *private)
 	pr_debug("vf_bufs %x %x\n", cam->vf_bufs[0], cam->vf_bufs[1]);
 
 	if (cam->vf_rotation >= IPU_ROTATE_VERT_FLIP) {
-		fbvar = fbi->var;
-
-		fbvar.bits_per_pixel = 16;
-		fbvar.nonstd = 0;
-		fbvar.xres = fbvar.xres_virtual = vf.csi_prp_vf_mem.out_height;
-		fbvar.yres = vf.csi_prp_vf_mem.out_width;
-		fbvar.yres_virtual = vf.csi_prp_vf_mem.out_width * 2;
-
-		fbvar.activate |= FB_ACTIVATE_FORCE;
-		fb_set_var(fbi, &fbvar);
-
-		ipu_disp_set_window_pos(MEM_FG_SYNC, cam->win.w.left,
-					cam->win.w.top);
-
 		err = ipu_init_channel_buffer(CSI_PRP_VF_MEM, IPU_OUTPUT_BUFFER,
 					      format,
 					      vf.csi_prp_vf_mem.out_width,
@@ -212,20 +210,6 @@ static int prpvf_start(void *private)
 		ipu_select_buffer(MEM_ROT_VF_MEM, IPU_OUTPUT_BUFFER, 0);
 		ipu_select_buffer(MEM_ROT_VF_MEM, IPU_OUTPUT_BUFFER, 1);
 	} else {
-		fbvar = fbi->var;
-
-		fbvar.bits_per_pixel = 16;
-		fbvar.nonstd = 0;
-		fbvar.xres = fbvar.xres_virtual = vf.csi_prp_vf_mem.out_width;
-		fbvar.yres = vf.csi_prp_vf_mem.out_height;
-		fbvar.yres_virtual = vf.csi_prp_vf_mem.out_height * 2;
-
-		fbvar.activate |= FB_ACTIVATE_FORCE;
-		fb_set_var(fbi, &fbvar);
-
-		ipu_disp_set_window_pos(MEM_FG_SYNC, cam->win.w.left,
-					cam->win.w.top);
-
 		err = ipu_init_channel_buffer(CSI_PRP_VF_MEM, IPU_OUTPUT_BUFFER,
 					      format, cam->win.w.width,
 					      cam->win.w.height,
