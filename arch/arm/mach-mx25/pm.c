@@ -45,7 +45,7 @@ static int mx25_suspend_enter(suspend_state_t state)
 	/* Executing CP15 (Wait-for-Interrupt) Instruction */
 	cpu_do_idle();
 
-	reg = (__raw_readl(MXC_CCM_CGCR0) & ~MXC_CCM_CGCR1_STOP_MODE_MASK) |
+	reg = (__raw_readl(MXC_CCM_CGCR0) & ~MXC_CCM_CGCR0_STOP_MODE_MASK) |
 	    cgcr0;
 	__raw_writel(reg, MXC_CCM_CGCR0);
 
@@ -53,7 +53,7 @@ static int mx25_suspend_enter(suspend_state_t state)
 	    cgcr1;
 	__raw_writel(reg, MXC_CCM_CGCR1);
 
-	reg = (__raw_readl(MXC_CCM_CGCR2) & ~MXC_CCM_CGCR1_STOP_MODE_MASK) |
+	reg = (__raw_readl(MXC_CCM_CGCR2) & ~MXC_CCM_CGCR2_STOP_MODE_MASK) |
 	    cgcr2;
 	__raw_writel(reg, MXC_CCM_CGCR2);
 
