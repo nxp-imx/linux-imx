@@ -158,6 +158,7 @@
 #define PORTSC_PTS_SERIAL		(3 << 30)	/* serial */
 #define PORTSC_STS			(1 << 29)	/* serial xcvr select */
 #define PORTSC_PTW                      (1 << 28)       /* UTMI width */
+#define PORTSC_PHCD                     (1 << 23)       /* Low Power Suspend */
 #define PORTSC_PORT_POWER		(1 << 12)	/* port power */
 #define PORTSC_LS_MASK			(3 << 10)	/* Line State mask */
 #define PORTSC_LS_SE0			(0 << 10)	/* SE0     */
@@ -308,13 +309,16 @@
 						/* 0=low : Operate as A-device */
 
 /* USB_PHY_CTRL_FUNC */
-#define USB_UTMI_PHYCTRL_UTMI_ENABLE   0x01000000
+#define USB_UTMI_PHYCTRL_UTMI_ENABLE (1 << 24)
+#define USB_UTMI_PHYCTRL_CHGRDETEN (1 << 24)    /* Enable Charger Detector */
+#define USB_UTMI_PHYCTRL_CHGRDETON (1 << 23)    /* Charger Detector Power On Control */
 #define USB_UTMI_PHYCTRL_OC_POL	(1 << 9)	/* OTG Polarity of Overcurrent */
 #define USB_UTMI_PHYCTRL_OC_DIS	(1 << 8)	/* OTG Disable Overcurrent Event */
-
 /* USB_PHY_CTRL_FUNC2*/
 #define USB_UTMI_PHYCTRL2_PLLDIV_MASK		0x3
 #define USB_UTMI_PHYCTRL2_PLLDIV_SHIFT		0
+#define USB_UTMI_PHYCTRL2_HSDEVSEL_MASK		0x3
+#define USB_UTMI_PHYCTRL2_HSDEVSEL_SHIFT	19
 
 /* USB_CTRL_1 */
 #define USB_CTRL_UH1_EXT_CLK_EN			(1 << 25)

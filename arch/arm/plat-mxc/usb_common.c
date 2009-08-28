@@ -479,20 +479,20 @@ int fsl_usb_host_init(struct platform_device *pdev)
 	} else if (xops->xcvr_type == PORTSC_PTS_ULPI) {
 		if (cpu_is_mx51()) {
 #ifdef CONFIG_USB_EHCI_ARC_H1
-		if (!strcmp("Host 1", pdata->name)) {
-			usbh1_set_ulpi_xcvr();
-			if (cpu_is_mx51()) {
-				gpio_usbh1_setback_stp();
-				/* disable remote wakeup irq */
-				USBCTRL &= ~UCTRL_H1WIE;
+			if (!strcmp("Host 1", pdata->name)) {
+				usbh1_set_ulpi_xcvr();
+				if (cpu_is_mx51()) {
+					gpio_usbh1_setback_stp();
+					/* disable remote wakeup irq */
+					USBCTRL &= ~UCTRL_H1WIE;
+				}
 			}
-		}
 #endif
 #ifdef CONFIG_USB_EHCI_ARC_H2
-		if (!strcmp("Host 2", pdata->name)) {
-			usbh2_set_ulpi_xcvr();
-			if (cpu_is_mx51())
-				gpio_usbh2_setback_stp();
+			if (!strcmp("Host 2", pdata->name)) {
+				usbh2_set_ulpi_xcvr();
+				if (cpu_is_mx51())
+					gpio_usbh2_setback_stp();
 			}
 #endif
 		} else
@@ -699,6 +699,11 @@ static void otg_set_utmi_xcvr(void)
 		/* Set the PHY clock to 19.2MHz */
 		USB_PHY_CTR_FUNC2 &= ~USB_UTMI_PHYCTRL2_PLLDIV_MASK;
 		USB_PHY_CTR_FUNC2 |= 0x01;
+	} else if (machine_is_mx37_3ds()) {
+		/* Reference voltage for HS disconnect envelope detector */
+		/* adjust the Squelch level */
+		USB_PHY_CTR_FUNC2 &= ~(USB_UTMI_PHYCTRL2_HSDEVSEL_MASK <<
+			USB_UTMI_PHYCTRL2_HSDEVSEL_SHIFT);
 	}
 
 	/* Workaround an IC issue for ehci driver:
@@ -710,9 +715,11 @@ static void otg_set_utmi_xcvr(void)
 	 */
 	UOG_PORTSC1 |= PORTSC_PTW;
 
-	/* Enable UTMI interface in PHY control Reg */
-	USB_PHY_CTR_FUNC &= ~USB_UTMI_PHYCTRL_UTMI_ENABLE;
-	USB_PHY_CTR_FUNC |= USB_UTMI_PHYCTRL_UTMI_ENABLE;
+	if (cpu_is_mx35() || cpu_is_mx25()) {
+		/* Enable UTMI interface in PHY control Reg */
+		USB_PHY_CTR_FUNC &= ~USB_UTMI_PHYCTRL_UTMI_ENABLE;
+		USB_PHY_CTR_FUNC |= USB_UTMI_PHYCTRL_UTMI_ENABLE;
+	}
 
 	/* need to reset the controller here so that the ID pin
 	 * is correctly detected.
@@ -731,8 +738,13 @@ static void otg_set_utmi_xcvr(void)
 
 	/* Turn off the usbpll for mx25 UTMI tranceivers */
 	/* DDD: can we do this UTMI xcvrs on all boards? */
-	if (cpu_is_mx25())
+	if (cpu_is_mx25()) {
 		clk_disable(usb_clk);
+	} else if (cpu_is_mx37()) {
+		/* fix USB PHY Power Gating leakage issue for i.MX37 */
+		USB_PHY_CTR_FUNC &= ~USB_UTMI_PHYCTRL_CHGRDETON;
+		USB_PHY_CTR_FUNC &= ~USB_UTMI_PHYCTRL_CHGRDETEN;
+	}
 }
 
 static int otg_used = 0;
@@ -769,6 +781,7 @@ int usbotg_init(struct platform_device *pdev)
 		if (xops->init)
 			xops->init(xops);
 
+		UOG_PORTSC1 = UOG_PORTSC1 & ~PORTSC_PHCD;
 		if (xops->xcvr_type == PORTSC_PTS_SERIAL) {
 			if (pdata->operating_mode == FSL_USB2_DR_HOST) {
 				otg_set_serial_host();
@@ -810,10 +823,12 @@ void usbotg_uninit(struct fsl_usb2_platform_data *pdata)
 				pdata->xcvr_ops->suspend(pdata->xcvr_ops);
 			clk_disable(usb_clk);
 		}
-
+		msleep(1);
+		UOG_PORTSC1 = UOG_PORTSC1 | PORTSC_PHCD;
 		pdata->gpio_usb_inactive();
 		if (pdata->xcvr_type == PORTSC_PTS_SERIAL)
 			clk_disable(usb_clk);
+		clk_disable(usb_ahb_clk);
 	}
 }
 EXPORT_SYMBOL(usbotg_uninit);
