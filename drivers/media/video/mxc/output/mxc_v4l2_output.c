@@ -1174,7 +1174,6 @@ static int mxc_v4l2out_streamon(vout_data * vout)
 	vout->state = STATE_STREAM_PAUSED;
 
 	if (use_direct_adc == false) {
-		ipu_enable_channel(vout->display_ch);
 		if (!vout->ic_bypass) {
 			ipu_enable_channel(vout->post_proc_ch);
 			ipu_select_buffer(vout->post_proc_ch, IPU_OUTPUT_BUFFER, 0);
@@ -1202,6 +1201,14 @@ static int mxc_v4l2out_streamon(vout_data * vout)
 		disp_irq = get_display_irq(vout);
 		ipu_request_irq(disp_irq, mxc_v4l2out_disp_refresh_irq_handler,
 				0, NULL, vout);
+
+		if (fbi) {
+			acquire_console_sem();
+			fb_blank(fbi, FB_BLANK_UNBLANK);
+			release_console_sem();
+		} else {
+			ipu_enable_channel(vout->display_ch);
+		}
 	} else {
 		ipu_select_buffer(vout->post_proc_ch, IPU_INPUT_BUFFER, 0);
 		ipu_select_buffer(vout->post_proc_ch, IPU_INPUT_BUFFER, 1);
