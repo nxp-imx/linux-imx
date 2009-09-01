@@ -235,10 +235,11 @@ static int mxc_i2c_start(mxc_i2c_device *dev, struct i2c_msg *msg)
  * @param   *msg  pointer to a message structure that contains the slave
  *                address
  */
-static void mxc_i2c_repstart(mxc_i2c_device * dev, struct i2c_msg *msg)
+static void mxc_i2c_repstart(mxc_i2c_device *dev, struct i2c_msg *msg)
 {
-	volatile unsigned int cr;
+	volatile unsigned int cr, sr;
 	unsigned int addr_trans;
+	int retry = 16;
 
 	/*
 	 * Set the slave address and the requested transfer mode
@@ -251,7 +252,16 @@ static void mxc_i2c_repstart(mxc_i2c_device * dev, struct i2c_msg *msg)
 	cr = readw(dev->membase + MXC_I2CR);
 	cr |= MXC_I2CR_RSTA;
 	writew(cr, dev->membase + MXC_I2CR);
-	udelay(3);
+	/* Wait till the Bus Busy bit is set */
+	sr = readw(dev->membase + MXC_I2SR);
+	while (retry-- && (!(sr & MXC_I2SR_IBB))) {
+		udelay(3);
+		sr = readw(dev->membase + MXC_I2SR);
+	}
+	if (retry <= 0) {
+		dev_err(&dev->adap.dev, "Could not grab Bus ownership\n");
+		return -EBUSY;
+	}
 	writew(addr_trans, dev->membase + MXC_I2DR);
 }
 
