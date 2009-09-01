@@ -240,6 +240,7 @@ static const int ycbcr2rgb_coeff[5][3] = {
 #define mask_a(a) ((u32)(a) & 0x3FF)
 #define mask_b(b) ((u32)(b) & 0x3FFF)
 
+/* Pls keep S0, S1 and S2 as 0x2 by using this convertion */
 static int _rgb_to_yuv(int n, int red, int green, int blue)
 {
 	int c;
@@ -270,6 +271,7 @@ static struct dp_csc_param_t dp_csc_array[CSC_NUM][CSC_NUM] = {
 };
 
 static enum csc_type_t fg_csc_type = CSC_NONE, bg_csc_type = CSC_NONE;
+static int color_key_4rgb = 1;
 
 void __ipu_dp_csc_setup(int dp, struct dp_csc_param_t dp_csc_param,
 			bool srm_mode_update)
@@ -315,6 +317,7 @@ int _ipu_dp_init(ipu_channel_t channel, uint32_t in_pixel_fmt,
 	int in_fmt, out_fmt;
 	int dp;
 	int partial = false;
+	uint32_t reg;
 
 	if (channel == MEM_FG_SYNC) {
 		dp = DP_SYNC;
@@ -356,6 +359,35 @@ int _ipu_dp_init(ipu_channel_t channel, uint32_t in_pixel_fmt,
 			else
 				bg_csc_type = YUV2YUV;
 		}
+	}
+
+	/* Transform color key from rgb to yuv if CSC is enabled */
+	reg = __raw_readl(DP_COM_CONF(dp));
+	if (color_key_4rgb && (reg & DP_COM_CONF_GWCKE) &&
+			(((fg_csc_type == RGB2YUV) && (bg_csc_type == YUV2YUV)) ||
+			 ((fg_csc_type == YUV2YUV) && (bg_csc_type == RGB2YUV)) ||
+			 ((fg_csc_type == YUV2YUV) && (bg_csc_type == YUV2YUV)) ||
+			 ((fg_csc_type == YUV2RGB) && (bg_csc_type == YUV2RGB)))) {
+		int red, green, blue;
+		int y, u, v;
+		uint32_t color_key = __raw_readl(DP_GRAPH_WIND_CTRL(dp)) & 0xFFFFFFL;
+
+		dev_dbg(g_ipu_dev, "_ipu_dp_init color key 0x%x need change to yuv fmt!\n", color_key);
+
+		red = (color_key >> 16) & 0xFF;
+		green = (color_key >> 8) & 0xFF;
+		blue = color_key & 0xFF;
+
+		y = _rgb_to_yuv(0, red, green, blue);
+		u = _rgb_to_yuv(1, red, green, blue);
+		v = _rgb_to_yuv(2, red, green, blue);
+		color_key = (y << 16) | (u << 8) | v;
+
+		reg = __raw_readl(DP_GRAPH_WIND_CTRL(dp)) & 0xFF000000L;
+		__raw_writel(reg | color_key, DP_GRAPH_WIND_CTRL(dp));
+		color_key_4rgb = 0;
+
+		dev_dbg(g_ipu_dev, "_ipu_dp_init color key change to yuv fmt 0x%x!\n", color_key);
 	}
 
 	__ipu_dp_csc_setup(dp, dp_csc_array[bg_csc_type][fg_csc_type], true);
@@ -1362,20 +1394,30 @@ int32_t ipu_disp_set_color_key(ipu_channel_t channel, bool enable,
 	if (!g_ipu_clk_enabled)
 		clk_enable(g_ipu_clk);
 
+	spin_lock_irqsave(&ipu_lock, lock_flags);
+
+	color_key_4rgb = 1;
 	/* Transform color key from rgb to yuv if CSC is enabled */
-	reg = __raw_readl(DP_COM_CONF(flow));
-	if ((reg & DP_COM_CONF_CSC_DEF_MASK) == DP_COM_CONF_CSC_DEF_BG) {
+	if (((fg_csc_type == RGB2YUV) && (bg_csc_type == YUV2YUV)) ||
+			((fg_csc_type == YUV2YUV) && (bg_csc_type == RGB2YUV)) ||
+			((fg_csc_type == YUV2YUV) && (bg_csc_type == YUV2YUV)) ||
+			((fg_csc_type == YUV2RGB) && (bg_csc_type == YUV2RGB))) {
+
+		dev_dbg(g_ipu_dev, "color key 0x%x need change to yuv fmt\n", color_key);
+
 		red = (color_key >> 16) & 0xFF;
 		green = (color_key >> 8) & 0xFF;
 		blue = color_key & 0xFF;
 
 		y = _rgb_to_yuv(0, red, green, blue);
-		u = _rgb_to_yuv(0, red, green, blue);
-		v = _rgb_to_yuv(0, red, green, blue);
+		u = _rgb_to_yuv(1, red, green, blue);
+		v = _rgb_to_yuv(2, red, green, blue);
 		color_key = (y << 16) | (u << 8) | v;
-	}
 
-	spin_lock_irqsave(&ipu_lock, lock_flags);
+		color_key_4rgb = 0;
+
+		dev_dbg(g_ipu_dev, "color key change to yuv fmt 0x%x\n", color_key);
+	}
 
 	if (enable) {
 		reg = __raw_readl(DP_GRAPH_WIND_CTRL(flow)) & 0xFF000000L;
