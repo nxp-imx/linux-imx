@@ -903,12 +903,57 @@ static int mxcfb_ioctl(struct fb_info *fbi, unsigned int cmd, unsigned long arg)
 	case MXCFB_SET_OVERLAY_POS:
 		{
 			struct mxcfb_pos pos;
+			struct fb_info *bg_fbi = NULL;
+			struct mxcfb_info *bg_mxcfbi = NULL;
+			int i;
+
+			if (mxc_fbi->ipu_ch != MEM_FG_SYNC) {
+				dev_err(fbi->device, "Should use the overlay "
+					"framebuffer to set the position of "
+					"the overlay window\n");
+				retval = -EINVAL;
+				break;
+			}
+
 			if (copy_from_user(&pos, (void *)arg, sizeof(pos))) {
 				retval = -EFAULT;
 				break;
 			}
+
+			for (i = 0; i < num_registered_fb; i++) {
+				bg_mxcfbi =
+				((struct mxcfb_info *)(registered_fb[i]->par));
+
+				if (bg_mxcfbi->ipu_ch == MEM_BG_SYNC) {
+					bg_fbi = registered_fb[i];
+					break;
+				}
+			}
+
+			if (bg_fbi == NULL) {
+				dev_err(fbi->device, "Cannot find the "
+					"background framebuffer\n");
+				retval = -ENOENT;
+				break;
+			}
+
+			if (fbi->var.xres + pos.x > bg_fbi->var.xres)
+				pos.x = bg_fbi->var.xres - fbi->var.xres;
+			if (fbi->var.yres + pos.y > bg_fbi->var.yres)
+				pos.y = bg_fbi->var.yres - fbi->var.yres;
+
+			if (pos.x < 0)
+				pos.x = 0;
+			if (pos.y < 0)
+				pos.y = 0;
+
 			retval = ipu_disp_set_window_pos(mxc_fbi->ipu_ch,
 							 pos.x, pos.y);
+
+			if (copy_to_user((void *)arg, &pos, sizeof(pos))) {
+				retval = -EFAULT;
+				break;
+			}
 			break;
 		}
 	case MXCFB_GET_FB_IPU_CHAN:
