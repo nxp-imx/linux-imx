@@ -385,10 +385,15 @@ static void __init stmp378x_devb_init(void)
 	stmp3xxx_set_mmc_data(&stmp3xxx_mmc.dev);
 	stmp3xxx_gpmi.dev.platform_data = &gpmi_partitions;
 	stmp3xxx_keyboard.dev.platform_data = &keyboard_data;
+
 	udata = stmp3xxx_udc.dev.platform_data;
 	udata->platform_init = usb_phy_enable;
+	udata->pdev = &stmp3xxx_udc;
+
 	udata = stmp3xxx_ehci.dev.platform_data;
 	udata->platform_init = usb_phy_enable;
+	udata->pdev = &stmp3xxx_ehci ;
+
 	spi_register_board_info(spi_board_info, ARRAY_SIZE(spi_board_info));
 	stmp3xxx_ssp1_device_register();	/* MMC or SSP */
 	stmp3xxx_ssp2_device_register();	/* MMC or SSP */
