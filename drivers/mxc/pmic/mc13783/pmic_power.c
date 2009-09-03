@@ -3087,7 +3087,10 @@ static int pmic_power_probe(struct platform_device *pdev)
 	gpio_power_key_active();
 
 	ppd = pdev->dev.platform_data;
-	irq = ppd->power_key_irq;
+	if (ppd)
+		irq = ppd->power_key_irq;
+	else
+		goto done;
 
 	if (irq == 0) {
 		pr_info(KERN_INFO "PMIC Power has no platform data\n");
