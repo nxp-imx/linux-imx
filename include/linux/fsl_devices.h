@@ -120,6 +120,8 @@ struct fsl_usb2_platform_data {
 	int (*gpio_usb_active) (void);
 	void (*gpio_usb_inactive) (void);
 	void (*usb_clock_for_pm) (bool);
+	void (*platform_suspend)(struct fsl_usb2_platform_data *);
+	void (*platform_resume)(struct fsl_usb2_platform_data *);
 	unsigned			big_endian_mmio : 1;
 	unsigned			big_endian_desc : 1;
 	unsigned			es : 1;	/* need USBMODE:ES */

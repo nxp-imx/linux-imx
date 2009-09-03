@@ -194,6 +194,11 @@ static struct gpmi_platform_data gpmi_partitions = {
 	},
 };
 
+static void usb_host_phy_resume(struct fsl_usb2_platform_data *pdata)
+{
+	HW_USBPHY_CTRL_CLR(BM_USBPHY_CTRL_ENHOSTDISCONDETECT);
+}
+
 static int usb_phy_enable(struct platform_device *pdev)
 {
 	/*
@@ -392,6 +397,7 @@ static void __init stmp378x_devb_init(void)
 
 	udata = stmp3xxx_ehci.dev.platform_data;
 	udata->platform_init = usb_phy_enable;
+	udata->platform_resume = usb_host_phy_resume;
 	udata->pdev = &stmp3xxx_ehci ;
 
 	spi_register_board_info(spi_board_info, ARRAY_SIZE(spi_board_info));

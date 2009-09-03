@@ -559,6 +559,9 @@ static int ehci_fsl_drv_suspend(struct platform_device *pdev,
 	ehci_writel(ehci, tmp, &ehci->regs->port_status[0]);
 	}
 
+	if (pdata->platform_suspend)
+		pdata->platform_suspend(pdata);
+
 	return 0;
 }
 
@@ -602,6 +605,9 @@ static int ehci_fsl_drv_resume(struct platform_device *pdev)
 
 	/* set host mode */
 	fsl_platform_set_host_mode(hcd);
+
+	if (pdata->platform_resume)
+		pdata->platform_resume(pdata);
 
 	/* restore EHCI registers */
 	ehci_writel(ehci, pdata->pm_command, &ehci->regs->command);
