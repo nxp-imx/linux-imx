@@ -947,8 +947,9 @@ int32_t ipu_init_channel_buffer(ipu_channel_t channel, ipu_buffer_t type,
 	} else if (_ipu_is_dmfc_chan(dma_chan))
 		_ipu_dmfc_set_wait4eot(dma_chan, width);
 
-	if (_ipu_chan_is_interlaced(channel))
+	if (_ipu_chan_is_interlaced(channel)) {
 		_ipu_ch_param_set_interlaced_scan(dma_chan);
+	}
 
 	if (_ipu_is_ic_chan(dma_chan) || _ipu_is_irt_chan(dma_chan)) {
 		burst_size = _ipu_ch_param_get_burst_size(dma_chan);
@@ -1030,6 +1031,71 @@ int32_t ipu_update_channel_buffer(ipu_channel_t channel, ipu_buffer_t type,
 	return ret;
 }
 EXPORT_SYMBOL(ipu_update_channel_buffer);
+
+
+/*!
+ * This function is called to initialize a buffer for logical IPU channel.
+ *
+ * @param       channel         Input parameter for the logical channel ID.
+ *
+ * @param       type            Input parameter which buffer to initialize.
+ *
+ * @param       pixel_fmt       Input parameter for pixel format of buffer.
+ *                              Pixel format is a FOURCC ASCII code.
+ *
+ * @param       width           Input parameter for width of buffer in pixels.
+ *
+ * @param       height          Input parameter for height of buffer in pixels.
+ *
+ * @param       stride          Input parameter for stride length of buffer
+ *                              in pixels.
+ *
+ * @param       u		predefined private u offset for additional cropping,
+ *								zero if not used.
+ *
+ * @param       v		predefined private v offset for additional cropping,
+ *								zero if not used.
+ *
+ * @param			vertical_offset vertical offset for Y coordinate
+ * 								in the existed frame
+ *
+ *
+ * @param			horizontal_offset horizontal offset for X coordinate
+ * 								in the existed frame
+ *
+ *
+ * @return      Returns 0 on success or negative error code on fail
+ *              This function will fail if any buffer is set to ready.
+ */
+
+int32_t ipu_update_channel_offset(ipu_channel_t channel, ipu_buffer_t type,
+				uint32_t pixel_fmt,
+				uint16_t width, uint16_t height,
+				uint32_t stride,
+				uint32_t u, uint32_t v,
+				uint32_t vertical_offset, uint32_t horizontal_offset)
+{
+	int ret = 0;
+	unsigned long lock_flags;
+	uint32_t dma_chan = channel_2_dma(channel, type);
+
+	if (dma_chan == IDMA_CHAN_INVALID)
+		return -EINVAL;
+
+	spin_lock_irqsave(&ipu_lock, lock_flags);
+
+	if ((__raw_readl(IPU_CHA_BUF0_RDY(dma_chan)) & idma_mask(dma_chan)) ||
+		(__raw_readl(IPU_CHA_BUF0_RDY(dma_chan)) & idma_mask(dma_chan)))
+		ret = -EACCES;
+	else
+		_ipu_ch_offset_update(dma_chan, pixel_fmt, width, height, stride,
+				      u, v, 0, vertical_offset, horizontal_offset);
+
+	spin_unlock_irqrestore(&ipu_lock, lock_flags);
+	return ret;
+}
+EXPORT_SYMBOL(ipu_update_channel_offset);
+
 
 /*!
  * This function is called to set a channel's buffer as ready.

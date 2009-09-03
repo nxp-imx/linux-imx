@@ -212,9 +212,11 @@ static u32 fmt_to_bpp(u32 pixelformat)
 {
 	u32 bpp;
 
-	bpp = 8*bytes_per_pixel(pixelformat);
+	bpp = 8 * bytes_per_pixel(pixelformat);
 	return bpp;
 }
+
+
 
 static bool format_is_yuv(u32 pixelformat)
 {
@@ -285,7 +287,9 @@ static irqreturn_t mxc_v4l2out_disp_refresh_irq_handler(int irq, void *dev_id)
 			dev_err(&vout->video_dev->dev,
 				"unable to set IPU buffer ready\n");
 		}
-		vout->next_rdy_ipu_buf = !vout->next_rdy_ipu_buf;
+		/* Non IC split action */
+		if (!vout->pp_split)
+			vout->next_rdy_ipu_buf = !vout->next_rdy_ipu_buf;
 
 		pending_buffer = 0;
 
@@ -412,8 +416,8 @@ static void mxc_v4l2out_timer_handler(unsigned long arg)
 	} else {
 		if (LOAD_3FIELDS(vout)) {
 			int index_n = index;
-			index = last_index_n;
 			int index_p = last_index_c;
+			index = last_index_n;
 			vout->ipu_buf_p[vout->next_rdy_ipu_buf] = index_p;
 			vout->ipu_buf[vout->next_rdy_ipu_buf] = last_index_c = index;
 			vout->ipu_buf_n[vout->next_rdy_ipu_buf] = last_index_n = index_n;
@@ -433,9 +437,35 @@ static void mxc_v4l2out_timer_handler(unsigned long arg)
 							 vout->v4l2_bufs[index_n].m.offset+aid_field_offset);
 		} else {
 			vout->ipu_buf[vout->next_rdy_ipu_buf] = index;
-			ret = ipu_update_channel_buffer(vout->post_proc_ch, IPU_INPUT_BUFFER,
-							vout->next_rdy_ipu_buf,
-							vout->v4l2_bufs[index].m.offset+current_field_offset);
+			if (vout->pp_split) {
+				vout->ipu_buf[!vout->next_rdy_ipu_buf] = index;
+				/* always left stripe */
+				ret = ipu_update_channel_buffer(vout->post_proc_ch,
+									IPU_INPUT_BUFFER,
+									0,/* vout->next_rdy_ipu_buf,*/
+									(vout->v4l2_bufs[index].m.offset) +
+									vout->pp_left_stripe.input_column +
+									current_field_offset);
+
+				/* the U/V offset has to be updated inside of IDMAC */
+				/* according to stripe offset */
+				ret += ipu_update_channel_offset(vout->post_proc_ch,
+									IPU_INPUT_BUFFER,
+									vout->v2f.fmt.pix.pixelformat,
+									vout->v2f.fmt.pix.width,
+									vout->v2f.fmt.pix.height,
+									vout->v2f.fmt.pix.width,
+									vout->offset.u_offset,
+									vout->offset.v_offset,
+									0,
+									vout->pp_left_stripe.input_column + current_field_offset);
+
+			} else
+				ret = ipu_update_channel_buffer(vout->post_proc_ch,
+									IPU_INPUT_BUFFER,
+									vout->next_rdy_ipu_buf,
+									vout->v4l2_bufs[index].m.offset +
+									current_field_offset);
 		}
 	}
 	if (ret < 0) {
@@ -462,7 +492,13 @@ static irqreturn_t mxc_v4l2out_pp_in_irq_handler(int irq, void *dev_id)
 	unsigned long timeout;
 	unsigned long lock_flags = 0;
 	vout_data *vout = dev_id;
-
+	int pp_out_buf_num = 0;
+	int disp_buf_num = 0;
+	int disp_buf_num_next = 1;
+	int pp_out_buf_offset = 0;
+	int release_buffer = 1;
+	int eba_offset;
+	int ret = -1;
 	spin_lock_irqsave(&g_lock, lock_flags);
 
 	g_irq_cnt++;
@@ -473,21 +509,85 @@ static irqreturn_t mxc_v4l2out_pp_in_irq_handler(int irq, void *dev_id)
 	else
 		last_buf = vout->ipu_buf[vout->next_done_ipu_buf];
 
+	/* If IC split mode on, update output buffer number */
 	if (last_buf != -1) {
-		if ((!INTERLACED_CONTENT(vout)) || (vout->next_done_ipu_buf)) {
-			g_buf_output_cnt++;
-			vout->v4l2_bufs[last_buf].flags = V4L2_BUF_FLAG_DONE;
-			queue_buf(&vout->done_q, last_buf);
-			wake_up_interruptible(&vout->v4l_bufq);
+		if (vout->pp_split) {
+			pp_out_buf_num = vout->pp_split_buf_num & 1;/* left/right stripe */
+			disp_buf_num = vout->pp_split_buf_num >> 1;
+			disp_buf_num_next = ((vout->pp_split_buf_num+2) & 3) >> 1;
+			if (!pp_out_buf_num) {/* next buffer is right stripe*/
+				eba_offset = vout->pp_right_stripe.input_column;/*always right stripe*/
+				ret = ipu_update_channel_buffer(vout->post_proc_ch,
+						IPU_INPUT_BUFFER,
+						1, /* right stripe */
+						(vout->v4l2_bufs[vout->ipu_buf[disp_buf_num]].m.offset)
+						+ eba_offset);
+
+				ret += ipu_update_channel_offset(vout->post_proc_ch,
+								IPU_INPUT_BUFFER,
+								vout->v2f.fmt.pix.pixelformat,
+								vout->v2f.fmt.pix.width,
+								vout->v2f.fmt.pix.height,
+								vout->v2f.fmt.pix.width,
+								vout->offset.u_offset,
+								vout->offset.v_offset,
+								0,
+								vout->pp_right_stripe.input_column);
+
+				/* select right stripe */
+				ret += ipu_select_buffer(vout->post_proc_ch,
+												IPU_INPUT_BUFFER, 1);
+				if (ret < 0)
+					dev_err(&vout->video_dev->dev,
+					"unable to set IPU buffer ready\n");
+
+				vout->ipu_buf[vout->next_done_ipu_buf] = -1;
+				vout->next_done_ipu_buf = !vout->next_done_ipu_buf;
+
+			} else /* right stripe is done, run display refresh */
+				ret = ipu_select_buffer(vout->display_ch, IPU_INPUT_BUFFER,
+								disp_buf_num);
+
+			vout->next_rdy_ipu_buf = !vout->next_rdy_ipu_buf;
+
+			/* offset for next buffer's EBA */
+			pp_out_buf_offset = pp_out_buf_num ? vout->pp_right_stripe.output_column :
+												vout->pp_left_stripe.output_column;
+
+			/* next buffer update */
+			eba_offset = vout->display_bufs[disp_buf_num_next] +
+								pp_out_buf_offset;
+
+			ipu_update_channel_buffer(vout->post_proc_ch, IPU_OUTPUT_BUFFER,
+												pp_out_buf_num, eba_offset);
+
+			/* next buffer ready */
+			ret = ipu_select_buffer(vout->post_proc_ch, IPU_OUTPUT_BUFFER, pp_out_buf_num);
+
+			/* next stripe_buffer index 0..3 */
+			vout->pp_split_buf_num = (vout->pp_split_buf_num + 1) & 3;
 		}
-		vout->ipu_buf[vout->next_done_ipu_buf] = -1;
-		if (LOAD_3FIELDS(vout)) {
-			vout->ipu_buf_p[vout->next_done_ipu_buf] = -1;
-			vout->ipu_buf_n[vout->next_done_ipu_buf] = -1;
+
+		/* release buffer if second stripe is done */
+		release_buffer = vout->pp_split ? pp_out_buf_num : 1;
+		if (release_buffer) {
+			if ((!INTERLACED_CONTENT(vout)) || (vout->next_done_ipu_buf)) {
+				g_buf_output_cnt++;
+				vout->v4l2_bufs[last_buf].flags = V4L2_BUF_FLAG_DONE;
+				queue_buf(&vout->done_q, last_buf);
+				wake_up_interruptible(&vout->v4l_bufq);
+			}
+			vout->ipu_buf[vout->next_done_ipu_buf] = -1;
+			if (LOAD_3FIELDS(vout)) {
+				vout->ipu_buf_p[vout->next_done_ipu_buf] = -1;
+				vout->ipu_buf_n[vout->next_done_ipu_buf] = -1;
+			}
+			vout->next_done_ipu_buf = !vout->next_done_ipu_buf;
 		}
-		vout->next_done_ipu_buf = !vout->next_done_ipu_buf;
-	}
-	pp_eof = 1;
+	} /* end of last_buf != -1 */
+
+	if (release_buffer)
+		pp_eof = 1;
 
 	if (vout->state == STATE_STREAM_STOPPING) {
 		if ((vout->ipu_buf[0] == -1) && (vout->ipu_buf[1] == -1)) {
@@ -739,38 +839,93 @@ static int init_VDI(ipu_channel_params_t params, vout_data *vout,
  *
  * @return status  0 Success
  */
-static int init_PP(ipu_channel_params_t params, vout_data *vout,
+static int init_PP(ipu_channel_params_t *params, vout_data *vout,
 		   struct device *dev, struct fb_info *fbi,
 		   ipu_channel_t *display_input_ch, u16 out_width,
 		   u16 out_height)
 {
-	params.mem_pp_mem.in_width = vout->v2f.fmt.pix.width;
-	params.mem_pp_mem.in_height = vout->v2f.fmt.pix.height;
-	params.mem_pp_mem.in_pixel_fmt = vout->v2f.fmt.pix.pixelformat;
-	params.mem_pp_mem.out_width = out_width;
-	params.mem_pp_mem.out_height = out_height;
+	u16 in_width, out_stride; /* stride of output channel */
+	unsigned int ipu_ic_out_max_width_size;
+
 	if (vout->display_ch == ADC_SYS2)
-		params.mem_pp_mem.out_pixel_fmt = SDC_FG_FB_FORMAT;
+		params->mem_pp_mem.out_pixel_fmt = SDC_FG_FB_FORMAT;
 	else
-		params.mem_pp_mem.out_pixel_fmt = bpp_to_fmt(fbi);
-	if (ipu_init_channel(vout->post_proc_ch, &params) != 0) {
+		params->mem_pp_mem.out_pixel_fmt = bpp_to_fmt(fbi);
+
+	out_stride = out_width;
+	in_width = params->mem_pp_mem.in_width = vout->v2f.fmt.pix.width;
+	params->mem_pp_mem.in_height = vout->v2f.fmt.pix.height;
+	params->mem_pp_mem.in_pixel_fmt = vout->v2f.fmt.pix.pixelformat;
+	params->mem_pp_mem.out_width = out_width;
+	params->mem_pp_mem.out_height = out_height;
+	params->mem_pp_mem.out_resize_ratio = 0; /* 0 means unused */
+
+#ifdef CONFIG_MXC_IPU_V1
+	ipu_ic_out_max_width_size = 800;
+#else
+	ipu_ic_out_max_width_size = 1024;
+#endif
+	/* split IC by two stripes, the by pass is impossible*/
+	if (out_width > ipu_ic_out_max_width_size) {
+		vout->pp_split = 1;
+		out_stride = 2*out_width;
+
+
+		ipu_calc_stripes_sizes(
+					params->mem_pp_mem.in_width, /* input frame width;>1 */
+					params->mem_pp_mem.out_width, /* output frame width; >1 */
+					ipu_ic_out_max_width_size,
+					(((unsigned long long)1) << 32), /* 32bit for fractional*/
+					1,	/* equal stripes */
+					params->mem_pp_mem.in_pixel_fmt,
+					params->mem_pp_mem.out_pixel_fmt,
+					&(vout->pp_left_stripe),
+					&(vout->pp_right_stripe));
+
+
+		vout->pp_left_stripe.input_column = vout->pp_left_stripe.input_column *
+								fmt_to_bpp(vout->v2f.fmt.pix.pixelformat) / 8;
+		vout->pp_left_stripe.output_column = vout->pp_left_stripe.output_column *
+								fmt_to_bpp(params->mem_pp_mem.out_pixel_fmt) / 8;
+		vout->pp_right_stripe.input_column = vout->pp_right_stripe.input_column *
+								fmt_to_bpp(vout->v2f.fmt.pix.pixelformat) / 8;
+
+
+		vout->pp_right_stripe.output_column = vout->pp_right_stripe.output_column *
+								fmt_to_bpp(params->mem_pp_mem.out_pixel_fmt) / 8;
+
+
+
+		/* updare parameters */
+		params->mem_pp_mem.in_width = vout->pp_left_stripe.input_width;
+		params->mem_pp_mem.out_width = vout->pp_left_stripe.output_width;
+		out_width = vout->pp_left_stripe.output_width;
+		/* for using in ic_init*/
+		params->mem_pp_mem.out_resize_ratio = vout->pp_left_stripe.irr;
+
+		vout->pp_split_buf_num = 0;
+	} else
+		vout->pp_split = 0;
+
+
+	if (ipu_init_channel(vout->post_proc_ch, params) != 0) {
 		dev_err(dev, "Error initializing PP channel\n");
 		return -EINVAL;
 	}
 
 	if (ipu_init_channel_buffer(vout->post_proc_ch,
 				    IPU_INPUT_BUFFER,
-				    params.mem_pp_mem.in_pixel_fmt,
-				    params.mem_pp_mem.in_width,
-				    params.mem_pp_mem.in_height,
+				    params->mem_pp_mem.in_pixel_fmt,
+				    params->mem_pp_mem.in_width,
+				    params->mem_pp_mem.in_height,
 				    vout->v2f.fmt.pix.bytesperline /
-				    bytes_per_pixel(params.mem_pp_mem.
-						    in_pixel_fmt),
-				    IPU_ROTATE_NONE,
-				    vout->v4l2_bufs[vout->ipu_buf[0]].m.offset,
-				    vout->v4l2_bufs[vout->ipu_buf[1]].m.offset,
-				    vout->offset.u_offset,
-				    vout->offset.v_offset) != 0) {
+				    bytes_per_pixel(params->mem_pp_mem.
+									in_pixel_fmt),
+									IPU_ROTATE_NONE,
+									vout->v4l2_bufs[vout->ipu_buf[0]].m.offset,
+									vout->v4l2_bufs[vout->ipu_buf[1]].m.offset,
+									vout->offset.u_offset,
+									vout->offset.v_offset) != 0) {
 		dev_err(dev, "Error initializing PP input buffer\n");
 		return -EINVAL;
 	}
@@ -789,9 +944,9 @@ static int init_PP(ipu_channel_params_t params, vout_data *vout,
 
 		if (ipu_init_channel_buffer(vout->post_proc_ch,
 					    IPU_OUTPUT_BUFFER,
-					    params.mem_pp_mem.
+					    params->mem_pp_mem.
 					    out_pixel_fmt, out_width,
-					    out_height, out_width,
+					    out_height, out_stride,
 					    IPU_ROTATE_NONE,
 					    vout->rot_pp_bufs[0],
 					    vout->rot_pp_bufs[1], 0, 0) != 0) {
@@ -805,9 +960,9 @@ static int init_PP(ipu_channel_params_t params, vout_data *vout,
 		}
 		if (ipu_init_channel_buffer(MEM_ROT_PP_MEM,
 					    IPU_INPUT_BUFFER,
-					    params.mem_pp_mem.
+					    params->mem_pp_mem.
 					    out_pixel_fmt, out_width,
-					    out_height, out_width,
+					    out_height, out_stride,
 					    vout->rotate,
 					    vout->rot_pp_bufs[0],
 					    vout->rot_pp_bufs[1], 0, 0) != 0) {
@@ -818,15 +973,15 @@ static int init_PP(ipu_channel_params_t params, vout_data *vout,
 
 		/* swap width and height */
 		if (vout->rotate >= IPU_ROTATE_90_RIGHT) {
-			out_width = vout->crop_current.width;
+			out_stride = out_width = vout->crop_current.width;
 			out_height = vout->crop_current.height;
 		}
 
 		if (ipu_init_channel_buffer(MEM_ROT_PP_MEM,
 					    IPU_OUTPUT_BUFFER,
-					    params.mem_pp_mem.
+					    params->mem_pp_mem.
 					    out_pixel_fmt, out_width,
-					    out_height, out_width,
+					    out_height, out_stride,
 					    IPU_ROTATE_NONE,
 					    vout->display_bufs[0],
 					    vout->display_bufs[1], 0, 0) != 0) {
@@ -846,9 +1001,9 @@ static int init_PP(ipu_channel_params_t params, vout_data *vout,
 	} else {
 		if (ipu_init_channel_buffer(vout->post_proc_ch,
 					    IPU_OUTPUT_BUFFER,
-					    params.mem_pp_mem.
+					    params->mem_pp_mem.
 					    out_pixel_fmt, out_width,
-					    out_height, out_width,
+					    out_height, out_stride,
 					    vout->rotate,
 					    vout->display_bufs[0],
 					    vout->display_bufs[1], 0, 0) != 0) {
@@ -856,6 +1011,28 @@ static int init_PP(ipu_channel_params_t params, vout_data *vout,
 			return -EINVAL;
 		}
 	}
+
+	/* fix EBAs for IDMAC channels */
+	if (vout->pp_split) {
+		ipu_update_channel_buffer(vout->post_proc_ch, IPU_INPUT_BUFFER,
+									0,
+									vout->v4l2_bufs[vout->ipu_buf[0]].m.offset +
+									vout->pp_left_stripe.input_column);
+		ipu_update_channel_buffer(vout->post_proc_ch, IPU_INPUT_BUFFER,
+									1,
+									vout->v4l2_bufs[vout->ipu_buf[0]].m.offset +
+									vout->pp_right_stripe.input_column);
+		ipu_update_channel_buffer(vout->post_proc_ch, IPU_OUTPUT_BUFFER,
+									0,
+									vout->display_bufs[0] +
+									vout->pp_left_stripe.output_column);
+
+		ipu_update_channel_buffer(vout->post_proc_ch, IPU_OUTPUT_BUFFER,
+									1,
+									vout->display_bufs[0] +
+									vout->pp_right_stripe.output_column);
+	}
+
 	return 0;
 }
 
@@ -921,8 +1098,15 @@ static int mxc_v4l2out_streamon(vout_data * vout)
 	if (!INTERLACED_CONTENT(vout)) {
 		vout->next_done_ipu_buf = vout->next_rdy_ipu_buf = 0;
 		vout->ipu_buf[0] = dequeue_buf(&vout->ready_q);
-		vout->ipu_buf[1] = dequeue_buf(&vout->ready_q);
-		vout->frame_count = 2;
+		if (out_width != vout->v2f.fmt.pix.width && /*pp_split*/
+			out_height != vout->v2f.fmt.pix.height &&
+			out_width > 1024) {
+			vout->ipu_buf[1] = vout->ipu_buf[0];
+			vout->frame_count = 1;
+	} else {
+			vout->ipu_buf[1] = dequeue_buf(&vout->ready_q);
+			vout->frame_count = 2;
+		}
 	} else if (!LOAD_3FIELDS(vout)) {
 		vout->ipu_buf[0] = dequeue_buf(&vout->ready_q);
 		vout->ipu_buf[1] = -1;
@@ -1063,6 +1247,7 @@ static int mxc_v4l2out_streamon(vout_data * vout)
 		 * Bypass IC if resizing and rotation are not needed
 		 * Meanwhile, apply IC bypass to SDC only
 		 */
+      vout->pp_split = 0;/* no pp_split by default */
 		if (out_width == vout->v2f.fmt.pix.width &&
 			out_height == vout->v2f.fmt.pix.height &&
 			ipu_can_rotate_in_place(vout->rotate)) {
@@ -1169,14 +1354,16 @@ static int mxc_v4l2out_streamon(vout_data * vout)
 			rc = init_VDI(params, vout, dev, fbi, &display_input_ch,
 				      out_width, out_height);
 		} else {
-			rc = init_PP(params, vout, dev, fbi, &display_input_ch,
+			rc = init_PP(&params, vout, dev, fbi, &display_input_ch,
 				     out_width, out_height);
 		}
 		if (rc < 0)
 			return rc;
-		if (ipu_link_channels(display_input_ch, vout->display_ch) < 0) {
-			dev_err(dev, "Error linking ipu channels\n");
-			return -EINVAL;
+		if (!vout->pp_split) { /* display channel link */
+			if (ipu_link_channels(display_input_ch, vout->display_ch) < 0) {
+				dev_err(dev, "Error linking ipu channels\n");
+				return -EINVAL;
+			}
 		}
 	}
 
@@ -1195,7 +1382,8 @@ static int mxc_v4l2out_streamon(vout_data * vout)
 				ipu_select_buffer(vout->post_proc_ch, IPU_INPUT_BUFFER, 0);
 			} else {
 				ipu_select_buffer(vout->post_proc_ch, IPU_INPUT_BUFFER, 0);
-				ipu_select_buffer(vout->post_proc_ch, IPU_INPUT_BUFFER, 1);
+				if (!vout->pp_split)
+					ipu_select_buffer(vout->post_proc_ch, IPU_INPUT_BUFFER, 1);
 			}
 			ipu_select_buffer(vout->post_proc_ch, IPU_OUTPUT_BUFFER, 0);
 			ipu_select_buffer(vout->post_proc_ch, IPU_OUTPUT_BUFFER, 1);
