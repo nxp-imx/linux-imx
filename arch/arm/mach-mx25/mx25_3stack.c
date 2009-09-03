@@ -249,6 +249,40 @@ static inline void mxc_init_bl(void)
 }
 #endif
 
+/*!
+ * Power Key interrupt handler.
+ */
+static irqreturn_t power_key_int(int irq, void *dev_id)
+{
+	pr_info("on-off key pressed\n");
+	return 0;
+}
+
+/*!
+ * Power Key initialization.
+ */
+static int __init mxc_init_power_key(void)
+{
+	/*Set power key as wakeup resource */
+	int irq, ret;
+
+	mxc_request_iomux(MX25_PIN_A25, MUX_CONFIG_ALT5);
+	mxc_iomux_set_pad(MX25_PIN_A25, PAD_CTL_DRV_NORMAL);
+	mxc_set_gpio_direction(MX25_PIN_A25, 1);
+
+	irq = IOMUX_TO_IRQ(MX25_PIN_A25);
+	set_irq_type(irq, IRQF_TRIGGER_RISING);
+	ret = request_irq(irq, power_key_int, 0, "power_key", 0);
+	if (ret)
+		pr_info("register on-off key interrupt failed\n");
+	else
+		enable_irq_wake(irq);
+
+	return ret;
+}
+
+late_initcall(mxc_init_power_key);
+
 static struct spi_board_info mxc_spi_board_info[] __initdata = {
 	{
 	 .modalias = "cpld_spi",
