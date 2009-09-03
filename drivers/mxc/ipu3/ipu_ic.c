@@ -416,10 +416,14 @@ void _ipu_ic_init_pp(ipu_channel_params_t *params)
 	reg = (downsizeCoeff << 30) | (resizeCoeff << 16);
 
 	/* Setup horizontal resizing */
-	_calc_resize_coeffs(params->mem_pp_mem.in_width,
-			    params->mem_pp_mem.out_width,
-			    &resizeCoeff, &downsizeCoeff);
-	reg |= (downsizeCoeff << 14) | resizeCoeff;
+   /* Upadeted for IC split case */
+	if (!(params->mem_pp_mem.out_resize_ratio)) {
+		_calc_resize_coeffs(params->mem_pp_mem.in_width,
+							params->mem_pp_mem.out_width,
+							&resizeCoeff, &downsizeCoeff);
+		reg |= (downsizeCoeff << 14) | resizeCoeff;
+	} else
+		reg |= params->mem_pp_mem.out_resize_ratio;
 
 	__raw_writel(reg, IC_PP_RSC);
 

@@ -132,6 +132,14 @@ typedef struct _vout_data {
 	u32 bytesperline;
 	enum v4l2_field field_fmt;
 	ipu_motion_sel motion_sel;
+
+	/* PP split fot two stripes*/
+	int pp_split; /* 0,1 */
+	struct stripe_param pp_left_stripe;
+	struct stripe_param pp_right_stripe; /* struct for split parameters */
+	/* IC ouput buffer number. Counting from 0 to 3 */
+	int pp_split_buf_num; /*  0..3 */
+
 } vout_data;
 
 #endif

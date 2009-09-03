@@ -619,6 +619,64 @@ int32_t ipu_update_channel_buffer(ipu_channel_t channel, ipu_buffer_t type,
 }
 
 /*!
+ * This function is called to initialize a buffer for logical IPU channel.
+ *
+ * @param       channel         Input parameter for the logical channel ID.
+ *
+ * @param       type            Input parameter which buffer to initialize.
+ *
+ * @param       pixel_fmt       Input parameter for pixel format of buffer.
+ *                              Pixel format is a FOURCC ASCII code.
+ *
+ * @param       width           Input parameter for width of buffer in pixels.
+ *
+ * @param       height          Input parameter for height of buffer in pixels.
+ *
+ * @param       stride          Input parameter for stride length of buffer
+ *                              in pixels.
+ *
+ * @param       u				predefined private u offset for additional cropping,
+ *								zero if not used.
+ *
+ * @param       v				predefined private v offset for additional cropping,
+ *								zero if not used.
+ *
+ * @param		vertical_offset vertical offset for Y coordinate
+ * 								in the existed frame
+ *
+ *
+ * @param		horizontal_offset horizontal offset for X coordinate
+ * 								in the existed frame
+ *
+ *
+ * @return      Returns 0 on success or negative error code on fail
+ *              This function will fail if any buffer is set to ready.
+ */
+
+int32_t ipu_update_channel_offset(ipu_channel_t channel, ipu_buffer_t type,
+				uint32_t pixel_fmt,
+				uint16_t width, uint16_t height,
+				uint32_t stride,
+				uint32_t u, uint32_t v,
+				uint32_t vertical_offset, uint32_t horizontal_offset)
+{
+	uint32_t reg;
+	int ret = 0;
+	unsigned long lock_flags;
+	uint32_t dma_chan = channel_2_dma(channel, type);
+
+	if (dma_chan == IDMA_CHAN_INVALID)
+		return -EINVAL;
+
+	spin_lock_irqsave(&ipu_lock, lock_flags);
+
+	ret = -EACCES;
+	spin_unlock_irqrestore(&ipu_lock, lock_flags);
+	return ret;
+}
+EXPORT_SYMBOL(ipu_update_channel_offset);
+
+/*!
  * This function is called to set a channel's buffer as ready.
  *
  * @param       channel         Input parameter for the logical channel ID.
