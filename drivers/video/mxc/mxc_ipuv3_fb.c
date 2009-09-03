@@ -731,7 +731,7 @@ static int mxcfb_ioctl(struct fb_info *fbi, unsigned int cmd, unsigned long arg)
 
 				for (i = 0; i < num_registered_fb; i++) {
 					char *idstr = registered_fb[i]->fix.id;
-					if (strcmp(idstr, "video_plane_idstr") == 0) {
+					if (strcmp(idstr, video_plane_idstr) == 0) {
 						((struct mxcfb_info *)(registered_fb[i]->par))->alpha_chan_en = false;
 						break;
 					}
