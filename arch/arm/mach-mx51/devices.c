@@ -453,9 +453,8 @@ static inline void mxc_init_scc(void)
 			UMID_base[i] = 0;
 
 		MAP_base[0] = SCM_PERM_NO_ZEROIZE | SCM_PERM_HD_SUP_DISABLE |
-		    SCM_PERM_HD_READ | SCM_PERM_HD_WRITE |
-		    SCM_PERM_TH_READ | SCM_PERM_TH_WRITE;
-
+		    SCM_PERM_HD_READ | SCM_PERM_HD_WRITE | SCM_PERM_HD_EXECUTE |
+		    SCM_PERM_TH_READ | SCM_PERM_TH_WRITE ;
 	}
 
 	/* Freeing 2 partitions for SCC2 */

@@ -18,17 +18,24 @@
 #include <linux/platform_device.h>
 #include <linux/regulator/consumer.h>
 #include <linux/suspend.h>
+#include <asm/cacheflush.h>
+#include <asm/tlb.h>
+#include <asm/mach/map.h>
 #include "crm_regs.h"
 
 static struct device *pm_dev;
 struct clk *gpc_dvfs_clk;
-extern void cpu_do_suspend_workaround(void);
+extern void cpu_do_suspend_workaround(u32 sdclk_iomux_addr);
 extern void cpu_cortexa8_do_idle(u32);
 
 extern int iram_ready;
+void *suspend_iram_base;
+void (*suspend_in_iram)(u32 sdclk_iomux_addr) = NULL;
 
 static int mx51_suspend_enter(suspend_state_t state)
 {
+	u32 sdclk_iomux_addr = IO_ADDRESS(IOMUXC_BASE_ADDR + 0x4b8);
+
 	if (gpc_dvfs_clk == NULL)
 		gpc_dvfs_clk = clk_get(NULL, "gpc_dvfs_clk");
 	/* gpc clock is needed for SRPG */
@@ -48,7 +55,12 @@ static int mx51_suspend_enter(suspend_state_t state)
 		return -EAGAIN;
 
 	if (state == PM_SUSPEND_MEM) {
-		cpu_do_suspend_workaround();
+		local_flush_tlb_all();
+		flush_cache_all();
+
+		/* Run the suspend code from iRAM. */
+		suspend_in_iram(sdclk_iomux_addr);
+
 		/*clear the EMPGC0/1 bits */
 		__raw_writel(0, MXC_SRPG_EMPGC0_SRPGCR);
 		__raw_writel(0, MXC_SRPG_EMPGC1_SRPGCR);
@@ -126,6 +138,14 @@ static int __init pm_init(void)
 		return -ENODEV;
 	}
 	suspend_set_ops(&mx51_suspend_ops);
+	/* Move suspend routine into iRAM */
+	suspend_iram_base = IO_ADDRESS(SUSPEND_IRAM_BASE_ADDR);
+	memcpy(suspend_iram_base, cpu_do_suspend_workaround, SZ_4K);
+	/* Need to remap the area here since we want the memory region
+		 to be executable. */
+	suspend_iram_base = __arm_ioremap(SUSPEND_IRAM_BASE_ADDR, SZ_4K,
+										MT_HIGH_VECTORS);
+	suspend_in_iram = (void *)suspend_iram_base;
 
 	printk(KERN_INFO "PM driver module loaded\n");
 

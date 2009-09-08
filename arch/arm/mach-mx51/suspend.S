@@ -25,8 +25,9 @@
  *	IRQs are already disabled.
  */
 ENTRY(cpu_do_suspend_workaround)
-    stmfd   sp!, {r4,r5,r7,r9,r10,r11}     @ Save registers
+    stmfd   sp!, {r4,r5,r6,r7,r9,r10,r11}     @ Save registers
 
+   mov    r6, r0                       @save iomux address
     /* Disable L1 caches */
     mrc     p15, 0, r0, c1, c0, 0    @ R0 = system control reg
     bic     r0, r0, #ARM_CTRL_ICACHE @ Disable ICache
@@ -77,7 +78,16 @@ FinishedClean:
     bic     r0, r0, #ARM_AUXCR_L2EN @ Disable L2 cache
     mcr     p15, 0, r0, c1, c0, 1   @ Update aux control reg
 
+	/*Set the DDR drive strength to low */
+	ldr        r10, [r6]
+	and       r10, r10, #0xF1        @ clear bits 2-1
+	str        r10, [r6]
+
     .long     0xe320f003              @ Opcode for WFI
+
+	/*Set the DDR drive strength to max */
+	orr       r10, r10, #0x06        @ set bits 2-1
+	str        r10, [r6]
 
     mov     r0, #0
     mcr     p15, 0, r0, c7, c5, 0   @ Invalidate inst cache
@@ -134,7 +144,7 @@ FinishedInvalidate:
     mcr     p15, 0, r0, c1, c0, 0    @ Update system control reg
 
     /* Restore registers */
-    ldmfd sp!, {r4,r5,r7,r9,r10,r11}
+    ldmfd sp!, {r4,r5,r6,r7,r9,r10,r11}
     mov		pc, lr
 
 	.type	cpu_do_suspend, #object
