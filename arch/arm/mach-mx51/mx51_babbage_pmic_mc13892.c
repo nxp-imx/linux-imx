@@ -54,6 +54,29 @@
 #define DRM_LSH 4
 #define DRM_WID 1
 
+/* regulator standby mask */
+#define GEN1_STBY_MASK		(1 << 1)
+#define IOHI_STBY_MASK		(1 << 4)
+#define DIG_STBY_MASK		(1 << 10)
+#define GEN2_STBY_MASK		(1 << 13)
+#define PLL_STBY_MASK		(1 << 16)
+#define USB2_STBY_MASK		(1 << 19)
+
+#define GEN3_STBY_MASK		(1 << 1)
+#define CAM_STBY_MASK		(1 << 7)
+#define VIDEO_STBY_MASK		(1 << 13)
+#define AUDIO_STBY_MASK		(1 << 16)
+#define SD_STBY_MASK		(1 << 19)
+
+/* 0x92412 */
+#define REG_MODE_0_ALL_MASK	(GEN1_STBY_MASK | IOHI_STBY_MASK |\
+				DIG_STBY_MASK | GEN2_STBY_MASK |\
+				PLL_STBY_MASK | USB2_STBY_MASK)
+/* 0x92082 */
+#define REG_MODE_1_ALL_MASK	(GEN3_STBY_MASK | CAM_STBY_MASK |\
+				VIDEO_STBY_MASK | AUDIO_STBY_MASK |\
+				SD_STBY_MASK)
+
 /* CPU */
 static struct regulator_consumer_supply sw1_consumers[] = {
 	{
@@ -273,6 +296,15 @@ static int mc13892_regulator_init(struct mc13892 *mc13892)
 		sw2_init.constraints.state_mem.uV = 1250000;
 		sw1_init.constraints.state_mem.uV = 1000000;
 	}
+	/* enable standby controll for all regulators */
+	pmic_read_reg(REG_MODE_0, &value, 0xffffff);
+	value |= REG_MODE_0_ALL_MASK;
+	pmic_write_reg(REG_MODE_0, value, 0xffffff);
+
+	pmic_read_reg(REG_MODE_1, &value, 0xffffff);
+	value |= REG_MODE_1_ALL_MASK;
+	pmic_write_reg(REG_MODE_1, value, 0xffffff);
+
 	/* Enable coin cell charger */
 	value = BITFVAL(CIONCHEN, 1) | BITFVAL(VCOIN, VCOIN_3_0V);
 	register_mask = BITFMASK(CIONCHEN) | BITFMASK(VCOIN);
