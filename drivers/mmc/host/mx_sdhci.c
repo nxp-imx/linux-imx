@@ -678,7 +678,7 @@ static void sdhci_send_command(struct sdhci_host *host, struct mmc_command *cmd)
 		udelay(20);
 	}
 
-	mod_timer(&host->timer, jiffies + 10 * HZ);
+	mod_timer(&host->timer, jiffies + 1 * HZ);
 
 	host->cmd = cmd;
 
@@ -1197,7 +1197,7 @@ static void sdhci_tasklet_finish(unsigned long param)
 static void sdhci_timeout_timer(unsigned long data)
 {
 	struct sdhci_host *host;
-	unsigned long flags;
+	unsigned long tmp, flags;
 
 	host = (struct sdhci_host *)data;
 
@@ -1219,10 +1219,30 @@ static void sdhci_timeout_timer(unsigned long data)
 
 			tasklet_schedule(&host->finish_tasklet);
 		}
+
+		if (!readl(host->ioaddr + SDHCI_SIGNAL_ENABLE)) {
+			printk(KERN_ERR "%s, ERROR SIG_INT is 0.\n", __func__);
+			tmp = readl(host->ioaddr + SDHCI_INT_ENABLE);
+			if (host->sdio_enable)
+				writel(tmp, host->ioaddr + SDHCI_SIGNAL_ENABLE);
+			else
+				writel(tmp & ~SDHCI_INT_CARD_INT,
+				       host->ioaddr + SDHCI_SIGNAL_ENABLE);
+			if (!host->plat_data->status(host->mmc->parent))
+				schedule_work(&host->cd_wq);
+		}
 	}
 
 	mmiowb();
 	spin_unlock_irqrestore(&host->lock, flags);
+}
+
+static void sdhci_cd_timer(unsigned long data)
+{
+	struct sdhci_host *host;
+
+	host = (struct sdhci_host *)data;
+	schedule_work(&host->cd_wq);
 }
 
 /*****************************************************************************\
@@ -1273,6 +1293,8 @@ static void sdhci_data_irq(struct sdhci_host *host, u32 intmask)
 		       "though no data operation was in progress.\n",
 		       mmc_hostname(host->mmc), (unsigned)intmask);
 		sdhci_dumpregs(host);
+		sdhci_reset(host, SDHCI_RESET_CMD);
+		sdhci_reset(host, SDHCI_RESET_DATA);
 		return;
 	}
 
@@ -1431,22 +1453,22 @@ static void esdhc_cd_callback(struct work_struct *work)
 			host->mrq->cmd->error = -ENOMEDIUM;
 			tasklet_schedule(&host->finish_tasklet);
 		}
-		sdhci_init(host);
+
+		if (host->init_flag > 0)
+			/* The initialization of sdhc controller has been
+			 * done in the resume func */
+			host->init_flag--;
+		else
+			sdhci_init(host);
 	}
 
 	spin_unlock_irqrestore(&host->lock, flags);
 
-	mmc_detect_change(host->mmc, msecs_to_jiffies(200));
-
-	if (!host->detect_irq)
-		return;
-	do {
-		cd_status = host->plat_data->status(host->mmc->parent);
-		if (cd_status)
-			set_irq_type(host->detect_irq, IRQF_TRIGGER_FALLING);
-		else
-			set_irq_type(host->detect_irq, IRQF_TRIGGER_RISING);
-	} while (cd_status != host->plat_data->status(host->mmc->parent));
+	if (host->flags & SDHCI_CD_PRESENT) {
+		del_timer(&host->cd_timer);
+		mmc_detect_change(host->mmc, msecs_to_jiffies(100));
+	} else
+		mmc_detect_change(host->mmc, 0);
 }
 
 /*!
@@ -1461,9 +1483,33 @@ static void esdhc_cd_callback(struct work_struct *work)
 */
 static irqreturn_t sdhci_cd_irq(int irq, void *dev_id)
 {
+	unsigned int cd_status = 0;
 	struct sdhci_host *host = dev_id;
 
-	schedule_work(&host->cd_wq);
+	do {
+		if (host->detect_irq == 0)
+			break;
+		cd_status = host->plat_data->status(host->mmc->parent);
+		if (cd_status)
+			set_irq_type(host->detect_irq, IRQF_TRIGGER_FALLING);
+		else
+			set_irq_type(host->detect_irq, IRQF_TRIGGER_RISING);
+	} while (cd_status != host->plat_data->status(host->mmc->parent));
+
+	DBG("cd_status=%d %s\n", cd_status, cd_status ? "removed" : "inserted");
+
+	cd_status = host->plat_data->status(host->mmc->parent);
+	if (!cd_status)
+		/* If there is a card in the slot, the timer is start
+		 * to work. Then the card detection would be carried
+		 * after the timer is timeout.
+		 * */
+		mod_timer(&host->cd_timer, jiffies + HZ / 2);
+	else
+		/* If there is no card, call the card detection func
+		 * immediately. */
+		schedule_work(&host->cd_wq);
+
 	return IRQ_HANDLED;
 }
 
@@ -1614,6 +1660,7 @@ static int sdhci_resume(struct platform_device *pdev)
 		if (ret)
 			return ret;
 		sdhci_init(chip->hosts[i]);
+		chip->hosts[i]->init_flag = 2;
 		mmiowb();
 		ret = mmc_resume_host(chip->hosts[i]->mmc);
 		if (ret)
@@ -1873,6 +1920,7 @@ static int __devinit sdhci_probe_slot(struct platform_device
 	INIT_WORK(&host->cd_wq, esdhc_cd_callback);
 
 	setup_timer(&host->timer, sdhci_timeout_timer, (unsigned long)host);
+	setup_timer(&host->cd_timer, sdhci_cd_timer, (unsigned long)host);
 
 	if (host->detect_irq) {
 		ret = request_irq(host->detect_irq, sdhci_cd_irq, 0,
@@ -1930,6 +1978,7 @@ static int __devinit sdhci_probe_slot(struct platform_device
 	}
       out4:
 	del_timer_sync(&host->timer);
+	del_timer_sync(&host->cd_timer);
 	tasklet_kill(&host->card_tasklet);
 	tasklet_kill(&host->finish_tasklet);
       out3:

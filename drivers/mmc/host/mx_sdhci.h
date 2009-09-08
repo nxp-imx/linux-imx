@@ -3,7 +3,7 @@
  *  Controller Interface driver
  *
  *  Copyright (C) 2005-2007 Pierre Ossman, All Rights Reserved.
- *  Copyright 2008 Freescale Semiconductor, Inc. All Rights Reserved.
+ *  Copyright 2008-2009 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -213,6 +213,7 @@ struct sdhci_host {
 
 	spinlock_t lock;	/* Mutex */
 
+	int init_flag;		/* Host has been initialized */
 	int flags;		/* Host attributes */
 #define SDHCI_USE_DMA		(1<<0)	/* Host is DMA capable */
 #define SDHCI_REQ_USE_DMA	(1<<1)	/* Use DMA for this req. */
@@ -261,6 +262,7 @@ struct sdhci_host {
 	struct mxc_mmc_platform_data *plat_data;
 
 	struct timer_list timer;	/* Timer for timeouts */
+	struct timer_list cd_timer;	/* Timer for cd */
 };
 
 struct sdhci_chip {
