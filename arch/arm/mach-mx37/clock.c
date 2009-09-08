@@ -2873,6 +2873,19 @@ static void clk_tree_init(void)
 {
 	u32 reg, dp_ctl;
 
+	ipg_perclk.set_parent(&ipg_perclk, &lp_apm_clk);
+
+	/*
+	 *Initialise the IPG PER CLK dividers to 3. IPG_PER_CLK should be at
+	 * 8MHz, its derived from lp_apm.
+	 */
+	reg = __raw_readl(MXC_CCM_CBCDR2);
+	reg &= ~MXC_CCM_CBCDR2_PERCLK_PRED1_MASK;
+	reg &= ~MXC_CCM_CBCDR2_PERCLK_PRED2_MASK;
+	reg &= ~MXC_CCM_CBCDR2_PERCLK_PODF_MASK;
+	reg |= (2 << MXC_CCM_CBCDR2_PERCLK_PRED1_OFFSET);
+	__raw_writel(reg, MXC_CCM_CBCDR2);
+
 	/* set pll1_main_clk parent */
 	pll1_main_clk.parent = &osc_clk;
 	dp_ctl = __raw_readl(pll_base[0] + MXC_PLL_DP_CTL);
@@ -2926,11 +2939,6 @@ int __init mxc_clocks_init(unsigned long ckil, unsigned long osc, unsigned long 
 	u32 reg;
 	int i;
 
-#ifdef CONFIG_JTAG_ENABLE
-	mxc_jtag_enabled = 1;
-#else
-	mxc_jtag_enabled = 0;
-#endif
 	/* Turn off all possible clocks */
 	if (mxc_jtag_enabled) {
 		__raw_writel((1 << MXC_CCM_CCGR0_CG0_OFFSET) |
@@ -2955,7 +2963,6 @@ int __init mxc_clocks_init(unsigned long ckil, unsigned long osc, unsigned long 
 	reg |= 1 << MXC_CCM_CCGR1_CG0_OFFSET;
 	reg |= 1 << MXC_CCM_CCGR1_CG1_OFFSET;
 	__raw_writel(reg, MXC_CCM_CCGR1);
-
 	__raw_writel(0, MXC_CCM_CCGR2);
 	__raw_writel(0, MXC_CCM_CCGR3);
 	__raw_writel(0, MXC_CCM_CCGR4);
