@@ -522,8 +522,8 @@ OS_DEV_ISR(dryice_norm_irq)
 				todo_run();
 			}
 		}
-	} else
-		di_warn("unexpected interrupt\n");
+	}
+
 	os_dev_isr_return(1);
 }
 
