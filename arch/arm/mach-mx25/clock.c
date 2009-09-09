@@ -1683,6 +1683,7 @@ extern void propagate_rate(struct clk *tclk);
 
 int __init mxc_clocks_init(unsigned long ckil, unsigned long osc, unsigned long ckih1, unsigned long ckih2)
 {
+	int i;
 	struct clk **clkp;
 
 	for (clkp = mxc_clks; clkp < mxc_clks + ARRAY_SIZE(mxc_clks); clkp++)
@@ -1694,6 +1695,10 @@ int __init mxc_clocks_init(unsigned long ckil, unsigned long osc, unsigned long 
 	__raw_writel((1 << MXC_CCM_CGCR1_GPT1_OFFSET) |
 		     (1 << MXC_CCM_CGCR1_IIM_OFFSET), MXC_CCM_CGCR1);
 	__raw_writel(1 << MXC_CCM_CGCR2_SCC_OFFSET, MXC_CCM_CGCR2);
+
+	/* Init all perclk sources to ahb clock*/
+	for (i = 0; i < (sizeof(per_clk) / sizeof(struct clk)); i++)
+		per_clk[i].set_parent(&per_clk[i], &ahb_clk);
 
 	/* This will propagate to all children and init all the clock rates */
 	propagate_rate(&osc24m_clk);
