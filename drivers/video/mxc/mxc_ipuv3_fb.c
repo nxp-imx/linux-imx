@@ -1396,18 +1396,29 @@ static int mxcfb_probe(struct platform_device *pdev)
 		ipu_disp_set_global_alpha(mxcfbi->ipu_ch, true, 0x80);
 		ipu_disp_set_color_key(mxcfbi->ipu_ch, false, 0);
 		strcpy(fbi->fix.id, "DISP3 BG");
-		g_dp_in_use = true;
 
-		if (ipu_request_irq(IPU_IRQ_BG_ALPHA_SYNC_EOF,
-				    mxcfb_alpha_irq_handler, 0,
-				    MXCFB_NAME, fbi) != 0) {
-			dev_err(&pdev->dev, "Error registering BG alpha irq "
-					    "handler.\n");
-			ret = -EBUSY;
-			goto err1;
-		}
+		if (!g_dp_in_use)
+			if (ipu_request_irq(IPU_IRQ_BG_ALPHA_SYNC_EOF,
+					    mxcfb_alpha_irq_handler, 0,
+					    MXCFB_NAME, fbi) != 0) {
+				dev_err(&pdev->dev, "Error registering BG "
+						    "alpha irq handler.\n");
+				ret = -EBUSY;
+				goto err1;
+			}
+		g_dp_in_use = true;
 	} else if (pdev->id == 1) {
 		strcpy(fbi->fix.id, "DISP3 BG - DI1");
+
+		if (!g_dp_in_use)
+			if (ipu_request_irq(IPU_IRQ_BG_ALPHA_SYNC_EOF,
+					    mxcfb_alpha_irq_handler, 0,
+					    MXCFB_NAME, fbi) != 0) {
+				dev_err(&pdev->dev, "Error registering BG "
+						    "alpha irq handler.\n");
+				ret = -EBUSY;
+				goto err1;
+			}
 		g_dp_in_use = true;
 	} else if (pdev->id == 2) {	/* Overlay */
 		mxcfbi->ipu_ch_irq = IPU_IRQ_FG_SYNC_EOF;
