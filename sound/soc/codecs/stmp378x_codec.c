@@ -248,7 +248,7 @@ static const char *stmp378x_codec_adc_input_sel[] =
 				{"Mic", "Line In 1", "Head Phone", "Line In 2"};
 
 static const char *stmp378x_codec_hp_output_sel[] =
-				{"DAC", "Line In 1"};
+				{"DAC Out", "Line In 1"};
 
 static const char *stmp378x_codec_adc_3d_sel[] =
 				{"Off", "Low", "Medium", "High"};
@@ -319,11 +319,10 @@ SOC_DAPM_ENUM("Route", stmp378x_codec_enum[2]);
 
 static const struct snd_soc_dapm_widget stmp378x_codec_widgets[] = {
 
-	SND_SOC_DAPM_ADC("Left ADC", "Left Capture", SND_SOC_NOPM, 0, 0),
-	SND_SOC_DAPM_ADC("Right ADC", "Right Capture", SND_SOC_NOPM, 0, 0),
+	SND_SOC_DAPM_ADC("Left ADC", "Left Capture", DAC_PWRDN_L, 8, 1),
+	SND_SOC_DAPM_ADC("Right ADC", "Right Capture", DAC_PWRDN_H, 0, 1),
 
-	SND_SOC_DAPM_DAC("Left DAC", "Left Playback", SND_SOC_NOPM, 0, 0),
-	SND_SOC_DAPM_DAC("Right DAC", "Right Playback", SND_SOC_NOPM, 0, 0),
+	SND_SOC_DAPM_DAC("DAC", "Playback", DAC_PWRDN_L, 12, 1),
 
 	SND_SOC_DAPM_MUX("Left ADC Mux", SND_SOC_NOPM, 0, 0,
 			 &stmp378x_left_adc_controls),
@@ -331,6 +330,12 @@ static const struct snd_soc_dapm_widget stmp378x_codec_widgets[] = {
 			 &stmp378x_right_adc_controls),
 	SND_SOC_DAPM_MUX("HP Mux", SND_SOC_NOPM, 0, 0,
 			 &stmp378x_hp_controls),
+
+	SND_SOC_DAPM_PGA("HP_AMP", DAC_PWRDN_L, 0, 1, NULL, 0),
+
+	SND_SOC_DAPM_PGA("HP_CAPLESS", DAC_PWRDN_L, 4, 1, NULL, 0),
+
+	SND_SOC_DAPM_PGA("SPK_AMP", DAC_PWRDN_H, 8, 1, NULL, 0),
 
 	SND_SOC_DAPM_INPUT("LINE1L"),
 	SND_SOC_DAPM_INPUT("LINE1R"),
@@ -361,17 +366,19 @@ static const struct snd_soc_dapm_route intercon[] = {
 	{"Right ADC", NULL, "Right ADC Mux"},
 
 	/* HP Mux */
-	{"HP Mux", "DAC", "Left DAC"},
-	{"HP Mux", "DAC", "Right DAC"},
+	{"HP Mux", "DAC Out", "DAC"},
 	{"HP Mux", "Line In 1", "LINE1L"},
 	{"HP Mux", "Line In 1", "LINE1R"},
 
 	/* HP output */
-	{"HPR", NULL, "HP Mux"},
-	{"HPL", NULL, "HP Mux"},
+	{"HP_CAPLESS", NULL, "HP Mux"},
+	{"HP_AMP", NULL, "HP_CAPLESS"},
+	{"HPR", NULL, "HP_AMP"},
+	{"HPL", NULL, "HP_AMP"},
 
 	/* Speaker amp */
-	{"SPEAKER", NULL, "Right DAC"},
+	{"SPK_AMP", NULL, "DAC"},
+	{"SPEAKER", NULL, "SPK_AMP"},
 };
 
 static int stmp378x_codec_add_widgets(struct snd_soc_codec *codec)
@@ -523,14 +530,9 @@ stmp378x_codec_dac_power_on(struct stmp378x_codec_priv *stmp378x_adc)
 	HW_AUDIOOUT_CTRL_CLR(BM_AUDIOOUT_CTRL_CLKGATE);
 	HW_AUDIOOUT_ANACLKCTRL_CLR(BM_AUDIOOUT_ANACLKCTRL_CLKGATE);
 
-	/* Set capless mode */
-	HW_AUDIOOUT_PWRDN_CLR(BM_AUDIOOUT_PWRDN_CAPLESS);
-
 	/* 16 bit word length */
 	HW_AUDIOOUT_CTRL_SET(BM_AUDIOOUT_CTRL_WORD_LENGTH);
 
-	/* Power up DAC */
-	HW_AUDIOOUT_PWRDN_CLR(BM_AUDIOOUT_PWRDN_DAC);
 	/* Update DAC volume over zero crossings */
 	HW_AUDIOOUT_DACVOLUME_SET(BM_AUDIOOUT_DACVOLUME_EN_ZCD);
 	/* Mute DAC */
@@ -540,17 +542,14 @@ stmp378x_codec_dac_power_on(struct stmp378x_codec_priv *stmp378x_adc)
 	/* Update HP volume over zero crossings */
 	HW_AUDIOOUT_HPVOL_SET(BM_AUDIOOUT_HPVOL_EN_MSTR_ZCD);
 
-	/* Power up HP output */
+	/* Prepare powering up HP output */
 	HW_AUDIOOUT_ANACTRL_SET(BM_AUDIOOUT_ANACTRL_HP_HOLD_GND);
 	HW_RTC_PERSISTENT0_SET(BF_RTC_PERSISTENT0_SPARE_ANALOG(0x2));
-	HW_AUDIOOUT_PWRDN_CLR(BM_AUDIOOUT_PWRDN_HEADPHONE);
 	HW_AUDIOOUT_ANACTRL_SET(BM_AUDIOOUT_ANACTRL_HP_CLASSAB);
 	HW_AUDIOOUT_ANACTRL_CLR(BM_AUDIOOUT_ANACTRL_HP_HOLD_GND);
 	/* Mute HP output */
 	HW_AUDIOOUT_HPVOL_SET(BM_AUDIOOUT_HPVOL_MUTE);
 
-	/* Power up speaker amp */
-	HW_AUDIOOUT_PWRDN_CLR(BM_AUDIOOUT_PWRDN_SPEAKER);
 	/* Mute speaker amp */
 	HW_AUDIOOUT_SPEAKERCTRL_SET(BM_AUDIOOUT_SPEAKERCTRL_MUTE);
 }
@@ -593,10 +592,6 @@ stmp378x_codec_adc_power_on(struct stmp378x_codec_priv *stmp378x_adc)
 	/* Ungate ADC clocks */
 	HW_AUDIOIN_CTRL_CLR(BM_AUDIOIN_CTRL_CLKGATE);
 	HW_AUDIOIN_ANACLKCTRL_CLR(BM_AUDIOIN_ANACLKCTRL_CLKGATE);
-
-	/* Power Up ADC */
-	HW_AUDIOOUT_PWRDN_CLR(
-		BM_AUDIOOUT_PWRDN_ADC | BM_AUDIOOUT_PWRDN_RIGHT_ADC);
 
 	/* 16 bit word length */
 	HW_AUDIOIN_CTRL_SET(BM_AUDIOIN_CTRL_WORD_LENGTH);
