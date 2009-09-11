@@ -720,8 +720,7 @@ enum {
 typedef enum {
 	RGB,
 	YCbCr,
-	YUV,
-	NONE
+	YUV
 } ipu_color_space_t;
 
 /*!
