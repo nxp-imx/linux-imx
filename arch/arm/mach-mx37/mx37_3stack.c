@@ -72,14 +72,6 @@ static struct cpu_wp cpu_wp_auto[] = {
 	 .mfn = 13,
 	 .cpu_voltage = 1050000,},
 	{
-	 .pll_rate = 400000000,
-	 .cpu_rate = 400000000,
-	 .pdf = 1,
-	 .mfi = 8,
-	 .mfd = 2,
-	 .mfn = 1,
-	 .cpu_voltage = 950000,},
-	{
 	 .pll_rate = 200000000,
 	 .cpu_rate = 200000000,
 	 .pdf = 3,
@@ -87,19 +79,11 @@ static struct cpu_wp cpu_wp_auto[] = {
 	 .mfd = 2,
 	 .mfn = 1,
 	 .cpu_voltage = 850000,},
-	{
-	 .pll_rate = 600000000,
-	 .cpu_rate = 600000000,
-	 .pdf = 0,
-	 .mfi = 6,
-	 .mfd = 3,
-	 .mfn = 1,
-	 .cpu_voltage = 1200000,},
 };
 
 struct cpu_wp *get_cpu_wp(int *wp)
 {
-	*wp = 3;
+	*wp = 2;
 	return cpu_wp_auto;
 }
 

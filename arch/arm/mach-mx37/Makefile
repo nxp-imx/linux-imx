@@ -4,7 +4,7 @@
 
 # Object file lists.
 
-obj-y   := system.o iomux.o cpu.o mm.o clock.o devices.o serial.o dma.o lpmodes.o dptc.o bus_freq.o
+obj-y   := system.o iomux.o cpu.o mm.o clock.o devices.o serial.o dma.o dptc.o bus_freq.o
 
 
 obj-$(CONFIG_MACH_MX37_3DS) += mx37_3stack.o mx37_3stack_gpio.o

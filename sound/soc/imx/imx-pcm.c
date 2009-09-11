@@ -102,7 +102,7 @@ static int imx_iram_audio_playback_mmap(struct snd_pcm_substream *substream,
 	if (off + size > SND_RAM_SIZE)
 		return -EINVAL;
 
-	area->vm_page_prot = pgprot_nonshareddev(area->vm_page_prot);
+	area->vm_page_prot = pgprot_writecombine(area->vm_page_prot);
 	area->vm_flags |= VM_IO;
 	ret =
 	    remap_pfn_range(area, area->vm_start, phys >> PAGE_SHIFT,

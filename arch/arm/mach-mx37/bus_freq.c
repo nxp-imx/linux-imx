@@ -39,6 +39,7 @@
 #define LP_LPM_VOLTAGE 1050000
 #define LP_LOWFREQ_VOLTAGE 1050000
 #define LP_NORMAL_VOLTAGE 1200000
+#define GP_LPAPM_FREQ   200000000
 
 DEFINE_SPINLOCK(bus_freq_lock);
 
@@ -69,70 +70,47 @@ char *gp_reg_id = "SW1";
 char *lp_reg_id = "SW2";
 static struct cpu_wp *cpu_wp_tbl;
 
-struct dvfs_wp dvfs_core_setpoint[] = {{33, 7, 33, 10, 10, 0x10},
-					    {22, 0, 33, 10, 10, 0x10},};
+struct dvfs_wp dvfs_core_setpoint[] = {
+						{33, 8, 33, 10, 10, 0x08},
+						{26, 0, 33, 20, 10, 0x08},
+						{28, 8, 33, 20, 30, 0x08},
+						{26, 0, 33, 20, 10, 0x08},};
 
 int set_low_bus_freq(void)
 {
 	int ret = 0;
-	unsigned long lp_lpm_clk;
 	unsigned long flags;
+	int reg;
+	unsigned long lp_lpm_clk;
 
-	struct clk *p_clk;
-	struct clk *amode_parent_clk;
+	spin_lock_irqsave(&bus_freq_lock, flags);
 
-	if (low_bus_freq_mode)
+	if (low_bus_freq_mode || (clk_get_rate(cpu_clk) != GP_LPAPM_FREQ)) {
+		spin_unlock_irqrestore(&bus_freq_lock, flags);
+		return ret;
+	}
+
+	if (clk_get_rate(cpu_clk) != GP_LPAPM_FREQ)
 		return ret;
 
-	if (clk_get_rate(cpu_clk) != 200000000)
-		return;
+	lp_lpm_clk = clk_get_rate(periph_apm_clk) / 8;
 
-	clk_disable(uart_clk);
+	/* Set the parent of peripheral_apm_clk to be lpapm */
+	clk_set_parent(periph_apm_clk, pll1);
+	/* Set the LP clocks */
+	clk_set_parent(main_bus_clk, periph_apm_clk);
 
-	lp_lpm_clk = clk_get_rate(lp_apm);
-	amode_parent_clk = lp_apm;
-	p_clk = clk_get_parent(periph_apm_clk);
-	spin_lock_irqsave(&bus_freq_lock, flags);
-	/* Make sure osc_clk is the parent of lp_apm. */
-	if (clk_get_parent(amode_parent_clk) != osc)
-		clk_set_parent(amode_parent_clk, osc);
+	clk_set_rate(axi_a_clk, clk_round_rate(axi_a_clk, lp_lpm_clk));
+	clk_set_rate(axi_b_clk, clk_round_rate(axi_b_clk, lp_lpm_clk));
+	clk_set_rate(axi_c_clk, clk_round_rate(axi_c_clk, lp_lpm_clk));
+	clk_set_rate(emi_core_clk, clk_round_rate(emi_core_clk, lp_lpm_clk));
+	clk_set_rate(ahb_clk, clk_round_rate(ahb_clk, lp_lpm_clk));
+	/* Set the emi_intr_clk to be at 24MHz.  */
+	clk_set_rate(emi_intr_clk, clk_round_rate(emi_intr_clk, lp_lpm_clk));
 
-	/* Set the parent of periph_apm_clk to be lp_apm */
-	clk_set_parent(periph_apm_clk, amode_parent_clk);
-	amode_parent_clk = periph_apm_clk;
+	low_bus_freq_mode = 1;
+	high_bus_freq_mode = 0;
 
-	p_clk = clk_get_parent(main_bus_clk);
-	/* Set the parent of main_bus_clk to be periph_apm_clk */
-	clk_set_parent(main_bus_clk, amode_parent_clk);
-
-	clk_set_rate(ahb_clk, lp_lpm_clk);
-	/* Set the emi_internal clock to 24MHz */
-	clk_set_rate(emi_intr_clk, lp_lpm_clk);
-	if (clk_get_parent(emi_core_clk) != ahb_clk)
-		clk_set_rate(emi_core_clk, lp_lpm_clk);
-
-	if (clk_get_usecount(axi_a_clk) != 0)
-		clk_set_rate(axi_a_clk, lp_lpm_clk);
-
-	if (clk_get_usecount(axi_b_clk) != 0)
-		clk_set_rate(axi_b_clk, lp_lpm_clk);
-
-	if (clk_get_usecount(axi_c_clk) != 0)
-		clk_set_rate(axi_c_clk, lp_lpm_clk);
-
-	amode_parent_clk = emi_core_clk;
-
-	p_clk = clk_get_parent(arm_axi_clk);
-	if (p_clk != amode_parent_clk)
-		clk_set_parent(arm_axi_clk, amode_parent_clk);
-
-	p_clk = clk_get_parent(vpu_clk);
-	if (p_clk != amode_parent_clk)
-		clk_set_parent(vpu_clk, amode_parent_clk);
-
-	p_clk = clk_get_parent(vpu_core_clk);
-	if (p_clk != amode_parent_clk)
-		clk_set_parent(vpu_core_clk, amode_parent_clk);
 	spin_unlock_irqrestore(&bus_freq_lock, flags);
 
 	/* Set the voltage to 1.05V for the LP domain. */
@@ -143,22 +121,17 @@ int set_low_bus_freq(void)
 		return ret;
 	}
 
-	low_bus_freq_mode = 1;
-	high_bus_freq_mode = 0;
 	return ret;
 }
 
 int set_high_bus_freq(int high_bus_freq)
 {
-	struct clk *p_clk;
-	struct clk *rmode_parent_clk;
 	int ret = 0;
 	unsigned long flags;
+	unsigned long lp_lpm_clk;
 
 	if (!low_bus_freq_mode)
 		return ret;
-
-	low_bus_freq_mode = 0;
 
 	/* Set the voltage to 1.25V for the LP domain. */
 	ret = regulator_set_voltage(lp_regulator, 1250000, 1250000);
@@ -168,28 +141,27 @@ int set_high_bus_freq(int high_bus_freq)
 		return ret;
 	}
 
-	rmode_parent_clk = pll2;
 	spin_lock_irqsave(&bus_freq_lock, flags);
 
-	/* Set the dividers before setting the parent clock. */
-	if (clk_get_usecount(axi_a_clk) != 0)
-		clk_set_rate(axi_a_clk, 4800000);
-	if (clk_get_usecount(axi_b_clk) != 0)
-		clk_set_rate(axi_b_clk, 4000000);
-	if (clk_get_usecount(axi_c_clk) != 0)
-		clk_set_rate(axi_c_clk, 6000000);
-	if (clk_get_parent(emi_core_clk) != ahb_clk)
-		clk_set_rate(emi_core_clk, 4800000);
+	low_bus_freq_mode = 0;
 
-	clk_set_rate(ahb_clk, 4800000);
+	/* Set the LP clocks. */
+	lp_lpm_clk = clk_get_rate(periph_apm_clk);
+	clk_set_rate(axi_a_clk, clk_round_rate(axi_a_clk, lp_lpm_clk/5));
+	clk_set_rate(axi_b_clk, clk_round_rate(axi_b_clk, lp_lpm_clk/5));
+	clk_set_rate(axi_c_clk, clk_round_rate(axi_c_clk, lp_lpm_clk/5));
+	clk_set_rate(emi_core_clk, clk_round_rate(emi_core_clk, lp_lpm_clk/5));
+	clk_set_rate(ahb_clk, clk_round_rate(ahb_clk, lp_lpm_clk/5));
 	/* Set emi_intr clock back to divide by 2. */
-	clk_set_rate(emi_intr_clk, 2400000);
+	clk_set_rate(emi_intr_clk, clk_round_rate(emi_intr_clk, lp_lpm_clk/10));
+
 	/* Set the parent of main_bus_clk to be pll2 */
-	clk_set_parent(main_bus_clk, rmode_parent_clk);
+	clk_set_parent(main_bus_clk, pll2);
+
+	high_bus_freq_mode = 1;
+
 	spin_unlock_irqrestore(&bus_freq_lock, flags);
 
-	clk_enable(uart_clk);
-	high_bus_freq_mode = 1;
 	return ret;
 }
 
@@ -240,16 +212,25 @@ void setup_pll(void)
 		/* MFN */
 		__raw_writel(p->mfn, MXC_DPLL1_BASE + MXC_PLL_DP_HFS_MFN);
 	}
-
-	/* Set PLL2_PODF to be 3 */
-	reg = __raw_readl(MXC_CCM_CCSR);
-	reg |= 2 << MXC_CCM_CCSR_PLL2_PODF_OFFSET;
-	__raw_writel(reg, MXC_CCM_CCSR);
-	/* Set the parent of STEP_CLK to be PLL2 */
-	reg = __raw_readl(MXC_CCM_CCSR);
-	reg = (reg & ~MXC_CCM_CCSR_STEP_SEL_MASK) |
-	    (2 << MXC_CCM_CCSR_STEP_SEL_OFFSET);
-	__raw_writel(reg, MXC_CCM_CCSR);
+	if (clk_get_usecount(pll2) != 0) {
+		/* Set the temporal frequency to be PLL2 */
+		/* Set PLL2_PODF to be 3. */
+		reg = __raw_readl(MXC_CCM_CCSR);
+		reg |= 2 << MXC_CCM_CCSR_PLL2_PODF_OFFSET;
+		__raw_writel(reg, MXC_CCM_CCSR);
+		/* Set the parent of STEP_CLK to be PLL2 */
+		reg = __raw_readl(MXC_CCM_CCSR);
+		reg = (reg & ~MXC_CCM_CCSR_STEP_SEL_MASK) |
+		    (2 << MXC_CCM_CCSR_STEP_SEL_OFFSET);
+		__raw_writel(reg, MXC_CCM_CCSR);
+	} else {
+		/* Set the temporal frequency to be lp-apm */
+		/* Set the parent of STEP_CLK to be lp-apm */
+		reg = __raw_readl(MXC_CCM_CCSR);
+		reg = (reg & ~MXC_CCM_CCSR_STEP_SEL_MASK) |
+		    (0 << MXC_CCM_CCSR_STEP_SEL_OFFSET);
+		__raw_writel(reg, MXC_CCM_CCSR);
+	}
 }
 
 /*!
@@ -385,7 +366,6 @@ static int __devinit busfreq_probe(struct platform_device *pdev)
 		return PTR_ERR(pll1);
 	}
 
-
 	lp_regulator = regulator_get(NULL, lp_reg_id);
 	if (IS_ERR(lp_regulator)) {
 		clk_put(ahb_clk);
@@ -394,7 +374,7 @@ static int __devinit busfreq_probe(struct platform_device *pdev)
 	}
 
 	low_bus_freq_mode = 0;
-	high_bus_freq_mode = 0;
+	high_bus_freq_mode = 1;
 
 	cpu_wp_tbl = get_cpu_wp(&cpu_wp_nr);
 
@@ -413,7 +393,6 @@ static struct platform_driver busfreq_driver = {
  *
  * @return  The function always returns 0.
  */
-
 static int __init busfreq_init(void)
 {
 	if (platform_driver_register(&busfreq_driver) != 0) {

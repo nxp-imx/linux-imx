@@ -422,6 +422,7 @@ static int _clk_pll1_sw_set_parent(struct clk *clk, struct clk *parent)
 		}
 	}
 	__raw_writel(reg, MXC_CCM_CCSR);
+	
 	return 0;
 }
 
