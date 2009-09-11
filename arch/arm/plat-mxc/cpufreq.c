@@ -89,13 +89,13 @@ static int set_cpu_freq(int freq)
 			return ret;
 		}
 	}
-
+	
 	ret = clk_set_rate(cpu_clk, freq);
 	if (ret != 0) {
 		printk(KERN_DEBUG "cannot set CPU clock rate\n");
 		return ret;
 	}
-
+	
 	if (freq < org_cpu_rate) {
 		ret = regulator_set_voltage(gp_regulator, gp_volt, gp_volt);
 		if (ret < 0) {
@@ -103,7 +103,7 @@ static int set_cpu_freq(int freq)
 			return ret;
 		}
 	}
-
+	
 	return ret;
 }
 

@@ -36,9 +36,6 @@
 extern int mxc_jtag_enabled;
 extern int low_bus_freq_mode;
 
-static struct clk *pll1_main;
-static struct clk *pll1_sw_clk;
-static struct clk *lp_apm_clk;
 static struct clk *gpc_dvfs_clk;
 
 /* set cpu low power mode before WFI instruction */
@@ -96,8 +93,6 @@ void mxc_cpu_lp_set(enum mxc_cpu_pwr_mode mode)
 	if ((mxc_cpu_is_rev(CHIP_REV_1_0)) != 1)
 		__raw_writel(empgcr0, MXC_EMPGC0_ARM_EMPGCR);
 
-	__raw_writel(empgcr1, MXC_EMPGC1_ARM_EMPGCR);
-
 	flush_cache_all();
 
 	if (gpc_dvfs_clk == NULL)
@@ -105,18 +100,6 @@ void mxc_cpu_lp_set(enum mxc_cpu_pwr_mode mode)
 
 	/* gpc clock is needed for SRPG */
 	clk_enable(gpc_dvfs_clk);
-	if (low_bus_freq_mode) {
-		if (pll1_sw_clk == NULL)
-			pll1_sw_clk = clk_get(NULL, "pll1_sw_clk");
-		if (lp_apm_clk == NULL)
-			lp_apm_clk = clk_get(NULL, "lp_apm");
-		if (pll1_main == NULL)
-			pll1_main = clk_get(NULL, "pll1_main_clk");
-
-		/* Move the ARM to run off the 24MHz clock. Shutdown the PLL1 */
-		/* Change the source of pll1_sw_clk to be the step_clk */
-		clk_set_parent(pll1_sw_clk, lp_apm_clk);
-	}
 }
 
 void mxc_pg_enable(struct platform_device *pdev)
@@ -172,11 +155,6 @@ void arch_idle(void)
 		cpu_do_idle();
 		/* gpc clock is needed for SRPG */
 		clk_disable(gpc_dvfs_clk);
-		if (low_bus_freq_mode) {
-			/* Move ARM back to PLL from step clk. */
-			/* Move the PLL1 back to the pll1_main_clk */
-			clk_set_parent(pll1_sw_clk, pll1_main);
-		}
 	}
 }
 

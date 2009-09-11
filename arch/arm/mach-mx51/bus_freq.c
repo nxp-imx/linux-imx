@@ -76,8 +76,11 @@ extern int dvfs_core_is_active;
 extern struct cpu_wp *(*get_cpu_wp)(int *wp);
 extern int cpu_wp_nr;
 
-struct dvfs_wp dvfs_core_setpoint[] = {{33, 7, 33, 20, 20, 0x10},
-					    {27, 0, 33, 20, 20, 0x10},};
+struct dvfs_wp dvfs_core_setpoint[] = {
+						{33, 8, 33, 10, 10, 0x08},
+						{26, 0, 33, 20, 10, 0x08},
+						{28, 8, 33, 20, 30, 0x08},
+						{26, 0, 33, 20, 10, 0x08},};
 
 int set_low_bus_freq(void)
 {
@@ -119,8 +122,6 @@ int set_high_bus_freq(int high_bus_freq)
 	if (bus_freq_scaling_is_active) {
 		if (clk_get_rate(main_bus_clk) == LP_APM_CLK) {
 
-			clk_enable(pll2);
-
 			/* Set the dividers before setting the parent clock. */
 			clk_set_rate(axi_a_clk,
 				     LP_APM_CLK/AXI_A_CLK_NORMAL_DIV);
@@ -140,6 +141,7 @@ int set_high_bus_freq(int high_bus_freq)
 
 			low_bus_freq_mode = 0;
 		}
+		
 		/*
 		 * If the CPU freq is 800MHz, set the bus to the high setpoint
 		 * (133MHz) and DDR to 200MHz.
@@ -155,8 +157,8 @@ int set_high_bus_freq(int high_bus_freq)
 				clk_round_rate(ahb_clk, LP_NORMAL_CLK));
 			clk_set_rate(ddr_hf_clk,
 				clk_round_rate(ddr_hf_clk, DDR_NORMAL_CLK));
-
 		}
+	
 		if (!lp_high_freq && !high_bus_freq) {
 			/* Set to the medium setpoint. */
 			high_bus_freq_mode = 0;
