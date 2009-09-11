@@ -404,31 +404,40 @@ static inline void mxc_init_i2c(void)
 #endif
 
 struct mxc_gpio_port mxc_gpio_ports[GPIO_PORT_NUM] = {
-	{
-	 .num = 0,
+	[0] = {
+	 .chip.label = "gpio-0",
 	 .base = IO_ADDRESS(GPIO1_BASE_ADDR),
 	 .irq = MXC_INT_GPIO1,
-	 .virtual_irq_start = MXC_GPIO_INT_BASE,
+	 .irq_high = 0,
+	 .virtual_irq_start = MXC_GPIO_INT_BASE
 	 },
-	{
-	 .num = 1,
+	[1] = {
+	 .chip.label = "gpio-1",
 	 .base = IO_ADDRESS(GPIO2_BASE_ADDR),
 	 .irq = MXC_INT_GPIO2,
-	 .virtual_irq_start = MXC_GPIO_INT_BASE + GPIO_NUM_PIN,
+	 .irq_high = 0,
+	 .virtual_irq_start = MXC_GPIO_INT_BASE + GPIO_NUM_PIN
 	 },
-	{
-	 .num = 2,
+	[2] = {
+	 .chip.label = "gpio-2",
 	 .base = IO_ADDRESS(GPIO3_BASE_ADDR),
 	 .irq = MXC_INT_GPIO3,
-	 .virtual_irq_start = MXC_GPIO_INT_BASE + GPIO_NUM_PIN * 2,
+	 .irq_high = 0,
+	 .virtual_irq_start = MXC_GPIO_INT_BASE + GPIO_NUM_PIN * 2
 	 },
-	{
-	 .num = 3,
+	[3] = {
+	 .chip.label = "gpio-3",
 	 .base = IO_ADDRESS(GPIO4_BASE_ADDR),
 	 .irq = MXC_INT_GPIO4,
-	 .virtual_irq_start = MXC_GPIO_INT_BASE + GPIO_NUM_PIN * 3,
-	 },
+	 .irq_high = 0,
+	 .virtual_irq_start = MXC_GPIO_INT_BASE + GPIO_NUM_PIN * 3
+	 }
 };
+
+int __init mxc_register_gpios(void)
+{
+	return mxc_gpio_init(mxc_gpio_ports, ARRAY_SIZE(mxc_gpio_ports));
+}
 
 static inline void mxc_init_ssi(void)
 {

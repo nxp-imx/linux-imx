@@ -28,8 +28,8 @@ static int gpio_usbh2_active(void)
 {
 	/* Set USBH2_STP to GPIO and toggle it */
 	mxc_request_iomux(MX51_PIN_EIM_A26, IOMUX_CONFIG_GPIO);
-	mxc_set_gpio_direction(MX51_PIN_EIM_A26, 0);
-	mxc_set_gpio_dataout(MX51_PIN_EIM_A26, 1);
+	gpio_direction_output(IOMUX_TO_GPIO(MX51_PIN_EIM_A26), 0);
+	gpio_set_value(IOMUX_TO_GPIO(MX51_PIN_EIM_A26), 1);
 
 	msleep(100);
 
@@ -45,7 +45,7 @@ EXPORT_SYMBOL(gpio_usbh2_setback_stp);
 
 static void gpio_usbh2_inactive(void)
 {
-	mxc_request_gpio(MX51_PIN_EIM_A26);
+	gpio_request(IOMUX_TO_GPIO(MX51_PIN_EIM_A26), NULL);
 	mxc_free_iomux(MX51_PIN_EIM_A26, IOMUX_CONFIG_GPIO);
 }
 

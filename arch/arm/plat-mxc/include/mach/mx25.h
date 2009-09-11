@@ -472,6 +472,20 @@
 
 #define MXC_GPIO_INT_BASE	(MXC_MAX_INT_LINES)
 
+/* gpio and gpio based interrupt handling */
+#define GPIO_DR                 0x00
+#define GPIO_GDIR               0x04
+#define GPIO_PSR                0x08
+#define GPIO_ICR1               0x0C
+#define GPIO_ICR2               0x10
+#define GPIO_IMR                0x14
+#define GPIO_ISR                0x18
+#define GPIO_INT_LOW_LEV        0x0
+#define GPIO_INT_HIGH_LEV       0x1
+#define GPIO_INT_RISE_EDGE      0x2
+#define GPIO_INT_FALL_EDGE      0x3
+#define GPIO_INT_NONE           0x4
+
 /*!
  * Number of GPIO port as defined in the IC Spec
  */

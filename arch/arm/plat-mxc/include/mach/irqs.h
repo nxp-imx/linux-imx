@@ -1,5 +1,5 @@
 /*
- *  Copyright 2004-2007 Freescale Semiconductor, Inc. All Rights Reserved.
+ *  Copyright 2004-2009 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -24,6 +24,9 @@ extern void imx_irq_set_priority(unsigned char irq, unsigned char prio);
 
 /* Number of fast interrupts */
 #define NR_FIQS		MXC_MAX_INTS
+
+/* Number of interrupts */
+#define MXC_GPIO_IRQ_START	MXC_MAX_INT_LINES
 
 /*
  * This function is used to get the AVIC Lo and Hi interrupts

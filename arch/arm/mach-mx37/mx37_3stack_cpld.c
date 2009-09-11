@@ -214,7 +214,7 @@ static int __init mxc_expio_init(void)
 	pad_val = mxc_iomux_get_pad(MX37_PIN_GPIO1_2);
 	pad_val |= PAD_CTL_PUE_PULL;
 	mxc_iomux_set_pad(MX37_PIN_GPIO1_2, pad_val);
-	mxc_set_gpio_direction(MX37_PIN_GPIO1_2, 1);
+	gpio_direction_input(IOMUX_TO_GPIO(MX37_PIN_GPIO1_2));
 
 	for (i = MXC_EXP_IO_BASE; i < (MXC_EXP_IO_BASE + MXC_MAX_EXP_IO_LINES);
 	     i++) {

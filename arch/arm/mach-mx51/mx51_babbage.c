@@ -236,7 +236,7 @@ static int __initdata enable_mitsubishi_xga = { 0 };
 
 static void wvga_reset(void)
 {
-	mxc_set_gpio_dataout(MX51_PIN_DI1_D1_CS, 1);
+	gpio_set_value(IOMUX_TO_GPIO(MX51_PIN_DI1_D1_CS), 1);
 }
 
 static struct mxc_lcd_platform_data lcd_wvga_data = {
@@ -265,12 +265,12 @@ static int handle_edid(int *pixclk)
 	adp = i2c_get_adapter(1);
 
 	if (cpu_is_mx51_rev(CHIP_REV_3_0) > 0) {
-		mxc_set_gpio_dataout(MX51_PIN_CSI2_HSYNC, 1);
+		gpio_set_value(IOMUX_TO_GPIO(MX51_PIN_CSI2_HSYNC), 1);
 		msleep(1);
 	}
 	err = read_edid(adp, &screeninfo, &dvi);
 	if (cpu_is_mx51_rev(CHIP_REV_3_0) > 0)
-		mxc_set_gpio_dataout(MX51_PIN_CSI2_HSYNC, 0);
+		gpio_set_value(IOMUX_TO_GPIO(MX51_PIN_CSI2_HSYNC), 0);
 
 	if (!err) {
 		printk(KERN_INFO " EDID read\n");
@@ -359,22 +359,22 @@ static int __init mxc_init_fb(void)
 		fb_data[0].interface_pix_fmt = IPU_PIX_FMT_LVDS666;
 		fb_data[0].mode = &(video_modes[1]);
 
-		mxc_set_gpio_dataout(MX51_PIN_DI1_D0_CS, 0);
+		gpio_set_value(IOMUX_TO_GPIO(MX51_PIN_DI1_D0_CS), 0);
 		msleep(1);
-		mxc_set_gpio_dataout(MX51_PIN_DI1_D0_CS, 1);
+		gpio_set_value(IOMUX_TO_GPIO(MX51_PIN_DI1_D0_CS), 1);
 
-		mxc_set_gpio_dataout(MX51_PIN_CSI2_D12, 1);
-		mxc_set_gpio_dataout(MX51_PIN_CSI2_D13, 1);
+		gpio_set_value(IOMUX_TO_GPIO(MX51_PIN_CSI2_D12), 1);
+		gpio_set_value(IOMUX_TO_GPIO(MX51_PIN_CSI2_D13), 1);
 	}
 
 	/* DVI Detect */
-	mxc_set_gpio_direction(MX51_PIN_NANDF_D12, 1);
+	gpio_direction_input(IOMUX_TO_GPIO(MX51_PIN_NANDF_D12));
 	/* DVI Reset - Assert for i2c disabled mode */
-	mxc_set_gpio_dataout(MX51_PIN_DISPB2_SER_DIN, 0);
-	mxc_set_gpio_direction(MX51_PIN_DISPB2_SER_DIN, 0);
+	gpio_set_value(IOMUX_TO_GPIO(MX51_PIN_DISPB2_SER_DIN), 0);
+	gpio_direction_output(IOMUX_TO_GPIO(MX51_PIN_DISPB2_SER_DIN), 0);
 	/* DVI Power-down */
-	mxc_set_gpio_dataout(MX51_PIN_DISPB2_SER_DIO, 1);
-	mxc_set_gpio_direction(MX51_PIN_DISPB2_SER_DIO, 0);
+	gpio_set_value(IOMUX_TO_GPIO(MX51_PIN_DISPB2_SER_DIO), 1);
+	gpio_direction_output(IOMUX_TO_GPIO(MX51_PIN_DISPB2_SER_DIO), 0);
 
 	(void)platform_device_register(&lcd_wvga_device);
 
@@ -473,15 +473,15 @@ static inline void mxc_init_fb(void)
 
 static void dvi_reset(void)
 {
-	mxc_set_gpio_direction(MX51_PIN_DISPB2_SER_DIN, 0);
-	mxc_set_gpio_dataout(MX51_PIN_DISPB2_SER_DIN, 0);
+	gpio_direction_output(IOMUX_TO_GPIO(MX51_PIN_DISPB2_SER_DIN), 0);
+	gpio_set_value(IOMUX_TO_GPIO(MX51_PIN_DISPB2_SER_DIN), 0);
 	msleep(50);
 
 	/* do reset */
-	mxc_set_gpio_dataout(MX51_PIN_DISPB2_SER_DIN, 1);
+	gpio_set_value(IOMUX_TO_GPIO(MX51_PIN_DISPB2_SER_DIN), 1);
 	msleep(20);		/* tRES >= 50us */
 
-	mxc_set_gpio_dataout(MX51_PIN_DISPB2_SER_DIN, 0);
+	gpio_set_value(IOMUX_TO_GPIO(MX51_PIN_DISPB2_SER_DIN), 0);
 }
 
 static struct mxc_lcd_platform_data dvi_data = {
@@ -492,13 +492,13 @@ static struct mxc_lcd_platform_data dvi_data = {
 
 static void vga_reset(void)
 {
-	mxc_set_gpio_direction(MX51_PIN_EIM_A19, 0);
-	mxc_set_gpio_dataout(MX51_PIN_EIM_A19, 0);
+	gpio_direction_output(IOMUX_TO_GPIO(MX51_PIN_EIM_A19), 0);
+	gpio_set_value(IOMUX_TO_GPIO(MX51_PIN_EIM_A19), 0);
 	msleep(50);
 	/* do reset */
-	mxc_set_gpio_dataout(MX51_PIN_EIM_A19, 1);
+	gpio_set_value(IOMUX_TO_GPIO(MX51_PIN_EIM_A19), 1);
 	msleep(10);		/* tRES >= 50us */
-	mxc_set_gpio_dataout(MX51_PIN_EIM_A19, 0);
+	gpio_set_value(IOMUX_TO_GPIO(MX51_PIN_EIM_A19), 0);
 }
 
 static struct mxc_lcd_platform_data vga_data = {
@@ -511,21 +511,21 @@ static struct mxc_lcd_platform_data vga_data = {
 static void si4702_reset(void)
 {
 	return;
-	mxc_set_gpio_dataout(MX51_PIN_EIM_A21, 0);
+	gpio_set_value(IOMUX_TO_GPIO(MX51_PIN_EIM_A21), 0);
 	msleep(100);
-	mxc_set_gpio_dataout(MX51_PIN_EIM_A21, 1);
+	gpio_set_value(IOMUX_TO_GPIO(MX51_PIN_EIM_A21), 1);
 	msleep(100);
 }
 
 static void si4702_clock_ctl(int flag)
 {
-	mxc_set_gpio_dataout(MX51_PIN_EIM_A18, flag);
+	gpio_set_value(IOMUX_TO_GPIO(MX51_PIN_EIM_A18), flag);
 	msleep(100);
 }
 
 static void si4702_gpio_get(void)
 {
-	mxc_set_gpio_direction(MX51_PIN_EIM_A18, 0);
+	gpio_direction_output(IOMUX_TO_GPIO(MX51_PIN_EIM_A18), 0);
 }
 
 static void si4702_gpio_put(void)
@@ -662,9 +662,9 @@ static int sdhc_write_protect(struct device *dev)
 	unsigned short rc = 0;
 
 	if (to_platform_device(dev)->id == 0)
-		rc = mxc_get_gpio_datain(MX51_PIN_GPIO1_1);
+		rc = gpio_get_value(IOMUX_TO_GPIO(MX51_PIN_GPIO1_1));
 	else
-		rc = mxc_get_gpio_datain(MX51_PIN_GPIO1_5);
+		rc = gpio_get_value(IOMUX_TO_GPIO(MX51_PIN_GPIO1_5));
 
 	return rc;
 }
@@ -674,15 +674,15 @@ static unsigned int sdhc_get_card_det_status(struct device *dev)
 	int ret;
 
 	if (to_platform_device(dev)->id == 0) {
-		ret = mxc_get_gpio_datain(MX51_PIN_GPIO1_0);
+		ret = gpio_get_value(IOMUX_TO_GPIO(MX51_PIN_GPIO1_0));
 		return ret;
 	} else {		/* config the det pin for SDHC2 */
 		if (board_is_babbage_2_5() == 1)
 			/* BB2.5 */
-			ret = mxc_get_gpio_datain(MX51_PIN_GPIO1_6);
+			ret = gpio_get_value(IOMUX_TO_GPIO(MX51_PIN_GPIO1_6));
 		else
 			/* BB2.0 */
-			ret = mxc_get_gpio_datain(MX51_PIN_GPIO1_4);
+			ret = gpio_get_value(IOMUX_TO_GPIO(MX51_PIN_GPIO1_4));
 		return ret;
 	}
 }
@@ -803,9 +803,9 @@ static int mxc_sgtl5000_amp_enable(int enable);
 static int headphone_det_status(void)
 {
 	if (cpu_is_mx51_rev(CHIP_REV_1_1) == 2)
-		return (mxc_get_gpio_datain(MX51_PIN_NANDF_D14) == 0);
+		return (gpio_get_value(IOMUX_TO_GPIO(MX51_PIN_NANDF_D14)) == 0);
 
-	return mxc_get_gpio_datain(MX51_PIN_NANDF_CS0);
+	return gpio_get_value(IOMUX_TO_GPIO(MX51_PIN_NANDF_CS0));
 }
 
 static struct mxc_audio_platform_data sgtl5000_data = {
@@ -834,7 +834,7 @@ static struct platform_device mxc_sgtl5000_device = {
 
 static int mxc_sgtl5000_amp_enable(int enable)
 {
-	mxc_set_gpio_dataout(MX51_PIN_EIM_A23, enable ? 1 : 0);
+	gpio_set_value(IOMUX_TO_GPIO(MX51_PIN_EIM_A23), enable ? 1 : 0);
 	return 0;
 }
 
@@ -846,7 +846,7 @@ static void mxc_init_sgtl5000(void)
 		sgtl5000_data.vddd = 0;
 	}
 
-	mxc_set_gpio_direction(MX51_PIN_EIM_A23, 0);
+	gpio_direction_output(IOMUX_TO_GPIO(MX51_PIN_EIM_A23), 0);
 
 	platform_device_register(&mxc_sgtl5000_device);
 }
@@ -878,7 +878,7 @@ static struct platform_device gpio_button_device = {
 
 static inline void mxc_init_gpio_button(void)
 {
-	mxc_set_gpio_direction(MXC_BUTTON_GPIO_PIN, 1);
+	gpio_direction_input(IOMUX_TO_GPIO(MXC_BUTTON_GPIO_PIN));
 	platform_device_register(&gpio_button_device);
 }
 #else
@@ -982,7 +982,7 @@ late_initcall(mxc_init_power_key);
 static void __init mxc_board_init(void)
 {
 	mxc_cpu_common_init();
-	mxc_gpio_init();
+	mxc_register_gpios();
 	mx51_babbage_io_init();
 	early_console_setup(saved_command_line);
 

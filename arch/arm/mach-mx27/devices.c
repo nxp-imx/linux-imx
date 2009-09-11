@@ -21,6 +21,7 @@
 
 #include <linux/spi/spi.h>
 
+#include <mach/gpio.h>
 #include <mach/hardware.h>
 #include <mach/mmc.h>
 #include <mach/mxc_dptc.h>
@@ -621,43 +622,54 @@ static inline void mxc_init_vpu(void)
 #endif
 
 struct mxc_gpio_port mxc_gpio_ports[GPIO_PORT_NUM] = {
-	{
-	 .num = 0,
+	[0] = {
+	 .chip.label = "gpio-0",
 	 .base = IO_ADDRESS(GPIO_BASE_ADDR),
 	 .irq = MXC_INT_GPIO,
-	 .virtual_irq_start = MXC_GPIO_INT_BASE,
+	 .irq_high = 0,
+	 .virtual_irq_start = MXC_GPIO_INT_BASE
 	 },
-	{
-	 .num = 1,
+	[1] = {
+	 .chip.label = "gpio-1",
 	 .base = IO_ADDRESS(GPIO_BASE_ADDR) + 0x100,
 	 .irq = MXC_INT_GPIO,
-	 .virtual_irq_start = MXC_GPIO_INT_BASE + GPIO_NUM_PIN,
+	 .irq_high = 0,
+	 .virtual_irq_start = MXC_GPIO_INT_BASE + GPIO_NUM_PIN
 	 },
-	{
-	 .num = 2,
+	[2] = {
+	 .chip.label = "gpio-2",
 	 .base = IO_ADDRESS(GPIO_BASE_ADDR) + 0x200,
 	 .irq = MXC_INT_GPIO,
-	 .virtual_irq_start = MXC_GPIO_INT_BASE + GPIO_NUM_PIN * 2,
+	 .irq_high = 0,
+	 .virtual_irq_start = MXC_GPIO_INT_BASE + GPIO_NUM_PIN * 2
 	 },
-	{
-	 .num = 3,
+	[3] = {
+	 .chip.label = "gpio-3",
 	 .base = IO_ADDRESS(GPIO_BASE_ADDR) + 0x300,
 	 .irq = MXC_INT_GPIO,
-	 .virtual_irq_start = MXC_GPIO_INT_BASE + GPIO_NUM_PIN * 3,
+	 .irq_high = 0,
+	 .virtual_irq_start = MXC_GPIO_INT_BASE + GPIO_NUM_PIN * 3
 	 },
-	{
-	 .num = 4,
+	[4] = {
+	 .chip.label = "gpio-4",
 	 .base = IO_ADDRESS(GPIO_BASE_ADDR) + 0x400,
 	 .irq = MXC_INT_GPIO,
-	 .virtual_irq_start = MXC_GPIO_INT_BASE + GPIO_NUM_PIN * 4,
+	 .irq_high = 0,
+	 .virtual_irq_start = MXC_GPIO_INT_BASE + GPIO_NUM_PIN * 4
 	 },
-	{
-	 .num = 5,
+	[5] = {
+	 .chip.label = "gpio-5",
 	 .base = IO_ADDRESS(GPIO_BASE_ADDR) + 0x500,
 	 .irq = MXC_INT_GPIO,
-	 .virtual_irq_start = MXC_GPIO_INT_BASE + GPIO_NUM_PIN * 5,
-	 },
+	 .irq_high = 0,
+	 .virtual_irq_start = MXC_GPIO_INT_BASE + GPIO_NUM_PIN * 5
+	 }
 };
+
+int __init mxc_register_gpios(void)
+{
+	return mxc_gpio_init(mxc_gpio_ports, ARRAY_SIZE(mxc_gpio_ports));
+}
 
 #ifndef CONFIG_MX27_DPTC
 /*! Device Definition for DPTC */

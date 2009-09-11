@@ -121,7 +121,7 @@ int mxc_request_iomux(iomux_pin_name_t pin, iomux_pin_cfg_t cfg)
 		     ((pin == MX25_PIN_GPIO_A) || (pin == MX25_PIN_GPIO_B) ||
 		      (pin == MX25_PIN_GPIO_C) || (pin == MX25_PIN_GPIO_D) ||
 		      (pin == MX25_PIN_GPIO_E) || (pin == MX25_PIN_GPIO_F))))
-			ret |= mxc_request_gpio(pin);
+			ret |= gpio_request(IOMUX_TO_GPIO(pin), NULL);
 	}
 	return ret;
 }
@@ -147,7 +147,7 @@ void mxc_free_iomux(iomux_pin_name_t pin, iomux_pin_cfg_t cfg)
 		     ((pin == MX25_PIN_GPIO_A) || (pin == MX25_PIN_GPIO_B) ||
 		      (pin == MX25_PIN_GPIO_C) || (pin == MX25_PIN_GPIO_D) ||
 		      (pin == MX25_PIN_GPIO_E) || (pin == MX25_PIN_GPIO_F))))
-			mxc_free_gpio(pin);
+			gpio_free(IOMUX_TO_GPIO(pin));
 	}
 }
 EXPORT_SYMBOL(mxc_free_iomux);

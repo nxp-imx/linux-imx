@@ -17,6 +17,7 @@
 #include <mach/gpio.h>
 #include "mx31_pins.h"
 
+typedef unsigned int iomux_pin_name_t;
 /*!
  * @file mach-mx3/iomux.h
  *

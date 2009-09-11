@@ -23,6 +23,7 @@
 #include <linux/io.h>
 #include <linux/irq.h>
 #include <linux/gpio.h>
+#include <mach/gpio.h>
 #include <mach/hardware.h>
 #include <asm-generic/bug.h>
 
@@ -162,16 +163,23 @@ static void mxc_gpio_irq_handler(struct mxc_gpio_port *port, u32 irq_stat)
 	}
 }
 
-#if defined(CONFIG_ARCH_MX3) || defined(CONFIG_ARCH_MX1)
-/* MX1 and MX3 has one interrupt *per* gpio port */
-static void mx3_gpio_irq_handler(u32 irq, struct irq_desc *desc)
+#ifndef CONFIG_ARCH_MX2
+/* one interrupt *per* gpio port */
+static void gpio_irq_handler(u32 irq, struct irq_desc *desc)
 {
 	u32 irq_stat;
+	u32 mask = 0xFFFFFFFF;
 	struct mxc_gpio_port *port = (struct mxc_gpio_port *)get_irq_data(irq);
 
-	irq_stat = __raw_readl(port->base + GPIO_ISR) &
-			__raw_readl(port->base + GPIO_IMR);
+#ifdef MXC_GPIO_SPLIT_IRQ_2
+	if (irq == port->irq)
+		mask = 0x0000FFFF;
+	else
+		mask = 0xFFFF0000;
+#endif
 
+	irq_stat = __raw_readl(port->base + GPIO_ISR) &
+			(__raw_readl(port->base + GPIO_IMR) & mask);
 	mxc_gpio_irq_handler(port, irq_stat);
 }
 #endif
@@ -284,10 +292,13 @@ int __init mxc_gpio_init(struct mxc_gpio_port *port, int cnt)
 		/* its a serious configuration bug when it fails */
 		BUG_ON(gpiochip_add(&port[i].chip) < 0);
 
-#if defined(CONFIG_ARCH_MX3) || defined(CONFIG_ARCH_MX1)
-		/* setup one handler for each entry */
-		set_irq_chained_handler(port[i].irq, mx3_gpio_irq_handler);
+#ifndef CONFIG_ARCH_MX2
+		set_irq_chained_handler(port[i].irq, gpio_irq_handler);
 		set_irq_data(port[i].irq, &port[i]);
+		if (port[i].irq_high) {
+			set_irq_chained_handler(port[i].irq_high, gpio_irq_handler);
+			set_irq_data(port[i].irq_high, &port[i]);
+		}
 #endif
 	}
 

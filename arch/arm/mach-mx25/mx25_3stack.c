@@ -268,7 +268,7 @@ static int __init mxc_init_power_key(void)
 
 	mxc_request_iomux(MX25_PIN_A25, MUX_CONFIG_ALT5);
 	mxc_iomux_set_pad(MX25_PIN_A25, PAD_CTL_DRV_NORMAL);
-	mxc_set_gpio_direction(MX25_PIN_A25, 1);
+	gpio_direction_input(IOMUX_TO_GPIO(MX25_PIN_A25));
 
 	irq = IOMUX_TO_IRQ(MX25_PIN_A25);
 	set_irq_type(irq, IRQF_TRIGGER_RISING);
@@ -613,10 +613,10 @@ static void flexcan_xcvr_enable(int id, int en)
 
 	if (en) {
 		if (!pwdn++)
-			mxc_set_gpio_dataout(MX25_PIN_D14, 0);
+			gpio_set_value(IOMUX_TO_GPIO(MX25_PIN_D14), 0);
 	} else {
 		if (!--pwdn)
-			mxc_set_gpio_dataout(MX25_PIN_D14, 1);
+			gpio_set_value(IOMUX_TO_GPIO(MX25_PIN_D14), 1);
 	}
 }
 
@@ -669,7 +669,7 @@ static void __init mxc_board_init(void)
 {
 	pr_info("AIPS1 VA base: 0x%x\n", IO_ADDRESS(AIPS1_BASE_ADDR));
 	mxc_cpu_common_init();
-	mxc_gpio_init();
+	mxc_register_gpios();
 	mx25_3stack_gpio_init();
 	early_console_setup(saved_command_line);
 	mxc_init_keypad();

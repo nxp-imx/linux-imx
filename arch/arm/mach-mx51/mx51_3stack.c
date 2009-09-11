@@ -369,7 +369,7 @@ static struct platform_device mxc_fb_device[] = {
 
 static void lcd_reset_to2(void)
 {
-	mxc_set_gpio_dataout(MX51_PIN_DI1_D1_CS, 0);
+	gpio_set_value(IOMUX_TO_GPIO(MX51_PIN_DI1_D1_CS), 0);
 	ipu_reset_disp_panel();
 
 	return;
@@ -377,11 +377,11 @@ static void lcd_reset_to2(void)
 
 static void lcd_reset(void)
 {
-	mxc_set_gpio_dataout(MX51_PIN_DISPB2_SER_RS, 0);
-	mxc_set_gpio_direction(MX51_PIN_DISPB2_SER_RS, 0);
+	gpio_set_value(IOMUX_TO_GPIO(MX51_PIN_DISPB2_SER_RS), 0);
+	gpio_direction_output(IOMUX_TO_GPIO(MX51_PIN_DISPB2_SER_RS), 0);
 	/* do reset */
 	msleep(10);		/* tRES >= 100us */
-	mxc_set_gpio_dataout(MX51_PIN_DISPB2_SER_RS, 1);
+	gpio_set_value(IOMUX_TO_GPIO(MX51_PIN_DISPB2_SER_RS), 1);
 	msleep(60);
 }
 
@@ -401,7 +401,7 @@ static struct platform_device mxc_lcd_device = {
 
 static void wvga_reset(void)
 {
-	mxc_set_gpio_dataout(MX51_PIN_DI1_D1_CS, 1);
+	gpio_set_value(IOMUX_TO_GPIO(MX51_PIN_DI1_D1_CS), 1);
 }
 
 static struct mxc_lcd_platform_data lcd_wvga_data = {
@@ -446,9 +446,9 @@ static inline void mxc_init_bl(void)
 
 void si4702_reset(void)
 {
-	mxc_set_gpio_dataout(MX51_PIN_EIM_DTACK, 0);
+	gpio_set_value(IOMUX_TO_GPIO(MX51_PIN_EIM_DTACK), 0);
 	msleep(100);
-	mxc_set_gpio_dataout(MX51_PIN_EIM_DTACK, 1);
+	gpio_set_value(IOMUX_TO_GPIO(MX51_PIN_EIM_DTACK), 1);
 	msleep(100);
 }
 
@@ -459,7 +459,7 @@ void si4702_clock_ctl(int flag)
 static void si4702_gpio_get(void)
 {
 	/* reset pin */
-	mxc_set_gpio_direction(MX51_PIN_EIM_DTACK, 0);
+	gpio_direction_output(IOMUX_TO_GPIO(MX51_PIN_EIM_DTACK), 0);
 }
 
 static void si4702_gpio_put(void)
@@ -638,7 +638,7 @@ int sdhc_write_protect(struct device *dev)
 	unsigned short rc = 0;
 
 	if (to_platform_device(dev)->id == 0)
-		rc = mxc_get_gpio_datain(MX51_PIN_GPIO1_1);
+		rc = gpio_get_value(IOMUX_TO_GPIO(MX51_PIN_GPIO1_1));
 	else
 		rc = 0;
 	return rc;
@@ -652,7 +652,7 @@ unsigned int sdhc_get_card_det_status(struct device *dev)
 	int ret;
 
 	if (to_platform_device(dev)->id == 0) {
-		ret = mxc_get_gpio_datain(MX51_PIN_GPIO1_0);
+		ret = gpio_get_value(IOMUX_TO_GPIO(MX51_PIN_GPIO1_0));
 		return ret;
 	} else {		/* config the det pin for SDHC2 */
 		return 0;
@@ -867,7 +867,7 @@ static int __init mxc_expio_init(void)
 	/*
 	 * Configure INT line as GPIO input
 	 */
-	mxc_set_gpio_direction(MX51_PIN_GPIO1_6, 1);
+	gpio_direction_input(IOMUX_TO_GPIO(MX51_PIN_GPIO1_6));
 
 	/* disable the interrupt and clear the status */
 	__raw_writew(0, brd_io + INTR_MASK_REG);
@@ -951,7 +951,7 @@ static void __init mxc_init_pata(void)
 
 static int __init mxc_init_touchscreen(void)
 {
-	mxc_set_gpio_direction(MX51_PIN_GPIO1_5, 1);
+	gpio_direction_input(IOMUX_TO_GPIO(MX51_PIN_GPIO1_5));
 
 	return 0;
 }
@@ -1027,7 +1027,7 @@ static int mxc_sgtl5000_amp_enable(int enable);
 
 int headphone_det_status(void)
 {
-	return mxc_get_gpio_datain(MX51_PIN_EIM_A26);
+	return gpio_get_value(IOMUX_TO_GPIO(MX51_PIN_EIM_A26));
 }
 
 static struct mxc_audio_platform_data sgtl5000_data = {
@@ -1100,7 +1100,7 @@ static inline void mxc_init_sgtl5000(void)
 
 static void bt_reset(void)
 {
-	mxc_set_gpio_dataout(MX51_PIN_EIM_D19, 1);
+	gpio_set_value(IOMUX_TO_GPIO(MX51_PIN_EIM_D19), 1);
 }
 
 static struct mxc_bt_platform_data mxc_bt_data = {
@@ -1127,7 +1127,7 @@ static void mxc_init_bluetooth(void)
 
 static void mxc_unifi_hardreset(int pin_level)
 {
-	mxc_set_gpio_dataout(MX51_PIN_EIM_D19, pin_level & 0x01);
+	gpio_set_value(IOMUX_TO_GPIO(MX51_PIN_EIM_D19), pin_level & 0x01);
 }
 
 static struct mxc_unifi_platform_data unifi_data = {
@@ -1198,11 +1198,11 @@ int gpio_gps_access(int para)
 	pin = (para & 0x1) ? MX51_PIN_EIM_CS2 : MX51_PIN_EIM_CRE;
 
 	if (para & 0x4) /* Read GPIO */
-		return mxc_get_gpio_datain(pin);
+		return gpio_get_value(IOMUX_TO_GPIO(pin));
 	else if (para & 0x2) /* Write GPIO */
-		mxc_set_gpio_dataout(pin, 1);
+		gpio_set_value(IOMUX_TO_GPIO(pin), 1);
 	else
-		mxc_set_gpio_dataout(pin, 0);
+		gpio_set_value(IOMUX_TO_GPIO(pin), 0);
 	return 0;
 }
 EXPORT_SYMBOL(gpio_gps_access);
@@ -1220,7 +1220,7 @@ static void __init mxc_board_init(void)
 	int err;
 
 	mxc_cpu_common_init();
-	mxc_gpio_init();
+	mxc_register_gpios();
 	mx51_3stack_io_init();
 	early_console_setup(saved_command_line);
 	mxc_init_devices();
@@ -1264,7 +1264,7 @@ static void __init mxc_board_init(void)
 	if (err)
 		printk(KERN_ERR "Error: bt reset request gpio failed!\n");
 	else
-	mxc_set_gpio_direction(MX51_PIN_EIM_D19, 0);
+	gpio_direction_output(IOMUX_TO_GPIO(MX51_PIN_EIM_D19), 0);
 }
 
 static void __init mx51_3stack_timer_init(void)

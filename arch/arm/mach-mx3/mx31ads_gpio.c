@@ -169,14 +169,14 @@ void gpio_uart_inactive(int port, int no_irda)
 
 	switch (port) {
 	case 0:
-		mxc_request_gpio(MX31_PIN_RXD1);
-		mxc_request_gpio(MX31_PIN_TXD1);
-		mxc_request_gpio(MX31_PIN_RTS1);
-		mxc_request_gpio(MX31_PIN_CTS1);
-		mxc_request_gpio(MX31_PIN_DTR_DCE1);
-		mxc_request_gpio(MX31_PIN_DSR_DCE1);
-		mxc_request_gpio(MX31_PIN_RI_DCE1);
-		mxc_request_gpio(MX31_PIN_DCD_DCE1);
+		gpio_request(IOMUX_TO_GPIO(MX31_PIN_RXD1), NULL);
+		gpio_request(IOMUX_TO_GPIO(MX31_PIN_TXD1), NULL);
+		gpio_request(IOMUX_TO_GPIO(MX31_PIN_RTS1), NULL);
+		gpio_request(IOMUX_TO_GPIO(MX31_PIN_CTS1), NULL);
+		gpio_request(IOMUX_TO_GPIO(MX31_PIN_DTR_DCE1), NULL);
+		gpio_request(IOMUX_TO_GPIO(MX31_PIN_DSR_DCE1), NULL);
+		gpio_request(IOMUX_TO_GPIO(MX31_PIN_RI_DCE1), NULL);
+		gpio_request(IOMUX_TO_GPIO(MX31_PIN_DCD_DCE1), NULL);
 
 		mxc_free_iomux(MX31_PIN_RXD1, OUTPUTCONFIG_GPIO,
 			       INPUTCONFIG_GPIO);
@@ -198,8 +198,8 @@ void gpio_uart_inactive(int port, int no_irda)
 		pbc_bctrl1_set |= PBC_BCTRL1_UENCE;
 		break;
 	case 1:
-		mxc_request_gpio(MX31_PIN_TXD2);
-		mxc_request_gpio(MX31_PIN_RXD2);
+		gpio_request(IOMUX_TO_GPIO(MX31_PIN_TXD2), NULL);
+		gpio_request(IOMUX_TO_GPIO(MX31_PIN_RXD2), NULL);
 
 		mxc_free_iomux(MX31_PIN_TXD2, OUTPUTCONFIG_GPIO,
 			       INPUTCONFIG_GPIO);
@@ -207,7 +207,7 @@ void gpio_uart_inactive(int port, int no_irda)
 			       INPUTCONFIG_GPIO);
 
 		if (no_irda == 1) {
-			mxc_request_gpio(MX31_PIN_DTR_DCE2);
+			gpio_request(IOMUX_TO_GPIO(MX31_PIN_DTR_DCE2), NULL);
 			mxc_free_iomux(MX31_PIN_DTR_DCE2, OUTPUTCONFIG_GPIO,
 				       INPUTCONFIG_GPIO);
 
@@ -220,10 +220,10 @@ void gpio_uart_inactive(int port, int no_irda)
 		pbc_bctrl1_set |= PBC_BCTRL1_UENB;
 		break;
 	case 3:
-		mxc_request_gpio(MX31_PIN_ATA_CS0);
-		mxc_request_gpio(MX31_PIN_ATA_CS1);
-		mxc_request_gpio(MX31_PIN_ATA_DIOR);
-		mxc_request_gpio(MX31_PIN_ATA_DIOW);
+		gpio_request(IOMUX_TO_GPIO(MX31_PIN_ATA_CS0), NULL);
+		gpio_request(IOMUX_TO_GPIO(MX31_PIN_ATA_CS1), NULL);
+		gpio_request(IOMUX_TO_GPIO(MX31_PIN_ATA_DIOR), NULL);
+		gpio_request(IOMUX_TO_GPIO(MX31_PIN_ATA_DIOW), NULL);
 
 		mxc_free_iomux(MX31_PIN_ATA_CS0, OUTPUTCONFIG_GPIO,
 			       INPUTCONFIG_GPIO);
@@ -511,8 +511,7 @@ void gpio_pmic_active(void)
 {
 	mxc_request_iomux(MX31_PIN_GPIO1_3, OUTPUTCONFIG_GPIO,
 			  INPUTCONFIG_GPIO);
-	mxc_set_gpio_direction(MX31_PIN_GPIO1_3, 1);
-//      mxc_set_gpio_edge_ctrl(MX31_PIN_GPIO1_3, GPIO_INT_RISE_EDGE);
+	gpio_direction_input(IOMUX_TO_GPIO(MX31_PIN_GPIO1_3));
 }
 
 EXPORT_SYMBOL(gpio_pmic_active);
@@ -654,9 +653,9 @@ EXPORT_SYMBOL(gpio_sdhc_inactive);
 int sdhc_get_card_det_status(struct device *dev)
 {
 	if (to_platform_device(dev)->id == 0) {
-		return mxc_get_gpio_datain(MX31_PIN_GPIO1_1);
+		return gpio_get_value(IOMUX_TO_GPIO(MX31_PIN_GPIO1_1));
 	} else {
-		return mxc_get_gpio_datain(MX31_PIN_GPIO1_2);
+		return gpio_get_value(IOMUX_TO_GPIO(MX31_PIN_GPIO1_2));
 	}
 }
 

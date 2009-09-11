@@ -199,7 +199,7 @@ int gpio_config_mux(iomux_pin_name_t pin, gpio_mux_mode_t mode)
 	index = GPIO_TO_INDEX(gpio);
 
 	pr_debug("%s: Configuring PORT %c, bit %d\n",
-		 __FUNCTION__, port->num + 'A', index);
+		 __func__, GPIO_TO_PORT(gpio) + 'A', index);
 
 	spin_lock_irqsave(&gpio_mux_lock, lock_flags);
 
@@ -268,7 +268,7 @@ int gpio_set_puen(iomux_pin_name_t pin, bool en)
 	index = GPIO_TO_INDEX(gpio);
 
 	pr_debug("%s: Configuring output mode of PORT %c, bit %d\n",
-		 __FUNCTION__, port->num + 'A', index);
+		 __func__, GPIO_TO_PORT(gpio) + 'A', index);
 
 	spin_lock_irqsave(&gpio_mux_lock, lock_flags);
 
@@ -287,11 +287,11 @@ int gpio_set_puen(iomux_pin_name_t pin, bool en)
 int gpio_request_mux(iomux_pin_name_t pin, gpio_mux_mode_t mode)
 {
 	int ret;
-	ret = mxc_request_gpio(pin);
+	ret = gpio_request(IOMUX_TO_GPIO(pin), NULL);
 	if (ret == 0) {
 		ret = gpio_config_mux(pin, mode);
 		if (ret) {
-			mxc_free_gpio(pin);
+			gpio_free(IOMUX_TO_GPIO(pin));
 		}
 	}
 	return ret;
@@ -304,5 +304,5 @@ int gpio_request_mux(iomux_pin_name_t pin, gpio_mux_mode_t mode)
  */
 void gpio_free_mux(iomux_pin_name_t pin)
 {
-	mxc_free_gpio(pin);
+	gpio_free(IOMUX_TO_GPIO(pin));
 }

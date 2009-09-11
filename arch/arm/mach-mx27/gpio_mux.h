@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2008 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2004-2009 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -21,6 +21,8 @@
 #define __ARCH_ARM_MACH_MX27_GPIO_MUX_H__
 
 #include "mx27_pins.h"
+
+typedef unsigned int iomux_pin_name_t;
 
 /*!
  * This enumeration data type defines the modes of the pin .

@@ -25,6 +25,8 @@
  * @ingroup GPIO_MX25
  */
 
+typedef unsigned int iomux_pin_name_t;
+
 /*!
  * IOMUX functions
  * SW_MUX_CTL

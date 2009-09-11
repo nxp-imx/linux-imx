@@ -266,7 +266,7 @@ static void __init mxc_board_init(void)
 	mxc_cpu_common_init();
 	mxc_clocks_init();
 	early_console_setup(saved_command_line);
-	mxc_gpio_init();
+	mxc_register_gpios();
 	mx35evb_gpio_init();
 	mxc_init_enet();
 	mxc_init_nor_mtd();

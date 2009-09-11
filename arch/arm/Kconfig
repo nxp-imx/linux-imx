@@ -424,8 +424,8 @@ config ARCH_MXC
 	select ARCH_MTD_XIP
 	select GENERIC_TIME
 	select GENERIC_CLOCKEVENTS
-#	select GENERIC_GPIO
-#	select ARCH_REQUIRE_GPIOLIB
+	select GENERIC_GPIO
+	select ARCH_REQUIRE_GPIOLIB
 	select ZONE_DMA
 	help
 	  Support for Freescale MXC/iMX-based family of processors

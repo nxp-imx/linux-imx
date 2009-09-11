@@ -685,9 +685,9 @@ void gpio_fs453_reset_low(void)
 	}
 
 	/* PA25 (CLS) as output */
-	mxc_set_gpio_direction(MX27_PIN_CLS, 0);
+	gpio_direction_output(IOMUX_TO_GPIO(MX27_PIN_CLS), 0);
 	gpio_config_mux(MX27_PIN_CLS, GPIO_MUX_GPIO);
-	mxc_set_gpio_dataout(MX27_PIN_CLS, 0);
+	gpio_set_value(IOMUX_TO_GPIO(MX27_PIN_CLS), 0);
 }
 
 /*!
@@ -703,9 +703,9 @@ void gpio_fs453_reset_high(void)
 	}
 
 	/* PA25 (CLS) as output */
-	mxc_set_gpio_direction(MX27_PIN_CLS, 0);
+	gpio_direction_output(IOMUX_TO_GPIO(MX27_PIN_CLS), 0);
 	gpio_config_mux(MX27_PIN_CLS, GPIO_MUX_GPIO);
-	mxc_set_gpio_dataout(MX27_PIN_CLS, 1);
+	gpio_set_value(IOMUX_TO_GPIO(MX27_PIN_CLS), 1);
 }
 
 /*!
@@ -715,7 +715,7 @@ void gpio_fs453_reset_high(void)
 void gpio_pmic_active(void)
 {
 	gpio_config_mux(MX27_PIN_TOUT, GPIO_MUX_GPIO);
-	mxc_set_gpio_direction(MX27_PIN_TOUT, 1);
+	gpio_direction_input(IOMUX_TO_GPIO(MX27_PIN_TOUT));
 }
 
 /*!
@@ -823,41 +823,41 @@ void gpio_ata_inactive(void)
 void gpio_fec_active(void)
 {
 	gpio_request_mux(MX27_PIN_ATA_DATA15, GPIO_MUX_OUTPUT1);
-	mxc_set_gpio_direction(MX27_PIN_ATA_DATA15, 0);
+	gpio_direction_output(IOMUX_TO_GPIO(MX27_PIN_ATA_DATA15), 0);
 	gpio_request_mux(MX27_PIN_ATA_DATA14, GPIO_MUX_OUTPUT1);
-	mxc_set_gpio_direction(MX27_PIN_ATA_DATA14, 0);
+	gpio_direction_output(IOMUX_TO_GPIO(MX27_PIN_ATA_DATA14), 0);
 	gpio_request_mux(MX27_PIN_ATA_DATA13, GPIO_MUX_INPUT1);
-	mxc_set_gpio_direction(MX27_PIN_ATA_DATA13, 1);
+	gpio_direction_input(IOMUX_TO_GPIO(MX27_PIN_ATA_DATA13));
 	gpio_request_mux(MX27_PIN_ATA_DATA12, GPIO_MUX_INPUT1);
-	mxc_set_gpio_direction(MX27_PIN_ATA_DATA12, 1);
+	gpio_direction_input(IOMUX_TO_GPIO(MX27_PIN_ATA_DATA12));
 	gpio_request_mux(MX27_PIN_ATA_DATA11, GPIO_MUX_INPUT1);
-	mxc_set_gpio_direction(MX27_PIN_ATA_DATA11, 1);
+	gpio_direction_input(IOMUX_TO_GPIO(MX27_PIN_ATA_DATA11));
 	gpio_request_mux(MX27_PIN_ATA_DATA10, GPIO_MUX_INPUT1);
-	mxc_set_gpio_direction(MX27_PIN_ATA_DATA10, 1);
+	gpio_direction_input(IOMUX_TO_GPIO(MX27_PIN_ATA_DATA10));
 	gpio_request_mux(MX27_PIN_ATA_DATA9, GPIO_MUX_INPUT1);
-	mxc_set_gpio_direction(MX27_PIN_ATA_DATA9, 1);
+	gpio_direction_input(IOMUX_TO_GPIO(MX27_PIN_ATA_DATA9));
 	gpio_request_mux(MX27_PIN_ATA_DATA8, GPIO_MUX_INPUT1);
-	mxc_set_gpio_direction(MX27_PIN_ATA_DATA8, 1);
+	gpio_direction_input(IOMUX_TO_GPIO(MX27_PIN_ATA_DATA8));
 	gpio_request_mux(MX27_PIN_ATA_DATA7, GPIO_MUX_OUTPUT1);
-	mxc_set_gpio_direction(MX27_PIN_ATA_DATA7, 0);
+	gpio_direction_output(IOMUX_TO_GPIO(MX27_PIN_ATA_DATA7), 0);
 
 	gpio_request_mux(MX27_PIN_ATA_DATA6, GPIO_MUX_ALT);
 	gpio_request_mux(MX27_PIN_ATA_DATA5, GPIO_MUX_INPUT1);
-	mxc_set_gpio_direction(MX27_PIN_ATA_DATA5, 1);
+	gpio_direction_input(IOMUX_TO_GPIO(MX27_PIN_ATA_DATA5));
 	gpio_request_mux(MX27_PIN_ATA_DATA4, GPIO_MUX_INPUT1);
-	mxc_set_gpio_direction(MX27_PIN_ATA_DATA4, 1);
+	gpio_direction_input(IOMUX_TO_GPIO(MX27_PIN_ATA_DATA4));
 	gpio_request_mux(MX27_PIN_ATA_DATA3, GPIO_MUX_INPUT1);
-	mxc_set_gpio_direction(MX27_PIN_ATA_DATA3, 1);
+	gpio_direction_input(IOMUX_TO_GPIO(MX27_PIN_ATA_DATA3));
 	gpio_request_mux(MX27_PIN_ATA_DATA2, GPIO_MUX_INPUT1);
-	mxc_set_gpio_direction(MX27_PIN_ATA_DATA2, 1);
+	gpio_direction_input(IOMUX_TO_GPIO(MX27_PIN_ATA_DATA2));
 	gpio_request_mux(MX27_PIN_ATA_DATA1, GPIO_MUX_OUTPUT1);
-	mxc_set_gpio_direction(MX27_PIN_ATA_DATA1, 0);
+	gpio_direction_output(IOMUX_TO_GPIO(MX27_PIN_ATA_DATA1), 0);
 	gpio_request_mux(MX27_PIN_ATA_DATA0, GPIO_MUX_OUTPUT1);
-	mxc_set_gpio_direction(MX27_PIN_ATA_DATA0, 0);
+	gpio_direction_output(IOMUX_TO_GPIO(MX27_PIN_ATA_DATA0), 0);
 	gpio_request_mux(MX27_PIN_SD3_CLK, GPIO_MUX_OUTPUT1);
-	mxc_set_gpio_direction(MX27_PIN_SD3_CLK, 0);
+	gpio_direction_output(IOMUX_TO_GPIO(MX27_PIN_SD3_CLK), 0);
 	gpio_request_mux(MX27_PIN_SD3_CMD, GPIO_MUX_OUTPUT1);
-	mxc_set_gpio_direction(MX27_PIN_SD3_CMD, 0);
+	gpio_direction_output(IOMUX_TO_GPIO(MX27_PIN_SD3_CMD), 0);
 
 	__raw_writew(PBC_BCTRL2_ATAFEC_EN, PBC_BCTRL2_CLEAR_REG);
 	__raw_writew(PBC_BCTRL2_ATAFEC_SEL, PBC_BCTRL2_SET_REG);

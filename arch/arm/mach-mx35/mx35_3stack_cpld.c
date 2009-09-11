@@ -138,7 +138,7 @@ static int __init mxc_expio_init(void)
 	 * Configure INT line as GPIO input
 	 */
 	mxc_request_iomux(EXPIO_PARENT_INT, MUX_CONFIG_FUNC);
-	mxc_set_gpio_direction(EXPIO_PARENT_INT, 1);
+	gpio_direction_input(IOMUX_TO_GPIO(EXPIO_PARENT_INT));
 
 	/* disable the interrupt and clear the status */
 	__raw_writew(0, mx35_3stack_board_io + INTR_MASK_REG);

@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2008 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2004-2009 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -161,7 +161,7 @@ int mxc_request_iomux(iomux_pin_name_t pin, iomux_pin_ocfg_t out,
 {
 	int ret = iomux_config_mux(pin, out, in);
 	if (out == OUTPUTCONFIG_GPIO && in == INPUTCONFIG_GPIO) {
-		ret |= mxc_request_gpio(pin);
+		ret |= gpio_request(IOMUX_TO_GPIO(pin), NULL);
 	}
 	return ret;
 }
@@ -185,7 +185,7 @@ void mxc_free_iomux(iomux_pin_name_t pin, iomux_pin_ocfg_t out,
 
 	*rp = 0;
 	if (out == OUTPUTCONFIG_GPIO && in == INPUTCONFIG_GPIO) {
-		mxc_free_gpio(pin);
+		gpio_free(IOMUX_TO_GPIO(pin));
 	}
 }
 

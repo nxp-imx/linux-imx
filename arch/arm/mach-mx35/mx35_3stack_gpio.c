@@ -137,10 +137,10 @@ void gpio_uart_inactive(int port, int no_irda)
 {
 	switch (port) {
 	case 0:
-		mxc_request_gpio(MX35_PIN_RXD1);
-		mxc_request_gpio(MX35_PIN_TXD1);
-		mxc_request_gpio(MX35_PIN_RTS1);
-		mxc_request_gpio(MX35_PIN_CTS1);
+		gpio_request(IOMUX_TO_GPIO(MX35_PIN_RXD1), NULL);
+		gpio_request(IOMUX_TO_GPIO(MX35_PIN_TXD1), NULL);
+		gpio_request(IOMUX_TO_GPIO(MX35_PIN_RTS1), NULL);
+		gpio_request(IOMUX_TO_GPIO(MX35_PIN_CTS1), NULL);
 
 		mxc_free_iomux(MX35_PIN_RXD1, MUX_CONFIG_GPIO);
 		mxc_free_iomux(MX35_PIN_TXD1, MUX_CONFIG_GPIO);
@@ -148,10 +148,10 @@ void gpio_uart_inactive(int port, int no_irda)
 		mxc_free_iomux(MX35_PIN_CTS1, MUX_CONFIG_GPIO);
 		break;
 	case 1:
-		mxc_request_gpio(MX35_PIN_RXD2);
-		mxc_request_gpio(MX35_PIN_TXD2);
-		mxc_request_gpio(MX35_PIN_RTS2);
-		mxc_request_gpio(MX35_PIN_CTS2);
+		gpio_request(IOMUX_TO_GPIO(MX35_PIN_RXD2), NULL);
+		gpio_request(IOMUX_TO_GPIO(MX35_PIN_TXD2), NULL);
+		gpio_request(IOMUX_TO_GPIO(MX35_PIN_RTS2), NULL);
+		gpio_request(IOMUX_TO_GPIO(MX35_PIN_CTS2), NULL);
 
 		mxc_free_iomux(MX35_PIN_RXD2, MUX_CONFIG_GPIO);
 		mxc_free_iomux(MX35_PIN_TXD2, MUX_CONFIG_GPIO);
@@ -159,10 +159,10 @@ void gpio_uart_inactive(int port, int no_irda)
 		mxc_free_iomux(MX35_PIN_CTS2, MUX_CONFIG_GPIO);
 		break;
 	case 2:
-		mxc_request_gpio(MX35_PIN_FEC_TX_CLK);
-		mxc_request_gpio(MX35_PIN_FEC_RX_CLK);
-		mxc_request_gpio(MX35_PIN_FEC_COL);
-		mxc_request_gpio(MX35_PIN_FEC_RX_DV);
+		gpio_request(IOMUX_TO_GPIO(MX35_PIN_FEC_TX_CLK), NULL);
+		gpio_request(IOMUX_TO_GPIO(MX35_PIN_FEC_RX_CLK), NULL);
+		gpio_request(IOMUX_TO_GPIO(MX35_PIN_FEC_COL), NULL);
+		gpio_request(IOMUX_TO_GPIO(MX35_PIN_FEC_RX_DV), NULL);
 
 		mxc_free_iomux(MX35_PIN_FEC_TX_CLK, MUX_CONFIG_GPIO);
 		mxc_free_iomux(MX35_PIN_FEC_RX_CLK, MUX_CONFIG_GPIO);
@@ -275,8 +275,8 @@ void gpio_fec_active(void)
 				PAD_CTL_PKE_ENABLE | PAD_CTL_100K_PU |
 				PAD_CTL_DRV_3_3V | PAD_CTL_PUE_PUD |
 				PAD_CTL_SRE_SLOW);
-		mxc_set_gpio_direction(MX35_PIN_COMPARE, 0);
-		mxc_set_gpio_dataout(MX35_PIN_COMPARE, 1);
+		gpio_direction_output(IOMUX_TO_GPIO(MX35_PIN_COMPARE), 0);
+		gpio_set_value(IOMUX_TO_GPIO(MX35_PIN_COMPARE), 1);
 	}
 
 	/* FEC enable */
@@ -292,24 +292,24 @@ EXPORT_SYMBOL(gpio_fec_active);
 
 void gpio_fec_inactive(void)
 {
-	mxc_request_gpio(MX35_PIN_FEC_TX_CLK);
-	mxc_request_gpio(MX35_PIN_FEC_RX_CLK);
-	mxc_request_gpio(MX35_PIN_FEC_RX_DV);
-	mxc_request_gpio(MX35_PIN_FEC_COL);
-	mxc_request_gpio(MX35_PIN_FEC_RDATA0);
-	mxc_request_gpio(MX35_PIN_FEC_TDATA0);
-	mxc_request_gpio(MX35_PIN_FEC_TX_EN);
-	mxc_request_gpio(MX35_PIN_FEC_MDC);
-	mxc_request_gpio(MX35_PIN_FEC_MDIO);
-	mxc_request_gpio(MX35_PIN_FEC_TX_ERR);
-	mxc_request_gpio(MX35_PIN_FEC_RX_ERR);
-	mxc_request_gpio(MX35_PIN_FEC_CRS);
-	mxc_request_gpio(MX35_PIN_FEC_RDATA1);
-	mxc_request_gpio(MX35_PIN_FEC_TDATA1);
-	mxc_request_gpio(MX35_PIN_FEC_RDATA2);
-	mxc_request_gpio(MX35_PIN_FEC_TDATA2);
-	mxc_request_gpio(MX35_PIN_FEC_RDATA3);
-	mxc_request_gpio(MX35_PIN_FEC_TDATA3);
+	gpio_request(IOMUX_TO_GPIO(MX35_PIN_FEC_TX_CLK), NULL);
+	gpio_request(IOMUX_TO_GPIO(MX35_PIN_FEC_RX_CLK), NULL);
+	gpio_request(IOMUX_TO_GPIO(MX35_PIN_FEC_RX_DV), NULL);
+	gpio_request(IOMUX_TO_GPIO(MX35_PIN_FEC_COL), NULL);
+	gpio_request(IOMUX_TO_GPIO(MX35_PIN_FEC_RDATA0), NULL);
+	gpio_request(IOMUX_TO_GPIO(MX35_PIN_FEC_TDATA0), NULL);
+	gpio_request(IOMUX_TO_GPIO(MX35_PIN_FEC_TX_EN), NULL);
+	gpio_request(IOMUX_TO_GPIO(MX35_PIN_FEC_MDC), NULL);
+	gpio_request(IOMUX_TO_GPIO(MX35_PIN_FEC_MDIO), NULL);
+	gpio_request(IOMUX_TO_GPIO(MX35_PIN_FEC_TX_ERR), NULL);
+	gpio_request(IOMUX_TO_GPIO(MX35_PIN_FEC_RX_ERR), NULL);
+	gpio_request(IOMUX_TO_GPIO(MX35_PIN_FEC_CRS), NULL);
+	gpio_request(IOMUX_TO_GPIO(MX35_PIN_FEC_RDATA1), NULL);
+	gpio_request(IOMUX_TO_GPIO(MX35_PIN_FEC_TDATA1), NULL);
+	gpio_request(IOMUX_TO_GPIO(MX35_PIN_FEC_RDATA2), NULL);
+	gpio_request(IOMUX_TO_GPIO(MX35_PIN_FEC_TDATA2), NULL);
+	gpio_request(IOMUX_TO_GPIO(MX35_PIN_FEC_RDATA3), NULL);
+	gpio_request(IOMUX_TO_GPIO(MX35_PIN_FEC_TDATA3), NULL);
 
 	mxc_free_iomux(MX35_PIN_FEC_TX_CLK, MUX_CONFIG_GPIO);
 	mxc_free_iomux(MX35_PIN_FEC_RX_CLK, MUX_CONFIG_GPIO);
@@ -468,12 +468,12 @@ void gpio_spi_inactive(int cspi_mod)
 	switch (cspi_mod) {
 	case 0:
 		/* SPI1 */
-		mxc_request_gpio(MX35_PIN_CSPI1_MOSI);
-		mxc_request_gpio(MX35_PIN_CSPI1_MISO);
-		mxc_request_gpio(MX35_PIN_CSPI1_SS0);
-		mxc_request_gpio(MX35_PIN_CSPI1_SS1);
-		mxc_request_gpio(MX35_PIN_CSPI1_SCLK);
-		mxc_request_gpio(MX35_PIN_CSPI1_SPI_RDY);
+		gpio_request(IOMUX_TO_GPIO(MX35_PIN_CSPI1_MOSI), NULL);
+		gpio_request(IOMUX_TO_GPIO(MX35_PIN_CSPI1_MISO), NULL);
+		gpio_request(IOMUX_TO_GPIO(MX35_PIN_CSPI1_SS0), NULL);
+		gpio_request(IOMUX_TO_GPIO(MX35_PIN_CSPI1_SS1), NULL);
+		gpio_request(IOMUX_TO_GPIO(MX35_PIN_CSPI1_SCLK), NULL);
+		gpio_request(IOMUX_TO_GPIO(MX35_PIN_CSPI1_SPI_RDY), NULL);
 
 		mxc_free_iomux(MX35_PIN_CSPI1_MOSI, MUX_CONFIG_GPIO);
 		mxc_free_iomux(MX35_PIN_CSPI1_MISO, MUX_CONFIG_GPIO);
@@ -541,7 +541,7 @@ void gpio_tsc_active(void)
 	unsigned int pad_val = PAD_CTL_PKE_ENABLE | PAD_CTL_100K_PU;
 	mxc_request_iomux(MX35_PIN_CAPTURE, MUX_CONFIG_GPIO);
 	mxc_iomux_set_pad(MX35_PIN_CAPTURE, pad_val);
-	mxc_set_gpio_direction(MX35_PIN_CAPTURE, 1);
+	gpio_direction_input(IOMUX_TO_GPIO(MX35_PIN_CAPTURE));
 }
 
 /*!
@@ -802,9 +802,9 @@ EXPORT_SYMBOL(gpio_usbh2_active);
 
 void gpio_usbh2_inactive(void)
 {
-	mxc_request_gpio(MX35_PIN_I2C2_DAT);
+	gpio_request(IOMUX_TO_GPIO(MX35_PIN_I2C2_DAT), NULL);
 	mxc_free_iomux(MX35_PIN_I2C2_DAT, MUX_CONFIG_GPIO);
-	mxc_request_gpio(MX35_PIN_I2C2_CLK);
+	gpio_request(IOMUX_TO_GPIO(MX35_PIN_I2C2_CLK), NULL);
 	mxc_free_iomux(MX35_PIN_I2C2_CLK, MUX_CONFIG_GPIO);
 }
 
@@ -827,9 +827,9 @@ EXPORT_SYMBOL(gpio_usbotg_utmi_active);
 
 void gpio_usbotg_utmi_inactive(void)
 {
-	mxc_request_gpio(MX35_PIN_USBOTG_PWR);
+	gpio_request(IOMUX_TO_GPIO(MX35_PIN_USBOTG_PWR), NULL);
 	mxc_free_iomux(MX35_PIN_USBOTG_PWR, MUX_CONFIG_GPIO);
-	mxc_request_gpio(MX35_PIN_USBOTG_OC);
+	gpio_request(IOMUX_TO_GPIO(MX35_PIN_USBOTG_OC), NULL);
 	mxc_free_iomux(MX35_PIN_USBOTG_OC, MUX_CONFIG_GPIO);
 }
 
@@ -1233,8 +1233,8 @@ void gpio_gps_active(void)
 				PAD_CTL_PKE_ENABLE | PAD_CTL_100K_PU |
 				PAD_CTL_DRV_3_3V | PAD_CTL_PUE_PUD |
 				PAD_CTL_SRE_SLOW);
-		mxc_set_gpio_direction(MX35_PIN_COMPARE, 0);
-		mxc_set_gpio_dataout(MX35_PIN_COMPARE, 0);
+		gpio_direction_output(IOMUX_TO_GPIO(MX35_PIN_COMPARE), 0);
+		gpio_set_value(IOMUX_TO_GPIO(MX35_PIN_COMPARE), 0);
 	}
 
 	/* PWR_EN_GPS is set to be 0, will be toggled on in app by ioctl */
@@ -1366,7 +1366,7 @@ void gpio_pmic_active(void)
 		| PAD_CTL_HYS_CMOS | PAD_CTL_100K_PU | PAD_CTL_DRV_3_3V;
 	mxc_request_iomux(MX35_PIN_GPIO2_0, MUX_CONFIG_FUNC);
 	mxc_iomux_set_pad(MX35_PIN_GPIO2_0, pad_val);
-	mxc_set_gpio_direction(MX35_PIN_GPIO2_0, 1);
+	gpio_direction_input(IOMUX_TO_GPIO(MX35_PIN_GPIO2_0));
 }
 
 EXPORT_SYMBOL(gpio_pmic_active);

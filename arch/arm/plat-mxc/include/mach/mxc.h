@@ -28,22 +28,6 @@
 #include <linux/types.h>
 
 /*!
- * @ingroup MSL_MX27 MSL_MX31 MSL_MXC91321  MSL_MX37
- */
-/*!
- * gpio port structure
- */
-struct mxc_gpio_port {
-	u32 num;		/*!< gpio port number */
-	u32 base;		/*!< gpio port base VA */
-#ifdef MXC_GPIO_SPLIT_IRQ_2
-	u16 irq_0_15, irq_16_31;
-#else
-	u16 irq;		/*!< irq number to the core */
-#endif
-	u16 virtual_irq_start;	/*!< virtual irq start number */
-};
-/*!
  * This structure is used to define the One wire platform data.
  * It includes search rom accelerator.
  */

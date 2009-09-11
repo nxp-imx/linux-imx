@@ -892,35 +892,40 @@ static inline void mxc_init_dvfs(void)
 }
 
 struct mxc_gpio_port mxc_gpio_ports[GPIO_PORT_NUM] = {
-	{
-	 .num = 0,
+	[0] = {
+	 .chip.label = "gpio-0",
 	 .base = IO_ADDRESS(GPIO1_BASE_ADDR),
-	 .irq_0_15 = MXC_INT_GPIO1_LOW,
-	 .irq_16_31 = MXC_INT_GPIO1_HIGH,
-	 .virtual_irq_start = MXC_GPIO_INT_BASE,
+	 .irq = MXC_INT_GPIO1_LOW,
+	 .irq_high = MXC_INT_GPIO1_HIGH,
+	 .virtual_irq_start = MXC_GPIO_INT_BASE
 	 },
-	{
-	 .num = 1,
+	[1] = {
+	 .chip.label = "gpio-1",
 	 .base = IO_ADDRESS(GPIO2_BASE_ADDR),
-	 .irq_0_15 = MXC_INT_GPIO2_LOW,
-	 .irq_16_31 = MXC_INT_GPIO2_HIGH,
-	 .virtual_irq_start = MXC_GPIO_INT_BASE + GPIO_NUM_PIN * 1,
+	 .irq = MXC_INT_GPIO2_LOW,
+	 .irq_high = MXC_INT_GPIO2_HIGH,
+	 .virtual_irq_start = MXC_GPIO_INT_BASE + GPIO_NUM_PIN * 1
 	 },
-	{
-	 .num = 2,
+	[2] = {
+	 .chip.label = "gpio-2",
 	 .base = IO_ADDRESS(GPIO3_BASE_ADDR),
-	 .irq_0_15 = MXC_INT_GPIO3_LOW,
-	 .irq_16_31 = MXC_INT_GPIO3_HIGH,
-	 .virtual_irq_start = MXC_GPIO_INT_BASE + GPIO_NUM_PIN * 2,
+	 .irq = MXC_INT_GPIO3_LOW,
+	 .irq_high = MXC_INT_GPIO3_HIGH,
+	 .virtual_irq_start = MXC_GPIO_INT_BASE + GPIO_NUM_PIN * 2
 	 },
-	{
-	 .num = 3,
+	[3] = {
+	 .chip.label = "gpio-3",
 	 .base = IO_ADDRESS(GPIO4_BASE_ADDR),
-	 .irq_0_15 = MXC_INT_GPIO4_LOW,
-	 .irq_16_31 = MXC_INT_GPIO4_HIGH,
-	 .virtual_irq_start = MXC_GPIO_INT_BASE + GPIO_NUM_PIN * 3,
-	 },
+	 .irq = MXC_INT_GPIO4_LOW,
+	 .irq_high = MXC_INT_GPIO4_HIGH,
+	 .virtual_irq_start = MXC_GPIO_INT_BASE + GPIO_NUM_PIN * 3
+	 }
 };
+
+int __init mxc_register_gpios(void)
+{
+	return mxc_gpio_init(mxc_gpio_ports, ARRAY_SIZE(mxc_gpio_ports));
+}
 
 static struct platform_device mxc_dma_device = {
 	.name = "mxc_dma",

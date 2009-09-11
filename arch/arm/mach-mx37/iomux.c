@@ -113,7 +113,7 @@ int mxc_request_iomux(iomux_pin_name_t pin, iomux_pin_cfg_t config)
 	if (!ret && (gpio_port != NON_GPIO_PORT)
 	    && ((config == IOMUX_CONFIG_GPIO)
 		|| (config == PIN_TO_ALT_GPIO(pin)))) {
-		ret |= mxc_request_gpio(pin);
+		ret |= gpio_request(IOMUX_TO_GPIO(pin), NULL);
 	}
 	return ret;
 }
@@ -135,7 +135,7 @@ void mxc_free_iomux(iomux_pin_name_t pin, iomux_pin_cfg_t config)
 	if ((gpio_port != NON_GPIO_PORT)
 	    && ((config == IOMUX_CONFIG_GPIO)
 		|| (config == PIN_TO_ALT_GPIO(pin)))) {
-		mxc_free_gpio(pin);
+		gpio_free(IOMUX_TO_GPIO(pin));
 	}
 }
 

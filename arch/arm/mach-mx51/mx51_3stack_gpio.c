@@ -805,34 +805,34 @@ void __init mx51_3stack_io_init(void)
 	}
 
 	/* Camera low power */
-	mxc_set_gpio_direction(MX51_PIN_CSI1_D8, 0);
-	mxc_set_gpio_dataout(MX51_PIN_CSI1_D8, 0);
-	mxc_set_gpio_direction(MX51_PIN_EIM_EB2, 0);    /* TO1 */
-	mxc_set_gpio_dataout(MX51_PIN_EIM_EB2, 0);      /* TO1 */
+	gpio_direction_output(IOMUX_TO_GPIO(MX51_PIN_CSI1_D8), 0);
+	gpio_set_value(IOMUX_TO_GPIO(MX51_PIN_CSI1_D8), 0);
+	gpio_direction_output(IOMUX_TO_GPIO(MX51_PIN_EIM_EB2), 0);    /* TO1 */
+	gpio_set_value(IOMUX_TO_GPIO(MX51_PIN_EIM_EB2), 0);      /* TO1 */
 
 	/* Camera reset */
-	mxc_set_gpio_direction(MX51_PIN_CSI1_D9, 0);
-	mxc_set_gpio_dataout(MX51_PIN_CSI1_D9, 1);
-	mxc_set_gpio_direction(MX51_PIN_DI1_D1_CS, 0);
+	gpio_direction_output(IOMUX_TO_GPIO(MX51_PIN_CSI1_D9), 0);
+	gpio_set_value(IOMUX_TO_GPIO(MX51_PIN_CSI1_D9), 1);
+	gpio_direction_output(IOMUX_TO_GPIO(MX51_PIN_DI1_D1_CS), 0);
 
-	mxc_set_gpio_direction(MX51_PIN_GPIO1_0, 1);	/* SD1 CD */
-	mxc_set_gpio_direction(MX51_PIN_GPIO1_1, 1);	/* SD1 WP */
+	gpio_direction_input(IOMUX_TO_GPIO(MX51_PIN_GPIO1_0));	/* SD1 CD */
+	gpio_direction_input(IOMUX_TO_GPIO(MX51_PIN_GPIO1_1));	/* SD1 WP */
 
 	/* EIM_D16 */
 	/* osc_en is shared by SPDIF */
-	mxc_set_gpio_direction(MX51_PIN_EIM_D16, 0);
-	mxc_set_gpio_dataout(MX51_PIN_EIM_D16, 1);
+	gpio_direction_output(IOMUX_TO_GPIO(MX51_PIN_EIM_D16), 0);
+	gpio_set_value(IOMUX_TO_GPIO(MX51_PIN_EIM_D16), 1);
 
 	/* LCD related gpio */
-	mxc_set_gpio_direction(MX51_PIN_DI1_D1_CS, 0);
-	mxc_set_gpio_direction(MX51_PIN_DISPB2_SER_DIO, 0);
-	mxc_set_gpio_dataout(MX51_PIN_DISPB2_SER_DIO, 0);
+	gpio_direction_output(IOMUX_TO_GPIO(MX51_PIN_DI1_D1_CS), 0);
+	gpio_direction_output(IOMUX_TO_GPIO(MX51_PIN_DISPB2_SER_DIO), 0);
+	gpio_set_value(IOMUX_TO_GPIO(MX51_PIN_DISPB2_SER_DIO), 0);
 
 	/* GPS related gpio */
-	mxc_set_gpio_direction(MX51_PIN_EIM_CS2, 0);
-	mxc_set_gpio_dataout(MX51_PIN_EIM_CS2, 0);
-	mxc_set_gpio_direction(MX51_PIN_EIM_CRE, 0);
-	mxc_set_gpio_dataout(MX51_PIN_EIM_CRE, 0);
-	mxc_set_gpio_dataout(MX51_PIN_EIM_CRE, 1);
+	gpio_direction_output(IOMUX_TO_GPIO(MX51_PIN_EIM_CS2), 0);
+	gpio_set_value(IOMUX_TO_GPIO(MX51_PIN_EIM_CS2), 0);
+	gpio_direction_output(IOMUX_TO_GPIO(MX51_PIN_EIM_CRE), 0);
+	gpio_set_value(IOMUX_TO_GPIO(MX51_PIN_EIM_CRE), 0);
+	gpio_set_value(IOMUX_TO_GPIO(MX51_PIN_EIM_CRE), 1);
 }
 

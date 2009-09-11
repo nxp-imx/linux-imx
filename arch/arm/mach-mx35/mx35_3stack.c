@@ -1058,7 +1058,7 @@ static void __init mxc_board_init(void)
 	mxc_cpu_common_init();
 
 	early_console_setup(saved_command_line);
-	mxc_gpio_init();
+	mxc_register_gpios();
 	mxc_init_devices();
 	if (!board_is_mx35(BOARD_REV_2))
 		mx35_3stack_fixup_for_board_v1();

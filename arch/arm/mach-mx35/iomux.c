@@ -119,7 +119,7 @@ int mxc_request_iomux(iomux_pin_name_t pin, iomux_pin_cfg_t cfg)
 		    (((cfg & (~MUX_CONFIG_SION)) == MUX_CONFIG_FUNC) &&
 		     ((pin == MX35_PIN_GPIO1_0) || (pin == MX35_PIN_GPIO1_1) ||
 		      (pin == MX35_PIN_GPIO2_0) || (pin == MX35_PIN_GPIO3_0))))
-			ret |= mxc_request_gpio(pin);
+			ret |= gpio_request(IOMUX_TO_GPIO(pin), NULL);
 	}
 	return ret;
 }
@@ -145,7 +145,7 @@ void mxc_free_iomux(iomux_pin_name_t pin, iomux_pin_cfg_t cfg)
 		    (((cfg & (~MUX_CONFIG_SION)) == MUX_CONFIG_FUNC) &&
 		     ((pin == MX35_PIN_GPIO1_0) || (pin == MX35_PIN_GPIO1_1) ||
 		      (pin == MX35_PIN_GPIO2_0) || (pin == MX35_PIN_GPIO3_0))))
-			mxc_free_gpio(pin);
+			gpio_free(IOMUX_TO_GPIO(pin));
 	}
 }
 

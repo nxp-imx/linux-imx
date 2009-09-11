@@ -612,7 +612,7 @@ static int __init mxc_expio_init(void)
 	 * Configure INT line as GPIO input
 	 */
 	gpio_config_mux(MX27_PIN_TIN, GPIO_MUX_GPIO);
-	mxc_set_gpio_direction(MX27_PIN_TIN, 1);
+	gpio_direction_input(IOMUX_TO_GPIO(MX27_PIN_TIN));
 
 	/* disable the interrupt and clear the status */
 	__raw_writew(0xFFFF, PBC_INTMASK_CLEAR_REG);
@@ -747,7 +747,7 @@ static __init void mxc_board_init(void)
 	pr_info("AIPI VA base: 0x%x\n", IO_ADDRESS(AIPI_BASE_ADDR));
 	mxc_cpu_common_init();
 	early_console_setup(saved_command_line);
-	mxc_gpio_init();
+	mxc_register_gpios();
 	mxc_expio_init();
 	mxc_init_keypad();
 	mxc_init_nor_mtd();

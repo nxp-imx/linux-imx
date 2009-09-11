@@ -120,10 +120,10 @@ void gpio_uart_inactive(int port, int no_irda)
 {
 	switch (port) {
 	case 0:
-		mxc_request_gpio(MX35_PIN_RXD1);
-		mxc_request_gpio(MX35_PIN_TXD1);
-		mxc_request_gpio(MX35_PIN_RTS1);
-		mxc_request_gpio(MX35_PIN_CTS1);
+		gpio_request(IOMUX_TO_GPIO(MX35_PIN_RXD1), NULL);
+		gpio_request(IOMUX_TO_GPIO(MX35_PIN_TXD1), NULL);
+		gpio_request(IOMUX_TO_GPIO(MX35_PIN_RTS1), NULL);
+		gpio_request(IOMUX_TO_GPIO(MX35_PIN_CTS1), NULL);
 
 		mxc_free_iomux(MX35_PIN_RXD1, MUX_CONFIG_GPIO);
 		mxc_free_iomux(MX35_PIN_TXD1, MUX_CONFIG_GPIO);
@@ -131,10 +131,10 @@ void gpio_uart_inactive(int port, int no_irda)
 		mxc_free_iomux(MX35_PIN_CTS1, MUX_CONFIG_GPIO);
 		break;
 	case 1:
-		mxc_request_gpio(MX35_PIN_RXD2);
-		mxc_request_gpio(MX35_PIN_TXD2);
-		mxc_request_gpio(MX35_PIN_RTS2);
-		mxc_request_gpio(MX35_PIN_CTS2);
+		gpio_request(IOMUX_TO_GPIO(MX35_PIN_RXD2), NULL);
+		gpio_request(IOMUX_TO_GPIO(MX35_PIN_TXD2), NULL);
+		gpio_request(IOMUX_TO_GPIO(MX35_PIN_RTS2), NULL);
+		gpio_request(IOMUX_TO_GPIO(MX35_PIN_CTS2), NULL);
 
 		mxc_free_iomux(MX35_PIN_RXD2, MUX_CONFIG_GPIO);
 		mxc_free_iomux(MX35_PIN_TXD2, MUX_CONFIG_GPIO);
@@ -142,10 +142,10 @@ void gpio_uart_inactive(int port, int no_irda)
 		mxc_free_iomux(MX35_PIN_CTS2, MUX_CONFIG_GPIO);
 		break;
 	case 2:
-		mxc_request_gpio(MX35_PIN_FEC_TX_CLK);
-		mxc_request_gpio(MX35_PIN_FEC_RX_CLK);
-		mxc_request_gpio(MX35_PIN_FEC_COL);
-		mxc_request_gpio(MX35_PIN_FEC_RX_DV);
+		gpio_request(IOMUX_TO_GPIO(MX35_PIN_FEC_TX_CLK), NULL);
+		gpio_request(IOMUX_TO_GPIO(MX35_PIN_FEC_RX_CLK), NULL);
+		gpio_request(IOMUX_TO_GPIO(MX35_PIN_FEC_COL), NULL);
+		gpio_request(IOMUX_TO_GPIO(MX35_PIN_FEC_RX_DV), NULL);
 
 		mxc_free_iomux(MX35_PIN_FEC_TX_CLK, MUX_CONFIG_GPIO);
 		mxc_free_iomux(MX35_PIN_FEC_RX_CLK, MUX_CONFIG_GPIO);
@@ -251,12 +251,12 @@ void gpio_spi_inactive(int cspi_mod)
 	switch (cspi_mod) {
 	case 0:
 		/* SPI1 */
-		mxc_request_gpio(MX35_PIN_CSPI1_MOSI);
-		mxc_request_gpio(MX35_PIN_CSPI1_MISO);
-		mxc_request_gpio(MX35_PIN_CSPI1_SS0);
-		mxc_request_gpio(MX35_PIN_CSPI1_SS1);
-		mxc_request_gpio(MX35_PIN_CSPI1_SCLK);
-		mxc_request_gpio(MX35_PIN_CSPI1_SPI_RDY);
+		gpio_request(IOMUX_TO_GPIO(MX35_PIN_CSPI1_MOSI), NULL);
+		gpio_request(IOMUX_TO_GPIO(MX35_PIN_CSPI1_MISO), NULL);
+		gpio_request(IOMUX_TO_GPIO(MX35_PIN_CSPI1_SS0), NULL);
+		gpio_request(IOMUX_TO_GPIO(MX35_PIN_CSPI1_SS1), NULL);
+		gpio_request(IOMUX_TO_GPIO(MX35_PIN_CSPI1_SCLK), NULL);
+		gpio_request(IOMUX_TO_GPIO(MX35_PIN_CSPI1_SPI_RDY), NULL);
 
 		mxc_free_iomux(MX35_PIN_CSPI1_MOSI, MUX_CONFIG_GPIO);
 		mxc_free_iomux(MX35_PIN_CSPI1_MISO, MUX_CONFIG_GPIO);

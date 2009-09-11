@@ -399,7 +399,7 @@ static int ch7024_detect(void)
 	int en;
 	int detect = 0;
 
-	if (mxc_get_gpio_datain(detect_gpio) == 1) {
+	if (gpio_get_value(detect_gpio) == 1) {
 		set_irq_type(ch7024_client->irq, IRQF_TRIGGER_FALLING);
 
 		en = ch7024_enable();

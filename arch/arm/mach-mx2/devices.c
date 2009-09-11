@@ -9,7 +9,7 @@
  * licensed "as is" without any warranty of any kind, whether express
  * or implied.
  *
- * Copyright 2006-2007 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2006-2009 Freescale Semiconductor, Inc. All Rights Reserved.
  * Copyright 2008 Juergen Beisert, kernel@pengutronix.de
  *
  * This program is free software; you can redistribute it and/or
@@ -195,6 +195,7 @@ static struct mxc_gpio_port imx_gpio_ports[] = {
 	[0] = {
 		.chip.label = "gpio-0",
 		.irq = MXC_INT_GPIO,
+		.irq_high = 0,
 		.base = (void*)(AIPI_BASE_ADDR_VIRT + 0x15000 + 0x100 * 0),
 		.virtual_irq_start = MXC_MAX_INT_LINES,
 	},

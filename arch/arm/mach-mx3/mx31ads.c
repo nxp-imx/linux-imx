@@ -751,7 +751,7 @@ static int __init _mxc_expio_init(void)
 	 */
 	mxc_request_iomux(MX31_PIN_GPIO1_4, OUTPUTCONFIG_GPIO,
 			  INPUTCONFIG_GPIO);
-	mxc_set_gpio_direction(MX31_PIN_GPIO1_4, 1);
+	gpio_direction_input(IOMUX_TO_GPIO(MX31_PIN_GPIO1_4));
 
 	/* disable the interrupt and clear the status */
 	__raw_writew(0xFFFF, PBC_INTMASK_CLEAR_REG);
@@ -1045,7 +1045,7 @@ static void __init mxc_board_init(void)
 	early_console_setup(saved_command_line);
 	mxc_init_devices();
 	mxc_init_pmic_audio();
-	mxc_gpio_init();
+	mxc_register_gpios();
 	mx31ads_gpio_init();
 	mxc_expio_init();
 	mxc_init_keypad();

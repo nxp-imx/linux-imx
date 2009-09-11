@@ -25,6 +25,8 @@
  * @ingroup GPIO_MX51
  */
 
+typedef unsigned int iomux_pin_name_t;
+
 /*!
  * various IOMUX output functions
  */

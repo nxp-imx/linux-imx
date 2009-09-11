@@ -221,7 +221,7 @@ static int __init mxc_expio_init(void)
 	 */
 	mxc_request_iomux(MX25_PIN_PWM, MUX_CONFIG_GPIO);
 	mxc_iomux_set_pad(MX25_PIN_PWM, PAD_CTL_PUE_PUD);
-	mxc_set_gpio_direction(MX25_PIN_PWM, 1);
+	gpio_direction_input(IOMUX_TO_GPIO(MX25_PIN_PWM));
 
 	for (i = MXC_EXP_IO_BASE; i < (MXC_EXP_IO_BASE + MXC_MAX_EXP_IO_LINES);
 	     i++) {

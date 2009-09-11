@@ -255,11 +255,11 @@ static void lcd_reset(void)
 		mxc_request_iomux(MX37_PIN_GPIO1_5, IOMUX_CONFIG_GPIO);
 		first = 1;
 	}
-	mxc_set_gpio_dataout(MX37_PIN_GPIO1_5, 0);
-	mxc_set_gpio_direction(MX37_PIN_GPIO1_5, 0);
+	gpio_set_value(IOMUX_TO_GPIO(MX37_PIN_GPIO1_5), 0);
+	gpio_direction_output(IOMUX_TO_GPIO(MX37_PIN_GPIO1_5), 0);
 	/* do reset */
 	msleep(10);		/* tRES >= 100us */
-	mxc_set_gpio_dataout(MX37_PIN_GPIO1_5, 1);
+	gpio_set_value(IOMUX_TO_GPIO(MX37_PIN_GPIO1_5), 1);
 	msleep(60);
 }
 
@@ -405,7 +405,7 @@ static int __init mxc_init_touchscreen(void)
 	mxc_request_iomux(MX37_PIN_AUD5_RXFS, IOMUX_CONFIG_GPIO);
 	pad_val = PAD_CTL_PKE_ENABLE | PAD_CTL_100K_PU;
 	mxc_iomux_set_pad(MX37_PIN_AUD5_RXFS, pad_val);
-	mxc_set_gpio_direction(MX37_PIN_AUD5_RXFS, 1);
+	gpio_direction_input(IOMUX_TO_GPIO(MX37_PIN_AUD5_RXFS));
 
 	return 0;
 }
@@ -559,8 +559,9 @@ static void mxc_unifi_hardreset(int pin_level)
 		regulator_put(gpo4);
 	} else {
 		mxc_request_iomux(MX37_PIN_AUD5_RXC, IOMUX_CONFIG_GPIO);
-		mxc_set_gpio_dataout(MX37_PIN_AUD5_RXC, pin_level & 0x01);
-		mxc_set_gpio_direction(MX37_PIN_AUD5_RXC, 0);
+		gpio_set_value(IOMUX_TO_GPIO(MX37_PIN_AUD5_RXC),
+			       pin_level & 0x01);
+		gpio_direction_output(IOMUX_TO_GPIO(MX37_PIN_AUD5_RXC), 0);
 		mxc_free_iomux(MX37_PIN_AUD5_RXC, IOMUX_CONFIG_GPIO);
 	}
 }
@@ -703,8 +704,8 @@ static void bt_reset(void)
 		regulator_put(gpo4);
 	} else {
 		mxc_request_iomux(MX37_PIN_AUD5_RXC, IOMUX_CONFIG_GPIO);
-		mxc_set_gpio_dataout(MX37_PIN_AUD5_RXC, 1);
-		mxc_set_gpio_direction(MX37_PIN_AUD5_RXC, 0);
+		gpio_set_value(IOMUX_TO_GPIO(MX37_PIN_AUD5_RXC), 1);
+		gpio_direction_output(IOMUX_TO_GPIO(MX37_PIN_AUD5_RXC), 0);
 	}
 }
 
@@ -813,7 +814,7 @@ static void mxc_init_sgtl5000(void)
 		return;
 	}
 	mxc_iomux_set_pad(pin, PAD_CTL_PKE_ENABLE | PAD_CTL_100K_PU);
-	mxc_set_gpio_direction(pin, 1);
+	gpio_direction_input(IOMUX_TO_GPIO(pin));
 
 	/* cko1 clock */
 	mxc_request_iomux(MX37_PIN_GPIO1_6, IOMUX_CONFIG_ALT2);
@@ -900,7 +901,7 @@ static void __init mxc_init_gps(void)
 static void __init mxc_board_init(void)
 {
 	mxc_cpu_common_init();
-	mxc_gpio_init();
+	mxc_register_gpios();
 	early_console_setup(saved_command_line);
 	mxc_init_devices();
 	if (!board_is_mx37(BOARD_REV_2))
