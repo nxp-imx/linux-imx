@@ -178,7 +178,7 @@ void imx_tsc_init(void)
 	dbtime = 3;
 	reg &= ~TGCR_PDBTIME_MASK;
 	reg |= dbtime << TGCR_PDBTIME_SHIFT;
-	reg |= TGCR_HSYNC_EN;
+	reg |= TGCR_SLPC;
 	__raw_writel(reg, tsc_base + TGCR);
 
 }
@@ -549,8 +549,12 @@ EXPORT_SYMBOL(imx_adc_get_touch_sample);
  */
 static int imx_adc_suspend(struct platform_device *pdev, pm_message_t state)
 {
-	suspend_flag = 1;
-	tsc_clk_disable();
+	if (device_may_wakeup(&pdev->dev)) {
+		enable_irq_wake(adc_data->irq);
+	} else {
+		suspend_flag = 1;
+		tsc_clk_disable();
+	}
 	return 0;
 };
 
@@ -564,15 +568,16 @@ static int imx_adc_suspend(struct platform_device *pdev, pm_message_t state)
  */
 static int imx_adc_resume(struct platform_device *pdev)
 {
-	suspend_flag = 0;
-
-	tsc_clk_enable();
-
-	while (swait > 0) {
-		swait--;
-		wake_up_interruptible(&suspendq);
+	if (device_may_wakeup(&pdev->dev)) {
+		disable_irq_wake(adc_data->irq);
+	} else {
+		suspend_flag = 0;
+		tsc_clk_enable();
+		while (swait > 0) {
+			swait--;
+			wake_up_interruptible(&suspendq);
+		}
 	}
-
 	return 0;
 }
 
@@ -973,6 +978,11 @@ static int imx_adc_module_probe(struct platform_device *pdev)
 		goto err_out4;
 	}
 	imx_adc_ready = 1;
+
+	/* By default, devices should wakeup if they can */
+	/* So TouchScreen is set as "should wakeup" as it can */
+	device_init_wakeup(&pdev->dev, 1);
+
 	pr_info("i.MX ADC at 0x%x irq %d\n", (unsigned int)res->start,
 		adc_data->irq);
 	return ret;
