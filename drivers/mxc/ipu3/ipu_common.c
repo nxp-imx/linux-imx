@@ -1542,6 +1542,14 @@ int32_t ipu_enable_channel(ipu_channel_t channel)
 }
 EXPORT_SYMBOL(ipu_enable_channel);
 
+static irqreturn_t disable_chan_irq_handler(int irq, void *dev_id)
+{
+	struct completion *comp = dev_id;
+
+	complete(comp);
+	return IRQ_HANDLED;
+}
+
 /*!
  * This function disables a logical channel.
  *
@@ -1561,7 +1569,6 @@ int32_t ipu_disable_channel(ipu_channel_t channel, bool wait_for_stop)
 	uint32_t out_dma;
 	uint32_t sec_dma = NO_DMA;
 	uint32_t thrd_dma = NO_DMA;
-	uint32_t timeout;
 
 	if ((g_channel_enable_mask & (1L << IPU_CHAN_ID(channel))) == 0) {
 		dev_err(g_ipu_dev, "Channel already disabled %d\n",
@@ -1590,22 +1597,26 @@ int32_t ipu_disable_channel(ipu_channel_t channel, bool wait_for_stop)
 	    (channel == MEM_DC_SYNC)) {
 		_ipu_dp_dc_disable(channel, false);
 	} else if (wait_for_stop) {
-		timeout = 40;
-		while (idma_is_set(IDMAC_CHA_BUSY, in_dma) ||
+		if (idma_is_set(IDMAC_CHA_BUSY, in_dma) ||
 		       idma_is_set(IDMAC_CHA_BUSY, out_dma) ||
 			(g_sec_chan_en[IPU_CHAN_ID(channel)] &&
 			idma_is_set(IDMAC_CHA_BUSY, sec_dma)) ||
 			(g_thrd_chan_en[IPU_CHAN_ID(channel)] &&
 			idma_is_set(IDMAC_CHA_BUSY, thrd_dma)) ||
 		       (_ipu_channel_status(channel) == TASK_STAT_ACTIVE)) {
-			timeout--;
-			msleep(10);
-			if (timeout == 0) {
-				ipu_dump_registers();
-				break;
+			uint32_t ret, irq = out_dma;
+			DECLARE_COMPLETION_ONSTACK(disable_comp);
+
+			ret = ipu_request_irq(irq, disable_chan_irq_handler, 0, NULL, &disable_comp);
+			if (ret < 0) {
+				dev_err(g_ipu_dev, "irq %d in use\n", irq);
+			} else {
+				ret = wait_for_completion_timeout(&disable_comp, msecs_to_jiffies(50));
+				ipu_free_irq(irq, &disable_comp);
+				if (ret == msecs_to_jiffies(50))
+					ipu_dump_registers();
 			}
 		}
-		dev_dbg(g_ipu_dev, "timeout = %d * 10ms\n", 40 - timeout);
 	}
 
 	spin_lock_irqsave(&ipu_lock, lock_flags);
