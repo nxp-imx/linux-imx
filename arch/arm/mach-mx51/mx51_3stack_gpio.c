@@ -804,6 +804,10 @@ void __init mx51_3stack_io_init(void)
 					pin_ptr[i].in_mode);
 	}
 
+	/* TO3 doesn't need pad to drive CSI_DATA_EN[0] high */
+	if (cpu_is_mx51_rev(CHIP_REV_3_0) > 0)
+		mxc_request_iomux(MX51_PIN_EIM_A26, IOMUX_CONFIG_ALT0);
+
 	/* Camera low power */
 	gpio_request(IOMUX_TO_GPIO(MX51_PIN_CSI1_D8), "csi1_d8");
 	gpio_direction_output(IOMUX_TO_GPIO(MX51_PIN_CSI1_D8), 0);
