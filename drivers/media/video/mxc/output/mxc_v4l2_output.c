@@ -1175,9 +1175,9 @@ static int mxc_v4l2out_streamon(vout_data * vout)
 
 	if (use_direct_adc == false) {
 		if (!vout->ic_bypass) {
+#ifndef CONFIG_MXC_IPU_V1
 			ipu_enable_channel(vout->post_proc_ch);
-			ipu_select_buffer(vout->post_proc_ch, IPU_OUTPUT_BUFFER, 0);
-			ipu_select_buffer(vout->post_proc_ch, IPU_OUTPUT_BUFFER, 1);
+#endif
 			if (LOAD_3FIELDS(vout)) {
 				ipu_enable_channel(MEM_VDI_PRP_VF_MEM_P);
 				ipu_enable_channel(MEM_VDI_PRP_VF_MEM_N);
@@ -1188,6 +1188,11 @@ static int mxc_v4l2out_streamon(vout_data * vout)
 				ipu_select_buffer(vout->post_proc_ch, IPU_INPUT_BUFFER, 0);
 				ipu_select_buffer(vout->post_proc_ch, IPU_INPUT_BUFFER, 1);
 			}
+			ipu_select_buffer(vout->post_proc_ch, IPU_OUTPUT_BUFFER, 0);
+			ipu_select_buffer(vout->post_proc_ch, IPU_OUTPUT_BUFFER, 1);
+#ifdef CONFIG_MXC_IPU_V1
+			ipu_enable_channel(vout->post_proc_ch);
+#endif
 		} else {
 			ipu_update_channel_buffer(vout->display_ch,
 				IPU_INPUT_BUFFER,
