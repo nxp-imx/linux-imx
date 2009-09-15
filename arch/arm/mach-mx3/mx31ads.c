@@ -751,6 +751,7 @@ static int __init _mxc_expio_init(void)
 	 */
 	mxc_request_iomux(MX31_PIN_GPIO1_4, OUTPUTCONFIG_GPIO,
 			  INPUTCONFIG_GPIO);
+	gpio_request(IOMUX_TO_GPIO(MX31_PIN_GPIO1_4), NULL);
 	gpio_direction_input(IOMUX_TO_GPIO(MX31_PIN_GPIO1_4));
 
 	/* disable the interrupt and clear the status */

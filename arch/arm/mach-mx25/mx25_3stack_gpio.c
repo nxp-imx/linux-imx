@@ -420,6 +420,9 @@ void gpio_fec_active(void)
 	mxc_iomux_set_pad(MX25_PIN_A17, PAD_CTL_ODE_OpenDrain);
 	mxc_iomux_set_pad(MX25_PIN_D12, 0);
 
+	gpio_request(IOMUX_TO_GPIO(MX25_PIN_A17), "a17");
+	gpio_request(IOMUX_TO_GPIO(MX25_PIN_D12), "d12");
+
 	gpio_direction_output(IOMUX_TO_GPIO(MX25_PIN_A17), 0); /* FEC_EN */
 	gpio_direction_output(IOMUX_TO_GPIO(MX25_PIN_D12), 0); /* FEC_RESET_B */
 
@@ -905,6 +908,8 @@ void gpio_sdhc_active(int module)
 		mxc_iomux_set_pad(MX25_PIN_A15, PAD_CTL_DRV_NORMAL);
 
 		/* Set write protect and card detect gpio as inputs */
+		gpio_request(IOMUX_TO_GPIO(MX25_PIN_A14), "a14");
+		gpio_request(IOMUX_TO_GPIO(MX25_PIN_A15), "a15");
 		gpio_direction_input(IOMUX_TO_GPIO(MX25_PIN_A14)); /*SD1_WP*/
 		gpio_direction_input(IOMUX_TO_GPIO(MX25_PIN_A15)); /*SD1_DET*/
 
@@ -1039,6 +1044,7 @@ int gpio_usbh2_active(void)
 	 *  dir: 0 = out
 	 *  pin: 0 = J18, 1 = BT
 	 */
+	gpio_request(IOMUX_TO_GPIO(MX25_PIN_A21), "a21");
 	gpio_direction_output(IOMUX_TO_GPIO(MX25_PIN_A21), 0);
 	gpio_set_value(IOMUX_TO_GPIO(MX25_PIN_A21), 0);
 
@@ -1100,6 +1106,8 @@ void gpio_sensor_active(void)
 	mxc_request_iomux(MX25_PIN_A19, MUX_CONFIG_ALT5); /*CSI_PWDN*/
 	mxc_request_iomux(MX25_PIN_A20, MUX_CONFIG_ALT5); /*CMOS_RST*/
 
+	gpio_request(IOMUX_TO_GPIO(MX25_PIN_A19), "a19");
+	gpio_request(IOMUX_TO_GPIO(MX25_PIN_A20), "a20");
 	gpio_direction_output(IOMUX_TO_GPIO(MX25_PIN_A19), 0); /*CSI_PWDN*/
 	gpio_set_value(IOMUX_TO_GPIO(MX25_PIN_A19), 0);
 	gpio_direction_output(IOMUX_TO_GPIO(MX25_PIN_A20), 0); /*CMOS_RST*/
@@ -1253,6 +1261,7 @@ void gpio_can_active(int id)
 		mxc_iomux_set_input(MUX_IN_CAN2_IPP_IND_CANRX, INPUT_CTL_PATH1);
 
 		/* Configure CAN_PWDN as output */
+		gpio_request(IOMUX_TO_GPIO(MX25_PIN_D14), "d14");
 		gpio_direction_output(IOMUX_TO_GPIO(MX25_PIN_D14), 0);
 
 		/* Enable input by setting PWDN/TLE6250.INH low (gpio4 bit6) */
@@ -1316,7 +1325,9 @@ void gpio_activate_audio_ports(void)
 	mxc_iomux_set_pad(MX25_PIN_OE, PAD_CTL_SRE_FAST);
 	mxc_iomux_set_pad(MX25_PIN_D13, PAD_CTL_DRV_3_3V);
 
+	gpio_request(IOMUX_TO_GPIO(MX25_PIN_A10), "a10");
 	gpio_direction_input(IOMUX_TO_GPIO(MX25_PIN_A10));
+	gpio_request(IOMUX_TO_GPIO(MX25_PIN_D13), "d13");
 	gpio_direction_output(IOMUX_TO_GPIO(MX25_PIN_D13), 0);
 }
 EXPORT_SYMBOL(gpio_activate_audio_ports);

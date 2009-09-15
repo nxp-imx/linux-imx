@@ -253,6 +253,7 @@ static void lcd_reset(void)
 	/* active reset line GPIO */
 	if (!first) {
 		mxc_request_iomux(MX37_PIN_GPIO1_5, IOMUX_CONFIG_GPIO);
+		gpio_request(IOMUX_TO_GPIO(MX37_PIN_GPIO1_5), "gpio1_5");
 		first = 1;
 	}
 	gpio_set_value(IOMUX_TO_GPIO(MX37_PIN_GPIO1_5), 0);
@@ -405,6 +406,7 @@ static int __init mxc_init_touchscreen(void)
 	mxc_request_iomux(MX37_PIN_AUD5_RXFS, IOMUX_CONFIG_GPIO);
 	pad_val = PAD_CTL_PKE_ENABLE | PAD_CTL_100K_PU;
 	mxc_iomux_set_pad(MX37_PIN_AUD5_RXFS, pad_val);
+	gpio_request(IOMUX_TO_GPIO(MX37_PIN_AUD5_RXFS), "aud5_rxfs");
 	gpio_direction_input(IOMUX_TO_GPIO(MX37_PIN_AUD5_RXFS));
 
 	return 0;
@@ -559,6 +561,7 @@ static void mxc_unifi_hardreset(int pin_level)
 		regulator_put(gpo4);
 	} else {
 		mxc_request_iomux(MX37_PIN_AUD5_RXC, IOMUX_CONFIG_GPIO);
+		gpio_request(IOMUX_TO_GPIO(MX37_PIN_AUD5_RXC), "aud5_rxc");
 		gpio_set_value(IOMUX_TO_GPIO(MX37_PIN_AUD5_RXC),
 			       pin_level & 0x01);
 		gpio_direction_output(IOMUX_TO_GPIO(MX37_PIN_AUD5_RXC), 0);
@@ -704,6 +707,7 @@ static void bt_reset(void)
 		regulator_put(gpo4);
 	} else {
 		mxc_request_iomux(MX37_PIN_AUD5_RXC, IOMUX_CONFIG_GPIO);
+		gpio_request(IOMUX_TO_GPIO(MX37_PIN_AUD5_RXC), "aud5_rxc");
 		gpio_set_value(IOMUX_TO_GPIO(MX37_PIN_AUD5_RXC), 1);
 		gpio_direction_output(IOMUX_TO_GPIO(MX37_PIN_AUD5_RXC), 0);
 	}
@@ -814,6 +818,7 @@ static void mxc_init_sgtl5000(void)
 		return;
 	}
 	mxc_iomux_set_pad(pin, PAD_CTL_PKE_ENABLE | PAD_CTL_100K_PU);
+	gpio_request(IOMUX_TO_GPIO(pin), "aud5_rxfs");
 	gpio_direction_input(IOMUX_TO_GPIO(pin));
 
 	/* cko1 clock */

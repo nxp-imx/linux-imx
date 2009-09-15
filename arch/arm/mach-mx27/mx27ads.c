@@ -612,6 +612,7 @@ static int __init mxc_expio_init(void)
 	 * Configure INT line as GPIO input
 	 */
 	gpio_config_mux(MX27_PIN_TIN, GPIO_MUX_GPIO);
+	gpio_request(IOMUX_TO_GPIO(MX27_PIN_TIN), NULL);
 	gpio_direction_input(IOMUX_TO_GPIO(MX27_PIN_TIN));
 
 	/* disable the interrupt and clear the status */

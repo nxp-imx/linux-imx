@@ -268,6 +268,7 @@ static int __init mxc_init_power_key(void)
 
 	mxc_request_iomux(MX25_PIN_A25, MUX_CONFIG_ALT5);
 	mxc_iomux_set_pad(MX25_PIN_A25, PAD_CTL_DRV_NORMAL);
+	gpio_request(IOMUX_TO_GPIO(MX25_PIN_A25), NULL);
 	gpio_direction_input(IOMUX_TO_GPIO(MX25_PIN_A25));
 
 	irq = IOMUX_TO_IRQ(MX25_PIN_A25);

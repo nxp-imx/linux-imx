@@ -201,6 +201,7 @@ static void lcd_reset(void)
 	/* ensure that LCDIO(1.8V) has been turn on */
 	/* active reset line GPIO */
 	mxc_request_iomux(MX31_PIN_LCS1, OUTPUTCONFIG_GPIO, INPUTCONFIG_NONE);
+	gpio_request(IOMUX_TO_GPIO(MX31_PIN_LCS1), "lcs1");
 	gpio_set_value(IOMUX_TO_GPIO(MX31_PIN_LCS1), 0);
 	gpio_direction_output(IOMUX_TO_GPIO(MX31_PIN_LCS1), 0);
 	/* do reset */
@@ -254,9 +255,11 @@ static void si4702_gpio_get(void)
 {
 	/* reset pin */
 	mxc_request_iomux(MX31_PIN_SRST0, OUTPUTCONFIG_GPIO, INPUTCONFIG_NONE);
+	gpio_request(IOMUX_TO_GPIO(MX31_PIN_SRST0), "srst0");
 	gpio_direction_output(IOMUX_TO_GPIO(MX31_PIN_SRST0), 0);
 
 	mxc_request_iomux(MX31_PIN_SIMPD0, OUTPUTCONFIG_GPIO, INPUTCONFIG_NONE);
+	gpio_request(IOMUX_TO_GPIO(MX31_PIN_SIMPD0), "simpd0");
 	gpio_direction_output(IOMUX_TO_GPIO(MX31_PIN_SIMPD0), 0);
 }
 
@@ -285,10 +288,12 @@ static void gpio_mma7450_get(void)
 {
 	mxc_request_iomux(MX31_PIN_STX0, OUTPUTCONFIG_GPIO, INPUTCONFIG_GPIO);
 	mxc_iomux_set_pad(MX31_PIN_STX0, PAD_CTL_PKE_NONE);
+	gpio_request(IOMUX_TO_GPIO(MX31_PIN_STX0), "stx0");
 	gpio_direction_input(IOMUX_TO_GPIO(MX31_PIN_STX0));
 
 	mxc_request_iomux(MX31_PIN_SRX0, OUTPUTCONFIG_GPIO, INPUTCONFIG_GPIO);
 	mxc_iomux_set_pad(MX31_PIN_SRX0, PAD_CTL_PKE_NONE);
+	gpio_request(IOMUX_TO_GPIO(MX31_PIN_SRX0), "srx0");
 	gpio_direction_input(IOMUX_TO_GPIO(MX31_PIN_SRX0));
 }
 
@@ -446,6 +451,7 @@ static int mxc_init_ch7024(void)
 	mxc_request_iomux(MX31_PIN_BATT_LINE, OUTPUTCONFIG_GPIO,
 			  INPUTCONFIG_GPIO);
 	mxc_iomux_set_pad(MX31_PIN_BATT_LINE, PAD_CTL_PKE_NONE);
+	gpio_request(IOMUX_TO_GPIO(MX31_PIN_BATT_LINE), "batt_line");
 	gpio_direction_input(IOMUX_TO_GPIO(MX31_PIN_BATT_LINE));
 
 	return 0;
@@ -565,6 +571,7 @@ static int __init mxc_expio_init(void)
 	 */
 	mxc_request_iomux(MX31_PIN_GPIO1_1, OUTPUTCONFIG_GPIO,
 			  INPUTCONFIG_GPIO);
+	gpio_request(IOMUX_TO_GPIO(MX31_PIN_GPIO1_1), "gpio1_1");
 	gpio_direction_input(IOMUX_TO_GPIO(MX31_PIN_GPIO1_1));
 
 	/* disable the interrupt and clear the status */
@@ -966,6 +973,7 @@ static void __init mxc_board_init(void)
 	/*Pull down MX31_PIN_USB_BYP to reset USB3317 */
 	mxc_request_iomux(MX31_PIN_USB_BYP, OUTPUTCONFIG_GPIO,
 			  INPUTCONFIG_NONE);
+	gpio_request(IOMUX_TO_GPIO(MX31_PIN_USB_BYP), "usb_byp");
 	gpio_direction_output(IOMUX_TO_GPIO(MX31_PIN_USB_BYP), 0);
 	gpio_set_value(IOMUX_TO_GPIO(MX31_PIN_USB_BYP), 0);
 	mxc_free_iomux(MX31_PIN_USB_BYP, OUTPUTCONFIG_GPIO, INPUTCONFIG_NONE);
@@ -973,6 +981,7 @@ static void __init mxc_board_init(void)
 	/* Reset BT/WiFi chip */
 	mxc_request_iomux(MX31_PIN_DCD_DCE1, OUTPUTCONFIG_GPIO,
 			  INPUTCONFIG_NONE);
+	gpio_request(IOMUX_TO_GPIO(MX31_PIN_DCD_DCE1), "dcd_dce1");
 	gpio_direction_output(IOMUX_TO_GPIO(MX31_PIN_DCD_DCE1), 0);
 	gpio_set_value(IOMUX_TO_GPIO(MX31_PIN_DCD_DCE1), 0);
 

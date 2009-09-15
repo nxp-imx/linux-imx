@@ -404,6 +404,7 @@ void gpio_sdhc_active(int module)
 		 * SW workaround for the eSDHC1 Write Protected feature
 		 * The PSR of CSPI1_SS0 (GPIO3_2) should be read.
 		 */
+		gpio_request(IOMUX_TO_GPIO(MX37_PIN_CSPI1_SS0), "cspi1_ss0");
 		gpio_direction_output(IOMUX_TO_GPIO(MX37_PIN_CSPI1_SS0), 0);
 		gpio_set_value(IOMUX_TO_GPIO(MX37_PIN_CSPI1_SS0), 1);
 		break;
@@ -570,13 +571,15 @@ int sdhc_init_card_det(int id)
 
 	if (id == 0) {
 		if (board_is_mx37(BOARD_REV_2)) {
+			gpio = IOMUX_TO_GPIO(MX37_PIN_GPIO1_4);
 			mxc_request_iomux(MX37_PIN_GPIO1_4, IOMUX_CONFIG_ALT0);
 			mxc_iomux_set_pad(MX37_PIN_GPIO1_4,
 					  PAD_CTL_DRV_HIGH |
 					  PAD_CTL_HYS_NONE |
 					  PAD_CTL_ODE_OPENDRAIN_NONE |
 					  PAD_CTL_PKE_NONE | PAD_CTL_SRE_FAST);
-			gpio_direction_input(IOMUX_TO_GPIO(MX37_PIN_GPIO1_4));
+			gpio_request(gpio, "gpio1_4");
+			gpio_direction_input(gpio);
 			return IOMUX_TO_IRQ(MX37_PIN_GPIO1_4);
 		} else {
 			gpio = IOMUX_TO_GPIO(MX37_PIN_OWIRE_LINE);
@@ -587,6 +590,7 @@ int sdhc_init_card_det(int id)
 					  PAD_CTL_HYS_NONE |
 					  PAD_CTL_ODE_OPENDRAIN_NONE |
 					  PAD_CTL_PKE_NONE | PAD_CTL_SRE_FAST);
+			gpio_request(gpio, "owire_line");
 			gpio_direction_input(gpio);
 			return IOMUX_TO_IRQ(MX37_PIN_OWIRE_LINE);
 		}
@@ -850,8 +854,9 @@ void gpio_keypad_active(void)
   PAD_CTL_DDR_INPUT_CMOS | PAD_CTL_DRV_VOT_LOW);
 	/*KEY_WAKE */
 	mxc_iomux_set_pad(MX37_PIN_DISP1_DAT18, pad_val);
-
+	gpio_request(IOMUX_TO_GPIO(MX37_PIN_DISP1_DAT18), "disp1_dat18");
 	gpio_direction_output(IOMUX_TO_GPIO(MX37_PIN_DISP1_DAT18), 0);
+	gpio_request(IOMUX_TO_GPIO(MX37_PIN_GPIO1_3), "gpio1_3");
 	gpio_direction_input(IOMUX_TO_GPIO(MX37_PIN_GPIO1_3));
 
 	/* drive initial value */
@@ -954,6 +959,7 @@ void gpio_pmic_active(void)
 			  PAD_CTL_100K_PU |
 			  PAD_CTL_HYS_ENABLE |
 			  PAD_CTL_DRV_VOT_HIGH | PAD_CTL_DDR_INPUT_CMOS);
+	gpio_request(IOMUX_TO_GPIO(MX37_PIN_OWIRE_LINE), "owire_line");
 	gpio_direction_input(IOMUX_TO_GPIO(MX37_PIN_OWIRE_LINE));
 }
 
@@ -967,6 +973,7 @@ void gpio_gps_active(void)
 			  PAD_CTL_DRV_HIGH | PAD_CTL_HYS_NONE |
 			  PAD_CTL_ODE_OPENDRAIN_NONE |
 			  PAD_CTL_PKE_ENABLE | PAD_CTL_SRE_FAST);
+	gpio_request(IOMUX_TO_GPIO(MX37_PIN_EIM_OE), "eim_oe");
 	gpio_direction_output(IOMUX_TO_GPIO(MX37_PIN_EIM_OE), 0);
 
 	/* RESET */
@@ -974,6 +981,7 @@ void gpio_gps_active(void)
 	mxc_iomux_set_pad(MX37_PIN_EIM_BCLK, PAD_CTL_DRV_HIGH |
 			  PAD_CTL_HYS_NONE | PAD_CTL_ODE_OPENDRAIN_NONE |
 			  PAD_CTL_PKE_ENABLE | PAD_CTL_SRE_FAST);
+	gpio_request(IOMUX_TO_GPIO(MX37_PIN_EIM_BCLK), "eim_bclk");
 	gpio_direction_output(IOMUX_TO_GPIO(MX37_PIN_EIM_BCLK), 0);
 
 	gpio_set_value(IOMUX_TO_GPIO(MX37_PIN_EIM_OE), 0);

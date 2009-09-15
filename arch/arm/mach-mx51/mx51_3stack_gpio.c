@@ -805,32 +805,42 @@ void __init mx51_3stack_io_init(void)
 	}
 
 	/* Camera low power */
+	gpio_request(IOMUX_TO_GPIO(MX51_PIN_CSI1_D8), "csi1_d8");
 	gpio_direction_output(IOMUX_TO_GPIO(MX51_PIN_CSI1_D8), 0);
 	gpio_set_value(IOMUX_TO_GPIO(MX51_PIN_CSI1_D8), 0);
+	gpio_request(IOMUX_TO_GPIO(MX51_PIN_EIM_EB2), "eim_eb2");
 	gpio_direction_output(IOMUX_TO_GPIO(MX51_PIN_EIM_EB2), 0);    /* TO1 */
 	gpio_set_value(IOMUX_TO_GPIO(MX51_PIN_EIM_EB2), 0);      /* TO1 */
 
 	/* Camera reset */
+	gpio_request(IOMUX_TO_GPIO(MX51_PIN_CSI1_D9), "csi1_d9");
 	gpio_direction_output(IOMUX_TO_GPIO(MX51_PIN_CSI1_D9), 0);
 	gpio_set_value(IOMUX_TO_GPIO(MX51_PIN_CSI1_D9), 1);
+	gpio_request(IOMUX_TO_GPIO(MX51_PIN_DI1_D1_CS), "di1_d1_cs");
 	gpio_direction_output(IOMUX_TO_GPIO(MX51_PIN_DI1_D1_CS), 0);
-
+	gpio_request(IOMUX_TO_GPIO(MX51_PIN_GPIO1_0), "gpio1_0");
 	gpio_direction_input(IOMUX_TO_GPIO(MX51_PIN_GPIO1_0));	/* SD1 CD */
+	gpio_request(IOMUX_TO_GPIO(MX51_PIN_GPIO1_1), "gpio1_1");
 	gpio_direction_input(IOMUX_TO_GPIO(MX51_PIN_GPIO1_1));	/* SD1 WP */
 
 	/* EIM_D16 */
 	/* osc_en is shared by SPDIF */
+	gpio_request(IOMUX_TO_GPIO(MX51_PIN_EIM_D16), "eim_d16");
 	gpio_direction_output(IOMUX_TO_GPIO(MX51_PIN_EIM_D16), 0);
 	gpio_set_value(IOMUX_TO_GPIO(MX51_PIN_EIM_D16), 1);
 
 	/* LCD related gpio */
+	gpio_request(IOMUX_TO_GPIO(MX51_PIN_DI1_D1_CS), "di1_d1_cs");
+	gpio_request(IOMUX_TO_GPIO(MX51_PIN_DISPB2_SER_DIO), "dispb2_ser_di0");
 	gpio_direction_output(IOMUX_TO_GPIO(MX51_PIN_DI1_D1_CS), 0);
 	gpio_direction_output(IOMUX_TO_GPIO(MX51_PIN_DISPB2_SER_DIO), 0);
 	gpio_set_value(IOMUX_TO_GPIO(MX51_PIN_DISPB2_SER_DIO), 0);
 
 	/* GPS related gpio */
+	gpio_request(IOMUX_TO_GPIO(MX51_PIN_EIM_CS2), "eim_cs2");
 	gpio_direction_output(IOMUX_TO_GPIO(MX51_PIN_EIM_CS2), 0);
 	gpio_set_value(IOMUX_TO_GPIO(MX51_PIN_EIM_CS2), 0);
+	gpio_request(IOMUX_TO_GPIO(MX51_PIN_EIM_CRE), "eim_cre");
 	gpio_direction_output(IOMUX_TO_GPIO(MX51_PIN_EIM_CRE), 0);
 	gpio_set_value(IOMUX_TO_GPIO(MX51_PIN_EIM_CRE), 0);
 	gpio_set_value(IOMUX_TO_GPIO(MX51_PIN_EIM_CRE), 1);

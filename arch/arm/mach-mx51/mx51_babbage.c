@@ -368,11 +368,14 @@ static int __init mxc_init_fb(void)
 	}
 
 	/* DVI Detect */
+	gpio_request(IOMUX_TO_GPIO(MX51_PIN_NANDF_D12), "nandf_d12");
 	gpio_direction_input(IOMUX_TO_GPIO(MX51_PIN_NANDF_D12));
 	/* DVI Reset - Assert for i2c disabled mode */
+	gpio_request(IOMUX_TO_GPIO(MX51_PIN_DISPB2_SER_DIN), "dispb2_ser_din");
 	gpio_set_value(IOMUX_TO_GPIO(MX51_PIN_DISPB2_SER_DIN), 0);
 	gpio_direction_output(IOMUX_TO_GPIO(MX51_PIN_DISPB2_SER_DIN), 0);
 	/* DVI Power-down */
+	gpio_request(IOMUX_TO_GPIO(MX51_PIN_DISPB2_SER_DIO), "dispb2_ser_di0");
 	gpio_set_value(IOMUX_TO_GPIO(MX51_PIN_DISPB2_SER_DIO), 1);
 	gpio_direction_output(IOMUX_TO_GPIO(MX51_PIN_DISPB2_SER_DIO), 0);
 
@@ -492,6 +495,7 @@ static struct mxc_lcd_platform_data dvi_data = {
 
 static void vga_reset(void)
 {
+	gpio_request(IOMUX_TO_GPIO(MX51_PIN_EIM_A19), "eim_a19");
 	gpio_direction_output(IOMUX_TO_GPIO(MX51_PIN_EIM_A19), 0);
 	gpio_set_value(IOMUX_TO_GPIO(MX51_PIN_EIM_A19), 0);
 	msleep(50);
@@ -525,6 +529,7 @@ static void si4702_clock_ctl(int flag)
 
 static void si4702_gpio_get(void)
 {
+	gpio_request(IOMUX_TO_GPIO(MX51_PIN_EIM_A18), "eim_a18");
 	gpio_direction_output(IOMUX_TO_GPIO(MX51_PIN_EIM_A18), 0);
 }
 
@@ -846,6 +851,7 @@ static void mxc_init_sgtl5000(void)
 		sgtl5000_data.vddd = 0;
 	}
 
+	gpio_request(IOMUX_TO_GPIO(MX51_PIN_EIM_A23), "eim_a23");
 	gpio_direction_output(IOMUX_TO_GPIO(MX51_PIN_EIM_A23), 0);
 
 	platform_device_register(&mxc_sgtl5000_device);
@@ -878,6 +884,7 @@ static struct platform_device gpio_button_device = {
 
 static inline void mxc_init_gpio_button(void)
 {
+	gpio_request(IOMUX_TO_GPIO(MXC_BUTTON_GPIO_PIN), "button");
 	gpio_direction_input(IOMUX_TO_GPIO(MXC_BUTTON_GPIO_PIN));
 	platform_device_register(&gpio_button_device);
 }

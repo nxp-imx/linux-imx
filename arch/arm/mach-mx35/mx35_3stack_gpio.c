@@ -275,6 +275,7 @@ void gpio_fec_active(void)
 				PAD_CTL_PKE_ENABLE | PAD_CTL_100K_PU |
 				PAD_CTL_DRV_3_3V | PAD_CTL_PUE_PUD |
 				PAD_CTL_SRE_SLOW);
+		gpio_request(IOMUX_TO_GPIO(MX35_PIN_COMPARE), "compare");
 		gpio_direction_output(IOMUX_TO_GPIO(MX35_PIN_COMPARE), 0);
 		gpio_set_value(IOMUX_TO_GPIO(MX35_PIN_COMPARE), 1);
 	}
@@ -333,8 +334,10 @@ void gpio_fec_inactive(void)
 	pmic_gpio_set_bit_val(MCU_GPIO_REG_GPIO_CONTROL_1, 2, 0);
 
 	/* Free GPIO1_5 */
-	if (board_is_mx35(BOARD_REV_2))
+	if (board_is_mx35(BOARD_REV_2)) {
+		gpio_free(IOMUX_TO_GPIO(MX35_PIN_COMPARE));
 		mxc_free_iomux(MX35_PIN_COMPARE, MUX_CONFIG_GPIO);
+	}
 }
 
 EXPORT_SYMBOL(gpio_fec_inactive);
@@ -541,6 +544,7 @@ void gpio_tsc_active(void)
 	unsigned int pad_val = PAD_CTL_PKE_ENABLE | PAD_CTL_100K_PU;
 	mxc_request_iomux(MX35_PIN_CAPTURE, MUX_CONFIG_GPIO);
 	mxc_iomux_set_pad(MX35_PIN_CAPTURE, pad_val);
+	gpio_request(IOMUX_TO_GPIO(MX35_PIN_CAPTURE), "capture");
 	gpio_direction_input(IOMUX_TO_GPIO(MX35_PIN_CAPTURE));
 }
 
@@ -549,6 +553,7 @@ void gpio_tsc_active(void)
  */
 void gpio_tsc_inactive(void)
 {
+	gpio_free(IOMUX_TO_GPIO(MX35_PIN_CAPTURE));
 	mxc_free_iomux(MX35_PIN_CAPTURE, MUX_CONFIG_GPIO);
 }
 
@@ -1366,6 +1371,7 @@ void gpio_pmic_active(void)
 		| PAD_CTL_HYS_CMOS | PAD_CTL_100K_PU | PAD_CTL_DRV_3_3V;
 	mxc_request_iomux(MX35_PIN_GPIO2_0, MUX_CONFIG_FUNC);
 	mxc_iomux_set_pad(MX35_PIN_GPIO2_0, pad_val);
+	gpio_request(IOMUX_TO_GPIO(MX35_PIN_GPIO2_0), NULL);
 	gpio_direction_input(IOMUX_TO_GPIO(MX35_PIN_GPIO2_0));
 }
 

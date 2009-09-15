@@ -31,6 +31,7 @@ static int gpio_usbh1_active(void)
 	/* Set USBH1_STP to GPIO and toggle it */
 	mxc_request_iomux(MX51_PIN_USBH1_STP, IOMUX_CONFIG_GPIO |
 			  IOMUX_CONFIG_SION);
+	gpio_request(IOMUX_TO_GPIO(MX51_PIN_USBH1_STP), "usbh1_stp");
 	gpio_direction_output(IOMUX_TO_GPIO(MX51_PIN_USBH1_STP), 0);
 	gpio_set_value(IOMUX_TO_GPIO(MX51_PIN_USBH1_STP), 1);
 
@@ -41,6 +42,7 @@ static int gpio_usbh1_active(void)
 			  PAD_CTL_HYS_NONE | PAD_CTL_PUE_KEEPER |
 			  PAD_CTL_100K_PU | PAD_CTL_ODE_OPENDRAIN_NONE |
 			  PAD_CTL_PKE_ENABLE | PAD_CTL_SRE_FAST);
+		gpio_request(IOMUX_TO_GPIO(MX51_PIN_EIM_D17), "eim_d17");
 		gpio_direction_output(IOMUX_TO_GPIO(MX51_PIN_EIM_D17), 0);
 		gpio_set_value(IOMUX_TO_GPIO(MX51_PIN_EIM_D17), 1);
 	}
@@ -59,17 +61,20 @@ void gpio_usbh1_setback_stp(void)
 			  PAD_CTL_PUE_KEEPER | PAD_CTL_PKE_ENABLE |
 			  PAD_CTL_HYS_ENABLE | PAD_CTL_DDR_INPUT_CMOS |
 			  PAD_CTL_DRV_VOT_LOW);
+	gpio_free(IOMUX_TO_GPIO(MX51_PIN_USBH1_STP));
 }
 EXPORT_SYMBOL(gpio_usbh1_setback_stp);
 
 static void gpio_usbh1_inactive(void)
 {
 	/* Signal only used on MX51-3DS for reset to PHY.*/
-	if (machine_is_mx51_3ds())
+	if (machine_is_mx51_3ds()) {
+		gpio_free(IOMUX_TO_GPIO(MX51_PIN_EIM_D17));
 		mxc_free_iomux(MX51_PIN_EIM_D17, IOMUX_CONFIG_GPIO);
+	}
 
-	gpio_request(IOMUX_TO_GPIO(MX51_PIN_USBH1_STP), NULL);
 	mxc_free_iomux(MX51_PIN_USBH1_STP, IOMUX_CONFIG_GPIO);
+	gpio_free(IOMUX_TO_GPIO(MX51_PIN_USBH1_STP));
 }
 
 static struct fsl_usb2_platform_data usbh1_config = {

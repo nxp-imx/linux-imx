@@ -378,6 +378,7 @@ static void lcd_reset_to2(void)
 static void lcd_reset(void)
 {
 	gpio_set_value(IOMUX_TO_GPIO(MX51_PIN_DISPB2_SER_RS), 0);
+	gpio_request(IOMUX_TO_GPIO(MX51_PIN_DISPB2_SER_RS), "ser_rs");
 	gpio_direction_output(IOMUX_TO_GPIO(MX51_PIN_DISPB2_SER_RS), 0);
 	/* do reset */
 	msleep(10);		/* tRES >= 100us */
@@ -459,6 +460,7 @@ void si4702_clock_ctl(int flag)
 static void si4702_gpio_get(void)
 {
 	/* reset pin */
+	gpio_request(IOMUX_TO_GPIO(MX51_PIN_EIM_DTACK), "eim_dtack");
 	gpio_direction_output(IOMUX_TO_GPIO(MX51_PIN_EIM_DTACK), 0);
 }
 
@@ -867,6 +869,7 @@ static int __init mxc_expio_init(void)
 	/*
 	 * Configure INT line as GPIO input
 	 */
+	gpio_request(IOMUX_TO_GPIO(MX51_PIN_GPIO1_6), "gpio1_6");
 	gpio_direction_input(IOMUX_TO_GPIO(MX51_PIN_GPIO1_6));
 
 	/* disable the interrupt and clear the status */
@@ -951,6 +954,7 @@ static void __init mxc_init_pata(void)
 
 static int __init mxc_init_touchscreen(void)
 {
+	gpio_request(IOMUX_TO_GPIO(MX51_PIN_GPIO1_5), "gpio1_5");
 	gpio_direction_input(IOMUX_TO_GPIO(MX51_PIN_GPIO1_5));
 
 	return 0;
@@ -1263,8 +1267,10 @@ static void __init mxc_board_init(void)
 	err = mxc_request_iomux(MX51_PIN_EIM_D19, IOMUX_CONFIG_GPIO);
 	if (err)
 		printk(KERN_ERR "Error: bt reset request gpio failed!\n");
-	else
-	gpio_direction_output(IOMUX_TO_GPIO(MX51_PIN_EIM_D19), 0);
+	else {
+		gpio_request(IOMUX_TO_GPIO(MX51_PIN_EIM_D19), "eim_d19");
+		gpio_direction_output(IOMUX_TO_GPIO(MX51_PIN_EIM_D19), 0);
+	}
 }
 
 static void __init mx51_3stack_timer_init(void)

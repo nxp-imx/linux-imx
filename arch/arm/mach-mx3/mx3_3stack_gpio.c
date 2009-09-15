@@ -213,6 +213,7 @@ void gpio_power_key_active(void)
 {
 	mxc_request_iomux(MX31_PIN_GPIO1_2, OUTPUTCONFIG_GPIO,
 			  INPUTCONFIG_GPIO);
+	gpio_request(IOMUX_TO_GPIO(MX31_PIN_GPIO1_2), NULL);
 	gpio_direction_input(IOMUX_TO_GPIO(MX31_PIN_GPIO1_2));
 	mxc_iomux_set_pad(MX31_PIN_GPIO1_2, PAD_CTL_PKE_NONE);
 }
@@ -409,6 +410,7 @@ void gpio_pmic_active(void)
 {
 	mxc_request_iomux(MX31_PIN_GPIO1_3, OUTPUTCONFIG_GPIO,
 			  INPUTCONFIG_GPIO);
+	gpio_request(IOMUX_TO_GPIO(MX31_PIN_GPIO1_3), NULL);
 	gpio_direction_input(IOMUX_TO_GPIO(MX31_PIN_GPIO1_3));
 }
 
@@ -582,6 +584,7 @@ int sdhc_init_card_det(int id)
 		/* Buffer Enable Pin, Active HI */
 		mxc_request_iomux(MX31_PIN_GPIO3_0, OUTPUTCONFIG_GPIO,
 				  INPUTCONFIG_NONE);
+		gpio_request(IOMUX_TO_GPIO(MX31_PIN_GPIO3_0), "gpio3_0");
 		gpio_direction_output(IOMUX_TO_GPIO(MX31_PIN_GPIO3_0), 0);
 		gpio_set_value(IOMUX_TO_GPIO(MX31_PIN_GPIO3_0), 0);
 
@@ -589,6 +592,7 @@ int sdhc_init_card_det(int id)
 		mxc_request_iomux(MX31_PIN_GPIO3_1, OUTPUTCONFIG_GPIO,
 				  INPUTCONFIG_GPIO);
 		mxc_iomux_set_pad(MX31_PIN_GPIO3_1, PAD_CTL_PKE_NONE);
+		gpio_request(IOMUX_TO_GPIO(MX31_PIN_GPIO3_1), "gpio3_1");
 		gpio_direction_input(IOMUX_TO_GPIO(MX31_PIN_GPIO3_1));
 		return IOMUX_TO_IRQ(MX31_PIN_GPIO3_1);
 	} else {
@@ -660,6 +664,7 @@ void gpio_lcd_active(void)
 	/* ensure that LCDIO(1.8V) has been turn on */
 	/* active reset line GPIO */
 	mxc_request_iomux(MX31_PIN_LCS1, OUTPUTCONFIG_GPIO, INPUTCONFIG_NONE);
+	gpio_request(IOMUX_TO_GPIO(MX31_PIN_LCS1), "lcs1");
 	gpio_direction_output(IOMUX_TO_GPIO(MX31_PIN_LCS1), 0);
 	/* do reset */
 	mdelay(10);		/* tRES >= 100us */
@@ -667,6 +672,7 @@ void gpio_lcd_active(void)
 
 	/* enable data */
 	mxc_request_iomux(MX31_PIN_SER_RS, OUTPUTCONFIG_GPIO, INPUTCONFIG_NONE);
+	gpio_request(IOMUX_TO_GPIO(MX31_PIN_SER_RS), "ser_rs");
 	gpio_direction_output(IOMUX_TO_GPIO(MX31_PIN_SER_RS), 0);
 	gpio_set_value(IOMUX_TO_GPIO(MX31_PIN_SER_RS), 1);
 #endif
@@ -702,6 +708,7 @@ void gpio_sensor_active(void)
 	 */
 
 	mxc_request_iomux(MX31_PIN_CSI_D5, OUTPUTCONFIG_GPIO, INPUTCONFIG_NONE);
+	gpio_request(IOMUX_TO_GPIO(MX31_PIN_CSI_D5), "csi_d5");
 	gpio_direction_output(IOMUX_TO_GPIO(MX31_PIN_CSI_D5), 0);
 	gpio_set_value(IOMUX_TO_GPIO(MX31_PIN_CSI_D5), 0);
 
@@ -738,6 +745,7 @@ void gpio_sensor_active(void)
 		       __func__);
 		return;
 	}
+	gpio_request(IOMUX_TO_GPIO(MX31_PIN_SD_D_IO), "sd_d_io");
 	gpio_direction_output(IOMUX_TO_GPIO(MX31_PIN_SD_D_IO), 0);
 	gpio_set_value(IOMUX_TO_GPIO(MX31_PIN_SD_D_IO), 1);
 }
@@ -822,6 +830,7 @@ void gpio_ata_active(void)
 
 	/* HDD_ENABLE_B(H:Disable,L:Enable) */
 	mxc_request_iomux(MX31_PIN_CSI_D4, OUTPUTCONFIG_GPIO, INPUTCONFIG_GPIO);	// HDD_ENABLE_B
+	gpio_request(IOMUX_TO_GPIO(MX31_PIN_CSI_D4), "csi_d4");
 	gpio_direction_output(IOMUX_TO_GPIO(MX31_PIN_CSI_D4), 0);
 	mdelay(10);
 	gpio_set_value(IOMUX_TO_GPIO(MX31_PIN_CSI_D4), 0);
@@ -1056,6 +1065,7 @@ int gpio_usbh2_active(void)
 
 	mxc_request_iomux(MX31_PIN_USB_BYP, OUTPUTCONFIG_GPIO,
 			INPUTCONFIG_NONE);
+	gpio_request(IOMUX_TO_GPIO(MX31_PIN_USB_BYP), "usb_byp");
 	gpio_direction_output(IOMUX_TO_GPIO(MX31_PIN_USB_BYP), 0);
 	gpio_set_value(IOMUX_TO_GPIO(MX31_PIN_USB_BYP), 0);
 	mdelay(1);
@@ -1184,6 +1194,7 @@ int gpio_usbotg_hs_active(void)
 	/* reset transceiver */
 	mxc_request_iomux(MX31_PIN_USB_PWR, OUTPUTCONFIG_GPIO,
 		INPUTCONFIG_GPIO);
+	gpio_request(IOMUX_TO_GPIO(MX31_PIN_USB_PWR), "usb_pwr");
 	gpio_direction_output(IOMUX_TO_GPIO(MX31_PIN_USB_PWR), 0);
 	gpio_set_value(IOMUX_TO_GPIO(MX31_PIN_USB_PWR), 0);
 	mdelay(1);
@@ -1255,10 +1266,12 @@ void gpio_gps_active(void)
 	/* POWER_EN */
 	mxc_request_iomux(MX31_PIN_SCLK0,
 			OUTPUTCONFIG_GPIO, INPUTCONFIG_GPIO);
+	gpio_request(IOMUX_TO_GPIO(MX31_PIN_SCLK0), "sclk0");
 	gpio_direction_output(IOMUX_TO_GPIO(MX31_PIN_SCLK0), 0);
 	/* Reset Pin */
 	mxc_request_iomux(MX31_PIN_DCD_DTE1,
 			OUTPUTCONFIG_GPIO, INPUTCONFIG_GPIO);
+	gpio_request(IOMUX_TO_GPIO(MX31_PIN_DCD_DTE1), "dcd_dte1");
 	gpio_direction_output(IOMUX_TO_GPIO(MX31_PIN_DCD_DTE1), 0);
 
 	gpio_set_value(IOMUX_TO_GPIO(MX31_PIN_SCLK0), 0);

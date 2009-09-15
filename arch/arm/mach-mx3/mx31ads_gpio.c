@@ -511,6 +511,7 @@ void gpio_pmic_active(void)
 {
 	mxc_request_iomux(MX31_PIN_GPIO1_3, OUTPUTCONFIG_GPIO,
 			  INPUTCONFIG_GPIO);
+	gpio_request(IOMUX_TO_GPIO(MX31_PIN_GPIO1_3), NULL);
 	gpio_direction_input(IOMUX_TO_GPIO(MX31_PIN_GPIO1_3));
 }
 

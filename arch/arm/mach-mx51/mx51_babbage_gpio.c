@@ -481,6 +481,7 @@ void __init mx51_babbage_io_init(void)
 	mxc_request_iomux(MX51_PIN_GPIO1_7, IOMUX_CONFIG_GPIO);
 	mxc_iomux_set_pad(MX51_PIN_GPIO1_7, PAD_CTL_DRV_HIGH |
 			  PAD_CTL_PKE_ENABLE | PAD_CTL_SRE_FAST);
+	gpio_request(IOMUX_TO_GPIO(MX51_PIN_GPIO1_7), "gpio1_7");
 	gpio_direction_output(IOMUX_TO_GPIO(MX51_PIN_GPIO1_7), 0);
 
 	if (cpu_is_mx51_rev(CHIP_REV_1_1) == 1) {
@@ -488,6 +489,7 @@ void __init mx51_babbage_io_init(void)
 		mxc_request_iomux(MX51_PIN_GPIO1_3, IOMUX_CONFIG_ALT0);
 		mxc_iomux_set_pad(MX51_PIN_GPIO1_3, PAD_CTL_DRV_HIGH |
 				  PAD_CTL_PKE_ENABLE | PAD_CTL_SRE_FAST);
+		gpio_request(IOMUX_TO_GPIO(MX51_PIN_GPIO1_3), "gpio1_3");
 		gpio_direction_output(IOMUX_TO_GPIO(MX51_PIN_GPIO1_3), 0);
 		gpio_set_value(IOMUX_TO_GPIO(MX51_PIN_GPIO1_3), 0);
 
@@ -495,6 +497,7 @@ void __init mx51_babbage_io_init(void)
 		mxc_request_iomux(MX51_PIN_GPIO1_2, IOMUX_CONFIG_ALT0);
 		mxc_iomux_set_pad(MX51_PIN_GPIO1_2, PAD_CTL_DRV_HIGH |
 				  PAD_CTL_PKE_ENABLE | PAD_CTL_SRE_FAST);
+		gpio_request(IOMUX_TO_GPIO(MX51_PIN_GPIO1_2), "gpio1_2");
 		gpio_direction_output(IOMUX_TO_GPIO(MX51_PIN_GPIO1_2), 0);
 		gpio_set_value(IOMUX_TO_GPIO(MX51_PIN_GPIO1_2), 0);
 
@@ -520,24 +523,33 @@ void __init mx51_babbage_io_init(void)
 					    mxc_iomux_pins[i].in_mode);
 	}
 
+	gpio_request(IOMUX_TO_GPIO(MX51_PIN_GPIO1_8), "gpio1_8");
+	gpio_request(IOMUX_TO_GPIO(MX51_PIN_GPIO1_0), "gpio1_0");
+	gpio_request(IOMUX_TO_GPIO(MX51_PIN_GPIO1_1), "gpio1_1");
 	gpio_direction_input(IOMUX_TO_GPIO(MX51_PIN_GPIO1_8));
 	gpio_direction_input(IOMUX_TO_GPIO(MX51_PIN_GPIO1_0));	/* SD1 CD */
 	gpio_direction_input(IOMUX_TO_GPIO(MX51_PIN_GPIO1_1));	/* SD1 WP */
-	if (board_is_babbage_2_5() == 1)
+	if (board_is_babbage_2_5() == 1) {
 		/* SD2 CD for BB2.5 */
+		gpio_request(IOMUX_TO_GPIO(MX51_PIN_GPIO1_6), "gpio1_6");
 		gpio_direction_input(IOMUX_TO_GPIO(MX51_PIN_GPIO1_6));
-	else
+	} else {
 		/* SD2 CD for BB2.0 */
+		gpio_request(IOMUX_TO_GPIO(MX51_PIN_GPIO1_4), "gpio1_4");
 		gpio_direction_input(IOMUX_TO_GPIO(MX51_PIN_GPIO1_4));
+	}
+	gpio_request(IOMUX_TO_GPIO(MX51_PIN_GPIO1_5), "gpio1_5");
 	gpio_direction_input(IOMUX_TO_GPIO(MX51_PIN_GPIO1_5));	/* SD2 WP */
 
 	/* reset FEC PHY */
+	gpio_request(IOMUX_TO_GPIO(MX51_PIN_EIM_A20), "eim_a20");
 	gpio_direction_output(IOMUX_TO_GPIO(MX51_PIN_EIM_A20), 0);
 	gpio_set_value(IOMUX_TO_GPIO(MX51_PIN_EIM_A20), 0);
 	msleep(10);
 	gpio_set_value(IOMUX_TO_GPIO(MX51_PIN_EIM_A20), 1);
 
 	/* reset FM */
+	gpio_request(IOMUX_TO_GPIO(MX51_PIN_EIM_A21), "eim_a21");
 	gpio_set_value(IOMUX_TO_GPIO(MX51_PIN_EIM_A21), 0);
 	gpio_direction_output(IOMUX_TO_GPIO(MX51_PIN_EIM_A21), 0);
 	msleep(10);
@@ -545,10 +557,12 @@ void __init mx51_babbage_io_init(void)
 
 	if (cpu_is_mx51_rev(CHIP_REV_1_1) == 1) {
 		/* MX51_PIN_EIM_CRE - De-assert USB PHY RESETB */
+		gpio_request(IOMUX_TO_GPIO(MX51_PIN_EIM_CRE), "eim_cre");
 		gpio_direction_output(IOMUX_TO_GPIO(MX51_PIN_EIM_CRE), 0);
 		gpio_set_value(IOMUX_TO_GPIO(MX51_PIN_EIM_CRE), 1);
 
 		/* hphone_det_b */
+		gpio_request(IOMUX_TO_GPIO(MX51_PIN_NANDF_CS0), "nandf_cs0");
 		gpio_direction_input(IOMUX_TO_GPIO(MX51_PIN_NANDF_CS0));
 	} else {
 		mxc_free_iomux(MX51_PIN_EIM_D21, IOMUX_CONFIG_ALT2);
@@ -611,6 +625,7 @@ void __init mx51_babbage_io_init(void)
 		mxc_request_iomux(MX51_PIN_DI1_PIN12, IOMUX_CONFIG_ALT4);
 		mxc_iomux_set_pad(MX51_PIN_DI1_PIN12, PAD_CTL_DRV_HIGH |
 				  PAD_CTL_PKE_ENABLE | PAD_CTL_SRE_FAST);
+		gpio_request(IOMUX_TO_GPIO(MX51_PIN_DI1_PIN12), "di1_pin12");
 		gpio_direction_output(IOMUX_TO_GPIO(MX51_PIN_DI1_PIN12), 0);
 		gpio_set_value(IOMUX_TO_GPIO(MX51_PIN_DI1_PIN12), 1);
 
@@ -618,6 +633,7 @@ void __init mx51_babbage_io_init(void)
 		mxc_request_iomux(MX51_PIN_EIM_D17, IOMUX_CONFIG_ALT1);
 		mxc_iomux_set_pad(MX51_PIN_EIM_D17, PAD_CTL_DRV_HIGH |
 				  PAD_CTL_PKE_ENABLE | PAD_CTL_SRE_FAST);
+		gpio_request(IOMUX_TO_GPIO(MX51_PIN_EIM_D17), "eim_d17");
 		gpio_direction_output(IOMUX_TO_GPIO(MX51_PIN_EIM_D17), 0);
 		gpio_set_value(IOMUX_TO_GPIO(MX51_PIN_EIM_D17), 0);
 
@@ -627,12 +643,14 @@ void __init mx51_babbage_io_init(void)
 				  PAD_CTL_HYS_NONE | PAD_CTL_PUE_KEEPER |
 				  PAD_CTL_100K_PU | PAD_CTL_ODE_OPENDRAIN_NONE |
 				  PAD_CTL_PKE_ENABLE | PAD_CTL_SRE_FAST);
+		gpio_request(IOMUX_TO_GPIO(MX51_PIN_EIM_D21), "eim_d21");
 		gpio_direction_output(IOMUX_TO_GPIO(MX51_PIN_EIM_D21), 0);
 		gpio_set_value(IOMUX_TO_GPIO(MX51_PIN_EIM_D21), 1);
 
 		/* hphone_det_b */
 		mxc_request_iomux(MX51_PIN_NANDF_D14, IOMUX_CONFIG_ALT3);
 		mxc_iomux_set_pad(MX51_PIN_NANDF_D14, PAD_CTL_100K_PU);
+		gpio_request(IOMUX_TO_GPIO(MX51_PIN_NANDF_D14), "nandf_d14");
 		gpio_direction_input(IOMUX_TO_GPIO(MX51_PIN_NANDF_D14));
 
 		/* audio_clk_en_b */
@@ -641,6 +659,7 @@ void __init mx51_babbage_io_init(void)
 				  PAD_CTL_HYS_NONE | PAD_CTL_PUE_KEEPER |
 				  PAD_CTL_100K_PU | PAD_CTL_ODE_OPENDRAIN_NONE |
 				  PAD_CTL_PKE_ENABLE | PAD_CTL_SRE_FAST);
+		gpio_request(IOMUX_TO_GPIO(MX51_PIN_CSPI1_RDY), "cspi1_rdy");
 		gpio_direction_output(IOMUX_TO_GPIO(MX51_PIN_CSPI1_RDY), 0);
 		gpio_set_value(IOMUX_TO_GPIO(MX51_PIN_CSPI1_RDY), 0);
 
@@ -650,6 +669,7 @@ void __init mx51_babbage_io_init(void)
 				  PAD_CTL_ODE_OPENDRAIN_NONE |
 				  PAD_CTL_DRV_HIGH | PAD_CTL_100K_PU |
 				  PAD_CTL_HYS_NONE);
+		gpio_request(IOMUX_TO_GPIO(MX51_PIN_EIM_A27), "eim_a27");
 		gpio_direction_input(IOMUX_TO_GPIO(MX51_PIN_EIM_A27));
 	}
 
@@ -658,29 +678,38 @@ void __init mx51_babbage_io_init(void)
 		mxc_request_iomux(MX51_PIN_CSI2_HSYNC, IOMUX_CONFIG_ALT3);
 		mxc_iomux_set_pad(MX51_PIN_CSI2_HSYNC, PAD_CTL_DRV_HIGH |
 				  PAD_CTL_PKE_ENABLE | PAD_CTL_SRE_FAST);
+		gpio_request(IOMUX_TO_GPIO(MX51_PIN_CSI2_HSYNC), "csi2_hsync");
 		gpio_direction_output(IOMUX_TO_GPIO(MX51_PIN_CSI2_HSYNC), 0);
 		gpio_set_value(IOMUX_TO_GPIO(MX51_PIN_CSI2_HSYNC), 0);
 	}
 
 	/* Deassert VGA reset to free i2c bus */
+	gpio_request(IOMUX_TO_GPIO(MX51_PIN_EIM_A19), "eim_a19");
 	gpio_direction_output(IOMUX_TO_GPIO(MX51_PIN_EIM_A19), 0);
 	gpio_set_value(IOMUX_TO_GPIO(MX51_PIN_EIM_A19), 1);
 
 	/* LCD related gpio */
+	gpio_request(IOMUX_TO_GPIO(MX51_PIN_DI1_D1_CS), "di1_d1_cs");
+	gpio_request(IOMUX_TO_GPIO(MX51_PIN_DI1_D0_CS), "di1_d0_cs");
+	gpio_request(IOMUX_TO_GPIO(MX51_PIN_CSI2_D12), "csi2_d12");
+	gpio_request(IOMUX_TO_GPIO(MX51_PIN_CSI2_D13), "csi2_d13");
 	gpio_direction_output(IOMUX_TO_GPIO(MX51_PIN_DI1_D1_CS), 0);
 	gpio_direction_output(IOMUX_TO_GPIO(MX51_PIN_DI1_D0_CS), 0);
 	gpio_direction_output(IOMUX_TO_GPIO(MX51_PIN_CSI2_D12), 0);
 	gpio_direction_output(IOMUX_TO_GPIO(MX51_PIN_CSI2_D13), 0);
 
 	/* Camera reset */
+	gpio_request(IOMUX_TO_GPIO(MX51_PIN_EIM_D23), "eim_d23");
 	gpio_direction_output(IOMUX_TO_GPIO(MX51_PIN_EIM_D23), 0);
 	gpio_set_value(IOMUX_TO_GPIO(MX51_PIN_EIM_D23), 1);
 
 	/* Camera low power */
+	gpio_request(IOMUX_TO_GPIO(MX51_PIN_CSI2_D19), "csi2_d19");
 	gpio_direction_output(IOMUX_TO_GPIO(MX51_PIN_CSI2_D19), 0);
 	gpio_set_value(IOMUX_TO_GPIO(MX51_PIN_CSI2_D19), 0);
 
 	/* OSC_EN */
+	gpio_request(IOMUX_TO_GPIO(MX51_PIN_EIM_D18), "eim_d18");
 	gpio_direction_output(IOMUX_TO_GPIO(MX51_PIN_EIM_D18), 0);
 	gpio_set_value(IOMUX_TO_GPIO(MX51_PIN_EIM_D18), 1);
 
@@ -722,6 +751,7 @@ void mx51_babbage_gpio_spi_chipselect_active(int cspi_mode, int status,
 			gpio = IOMUX_TO_GPIO(MX51_PIN_CSPI1_SS0);
 			mxc_request_iomux(MX51_PIN_CSPI1_SS0,
 					  IOMUX_CONFIG_GPIO);
+			gpio_request(gpio, "cspi1_ss0");
 			gpio_direction_output(gpio, 0);
 			gpio_set_value(gpio, 1 & (~status));
 			break;

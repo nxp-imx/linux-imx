@@ -309,6 +309,7 @@ static int __init mxc_pseudo_init(void)
 	/* Set and install PMIC IRQ handler */
 	mxc_request_iomux(MX35_PIN_GPIO1_0, MUX_CONFIG_FUNC);
 	mxc_iomux_set_pad(MX35_PIN_GPIO1_0, PAD_CTL_PKE_NONE);
+	gpio_request(IOMUX_TO_GPIO(MX35_PIN_GPIO1_0), NULL);
 	gpio_direction_input(IOMUX_TO_GPIO(MX35_PIN_GPIO1_0));
 
 	set_irq_type(IOMUX_TO_IRQ(MX35_PIN_GPIO1_0), IRQF_TRIGGER_RISING);
