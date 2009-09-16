@@ -1424,7 +1424,7 @@ static uint8_t *nand_transfer_oob(struct nand_chip *chip, uint8_t *oob,
  *
  * Internal function. Called with chip held.
  */
-static int nand_do_read_ops(struct mtd_info *mtd, loff_t from,
+int nand_do_read_ops(struct mtd_info *mtd, loff_t from,
 			    struct mtd_oob_ops *ops)
 {
 	int chipnr, page, realpage, col, bytes, aligned;
@@ -1553,6 +1553,7 @@ static int nand_do_read_ops(struct mtd_info *mtd, loff_t from,
 
 	return  mtd->ecc_stats.corrected - stats.corrected ? -EUCLEAN : 0;
 }
+EXPORT_SYMBOL(nand_do_read_ops);
 
 /**
  * nand_read - [MTD Interface] MTD compability function for nand_do_read_ecc
@@ -2133,7 +2134,7 @@ static uint8_t *nand_fill_oob(struct nand_chip *chip, uint8_t *oob, size_t len,
  *
  * NAND write with ECC
  */
-static int nand_do_write_ops(struct mtd_info *mtd, loff_t to,
+int nand_do_write_ops(struct mtd_info *mtd, loff_t to,
 			     struct mtd_oob_ops *ops)
 {
 	int chipnr, realpage, page, blockmask, column;
@@ -2237,6 +2238,7 @@ static int nand_do_write_ops(struct mtd_info *mtd, loff_t to,
 		ops->oobretlen = ops->ooblen;
 	return ret;
 }
+EXPORT_SYMBOL(nand_do_write_ops);
 
 /**
  * panic_nand_write - [MTD Interface] NAND write with ECC
@@ -2649,6 +2651,7 @@ int nand_erase_nand(struct mtd_info *mtd, struct erase_info *instr,
 	/* Return more or less happy */
 	return ret;
 }
+EXPORT_SYMBOL_GPL(nand_erase_nand);
 
 /**
  * nand_sync - [MTD Interface] sync
