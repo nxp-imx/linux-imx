@@ -66,6 +66,7 @@ static struct clk *vpu_clk;
 static struct vpu_mem_desc bitwork_mem = { 0 };
 static struct vpu_mem_desc pic_para_mem = { 0 };
 static struct vpu_mem_desc user_data_mem = { 0 };
+static struct vpu_mem_desc share_mem = { 0 };
 
 /* IRAM setting */
 static struct iram_setting iram;
@@ -351,6 +352,35 @@ static int vpu_ioctl(struct inode *inode, struct file *filp, u_int cmd,
 
 			break;
 		}
+	case VPU_IOC_GET_SHARE_MEM:
+		{
+			spin_lock(&vpu_lock);
+			if (share_mem.cpu_addr != 0) {
+				ret = copy_to_user((void __user *)arg,
+						   &share_mem,
+						   sizeof(struct vpu_mem_desc));
+				spin_unlock(&vpu_lock);
+				break;
+			} else {
+				if (copy_from_user(&share_mem,
+						   (struct vpu_mem_desc *)arg,
+						 sizeof(struct vpu_mem_desc))) {
+					spin_unlock(&vpu_lock);
+					return -EFAULT;
+				}
+				if (vpu_alloc_dma_buffer(&share_mem) == -1)
+					ret = -EFAULT;
+				else {
+					if (copy_to_user((void __user *)arg,
+							 &share_mem,
+							 sizeof(struct
+								vpu_mem_desc)))
+						ret = -EFAULT;
+				}
+			}
+			spin_unlock(&vpu_lock);
+			break;
+		}
 	case VPU_IOC_GET_WORK_ADDR:
 		{
 			if (bitwork_mem.cpu_addr != 0) {
@@ -462,6 +492,9 @@ static int vpu_release(struct inode *inode, struct file *filp)
 		if (cpu_is_mx32())
 			vl2cc_disable();
 
+		/* Free shared memory when vpu device is idle */
+		vpu_free_dma_buffer(&share_mem);
+		share_mem.cpu_addr = 0;
 	}
 	spin_unlock(&vpu_lock);
 
@@ -729,7 +762,7 @@ static int vpu_resume(struct platform_device *pdev)
 #else
 #define	vpu_suspend	NULL
 #define	vpu_resume	NULL
-#endif /* !CONFIG_PM */
+#endif				/* !CONFIG_PM */
 
 /*! Driver definition
  *
