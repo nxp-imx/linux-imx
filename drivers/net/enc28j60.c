@@ -30,12 +30,15 @@
 #include <linux/delay.h>
 #include <linux/spi/spi.h>
 
+#include <mach/platform.h>
+
 #include "enc28j60_hw.h"
 
 #define DRV_NAME	"enc28j60"
 #define DRV_VERSION	"1.01"
 
 #define SPI_OPLEN	1
+#define MAX_ENC_CARDS 	1
 
 #define ENC28J60_MSG_DEFAULT	\
 	(NETIF_MSG_PROBE | NETIF_MSG_IFUP | NETIF_MSG_IFDOWN | NETIF_MSG_LINK)
@@ -49,6 +52,10 @@
 /* Max TX retries in case of collision as suggested by errata datasheet */
 #define MAX_TX_RETRYCOUNT	16
 
+#ifdef CONFIG_ARCH_STMP3XXX
+#include <mach/stmp3xxx.h>
+#include <mach/regs-ocotp.h>
+#endif
 enum {
 	RXFILTER_NORMAL,
 	RXFILTER_MULTI,
@@ -81,6 +88,69 @@ static struct {
 	u32 msg_enable;
 } debug = { -1 };
 
+static int random_mac;	/* = 0 */
+static char *mac[MAX_ENC_CARDS];
+
+static int enc28j60_get_mac(unsigned char *dev_addr, int idx)
+{
+	int i, r;
+	char *p, *item;
+	unsigned long v;
+	unsigned char sv[10];
+
+	if (idx < 0)
+		idx = 0;
+	if (idx > MAX_ENC_CARDS)
+		return false;
+
+	if (!mac[idx]) {
+#ifdef CONFIG_ARCH_STMP3XXX
+		if (get_evk_board_version() >= 1) {
+			int mac1 , mac2 , retry = 0;
+
+			stmp3xxx_setl(BM_OCOTP_CTRL_RD_BANK_OPEN, REGS_OCOTP_BASE + HW_OCOTP_CTRL);
+			while (__raw_readl(REGS_OCOTP_BASE + HW_OCOTP_CTRL) & BM_OCOTP_CTRL_BUSY) {
+				msleep(10);
+				retry++;
+				if (retry > 10)
+					return false;
+			}
+
+			mac1 = __raw_readl(REGS_OCOTP_BASE + HW_OCOTP_CUSTn(0));
+			mac2 = __raw_readl(REGS_OCOTP_BASE + HW_OCOTP_CUSTn(1));
+			if (MAX_ADDR_LEN < 6)
+				return false;
+
+			dev_addr[0] = (mac1 >> 24) & 0xFF;
+			dev_addr[1] = (mac1 >> 16) & 0xFF;
+			dev_addr[2] = (mac1 >> 8) & 0xFF;
+			dev_addr[3] = (mac1 >> 0) & 0xFF;
+			dev_addr[4] = (mac2 >> 8) & 0xFF;
+			dev_addr[5] = (mac2 >> 0) & 0xFF;
+			return true;
+		}
+#endif
+		return false;
+	}
+
+	item = mac[idx];
+	for (i = 0; i < MAX_ADDR_LEN; i++) {
+		p = strchr(item, ':');
+		if (!p)
+			sprintf(sv, "0x%s", item);
+		else
+			sprintf(sv, "0x%*.*s", p - item, p-item, item);
+		r = strict_strtoul(sv, 0, &v);
+		dev_addr[i] = v;
+		if (p)
+			item = p + 1;
+		else
+			break;
+		if (r < 0)
+			return false;
+	}
+	return true;
+}
 /*
  * SPI read buffer
  * wait for the SPI transfer and copy received data to destination
@@ -90,10 +160,13 @@ spi_read_buf(struct enc28j60_net *priv, int len, u8 *data)
 {
 	u8 *rx_buf = priv->spi_transfer_buf + 4;
 	u8 *tx_buf = priv->spi_transfer_buf;
-	struct spi_transfer t = {
-		.tx_buf = tx_buf,
-		.rx_buf = rx_buf,
-		.len = SPI_OPLEN + len,
+	struct spi_transfer tt = {
+		.tx_buf	= tx_buf,
+		.len	= SPI_OPLEN,
+	};
+	struct spi_transfer tr = {
+		.rx_buf	= rx_buf,
+		.len	= len,
 	};
 	struct spi_message msg;
 	int ret;
@@ -102,10 +175,11 @@ spi_read_buf(struct enc28j60_net *priv, int len, u8 *data)
 	tx_buf[1] = tx_buf[2] = tx_buf[3] = 0;	/* don't care */
 
 	spi_message_init(&msg);
-	spi_message_add_tail(&t, &msg);
+	spi_message_add_tail(&tt, &msg);
+	spi_message_add_tail(&tr, &msg);
 	ret = spi_sync(priv->spi, &msg);
 	if (ret == 0) {
-		memcpy(data, &rx_buf[SPI_OPLEN], len);
+		memcpy(data, rx_buf, len);
 		ret = msg.status;
 	}
 	if (ret && netif_msg_drv(priv))
@@ -1108,8 +1182,24 @@ static int enc28j60_rx_interrupt(struct net_device *ndev)
 				priv->max_pk_counter);
 	}
 	ret = pk_counter;
-	while (pk_counter-- > 0)
+	while (pk_counter-- > 0) {
+		if (!priv->full_duplex) {
+			/*
+			 * This works only in HALF DUPLEX mode:
+			 * when more than 2 packets are available, start
+			 * transmission of 11111.. frame by setting
+			 * FCON0 (0x01) in EFLOCON
+			 *
+			 * This bit can be cleared either explicitly, or by
+			 * trasmitting the packet in enc28j60_hw_tx.
+			 */
+			if (pk_counter > 2)
+				locked_reg_bfset(priv, EFLOCON, 0x01);
+			if (pk_counter == 1)
+				locked_reg_bfclr(priv, EFLOCON, 0x01);
+		}
 		enc28j60_hw_rx(ndev);
+	}
 
 	return ret;
 }
@@ -1235,6 +1325,11 @@ static void enc28j60_irq_work_handler(struct work_struct *work)
  */
 static void enc28j60_hw_tx(struct enc28j60_net *priv)
 {
+	if (!priv->tx_skb) {
+		enc28j60_tx_clear(priv->netdev, false);
+		return;
+	}
+
 	if (netif_msg_tx_queued(priv))
 		printk(KERN_DEBUG DRV_NAME
 			": Tx Packet Len:%d\n", priv->tx_skb->len);
@@ -1547,6 +1642,7 @@ static int __devinit enc28j60_probe(struct spi_device *spi)
 	struct net_device *dev;
 	struct enc28j60_net *priv;
 	int ret = 0;
+	int set;
 
 	if (netif_msg_drv(&debug))
 		dev_info(&spi->dev, DRV_NAME " Ethernet driver %s loaded\n",
@@ -1580,7 +1676,11 @@ static int __devinit enc28j60_probe(struct spi_device *spi)
 		ret = -EIO;
 		goto error_irq;
 	}
-	random_ether_addr(dev->dev_addr);
+
+	/* need a counter here, to count instances of enc28j60 devices */
+	set = enc28j60_get_mac(dev->dev_addr, -1);
+	if (!set || random_mac)
+		random_ether_addr(dev->dev_addr);
 	enc28j60_set_hw_macaddr(dev);
 
 	/* Board setup must set the relevant edge trigger type;
@@ -1635,6 +1735,40 @@ static int __devexit enc28j60_remove(struct spi_device *spi)
 	return 0;
 }
 
+#ifdef CONFIG_PM
+static int
+enc28j60_suspend(struct spi_device *spi, pm_message_t state)
+{
+	struct enc28j60_net *priv = dev_get_drvdata(&spi->dev);
+	struct net_device *net_dev = priv ? priv->netdev : NULL;
+
+	if (net_dev && netif_running(net_dev)) {
+		netif_stop_queue(net_dev);
+		netif_device_detach(net_dev);
+		disable_irq(spi->irq);
+	}
+	return 0;
+}
+
+static int
+enc28j60_resume(struct spi_device *spi)
+{
+	struct enc28j60_net *priv = dev_get_drvdata(&spi->dev);
+	struct net_device *net_dev = priv ? priv->netdev : NULL;
+
+	if (net_dev && netif_running(net_dev)) {
+		enable_irq(spi->irq);
+		netif_device_attach(net_dev);
+		netif_start_queue(net_dev);
+		schedule_work(&priv->restart_work);
+	}
+	return 0;
+}
+#else
+#define enc28j60_resume 	NULL
+#define enc28j60_suspend 	NULL
+#endif
+
 static struct spi_driver enc28j60_driver = {
 	.driver = {
 		   .name = DRV_NAME,
@@ -1642,6 +1776,8 @@ static struct spi_driver enc28j60_driver = {
 	 },
 	.probe = enc28j60_probe,
 	.remove = __devexit_p(enc28j60_remove),
+	.suspend = enc28j60_suspend,
+	.resume = enc28j60_resume,
 };
 
 static int __init enc28j60_init(void)
@@ -1664,4 +1800,6 @@ MODULE_DESCRIPTION(DRV_NAME " ethernet driver");
 MODULE_AUTHOR("Claudio Lanconelli <lanconelli.claudio@eptar.com>");
 MODULE_LICENSE("GPL");
 module_param_named(debug, debug.msg_enable, int, 0);
+module_param(random_mac, int, 0444);
+module_param_array(mac, charp, NULL, 0);
 MODULE_PARM_DESC(debug, "Debug verbosity level (0=none, ..., ffff=all)");
