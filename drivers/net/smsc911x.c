@@ -2120,6 +2120,9 @@ static int smsc911x_suspend(struct device *dev)
 {
 	struct net_device *ndev = dev_get_drvdata(dev);
 	struct smsc911x_data *pdata = netdev_priv(ndev);
+	struct phy_device *phy_dev = pdata->phy_dev;
+
+	smsc911x_mii_write(phy_dev->bus, phy_dev->addr, MII_BMCR, BMCR_PDOWN);
 
 	/* enable wake on LAN, energy detection and the external PME
 	 * signal. */
@@ -2134,6 +2137,7 @@ static int smsc911x_resume(struct device *dev)
 {
 	struct net_device *ndev = dev_get_drvdata(dev);
 	struct smsc911x_data *pdata = netdev_priv(ndev);
+	struct phy_device *phy_dev = pdata->phy_dev;
 	unsigned int to = 100;
 
 	/* Note 3.11 from the datasheet:
@@ -2147,6 +2151,8 @@ static int smsc911x_resume(struct device *dev)
 	 * if it failed. */
 	while (!(smsc911x_reg_read(pdata, PMT_CTRL) & PMT_CTRL_READY_) && --to)
 		udelay(1000);
+
+	smsc911x_mii_write(phy_dev->bus, phy_dev->addr, MII_BMCR, BMCR_ANENABLE | BMCR_ANRESTART);
 
 	return (to == 0) ? -EIO : 0;
 }
