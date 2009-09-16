@@ -681,6 +681,9 @@ void __init mx51_babbage_io_init(void)
 		gpio_request(IOMUX_TO_GPIO(MX51_PIN_CSI2_HSYNC), "csi2_hsync");
 		gpio_direction_output(IOMUX_TO_GPIO(MX51_PIN_CSI2_HSYNC), 0);
 		gpio_set_value(IOMUX_TO_GPIO(MX51_PIN_CSI2_HSYNC), 0);
+
+		/* TO3 doesn't need pad to drive CSI_DATA_EN[0] high */
+		mxc_request_iomux(MX51_PIN_DI_GP3, IOMUX_CONFIG_ALT0);
 	}
 
 	/* Deassert VGA reset to free i2c bus */
