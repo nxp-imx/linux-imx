@@ -399,8 +399,7 @@ int32_t ipu_init_channel(ipu_channel_t channel, ipu_channel_params_t *params)
 			ret = -EINVAL;
 			goto err;
 		}
-		if ((using_ic_dirct_ch != 0) &&
-			(using_ic_dirct_ch != MEM_PRP_ENC_MEM)) {
+		if (using_ic_dirct_ch == MEM_VDI_PRP_VF_MEM) {
 			ret = -EINVAL;
 			goto err;
 		}
@@ -434,8 +433,7 @@ int32_t ipu_init_channel(ipu_channel_t channel, ipu_channel_params_t *params)
 			ret = -EINVAL;
 			goto err;
 		}
-		if ((using_ic_dirct_ch != 0) &&
-			(using_ic_dirct_ch != MEM_PRP_VF_MEM)) {
+		if (using_ic_dirct_ch == MEM_VDI_PRP_VF_MEM) {
 			ret = -EINVAL;
 			goto err;
 		}
@@ -477,8 +475,8 @@ int32_t ipu_init_channel(ipu_channel_t channel, ipu_channel_params_t *params)
 		_ipu_ic_init_prpvf(params, false);
 		break;
 	case MEM_VDI_PRP_VF_MEM:
-		if ((using_ic_dirct_ch != 0) &&
-			(using_ic_dirct_ch != MEM_VDI_PRP_VF_MEM)) {
+		if ((using_ic_dirct_ch == CSI_PRP_VF_MEM) ||
+		     (using_ic_dirct_ch == CSI_PRP_ENC_MEM)) {
 			ret = -EINVAL;
 			goto err;
 		}
