@@ -1449,9 +1449,6 @@ static int mxcfb_probe(struct platform_device *pdev)
 	}
 	ipu_disable_irq(mxcfbi->ipu_ch_irq);
 
-	/* Default Y virtual size is 2x panel size */
-	fbi->var.yres_virtual = fbi->var.yres * 2;
-
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	if (res) {
 		fbi->fix.smem_len = res->end - res->start + 1;
@@ -1478,7 +1475,15 @@ static int mxcfb_probe(struct platform_device *pdev)
 	}
 
 	mxcfb_check_var(&fbi->var, fbi);
+
+	/* Default Y virtual size is 2x panel size */
+	fbi->var.yres_virtual = fbi->var.yres * 2;
+
 	mxcfb_set_fix(fbi);
+
+	/* alocate fb first */
+	if (mxcfb_map_video_memory(fbi) < 0)
+		return -ENOMEM;
 
 	ret = register_framebuffer(fbi);
 	if (ret < 0)
