@@ -144,6 +144,11 @@ struct ehci_hcd {			/* one per controller */
 
 	u8			sbrn;		/* packed release number */
 
+	/*
+	 * OTG controllers and transceivers need software interaction;
+	 * other external transceivers should be software-transparent
+	 */
+	struct otg_transceiver   *transceiver;
 	/* irq statistics */
 #ifdef EHCI_STATS
 	struct ehci_stats	stats;
