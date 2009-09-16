@@ -475,8 +475,25 @@ int tve_fb_event(struct notifier_block *nb, unsigned long val, void *v)
 		fb_add_videomode(&video_modes[2], &tve_fbi->modelist);
 		break;
 	case FB_EVENT_MODE_CHANGE:
+	{
+		struct fb_videomode cur_mode;
+		struct fb_videomode *mode;
+		struct list_head *pos;
+		struct fb_modelist *modelist;
+
 		if (tve_fbi != fbi)
 			break;
+
+		fb_var_to_videomode(&cur_mode, &fbi->var);
+
+		list_for_each(pos, &tve_fbi->modelist) {
+			modelist = list_entry(pos, struct fb_modelist, list);
+			mode = &modelist->mode;
+			if (fb_mode_is_equal(&cur_mode, mode)) {
+				fbi->mode = mode;
+				break;
+			}
+		}
 
 		if (!fbi->mode) {
 			tve_disable();
@@ -502,6 +519,7 @@ int tve_fb_event(struct notifier_block *nb, unsigned long val, void *v)
 			tve_setup(TVOUT_FMT_OFF);
 		}
 		break;
+	}
 	case FB_EVENT_BLANK:
 		if ((tve_fbi != fbi) || (fbi->mode == NULL))
 			return 0;

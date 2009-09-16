@@ -311,9 +311,6 @@ static int mxcfb_set_par(struct fb_info *fbi)
 		}
 	}
 
-	if (mxc_fbi->blank != FB_BLANK_UNBLANK)
-		return retval;
-
 	_setup_disp_channel1(fbi);
 
 	if (!mxc_fbi->overlay) {
@@ -937,15 +934,18 @@ static int mxcfb_ioctl(struct fb_info *fbi, unsigned int cmd, unsigned long arg)
 				break;
 			}
 
-			if (fbi->var.xres + pos.x > bg_fbi->var.xres)
-				pos.x = bg_fbi->var.xres - fbi->var.xres;
-			if (fbi->var.yres + pos.y > bg_fbi->var.yres)
-				pos.y = bg_fbi->var.yres - fbi->var.yres;
-
-			if (pos.x < 0)
-				pos.x = 0;
-			if (pos.y < 0)
-				pos.y = 0;
+			if (fbi->var.xres + pos.x > bg_fbi->var.xres) {
+				if (bg_fbi->var.xres < fbi->var.xres)
+					pos.x = 0;
+				else
+					pos.x = bg_fbi->var.xres - fbi->var.xres;
+			}
+			if (fbi->var.yres + pos.y > bg_fbi->var.yres) {
+				if (bg_fbi->var.yres < fbi->var.yres)
+					pos.y = 0;
+				else
+					pos.y = bg_fbi->var.yres - fbi->var.yres;
+			}
 
 			retval = ipu_disp_set_window_pos(mxc_fbi->ipu_ch,
 							 pos.x, pos.y);
