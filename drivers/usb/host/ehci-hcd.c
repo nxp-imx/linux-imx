@@ -335,8 +335,13 @@ static void ehci_work(struct ehci_hcd *ehci);
 
 #include "ehci-hub.c"
 #include "ehci-lpm.c"
+#ifdef CONFIG_USB_STATIC_IRAM
+#include "ehci-mem-iram.c"
+#include "ehci-q-iram.c"
+#else
 #include "ehci-mem.c"
 #include "ehci-q.c"
+#endif
 #include "ehci-sched.c"
 
 /*-------------------------------------------------------------------------*/
