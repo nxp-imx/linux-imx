@@ -41,7 +41,7 @@ extern void cpu_cortexa8_do_idle(void *addr);
 /* set cpu low power mode before WFI instruction */
 void mxc_cpu_lp_set(enum mxc_cpu_pwr_mode mode)
 {
-	u32 plat_lpc, gpc_pgr, arm_srpgcr, ccm_clpcr;
+	u32 plat_lpc, arm_srpgcr, ccm_clpcr;
 	u32 empgc0, empgc1;
 	int stop_mode = 0;
 
@@ -52,8 +52,6 @@ void mxc_cpu_lp_set(enum mxc_cpu_pwr_mode mode)
 	arm_srpgcr = __raw_readl(MXC_SRPG_ARM_SRPGCR) & ~(MXC_SRPGCR_PCR);
 	empgc0 = __raw_readl(MXC_SRPG_EMPGC0_SRPGCR) & ~(MXC_SRPGCR_PCR);
 	empgc1 = __raw_readl(MXC_SRPG_EMPGC1_SRPGCR) & ~(MXC_SRPGCR_PCR);
-
-	gpc_pgr = __raw_readl(MXC_GPC_PGR) & ~(MXC_GPC_PGR_ARMPG_MASK);
 
 	switch (mode) {
 	case WAIT_CLOCKED:
@@ -78,7 +76,6 @@ void mxc_cpu_lp_set(enum mxc_cpu_pwr_mode mode)
 		}
 
 		arm_srpgcr |= MXC_SRPGCR_PCR;
-		gpc_pgr |= (0x1 << MXC_GPC_PGR_ARMPG_OFFSET);
 		if (stop_mode) {
 			empgc0 |= MXC_SRPGCR_PCR;
 			empgc1 |= MXC_SRPGCR_PCR;
@@ -97,7 +94,6 @@ void mxc_cpu_lp_set(enum mxc_cpu_pwr_mode mode)
 
 	__raw_writel(plat_lpc, MXC_CORTEXA8_PLAT_LPC);
 	__raw_writel(ccm_clpcr, MXC_CCM_CLPCR);
-	__raw_writel(gpc_pgr, MXC_GPC_PGR);
 	__raw_writel(arm_srpgcr, MXC_SRPG_ARM_SRPGCR);
 	__raw_writel(arm_srpgcr, MXC_SRPG_NEON_SRPGCR);
 	if (stop_mode) {

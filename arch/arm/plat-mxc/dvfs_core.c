@@ -76,22 +76,7 @@
 #define MXC_DVFSCNTR_LTBRSR_OFFSET           3
 #define MXC_DVFSCNTR_DVFEN                   0x00000001
 
-#define MXC_GPCCNTR_GPCIRQ                   0x00100000
-#define MXC_GPCCNTR_DVFS0CR                  0x00010000
-#define MXC_GPCCNTR_ADU                      0x00008000
-#define MXC_GPCCNTR_STRT                     0x00004000
-#define MXC_GPCCNTR_FUPD                     0x00002000
-#define MXC_GPCCNTR_HTRI_MASK                0x0000000F
-#define MXC_GPCCNTR_HTRI_OFFSET              0
-#define MXC_GPCCNTR_GPCIRQM		     0x00200000
-
-#define MXC_GPCVCR_VINC_MASK                 0x00020000
-#define MXC_GPCVCR_VINC_OFFSET               17
-#define MXC_GPCVCR_VCNTU_MASK                0x00010000
-#define MXC_GPCVCR_VCNTU_OFFSET              16
-#define MXC_GPCVCR_VCNT_MASK                 0x00007FFF
-#define MXC_GPCVCR_VCNT_OFFSET               0
-
+extern int dvfs_core_is_active;
 extern void setup_pll(void);
 static struct mxc_dvfs_platform_data *dvfs_data;
 static struct device *dvfs_dev;
@@ -99,8 +84,8 @@ static struct cpu_wp *cpu_wp_tbl;
 int dvfs_core_resume;
 int curr_wp;
 int old_wp;
-int dvfs_core_is_active;
-int cpufreq_trig_needed;
+
+extern int cpufreq_trig_needed;
 struct timeval core_prev_intr;
 
 void dump_dvfs_core_regs(void);
@@ -352,9 +337,9 @@ static int start_dvfs(void)
 	/* config reg GPC_CNTR */
 	reg = __raw_readl(dvfs_data->gpc_cntr_reg_addr);
 
-	/* GPCIRQ=1, select ARM IRQ */
-	reg |= MXC_GPCCNTR_GPCIRQ;
 	reg &= ~MXC_GPCCNTR_GPCIRQM;
+	/* GPCIRQ=1, select ARM IRQ */
+	reg |= MXC_GPCCNTR_GPCIRQ_ARM;
 	/* ADU=1, select ARM domain */
 	reg |= MXC_GPCCNTR_ADU;
 	__raw_writel(reg, dvfs_data->gpc_cntr_reg_addr);

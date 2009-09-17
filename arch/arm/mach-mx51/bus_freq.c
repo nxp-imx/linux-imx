@@ -21,15 +21,16 @@
  *
  * @ingroup PM
  */
-
+#include <asm/io.h>
 #include <linux/proc_fs.h>
 #include <linux/clk.h>
 #include <linux/delay.h>
 #include <linux/platform_device.h>
-#include <mach/clock.h>
-#include <mach/hardware.h>
-#include <mach/mxc_dvfs.h>
 #include <linux/regulator/consumer.h>
+#include <mach/hardware.h>
+#include <mach/clock.h>
+#include <mach/mxc_dvfs.h>
+#include "crm_regs.h"
 
 #define LP_NORMAL_CLK			133000000
 #define LP_MED_CLK			83125000
@@ -44,23 +45,25 @@
 #define EMI_SLOW_CLK_NORMAL_DIV		AXI_B_CLK_NORMAL_DIV
 #define NFC_CLK_NORMAL_DIV      	4
 
-struct clk *ddr_clk;
-struct clk *pll2;
-struct clk *main_bus_clk;
-struct clk *axi_a_clk;
-struct clk *axi_b_clk;
-struct clk *cpu_clk;
-struct clk *ddr_hf_clk;
-struct clk *nfc_clk;
-struct clk *ahb_clk;
-struct clk *vpu_clk;
-struct clk *vpu_core_clk;
-struct clk *emi_slow_clk;
-struct clk *ddr_clk;
-struct clk *ipu_clk;
-struct clk *periph_apm_clk;
-struct clk *lp_apm;
-struct clk *osc;
+static struct clk *ddr_clk;
+static struct clk *pll2;
+static struct clk *main_bus_clk;
+static struct clk *axi_a_clk;
+static struct clk *axi_b_clk;
+static struct clk *cpu_clk;
+static struct clk *ddr_hf_clk;
+static struct clk *nfc_clk;
+static struct clk *ahb_clk;
+static struct clk *vpu_clk;
+static struct clk *vpu_core_clk;
+static struct clk *emi_slow_clk;
+static struct clk *ddr_clk;
+static struct clk *ipu_clk;
+static struct clk *periph_apm_clk;
+static struct clk *lp_apm;
+static struct clk *osc;
+static struct clk *gpc_dvfs_clk;
+static struct clk *mipi_hsp_clk;
 struct regulator *lp_regulator;
 int low_bus_freq_mode;
 int high_bus_freq_mode;
@@ -80,60 +83,183 @@ struct dvfs_wp dvfs_core_setpoint[] = {
 						{33, 8, 33, 10, 10, 0x08},
 						{26, 0, 33, 20, 10, 0x08},
 						{28, 8, 33, 20, 30, 0x08},
-						{26, 0, 33, 20, 10, 0x08},};
+						{29, 0, 33, 20, 10, 0x08},};
+
+#define DISABLE_PLL1
 
 int set_low_bus_freq(void)
 {
-	struct clk *p_clk;
-	struct clk *amode_parent_clk;
+	struct clk *tclk;
+	u32 reg;
 
 	if (bus_freq_scaling_is_active) {
+#ifdef DISABLE_PLL1
+		tclk = clk_get(NULL, "ddr_clk");
+		clk_set_parent(tclk, clk_get(NULL, "axi_a_clk"));
+
+		/* Set CPU clock to be derived from PLL2 instead of PLL1 */
+		tclk = clk_get(NULL, "pll1_sw_clk");
+		clk_set_parent(tclk, clk_get(NULL, "pll2"));
+		clk_enable(tclk);
+
+		tclk = clk_get(NULL, "ddr_clk");
+		clk_set_parent(tclk, clk_get(NULL, "ddr_hf_clk"));
+#endif
+
 		/*Change the DDR freq to 133Mhz. */
 		clk_set_rate(ddr_hf_clk,
 			     clk_round_rate(ddr_hf_clk, DDR_LOW_FREQ_CLK));
 
-		p_clk = clk_get_parent(periph_apm_clk);
-		/* Make sure osc_clk is the parent of lp_apm. */
-		clk_set_parent(lp_apm, osc);
-		/* Set the parent of periph_apm_clk to be lp_apm */
-		clk_set_parent(periph_apm_clk, lp_apm);
+		clk_enable(gpc_dvfs_clk);
 
-		amode_parent_clk = periph_apm_clk;
+		/* Setup the GPC. */
+		reg = __raw_readl(MXC_GPC_VCR);
+		reg &= ~(MXC_GPCVCR_VINC_MASK | MXC_GPCVCR_VCNTU_MASK |
+			 MXC_GPCVCR_VCNT_MASK);
 
-		p_clk = clk_get_parent(main_bus_clk);
-		/* Set the parent of main_bus_clk to be periph_apm_clk */
-		clk_set_parent(main_bus_clk, amode_parent_clk);
+		reg |= (1 << MXC_GPCVCR_VCNTU_OFFSET) |
+			(0 << MXC_GPCVCR_VCNT_OFFSET);
+		__raw_writel(reg, MXC_GPC_VCR);
 
-		clk_set_rate(axi_a_clk, LP_APM_CLK);
-		clk_set_rate(axi_b_clk, LP_APM_CLK);
-		clk_set_rate(ahb_clk, LP_APM_CLK);
-		clk_set_rate(emi_slow_clk, LP_APM_CLK);
-		clk_set_rate(nfc_clk, NAND_LP_APM_CLK);
+		reg = __raw_readl(MXC_GPC_CNTR);
+		reg &= ~(MXC_GPCCNTR_ADU_MASK | MXC_GPCCNTR_FUPD_MASK);
+		reg |= MXC_GPCCNTR_FUPD;
+		__raw_writel(reg, MXC_GPC_CNTR);
+
+		/* Enable DVFS-PER */
+		reg = __raw_readl(MXC_DVFSPER_PMCR0);
+		reg &= ~(MXC_DVFSPER_PMCR0_UDCS_MASK |
+				MXC_DVFSPER_PMCR0_ENABLE_MASK);
+		reg |= MXC_DVFSPER_PMCR0_ENABLE;
+		__raw_writel(reg, MXC_DVFSPER_PMCR0);
+
+		/* Set the dvfs-podf to divide by 4. */
+		reg = __raw_readl(MXC_CCM_CDCR);
+		reg &= ~MXC_CCM_CDCR_PERIPH_CLK_DVFS_PODF_MASK;
+		reg |= 3 << MXC_CCM_CDCR_PERIPH_CLK_DVFS_PODF_OFFSET;
+		__raw_writel(reg, MXC_CCM_CDCR);
+
+		/* Setup the GPC */
+		reg = __raw_readl(MXC_GPC_VCR) & ~MXC_GPCVCR_VINC_MASK;
+		/* Set VINC to 0. */
+		reg |= 0 << MXC_GPCVCR_VINC_OFFSET;
+		__raw_writel(reg, MXC_GPC_VCR);
+
+		reg = __raw_readl(MXC_GPC_CNTR);
+		reg |= MXC_GPCCNTR_STRT;
+		__raw_writel(reg, MXC_GPC_CNTR);
+		while (__raw_readl(MXC_GPC_CNTR) & MXC_GPCCNTR_STRT)
+			udelay(10);
+
+		/* Disable DVFS-PER */
+		reg = __raw_readl(MXC_DVFSPER_PMCR0);
+		reg &= ~MXC_DVFSPER_PMCR0_ENABLE;
+		__raw_writel(reg, MXC_DVFSPER_PMCR0);
+
+		/* Set the dividers to be  close to 24Mhz from 166.25MHz*/
+		reg = __raw_readl(MXC_CCM_CBCDR);
+		reg &= ~(MXC_CCM_CBCDR_AXI_A_PODF_MASK
+				| MXC_CCM_CBCDR_AXI_B_PODF_MASK
+				| MXC_CCM_CBCDR_AHB_PODF_MASK
+				| MXC_CCM_CBCDR_EMI_PODF_MASK
+				| MXC_CCM_CBCDR_NFC_PODF_OFFSET);
+		reg |= (6 << MXC_CCM_CBCDR_AXI_A_PODF_OFFSET
+				| 6 << MXC_CCM_CBCDR_AXI_B_PODF_OFFSET
+				| 6 << MXC_CCM_CBCDR_AHB_PODF_OFFSET
+				| 6 << MXC_CCM_CBCDR_EMI_PODF_OFFSET
+				| 3 << MXC_CCM_CBCDR_NFC_PODF_OFFSET);
+		__raw_writel(reg, MXC_CCM_CBCDR);
+
+		while (__raw_readl(MXC_CCM_CDHIPR) & 0x1F)
+			udelay(10);
+		clk_set_parent(main_bus_clk, pll2);
 
 		low_bus_freq_mode = 1;
 		high_bus_freq_mode = 0;
 	}
-
 	return 0;
 }
 
 int set_high_bus_freq(int high_bus_freq)
 {
+	u32 dvfs_podf = __raw_readl(MXC_CCM_CDCR) & 0x3;
+	u32 reg;
+	struct clk *tclk;
+	
 	if (bus_freq_scaling_is_active) {
-		if (clk_get_rate(main_bus_clk) == LP_APM_CLK) {
+		if (dvfs_podf > 1) {
+			reg = __raw_readl(MXC_CCM_CBCDR);
+			reg &= ~(MXC_CCM_CBCDR_AXI_A_PODF_MASK
+					| MXC_CCM_CBCDR_AXI_B_PODF_MASK
+					| MXC_CCM_CBCDR_AHB_PODF_MASK
+					| MXC_CCM_CBCDR_EMI_PODF_MASK
+					| MXC_CCM_CBCDR_NFC_PODF_OFFSET);
+			reg |= (3 << MXC_CCM_CBCDR_AXI_A_PODF_OFFSET
+					| 4 << MXC_CCM_CBCDR_AXI_B_PODF_OFFSET
+					| 4 << MXC_CCM_CBCDR_AHB_PODF_OFFSET
+					| 4 << MXC_CCM_CBCDR_EMI_PODF_OFFSET
+					| 3 << MXC_CCM_CBCDR_NFC_PODF_OFFSET);
+			__raw_writel(reg, MXC_CCM_CBCDR);
+			while (__raw_readl(MXC_CCM_CDHIPR) & 0x1F)
+				udelay(10);
 
-			/* Set the dividers before setting the parent clock. */
-			clk_set_rate(axi_a_clk,
-				     LP_APM_CLK/AXI_A_CLK_NORMAL_DIV);
-			clk_set_rate(axi_b_clk,
-				     LP_APM_CLK/AXI_B_CLK_NORMAL_DIV);
-			clk_set_rate(ahb_clk, LP_APM_CLK/AHB_CLK_NORMAL_DIV);
-			clk_set_rate(emi_slow_clk,
-				     LP_APM_CLK/EMI_SLOW_CLK_NORMAL_DIV);
-			clk_set_rate(nfc_clk,
-				clk_get_rate(emi_slow_clk)/NFC_CLK_NORMAL_DIV);
-			/* Set the parent of main_bus_clk to be pll2 */
+			/* Setup the GPC. */
+			reg = __raw_readl(MXC_GPC_VCR);
+			reg &= ~(MXC_GPCVCR_VINC_MASK | MXC_GPCVCR_VCNTU_MASK |
+				 MXC_GPCVCR_VCNT_MASK);
+
+			reg |= (1 << MXC_GPCVCR_VCNTU_OFFSET) |
+				(0 << MXC_GPCVCR_VCNT_OFFSET);
+			__raw_writel(reg, MXC_GPC_VCR);
+
+			reg = __raw_readl(MXC_GPC_CNTR);
+			reg &= ~(MXC_GPCCNTR_ADU_MASK | MXC_GPCCNTR_FUPD_MASK);
+			reg |= MXC_GPCCNTR_FUPD;
+			__raw_writel(reg, MXC_GPC_CNTR);
+
+			/* Enable DVFS-PER */
+			reg = __raw_readl(MXC_DVFSPER_PMCR0);
+			reg |= MXC_DVFSPER_PMCR0_UDCS;
+			reg |= MXC_DVFSPER_PMCR0_ENABLE;
+			__raw_writel(reg, MXC_DVFSPER_PMCR0);
+
+			/* Set the dvfs-podf to divide by 1. */
+			reg = __raw_readl(MXC_CCM_CDCR);
+			reg &= ~MXC_CCM_CDCR_PERIPH_CLK_DVFS_PODF_MASK;
+			reg |= 0 << MXC_CCM_CDCR_PERIPH_CLK_DVFS_PODF_OFFSET;
+			__raw_writel(reg, MXC_CCM_CDCR);
+
+			/* Setup the GPC */
+			reg = __raw_readl(MXC_GPC_VCR) & ~MXC_GPCVCR_VINC_MASK;
+			/* Set VINC to 1. */
+			reg |= 1 << MXC_GPCVCR_VINC_OFFSET;
+			__raw_writel(reg, MXC_GPC_VCR);
+
+			reg = __raw_readl(MXC_GPC_CNTR);
+			reg |= MXC_GPCCNTR_STRT;
+			__raw_writel(reg, MXC_GPC_CNTR);
+			while (__raw_readl(MXC_GPC_CNTR) & MXC_GPCCNTR_STRT)
+				udelay(10);
+
+			/* Disable DVFS-PER */
+			reg = __raw_readl(MXC_DVFSPER_PMCR0);
+			reg &= ~MXC_DVFSPER_PMCR0_ENABLE;
+			__raw_writel(reg, MXC_DVFSPER_PMCR0);
+
 			clk_set_parent(main_bus_clk, pll2);
+			clk_disable(gpc_dvfs_clk);
+#ifdef DISABLE_PLL1
+			tclk = clk_get(NULL, "ddr_clk");
+			clk_set_parent(tclk, clk_get(NULL, "axi_a_clk"));
+
+			/* Set CPU clock to be derived from PLL1 instead of PLL2 */
+			tclk = clk_get(NULL, "pll1_sw_clk");
+			clk_set_parent(tclk, clk_get(NULL, "pll1_main_clk"));
+			clk_disable(tclk);
+
+			tclk = clk_get(NULL, "ddr_clk");
+			clk_set_parent(tclk, clk_get(NULL, "ddr_hf_clk"));
+#endif
 
 			/*Change the DDR freq to 200MHz*/
 			clk_set_rate(ddr_hf_clk,
@@ -158,7 +284,6 @@ int set_high_bus_freq(int high_bus_freq)
 			clk_set_rate(ddr_hf_clk,
 				clk_round_rate(ddr_hf_clk, DDR_NORMAL_CLK));
 		}
-	
 		if (!lp_high_freq && !high_bus_freq) {
 			/* Set to the medium setpoint. */
 			high_bus_freq_mode = 0;
@@ -169,7 +294,6 @@ int set_high_bus_freq(int high_bus_freq)
 				     clk_round_rate(ahb_clk, LP_MED_CLK));
 		}
 	}
-
 	return 0;
 }
 
@@ -206,10 +330,8 @@ static ssize_t bus_freq_scaling_enable_store(struct device *dev,
 	else if (strstr(buf, "0") != NULL) {
 		if (bus_freq_scaling_is_active)
 			set_high_bus_freq(1);
-
 		bus_freq_scaling_is_active = 0;
 	}
-
 	return size;
 }
 
@@ -227,6 +349,7 @@ static DEVICE_ATTR(enable, 0644, bus_freq_scaling_enable_show,
 static int __devinit busfreq_probe(struct platform_device *pdev)
 {
 	int err = 0;
+	u32 reg;
 
 	busfreq_dev = &pdev->dev;
 
@@ -313,6 +436,13 @@ static int __devinit busfreq_probe(struct platform_device *pdev)
 		return PTR_ERR(ipu_clk);
 	}
 
+	mipi_hsp_clk = clk_get(NULL, "mipi_hsp_clk");
+	if (IS_ERR(mipi_hsp_clk)) {
+		printk(KERN_DEBUG "%s: failed to get mipi_hsp_clk\n",
+		       __func__);
+		return PTR_ERR(mipi_hsp_clk);
+	}
+
 	vpu_clk = clk_get(NULL, "vpu_clk");
 	if (IS_ERR(vpu_clk)) {
 		printk(KERN_DEBUG "%s: failed to get vpu_clk\n",
@@ -340,15 +470,28 @@ static int __devinit busfreq_probe(struct platform_device *pdev)
 		return PTR_ERR(osc);
 	}
 
+	gpc_dvfs_clk = clk_get(NULL, "gpc_dvfs_clk");
+	if (IS_ERR(gpc_dvfs_clk)) {
+		printk(KERN_DEBUG "%s: failed to get gpc_dvfs_clk\n", __func__);
+		return PTR_ERR(gpc_dvfs_clk);
+	}
+
 	err = sysfs_create_file(&busfreq_dev->kobj, &dev_attr_enable.attr);
 	if (err) {
 		printk(KERN_ERR
 		       "Unable to register sysdev entry for BUSFREQ");
 		return err;
 	}
+
+	/* Initialize DVFS-PODF to 0. */
+	reg = __raw_readl(MXC_CCM_CDCR);
+	reg &= ~MXC_CCM_CDCR_PERIPH_CLK_DVFS_PODF_MASK;
+	__raw_writel(reg, MXC_CCM_CDCR);
+	clk_set_parent(main_bus_clk, pll2);
+
 	cpu_wp_tbl = get_cpu_wp(&cpu_wp_nr);
 	low_bus_freq_mode = 0;
-	high_bus_freq_mode = 0;
+	high_bus_freq_mode = 1;
 	bus_freq_scaling_is_active = 0;
 
 	return 0;
@@ -357,7 +500,7 @@ static int __devinit busfreq_probe(struct platform_device *pdev)
 static struct platform_driver busfreq_driver = {
 	.driver = {
 		   .name = "busfreq",
-		   },
+		},
 	.probe = busfreq_probe,
 };
 
