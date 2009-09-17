@@ -705,7 +705,7 @@ static int mxcfb_ioctl(struct fb_info *fbi, unsigned int cmd, unsigned long arg)
 		{
 			struct mxcfb_loc_alpha la;
 			int i;
-			char *video_plane_idstr;
+			char *video_plane_idstr = "";
 
 			if (copy_from_user(&la, (void *)arg, sizeof(la))) {
 				retval = -EFAULT;
@@ -1486,9 +1486,10 @@ static int mxcfb_probe(struct platform_device *pdev)
 
 	platform_set_drvdata(pdev, fbi);
 
-	device_create_file(fbi->dev, &dev_attr_fsl_disp_property);
+	ret = device_create_file(fbi->dev, &dev_attr_fsl_disp_property);
+	if (ret)
+		dev_err(&pdev->dev, "Error %d on creating file\n", ret);
 
-	dev_err(&pdev->dev, "fb registered, using mode %s\n", fb_mode);
 	return 0;
 
 err2:

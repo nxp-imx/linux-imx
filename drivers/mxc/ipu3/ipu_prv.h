@@ -78,7 +78,7 @@ void _ipu_ic_init_rotate_pp(ipu_channel_params_t *params);
 void _ipu_ic_uninit_rotate_pp(void);
 int _ipu_ic_idma_init(int dma_chan, uint16_t width, uint16_t height,
 		      int burst_size, ipu_rotate_mode_t rot);
-void _ipu_vdi_toggle_top_field_man();
+void _ipu_vdi_toggle_top_field_man(void);
 int _ipu_csi_init(ipu_channel_t channel, uint32_t csi);
 void ipu_csi_set_test_generator(bool active, uint32_t r_value,
 		uint32_t g_value, uint32_t b_value,

@@ -139,13 +139,14 @@ static void _ipu_di_sync_config(int di, int wave_gen,
 				int cnt_polarity_trigger_src,
 				int cnt_up, int cnt_down)
 {
+	u32 reg;
+
 	if ((run_count >= 0x1000) || (offset_count >= 0x1000) || (repeat_count >= 0x1000) ||
 		(cnt_up >= 0x400) || (cnt_down >= 0x400)) {
 		dev_err(g_ipu_dev, "DI%d counters out of range.\n", di);
 		return;
 	}
 
-	u32 reg;
 	reg = (run_count << 19) | (++run_src << 16) |
 	    (offset_count << 3) | ++offset_src;
 	__raw_writel(reg, DI_SW_GEN0(di, wave_gen));
@@ -841,7 +842,7 @@ int32_t ipu_init_sync_panel(int disp, uint32_t pixel_clk,
 	uint32_t field1_offset;
 	uint32_t reg;
 	uint32_t disp_gen, di_gen, vsync_cnt;
-	uint32_t div, up;
+	uint32_t div;
 	uint32_t h_total, v_total;
 	int map;
 	struct clk *di_clk;
