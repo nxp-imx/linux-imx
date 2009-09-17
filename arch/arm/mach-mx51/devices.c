@@ -34,6 +34,8 @@
 
 /* Flag used to indicate when IRAM has been initialized */
 int iram_ready;
+/* Flag used to indicate if dvfs_core is active. */
+int dvfs_core_is_active;
 
 void mxc_sdma_get_script_info(sdma_script_start_addrs * sdma_script_addr)
 {

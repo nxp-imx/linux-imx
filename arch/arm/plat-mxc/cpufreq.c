@@ -42,6 +42,7 @@ int cpu_freq_khz_max;
 int arm_lpm_clk;
 int arm_normal_clk;
 int cpufreq_suspended;
+int cpufreq_trig_needed;
 
 static struct clk *cpu_clk;
 static struct regulator *gp_regulator;

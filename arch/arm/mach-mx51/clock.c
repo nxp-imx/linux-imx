@@ -595,7 +595,10 @@ static struct clk periph_apm_clk = {
  */
 static void _clk_main_bus_recalc(struct clk *clk)
 {
-	clk->rate = clk->parent->rate;
+	u32 div;
+
+	div  = (__raw_readl(MXC_CCM_CDCR) & 0x3) + 1;
+	clk->rate = clk->parent->rate / div;
 }
 
 static int _clk_main_bus_set_parent(struct clk *clk, struct clk *parent)
@@ -606,11 +609,6 @@ static int _clk_main_bus_set_parent(struct clk *clk, struct clk *parent)
 		emi_fast_clk.enable(&emi_fast_clk);
 	if (emi_slow_clk.usecount == 0)
 		emi_slow_clk.enable(&emi_slow_clk);
-
-	if (ipu_clk[0].usecount == 0)
-		ipu_clk[0].enable(&ipu_clk[0]);
-	if (mipi_hsp_clk.usecount == 0)
-		mipi_hsp_clk.enable(&mipi_hsp_clk);
 
 	if (parent == &pll2_sw_clk) {
 		reg = __raw_readl(MXC_CCM_CBCDR) &
@@ -626,11 +624,6 @@ static int _clk_main_bus_set_parent(struct clk *clk, struct clk *parent)
 		emi_fast_clk.disable(&emi_fast_clk);
 	if (emi_slow_clk.usecount == 0)
 		emi_slow_clk.disable(&emi_slow_clk);
-
-	if (ipu_clk[0].usecount == 0)
-		ipu_clk[0].disable(&ipu_clk[0]);
-	if (mipi_hsp_clk.usecount == 0)
-		mipi_hsp_clk.disable(&mipi_hsp_clk);
 
 	return 0;
 }
@@ -669,10 +662,6 @@ static int _clk_axi_a_set_rate(struct clk *clk, unsigned long rate)
 		emi_fast_clk.enable(&emi_fast_clk);
 	if (emi_slow_clk.usecount == 0)
 		emi_slow_clk.enable(&emi_slow_clk);
-	if (ipu_clk[0].usecount == 0)
-		ipu_clk[0].enable(&ipu_clk[0]);
-	if (mipi_hsp_clk.usecount == 0)
-		mipi_hsp_clk.enable(&mipi_hsp_clk);
 
 	reg = __raw_readl(MXC_CCM_CBCDR);
 	reg &= ~MXC_CCM_CBCDR_AXI_A_PODF_MASK;
@@ -691,11 +680,6 @@ static int _clk_axi_a_set_rate(struct clk *clk, unsigned long rate)
 		emi_fast_clk.disable(&emi_fast_clk);
 	if (emi_slow_clk.usecount == 0)
 		emi_slow_clk.disable(&emi_slow_clk);
-
-	if (ipu_clk[0].usecount == 0)
-		ipu_clk[0].disable(&ipu_clk[0]);
-	if (mipi_hsp_clk.usecount == 0)
-		mipi_hsp_clk.disable(&mipi_hsp_clk);
 
 	return 0;
 }
@@ -815,15 +799,9 @@ static int _clk_axi_b_set_rate(struct clk *clk, unsigned long rate)
 	if (((clk->parent->rate / div) != rate) || (div > 8))
 		return -EINVAL;
 
-	if (emi_fast_clk.usecount == 0)
-		emi_fast_clk.enable(&emi_fast_clk);
+	emi_fast_clk.enable(&emi_fast_clk);
 	if (emi_slow_clk.usecount == 0)
 		emi_slow_clk.enable(&emi_slow_clk);
-
-	if (ipu_clk[0].usecount == 0)
-		ipu_clk[0].enable(&ipu_clk[0]);
-	if (mipi_hsp_clk.usecount == 0)
-		mipi_hsp_clk.enable(&mipi_hsp_clk);
 
 	reg = __raw_readl(MXC_CCM_CBCDR);
 	reg &= ~MXC_CCM_CBCDR_AXI_B_PODF_MASK;
@@ -839,15 +817,9 @@ static int _clk_axi_b_set_rate(struct clk *clk, unsigned long rate)
 
 	clk->rate = rate;
 
-	if (emi_fast_clk.usecount == 0)
-		emi_fast_clk.disable(&emi_fast_clk);
+	emi_fast_clk.disable(&emi_fast_clk);
 	if (emi_slow_clk.usecount == 0)
 		emi_slow_clk.disable(&emi_slow_clk);
-
-	if (ipu_clk[0].usecount == 0)
-		ipu_clk[0].disable(&ipu_clk[0]);
-	if (mipi_hsp_clk.usecount == 0)
-		mipi_hsp_clk.disable(&mipi_hsp_clk);
 
 	return 0;
 }
@@ -902,10 +874,6 @@ static int _clk_ahb_set_rate(struct clk *clk, unsigned long rate)
 		emi_fast_clk.enable(&emi_fast_clk);
 	if (emi_slow_clk.usecount == 0)
 		emi_slow_clk.enable(&emi_slow_clk);
-	if (ipu_clk[0].usecount == 0)
-		ipu_clk[0].enable(&ipu_clk[0]);
-	if (mipi_hsp_clk.usecount == 0)
-		mipi_hsp_clk.enable(&mipi_hsp_clk);
 
 	reg = __raw_readl(MXC_CCM_CBCDR);
 	reg &= ~MXC_CCM_CBCDR_AHB_PODF_MASK;
@@ -924,11 +892,6 @@ static int _clk_ahb_set_rate(struct clk *clk, unsigned long rate)
 		emi_fast_clk.disable(&emi_fast_clk);
 	if (emi_slow_clk.usecount == 0)
 		emi_slow_clk.disable(&emi_slow_clk);
-
-	if (ipu_clk[0].usecount == 0)
-		ipu_clk[0].disable(&ipu_clk[0]);
-	if (mipi_hsp_clk.usecount == 0)
-		mipi_hsp_clk.disable(&mipi_hsp_clk);
 
 	return 0;
 }
@@ -1002,11 +965,6 @@ static int _clk_emi_slow_set_parent(struct clk *clk, struct clk *parent)
 	if (emi_slow_clk.usecount == 0)
 		emi_slow_clk.enable(&emi_slow_clk);
 
-	if (ipu_clk[0].usecount == 0)
-		ipu_clk[0].enable(&ipu_clk[0]);
-	if (mipi_hsp_clk.usecount == 0)
-		mipi_hsp_clk.enable(&mipi_hsp_clk);
-
 	reg = __raw_readl(MXC_CCM_CBCDR);
 	if (parent == &ahb_clk) {
 		reg |= MXC_CCM_CBCDR_EMI_CLK_SEL;
@@ -1021,11 +979,6 @@ static int _clk_emi_slow_set_parent(struct clk *clk, struct clk *parent)
 		emi_fast_clk.disable(&emi_fast_clk);
 	if (emi_slow_clk.usecount == 0)
 		emi_slow_clk.disable(&emi_slow_clk);
-
-	if (ipu_clk[0].usecount == 0)
-		ipu_clk[0].disable(&ipu_clk[0]);
-	if (mipi_hsp_clk.usecount == 0)
-		mipi_hsp_clk.disable(&mipi_hsp_clk);
 
 	return 0;
 }
@@ -1055,11 +1008,6 @@ static int _clk_emi_slow_set_rate(struct clk *clk, unsigned long rate)
 	if (emi_fast_clk.usecount == 0)
 		emi_fast_clk.enable(&emi_fast_clk);
 
-	if (ipu_clk[0].usecount == 0)
-		ipu_clk[0].enable(&ipu_clk[0]);
-	if (mipi_hsp_clk.usecount == 0)
-		mipi_hsp_clk.enable(&mipi_hsp_clk);
-
 	reg = __raw_readl(MXC_CCM_CBCDR);
 	reg &= ~MXC_CCM_CBCDR_EMI_PODF_MASK;
 	reg |= (div - 1) << MXC_CCM_CBCDR_EMI_PODF_OFFSET;
@@ -1074,11 +1022,6 @@ static int _clk_emi_slow_set_rate(struct clk *clk, unsigned long rate)
 
 	if (emi_fast_clk.usecount == 0)
 		emi_fast_clk.disable(&emi_fast_clk);
-
-	if (ipu_clk[0].usecount == 0)
-		ipu_clk[0].disable(&ipu_clk[0]);
-	if (mipi_hsp_clk.usecount == 0)
-		mipi_hsp_clk.disable(&mipi_hsp_clk);
 
 	return 0;
 }
@@ -1311,6 +1254,7 @@ static int _clk_ipu_enable(struct clk *clk)
 static void _clk_ipu_disable(struct clk *clk)
 {
 	u32 reg;
+
 	_clk_disable(clk);
 
 	/* No handshake with IPU whe dividers are changed
@@ -1323,7 +1267,6 @@ static void _clk_ipu_disable(struct clk *clk)
 	reg = __raw_readl(MXC_CCM_CLPCR);
 	reg |= MXC_CCM_CLPCR_BYPASS_IPU_LPM_HS;
 	__raw_writel(reg, MXC_CCM_CLPCR);
-
 }
 
 static int _clk_ipu_set_parent(struct clk *clk, struct clk *parent)
@@ -1636,7 +1579,7 @@ static void _clk_hsc_disable(struct clk *clk)
 	_clk_disable(clk);
 	/* No handshake with HSC as its not enabled. */
 	reg = __raw_readl(MXC_CCM_CCDR);
-	reg |= MXC_CCM_CCDR_IPU_HS_MASK;
+	reg |= MXC_CCM_CCDR_HSC_HS_MASK;
 	__raw_writel(reg, MXC_CCM_CCDR);
 
 	reg = __raw_readl(MXC_CCM_CLPCR);
@@ -3576,7 +3519,7 @@ int __init mxc_clocks_init(unsigned long ckil, unsigned long osc, unsigned long 
 			      1 << MXC_CCM_CCGR0_CG1_OFFSET |
 			      1 << MXC_CCM_CCGR0_CG2_OFFSET |
 			      1 << MXC_CCM_CCGR0_CG3_OFFSET |
-			      1 << MXC_CCM_CCGR0_CG4_OFFSET |
+			      3 << MXC_CCM_CCGR0_CG4_OFFSET |
 			      1 << MXC_CCM_CCGR0_CG8_OFFSET |
 			      1 << MXC_CCM_CCGR0_CG9_OFFSET |
 			      1 << MXC_CCM_CCGR0_CG12_OFFSET |
@@ -3626,6 +3569,13 @@ int __init mxc_clocks_init(unsigned long ckil, unsigned long osc, unsigned long 
 		| MXC_CCM_CLPCR_BYPASS_SCC_LPM_HS
 		| MXC_CCM_CLPCR_BYPASS_SDMA_LPM_HS;
 	__raw_writel(reg, MXC_CCM_CLPCR);
+
+	/* Disable the handshake with HSC block as its not
+	  * initialised right now.
+	  */
+	reg = __raw_readl(MXC_CCM_CCDR);
+	reg |= MXC_CCM_CCDR_HSC_HS_MASK;
+	__raw_writel(reg, MXC_CCM_CCDR);
 
 	/* This will propagate to all children and init all the clock rates */
 	propagate_rate(&osc_clk);
