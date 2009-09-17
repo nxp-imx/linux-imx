@@ -37,6 +37,8 @@ struct mxc_gpio_port {
 	int virtual_irq_start;
 	struct gpio_chip chip;
 	u32 both_edges;
+	u32 suspend_wakeup;
+	u32 saved_wakeup;
 };
 
 int mxc_gpio_init(struct mxc_gpio_port*, int);
