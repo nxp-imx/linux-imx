@@ -1482,8 +1482,9 @@ static int mxcfb_probe(struct platform_device *pdev)
 	mxcfb_set_fix(fbi);
 
 	/* alocate fb first */
-	if (mxcfb_map_video_memory(fbi) < 0)
-		return -ENOMEM;
+	if (!res)
+		if (mxcfb_map_video_memory(fbi) < 0)
+			return -ENOMEM;
 
 	ret = register_framebuffer(fbi);
 	if (ret < 0)
