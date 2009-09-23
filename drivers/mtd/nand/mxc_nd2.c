@@ -370,7 +370,9 @@ static void send_cmd(struct mtd_info *mtd, u16 cmd, bool useirq)
 		break;
 	case NAND_CMD_RESET:
 		auto_cmd_interleave(mtd, cmd);
+		break;
 	case NAND_CMD_STATUS:
+		send_atomic_cmd(cmd, useirq);
 		break;
 	default:
 		break;
@@ -483,13 +485,17 @@ static inline void read_dev_status(u16 *status)
 	/* clear status */
 	ACK_OPS;
 
-	do {
-		/* send auto read status command */
-		raw_write(NFC_AUTO_STATE, REG_NFC_OPS);
-		if (cpu_is_mx51_rev(CHIP_REV_2_0) == 1)
-			wait_op_done(TROP_US_DELAY, false);
-		*status = (raw_read(NFC_CONFIG1) & mask) >> 16;
-	} while ((*status & NAND_STATUS_READY) == 0);
+
+	/* use atomic mode to read status instead
+	   of using auto mode,auto-mode has issues
+	   and the status is not correct.
+	*/
+	raw_write(NFC_STATUS, REG_NFC_OPS);
+
+	wait_op_done(TROP_US_DELAY, false);
+
+	*status = (raw_read(NFC_CONFIG1) & mask) >> 16;
+
 }
 #endif
 
