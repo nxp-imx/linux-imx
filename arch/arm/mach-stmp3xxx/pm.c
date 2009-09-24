@@ -36,6 +36,15 @@
 #include <mach/regs-clkctrl.h>
 #include <mach/regs-pinctrl.h>
 #include <mach/regs-power.h>
+#include <mach/regs-gpmi.h>
+#include <mach/regs-pwm.h>
+#include <mach/regs-usbctrl.h>
+#include <mach/regs-apbh.h>
+#include <mach/regs-apbx.h>
+#include <mach/regs-rtc.h>
+#include <mach/regs-dram.h>
+#include <mach/regs-emi.h>
+#include <mach/regs-digctl.h>
 
 #include "clock.h"
 #include "sleep.h"
@@ -43,6 +52,129 @@
 #define PENDING_IRQ_RETRY 100
 static void *saved_sram;
 static int saved_sleep_state;
+
+#define WAIT_DC_OK_CYCLES 24000
+#define WAIT_CYCLE(n) for (i = 0; i < n; i++);
+#define LOWER_VDDIO 10
+#define LOWER_VDDA 9
+#define LOWER_VDDD 0xa
+#define MAX_POWEROFF_CODE_SIZE (6 * 1024)
+
+static void stmp378x_standby(void)
+{
+	int i;
+	u32 reg_vddd, reg_vdda, reg_vddio;
+
+	/* DDR EnterSelfrefreshMode */
+	HW_DRAM_CTL08_SET(BM_DRAM_CTL08_SREFRESH);
+
+	/* Gating EMI CLock */
+	HW_CLKCTRL_EMI_SET(BM_CLKCTRL_EMI_CLKGATE);
+
+	/* Disable PLL */
+	HW_CLKCTRL_PLLCTRL0_CLR(BM_CLKCTRL_PLLCTRL0_POWER);
+
+	/* Reduce the VDDIO (3.050 volt) */
+	reg_vddio = HW_POWER_VDDIOCTRL_RD();
+	HW_POWER_VDDIOCTRL_WR(HW_POWER_VDDIOCTRL_RD() |
+		BM_POWER_VDDIOCTRL_BO_OFFSET);
+	HW_POWER_VDDIOCTRL_WR(
+		(HW_POWER_VDDIOCTRL_RD() &
+		~BM_POWER_VDDIOCTRL_TRG)|LOWER_VDDIO);
+	WAIT_CYCLE(WAIT_DC_OK_CYCLES)
+
+	while (!(HW_POWER_STS_RD() & BM_POWER_STS_DC_OK))
+		;
+
+	/* Reduce VDDA 1.725volt */
+	reg_vdda = HW_POWER_VDDACTRL_RD();
+	HW_POWER_VDDACTRL_WR(HW_POWER_VDDACTRL_RD() |
+			BM_POWER_VDDACTRL_BO_OFFSET);
+	HW_POWER_VDDACTRL_WR((HW_POWER_VDDACTRL_RD() &
+			~BM_POWER_VDDACTRL_TRG) | LOWER_VDDA);
+	WAIT_CYCLE(WAIT_DC_OK_CYCLES)
+
+	/* wait for DC_OK */
+	while (!(HW_POWER_STS_RD() & BM_POWER_STS_DC_OK))
+		;
+
+	/* Reduce VDDD 1.000 volt */
+	reg_vddd = HW_POWER_VDDDCTRL_RD();
+	HW_POWER_VDDDCTRL_WR(HW_POWER_VDDDCTRL_RD() |
+			BM_POWER_VDDDCTRL_BO_OFFSET);
+	HW_POWER_VDDDCTRL_WR((HW_POWER_VDDDCTRL_RD() &
+		~BM_POWER_VDDDCTRL_TRG) | LOWER_VDDD);
+
+	WAIT_CYCLE(WAIT_DC_OK_CYCLES)
+
+	while (!(HW_POWER_STS_RD() & BM_POWER_STS_DC_OK))
+		;
+
+	/* optimize the DCDC loop gain */
+	HW_POWER_LOOPCTRL_WR((HW_POWER_LOOPCTRL_RD() &
+			~BM_POWER_LOOPCTRL_EN_RCSCALE));
+	HW_POWER_LOOPCTRL_WR((HW_POWER_LOOPCTRL_RD() &
+			~BM_POWER_LOOPCTRL_DC_R) |
+			(2<<BP_POWER_LOOPCTRL_DC_R));
+
+	/* half the fets */
+	HW_POWER_MINPWR_SET(BM_POWER_MINPWR_HALF_FETS);
+
+	HW_POWER_LOOPCTRL_CLR(BM_POWER_LOOPCTRL_CM_HYST_THRESH);
+	HW_POWER_LOOPCTRL_CLR(BM_POWER_LOOPCTRL_EN_CM_HYST);
+	HW_POWER_LOOPCTRL_CLR(BM_POWER_LOOPCTRL_EN_DF_HYST);
+	/* enable PFM */
+	HW_POWER_LOOPCTRL_SET(BM_POWER_LOOPCTRL_HYST_SIGN);
+	HW_POWER_MINPWR_SET(BM_POWER_MINPWR_EN_DC_PFM);
+
+	HW_CLKCTRL_CPU_SET(BM_CLKCTRL_CPU_INTERRUPT_WAIT);
+	/* Power off ... */
+	asm("mcr     p15, 0, r2, c7, c0, 4");
+	HW_CLKCTRL_CPU_CLR(BM_CLKCTRL_CPU_INTERRUPT_WAIT);
+
+	/* restore the DCDC parameter */
+
+	HW_POWER_MINPWR_CLR(BM_POWER_MINPWR_EN_DC_PFM);
+	HW_POWER_LOOPCTRL_CLR(BM_POWER_LOOPCTRL_HYST_SIGN);
+	HW_POWER_LOOPCTRL_SET(BM_POWER_LOOPCTRL_EN_DF_HYST);
+	HW_POWER_LOOPCTRL_SET(BM_POWER_LOOPCTRL_EN_CM_HYST);
+	HW_POWER_LOOPCTRL_SET(BM_POWER_LOOPCTRL_CM_HYST_THRESH);
+
+	HW_POWER_LOOPCTRL_WR((HW_POWER_LOOPCTRL_RD() &
+				~BM_POWER_LOOPCTRL_DC_R) |
+				(2<<BP_POWER_LOOPCTRL_DC_R));
+	HW_POWER_LOOPCTRL_WR((HW_POWER_LOOPCTRL_RD() &
+				~BM_POWER_LOOPCTRL_EN_RCSCALE) |
+				(3 << BP_POWER_LOOPCTRL_EN_RCSCALE));
+
+
+	/* Restore VDDD */
+	HW_POWER_VDDDCTRL_WR(reg_vddd);
+
+	WAIT_CYCLE(WAIT_DC_OK_CYCLES)
+	while (!(HW_POWER_STS_RD() & BM_POWER_STS_DC_OK))
+		;
+
+	HW_POWER_VDDACTRL_WR(reg_vdda);
+	WAIT_CYCLE(WAIT_DC_OK_CYCLES)
+	while (!(HW_POWER_STS_RD() & BM_POWER_STS_DC_OK))
+		;
+
+	HW_POWER_VDDIOCTRL_WR(reg_vddio);
+	WAIT_CYCLE(WAIT_DC_OK_CYCLES)
+	while (!(HW_POWER_STS_RD() & BM_POWER_STS_DC_OK))
+		;
+
+
+	/* Enable PLL */
+	HW_CLKCTRL_PLLCTRL0_SET(BM_CLKCTRL_PLLCTRL0_POWER);
+	/* Ungating EMI CLock */
+	HW_CLKCTRL_EMI_CLR(BM_CLKCTRL_EMI_CLKGATE);
+
+	/* LeaveSelfrefreshMode */
+	HW_DRAM_CTL08_CLR(BM_DRAM_CTL08_SREFRESH);
+	WAIT_CYCLE(WAIT_DC_OK_CYCLES)
+}
 
 static inline void do_standby(void)
 {
@@ -55,6 +187,7 @@ static inline void do_standby(void)
 	int cpu_rate = 0;
 	int hbus_rate = 0;
 	int i, pending_irq;
+	u32 reg_clkctrl_clkseq, reg_clkctrl_xtal;
 
 	/*
 	 * 1) switch clock domains from PLL to 24MHz
@@ -72,8 +205,8 @@ static inline void do_standby(void)
 	flush_cache_all();
 
 	/* copy suspend function into SRAM */
-	memcpy((void *)STMP3XXX_OCRAM_VA_BASE, stmp37xx_cpu_standby,
-			stmp_standby_alloc_sz);
+	memcpy((void *)STMP3XXX_OCRAM_VA_BASE, (void*)stmp378x_standby,
+			MAX_POWEROFF_CODE_SIZE);
 
 	/* now switch the CPU to ref_xtal */
 	cpu_clk = clk_get(NULL, "cpu");
@@ -110,9 +243,29 @@ static inline void do_standby(void)
 		/* Barrier */
 		(void) HW_ICOLL_STAT_RD();
 	}
+
+	reg_clkctrl_clkseq = HW_CLKCTRL_CLKSEQ_RD();
+
+	HW_CLKCTRL_CLKSEQ_SET(BM_CLKCTRL_CLKSEQ_BYPASS_ETM |
+	BM_CLKCTRL_CLKSEQ_BYPASS_SSP |
+	BM_CLKCTRL_CLKSEQ_BYPASS_GPMI |
+	BM_CLKCTRL_CLKSEQ_BYPASS_IR |
+	BM_CLKCTRL_CLKSEQ_BYPASS_PIX|
+	BM_CLKCTRL_CLKSEQ_BYPASS_SAIF);
+
+	reg_clkctrl_xtal = HW_CLKCTRL_XTAL_RD();
+
+	HW_CLKCTRL_XTAL_SET(BM_CLKCTRL_XTAL_FILT_CLK24M_GATE |
+	BM_CLKCTRL_XTAL_PWM_CLK24M_GATE  |
+	BM_CLKCTRL_XTAL_DRI_CLK24M_GATE);
+
 	/* do suspend */
 	stmp37xx_cpu_standby_ptr = (void *)STMP3XXX_OCRAM_VA_BASE;
+
 	stmp37xx_cpu_standby_ptr();
+
+	HW_CLKCTRL_CLKSEQ_WR(reg_clkctrl_clkseq);
+	HW_CLKCTRL_XTAL_WR(reg_clkctrl_xtal);
 
 	pr_info("wakeup irq source = %d\n", HW_ICOLL_STAT_RD());
 	saved_sleep_state = 0;  /* waking from standby */

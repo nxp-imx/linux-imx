@@ -140,8 +140,6 @@ static void stmp3xxx_machine_restart(char mode)
 
 void __init stmp3xxx_init(void)
 {
-	/* Turn off auto-slow and other tricks */
-	HW_CLKCTRL_HBUS_CLR(0x07f00000U);
 
 	/* Re-route machine restart to our own handler */
 	arm_pm_restart = stmp3xxx_machine_restart;
