@@ -737,6 +737,8 @@ scc_verify_slot_access(uint64_t owner_id, uint32_t slot, uint32_t access_len);*/
 #define SCM_STATUS_SRS_ZDONE2	0x7	/**< Zeroize Done, Cipher Busy */
 #define SCM_STATUS_SRS_CDONE2	0x8	/**< Cipher Done, Zeroize Busy */
 #define SCM_STATUS_SRS_ADONE	0xD	/**< All Done */
+#define SCM_STATUS_SRS_FAIL	    0xF	/**< Fail State */
+
 
 /* Format of the SCM VERSION ID REGISTER */
 #define SCM_VER_BPP_MASK    0xFF000000	/**< Bytes Per Partition Mask */
