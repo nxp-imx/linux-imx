@@ -1232,6 +1232,26 @@ struct clk *clk_get_parent(struct clk *clk)
 }
 EXPORT_SYMBOL(clk_get_parent);
 
+static void clkctrl_enable_powersavings(void)
+{
+	u32 reg;
+
+	reg = __raw_readl(REGS_CLKCTRL_BASE + HW_CLKCTRL_HBUS);
+	reg |= BM_CLKCTRL_HBUS_APBHDMA_AS_ENABLE |
+		BM_CLKCTRL_HBUS_APBXDMA_AS_ENABLE |
+		BM_CLKCTRL_HBUS_TRAFFIC_AS_ENABLE |
+		BM_CLKCTRL_HBUS_TRAFFIC_JAM_AS_ENABLE |
+		BM_CLKCTRL_HBUS_CPU_DATA_AS_ENABLE |
+		BM_CLKCTRL_HBUS_CPU_INSTR_AS_ENABLE |
+		BM_CLKCTRL_HBUS_DCP_AS_ENABLE |
+		BM_CLKCTRL_HBUS_PXP_AS_ENABLE |
+		BM_CLKCTRL_HBUS_AUTO_SLOW_MODE;
+
+	reg &= ~BM_CLKCTRL_HBUS_SLOW_DIV;
+	reg |= BV_CLKCTRL_HBUS_SLOW_DIV__BY32;
+	__raw_writel(reg, REGS_CLKCTRL_BASE + HW_CLKCTRL_HBUS);
+}
+
 static int __init clk_init(void)
 {
 	struct clk_lookup *cl;
@@ -1267,6 +1287,8 @@ static int __init clk_init(void)
 
 		clkdev_add(cl);
 	}
+	clkctrl_enable_powersavings();
+
 	return 0;
 }
 

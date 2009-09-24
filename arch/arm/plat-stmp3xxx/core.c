@@ -126,9 +126,6 @@ static void stmp3xxx_machine_restart(char mode, const char *cmd)
 
 void __init stmp3xxx_init(void)
 {
-	/* Turn off auto-slow and other tricks */
-	stmp3xxx_clearl(0x7f00000, REGS_CLKCTRL_BASE + HW_CLKCTRL_HBUS);
-
 	/* Re-route machine restart to our own handler */
 	arm_pm_restart = stmp3xxx_machine_restart;
 
