@@ -1059,14 +1059,13 @@ static int mxc_v4l2out_streamon(vout_data * vout)
 
 		dev_dbg(dev, "Using SDC channel\n");
 
-		/* Bypass IC if resizing and rotation not needed
-		   Always do CSC in DP
-		   Meanwhile, apply IC bypass to SDC only
+		/*
+		 * Bypass IC if resizing and rotation are not needed
+		 * Meanwhile, apply IC bypass to SDC only
 		 */
 		if (out_width == vout->v2f.fmt.pix.width &&
 			out_height == vout->v2f.fmt.pix.height &&
 			ipu_can_rotate_in_place(vout->rotate)) {
-			pr_debug("Bypassing IC\n");
 			vout->ic_bypass = 1;
 			ipu_disable_irq(IPU_IRQ_PP_IN_EOF);
 		} else {
@@ -1079,6 +1078,16 @@ static int mxc_v4l2out_streamon(vout_data * vout)
 		    format_is_yuv(bpp_to_fmt(fbi)))
 			vout->ic_bypass = 0;
 #endif
+
+		/* We are using IC to do input cropping */
+		if (vout->queue_buf_paddr[vout->ipu_buf[0]] !=
+		    vout->v4l2_bufs[vout->ipu_buf[0]].m.offset ||
+		    vout->queue_buf_paddr[vout->ipu_buf[1]] !=
+		    vout->v4l2_bufs[vout->ipu_buf[1]].m.offset)
+			vout->ic_bypass = 0;
+
+		if (vout->ic_bypass)
+			pr_debug("Bypassing IC\n");
 
 		fbvar = fbi->var;
 
