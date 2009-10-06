@@ -93,6 +93,8 @@ int set_low_bus_freq(void)
 	u32 reg;
 
 	if (bus_freq_scaling_is_active) {
+		if (clk_get_rate(cpu_clk) != cpu_wp_tbl[cpu_wp_nr - 1].cpu_rate)
+			return 0;
 #ifdef DISABLE_PLL1
 		tclk = clk_get(NULL, "ddr_clk");
 		clk_set_parent(tclk, clk_get(NULL, "axi_a_clk"));
@@ -185,7 +187,7 @@ int set_high_bus_freq(int high_bus_freq)
 	u32 dvfs_podf = __raw_readl(MXC_CCM_CDCR) & 0x3;
 	u32 reg;
 	struct clk *tclk;
-	
+
 	if (bus_freq_scaling_is_active) {
 		if (dvfs_podf > 1) {
 			reg = __raw_readl(MXC_CCM_CBCDR);
@@ -260,7 +262,6 @@ int set_high_bus_freq(int high_bus_freq)
 			tclk = clk_get(NULL, "ddr_clk");
 			clk_set_parent(tclk, clk_get(NULL, "ddr_hf_clk"));
 #endif
-
 			/*Change the DDR freq to 200MHz*/
 			clk_set_rate(ddr_hf_clk,
 				    clk_round_rate(ddr_hf_clk, DDR_NORMAL_CLK));

@@ -77,7 +77,7 @@ static struct regulator_init_data sw1_init = {
 		.boot_on = 1,
 		.initial_state = PM_SUSPEND_MEM,
 		.state_mem = {
-			.uV = 700000,
+			.uV = 850000,
 			.mode = REGULATOR_MODE_NORMAL,
 			.enabled = 1,
 		},
@@ -96,7 +96,7 @@ static struct regulator_init_data sw2_init = {
 		.boot_on = 1,
 		.initial_state = PM_SUSPEND_MEM,
 		.state_mem = {
-			.uV = 1200000,
+			.uV = 950000,
 			.mode = REGULATOR_MODE_NORMAL,
 			.enabled = 1,
 		},
@@ -282,7 +282,7 @@ static int mc13892_regulator_init(struct mc13892 *mc13892)
 	printk("Initializing regulators for 3-stack.\n");
 	if (mxc_cpu_is_rev(CHIP_REV_2_0) < 0)
 		sw2_init.constraints.state_mem.uV = 1100000;
-	else if (mxc_cpu_is_rev(CHIP_REV_2_0) >= 1) {
+	else if (mxc_cpu_is_rev(CHIP_REV_2_0) == 1) {
 		sw2_init.constraints.state_mem.uV = 1250000;
 		sw1_init.constraints.state_mem.uV = 1000000;
 	}
