@@ -30,6 +30,9 @@
 #include "sdma_script_code.h"
 #include "crm_regs.h"
 
+/* Flag used to indicate if dvfs_core is active. */
+int dvfs_core_is_active;
+
 extern struct dptc_wp dptc_gp_wp_allfreq[DPTC_GP_WP_SUPPORTED];
 extern struct dptc_wp dptc_lp_wp_allfreq[DPTC_LP_WP_SUPPORTED];
 
