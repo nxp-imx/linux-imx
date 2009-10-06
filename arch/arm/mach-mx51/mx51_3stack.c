@@ -93,7 +93,7 @@ static struct cpu_wp cpu_wp_auto[] = {
 	 .mfd = 2,
 	 .mfn = 1,
 	 .cpu_podf = 4,
-	 .cpu_voltage = 1000000,},
+	 .cpu_voltage = 850000,},
 };
 
 struct cpu_wp *mx51_3stack_get_cpu_wp(int *wp)
@@ -1275,6 +1275,13 @@ static void __init mxc_board_init(void)
 
 static void __init mx51_3stack_timer_init(void)
 {
+	/* Change the CPU voltages for TO2*/
+	if (cpu_is_mx51_rev(CHIP_REV_2_0) <= 1) {
+		cpu_wp_auto[0].cpu_voltage = 1175000;
+		cpu_wp_auto[1].cpu_voltage = 1100000;
+		cpu_wp_auto[2].cpu_voltage = 1000000;
+	}
+
 	mx51_clocks_init(32768, 24000000, 22579200, 24576000);
 }
 

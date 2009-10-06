@@ -70,7 +70,7 @@
 #define SD_STBY_MASK		(1 << 19)
 
 /* 0x92412 */
-#define REG_MODE_0_ALL_MASK	(GEN1_STBY_MASK | IOHI_STBY_MASK |\
+#define REG_MODE_0_ALL_MASK	(GEN1_STBY_MASK |\
 				DIG_STBY_MASK | GEN2_STBY_MASK |\
 				PLL_STBY_MASK | USB2_STBY_MASK)
 /* 0x92082 */
@@ -98,7 +98,7 @@ static struct regulator_init_data sw1_init = {
 		.boot_on = 1,
 		.initial_state = PM_SUSPEND_MEM,
 		.state_mem = {
-			.uV = 700000,
+			.uV = 850000,
 			.mode = REGULATOR_MODE_NORMAL,
 			.enabled = 1,
 		},
@@ -117,7 +117,7 @@ static struct regulator_init_data sw2_init = {
 		.boot_on = 1,
 		.initial_state = PM_SUSPEND_MEM,
 		.state_mem = {
-			.uV = 900000,
+			.uV = 950000,
 			.mode = REGULATOR_MODE_NORMAL,
 			.enabled = 1,
 		},
@@ -293,10 +293,11 @@ static int mc13892_regulator_init(struct mc13892 *mc13892)
 	printk("Initializing regulators for Babbage.\n");
 	if (mxc_cpu_is_rev(CHIP_REV_2_0) < 0)
 		sw2_init.constraints.state_mem.uV = 1100000;
-	else if (mxc_cpu_is_rev(CHIP_REV_2_0) >= 1) {
+	else if (mxc_cpu_is_rev(CHIP_REV_2_0) == 1) {
 		sw2_init.constraints.state_mem.uV = 1250000;
 		sw1_init.constraints.state_mem.uV = 1000000;
 	}
+
 	/* enable standby controll for all regulators */
 	pmic_read_reg(REG_MODE_0, &value, 0xffffff);
 	value |= REG_MODE_0_ALL_MASK;

@@ -50,6 +50,9 @@ static struct clk axi_a_clk;
 static struct clk axi_b_clk;
 static struct clk ddr_hf_clk;
 static struct clk mipi_hsp_clk;
+static struct clk gpu3d_clk;
+static struct clk gpu2d_clk;
+static struct clk vpu_clk[];
 static int cpu_curr_wp;
 static struct cpu_wp *cpu_wp_tbl;
 
@@ -112,6 +115,17 @@ static int _clk_enable(struct clk *clk)
 	return 0;
 }
 
+static int _clk_enable_inrun(struct clk *clk)
+{
+	u32 reg;
+
+	reg = __raw_readl(clk->enable_reg);
+	reg &= ~(MXC_CCM_CCGR_CG_MASK << clk->enable_shift);
+	reg |= 1 << clk->enable_shift;
+	__raw_writel(reg, clk->enable_reg);
+	return 0;
+}
+
 static void _clk_disable(struct clk *clk)
 {
 	u32 reg;
@@ -123,7 +137,6 @@ static void _clk_disable(struct clk *clk)
 		lp_high_freq--;
 	else if (clk->flags & AHB_MED_SET_POINT)
 		lp_med_freq--;
-
 }
 
 static void _clk_disable_inwait(struct clk *clk)
@@ -605,7 +618,6 @@ static void _clk_main_bus_recalc(struct clk *clk)
 static int _clk_main_bus_set_parent(struct clk *clk, struct clk *parent)
 {
 	u32 reg;
-
 	if (emi_fast_clk.usecount == 0)
 		emi_fast_clk.enable(&emi_fast_clk);
 	if (emi_slow_clk.usecount == 0)
@@ -620,7 +632,6 @@ static int _clk_main_bus_set_parent(struct clk *clk, struct clk *parent)
 		return -EINVAL;
 	}
 	__raw_writel(reg, MXC_CCM_CBCDR);
-
 	if (emi_fast_clk.usecount == 0)
 		emi_fast_clk.disable(&emi_fast_clk);
 	if (emi_slow_clk.usecount == 0)
@@ -658,7 +669,6 @@ static int _clk_axi_a_set_rate(struct clk *clk, unsigned long rate)
 		div++;
 	if (((clk->parent->rate / div) != rate) || (div > 8))
 		return -EINVAL;
-
 	if (emi_fast_clk.usecount == 0)
 		emi_fast_clk.enable(&emi_fast_clk);
 	if (emi_slow_clk.usecount == 0)
@@ -676,7 +686,6 @@ static int _clk_axi_a_set_rate(struct clk *clk, unsigned long rate)
 			panic("pll _clk_axi_a_set_rate failed\n");
 	}
 	clk->rate = rate;
-
 	if (emi_fast_clk.usecount == 0)
 		emi_fast_clk.disable(&emi_fast_clk);
 	if (emi_slow_clk.usecount == 0)
@@ -742,7 +751,6 @@ static int _clk_ddr_hf_set_rate(struct clk *clk, unsigned long rate)
 		div++;
 	if (((clk->parent->rate / div) != rate) || (div > 8))
 		return -EINVAL;
-
 	if (emi_fast_clk.usecount == 0)
 		emi_fast_clk.enable(&emi_fast_clk);
 	if (emi_slow_clk.usecount == 0)
@@ -760,7 +768,6 @@ static int _clk_ddr_hf_set_rate(struct clk *clk, unsigned long rate)
 			panic("clk_ddr_hf_set_rate failed\n");
 	}
 	clk->rate = rate;
-
 	if (emi_fast_clk.usecount == 0)
 		emi_fast_clk.disable(&emi_fast_clk);
 	if (emi_slow_clk.usecount == 0)
@@ -817,7 +824,6 @@ static int _clk_axi_b_set_rate(struct clk *clk, unsigned long rate)
 	}
 
 	clk->rate = rate;
-
 	emi_fast_clk.disable(&emi_fast_clk);
 	if (emi_slow_clk.usecount == 0)
 		emi_slow_clk.disable(&emi_slow_clk);
@@ -870,7 +876,6 @@ static int _clk_ahb_set_rate(struct clk *clk, unsigned long rate)
 		div++;
 	if (((clk->parent->rate / div) != rate) || (div > 8))
 		return -EINVAL;
-
 	if (emi_fast_clk.usecount == 0)
 		emi_fast_clk.enable(&emi_fast_clk);
 	if (emi_slow_clk.usecount == 0)
@@ -888,7 +893,6 @@ static int _clk_ahb_set_rate(struct clk *clk, unsigned long rate)
 			panic("_clk_ahb_set_rate failed\n");
 	}
 	clk->rate = rate;
-
 	if (emi_fast_clk.usecount == 0)
 		emi_fast_clk.disable(&emi_fast_clk);
 	if (emi_slow_clk.usecount == 0)
@@ -1005,10 +1009,8 @@ static int _clk_emi_slow_set_rate(struct clk *clk, unsigned long rate)
 		div++;
 	if (((clk->parent->rate / div) != rate) || (div > 8))
 		return -EINVAL;
-
 	if (emi_fast_clk.usecount == 0)
 		emi_fast_clk.enable(&emi_fast_clk);
-
 	reg = __raw_readl(MXC_CCM_CBCDR);
 	reg &= ~MXC_CCM_CBCDR_EMI_PODF_MASK;
 	reg |= (div - 1) << MXC_CCM_CBCDR_EMI_PODF_OFFSET;
@@ -1023,7 +1025,6 @@ static int _clk_emi_slow_set_rate(struct clk *clk, unsigned long rate)
 
 	if (emi_fast_clk.usecount == 0)
 		emi_fast_clk.disable(&emi_fast_clk);
-
 	return 0;
 }
 
@@ -1182,7 +1183,6 @@ static struct clk aips_tz2_clk = {
 
 static struct clk gpc_dvfs_clk = {
 	.name = "gpc_dvfs_clk",
-	.parent = &aips_tz2_clk,
 	.enable_reg = MXC_CCM_CCGR5,
 	.enable_shift = MXC_CCM_CCGR5_CG12_OFFSET,
 	.enable = _clk_enable,
@@ -1772,7 +1772,9 @@ static struct clk uart1_clk[] = {
 	 .name = "uart_ipg_clk",
 	 .id = 0,
 	 .parent = &ipg_clk,
+#ifdef UART1_DMA_ENABLE
 	 .secondary = &aips_tz1_clk,
+#endif
 	 .enable_reg = MXC_CCM_CCGR1,
 	 .enable_shift = MXC_CCM_CCGR1_CG3_OFFSET,
 	 .enable = _clk_enable,
@@ -1798,7 +1800,9 @@ static struct clk uart2_clk[] = {
 	 .name = "uart_ipg_clk",
 	 .id = 1,
 	 .parent = &ipg_clk,
+#ifdef UART2_DMA_ENABLE
 	 .secondary = &aips_tz1_clk,
+#endif
 	 .enable_reg = MXC_CCM_CCGR1,
 	 .enable_shift = MXC_CCM_CCGR1_CG5_OFFSET,
 	 .enable = _clk_enable,
@@ -1876,7 +1880,7 @@ static struct clk pwm1_clk[] = {
 	 .parent = &ipg_clk,
 	 .enable_reg = MXC_CCM_CCGR2,
 	 .enable_shift = MXC_CCM_CCGR2_CG5_OFFSET,
-	 .enable = _clk_enable,
+	 .enable = _clk_enable_inrun, /*Active only when ARM is running. */
 	 .disable = _clk_disable,
 	 },
 	{
@@ -1903,7 +1907,7 @@ static struct clk pwm2_clk[] = {
 	 .parent = &ipg_clk,
 	 .enable_reg = MXC_CCM_CCGR2,
 	 .enable_shift = MXC_CCM_CCGR2_CG7_OFFSET,
-	 .enable = _clk_enable,
+	 .enable = _clk_enable_inrun, /*Active only when ARM is running. */
 	 .disable = _clk_disable,
 	 },
 	{
@@ -2024,7 +2028,7 @@ static struct clk cspi1_clk[] = {
 	 .secondary = &spba_clk,
 	 .enable_reg = MXC_CCM_CCGR4,
 	 .enable_shift = MXC_CCM_CCGR4_CG9_OFFSET,
-	 .enable = _clk_enable,
+	 .enable = _clk_enable_inrun, /*Active only when ARM is running. */
 	 .disable = _clk_disable,
 	 },
 };
@@ -2047,7 +2051,7 @@ static struct clk cspi2_clk[] = {
 	 .secondary = &aips_tz2_clk,
 	 .enable_reg = MXC_CCM_CCGR4,
 	 .enable_shift = MXC_CCM_CCGR4_CG11_OFFSET,
-	 .enable = _clk_enable,
+	 .enable = _clk_enable_inrun, /*Active only when ARM is running. */
 	 .disable = _clk_disable,
 	 },
 };
@@ -2845,7 +2849,6 @@ static int _clk_nfc_set_rate(struct clk *clk, unsigned long rate)
 			panic("_clk_nfc_set_rate failed\n");
 	}
 	clk->rate = rate;
-
 	if (emi_fast_clk.usecount == 0)
 		emi_fast_clk.disable(&emi_fast_clk);
 	if (emi_slow_clk.usecount == 0)
@@ -3076,6 +3079,30 @@ static int _clk_vpu_set_parent(struct clk *clk, struct clk *parent)
 	return 0;
 }
 
+static int _clk_vpu_enable(struct clk *clk)
+{
+	/* Set VPU's parent to be axi_a or ahb when its enabled. */
+	if (cpu_is_mx51_rev(CHIP_REV_2_0) < 0) {
+		clk_set_parent(&vpu_clk[0], &ahb_clk);
+		clk_set_parent(&vpu_clk[1], &ahb_clk);
+	} else {
+		clk_set_parent(&vpu_clk[0], &axi_a_clk);
+		clk_set_parent(&vpu_clk[1], &axi_a_clk);
+	}
+
+	return _clk_enable(clk);
+
+}
+
+static void _clk_vpu_disable(struct clk *clk)
+{
+	_clk_disable(clk);
+
+	/* Set VPU's parent to be axi_b when its disabled. */
+	clk_set_parent(&vpu_clk[0], &axi_b_clk);
+	clk_set_parent(&vpu_clk[1], &axi_b_clk);
+}
+
 static struct clk vpu_clk[] = {
 	{
 	 .name = "vpu_clk",
@@ -3090,10 +3117,10 @@ static struct clk vpu_clk[] = {
 	{
 	 .name = "vpu_core_clk",
 	 .set_parent = _clk_vpu_set_parent,
-	 .enable = _clk_enable,
+	 .enable = _clk_vpu_enable,
 	 .enable_reg = MXC_CCM_CCGR5,
 	 .enable_shift = MXC_CCM_CCGR5_CG3_OFFSET,
-	 .disable = _clk_disable,
+	 .disable = _clk_vpu_disable,
 	 .secondary = &vpu_clk[2],
 	 },
 	{
@@ -3243,6 +3270,7 @@ static struct clk scc_clk[] = {
 	}
 };
 
+
 static int _clk_gpu3d_set_parent(struct clk *clk, struct clk *parent)
 {
 	u32 reg, mux;
@@ -3256,14 +3284,30 @@ static int _clk_gpu3d_set_parent(struct clk *clk, struct clk *parent)
 	return 0;
 }
 
+static int _clk_gpu3d_enable(struct clk *clk)
+{
+	/* Set gPU's parent to be axi_a or ahb when its enabled. */
+	clk_set_parent(&gpu3d_clk, &axi_a_clk);
+	return _clk_enable(clk);
+}
+
+static void _clk_gpu3d_disable(struct clk *clk)
+{
+	_clk_disable(clk);
+
+	/* Set GPU's parent to be axi_b when its disabled. */
+	clk_set_parent(&gpu3d_clk, &axi_b_clk);
+}
+
+
 static struct clk gpu3d_clk = {
 	.name = "gpu3d_clk",
 	.parent = &axi_a_clk,
 	.set_parent = _clk_gpu3d_set_parent,
-	.enable = _clk_enable,
+	.enable = _clk_gpu3d_enable,
 	.enable_reg = MXC_CCM_CCGR5,
 	.enable_shift = MXC_CCM_CCGR5_CG1_OFFSET,
-	.disable = _clk_disable,
+	.disable = _clk_gpu3d_disable,
 	.flags = AHB_HIGH_SET_POINT | CPU_FREQ_TRIG_UPDATE,
 };
 
@@ -3298,14 +3342,29 @@ static int _clk_gpu2d_set_parent(struct clk *clk, struct clk *parent)
 	return 0;
 }
 
+static int _clk_gpu2d_enable(struct clk *clk)
+{
+	/* Set GPU2D's parent to be axi_a or ahb when its enabled. */
+	clk_set_parent(&gpu2d_clk, &axi_a_clk);
+	return _clk_enable(clk);
+}
+
+static void _clk_gpu2d_disable(struct clk *clk)
+{
+	_clk_disable(clk);
+
+	/* Set GPU2d's parent to be axi_b when its disabled. */
+	clk_set_parent(&gpu2d_clk, &axi_b_clk);
+}
+
 static struct clk gpu2d_clk = {
 	.name = "gpu2d_clk",
 	.parent = &axi_a_clk,
 	.set_parent = _clk_gpu2d_set_parent,
-	.enable = _clk_enable,
+	.enable = _clk_gpu2d_enable,
 	.enable_reg = MXC_CCM_CCGR6,
 	.enable_shift = MXC_CCM_CCGR6_CG7_OFFSET,
-	.disable = _clk_disable,
+	.disable = _clk_gpu2d_disable,
 	.flags = AHB_HIGH_SET_POINT | CPU_FREQ_TRIG_UPDATE,
 };
 
@@ -3545,7 +3604,7 @@ int __init mx51_clocks_init(unsigned long ckil, unsigned long osc, unsigned long
 
 	__raw_writel(1 << MXC_CCM_CCGR5_CG2_OFFSET |
 		     3 << MXC_CCM_CCGR5_CG6_OFFSET |
-		     1 << MXC_CCM_CCGR5_CG7_OFFSET |
+		     3 << MXC_CCM_CCGR5_CG7_OFFSET |
 		     1 << MXC_CCM_CCGR5_CG8_OFFSET |
 		     3 << MXC_CCM_CCGR5_CG9_OFFSET |
 		     1 << MXC_CCM_CCGR5_CG10_OFFSET |
@@ -3598,16 +3657,13 @@ int __init mx51_clocks_init(unsigned long ckil, unsigned long osc, unsigned long
 	else
 		clk_set_parent(&ddr_clk, &axi_a_clk);
 
-	if (cpu_is_mx51_rev(CHIP_REV_2_0) < 0) {
-		clk_set_parent(&vpu_clk[0], &ahb_clk);
-		clk_set_parent(&vpu_clk[1], &ahb_clk);
-	} else {
-		clk_set_parent(&vpu_clk[0], &axi_a_clk);
-		clk_set_parent(&vpu_clk[1], &axi_a_clk);
-	}
-
-	clk_set_parent(&gpu3d_clk, &axi_a_clk);
-	clk_set_parent(&gpu2d_clk, &axi_a_clk);
+	/* Initialise the parents to be axi_b, parents are set to
+	 * axi_a when the clocks are enabled.
+	 */
+	clk_set_parent(&vpu_clk[0], &axi_b_clk);
+	clk_set_parent(&vpu_clk[1], &axi_b_clk);
+	clk_set_parent(&gpu3d_clk, &axi_b_clk);
+	clk_set_parent(&gpu2d_clk, &axi_b_clk);
 
 	/* move cspi to 24MHz */
 	clk_set_parent(&cspi_main_clk, &lp_apm_clk);
