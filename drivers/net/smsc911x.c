@@ -128,6 +128,16 @@ static inline u32 smsc911x_reg_read(struct smsc911x_data *pdata, u32 reg)
 	if (pdata->config.flags & SMSC911X_USE_32BIT)
 		return readl(pdata->ioaddr + reg);
 
+#ifdef CONFIG_ARCH_MXC
+	if (pdata->config.flags & 0x8000) {
+		u32 data;
+		unsigned long flags;
+		spin_lock_irqsave(&pdata->dev_lock, flags);
+		data = spi_cpld_read(reg);
+		spin_unlock_irqrestore(&pdata->dev_lock, flags);
+		return data;
+	} else
+#endif
 	if (pdata->config.flags & SMSC911X_USE_16BIT) {
 		u32 data;
 		unsigned long flags;
@@ -155,6 +165,15 @@ static inline void smsc911x_reg_write(struct smsc911x_data *pdata, u32 reg,
 		return;
 	}
 
+#ifdef CONFIG_ARCH_MXC
+	if (pdata->config.flags & 0x8000) {
+		unsigned long flags;
+		spin_lock_irqsave(&pdata->dev_lock, flags);
+		spi_cpld_write(reg, val);
+		spin_unlock_irqrestore(&pdata->dev_lock, flags);
+		return;
+	} else
+#endif
 	if (pdata->config.flags & SMSC911X_USE_16BIT) {
 		unsigned long flags;
 
