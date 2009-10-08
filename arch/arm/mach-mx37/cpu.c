@@ -33,6 +33,8 @@ void __init mxc_cpu_init(void)
 	}
 }
 
+#define MXC_ARM1176_BASE	IO_ADDRESS(ARM1176_BASE_ADDR)
+
 /*!
  * Post CPU init code
  *
@@ -40,8 +42,14 @@ void __init mxc_cpu_init(void)
  */
 static int __init post_cpu_init(void)
 {
+	u32 reg;
 	void *l2_base;
 	volatile unsigned long aips_reg;
+
+	/* Set ALP bits to 000. Set ALP_EN bit in Arm Memory Controller reg. */
+	reg = __raw_readl(MXC_ARM1176_BASE + 0x1C);
+	reg = 0x8;
+	__raw_writel(reg, MXC_ARM1176_BASE + 0x1C);
 
 	/* Initialize L2 cache */
 	l2_base = ioremap(L2CC_BASE_ADDR, SZ_4K);

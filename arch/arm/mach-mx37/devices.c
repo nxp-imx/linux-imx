@@ -981,6 +981,26 @@ static inline void mxc_init_iim(void)
 }
 #endif
 
+int __init mxc_init_srpgconfig(void)
+{
+	struct clk *gpcclk = clk_get(NULL, "gpc_dvfs_clk");
+	clk_enable(gpcclk);
+
+	/* Setup the number of clock cycles to wait for SRPG
+	* power up and power down requests.
+	*/
+	__raw_writel(0x03023030, MXC_SRPGC_ARM_PUPSCR);
+	__raw_writel(0x50, MXC_EMPGC0_ARM_PUPSCR);
+
+	__raw_writel(0x30033030, MXC_SRPGC_ARM_PDNSCR);
+	__raw_writel(0x50, MXC_EMPGC0_ARM_PDNSCR);
+
+	clk_disable(gpcclk);
+	clk_put(gpcclk);
+
+	return 0;
+}
+
 int __init mxc_init_devices(void)
 {
 	mxc_init_wdt();
