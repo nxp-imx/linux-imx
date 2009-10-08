@@ -134,6 +134,19 @@ typedef struct {
 #define FEC_ENET_MII	((uint)0x00800000)	/* MII interrupt */
 #define FEC_ENET_EBERR	((uint)0x00400000)	/* SDMA bus error */
 
+/*
+ * RMII mode to be configured via a gasket
+ */
+#define FEC_MIIGSK_CFGR_FRCONT		(1 << 6)
+#define FEC_MIIGSK_CFGR_LBMODE		(1 << 4)
+#define FEC_MIIGSK_CFGR_EMODE		(1 << 3)
+#define FEC_MIIGSK_CFGR_IF_MODE_MASK	(3 << 0)
+#define FEC_MIIGSK_CFGR_IF_MODE_MII	(0 << 0)
+#define FEC_MIIGSK_CFGR_IF_MODE_RMII	(1 << 0)
+
+#define FEC_MIIGSK_ENR_READY		(1 << 2)
+#define FEC_MIIGSK_ENR_EN		(1 << 1)
+
 /* The FEC stores dest/src/type, data, and checksum for receive packets.
  */
 #define PKT_MAXBUF_SIZE		1518
@@ -1780,6 +1793,24 @@ fec_restart(struct net_device *dev, int duplex)
 	writel(0, fep->hwp + FEC_HASH_TABLE_HIGH);
 	writel(0, fep->hwp + FEC_HASH_TABLE_LOW);
 #endif
+
+	if (cpu_is_mx25()) {
+		/*
+		 * Set up the MII gasket for RMII mode
+		 */
+		printk("%s: enable RMII gasket\n", dev->name);
+
+		/* disable the gasket and wait */
+		__raw_writel(0, fep->hwp + FEC_MIIGSK_ENR);
+		while (__raw_readl(fep->hwp + FEC_MIIGSK_ENR) & FEC_MIIGSK_ENR_READY)
+			udelay(1);
+
+		/* configure the gasket for RMII, 50 MHz, no loopback, no echo */
+		__raw_writel(FEC_MIIGSK_CFGR_IF_MODE_RMII, fep->hwp + FEC_MIIGSK_CFGR);
+
+		/* re-enable the gasket */
+		__raw_writel(FEC_MIIGSK_ENR_EN, fep->hwp + FEC_MIIGSK_ENR);
+	}
 
 	/* Set maximum receive buffer size. */
 	writel(PKT_MAXBLR_SIZE, fep->hwp + FEC_R_BUFF_SIZE);
