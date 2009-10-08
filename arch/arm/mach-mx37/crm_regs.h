@@ -1,5 +1,5 @@
 /*
- * Copyright 2007-2008 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2007-2009 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -588,8 +588,14 @@
 /* SRPG */
 #define MXC_SRPGC_EMI_SRPGCR	(MXC_SRPGC_EMI_BASE + 0x0)
 #define MXC_SRPGC_ARM_SRPGCR	(MXC_SRPGC_ARM_BASE + 0x0)
+#define MXC_EMPGC0_ARM_PUPSCR	(MXC_EMPGC0_ARM_BASE + 0x4)
+#define MXC_EMPGC0_ARM_PDNSCR	(MXC_EMPGC0_ARM_BASE + 0x8)
+
+
 #define MXC_EMPGC0_ARM_EMPGCR	(MXC_EMPGC0_ARM_BASE + 0x0)
 #define MXC_EMPGC1_ARM_EMPGCR	(MXC_EMPGC1_ARM_BASE + 0x0)
+#define MXC_SRPGC_ARM_PUPSCR	(MXC_SRPGC_ARM_BASE + 0x4)
+#define MXC_SRPGC_ARM_PDNSCR	(MXC_SRPGC_ARM_BASE + 0x8)
 
 #define MXC_PGC_IPU_PGCR	(MXC_PGC_IPU_BASE + 0x0)
 #define MXC_PGC_IPU_PGSR	(MXC_PGC_IPU_BASE + 0xC)

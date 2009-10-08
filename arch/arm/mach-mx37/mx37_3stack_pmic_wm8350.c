@@ -42,8 +42,7 @@ static struct regulator_init_data dcdc1_data = {
 			.max_uV = 1200000,
 			.valid_ops_mask = REGULATOR_CHANGE_VOLTAGE |
 			REGULATOR_CHANGE_MODE,
-			.valid_modes_mask = REGULATOR_MODE_NORMAL |
-			REGULATOR_MODE_FAST,
+			.valid_modes_mask = REGULATOR_MODE_FAST,
 			.state_mem = {
 				      .uV = 1050000,
 				      .mode = REGULATOR_MODE_NORMAL,
@@ -338,9 +337,11 @@ static __init int wm8350_regulator_init(void)
 		if (wm8350_global_regulator[i] == "DCDC4")
 			ret =
 			    regulator_set_voltage(regulator, 1250000, 1250000);
-		else if (wm8350_global_regulator[i] == "DCDC1")
+		else if (wm8350_global_regulator[i] == "DCDC1") {
 			ret =
 			    regulator_set_voltage(regulator, 1050000, 1050000);
+			regulator_set_mode(regulator, REGULATOR_MODE_FAST);
+		}
 		i++;
 	}
 	return ret;

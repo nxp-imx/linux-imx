@@ -60,6 +60,7 @@
  * @ingroup MSL_MX37
  */
 extern void gpio_lcd_active(void);
+extern void mxc_init_srpgconfig(void);
 
 /* working point(wp): 0 - 532MHz; 1 - 200MHz; */
 static struct cpu_wp cpu_wp_auto[] = {
@@ -913,6 +914,7 @@ static void __init mxc_init_gps(void)
 static void __init mxc_board_init(void)
 {
 	mxc_cpu_common_init();
+	mxc_init_srpgconfig();
 	mxc_register_gpios();
 	early_console_setup(saved_command_line);
 	mxc_init_devices();
