@@ -1003,6 +1003,19 @@ static inline void mxc_init_busfreq(void)
 	(void)platform_device_register(&busfreq_device);
 }
 
+static struct platform_device sdram_autogating_device = {
+	.name = "sdram_autogating",
+	.id = 0,
+	.dev = {
+		.release = mxc_nop_release,
+		},
+};
+
+static inline void mxc_init_sdram_autogating(void)
+{
+	(void)platform_device_register(&sdram_autogating_device);
+}
+
 #if defined(CONFIG_MXC_IIM) || defined(CONFIG_MXC_IIM_MODULE)
 static struct resource mxc_iim_resources[] = {
 	{
@@ -1160,6 +1173,7 @@ int __init mxc_init_devices(void)
 	mxc_init_tve();
 	mx51_init_lpmode();
 	mxc_init_busfreq();
+	mxc_init_sdram_autogating();
 	mxc_init_dvfs();
 	mxc_init_iim();
 	mxc_init_gpu();

@@ -73,11 +73,16 @@ char *lp_reg_id = "SW2";
 
 static struct cpu_wp *cpu_wp_tbl;
 static struct device *busfreq_dev;
+int sdram_autogating_paused;
+
 extern int lp_high_freq;
 extern int lp_med_freq;
 extern int dvfs_core_is_active;
 extern struct cpu_wp *(*get_cpu_wp)(int *wp);
 extern int cpu_wp_nr;
+extern int sdram_autogating_is_active;
+extern void enable_sdram_autogating(void);
+extern void disable_sdram_autogating(void);
 
 struct dvfs_wp dvfs_core_setpoint[] = {
 						{33, 8, 33, 10, 10, 0x08},
@@ -95,6 +100,11 @@ int set_low_bus_freq(void)
 	if (bus_freq_scaling_is_active) {
 		if (clk_get_rate(cpu_clk) != cpu_wp_tbl[cpu_wp_nr - 1].cpu_rate)
 			return 0;
+
+		if (sdram_autogating_is_active) {
+			disable_sdram_autogating();
+			sdram_autogating_paused = 1;
+		}
 #ifdef DISABLE_PLL1
 		tclk = clk_get(NULL, "ddr_clk");
 		clk_set_parent(tclk, clk_get(NULL, "axi_a_clk"));
@@ -189,6 +199,11 @@ int set_high_bus_freq(int high_bus_freq)
 	struct clk *tclk;
 
 	if (bus_freq_scaling_is_active) {
+		if (sdram_autogating_is_active) {
+			disable_sdram_autogating();
+			sdram_autogating_paused = 1;
+		}
+
 		if (dvfs_podf > 1) {
 			reg = __raw_readl(MXC_CCM_CBCDR);
 			reg &= ~(MXC_CCM_CBCDR_AXI_A_PODF_MASK
@@ -293,6 +308,10 @@ int set_high_bus_freq(int high_bus_freq)
 				clk_round_rate(ddr_hf_clk, DDR_LOW_FREQ_CLK));
 			clk_set_rate(ahb_clk,
 				     clk_round_rate(ahb_clk, LP_MED_CLK));
+		}
+		if (sdram_autogating_paused) {
+			enable_sdram_autogating();
+			sdram_autogating_paused = 0;
 		}
 	}
 	return 0;

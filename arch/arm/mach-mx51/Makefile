@@ -5,7 +5,7 @@
 # Object file lists.
 
 
-obj-y   := system.o iomux.o cpu.o mm.o clock.o devices.o serial.o dma.o lpmodes.o pm.o bus_freq.o
+obj-y   := system.o iomux.o cpu.o mm.o clock.o devices.o serial.o dma.o lpmodes.o pm.o sdram_autogating.o bus_freq.o
 
 obj-y += dummy_gpio.o
 
