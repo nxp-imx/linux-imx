@@ -1466,7 +1466,8 @@ int wm8350_device_init(struct wm8350 *wm8350, int irq,
 		}
 	}
 
-	wm8350_reg_write(wm8350, WM8350_SYSTEM_INTERRUPTS_MASK, 0x0);
+	/*mask gpio and rtc interrupt*/
+	wm8350_reg_write(wm8350, WM8350_SYSTEM_INTERRUPTS_MASK, 0x50);
 
 	wm8350_client_dev_register(wm8350, "wm8350-codec",
 				   &(wm8350->codec.pdev));
