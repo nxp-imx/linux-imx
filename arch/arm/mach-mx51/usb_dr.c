@@ -21,6 +21,7 @@
 
 static int usbotg_init_ext(struct platform_device *pdev);
 static void usbotg_uninit_ext(struct fsl_usb2_platform_data *pdata);
+static void _wake_up_enable(struct fsl_usb2_platform_data *pdata, bool enable);
 
 /*
  * platform data structs
@@ -35,6 +36,7 @@ static struct fsl_usb2_platform_data __maybe_unused dr_utmi_config = {
 	.power_budget      = 500,		/* 500 mA max power */
 	.gpio_usb_active   = gpio_usbotg_hs_active,
 	.gpio_usb_inactive = gpio_usbotg_hs_inactive,
+	.wake_up_enable = _wake_up_enable,
 	.transceiver       = "utmi",
 };
 
@@ -127,6 +129,21 @@ static void usbotg_uninit_ext(struct fsl_usb2_platform_data *pdata)
 	clk_put(usb_clk);
 
 	usbotg_uninit(pdata);
+}
+
+static void _wake_up_enable(struct fsl_usb2_platform_data *pdata, bool enable)
+{
+	if (get_usb_mode(pdata) == FSL_USB_DR_DEVICE) {
+		if (enable) {
+			USBCTRL |= UCTRL_OWIE;
+			USBCTRL_HOST2 |= UCTRL_H2OVBWK_EN;
+			USB_PHY_CTR_FUNC |= USB_UTMI_PHYCTRL_CONF2;
+		} else {
+			USBCTRL &= ~UCTRL_OWIE;
+			USBCTRL_HOST2 &= ~UCTRL_H2OVBWK_EN;
+			USB_PHY_CTR_FUNC &= ~USB_UTMI_PHYCTRL_CONF2;
+		}
+	}
 }
 
 static int __init usb_dr_init(void)

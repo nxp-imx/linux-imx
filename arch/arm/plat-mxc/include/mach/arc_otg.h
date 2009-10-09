@@ -261,6 +261,8 @@
 #define UCTRL_H2PP		(1 << 18)	/* Power Polarity for uh2 */
 #define UCTRL_H2PM		(1 << 16)	/* HOST2 power mask */
 #endif
+#define UCTRL_H2OVBWK_EN	(1 << 6) /* OTG VBUS Wakeup Enable */
+#define UCTRL_H2OIDWK_EN	(1 << 5) /* OTG ID Wakeup Enable */
 
 #define UCTRL_H1WIR		(1 << 15)	/* HOST1 wakeup intr request received */
 #define UCTRL_H1SIC_MASK	(3 << 13)	/* HOST1 Serial Interface Config: */
@@ -271,6 +273,13 @@
 #define UCTRL_OLOCKD		(1 << 13)	/* otg lock disable */
 #define UCTRL_H2LOCKD		(1 << 12)	/* HOST2 lock disable */
 #define UCTRL_H1UIE		(1 << 12)	/* Host1 ULPI interrupt enable */
+
+#if defined(CONFIG_ARCH_MX37)
+/* VBUS wakeup enable, UTMI only */
+#define UCTRL_VBUS_WKUP_EN	(1 << 12)
+#elif defined(CONFIG_ARCH_MX25) || defined(CONFIG_ARCH_MX35)
+#define UCTRL_VBUS_WKUP_EN      (1 << 15)
+#endif
 
 #define UCTRL_PP                (1 << 11)       /* power polarity bit */
 #define UCTRL_H1WIE		(1 << 11)	/* HOST1 wakeup intr enable */
@@ -309,6 +318,9 @@
 						/* 0=low : Operate as A-device */
 
 /* USB_PHY_CTRL_FUNC */
+/* PHY control0 Register Bit Masks */
+#define USB_UTMI_PHYCTRL_CONF2	(1 << 26)
+
 #define USB_UTMI_PHYCTRL_UTMI_ENABLE (1 << 24)
 #define USB_UTMI_PHYCTRL_CHGRDETEN (1 << 24)    /* Enable Charger Detector */
 #define USB_UTMI_PHYCTRL_CHGRDETON (1 << 23)    /* Charger Detector Power On Control */
@@ -340,4 +352,6 @@
 #define ULPIVW_WDATA_SHIFT	0
 
 #define HCSPARAMS_PPC           (0x1<<4)        /* Port Power Control */
+
+extern enum fsl_usb2_modes get_usb_mode(struct fsl_usb2_platform_data *pdata);
 #endif
