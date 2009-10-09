@@ -31,12 +31,14 @@
 #include <linux/wait.h>
 #include <linux/list.h>
 #include <linux/clk.h>
+#include <linux/delay.h>
 
 #include <asm/uaccess.h>
 #include <asm/io.h>
 #include <asm/sizes.h>
 #include <asm/dma-mapping.h>
 #include <mach/hardware.h>
+#include <mach/clock.h>
 
 #include <mach/mxc_vpu.h>
 
@@ -59,6 +61,7 @@ static DEFINE_SPINLOCK(vpu_lock);
 static LIST_HEAD(head);
 
 static int vpu_major = 0;
+static int vpu_clk_usercount;
 static struct class *vpu_class;
 static struct vpu_priv vpu_data;
 static u8 open_count = 0;
@@ -318,9 +321,8 @@ static int vpu_ioctl(struct inode *inode, struct file *filp, u_int cmd,
 				printk(KERN_WARNING
 				       "VPU interrupt received.\n");
 				ret = -ERESTARTSYS;
-			}
-
-			codec_done = 0;
+			} else
+				codec_done = 0;
 			break;
 		}
 	case VPU_IOC_VL2CC_FLUSH:
@@ -661,8 +663,26 @@ static int vpu_dev_probe(struct platform_device *pdev)
 #ifdef CONFIG_PM
 static int vpu_suspend(struct platform_device *pdev, pm_message_t state)
 {
-	if (codec_done == 1)
-		return -EAGAIN;
+	int i;
+	unsigned long timeout;
+
+	/* Wait for vpu go to idle state, suspect vpu cannot be changed
+	   to idle state after about 1 sec */
+	if (open_count > 0) {
+		timeout = jiffies + HZ;
+		clk_enable(vpu_clk);
+		while (READ_REG(BIT_BUSY_FLAG)) {
+			msleep(1);
+			if (time_after(jiffies, timeout))
+				goto out;
+		}
+		clk_disable(vpu_clk);
+	}
+
+	/* Make sure clock is disabled before suspend */
+	vpu_clk_usercount = clk_get_usecount(vpu_clk);
+	for (i = 0; i < vpu_clk_usercount; i++)
+		clk_disable(vpu_clk);
 
 	clk_enable(vpu_clk);
 	if (bitwork_mem.cpu_addr != 0) {
@@ -682,10 +702,17 @@ static int vpu_suspend(struct platform_device *pdev, pm_message_t state)
 		mxc_pg_enable(pdev);
 
 	return 0;
+
+out:
+	clk_disable(vpu_clk);
+	return -EAGAIN;
+
 }
 
 static int vpu_resume(struct platform_device *pdev)
 {
+	int i;
+
 	if (cpu_is_mx37() || cpu_is_mx51())
 		mxc_pg_disable(pdev);
 
@@ -696,7 +723,6 @@ static int vpu_resume(struct platform_device *pdev)
 		u32 data;
 		u16 data_hi;
 		u16 data_lo;
-		int i;
 
 		RESTORE_WORK_REGS;
 
@@ -756,6 +782,10 @@ static int vpu_resume(struct platform_device *pdev)
 	}
 
 	clk_disable(vpu_clk);
+
+	/* Recover vpu clock */
+	for (i = 0; i < vpu_clk_usercount; i++)
+		clk_enable(vpu_clk);
 
 	return 0;
 }
