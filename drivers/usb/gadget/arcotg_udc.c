@@ -103,6 +103,18 @@ extern struct resource *otg_get_resources(void);
 
 extern void fsl_platform_set_test_mode(struct fsl_usb2_platform_data *pdata, enum usb_test_mode mode);
 
+static inline void
+dr_wake_up_enable(struct fsl_udc *udc, bool enable)
+{
+	struct fsl_usb2_platform_data *pdata;
+	pdata = udc->pdata;
+
+	if (device_can_wakeup(udc_controller->gadget.dev.parent)) {
+		if (pdata->wake_up_enable)
+			pdata->wake_up_enable(pdata, enable);
+	}
+}
+
 #ifdef CONFIG_PPC32
 #define fsl_readl(addr)		in_le32((addr))
 #define fsl_writel(addr, val32) out_le32((val32), (addr))
@@ -260,9 +272,8 @@ static void dr_phy_low_power_mode(struct fsl_udc *udc, bool enable)
 {
 	u32 temp;
 
-	if (!device_may_wakeup(&(udc->pdata->pdev->dev)))
+	if (!device_can_wakeup(udc_controller->gadget.dev.parent))
 		return;
-
 	temp = fsl_readl(&dr_regs->portsc1);
 	if ((enable) && !(temp & PORTSCX_PHY_LOW_POWER_SPD)) {
 		temp |= PORTSCX_PHY_LOW_POWER_SPD;
@@ -400,14 +411,41 @@ static void dr_controller_run(struct fsl_udc *udc)
 
 	fsl_writel(temp, &dr_regs->usbintr);
 
-	/* Clear stopped bit */
-	udc->stopped = 0;
+	/* If PHY clock is disabled, enable it */
+	if (udc_controller->pdata->usb_clock_for_pm)
+		udc_controller->pdata->usb_clock_for_pm(1);
 
-	/* Set controller to Run */
-	if (udc->driver) {
+	if (device_can_wakeup(udc_controller->gadget.dev.parent)) {
+		/* enable BSV irq */
+		temp = fsl_readl(&dr_regs->otgsc);
+		temp |= OTGSC_B_SESSION_VALID_IRQ_EN;
+		fsl_writel(temp, &dr_regs->otgsc);
+	}
+
+	/* If vbus not on and used low power mode */
+	if (!(fsl_readl(&dr_regs->otgsc) & OTGSC_B_SESSION_VALID)
+	    && device_can_wakeup(udc_controller->gadget.dev.parent)) {
+		/* enable wake up */
+		dr_wake_up_enable(udc, true);
+		/* Set stopped before low power mode */
+		udc->stopped = 1;
+		/* close PHY clock */
+		dr_phy_low_power_mode(udc, true);
+		printk(KERN_INFO "udc enter low power mode \n");
+	} else {
+		/*
+		 add some delay for USB timing issue. USB may be
+		 recognize as FS device
+		 during USB gadget remote wake up function
+		*/
+		mdelay(100);
+		/* Clear stopped bit */
+		udc->stopped = 0;
+		/* Set controller to Run */
 		temp = fsl_readl(&dr_regs->usbcmd);
 		temp |= USB_CMD_RUN_STOP;
 		fsl_writel(temp, &dr_regs->usbcmd);
+		printk(KERN_INFO "udc run \n");
 	}
 
 	return;
@@ -432,6 +470,13 @@ static void dr_controller_stop(struct fsl_udc *udc)
 
 	/* disable all INTR */
 	fsl_writel(0, &dr_regs->usbintr);
+
+	/* disable wake up */
+	dr_wake_up_enable(udc, false);
+	/* disable BSV irq */
+	tmp = fsl_readl(&dr_regs->otgsc);
+	tmp &= ~OTGSC_B_SESSION_VALID_IRQ_EN;
+	fsl_writel(tmp, &dr_regs->otgsc);
 
 	/* Set stopped bit for isr */
 	udc->stopped = 1;
@@ -1893,7 +1938,10 @@ static void wake_up_irq(struct fsl_udc *udc)
 	pr_debug("%s\n", __func__);
 
 	/* disable wake up irq */
-	dr_wake_up_enable(udc, false);
+	dr_wake_up_enable(udc_controller, false);
+	if (udc_controller->pdata->usb_clock_for_pm)
+		udc_controller->pdata->usb_clock_for_pm(true);
+	udc->stopped = 0;
 }
 
 static void bus_resume(struct fsl_udc *udc)
@@ -1975,6 +2023,51 @@ static void reset_irq(struct fsl_udc *udc)
 	}
 }
 
+/* if wakup udc, return true; else return false*/
+bool try_wake_up_udc(struct fsl_udc *udc)
+{
+	u32 irq_src;
+
+	/* when udc is stopped, only handle wake up irq */
+	if (udc->stopped) {
+		if (!device_can_wakeup(&(udc->pdata->pdev->dev)))
+			return false;
+		/* check to see if wake up irq */
+		irq_src =  fsl_readl(&dr_regs->usbctrl);
+		if (irq_src & USB_CTRL_OTG_WUIR) {
+			wake_up_irq(udc);
+		}
+	}
+
+	if (!device_can_wakeup(udc_controller->gadget.dev.parent))
+		return true;
+
+	/* check if Vbus change irq */
+	irq_src = fsl_readl(&dr_regs->otgsc);
+	if (irq_src & OTGSC_B_SESSION_VALID_IRQ_STS) {
+		u32 tmp;
+		fsl_writel(irq_src, &dr_regs->otgsc);
+		tmp = fsl_readl(&dr_regs->usbcmd);
+		/* check BSV bit to see if fall or rise */
+		if (irq_src & OTGSC_B_SESSION_VALID) {
+			udc->stopped = 0;
+			fsl_writel(tmp | USB_CMD_RUN_STOP, &dr_regs->usbcmd);
+			printk(KERN_INFO "udc out low power mode\n");
+		} else {
+			printk(KERN_INFO "udc enter low power mode \n");
+			fsl_writel(tmp & ~USB_CMD_RUN_STOP, &dr_regs->usbcmd);
+			/* enable wake up */
+			dr_wake_up_enable(udc, true);
+			udc->stopped = 1;
+			/* close USB PHY clock */
+			dr_phy_low_power_mode(udc, true);
+			return false;
+		}
+	}
+
+	return true;
+}
+
 /*
  * USB device controller interrupt handler
  */
@@ -1985,30 +2078,8 @@ static irqreturn_t fsl_udc_irq(int irq, void *_udc)
 	irqreturn_t status = IRQ_NONE;
 	unsigned long flags;
 
-	/* when udc is stopped, only handle wake up irq */
-	if (udc->stopped) {
-		if (!device_may_wakeup(&(udc->pdata->pdev->dev)))
-			return IRQ_NONE;
-
-		spin_lock_irqsave(&udc->lock, flags);
-		/* check to see if wake up irq */
-		irq_src =  fsl_readl(&dr_regs->usbctrl);
-		if (irq_src & USB_CTRL_OTG_WUIR) {
-			wake_up_irq(udc);
-			irq_src = fsl_readl(&dr_regs->usbsts) &
-				fsl_readl(&dr_regs->usbintr);
-			spin_unlock_irqrestore(&udc->lock, flags);
-			if (irq_src)
-				/* Some udc irq to be handled */
-				udc->stopped = 0;
-			else
-				return IRQ_HANDLED;
-		} else {
-			/* If udc is stopped and irq is not wake up */
-			spin_unlock_irqrestore(&udc->lock, flags);
-			return IRQ_NONE;
-		}
-	}
+	if (try_wake_up_udc(udc) == false)
+		return IRQ_NONE;
 
 	spin_lock_irqsave(&udc->lock, flags);
 	irq_src = fsl_readl(&dr_regs->usbsts) & fsl_readl(&dr_regs->usbintr);
@@ -2102,6 +2173,7 @@ int usb_gadget_register_driver(struct usb_gadget_driver *driver)
 	udc_controller->gadget.dev.driver = &driver->driver;
 	spin_unlock_irqrestore(&udc_controller->lock, flags);
 
+	dr_phy_low_power_mode(udc_controller, false);
 	/* bind udc driver to gadget driver */
 	retval = driver->bind(&udc_controller->gadget);
 	if (retval) {
@@ -2167,6 +2239,8 @@ int usb_gadget_unregister_driver(struct usb_gadget_driver *driver)
 
 	/* stop DR, disable intr */
 	dr_controller_stop(udc_controller);
+	/* open phy clock for following operation */
+	dr_phy_low_power_mode(udc_controller, false);
 
 	/* in fact, no needed */
 	udc_controller->usb_state = USB_STATE_ATTACHED;
@@ -2188,6 +2262,9 @@ int usb_gadget_unregister_driver(struct usb_gadget_driver *driver)
 	driver->unbind(&udc_controller->gadget);
 	udc_controller->gadget.dev.driver = 0;
 	udc_controller->driver = 0;
+
+	dr_wake_up_enable(udc_controller, false);
+	dr_phy_low_power_mode(udc_controller, true);
 
 	printk(KERN_INFO "unregistered gadget driver '%s'\r\n",
 	       driver->driver.name);
@@ -2719,8 +2796,11 @@ static int __init fsl_udc_probe(struct platform_device *pdev)
 	if (ret < 0)
 		goto err3;
 
-	if (udc_controller->transceiver)
+	if (udc_controller->transceiver) {
 		udc_controller->gadget.is_otg = 1;
+		/* now didn't support lpm in OTG mode*/
+		device_set_wakeup_capable(&pdev->dev, 0);
+	}
 
 	/* setup QH and epctrl for ep0 */
 	ep0_setup(udc_controller);
@@ -2763,6 +2843,11 @@ static int __init fsl_udc_probe(struct platform_device *pdev)
 #ifdef POSTPONE_FREE_LAST_DTD
 	last_free_td = NULL;
 #endif
+
+	dr_wake_up_enable(udc_controller, false);
+	udc_controller->stopped = 1;
+	dr_phy_low_power_mode(udc_controller, true);
+
 	create_proc_file();
 	return 0;
 
@@ -2798,6 +2883,8 @@ static int __exit fsl_udc_remove(struct platform_device *pdev)
 	if (!udc_controller)
 		return -ENODEV;
 	udc_controller->done = &done;
+	/* open USB PHY clock */
+	dr_phy_low_power_mode(udc_controller, false);
 
 	/* DR has been stopped in usb_gadget_unregister_driver() */
 	remove_proc_file();

@@ -21,6 +21,8 @@
 #include "usb.h"
 
 static void usbotg_pm_clock(bool on);
+static void _wake_up_enable(struct fsl_usb2_platform_data *pdata, bool enable);
+
 /*
  * platform data structs
  * 	- Which one to use is determined by CONFIG options in usb.h
@@ -35,6 +37,7 @@ static struct fsl_usb2_platform_data __maybe_unused dr_utmi_config = {
 	.gpio_usb_active   = gpio_usbotg_hs_active,
 	.gpio_usb_inactive = gpio_usbotg_hs_inactive,
 	.usb_clock_for_pm  = usbotg_pm_clock,
+	.wake_up_enable = _wake_up_enable,
 	.transceiver       = "utmi",
 };
 
@@ -134,7 +137,19 @@ static void usbotg_uninit_ext(struct fsl_usb2_platform_data *pdata)
 	usbotg_uninit(pdata);
 }
 
-
+static void _wake_up_enable(struct fsl_usb2_platform_data *pdata, bool enable)
+{
+	if (get_usb_mode(pdata) == FSL_USB_DR_DEVICE) {
+		if (enable) {
+			USBCTRL |= (UCTRL_OWIE | UCTRL_VBUS_WKUP_EN);
+			USB_PHY_CTR_FUNC |= USB_UTMI_PHYCTRL_CONF2;
+		} else {
+			USBCTRL &= ~UCTRL_OWIE;
+			USBCTRL &= ~UCTRL_VBUS_WKUP_EN;
+			USB_PHY_CTR_FUNC &= ~USB_UTMI_PHYCTRL_CONF2;
+		}
+	}
+}
 
 static int __init usb_dr_init(void)
 {
@@ -143,7 +158,7 @@ static int __init usb_dr_init(void)
 	dr_register_otg();
 	dr_register_host(otg_resources, ARRAY_SIZE(otg_resources));
 	dr_register_udc();
-
+	device_init_wakeup(&(dr_udc_device.dev), 1);
 	return 0;
 }
 

@@ -49,6 +49,26 @@
 #define MXC_NUMBER_USB_TRANSCEIVER 6
 struct fsl_xcvr_ops *g_xc_ops[MXC_NUMBER_USB_TRANSCEIVER] = { NULL };
 
+enum fsl_usb2_modes get_usb_mode(struct fsl_usb2_platform_data *pdata)
+{
+	enum fsl_usb2_modes mode;
+	mode = FSL_USB_UNKNOWN;
+
+	if (!strcmp("DR", pdata->name)) {
+		if ((UOG_USBMODE & 0x3) == 0x2)
+			mode = FSL_USB_DR_DEVICE;
+		else if ((UOG_USBMODE & 0x3) == 0x3)
+			mode = FSL_USB_DR_HOST;
+	} else if (!strcmp("Host 1", pdata->name))
+		mode = FSL_USB_MPH_HOST1;
+	else if (!strcmp("Host 2", pdata->name))
+		mode = FSL_USB_MPH_HOST2;
+
+	if (mode == FSL_USB_UNKNOWN)
+		printk(KERN_ERR "unknow usb mode,name is %s\n", pdata->name);
+	return mode;
+}
+
 static struct clk *usb_clk;
 static struct clk *usb_ahb_clk;
 

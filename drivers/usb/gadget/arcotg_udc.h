@@ -264,6 +264,11 @@ struct usb_sys_interface {
 #define  PORTSCX_PORT_SPEED_UNDEF             (0x0C000000)
 #define  PORTSCX_SPEED_BIT_POS                (26)
 
+/* OTGSC Register Bit Masks */
+#define  OTGSC_B_SESSION_VALID_IRQ_EN           (1 << 27)
+#define  OTGSC_B_SESSION_VALID_IRQ_STS          (1 << 19)
+#define  OTGSC_B_SESSION_VALID                  (1 << 11)
+
 /* bit 28 is parallel transceiver width for UTMI interface */
 #define  PORTSCX_PTW                          (0x10000000)
 #define  PORTSCX_PTW_8BIT                     (0x00000000)

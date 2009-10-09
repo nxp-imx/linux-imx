@@ -50,6 +50,15 @@ enum fsl_usb2_operating_modes {
 	FSL_USB2_DR_OTG,
 };
 
+/* this used for usb port type */
+enum fsl_usb2_modes {
+	FSL_USB_DR_HOST,
+	FSL_USB_DR_DEVICE,
+	FSL_USB_MPH_HOST1,
+	FSL_USB_MPH_HOST2,
+	FSL_USB_UNKNOWN, /* unkonwn status */
+};
+
 enum fsl_usb2_phy_modes {
 	FSL_USB2_PHY_NONE,
 	FSL_USB2_PHY_ULPI,
@@ -80,6 +89,7 @@ struct fsl_usb2_platform_data {
 	void (*usb_clock_for_pm) (bool);
 	void (*platform_suspend)(struct fsl_usb2_platform_data *);
 	void (*platform_resume)(struct fsl_usb2_platform_data *);
+	void (*wake_up_enable)(struct fsl_usb2_platform_data *pdata, bool on);
 	unsigned			big_endian_mmio : 1;
 	unsigned			big_endian_desc : 1;
 	unsigned			es : 1;	/* need USBMODE:ES */
