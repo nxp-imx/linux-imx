@@ -11,7 +11,7 @@ obj-y += core.o timer.o irq.o dma.o clock.o pinmux.o \
 # charging/current limitation testing
 obj-m += power-test.o
 
-obj-$(CONFIG_ARCH_STMP378X) += dcp-bootstream.o
+obj-$(CONFIG_ARCH_STMP378X) += dcp-bootstream.o usb_common.o utmixc.o
 
 # Chip family select
 obj-$(CONFIG_ARCH_STMP37XX) += stmp37xx.o stmp37xx_lcdif.o
@@ -41,3 +41,7 @@ obj-$(CONFIG_STMP378X_RAM_FREQ_SCALING)	+= emi.o
 
 # SPDIF transmitter
 obj-$(CONFIG_SND_SOC_STMP3XXX_SPDIF)	+= spdif.o
+
+ifneq ($(strip $(CONFIG_USB_GADGET_ARC) $(CONFIG_USB_EHCI_ARC_OTG)),)
+    obj-y   += usb_dr.o
+endif

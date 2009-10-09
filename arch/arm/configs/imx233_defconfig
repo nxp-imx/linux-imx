@@ -199,6 +199,11 @@ CONFIG_CPU_CP15=y
 CONFIG_CPU_CP15_MMU=y
 
 #
+# Power management
+#
+CONFIG_UTMI_MXC=y
+
+#
 # Processor Features
 #
 CONFIG_ARM_THUMB=y

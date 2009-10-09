@@ -38,7 +38,6 @@
 #include <mach/regs-power.h>
 #include <mach/regs-digctl.h>
 #include <mach/regs-clkctrl.h>
-#include <mach/regs-usbphy.h>
 #include <mach/regs-pinctrl.h>
 #include <mach/regs-pwm.h>
 
@@ -90,9 +89,6 @@ static struct platform_device *devices[] = {
 	&stmp3xxx_appuart,
 	&stmp3xxx_dbguart,
 	&stmp3xxx_watchdog,
-	&stmp3xxx_usb,
-	&stmp3xxx_udc,
-	&stmp3xxx_ehci,
 	&stmp3xxx_rtc,
 	&stmp3xxx_framebuffer,
 	&stmp3xxx_backlight,
@@ -193,53 +189,6 @@ static struct gpmi_platform_data gpmi_partitions = {
 		},
 	},
 };
-
-static void usb_host_phy_resume(struct fsl_usb2_platform_data *pdata)
-{
-	HW_USBPHY_CTRL_CLR(BM_USBPHY_CTRL_ENHOSTDISCONDETECT);
-}
-
-static int usb_phy_enable(struct platform_device *pdev)
-{
-	/*
-	 * Set these bits so that we can force the OTG bits high
-	 * so the ARC core operates properly
-	 */
-	HW_POWER_CTRL_CLR(BM_POWER_CTRL_CLKGATE);
-	HW_POWER_DEBUG_SET(BM_POWER_DEBUG_VBUSVALIDPIOLOCK |
-			   BM_POWER_DEBUG_AVALIDPIOLOCK |
-			   BM_POWER_DEBUG_BVALIDPIOLOCK);
-	HW_POWER_STS_SET(BM_POWER_STS_BVALID | BM_POWER_STS_AVALID |
-			 BM_POWER_STS_VBUSVALID);
-
-	/* Reset USBPHY module */
-	HW_USBPHY_CTRL_SET(BM_USBPHY_CTRL_SFTRST);
-	udelay(10);
-
-	/* Remove CLKGATE and SFTRST */
-	HW_USBPHY_CTRL_CLR(BM_USBPHY_CTRL_CLKGATE | BM_USBPHY_CTRL_SFTRST);
-
-	/* Turn on the USB clocks */
-	HW_CLKCTRL_PLLCTRL0_SET(BM_CLKCTRL_PLLCTRL0_EN_USB_CLKS);
-	HW_DIGCTL_CTRL_CLR(BM_DIGCTL_CTRL_USB_CLKGATE);
-
-	/* Power up the PHY */
-	HW_USBPHY_PWD_WR(0);
-
-	/*
-	 * Set precharge bit to cure overshoot problems at the
-	 * start of packets
-	 */
-	HW_USBPHY_CTRL_SET(1 /* BM_USBPHY_CTRL_ENHSPRECHARGEXMIT */);
-
-#if defined(CONFIG_USB_EHCI_HCD) || defined(CONFIG_USB_EHCI_HCD_MODULE)
-	/* enable disconnect detector */
-	/* enable disconnect detector must be after entry high speed mode*/
-	/*HW_USBPHY_CTRL_SET(BM_USBPHY_CTRL_ENHOSTDISCONDETECT);
-	*/
-#endif
-	return 0;
-}
 
 int usb_host_wakeup_irq(struct device *wkup_dev)
 {
@@ -390,15 +339,6 @@ static void __init stmp378x_devb_init(void)
 	stmp3xxx_set_mmc_data(&stmp3xxx_mmc.dev);
 	stmp3xxx_gpmi.dev.platform_data = &gpmi_partitions;
 	stmp3xxx_keyboard.dev.platform_data = &keyboard_data;
-
-	udata = stmp3xxx_udc.dev.platform_data;
-	udata->platform_init = usb_phy_enable;
-	udata->pdev = &stmp3xxx_udc;
-
-	udata = stmp3xxx_ehci.dev.platform_data;
-	udata->platform_init = usb_phy_enable;
-	udata->platform_resume = usb_host_phy_resume;
-	udata->pdev = &stmp3xxx_ehci ;
 
 	spi_register_board_info(spi_board_info, ARRAY_SIZE(spi_board_info));
 	stmp3xxx_ssp1_device_register();	/* MMC or SSP */

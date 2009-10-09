@@ -157,7 +157,6 @@ struct fsl_usb2_platform_data {
 /* Flags in fsl_usb2_mph_platform_data */
 #define FSL_USB2_PORT0_ENABLED	0x00000001
 #define FSL_USB2_PORT1_ENABLED	0x00000002
-#define FSL_USB2_DONT_REMAP	0x10000000
 
 struct fsl_spi_platform_data {
 	u32 	initial_spmode;	/* initial SPMODE value */
