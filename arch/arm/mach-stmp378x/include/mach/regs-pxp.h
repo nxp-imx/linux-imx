@@ -109,6 +109,7 @@
 
 #define HW_PXP_S0COLORKEYHIGH	0x190
 
+#define HW_PXP_OL0_ADDR (REGS_PXP_BASE + 0x00000200)
 #define HW_PXP_OL0		(0x200 + 0 * 0x40)
 #define HW_PXP_OL1		(0x200 + 1 * 0x40)
 #define HW_PXP_OL2		(0x200 + 2 * 0x40)

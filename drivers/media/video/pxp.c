@@ -47,6 +47,14 @@
 
 #define V4L2_OUTPUT_TYPE_INTERNAL	4
 
+#define REG_OFFSET	0x10
+#define REGS1_NUMS	16
+#define REGS2_NUMS	5
+#define REGS3_NUMS	32
+static u32 regs1[REGS1_NUMS];
+static u32 regs2[REGS2_NUMS];
+static u32 regs3[REGS3_NUMS];
+
 static struct pxp_data_format pxp_s0_formats[] = {
 	{
 		.name = "24-bit RGB",
@@ -1204,12 +1212,59 @@ static int __devexit pxp_remove(struct platform_device *pdev)
 	return 0;
 }
 
+#ifdef CONFIG_PM
+static int pxp_suspend(struct platform_device *pdev, pm_message_t state)
+{
+	int i;
+
+	while (HW_PXP_CTRL_RD() & BM_PXP_CTRL_ENABLE)
+		;
+
+	for (i = 0; i < REGS1_NUMS; i++)
+		regs1[i] = __raw_readl(HW_PXP_CTRL_ADDR + REG_OFFSET * i);
+
+	for (i = 0; i < REGS2_NUMS; i++)
+		regs2[i] = __raw_readl(HW_PXP_PAGETABLE_ADDR + REG_OFFSET * i);
+
+	for (i = 0; i < REGS3_NUMS; i++)
+		regs3[i] = __raw_readl(HW_PXP_OL0_ADDR + REG_OFFSET * i);
+
+	HW_PXP_CTRL_SET(BM_PXP_CTRL_SFTRST);
+
+	return 0;
+}
+
+static int pxp_resume(struct platform_device *pdev)
+{
+	int i;
+
+	/* Pull PxP out of reset */
+	HW_PXP_CTRL_WR(0);
+
+	for (i = 0; i < REGS1_NUMS; i++)
+		__raw_writel(regs1[i], HW_PXP_CTRL_ADDR + REG_OFFSET * i);
+
+	for (i = 0; i < REGS2_NUMS; i++)
+		__raw_writel(regs2[i], HW_PXP_PAGETABLE_ADDR + REG_OFFSET * i);
+
+	for (i = 0; i < REGS3_NUMS; i++)
+		__raw_writel(regs3[i], HW_PXP_OL0_ADDR + REG_OFFSET * i);
+
+	return 0;
+}
+#else
+#define	pxp_suspend	NULL
+#define	pxp_resume	NULL
+#endif
+
 static struct platform_driver pxp_driver = {
 	.driver 	= {
 		.name	= PXP_DRIVER_NAME,
 	},
 	.probe		= pxp_probe,
 	.remove		= __exit_p(pxp_remove),
+	.suspend	= pxp_suspend,
+	.resume		= pxp_resume,
 };
 
 
