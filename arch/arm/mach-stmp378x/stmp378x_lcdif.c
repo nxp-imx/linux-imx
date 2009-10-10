@@ -35,6 +35,7 @@ static unsigned dma_chain_info_pos;
 
 void stmp3xxx_init_lcdif(void)
 {
+	stmp3xxx_clearl(BM_LCDIF_CTRL_CLKGATE, REGS_LCDIF_BASE + HW_LCDIF_CTRL);
 	/* Reset controller */
 	stmp3xxx_setl(BM_LCDIF_CTRL_SFTRST, REGS_LCDIF_BASE + HW_LCDIF_CTRL);
 	udelay(10);
@@ -161,6 +162,7 @@ void stmp3xxx_lcdif_stop(void)
 		    BM_APBH_CHn_CMD_SEMAPHORE;
 		udelay(100);
 	}
+	stmp3xxx_setl(BM_LCDIF_CTRL_CLKGATE, REGS_LCDIF_BASE + HW_LCDIF_CTRL);
 }
 
 EXPORT_SYMBOL(stmp3xxx_lcdif_stop);
