@@ -315,6 +315,8 @@ HW_REGISTER_0(HW_PXP_VERSION, REGS_PXP_BASE, 0x000001f0)
 #define BM_PXP_VERSION_STEP 0x0000FFFF
 #define BF_PXP_VERSION_STEP(v)  \
 	(((v) << 0) & BM_PXP_VERSION_STEP)
+
+#define	HW_PXP_OL0_ADDR	(REGS_PXP_BASE + 0x00000200)
 /*
  *  multi-register-define name HW_PXP_OLn
  *	      base 0x00000200
