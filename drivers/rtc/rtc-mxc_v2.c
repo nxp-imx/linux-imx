@@ -239,6 +239,7 @@ static irqreturn_t mxc_rtc_interrupt(int irq, void *dev_id)
 	u32 lp_status, lp_cr;
 	u32 events = 0;
 
+	clk_enable(pdata->clk);
 	lp_status = __raw_readl(ioaddr + SRTC_LPSR);
 	lp_cr = __raw_readl(ioaddr + SRTC_LPCR);
 
@@ -262,6 +263,7 @@ static irqreturn_t mxc_rtc_interrupt(int irq, void *dev_id)
 
 	/* clear interrupt status */
 	__raw_writel(lp_status, ioaddr + SRTC_LPSR);
+	clk_disable(pdata->clk);
 
 	rtc_update_irq(pdata->rtc, 1, events);
 	return IRQ_HANDLED;
@@ -288,19 +290,6 @@ static int mxc_rtc_open(struct device *dev)
 static void mxc_rtc_release(struct device *dev)
 {
 	struct rtc_drv_data *pdata = dev_get_drvdata(dev);
-	void __iomem *ioaddr = pdata->ioaddr;
-	unsigned long lock_flags = 0;
-
-	spin_lock_irqsave(&rtc_lock, lock_flags);
-
-	/* Disable all rtc interrupts */
-	__raw_writel(__raw_readl(ioaddr + SRTC_LPCR) & ~(SRTC_LPCR_ALL_INT_EN),
-		     ioaddr + SRTC_LPCR);
-
-	/* Clear all interrupt status */
-	__raw_writel(0xFFFFFFFF, ioaddr + SRTC_LPSR);
-
-	spin_unlock_irqrestore(&rtc_lock, lock_flags);
 
 	clk_disable(pdata->clk);
 
