@@ -118,8 +118,8 @@ static int __devinit sdram_autogating_probe(struct platform_device *pdev)
 	}
 
 	sdram_autogating_is_active = 0;
-
-	enable_sdram_autogating();
+	if (mxc_cpu_is_rev(CHIP_REV_3_0) >= 1)
+		enable_sdram_autogating();
 	return 0;
 }
 
