@@ -332,7 +332,7 @@ static int __devinit mxc_w1_probe(struct platform_device *pdev)
 	struct mxc_w1_device *dev;
 	struct mxc_w1_config *data =
 	    (struct mxc_w1_config *)pdev->dev.platform_data;
-	int flag, ret_val, irq;
+	int flag, ret_val, irq = -ENXIO;
 	int err = 0;
 	ret_val = 0;
 	flag = data->search_rom_accelerator;
@@ -356,23 +356,30 @@ static int __devinit mxc_w1_probe(struct platform_device *pdev)
 		dev->bus_master->read_byte = &mxc_w1_ds2_read_byte;
 		dev->bus_master->search = &search_ROM_accelerator;
 		irq = platform_get_irq(pdev, 0);
+		if (irq < 0) {
+			err = -ENOENT;
+			goto err_out_free_device;
+		}
 		ret_val =
 		    request_irq(irq, w1_interrupt_handler, 0, "mxc_w1", dev);
 		if (ret_val) {
 			pr_debug("OWire:request_irq(%d) returned error %d\n",
 				 irq, ret_val);
-			return -1;
+			err = -1;
+			goto err_out_free_device;
 		}
 	}
 	err = w1_add_master_device(dev->bus_master);
 	if (err)
-		goto err_out_free_device;
+		goto err_irq;
 
 	platform_set_drvdata(pdev, dev);
 	return 0;
 
-      err_out_free_device:
-
+err_irq:
+	if (irq >= 0)
+		free_irq(irq, dev);
+err_out_free_device:
 	kfree(dev);
 	return err;
 }
@@ -385,12 +392,22 @@ static int __devinit mxc_w1_probe(struct platform_device *pdev)
 static int mxc_w1_remove(struct platform_device *pdev)
 {
 	struct mxc_w1_device *dev = platform_get_drvdata(pdev);
+	struct mxc_w1_config *data =
+	    (struct mxc_w1_config *)pdev->dev.platform_data;
+	int irq;
 
-	clk_disable(dev->clk);
-	clk_put(dev->clk);
 	if (dev->found) {
 		w1_remove_master_device(dev->bus_master);
 	}
+
+	irq = platform_get_irq(pdev, 0);
+	if ((irq >= 0) && (data->search_rom_accelerator))
+		free_irq(irq, dev);
+
+	clk_disable(dev->clk);
+	clk_put(dev->clk);
+
+	kfree(dev);
 	platform_set_drvdata(pdev, NULL);
 
 	return 0;
