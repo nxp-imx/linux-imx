@@ -296,6 +296,10 @@ static int __init mxc_w1_probe(struct platform_device *pdev)
 		mdev->bus_master.read_byte = &mxc_w1_ds2_read_byte;
 		mdev->bus_master.search = &search_ROM_accelerator;
 		irq = platform_get_irq(pdev, 0);
+		if (irq < 0) {
+			err = -ENOENT;
+			goto failed_irq; 
+		}
 		err = request_irq(irq, w1_interrupt_handler, 0, "mxc_w1", mdev);
 		if (err) {
 			pr_debug("OWire:request_irq(%d) returned error %d\n",
@@ -333,6 +337,9 @@ static int mxc_w1_remove(struct platform_device *pdev)
 {
 	struct mxc_w1_device *mdev = platform_get_drvdata(pdev);
 	struct resource *res;
+	struct mxc_w1_config *data =
+	    (struct mxc_w1_config *)pdev->dev.platform_data;
+	int irq;
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 
@@ -340,6 +347,11 @@ static int mxc_w1_remove(struct platform_device *pdev)
 
 	iounmap(mdev->regs);
 	release_mem_region(res->start, resource_size(res));
+
+	irq = platform_get_irq(pdev, 0);
+	if ((irq >= 0) && (data->search_rom_accelerator))
+		free_irq(irq, mdev);
+
 	clk_disable(mdev->clk);
 	clk_put(mdev->clk);
 
