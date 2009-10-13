@@ -273,10 +273,18 @@ do { \
 #define NFC_PPB_256			(3 << 7)
 #define NFC_PPB_RESET			~(3 << 7)
 
-#define NFC_BLS_LOCKED			(0 << 16)
-#define NFC_BLS_LOCKED_DEFAULT		(1 << 16)
-#define NFC_BLS_UNLCOKED		(2 << 16)
-#define NFC_BLS_RESET			~(3 << 16)
+#if defined(CONFIG_ARCH_MXC_HAS_NFC_V3_2)
+#define NFC_BLS_LOCKED			(0 << 6)
+#define NFC_BLS_LOCKED_DEFAULT		(1 << 6)
+#define NFC_BLS_UNLCOKED		(2 << 6)
+#define NFC_BLS_RESET			(~(3 << 6))
+#else
+#define NFC_BLS_LOCKED                  (0 << 16)
+#define NFC_BLS_LOCKED_DEFAULT          (1 << 16)
+#define NFC_BLS_UNLCOKED                (2 << 16)
+#define NFC_BLS_RESET                   (~(3 << 16))
+#endif
+
 #define NFC_WPC_LOCK_TIGHT		1
 #define NFC_WPC_LOCK			(1 << 1)
 #define NFC_WPC_UNLOCK			(1 << 2)
