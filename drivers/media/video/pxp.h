@@ -41,6 +41,7 @@ struct pxps {
 	u32 s0_width;
 	u32 s0_height;
 	u32 s0_bgcolor;
+	u32 s0_chromakey;
 
 	struct v4l2_framebuffer fb;
 	struct v4l2_rect drect;
@@ -58,8 +59,8 @@ struct pxps {
 	int global_alpha_state;
 	u8  global_alpha;
 	int local_alpha_state;
-	int chromakey_state;
-	u32 chromakey;
+	int s1_chromakey_state;
+	u32 s1_chromakey;
 };
 
 struct pxp_data_format {

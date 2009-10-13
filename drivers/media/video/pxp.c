@@ -127,6 +127,15 @@ struct v4l2_queryctrl pxp_controls[] = {
 		.type		= V4L2_CTRL_TYPE_INTEGER,
 	}, {
 		.id		= V4L2_CID_PRIVATE_BASE + 2,
+		.name		= "Set S0 Chromakey",
+		.minimum	= -1,
+		.maximum	= 0xFFFFFF,
+		.step		= 1,
+		.default_value	= -1,
+		.flags		= 0,
+		.type		= V4L2_CTRL_TYPE_INTEGER,
+	}, {
+		.id		= V4L2_CID_PRIVATE_BASE + 3,
 		.name		= "YUV Colorspace",
 		.minimum	= 0,
 		.maximum	= 1,
@@ -170,11 +179,30 @@ static void pxp_set_rgbbuf(struct pxps *pxp)
 			  BF_PXP_RGBSIZE_HEIGHT(pxp->fb.fmt.height));
 }
 
-static void pxp_set_colorkey(struct pxps *pxp)
+static void pxp_set_s0colorkey(struct pxps *pxp)
 {
 	/* Low and high are set equal. V4L does not allow a chromakey range */
-	HW_PXP_S0COLORKEYLOW_WR(pxp->chromakey);
-	HW_PXP_S0COLORKEYHIGH_WR(pxp->chromakey);
+	if (pxp->s0_chromakey == -1) {
+		/* disable color key */
+		HW_PXP_S0COLORKEYLOW_WR(0xFFFFFF);
+		HW_PXP_S0COLORKEYHIGH_WR(0x0);
+	} else {
+		HW_PXP_S0COLORKEYLOW_WR(pxp->s0_chromakey);
+		HW_PXP_S0COLORKEYHIGH_WR(pxp->s0_chromakey);
+	}
+}
+
+static void pxp_set_s1colorkey(struct pxps *pxp)
+{
+	/* Low and high are set equal. V4L does not allow a chromakey range */
+	if (pxp->s1_chromakey_state != 0 && pxp->s1_chromakey != -1) {
+		HW_PXP_OLCOLORKEYLOW_WR(pxp->s1_chromakey);
+		HW_PXP_OLCOLORKEYHIGH_WR(pxp->s1_chromakey);
+	} else {
+		/* disable color key */
+		HW_PXP_OLCOLORKEYLOW_WR(0xFFFFFF);
+		HW_PXP_OLCOLORKEYHIGH_WR(0x0);
+	}
 }
 
 static void pxp_set_oln(struct pxps *pxp)
@@ -199,7 +227,7 @@ static void pxp_set_olparam(struct pxps *pxp)
 	if (pxp->global_alpha_state)
 		olparam |= BF_PXP_OLnPARAM_ALPHA_CNTL(
 				BV_PXP_OLnPARAM_ALPHA_CNTL__Override);
-	if (pxp->chromakey_state)
+	if (pxp->s1_chromakey_state)
 		olparam |= BM_PXP_OLnPARAM_ENABLE_COLORKEY;
 	if (pxp->overlay_state)
 		olparam |= BM_PXP_OLnPARAM_ENABLE;
@@ -313,6 +341,9 @@ static int pxp_set_cstate(struct pxps *pxp, struct v4l2_control *vc)
 		pxp->s0_bgcolor = vc->value;
 		pxp_set_s0bg(pxp);
 	} else if (vc->id == V4L2_CID_PRIVATE_BASE + 2) {
+		pxp->s0_chromakey = vc->value;
+		pxp_set_s0colorkey(pxp);
+	} else if (vc->id == V4L2_CID_PRIVATE_BASE + 3) {
 		pxp->yuv = vc->value;
 		pxp_set_csc(pxp);
 	}
@@ -333,6 +364,8 @@ static int pxp_get_cstate(struct pxps *pxp, struct v4l2_control *vc)
 	else if (vc->id == V4L2_CID_PRIVATE_BASE + 1)
 		vc->value = pxp->s0_bgcolor;
 	else if (vc->id == V4L2_CID_PRIVATE_BASE + 2)
+		vc->value = pxp->s0_chromakey;
+	else if (vc->id == V4L2_CID_PRIVATE_BASE + 3)
 		vc->value = pxp->yuv;
 
 	return 0;
@@ -502,7 +535,7 @@ static int pxp_g_fmt_output_overlay(struct file *file, void *fh,
 	struct v4l2_window *wf = &f->fmt.win;
 
 	memset(wf, 0, sizeof(struct v4l2_window));
-	wf->chromakey = pxp->chromakey;
+	wf->chromakey = pxp->s1_chromakey;
 	wf->global_alpha = pxp->global_alpha;
 	wf->field = V4L2_FIELD_NONE;
 	wf->clips = NULL;
@@ -522,14 +555,14 @@ static int pxp_try_fmt_output_overlay(struct file *file, void *fh,
 	struct pxps *pxp = video_get_drvdata(video_devdata(file));
 	struct v4l2_window *wf = &f->fmt.win;
 	struct v4l2_rect srect;
-	u32 chromakey = wf->chromakey;
+	u32 s1_chromakey = wf->chromakey;
 	u8 global_alpha = wf->global_alpha;
 
 	memcpy(&srect, &(wf->w), sizeof(struct v4l2_rect));
 
 	pxp_g_fmt_output_overlay(file, fh, f);
 
-	wf->chromakey = chromakey;
+	wf->chromakey = s1_chromakey;
 	wf->global_alpha = global_alpha;
 
 	/* Constrain parameters to the input buffer */
@@ -554,12 +587,12 @@ static int pxp_s_fmt_output_overlay(struct file *file, void *fh,
 		pxp->srect.width = wf->w.width;
 		pxp->srect.height = wf->w.height;
 		pxp->global_alpha = wf->global_alpha;
-		pxp->chromakey = wf->chromakey;
+		pxp->s1_chromakey = wf->chromakey;
 		pxp_set_s0param(pxp);
 		pxp_set_s0crop(pxp);
 		pxp_set_scaling(pxp);
 		pxp_set_olparam(pxp);
-		pxp_set_colorkey(pxp);
+		pxp_set_s1colorkey(pxp);
 	}
 
 	return ret;
@@ -769,7 +802,7 @@ static int pxp_g_fbuf(struct file *file, void *priv,
 		fb->flags |= V4L2_FBUF_FLAG_GLOBAL_ALPHA;
 	if (pxp->local_alpha_state)
 		fb->flags |= V4L2_FBUF_FLAG_LOCAL_ALPHA;
-	if (pxp->chromakey_state)
+	if (pxp->s1_chromakey_state)
 		fb->flags |= V4L2_FBUF_FLAG_CHROMAKEY;
 
 	return 0;
@@ -789,7 +822,7 @@ static int pxp_s_fbuf(struct file *file, void *priv,
 	/* Global alpha overrides local alpha if both are requested */
 	if (pxp->global_alpha_state && pxp->local_alpha_state)
 		pxp->local_alpha_state = 0;
-	pxp->chromakey_state =
+	pxp->s1_chromakey_state =
 		(fb->flags & V4L2_FBUF_FLAG_CHROMAKEY) != 0;
 
 	pxp_set_olparam(pxp);
@@ -949,8 +982,9 @@ static int pxp_hw_init(struct pxps *pxp)
 	pxp->global_alpha_state = 0;
 	pxp->global_alpha = 0;
 	pxp->local_alpha_state = 0;
-	pxp->chromakey_state = 0;
-	pxp->chromakey = 0;
+	pxp->s1_chromakey_state = 0;
+	pxp->s1_chromakey = -1;
+	pxp->s0_chromakey = -1;
 
 	/* Write default h/w config */
 	pxp_set_ctrl(pxp);
@@ -958,7 +992,8 @@ static int pxp_hw_init(struct pxps *pxp)
 	pxp_set_s0crop(pxp);
 	pxp_set_oln(pxp);
 	pxp_set_olparam(pxp);
-	pxp_set_colorkey(pxp);
+	pxp_set_s0colorkey(pxp);
+	pxp_set_s1colorkey(pxp);
 	pxp_set_csc(pxp);
 
 	return 0;
