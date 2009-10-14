@@ -219,6 +219,7 @@ static int lcdif_set_rate(struct clk *clk, u32 rate)
 	 * 108 * ns_cycle <= 875 * div
 	 */
 	u32 ns_cycle = 1000000 / rate;
+	ns_cycle *= 2; /* Fix calculate double frequency */
 	u32 div, reg_val;
 	u32 lowest_result = (u32) -1;
 	u32 lowest_div = 0, lowest_fracdiv = 0;
