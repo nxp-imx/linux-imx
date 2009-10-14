@@ -2713,16 +2713,10 @@ static int __init fsl_udc_probe(struct platform_device *pdev)
 	}
 #endif
 
-	if ((pdata->port_enables & FSL_USB2_DONT_REMAP) == 0) {
-		dr_regs = ioremap(res->start, resource_size(res));
-		if (!dr_regs) {
-			ret = -ENOMEM;
-			goto err1;
-		}
-		udc_controller->dr_remapped = !0;
-	} else {
-		dr_regs = (void *)res->start;
-		dev_warn(&pdev->dev, "does not remap its address space\n");
+	dr_regs = ioremap(res->start, resource_size(res));
+	if (!dr_regs) {
+		ret = -ENOMEM;
+		goto err1;
 	}
 	pdata->regs = (void *)dr_regs;
 	/*
@@ -2859,8 +2853,7 @@ err2:
 	if (pdata->platform_uninit)
 		pdata->platform_uninit(pdata);
 err2a:
-	if (udc_controller->dr_remapped)
-		iounmap((u8 __iomem *)dr_regs);
+	iounmap((u8 __iomem *)dr_regs);
 err1:
 	if (!udc_controller->transceiver)
 		release_mem_region(res->start, resource_size(res));
@@ -2902,8 +2895,7 @@ static int __exit fsl_udc_remove(struct platform_device *pdev)
 #endif
 	dma_pool_destroy(udc_controller->td_pool);
 	free_irq(udc_controller->irq, udc_controller);
-	if (udc_controller->dr_remapped)
-		iounmap((u8 __iomem *)dr_regs);
+	iounmap((u8 __iomem *)dr_regs);
 
 #ifndef CONFIG_USB_OTG
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);

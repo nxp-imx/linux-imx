@@ -56,4 +56,16 @@ config DMA_ZONE_SIZE
 	help
 	  This is the size in MB for the DMA zone. The DMA zone is used for
 	  dedicated memory for large contiguous video buffers
+
+# set if we need the UTMI transceiver code
+config UTMI_MXC
+	bool
+	select UTMI_MXC_OTG if USB_GADGET && USB_EHCI_HCD && USB_OTG
+	default y if USB_EHCI_FSL_UTMI || USB_GADGET_FSL_UTMI
+
+config UTMI_MXC_OTG
+	tristate
+	help
+	  Support for USB OTG pin detect using the UTMI transceiver on STMP378xxx platforms.
+
 endif

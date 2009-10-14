@@ -28,7 +28,6 @@
 
 extern struct resource *otg_get_resources(void);
 
-static int regs_remapped /* = 0 */;
 #undef EHCI_PROC_PTC
 #ifdef EHCI_PROC_PTC		/* /proc PORTSC:PTC support */
 /*
@@ -158,14 +157,6 @@ int usb_hcd_fsl_probe(const struct hc_driver *driver,
 	} else
 #endif
 	{
-		if ((pdev->dev.parent) &&
-			(to_platform_device(pdev->dev.parent)->resource)) {
-			pdev->resource =
-				to_platform_device(pdev->dev.parent)->resource;
-			pdev->num_resources =
-			to_platform_device(pdev->dev.parent)->num_resources;
-		}
-
 		res = platform_get_resource(pdev, IORESOURCE_IRQ, 0);
 		if (!res) {
 			dev_err(&pdev->dev,
@@ -187,18 +178,13 @@ int usb_hcd_fsl_probe(const struct hc_driver *driver,
 		}
 	}
 
-	if (!(pdata->port_enables & FSL_USB2_DONT_REMAP)) {
-		hcd->regs = ioremap(hcd->rsrc_start, hcd->rsrc_len);
+	hcd->regs = ioremap(hcd->rsrc_start, hcd->rsrc_len);
 
-		if (hcd->regs == NULL) {
-			dev_dbg(&pdev->dev, "error mapping memory\n");
-			retval = -EFAULT;
-			goto err3;
-		}
-		regs_remapped = 1;
-	} else
-		hcd->regs = (void __iomem *)(u32)(hcd->rsrc_start);
-
+	if (hcd->regs == NULL) {
+		dev_dbg(&pdev->dev, "error mapping memory\n");
+		retval = -EFAULT;
+		goto err3;
+	}
 	pdata->regs = hcd->regs;
 
 	/*
@@ -254,8 +240,7 @@ int usb_hcd_fsl_probe(const struct hc_driver *driver,
 	return retval;
 
 err4:
-	if (regs_remapped)
-		iounmap(hcd->regs);
+	iounmap(hcd->regs);
 err3:
 	if (pdata->operating_mode != FSL_USB2_DR_OTG)
 		release_mem_region(hcd->rsrc_start, hcd->rsrc_len);
@@ -305,8 +290,7 @@ static void usb_hcd_fsl_remove(struct usb_hcd *hcd,
 	if (pdata->platform_uninit)
 		pdata->platform_uninit(pdata);
 
-	if (regs_remapped)
-		iounmap(hcd->regs);
+	iounmap(hcd->regs);
 }
 
 static void fsl_setup_phy(struct ehci_hcd *ehci,

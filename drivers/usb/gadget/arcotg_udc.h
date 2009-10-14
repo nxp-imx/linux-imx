@@ -594,7 +594,6 @@ struct fsl_udc {
 	unsigned stopped:1;
 	unsigned remote_wakeup:1;
 	unsigned already_stopped:1;
-	unsigned dr_remapped:1;
 
 	struct ep_queue_head *ep_qh;	/* Endpoints Queue-Head */
 	struct fsl_req *status_req;	/* ep0 status request */

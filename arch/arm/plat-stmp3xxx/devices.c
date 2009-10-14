@@ -32,7 +32,6 @@
 #include <mach/regs-uartapp.h>
 #include <mach/regs-gpmi.h>
 #include <mach/regs-usbctrl.h>
-#include <mach/regs-usbphy.h>
 #include <mach/regs-ssp.h>
 #include <mach/regs-rtc.h>
 #include <mach/regs-digctl.h>
@@ -188,65 +187,6 @@ struct platform_device stmp3xxx_mmc = {
 	},
 	.resource = mmc1_resource,
 	.num_resources = ARRAY_SIZE(mmc1_resource),
-};
-
-static struct resource usb_resources[] = {
-	{
-		.start	= REGS_USBCTRL_PHYS,
-		.end	= REGS_USBCTRL_PHYS + SZ_4K,
-		.flags	= IORESOURCE_MEM,
-	}, {
-		.start	= IRQ_USB_CTRL,
-		.end	= IRQ_USB_CTRL,
-		.flags	= IORESOURCE_IRQ,
-	},
-};
-
-static struct fsl_usb2_platform_data udc_platform_data = {
-	.operating_mode = FSL_USB2_DR_DEVICE,
-	.phy_mode	= FSL_USB2_PHY_UTMI,
-	.port_enables	= FSL_USB2_DONT_REMAP,
-	.platform_init	= NULL,
-	.platform_uninit = NULL,
-};
-
-struct platform_device stmp3xxx_udc = {
-	.name		= "fsl-usb2-udc",
-	.id		= -1,
-	.dev		= {
-		.dma_mask		= &common_dmamask,
-		.coherent_dma_mask	= DMA_BIT_MASK(32),
-		.platform_data		= &udc_platform_data,
-	},
-	.resource = usb_resources,
-	.num_resources = ARRAY_SIZE(usb_resources),
-};
-
-static void usb_host_phy_resume(struct fsl_usb2_platform_data *pdata)
-{
-	stmp3xxx_clearl(BM_USBPHY_CTRL_ENHOSTDISCONDETECT,
-				REGS_USBPHY_BASE + HW_USBPHY_CTRL);
-}
-
-static struct fsl_usb2_platform_data ehci_platform_data = {
-	.operating_mode = FSL_USB2_DR_HOST,
-	.phy_mode	= FSL_USB2_PHY_UTMI,
-	.port_enables	= FSL_USB2_DONT_REMAP,
-	.platform_init	= NULL,
-	.platform_uninit = NULL,
-	.platform_resume = usb_host_phy_resume,
-};
-
-struct platform_device stmp3xxx_ehci = {
-	.name		= "fsl-ehci",
-	.id		= -1,
-	.dev		= {
-		.dma_mask		= &common_dmamask,
-		.coherent_dma_mask	= DMA_BIT_MASK(32),
-		.platform_data		= &ehci_platform_data,
-	},
-	.resource	= usb_resources,
-	.num_resources	= ARRAY_SIZE(usb_resources),
 };
 
 static struct resource rtc_resources[] = {

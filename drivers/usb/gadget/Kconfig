@@ -609,7 +609,7 @@ endchoice
 config USB_OTG
 	boolean "OTG Support"
 	depends on (USB_GADGET_OMAP && ARCH_OMAP_OTG && USB_OHCI_HCD) || \
-		   (USB_GADGET_ARC && ARCH_MXC && USB_EHCI_HCD)
+		   (USB_GADGET_ARC && (ARCH_MXC || ARCH_STMP3XXX) && USB_EHCI_HCD)
 	help
 	   The most notable feature of USB OTG is support for a
 	   "Dual-Role" device, which can act as either a device
