@@ -69,6 +69,7 @@ int high_bus_freq_mode;
 char *gp_reg_id = "SW1";
 char *lp_reg_id = "SW2";
 static struct cpu_wp *cpu_wp_tbl;
+static int busfreq_suspended;
 
 struct dvfs_wp dvfs_core_setpoint[] = {
 						{33, 8, 33, 10, 10, 0x08},
@@ -82,6 +83,9 @@ int set_low_bus_freq(void)
 	unsigned long flags;
 	int reg;
 	unsigned long lp_lpm_clk;
+
+	if (busfreq_suspended)
+		return ret;
 
 	spin_lock_irqsave(&bus_freq_lock, flags);
 
@@ -231,6 +235,20 @@ void setup_pll(void)
 		    (0 << MXC_CCM_CCSR_STEP_SEL_OFFSET);
 		__raw_writel(reg, MXC_CCM_CCSR);
 	}
+}
+
+static int busfreq_suspend(struct platform_device *pdev, pm_message_t message)
+{
+	if (low_bus_freq_mode)
+		set_high_bus_freq(1);
+	busfreq_suspended = 1;
+	return 0;
+}
+
+static int busfreq_resume(struct platform_device *pdev)
+{
+	busfreq_suspended = 0;
+	return  0;
 }
 
 /*!
@@ -386,6 +404,8 @@ static struct platform_driver busfreq_driver = {
 		   .name = "busfreq",
 		   },
 	.probe = busfreq_probe,
+	.suspend = busfreq_suspend,
+	.resume = busfreq_resume,
 };
 
 /*!

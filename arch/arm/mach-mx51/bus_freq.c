@@ -73,6 +73,7 @@ char *lp_reg_id = "SW2";
 
 static struct cpu_wp *cpu_wp_tbl;
 static struct device *busfreq_dev;
+static int busfreq_suspended;
 int sdram_autogating_paused;
 
 extern int lp_high_freq;
@@ -98,6 +99,10 @@ int set_low_bus_freq(void)
 	u32 reg;
 
 	if (bus_freq_scaling_is_active) {
+
+		if (busfreq_suspended)
+			return 0;
+
 		if (clk_get_rate(cpu_clk) != cpu_wp_tbl[cpu_wp_nr - 1].cpu_rate)
 			return 0;
 
@@ -355,6 +360,20 @@ static ssize_t bus_freq_scaling_enable_store(struct device *dev,
 	return size;
 }
 
+static int busfreq_suspend(struct platform_device *pdev, pm_message_t message)
+{
+	if (low_bus_freq_mode)
+		set_high_bus_freq(1);
+	busfreq_suspended = 1;
+	return 0;
+}
+
+static int busfreq_resume(struct platform_device *pdev)
+{
+	busfreq_suspended = 0;
+	return  0;
+}
+
 static DEVICE_ATTR(enable, 0644, bus_freq_scaling_enable_show,
 			bus_freq_scaling_enable_store);
 
@@ -522,6 +541,8 @@ static struct platform_driver busfreq_driver = {
 		   .name = "busfreq",
 		},
 	.probe = busfreq_probe,
+	.suspend = busfreq_suspend,
+	.resume = busfreq_resume,
 };
 
 /*!
