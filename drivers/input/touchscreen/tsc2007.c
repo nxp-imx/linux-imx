@@ -266,6 +266,11 @@ static int tsc2007_probe(struct i2c_client *client,
 
 	pdata->init_platform_hw();
 
+	if (tsc2007_xfer(ts, PWRDOWN) < 0) {
+		err = -ENODEV;
+		goto err_no_dev;
+	}
+
 	snprintf(ts->phys, sizeof(ts->phys),
 		 "%s/input0", dev_name(&client->dev));
 
@@ -305,6 +310,8 @@ static int tsc2007_probe(struct i2c_client *client,
 	free_irq(ts->irq, ts);
  err_free_mem:
 	input_free_device(input_dev);
+ err_no_dev:
+	pdata->exit_platform_hw();
 	kfree(ts);
 	return err;
 }
