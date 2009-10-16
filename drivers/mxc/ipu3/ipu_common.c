@@ -1669,7 +1669,7 @@ int32_t ipu_disable_channel(ipu_channel_t channel, bool wait_for_stop)
 			(g_thrd_chan_en[IPU_CHAN_ID(channel)] &&
 			idma_is_set(IDMAC_CHA_BUSY, thrd_dma)) ||
 		       (_ipu_channel_status(channel) == TASK_STAT_ACTIVE)) {
-			uint32_t ret, irq = out_dma;
+			uint32_t ret, irq = in_dma;
 			DECLARE_COMPLETION_ONSTACK(disable_comp);
 
 			ret = ipu_request_irq(irq, disable_chan_irq_handler, 0, NULL, &disable_comp);
