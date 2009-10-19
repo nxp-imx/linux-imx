@@ -1662,15 +1662,26 @@ int32_t ipu_disable_channel(ipu_channel_t channel, bool wait_for_stop)
 	    (channel == MEM_DC_SYNC)) {
 		_ipu_dp_dc_disable(channel, false);
 	} else if (wait_for_stop) {
-		if (idma_is_set(IDMAC_CHA_BUSY, in_dma) ||
+		while (idma_is_set(IDMAC_CHA_BUSY, in_dma) ||
 		       idma_is_set(IDMAC_CHA_BUSY, out_dma) ||
 			(g_sec_chan_en[IPU_CHAN_ID(channel)] &&
 			idma_is_set(IDMAC_CHA_BUSY, sec_dma)) ||
 			(g_thrd_chan_en[IPU_CHAN_ID(channel)] &&
 			idma_is_set(IDMAC_CHA_BUSY, thrd_dma)) ||
 		       (_ipu_channel_status(channel) == TASK_STAT_ACTIVE)) {
-			uint32_t ret, irq = in_dma;
+			uint32_t ret, irq = out_dma;
 			DECLARE_COMPLETION_ONSTACK(disable_comp);
+
+			if (idma_is_set(IDMAC_CHA_BUSY, out_dma))
+				irq = out_dma;
+			if (g_sec_chan_en[IPU_CHAN_ID(channel)] &&
+				idma_is_set(IDMAC_CHA_BUSY, sec_dma))
+				irq = sec_dma;
+			if (g_thrd_chan_en[IPU_CHAN_ID(channel)] &&
+				idma_is_set(IDMAC_CHA_BUSY, thrd_dma))
+				irq = thrd_dma;
+			if (idma_is_set(IDMAC_CHA_BUSY, in_dma))
+				irq = in_dma;
 
 			ret = ipu_request_irq(irq, disable_chan_irq_handler, 0, NULL, &disable_comp);
 			if (ret < 0) {
