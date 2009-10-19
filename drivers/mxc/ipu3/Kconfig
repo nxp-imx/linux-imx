@@ -1,0 +1,5 @@
+config MXC_IPU_V3
+	bool
+
+config MXC_IPU_V3D
+	bool

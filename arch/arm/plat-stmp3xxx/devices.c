@@ -20,16 +20,26 @@
 #include <linux/device.h>
 #include <linux/platform_device.h>
 #include <linux/dma-mapping.h>
+#include <linux/fsl_devices.h>
+#include <linux/list.h>
+#include <linux/delay.h>
 
 #include <mach/dma.h>
 #include <mach/platform.h>
 #include <mach/stmp3xxx.h>
+#include <mach/lcdif.h>
 #include <mach/regs-lcdif.h>
 #include <mach/regs-uartapp.h>
 #include <mach/regs-gpmi.h>
 #include <mach/regs-usbctrl.h>
+#include <mach/regs-usbphy.h>
 #include <mach/regs-ssp.h>
 #include <mach/regs-rtc.h>
+#include <mach/regs-digctl.h>
+#include <mach/regs-ocotp.h>
+#include <mach/lcdif.h>
+#include <mach/regs-power.h>
+#include <mach/regs-clkctrl.h>
 
 static u64 common_dmamask = DMA_BIT_MASK(32);
 
@@ -63,6 +73,7 @@ static struct resource appuart_resources[] = {
 	},
 };
 
+
 struct platform_device stmp3xxx_appuart = {
 	.name = "stmp3xxx-appuart",
 	.id = 0,
@@ -72,6 +83,11 @@ struct platform_device stmp3xxx_appuart = {
 		.dma_mask	= &common_dmamask,
 		.coherent_dma_mask = DMA_BIT_MASK(32),
 	},
+};
+
+struct platform_device stmp3xxx_dbguart = {
+	.name = "stmp3xxx-dbguart",
+	.id = -1,
 };
 
 struct platform_device stmp3xxx_watchdog = {
@@ -98,12 +114,22 @@ struct platform_device stmp3xxx_touchscreen = {
 	.num_resources	= ARRAY_SIZE(ts_resource),
 };
 
+static struct resource keyboard_resource[] = {
+	{
+	.flags  = IORESOURCE_IRQ,
+	.start  = IRQ_LRADC_CH0,
+	.end    = IRQ_LRADC_CH0,
+	},
+};
+
 /*
 * Keypad device
 */
 struct platform_device stmp3xxx_keyboard = {
 	.name		= "stmp3xxx-keyboard",
 	.id		= -1,
+	.resource	= keyboard_resource,
+	.num_resources	= ARRAY_SIZE(keyboard_resource),
 };
 
 static struct resource gpmi_resources[] = {
@@ -155,7 +181,7 @@ static struct resource mmc1_resource[] = {
 
 struct platform_device stmp3xxx_mmc = {
 	.name	= "stmp3xxx-mmc",
-	.id	= 1,
+	.id	= -1,
 	.dev	= {
 		.dma_mask	= &common_dmamask,
 		.coherent_dma_mask = DMA_BIT_MASK(32),
@@ -176,15 +202,39 @@ static struct resource usb_resources[] = {
 	},
 };
 
+static struct fsl_usb2_platform_data udc_platform_data = {
+	.operating_mode = FSL_USB2_DR_DEVICE,
+	.phy_mode	= FSL_USB2_PHY_UTMI,
+	.port_enables	= FSL_USB2_DONT_REMAP,
+	.platform_init	= NULL,
+	.platform_uninit = NULL,
+};
+
 struct platform_device stmp3xxx_udc = {
 	.name		= "fsl-usb2-udc",
 	.id		= -1,
 	.dev		= {
 		.dma_mask		= &common_dmamask,
 		.coherent_dma_mask	= DMA_BIT_MASK(32),
+		.platform_data		= &udc_platform_data,
 	},
 	.resource = usb_resources,
 	.num_resources = ARRAY_SIZE(usb_resources),
+};
+
+static void usb_host_phy_resume(struct fsl_usb2_platform_data *pdata)
+{
+	stmp3xxx_clearl(BM_USBPHY_CTRL_ENHOSTDISCONDETECT,
+				REGS_USBPHY_BASE + HW_USBPHY_CTRL);
+}
+
+static struct fsl_usb2_platform_data ehci_platform_data = {
+	.operating_mode = FSL_USB2_DR_HOST,
+	.phy_mode	= FSL_USB2_PHY_UTMI,
+	.port_enables	= FSL_USB2_DONT_REMAP,
+	.platform_init	= NULL,
+	.platform_uninit = NULL,
+	.platform_resume = usb_host_phy_resume,
 };
 
 struct platform_device stmp3xxx_ehci = {
@@ -193,6 +243,7 @@ struct platform_device stmp3xxx_ehci = {
 	.dev		= {
 		.dma_mask		= &common_dmamask,
 		.coherent_dma_mask	= DMA_BIT_MASK(32),
+		.platform_data		= &ehci_platform_data,
 	},
 	.resource	= usb_resources,
 	.num_resources	= ARRAY_SIZE(usb_resources),
@@ -291,12 +342,17 @@ static struct resource fb_resource[] = {
 	},
 };
 
+static struct stmp3xxx_platform_fb_data stmp3xxx_framebuffer_pdata = {
+	.list = LIST_HEAD_INIT(stmp3xxx_framebuffer_pdata.list),
+};
+
 struct platform_device stmp3xxx_framebuffer = {
 	.name		= "stmp3xxx-fb",
 	.id		= -1,
 	.dev		= {
 		.dma_mask		= &common_dmamask,
 		.coherent_dma_mask	= DMA_BIT_MASK(32),
+		.platform_data		= &stmp3xxx_framebuffer_pdata,
 	},
 	.num_resources	= ARRAY_SIZE(fb_resource),
 	.resource	= fb_resource,
@@ -337,9 +393,85 @@ struct platform_device stmp3xxx_rotdec = {
 	.id	= -1,
 };
 
+static const struct stmp3xxx_persistent_bit_config
+stmp3xxx_persistent_bit_tab[] = {
+	{ .reg = 0, .start =  0, .width =  1,
+		.name = "CLOCKSOURCE" },
+	{ .reg = 0, .start =  1, .width =  1,
+		.name = "ALARM_WAKE_EN" },
+	{ .reg = 0, .start =  2, .width =  1,
+		.name = "ALARM_EN" },
+	{ .reg = 0, .start =  3, .width =  1,
+		.name = "CLK_SECS" },
+	{ .reg = 0, .start =  4, .width =  1,
+		.name = "XTAL24MHZ_PWRUP" },
+	{ .reg = 0, .start =  5, .width =  1,
+		.name = "XTAL32MHZ_PWRUP" },
+	{ .reg = 0, .start =  6, .width =  1,
+		.name = "XTAL32_FREQ" },
+	{ .reg = 0, .start =  7, .width =  1,
+		.name = "ALARM_WAKE" },
+	{ .reg = 0, .start =  8, .width =  5,
+		.name = "MSEC_RES" },
+	{ .reg = 0, .start = 13, .width =  1,
+		.name = "DISABLE_XTALOK" },
+	{ .reg = 0, .start = 14, .width =  2,
+		.name = "LOWERBIAS" },
+	{ .reg = 0, .start = 16, .width =  1,
+		.name = "DISABLE_PSWITCH" },
+	{ .reg = 0, .start = 17, .width =  1,
+		.name = "AUTO_RESTART" },
+	{ .reg = 0, .start = 18, .width = 14,
+		.name = "SPARE_ANALOG" },
+
+	{ .reg = 1, .start =  0, .width =  1,
+		.name = "FORCE_RECOVERY" },
+	{ .reg = 1, .start =  1, .width =  1,
+		.name = "NAND_SECONDARY_BOOT" },
+	{ .reg = 1, .start =  2, .width =  1,
+		.name = "NAND_SDK_BLOCK_REWRITE" },
+	{ .reg = 1, .start =  3, .width =  1,
+		.name = "SD_SPEED_ENABLE" },
+	{ .reg = 1, .start =  4, .width =  1,
+		.name = "SD_INIT_SEQ_1_DISABLE" },
+	{ .reg = 1, .start =  5, .width =  1,
+		.name = "SD_CMD0_DISABLE" },
+	{ .reg = 1, .start =  6, .width =  1,
+		.name = "SD_INIT_SEQ_2_ENABLE" },
+	{ .reg = 1, .start =  7, .width =  1,
+		.name = "OTG_ATL_ROLE_BIT" },
+	{ .reg = 1, .start =  8, .width =  1,
+		.name = "OTG_HNP_BIT" },
+	{ .reg = 1, .start =  9, .width =  1,
+		.name = "USB_LOW_POWER_MODE" },
+	{ .reg = 1, .start = 10, .width =  1,
+		.name = "SKIP_CHECKDISK" },
+	{ .reg = 1, .start = 11, .width =  1,
+		.name = "USB_BOOT_PLAYER_MODE" },
+	{ .reg = 1, .start = 12, .width =  1,
+		.name = "ENUMERATE_500MA_TWICE" },
+	{ .reg = 1, .start = 13, .width = 19,
+		.name = "SPARE_GENERAL" },
+
+	{ .reg = 2, .start =  0, .width = 32,
+		.name = "SPARE_2" },
+	{ .reg = 3, .start =  0, .width = 32,
+		.name = "SPARE_3" },
+	{ .reg = 4, .start =  0, .width = 32,
+		.name = "SPARE_4" },
+	{ .reg = 5, .start =  0, .width = 32,
+		.name = "SPARE_5" },
+};
+
+static struct stmp3xxx_platform_persistent_data stmp3xxx_persistent_data = {
+	.bit_config_tab = stmp3xxx_persistent_bit_tab,
+	.bit_config_cnt = ARRAY_SIZE(stmp3xxx_persistent_bit_tab),
+};
+
 struct platform_device stmp3xxx_persistent = {
 	.name			= "stmp3xxx-persistent",
 	.id			= -1,
+	.dev.platform_data	= &stmp3xxx_persistent_data,
 };
 
 struct platform_device stmp3xxx_dcp_bootstream = {
@@ -386,4 +518,29 @@ struct platform_device stmp3xxx_battery = {
 	.name   = "stmp3xxx-battery",
 	.resource = battery_resource,
 	.num_resources = ARRAY_SIZE(battery_resource),
+};
+
+struct resource viim_resources[] = {
+	[0] = {
+		.start  = REGS_DIGCTL_PHYS,
+		.end    = REGS_DIGCTL_PHYS + PAGE_SIZE - 1,
+		.flags  = IORESOURCE_MEM,
+	},
+	[1] = {
+		.start  = REGS_OCOTP_PHYS,
+		.end    = REGS_OCOTP_PHYS + PAGE_SIZE - 1,
+		.flags  = IORESOURCE_MEM,
+	},
+};
+
+struct platform_device stmp3xxx_viim = {
+	.name   = "mxs_viim",
+	.id     = 0,
+	.resource = viim_resources,
+	.num_resources = ARRAY_SIZE(viim_resources),
+};
+
+struct platform_device stmp3xxx_spdif = {
+	.name = "stmp3xxx-spdif",
+	.id = -1,
 };

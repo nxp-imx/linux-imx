@@ -117,4 +117,34 @@ config REGULATOR_LP3971
 	 Say Y here to support the voltage regulators and convertors
 	 on National Semiconductors LP3971 PMIC
 
+config REGULATOR_MC13892
+	tristate "MC13892 Regulator Support"
+	depends on REGULATOR
+	depends on MXC_PMIC_MC13892
+	default y
+
+config REGULATOR_MC13783
+	tristate "MC13783 Regulator Support"
+	depends on REGULATOR
+	depends on MXC_PMIC_MC13783
+	default y
+
+config REGULATOR_MC34704
+	tristate "MC34704 Regulator Support"
+	depends on REGULATOR
+	depends on MXC_PMIC_MC34704
+	default y
+
+config REGULATOR_STMP3XXX
+	tristate "STMP3xxx Regulator Support"
+	depends on REGULATOR
+	depends on ARCH_STMP3XXX
+	default y
+
+config REGULATOR_MC9S08DZ60
+	tristate "mc9s08dz60 Regulator Support"
+	depends on REGULATOR
+	depends on MXC_PMIC_MC9S08DZ60
+	default y
+
 endif

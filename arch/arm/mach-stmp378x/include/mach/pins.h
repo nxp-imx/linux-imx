@@ -19,6 +19,32 @@
 #define __ASM_ARCH_PINS_H
 
 /*
+ * The number of pin banks and pins per a bank on STMP378x
+ */
+#define STMP3XXX_PINMUX_NR_BANKS	4
+#define STMP3XXX_PINMUX_BANK_SIZE	32
+
+/*
+ * Macro to convert a pin bank/number pair to a raw pin number
+ * STMP3XXX_PINMUX_BANK_SIZE and STMP3XXX_PINMUX_NR_BANKS should be
+ * defined before including this header.
+ */
+#define STMP3XXX_PINID(bank, pin)	(bank * STMP3XXX_PINMUX_BANK_SIZE + pin)
+#define STMP3XXX_PINID_TO_BANK(pinid)	(pinid / STMP3XXX_PINMUX_BANK_SIZE)
+#define STMP3XXX_PINID_TO_PINNUM(pinid)	(pinid % STMP3XXX_PINMUX_BANK_SIZE)
+
+/*
+ * Special invalid pin identificator to show a pin doesn't exist
+ */
+#define PINID_NO_PIN	STMP3XXX_PINID(STMP3XXX_PINMUX_NR_BANKS, 0)
+
+static inline int stmp3xxx_valid_pin(unsigned pin)
+{
+	return STMP3XXX_PINID_TO_BANK(pin) < STMP3XXX_PINMUX_NR_BANKS &&
+		STMP3XXX_PINID_TO_PINNUM(pin) < STMP3XXX_PINMUX_BANK_SIZE;
+}
+
+/*
  * Define all STMP378x pins, a pin name corresponds to a STMP378x hardware
  * interface  this pin belongs to.
  */

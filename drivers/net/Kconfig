@@ -1439,7 +1439,7 @@ config FORCEDETH_NAPI
 config CS89x0
 	tristate "CS89x0 support"
 	depends on NET_ETHERNET && (ISA || EISA || MACH_IXDP2351 \
-		|| ARCH_IXDP2X01 || ARCH_PNX010X || MACH_MX31ADS)
+		|| ARCH_IXDP2X01 || ARCH_PNX010X || ARCH_MXC)
 	---help---
 	  Support for CS89x0 chipset based Ethernet cards. If you have a
 	  network (Ethernet) card of this type, say Y and read the
@@ -1453,7 +1453,7 @@ config CS89x0
 config CS89x0_NONISA_IRQ
 	def_bool y
 	depends on CS89x0 != n
-	depends on MACH_IXDP2351 || ARCH_IXDP2X01 || ARCH_PNX010X || MACH_MX31ADS
+	depends on MACH_IXDP2351 || ARCH_IXDP2X01 || ARCH_PNX010X || ARCH_MXC
 
 config TC35815
 	tristate "TOSHIBA TC35815 Ethernet support"
@@ -1875,7 +1875,7 @@ config 68360_ENET
 
 config FEC
 	bool "FEC ethernet controller (of ColdFire and some i.MX CPUs)"
-	depends on M523x || M527x || M5272 || M528x || M520x || M532x || MACH_MX27 || ARCH_MX35
+	depends on M523x || M527x || M5272 || M528x || M520x || M532x || ARCH_MX25 || MACH_MX27 || ARCH_MX35 || ARCH_MX51
 	help
 	  Say Y here if you want to use the built-in 10/100 Fast ethernet
 	  controller on some Motorola ColdFire and Freescale i.MX processors.

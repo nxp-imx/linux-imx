@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2007 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2004-2009 Freescale Semiconductor, Inc. All Rights Reserved.
  * Copyright 2008 Juergen Beisert, kernel@pengutronix.de
  *
  * This program is free software; you can redistribute it and/or
@@ -22,9 +22,33 @@
 
 #include <asm/sizes.h>
 
+/*
+ * ---------------------------------------------------------------------------
+ * Processor specific defines
+ * ---------------------------------------------------------------------------
+ */
+#define CHIP_REV_1_0		0x10
+#define CHIP_REV_1_1		0x11
+#define CHIP_REV_1_2		0x12
+#define CHIP_REV_1_3		0x13
+#define CHIP_REV_2_0		0x20
+#define CHIP_REV_2_1		0x21
+#define CHIP_REV_2_2		0x22
+#define CHIP_REV_2_3		0x23
+#define CHIP_REV_3_0		0x30
+#define CHIP_REV_3_1		0x31
+#define CHIP_REV_3_2		0x32
+
+#define BOARD_REV_1		0x000
+#define BOARD_REV_2		0x100
+
 #ifdef CONFIG_ARCH_MX3
 #include <mach/mx3x.h>
 #include <mach/mx31.h>
+#endif
+
+#ifdef CONFIG_ARCH_MX35
+#include <mach/mx3x.h>
 #include <mach/mx35.h>
 #endif
 
@@ -42,6 +66,44 @@
 # include <mach/mx1.h>
 #endif
 
+#ifdef CONFIG_ARCH_MX37
+#include <mach/mx37.h>
+#endif
+
+#ifdef CONFIG_ARCH_MX51
+#include <mach/mx51.h>
+#endif
+
+#ifdef CONFIG_ARCH_MX25
+#include <mach/mx25.h>
+#endif
+
+#ifndef __ASSEMBLY__
+extern unsigned int system_rev;
+#define board_is_rev(rev)	(((system_rev & 0x0F00) == rev) ? 1 : 0)
+#endif
+
 #include <mach/mxc.h>
 
+/*!
+ * Register an interrupt handler for the SMN as well as the SCC.  In some
+ * implementations, the SMN is not connected at all, and in others, it is
+ * on the same interrupt line as the SCM. Comment this line out accordingly
+ */
+#define USE_SMN_INTERRUPT
+
+/*!
+ * This option is used to set or clear the RXDMUXSEL bit in control reg 3.
+ * Certain platforms need this bit to be set in order to receive Irda data.
+ */
+#define MXC_UART_IR_RXDMUX      0x0004
+/*!
+ * This option is used to set or clear the RXDMUXSEL bit in control reg 3.
+ * Certain platforms need this bit to be set in order to receive UART data.
+ */
+#define MXC_UART_RXDMUX         0x0004
+
+#ifndef MXC_INT_FORCE
+#define MXC_INT_FORCE	-1
+#endif
 #endif /* __ASM_ARCH_MXC_HARDWARE_H__ */

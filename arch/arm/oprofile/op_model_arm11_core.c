@@ -13,7 +13,12 @@
 #include "op_counter.h"
 #include "op_arm_model.h"
 #include "op_model_arm11_core.h"
+#include "evtmon_regs.h"
 
+#define NEED_OPROFILE_CCNT_FIX
+#ifdef NEED_OPROFILE_CCNT_FIX /* Workaround to correctly map from user space counters to kernel space counters */
+struct op_counter_config tmp;
+#endif
 /*
  * ARM11 PMU support
  */
@@ -63,6 +68,12 @@ int arm11_setup_pmu(void)
 	arm11_write_pmnc(PMCR_OFL_PMN0 | PMCR_OFL_PMN1 | PMCR_OFL_CCNT |
 			 PMCR_C | PMCR_P);
 
+#ifdef NEED_OPROFILE_CCNT_FIX /* Workaround to correctly map from user space counters to kernel space counters */
+	tmp = counter_config[PMN0];
+	counter_config[PMN0] = counter_config[PMN1];
+	counter_config[PMN1] = counter_config[CCNT];
+	counter_config[CCNT] = tmp;
+#endif
 	for (pmnc = 0, cnt = PMN0; cnt <= CCNT; cnt++) {
 		unsigned long event;
 
@@ -119,16 +130,49 @@ static irqreturn_t arm11_pmu_interrupt(int irq, void *arg)
 	unsigned int cnt;
 	u32 pmnc;
 
+#ifdef ECT_WORKAROUND
+	/* Disable L2_EVTMON */
+	__raw_writel((__raw_readl(L2EM_CTRL) & ~EVTMON_ENABLE), L2EM_CTRL);
+
+	/* Disable ARM11 PMU while retaining interrupts and overflow bits */
 	pmnc = arm11_read_pmnc();
+	pmnc &= ~(PMU_ENABLE | PMU_OVERFLOWBIT_MASK);
+	arm11_write_pmnc(pmnc);
+
+	while (__raw_readl(ECT_CTI_TRIGOUTSTATUS) & ECT_CTI_CHAN_2)
+		__raw_writel(ACK_TRIG_OUT_2, ECT_CTI_INTACK);
+
+	pmnc = arm11_read_pmnc();
+
+	/* Re-enable ARM11 PMU */
+	pmnc |= PMU_ENABLE;
+	arm11_write_pmnc(pmnc);
+
+	/* Re-enable L2_EVTMON */
+	__raw_writel((__raw_readl(L2EM_CTRL) | L2EM_ENABLE_MASK), L2EM_CTRL);
+#else
+	pmnc = arm11_read_pmnc();
+#endif
 
 	for (cnt = PMN0; cnt <= CCNT; cnt++) {
 		if ((pmnc & (PMCR_OFL_PMN0 << cnt)) && (pmnc & (PMCR_IEN_PMN0 << cnt))) {
 			arm11_reset_counter(cnt);
+#ifdef NEED_OPROFILE_CCNT_FIX /* Workaround to correctly map from user space counters to kernel space counters */
+			if (cnt == PMN0)
+			oprofile_add_sample(regs, CPU_COUNTER(smp_processor_id(), PMN1));
+			else if (cnt == PMN1)
+			oprofile_add_sample(regs, CPU_COUNTER(smp_processor_id(), CCNT));
+			else if (cnt == CCNT)
+			oprofile_add_sample(regs, CPU_COUNTER(smp_processor_id(), PMN0));
+#else
 			oprofile_add_sample(regs, CPU_COUNTER(smp_processor_id(), cnt));
+#endif
 		}
 	}
+#ifndef ECT_WORKAROUND
 	/* Clear counter flag(s) */
 	arm11_write_pmnc(pmnc);
+#endif
 	return IRQ_HANDLED;
 }
 

@@ -310,12 +310,20 @@ config KEYBOARD_SUNKBD
 	  To compile this driver as a module, choose M here: the
 	  module will be called sunkbd.
 
+config KEYBOARD_MPR084
+	tristate "Freescale MPR084 Touch Keypad Driver"
+	depends on ARCH_MX37
+	help
+	  This is the Keypad driver for the Freescale Proximity Capacitive
+	  Touch Sensor controller chip.
+
 config KEYBOARD_SH_KEYSC
 	tristate "SuperH KEYSC keypad support"
 	depends on SUPERH
 	help
 	  Say Y here if you want to use a keypad attached to the KEYSC block
 	  on SuperH processors such as sh7722 and sh7343.
+
 
 	  To compile this driver as a module, choose M here: the
 	  module will be called sh_keysc.
@@ -360,5 +368,25 @@ config KEYBOARD_XTKBD
 
 	  To compile this driver as a module, choose M here: the
 	  module will be called xtkbd.
+
+config KEYBOARD_MXC
+	tristate "MXC Keypad Driver"
+	depends on ARCH_MXC
+	help
+	  This is the Keypad driver for the Freescale MXC application
+	  processors.
+
+config KEYBOARD_STMP3XXX
+	tristate "STMP3xxx keyboard"
+	depends on ARCH_STMP3XXX
+	help
+	 -to be written-
+
+
+config KEYBOARD_MC9S08DZ60
+	tristate "mc9s08dz60 keyboard"
+	depends on MXC_PMIC_MC9S08DZ60
+	help
+	 -to be written-
 
 endif

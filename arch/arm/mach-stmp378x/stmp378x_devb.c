@@ -23,6 +23,7 @@
 #include <linux/clk.h>
 #include <linux/err.h>
 #include <linux/spi/spi.h>
+#include <linux/input.h>
 
 #include <asm/setup.h>
 #include <asm/mach-types.h>
@@ -32,8 +33,10 @@
 #include <mach/pinmux.h>
 #include <mach/platform.h>
 #include <mach/stmp3xxx.h>
-#include <mach/mmc.h>
 #include <mach/gpmi.h>
+#include <mach/mmc.h>
+#include <mach/lcdif.h>
+#include <mach/ddi_bc.h>
 
 #include "stmp378x.h"
 
@@ -53,7 +56,20 @@ static struct platform_device *devices[] = {
 	&stmp3xxx_battery,
 	&stmp378x_pxp,
 	&stmp378x_i2c,
+	&stmp3xxx_spdif,
+	&stmp378x_audio,
 };
+
+int usb_host_wakeup_irq(struct device *wkup_dev)
+{
+	        return 0;
+}
+EXPORT_SYMBOL(usb_host_wakeup_irq);
+
+void usb_host_set_wakeup(struct device *wkup_dev, bool para)
+{
+}
+EXPORT_SYMBOL(usb_host_set_wakeup);
 
 static struct pin_desc i2c_pins_desc[] = {
 	{ PINID_I2C_SCL, PIN_FUN1, PIN_4MA, PIN_3_3V, 0 },
@@ -77,14 +93,14 @@ static struct pin_group dbguart_pins[] = {
 	},
 };
 
-static int dbguart_pins_control(int id, int request)
+static int dbguart_pinmux(int request, int id)
 {
 	int r = 0;
 
 	if (request)
-		r = stmp3xxx_request_pin_group(&dbguart_pins[id], "debug uart");
+		r = stmp3xxx_request_pin_group(&dbguart_pins[id], "dbguart");
 	else
-		stmp3xxx_release_pin_group(&dbguart_pins[id], "debug uart");
+		stmp3xxx_release_pin_group(&dbguart_pins[id], "dbguart");
 	return r;
 }
 
@@ -104,104 +120,6 @@ static struct pin_desc appuart_pins_1[] = {
 #endif
 };
 
-static struct pin_desc mmc_pins_desc[] = {
-	{ PINID_SSP1_DATA0, PIN_FUN1, PIN_8MA, PIN_3_3V, 1 },
-	{ PINID_SSP1_DATA1, PIN_FUN1, PIN_8MA, PIN_3_3V, 1 },
-	{ PINID_SSP1_DATA2, PIN_FUN1, PIN_8MA, PIN_3_3V, 1 },
-	{ PINID_SSP1_DATA3, PIN_FUN1, PIN_8MA, PIN_3_3V, 1 },
-	{ PINID_SSP1_CMD, PIN_FUN1, PIN_8MA, PIN_3_3V, 1 },
-	{ PINID_SSP1_SCK, PIN_FUN1, PIN_8MA, PIN_3_3V, 0 },
-	{ PINID_SSP1_DETECT, PIN_FUN1, PIN_8MA, PIN_3_3V, 0 },
-};
-
-static struct pin_group mmc_pins = {
-	.pins		= mmc_pins_desc,
-	.nr_pins	= ARRAY_SIZE(mmc_pins_desc),
-};
-
-static int stmp3xxxmmc_get_wp(void)
-{
-	return gpio_get_value(PINID_PWM4);
-}
-
-static int stmp3xxxmmc_hw_init_ssp1(void)
-{
-	int ret;
-
-	ret = stmp3xxx_request_pin_group(&mmc_pins, "mmc");
-	if (ret)
-		goto out;
-
-	/* Configure write protect GPIO pin */
-	ret = gpio_request(PINID_PWM4, "mmc wp");
-	if (ret)
-		goto out_wp;
-
-	gpio_direction_input(PINID_PWM4);
-
-	/* Configure POWER pin as gpio to drive power to MMC slot */
-	ret = gpio_request(PINID_PWM3, "mmc power");
-	if (ret)
-		goto out_power;
-
-	gpio_direction_output(PINID_PWM3, 0);
-	mdelay(100);
-
-	return 0;
-
-out_power:
-	gpio_free(PINID_PWM4);
-out_wp:
-	stmp3xxx_release_pin_group(&mmc_pins, "mmc");
-out:
-	return ret;
-}
-
-static void stmp3xxxmmc_hw_release_ssp1(void)
-{
-	gpio_free(PINID_PWM3);
-	gpio_free(PINID_PWM4);
-	stmp3xxx_release_pin_group(&mmc_pins, "mmc");
-}
-
-static void stmp3xxxmmc_cmd_pullup_ssp1(int enable)
-{
-	stmp3xxx_pin_pullup(PINID_SSP1_CMD, enable, "mmc");
-}
-
-static unsigned long
-stmp3xxxmmc_setclock_ssp1(void __iomem *base, unsigned long hz)
-{
-	struct clk *ssp, *parent;
-	char *p;
-	long r;
-
-	ssp = clk_get(NULL, "ssp");
-
-	/* using SSP1, no timeout, clock rate 1 */
-	writel(BF(2, SSP_TIMING_CLOCK_DIVIDE) |
-	       BF(0xFFFF, SSP_TIMING_TIMEOUT),
-	       base + HW_SSP_TIMING);
-
-	p = (hz > 1000000) ? "io" : "osc_24M";
-	parent = clk_get(NULL, p);
-	clk_set_parent(ssp, parent);
-	r = clk_set_rate(ssp, 2 * hz / 1000);
-	clk_put(parent);
-	clk_put(ssp);
-
-	return hz;
-}
-
-static struct stmp3xxxmmc_platform_data mmc_data = {
-	.hw_init	= stmp3xxxmmc_hw_init_ssp1,
-	.hw_release	= stmp3xxxmmc_hw_release_ssp1,
-	.get_wp		= stmp3xxxmmc_get_wp,
-	.cmd_pullup	= stmp3xxxmmc_cmd_pullup_ssp1,
-	.setclock	= stmp3xxxmmc_setclock_ssp1,
-};
-
-
 static struct pin_group appuart_pins[] = {
 	[0] = {
 		.pins		= appuart_pins_0,
@@ -212,6 +130,15 @@ static struct pin_group appuart_pins[] = {
 		.nr_pins	= ARRAY_SIZE(appuart_pins_1),
 	},
 };
+
+static int appuart_pinmux(int req, int id)
+{
+	if (req)
+		return stmp3xxx_request_pin_group(&appuart_pins[id], "appuart");
+	else
+		stmp3xxx_release_pin_group(&appuart_pins[id], "appuart");
+	return 0;
+}
 
 static struct pin_desc ssp1_pins_desc[] = {
 	{ PINID_SSP1_SCK,	PIN_FUN1, PIN_8MA, PIN_3_3V, 0, },
@@ -265,24 +192,150 @@ static struct pin_group gpmi_pins = {
 	.nr_pins	= ARRAY_SIZE(gpmi_pins_desc),
 };
 
-static struct mtd_partition gpmi_partitions[] = {
+static int gpmi_pinmux(int req)
+{
+	if (req)
+		return stmp3xxx_request_pin_group(&gpmi_pins, "gpmi");
+	else
+		stmp3xxx_release_pin_group(&gpmi_pins, "gpmi");
+	return 0;
+}
+
+const char *gpmi_part_probes[] = { "cmdlinepart", NULL };
+
+#define UID_SIZE	SZ_1M
+#define UID_OFFSET 	(20*SZ_1M)
+
+struct mtd_partition gpmi_partitions_chip0[] = {
 	[0] = {
-		.name	= "boot",
-		.size	= 10 * SZ_1M,
-		.offset	= 0,
+		.offset		= 0,
+		.size		= UID_OFFSET,
+		.name		= "Boot#0",
+		.mask_flags	= 0,
 	},
+	/* This partition is managed by UBI */
 	[1] = {
-		.name	= "data",
-		.size	= MTDPART_SIZ_FULL,
-		.offset	= MTDPART_OFS_APPEND,
+		.offset		= UID_OFFSET + UID_SIZE,
+		.size		= MTDPART_SIZ_FULL,
+		.name		= "UBI#0",
+		.mask_flags	= 0,
 	},
 };
 
-static struct gpmi_platform_data gpmi_data = {
-	.pins = &gpmi_pins,
-	.nr_parts = ARRAY_SIZE(gpmi_partitions),
-	.parts = gpmi_partitions,
-	.part_types = { "cmdline", NULL },
+struct mtd_partition gpmi_partitions_chip1[] = {
+	[0] = {
+		.offset		= 0,
+		.size		= UID_OFFSET,
+		.name		= "Boot#1",
+		.mask_flags	= 0,
+	},
+	/* This partition is managed by UBI */
+	[1] = {
+		.offset		= UID_OFFSET,
+		.size		= MTDPART_SIZ_FULL,
+		.name		= "UBI#1",
+		.mask_flags	= 0,
+	},
+};
+
+static char *gpmi_concat_parts[] = {
+	[0]	= "UBI#0",
+	[1]	= "UBI#1",
+	[2]	= NULL,
+};
+
+static struct gpmi_platform_data gpmi_partitions = {
+	.uid_offset = UID_OFFSET,
+	.uid_size = UID_SIZE,
+	.io_uA = 70000,
+	.items = 2,
+	.concat_name = "UBI",
+	.concat_parts = gpmi_concat_parts,
+	.pinmux = gpmi_pinmux,
+	.parts = {
+		[0] = {
+			.part_probe_types = gpmi_part_probes,
+			.nr_partitions = ARRAY_SIZE(gpmi_partitions_chip0),
+			.partitions = gpmi_partitions_chip0,
+		},
+		[1] = {
+			.part_probe_types = gpmi_part_probes,
+			.nr_partitions = ARRAY_SIZE(gpmi_partitions_chip1),
+			.partitions = gpmi_partitions_chip1,
+		},
+	},
+};
+
+static struct pin_desc lcd_hx8238a_desc[] = {
+	{ PINID_LCD_D00, PIN_FUN1, PIN_12MA, PIN_3_3V, 0 },
+	{ PINID_LCD_D01, PIN_FUN1, PIN_12MA, PIN_3_3V, 0 },
+	{ PINID_LCD_D02, PIN_FUN1, PIN_12MA, PIN_3_3V, 0 },
+	{ PINID_LCD_D03, PIN_FUN1, PIN_12MA, PIN_3_3V, 0 },
+	{ PINID_LCD_D04, PIN_FUN1, PIN_12MA, PIN_3_3V, 0 },
+	{ PINID_LCD_D05, PIN_FUN1, PIN_12MA, PIN_3_3V, 0 },
+	{ PINID_LCD_D06, PIN_FUN1, PIN_12MA, PIN_3_3V, 0 },
+	{ PINID_LCD_D07, PIN_FUN1, PIN_12MA, PIN_3_3V, 0 },
+	{ PINID_LCD_D08, PIN_FUN1, PIN_12MA, PIN_3_3V, 0 },
+	{ PINID_LCD_D09, PIN_FUN1, PIN_12MA, PIN_3_3V, 0 },
+	{ PINID_LCD_D10, PIN_FUN1, PIN_12MA, PIN_3_3V, 0 },
+	{ PINID_LCD_D11, PIN_FUN1, PIN_12MA, PIN_3_3V, 0 },
+	{ PINID_LCD_D12, PIN_FUN1, PIN_12MA, PIN_3_3V, 0 },
+	{ PINID_LCD_D13, PIN_FUN1, PIN_12MA, PIN_3_3V, 0 },
+	{ PINID_LCD_D14, PIN_FUN1, PIN_12MA, PIN_3_3V, 0 },
+	{ PINID_LCD_D15, PIN_FUN1, PIN_12MA, PIN_3_3V, 0 },
+	{ PINID_LCD_D16, PIN_FUN1, PIN_12MA, PIN_3_3V, 0 },
+	{ PINID_LCD_D17, PIN_FUN1, PIN_12MA, PIN_3_3V, 0 },
+	{ PINID_LCD_RESET, PIN_FUN1, PIN_12MA, PIN_3_3V, 0 },
+	{ PINID_LCD_VSYNC, PIN_FUN1, PIN_12MA, PIN_3_3V, 0 },
+	{ PINID_LCD_HSYNC, PIN_FUN1, PIN_12MA, PIN_3_3V, 0 },
+	{ PINID_LCD_ENABLE, PIN_FUN1, PIN_12MA, PIN_3_3V, 0 },
+	{ PINID_LCD_DOTCK, PIN_FUN1, PIN_12MA, PIN_3_3V, 0 },
+	{ PINID_GPMI_D13, PIN_FUN2, PIN_12MA, PIN_3_3V, 0 },
+	{ PINID_GPMI_D12, PIN_FUN2, PIN_12MA, PIN_3_3V, 0 },
+	{ PINID_GPMI_D11, PIN_FUN2, PIN_12MA, PIN_3_3V, 0 },
+	{ PINID_GPMI_D10, PIN_FUN2, PIN_12MA, PIN_3_3V, 0 },
+	{ PINID_GPMI_D09, PIN_FUN2, PIN_12MA, PIN_3_3V, 0 },
+	{ PINID_GPMI_D08, PIN_FUN2, PIN_12MA, PIN_3_3V, 0 },
+};
+
+struct pin_group lcd_pins = {
+	.pins		= lcd_hx8238a_desc,
+	.nr_pins	= ARRAY_SIZE(lcd_hx8238a_desc),
+};
+
+unsigned lcd_spi_pins[] = {
+	[SPI_MOSI] = PINID_LCD_WR,
+	[SPI_SCLK] = PINID_LCD_RS,
+	[SPI_CS] = PINID_LCD_CS,
+};
+
+static struct pin_desc spdif_pins_desc[] = {
+	{ PINID_ROTARYA, PIN_FUN3, PIN_4MA, PIN_1_8V, 0, },
+};
+
+struct pin_group spdif_pins = {
+	.pins		= spdif_pins_desc,
+	.nr_pins	= ARRAY_SIZE(spdif_pins_desc),
+};
+
+int spdif_pinmux(int req)
+{
+	if (req)
+		return stmp3xxx_request_pin_group(&spdif_pins, "spdif");
+	else
+		stmp3xxx_release_pin_group(&spdif_pins, "spdif");
+	return 0;
+}
+EXPORT_SYMBOL_GPL(spdif_pinmux);
+
+static struct stmp3xxxmmc_platform_data mmc_data = {
+	.hw_init	= stmp3xxxmmc_hw_init_ssp1,
+	.hw_release	= stmp3xxxmmc_hw_release_ssp1,
+	.get_wp		= stmp3xxxmmc_get_wp,
+	.cmd_pullup	= stmp3xxxmmc_cmd_pullup_ssp1,
+	.setclock	= stmp3xxxmmc_setclock_ssp1,
+	.read_uA        = 50000,
+	.write_uA       = 70000,
 };
 
 static struct spi_board_info spi_board_info[] __initdata = {
@@ -297,6 +350,48 @@ static struct spi_board_info spi_board_info[] __initdata = {
 #endif
 };
 
+/* battery info data */
+static ddi_bc_Cfg_t battery_data = {
+	.u32StateMachinePeriod		 = 100,		/* ms */
+	.u16CurrentRampSlope		 = 75,		/* mA/s */
+	.u16ConditioningThresholdVoltage = 2900, 	/* mV */
+	.u16ConditioningMaxVoltage	 = 3000,	/* mV */
+	.u16ConditioningCurrent		 = 60,		/* mA */
+	.u32ConditioningTimeout		 = 4*60*60*1000, /* ms (4 hours) */
+	.u16ChargingVoltage		 = 4200,	/* mV */
+	/* FIXME: the current comparator could have h/w bugs in current
+	 * detection through POWER_STS.CHRGSTS bit */
+	.u16ChargingCurrent		 = 600,		/* mA 600 */
+	.u16ChargingThresholdCurrent	 = 60,		/* mA 60 */
+	.u32ChargingTimeout		 = 4*60*60*1000,/* ms (4 hours) */
+	.u32TopOffPeriod		 = 30*60*1000,	/* ms (30 minutes) */
+	.useInternalBias		 = 0,		/* ext bias current */
+	.monitorDieTemp			 = 1,		/* Monitor the die */
+	.u8DieTempHigh			 = 115,		/* deg centigrade */
+	.u8DieTempLow			 = 96,		/* deg centigrade */
+	.u16DieTempSafeCurrent		 = 400,		/* mA */
+	.monitorBatteryTemp		 = 0,		/* Monitor the battery*/
+	.u8BatteryTempChannel		 = 1,		/* LRADC 1 */
+	.u16BatteryTempHigh		 = 642,		/* Unknown units */
+	.u16BatteryTempLow		 = 497,		/* Unknown units */
+	.u16BatteryTempSafeCurrent	 = 0,		/* mA */
+};
+
+static struct stmpkbd_keypair keyboard_data[] = {
+	{ 100, KEY_F4 },
+	{ 306, KEY_F5 },
+	{ 626, KEY_F6 },
+	{ 932, KEY_F7 },
+	{ 1260, KEY_F8 },
+	{ 1584, KEY_F9 },
+	{ 1907, KEY_F10 },
+	{ 2207, KEY_F11 },
+	{ 2525, KEY_F12 },
+	{ 2831, KEY_F13},
+	{ 3134, KEY_F14 },
+	{ -1, 0 },
+};
+
 static void __init stmp378x_devb_init(void)
 {
 	stmp3xxx_pinmux_init(NR_REAL_IRQS);
@@ -304,13 +399,15 @@ static void __init stmp378x_devb_init(void)
 	/* init stmp3xxx platform */
 	stmp3xxx_init();
 
-	stmp3xxx_dbguart.dev.platform_data = dbguart_pins_control;
-	stmp3xxx_appuart.dev.platform_data = appuart_pins;
+	stmp3xxx_dbguart.dev.platform_data = dbguart_pinmux;
+	stmp3xxx_appuart.dev.platform_data = appuart_pinmux;
+	stmp3xxx_gpmi.dev.platform_data = &gpmi_partitions;
 	stmp3xxx_mmc.dev.platform_data = &mmc_data;
-	stmp3xxx_gpmi.dev.platform_data = &gpmi_data;
 	stmp3xxx_spi1.dev.platform_data = &ssp1_pins;
 	stmp3xxx_spi2.dev.platform_data = &ssp2_pins;
 	stmp378x_i2c.dev.platform_data = &i2c_pins;
+	stmp3xxx_battery.dev.platform_data = &battery_data;
+	stmp3xxx_keyboard.dev.platform_data = &keyboard_data;
 
 	/* register spi devices */
 	spi_register_board_info(spi_board_info, ARRAY_SIZE(spi_board_info));

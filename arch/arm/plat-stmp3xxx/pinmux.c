@@ -15,7 +15,7 @@
  * http://www.opensource.org/licenses/gpl-license.html
  * http://www.gnu.org/copyleft/gpl.html
  */
-#define DEBUG
+//#define DEBUG
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/errno.h>

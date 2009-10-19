@@ -59,4 +59,16 @@ config NOP_USB_XCEIV
 	 built-in with usb ip or which are autonomous and doesn't require any
 	 phy programming such as ISP1x04 etc.
 
+config TRANSCEIVER_MXC_OTG
+	tristate "USB OTG pin detect support"
+	depends on (MC13783_MXC || ISP1504_MXC) && USB_GADGET && USB_EHCI_HCD && USB_OTG
+	help
+	  Support for USB OTG PIN detect on MXC platforms.
+
+config UTMI_MXC_OTG
+	tristate "USB OTG pin detect support for UTMI PHY"
+	depends on  USB_EHCI_FSL_UTMI && USB_GADGET && USB_EHCI_HCD && USB_OTG
+	help
+	  Support for USB OTG PIN detect for UTMI PHY on MXC platforms.
+
 endif # USB || OTG

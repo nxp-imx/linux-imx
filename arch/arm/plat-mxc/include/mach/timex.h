@@ -22,10 +22,14 @@
 
 #if defined CONFIG_ARCH_MX1
 #define CLOCK_TICK_RATE		16000000
-#elif defined CONFIG_ARCH_MX2
+#elif defined CONFIG_ARCH_MX2 || defined CONFIG_ARCH_MX25
 #define CLOCK_TICK_RATE		13300000
-#elif defined CONFIG_ARCH_MX3
+#elif defined CONFIG_ARCH_MX3 || defined CONFIG_ARCH_MX35
 #define CLOCK_TICK_RATE		16625000
+#elif defined CONFIG_ARCH_MX37
+#define CLOCK_TICK_RATE		8000000
+#elif defined CONFIG_ARCH_MX51
+#define CLOCK_TICK_RATE		8000000
 #endif
 
 #endif				/* __ASM_ARCH_MXC_TIMEX_H__ */

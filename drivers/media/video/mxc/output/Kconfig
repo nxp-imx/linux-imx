@@ -1,0 +1,28 @@
+config VIDEO_MXC_IPU_OUTPUT
+	bool "IPU v4l2 support"
+	depends on VIDEO_MXC_OUTPUT && MXC_IPU
+	default y
+	---help---
+	  This is the video4linux2 driver for IPU post processing video output.
+
+config VIDEO_MXC_IPUV1_WVGA_OUTPUT
+	bool "IPUv1 WVGA v4l2 display support"
+	depends on VIDEO_MXC_OUTPUT && MXC_IPU
+	default n
+	---help---
+	  This is the video4linux2 driver for IPUv1 WVGA post processing video output.
+
+config VIDEO_MXC_EMMA_OUTPUT
+	bool
+	depends on VIDEO_MXC_OUTPUT && MXC_EMMA && FB_MXC_SYNC_PANEL
+	default y
+	---help---
+	  This is the video4linux2 driver for EMMA post processing video output.
+
+config VIDEO_MXC_OUTPUT_FBSYNC
+	bool "Synchronize the output with LCDC refresh"
+	depends on VIDEO_MXC_EMMA_OUTPUT
+	default y
+	---help---
+	  Synchronize the post-processing with LCDC EOF (End of Frame) to
+	  prevent tearing issue. If unsure, say Y.

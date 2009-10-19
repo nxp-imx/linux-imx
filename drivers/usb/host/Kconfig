@@ -59,9 +59,100 @@ config USB_EHCI_HCD
 	  To compile this driver as a module, choose M here: the
 	  module will be called ehci-hcd.
 
+config USB_EHCI_ARC
+	bool "Support for Freescale controller"
+	depends on USB_EHCI_HCD && (ARCH_MXC || ARCH_STMP3XXX)
+	---help---
+	   Some Freescale processors have an integrated High Speed
+	   USBOTG controller, which supports EHCI host mode.
+
+	   Say "y" here to add support for this controller
+	   to the EHCI HCD driver.
+
+config USB_EHCI_ARC_H1
+	bool "Support for Host1 port on Freescale controller"
+	depends on USB_EHCI_ARC	&& (ARCH_MX27 || ARCH_MX3 || ARCH_MX51)
+	---help---
+	  Enable support for the USB Host1 port.
+
+config USB_EHCI_ARC_H2
+	bool "Support for Host2 port on Freescale controller"
+	depends on USB_EHCI_ARC	&& \
+		   (ARCH_MX25 || ARCH_MX27 || ARCH_MX3 || ARCH_MX35 || ARCH_MX51)
+	---help---
+	  Enable support for the USB Host2 port.
+
+config USB_EHCI_ARC_OTG
+	bool "Support for DR host port on Freescale controller"
+	depends on USB_EHCI_ARC
+	default y
+	---help---
+	  Enable support for the USB OTG port in HS/FS Host mode.
+
+config USB_STATIC_IRAM
+	bool "Use IRAM for USB"
+	depends on USB_EHCI_ARC
+	---help---
+	  Enable this option to use IRAM instead of DRAM for USB
+	  structures and buffers.  This option will reduce bus
+	  contention on systems with large (VGA+) framebuffer
+	  devices and heavy USB activity.  There are performance
+	  penalties and usage restrictions when using this option.
+
+	  If in doubt, say N.
+
+choice
+	prompt "Select transceiver for DR port"
+	depends on USB_EHCI_ARC_OTG
+	default USB_EHCI_FSL_1504 if ARCH_MX3
+	default USB_EHCI_FSL_1301 if ARCH_MX27
+	default USB_EHCI_FSL_UTMI if (ARCH_MX25 || ARCH_MX35 || ARCH_MX37 || ARCH_MX51 || ARCH_STMP3XXX)
+	---help---
+	  Choose the transceiver to use with the Freescale DR port.
+
+config USB_EHCI_FSL_MC13783
+	bool "Freescale MC13783"
+	depends on !MACH_MX25_3DS
+	---help---
+	  Enable support for the Full Speed Freescale MC13783 transceiver.
+
+	  The mx27ads, mx31ads and mx32ads boards require modifications
+	  to support this transceiver.
+
+config USB_EHCI_FSL_1301
+	bool "Philips ISP1301"
+	depends on !MACH_MX25_3DS
+	---help---
+	  Enable support for the Full Speed Philips ISP1301 transceiver.
+
+	  This is the factory default for the mx27ads board.
+	  The mx31ads and mx32ads boards require modifications
+	  to support this transceiver.
+
+config USB_EHCI_FSL_1504
+	bool "Philips ISP1504"
+	depends on MACH_MX27ADS || MACH_MX31ADS || MACH_MX32ADS ||MACH_MX31_3DS
+	---help---
+	  Enable support for the High Speed Philips ISP1504 transceiver.
+
+	  This is the factory default for the mx31ads and mx32ads boards.
+	  The mx27ads board requires modifications to support this transceiver.
+
+config USB_EHCI_FSL_UTMI
+	bool "Internal UTMI"
+	depends on (ARCH_MX25 || ARCH_MX35 || ARCH_MX37 || ARCH_MX51 || ARCH_STMP3XXX)
+	---help---
+	  Enable support for the on-chip High Speed UTMI transceiver.
+
+	  This is the factory default for the mx35ads board.
+
+endchoice
+
+
 config USB_EHCI_ROOT_HUB_TT
 	bool "Root Hub Transaction Translators"
 	depends on USB_EHCI_HCD
+	default y if USB_EHCI_ARC
 	---help---
 	  Some EHCI chips have vendor-specific extensions to integrate
 	  transaction translators, so that no OHCI or UHCI companion

@@ -24,7 +24,6 @@
 #include <asm-generic/gpio.h>
 
 /* Pin definitions */
-#include "pins.h"
 #include <mach/pins.h>
 
 /*
@@ -93,6 +92,10 @@ int stmp3xxx_request_pin(unsigned id, enum pin_fun fun, const char *label);
 
 /* Release pin */
 void stmp3xxx_release_pin(unsigned id, const char *label);
+
+int stmp3xxx_request_pin_group(struct pin_group *pin_group, const char *label);
+
+void stmp3xxx_release_pin_group(struct pin_group *pin_group, const char *label);
 
 void stmp3xxx_set_pin_type(unsigned id, enum pin_fun fun);
 

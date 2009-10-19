@@ -406,4 +406,6 @@ config RADIO_TEA5764_XTAL
 	  Say Y here if TEA5764 have a 32768 Hz crystal in circuit, say N
 	  here if TEA5764 reference frequency is connected in FREQIN.
 
+source "drivers/media/radio/stfm1000/Kconfig"
+
 endif # RADIO_ADAPTERS

@@ -23,6 +23,8 @@
 #include <mach/platform.h>
 #include <mach/dma.h>
 #include <mach/regs-clkctrl.h>
+#include <mach/regs-rtc.h>
+#include <mach/system.h>
 
 static int __stmp3xxx_reset_block(void __iomem *hwreg, int just_enable)
 {
@@ -114,15 +116,25 @@ int stmp3xxx_reset_block(void __iomem *hwreg, int just_enable)
 }
 EXPORT_SYMBOL(stmp3xxx_reset_block);
 
-struct platform_device stmp3xxx_dbguart = {
-	.name = "stmp3xxx-dbguart",
-	.id = -1,
-};
+static void stmp3xxx_machine_restart(char mode, const char *cmd)
+{
+	arch_reset(mode, cmd);
+	printk(KERN_ERR"stmp3xxx_machine_restart failed -- System halted\n");
+	for (;;)
+		continue;
+}
 
 void __init stmp3xxx_init(void)
 {
 	/* Turn off auto-slow and other tricks */
 	stmp3xxx_clearl(0x7f00000, REGS_CLKCTRL_BASE + HW_CLKCTRL_HBUS);
 
+	/* Re-route machine restart to our own handler */
+	arm_pm_restart = stmp3xxx_machine_restart;
+
 	stmp3xxx_dma_init();
+
+	stmp3xxx_setl(BM_RTC_PERSISTENT0_XTAL32KHZ_PWRUP |
+				BM_RTC_PERSISTENT0_XTAL24MHZ_PWRUP,
+				REGS_RTC_BASE + HW_RTC_PERSISTENT0);
 }

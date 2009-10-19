@@ -1,0 +1,31 @@
+config SND_STMP3XXX_SOC
+	tristate "SoC Audio for the SigmaTel STMP3XXX chips"
+	depends on ARCH_STMP3XXX && SND_SOC
+	select SND_PCM
+	help
+	  Say Y or M if you want to add support for codecs embedded into
+	  the STMP3XXX chips.
+
+config SND_STMP3XXX_SOC_DAI
+	tristate
+
+config SND_STMP3XXX_SOC_SPDIF_DAI
+	tristate
+
+config SND_STMP3XXX_SOC_STMP3780_DEVB
+	tristate "SoC Audio support for STMP3780 Development Board"
+	depends on SND_STMP3XXX_SOC && ARCH_STMP378X
+	select SND_STMP3XXX_SOC_DAI
+	select SND_SOC_STMP378X_CODEC
+	help
+	  Say Y if you want to add support for SoC audio on stmp3780 development
+	  board with the stmp378x codec.
+
+config SND_STMP3XXX_SOC_STMP3780_DEVB_SPDIF
+	tristate "SoC SPDIF support for STMP3780 Development Board"
+	depends on SND_STMP3XXX_SOC && ARCH_STMP378X
+	select SND_STMP3XXX_SOC_SPDIF_DAI
+	select SND_SOC_STMP3XXX_SPDIF
+	help
+	  Say Y if you want to add support for SoC audio on stmp3780 development
+	  board with the SPDIF transmitter.

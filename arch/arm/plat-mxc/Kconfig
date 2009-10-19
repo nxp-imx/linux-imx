@@ -22,9 +22,30 @@ config ARCH_MX2
 config ARCH_MX3
 	bool "MX3-based"
 	select CPU_V6
-	select COMMON_CLKDEV
+#	select COMMON_CLKDEV
 	help
-	  This enables support for systems based on the Freescale i.MX3 family
+	  This enables support for systems based on the Freescale i.MX31 and i.MX32
+
+config ARCH_MX25
+	bool "MX25-based"
+	select MX25_OPTIONS
+	help
+	  This enables support for systems based on the Freescale i.MX25
+
+config ARCH_MX35
+	bool "MX35-based"
+	help
+	  This enables support for systems based on Freescale i.MX35
+
+config ARCH_MX37
+	bool "MX37-based"
+	help
+	  This enables support for systems based on Freescale i.MX37
+
+config ARCH_MX51
+	bool "MX51-based"
+	help
+	  This enables support for systems based on Freescale i.MX51
 
 endchoice
 
@@ -32,7 +53,105 @@ source "arch/arm/mach-mx1/Kconfig"
 source "arch/arm/mach-mx2/Kconfig"
 source "arch/arm/mach-mx3/Kconfig"
 
+source "arch/arm/mach-mx25/Kconfig"
+source "arch/arm/mach-mx35/Kconfig"
+source "arch/arm/mach-mx37/Kconfig"
+source "arch/arm/mach-mx51/Kconfig"
+
 endmenu
+
+config MXC_TZIC
+	bool
+	depends on ARCH_MXC
+
+config MXC_DSP_BRINGUP
+	bool
+	depends on ARCH_MXC
+
+config ARCH_HAS_EVTMON
+	bool
+	depends on ARCH_MXC
+
+config MXC_EMMA
+	bool
+	depends on ARCH_MXC
+
+config MXC_FB_IRAM
+	bool
+	depends on ARCH_MXC
+
+config DMA_ZONE_SIZE
+	int "DMA memory zone size"
+	range 0 64
+	default 24
+	help
+	  This is the size in MB for the DMA zone. The DMA zone is used for
+	  dedicated memory for large contiguous video buffers
+
+# set iff we need the 1504 transceiver code
+config ISP1504_MXC
+	bool
+	select ISP1504_MXC_OTG if USB_GADGET && USB_EHCI_HCD && USB_OTG
+	default y if USB_EHCI_FSL_1504 || USB_GADGET_FSL_1504
+
+config ISP1504_MXC_OTG
+	tristate
+	help
+	  Support for USB OTG pin detect using the ISP1504 transceiver on MXC platforms.
+
+# set iff we need the UTMI transceiver code
+config UTMI_MXC
+	bool
+	select UTMI_MXC_OTG if ARCH_MX25 && USB_GADGET && USB_EHCI_HCD && USB_OTG
+	default y if USB_EHCI_FSL_UTMI || USB_GADGET_FSL_UTMI
+	depends on ARCH_MX25 || ARCH_MX35 || ARCH_MX37 || ARCH_MX51
+
+config UTMI_MXC_OTG
+	tristate
+	help
+	  Support for USB OTG pin detect using the UTMI transceiver on MXC platforms.
+
+# set iff we need the 1301 transceiver code
+config ISP1301_MXC
+	bool
+	default y if USB_EHCI_FSL_1301 || USB_GADGET_FSL_1301
+	select I2C_MXC
+
+# set iff we need the mx13783 transceiver code
+config MC13783_MXC
+	bool
+	default y if USB_EHCI_FSL_MC13783 || USB_GADGET_FSL_MC13783
+	select SPI_MXC
+
+choice
+	prompt "Select serial USB transceiver mode"
+	depends on ISP1301_MXC || MC13783_MXC
+	default MXC_USB_SU6
+
+config MXC_USB_SU6
+	bool "Single Ended Unidirectional Mode"
+	help
+	  If you say yes to this option, the serial tranceiver operates in SU6 mode.
+	  This option will work for either the Freescale MC13783 or Philips ISP1301
+	  transceiver.
+
+config MXC_USB_SB3
+	bool "Single Ended Bidirectional Mode"
+	help
+	  If you say yes to this option, the serial tranceiver operates in SB3 mode.
+	  Not recommended for the Freescale MC13783.
+
+config MXC_USB_DU6
+	bool "Differential Unidirectional Mode"
+	help
+	  If you say yes to this option, the serial tranceiver operates in DU6 mode.
+
+config MXC_USB_DB4
+	bool "Differential Bidirectional Mode"
+	help
+	  If you say yes to this option, the serial tranceiver operates in DB4 mode.
+
+endchoice
 
 config MXC_IRQ_PRIOR
 	bool "Use IRQ priority"
@@ -53,6 +172,10 @@ config MXC_PWM
 	  Enable support for the i.MX PWM controller(s).
 
 config ARCH_HAS_RNGA
+	bool
+	depends on ARCH_MXC
+
+config ARCH_HAS_RNGC
 	bool
 	depends on ARCH_MXC
 

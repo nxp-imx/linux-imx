@@ -276,7 +276,7 @@ static int __devinit s6i2c_probe(struct platform_device *dev)
 	}
 	iface->res = request_mem_region(iface->res->start,
 					resource_size(iface->res),
-					dev->dev.bus_id);
+					dev_name(&dev->dev));
 	if (!iface->res) {
 		rc = -EBUSY;
 		goto err_out;

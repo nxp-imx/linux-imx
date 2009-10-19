@@ -56,7 +56,7 @@
 #define HW_APBX_CH14_NXTCMDAR	(0x110 + 14 * 0x70)
 #define HW_APBX_CH15_NXTCMDAR	(0x110 + 15 * 0x70)
 
-#define HW_APBX_CHn_NXTCMDAR	0x110
+#define HW_APBX_CHn_NXTCMDAR(n)	(0x110 + n * 0x70)
 #define BM_APBX_CHn_CMD_COMMAND	0x00000003
 #define BP_APBX_CHn_CMD_COMMAND	0
 #define BV_APBX_CHn_CMD_COMMAND__NO_DMA_XFER	 0
@@ -90,7 +90,7 @@
 #define HW_APBX_CH14_BAR		(0x130 + 14 * 0x70)
 #define HW_APBX_CH15_BAR		(0x130 + 15 * 0x70)
 
-#define HW_APBX_CHn_BAR		0x130
+#define HW_APBX_CHn_BAR(n)		(0x130 + n * 0x70)
 
 #define HW_APBX_CH0_SEMA	(0x140 + 0 * 0x70)
 #define HW_APBX_CH1_SEMA	(0x140 + 1 * 0x70)
@@ -109,7 +109,7 @@
 #define HW_APBX_CH14_SEMA	(0x140 + 14 * 0x70)
 #define HW_APBX_CH15_SEMA	(0x140 + 15 * 0x70)
 
-#define HW_APBX_CHn_SEMA	0x140
+#define HW_APBX_CHn_SEMA(n)	(0x140 + n * 0x70)
 #define BM_APBX_CHn_SEMA_INCREMENT_SEMA	0x000000FF
 #define BP_APBX_CHn_SEMA_INCREMENT_SEMA	0
 #define BM_APBX_CHn_SEMA_PHORE	0x00FF0000

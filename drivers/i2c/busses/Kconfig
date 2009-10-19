@@ -339,6 +339,10 @@ config I2C_DESIGNWARE
 config I2C_GPIO
 	tristate "GPIO-based bitbanging I2C"
 	depends on GENERIC_GPIO
+
+config I2C_PARPORT
+	tristate "Parallel port adapter"
+	depends on PARPORT
 	select I2C_ALGOBIT
 	help
 	  This is a very simple bitbanging I2C driver utilizing the
@@ -412,9 +416,34 @@ config I2C_MPC
 	  This driver can also be built as a module.  If so, the module
 	  will be called i2c-mpc.
 
+config I2C_MXC
+	tristate "MXC I2C support"
+	depends on I2C && ARCH_MXC
+	help
+	  If you say yes to this option, support will be included for Freescale
+	  MXC I2C modules.
+
+	  This driver can also be built as a module.
+
+config I2C_MXC_HS
+	tristate "MXC HIGH SPEED I2C support"
+	depends on I2C && ARCH_MXC
+	help
+	  If you say yes to this option, support will be included for Freescale
+	  MXC HIGH SPEED I2C modules.
+
+	  This driver can also be built as a module.
+
+config I2C_STMP378X
+	tristate "STMP378x I2C adapter"
+	depends on MACH_STMP378X
+	help
+	  TBD
+
 config I2C_MV64XXX
 	tristate "Marvell mv64xxx I2C Controller"
 	depends on (MV64X60 || PLAT_ORION) && EXPERIMENTAL
+
 	help
 	  If you say yes to this option, support will be included for the
 	  built-in I2C interface on the Marvell 64xxx line of host bridges.

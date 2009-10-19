@@ -32,6 +32,8 @@ config MACH_STMP378X
 
 endchoice
 
+source arch/arm/mach-stmp378x/Kconfig
+
 endmenu
 
 endif

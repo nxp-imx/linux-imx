@@ -40,6 +40,15 @@ config INPUT_M68K_BEEP
 	tristate "M68k Beeper support"
 	depends on M68K
 
+config INPUT_STMP3XXX_ROTDEC
+	tristate "STMP3xxx Rotary Decoder support"
+	depends on MACH_STMP378X
+	select INPUT_POLLDEV
+	help
+	  Say Y here for support for the rotary decoder on STMP3xxx
+
+	  If compiled as a module, it will be called stmp3xxx_rotdec
+
 config INPUT_APANEL
 	tristate "Fujitsu Lifebook Application Panel buttons"
 	depends on X86 && I2C && LEDS_CLASS

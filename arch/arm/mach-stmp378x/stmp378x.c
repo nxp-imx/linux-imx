@@ -42,6 +42,7 @@
 #include <mach/regs-apbx.h>
 #include <mach/regs-pxp.h>
 #include <mach/regs-i2c.h>
+#include <mach/regs-ocotp.h>
 
 #include "stmp378x.h"
 /*
@@ -64,14 +65,14 @@ static void stmp378x_mask_irq(unsigned int irq)
 {
 	/* IRQ disable */
 	stmp3xxx_clearl(BM_ICOLL_INTERRUPTn_ENABLE,
-			REGS_ICOLL_BASE + HW_ICOLL_INTERRUPTn + irq * 0x10);
+			REGS_ICOLL_BASE + HW_ICOLL_INTERRUPTn(irq));
 }
 
 static void stmp378x_unmask_irq(unsigned int irq)
 {
 	/* IRQ enable */
 	stmp3xxx_setl(BM_ICOLL_INTERRUPTn_ENABLE,
-		      REGS_ICOLL_BASE + HW_ICOLL_INTERRUPTn + irq * 0x10);
+		      REGS_ICOLL_BASE + HW_ICOLL_INTERRUPTn(irq));
 }
 
 static struct irq_chip stmp378x_chip = {
@@ -293,7 +294,24 @@ struct platform_device stmp378x_i2c = {
 	.num_resources = ARRAY_SIZE(i2c_resources),
 };
 
+struct platform_device stmp378x_audio = {
+	.name = "stmp378x-audio",
+	.id = -1,
+};
+
 void __init stmp378x_map_io(void)
 {
 	iotable_init(stmp378x_io_desc, ARRAY_SIZE(stmp378x_io_desc));
 }
+
+int get_evk_board_version()
+{
+	int boardid;
+	boardid = __raw_readl(REGS_OCOTP_BASE + HW_OCOTP_CUSTCAP);
+	boardid &= 0x30000000;
+	boardid = boardid >> 28;
+
+	return boardid;
+}
+
+EXPORT_SYMBOL_GPL(get_evk_board_version);

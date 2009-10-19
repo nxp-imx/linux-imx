@@ -421,6 +421,83 @@ static long cpu_round_rate(struct clk *clk, u32 rate)
 	return r;
 }
 
+static int emi_set_rate(struct clk *clk, u32 rate)
+{
+	int ret = 0;
+
+	if (rate < 24000)
+		return -EINVAL;
+	else {
+		int i;
+		struct stmp3xxx_emi_scaling_data sc_data;
+		int (*scale)(struct stmp3xxx_emi_scaling_data *) =
+			(void *)STMP3XXX_OCRAM_BASE;
+		void *saved_ocram;
+		u32 clkctrl_emi;
+		u32 clkctrl_frac;
+		int div = 1;
+		/*
+		 * We've been setting div to HW_CLKCTRL_CPU_RD() & 0x3f so far.
+		 * TODO: verify 1 is still valid.
+		 */
+
+		if (!stmp3xxx_ram_funcs_sz)
+			goto out;
+
+		for (clkctrl_emi = div; clkctrl_emi < 0x3f;
+					clkctrl_emi += div) {
+			clkctrl_frac =
+				(pll_clk.rate * 18 + rate * clkctrl_emi / 2) /
+					(rate * clkctrl_emi);
+			if (clkctrl_frac >= 18 && clkctrl_frac <= 35) {
+				pr_debug("%s: clkctrl_frac found %d for %d\n",
+					__func__, clkctrl_frac, clkctrl_emi);
+				if (pll_clk.rate * 18 /
+					clkctrl_frac / clkctrl_emi / 100 ==
+					rate / 100)
+					break;
+			}
+		}
+		if (clkctrl_emi >= 0x3f)
+			return -EINVAL;
+		pr_debug("%s: clkctrl_emi %d, clkctrl_frac %d\n",
+			__func__, clkctrl_emi, clkctrl_frac);
+
+		saved_ocram = kmalloc(stmp3xxx_ram_funcs_sz, GFP_KERNEL);
+		if (!saved_ocram)
+			return -ENOMEM;
+		memcpy(saved_ocram, scale, stmp3xxx_ram_funcs_sz);
+		memcpy(scale, stmp3xxx_ram_freq_scale, stmp3xxx_ram_funcs_sz);
+
+		sc_data.emi_div = clkctrl_emi;
+		sc_data.frac_div = clkctrl_frac;
+		sc_data.cur_freq = clk->rate / 1000;
+		sc_data.new_freq = rate / 1000;
+
+		local_irq_disable();
+		local_fiq_disable();
+
+		scale(&sc_data);
+
+		local_fiq_enable();
+		local_irq_enable();
+
+		for (i = 10000; i; i--)
+			if (!clk_is_busy(clk))
+				break;
+		memcpy(scale, saved_ocram, stmp3xxx_ram_funcs_sz);
+		kfree(saved_ocram);
+
+		if (!i) {
+			printk(KERN_ERR "couldn't set up EMI divisor\n");
+			ret = -ETIMEDOUT;
+			goto out;
+		}
+	}
+out:
+	return ret;
+}
+
 static long emi_get_rate(struct clk *clk)
 {
 	long rate = clk->parent->rate * 18;
@@ -652,6 +729,8 @@ static struct clk_ops lcdif_ops = {
 
 static struct clk_ops emi_ops = {
 	.get_rate	= emi_get_rate,
+	.set_rate	= emi_set_rate,
+	.set_parent	= clkseq_set_parent,
 };
 
 /* List of on-chip clocks */
@@ -860,6 +939,50 @@ static struct clk usb_clk = {
 	.ops		= &min_ops,
 };
 
+static struct clk vid_clk = {
+	.parent		= &osc_24M,
+#ifdef CONFIG_MACH_STMP378X
+	.enable_reg	= REGS_CLKCTRL_BASE + HW_CLKCTRL_FRAC1,
+	.enable_shift	= 31,
+	.enable_negate	= 1,
+#endif
+	.flags		= RATE_PROPAGATES,
+	.ops		= &min_ops,
+};
+
+static struct clk clk_tv108M_ng = {
+	.parent		= &vid_clk,
+#ifdef CONFIG_MACH_STMP378X
+	.enable_reg	= REGS_CLKCTRL_BASE + HW_CLKCTRL_TV,
+	.enable_shift	= 31,
+	.enable_negate	= 1,
+#endif
+	.flags		= FIXED_RATE,
+	.ops		= &min_ops,
+};
+
+static struct clk clk_tv54M = {
+	.parent		= &vid_clk,
+#ifdef CONFIG_MACH_STMP378X
+	.enable_reg	= REGS_CLKCTRL_BASE + HW_CLKCTRL_TV,
+	.enable_shift	= 30,
+	.enable_negate	= 1,
+#endif
+	.flags		= FIXED_RATE,
+	.ops		= &min_ops,
+};
+
+static struct clk clk_tv27M = {
+	.parent		= &vid_clk,
+#ifdef CONFIG_MACH_STMP378X
+	.enable_reg	= REGS_CLKCTRL_BASE + HW_CLKCTRL_TV,
+	.enable_shift	= 30,
+	.enable_negate	= 1,
+#endif
+	.flags		= FIXED_RATE,
+	.ops		= &min_ops,
+};
+
 /* list of all the clocks */
 static struct clk_lookup onchip_clks[] = {
 	{
@@ -922,6 +1045,21 @@ static struct clk_lookup onchip_clks[] = {
 	}, {
 		.con_id = "usb",
 		.clk = &usb_clk,
+	}, {
+		.con_id = "ref_vid",
+		.clk = &vid_clk,
+	}, {
+		.con_id = "tv108M_ng",
+		.clk = &clk_tv108M_ng,
+	}, {
+		.con_id = "tv54M",
+		.clk = &clk_tv54M,
+	}, {
+		.con_id = "tv27M",
+		.clk = &clk_tv27M,
+	}, {
+		.con_id = "saif",
+		.clk = &saif_clk,
 	},
 };
 

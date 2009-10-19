@@ -21,4 +21,6 @@ obj-$(CONFIG_USB_SI470X) += radio-si470x.o
 obj-$(CONFIG_USB_MR800) += radio-mr800.o
 obj-$(CONFIG_RADIO_TEA5764) += radio-tea5764.o
 
+obj-$(CONFIG_RADIO_STFM1000) += stfm1000/
+
 EXTRA_CFLAGS += -Isound

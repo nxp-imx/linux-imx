@@ -1034,6 +1034,13 @@ struct regulator *regulator_get(struct device *dev, const char *id)
 			goto found;
 		}
 	}
+	list_for_each_entry(rdev, &regulator_list, list) {
+		if (strcmp(rdev->desc->name, id) == 0) {
+			goto found;
+		}
+	}
+	printk(KERN_ERR "regulator: Unable to get requested regulator: %s\n",
+	       id);
 	mutex_unlock(&regulator_list_mutex);
 	return regulator;
 

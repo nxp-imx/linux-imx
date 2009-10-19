@@ -31,7 +31,7 @@
 #define HW_PWM_ACTIVE2		(0x10 + 2 * 0x20)
 #define HW_PWM_ACTIVE3		(0x10 + 3 * 0x20)
 
-#define HW_PWM_ACTIVEn		0x10
+#define HW_PWM_ACTIVEn(n)	(0x10 + n * 0x20)
 #define BM_PWM_ACTIVEn_ACTIVE	0x0000FFFF
 #define BP_PWM_ACTIVEn_ACTIVE	0
 #define BM_PWM_ACTIVEn_INACTIVE	0xFFFF0000
@@ -42,7 +42,7 @@
 #define HW_PWM_PERIOD2		(0x20 + 2 * 0x20)
 #define HW_PWM_PERIOD3		(0x20 + 3 * 0x20)
 
-#define HW_PWM_PERIODn		0x20
+#define HW_PWM_PERIODn(n)	(0x20 + n * 0x20)
 #define BM_PWM_PERIODn_PERIOD	0x0000FFFF
 #define BP_PWM_PERIODn_PERIOD	0
 #define BM_PWM_PERIODn_ACTIVE_STATE	0x00030000

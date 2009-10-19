@@ -94,15 +94,15 @@ int stmp3xxx_dma_read_semaphore(int channel)
 
 	switch (STMP3XXX_DMA_BUS(channel)) {
 	case STMP3XXX_BUS_APBH:
-		sem = __raw_readl(REGS_APBH_BASE + HW_APBH_CHn_SEMA +
-				STMP3XXX_DMA_CHANNEL(channel) * 0x70);
+		sem = __raw_readl(REGS_APBH_BASE +
+				HW_APBH_CHn_SEMA(STMP3XXX_DMA_CHANNEL(channel)));
 		sem &= BM_APBH_CHn_SEMA_PHORE;
 		sem >>= BP_APBH_CHn_SEMA_PHORE;
 		break;
 
 	case STMP3XXX_BUS_APBX:
-		sem = __raw_readl(REGS_APBX_BASE + HW_APBX_CHn_SEMA +
-				STMP3XXX_DMA_CHANNEL(channel) * 0x70);
+		sem = __raw_readl(REGS_APBX_BASE +
+				HW_APBX_CHn_SEMA(STMP3XXX_DMA_CHANNEL(channel)));
 		sem &= BM_APBX_CHn_SEMA_PHORE;
 		sem >>= BP_APBX_CHn_SEMA_PHORE;
 		break;
@@ -187,13 +187,13 @@ void stmp3xxx_dma_go(int channel,
 
 	switch (STMP3XXX_DMA_BUS(channel)) {
 	case STMP3XXX_BUS_APBH:
-		c = REGS_APBH_BASE + HW_APBH_CHn_NXTCMDAR + 0x70 * ch;
-		s = REGS_APBH_BASE + HW_APBH_CHn_SEMA + 0x70 * ch;
+		c = REGS_APBH_BASE + HW_APBH_CHn_NXTCMDAR(ch);
+		s = REGS_APBH_BASE + HW_APBH_CHn_SEMA(ch);
 		break;
 
 	case STMP3XXX_BUS_APBX:
-		c = REGS_APBX_BASE + HW_APBX_CHn_NXTCMDAR + 0x70 * ch;
-		s = REGS_APBX_BASE + HW_APBX_CHn_SEMA + 0x70 * ch;
+		c = REGS_APBX_BASE + HW_APBX_CHn_NXTCMDAR(ch);
+		s = REGS_APBX_BASE + HW_APBX_CHn_SEMA(ch);
 		break;
 
 	default:
@@ -212,13 +212,13 @@ int stmp3xxx_dma_running(int channel)
 {
 	switch (STMP3XXX_DMA_BUS(channel)) {
 	case STMP3XXX_BUS_APBH:
-		return (__raw_readl(REGS_APBH_BASE + HW_APBH_CHn_SEMA +
-			0x70 * STMP3XXX_DMA_CHANNEL(channel))) &
+		return (__raw_readl(REGS_APBH_BASE +
+			HW_APBH_CHn_SEMA(STMP3XXX_DMA_CHANNEL(channel)))) &
 			    BM_APBH_CHn_SEMA_PHORE;
 
 	case STMP3XXX_BUS_APBX:
-		return (__raw_readl(REGS_APBX_BASE + HW_APBX_CHn_SEMA +
-			0x70 * STMP3XXX_DMA_CHANNEL(channel))) &
+		return (__raw_readl(REGS_APBX_BASE +
+				HW_APBX_CHn_SEMA(STMP3XXX_DMA_CHANNEL(channel)))) &
 			    BM_APBX_CHn_SEMA_PHORE;
 	default:
 		BUG();
@@ -323,7 +323,7 @@ void stmp37xx_circ_advance_active(struct stmp37xx_circ_dma_chain *chain,
 		unsigned count)
 {
 	void __iomem *c;
-	u32 mask_clr, mask;
+	u32 mask_clr, mask, reg;
 	BUG_ON(chain->free_count < count);
 
 	chain->free_count -= count;
@@ -333,12 +333,12 @@ void stmp37xx_circ_advance_active(struct stmp37xx_circ_dma_chain *chain,
 
 	switch (chain->bus) {
 	case STMP3XXX_BUS_APBH:
-		c = REGS_APBH_BASE + HW_APBH_CHn_SEMA + 0x70 * chain->channel;
+		c = REGS_APBH_BASE + HW_APBH_CHn_SEMA(chain->channel);
 		mask_clr = BM_APBH_CHn_SEMA_INCREMENT_SEMA;
 		mask = BF(count, APBH_CHn_SEMA_INCREMENT_SEMA);
 		break;
 	case STMP3XXX_BUS_APBX:
-		c = REGS_APBX_BASE + HW_APBX_CHn_SEMA + 0x70 * chain->channel;
+		c = REGS_APBX_BASE + HW_APBX_CHn_SEMA(chain->channel);
 		mask_clr = BM_APBX_CHn_SEMA_INCREMENT_SEMA;
 		mask = BF(count, APBX_CHn_SEMA_INCREMENT_SEMA);
 		break;
@@ -349,8 +349,11 @@ void stmp37xx_circ_advance_active(struct stmp37xx_circ_dma_chain *chain,
 
 	/* Set counting semaphore (kicks off transfer). Assumes
 	   peripheral has been set up correctly */
-	stmp3xxx_clearl(mask_clr, c);
-	stmp3xxx_setl(mask, c);
+	reg = __raw_readl(c);
+	reg &= ~mask_clr;
+	__raw_writel(reg, c);
+	reg |= mask;
+	__raw_writel(reg, c);
 }
 EXPORT_SYMBOL(stmp37xx_circ_advance_active);
 
@@ -373,6 +376,7 @@ EXPORT_SYMBOL(stmp37xx_circ_advance_cooked);
 
 void stmp3xxx_dma_set_alt_target(int channel, int function)
 {
+	u32 reg;
 #if defined(CONFIG_ARCH_STMP37XX)
 	unsigned bits = 4;
 #elif defined(CONFIG_ARCH_STMP378X)
@@ -398,8 +402,11 @@ void stmp3xxx_dma_set_alt_target(int channel, int function)
 	default:
 		BUG();
 	}
-	stmp3xxx_clearl(mask << shift, c);
-	stmp3xxx_setl(mask << shift, c);
+	reg = __raw_readl(c);
+	reg &= ~(mask << shift);
+	__raw_writel(reg, c);
+	reg |= mask;
+	__raw_writel(reg, c);
 }
 EXPORT_SYMBOL(stmp3xxx_dma_set_alt_target);
 

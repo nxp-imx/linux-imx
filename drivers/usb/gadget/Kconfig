@@ -209,17 +209,6 @@ config USB_OMAP
 	default USB_GADGET
 	select USB_GADGET_SELECTED
 
-config USB_OTG
-	boolean "OTG Support"
-	depends on USB_GADGET_OMAP && ARCH_OMAP_OTG && USB_OHCI_HCD
-	help
-	   The most notable feature of USB OTG is support for a
-	   "Dual-Role" device, which can act as either a device
-	   or a host.  The initial role choice can be changed
-	   later, when two dual-role devices talk to each other.
-
-	   Select this only if your OMAP board has a Mini-AB connector.
-
 config USB_GADGET_PXA25X
 	boolean "PXA 25x or IXP 4xx"
 	depends on (ARCH_PXA && PXA25x) || ARCH_IXP4XX
@@ -474,6 +463,30 @@ config USB_GOKU
 	default USB_GADGET
 	select USB_GADGET_SELECTED
 
+config USB_GADGET_ARC
+	boolean "Freescale USB Device Controller"
+	depends on ARCH_MXC || ARCH_STMP3XXX
+	select USB_GADGET_DUALSPEED if USB_GADGET_FSL_1504 || USB_GADGET_FSL_UTMI
+	help
+	   Some Freescale processors have a USBOTG controller,
+	   which supports device mode.
+
+	   Say "y" to link the driver statically, or "m" to build a
+	   dynamically linked module called "arc_udc" and force all
+	   gadget drivers to also be dynamically linked.
+
+config USB_STATIC_IRAM_PPH
+	bool "Apply static IRAM patch"
+	depends on USB_GADGET_ARC && (ARCH_MX37 || ARCH_MX3 || ARCH_MX25)
+	help
+	   Apply static IRAM patch to peripheral driver.
+
+config USB_ARC
+	tristate
+	depends on USB_GADGET_ARC
+	default USB_GADGET
+	select USB_GADGET_SELECTED
+
 config USB_GADGET_LANGWELL
 	boolean "Intel Langwell USB Device Controller"
 	depends on PCI
@@ -541,6 +554,69 @@ config USB_GADGET_DUALSPEED
 	help
 	  Means that gadget drivers should include extra descriptors
 	  and code to handle dual-speed controllers.
+
+config USB_GADGET_ARC_OTG
+	bool "Support for DR peripheral port on Freescale controller"
+	depends on USB_GADGET_ARC
+	default y
+	help
+	  Enable support for the Freescale Dual Role port in peripheral mode.
+
+choice
+	prompt "Select transceiver for DR port"
+	depends on USB_GADGET_ARC_OTG
+	help
+	  Choose the transceiver to use with the Freescale DR port.
+
+config USB_GADGET_FSL_MC13783
+	bool "Freescale MC13783"
+	depends on !USB_EHCI_FSL_1301 && !USB_EHCI_FSL_1504 && !USB_EHCI_FSL_UTMI && !MACH_MX25_3DS
+	---help---
+	  Enable support for the Full Speed Freescale MC13783 transceiver.
+
+	  The mx27ads, mx31ads and mx32ads boards require modifications
+	  to support this transceiver.
+
+config USB_GADGET_FSL_1301
+	bool "Philips ISP1301"
+	depends on !USB_EHCI_FSL_MC13783 && !USB_EHCI_FSL_1504 && !USB_EHCI_FSL_UTMI && !MACH_MX25_3DS
+	---help---
+	  Enable support for the Full Speed Philips ISP1301 transceiver.
+
+	  This is the factory default for the mx27ads board.
+	  The mx31ads and mx32ads boards require modifications
+	  to support this transceiver.
+
+config USB_GADGET_FSL_1504
+	bool "Philips ISP1504"
+	depends on !USB_EHCI_FSL_MC13783 && !USB_EHCI_FSL_1301 && !USB_EHCI_FSL_UTMI && !MACH_MX25_3DS
+	---help---
+	  Enable support for the High Speed Philips ISP1504 transceiver.
+
+	  This is the factory default for the mx31ads and mx32ads boards.
+	  The mx27ads board requires modifications to support this transceiver.
+
+config USB_GADGET_FSL_UTMI
+	bool "On-chip UTMI"
+	depends on !USB_EHCI_FSL_MC13783 && !USB_EHCI_FSL_1301 && !USB_EHCI_FSL_1504
+	---help---
+	  Enable support for the High Speed Philips ISP1504 transceiver.
+
+	  This is the factory default for the mx35 board.
+
+endchoice
+
+config USB_OTG
+	boolean "OTG Support"
+	depends on (USB_GADGET_OMAP && ARCH_OMAP_OTG && USB_OHCI_HCD) || \
+		   (USB_GADGET_ARC && ARCH_MXC && USB_EHCI_HCD)
+	help
+	   The most notable feature of USB OTG is support for a
+	   "Dual-Role" device, which can act as either a device
+	   or a host.  The initial role choice can be changed
+	   later, when two dual-role devices talk to each other.
+
+	   Select this only if your OMAP board has a Mini-AB connector.
 
 #
 # USB Gadget Drivers
@@ -691,6 +767,12 @@ config USB_FILE_STORAGE
 
 	  Say "y" to link the driver statically, or "m" to build a
 	  dynamically linked module called "g_file_storage".
+
+config STMP_UTP
+	bool "UTP over Storage Gadget"
+	depends on USB_FILE_STORAGE && ARCH_STMP3XXX
+	help
+	  Freescale's extension to MSC protocol
 
 config USB_FILE_STORAGE_TEST
 	bool "File-backed Storage Gadget testing version"

@@ -103,4 +103,11 @@ config CHARGER_PCF50633
 	help
 	 Say Y to include support for NXP PCF50633 Main Battery Charger.
 
+config BATTERY_STMP3XXX
+	tristate "Sigmatel STMP3xxx SoC battery charger driver"
+	depends on ARCH_STMP3XXX
+	help
+	  Say Y to enable support for the battery charger state machine
+	  for the Sigmatel STMP3xxx based SoC's.
+
 endif # POWER_SUPPLY

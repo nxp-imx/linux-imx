@@ -1026,4 +1026,14 @@ config HWMON_DEBUG_CHIP
 	  a problem with I2C support and want to see more of what is going
 	  on.
 
+config MXC_MMA7450
+	tristate "MMA7450 device driver"
+	depends on MACH_MX31_3DS
+	default n
+
+config SENSORS_ISL29003
+	tristate "ISL29003 Light Sensor"
+	depends on MACH_MX37_3DS || MACH_MX51_3DS
+	default y
+
 endif # HWMON

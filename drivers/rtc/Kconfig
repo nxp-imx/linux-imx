@@ -717,6 +717,43 @@ config RTC_DRV_PXA
          This RTC driver uses PXA RTC registers available since pxa27x
          series (RDxR, RYxR) instead of legacy RCNR, RTAR.
 
+config RTC_MXC
+	tristate "Freescale MXC Real Time Clock"
+	depends on ARCH_MXC
+	depends on RTC_CLASS
+	help
+	  Support for Freescale RTC MXC
+
+config RTC_DRV_MXC_V2
+	tristate "Freescale MXC Secure Real Time Clock"
+	depends on ARCH_MXC
+	depends on RTC_CLASS
+	help
+	  Support for Freescale SRTC MXC
+
+config RTC_DRV_IMXDI
+	tristate "Freescale IMX DryIce Real Time Clock"
+	depends on ARCH_MXC
+	depends on RTC_CLASS
+	help
+	  Support for Freescale IMX DryIce RTC
+
+config RTC_MC13892
+	tristate "Freescale MC13892 Real Time Clock"
+	depends on ARCH_MXC && MXC_PMIC_MC13892
+	depends on RTC_CLASS
+	help
+	  Support for Freescale MC13892 RTC
+
+config RTC_DRV_STMP3XXX
+	tristate "Sigmatel STMP3xxx series SoC RTC"
+	depends on ARCH_STMP3XXX && RTC_CLASS
+	help
+	  Say Y here to get support for the real-time clock peripheral
+	  on Sigmatel STMP3xxx series SoCs (tested on STMP3700).
+
+	  This driver can also be build as a module. If so, the module
+	  will be called rtc-stmp3xxx.
 
 config RTC_DRV_SUN4V
 	bool "SUN4V Hypervisor RTC"

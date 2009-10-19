@@ -6,6 +6,7 @@
  * published by the Free Software Foundation.
  *
  * Derived from pxa PWM driver by eric miao <eric.miao@marvell.com>
+ * Copyright 2009 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 #include <linux/module.h>
@@ -34,7 +35,12 @@
 #define MX3_PWMCR_CLKSRC_IPG_HIGH (2 << 16)
 #define MX3_PWMCR_EN              (1 << 0)
 
-
+#define MX3_PWMCR_STOPEN		(1 << 25)
+#define MX3_PWMCR_DOZEEN                (1 << 24)
+#define MX3_PWMCR_WAITEN                (1 << 23)
+#define MX3_PWMCR_DBGEN			(1 << 22)
+#define MX3_PWMCR_CLKSRC_IPG		(1 << 16)
+#define MX3_PWMCR_CLKSRC_IPG_32k	(3 << 16)
 
 struct pwm_device {
 	struct list_head	node;
@@ -55,7 +61,7 @@ int pwm_config(struct pwm_device *pwm, int duty_ns, int period_ns)
 	if (pwm == NULL || period_ns == 0 || duty_ns > period_ns)
 		return -EINVAL;
 
-	if (cpu_is_mx27() || cpu_is_mx3()) {
+	if (cpu_is_mx27() || cpu_is_mx3() || cpu_is_mx51()) {
 		unsigned long long c;
 		unsigned long period_cycles, duty_cycles, prescale;
 		c = clk_get_rate(pwm->clk);
@@ -73,7 +79,9 @@ int pwm_config(struct pwm_device *pwm, int duty_ns, int period_ns)
 		writel(duty_cycles, pwm->mmio_base + MX3_PWMSAR);
 		writel(period_cycles, pwm->mmio_base + MX3_PWMPR);
 		writel(MX3_PWMCR_PRESCALER(prescale - 1) |
-			MX3_PWMCR_CLKSRC_IPG_HIGH | MX3_PWMCR_EN,
+			MX3_PWMCR_CLKSRC_IPG_HIGH |
+			MX3_PWMCR_STOPEN | MX3_PWMCR_DOZEEN |
+			MX3_PWMCR_WAITEN | MX3_PWMCR_DBGEN,
 			pwm->mmio_base + MX3_PWMCR);
 	} else if (cpu_is_mx1() || cpu_is_mx21()) {
 		/* The PWM subsystem allows for exact frequencies. However,
@@ -105,6 +113,7 @@ EXPORT_SYMBOL(pwm_config);
 
 int pwm_enable(struct pwm_device *pwm)
 {
+	unsigned long reg;
 	int rc = 0;
 
 	if (!pwm->clk_enabled) {
@@ -112,16 +121,27 @@ int pwm_enable(struct pwm_device *pwm)
 		if (!rc)
 			pwm->clk_enabled = 1;
 	}
+
+	reg = readl(pwm->mmio_base + MX3_PWMCR);
+	reg |= MX3_PWMCR_EN;
+	writel(reg, pwm->mmio_base + MX3_PWMCR);
 	return rc;
 }
 EXPORT_SYMBOL(pwm_enable);
 
 void pwm_disable(struct pwm_device *pwm)
 {
+	unsigned long reg;
+
 	if (pwm->clk_enabled) {
 		clk_disable(pwm->clk);
 		pwm->clk_enabled = 0;
 	}
+
+	reg = readl(pwm->mmio_base + MX3_PWMCR);
+	reg &= ~MX3_PWMCR_EN;
+	writel(reg, pwm->mmio_base + MX3_PWMCR);
+
 }
 EXPORT_SYMBOL(pwm_disable);
 

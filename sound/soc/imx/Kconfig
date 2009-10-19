@@ -1,0 +1,71 @@
+config SND_MXC_SOC
+ tristate "SoC Audio for the Freescale i.MX CPU"
+ depends on ARCH_MXC && SND
+ select SND_PCM
+ help
+   Say Y or M if you want to add support for codecs attached to
+   the MXC I2S or SSP interface. You will also need
+   to select the audio interfaces to support below.
+
+if SND_MXC_SOC
+
+config SND_MXC_SOC_SSI
+ tristate
+
+config SND_MXC_SOC_ESAI
+ tristate
+
+config SND_MXC_SOC_IRAM
+ bool "Locate Audio DMA playback buffers in IRAM"
+ help
+   Say Y if you don't want Audio playback buffers in external ram
+
+config SND_SOC_IMX_3STACK_WM8350
+ tristate "SoC Audio support for IMX - WM8350"
+ depends on MFD_WM8350
+ select SND_MXC_SOC_SSI
+ select SND_SOC_WM8350
+ help
+   Say Y if you want to add support for SoC audio on IMX 3STACK
+   with the WM8350.
+
+config SND_SOC_IMX_3STACK_SGTL5000
+ tristate "SoC Audio support for IMX - SGTL5000"
+ select SND_MXC_SOC_SSI
+ select SND_SOC_SGTL5000
+ help
+   Say Y if you want to add support for SoC audio on IMX 3STACK
+   with the SGTL5000.
+
+config SND_SOC_IMX_3STACK_AK4647
+ tristate "SoC Audio support for IMX - AK4647"
+ select SND_MXC_SOC_SSI
+ select SND_SOC_AK4647
+ help
+   Say Y if you want to add support for SoC audio on IMX 3STACK
+   with the AK4647.
+
+config SND_SOC_IMX_3STACK_WM8580
+ tristate "SoC Audio support for IMX - WM8580"
+ select SND_MXC_SOC_ESAI
+ select SND_SOC_WM8580
+ help
+   Say Y if you want to add support for Soc audio on IMX 3STACK
+   with the WM8580
+
+config SND_SOC_IMX_3STACK_AK5702
+ tristate "SoC Audio support for IMX - AK5702"
+ select SND_MXC_SOC_ESAI
+ select SND_SOC_AK5702
+ help
+   Say Y if you want to add support for Soc audio on IMX 3STACK
+   with the AK5702
+
+config SND_SOC_IMX_3STACK_BLUETOOTH
+ tristate "SoC Audio support for IMX - BLUETOOTH"
+ select SND_MXC_SOC_SSI
+ select SND_SOC_BLUETOOTH
+ help
+   Say Y if you want to add support for Soc audio on IMX 3STACK
+   with the BLUETOOTH
+endif

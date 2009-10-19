@@ -546,4 +546,14 @@ config MTD_VMU
 	  To build this as a module select M here, the module will be called
 	  vmu-flash.
 
+config MTD_MXC
+	bool "Map driver for Freescale MXC boards"
+	depends on MTD && ARCH_MXC
+	default y
+	select MTD_CFI
+	select MTD_PARTITIONS
+	help
+	  This enables access to the flash chips on Freescale MXC based
+	  platforms. If you have such a board, say 'Y'.
+
 endmenu

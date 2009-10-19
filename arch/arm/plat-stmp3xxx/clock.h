@@ -48,6 +48,23 @@ struct clk {
 	struct clk_ops *ops;
 };
 
+struct stmp3xxx_emi_scaling_data {
+	u32 emi_div;
+	u32 frac_div;
+	u32 cur_freq;
+	u32 new_freq;
+};
+
+#ifdef CONFIG_STMP378X_RAM_FREQ_SCALING
+extern void stmp3xxx_ram_freq_scale(struct stmp3xxx_emi_scaling_data *);
+extern u32 stmp3xxx_ram_funcs_sz;
+#else
+static inline void stmp3xxx_ram_freq_scale(struct stmp3xxx_emi_scaling_data *p)
+{
+}
+static u32 stmp3xxx_ram_funcs_sz;
+#endif
+
 #endif /* __ASSEMBLER__ */
 
 /* Flags */

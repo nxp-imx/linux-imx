@@ -225,6 +225,38 @@ config TOUCHSCREEN_HP7XX
 	  To compile this driver as a module, choose M here: the
 	  module will be called jornada720_ts.
 
+config TOUCHSCREEN_MXC
+	tristate "MXC touchscreen input driver"
+	depends on MXC_MC13783_ADC || MXC_MC13892_ADC
+	help
+	  Say Y here if you have an MXC based board with touchscreen
+	  attached to it.
+
+	  If unsure, say N.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called mxc_ts.
+
+config TOUCHSCREEN_IMX_ADC
+	tristate "Freescale i.MX ADC touchscreen input driver"
+	depends on IMX_ADC
+	help
+	  Say Y here if you have a Freescale i.MX based board with a
+	  touchscreen interfaced to the processor's integrated ADC.
+
+	  If unsure, say N.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called imx_adc_ts.
+
+config TOUCHSCREEN_STMP3XXX
+	tristate "STMP3XXX LRADC-based touchscreen"
+	depends on ARCH_STMP3XXX
+	select SERIO
+	help
+	  Say Y here if you want to enable TMP3XXX LRADC-based touchscreen.
+	  module will be called stmp3xxx_ts.
+
 config TOUCHSCREEN_HTCPEN
 	tristate "HTC Shift X9500 touchscreen"
 	depends on ISA

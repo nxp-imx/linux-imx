@@ -1,0 +1,39 @@
+#
+# I2C slave subsystem configuration
+#
+
+menuconfig I2C_SLAVE
+	bool "I2C Slave support"
+	depends on HAS_IOMEM
+	---help---
+	  I2C (pronounce: I-square-C) is a slow serial bus protocol used in
+	  many micro controller applications and developed by Philips.
+
+	  If you want I2C Slave support, you should say Y here.
+
+	  This I2C Slave support can also be built as a module.  If so, the module
+	  will be called i2c-slave.
+
+if I2C_SLAVE
+
+config I2C_SLAVE_CORE
+	tristate "I2C SLAVE CORE"
+	default y
+	---help---
+		i2c slave core.
+
+config MXC_I2C_SLAVE
+	tristate "MXC I2C SLAVE"
+	depends on I2C_SLAVE_CORE
+	default y
+	---help---
+		mxc i2c slave support.
+
+config I2C_SLAVE_CLIENT
+	tristate "I2C SLAVE CLIENT"
+	default y
+	---help---
+		i2c slave client that used when the master is on the same board.
+		this is for i2c master which is on the same board with the slave.
+
+endif # I2C_SLAVE

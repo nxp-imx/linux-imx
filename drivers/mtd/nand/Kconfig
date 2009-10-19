@@ -378,6 +378,102 @@ config MTD_NAND_NANDSIM
 	  The simulator may simulate various NAND flash chips for the
 	  MTD nand layer.
 
+config MTD_NAND_IMX_NFC
+	tristate "i.MX NAND Flash Controller driver"
+	depends on MTD_NAND
+	help
+	  Enables the i.MX NAND Flash controller driver.
+
+config MTD_NAND_MXC
+	tristate "MXC NAND support"
+	depends on MTD_NAND && ARCH_MXC_HAS_NFC_V1
+	help
+	  This enables the driver for the NAND flash controller on the
+	  MXC processors.
+
+config MTD_NAND_MXC_V2
+	tristate "MXC NAND Version 2 support"
+	depends on MTD_NAND && ARCH_MXC_HAS_NFC_V2
+	help
+	  This enables the driver for the version 2 of NAND flash controller
+	  on the MXC processors.
+
+config MTD_NAND_MXC_V3
+	tristate "MXC NAND Version 3 support"
+	depends on MTD_NAND && ARCH_MXC_HAS_NFC_V3
+	help
+	  This enables the driver for the version 3 of NAND flash controller
+	  on the MXC processors.
+
+config MTD_NAND_MXC_SWECC
+	bool "Software ECC support "
+	depends on MTD_NAND_MXC || MTD_NAND_MXC_V2 || MTD_NAND_MXC_V3
+	help
+	  This enables the support for Software ECC handling. By
+	  default MXC NAND controller Hardware ECC is supported.
+
+
+config MTD_NAND_MXC_FORCE_CE
+	bool "NAND chip select operation support"
+	 depends on MTD_NAND_MXC || MTD_NAND_MXC_V2|| MTD_NAND_MXC_V3
+	help
+	  This enables the NAND chip select by using CE control line. By
+	  default CE operation is disabled.
+
+config MTD_NAND_MXC_ECC_CORRECTION_OPTION2
+	bool "ECC correction in S/W"
+	depends on MTD_NAND_MXC
+	help
+	  This enables the Option2 NFC ECC correction in software. By
+	  default Option 1 is selected. Enable if you need option2 ECC correction.
+
+config MXC_NAND_LOW_LEVEL_ERASE
+	bool "Low level NAND erase"
+	depends on MTD_NAND_MXC || MTD_NAND_MXC_V2 || MTD_NAND_MXC_V3
+	help
+	  This enables the erase of whole NAND flash. By
+	  default low level erase operation is disabled.
+
+config MTD_NAND_GPMI_LBA
+	tristate "GPMI LBA NAND driver"
+	depends on MTD_NAND && ARCH_STMP3XXX
+	help
+	 Enables support of LBA devices on GPMI on 37xx/378x SigmaTel
+	 boards
+
+config MTD_NAND_GPMI
+	tristate "GPMI NAND driver"
+	depends on MTD_NAND && ARCH_STMP3XXX && !MTD_NAND_GPMI_LBA
+	help
+	 Enables support of NAND devices on GPMI on 37xx/378x SigmaTel
+	 boards
+
+config MTD_NAND_GPMI_SYSFS_ENTRIES
+	bool "Create /sys entries for GPMI device"
+	depends on MTD_NAND_GPMI
+	help
+	  Check this to enable /sys entries for GPMI devices
+
+config MTD_NAND_GPMI_BCH
+	bool "Enable BCH HWECC"
+	depends on MTD_NAND_GPMI
+	depends on ARCH_STMP378X
+	default y
+	help
+	  Check this to enable /sys entries for GPMI devices
+
+config MTD_NAND_GPMI_TA1
+	bool "Support for TA1 NCB format (Hamming code 22,16)"
+	depends on MTD_NAND_GPMI
+	depends on ARCH_STMP378X
+	default y
+
+config MTD_NAND_GPMI_TA3
+	bool "Support for TA3 NCB format (Hamming code 13,8)"
+	depends on MTD_NAND_GPMI
+	depends on ARCH_STMP378X
+	default y
+
 config MTD_NAND_PLATFORM
 	tristate "Support for generic platform NAND driver"
 	depends on MTD_NAND

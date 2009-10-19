@@ -603,6 +603,8 @@ struct wm8350_audio_platform_data {
 	int drain_msecs;	/* OFF drain time */
 	int cap_discharge_msecs;	/* Cap ON (from OFF) discharge time */
 	int vmid_charge_msecs;	/* vmid power up time */
+	char *regulator1;
+	char *regulator2;
 	u32 vmid_s_curve:2;	/* vmid enable s curve speed */
 	u32 dis_out4:2;		/* out4 discharge speed */
 	u32 dis_out3:2;		/* out3 discharge speed */

@@ -1,0 +1,59 @@
+if ARCH_STMP378X
+
+config FB_STMP37XX_HX8238A
+	depends on ARCH_STMP37XX
+	bool "HX8238A"
+	---help---
+	  Use HX8238A dotclock LCD panel for STMP37XX
+
+config FB_STMP37XX_LMS350
+	depends on ARCH_STMP378X
+	bool "LMS350"
+	---help---
+	  Use LMS350 dotclock LCD panel for STMP378X
+
+config FB_STMP37XX_LMS430
+	depends on ARCH_STMP378X
+	bool "LMS430"
+	---help---
+	  Use LMS430 dotclock LCD panel for STMP378X
+
+config FB_STMP378X_TVENC
+	depends on ARCH_STMP378X
+	bool "TVENC"
+	---help---
+	  Use TVOUT encoder for STMP378X
+
+config STMP3XXX_UNIQUE_ID
+	bool "Support for UniqueID on boot media"
+	default y
+
+config STMP3XXX_UNIQUE_ID_OTP
+	bool "UniqueID on OTP"
+	depends on STMP3XXX_UNIQUE_ID
+	default y
+
+config STMP378X_RAM_FREQ_SCALING
+	bool "RAM frequency scaling support"
+	depends on ARCH_STMP378X
+	default y
+
+choice
+	prompt "Select STMP378x RAM chip"
+	depends on STMP378X_RAM_FREQ_SCALING
+
+config STMP378X_RAM_MDDR
+	bool "mDDR SDRAM"
+config STMP378X_RAM_DDR
+	bool "DDR SDRAM"
+
+endchoice
+
+config DMA_ZONE_SIZE
+	int "DMA memory zone size"
+	range 0 32
+	default 12
+	help
+	  This is the size in MB for the DMA zone. The DMA zone is used for
+	  dedicated memory for large contiguous video buffers
+endif

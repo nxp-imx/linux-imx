@@ -8,8 +8,8 @@
  * published by the Free Software Foundation.
  */
 
-#ifndef __ASM_ARCH_MXC_MX31_H__
-#define __ASM_ARCH_MXC_MX31_H__
+#ifndef __ASM_ARCH_MXC_MX3X_H__
+#define __ASM_ARCH_MXC_MX3X_H__
 
 #ifndef __ASM_ARCH_MXC_HARDWARE_H__
 #error "Do not include directly."
@@ -99,6 +99,11 @@
 #define MSHC1_BASE_ADDR		(SPBA0_BASE_ADDR + 0x00024000)
 #define SPBA_CTRL_BASE_ADDR	(SPBA0_BASE_ADDR + 0x0003C000)
 
+#define SPBA_UART3		0x0C
+#define SPBA_CSPI2		0x10
+#define SPBA_SSI2		0x14
+#define SPBA_ATA		0x20
+
 /*
  * AIPS 2
  */
@@ -118,7 +123,7 @@
 #define GPIO2_BASE_ADDR		(AIPS2_BASE_ADDR + 0x000D0000)
 #define SDMA_BASE_ADDR		(AIPS2_BASE_ADDR + 0x000D4000)
 #define RTC_BASE_ADDR		(AIPS2_BASE_ADDR + 0x000D8000)
-#define WDOG_BASE_ADDR		(AIPS2_BASE_ADDR + 0x000DC000)
+#define WDOG1_BASE_ADDR		(AIPS2_BASE_ADDR + 0x000DC000)
 #define PWM_BASE_ADDR		(AIPS2_BASE_ADDR + 0x000E0000)
 #define RTIC_BASE_ADDR		(AIPS2_BASE_ADDR + 0x000EC000)
 
@@ -168,6 +173,7 @@
 	((x >= AVIC_BASE_ADDR) && (x < (AVIC_BASE_ADDR + AVIC_SIZE))) ? AVIC_IO_ADDRESS(x):\
 	((x >= CS4_BASE_ADDR) && (x < (CS4_BASE_ADDR + CS4_SIZE))) ? CS4_IO_ADDRESS(x):\
 	((x >= X_MEMC_BASE_ADDR) && (x < (X_MEMC_BASE_ADDR + X_MEMC_SIZE))) ? X_MEMC_IO_ADDRESS(x):\
+	((x >= NFC_BASE_ADDR) && (x < (NFC_BASE_ADDR + NFC_SIZE))) ? NFC_IO_ADDRESS(x):\
 	0xDEADBEEF)
 
 /*
@@ -204,8 +210,38 @@
 	(((x) - X_MEMC_BASE_ADDR) + X_MEMC_BASE_ADDR_VIRT)
 
 /*
+ * DMA request assignments
+ */
+#define DMA_REQ_ECT        31
+#define DMA_REQ_NFC        30
+#define DMA_REQ_SSI1_TX1   29
+#define DMA_REQ_SSI1_RX1   28
+#define DMA_REQ_SSI1_TX2   27
+#define DMA_REQ_SSI1_RX2   26
+#define DMA_REQ_SSI2_TX1   25
+#define DMA_REQ_SSI2_RX1   24
+#define DMA_REQ_SSI2_TX2   23
+#define DMA_REQ_SSI2_RX2   22
+#define DMA_REQ_UART1_TX   19
+#define DMA_REQ_UART1_RX   18
+#define DMA_REQ_UART2_TX   17
+#define DMA_REQ_UART2_RX   16
+#define DMA_REQ_EXTREQ1    15
+#define DMA_REQ_EXTREQ2    14
+#define DMA_REQ_CSPI1_TX   9
+#define DMA_REQ_CSPI1_RX   8
+#define DMA_REQ_CSPI2_TX   7
+#define DMA_REQ_CSPI2_RX   6
+#define DMA_REQ_ATA_RX     4
+#define DMA_REQ_ATA_TX     3
+#define DMA_REQ_ATA_TX_END 2
+#define DMA_REQ_CCM        1
+#define DMA_REQ_EXTREQ0    0
+
+/*
  * Interrupt numbers
  */
+#define MXC_INT_RESV1		1
 #define MXC_INT_I2C3		3
 #define MXC_INT_I2C2		4
 #define MXC_INT_RTIC		6
@@ -224,6 +260,7 @@
 #define MXC_INT_EPIT1		28
 #define MXC_INT_GPT		29
 #define MXC_INT_POWER_FAIL	30
+#define MXC_INT_DVFS		31
 #define MXC_INT_UART2		32
 #define MXC_INT_NANDFC		33
 #define MXC_INT_SDMA		34
@@ -244,6 +281,8 @@
 #define MXC_INT_EXT_SENSOR61	61
 #define MXC_INT_EXT_WDOG	62
 #define MXC_INT_EXT_TV		63
+
+#define ARM11_PMU_IRQ		MXC_INT_EVTMON
 
 #define PROD_SIGNATURE		0x1	/* For MX31 */
 

@@ -33,4 +33,21 @@ struct imxmmc_platform_data {
 	void (*setpower)(struct device *, unsigned int vdd);
 };
 
+struct mxc_mmc_platform_data {
+	unsigned int ocr_mask;	/* available voltages */
+	unsigned int vendor_ver;
+	unsigned int caps;
+	unsigned int min_clk;
+	unsigned int max_clk;
+	unsigned int clk_flg;	/* 1 clock enable, 0 not */
+	unsigned int reserved:16;
+	unsigned int card_fixed:1;
+	unsigned int card_inserted_state:1;
+//      u32 (*translate_vdd)(struct device *, unsigned int);
+	unsigned int (*status) (struct device *);
+	int (*wp_status) (struct device *);
+	char *power_mmc;
+	char *clock_mmc;
+};
+
 #endif

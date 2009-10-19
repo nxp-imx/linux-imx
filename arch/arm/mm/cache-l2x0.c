@@ -17,6 +17,7 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
  */
 #include <linux/init.h>
+#include <linux/module.h>
 #include <linux/spinlock.h>
 #include <linux/io.h>
 
@@ -25,7 +26,6 @@
 
 #define CACHE_LINE_SIZE		32
 #ifdef CONFIG_OPROFILE_ARM11_EVTMON
-#include <linux/module.h>
 #define L2_ENABLE_BIT           0x1
 #define L2_EVTBUS_BIT           0x100000
 #define L2_CTL_REG              (l2x0_base + L2X0_CTRL)

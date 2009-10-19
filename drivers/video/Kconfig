@@ -381,6 +381,10 @@ config FB_CLPS711X
 	  Say Y to enable the Framebuffer driver for the CLPS7111 and
 	  EP7212 processors.
 
+if ARCH_MXC
+source "drivers/video/mxc/Kconfig"
+endif
+
 config FB_SA1100
 	bool "SA-1100 LCD support"
 	depends on (FB = y) && ARM && ARCH_SA1100
@@ -1977,6 +1981,16 @@ config FB_PNX4008_DUM_RGB
 	select FB_CFB_IMAGEBLIT
 	---help---
 	  Say Y here to enable support for PNX4008 RGB Framebuffer
+
+config FB_STMP37XX
+	tristate "STMP 37XX LCD Framebuffer driver"
+	depends on FB && (ARCH_STMP37XX || ARCH_STMP378X)
+	select FB_CFB_FILLRECT
+	select FB_CFB_COPYAREA
+	select FB_CFB_IMAGEBLIT
+	---help---
+	  Say Y here to enable support for the framebuffer driver for the
+	  Sigmatel STMP37XX board.
 
 config FB_IBM_GXT4500
 	tristate "Framebuffer support for IBM GXT4500P adaptor"

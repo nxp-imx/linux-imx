@@ -227,6 +227,40 @@ config SPI_XILINX
 	  See the "OPB Serial Peripheral Interface (SPI) (v1.00e)"
 	  Product Specification document (DS464) for hardware details.
 
+config SPI_MXC
+	tristate "MXC CSPI controller as SPI Master"
+	depends on ARCH_MXC && SPI_MASTER
+	select SPI_BITBANG
+	help
+	  This implements the SPI master mode using MXC CSPI.
+
+config SPI_MXC_TEST_LOOPBACK
+	bool "LOOPBACK Testing of CSPIs"
+	depends on SPI_MXC
+	select SPI_SPIDEV
+	default n
+
+config SPI_MXC_SELECT1
+	bool "CSPI1"
+	depends on SPI_MXC
+	default y
+
+config SPI_MXC_SELECT2
+	bool "CSPI2"
+	depends on SPI_MXC && (!ARCH_MXC91221)
+	default n
+
+config SPI_MXC_SELECT3
+	bool "CSPI3"
+	depends on SPI_MXC && (ARCH_MX3 || ARCH_MX27 || ARCH_MX25 || ARCH_MX37 || ARCH_MX51)
+	default n
+
+config SPI_STMP3XXX
+	tristate "Freescale STMP37xx/378x SPI/SSP controller"
+	depends on ARCH_STMP3XXX && SPI_MASTER
+	help
+	  SPI driver for Freescale STMP37xx/378x SoC SSP interface
+
 #
 # Add new SPI master controllers in alphabetical order above this line
 #

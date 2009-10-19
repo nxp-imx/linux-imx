@@ -1,5 +1,5 @@
 /*
- *  Copyright 2004-2007 Freescale Semiconductor, Inc. All Rights Reserved.
+ *  Copyright 2004-2009 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -12,9 +12,9 @@
 #define __ASM_ARCH_MXC_IRQS_H__
 
 /*
- * So far all i.MX SoCs have 64 internal interrupts
+ * So far all i.MX SoCs have 128 internal interrupts
  */
-#define MXC_INTERNAL_IRQS	64
+#define MXC_INTERNAL_IRQS	128
 
 #define MXC_GPIO_IRQ_START	MXC_INTERNAL_IRQS
 
@@ -22,8 +22,14 @@
 #define MXC_GPIO_IRQS		(32 * 4)
 #elif defined CONFIG_ARCH_MX2
 #define MXC_GPIO_IRQS		(32 * 6)
-#elif defined CONFIG_ARCH_MX3
+#elif defined CONFIG_ARCH_MX25
+#define MXC_GPIO_IRQS		(32 * 4)
+#elif defined CONFIG_ARCH_MX3 || defined CONFIG_ARCH_MX35
 #define MXC_GPIO_IRQS		(32 * 3)
+#elif defined CONFIG_ARCH_MX37
+#define MXC_GPIO_IRQS		(32 * 3)
+#elif defined CONFIG_ARCH_MX51
+#define MXC_GPIO_IRQS		(32 * 4)
 #endif
 
 /*
@@ -33,7 +39,14 @@
  * within sensible limits.
  */
 #define MXC_BOARD_IRQ_START	(MXC_INTERNAL_IRQS + MXC_GPIO_IRQS)
+#ifdef CONFIG_MXC_PSEUDO_IRQS
+#define MXC_PSEUDO_IO_BASE	(MXC_BOARD_IRQ_START + 16)
+#define MXC_MAX_PSEUDO_IO_LINES 16
+#define MXC_BOARD_IRQS	32
+#else
 #define MXC_BOARD_IRQS	16
+#define MXC_MAX_PSEUDO_IO_LINES 0
+#endif
 
 #define MXC_IPU_IRQ_START	(MXC_BOARD_IRQ_START + MXC_BOARD_IRQS)
 
@@ -51,5 +64,18 @@ extern int imx_irq_set_priority(unsigned char irq, unsigned char prio);
 #define FIQ_START	0
 /* switch betwean IRQ and FIQ */
 extern int mxc_set_irq_fiq(unsigned int irq, unsigned int type);
+
+#define MXC_IRQ_TO_EXPIO(irq)   ((irq) - MXC_BOARD_IRQ_START)
+
+/*
+ * This function is used to get the AVIC Lo and Hi interrupts
+ * that are enabled as wake up sources to wake up the core from suspend
+ */
+void mxc_get_wake_irq(u32 * wake_src[]);
+
+/* Define interrupt number for OProfile */
+#if defined CONFIG_ARCH_MX51
+#define MXC_INT_PMU		77
+#endif
 
 #endif /* __ASM_ARCH_MXC_IRQS_H__ */
