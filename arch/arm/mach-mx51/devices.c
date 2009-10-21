@@ -1177,6 +1177,9 @@ static struct resource mxc_gpu2d_resources[] = {
 	{
 	 .flags = IORESOURCE_MEM,
 	 },
+	{
+	 .flags = IORESOURCE_MEM,
+	 },
 };
 
 #if defined(CONFIG_UIO_PDRV_GENIRQ) || defined(CONFIG_UIO_PDRV_GENIRQ_MODULE)
@@ -1241,6 +1244,9 @@ static inline void mxc_init_gpu2d(void)
 {
 	dma_alloc_coherent(&mxc_gpu2d_device.dev, SZ_8K, &mxc_gpu2d_resources[1].start, GFP_DMA);
 	mxc_gpu2d_resources[1].end = mxc_gpu2d_resources[1].start + SZ_8K - 1;
+
+	dma_alloc_coherent(&mxc_gpu2d_device.dev, 88 * SZ_1K, &mxc_gpu2d_resources[2].start, GFP_DMA);
+	mxc_gpu2d_resources[2].end = mxc_gpu2d_resources[2].start + (88 * SZ_1K) - 1;
 
 	platform_device_register(&mxc_gpu2d_device);
 }
