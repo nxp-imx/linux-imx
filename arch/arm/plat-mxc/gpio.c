@@ -81,9 +81,11 @@ static int gpio_set_irq_type(u32 irq, u32 type)
 	switch (type) {
 	case IRQ_TYPE_EDGE_RISING:
 		edge = GPIO_INT_RISE_EDGE;
+		set_irq_handler(irq, handle_edge_irq);
 		break;
 	case IRQ_TYPE_EDGE_FALLING:
 		edge = GPIO_INT_FALL_EDGE;
+		set_irq_handler(irq, handle_edge_irq);
 		break;
 	case IRQ_TYPE_EDGE_BOTH:
 		val = mxc_gpio_get(&port->chip, gpio & 31);
@@ -95,12 +97,15 @@ static int gpio_set_irq_type(u32 irq, u32 type)
 			pr_debug("mxc: set GPIO %d to high trigger\n", gpio);
 		}
 		port->both_edges |= 1 << (gpio & 31);
+		set_irq_handler(irq, handle_edge_irq);
 		break;
 	case IRQ_TYPE_LEVEL_LOW:
 		edge = GPIO_INT_LOW_LEV;
+		set_irq_handler(irq, handle_level_irq);
 		break;
 	case IRQ_TYPE_LEVEL_HIGH:
 		edge = GPIO_INT_HIGH_LEV;
+		set_irq_handler(irq, handle_level_irq);
 		break;
 	default:
 		return -EINVAL;
