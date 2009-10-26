@@ -674,18 +674,8 @@ static int mxc_v4l2_s_fmt(cam_data *cam, struct v4l2_format *f)
 		 */
 		if (strcmp(mxc_capture_inputs[cam->current_input].name,
 			   "CSI MEM") == 0) {
-			f->fmt.pix.width = cam->crop_bounds.width;
-			f->fmt.pix.height = cam->crop_bounds.height;
-		}
-
-		/* Handle case where size requested is larger than cuurent
-		 * camera setting. */
-		if ((f->fmt.pix.width > cam->crop_bounds.width)
-			|| (f->fmt.pix.height > cam->crop_bounds.height)) {
-			/* Need the logic here, calling vidioc_s_param if
-			 * camera can change. */
-			/* For the moment, just return an error. */
-			return -EINVAL;
+			f->fmt.pix.width = cam->crop_current.width;
+			f->fmt.pix.height = cam->crop_current.height;
 		}
 
 		if (cam->rotation >= IPU_ROTATE_90_RIGHT) {
@@ -700,10 +690,10 @@ static int mxc_v4l2_s_fmt(cam_data *cam, struct v4l2_format *f)
 		*width -= *width % 8;
 		*height -= *height % 8;
 
-		if ((cam->crop_bounds.width / *width > 8) ||
-		    ((cam->crop_bounds.width / *width == 8) &&
-		     (cam->crop_bounds.width % *width))) {
-			*width = cam->crop_bounds.width / 8;
+		if ((cam->crop_current.width / *width > 8) ||
+		    ((cam->crop_current.width / *width == 8) &&
+		     (cam->crop_current.width % *width))) {
+			*width = cam->crop_current.width / 8;
 			if (*width % 8)
 				*width += 8 - *width % 8;
 			pr_err("ERROR: v4l2 capture: width exceeds limit "
@@ -711,10 +701,10 @@ static int mxc_v4l2_s_fmt(cam_data *cam, struct v4l2_format *f)
 			       *width);
 		}
 
-		if ((cam->crop_bounds.height / *height > 8) ||
-		    ((cam->crop_bounds.height / *height == 8) &&
-		     (cam->crop_bounds.height % *height))) {
-			*height = cam->crop_bounds.height / 8;
+		if ((cam->crop_current.height / *height > 8) ||
+		    ((cam->crop_current.height / *height == 8) &&
+		     (cam->crop_current.height % *height))) {
+			*height = cam->crop_current.height / 8;
 			if (*height % 8)
 				*height += 8 - *height % 8;
 			pr_err("ERROR: v4l2 capture: height exceeds limit "
@@ -1142,6 +1132,13 @@ static int mxc_v4l2_s_param(cam_data *cam, struct v4l2_streamparm *parm)
 	cam->crop_bounds.top = cam->crop_bounds.left = 0;
 	cam->crop_bounds.width = cam_fmt.fmt.pix.width;
 	cam->crop_bounds.height = cam_fmt.fmt.pix.height;
+
+	/*
+	 * Set the default current cropped resolution to be the same with
+	 * the cropping boundary.
+	 */
+	cam->crop_current.width = cam->crop_bounds.width;
+	cam->crop_current.height = cam->crop_bounds.height;
 
 	/* This essentially loses the data at the left and bottom of the image
 	 * giving a digital zoom image, if crop_current is less than the full
