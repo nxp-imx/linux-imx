@@ -774,19 +774,8 @@ static int mxc_kpp_probe(struct platform_device *pdev)
 	kpp_dev.kpp_rows = keypad->rowmax;
 	key_pad_enabled = 0;
 
-	/*
-	 * Request for IRQ number for keypad port. The Interrupt handler
-	 * function (mxc_kpp_interrupt) is called when ever interrupt occurs on
-	 * keypad port.
-	 */
 	irq = platform_get_irq(pdev, 0);
 	keypad->irq = irq;
-	retval = request_irq(irq, mxc_kpp_interrupt, 0, MOD_NAME, MOD_NAME);
-	if (retval) {
-		pr_debug("KPP: request_irq(%d) returned error %d\n",
-			 MXC_INT_KPP, retval);
-		return retval;
-	}
 
 	/* Enable keypad clock */
 	kpp_clk = clk_get(&pdev->dev, "kpp_clk");
@@ -914,6 +903,18 @@ static int mxc_kpp_probe(struct platform_device *pdev)
 	key_pad_enabled = 1;
 	/* Initialize the polling timer */
 	init_timer(&kpp_dev.poll_timer);
+
+	/*
+	 * Request for IRQ number for keypad port. The Interrupt handler
+	 * function (mxc_kpp_interrupt) is called when ever interrupt occurs on
+	 * keypad port.
+	 */
+	retval = request_irq(irq, mxc_kpp_interrupt, 0, MOD_NAME, MOD_NAME);
+	if (retval) {
+		pr_debug("KPP: request_irq(%d) returned error %d\n",
+			 MXC_INT_KPP, retval);
+		goto err3;
+	}
 
 	/* By default, devices should wakeup if they can */
 	/* So keypad is set as "should wakeup" as it can */
