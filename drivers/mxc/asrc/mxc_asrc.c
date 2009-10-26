@@ -425,10 +425,11 @@ int asrc_config_pair(struct asrc_config *config)
 		reg = __raw_readl(asrc_vrt_base_addr + ASRC_ASRCDR1_REG);
 		reg &= 0xfc0fc0;
 		/* Input Part */
-		if ((config->inclk & 0x0f) == INCLK_SPDIF_RX
-		    || (config->inclk & 0x0f) == INCLK_SPDIF_TX) {
-			reg |= 7 << AICPA;
-		} else if ((config->inclk & 0x0f) == INCLK_ASRCK1_CLK) {
+		if ((config->inclk & 0x0f) == INCLK_SPDIF_RX)
+			reg | 7 << AICPA;
+		else if ((config->inclk & 0x0f) == INCLK_SPDIF_TX)
+			reg |= 6 << AICPA;
+		else if ((config->inclk & 0x0f) == INCLK_ASRCK1_CLK) {
 			tmp =
 			    asrc_get_asrck_clock_divider(config->
 							 input_sample_rate);
@@ -443,10 +444,11 @@ int asrc_config_pair(struct asrc_config *config)
 				err = -EFAULT;
 		}
 		/* Output Part */
-		if ((config->outclk & 0x0f) == OUTCLK_SPDIF_RX
-		    || (config->outclk & 0x0f) == OUTCLK_SPDIF_TX) {
+		if ((config->outclk & 0x0f) == OUTCLK_SPDIF_RX)
 			reg |= 7 << AOCPA;
-		} else if ((config->outclk & 0x0f) == OUTCLK_ASRCK1_CLK) {
+		else if ((config->outclk & 0x0f) == OUTCLK_SPDIF_TX)
+			reg |= 6 << AOCPA;
+		else if ((config->outclk & 0x0f) == OUTCLK_ASRCK1_CLK) {
 			tmp =
 			    asrc_get_asrck_clock_divider(config->
 							 output_sample_rate);
@@ -467,10 +469,11 @@ int asrc_config_pair(struct asrc_config *config)
 		reg = __raw_readl(asrc_vrt_base_addr + ASRC_ASRCDR1_REG);
 		reg &= 0x03f03f;
 		/* Input Part */
-		if ((config->inclk & 0x0f) == INCLK_SPDIF_RX
-		    || (config->inclk & 0x0f) == INCLK_SPDIF_TX) {
+		if ((config->inclk & 0x0f) == INCLK_SPDIF_RX)
 			reg |= 7 << AICPB;
-		} else if ((config->inclk & 0x0f) == INCLK_ASRCK1_CLK) {
+		else if ((config->inclk & 0x0f) == INCLK_SPDIF_TX)
+			reg |= 6 << AICPB;
+		else if ((config->inclk & 0x0f) == INCLK_ASRCK1_CLK) {
 			tmp =
 			    asrc_get_asrck_clock_divider(config->
 							 input_sample_rate);
@@ -485,10 +488,11 @@ int asrc_config_pair(struct asrc_config *config)
 				err = -EFAULT;
 		}
 		/* Output Part */
-		if ((config->outclk & 0x0f) == INCLK_SPDIF_RX
-		    || (config->outclk & 0x0f) == INCLK_SPDIF_TX) {
+		if ((config->outclk & 0x0f) == OUTCLK_SPDIF_RX)
 			reg |= 7 << AOCPB;
-		} else if ((config->outclk & 0x0f) == INCLK_ASRCK1_CLK) {
+		else if ((config->outclk & 0x0f) == OUTCLK_SPDIF_TX)
+			reg |= 6 << AOCPB;
+		else if ((config->outclk & 0x0f) == OUTCLK_ASRCK1_CLK) {
 			tmp =
 			    asrc_get_asrck_clock_divider(config->
 							 output_sample_rate);
@@ -509,10 +513,11 @@ int asrc_config_pair(struct asrc_config *config)
 		reg = __raw_readl(asrc_vrt_base_addr + ASRC_ASRCDR2_REG);
 		reg &= 0;
 		/* Input Part */
-		if ((config->inclk & 0x0f) == INCLK_SPDIF_RX
-		    || (config->inclk & 0x0f) == INCLK_SPDIF_TX) {
+		if ((config->inclk & 0x0f) == INCLK_SPDIF_RX)
 			reg |= 7 << AICPC;
-		} else if ((config->inclk & 0x0f) == INCLK_ASRCK1_CLK) {
+		else if ((config->inclk & 0x0f) == INCLK_SPDIF_TX)
+			reg |= 6 << AICPC;
+		else if ((config->inclk & 0x0f) == INCLK_ASRCK1_CLK) {
 			tmp =
 			    asrc_get_asrck_clock_divider(config->
 							 input_sample_rate);
@@ -527,10 +532,11 @@ int asrc_config_pair(struct asrc_config *config)
 				err = -EFAULT;
 		}
 		/* Output Part */
-		if ((config->outclk & 0x0f) == INCLK_SPDIF_RX
-		    || (config->outclk & 0x0f) == INCLK_SPDIF_TX) {
+		if ((config->outclk & 0x0f) == OUTCLK_SPDIF_RX)
 			reg |= 7 << AOCPC;
-		} else if ((config->outclk & 0x0f) == INCLK_ASRCK1_CLK) {
+		else if ((config->outclk & 0x0f) == OUTCLK_SPDIF_TX)
+			reg |= 6 << AOCPC;
+		else if ((config->outclk & 0x0f) == OUTCLK_ASRCK1_CLK) {
 			tmp =
 			    asrc_get_asrck_clock_divider(config->
 							 output_sample_rate);
