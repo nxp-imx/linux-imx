@@ -3284,30 +3284,14 @@ static int _clk_gpu3d_set_parent(struct clk *clk, struct clk *parent)
 	return 0;
 }
 
-static int _clk_gpu3d_enable(struct clk *clk)
-{
-	/* Set gPU's parent to be axi_a or ahb when its enabled. */
-	clk_set_parent(&gpu3d_clk, &axi_a_clk);
-	return _clk_enable(clk);
-}
-
-static void _clk_gpu3d_disable(struct clk *clk)
-{
-	_clk_disable(clk);
-
-	/* Set GPU's parent to be axi_b when its disabled. */
-	clk_set_parent(&gpu3d_clk, &axi_b_clk);
-}
-
-
 static struct clk gpu3d_clk = {
 	.name = "gpu3d_clk",
 	.parent = &axi_a_clk,
 	.set_parent = _clk_gpu3d_set_parent,
-	.enable = _clk_gpu3d_enable,
+	.enable = _clk_enable,
 	.enable_reg = MXC_CCM_CCGR5,
 	.enable_shift = MXC_CCM_CCGR5_CG1_OFFSET,
-	.disable = _clk_gpu3d_disable,
+	.disable = _clk_disable,
 	.flags = AHB_HIGH_SET_POINT | CPU_FREQ_TRIG_UPDATE,
 };
 
@@ -3342,29 +3326,14 @@ static int _clk_gpu2d_set_parent(struct clk *clk, struct clk *parent)
 	return 0;
 }
 
-static int _clk_gpu2d_enable(struct clk *clk)
-{
-	/* Set GPU2D's parent to be axi_a or ahb when its enabled. */
-	clk_set_parent(&gpu2d_clk, &axi_a_clk);
-	return _clk_enable(clk);
-}
-
-static void _clk_gpu2d_disable(struct clk *clk)
-{
-	_clk_disable(clk);
-
-	/* Set GPU2d's parent to be axi_b when its disabled. */
-	clk_set_parent(&gpu2d_clk, &axi_b_clk);
-}
-
 static struct clk gpu2d_clk = {
 	.name = "gpu2d_clk",
 	.parent = &axi_a_clk,
 	.set_parent = _clk_gpu2d_set_parent,
-	.enable = _clk_gpu2d_enable,
+	.enable = _clk_enable,
 	.enable_reg = MXC_CCM_CCGR6,
 	.enable_shift = MXC_CCM_CCGR6_CG7_OFFSET,
-	.disable = _clk_gpu2d_disable,
+	.disable = _clk_disable,
 	.flags = AHB_HIGH_SET_POINT | CPU_FREQ_TRIG_UPDATE,
 };
 
@@ -3662,8 +3631,8 @@ int __init mx51_clocks_init(unsigned long ckil, unsigned long osc, unsigned long
 	 */
 	clk_set_parent(&vpu_clk[0], &axi_b_clk);
 	clk_set_parent(&vpu_clk[1], &axi_b_clk);
-	clk_set_parent(&gpu3d_clk, &axi_b_clk);
-	clk_set_parent(&gpu2d_clk, &axi_b_clk);
+	clk_set_parent(&gpu3d_clk, &axi_a_clk);
+	clk_set_parent(&gpu2d_clk, &axi_a_clk);
 
 	/* move cspi to 24MHz */
 	clk_set_parent(&cspi_main_clk, &lp_apm_clk);
