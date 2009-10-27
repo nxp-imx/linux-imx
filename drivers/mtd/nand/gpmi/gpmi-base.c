@@ -40,23 +40,89 @@
 #include <mach/dma.h>
 #include "gpmi.h"
 
+/*
+ * Set this variable to a value greater than zero to see varying levels of
+ * debugging output.
+ */
+
 static int debug;
+
+/*
+ * This variable counts the total number of times the driver has copied either
+ * page data or OOB data from/to a DMA buffer.
+ */
+
 static int copies;
+
+/*
+ * Indicates that this driver should attempt to perform DMA directly to/from
+ * buffers passed into this driver. If false, this driver will use its own
+ * buffer for DMA and copy data between this buffer and the buffers that are
+ * passed in.
+ */
+
 static int map_buffers = true;
+
 static int ff_writes;
+
+/*
+ * Forces all OOB reads and writes to NOT use ECC.
+ */
+
 static int raw_mode;
+
+/*
+ * Indicates the driver should register an MTD that represents the entire
+ * medium.
+ */
+
 static int add_mtd_entire;
+
+/*
+ * Indicates the driver should register a separate MTD for every physical chip.
+ */
+
 static int add_mtd_chip;
+
+/*
+ * Indicates the driver should report that *all* blocks are good.
+ */
+
 static int ignorebad;
+
+/*
+ * The maximum number of chips for which the NAND Flash MTD system is allowed to
+ * scan.
+ */
+
 static int max_chips = 4;
+
+/*
+ *
+ */
+
 static long clk = -1;
+
+/*
+ * This variable is connected to the "bch" module parameter. If set, it
+ * indicates the driver should use the BCH hardware block instead of the ECC8
+ * hardware block for error correction.
+ */
+
 static int bch /* = 0 */ ;
+
+/* Forward references. */
 
 static int gpmi_nand_init_hw(struct platform_device *pdev, int request_pins);
 static void gpmi_nand_release_hw(struct platform_device *pdev);
 static int gpmi_dma_exchange(struct gpmi_nand_data *g,
 			     struct stmp3xxx_dma_descriptor *dma);
 static void gpmi_read_buf(struct mtd_info *mtd, uint8_t * buf, int len);
+
+/*
+ * This structure contains the "safe" GPMI timings that should succeed with any
+ * NAND Flash device (although, with less-than-optimal performance).
+ */
 
 struct gpmi_nand_timing gpmi_safe_timing = {
 	.address_setup = 25,
@@ -66,8 +132,9 @@ struct gpmi_nand_timing gpmi_safe_timing = {
 };
 
 /*
- * define OOB placement schemes for 4k and 2k page devices
+ * ECC layout descriptions for various device geometries.
  */
+
 static struct nand_ecclayout gpmi_oob_128 = {
 	.oobfree = {
 		    {
@@ -90,18 +157,35 @@ static struct nand_ecclayout gpmi_oob_64 = {
 		    },
 };
 
+/**
+ * gpmi_cycles_ceil - Translates timings in nanoseconds to GPMI clock cycles.
+ *
+ * @ntime:   The time in nanoseconds.
+ * @period:  The GPMI clock period.
+ */
 static inline u32 gpmi_cycles_ceil(u32 ntime, u32 period)
 {
 	int k;
 
+	/*
+	 * Compute the minimum number of clock periods that entirely contain the
+	 * given time.
+	 */
+
 	k = (ntime + period - 1) / period;
+
+	/*
+	 * A cycle count of less than 1 can fatally confuse the hardware.
+	 */
+
 	if (k == 0)
 		k++;
+
 	return k;
 }
 
 /**
- * gpmi_timer_expiry - timer expiry handling
+ * gpmi_timer_expiry - Inactivity timer expiration handler.
  */
 static void gpmi_timer_expiry(unsigned long d)
 {
@@ -145,12 +229,10 @@ static void gpmi_self_wakeup(struct gpmi_nand_data *g)
 }
 
 /**
- * gpmi_set_timings - set GPMI timings
- * @pdev: pointer to GPMI platform device
- * @tm: pointer to structure &gpmi_nand_timing with new timings
+ * gpmi_set_timings - Set GPMI timings.
  *
- * During initialization, GPMI uses safe sub-optimal timings, which
- * can be changed after reading boot control blocks
+ * @pdev: A pointer to the owning platform device.
+ * @tm:   A pointer to the new timings.
  */
 void gpmi_set_timings(struct platform_device *pdev, struct gpmi_nand_timing *tm)
 {
@@ -203,6 +285,9 @@ void gpmi_set_timings(struct platform_device *pdev, struct gpmi_nand_timing *tm)
 	g->use_count--;
 }
 
+/**
+ * bch_mode - Return a hardware register value that selects BCH.
+ */
 static inline u32 bch_mode(void)
 {
 	u32 c1 = 0;
@@ -215,8 +300,10 @@ static inline u32 bch_mode(void)
 }
 
 /**
- * gpmi_nand_init_hw - initialize the hardware
- * @pdev: pointer to platform device
+ * gpmi_nand_init_hw - Initialize the hardware.
+ *
+ * @pdev:          A pointer to the owning platform device.
+ * @request_pins:  Indicates this function should request GPMI pins.
  *
  * Initialize GPMI hardware and set default (safe) timings for NAND access.
  * Returns error code or 0 on success
@@ -228,22 +315,42 @@ static int gpmi_nand_init_hw(struct platform_device *pdev, int request_pins)
 	    (struct gpmi_platform_data *)pdev->dev.platform_data;
 	int err = 0;
 
+	/* Try to get the GPMI clock. */
+
 	g->clk = clk_get(NULL, "gpmi");
 	if (IS_ERR(g->clk)) {
 		err = PTR_ERR(g->clk);
-		dev_err(&pdev->dev, "cannot set failsafe clockrate\n");
+		dev_err(&pdev->dev, "Can't get GPMI clock\n");
 		goto out;
 	}
+
+	/* Turn on the GPMI clock. */
+
 	clk_enable(g->clk);
+
+	/*
+	 * Check the clock rate setting. We don't allow this value to go below
+	 * 24KHz because some chips don't work in that regime.
+	 */
+
 	if (clk <= 0)
-		clk = 24000;	/* safe setting, some chips do not work on
-				   speeds >= 24kHz */
+		clk = 24000;
+
+	/*
+	 * Set the GPMI clock rate and record the value that was actually
+	 * implemented.
+	 */
+
 	clk_set_rate(g->clk, clk);
 
 	clk = clk_get_rate(g->clk);
 
+	/* Check if we're supposed to ask for our pins. */
+
 	if (request_pins)
 		gpd->pinmux(1);
+
+	/* Reset the GPMI block. */
 
 	stmp3xxx_reset_block(HW_GPMI_CTRL0 + REGS_GPMI_BASE, 1);
 
@@ -254,10 +361,13 @@ static int gpmi_nand_init_hw(struct platform_device *pdev, int request_pins)
 	stmp3xxx_setl(BM_GPMI_CTRL1_ATA_IRQRDY_POLARITY,
 		      REGS_GPMI_BASE + HW_GPMI_CTRL1);
 
-	/* ...and ECC module */
+	/*
+	 * Select the ECC to use. The bch_mode() function returns a value that
+	 * selects whichever hardware is appropriate (q.v.).
+	 */
 	stmp3xxx_setl(bch_mode(), REGS_GPMI_BASE + HW_GPMI_CTRL1);
 
-	/* choose NAND mode (1 means ATA, 0 - NAND */
+	/* Choose NAND mode (1 means ATA, 0 - NAND */
 	stmp3xxx_clearl(BM_GPMI_CTRL1_GPMI_MODE,
 			REGS_GPMI_BASE + HW_GPMI_CTRL1);
 
@@ -267,9 +377,10 @@ out:
 
 /**
  * gpmi_nand_release_hw - free the hardware
+ *
  * @pdev: pointer to platform device
  *
- * In opposite to gpmi_nand_init_hw, release all acquired resources
+ * In opposite to gpmi_nand_init_hw, release all acquired resources.
  */
 static void gpmi_nand_release_hw(struct platform_device *pdev)
 {
@@ -284,6 +395,11 @@ static void gpmi_nand_release_hw(struct platform_device *pdev)
 	gpd->pinmux(0);
 }
 
+/**
+ * gpmi_dma_is_error -
+ *
+ * @g:  Per-device data structure.
+ */
 static int gpmi_dma_is_error(struct gpmi_nand_data *g)
 {
 	/* u32 n = __raw_readl(g->dma_ch); */
@@ -301,9 +417,10 @@ static int gpmi_dma_is_error(struct gpmi_nand_data *g)
 }
 
 /**
- * gpmi_dma_exchange - run DMA to exchange with NAND chip
+ * gpmi_dma_exchange - Run DMA to exchange with NAND chip
  *
- * @g: structure associated with NAND chip
+ * @g:  Per-device data structure.
+ * @d:  DMA descriptor.
  *
  * Run DMA and wait for completion
  */
@@ -353,7 +470,7 @@ static int gpmi_dma_exchange(struct gpmi_nand_data *g,
 }
 
 /**
- * gpmi_ecc_read_page - replacement for nand_read_page
+ * gpmi_ecc_read_page - Replacement for nand_read_page
  *
  * @mtd:	mtd info structure
  * @chip:	nand chip info structure
@@ -424,6 +541,12 @@ static int gpmi_ecc_read_page(struct mtd_info *mtd, struct nand_chip *chip,
 	return err;
 }
 
+/**
+ * is_ff - Checks if all the bits in a buffer are set.
+ *
+ * @buffer:  The buffer of interest.
+ * @size:    The size of the buffer.
+ */
 static inline int is_ff(const u8 * buffer, size_t size)
 {
 	while (size--) {
@@ -520,7 +643,7 @@ static void gpmi_write_buf(struct mtd_info *mtd, const uint8_t * buf, int len)
 		copies++;
 	}
 
-	/* write plain data */
+	/* Write plain data */
 	chain->command->cmd =
 	    BF(len, APBH_CHn_CMD_XFER_COUNT) |
 	    BF(4, APBH_CHn_CMD_CMDWORDS) |
@@ -641,7 +764,7 @@ static u8 gpmi_read_byte(struct mtd_info *mtd)
 
 /**
  * gpmi_read_word - replacement for nand_read_word
- * @mtd: MTD device
+ * @mtd:  The owning MTD.
  *
  * Uses gpmi_read_buf to read 2 bytes from device
  */
@@ -654,7 +777,17 @@ static u16 gpmi_read_word(struct mtd_info *mtd)
 }
 
 /**
- * gpmi_erase - erase a block and update BBT table
+ * gpmi_erase - Hook for erase operations at the MTD level.
+ *
+ * We install this function in the "erase" function pointer of the owning
+ * struct mtd_info. Thus, this function will get called *instead* of the
+ * function that the NAND Flash MTD system installed (see nand_erase()).
+ *
+ * We do this because, if an erase operation fails, then the block should be
+ * marked bad. Unfortunately, the NAND Flash MTD code doesn't do this. Since
+ * we've "hooked" the call, we can "override" the base NAND Flash MTD behavior
+ * and make sure the proper marking gets done before we return to the
+ * original caller.
  *
  * @mtd: MTD device
  * @instr: erase instruction
@@ -683,9 +816,13 @@ int gpmi_erase(struct mtd_info *mtd, struct erase_info *instr)
 }
 
 /**
- * gpmi_dev_ready - poll the RDY pin
+ * gpmi_dev_ready - Wait until the medium is ready.
  *
- * @mtd: MTD device
+ * This function is supposed to return the instantaneous state of the medium.
+ * Instead, it actually waits for the medium to be ready. This is mostly
+ * harmless, but isn't actually correct.
+ *
+ * @mtd:  The owning MTD.
  */
 static int gpmi_dev_ready(struct mtd_info *mtd)
 {
@@ -721,11 +858,20 @@ static int gpmi_dev_ready(struct mtd_info *mtd)
 }
 
 /**
- * gpmi_hwcontrol - set command/address byte to the device
+ * gpmi_hwcontrol - Send command/address byte to the NAND Flash.
  *
- * @mtd: MTD device
- * @cmd: command byte
- * @ctrl: control flags
+ * This is the function that we install in the cmd_ctrl function pointer of the
+ * owning struct nand_chip. The only functions in the reference implementation
+ * that use these functions pointers are cmdfunc and select_chip.
+ *
+ * In this driver, we implement our own select_chip, so this function will only
+ * be called by the reference implementation's cmdfunc. For this reason, we can
+ * ignore the chip enable bit and concentrate only on sending bytes to the
+ * NAND Flash.
+ *
+ * @mtd:   The owning MTD.
+ * @cmd:   The command byte.
+ * @ctrl:  Control flags.
  */
 static void gpmi_hwcontrol(struct mtd_info *mtd, int cmd, unsigned int ctrl)
 {
@@ -734,11 +880,29 @@ static void gpmi_hwcontrol(struct mtd_info *mtd, int cmd, unsigned int ctrl)
 	struct stmp3xxx_dma_descriptor *chain = g->cchip->d;
 	int ret;
 
+	/*
+	 * Every operation begins with a series of command and address bytes,
+	 * which are distinguished by either the Address Latch Enable (ALE) or
+	 * Command Latch Enable (CLE) being asserted. Finally, when the caller
+	 * is actually ready to execute the command, he will deassert both latch
+	 * enables.
+	 *
+	 * Rather than run a separate DMA operation for every single byte, we
+	 * queue them up and run a single DMA operation for the entire series
+	 * of command and data bytes.
+	 */
+
 	if ((ctrl & (NAND_ALE | NAND_CLE))) {
 		if (cmd != NAND_CMD_NONE)
 			g->cmd_buffer[g->cmd_buffer_sz++] = cmd;
 		return;
 	}
+
+	/*
+	 * If control arrives here, the caller has deasserted both the ALE and
+	 * CLE, which means he's ready to run an operation. Check if we actually
+	 * have any bytes to send.
+	 */
 
 	if (g->cmd_buffer_sz == 0)
 		return;
@@ -1042,7 +1206,7 @@ static int gpmi_ecc_write_oob(struct mtd_info *mtd, struct nand_chip *chip,
 /**
  * gpmi_irq - IRQ handler
  *
- * @irq:	irq no
+ * @irq:	Interrupt number.
  * @context:	IRQ context, pointer to gpmi_nand_data
  */
 static irqreturn_t gpmi_irq(int irq, void *context)
@@ -1058,6 +1222,12 @@ static irqreturn_t gpmi_irq(int irq, void *context)
 	return IRQ_HANDLED;
 }
 
+/**
+ * gpmi_select_chip() - NAND Flash MTD Interface select_chip()
+ *
+ * @mtd:     A pointer to the owning MTD.
+ * @chipnr:  The chip number to select, or -1 to select no chip.
+ */
 static void gpmi_select_chip(struct mtd_info *mtd, int chipnr)
 {
 	struct nand_chip *chip = mtd->priv;
@@ -1075,6 +1245,19 @@ static void gpmi_select_chip(struct mtd_info *mtd, int chipnr)
 	g->cchip = g->chips + chipnr;
 }
 
+/**
+ * gpmi_command() - NAND Flash MTD Interface cmdfunc()
+ *
+ * This function is a veneer that calls the function originally installed by the
+ * NAND Flash MTD code.
+ *
+ * @mtd:       A pointer to the owning MTD.
+ * @command:   The command code.
+ * @column:    The column address associated with this command code, or -1 if
+ *             no column address applies.
+ * @page_addr: The page address associated with this command code, or -1 if no
+ *             page address applies.
+ */
 static void gpmi_command(struct mtd_info *mtd, unsigned int command,
 			 int column, int page_addr)
 {
@@ -1084,6 +1267,16 @@ static void gpmi_command(struct mtd_info *mtd, unsigned int command,
 	g->saved_command(mtd, command, column, page_addr);
 }
 
+/**
+ * gpmi_read_oob() - MTD Interface read_oob().
+ *
+ * This function is a veneer that replaces the function originally installed by
+ * the NAND Flash MTD code.
+ *
+ * @mtd:   A pointer to the MTD.
+ * @from:  The starting address to read.
+ * @ops:   Describes the operation.
+ */
 static int gpmi_read_oob(struct mtd_info *mtd, loff_t from,
 			 struct mtd_oob_ops *ops)
 {
@@ -1097,6 +1290,16 @@ static int gpmi_read_oob(struct mtd_info *mtd, loff_t from,
 	return ret;
 }
 
+/**
+ * gpmi_read_oob() - MTD Interface write_oob().
+ *
+ * This function is a veneer that replaces the function originally installed by
+ * the NAND Flash MTD code.
+ *
+ * @mtd:   A pointer to the MTD.
+ * @to:    The starting address to write.
+ * @ops:   Describes the operation.
+ */
 static int gpmi_write_oob(struct mtd_info *mtd, loff_t to,
 			  struct mtd_oob_ops *ops)
 {
@@ -1111,7 +1314,12 @@ static int gpmi_write_oob(struct mtd_info *mtd, loff_t to,
 }
 
 /**
- * perform the needed steps between nand_scan_ident and nand_scan_tail
+ * gpmi_scan_middle - Intermediate initialization.
+ *
+ * @g:  Per-device data structure.
+ *
+ * Rather than call nand_scan(), this function makes the same calls, but
+ * inserts this function into the initialization pathway.
  */
 static int gpmi_scan_middle(struct gpmi_nand_data *g)
 {
@@ -1123,7 +1331,15 @@ static int gpmi_scan_middle(struct gpmi_nand_data *g)
 		g->chip.chipsize = do_div(g->mtd.size, g->chip.numchips);
 	}
 
+	/*
+	 * In all currently-supported geometries, the number of ECC bytes that
+	 * apply to the OOB bytes is the same.
+	 */
+
 	g->ecc_oob_bytes = 9;
+
+	/* Look at the page size and configure appropriately. */
+
 	switch (g->mtd.writesize) {
 	case 2048:		/* 2K page */
 		g->chip.ecc.layout = &gpmi_oob_64;
@@ -1157,19 +1373,31 @@ static int gpmi_scan_middle(struct gpmi_nand_data *g)
 		return -ERANGE;
 	}
 
+	/*
+	 * Hook the command function provided by the reference implementation.
+	 * This has to be done here, rather than at initialization time, because
+	 * the NAND Flash MTD installed the reference implementation only just
+	 * now.
+	 */
+
 	g->saved_command = g->chip.cmdfunc;
 	g->chip.cmdfunc = gpmi_command;
+
+	/* Install the ECC. */
 
 	if (oobsize > 0) {
 		g->mtd.oobsize = oobsize;
 		/* otherwise error; oobsize should be set
 		   in valid cases */
-		g->hc = gpmi_hwecc_chip_find("ecc8");
+		g->hc = gpmi_ecc_find("ecc8");
 		g->hc->setup(g->hc, 0, g->mtd.writesize, g->mtd.oobsize);
 		return 0;
 	}
 
+	/* If control arrives here, something has gone wrong. */
+
 	return -ENXIO;
+
 }
 
 /**
@@ -1308,6 +1536,14 @@ static void gpmi_write_page_raw(struct mtd_info *mtd, struct nand_chip *chip,
 	chip->write_buf(mtd, chip->oob_poi, mtd->oobsize);
 }
 
+/**
+ * gpmi_init_chip - Sets up the driver to control the given chip.
+ *
+ * @pdev:    A pointer to the owning struct platform_device.
+ * @g:       Per-device data.
+ * @n:       The chip number.
+ * @dma_ch:  The DMA channel to use with this chip.
+ */
 static int gpmi_init_chip(struct platform_device *pdev,
 			  struct gpmi_nand_data *g, int n, unsigned dma_ch)
 {
@@ -1343,6 +1579,13 @@ out_all:
 	return err;
 }
 
+/**
+ * gpmi_deinit_chip - Tears down this driver's control of the given chip.
+ *
+ * @pdev:    A pointer to the owning struct platform_device.
+ * @g:       Per-device data.
+ * @n:       The chip number.
+ */
 static void gpmi_deinit_chip(struct platform_device *pdev,
 			     struct gpmi_nand_data *g, int n)
 {
@@ -1364,33 +1607,43 @@ static void gpmi_deinit_chip(struct platform_device *pdev,
 	stmp3xxx_dma_release(dma_ch);
 }
 
-#if 0
-static int gpmi_to_concat(struct mtd_partition *part, char **list)
-{
-	while (list && *list) {
-		if (strcmp(part->name, *list) == 0) {
-			pr_debug("Partition '%s' will be concatenated\n",
-				 part->name);
-			return true;
-		}
-		list++;
-	}
-	pr_debug("Partition '%s' is left as-is", part->name);
-	return false;
-}
-#endif
-
+/**
+ * gpmi_create_partitions - Create platform-driven partitions.
+ *
+ * This function creates partitions based on the platform data.
+ *
+ * @g:         Per-device data.
+ * @gpd:       Per-device platform data.
+ * @chipsize:  The size of a single, physical chip in bytes.
+ */
 static void gpmi_create_partitions(struct gpmi_nand_data *g,
 				   struct gpmi_platform_data *gpd,
 				   uint64_t chipsize)
 {
+
 #ifdef CONFIG_MTD_PARTITIONS
 	int chip, p;
 	char chipname[20];
 
+	/*
+	 * We have a single MTD now that represents the entire medium. We want
+	 * an MTD for each physical chip in the medium.
+	 *
+	 * If there's only one chip, then we can simply use the medium MTD.
+	 *
+	 * If there are multiple chips, we need to create partition MTDs that
+	 * represent the subsets of the medium occupied by each physical chip.
+	 */
+
 	if (g->numchips == 1)
-		g->masters[0] = &g->mtd;
+		g->chip_mtds[0] = &g->mtd;
 	else {
+
+		/*
+		 * Construct an array of partition descriptions, one for each
+		 * physical chip.
+		 */
+
 		for (chip = 0; chip < g->numchips; chip++) {
 			memset(g->chip_partitions + chip,
 			       0, sizeof(g->chip_partitions[chip]));
@@ -1402,23 +1655,68 @@ static void gpmi_create_partitions(struct gpmi_nand_data *g,
 			g->chip_partitions[chip].offset = chipsize * chip;
 			g->chip_partitions[chip].mask_flags = 0;
 		}
+
+		/*
+		 * Derive a partition MTD for each physical chip.
+		 *
+		 * This function will register each partition MTD it creates
+		 * that doesn't have the corresponding "mtdp" field set. Since
+		 * we've explicitly set the "mtdp" field for each, *none* of
+		 * these partitions will be registered.
+		 */
+
 		add_mtd_partitions(&g->mtd, g->chip_partitions, g->numchips);
+
 	}
+
 	g->n_concat = 0;
 	memset(g->concat, 0, sizeof(g->concat));
+
+	/*
+	 * Loop over physical chips, handling sub-partitions for each in turn.
+	 */
+
 	for (chip = 0; chip < g->numchips; chip++) {
+
+		/*
+		 * If the module parameter "add_mtd_chip" is set, then we want
+		 * to register the partition MTD we made for this chip. Among
+		 * other things, this will make it visible to user space.
+		 */
+
 		if (add_mtd_chip) {
-			printk(KERN_NOTICE "Adding MTD for the chip %d\n",
+			printk(KERN_NOTICE "Registering an MTD for chip %d\n",
 			       chip);
-			add_mtd_device(g->masters[chip]);
+			add_mtd_device(g->chip_mtds[chip]);
 		}
-		if (chip >= gpd->items)
+
+		/*
+		 * Check if the platform data includes partition descriptions
+		 * for this chip. If not, move to the next one.
+		 */
+
+		if (chip >= gpd->chip_count)
 			continue;
-		add_mtd_partitions(g->masters[chip],
-				   gpd->parts[chip].partitions,
-				   gpd->parts[chip].nr_partitions);
+
+		/*
+		 * If control arrives here, the platform data includes
+		 * partition descriptions for this chip. Loop over all the
+		 * partition descriptions for this chip, checking if any appear
+		 * on the list to be concatenated.
+		 *
+		 * For each partition that is to be concatenated, set its "mtdp"
+		 * pointer such that the new MTD will be added to an array
+		 * rather than registered in the public MTD list. Later, after
+		 * we've concatenated all these MTDs, we will register the
+		 * final result.
+		 */
+
+		add_mtd_partitions(g->chip_mtds[chip],
+				   gpd->chip_partitions[chip].partitions,
+				   gpd->chip_partitions[chip].nr_partitions);
 	}
 	if (g->n_concat > 0) {
+
 #ifdef CONFIG_MTD_CONCAT
 		if (g->n_concat == 1)
 #endif
@@ -1434,38 +1732,115 @@ static void gpmi_create_partitions(struct gpmi_nand_data *g,
 		}
 #endif
 	}
+
+	/*
+	 * Set a flag in the per-device data structure to show that that we
+	 * created custom partitions. This is important because, when we need
+	 * to disassemble them, we need to be aware of how we created them.
+	 */
+
 	g->custom_partitions = true;
+
 #endif
+
 }
 
+/**
+ * gpmi_delete_partitions - Remove the partitions created by this driver.
+ *
+ * @g:  The per-device data structure.
+ */
 static void gpmi_delete_partitions(struct gpmi_nand_data *g)
 {
+
+	/*
+	 * First, check if MTD partitioning is even available. If not, then
+	 * we don't have to do any special work.
+	 */
+
 #ifdef CONFIG_MTD_PARTITIONS
 	int chip, p;
 
+	/*
+	 * If control arrives here, MTD partitioning is available. But, if we
+	 * didn't construct any custom partitions, then we don't have to do any
+	 * special work.
+	 */
+
 	if (!g->custom_partitions)
 		return;
+
 #ifdef CONFIG_MTD_CONCAT
+
+	/*
+	 * If control arrives here, we constructed some custom partitions, and
+	 * we have to disassemble them carefully.
+	 *
+	 * If we concatenated any MTDs, delete the synthetic MTD first.
+	 */
+
 	if (g->concat_mtd)
 		del_mtd_device(g->concat_mtd);
+
+	/*
+	 * Check if we concatenated any partitions, which now must be
+	 * disassembled.
+	 *
+	 * This process is complicated by the fact that MTD concatenation may or
+	 * may not be available. Here are the cases:
+	 *
+	 * * If concatenation is not available:
+	 *
+	 *     * De-register all the partition MTDs that would have been
+	 *       concatenated.
+	 *
+	 * * If concatenation is available:
+	 *
+	 *     * If there is only one partition:
+	 *
+	 *         * De-register that one partition MTD.
+	 */
+
 	if (g->n_concat == 1)
 #endif
 		for (p = 0; p < g->n_concat; p++)
 			del_mtd_device(g->concat[p]);
 
+	/* Handle the partitions related to each physical chip. */
+
 	for (chip = 0; chip < g->numchips; chip++) {
-		del_mtd_partitions(g->masters[chip]);
+
+		/*
+		 * De-register and destroy any partition MTDs that may have been
+		 * derived from the MTD that represents this chip.
+		 */
+
+		del_mtd_partitions(g->chip_mtds[chip]);
+
+		/*
+		 * If the module variable 'add_mtd_chip' is set, then we
+		 * registered the MTD that represents this chip. De-register it
+		 * now.
+		 */
+
 		if (add_mtd_chip)
-			del_mtd_device(g->masters[chip]);
+			del_mtd_device(g->chip_mtds[chip]);
+
+		/*
+		 * Free the memory we used to hold the name of the MTD that
+		 * represented this chip.
+		 */
+
 		kfree(g->chip_partitions[chip].name);
+
 	}
 #endif
 }
 
 /**
- * gpmi_nand_probe - probe for the GPMI device
+ * gpmi_nand_probe - Probes for a GPMI device and, if possible, takes ownership.
  *
- * Probe for GPMI device and discover NAND chips
+ * @pdev:  A pointer to the platform device.
  */
 static int __init gpmi_nand_probe(struct platform_device *pdev)
 {
@@ -1477,7 +1852,7 @@ static int __init gpmi_nand_probe(struct platform_device *pdev)
 	int dma;
 	unsigned long long chipsize;
 
-	/* Allocate memory for the device structure (and zero it) */
+	/* Allocate memory for the per-device structure (and zero it). */
 	g = kzalloc(sizeof(*g), GFP_KERNEL);
 	if (!g) {
 		dev_err(&pdev->dev, "failed to allocate gpmi_nand_data\n");
@@ -1569,63 +1944,145 @@ static int __init gpmi_nand_probe(struct platform_device *pdev)
 	g->selected_chip = -1;
 	g->ignorebad = ignorebad;	/* copy global setting */
 
+	/* Initialize the MTD object. */
+
 	g->mtd.priv = &g->chip;
 	g->mtd.name = dev_name(&pdev->dev);
 	g->mtd.owner = THIS_MODULE;
 
+	/*
+	 * Signal Control
+	 */
+
 	g->chip.cmd_ctrl = gpmi_hwcontrol;
-	g->chip.read_word = gpmi_read_word;
-	g->chip.read_byte = gpmi_read_byte;
-	g->chip.read_buf = gpmi_read_buf;
-	g->chip.write_buf = gpmi_write_buf;
+
+	/*
+	 * Chip Control
+	 *
+	 * The cmdfunc pointer is assigned elsewhere.
+	 * We use the reference implementation of waitfunc.
+	 */
+
+	g->chip.dev_ready   = gpmi_dev_ready;
 	g->chip.select_chip = gpmi_select_chip;
+
+	/*
+	 * Low-level I/O
+	 */
+
+	g->chip.read_byte  = gpmi_read_byte;
+	g->chip.read_word  = gpmi_read_word;
+	g->chip.read_buf   = gpmi_read_buf;
+	g->chip.write_buf  = gpmi_write_buf;
 	g->chip.verify_buf = gpmi_verify_buf;
-	g->chip.dev_ready = gpmi_dev_ready;
 
-	g->chip.ecc.mode = NAND_ECC_HW_SYNDROME;
-	g->chip.ecc.write_oob = gpmi_ecc_write_oob;
-	g->chip.ecc.read_oob = gpmi_ecc_read_oob;
-	g->chip.ecc.write_page = gpmi_ecc_write_page;
-	g->chip.ecc.read_page = gpmi_ecc_read_page;
-	g->chip.ecc.read_page_raw = gpmi_read_page_raw;
+	/*
+	 * ECC Control
+	 *
+	 * None of these functions are necessary:
+	 *     - ecc.hwctl
+	 *     - ecc.calculate
+	 *     - ecc.correct
+	 */
+
+	/*
+	 * ECC-aware I/O
+	 */
+
+	g->chip.ecc.read_page      = gpmi_ecc_read_page;
+	g->chip.ecc.read_page_raw  = gpmi_read_page_raw;
+	g->chip.ecc.write_page     = gpmi_ecc_write_page;
 	g->chip.ecc.write_page_raw = gpmi_write_page_raw;
-	g->chip.ecc.size = 512;
 
-	g->chip.write_page = gpmi_write_page;
+	/*
+	 * High-level I/O
+	 *
+	 * This driver doesn't assign the erase_cmd pointer at the NAND Flash
+	 * chip level. Instead, it intercepts the erase operation at the MTD
+	 * level (see the assignment to mtd.erase below).
+	 */
 
-	g->chip.scan_bbt = gpmi_scan_bbt;
+	g->chip.write_page    = gpmi_write_page;
+	g->chip.ecc.read_oob  = gpmi_ecc_read_oob;
+	g->chip.ecc.write_oob = gpmi_ecc_write_oob;
+
+	/*
+	 * Bad Block Management
+	 *
+	 * We use the reference implementation of block_markbad.
+	 */
+
 	g->chip.block_bad = gpmi_block_bad;
+	g->chip.scan_bbt  = gpmi_scan_bbt;
 
-	g->cmd_buffer_sz = 0;
+	g->chip.ecc.mode  = NAND_ECC_HW_SYNDROME;
+	g->chip.ecc.size  = 512;
 
-	/* first scan to find the device and get the page size */
+	g->cmd_buffer_sz  = 0;
+
+	/*
+	 * At this point, most drivers would call nand_scan(). Instead, this
+	 * driver directly performs most of the same operations nand_scan()
+	 * would, and introduces more initialization work in the "middle."
+	 */
+
 	if (nand_scan_ident(&g->mtd, max_chips)
-	    || gpmi_scan_middle(g)
-	    || nand_scan_tail(&g->mtd)) {
-		dev_err(&pdev->dev, "No NAND found\n");
+		    || gpmi_scan_middle(g)
+		    || nand_scan_tail(&g->mtd)) {
+		dev_err(&pdev->dev, "No NAND Flash chips found\n");
 		/* errors found on some step */
 		goto out7;
 	}
 
-	g->chip.options |= NAND_NO_SUBPAGE_WRITE;
-	g->chip.subpagesize = g->mtd.writesize;
-	g->mtd.subpage_sft = 0;
+	/* Completely disallow partial page writes. */
+
+	g->chip.options     |= NAND_NO_SUBPAGE_WRITE;
+	g->chip.subpagesize  = g->mtd.writesize;
+	g->mtd.subpage_sft   = 0;
+
+	/* Hook erase operations at the MTD level. */
 
 	g->mtd.erase = gpmi_erase;
 
-	g->saved_read_oob = g->mtd.read_oob;
+	/* Hook OOB read and write operations at the MTD level. */
+
+	g->saved_read_oob  = g->mtd.read_oob;
 	g->saved_write_oob = g->mtd.write_oob;
-	g->mtd.read_oob = gpmi_read_oob;
-	g->mtd.write_oob = gpmi_write_oob;
+	g->mtd.read_oob    = gpmi_read_oob;
+	g->mtd.write_oob   = gpmi_write_oob;
 
 #ifdef CONFIG_MTD_PARTITIONS
+
+	/*
+	 * Check if we got any information about the platform. If not, then we
+	 * have no guidance about how to set up MTD partitions, so we should
+	 * just leave now.
+	 */
+
 	if (gpd == NULL)
 		goto out_all;
 
-	if (gpd->parts[0].part_probe_types) {
+	/*
+	 * Check if the platform has specified a list of partition description
+	 * parsers. If so, look for partitioning information from the parsers
+	 * associated with the *first* partition set. We ignore any parsers
+	 * attached to the second partition set (which makes having them rather
+	 * silly, doesn't it?).
+	 *
+	 * Notice that any discovered partitions are recorded in the per-device
+	 * data.
+	 *
+	 * Notice that, if the parsers find some partitions, we set the
+	 * partition type to "command line". This isn't strictly accurate
+	 * because we don't know which parsers were used, so we don't know if
+	 * these partitions are *really* coming from a command line.
+	 */
+
+	if (gpd->chip_partitions[0].part_probe_types) {
 		g->nr_parts = parse_mtd_partitions(&g->mtd,
-						   gpd->parts[0].
-						   part_probe_types, &g->parts,
+						   gpd->chip_partitions[0].
+						   part_probe_types,
+						   &g->chip_partitions,
 						   0);
 		if (g->nr_parts > 0)
 			part_type = "command line";
@@ -1633,11 +2090,23 @@ static int __init gpmi_nand_probe(struct platform_device *pdev)
 			g->nr_parts = 0;
 	}
 
-	if (g->nr_parts == 0 && gpd->parts[0].partitions) {
-		g->parts = gpd->parts[0].partitions;
-		g->nr_parts = gpd->parts[0].nr_partitions;
+	/*
+	 * If no partition descriptions have been discovered, but the platform
+	 * data has partitions for us, then adopt the partitions that came from
+	 * the platform.
+	 */
+
+	if (g->nr_parts == 0 && gpd->chip_partitions[0].partitions) {
+		g->parts = gpd->chip_partitions[0].partitions;
+		g->nr_parts = gpd->chip_partitions[0].nr_partitions;
 		part_type = "static";
 	}
+
+	/*
+	 * At this point, we should have partition information either from the
+	 * a parser or the platform. If we have nothing yet, then forget the
+	 * whole partitioning thing.
+	 */
 
 	if (g->nr_parts == 0) {
 		dev_err(&pdev->dev, "Neither part_probe_types nor "
@@ -1645,29 +2114,79 @@ static int __init gpmi_nand_probe(struct platform_device *pdev)
 		goto out_all;
 	}
 
+	/*
+	 * If control arrives here, we have some partitions to use. Announce
+	 * what we've found.
+	 */
+
 	dev_info(&pdev->dev, "Using %s partition definition\n", part_type);
 
+	/*
+	 * Transcribe the number of chips discovered by the scan to the
+	 * per-device data structure. This assignment should NOT happen here,
+	 * because it's conditional on whether partitioning is on.
+	 */
+
 	g->numchips = g->chip.numchips;
+
+	/*
+	 * Compute the number of bytes per chip by taking the size of the entire
+	 * medium and dividing by the number of chips.
+	 */
+
 	chipsize = g->mtd.size;
 	do_div(chipsize, (unsigned long)g->numchips);
 
+	/*
+	 * Check if the partitions we're using came from a parser (in which case
+	 * they should be used as-is), or came from the platform data (in which
+	 * case we have some special processing we like to do).
+	 */
+
 	if (!strcmp(part_type, "command line"))
-		add_mtd_partitions(&g->mtd, g->parts, g->nr_parts);
+		add_mtd_partitions(&g->mtd, g->chip_partitions, g->nr_parts);
 	else
 		gpmi_create_partitions(g, gpd, chipsize);
+
+	/*
+	 * Check if we're supposed to register the MTD that represents the
+	 * entire medium.
+	 */
 
 	if (add_mtd_entire) {
 		printk(KERN_NOTICE "Adding MTD covering the whole flash\n");
 		add_mtd_device(&g->mtd);
 	}
+
 #else
+
+	/*
+	 * If control arrives here, the MTD partitioning facility isn't
+	 * available. We just register the MTD that represents the entire
+	 * medium.
+	 */
+
 	add_mtd_device(&g->mtd);
+
 #endif
+
+	/* Initialize the Unique ID facility. */
+
 	gpmi_uid_init("nand", &g->mtd, gpd->uid_offset, gpd->uid_size);
+
+	/*
+	 * Check if we should export sysfs entries.
+	 *
+	 * This configuration variable should be destroyed, and this driver
+	 * should *always* create the sysfs entries.
+	 */
 
 #ifdef CONFIG_MTD_NAND_GPMI_SYSFS_ENTRIES
 	gpmi_sysfs(pdev, true);
 #endif
+
+	/* If control arrives here, everything worked. Return success. */
+
 	return 0;
 
 out_all:
@@ -1693,8 +2212,9 @@ out1:
 }
 
 /**
- * gpmi_nand_remove - remove a GPMI device
+ * gpmi_nand_remove - Dissociates this driver from the given device.
  *
+ * @pdev:  A pointer to the platform device.
  */
 static int __devexit gpmi_nand_remove(struct platform_device *pdev)
 {
@@ -1708,9 +2228,11 @@ static int __devexit gpmi_nand_remove(struct platform_device *pdev)
 	gpmi_delete_partitions(g);
 	del_timer_sync(&g->timer);
 	gpmi_uid_remove("nand");
+
 #ifdef CONFIG_MTD_NAND_GPMI_SYSFS_ENTRIES
 	gpmi_sysfs(pdev, false);
 #endif
+
 	nand_release(&g->mtd);
 	gpmi_free_buffers(pdev, g);
 	gpmi_deinit_chip(pdev, g, -1);
@@ -1720,13 +2242,14 @@ static int __devexit gpmi_nand_remove(struct platform_device *pdev)
 		regulator_put(g->regulator);
 
 #ifdef CONFIG_MTD_PARTITIONS
-	if (i < gpd->items && gpd->parts[i].partitions)
-		platf_parts = gpd->parts[i].partitions;
+	if (i < gpd->chip_count && gpd->chip_partitions[i].partitions)
+		platf_parts = gpd->chip_partitions[i].partitions;
 	else
 		platf_parts = NULL;
-	if (g->parts && g->parts != platf_parts)
-		kfree(g->parts);
+	if (g->chip_partitions && g->chip_partitions != platf_parts)
+		kfree(g->chip_partitions);
 #endif
+
 	iounmap(g->io_base);
 	kfree(g);
 
@@ -1734,40 +2257,87 @@ static int __devexit gpmi_nand_remove(struct platform_device *pdev)
 }
 
 #ifdef CONFIG_PM
+
+/**
+ * gpmi_nand_suspend() - Suspends this driver.
+ *
+ * @pdev:  A pointer to the owning struct platform_device.
+ * @pm:    For future use, currently unused.
+ */
 static int gpmi_nand_suspend(struct platform_device *pdev, pm_message_t pm)
 {
 	struct gpmi_nand_data *g = platform_get_drvdata(pdev);
 	int r = 0;
 
+	/* If the driver suspended itself due to inactivity, wake it up. */
+
 	if (g->self_suspended)
 		gpmi_self_wakeup(g);
+
+	/* Deactivate the inactivity timer. */
+
 	del_timer_sync(&g->timer);
+
+	/*
+	 * Suspend MTD's use of this device and, if that works, then shut down
+	 * the actual hardware.
+	 */
 
 	r = g->mtd.suspend(&g->mtd);
 	if (r == 0)
 		gpmi_nand_release_hw(pdev);
 
 	return r;
+
 }
 
+/**
+ * gpmi_nand_resume() - Resumes this driver from suspend.
+ *
+ * @pdev:  A pointer to the owning struct platform_device.
+ */
 static int gpmi_nand_resume(struct platform_device *pdev)
 {
 	struct gpmi_nand_data *g = platform_get_drvdata(pdev);
 	int r;
 
+	/*
+	 * Spin up the hardware.
+	 *
+	 * Unfortunately, this code ignores the result of hardware
+	 * initialization and spins up the driver unconditionally.
+	 */
+
 	r = gpmi_nand_init_hw(pdev, 1);
 	gpmi_set_timings(pdev, &g->timing);
+
+	/* Tell MTD it can use this device again. */
+
 	g->mtd.resume(&g->mtd);
+
+	/* Re-instate the inactivity timer. */
+
 	g->timer.expires = jiffies + 4 * HZ;
 	add_timer(&g->timer);
+
 	return r;
+
 }
+
 #else
 #define gpmi_nand_suspend	NULL
 #define gpmi_nand_resume	NULL
 #endif
 
 #ifdef CONFIG_MTD_NAND_GPMI_SYSFS_ENTRIES
+
+/**
+ * show_timings() - Shows the current NAND Flash timing.
+ *
+ * @d:     The device of interest.
+ * @attr:  The attribute of interest.
+ * @buf:   A buffer that will receive a representation of the attribute.
+ */
 static ssize_t show_timings(struct device *d, struct device_attribute *attr,
 			    char *buf)
 {
@@ -1781,6 +2351,14 @@ static ssize_t show_timings(struct device *d, struct device_attribute *attr,
 		       ptm->address_setup, ptm->dsample_time);
 }
 
+/**
+ * store_timings() - Sets the current NAND Flash timing.
+ *
+ * @dev:   The device of interest.
+ * @attr:  The attribute of interest.
+ * @buf:   A buffer containing a new attribute value.
+ * @size:  The size of the buffer.
+ */
 static ssize_t store_timings(struct device *d, struct device_attribute *attr,
 			     const char *buf, size_t size)
 {
@@ -1829,12 +2407,26 @@ static ssize_t store_timings(struct device *d, struct device_attribute *attr,
 	return size;
 }
 
+/**
+ * show_stat() - Shows current statistics.
+ *
+ * @d:     The device of interest.
+ * @attr:  The attribute of interest.
+ * @buf:   A buffer that will receive a representation of the attribute.
+ */
 static ssize_t show_stat(struct device *d, struct device_attribute *attr,
 			 char *buf)
 {
 	return sprintf(buf, "copies\t\t%dff pages\t%d\n", copies, ff_writes);
 }
 
+/**
+ * show_chips() - Shows the number of physical chips that were discovered.
+ *
+ * @d:     The device of interest.
+ * @attr:  The attribute of interest.
+ * @buf:   A buffer that will receive a representation of the attribute.
+ */
 static ssize_t show_chips(struct device *d, struct device_attribute *attr,
 			  char *buf)
 {
@@ -1842,6 +2434,13 @@ static ssize_t show_chips(struct device *d, struct device_attribute *attr,
 	return sprintf(buf, "%d\n", g->numchips);
 }
 
+/**
+ * show_ignorebad() - Shows the value of the 'ignorebad' flag.
+ *
+ * @d:     The device of interest.
+ * @attr:  The attribute of interest.
+ * @buf:   A buffer that will receive a representation of the attribute.
+ */
 static ssize_t show_ignorebad(struct device *d, struct device_attribute *attr,
 			      char *buf)
 {
@@ -1850,6 +2449,14 @@ static ssize_t show_ignorebad(struct device *d, struct device_attribute *attr,
 	return sprintf(buf, "%d\n", g->ignorebad);
 }
 
+/**
+ * store_ignorebad() - Sets the value of the 'ignorebad' flag.
+ *
+ * @dev:   The device of interest.
+ * @attr:  The attribute of interest.
+ * @buf:   A buffer containing a new attribute value.
+ * @size:  The size of the buffer.
+ */
 static ssize_t store_ignorebad(struct device *d, struct device_attribute *attr,
 			       const char *buf, size_t size)
 {
@@ -1887,6 +2494,12 @@ static struct device_attribute *gpmi_attrs[] = {
 	NULL,
 };
 
+/**
+ * gpmi_sysfs() - Creates or removes sysfs nodes.
+ *
+ * @pdev:    A pointer to the owning platform device.
+ * @create:  Indicates the nodes are to be created (otherwise, removed).
+ */
 int gpmi_sysfs(struct platform_device *pdev, int create)
 {
 	int err = 0;
@@ -1907,7 +2520,60 @@ int gpmi_sysfs(struct platform_device *pdev, int create)
 	}
 	return err;
 }
+
 #endif
+
+/*
+ * The global list of ECC descriptors.
+ *
+ * Each descriptor represents an ECC option that's available to the driver.
+ */
+
+static LIST_HEAD(gpmi_ecc_descriptor_list);
+
+/**
+ * gpmi_ecc_add() - Adds the given ECC descriptor.
+ *
+ * @name:  The name of interest.
+ */
+void gpmi_ecc_add(struct gpmi_ecc_descriptor *chip)
+{
+	list_add(&chip->list, &gpmi_ecc_descriptor_list);
+}
+EXPORT_SYMBOL_GPL(gpmi_ecc_add);
+
+/**
+ * gpmi_ecc_remove() - Removes an ECC descriptor with the given name.
+ *
+ * @name:  The name of interest.
+ */
+void gpmi_ecc_remove(struct gpmi_ecc_descriptor *chip)
+{
+	list_del(&chip->list);
+}
+EXPORT_SYMBOL_GPL(gpmi_ecc_remove);
+
+/**
+ * gpmi_ecc_find() - Tries to find an ECC descriptor with the given name.
+ *
+ * @name:  The name of interest.
+ */
+struct gpmi_ecc_descriptor *gpmi_ecc_find(char *name)
+{
+	struct gpmi_ecc_descriptor *c;
+
+	list_for_each_entry(c, &gpmi_ecc_descriptor_list, list)
+		if (strncmp(c->name, name, sizeof(c->name)) == 0)
+			return c;
+
+	return NULL;
+
+}
+EXPORT_SYMBOL_GPL(gpmi_ecc_find);
+
+/*
+ * This structure represents this driver to the platform management system.
+ */
 
 static struct platform_driver gpmi_nand_driver = {
 	.probe = gpmi_nand_probe,
@@ -1920,43 +2586,31 @@ static struct platform_driver gpmi_nand_driver = {
 	.resume = gpmi_nand_resume,
 };
 
-static LIST_HEAD(gpmi_hwecc_chips);
-
-void gpmi_hwecc_chip_add(struct gpmi_hwecc_chip *chip)
-{
-	list_add(&chip->list, &gpmi_hwecc_chips);
-}
-
-EXPORT_SYMBOL_GPL(gpmi_hwecc_chip_add);
-
-void gpmi_hwecc_chip_remove(struct gpmi_hwecc_chip *chip)
-{
-	list_del(&chip->list);
-}
-
-EXPORT_SYMBOL_GPL(gpmi_hwecc_chip_remove);
-
-struct gpmi_hwecc_chip *gpmi_hwecc_chip_find(char *name)
-{
-	struct gpmi_hwecc_chip *c;
-
-	list_for_each_entry(c, &gpmi_hwecc_chips, list)
-	    if (strncmp(c->name, name, sizeof(c->name)) == 0)
-		return c;
-	return NULL;
-}
-
-EXPORT_SYMBOL_GPL(gpmi_hwecc_chip_find);
-
 static int __init gpmi_nand_init(void)
 {
+	int  return_value;
+
+	pr_info("GPMI NAND Flash driver\n");
+
+	/* Initialize the BCH and ECC8 hardware blocks. */
+
 	bch_init();
 	ecc8_init();
-	return platform_driver_register(&gpmi_nand_driver);
+
+	/* Attempt to register this driver with the platform. */
+
+	return_value = platform_driver_register(&gpmi_nand_driver);
+
+	if (return_value)
+		pr_err("GPMI NAND Flash driver registration failed\n");
+
+	return return_value;
+
 }
 
 static void __exit gpmi_nand_exit(void)
 {
+	pr_info("GPMI NAND Flash driver exiting...\n");
 	platform_driver_unregister(&gpmi_nand_driver);
 }
 
@@ -1964,7 +2618,7 @@ module_init(gpmi_nand_init);
 module_exit(gpmi_nand_exit);
 MODULE_AUTHOR("dmitry pervushin <dimka@embeddedalley.com>");
 MODULE_LICENSE("GPL");
-MODULE_DESCRIPTION("GPMI NAND driver");
+MODULE_DESCRIPTION("GPMI NAND Flash driver");
 module_param(max_chips, int, 0400);
 module_param(clk, long, 0400);
 module_param(bch, int, 0600);

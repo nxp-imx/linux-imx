@@ -44,14 +44,28 @@ static int bch_read(void *context,
 static int bch_stat(void *ctx, int index, struct mtd_ecc_stats *r);
 static int bch_reset(void *context, int index);
 
+/**
+ * bch_state_t - Describes the state of the BCH ECC.
+ *
+ * @chip:       A descriptor the GPMI driver uses to track this ECC.
+ * @nands:      An array of elements, each of which represents a physical chip.
+ * @stat:       Used by the interrupt level to communicate ECC statistics to the
+ *              base level.
+ * @done:       A struct completion used to manage ECC interrupts.
+ * @writesize:  The page data size.
+ * @oobsize:    The page OOB size.
+ */
+
 struct bch_state_t {
-	struct gpmi_hwecc_chip chip;
+	struct gpmi_ecc_descriptor chip;
 	struct {
 		struct mtd_ecc_stats stat;
 		struct completion done;
 		u32 writesize, oobsize;
 	} nands[BCH_MAX_NANDS];
 };
+
+/* The singleton struct bch_state_t for the BCH ECC. */
 
 static struct bch_state_t state = {
 	.chip = {
@@ -63,6 +77,12 @@ static struct bch_state_t state = {
 	},
 };
 
+/**
+ * bch_reset - Resets the BCH.
+ *
+ * @context:  Context data -- a pointer to a struct bch_state_t.
+ * @index:    ??
+ */
 static int bch_reset(void *context, int index)
 {
 	stmp3xxx_reset_block(REGS_BCH_BASE, true);
@@ -70,6 +90,14 @@ static int bch_reset(void *context, int index)
 	return 0;
 }
 
+/**
+ * bch_stat - Gather statistics and clean up after a read operation.
+ *
+ * @context:  Context data -- a pointer to a struct bch_state_t.
+ * @index:    ??
+ * @r:        A statistics structure that will receive the results of the most
+ *            recent operation.
+ */
 static int bch_stat(void *context, int index, struct mtd_ecc_stats *r)
 {
 	struct bch_state_t *state = context;
@@ -80,6 +108,15 @@ static int bch_stat(void *context, int index, struct mtd_ecc_stats *r)
 	return 0;
 }
 
+/**
+ * bch_irq - Interrupt handler for the BCH hardware.
+ *
+ * This function gains control when the BCH hardware interrupts. It acknowledges
+ * the interrupt and gathers status information.
+ *
+ * @irq:      The interrupt number.
+ * @context:  Context data -- a pointer to a struct bch_state_t.
+ */
 static irqreturn_t bch_irq(int irq, void *context)
 {
 	u32 b0, s0;
@@ -116,12 +153,28 @@ static irqreturn_t bch_irq(int irq, void *context)
 	return IRQ_HANDLED;
 }
 
+/**
+ * bch_available - Returns whether the BCH hardware is available.
+ *
+ * @context:  Context data -- a pointer to a struct bch_state_t.
+ */
 static int bch_available(void *context)
 {
 	stmp3xxx_reset_block(REGS_BCH_BASE, 0);
 	return __raw_readl(REGS_BCH_BASE + HW_BCH_BLOCKNAME) == 0x20484342;
 }
 
+/**
+ * bch_setup - Set up BCH for use.
+ *
+ * If the GPMI driver decides to use this ECC, it will call this function once,
+ * before it starts any operations.
+ *
+ * @context:    Context data -- a pointer to a struct bch_state_t.
+ * @index:      ??
+ * @writesize:  The page data size.
+ * @oobsize:    The page OOB size.
+ */
 static int bch_setup(void *context, int index, int writesize, int oobsize)
 {
 	struct bch_state_t *state = context;
@@ -179,6 +232,18 @@ static int bch_setup(void *context, int index, int writesize, int oobsize)
 	return 0;
 }
 
+/**
+ * bch_read - Fill in a DMA chain to read a page.
+ *
+ * @context:  Context data -- a pointer to a struct bch_state_t.
+ * @cs:       The chip number to read.
+ * @chain:    The main descriptor of the DMA chain to fill.
+ * @error:    ??
+ * @page:     Physical address of the target page data buffer.
+ * @oob:      Physical address of the target OOB data buffer.
+ *
+ * Return: status of operation -- 0 on success
+ */
 static int bch_read(void *context,
 		int index,
 		struct stmp3xxx_dma_descriptor *chain,
@@ -271,13 +336,27 @@ static int bch_read(void *context,
 	return 0;
 }
 
+/**
+ * bch_init - Initialize and register ECC.
+ *
+ * The GPMI driver calls this function once, at the beginning of time, whether
+ * or not it decides to use this ECC.
+ */
 int __init bch_init(void)
 {
 	int err;
 
+	/* Check if the BCH hardware is available. */
+
 	if (!bch_available(&state.chip))
 		return -ENXIO;
-	gpmi_hwecc_chip_add(&state.chip);
+
+	/* Give the GPMI driver a descriptor. */
+
+	gpmi_ecc_add(&state.chip);
+
+	/* Attempt to acquire the BCH interrupt. */
+
 	err = request_irq(IRQ_BCH, bch_irq, 0, state.chip.name, &state);
 	if (err)
 		return err;
@@ -286,8 +365,11 @@ int __init bch_init(void)
 	return 0;
 }
 
+/**
+ * bch_exit - Shut down and de-register ECC.
+ */
 void bch_exit(void)
 {
 	free_irq(IRQ_BCH, &state);
-	gpmi_hwecc_chip_remove(&state.chip);
+	gpmi_ecc_remove(&state.chip);
 }

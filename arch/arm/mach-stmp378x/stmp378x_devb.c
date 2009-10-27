@@ -3,7 +3,7 @@
  *
  * Embedded Alley Solutions, Inc <source@embeddedalley.com>
  *
- * Copyright 2008 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2009 Freescale Semiconductor, Inc. All Rights Reserved.
  * Copyright 2008 Embedded Alley Solutions, Inc All Rights Reserved.
  */
 
@@ -206,6 +206,10 @@ const char *gpmi_part_probes[] = { "cmdlinepart", NULL };
 #define UID_SIZE	SZ_1M
 #define UID_OFFSET 	(20*SZ_1M)
 
+/*
+ * These arrays describe the partitions to be applied to each physical chip.
+ */
+
 struct mtd_partition gpmi_partitions_chip0[] = {
 	[0] = {
 		.offset		= 0,
@@ -238,21 +242,30 @@ struct mtd_partition gpmi_partitions_chip1[] = {
 	},
 };
 
+/*
+ * This array gives the names of all the chip partitions that the driver will
+ * concatenate.
+ */
+
 static char *gpmi_concat_parts[] = {
 	[0]	= "UBI#0",
 	[1]	= "UBI#1",
 	[2]	= NULL,
 };
 
+/*
+ * Platform-specific information the driver will need.
+ */
+
 static struct gpmi_platform_data gpmi_partitions = {
 	.uid_offset = UID_OFFSET,
 	.uid_size = UID_SIZE,
 	.io_uA = 70000,
-	.items = 2,
+	.chip_count = 2,
 	.concat_name = "UBI",
 	.concat_parts = gpmi_concat_parts,
 	.pinmux = gpmi_pinmux,
-	.parts = {
+	.chip_partitions = {
 		[0] = {
 			.part_probe_types = gpmi_part_probes,
 			.nr_partitions = ARRAY_SIZE(gpmi_partitions_chip0),

@@ -44,12 +44,27 @@
 	(BM_GPMI_ECCCTRL_ENABLE_ECC | \
 	BF(BV_GPMI_ECCCTRL_ECC_CMD__DECODE_8_BIT, GPMI_ECCCTRL_ECC_CMD))
 
-/* fingerprints of BCB that can be found on STMP-formatted flash */
+/* Fingerprints for Boot Control Blocks. */
+
 #define SIG1		"STMP"
 #define SIG_NCB		"NCB "
 #define SIG_LDLB	"LDLB"
 #define SIG_DBBT	"DBBT"
 #define SIG_SIZE	4
+
+/**
+ * struct gpmi_nand_timing - NAND Flash timing parameters.
+ *
+ * This structure contains the four fundamental timing attributes for the
+ * NAND Flash bus. These values are expressed in GPMI clock cycles or half
+ * cycles, depending on how the GPMI clock is configured. See the hardware
+ * reference manual for details.
+ *
+ * @data_setup:     The data setup time in nanoseconds.
+ * @data_hold:      The data hold time in nanoseconds.
+ * @address_setup:  The address setup time in nanoseconds.
+ * @dsample_time:   The data sample delay in nanoseconds.
+ */
 
 struct gpmi_nand_timing {
 	u8 data_setup;
@@ -57,6 +72,15 @@ struct gpmi_nand_timing {
 	u8 address_setup;
 	u8 dsample_time;
 };
+
+/**
+ * struct gpmi_bcb_info - Information obtained from Boot Control Blocks.
+ *
+ * @timing:        Timing values extracted from an NCB.
+ * @ncbblock:      The offset within the MTD at which the NCB was found.
+ * @pre_ncb:
+ * @pre_ncb_size:
+ */
 
 struct gpmi_bcb_info {
 	struct gpmi_nand_timing timing;
@@ -98,7 +122,7 @@ int gpmi_verify_hamming_13_8(void *data, u8 *parity, size_t size);
 #define GPMI_DMA_MAX_CHAIN	20	/* max DMA commands in chain */
 
 /*
- * Sizes of data buffers to exchange commands/data with NAND chip
+ * Sizes of data buffers to exchange commands/data with NAND chip.
  * Default values cover 4K NAND page (4096 data bytes + 218 bytes OOB)
  */
 #define GPMI_CMD_BUF_SZ		10
@@ -108,7 +132,23 @@ int gpmi_verify_hamming_13_8(void *data, u8 *parity, size_t size);
 
 #define GPMI_MAX_CHIPS		10
 
-struct gpmi_hwecc_chip {
+/**
+ * struct gpmi_ecc_descriptor - Abstract description of ECC.
+ *
+ * @name:   The name of the ECC represented by this structure.
+ * @list:   Infrastructure for the list to which this structure belongs.
+ * @setup:  A pointer to a function that prepares the ECC to function.
+ * @reset:  A pointer to a function that resets the ECC to a known state. This
+ *          pointer is currently never used, and probably should be removed.
+ * @read:   A pointer to a function that fills in a given DMA chain such that
+ *          a page read will pass through the owning ECC.
+ * @write:  A pointer to a function that fills in a given DMA chain such that
+ *          a page write will pass through the owning ECC.
+ * @stat:   A pointer to a function that reports on ECC statistics for
+ *          the preceding read operation.
+ */
+
+struct gpmi_ecc_descriptor {
 	char name[40];
 	struct list_head list;
 	int (*setup)(void *ctx, int index, int writesize, int oobsize);
@@ -124,15 +164,119 @@ struct gpmi_hwecc_chip {
 	int (*stat)(void *ctx, int index, struct mtd_ecc_stats *r);
 };
 
-/* HWECC chips */
-struct gpmi_hwecc_chip *gpmi_hwecc_chip_find(char *name);
-void gpmi_hwecc_chip_add(struct gpmi_hwecc_chip *chip);
-void gpmi_hwecc_chip_remove(struct gpmi_hwecc_chip *chip);
+/* ECC descriptor management. */
+
+struct gpmi_ecc_descriptor *gpmi_ecc_find(char *name);
+void   gpmi_ecc_add(struct gpmi_ecc_descriptor *chip);
+void   gpmi_ecc_remove(struct gpmi_ecc_descriptor *chip);
+
+/* Housecleaning functions for the ECC hardware blocks. */
+
 int bch_init(void);
 int ecc8_init(void);
 void bch_exit(void);
 void ecc8_exit(void);
 
+/**
+ * struct gpmi_nand_data -
+ *
+ * @io_base:              The base I/O address of of the GPMI registers.
+ * @clk:                  A pointer to the structure that represents the GPMI
+ *                        clock.
+ * @irq:                  The GPMI interrupt request number.
+ * @inactivity_timer:     A pointer to a timer the driver uses to shut itself
+ *                        down after periods of inactivity.
+ * @self_suspended:       Indicates the driver suspended itself, rather than
+ *                        being suspended by higher layers of software. This is
+ *                        important because it effects how the driver wakes
+ *                        itself back up.
+ * @use_count:            Used within the driver to hold off suspension until
+ *                        all operations are complete.
+ * @regulator:            A pointer to the structure that represents the
+ *                        power regulator supplying power to the GPMI.
+ * @reg_uA:               The GPMI current limit, in uA.
+ * @ignorebad:            Forces the driver to report that all blocks are good.
+ * @bbt:                  Used to save a pointer to the in-memory NAND Flash MTD
+ *                        Bad Block Table if the "ignorebad" flag is turned on
+ *                        through the corresponding sysfs node.
+ * @nand:                 The data structure that represents this NAND Flash
+ *                        medium to the MTD NAND Flash system.
+ * @mtd:                  The data structure that represents this NAND Flash
+ *                        medium to MTD.
+ * @dev:                  A pointer to the owning struct device.
+ * @nr_parts:             If the driver receives partition descriptions from an
+ *                        external parser (command line, etc.), then this is
+ *                        the number of discovered partitions.
+ * @parts:                If the driver receives partition descriptions from an
+ *                        external parser (command line, etc.), then this is a
+ *                        pointer to the array of discovered partitions.
+ * @done:                 A struct completion used to manage GPMI interrupts.
+ * @cmd_buffer:
+ * @cmd_buffer_handle:
+ * @cmd_buffer_size:
+ * @cmd_buffer_sz:        The number of command and address bytes queued up,
+ *                        waiting for transmission to the NAND Flash.
+ * @write_buffer:
+ * @write_buffer_handle:
+ * @write_buffer_size:
+ * @read_buffer:
+ * @read_buffer_handle:
+ * @data_buffer:
+ * @data_buffer_handle:
+ * @data_buffer_size:
+ * @oob_buffer:
+ * @oob_buffer_handle:
+ * @oob_buffer_size:
+ * @verify_buffer:
+ * @chips:                An array of data structures, one for each physical
+ *                        chip.
+ * @cchip:                A pointer to the element within the chips array that
+ *                        represents the currently selected chip.
+ * @selected_chip:        The currently selectd chip number, or -1 if no chip
+ *                        is selected.
+ * @hwecc_type_read:
+ * @hwecc_type_write:
+ * @hwecc:                Never used.
+ * @ecc_oob_bytes:        The number of ECC bytes covering the OOB bytes alone.
+ * @oob_free:             The total number of OOB bytes.
+ * @transcribe_bbmark:    Used by the bad block management code to indicate
+ *                        that the medium is in common format and the bad block
+ *                        marks must be transcribed.
+ * @timing:               The current timings installed in the hardware.
+ * @saved_command:        Used to "hook" the NAND Flash MTD default
+ *                        implementation for the cmdfunc fuction pointer.
+ * @raw_oob_mode:
+ * @saved_read_oob:       Used to "hook" the NAND Flash MTD interface function
+ *                        for the MTD read_oob fuction pointer.
+ * @saved_write_oob:      Used to "hook" the NAND Flash MTD interface function
+ *                        for the MTD write_oob fuction pointer.
+ * @hc:                   A pointer to a structure that represents the ECC
+ *                        in use.
+ * @numchips:             The number of physical chips.
+ * @custom_partitions:    Indicates that the driver has applied driver-specific
+ *                        logic in partitioning the medium. This is important
+ *                        because similar logic must be applied in disassembling
+ *                        the partitioning when the driver shuts down.
+ * @chip_mtds:            An array with an element for each physical chip. If
+ *                        there is only one physical chip, the first and only
+ *                        element in this array will be a copy of the pointer in
+ *                        the "mtd" field (that is, they will point to the same
+ *                        structure). If there is more than one physical chip,
+ *                        each element in this array is a pointer to a partition
+ *                        MTD derived from the "mtd" field, and representing the
+ *                        corresponding physical chip.
+ * @chip_partitions:      An array of partition descriptions that each represent
+ *                        one of the physical chips in the medium.
+ * @n_concat:             The number of partitions to be concatenated (pointers
+ *                        to the partition MTDs appear in the "concat" field).
+ * @concat:               An array of pointers to partition MTDs to be
+ *                        concatenated.
+ * @concat_mtd:           If "n_concat" is zero, this is NULL. If "n_concat" is
+ *                        one, this is a copy of the first and only element in
+ *                        the "concat" array. If "n_concat" is greater than one,
+ *                        this is a pointer to an MTD that represents the
+ *                        concatenation of all the MTDs appearing in "concat".
+ */
 
 struct gpmi_nand_data {
 	void __iomem *io_base;
@@ -153,8 +297,7 @@ struct gpmi_nand_data {
 
 #ifdef CONFIG_MTD_PARTITIONS
 	int			nr_parts;
-	struct mtd_partition
-				*parts;
+	struct mtd_partition	*parts;
 #endif
 
 	struct completion	done;
@@ -206,11 +349,11 @@ struct gpmi_nand_data {
 	int (*saved_write_oob)(struct mtd_info *mtd, loff_t to,
 			  struct mtd_oob_ops *ops);
 
-	struct gpmi_hwecc_chip *hc;
+	struct gpmi_ecc_descriptor *hc;
 
 	int numchips;
 	int custom_partitions;
-	struct mtd_info *masters[GPMI_MAX_CHIPS];
+	struct mtd_info *chip_mtds[GPMI_MAX_CHIPS];
 	struct mtd_partition chip_partitions[GPMI_MAX_CHIPS];
 	int n_concat;
 	struct mtd_info *concat[GPMI_MAX_CHIPS];
@@ -218,6 +361,20 @@ struct gpmi_nand_data {
 };
 
 extern struct gpmi_nand_timing gpmi_safe_timing;
+
+/**
+ * struct gpmi_ncb -
+ *
+ * @fingerprint1:
+ * @timing:
+ * @pagesize:
+ * @page_plus_oob_size:
+ * @sectors_per_block:
+ * @sector_in_page_mask:
+ * @sector_to_page_shift:
+ * @num_nands:
+ * @fingerprint2:
+ */
 
 struct gpmi_ncb {
 	u32			fingerprint1;
@@ -231,6 +388,28 @@ struct gpmi_ncb {
 	u32			reserved[3];
 	u32			fingerprint2;	  /* offset 0x2C     */
 };
+
+/**
+ * struct gpmi_ldlb -
+ *
+ * @fingerprint1:
+ * @major:
+ * @minor:
+ * @sub:
+ * @nand_bitmap:
+ * @fingerprint2:
+ * @fw:
+ * @fw_starting_nand:
+ * @fw_starting_sector:
+ * @fw_sector_stride:
+ * @fw_sectors_total:
+ * @fw_major:
+ * @fw_minor:
+ * @fw_sub:
+ * @fw_reserved:
+ * @bbt_blk:
+ * @bbt_blk_backup:
+ */
 
 struct gpmi_ldlb {
 	u32			fingerprint1;
@@ -266,8 +445,7 @@ static inline void gpmi_block_mark_as(struct nand_chip *chip,
 	}
 }
 
-static inline int gpmi_block_badness(struct nand_chip *chip,
-					int block)
+static inline int gpmi_block_badness(struct nand_chip *chip, int block)
 {
 	u32 o;
 	int shift = (block & 0x03) << 1,
