@@ -12,51 +12,56 @@ extern void gpmi_pinmux_free(char *);
 /**
  * struct gpmi_platform_data - GPMI driver platform data.
  *
- * This structure communicates information to the GPMI driver that can't be
- * expressed as resources.
+ * This structure communicates platform-specific information to the GPMI driver
+ * that can't be expressed as resources.
  *
- * @io_uA:             The current limit, in uA.
- * @uid_offset:        The offset into the physical medium of the "Unique ID"
- *                     area.
- * @uid_size:          The size of the "Unique ID" area.
- * @concat_name:       The name of an MTD the driver will create by
- *                     concatenating all the chip partitions named by the
- *                     concat_parts field.
- * @concat_parts:      A list of chip partition names that will be concatenated
- *                     into a single MTD. The partitions are described in the
- *                     array at the end of this structure.
- * @chip_count:        The number of physical chips for which partitioning
- *                     information is provided.
- * @chip_parts:        An array indexed by physical chip number that contains
- *                     descriptions of partitions to be applied to the
- *                     corresponding chip.
- * @part_probe_types:  A pointer to a list of strings that identify possible
- *                     sources of partitioning information. As it happens, only
- *                     the information appearing in element zero is used.
- * @nr_partitions:     The number of partitions to apply to the current chip.
- * @partitions:        A pointer to an array of partition descriptions for the
- *                     current chip.
+ * @io_uA:                   The current limit, in uA.
+ * @pinmux_handler:          A pointer to a function the driver will call to
+ *                           request or release the pins it needs. Pass true
+ *                           to request pins, and false to release them.
+ * @boot_area_size_in_bytes: The amount of space reserved for use by the boot
+ *                           ROM on the first and second chips. If this value is
+ *                           zero, it indicates we're not reserving any space
+ *                           for the boot area.
+ * @partition_source_types:  An array of strings that name sources of
+ *                           partitioning information (e.g., the boot loader,
+ *                           the kernel command line, etc.). The function
+ *                           parse_mtd_partitions() recognizes these names and
+ *                           applies the appropriate "plugins" to discover
+ *                           partitioning information. If any is found, it will
+ *                           be applied to the "general use" MTD (it will NOT
+ *                           override the boot area protection mechanism).
+ * @partitions:              An optional pointer to an array of partition
+ *                           descriptions. If the driver finds no partitioning
+ *                           information elsewhere, it will apply these to the
+ *                           "general use" MTD (they do NOT override the boot
+ *                           area protection mechanism).
+ * @partition_count:         The number of elements in the partitions array.
+ *
+ * ----- Stay away from the "Unique ID" -- it will be going away soon. -----
+ *
+ * @uid_offset:              The offset into the physical medium of the
+ *                           "Unique ID" area.
+ * @uid_size:                The size of the "Unique ID" area.
  */
 
 struct gpmi_platform_data {
 
-	int  io_uA;
+	int                   io_uA;
 
-	u_int32_t	uid_offset;
-	u_int32_t	uid_size;
+	int                   (*pinmux_handler)(bool request);
 
-	char *concat_name;
-	char **concat_parts;
+	uint32_t              boot_area_size_in_bytes;
 
-	int (*pinmux) (int req);
+	const char            **partition_source_types;
 
-	int  chip_count;
+	struct mtd_partition  *partitions;
+	unsigned              partition_count;
 
-	struct {
-		const char **part_probe_types;
-		int nr_partitions;
-		struct mtd_partition *partitions;
-	} chip_partitions[];
+	/* Stay away from the Unique ID - it will be going away soon. */
+
+	u_int32_t             uid_offset;
+	u_int32_t             uid_size;
 
 };
 #endif

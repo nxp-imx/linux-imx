@@ -192,91 +192,42 @@ static struct pin_group gpmi_pins = {
 	.nr_pins	= ARRAY_SIZE(gpmi_pins_desc),
 };
 
-static int gpmi_pinmux(int req)
+static int gpmi_pinmux_handler(bool request)
 {
-	if (req)
+	if (request)
 		return stmp3xxx_request_pin_group(&gpmi_pins, "gpmi");
 	else
 		stmp3xxx_release_pin_group(&gpmi_pins, "gpmi");
 	return 0;
 }
 
-const char *gpmi_part_probes[] = { "cmdlinepart", NULL };
+/* Stay away from the Unique ID - this will be going away soon. */
 
+#if defined(CONFIG_STMP3XXX_UNIQUE_ID)
 #define UID_SIZE	SZ_1M
 #define UID_OFFSET 	(20*SZ_1M)
+#endif
 
 /*
- * These arrays describe the partitions to be applied to each physical chip.
+ * Platform-specific information the GPMI driver will need.
  */
 
-struct mtd_partition gpmi_partitions_chip0[] = {
-	[0] = {
-		.offset		= 0,
-		.size		= UID_OFFSET,
-		.name		= "Boot#0",
-		.mask_flags	= 0,
-	},
-	/* This partition is managed by UBI */
-	[1] = {
-		.offset		= UID_OFFSET + UID_SIZE,
-		.size		= MTDPART_SIZ_FULL,
-		.name		= "UBI#0",
-		.mask_flags	= 0,
-	},
-};
-
-struct mtd_partition gpmi_partitions_chip1[] = {
-	[0] = {
-		.offset		= 0,
-		.size		= UID_OFFSET,
-		.name		= "Boot#1",
-		.mask_flags	= 0,
-	},
-	/* This partition is managed by UBI */
-	[1] = {
-		.offset		= UID_OFFSET,
-		.size		= MTDPART_SIZ_FULL,
-		.name		= "UBI#1",
-		.mask_flags	= 0,
-	},
-};
-
-/*
- * This array gives the names of all the chip partitions that the driver will
- * concatenate.
- */
-
-static char *gpmi_concat_parts[] = {
-	[0]	= "UBI#0",
-	[1]	= "UBI#1",
-	[2]	= NULL,
-};
-
-/*
- * Platform-specific information the driver will need.
- */
+#if defined(CONFIG_MTD_PARTITIONS)
+static const char *gpmi_partition_source_types[] = { "cmdlinepart", NULL };
+#endif
 
 static struct gpmi_platform_data gpmi_partitions = {
-	.uid_offset = UID_OFFSET,
-	.uid_size = UID_SIZE,
-	.io_uA = 70000,
-	.chip_count = 2,
-	.concat_name = "UBI",
-	.concat_parts = gpmi_concat_parts,
-	.pinmux = gpmi_pinmux,
-	.chip_partitions = {
-		[0] = {
-			.part_probe_types = gpmi_part_probes,
-			.nr_partitions = ARRAY_SIZE(gpmi_partitions_chip0),
-			.partitions = gpmi_partitions_chip0,
-		},
-		[1] = {
-			.part_probe_types = gpmi_part_probes,
-			.nr_partitions = ARRAY_SIZE(gpmi_partitions_chip1),
-			.partitions = gpmi_partitions_chip1,
-		},
-	},
+	.io_uA                   = 70000,
+	.pinmux_handler          = gpmi_pinmux_handler,
+	.boot_area_size_in_bytes = 20 * SZ_1M,
+	.partitions              = 0,
+	.partition_count         = 0,
+	.partition_source_types  = gpmi_partition_source_types,
+#if defined(CONFIG_STMP3XXX_UNIQUE_ID)
+	/* Stay away from the Unique ID - this will be going away soon. */
+	.uid_offset              = UID_OFFSET,
+	.uid_size                = UID_SIZE,
+#endif
 };
 
 static struct pin_desc lcd_hx8238a_desc[] = {

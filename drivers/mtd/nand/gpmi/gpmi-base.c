@@ -348,7 +348,7 @@ static int gpmi_nand_init_hw(struct platform_device *pdev, int request_pins)
 	/* Check if we're supposed to ask for our pins. */
 
 	if (request_pins)
-		gpd->pinmux(1);
+		gpd->pinmux_handler(1);
 
 	/* Reset the GPMI block. */
 
@@ -392,7 +392,7 @@ static void gpmi_nand_release_hw(struct platform_device *pdev)
 
 	clk_disable(g->clk);
 	clk_put(g->clk);
-	gpd->pinmux(0);
+	gpd->pinmux_handler(0);
 }
 
 /**
@@ -1314,93 +1314,6 @@ static int gpmi_write_oob(struct mtd_info *mtd, loff_t to,
 }
 
 /**
- * gpmi_scan_middle - Intermediate initialization.
- *
- * @g:  Per-device data structure.
- *
- * Rather than call nand_scan(), this function makes the same calls, but
- * inserts this function into the initialization pathway.
- */
-static int gpmi_scan_middle(struct gpmi_nand_data *g)
-{
-	int oobsize = 0;
-
-	/* Limit to 2G size due to Kernel larger 4G space support */
-	if (g->mtd.size == 0) {
-		g->mtd.size = 1 << 31;
-		g->chip.chipsize = do_div(g->mtd.size, g->chip.numchips);
-	}
-
-	/*
-	 * In all currently-supported geometries, the number of ECC bytes that
-	 * apply to the OOB bytes is the same.
-	 */
-
-	g->ecc_oob_bytes = 9;
-
-	/* Look at the page size and configure appropriately. */
-
-	switch (g->mtd.writesize) {
-	case 2048:		/* 2K page */
-		g->chip.ecc.layout = &gpmi_oob_64;
-		g->chip.ecc.bytes = 9;
-		g->oob_free = 19;
-		g->hwecc_type_read = GPMI_ECC4_RD;
-		g->hwecc_type_write = GPMI_ECC4_WR;
-		oobsize = 64;
-		break;
-	case 4096:
-		g->chip.ecc.layout = &gpmi_oob_128;
-		g->chip.ecc.bytes = 18;
-		g->oob_free = 65;
-		g->hwecc_type_read = GPMI_ECC8_RD;
-		g->hwecc_type_write = GPMI_ECC8_WR;
-		oobsize = 218;
-		break;
-	default:
-		printk(KERN_ERR "Unsupported write_size %d.", g->mtd.writesize);
-		break;
-	}
-
-	g->mtd.ecclayout = g->chip.ecc.layout;
-	/* sanity check */
-	if (oobsize > NAND_MAX_OOBSIZE || g->mtd.writesize > NAND_MAX_PAGESIZE) {
-		printk(KERN_ERR "Internal error. Either page size "
-		       "(%d) > max (%d) "
-		       "or oob size (%d) > max(%d). Sorry.\n",
-		       oobsize, NAND_MAX_OOBSIZE,
-		       g->mtd.writesize, NAND_MAX_PAGESIZE);
-		return -ERANGE;
-	}
-
-	/*
-	 * Hook the command function provided by the reference implementation.
-	 * This has to be done here, rather than at initialization time, because
-	 * the NAND Flash MTD installed the reference implementation only just
-	 * now.
-	 */
-
-	g->saved_command = g->chip.cmdfunc;
-	g->chip.cmdfunc = gpmi_command;
-
-	/* Install the ECC. */
-
-	if (oobsize > 0) {
-		g->mtd.oobsize = oobsize;
-		/* otherwise error; oobsize should be set
-		   in valid cases */
-		g->hc = gpmi_ecc_find("ecc8");
-		g->hc->setup(g->hc, 0, g->mtd.writesize, g->mtd.oobsize);
-		return 0;
-	}
-
-	/* If control arrives here, something has gone wrong. */
-
-	return -ENXIO;
-
-}
-
-/**
  * gpmi_write_page - [REPLACEABLE] write one page
  * @mtd:	MTD device structure
  * @chip:	NAND chip descriptor
@@ -1608,233 +1521,586 @@ static void gpmi_deinit_chip(struct platform_device *pdev,
 }
 
 /**
- * gpmi_create_partitions - Create platform-driven partitions.
+ * gpmi_scan_middle - Intermediate initialization.
  *
- * This function creates partitions based on the platform data.
+ * @g:  Per-device data structure.
  *
- * @g:         Per-device data.
- * @gpd:       Per-device platform data.
- * @chipsize:  The size of a single, physical chip in bytes.
+ * Rather than call nand_scan(), this function makes the same calls, but
+ * inserts this function into the initialization pathway.
  */
-static void gpmi_create_partitions(struct gpmi_nand_data *g,
-				   struct gpmi_platform_data *gpd,
-				   uint64_t chipsize)
+static int gpmi_scan_middle(struct gpmi_nand_data *g)
 {
+	int oobsize = 0;
 
-#ifdef CONFIG_MTD_PARTITIONS
-	int chip, p;
-	char chipname[20];
-
-	/*
-	 * We have a single MTD now that represents the entire medium. We want
-	 * an MTD for each physical chip in the medium.
-	 *
-	 * If there's only one chip, then we can simply use the medium MTD.
-	 *
-	 * If there are multiple chips, we need to create partition MTDs that
-	 * represent the subsets of the medium occupied by each physical chip.
-	 */
-
-	if (g->numchips == 1)
-		g->chip_mtds[0] = &g->mtd;
-	else {
-
-		/*
-		 * Construct an array of partition descriptions, one for each
-		 * physical chip.
-		 */
-
-		for (chip = 0; chip < g->numchips; chip++) {
-			memset(g->chip_partitions + chip,
-			       0, sizeof(g->chip_partitions[chip]));
-			snprintf(chipname, sizeof(chipname),
-				 "gpmi-chip-%d", chip);
-			g->chip_partitions[chip].name =
-			    kstrdup(chipname, GFP_KERNEL);
-			g->chip_partitions[chip].size = chipsize;
-			g->chip_partitions[chip].offset = chipsize * chip;
-			g->chip_partitions[chip].mask_flags = 0;
-		}
-
-		/*
-		 * Derive a partition MTD for each physical chip.
-		 *
-		 * This function will register each partition MTD it creates
-		 * that doesn't have the corresponding "mtdp" field set. Since
-		 * we've explicitly set the "mtdp" field for each, *none* of
-		 * these partitions will be registered.
-		 */
-
-		add_mtd_partitions(&g->mtd, g->chip_partitions, g->numchips);
-
-	}
-
-	g->n_concat = 0;
-	memset(g->concat, 0, sizeof(g->concat));
-
-	/*
-	 * Loop over physical chips, handling sub-partitions for each in turn.
-	 */
-
-	for (chip = 0; chip < g->numchips; chip++) {
-
-		/*
-		 * If the module parameter "add_mtd_chip" is set, then we want
-		 * to register the partition MTD we made for this chip. Among
-		 * other things, this will make it visible to user space.
-		 */
-
-		if (add_mtd_chip) {
-			printk(KERN_NOTICE "Registering an MTD for chip %d\n",
-			       chip);
-			add_mtd_device(g->chip_mtds[chip]);
-		}
-
-		/*
-		 * Check if the platform data includes partition descriptions
-		 * for this chip. If not, move to the next one.
-		 */
-
-		if (chip >= gpd->chip_count)
-			continue;
-
-		/*
-		 * If control arrives here, the platform data includes
-		 * partition descriptions for this chip. Loop over all the
-		 * partition descriptions for this chip, checking if any appear
-		 * on the list to be concatenated.
-		 *
-		 * For each partition that is to be concatenated, set its "mtdp"
-		 * pointer such that the new MTD will be added to an array
-		 * rather than registered in the public MTD list. Later, after
-		 * we've concatenated all these MTDs, we will register the
-		 * final result.
-		 */
-
-		add_mtd_partitions(g->chip_mtds[chip],
-				   gpd->chip_partitions[chip].partitions,
-				   gpd->chip_partitions[chip].nr_partitions);
-	}
-	if (g->n_concat > 0) {
-
-#ifdef CONFIG_MTD_CONCAT
-		if (g->n_concat == 1)
-#endif
-			for (p = 0; p < g->n_concat; p++)
-				add_mtd_device(g->concat[p]);
-#ifdef CONFIG_MTD_CONCAT
-		if (g->n_concat > 1) {
-			g->concat_mtd = mtd_concat_create(g->concat,
-							  g->n_concat,
-							  gpd->concat_name);
-			if (g->concat_mtd)
-				add_mtd_device(g->concat_mtd);
-		}
-#endif
+	/* Limit to 2G size due to Kernel larger 4G space support */
+	if (g->mtd.size == 0) {
+		g->mtd.size = 1 << 31;
+		g->nand.chipsize = do_div(g->mtd.size, g->nand.numchips);
 	}
 
 	/*
-	 * Set a flag in the per-device data structure to show that that we
-	 * created custom partitions. This is important because, when we need
-	 * to disassemble them, we need to be aware of how we created them.
+	 * In all currently-supported geometries, the number of ECC bytes that
+	 * apply to the OOB bytes is the same.
 	 */
 
-	g->custom_partitions = true;
+	g->ecc_oob_bytes = 9;
 
-#endif
+	/* Look at the page size and configure appropriately. */
+
+	switch (g->mtd.writesize) {
+	case 2048:		/* 2K page */
+		g->nand.ecc.layout = &gpmi_oob_64;
+		g->nand.ecc.bytes = 9;
+		g->oob_free = 19;
+		g->hwecc_type_read = GPMI_ECC4_RD;
+		g->hwecc_type_write = GPMI_ECC4_WR;
+		oobsize = 64;
+		break;
+	case 4096:
+		g->nand.ecc.layout = &gpmi_oob_128;
+		g->nand.ecc.bytes = 18;
+		g->oob_free = 65;
+		g->hwecc_type_read = GPMI_ECC8_RD;
+		g->hwecc_type_write = GPMI_ECC8_WR;
+		oobsize = 218;
+		break;
+	default:
+		printk(KERN_ERR "Unsupported writesize %d.", g->mtd.writesize);
+		break;
+	}
+
+	g->mtd.ecclayout = g->nand.ecc.layout;
+	/* sanity check */
+	if (oobsize > NAND_MAX_OOBSIZE ||
+					g->mtd.writesize > NAND_MAX_PAGESIZE) {
+		printk(KERN_ERR "Internal error. Either page size "
+		       "(%d) > max (%d) "
+		       "or oob size (%d) > max(%d). Sorry.\n",
+		       oobsize, NAND_MAX_OOBSIZE,
+		       g->mtd.writesize, NAND_MAX_PAGESIZE);
+		return -ERANGE;
+	}
+
+	/*
+	 * Hook the command function provided by the reference implementation.
+	 * This has to be done here, rather than at initialization time, because
+	 * the NAND Flash MTD installed the reference implementation only just
+	 * now.
+	 */
+
+	g->saved_command = g->nand.cmdfunc;
+	g->nand.cmdfunc = gpmi_command;
+
+	/* Install the ECC. */
+
+	if (oobsize > 0) {
+		g->mtd.oobsize = oobsize;
+		/* otherwise error; oobsize should be set
+		   in valid cases */
+		g->hc = gpmi_ecc_find("ecc8");
+		g->hc->setup(g->hc, 0, g->mtd.writesize, g->mtd.oobsize);
+		return 0;
+	}
+
+	/* If control arrives here, something has gone wrong. */
+
+	return -ENXIO;
 
 }
 
 /**
- * gpmi_delete_partitions - Remove the partitions created by this driver.
+ * gpmi_register_with_mtd - Registers devices with MTD.
  *
- * @g:  The per-device data structure.
+ * @g:  Per-device data.
  */
-static void gpmi_delete_partitions(struct gpmi_nand_data *g)
+static int  gpmi_register_with_mtd(struct gpmi_nand_data *g)
 {
+#if defined(CONFIG_MTD_PARTITIONS) && defined(CONFIG_MTD_CONCAT)
+	int                        r;
+	unsigned                   i;
+	struct gpmi_platform_data  *gpd  = g->gpd;
+	struct mtd_info            *mtd  = &g->mtd;
+	struct nand_chip           *nand = &g->nand;
+	struct mtd_partition       partitions[4];
+	struct mtd_info            *search_mtd;
+	struct mtd_info            *gpmi_0_remainder_mtd = 0;
+	struct mtd_info            *gpmi_remainder_mtd = 0;
+	struct mtd_info            *concatenate[2];
 
 	/*
-	 * First, check if MTD partitioning is even available. If not, then
-	 * we don't have to do any special work.
+	 * Here we declare the static strings we use to name partitions. We use
+	 * static strings because, as of 2.6.31, the partitioning code *always*
+	 * registers the partition MTDs it creates and leaves behind *no* other
+	 * trace of its work. So, once we've created a partition, we must search
+	 * the master table to find the MTDs we created. Since we're using
+	 * static strings, we can search the master table for an MTD with a name
+	 * field pointing to a known address.
 	 */
 
-#ifdef CONFIG_MTD_PARTITIONS
-	int chip, p;
-
-	/*
-	 * If control arrives here, MTD partitioning is available. But, if we
-	 * didn't construct any custom partitions, then we don't have to do any
-	 * special work.
-	 */
-
-	if (!g->custom_partitions)
-		return;
-
-#ifdef CONFIG_MTD_CONCAT
-
-	/*
-	 * If control arrives here, we constructed some custom partitions, and
-	 * we have to disassemble them carefully.
-	 *
-	 * If we concatenated any MTDs, delete the synthetic MTD first.
-	 */
-
-	if (g->concat_mtd)
-		del_mtd_device(g->concat_mtd);
-
-	/*
-	 * Check if we concatenated any partitions, which now must be
-	 * disassembled.
-	 *
-	 * This process is complicated by the fact that MTD concatenation may or
-	 * may not be available. Here are the cases:
-	 *
-	 * * If concatenation is not available:
-	 *
-	 *     * De-register all the partition MTDs that would have been
-	 *       concatenated.
-	 *
-	 * * If concatenation is available:
-	 *
-	 *     * If there is only one partition:
-	 *
-	 *         * De-register that one partition MTD.
-	 */
-
-	if (g->n_concat == 1)
+	static char  *gpmi_0_boot_name      = "gpmi-0-boot";
+	static char  *gpmi_0_remainder_name = "gpmi-0-remainder";
+	static char  *gpmi_1_boot_name      = "gpmi-1-boot";
+	static char  *gpmi_remainder_name   = "gpmi-remainder";
+	static char  *gpmi_general_use_name = "gpmi-general-use";
 #endif
-		for (p = 0; p < g->n_concat; p++)
-			del_mtd_device(g->concat[p]);
 
-	/* Handle the partitions related to each physical chip. */
+	/* Initialize the MTD object. */
 
-	for (chip = 0; chip < g->numchips; chip++) {
+	mtd->priv = &g->nand;
+	mtd->name = "gpmi-medium";
+	mtd->owner = THIS_MODULE;
+
+	/*
+	 * Signal Control
+	 */
+
+	g->nand.cmd_ctrl = gpmi_hwcontrol;
+
+	/*
+	 * Chip Control
+	 *
+	 * The cmdfunc pointer is assigned elsewhere.
+	 * We use the reference implementation of waitfunc.
+	 */
+
+	g->nand.dev_ready   = gpmi_dev_ready;
+	g->nand.select_chip = gpmi_select_chip;
+
+	/*
+	 * Low-level I/O
+	 */
+
+	g->nand.read_byte  = gpmi_read_byte;
+	g->nand.read_word  = gpmi_read_word;
+	g->nand.read_buf   = gpmi_read_buf;
+	g->nand.write_buf  = gpmi_write_buf;
+	g->nand.verify_buf = gpmi_verify_buf;
+
+	/*
+	 * ECC Control
+	 *
+	 * None of these functions are necessary:
+	 *     - ecc.hwctl
+	 *     - ecc.calculate
+	 *     - ecc.correct
+	 */
+
+	/*
+	 * ECC-aware I/O
+	 */
+
+	g->nand.ecc.read_page      = gpmi_ecc_read_page;
+	g->nand.ecc.read_page_raw  = gpmi_read_page_raw;
+	g->nand.ecc.write_page     = gpmi_ecc_write_page;
+	g->nand.ecc.write_page_raw = gpmi_write_page_raw;
+
+	/*
+	 * High-level I/O
+	 *
+	 * This driver doesn't assign the erase_cmd pointer at the NAND Flash
+	 * chip level. Instead, it intercepts the erase operation at the MTD
+	 * level (see the assignment to mtd.erase below).
+	 */
+
+	g->nand.write_page    = gpmi_write_page;
+	g->nand.ecc.read_oob  = gpmi_ecc_read_oob;
+	g->nand.ecc.write_oob = gpmi_ecc_write_oob;
+
+	/*
+	 * Bad Block Management
+	 *
+	 * We use the reference implementation of block_markbad.
+	 */
+
+	g->nand.block_bad = gpmi_block_bad;
+	g->nand.scan_bbt  = gpmi_scan_bbt;
+
+	g->nand.ecc.mode  = NAND_ECC_HW_SYNDROME;
+	g->nand.ecc.size  = 512;
+
+	g->cmd_buffer_sz  = 0;
+
+	/*
+	 * We now want the NAND Flash MTD system to scan for chips and create
+	 * the MTD data structure that represents the medium.
+	 *
+	 * At this point, most drivers would call nand_scan(). Instead, this
+	 * driver directly performs most of the same operations nand_scan()
+	 * would, and introduces some additional initialization work in the
+	 * "middle."
+	 */
+
+	pr_info("Scanning for NAND Flash chips...\n");
+
+	if (nand_scan_ident(&g->mtd, max_chips)
+		    || gpmi_scan_middle(g)
+		    || nand_scan_tail(&g->mtd)) {
 
 		/*
-		 * De-register and destroy any partition MTDs that may have been
-		 * derived from the MTD that represents this chip.
+		 * If control arrives here, something went wrong.
 		 */
 
-		del_mtd_partitions(g->chip_mtds[chip]);
-
-		/*
-		 * If the module variable 'add_mtd_chip' is set, then we
-		 * registered the MTD that represents this chip. De-register it
-		 * now.
-		 */
-
-		if (add_mtd_chip)
-			del_mtd_device(g->chip_mtds[chip]);
-
-		/*
-		 * Free the memory we used to hold the name of the MTD that
-		 * represented this chip.
-		 */
-
-		kfree(g->chip_partitions[chip].name);
+		dev_err(&g->dev->dev, "No NAND Flash chips found\n");
+		return !0;
 
 	}
+
+	/* Completely disallow partial page writes. */
+
+	g->nand.options     |= NAND_NO_SUBPAGE_WRITE;
+	g->nand.subpagesize  = g->mtd.writesize;
+	g->mtd.subpage_sft   = 0;
+
+	/* Hook erase operations at the MTD level. */
+
+	g->mtd.erase = gpmi_erase;
+
+	/* Hook OOB read and write operations at the MTD level. */
+
+	g->saved_read_oob  = g->mtd.read_oob;
+	g->saved_write_oob = g->mtd.write_oob;
+	g->mtd.read_oob    = gpmi_read_oob;
+	g->mtd.write_oob   = gpmi_write_oob;
+
+#if !defined(CONFIG_MTD_PARTITIONS) || !defined(CONFIG_MTD_CONCAT)
+
+	/*
+	 * If control arrives here, we're missing support for either or both of
+	 * MTD partitioning and concatenation. Do the simple thing and register
+	 * the entire medium.
+	 */
+
+	pr_info("MTD partitioning and/or concatenation are disabled.\n"
+		"Registering the entire GPMI medium...\n");
+
+	add_mtd_device(g->mtd);
+
+#else
+
+	/*
+	 * Our goal here is to partition the medium in a way that protects the
+	 * boot area. First, check if the platform data says we need to
+	 * protect it.
+	 */
+
+	if (!gpd->boot_area_size_in_bytes) {
+
+		/*
+		 * If control arrives here, we don't need to protect the boot
+		 * area. Make the entire medium available for general use.
+		 */
+
+		pr_info("Boot area protection disabled.\n"
+				"Opening the entire medium for general use.\n");
+
+		g->general_use_mtd = mtd;
+
+	} else {
+
+		pr_info("Boot area protection enabled: 0x%x bytes.\n",
+						gpd->boot_area_size_in_bytes);
+
+		/*
+		 * If control arrives here, we need to protect the boot area.
+		 * First, check if the area we're supposed to protect is larger
+		 * than a single chip.
+		 */
+
+		if (gpd->boot_area_size_in_bytes > nand->chipsize) {
+			dev_emerg(&g->dev->dev, "Protected boot area size is "
+						"larger than a single chip");
+			BUG();
+		}
+
+		/*
+		 * Recall that the boot ROM uses the first part of chip one and,
+		 * if it exists, also the first part of chip two. We check now
+		 * to see how many chips there are, and adjust our partitioning
+		 * accordingly.
+		 */
+
+		g->chip0_boot_mtd = 0;
+		g->chip1_boot_mtd = 0;
+
+		if (nand->numchips == 1) {
+
+			pr_info("Partitioning for one chip.\n");
+
+			/*
+			 * If control arrives here, there's only one chip. We
+			 * partition the medium like so:
+			 *
+			 * +------+-------------------------------------------+
+			 * | Boot |                General Use                |
+			 * +------+-------------------------------------------+
+			 */
+
+			/* Chip 0 Boot */
+
+			partitions[0].name       = gpmi_0_boot_name;
+			partitions[0].offset     = 0;
+			partitions[0].size       = gpd->boot_area_size_in_bytes;
+			partitions[0].mask_flags = 0;
+
+			/* General Use */
+
+			partitions[1].name       = gpmi_general_use_name;
+			partitions[1].offset     = gpd->boot_area_size_in_bytes;
+			partitions[1].size       = MTDPART_SIZ_FULL;
+			partitions[1].mask_flags = 0;
+
+			/* Construct and register the partitions. */
+
+			add_mtd_partitions(mtd, partitions, 2);
+
+			/* Find the general use MTD. */
+
+			for (i = 0; i < MAX_MTD_DEVICES; i++) {
+				search_mtd = get_mtd_device(0, i);
+				if (!search_mtd)
+					continue;
+				if (search_mtd->name == gpmi_general_use_name)
+					g->general_use_mtd = search_mtd;
+			}
+
+			if (!g->general_use_mtd) {
+				dev_emerg(&g->dev->dev, "Can't find general "
+								"use MTD");
+				BUG();
+			}
+
+		} else {
+
+			pr_info("Partitioning for multiple chips.\n");
+
+			/*
+			 * If control arrives here, there is more than one chip.
+			 * We partition the medium and concatenate the
+			 * remainders like so:
+			 *
+			 *  --- Chip 0 ---   --- Chip 1 --- ... -- Chip N ---
+			 * /              \ /                                \
+			 * +----+----------+----+---------- ... --------------+
+			 * |Boot|Remainder |Boot|         Remainder           |
+			 * +----+----------+----+---------- ... --------------+
+			 *      |          |   /                             /
+			 *      |          |  /                             /
+			 *      |          | /                             /
+			 *      |          |/                             /
+			 *      +----------+---------- ... --------------+
+			 *      |              General Use               |
+			 *      +----------+---------- ... --------------+
+			 *
+			 * Notice we do something just a little goofy here.
+			 * Instead of numbering these partitions in the order
+			 * they appear in the medium, we have them in this
+			 * order:
+			 *
+			 *    * Chip 0 Boot Area
+			 *    * Chip 1 Boot Area
+			 *    * Chip 0 Remainder
+			 *    * Medium Remainder
+			 *
+			 * Before 2.6.31, it was possible to "hide" partitions
+			 * (to create them without registering them), which made
+			 * it possible to hide the remainders. In the future, it
+			 * may become possible to do so again. Also, some user
+			 * space programs expect the boot partitions to appear
+			 * first. This is naive, but let's try not to cause any
+			 * trouble, where we can avoid it.
+			 */
+
+			/* Chip 0 Boot */
+
+			partitions[0].name       = gpmi_0_boot_name;
+			partitions[0].offset     = 0;
+			partitions[0].size       = gpd->boot_area_size_in_bytes;
+			partitions[0].mask_flags = 0;
+
+			/* Chip 1 Boot */
+
+			partitions[1].name       = gpmi_1_boot_name;
+			partitions[1].offset     = nand->chipsize;
+			partitions[1].size       = gpd->boot_area_size_in_bytes;
+			partitions[1].mask_flags = 0;
+
+			/* Chip 0 Remainder */
+
+			partitions[2].name       = gpmi_0_remainder_name;
+			partitions[2].offset     = gpd->boot_area_size_in_bytes;
+			partitions[2].size       = nand->chipsize -
+						   gpd->boot_area_size_in_bytes;
+			partitions[2].mask_flags = 0;
+
+			/* Medium Remainder */
+
+			partitions[3].name       = gpmi_remainder_name;
+			partitions[3].offset     = nand->chipsize +
+						   gpd->boot_area_size_in_bytes;
+			partitions[3].size       = MTDPART_SIZ_FULL;
+			partitions[3].mask_flags = 0;
+
+			/* Construct and register the partitions. */
+
+			add_mtd_partitions(mtd, partitions, 4);
+
+			/* Find the remainder partitions. */
+
+			for (i = 0; i < MAX_MTD_DEVICES; i++) {
+				search_mtd = get_mtd_device(0, i);
+				if (!search_mtd)
+					continue;
+				if (search_mtd == ERR_PTR(-ENODEV))
+					continue;
+				if (search_mtd->name == gpmi_0_remainder_name)
+					gpmi_0_remainder_mtd = search_mtd;
+				if (search_mtd->name == gpmi_remainder_name)
+					gpmi_remainder_mtd = search_mtd;
+			}
+
+			if (!gpmi_0_remainder_mtd || !gpmi_remainder_mtd) {
+				dev_emerg(&g->dev->dev, "Can't find remainder "
+								"partitions");
+				BUG();
+			}
+
+			/* Concatenate the remainders and register. */
+
+			concatenate[0] = gpmi_0_remainder_mtd;
+			concatenate[1] = gpmi_remainder_mtd;
+
+			g->general_use_mtd = mtd_concat_create(concatenate,
+							2, "gpmi-general-use");
+
+			add_mtd_device(g->general_use_mtd);
+
+		}
+
+	}
+
+	/*
+	 * When control arrives here, we've done whatever partitioning and
+	 * concatenation we needed to protect the boot area, and we have
+	 * identified a single MTD that represents the "general use" portion of
+	 * the medium. Check if the user wants to partition the general use MTD
+	 * further.
+	 */
+
+	/* Check for dynamic partitioning information. */
+
+	if (gpd->partition_source_types) {
+		r = parse_mtd_partitions(mtd, gpd->partition_source_types,
+							&g->partitions, 0);
+		if (r > 0)
+			g->partition_count = r;
+		else {
+			g->partitions      = 0;
+			g->partition_count = 0;
+		}
+	}
+
+	/* Fall back to platform partitions? */
+
+	if (!g->partition_count && gpd->partitions && gpd->partition_count) {
+		g->partitions      = gpd->partitions;
+		g->partition_count = gpd->partition_count;
+	}
+
+	/* If we have partitions, implement them. */
+
+	if (g->partitions) {
+		pr_info("Applying partitions to the general use area.\n");
+		add_mtd_partitions(g->general_use_mtd,
+					g->partitions, g->partition_count);
+	}
+
+	/*
+	 * Check if we're supposed to register the MTD that represents
+	 * the entire medium.
+	 */
+
+	if (add_mtd_entire) {
+		pr_info("Registering the full NAND Flash medium MTD.\n");
+		add_mtd_device(mtd);
+	}
+
 #endif
+
+	/* If control arrives here, everything went well. */
+
+	return 0;
+
+}
+
+/**
+ * gpmi_unregister_with_mtd - Unregisters devices with MTD.
+ *
+ * @g:  Per-device data.
+ */
+static void gpmi_unregister_with_mtd(struct gpmi_nand_data *g)
+{
+#if defined(CONFIG_MTD_PARTITIONS) && defined(CONFIG_MTD_CONCAT)
+	struct gpmi_platform_data  *gpd  = g->gpd;
+	struct mtd_info            *mtd  = &g->mtd;
+	struct nand_chip           *nand = &g->nand;
+#endif
+
+	/*
+	 * This function mirrors, in reverse, the structure of
+	 * gpmi_register_with_mtd(). See that function for details about how we
+	 * partition the medium.
+	 */
+
+#if !defined(CONFIG_MTD_PARTITIONS) || !defined(CONFIG_MTD_CONCAT)
+
+	del_mtd_device(mtd);
+
+#else
+
+	/*
+	 * If we registered the MTD that represents the entire medium,
+	 * unregister it now. Note that this does *not* "destroy" the MTD - it
+	 * merely unregisters it. That's important because all our other MTDs
+	 * depend on this one.
+	 */
+
+	if (add_mtd_entire)
+		del_mtd_device(mtd);
+
+	/* If we partitioned the general use MTD, destroy the partitions. */
+
+	if (g->partitions)
+		del_mtd_partitions(g->general_use_mtd);
+
+	/*
+	 * If we're protecting the boot area, we have some additional MTDs to
+	 * tear down.
+	 */
+
+	if (gpd->boot_area_size_in_bytes) {
+
+		/*
+		 * If we have more than one chip, then we concatenated two
+		 * "remainder" MTDs to produce the "general use" MTD.
+		 * Unregister the concatenation MTD, and then destroy it.
+		 */
+
+		if (nand->numchips > 1) {
+			del_mtd_device(g->general_use_mtd);
+			mtd_concat_destroy(g->general_use_mtd);
+		}
+
+		/*
+		 * Destroy all the partition MTDs based directly on the medium
+		 * MTD.
+		 */
+
+		del_mtd_partitions(mtd);
+
+	}
+
+#endif
+
 }
 
 /**
@@ -1846,11 +2112,9 @@ static int __init gpmi_nand_probe(struct platform_device *pdev)
 {
 	struct gpmi_nand_data *g;
 	struct gpmi_platform_data *gpd;
-	const char *part_type = 0;
 	int err = 0;
 	struct resource *r;
 	int dma;
-	unsigned long long chipsize;
 
 	/* Allocate memory for the per-device structure (and zero it). */
 	g = kzalloc(sizeof(*g), GFP_KERNEL);
@@ -1881,6 +2145,7 @@ static int __init gpmi_nand_probe(struct platform_device *pdev)
 	}
 
 	gpd = (struct gpmi_platform_data *)pdev->dev.platform_data;
+	g->gpd = gpd;
 	platform_set_drvdata(pdev, g);
 	err = gpmi_nand_init_hw(pdev, 1);
 	if (err)
@@ -1939,236 +2204,17 @@ static int __init gpmi_nand_probe(struct platform_device *pdev)
 	}
 
 	g->dev = pdev;
-	g->chip.priv = g;
+	g->nand.priv = g;
 	g->timing = gpmi_safe_timing;
 	g->selected_chip = -1;
 	g->ignorebad = ignorebad;	/* copy global setting */
 
-	/* Initialize the MTD object. */
+	/* Register with MTD. */
 
-	g->mtd.priv = &g->chip;
-	g->mtd.name = dev_name(&pdev->dev);
-	g->mtd.owner = THIS_MODULE;
-
-	/*
-	 * Signal Control
-	 */
-
-	g->chip.cmd_ctrl = gpmi_hwcontrol;
-
-	/*
-	 * Chip Control
-	 *
-	 * The cmdfunc pointer is assigned elsewhere.
-	 * We use the reference implementation of waitfunc.
-	 */
-
-	g->chip.dev_ready   = gpmi_dev_ready;
-	g->chip.select_chip = gpmi_select_chip;
-
-	/*
-	 * Low-level I/O
-	 */
-
-	g->chip.read_byte  = gpmi_read_byte;
-	g->chip.read_word  = gpmi_read_word;
-	g->chip.read_buf   = gpmi_read_buf;
-	g->chip.write_buf  = gpmi_write_buf;
-	g->chip.verify_buf = gpmi_verify_buf;
-
-	/*
-	 * ECC Control
-	 *
-	 * None of these functions are necessary:
-	 *     - ecc.hwctl
-	 *     - ecc.calculate
-	 *     - ecc.correct
-	 */
-
-	/*
-	 * ECC-aware I/O
-	 */
-
-	g->chip.ecc.read_page      = gpmi_ecc_read_page;
-	g->chip.ecc.read_page_raw  = gpmi_read_page_raw;
-	g->chip.ecc.write_page     = gpmi_ecc_write_page;
-	g->chip.ecc.write_page_raw = gpmi_write_page_raw;
-
-	/*
-	 * High-level I/O
-	 *
-	 * This driver doesn't assign the erase_cmd pointer at the NAND Flash
-	 * chip level. Instead, it intercepts the erase operation at the MTD
-	 * level (see the assignment to mtd.erase below).
-	 */
-
-	g->chip.write_page    = gpmi_write_page;
-	g->chip.ecc.read_oob  = gpmi_ecc_read_oob;
-	g->chip.ecc.write_oob = gpmi_ecc_write_oob;
-
-	/*
-	 * Bad Block Management
-	 *
-	 * We use the reference implementation of block_markbad.
-	 */
-
-	g->chip.block_bad = gpmi_block_bad;
-	g->chip.scan_bbt  = gpmi_scan_bbt;
-
-	g->chip.ecc.mode  = NAND_ECC_HW_SYNDROME;
-	g->chip.ecc.size  = 512;
-
-	g->cmd_buffer_sz  = 0;
-
-	/*
-	 * At this point, most drivers would call nand_scan(). Instead, this
-	 * driver directly performs most of the same operations nand_scan()
-	 * would, and introduces more initialization work in the "middle."
-	 */
-
-	if (nand_scan_ident(&g->mtd, max_chips)
-		    || gpmi_scan_middle(g)
-		    || nand_scan_tail(&g->mtd)) {
-		dev_err(&pdev->dev, "No NAND Flash chips found\n");
-		/* errors found on some step */
+	if (gpmi_register_with_mtd(g))
 		goto out7;
-	}
 
-	/* Completely disallow partial page writes. */
-
-	g->chip.options     |= NAND_NO_SUBPAGE_WRITE;
-	g->chip.subpagesize  = g->mtd.writesize;
-	g->mtd.subpage_sft   = 0;
-
-	/* Hook erase operations at the MTD level. */
-
-	g->mtd.erase = gpmi_erase;
-
-	/* Hook OOB read and write operations at the MTD level. */
-
-	g->saved_read_oob  = g->mtd.read_oob;
-	g->saved_write_oob = g->mtd.write_oob;
-	g->mtd.read_oob    = gpmi_read_oob;
-	g->mtd.write_oob   = gpmi_write_oob;
-
-#ifdef CONFIG_MTD_PARTITIONS
-
-	/*
-	 * Check if we got any information about the platform. If not, then we
-	 * have no guidance about how to set up MTD partitions, so we should
-	 * just leave now.
-	 */
-
-	if (gpd == NULL)
-		goto out_all;
-
-	/*
-	 * Check if the platform has specified a list of partition description
-	 * parsers. If so, look for partitioning information from the parsers
-	 * associated with the *first* partition set. We ignore any parsers
-	 * attached to the second partition set (which makes having them rather
-	 * silly, doesn't it?).
-	 *
-	 * Notice that any discovered partitions are recorded in the per-device
-	 * data.
-	 *
-	 * Notice that, if the parsers find some partitions, we set the
-	 * partition type to "command line". This isn't strictly accurate
-	 * because we don't know which parsers were used, so we don't know if
-	 * these partitions are *really* coming from a command line.
-	 */
-
-	if (gpd->chip_partitions[0].part_probe_types) {
-		g->nr_parts = parse_mtd_partitions(&g->mtd,
-						   gpd->chip_partitions[0].
-						   part_probe_types,
-						   &g->chip_partitions,
-						   0);
-		if (g->nr_parts > 0)
-			part_type = "command line";
-		else
-			g->nr_parts = 0;
-	}
-
-	/*
-	 * If no partition descriptions have been discovered, but the platform
-	 * data has partitions for us, then adopt the partitions that came from
-	 * the platform.
-	 */
-
-	if (g->nr_parts == 0 && gpd->chip_partitions[0].partitions) {
-		g->parts = gpd->chip_partitions[0].partitions;
-		g->nr_parts = gpd->chip_partitions[0].nr_partitions;
-		part_type = "static";
-	}
-
-	/*
-	 * At this point, we should have partition information either from the
-	 * a parser or the platform. If we have nothing yet, then forget the
-	 * whole partitioning thing.
-	 */
-
-	if (g->nr_parts == 0) {
-		dev_err(&pdev->dev, "Neither part_probe_types nor "
-			"partitions was specified in platform_data");
-		goto out_all;
-	}
-
-	/*
-	 * If control arrives here, we have some partitions to use. Announce
-	 * what we've found.
-	 */
-
-	dev_info(&pdev->dev, "Using %s partition definition\n", part_type);
-
-	/*
-	 * Transcribe the number of chips discovered by the scan to the
-	 * per-device data structure. This assignment should NOT happen here,
-	 * because it's conditional on whether partitioning is on.
-	 */
-
-	g->numchips = g->chip.numchips;
-
-	/*
-	 * Compute the number of bytes per chip by taking the size of the entire
-	 * medium and dividing by the number of chips.
-	 */
-
-	chipsize = g->mtd.size;
-	do_div(chipsize, (unsigned long)g->numchips);
-
-	/*
-	 * Check if the partitions we're using came from a parser (in which case
-	 * they should be used as-is), or came from the platform data (in which
-	 * case we have some special processing we like to do).
-	 */
-
-	if (!strcmp(part_type, "command line"))
-		add_mtd_partitions(&g->mtd, g->chip_partitions, g->nr_parts);
-	else
-		gpmi_create_partitions(g, gpd, chipsize);
-
-	/*
-	 * Check if we're supposed to register the MTD that represents the
-	 * entire medium.
-	 */
-
-	if (add_mtd_entire) {
-		printk(KERN_NOTICE "Adding MTD covering the whole flash\n");
-		add_mtd_device(&g->mtd);
-	}
-
-#else
-
-	/*
-	 * If control arrives here, the MTD partitioning facility isn't
-	 * available. We just register the MTD that represents the entire
-	 * medium.
-	 */
-
-	add_mtd_device(&g->mtd);
-
-#endif
+	/* Stay away from Unique ID -- It's going away soon. */
 
 	/* Initialize the Unique ID facility. */
 
@@ -2189,7 +2235,6 @@ static int __init gpmi_nand_probe(struct platform_device *pdev)
 
 	return 0;
 
-out_all:
 	ecc8_exit();
 	bch_exit();
 out7:
@@ -2219,13 +2264,8 @@ out1:
 static int __devexit gpmi_nand_remove(struct platform_device *pdev)
 {
 	struct gpmi_nand_data *g = platform_get_drvdata(pdev);
-	int i = 0;
-#ifdef CONFIG_MTD_PARTITIONS
-	struct gpmi_platform_data *gpd = pdev->dev.platform_data;
-	struct mtd_partition *platf_parts;
-#endif
 
-	gpmi_delete_partitions(g);
+	gpmi_unregister_with_mtd(g);
 	del_timer_sync(&g->timer);
 	gpmi_uid_remove("nand");
 
@@ -2240,16 +2280,6 @@ static int __devexit gpmi_nand_remove(struct platform_device *pdev)
 	free_irq(g->irq, g);
 	if (g->regulator)
 		regulator_put(g->regulator);
-
-#ifdef CONFIG_MTD_PARTITIONS
-	if (i < gpd->chip_count && gpd->chip_partitions[i].partitions)
-		platf_parts = gpd->chip_partitions[i].partitions;
-	else
-		platf_parts = NULL;
-	if (g->chip_partitions && g->chip_partitions != platf_parts)
-		kfree(g->chip_partitions);
-#endif
-
 	iounmap(g->io_base);
 	kfree(g);
 
@@ -2431,7 +2461,7 @@ static ssize_t show_chips(struct device *d, struct device_attribute *attr,
 			  char *buf)
 {
 	struct gpmi_nand_data *g = dev_get_drvdata(d);
-	return sprintf(buf, "%d\n", g->numchips);
+	return sprintf(buf, "%d\n", g->nand.numchips);
 }
 
 /**
@@ -2470,11 +2500,11 @@ static ssize_t store_ignorebad(struct device *d, struct device_attribute *attr,
 		v = 1;
 	if (v != g->ignorebad) {
 		if (v) {
-			g->bbt = g->chip.bbt;
-			g->chip.bbt = NULL;
+			g->bbt = g->nand.bbt;
+			g->nand.bbt = NULL;
 			g->ignorebad = 1;
 		} else {
-			g->chip.bbt = g->bbt;
+			g->nand.bbt = g->bbt;
 			g->ignorebad = 0;
 		}
 	}

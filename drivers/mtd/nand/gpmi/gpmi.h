@@ -178,8 +178,10 @@ void bch_exit(void);
 void ecc8_exit(void);
 
 /**
- * struct gpmi_nand_data -
+ * struct gpmi_nand_data - GPMI driver per-device data structure.
  *
+ * @dev:                  A pointer to the owning struct device.
+ * @gpd:                  GPMI-specific platform data.
  * @io_base:              The base I/O address of of the GPMI registers.
  * @clk:                  A pointer to the structure that represents the GPMI
  *                        clock.
@@ -199,17 +201,14 @@ void ecc8_exit(void);
  * @bbt:                  Used to save a pointer to the in-memory NAND Flash MTD
  *                        Bad Block Table if the "ignorebad" flag is turned on
  *                        through the corresponding sysfs node.
- * @nand:                 The data structure that represents this NAND Flash
- *                        medium to the MTD NAND Flash system.
  * @mtd:                  The data structure that represents this NAND Flash
  *                        medium to MTD.
- * @dev:                  A pointer to the owning struct device.
- * @nr_parts:             If the driver receives partition descriptions from an
- *                        external parser (command line, etc.), then this is
- *                        the number of discovered partitions.
- * @parts:                If the driver receives partition descriptions from an
- *                        external parser (command line, etc.), then this is a
- *                        pointer to the array of discovered partitions.
+ * @nand:                 The data structure that represents this NAND Flash
+ *                        medium to the MTD NAND Flash system.
+ * @partitions:           A pointer to an array of partition descriptions
+ *                        collected from the platform. If this member is NULL,
+ *                        then no such partitions were given.
+ * @partition_count:      The number of elements in the partitions array.
  * @done:                 A struct completion used to manage GPMI interrupts.
  * @cmd_buffer:
  * @cmd_buffer_handle:
@@ -252,33 +251,13 @@ void ecc8_exit(void);
  *                        for the MTD write_oob fuction pointer.
  * @hc:                   A pointer to a structure that represents the ECC
  *                        in use.
- * @numchips:             The number of physical chips.
- * @custom_partitions:    Indicates that the driver has applied driver-specific
- *                        logic in partitioning the medium. This is important
- *                        because similar logic must be applied in disassembling
- *                        the partitioning when the driver shuts down.
- * @chip_mtds:            An array with an element for each physical chip. If
- *                        there is only one physical chip, the first and only
- *                        element in this array will be a copy of the pointer in
- *                        the "mtd" field (that is, they will point to the same
- *                        structure). If there is more than one physical chip,
- *                        each element in this array is a pointer to a partition
- *                        MTD derived from the "mtd" field, and representing the
- *                        corresponding physical chip.
- * @chip_partitions:      An array of partition descriptions that each represent
- *                        one of the physical chips in the medium.
- * @n_concat:             The number of partitions to be concatenated (pointers
- *                        to the partition MTDs appear in the "concat" field).
- * @concat:               An array of pointers to partition MTDs to be
- *                        concatenated.
- * @concat_mtd:           If "n_concat" is zero, this is NULL. If "n_concat" is
- *                        one, this is a copy of the first and only element in
- *                        the "concat" array. If "n_concat" is greater than one,
- *                        this is a pointer to an MTD that represents the
- *                        concatenation of all the MTDs appearing in "concat".
  */
 
 struct gpmi_nand_data {
+
+	struct platform_device     *dev;
+	struct gpmi_platform_data  *gpd;
+
 	void __iomem *io_base;
 	struct clk *clk;
 	int irq;
@@ -291,13 +270,15 @@ struct gpmi_nand_data {
 	int ignorebad;
 	void *bbt;
 
-	struct nand_chip	chip;
-	struct mtd_info		mtd;
-	struct platform_device  *dev;
+	struct mtd_info   mtd;
+	struct nand_chip  nand;
 
-#ifdef CONFIG_MTD_PARTITIONS
-	int			nr_parts;
-	struct mtd_partition	*parts;
+#if defined(CONFIG_MTD_PARTITIONS) && defined(CONFIG_MTD_CONCAT)
+	struct mtd_info       *chip0_boot_mtd;
+	struct mtd_info       *chip1_boot_mtd;
+	struct mtd_info       *general_use_mtd;
+	struct mtd_partition  *partitions;
+	unsigned              partition_count;
 #endif
 
 	struct completion	done;
@@ -351,13 +332,6 @@ struct gpmi_nand_data {
 
 	struct gpmi_ecc_descriptor *hc;
 
-	int numchips;
-	int custom_partitions;
-	struct mtd_info *chip_mtds[GPMI_MAX_CHIPS];
-	struct mtd_partition chip_partitions[GPMI_MAX_CHIPS];
-	int n_concat;
-	struct mtd_info *concat[GPMI_MAX_CHIPS];
-	struct mtd_info *concat_mtd;
 };
 
 extern struct gpmi_nand_timing gpmi_safe_timing;
