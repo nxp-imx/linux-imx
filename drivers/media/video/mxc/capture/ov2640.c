@@ -28,6 +28,7 @@
 #include <linux/i2c.h>
 #include <linux/regulator/consumer.h>
 
+#include <mach/hardware.h>
 #include <media/v4l2-int-device.h>
 #include "mxc_v4l2_capture.h"
 

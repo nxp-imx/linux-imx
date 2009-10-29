@@ -1309,13 +1309,12 @@ static int mxc_v4l_dqueue(cam_data *cam, struct v4l2_buffer *buf)
 /*!
  * V4L interface - open function
  *
- * @param inode        structure inode *
  * @param file         structure file *
  *
  * @return  status    0 success, ENODEV invalid device instance,
  *                    ENODEV timeout, ERESTARTSYS interrupted by user
  */
-static int mxc_v4l_open(struct inode *inode, struct file *file)
+static int mxc_v4l_open(struct file *file)
 {
 	struct v4l2_ifparm ifparm;
 	struct v4l2_format cam_fmt;
@@ -1457,12 +1456,11 @@ static int mxc_v4l_open(struct inode *inode, struct file *file)
 /*!
  * V4L interface - close function
  *
- * @param inode    struct inode *
  * @param file     struct file *
  *
  * @return         0 success
  */
-static int mxc_v4l_close(struct inode *inode, struct file *file)
+static int mxc_v4l_close(struct file *file)
 {
 	struct video_device *dev = video_devdata(file);
 	int err = 0;
@@ -1599,8 +1597,6 @@ static ssize_t mxc_v4l_read(struct file *file, char *buf, size_t count,
 /*!
  * V4L interface - ioctl function
  *
- * @param inode      struct inode*
- *
  * @param file       struct file*
  *
  * @param ioctlnr    unsigned int
@@ -1610,7 +1606,7 @@ static ssize_t mxc_v4l_read(struct file *file, char *buf, size_t count,
  * @return           0 success, ENODEV for invalid device instance,
  *                   -1 for other errors.
  */
-static int mxc_v4l_do_ioctl(struct inode *inode, struct file *file,
+static long mxc_v4l_do_ioctl(struct file *file,
 			    unsigned int ioctlnr, void *arg)
 {
 	struct video_device *dev = video_devdata(file);
@@ -2086,11 +2082,11 @@ static int mxc_v4l_do_ioctl(struct inode *inode, struct file *file,
  *
  * @return  None
  */
-static int mxc_v4l_ioctl(struct inode *inode, struct file *file,
-			 unsigned int cmd, unsigned long arg)
+static long mxc_v4l_ioctl(struct file *file, unsigned int cmd,
+			 unsigned long arg)
 {
 	pr_debug("In MVC:mxc_v4l_ioctl\n");
-	return video_usercopy(inode, file, cmd, arg, mxc_v4l_do_ioctl);
+	return video_usercopy(file, cmd, arg, mxc_v4l_do_ioctl);
 }
 
 /*!
@@ -2140,11 +2136,11 @@ static int mxc_mmap(struct file *file, struct vm_area_struct *vma)
  *
  * @param file       structure file *
  *
- * @param wait       structure poll_table *
+ * @param wait       structure poll_table_struct *
  *
  * @return  status   POLLIN | POLLRDNORM
  */
-static unsigned int mxc_poll(struct file *file, poll_table *wait)
+static unsigned int mxc_poll(struct file *file, struct poll_table_struct *wait)
 {
 	struct video_device *dev = video_devdata(file);
 	cam_data *cam = video_get_drvdata(dev);
@@ -2167,7 +2163,7 @@ static unsigned int mxc_poll(struct file *file, poll_table *wait)
 /*!
  * This structure defines the functions to be called in this driver.
  */
-static struct file_operations mxc_v4l_fops = {
+static struct v4l2_file_operations mxc_v4l_fops = {
 	.owner = THIS_MODULE,
 	.open = mxc_v4l_open,
 	.release = mxc_v4l_close,
@@ -2179,7 +2175,6 @@ static struct file_operations mxc_v4l_fops = {
 
 static struct video_device mxc_v4l_template = {
 	.name = "Mxc Camera",
-	.vfl_type = VID_TYPE_CAPTURE,
 	.fops = &mxc_v4l_fops,
 	.release = video_device_release,
 };
