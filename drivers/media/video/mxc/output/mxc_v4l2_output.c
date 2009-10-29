@@ -32,6 +32,7 @@
 #include <linux/mxcfb.h>
 #include <media/v4l2-ioctl.h>
 #include <asm/cacheflush.h>
+#include <mach/hardware.h>
 
 #include "mxc_v4l2_output.h"
 
@@ -358,6 +359,7 @@ static void mxc_v4l2out_timer_handler(unsigned long arg)
 	int index, ret;
 	unsigned long lock_flags = 0;
 	vout_data *vout = (vout_data *) arg;
+	unsigned int aid_field_offset = 0, current_field_offset = 0;
 
 	spin_lock_irqsave(&g_lock, lock_flags);
 
@@ -376,7 +378,6 @@ static void mxc_v4l2out_timer_handler(unsigned long arg)
 	}
 
 	/* Dequeue buffer and pass to IPU */
-	unsigned int aid_field_offset, current_field_offset;
 	if (INTERLACED_CONTENT(vout)) {
 		if (((LOAD_3FIELDS(vout)) && (vout->next_rdy_ipu_buf)) ||
 		    ((!LOAD_3FIELDS(vout)) && !(vout->next_rdy_ipu_buf))) {
@@ -1057,18 +1058,19 @@ static int mxc_v4l2out_streamon(vout_data * vout)
 	ipu_channel_t display_input_ch;
 	bool use_direct_adc = false;
 	mm_segment_t old_fs;
+	int rc = 0;
 
 	dev_dbg(dev, "mxc_v4l2out_streamon: field format=%d\n",
 		vout->field_fmt);
 	if (INTERLACED_CONTENT(vout)) {
 		ipu_request_irq(IPU_IRQ_PRP_VF_OUT_EOF,
 				mxc_v4l2out_pp_in_irq_handler,
-				0, &vout->video_dev->name, vout);
+				0, vout->video_dev->name, vout);
 		display_input_ch = MEM_VDI_PRP_VF_MEM;
 	} else {
 		ipu_request_irq(IPU_IRQ_PP_IN_EOF,
 				mxc_v4l2out_pp_in_irq_handler,
-				0, &vout->video_dev->name, vout);
+				0, vout->video_dev->name, vout);
 		display_input_ch = MEM_PP_MEM;
 	}
 
@@ -1349,7 +1351,6 @@ static int mxc_v4l2out_streamon(vout_data * vout)
 			out_height = vout->crop_current.width;
 		}
 		memset(&params, 0, sizeof(params));
-		int rc;
 		if (INTERLACED_CONTENT(vout)) {
 			rc = init_VDI(params, vout, dev, fbi, &display_input_ch,
 				      out_width, out_height);
@@ -1793,14 +1794,12 @@ static int mxc_set_v42lout_control(vout_data * vout, struct v4l2_control *c)
 /*!
  * V4L2 interface - open function
  *
- * @param inode        structure inode *
- *
  * @param file         structure file *
  *
  * @return  status    0 success, ENODEV invalid device instance,
  *                    ENODEV timeout, ERESTARTSYS interrupted by user
  */
-static int mxc_v4l2out_open(struct inode *inode, struct file *file)
+static int mxc_v4l2out_open(struct file *file)
 {
 	struct video_device *dev = video_devdata(file);
 	vout_data *vout = video_get_drvdata(dev);
@@ -1844,13 +1843,11 @@ static int mxc_v4l2out_open(struct inode *inode, struct file *file)
 /*!
  * V4L2 interface - close function
  *
- * @param inode    struct inode *
- *
  * @param file     struct file *
  *
  * @return         0 success
  */
-static int mxc_v4l2out_close(struct inode *inode, struct file *file)
+static int mxc_v4l2out_close(struct file *file)
 {
 	struct video_device *dev = video_devdata(file);
 	vout_data *vout = video_get_drvdata(dev);
@@ -1878,8 +1875,6 @@ static int mxc_v4l2out_close(struct inode *inode, struct file *file)
 /*!
  * V4L2 interface - ioctl function
  *
- * @param inode      struct inode *
- *
  * @param file       struct file *
  *
  * @param ioctlnr    unsigned int
@@ -1889,8 +1884,8 @@ static int mxc_v4l2out_close(struct inode *inode, struct file *file)
  * @return           0 success, ENODEV for invalid device instance,
  *                   -1 for other errors.
  */
-static int
-mxc_v4l2out_do_ioctl(struct inode *inode, struct file *file,
+static long
+mxc_v4l2out_do_ioctl(struct file *file,
 		     unsigned int ioctlnr, void *arg)
 {
 	struct video_device *vdev = file->private_data;
@@ -2344,11 +2339,11 @@ mxc_v4l2out_do_ioctl(struct inode *inode, struct file *file,
  *
  * @return  None
  */
-static int
-mxc_v4l2out_ioctl(struct inode *inode, struct file *file,
+static long
+mxc_v4l2out_ioctl(struct file *file,
 		  unsigned int cmd, unsigned long arg)
 {
-	return video_usercopy(inode, file, cmd, arg, mxc_v4l2out_do_ioctl);
+	return video_usercopy(file, cmd, arg, mxc_v4l2out_do_ioctl);
 }
 
 /*!
@@ -2411,11 +2406,11 @@ static int mxc_v4l2out_mmap(struct file *file, struct vm_area_struct *vma)
  *
  * @param file       structure file *
  *
- * @param wait       structure poll_table *
+ * @param wait       structure poll_table_struct *
  *
  * @return  status   POLLIN | POLLRDNORM
  */
-static unsigned int mxc_v4l2out_poll(struct file *file, poll_table * wait)
+static unsigned int mxc_v4l2out_poll(struct file *file, struct poll_table_struct * wait)
 {
 	struct video_device *dev = video_devdata(file);
 	vout_data *vout = video_get_drvdata(dev);
@@ -2434,7 +2429,7 @@ static unsigned int mxc_v4l2out_poll(struct file *file, poll_table * wait)
 }
 
 static struct
-file_operations mxc_v4l2out_fops = {
+v4l2_file_operations mxc_v4l2out_fops = {
 	.owner = THIS_MODULE,
 	.open = mxc_v4l2out_open,
 	.release = mxc_v4l2out_close,
