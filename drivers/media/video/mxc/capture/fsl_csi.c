@@ -53,8 +53,21 @@ static irqreturn_t csi_irq_handler(int irq, void *data)
 			__raw_writel(cr3 | BIT_DMA_REFLASH_RFF, CSI_CSICR3);
 	}
 
+	if (status & BIT_DMA_TSF_DONE_FB1) {
+		if (cam->capture_on) {
+			cam->ping_pong_csi = 1;
+			cam->enc_callback(0, cam);
+		} else {
+			cam->still_counter++;
+			wake_up_interruptible(&cam->still_queue);
+		}
+	}
+
 	if (status & BIT_DMA_TSF_DONE_FB2) {
-		if (frame_count == 2) {
+		if (cam->capture_on) {
+			cam->ping_pong_csi = 2;
+			cam->enc_callback(0, cam);
+		} else {
 			cam->still_counter++;
 			wake_up_interruptible(&cam->still_queue);
 		}

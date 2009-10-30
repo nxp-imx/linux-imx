@@ -62,6 +62,201 @@ static struct v4l2_int_device csi_v4l2_int_device = {
 };
 
 /*!
+ * Camera V4l2 callback function.
+ *
+ * @param mask 	   u32
+ * @param dev      void device structure
+ *
+ * @return none
+ */
+static void camera_callback(u32 mask, void *dev)
+{
+	struct mxc_v4l_frame *done_frame;
+	struct mxc_v4l_frame *ready_frame;
+	cam_data *cam;
+
+	cam = (cam_data *) dev;
+	if (cam == NULL)
+		return;
+
+	if (list_empty(&cam->working_q)) {
+		pr_err("ERROR: v4l2 capture: %s: "
+				"working queue empty\n", __func__);
+		return;
+	}
+
+	done_frame =
+		list_entry(cam->working_q.next, struct mxc_v4l_frame, queue);
+	if (done_frame->buffer.flags & V4L2_BUF_FLAG_QUEUED) {
+		done_frame->buffer.flags |= V4L2_BUF_FLAG_DONE;
+		done_frame->buffer.flags &= ~V4L2_BUF_FLAG_QUEUED;
+		if (list_empty(&cam->ready_q)) {
+			cam->skip_frame++;
+		} else {
+			ready_frame = list_entry(cam->ready_q.next,
+						 struct mxc_v4l_frame, queue);
+			list_del(cam->ready_q.next);
+			list_add_tail(&ready_frame->queue, &cam->working_q);
+
+			if (cam->ping_pong_csi == 1) {
+				__raw_writel(cam->frame[ready_frame->index].
+					     paddress, CSI_CSIDMASA_FB1);
+			} else {
+				__raw_writel(cam->frame[ready_frame->index].
+					     paddress, CSI_CSIDMASA_FB2);
+			}
+		}
+
+		/* Added to the done queue */
+		list_del(cam->working_q.next);
+		list_add_tail(&done_frame->queue, &cam->done_q);
+		cam->enc_counter++;
+		wake_up_interruptible(&cam->enc_queue);
+	} else {
+		pr_err("ERROR: v4l2 capture: %s: "
+				"buffer not queued\n", __func__);
+	}
+
+	return;
+}
+
+/*!
+ * Make csi ready for capture image.
+ *
+ * @param cam      structure cam_data *
+ *
+ * @return status 0 success
+ */
+static int csi_cap_image(cam_data *cam)
+{
+	unsigned int value;
+
+	value = __raw_readl(CSI_CSICR3);
+	__raw_writel(value | BIT_DMA_REFLASH_RFF | BIT_FRMCNT_RST, CSI_CSICR3);
+	value = __raw_readl(CSI_CSISR);
+	__raw_writel(value, CSI_CSISR);
+
+	return 0;
+}
+
+/***************************************************************************
+ * Functions for handling Frame buffers.
+ **************************************************************************/
+
+/*!
+ * Free frame buffers
+ *
+ * @param cam      Structure cam_data *
+ *
+ * @return status  0 success.
+ */
+static int csi_free_frame_buf(cam_data *cam)
+{
+	int i;
+
+	pr_debug("MVC: In %s\n", __func__);
+
+	for (i = 0; i < FRAME_NUM; i++) {
+		if (cam->frame[i].vaddress != 0) {
+			dma_free_coherent(0, cam->frame[i].buffer.length,
+					     cam->frame[i].vaddress,
+					     cam->frame[i].paddress);
+			cam->frame[i].vaddress = 0;
+		}
+	}
+
+	return 0;
+}
+
+/*!
+ * Allocate frame buffers
+ *
+ * @param cam      Structure cam_data *
+ * @param count    int number of buffer need to allocated
+ *
+ * @return status  -0 Successfully allocated a buffer, -ENOBUFS	failed.
+ */
+static int csi_allocate_frame_buf(cam_data *cam, int count)
+{
+	int i;
+
+	pr_debug("In MVC:%s- size=%d\n",
+		 __func__, cam->v2f.fmt.pix.sizeimage);
+	for (i = 0; i < count; i++) {
+		cam->frame[i].vaddress = dma_alloc_coherent(0, PAGE_ALIGN
+							       (cam->v2f.fmt.
+							       pix.sizeimage),
+							       &cam->frame[i].
+							       paddress,
+							       GFP_DMA |
+							       GFP_KERNEL);
+		if (cam->frame[i].vaddress == 0) {
+			pr_err("ERROR: v4l2 capture: "
+			       "%s failed.\n", __func__);
+			csi_free_frame_buf(cam);
+			return -ENOBUFS;
+		}
+		cam->frame[i].buffer.index = i;
+		cam->frame[i].buffer.flags = V4L2_BUF_FLAG_MAPPED;
+		cam->frame[i].buffer.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+		cam->frame[i].buffer.length = PAGE_ALIGN(cam->v2f.fmt.
+							 pix.sizeimage);
+		cam->frame[i].buffer.memory = V4L2_MEMORY_MMAP;
+		cam->frame[i].buffer.m.offset = cam->frame[i].paddress;
+		cam->frame[i].index = i;
+	}
+
+	return 0;
+}
+
+/*!
+ * Free frame buffers status
+ *
+ * @param cam    Structure cam_data *
+ *
+ * @return none
+ */
+static void csi_free_frames(cam_data *cam)
+{
+	int i;
+
+	pr_debug("In MVC: %s\n", __func__);
+
+	for (i = 0; i < FRAME_NUM; i++)
+		cam->frame[i].buffer.flags = V4L2_BUF_FLAG_MAPPED;
+
+	cam->skip_frame = 0;
+	INIT_LIST_HEAD(&cam->ready_q);
+	INIT_LIST_HEAD(&cam->working_q);
+	INIT_LIST_HEAD(&cam->done_q);
+
+	return;
+}
+
+/*!
+ * Return the buffer status
+ *
+ * @param cam 	   Structure cam_data *
+ * @param buf      Structure v4l2_buffer *
+ *
+ * @return status  0 success, EINVAL failed.
+ */
+static int csi_v4l2_buffer_status(cam_data *cam, struct v4l2_buffer *buf)
+{
+	pr_debug("In MVC: %s\n", __func__);
+
+	if (buf->index < 0 || buf->index >= FRAME_NUM) {
+		pr_err("ERROR: v4l2 capture: %s buffers "
+				"not allocated\n", __func__);
+		return -EINVAL;
+	}
+
+	memcpy(buf, &(cam->frame[buf->index].buffer), sizeof(*buf));
+
+	return 0;
+}
+
+/*!
  * Indicates whether the palette is supported.
  *
  * @param palette V4L2_PIX_FMT_RGB565, V4L2_PIX_FMT_UYVY or V4L2_PIX_FMT_YUV420
@@ -72,6 +267,85 @@ static inline int valid_mode(u32 palette)
 {
 	return (palette == V4L2_PIX_FMT_RGB565) ||
 	    (palette == V4L2_PIX_FMT_UYVY) || (palette == V4L2_PIX_FMT_YUV420);
+}
+
+/*!
+ * Start stream I/O
+ *
+ * @param cam      structure cam_data *
+ *
+ * @return status  0 Success
+ */
+static int csi_streamon(cam_data *cam)
+{
+	struct mxc_v4l_frame *frame;
+
+	pr_debug("In MVC: %s\n", __func__);
+
+	if (NULL == cam) {
+		pr_err("ERROR: v4l2 capture: %s cam parameter is NULL\n",
+				__func__);
+		return -1;
+	}
+
+	/* move the frame from readyq to workingq */
+	if (list_empty(&cam->ready_q)) {
+		pr_err("ERROR: v4l2 capture: %s: "
+				"ready_q queue empty\n", __func__);
+		return -1;
+	}
+	frame = list_entry(cam->ready_q.next, struct mxc_v4l_frame, queue);
+	list_del(cam->ready_q.next);
+	list_add_tail(&frame->queue, &cam->working_q);
+	__raw_writel(cam->frame[frame->index].paddress, CSI_CSIDMASA_FB1);
+
+	if (list_empty(&cam->ready_q)) {
+		pr_err("ERROR: v4l2 capture: %s: "
+				"ready_q queue empty\n", __func__);
+		return -1;
+	}
+	frame = list_entry(cam->ready_q.next, struct mxc_v4l_frame, queue);
+	list_del(cam->ready_q.next);
+	list_add_tail(&frame->queue, &cam->working_q);
+	__raw_writel(cam->frame[frame->index].paddress, CSI_CSIDMASA_FB2);
+
+	cam->capture_pid = current->pid;
+	cam->capture_on = true;
+	csi_cap_image(cam);
+	csi_enable_int(1);
+
+	return 0;
+}
+
+/*!
+ * Stop stream I/O
+ *
+ * @param cam      structure cam_data *
+ *
+ * @return status  0 Success
+ */
+static int csi_streamoff(cam_data *cam)
+{
+	unsigned int cr3;
+
+	pr_debug("In MVC: %s\n", __func__);
+
+	if (cam->capture_on == false)
+		return 0;
+
+	csi_disable_int();
+	cam->capture_on = false;
+
+	/* set CSI_CSIDMASA_FB1 and CSI_CSIDMASA_FB2 to default value */
+	__raw_writel(0, CSI_CSIDMASA_FB1);
+	__raw_writel(0, CSI_CSIDMASA_FB2);
+	cr3 = __raw_readl(CSI_CSICR3);
+	__raw_writel(cr3 | BIT_DMA_REFLASH_RFF, CSI_CSICR3);
+
+	csi_free_frames(cam);
+	csi_free_frame_buf(cam);
+
+	return 0;
 }
 
 /*!
@@ -340,6 +614,57 @@ exit:
 }
 
 /*!
+ * Dequeue one V4L capture buffer
+ *
+ * @param cam         structure cam_data *
+ * @param buf         structure v4l2_buffer *
+ *
+ * @return  status    0 success, EINVAL invalid frame number
+ *                    ETIME timeout, ERESTARTSYS interrupted by user
+ */
+static int csi_v4l_dqueue(cam_data *cam, struct v4l2_buffer *buf)
+{
+	int retval = 0;
+	struct mxc_v4l_frame *frame;
+
+	if (!wait_event_interruptible_timeout(cam->enc_queue,
+				cam->enc_counter != 0, 10 * HZ)) {
+		pr_err("ERROR: v4l2 capture: mxc_v4l_dqueue timeout "
+			"enc_counter %x\n", cam->enc_counter);
+		return -ETIME;
+	} else if (signal_pending(current)) {
+		pr_err("ERROR: v4l2 capture: mxc_v4l_dqueue() "
+				"interrupt received\n");
+		return -ERESTARTSYS;
+	}
+
+	cam->enc_counter--;
+
+	frame = list_entry(cam->done_q.next, struct mxc_v4l_frame, queue);
+	list_del(cam->done_q.next);
+
+	if (frame->buffer.flags & V4L2_BUF_FLAG_DONE) {
+		frame->buffer.flags &= ~V4L2_BUF_FLAG_DONE;
+	} else if (frame->buffer.flags & V4L2_BUF_FLAG_QUEUED) {
+		pr_err("ERROR: v4l2 capture: VIDIOC_DQBUF: "
+			"Buffer not filled.\n");
+		frame->buffer.flags &= ~V4L2_BUF_FLAG_QUEUED;
+		retval = -EINVAL;
+	} else if ((frame->buffer.flags & 0x7) == V4L2_BUF_FLAG_MAPPED) {
+		pr_err("ERROR: v4l2 capture: VIDIOC_DQBUF: "
+			"Buffer not queued.\n");
+		retval = -EINVAL;
+	}
+
+	buf->bytesused = cam->v2f.fmt.pix.sizeimage;
+	buf->index = frame->index;
+	buf->flags = frame->buffer.flags;
+	buf->m = cam->frame[frame->index].buffer.m;
+
+	return retval;
+}
+
+/*!
  * V4L interface - open function
  *
  * @param file         structure file *
@@ -371,6 +696,12 @@ static int csi_v4l_open(struct file *file)
 	if (cam->open_count++ == 0) {
 		wait_event_interruptible(cam->power_queue,
 					 cam->low_power == false);
+
+		cam->enc_counter = 0;
+		cam->skip_frame = 0;
+		INIT_LIST_HEAD(&cam->ready_q);
+		INIT_LIST_HEAD(&cam->working_q);
+		INIT_LIST_HEAD(&cam->done_q);
 
 		vidioc_int_g_ifparm(cam->sensor, &ifparm);
 
@@ -461,6 +792,7 @@ static ssize_t csi_v4l_read(struct file *file, char *buf, size_t count,
 		}
 		cam->still_counter = 0;
 		__raw_writel(cam->still_buf, CSI_CSIDMASA_FB2);
+		__raw_writel(cam->still_buf, CSI_CSIDMASA_FB1);
 		__raw_writel(__raw_readl(CSI_CSICR3) | BIT_DMA_REFLASH_RFF,
 			     CSI_CSICR3);
 		__raw_writel(__raw_readl(CSI_CSISR), CSI_CSISR);
@@ -509,6 +841,7 @@ static long csi_v4l_do_ioctl(struct file *file,
 	struct video_device *dev = video_devdata(file);
 	cam_data *cam = video_get_drvdata(dev);
 	int retval = 0;
+	unsigned long lock_flags;
 
 	pr_debug("In MVC: %s, %x\n", __func__, ioctlnr);
 	wait_event_interruptible(cam->power_queue, cam->low_power == false);
@@ -605,12 +938,120 @@ static long csi_v4l_do_ioctl(struct file *file,
 		pr_debug("   case not supported\n");
 		break;
 
+	case VIDIOC_REQBUFS: {
+		struct v4l2_requestbuffers *req = arg;
+		pr_debug("   case VIDIOC_REQBUFS\n");
+
+		if (req->count > FRAME_NUM) {
+			pr_err("ERROR: v4l2 capture: VIDIOC_REQBUFS: "
+					"not enough buffers\n");
+			req->count = FRAME_NUM;
+		}
+
+		if ((req->type != V4L2_BUF_TYPE_VIDEO_CAPTURE) ||
+				(req->memory != V4L2_MEMORY_MMAP)) {
+			pr_err("ERROR: v4l2 capture: VIDIOC_REQBUFS: "
+					"wrong buffer type\n");
+			retval = -EINVAL;
+			break;
+		}
+
+		csi_streamoff(cam);
+		csi_free_frame_buf(cam);
+		cam->skip_frame = 0;
+		INIT_LIST_HEAD(&cam->ready_q);
+		INIT_LIST_HEAD(&cam->working_q);
+		INIT_LIST_HEAD(&cam->done_q);
+		retval = csi_allocate_frame_buf(cam, req->count);
+		break;
+	}
+
+	case VIDIOC_QUERYBUF: {
+		struct v4l2_buffer *buf = arg;
+		int index = buf->index;
+		pr_debug("   case VIDIOC_QUERYBUF\n");
+
+		if (buf->type != V4L2_BUF_TYPE_VIDEO_CAPTURE) {
+			retval = -EINVAL;
+			break;
+		}
+
+		memset(buf, 0, sizeof(buf));
+		buf->index = index;
+		retval = csi_v4l2_buffer_status(cam, buf);
+		break;
+	}
+
+	case VIDIOC_QBUF: {
+		struct v4l2_buffer *buf = arg;
+		int index = buf->index;
+		pr_debug("   case VIDIOC_QBUF\n");
+
+		spin_lock_irqsave(&cam->int_lock, lock_flags);
+		cam->frame[index].buffer.m.offset = buf->m.offset;
+		if ((cam->frame[index].buffer.flags & 0x7) ==
+				V4L2_BUF_FLAG_MAPPED) {
+			cam->frame[index].buffer.flags |= V4L2_BUF_FLAG_QUEUED;
+			if (cam->skip_frame > 0) {
+				list_add_tail(&cam->frame[index].queue,
+					      &cam->working_q);
+				cam->skip_frame = 0;
+
+				if (cam->ping_pong_csi == 1) {
+					__raw_writel(cam->frame[index].paddress,
+						     CSI_CSIDMASA_FB1);
+				} else {
+					__raw_writel(cam->frame[index].paddress,
+						     CSI_CSIDMASA_FB2);
+				}
+			} else {
+				list_add_tail(&cam->frame[index].queue,
+					      &cam->ready_q);
+			}
+		} else if (cam->frame[index].buffer.flags &
+				V4L2_BUF_FLAG_QUEUED) {
+			pr_err("ERROR: v4l2 capture: VIDIOC_QBUF: "
+					"buffer already queued\n");
+			retval = -EINVAL;
+		} else if (cam->frame[index].buffer.
+			   flags & V4L2_BUF_FLAG_DONE) {
+			pr_err("ERROR: v4l2 capture: VIDIOC_QBUF: "
+			       "overwrite done buffer.\n");
+			cam->frame[index].buffer.flags &=
+			    ~V4L2_BUF_FLAG_DONE;
+			cam->frame[index].buffer.flags |=
+			    V4L2_BUF_FLAG_QUEUED;
+			retval = -EINVAL;
+		}
+		buf->flags = cam->frame[index].buffer.flags;
+		spin_unlock_irqrestore(&cam->int_lock, lock_flags);
+
+		break;
+	}
+
+	case VIDIOC_DQBUF: {
+		struct v4l2_buffer *buf = arg;
+		pr_debug("   case VIDIOC_DQBUF\n");
+
+		retval = csi_v4l_dqueue(cam, buf);
+
+		break;
+	}
+
+	case VIDIOC_STREAMON: {
+		pr_debug("   case VIDIOC_STREAMON\n");
+		retval = csi_streamon(cam);
+		break;
+	}
+
+	case VIDIOC_STREAMOFF: {
+		pr_debug("   case VIDIOC_STREAMOFF\n");
+		retval = csi_streamoff(cam);
+		break;
+	}
+
 	case VIDIOC_S_CTRL:
 	case VIDIOC_G_STD:
-	case VIDIOC_QBUF:
-	case VIDIOC_QUERYBUF:
-	case VIDIOC_REQBUFS:
-	case VIDIOC_DQBUF:
 	case VIDIOC_G_OUTPUT:
 	case VIDIOC_S_OUTPUT:
 	case VIDIOC_ENUMSTD:
@@ -618,8 +1059,6 @@ static long csi_v4l_do_ioctl(struct file *file,
 	case VIDIOC_CROPCAP:
 	case VIDIOC_S_STD:
 	case VIDIOC_G_CTRL:
-	case VIDIOC_STREAMOFF:
-	case VIDIOC_STREAMON:
 	case VIDIOC_ENUM_FMT:
 	case VIDIOC_TRY_FMT:
 	case VIDIOC_QUERYCTRL:
@@ -755,6 +1194,7 @@ static void init_camera_struct(cam_data *cam)
 	dev_set_drvdata(&csi_v4l2_devices.dev, (void *)cam);
 	cam->video_dev->minor = -1;
 
+	init_waitqueue_head(&cam->enc_queue);
 	init_waitqueue_head(&cam->still_queue);
 
 	cam->streamparm.parm.capture.capturemode = 0;
@@ -784,6 +1224,7 @@ static void init_camera_struct(cam_data *cam)
 	cam->win.w.top = 0;
 	cam->still_counter = 0;
 
+	cam->enc_callback = camera_callback;
 	csi_start_callback(cam);
 	init_waitqueue_head(&cam->power_queue);
 	spin_lock_init(&cam->int_lock);
