@@ -23,6 +23,7 @@
 #include <linux/clk.h>
 #include <linux/platform_device.h>
 #include <linux/fsl_devices.h>
+#include <linux/smsc911x.h>
 #include <linux/spi/spi.h>
 #include <linux/i2c.h>
 #include <linux/ata.h>
@@ -552,11 +553,18 @@ static struct resource smsc911x_resources[] = {
 	 .flags = IORESOURCE_IRQ,
 	 },
 };
+
+struct smsc911x_platform_config smsc911x_config = {
+	.irq_polarity = SMSC911X_IRQ_POLARITY_ACTIVE_LOW,
+	.flags = SMSC911X_USE_32BIT | SMSC911X_FORCE_INTERNAL_PHY,
+};
+
 static struct platform_device smsc_lan9217_device = {
 	.name = "smsc911x",
 	.id = 0,
 	.dev = {
 		.release = mxc_nop_release,
+		.platform_data = &smsc911x_config,
 		},
 	.num_resources = ARRAY_SIZE(smsc911x_resources),
 	.resource = smsc911x_resources,
