@@ -18,6 +18,30 @@ header-y += netfilter_ipv6/
 header-y += usb/
 header-y += wimax/
 
+## i.MX specific files
+header-y += fsl_devices.h
+header-y += imx_adc.h
+header-y += ipu.h
+header-y += isl29023.h
+header-y += mxc_asrc.h
+header-y += mxc_mlb.h
+header-y += mxc_pf.h
+header-y += mxc_scc2_driver.h
+header-y += mxc_scc_driver.h
+header-y += mxc_srtc.h
+header-y += mxc_si4702.h
+header-y += mxc_sim_interface.h
+header-y += mxc_v4l2.h
+header-y += mxcfb.h
+header-y += pmic_adc.h
+header-y += pmic_battery.h
+header-y += pmic_external.h
+header-y += pmic_light.h
+header-y += pmic_rtc.h
+header-y += pmic_status.h
+header-y += pxp_dma.h
+header-y += soundcard.h
+
 objhdr-y += version.h
 
 ifneq ($(wildcard $(srctree)/arch/$(SRCARCH)/include/asm/a.out.h \
