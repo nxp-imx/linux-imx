@@ -342,13 +342,12 @@ exit:
 /*!
  * V4L interface - open function
  *
- * @param inode        structure inode *
  * @param file         structure file *
  *
  * @return  status    0 success, ENODEV invalid device instance,
  *                    ENODEV timeout, ERESTARTSYS interrupted by user
  */
-static int csi_v4l_open(struct inode *inode, struct file *file)
+static int csi_v4l_open(struct file *file)
 {
 	struct v4l2_ifparm ifparm;
 	struct v4l2_format cam_fmt;
@@ -390,12 +389,11 @@ oops:
 /*!
  * V4L interface - close function
  *
- * @param inode    struct inode *
  * @param file     struct file *
  *
  * @return         0 success
  */
-static int csi_v4l_close(struct inode *inode, struct file *file)
+static int csi_v4l_close(struct file *file)
 {
 	struct video_device *dev = video_devdata(file);
 	int err = 0;
@@ -496,8 +494,6 @@ static ssize_t csi_v4l_read(struct file *file, char *buf, size_t count,
 /*!
  * V4L interface - ioctl function
  *
- * @param inode      struct inode*
- *
  * @param file       struct file*
  *
  * @param ioctlnr    unsigned int
@@ -507,7 +503,7 @@ static ssize_t csi_v4l_read(struct file *file, char *buf, size_t count,
  * @return           0 success, ENODEV for invalid device instance,
  *                   -1 for other errors.
  */
-static int csi_v4l_do_ioctl(struct inode *inode, struct file *file,
+static long csi_v4l_do_ioctl(struct file *file,
 			    unsigned int ioctlnr, void *arg)
 {
 	struct video_device *dev = video_devdata(file);
@@ -650,10 +646,10 @@ static int csi_v4l_do_ioctl(struct inode *inode, struct file *file,
  *
  * @return  None
  */
-static int csi_v4l_ioctl(struct inode *inode, struct file *file,
+static long csi_v4l_ioctl(struct file *file,
 			 unsigned int cmd, unsigned long arg)
 {
-	return video_usercopy(inode, file, cmd, arg, csi_v4l_do_ioctl);
+	return video_usercopy(file, cmd, arg, csi_v4l_do_ioctl);
 }
 
 /*!
@@ -701,7 +697,7 @@ csi_mmap_exit:
 /*!
  * This structure defines the functions to be called in this driver.
  */
-static struct file_operations csi_v4l_fops = {
+static struct v4l2_file_operations csi_v4l_fops = {
 	.owner = THIS_MODULE,
 	.open = csi_v4l_open,
 	.release = csi_v4l_close,
@@ -712,7 +708,6 @@ static struct file_operations csi_v4l_fops = {
 
 static struct video_device csi_v4l_template = {
 	.name = "Mx25 Camera",
-	.vfl_type = VID_TYPE_CAPTURE,
 	.fops = &csi_v4l_fops,
 	.release = video_device_release,
 };

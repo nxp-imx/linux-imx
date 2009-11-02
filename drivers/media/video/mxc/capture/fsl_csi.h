@@ -23,6 +23,7 @@
 #define MX25_CSI_H
 
 #include <linux/io.h>
+#include <mach/hardware.h>
 
 /* reset values */
 #define CSICR1_RESET_VAL	0x40000800
