@@ -85,6 +85,27 @@ static struct regulator_consumer_supply sw1_consumers[] = {
 	}
 };
 
+static struct regulator_consumer_supply vdig_consumers[] = {
+	{
+		/* sgtl5000 */
+		.supply = "VDDA",
+		.dev_name = "1-000a",
+	},
+	{
+		/* sgtl5000 */
+		.supply = "VDDD",
+		.dev_name = "1-000a",
+	},
+};
+
+static struct regulator_consumer_supply vvideo_consumers[] = {
+	{
+		/* sgtl5000 */
+		.supply = "VDDIO",
+		.dev_name = "1-000a",
+	},
+};
+
 struct mc13892;
 
 static struct regulator_init_data sw1_init = {
@@ -169,11 +190,13 @@ static struct regulator_init_data swbst_init = {
 static struct regulator_init_data vdig_init = {
 	.constraints = {
 		.name = "VDIG",
-		.min_uV = mV_to_uV(1050),
-		.max_uV = mV_to_uV(1800),
+		.min_uV = mV_to_uV(1650),
+		.max_uV = mV_to_uV(1650),
 		.valid_ops_mask = REGULATOR_CHANGE_VOLTAGE,
 		.boot_on = 1,
-	}
+	},
+	.num_consumer_supplies = ARRAY_SIZE(vdig_consumers),
+	.consumer_supplies = vdig_consumers,
 };
 
 static struct regulator_init_data vpll_init = {
@@ -204,7 +227,9 @@ static struct regulator_init_data vvideo_init = {
 		.valid_ops_mask = REGULATOR_CHANGE_VOLTAGE,
 		.always_on = 1,
 		.apply_uV =1,
-	}
+	},
+	.num_consumer_supplies = ARRAY_SIZE(vvideo_consumers),
+	.consumer_supplies = vvideo_consumers,
 };
 
 static struct regulator_init_data vaudio_init = {
@@ -240,7 +265,7 @@ static struct regulator_init_data vgen1_init = {
 	.constraints = {
 		.name = "VGEN1",
 		.min_uV = mV_to_uV(1200),
-		.max_uV = mV_to_uV(3150),
+		.max_uV = mV_to_uV(1200),
 		.valid_ops_mask = REGULATOR_CHANGE_VOLTAGE,
 	}
 };

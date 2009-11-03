@@ -65,6 +65,7 @@ static int imx_3stack_surround_hw_params(struct snd_pcm_substream *substream,
 	struct snd_soc_dai *cpu_dai = pcm_link->cpu_dai;
 	struct snd_soc_dai *codec_dai = pcm_link->codec_dai;
 	unsigned int rate = params_rate(params);
+	struct imx_esai *esai_mode = (struct imx_esai *)cpu_dai->private_data;
 	u32 dai_format;
 
 	if (clk_state.lr_clk_active > 1)
@@ -72,6 +73,9 @@ static int imx_3stack_surround_hw_params(struct snd_pcm_substream *substream,
 
 	dai_format = SND_SOC_DAIFMT_I2S | SND_SOC_DAIFMT_NB_NF |
 	    SND_SOC_DAIFMT_CBM_CFM;
+
+	esai_mode->sync_mode = 0;
+	esai_mode->network_mode = 1;
 
 	/* set codec DAI configuration */
 	snd_soc_dai_set_fmt(codec_dai, dai_format);
@@ -130,7 +134,6 @@ static int imx_3stack_ak5702_init(struct snd_soc_codec *codec)
 static struct snd_soc_dai_link imx_3stack_dai = {
 	.name = "ak5702",
 	.stream_name = "ak5702",
-	.cpu_dai = &imx_esai_dai,
 	.codec_dai = &ak5702_dai,
 	.init = imx_3stack_ak5702_init,
 	.ops = &imx_3stack_surround_ops,
@@ -161,7 +164,7 @@ static int __devinit imx_3stack_ak5702_probe(struct platform_device *pdev)
 {
 	struct ak5702_setup_data *setup;
 
-	imx_esai_dai.name = "imx-esai-txrx";
+	imx_3stack_dai.cpu_dai = &imx_esai_dai[2];
 
 	setup = kzalloc(sizeof(struct ak5702_setup_data), GFP_KERNEL);
 	setup->i2c_bus = 1;

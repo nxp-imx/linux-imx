@@ -44,6 +44,14 @@ static struct regulator_consumer_supply sw1_consumers[] = {
 	}
 };
 
+static struct regulator_consumer_supply vcam_consumers[] = {
+	{
+		/* sgtl5000 */
+		.supply = "VDDA",
+		.dev_name = "0-000a",
+	},
+};
+
 struct mc13892;
 
 static struct regulator_init_data sw1_init = {
@@ -195,7 +203,9 @@ static struct regulator_init_data vcam_init = {
 		.valid_ops_mask =
 			REGULATOR_CHANGE_VOLTAGE | REGULATOR_CHANGE_MODE,
 		.valid_modes_mask = REGULATOR_MODE_FAST | REGULATOR_MODE_NORMAL,
-	}
+	},
+	.num_consumer_supplies = ARRAY_SIZE(vcam_consumers),
+	.consumer_supplies = vcam_consumers,
 };
 
 static struct regulator_init_data vgen1_init = {

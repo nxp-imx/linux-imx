@@ -142,6 +142,20 @@ struct snd_soc_codec_device soc_codec_dev_bt = {
 };
 EXPORT_SYMBOL_GPL(soc_codec_dev_bt);
 
+static int __init bluetooth_modinit(void)
+{
+	return snd_soc_register_dai(&bt_dai);
+}
+
+module_init(bluetooth_modinit);
+
+static void __exit bluetooth_exit(void)
+{
+	snd_soc_unregister_dai(&bt_dai);
+}
+
+module_exit(bluetooth_exit);
+
 MODULE_DESCRIPTION("ASoC bluetooth codec driver");
 MODULE_AUTHOR("Freescale Semiconductor, Inc.");
 MODULE_LICENSE("GPL");

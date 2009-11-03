@@ -45,9 +45,9 @@ int ak4647_read_reg(unsigned int reg, u8 *value)
 {
 	s32 retval;
 	retval = i2c_smbus_read_byte_data(ak4647_i2c_client, reg);
-	if (-1 == retval) {
+	if (retval < 0) {
 		pr_err("%s:read reg errorr:reg=%x,val=%x\n",
-		       __func__, reg, *value);
+		       __func__, reg, retval);
 		return -1;
 	} else {
 		*value = (u8) retval;

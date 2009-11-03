@@ -106,6 +106,7 @@ static int imx_3stack_hifi_hw_params(struct snd_pcm_substream *substream,
 	struct snd_soc_dai *codec_dai = pcm_link->codec_dai;
 	unsigned int channels = params_channels(params);
 	unsigned int rate = params_rate(params);
+	struct imx_ssi *ssi_mode = (struct imx_ssi *)cpu_dai->private_data;
 	int ret = 0;
 	u32 dai_format;
 
@@ -116,6 +117,12 @@ static int imx_3stack_hifi_hw_params(struct snd_pcm_substream *substream,
 	dai_format = SND_SOC_DAIFMT_I2S | SND_SOC_DAIFMT_NB_NF |
 	    SND_SOC_DAIFMT_CBS_CFS;
 #endif
+
+	ssi_mode->sync_mode = 1;
+	if (channels == 1)
+		ssi_mode->network_mode = 0;
+	else
+		ssi_mode->network_mode = 1;
 
 	/* set codec DAI configuration */
 	ret = snd_soc_dai_set_fmt(codec_dai, dai_format);
@@ -318,7 +325,6 @@ static int imx_3stack_ak4647_init(struct snd_soc_codec *codec)
 static struct snd_soc_dai_link imx_3stack_dai = {
 	.name = "ak4647",
 	.stream_name = "ak4647",
-	.cpu_dai = &imx_ssi_dai,
 	.codec_dai = &ak4647_hifi_dai,
 	.init = imx_3stack_ak4647_init,
 	.ops = &imx_3stack_hifi_ops,
@@ -345,18 +351,17 @@ static int __init imx_3stack_ak4647_probe(struct platform_device *pdev)
 {
 	struct mxc_audio_platform_data *dev_data = pdev->dev.platform_data;
 	struct imx_3stack_priv *priv = &card_priv;
+	struct snd_soc_dai *ak4647_cpu_dai;
 	int ret = 0;
 
 	dev_data->init();
 
 	if (dev_data->src_port == 1)
-		imx_ssi_dai.name = "imx-ssi-1";
+		ak4647_cpu_dai = &imx_ssi_dai[0];
 	else
-		imx_ssi_dai.name = "imx-ssi-3";
+		ak4647_cpu_dai = &imx_ssi_dai[2];
 
-	imx_ssi_dai.dev = &pdev->dev;
-	imx_ssi_dai.symmetric_rates = 1;
-	snd_soc_register_dai(&imx_ssi_dai);
+	imx_3stack_dai.cpu_dai = ak4647_cpu_dai;
 
 	/* Configure audio port 3 */
 	gpio_activate_audio_ports();

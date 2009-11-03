@@ -213,6 +213,12 @@
 #define IMX_SSI_DIV_2_OFF		(~SSI_STCCR_DIV2)
 #define IMX_SSI_DIV_2_ON		SSI_STCCR_DIV2
 
-extern struct snd_soc_dai imx_ssi_dai;
+/* private info */
+struct imx_ssi {
+	bool network_mode;
+	bool sync_mode;
+};
+
+extern struct snd_soc_dai imx_ssi_dai[];
 
 #endif

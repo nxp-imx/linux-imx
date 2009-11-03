@@ -812,13 +812,7 @@ static struct mxc_audio_platform_data sgtl5000_data = {
 	.ext_port = 3,
 	.hp_irq = IOMUX_TO_IRQ(MX51_PIN_NANDF_CS0),
 	.hp_status = headphone_det_status,
-	.vddio_reg = "VVIDEO",
-	.vdda_reg = "VDIG",
-	.vddd_reg = "VGEN1",
 	.amp_enable = mxc_sgtl5000_amp_enable,
-	.vddio = 2775000,
-	.vdda = 1650000,
-	.vddd = 1200000,
 	.sysclk = 12288000,
 };
 
@@ -840,8 +834,6 @@ static void mxc_init_sgtl5000(void)
 {
 	if (cpu_is_mx51_rev(CHIP_REV_1_1) == 2) {
 		sgtl5000_data.sysclk = 26000000;
-		sgtl5000_data.vddd_reg = NULL;
-		sgtl5000_data.vddd = 0;
 	}
 
 	gpio_request(IOMUX_TO_GPIO(MX51_PIN_EIM_A23), "eim_a23");

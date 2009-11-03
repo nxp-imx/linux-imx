@@ -20,6 +20,11 @@
 #define IMX_DAI_ESAI_RX 0x08
 #define IMX_DAI_ESAI_TXRX (IMX_DAI_ESAI_TX | IMX_DAI_ESAI_RX)
 
-extern struct snd_soc_dai imx_esai_dai;
+struct imx_esai {
+	bool network_mode;
+	bool sync_mode;
+};
+
+extern struct snd_soc_dai imx_esai_dai[];
 
 #endif

@@ -396,10 +396,4 @@ extern struct snd_soc_codec_device soc_codec_dev_sgtl5000;
 #define SGTL5000_SYSCLK		0x00
 #define SGTL5000_LRCLK		0x01
 
-struct sgtl5000_platform_data {
-	int vddio;		/* voltage of VDDIO (mv) */
-	int vdda;		/* voltage of vdda (mv) */
-	int vddd;		/* voltage of vddd (mv), 0 if not connected */
-};
-
 #endif

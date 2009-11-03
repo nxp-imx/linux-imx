@@ -35,6 +35,27 @@
 
 struct mc34704;
 
+static struct regulator_consumer_supply rcpu_consumers[] = {
+	{
+		/* sgtl5000 */
+		.supply = "VDDA",
+		.dev_name = "0-000a",
+	},
+	{
+		/* sgtl5000 */
+		.supply = "VDDD",
+		.dev_name = "0-000a",
+	},
+};
+
+static struct regulator_consumer_supply rddr_consumers[] = {
+	{
+		/* sgtl5000 */
+		.supply = "VDDIO",
+		.dev_name = "0-000a",
+	},
+};
+
 static struct regulator_init_data rbklt_init = {
 	.constraints = {
 			.name = "REG1_BKLT",
@@ -58,7 +79,9 @@ static struct regulator_init_data rcpu_init = {
 			mV_to_uV(REG2_V_MV * (1000 + REG2_DVS_MAX_PCT * 10) /
 				 1000),
 			.valid_ops_mask = REGULATOR_CHANGE_VOLTAGE,
-			}
+			},
+	.num_consumer_supplies = ARRAY_SIZE(rcpu_consumers),
+	.consumer_supplies = rcpu_consumers,
 };
 
 static struct regulator_init_data rcore_init = {
@@ -84,7 +107,9 @@ static struct regulator_init_data rddr_init = {
 			mV_to_uV(REG4_V_MV * (1000 + REG4_DVS_MAX_PCT * 10) /
 				 1000),
 			.valid_ops_mask = REGULATOR_CHANGE_VOLTAGE,
-			}
+			},
+	.num_consumer_supplies = ARRAY_SIZE(rddr_consumers),
+	.consumer_supplies = rddr_consumers,
 };
 
 static struct regulator_init_data rpers_init = {

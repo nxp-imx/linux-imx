@@ -39,12 +39,7 @@
 #include "imx-ssi.h"
 #include "imx-pcm.h"
 
-/* private info */
-struct imx_ssi {
-	bool network_mode;
-};
-
-static struct imx_ssi imx_ssi_data[IMX_DAI_SSI3];
+static struct imx_ssi imx_ssi_data[4];
 
 /* debug */
 #define IMX_SSI_DEBUG 0
@@ -194,10 +189,7 @@ static int imx_ssi_set_dai_clkdiv(struct snd_soc_dai *cpu_dai,
 static int imx_ssi_set_dai_tdm_slot(struct snd_soc_dai *cpu_dai,
 				    unsigned int mask, int slots)
 {
-	bool network_mode = (!(mask & 0x2));
 	u32 stmsk, srmsk, stccr;
-
-	imx_ssi_data[cpu_dai->id].network_mode = network_mode;
 
 	if (cpu_dai->id == IMX_DAI_SSI0 || cpu_dai->id == IMX_DAI_SSI1) {
 		if (__raw_readl(SSI1_SCR) & SSI_SCR_SSIEN)
@@ -236,11 +228,8 @@ static int imx_ssi_set_dai_tdm_slot(struct snd_soc_dai *cpu_dai,
  */
 static int imx_ssi_set_dai_fmt(struct snd_soc_dai *cpu_dai, unsigned int fmt)
 {
-  	bool sync_mode = cpu_dai->symmetric_rates;
-	bool network_mode;
+	struct imx_ssi *ssi_mode = (struct imx_ssi *)cpu_dai->private_data;
 	u32 stcr = 0, srcr = 0, scr;
-
-	network_mode = imx_ssi_data[cpu_dai->id].network_mode;
 
 	if (cpu_dai->id == IMX_DAI_SSI0 || cpu_dai->id == IMX_DAI_SSI1)
 		scr = __raw_readl(SSI1_SCR) & ~(SSI_SCR_SYN | SSI_SCR_NET);
@@ -303,7 +292,7 @@ static int imx_ssi_set_dai_fmt(struct snd_soc_dai *cpu_dai, unsigned int fmt)
 	case SND_SOC_DAIFMT_CBS_CFS:
 		stcr |= SSI_STCR_TFDIR | SSI_STCR_TXDIR;
 		if (((fmt & SND_SOC_DAIFMT_FORMAT_MASK) == SND_SOC_DAIFMT_I2S)
-		    && network_mode) {
+		    && ssi_mode->network_mode) {
 			scr &= ~SSI_SCR_I2S_MODE_MASK;
 			scr |= SSI_SCR_I2S_MODE_MSTR;
 		}
@@ -318,7 +307,7 @@ static int imx_ssi_set_dai_fmt(struct snd_soc_dai *cpu_dai, unsigned int fmt)
 		break;
 	case SND_SOC_DAIFMT_CBM_CFM:
 		if (((fmt & SND_SOC_DAIFMT_FORMAT_MASK) == SND_SOC_DAIFMT_I2S)
-		    && network_mode) {
+		    && ssi_mode->network_mode) {
 			scr &= ~SSI_SCR_I2S_MODE_MASK;
 			scr |= SSI_SCR_I2S_MODE_SLAVE;
 		}
@@ -326,11 +315,11 @@ static int imx_ssi_set_dai_fmt(struct snd_soc_dai *cpu_dai, unsigned int fmt)
 	}
 
 	/* sync */
-	if (sync_mode)
+	if (ssi_mode->sync_mode)
 		scr |= SSI_SCR_SYN;
 
 	/* tdm - only for stereo atm */
-	if (network_mode)
+	if (ssi_mode->network_mode)
 		scr |= SSI_SCR_NET;
 
 	if (cpu_dai->id == IMX_DAI_SSI0 || cpu_dai->id == IMX_DAI_SSI1) {
@@ -451,8 +440,9 @@ static int imx_ssi_hw_rx_params(struct snd_pcm_substream *substream,
 				struct snd_pcm_hw_params *params,
 				struct snd_soc_dai *cpu_dai)
 {
-	bool sync_mode = cpu_dai->symmetric_rates;
 	u32 srccr, srcr, sier;
+	struct imx_ssi *ssi_mode = (struct imx_ssi *)cpu_dai->private_data;
+	bool sync_mode = ssi_mode->sync_mode;
 
 	if (cpu_dai->id == IMX_DAI_SSI0 || cpu_dai->id == IMX_DAI_SSI1) {
 		srccr =
@@ -690,29 +680,16 @@ static irqreturn_t ssi2_irq(int irq, void *dev_id)
 
 static int imx_ssi_probe(struct platform_device *pdev, struct snd_soc_dai *dai)
 {
-	if (!strcmp(dai->name, "imx-ssi-1"))
-		dai->id = IMX_DAI_SSI0;
-	else if (!strcmp(dai->name, "imx-ssi-2"))
-		dai->id = IMX_DAI_SSI1;
-	else if (!strcmp(dai->name, "imx-ssi-3"))
-		dai->id = IMX_DAI_SSI2;
-	else if (!strcmp(dai->name, "imx-ssi-4"))
-		dai->id = IMX_DAI_SSI3;
-	else {
-		printk(KERN_ERR "%s: invalid device %s\n", __func__, dai->name);
-		return -ENODEV;
-	}
-
-	if ((!strcmp(dai->name, "imx-ssi-1")) ||
-	    (!strcmp(dai->name, "imx-ssi-2")))
+	if ((!strcmp(dai->name, "imx-ssi-1-0")) ||
+	    (!strcmp(dai->name, "imx-ssi-1-1")))
 		if (request_irq(MXC_INT_SSI1, ssi1_irq, 0, "ssi1", dai)) {
 			printk(KERN_ERR "%s: failure requesting irq %s\n",
 			       __func__, "ssi1");
 			return -EBUSY;
 		}
 
-	if ((!strcmp(dai->name, "imx-ssi-3")) ||
-	    (!strcmp(dai->name, "imx-ssi-4")))
+	if ((!strcmp(dai->name, "imx-ssi-2-0")) ||
+	    (!strcmp(dai->name, "imx-ssi-2-1")))
 		if (request_irq(MXC_INT_SSI2, ssi2_irq, 0, "ssi2", dai)) {
 			printk(KERN_ERR "%s: failure requesting irq %s\n",
 			       __func__, "ssi2");
@@ -725,12 +702,12 @@ static int imx_ssi_probe(struct platform_device *pdev, struct snd_soc_dai *dai)
 static void imx_ssi_remove(struct platform_device *pdev,
 			   struct snd_soc_dai *dai)
 {
-	if ((!strcmp(dai->name, "imx-ssi-1")) ||
-	    (!strcmp(dai->name, "imx-ssi-2")))
+	if ((!strcmp(dai->name, "imx-ssi-1-0")) ||
+	    (!strcmp(dai->name, "imx-ssi-1-1")))
 		free_irq(MXC_INT_SSI1, dai);
 
-	if ((!strcmp(dai->name, "imx-ssi-3")) ||
-	    (!strcmp(dai->name, "imx-ssi-4")))
+	if ((!strcmp(dai->name, "imx-ssi-2-0")) ||
+	    (!strcmp(dai->name, "imx-ssi-2-1")))
 		free_irq(MXC_INT_SSI2, dai);
 }
 
@@ -757,29 +734,111 @@ static struct snd_soc_dai_ops imx_ssi_dai_ops = {
 	.set_tdm_slot = imx_ssi_set_dai_tdm_slot,
 };
 
-struct snd_soc_dai imx_ssi_dai = {
-	.name = "imx-ssi",
-	.id = 0,
-	.probe = imx_ssi_probe,
-	.suspend = imx_ssi_suspend,
-	.remove = imx_ssi_remove,
-	.resume = imx_ssi_resume,
-	.playback = {
+struct snd_soc_dai imx_ssi_dai[] = {
+	{
+	 .name = "imx-ssi-1-0",
+	 .id = IMX_DAI_SSI0,
+	 .probe = imx_ssi_probe,
+	 .suspend = imx_ssi_suspend,
+	 .remove = imx_ssi_remove,
+	 .resume = imx_ssi_resume,
+	 .playback = {
+		      .channels_min = 1,
+		      .channels_max = 2,
+		      .rates = IMX_SSI_RATES,
+		      .formats = IMX_SSI_FORMATS,
+		      },
+	 .capture = {
 		     .channels_min = 1,
 		     .channels_max = 2,
 		     .rates = IMX_SSI_RATES,
 		     .formats = IMX_SSI_FORMATS,
 		     },
-	.capture = {
-		    .channels_min = 1,
-		    .channels_max = 2,
-		    .rates = IMX_SSI_RATES,
-		    .formats = IMX_SSI_FORMATS,
-		    },
-	.ops = &imx_ssi_dai_ops,
+	 .ops = &imx_ssi_dai_ops,
+	 .private_data = &imx_ssi_data[IMX_DAI_SSI0],
+	 },
+	{
+	 .name = "imx-ssi-1-1",
+	 .id = IMX_DAI_SSI1,
+	 .probe = imx_ssi_probe,
+	 .suspend = imx_ssi_suspend,
+	 .remove = imx_ssi_remove,
+	 .resume = imx_ssi_resume,
+	 .playback = {
+		      .channels_min = 1,
+		      .channels_max = 2,
+		      .rates = IMX_SSI_RATES,
+		      .formats = IMX_SSI_FORMATS,
+		      },
+	 .capture = {
+		     .channels_min = 1,
+		     .channels_max = 2,
+		     .rates = IMX_SSI_RATES,
+		     .formats = IMX_SSI_FORMATS,
+		     },
+	 .ops = &imx_ssi_dai_ops,
+	 .private_data = &imx_ssi_data[IMX_DAI_SSI1],
+	 },
+	{
+	 .name = "imx-ssi-2-0",
+	 .id = IMX_DAI_SSI2,
+	 .probe = imx_ssi_probe,
+	 .suspend = imx_ssi_suspend,
+	 .remove = imx_ssi_remove,
+	 .resume = imx_ssi_resume,
+	 .playback = {
+		      .channels_min = 1,
+		      .channels_max = 2,
+		      .rates = IMX_SSI_RATES,
+		      .formats = IMX_SSI_FORMATS,
+		      },
+	 .capture = {
+		     .channels_min = 1,
+		     .channels_max = 2,
+		     .rates = IMX_SSI_RATES,
+		     .formats = IMX_SSI_FORMATS,
+		     },
+	 .ops = &imx_ssi_dai_ops,
+	 .private_data = &imx_ssi_data[IMX_DAI_SSI2],
+	 },
+	{
+	 .name = "imx-ssi-2-1",
+	 .id = IMX_DAI_SSI3,
+	 .probe = imx_ssi_probe,
+	 .suspend = imx_ssi_suspend,
+	 .remove = imx_ssi_remove,
+	 .resume = imx_ssi_resume,
+	 .playback = {
+		      .channels_min = 1,
+		      .channels_max = 2,
+		      .rates = IMX_SSI_RATES,
+		      .formats = IMX_SSI_FORMATS,
+		      },
+	 .capture = {
+		     .channels_min = 1,
+		     .channels_max = 2,
+		     .rates = IMX_SSI_RATES,
+		     .formats = IMX_SSI_FORMATS,
+		     },
+	 .ops = &imx_ssi_dai_ops,
+	 .private_data = &imx_ssi_data[IMX_DAI_SSI3],
+	 },
 };
+
 EXPORT_SYMBOL_GPL(imx_ssi_dai);
 
+static int __init imx_ssi_init(void)
+{
+	return snd_soc_register_dais(imx_ssi_dai, ARRAY_SIZE(imx_ssi_dai));
+}
+
+static void __exit imx_ssi_exit(void)
+{
+	snd_soc_unregister_dais(imx_ssi_dai, ARRAY_SIZE(imx_ssi_dai));
+}
+
+module_init(imx_ssi_init);
+module_exit(imx_ssi_exit);
 MODULE_AUTHOR
     ("Liam Girdwood, liam.girdwood@wolfsonmicro.com, www.wolfsonmicro.com");
 MODULE_DESCRIPTION("i.MX ASoC I2S driver");

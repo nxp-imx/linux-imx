@@ -320,6 +320,7 @@
 #define ESAI_RX_DIV_FP	5
 
 static int imx_esai_txrx_state;
+static struct imx_esai imx_esai_priv[3];
 
 static int imx_esai_set_dai_sysclk(struct snd_soc_dai *cpu_dai,
 				   int clk_id, unsigned int freq, int dir)
@@ -422,35 +423,25 @@ static int imx_esai_set_dai_clkdiv(struct snd_soc_dai *cpu_dai,
 static int imx_esai_set_dai_tdm_slot(struct snd_soc_dai *cpu_dai,
 				     unsigned int mask, int slots)
 {
-	u32 tcr, rcr, tccr, rccr;
+	u32 tccr, rccr;
 
 	if (cpu_dai->id & IMX_DAI_ESAI_TX) {
-		tcr = __raw_readl(ESAI_TCR);
 		tccr = __raw_readl(ESAI_TCCR);
-
-		tcr &= ESAI_TCR_TMOD_MASK;
-		tcr |= ESAI_TCR_TMOD_NETWORK;
 
 		tccr &= ESAI_TCCR_TDC_MASK;
 		tccr |= ESAI_TCCR_TDC(slots - 1);
 
-		__raw_writel(tcr, ESAI_TCR);
 		__raw_writel(tccr, ESAI_TCCR);
 		__raw_writel((mask & 0xffff), ESAI_TSMA);
 		__raw_writel(((mask >> 16) & 0xffff), ESAI_TSMB);
 	}
 
 	if (cpu_dai->id & IMX_DAI_ESAI_RX) {
-		rcr = __raw_readl(ESAI_RCR);
 		rccr = __raw_readl(ESAI_RCCR);
-
-		rcr &= ESAI_RCR_RMOD_MASK;
-		rcr |= ESAI_RCR_RMOD_NETWORK;
 
 		rccr &= ESAI_RCCR_RDC_MASK;
 		rccr |= ESAI_RCCR_RDC(slots - 1);
 
-		__raw_writel(rcr, ESAI_RCR);
 		__raw_writel(rccr, ESAI_RCCR);
 		__raw_writel((mask & 0xffff), ESAI_RSMA);
 		__raw_writel(((mask >> 16) & 0xffff), ESAI_RSMB);
@@ -466,7 +457,7 @@ static int imx_esai_set_dai_tdm_slot(struct snd_soc_dai *cpu_dai,
  */
 static int imx_esai_set_dai_fmt(struct snd_soc_dai *cpu_dai, unsigned int fmt)
 {
-	bool sync_mode = cpu_dai->symmetric_rates;
+	struct imx_esai *esai_mode = (struct imx_esai *)cpu_dai->private_data;
 	u32 tcr, tccr, rcr, rccr, saicr;
 
 	tcr = __raw_readl(ESAI_TCR);
@@ -549,10 +540,20 @@ static int imx_esai_set_dai_fmt(struct snd_soc_dai *cpu_dai, unsigned int fmt)
 	}
 
 	/* sync */
-	if (sync_mode)
+	if (esai_mode->sync_mode)
 		saicr |= ESAI_SAICR_SYNC;
 	else
 		saicr &= ~ESAI_SAICR_SYNC;
+
+	tcr &= ESAI_TCR_TMOD_MASK;
+	rcr &= ESAI_RCR_RMOD_MASK;
+	if (esai_mode->network_mode) {
+		tcr |= ESAI_TCR_TMOD_NETWORK;
+		rcr |= ESAI_RCR_RMOD_NETWORK;
+	} else {
+		tcr |= ESAI_TCR_TMOD_NORMAL;
+		rcr |= ESAI_RCR_RMOD_NORMAL;
+	}
 
 	if (cpu_dai->id & IMX_DAI_ESAI_TX) {
 		__raw_writel(tcr, ESAI_TCR);
@@ -828,17 +829,6 @@ static int imx_esai_resume(struct snd_soc_dai *dai)
 
 static int imx_esai_probe(struct platform_device *pdev, struct snd_soc_dai *dai)
 {
-	if (!strcmp("imx-esai-tx", dai->name))
-		dai->id = IMX_DAI_ESAI_TX;
-	else if (!strcmp("imx-esai-rx", dai->name))
-		dai->id = IMX_DAI_ESAI_RX;
-	else if (!strcmp("imx-esai-txrx", dai->name))
-		dai->id = IMX_DAI_ESAI_TXRX;
-	else {
-		pr_err("%s: invalid device %s\n", __func__, dai->name);
-		return -ENODEV;
-	}
-
 	imx_esai_txrx_state = 0;
 
 	esai_clk = clk_get(NULL, "esai_clk");
@@ -870,29 +860,90 @@ static struct snd_soc_dai_ops imx_esai_dai_ops = {
 	.set_tdm_slot = imx_esai_set_dai_tdm_slot,
 };
 
-struct snd_soc_dai imx_esai_dai = {
-	.name = "imx-esai",
-	.id = 0,
-	.probe = imx_esai_probe,
-	.remove = imx_esai_remove,
-	.suspend = imx_esai_suspend,
-	.resume = imx_esai_resume,
-	.playback = {
+struct snd_soc_dai imx_esai_dai[] = {
+	{
+	 .name = "imx-esai-tx",
+	 .id = IMX_DAI_ESAI_TX,
+	 .probe = imx_esai_probe,
+	 .remove = imx_esai_remove,
+	 .suspend = imx_esai_suspend,
+	 .resume = imx_esai_resume,
+	 .playback = {
+		      .channels_min = 1,
+		      .channels_max = 6,
+		      .rates = IMX_ESAI_RATES,
+		      .formats = IMX_ESAI_FORMATS,
+		      },
+	 .capture = {
 		     .channels_min = 1,
-		     .channels_max = 6,
+		     .channels_max = 4,
 		     .rates = IMX_ESAI_RATES,
 		     .formats = IMX_ESAI_FORMATS,
 		     },
-	.capture = {
-		    .channels_min = 1,
-		    .channels_max = 4,
-		    .rates = IMX_ESAI_RATES,
-		    .formats = IMX_ESAI_FORMATS,
-		    },
-	.ops = &imx_esai_dai_ops,
+	 .ops = &imx_esai_dai_ops,
+	 .private_data = &imx_esai_priv[0],
+	 },
+	{
+	 .name = "imx-esai-rx",
+	 .id = IMX_DAI_ESAI_RX,
+	 .probe = imx_esai_probe,
+	 .remove = imx_esai_remove,
+	 .suspend = imx_esai_suspend,
+	 .resume = imx_esai_resume,
+	 .playback = {
+		      .channels_min = 1,
+		      .channels_max = 6,
+		      .rates = IMX_ESAI_RATES,
+		      .formats = IMX_ESAI_FORMATS,
+		      },
+	 .capture = {
+		     .channels_min = 1,
+		     .channels_max = 4,
+		     .rates = IMX_ESAI_RATES,
+		     .formats = IMX_ESAI_FORMATS,
+		     },
+	 .ops = &imx_esai_dai_ops,
+	 .private_data = &imx_esai_priv[1],
+	 },
+	{
+	 .name = "imx-esai-txrx",
+	 .id = IMX_DAI_ESAI_TXRX,
+	 .probe = imx_esai_probe,
+	 .remove = imx_esai_remove,
+	 .suspend = imx_esai_suspend,
+	 .resume = imx_esai_resume,
+	 .playback = {
+		      .channels_min = 1,
+		      .channels_max = 6,
+		      .rates = IMX_ESAI_RATES,
+		      .formats = IMX_ESAI_FORMATS,
+		      },
+	 .capture = {
+		     .channels_min = 1,
+		     .channels_max = 4,
+		     .rates = IMX_ESAI_RATES,
+		     .formats = IMX_ESAI_FORMATS,
+		     },
+	 .ops = &imx_esai_dai_ops,
+	 .private_data = &imx_esai_priv[2],
+	 },
+
 };
 
 EXPORT_SYMBOL_GPL(imx_esai_dai);
+
+static int __init imx_esai_init(void)
+{
+	return snd_soc_register_dais(imx_esai_dai, ARRAY_SIZE(imx_esai_dai));
+}
+
+static void __exit imx_esai_exit(void)
+{
+	snd_soc_unregister_dais(imx_esai_dai, ARRAY_SIZE(imx_esai_dai));
+}
+
+module_init(imx_esai_init);
+module_exit(imx_esai_exit);
 
 MODULE_AUTHOR("Freescale Semiconductor, Inc.");
 MODULE_DESCRIPTION("i.MX ASoC ESAI driver");

@@ -755,12 +755,7 @@ static struct mxc_audio_platform_data sgtl5000_data = {
 	.ext_port = 5,
 	.hp_irq = IOMUX_TO_IRQ(MX37_PIN_AUD5_RXFS),
 	.hp_status = headphone_det_status,
-	.vddio_reg = "SW3",
-	.vdda_reg = "VAUDIO",
 	.amp_enable = mxc_sgtl5000_amp_enable,
-	.vddio = 1850000,
-	.vdda = 2775000,
-	.vddd = 0,
 	.init = mxc_sgtl5000_plat_init,
 	.finit = mxc_sgtl5000_plat_finit,
 };

@@ -15,13 +15,14 @@
 #include <linux/pm.h>
 #include <linux/i2c.h>
 #include <linux/platform_device.h>
-#include <mach/hardware.h>
+#include <linux/regulator/consumer.h>
 #include <sound/core.h>
 #include <sound/pcm.h>
 #include <sound/pcm_params.h>
 #include <sound/soc.h>
 #include <sound/soc-dapm.h>
 #include <sound/initval.h>
+#include <mach/hardware.h>
 
 #include "sgtl5000.h"
 
@@ -34,6 +35,12 @@ struct sgtl5000_priv {
 	int capture_channels;
 	int playback_active;
 	int capture_active;
+	struct regulator *reg_vddio;
+	struct regulator *reg_vdda;
+	struct regulator *reg_vddd;
+	int vddio;		/* voltage of VDDIO (mv) */
+	int vdda;		/* voltage of vdda (mv) */
+	int vddd;		/* voltage of vddd (mv), 0 if not connected */
 	struct snd_pcm_substream *master_substream;
 	struct snd_pcm_substream *slave_substream;
 };
@@ -933,7 +940,6 @@ static struct snd_soc_codec *sgtl5000_codec;
 static int sgtl5000_probe(struct platform_device *pdev)
 {
 	struct snd_soc_device *socdev = platform_get_drvdata(pdev);
-	struct sgtl5000_platform_data *plat = socdev->codec_data;
 	struct snd_soc_codec *codec = sgtl5000_codec;
 	struct sgtl5000_priv *sgtl5000 = codec->private_data;
 	u16 reg, ana_pwr, lreg_ctrl, ref_ctrl, lo_ctrl, short_ctrl, sss;
@@ -961,7 +967,7 @@ static int sgtl5000_probe(struct platform_device *pdev)
 	sss = SGTL5000_DAC_SEL_I2S_IN << SGTL5000_DAC_SEL_SHIFT;
 
 	/* workaround for rev 0x11: use vddd linear regulator */
-	if (!plat->vddd || (sgtl5000->rev >= 0x11)) {
+	if (!sgtl5000->vddd || (sgtl5000->rev >= 0x11)) {
 		/* set VDDD to 1.2v */
 		lreg_ctrl |= 0x8 << SGTL5000_LINREG_VDDD_SHIFT;
 		/* power internal linear regulator */
@@ -971,14 +977,14 @@ static int sgtl5000_probe(struct platform_device *pdev)
 		ana_pwr &= ~SGTL5000_STARTUP_POWERUP;
 		ana_pwr &= ~SGTL5000_LINREG_SIMPLE_POWERUP;
 	}
-	if (plat->vddio < 3100 && plat->vdda < 3100) {
+	if (sgtl5000->vddio < 3100 && sgtl5000->vdda < 3100) {
 		/* Enable VDDC charge pump */
 		ana_pwr |= SGTL5000_VDDC_CHRGPMP_POWERUP;
 	}
-	if (plat->vddio >= 3100 && plat->vdda >= 3100) {
+	if (sgtl5000->vddio >= 3100 && sgtl5000->vdda >= 3100) {
 		/* VDDC use VDDIO rail */
 		lreg_ctrl |= SGTL5000_VDDC_ASSN_OVRD;
-		if (plat->vddio >= 3100)
+		if (sgtl5000->vddio >= 3100)
 			lreg_ctrl |= SGTL5000_VDDC_MAN_ASSN_VDDIO <<
 			    SGTL5000_VDDC_MAN_ASSN_SHIFT;
 	}
@@ -987,7 +993,7 @@ static int sgtl5000_probe(struct platform_device *pdev)
 	ana_pwr |= reg & (SGTL5000_PLL_POWERUP | SGTL5000_VCOAMP_POWERUP);
 
 	/* set ADC/DAC ref voltage to vdda/2 */
-	vag = plat->vdda / 2;
+	vag = sgtl5000->vdda / 2;
 	if (vag <= SGTL5000_ANA_GND_BASE)
 		vag = 0;
 	else if (vag >= SGTL5000_ANA_GND_BASE + SGTL5000_ANA_GND_STP *
@@ -998,7 +1004,7 @@ static int sgtl5000_probe(struct platform_device *pdev)
 	ref_ctrl |= vag << SGTL5000_ANA_GND_SHIFT;
 
 	/* set line out ref voltage to vddio/2 */
-	vag = plat->vddio / 2;
+	vag = sgtl5000->vddio / 2;
 	if (vag <= SGTL5000_LINE_OUT_GND_BASE)
 		vag = 0;
 	else if (vag >= SGTL5000_LINE_OUT_GND_BASE + SGTL5000_LINE_OUT_GND_STP *
@@ -1110,6 +1116,7 @@ static __devinit int sgtl5000_i2c_probe(struct i2c_client *client,
 {
 	struct sgtl5000_priv *sgtl5000;
 	struct snd_soc_codec *codec;
+	struct regulator *reg;
 	int ret = 0;
 	u32 val;
 
@@ -1137,11 +1144,44 @@ static __devinit int sgtl5000_i2c_probe(struct i2c_client *client,
 	i2c_set_clientdata(client, codec);
 	codec->control_data = client;
 
+	reg = regulator_get(&client->dev, "VDDIO");
+	if (!IS_ERR(reg))
+		sgtl5000->reg_vddio = reg;
+
+	reg = regulator_get(&client->dev, "VDDA");
+	if (!IS_ERR(reg))
+		sgtl5000->reg_vdda = reg;
+
+	reg = regulator_get(&client->dev, "VDDD");
+	if (!IS_ERR(reg))
+		sgtl5000->reg_vddd = reg;
+
+	if (sgtl5000->reg_vdda) {
+		sgtl5000->vdda =
+		    regulator_get_voltage(sgtl5000->reg_vdda) / 1000;
+		regulator_enable(sgtl5000->reg_vdda);
+	}
+	if (sgtl5000->reg_vddio) {
+		sgtl5000->vddio =
+		    regulator_get_voltage(sgtl5000->reg_vddio) / 1000;
+		regulator_enable(sgtl5000->reg_vddio);
+	}
+	if (sgtl5000->reg_vddd) {
+		sgtl5000->vddd =
+		    regulator_get_voltage(sgtl5000->reg_vddd) / 1000;
+		regulator_enable(sgtl5000->reg_vddd);
+	} else {
+		sgtl5000->vddd = 0; /* use internal regulator */
+	}
+
+	msleep(1);
+
 	val = sgtl5000_read(codec, SGTL5000_CHIP_ID);
 	if (((val & SGTL5000_PARTID_MASK) >> SGTL5000_PARTID_SHIFT) !=
 	    SGTL5000_PARTID_PART_ID) {
 		pr_err("Device with ID register %x is not a SGTL5000\n", val);
-		return -ENODEV;
+		ret = -ENODEV;
+		goto err_codec_reg;
 	}
 
 	sgtl5000->rev = (val & SGTL5000_REVID_MASK) >> SGTL5000_REVID_SHIFT;
@@ -1168,15 +1208,32 @@ static __devinit int sgtl5000_i2c_probe(struct i2c_client *client,
 	ret = snd_soc_register_codec(codec);
 	if (ret != 0) {
 		dev_err(codec->dev, "Failed to register codec: %d\n", ret);
-		return ret;
+		goto err_codec_reg;
 	}
 
 	ret = snd_soc_register_dai(&sgtl5000_dai);
 	if (ret != 0) {
 		dev_err(codec->dev, "Failed to register DAIs: %d\n", ret);
-		return ret;
+		goto err_codec_reg;
 	}
 
+	return 0;
+
+err_codec_reg:
+	if (sgtl5000->reg_vddd)
+		regulator_disable(sgtl5000->reg_vddd);
+	if (sgtl5000->reg_vdda)
+		regulator_disable(sgtl5000->reg_vdda);
+	if (sgtl5000->reg_vddio)
+		regulator_disable(sgtl5000->reg_vddio);
+	if (sgtl5000->reg_vddd)
+		regulator_put(sgtl5000->reg_vddd);
+	if (sgtl5000->reg_vdda)
+		regulator_put(sgtl5000->reg_vdda);
+	if (sgtl5000->reg_vddio)
+		regulator_put(sgtl5000->reg_vddio);
+	kfree(sgtl5000);
+	kfree(codec);
 	return ret;
 }
 
@@ -1187,6 +1244,20 @@ static __devexit int sgtl5000_i2c_remove(struct i2c_client *client)
 
 	snd_soc_unregister_dai(&sgtl5000_dai);
 	snd_soc_unregister_codec(codec);
+
+	if (sgtl5000->reg_vddio) {
+		regulator_disable(sgtl5000->reg_vddio);
+		regulator_put(sgtl5000->reg_vddio);
+	}
+	if (sgtl5000->reg_vddd) {
+		regulator_disable(sgtl5000->reg_vddd);
+		regulator_put(sgtl5000->reg_vddd);
+	}
+	if (sgtl5000->reg_vdda) {
+		regulator_disable(sgtl5000->reg_vdda);
+		regulator_put(sgtl5000->reg_vdda);
+	}
+
 	kfree(codec);
 	kfree(sgtl5000);
 	sgtl5000_codec = NULL;

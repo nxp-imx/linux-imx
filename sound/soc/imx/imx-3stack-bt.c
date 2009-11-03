@@ -105,6 +105,7 @@ static int imx_3stack_bt_hw_params(struct snd_pcm_substream *substream,
 	struct snd_soc_dai_link *pcm_link = rtd->dai;
 	struct snd_soc_dai *cpu_dai = pcm_link->cpu_dai;
 	unsigned int channels = params_channels(params);
+	struct imx_ssi *ssi_mode = (struct imx_ssi *)cpu_dai->private_data;
 	int ret = 0;
 	u32 dai_format;
 
@@ -115,6 +116,12 @@ static int imx_3stack_bt_hw_params(struct snd_pcm_substream *substream,
 	dai_format = SND_SOC_DAIFMT_LEFT_J | SND_SOC_DAIFMT_IB_IF |
 	    SND_SOC_DAIFMT_CBS_CFS;
 #endif
+
+	ssi_mode->sync_mode = 1;
+	if (channels == 1)
+		ssi_mode->network_mode = 0;
+	else
+		ssi_mode->network_mode = 1;
 
 	/* set i.MX active slot mask */
 	snd_soc_dai_set_tdm_slot(cpu_dai,
@@ -152,7 +159,6 @@ static struct snd_soc_ops imx_3stack_bt_ops = {
 static struct snd_soc_dai_link imx_3stack_dai = {
 	.name = "bluetooth",
 	.stream_name = "bluetooth",
-	.cpu_dai = &imx_ssi_dai,
 	.codec_dai = &bt_dai,
 	.ops = &imx_3stack_bt_ops,
 };
@@ -178,17 +184,14 @@ static int __init imx_3stack_bt_probe(struct platform_device *pdev)
 {
 	struct mxc_audio_platform_data *dev_data = pdev->dev.platform_data;
 	struct imx_3stack_priv *priv = &card_priv;
-
-	/* imx_3stack bt interface */
-	imx_ssi_dai.private_data = dev_data;
-	imx_ssi_dai.dev = &pdev->dev;
+	struct snd_soc_dai *bt_cpu_dai;
 
 	if (dev_data->src_port == 1)
-		imx_ssi_dai.name = "imx-ssi-1";
+		bt_cpu_dai = &imx_ssi_dai[0];
 	else
-		imx_ssi_dai.name = "imx-ssi-3";
+		bt_cpu_dai = &imx_ssi_dai[2];
 
-	snd_soc_register_dai(&imx_ssi_dai);
+	imx_3stack_dai.cpu_dai = bt_cpu_dai;
 
 	/* Configure audio port */
 	imx_3stack_init_dam(dev_data->src_port, dev_data->ext_port);

@@ -20,6 +20,7 @@
 #include <linux/i2c.h>
 #include <linux/err.h>
 #include <linux/regulator/machine.h>
+#include <linux/mfd/wm8350/audio.h>
 #include <linux/mfd/wm8350/core.h>
 #include <linux/mfd/wm8350/pmic.h>
 #include <linux/mfd/wm8350/gpio.h>
@@ -33,6 +34,17 @@ static struct regulator_consumer_supply dcdc1_consumers[] = {
 	{
 	 .supply = "cpu_vcc",
 	 }
+};
+
+static struct regulator_consumer_supply dcdc3_consumers[] = {
+	{
+	 .supply = "AVDD",
+	 .dev_name = "1-001a",
+	 },
+	{
+	 .supply = "HPVDD",
+	 .dev_name = "1-001a",
+	 },
 };
 
 static struct regulator_init_data dcdc1_data = {
@@ -107,6 +119,8 @@ static struct regulator_init_data dcdc3_data = {
 			.valid_modes_mask = REGULATOR_MODE_NORMAL,
 			.apply_uV = 1,
 			},
+	.num_consumer_supplies = ARRAY_SIZE(dcdc3_consumers),
+	.consumer_supplies = dcdc3_consumers,
 };
 
 static struct regulator_init_data ldo1_data = {
@@ -217,12 +231,30 @@ static struct platform_device mxc_wm8350_devices[] = {
 	 },
 };
 
+static struct wm8350_audio_platform_data imx_3stack_wm8350_setup = {
+	.vmid_discharge_msecs = 1000,
+	.drain_msecs = 30,
+	.cap_discharge_msecs = 700,
+	.vmid_charge_msecs = 700,
+	.vmid_s_curve = WM8350_S_CURVE_SLOW,
+	.dis_out4 = WM8350_DISCHARGE_SLOW,
+	.dis_out3 = WM8350_DISCHARGE_SLOW,
+	.dis_out2 = WM8350_DISCHARGE_SLOW,
+	.dis_out1 = WM8350_DISCHARGE_SLOW,
+	.vroi_out4 = WM8350_TIE_OFF_500R,
+	.vroi_out3 = WM8350_TIE_OFF_500R,
+	.vroi_out2 = WM8350_TIE_OFF_500R,
+	.vroi_out1 = WM8350_TIE_OFF_500R,
+	.vroi_enable = 0,
+	.codec_current_on = WM8350_CODEC_ISEL_1_0,
+	.codec_current_standby = WM8350_CODEC_ISEL_0_5,
+	.codec_current_charge = WM8350_CODEC_ISEL_1_5,
+};
+
 struct mxc_audio_platform_data imx_3stack_audio_platform_data = {
 	.ssi_num = 2,
 	.src_port = 2,
 	.ext_port = 5,
-	.regulator1 = "DCDC6",
-	.regulator2 = "DCDC3",
 };
 
 static struct platform_device *imx_snd_device;
@@ -271,6 +303,8 @@ static int mx37_wm8350_init(struct wm8350 *wm8350)
 
 	/* register sound */
 	pr_info("Registering imx37_snd_device");
+	wm8350->codec.platform_data = &imx_3stack_wm8350_setup;
+
 	imx_snd_device = platform_device_alloc("wm8350-imx-3stack-audio", -1);
 	if (!imx_snd_device) {
 		ret = -ENOMEM;
@@ -334,10 +368,10 @@ static __init int wm8350_regulator_init(void)
 						wm8350_global_regulator
 						[i])))) {
 		regulator_enable(regulator);
-		if (wm8350_global_regulator[i] == "DCDC4")
+		if (strcmp(wm8350_global_regulator[i], "DCDC4") == 0)
 			ret =
 			    regulator_set_voltage(regulator, 1250000, 1250000);
-		else if (wm8350_global_regulator[i] == "DCDC1") {
+		else if (strcmp(wm8350_global_regulator[i], "DCDC1") == 0) {
 			ret =
 			    regulator_set_voltage(regulator, 1050000, 1050000);
 			regulator_set_mode(regulator, REGULATOR_MODE_FAST);

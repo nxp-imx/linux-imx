@@ -169,8 +169,8 @@ static int imx_3stack_audio_hw_params(struct snd_pcm_substream *substream,
 	snd_pcm_format_t format = params_format(params);
 	unsigned int rate = params_rate(params);
 	unsigned int channels = params_channels(params);
+	struct imx_ssi *ssi_mode = (struct imx_ssi *)cpu_dai->private_data;
 	u32 dai_format;
-	int clk_id;
 
 	/* only need to do this once as capture and playback are sync */
 	if (priv->lr_clk_active > 1)
@@ -193,9 +193,25 @@ static int imx_3stack_audio_hw_params(struct snd_pcm_substream *substream,
 #if WM8350_SSI_MASTER
 	/* codec FLL input is 32768 kHz from MCLK */
 	snd_soc_dai_set_pll(codec_dai, 0, 32768, wm8350_audio[i].sysclk);
+#else
+	/* codec FLL input is rate from DAC LRC */
+	snd_soc_dai_set_pll(codec_dai, 0, rate, wm8350_audio[i].sysclk);
+#endif
 
+#if WM8350_SSI_MASTER
 	dai_format = SND_SOC_DAIFMT_I2S | SND_SOC_DAIFMT_NB_NF |
 	    SND_SOC_DAIFMT_CBM_CFM;
+
+	ssi_mode->sync_mode = 1;
+	if (channels == 1)
+		ssi_mode->network_mode = 0;
+	else
+		ssi_mode->network_mode = 1;
+
+	/* set codec DAI configuration */
+	ret = snd_soc_dai_set_fmt(codec_dai, dai_format);
+	if (ret < 0)
+		return ret;
 
 	/* set cpu DAI configuration */
 	if (substream->stream == SNDRV_PCM_STREAM_CAPTURE) {
@@ -204,18 +220,21 @@ static int imx_3stack_audio_hw_params(struct snd_pcm_substream *substream,
 		dai_format |= SND_SOC_DAIFMT_NB_IF;
 	}
 
-	/* set 32KHZ as the codec system clock for DAC and ADC */
-	clk_id = WM8350_MCLK_SEL_PLL_32K;
-#else
-	/* codec FLL input is rate from DAC LRC */
-	snd_soc_dai_set_pll(codec_dai, 0, rate, wm8350_audio[i].sysclk);
+	/* set i.MX active slot mask */
+	snd_soc_dai_set_tdm_slot(cpu_dai,
+				 channels == 1 ? 0xfffffffe : 0xfffffffc,
+				 channels);
 
+	ret = snd_soc_dai_set_fmt(cpu_dai, dai_format);
+	if (ret < 0)
+		return ret;
+
+	/* set 32KHZ as the codec system clock for DAC and ADC */
+	snd_soc_dai_set_sysclk(codec_dai, WM8350_MCLK_SEL_PLL_32K,
+			       wm8350_audio[i].sysclk, SND_SOC_CLOCK_IN);
+#else
 	dai_format = SND_SOC_DAIFMT_I2S | SND_SOC_DAIFMT_NB_NF |
 	    SND_SOC_DAIFMT_CBS_CFS;
-
-	/* set DAC LRC as the codec system clock for DAC and ADC */
-	clk_id = WM8350_MCLK_SEL_PLL_DAC;
-#endif
 
 	/* set codec DAI configuration */
 	ret = snd_soc_dai_set_fmt(codec_dai, dai_format);
@@ -232,8 +251,10 @@ static int imx_3stack_audio_hw_params(struct snd_pcm_substream *substream,
 	if (ret < 0)
 		return ret;
 
-	snd_soc_dai_set_sysclk(codec_dai, clk_id,
+	/* set DAC LRC as the codec system clock for DAC and ADC */
+	snd_soc_dai_set_sysclk(codec_dai, WM8350_MCLK_SEL_PLL_DAC,
 			       wm8350_audio[i].sysclk, SND_SOC_CLOCK_IN);
+#endif
 
 	/* set the SSI system clock as input (unused) */
 	snd_soc_dai_set_sysclk(cpu_dai, IMX_SSP_SYS_CLK, 0, SND_SOC_CLOCK_IN);
@@ -299,27 +320,6 @@ static struct snd_soc_ops imx_3stack_ops = {
 	.startup = imx_3stack_startup,
 	.shutdown = imx_3stack_shutdown,
 	.hw_params = imx_3stack_audio_hw_params,
-};
-
-/* need to refine these */
-static struct wm8350_audio_platform_data imx_3stack_wm8350_setup = {
-	.vmid_discharge_msecs = 1000,
-	.drain_msecs = 30,
-	.cap_discharge_msecs = 700,
-	.vmid_charge_msecs = 700,
-	.vmid_s_curve = WM8350_S_CURVE_SLOW,
-	.dis_out4 = WM8350_DISCHARGE_SLOW,
-	.dis_out3 = WM8350_DISCHARGE_SLOW,
-	.dis_out2 = WM8350_DISCHARGE_SLOW,
-	.dis_out1 = WM8350_DISCHARGE_SLOW,
-	.vroi_out4 = WM8350_TIE_OFF_500R,
-	.vroi_out3 = WM8350_TIE_OFF_500R,
-	.vroi_out2 = WM8350_TIE_OFF_500R,
-	.vroi_out1 = WM8350_TIE_OFF_500R,
-	.vroi_enable = 0,
-	.codec_current_on = WM8350_CODEC_ISEL_1_0,
-	.codec_current_standby = WM8350_CODEC_ISEL_0_5,
-	.codec_current_charge = WM8350_CODEC_ISEL_1_5,
 };
 
 static void imx_3stack_init_dam(int ssi_port, int dai_port)
@@ -567,7 +567,6 @@ static int imx_3stack_wm8350_init(struct snd_soc_codec *codec)
 static struct snd_soc_dai_link imx_3stack_dai = {
 	.name = "WM8350",
 	.stream_name = "WM8350",
-	.cpu_dai = &imx_ssi_dai,
 	.codec_dai = &wm8350_dai,
 	.init = imx_3stack_wm8350_init,
 	.ops = &imx_3stack_ops,
@@ -580,7 +579,6 @@ static int imx_3stack_machine_probe(struct platform_device *pdev)
 	struct wm8350 *wm8350 = priv->wm8350;
 
 	socdev->codec_data = wm8350;
-	wm8350->codec.platform_data = &imx_3stack_wm8350_setup;
 
 	return 0;
 }
@@ -603,27 +601,22 @@ static int __devinit imx_3stack_wm8350_probe(struct platform_device *pdev)
 	struct mxc_audio_platform_data *plat = pdev->dev.platform_data;
 	struct imx_3stack_priv *priv = &machine_priv;
 	struct wm8350 *wm8350 = plat->priv;
+	struct snd_soc_dai *wm8350_cpu_dai;
 	int ret = 0;
 	u16 reg;
 
 	priv->pdev = pdev;
 	priv->wm8350 = wm8350;
 
-	imx_ssi_dai.private_data = plat;
-	imx_ssi_dai.dev = &pdev->dev;
-
-	imx_3stack_wm8350_setup.regulator1 = plat->regulator1;
-	imx_3stack_wm8350_setup.regulator2 = plat->regulator2;
-
 	gpio_activate_audio_ports();
 	imx_3stack_init_dam(plat->src_port, plat->ext_port);
 
 	if (plat->src_port == 2)
-		imx_ssi_dai.name =  "imx-ssi-3";
+		wm8350_cpu_dai =  &imx_ssi_dai[2];
 	else
-		imx_ssi_dai.name =  "imx-ssi-1";
+		wm8350_cpu_dai = &imx_ssi_dai[0];
 
-	snd_soc_register_dai(&imx_ssi_dai);
+	imx_3stack_dai.cpu_dai = wm8350_cpu_dai;
 
 	ret = driver_create_file(pdev->dev.driver, &driver_attr_headphone);
 	if (ret < 0) {

@@ -236,18 +236,10 @@ struct mxc_audio_platform_data {
 	int intr_id_hp;
 	int ext_ram;
 	struct clk *ssi_clk[2];
-	char *regulator1;
-	char *regulator2;
 
 	int hp_irq;
 	int (*hp_status) (void);
 
-	char *vddio_reg;
-	char *vdda_reg;
-	char *vddd_reg;
-	int vddio;		/* voltage of VDDIO (uv) */
-	int vdda;		/* voltage of vdda (uv) */
-	int vddd;		/* voltage of vddd (uv), 0 if not connected */
 	int sysclk;
 
 	int (*init) (void);	/* board specific init */

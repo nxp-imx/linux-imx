@@ -20,7 +20,6 @@
 #include <linux/pm.h>
 #include <linux/bitops.h>
 #include <linux/platform_device.h>
-#include <linux/regulator/consumer.h>
 #include <linux/i2c.h>
 #include <linux/err.h>
 #include <linux/irq.h>
@@ -68,9 +67,6 @@ struct imx_3stack_priv {
 	int sysclk;
 	int hw;
 	struct platform_device *pdev;
-	struct regulator *reg_vddio;
-	struct regulator *reg_vdda;
-	struct regulator *reg_vddd;
 };
 
 static struct imx_3stack_priv card_priv;
@@ -84,6 +80,7 @@ static int imx_3stack_audio_hw_params(struct snd_pcm_substream *substream,
 	struct snd_soc_dai *codec_dai = machine->codec_dai;
 	struct imx_3stack_priv *priv = &card_priv;
 	unsigned int rate = params_rate(params);
+	struct imx_ssi *ssi_mode = (struct imx_ssi *)cpu_dai->private_data;
 	int ret = 0;
 
 	unsigned int channels = params_channels(params);
@@ -143,6 +140,12 @@ static int imx_3stack_audio_hw_params(struct snd_pcm_substream *substream,
 	dai_format = SND_SOC_DAIFMT_I2S | SND_SOC_DAIFMT_NB_NF |
 	    SND_SOC_DAIFMT_CBS_CFS;
 #endif
+
+	ssi_mode->sync_mode = 1;
+	if (channels == 1)
+		ssi_mode->network_mode = 0;
+	else
+		ssi_mode->network_mode = 1;
 
 	/* set codec DAI configuration */
 	ret = snd_soc_dai_set_fmt(codec_dai, dai_format);
@@ -532,29 +535,15 @@ static int imx_3stack_sgtl5000_init(struct snd_soc_codec *codec)
 static struct snd_soc_dai_link imx_3stack_dai = {
 	.name = "SGTL5000",
 	.stream_name = "SGTL5000",
-	.cpu_dai = &imx_ssi_dai,
 	.codec_dai = &sgtl5000_dai,
 	.init = imx_3stack_sgtl5000_init,
 	.ops = &imx_3stack_ops,
-	.symmetric_rates = 1,
 };
 
 static int imx_3stack_card_remove(struct platform_device *pdev)
 {
 	struct imx_3stack_priv *priv = &card_priv;
 	struct mxc_audio_platform_data *plat;
-	if (priv->reg_vddio)
-		regulator_disable(priv->reg_vddio);
-	if (priv->reg_vddd)
-		regulator_disable(priv->reg_vddd);
-	if (priv->reg_vdda)
-		regulator_disable(priv->reg_vdda);
-	if (priv->reg_vdda)
-		regulator_put(priv->reg_vdda);
-	if (priv->reg_vddio)
-		regulator_put(priv->reg_vddio);
-	if (priv->reg_vddd)
-		regulator_put(priv->reg_vddd);
 	if (priv->pdev) {
 		plat = priv->pdev->dev.platform_data;
 		if (plat->finit)
@@ -581,36 +570,21 @@ static int __devinit imx_3stack_sgtl5000_probe(struct platform_device *pdev)
 {
 	struct mxc_audio_platform_data *plat = pdev->dev.platform_data;
 	struct imx_3stack_priv *priv = &card_priv;
-	struct sgtl5000_platform_data *codec_data;
-	struct regulator *reg;
+	struct snd_soc_dai *sgtl5000_cpu_dai;
 	int ret = 0;
 
 	priv->sysclk = plat->sysclk;
 	priv->pdev = pdev;
 
-	imx_ssi_dai.private_data = plat;
-	imx_ssi_dai.dev = &pdev->dev;
-
-	codec_data = kzalloc(sizeof(struct sgtl5000_platform_data), GFP_KERNEL);
-	if (!codec_data) {
-		ret = -ENOMEM;
-		goto err_codec_data;
-	}
-	codec_data->vddio = plat->vddio / 1000;	/* uV to mV */
-	codec_data->vdda = plat->vdda / 1000;
-	codec_data->vddd = plat->vddd / 1000;
-	imx_3stack_snd_devdata.codec_data = codec_data;
-
 	gpio_activate_audio_ports();
 	imx_3stack_init_dam(plat->src_port, plat->ext_port);
 
 	if (plat->src_port == 2)
-		imx_ssi_dai.name = "imx-ssi-3";
+		sgtl5000_cpu_dai = &imx_ssi_dai[2];
 	else
-		imx_ssi_dai.name = "imx-ssi-1";
+		sgtl5000_cpu_dai = &imx_ssi_dai[0];
 
-	imx_ssi_dai.symmetric_rates = 1;
-	snd_soc_register_dai(&imx_ssi_dai);
+	imx_3stack_dai.cpu_dai = sgtl5000_cpu_dai;
 
 	ret = driver_create_file(pdev->dev.driver, &driver_attr_headphone);
 	if (ret < 0) {
@@ -621,44 +595,10 @@ static int __devinit imx_3stack_sgtl5000_probe(struct platform_device *pdev)
 	ret = -EINVAL;
 	if (plat->init && plat->init())
 		goto err_plat_init;
-	if (plat->vddio_reg) {
-		reg = regulator_get(&pdev->dev, plat->vddio_reg);
-		if (IS_ERR(reg))
-			goto err_reg_vddio;
-		priv->reg_vddio = reg;
-	}
-	if (plat->vdda_reg) {
-		reg = regulator_get(&pdev->dev, plat->vdda_reg);
-		if (IS_ERR(reg))
-			goto err_reg_vdda;
-		priv->reg_vdda = reg;
-	}
-	if (plat->vddd_reg) {
-		reg = regulator_get(&pdev->dev, plat->vddd_reg);
-		if (IS_ERR(reg))
-			goto err_reg_vddd;
-		priv->reg_vddd = reg;
-	}
-
-	if (priv->reg_vdda) {
-		ret = regulator_set_voltage(priv->reg_vdda,
-					    plat->vdda, plat->vdda);
-		regulator_enable(priv->reg_vdda);
-	}
-	if (priv->reg_vddio) {
-		regulator_set_voltage(priv->reg_vddio,
-				      plat->vddio, plat->vddio);
-		regulator_enable(priv->reg_vddio);
-	}
-	if (priv->reg_vddd) {
-		regulator_set_voltage(priv->reg_vddd, plat->vddd, plat->vddd);
-		regulator_enable(priv->reg_vddd);
-	}
 
 	/* The SGTL5000 has an internal reset that is deasserted 8 SYS_MCLK
 	   cycles after all power rails have been brought up. After this time
 	   communication can start */
-	msleep(1);
 
 	if (plat->hp_status())
 		ret = request_irq(plat->hp_irq,
@@ -680,22 +620,11 @@ static int __devinit imx_3stack_sgtl5000_probe(struct platform_device *pdev)
 	return 0;
 
 err_card_reg:
-	if (priv->reg_vddd)
-		regulator_put(priv->reg_vddd);
-err_reg_vddd:
-	if (priv->reg_vdda)
-		regulator_put(priv->reg_vdda);
-err_reg_vdda:
-	if (priv->reg_vddio)
-		regulator_put(priv->reg_vddio);
-err_reg_vddio:
 	if (plat->finit)
 		plat->finit();
 err_plat_init:
 	driver_remove_file(pdev->dev.driver, &driver_attr_headphone);
 sysfs_err:
-	kfree(codec_data);
-err_codec_data:
 	return ret;
 }
 
@@ -706,9 +635,10 @@ static int imx_3stack_sgtl5000_remove(struct platform_device *pdev)
 
 	free_irq(plat->hp_irq, priv);
 
-	driver_remove_file(pdev->dev.driver, &driver_attr_headphone);
+	if (plat->finit)
+		plat->finit();
 
-	kfree(imx_3stack_snd_devdata.codec_data);
+	driver_remove_file(pdev->dev.driver, &driver_attr_headphone);
 
 	return 0;
 }
