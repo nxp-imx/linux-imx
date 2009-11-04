@@ -457,13 +457,24 @@ static int vpu_ioctl(struct inode *inode, struct file *filp, u_int cmd,
 		}
 	case VPU_IOC_SYS_SW_RESET:
 		{
-			if (cpu_is_mx37() || cpu_is_mx51()) {
-				u32 reg;
+			u32 reg;
 
+			if (cpu_is_mx37()) {
 				reg = __raw_readl(src_base_addr);
 				reg |= 0x02;	/* SW_VPU_RST_BIT */
 				__raw_writel(reg, src_base_addr);
 				while (__raw_readl(src_base_addr) & 0x02)
+					;
+			} else if (cpu_is_mx51()) {
+				/* mask interrupt due to vpu passed reset */
+				reg = __raw_readl(src_base_addr + 5);
+				reg |= 0x02;
+				__raw_writel(reg, src_base_addr + 5);
+
+				reg = __raw_readl(src_base_addr);
+				reg |= 0x5;    /* warm reset vpu */
+				__raw_writel(reg, src_base_addr);
+				while (__raw_readl(src_base_addr) & 0x04)
 					;
 			}
 			break;
