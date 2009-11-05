@@ -192,11 +192,8 @@ struct pll_state {
 	unsigned int out;
 };
 
-#define WM8580_NUM_SUPPLIES 3
+#define WM8580_NUM_SUPPLIES 0
 static const char *wm8580_supply_names[WM8580_NUM_SUPPLIES] = {
-	"AVDD",
-	"DVDD",
-	"PVDD",
 };
 
 /* codec private data */
@@ -1086,6 +1083,7 @@ static struct i2c_driver wm8580_i2c_driver = {
   */
 static inline int spi_rw(void *control_data, char *data, int length)
 {
+	int ret;
 	struct spi_transfer t = {
 		.tx_buf = (const void *)data,
 		.rx_buf = (void *)data,
@@ -1100,7 +1098,11 @@ static inline int spi_rw(void *control_data, char *data, int length)
 
 	spi_message_init(&m);
 	spi_message_add_tail(&t, &m);
-	return spi_sync((struct spi_device *)control_data, &m);
+	ret = spi_sync((struct spi_device *)control_data, &m);
+	if (unlikely(ret < 0))
+		return ret;
+	else
+		return length;
 
 }
 
