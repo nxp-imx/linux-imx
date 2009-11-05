@@ -1127,7 +1127,7 @@ static int wm8350_set_fll(struct snd_soc_dai *codec_dai,
 	fll_1 = wm8350_codec_read(codec, WM8350_FLL_CONTROL_1) &
 	    ~(WM8350_FLL_OUTDIV_MASK | WM8350_FLL_RSP_RATE_MASK | 0xc000);
 	wm8350_codec_write(codec, WM8350_FLL_CONTROL_1,
-			   fll_1 | (fll_div.div << 8) | 0x50);
+			   fll_1 | (fll_div.div << 8));
 	wm8350_codec_write(codec, WM8350_FLL_CONTROL_2,
 			   (fll_div.ratio << 11) | (fll_div.
 						    n & WM8350_FLL_N_MASK));
@@ -1465,13 +1465,13 @@ static int wm8350_probe(struct platform_device *pdev)
 
 	/* Latch VU bits & mute */
 	wm8350_set_bits(wm8350, WM8350_LOUT1_VOLUME,
-			WM8350_OUT1_VU | WM8350_OUT1L_MUTE);
+			WM8350_OUT1_VU);
 	wm8350_set_bits(wm8350, WM8350_LOUT2_VOLUME,
-			WM8350_OUT2_VU | WM8350_OUT2L_MUTE);
+			WM8350_OUT2_VU);
 	wm8350_set_bits(wm8350, WM8350_ROUT1_VOLUME,
-			WM8350_OUT1_VU | WM8350_OUT1R_MUTE);
+			WM8350_OUT1_VU);
 	wm8350_set_bits(wm8350, WM8350_ROUT2_VOLUME,
-			WM8350_OUT2_VU | WM8350_OUT2R_MUTE);
+			WM8350_OUT2_VU);
 
 	wm8350_mask_irq(wm8350, WM8350_IRQ_CODEC_JCK_DET_L);
 	wm8350_mask_irq(wm8350, WM8350_IRQ_CODEC_JCK_DET_R);
