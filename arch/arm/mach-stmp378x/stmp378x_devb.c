@@ -58,6 +58,7 @@ static struct platform_device *devices[] = {
 	&stmp378x_i2c,
 	&stmp3xxx_spdif,
 	&stmp378x_audio,
+	&stmp3xxx_viim,
 };
 
 int usb_host_wakeup_irq(struct device *wkup_dev)
