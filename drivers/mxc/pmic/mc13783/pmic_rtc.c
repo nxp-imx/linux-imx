@@ -43,7 +43,6 @@ static DECLARE_WAIT_QUEUE_HEAD(queue_alarm);
 static DECLARE_WAIT_QUEUE_HEAD(pmic_rtc_wait);
 static pmic_event_callback_t alarm_callback;
 static pmic_event_callback_t rtc_callback;
-static int pmic_rtc_detected = 0;
 static bool pmic_rtc_done = 0;
 static struct class *pmic_rtc_class;
 
@@ -57,7 +56,6 @@ EXPORT_SYMBOL(pmic_rtc_get_time_alarm);
 EXPORT_SYMBOL(pmic_rtc_wait_alarm);
 EXPORT_SYMBOL(pmic_rtc_event_sub);
 EXPORT_SYMBOL(pmic_rtc_event_unsub);
-EXPORT_SYMBOL(pmic_rtc_loaded);
 
 /*
  * Real Time Clock Pmic API
@@ -467,11 +465,6 @@ static struct file_operations pmic_rtc_fops = {
 	.release = pmic_rtc_release,
 };
 
-int pmic_rtc_loaded(void)
-{
-	return pmic_rtc_detected;
-}
-
 static int pmic_rtc_remove(struct platform_device *pdev)
 {
 	device_destroy(pmic_rtc_class, MKDEV(pmic_rtc_major, 0));
@@ -507,7 +500,6 @@ static int pmic_rtc_probe(struct platform_device *pdev)
 		goto err_out2;
 	}
 
-	pmic_rtc_detected = 1;
 	printk(KERN_INFO "PMIC RTC successfully probed\n");
 	return ret;
 

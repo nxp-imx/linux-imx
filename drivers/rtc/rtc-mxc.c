@@ -121,70 +121,10 @@ struct rtc_plat_data {
  * @ingroup RTC
  */
 
-#if defined(CONFIG_MXC_PMIC_SC55112_RTC) || defined(CONFIG_MXC_MC13783_RTC) ||\
-    defined(CONFIG_MXC_MC9SDZ60_RTC)
-#include <linux/pmic_rtc.h>
-#else
-#define pmic_rtc_get_time(args)	MXC_EXTERNAL_RTC_NONE
-#define pmic_rtc_set_time(args)	MXC_EXTERNAL_RTC_NONE
-#define pmic_rtc_loaded()		0
-#endif
-
 #define RTC_VERSION		"1.0"
 #define MXC_EXTERNAL_RTC_OK	0
 #define MXC_EXTERNAL_RTC_ERR	-1
 #define MXC_EXTERNAL_RTC_NONE	-2
-
-/*!
- * This function reads the RTC value from some external source.
- *
- * @param  second       pointer to the returned value in second
- *
- * @return 0 if successful; non-zero otherwise
- */
-int get_ext_rtc_time(u32 * second)
-{
-	int ret = 0;
-	struct timeval tmp;
-	if (!pmic_rtc_loaded()) {
-		return MXC_EXTERNAL_RTC_NONE;
-	}
-
-	ret = pmic_rtc_get_time(&tmp);
-
-	if (0 == ret)
-		*second = tmp.tv_sec;
-	else
-		ret = MXC_EXTERNAL_RTC_ERR;
-
-	return ret;
-}
-
-/*!
- * This function sets external RTC
- *
- * @param  second       value in second to be set to external RTC
- *
- * @return 0 if successful; non-zero otherwise
- */
-int set_ext_rtc_time(u32 second)
-{
-	int ret = 0;
-	struct timeval tmp;
-
-	if (!pmic_rtc_loaded()) {
-		return MXC_EXTERNAL_RTC_NONE;
-	}
-
-	tmp.tv_sec = second;
-
-	ret = pmic_rtc_set_time(&tmp);
-
-	if (0 != ret)
-		ret = MXC_EXTERNAL_RTC_ERR;
-
-	return ret;
-}
 
 static u32 rtc_freq = 2;	/* minimun value for PIE */
 static unsigned long rtc_status;
@@ -499,16 +439,6 @@ static int mxc_rtc_set_time(struct device *dev, struct rtc_time *tm)
 	do {
 		set_alarm_or_time(dev, MXC_RTC_TIME, time);
 	} while (time != get_alarm_or_time(dev, MXC_RTC_TIME));
-
-	ret = set_ext_rtc_time(time);
-
-	if (ret != MXC_EXTERNAL_RTC_OK) {
-		if (ret == MXC_EXTERNAL_RTC_NONE) {
-			pr_info("No external RTC\n");
-			ret = 0;
-		} else
-			pr_info("Failed to set external RTC\n");
-	}
 
 	return ret;
 }
