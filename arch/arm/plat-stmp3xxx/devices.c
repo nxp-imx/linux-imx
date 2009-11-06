@@ -42,6 +42,11 @@
 
 static u64 common_dmamask = DMA_BIT_MASK(32);
 
+static void mxc_nop_release(struct device *dev)
+{
+	/* Nothing */
+}
+
 static struct resource appuart_resources[] = {
 	{
 		.start = IRQ_UARTAPP_INTERNAL,
@@ -79,6 +84,7 @@ struct platform_device stmp3xxx_appuart = {
 	.resource = appuart_resources,
 	.num_resources = ARRAY_SIZE(appuart_resources),
 	.dev = {
+		.release = mxc_nop_release,
 		.dma_mask	= &common_dmamask,
 		.coherent_dma_mask = DMA_BIT_MASK(32),
 	},
@@ -87,11 +93,17 @@ struct platform_device stmp3xxx_appuart = {
 struct platform_device stmp3xxx_dbguart = {
 	.name = "stmp3xxx-dbguart",
 	.id = -1,
+	.dev = {
+		.release = mxc_nop_release,
+		},
 };
 
 struct platform_device stmp3xxx_watchdog = {
       .name   = "stmp3xxx_wdt",
       .id     = -1,
+	.dev = {
+		.release = mxc_nop_release,
+		},
 };
 
 static struct resource ts_resource[] = {
@@ -109,6 +121,9 @@ static struct resource ts_resource[] = {
 struct platform_device stmp3xxx_touchscreen = {
 	.name		= "stmp3xxx_ts",
 	.id		= -1,
+	.dev = {
+		.release = mxc_nop_release,
+		},
 	.resource	= ts_resource,
 	.num_resources	= ARRAY_SIZE(ts_resource),
 };
@@ -127,6 +142,9 @@ static struct resource keyboard_resource[] = {
 struct platform_device stmp3xxx_keyboard = {
 	.name		= "stmp3xxx-keyboard",
 	.id		= -1,
+	.dev = {
+		.release = mxc_nop_release,
+		},
 	.resource	= keyboard_resource,
 	.num_resources	= ARRAY_SIZE(keyboard_resource),
 };
@@ -151,6 +169,7 @@ struct platform_device stmp3xxx_gpmi = {
 	.name = "gpmi",
 	.id = -1,
 	.dev	= {
+		.release = mxc_nop_release,
 		.dma_mask	= &common_dmamask,
 		.coherent_dma_mask = DMA_BIT_MASK(32),
 	},
@@ -182,6 +201,7 @@ struct platform_device stmp3xxx_mmc = {
 	.name	= "stmp3xxx-mmc",
 	.id	= -1,
 	.dev	= {
+		.release = mxc_nop_release,
 		.dma_mask	= &common_dmamask,
 		.coherent_dma_mask = DMA_BIT_MASK(32),
 	},
@@ -208,6 +228,9 @@ static struct resource rtc_resources[] = {
 struct platform_device stmp3xxx_rtc = {
 	.name		= "stmp3xxx-rtc",
 	.id		= -1,
+	.dev = {
+		.release = mxc_nop_release,
+		},
 	.resource	= rtc_resources,
 	.num_resources	= ARRAY_SIZE(rtc_resources),
 };
@@ -248,6 +271,7 @@ struct platform_device stmp3xxx_spi1 = {
 	.name	= "stmp3xxx_ssp",
 	.id	= 1,
 	.dev	= {
+		.release = mxc_nop_release,
 		.dma_mask	= &common_dmamask,
 		.coherent_dma_mask = DMA_BIT_MASK(32),
 	},
@@ -259,6 +283,7 @@ struct platform_device stmp3xxx_spi2 = {
 	.name	= "stmp3xxx_ssp",
 	.id	= 2,
 	.dev	= {
+		.release = mxc_nop_release,
 		.dma_mask	= &common_dmamask,
 		.coherent_dma_mask = DMA_BIT_MASK(32),
 	},
@@ -290,6 +315,7 @@ struct platform_device stmp3xxx_framebuffer = {
 	.name		= "stmp3xxx-fb",
 	.id		= -1,
 	.dev		= {
+		.release = mxc_nop_release,
 		.dma_mask		= &common_dmamask,
 		.coherent_dma_mask	= DMA_BIT_MASK(32),
 		.platform_data		= &stmp3xxx_framebuffer_pdata,
@@ -326,11 +352,17 @@ CMDLINE_DEVICE_CHOOSE(ssp2, gpmi, spi2)
 struct platform_device stmp3xxx_backlight = {
 	.name		= "stmp3xxx-bl",
 	.id		= -1,
+	.dev = {
+		.release = mxc_nop_release,
+		},
 };
 
 struct platform_device stmp3xxx_rotdec = {
 	.name	= "stmp3xxx-rotdec",
 	.id	= -1,
+	.dev = {
+		.release = mxc_nop_release,
+		},
 };
 
 static const struct stmp3xxx_persistent_bit_config
@@ -411,13 +443,17 @@ static struct stmp3xxx_platform_persistent_data stmp3xxx_persistent_data = {
 struct platform_device stmp3xxx_persistent = {
 	.name			= "stmp3xxx-persistent",
 	.id			= -1,
-	.dev.platform_data	= &stmp3xxx_persistent_data,
+	.dev = {
+		.release = mxc_nop_release,
+		.platform_data	= &stmp3xxx_persistent_data,
+		},
 };
 
 struct platform_device stmp3xxx_dcp_bootstream = {
 	.name			= "stmp3xxx-dcpboot",
 	.id			= -1,
 	.dev	= {
+		.release = mxc_nop_release,
 		.dma_mask	= &common_dmamask,
 		.coherent_dma_mask = DMA_BIT_MASK(32),
 	},
@@ -441,6 +477,7 @@ struct platform_device stmp3xxx_dcp = {
 	.resource		= dcp_resources,
 	.num_resources		= ARRAY_SIZE(dcp_resources),
 	.dev	= {
+		.release = mxc_nop_release,
 		.dma_mask	= &common_dmamask,
 		.coherent_dma_mask = DMA_BIT_MASK(32),
 	},
@@ -457,6 +494,9 @@ static struct resource battery_resource[] = {
 struct platform_device stmp3xxx_battery = {
 	.name   = "stmp3xxx-battery",
 	.resource = battery_resource,
+	.dev	= {
+		.release = mxc_nop_release,
+		} ,
 	.num_resources = ARRAY_SIZE(battery_resource),
 };
 
@@ -476,6 +516,9 @@ struct resource viim_resources[] = {
 struct platform_device stmp3xxx_viim = {
 	.name   = "mxs_viim",
 	.id     = 0,
+	.dev	= {
+		.release = mxc_nop_release,
+		} ,
 	.resource = viim_resources,
 	.num_resources = ARRAY_SIZE(viim_resources),
 };
@@ -483,4 +526,7 @@ struct platform_device stmp3xxx_viim = {
 struct platform_device stmp3xxx_spdif = {
 	.name = "stmp3xxx-spdif",
 	.id = -1,
+	.dev	= {
+		.release = mxc_nop_release,
+		} ,
 };

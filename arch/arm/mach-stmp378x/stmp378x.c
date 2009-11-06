@@ -239,6 +239,11 @@ static struct map_desc stmp378x_io_desc[] __initdata = {
 
 static u64 common_dmamask = DMA_BIT_MASK(32);
 
+static void mxc_nop_release(struct device *dev)
+{
+	/* Nothing */
+}
+
 /*
  * devices that are present only on stmp378x, not on all 3xxx boards:
  * 	PxP
@@ -260,6 +265,7 @@ struct platform_device stmp378x_pxp = {
 	.name		= "stmp3xxx-pxp",
 	.id		= -1,
 	.dev		= {
+		.release = mxc_nop_release,
 		.dma_mask		= &common_dmamask,
 		.coherent_dma_mask	= DMA_BIT_MASK(32),
 	},
@@ -287,6 +293,7 @@ struct platform_device stmp378x_i2c = {
 	.name = "i2c_stmp3xxx",
 	.id = 0,
 	.dev	= {
+		.release = mxc_nop_release,
 		.dma_mask	= &common_dmamask,
 		.coherent_dma_mask = DMA_BIT_MASK(32),
 	},
@@ -297,6 +304,9 @@ struct platform_device stmp378x_i2c = {
 struct platform_device stmp378x_audio = {
 	.name = "stmp378x-audio",
 	.id = -1,
+	.dev = {
+		.release = mxc_nop_release,
+		},
 };
 
 void __init stmp378x_map_io(void)
