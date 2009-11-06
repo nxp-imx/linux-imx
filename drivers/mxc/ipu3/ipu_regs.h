@@ -294,6 +294,9 @@ extern u32 *ipu_vdi_reg;
 #define DP_CSC_0(flow)		(ipu_dp_reg + 0x0054/4 + flow/4)
 #define DP_CSC_1(flow)		(ipu_dp_reg + 0x0058/4 + flow/4)
 
+/* Software reset for ipu */
+#define SW_IPU_RST			8
+
 enum {
 	IPU_CONF_CSI0_EN = 0x00000001,
 	IPU_CONF_CSI1_EN = 0x00000002,

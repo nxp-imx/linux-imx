@@ -138,6 +138,21 @@ static inline int _ipu_is_smfc_chan(uint32_t dma_chan)
 #define idma_is_set(reg, dma)	(__raw_readl(reg(dma)) & idma_mask(dma))
 
 /*!
+ * This function resets IPU
+ */
+void ipu_reset(void)
+{
+	u32 *reg;
+	u32 value;
+	reg = ioremap(SRC_BASE_ADDR, PAGE_SIZE);
+	value = __raw_readl(reg);
+	value = value | SW_IPU_RST;
+	__raw_writel(value, reg);
+	iounmap(reg);
+}
+EXPORT_SYMBOL(ipu_reset);
+
+/*!
  * This function is called by the driver framework to initialize the IPU
  * hardware.
  *
@@ -221,6 +236,8 @@ static int ipu_probe(struct platform_device *pdev)
 	/* Get IPU clock freq */
 	g_ipu_clk = clk_get(&pdev->dev, "ipu_clk");
 	dev_dbg(g_ipu_dev, "ipu_clk = %lu\n", clk_get_rate(g_ipu_clk));
+
+	ipu_reset();
 
 	clk_enable(g_ipu_clk);
 
