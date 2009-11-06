@@ -410,11 +410,15 @@ int fsl_otg_start_host(struct otg_fsm *fsm, int on)
 	struct otg_transceiver *xceiv = fsm->transceiver;
 	struct device *dev;
 	struct fsl_otg *otg_dev = container_of(xceiv, struct fsl_otg, otg);
+	struct platform_driver *host_pdrv;
+	struct platform_device *host_pdev;
 	u32 retval = 0;
 
 	if (!xceiv->host)
 		return -ENODEV;
 	dev = xceiv->host->controller;
+	host_pdrv = container_of((dev->driver), struct platform_driver, driver);
+	host_pdev = to_platform_device(dev);
 
 	/* Update a_vbus_vld state as a_vbus_vld int is disabled
 	 * in device mode
@@ -428,8 +432,8 @@ int fsl_otg_start_host(struct otg_fsm *fsm, int on)
 		else {
 			otg_reset_controller();
 			VDBG("host on......\n");
-			if (dev->driver->resume) {
-				retval = dev->driver->resume(dev);
+			if (host_pdrv->resume) {
+				retval = host_pdrv->resume(host_pdev);
 				if (fsm->id) {
 					/* default-b */
 					fsl_otg_drv_vbus(1);
@@ -452,8 +456,8 @@ int fsl_otg_start_host(struct otg_fsm *fsm, int on)
 			goto end;
 		else {
 			VDBG("host off......\n");
-			if (dev && dev->driver) {
-				retval = dev->driver->suspend(dev,
+			if (host_pdrv->suspend) {
+				retval = host_pdrv->suspend(host_pdev,
 							otg_suspend_state);
 				if (fsm->id)
 					/* default-b */
@@ -473,6 +477,8 @@ int fsl_otg_start_gadget(struct otg_fsm *fsm, int on)
 {
 	struct otg_transceiver *xceiv = fsm->transceiver;
 	struct device *dev;
+	struct platform_driver *gadget_pdrv;
+	struct platform_device *gadget_pdev;
 
 	if (!xceiv->gadget || !xceiv->gadget->dev.parent)
 		return -ENODEV;
@@ -480,10 +486,14 @@ int fsl_otg_start_gadget(struct otg_fsm *fsm, int on)
 	VDBG("gadget %s \n", on ? "on" : "off");
 	dev = xceiv->gadget->dev.parent;
 
+	gadget_pdrv = container_of((dev->driver),
+			struct platform_driver, driver);
+	gadget_pdev = to_platform_device(dev);
+
 	if (on)
-		dev->driver->resume(dev);
+		gadget_pdrv->resume(gadget_pdev);
 	else
-		dev->driver->suspend(dev, otg_suspend_state);
+		gadget_pdrv->suspend(gadget_pdev, otg_suspend_state);
 
 	return 0;
 }
