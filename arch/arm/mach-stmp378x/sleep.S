@@ -18,7 +18,9 @@
 #include <linux/linkage.h>
 #include <asm/assembler.h>
 #include <mach/hardware.h>
+#include <asm/system.h>
 #include <asm/pgtable-hwdef.h>
+#include <mach/platform.h>
 #include <mach/regs-power.h>
 #include <mach/regs-clkctrl.h>
 #include "sleep.h"
@@ -76,10 +78,10 @@ ENTRY(stmp37xx_cpu_standby)
 	mov	lr, pc
 	b	stmp3xxx_ram_24M_set_timings
 
-	mov	r0, #(HW_CLKCTRL_CLKSEQ & 0x000000FF)
-	orr	r0, r0, #(HW_CLKCTRL_CLKSEQ & 0x0000FF00)
-	orr	r0, r0, #(HW_CLKCTRL_CLKSEQ & 0x00FF0000)
-	orr	r0, r0, #(HW_CLKCTRL_CLKSEQ & 0xFF000000)
+	mov	r0, #(HW_CLKCTRL_CLKSEQ_ADDR & 0x000000FF)
+	orr	r0, r0, #(HW_CLKCTRL_CLKSEQ_ADDR & 0x0000FF00)
+	orr	r0, r0, #(HW_CLKCTRL_CLKSEQ_ADDR & 0x00FF0000)
+	orr	r0, r0, #(HW_CLKCTRL_CLKSEQ_ADDR & 0xFF000000)
 	ldr	r4, [r0]
 	mov	r1, #(1<<6)
 	str	r1, [r0, #4]
@@ -88,33 +90,33 @@ ENTRY(stmp37xx_cpu_standby)
 	bne	1b
 
 	@ save RAM divisors
-	mov	r0, #(HW_CLKCTRL_FRAC & 0x000000FF)
-	orr	r0, r0, #(HW_CLKCTRL_FRAC & 0x0000FF00)
-	orr	r0, r0, #(HW_CLKCTRL_FRAC & 0x00FF0000)
-	orr	r0, r0, #(HW_CLKCTRL_FRAC & 0xFF000000)
+	mov	r0, #(HW_CLKCTRL_FRAC_ADDR & 0x000000FF)
+	orr	r0, r0, #(HW_CLKCTRL_FRAC_ADDR & 0x0000FF00)
+	orr	r0, r0, #(HW_CLKCTRL_FRAC_ADDR & 0x00FF0000)
+	orr	r0, r0, #(HW_CLKCTRL_FRAC_ADDR & 0xFF000000)
 	ldr	r8, [r0]
 	and	r8, r8, #(0x3F << 8)
 	lsr	r8, r8, #8
-	mov	r0, #(HW_CLKCTRL_EMI & 0x000000FF)
-	orr	r0, r0, #(HW_CLKCTRL_EMI & 0x0000FF00)
-	orr	r0, r0, #(HW_CLKCTRL_EMI & 0x00FF0000)
-	orr	r0, r0, #(HW_CLKCTRL_EMI & 0xFF000000)
+	mov	r0, #(HW_CLKCTRL_EMI_ADDR & 0x000000FF)
+	orr	r0, r0, #(HW_CLKCTRL_EMI_ADDR & 0x0000FF00)
+	orr	r0, r0, #(HW_CLKCTRL_EMI_ADDR & 0x00FF0000)
+	orr	r0, r0, #(HW_CLKCTRL_EMI_ADDR & 0xFF000000)
 	ldr	r7, [r0]
 	and	r7, r7, #0x3F
 
 	@ shut the PLL down
-	mov	r0, #(HW_CLKCTRL_PLLCTRL0 & 0x000000FF)
-	orr	r0, r0, #(HW_CLKCTRL_PLLCTRL0 & 0x0000FF00)
-	orr	r0, r0, #(HW_CLKCTRL_PLLCTRL0 & 0x00FF0000)
-	orr	r0, r0, #(HW_CLKCTRL_PLLCTRL0 & 0xFF000000)
+	mov	r0, #(HW_CLKCTRL_PLLCTRL0_ADDR & 0x000000FF)
+	orr	r0, r0, #(HW_CLKCTRL_PLLCTRL0_ADDR & 0x0000FF00)
+	orr	r0, r0, #(HW_CLKCTRL_PLLCTRL0_ADDR & 0x00FF0000)
+	orr	r0, r0, #(HW_CLKCTRL_PLLCTRL0_ADDR & 0xFF000000)
 	mov	r1, #(1<<16)
 	str	r1, [r0, #0x08]	@ clear
 
 	@ set vddd to minimum
-	mov	r0, #(HW_POWER_VDDDCTRL & 0x000000FF)
-	orr	r0, r0, #(HW_POWER_VDDDCTRL & 0x0000FF00)
-	orr	r0, r0, #(HW_POWER_VDDDCTRL & 0x00FF0000)
-	orr	r0, r0, #(HW_POWER_VDDDCTRL & 0xFF000000)
+	mov	r0, #(HW_POWER_VDDDCTRL_ADDR & 0x000000FF)
+	orr	r0, r0, #(HW_POWER_VDDDCTRL_ADDR & 0x0000FF00)
+	orr	r0, r0, #(HW_POWER_VDDDCTRL_ADDR & 0x00FF0000)
+	orr	r0, r0, #(HW_POWER_VDDDCTRL_ADDR & 0xFF000000)
 	ldr	r6, [r0]
 	bic	r1, r6, #0xFF
 	bic	r1, r1, #0x30
@@ -129,10 +131,10 @@ ENTRY(stmp37xx_cpu_standby)
 #endif
 
 	@ do enter standby
-	mov	r0, #(HW_CLKCTRL_CPU & 0x000000FF)
-	orr	r0, r0, #(HW_CLKCTRL_CPU & 0x0000FF00)
-	orr	r0, r0, #(HW_CLKCTRL_CPU & 0x00FF0000)
-	orr	r0, r0, #(HW_CLKCTRL_CPU & 0xFF000000)
+	mov	r0, #(HW_CLKCTRL_CPU_ADDR & 0x000000FF)
+	orr	r0, r0, #(HW_CLKCTRL_CPU_ADDR & 0x0000FF00)
+	orr	r0, r0, #(HW_CLKCTRL_CPU_ADDR & 0x00FF0000)
+	orr	r0, r0, #(HW_CLKCTRL_CPU_ADDR & 0xFF000000)
 	mov	r1, #(1<<12)
 	str	r1, [r0, #4]
 	mov	r2, #0
@@ -149,10 +151,10 @@ ENTRY(stmp37xx_cpu_standby)
 
 #ifdef CONFIG_STMP378X_RAM_FREQ_SCALING
 	@ restore vddd
-	mov	r0, #(HW_POWER_VDDDCTRL & 0x000000FF)
-	orr	r0, r0, #(HW_POWER_VDDDCTRL & 0x0000FF00)
-	orr	r0, r0, #(HW_POWER_VDDDCTRL & 0x00FF0000)
-	orr	r0, r0, #(HW_POWER_VDDDCTRL & 0xFF000000)
+	mov	r0, #(HW_POWER_VDDDCTRL_ADDR & 0x000000FF)
+	orr	r0, r0, #(HW_POWER_VDDDCTRL_ADDR & 0x0000FF00)
+	orr	r0, r0, #(HW_POWER_VDDDCTRL_ADDR & 0x00FF0000)
+	orr	r0, r0, #(HW_POWER_VDDDCTRL_ADDR & 0xFF000000)
 	ldr	r1, [r0]
 	str	r6, [r0]
 	/* now wait 1000 us = 24000 cycles */
@@ -163,10 +165,10 @@ ENTRY(stmp37xx_cpu_standby)
 	nop
 
 	@ put the PLL back up
-	mov	r0, #(HW_CLKCTRL_PLLCTRL0 & 0x000000FF)
-	orr	r0, r0, #(HW_CLKCTRL_PLLCTRL0 & 0x0000FF00)
-	orr	r0, r0, #(HW_CLKCTRL_PLLCTRL0 & 0x00FF0000)
-	orr	r0, r0, #(HW_CLKCTRL_PLLCTRL0 & 0xFF000000)
+	mov	r0, #(HW_CLKCTRL_PLLCTRL0_ADDR & 0x000000FF)
+	orr	r0, r0, #(HW_CLKCTRL_PLLCTRL0_ADDR & 0x0000FF00)
+	orr	r0, r0, #(HW_CLKCTRL_PLLCTRL0_ADDR & 0x00FF0000)
+	orr	r0, r0, #(HW_CLKCTRL_PLLCTRL0_ADDR & 0xFF000000)
 	mov	r1, #(1<<16)
 	str	r1, [r0, #0x04]	@ set
 	/* now wait 10 us = 240 cycles */
@@ -182,17 +184,17 @@ ENTRY(stmp37xx_cpu_standby)
 	mov	lr, pc
 	b	__stmp_emi_set_values
 
-	mov	r0, #(HW_CLKCTRL_CLKSEQ & 0x000000FF)
-	orr	r0, r0, #(HW_CLKCTRL_CLKSEQ & 0x0000FF00)
-	orr	r0, r0, #(HW_CLKCTRL_CLKSEQ & 0x00FF0000)
-	orr	r0, r0, #(HW_CLKCTRL_CLKSEQ & 0xFF000000)
+	mov	r0, #(HW_CLKCTRL_CLKSEQ_ADDR & 0x000000FF)
+	orr	r0, r0, #(HW_CLKCTRL_CLKSEQ_ADDR & 0x0000FF00)
+	orr	r0, r0, #(HW_CLKCTRL_CLKSEQ_ADDR & 0x00FF0000)
+	orr	r0, r0, #(HW_CLKCTRL_CLKSEQ_ADDR & 0xFF000000)
 	mov	r1, #(1<<6)
 	str	r1, [r0, #8]
 
-	mov	r0, #(HW_CLKCTRL_EMI & 0x000000FF)
-	orr	r0, r0, #(HW_CLKCTRL_EMI & 0x0000FF00)
-	orr	r0, r0, #(HW_CLKCTRL_EMI & 0x00FF0000)
-	orr	r0, r0, #(HW_CLKCTRL_EMI & 0xFF000000)
+	mov	r0, #(HW_CLKCTRL_EMI_ADDR & 0x000000FF)
+	orr	r0, r0, #(HW_CLKCTRL_EMI_ADDR & 0x0000FF00)
+	orr	r0, r0, #(HW_CLKCTRL_EMI_ADDR & 0x00FF0000)
+	orr	r0, r0, #(HW_CLKCTRL_EMI_ADDR & 0xFF000000)
 	ldr	r1, [r0]
 	bic	r1, #BM_CLKCTRL_EMI_DCC_RESYNC_ENABLE
 	str	r1, [r0]
@@ -308,10 +310,10 @@ ENTRY(stmp37xx_cpu_suspend)
 	mov	pc, r1
 
 	@ enable internal xtal
-	mov	r2, #(HW_POWER_MINPWR & 0x000000FF)
-	orr	r2, r2, #(HW_POWER_MINPWR & 0x0000FF00)
-	orr	r2, r2, #(HW_POWER_MINPWR & 0x00FF0000)
-	orr	r2, r2, #(HW_POWER_MINPWR & 0xFF000000)
+	mov	r2, #(HW_POWER_MINPWR_ADDR & 0x000000FF)
+	orr	r2, r2, #(HW_POWER_MINPWR_ADDR & 0x0000FF00)
+	orr	r2, r2, #(HW_POWER_MINPWR_ADDR & 0x00FF0000)
+	orr	r2, r2, #(HW_POWER_MINPWR_ADDR & 0xFF000000)
 	ldr	r1, [r2]
 	orr	r1, r1, #(1<<9)
 	str	r1, [r2]
@@ -363,10 +365,10 @@ ENTRY(stmp37xx_cpu_suspend)
 	nop
 
 	@ do enter sleep
-	mov	r0, #(HW_POWER_RESET & 0x000000FF)
-	orr	r0, r0, #(HW_POWER_RESET & 0x0000FF00)
-	orr	r0, r0, #(HW_POWER_RESET & 0x00FF0000)
-	orr	r0, r0, #(HW_POWER_RESET & 0xFF000000)
+	mov	r0, #(HW_POWER_RESET_ADDR & 0x000000FF)
+	orr	r0, r0, #(HW_POWER_RESET_ADDR & 0x0000FF00)
+	orr	r0, r0, #(HW_POWER_RESET_ADDR & 0x00FF0000)
+	orr	r0, r0, #(HW_POWER_RESET_ADDR & 0xFF000000)
 	mov	r1, #0xFF000000
 	orr	r1, r1, #0x00FF0000
 	str	r1, [r0, #8]
@@ -476,9 +478,9 @@ __resume_after_mmu:
 
 #if 0
 	@ select CPU bypass, will be cleared afterwards
-	ldr	r0, =HW_CLKCTRL_CLKSEQ
-	ldr	r2, =HW_CLKCTRL_HBUS
-	ldr	r4, =HW_CLKCTRL_CPU
+	ldr	r0, =HW_CLKCTRL_CLKSEQ_ADDR
+	ldr	r2, =HW_CLKCTRL_HBUS_ADDR
+	ldr	r4, =HW_CLKCTRL_CPU_ADDR
 	mov	r1, #(1<<7)
 	ldr	r3, [r2]
 	bic	r3, r3, #BM_CLKCTRL_HBUS_DIV

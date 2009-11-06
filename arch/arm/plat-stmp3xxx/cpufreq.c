@@ -436,8 +436,10 @@ static int __init stmp3xxx_cpu_init(struct cpufreq_policy *policy)
 
 	pr_debug("got CPU clock rate %d\n", policy->cur);
 	policy->governor = CPUFREQ_DEFAULT_GOVERNOR;
-	policy->cpuinfo.min_freq = profiles[0].cpu;
-	policy->cpuinfo.max_freq = profiles[ARRAY_SIZE(profiles) - 1].cpu;
+	policy->min = policy->cpuinfo.min_freq = profiles[0].cpu;
+	policy->max = policy->cpuinfo.max_freq =
+			profiles[ARRAY_SIZE(profiles) - 1].cpu;
+
 	policy->cpuinfo.transition_latency = 1000000; /* 1 ms, assumed */
 	clk_put(cpu_clk);
 

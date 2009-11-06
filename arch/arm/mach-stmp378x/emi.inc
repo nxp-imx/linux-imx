@@ -17,17 +17,17 @@
  */
 __stmp_emi_set_values:
 	stmfd	r9!, {r0 - r4, lr}
-	mov	r1, #(HW_CLKCTRL_EMI & 0x000000FF)
-	orr	r1, r1, #(HW_CLKCTRL_EMI & 0x0000FF00)
-	orr	r1, r1, #(HW_CLKCTRL_EMI & 0x00FF0000)
-	orr	r1, r1, #(HW_CLKCTRL_EMI & 0xFF000000)
+	mov	r1, #(HW_CLKCTRL_EMI_ADDR & 0x000000FF)
+	orr	r1, r1, #(HW_CLKCTRL_EMI_ADDR & 0x0000FF00)
+	orr	r1, r1, #(HW_CLKCTRL_EMI_ADDR & 0x00FF0000)
+	orr	r1, r1, #(HW_CLKCTRL_EMI_ADDR & 0xFF000000)
 
 	mov	r3, #BM_CLKCTRL_EMI_DCC_RESYNC_ENABLE
 
-	mov	r0, #(HW_CLKCTRL_FRAC & 0x000000FF)
-	orr	r0, r0, #(HW_CLKCTRL_FRAC & 0x0000FF00)
-	orr	r0, r0, #(HW_CLKCTRL_FRAC & 0x00FF0000)
-	orr	r0, r0, #(HW_CLKCTRL_FRAC & 0xFF000000)
+	mov	r0, #(HW_CLKCTRL_FRAC_ADDR & 0x000000FF)
+	orr	r0, r0, #(HW_CLKCTRL_FRAC_ADDR & 0x0000FF00)
+	orr	r0, r0, #(HW_CLKCTRL_FRAC_ADDR & 0x00FF0000)
+	orr	r0, r0, #(HW_CLKCTRL_FRAC_ADDR & 0xFF000000)
 	ldr	r2, [r0]
 
 	and	r4, r2, #BM_CLKCTRL_FRAC_EMIFRAC
@@ -705,3 +705,4 @@ __stmp_dram_saved_values:
 	.word	0
 	.word	40
 	.word	0
+

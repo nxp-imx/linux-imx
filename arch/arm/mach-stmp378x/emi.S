@@ -20,9 +20,11 @@
 #include <mach/hardware.h>
 #include <asm/system.h>
 #include <asm/pgtable-hwdef.h>
+#include <mach/platform.h>
 #include <mach/regs-power.h>
 #include <mach/regs-clkctrl.h>
 
+/* TODO should be move to clock.h */
 #define SCALING_DATA_EMI_DIV_OFFSET     0
 #define SCALING_DATA_FRAC_DIV_OFFSET    4
 #define SCALING_DATA_CUR_FREQ_OFFSET    8
@@ -91,16 +93,16 @@ ENTRY(stmp3xxx_ram_freq_scale)
 
 100:
 	@ RAM to clk from xtal
-	mov	r0, #(HW_CLKCTRL_CLKSEQ & 0x000000FF)
-	orr	r0, r0, #(HW_CLKCTRL_CLKSEQ & 0x0000FF00)
-	orr	r0, r0, #(HW_CLKCTRL_CLKSEQ & 0x00FF0000)
-	orr	r0, r0, #(HW_CLKCTRL_CLKSEQ & 0xFF000000)
+	mov	r0, #(HW_CLKCTRL_CLKSEQ_ADDR & 0x000000FF)
+	orr	r0, r0, #(HW_CLKCTRL_CLKSEQ_ADDR & 0x0000FF00)
+	orr	r0, r0, #(HW_CLKCTRL_CLKSEQ_ADDR & 0x00FF0000)
+	orr	r0, r0, #(HW_CLKCTRL_CLKSEQ_ADDR & 0xFF000000)
 	mov	r1, #(1<<6)
 	str	r1, [r0, #4]
-	mov	r0, #(HW_CLKCTRL_EMI & 0x000000FF)
-	orr	r0, r0, #(HW_CLKCTRL_EMI & 0x0000FF00)
-	orr	r0, r0, #(HW_CLKCTRL_EMI & 0x00FF0000)
-	orr	r0, r0, #(HW_CLKCTRL_EMI & 0xFF000000)
+	mov	r0, #(HW_CLKCTRL_EMI_ADDR & 0x000000FF)
+	orr	r0, r0, #(HW_CLKCTRL_EMI_ADDR & 0x0000FF00)
+	orr	r0, r0, #(HW_CLKCTRL_EMI_ADDR & 0x00FF0000)
+	orr	r0, r0, #(HW_CLKCTRL_EMI_ADDR & 0xFF000000)
 101:	ldr     r1, [r0]
 	tst     r1, #BM_CLKCTRL_EMI_BUSY_REF_XTAL
 	bne     101b
@@ -108,17 +110,17 @@ ENTRY(stmp3xxx_ram_freq_scale)
 	bl	__stmp_emi_set_values
 
 	@ EMI back to PLL
-	mov	r0, #(HW_CLKCTRL_CLKSEQ & 0x000000FF)
-	orr	r0, r0, #(HW_CLKCTRL_CLKSEQ & 0x0000FF00)
-	orr	r0, r0, #(HW_CLKCTRL_CLKSEQ & 0x00FF0000)
-	orr	r0, r0, #(HW_CLKCTRL_CLKSEQ & 0xFF000000)
+	mov	r0, #(HW_CLKCTRL_CLKSEQ_ADDR & 0x000000FF)
+	orr	r0, r0, #(HW_CLKCTRL_CLKSEQ_ADDR & 0x0000FF00)
+	orr	r0, r0, #(HW_CLKCTRL_CLKSEQ_ADDR & 0x00FF0000)
+	orr	r0, r0, #(HW_CLKCTRL_CLKSEQ_ADDR & 0xFF000000)
 	mov	r1, #(1<<6)
 	str	r1, [r0, #8]
 
-	mov	r0, #(HW_CLKCTRL_EMI & 0x000000FF)
-	orr	r0, r0, #(HW_CLKCTRL_EMI & 0x0000FF00)
-	orr	r0, r0, #(HW_CLKCTRL_EMI & 0x00FF0000)
-	orr	r0, r0, #(HW_CLKCTRL_EMI & 0xFF000000)
+	mov	r0, #(HW_CLKCTRL_EMI_ADDR & 0x000000FF)
+	orr	r0, r0, #(HW_CLKCTRL_EMI_ADDR & 0x0000FF00)
+	orr	r0, r0, #(HW_CLKCTRL_EMI_ADDR & 0x00FF0000)
+	orr	r0, r0, #(HW_CLKCTRL_EMI_ADDR & 0xFF000000)
 1:	ldr	r1, [r0]
 	tst	r1, #BM_CLKCTRL_EMI_BUSY_REF_EMI
 	bne	1b
@@ -151,3 +153,4 @@ __stmp_flush_cache_addr:
 
 ENTRY(stmp3xxx_ram_funcs_sz)
 	.word	. - stmp3xxx_ram_freq_scale
+

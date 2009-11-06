@@ -3,7 +3,7 @@
  *
  * Author: Vitaly Wool <vital@embeddedalley.com>
  *
- * Copyright 2008 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2009 Freescale Semiconductor, Inc. All Rights Reserved.
  * Copyright 2008 Embedded Alley Solutions, Inc All Rights Reserved.
  */
 
@@ -15,7 +15,6 @@
  * http://www.opensource.org/licenses/gpl-license.html
  * http://www.gnu.org/copyleft/gpl.html
  */
-#define DEBUG
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/init.h>
@@ -359,6 +358,7 @@ static int cpu_set_rate(struct clk *clk, u32 rate)
 		reg_val = __raw_readl(REGS_CLKCTRL_BASE + HW_CLKCTRL_CPU);
 		reg_val &= ~0x3F;
 		reg_val |= clkctrl_cpu;
+
 		__raw_writel(reg_val, REGS_CLKCTRL_BASE + HW_CLKCTRL_CPU);
 
 		for (i = 10000; i; i--)
@@ -531,9 +531,14 @@ static int clkseq_set_parent(struct clk *clk, struct clk *parent)
 
 			hbus_val &= ~(BM_CLKCTRL_HBUS_DIV_FRAC_EN |
 				      BM_CLKCTRL_HBUS_DIV);
+			hbus_val |= 1;
+
 			clk->saved_div = cpu_val & BM_CLKCTRL_CPU_DIV_CPU;
 			cpu_val &= ~BM_CLKCTRL_CPU_DIV_CPU;
 			cpu_val |= 1;
+
+			__raw_writel(1 << clk->bypass_shift,
+					clk->bypass_reg + shift);
 
 			if (machine_is_stmp378x()) {
 				__raw_writel(hbus_val,
@@ -563,10 +568,12 @@ static int clkseq_set_parent(struct clk *clk, struct clk *parent)
 					REGS_CLKCTRL_BASE + HW_CLKCTRL_CPU);
 				hclk.rate = 0;
 			}
-		}
-#endif
+		} else
+			__raw_writel(1 << clk->bypass_shift,
+					clk->bypass_reg + shift);
+#else
 		__raw_writel(1 << clk->bypass_shift, clk->bypass_reg + shift);
-
+#endif
 		ret = 0;
 	}
 
