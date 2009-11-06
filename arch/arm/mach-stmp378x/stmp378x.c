@@ -3,7 +3,7 @@
  *
  * Embedded Alley Solutions, Inc <source@embeddedalley.com>
  *
- * Copyright 2008 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2008-2009 Freescale Semiconductor, Inc. All Rights Reserved.
  * Copyright 2008 Embedded Alley Solutions, Inc All Rights Reserved.
  */
 
@@ -248,7 +248,7 @@ static struct resource pxp_resource[] = {
 	{
 		.flags	= IORESOURCE_MEM,
 		.start	= REGS_PXP_PHYS,
-		.end	= REGS_PXP_PHYS + REGS_PXP_SIZE,
+		.end	= REGS_PXP_PHYS + REGS_PXP_SIZE - 1,
 	}, {
 		.flags	= IORESOURCE_IRQ,
 		.start	= IRQ_PXP,
@@ -275,7 +275,7 @@ static struct resource i2c_resources[] = {
 	}, {
 		.flags = IORESOURCE_MEM,
 		.start = REGS_I2C_PHYS,
-		.end = REGS_I2C_PHYS + REGS_I2C_SIZE,
+		.end = REGS_I2C_PHYS + REGS_I2C_SIZE - 1,
 	}, {
 		.flags = IORESOURCE_DMA,
 		.start = STMP3XXX_DMA(3, STMP3XXX_BUS_APBX),

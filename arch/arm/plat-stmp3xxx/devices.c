@@ -3,7 +3,7 @@
 *
 * Embedded Alley Solutions, Inc <source@embeddedalley.com>
 *
-* Copyright 2008 Freescale Semiconductor, Inc. All Rights Reserved.
+* Copyright 2008-2009 Freescale Semiconductor, Inc. All Rights Reserved.
 * Copyright 2008 Embedded Alley Solutions, Inc All Rights Reserved.
 */
 
@@ -57,7 +57,7 @@ static struct resource appuart_resources[] = {
 		.flags = IORESOURCE_IRQ,
 	}, {
 		.start = REGS_UARTAPP1_PHYS,
-		.end = REGS_UARTAPP1_PHYS + REGS_UARTAPP_SIZE,
+		.end = REGS_UARTAPP1_PHYS + REGS_UARTAPP_SIZE - 1,
 		.flags = IORESOURCE_MEM,
 	}, {
 		/* Rx DMA channel */
@@ -135,7 +135,7 @@ static struct resource gpmi_resources[] = {
 	{
 		.flags = IORESOURCE_MEM,
 		.start = REGS_GPMI_PHYS,
-		.end = REGS_GPMI_PHYS + REGS_GPMI_SIZE,
+		.end = REGS_GPMI_PHYS + REGS_GPMI_SIZE - 1,
 	}, {
 		.flags = IORESOURCE_IRQ,
 		.start = IRQ_GPMI_DMA,
@@ -162,7 +162,7 @@ static struct resource mmc1_resource[] = {
 	{
 		.flags	= IORESOURCE_MEM,
 		.start	= REGS_SSP1_PHYS,
-		.end	= REGS_SSP1_PHYS + REGS_SSP_SIZE,
+		.end	= REGS_SSP1_PHYS + REGS_SSP_SIZE - 1,
 	}, {
 		.flags	= IORESOURCE_DMA,
 		.start	= STMP3XXX_DMA(1, STMP3XXX_BUS_APBH),
@@ -192,7 +192,7 @@ struct platform_device stmp3xxx_mmc = {
 static struct resource rtc_resources[] = {
 	{
 		.start	= REGS_RTC_PHYS,
-		.end	= REGS_RTC_PHYS + REGS_RTC_SIZE,
+		.end	= REGS_RTC_PHYS + REGS_RTC_SIZE - 1,
 		.flags	= IORESOURCE_MEM,
 	}, {
 		.start	= IRQ_RTC_ALARM,
@@ -215,7 +215,7 @@ struct platform_device stmp3xxx_rtc = {
 static struct resource ssp1_resources[] = {
 	{
 		.start	= REGS_SSP1_PHYS,
-		.end	= REGS_SSP1_PHYS + REGS_SSP_SIZE,
+		.end	= REGS_SSP1_PHYS + REGS_SSP_SIZE - 1,
 		.flags	= IORESOURCE_MEM,
 	}, {
 		.start	= IRQ_SSP1_DMA,
@@ -231,7 +231,7 @@ static struct resource ssp1_resources[] = {
 static struct resource ssp2_resources[] = {
 	{
 		.start	= REGS_SSP2_PHYS,
-		.end	= REGS_SSP2_PHYS + REGS_SSP_SIZE,
+		.end	= REGS_SSP2_PHYS + REGS_SSP_SIZE - 1,
 		.flags	= IORESOURCE_MEM,
 	}, {
 		.start	= IRQ_SSP2_DMA,
@@ -278,7 +278,7 @@ static struct resource fb_resource[] = {
 	}, {
 		.flags	= IORESOURCE_MEM,
 		.start	= REGS_LCDIF_PHYS,
-		.end	= REGS_LCDIF_PHYS + REGS_LCDIF_SIZE,
+		.end	= REGS_LCDIF_PHYS + REGS_LCDIF_SIZE - 1,
 	},
 };
 
