@@ -56,7 +56,7 @@ static struct platform_driver stmp_appuart_driver = {
 	.suspend = stmp_appuart_suspend,
 	.resume = stmp_appuart_resume,
 	.driver = {
-		.name = "stmp37xx-appuart",
+		.name = "stmp3xxx-appuart",
 		.owner = THIS_MODULE,
 	},
 };
