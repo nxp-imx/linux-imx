@@ -665,7 +665,7 @@ static struct platform_driver stmp_spi_driver = {
 	.probe	= stmp_spi_probe,
 	.remove	= __devexit_p(stmp_spi_remove),
 	.driver = {
-		.name = "stmp37xx_ssp",
+		.name = "stmp3xxx_ssp",
 		.owner = THIS_MODULE,
 	},
 	.suspend = stmp_spi_suspend,
