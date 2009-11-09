@@ -1859,6 +1859,8 @@ static int  gpmi_register_with_mtd(struct gpmi_nand_data *g)
 				search_mtd = get_mtd_device(0, i);
 				if (!search_mtd)
 					continue;
+				if (search_mtd == ERR_PTR(-ENODEV))
+					continue;
 				if (search_mtd->name == gpmi_general_use_name)
 					g->general_use_mtd = search_mtd;
 			}

@@ -213,11 +213,9 @@ static int gpmi_pinmux_handler(bool request)
  * Platform-specific information the GPMI driver will need.
  */
 
-#if defined(CONFIG_MTD_PARTITIONS)
 static const char *gpmi_partition_source_types[] = { "cmdlinepart", NULL };
-#endif
 
-static struct gpmi_platform_data gpmi_partitions = {
+static struct gpmi_platform_data gpmi_data = {
 	.io_uA                   = 70000,
 	.pinmux_handler          = gpmi_pinmux_handler,
 	.boot_area_size_in_bytes = 20 * SZ_1M,
@@ -372,7 +370,7 @@ static void __init stmp378x_devb_init(void)
 
 	stmp3xxx_dbguart.dev.platform_data = dbguart_pinmux;
 	stmp3xxx_appuart.dev.platform_data = appuart_pinmux;
-	stmp3xxx_gpmi.dev.platform_data = &gpmi_partitions;
+	stmp3xxx_gpmi.dev.platform_data = &gpmi_data;
 	stmp3xxx_mmc.dev.platform_data = &mmc_data;
 	stmp3xxx_spi1.dev.platform_data = &ssp1_pins;
 	stmp3xxx_spi2.dev.platform_data = &ssp2_pins;
