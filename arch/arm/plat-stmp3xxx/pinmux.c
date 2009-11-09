@@ -3,7 +3,7 @@
  *
  * Author: Vladislav Buzov <vbuzov@embeddedalley.com>
  *
- * Copyright 2008 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2008-2009 Freescale Semiconductor, Inc. All Rights Reserved.
  * Copyright 2008 Embedded Alley Solutions, Inc All Rights Reserved.
  */
 
@@ -490,16 +490,20 @@ static void stmp3xxx_gpio_free(struct gpio_chip *chip, unsigned offset)
 static void stmp3xxx_gpio_irq(u32 irq, struct irq_desc *desc)
 {
 	struct stmp3xxx_pinmux_bank *pm = get_irq_data(irq);
-	int gpio_irq = pm->virq;
+	int gpio_virq = pm->virq;
 	u32 stat = __raw_readl(pm->irqstat);
+
+	desc->chip->mask(irq);	/* irq = gpio irq number */
 
 	while (stat) {
 		if (stat & 1)
-			irq_desc[gpio_irq].handle_irq(gpio_irq,
-				&irq_desc[gpio_irq]);
-		gpio_irq++;
+			generic_handle_irq(gpio_virq);
+		gpio_virq++;
 		stat >>= 1;
 	}
+
+	desc->chip->ack(irq);
+	desc->chip->unmask(irq);
 }
 
 static struct irq_chip gpio_irq_chip = {
@@ -532,7 +536,7 @@ int __init stmp3xxx_pinmux_init(int virtual_irq_start)
 		pm->chip.free = stmp3xxx_gpio_free;
 		pm->virq = virtual_irq_start + b * 32;
 
-		for (virq = pm->virq; virq < pm->virq; virq++) {
+		for (virq = pm->virq; virq < pm->virq + 32; virq++) {
 			gpio_irq_chip.mask(virq);
 			set_irq_chip(virq, &gpio_irq_chip);
 			set_irq_handler(virq, handle_level_irq);
