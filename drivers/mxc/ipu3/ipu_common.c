@@ -1130,16 +1130,21 @@ int32_t ipu_select_buffer(ipu_channel_t channel, ipu_buffer_t type,
 			  uint32_t bufNum)
 {
 	uint32_t dma_chan = channel_2_dma(channel, type);
+	uint32_t reg;
 
 	if (dma_chan == IDMA_CHAN_INVALID)
 		return -EINVAL;
 
 	if (bufNum == 0) {
 		/*Mark buffer 0 as ready. */
-		__raw_writel(idma_mask(dma_chan), IPU_CHA_BUF0_RDY(dma_chan));
+		reg = __raw_readl(IPU_CHA_BUF0_RDY(dma_chan));
+		__raw_writel(idma_mask(dma_chan) | reg,
+			     IPU_CHA_BUF0_RDY(dma_chan));
 	} else {
 		/*Mark buffer 1 as ready. */
-		__raw_writel(idma_mask(dma_chan), IPU_CHA_BUF1_RDY(dma_chan));
+		reg = __raw_readl(IPU_CHA_BUF1_RDY(dma_chan));
+		__raw_writel(idma_mask(dma_chan) | reg,
+			     IPU_CHA_BUF1_RDY(dma_chan));
 	}
 	if (channel == MEM_VDI_PRP_VF_MEM)
 		_ipu_vdi_toggle_top_field_man();
@@ -1163,13 +1168,16 @@ int32_t ipu_select_multi_vdi_buffer(uint32_t bufNum)
 		idma_mask(channel_2_dma(MEM_VDI_PRP_VF_MEM_P, IPU_INPUT_BUFFER))|
 		idma_mask(dma_chan)|
 		idma_mask(channel_2_dma(MEM_VDI_PRP_VF_MEM_N, IPU_INPUT_BUFFER));
+	uint32_t reg;
 
 	if (bufNum == 0) {
 		/*Mark buffer 0 as ready. */
-		__raw_writel(mask_bit, IPU_CHA_BUF0_RDY(dma_chan));
+		reg = __raw_readl(IPU_CHA_BUF0_RDY(dma_chan));
+		__raw_writel(mask_bit | reg, IPU_CHA_BUF0_RDY(dma_chan));
 	} else {
 		/*Mark buffer 1 as ready. */
-		__raw_writel(mask_bit, IPU_CHA_BUF1_RDY(dma_chan));
+		reg = __raw_readl(IPU_CHA_BUF0_RDY(dma_chan));
+		__raw_writel(mask_bit | reg, IPU_CHA_BUF1_RDY(dma_chan));
 	}
 	_ipu_vdi_toggle_top_field_man();
 	return 0;

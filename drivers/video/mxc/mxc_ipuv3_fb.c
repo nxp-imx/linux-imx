@@ -224,8 +224,8 @@ static int _setup_disp_channel2(struct fb_info *fbi)
 						 fbi->var.xres, fbi->var.yres,
 						 fbi->var.xres,
 						 IPU_ROTATE_NONE,
-						 mxc_fbi->alpha_phy_addr0,
 						 mxc_fbi->alpha_phy_addr1,
+						 mxc_fbi->alpha_phy_addr0,
 						 0, 0);
 		if (retval) {
 			dev_err(fbi->device,
@@ -1030,9 +1030,12 @@ static int mxcfb_blank(int blank, struct fb_info *info)
 static int
 mxcfb_pan_display(struct fb_var_screeninfo *var, struct fb_info *info)
 {
-	struct mxcfb_info *mxc_fbi = (struct mxcfb_info *)info->par;
+	struct mxcfb_info *mxc_fbi = (struct mxcfb_info *)info->par,
+			  *mxc_graphic_fbi = NULL;
 	u_int y_bottom;
-	unsigned long base;
+	unsigned long base, active_alpha_phy_addr = 0;
+	bool loc_alpha_en = false;
+	int i = 0;
 
 	if (var->xoffset > 0) {
 		dev_dbg(info->device, "x panning not supported\n");
@@ -1055,8 +1058,31 @@ mxcfb_pan_display(struct fb_var_screeninfo *var, struct fb_info *info)
 	base *= (var->bits_per_pixel) / 8;
 	base += info->fix.smem_start;
 
-	dev_dbg(info->device, "Updating SDC BG buf %d address=0x%08lX\n",
-		mxc_fbi->cur_ipu_buf, base);
+	dev_dbg(info->device, "Updating SDC %s buf %d address=0x%08lX\n",
+		info->fix.id, mxc_fbi->cur_ipu_buf, base);
+
+	/* Check if DP local alpha is enabled and find the graphic fb */
+	if (mxc_fbi->ipu_ch == MEM_BG_SYNC || mxc_fbi->ipu_ch == MEM_FG_SYNC) {
+		for (i = 0; i < num_registered_fb; i++) {
+			char *idstr = registered_fb[i]->fix.id;
+			if ((strcmp(idstr, "DISP3 BG") == 0 ||
+			     strcmp(idstr, "DISP3 FG") == 0) &&
+			    ((struct mxcfb_info *)
+			      (registered_fb[i]->par))->alpha_chan_en) {
+				loc_alpha_en = true;
+				mxc_graphic_fbi = (struct mxcfb_info *)
+						(registered_fb[i]->par);
+				active_alpha_phy_addr = mxc_fbi->cur_ipu_buf ?
+					mxc_graphic_fbi->alpha_phy_addr1 :
+					mxc_graphic_fbi->alpha_phy_addr0;
+				dev_dbg(info->device, "Updating SDC graphic "
+					"buf %d address=0x%08lX\n",
+					mxc_fbi->cur_ipu_buf,
+					active_alpha_phy_addr);
+				break;
+			}
+		}
+	}
 
 	down(&mxc_fbi->flip_sem);
 	init_completion(&mxc_fbi->vsync_complete);
@@ -1064,6 +1090,17 @@ mxcfb_pan_display(struct fb_var_screeninfo *var, struct fb_info *info)
 	mxc_fbi->cur_ipu_buf = !mxc_fbi->cur_ipu_buf;
 	if (ipu_update_channel_buffer(mxc_fbi->ipu_ch, IPU_INPUT_BUFFER,
 				      mxc_fbi->cur_ipu_buf, base) == 0) {
+		/* Update the DP local alpha buffer only for graphic plane */
+		if (loc_alpha_en && mxc_graphic_fbi == mxc_fbi &&
+		    ipu_update_channel_buffer(mxc_graphic_fbi->ipu_ch,
+					      IPU_ALPHA_IN_BUFFER,
+					      mxc_fbi->cur_ipu_buf,
+					      active_alpha_phy_addr) == 0) {
+			ipu_select_buffer(mxc_graphic_fbi->ipu_ch,
+					  IPU_ALPHA_IN_BUFFER,
+					  mxc_fbi->cur_ipu_buf);
+		}
+
 		ipu_select_buffer(mxc_fbi->ipu_ch, IPU_INPUT_BUFFER,
 				  mxc_fbi->cur_ipu_buf);
 		ipu_clear_irq(mxc_fbi->ipu_ch_irq);
