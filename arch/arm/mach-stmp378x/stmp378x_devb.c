@@ -303,6 +303,13 @@ static struct stmp3xxxmmc_platform_data mmc_data = {
 	.write_uA       = 70000,
 };
 
+extern int stmp37xx_spi_enc_init(void *);
+extern int stmp37xx_spi_enc_release(void *);
+static struct stmp37xx_spi_platform_data enc_data = {
+	.irq_pin = PINID_SSP1_DATA1,
+	.hw_init = stmp37xx_spi_enc_init,
+	.hw_release = stmp37xx_spi_enc_release,
+};
 static struct spi_board_info spi_board_info[] __initdata = {
 #if defined(CONFIG_ENC28J60) || defined(CONFIG_ENC28J60_MODULE)
 	{
@@ -310,7 +317,7 @@ static struct spi_board_info spi_board_info[] __initdata = {
 		.max_speed_hz   = 6 * 1000 * 1000,
 		.bus_num	= 1,
 		.chip_select    = 0,
-		.platform_data  = NULL,
+		.platform_data  = &enc_data,
 	},
 #endif
 };
