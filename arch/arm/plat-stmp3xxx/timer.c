@@ -3,7 +3,7 @@
  *
  * Embedded Alley Solutions, Inc <source@embeddedalley.com>
  *
- * Copyright 2008 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2009 Freescale Semiconductor, Inc. All Rights Reserved.
  * Copyright 2008 Embedded Alley Solutions, Inc All Rights Reserved.
  */
 
@@ -35,21 +35,21 @@ stmp3xxx_timer_interrupt(int irq, void *dev_id)
 	struct clock_event_device *c = dev_id;
 
 	/* timer 0 */
-	if (__raw_readl(REGS_TIMROT_BASE + HW_TIMROT_TIMCTRL0) &
+	if (__raw_readl(REGS_TIMROT_BASE + HW_TIMROT_TIMCTRLn(0)) &
 			BM_TIMROT_TIMCTRLn_IRQ) {
 		stmp3xxx_clearl(BM_TIMROT_TIMCTRLn_IRQ,
-				REGS_TIMROT_BASE + HW_TIMROT_TIMCTRL0);
+				REGS_TIMROT_BASE + HW_TIMROT_TIMCTRLn(0));
 		c->event_handler(c);
 	}
 
 	/* timer 1 */
-	else if (__raw_readl(REGS_TIMROT_BASE + HW_TIMROT_TIMCTRL1)
+	else if (__raw_readl(REGS_TIMROT_BASE + HW_TIMROT_TIMCTRLn(1))
 			& BM_TIMROT_TIMCTRLn_IRQ) {
 		stmp3xxx_clearl(BM_TIMROT_TIMCTRLn_IRQ,
-				REGS_TIMROT_BASE + HW_TIMROT_TIMCTRL1);
+				REGS_TIMROT_BASE + HW_TIMROT_TIMCTRLn(1));
 		stmp3xxx_clearl(BM_TIMROT_TIMCTRLn_IRQ_EN,
-				REGS_TIMROT_BASE + HW_TIMROT_TIMCTRL1);
-		__raw_writel(0xFFFF, REGS_TIMROT_BASE + HW_TIMROT_TIMCOUNT1);
+				REGS_TIMROT_BASE + HW_TIMROT_TIMCTRLn(1));
+		__raw_writel(0xFFFF, REGS_TIMROT_BASE + HW_TIMROT_TIMCOUNTn(1));
 	}
 
 	return IRQ_HANDLED;
@@ -57,7 +57,7 @@ stmp3xxx_timer_interrupt(int irq, void *dev_id)
 
 static cycle_t stmp3xxx_clock_read(struct clocksource *cs)
 {
-	return ~((__raw_readl(REGS_TIMROT_BASE + HW_TIMROT_TIMCOUNT1)
+	return ~((__raw_readl(REGS_TIMROT_BASE + HW_TIMROT_TIMCOUNTn(1))
 				& 0xFFFF0000) >> 16);
 }
 
@@ -66,7 +66,7 @@ stmp3xxx_timrot_set_next_event(unsigned long delta,
 		struct clock_event_device *dev)
 {
 	/* reload the timer */
-	__raw_writel(delta, REGS_TIMROT_BASE + HW_TIMROT_TIMCOUNT0);
+	__raw_writel(delta, REGS_TIMROT_BASE + HW_TIMROT_TIMCOUNTn(0));
 	return 0;
 }
 
@@ -117,8 +117,8 @@ static void __init stmp3xxx_init_timer(void)
 	stmp3xxx_reset_block(REGS_TIMROT_BASE, false);
 
 	/* clear two timers */
-	__raw_writel(0, REGS_TIMROT_BASE + HW_TIMROT_TIMCOUNT0);
-	__raw_writel(0, REGS_TIMROT_BASE + HW_TIMROT_TIMCOUNT1);
+	__raw_writel(0, REGS_TIMROT_BASE + HW_TIMROT_TIMCOUNTn(0));
+	__raw_writel(0, REGS_TIMROT_BASE + HW_TIMROT_TIMCOUNTn(1));
 
 	/* configure them */
 	__raw_writel(
@@ -126,17 +126,17 @@ static void __init stmp3xxx_init_timer(void)
 		BM_TIMROT_TIMCTRLn_RELOAD |
 		BM_TIMROT_TIMCTRLn_UPDATE |
 		BM_TIMROT_TIMCTRLn_IRQ_EN,
-			REGS_TIMROT_BASE + HW_TIMROT_TIMCTRL0);
+			REGS_TIMROT_BASE + HW_TIMROT_TIMCTRLn(0));
 	__raw_writel(
 		(8 << BP_TIMROT_TIMCTRLn_SELECT) |  /* 32 kHz */
 		BM_TIMROT_TIMCTRLn_RELOAD |
 		BM_TIMROT_TIMCTRLn_UPDATE |
 		BM_TIMROT_TIMCTRLn_IRQ_EN,
-			REGS_TIMROT_BASE + HW_TIMROT_TIMCTRL1);
+			REGS_TIMROT_BASE + HW_TIMROT_TIMCTRLn(1));
 
 	__raw_writel(CLOCK_TICK_RATE / HZ - 1,
-			REGS_TIMROT_BASE + HW_TIMROT_TIMCOUNT0);
-	__raw_writel(0xFFFF, REGS_TIMROT_BASE + HW_TIMROT_TIMCOUNT1);
+			REGS_TIMROT_BASE + HW_TIMROT_TIMCOUNTn(0));
+	__raw_writel(0xFFFF, REGS_TIMROT_BASE + HW_TIMROT_TIMCOUNTn(1));
 
 	setup_irq(IRQ_TIMER0, &stmp3xxx_timer_irq);
 
@@ -149,7 +149,7 @@ static void __init stmp3xxx_init_timer(void)
 void stmp3xxx_suspend_timer(void)
 {
 	stmp3xxx_clearl(BM_TIMROT_TIMCTRLn_IRQ_EN | BM_TIMROT_TIMCTRLn_IRQ,
-			REGS_TIMROT_BASE + HW_TIMROT_TIMCTRL0);
+			REGS_TIMROT_BASE + HW_TIMROT_TIMCTRLn(0));
 	stmp3xxx_setl(BM_TIMROT_ROTCTRL_CLKGATE,
 			REGS_TIMROT_BASE + HW_TIMROT_ROTCTRL);
 }
@@ -163,16 +163,16 @@ void stmp3xxx_resume_timer(void)
 		BM_TIMROT_TIMCTRLn_RELOAD |
 		BM_TIMROT_TIMCTRLn_UPDATE |
 		BM_TIMROT_TIMCTRLn_IRQ_EN,
-			REGS_TIMROT_BASE + HW_TIMROT_TIMCTRL0);
+			REGS_TIMROT_BASE + HW_TIMROT_TIMCTRLn(0));
 	__raw_writel(
 		8 << BP_TIMROT_TIMCTRLn_SELECT |  /* 32 kHz */
 		BM_TIMROT_TIMCTRLn_RELOAD |
 		BM_TIMROT_TIMCTRLn_UPDATE |
 		BM_TIMROT_TIMCTRLn_IRQ_EN,
-			REGS_TIMROT_BASE + HW_TIMROT_TIMCTRL1);
+			REGS_TIMROT_BASE + HW_TIMROT_TIMCTRLn(1));
 	__raw_writel(CLOCK_TICK_RATE / HZ - 1,
-			REGS_TIMROT_BASE + HW_TIMROT_TIMCOUNT0);
-	__raw_writel(0xFFFF, REGS_TIMROT_BASE + HW_TIMROT_TIMCOUNT1);
+			REGS_TIMROT_BASE + HW_TIMROT_TIMCOUNTn(0));
+	__raw_writel(0xFFFF, REGS_TIMROT_BASE + HW_TIMROT_TIMCOUNTn(1));
 }
 
 #else
