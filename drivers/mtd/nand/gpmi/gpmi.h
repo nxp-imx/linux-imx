@@ -30,6 +30,7 @@
 #include <mach/regs-ecc8.h>
 
 #include "gpmi-hamming-22-16.h"
+#include "nand_device_info.h"
 
 #define GPMI_ECC4_WR \
 	(BM_GPMI_ECCCTRL_ENABLE_ECC | \
@@ -55,22 +56,39 @@
 /**
  * struct gpmi_nand_timing - NAND Flash timing parameters.
  *
- * This structure contains the four fundamental timing attributes for the
- * NAND Flash bus. These values are expressed in GPMI clock cycles or half
- * cycles, depending on how the GPMI clock is configured. See the hardware
- * reference manual for details.
+ * This structure contains the fundamental timing attributes for the NAND Flash
+ * bus.
  *
- * @data_setup:     The data setup time in nanoseconds.
- * @data_hold:      The data hold time in nanoseconds.
- * @address_setup:  The address setup time in nanoseconds.
- * @dsample_time:   The data sample delay in nanoseconds.
+ * @data_setup_in_ns:          The data setup time, in nanoseconds. Usually the
+ *                             maximum of tDS and tWP. A negative value
+ *                             indicates this characteristic isn't known.
+ * @data_hold_in_ns:           The data hold time, in nanoseconds. Usually the
+ *                             maximum of tDH, tWH and tREH. A negative value
+ *                             indicates this characteristic isn't known.
+ * @address_setup_in_ns:       The address setup time, in nanoseconds. Usually
+ *                             the maximum of tCLS, tCS and tALS. A negative
+ *                             value indicates this characteristic isn't known.
+ * @gpmi_sample_time_in_ns:    A GPMI-specific timing parameter. A negative
+ *                             value indicates this characteristic isn't known.
+ * @tREA_in_ns:                tREA, in nanoseconds, from the data sheet. A
+ *                             negative value indicates this characteristic
+ *                             isn't known.
+ * @tRLOH_in_ns:               tRLOH, in nanoseconds, from the data sheet. A
+ *                             negative value indicates this characteristic
+ *                             isn't known.
+ * @tRHOH_in_ns:               tRHOH, in nanoseconds, from the data sheet. A
+ *                             negative value indicates this characteristic
+ *                             isn't known.
  */
 
 struct gpmi_nand_timing {
-	u8 data_setup;
-	u8 data_hold;
-	u8 address_setup;
-	u8 dsample_time;
+	int8_t    data_setup_in_ns;
+	int8_t    data_hold_in_ns;
+	int8_t    address_setup_in_ns;
+	int8_t    gpmi_sample_delay_in_ns;
+	int8_t    tREA_in_ns;
+	int8_t    tRLOH_in_ns;
+	int8_t    tRHOH_in_ns;
 };
 
 /**
@@ -101,8 +119,6 @@ int gpmi_sysfs(struct platform_device *p, int create);
 #endif
 int gpmi_ecc_read_oob(struct mtd_info *mtd, struct nand_chip *chip,
 			int page, int sndcmd);
-void gpmi_set_timings(struct platform_device *pdev,
-			struct gpmi_nand_timing *tm);
 int gpmi_write_ncb(struct mtd_info *mtd, struct gpmi_bcb_info *b);
 
 unsigned gpmi_hamming_ecc_size_22_16(int block_size);
@@ -205,6 +221,7 @@ void ecc8_exit(void);
  *                        medium to MTD.
  * @nand:                 The data structure that represents this NAND Flash
  *                        medium to the MTD NAND Flash system.
+ * @device_info           Detailed information about the NAND Flash device.
  * @partitions:           A pointer to an array of partition descriptions
  *                        collected from the platform. If this member is NULL,
  *                        then no such partitions were given.
@@ -272,6 +289,8 @@ struct gpmi_nand_data {
 
 	struct mtd_info   mtd;
 	struct nand_chip  nand;
+
+	struct nand_device_info  device_info;
 
 #if defined(CONFIG_MTD_PARTITIONS) && defined(CONFIG_MTD_CONCAT)
 	struct mtd_info       *chip0_boot_mtd;

@@ -15,6 +15,8 @@
  * http://www.opensource.org/licenses/gpl-license.html
  * http://www.gnu.org/copyleft/gpl.html
  */
+
+#include <linux/kernel.h>
 #include <linux/io.h>
 #include <linux/module.h>
 #include <linux/platform_device.h>
@@ -39,6 +41,55 @@
 #include <mach/regs-gpmi.h>
 #include <mach/dma.h>
 #include "gpmi.h"
+#include "nand_device_info.h"
+
+/* Macro definitions for the i.MX23. Some will be different for other SoC's. */
+
+#define MAX_DATA_SETUP_CYCLES \
+		(BM_GPMI_TIMING0_DATA_SETUP >> BP_GPMI_TIMING0_DATA_SETUP)
+
+#define MAX_DATA_SAMPLE_DELAY_CYCLES \
+		((uint32_t)(BM_GPMI_CTRL1_RDN_DELAY >> BP_GPMI_CTRL1_RDN_DELAY))
+
+/* Right shift value to get the frational GPMI time for data delay. */
+#define GPMI_DELAY_SHIFT                   (3)
+
+/* Max GPMI clock period the GPMI DLL can tolerate. */
+#define GPMI_MAX_DLL_PERIOD_NS             (32)
+
+/*
+ * The threshold for the GPMI clock period above which the DLL requires a divide
+ * by two.
+ */
+#define GPMI_DLL_HALF_THRESHOLD_PERIOD_NS  (16)
+
+/* The number of GPMI clock cycles to wait for use of GPMI after DLL enable. */
+#define GPMI_WAIT_CYCLES_AFTER_DLL_ENABLE  (64)
+
+/* The time in nanoseconds required for GPMI data read internal setup. */
+#define GPMI_DATA_SETUP_NS                 (0)
+
+/* The time in nanoseconds required for GPMI data read internal setup */
+#define GPMI_MAX_HARDWARE_DELAY_NS         ((uint32_t)(16))
+
+/*
+ * Max data delay possible for the GPMI.
+ *
+ * Use the min of the time (16 nS) or what will fit in the register. If the GPMI
+ * clock period is greater than GPMI_MAX_DLL_PERIOD_NS then can't use the delay.
+ *
+ * Where:
+ *
+ *     c  is the GPMI clock period in nanoseconds.
+ *     f  is the GPMI data sample delay fraction.
+ *
+ */
+#define GPMI_GET_MAX_DELAY_NS(c, f)  \
+	(\
+	(c >= GPMI_MAX_DLL_PERIOD_NS) ? 0 :\
+	min(GPMI_MAX_HARDWARE_DELAY_NS, \
+				((MAX_DATA_SAMPLE_DELAY_CYCLES * c) / f)) \
+	)
 
 /*
  * Set this variable to a value greater than zero to see varying levels of
@@ -125,10 +176,13 @@ static void gpmi_read_buf(struct mtd_info *mtd, uint8_t * buf, int len);
  */
 
 struct gpmi_nand_timing gpmi_safe_timing = {
-	.address_setup = 25,
-	.data_setup = 80,
-	.data_hold = 60,
-	.dsample_time = 6,
+	.data_setup_in_ns        = 80,
+	.data_hold_in_ns         = 60,
+	.address_setup_in_ns     = 25,
+	.gpmi_sample_delay_in_ns = 6,
+	.tREA_in_ns              = -1,
+	.tRLOH_in_ns             = -1,
+	.tRHOH_in_ns             = -1,
 };
 
 /*
@@ -162,8 +216,9 @@ static struct nand_ecclayout gpmi_oob_64 = {
  *
  * @ntime:   The time in nanoseconds.
  * @period:  The GPMI clock period.
+ * @min:     The minimum allowable number of cycles.
  */
-static inline u32 gpmi_cycles_ceil(u32 ntime, u32 period)
+static inline u32 gpmi_cycles_ceil(u32 ntime, u32 period, u32 min)
 {
 	int k;
 
@@ -174,14 +229,8 @@ static inline u32 gpmi_cycles_ceil(u32 ntime, u32 period)
 
 	k = (ntime + period - 1) / period;
 
-	/*
-	 * A cycle count of less than 1 can fatally confuse the hardware.
-	 */
+	return max(k, (int)min);
 
-	if (k == 0)
-		k++;
-
-	return k;
 }
 
 /**
@@ -231,58 +280,513 @@ static void gpmi_self_wakeup(struct gpmi_nand_data *g)
 /**
  * gpmi_set_timings - Set GPMI timings.
  *
- * @pdev: A pointer to the owning platform device.
- * @tm:   A pointer to the new timings.
+ * This function adjusts the GPMI hardware timing registers. If the override
+ * parameter is NULL, this function will use the timings specified in the per-
+ * device data. Otherwise, it will apply the given timings.
+ *
+ * @g:         Per-device data.
+ * @override:  If not NULL, override the timings in the per-device data.
  */
-void gpmi_set_timings(struct platform_device *pdev, struct gpmi_nand_timing *tm)
+void gpmi_set_timings(struct gpmi_nand_data *g,
+					struct gpmi_nand_timing *override)
 {
-	struct gpmi_nand_data *g = platform_get_drvdata(pdev);
-	u32 period_ns = 1000000 / clk_get_rate(g->clk) + 1;
-	u32 address_cycles, data_setup_cycles;
-	u32 data_hold_cycles, data_sample_cycles;
-	u32 busy_timeout;
-	u32 t0;
+	struct gpmi_platform_data  *gpd = g->gpd;
+	struct gpmi_nand_timing    target;
+
+	bool      dynamic_timing_is_available;
+	uint32_t  gpmi_delay_fraction;
+	uint32_t  gpmi_max_delay_in_ns;
+	uint32_t  address_setup_in_cycles;
+	uint32_t  data_setup_in_ns;
+	uint32_t  data_setup_in_cycles;
+	uint32_t  data_hold_in_cycles;
+	int32_t   data_sample_delay_in_ns;
+	uint32_t  data_sample_delay_in_cycles;
+	int32_t   tEYE;
+	uint32_t  gpmi_clock_period_in_ns = 1000000 / clk_get_rate(g->clk) + 1;
+	uint32_t  min_prop_delay_in_ns = gpd->min_prop_delay_in_ns;
+	uint32_t  max_prop_delay_in_ns = gpd->max_prop_delay_in_ns;
+	uint32_t  busy_timeout_in_cycles;
+	uint32_t  register_image;
+	uint32_t  dll_wait_time_in_us;
+
+	/* Wake up. */
 
 	if (g->self_suspended)
 		gpmi_self_wakeup(g);
+
 	g->use_count++;
 
-	g->timing = *tm;
+	/* Figure out where we're getting our new timing. */
 
-	address_cycles = gpmi_cycles_ceil(tm->address_setup, period_ns);
-	data_setup_cycles = gpmi_cycles_ceil(tm->data_setup, period_ns);
-	data_hold_cycles = gpmi_cycles_ceil(tm->data_hold, period_ns);
-	data_sample_cycles = gpmi_cycles_ceil(tm->dsample_time + period_ns / 4,
-					      period_ns / 2);
-	busy_timeout = gpmi_cycles_ceil(10000000 / 4096, period_ns);
+	if (override)
+		target = *override;
+	else {
+		target.data_setup_in_ns      = g->device_info.data_setup_in_ns;
+		target.data_hold_in_ns       = g->device_info.data_hold_in_ns;
+		target.address_setup_in_ns   =
+					g->device_info.address_setup_in_ns;
+		target.gpmi_sample_delay_in_ns =
+					g->device_info.gpmi_sample_delay_in_ns;
+		target.tREA_in_ns            = g->device_info.tREA_in_ns;
+		target.tRLOH_in_ns           = g->device_info.tRLOH_in_ns;
+		target.tRHOH_in_ns           = g->device_info.tRHOH_in_ns;
+	}
 
-	dev_dbg(&pdev->dev,
-		"%s: ADDR %u, DSETUP %u, DH %u, DSAMPLE %u, BTO %u\n",
+	/* Check if dynamic timing information is available. */
+
+	dynamic_timing_is_available = 0;
+
+	if ((target.tREA_in_ns  >= 0) &&
+	    (target.tRLOH_in_ns >= 0) &&
+	    (target.tRHOH_in_ns >= 0))
+		dynamic_timing_is_available = !0;
+
+	/* Reset the DLL and sample delay to known values. */
+
+	stmp3xxx_clearl(
+		BM_GPMI_CTRL1_RDN_DELAY | BM_GPMI_CTRL1_DLL_ENABLE,
+					REGS_GPMI_BASE + HW_GPMI_CTRL1);
+
+	/*
+	 * Check how fast the GPMI clock is running. If it's running very
+	 * slowly, we'll need to use half-periods.
+	 */
+
+	if (gpmi_clock_period_in_ns > GPMI_DLL_HALF_THRESHOLD_PERIOD_NS) {
+
+		/*
+		 * The GPMI clock period is high enough that the DLL
+		 * requires a divide by two.
+		 */
+
+		register_image = __raw_readl(REGS_GPMI_BASE + HW_GPMI_CTRL1);
+		register_image |= BM_GPMI_CTRL1_HALF_PERIOD;
+		__raw_writel(register_image, REGS_GPMI_BASE + HW_GPMI_CTRL1);
+
+		gpmi_delay_fraction = GPMI_DELAY_SHIFT + 1;
+
+	} else {
+
+		gpmi_delay_fraction = GPMI_DELAY_SHIFT;
+
+	}
+
+	gpmi_max_delay_in_ns =
+			GPMI_GET_MAX_DELAY_NS(gpmi_clock_period_in_ns,
+							gpmi_delay_fraction);
+
+	busy_timeout_in_cycles = gpmi_cycles_ceil(10000000 / 4096,
+						gpmi_clock_period_in_ns, 0);
+
+	/*
+	 * The hardware quantizes the setup and hold parameters to intervals of
+	 * the GPMI clock period.
+	 *
+	 * Quantize the setup and hold parameters to the next-highest GPMI clock
+	 * period to make sure we use at least the requested times.
+	 *
+	 * For data setup and data hold, the chip interprets a value of zero as
+	 * the largest amount of delay supported. This is not what's intended by
+	 * a zero in the input parameter, so we modify the zero input parameter
+	 * to the smallest supported value.
+	 */
+
+	address_setup_in_cycles = gpmi_cycles_ceil(target.address_setup_in_ns,
+						gpmi_clock_period_in_ns, 0);
+	data_setup_in_cycles    = gpmi_cycles_ceil(target.data_setup_in_ns,
+						gpmi_clock_period_in_ns, 1);
+	data_hold_in_cycles     = gpmi_cycles_ceil(target.data_hold_in_ns,
+						gpmi_clock_period_in_ns, 1);
+
+	/*
+	 * Check if dynamic timing is available. If not, we have to use a
+	 * simpler algorithm for computing the values we put in the hardware
+	 * registers.
+	 */
+
+	if (!dynamic_timing_is_available) {
+
+		/*
+		 * Get the delay time and include the required chip read setup
+		 * time.
+		 */
+
+		data_sample_delay_in_ns =
+			target.gpmi_sample_delay_in_ns + GPMI_DATA_SETUP_NS;
+
+		/*
+		 * Extend the data setup time as needed to reduce delay time
+		 * below the max supported by hardware. Also keep it in the
+		 * allowable range
+		 */
+
+		while ((data_sample_delay_in_ns > gpmi_max_delay_in_ns) &&
+			(data_setup_in_cycles < MAX_DATA_SETUP_CYCLES)) {
+
+			data_setup_in_cycles++;
+			data_sample_delay_in_ns -= gpmi_clock_period_in_ns;
+
+			if (data_sample_delay_in_ns < 0)
+				data_sample_delay_in_ns = 0;
+
+		}
+
+		/*
+		 * Compute the number of cycles that corresponds to the data
+		 * sample delay.
+		 */
+
+		data_sample_delay_in_cycles =
+			gpmi_cycles_ceil(
+				gpmi_delay_fraction * data_sample_delay_in_ns,
+						gpmi_clock_period_in_ns, 0);
+
+		if (data_sample_delay_in_cycles > MAX_DATA_SAMPLE_DELAY_CYCLES)
+			data_sample_delay_in_cycles =
+						MAX_DATA_SAMPLE_DELAY_CYCLES;
+
+		/* Go set up the hadware. */
+
+		goto set_up_the_hardware;
+
+	}
+
+	/*
+	 * If control arrives here, we can use a more dynamic algorithm for
+	 * computing the hardware register values.
+	 */
+
+	/* Compute the data setup time for the given number of GPMI cycles. */
+
+	data_setup_in_ns = gpmi_clock_period_in_ns * data_setup_in_cycles;
+
+	/*
+	 * This accounts for chip specific GPMI read setup time on the
+	 * data sample circuit. See i.MX23 reference manual section
+	 * "14.3.4. High-Speed NAND Timing"
+	 */
+
+	max_prop_delay_in_ns += GPMI_DATA_SETUP_NS;
+
+	/*
+	 * Compute tEYE, the width of the data eye when reading from the
+	 * NAND Flash.
+	 *
+	 * Note that we use the quantized versions of setup and hold because the
+	 * hardware uses these quantized values, and these timings create the
+	 * eye.
+	 *
+	 * end of the eye = min_prop_delay_in_ns + target.tRHOH_in_ns +
+	 *                                                     data_setup_in_ns
+	 * start of the eye = max_prop_delay_in_ns + target.tREA_in_ns
+	 */
+
+	tEYE = ((int)min_prop_delay_in_ns +
+		    (int)target.tRHOH_in_ns + (int)data_setup_in_ns) -
+			((int)max_prop_delay_in_ns + (int)target.tREA_in_ns);
+
+	/*
+	 * The eye has to be open. Constrain tEYE to be greater than zero
+	 * and the number of data setup cycles to fit in the timing register.
+	 */
+
+	while ((tEYE <= 0) && (data_setup_in_cycles < MAX_DATA_SETUP_CYCLES)) {
+
+		/*
+		 * The eye is not open. An increase in data setup time causes a
+		 * coresponding increase to size of the eye.
+		 */
+
+		/* Give an additional DataSetup cycle. */
+		data_setup_in_cycles++;
+		/* Keep the data setup time in step with the cycles. */
+		data_setup_in_ns += gpmi_clock_period_in_ns;
+		/* And adjust tEYE accordingly. */
+		tEYE += gpmi_clock_period_in_ns;
+
+	}
+
+	/*
+	 * Compute the ideal point at which to sample the data at the center of
+	 * the eye.
+	 */
+
+	/*
+	 * Find the delay to get to the center of the eye, in time units.
+	 *
+	 * Delay for center of the eye:
+	 *
+	 *         ((end of the eye + start of the eye) / 2) - data_setup
+	 *
+	 * This simplifies to the following:
+	 */
+
+	data_sample_delay_in_ns =
+		((int)max_prop_delay_in_ns +
+			(int)target.tREA_in_ns +
+				(int)min_prop_delay_in_ns +
+					(int)target.tRHOH_in_ns -
+						(int)data_setup_in_ns) >> 1;
+
+	/* The chip can't handle a negative parameter for the sample point. */
+
+	if (data_sample_delay_in_ns < 0)
+		data_sample_delay_in_ns = 0;
+
+	/*
+	 * Make sure the required delay time does not exceed the max allowed
+	 * value. Also make sure the quantized delay time (at
+	 * data_sample_delay_in_cycles) is within the eye.
+	 *
+	 * Increasing data setup decreases the delay time required to get to
+	 * into the eye. Increasing data setup also moves the rear of the eye
+	 * back, enlarging the eye (helpful in the case where quantized delay
+	 * time does not fall inside the initial eye).
+	 *
+	 *          ____                 _______________________________________
+	 *  RDN         \_______________/
+	 *
+	 *                                           <----- tEYE ---->
+	 *                                         /-------------------\
+	 *  Read Data ----------------------------<                     >------
+	 *                                         \-------------------/
+	 *              ^               ^                    ^  tEYE/2      ^
+	 *              |               |                    |              |
+	 *              |<--DataSetup-->|<----DelayTime----->|              |
+	 *              |               |                    |              |
+	 *              |               |                                   |
+	 *              |               |<----Quantized DelayTime---------->|
+	 *              |               |                                   |
+	 */
+
+	/*
+	 * Extend the data setup time as needed to reduce delay time below the
+	 * max allowable value. Also keep data setup in the allowable range.
+	 */
+
+	while ((data_sample_delay_in_ns > gpmi_max_delay_in_ns) &&
+			(data_setup_in_cycles < MAX_DATA_SETUP_CYCLES)) {
+
+		/* Give an additional data setup cycle. */
+		data_setup_in_cycles++;
+		/* Keep the data setup time in step with the cycles. */
+		data_setup_in_ns += gpmi_clock_period_in_ns;
+		/* And adjust tEYE accordingly. */
+		tEYE += gpmi_clock_period_in_ns;
+
+		/*
+		 * Decrease the delay time by one half data setup cycle worth,
+		 * to keep in the middle of the eye.
+		 */
+		data_sample_delay_in_ns -= (gpmi_clock_period_in_ns >> 1);
+
+		/* Do not allow a delay time less than zero. */
+		if (data_sample_delay_in_ns < 0)
+			data_sample_delay_in_ns = 0;
+
+	}
+
+	/*
+	 * The sample delay time is expressed in the chip in units of fractions
+	 * of GPMI clocks. Convert the delay time to an integer quantity of
+	 * fractional GPMI cycles.
+	 */
+
+	data_sample_delay_in_cycles =
+		gpmi_cycles_ceil(
+			gpmi_delay_fraction * data_sample_delay_in_ns,
+						gpmi_clock_period_in_ns, 0);
+
+	if (data_sample_delay_in_cycles > MAX_DATA_SAMPLE_DELAY_CYCLES)
+		data_sample_delay_in_cycles = MAX_DATA_SAMPLE_DELAY_CYCLES;
+
+	#define DSAMPLE_IS_NOT_WITHIN_THE_DATA_EYE                         \
+		(tEYE>>1 < abs((int32_t)((data_sample_delay_in_cycles *  \
+		gpmi_clock_period_in_ns) / gpmi_delay_fraction) -          \
+		data_sample_delay_in_ns))
+
+	/*
+	 * While the quantized delay time is out of the eye, reduce the delay
+	 * time or extend the data setup time to get in the eye. Do not allow
+	 * the number of data setup cycles to exceed the max supported by
+	 * the hardware.
+	 */
+
+	while (DSAMPLE_IS_NOT_WITHIN_THE_DATA_EYE
+			&& (data_setup_in_cycles  < MAX_DATA_SETUP_CYCLES)) {
+
+		if (((data_sample_delay_in_cycles * gpmi_clock_period_in_ns) /
+				gpmi_delay_fraction) > data_sample_delay_in_ns){
+
+			/*
+			 * If the quantized delay time is greater than the max
+			 * reach of the eye, decrease the quantized delay time
+			 * to get it into the eye or before the eye.
+			 */
+
+			if (data_sample_delay_in_cycles != 0)
+				data_sample_delay_in_cycles--;
+
+		} else {
+
+			/*
+			 * If the quantized delay time is less than the min
+			 * reach of the eye, shift up the sample point by
+			 * increasing data setup. This will also open the eye
+			 * (helping get the quantized delay time in the eye).
+			 */
+
+			/* Give an additional data setup cycle. */
+			data_setup_in_cycles++;
+			/* Keep the data setup time in step with the cycles. */
+			data_setup_in_ns += gpmi_clock_period_in_ns;
+			/* And adjust tEYE accordingly. */
+			tEYE += gpmi_clock_period_in_ns;
+
+			/*
+			 * Decrease the delay time by one half data setup cycle
+			 * worth, to keep in the middle of the eye.
+			 */
+			data_sample_delay_in_ns -= (gpmi_clock_period_in_ns>>1);
+
+			/* ...and one less period for the delay time. */
+			data_sample_delay_in_ns -= gpmi_clock_period_in_ns;
+
+			/* Keep the delay time from going negative. */
+			if (data_sample_delay_in_ns < 0)
+				data_sample_delay_in_ns = 0;
+
+			/*
+			 * Convert time to GPMI cycles and make sure the number
+			 * of cycles fits in the coresponding hardware register.
+			 */
+
+			data_sample_delay_in_cycles =
+				gpmi_cycles_ceil(gpmi_delay_fraction *
+					data_sample_delay_in_ns,
+						gpmi_clock_period_in_ns, 0);
+
+			if (data_sample_delay_in_cycles >
+						MAX_DATA_SAMPLE_DELAY_CYCLES)
+				data_sample_delay_in_cycles =
+						MAX_DATA_SAMPLE_DELAY_CYCLES;
+
+
+		}
+
+	}
+
+	/*
+	 * Control arrives here when we've computed all the hardware register
+	 * values (using eithe the static or dynamic algorithm) and we're ready
+	 * to apply them.
+	 */
+
+set_up_the_hardware:
+
+	/* Set the values in the registers. */
+
+	dev_dbg(&g->dev->dev,
+		"%s: tAS %u, tDS %u, tDH %u, tDSAMPLE %u, tBTO %u\n",
 		__func__,
-		address_cycles, data_setup_cycles, data_hold_cycles,
-		data_sample_cycles, busy_timeout);
+		address_setup_in_cycles,
+		data_setup_in_cycles,
+		data_hold_in_cycles,
+		data_sample_delay_in_cycles,
+		busy_timeout_in_cycles
+		);
 
-	t0 = BF(address_cycles, GPMI_TIMING0_ADDRESS_SETUP) |
-	    BF(data_setup_cycles, GPMI_TIMING0_DATA_SETUP) |
-	    BF(data_hold_cycles, GPMI_TIMING0_DATA_HOLD);
-	__raw_writel(t0, REGS_GPMI_BASE + HW_GPMI_TIMING0);
+	/* Set up all the simple timing parameters. */
 
-	__raw_writel(BF(busy_timeout, GPMI_TIMING1_DEVICE_BUSY_TIMEOUT),
-		     REGS_GPMI_BASE + HW_GPMI_TIMING1);
+	register_image =
+		BF(address_setup_in_cycles, GPMI_TIMING0_ADDRESS_SETUP) |
+		BF(data_setup_in_cycles,    GPMI_TIMING0_DATA_SETUP)    |
+		BF(data_hold_in_cycles,     GPMI_TIMING0_DATA_HOLD)     ;
 
-#ifdef CONFIG_ARCH_STMP378X
-	stmp3xxx_clearl(BM_GPMI_CTRL1_RDN_DELAY,
-			REGS_GPMI_BASE + HW_GPMI_CTRL1);
-	stmp3xxx_setl(BF(data_sample_cycles, GPMI_CTRL1_RDN_DELAY),
-		      REGS_GPMI_BASE + HW_GPMI_CTRL1);
-#else
-	stmp3xxx_clearl(BM_GPMI_CTRL1_DSAMPLE_TIME,
-			REGS_GPMI_BASE + HW_GPMI_CTRL1);
-	stmp3xxx_setl(BF(data_sample_cycles, GPMI_CTRL1_DSAMPLE_TIME),
-		      REGS_GPMI_BASE + HW_GPMI_CTRL1);
-#endif
+	__raw_writel(register_image, REGS_GPMI_BASE + HW_GPMI_TIMING0);
+
+	__raw_writel(BF(busy_timeout_in_cycles,
+			GPMI_TIMING1_DEVICE_BUSY_TIMEOUT),
+					REGS_GPMI_BASE + HW_GPMI_TIMING1);
+
+	/*
+	 * Hey - pay attention!
+	 *
+	 * DLL_ENABLE must be set to zero when setting RDN_DELAY or
+	 * HALF_PERIOD.
+	 */
+
+	/* BW_GPMI_CTRL1_DLL_ENABLE(0); */
+	stmp3xxx_clearl(BM_GPMI_CTRL1_DLL_ENABLE, REGS_GPMI_BASE+HW_GPMI_CTRL1);
+
+	if ((data_sample_delay_in_cycles == 0) ||
+			(gpmi_clock_period_in_ns > GPMI_MAX_DLL_PERIOD_NS)) {
+
+		/*
+		 * If no delay is desired, or if the GPMI clock period is out of
+		 * supported range, then don't enable the delay.
+		 */
+
+		/* BW_GPMI_CTRL1_RDN_DELAY(0); */
+		stmp3xxx_clearl(BM_GPMI_CTRL1_RDN_DELAY,
+						REGS_GPMI_BASE + HW_GPMI_CTRL1);
+		/* BW_GPMI_CTRL1_HALF_PERIOD(0); */
+		stmp3xxx_clearl(BM_GPMI_CTRL1_HALF_PERIOD,
+						REGS_GPMI_BASE + HW_GPMI_CTRL1);
+
+	} else {
+
+		/*
+		 * Set the delay and enable the DLL. GPMI_CTRL1_HALF_PERIOD is
+		 * assumed to have already been set properly.
+		 */
+
+		/* BW_GPMI_CTRL1_RDN_DELAY(data_sample_delay_in_cycles); */
+		register_image = __raw_readl(REGS_GPMI_BASE + HW_GPMI_CTRL1);
+		register_image &= ~BM_GPMI_CTRL1_RDN_DELAY;
+		register_image |=
+			(data_sample_delay_in_cycles << BP_GPMI_CTRL1_RDN_DELAY)
+						& BM_GPMI_CTRL1_RDN_DELAY;
+		__raw_writel(register_image, REGS_GPMI_BASE + HW_GPMI_CTRL1);
+
+		/* BW_GPMI_CTRL1_DLL_ENABLE(1); */
+		stmp3xxx_setl(BM_GPMI_CTRL1_DLL_ENABLE,
+						REGS_GPMI_BASE + HW_GPMI_CTRL1);
+
+		/*
+		 * After we enable the GPMI DLL, we have to wait
+		 * GPMI_WAIT_CYCLES_AFTER_DLL_ENABLE GPMI clock cycles before
+		 * we can use the GPMI interface.
+		 *
+		 * Calculate the amount of time we need to wait, in
+		 * microseconds.
+		 */
+
+		/*
+		 * Calculate the wait time and convert from nanoseconds to
+		 * microseconds.
+		 */
+
+		dll_wait_time_in_us =
+			(gpmi_clock_period_in_ns *
+				GPMI_WAIT_CYCLES_AFTER_DLL_ENABLE) / 1000;
+
+		if (!dll_wait_time_in_us)
+			dll_wait_time_in_us = 1;
+
+		/*
+		 * Wait for the DLL to settle.
+		 */
+
+		udelay(dll_wait_time_in_us);
+
+	}
+
+	/* Allow the driver to go back to sleep, if it wants to. */
 
 	g->use_count--;
+
 }
 
 /**
@@ -1521,6 +2025,56 @@ static void gpmi_deinit_chip(struct platform_device *pdev,
 }
 
 /**
+ * gpmi_get_device_info() - Get information about the NAND Flash devices.
+ *
+ * @g:  Per-device data.
+ */
+static int gpmi_get_device_info(struct gpmi_nand_data *g)
+{
+	unsigned                 i;
+	uint8_t                  id_bytes[NAND_DEVICE_ID_BYTE_COUNT];
+	struct mtd_info          *mtd  = &g->mtd;
+	struct nand_chip         *nand = &g->nand;
+	struct nand_device_info  *info;
+
+	/* Read ID bytes from the first NAND Flash chip. */
+
+	nand->select_chip(mtd, 0);
+
+	gpmi_command(mtd, NAND_CMD_READID, 0x00, -1);
+
+	for (i = 0; i < NAND_DEVICE_ID_BYTE_COUNT; i++)
+		id_bytes[i] = nand->read_byte(mtd);
+
+	/* Get information about this device, based on the ID bytes. */
+
+	info = nand_device_get_info(id_bytes);
+
+	/* Check if we understand this device. */
+
+	if (!info) {
+		printk(KERN_ERR "Unrecognized NAND Flash device.\n");
+		return !0;
+	}
+
+	/*
+	 * Copy the device info into the per-device data. We can't just keep
+	 * the pointer because that storage is reclaimed after initialization.
+	 */
+
+	g->device_info = *info;
+
+	/* Display the information we got. */
+
+	nand_device_print_info(&g->device_info);
+
+	/* Return success. */
+
+	return 0;
+
+}
+
+/**
  * gpmi_scan_middle - Intermediate initialization.
  *
  * @g:  Per-device data structure.
@@ -1531,6 +2085,25 @@ static void gpmi_deinit_chip(struct platform_device *pdev,
 static int gpmi_scan_middle(struct gpmi_nand_data *g)
 {
 	int oobsize = 0;
+
+	/*
+	 * Hook the command function provided by the reference implementation.
+	 * This has to be done here, rather than at initialization time, because
+	 * the NAND Flash MTD installed the reference implementation only just
+	 * now.
+	 */
+
+	g->saved_command = g->nand.cmdfunc;
+	g->nand.cmdfunc = gpmi_command;
+
+	/* Identify the NAND Flash devices. */
+
+	if (gpmi_get_device_info(g))
+		return -ENXIO;
+
+	/* Update timings. */
+
+	gpmi_set_timings(g, 0);
 
 	/* Limit to 2G size due to Kernel larger 4G space support */
 	if (g->mtd.size == 0) {
@@ -1580,16 +2153,6 @@ static int gpmi_scan_middle(struct gpmi_nand_data *g)
 		       g->mtd.writesize, NAND_MAX_PAGESIZE);
 		return -ERANGE;
 	}
-
-	/*
-	 * Hook the command function provided by the reference implementation.
-	 * This has to be done here, rather than at initialization time, because
-	 * the NAND Flash MTD installed the reference implementation only just
-	 * now.
-	 */
-
-	g->saved_command = g->nand.cmdfunc;
-	g->nand.cmdfunc = gpmi_command;
 
 	/* Install the ECC. */
 
@@ -2168,8 +2731,6 @@ static int __init gpmi_nand_probe(struct platform_device *pdev)
 	} else
 		g->regulator = NULL;
 
-	gpmi_set_timings(pdev, &gpmi_safe_timing);
-
 	g->irq = r->start;
 	err = request_irq(g->irq, gpmi_irq, 0, dev_name(&pdev->dev), g);
 	if (err) {
@@ -2210,6 +2771,10 @@ static int __init gpmi_nand_probe(struct platform_device *pdev)
 	g->timing = gpmi_safe_timing;
 	g->selected_chip = -1;
 	g->ignorebad = ignorebad;	/* copy global setting */
+
+	/* Set up timings. */
+
+	gpmi_set_timings(g, &gpmi_safe_timing);
 
 	/* Register with MTD. */
 
@@ -2341,7 +2906,7 @@ static int gpmi_nand_resume(struct platform_device *pdev)
 	 */
 
 	r = gpmi_nand_init_hw(pdev, 1);
-	gpmi_set_timings(pdev, &g->timing);
+	gpmi_set_timings(g, 0);
 
 	/* Tell MTD it can use this device again. */
 
@@ -2373,14 +2938,99 @@ static int gpmi_nand_resume(struct platform_device *pdev)
 static ssize_t show_timings(struct device *d, struct device_attribute *attr,
 			    char *buf)
 {
-	struct gpmi_nand_timing *ptm;
-	struct gpmi_nand_data *g = dev_get_drvdata(d);
+	struct gpmi_nand_data  *g = dev_get_drvdata(d);
+	uint32_t               register_image;
+	uint32_t               data_setup_in_cycles;
+	uint32_t               effective_data_setup_in_ns;
+	uint32_t               data_hold_in_cycles;
+	uint32_t               effective_data_hold_in_ns;
+	uint32_t               address_setup_in_cycles;
+	uint32_t               effective_address_setup_in_ns;
+	uint32_t               sample_delay_in_cycles;
+	uint32_t               effective_sample_delay_in_ns;
+	bool                   sample_delay_uses_half_period;
+	uint32_t               gpmi_clock_frequency_in_khz =
+					clk_get_rate(g->clk);
+	uint32_t               gpmi_clock_period_in_ns =
+					1000000 / gpmi_clock_frequency_in_khz;
 
-	ptm = &g->timing;
-	return sprintf(buf, "DATA_SETUP %d, DATA_HOLD %d, "
-		       "ADDR_SETUP %d, DSAMPLE_TIME %d\n",
-		       ptm->data_setup, ptm->data_hold,
-		       ptm->address_setup, ptm->dsample_time);
+	/* Retrieve basic timing facts. */
+
+	register_image = __raw_readl(REGS_GPMI_BASE + HW_GPMI_TIMING0);
+
+	data_setup_in_cycles = (register_image & BM_GPMI_TIMING0_DATA_SETUP)
+						>> BP_GPMI_TIMING0_DATA_SETUP;
+	data_hold_in_cycles = (register_image & BM_GPMI_TIMING0_DATA_HOLD)
+						>> BP_GPMI_TIMING0_DATA_HOLD;
+	address_setup_in_cycles =
+				(register_image & BM_GPMI_TIMING0_ADDRESS_SETUP)
+					>> BP_GPMI_TIMING0_ADDRESS_SETUP;
+
+	effective_data_setup_in_ns =
+			data_setup_in_cycles * gpmi_clock_period_in_ns;
+	effective_data_hold_in_ns =
+			data_hold_in_cycles * gpmi_clock_period_in_ns;
+	effective_address_setup_in_ns =
+			address_setup_in_cycles * gpmi_clock_period_in_ns;
+
+	/* Retrieve facts about the sample delay. */
+
+	register_image = __raw_readl(REGS_GPMI_BASE + HW_GPMI_CTRL1);
+
+	sample_delay_in_cycles = (register_image & BM_GPMI_CTRL1_RDN_DELAY)
+						>> BP_GPMI_CTRL1_RDN_DELAY;
+
+	sample_delay_uses_half_period =
+		!!((register_image & BM_GPMI_CTRL1_HALF_PERIOD)
+						>> BP_GPMI_CTRL1_HALF_PERIOD);
+
+	effective_sample_delay_in_ns =
+			sample_delay_in_cycles * gpmi_clock_period_in_ns;
+
+	if (sample_delay_uses_half_period)
+		effective_sample_delay_in_ns >>= 1;
+
+	/* Show the results. */
+
+	return sprintf(buf,
+			"GPMI Clock Frequency   : %u KHz\n"
+			"GPMI Clock Period      : %u ns\n"
+			"Recorded  Data Setup   : %d ns\n"
+			"Hardware  Data Setup   : %u cycles\n"
+			"Effective Data Setup   : %u ns\n"
+			"Recorded  Data Hold    : %d ns\n"
+			"Hardware  Data Hold    : %u cycles\n"
+			"Effective Data Hold    : %u ns\n"
+			"Recorded  Address Setup: %d ns\n"
+			"Hardware  Address Setup: %u cycles\n"
+			"Effective Address Setup: %u ns\n"
+			"Recorded  Sample Delay : %d ns\n"
+			"Hardware  Sample Delay : %u cycles\n"
+			"Using Half Period      : %s\n"
+			"Effective Sample Delay : %u ns\n"
+			"Recorded tREA          : %d ns\n"
+			"Recorded tRLOH         : %d ns\n"
+			"Recorded tRHOH         : %d ns\n"
+			,
+			gpmi_clock_frequency_in_khz,
+			gpmi_clock_period_in_ns,
+			g->device_info.data_setup_in_ns,
+			data_setup_in_cycles,
+			effective_data_setup_in_ns,
+			g->device_info.data_hold_in_ns,
+			data_hold_in_cycles,
+			effective_data_hold_in_ns,
+			g->device_info.address_setup_in_ns,
+			address_setup_in_cycles,
+			effective_address_setup_in_ns,
+			g->device_info.gpmi_sample_delay_in_ns,
+			sample_delay_in_cycles,
+			(sample_delay_uses_half_period ? "Yes" : "No"),
+			effective_sample_delay_in_ns,
+			g->device_info.tREA_in_ns,
+			g->device_info.tRLOH_in_ns,
+			g->device_info.tRHOH_in_ns);
+
 }
 
 /**
@@ -2399,10 +3049,10 @@ static ssize_t store_timings(struct device *d, struct device_attribute *attr,
 	struct gpmi_nand_data *g = dev_get_drvdata(d);
 	char tmps[20];
 	u8 *timings[] = {
-		&t.data_setup,
-		&t.data_hold,
-		&t.address_setup,
-		&t.dsample_time,
+		&t.data_setup_in_ns,
+		&t.data_hold_in_ns,
+		&t.address_setup_in_ns,
+		&t.gpmi_sample_delay_in_ns,
 		NULL,
 	};
 	u8 **timing = timings;
@@ -2434,7 +3084,7 @@ static ssize_t store_timings(struct device *d, struct device_attribute *attr,
 		p = end + 1;
 	}
 
-	gpmi_set_timings(g->dev, &t);
+	gpmi_set_timings(g, &t);
 
 	return size;
 }

@@ -529,24 +529,7 @@ int gpmi_scan_bbt(struct mtd_info *mtd)
 
 	/* Check if we found the NCB. */
 
-	if (r) {
-
-		/*
-		 * If control arrives here, the medium has an NCB and is
-		 * therefore formatted for SigmaTel hardware. We want to use
-		 * the timings from the NCB.
-		 */
-
-		printk(KERN_NOTICE"Setting discovered timings: %d:%d:%d:%d\n",
-			stmp_bbt.timing.data_setup,
-			stmp_bbt.timing.data_hold,
-			stmp_bbt.timing.address_setup,
-			stmp_bbt.timing.dsample_time);
-
-		gpmi_set_timings(g->dev, &stmp_bbt.timing);
-		g->timing = stmp_bbt.timing;
-
-	} else {
+	if (!r) {
 
 		/*
 		 * If control arrives here, the medium has no NCB, so we

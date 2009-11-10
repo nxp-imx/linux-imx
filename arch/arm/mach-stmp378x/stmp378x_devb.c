@@ -217,6 +217,8 @@ static const char *gpmi_partition_source_types[] = { "cmdlinepart", NULL };
 
 static struct gpmi_platform_data gpmi_data = {
 	.io_uA                   = 70000,
+	.min_prop_delay_in_ns    = 5,
+	.max_prop_delay_in_ns    = 9,
 	.pinmux_handler          = gpmi_pinmux_handler,
 	.boot_area_size_in_bytes = 20 * SZ_1M,
 	.partitions              = 0,

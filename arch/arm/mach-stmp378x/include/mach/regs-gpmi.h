@@ -3,6 +3,7 @@
  *
  * Copyright 2008-2009 Freescale Semiconductor, Inc. All Rights Reserved.
  * Copyright 2008 Embedded Alley Solutions, Inc All Rights Reserved.
+ * Copyright 2009 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -211,8 +212,18 @@
 #define BM_GPMI_CTRL1_CE1_SEL	0x00200000
 #define BM_GPMI_CTRL1_CE0_SEL	0x00100000
 #define BM_GPMI_CTRL1_GANGED_RDYBUSY	0x00080000
+#define BM_GPMI_CTRL1_GPMI_MODE	0x00000001
+#define BP_GPMI_CTRL1_GPMI_MODE	0
+#define BM_GPMI_CTRL1_ATA_IRQRDY_POLARITY	0x00000004
+#define BM_GPMI_CTRL1_DEV_RESET	0x00000008
+#define BM_GPMI_CTRL1_TIMEOUT_IRQ	0x00000200
+#define BM_GPMI_CTRL1_DEV_IRQ	0x00000400
+#define BM_GPMI_CTRL1_RDN_DELAY	0x0000F000
+#define BP_GPMI_CTRL1_RDN_DELAY	12
 #define BM_GPMI_CTRL1_BCH_MODE	0x00040000
+#define BP_GPMI_CTRL1_DLL_ENABLE	17
 #define BM_GPMI_CTRL1_DLL_ENABLE	0x00020000
+#define BP_GPMI_CTRL1_HALF_PERIOD	16
 #define BM_GPMI_CTRL1_HALF_PERIOD	0x00010000
 #define BP_GPMI_CTRL1_RDN_DELAY	12
 #define BM_GPMI_CTRL1_RDN_DELAY	0x0000F000

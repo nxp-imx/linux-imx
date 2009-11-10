@@ -16,6 +16,10 @@ extern void gpmi_pinmux_free(char *);
  * that can't be expressed as resources.
  *
  * @io_uA:                   The current limit, in uA.
+ * @min_prop_delay_in_ns:    Minimum propagation delay of GPMI signals to and
+ *                           from the NAND Flash device, in nanoseconds.
+ * @max_prop_delay_in_ns:    Maximum propagation delay of GPMI signals to and
+ *                           from the NAND Flash device, in nanoseconds.
  * @pinmux_handler:          A pointer to a function the driver will call to
  *                           request or release the pins it needs. Pass true
  *                           to request pins, and false to release them.
@@ -48,6 +52,9 @@ extern void gpmi_pinmux_free(char *);
 struct gpmi_platform_data {
 
 	int                   io_uA;
+
+	unsigned              min_prop_delay_in_ns;
+	unsigned              max_prop_delay_in_ns;
 
 	int                   (*pinmux_handler)(bool request);
 
