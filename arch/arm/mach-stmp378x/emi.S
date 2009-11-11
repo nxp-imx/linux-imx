@@ -23,6 +23,8 @@
 #include <mach/platform.h>
 #include <mach/regs-power.h>
 #include <mach/regs-clkctrl.h>
+#include <mach/regs-emi.h>
+#include <mach/regs-dram.h>
 
 /* TODO should be move to clock.h */
 #define SCALING_DATA_EMI_DIV_OFFSET     0
@@ -107,6 +109,23 @@ ENTRY(stmp3xxx_ram_freq_scale)
 	tst     r1, #BM_CLKCTRL_EMI_BUSY_REF_XTAL
 	bne     101b
 
+	@When are using the DLL, reset the DRAM controller and DLL
+	@start point logic (via DLL_SHIFT_RESET and DLL_RESET).
+	@After changing clock dividers and loading
+	@the new HW_DRAM_CTL* parameters, we will wait for a new DLL_LOCK
+
+	@todo - for DRAM's that will use DLL bypass (non DDR1)
+	@	we should not use DLL_RESET and DLL_SHIFT_RESET.
+
+	mov     r0,     #(HW_EMI_CTRL_ADDR & 0x000000FF)
+	orr     r0, r0, #(HW_EMI_CTRL_ADDR & 0x0000FF00)
+	orr     r0, r0, #(HW_EMI_CTRL_ADDR & 0x00FF0000)
+	orr     r0, r0, #(HW_EMI_CTRL_ADDR & 0xFF000000)
+	ldr     r1, [r0]            @read values of HW_EMI_CTRL into R1
+	orr r1, r1, #BM_EMI_CTRL_DLL_SHIFT_RESET    @Set these 2 fields.
+	orr r1, r1, #BM_EMI_CTRL_DLL_RESET
+	str     r1, [r0]            @write back values to HW_EMI_CTRL register.
+
 	bl	__stmp_emi_set_values
 
 	@ EMI back to PLL
@@ -117,6 +136,8 @@ ENTRY(stmp3xxx_ram_freq_scale)
 	mov	r1, #(1<<6)
 	str	r1, [r0, #8]
 
+	@ Wait for BUSY_REF_EMI, to assure new clock dividers
+	@ are done transferring
 	mov	r0, #(HW_CLKCTRL_EMI_ADDR & 0x000000FF)
 	orr	r0, r0, #(HW_CLKCTRL_EMI_ADDR & 0x0000FF00)
 	orr	r0, r0, #(HW_CLKCTRL_EMI_ADDR & 0x00FF0000)
@@ -124,21 +145,65 @@ ENTRY(stmp3xxx_ram_freq_scale)
 1:	ldr	r1, [r0]
 	tst	r1, #BM_CLKCTRL_EMI_BUSY_REF_EMI
 	bne	1b
-	bic	r1, #BM_CLKCTRL_EMI_DCC_RESYNC_ENABLE
 	str	r1, [r0]
 
-	@ restore normal DRAM mode
-	ldr	r0, __stmp_dram_ctl00
-	ldr	r1, [r0, #0x20]
-	bic	r1, r1, #(1 << 8)
-	str	r1, [r0, #0x20]
-	@ wait for it to actually happen
-	ldr	r0, __stmp_dram_emi00
-102:	ldr	r1, [r0, #0x10]
-	tst	r1, #(1 << 1)
-	bne	102b
+@todo - for DRAM's that will use DLL bypass (non DDR1)
+@we should not use DLL_RESET and DLL_SHIFT_RESET.
+@	if(HW_DRAM_CTL04.B.DLL_BYPASS_MODE==0)
+@	{
+@
+@	    Clear the DLL_RESET and DLL_SHIFT_RESET bitfields
+@	    (\todo - is that necessary?
+@	     they were already set previously to reset
+@            the controller/DLL start point,
+@	     so clearing should have no effect..)
+@
+@	     BF_CS2(EMI_CTRL, DLL_RESET, 0, DLL_SHIFT_RESET, 0);
 
-	@ restore regs and return
+	mov     r0,     #(HW_EMI_CTRL_ADDR & 0x000000FF)
+	orr     r0, r0, #(HW_EMI_CTRL_ADDR & 0x0000FF00)
+	orr     r0, r0, #(HW_EMI_CTRL_ADDR & 0x00FF0000)
+	orr     r0, r0, #(HW_EMI_CTRL_ADDR & 0xFF000000)
+	ldr     r1, [r0]
+	bic r1, #BM_EMI_CTRL_DLL_SHIFT_RESET
+	bic r1, #BM_EMI_CTRL_DLL_RESET
+	str     r1, [r0]
+
+@Wait for BUSY_REF_EMI, to assure new clock dividers are done transferring.
+@(\todo is that necessary.  we already did this above.
+	mov     r0,     #(HW_CLKCTRL_EMI_ADDR & 0x000000FF)
+	orr     r0, r0, #(HW_CLKCTRL_EMI_ADDR & 0x0000FF00)
+	orr     r0, r0, #(HW_CLKCTRL_EMI_ADDR & 0x00FF0000)
+	orr     r0, r0, #(HW_CLKCTRL_EMI_ADDR & 0xFF000000)
+66:	ldr     r1, [r0]
+	tst     r1, #BM_CLKCTRL_EMI_BUSY_REF_EMI
+	bne     66b
+
+@ Wait for DLL locking.
+@        while(HW_DRAM_CTL04.B.DLLLOCKREG==0);
+
+	mov     r0,     #(HW_DRAM_CTL04_ADDR & 0x000000FF)
+	orr     r0, r0, #(HW_DRAM_CTL04_ADDR & 0x0000FF00)
+	orr     r0, r0, #(HW_DRAM_CTL04_ADDR & 0x00FF0000)
+	orr     r0, r0, #(HW_DRAM_CTL04_ADDR & 0xFF000000)
+77:	ldr     r1, [r0]
+	tst     r1, #BM_DRAM_CTL04_DLLLOCKREG
+	beq     77b
+
+
+	@ resttore normal DRAM mode
+        ldr     r0, __stmp_dram_ctl00
+        ldr     r1, [r0, #0x20]
+        bic     r1, r1, #(1 << 8)
+        str     r1, [r0, #0x20]
+
+        @ wait for it to actually happen
+        ldr     r0, __stmp_dram_emi00
+102:    ldr     r1, [r0, #0x10]
+        tst     r1, #(1 << 1)
+        bne     102b
+
+@ restore regs and return
 	ldmfd   sp!, {r1 - r9, lr}
 	mov	pc, lr
 

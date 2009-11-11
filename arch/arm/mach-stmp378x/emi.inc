@@ -22,7 +22,8 @@ __stmp_emi_set_values:
 	orr	r1, r1, #(HW_CLKCTRL_EMI_ADDR & 0x00FF0000)
 	orr	r1, r1, #(HW_CLKCTRL_EMI_ADDR & 0xFF000000)
 
-	mov	r3, #BM_CLKCTRL_EMI_DCC_RESYNC_ENABLE
+@	DDC_RESNCY is deprecated at mx23
+@	mov	r3, #BM_CLKCTRL_EMI_DCC_RESYNC_ENABLE
 
 	mov	r0, #(HW_CLKCTRL_FRAC_ADDR & 0x000000FF)
 	orr	r0, r0, #(HW_CLKCTRL_FRAC_ADDR & 0x0000FF00)
@@ -42,6 +43,15 @@ __stmp_emi_set_values:
 	nop
 	nop
 
+@ Change integer/fractional dividers.
+
+@ The fractional divider and integer divider must be written in such
+@  an order to guarantee that when going from a lower frequency to a
+@  higher frequency that any intermediate frequencies do not exceed
+@  the final frequency. For this reason, we must make sure to check
+@  the current divider values with the new divider values and write
+@  them in the correct order.
+
 1:	ldr	r4, [r1]
 	and	r4, r4, #BM_CLKCTRL_EMI_DIV_EMI
 	/* new emi div > cur emi div? */
@@ -49,14 +59,15 @@ __stmp_emi_set_values:
 	bgt	2f
 	mov	r4, r7
 	orr	r4, r4, #0x100
-	orr	r4, r4, r3
+
+@ This was for DCC_RESYNC_ENABLE, which is deprecated in mx23
+@	orr	r4, r4, r3
+
 	str	r4, [r1]
 11:	ldr	r4, [r1]
 	tst	r4, #BM_CLKCTRL_EMI_BUSY_REF_EMI
 	bne	11b
 	tst	r4, #BM_CLKCTRL_EMI_BUSY_REF_XTAL
-	bne	11b
-	tst	r4, #BM_CLKCTRL_EMI_BUSY_DCC_RESYNC
 	bne	11b
 
 2:	ldr	r2, [r0]
@@ -80,14 +91,14 @@ __stmp_emi_set_values:
 	beq	4f
 	mov	r4, r7
 	orr	r4, r4, #0x100
-	orr	r4, r4, r3
+
+@ This was for DCC_RESYNC_ENABLE, which is deprecated in mx23
+@	orr	r4, r4, r3
 	str	r4, [r1]
 31:	ldr	r4, [r1]
 	tst	r4, #BM_CLKCTRL_EMI_BUSY_REF_EMI
 	bne	31b
 	tst	r4, #BM_CLKCTRL_EMI_BUSY_REF_XTAL
-	bne	31b
-	tst	r4, #BM_CLKCTRL_EMI_BUSY_DCC_RESYNC
 	bne	31b
 
 4:	ldmfd	r9!, {r0 - r4, lr}
