@@ -1130,23 +1130,31 @@ static struct resource mxc_gpu2d_resources[] = {
 
 #if defined(CONFIG_UIO_PDRV_GENIRQ) || defined(CONFIG_UIO_PDRV_GENIRQ_MODULE)
 static struct clk *gpu_clk;
+static atomic_t *gpu_use_count;
 
 int gpu2d_open(struct uio_info *info, struct inode *inode)
 {
-	gpu_clk = clk_get(NULL, "gpu2d_clk");
-	if (IS_ERR(gpu_clk))
-		return PTR_ERR(gpu_clk);
+	int err = 0;
 
-	return clk_enable(gpu_clk);
+	if (atomic_inc_return(gpu_use_count) == 1) {
+		gpu_clk = clk_get(NULL, "gpu2d_clk");
+		if (IS_ERR(gpu_clk))
+			err = PTR_ERR(gpu_clk);
+
+		err = clk_enable(gpu_clk);
+	}
+	return err;
 }
 
 int gpu2d_release(struct uio_info *info, struct inode *inode)
 {
-	if (IS_ERR(gpu_clk))
-		return PTR_ERR(gpu_clk);
+	if (atomic_dec_and_test(gpu_use_count)) {
+		if (IS_ERR(gpu_clk))
+			return PTR_ERR(gpu_clk);
 
-	clk_disable(gpu_clk);
-	clk_put(gpu_clk);
+		clk_disable(gpu_clk);
+		clk_put(gpu_clk);
+	}
 	return 0;
 }
 
@@ -1187,8 +1195,11 @@ static struct platform_device mxc_gpu2d_device = {
 
 static inline void mxc_init_gpu2d(void)
 {
-	dma_alloc_coherent(&mxc_gpu2d_device.dev, SZ_8K, &mxc_gpu2d_resources[1].start, GFP_DMA);
-	mxc_gpu2d_resources[1].end = mxc_gpu2d_resources[1].start + SZ_8K - 1;
+	void *gpu_mem;
+	gpu_mem = dma_alloc_coherent(&mxc_gpu2d_device.dev, SZ_64K, &mxc_gpu2d_resources[1].start, GFP_DMA);
+	mxc_gpu2d_resources[1].end = mxc_gpu2d_resources[1].start + SZ_64K - 1;
+	memset(gpu_mem, 0, SZ_64K);
+	gpu_use_count = gpu_mem + SZ_64K - 4;
 
 	dma_alloc_coherent(&mxc_gpu2d_device.dev, 88 * SZ_1K, &mxc_gpu2d_resources[2].start, GFP_DMA);
 	mxc_gpu2d_resources[2].end = mxc_gpu2d_resources[2].start + (88 * SZ_1K) - 1;
