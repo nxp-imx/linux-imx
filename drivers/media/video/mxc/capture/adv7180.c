@@ -32,6 +32,7 @@
 #include <linux/workqueue.h>
 #include <linux/regulator/consumer.h>
 #include <media/v4l2-int-device.h>
+#include <mach/hardware.h>
 #include "mxc_v4l2_capture.h"
 
 static struct regulator *dvddio_regulator;
