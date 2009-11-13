@@ -535,7 +535,7 @@ int ddi_power_init_battery(void)
 }
 
 /*
- * Use the the lradc7 channel dedicated for battery voltage measurement to
+ * Use the the lradc1 channel
  * get the die temperature from on-chip sensor.
  */
 uint16_t MeasureInternalDieTemperature(void)
@@ -547,80 +547,66 @@ uint16_t MeasureInternalDieTemperature(void)
 			REGS_LRADC_BASE + HW_LRADC_CTRL2_CLR);
 
 	/* mux to the lradc 8th temp channel */
-	__raw_writel(BF(0xF, LRADC_CTRL4_LRADC7SELECT),
+	__raw_writel(BF(0xF, LRADC_CTRL4_LRADC1SELECT),
 			REGS_LRADC_BASE + HW_LRADC_CTRL4_CLR);
-	__raw_writel(BF(8, LRADC_CTRL4_LRADC7SELECT),
+	__raw_writel(BF(8, LRADC_CTRL4_LRADC1SELECT),
 			REGS_LRADC_BASE + HW_LRADC_CTRL4_SET);
 
 	/* Clear the interrupt flag */
-	__raw_writel(BM_LRADC_CTRL1_LRADC7_IRQ,
+	__raw_writel(BM_LRADC_CTRL1_LRADC1_IRQ,
 			REGS_LRADC_BASE + HW_LRADC_CTRL1_CLR);
-	__raw_writel(BF(1 << BATTERY_VOLTAGE_CH, LRADC_CTRL0_SCHEDULE),
+	__raw_writel(BF(1 << LRADC_CH1, LRADC_CTRL0_SCHEDULE),
 			REGS_LRADC_BASE + HW_LRADC_CTRL0_SET);
-	// Wait for conversion complete
+
+	/* Wait for conversion complete*/
 	while (!(__raw_readl(REGS_LRADC_BASE + HW_LRADC_CTRL1)
-			& BM_LRADC_CTRL1_LRADC7_IRQ))
+			& BM_LRADC_CTRL1_LRADC1_IRQ))
                 cpu_relax();
+
 	/* Clear the interrupt flag again */
-	__raw_writel(BM_LRADC_CTRL1_LRADC7_IRQ,
+	__raw_writel(BM_LRADC_CTRL1_LRADC1_IRQ,
 			REGS_LRADC_BASE + HW_LRADC_CTRL1_CLR);
 
 	// read temperature value and clr lradc
 	ch8Value = __raw_readl(REGS_LRADC_BASE +
-			HW_LRADC_CHn(BATTERY_VOLTAGE_CH)) & BM_LRADC_CHn_VALUE;
+			HW_LRADC_CHn(LRADC_CH1)) & BM_LRADC_CHn_VALUE;
+
 
 	__raw_writel(BM_LRADC_CHn_VALUE,
-			REGS_LRADC_BASE + HW_LRADC_CHn_CLR(BATTERY_VOLTAGE_CH));
+			REGS_LRADC_BASE + HW_LRADC_CHn_CLR(LRADC_CH1));
 
 	/* mux to the lradc 9th temp channel */
-	__raw_writel(BF(0xF, LRADC_CTRL4_LRADC7SELECT),
+	__raw_writel(BF(0xF, LRADC_CTRL4_LRADC1SELECT),
 			REGS_LRADC_BASE + HW_LRADC_CTRL4_CLR);
-	__raw_writel(BF(9, LRADC_CTRL4_LRADC7SELECT),
+	__raw_writel(BF(9, LRADC_CTRL4_LRADC1SELECT),
 			REGS_LRADC_BASE + HW_LRADC_CTRL4_SET);
 
 	/* Clear the interrupt flag */
-	__raw_writel(BM_LRADC_CTRL1_LRADC7_IRQ,
+	__raw_writel(BM_LRADC_CTRL1_LRADC1_IRQ,
 			REGS_LRADC_BASE + HW_LRADC_CTRL1_CLR);
-	__raw_writel(BF(1 << BATTERY_VOLTAGE_CH, LRADC_CTRL0_SCHEDULE),
+	__raw_writel(BF(1 << LRADC_CH1, LRADC_CTRL0_SCHEDULE),
 			REGS_LRADC_BASE + HW_LRADC_CTRL0_SET);
 	// Wait for conversion complete
 	while (!(__raw_readl(REGS_LRADC_BASE + HW_LRADC_CTRL1)
-			& BM_LRADC_CTRL1_LRADC7_IRQ))
+			& BM_LRADC_CTRL1_LRADC1_IRQ))
                 cpu_relax();
+
 	/* Clear the interrupt flag */
-	__raw_writel(BM_LRADC_CTRL1_LRADC7_IRQ,
+	__raw_writel(BM_LRADC_CTRL1_LRADC1_IRQ,
 			REGS_LRADC_BASE + HW_LRADC_CTRL1_CLR);
 	// read temperature value
 	ch9Value = __raw_readl(
-			REGS_LRADC_BASE + HW_LRADC_CHn(BATTERY_VOLTAGE_CH))
+			REGS_LRADC_BASE + HW_LRADC_CHn(LRADC_CH1))
 		  & BM_LRADC_CHn_VALUE;
 
+
 	__raw_writel(BM_LRADC_CHn_VALUE,
-			REGS_LRADC_BASE + HW_LRADC_CHn_CLR(BATTERY_VOLTAGE_CH));
+			REGS_LRADC_BASE + HW_LRADC_CHn_CLR(LRADC_CH1));
 
 	/* power down temp sensor block */
 	__raw_writel(BM_LRADC_CTRL2_TEMPSENSE_PWD,
 			REGS_LRADC_BASE + HW_LRADC_CTRL2_SET);
 
-	/* mux back to the lradc 7th battery voltage channel */
-	__raw_writel(BF(0xF, LRADC_CTRL4_LRADC7SELECT),
-			REGS_LRADC_BASE + HW_LRADC_CTRL4_CLR);
-	__raw_writel(BF(7, LRADC_CTRL4_LRADC7SELECT),
-			REGS_LRADC_BASE + HW_LRADC_CTRL4_SET);
-
-	/* Clear the interrupt flag */
-	__raw_writel(BM_LRADC_CTRL1_LRADC7_IRQ,
-			REGS_LRADC_BASE + HW_LRADC_CTRL1_CLR);
-	__raw_writel(BF(1 << BATTERY_VOLTAGE_CH, LRADC_CTRL0_SCHEDULE),
-			REGS_LRADC_BASE + HW_LRADC_CTRL0_SET);
-
-	// Wait for conversion complete
-	while (!(__raw_readl(REGS_LRADC_BASE + HW_LRADC_CTRL1)
-			& BM_LRADC_CTRL1_LRADC7_IRQ))
-                cpu_relax();
-	/* Clear the interrupt flag */
-	__raw_writel(BM_LRADC_CTRL1_LRADC7_IRQ,
-			REGS_LRADC_BASE + HW_LRADC_CTRL1_CLR);
 
 	return (uint16_t)((ch9Value-ch8Value)*GAIN_CORRECTION/4000);
 }

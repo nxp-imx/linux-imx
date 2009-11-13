@@ -56,5 +56,6 @@ void hw_lradc_clear_delay_trigger(int trigger, u32 trigger_lradc,
 #define LRADC_DELAY_TRIGGER_BUTTON	0
 #define LRADC_DELAY_TRIGGER_BATTERY	1
 #define LRADC_DELAY_TRIGGER_TOUCHSCREEN	2
+#define LRADC_DELAY_TRIGGER_DIE		3
 
 #endif /* __ASM_PLAT_LRADC_H */
