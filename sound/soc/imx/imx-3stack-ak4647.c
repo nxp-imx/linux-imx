@@ -412,6 +412,12 @@ static int __init imx_3stack_asoc_init(void)
 	ret = platform_driver_register(&imx_3stack_ak4647_driver);
 	if (ret < 0)
 		goto exit;
+
+	if (snd_soc_card_imx_3stack.codec == NULL) {
+		ret = -ENOMEM;
+		goto err_device_alloc;
+	}
+
 	imx_3stack_snd_device = platform_device_alloc("soc-audio", 3);
 	if (!imx_3stack_snd_device)
 		goto err_device_alloc;
