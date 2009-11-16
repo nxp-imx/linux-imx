@@ -222,7 +222,7 @@ static void mcu_event_delay(unsigned long data)
  */
 static irqreturn_t mcu_irq_handler(int irq, void *dev_id)
 {
-	disable_irq(IOMUX_TO_IRQ(MX35_PIN_GPIO1_0));
+	disable_irq_nosync(IOMUX_TO_IRQ(MX35_PIN_GPIO1_0));
 	if (pseudo_suspend)
 		mod_timer(&mcu_delay_timer, jiffies + HZ);
 	else
