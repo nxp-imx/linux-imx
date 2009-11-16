@@ -41,6 +41,11 @@ static int bch_read(void *context,
 		struct stmp3xxx_dma_descriptor *chain,
 		dma_addr_t error,
 		dma_addr_t page, dma_addr_t oob);
+static int bch_write(void *context,
+		int index,
+		struct stmp3xxx_dma_descriptor *chain,
+		dma_addr_t error,
+		dma_addr_t page, dma_addr_t oob);
 static int bch_stat(void *ctx, int index, struct mtd_ecc_stats *r);
 static int bch_reset(void *context, int index);
 
@@ -62,6 +67,7 @@ struct bch_state_t {
 		struct mtd_ecc_stats stat;
 		struct completion done;
 		u32 writesize, oobsize;
+		u32 ecc0, eccn, metasize;
 	} nands[BCH_MAX_NANDS];
 };
 
@@ -73,6 +79,7 @@ static struct bch_state_t state = {
 		.setup		= bch_setup,
 		.stat		= bch_stat,
 		.read		= bch_read,
+		.write		= bch_write,
 		.reset		= bch_reset,
 	},
 };
@@ -102,6 +109,8 @@ static int bch_stat(void *context, int index, struct mtd_ecc_stats *r)
 {
 	struct bch_state_t *state = context;
 
+	wait_for_completion(&state->nands[index].done);
+
 	*r = state->nands[index].stat;
 	state->nands[index].stat.failed = 0;
 	state->nands[index].stat.corrected = 0;
@@ -119,7 +128,7 @@ static int bch_stat(void *context, int index, struct mtd_ecc_stats *r)
  */
 static irqreturn_t bch_irq(int irq, void *context)
 {
-	u32 b0, s0;
+	u32 b0, s0, ecc0;
 	struct mtd_ecc_stats stat;
 	int r;
 	struct bch_state_t *state = context;
@@ -127,16 +136,15 @@ static irqreturn_t bch_irq(int irq, void *context)
 	s0 = __raw_readl(REGS_BCH_BASE + HW_BCH_STATUS0);
 	r = (s0 & BM_BCH_STATUS0_COMPLETED_CE) >> 16;
 
+	ecc0 = state->nands[r].ecc0;
 	stat.corrected = stat.failed = 0;
 
 	b0 = (s0 & BM_BCH_STATUS0_STATUS_BLK0) >> 8;
-	if (b0 <= 4)
+	if (b0 <= ecc0)
 		stat.corrected += b0;
 	if (b0 == 0xFE)
 		stat.failed++;
 
-	if (s0 & BM_BCH_STATUS0_CORRECTED)
-		stat.corrected += (s0 & BM_BCH_STATUS0_CORRECTED);
 	if (s0 & BM_BCH_STATUS0_UNCORRECTABLE)
 		stat.failed++;
 
@@ -160,7 +168,7 @@ static irqreturn_t bch_irq(int irq, void *context)
  */
 static int bch_available(void *context)
 {
-	stmp3xxx_reset_block(REGS_BCH_BASE, 0);
+	stmp3xxx_reset_block(REGS_BCH_BASE, true);
 	return __raw_readl(REGS_BCH_BASE + HW_BCH_BLOCKNAME) == 0x20484342;
 }
 
@@ -179,20 +187,25 @@ static int bch_setup(void *context, int index, int writesize, int oobsize)
 {
 	struct bch_state_t *state = context;
 	u32 layout = (u32)REGS_BCH_BASE + 0x80 + index * 0x20;
-	u32 ecc0, eccN;
+	u32 ecc0, eccn, metasize;
 	u32 reg;
-	int meta;
 
 	switch (writesize) {
 	case 2048:
 		ecc0 = 4;
-		eccN = 4;
-		meta = 5;
+		eccn = 4;
+		metasize = 10;
 		break;
 	case 4096:
-		ecc0 = 16;
-		eccN = 14;
-		meta = 10;
+		if (oobsize == 128) {
+			ecc0 = 8;
+			eccn = 8;
+		} else {
+			ecc0 = 16;
+			eccn = 14;
+		}
+
+		metasize = 10;
 		break;
 	default:
 		printk(KERN_ERR"%s: cannot tune BCH for page size %d\n",
@@ -202,13 +215,16 @@ static int bch_setup(void *context, int index, int writesize, int oobsize)
 
 	state->nands[index].oobsize = oobsize;
 	state->nands[index].writesize = writesize;
+	state->nands[index].metasize = metasize;
+	state->nands[index].ecc0 = ecc0;
+	state->nands[index].eccn = eccn;
 
 	__raw_writel(BF(writesize/512, BCH_FLASH0LAYOUT0_NBLOCKS) |
-		     BF(oobsize, BCH_FLASH0LAYOUT0_META_SIZE) |
+		     BF(metasize, BCH_FLASH0LAYOUT0_META_SIZE) |
 		     BF(ecc0 >> 1, BCH_FLASH0LAYOUT0_ECC0) | /* for oob */
 		     BF(0x00, BCH_FLASH0LAYOUT0_DATA0_SIZE), layout);
 	__raw_writel(BF(writesize + oobsize, BCH_FLASH0LAYOUT1_PAGE_SIZE) |
-		     BF(eccN >> 1, BCH_FLASH0LAYOUT1_ECCN) | /* for dblock */
+		     BF(eccn >> 1, BCH_FLASH0LAYOUT1_ECCN) | /* for dblock */
 		     BF(512, BCH_FLASH0LAYOUT1_DATAN_SIZE), layout + 0x10);
 
 	/*
@@ -293,7 +309,7 @@ static int bch_read(void *context,
 	chain->command->pio_words[0] =
 		BF(BV_GPMI_CTRL0_COMMAND_MODE__READ, GPMI_CTRL0_COMMAND_MODE) |
 		BM_GPMI_CTRL0_WORD_LENGTH	|
-		BF(index, GPMI_CTRL0_CS)		|
+		BF(index, GPMI_CTRL0_CS)	|
 		BF(readsize, GPMI_CTRL0_XFER_COUNT);
 	chain->command->pio_words[1] = 0;
 	chain->command->pio_words[2] =
@@ -317,8 +333,8 @@ static int bch_read(void *context,
 	chain->command->pio_words[0] =
 		BF(BV_GPMI_CTRL0_COMMAND_MODE__WAIT_FOR_READY,
 			GPMI_CTRL0_COMMAND_MODE) |
-		BM_GPMI_CTRL0_WORD_LENGTH	|
-		BF(index, GPMI_CTRL0_CS)		|
+		BM_GPMI_CTRL0_WORD_LENGTH	 |
+		BF(index, GPMI_CTRL0_CS)	 |
 		BF(readsize, GPMI_CTRL0_XFER_COUNT);
 	chain->command->pio_words[1] = 0;
 	chain->command->pio_words[2] = 0;
@@ -332,6 +348,65 @@ static int bch_read(void *context,
 		BM_APBH_CHn_CMD_IRQONCMPLT	|
 		BF(BV_APBH_CHn_CMD_COMMAND__NO_DMA_XFER, APBH_CHn_CMD_COMMAND);
 	chain->command->alternate = 0;
+
+	init_completion(&state->nands[index].done);
+	return 0;
+}
+
+static int bch_write(void *context,
+		int index,
+		struct stmp3xxx_dma_descriptor *chain,
+		dma_addr_t error,
+		dma_addr_t page, dma_addr_t oob)
+{
+	unsigned long writesize = 0;
+	u32 bufmask = 0;
+	struct bch_state_t *state = context;
+
+	if (!dma_mapping_error(NULL, oob)) {
+		bufmask |= BV_GPMI_ECCCTRL_BUFFER_MASK__BCH_AUXONLY;
+		writesize += state->nands[index].oobsize;
+	}
+	if (!dma_mapping_error(NULL, page)) {
+		bufmask |= (BV_GPMI_ECCCTRL_BUFFER_MASK__BCH_PAGE
+				& ~BV_GPMI_ECCCTRL_BUFFER_MASK__BCH_AUXONLY);
+		writesize += state->nands[index].writesize;
+	}
+
+	pr_debug("writesize = %ld, bufmask = 0x%X\n", writesize, bufmask);
+	bch_reset(context, index);
+
+	/* enable BCH and write NAND data */
+	chain->command->cmd =
+		BF(6, APBH_CHn_CMD_CMDWORDS)    |
+		BM_APBH_CHn_CMD_WAIT4ENDCMD     |
+		BM_APBH_CHn_CMD_NANDLOCK        |
+		BM_APBH_CHn_CMD_CHAIN           |
+		BF(BV_APBH_CHn_CMD_COMMAND__NO_DMA_XFER, APBH_CHn_CMD_COMMAND);
+	chain->command->pio_words[0] =
+		BF(BV_GPMI_CTRL0_COMMAND_MODE__WRITE, GPMI_CTRL0_COMMAND_MODE) |
+		BM_GPMI_CTRL0_WORD_LENGTH       |
+		BF(index, GPMI_CTRL0_CS)        |
+		BF(0, GPMI_CTRL0_XFER_COUNT);
+	chain->command->pio_words[1] = 0;
+	chain->command->pio_words[2] =
+		BM_GPMI_ECCCTRL_ENABLE_ECC      |
+		BF(0x03, GPMI_ECCCTRL_ECC_CMD)  |
+		BF(bufmask, GPMI_ECCCTRL_BUFFER_MASK);
+	chain->command->pio_words[3] = writesize;
+	chain->command->pio_words[4] =
+		!dma_mapping_error(NULL, page) ? page : 0;
+	chain->command->pio_words[5] =
+		!dma_mapping_error(NULL, oob) ? oob : 0;
+	chain->command->alternate = 0;
+	chain++;
+
+	/* emit IRQ */
+	chain->command->cmd =
+		BF(0, APBH_CHn_CMD_CMDWORDS)    |
+		BM_APBH_CHn_CMD_WAIT4ENDCMD	|
+		BM_APBH_CHn_CMD_IRQONCMPLT      |
+		BF(BV_APBH_CHn_CMD_COMMAND__NO_DMA_XFER, APBH_CHn_CMD_COMMAND);
 
 	return 0;
 }
