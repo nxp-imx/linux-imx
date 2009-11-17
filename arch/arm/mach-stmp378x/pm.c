@@ -69,7 +69,9 @@ static void stmp378x_standby(void)
 	stmp3xxx_setl(BM_DRAM_CTL08_SREFRESH, REGS_DRAM_BASE + HW_DRAM_CTL08);
 
 	/* Gating EMI CLock */
-	stmp3xxx_setl(BM_CLKCTRL_EMI_CLKGATE, REGS_CLKCTRL_BASE + HW_CLKCTRL_EMI);
+	__raw_writel(BM_CLKCTRL_EMI_CLKGATE |
+			__raw_readl(REGS_CLKCTRL_BASE + HW_CLKCTRL_EMI),
+			REGS_CLKCTRL_BASE + HW_CLKCTRL_EMI);
 
 	/* Disable PLL */
 	stmp3xxx_clearl(BM_CLKCTRL_PLLCTRL0_POWER, REGS_CLKCTRL_BASE + HW_CLKCTRL_PLLCTRL0);
@@ -166,7 +168,9 @@ static void stmp378x_standby(void)
 	/* Enable PLL */
 	stmp3xxx_setl(BM_CLKCTRL_PLLCTRL0_POWER, REGS_CLKCTRL_BASE + HW_CLKCTRL_PLLCTRL0);
 	/* Ungating EMI CLock */
-	stmp3xxx_clearl(BM_CLKCTRL_EMI_CLKGATE, REGS_CLKCTRL_BASE + HW_CLKCTRL_EMI);
+	__raw_writel(~BM_CLKCTRL_EMI_CLKGATE &
+			__raw_readl(REGS_CLKCTRL_BASE + HW_CLKCTRL_EMI),
+			REGS_CLKCTRL_BASE + HW_CLKCTRL_EMI);
 
 	/* LeaveSelfrefreshMode */
 	stmp3xxx_clearl(BM_DRAM_CTL08_SREFRESH, REGS_DRAM_BASE + HW_DRAM_CTL08);
@@ -202,7 +206,7 @@ static inline void do_standby(void)
 	flush_cache_all();
 
 	/* copy suspend function into SRAM */
-	memcpy((void *)STMP3XXX_OCRAM_BASE, stmp37xx_cpu_standby,
+	memcpy((void *)STMP3XXX_OCRAM_BASE, stmp378x_standby,
 			MAX_POWEROFF_CODE_SIZE);
 
 	/* now switch the CPU to ref_xtal */
@@ -218,7 +222,6 @@ static inline void do_standby(void)
 		clk_set_parent(cpu_clk, osc_clk);
 	}
 
-	local_irq_disable();
 	local_fiq_disable();
 
 	stmp3xxx_dma_suspend();
@@ -272,7 +275,6 @@ static inline void do_standby(void)
 	stmp3xxx_dma_resume();
 
 	local_fiq_enable();
-	local_irq_enable();
 
 	if (cpu_parent) {
 		clk_set_parent(cpu_clk, cpu_parent);
