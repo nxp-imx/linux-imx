@@ -106,7 +106,12 @@ __stmp_emi_set_values:
 
 stmp3xxx_ram_24M_set_timings:
 	ldr	r0, __stmp_dram_ctl00
+#ifdef CONFIG_STMP378X_RAM_MDDR
 	adr	r1, __stmp_dram_24M_values
+#else
+//  96MHz is the lowest frequency supported for DDR1.
+	adr	r1, __stmp_dram_96M_values
+#endif
 1:	ldr	r2, [r1]
 	ldr	r3, [r1, #4]
 	mov	r4, r2, lsl #2
@@ -118,7 +123,12 @@ stmp3xxx_ram_24M_set_timings:
 
 stmp3xxx_ram_48M_set_timings:
 	ldr	r0, __stmp_dram_ctl00
+#ifdef CONFIG_STMP378X_RAM_MDDR
 	adr	r1, __stmp_dram_48M_values
+#else
+//  96MHz is the lowest frequency supported for DDR1.
+	adr	r1, __stmp_dram_96M_values
+#endif
 1:	ldr	r2, [r1]
 	ldr	r3, [r1, #4]
 	mov	r4, r2, lsl #2
@@ -130,7 +140,12 @@ stmp3xxx_ram_48M_set_timings:
 
 stmp3xxx_ram_60M_set_timings:
 	ldr	r0, __stmp_dram_ctl00
+#ifdef CONFIG_STMP378X_RAM_MDDR
 	adr	r1, __stmp_dram_60M_values
+#else
+//  96MHz is the lowest frequency supported for DDR1.
+	adr	r1, __stmp_dram_96M_values
+#endif
 1:	ldr	r2, [r1]
 	ldr	r3, [r1, #4]
 	mov	r4, r2, lsl #2
@@ -142,7 +157,12 @@ stmp3xxx_ram_60M_set_timings:
 
 stmp3xxx_ram_80M_set_timings:
 	ldr	r0, __stmp_dram_ctl00
+#ifdef CONFIG_STMP378X_RAM_MDDR
 	adr	r1, __stmp_dram_80M_values
+#else
+//  96MHz is the lowest frequency supported for DDR1.
+	adr	r1, __stmp_dram_96M_values
+#endif
 1:	ldr	r2, [r1]
 	ldr	r3, [r1, #4]
 	mov	r4, r2, lsl #2
@@ -413,133 +433,6 @@ __stmp_dram_150M_values:
 	.word    0x00040000
 
 #elif CONFIG_STMP378X_RAM_DDR
-/* XXX: not quite ready yet */
-__stmp_dram_24M_values:
-	.word	4
-	.word	0x01000101
-	.word	7
-	.word	0x01000101
-	.word	11
-	.word	0x00070206
-	.word	12
-	.word	0x01010000 @ t_wr 1, t_rrd 1, t_cke 0
-	.word	13
-	.word	0x04040a01 @ t_wtr 1
-	.word	15
-	.word	0x01020000 @ t_rp 1, t_dal 2
-	.word	17
-	.word	0x3d000302 @ t_rc 2
-	.word	20
-	.word	0x01020508
-	.word	21
-	.word	0x00000002 @ t_rfc 2
-	.word	26
-	.word	0x000000b3 /* 0xd20 */ @ t_ref
-	.word	32
-	.word	0x00020690 @ t_xsnr 2, t_rasmax 0x690
-	.word	33
-	.word	0x000000c8 @ t_xsr 0xc8
-	.word	34
-	.word	0x000012c1 @ t_init
-	.word	40
-	.word	0x00010000
-
-@ not yet
-__stmp_dram_48M_values:
-	.word	4
-	.word	0x01000101
-	.word	7
-	.word	0x01000101
-	.word	11
-	.word	0x00070206
-	.word	12
-	.word	0x01010000 @ t_wr 1, t_rrd 1, t_cke 0
-	.word	13
-	.word	0x04040a01 @ t_wtr 1
-	.word	15
-	.word	0x01020000 @ t_rp 1, t_dal 2
-	.word	17
-	.word	0x39000104 @ t_rc 4
-	.word	19
-	.word	0x027f1010
-	.word	20
-	.word	0x02030a10
-	.word	21
-	.word	0x00000004 @ t_rfc
-	.word	26
-	.word	0x00000173 /* 0x1a42 */ @ t_ref
-	.word	32
-	.word	0x00040d21 @ t_xsnr 4, t_rasmax 0xd21
-	.word	33
-	.word	0x000000c8 @ t_xsr 0xc8
-	.word	34
-	.word	0x00002586 @ t_init
-	.word	40
-	.word	0x00010000
-
-__stmp_dram_60M_values:
-	.word	4
-	.word	0x01000101
-	.word	7
-	.word	0x01000101
-	.word	11
-	.word	0x00070206
-	.word	12
-	.word	0x01010000 @ t_wr 1, t_rrd 1, t_cke 0
-	.word	13
-	.word	0x04040a01 @ t_wtr 1
-	.word	15
-	.word	0x01020000 @ t_rp 1, t_dal 2
-	.word	17
-	.word	0x3d000105 @ t_rc 5
-	.word	19
-	.word	0x027f1313
-	.word	20
-	.word	0x01031523 @ t_rcd 1, t_rasmin 3
-	.word	21
-	.word	0x00000005 @ t_rfc 5
-	.word	26
-	.word	0x000001cc /* 0x20cd */ @ t_ref
-	.word	32
-	.word	0x00051068 @ t_xsnr 5, t_rasmax 0x1068
-	.word	33
-	.word	0x000000c8 @ t_xsr 0xc8
-	.word	34
-	.word	0x00002ee5 @ t_init
-	.word	40
-	.word	0x00010000
-
-__stmp_dram_80M_values:
-	.word	4
-	.word	0x00000101
-	.word	7
-	.word	0x01000001
-	.word	11
-	.word	0x00070206
-	.word	12
-	.word	0x02010000 @ t_wr 2, t_rrd 1, t_cke 0
-	.word	13
-	.word	0x04040a01 @ t_wtr 1
-	.word	15
-	.word	0x02040000 @ t_rp 2, t_dal 4
-	.word	17
-	.word	0x20001c05 @ dll_start_point 0x20, dll_increment 0x1c, t_rc 5
-	.word	19
-	.word	0x027f1313
-	.word	20
-	.word	0x02041522 @ t_rcd 2, t_rasmin 4, wr_dqs_shift 0x22
-	.word	21
-	.word	0x00000006 @ t_rfc 6
-	.word	26
-	.word	0x00000269 @ t_ref
-	.word	32
-	.word	0x000615d6 @ t_xsnr 6, t_rasmax 0x15d6
-	.word	33
-	.word	0x000000c8 @ t_xsr 0xc8
-	.word	34
-	.word	0x00003e80 @ t_init
-	.word	40
-	.word	0x00010000
 
 __stmp_dram_96M_values:
 	.word	4
@@ -547,7 +440,7 @@ __stmp_dram_96M_values:
 	.word	7
 	.word	0x01000001
 	.word	11
-	.word	0x00070206
+	.word	0x00070202
 	.word	12
 	.word	0x02020000 @ t_wr 2, t_rrd 2, t_cke 0
 	.word	13
@@ -579,7 +472,7 @@ __stmp_dram_120M_values:
 	.word	7
 	.word	0x01000001
 	.word	11
-	.word	0x00070206
+	.word	0x00070202
 	.word	12
 	.word	0x02020000 @ t_wr 2, t_rrd 2, t_cke 0
 	.word	13
@@ -611,7 +504,7 @@ __stmp_dram_133M_values:
 	.word	7
 	.word	0x01000001
 	.word	11
-	.word	0x00070204
+	.word	0x00070202
 	.word	12
 	.word	0x02020000
 	.word	13
@@ -642,10 +535,22 @@ __stmp_dram_150M_values:
 	.word	0x00000101
 	.word	7
 	.word	0x01000001
+/*
+Note that CASLAT of 0x06 means 2.5 cycles.  This is needed to operate at this
+frequency. HOWEVER, we would need to implement the setting of WRITEMODEREG
+after setting CAS latency to assure that the new CAS latency is actually
+being used in the EMI controller.  Otherwise, the controller will still be
+using whatever was set the first time the EMI controller was initialized.
+Also, a CASLAT of 2.5 needs caslat_lin and caslat_lin_gate of 0x05
+(also 2.5 cycles).
+*/
 	.word	11
 	.word	0x00070206
 	.word	12
 	.word	0x02020000 @ t_wr 2, t_rrd 2, t_cke 0
+/*
+	caslat_lin and caslat_lin_gate of 0x05 since CASLAT is 0x06 (2.5 cycles).  See above note.
+*/
 	.word	13
 	.word	0x05050a02 @ t_wtr 2
 	.word	15
