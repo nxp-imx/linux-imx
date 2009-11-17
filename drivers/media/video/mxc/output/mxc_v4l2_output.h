@@ -139,6 +139,9 @@ typedef struct _vout_data {
 	struct stripe_param pp_right_stripe; /* struct for split parameters */
 	/* IC ouput buffer number. Counting from 0 to 3 */
 	int pp_split_buf_num; /*  0..3 */
+	u16 bpp ; /* bit per pixel */
+	u16 xres; /* width of physical frame (BGs) */
+	u16 yres; /* heigth of physical frame (BGs)*/
 
 } vout_data;
 

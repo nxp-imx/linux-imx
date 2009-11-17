@@ -498,7 +498,9 @@ static irqreturn_t mxc_v4l2out_pp_in_irq_handler(int irq, void *dev_id)
 	int disp_buf_num_next = 1;
 	int pp_out_buf_offset = 0;
 	int release_buffer = 1;
-	int eba_offset;
+	u32 eba_offset;
+	u16 x_pos;
+	u16 y_pos;
 	int ret = -1;
 	spin_lock_irqsave(&g_lock, lock_flags);
 
@@ -554,10 +556,16 @@ static irqreturn_t mxc_v4l2out_pp_in_irq_handler(int irq, void *dev_id)
 			/* offset for next buffer's EBA */
 			pp_out_buf_offset = pp_out_buf_num ? vout->pp_right_stripe.output_column :
 												vout->pp_left_stripe.output_column;
+			eba_offset = 0;
+			if (vout->cur_disp_output == 5) {
+				x_pos = (vout->crop_current.left / 8) * 8;
+				y_pos = vout->crop_current.top;
+				eba_offset = (vout->xres * y_pos + x_pos) * vout->bpp / 8;
+			}
 
 			/* next buffer update */
 			eba_offset = vout->display_bufs[disp_buf_num_next] +
-								pp_out_buf_offset;
+								pp_out_buf_offset + eba_offset;
 
 			ipu_update_channel_buffer(vout->post_proc_ch, IPU_OUTPUT_BUFFER,
 												pp_out_buf_num, eba_offset);
@@ -847,13 +855,28 @@ static int init_PP(ipu_channel_params_t *params, vout_data *vout,
 {
 	u16 in_width, out_stride; /* stride of output channel */
 	unsigned int ipu_ic_out_max_width_size;
+	u32 eba_offset;
+	u16 x_pos;
+	u16 y_pos;
+	eba_offset = 0;
+	x_pos = 0;
+	y_pos = 0;
 
 	if (vout->display_ch == ADC_SYS2)
 		params->mem_pp_mem.out_pixel_fmt = SDC_FG_FB_FORMAT;
 	else
 		params->mem_pp_mem.out_pixel_fmt = bpp_to_fmt(fbi);
 
-	out_stride = out_width;
+	if (vout->cur_disp_output == 5) {
+		x_pos = (vout->crop_current.left / 8) * 8;
+		y_pos = vout->crop_current.top;
+		eba_offset = (vout->xres*y_pos + x_pos) *
+						bytes_per_pixel(params->mem_pp_mem.out_pixel_fmt);
+	}
+
+	vout->bpp = fmt_to_bpp(params->mem_pp_mem.out_pixel_fmt);
+	out_stride = vout->xres *
+				bytes_per_pixel(params->mem_pp_mem.out_pixel_fmt);
 	in_width = params->mem_pp_mem.in_width = vout->v2f.fmt.pix.width;
 	params->mem_pp_mem.in_height = vout->v2f.fmt.pix.height;
 	params->mem_pp_mem.in_pixel_fmt = vout->v2f.fmt.pix.pixelformat;
@@ -869,7 +892,6 @@ static int init_PP(ipu_channel_params_t *params, vout_data *vout,
 	/* split IC by two stripes, the by pass is impossible*/
 	if (out_width > ipu_ic_out_max_width_size) {
 		vout->pp_split = 1;
-		out_stride = 2*out_width;
 
 
 		ipu_calc_stripes_sizes(
@@ -949,8 +971,8 @@ static int init_PP(ipu_channel_params_t *params, vout_data *vout,
 					    out_pixel_fmt, out_width,
 					    out_height, out_stride,
 					    IPU_ROTATE_NONE,
-					    vout->rot_pp_bufs[0],
-					    vout->rot_pp_bufs[1], 0, 0) != 0) {
+					    vout->rot_pp_bufs[0] + eba_offset,
+					    vout->rot_pp_bufs[1] + eba_offset, 0, 0) != 0) {
 			dev_err(dev, "Error initializing PP output buffer\n");
 			return -EINVAL;
 		}
@@ -974,7 +996,7 @@ static int init_PP(ipu_channel_params_t *params, vout_data *vout,
 
 		/* swap width and height */
 		if (vout->rotate >= IPU_ROTATE_90_RIGHT) {
-			out_stride = out_width = vout->crop_current.width;
+			out_width = vout->crop_current.width;
 			out_height = vout->crop_current.height;
 		}
 
@@ -984,8 +1006,8 @@ static int init_PP(ipu_channel_params_t *params, vout_data *vout,
 					    out_pixel_fmt, out_width,
 					    out_height, out_stride,
 					    IPU_ROTATE_NONE,
-					    vout->display_bufs[0],
-					    vout->display_bufs[1], 0, 0) != 0) {
+					    vout->display_bufs[0] + eba_offset,
+					    vout->display_bufs[1] + eba_offset, 0, 0) != 0) {
 			dev_err(dev, "Error initializing PP output buffer\n");
 			return -EINVAL;
 		}
@@ -1006,8 +1028,8 @@ static int init_PP(ipu_channel_params_t *params, vout_data *vout,
 					    out_pixel_fmt, out_width,
 					    out_height, out_stride,
 					    vout->rotate,
-					    vout->display_bufs[0],
-					    vout->display_bufs[1], 0, 0) != 0) {
+					    vout->display_bufs[0] + eba_offset,
+					    vout->display_bufs[1] + eba_offset, 0, 0) != 0) {
 			dev_err(dev, "Error initializing PP output buffer\n");
 			return -EINVAL;
 		}
@@ -1025,12 +1047,12 @@ static int init_PP(ipu_channel_params_t *params, vout_data *vout,
 									vout->pp_right_stripe.input_column);
 		ipu_update_channel_buffer(vout->post_proc_ch, IPU_OUTPUT_BUFFER,
 									0,
-									vout->display_bufs[0] +
+									vout->display_bufs[0] + eba_offset +
 									vout->pp_left_stripe.output_column);
 
 		ipu_update_channel_buffer(vout->post_proc_ch, IPU_OUTPUT_BUFFER,
 									1,
-									vout->display_bufs[0] +
+									vout->display_bufs[0] + eba_offset +
 									vout->pp_right_stripe.output_column);
 	}
 
@@ -1059,6 +1081,7 @@ static int mxc_v4l2out_streamon(vout_data * vout)
 	bool use_direct_adc = false;
 	mm_segment_t old_fs;
 	int rc = 0;
+	volatile u32 *address;
 
 	dev_dbg(dev, "mxc_v4l2out_streamon: field format=%d\n",
 		vout->field_fmt);
@@ -1293,6 +1316,8 @@ static int mxc_v4l2out_streamon(vout_data * vout)
 		}
 
 		vout->display_ch = ipu_ch;
+		vout->xres = fbvar.xres;
+		vout->yres = fbvar.yres;
 
 		if (vout->cur_disp_output == 3 || vout->cur_disp_output == 5) {
 			fbvar.bits_per_pixel = 16;
@@ -1300,9 +1325,14 @@ static int mxc_v4l2out_streamon(vout_data * vout)
 				fbvar.nonstd = IPU_PIX_FMT_UYVY;
 			else
 				fbvar.nonstd = 0;
+			if (vout->cur_disp_output == 3) {
+				fbvar.xres = out_width;
+				fbvar.yres = out_height;
+				vout->xres = fbvar.xres;
+				vout->yres = fbvar.yres;
+			}
 
-			fbvar.xres = fbvar.xres_virtual = out_width;
-			fbvar.yres = out_height;
+			fbvar.xres_virtual = out_width;
 			fbvar.yres_virtual = out_height * 2;
 		}
 
@@ -1327,9 +1357,14 @@ static int mxc_v4l2out_streamon(vout_data * vout)
 
 		vout->display_bufs[1] = fbi->fix.smem_start;
 		vout->display_bufs[0] = fbi->fix.smem_start +
-		    (fbi->fix.line_length * fbi->var.yres);
-		vout->display_buf_size = vout->crop_current.width *
-		    vout->crop_current.height * fbi->var.bits_per_pixel / 8;
+			(fbi->fix.line_length * vout->yres);
+		vout->display_buf_size = vout->xres *
+			vout->yres * fbi->var.bits_per_pixel / 8;
+		/* green screen */
+		address = phys_to_virt(vout->display_bufs[0]);
+		memset(address, 0x10, vout->display_buf_size);
+		address = phys_to_virt(vout->display_bufs[1]);
+		memset(address, 0x10, vout->display_buf_size);
 		if (INTERLACED_CONTENT(vout))
 			vout->post_proc_ch = MEM_VDI_PRP_VF_MEM;
 		else
@@ -2196,8 +2231,7 @@ mxc_v4l2out_do_ioctl(struct file *file,
 			}
 
 			/* only full screen supported for SDC BG and SDC DC */
-			if (vout->cur_disp_output == 4 ||
-			    vout->cur_disp_output == 5) {
+			if (vout->cur_disp_output == 4) {
 				crop->c = vout->crop_current;
 				break;
 			}
