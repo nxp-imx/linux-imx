@@ -169,16 +169,16 @@ static void pxp_set_ctrl(struct pxps *pxp)
 	if (pxp->active)
 		ctrl |= BM_PXP_CTRL_ENABLE;
 
-	__raw_writel(ctrl, REGS_PXP_BASE + HW_PXP_CTRL);
+	__raw_writel(ctrl, HW_PXP_CTRL_ADDR);
 }
 
 static void pxp_set_rgbbuf(struct pxps *pxp)
 {
-	__raw_writel(pxp->outb_phys, REGS_PXP_BASE + HW_PXP_RGBBUF);
+	__raw_writel(pxp->outb_phys, HW_PXP_RGBBUF_ADDR);
 	/* Always equal to the FB size */
 	__raw_writel(BF(pxp->fb.fmt.width, PXP_RGBSIZE_WIDTH) |
 			  BF(pxp->fb.fmt.height, PXP_RGBSIZE_HEIGHT),
-			  REGS_PXP_BASE + HW_PXP_RGBSIZE);
+			  HW_PXP_RGBSIZE_ADDR);
 }
 
 static void pxp_set_s0colorkey(struct pxps *pxp)
@@ -186,11 +186,11 @@ static void pxp_set_s0colorkey(struct pxps *pxp)
 	/* Low and high are set equal. V4L does not allow a chromakey range */
 	if (pxp->s0_chromakey == -1) {
 		/* disable color key */
-		__raw_writel(0xFFFFFF, REGS_PXP_BASE + HW_PXP_S0COLORKEYLOW);
-		__raw_writel(0, REGS_PXP_BASE + HW_PXP_S0COLORKEYHIGH);
+		__raw_writel(0xFFFFFF, HW_PXP_S0COLORKEYLOW_ADDR);
+		__raw_writel(0, HW_PXP_S0COLORKEYHIGH_ADDR);
 	} else {
-		__raw_writel(pxp->s0_chromakey, REGS_PXP_BASE + HW_PXP_S0COLORKEYLOW);
-		__raw_writel(pxp->s0_chromakey, REGS_PXP_BASE + HW_PXP_S0COLORKEYHIGH);
+		__raw_writel(pxp->s0_chromakey, HW_PXP_S0COLORKEYLOW_ADDR);
+		__raw_writel(pxp->s0_chromakey, HW_PXP_S0COLORKEYHIGH_ADDR);
 	}
 }
 
@@ -198,21 +198,21 @@ static void pxp_set_s1colorkey(struct pxps *pxp)
 {
 	/* Low and high are set equal. V4L does not allow a chromakey range */
 	if (pxp->s1_chromakey_state != 0 && pxp->s1_chromakey != -1) {
-		__raw_writel(pxp->s1_chromakey, REGS_PXP_BASE + HW_PXP_OLCOLORKEYLOW);
-		__raw_writel(pxp->s1_chromakey, REGS_PXP_BASE + HW_PXP_OLCOLORKEYHIGH);
+		__raw_writel(pxp->s1_chromakey, HW_PXP_OLCOLORKEYLOW_ADDR);
+		__raw_writel(pxp->s1_chromakey, HW_PXP_OLCOLORKEYHIGH_ADDR);
 	} else {
 		/* disable color key */
-		__raw_writel(0xFFFFFF, REGS_PXP_BASE + HW_PXP_OLCOLORKEYLOW);
-		__raw_writel(0, REGS_PXP_BASE + HW_PXP_OLCOLORKEYHIGH);
+		__raw_writel(0xFFFFFF, HW_PXP_OLCOLORKEYLOW_ADDR);
+		__raw_writel(0, HW_PXP_OLCOLORKEYHIGH_ADDR);
 	}
 }
 
 static void pxp_set_oln(struct pxps *pxp)
 {
-	__raw_writel((u32)pxp->fb.base, REGS_PXP_BASE + HW_PXP_OL0);
+	__raw_writel((u32)pxp->fb.base, HW_PXP_OLn_ADDR(0));
 	__raw_writel(BF(pxp->fb.fmt.width >> 3, PXP_OLnSIZE_WIDTH) |
 				BF(pxp->fb.fmt.height >> 3, PXP_OLnSIZE_HEIGHT),
-				REGS_PXP_BASE + HW_PXP_OL0SIZE);
+				HW_PXP_OLnSIZE_ADDR(0));
 }
 
 static void pxp_set_olparam(struct pxps *pxp)
@@ -234,7 +234,7 @@ static void pxp_set_olparam(struct pxps *pxp)
 		olparam |= BM_PXP_OLnPARAM_ENABLE_COLORKEY;
 	if (pxp->overlay_state)
 		olparam |= BM_PXP_OLnPARAM_ENABLE;
-	__raw_writel(olparam, REGS_PXP_BASE + HW_PXP_OL0PARAM);
+	__raw_writel(olparam, HW_PXP_OLnPARAM_ADDR(0));
 }
 
 static void pxp_set_s0param(struct pxps *pxp)
@@ -245,7 +245,7 @@ static void pxp_set_s0param(struct pxps *pxp)
 	s0param |= BF(pxp->drect.top >> 3, PXP_S0PARAM_YBASE);
 	s0param |= BF(pxp->s0_width >> 3, PXP_S0PARAM_WIDTH);
 	s0param |= BF(pxp->s0_height >> 3, PXP_S0PARAM_HEIGHT);
-	__raw_writel(s0param, REGS_PXP_BASE + HW_PXP_S0PARAM);
+	__raw_writel(s0param, HW_PXP_S0PARAM_ADDR);
 }
 
 static void pxp_set_s0crop(struct pxps *pxp)
@@ -256,7 +256,7 @@ static void pxp_set_s0crop(struct pxps *pxp)
 	s0crop |= BF(pxp->srect.top >> 3, PXP_S0CROP_YBASE);
 	s0crop |= BF(pxp->drect.width >> 3, PXP_S0CROP_WIDTH);
 	s0crop |= BF(pxp->drect.height >> 3, PXP_S0CROP_HEIGHT);
-	__raw_writel(s0crop, REGS_PXP_BASE + HW_PXP_S0CROP);
+	__raw_writel(s0crop, HW_PXP_S0CROP_ADDR);
 }
 
 static int pxp_set_scaling(struct pxps *pxp)
@@ -282,7 +282,7 @@ static int pxp_set_scaling(struct pxps *pxp)
 	yscale = pxp->srect.height * 0x1000 / pxp->drect.height;
 	s0scale = BF(yscale, PXP_S0SCALE_YSCALE) |
 		  BF(xscale, PXP_S0SCALE_XSCALE);
-	__raw_writel(s0scale, REGS_PXP_BASE + HW_PXP_S0SCALE);
+	__raw_writel(s0scale, HW_PXP_S0SCALE_ADDR);
 
 out:
 	pxp_set_ctrl(pxp);
@@ -311,21 +311,21 @@ static int pxp_set_fbinfo(struct pxps *pxp)
 
 static void pxp_set_s0bg(struct pxps *pxp)
 {
-	__raw_writel(pxp->s0_bgcolor, REGS_PXP_BASE + HW_PXP_S0BACKGROUND);
+	__raw_writel(pxp->s0_bgcolor, HW_PXP_S0BACKGROUND_ADDR);
 }
 
 static void pxp_set_csc(struct pxps *pxp)
 {
 	if (pxp->yuv) {
 		/* YUV colorspace */
-		__raw_writel(0x04030000, REGS_PXP_BASE + HW_PXP_CSCCOEFF0);
-		__raw_writel(0x01230208, REGS_PXP_BASE + HW_PXP_CSCCOEFF1);
-		__raw_writel(0x076b079c, REGS_PXP_BASE + HW_PXP_CSCCOEFF2);
+		__raw_writel(0x04030000, HW_PXP_CSCCOEFF0_ADDR);
+		__raw_writel(0x01230208, HW_PXP_CSCCOEFF1_ADDR);
+		__raw_writel(0x076b079c, HW_PXP_CSCCOEFF2_ADDR);
 	} else {
 		/* YCrCb colorspace */
-		__raw_writel(0x84ab01f0, REGS_PXP_BASE + HW_PXP_CSCCOEFF0);
-		__raw_writel(0x01230204, REGS_PXP_BASE + HW_PXP_CSCCOEFF1);
-		__raw_writel(0x0730079c, REGS_PXP_BASE + HW_PXP_CSCCOEFF2);
+		__raw_writel(0x84ab01f0, HW_PXP_CSCCOEFF0_ADDR);
+		__raw_writel(0x01230204, HW_PXP_CSCCOEFF1_ADDR);
+		__raw_writel(0x0730079c, HW_PXP_CSCCOEFF2_ADDR);
 	}
 }
 
@@ -723,7 +723,7 @@ static void pxp_buf_output(struct pxps *pxp)
 	if (pxp->active) {
 		pxp->active->state = VIDEOBUF_ACTIVE;
 		Y = videobuf_to_dma_contig(pxp->active);
-		__raw_writel(Y, REGS_PXP_BASE + HW_PXP_S0BUF);
+		__raw_writel(Y, HW_PXP_S0BUF_ADDR);
 		if ((pxp->s0_fmt->fourcc == V4L2_PIX_FMT_YUV420) ||
 		    (pxp->s0_fmt->fourcc == V4L2_PIX_FMT_YUV422P)) {
 			int s = 1;	/* default to YUV 4:2:2 */
@@ -731,10 +731,10 @@ static void pxp_buf_output(struct pxps *pxp)
 				s = 2;
 			U = Y + (pxp->s0_width * pxp->s0_height);
 			V = U + ((pxp->s0_width * pxp->s0_height) >> s);
-			__raw_writel(U, REGS_PXP_BASE + HW_PXP_S0UBUF);
-			__raw_writel(V, REGS_PXP_BASE + HW_PXP_S0VBUF);
+			__raw_writel(U, HW_PXP_S0UBUF_ADDR);
+			__raw_writel(V, HW_PXP_S0VBUF_ADDR);
 		}
-		stmp3xxx_setl(BM_PXP_CTRL_ENABLE, REGS_PXP_BASE + HW_PXP_CTRL);
+		__raw_writel(BM_PXP_CTRL_ENABLE, HW_PXP_CTRL_SET_ADDR);
 	}
 }
 
@@ -958,7 +958,7 @@ static int pxp_hw_init(struct pxps *pxp)
 		return err;
 
 	/* Pull PxP out of reset */
-	__raw_writel(0, REGS_PXP_BASE + HW_PXP_CTRL);
+	__raw_writel(0, HW_PXP_CTRL_ADDR);
 
 	/* Config defaults */
 	pxp->active = NULL;
@@ -1119,7 +1119,7 @@ static irqreturn_t pxp_irq(int irq, void *dev_id)
 
 	spin_lock_irqsave(&pxp->lock, flags);
 
-	stmp3xxx_clearl(BM_PXP_STAT_IRQ, REGS_PXP_BASE + HW_PXP_STAT);
+	__raw_writel(BM_PXP_STAT_IRQ, HW_PXP_STAT_CLR_ADDR);
 
 	vb = pxp->active;
 	vb->state = VIDEOBUF_DONE;
@@ -1252,7 +1252,7 @@ static int pxp_suspend(struct platform_device *pdev, pm_message_t state)
 {
 	int i;
 
-	while (HW_PXP_CTRL_RD() & BM_PXP_CTRL_ENABLE)
+	while (__raw_readl(HW_PXP_CTRL_ADDR) & BM_PXP_CTRL_ENABLE)
 		;
 
 	for (i = 0; i < REGS1_NUMS; i++)
@@ -1262,9 +1262,9 @@ static int pxp_suspend(struct platform_device *pdev, pm_message_t state)
 		regs2[i] = __raw_readl(HW_PXP_PAGETABLE_ADDR + REG_OFFSET * i);
 
 	for (i = 0; i < REGS3_NUMS; i++)
-		regs3[i] = __raw_readl(HW_PXP_OL0_ADDR + REG_OFFSET * i);
+		regs3[i] = __raw_readl(HW_PXP_OLn_ADDR(0) + REG_OFFSET * i);
 
-	HW_PXP_CTRL_SET(BM_PXP_CTRL_SFTRST);
+	__raw_writel(BM_PXP_CTRL_SFTRST, HW_PXP_CTRL_ADDR);
 
 	return 0;
 }
@@ -1274,7 +1274,7 @@ static int pxp_resume(struct platform_device *pdev)
 	int i;
 
 	/* Pull PxP out of reset */
-	HW_PXP_CTRL_WR(0);
+	__raw_writel(0, HW_PXP_CTRL_ADDR);
 
 	for (i = 0; i < REGS1_NUMS; i++)
 		__raw_writel(regs1[i], HW_PXP_CTRL_ADDR + REG_OFFSET * i);
@@ -1283,7 +1283,7 @@ static int pxp_resume(struct platform_device *pdev)
 		__raw_writel(regs2[i], HW_PXP_PAGETABLE_ADDR + REG_OFFSET * i);
 
 	for (i = 0; i < REGS3_NUMS; i++)
-		__raw_writel(regs3[i], HW_PXP_OL0_ADDR + REG_OFFSET * i);
+		__raw_writel(regs3[i], HW_PXP_OLn_ADDR(0) + REG_OFFSET * i);
 
 	return 0;
 }
