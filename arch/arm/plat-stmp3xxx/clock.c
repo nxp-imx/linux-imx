@@ -29,6 +29,7 @@
 #include <asm/clkdev.h>
 #include <mach/platform.h>
 #include <mach/regs-clkctrl.h>
+#include <linux/cpufreq.h>
 
 #include "clock.h"
 
@@ -38,6 +39,7 @@ static struct clk osc_24M;
 static struct clk pll_clk;
 static struct clk cpu_clk;
 static struct clk hclk;
+extern int cpufreq_trig_needed;
 
 static int propagate_rate(struct clk *);
 
@@ -49,6 +51,14 @@ static inline int clk_is_busy(struct clk *clk)
 static inline int clk_good(struct clk *clk)
 {
 	return clk && !IS_ERR(clk) && clk->ops;
+}
+
+int clk_get_usage(struct clk *clk)
+{
+	if (unlikely(!clk_good(clk)))
+		return 0;
+
+	return clk->usage;
 }
 
 static int std_clk_enable(struct clk *clk)
@@ -861,7 +871,7 @@ static struct clk lcdif_clk = {
 	.enable_negate	= 1,
 	.bypass_reg	= REGS_CLKCTRL_BASE + HW_CLKCTRL_CLKSEQ,
 	.bypass_shift	= 1,
-	.flags		= NEEDS_SET_PARENT,
+	.flags		= NEEDS_SET_PARENT | CPU_FREQ_TRIG_UPDATE,
 	.ops		= &lcdif_ops,
 };
 
@@ -944,6 +954,7 @@ static struct clk usb_clk = {
 	.enable_reg	= REGS_CLKCTRL_BASE + HW_CLKCTRL_PLLCTRL0,
 	.enable_shift	= 18,
 	.enable_negate	= 1,
+	.flags		= CPU_FREQ_TRIG_UPDATE,
 	.ops		= &min_ops,
 };
 
@@ -1150,6 +1161,7 @@ EXPORT_SYMBOL(clk_set_rate);
 int clk_enable(struct clk *clk)
 {
 	unsigned long clocks_flags;
+	u8 pre_usage;
 
 	if (unlikely(!clk_good(clk)))
 		return -EINVAL;
@@ -1159,11 +1171,18 @@ int clk_enable(struct clk *clk)
 
 	spin_lock_irqsave(&clocks_lock, clocks_flags);
 
+	pre_usage = clk->usage;
 	clk->usage++;
 	if (clk->ops && clk->ops->enable)
 		clk->ops->enable(clk);
 
 	spin_unlock_irqrestore(&clocks_lock, clocks_flags);
+	if ((clk->flags & CPU_FREQ_TRIG_UPDATE)
+	    && (pre_usage == 0)) {
+		cpufreq_trig_needed = 1;
+		cpufreq_update_policy(0);
+	}
+
 	return 0;
 }
 EXPORT_SYMBOL(clk_enable);
@@ -1187,6 +1206,9 @@ void clk_disable(struct clk *clk)
 	if (unlikely(!clk_good(clk)))
 		return;
 
+	if (!(clk->usage))
+		return;
+
 	spin_lock_irqsave(&clocks_lock, clocks_flags);
 
 	if ((--clk->usage) == 0 && clk->ops->disable)
@@ -1195,6 +1217,12 @@ void clk_disable(struct clk *clk)
 	spin_unlock_irqrestore(&clocks_lock, clocks_flags);
 	if (clk->parent)
 		clk_disable(clk->parent);
+
+	if ((clk->flags & CPU_FREQ_TRIG_UPDATE)
+			&& (clk->usage == 0)) {
+		cpufreq_trig_needed = 1;
+		cpufreq_update_policy(0);
+	}
 }
 EXPORT_SYMBOL(clk_disable);
 

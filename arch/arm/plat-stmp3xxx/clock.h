@@ -3,7 +3,7 @@
  *
  * Author: Vitaly Wool <vital@embeddedalley.com>
  *
- * Copyright 2008 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2008-2009 Freescale Semiconductor, Inc. All Rights Reserved.
  * Copyright 2008 Embedded Alley Solutions, Inc All Rights Reserved.
  */
 
@@ -74,5 +74,6 @@ static u32 stmp3xxx_ram_funcs_sz;
 #define FIXED_RATE           (1<<3)
 #define ENABLED	             (1<<4)
 #define NEEDS_SET_PARENT     (1<<5)
+#define CPU_FREQ_TRIG_UPDATE (1<<6)
 
 #endif

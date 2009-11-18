@@ -15,8 +15,6 @@
  * http://www.opensource.org/licenses/gpl-license.html
  * http://www.gnu.org/copyleft/gpl.html
  */
-/* #define DEBUG */
-
 #include <linux/types.h>
 #include <linux/kernel.h>
 #include <linux/sched.h>
@@ -28,7 +26,6 @@
 #include <linux/spinlock.h>
 #include <linux/platform_device.h>
 #include <linux/regulator/consumer.h>
-//#include <linux/regulator/regulator-drv.h>
 #include <linux/notifier.h>
 
 #include <mach/hardware.h>
@@ -39,10 +36,13 @@
 #include <mach/regs-digctl.h>
 #include <mach/regs-clkctrl.h>
 #include <mach/platform.h>
+#include "clock.h"
 
 #define VERY_HI_RATE		2000000000
 #define CLKCTRL_PLL_PWD_BIT 16
 #define CLKCTRL_PLL_BYPASS 0x1ff
+#define CLKCTRL_HBUS_AUTO_SLOW_MODE_BIT 20
+#define LCD_ON_CPU_FREQ_KHZ 261820
 
 static struct profile {
 	int cpu;
@@ -56,206 +56,152 @@ static struct profile {
 	int vdda;
 	int pll_off;
 } profiles[] = {
+	{ 454740, 151580, 130910, 0, 1550000,
+	1450000, 355000, 3300000, 1750000, 0 },
+	{ 392730, 130910, 130910, 0, 1475000,
+	1375000, 225000, 3300000, 1750000, 0 },
+	{ 360000, 120000, 120000, 0, 13750000,
+	1275000, 200000, 3300000, 1750000, 0 },
+	{ 261820, 130910, 130910, 0, 1275000,
+	1175000, 173000, 3300000, 1750000, 0 },
 #ifdef CONFIG_STMP378X_RAM_MDDR
-	{  24000,  24000,  24000, 3, 1050000,
-	975000, 150000, 3075000, 1725000, 1 },
 	{  64000,  64000,  48000, 3, 1050000,
 	925000, 150000, 3300000, 1750000, 0 },
+	{  24000,  24000,  24000, 3, 1050000,
+	975000, 150000, 3075000, 1725000, 1 },
 #else
 	{  64000,  64000,  96000, 3, 1050000,
 	925000, 150000, 3300000, 1750000, 0 },
 #endif
-	{ 261820, 130910, 130910, 0, 1275000,
-	1175000, 173000, 3300000, 1750000, 0 },
-	{ 360000, 120000, 120000, 0, 13750000,
-	1275000, 200000, 3300000, 1750000, 0 },
-	{ 392730, 130910, 130910, 0, 1475000,
-	1375000, 225000, 3300000, 1750000, 0 },
-	{ 454740, 151580, 130910, 0, 1550000,
-	1450000, 355000, 3300000, 1750000, 0 },
 };
 
-static struct stmp3xxx_cpufreq {
-	struct cpufreq_policy policy;
-	struct regulator *regulator;
-	struct notifier_block nb;
-	struct notifier_block init_nb;
-	int freq_id;
-	int next_freq_id;
-	spinlock_t lock;
-} cpufreq_bdata;
-
 static u32 clkseq_setting;
+static struct regulator *cpu_regulator;
+static struct clk *cpu_clk;
+static struct clk *ahb_clk;
+static struct clk *emi_clk;
+static struct clk *usb_clk;
+static struct clk *lcdif_clk;
+static struct regulator *vddd;
+static struct regulator *vdddbo;
+static struct regulator *vddio;
+static struct regulator *vdda;
+static struct cpufreq_frequency_table imx_freq_table[7];
+int cpu_freq_khz_min;
+int cpu_freq_khz_max;
+int cpufreq_trig_needed;
+int cur_freq_table_size;
+int lcd_on_freq_table_size;
+extern int clk_get_usage(struct clk *clk);
 
-static int reg_callback(struct notifier_block *, unsigned long, void *);
-static int init_reg_callback(struct notifier_block *, unsigned long, void *);
-
-static inline void __set_new_policy(struct cpufreq_policy *policy)
+static void hbus_auto_slow_mode_enable(void)
 {
-	spin_lock(&cpufreq_bdata.lock);
+	__raw_writel(CLKCTRL_HBUS_AUTO_SLOW_MODE_BIT,
+			REGS_CLKCTRL_BASE + HW_CLKCTRL_HBUS_SET);
+}
 
-	if (policy)
-		cpufreq_bdata.policy = *policy;
+static void hbus_auto_slow_mode_disable(void)
+{
+	__raw_writel(CLKCTRL_HBUS_AUTO_SLOW_MODE_BIT,
+			  REGS_CLKCTRL_BASE + HW_CLKCTRL_HBUS_CLR);
+}
+
+int low_freq_used(void)
+{
+	if ((clk_get_usage(usb_clk) == 0)
+	    && (clk_get_usage(lcdif_clk) == 0))
+		return 1;
 	else
-		memset(&cpufreq_bdata.policy, 0, sizeof(cpufreq_bdata.policy));
-
-	if (cpufreq_bdata.regulator)
-		goto out;
-
-	cpufreq_bdata.regulator = regulator_get(NULL, "cpufreq-1");
-	if (!cpufreq_bdata.regulator || IS_ERR(cpufreq_bdata.regulator))
-		cpufreq_bdata.regulator = NULL;
-	else {
-		regulator_set_mode(cpufreq_bdata.regulator,
-				   REGULATOR_MODE_FAST);
-		if (cpufreq_bdata.regulator)
-			regulator_register_notifier(
-					cpufreq_bdata.regulator,
-					&cpufreq_bdata.nb);
+		return 0;
 	}
 
-out:
-	spin_unlock(&cpufreq_bdata.lock);
-}
-
-static int stmp3xxx_verify_speed(struct cpufreq_policy *policy)
+static int set_freq_table(struct cpufreq_policy *policy, int end_index)
 {
-	struct clk *cpu_clk;
+	int ret = 0;
+	int i;
 
-	pr_debug("%s: entered, policy %p\n", __func__, policy);
+	cpu_freq_khz_min = profiles[0].cpu;
+	cpu_freq_khz_max = profiles[0].cpu;
+	for (i = 0; i < end_index; i++) {
+		imx_freq_table[end_index - 1 - i].index = end_index  - i;
+		imx_freq_table[end_index - 1 - i].frequency =
+						profiles[i].cpu;
 
-	__set_new_policy(policy);
+		if ((profiles[i].cpu) < cpu_freq_khz_min)
+			cpu_freq_khz_min = profiles[i].cpu;
 
-	if (policy->cpu)
-		return -EINVAL;
+		if ((profiles[i].cpu) > cpu_freq_khz_max)
+			cpu_freq_khz_max = profiles[i].cpu;
+	}
 
-	cpufreq_verify_within_limits(policy, policy->cpuinfo.min_freq,
-				     policy->cpuinfo.max_freq);
-	cpu_clk = clk_get(NULL, "cpu");
-	if (IS_ERR(cpu_clk))
-		return PTR_ERR(cpu_clk);
+	imx_freq_table[i].index = 0;
+	imx_freq_table[i].frequency = CPUFREQ_TABLE_END;
 
-	pr_debug("%s: policy->min %d, policy->max %d\n",
-		__func__, policy->min, policy->max);
-	policy->min = clk_round_rate(cpu_clk, policy->min);
-	policy->max = clk_round_rate(cpu_clk, policy->max);
-	pr_debug("%s: after rounding rate: policy->min %d, policy->max %d\n",
-		__func__, policy->min, policy->max);
-	cpufreq_verify_within_limits(policy, policy->cpuinfo.min_freq,
-				     policy->cpuinfo.max_freq);
-	clk_put(cpu_clk);
+	policy->cur = clk_get_rate(cpu_clk);
+	policy->governor = CPUFREQ_DEFAULT_GOVERNOR;
+	policy->min = policy->cpuinfo.min_freq = cpu_freq_khz_min;
+	policy->max = policy->cpuinfo.max_freq = cpu_freq_khz_max;
 
-	return 0;
-}
+	/* Manual states, that PLL stabilizes in two CLK32 periods */
+	policy->cpuinfo.transition_latency = 1000;
 
-static unsigned int stmp3xxx_getspeed(unsigned int cpu)
-{
-	struct clk *cpu_clk;
-	unsigned long rate;
+	ret = cpufreq_frequency_table_cpuinfo(policy, imx_freq_table);
 
-	pr_debug("%s: entered\n", __func__);
-	if (cpu)
-		return 0;
+	if (ret < 0) {
+		printk(KERN_ERR "%s: failed to register i.MXC CPUfreq\n",
+		       __func__);
+		return ret;
+	}
 
-	cpu_clk = clk_get(NULL, "cpu");
-	if (IS_ERR(cpu_clk))
-		return 0;
-	rate = clk_get_rate(cpu_clk);
-	pr_debug("%s: got cpu speed %ld\n", __func__, rate);
-	clk_put(cpu_clk);
+	cpufreq_frequency_table_get_attr(imx_freq_table, policy->cpu);
 
-	return rate;
+	return ret;
 }
 
 static int set_op(unsigned int target_freq)
 {
-	struct clk *cpu_clk, *ahb_clk, *emi_clk;
-	struct regulator *vddd, *vdddbo, *cur_limit, *vddio, *vdda;
 	struct cpufreq_freqs freqs;
 	int ret = 0, i;
 
-	cur_limit = cpufreq_bdata.regulator;
-	pr_debug("%s: entered\n", __func__);
-	cpu_clk = clk_get(NULL, "cpu");
-	if (IS_ERR(cpu_clk)) {
-		ret = PTR_ERR(cpu_clk);
-		goto out_cpu;
-	}
-	ahb_clk = clk_get(NULL, "hclk");
-	if (IS_ERR(ahb_clk)) {
-		ret = PTR_ERR(ahb_clk);
-		goto out_ahb;
-	}
-	emi_clk = clk_get(NULL, "emi");
-	if (IS_ERR(emi_clk)) {
-		ret = PTR_ERR(emi_clk);
-		goto out_emi;
-	}
-
-	vddd = regulator_get(NULL, "vddd");
-	vdddbo = regulator_get(NULL, "vddd_bo");
-	if (IS_ERR(vdddbo))
-		vdddbo = NULL;
-	vddio = regulator_get(NULL, "vddio");
-	if (IS_ERR(vddio)) {
-		vddio = NULL;
-		pr_warning("unable to get vddio");
-	}
-	vdda = regulator_get(NULL, "vdda");
-	if (IS_ERR(vdda)) {
-		vdda = NULL;
-		pr_warning("unable to get vddio");
-	}
-
 	freqs.old = clk_get_rate(cpu_clk);
 	freqs.cpu = 0;
-	for (i = 0; i < ARRAY_SIZE(profiles) - 1; i++) {
+
+	for (i = cur_freq_table_size - 1; i > 0; i--) {
 		if (profiles[i].cpu <= target_freq &&
-		    target_freq < profiles[i + 1].cpu) {
+		    target_freq < profiles[i - 1].cpu) {
 			freqs.new = profiles[i].cpu;
-			cpufreq_bdata.next_freq_id = i;
 			break;
 		}
+
 		if (!vddd && profiles[i].cpu > freqs.old) {
 			/* can't safely set more than now */
-			freqs.new = profiles[i - 1].cpu;
+			freqs.new = profiles[i + 1].cpu;
 			break;
 		}
 	}
 
-	pr_debug("target_freq %d, new %d\n", target_freq, freqs.new);
-	if (i == ARRAY_SIZE(profiles) - 1) {
+	if (i == 0)
 		freqs.new = profiles[i].cpu;
-		cpufreq_bdata.next_freq_id = i;
+
+	if (freqs.old == freqs.new) {
+		if (regulator_get_voltage(vddd) == profiles[i].vddd)
+			return 0;
 	}
-
-	if (IS_ERR(vddd)) {
-		ret = PTR_ERR(vddd);
-		if (!cpufreq_bdata.init_nb.notifier_call) {
-			/* we only register once */
-			cpufreq_bdata.init_nb.notifier_call = init_reg_callback;
-			bus_register_notifier(&platform_bus_type,
-					      &cpufreq_bdata.init_nb);
-		}
-		goto out_vddd;
-	}
-
-	pr_debug("i %d: freqs.old %d, freqs.new %d\n",
-		i, freqs.old, freqs.new);
-
-	spin_lock(&cpufreq_bdata.lock);
 
 	if (freqs.old == 24000 && freqs.new > 24000) {
 		/* turn pll on */
-		stmp3xxx_setl(CLKCTRL_PLL_PWD_BIT, REGS_CLKCTRL_BASE + HW_CLKCTRL_PLLCTRL0);
+		__raw_writel(CLKCTRL_PLL_PWD_BIT, REGS_CLKCTRL_BASE +
+			      HW_CLKCTRL_PLLCTRL0_SET);
 		udelay(10);
 	} else if (freqs.old > 24000 && freqs.new == 24000)
-		clkseq_setting = __raw_readl(REGS_CLKCTRL_BASE + HW_CLKCTRL_CLKSEQ);
+		clkseq_setting = __raw_readl(REGS_CLKCTRL_BASE +
+						 HW_CLKCTRL_CLKSEQ);
 
-	if (cur_limit && (freqs.old < freqs.new)) {
-		ret = regulator_set_current_limit(cur_limit, profiles[i].cur, profiles[i].cur);
+	if (cpu_regulator && (freqs.old < freqs.new)) {
+		ret = regulator_set_current_limit(cpu_regulator,
+			profiles[i].cur, profiles[i].cur);
 		if (ret)
-			goto out_cur;
+			return ret;
 	}
 
 	cpufreq_notify_transition(&freqs, CPUFREQ_PRECHANGE);
@@ -268,22 +214,29 @@ static int set_op(unsigned int target_freq)
 				      BF(ss, DIGCTL_ARMCACHE_DRTY_SS) |
 				      BF(ss, DIGCTL_ARMCACHE_CACHE_SS) |
 				      BF(ss, DIGCTL_ARMCACHE_DTAG_SS) |
-				      BF(ss, DIGCTL_ARMCACHE_ITAG_SS), REGS_DIGCTL_BASE + HW_DIGCTL_ARMCACHE);
+				      BF(ss, DIGCTL_ARMCACHE_ITAG_SS),
+				      REGS_DIGCTL_BASE + HW_DIGCTL_ARMCACHE);
 		if (vddd && vdddbo && vddio && vdda) {
-			ret = regulator_set_voltage(vddd, profiles[i].vddd, profiles[i].vddd);
+			ret = regulator_set_voltage(vddd,
+							profiles[i].vddd,
+							profiles[i].vddd);
 			if (ret)
 				ret = regulator_set_voltage(vddd,
 							    profiles[i].vddd,
 							    profiles[i].vddd);
-			regulator_set_voltage(vdddbo, profiles[i].vddd_bo, profiles[i].vddd_bo);
+			regulator_set_voltage(vdddbo,
+				profiles[i].vddd_bo,
+				profiles[i].vddd_bo);
 
-			ret = regulator_set_voltage(vddio, profiles[i].vddio,
+			ret = regulator_set_voltage(vddio,
+							profiles[i].vddio,
 							profiles[i].vddio);
 			if (ret)
 				ret = regulator_set_voltage(vddio,
 							    profiles[i].vddio,
 							    profiles[i].vddio);
-			ret = regulator_set_voltage(vdda, profiles[i].vdda,
+			ret = regulator_set_voltage(vdda,
+							profiles[i].vdda,
 							profiles[i].vdda);
 			if (ret)
 				ret = regulator_set_voltage(vdda,
@@ -293,19 +246,25 @@ static int set_op(unsigned int target_freq)
 	} else {
 		int ss = profiles[i].ss;
 		if (vddd && vdddbo && vddio && vdda) {
-			ret = regulator_set_voltage(vddd, profiles[i].vddd, profiles[i].vddd);
+			ret = regulator_set_voltage(vddd,
+				profiles[i].vddd,
+				profiles[i].vddd);
 			if (ret)
 				ret = regulator_set_voltage(vddd,
 							    profiles[i].vddd,
 							    profiles[i].vddd);
-			regulator_set_voltage(vdddbo, profiles[i].vddd_bo, profiles[i].vddd_bo);
-			ret = regulator_set_voltage(vddio, profiles[i].vddio,
+			regulator_set_voltage(vdddbo,
+				profiles[i].vddd_bo,
+				profiles[i].vddd_bo);
+			ret = regulator_set_voltage(vddio,
+							profiles[i].vddio,
 							profiles[i].vddio);
 			if (ret)
 				ret = regulator_set_voltage(vddio,
 							    profiles[i].vddio,
 							    profiles[i].vddio);
-			ret = regulator_set_voltage(vdda, profiles[i].vdda,
+			ret = regulator_set_voltage(vdda,
+							profiles[i].vdda,
 							profiles[i].vdda);
 			if (ret)
 				ret = regulator_set_voltage(vdda,
@@ -316,7 +275,8 @@ static int set_op(unsigned int target_freq)
 				      BF(ss, DIGCTL_ARMCACHE_DRTY_SS) |
 				      BF(ss, DIGCTL_ARMCACHE_CACHE_SS) |
 				      BF(ss, DIGCTL_ARMCACHE_DTAG_SS) |
-				      BF(ss, DIGCTL_ARMCACHE_ITAG_SS), REGS_DIGCTL_BASE + HW_DIGCTL_ARMCACHE);
+				      BF(ss, DIGCTL_ARMCACHE_ITAG_SS),
+				      REGS_DIGCTL_BASE + HW_DIGCTL_ARMCACHE);
 		clk_set_rate(cpu_clk, profiles[i].cpu);
 		clk_set_rate(ahb_clk, profiles[i].ahb);
 		clk_set_rate(emi_clk, profiles[i].emi);
@@ -325,127 +285,258 @@ static int set_op(unsigned int target_freq)
 
 	if (freqs.old > 24000 && freqs.new == 24000) {
 		/* turn pll off */
-		stmp3xxx_clearl(CLKCTRL_PLL_PWD_BIT, REGS_CLKCTRL_BASE + HW_CLKCTRL_PLLCTRL0);
-		__raw_writel(CLKCTRL_PLL_BYPASS, REGS_CLKCTRL_BASE + HW_CLKCTRL_CLKSEQ);
+		__raw_writel(CLKCTRL_PLL_PWD_BIT, REGS_CLKCTRL_BASE +
+			      HW_CLKCTRL_PLLCTRL0_CLR);
+		__raw_writel(CLKCTRL_PLL_BYPASS, REGS_CLKCTRL_BASE +
+			      HW_CLKCTRL_CLKSEQ);
 	} else if (freqs.old == 24000 && freqs.new > 24000)
-		__raw_writel(clkseq_setting, REGS_CLKCTRL_BASE + HW_CLKCTRL_CLKSEQ);
+		__raw_writel(clkseq_setting, REGS_CLKCTRL_BASE +
+				HW_CLKCTRL_CLKSEQ);
 
 	cpufreq_notify_transition(&freqs, CPUFREQ_POSTCHANGE);
 
-	if (cur_limit && (freqs.old > freqs.new))	/* will not fail */
-		regulator_set_current_limit(cur_limit, profiles[i].cur, profiles[i].cur);
-
-	cpufreq_bdata.freq_id = i;
-
-out_cur:
-	spin_unlock(&cpufreq_bdata.lock);
-	if (vddd)
-		regulator_put(vddd);
-	if (vddio)
-		regulator_put(vddio);
-	if (vdda)
-		regulator_put(vdda);
-out_vddd:
-	clk_put(emi_clk);
-out_emi:
-	clk_put(ahb_clk);
-out_ahb:
-	clk_put(cpu_clk);
-out_cpu:
+	if (cpu_regulator && (freqs.old > freqs.new))   /* will not fail */
+		regulator_set_current_limit(cpu_regulator,
+						profiles[i].cur,
+						profiles[i].cur);
 
 	return ret;
+}
+
+static int calc_frequency_khz(int target, unsigned int relation)
+{
+	int i;
+
+	if (target == clk_get_rate(cpu_clk))
+		return target;
+
+	if (relation == CPUFREQ_RELATION_H) {
+		for (i = cur_freq_table_size - 1; i >= 0; i--) {
+			if (imx_freq_table[i].frequency <= target)
+				return imx_freq_table[i].frequency;
+		}
+	} else if (relation == CPUFREQ_RELATION_L) {
+		for (i = 0; i < cur_freq_table_size; i++) {
+			if (imx_freq_table[i].frequency >= target)
+				return imx_freq_table[i].frequency;
+		}
+}
+
+	printk(KERN_ERR "Error: No valid cpufreq relation\n");
+	return cpu_freq_khz_max;
 }
 
 static int stmp3xxx_target(struct cpufreq_policy *policy,
 			  unsigned int target_freq,
 			  unsigned int relation)
 {
-	return set_op(target_freq);
+	int freq_KHz;
+	struct cpufreq_freqs freqs;
+	int low_freq_bus_ready = 0;
+
+	if (cpufreq_trig_needed  == 1) {
+		/* Set the current working point. */
+		cpufreq_trig_needed = 0;
+		target_freq = clk_get_rate(cpu_clk);
+		freq_KHz = calc_frequency_khz(target_freq, relation);
+
+		freqs.old = target_freq;
+		freqs.new = freq_KHz;
+		freqs.cpu = 0;
+		freqs.flags = 0;
+
+		low_freq_bus_ready = low_freq_used();
+		if (low_freq_bus_ready) {
+			cur_freq_table_size = ARRAY_SIZE(profiles);
+			hbus_auto_slow_mode_enable();
+		} else {
+			cur_freq_table_size = lcd_on_freq_table_size;
+			hbus_auto_slow_mode_disable();
+		}
+
+		set_freq_table(policy, cur_freq_table_size);
+
+		cpufreq_notify_transition(&freqs, CPUFREQ_POSTCHANGE);
+
+		return 0;
 }
 
-static int reg_callback(struct notifier_block *self, unsigned long event,
-			void *data)
+	/*
+	 * Some governors do not respects CPU and policy lower limits
+	 * which leads to bad things (division by zero etc), ensure
+	 * that such things do not happen.
+	 */
+	if (target_freq < policy->cpuinfo.min_freq)
+		target_freq = policy->cpuinfo.min_freq;
+
+	if (target_freq < policy->min)
+		target_freq = policy->min;
+
+	freq_KHz = calc_frequency_khz(target_freq, relation);
+	return set_op(freq_KHz);
+	}
+
+static unsigned int stmp3xxx_getspeed(unsigned int cpu)
 {
-	struct stmp3xxx_cpufreq *_temp =
-		container_of(self, struct stmp3xxx_cpufreq, nb);
-	struct cpufreq_policy *policy = &_temp->policy;
-	int max_prof = ARRAY_SIZE(profiles) - 1;
-	int ret = -EINVAL;
+	struct cpufreq_freqs freqs;
+	int freq_KHz;
+	unsigned int target_freq;
 
-	pr_debug("%s: entered, _temp %p, policy %p, cpu %d, freq_id %d\n",
-		 __func__, _temp, policy, policy->cpu, _temp->freq_id);
+	if (cpu)
+		return 0;
 
-	if (policy)
-		policy = cpufreq_cpu_get(policy->cpu);
-	if (!policy) {
-		printk(KERN_ERR "%s: couldn't get cpufreq policy\n", __func__);
-		goto out;
+	if (cpufreq_trig_needed  == 1) {
+		target_freq = clk_get_rate(cpu_clk);
+		freq_KHz = calc_frequency_khz(target_freq, CPUFREQ_RELATION_L);
+
+		freqs.old = target_freq;
+		freqs.new = freq_KHz;
+		freqs.cpu = 0;
+		freqs.flags = 0;
+
+		cpufreq_notify_transition(&freqs, CPUFREQ_PRECHANGE);
 	}
 
-	/* FIXME: Need a lock: set policy by user VS async USB event */
-	switch (event) {
-	case STMP3XXX_REG5V_IS_USB:
-		pr_debug("%s: limiting max_freq to %d\n", __func__,
-			 profiles[max_prof - 1].cpu);
-		policy->user_policy.min = profiles[0].cpu;
-		policy->user_policy.max = profiles[max_prof - 1].cpu;
-		if (_temp->freq_id > max_prof - 1)
-			set_op(profiles[max_prof - 1].cpu);
-		break;
-
-	case STMP3XXX_REG5V_NOT_USB:
-		pr_debug("%s: undo limiting max_freq to %d\n", __func__,
-			 profiles[max_prof - 1].cpu);
-		policy->user_policy.min = profiles[0].cpu;
-		policy->user_policy.max = profiles[max_prof].cpu;
-		break;
-
-	default:
-		pr_info("%s: unknown event %ld\n", __func__, event);
-		break;
-	}
-	cpufreq_cpu_put(policy);
-	ret = cpufreq_update_policy(policy->cpu);
-out:
-	return ret;
+	return clk_get_rate(cpu_clk);
 }
 
-static int init_reg_callback(struct notifier_block *self,
-			     unsigned long event, void *data)
-{
-	int ret;
-	struct stmp3xxx_cpufreq *_temp =
-		container_of(self, struct stmp3xxx_cpufreq, init_nb);
 
-	ret = set_op(profiles[_temp->next_freq_id].cpu);
-	if (ret == 0)
-		bus_unregister_notifier(&platform_bus_type,
-				&cpufreq_bdata.init_nb);
-	return ret;
+static int stmp3xxx_verify_speed(struct cpufreq_policy *policy)
+{
+	if (policy->cpu != 0)
+		return -EINVAL;
+
+	return cpufreq_frequency_table_verify(policy, imx_freq_table);
 }
 
 static int __init stmp3xxx_cpu_init(struct cpufreq_policy *policy)
 {
-	struct clk *cpu_clk = clk_get(NULL, "cpu");
+	int ret = 0;
+	int i;
 
-	pr_debug("%s: entered\n", __func__);
-	if (IS_ERR(cpu_clk))
-		return PTR_ERR(cpu_clk);
+	cpu_clk = clk_get(NULL, "cpu");
+	if (IS_ERR(cpu_clk)) {
+		ret = PTR_ERR(cpu_clk);
+		goto out_cpu;
+	}
+
+	ahb_clk = clk_get(NULL, "hclk");
+	if (IS_ERR(ahb_clk)) {
+		ret = PTR_ERR(ahb_clk);
+		goto out_ahb;
+	}
+
+	emi_clk = clk_get(NULL, "emi");
+	if (IS_ERR(emi_clk)) {
+		ret = PTR_ERR(emi_clk);
+		goto out_emi;
+	}
+
+	usb_clk = clk_get(NULL, "usb");
+	if (IS_ERR(usb_clk)) {
+		ret = PTR_ERR(usb_clk);
+		goto out_usb;
+	}
+
+	lcdif_clk = clk_get(NULL, "lcdif");
+	if (IS_ERR(lcdif_clk)) {
+		ret = PTR_ERR(lcdif_clk);
+		goto out_lcd;
+	}
 
 	if (policy->cpu != 0)
 		return -EINVAL;
 
-	policy->cur = policy->min = policy->max = clk_get_rate(cpu_clk);
+	cpu_regulator = regulator_get(NULL, "cpufreq-1");
+	if (IS_ERR(cpu_regulator)) {
+		printk(KERN_ERR "%s: failed to get CPU regulator\n", __func__);
+		cpu_regulator = NULL;
+		ret = PTR_ERR(cpu_regulator);
+		goto out_cur;
+	}
 
-	pr_debug("got CPU clock rate %d\n", policy->cur);
-	policy->governor = CPUFREQ_DEFAULT_GOVERNOR;
-	policy->min = policy->cpuinfo.min_freq = profiles[0].cpu;
-	policy->max = policy->cpuinfo.max_freq =
-			profiles[ARRAY_SIZE(profiles) - 1].cpu;
+	vddd = regulator_get(NULL, "vddd");
+	if (IS_ERR(vddd)) {
+		printk(KERN_ERR "%s: failed to get vddd regulator\n", __func__);
+		vddd = NULL;
+		ret = PTR_ERR(vddd);
+		goto out_cur;
+	}
 
-	policy->cpuinfo.transition_latency = 1000000; /* 1 ms, assumed */
+	vdddbo = regulator_get(NULL, "vddd_bo");
+	if (IS_ERR(vdddbo)) {
+		vdddbo = NULL;
+		pr_warning("unable to get vdddbo");
+		ret = PTR_ERR(vdddbo);
+		goto out_cur;
+	}
+
+	vddio = regulator_get(NULL, "vddio");
+	if (IS_ERR(vddio)) {
+		vddio = NULL;
+		pr_warning("unable to get vddio");
+		ret = PTR_ERR(vddio);
+		goto out_cur;
+	}
+	vdda = regulator_get(NULL, "vdda");
+	if (IS_ERR(vdda)) {
+		vdda = NULL;
+		pr_warning("unable to get vdda");
+		ret = PTR_ERR(vdda);
+		goto out_cur;
+	}
+
+	for (i = 0; i < ARRAY_SIZE(profiles); i++) {
+		if ((profiles[i].cpu) == LCD_ON_CPU_FREQ_KHZ) {
+			lcd_on_freq_table_size = i + 1;
+			break;
+		}
+	}
+
+	if (i == ARRAY_SIZE(profiles)) {
+		pr_warning("unable to find frequency for LCD on");
+		printk(KERN_ERR "lcd_on_freq_table_size=%d\n",
+			lcd_on_freq_table_size);
+		goto out_cur;
+	}
+
+	/* Set the current working point. */
+	set_freq_table(policy, lcd_on_freq_table_size);
+	cpufreq_trig_needed = 0;
+	cur_freq_table_size = lcd_on_freq_table_size;
+	return 0;
+out_cur:
+	if (cpu_regulator)
+		regulator_put(cpu_regulator);
+	if (vddd)
+		regulator_put(vddd);
+	if (vddio)
+		regulator_put(vddio);
+	if (vdda)
+		regulator_put(vdda);
+
+	clk_put(lcdif_clk);
+out_lcd:
+	clk_put(usb_clk);
+out_usb:
+	clk_put(emi_clk);
+out_emi:
+	clk_put(ahb_clk);
+out_ahb:
 	clk_put(cpu_clk);
+out_cpu:
+	return ret;
+}
 
+static int stmp3xxx_cpu_exit(struct cpufreq_policy *policy)
+{
+	cpufreq_frequency_table_put_attr(policy->cpu);
+
+	/* Reset CPU to 392MHz */
+	set_op(profiles[1].cpu);
+
+	clk_put(cpu_clk);
+	regulator_put(cpu_regulator);
 	return 0;
 }
 
@@ -455,28 +546,24 @@ static struct cpufreq_driver stmp3xxx_driver = {
 	.target		= stmp3xxx_target,
 	.get		= stmp3xxx_getspeed,
 	.init		= stmp3xxx_cpu_init,
+	.exit		= stmp3xxx_cpu_exit,
 	.name		= "stmp3xxx",
 };
 
-static int __init stmp3xxx_cpufreq_init(void)
+static int __devinit stmp3xxx_cpufreq_init(void)
 {
-	spin_lock_init(&cpufreq_bdata.lock);
-	cpufreq_bdata.nb.notifier_call = reg_callback;
 	return cpufreq_register_driver(&stmp3xxx_driver);
 }
 
-static int __init stmp3xxx_reg_init(void)
+static void stmp3xxx_cpufreq_exit(void)
 {
-	pr_debug("%s: enter\n", __func__);
-	if (!cpufreq_bdata.regulator)
-		__set_new_policy(&cpufreq_bdata.policy);
-
-	if (cpufreq_bdata.regulator)
-		regulator_set_current_limit(cpufreq_bdata.regulator,
-					    profiles[cpufreq_bdata.freq_id].cur,
-					    profiles[cpufreq_bdata.freq_id].cur);
-	return 0 ;
+	cpufreq_unregister_driver(&stmp3xxx_driver);
 }
 
-arch_initcall(stmp3xxx_cpufreq_init);
-late_initcall(stmp3xxx_reg_init);
+module_init(stmp3xxx_cpufreq_init);
+module_exit(stmp3xxx_cpufreq_exit);
+
+MODULE_AUTHOR("Freescale Semiconductor, Inc.");
+MODULE_DESCRIPTION("CPUfreq driver for i.MX");
+MODULE_LICENSE("GPL");
+
