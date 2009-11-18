@@ -73,8 +73,8 @@ static irqreturn_t gpmi_irq(int irq, void *context)
 		}
 
 	}
-	stmp3xxx_clearl(BM_GPMI_CTRL1_DEV_IRQ | BM_GPMI_CTRL1_TIMEOUT_IRQ,
-			REGS_GPMI_BASE + HW_GPMI_CTRL1);
+	__raw_writel(BM_GPMI_CTRL1_DEV_IRQ | BM_GPMI_CTRL1_TIMEOUT_IRQ,
+			REGS_GPMI_BASE + HW_GPMI_CTRL1_CLR);
 	return IRQ_HANDLED;
 }
 
@@ -165,7 +165,7 @@ void queue_plug(struct lba_data *data)
 
 void queue_release(struct lba_data *data)
 {
-	stmp3xxx_setl(BM_GPMI_CTRL0_SFTRST, REGS_GPMI_BASE + HW_GPMI_CTRL0);
+	__raw_writel(BM_GPMI_CTRL0_SFTRST, REGS_GPMI_BASE + HW_GPMI_CTRL0_SET);
 
 	clk_disable(data->clk);
 }

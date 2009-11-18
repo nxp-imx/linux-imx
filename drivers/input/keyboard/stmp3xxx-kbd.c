@@ -163,7 +163,8 @@ static irqreturn_t stmpkbd_irq_handler(int irq, void *dev_id)
 
 	}
 
-	stmp3xxx_clearl(BM_LRADC_CTRL1_LRADC0_IRQ, REGS_LRADC_BASE + HW_LRADC_CTRL1);
+	__raw_writel(BM_LRADC_CTRL1_LRADC0_IRQ,
+		REGS_LRADC_BASE + HW_LRADC_CTRL1_CLR);
 	return IRQ_HANDLED;
 }
 
@@ -181,8 +182,10 @@ static void stmpkbd_close(struct input_dev *dev)
 static void stmpkbd_hwinit(struct platform_device *pdev)
 {
 	hw_lradc_init_ladder(LRADC_CH0, LRADC_DELAY_TRIGGER_BUTTON, 200);
-	stmp3xxx_clearl(BM_LRADC_CTRL1_LRADC0_IRQ, REGS_LRADC_BASE + HW_LRADC_CTRL1);
-	stmp3xxx_setl(BM_LRADC_CTRL1_LRADC0_IRQ_EN, REGS_LRADC_BASE + HW_LRADC_CTRL1);
+	__raw_writel(BM_LRADC_CTRL1_LRADC0_IRQ,
+		REGS_LRADC_BASE + HW_LRADC_CTRL1_CLR);
+	__raw_writel(BM_LRADC_CTRL1_LRADC0_IRQ_EN,
+		REGS_LRADC_BASE + HW_LRADC_CTRL1_SET);
 	hw_lradc_set_delay_trigger_kick(LRADC_DELAY_TRIGGER_BUTTON, !0);
 }
 
@@ -194,7 +197,8 @@ static int stmpkbd_suspend(struct platform_device *pdev, pm_message_t state)
 	hw_lradc_stop_ladder(LRADC_CH0, LRADC_DELAY_TRIGGER_BUTTON);
 	hw_lradc_set_delay_trigger_kick(LRADC_DELAY_TRIGGER_BUTTON, 0);
 	hw_lradc_unuse_channel(LRADC_CH0);
-	stmp3xxx_clearl(BM_LRADC_CTRL1_LRADC0_IRQ_EN, REGS_LRADC_BASE + HW_LRADC_CTRL1);
+	__raw_writel(BM_LRADC_CTRL1_LRADC0_IRQ_EN,
+		REGS_LRADC_BASE + HW_LRADC_CTRL1_CLR);
 	stmpkbd_close(idev);
 #endif
 	return 0;
@@ -205,7 +209,8 @@ static int stmpkbd_resume(struct platform_device *pdev)
 #ifdef CONFIG_PM
 	struct input_dev *idev = platform_get_drvdata(pdev);
 
-	stmp3xxx_setl(BM_LRADC_CTRL1_LRADC0_IRQ_EN, REGS_LRADC_BASE + HW_LRADC_CTRL1);
+	__raw_writel(BM_LRADC_CTRL1_LRADC0_IRQ_EN,
+		REGS_LRADC_BASE + HW_LRADC_CTRL1_SET);
 	stmpkbd_open(idev);
 	hw_lradc_use_channel(LRADC_CH0);
 	stmpkbd_hwinit(pdev);

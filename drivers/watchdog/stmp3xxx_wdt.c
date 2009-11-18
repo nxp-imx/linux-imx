@@ -3,7 +3,7 @@
  *
  * Author: Vitaly Wool <vital@embeddedalley.com>
  *
- * Copyright 2008 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2008-2009 Freescale Semiconductor, Inc. All Rights Reserved.
  * Copyright 2008 Embedded Alley Solutions, Inc All Rights Reserved.
  */
 #include <linux/init.h>
@@ -39,18 +39,18 @@ static void wdt_enable(u32 value)
 {
 	spin_lock(&stmp3xxx_wdt_io_lock);
 	__raw_writel(value, REGS_RTC_BASE + HW_RTC_WATCHDOG);
-	stmp3xxx_setl(BM_RTC_CTRL_WATCHDOGEN, REGS_RTC_BASE + HW_RTC_CTRL);
-	stmp3xxx_setl(BV_RTC_PERSISTENT1_GENERAL__RTC_FORCE_UPDATER,
-			REGS_RTC_BASE + HW_RTC_PERSISTENT1);
+	__raw_writel(BM_RTC_CTRL_WATCHDOGEN, REGS_RTC_BASE + HW_RTC_CTRL_SET);
+	__raw_writel(BV_RTC_PERSISTENT1_GENERAL__RTC_FORCE_UPDATER,
+			REGS_RTC_BASE + HW_RTC_PERSISTENT1_SET);
 	spin_unlock(&stmp3xxx_wdt_io_lock);
 }
 
 static void wdt_disable(void)
 {
 	spin_lock(&stmp3xxx_wdt_io_lock);
-	stmp3xxx_clearl(BV_RTC_PERSISTENT1_GENERAL__RTC_FORCE_UPDATER,
-			REGS_RTC_BASE + HW_RTC_PERSISTENT1);
-	stmp3xxx_clearl(BM_RTC_CTRL_WATCHDOGEN, REGS_RTC_BASE + HW_RTC_CTRL);
+	__raw_writel(BV_RTC_PERSISTENT1_GENERAL__RTC_FORCE_UPDATER,
+			REGS_RTC_BASE + HW_RTC_PERSISTENT1_CLR);
+	__raw_writel(BM_RTC_CTRL_WATCHDOGEN, REGS_RTC_BASE + HW_RTC_CTRL_CLR);
 	spin_unlock(&stmp3xxx_wdt_io_lock);
 }
 
@@ -210,8 +210,8 @@ static int __devinit stmp3xxx_wdt_probe(struct platform_device *pdev)
 	boot_status = __raw_readl(REGS_RTC_BASE + HW_RTC_PERSISTENT1) &
 			BV_RTC_PERSISTENT1_GENERAL__RTC_FORCE_UPDATER;
 	boot_status = !!boot_status;
-	stmp3xxx_clearl(BV_RTC_PERSISTENT1_GENERAL__RTC_FORCE_UPDATER,
-			REGS_RTC_BASE + HW_RTC_PERSISTENT1);
+	__raw_writel(BV_RTC_PERSISTENT1_GENERAL__RTC_FORCE_UPDATER,
+			REGS_RTC_BASE + HW_RTC_PERSISTENT1_CLR);
 	wdt_disable();		/* disable for now */
 
 	ret = misc_register(&stmp3xxx_wdt_miscdev);

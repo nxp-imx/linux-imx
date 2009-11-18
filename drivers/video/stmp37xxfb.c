@@ -72,26 +72,31 @@ static irqreturn_t lcd_irq_handler(int irq, void *dev_id)
 	pr_debug("%s: irq %d\n", __func__, irq);
 
 	if (status_apbh & BM_APBH_CTRL1_CH0_CMDCMPLT_IRQ)
-		stmp3xxx_clearl(BM_APBH_CTRL1_CH0_CMDCMPLT_IRQ, REGS_APBH_BASE + HW_APBH_CTRL1);
+		__raw_writel(BM_APBH_CTRL1_CH0_CMDCMPLT_IRQ,
+			REGS_APBH_BASE + HW_APBH_CTRL1_CLR);
 
 	if (status_lcd & BM_LCDIF_CTRL1_VSYNC_EDGE_IRQ) {
 		pr_debug("%s: VSYNC irq\n", __func__);
 		data->vsync_count++;
-		stmp3xxx_clearl(BM_LCDIF_CTRL1_VSYNC_EDGE_IRQ, REGS_LCDIF_BASE + HW_LCDIF_CTRL1);
+		__raw_writel(BM_LCDIF_CTRL1_VSYNC_EDGE_IRQ,
+			REGS_LCDIF_BASE + HW_LCDIF_CTRL1_CLR);
 		wake_up_interruptible(&data->vsync_wait_q);
 	}
 	if (status_lcd & BM_LCDIF_CTRL1_CUR_FRAME_DONE_IRQ) {
 		pr_debug("%s: frame done irq\n", __func__);
-		stmp3xxx_clearl(BM_LCDIF_CTRL1_CUR_FRAME_DONE_IRQ, REGS_LCDIF_BASE + HW_LCDIF_CTRL1);
+		__raw_writel(BM_LCDIF_CTRL1_CUR_FRAME_DONE_IRQ,
+			REGS_LCDIF_BASE + HW_LCDIF_CTRL1_CLR);
 		data->vsync_count++;
 	}
 	if (status_lcd & BM_LCDIF_CTRL1_UNDERFLOW_IRQ) {
 		pr_debug("%s: underflow irq\n", __func__);
-		stmp3xxx_clearl(BM_LCDIF_CTRL1_UNDERFLOW_IRQ, REGS_LCDIF_BASE + HW_LCDIF_CTRL1);
+		__raw_writel(BM_LCDIF_CTRL1_UNDERFLOW_IRQ,
+			REGS_LCDIF_BASE + HW_LCDIF_CTRL1_CLR);
 	}
 	if (status_lcd & BM_LCDIF_CTRL1_OVERFLOW_IRQ) {
 		pr_debug("%s: overflow irq\n", __func__);
-		stmp3xxx_clearl(BM_LCDIF_CTRL1_OVERFLOW_IRQ, REGS_LCDIF_BASE + HW_LCDIF_CTRL1);
+		__raw_writel(BM_LCDIF_CTRL1_OVERFLOW_IRQ,
+			REGS_LCDIF_BASE + HW_LCDIF_CTRL1_CLR);
 	}
 	return IRQ_HANDLED;
 }
@@ -403,10 +408,12 @@ static int stmp3xxxfb_wait_for_vsync(u32 channel, struct fb_info *info)
 	u32 count = data->vsync_count;
 	int ret = 0;
 
-	stmp3xxx_setl(BM_LCDIF_CTRL1_VSYNC_EDGE_IRQ_EN, REGS_LCDIF_BASE + HW_LCDIF_CTRL1);
+	__raw_writel(BM_LCDIF_CTRL1_VSYNC_EDGE_IRQ_EN,
+		REGS_LCDIF_BASE + HW_LCDIF_CTRL1_SET);
 	ret = wait_event_interruptible_timeout(data->vsync_wait_q,
 			count != data->vsync_count, HZ / 10);
-	stmp3xxx_clearl(BM_LCDIF_CTRL1_VSYNC_EDGE_IRQ_EN, REGS_LCDIF_BASE + HW_LCDIF_CTRL1);
+	__raw_writel(BM_LCDIF_CTRL1_VSYNC_EDGE_IRQ_EN,
+		REGS_LCDIF_BASE + HW_LCDIF_CTRL1_CLR);
 	if (!ret) {
 		dev_err(data->dev, "wait for vsync timed out\n");
 		ret = -ETIMEDOUT;

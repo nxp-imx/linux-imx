@@ -457,7 +457,8 @@ static int stmp3xxx_bat_probe(struct platform_device *pdev)
 
 	/* init LRADC channels to measure battery voltage and die temp */
 	ddi_power_init_battery();
-	stmp3xxx_clearl(BM_POWER_5VCTRL_ENABLE_LINREG_ILIMIT, REGS_POWER_BASE + HW_POWER_5VCTRL);
+	__raw_writel(BM_POWER_5VCTRL_ENABLE_LINREG_ILIMIT,
+		REGS_POWER_BASE + HW_POWER_5VCTRL_CLR);
 
 	ret = bc_sm_restart(info);
 	if (ret)
@@ -490,7 +491,8 @@ static int stmp3xxx_bat_probe(struct platform_device *pdev)
 	}
 
 	/* enable usb device presence detection */
-	stmp3xxx_setl(BM_USBPHY_CTRL_ENDEVPLUGINDETECT, REGS_USBPHY_BASE + HW_USBPHY_CTRL);
+	__raw_writel(BM_USBPHY_CTRL_ENDEVPLUGINDETECT,
+			REGS_USBPHY_BASE + HW_USBPHY_CTRL_SET);
 
 	return 0;
 
@@ -536,7 +538,8 @@ static int stmp3xxx_bat_suspend(struct platform_device *pdev, pm_message_t msg)
 	mutex_lock(&info->sm_lock);
 
 	/* disable 5v irq */
-	stmp3xxx_clearl(BM_POWER_CTRL_ENIRQ_VDD5V_GT_VDDIO, REGS_POWER_BASE + HW_POWER_CTRL);
+	__raw_writel(BM_POWER_CTRL_ENIRQ_VDD5V_GT_VDDIO,
+		REGS_POWER_BASE + HW_POWER_CTRL_CLR);
 
 	ddi_bc_SetDisable();
 	/* cancel state machine timer */
@@ -578,7 +581,8 @@ static int stmp3xxx_bat_resume(struct platform_device *pdev)
 	}
 
 	/* enable 5v irq */
-	stmp3xxx_setl(BM_POWER_CTRL_ENIRQ_VDD5V_GT_VDDIO, REGS_POWER_BASE + HW_POWER_CTRL);
+	__raw_writel(BM_POWER_CTRL_ENIRQ_VDD5V_GT_VDDIO,
+		REGS_POWER_BASE + HW_POWER_CTRL_SET);
 
 	/* reschedule calls to state machine */
 	mod_timer(&info->sm_timer,

@@ -69,15 +69,17 @@ static int stmp3xxx_rotdec_probe(struct platform_device *pdev)
 		 BF(BV_TIMROT_ROTCTRL_SELECT_A__ROTARYA,
 			TIMROT_ROTCTRL_SELECT_A)
 		, REGS_TIMROT_BASE + HW_TIMROT_ROTCTRL);
-		stmp3xxx_clearl(
+		__raw_writel(
 		 BM_TIMROT_ROTCTRL_POLARITY_B |
 		 BM_TIMROT_ROTCTRL_POLARITY_A
-		, REGS_TIMROT_BASE + HW_TIMROT_ROTCTRL);
+		, REGS_TIMROT_BASE + HW_TIMROT_ROTCTRL_CLR);
 
 		if (relative)
-			stmp3xxx_setl(BM_TIMROT_ROTCTRL_RELATIVE, REGS_TIMROT_BASE + HW_TIMROT_ROTCTRL);
+			__raw_writel(BM_TIMROT_ROTCTRL_RELATIVE,
+				REGS_TIMROT_BASE + HW_TIMROT_ROTCTRL_SET);
 		else
-			stmp3xxx_clearl(BM_TIMROT_ROTCTRL_RELATIVE, REGS_TIMROT_BASE + HW_TIMROT_ROTCTRL);
+			__raw_writel(BM_TIMROT_ROTCTRL_RELATIVE,
+				REGS_TIMROT_BASE + HW_TIMROT_ROTCTRL_CLR);
 
 		rc = rotdec_pinmux_request();
 		if (rc) {

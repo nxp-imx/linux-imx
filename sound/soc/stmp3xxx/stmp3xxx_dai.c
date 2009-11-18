@@ -73,21 +73,25 @@ static irqreturn_t stmp3xxx_err_irq(int irq, void *dev_id)
 		       playback ? "DAC" : "ADC");
 
 		if (playback)
-			stmp3xxx_clearl(
-				BM_AUDIOOUT_CTRL_FIFO_UNDERFLOW_IRQ, REGS_AUDIOOUT_BASE + HW_AUDIOOUT_CTRL);
+			__raw_writel(
+				BM_AUDIOOUT_CTRL_FIFO_UNDERFLOW_IRQ,
+				REGS_AUDIOOUT_BASE + HW_AUDIOOUT_CTRL_CLR);
 		else
-			stmp3xxx_clearl(
-				BM_AUDIOIN_CTRL_FIFO_UNDERFLOW_IRQ, REGS_AUDIOIN_BASE + HW_AUDIOIN_CTRL);
+			__raw_writel(
+				BM_AUDIOIN_CTRL_FIFO_UNDERFLOW_IRQ,
+				REGS_AUDIOIN_BASE + HW_AUDIOIN_CTRL_CLR);
 
 	} else if (ctrl_reg & overflow_mask) {
 		printk(KERN_DEBUG "%s overflow detected\n",
 		       playback ? "DAC" : "ADC");
 
 		if (playback)
-			stmp3xxx_clearl(
-				BM_AUDIOOUT_CTRL_FIFO_OVERFLOW_IRQ, REGS_AUDIOOUT_BASE + HW_AUDIOOUT_CTRL);
+			__raw_writel(
+				BM_AUDIOOUT_CTRL_FIFO_OVERFLOW_IRQ,
+				REGS_AUDIOOUT_BASE + HW_AUDIOOUT_CTRL_CLR);
 		else
-			stmp3xxx_clearl(BM_AUDIOIN_CTRL_FIFO_OVERFLOW_IRQ, REGS_AUDIOIN_BASE + HW_AUDIOIN_CTRL);
+			__raw_writel(BM_AUDIOIN_CTRL_FIFO_OVERFLOW_IRQ,
+				REGS_AUDIOIN_BASE + HW_AUDIOIN_CTRL_CLR);
 	} else
 		printk(KERN_WARNING "Unknown DAC error interrupt\n");
 
@@ -104,16 +108,20 @@ static int stmp3xxx_adc_trigger(struct snd_pcm_substream *substream,
 	switch (cmd) {
 	case SNDRV_PCM_TRIGGER_START:
 		if (playback)
-			stmp3xxx_setl(BM_AUDIOOUT_CTRL_RUN, REGS_AUDIOOUT_BASE + HW_AUDIOOUT_CTRL);
+			__raw_writel(BM_AUDIOOUT_CTRL_RUN,
+				REGS_AUDIOOUT_BASE + HW_AUDIOOUT_CTRL_SET);
 		else
-			stmp3xxx_setl(BM_AUDIOIN_CTRL_RUN, REGS_AUDIOIN_BASE + HW_AUDIOIN_CTRL);
+			__raw_writel(BM_AUDIOIN_CTRL_RUN,
+				REGS_AUDIOIN_BASE + HW_AUDIOIN_CTRL_SET);
 		break;
 
 	case SNDRV_PCM_TRIGGER_STOP:
 		if (playback)
-			stmp3xxx_clearl(BM_AUDIOOUT_CTRL_RUN, REGS_AUDIOOUT_BASE + HW_AUDIOOUT_CTRL);
+			__raw_writel(BM_AUDIOOUT_CTRL_RUN,
+				REGS_AUDIOOUT_BASE + HW_AUDIOOUT_CTRL_CLR);
 		else
-			stmp3xxx_clearl(BM_AUDIOIN_CTRL_RUN, REGS_AUDIOIN_BASE + HW_AUDIOIN_CTRL);
+			__raw_writel(BM_AUDIOIN_CTRL_RUN,
+				REGS_AUDIOIN_BASE + HW_AUDIOIN_CTRL_CLR);
 		break;
 
 	case SNDRV_PCM_TRIGGER_RESUME:
@@ -155,13 +163,19 @@ static int stmp3xxx_adc_startup(struct snd_pcm_substream *substream,
 
 	/* Enable error interrupt */
 	if (playback) {
-		stmp3xxx_clearl(BM_AUDIOOUT_CTRL_FIFO_OVERFLOW_IRQ, REGS_AUDIOOUT_BASE + HW_AUDIOOUT_CTRL);
-		stmp3xxx_clearl(BM_AUDIOOUT_CTRL_FIFO_UNDERFLOW_IRQ, REGS_AUDIOOUT_BASE + HW_AUDIOOUT_CTRL);
-		stmp3xxx_setl(BM_AUDIOOUT_CTRL_FIFO_ERROR_IRQ_EN, REGS_AUDIOOUT_BASE + HW_AUDIOOUT_CTRL);
+		__raw_writel(BM_AUDIOOUT_CTRL_FIFO_OVERFLOW_IRQ,
+				REGS_AUDIOOUT_BASE + HW_AUDIOOUT_CTRL_CLR);
+		__raw_writel(BM_AUDIOOUT_CTRL_FIFO_UNDERFLOW_IRQ,
+				REGS_AUDIOOUT_BASE + HW_AUDIOOUT_CTRL_CLR);
+		__raw_writel(BM_AUDIOOUT_CTRL_FIFO_ERROR_IRQ_EN,
+			REGS_AUDIOOUT_BASE + HW_AUDIOOUT_CTRL_SET);
 	} else {
-		stmp3xxx_clearl(BM_AUDIOIN_CTRL_FIFO_OVERFLOW_IRQ, REGS_AUDIOIN_BASE + HW_AUDIOIN_CTRL);
-		stmp3xxx_clearl(BM_AUDIOIN_CTRL_FIFO_UNDERFLOW_IRQ, REGS_AUDIOIN_BASE + HW_AUDIOIN_CTRL);
-		stmp3xxx_setl(BM_AUDIOIN_CTRL_FIFO_ERROR_IRQ_EN, REGS_AUDIOIN_BASE + HW_AUDIOIN_CTRL);
+		__raw_writel(BM_AUDIOIN_CTRL_FIFO_OVERFLOW_IRQ,
+			REGS_AUDIOIN_BASE + HW_AUDIOIN_CTRL_CLR);
+		__raw_writel(BM_AUDIOIN_CTRL_FIFO_UNDERFLOW_IRQ,
+			REGS_AUDIOIN_BASE + HW_AUDIOIN_CTRL_CLR);
+		__raw_writel(BM_AUDIOIN_CTRL_FIFO_ERROR_IRQ_EN,
+			REGS_AUDIOIN_BASE + HW_AUDIOIN_CTRL_SET);
 	}
 
 	return 0;
@@ -174,10 +188,12 @@ static void stmp3xxx_adc_shutdown(struct snd_pcm_substream *substream,
 
 	/* Disable error interrupt */
 	if (playback) {
-		stmp3xxx_clearl(BM_AUDIOOUT_CTRL_FIFO_ERROR_IRQ_EN, REGS_AUDIOOUT_BASE + HW_AUDIOOUT_CTRL);
+		__raw_writel(BM_AUDIOOUT_CTRL_FIFO_ERROR_IRQ_EN,
+			REGS_AUDIOOUT_BASE + HW_AUDIOOUT_CTRL_CLR);
 		free_irq(IRQ_DAC_ERROR, substream);
 	} else {
-		stmp3xxx_clearl(BM_AUDIOIN_CTRL_FIFO_ERROR_IRQ_EN, REGS_AUDIOIN_BASE + HW_AUDIOIN_CTRL);
+		__raw_writel(BM_AUDIOIN_CTRL_FIFO_ERROR_IRQ_EN,
+			REGS_AUDIOIN_BASE + HW_AUDIOIN_CTRL_CLR);
 		free_irq(IRQ_ADC_ERROR, substream);
 	}
 }

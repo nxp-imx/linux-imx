@@ -452,7 +452,7 @@ static void stmp_appuart_stop_rx(struct uart_port *u)
 	struct stmp_appuart_port *s = to_appuart(u);
 
 	dev_dbg(s->dev, "%s\n", __func__);
-	stmp3xxx_clearl(BM_UARTAPP_CTRL2_RXE, s->mem);
+	__raw_writel(BM_UARTAPP_CTRL2_RXE, s->mem + HW_STMP3XXX_CLR);
 }
 
 static void stmp_appuart_break_ctl(struct uart_port *u, int ctl)
@@ -461,11 +461,11 @@ static void stmp_appuart_break_ctl(struct uart_port *u, int ctl)
 
 	dev_dbg(s->dev, "%s: break = %s\n", __func__, ctl ? "on" : "off");
 	if (ctl)
-		stmp3xxx_setl(BM_UARTAPP_LINECTRL_BRK,
-			      s->mem + HW_UARTAPP_LINECTRL);
+		__raw_writel(BM_UARTAPP_LINECTRL_BRK,
+			      s->mem + HW_UARTAPP_LINECTRL_SET);
 	else
-		stmp3xxx_clearl(BM_UARTAPP_LINECTRL_BRK,
-				s->mem + HW_UARTAPP_LINECTRL);
+		__raw_writel(BM_UARTAPP_LINECTRL_BRK,
+				s->mem + HW_UARTAPP_LINECTRL_CLR);
 }
 
 static void stmp_appuart_enable_ms(struct uart_port *port)
@@ -775,8 +775,8 @@ static irqreturn_t stmp_appuart_irq_int(int irq, void *context)
 	if (istatus & BM_UARTAPP_INTR_CTSMIS) {
 		uart_handle_cts_change(&s->port, stat & BM_UARTAPP_STAT_CTS);
 		dev_dbg(s->dev, "CTS change: %x\n", stat & BM_UARTAPP_STAT_CTS);
-		stmp3xxx_clearl(BM_UARTAPP_INTR_CTSMIS,
-				s->mem + HW_UARTAPP_INTR);
+		__raw_writel(BM_UARTAPP_INTR_CTSMIS,
+				s->mem + HW_UARTAPP_INTR_CLR);
 	}
 
 	else if (istatus & BM_UARTAPP_INTR_RTIS) {
@@ -787,8 +787,8 @@ static irqreturn_t stmp_appuart_irq_int(int irq, void *context)
 	else
 		dev_info(s->dev, "Unhandled status %x\n", istatus);
 
-	stmp3xxx_clearl(istatus & 0xFFFF,
-			s->mem + HW_UARTAPP_INTR);
+	__raw_writel(istatus & 0xFFFF,
+			s->mem + HW_UARTAPP_INTR_CLR);
 
 	return IRQ_HANDLED;
 }
@@ -918,13 +918,13 @@ static int stmp_appuart_startup(struct uart_port *u)
 		/* Release the block from reset and start the clocks. */
 		stmp3xxx_reset_block(s->mem, 0);
 
-	stmp3xxx_setl(BM_UARTAPP_CTRL2_UARTEN,
-			s->mem + HW_UARTAPP_CTRL2);
+	__raw_writel(BM_UARTAPP_CTRL2_UARTEN,
+			s->mem + HW_UARTAPP_CTRL2_SET);
 	/* Enable the Application UART DMA bits. */
 	if (!pio_mode) {
-		stmp3xxx_setl(BM_UARTAPP_CTRL2_TXDMAE | BM_UARTAPP_CTRL2_RXDMAE
+		__raw_writel(BM_UARTAPP_CTRL2_TXDMAE | BM_UARTAPP_CTRL2_RXDMAE
 			      | BM_UARTAPP_CTRL2_DMAONERR,
-			      s->mem + HW_UARTAPP_CTRL2);
+			      s->mem + HW_UARTAPP_CTRL2_SET);
 		/* clear any pending interrupts */
 		__raw_writel(0, s->mem + HW_UARTAPP_INTR);
 
@@ -936,14 +936,14 @@ static int stmp_appuart_startup(struct uart_port *u)
 			     BM_UARTAPP_INTR_RTIEN,
 			     s->mem + HW_UARTAPP_INTR);
 	}
-	stmp3xxx_setl(BM_UARTAPP_INTR_CTSMIEN,
-			s->mem + HW_UARTAPP_INTR);
+	__raw_writel(BM_UARTAPP_INTR_CTSMIEN,
+			s->mem + HW_UARTAPP_INTR_SET);
 
 	/*
 	 * Enable fifo so all four bytes of a DMA word are written to
 	 * output (otherwise, only the LSB is written, ie. 1 in 4 bytes)
 	 */
-	stmp3xxx_setl(BM_UARTAPP_LINECTRL_FEN, s->mem + HW_UARTAPP_LINECTRL);
+	__raw_writel(BM_UARTAPP_LINECTRL_FEN, s->mem + HW_UARTAPP_LINECTRL_SET);
 
 	if (!pio_mode) {
 #ifndef RX_CHAIN
@@ -973,8 +973,8 @@ static void stmp_appuart_shutdown(struct uart_port *u)
 
 	if (!s->keep_irq)
 		/* set the IP block to RESET; this should disable clock too. */
-		stmp3xxx_setl(
-			BM_UARTAPP_CTRL0_SFTRST, s->mem + HW_UARTAPP_CTRL0);
+		__raw_writel(
+			BM_UARTAPP_CTRL0_SFTRST, s->mem + HW_UARTAPP_CTRL0_SET);
 
 	if (!pio_mode) {
 		/* reset all dma channels */
@@ -1008,7 +1008,7 @@ static void stmp_appuart_start_tx(struct uart_port *u)
 	dev_dbg(s->dev, "%s\n", __func__);
 
 	/* enable transmitter */
-	stmp3xxx_setl(BM_UARTAPP_CTRL2_TXE, s->mem + HW_UARTAPP_CTRL2);
+	__raw_writel(BM_UARTAPP_CTRL2_TXE, s->mem + HW_UARTAPP_CTRL2_SET);
 
 	if (!pio_mode) {
 		if (stmp3xxx_dma_running(s->dma_tx))
@@ -1042,7 +1042,7 @@ static void stmp_appuart_stop_tx(struct uart_port *u)
 	struct stmp_appuart_port *s = to_appuart(u);
 
 	dev_dbg(s->dev, "%s\n", __func__);
-	stmp3xxx_clearl(BM_UARTAPP_CTRL2_TXE, s->mem + HW_UARTAPP_CTRL2);
+	__raw_writel(BM_UARTAPP_CTRL2_TXE, s->mem + HW_UARTAPP_CTRL2_CLR);
 }
 
 static int stmp_appuart_copy_tx(struct uart_port *u, u8 * target,

@@ -135,7 +135,7 @@ static int stmp_spi_setup_transfer(struct spi_device *spi,
 		((spi->mode & SPI_CPHA) ? BM_SSP_CTRL1_PHASE : 0) |
 		(pio ? 0 : BM_SSP_CTRL1_DMA_ENABLE), ss->regs + HW_SSP_CTRL1);
 
-	stmp3xxx_setl(0x00, ss->regs + HW_SSP_CMD0);
+	__raw_writel(0x00, ss->regs + HW_SSP_CMD0_SET);
 
 	return 0;
 }
@@ -254,14 +254,14 @@ static int stmp_spi_txrx_dma(struct stmp_spi *ss, int cs,
 
 static inline void stmp_spi_enable(struct stmp_spi *ss)
 {
-	stmp3xxx_setl(BM_SSP_CTRL0_LOCK_CS, ss->regs + HW_SSP_CTRL0);
-	stmp3xxx_clearl(BM_SSP_CTRL0_IGNORE_CRC, ss->regs + HW_SSP_CTRL0);
+	__raw_writel(BM_SSP_CTRL0_LOCK_CS, ss->regs + HW_SSP_CTRL0_SET);
+	__raw_writel(BM_SSP_CTRL0_IGNORE_CRC, ss->regs + HW_SSP_CTRL0_CLR);
 }
 
 static inline void stmp_spi_disable(struct stmp_spi *ss)
 {
-	stmp3xxx_clearl(BM_SSP_CTRL0_LOCK_CS, ss->regs + HW_SSP_CTRL0);
-	stmp3xxx_setl(BM_SSP_CTRL0_IGNORE_CRC, ss->regs + HW_SSP_CTRL0);
+	__raw_writel(BM_SSP_CTRL0_LOCK_CS, ss->regs + HW_SSP_CTRL0_CLR);
+	__raw_writel(BM_SSP_CTRL0_IGNORE_CRC, ss->regs + HW_SSP_CTRL0_SET);
 }
 
 static int stmp_spi_txrx_pio(struct stmp_spi *ss, int cs,
@@ -275,23 +275,26 @@ static int stmp_spi_txrx_pio(struct stmp_spi *ss, int cs,
 		*first = 0;
 	}
 
-	stmp3xxx_setl(stmp_spi_cs(cs), ss->regs + HW_SSP_CTRL0);
+	__raw_writel(stmp_spi_cs(cs), ss->regs + HW_SSP_CTRL0_SET);
 
 	while (len--) {
 		if (*last && len == 0) {
 			stmp_spi_disable(ss);
 			*last = 0;
 		}
-		stmp3xxx_clearl(BM_SSP_CTRL0_XFER_COUNT, ss->regs + HW_SSP_CTRL0);
-		stmp3xxx_setl(1, ss->regs); /* byte-by-byte */
+		__raw_writel(BM_SSP_CTRL0_XFER_COUNT,
+				ss->regs + HW_SSP_CTRL0_CLR);
+		__raw_writel(1, ss->regs + HW_SSP_CTRL0_SET); /* byte-by-byte */
 
 		if (write)
-			stmp3xxx_clearl(BM_SSP_CTRL0_READ, ss->regs + HW_SSP_CTRL0);
+			__raw_writel(BM_SSP_CTRL0_READ,
+				ss->regs + HW_SSP_CTRL0_CLR);
 		else
-			stmp3xxx_setl(BM_SSP_CTRL0_READ, ss->regs + HW_SSP_CTRL0);
+			__raw_writel(BM_SSP_CTRL0_READ,
+				ss->regs + HW_SSP_CTRL0_SET);
 
 		/* Run! */
-		stmp3xxx_setl(BM_SSP_CTRL0_RUN, ss->regs + HW_SSP_CTRL0);
+		__raw_writel(BM_SSP_CTRL0_RUN, ss->regs + HW_SSP_CTRL0_SET);
 		count = 10000;
 		while (((__raw_readl(ss->regs + HW_SSP_CTRL0) & BM_SSP_CTRL0_RUN) == 0) && count--)
 			continue;
@@ -305,7 +308,8 @@ static int stmp_spi_txrx_pio(struct stmp_spi *ss, int cs,
 			__raw_writel(*buf, ss->regs + HW_SSP_DATA);
 
 		/* Set TRANSFER */
-		stmp3xxx_setl(BM_SSP_CTRL0_DATA_XFER, ss->regs + HW_SSP_CTRL0);
+		__raw_writel(BM_SSP_CTRL0_DATA_XFER,
+			ss->regs + HW_SSP_CTRL0_SET);
 
 		if (!write) {
 			count = 10000;
@@ -475,7 +479,7 @@ static irqreturn_t stmp_spi_irq_err(int irq, void *dev_id)
 	c1 = __raw_readl(ss->regs + HW_SSP_CTRL1);
 	st = __raw_readl(ss->regs + HW_SSP_STATUS);
 	printk(KERN_ERR"IRQ - ERROR!, status = 0x%08X, c1 = 0x%08X\n", st, c1);
-	stmp3xxx_clearl(c1 & 0xCCCC0000, ss->regs + HW_SSP_CTRL1);
+	__raw_writel(c1 & 0xCCCC0000, ss->regs + HW_SSP_CTRL1_CLR);
 
 	return IRQ_HANDLED;
 }
@@ -650,8 +654,9 @@ static int stmp_spi_resume(struct platform_device *pdev)
 	ss = spi_master_get_devdata(master);
 
 	clk_enable(ss->clk);
-	stmp3xxx_clearl(BM_SSP_CTRL0_SFTRST | BM_SSP_CTRL0_CLKGATE, ss->regs + HW_SSP_CTRL0);
-	stmp3xxx_setl(ss->saved_timings, ss->regs + HW_SSP_TIMING);
+	__raw_writel(BM_SSP_CTRL0_SFTRST | BM_SSP_CTRL0_CLKGATE,
+		ss->regs + HW_SSP_CTRL0_CLR);
+	__raw_writel(ss->saved_timings, ss->regs + HW_SSP_TIMING);
 
 	return 0;
 }

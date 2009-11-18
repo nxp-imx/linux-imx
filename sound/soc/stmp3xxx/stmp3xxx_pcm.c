@@ -89,10 +89,10 @@ static irqreturn_t stmp3xxx_pcm_dma_irq(int irq, void *dev_id)
 		printk(KERN_WARNING "%s: DMA audio channel %d (%s) error\n",
 		       __func__, prtd->params->dma_ch, prtd->params->name);
 #ifdef CONFIG_ARCH_STMP37XX
-		stmp3xxx_clearl(err_mask, REGS_APBX_BASE + HW_APBX_CTRL1);
+		__raw_writel(err_mask, REGS_APBX_BASE + HW_APBX_CTRL1_CLR);
 #endif
 #ifdef CONFIG_ARCH_STMP378X
-		stmp3xxx_clearl(err_mask, REGS_APBX_BASE + HW_APBX_CTRL2);
+		__raw_writel(err_mask, REGS_APBX_BASE + HW_APBX_CTRL2_CLR);
 #endif
 	} else if (__raw_readl(REGS_APBX_BASE + HW_APBX_CTRL1) & irq_mask) {
 		stmp3xxx_dma_clear_interrupt(prtd->dma_ch);

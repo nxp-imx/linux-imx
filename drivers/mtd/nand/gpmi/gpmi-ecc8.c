@@ -118,8 +118,10 @@ static int  ecc8_reset(void *context, int index)
 {
 	stmp3xxx_reset_block(REGS_ECC8_BASE, false);
 	while (__raw_readl(REGS_ECC8_BASE + HW_ECC8_CTRL) & BM_ECC8_CTRL_AHBM_SFTRST)
-		stmp3xxx_clearl(BM_ECC8_CTRL_AHBM_SFTRST, REGS_ECC8_BASE + HW_ECC8_CTRL);
-	stmp3xxx_setl(BM_ECC8_CTRL_COMPLETE_IRQ_EN, REGS_ECC8_BASE + HW_ECC8_CTRL);
+		__raw_writel(BM_ECC8_CTRL_AHBM_SFTRST,
+			REGS_ECC8_BASE + HW_ECC8_CTRL_CLR);
+	__raw_writel(BM_ECC8_CTRL_COMPLETE_IRQ_EN,
+			REGS_ECC8_BASE + HW_ECC8_CTRL_SET);
 	return 0;
 }
 
@@ -205,7 +207,8 @@ static irqreturn_t ecc8_irq(int irq, void *context)
 
 	complete(&state->done);
 
-	stmp3xxx_clearl(BM_ECC8_CTRL_COMPLETE_IRQ, REGS_ECC8_BASE + HW_ECC8_CTRL);
+	__raw_writel(BM_ECC8_CTRL_COMPLETE_IRQ,
+		REGS_ECC8_BASE + HW_ECC8_CTRL_CLR);
 	return IRQ_HANDLED;
 }
 

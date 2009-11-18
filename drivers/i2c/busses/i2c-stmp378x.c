@@ -39,7 +39,7 @@ static void reset_i2c_module(void)
 	u32 ctrl;
 	int count;
 	count = 1000;
-	stmp3xxx_setl(BM_I2C_CTRL0_SFTRST, REGS_I2C_BASE + HW_I2C_CTRL0);
+	__raw_writel(BM_I2C_CTRL0_SFTRST, REGS_I2C_BASE + HW_I2C_CTRL0_SET);
 	udelay(10); /* Reseting the module can take multiple clocks.*/
 	while (--count && (!(__raw_readl(REGS_I2C_BASE + HW_I2C_CTRL0) & BM_I2C_CTRL0_CLKGATE)))
 		udelay(1);
@@ -50,9 +50,11 @@ static void reset_i2c_module(void)
 	}
 
 	/* take controller out of reset */
-	stmp3xxx_clearl(BM_I2C_CTRL0_SFTRST | BM_I2C_CTRL0_CLKGATE, REGS_I2C_BASE + HW_I2C_CTRL0);
+	__raw_writel(BM_I2C_CTRL0_SFTRST | BM_I2C_CTRL0_CLKGATE,
+		REGS_I2C_BASE + HW_I2C_CTRL0_CLR);
 	udelay(10);
-	stmp3xxx_setl(0x0000FF00, REGS_I2C_BASE + HW_I2C_CTRL1); /* Wil catch all error (IRQ mask) */
+	/* Wil catch all error (IRQ mask) */
+	__raw_writel(0x0000FF00, REGS_I2C_BASE + HW_I2C_CTRL1_SET);
 }
 
 /*
@@ -170,7 +172,8 @@ stmp378x_i2c_isr(int this_irq, void *dev_id)
 		 * Stop DMA
 		 * Clear NAK
 		 */
-		stmp3xxx_setl(BM_I2C_CTRL1_CLR_GOT_A_NAK, REGS_I2C_BASE + HW_I2C_CTRL1);
+		__raw_writel(BM_I2C_CTRL1_CLR_GOT_A_NAK,
+			REGS_I2C_BASE + HW_I2C_CTRL1_SET);
 		hw_i2c_reset_dma();
 		reset_i2c_module();
 
@@ -195,7 +198,7 @@ stmp378x_i2c_isr(int this_irq, void *dev_id)
 
 
 done:
-	stmp3xxx_clearl(stat, REGS_I2C_BASE + HW_I2C_CTRL1);
+	__raw_writel(stat, REGS_I2C_BASE + HW_I2C_CTRL1_CLR);
 	return IRQ_HANDLED;
 }
 
@@ -259,7 +262,9 @@ stmp378x_i2c_probe(struct platform_device *pdev)
 		goto init_failed;
 	}
 
-	stmp3xxx_setl(0x0000FF00, REGS_I2C_BASE + HW_I2C_CTRL1); /* Will catch all error (IRQ mask) */
+	/* Will catch all error (IRQ mask) */
+	__raw_writel(0x0000FF00,
+		REGS_I2C_BASE + HW_I2C_CTRL1_SET);
 
 	adap = &dev->adapter;
 	i2c_set_adapdata(adap, dev);

@@ -145,8 +145,8 @@ static irqreturn_t mmc_irq_handler(int irq, void *dev_id)
 	u32 c1;
 
 	c1 = __raw_readl(host->ssp_base + HW_SSP_CTRL1);
-	stmp3xxx_clearl(c1 & STMP3XXX_MMC_IRQ_BITS,
-			host->ssp_base + HW_SSP_CTRL1);
+	__raw_writel(c1 & STMP3XXX_MMC_IRQ_BITS,
+			host->ssp_base + HW_SSP_CTRL1_CLR);
 	if (irq == host->dmairq)
 		stmp3xxx_dma_clear_interrupt(host->dmach);
 	host->status =

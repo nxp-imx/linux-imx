@@ -249,8 +249,8 @@ static void gpmi_timer_expiry(unsigned long d)
 		g->timer.expires = jiffies + 4 * HZ;
 		add_timer(&g->timer);
 	} else {
-		stmp3xxx_setl(BM_GPMI_CTRL0_CLKGATE,
-			      REGS_GPMI_BASE + HW_GPMI_CTRL0);
+		__raw_writel(BM_GPMI_CTRL0_CLKGATE,
+			      REGS_GPMI_BASE + HW_GPMI_CTRL0_SET);
 		clk_disable(g->clk);
 		g->self_suspended = 1;
 	}
@@ -265,7 +265,7 @@ static void gpmi_self_wakeup(struct gpmi_nand_data *g)
 #ifdef CONFIG_PM
 	int i = 1000;
 	clk_enable(g->clk);
-	stmp3xxx_clearl(BM_GPMI_CTRL0_CLKGATE, REGS_GPMI_BASE + HW_GPMI_CTRL0);
+	__raw_writel(BM_GPMI_CTRL0_CLKGATE, REGS_GPMI_BASE + HW_GPMI_CTRL0_CLR);
 	while (i--
 	       && __raw_readl(REGS_GPMI_BASE +
 			      HW_GPMI_CTRL0) & BM_GPMI_CTRL0_CLKGATE) ;
@@ -344,9 +344,9 @@ void gpmi_set_timings(struct gpmi_nand_data *g,
 
 	/* Reset the DLL and sample delay to known values. */
 
-	stmp3xxx_clearl(
+	__raw_writel(
 		BM_GPMI_CTRL1_RDN_DELAY | BM_GPMI_CTRL1_DLL_ENABLE,
-					REGS_GPMI_BASE + HW_GPMI_CTRL1);
+					REGS_GPMI_BASE + HW_GPMI_CTRL1_CLR);
 
 	/*
 	 * Check how fast the GPMI clock is running. If it's running very
@@ -718,7 +718,8 @@ set_up_the_hardware:
 	 */
 
 	/* BW_GPMI_CTRL1_DLL_ENABLE(0); */
-	stmp3xxx_clearl(BM_GPMI_CTRL1_DLL_ENABLE, REGS_GPMI_BASE+HW_GPMI_CTRL1);
+	__raw_writel(BM_GPMI_CTRL1_DLL_ENABLE,
+		REGS_GPMI_BASE+HW_GPMI_CTRL1_CLR);
 
 	if ((data_sample_delay_in_cycles == 0) ||
 			(gpmi_clock_period_in_ns > GPMI_MAX_DLL_PERIOD_NS)) {
@@ -729,11 +730,11 @@ set_up_the_hardware:
 		 */
 
 		/* BW_GPMI_CTRL1_RDN_DELAY(0); */
-		stmp3xxx_clearl(BM_GPMI_CTRL1_RDN_DELAY,
-						REGS_GPMI_BASE + HW_GPMI_CTRL1);
+		__raw_writel(BM_GPMI_CTRL1_RDN_DELAY,
+				REGS_GPMI_BASE + HW_GPMI_CTRL1_CLR);
 		/* BW_GPMI_CTRL1_HALF_PERIOD(0); */
-		stmp3xxx_clearl(BM_GPMI_CTRL1_HALF_PERIOD,
-						REGS_GPMI_BASE + HW_GPMI_CTRL1);
+		__raw_writel(BM_GPMI_CTRL1_HALF_PERIOD,
+				REGS_GPMI_BASE + HW_GPMI_CTRL1_CLR);
 
 	} else {
 
@@ -751,8 +752,8 @@ set_up_the_hardware:
 		__raw_writel(register_image, REGS_GPMI_BASE + HW_GPMI_CTRL1);
 
 		/* BW_GPMI_CTRL1_DLL_ENABLE(1); */
-		stmp3xxx_setl(BM_GPMI_CTRL1_DLL_ENABLE,
-						REGS_GPMI_BASE + HW_GPMI_CTRL1);
+		__raw_writel(BM_GPMI_CTRL1_DLL_ENABLE,
+			REGS_GPMI_BASE + HW_GPMI_CTRL1_SET);
 
 		/*
 		 * After we enable the GPMI DLL, we have to wait
@@ -859,21 +860,22 @@ static int gpmi_nand_init_hw(struct platform_device *pdev, int request_pins)
 	stmp3xxx_reset_block(HW_GPMI_CTRL0 + REGS_GPMI_BASE, 1);
 
 	/* this CLEARS reset, despite of its name */
-	stmp3xxx_setl(BM_GPMI_CTRL1_DEV_RESET, REGS_GPMI_BASE + HW_GPMI_CTRL1);
+	__raw_writel(BM_GPMI_CTRL1_DEV_RESET,
+		REGS_GPMI_BASE + HW_GPMI_CTRL1_SET);
 
 	/* IRQ polarity */
-	stmp3xxx_setl(BM_GPMI_CTRL1_ATA_IRQRDY_POLARITY,
-		      REGS_GPMI_BASE + HW_GPMI_CTRL1);
+	__raw_writel(BM_GPMI_CTRL1_ATA_IRQRDY_POLARITY,
+		      REGS_GPMI_BASE + HW_GPMI_CTRL1_SET);
 
 	/*
 	 * Select the ECC to use. The bch_mode() function returns a value that
 	 * selects whichever hardware is appropriate (q.v.).
 	 */
-	stmp3xxx_setl(bch_mode(), REGS_GPMI_BASE + HW_GPMI_CTRL1);
+	__raw_writel(bch_mode(), REGS_GPMI_BASE + HW_GPMI_CTRL1_SET);
 
 	/* Choose NAND mode (1 means ATA, 0 - NAND */
-	stmp3xxx_clearl(BM_GPMI_CTRL1_GPMI_MODE,
-			REGS_GPMI_BASE + HW_GPMI_CTRL1);
+	__raw_writel(BM_GPMI_CTRL1_GPMI_MODE,
+			REGS_GPMI_BASE + HW_GPMI_CTRL1_CLR);
 
 out:
 	return err;
@@ -892,7 +894,7 @@ static void gpmi_nand_release_hw(struct platform_device *pdev)
 	struct gpmi_platform_data *gpd =
 	    (struct gpmi_platform_data *)pdev->dev.platform_data;
 
-	stmp3xxx_setl(BM_GPMI_CTRL0_SFTRST, REGS_GPMI_BASE + HW_GPMI_CTRL0);
+	__raw_writel(BM_GPMI_CTRL0_SFTRST, REGS_GPMI_BASE + HW_GPMI_CTRL0_SET);
 
 	clk_disable(g->clk);
 	clk_put(g->clk);
@@ -1735,8 +1737,8 @@ static irqreturn_t gpmi_irq(int irq, void *context)
 		stmp3xxx_dma_clear_interrupt(g->cchip->dma_ch);
 		complete(&g->done);
 	}
-	stmp3xxx_clearl(BM_GPMI_CTRL1_DEV_IRQ | BM_GPMI_CTRL1_TIMEOUT_IRQ,
-			REGS_GPMI_BASE + HW_GPMI_CTRL1);
+	__raw_writel(BM_GPMI_CTRL1_DEV_IRQ | BM_GPMI_CTRL1_TIMEOUT_IRQ,
+			REGS_GPMI_BASE + HW_GPMI_CTRL1_CLR);
 	return IRQ_HANDLED;
 }
 

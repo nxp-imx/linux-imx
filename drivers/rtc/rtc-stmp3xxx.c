@@ -78,11 +78,13 @@ static irqreturn_t stmp3xxx_rtc_interrupt(int irq, void *dev_id)
 	status = __raw_readl(REGS_RTC_BASE + HW_RTC_CTRL) &
 			(BM_RTC_CTRL_ALARM_IRQ | BM_RTC_CTRL_ONEMSEC_IRQ);
 	if (status & BM_RTC_CTRL_ALARM_IRQ) {
-		stmp3xxx_clearl(BM_RTC_CTRL_ALARM_IRQ, REGS_RTC_BASE + HW_RTC_CTRL);
+		__raw_writel(BM_RTC_CTRL_ALARM_IRQ,
+			REGS_RTC_BASE + HW_RTC_CTRL_CLR);
 		events |= RTC_AF | RTC_IRQF;
 	}
 	if (status & BM_RTC_CTRL_ONEMSEC_IRQ) {
-		stmp3xxx_clearl(BM_RTC_CTRL_ONEMSEC_IRQ, REGS_RTC_BASE + HW_RTC_CTRL);
+		__raw_writel(BM_RTC_CTRL_ONEMSEC_IRQ,
+			REGS_RTC_BASE + HW_RTC_CTRL_CLR);
 		if (++data->irq_count % 1000 == 0) {
 			events |= RTC_UF | RTC_IRQF;
 			data->irq_count = 0;
@@ -121,7 +123,8 @@ fail_1:
 
 static void stmp3xxx_rtc_release(struct device *dev)
 {
-	stmp3xxx_clearl(BM_RTC_CTRL_ALARM_IRQ_EN | BM_RTC_CTRL_ONEMSEC_IRQ_EN, REGS_RTC_BASE + HW_RTC_CTRL);
+	__raw_writel(BM_RTC_CTRL_ALARM_IRQ_EN | BM_RTC_CTRL_ONEMSEC_IRQ_EN,
+		REGS_RTC_BASE + HW_RTC_CTRL_CLR);
 	free_irq(IRQ_RTC_ALARM, dev);
 	free_irq(IRQ_RTC_1MSEC, dev);
 }
@@ -133,21 +136,28 @@ static int stmp3xxx_rtc_ioctl(struct device *dev, unsigned int cmd,
 
 	switch (cmd) {
 	case RTC_AIE_OFF:
-		stmp3xxx_clearl(BM_RTC_PERSISTENT0_ALARM_EN |
-					BM_RTC_PERSISTENT0_ALARM_WAKE_EN, REGS_RTC_BASE + HW_RTC_PERSISTENT0);
-		stmp3xxx_clearl(BM_RTC_CTRL_ALARM_IRQ_EN, REGS_RTC_BASE + HW_RTC_CTRL);
+		__raw_writel(BM_RTC_PERSISTENT0_ALARM_EN |
+				BM_RTC_PERSISTENT0_ALARM_WAKE_EN,
+				REGS_RTC_BASE + HW_RTC_PERSISTENT0_CLR);
+		__raw_writel(BM_RTC_CTRL_ALARM_IRQ_EN,
+				REGS_RTC_BASE + HW_RTC_CTRL_CLR);
 		break;
 	case RTC_AIE_ON:
-		stmp3xxx_setl(BM_RTC_PERSISTENT0_ALARM_EN |
-					BM_RTC_PERSISTENT0_ALARM_WAKE_EN, REGS_RTC_BASE + HW_RTC_PERSISTENT0);
-		stmp3xxx_setl(BM_RTC_CTRL_ALARM_IRQ_EN, REGS_RTC_BASE + HW_RTC_CTRL);
+		__raw_writel(BM_RTC_PERSISTENT0_ALARM_EN |
+				BM_RTC_PERSISTENT0_ALARM_WAKE_EN,
+				REGS_RTC_BASE + HW_RTC_PERSISTENT0_SET);
+
+		__raw_writel(BM_RTC_CTRL_ALARM_IRQ_EN,
+				REGS_RTC_BASE + HW_RTC_CTRL_SET);
 		break;
 	case RTC_UIE_ON:
 		data->irq_count = 0;
-		stmp3xxx_setl(BM_RTC_CTRL_ONEMSEC_IRQ_EN, REGS_RTC_BASE + HW_RTC_CTRL);
+		__raw_writel(BM_RTC_CTRL_ONEMSEC_IRQ_EN,
+			REGS_RTC_BASE + HW_RTC_CTRL_SET);
 		break;
 	case RTC_UIE_OFF:
-		stmp3xxx_clearl(BM_RTC_CTRL_ONEMSEC_IRQ_EN, REGS_RTC_BASE + HW_RTC_CTRL);
+		__raw_writel(BM_RTC_CTRL_ONEMSEC_IRQ_EN,
+			REGS_RTC_BASE + HW_RTC_CTRL_CLR);
 		break;
 	default:
 		return -ENOIOCTLCMD;
@@ -209,9 +219,10 @@ static int stmp3xxx_rtc_probe(struct platform_device *pdev)
 
 	stmp3xxx_reset_block(REGS_RTC_BASE, 1);
 
-	stmp3xxx_clearl(BM_RTC_PERSISTENT0_ALARM_EN |
-				BM_RTC_PERSISTENT0_ALARM_WAKE_EN |
-				BM_RTC_PERSISTENT0_ALARM_WAKE, REGS_RTC_BASE + HW_RTC_PERSISTENT0);
+	__raw_writel(BM_RTC_PERSISTENT0_ALARM_EN |
+			BM_RTC_PERSISTENT0_ALARM_WAKE_EN |
+			BM_RTC_PERSISTENT0_ALARM_WAKE,
+		     REGS_RTC_BASE + HW_RTC_PERSISTENT0_CLR);
 
 	printk(KERN_INFO "STMP3xxx RTC driver v1.0 hardware v%u.%u.%u\n",
 	       (hwversion >> 24),
@@ -239,9 +250,10 @@ static int stmp3xxx_rtc_suspend(struct platform_device *dev, pm_message_t state)
 static int stmp3xxx_rtc_resume(struct platform_device *dev)
 {
 	stmp3xxx_reset_block(REGS_RTC_BASE, 1);
-	stmp3xxx_clearl(BM_RTC_PERSISTENT0_ALARM_EN |
-				BM_RTC_PERSISTENT0_ALARM_WAKE_EN |
-				BM_RTC_PERSISTENT0_ALARM_WAKE, REGS_RTC_BASE + HW_RTC_PERSISTENT0);
+	__raw_writel(BM_RTC_PERSISTENT0_ALARM_EN |
+			BM_RTC_PERSISTENT0_ALARM_WAKE_EN |
+			BM_RTC_PERSISTENT0_ALARM_WAKE,
+		     REGS_RTC_BASE + HW_RTC_PERSISTENT0_CLR);
 	return 0;
 }
 #else

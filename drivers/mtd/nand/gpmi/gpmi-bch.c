@@ -93,7 +93,8 @@ static struct bch_state_t state = {
 static int bch_reset(void *context, int index)
 {
 	stmp3xxx_reset_block(REGS_BCH_BASE, true);
-	stmp3xxx_setl(BM_BCH_CTRL_COMPLETE_IRQ_EN, REGS_BCH_BASE + HW_BCH_CTRL);
+	__raw_writel(BM_BCH_CTRL_COMPLETE_IRQ_EN,
+		REGS_BCH_BASE + HW_BCH_CTRL_SET);
 	return 0;
 }
 
@@ -148,7 +149,7 @@ static irqreturn_t bch_irq(int irq, void *context)
 	if (s0 & BM_BCH_STATUS0_UNCORRECTABLE)
 		stat.failed++;
 
-	stmp3xxx_clearl(BM_BCH_CTRL_COMPLETE_IRQ, REGS_BCH_BASE + HW_BCH_CTRL);
+	__raw_writel(BM_BCH_CTRL_COMPLETE_IRQ, REGS_BCH_BASE + HW_BCH_CTRL_CLR);
 
 	pr_debug("%s: chip %d, failed %d, corrected %d\n",
 			__func__, r,

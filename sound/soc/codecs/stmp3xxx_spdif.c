@@ -164,11 +164,13 @@ static int stmp3xxx_codec_hw_params(struct snd_pcm_substream *substream,
 	switch (params_format(params)) {
 	case SNDRV_PCM_FORMAT_S16_LE:
 		if (playback)
-			stmp3xxx_setl(BM_SPDIF_CTRL_WORD_LENGTH, REGS_SPDIF_BASE + HW_SPDIF_CTRL);
+			__raw_writel(BM_SPDIF_CTRL_WORD_LENGTH,
+				REGS_SPDIF_BASE + HW_SPDIF_CTRL_SET);
 		break;
 	case SNDRV_PCM_FORMAT_S32_LE:
 		if (playback)
-			stmp3xxx_clearl(BM_SPDIF_CTRL_WORD_LENGTH, REGS_SPDIF_BASE + HW_SPDIF_CTRL);
+			__raw_writel(BM_SPDIF_CTRL_WORD_LENGTH,
+				REGS_SPDIF_BASE + HW_SPDIF_CTRL_CLR);
 		break;
 	default:
 		printk(KERN_WARNING "%s doesn't support format %d\n",
@@ -182,20 +184,24 @@ static void
 stmp3xxx_codec_spdif_enable(struct stmp3xxx_codec_priv *stmp3xxx_spdif)
 {
 	/* Move SPDIF codec out of reset */
-	stmp3xxx_clearl(BM_SPDIF_CTRL_SFTRST, REGS_SPDIF_BASE + HW_SPDIF_CTRL);
+	__raw_writel(BM_SPDIF_CTRL_SFTRST,
+		REGS_SPDIF_BASE + HW_SPDIF_CTRL_CLR);
 
 	/* Ungate SPDIF clocks */
-	stmp3xxx_clearl(BM_SPDIF_CTRL_CLKGATE, REGS_SPDIF_BASE + HW_SPDIF_CTRL);
+	__raw_writel(BM_SPDIF_CTRL_CLKGATE,
+		REGS_SPDIF_BASE + HW_SPDIF_CTRL_CLR);
 
 	/* 16 bit word length */
-	stmp3xxx_setl(BM_SPDIF_CTRL_WORD_LENGTH, REGS_SPDIF_BASE + HW_SPDIF_CTRL);
+	__raw_writel(BM_SPDIF_CTRL_WORD_LENGTH,
+		REGS_SPDIF_BASE + HW_SPDIF_CTRL_SET);
 }
 
 static void
 stmp3xxx_codec_spdif_disable(struct stmp3xxx_codec_priv *stmp3xxx_spdif)
 {
 	/* Gate SPDIF clocks */
-	stmp3xxx_setl(BM_SPDIF_CTRL_CLKGATE, REGS_SPDIF_BASE + HW_SPDIF_CTRL);
+	__raw_writel(BM_SPDIF_CTRL_CLKGATE,
+		REGS_SPDIF_BASE + HW_SPDIF_CTRL_SET);
 }
 
 static void stmp3xxx_codec_init(struct snd_soc_codec *codec)
@@ -203,7 +209,7 @@ static void stmp3xxx_codec_init(struct snd_soc_codec *codec)
 	struct stmp3xxx_codec_priv *stmp3xxx_spdif = codec->private_data;
 
 	/* Soft reset SPDIF block */
-	stmp3xxx_setl(BM_SPDIF_CTRL_SFTRST, REGS_SPDIF_BASE + HW_SPDIF_CTRL);
+	__raw_writel(BM_SPDIF_CTRL_SFTRST, REGS_SPDIF_BASE + HW_SPDIF_CTRL_SET);
 	while (!(__raw_readl(REGS_SPDIF_BASE + HW_SPDIF_CTRL) & BM_SPDIF_CTRL_CLKGATE));
 
 	stmp3xxx_codec_spdif_enable(stmp3xxx_spdif);
@@ -323,7 +329,7 @@ static int stmp3xxx_codec_resume(struct platform_device *pdev)
 	clk_enable(stmp3xxx_spdif->clk);
 
 	/* Soft reset SPDIF block */
-	stmp3xxx_setl(BM_SPDIF_CTRL_SFTRST, REGS_SPDIF_BASE + HW_SPDIF_CTRL);
+	__raw_writel(BM_SPDIF_CTRL_SFTRST, REGS_SPDIF_BASE + HW_SPDIF_CTRL_SET);
 	while (!(__raw_readl(REGS_SPDIF_BASE + HW_SPDIF_CTRL) & BM_SPDIF_CTRL_CLKGATE));
 
 	stmp3xxx_codec_spdif_enable(stmp3xxx_spdif);

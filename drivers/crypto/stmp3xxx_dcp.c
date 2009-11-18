@@ -243,7 +243,7 @@ static void dcp_perform_op(struct stmp3xxx_dcp_op *op)
 	/* submit the work */
 	mutex_lock(mutex);
 
-	stmp3xxx_clearl(-1, REGS_DCP_BASE + HW_DCP_CHnSTAT(chan));
+	__raw_writel(-1, REGS_DCP_BASE + HW_DCP_CHnSTAT_CLR(chan));
 
 	/* Load the work packet pointer and bump the channel semaphore */
 	__raw_writel((u32)pkt_phys, REGS_DCP_BASE + HW_DCP_CHnCMDPTR(chan));
@@ -1011,7 +1011,7 @@ static void dcp_perform_hash_op(struct stmp3xxx_dcp_hash_op *op)
 	/* submit the work */
 	mutex_lock(mutex);
 
-	stmp3xxx_clearl(-1, REGS_DCP_BASE + HW_DCP_CHnSTAT(chan));
+	__raw_writel(-1, REGS_DCP_BASE + HW_DCP_CHnSTAT_CLR(chan));
 
 	mb();
 	/* Load the work packet pointer and bump the channel semaphore */
@@ -1175,7 +1175,7 @@ static irqreturn_t dcp_common_irq(int irq, void *context)
 		return IRQ_NONE;
 
 	/* clear this channel */
-	stmp3xxx_clearl(msk, REGS_DCP_BASE + HW_DCP_STAT);
+	__raw_writel(msk, REGS_DCP_BASE + HW_DCP_STAT_CLR);
 	if (msk & BF(0x01, DCP_STAT_IRQ))
 		sdcp->wait[0]++;
 	if (msk & BF(0x02, DCP_STAT_IRQ))
@@ -1228,7 +1228,7 @@ static int stmp3xxx_dcp_probe(struct platform_device *pdev)
 	platform_set_drvdata(pdev, sdcp);
 
 	/* Soft reset and remove the clock gate */
-	stmp3xxx_setl(BM_DCP_CTRL_SFTRST, REGS_DCP_BASE + HW_DCP_CTRL);
+	__raw_writel(BM_DCP_CTRL_SFTRST, REGS_DCP_BASE + HW_DCP_CTRL_SET);
 
 	/* At 24Mhz, it takes no more than 4 clocks (160 ns) Maximum for
 	 * the part to reset, reading the register twice should
@@ -1237,7 +1237,8 @@ static int stmp3xxx_dcp_probe(struct platform_device *pdev)
 	__raw_readl(REGS_DCP_BASE + HW_DCP_CTRL);
 	__raw_readl(REGS_DCP_BASE + HW_DCP_CTRL);
 
-	stmp3xxx_clearl(BM_DCP_CTRL_SFTRST | BM_DCP_CTRL_CLKGATE, REGS_DCP_BASE + HW_DCP_CTRL);
+	__raw_writel(BM_DCP_CTRL_SFTRST | BM_DCP_CTRL_CLKGATE,
+		REGS_DCP_BASE + HW_DCP_CTRL_CLR);
 
 	/* Initialize control registers */
 	__raw_writel(STMP3XXX_DCP_CTRL_INIT, REGS_DCP_BASE + HW_DCP_CTRL);
@@ -1252,8 +1253,8 @@ static int stmp3xxx_dcp_probe(struct platform_device *pdev)
 	__raw_writel(0xFFFF0000, REGS_DCP_BASE + HW_DCP_CONTEXT);
 
 	for (i = 0; i < STMP3XXX_DCP_NUM_CHANNELS; i++)
-		stmp3xxx_clearl(-1, REGS_DCP_BASE + HW_DCP_CHnSTAT(i));
-	stmp3xxx_clearl(-1, REGS_DCP_BASE + HW_DCP_STAT);
+		__raw_writel(-1, REGS_DCP_BASE + HW_DCP_CHnSTAT_CLR(i));
+	__raw_writel(-1, REGS_DCP_BASE + HW_DCP_STAT_CLR);
 
 	r = platform_get_resource(pdev, IORESOURCE_IRQ, 0);
 	if (!r) {

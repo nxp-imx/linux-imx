@@ -49,22 +49,29 @@ struct stmp3xxx_ts_info {
 
 static inline void enter_state_touch_detect(struct stmp3xxx_ts_info *info)
 {
-	stmp3xxx_clearl(0xFFFFFFFF, REGS_LRADC_BASE + HW_LRADC_CHn(2));
-	stmp3xxx_clearl(0xFFFFFFFF, REGS_LRADC_BASE + HW_LRADC_CHn(3));
-	stmp3xxx_clearl(0xFFFFFFFF, REGS_LRADC_BASE + HW_LRADC_CHn(4));
-	stmp3xxx_clearl(0xFFFFFFFF, REGS_LRADC_BASE + HW_LRADC_CHn(5));
-	stmp3xxx_clearl(BM_LRADC_CTRL1_LRADC5_IRQ, REGS_LRADC_BASE + HW_LRADC_CTRL1);
-	stmp3xxx_clearl(BM_LRADC_CTRL1_TOUCH_DETECT_IRQ, REGS_LRADC_BASE + HW_LRADC_CTRL1);
+	__raw_writel(0xFFFFFFFF, REGS_LRADC_BASE + HW_LRADC_CHn_CLR(2));
+	__raw_writel(0xFFFFFFFF, REGS_LRADC_BASE + HW_LRADC_CHn_CLR(3));
+	__raw_writel(0xFFFFFFFF, REGS_LRADC_BASE + HW_LRADC_CHn_CLR(4));
+	__raw_writel(0xFFFFFFFF, REGS_LRADC_BASE + HW_LRADC_CHn_CLR(5));
+	__raw_writel(BM_LRADC_CTRL1_LRADC5_IRQ,
+		REGS_LRADC_BASE + HW_LRADC_CTRL1_CLR);
+	__raw_writel(BM_LRADC_CTRL1_TOUCH_DETECT_IRQ,
+		REGS_LRADC_BASE + HW_LRADC_CTRL1_CLR);
 	/*
 	 * turn off the yplus and yminus pullup and pulldown, and turn off touch
 	 * detect (enables yminus, and xplus through a resistor.On a press,
 	 * xplus is pulled down)
 	 */
-	stmp3xxx_clearl(BM_LRADC_CTRL0_YMINUS_ENABLE, REGS_LRADC_BASE + HW_LRADC_CTRL0);
-	stmp3xxx_clearl(BM_LRADC_CTRL0_YPLUS_ENABLE, REGS_LRADC_BASE + HW_LRADC_CTRL0);
-	stmp3xxx_clearl(BM_LRADC_CTRL0_XMINUS_ENABLE, REGS_LRADC_BASE + HW_LRADC_CTRL0);
-	stmp3xxx_clearl(BM_LRADC_CTRL0_XPLUS_ENABLE, REGS_LRADC_BASE + HW_LRADC_CTRL0);
-	stmp3xxx_setl(BM_LRADC_CTRL0_TOUCH_DETECT_ENABLE, REGS_LRADC_BASE + HW_LRADC_CTRL0);
+	__raw_writel(BM_LRADC_CTRL0_YMINUS_ENABLE,
+		REGS_LRADC_BASE + HW_LRADC_CTRL0_CLR);
+	__raw_writel(BM_LRADC_CTRL0_YPLUS_ENABLE,
+		REGS_LRADC_BASE + HW_LRADC_CTRL0_CLR);
+	__raw_writel(BM_LRADC_CTRL0_XMINUS_ENABLE,
+		REGS_LRADC_BASE + HW_LRADC_CTRL0_CLR);
+	__raw_writel(BM_LRADC_CTRL0_XPLUS_ENABLE,
+		REGS_LRADC_BASE + HW_LRADC_CTRL0_CLR);
+	__raw_writel(BM_LRADC_CTRL0_TOUCH_DETECT_ENABLE,
+		REGS_LRADC_BASE + HW_LRADC_CTRL0_SET);
 
 	hw_lradc_set_delay_trigger_kick(LRADC_DELAY_TRIGGER_TOUCHSCREEN, 0);
 	info->state = TS_STATE_TOUCH_DETECT;
@@ -73,11 +80,16 @@ static inline void enter_state_touch_detect(struct stmp3xxx_ts_info *info)
 
 static inline void enter_state_disabled(struct stmp3xxx_ts_info *info)
 {
-	stmp3xxx_clearl(BM_LRADC_CTRL0_YMINUS_ENABLE, REGS_LRADC_BASE + HW_LRADC_CTRL0);
-	stmp3xxx_clearl(BM_LRADC_CTRL0_YPLUS_ENABLE, REGS_LRADC_BASE + HW_LRADC_CTRL0);
-	stmp3xxx_clearl(BM_LRADC_CTRL0_XMINUS_ENABLE, REGS_LRADC_BASE + HW_LRADC_CTRL0);
-	stmp3xxx_clearl(BM_LRADC_CTRL0_XPLUS_ENABLE, REGS_LRADC_BASE + HW_LRADC_CTRL0);
-	stmp3xxx_clearl(BM_LRADC_CTRL0_TOUCH_DETECT_ENABLE, REGS_LRADC_BASE + HW_LRADC_CTRL0);
+	__raw_writel(BM_LRADC_CTRL0_YMINUS_ENABLE,
+		REGS_LRADC_BASE + HW_LRADC_CTRL0_CLR);
+	__raw_writel(BM_LRADC_CTRL0_YPLUS_ENABLE,
+		REGS_LRADC_BASE + HW_LRADC_CTRL0_CLR);
+	__raw_writel(BM_LRADC_CTRL0_XMINUS_ENABLE,
+		REGS_LRADC_BASE + HW_LRADC_CTRL0_CLR);
+	__raw_writel(BM_LRADC_CTRL0_XPLUS_ENABLE,
+		REGS_LRADC_BASE + HW_LRADC_CTRL0_CLR);
+	__raw_writel(BM_LRADC_CTRL0_TOUCH_DETECT_ENABLE,
+		REGS_LRADC_BASE + HW_LRADC_CTRL0_CLR);
 
 	hw_lradc_set_delay_trigger_kick(LRADC_DELAY_TRIGGER_TOUCHSCREEN, 0);
 	info->state = TS_STATE_DISABLED;
@@ -87,11 +99,16 @@ static inline void enter_state_disabled(struct stmp3xxx_ts_info *info)
 
 static inline void enter_state_x_plane(struct stmp3xxx_ts_info *info)
 {
-	stmp3xxx_setl(BM_LRADC_CTRL0_YMINUS_ENABLE, REGS_LRADC_BASE + HW_LRADC_CTRL0);
-	stmp3xxx_setl(BM_LRADC_CTRL0_YPLUS_ENABLE, REGS_LRADC_BASE + HW_LRADC_CTRL0);
-	stmp3xxx_clearl(BM_LRADC_CTRL0_XMINUS_ENABLE, REGS_LRADC_BASE + HW_LRADC_CTRL0);
-	stmp3xxx_clearl(BM_LRADC_CTRL0_XPLUS_ENABLE, REGS_LRADC_BASE + HW_LRADC_CTRL0);
-	stmp3xxx_clearl(BM_LRADC_CTRL0_TOUCH_DETECT_ENABLE, REGS_LRADC_BASE + HW_LRADC_CTRL0);
+	__raw_writel(BM_LRADC_CTRL0_YMINUS_ENABLE,
+		REGS_LRADC_BASE + HW_LRADC_CTRL0_SET);
+	__raw_writel(BM_LRADC_CTRL0_YPLUS_ENABLE,
+		REGS_LRADC_BASE + HW_LRADC_CTRL0_SET);
+	__raw_writel(BM_LRADC_CTRL0_XMINUS_ENABLE,
+		REGS_LRADC_BASE + HW_LRADC_CTRL0_CLR);
+	__raw_writel(BM_LRADC_CTRL0_XPLUS_ENABLE,
+		REGS_LRADC_BASE + HW_LRADC_CTRL0_CLR);
+	__raw_writel(BM_LRADC_CTRL0_TOUCH_DETECT_ENABLE,
+		REGS_LRADC_BASE + HW_LRADC_CTRL0_CLR);
 
 	hw_lradc_set_delay_trigger_kick(LRADC_DELAY_TRIGGER_TOUCHSCREEN, 1);
 
@@ -101,11 +118,16 @@ static inline void enter_state_x_plane(struct stmp3xxx_ts_info *info)
 
 static inline void enter_state_y_plane(struct stmp3xxx_ts_info *info)
 {
-	stmp3xxx_clearl(BM_LRADC_CTRL0_YMINUS_ENABLE, REGS_LRADC_BASE + HW_LRADC_CTRL0);
-	stmp3xxx_clearl(BM_LRADC_CTRL0_YPLUS_ENABLE, REGS_LRADC_BASE + HW_LRADC_CTRL0);
-	stmp3xxx_setl(BM_LRADC_CTRL0_XMINUS_ENABLE, REGS_LRADC_BASE + HW_LRADC_CTRL0);
-	stmp3xxx_setl(BM_LRADC_CTRL0_XPLUS_ENABLE, REGS_LRADC_BASE + HW_LRADC_CTRL0);
-	stmp3xxx_clearl(BM_LRADC_CTRL0_TOUCH_DETECT_ENABLE, REGS_LRADC_BASE + HW_LRADC_CTRL0);
+	__raw_writel(BM_LRADC_CTRL0_YMINUS_ENABLE,
+		REGS_LRADC_BASE + HW_LRADC_CTRL0_CLR);
+	__raw_writel(BM_LRADC_CTRL0_YPLUS_ENABLE,
+		REGS_LRADC_BASE + HW_LRADC_CTRL0_CLR);
+	__raw_writel(BM_LRADC_CTRL0_XMINUS_ENABLE,
+		REGS_LRADC_BASE + HW_LRADC_CTRL0_SET);
+	__raw_writel(BM_LRADC_CTRL0_XPLUS_ENABLE,
+		REGS_LRADC_BASE + HW_LRADC_CTRL0_SET);
+	__raw_writel(BM_LRADC_CTRL0_TOUCH_DETECT_ENABLE,
+		REGS_LRADC_BASE + HW_LRADC_CTRL0_CLR);
 
 	hw_lradc_set_delay_trigger_kick(LRADC_DELAY_TRIGGER_TOUCHSCREEN, 1);
 	info->state = TS_STATE_Y_PLANE;
@@ -114,11 +136,16 @@ static inline void enter_state_y_plane(struct stmp3xxx_ts_info *info)
 
 static inline void enter_state_touch_verify(struct stmp3xxx_ts_info *info)
 {
-	stmp3xxx_clearl(BM_LRADC_CTRL0_YMINUS_ENABLE, REGS_LRADC_BASE + HW_LRADC_CTRL0);
-	stmp3xxx_clearl(BM_LRADC_CTRL0_YPLUS_ENABLE, REGS_LRADC_BASE + HW_LRADC_CTRL0);
-	stmp3xxx_clearl(BM_LRADC_CTRL0_XMINUS_ENABLE, REGS_LRADC_BASE + HW_LRADC_CTRL0);
-	stmp3xxx_clearl(BM_LRADC_CTRL0_XPLUS_ENABLE, REGS_LRADC_BASE + HW_LRADC_CTRL0);
-	stmp3xxx_setl(BM_LRADC_CTRL0_TOUCH_DETECT_ENABLE, REGS_LRADC_BASE + HW_LRADC_CTRL0);
+	__raw_writel(BM_LRADC_CTRL0_YMINUS_ENABLE,
+		REGS_LRADC_BASE + HW_LRADC_CTRL0_CLR);
+	__raw_writel(BM_LRADC_CTRL0_YPLUS_ENABLE,
+		REGS_LRADC_BASE + HW_LRADC_CTRL0_CLR);
+	__raw_writel(BM_LRADC_CTRL0_XMINUS_ENABLE,
+		REGS_LRADC_BASE + HW_LRADC_CTRL0_CLR);
+	__raw_writel(BM_LRADC_CTRL0_XPLUS_ENABLE,
+		REGS_LRADC_BASE + HW_LRADC_CTRL0_CLR);
+	__raw_writel(BM_LRADC_CTRL0_TOUCH_DETECT_ENABLE,
+		REGS_LRADC_BASE + HW_LRADC_CTRL0_SET);
 
 	info->state = TS_STATE_TOUCH_VERIFY;
 	hw_lradc_set_delay_trigger_kick(LRADC_DELAY_TRIGGER_TOUCHSCREEN, 1);
@@ -207,9 +234,11 @@ static irqreturn_t ts_handler(int irq, void *dev_id)
 	int pressure = 0;
 
 	if (irq == info->touch_irq)
-		stmp3xxx_clearl(BM_LRADC_CTRL1_TOUCH_DETECT_IRQ, REGS_LRADC_BASE + HW_LRADC_CTRL1);
+		__raw_writel(BM_LRADC_CTRL1_TOUCH_DETECT_IRQ,
+			REGS_LRADC_BASE + HW_LRADC_CTRL1_CLR);
 	else if (irq == info->device_irq)
-		stmp3xxx_clearl(BM_LRADC_CTRL1_LRADC5_IRQ, REGS_LRADC_BASE + HW_LRADC_CTRL1);
+		__raw_writel(BM_LRADC_CTRL1_LRADC5_IRQ,
+			REGS_LRADC_BASE + HW_LRADC_CTRL1_CLR);
 
 	/* get x, y values */
 	x_plus = __raw_readl(REGS_LRADC_BASE + HW_LRADC_CHn(LRADC_TOUCH_X_PLUS)) & BM_LRADC_CHn_VALUE;
@@ -290,18 +319,22 @@ static int stmp3xxx_ts_probe(struct platform_device *pdev)
 	hw_lradc_configure_channel(LRADC_CH5, 0, 0, 0);
 
 	/* Clear the accumulator & NUM_SAMPLES for the channels */
-	stmp3xxx_clearl(0xFFFFFFFF, REGS_LRADC_BASE + HW_LRADC_CHn(LRADC_CH2));
-	stmp3xxx_clearl(0xFFFFFFFF, REGS_LRADC_BASE + HW_LRADC_CHn(LRADC_CH3));
-	stmp3xxx_clearl(0xFFFFFFFF, REGS_LRADC_BASE + HW_LRADC_CHn(LRADC_CH5));
+	__raw_writel(0xFFFFFFFF, REGS_LRADC_BASE + HW_LRADC_CHn_CLR(LRADC_CH2));
+	__raw_writel(0xFFFFFFFF, REGS_LRADC_BASE + HW_LRADC_CHn_CLR(LRADC_CH3));
+	__raw_writel(0xFFFFFFFF, REGS_LRADC_BASE + HW_LRADC_CHn_CLR(LRADC_CH5));
 
 	hw_lradc_set_delay_trigger(LRADC_DELAY_TRIGGER_TOUCHSCREEN,
 			0x3c, 0, 0, 8);
 
-	stmp3xxx_clearl(BM_LRADC_CTRL1_LRADC5_IRQ, REGS_LRADC_BASE + HW_LRADC_CTRL1);
-	stmp3xxx_clearl(BM_LRADC_CTRL1_TOUCH_DETECT_IRQ, REGS_LRADC_BASE + HW_LRADC_CTRL1);
+	__raw_writel(BM_LRADC_CTRL1_LRADC5_IRQ,
+		REGS_LRADC_BASE + HW_LRADC_CTRL1_CLR);
+	__raw_writel(BM_LRADC_CTRL1_TOUCH_DETECT_IRQ,
+		REGS_LRADC_BASE + HW_LRADC_CTRL1_CLR);
 
-	stmp3xxx_setl(BM_LRADC_CTRL1_LRADC5_IRQ_EN, REGS_LRADC_BASE + HW_LRADC_CTRL1);
-	stmp3xxx_setl(BM_LRADC_CTRL1_TOUCH_DETECT_IRQ_EN, REGS_LRADC_BASE + HW_LRADC_CTRL1);
+	__raw_writel(BM_LRADC_CTRL1_LRADC5_IRQ_EN,
+		REGS_LRADC_BASE + HW_LRADC_CTRL1_SET);
+	__raw_writel(BM_LRADC_CTRL1_TOUCH_DETECT_IRQ_EN,
+		REGS_LRADC_BASE + HW_LRADC_CTRL1_SET);
 
 	platform_set_drvdata(pdev, info);
 	device_init_wakeup(&pdev->dev, 1);
@@ -325,8 +358,10 @@ static int stmp3xxx_ts_remove(struct platform_device *pdev)
 	hw_lradc_unuse_channel(LRADC_CH2);
 	hw_lradc_unuse_channel(LRADC_CH3);
 	hw_lradc_unuse_channel(LRADC_CH5);
-	stmp3xxx_clearl(BM_LRADC_CTRL1_LRADC5_IRQ_EN, REGS_LRADC_BASE + HW_LRADC_CTRL1);
-	stmp3xxx_clearl(BM_LRADC_CTRL1_TOUCH_DETECT_IRQ_EN, REGS_LRADC_BASE + HW_LRADC_CTRL1);
+	__raw_writel(BM_LRADC_CTRL1_LRADC5_IRQ_EN,
+		REGS_LRADC_BASE + HW_LRADC_CTRL1_CLR);
+	__raw_writel(BM_LRADC_CTRL1_TOUCH_DETECT_IRQ_EN,
+		REGS_LRADC_BASE + HW_LRADC_CTRL1_CLR);
 
 	free_irq(info->device_irq, info);
 	free_irq(info->touch_irq, info);

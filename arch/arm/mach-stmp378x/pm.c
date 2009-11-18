@@ -66,7 +66,9 @@ static void stmp378x_standby(void)
 	u32 reg_vddd, reg_vdda, reg_vddio;
 
 	/* DDR EnterSelfrefreshMode */
-	stmp3xxx_setl(BM_DRAM_CTL08_SREFRESH, REGS_DRAM_BASE + HW_DRAM_CTL08);
+	__raw_writel(
+	BM_DRAM_CTL08_SREFRESH | __raw_readl(REGS_DRAM_BASE + HW_DRAM_CTL08),
+	REGS_DRAM_BASE + HW_DRAM_CTL08);
 
 	/* Gating EMI CLock */
 	__raw_writel(BM_CLKCTRL_EMI_CLKGATE |
@@ -74,7 +76,8 @@ static void stmp378x_standby(void)
 			REGS_CLKCTRL_BASE + HW_CLKCTRL_EMI);
 
 	/* Disable PLL */
-	stmp3xxx_clearl(BM_CLKCTRL_PLLCTRL0_POWER, REGS_CLKCTRL_BASE + HW_CLKCTRL_PLLCTRL0);
+	__raw_writel(BM_CLKCTRL_PLLCTRL0_POWER,
+		REGS_CLKCTRL_BASE + HW_CLKCTRL_PLLCTRL0_CLR);
 
 	/* Reduce the VDDIO (3.050 volt) */
 	reg_vddio = __raw_readl(REGS_POWER_BASE + HW_POWER_VDDIOCTRL);
@@ -118,27 +121,40 @@ static void stmp378x_standby(void)
 		REGS_POWER_BASE + HW_POWER_LOOPCTRL);
 
 	/* half the fets */
-	stmp3xxx_setl(BM_POWER_MINPWR_HALF_FETS, REGS_POWER_BASE + HW_POWER_MINPWR);
+	__raw_writel(BM_POWER_MINPWR_HALF_FETS,
+		REGS_POWER_BASE + HW_POWER_MINPWR_SET);
 
-	stmp3xxx_clearl(BM_POWER_LOOPCTRL_CM_HYST_THRESH, REGS_POWER_BASE + HW_POWER_LOOPCTRL);
-	stmp3xxx_clearl(BM_POWER_LOOPCTRL_EN_CM_HYST, REGS_POWER_BASE + HW_POWER_LOOPCTRL);
-	stmp3xxx_clearl(BM_POWER_LOOPCTRL_EN_DF_HYST, REGS_POWER_BASE + HW_POWER_LOOPCTRL);
+	__raw_writel(BM_POWER_LOOPCTRL_CM_HYST_THRESH,
+			REGS_POWER_BASE + HW_POWER_LOOPCTRL_CLR);
+	__raw_writel(BM_POWER_LOOPCTRL_EN_CM_HYST,
+			REGS_POWER_BASE + HW_POWER_LOOPCTRL_CLR);
+	__raw_writel(BM_POWER_LOOPCTRL_EN_DF_HYST,
+			REGS_POWER_BASE + HW_POWER_LOOPCTRL_CLR);
 	/* enable PFM */
-	stmp3xxx_setl(BM_POWER_LOOPCTRL_HYST_SIGN, REGS_POWER_BASE + HW_POWER_LOOPCTRL);
-	stmp3xxx_setl(BM_POWER_MINPWR_EN_DC_PFM, REGS_POWER_BASE + HW_POWER_MINPWR);
+	__raw_writel(BM_POWER_LOOPCTRL_HYST_SIGN,
+		REGS_POWER_BASE + HW_POWER_LOOPCTRL_SET);
+	__raw_writel(BM_POWER_MINPWR_EN_DC_PFM,
+		REGS_POWER_BASE + HW_POWER_MINPWR_SET);
 
-	stmp3xxx_setl(BM_CLKCTRL_CPU_INTERRUPT_WAIT, REGS_CLKCTRL_BASE + HW_CLKCTRL_CPU);
+	__raw_writel(BM_CLKCTRL_CPU_INTERRUPT_WAIT,
+		REGS_CLKCTRL_BASE + HW_CLKCTRL_CPU_SET);
 	/* Power off ... */
 	asm("mcr     p15, 0, r2, c7, c0, 4");
-	stmp3xxx_clearl(BM_CLKCTRL_CPU_INTERRUPT_WAIT, REGS_CLKCTRL_BASE + HW_CLKCTRL_CPU);
+	__raw_writel(BM_CLKCTRL_CPU_INTERRUPT_WAIT,
+			REGS_CLKCTRL_BASE + HW_CLKCTRL_CPU_CLR);
 
 	/* restore the DCDC parameter */
 
-	stmp3xxx_clearl(BM_POWER_MINPWR_EN_DC_PFM, REGS_POWER_BASE + HW_POWER_MINPWR);
-	stmp3xxx_clearl(BM_POWER_LOOPCTRL_HYST_SIGN, REGS_POWER_BASE + HW_POWER_LOOPCTRL);
-	stmp3xxx_setl(BM_POWER_LOOPCTRL_EN_DF_HYST, REGS_POWER_BASE + HW_POWER_LOOPCTRL);
-	stmp3xxx_setl(BM_POWER_LOOPCTRL_EN_CM_HYST, REGS_POWER_BASE + HW_POWER_LOOPCTRL);
-	stmp3xxx_setl(BM_POWER_LOOPCTRL_CM_HYST_THRESH, REGS_POWER_BASE + HW_POWER_LOOPCTRL);
+	__raw_writel(BM_POWER_MINPWR_EN_DC_PFM,
+			REGS_POWER_BASE + HW_POWER_MINPWR_CLR);
+	__raw_writel(BM_POWER_LOOPCTRL_HYST_SIGN,
+			REGS_POWER_BASE + HW_POWER_LOOPCTRL_CLR);
+	__raw_writel(BM_POWER_LOOPCTRL_EN_DF_HYST,
+			REGS_POWER_BASE + HW_POWER_LOOPCTRL_SET);
+	__raw_writel(BM_POWER_LOOPCTRL_EN_CM_HYST,
+			REGS_POWER_BASE + HW_POWER_LOOPCTRL_SET);
+	__raw_writel(BM_POWER_LOOPCTRL_CM_HYST_THRESH,
+			REGS_POWER_BASE + HW_POWER_LOOPCTRL_SET);
 
 	__raw_writel((__raw_readl(REGS_POWER_BASE + HW_POWER_LOOPCTRL) & ~BM_POWER_LOOPCTRL_DC_R) |
 		(2<<BP_POWER_LOOPCTRL_DC_R),
@@ -166,14 +182,18 @@ static void stmp378x_standby(void)
 
 
 	/* Enable PLL */
-	stmp3xxx_setl(BM_CLKCTRL_PLLCTRL0_POWER, REGS_CLKCTRL_BASE + HW_CLKCTRL_PLLCTRL0);
+	__raw_writel(BM_CLKCTRL_PLLCTRL0_POWER,
+		REGS_CLKCTRL_BASE + HW_CLKCTRL_PLLCTRL0_SET);
 	/* Ungating EMI CLock */
 	__raw_writel(~BM_CLKCTRL_EMI_CLKGATE &
 			__raw_readl(REGS_CLKCTRL_BASE + HW_CLKCTRL_EMI),
 			REGS_CLKCTRL_BASE + HW_CLKCTRL_EMI);
 
 	/* LeaveSelfrefreshMode */
-	stmp3xxx_clearl(BM_DRAM_CTL08_SREFRESH, REGS_DRAM_BASE + HW_DRAM_CTL08);
+	__raw_writel(
+		(~BM_DRAM_CTL08_SREFRESH) &
+			__raw_readl(REGS_DRAM_BASE + HW_DRAM_CTL08),
+		REGS_DRAM_BASE + HW_DRAM_CTL08);
 	WAIT_CYCLE(WAIT_DC_OK_CYCLES)
 }
 
@@ -227,8 +247,10 @@ static inline void do_standby(void)
 	stmp3xxx_dma_suspend();
 	stmp3xxx_suspend_timer();
 
-	stmp3xxx_setl(BM_POWER_CTRL_ENIRQ_PSWITCH, REGS_POWER_BASE + HW_POWER_CTRL);
-	stmp3xxx_setl(BM_ICOLL_INTERRUPTn_ENABLE, REGS_ICOLL_BASE + HW_ICOLL_INTERRUPTn(IRQ_VDD5V));
+	__raw_writel(BM_POWER_CTRL_ENIRQ_PSWITCH,
+		REGS_POWER_BASE + HW_POWER_CTRL_SET);
+	__raw_writel(BM_ICOLL_INTERRUPTn_ENABLE,
+		REGS_ICOLL_BASE + HW_ICOLL_INTERRUPTn_SET(IRQ_VDD5V));
 
 	/* clear pending interrupt, if any */
 	for (i = 0; i < PENDING_IRQ_RETRY; i++) {
@@ -247,13 +269,13 @@ static inline void do_standby(void)
 
 	reg_clkctrl_clkseq = __raw_readl(REGS_CLKCTRL_BASE + HW_CLKCTRL_CLKSEQ);
 
-	stmp3xxx_setl(BM_CLKCTRL_CLKSEQ_BYPASS_ETM |
+	__raw_writel(BM_CLKCTRL_CLKSEQ_BYPASS_ETM |
 		BM_CLKCTRL_CLKSEQ_BYPASS_SSP |
 		BM_CLKCTRL_CLKSEQ_BYPASS_GPMI |
 		BM_CLKCTRL_CLKSEQ_BYPASS_IR |
 		BM_CLKCTRL_CLKSEQ_BYPASS_PIX|
 		BM_CLKCTRL_CLKSEQ_BYPASS_SAIF, 
-		REGS_CLKCTRL_BASE + HW_CLKCTRL_CLKSEQ);
+		REGS_CLKCTRL_BASE + HW_CLKCTRL_CLKSEQ_SET);
 
 	reg_clkctrl_xtal = __raw_readl(REGS_CLKCTRL_BASE + HW_CLKCTRL_XTAL);
 
@@ -270,7 +292,8 @@ static inline void do_standby(void)
 
 	pr_info("wakeup irq source = %d\n", __raw_readl(REGS_ICOLL_BASE + HW_ICOLL_STAT));
 	saved_sleep_state = 0;  /* waking from standby */
-	stmp3xxx_clearl(BM_POWER_CTRL_PSWITCH_IRQ, REGS_POWER_BASE + HW_POWER_CTRL);
+	__raw_writel(BM_POWER_CTRL_PSWITCH_IRQ,
+		REGS_POWER_BASE + HW_POWER_CTRL_CLR);
 	stmp3xxx_resume_timer();
 	stmp3xxx_dma_resume();
 
@@ -362,8 +385,8 @@ static noinline void do_mem(void)
 	memcpy(saved_sram, (void *)STMP3XXX_OCRAM_BASE, stmp_s2ram_alloc_sz);
 
 	/* set the PERSISTENT_SLEEP_BIT for bootloader */
-	stmp3xxx_setl(1 << 10,
-		REGS_RTC_BASE + HW_RTC_PERSISTENT1); /* XXX: temp */
+	__raw_writel(1 << 10,
+		REGS_RTC_BASE + HW_RTC_PERSISTENT1_SET); /* XXX: temp */
 
 	/*
 	 * make sure SRAM copy gets physically written into SDRAM.
@@ -492,7 +515,7 @@ void stmp37xx_pm_idle(void)
 		return;
 	}
 
-	stmp3xxx_setl(1<<12, REGS_CLKCTRL_BASE + HW_CLKCTRL_CPU);
+	__raw_writel(1<<12, REGS_CLKCTRL_BASE + HW_CLKCTRL_CPU_SET);
 	__asm__ __volatile__ ("mcr	p15, 0, r0, c7, c0, 4");
 
 	local_fiq_enable();
@@ -552,7 +575,8 @@ static irqreturn_t pswitch_interrupt(int irq, void *dev)
 		pr_info("pswitch power down\n");
 		stmp37xx_pm_power_off();
 	}
-	stmp3xxx_clearl(BM_POWER_CTRL_PSWITCH_IRQ, REGS_POWER_BASE + HW_POWER_CTRL);
+	__raw_writel(BM_POWER_CTRL_PSWITCH_IRQ,
+		REGS_POWER_BASE + HW_POWER_CTRL_CLR);
 	return IRQ_HANDLED;
 }
 
@@ -566,10 +590,13 @@ static struct irqaction pswitch_irq = {
 static void init_pswitch(void)
 {
 	kthread_run(suspend_thread_fn, NULL, "pswitch");
-	stmp3xxx_clearl(BM_POWER_CTRL_PSWITCH_IRQ, REGS_POWER_BASE + HW_POWER_CTRL);
-	stmp3xxx_setl(BM_POWER_CTRL_POLARITY_PSWITCH |
-		BM_POWER_CTRL_ENIRQ_PSWITCH, REGS_POWER_BASE + HW_POWER_CTRL);
-	stmp3xxx_clearl(BM_POWER_CTRL_PSWITCH_IRQ, REGS_POWER_BASE + HW_POWER_CTRL);
+	__raw_writel(BM_POWER_CTRL_PSWITCH_IRQ,
+		REGS_POWER_BASE + HW_POWER_CTRL_CLR);
+	__raw_writel(BM_POWER_CTRL_POLARITY_PSWITCH |
+		BM_POWER_CTRL_ENIRQ_PSWITCH,
+		REGS_POWER_BASE + HW_POWER_CTRL_SET);
+	__raw_writel(BM_POWER_CTRL_PSWITCH_IRQ,
+		REGS_POWER_BASE + HW_POWER_CTRL_CLR);
 	setup_irq(IRQ_VDD5V, &pswitch_irq);
 }
 

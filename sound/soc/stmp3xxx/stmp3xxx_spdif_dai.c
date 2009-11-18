@@ -57,14 +57,14 @@ static irqreturn_t stmp3xxx_err_irq(int irq, void *dev_id)
 		printk(KERN_DEBUG "underflow detected SPDIF\n");
 
 		if (playback)
-			stmp3xxx_clearl(BM_SPDIF_CTRL_FIFO_UNDERFLOW_IRQ,
-				REGS_SPDIF_BASE + HW_SPDIF_CTRL);
+			__raw_writel(BM_SPDIF_CTRL_FIFO_UNDERFLOW_IRQ,
+				REGS_SPDIF_BASE + HW_SPDIF_CTRL_CLR);
 	} else if (ctrl_reg & overflow_mask) {
 		printk(KERN_DEBUG "overflow detected SPDIF\n");
 
 		if (playback)
-			stmp3xxx_clearl(BM_SPDIF_CTRL_FIFO_OVERFLOW_IRQ,
-				REGS_SPDIF_BASE + HW_SPDIF_CTRL);
+			__raw_writel(BM_SPDIF_CTRL_FIFO_OVERFLOW_IRQ,
+				REGS_SPDIF_BASE + HW_SPDIF_CTRL_CLR);
 	} else
 		printk(KERN_WARNING "Unknown SPDIF error interrupt\n");
 
@@ -80,13 +80,13 @@ static int stmp3xxx_spdif_trigger(struct snd_pcm_substream *substream, int cmd,
 	switch (cmd) {
 	case SNDRV_PCM_TRIGGER_START:
 		if (playback)
-			stmp3xxx_setl(BM_SPDIF_CTRL_RUN,
-				REGS_SPDIF_BASE + HW_SPDIF_CTRL);
+			__raw_writel(BM_SPDIF_CTRL_RUN,
+				REGS_SPDIF_BASE + HW_SPDIF_CTRL_SET);
 		break;
 	case SNDRV_PCM_TRIGGER_STOP:
 		if (playback)
-			stmp3xxx_clearl(BM_SPDIF_CTRL_RUN,
-				REGS_SPDIF_BASE + HW_SPDIF_CTRL);
+			__raw_writel(BM_SPDIF_CTRL_RUN,
+				REGS_SPDIF_BASE + HW_SPDIF_CTRL_CLR);
 		break;
 	case SNDRV_PCM_TRIGGER_RESUME:
 	case SNDRV_PCM_TRIGGER_PAUSE_RELEASE:
@@ -124,12 +124,12 @@ static int stmp3xxx_spdif_startup(struct snd_pcm_substream *substream,
 
 	/* Enable error interrupt */
 	if (playback) {
-		stmp3xxx_clearl(BM_SPDIF_CTRL_FIFO_OVERFLOW_IRQ,
-				REGS_SPDIF_BASE + HW_SPDIF_CTRL);
-		stmp3xxx_clearl(BM_SPDIF_CTRL_FIFO_UNDERFLOW_IRQ,
-				REGS_SPDIF_BASE + HW_SPDIF_CTRL);
-		stmp3xxx_setl(BM_SPDIF_CTRL_FIFO_ERROR_IRQ_EN,
-				REGS_SPDIF_BASE + HW_SPDIF_CTRL);
+		__raw_writel(BM_SPDIF_CTRL_FIFO_OVERFLOW_IRQ,
+				REGS_SPDIF_BASE + HW_SPDIF_CTRL_CLR);
+		__raw_writel(BM_SPDIF_CTRL_FIFO_UNDERFLOW_IRQ,
+				REGS_SPDIF_BASE + HW_SPDIF_CTRL_CLR);
+		__raw_writel(BM_SPDIF_CTRL_FIFO_ERROR_IRQ_EN,
+				REGS_SPDIF_BASE + HW_SPDIF_CTRL_SET);
 	}
 
 	return 0;
@@ -142,8 +142,8 @@ static void stmp3xxx_spdif_shutdown(struct snd_pcm_substream *substream,
 
 	/* Disable error interrupt */
 	if (playback) {
-		stmp3xxx_clearl(BM_SPDIF_CTRL_FIFO_ERROR_IRQ_EN,
-				REGS_SPDIF_BASE + HW_SPDIF_CTRL);
+		__raw_writel(BM_SPDIF_CTRL_FIFO_ERROR_IRQ_EN,
+				REGS_SPDIF_BASE + HW_SPDIF_CTRL_CLR);
 		free_irq(IRQ_SPDIF_ERROR, substream);
 	}
 }
