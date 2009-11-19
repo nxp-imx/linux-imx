@@ -329,4 +329,12 @@ source "drivers/mtd/lpddr/Kconfig"
 
 source "drivers/mtd/ubi/Kconfig"
 
+config MTD_UBI_BLOCK
+	tristate "Simple mtdblock-like FTL over UBI volumes"
+	depends on MTD_UBI
+	select MTD_BLKDEVS
+	default n
+	help
+	  This enables cached block access to UBI volumes
+
 endif # MTD

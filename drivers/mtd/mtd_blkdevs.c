@@ -137,6 +137,24 @@ static void mtd_blktrans_request(struct request_queue *rq)
 	wake_up_process(tr->blkcore_priv->thread);
 }
 
+static int blktrans_mtd_get(struct mtd_info *mtd)
+{
+	if (mtd) {
+		if (!get_mtd_device(mtd, mtd->index))
+			return -ENODEV;
+		mtd->usecount++;
+	}
+	return 0;
+}
+
+static int blktrans_mtd_put(struct mtd_info *mtd)
+{
+	if (mtd) {
+		mtd->usecount--;
+		put_mtd_device(mtd);
+	}
+	return 0;
+}
 
 static int blktrans_open(struct block_device *bdev, fmode_t mode)
 {
@@ -144,25 +162,25 @@ static int blktrans_open(struct block_device *bdev, fmode_t mode)
 	struct mtd_blktrans_ops *tr = dev->tr;
 	int ret = -ENODEV;
 
-	if (!get_mtd_device(NULL, dev->mtd->index))
+	if (!try_module_get(tr->owner))
 		goto out;
 
-	if (!try_module_get(tr->owner))
+	ret = blktrans_mtd_get(dev->mtd);
+	if (ret < 0)
 		goto out_tr;
 
-	/* FIXME: Locking. A hot pluggable device can go away
-	   (del_mtd_device can be called for it) without its module
-	   being unloaded. */
-	dev->mtd->usecount++;
-
 	ret = 0;
+
 	if (tr->open && (ret = tr->open(dev))) {
-		dev->mtd->usecount--;
-		put_mtd_device(dev->mtd);
-	out_tr:
-		module_put(tr->owner);
+		blktrans_mtd_put(dev->mtd);
+		goto out_tr;
 	}
- out:
+
+	return 0;
+
+out_tr:
+	module_put(tr->owner);
+out:
 	return ret;
 }
 
@@ -176,8 +194,7 @@ static int blktrans_release(struct gendisk *disk, fmode_t mode)
 		ret = tr->release(dev);
 
 	if (!ret) {
-		dev->mtd->usecount--;
-		put_mtd_device(dev->mtd);
+		blktrans_mtd_put(dev->mtd);
 		module_put(tr->owner);
 	}
 
@@ -291,7 +308,8 @@ int add_mtd_blktrans_dev(struct mtd_blktrans_dev *new)
 	gd->private_data = new;
 	new->blkcore_priv = gd;
 	gd->queue = tr->blkcore_priv->rq;
-	gd->driverfs_dev = &new->mtd->dev;
+	if (new->mtd)
+		gd->driverfs_dev = &new->mtd->dev;
 
 	if (new->readonly)
 		set_disk_ro(gd, 1);
@@ -360,13 +378,15 @@ int register_mtd_blktrans(struct mtd_blktrans_ops *tr)
 	mutex_lock(&mtd_table_mutex);
 
 	ret = register_blkdev(tr->major, tr->name);
-	if (ret) {
+	if (ret < 0) {
 		printk(KERN_WARNING "Unable to register %s block device on major %d: %d\n",
 		       tr->name, tr->major, ret);
 		kfree(tr->blkcore_priv);
 		mutex_unlock(&mtd_table_mutex);
 		return ret;
 	}
+	if (!tr->major)
+		tr->major = ret;
 	spin_lock_init(&tr->blkcore_priv->queue_lock);
 
 	tr->blkcore_priv->rq = blk_init_queue(mtd_blktrans_request, &tr->blkcore_priv->queue_lock);
