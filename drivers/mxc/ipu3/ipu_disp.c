@@ -216,13 +216,13 @@ static void _ipu_dc_link_event(int chan, int event, int addr, int priority)
 	__raw_writel(reg, DC_RL_CH(chan, event));
 }
 
-/*     Y = R *  .299 + G *  .587 + B *  .114;
-       U = R * -.169 + G * -.332 + B *  .500 + 128.;
-       V = R *  .500 + G * -.419 + B * -.0813 + 128.;*/
+/*     Y = R *  1.200 + G *  2.343 + B *  .453 + 0.250;
+       U = R * -.672 + G * -1.328 + B *  2.000 + 512.250.;
+       V = R *  2.000 + G * -1.672 + B * -.328 + 512.250.;*/
 static const int rgb2ycbcr_coeff[5][3] = {
-	{153, 301, 58},
-	{-87, -170, 0x0100},
-	{0x100, -215, -42},
+	{0x4D, 0x96, 0x1D},
+	{0x3D5, 0x3AB, 0x80},
+	{0x80, 0x395, 0x3EB},
 	{0x0000, 0x0200, 0x0200},	/* B0, B1, B2 */
 	{0x2, 0x2, 0x2},	/* S0, S1, S2 */
 };
