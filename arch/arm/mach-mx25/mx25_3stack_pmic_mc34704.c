@@ -41,11 +41,6 @@ static struct regulator_consumer_supply rcpu_consumers[] = {
 		.supply = "VDDA",
 		.dev_name = "0-000a",
 	},
-	{
-		/* sgtl5000 */
-		.supply = "VDDD",
-		.dev_name = "0-000a",
-	},
 };
 
 static struct regulator_consumer_supply rddr_consumers[] = {
