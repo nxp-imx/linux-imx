@@ -424,49 +424,68 @@ static inline void _ipu_ch_offset_update(int ch,
 		if (uv_stride < stride / 2)
 			uv_stride = stride / 2;
 
-		u_fix = u + (uv_stride * vertical_offset / 2) + horizontal_offset / 4;
-		v_fix = v + (uv_stride * vertical_offset / 2) + horizontal_offset / 4;
-		u_offset = (u == 0) ? stride * (height - vertical_offset - 1) +
-								(stride - horizontal_offset) +
-								(uv_stride * vertical_offset / 2) +
-								horizontal_offset / 2 : u_fix;
-		v_offset = (v == 0) ? u_offset + (uv_stride * height / 2) : v_fix;
+		u_offset = stride * (height - vertical_offset - 1) +
+					(stride - horizontal_offset) +
+					(uv_stride * vertical_offset / 2) +
+					horizontal_offset / 2;
+		v_offset = u_offset + (uv_stride * height / 2);
+		u_fix = u ? (u + (uv_stride * vertical_offset) +
+					(horizontal_offset / 2) -
+					(stride * vertical_offset) - (horizontal_offset)) :
+					u_offset;
+		v_fix = v ? (v + (uv_stride * vertical_offset / 2) +
+					(horizontal_offset / 2) -
+					(stride * vertical_offset) - (horizontal_offset)) :
+					v_offset;
 
 		break;
 	case IPU_PIX_FMT_YVU422P:
 		if (uv_stride < stride / 2)
 			uv_stride = stride / 2;
 
-		u_fix = u + (uv_stride * vertical_offset) + horizontal_offset / 2;
-		v_fix = v + (uv_stride * vertical_offset) + horizontal_offset / 2;
-
-		v_offset = (v == 0) ? stride * (height - vertical_offset - 1) +
-								(stride - horizontal_offset) +
-								(uv_stride * vertical_offset) +
-								horizontal_offset / 2 :	v_fix;
-		u_offset = (u == 0) ? v_offset + uv_stride * height : u_fix;
+		v_offset = stride * (height - vertical_offset - 1) +
+					(stride - horizontal_offset) +
+					(uv_stride * vertical_offset) +
+					horizontal_offset / 2;
+		u_offset = v_offset + uv_stride * height;
+		u_fix = u ? (u + (uv_stride * vertical_offset) +
+					horizontal_offset / 2 -
+					(stride * vertical_offset) - (horizontal_offset)) :
+					u_offset;
+		v_fix = v ? (v + (uv_stride * vertical_offset) +
+					horizontal_offset / 2 -
+					(stride * vertical_offset) - (horizontal_offset)) :
+					v_offset;
 		break;
 	case IPU_PIX_FMT_YUV422P:
 		if (uv_stride < stride / 2)
 			uv_stride = stride / 2;
 
-		u_fix = u + (uv_stride * vertical_offset) + horizontal_offset / 2;
-		v_fix = v + (uv_stride * vertical_offset) + horizontal_offset / 2;
-
-		u_offset = (u == 0) ? stride * (height - vertical_offset - 1) +
-								(stride - horizontal_offset) +
-								(uv_stride * vertical_offset) +
-								horizontal_offset / 2 :	u_fix;
-		v_offset = (v == 0) ? u_offset + uv_stride * height : v_fix;
+		u_offset = stride * (height - vertical_offset - 1) +
+					(stride - horizontal_offset) +
+					(uv_stride * vertical_offset) +
+					horizontal_offset / 2;
+		v_offset = u_offset + uv_stride * height;
+		u_fix = u ? (u + (uv_stride * vertical_offset) +
+					horizontal_offset / 2 -
+					(stride * vertical_offset) - (horizontal_offset)) :
+					u_offset;
+		v_fix = v ? (v + (uv_stride * vertical_offset) +
+					horizontal_offset / 2 -
+					(stride * vertical_offset) - (horizontal_offset)) :
+					v_offset;
 		break;
 
 	case IPU_PIX_FMT_NV12:
 		uv_stride = stride;
-		u_fix = u + (uv_stride * vertical_offset) + horizontal_offset;
-		u_offset = (u == 0) ? stride * (height - vertical_offset - 1) +
-								(stride - horizontal_offset) +
-								(uv_stride * vertical_offset) +
-								horizontal_offset :	u_fix;
+		u_offset = stride * (height - vertical_offset - 1) +
+					(stride - horizontal_offset) +
+					(uv_stride * vertical_offset) +
+					horizontal_offset;
+		u_fix = u ? (u + (uv_stride * vertical_offset) +
+					horizontal_offset -
+					(stride * vertical_offset) - (horizontal_offset)) :
+					u_offset;
 
 		break;
 	default:
