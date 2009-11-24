@@ -2035,7 +2035,7 @@ fec_resume(struct platform_device *dev)
 
 	if (ndev) {
 		if (netif_running(ndev)) {
-			fec_enet_init(ndev, 0);
+			fec_restart(ndev, 1);
 			netif_device_attach(ndev);
 		}
 	}
