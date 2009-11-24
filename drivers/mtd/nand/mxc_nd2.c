@@ -1364,19 +1364,13 @@ static int __exit mxcnd_remove(struct platform_device *pdev)
 static int mxcnd_suspend(struct platform_device *pdev, pm_message_t state)
 {
 	struct mtd_info *info = platform_get_drvdata(pdev);
-	int ret = 0;
 
 	DEBUG(MTD_DEBUG_LEVEL0, "MXC_ND2 : NAND suspend\n");
-	if (info)
-		ret = info->suspend(info);
 
 	/* Disable the NFC clock */
 	clk_disable(nfc_clk);
 
-	/* Disable the NFC clock */
-	clk_disable(nfc_clk);
-
-	return ret;
+	return 0;
 }
 
 /*!
@@ -1391,17 +1385,13 @@ static int mxcnd_suspend(struct platform_device *pdev, pm_message_t state)
 static int mxcnd_resume(struct platform_device *pdev)
 {
 	struct mtd_info *info = platform_get_drvdata(pdev);
-	int ret = 0;
 
 	DEBUG(MTD_DEBUG_LEVEL0, "MXC_ND2 : NAND resume\n");
+
 	/* Enable the NFC clock */
 	clk_enable(nfc_clk);
 
-	if (info) {
-		info->resume(info);
-	}
-
-	return ret;
+	return 0;
 }
 
 #else
