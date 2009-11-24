@@ -464,7 +464,7 @@ static int stmp3xxx_bat_probe(struct platform_device *pdev)
 		goto free_info;
 
 	ret = request_irq(info->vdd5v_irq->start,
-			stmp3xxx_vdd5v_irq, IRQF_DISABLED,
+			stmp3xxx_vdd5v_irq, IRQF_DISABLED | IRQF_SHARED,
 			pdev->name, info);
 	if (ret) {
 		dev_err(info->dev, "failed to request irq\n");
