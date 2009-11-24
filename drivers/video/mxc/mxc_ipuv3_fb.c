@@ -837,6 +837,19 @@ static int mxcfb_ioctl(struct fb_info *fbi, unsigned int cmd, unsigned long arg)
 				key.color_key);
 			break;
 		}
+	case MXCFB_SET_GAMMA:
+		{
+			struct mxcfb_gamma gamma;
+			if (copy_from_user(&gamma, (void *)arg, sizeof(gamma))) {
+				retval = -EFAULT;
+				break;
+			}
+			retval = ipu_disp_set_gamma_correction(mxc_fbi->ipu_ch,
+							gamma.enable,
+							gamma.constk,
+							gamma.slopek);
+			break;
+		}
 	case MXCFB_WAIT_FOR_VSYNC:
 		{
 			if (mxc_fbi->blank != FB_BLANK_UNBLANK)

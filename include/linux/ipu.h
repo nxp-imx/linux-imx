@@ -940,6 +940,8 @@ int32_t ipu_disp_set_global_alpha(ipu_channel_t channel, bool enable,
 				  uint8_t alpha);
 int32_t ipu_disp_set_color_key(ipu_channel_t channel, bool enable,
 			       uint32_t colorKey);
+int32_t ipu_disp_set_gamma_correction(ipu_channel_t channel, bool enable,
+				int constk[], int slopek[]);
 
 int ipu_init_async_panel(int disp, int type, uint32_t cycle_time,
 			 uint32_t pixel_fmt, ipu_adc_sig_cfg_t sig);

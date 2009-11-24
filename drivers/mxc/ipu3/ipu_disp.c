@@ -1443,6 +1443,64 @@ int32_t ipu_disp_set_color_key(ipu_channel_t channel, bool enable,
 EXPORT_SYMBOL(ipu_disp_set_color_key);
 
 /*!
+ * This function sets the gamma correction for DP output.
+ *
+ * @param       channel         Input parameter for the logical channel ID.
+ *
+ * @param       enable          Boolean to enable or disable gamma correction.
+ *
+ * @param       constk        	Gamma piecewise linear approximation constk coeff.
+ *
+ * @param       slopek        	Gamma piecewise linear approximation slopek coeff.
+ *
+ * @return      Returns 0 on success or negative error code on fail
+ */
+int32_t ipu_disp_set_gamma_correction(ipu_channel_t channel, bool enable, int constk[], int slopek[])
+{
+	uint32_t reg, flow, i;
+	unsigned long lock_flags;
+
+	if (channel == MEM_BG_SYNC || channel == MEM_FG_SYNC)
+		flow = DP_SYNC;
+	else if (channel == MEM_BG_ASYNC0 || channel == MEM_FG_ASYNC0)
+		flow = DP_ASYNC0;
+	else if (channel == MEM_BG_ASYNC1 || channel == MEM_FG_ASYNC1)
+		flow = DP_ASYNC1;
+	else
+		return -EINVAL;
+
+	if (!g_ipu_clk_enabled)
+		clk_enable(g_ipu_clk);
+	spin_lock_irqsave(&ipu_lock, lock_flags);
+
+	for (i = 0; i < 8; i++)
+		__raw_writel((constk[2*i] & 0x1ff) | ((constk[2*i+1] & 0x1ff) << 16), DP_GAMMA_C(flow, i));
+	for (i = 0; i < 4; i++)
+		__raw_writel((slopek[4*i] & 0xff) | ((slopek[4*i+1] & 0xff) << 8) |
+			((slopek[4*i+2] & 0xff) << 16) | ((slopek[4*i+3] & 0xff) << 24), DP_GAMMA_S(flow, i));
+
+	if (enable) {
+		reg = __raw_readl(DP_COM_CONF(flow));
+		if ((bg_csc_type == RGB2YUV) || (bg_csc_type == YUV2YUV))
+			reg |= DP_COM_CONF_GAMMA_YUV_EN;
+		else
+			reg &= ~DP_COM_CONF_GAMMA_YUV_EN;
+		__raw_writel(reg | DP_COM_CONF_GAMMA_EN, DP_COM_CONF(flow));
+	} else
+		__raw_writel(reg & ~DP_COM_CONF_GAMMA_EN, DP_COM_CONF(flow));
+
+	reg = __raw_readl(IPU_SRM_PRI2) | 0x8;
+	__raw_writel(reg, IPU_SRM_PRI2);
+
+	spin_unlock_irqrestore(&ipu_lock, lock_flags);
+	if (!g_ipu_clk_enabled)
+		clk_disable(g_ipu_clk);
+
+	return 0;
+}
+EXPORT_SYMBOL(ipu_disp_set_gamma_correction);
+
+/*!
  * This function sets the window position of the foreground or background plane.
  * modes.
  *

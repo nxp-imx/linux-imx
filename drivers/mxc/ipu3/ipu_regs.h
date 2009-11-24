@@ -287,6 +287,8 @@ extern u32 *ipu_vdi_reg;
 #define DP_COM_CONF(flow)	(ipu_dp_reg + flow/4)
 #define DP_GRAPH_WIND_CTRL(flow) (ipu_dp_reg + 0x0004/4 + flow/4)
 #define DP_FG_POS(flow)		(ipu_dp_reg + 0x0008/4 + flow/4)
+#define DP_GAMMA_C(flow, i)	(ipu_dp_reg + 0x0014/4 + flow/4 + i)
+#define DP_GAMMA_S(flow, i)	(ipu_dp_reg + 0x0034/4 + flow/4 + i)
 #define DP_CSC_A_0(flow)	(ipu_dp_reg + 0x0044/4 + flow/4)
 #define DP_CSC_A_1(flow)	(ipu_dp_reg + 0x0048/4 + flow/4)
 #define DP_CSC_A_2(flow)	(ipu_dp_reg + 0x004C/4 + flow/4)
@@ -601,6 +603,8 @@ enum {
 	DP_COM_CONF_CSC_DEF_FG = 0x00000300,
 	DP_COM_CONF_CSC_DEF_BG = 0x00000200,
 	DP_COM_CONF_CSC_DEF_BOTH = 0x00000100,
+	DP_COM_CONF_GAMMA_EN = 0x00001000,
+	DP_COM_CONF_GAMMA_YUV_EN = 0x00002000,
 
 	DI_SER_CONF_LLA_SER_ACCESS = 0x00000020,
 	DI_SER_CONF_SERIAL_CLK_POL = 0x00000010,
