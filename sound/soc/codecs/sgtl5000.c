@@ -317,8 +317,8 @@ static int dac_get_volsw(struct snd_kcontrol *kcontrol,
 	int reg, l, r;
 
 	reg = sgtl5000_read(codec, SGTL5000_CHIP_DAC_VOL);
-	l = (reg & SGTL5000_DAC_VOL_LEFT_MASK) << SGTL5000_DAC_VOL_LEFT_SHIFT;
-	r = (reg & SGTL5000_DAC_VOL_RIGHT_MASK) << SGTL5000_DAC_VOL_RIGHT_SHIFT;
+	l = (reg & SGTL5000_DAC_VOL_LEFT_MASK) >> SGTL5000_DAC_VOL_LEFT_SHIFT;
+	r = (reg & SGTL5000_DAC_VOL_RIGHT_MASK) >> SGTL5000_DAC_VOL_RIGHT_SHIFT;
 	l = l < 0x3c ? 0x3c : l;
 	l = l > 0xfc ? 0xfc : l;
 	r = r < 0x3c ? 0x3c : r;
@@ -327,7 +327,7 @@ static int dac_get_volsw(struct snd_kcontrol *kcontrol,
 	r = 0xfc - r;
 
 	ucontrol->value.integer.value[0] = l;
-	ucontrol->value.integer.value[1] = l;
+	ucontrol->value.integer.value[1] = r;
 
 	return 0;
 }
