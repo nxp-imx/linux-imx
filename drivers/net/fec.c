@@ -1530,6 +1530,7 @@ fec_enet_open(struct net_device *dev)
 	 * a simple way to do that.
 	 */
 
+	clk_enable(fep->clk);
 	ret = fec_enet_alloc_buffers(dev);
 	if (ret)
 		return ret;
@@ -1579,6 +1580,7 @@ fec_enet_close(struct net_device *dev)
 	fec_stop(dev);
 
         fec_enet_free_buffers(dev);
+	clk_disable(fep->clk);
 
 	return 0;
 }
@@ -1975,6 +1977,7 @@ fec_probe(struct platform_device *pdev)
 	if (ret)
 		goto failed_register;
 
+	clk_disable(fep->clk);
 	return 0;
 
 failed_register:
@@ -2023,8 +2026,10 @@ fec_suspend(struct platform_device *dev, pm_message_t state)
 		if (netif_running(ndev)) {
 			netif_device_detach(ndev);
 			fec_stop(ndev);
+			clk_disable(fep->clk);
 		}
 	}
+
 	return 0;
 }
 
@@ -2032,9 +2037,12 @@ static int
 fec_resume(struct platform_device *dev)
 {
 	struct net_device *ndev = platform_get_drvdata(dev);
+	struct fec_enet_private *fep;
 
 	if (ndev) {
+		fep = netdev_priv(ndev);
 		if (netif_running(ndev)) {
+			clk_enable(fep->clk);
 			fec_restart(ndev, 1);
 			netif_device_attach(ndev);
 		}
