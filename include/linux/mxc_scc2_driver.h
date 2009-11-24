@@ -648,7 +648,7 @@ scc_verify_slot_access(uint64_t owner_id, uint32_t slot, uint32_t access_len);*/
 /** Some security peripheral is initializing */
 #define SMN_STATUS_PERIP_INIT             0x00010000
 /** Internal error detected in SMN. */
-#define SMN_STATUS_SMN_ERROR              0x00008000
+#define SMN_STATUS_SMN_ERROR              0x00004000
 /** SMN has an outstanding interrupt. */
 #define SMN_STATUS_SMN_STATUS_IRQ         0x00004000
 /** Software Alarm was triggered. */
