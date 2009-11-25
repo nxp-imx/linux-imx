@@ -367,9 +367,9 @@ static int __init imx_3stack_ak4647_probe(struct platform_device *pdev)
 	gpio_activate_audio_ports();
 	imx_3stack_init_dam(dev_data->src_port, dev_data->ext_port);
 
-	if (request_irq
-	    (dev_data->intr_id_hp, imx_headphone_detect_handler, 0,
-	     "headphone", NULL))
+	ret = request_irq(dev_data->intr_id_hp, imx_headphone_detect_handler, 0,
+			"headphone", NULL);
+	if (ret < 0)
 		goto err;
 
 	ret = driver_create_file(pdev->dev.driver, &driver_attr_headphone);
