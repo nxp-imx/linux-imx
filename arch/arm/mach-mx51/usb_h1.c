@@ -77,6 +77,14 @@ static void gpio_usbh1_inactive(void)
 	gpio_free(IOMUX_TO_GPIO(MX51_PIN_USBH1_STP));
 }
 
+static void _wake_up_enable(struct fsl_usb2_platform_data *pdata, bool enable)
+{
+	if (enable)
+		USBCTRL |= UCTRL_H1WIE;
+	else
+		USBCTRL &= ~UCTRL_H1WIE;
+}
+
 static struct fsl_usb2_platform_data usbh1_config = {
 	.name = "Host 1",
 	.platform_init = fsl_usb_host_init,
@@ -86,6 +94,7 @@ static struct fsl_usb2_platform_data usbh1_config = {
 	.power_budget = 500,	/* 500 mA max power */
 	.gpio_usb_active = gpio_usbh1_active,
 	.gpio_usb_inactive = gpio_usbh1_inactive,
+	.wake_up_enable = _wake_up_enable,
 	.transceiver = "isp1504",
 };
 

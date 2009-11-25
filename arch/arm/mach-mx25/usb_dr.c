@@ -19,6 +19,8 @@
 #include <mach/arc_otg.h>
 #include "usb.h"
 
+static void _wake_up_enable(struct fsl_usb2_platform_data *pdata, bool enable);
+
 /*
  * platform data structs
  * 	- Which one to use is determined by CONFIG options in usb.h
@@ -33,6 +35,7 @@ static struct fsl_usb2_platform_data __maybe_unused dr_utmi_config = {
 	.gpio_usb_active   = gpio_usbotg_utmi_active,
 	.gpio_usb_inactive = gpio_usbotg_utmi_inactive,
 	.transceiver       = "utmi",
+	.wake_up_enable = _wake_up_enable,
 };
 
 /*
@@ -87,6 +90,23 @@ static struct platform_device __maybe_unused dr_otg_device = {
 	.resource      = otg_resources,
 	.num_resources = ARRAY_SIZE(otg_resources),
 };
+
+static void _wake_up_enable(struct fsl_usb2_platform_data *pdata, bool enable)
+{
+	if (get_usb_mode(pdata) == FSL_USB_DR_DEVICE) {
+		if (enable)
+			USBCTRL |= (UCTRL_OWIE | UCTRL_VBUS_WKUP_EN);
+		else {
+			USBCTRL &= ~UCTRL_OWIE;
+			USBCTRL &= ~UCTRL_VBUS_WKUP_EN;
+		}
+	} else {
+		if (enable)
+			USBCTRL |= UCTRL_OWIE;
+		else
+			USBCTRL &= ~UCTRL_OWIE;
+	}
+}
 
 static int __init usb_dr_init(void)
 {

@@ -403,7 +403,7 @@ static int usb_register_remote_wakeup(struct platform_device *pdev)
 	int irq;
 
 	pr_debug("%s: pdev=0x%p \n", __func__, pdev);
-	if (!cpu_is_mx51())
+	if (!cpu_is_mx51() && !cpu_is_mx25())
 		return -ECANCELED;
 
 	res = platform_get_resource(pdev, IORESOURCE_IRQ, 0);
@@ -856,25 +856,7 @@ EXPORT_SYMBOL(usb_host_wakeup_irq);
 void usb_host_set_wakeup(struct device *wkup_dev, bool para)
 {
 	struct fsl_usb2_platform_data *pdata = wkup_dev->platform_data;
-
-	/* If this device may wakeup */
-	if (device_may_wakeup(wkup_dev) && para) {
-		if (!strcmp("Host 1", pdata->name)) {
-			USBCTRL |= UCTRL_H1WIE;
-		} else if (!strcmp("DR", pdata->name)) {
-			USBCTRL |= UCTRL_OWIE;
-			/* Enable OTG ID Wakeup */
-			USBCTRL_HOST2 |= (1 << 5);
-		}
-	}
-
-	if (!para) {
-		if (!strcmp("Host 1", pdata->name))
-			USBCTRL &= ~UCTRL_H1WIE;
-		else if (!strcmp("DR", pdata->name)) {
-			USBCTRL &= ~UCTRL_OWIE;
-			USBCTRL_HOST2 &= ~(1 << 5);
-		}
-	}
+	if (pdata->wake_up_enable)
+		pdata->wake_up_enable(pdata, para);
 }
 EXPORT_SYMBOL(usb_host_set_wakeup);

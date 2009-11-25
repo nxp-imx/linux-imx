@@ -429,7 +429,6 @@ static int ehci_fsl_drv_remove(struct platform_device *pdev)
 }
 
 #ifdef CONFIG_PM
-extern void usb_host_set_wakeup(struct device *wkup_dev, bool para);
 /* suspend/resume, section 4.3 */
 
 /* These routines rely on the bus (pci, platform, etc)
@@ -514,7 +513,8 @@ static int ehci_fsl_drv_suspend(struct platform_device *pdev,
 	if (!((ehci->transceiver) &&
 			(readl(hcd->regs + 0x1A4) & (1 << 8)))) {
 		/* enable remote wake up irq */
-		usb_host_set_wakeup(&(pdev->dev), true);
+		if (pdata->wake_up_enable)
+			pdata->wake_up_enable(pdata, true);
 
 	/* We CAN NOT enable wake up by connetion and disconnection
 	 * concurrently */

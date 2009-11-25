@@ -21,6 +21,14 @@
 #include <mach/arc_otg.h>
 #include "usb.h"
 
+static void _wake_up_enable(struct fsl_usb2_platform_data *pdata, bool enable)
+{
+	if (enable)
+		USBCTRL |= UCTRL_H2WIE;
+	else
+		USBCTRL &= ~UCTRL_H2WIE;
+}
+
 static struct fsl_usb2_platform_data usbh2_config = {
 	.name              = "Host 2",
 	.platform_init     = fsl_usb_host_init,
@@ -31,6 +39,7 @@ static struct fsl_usb2_platform_data usbh2_config = {
 	.gpio_usb_active   = gpio_usbh2_active,
 	.gpio_usb_inactive = gpio_usbh2_inactive,
 	.transceiver       = "serial",		/* on-chip */
+	.wake_up_enable = _wake_up_enable,
 };
 
 static struct resource usbh2_resources[] = {
@@ -79,10 +88,13 @@ EXPORT_SYMBOL(usbh2_put_xcvr_power);
 
 static int __init usbh2_init(void)
 {
+	struct platform_device *pdev;
 	pr_debug("%s: \n", __func__);
 
-	host_pdev_register(usbh2_resources, ARRAY_SIZE(usbh2_resources),
+	pdev = host_pdev_register(usbh2_resources, ARRAY_SIZE(usbh2_resources),
 			   &usbh2_config);
+	if (pdev)
+		device_init_wakeup(&(pdev->dev), 1);
 	return 0;
 }
 module_init(usbh2_init);

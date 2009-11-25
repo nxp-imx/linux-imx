@@ -144,6 +144,14 @@ static void _wake_up_enable(struct fsl_usb2_platform_data *pdata, bool enable)
 			USBCTRL_HOST2 &= ~UCTRL_H2OVBWK_EN;
 			USB_PHY_CTR_FUNC &= ~USB_UTMI_PHYCTRL_CONF2;
 		}
+	} else {
+		if (enable) {
+			USBCTRL |= UCTRL_OWIE;
+			USBCTRL_HOST2 |= (1 << 5);
+		} else {
+			USBCTRL &= ~UCTRL_OWIE;
+			USBCTRL_HOST2 &= ~(1 << 5);
+		}
 	}
 }
 
