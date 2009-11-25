@@ -312,7 +312,7 @@ static DECLARE_DELAYED_WORK(hp_event, headphone_detect_handler);
 
 static irqreturn_t imx_headphone_detect_handler(int irq, void *data)
 {
-	disable_irq(irq);
+	disable_irq_nosync(irq);
 	schedule_delayed_work(&hp_event, msecs_to_jiffies(200));
 	return IRQ_HANDLED;
 }
