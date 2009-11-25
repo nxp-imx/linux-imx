@@ -518,8 +518,8 @@ static inline void mxc_init_enet(void)
 #if defined(CONFIG_FEC) || defined(CONFIG_FEC_MODULE)
 static struct resource mxc_fec_resources[] = {
 	{
-		.start	= FEC_BASE_ADDR,
-		.end	= FEC_BASE_ADDR + 0xfff,
+		.start	= MXC_FEC_BASE_ADDR,
+		.end	= MXC_FEC_BASE_ADDR + 0xfff,
 		.flags	= IORESOURCE_MEM
 	}, {
 		.start	= MXC_INT_FEC,
