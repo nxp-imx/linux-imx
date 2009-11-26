@@ -165,7 +165,17 @@ void imx_tsc_init(void)
 	      (lastitemid << CQCR_LAST_ITEM_ID_SHIFT);
 	__raw_writel(reg, tsc_base + TCQCR);
 
+	/* Config idle for 4-wire */
+	reg = TSC_4WIRE_PRECHARGE;
+	__raw_writel(reg, tsc_base + TICR);
+
+	reg = TSC_4WIRE_TOUCH_DETECT;
+	__raw_writel(reg, tsc_base + TICR);
+
 	/* pen down enable */
+	reg = __raw_readl(tsc_base + TGCR);
+	reg |= TGCR_PD_EN | TGCR_PDB_EN;
+	__raw_writel(reg, tsc_base + TGCR);
 	reg = __raw_readl(tsc_base + TCQCR);
 	reg &= ~CQCR_PD_MSK;
 	__raw_writel(reg, tsc_base + TCQCR);
@@ -175,25 +185,42 @@ void imx_tsc_init(void)
 
 	/* Debounce time = dbtime*8 adc clock cycles */
 	reg = __raw_readl(tsc_base + TGCR);
-	dbtime = 3;
+	dbtime = TGCR_PDBTIME128;
 	reg &= ~TGCR_PDBTIME_MASK;
 	reg |= dbtime << TGCR_PDBTIME_SHIFT;
-	reg |= TGCR_SLPC;
+	reg |= TGCR_HSYNC_EN;
 	__raw_writel(reg, tsc_base + TGCR);
 
 }
 
 static irqreturn_t imx_adc_interrupt(int irq, void *dev_id)
 {
-	int reg;
+	unsigned long reg;
 
-	/* disable pen down detect */
-	reg = __raw_readl(tsc_base + TGCR);
-	reg &= ~TGCR_PD_EN;
-	__raw_writel(reg, tsc_base + TGCR);
+	if (__raw_readl(tsc_base + TGSR) & 0x4) {
+		/* deep sleep wakeup interrupt */
+		/* clear tgsr */
+		__raw_writel(0,  tsc_base + TGSR);
+		/* clear deep sleep wakeup irq */
+		reg = __raw_readl(tsc_base + TGCR);
+		reg &= ~TGCR_SLPC;
+		__raw_writel(reg, tsc_base + TGCR);
+		/* un-mask pen down and pen down irq */
+		reg = __raw_readl(tsc_base + TCQCR);
+		reg &= ~CQCR_PD_MSK;
+		__raw_writel(reg, tsc_base + TCQCR);
+		reg = __raw_readl(tsc_base + TCQMR);
+		reg &= ~TCQMR_PD_IRQ_MSK;
+		__raw_writel(reg, tsc_base + TCQMR);
+	} else {
+		/* mask pen down detect irq */
+		reg = __raw_readl(tsc_base + TCQMR);
+		reg |= TCQMR_PD_IRQ_MSK;
+		__raw_writel(reg, tsc_base + TCQMR);
 
-	ts_data_ready = 1;
-	wake_up_interruptible(&tsq);
+		ts_data_ready = 1;
+		wake_up_interruptible(&tsq);
+	}
 	return IRQ_HANDLED;
 }
 
@@ -252,10 +279,10 @@ enum IMX_ADC_STATUS imx_adc_read_ts(struct t_touch_screen *touch_sample,
 		reg |= CQCR_QSM_PEN;
 		__raw_writel(reg, tsc_base + TCQCR);
 
-		/* PDEN and PDBEN */
-		reg = __raw_readl(tsc_base + TGCR);
-		reg |= (TGCR_PDB_EN | TGCR_PD_EN);
-		__raw_writel(reg, tsc_base + TGCR);
+		/* unmask pen down detect irq */
+		reg = __raw_readl(tsc_base + TCQMR);
+		reg &= ~TCQMR_PD_IRQ_MSK;
+		__raw_writel(reg, tsc_base + TCQMR);
 
 		wait_event_interruptible(tsq, ts_data_ready);
 		while (!(__raw_readl(tsc_base + TCQSR) & CQSR_EOQ))
@@ -304,6 +331,14 @@ enum IMX_ADC_STATUS imx_adc_read_ts(struct t_touch_screen *touch_sample,
 		reg |= CQSR_EOQ;
 		__raw_writel(reg, tsc_base + TCQSR);
 		tsi_data = FQS_DATA;
+
+		/* Config idle for 4-wire */
+		reg = TSC_4WIRE_PRECHARGE;
+		__raw_writel(reg, tsc_base + TICR);
+
+		reg = TSC_4WIRE_TOUCH_DETECT;
+		__raw_writel(reg, tsc_base + TICR);
+
 	}
 
 	while (!(__raw_readl(tsc_base + TCQSR) & CQSR_EMPT)) {
@@ -549,6 +584,33 @@ EXPORT_SYMBOL(imx_adc_get_touch_sample);
  */
 static int imx_adc_suspend(struct platform_device *pdev, pm_message_t state)
 {
+	unsigned long reg;
+
+	/* Config idle for 4-wire */
+	reg = TSC_4WIRE_PRECHARGE;
+	__raw_writel(reg, tsc_base + TICR);
+
+	reg = TSC_4WIRE_TOUCH_DETECT;
+	__raw_writel(reg, tsc_base + TICR);
+
+	/* enable deep sleep wake up */
+	reg = __raw_readl(tsc_base + TGCR);
+	reg |= TGCR_SLPC;
+	__raw_writel(reg, tsc_base + TGCR);
+
+	/* mask pen down and pen down irq */
+	reg = __raw_readl(tsc_base + TCQCR);
+	reg |= CQCR_PD_MSK;
+	__raw_writel(reg, tsc_base + TCQCR);
+	reg = __raw_readl(tsc_base + TCQMR);
+	reg |= TCQMR_PD_IRQ_MSK;
+	__raw_writel(reg, tsc_base + TCQMR);
+
+	/* Set power mode to off */
+	reg = __raw_readl(tsc_base + TGCR) & ~TGCR_POWER_MASK;
+	reg |= TGCR_POWER_OFF;
+	__raw_writel(reg, tsc_base + TGCR);
+
 	if (device_may_wakeup(&pdev->dev)) {
 		enable_irq_wake(adc_data->irq);
 	} else {
@@ -568,6 +630,8 @@ static int imx_adc_suspend(struct platform_device *pdev, pm_message_t state)
  */
 static int imx_adc_resume(struct platform_device *pdev)
 {
+	unsigned long reg;
+
 	if (device_may_wakeup(&pdev->dev)) {
 		disable_irq_wake(adc_data->irq);
 	} else {
@@ -578,6 +642,12 @@ static int imx_adc_resume(struct platform_device *pdev)
 			wake_up_interruptible(&suspendq);
 		}
 	}
+
+	/* recover power mode */
+	reg = __raw_readl(tsc_base + TGCR) & ~TGCR_POWER_MASK;
+	reg |= TGCR_POWER_SAVE;
+	__raw_writel(reg, tsc_base + TGCR);
+
 	return 0;
 }
 
@@ -689,9 +759,10 @@ enum IMX_ADC_STATUS imx_adc_convert(enum t_channel channel,
 			reg &= ~CQCR_QSM_MASK;
 			reg |= CQCR_QSM_PEN;
 			__raw_writel(reg, tsc_base + TCQCR);
-			reg = __raw_readl(tsc_base + TGCR);
-			reg |= TGCR_PDB_EN | TGCR_PD_EN;
-			__raw_writel(reg, tsc_base + TGCR);
+
+			reg = __raw_readl(tsc_base + TCQMR);
+			reg &= ~TCQMR_PD_IRQ_MSK;
+			__raw_writel(reg, tsc_base + TCQMR);
 		}
 		break;
 
@@ -706,9 +777,9 @@ enum IMX_ADC_STATUS imx_adc_convert(enum t_channel channel,
 			reg |= CQCR_QSM_PEN;
 			__raw_writel(reg, tsc_base + TCQCR);
 
-			reg = __raw_readl(tsc_base + TGCR);
-			reg |= TGCR_PDB_EN | TGCR_PD_EN;
-			__raw_writel(reg, tsc_base + TGCR);
+			reg = __raw_readl(tsc_base + TCQMR);
+			reg &= ~TCQMR_PD_IRQ_MSK;
+			__raw_writel(reg, tsc_base + TCQMR);
 		}
 		break;
 
