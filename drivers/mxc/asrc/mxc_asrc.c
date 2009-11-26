@@ -426,7 +426,7 @@ int asrc_config_pair(struct asrc_config *config)
 		reg &= 0xfc0fc0;
 		/* Input Part */
 		if ((config->inclk & 0x0f) == INCLK_SPDIF_RX)
-			reg | 7 << AICPA;
+			reg |= 7 << AICPA;
 		else if ((config->inclk & 0x0f) == INCLK_SPDIF_TX)
 			reg |= 6 << AICPA;
 		else if ((config->inclk & 0x0f) == INCLK_ASRCK1_CLK) {
