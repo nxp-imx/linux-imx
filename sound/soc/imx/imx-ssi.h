@@ -33,6 +33,9 @@
 #define SSI1_SATAG  ((SSI1_IO_BASE_ADDR) + 0x44)
 #define SSI1_STMSK  ((SSI1_IO_BASE_ADDR) + 0x48)
 #define SSI1_SRMSK  ((SSI1_IO_BASE_ADDR) + 0x4c)
+#define SSI1_SACCST ((SSI1_IO_BASE_ADDR) + 0x50)
+#define SSI1_SACCEN ((SSI1_IO_BASE_ADDR) + 0x54)
+#define SSI1_SACCDIS ((SSI1_IO_BASE_ADDR) + 0x58)
 
 #define SSI2_STX0   ((SSI2_IO_BASE_ADDR) + 0x00)
 #define SSI2_STX1   ((SSI2_IO_BASE_ADDR) + 0x04)
@@ -54,6 +57,9 @@
 #define SSI2_SATAG  ((SSI2_IO_BASE_ADDR) + 0x44)
 #define SSI2_STMSK  ((SSI2_IO_BASE_ADDR) + 0x48)
 #define SSI2_SRMSK  ((SSI2_IO_BASE_ADDR) + 0x4c)
+#define SSI2_SACCST ((SSI2_IO_BASE_ADDR) + 0x50)
+#define SSI2_SACCEN ((SSI2_IO_BASE_ADDR) + 0x54)
+#define SSI2_SACCDIS ((SSI2_IO_BASE_ADDR) + 0x58)
 
 #define SSI_SCR_CLK_IST        (1 << 9)
 #define SSI_SCR_TCH_EN         (1 << 8)
@@ -179,11 +185,11 @@
 #define SSI_SOR_SYNRST        (1 << 0)
 
 #define SSI_SACNT_FRDIV(x)    (((x) & 0x3f) << 5)
-#define SSI_SACNT_WR          (x << 4)
-#define SSI_SACNT_RD          (x << 3)
-#define SSI_SACNT_TIF         (x << 2)
-#define SSI_SACNT_FV          (x << 1)
-#define SSI_SACNT_AC97EN      (x << 0)
+#define SSI_SACNT_WR          (1 << 4)
+#define SSI_SACNT_RD          (1 << 3)
+#define SSI_SACNT_TIF         (1 << 2)
+#define SSI_SACNT_FV          (1 << 1)
+#define SSI_SACNT_AC97EN      (1 << 0)
 
 /* SDMA & SSI watermarks for FIFO's */
 #define SDMA_TXFIFO_WATERMARK		0x4
@@ -213,12 +219,18 @@
 #define IMX_SSI_DIV_2_OFF		(~SSI_STCCR_DIV2)
 #define IMX_SSI_DIV_2_ON		SSI_STCCR_DIV2
 
+#define IMX_DAI_AC97_1 0
+#define IMX_DAI_AC97_2 1
+
 /* private info */
 struct imx_ssi {
 	bool network_mode;
 	bool sync_mode;
+	unsigned int ac97_tx_slots;
+	unsigned int ac97_rx_slots;
 };
 
 extern struct snd_soc_dai imx_ssi_dai[];
+extern struct snd_soc_dai imx_ac97_dai[];
 
 #endif

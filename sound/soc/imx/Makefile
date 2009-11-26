@@ -2,10 +2,12 @@
 snd-soc-imx-objs := imx-pcm.o
 snd-soc-imx-ssi-objs := imx-ssi.o
 snd-soc-imx-esai-objs := imx-esai.o
+snd-soc-imx-ac97-objs := imx-ac97.o
 
 obj-$(CONFIG_SND_MXC_SOC) += snd-soc-imx.o
 obj-$(CONFIG_SND_MXC_SOC_SSI) += snd-soc-imx-ssi.o
 obj-$(CONFIG_SND_MXC_SOC_ESAI) += snd-soc-imx-esai.o
+obj-$(CONFIG_SND_MXC_SOC_AC97) += snd-soc-imx-ac97.o
 
 # i.MX Machine Support
 snd-soc-imx-3stack-wm8350-objs := imx-3stack-wm8350.o

@@ -15,6 +15,9 @@ config SND_MXC_SOC_SSI
 config SND_MXC_SOC_ESAI
  tristate
 
+config SND_MXC_SOC_AC97
+ tristate
+
 config SND_MXC_SOC_IRAM
  bool "Locate Audio DMA playback buffers in IRAM"
  help
