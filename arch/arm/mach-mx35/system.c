@@ -121,6 +121,14 @@ void arch_idle(void)
  */
 void arch_reset(char mode)
 {
+	unsigned long reg;
+
+	reg = __raw_readl(MXC_CCM_CGR0);
+	reg |=
+	    (MXC_CCM_CGR0_ESDHC1_MASK | MXC_CCM_CGR0_ESDHC2_MASK |
+	     MXC_CCM_CGR0_ESDHC3_MASK);
+	__raw_writel(reg, MXC_CCM_CGR0);
+
 	/* Assert SRS signal */
 	mxc_wd_reset();
 }
