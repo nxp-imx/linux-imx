@@ -166,6 +166,7 @@ static int ipu_probe(struct platform_device *pdev)
 	struct resource *res;
 	struct mxc_ipu_config *plat_data = pdev->dev.platform_data;
 	unsigned long ipu_base;
+	u32 reg;
 
 	spin_lock_init(&ipu_lock);
 
@@ -266,6 +267,12 @@ static int ipu_probe(struct platform_device *pdev)
 
 	/* Set MCU_T to divide MCU access window into 2 */
 	__raw_writel(0x00400000L | (IPU_MCU_T_DEFAULT << 18), IPU_DISP_GEN);
+
+	/* Enable for a divide by 2 clock change. */
+	reg = __raw_readl(IPU_PM);
+	reg &= ~(0x7f << 7);
+	reg |= 0x20 << 7;
+	__raw_writel(reg, IPU_PM);
 
 	clk_disable(g_ipu_clk);
 

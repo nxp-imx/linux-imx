@@ -26,6 +26,8 @@
 #include <mach/common.h>
 #include <mach/clock.h>
 #include <mach/spba.h>
+#include <mach/mxc_dvfs.h>
+#include <mach/sdram_autogating.h>
 
 #include "crm_regs.h"
 
@@ -64,6 +66,7 @@ int lp_med_freq;
 
 extern int mxc_jtag_enabled;
 extern int cpufreq_trig_needed;
+extern int low_bus_freq_mode;
 
 static int cpu_clk_set_wp(int wp);
 extern void propagate_rate(struct clk *tclk);
@@ -142,7 +145,6 @@ static void _clk_disable(struct clk *clk)
 static void _clk_disable_inwait(struct clk *clk)
 {
 	u32 reg;
-
 	reg = __raw_readl(clk->enable_reg);
 	reg &= ~(MXC_CCM_CCGR_CG_MASK << clk->enable_shift);
 	reg |= 1 << clk->enable_shift;
@@ -609,10 +611,11 @@ static struct clk periph_apm_clk = {
  */
 static void _clk_main_bus_recalc(struct clk *clk)
 {
-	u32 div;
+	u32 div = 0;
 
-	div  = (__raw_readl(MXC_CCM_CDCR) & 0x3) + 1;
-	clk->rate = clk->parent->rate / div;
+	if (dvfs_per_divider_active() || low_bus_freq_mode)
+		div  = (__raw_readl(MXC_CCM_CDCR) & 0x3);
+	clk->rate = clk->parent->rate / (div + 1);
 }
 
 static int _clk_main_bus_set_parent(struct clk *clk, struct clk *parent)
@@ -1093,6 +1096,8 @@ static struct clk emi_intr_clk = {
 	.secondary = &ahbmux2_clk,
 	.enable_reg = MXC_CCM_CCGR5,
 	.enable_shift = MXC_CCM_CCGR5_CG9_OFFSET,
+	.enable = _clk_enable,
+	.disable = _clk_disable_inwait,
 };
 
 static void _clk_ipg_recalc(struct clk *clk)
@@ -1160,6 +1165,41 @@ static struct clk ipg_perclk = {
 	.set_parent = _clk_ipg_per_set_parent,
 	.flags = RATE_PROPAGATES,
 };
+
+static int _clk_ipmux_enable(struct clk *clk)
+{
+	u32 reg;
+	reg = __raw_readl(clk->enable_reg);
+	reg |= 1  << clk->enable_shift;
+	__raw_writel(reg, clk->enable_reg);
+
+	return 0;
+}
+
+static void _clk_ipmux_disable(struct clk *clk)
+{
+	u32 reg;
+	reg = __raw_readl(clk->enable_reg);
+	reg &= ~(0x1 << clk->enable_shift);
+	__raw_writel(reg, clk->enable_reg);
+}
+
+static struct clk ipumux1_clk = {
+	.name = "ipumux1",
+	.enable_reg = MXC_CCM_CCGR5,
+	.enable_shift = MXC_CCM_CCGR5_CG6_1_OFFSET,
+	.enable = _clk_ipmux_enable,
+	.disable = _clk_ipmux_disable,
+};
+
+static struct clk ipumux2_clk = {
+	.name = "ipumux2",
+	.enable_reg = MXC_CCM_CCGR5,
+	.enable_shift = MXC_CCM_CCGR5_CG6_2_OFFSET,
+	.enable = _clk_ipmux_enable,
+	.disable = _clk_ipmux_disable,
+};
+
 
 static struct clk aips_tz1_clk = {
 	.name = "aips_tz1_clk",
@@ -1248,6 +1288,7 @@ static int _clk_ipu_enable(struct clk *clk)
 	reg &= ~MXC_CCM_CLPCR_BYPASS_IPU_LPM_HS;
 	__raw_writel(reg, MXC_CCM_CLPCR);
 
+	start_sdram_autogating();
 
 	return 0;
 }
@@ -1255,6 +1296,9 @@ static int _clk_ipu_enable(struct clk *clk)
 static void _clk_ipu_disable(struct clk *clk)
 {
 	u32 reg;
+
+	if (sdram_autogating_active())
+		stop_sdram_autogating();
 
 	_clk_disable(clk);
 
@@ -1697,6 +1741,27 @@ static int _clk_tve_set_rate(struct clk *clk, unsigned long rate)
 	return 0;
 }
 
+static int _clk_tve_enable(struct clk *clk)
+{
+	_clk_enable(clk);
+	if (clk_get_parent(&ipu_di_clk[1]) != clk) {
+		clk_enable(&ipu_di_clk[1]);
+		ipu_di_clk[1].set_parent(&ipu_di_clk[1], clk);
+		ipu_di_clk[1].parent = clk;
+	}
+	return 0;
+}
+
+static void _clk_tve_disable(struct clk *clk)
+{
+	_clk_disable(clk);
+	if (clk_get_parent(&ipu_di_clk[1]) == clk) {
+		clk_disable(&ipu_di_clk[1]);
+		ipu_di_clk[1].set_parent(&ipu_di_clk[1], &pll3_sw_clk);
+		ipu_di_clk[1].parent = &pll3_sw_clk;
+	}
+}
+
 static struct clk tve_clk = {
 	.name = "tve_clk",
 	.parent = &pll3_sw_clk,
@@ -1706,8 +1771,8 @@ static struct clk tve_clk = {
 	.recalc = _clk_tve_recalc,
 	.round_rate = _clk_tve_round_rate,
 	.set_rate = _clk_tve_set_rate,
-	.enable = _clk_enable,
-	.disable = _clk_disable,
+	.enable = _clk_tve_enable,
+	.disable = _clk_tve_disable,
 	.flags = AHB_HIGH_SET_POINT | CPU_FREQ_TRIG_UPDATE,
 };
 
@@ -2506,7 +2571,6 @@ static struct clk esdhc1_clk[] = {
 	 .enable_shift = MXC_CCM_CCGR3_CG1_OFFSET,
 	 .disable = _clk_disable,
 	 .secondary = &esdhc1_clk[1],
-	 .flags = AHB_HIGH_SET_POINT | CPU_FREQ_TRIG_UPDATE,
 	 },
 	{
 	 .name = "esdhc_ipg_clk",
@@ -2566,7 +2630,6 @@ static struct clk esdhc2_clk[] = {
 	 .enable_shift = MXC_CCM_CCGR3_CG3_OFFSET,
 	 .disable = _clk_disable,
 	 .secondary = &esdhc2_clk[1],
-	 .flags = AHB_HIGH_SET_POINT | CPU_FREQ_TRIG_UPDATE,
 	 },
 	{
 	 .name = "esdhc_ipg_clk",
@@ -2614,7 +2677,6 @@ static struct clk esdhc3_clk[] = {
 	 .enable_shift = MXC_CCM_CCGR3_CG5_OFFSET,
 	 .disable = _clk_disable,
 	 .secondary = &esdhc3_clk[1],
-	 .flags = AHB_HIGH_SET_POINT | CPU_FREQ_TRIG_UPDATE,
 	 },
 	{
 	 .name = "esdhc_ipg_clk",
@@ -2662,14 +2724,13 @@ static struct clk esdhc4_clk[] = {
 	 .enable_reg = MXC_CCM_CCGR3,
 	 .enable_shift = MXC_CCM_CCGR3_CG7_OFFSET,
 	 .disable = _clk_disable,
-	 .secondary = &esdhc3_clk[1],
-	 .flags = AHB_HIGH_SET_POINT | CPU_FREQ_TRIG_UPDATE,
+	 .secondary = &esdhc4_clk[1],
 	 },
 	{
 	 .name = "esdhc_ipg_clk",
 	 .id = 3,
 	 .parent = &ipg_clk,
-	 .secondary = &esdhc3_clk[2],
+	 .secondary = &esdhc4_clk[2],
 	 .enable = _clk_enable,
 	 .enable_reg = MXC_CCM_CCGR3,
 	 .enable_shift = MXC_CCM_CCGR3_CG6_OFFSET,
@@ -3348,6 +3409,8 @@ static struct clk *mxc_clks[] = {
 	&pll1_sw_clk,
 	&pll2_sw_clk,
 	&pll3_sw_clk,
+	&ipumux1_clk,
+	&ipumux2_clk,
 	&gpc_dvfs_clk,
 	&lp_apm_clk,
 	&cpu_clk,
@@ -3547,11 +3610,10 @@ int __init mx51_clocks_init(unsigned long ckil, unsigned long osc, unsigned long
 	if (mxc_jtag_enabled) {
 		__raw_writel(1 << MXC_CCM_CCGR0_CG0_OFFSET |
 			      1 << MXC_CCM_CCGR0_CG1_OFFSET |
-			      1 << MXC_CCM_CCGR0_CG2_OFFSET |
-			      1 << MXC_CCM_CCGR0_CG3_OFFSET |
+			      3 << MXC_CCM_CCGR0_CG3_OFFSET |
 			      3 << MXC_CCM_CCGR0_CG4_OFFSET |
-			      1 << MXC_CCM_CCGR0_CG8_OFFSET |
-			      1 << MXC_CCM_CCGR0_CG9_OFFSET |
+			      3 << MXC_CCM_CCGR0_CG8_OFFSET |
+			      3 << MXC_CCM_CCGR0_CG9_OFFSET |
 			      1 << MXC_CCM_CCGR0_CG12_OFFSET |
 			      1 << MXC_CCM_CCGR0_CG13_OFFSET |
 			      1 << MXC_CCM_CCGR0_CG14_OFFSET, MXC_CCM_CCGR0);
@@ -3559,12 +3621,12 @@ int __init mx51_clocks_init(unsigned long ckil, unsigned long osc, unsigned long
 		__raw_writel(1 << MXC_CCM_CCGR0_CG0_OFFSET |
 			      1 << MXC_CCM_CCGR0_CG1_OFFSET |
 			      1 << MXC_CCM_CCGR0_CG2_OFFSET |
-			      1 << MXC_CCM_CCGR0_CG3_OFFSET |
-			      1 << MXC_CCM_CCGR0_CG8_OFFSET |
-			      1 << MXC_CCM_CCGR0_CG9_OFFSET |
+			      3 << MXC_CCM_CCGR0_CG3_OFFSET |
+			      3 << MXC_CCM_CCGR0_CG8_OFFSET |
+			      3 << MXC_CCM_CCGR0_CG9_OFFSET |
 			      1 << MXC_CCM_CCGR0_CG12_OFFSET |
 			      1 << MXC_CCM_CCGR0_CG13_OFFSET |
-			      1 << MXC_CCM_CCGR0_CG14_OFFSET, MXC_CCM_CCGR0);
+			      3 << MXC_CCM_CCGR0_CG14_OFFSET, MXC_CCM_CCGR0);
 	}
 	__raw_writel(0, MXC_CCM_CCGR1);
 	__raw_writel(0, MXC_CCM_CCGR2);
@@ -3572,7 +3634,8 @@ int __init mx51_clocks_init(unsigned long ckil, unsigned long osc, unsigned long
 	__raw_writel(1 << MXC_CCM_CCGR4_CG8_OFFSET, MXC_CCM_CCGR4);
 
 	__raw_writel(1 << MXC_CCM_CCGR5_CG2_OFFSET |
-		     3 << MXC_CCM_CCGR5_CG6_OFFSET |
+		     1 << MXC_CCM_CCGR5_CG6_1_OFFSET |
+		     1 << MXC_CCM_CCGR5_CG6_2_OFFSET |
 		     3 << MXC_CCM_CCGR5_CG7_OFFSET |
 		     1 << MXC_CCM_CCGR5_CG8_OFFSET |
 		     3 << MXC_CCM_CCGR5_CG9_OFFSET |

@@ -54,6 +54,12 @@
  */
 #define MXC_SDMA_V2
 
+/*!
+ * The maximum frequency that the pixel clock can be at so as to
+ * activate DVFS-PER.
+ */
+#define DVFS_MAX_PIX_CLK	54000000
+
  /*
  * IRAM
  */
@@ -192,6 +198,7 @@
 #define CCM_BASE_ADDR		(AIPS1_BASE_ADDR + 0x000D4000)
 #define GPC_BASE_ADDR		(AIPS1_BASE_ADDR + 0x000D8000)
 
+#define DVFSPER_BASE_ADDR 	(GPC_BASE_ADDR + 0x1C4)
 /*!
  * Defines for modules using static and dynamic DMA channels
  */

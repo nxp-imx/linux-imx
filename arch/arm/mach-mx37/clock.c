@@ -24,6 +24,7 @@
 #include <mach/mxc_dptc.h>
 #include <mach/spba.h>
 #include <mach/mxc_uart.h>
+#include <mach/mxc_dvfs.h>
 
 #include "crm_regs.h"
 #include "iomux.h"
@@ -474,14 +475,25 @@ static struct clk periph_apm_clk = {
 
 static void _clk_main_bus_recalc(struct clk *clk)
 {
-	clk->rate = clk->parent->rate;
+	u32 div;
+
+	if (dvfs_per_divider_active()) {
+		div = __raw_readl(MXC_CCM_CDCR)
+				& MXC_CCM_CDCR_PERIPH_CLK_DVFS_PODF_MASK;
+		clk->rate = clk->parent->rate/(div + 1);
+	} else
+		clk->rate = clk->parent->rate;
 }
 
 static int _clk_main_bus_set_rate(struct clk *clk, unsigned long rate)
 {
 	u32 div = 0;
-
+	if (dvfs_per_divider_active()) {
+		div = __raw_readl(MXC_CCM_CDCR)
+			& MXC_CCM_CDCR_PERIPH_CLK_DVFS_PODF_MASK;
+	}
 	clk->rate = clk->parent->rate/(div + 1);
+
 	return 0;
 }
 static int _clk_main_bus_set_parent(struct clk *clk, struct clk *parent)

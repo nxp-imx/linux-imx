@@ -24,13 +24,14 @@
 #include <linux/uio_driver.h>
 #include <linux/mxc_scc2_driver.h>
 #include <linux/pwm_backlight.h>
+#include <asm/mach-types.h>
 #include <mach/hardware.h>
 #include <mach/spba.h>
-#include <asm/mach-types.h>
+#include <mach/sdma.h>
+#include <mach/mxc_dvfs.h>
+#include "sdma_script_code.h"
 #include "iomux.h"
 #include "crm_regs.h"
-#include <mach/sdma.h>
-#include "sdma_script_code.h"
 
 /* Flag used to indicate when IRAM has been initialized */
 int iram_ready;
@@ -310,10 +311,6 @@ static void mxc_init_ipu(void)
 		mxc_ipu_data.rev = 2;
 
 	mxc_ipu_data.di_clk[1] = clk_get(NULL, "ipu_di1_clk");
-	clk = clk_get(NULL, "tve_clk");
-	clk_set_parent(mxc_ipu_data.di_clk[1], clk);
-	clk_put(clk);
-
 	/* Temporarily setup MIPI module to legacy mode */
 	clk = clk_get(NULL, "mipi_hsp_clk");
 	if (!IS_ERR(clk)) {
@@ -979,11 +976,68 @@ static struct platform_device mxc_dvfs_core_device = {
 	.resource = dvfs_core_resources,
 };
 
-static inline void mxc_init_dvfs(void)
+static inline void mxc_init_dvfs_core(void)
 {
 	if (platform_device_register(&mxc_dvfs_core_device) < 0)
 		dev_err(&mxc_dvfs_core_device.dev,
 			"Unable to register DVFS core device\n");
+}
+
+/*!
+ * Resource definition for the DVFS PER
+ */
+static struct resource dvfs_per_resources[] = {
+	[0] = {
+	       .start = DVFSPER_BASE_ADDR,
+	       .end = DVFSPER_BASE_ADDR + 2 * SZ_16 - 1,
+	       .flags = IORESOURCE_MEM,
+	       },
+	[1] = {
+	       .start = MXC_INT_GPC1,
+	       .end = MXC_INT_GPC1,
+	       .flags = IORESOURCE_IRQ,
+	       },
+};
+
+/*! Platform Data for MXC DVFS PER*/
+struct mxc_dvfsper_data dvfs_per_data = {
+	.reg_id = "SW2",
+	.clk_id = "gpc_dvfs_clk",
+	.gpc_cntr_reg_addr = MXC_GPC_CNTR,
+	.gpc_vcr_reg_addr = MXC_GPC_VCR,
+	.gpc_adu = 0x0,
+	.vai_mask = MXC_DVFSPMCR0_FSVAI_MASK,
+	.vai_offset = MXC_DVFSPMCR0_FSVAI_OFFSET,
+	.dvfs_enable_bit = MXC_DVFSPMCR0_DVFEN,
+	.irq_mask = MXC_DVFSPMCR0_FSVAIM,
+	.div3_offset = 0,
+	.div3_mask = 0x7,
+	.div3_div = 2,
+	.lp_high = 1200000,
+	.lp_low = 1200000,
+};
+
+/*! Device Definition for MXC DVFS Peripheral*/
+static struct platform_device mxc_dvfs_per_device = {
+	 .name = "mxc_dvfsper",
+	 .id = 0,
+	 .dev = {
+		 .release = mxc_nop_release,
+		 .platform_data = &dvfs_per_data,
+		 },
+	 .num_resources = ARRAY_SIZE(dvfs_per_resources),
+	 .resource = dvfs_per_resources,
+};
+
+static inline void mxc_init_dvfs_per(void)
+{
+	if (platform_device_register(&mxc_dvfs_per_device) < 0) {
+		dev_err(&mxc_dvfs_per_device.dev,
+				"Unable to register DVFS device\n");
+	} else {
+		printk(KERN_INFO "mxc_init_dvfs_per initialised\n");
+	}
+	return;
 }
 
 struct mxc_gpio_port mxc_gpio_ports[] = {
@@ -1273,7 +1327,8 @@ int __init mxc_init_devices(void)
 	mx51_init_lpmode();
 	mxc_init_busfreq();
 	mxc_init_sdram_autogating();
-	mxc_init_dvfs();
+	mxc_init_dvfs_core();
+	mxc_init_dvfs_per();
 	mxc_init_iim();
 	mxc_init_gpu();
 	mxc_init_gpu2d();

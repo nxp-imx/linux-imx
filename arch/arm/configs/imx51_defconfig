@@ -215,6 +215,7 @@ CONFIG_ARCH_MXC_HAS_NFC_V3_2=y
 CONFIG_MXC_TZIC=y
 # CONFIG_MXC_IRQ_PRIOR is not set
 # CONFIG_MXC_PWM is not set
+CONFIG_MXC_DVFS_PER=y
 
 #
 # Processor Type

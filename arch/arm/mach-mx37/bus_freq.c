@@ -70,6 +70,8 @@ char *gp_reg_id = "SW1";
 char *lp_reg_id = "SW2";
 static struct cpu_wp *cpu_wp_tbl;
 static int busfreq_suspended;
+/* True if bus_frequency is scaled not using DVFS-PER */
+int bus_freq_scaling_is_active;
 
 struct dvfs_wp dvfs_core_setpoint[] = {
 						{33, 8, 33, 10, 10, 0x08},
@@ -81,25 +83,22 @@ int set_low_bus_freq(void)
 {
 	int ret = 0;
 	unsigned long flags;
-	int reg;
 	unsigned long lp_lpm_clk;
 
 	if (busfreq_suspended)
 		return ret;
 
-	spin_lock_irqsave(&bus_freq_lock, flags);
-
 	if (low_bus_freq_mode || (clk_get_rate(cpu_clk) != GP_LPAPM_FREQ)) {
-		spin_unlock_irqrestore(&bus_freq_lock, flags);
 		return ret;
 	}
 
-	if (clk_get_rate(cpu_clk) != GP_LPAPM_FREQ)
-		return ret;
+	stop_dvfs_per();
+
+	spin_lock_irqsave(&bus_freq_lock, flags);
 
 	lp_lpm_clk = clk_get_rate(periph_apm_clk) / 8;
 
-	/* Set the parent of peripheral_apm_clk to be lpapm */
+	/* Set the parent of peripheral_apm_clk to be pll1 */
 	clk_set_parent(periph_apm_clk, pll1);
 	/* Set the LP clocks */
 	clk_set_parent(main_bus_clk, periph_apm_clk);
@@ -137,6 +136,9 @@ int set_high_bus_freq(int high_bus_freq)
 	if (!low_bus_freq_mode)
 		return ret;
 
+	if (dvfs_per_active())
+		return ret;
+
 	/* Set the voltage to 1.25V for the LP domain. */
 	ret = regulator_set_voltage(lp_regulator, 1250000, 1250000);
 	udelay(100);
@@ -166,6 +168,7 @@ int set_high_bus_freq(int high_bus_freq)
 
 	spin_unlock_irqrestore(&bus_freq_lock, flags);
 
+	start_dvfs_per();
 	return ret;
 }
 

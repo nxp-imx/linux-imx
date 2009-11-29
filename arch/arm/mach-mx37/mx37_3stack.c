@@ -48,6 +48,7 @@
 #include <mach/memory.h>
 #include <mach/gpio.h>
 #include <mach/mmc.h>
+#include <mach/mxc_dvfs.h>
 #include "board-mx37_3stack.h"
 #include "iomux.h"
 #include "crm_regs.h"
@@ -867,6 +868,7 @@ static void mx37_3stack_fixup_for_board_v1(void)
 	lcd_data.core_reg = "LDO1";
 	lcd_data.io_reg = "DCDC6";
 	dvfs_core_data.reg_id = "DCDC1";
+	dvfs_per_data.reg_id = "DCDC4";
 	ls_data.vdd_reg = "DCDC3";
 	mxc_bt_data.bt_vdd = "DCDC3";
 	mxc_bt_data.bt_vusb = "DCDC6";
@@ -874,6 +876,12 @@ static void mx37_3stack_fixup_for_board_v1(void)
 	unifi_data.reg_1v5_ana_bb = NULL;	/* VMAIN is used on v1 board */
 	unifi_data.reg_vdd_vpa = NULL;
 	unifi_data.reg_1v5_dd = NULL;
+	/*Set the CPU voltage to be higher for the lower setpoint
+	  * When set to 0.85V, under certain situations, the voltage drops
+	  * below 0.85V and the system hangs.
+	  */
+	cpu_wp_auto[1].cpu_voltage = 925000;
+
 #if defined(CONFIG_KEYBOARD_MPR084) || defined(CONFIG_KEYBOARD_MPR084_MODULE)
 	keypad_data.vdd_reg = "DCDC3";
 #endif

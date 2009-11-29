@@ -181,4 +181,10 @@ config ARCH_HAS_RNGC
 
 config ARCH_MXC_IOMUX_V3
 	bool
+
+config MXC_DVFS_PER
+	bool "Enable DVFS Peripheral"
+	depends on ARCH_MX37 || ARCH_MX51
+	help
+	   Select this if you want to enable HW supported peripheral frequency scaling.
 endif

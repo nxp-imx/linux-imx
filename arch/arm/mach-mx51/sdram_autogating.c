@@ -28,18 +28,22 @@
 #include <linux/regulator/consumer.h>
 #include <mach/hardware.h>
 #include <mach/clock.h>
-#include <mach/mxc_dvfs.h>
+#include <mach/sdram_autogating.h>
 #include "crm_regs.h"
 
-int sdram_autogating_is_active;
 static struct device *sdram_autogating_dev;
 #define M4IF_CNTL_REG0		0x8c
 #define M4IF_CNTL_REG1		0x90
 
-void enable_sdram_autogating(void);
-void disable_sdram_autogating(void);
+/* Flag used to indicate if SDRAM M4IF autoclock gating feature is active. */
+static int sdram_autogating_is_active;
+static int sdram_autogating_paused;
 
-void enable_sdram_autogating()
+void start_sdram_autogating(void);
+void stop_sdram_autogating(void);
+int sdram_autogating_active(void);
+
+static void enable(void)
 {
 	u32 reg;
 
@@ -58,7 +62,7 @@ void enable_sdram_autogating()
 	sdram_autogating_is_active = 1;
 }
 
-void disable_sdram_autogating()
+static void disable(void)
 {
 	u32 reg;
 
@@ -66,6 +70,27 @@ void disable_sdram_autogating()
 	reg |= 0x4;
 	__raw_writel(reg, (IO_ADDRESS(M4IF_BASE_ADDR) + M4IF_CNTL_REG0));
 	sdram_autogating_is_active = 0;
+}
+
+int sdram_autogating_active()
+{
+	return sdram_autogating_is_active;
+}
+
+void start_sdram_autogating()
+{
+	if (sdram_autogating_paused) {
+		enable();
+		sdram_autogating_paused = 0;
+	}
+}
+
+void  stop_sdram_autogating()
+{
+	if (sdram_autogating_is_active) {
+		sdram_autogating_paused = 1;
+		disable();
+	}
 }
 
 static ssize_t sdram_autogating_enable_show(struct device *dev,
@@ -84,10 +109,10 @@ static ssize_t sdram_autogating_enable_store(struct device *dev,
 				 const char *buf, size_t size)
 {
 	if (strstr(buf, "1") != NULL)
-		enable_sdram_autogating();
+		enable();
 	else if (strstr(buf, "0") != NULL) {
 		if (sdram_autogating_is_active)
-			disable_sdram_autogating();
+			disable();
 	}
 	return size;
 }
@@ -118,8 +143,7 @@ static int __devinit sdram_autogating_probe(struct platform_device *pdev)
 	}
 
 	sdram_autogating_is_active = 0;
-	if (mxc_cpu_is_rev(CHIP_REV_3_0) >= 1)
-		enable_sdram_autogating();
+
 	return 0;
 }
 

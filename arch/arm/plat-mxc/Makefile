@@ -32,6 +32,9 @@ obj-$(CONFIG_LEDS) += leds.o
 # CPU FREQ support
 obj-$(CONFIG_CPU_FREQ_IMX)    += cpufreq.o
 
+# DVFS-PER support
+obj-$(CONFIG_MXC_DVFS_PER) 	+= dvfs_per.o
+
 # USB support
 obj-$(CONFIG_ISP1504_MXC) += isp1504xc.o
 obj-$(CONFIG_ISP1301_MXC) += isp1301xc.o

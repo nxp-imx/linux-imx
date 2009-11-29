@@ -25,6 +25,7 @@
 #include <linux/io.h>
 #include <linux/ipu.h>
 #include <asm/atomic.h>
+#include <mach/mxc_dvfs.h>
 #include "ipu_prv.h"
 #include "ipu_regs.h"
 #include "ipu_param_mem.h"
@@ -829,6 +830,7 @@ void _ipu_dp_set_csc_coefficients(ipu_channel_t channel, int32_t param[][3])
  * @return      This function returns 0 on success or negative error code on
  *              fail.
  */
+
 int32_t ipu_init_sync_panel(int disp, uint32_t pixel_clk,
 			    uint16_t width, uint16_t height,
 			    uint32_t pixel_fmt,
@@ -846,6 +848,7 @@ int32_t ipu_init_sync_panel(int disp, uint32_t pixel_clk,
 	uint32_t h_total, v_total;
 	int map;
 	struct clk *di_clk;
+	int ipu_freq_scaling_enabled;
 
 	dev_dbg(g_ipu_dev, "panel size = %d x %d\n", width, height);
 
@@ -857,10 +860,15 @@ int32_t ipu_init_sync_panel(int disp, uint32_t pixel_clk,
 
 	/* Init clocking */
 	dev_dbg(g_ipu_dev, "pixel clk = %d\n", pixel_clk);
+
 	if (sig.ext_clk)
 		di_clk = g_di_clk[disp];
 	else
 		di_clk = g_ipu_clk;
+
+	ipu_freq_scaling_enabled = dvfs_per_pixel_clk_limit(pixel_clk);
+
+	stop_dvfs_per();
 
 	/*
 	 * Calculate divider
@@ -868,13 +876,17 @@ int32_t ipu_init_sync_panel(int disp, uint32_t pixel_clk,
 	 * so simply multiply by 2^4 to get fractional part.
 	 */
 	div = (clk_get_rate(di_clk) * 16) / pixel_clk;
-	if (div < 0x10)	/* Min DI disp clock divider is 1 */
+	if (div < 0x10)            /* Min DI disp clock divider is 1 */
 		div = 0x10;
-	/*
-	 * DI disp clock offset is zero,
-	 * and fractional part is rounded off to 0.5.
-	 */
-	div &= 0xFF8;
+	/* Need an even integer divder for DVFS-PER to work */
+	if (ipu_freq_scaling_enabled) {
+		if (div & 0x10)
+			div += 0x10;
+		/* Fractional part is rounded off to 0. */
+		div &= 0xFF0;
+	} else
+		/* Only MSB fractional bit is supported. */
+		div &= 0xFF8;
 
 	reg = __raw_readl(DI_GENERAL(disp));
 	if (sig.ext_clk)
@@ -1203,6 +1215,16 @@ int32_t ipu_init_sync_panel(int disp, uint32_t pixel_clk,
 		__raw_writel(0, DI_STP_REP(disp, 7));
 		__raw_writel(0, DI_STP_REP(disp, 9));
 
+		if (ipu_freq_scaling_enabled) {
+			h_total = ((width + h_start_width +
+					h_sync_width) / 2) - 2;
+			_ipu_di_sync_config(disp, 6, 1, 0,
+				2, DI_SYNC_CLK,
+				h_total,
+				DI_SYNC_INT_HSYNC, 0, DI_SYNC_NONE,
+				DI_SYNC_NONE, 0, 0);
+		}
+
 		/* Init template microcode */
 		if (disp) {
 		   _ipu_dc_write_tmpl(2, WROD(0), 0, map, SYNC_WAVE, 8, 5);
@@ -1218,11 +1240,25 @@ int32_t ipu_init_sync_panel(int disp, uint32_t pixel_clk,
 			di_gen |= DI_GEN_POLARITY_2;
 		if (sig.Vsync_pol)
 			di_gen |= DI_GEN_POLARITY_3;
+
+		if (ipu_freq_scaling_enabled)
+			/* Set the clock to stop at counter 6. */
+			di_gen |= 0x6000000;
 	}
 
 	__raw_writel(di_gen, DI_GENERAL(disp));
-	__raw_writel((--vsync_cnt << DI_VSYNC_SEL_OFFSET) | 0x00000002,
-		     DI_SYNC_AS_GEN(disp));
+
+	if (!ipu_freq_scaling_enabled)
+		__raw_writel((--vsync_cnt << DI_VSYNC_SEL_OFFSET) |
+					0x00000002, DI_SYNC_AS_GEN(disp));
+	else {
+		if (sig.interlaced)
+			__raw_writel((--vsync_cnt << DI_VSYNC_SEL_OFFSET) |
+					0x00000002, DI_SYNC_AS_GEN(disp));
+		else
+			__raw_writel((--vsync_cnt << DI_VSYNC_SEL_OFFSET),
+					DI_SYNC_AS_GEN(disp));
+	}
 
 	reg = __raw_readl(DI_POL(disp));
 	reg &= ~(DI_POL_DRDY_DATA_POLARITY | DI_POL_DRDY_POLARITY_15);
@@ -1235,6 +1271,8 @@ int32_t ipu_init_sync_panel(int disp, uint32_t pixel_clk,
 	__raw_writel(width, DC_DISP_CONF2(DC_DISP_ID_SYNC(disp)));
 
 	spin_unlock_irqrestore(&ipu_lock, lock_flags);
+
+	start_dvfs_per();
 
 	return 0;
 }

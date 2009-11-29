@@ -30,6 +30,7 @@
 #include <mach/hardware.h>
 #include <mach/clock.h>
 #include <mach/mxc_dvfs.h>
+#include <mach/sdram_autogating.h>
 #include "crm_regs.h"
 
 #define LP_NORMAL_CLK			133000000
@@ -67,23 +68,21 @@ static struct clk *mipi_hsp_clk;
 struct regulator *lp_regulator;
 int low_bus_freq_mode;
 int high_bus_freq_mode;
-int bus_freq_scaling_is_active;
+int bus_freq_scaling_initialized;
 char *gp_reg_id = "SW1";
 char *lp_reg_id = "SW2";
 
 static struct cpu_wp *cpu_wp_tbl;
 static struct device *busfreq_dev;
 static int busfreq_suspended;
-int sdram_autogating_paused;
+/* True if bus_frequency is scaled not using DVFS-PER */
+int bus_freq_scaling_is_active;
 
 extern int lp_high_freq;
 extern int lp_med_freq;
 extern int dvfs_core_is_active;
 extern struct cpu_wp *(*get_cpu_wp)(int *wp);
 extern int cpu_wp_nr;
-extern int sdram_autogating_is_active;
-extern void enable_sdram_autogating(void);
-extern void disable_sdram_autogating(void);
 
 struct dvfs_wp dvfs_core_setpoint[] = {
 						{33, 8, 33, 10, 10, 0x08},
@@ -98,18 +97,16 @@ int set_low_bus_freq(void)
 	struct clk *tclk;
 	u32 reg;
 
-	if (bus_freq_scaling_is_active) {
+	if (busfreq_suspended)
+		return 0;
 
-		if (busfreq_suspended)
-			return 0;
-
+	if (bus_freq_scaling_initialized) {
 		if (clk_get_rate(cpu_clk) != cpu_wp_tbl[cpu_wp_nr - 1].cpu_rate)
 			return 0;
 
-		if (sdram_autogating_is_active) {
-			disable_sdram_autogating();
-			sdram_autogating_paused = 1;
-		}
+		stop_dvfs_per();
+
+		stop_sdram_autogating();
 #ifdef DISABLE_PLL1
 		tclk = clk_get(NULL, "ddr_clk");
 		clk_set_parent(tclk, clk_get(NULL, "axi_a_clk"));
@@ -189,27 +186,23 @@ int set_low_bus_freq(void)
 
 		while (__raw_readl(MXC_CCM_CDHIPR) & 0x1F)
 			udelay(10);
-		clk_set_parent(main_bus_clk, pll2);
 
 		low_bus_freq_mode = 1;
 		high_bus_freq_mode = 0;
+		clk_set_parent(main_bus_clk, pll2);
 	}
 	return 0;
 }
 
 int set_high_bus_freq(int high_bus_freq)
 {
-	u32 dvfs_podf = __raw_readl(MXC_CCM_CDCR) & 0x3;
 	u32 reg;
 	struct clk *tclk;
 
-	if (bus_freq_scaling_is_active) {
-		if (sdram_autogating_is_active) {
-			disable_sdram_autogating();
-			sdram_autogating_paused = 1;
-		}
+	if (bus_freq_scaling_initialized) {
+		stop_sdram_autogating();
 
-		if (dvfs_podf > 1) {
+		if (low_bus_freq_mode) {
 			reg = __raw_readl(MXC_CCM_CBCDR);
 			reg &= ~(MXC_CCM_CBCDR_AXI_A_PODF_MASK
 					| MXC_CCM_CBCDR_AXI_B_PODF_MASK
@@ -248,7 +241,7 @@ int set_high_bus_freq(int high_bus_freq)
 			/* Set the dvfs-podf to divide by 1. */
 			reg = __raw_readl(MXC_CCM_CDCR);
 			reg &= ~MXC_CCM_CDCR_PERIPH_CLK_DVFS_PODF_MASK;
-			reg |= 0 << MXC_CCM_CDCR_PERIPH_CLK_DVFS_PODF_OFFSET;
+			reg |= 1 << MXC_CCM_CDCR_PERIPH_CLK_DVFS_PODF_OFFSET;
 			__raw_writel(reg, MXC_CCM_CDCR);
 
 			/* Setup the GPC */
@@ -268,6 +261,7 @@ int set_high_bus_freq(int high_bus_freq)
 			reg &= ~MXC_DVFSPER_PMCR0_ENABLE;
 			__raw_writel(reg, MXC_DVFSPER_PMCR0);
 
+			low_bus_freq_mode = 0;
 			clk_set_parent(main_bus_clk, pll2);
 			clk_disable(gpc_dvfs_clk);
 #ifdef DISABLE_PLL1
@@ -286,9 +280,9 @@ int set_high_bus_freq(int high_bus_freq)
 			clk_set_rate(ddr_hf_clk,
 				    clk_round_rate(ddr_hf_clk, DDR_NORMAL_CLK));
 
-			low_bus_freq_mode = 0;
+			start_dvfs_per();
 		}
-		
+	if (bus_freq_scaling_is_active) {
 		/*
 		 * If the CPU freq is 800MHz, set the bus to the high setpoint
 		 * (133MHz) and DDR to 200MHz.
@@ -314,10 +308,8 @@ int set_high_bus_freq(int high_bus_freq)
 			clk_set_rate(ahb_clk,
 				     clk_round_rate(ahb_clk, LP_MED_CLK));
 		}
-		if (sdram_autogating_paused) {
-			enable_sdram_autogating();
-			sdram_autogating_paused = 0;
-		}
+	}
+	start_sdram_autogating();
 	}
 	return 0;
 }
@@ -350,8 +342,24 @@ static ssize_t bus_freq_scaling_enable_store(struct device *dev,
 				 struct device_attribute *attr,
 				 const char *buf, size_t size)
 {
-	if (strstr(buf, "1") != NULL)
+	u32 reg;
+
+
+	if (strstr(buf, "1") != NULL) {
+		if (dvfs_per_active()) {
+			printk(KERN_INFO "bus frequency scaling cannot be\
+				 enabled when DVFS-PER is active\n");
+			return size;
+		}
+
+		/* Initialize DVFS-PODF to 0. */
+		reg = __raw_readl(MXC_CCM_CDCR);
+		reg &= ~MXC_CCM_CDCR_PERIPH_CLK_DVFS_PODF_MASK;
+		__raw_writel(reg, MXC_CCM_CDCR);
+		clk_set_parent(main_bus_clk, pll2);
+
 		bus_freq_scaling_is_active = 1;
+	}
 	else if (strstr(buf, "0") != NULL) {
 		if (bus_freq_scaling_is_active)
 			set_high_bus_freq(1);
@@ -388,7 +396,6 @@ static DEVICE_ATTR(enable, 0644, bus_freq_scaling_enable_show,
 static int __devinit busfreq_probe(struct platform_device *pdev)
 {
 	int err = 0;
-	u32 reg;
 
 	busfreq_dev = &pdev->dev;
 
@@ -522,16 +529,11 @@ static int __devinit busfreq_probe(struct platform_device *pdev)
 		return err;
 	}
 
-	/* Initialize DVFS-PODF to 0. */
-	reg = __raw_readl(MXC_CCM_CDCR);
-	reg &= ~MXC_CCM_CDCR_PERIPH_CLK_DVFS_PODF_MASK;
-	__raw_writel(reg, MXC_CCM_CDCR);
-	clk_set_parent(main_bus_clk, pll2);
-
 	cpu_wp_tbl = get_cpu_wp(&cpu_wp_nr);
 	low_bus_freq_mode = 0;
 	high_bus_freq_mode = 1;
 	bus_freq_scaling_is_active = 0;
+	bus_freq_scaling_initialized = 1;
 
 	return 0;
 }
@@ -568,6 +570,7 @@ static void __exit busfreq_cleanup(void)
 
 	/* Unregister the device structure */
 	platform_driver_unregister(&busfreq_driver);
+	bus_freq_scaling_initialized = 0;
 }
 
 module_init(busfreq_init);

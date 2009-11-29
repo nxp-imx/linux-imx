@@ -162,11 +162,9 @@ static int set_cpu_freq(int wp)
 	int gp_volt = 0;
 	u32 reg;
 	u32 reg1;
+	unsigned long flags;
+
 	if (cpu_wp_tbl[wp].pll_rate != cpu_wp_tbl[old_wp].pll_rate) {
-		/* PLL_RELOCK, set ARM_FREQ_SHIFT_DIVIDER */
-		reg = __raw_readl(dvfs_data->ccm_cdcr_reg_addr);
-		reg &= 0xFFFFFFFB;
-		__raw_writel(reg, dvfs_data->ccm_cdcr_reg_addr);
 		org_cpu_rate = clk_get_rate(cpu_clk);
 		rate = cpu_wp_tbl[wp].cpu_rate;
 
@@ -174,9 +172,9 @@ static int set_cpu_freq(int wp)
 			return ret;
 
 		gp_volt = cpu_wp_tbl[wp].cpu_voltage;
-
 		if (gp_volt == 0)
 			return ret;
+
 		/*Set the voltage for the GP domain. */
 		if (rate > org_cpu_rate) {
 			ret = regulator_set_voltage(core_regulator, gp_volt,
@@ -187,6 +185,12 @@ static int set_cpu_freq(int wp)
 			}
 			udelay(dvfs_data->delay_time);
 		}
+		spin_lock_irqsave(&mxc_dvfs_core_lock, flags);
+		/* PLL_RELOCK, set ARM_FREQ_SHIFT_DIVIDER */
+		reg = __raw_readl(dvfs_data->ccm_cdcr_reg_addr);
+		reg &= 0xFFFFFFFB;
+		__raw_writel(reg, dvfs_data->ccm_cdcr_reg_addr);
+
 		setup_pll();
 		/* START the GPC main control FSM */
 		/* set VINC */
@@ -198,10 +202,11 @@ static int set_cpu_freq(int wp)
 			reg |= 1 << MXC_GPCVCR_VINC_OFFSET;
 
 		reg |= (1 << MXC_GPCVCR_VCNTU_OFFSET) |
-		    (100 << MXC_GPCVCR_VCNT_OFFSET);
+		    (1 << MXC_GPCVCR_VCNT_OFFSET);
 		__raw_writel(reg, dvfs_data->gpc_vcr_reg_addr);
 
 		reg = __raw_readl(dvfs_data->gpc_cntr_reg_addr);
+		reg &= ~(MXC_GPCCNTR_ADU_MASK | MXC_GPCCNTR_FUPD_MASK);
 		reg |= MXC_GPCCNTR_FUPD;
 		reg |= MXC_GPCCNTR_ADU;
 		__raw_writel(reg, dvfs_data->gpc_cntr_reg_addr);
@@ -209,7 +214,8 @@ static int set_cpu_freq(int wp)
 		reg |= MXC_GPCCNTR_STRT;
 		__raw_writel(reg, dvfs_data->gpc_cntr_reg_addr);
 		while (__raw_readl(dvfs_data->gpc_cntr_reg_addr) & 0x4000)
-			udelay(50);
+			udelay(10);
+		spin_unlock_irqrestore(&mxc_dvfs_core_lock, flags);
 
 		if (rate < org_cpu_rate) {
 			ret = regulator_set_voltage(core_regulator,
@@ -221,7 +227,6 @@ static int set_cpu_freq(int wp)
 			}
 			udelay(dvfs_data->delay_time);
 		}
-
 		clk_set_rate(cpu_clk, rate);
 	} else {
 		podf = cpu_wp_tbl[wp].cpu_podf;
@@ -438,7 +443,6 @@ static void dvfs_core_work_handler(struct work_struct *work)
 
 	low_freq_bus_ready = low_freq_bus_used();
 
-
 	/* Check DVFS frequency adjustment interrupt status */
 	reg = __raw_readl(dvfs_data->dvfs_cntr_reg_addr);
 	fsvai = (reg & MXC_DVFSCNTR_FSVAI_MASK) >> MXC_DVFSCNTR_FSVAI_OFFSET;
@@ -447,7 +451,6 @@ static void dvfs_core_work_handler(struct work_struct *work)
 		/* Do nothing. Freq change is not required */
 		goto END;
 	}
-
 	curr_cpu = clk_get_rate(cpu_clk);
 
 	/* If FSVAI indicate freq down,
@@ -511,12 +514,6 @@ static void dvfs_core_work_handler(struct work_struct *work)
 		bus_incr = 0;
 	}
 
-#if defined(CONFIG_CPU_FREQ)
-	if (cpufreq_trig_needed == 1) {
-		cpufreq_trig_needed = 0;
-		cpufreq_update_policy(0);
-	}
-#endif
 
 END:	/* Set MAXF, MINF */
 	reg = __raw_readl(dvfs_data->dvfs_cntr_reg_addr);
@@ -536,6 +533,13 @@ END:	/* Set MAXF, MINF */
 	reg = __raw_readl(dvfs_data->gpc_cntr_reg_addr);
 	reg &= ~MXC_GPCCNTR_GPCIRQM;
 	__raw_writel(reg, dvfs_data->gpc_cntr_reg_addr);
+
+#if defined(CONFIG_CPU_FREQ)
+	if (cpufreq_trig_needed == 1) {
+		cpufreq_trig_needed = 0;
+		cpufreq_update_policy(0);
+	}
+#endif
 }
 
 
@@ -585,6 +589,7 @@ static void stop_dvfs(void)
 
 	printk(KERN_DEBUG "DVFS is stopped\n");
 }
+
 void dump_dvfs_core_regs()
 {
 	struct timeval cur;

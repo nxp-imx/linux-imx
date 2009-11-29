@@ -110,6 +110,7 @@ extern struct tve_platform_data tve_data;
 extern struct mxc_dptc_data dptc_lp_data;
 extern struct mxc_dptc_data dptc_gp_data;
 extern struct mxc_dvfs_platform_data dvfs_core_data;
+extern struct mxc_dvfsper_data dvfs_per_data;
 extern char *gp_reg_id;
 extern char *lp_reg_id;
 

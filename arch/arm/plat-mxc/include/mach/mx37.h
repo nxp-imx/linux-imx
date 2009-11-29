@@ -29,6 +29,12 @@
  */
 #define MXC_SDMA_V2
 
+/*!
+ * The maximum frequency that the pixel clock can be at so as to
+ * activate DVFS-PER.
+ */
+#define DVFS_MAX_PIX_CLK	60000000
+
 /*
  * IRAM
  */
@@ -238,6 +244,8 @@
 #define ESDCTL_BASE_ADDR	(AIPS2_BASE_ADDR + 0x000D9000)
 #define WEIM_BASE_ADDR		(AIPS2_BASE_ADDR + 0x000DA000)
 #define NFC_BASE_ADDR		(AIPS2_BASE_ADDR + 0x000DB000)
+
+#define DVFSPER_BASE_ADDR 	(GPC_BASE_ADDR + 0x1C4)
 
 /*
  * Memory regions and CS

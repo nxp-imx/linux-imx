@@ -646,7 +646,7 @@ static struct platform_device mxc_dvfs_core_device = {
 	.resource = dvfs_core_resources,
 };
 
-static inline void mxc_init_dvfs(void)
+static inline void mxc_init_dvfs_core(void)
 {
 	if (platform_device_register(&mxc_dvfs_core_device) < 0)
 		dev_err(&mxc_dvfs_core_device.dev,
@@ -919,6 +919,63 @@ static inline void mxc_init_busfreq(void)
 	(void)platform_device_register(&busfreq_device);
 }
 
+/*!
+ * Resource definition for the DVFS PER
+ */
+static struct resource dvfs_per_resources[] = {
+	[0] = {
+	       .start = DVFSPER_BASE_ADDR,
+	       .end = DVFSPER_BASE_ADDR + 2 * SZ_16 - 1,
+	       .flags = IORESOURCE_MEM,
+	       },
+	[1] = {
+	       .start = MXC_INT_GPC1,
+	       .end = MXC_INT_GPC1,
+	       .flags = IORESOURCE_IRQ,
+	       },
+};
+
+/*! Platform Data for MXC DVFS Peripheral */
+struct mxc_dvfsper_data dvfs_per_data = {
+	.reg_id = "SW2",
+	.clk_id = "gpc_dvfs_clk",
+	.gpc_cntr_reg_addr = MXC_GPC_CNTR,
+	.gpc_vcr_reg_addr = MXC_GPC_VCR,
+	.gpc_adu = 0x0,
+	.vai_mask = MXC_DVFSPMCR0_FSVAI_MASK,
+	.vai_offset = MXC_DVFSPMCR0_FSVAI_OFFSET,
+	.dvfs_enable_bit = MXC_DVFSPMCR0_DVFEN,
+	.irq_mask = MXC_DVFSPMCR0_FSVAIM,
+	.div3_offset = 1,
+	.div3_mask = 0x3,
+	.div3_div = 3,
+	.lp_high = 1200000,
+	.lp_low = 1050000,
+};
+
+/*! Device Definition for MXC DVFS Peripheral */
+static struct platform_device mxc_dvfs_per_device = {
+	 .name = "mxc_dvfsper",
+	 .id = 0,
+	 .dev = {
+		 .release = mxc_nop_release,
+		 .platform_data = &dvfs_per_data,
+		 },
+	 .num_resources = ARRAY_SIZE(dvfs_per_resources),
+	 .resource = dvfs_per_resources,
+};
+
+static inline void mxc_init_dvfs_per(void)
+{
+	if (platform_device_register(&mxc_dvfs_per_device) < 0) {
+		dev_err(&mxc_dvfs_per_device.dev,
+				"Unable to register DVFS Peripheral device\n");
+	} else {
+		printk(KERN_INFO "mxc_init_dvfs_per initialised\n");
+	}
+	return;
+}
+
 #if defined(CONFIG_HW_RANDOM_FSL_RNGC) || \
 defined(CONFIG_HW_RANDOM_FSL_RNGC_MODULE)
 static struct resource rngc_resources[] = {
@@ -1016,7 +1073,8 @@ int __init mxc_init_devices(void)
 	mxc_init_tve();
 	mx37_init_lpmode();
 	mxc_init_busfreq();
-	mxc_init_dvfs();
+	mxc_init_dvfs_core();
+	mxc_init_dvfs_per();
 	mxc_init_dptc();
 	mxc_init_rngc();
 	mxc_init_iim();
