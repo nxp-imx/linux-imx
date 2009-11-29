@@ -1273,8 +1273,31 @@ static int mxc_v4l2out_streamon(vout_data * vout)
 		 * Meanwhile, apply IC bypass to SDC only
 		 */
       vout->pp_split = 0;/* no pp_split by default */
+		fbvar = fbi->var;
+		vout->xres = fbvar.xres;
+		vout->yres = fbvar.yres;
+
+		if (vout->cur_disp_output == 3 || vout->cur_disp_output == 5) {
+			fbvar.bits_per_pixel = 16;
+			if (format_is_yuv(vout->v2f.fmt.pix.pixelformat))
+				fbvar.nonstd = IPU_PIX_FMT_UYVY;
+			else
+				fbvar.nonstd = 0;
+			if (vout->cur_disp_output == 3) {
+				fbvar.xres = out_width;
+				fbvar.yres = out_height;
+				vout->xres = fbvar.xres;
+				vout->yres = fbvar.yres;
+			}
+
+			fbvar.xres_virtual = out_width;
+			fbvar.yres_virtual = out_height * 2;
+		}
+
 		if (out_width == vout->v2f.fmt.pix.width &&
 			out_height == vout->v2f.fmt.pix.height &&
+			vout->xres == out_width &&
+			vout->yres == out_height &&
 			ipu_can_rotate_in_place(vout->rotate)) {
 			vout->ic_bypass = 1;
 			ipu_disable_irq(IPU_IRQ_PP_IN_EOF);
@@ -1299,8 +1322,6 @@ static int mxc_v4l2out_streamon(vout_data * vout)
 		if (vout->ic_bypass)
 			pr_debug("Bypassing IC\n");
 
-		fbvar = fbi->var;
-
 		if (fbi->fbops->fb_ioctl) {
 			old_fs = get_fs();
 			set_fs(KERNEL_DS);
@@ -1316,25 +1337,6 @@ static int mxc_v4l2out_streamon(vout_data * vout)
 		}
 
 		vout->display_ch = ipu_ch;
-		vout->xres = fbvar.xres;
-		vout->yres = fbvar.yres;
-
-		if (vout->cur_disp_output == 3 || vout->cur_disp_output == 5) {
-			fbvar.bits_per_pixel = 16;
-			if (format_is_yuv(vout->v2f.fmt.pix.pixelformat))
-				fbvar.nonstd = IPU_PIX_FMT_UYVY;
-			else
-				fbvar.nonstd = 0;
-			if (vout->cur_disp_output == 3) {
-				fbvar.xres = out_width;
-				fbvar.yres = out_height;
-				vout->xres = fbvar.xres;
-				vout->yres = fbvar.yres;
-			}
-
-			fbvar.xres_virtual = out_width;
-			fbvar.yres_virtual = out_height * 2;
-		}
 
 		if (vout->ic_bypass) {
 			fbvar.bits_per_pixel = 8*
