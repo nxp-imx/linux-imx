@@ -2109,7 +2109,7 @@ static int do_request_sense(struct fsg_dev *fsg, struct fsg_buffhd *bh)
 	buf[12] = ASC(sd);
 	buf[13] = ASCQ(sd);
 #ifdef CONFIG_STMP_UTP
-	put_unaligned_be32(&buf[8], UTP_CTX(fsg)->sdinfo_h);
+	put_unaligned_be32(UTP_CTX(fsg)->sdinfo_h, &buf[8]);
 #endif
 	return 18;
 }
