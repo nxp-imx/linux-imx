@@ -175,7 +175,8 @@ static int stmp3xxx_dcp_bootstream_ioctl(struct inode *inode, struct file *file,
 		return -ETIMEDOUT;
 	}
 
-	if ((__raw_readl(HW_DCP_CHnSTAT(ROM_DCP_CHAN)) & 0xff) != 0) {
+	if ((__raw_readl(REGS_DCP_BASE + HW_DCP_CHnSTAT(ROM_DCP_CHAN))
+			& 0xff) != 0) {
 		dev_err(dbd->dev, "Channel stat error 0x%02x\n",
 			__raw_readl(REGS_DCP_BASE +
 				    HW_DCP_CHnSTAT(ROM_DCP_CHAN)) & 0xff);

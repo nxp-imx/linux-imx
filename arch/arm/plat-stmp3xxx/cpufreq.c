@@ -166,6 +166,10 @@ static int set_op(unsigned int target_freq)
 	freqs.old = clk_get_rate(cpu_clk);
 	freqs.cpu = 0;
 
+/* work around usb problem when in updater firmare  mode*/
+#ifdef CONFIG_STMP_UTP
+	return 0;
+#endif
 	for (i = cur_freq_table_size - 1; i > 0; i--) {
 		if (profiles[i].cpu <= target_freq &&
 		    target_freq < profiles[i - 1].cpu) {
