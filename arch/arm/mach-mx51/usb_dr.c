@@ -23,6 +23,7 @@
 static int usbotg_init_ext(struct platform_device *pdev);
 static void usbotg_uninit_ext(struct fsl_usb2_platform_data *pdata);
 static void _wake_up_enable(struct fsl_usb2_platform_data *pdata, bool enable);
+static void usbotg_clock_gate(bool on);
 
 /*
  * platform data structs
@@ -37,6 +38,7 @@ static struct fsl_usb2_platform_data __maybe_unused dr_utmi_config = {
 	.power_budget      = 500,		/* 500 mA max power */
 	.gpio_usb_active   = gpio_usbotg_hs_active,
 	.gpio_usb_inactive = gpio_usbotg_hs_inactive,
+	.usb_clock_for_pm  = usbotg_clock_gate,
 	.wake_up_enable = _wake_up_enable,
 	.transceiver       = "utmi",
 };
@@ -152,6 +154,42 @@ static void _wake_up_enable(struct fsl_usb2_platform_data *pdata, bool enable)
 			USBCTRL &= ~UCTRL_OWIE;
 			USBCTRL_HOST2 &= ~(1 << 5);
 		}
+	}
+}
+
+static void usbotg_clock_gate(bool on)
+{
+	struct clk *usb_clk;
+
+	if (on) {
+		usb_clk = clk_get(NULL, "usb_ahb_clk");
+		clk_enable(usb_clk);
+		clk_put(usb_clk);
+
+		usb_clk = clk_get(NULL, "usboh3_clk");
+		clk_enable(usb_clk);
+		clk_put(usb_clk);
+
+		usb_clk = clk_get(NULL, "usb_phy_clk");
+		clk_enable(usb_clk);
+		clk_put(usb_clk);
+
+		/*derive clock from oscillator */
+		usb_clk = clk_get(NULL, "usb_utmi_clk");
+		clk_disable(usb_clk);
+		clk_put(usb_clk);
+	} else {
+		usb_clk = clk_get(NULL, "usboh3_clk");
+		clk_disable(usb_clk);
+		clk_put(usb_clk);
+
+		usb_clk = clk_get(NULL, "usb_phy_clk");
+		clk_disable(usb_clk);
+		clk_put(usb_clk);
+
+		usb_clk = clk_get(NULL, "usb_ahb_clk");
+		clk_disable(usb_clk);
+		clk_put(usb_clk);
 	}
 }
 

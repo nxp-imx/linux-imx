@@ -291,9 +291,10 @@ static void usbh1_set_ulpi_xcvr(void)
 	/* select ULPI PHY PTS=2 */
 	UH1_PORTSC1 = (UH1_PORTSC1 & ~PORTSC_PTS_MASK) | PORTSC_PTS_ULPI;
 
-	USBCTRL |= UCTRL_H1WIE; /* HOST1 wakeup intr enable */
-	USBCTRL |= UCTRL_H1UIE; /* Host1 ULPI interrupt enable */
-	USBCTRL &= ~UCTRL_H1PM; /* HOST1 power mask */
+	USBCTRL &= ~UCTRL_H1WIE; /* HOST1 wakeup intr disable */
+	USBCTRL &= ~UCTRL_H1UIE; /* Host1 ULPI interrupt disable */
+	USBCTRL |= UCTRL_H1PM; /* HOST1 power mask */
+	USB_PHY_CTR_FUNC |= USB_UH1_OC_DIS; /* OC is not used */
 
 	/* Interrupt Threshold Control:Immediate (no threshold) */
 	UH1_USBCMD &= UCMD_ITC_NO_THRESHOLD;
@@ -541,6 +542,7 @@ void fsl_usb_host_uninit(struct fsl_usb2_platform_data *pdata)
 		clk_disable(usb_clk);
 		clk_put(usb_clk);
 	}
+	clk_disable(usb_ahb_clk);
 }
 EXPORT_SYMBOL(fsl_usb_host_uninit);
 
@@ -671,10 +673,15 @@ static void otg_set_utmi_xcvr(void)
 	while ((UOG_USBCMD) & (UCMD_RESET)) ;
 
 	if (cpu_is_mx51()) {
-		/* OTG Polarity of Overcurrent is Low active */
-		USB_PHY_CTR_FUNC |= USB_UTMI_PHYCTRL_OC_POL;
-		/* Enable OTG Overcurrent Event */
-		USB_PHY_CTR_FUNC &= ~USB_UTMI_PHYCTRL_OC_DIS;
+		if (machine_is_mx51_3ds()) {
+			/* OTG Polarity of Overcurrent is Low active */
+			USB_PHY_CTR_FUNC |= USB_UTMI_PHYCTRL_OC_POL;
+			/* Enable OTG Overcurrent Event */
+			USB_PHY_CTR_FUNC &= ~USB_UTMI_PHYCTRL_OC_DIS;
+		} else {
+			/* BBG is not using OC */
+			USB_PHY_CTR_FUNC |= USB_UTMI_PHYCTRL_OC_DIS;
+		}
 	} else if (cpu_is_mx25()) {
 		USBCTRL |= UCTRL_OCPOL;
 		USBCTRL &= ~UCTRL_PP;

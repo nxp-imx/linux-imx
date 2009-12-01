@@ -14,6 +14,7 @@
 #include <linux/kernel.h>
 #include <linux/types.h>
 #include <linux/delay.h>
+#include <linux/clk.h>
 #include <linux/platform_device.h>
 #include <linux/fsl_devices.h>
 #include <mach/arc_otg.h>
@@ -85,6 +86,23 @@ static void _wake_up_enable(struct fsl_usb2_platform_data *pdata, bool enable)
 		USBCTRL &= ~UCTRL_H1WIE;
 }
 
+static void usbotg_clock_gate(bool on)
+{
+	struct clk *usboh3_clk = clk_get(NULL, "usboh3_clk");
+	struct clk *usb_ahb_clk = clk_get(NULL, "usb_ahb_clk");
+
+	if (on) {
+		clk_enable(usb_ahb_clk);
+		clk_enable(usboh3_clk);
+	} else {
+		clk_disable(usboh3_clk);
+		clk_disable(usb_ahb_clk);
+	}
+
+	clk_put(usboh3_clk);
+	clk_put(usb_ahb_clk);
+}
+
 static struct fsl_usb2_platform_data usbh1_config = {
 	.name = "Host 1",
 	.platform_init = fsl_usb_host_init,
@@ -95,6 +113,7 @@ static struct fsl_usb2_platform_data usbh1_config = {
 	.gpio_usb_active = gpio_usbh1_active,
 	.gpio_usb_inactive = gpio_usbh1_inactive,
 	.wake_up_enable = _wake_up_enable,
+	.usb_clock_for_pm  = usbotg_clock_gate,
 	.transceiver = "isp1504",
 };
 

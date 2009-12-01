@@ -72,11 +72,10 @@
 /* 0x92412 */
 #define REG_MODE_0_ALL_MASK	(GEN1_STBY_MASK |\
 				DIG_STBY_MASK | GEN2_STBY_MASK |\
-				PLL_STBY_MASK | USB2_STBY_MASK)
+				PLL_STBY_MASK)
 /* 0x92082 */
-#define REG_MODE_1_ALL_MASK	(GEN3_STBY_MASK | CAM_STBY_MASK |\
-				VIDEO_STBY_MASK | AUDIO_STBY_MASK |\
-				SD_STBY_MASK)
+#define REG_MODE_1_ALL_MASK	(CAM_STBY_MASK | VIDEO_STBY_MASK |\
+				AUDIO_STBY_MASK | SD_STBY_MASK)
 
 /* CPU */
 static struct regulator_consumer_supply sw1_consumers[] = {

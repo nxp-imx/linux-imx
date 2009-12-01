@@ -56,7 +56,12 @@ fsl_platform_set_vbus_power(struct fsl_usb2_platform_data *pdata, int on)
 	/* Port Power Control */
 	if (temp & HCSPARAMS_PPC) {
 		temp = readl(pdata->regs + FSL_SOC_USB_PORTSC1);
-		writel(temp | PORT_POWER, pdata->regs + FSL_SOC_USB_PORTSC1);
+		if (on)
+			temp |= PORT_POWER;
+		else
+			temp &= ~PORT_POWER;
+
+		writel(temp, pdata->regs + FSL_SOC_USB_PORTSC1);
 	}
 
 	if (pdata->xcvr_ops && pdata->xcvr_ops->set_vbus_power)
