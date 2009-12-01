@@ -151,9 +151,12 @@ static int ehci_bus_suspend (struct usb_hcd *hcd)
 		}
 
 		/* enable remote wakeup on all ports */
-		if (hcd->self.root_hub->do_remote_wakeup)
-			t2 |= PORT_WAKE_BITS;
-		else
+		if (hcd->self.root_hub->do_remote_wakeup) {
+			if (t1 & PORT_CONNECT)
+				t2 |= PORT_WKOC_E|PORT_WKDISC_E;
+			else
+				t2 |= PORT_WKOC_E|PORT_WKCONN_E;
+		} else
 			t2 &= ~PORT_WAKE_BITS;
 
 		if (t1 != t2) {

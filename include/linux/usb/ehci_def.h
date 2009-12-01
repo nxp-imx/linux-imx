@@ -100,7 +100,8 @@ struct ehci_regs {
 
 	/* PORTSC: offset 0x44 */
 	u32		port_status [0];	/* up to N_PORTS */
-/* 31:23 reserved */
+/* 31:24 reserved */
+#define PORT_PHCD	(1<<23)		/* PHY Low Power Suspend */
 #define PORT_WKOC_E	(1<<22)		/* wake on overcurrent (enable) */
 #define PORT_WKDISC_E	(1<<21)		/* wake on disconnect (enable) */
 #define PORT_WKCONN_E	(1<<20)		/* wake on connect (enable) */

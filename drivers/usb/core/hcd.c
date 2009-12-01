@@ -40,6 +40,7 @@
 #include <linux/workqueue.h>
 
 #include <linux/usb.h>
+#include <linux/fsl_devices.h>
 
 #include "usb.h"
 #include "hcd.h"
@@ -117,10 +118,8 @@ static inline int is_root_hub(struct usb_device *udev)
 	return (udev->parent == NULL);
 }
 
-#if CONFIG_PM
 extern int usb_host_wakeup_irq(struct device *wkup_dev);
 extern void usb_host_set_wakeup(struct device *wkup_dev, bool para);
-#endif
 /*-------------------------------------------------------------------------*/
 
 /*
@@ -1877,6 +1876,7 @@ EXPORT_SYMBOL_GPL(usb_bus_start_enum);
 irqreturn_t usb_hcd_irq (int irq, void *__hcd)
 {
 	struct usb_hcd		*hcd = __hcd;
+	struct fsl_usb2_platform_data *pdata;
 	unsigned long		flags;
 	irqreturn_t		rc;
 
@@ -1887,10 +1887,16 @@ irqreturn_t usb_hcd_irq (int irq, void *__hcd)
 	local_irq_save(flags);
 
 	if (!test_bit(HCD_FLAG_HW_ACCESSIBLE, &hcd->flags)) {
+		/* Need open clock for register access */
+		pdata = hcd->self.controller->platform_data;
+		if (pdata->usb_clock_for_pm)
+			pdata->usb_clock_for_pm(true);
+
 		/* if receive a remote wakeup interrrupt after suspend */
 		if (usb_host_wakeup_irq(hcd->self.controller)) {
 			/* disable remote wake up irq */
 			usb_host_set_wakeup(hcd->self.controller, false);
+
 			set_bit(HCD_FLAG_HW_ACCESSIBLE, &hcd->flags);
 			hcd->driver->irq(hcd);
 			rc = IRQ_HANDLED;

@@ -1170,13 +1170,10 @@ static int hub_probe(struct usb_interface *intf, const struct usb_device_id *id)
 		return -E2BIG;
 	}
 
-	/* With OTG enabled, suspending root hub results in gadget not
-	 * working because gadget uses the same root hub. We disable
-	 * this feature when OTG is selected.
+	/* Defaultly disable autosuspend for hub and reley on sys
+	 * to enable it.
 	 */
-#if defined(CONFIG_PM) && defined(CONFIG_USB_EHCI_ARC_OTG)
 	hdev->autosuspend_disabled = 1;
-#endif
 
 #ifdef	CONFIG_USB_OTG_BLACKLIST_HUB
 	if (hdev->parent) {
