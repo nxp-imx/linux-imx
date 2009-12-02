@@ -453,9 +453,9 @@ int fsl_usb_host_init(struct platform_device *pdev)
 	}
 
 	if (cpu_is_mx51()) {
-		usb_clk = clk_get(NULL, "usboh3_clk");
-		clk_enable(usb_clk);
-		clk_put(usb_clk);
+		struct clk *usboh3_clk = clk_get(NULL, "usboh3_clk");
+		clk_enable(usboh3_clk);
+		clk_put(usboh3_clk);
 	}
 
 	/* enable board power supply for xcvr */
@@ -745,15 +745,14 @@ static void otg_set_utmi_xcvr(void)
 	 */
 	msleep(100);
 
-	/* Turn off the usbpll for mx25 UTMI tranceivers */
-	/* DDD: can we do this UTMI xcvrs on all boards? */
-	if (cpu_is_mx25()) {
-		clk_disable(usb_clk);
-	} else if (cpu_is_mx37()) {
+	if (cpu_is_mx37()) {
 		/* fix USB PHY Power Gating leakage issue for i.MX37 */
 		USB_PHY_CTR_FUNC &= ~USB_UTMI_PHYCTRL_CHGRDETON;
 		USB_PHY_CTR_FUNC &= ~USB_UTMI_PHYCTRL_CHGRDETEN;
 	}
+
+	/* Turn off the usbpll for UTMI tranceivers */
+	clk_disable(usb_clk);
 }
 
 static int otg_used = 0;
