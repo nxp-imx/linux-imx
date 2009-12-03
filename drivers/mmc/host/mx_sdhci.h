@@ -220,6 +220,7 @@ struct sdhci_host {
 #define SDHCI_USE_EXTERNAL_DMA	(1<<2)	/* Use the External DMA */
 #define SDHCI_CD_PRESENT 	(1<<8)	/* CD present */
 #define SDHCI_WP_ENABLED	(1<<9)	/* Write protect */
+#define SDHCI_CD_TIMEOUT 	(1<<10)	/* cd timer is expired */
 
 	unsigned int max_clk;	/* Max possible freq (MHz) */
 	unsigned int min_clk;	/* Min possible freq (MHz) */

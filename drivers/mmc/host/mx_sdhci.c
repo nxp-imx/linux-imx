@@ -1243,6 +1243,7 @@ static void sdhci_cd_timer(unsigned long data)
 	struct sdhci_host *host;
 
 	host = (struct sdhci_host *)data;
+	host->flags |= SDHCI_CD_TIMEOUT;
 	schedule_work(&host->cd_wq);
 }
 
@@ -1415,6 +1416,34 @@ static void esdhc_cd_callback(struct work_struct *work)
 	unsigned int cd_status = 0;
 	struct sdhci_host *host = container_of(work, struct sdhci_host, cd_wq);
 
+	do {
+		if (host->detect_irq == 0)
+			break;
+		cd_status = host->plat_data->status(host->mmc->parent);
+		if (cd_status)
+			set_irq_type(host->detect_irq, IRQF_TRIGGER_FALLING);
+		else
+			set_irq_type(host->detect_irq, IRQF_TRIGGER_RISING);
+	} while (cd_status != host->plat_data->status(host->mmc->parent));
+
+	cd_status = host->plat_data->status(host->mmc->parent);
+
+	DBG("cd_status=%d %s\n", cd_status, cd_status ? "removed" : "inserted");
+	/* If there is no card, call the card detection func
+	 * immediately. */
+	if (!cd_status) {
+		/* If there is a card in the slot, the timer is start
+		 * to work. Then the card detection would be carried
+		 * after the timer is timeout.
+		 * */
+		if (host->flags & SDHCI_CD_TIMEOUT)
+			host->flags &= ~SDHCI_CD_TIMEOUT;
+		else {
+			mod_timer(&host->cd_timer, jiffies + HZ / 4);
+			return;
+		}
+	}
+
 	cd_status = host->plat_data->status(host->mmc->parent);
 	if (cd_status)
 		host->flags &= ~SDHCI_CD_PRESENT;
@@ -1484,32 +1513,9 @@ static void esdhc_cd_callback(struct work_struct *work)
 */
 static irqreturn_t sdhci_cd_irq(int irq, void *dev_id)
 {
-	unsigned int cd_status = 0;
 	struct sdhci_host *host = dev_id;
 
-	do {
-		if (host->detect_irq == 0)
-			break;
-		cd_status = host->plat_data->status(host->mmc->parent);
-		if (cd_status)
-			set_irq_type(host->detect_irq, IRQF_TRIGGER_FALLING);
-		else
-			set_irq_type(host->detect_irq, IRQF_TRIGGER_RISING);
-	} while (cd_status != host->plat_data->status(host->mmc->parent));
-
-	DBG("cd_status=%d %s\n", cd_status, cd_status ? "removed" : "inserted");
-
-	cd_status = host->plat_data->status(host->mmc->parent);
-	if (!cd_status)
-		/* If there is a card in the slot, the timer is start
-		 * to work. Then the card detection would be carried
-		 * after the timer is timeout.
-		 * */
-		mod_timer(&host->cd_timer, jiffies + HZ / 2);
-	else
-		/* If there is no card, call the card detection func
-		 * immediately. */
-		schedule_work(&host->cd_wq);
+	schedule_work(&host->cd_wq);
 
 	return IRQ_HANDLED;
 }
