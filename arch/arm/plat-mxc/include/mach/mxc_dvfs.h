@@ -245,6 +245,11 @@ static inline int dvfs_per_divider_active(void)
 	return 0;
 }
 
+static inline int dvfs_per_pixel_clk_limit(int pix_clk)
+{
+	return 0;
+}
+
 #endif
 
 #endif				/* __KERNEL__ */
