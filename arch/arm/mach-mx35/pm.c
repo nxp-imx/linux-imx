@@ -1,5 +1,5 @@
 /*
- *  Copyright 2008 Freescale Semiconductor, Inc. All Rights Reserved.
+ *  Copyright 2008-2009 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -19,6 +19,11 @@
  * @defgroup MSL_MX35 i.MX35 Machine Specific Layer (MSL)
  */
 
+int suspend_ops_started;
+int is_suspend_ops_started(void)
+{
+	return suspend_ops_started;
+}
 /*!
  * @file mach-mx35/pm.c
  * @brief This file contains suspend operations
@@ -47,6 +52,7 @@ static int mx35_suspend_enter(suspend_state_t state)
  */
 static int mx35_suspend_prepare(void)
 {
+	suspend_ops_started = 1;
 	return 0;
 }
 
@@ -55,6 +61,7 @@ static int mx35_suspend_prepare(void)
  */
 static void mx35_suspend_finish(void)
 {
+	suspend_ops_started = 0;
 }
 
 static int mx35_pm_valid(suspend_state_t state)

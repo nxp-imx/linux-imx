@@ -195,6 +195,7 @@ extern void gpio_can_inactive(int id);
 extern struct flexcan_platform_data flexcan_data[];
 extern int __init mx35_3stack_init_mc13892(void);
 extern int __init mx35_3stack_init_mc9s08dz60(void);
+extern int is_suspend_ops_started(void);
 
 #endif				/* CONFIG_MACH_MX35_3DS */
 #endif				/* __ASM_ARCH_MXC_BOARD_MX35_3STACK_H__ */

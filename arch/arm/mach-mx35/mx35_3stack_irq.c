@@ -276,6 +276,9 @@ static void mcu_state_handler(struct work_struct *work)
 	event1 = pseudo_irq_enable & ((1 << MCU_INT_RTC) - 1);
 	event2 = pseudo_irq_enable >> MCU_INT_RTC;
 
+	if (is_suspend_ops_started())
+		return;
+
 	for (i = 0; i < 3; i++) {
 		err = mcu_pmic_write_reg(REG_MCU_INT_ENABLE_1, event1, 0xFF);
 		err |= mcu_pmic_write_reg(REG_MCU_INT_ENABLE_2, event2, 0xFF);
