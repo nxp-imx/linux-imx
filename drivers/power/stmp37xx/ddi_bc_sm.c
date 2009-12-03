@@ -416,13 +416,12 @@ static ddi_bc_Status_t ddi_bc_WaitingToCharge(void)
 	if (u16ExternalBatteryPowerVoltageCheck) {
 		if ((u16ExternalBatteryPowerVoltageCheck - u16BatteryVoltage) >
 		    300) {
-			//----------------------------------------------------------------------
-			// If control arrives here, battery voltage has dropped too quickly after
-			// the first charge cycle.  We think an external voltage regulator is
-			// connected.  If the DCDCs are on and this voltage drops too quickly,
-			// it will cause large droops and possible brownouts so we disable
-			// charging.
-			//----------------------------------------------------------------------
+			/*
+			 * If control arrives here, battery voltage has
+			 * dropped too quickly after the first charge
+			 * cycle.  We think an external voltage regulator is
+			 * connected.
+			 */
 
 			ddi_bc_gBrokenReason =
 			    DDI_BC_BROKEN_EXTERNAL_BATTERY_VOLTAGE_DETECTED;

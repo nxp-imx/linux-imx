@@ -484,11 +484,42 @@ struct platform_device stmp3xxx_dcp = {
 };
 
 static struct resource battery_resource[] = {
-	{
+	{/* 0 */
 		.flags  = IORESOURCE_IRQ,
 		.start  = IRQ_VDD5V,
 		.end    = IRQ_VDD5V,
 	},
+	{/* 1 */
+		.flags  = IORESOURCE_IRQ,
+		.start  = IRQ_DCDC4P2_BO,
+		.end    = IRQ_DCDC4P2_BO,
+	},
+	{/* 2 */
+		.flags  = IORESOURCE_IRQ,
+		.start  = IRQ_BATT_BRNOUT,
+		.end    = IRQ_BATT_BRNOUT,
+	},
+	{/* 3 */
+		.flags  = IORESOURCE_IRQ,
+		.start  = IRQ_VDDD_BRNOUT,
+		.end    = IRQ_VDDD_BRNOUT,
+	},
+	{/* 4 */
+		.flags  = IORESOURCE_IRQ,
+		.start  = IRQ_VDD18_BRNOUT,
+		.end    = IRQ_VDD18_BRNOUT,
+	},
+	{/* 5 */
+		.flags  = IORESOURCE_IRQ,
+		.start  = IRQ_VDDIO_BRNOUT,
+		.end    = IRQ_VDDIO_BRNOUT,
+	},
+	{/* 6 */
+		.flags  = IORESOURCE_IRQ,
+		.start  = IRQ_VDD5V_DROOP,
+		.end    = IRQ_VDD5V_DROOP,
+	},
+
 };
 
 struct platform_device stmp3xxx_battery = {

@@ -29,6 +29,12 @@
 
 #include <linux/interrupt.h>
 
+enum application_5v_status{
+	_5v_connected_verified,
+	_5v_connected_unverified,
+	_5v_disconnected_unverified,
+	_5v_disconnected_verified,
+};
 
 struct stmp3xxx_info {
 	struct device *dev;
@@ -42,8 +48,19 @@ struct stmp3xxx_info {
 	struct mutex sm_lock;
 	struct timer_list sm_timer;
 	struct work_struct sm_work;
-	struct resource *vdd5v_irq;
+	struct resource *irq_vdd5v;
+	struct resource *irq_dcdc4p2_bo;
+	struct resource *irq_batt_brnout;
+	struct resource *irq_vddd_brnout;
+	struct resource *irq_vdda_brnout;
+	struct resource *irq_vddio_brnout;
+	struct resource *irq_vdd5v_droop;
 	int is_ac_online;
+	int source_protection_mode;
+	uint32_t sm_new_5v_connection_jiffies;
+	uint32_t sm_new_5v_disconnection_jiffies;
+	enum application_5v_status sm_5v_connection_status;
+
 #define USB_ONLINE      0x01
 #define USB_REG_SET     0x02
 #define USB_SM_RESTART  0x04
@@ -54,17 +71,242 @@ struct stmp3xxx_info {
 
 #define to_stmp3xxx_info(x) container_of((x), struct stmp3xxx_info, bat)
 
+#ifndef NON_USB_5V_SUPPLY_CURRENT_LIMIT_MA
+#define NON_USB_5V_SUPPLY_CURRENT_LIMIT_MA 780
+#endif
+
+#ifndef POWERED_USB_5V_CURRENT_LIMIT_MA
+#define POWERED_USB_5V_CURRENT_LIMIT_MA 450
+#endif
+
+#ifndef UNPOWERED_USB_5V_CURRENT_LIMIT_MA
+#define UNPOWERED_USB_5V_CURRENT_LIMIT_MA 80
+#endif
+
+#ifndef _5V_DEBOUNCE_TIME_MS
+#define _5V_DEBOUNCE_TIME_MS 500
+#endif
+
+#ifndef OS_SHUTDOWN_BATTERY_VOLTAGE_THRESHOLD_MV
+#define OS_SHUTDOWN_BATTERY_VOLTAGE_THRESHOLD_MV 3350
+#endif
+
+/* #define DEBUG_IRQS */
+
 /* There is no direct way to detect wall power presence, so assume the AC
  * power source is valid if 5V presents and USB device is disconnected.
  * If USB device is connected then assume that AC is offline and USB power
  * is online.
  */
+
 #define is_usb_plugged()(__raw_readl(REGS_USBPHY_BASE + HW_USBPHY_STATUS) & \
 		BM_USBPHY_STATUS_DEVPLUGIN_STATUS)
+
 #define is_ac_online()	\
 		(ddi_power_Get5vPresentFlag() ? (!is_usb_plugged()) : 0)
 #define is_usb_online()	\
 		(ddi_power_Get5vPresentFlag() ? (!!is_usb_plugged()) : 0)
+
+
+
+void init_protection(struct stmp3xxx_info *info)
+{
+	enum ddi_power_5v_status pmu_5v_status;
+	uint16_t battery_voltage;
+
+	pmu_5v_status = ddi_power_GetPmu5vStatus();
+	battery_voltage = ddi_power_GetBattery();
+
+	/* InitializeFiqSystem(); */
+
+	ddi_power_InitOutputBrownouts();
+
+
+	/* if we start the kernel with 4p2 already started
+	 * by the bootlets, we need to hand off from this
+	 * state to the kernel 4p2 enabled state.
+	 */
+	if ((pmu_5v_status == existing_5v_connection) &&
+		 ddi_power_check_4p2_bits()) {
+		ddi_power_enable_5v_disconnect_detection();
+
+		/* includes VBUS DROOP workaround for errata */
+		ddi_power_init_4p2_protection();
+
+		/* if we still have our 5V connection, we can disable
+		 * battery brownout interrupt.  This is because the
+		 * VDD5V DROOP IRQ handler will also shutdown if battery
+		 * is browned out and it will enable the battery brownout
+		 * and bring VBUSVALID_TRSH level back to a normal level
+		 * which caused the hardware battery brownout shutdown
+		 * to be enabled.  The benefit of this is that device
+		 * that have detachable batteries (or devices going through
+		 * the assembly line and running this firmware to test
+		 *  with) can avoid shutting down if 5V is present and
+		 *  battery voltage goes away.
+		 */
+		ddi_power_EnableBatteryBoInterrupt(false);
+
+		info->sm_5v_connection_status = _5v_connected_verified;
+	} else {
+#ifdef DEBUG_IRQS
+		if (battery_voltage <
+			OS_SHUTDOWN_BATTERY_VOLTAGE_THRESHOLD_MV) {
+			printk(KERN_CRIT "Polled battery voltage measurement is\
+				less than %dmV.  Kernel should be halted/\
+				shutdown\n",
+				OS_SHUTDOWN_BATTERY_VOLTAGE_THRESHOLD_MV);
+
+			return;
+		}
+#endif
+		info->sm_5v_connection_status = _5v_disconnected_verified;
+		ddi_power_EnableBatteryBoInterrupt(true);
+
+	}
+
+
+	/* all brownouts are now handled software fiqs.  We
+	 * can now disable the hardware protection mechanisms
+	 *  because leaving them on yields ~2kV ESD level
+	 *  versus ~4kV ESD levels when they are off.  This
+	 *  difference is suspected to be cause by the fast
+	 *  falling edge pswitch functionality being tripped
+	 *  by ESD events.  This functionality is disabled
+	 *  when PWD_OFF is disabled.
+	 */
+#ifdef DISABLE_HARDWARE_PROTECTION_MECHANISMS
+	__raw_writel(BM_POWER_RESET_PWD_OFF,
+		HW_POWER_RESET_SET_ADDR);
+#endif
+
+
+
+
+}
+
+
+
+static void check_and_handle_5v_connection(struct stmp3xxx_info *info)
+{
+
+	switch (ddi_power_GetPmu5vStatus()) {
+
+	case new_5v_connection:
+		ddi_power_enable_5v_disconnect_detection();
+		info->sm_5v_connection_status = _5v_connected_unverified;
+
+	case existing_5v_connection:
+		if (info->sm_5v_connection_status != _5v_connected_verified) {
+			/* we allow some time to pass before considering
+			 * the 5v connection to be ready to use.  This
+			 * will give the USB system time to enumerate
+			 * (coordination with USB driver to be added
+			 * in the future).
+			 */
+
+			/* handle jiffies rollover case */
+			if ((jiffies - info->sm_new_5v_connection_jiffies)
+				< 0) {
+				info->sm_new_5v_connection_jiffies = jiffies;
+				break;
+			}
+
+			if ((jiffies_to_msecs(jiffies -
+				info->sm_new_5v_connection_jiffies)) >
+				_5V_DEBOUNCE_TIME_MS) {
+				info->sm_5v_connection_status =
+					_5v_connected_verified;
+				dev_info(info->dev,
+					"5v connection verified\n");
+				ddi_power_Enable4p2(450);
+
+
+				/* part of handling for errata.  It is
+				 *  now "somewhat" safe to
+				 * turn on vddio interrupts again
+				 */
+				ddi_power_enable_vddio_interrupt(true);
+			}
+		}
+		break;
+
+	case new_5v_disconnection:
+
+		ddi_bc_SetDisable();
+		ddi_bc_SetCurrentLimit(0);
+		if (info->regulator)
+			regulator_set_current_limit(info->regulator, 0, 0);
+		info->is_usb_online = 0;
+		info->is_ac_online = 0;
+
+		info->sm_5v_connection_status = _5v_disconnected_unverified;
+
+	case existing_5v_disconnection:
+
+		if (info->sm_5v_connection_status !=
+			_5v_disconnected_verified) {
+			if ((jiffies - info->sm_new_5v_disconnection_jiffies)
+				< 0) {
+				info->sm_new_5v_connection_jiffies = jiffies;
+				break;
+			}
+
+			if ((jiffies_to_msecs(jiffies -
+				info->sm_new_5v_disconnection_jiffies)) >
+				_5V_DEBOUNCE_TIME_MS) {
+				info->sm_5v_connection_status =
+					_5v_disconnected_verified;
+				ddi_power_execute_5v_to_battery_handoff();
+				ddi_power_enable_5v_connect_detection();
+
+				/* part of handling for errata.
+				 * It is now safe to
+				 * turn on vddio interrupts again
+				 */
+				ddi_power_enable_vddio_interrupt(true);
+				dev_info(info->dev,
+					"5v disconnection handled\n");
+
+			}
+		}
+
+		break;
+	}
+}
+
+
+static void handle_battery_voltage_changes(struct stmp3xxx_info *info)
+{
+#if 0
+	uint16_t battery_voltage;
+
+	battery_voltage = ddi_power_GetBattery();
+
+	if (info->sm_5v_connection_status != _5v_connected_verified) {
+		if (battery_voltage <
+			OS_SHUTDOWN_BATTERY_VOLTAGE_THRESHOLD_MV) {
+			printk(KERN_CRIT "Polled battery voltage measurement is\
+				less than %dmV.  Shutting down the \
+				system\n",
+				OS_SHUTDOWN_BATTERY_VOLTAGE_THRESHOLD_MV);
+
+			shutdown_os();
+			return;
+		}
+	} else
+#endif
+	{
+		ddi_power_handle_cmptrip();
+
+		if (ddi_power_IsBattRdyForXfer())
+			ddi_power_enable_5v_to_battery_xfer(true);
+		else
+			ddi_power_enable_5v_to_battery_xfer(false);
+
+	}
+}
+
 
 /*
  * Power properties
@@ -220,7 +462,7 @@ static void state_machine_timer(unsigned long data)
 
 }
 /*
- * Assumtion:
+ * Assumption:
  * AC power can't be switched to USB w/o system reboot
  * and vice-versa
  */
@@ -231,26 +473,40 @@ static void state_machine_work(struct work_struct *work)
 
 	mutex_lock(&info->sm_lock);
 
-	if (info->is_usb_online & USB_SHUTDOWN) {
-		info->is_usb_online = 0;
-		if (!info->regulator)
-			goto out;
-		regulator_set_current_limit(info->regulator, 0, 0);
+	handle_battery_voltage_changes(info);
+
+	check_and_handle_5v_connection(info);
+
+	if ((info->sm_5v_connection_status != _5v_connected_verified) ||
+			!(info->regulator)) {
+		mod_timer(&info->sm_timer, jiffies + msecs_to_jiffies(100));
 		goto out;
 	}
+
+	/* if we made it here, we have a verified 5v connection */
 
 	if (is_ac_online()) {
 		if (info->is_ac_online)
 			goto done;
 
 		/* ac supply connected */
-		dev_info(info->dev, "changed power connection to ac/5v \n");
+		dev_info(info->dev, "changed power connection to ac/5v.\n)");
+		dev_info(info->dev, "5v current limit set to %u.\n",
+			NON_USB_5V_SUPPLY_CURRENT_LIMIT_MA);
 
 		info->is_ac_online = 1;
 		info->is_usb_online = 0;
-		ddi_bc_SetCurrentLimit(600 /*mA*/);
-		ddi_power_execute_battery_to_5v_handoff();
-		ddi_power_enable_5v_to_battery_handoff();
+		ddi_power_set_4p2_ilimit(
+				NON_USB_5V_SUPPLY_CURRENT_LIMIT_MA);
+		ddi_bc_SetCurrentLimit(
+				NON_USB_5V_SUPPLY_CURRENT_LIMIT_MA /*mA*/);
+		if (regulator_set_current_limit(info->regulator,
+				0,
+				NON_USB_5V_SUPPLY_CURRENT_LIMIT_MA*1000)) {
+			dev_err(info->dev, "reg_set_current(%duA) failed\n",
+				NON_USB_5V_SUPPLY_CURRENT_LIMIT_MA*1000);
+		}
+		ddi_bc_SetEnable();
 		goto done;
 	}
 
@@ -263,37 +519,26 @@ static void state_machine_work(struct work_struct *work)
 	info->is_ac_online = 0;
 	info->is_usb_online |= USB_ONLINE;
 
-	if (!info->regulator) {
-		info->regulator = regulator_get(NULL, "charger-1");
-		if (!info->regulator || IS_ERR(info->regulator)) {
-			dev_err(info->dev,
-				"%s: failed to get regulator\n", __func__);
-			info->regulator = NULL;
-			ddi_bc_SetCurrentLimit(350 /*mA*/);
-			ddi_power_execute_battery_to_5v_handoff();
-			ddi_power_enable_5v_to_battery_handoff();
-			goto done;
-		} else
-			regulator_set_mode(info->regulator,
-					   REGULATOR_MODE_FAST);
-	}
+
 
 	if (!(info->is_usb_online & USB_N_SEND)) {
 		info->is_usb_online |= USB_N_SEND;
 	}
 
-	if (regulator_set_current_limit(info->regulator, 150000, 150000)) {
-		dev_err(info->dev, "reg_set_current(150000) failed\n");
 
-		ddi_bc_SetCurrentLimit(0 /*mA*/);
-		dev_dbg(info->dev, "charge current set to 0\n");
-		mod_timer(&info->sm_timer, jiffies + msecs_to_jiffies(1000));
-		goto done;
+	dev_dbg(info->dev, "%s: charge current set to %dmA\n", __func__,
+			POWERED_USB_5V_CURRENT_LIMIT_MA);
+
+	if (regulator_set_current_limit(info->regulator,
+		0,
+		POWERED_USB_5V_CURRENT_LIMIT_MA*1000)) {
+		dev_err(info->dev, "reg_set_current(%duA) failed\n",
+				POWERED_USB_5V_CURRENT_LIMIT_MA*1000);
+	} else {
+		ddi_bc_SetCurrentLimit(POWERED_USB_5V_CURRENT_LIMIT_MA/*mA*/);
+		ddi_bc_SetEnable();
 	}
 
-	dev_dbg(info->dev, "%s: charge current set to 100mA\n", __func__);
-	ddi_bc_SetCurrentLimit(100 /*mA*/);
-	regulator_set_current_limit(info->regulator, 100000, 100000);
 	if (info->is_usb_online & USB_SM_RESTART) {
 		info->is_usb_online &= ~USB_SM_RESTART;
 		ddi_bc_SetEnable();
@@ -302,15 +547,15 @@ static void state_machine_work(struct work_struct *work)
 	info->is_usb_online |= USB_REG_SET;
 
 	dev_info(info->dev, "changed power connection to usb/5v present\n");
-	ddi_power_execute_battery_to_5v_handoff();
-	ddi_power_enable_5v_to_battery_handoff();
-	ddi_bc_SetEnable();
+
 
 done:
 	ddi_bc_StateMachine();
 out:
 	mutex_unlock(&info->sm_lock);
 }
+
+
 
 static int bc_sm_restart(struct stmp3xxx_info *info)
 {
@@ -328,39 +573,27 @@ static int bc_sm_restart(struct stmp3xxx_info *info)
 	 */
 	bcret = ddi_bc_Init(info->sm_cfg);
 	if (bcret != DDI_BC_STATUS_SUCCESS) {
-		dev_err(info->dev, "state machine init failed: %d\n", bcret);
+		dev_err(info->dev, "battery charger init failed: %d\n", bcret);
 		ret = -EIO;
 		goto out;
-	}
-
-	/*
-	 * Check what power supply options we have right now. If
-	 * we're able to do any battery charging, then set the
-	 * appropriate current limit and enable. Otherwise, leave
-	 * the battery charger disabled.
-	 */
-	if (is_ac_online()) {
-		/* ac supply connected */
-		dev_info(info->dev, "ac/5v present, enabling state machine\n");
-
-		info->is_ac_online = 1;
-		info->is_usb_online = 0;
-		ddi_bc_SetCurrentLimit(600 /*mA*/);
-		ddi_bc_SetEnable();
-	} else if (is_usb_online()) {
-		/* usb supply connected */
-		dev_info(info->dev, "usb/5v present, enabling state machine\n");
-
-		info->is_ac_online = 0;
-		info->is_usb_online = USB_ONLINE | USB_SM_RESTART;
 	} else {
-		/* not powered */
-		dev_info(info->dev, "%s: 5v not present\n", __func__);
 
-		info->is_ac_online = 0;
-		info->is_usb_online = 0;
-		ddi_bc_SetDisable();
+		if (!info->regulator) {
+			info->regulator = regulator_get(NULL, "charger-1");
+			if (!info->regulator || IS_ERR(info->regulator)) {
+				dev_err(info->dev,
+				"%s: failed to get regulator\n", __func__);
+				info->regulator = NULL;
+			} else {
+				regulator_set_current_limit(
+						info->regulator, 0, 0);
+				regulator_set_mode(info->regulator,
+						   REGULATOR_MODE_FAST);
+			}
+		}
 	}
+
+
 
 	/* schedule first call to state machine */
 	mod_timer(&info->sm_timer, jiffies + 1);
@@ -369,33 +602,107 @@ out:
 	return ret;
 }
 
-static irqreturn_t stmp3xxx_vdd5v_irq(int irq, void *cookie)
+
+static irqreturn_t stmp3xxx_irq_dcdc4p2_bo(int irq, void *cookie)
+{
+#ifdef DEBUG_IRQS
+	struct stmp3xxx_info *info = (struct stmp3xxx_info *)cookie;
+	dev_info(info->dev, "dcdc4p2 brownout interrupt occurred\n");
+
+#endif
+	ddi_power_handle_dcdc4p2_bo();
+	return IRQ_HANDLED;
+}
+
+static irqreturn_t stmp3xxx_irq_batt_brnout(int irq, void *cookie)
+{
+#ifdef DEBUG_IRQS
+	struct stmp3xxx_info *info = (struct stmp3xxx_info *)cookie;
+	dev_info(info->dev, "battery brownout interrupt occurred\n");
+	ddi_power_disable_power_interrupts();
+#else
+	ddi_power_shutdown();
+#endif
+	return IRQ_HANDLED;
+}
+static irqreturn_t stmp3xxx_irq_vddd_brnout(int irq, void *cookie)
+{
+#ifdef DEBUG_IRQS
+	struct stmp3xxx_info *info = (struct stmp3xxx_info *)cookie;
+	dev_info(info->dev, "vddd brownout interrupt occurred\n");
+	ddi_power_disable_power_interrupts();
+#else
+	ddi_power_shutdown();
+#endif
+	return IRQ_HANDLED;
+}
+static irqreturn_t stmp3xxx_irq_vdda_brnout(int irq, void *cookie)
+{
+#ifdef DEBUG_IRQS
+	struct stmp3xxx_info *info = (struct stmp3xxx_info *)cookie;
+	dev_info(info->dev, "vdda brownout interrupt occurred\n");
+	ddi_power_disable_power_interrupts();
+#else
+	ddi_power_shutdown();
+#endif
+	return IRQ_HANDLED;
+}
+static irqreturn_t stmp3xxx_irq_vddio_brnout(int irq, void *cookie)
+{
+#ifdef DEBUG_IRQS
+	struct stmp3xxx_info *info = (struct stmp3xxx_info *)cookie;
+	dev_info(info->dev, "vddio brownout interrupt occurred\n");
+	ddi_power_disable_power_interrupts();
+#else
+	ddi_power_handle_vddio_brnout();
+#endif
+	return IRQ_HANDLED;
+}
+static irqreturn_t stmp3xxx_irq_vdd5v_droop(int irq, void *cookie)
+{
+#ifdef DEBUG_IRQS
+	struct stmp3xxx_info *info = (struct stmp3xxx_info *)cookie;
+	dev_info(info->dev, "vdd5v droop interrupt occurred\n");
+#endif
+	ddi_power_handle_vdd5v_droop();
+
+	return IRQ_HANDLED;
+}
+
+static irqreturn_t stmp3xxx_irq_vdd5v(int irq, void *cookie)
 {
 	struct stmp3xxx_info *info = (struct stmp3xxx_info *)cookie;
 
-	if (ddi_power_Get5vPresentFlag()) {
-		dev_info(info->dev, "5v present, reenable state machine\n");
 
-		ddi_bc_SetEnable();
+	switch (ddi_power_GetPmu5vStatus()) {
 
-		/*
-		 * We only ack/negate the interrupt here,
-		 * as we can't decide yet if we really can
-		 * switch to 5V (USB bits not ready)
-		 */
-		ddi_power_enable_5v_to_battery_handoff();
-	} else {
-		dev_info(info->dev, "5v went away, disabling state machine\n");
+	case new_5v_connection:
 
-		ddi_bc_SetDisable();
-
-		info->is_ac_online = 0;
-		if (info->is_usb_online)
-			info->is_usb_online = USB_SHUTDOWN;
-
-		ddi_power_execute_5v_to_battery_handoff();
-		ddi_power_enable_battery_to_5v_handoff();
+		ddi_power_disable_5v_connection_irq();
+		dev_info(info->dev, "new 5v connection detected\n");
+		info->sm_new_5v_connection_jiffies = jiffies;
 		mod_timer(&info->sm_timer, jiffies + 1);
+		break;
+
+	case new_5v_disconnection:
+
+		/* due to 5v connect vddio bo chip bug, we need to
+		 * disable vddio interrupts until we reset the 5v
+		 * detection for 5v connect detect.  We want to allow
+		 * some debounce time before enabling connect detection.
+		 * This is handled in the vdd5v_droop interrupt for now.
+		 */
+		/* ddi_power_enable_vddio_interrupt(false); */
+
+		ddi_power_disable_5v_connection_irq();
+		dev_info(info->dev, "new 5v disconnection detected\n");
+		info->sm_new_5v_disconnection_jiffies = jiffies;
+		mod_timer(&info->sm_timer, jiffies + 1);
+		break;
+
+	default:
+
+		break;
 
 	}
 
@@ -407,6 +714,15 @@ static int stmp3xxx_bat_probe(struct platform_device *pdev)
 	struct stmp3xxx_info *info;
 	int ret = 0;
 
+
+
+	ret = ddi_power_init_battery();
+	if (ret) {
+		printk(KERN_ERR "Aborting power driver initialization\n");
+		return 1;
+	}
+
+
 	if (!pdev->dev.platform_data) {
 		printk(KERN_ERR "%s: missing platform data\n", __func__);
 		return -ENODEV;
@@ -416,11 +732,50 @@ static int stmp3xxx_bat_probe(struct platform_device *pdev)
 	if (!info)
 		return -ENOMEM;
 
-	info->vdd5v_irq = platform_get_resource(pdev, IORESOURCE_IRQ, 0);
-	if (info->vdd5v_irq == NULL) {
+	info->irq_vdd5v = platform_get_resource(pdev, IORESOURCE_IRQ, 0);
+	if (info->irq_vdd5v == NULL) {
 		printk(KERN_ERR "%s: failed to get irq resouce\n", __func__);
 		goto free_info;
 	}
+
+	info->irq_dcdc4p2_bo = platform_get_resource(pdev, IORESOURCE_IRQ, 1);
+	if (info->irq_dcdc4p2_bo == NULL) {
+		printk(KERN_ERR "%s: failed to get irq resouce\n", __func__);
+		goto free_info;
+	}
+
+	info->irq_batt_brnout = platform_get_resource(pdev, IORESOURCE_IRQ, 2);
+	if (info->irq_batt_brnout == NULL) {
+		printk(KERN_ERR "%s: failed to get irq resouce\n", __func__);
+		goto free_info;
+	}
+
+	info->irq_vddd_brnout = platform_get_resource(pdev, IORESOURCE_IRQ, 3);
+	if (info->irq_vddd_brnout == NULL) {
+		printk(KERN_ERR "%s: failed to get irq resouce\n", __func__);
+		goto free_info;
+	}
+
+	info->irq_vdda_brnout = platform_get_resource(pdev, IORESOURCE_IRQ, 4);
+	if (info->irq_vdda_brnout == NULL) {
+		printk(KERN_ERR "%s: failed to get irq resouce\n", __func__);
+		goto free_info;
+	}
+
+	info->irq_vddio_brnout = platform_get_resource(
+		pdev, IORESOURCE_IRQ, 5);
+	if (info->irq_vddio_brnout == NULL) {
+		printk(KERN_ERR "%s: failed to get irq resouce\n", __func__);
+		goto free_info;
+	}
+
+	info->irq_vdd5v_droop = platform_get_resource(pdev, IORESOURCE_IRQ, 6);
+	if (info->irq_vdd5v_droop == NULL) {
+		printk(KERN_ERR "%s: failed to get irq resouce\n", __func__);
+		goto free_info;
+	}
+
+
 
 	platform_set_drvdata(pdev, info);
 
@@ -456,7 +811,7 @@ static int stmp3xxx_bat_probe(struct platform_device *pdev)
 	INIT_WORK(&info->sm_work, state_machine_work);
 
 	/* init LRADC channels to measure battery voltage and die temp */
-	ddi_power_init_battery();
+
 	__raw_writel(BM_POWER_5VCTRL_ENABLE_LINREG_ILIMIT,
 		REGS_POWER_BASE + HW_POWER_5VCTRL_CLR);
 
@@ -464,13 +819,63 @@ static int stmp3xxx_bat_probe(struct platform_device *pdev)
 	if (ret)
 		goto free_info;
 
-	ret = request_irq(info->vdd5v_irq->start,
-			stmp3xxx_vdd5v_irq, IRQF_DISABLED | IRQF_SHARED,
+
+	ret = request_irq(info->irq_vdd5v->start,
+			stmp3xxx_irq_vdd5v, IRQF_DISABLED | IRQF_SHARED,
 			pdev->name, info);
 	if (ret) {
 		dev_err(info->dev, "failed to request irq\n");
 		goto stop_sm;
 	}
+
+	ret = request_irq(info->irq_dcdc4p2_bo->start,
+			stmp3xxx_irq_dcdc4p2_bo, IRQF_DISABLED,
+			pdev->name, info);
+	if (ret) {
+		dev_err(info->dev, "failed to request irq\n");
+		goto stop_sm;
+	}
+
+	ret = request_irq(info->irq_batt_brnout->start,
+			stmp3xxx_irq_batt_brnout, IRQF_DISABLED,
+			pdev->name, info);
+	if (ret) {
+		dev_err(info->dev, "failed to request irq\n");
+		goto stop_sm;
+	}
+
+	ret = request_irq(info->irq_vddd_brnout->start,
+			stmp3xxx_irq_vddd_brnout, IRQF_DISABLED,
+			pdev->name, info);
+	if (ret) {
+		dev_err(info->dev, "failed to request irq\n");
+		goto stop_sm;
+	}
+
+	ret = request_irq(info->irq_vdda_brnout->start,
+			stmp3xxx_irq_vdda_brnout, IRQF_DISABLED,
+			pdev->name, info);
+	if (ret) {
+		dev_err(info->dev, "failed to request irq\n");
+		goto stop_sm;
+	}
+
+	ret = request_irq(info->irq_vddio_brnout->start,
+			stmp3xxx_irq_vddio_brnout, IRQF_DISABLED,
+			pdev->name, info);
+	if (ret) {
+		dev_err(info->dev, "failed to request irq\n");
+		goto stop_sm;
+	}
+
+	ret = request_irq(info->irq_vdd5v_droop->start,
+			stmp3xxx_irq_vdd5v_droop, IRQF_DISABLED,
+			pdev->name, info);
+	if (ret) {
+		dev_err(info->dev, "failed to request irq\n");
+		goto stop_sm;
+	}
+
 
 	ret = power_supply_register(&pdev->dev, &info->bat);
 	if (ret) {
@@ -490,6 +895,11 @@ static int stmp3xxx_bat_probe(struct platform_device *pdev)
 		goto unregister_ac;
 	}
 
+	/* handoff protection handling from bootlets protection method
+	 * to kernel protection method
+	 */
+	init_protection(info);
+
 	/* enable usb device presence detection */
 	__raw_writel(BM_USBPHY_CTRL_ENDEVPLUGINDETECT,
 			REGS_USBPHY_BASE + HW_USBPHY_CTRL_SET);
@@ -501,7 +911,13 @@ unregister_ac:
 unregister_bat:
 	power_supply_unregister(&info->bat);
 free_irq:
-	free_irq(info->vdd5v_irq->start, pdev);
+	free_irq(info->irq_vdd5v->start, pdev);
+	free_irq(info->irq_dcdc4p2_bo->start, pdev);
+	free_irq(info->irq_batt_brnout->start, pdev);
+	free_irq(info->irq_vddd_brnout->start, pdev);
+	free_irq(info->irq_vdda_brnout->start, pdev);
+	free_irq(info->irq_vddio_brnout->start, pdev);
+	free_irq(info->irq_vdd5v_droop->start, pdev);
 stop_sm:
 	ddi_bc_ShutDown();
 free_info:
@@ -515,7 +931,13 @@ static int stmp3xxx_bat_remove(struct platform_device *pdev)
 
 	if (info->regulator)
 		regulator_put(info->regulator);
-	free_irq(info->vdd5v_irq->start, pdev);
+	free_irq(info->irq_vdd5v->start, pdev);
+	free_irq(info->irq_dcdc4p2_bo->start, pdev);
+	free_irq(info->irq_batt_brnout->start, pdev);
+	free_irq(info->irq_vddd_brnout->start, pdev);
+	free_irq(info->irq_vdda_brnout->start, pdev);
+	free_irq(info->irq_vddio_brnout->start, pdev);
+	free_irq(info->irq_vdd5v_droop->start, pdev);
 	ddi_bc_ShutDown();
 	power_supply_unregister(&info->usb);
 	power_supply_unregister(&info->ac);
@@ -562,7 +984,8 @@ static int stmp3xxx_bat_resume(struct platform_device *pdev)
 
 		info->is_ac_online = 1;
 		info->is_usb_online = 0;
-		ddi_bc_SetCurrentLimit(600 /*mA*/);
+		ddi_bc_SetCurrentLimit(
+			NON_USB_5V_SUPPLY_CURRENT_LIMIT_MA /*mA*/);
 		ddi_bc_SetEnable();
 	} else if (is_usb_online()) {
 		/* usb supply connected */
@@ -570,7 +993,7 @@ static int stmp3xxx_bat_resume(struct platform_device *pdev)
 
 		info->is_ac_online = 0;
 		info->is_usb_online = 1;
-		ddi_bc_SetCurrentLimit(350 /*mA*/);
+		ddi_bc_SetCurrentLimit(POWERED_USB_5V_CURRENT_LIMIT_MA /*mA*/);
 		ddi_bc_SetEnable();
 	} else {
 		/* not powered */

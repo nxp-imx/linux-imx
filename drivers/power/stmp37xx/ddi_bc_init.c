@@ -152,22 +152,6 @@ ddi_bc_Status_t ddi_bc_Init(ddi_bc_Cfg_t * pCfg)
 	g_ddi_bc_Configuration = *pCfg;
 
 	//--------------------------------------------------------------------------
-	// Set the bias current source.
-	//--------------------------------------------------------------------------
-
-	{
-		ddi_power_BiasCurrentSource_t Flag;
-
-		Flag =
-		    g_ddi_bc_Configuration.useInternalBias ?
-		    DDI_POWER_INTERNAL_BIAS_CURRENT :
-		    DDI_POWER_EXTERNAL_BIAS_CURRENT;
-
-		ddi_power_SetBiasCurrentSource(Flag);
-
-	}
-
-	//--------------------------------------------------------------------------
 	// Turn the charger hardware off. This is a very important initial condition
 	// because we only flip the power switch on the hardware when we make
 	// transitions. Baseline, it needs to be off.

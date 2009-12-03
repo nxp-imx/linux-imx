@@ -76,15 +76,31 @@
 
 #define VDD4P2_ENABLED
 
+#define DDI_POWER_BATTERY_XFER_THRESHOLD_MV 3200
+
+
+#ifndef BATTERY_VOLTAGE_CMPTRIP100_THRESHOLD_MV
+#define BATTERY_VOLTAGE_CMPTRIP100_THRESHOLD_MV 4000
+#endif
+
+#ifndef BATTERY_VOLTAGE_CMPTRIP105_THRESHOLD_MV
+#define BATTERY_VOLTAGE_CMPTRIP105_THRESHOLD_MV 3800
+#endif
+
+/* #define DEBUG_IRQS */
+
+/* to be re-enabled once FIQ functionality is added */
+#define DISABLE_VDDIO_BO_PROTECTION
 ////////////////////////////////////////////////////////////////////////////////
 // Globals & Variables
 ////////////////////////////////////////////////////////////////////////////////
 
 
 /* Select your 5V Detection method */
- static ddi_power_5vDetection_t DetectionMethod =
-			DDI_POWER_5V_VDD5V_GT_VDDIO;
-/* static ddi_power_5vDetection_t DetectionMethod = DDI_POWER_5V_VBUSVALID; */
+
+/* static ddi_power_5vDetection_t DetectionMethod =
+			DDI_POWER_5V_VDD5V_GT_VDDIO; */
+static ddi_power_5vDetection_t DetectionMethod = DDI_POWER_5V_VBUSVALID;
 
 ////////////////////////////////////////////////////////////////////////////////
 // Code
@@ -243,6 +259,14 @@ void ddi_power_execute_5v_to_battery_handoff(void)
 
 	__raw_writel(BM_POWER_5VCTRL_PWD_CHARGE_4P2,
 				REGS_POWER_BASE + HW_POWER_5VCTRL_SET);
+
+	/* make VBUSVALID_TRSH 4400mV and set PWD_CHARGE_4P2 */
+	__raw_writel(BM_POWER_5VCTRL_VBUSVALID_TRSH,
+		HW_POWER_5VCTRL_CLR_ADDR);
+
+	__raw_writel(BF_POWER_5VCTRL_VBUSVALID_TRSH(VBUSVALID_THRESH_4_40V),
+		HW_POWER_5VCTRL_SET_ADDR);
+
 #else
 	// VDDD has different configurations depending on the battery type
 	// and battery level.
@@ -333,75 +357,9 @@ void ddi_power_enable_battery_to_5v_handoff(void)
  */
 void ddi_power_execute_battery_to_5v_handoff(void)
 {
-	u32 val;
 
 #ifdef VDD4P2_ENABLED
-
-	bool orig_vbusvalid_5vdetect = false;
-	bool orig_pwd_bo = false;
-	uint8_t orig_vbusvalid_threshold;
-
-
-	/* recording orignal values that will be modified
-	* temporarlily to handle a chip bug.  See chip errata
-	* for CQ ENGR00115837
-	*/
-	orig_vbusvalid_threshold =
-		(__raw_readl(HW_POWER_5VCTRL_ADDR)
-		& BM_POWER_5VCTRL_VBUSVALID_TRSH)
-		>> BP_POWER_5VCTRL_VBUSVALID_TRSH;
-
-	if (__raw_readl(HW_POWER_5VCTRL_ADDR) &
-		BM_POWER_5VCTRL_VBUSVALID_5VDETECT)
-			orig_vbusvalid_5vdetect = true;
-
-	if (__raw_readl(HW_POWER_MINPWR_ADDR) &
-		BM_POWER_MINPWR_PWD_BO)
-			orig_pwd_bo = true;
-
-	/* disable mechanisms that get erroneously tripped by
-	* when setting the DCDC4P2 EN_DCDC
-	*/
-	__raw_writel(BM_POWER_5VCTRL_VBUSVALID_5VDETECT,
-			REGS_POWER_BASE + HW_POWER_5VCTRL_CLR);
-	__raw_writel(BF_POWER_5VCTRL_VBUSVALID_TRSH(0x7),
-			REGS_POWER_BASE + HW_POWER_5VCTRL_CLR);
-
-	__raw_writel(BM_POWER_MINPWR_PWD_BO,
-			REGS_POWER_BASE + HW_POWER_MINPWR_SET);
-
-	val = __raw_readl(REGS_POWER_BASE + HW_POWER_DCDC4P2);
-	val |= BM_POWER_DCDC4P2_ENABLE_4P2;
-	__raw_writel(val, REGS_POWER_BASE + HW_POWER_DCDC4P2);
-
-
-	/* as a todo, we'll want to ramp up the charge current first
-	 * to minimize disturbances on the VDD5V rail
-	 */
-	ddi_power_SetChargerPowered(1);
-
-	/* Until the previous todo is completed, we'll want to give a delay
-	 * to allow the charging up of the 4p2 capacitor.
-	 */
-	udelay(10);
-
-	val = __raw_readl(REGS_POWER_BASE + HW_POWER_DCDC4P2);
-	val |= BM_POWER_DCDC4P2_ENABLE_DCDC;
-	__raw_writel(val, REGS_POWER_BASE + HW_POWER_DCDC4P2);
-
-	udelay(20);
-	/* coming from a known value of 0 so this is ok */
-	__raw_writel(BF_POWER_5VCTRL_VBUSVALID_TRSH(orig_vbusvalid_threshold),
-			REGS_POWER_BASE + HW_POWER_5VCTRL_SET);
-
-	if (orig_vbusvalid_5vdetect)
-		__raw_writel(BM_POWER_5VCTRL_VBUSVALID_5VDETECT,
-				REGS_POWER_BASE + HW_POWER_5VCTRL_SET);
-
-
-	if (!orig_pwd_bo)
-		__raw_writel(BM_POWER_MINPWR_PWD_BO,
-				REGS_POWER_BASE + HW_POWER_MINPWR_CLR);
+	ddi_power_Enable4p2(450);
 #else
 	// Disable the DCDC during 5V connections.
 	__raw_writel(BM_POWER_5VCTRL_ENABLE_DCDC,
@@ -460,6 +418,369 @@ void ddi_power_execute_battery_to_5v_handoff(void)
 #endif
 }
 
+
+void ddi_power_Start4p2Dcdc(bool battery_ready)
+{
+
+	uint32_t temp_reg, old_values;
+
+	/* set vbusvalid threshold to 2.9V because of errata */
+	__raw_writel(BM_POWER_5VCTRL_VBUSVALID_TRSH,
+			HW_POWER_5VCTRL_CLR_ADDR);
+
+
+#if 0
+	if (battery_ready)
+		ddi_power_EnableBatteryIrq();
+	else
+		enable_4p2_fiq_shutdown();
+#endif
+
+	/* enable hardware shutdown on battery brownout */
+	__raw_writel(
+			BM_POWER_BATTMONITOR_PWDN_BATTBRNOUT |
+			__raw_readl(HW_POWER_BATTMONITOR_ADDR),
+			HW_POWER_BATTMONITOR_ADDR);
+
+	/* set VBUS DROOP threshold to 4.3V */
+	__raw_writel(BM_POWER_5VCTRL_VBUSDROOP_TRSH,
+			HW_POWER_5VCTRL_CLR_ADDR);
+
+	/* turn of vbus valid detection.  Part of errate
+	 * workaround. */
+	__raw_writel(BM_POWER_5VCTRL_PWRUP_VBUS_CMPS,
+			HW_POWER_5VCTRL_SET_ADDR);
+
+	__raw_writel(BM_POWER_5VCTRL_VBUSVALID_5VDETECT,
+			HW_POWER_5VCTRL_CLR_ADDR);
+
+
+	temp_reg = (BM_POWER_CTRL_ENIRQ_VDDD_BO |
+		BM_POWER_CTRL_ENIRQ_VDDA_BO |
+		BM_POWER_CTRL_ENIRQ_VDDIO_BO |
+		BM_POWER_CTRL_ENIRQ_VDD5V_DROOP |
+		BM_POWER_CTRL_ENIRQ_VBUS_VALID);
+
+	/* save off old brownout enable values */
+	old_values = __raw_readl(HW_POWER_CTRL_ADDR) &
+		temp_reg;
+
+	/* disable irqs affected by errata */
+	__raw_writel(temp_reg, HW_POWER_CTRL_CLR_ADDR);
+
+	/* Enable DCDC from 4P2 */
+	__raw_writel(__raw_readl(HW_POWER_DCDC4P2_ADDR) |
+			BM_POWER_DCDC4P2_ENABLE_DCDC,
+			HW_POWER_DCDC4P2_ADDR);
+
+	/* give a delay to check for errate noise problem */
+	mdelay(1);
+
+	temp_reg = (BM_POWER_CTRL_VDDD_BO_IRQ |
+		BM_POWER_CTRL_VDDA_BO_IRQ |
+		BM_POWER_CTRL_VDDIO_BO_IRQ |
+		BM_POWER_CTRL_VDD5V_DROOP_IRQ |
+		BM_POWER_CTRL_VBUSVALID_IRQ);
+
+	/* stay in this loop until the false brownout indciations
+	 * no longer occur or until 5V actually goes away
+	 */
+	while ((__raw_readl(HW_POWER_CTRL_ADDR) & temp_reg) &&
+		!(__raw_readl(HW_POWER_CTRL_ADDR) &
+				BM_POWER_CTRL_VDD5V_GT_VDDIO_IRQ)) {
+		__raw_writel(temp_reg, HW_POWER_CTRL_CLR_ADDR);
+
+		mdelay(1);
+	}
+
+	/* revert to previous enable irq values */
+	__raw_writel(old_values, HW_POWER_CTRL_SET_ADDR);
+
+	if (DetectionMethod == DDI_POWER_5V_VBUSVALID)
+		__raw_writel(BM_POWER_5VCTRL_VBUSVALID_5VDETECT,
+			HW_POWER_5VCTRL_SET_ADDR);
+}
+
+
+/* set the optimal CMPTRIP for the best possible 5V
+ * disconnection handling but without drawing power
+ * from the power on a stable 4p2 rails (at 4.2V).
+ */
+void ddi_power_handle_cmptrip(void)
+{
+	enum ddi_power_5v_status pmu_5v_status;
+	uint32_t temp = __raw_readl(HW_POWER_DCDC4P2_ADDR);
+	temp &= ~(BM_POWER_DCDC4P2_CMPTRIP);
+
+	pmu_5v_status = ddi_power_GetPmu5vStatus();
+
+	/* CMPTRIP should remain at 31 when 5v is disconnected
+	 * or 5v is connected but hasn't been handled yet
+	 */
+	if (pmu_5v_status != existing_5v_connection)
+		temp |= (31 << BP_POWER_DCDC4P2_CMPTRIP);
+	else if (ddi_power_GetBattery() >
+			BATTERY_VOLTAGE_CMPTRIP100_THRESHOLD_MV)
+		temp |= (1 << BP_POWER_DCDC4P2_CMPTRIP);
+	else if (ddi_power_GetBattery() >
+			BATTERY_VOLTAGE_CMPTRIP105_THRESHOLD_MV)
+		temp |= (24 << BP_POWER_DCDC4P2_CMPTRIP);
+	else
+		temp |= (31 << BP_POWER_DCDC4P2_CMPTRIP);
+
+
+	__raw_writel(temp, HW_POWER_DCDC4P2_ADDR);
+}
+
+void ddi_power_Init4p2Params(void)
+{
+	uint32_t temp;
+
+	ddi_power_handle_cmptrip();
+
+	temp = __raw_readl(HW_POWER_DCDC4P2_ADDR);
+
+	/* DROPOUT CTRL to 10, TRG to 0 */
+	temp &= ~(BM_POWER_DCDC4P2_TRG | BM_POWER_DCDC4P2_DROPOUT_CTRL);
+	temp |= (0xa << BP_POWER_DCDC4P2_DROPOUT_CTRL);
+
+	__raw_writel(temp, HW_POWER_DCDC4P2_ADDR);
+
+
+	temp = __raw_readl(HW_POWER_5VCTRL_ADDR);
+
+	/* HEADROOM_ADJ to 4, CHARGE_4P2_ILIMIT to 0 */
+	temp &= ~(BM_POWER_5VCTRL_HEADROOM_ADJ |
+			BM_POWER_5VCTRL_CHARGE_4P2_ILIMIT);
+	temp |= (4 << BP_POWER_5VCTRL_HEADROOM_ADJ);
+
+}
+
+bool ddi_power_IsBattRdyForXfer(void)
+{
+	uint16_t u16BatteryVoltage = ddi_power_GetBattery();
+
+	if (u16BatteryVoltage > DDI_POWER_BATTERY_XFER_THRESHOLD_MV)
+		return true;
+	else
+		return false;
+
+}
+
+void ddi_power_EnableVbusDroopIrq(void)
+{
+
+	__raw_writel(BM_POWER_CTRL_VDD5V_DROOP_IRQ,
+			HW_POWER_CTRL_CLR_ADDR);
+
+	__raw_writel(BM_POWER_CTRL_ENIRQ_VDD5V_DROOP,
+			HW_POWER_CTRL_SET_ADDR);
+
+}
+
+
+void ddi_power_Enable4p2(uint16_t target_current_limit_ma)
+{
+
+	uint16_t u16BatteryVoltage;
+	uint32_t temp_reg;
+
+	ddi_power_Init4p2Params();
+
+	/* disable 4p2 rail brownouts for now. (they
+	 * should have already been off at this point) */
+	__raw_writel(BM_POWER_CTRL_ENIRQ_DCDC4P2_BO,
+		HW_POWER_CTRL_CLR_ADDR);
+
+	u16BatteryVoltage = ddi_power_GetBattery();
+
+	if (ddi_power_IsBattRdyForXfer()) {
+
+		/* PWD_CHARGE_4P2 should already be set but just in case... */
+		__raw_writel(BM_POWER_5VCTRL_PWD_CHARGE_4P2,
+				HW_POWER_5VCTRL_SET_ADDR);
+
+		/* set CMPTRIP to DCDC_4P2 pin >= BATTERY pin */
+		temp_reg = __raw_readl(HW_POWER_DCDC4P2_ADDR);
+		temp_reg &= ~(BM_POWER_DCDC4P2_CMPTRIP);
+		temp_reg |= (31 << BP_POWER_DCDC4P2_CMPTRIP);
+		__raw_writel(temp_reg, HW_POWER_DCDC4P2_ADDR);
+
+		/* since we have a good battery, we can go ahead
+		 * and turn on the Dcdcing from the 4p2 source.
+		 * This is helpful in working around the chip
+		 * errata.
+		 */
+		ddi_power_Start4p2Dcdc(true);
+
+		/* Enable VbusDroopIrq to handle errata */
+
+		/* set vbus droop detection level to 4.3V */
+		__raw_writel(BM_POWER_5VCTRL_VBUSDROOP_TRSH,
+				HW_POWER_5VCTRL_CLR_ADDR);
+
+		ddi_power_EnableVbusDroopIrq();
+		/* now that the DCDC4P2 problems are cleared,
+		 * turn on and ramp up the 4p2 regulator
+		 */
+		temp_reg = ddi_power_BringUp4p2Regulator(
+			target_current_limit_ma, true);
+
+		/* if we still have our 5V connection, we can disable
+		 * battery brownout interrupt.  This is because the
+		 * VDD5V DROOP IRQ handler will also shutdown if battery
+		 * is browned out and it will enable the battery brownout
+		 * and bring VBUSVALID_TRSH level back to a normal level
+		 * which caused the hardware battery brownout shutdown
+		 * to be enabled.  The benefit of this is that device
+		 * that have detachable batteries (or devices going through
+		 * the assembly line and running this firmware to test
+		 *  with) can avoid shutting down if 5V is present and
+		 *  battery voltage goes away.
+		 */
+		if (!(__raw_readl(HW_POWER_CTRL_ADDR) &
+			(BM_POWER_CTRL_VBUSVALID_IRQ |
+			BM_POWER_CTRL_VDD5V_DROOP_IRQ))) {
+			ddi_power_EnableBatteryBoInterrupt(false);
+		}
+
+
+
+		printk(KERN_INFO "4P2 rail started.  5V current limit\
+			set to %dmA\n",	temp_reg);
+
+	} else {
+
+		printk(KERN_ERR "4P2 rail was attempted to be started \
+			from a system\
+			with a very low battery voltage.  This is not\
+			yet handled by the kernel driver, only by the\
+			bootlets.  Remaining on battery power.\n");
+
+		if ((__raw_readl(HW_POWER_5VCTRL_ADDR) &&
+					BM_POWER_5VCTRL_ENABLE_DCDC))
+			ddi_power_EnableBatteryBoInterrupt(true);
+
+#if 0
+		/* enable hardware shutdown (if 5v disconnected)
+		 * on battery brownout */
+		__raw_writel(
+			BM_POWER_BATTMONITOR_PWDN_BATTBRNOUT |
+			__raw_readl(HW_POWER_BATTMONITOR_ADDR),
+			HW_POWER_BATTMONITOR_ADDR);
+
+		/* turn on and ramp up the 4p2 regulator */
+		temp_reg = ddi_power_BringUp4p2Regulator(
+			target_current_limit_ma, false);
+
+		Configure4p2FiqShutdown();
+
+		SetVbusValidThresh(0);
+#endif
+	}
+}
+
+/* enable and ramp up 4p2 regulator */
+uint16_t ddi_power_BringUp4p2Regulator(
+		uint16_t target_current_limit_ma,
+		bool b4p2_dcdc_enabled)
+{
+	uint32_t temp_reg;
+	uint16_t charge_4p2_ilimit = 0;
+
+	/* initial current limit to 0 */
+	__raw_writel(BM_POWER_5VCTRL_CHARGE_4P2_ILIMIT,
+		HW_POWER_5VCTRL_CLR_ADDR);
+
+	__raw_writel(__raw_readl(HW_POWER_DCDC4P2_ADDR) |
+		BM_POWER_DCDC4P2_ENABLE_4P2,
+		HW_POWER_DCDC4P2_ADDR);
+
+	/* set 4p2 target voltage to zero */
+	temp_reg = __raw_readl(HW_POWER_DCDC4P2_ADDR);
+	temp_reg &= (~BM_POWER_DCDC4P2_TRG);
+	__raw_writel(temp_reg, HW_POWER_DCDC4P2_ADDR);
+
+	/* Enable 4P2 regulator*/
+	__raw_writel(BM_POWER_5VCTRL_PWD_CHARGE_4P2,
+			HW_POWER_5VCTRL_CLR_ADDR);
+
+	if (target_current_limit_ma > 780)
+		target_current_limit_ma = 780;
+
+	ddi_power_Set4p2BoLevel(4150);
+
+	/* possibly not necessary but recommended for unloaded
+	 * 4p2 rail
+	 */
+	__raw_writel(BM_POWER_CHARGE_ENABLE_LOAD,
+		HW_POWER_CHARGE_SET_ADDR);
+
+	while (charge_4p2_ilimit < target_current_limit_ma) {
+
+		if (__raw_readl(HW_POWER_CTRL_ADDR) &
+			(BM_POWER_CTRL_VBUSVALID_IRQ |
+			BM_POWER_CTRL_VDD5V_DROOP_IRQ))
+			break;
+
+
+		charge_4p2_ilimit += 100;
+		if (charge_4p2_ilimit > target_current_limit_ma)
+			charge_4p2_ilimit = target_current_limit_ma;
+
+		ddi_power_set_4p2_ilimit(charge_4p2_ilimit);
+
+		/* dcdc4p2 enable_dcdc must be enabled for
+		 * 4p2 bo indication to function.  If not enabled,
+		 * skip using bo level detection
+		 */
+		if (!(b4p2_dcdc_enabled))
+			msleep(1);
+		else if	(__raw_readl(HW_POWER_STS_ADDR) &
+			BM_POWER_STS_DCDC_4P2_BO)
+			msleep(1);
+		else {
+			charge_4p2_ilimit = target_current_limit_ma;
+			ddi_power_set_4p2_ilimit(charge_4p2_ilimit);
+		}
+	}
+
+	ddi_power_Set4p2BoLevel(3600);
+
+	__raw_writel(BM_POWER_CTRL_DCDC4P2_BO_IRQ,
+			HW_POWER_CTRL_CLR_ADDR);
+
+	/* rail should now be up and loaded.  Extra
+	 * internal load is not necessary.
+	 */
+	__raw_writel(BM_POWER_CHARGE_ENABLE_LOAD,
+		HW_POWER_CHARGE_CLR_ADDR);
+
+	return charge_4p2_ilimit;
+
+}
+
+
+void ddi_power_Set4p2BoLevel(uint16_t bo_voltage_mv)
+{
+	uint16_t bo_reg_value;
+	uint32_t temp;
+
+	if (bo_voltage_mv < 3600)
+		bo_voltage_mv = 3600;
+	else if (bo_voltage_mv > 4375)
+		bo_voltage_mv = 4375;
+
+	bo_reg_value = (bo_voltage_mv - 3600) / 25;
+
+	temp = __raw_readl(HW_POWER_DCDC4P2_ADDR);
+	temp &= (~BM_POWER_DCDC4P2_BO);
+	temp |= (bo_reg_value << BP_POWER_DCDC4P2_BO);
+	__raw_writel(temp, HW_POWER_DCDC4P2_ADDR);
+}
+
+
+
 void ddi_power_init_handoff(void)
 {
 	int val;
@@ -481,57 +802,96 @@ void ddi_power_init_handoff(void)
 	__raw_writel(val, REGS_POWER_BASE + HW_POWER_BATTMONITOR);
 }
 
+
+void ddi_power_EnableBatteryInterrupt(bool enable)
+{
+
+	__raw_writel(BM_POWER_CTRL_BATT_BO_IRQ,
+			HW_POWER_CTRL_CLR_ADDR);
+
+	__raw_writel(BM_POWER_CTRL_ENIRQBATT_BO,
+			HW_POWER_CTRL_SET_ADDR);
+
+}
+
+
 int ddi_power_init_battery(void)
 {
-	int ret;
 
+	int ret = 0;
+
+	if (!(__raw_readl(HW_POWER_5VCTRL_ADDR) &&
+			BM_POWER_5VCTRL_ENABLE_DCDC)) {
+		printk(KERN_ERR "WARNING: Power Supply not\
+			initialized correctly by \
+			pre-kernel bootlets. HW_POWER_5VCTRL \
+			ENABLE_DCDC should already be set.  Kernel \
+			power driver behavior may not be reliable \n");
+		ret = 1;
+	}
 
 	/* the following code to enable automatic battery measurement
 	 * should have already been enabled in the boot prep files.  Not
-	 * sure if this is necessary or possibly suceptible to mis-coordination
+	 * sure if this is necessary or possibly susceptible to
+	 * mis-coordination
 	 */
-	// Init LRADC channel 7
-	ret = hw_lradc_init_ladder(BATTERY_VOLTAGE_CH,
-				   LRADC_DELAY_TRIGGER_BATTERY,
-				   200);
+
+
+	ret = !hw_lradc_present(BATTERY_VOLTAGE_CH);
+
 	if (ret) {
-		printk(KERN_ERR "%s: hw_lradc_init_ladder failed\n", __func__);
-		return ret;
+		printk(KERN_ERR "%s: hw_lradc_present failed\n", __func__);
+		return -ENODEV;
+	} else {
+		uint16_t wait_time = 0;
+
+		hw_lradc_configure_channel(BATTERY_VOLTAGE_CH, 0 /* div2 */ ,
+					   0 /* acc */ ,
+					   0 /* num_samples */);
+
+		/* Setup the trigger loop forever */
+		hw_lradc_set_delay_trigger(LRADC_DELAY_TRIGGER_BATTERY,
+			1 << BATTERY_VOLTAGE_CH,
+			1 << LRADC_DELAY_TRIGGER_BATTERY,
+			0, 200);
+
+		/* Clear the accumulator & NUM_SAMPLES */
+		stmp3xxx_clearl(0xFFFFFFFF,
+			REGS_LRADC_BASE + HW_LRADC_CHn(BATTERY_VOLTAGE_CH));
+
+		/* clear previous "measurement performed" status */
+		__raw_writel(1 << BATTERY_VOLTAGE_CH,
+			HW_LRADC_CTRL1_CLR_ADDR);
+
+		/* set to LiIon scale factor */
+		__raw_writel(BM_LRADC_CONVERSION_SCALE_FACTOR,
+			HW_LRADC_CONVERSION_SET_ADDR);
+
+		/* kick off the trigger */
+		hw_lradc_set_delay_trigger_kick(
+				LRADC_DELAY_TRIGGER_BATTERY, 1);
+
+
+		/* wait for 1st converstion to be complete before
+		 * enabling automatic copy to power supply
+		 * peripheral
+		 */
+		while (!(__raw_readl(HW_LRADC_CTRL1_ADDR) &
+			1 << BATTERY_VOLTAGE_CH) &&
+				(wait_time < 10)) {
+			wait_time++;
+			udelay(1);
+		}
+
+		__raw_writel(BM_LRADC_CONVERSION_AUTOMATIC,
+			HW_LRADC_CONVERSION_SET_ADDR);
 	}
 
-	__raw_writel(BM_LRADC_CONVERSION_AUTOMATIC,
-			REGS_LRADC_BASE + HW_LRADC_CONVERSION_SET);
-
-	// Set li-ion mode
-	__raw_writel(BF(2, LRADC_CONVERSION_SCALE_FACTOR),
-			REGS_LRADC_BASE + HW_LRADC_CONVERSION_SET);
-
-	// Turn off divide-by-two - we already have a divide-by-four
-	// as part of the hardware
-	__raw_writel(
-		BF(1 << BATTERY_VOLTAGE_CH, LRADC_CTRL2_DIVIDE_BY_TWO),
-			REGS_LRADC_BASE + HW_LRADC_CTRL2_CLR);
-
-	__raw_writel(BM_POWER_CHARGE_ENABLE_FAULT_DETECT,
-			REGS_POWER_BASE + HW_POWER_CHARGE_SET);
-
-	// kick off the trigger
-	hw_lradc_set_delay_trigger_kick(LRADC_DELAY_TRIGGER_BATTERY, 1);
-
-	__raw_writel(BM_POWER_LOOPCTRL_RCSCALE_THRESH,
-				REGS_POWER_BASE + HW_POWER_LOOPCTRL_SET);
-	__raw_writel(BF_POWER_LOOPCTRL_EN_RCSCALE(3),
-				REGS_POWER_BASE + HW_POWER_LOOPCTRL_SET);
-
-	__raw_writel(BM_POWER_MINPWR_HALF_FETS,
-				REGS_POWER_BASE + HW_POWER_MINPWR_CLR);
-	__raw_writel(BM_POWER_MINPWR_DOUBLE_FETS,
-				REGS_POWER_BASE + HW_POWER_MINPWR_SET);
-
+#ifndef VDD4P2_ENABLED
 	/* prepare handoff */
 	ddi_power_init_handoff();
-
-	return 0;
+#endif
+	return ret;
 }
 
 /*
@@ -619,11 +979,6 @@ uint16_t MeasureInternalDieTemperature(void)
 ////////////////////////////////////////////////////////////////////////////////
 ddi_power_BatteryMode_t ddi_power_GetBatteryMode(void)
 {
-#if 0
-	return (__raw_readl(REGS_POWER_BASE + HW_POWER_STS) & BM_POWER_STS_MODE) ?
-		DDI_POWER_BATT_MODE_ALKALINE_NIMH :
-		DDI_POWER_BATT_MODE_LIION;
-#endif
 	return DDI_POWER_BATT_MODE_LIION;
 }
 
@@ -850,40 +1205,6 @@ int ddi_power_SetBatteryBrownout(uint16_t u16BattBrownout_mV)
 // Currents
 ////////////////////////////////////////////////////////////////////////////////
 
-////////////////////////////////////////////////////////////////////////////////
-//! Name: ddi_power_SetBiasCurrentSource
-//!
-//! \brief
-////////////////////////////////////////////////////////////////////////////////
-int ddi_power_SetBiasCurrentSource(ddi_power_BiasCurrentSource_t eSource)
-{
-	switch (eSource) {
-	case DDI_POWER_INTERNAL_BIAS_CURRENT:
-		__raw_writel(BM_POWER_CHARGE_USE_EXTERN_R,
-			REGS_POWER_BASE + HW_POWER_CHARGE_SET);
-		break;
-	case DDI_POWER_EXTERNAL_BIAS_CURRENT:
-		__raw_writel(BM_POWER_CHARGE_USE_EXTERN_R,
-			REGS_POWER_BASE + HW_POWER_CHARGE_CLR);
-		break;
-	default:
-		return -EINVAL;
-	}
-
-	return 0;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-//! Name: ddi_power_GetBiasCurrentSource
-//!
-//! \brief
-////////////////////////////////////////////////////////////////////////////////
-ddi_power_BiasCurrentSource_t ddi_power_GetBiasCurrentSource(void)
-{
-	return (__raw_readl(REGS_POWER_BASE + HW_POWER_CHARGE) & BM_POWER_CHARGE_USE_EXTERN_R) ?
-		DDI_POWER_INTERNAL_BIAS_CURRENT :
-		DDI_POWER_EXTERNAL_BIAS_CURRENT;
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 //! Name: ddi_power_SetMaxBatteryChargeCurrent
@@ -1055,6 +1376,8 @@ bool ddi_power_Get5vPresentFlag(void)
 	return 0;
 }
 
+
+
 ////////////////////////////////////////////////////////////////////////////////
 //!
 //! \brief Report on the die temperature.
@@ -1134,6 +1457,357 @@ bool ddi_power_GetPowerClkGate(void)
 	return (__raw_readl(REGS_POWER_BASE + HW_POWER_CTRL) & BM_POWER_CTRL_CLKGATE) ? 1 : 0;
 }
 
+
+enum ddi_power_5v_status ddi_power_GetPmu5vStatus(void)
+{
+
+	if (DetectionMethod == DDI_POWER_5V_VDD5V_GT_VDDIO) {
+
+		if (__raw_readl(HW_POWER_CTRL_ADDR) &
+			BM_POWER_CTRL_POLARITY_VDD5V_GT_VDDIO) {
+			if ((__raw_readl(HW_POWER_CTRL_ADDR) &
+				BM_POWER_CTRL_VDD5V_GT_VDDIO_IRQ) ||
+				ddi_power_Get5vPresentFlag())
+				return new_5v_connection;
+			else
+				return existing_5v_disconnection;
+		} else {
+			if ((__raw_readl(HW_POWER_CTRL_ADDR) &
+				BM_POWER_CTRL_VDD5V_GT_VDDIO_IRQ) ||
+				!ddi_power_Get5vPresentFlag() ||
+				ddi_power_Get5vDroopFlag())
+				return new_5v_disconnection;
+			else
+				return existing_5v_connection;
+		}
+	} else {
+
+		if (__raw_readl(HW_POWER_CTRL_ADDR) &
+			BM_POWER_CTRL_POLARITY_VBUSVALID) {
+			if ((__raw_readl(HW_POWER_CTRL_ADDR) &
+				BM_POWER_CTRL_VBUSVALID_IRQ) ||
+				ddi_power_Get5vPresentFlag())
+				return new_5v_connection;
+			else
+				return existing_5v_disconnection;
+		} else {
+			if ((__raw_readl(HW_POWER_CTRL_ADDR) &
+				BM_POWER_CTRL_VBUSVALID_IRQ) ||
+				!ddi_power_Get5vPresentFlag() ||
+				ddi_power_Get5vDroopFlag())
+				return new_5v_disconnection;
+			else
+				return existing_5v_connection;
+		}
+
+	}
+}
+
+void ddi_power_disable_5v_connection_irq(void)
+{
+
+	__raw_writel((BM_POWER_CTRL_ENIRQ_VBUS_VALID |
+		BM_POWER_CTRL_ENIRQ_VDD5V_GT_VDDIO),
+		HW_POWER_CTRL_CLR_ADDR);
+}
+
+void ddi_power_enable_5v_disconnect_detection(void)
+{
+	__raw_writel(BM_POWER_CTRL_POLARITY_VDD5V_GT_VDDIO |
+		BM_POWER_CTRL_POLARITY_VBUSVALID,
+		HW_POWER_CTRL_CLR_ADDR);
+
+	__raw_writel(BM_POWER_CTRL_VDD5V_GT_VDDIO_IRQ |
+		BM_POWER_CTRL_VBUSVALID_IRQ,
+		HW_POWER_CTRL_CLR_ADDR);
+
+	if (DetectionMethod == DDI_POWER_5V_VDD5V_GT_VDDIO) {
+		__raw_writel(BM_POWER_CTRL_ENIRQ_VDD5V_GT_VDDIO,
+			HW_POWER_CTRL_SET_ADDR);
+	} else {
+		__raw_writel(BM_POWER_CTRL_ENIRQ_VBUS_VALID,
+			HW_POWER_CTRL_SET_ADDR);
+	}
+}
+
+void ddi_power_enable_5v_connect_detection(void)
+{
+	__raw_writel(BM_POWER_CTRL_POLARITY_VDD5V_GT_VDDIO |
+		BM_POWER_CTRL_POLARITY_VBUSVALID,
+		HW_POWER_CTRL_SET_ADDR);
+
+	__raw_writel(BM_POWER_CTRL_VDD5V_GT_VDDIO_IRQ |
+		BM_POWER_CTRL_VBUSVALID_IRQ,
+		HW_POWER_CTRL_CLR_ADDR);
+
+	if (DetectionMethod == DDI_POWER_5V_VDD5V_GT_VDDIO) {
+		__raw_writel(BM_POWER_CTRL_ENIRQ_VDD5V_GT_VDDIO,
+			HW_POWER_CTRL_SET_ADDR);
+	} else {
+		__raw_writel(BM_POWER_CTRL_ENIRQ_VBUS_VALID,
+			HW_POWER_CTRL_SET_ADDR);
+	}
+}
+
+void ddi_power_EnableBatteryBoInterrupt(bool bEnable)
+{
+	if (bEnable) {
+
+		__raw_writel(BM_POWER_CTRL_BATT_BO_IRQ,
+			HW_POWER_CTRL_CLR_ADDR);
+		__raw_writel(BM_POWER_CTRL_ENIRQBATT_BO,
+			HW_POWER_CTRL_SET_ADDR);
+		/* todo: make sure the battery brownout comparator
+		 * is enabled in HW_POWER_BATTMONITOR
+		 */
+	} else {
+		__raw_writel(BM_POWER_CTRL_ENIRQBATT_BO,
+			HW_POWER_CTRL_CLR_ADDR);
+	}
+}
+
+void ddi_power_EnableDcdc4p2BoInterrupt(bool bEnable)
+{
+	if (bEnable) {
+
+		__raw_writel(BM_POWER_CTRL_DCDC4P2_BO_IRQ,
+			HW_POWER_CTRL_CLR_ADDR);
+		__raw_writel(BM_POWER_CTRL_ENIRQ_DCDC4P2_BO,
+			HW_POWER_CTRL_SET_ADDR);
+	} else {
+		__raw_writel(BM_POWER_CTRL_ENIRQ_DCDC4P2_BO,
+			HW_POWER_CTRL_CLR_ADDR);
+	}
+}
+
+void ddi_power_EnableVdd5vDroopInterrupt(bool bEnable)
+{
+	if (bEnable) {
+
+		__raw_writel(BM_POWER_CTRL_VDD5V_DROOP_IRQ,
+			HW_POWER_CTRL_CLR_ADDR);
+		__raw_writel(BM_POWER_CTRL_ENIRQ_VDD5V_DROOP,
+			HW_POWER_CTRL_SET_ADDR);
+	} else {
+		__raw_writel(BM_POWER_CTRL_ENIRQ_VDD5V_DROOP,
+			HW_POWER_CTRL_CLR_ADDR);
+	}
+}
+
+
+void ddi_power_Enable5vDisconnectShutdown(bool bEnable)
+{
+	if (bEnable) {
+		__raw_writel(BM_POWER_5VCTRL_PWDN_5VBRNOUT,
+			HW_POWER_5VCTRL_SET_ADDR);
+	} else {
+		__raw_writel(BM_POWER_5VCTRL_PWDN_5VBRNOUT,
+			HW_POWER_5VCTRL_CLR_ADDR);
+	}
+}
+
+
+void ddi_power_enable_5v_to_battery_xfer(bool bEnable)
+{
+	if (bEnable) {
+		/* order matters */
+
+		/* we can enable this in in vbus droop or 4p2 fiq handler
+		 * ddi_power_EnableBatteryBoInterrupt(true);
+		 */
+		ddi_power_Enable5vDisconnectShutdown(false);
+	} else {
+		/* order matters */
+		ddi_power_Enable5vDisconnectShutdown(true);
+		ddi_power_EnableBatteryBoInterrupt(false);
+	}
+}
+
+
+void ddi_power_init_4p2_protection(void)
+{
+	/* set vbus droop detection level to 4.3V */
+	__raw_writel(BM_POWER_5VCTRL_VBUSDROOP_TRSH,
+			HW_POWER_5VCTRL_CLR_ADDR);
+
+	/* VBUSDROOP THRESHOLD to 4.3V */
+	__raw_writel(BM_POWER_5VCTRL_VBUSDROOP_TRSH,
+		HW_POWER_5VCTRL_CLR_ADDR);
+
+	ddi_power_EnableVbusDroopIrq();
+
+	/* VBUSVALID THRESH = 2.9V */
+	__raw_writel(BM_POWER_5VCTRL_VBUSVALID_TRSH,
+		HW_POWER_5VCTRL_CLR_ADDR);
+
+}
+
+/* determine if all the bits are in a 'DCDC 4P2 Enabled' state. */
+bool ddi_power_check_4p2_bits(void)
+{
+
+
+	uint32_t temp;
+
+	temp = __raw_readl(HW_POWER_5VCTRL_ADDR) &
+		BM_POWER_5VCTRL_PWD_CHARGE_4P2;
+
+	/* if PWD_CHARGE_4P2 = 1, 4p2 is disabled */
+	if (temp)
+		return false;
+
+	temp = __raw_readl(HW_POWER_DCDC4P2_ADDR) &
+		BM_POWER_DCDC4P2_ENABLE_DCDC;
+
+	if (!temp)
+		return false;
+
+	temp = __raw_readl(HW_POWER_DCDC4P2_ADDR) &
+			BM_POWER_DCDC4P2_ENABLE_4P2;
+
+	if (temp)
+		return true;
+	else
+		return false;
+
+}
+
+uint16_t ddi_power_set_4p2_ilimit(uint16_t ilimit)
+{
+	uint32_t temp_reg;
+
+	if (ilimit > 780)
+		ilimit = 780;
+	temp_reg = __raw_readl(HW_POWER_5VCTRL_ADDR);
+	temp_reg &= (~BM_POWER_5VCTRL_CHARGE_4P2_ILIMIT);
+	temp_reg |= BF_POWER_5VCTRL_CHARGE_4P2_ILIMIT(
+		ddi_power_convert_current_to_setting(
+				ilimit));
+	__raw_writel(temp_reg, HW_POWER_5VCTRL_ADDR);
+
+	return ilimit;
+}
+
+void ddi_power_shutdown(void)
+{
+	__raw_writel(0x3e770001, HW_POWER_RESET_ADDR);
+}
+
+void ddi_power_handle_dcdc4p2_bo(void)
+{
+	ddi_power_EnableBatteryBoInterrupt(true);
+	ddi_power_EnableDcdc4p2BoInterrupt(false);
+}
+
+void ddi_power_enable_vddio_interrupt(bool enable)
+{
+	if (enable) {
+		__raw_writel(BM_POWER_CTRL_VDDIO_BO_IRQ,
+			HW_POWER_CTRL_CLR_ADDR);
+#ifndef DISABLE_VDDIO_BO_PROTECTION
+		__raw_writel(BM_POWER_CTRL_ENIRQ_VDDIO_BO,
+			HW_POWER_CTRL_SET_ADDR);
+#endif
+	} else {
+		__raw_writel(BM_POWER_CTRL_ENIRQ_VDDIO_BO,
+			HW_POWER_CTRL_CLR_ADDR);
+	}
+}
+
+void ddi_power_handle_vddio_brnout(void)
+{
+	if (ddi_power_GetPmu5vStatus() == new_5v_connection) {
+		ddi_power_enable_vddio_interrupt(false);
+	} else {
+#ifdef DEBUG_IRQS
+		ddi_power_enable_vddio_interrupt(false);
+		printk(KERN_ALERT "VDDIO BO TRIED TO SHUTDOWN!!!\n");
+		return;
+#else
+		ddi_power_shutdown();
+#endif
+	}
+}
+
+void ddi_power_handle_vdd5v_droop(void)
+{
+	uint32_t temp;
+
+	/* handle errata */
+	temp = __raw_readl(HW_POWER_DCDC4P2_ADDR);
+	temp |= (BF(31, POWER_DCDC4P2_CMPTRIP) | BM_POWER_DCDC4P2_TRG);
+	__raw_writel(temp, HW_POWER_DCDC4P2_ADDR);
+
+
+	/* if battery is below brownout level, shutdown asap */
+	if (__raw_readl(HW_POWER_STS_ADDR) & BM_POWER_STS_BATT_BO)
+		ddi_power_shutdown();
+
+	/* due to 5v connect vddio bo chip bug, we need to
+	 * disable vddio interrupts until we reset the 5v
+	 * detection for 5v connect detect.  We want to allow
+	 * some debounce time before enabling connect detection.
+	 */
+	ddi_power_enable_vddio_interrupt(false);
+
+	ddi_power_EnableBatteryBoInterrupt(true);
+	ddi_power_EnableDcdc4p2BoInterrupt(false);
+	ddi_power_EnableVdd5vDroopInterrupt(false);
+
+}
+
+void ddi_power_InitOutputBrownouts(void)
+{
+	uint32_t temp;
+
+	__raw_writel(BM_POWER_CTRL_VDDD_BO_IRQ |
+		BM_POWER_CTRL_VDDA_BO_IRQ |
+		BM_POWER_CTRL_VDDIO_BO_IRQ,
+		HW_POWER_CTRL_CLR_ADDR);
+
+	__raw_writel(BM_POWER_CTRL_ENIRQ_VDDD_BO |
+		BM_POWER_CTRL_ENIRQ_VDDA_BO |
+		BM_POWER_CTRL_ENIRQ_VDDIO_BO,
+		HW_POWER_CTRL_SET_ADDR);
+
+	temp = __raw_readl(HW_POWER_VDDDCTRL_ADDR);
+	temp &= ~BM_POWER_VDDDCTRL_PWDN_BRNOUT;
+	__raw_writel(temp, HW_POWER_VDDDCTRL_ADDR);
+
+	temp = __raw_readl(HW_POWER_VDDACTRL_ADDR);
+	temp &= ~BM_POWER_VDDACTRL_PWDN_BRNOUT;
+	__raw_writel(temp, HW_POWER_VDDACTRL_ADDR);
+
+	temp = __raw_readl(HW_POWER_VDDIOCTRL_ADDR);
+	temp &= ~BM_POWER_VDDIOCTRL_PWDN_BRNOUT;
+	__raw_writel(temp, HW_POWER_VDDIOCTRL_ADDR);
+}
+
+/* used for debugging purposes only */
+void ddi_power_disable_power_interrupts(void)
+{
+	__raw_writel(BM_POWER_CTRL_ENIRQ_DCDC4P2_BO |
+		BM_POWER_CTRL_ENIRQ_VDD5V_DROOP |
+		BM_POWER_CTRL_ENIRQ_PSWITCH |
+		BM_POWER_CTRL_ENIRQ_DC_OK |
+		BM_POWER_CTRL_ENIRQBATT_BO |
+		BM_POWER_CTRL_ENIRQ_VDDIO_BO |
+		BM_POWER_CTRL_ENIRQ_VDDA_BO |
+		BM_POWER_CTRL_ENIRQ_VDDD_BO |
+		BM_POWER_CTRL_ENIRQ_VBUS_VALID |
+		BM_POWER_CTRL_ENIRQ_VDD5V_GT_VDDIO,
+		HW_POWER_CTRL_CLR_ADDR);
+
+}
+
+bool ddi_power_Get5vDroopFlag(void)
+{
+	if (__raw_readl(HW_POWER_STS_ADDR) &
+		BM_POWER_STS_VDD5V_DROOP)
+		return true;
+	else
+		return false;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 // End of file

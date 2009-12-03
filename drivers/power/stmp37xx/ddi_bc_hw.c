@@ -75,69 +75,6 @@ ddi_bc_BatteryMode_t ddi_bc_hwGetBatteryMode(void)
 	return (ddi_bc_BatteryMode_t) ddi_power_GetBatteryMode();
 }
 
-////////////////////////////////////////////////////////////////////////////////
-//!
-//! \brief Report the bias current source.
-//!
-//! \fntype Function
-//!
-//! This function  Battery Charger.
-//!
-//! \retval  A value that indicates the current bias current source.
-//!
-////////////////////////////////////////////////////////////////////////////////
-ddi_bc_BiasCurrentSource_t ddi_bc_hwGetBiasCurrentSource(void)
-{
-	// TODO: replace ddi_bc_BiasCurrentSource_t() with the function below.
-	return (ddi_bc_BiasCurrentSource_t) ddi_power_GetBiasCurrentSource();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-//!
-//! \brief Sets the bias current source.
-//!
-//! \fntype Function
-//!
-//! This function sets the bias current source used by the battery charger
-//! hardware. The battery charger is usually configured to use an externally
-//! generated bias current, which is expected to be quite precise. To reduce
-//! component count, for example, it can be configured to generate a lesser-
-//! quality bias current internally.
-//!
-//! \param[in]  source  Indicates the source of the bias current.
-//!
-//! \retval  DDI_BC_STATUS_SUCCESS       If the operation succeeded.
-//! \retval  DDI_BC_STATUS_BAD_ARGUMENT  If the given source argument isn't one
-//!                                      of the expected values.
-//!
-////////////////////////////////////////////////////////////////////////////////
-ddi_bc_Status_t ddi_bc_hwSetBiasCurrentSource(ddi_bc_BiasCurrentSource_t source)
-{
-	ddi_power_BiasCurrentSource_t eSource =
-	    (ddi_power_BiasCurrentSource_t) source;
-
-	//--------------------------------------------------------------------------
-	// In the following code, there are two points that can be confusing. Both
-	// of these problems derive from silliness in the data sheet.
-	//
-	// The field of interest here is HW_POWER_BATTCHRG.USE_EXTERN_R. This is
-	// poorly named for two reasons:
-	//
-	// 1) What we're really doing is selecting the source of the bias current.
-	//    If the application chooses to use an external bias current, then
-	//    there will, of course, be a resistor involved (apparently, a good-
-	//    quality one at about 620 Ohms).
-	//
-	// 2) If the bit is SET, that tells the hardware to use the INTERNAL bias
-	//    current. If this bit is CLEAR, that tells the hardware to use the
-	//    EXTERNAL bias current. Thus, the actual logic for this bit is
-	//    reversed from the sense indicated by its name.
-	//--------------------------------------------------------------------------
-
-	// TODO: replace all ddi_bc_hwSetBiasCurrentSource() with function  below.
-	return (ddi_bc_Status_t) ddi_power_SetBiasCurrentSource(eSource);
-
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 //!
