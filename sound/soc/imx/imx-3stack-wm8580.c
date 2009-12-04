@@ -78,7 +78,7 @@ static int imx_3stack_startup(struct snd_pcm_substream *substream)
 {
 	clk_state.lr_clk_active++;
 #if defined(CONFIG_MXC_ASRC) || defined(CONFIG_MXC_ASRC_MODULE)
-	if (asrc_esai_data.output_sample_rate != 0) {
+	if (asrc_esai_data.output_sample_rate >= 32000) {
 		struct snd_soc_pcm_runtime *rtd = substream->private_data;
 		struct snd_soc_dai_link *pcm_link = rtd->dai;
 		struct snd_soc_dai *cpu_dai = pcm_link->cpu_dai;
@@ -102,7 +102,7 @@ static void imx_3stack_shutdown(struct snd_pcm_substream *substream)
 	struct snd_soc_dai *codec_dai = pcm_link->codec_dai;
 
 #if defined(CONFIG_MXC_ASRC) || defined(CONFIG_MXC_ASRC_MODULE)
-	if (asrc_esai_data.output_sample_rate != 0) {
+	if (asrc_esai_data.output_sample_rate >= 32000) {
 		struct snd_soc_dai *cpu_dai = pcm_link->cpu_dai;
 		codec_dai->playback.rates = asrc_esai_data.codec_dai_rates;
 		cpu_dai->playback.rates = asrc_esai_data.cpu_dai_rates;
@@ -133,7 +133,7 @@ static int imx_3stack_surround_hw_params(struct snd_pcm_substream *substream,
 		return 0;
 
 #if defined(CONFIG_MXC_ASRC) || defined(CONFIG_MXC_ASRC_MODULE)
-	if (asrc_esai_data.output_sample_rate != 0) {
+	if (asrc_esai_data.output_sample_rate >= 32000) {
 		unsigned int asrc_input_rate = rate;
 		struct mxc_runtime_data *pcm_data =
 		    substream->runtime->private_data;
@@ -279,12 +279,12 @@ static const struct snd_soc_dapm_route audio_map[] = {
 static int asrc_func;
 
 static const char *asrc_function[] =
-    { "disable", "8KHz", "11.025KHz", "16KHz", "22.05KHz", "32KHz", "44.1KHz",
+    { "disable", "32KHz", "44.1KHz",
 	"48KHz", "64KHz", "88.2KHz", "96KHz", "176.4KHz", "192KHz"
 };
 
 static const struct soc_enum asrc_enum[] = {
-	SOC_ENUM_SINGLE_EXT(13, asrc_function),
+	SOC_ENUM_SINGLE_EXT(9, asrc_function),
 };
 
 static int asrc_get_rate(struct snd_kcontrol *kcontrol,
@@ -301,7 +301,7 @@ static int asrc_set_rate(struct snd_kcontrol *kcontrol,
 		return 0;
 
 	asrc_func = ucontrol->value.enumerated.item[0];
-	asrc_esai_data.output_sample_rate = asrc_rates[asrc_func];
+	asrc_esai_data.output_sample_rate = asrc_rates[asrc_func + 4];
 
 	return 1;
 }
@@ -325,7 +325,7 @@ static int imx_3stack_wm8580_init(struct snd_soc_codec *codec)
 		if (ret < 0)
 			return ret;
 	}
-	asrc_esai_data.output_sample_rate = asrc_rates[asrc_func];
+	asrc_esai_data.output_sample_rate = asrc_rates[asrc_func + 4];
 #endif
 
 	snd_soc_dapm_new_controls(codec, imx_3stack_dapm_widgets,
