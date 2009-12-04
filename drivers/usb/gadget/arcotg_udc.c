@@ -109,10 +109,11 @@ dr_wake_up_enable(struct fsl_udc *udc, bool enable)
 	struct fsl_usb2_platform_data *pdata;
 	pdata = udc->pdata;
 
-	if (device_may_wakeup(udc_controller->gadget.dev.parent)) {
-		if (pdata->wake_up_enable)
-			pdata->wake_up_enable(pdata, enable);
-	}
+	if (enable && (!device_may_wakeup(udc_controller->gadget.dev.parent)))
+		return;
+
+	if (pdata->wake_up_enable)
+		pdata->wake_up_enable(pdata, enable);
 }
 
 #ifdef CONFIG_PPC32
@@ -2855,6 +2856,9 @@ static int __init fsl_udc_probe(struct platform_device *pdev)
 	last_free_td = NULL;
 #endif
 
+	/* disable all INTR */
+	fsl_writel(0, &dr_regs->usbintr);
+
 	dr_wake_up_enable(udc_controller, false);
 	udc_controller->stopped = 1;
 
@@ -2993,7 +2997,9 @@ out:
  -----------------------------------------------------------------*/
 static int fsl_udc_suspend(struct platform_device *pdev, pm_message_t state)
 {
-	if ((udc_controller->usb_state > USB_STATE_POWERED) &&
+	if (((!(udc_controller->gadget.is_otg)) ||
+			(fsl_readl(&dr_regs->otgsc) & OTGSC_STS_USB_ID)) &&
+			(udc_controller->usb_state > USB_STATE_POWERED) &&
 			(udc_controller->usb_state < USB_STATE_SUSPENDED))
 		return -EBUSY;
 

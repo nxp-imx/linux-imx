@@ -88,13 +88,10 @@ EXPORT_SYMBOL(usbh2_put_xcvr_power);
 
 static int __init usbh2_init(void)
 {
-	struct platform_device *pdev;
 	pr_debug("%s: \n", __func__);
 
-	pdev = host_pdev_register(usbh2_resources, ARRAY_SIZE(usbh2_resources),
+	host_pdev_register(usbh2_resources, ARRAY_SIZE(usbh2_resources),
 			   &usbh2_config);
-	if (pdev)
-		device_init_wakeup(&(pdev->dev), 1);
 	return 0;
 }
 module_init(usbh2_init);
