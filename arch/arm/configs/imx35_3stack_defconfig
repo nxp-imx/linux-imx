@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # Linux kernel version: 2.6.31
-# Thu Oct 29 17:06:56 2009
+# Sat Dec  5 22:30:18 2009
 #
 CONFIG_ARM=y
 CONFIG_SYS_SUPPORTS_APM_EMULATION=y
@@ -519,6 +519,7 @@ CONFIG_MTD_MXC=y
 # Self-contained MTD device drivers
 #
 # CONFIG_MTD_DATAFLASH is not set
+# CONFIG_MTD_MXC_DATAFLASH is not set
 # CONFIG_MTD_M25P80 is not set
 # CONFIG_MTD_SLRAM is not set
 # CONFIG_MTD_PHRAM is not set
@@ -1080,7 +1081,7 @@ CONFIG_VIDEO_MXC_IPU_CAMERA=y
 # CONFIG_MXC_CAMERA_MICRON111 is not set
 CONFIG_MXC_CAMERA_OV2640=m
 # CONFIG_MXC_CAMERA_OV3640 is not set
-# CONFIG_MXC_TVIN_ADV7180 is not set
+CONFIG_MXC_TVIN_ADV7180=m
 CONFIG_MXC_IPU_PRP_VF_SDC=m
 CONFIG_MXC_IPU_PRP_ENC=m
 CONFIG_MXC_IPU_CSI_ENC=m
