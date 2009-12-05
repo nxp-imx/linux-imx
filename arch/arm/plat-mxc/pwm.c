@@ -78,7 +78,7 @@ int pwm_config(struct pwm_device *pwm, int duty_ns, int period_ns)
 
 		writel(duty_cycles, pwm->mmio_base + MX3_PWMSAR);
 		writel(period_cycles, pwm->mmio_base + MX3_PWMPR);
-		writel(MX3_PWMCR_PRESCALER(prescale - 1) |
+		writel(MX3_PWMCR_PRESCALER(prescale) |
 			MX3_PWMCR_CLKSRC_IPG_HIGH |
 			MX3_PWMCR_STOPEN | MX3_PWMCR_DOZEEN |
 			MX3_PWMCR_WAITEN | MX3_PWMCR_DBGEN,
