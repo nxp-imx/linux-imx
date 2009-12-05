@@ -644,7 +644,8 @@ static struct spi_board_info mxc_spi_nor_device[] __initdata = {
 };
 
 static struct spi_board_info mxc_dataflash_device[] __initdata = {
-#if defined(CONFIG_MTD) || defined(CONFIG_MTD_MODULE)
+#if defined(CONFIG_MTD_MXC_DATAFLASH) \
+	|| defined(CONFIG_MTD_MXC_DATAFLASH_MODULE)
 	{
 	 .modalias = "mxc_dataflash",
 	 .max_speed_hz = 25000000,	/* max spi clock (SCK) speed in HZ */
