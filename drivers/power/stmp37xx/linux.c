@@ -959,9 +959,7 @@ static int stmp3xxx_bat_suspend(struct platform_device *pdev, pm_message_t msg)
 
 	mutex_lock(&info->sm_lock);
 
-	/* disable 5v irq */
-	__raw_writel(BM_POWER_CTRL_ENIRQ_VDD5V_GT_VDDIO,
-		REGS_POWER_BASE + HW_POWER_CTRL_CLR);
+	/* enable USB 5v wake up so don't disable irq here*/
 
 	ddi_bc_SetDisable();
 	/* cancel state machine timer */
