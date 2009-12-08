@@ -90,6 +90,8 @@ static int prp_still_start(void *private)
 
 	if (cam->v2f.fmt.pix.pixelformat == V4L2_PIX_FMT_YUV420)
 		pixel_fmt = IPU_PIX_FMT_YUV420P;
+	else if (cam->v2f.fmt.pix.pixelformat == V4L2_PIX_FMT_NV12)
+		pixel_fmt = IPU_PIX_FMT_NV12;
 	else if (cam->v2f.fmt.pix.pixelformat == V4L2_PIX_FMT_YUV422P)
 		pixel_fmt = IPU_PIX_FMT_YUV422P;
 	else if (cam->v2f.fmt.pix.pixelformat == V4L2_PIX_FMT_UYVY)
