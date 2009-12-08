@@ -47,6 +47,9 @@
 
 #define V4L2_OUTPUT_TYPE_INTERNAL	4
 
+#define PXP_WAITCON	((__raw_readl(HW_PXP_NEXT_ADDR) & BM_PXP_NEXT_ENABLED) \
+				!= BM_PXP_NEXT_ENABLED)
+
 #define REG_OFFSET	0x10
 #define REGS1_NUMS	16
 #define REGS2_NUMS	5
@@ -170,15 +173,15 @@ static void pxp_set_ctrl(struct pxps *pxp)
 		ctrl |= BM_PXP_CTRL_ENABLE;
 
 	__raw_writel(ctrl, HW_PXP_CTRL_ADDR);
+	pxp->regs_virt->ctrl = ctrl;
 }
 
 static void pxp_set_rgbbuf(struct pxps *pxp)
 {
-	__raw_writel(pxp->outb_phys, HW_PXP_RGBBUF_ADDR);
+	pxp->regs_virt->rgbbuf = pxp->outb_phys;
 	/* Always equal to the FB size */
-	__raw_writel(BF(pxp->fb.fmt.width, PXP_RGBSIZE_WIDTH) |
-			  BF(pxp->fb.fmt.height, PXP_RGBSIZE_HEIGHT),
-			  HW_PXP_RGBSIZE_ADDR);
+	pxp->regs_virt->rgbsize = BF(pxp->fb.fmt.width, PXP_RGBSIZE_WIDTH) |
+				BF(pxp->fb.fmt.height, PXP_RGBSIZE_HEIGHT);
 }
 
 static void pxp_set_s0colorkey(struct pxps *pxp)
@@ -186,11 +189,11 @@ static void pxp_set_s0colorkey(struct pxps *pxp)
 	/* Low and high are set equal. V4L does not allow a chromakey range */
 	if (pxp->s0_chromakey == -1) {
 		/* disable color key */
-		__raw_writel(0xFFFFFF, HW_PXP_S0COLORKEYLOW_ADDR);
-		__raw_writel(0, HW_PXP_S0COLORKEYHIGH_ADDR);
+		pxp->regs_virt->s0colorkeylow = 0xFFFFFF;
+		pxp->regs_virt->s0colorkeyhigh = 0;
 	} else {
-		__raw_writel(pxp->s0_chromakey, HW_PXP_S0COLORKEYLOW_ADDR);
-		__raw_writel(pxp->s0_chromakey, HW_PXP_S0COLORKEYHIGH_ADDR);
+		pxp->regs_virt->s0colorkeylow = pxp->s0_chromakey;
+		pxp->regs_virt->s0colorkeyhigh = pxp->s0_chromakey;
 	}
 }
 
@@ -198,21 +201,21 @@ static void pxp_set_s1colorkey(struct pxps *pxp)
 {
 	/* Low and high are set equal. V4L does not allow a chromakey range */
 	if (pxp->s1_chromakey_state != 0 && pxp->s1_chromakey != -1) {
-		__raw_writel(pxp->s1_chromakey, HW_PXP_OLCOLORKEYLOW_ADDR);
-		__raw_writel(pxp->s1_chromakey, HW_PXP_OLCOLORKEYHIGH_ADDR);
+		pxp->regs_virt->olcolorkeylow = pxp->s1_chromakey;
+		pxp->regs_virt->olcolorkeyhigh = pxp->s1_chromakey;
 	} else {
 		/* disable color key */
-		__raw_writel(0xFFFFFF, HW_PXP_OLCOLORKEYLOW_ADDR);
-		__raw_writel(0, HW_PXP_OLCOLORKEYHIGH_ADDR);
+		pxp->regs_virt->olcolorkeylow = 0xFFFFFF;
+		pxp->regs_virt->olcolorkeyhigh = 0;
 	}
 }
 
 static void pxp_set_oln(struct pxps *pxp)
 {
-	__raw_writel((u32)pxp->fb.base, HW_PXP_OLn_ADDR(0));
-	__raw_writel(BF(pxp->fb.fmt.width >> 3, PXP_OLnSIZE_WIDTH) |
-				BF(pxp->fb.fmt.height >> 3, PXP_OLnSIZE_HEIGHT),
-				HW_PXP_OLnSIZE_ADDR(0));
+	pxp->regs_virt->ol0.ol = (u32)pxp->fb.base;
+	pxp->regs_virt->ol0.olsize =
+		BF(pxp->fb.fmt.width >> 3, PXP_OLnSIZE_WIDTH) |
+		BF(pxp->fb.fmt.height >> 3, PXP_OLnSIZE_HEIGHT);
 }
 
 static void pxp_set_olparam(struct pxps *pxp)
@@ -234,7 +237,8 @@ static void pxp_set_olparam(struct pxps *pxp)
 		olparam |= BM_PXP_OLnPARAM_ENABLE_COLORKEY;
 	if (pxp->overlay_state)
 		olparam |= BM_PXP_OLnPARAM_ENABLE;
-	__raw_writel(olparam, HW_PXP_OLnPARAM_ADDR(0));
+
+	pxp->regs_virt->ol0.olparam = olparam;
 }
 
 static void pxp_set_s0param(struct pxps *pxp)
@@ -245,7 +249,7 @@ static void pxp_set_s0param(struct pxps *pxp)
 	s0param |= BF(pxp->drect.top >> 3, PXP_S0PARAM_YBASE);
 	s0param |= BF(pxp->s0_width >> 3, PXP_S0PARAM_WIDTH);
 	s0param |= BF(pxp->s0_height >> 3, PXP_S0PARAM_HEIGHT);
-	__raw_writel(s0param, HW_PXP_S0PARAM_ADDR);
+	pxp->regs_virt->s0param = s0param;
 }
 
 static void pxp_set_s0crop(struct pxps *pxp)
@@ -256,7 +260,7 @@ static void pxp_set_s0crop(struct pxps *pxp)
 	s0crop |= BF(pxp->srect.top >> 3, PXP_S0CROP_YBASE);
 	s0crop |= BF(pxp->drect.width >> 3, PXP_S0CROP_WIDTH);
 	s0crop |= BF(pxp->drect.height >> 3, PXP_S0CROP_HEIGHT);
-	__raw_writel(s0crop, HW_PXP_S0CROP_ADDR);
+	pxp->regs_virt->s0crop = s0crop;
 }
 
 static int pxp_set_scaling(struct pxps *pxp)
@@ -282,7 +286,7 @@ static int pxp_set_scaling(struct pxps *pxp)
 	yscale = pxp->srect.height * 0x1000 / pxp->drect.height;
 	s0scale = BF(yscale, PXP_S0SCALE_YSCALE) |
 		  BF(xscale, PXP_S0SCALE_XSCALE);
-	__raw_writel(s0scale, HW_PXP_S0SCALE_ADDR);
+	pxp->regs_virt->s0scale = s0scale;
 
 out:
 	pxp_set_ctrl(pxp);
@@ -311,7 +315,7 @@ static int pxp_set_fbinfo(struct pxps *pxp)
 
 static void pxp_set_s0bg(struct pxps *pxp)
 {
-	__raw_writel(pxp->s0_bgcolor, HW_PXP_S0BACKGROUND_ADDR);
+	pxp->regs_virt->s0background = pxp->s0_bgcolor;
 }
 
 static void pxp_set_csc(struct pxps *pxp)
@@ -703,7 +707,6 @@ static int pxp_buf_prepare(struct videobuf_queue *q,
 	vb->field = V4L2_FIELD_NONE;
 	vb->state = VIDEOBUF_NEEDS_INIT;
 
-
 	ret = videobuf_iolock(q, vb, NULL);
 	if (ret)
 		goto fail;
@@ -716,14 +719,14 @@ fail:
 	return ret;
 }
 
-static void pxp_buf_output(struct pxps *pxp)
+static void pxp_buf_next(struct pxps *pxp)
 {
 	dma_addr_t Y, U, V;
 
 	if (pxp->active) {
 		pxp->active->state = VIDEOBUF_ACTIVE;
 		Y = videobuf_to_dma_contig(pxp->active);
-		__raw_writel(Y, HW_PXP_S0BUF_ADDR);
+		pxp->regs_virt->s0buf = Y;
 		if ((pxp->s0_fmt->fourcc == V4L2_PIX_FMT_YUV420) ||
 		    (pxp->s0_fmt->fourcc == V4L2_PIX_FMT_YUV422P)) {
 			int s = 1;	/* default to YUV 4:2:2 */
@@ -731,27 +734,74 @@ static void pxp_buf_output(struct pxps *pxp)
 				s = 2;
 			U = Y + (pxp->s0_width * pxp->s0_height);
 			V = U + ((pxp->s0_width * pxp->s0_height) >> s);
-			__raw_writel(U, HW_PXP_S0UBUF_ADDR);
-			__raw_writel(V, HW_PXP_S0VBUF_ADDR);
+			pxp->regs_virt->s0ubuf = U;
+			pxp->regs_virt->s0vbuf = V;
 		}
-		__raw_writel(BM_PXP_CTRL_ENABLE, HW_PXP_CTRL_SET_ADDR);
+		pxp->regs_virt->ctrl =
+			__raw_readl(HW_PXP_CTRL_ADDR) | BM_PXP_CTRL_ENABLE;
 	}
+
+	__raw_writel(pxp->regs_phys, HW_PXP_NEXT_ADDR);
+}
+
+static void pxp_next_handle(struct work_struct *w)
+{
+	struct pxps *pxp = container_of(w, struct pxps, work);
+	struct pxp_buffer *buf, *next;
+	unsigned long flags;
+
+	if (pxp->next_queue_ended == 1)
+		return;
+
+	spin_lock_irqsave(&pxp->lock, flags);
+
+	while (!list_empty(&pxp->nextq)) {
+		spin_unlock_irqrestore(&pxp->lock, flags);
+
+		if (!wait_event_interruptible_timeout(pxp->done, PXP_WAITCON,
+					5 * HZ) || signal_pending(current)) {
+			spin_lock_irqsave(&pxp->lock, flags);
+			list_for_each_entry_safe(buf, next, &pxp->nextq, queue)
+				list_del(&buf->queue);
+			spin_unlock_irqrestore(&pxp->lock, flags);
+			pxp->next_queue_ended = 1;
+			return;
+		}
+
+		spin_lock_irqsave(&pxp->lock, flags);
+		buf = list_entry(pxp->nextq.next,
+					struct pxp_buffer,
+					queue);
+		list_del_init(&buf->queue);
+		pxp->active = &buf->vb;
+		pxp->active->state = VIDEOBUF_QUEUED;
+		pxp_buf_next(pxp);
+	}
+
+	spin_unlock_irqrestore(&pxp->lock, flags);
 }
 
 static void pxp_buf_queue(struct videobuf_queue *q,
 			struct videobuf_buffer *vb)
 {
 	struct pxps *pxp = q->priv_data;
+	struct pxp_buffer *buf;
 	unsigned long flags;
 
 	spin_lock_irqsave(&pxp->lock, flags);
 
-	list_add_tail(&vb->queue, &pxp->outq);
-	vb->state = VIDEOBUF_QUEUED;
+	if (list_empty(&pxp->outq)) {
+		list_add_tail(&vb->queue, &pxp->outq);
+		vb->state = VIDEOBUF_QUEUED;
 
-	if (!pxp->active) {
 		pxp->active = vb;
-		pxp_buf_output(pxp);
+		pxp_buf_next(pxp);
+	} else {
+		list_add_tail(&vb->queue, &pxp->outq);
+
+		buf = container_of(vb, struct pxp_buffer, vb);
+		list_add_tail(&buf->queue, &pxp->nextq);
+		queue_work(pxp->workqueue, &pxp->work);
 	}
 
 	spin_unlock_irqrestore(&pxp->lock, flags);
@@ -1015,11 +1065,13 @@ static int pxp_open(struct file *file)
 		ret = -EBUSY;
 		goto out;
 	}
-
 out:
 	mutex_unlock(&pxp->mutex);
 	if (ret)
 		return ret;
+
+	pxp->next_queue_ended = 0;
+	pxp->workqueue = create_singlethread_workqueue("pxp");
 
 	videobuf_queue_dma_contig_init(&pxp->s0_vbq,
 				&pxp_vbq_ops,
@@ -1027,7 +1079,7 @@ out:
 				&pxp->lock,
 				V4L2_BUF_TYPE_VIDEO_OUTPUT,
 				V4L2_FIELD_NONE,
-				sizeof(struct videobuf_buffer),
+				sizeof(struct pxp_buffer),
 				pxp);
 
 	return 0;
@@ -1037,8 +1089,12 @@ static int pxp_close(struct file *file)
 {
 	struct pxps *pxp = video_get_drvdata(video_devdata(file));
 
+	if (pxp->workqueue)
+		destroy_workqueue(pxp->workqueue);
+
 	videobuf_stop(&pxp->s0_vbq);
 	videobuf_mmap_free(&pxp->s0_vbq);
+	pxp->active = NULL;
 
 	mutex_lock(&pxp->mutex);
 	pxp->users--;
@@ -1121,27 +1177,23 @@ static irqreturn_t pxp_irq(int irq, void *dev_id)
 
 	__raw_writel(BM_PXP_STAT_IRQ, HW_PXP_STAT_CLR_ADDR);
 
-	vb = pxp->active;
+	if (list_empty(&pxp->outq)) {
+		pr_warning("irq: outq empty!!!\n");
+		goto out;
+	}
+
+	vb = list_entry(pxp->outq.next,
+				struct videobuf_buffer,
+				queue);
+	list_del_init(&vb->queue);
+
 	vb->state = VIDEOBUF_DONE;
 	do_gettimeofday(&vb->ts);
 	vb->field_count++;
 
-	list_del_init(&vb->queue);
-
-	if (list_empty(&pxp->outq)) {
-		pxp->active = NULL;
-		goto out;
-	}
-
-	pxp->active = list_entry(pxp->outq.next,
-				struct videobuf_buffer,
-				queue);
-
-	pxp_buf_output(pxp);
-
-out:
 	wake_up(&vb->done);
-
+	wake_up(&pxp->done);
+out:
 	spin_unlock_irqrestore(&pxp->lock, flags);
 
 	return IRQ_HANDLED;
@@ -1172,7 +1224,20 @@ static int pxp_probe(struct platform_device *pdev)
 	pxp->res = res;
 	pxp->irq = irq;
 
+	pxp->regs_virt = dma_alloc_coherent(NULL,
+				PAGE_ALIGN(sizeof(struct pxp_registers)),
+				&pxp->regs_phys, GFP_KERNEL);
+	if (pxp->regs_virt == NULL) {
+		dev_err(&pdev->dev, "failed to allocate pxp_register object\n");
+		err = -ENOMEM;
+		goto exit;
+	}
+
+	init_waitqueue_head(&pxp->done);
+
+	INIT_WORK(&pxp->work, pxp_next_handle);
 	INIT_LIST_HEAD(&pxp->outq);
+	INIT_LIST_HEAD(&pxp->nextq);
 	spin_lock_init(&pxp->lock);
 	mutex_init(&pxp->mutex);
 
@@ -1241,6 +1306,9 @@ static int __devexit pxp_remove(struct platform_device *pdev)
 	video_unregister_device(pxp->vdev);
 	video_device_release(pxp->vdev);
 
+	if (pxp->regs_virt)
+		dma_free_coherent(0, PAGE_ALIGN(sizeof(struct pxp_registers)),
+				pxp->regs_virt, pxp->regs_phys);
 	kfree(pxp->outb);
 	kfree(pxp);
 

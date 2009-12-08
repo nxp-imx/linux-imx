@@ -16,12 +16,56 @@
  * http://www.gnu.org/copyleft/gpl.html
  */
 
+struct pxp_overlay_registers {
+	u32 ol;
+	u32 olsize;
+	u32 olparam;
+	u32 olparam2;
+};
+
+/* Registers feed for PXP_NEXT */
+struct pxp_registers {
+	u32 ctrl;
+	u32 rgbbuf;
+	u32 rgbbuf2;
+	u32 rgbsize;
+	u32 s0buf;
+	u32 s0ubuf;
+	u32 s0vbuf;
+	u32 s0param;
+	u32 s0background;
+	u32 s0crop;
+	u32 s0scale;
+	u32 s0offset;
+	u32 s0colorkeylow;
+	u32 s0colorkeyhigh;
+	u32 olcolorkeylow;
+	u32 olcolorkeyhigh;
+
+	struct pxp_overlay_registers ol0;
+	struct pxp_overlay_registers ol1;
+	struct pxp_overlay_registers ol2;
+	struct pxp_overlay_registers ol3;
+	struct pxp_overlay_registers ol4;
+	struct pxp_overlay_registers ol5;
+	struct pxp_overlay_registers ol6;
+	struct pxp_overlay_registers ol7;
+};
+
+struct pxp_buffer {
+	/* Must be first! */
+	struct videobuf_buffer vb;
+	struct list_head queue;
+};
+
 struct pxps {
 	struct platform_device *pdev;
 	struct resource *res;
 	int irq;
 	void __iomem *regs;
 
+	struct work_struct work;
+	struct workqueue_struct *workqueue;
 	spinlock_t lock;
 	struct mutex mutex;
 	int users;
@@ -31,6 +75,7 @@ struct pxps {
 	struct videobuf_queue s0_vbq;
 	struct videobuf_buffer *active;
 	struct list_head outq;
+	struct list_head nextq;
 
 	int output;
 	u32 *outb;
@@ -61,6 +106,12 @@ struct pxps {
 	int local_alpha_state;
 	int s1_chromakey_state;
 	u32 s1_chromakey;
+
+	/* PXP_NEXT */
+	u32 regs_phys;
+	struct pxp_registers *regs_virt;
+	wait_queue_head_t done;
+	int next_queue_ended;
 };
 
 struct pxp_data_format {
