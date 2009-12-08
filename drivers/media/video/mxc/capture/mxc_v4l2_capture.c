@@ -1135,10 +1135,12 @@ static int mxc_v4l2_s_param(cam_data *cam, struct v4l2_streamparm *parm)
 
 	/*
 	 * Set the default current cropped resolution to be the same with
-	 * the cropping boundary.
+	 * the cropping boundary(except for tvin module).
 	 */
-	cam->crop_current.width = cam->crop_bounds.width;
-	cam->crop_current.height = cam->crop_bounds.height;
+	if (cam->device_type != 1) {
+		cam->crop_current.width = cam->crop_bounds.width;
+		cam->crop_current.height = cam->crop_bounds.height;
+	}
 
 	/* This essentially loses the data at the left and bottom of the image
 	 * giving a digital zoom image, if crop_current is less than the full
