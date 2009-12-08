@@ -160,7 +160,7 @@ static long clk = -1;
  * hardware block for error correction.
  */
 
-static int bch = 0/* = 0 */;
+static int bch = 1;
 
 /* Forward references. */
 
@@ -1580,7 +1580,7 @@ int gpmi_ecc_read_oob(struct mtd_info *mtd, struct nand_chip *chip,
 	ecc = g->raw_oob_mode == 0 && raw_mode == 0;
 
 	if (sndcmd) {
-		if (!bch_mode())
+		if (!bch_mode() || !ecc)
 			oob_offset = mtd->writesize;
 		if (likely(ecc) && !bch_mode())
 			oob_offset += chip->ecc.bytes * chip->ecc.steps;
@@ -1606,7 +1606,7 @@ int gpmi_ecc_read_oob(struct mtd_info *mtd, struct nand_chip *chip,
 	if (map_buffers && bch_mode())
 		bufphys = dma_map_single(&g->dev->dev, chip->buffers->databuf,
 				mtd->writesize, DMA_FROM_DEVICE);
-	if (dma_mapping_error(&g->dev->dev, bufphys))
+	if (bch_mode() && dma_mapping_error(&g->dev->dev, bufphys))
 		bufphys = g->data_buffer_handle;
 
 	/* ECC read */
@@ -1657,8 +1657,8 @@ static int gpmi_ecc_write_oob(struct mtd_info *mtd, struct nand_chip *chip,
 {
 	int status = 0;
 	struct gpmi_nand_data *g = chip->priv;
-	loff_t oob_offset;
-	dma_addr_t oobphys;
+	loff_t oob_offset = 0;
+	dma_addr_t oobphys, bufphys;
 	int ecc;
 	int err = 0;
 
@@ -1674,12 +1674,15 @@ static int gpmi_ecc_write_oob(struct mtd_info *mtd, struct nand_chip *chip,
 	ecc = g->raw_oob_mode == 0 && raw_mode == 0;
 
 	/* Send command to start input data     */
-	oob_offset = mtd->writesize;
-	if (likely(ecc)) {
-		oob_offset += chip->ecc.bytes * chip->ecc.steps;
-		memset(chip->oob_poi + g->oob_free, 0xff,
-		       mtd->oobsize - g->oob_free);
+	if (!bch_mode() || !ecc) {
+		oob_offset = mtd->writesize;
+		if (likely(ecc)) {
+			oob_offset += chip->ecc.bytes * chip->ecc.steps;
+			memset(chip->oob_poi + g->oob_free, 0xff,
+			       mtd->oobsize - g->oob_free);
+		}
 	}
+
 	chip->cmdfunc(mtd, NAND_CMD_SEQIN, oob_offset, page);
 
 	/* call ECC */
@@ -1696,8 +1699,15 @@ static int gpmi_ecc_write_oob(struct mtd_info *mtd, struct nand_chip *chip,
 			copies++;
 		}
 
+		bufphys = ~0;
+
+		if (bch_mode()) {
+			bufphys = g->data_buffer_handle;
+			memset(g->data_buffer, 0xff, mtd->writesize);
+		}
+
 		g->hc->write(g->hc, g->selected_chip, g->cchip->d,
-			     g->cchip->error.handle, ~0, oobphys);
+			     g->cchip->error.handle, bufphys, oobphys);
 
 		err = gpmi_dma_exchange(g, NULL);
 	} else
@@ -2101,6 +2111,7 @@ static int gpmi_get_device_info(struct gpmi_nand_data *g)
 static int gpmi_scan_middle(struct gpmi_nand_data *g)
 {
 	int oobsize = 0;
+	int index = 0;
 
 	/*
 	 * Hook the command function provided by the reference implementation.
@@ -2134,6 +2145,10 @@ static int gpmi_scan_middle(struct gpmi_nand_data *g)
 
 	g->ecc_oob_bytes = 9;
 
+	/* correct mtd writesize setting */
+	g->mtd.writesize =
+	1 << (fls(g->device_info.page_total_size_in_bytes) - 1);
+
 	/* Look at the page size and configure appropriately. */
 
 	switch (g->mtd.writesize) {
@@ -2151,7 +2166,9 @@ static int gpmi_scan_middle(struct gpmi_nand_data *g)
 		g->oob_free = 65;
 		g->hwecc_type_read = GPMI_ECC8_RD;
 		g->hwecc_type_write = GPMI_ECC8_WR;
-		oobsize = 218;
+		oobsize =
+		g->device_info.page_total_size_in_bytes - g->mtd.writesize;
+
 		break;
 	default:
 		printk(KERN_ERR "Unsupported writesize %d.", g->mtd.writesize);
@@ -2174,13 +2191,16 @@ static int gpmi_scan_middle(struct gpmi_nand_data *g)
 
 	if (oobsize > 0) {
 		g->mtd.oobsize = oobsize;
-		/* otherwise error; oobsize should be set
-		   in valid cases */
-		if (!bch_mode())
+		if (!bch_mode()) {
 			g->hc = gpmi_ecc_find("ecc8");
-		else
+			g->hc->setup(g->hc, 0,
+			g->mtd.writesize, g->mtd.oobsize);
+		} else {
 			g->hc = gpmi_ecc_find("bch");
-		g->hc->setup(g->hc, 0, g->mtd.writesize, g->mtd.oobsize);
+			for (index = 0; index < g->nand.numchips; index++)
+				g->hc->setup(g->hc, index,
+				g->mtd.writesize, g->mtd.oobsize);
+		}
 		return 0;
 	}
 

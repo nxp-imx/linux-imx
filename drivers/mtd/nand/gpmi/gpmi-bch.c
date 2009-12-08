@@ -193,8 +193,8 @@ static int bch_setup(void *context, int index, int writesize, int oobsize)
 
 	switch (writesize) {
 	case 2048:
-		ecc0 = 4;
-		eccn = 4;
+		ecc0 = 8;
+		eccn = 8;
 		metasize = 10;
 		break;
 	case 4096:
@@ -203,7 +203,7 @@ static int bch_setup(void *context, int index, int writesize, int oobsize)
 			eccn = 8;
 		} else {
 			ecc0 = 16;
-			eccn = 14;
+			eccn = 16;
 		}
 
 		metasize = 10;
@@ -220,10 +220,10 @@ static int bch_setup(void *context, int index, int writesize, int oobsize)
 	state->nands[index].ecc0 = ecc0;
 	state->nands[index].eccn = eccn;
 
-	__raw_writel(BF(writesize/512, BCH_FLASH0LAYOUT0_NBLOCKS) |
+	__raw_writel(BF(writesize/512 - 1, BCH_FLASH0LAYOUT0_NBLOCKS) |
 		     BF(metasize, BCH_FLASH0LAYOUT0_META_SIZE) |
 		     BF(ecc0 >> 1, BCH_FLASH0LAYOUT0_ECC0) | /* for oob */
-		     BF(0x00, BCH_FLASH0LAYOUT0_DATA0_SIZE), layout);
+		     BF(512, BCH_FLASH0LAYOUT0_DATA0_SIZE), layout);
 	__raw_writel(BF(writesize + oobsize, BCH_FLASH0LAYOUT1_PAGE_SIZE) |
 		     BF(eccn >> 1, BCH_FLASH0LAYOUT1_ECCN) | /* for dblock */
 		     BF(512, BCH_FLASH0LAYOUT1_DATAN_SIZE), layout + 0x10);
@@ -409,6 +409,8 @@ static int bch_write(void *context,
 		BM_APBH_CHn_CMD_IRQONCMPLT      |
 		BF(BV_APBH_CHn_CMD_COMMAND__NO_DMA_XFER, APBH_CHn_CMD_COMMAND);
 
+	init_completion(&state->nands[index].done);
+
 	return 0;
 }
 
@@ -437,7 +439,7 @@ int __init bch_init(void)
 	if (err)
 		return err;
 
-	printk(KERN_DEBUG"%s: initialized\n", __func__);
+	printk(KERN_INFO"%s: initialized\n", __func__);
 	return 0;
 }
 
