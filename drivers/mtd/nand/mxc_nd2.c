@@ -26,6 +26,7 @@
 #include <asm/mach/flash.h>
 #include <asm/io.h>
 #include "mxc_nd2.h"
+#include "gpmi/nand_device_info.h"
 
 #define DVR_VER "2.5"
 
@@ -1093,16 +1094,6 @@ static int mxc_nand_scan_bbt(struct mtd_info *mtd)
 
 	g_page_mask = this->pagemask;
 
-	/* limit to 2G size due to Kernel
-	 * larger 4G space support,need fix
-	 * it later
-	 */
-	if (mtd->size == 0) {
-		mtd->size = 1 << 31;
-		this->numchips = 1;
-		this->chipsize = mtd->size;
-	}
-
 	if (IS_2K_PAGE_NAND) {
 		NFC_SET_NFMS(1 << NFMS_NF_PG_SZ);
 		this->ecc.layout = &nand_hw_eccoob_2k;
@@ -1184,6 +1175,63 @@ static void mxc_free_buf(void)
 	kfree(data_buf);
 	kfree(oob_buf);
 }
+
+int nand_scan_mid(struct mtd_info *mtd)
+{
+	int i;
+	uint8_t id_bytes[NAND_DEVICE_ID_BYTE_COUNT];
+	struct nand_chip *this = mtd->priv;
+	struct nand_device_info  *dev_info;
+
+	if (!IS_LARGE_PAGE_NAND)
+		return 0;
+
+	/* Read ID bytes from the first NAND Flash chip. */
+	this->select_chip(mtd, 0);
+
+	this->cmdfunc(mtd, NAND_CMD_READID, 0x00, -1);
+
+	for (i = 0; i < NAND_DEVICE_ID_BYTE_COUNT; i++)
+		id_bytes[i] = this->read_byte(mtd);
+
+	/* Get information about this device, based on the ID bytes. */
+	dev_info = nand_device_get_info(id_bytes);
+
+	/* Check if we understand this device. */
+	if (!dev_info) {
+		printk(KERN_ERR "Unrecognized NAND Flash device.\n");
+		return !0;
+	}
+
+	/* Correct mtd setting */
+	this->chipsize = dev_info->chip_size_in_bytes;
+	mtd->size = dev_info->chip_size_in_bytes * this->numchips;
+	mtd->writesize = dev_info->page_total_size_in_bytes & ~0x3ff;
+	mtd->oobsize = dev_info->page_total_size_in_bytes & 0x3ff;
+	mtd->erasesize = dev_info->block_size_in_pages * mtd->writesize;
+
+	/* limit to 2G size due to Kernel
+	 * larger 4G space support,need fix
+	 * it later
+	 */
+	if ((u32)mtd->size == 0) {
+		mtd->size = (u32)(1 << 31);
+		this->numchips = 1;
+		this->chipsize = mtd->size;
+	}
+
+	/* Calculate the address shift from the page size */
+	this->page_shift = ffs(mtd->writesize) - 1;
+	/* Convert chipsize to number of pages per chip -1. */
+	this->pagemask = (this->chipsize >> this->page_shift) - 1;
+
+	this->bbt_erase_shift = this->phys_erase_shift =
+		ffs(mtd->erasesize) - 1;
+	this->chip_shift = ffs(this->chipsize) - 1;
+
+	return 0;
+}
+
 
 /*!
  * This function is called during the driver binding process.
@@ -1284,7 +1332,9 @@ static int __init mxcnd_probe(struct platform_device *pdev)
 	this->cmdfunc(mtd, NAND_CMD_RESET, -1, -1);
 
 	/* Scan to find existence of the device */
-	if (nand_scan(mtd, NFC_GET_MAXCHIP_SP())) {
+	if (nand_scan_ident(mtd, NFC_GET_MAXCHIP_SP())
+		|| nand_scan_mid(mtd)
+		|| nand_scan_tail(mtd)) {
 		DEBUG(MTD_DEBUG_LEVEL0,
 		      "MXC_ND2: Unable to find any NAND device.\n");
 		err = -ENXIO;
@@ -1363,8 +1413,6 @@ static int __exit mxcnd_remove(struct platform_device *pdev)
 
 static int mxcnd_suspend(struct platform_device *pdev, pm_message_t state)
 {
-	struct mtd_info *info = platform_get_drvdata(pdev);
-
 	DEBUG(MTD_DEBUG_LEVEL0, "MXC_ND2 : NAND suspend\n");
 
 	/* Disable the NFC clock */
@@ -1384,8 +1432,6 @@ static int mxcnd_suspend(struct platform_device *pdev, pm_message_t state)
  */
 static int mxcnd_resume(struct platform_device *pdev)
 {
-	struct mtd_info *info = platform_get_drvdata(pdev);
-
 	DEBUG(MTD_DEBUG_LEVEL0, "MXC_ND2 : NAND resume\n");
 
 	/* Enable the NFC clock */

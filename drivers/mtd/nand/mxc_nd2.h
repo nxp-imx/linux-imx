@@ -562,11 +562,22 @@ do {	\
 } while (0)
 
 #define GET_ECC_STATUS()  __raw_readl(REG_NFC_ECC_STATUS_RESULT);
-#define NFC_SET_NFMS(v)	\
-do {	\
-	(NFMS |= (v));	\
-	if (((v) & (1 << NFMS_NF_PG_SZ))) {	\
-		NFC_SET_SPAS(GET_NAND_OOB_SIZE >> 1);	\
+#define NFC_SET_NFMS(v) \
+do { \
+	if (((v) & (1 << NFMS_NF_PG_SZ))) { \
+		if (IS_2K_PAGE_NAND) { \
+			(NFMS |= 0x00000100); \
+			(NFMS &= ~0x00000200); \
+			NFC_SET_SPAS(NFC_SPAS_64); \
+		} else if (IS_4K_PAGE_NAND) { \
+			(NFMS &= ~0x00000100); \
+			(NFMS |= 0x00000200); \
+			GET_NAND_OOB_SIZE == 128 ? \
+			NFC_SET_SPAS(NFC_SPAS_128) : \
+			NFC_SET_SPAS(NFC_SPAS_218); \
+		} else { \
+			printk(KERN_ERR "Err for setting page/oob size"); \
+		} \
 		NFC_SET_ECC_MODE(GET_NAND_OOB_SIZE >> 1); \
 	} \
 } while (0)
