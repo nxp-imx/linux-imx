@@ -542,7 +542,7 @@ imx_pcm_mmap(struct snd_pcm_substream *substream, struct vm_area_struct *vma)
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	struct snd_soc_device *socdev = rtd->socdev;
 	struct snd_soc_dai *cpu_dai = socdev->card->dai_link->cpu_dai;
-	struct mxc_audio_platform_data *dev_data = cpu_dai->private_data;
+	struct mxc_audio_platform_data *dev_data;
 	int ext_ram = 0;
 	int ret = 0;
 
@@ -551,8 +551,10 @@ imx_pcm_mmap(struct snd_pcm_substream *substream, struct vm_area_struct *vma)
 	    UseIram, (unsigned int)runtime->dma_addr,
 	    runtime->dma_area, runtime->dma_bytes);
 
-	if (dev_data)
+	if (cpu_dai->dev && cpu_dai->dev->platform_data) {
+		dev_data = cpu_dai->dev->platform_data;
 		ext_ram = dev_data->ext_ram;
+	}
 
 	if ((substream->stream == SNDRV_PCM_STREAM_CAPTURE)
 	    || ext_ram || !UseIram) {
@@ -586,12 +588,14 @@ static int imx_pcm_preallocate_dma_buffer(struct snd_pcm *pcm, int stream)
 	struct snd_soc_pcm_runtime *rtd = pcm->private_data;
 	struct snd_soc_device *socdev = rtd->socdev;
 	struct snd_soc_dai *cpu_dai = socdev->card->dai_link->cpu_dai;
-	struct mxc_audio_platform_data *dev_data = cpu_dai->private_data;
+	struct mxc_audio_platform_data *dev_data;
 	int ext_ram = 0;
 	size_t size = imx_pcm_hardware.buffer_bytes_max;
 
-	if (dev_data)
+	if (cpu_dai->dev && cpu_dai->dev->platform_data) {
+		dev_data = cpu_dai->dev->platform_data;
 		ext_ram = dev_data->ext_ram;
+	}
 
 	buf->dev.type = SNDRV_DMA_TYPE_DEV;
 	buf->dev.dev = pcm->card->dev;
@@ -620,12 +624,14 @@ static void imx_pcm_free_dma_buffers(struct snd_pcm *pcm)
 	struct snd_soc_pcm_runtime *rtd = pcm->private_data;
 	struct snd_soc_device *socdev = rtd->socdev;
 	struct snd_soc_dai *cpu_dai = socdev->card->dai_link->cpu_dai;
-	struct mxc_audio_platform_data *dev_data = cpu_dai->private_data;
+	struct mxc_audio_platform_data *dev_data;
 	int ext_ram = 0;
 	int stream;
 
-	if (dev_data)
+	if (cpu_dai->dev && cpu_dai->dev->platform_data) {
+		dev_data = cpu_dai->dev->platform_data;
 		ext_ram = dev_data->ext_ram;
+	}
 
 	for (stream = 0; stream < 2; stream++) {
 		substream = pcm->streams[stream].substream;

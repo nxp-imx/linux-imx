@@ -191,6 +191,7 @@ static int __init imx_3stack_bt_probe(struct platform_device *pdev)
 	else
 		bt_cpu_dai = &imx_ssi_dai[2];
 
+	bt_cpu_dai->dev = &pdev->dev;
 	imx_3stack_dai.cpu_dai = bt_cpu_dai;
 
 	/* Configure audio port */
