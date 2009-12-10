@@ -45,6 +45,7 @@
 #include <mach/hardware.h>
 #include <mach/mxc_dvfs.h>
 #include <mach/sdram_autogating.h>
+#include <mach/clock.h>
 #if defined(CONFIG_ARCH_MX37)
 #include <mach/mxc_dptc.h>
 #endif
@@ -82,7 +83,7 @@ int start_dvfs_per(void);
 void stop_dvfs_per(void);
 int dvfs_per_active(void);
 int dvfs_per_divider_active(void);
-int dvfs_per_pixel_clk_limit(int pix_clk);
+int dvfs_per_pixel_clk_limit();
 
 extern int low_bus_freq_mode;
 extern int bus_freq_scaling_is_active;
@@ -500,12 +501,15 @@ static int start(void)
 		return 0;
 
 	if (bus_freq_scaling_is_active) {
+		dvfs_per_is_paused = 1;
 		printk(KERN_INFO "Cannot start DVFS-PER since bus_freq_scaling is active\n");
 		return 0;
 	}
 
-	if (!ipu_freq_scaled) {
-		printk(KERN_INFO "Cannot start DVFS-PER since pixel clock is above 60MHz\n");
+	if (!dvfs_per_pixel_clk_limit()) {
+		dvfs_per_is_paused = 1;
+		printk(KERN_INFO "Cannot start DVFS-PER since pixel clock is\
+			above 60MHz or divider is not even\n");
 		return 0;
 	}
 
@@ -613,12 +617,52 @@ int dvfs_per_divider_active()
 	return dvfs_per_low_freq;
 }
 
-int dvfs_per_pixel_clk_limit(int pix_clk)
+int dvfs_per_pixel_clk_limit()
 {
-	if (pix_clk < DVFS_MAX_PIX_CLK && (!ipu_freq_scaled))
+	struct clk *disp0_pixel_clk;
+	struct clk *disp1_pixel_clk;
+	int disp0_rate = 0;
+	int disp1_rate = 0;
+	int div1 = 0;
+	int div2 = 0;
+	int even_div1 = 1;
+	int even_div2  = 1;
+
+	disp0_pixel_clk = clk_get(NULL, "pixel_clk.0");
+	disp1_pixel_clk = clk_get(NULL, "pixel_clk.1");
+
+	if (disp0_pixel_clk != NULL)
+		disp0_rate = clk_get_rate(disp0_pixel_clk);
+
+	if (disp1_pixel_clk != NULL)
+		disp1_rate = clk_get_rate(disp1_pixel_clk);
+
+	/* DVFS-PER will not work if pixel clock divider is odd */
+	if (disp0_rate != 0)
+		div1  = (clk_get_rate(
+			clk_get_parent(disp0_pixel_clk)) * 10) / disp0_rate;
+
+	if ((div1 % 2) || ((div1 / 10) % 2))
+		even_div1 = 0;
+
+	if ((div2 % 2) || ((div2 / 10) % 2))
+		even_div2 = 0;
+
+	if (disp1_rate != 0)
+		div2  = (clk_get_rate(
+			clk_get_parent(disp1_pixel_clk)) * 10) / disp1_rate;
+
+	if (((disp0_rate < DVFS_MAX_PIX_CLK && even_div1) ||
+		!clk_get_usecount(disp0_pixel_clk)) &&
+		((disp1_rate < DVFS_MAX_PIX_CLK && even_div2) ||
+		!clk_get_usecount(disp1_pixel_clk)))
 		ipu_freq_scaled = 1;
 	else
 		ipu_freq_scaled = 0;
+
+	clk_put(disp0_pixel_clk);
+	clk_put(disp1_pixel_clk);
+
 	return ipu_freq_scaled;
 }
 
@@ -747,6 +791,7 @@ static int __devinit mxc_dvfsper_probe(struct platform_device *pdev)
 	cpu_clk = clk_get(NULL, "cpu_clk");
 	ahb_clk = clk_get(NULL, "ahb_clk");
 	axi_b_clk = clk_get(NULL, "axi_b_clk");
+
 	if (cpu_is_mx51())
 		ddr_hf_clk = clk_get(NULL, "ddr_hf_clk");
 

@@ -97,6 +97,7 @@ static unsigned long default_bpp = 16;
 static bool g_dp_in_use;
 LIST_HEAD(fb_alloc_list);
 static struct fb_info *mxcfb_info[3];
+static int ext_clk_used;
 
 static uint32_t bpp_to_pixfmt(struct fb_info *fbi)
 {
@@ -328,7 +329,7 @@ static int mxcfb_set_par(struct fb_info *fbi)
 		}
 		if (fbi->var.vmode & FB_VMODE_ODD_FLD_FIRST) /* PAL */
 			sig_cfg.odd_field_first = true;
-		if (fbi->var.sync & FB_SYNC_EXT)
+		if ((fbi->var.sync & FB_SYNC_EXT) || ext_clk_used)
 			sig_cfg.ext_clk = true;
 		if (fbi->var.sync & FB_SYNC_HOR_HIGH_ACT)
 			sig_cfg.Hsync_pol = true;
@@ -1621,10 +1622,17 @@ int mxcfb_setup(char *options)
 	while ((opt = strsep(&options, ",")) != NULL) {
 		if (!*opt)
 			continue;
+		if (!strncmp(opt, "ext_clk", 7)) {
+			ext_clk_used = true;
+			continue;
+		} else
+			ext_clk_used = false;
+
 		if (!strncmp(opt, "bpp=", 4))
 			default_bpp = simple_strtoul(opt + 4, NULL, 0);
 		else
 			fb_mode = opt;
+
 	}
 	return 0;
 }

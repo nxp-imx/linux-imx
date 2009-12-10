@@ -224,7 +224,7 @@ extern int start_dvfs_per(void);
 extern void stop_dvfs_per(void);
 extern int dvfs_per_active(void);
 extern int dvfs_per_divider_active(void);
-extern int dvfs_per_pixel_clk_limit(int pix_clk);
+extern int dvfs_per_pixel_clk_limit();
 #else
 static inline int start_dvfs_per(void)
 {
@@ -245,7 +245,7 @@ static inline int dvfs_per_divider_active(void)
 	return 0;
 }
 
-static inline int dvfs_per_pixel_clk_limit(int pix_clk)
+static inline int dvfs_per_pixel_clk_limit(void)
 {
 	return 0;
 }

@@ -222,6 +222,7 @@ static int tve_setup(int mode)
 	u32 reg;
 	struct clk *pll3_clk;
 	unsigned long pll3_clock_rate = 216000000;
+	struct clk *ipu_di0_clk;
 
 	if (tve.cur_mode == mode)
 		return 0;
@@ -241,6 +242,13 @@ static int tve_setup(int mode)
 		clk_disable(tve.clk);
 
 	pll3_clk = clk_get(NULL, "pll3");
+	ipu_di0_clk = clk_get(NULL, "ipu_di0_clk");
+	if ((clk_get_parent(ipu_di0_clk) == pll3_clk) &&
+		(clk_get_rate(pll3_clk) != pll3_clock_rate)) {
+		printk(KERN_INFO "Cannot setup TV since display is using PLL3\n");
+		return -EINVAL;
+	}
+
 	clk_disable(pll3_clk);
 	clk_set_rate(pll3_clk, pll3_clock_rate);
 	clk_enable(pll3_clk);

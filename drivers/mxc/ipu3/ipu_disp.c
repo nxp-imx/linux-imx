@@ -24,8 +24,10 @@
 #include <linux/spinlock.h>
 #include <linux/io.h>
 #include <linux/ipu.h>
+#include <linux/clk.h>
 #include <asm/atomic.h>
 #include <mach/mxc_dvfs.h>
+#include <mach/clock.h>
 #include "ipu_prv.h"
 #include "ipu_regs.h"
 #include "ipu_param_mem.h"
@@ -845,7 +847,8 @@ int32_t ipu_init_sync_panel(int disp, uint32_t pixel_clk,
 	uint32_t div, rounded_pixel_clk;
 	uint32_t h_total, v_total;
 	int map;
-	int ipu_freq_scaling_enabled;
+	int ipu_freq_scaling_enabled = 0;
+	struct clk *di_parent;
 
 	dev_dbg(g_ipu_dev, "panel size = %d x %d\n", width, height);
 
@@ -858,21 +861,45 @@ int32_t ipu_init_sync_panel(int disp, uint32_t pixel_clk,
 	/* Init clocking */
 	dev_dbg(g_ipu_dev, "pixel clk = %d\n", pixel_clk);
 
-	if (sig.ext_clk)
+	if (sig.ext_clk) {
+		/* Set the  PLL to be an even multiple of the pixel clock. */
+		if ((clk_get_usecount(g_pixel_clk[0]) == 0) &&
+			(clk_get_usecount(g_pixel_clk[1]) == 0)) {
+			di_parent = clk_get_parent(g_di_clk[disp]);
+			rounded_pixel_clk =
+				clk_round_rate(g_pixel_clk[disp], pixel_clk);
+			div  = clk_get_rate(di_parent) / rounded_pixel_clk;
+			if (div % 2)
+				div++;
+
+		if (clk_get_rate(di_parent) != div * rounded_pixel_clk)
+			clk_set_rate(di_parent, div * rounded_pixel_clk);
+		msleep(10);
+		clk_set_rate(g_di_clk[disp], 2 * rounded_pixel_clk);
+		msleep(10);
+		}
 		clk_set_parent(g_pixel_clk[disp], g_di_clk[disp]);
-	else
-		clk_set_parent(g_pixel_clk[disp], g_ipu_clk);
-
-	stop_dvfs_per();
-
+	} else {
+		if (clk_get_usecount(g_pixel_clk[disp]) != 0)
+			clk_set_parent(g_pixel_clk[disp], g_ipu_clk);
+	}
 	rounded_pixel_clk = clk_round_rate(g_pixel_clk[disp], pixel_clk);
 	clk_set_rate(g_pixel_clk[disp], rounded_pixel_clk);
-
-	ipu_freq_scaling_enabled = dvfs_per_pixel_clk_limit(rounded_pixel_clk);
-
+	msleep(5);
 	/* Get integer portion of divider */
 	div = clk_get_rate(clk_get_parent(g_pixel_clk[disp])) / rounded_pixel_clk;
 
+	ipu_freq_scaling_enabled = dvfs_per_pixel_clk_limit();
+
+	if (ipu_freq_scaling_enabled) {
+		/* Enable for a divide by 2 clock change. */
+		reg = __raw_readl(IPU_PM);
+		reg &= ~(0x7f << 7);
+		reg |= 0x20 << 7;
+		reg &= ~(0x7f << 23);
+		reg |= 0x20 << 23;
+		__raw_writel(reg, IPU_PM);
+	}
 	spin_lock_irqsave(&ipu_lock, lock_flags);
 
 	_ipu_di_data_wave_config(disp, SYNC_WAVE, div - 1, div - 1);
@@ -1235,8 +1262,6 @@ int32_t ipu_init_sync_panel(int disp, uint32_t pixel_clk,
 	__raw_writel(width, DC_DISP_CONF2(DC_DISP_ID_SYNC(disp)));
 
 	spin_unlock_irqrestore(&ipu_lock, lock_flags);
-
-	start_dvfs_per();
 
 	return 0;
 }

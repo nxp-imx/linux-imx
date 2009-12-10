@@ -358,6 +358,18 @@ static int _clk_pll_set_rate(struct clk *clk, unsigned long rate)
 		__raw_writel(mfn, pllbase + MXC_PLL_DP_HFS_MFN);
 	}
 
+	/* If auto restart is disabled, restart the PLL and
+	  * wait for it to lock.
+	  */
+	reg = __raw_readl(pllbase + MXC_PLL_DP_CONFIG);
+	if (!reg & MXC_PLL_DP_CONFIG_AREN) {
+		reg = __raw_readl(pllbase + MXC_PLL_DP_CTL);
+		reg |= MXC_PLL_DP_CTL_RST;
+		__raw_writel(reg, pllbase + MXC_PLL_DP_CTL);
+	}
+	while (!(__raw_readl(pllbase + MXC_PLL_DP_CTL) & MXC_PLL_DP_CTL_LRF))
+		;
+
 	clk->rate = rate;
 	return 0;
 }

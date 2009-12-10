@@ -151,27 +151,27 @@ static void _ipu_pixel_clk_recalc(struct clk *clk)
 
 static unsigned long _ipu_pixel_clk_round_rate(struct clk *clk, unsigned long rate)
 {
-	u32 div;
-	int ipu_freq_scaling_enabled = dvfs_per_pixel_clk_limit(rate);
-
+	u32 div, div1;
+	u32 tmp;
 	/*
 	 * Calculate divider
 	 * Fractional part is 4 bits,
 	 * so simply multiply by 2^4 to get fractional part.
 	 */
-	div = (clk->parent->rate * 16) / rate;
+	tmp = (clk->parent->rate * 16);
+	div = tmp / rate;
+
 	if (div < 0x10)            /* Min DI disp clock divider is 1 */
 		div = 0x10;
-	/* Need an even integer divder for DVFS-PER to work */
-	if (ipu_freq_scaling_enabled) {
-		if (div & 0x10)
-			div += 0x10;
-		/* Fractional part is rounded off to 0. */
-		div &= 0xFF0;
-	} else
-		/* Only MSB fractional bit is supported. */
+	if (div & ~0xFEF)
 		div &= 0xFF8;
-
+	else {
+		div1 = div & 0xFE0;
+		if ((tmp/div1 - tmp/div) < rate / 4)
+			div = div1;
+		else
+			div &= 0xFF8;
+	}
 	return (clk->parent->rate * 16) / div;
 }
 
@@ -196,6 +196,8 @@ static int _ipu_pixel_clk_enable(struct clk *clk)
 	disp_gen |= clk->id ? DI1_COUNTER_RELEASE : DI0_COUNTER_RELEASE;
 	__raw_writel(disp_gen, IPU_DISP_GEN);
 
+	start_dvfs_per();
+
 	return 0;
 }
 
@@ -204,11 +206,13 @@ static void _ipu_pixel_clk_disable(struct clk *clk)
 	u32 disp_gen = __raw_readl(IPU_DISP_GEN);
 	disp_gen &= clk->id ? ~DI1_COUNTER_RELEASE : ~DI0_COUNTER_RELEASE;
 	__raw_writel(disp_gen, IPU_DISP_GEN);
+
+	start_dvfs_per();
 }
 
 static int _ipu_pixel_clk_set_parent(struct clk *clk, struct clk *parent)
 {
-	u32 di_gen = __raw_readl(DI_GENERAL(clk->id));
+	u32 di_gen = 0;/*__raw_readl(DI_GENERAL(clk->id));*/
 
 	if (parent == g_ipu_clk)
 		di_gen &= ~DI_GEN_DI_CLK_EXT;
@@ -383,12 +387,6 @@ static int ipu_probe(struct platform_device *pdev)
 	/* Set MCU_T to divide MCU access window into 2 */
 	__raw_writel(0x00400000L | (IPU_MCU_T_DEFAULT << 18), IPU_DISP_GEN);
 
-	/* Enable for a divide by 2 clock change. */
-	reg = __raw_readl(IPU_PM);
-	reg &= ~(0x7f << 7);
-	reg |= 0x20 << 7;
-	__raw_writel(reg, IPU_PM);
-
 	clk_disable(g_ipu_clk);
 
 	register_ipu_device();
@@ -491,6 +489,7 @@ int32_t ipu_init_channel(ipu_channel_t channel, ipu_channel_params_t *params)
 	__raw_writel(0xFFFFFFFF, IPU_INT_CTRL(10));
 
 	if (g_ipu_clk_enabled == false) {
+		stop_dvfs_per();
 		g_ipu_clk_enabled = true;
 		clk_enable(g_ipu_clk);
 	}
