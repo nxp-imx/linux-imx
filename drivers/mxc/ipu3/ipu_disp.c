@@ -549,12 +549,7 @@ void _ipu_dp_dc_enable(ipu_channel_t channel)
 	reg |= 4 << DC_WR_CH_CONF_PROG_TYPE_OFFSET;
 	__raw_writel(reg, DC_WR_CH_CONF(dc_chan));
 
-	reg = __raw_readl(IPU_DISP_GEN);
-	if (di)
-		reg |= DI1_COUNTER_RELEASE;
-	else
-		reg |= DI0_COUNTER_RELEASE;
-	__raw_writel(reg, IPU_DISP_GEN);
+	clk_enable(g_pixel_clk[di]);
 }
 
 static bool dc_swap;
@@ -701,6 +696,9 @@ void _ipu_dp_dc_disable(ipu_channel_t channel, bool swap)
 		__raw_writel(reg, IPU_DISP_GEN);
 
 		spin_unlock_irqrestore(&ipu_lock, lock_flags);
+		/* Clock is already off because it must be done quickly, but
+		   we need to fix the ref count */
+		clk_disable(g_pixel_clk[g_dc_di_assignment[dc_chan]]);
 
 		if (__raw_readl(IPUIRQ_2_STATREG(IPU_IRQ_VSYNC_PRE_0
 			+ g_dc_di_assignment[dc_chan])) &
@@ -843,11 +841,10 @@ int32_t ipu_init_sync_panel(int disp, uint32_t pixel_clk,
 	uint32_t field0_offset = 0;
 	uint32_t field1_offset;
 	uint32_t reg;
-	uint32_t disp_gen, di_gen, vsync_cnt;
-	uint32_t div;
+	uint32_t di_gen, vsync_cnt;
+	uint32_t div, rounded_pixel_clk;
 	uint32_t h_total, v_total;
 	int map;
-	struct clk *di_clk;
 	int ipu_freq_scaling_enabled;
 
 	dev_dbg(g_ipu_dev, "panel size = %d x %d\n", width, height);
@@ -862,55 +859,24 @@ int32_t ipu_init_sync_panel(int disp, uint32_t pixel_clk,
 	dev_dbg(g_ipu_dev, "pixel clk = %d\n", pixel_clk);
 
 	if (sig.ext_clk)
-		di_clk = g_di_clk[disp];
+		clk_set_parent(g_pixel_clk[disp], g_di_clk[disp]);
 	else
-		di_clk = g_ipu_clk;
-
-	ipu_freq_scaling_enabled = dvfs_per_pixel_clk_limit(pixel_clk);
+		clk_set_parent(g_pixel_clk[disp], g_ipu_clk);
 
 	stop_dvfs_per();
 
-	/*
-	 * Calculate divider
-	 * Fractional part is 4 bits,
-	 * so simply multiply by 2^4 to get fractional part.
-	 */
-	div = (clk_get_rate(di_clk) * 16) / pixel_clk;
-	if (div < 0x10)            /* Min DI disp clock divider is 1 */
-		div = 0x10;
-	/* Need an even integer divder for DVFS-PER to work */
-	if (ipu_freq_scaling_enabled) {
-		if (div & 0x10)
-			div += 0x10;
-		/* Fractional part is rounded off to 0. */
-		div &= 0xFF0;
-	} else
-		/* Only MSB fractional bit is supported. */
-		div &= 0xFF8;
+	rounded_pixel_clk = clk_round_rate(g_pixel_clk[disp], pixel_clk);
+	clk_set_rate(g_pixel_clk[disp], rounded_pixel_clk);
 
-	reg = __raw_readl(DI_GENERAL(disp));
-	if (sig.ext_clk)
-		__raw_writel(reg | DI_GEN_DI_CLK_EXT, DI_GENERAL(disp));
-	else
-		__raw_writel(reg & ~DI_GEN_DI_CLK_EXT, DI_GENERAL(disp));
+	ipu_freq_scaling_enabled = dvfs_per_pixel_clk_limit(rounded_pixel_clk);
+
+	/* Get integer portion of divider */
+	div = clk_get_rate(clk_get_parent(g_pixel_clk[disp])) / rounded_pixel_clk;
 
 	spin_lock_irqsave(&ipu_lock, lock_flags);
 
-	disp_gen = __raw_readl(IPU_DISP_GEN);
-	disp_gen &= disp ? ~DI1_COUNTER_RELEASE : ~DI0_COUNTER_RELEASE;
-	__raw_writel(disp_gen, IPU_DISP_GEN);
-
-	__raw_writel(div, DI_BS_CLKGEN0(disp));
-
-	/* Setup pixel clock timing */
-	/* FIXME: needs to be more flexible */
-	/* Down time is half of period */
-	__raw_writel((div / 16) << 16, DI_BS_CLKGEN1(disp));
-
-	_ipu_di_data_wave_config(disp, SYNC_WAVE, div / 16 - 1, div / 16 - 1);
-	_ipu_di_data_pin_config(disp, SYNC_WAVE, DI_PIN15, 3, 0, div / 16 * 2);
-
-	div = div / 16;		/* Now divider is integer portion */
+	_ipu_di_data_wave_config(disp, SYNC_WAVE, div - 1, div - 1);
+	_ipu_di_data_pin_config(disp, SYNC_WAVE, DI_PIN15, 3, 0, div * 2);
 
 	map = _ipu_pixfmt_to_map(pixel_fmt);
 	if (map < 0) {
@@ -919,9 +885,7 @@ int32_t ipu_init_sync_panel(int disp, uint32_t pixel_clk,
 		return -EINVAL;
 	}
 
-	di_gen = 0;
-	if (sig.ext_clk)
-		di_gen |= DI_GEN_DI_CLK_EXT;
+	di_gen = __raw_readl(DI_GENERAL(disp));
 
 	if (sig.interlaced) {
 		if (cpu_is_mx51_rev(CHIP_REV_2_0)) {

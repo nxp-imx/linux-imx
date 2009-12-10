@@ -1338,7 +1338,7 @@ static struct clk ipu_clk[] = {
 	.enable = _clk_ipu_enable,
 	.disable = _clk_ipu_disable,
 	.set_parent = _clk_ipu_set_parent,
-	 .flags = CPU_FREQ_TRIG_UPDATE | AHB_MED_SET_POINT,
+	 .flags = CPU_FREQ_TRIG_UPDATE | AHB_MED_SET_POINT | RATE_PROPAGATES,
 	},
 	{
 	 .name = "ipu_sec_clk",
@@ -1433,6 +1433,7 @@ static struct clk ipu_di_clk[] = {
 	.set_rate = _clk_ipu_di_set_rate,
 	.enable = _clk_enable,
 	.disable = _clk_disable,
+	.flags = RATE_PROPAGATES,
 	},
 	{
 	.name = "ipu_di1_clk",
@@ -1446,6 +1447,7 @@ static struct clk ipu_di_clk[] = {
 	.set_rate = _clk_ipu_di_set_rate,
 	.enable = _clk_enable,
 	.disable = _clk_disable,
+	.flags = RATE_PROPAGATES,
 	},
 };
 
