@@ -1081,7 +1081,6 @@ static int mxc_v4l2out_streamon(vout_data * vout)
 	bool use_direct_adc = false;
 	mm_segment_t old_fs;
 	int rc = 0;
-	volatile u32 *address;
 
 	dev_dbg(dev, "mxc_v4l2out_streamon: field format=%d\n",
 		vout->field_fmt);
@@ -1272,7 +1271,7 @@ static int mxc_v4l2out_streamon(vout_data * vout)
 		 * Bypass IC if resizing and rotation are not needed
 		 * Meanwhile, apply IC bypass to SDC only
 		 */
-      vout->pp_split = 0;/* no pp_split by default */
+		vout->pp_split = 0;/* no pp_split by default */
 		fbvar = fbi->var;
 		vout->xres = fbvar.xres;
 		vout->yres = fbvar.yres;
@@ -1363,10 +1362,9 @@ static int mxc_v4l2out_streamon(vout_data * vout)
 		vout->display_buf_size = vout->xres *
 			vout->yres * fbi->var.bits_per_pixel / 8;
 		/* green screen */
-		address = phys_to_virt(vout->display_bufs[0]);
-		memset(address, 0x10, vout->display_buf_size);
-		address = phys_to_virt(vout->display_bufs[1]);
-		memset(address, 0x10, vout->display_buf_size);
+		memset(fbi->screen_base, 0x10,
+				fbi->fix.line_length * fbi->var.yres_virtual);
+
 		if (INTERLACED_CONTENT(vout))
 			vout->post_proc_ch = MEM_VDI_PRP_VF_MEM;
 		else
