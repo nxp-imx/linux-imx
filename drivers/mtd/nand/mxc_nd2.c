@@ -43,9 +43,9 @@ struct mxc_mtd_s {
 static struct mxc_mtd_s *mxc_nand_data;
 
 /*
- * Define delays in microsec for NAND device operations
+ * Define delay timeout value
  */
-#define TROP_US_DELAY   2000
+#define TROP_US_DELAY   (200 * 1000)
 
 struct nand_info {
 	bool bStatusRequest;
@@ -190,8 +190,13 @@ static void wait_op_done(int maxRetries, bool useirq)
 			/* Enable Interuupt */
 			raw_write(raw_read(REG_NFC_INTRRUPT) & ~NFC_INT_MSK,
 				  REG_NFC_INTRRUPT);
-			wait_event(irq_waitq,
-				   (raw_read(REG_NFC_OPS_STAT) & NFC_OPS_STAT));
+			if (!wait_event_timeout(irq_waitq,
+				(raw_read(REG_NFC_OPS_STAT) & NFC_OPS_STAT),
+				msecs_to_jiffies(TROP_US_DELAY / 1000)) > 0) {
+				printk(KERN_WARNING "%s(%d): INT not set\n",
+						__func__, __LINE__);
+				return;
+			}
 		}
 		WRITE_NFC_IP_REG((raw_read(REG_NFC_OPS_STAT) &
 				  ~NFC_OPS_STAT), REG_NFC_OPS_STAT);
@@ -206,8 +211,9 @@ static void wait_op_done(int maxRetries, bool useirq)
 			}
 			udelay(1);
 			if (maxRetries <= 0) {
-				DEBUG(MTD_DEBUG_LEVEL0, "%s(%d): INT not set\n",
-				      __func__, __LINE__);
+				printk(KERN_WARNING "%s(%d): INT not set\n",
+						__func__, __LINE__);
+				break;
 			}
 		}
 	}
@@ -288,7 +294,7 @@ static void auto_cmd_interleave(struct mtd_info *mtd, u16 cmd)
 			while (!(raw_read(REG_NFC_OPS_STAT) & NFC_OP_DONE)) ;
 		}
 
-		wait_op_done(TROP_US_DELAY, false);
+		wait_op_done(TROP_US_DELAY, true);
 		while (!(raw_read(REG_NFC_OPS_STAT) & NFC_RB)) ;
 
 		break;
@@ -300,7 +306,7 @@ static void auto_cmd_interleave(struct mtd_info *mtd, u16 cmd)
 			NFC_SET_RBA(0);
 			ACK_OPS;
 			raw_write(NFC_AUTO_READ, REG_NFC_OPS);
-			wait_op_done(TROP_US_DELAY, false);
+			wait_op_done(TROP_US_DELAY, true);
 
 			/* check ecc error */
 			mxc_check_ecc_status(mtd);
@@ -429,7 +435,7 @@ static void send_prog_page(u8 buf_id)
 	raw_write(NFC_INPUT, REG_NFC_OPS);
 
 	/* Wait for operation to complete */
-	wait_op_done(TROP_US_DELAY, false);
+	wait_op_done(TROP_US_DELAY, true);
 #endif
 }
 
@@ -454,7 +460,7 @@ static void send_read_page(u8 buf_id)
 	raw_write(NFC_OUTPUT, REG_NFC_OPS);
 
 	/* Wait for operation to complete */
-	wait_op_done(TROP_US_DELAY, false);
+	wait_op_done(TROP_US_DELAY, true);
 #endif
 }
 
@@ -493,7 +499,7 @@ static inline void read_dev_status(u16 *status)
 	*/
 	raw_write(NFC_STATUS, REG_NFC_OPS);
 
-	wait_op_done(TROP_US_DELAY, false);
+	wait_op_done(TROP_US_DELAY, true);
 
 	*status = (raw_read(NFC_CONFIG1) & mask) >> 16;
 
@@ -542,7 +548,7 @@ static u16 get_dev_status(void)
 	raw_write(NFC_STATUS, REG_NFC_OPS);
 
 	/* Wait for operation to complete */
-	wait_op_done(TROP_US_DELAY, false);
+	wait_op_done(TROP_US_DELAY, true);
 
 	/* Status is placed in first word of main buffer */
 	/* get status, then recovery area 1 data */
@@ -840,18 +846,18 @@ static void mxc_do_addr_cycle(struct mtd_info *mtd, int column, int page_addr)
 	u32 page_mask = g_page_mask;
 
 	if (column != -1) {
-		send_addr(column & 0xFF, false);
+		send_addr(column & 0xFF, true);
 		if (IS_2K_PAGE_NAND) {
 			/* another col addr cycle for 2k page */
-			send_addr((column >> 8) & 0xF, false);
+			send_addr((column >> 8) & 0xF, true);
 		} else if (IS_4K_PAGE_NAND) {
 			/* another col addr cycle for 4k page */
-			send_addr((column >> 8) & 0x1F, false);
+			send_addr((column >> 8) & 0x1F, true);
 		}
 	}
 	if (page_addr != -1) {
 		do {
-			send_addr((page_addr & 0xff), false);
+			send_addr((page_addr & 0xff), true);
 			page_mask >>= 8;
 			page_addr >>= 8;
 		} while (page_mask != 0);
@@ -871,7 +877,7 @@ static void mxc_do_addr_cycle(struct mtd_info *mtd, int column, int page_addr)
 static void mxc_nand_command(struct mtd_info *mtd, unsigned command,
 			     int column, int page_addr)
 {
-	bool useirq = false;
+	bool useirq = true;
 
 	DEBUG(MTD_DEBUG_LEVEL3,
 	      "mxc_nand_command (cmd = 0x%x, col = 0x%x, page = 0x%x)\n",
@@ -947,15 +953,11 @@ static void mxc_nand_command(struct mtd_info *mtd, unsigned command,
 		else
 			send_prog_page(0);
 
-		useirq = true;
-
 		break;
 
 	case NAND_CMD_ERASE1:
 		break;
 	case NAND_CMD_ERASE2:
-		useirq = true;
-
 		break;
 	}
 
@@ -975,7 +977,7 @@ static void mxc_nand_command(struct mtd_info *mtd, unsigned command,
 	case NAND_CMD_READ0:
 		if (IS_LARGE_PAGE_NAND) {
 			/* send read confirm command */
-			send_cmd(mtd, NAND_CMD_READSTART, false);
+			send_cmd(mtd, NAND_CMD_READSTART, true);
 			/* read for each AREA */
 			READ_PAGE();
 		} else {
