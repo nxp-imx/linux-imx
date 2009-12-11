@@ -206,21 +206,6 @@ struct platform_device *host_pdev_register(struct resource *res, int n_res,
 int usb_phy_enable(void)
 {
 	u32 tmp;
-	/*
-	* Set these bits so that we can force the OTG bits high
-	* so the ARC core operates properly
-	*/
-	stmp3xxx_clearl(BM_POWER_CTRL_CLKGATE,
-		      REGS_POWER_BASE + HW_POWER_CTRL);
-	stmp3xxx_setl(BM_POWER_DEBUG_VBUSVALIDPIOLOCK |
-			 BM_POWER_DEBUG_AVALIDPIOLOCK |
-			 BM_POWER_DEBUG_BVALIDPIOLOCK,
-			 REGS_POWER_BASE + HW_POWER_DEBUG);
-	tmp = __raw_readl(REGS_POWER_BASE + HW_POWER_STS);
-	tmp |= BM_POWER_STS_BVALID | BM_POWER_STS_AVALID |
-		       BM_POWER_STS_VBUSVALID;
-	__raw_writel(tmp, REGS_POWER_BASE + HW_POWER_STS);
-
 	/* Reset USBPHY module */
 	stmp3xxx_setl(BM_USBPHY_CTRL_SFTRST,
 		      REGS_USBPHY_BASE + HW_USBPHY_CTRL);
