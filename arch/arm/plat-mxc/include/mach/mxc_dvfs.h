@@ -224,7 +224,7 @@ extern int start_dvfs_per(void);
 extern void stop_dvfs_per(void);
 extern int dvfs_per_active(void);
 extern int dvfs_per_divider_active(void);
-extern int dvfs_per_pixel_clk_limit();
+extern int dvfs_per_pixel_clk_limit(void);
 #else
 static inline int start_dvfs_per(void)
 {

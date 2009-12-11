@@ -212,7 +212,7 @@ static void _ipu_pixel_clk_disable(struct clk *clk)
 
 static int _ipu_pixel_clk_set_parent(struct clk *clk, struct clk *parent)
 {
-	u32 di_gen = 0;/*__raw_readl(DI_GENERAL(clk->id));*/
+	u32 di_gen = __raw_readl(DI_GENERAL(clk->id));
 
 	if (parent == g_ipu_clk)
 		di_gen &= ~DI_GEN_DI_CLK_EXT;

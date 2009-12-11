@@ -320,8 +320,10 @@ static void _clk_pll_recalc(struct clk *clk)
 
 static int _clk_pll_set_rate(struct clk *clk, unsigned long rate)
 {
-	u32 reg;
+	u32 reg, reg1;
 	u32 pllbase;
+	struct timespec nstimeofday;
+	struct timespec curtime;
 
 	long mfi, pdf, mfn, mfd = 999999;
 	s64 temp64;
@@ -357,19 +359,26 @@ static int _clk_pll_set_rate(struct clk *clk, unsigned long rate)
 		__raw_writel(mfd, pllbase + MXC_PLL_DP_HFS_MFD);
 		__raw_writel(mfn, pllbase + MXC_PLL_DP_HFS_MFN);
 	}
-
 	/* If auto restart is disabled, restart the PLL and
 	  * wait for it to lock.
 	  */
-	reg = __raw_readl(pllbase + MXC_PLL_DP_CONFIG);
-	if (!reg & MXC_PLL_DP_CONFIG_AREN) {
-		reg = __raw_readl(pllbase + MXC_PLL_DP_CTL);
-		reg |= MXC_PLL_DP_CTL_RST;
-		__raw_writel(reg, pllbase + MXC_PLL_DP_CTL);
+	reg = __raw_readl(pllbase + MXC_PLL_DP_CTL);
+	if (reg & MXC_PLL_DP_CTL_UPEN) {
+		reg = __raw_readl(pllbase + MXC_PLL_DP_CONFIG);
+		if (!(reg & MXC_PLL_DP_CONFIG_AREN)) {
+			reg1 = __raw_readl(pllbase + MXC_PLL_DP_CTL);
+			reg1 |= MXC_PLL_DP_CTL_RST;
+			__raw_writel(reg1, pllbase + MXC_PLL_DP_CTL);
+		}
+		/* Wait for lock */
+		getnstimeofday(&nstimeofday);
+		while (!(__raw_readl(pllbase + MXC_PLL_DP_CTL)
+					& MXC_PLL_DP_CTL_LRF)) {
+			getnstimeofday(&curtime);
+			if (curtime.tv_nsec - nstimeofday.tv_nsec > SPIN_DELAY)
+				panic("pll_set_rate: pll relock failed\n");
+		}
 	}
-	while (!(__raw_readl(pllbase + MXC_PLL_DP_CTL) & MXC_PLL_DP_CTL_LRF))
-		;
-
 	clk->rate = rate;
 	return 0;
 }
