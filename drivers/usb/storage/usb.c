@@ -334,8 +334,11 @@ static int usb_stor_control_thread(void * __us)
 
 		/* we've got a command, let's do it! */
 		else {
-			US_DEBUG(usb_stor_show_command(us->srb));
-			us->proto_handler(us->srb, us);
+			US_DEBUGP(usb_stor_show_command(us->srb));
+#ifdef CONFIG_MACH_MX51_BABBAGE
+			if (us->srb->cmnd[0] != 0x85)
+#endif
+				us->proto_handler(us->srb, us);
 		}
 
 		/* lock access to the state */
