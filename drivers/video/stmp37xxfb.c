@@ -25,7 +25,6 @@
 #include <linux/init.h>
 #include <linux/list.h>
 #include <linux/mutex.h>
-#include <linux/delay.h>
 #include <linux/dma-mapping.h>
 #include <linux/err.h>
 #include <linux/uaccess.h>
@@ -42,10 +41,20 @@
 
 #define NUM_SCREENS	1
 
+enum {
+	F_DISABLE = 0,
+	F_ENABLE,
+	F_REENABLE,
+	F_STARTUP,
+};
+
 struct stmp3xxx_fb_data {
 	struct fb_info info;
 	struct stmp3xxx_platform_fb_data *pdata;
-	int is_blank;
+	struct work_struct work;
+	struct mutex blank_mutex;
+	u32 state;
+	u32 task_state;
 	ssize_t mem_size;
 	ssize_t map_size;
 	dma_addr_t phys_start;
@@ -63,6 +72,122 @@ struct stmp3xxx_fb_data {
 static int stmp3xxxfb_blank(int blank, struct fb_info *info);
 static unsigned char *default_panel_name;
 static struct stmp3xxx_fb_data *cdata;
+static void init_timings(struct stmp3xxx_fb_data *data);
+
+static void stmp3xxxfb_enable_controller(struct stmp3xxx_fb_data *data)
+{
+	struct stmp3xxx_platform_fb_entry *pentry = data->pdata->cur;
+
+	if (!data || !data->pdata || !data->pdata->cur)
+		return;
+
+	stmp3xxx_init_lcdif();
+	init_timings(data);
+	pentry->init_panel(data->dev, data->phys_start,
+			data->info.fix.smem_len, data->pdata->cur);
+	pentry->run_panel();
+
+	if (pentry->blank_panel)
+		pentry->blank_panel(FB_BLANK_UNBLANK);
+}
+
+static void stmp3xxxfb_disable_controller(struct stmp3xxx_fb_data *data)
+{
+	struct stmp3xxx_platform_fb_entry *pentry = data->pdata->cur;
+
+	if (!data || !data->pdata || !data->pdata->cur)
+		return;
+
+	if (pentry->blank_panel)
+		pentry->blank_panel(FB_BLANK_POWERDOWN);
+
+	if (pentry->stop_panel)
+		pentry->stop_panel();
+	pentry->release_panel(data->dev, pentry);
+}
+
+static void set_controller_state(struct stmp3xxx_fb_data *data, u32 state)
+{
+	struct stmp3xxx_platform_fb_entry *pentry = data->pdata->cur;
+	struct fb_info *info = &data->info;
+	u32 old_state;
+
+	mutex_lock(&data->blank_mutex);
+	old_state = data->state;
+	pr_debug("%s, old_state %d, state %d\n", __func__, old_state, state);
+
+	switch (state) {
+	case F_DISABLE:
+		/*
+		 * Disable controller
+		 */
+		if (old_state != F_DISABLE) {
+			data->state = F_DISABLE;
+			stmp3xxxfb_disable_controller(data);
+		}
+		break;
+
+	case F_REENABLE:
+		/*
+		 * Re-enable the controller when panel changed.
+		 */
+		if (old_state == F_ENABLE || old_state == F_STARTUP) {
+			stmp3xxxfb_disable_controller(data);
+
+			pentry = data->pdata->cur = data->pdata->next;
+			info->fix.smem_len = pentry->y_res * pentry->x_res *
+						pentry->bpp / 8;
+			info->screen_size = info->fix.smem_len;
+			memset((void *)info->screen_base, 0, info->screen_size);
+
+			stmp3xxxfb_enable_controller(data);
+
+			data->state = F_ENABLE;
+		} else if (old_state == F_DISABLE) {
+			pentry = data->pdata->cur = data->pdata->next;
+			info->fix.smem_len = pentry->y_res * pentry->x_res *
+						pentry->bpp / 8;
+			info->screen_size = info->fix.smem_len;
+			memset((void *)info->screen_base, 0, info->screen_size);
+
+			data->state = F_DISABLE;
+		}
+		break;
+
+	case F_ENABLE:
+		if (old_state != F_ENABLE) {
+			data->state = F_ENABLE;
+			stmp3xxxfb_enable_controller(data);
+		}
+		break;
+	}
+	mutex_unlock(&data->blank_mutex);
+
+}
+
+static void stmp3xxxfb_task(struct work_struct *work)
+{
+	struct stmp3xxx_fb_data *data =
+			container_of(work, struct stmp3xxx_fb_data, work);
+
+	u32 state = xchg(&data->task_state, -1);
+	pr_debug("%s: state = %d, data->task_state = %d\n",
+				__func__, state, data->task_state);
+
+	set_controller_state(data, state);
+}
+
+static void stmp3xxx_schedule_work(struct stmp3xxx_fb_data *data, u32 state)
+{
+	unsigned long flags;
+
+	local_irq_save(flags);
+
+	data->task_state = state;
+	schedule_work(&data->work);
+
+	local_irq_restore(flags);
+}
 
 static irqreturn_t lcd_irq_handler(int irq, void *dev_id)
 {
@@ -295,23 +420,10 @@ static int stmp3xxxfb_set_par(struct fb_info *info)
 	if (pentry == pdata->cur || !pdata->cur)
 		return 0;
 
-	/* release prev panel */
-	stmp3xxxfb_blank(FB_BLANK_POWERDOWN, &data->info);
-	if (pdata->cur->stop_panel)
-		pdata->cur->stop_panel();
-	pdata->cur->release_panel(data->dev, pdata->cur);
-
-	info->fix.smem_len = pentry->y_res * pentry->x_res * pentry->bpp / 8;
-	info->screen_size = info->fix.smem_len;
-	memset((void *)info->screen_base, 0, info->screen_size);
-
 	/* init next panel */
-	pdata->cur = pentry;
-	stmp3xxx_init_lcdif();
-	pentry->init_panel(data->dev, data->phys_start, info->fix.smem_len,
-			   pentry);
-	pentry->run_panel();
-	stmp3xxxfb_blank(FB_BLANK_UNBLANK, &data->info);
+	pdata->next = pentry;
+
+	set_controller_state(data, F_REENABLE);
 
 	return 0;
 }
@@ -441,11 +553,25 @@ static int stmp3xxxfb_ioctl(struct fb_info *info, unsigned int cmd,
 static int stmp3xxxfb_blank(int blank, struct fb_info *info)
 {
 	struct stmp3xxx_fb_data *data = (struct stmp3xxx_fb_data *)info;
-	int ret = data->pdata->cur->blank_panel ?
-		data->pdata->cur->blank_panel(blank) :
-		-ENOTSUPP;
-	if (ret == 0)
-		data->is_blank = (blank != FB_BLANK_UNBLANK);
+	int ret = 0;
+
+	switch (blank) {
+	case FB_BLANK_NORMAL:
+	case FB_BLANK_VSYNC_SUSPEND:
+	case FB_BLANK_HSYNC_SUSPEND:
+	case FB_BLANK_POWERDOWN:
+		pr_debug("%s: FB_BLANK_POWERDOWN\n", __func__);
+		stmp3xxx_schedule_work(data, F_DISABLE);
+		break;
+
+	case FB_BLANK_UNBLANK:
+		pr_debug("%s: FB_BLANK_UNBLANK\n", __func__);
+		stmp3xxx_schedule_work(data, F_ENABLE);
+		break;
+
+	default:
+		ret = -EINVAL;
+	}
 	return ret;
 }
 
@@ -519,14 +645,24 @@ static int stmp3xxxfb_notifier(struct notifier_block *self,
 	struct stmp3xxxfb_notifier_block *block =
 		container_of(self, struct stmp3xxxfb_notifier_block, nb);
 	struct stmp3xxx_fb_data *data = block->fb_data;
+	struct stmp3xxx_platform_fb_entry *pentry = data->pdata->cur;
+	u32 old_state = data->state;
 
+	if (!data || !data->pdata || !data->pdata->cur)
+		return NOTIFY_BAD;
+
+	/* REVISIT */
 	switch (phase) {
-	case CPUFREQ_POSTCHANGE:
-		stmp3xxxfb_blank(FB_BLANK_UNBLANK, &data->info);
+	case CPUFREQ_PRECHANGE:
+		if (old_state == F_ENABLE)
+			if (pentry->blank_panel)
+				pentry->blank_panel(FB_BLANK_POWERDOWN);
 		break;
 
-	case CPUFREQ_PRECHANGE:
-		stmp3xxxfb_blank(FB_BLANK_POWERDOWN, &data->info);
+	case CPUFREQ_POSTCHANGE:
+		if (old_state == F_ENABLE)
+			if (pentry->blank_panel)
+				pentry->blank_panel(FB_BLANK_UNBLANK);
 		break;
 
 	default:
@@ -618,6 +754,9 @@ static int __devinit stmp3xxxfb_probe(struct platform_device *pdev)
 	}
 	dev_dbg(&pdev->dev, "allocated at %p:0x%x\n", data->virt_start,
 		data->phys_start);
+	mutex_init(&data->blank_mutex);
+	INIT_WORK(&data->work, stmp3xxxfb_task);
+	data->state = F_STARTUP;
 
 	stmp3xxxfb_default.bits_per_pixel = pentry->bpp;
 	/* NB: rotated */
@@ -750,13 +889,8 @@ out:
 static int stmp3xxxfb_remove(struct platform_device *pdev)
 {
 	struct stmp3xxx_fb_data *data = platform_get_drvdata(pdev);
-	struct stmp3xxx_platform_fb_data *pdata = pdev->dev.platform_data;
-	struct stmp3xxx_platform_fb_entry *pentry = pdata->cur;
 
-	stmp3xxxfb_blank(FB_BLANK_POWERDOWN, &data->info);
-	if (pentry->stop_panel)
-		pentry->stop_panel();
-	pentry->release_panel(&pdev->dev, pentry);
+	set_controller_state(data, F_DISABLE);
 
 	unregister_framebuffer(&data->info);
 	framebuffer_release(&data->info);
@@ -774,33 +908,17 @@ static int stmp3xxxfb_remove(struct platform_device *pdev)
 static int stmp3xxxfb_suspend(struct platform_device *pdev, pm_message_t state)
 {
 	struct stmp3xxx_fb_data *data = platform_get_drvdata(pdev);
-	struct stmp3xxx_platform_fb_data *pdata = pdev->dev.platform_data;
-	struct stmp3xxx_platform_fb_entry *pentry = pdata->cur;
-	int ret;
 
-	ret = stmp3xxxfb_blank(FB_BLANK_POWERDOWN, &data->info);
-	if (ret)
-		goto out;
-	if (pentry->stop_panel)
-		pentry->stop_panel();
-	pentry->release_panel(data->dev, pentry);
+	set_controller_state(data, F_DISABLE);
 
-out:
-	return ret;
+	return 0;
 }
 
 static int stmp3xxxfb_resume(struct platform_device *pdev)
 {
 	struct stmp3xxx_fb_data *data = platform_get_drvdata(pdev);
-	struct stmp3xxx_platform_fb_data *pdata = pdev->dev.platform_data;
-	struct stmp3xxx_platform_fb_entry *pentry = pdata->cur;
 
-	stmp3xxx_init_lcdif();
-	init_timings(data);
-	pentry->init_panel(data->dev, data->phys_start, data->info.fix.smem_len,
-			   pentry);
-	pentry->run_panel();
-	stmp3xxxfb_blank(FB_BLANK_UNBLANK, &data->info);
+	set_controller_state(data, F_ENABLE);
 	return 0;
 }
 #else

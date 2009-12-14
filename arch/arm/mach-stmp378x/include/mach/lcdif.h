@@ -73,6 +73,7 @@ struct stmp3xxx_platform_fb_entry {
 struct stmp3xxx_platform_fb_data {
 	struct list_head list;
 	struct stmp3xxx_platform_fb_entry *cur;
+	struct stmp3xxx_platform_fb_entry *next;
 };
 
 #define STMP3XXX_LCDIF_PANEL_INIT	1
