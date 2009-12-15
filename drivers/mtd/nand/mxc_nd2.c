@@ -26,7 +26,7 @@
 #include <asm/mach/flash.h>
 #include <asm/io.h>
 #include "mxc_nd2.h"
-#include "gpmi/nand_device_info.h"
+#include "nand_device_info.h"
 
 #define DVR_VER "2.5"
 

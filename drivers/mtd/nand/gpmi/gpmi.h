@@ -30,7 +30,7 @@
 #include <mach/regs-ecc8.h>
 
 #include "gpmi-hamming-22-16.h"
-#include "nand_device_info.h"
+#include "../nand_device_info.h"
 
 #define GPMI_ECC4_WR \
 	(BM_GPMI_ECCCTRL_ENABLE_ECC | \

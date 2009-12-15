@@ -41,7 +41,7 @@
 #include <mach/regs-gpmi.h>
 #include <mach/dma.h>
 #include "gpmi.h"
-#include "nand_device_info.h"
+#include "../nand_device_info.h"
 
 /* Macro definitions for the i.MX23. Some will be different for other SoC's. */
 

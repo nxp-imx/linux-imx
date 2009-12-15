@@ -1824,7 +1824,7 @@ static struct nand_device_info *nand_device_info_search(
 
 }
 
-static struct nand_device_info *nand_device_info_fn_toshiba(const uint8_t id[])
+static struct nand_device_info * __init nand_device_info_fn_toshiba(const uint8_t id[])
 {
 	struct nand_device_info  *table;
 
@@ -1866,7 +1866,7 @@ static struct nand_device_info *nand_device_info_fn_toshiba(const uint8_t id[])
 
 }
 
-static struct nand_device_info *nand_device_info_fn_samsung(const uint8_t id[])
+static struct nand_device_info * __init nand_device_info_fn_samsung(const uint8_t id[])
 {
 	struct nand_device_info  *table;
 
@@ -1942,7 +1942,7 @@ static struct nand_device_info *nand_device_info_fn_samsung(const uint8_t id[])
 
 }
 
-static struct nand_device_info *nand_device_info_fn_stmicro(const uint8_t id[])
+static struct nand_device_info * __init nand_device_info_fn_stmicro(const uint8_t id[])
 {
 	struct nand_device_info  *table;
 
@@ -1960,7 +1960,7 @@ static struct nand_device_info *nand_device_info_fn_stmicro(const uint8_t id[])
 
 }
 
-static struct nand_device_info *nand_device_info_fn_hynix(const uint8_t id[])
+static struct nand_device_info * __init nand_device_info_fn_hynix(const uint8_t id[])
 {
 	struct nand_device_info  *table;
 
@@ -2000,7 +2000,7 @@ static struct nand_device_info *nand_device_info_fn_hynix(const uint8_t id[])
 
 }
 
-static struct nand_device_info *nand_device_info_fn_micron(const uint8_t id[])
+static struct nand_device_info * __init nand_device_info_fn_micron(const uint8_t id[])
 {
 	struct nand_device_info  *table;
 
@@ -2056,7 +2056,7 @@ static struct nand_device_info *nand_device_info_fn_micron(const uint8_t id[])
 
 }
 
-static struct nand_device_info *nand_device_info_fn_sandisk(const uint8_t id[])
+static struct nand_device_info * __init nand_device_info_fn_sandisk(const uint8_t id[])
 {
 	struct nand_device_info  *table;
 
@@ -2073,7 +2073,7 @@ static struct nand_device_info *nand_device_info_fn_sandisk(const uint8_t id[])
 
 }
 
-static struct nand_device_info *nand_device_info_fn_intel(const uint8_t id[])
+static struct nand_device_info * __init nand_device_info_fn_intel(const uint8_t id[])
 {
 	struct nand_device_info  *table;
 
