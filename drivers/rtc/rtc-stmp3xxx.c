@@ -223,6 +223,8 @@ static int stmp3xxx_rtc_probe(struct platform_device *pdev)
 			BM_RTC_PERSISTENT0_ALARM_WAKE_EN |
 			BM_RTC_PERSISTENT0_ALARM_WAKE,
 		     REGS_RTC_BASE + HW_RTC_PERSISTENT0_CLR);
+	__raw_writel(BM_RTC_PERSISTENT0_AUTO_RESTART,
+		     REGS_RTC_BASE + HW_RTC_PERSISTENT0_SET);
 
 	printk(KERN_INFO "STMP3xxx RTC driver v1.0 hardware v%u.%u.%u\n",
 	       (hwversion >> 24),
