@@ -34,6 +34,7 @@
 #include <linux/slab.h>
 #include <linux/regulator/consumer.h>
 #include <asm/div64.h>
+#include <asm/sizes.h>
 
 #include <mach/stmp3xxx.h>
 #include <mach/platform.h>
@@ -2110,8 +2111,15 @@ static int gpmi_get_device_info(struct gpmi_nand_data *g)
  */
 static int gpmi_scan_middle(struct gpmi_nand_data *g)
 {
-	int oobsize = 0;
-	int index = 0;
+	struct mtd_info          *mtd    = &g->mtd;
+	struct nand_chip         *nand   = &g->nand;
+	struct nand_device_info  *info   = &g->device_info;
+	int                      index   = 0;
+	uint64_t                 physical_medium_size_in_bytes;
+	uint64_t                 logical_medium_size_in_bytes;
+	uint64_t                 logical_chip_size_in_bytes;
+	uint32_t                 page_data_size_in_bytes;
+	uint32_t                 page_oob_size_in_bytes;
 
 	/*
 	 * Hook the command function provided by the reference implementation.
@@ -2120,8 +2128,8 @@ static int gpmi_scan_middle(struct gpmi_nand_data *g)
 	 * now.
 	 */
 
-	g->saved_command = g->nand.cmdfunc;
-	g->nand.cmdfunc = gpmi_command;
+	g->saved_command = nand->cmdfunc;
+	nand->cmdfunc = gpmi_command;
 
 	/* Identify the NAND Flash devices. */
 
@@ -2132,11 +2140,30 @@ static int gpmi_scan_middle(struct gpmi_nand_data *g)
 
 	gpmi_set_timings(g, 0);
 
-	/* Limit to 2G size due to Kernel larger 4G space support */
-	if (g->mtd.size == 0) {
-		g->mtd.size = 1 << 31;
-		g->nand.chipsize = do_div(g->mtd.size, g->nand.numchips);
+	/*
+	 * Compute some important facts about the medium.
+	 *
+	 * Note that we don't yet support a medium of size larger than 2 GiB. If
+	 * we find the physical medium is too large, then we pretend it's
+	 * smaller.
+	 */
+
+	physical_medium_size_in_bytes =
+				nand->numchips * info->chip_size_in_bytes;
+
+	if (physical_medium_size_in_bytes > (2LL*SZ_1G)) {
+		logical_medium_size_in_bytes = 2LL*SZ_1G;
+		logical_chip_size_in_bytes = 2LL*SZ_1G;
+		do_div(logical_chip_size_in_bytes, nand->numchips);
+
+	} else {
+		logical_medium_size_in_bytes = physical_medium_size_in_bytes;
+		logical_chip_size_in_bytes   = info->chip_size_in_bytes;
 	}
+
+	page_data_size_in_bytes = 1 << (fls(info->page_total_size_in_bytes)-1);
+	page_oob_size_in_bytes  = info->page_total_size_in_bytes -
+							page_data_size_in_bytes;
 
 	/*
 	 * In all currently-supported geometries, the number of ECC bytes that
@@ -2145,68 +2172,72 @@ static int gpmi_scan_middle(struct gpmi_nand_data *g)
 
 	g->ecc_oob_bytes = 9;
 
-	/* correct mtd writesize setting */
-	g->mtd.writesize =
-	1 << (fls(g->device_info.page_total_size_in_bytes) - 1);
+	/* Configure ECC. */
 
-	/* Look at the page size and configure appropriately. */
-
-	switch (g->mtd.writesize) {
-	case 2048:		/* 2K page */
-		g->nand.ecc.layout = &gpmi_oob_64;
-		g->nand.ecc.bytes = 9;
-		g->oob_free = 19;
-		g->hwecc_type_read = GPMI_ECC4_RD;
-		g->hwecc_type_write = GPMI_ECC4_WR;
-		oobsize = 64;
+	switch (page_data_size_in_bytes) {
+	case 2048:
+		nand->ecc.layout          = &gpmi_oob_64;
+		nand->ecc.bytes           = 9;
+		g->oob_free               = 19;
+		g->hwecc_type_read        = GPMI_ECC4_RD;
+		g->hwecc_type_write       = GPMI_ECC4_WR;
 		break;
 	case 4096:
-		g->nand.ecc.layout = &gpmi_oob_128;
-		g->nand.ecc.bytes = 18;
-		g->oob_free = 65;
-		g->hwecc_type_read = GPMI_ECC8_RD;
-		g->hwecc_type_write = GPMI_ECC8_WR;
-		oobsize =
-		g->device_info.page_total_size_in_bytes - g->mtd.writesize;
-
+		nand->ecc.layout          = &gpmi_oob_128;
+		nand->ecc.bytes           = 18;
+		g->oob_free               = 65;
+		g->hwecc_type_read        = GPMI_ECC8_RD;
+		g->hwecc_type_write       = GPMI_ECC8_WR;
 		break;
 	default:
-		printk(KERN_ERR "Unsupported writesize %d.", g->mtd.writesize);
+		printk(KERN_ERR "Unsupported page data size %d.",
+						page_data_size_in_bytes);
+		return -ENXIO;
 		break;
 	}
 
-	g->mtd.ecclayout = g->nand.ecc.layout;
-	/* sanity check */
-	if (oobsize > NAND_MAX_OOBSIZE ||
-					g->mtd.writesize > NAND_MAX_PAGESIZE) {
+	mtd->ecclayout = nand->ecc.layout;
+
+	/* Configure the MTD geometry. */
+
+	mtd->size        = logical_medium_size_in_bytes;
+	mtd->erasesize   = info->block_size_in_pages * page_data_size_in_bytes;
+	mtd->writesize   = page_data_size_in_bytes;
+	mtd->oobavail    = mtd->ecclayout->oobavail;
+	mtd->oobsize     = page_oob_size_in_bytes;
+	mtd->subpage_sft = 0; /* We don't support sub-page writing. */
+
+	/* Configure the struct nand_chip geometry. */
+
+	nand->chipsize         = logical_chip_size_in_bytes;
+	nand->page_shift       = ffs(page_data_size_in_bytes) - 1;
+	nand->pagemask         = (nand->chipsize >> nand->page_shift) - 1;
+	nand->subpagesize      = mtd->writesize >> mtd->subpage_sft;
+	nand->phys_erase_shift = ffs(mtd->erasesize) - 1;
+	nand->bbt_erase_shift  = nand->phys_erase_shift;
+	nand->chip_shift       = ffs(nand->chipsize) - 1;
+
+	/* Sanity check */
+
+	if (mtd->oobsize > NAND_MAX_OOBSIZE ||
+					mtd->writesize > NAND_MAX_PAGESIZE) {
 		printk(KERN_ERR "Internal error. Either page size "
 		       "(%d) > max (%d) "
 		       "or oob size (%d) > max(%d). Sorry.\n",
-		       oobsize, NAND_MAX_OOBSIZE,
-		       g->mtd.writesize, NAND_MAX_PAGESIZE);
+		       mtd->oobsize, NAND_MAX_OOBSIZE,
+		       mtd->writesize, NAND_MAX_PAGESIZE);
 		return -ERANGE;
 	}
 
 	/* Install the ECC. */
 
-	if (oobsize > 0) {
-		g->mtd.oobsize = oobsize;
-		if (!bch_mode()) {
-			g->hc = gpmi_ecc_find("ecc8");
-			g->hc->setup(g->hc, 0,
-			g->mtd.writesize, g->mtd.oobsize);
-		} else {
-			g->hc = gpmi_ecc_find("bch");
-			for (index = 0; index < g->nand.numchips; index++)
-				g->hc->setup(g->hc, index,
-				g->mtd.writesize, g->mtd.oobsize);
-		}
-		return 0;
-	}
+	g->hc = gpmi_ecc_find("bch");
+	for (index = 0; index < nand->numchips; index++)
+		g->hc->setup(g->hc, index, mtd->writesize, mtd->oobsize);
 
-	/* If control arrives here, something has gone wrong. */
+	/* Return success. */
 
-	return -ENXIO;
+	return 0;
 
 }
 
