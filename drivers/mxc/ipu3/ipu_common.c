@@ -278,7 +278,6 @@ static int ipu_probe(struct platform_device *pdev)
 	struct resource *res;
 	struct mxc_ipu_config *plat_data = pdev->dev.platform_data;
 	unsigned long ipu_base;
-	u32 reg;
 
 	spin_lock_init(&ipu_lock);
 
@@ -379,7 +378,7 @@ static int ipu_probe(struct platform_device *pdev)
 	__raw_writel(0xFFFFFFFF, IPU_INT_CTRL(10));
 
 	/* DMFC Init */
-	_ipu_dmfc_init();
+	_ipu_dmfc_init(DMFC_NORMAL, 1);
 
 	/* Set sync refresh channels as high priority */
 	__raw_writel(0x18800000L, IDMAC_CHA_PRI(0));
@@ -2407,7 +2406,7 @@ static int ipu_resume(struct platform_device *pdev)
 		__raw_writel(idma_enable_reg[1], IDMAC_CHA_EN(32));
 	} else {
 		clk_enable(g_ipu_clk);
-		_ipu_dmfc_init();
+		_ipu_dmfc_init(DMFC_NORMAL, 0);
 		_ipu_init_dc_mappings();
 
 		/* Set sync refresh channels as high priority */

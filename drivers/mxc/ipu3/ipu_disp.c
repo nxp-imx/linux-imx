@@ -54,54 +54,132 @@ struct dp_csc_param_t {
 #define DC_DISP_ID_SERIAL	2
 #define DC_DISP_ID_ASYNC	3
 
+int dmfc_type_setup;
+static int dmfc_size_28, dmfc_size_29, dmfc_size_24, dmfc_size_27, dmfc_size_23;
 
-/* all value below is determined by fix reg setting in _ipu_dmfc_init*/
-#define DMFC_FIFO_SIZE_28	(128*4)
-#define DMFC_FIFO_SIZE_29	(64*4)
-#define DMFC_FIFO_SIZE_24	(64*4)
-#define DMFC_FIFO_SIZE_27	(128*4)
-#define DMFC_FIFO_SIZE_23	(128*4)
-
-void _ipu_dmfc_init(void)
+void _ipu_dmfc_init(int dmfc_type, int first)
 {
-	/* disable DMFC-IC channel*/
-	__raw_writel(0x2, DMFC_IC_CTRL);
-	/* 1 - segment 0 and 1; 2, 1C and 2C unused */
-	__raw_writel(0x00000088, DMFC_WR_CHAN);
+	u32 dmfc_wr_chan, dmfc_dp_chan;
+
+	if (first) {
+		if (dmfc_type_setup > dmfc_type)
+			dmfc_type = dmfc_type_setup;
+		else
+			dmfc_type_setup = dmfc_type;
+
+		/* disable DMFC-IC channel*/
+		__raw_writel(0x2, DMFC_IC_CTRL);
+	} else if (dmfc_type_setup >= DMFC_HIGH_RESOLUTION_DC) {
+		printk(KERN_DEBUG "DMFC high resolution has set, will not change\n");
+		return;
+	} else
+		dmfc_type_setup = dmfc_type;
+
+	if (dmfc_type == DMFC_HIGH_RESOLUTION_DC) {
+		/* 1 - segment 0~3;
+		 * 5B - segement 4, 5;
+		 * 5F - segement 6, 7;
+		 * 1C, 2C and 6B, 6F unused;
+		 */
+		printk(KERN_INFO "IPU DMFC DC HIGH RESOLUTION: 1(0~3), 5B(4,5), 5F(6,7)\n");
+		dmfc_wr_chan = 0x00000088;
+		dmfc_dp_chan = 0x00009694;
+		dmfc_size_28 = 256*4;
+		dmfc_size_29 = 0;
+		dmfc_size_24 = 0;
+		dmfc_size_27 = 128*4;
+		dmfc_size_23 = 128*4;
+	} else if (dmfc_type == DMFC_HIGH_RESOLUTION_DP) {
+		/* 1 - segment 0, 1;
+		 * 5B - segement 2~5;
+		 * 5F - segement 6,7;
+		 * 1C, 2C and 6B, 6F unused;
+		 */
+		printk(KERN_INFO "IPU DMFC DP HIGH RESOLUTION: 1(0,1), 5B(2~5), 5F(6,7)\n");
+		dmfc_wr_chan = 0x00000090;
+		dmfc_dp_chan = 0x0000968a;
+		dmfc_size_28 = 128*4;
+		dmfc_size_29 = 0;
+		dmfc_size_24 = 0;
+		dmfc_size_27 = 128*4;
+		dmfc_size_23 = 256*4;
+	} else if (dmfc_type == DMFC_HIGH_RESOLUTION_ONLY_DP) {
+		/* 5B - segement 0~3;
+		 * 5F - segement 4~7;
+		 * 1, 1C, 2C and 6B, 6F unused;
+		 */
+		printk(KERN_INFO "IPU DMFC ONLY-DP HIGH RESOLUTION: 5B(0~3), 5F(4~7)\n");
+		dmfc_wr_chan = 0x00000000;
+		dmfc_dp_chan = 0x00008c88;
+		dmfc_size_28 = 0;
+		dmfc_size_29 = 0;
+		dmfc_size_24 = 0;
+		dmfc_size_27 = 256*4;
+		dmfc_size_23 = 256*4;
+	} else {
+		/* 1 - segment 0, 1;
+		 * 5B - segement 4, 5;
+		 * 5F - segement 6, 7;
+		 * 1C, 2C and 6B, 6F unused;
+		 */
+		printk(KERN_INFO "IPU DMFC NORMAL mode: 1(0~1), 5B(4,5), 5F(6,7)\n");
+		dmfc_wr_chan = 0x00000090;
+		dmfc_dp_chan = 0x00009694;
+		dmfc_size_28 = 128*4;
+		dmfc_size_29 = 0;
+		dmfc_size_24 = 0;
+		dmfc_size_27 = 128*4;
+		dmfc_size_23 = 128*4;
+	}
+	__raw_writel(dmfc_wr_chan, DMFC_WR_CHAN);
 	__raw_writel(0x202020F6, DMFC_WR_CHAN_DEF);
-	/* 5B - segment 2 and 3; 5F - segment 4 and 5; */
-	/* 6B - segment 6; 6F - segment 7 */
-	__raw_writel(0x1F1E9694, DMFC_DP_CHAN);
+	__raw_writel(dmfc_dp_chan, DMFC_DP_CHAN);
 	/* Enable chan 5 watermark set at 5 bursts and clear at 7 bursts */
 	__raw_writel(0x2020F6F6, DMFC_DP_CHAN_DEF);
 }
+
+static int __init dmfc_setup(char *options)
+{
+	get_option(&options, &dmfc_type_setup);
+	if (dmfc_type_setup > DMFC_HIGH_RESOLUTION_ONLY_DP)
+		dmfc_type_setup = DMFC_HIGH_RESOLUTION_ONLY_DP;
+	return 1;
+}
+__setup("dmfc=", dmfc_setup);
 
 void _ipu_dmfc_set_wait4eot(int dma_chan, int width)
 {
 	u32 dmfc_gen1 = __raw_readl(DMFC_GENERAL1);
 
+	if (width >= HIGH_RESOLUTION_WIDTH) {
+		if (dma_chan == 23)
+			_ipu_dmfc_init(DMFC_HIGH_RESOLUTION_DP, 0);
+		else if (dma_chan == 28)
+			_ipu_dmfc_init(DMFC_HIGH_RESOLUTION_DC, 0);
+	}
+
 	if (dma_chan == 23) { /*5B*/
-		if (DMFC_FIFO_SIZE_23/width > 3)
+		if (dmfc_size_23/width > 3)
 			dmfc_gen1 |= 1UL << 20;
 		else
 			dmfc_gen1 &= ~(1UL << 20);
 	} else if (dma_chan == 24) { /*6B*/
-		if (DMFC_FIFO_SIZE_24/width > 1)
+		if (dmfc_size_24/width > 1)
 			dmfc_gen1 |= 1UL << 22;
 		else
 			dmfc_gen1 &= ~(1UL << 22);
 	} else if (dma_chan == 27) { /*5F*/
-		if (DMFC_FIFO_SIZE_27/width > 2)
+		if (dmfc_size_27/width > 2)
 			dmfc_gen1 |= 1UL << 21;
 		else
 			dmfc_gen1 &= ~(1UL << 21);
 	} else if (dma_chan == 28) { /*1*/
-		if (DMFC_FIFO_SIZE_28/width > 2)
+		if (dmfc_size_28/width > 2)
 			dmfc_gen1 |= 1UL << 16;
 		else
 			dmfc_gen1 &= ~(1UL << 16);
 	} else if (dma_chan == 29) { /*6F*/
-		if (DMFC_FIFO_SIZE_29/width > 1)
+		if (dmfc_size_29/width > 1)
 			dmfc_gen1 |= 1UL << 23;
 		else
 			dmfc_gen1 &= ~(1UL << 23);
@@ -1531,8 +1609,8 @@ int32_t ipu_disp_set_gamma_correction(ipu_channel_t channel, bool enable, int co
 		__raw_writel((slopek[4*i] & 0xff) | ((slopek[4*i+1] & 0xff) << 8) |
 			((slopek[4*i+2] & 0xff) << 16) | ((slopek[4*i+3] & 0xff) << 24), DP_GAMMA_S(flow, i));
 
+	reg = __raw_readl(DP_COM_CONF(flow));
 	if (enable) {
-		reg = __raw_readl(DP_COM_CONF(flow));
 		if ((bg_csc_type == RGB2YUV) || (bg_csc_type == YUV2YUV))
 			reg |= DP_COM_CONF_GAMMA_YUV_EN;
 		else
