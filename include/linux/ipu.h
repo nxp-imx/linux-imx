@@ -321,6 +321,7 @@ typedef union {
 		uint32_t out_width;
 		uint32_t out_height;
 		uint32_t out_pixel_fmt;
+		uint32_t out_resize_ratio;
 	} mem_prp_enc_mem;
 	struct {
 		uint32_t in_width;
@@ -363,6 +364,7 @@ typedef union {
 		uint32_t out_width;
 		uint32_t out_height;
 		uint32_t out_pixel_fmt;
+		uint32_t out_resize_ratio;
 		bool graphics_combine_en;
 		bool global_alpha_en;
 		bool key_color_en;
@@ -386,6 +388,7 @@ typedef union {
 		uint32_t out_width;
 		uint32_t out_height;
 		uint32_t out_pixel_fmt;
+		uint32_t out_resize_ratio;
 		bool graphics_combine_en;
 		bool global_alpha_en;
 		bool key_color_en;
@@ -393,7 +396,6 @@ typedef union {
 		uint8_t alpha;
 		uint32_t key_color;
 		bool alpha_chan_en;
-		uint32_t out_resize_ratio;
 	} mem_pp_mem;
 	struct {
 		uint32_t temp;
@@ -1013,6 +1015,30 @@ int ipu_open(void);
 int ipu_register_generic_isr(int irq, void *dev);
 void ipu_close(void);
 
+/* two stripe calculations */
+struct stripe_param{
+	unsigned int input_width; /* width of the input stripe */
+	unsigned int output_width; /* width of the output stripe */
+	unsigned int input_column; /* the first column on the input stripe */
+	unsigned int output_column; /* the first column on the output stripe */
+	unsigned int idr;
+	/* inverse downisizing ratio parameter; expressed as a power of 2 */
+	unsigned int irr;
+	/* inverse resizing ratio parameter; expressed as a multiple of 2^-13 */
+};
+
+typedef struct _ipu_stripe_parm {
+	unsigned int input_width;
+	unsigned int output_width;
+	unsigned int maximal_stripe_width;
+	unsigned long long cirr;
+	unsigned int equal_stripes;
+	u32 input_pixelformat;
+	u32 output_pixelformat;
+	struct stripe_param left;
+	struct stripe_param right;
+} ipu_stripe_parm;
+
 typedef struct _ipu_channel_parm {
 	ipu_channel_t channel;
 	ipu_channel_params_t params;
@@ -1033,6 +1059,19 @@ typedef struct _ipu_channel_buf_parm {
 	uint32_t v_offset;
 	uint32_t bufNum;
 } ipu_channel_buf_parm;
+
+typedef struct _ipu_buf_offset_parm {
+	ipu_channel_t channel;
+	ipu_buffer_t type;
+	uint32_t pixel_fmt;
+	uint16_t width;
+	uint16_t height;
+	uint16_t stride;
+	uint32_t u_offset;
+	uint32_t v_offset;
+	uint32_t vertical_offset;
+	uint32_t horizontal_offset;
+} ipu_buf_offset_parm;
 
 typedef struct _ipu_channel_link {
 	ipu_channel_t src_ch;
@@ -1207,22 +1246,8 @@ typedef struct _ipu_mem_info {
 #define IPU_ALOC_MEM		      _IOWR('I', 0x24, ipu_mem_info)
 #define IPU_FREE_MEM		      _IOW('I', 0x25, ipu_mem_info)
 #define IPU_IS_CHAN_BUSY	      _IOW('I', 0x26, ipu_channel_t)
-
-
-/* two stripe calculations */
-struct stripe_param{
-	unsigned int input_width; /* width of the input stripe */
-	unsigned int output_width; /* width of the output stripe */
-	unsigned int input_column; /* the first column on the input stripe */
-	unsigned int output_column; /* the first column on the output stripe */
-	unsigned int idr;
-	/* inverse downisizing ratio parameter; expressed as a power of 2 */
-	unsigned int irr;
-	/* inverse resizing ratio parameter; expressed as a multiple of 2^-13 */
-};
-
-
-
+#define IPU_CALC_STRIPES_SIZE	      _IOWR('I', 0x27, ipu_stripe_parm)
+#define IPU_UPDATE_BUF_OFFSET     _IOW('I', 0x28, ipu_buf_offset_parm)
 
 int ipu_calc_stripes_sizes(const unsigned int input_frame_width,
 				unsigned int output_frame_width,
@@ -1233,5 +1258,4 @@ int ipu_calc_stripes_sizes(const unsigned int input_frame_width,
 				u32 output_pixelformat,
 				struct stripe_param *left,
 				struct stripe_param *right);
-
 #endif
