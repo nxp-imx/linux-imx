@@ -418,9 +418,10 @@ static struct platform_device lcd_wvga_device = {
 		},
 };
 
+extern int g_di1_tvout;
 static void mxc_init_fb(void)
 {
-
+	g_di1_tvout = 1;
 	if (cpu_is_mx51_rev(CHIP_REV_2_0) > 0)
 		lcd_data.reset = lcd_reset_to2;
 

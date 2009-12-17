@@ -56,6 +56,7 @@ struct dp_csc_param_t {
 
 int dmfc_type_setup;
 static int dmfc_size_28, dmfc_size_29, dmfc_size_24, dmfc_size_27, dmfc_size_23;
+int g_di1_tvout;
 
 void _ipu_dmfc_init(int dmfc_type, int first)
 {
@@ -965,21 +966,23 @@ int32_t ipu_init_sync_panel(int disp, uint32_t pixel_clk,
 	dev_dbg(g_ipu_dev, "pixel clk = %d\n", pixel_clk);
 
 	if (sig.ext_clk) {
-		/* Set the  PLL to be an even multiple of the pixel clock. */
-		if ((clk_get_usecount(g_pixel_clk[0]) == 0) &&
-			(clk_get_usecount(g_pixel_clk[1]) == 0)) {
-			di_parent = clk_get_parent(g_di_clk[disp]);
-			rounded_pixel_clk =
-				clk_round_rate(g_pixel_clk[disp], pixel_clk);
-			div  = clk_get_rate(di_parent) / rounded_pixel_clk;
-			if (div % 2)
-				div++;
+		if (!(g_di1_tvout && (disp == 1))) { /* not round div for tvout*/
+			/* Set the  PLL to be an even multiple of the pixel clock. */
+			if ((clk_get_usecount(g_pixel_clk[0]) == 0) &&
+					(clk_get_usecount(g_pixel_clk[1]) == 0)) {
+				di_parent = clk_get_parent(g_di_clk[disp]);
+				rounded_pixel_clk =
+					clk_round_rate(g_pixel_clk[disp], pixel_clk);
+				div  = clk_get_rate(di_parent) / rounded_pixel_clk;
+				if (div % 2)
+					div++;
 
-		if (clk_get_rate(di_parent) != div * rounded_pixel_clk)
-			clk_set_rate(di_parent, div * rounded_pixel_clk);
-		msleep(10);
-		clk_set_rate(g_di_clk[disp], 2 * rounded_pixel_clk);
-		msleep(10);
+				if (clk_get_rate(di_parent) != div * rounded_pixel_clk)
+					clk_set_rate(di_parent, div * rounded_pixel_clk);
+				msleep(10);
+				clk_set_rate(g_di_clk[disp], 2 * rounded_pixel_clk);
+				msleep(10);
+			}
 		}
 		clk_set_parent(g_pixel_clk[disp], g_di_clk[disp]);
 	} else {

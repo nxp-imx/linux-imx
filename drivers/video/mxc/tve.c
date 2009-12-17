@@ -221,8 +221,8 @@ static int tve_setup(int mode)
 {
 	u32 reg;
 	struct clk *pll3_clk;
-	unsigned long pll3_clock_rate = 216000000;
-	struct clk *ipu_di0_clk;
+	unsigned long pll3_clock_rate = 216000000, di1_clock_rate = 27000000;
+	struct clk *ipu_di1_clk;
 
 	if (tve.cur_mode == mode)
 		return 0;
@@ -233,25 +233,23 @@ static int tve_setup(int mode)
 	case TVOUT_FMT_PAL:
 	case TVOUT_FMT_NTSC:
 		pll3_clock_rate = 216000000;
+		di1_clock_rate = 27000000;
 		break;
 	case TVOUT_FMT_720P60:
 		pll3_clock_rate = 297000000;
+		di1_clock_rate = 74250000;
 		break;
 	}
 	if (enabled)
 		clk_disable(tve.clk);
 
 	pll3_clk = clk_get(NULL, "pll3");
-	ipu_di0_clk = clk_get(NULL, "ipu_di0_clk");
-	if ((clk_get_parent(ipu_di0_clk) == pll3_clk) &&
-		(clk_get_rate(pll3_clk) != pll3_clock_rate)) {
-		printk(KERN_INFO "Cannot setup TV since display is using PLL3\n");
-		return -EINVAL;
-	}
+	ipu_di1_clk = clk_get(NULL, "ipu_di1_clk");
 
 	clk_disable(pll3_clk);
 	clk_set_rate(pll3_clk, pll3_clock_rate);
 	clk_enable(pll3_clk);
+	clk_set_rate(ipu_di1_clk, di1_clock_rate);
 
 	clk_enable(tve.clk);
 
@@ -616,12 +614,18 @@ static int _tve_get_revision(void)
 	return rev;
 }
 
+extern int g_di1_tvout;
 static int tve_probe(struct platform_device *pdev)
 {
 	int ret, i;
 	struct resource *res;
 	struct tve_platform_data *plat_data = pdev->dev.platform_data;
 	u32 conf_reg;
+
+	if (!g_di1_tvout) {
+		pr_debug("TVE: DI1 was occupied by other device,TVE will not enable\n");
+		return -EBUSY;
+	}
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	if (res == NULL)

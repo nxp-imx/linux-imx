@@ -98,11 +98,12 @@ static struct cpu_wp cpu_wp_auto[] = {
 static struct fb_videomode video_modes[] = {
 	{
 	 /* 720p60 TV output */
-	 "720P60", 60, 1280, 720, 7418,
-	 220, 110,
-	 20, 5,
-	 40, 5,
-	 FB_SYNC_HOR_HIGH_ACT | FB_SYNC_VERT_HIGH_ACT | FB_SYNC_EXT,
+	 "720P60", 60, 1280, 720, 13468,
+	 260, 109,
+	 25, 4,
+	 1, 1,
+	 FB_SYNC_HOR_HIGH_ACT | FB_SYNC_VERT_HIGH_ACT |
+			FB_SYNC_EXT,
 	 FB_VMODE_NONINTERLACED,
 	 0,},
 	{
@@ -338,6 +339,7 @@ static int handle_edid(int *pixclk)
 	return 0;
 }
 
+extern int g_di1_tvout;
 static int __init mxc_init_fb(void)
 {
 	int pixclk = 0;
@@ -350,12 +352,15 @@ static int __init mxc_init_fb(void)
 		fb_data[0].mode_str = NULL;
 		fb_data[1].mode_str = NULL;
 	}
+	g_di1_tvout = 1;
 
+	/* DI1: Dumb LCD */
 	if (enable_wvga) {
 		fb_data[1].interface_pix_fmt = IPU_PIX_FMT_RGB565;
 		fb_data[1].mode_str = "800x480M-16@55";
 	}
 
+	/* DI0: lVDS */
 	if (enable_mitsubishi_xga) {
 		fb_data[0].interface_pix_fmt = IPU_PIX_FMT_LVDS666;
 		fb_data[0].mode = &(video_modes[1]);
@@ -385,49 +390,73 @@ static int __init mxc_init_fb(void)
 	if (cpu_is_mx51_rev(CHIP_REV_1_1) == 2)
 		handle_edid(&pixclk);
 
-	if (enable_vga)
+	if (enable_vga) {
 		printk(KERN_INFO "VGA monitor is primary\n");
-	else if (enable_wvga)
+		g_di1_tvout = 0;
+	} else if (enable_wvga) {
 		printk(KERN_INFO "WVGA LCD panel is primary\n");
-	else if (!enable_tv)
+		g_di1_tvout = 0;
+	} else if (enable_tv == 2)
+		printk(KERN_INFO "HDTV is primary\n");
+	else
 		printk(KERN_INFO "DVI monitor is primary\n");
 
 	if (enable_tv) {
-		printk(KERN_INFO "TV is specified as %d\n", enable_tv);
-		if (!fb_data[0].mode) {
-			fb_data[0].mode = &(video_modes[0]);
-			if (!enable_wvga)
-				fb_data[1].mode_str = "800x600M-16@60";
-		}
-	}
-
-	if (enable_tv) {
-		struct clk *clk, *di_clk;
-		clk = clk_get(NULL, "pll3");
-		di_clk = clk_get(NULL, "ipu_di0_clk");
-		clk_disable(clk);
-		clk_disable(di_clk);
-		clk_set_rate(clk, 297000000);
-		clk_set_rate(di_clk, 297000000 / 4);
-		clk_enable(clk);
-		clk_enable(di_clk);
-		clk_put(di_clk);
-		clk_put(clk);
+		printk(KERN_INFO "HDTV is specified as %d\n", enable_tv);
+		fb_data[1].interface_pix_fmt = IPU_PIX_FMT_YUV444;
+		fb_data[1].mode = &(video_modes[0]);
 	}
 
 	/* Once a customer knows the platform configuration,
 	   this should be simplified to what is desired.
 	 */
 	if (enable_vga || enable_wvga || enable_tv == 2) {
-		(void)platform_device_register(&mxc_fb_device[1]); /* VGA */
+		/*
+		 * DI1 -> DP-BG channel:
+		 *
+		 *    dev    di-out-fmt    default-videmode
+		 *
+		 * 1. VGA       RGB 	   1024x768M-16@60
+		 * 2. WVGA      RGB 	   800x480M-16@55
+		 * 3. TVE       YUV	   video_modes[0]
+		 */
+		(void)platform_device_register(&mxc_fb_device[1]);
 		if (fb_data[0].mode_str || fb_data[0].mode)
+			/*
+			 * DI0 -> DC channel:
+			 *
+			 *    dev    di-out-fmt    default-videmode
+			 *
+			 * 1. LVDS      RGB 	   video_modes[1]
+			 * 2. DVI       RGB 	   1024x768M-16@60
+			 */
 			(void)platform_device_register(&mxc_fb_device[0]);
 	} else {
-		(void)platform_device_register(&mxc_fb_device[0]); /* DVI */
+		/*
+		 * DI0 -> DP-BG channel:
+		 *
+		 *    dev    di-out-fmt    default-videmode
+		 *
+		 * 1. LVDS      RGB 	   video_modes[1]
+		 * 2. DVI       RGB 	   1024x768M-16@60
+		 */
+		(void)platform_device_register(&mxc_fb_device[0]);
 		if (fb_data[1].mode_str || fb_data[1].mode)
+			/*
+			 * DI1 -> DC channel:
+			 *
+			 *    dev    di-out-fmt    default-videmode
+			 *
+			 * 1. VGA       RGB 	   1024x768M-16@60
+			 * 2. WVGA      RGB 	   800x480M-16@55
+			 * 3. TVE       YUV	   video_modes[0]
+			 */
 			(void)platform_device_register(&mxc_fb_device[1]);
 	}
 
+	/*
+	 * DI0/1 DP-FG channel:
+	 */
 	(void)platform_device_register(&mxc_fb_device[2]);
 
 	return 0;
@@ -466,7 +495,7 @@ static int __init tv_setup(char *s)
 	return 1;
 }
 
-__setup("tv", tv_setup);
+__setup("hdtv", tv_setup);
 #else
 static inline void mxc_init_fb(void)
 {

@@ -168,6 +168,8 @@ static int _setup_disp_channel1(struct fb_info *fbi)
 			if (mxc_fbi_tmp->ipu_ch == MEM_BG_SYNC) {
 				fbi->var.vmode =
 				registered_fb[i]->var.vmode;
+				mxc_fbi->ipu_di_pix_fmt =
+				mxc_fbi_tmp->ipu_di_pix_fmt;
 				break;
 			}
 		}

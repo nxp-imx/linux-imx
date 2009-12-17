@@ -398,8 +398,10 @@ static struct platform_device mxc_fb_device[] = {
 	 },
 };
 
+extern int g_di1_tvout;
 static void mxc_init_fb(void)
 {
+	g_di1_tvout = 1;
 	(void)platform_device_register(&mxc_fb_device[0]);
 	(void)platform_device_register(&mxc_fb_device[1]);
 	(void)platform_device_register(&mxc_fb_device[2]);
