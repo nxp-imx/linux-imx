@@ -739,7 +739,7 @@ static int mxcfb_ioctl(struct fb_info *fbi, unsigned int cmd, unsigned long arg)
 				break;
 			}
 
-			if (la.enable) {
+			if (la.enable && !la.alpha_in_pixel) {
 				mxc_fbi->alpha_chan_en = true;
 
 				if (mxc_fbi->ipu_ch == MEM_FG_SYNC)

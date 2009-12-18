@@ -37,6 +37,7 @@ struct mxcfb_gbl_alpha {
 
 struct mxcfb_loc_alpha {
 	int enable;
+	int alpha_in_pixel;
 	unsigned long alpha_phy_addr0;
 	unsigned long alpha_phy_addr1;
 };
