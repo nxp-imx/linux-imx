@@ -1891,7 +1891,9 @@ int __init mx35_clocks_init(void)
 		clk_register(*clkp);
 
 	/* Turn off all possible clocks */
-	__raw_writel(MXC_CCM_CGR0_ECT_MASK | MXC_CCM_CGR0_EMI_MASK,
+	__raw_writel(MXC_CCM_CGR0_ECT_MASK | MXC_CCM_CGR0_EMI_MASK |
+		     MXC_CCM_CGR0_ESDHC1_MASK | MXC_CCM_CGR0_ESDHC2_MASK |
+		     MXC_CCM_CGR0_ESDHC3_MASK,
 		     MXC_CCM_CGR0);
 	__raw_writel(MXC_CCM_CGR1_GPIO1_MASK | MXC_CCM_CGR1_GPIO2_MASK |
 		     MXC_CCM_CGR1_GPIO3_MASK | MXC_CCM_CGR1_GPT_MASK |

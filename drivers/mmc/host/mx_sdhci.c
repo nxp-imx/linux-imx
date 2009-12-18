@@ -1185,14 +1185,25 @@ static void sdhci_tasklet_finish(unsigned long param)
 
 	/* Stop the clock when the req is done */
 	flags = SDHCI_DATA_ACTIVE | SDHCI_DOING_WRITE | SDHCI_DOING_READ;
-	if (!(readl(host->ioaddr + SDHCI_PRESENT_STATE) & flags)) {
-		if (host->plat_data->clk_flg) {
-			clk_disable(host->clk);
-			host->plat_data->clk_flg = 0;
+	if (machine_is_mx35_3ds()) {
+		/* Do not disable the eSDHC clk on MX35 3DS board,
+		 * since SYSTEM can't boot up after the reset key
+		 * is pressed when the SD/MMC boot mode is used.
+		 * The root cause is that the ROM code don't ensure
+		 * the SD/MMC clk is running when boot system.
+		 * */
+		mmc_request_done(host->mmc, mrq);
+	} else {
+		if (!(readl(host->ioaddr + SDHCI_PRESENT_STATE) & flags)) {
+			if (host->plat_data->clk_flg) {
+				clk_disable(host->clk);
+				host->plat_data->clk_flg = 0;
+			}
 		}
+
+		mmc_request_done(host->mmc, mrq);
 	}
 
-	mmc_request_done(host->mmc, mrq);
 }
 
 static void sdhci_timeout_timer(unsigned long data)
