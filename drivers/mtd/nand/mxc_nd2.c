@@ -45,7 +45,7 @@ static struct mxc_mtd_s *mxc_nand_data;
 /*
  * Define delay timeout value
  */
-#define TROP_US_DELAY   (200 * 1000)
+#define TROP_US_DELAY   (1000 * 1000)
 
 struct nand_info {
 	bool bStatusRequest;
