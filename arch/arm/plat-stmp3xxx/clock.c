@@ -578,6 +578,9 @@ static int clkseq_set_parent(struct clk *clk, struct clk *parent)
 					REGS_CLKCTRL_BASE + HW_CLKCTRL_CPU);
 				hclk.rate = 0;
 			}
+
+			__raw_writel(1 << clk->bypass_shift,
+					clk->bypass_reg + shift);
 		} else
 			__raw_writel(1 << clk->bypass_shift,
 					clk->bypass_reg + shift);

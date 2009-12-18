@@ -654,13 +654,13 @@ static int stmp3xxxfb_notifier(struct notifier_block *self,
 	/* REVISIT */
 	switch (phase) {
 	case CPUFREQ_PRECHANGE:
-		if (old_state == F_ENABLE)
+		if (old_state == F_ENABLE || old_state == F_STARTUP)
 			if (pentry->blank_panel)
 				pentry->blank_panel(FB_BLANK_POWERDOWN);
 		break;
 
 	case CPUFREQ_POSTCHANGE:
-		if (old_state == F_ENABLE)
+		if (old_state == F_ENABLE || old_state == F_STARTUP)
 			if (pentry->blank_panel)
 				pentry->blank_panel(FB_BLANK_UNBLANK);
 		break;
