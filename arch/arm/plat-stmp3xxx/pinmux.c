@@ -429,6 +429,16 @@ static void stmp3xxx_pin_unmask_irq(unsigned irq)
 	stmp3xxx_setl(1 << gpio, pm->pin2irq);
 }
 
+static void stmp3xxx_pin_disable_irq(unsigned irq)
+{
+	struct stmp3xxx_pinmux_bank *pm;
+	unsigned gpio;
+
+	stmp3xxx_irq_to_gpio(irq, &pm, &gpio);
+	stmp3xxx_clearl(1 << gpio, pm->irqen);
+	stmp3xxx_clearl(1 << gpio, pm->pin2irq);
+}
+
 static inline
 struct stmp3xxx_pinmux_bank *to_pinmux_bank(struct gpio_chip *chip)
 {
@@ -510,6 +520,7 @@ static struct irq_chip gpio_irq_chip = {
 	.ack	= stmp3xxx_pin_ack_irq,
 	.mask	= stmp3xxx_pin_mask_irq,
 	.unmask	= stmp3xxx_pin_unmask_irq,
+	.disable = stmp3xxx_pin_disable_irq,
 	.set_type = stmp3xxx_set_irqtype,
 };
 
