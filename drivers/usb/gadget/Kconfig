@@ -718,9 +718,9 @@ config USB_FILE_STORAGE
 	  Say "y" to link the driver statically, or "m" to build a
 	  dynamically linked module called "g_file_storage".
 
-config STMP_UTP
+config FSL_UTP
 	bool "UTP over Storage Gadget"
-	depends on USB_FILE_STORAGE && ARCH_STMP3XXX
+	depends on USB_FILE_STORAGE
 	help
 	  Freescale's extension to MSC protocol
 

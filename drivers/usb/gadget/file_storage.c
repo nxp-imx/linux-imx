@@ -715,12 +715,12 @@ struct fsg_dev {
 	struct lun		*luns;
 	struct lun		*curlun;
 
-#ifdef CONFIG_STMP_UTP
+#ifdef CONFIG_FSL_UTP
 	void			*utp;
 #endif
 };
 
-#ifdef CONFIG_STMP_UTP
+#ifdef CONFIG_FSL_UTP
 #include "stmp_updater.h"
 #endif
 
@@ -846,7 +846,7 @@ device_desc = {
 
 	.iManufacturer =	STRING_MANUFACTURER,
 	.iProduct =		STRING_PRODUCT,
-#ifdef CONFIG_STMP_UTP
+#ifdef CONFIG_FSL_UTP
 	.iSerialNumber = 0,
 #else
 	.iSerialNumber =	STRING_SERIAL,
@@ -2080,7 +2080,7 @@ static int do_request_sense(struct fsg_dev *fsg, struct fsg_buffhd *bh)
 	}
 #endif
 
-#ifdef CONFIG_STMP_UTP
+#ifdef CONFIG_FSL_UTP
 	if (utp_get_sense(fsg) == 0) {	/* got the sense from the UTP */
 		sd = UTP_CTX(fsg)->sd;
 		sdinfo = UTP_CTX(fsg)->sdinfo;
@@ -2108,7 +2108,7 @@ static int do_request_sense(struct fsg_dev *fsg, struct fsg_buffhd *bh)
 	buf[7] = 18 - 8;			// Additional sense length
 	buf[12] = ASC(sd);
 	buf[13] = ASCQ(sd);
-#ifdef CONFIG_STMP_UTP
+#ifdef CONFIG_FSL_UTP
 	put_unaligned_be32(UTP_CTX(fsg)->sdinfo_h, &buf[8]);
 #endif
 	return 18;
@@ -2871,7 +2871,7 @@ static int do_scsi_command(struct fsg_dev *fsg)
 	fsg->phase_error = 0;
 	fsg->short_packet_received = 0;
 
-#ifdef CONFIG_STMP_UTP
+#ifdef CONFIG_FSL_UTP
 	reply = utp_handle_message(fsg, fsg->cmnd, reply);
 
 	if (reply != -EINVAL)
@@ -3566,7 +3566,7 @@ static int fsg_main_thread(void *fsg_)
 	/* Allow the thread to be frozen */
 	set_freezable();
 
-#ifndef CONFIG_STMP_UTP
+#ifndef CONFIG_FSL_UTP
 	/* Arrange for userspace references to be interpreted as kernel
 	 * pointers.  That way we can pass a kernel pointer to a routine
 	 * that expects a __user pointer and it will work okay. */
@@ -3882,7 +3882,7 @@ static void /* __init_or_exit */ fsg_unbind(struct usb_gadget *gadget)
 	}
 
 	set_gadget_data(gadget, NULL);
-#ifdef CONFIG_STMP_UTP
+#ifdef CONFIG_FSL_UTP
 	utp_exit(fsg);
 #endif
 }
@@ -3923,7 +3923,7 @@ static int __init check_parameters(struct fsg_dev *fsg)
 
 	prot = simple_strtol(mod_data.protocol_parm, NULL, 0);
 
-#ifdef CONFIG_STMP_UTP
+#ifdef CONFIG_FSL_UTP
 	mod_data.can_stall = 0;
 	mod_data.removable = 1;
 	mod_data.nluns = 1;
@@ -3986,7 +3986,7 @@ static int __init check_parameters(struct fsg_dev *fsg)
 
 	return 0;
 }
-#ifdef CONFIG_STMP_UTP
+#ifdef CONFIG_FSL_UTP
 #include "stmp_updater.c"
 #endif
 static int __init fsg_bind(struct usb_gadget *gadget)
@@ -4016,7 +4016,7 @@ static int __init fsg_bind(struct usb_gadget *gadget)
 		}
 	}
 
-#ifdef CONFIG_STMP_UTP
+#ifdef CONFIG_FSL_UTP
 	utp_init(fsg);
 #endif
 
