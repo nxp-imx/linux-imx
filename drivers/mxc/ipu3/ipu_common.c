@@ -1077,8 +1077,11 @@ int32_t ipu_init_channel_buffer(ipu_channel_t channel, ipu_buffer_t type,
 	} else if (_ipu_is_irt_chan(dma_chan)) {
 		_ipu_ch_param_set_burst_size(dma_chan, 8);
 		_ipu_ch_param_set_block_mode(dma_chan);
-	} else if (_ipu_is_dmfc_chan(dma_chan))
+	} else if (_ipu_is_dmfc_chan(dma_chan)) {
+		spin_lock_irqsave(&ipu_lock, lock_flags);
 		_ipu_dmfc_set_wait4eot(dma_chan, width);
+		spin_unlock_irqrestore(&ipu_lock, lock_flags);
+	}
 
 	if (_ipu_chan_is_interlaced(channel)) {
 		_ipu_ch_param_set_interlaced_scan(dma_chan);
@@ -2406,7 +2409,7 @@ static int ipu_resume(struct platform_device *pdev)
 		__raw_writel(idma_enable_reg[1], IDMAC_CHA_EN(32));
 	} else {
 		clk_enable(g_ipu_clk);
-		_ipu_dmfc_init(DMFC_NORMAL, 0);
+		_ipu_dmfc_init(dmfc_type_setup, 1);
 		_ipu_init_dc_mappings();
 
 		/* Set sync refresh channels as high priority */
