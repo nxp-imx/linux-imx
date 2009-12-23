@@ -3,7 +3,7 @@
  *
  *  Author: Vitaly Wool <vital@embeddedalley.com>
  *
- * Copyright 2008-2009 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2008-2010 Freescale Semiconductor, Inc.
  * Copyright 2008 Embedded Alley Solutions, Inc All Rights Reserved.
  */
 
@@ -167,7 +167,7 @@ static int set_op(unsigned int target_freq)
 	freqs.cpu = 0;
 
 /* work around usb problem when in updater firmare  mode*/
-#ifdef CONFIG_STMP_UTP
+#ifdef CONFIG_FSL_UTP
 	return 0;
 #endif
 	for (i = cur_freq_table_size - 1; i > 0; i--) {
