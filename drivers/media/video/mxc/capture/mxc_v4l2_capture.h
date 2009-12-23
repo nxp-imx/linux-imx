@@ -108,7 +108,8 @@ typedef struct _cam_data {
 	struct list_head done_q;
 	struct list_head working_q;
 	int ping_pong_csi;
-	spinlock_t int_lock;
+	spinlock_t queue_int_lock;
+	spinlock_t dqueue_int_lock;
 	struct mxc_v4l_frame frame[FRAME_NUM];
 	int skip_frame;
 	wait_queue_head_t enc_queue;
