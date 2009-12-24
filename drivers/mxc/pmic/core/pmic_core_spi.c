@@ -88,7 +88,6 @@ extern void pmic_event_callback(type_event event);
 extern void gpio_pmic_active(void);
 extern irqreturn_t pmic_irq_handler(int irq, void *dev_id);
 extern pmic_version_t mxc_pmic_version;
-extern struct workqueue_struct *pmic_event_wq;
 
 /*!
  * This function registers platform device structures for
@@ -192,16 +191,17 @@ static int __devinit pmic_probe(struct spi_device *spi)
 		return PMIC_ERROR;
 	}
 
-	pmic_event_wq = create_workqueue("pmic_spi");
-	if (!pmic_event_wq) {
-		pr_err("pmic driver init: fail to create work queue");
+	ret = pmic_start_event_thread(spi->irq);
+	if (ret) {
+		pr_err("mc13892 pmic driver init: \
+			fail to start event thread\n");
 		kfree(spi_get_drvdata(spi));
 		spi_set_drvdata(spi, NULL);
-		return -EFAULT;
+		return PMIC_ERROR;
 	}
 
 	/* Set and install PMIC IRQ handler */
-	set_irq_type(spi->irq, IRQF_TRIGGER_RISING);
+	set_irq_type(spi->irq, IRQF_TRIGGER_HIGH);
 	ret = request_irq(spi->irq, pmic_irq_handler, 0, "PMIC_IRQ", 0);
 	if (ret) {
 		kfree(spi_get_drvdata(spi));
@@ -239,9 +239,7 @@ static int __devinit pmic_probe(struct spi_device *spi)
  */
 static int __devexit pmic_remove(struct spi_device *spi)
 {
-	if (pmic_event_wq)
-		destroy_workqueue(pmic_event_wq);
-
+	pmic_stop_event_thread();
 	free_irq(spi->irq, 0);
 
 	pmic_pdev_unregister();

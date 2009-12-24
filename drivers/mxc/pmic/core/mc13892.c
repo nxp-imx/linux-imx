@@ -74,7 +74,7 @@ int pmic_i2c_24bit_read(struct i2c_client *client, unsigned int reg_num,
 		*value = buf[0] << 16 | buf[1] << 8 | buf[2];
 		return ret;
 	} else {
-		pr_debug("24bit read error, ret = %d\n", ret);
+		pr_err("24bit read error, ret = %d\n", ret);
 		return -1;	/* return -1 on failure */
 	}
 }
@@ -96,6 +96,8 @@ int pmic_i2c_24bit_write(struct i2c_client *client,
 			break;
 		msleep(1);
 	}
+	if (i == MC13892_I2C_RETRY_TIMES)
+		pr_err("24bit write error, ret = %d\n", ret);
 
 	return ret;
 }

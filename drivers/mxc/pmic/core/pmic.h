@@ -131,4 +131,8 @@ static inline PMIC_STATUS pmic_fix_arbitration(struct spi_device *spi)
 
 void *pmic_alloc_data(struct device *dev);
 
+int pmic_start_event_thread(int irq_num);
+
+void pmic_stop_event_thread(void);
+
 #endif				/* __PMIC_H__ */

@@ -29,6 +29,7 @@
 #include <linux/platform_device.h>
 #include <linux/interrupt.h>
 #include <linux/irq.h>
+#include <linux/kthread.h>
 #include <linux/pmic_external.h>
 #include <linux/pmic_status.h>
 
@@ -41,31 +42,59 @@
  */
 pmic_version_t mxc_pmic_version;
 unsigned int active_events[MAX_ACTIVE_EVENTS];
-struct workqueue_struct *pmic_event_wq;
 
-void pmic_bh_handler(struct work_struct *work);
-/*!
- * Bottom half handler of PMIC event handling.
- */
-DECLARE_WORK(pmic_ws, pmic_bh_handler);
 
-/*!
- * This function is the bottom half handler of the PMIC interrupt.
- * It checks for active events and launches callback for the
- * active events.
- */
-void pmic_bh_handler(struct work_struct *work)
+static struct completion event_completion;
+static struct task_struct *tstask;
+
+static int pmic_event_thread_func(void *v)
 {
 	unsigned int loop;
 	unsigned int count = 0;
+	unsigned int irq = (int)v;
 
-	count = pmic_get_active_events(active_events);
-	pr_debug("active events number %d\n", count);
+	while (1) {
+		wait_for_completion_interruptible(
+				&event_completion);
+		if (kthread_should_stop())
+			break;
 
-	for (loop = 0; loop < count; loop++)
-		pmic_event_callback(active_events[loop]);
+		count = pmic_get_active_events(
+				active_events);
+		pr_debug("active events number %d\n", count);
 
-	return;
+		for (loop = 0; loop < count; loop++)
+			pmic_event_callback(
+				active_events[loop]);
+		enable_irq(irq);
+	}
+
+	return 0;
+}
+
+int pmic_start_event_thread(int irq_num)
+{
+	int ret = 0;
+
+	if (tstask)
+		return ret;
+
+	init_completion(&event_completion);
+
+	tstask = kthread_run(pmic_event_thread_func,
+		(void *)irq_num, "pmic-event-thread");
+	ret = IS_ERR(tstask) ? -1 : 0;
+	if (IS_ERR(tstask))
+		tstask = NULL;
+	return ret;
+}
+
+void pmic_stop_event_thread(void)
+{
+	if (tstask) {
+		complete(&event_completion);
+		kthread_stop(tstask);
+	}
 }
 
 /*!
@@ -79,8 +108,8 @@ void pmic_bh_handler(struct work_struct *work)
  */
 irqreturn_t pmic_irq_handler(int irq, void *dev_id)
 {
-	/* prepare a task */
-	queue_work(pmic_event_wq, &pmic_ws);
+	disable_irq_nosync(irq);
+	complete(&event_completion);
 
 	return IRQ_HANDLED;
 }

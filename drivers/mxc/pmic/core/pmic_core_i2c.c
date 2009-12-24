@@ -53,10 +53,8 @@
  */
 struct i2c_client *mc13892_client;
 
-extern struct workqueue_struct *pmic_event_wq;
 extern pmic_version_t mxc_pmic_version;
 extern irqreturn_t pmic_irq_handler(int irq, void *dev_id);
-
 /*
  * Platform device structure for PMIC client drivers
  */
@@ -245,18 +243,21 @@ static int __devinit pmic_probe(struct i2c_client *client,
 	if (ret != PMIC_SUCCESS)
 		return PMIC_ERROR;
 
-	pmic_event_wq = create_workqueue("mc13892");
-	if (!pmic_event_wq) {
-		pr_err("mc13892 pmic driver init: fail to create work queue");
-		return -EFAULT;
-	}
-
-	/* Set and install PMIC IRQ handler */
 	pmic_irq = (int)(client->irq);
 	if (pmic_irq == 0)
 		return PMIC_ERROR;
 
-	set_irq_type(pmic_irq, IRQF_TRIGGER_RISING);
+	ret = pmic_start_event_thread(pmic_irq);
+	if (ret) {
+		pr_err("mc13892 pmic driver init: \
+			fail to start event thread\n");
+		return PMIC_ERROR;
+	}
+
+	/* Set and install PMIC IRQ handler */
+
+	set_irq_type(pmic_irq, IRQF_TRIGGER_HIGH);
+
 	ret =
 	    request_irq(pmic_irq, pmic_irq_handler, 0, "PMIC_IRQ",
 			0);
@@ -288,9 +289,7 @@ static int pmic_remove(struct i2c_client *client)
 {
 	int pmic_irq = (int)(client->irq);
 
-	if (pmic_event_wq)
-		destroy_workqueue(pmic_event_wq);
-
+	pmic_stop_event_thread();
 	free_irq(pmic_irq, 0);
 	pmic_pdev_unregister();
 	return 0;
