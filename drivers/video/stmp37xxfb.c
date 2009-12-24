@@ -45,7 +45,6 @@ enum {
 	F_DISABLE = 0,
 	F_ENABLE,
 	F_REENABLE,
-	F_STARTUP,
 };
 
 struct stmp3xxx_fb_data {
@@ -131,7 +130,7 @@ static void set_controller_state(struct stmp3xxx_fb_data *data, u32 state)
 		/*
 		 * Re-enable the controller when panel changed.
 		 */
-		if (old_state == F_ENABLE || old_state == F_STARTUP) {
+		if (old_state == F_ENABLE) {
 			stmp3xxxfb_disable_controller(data);
 
 			pentry = data->pdata->cur = data->pdata->next;
@@ -654,13 +653,13 @@ static int stmp3xxxfb_notifier(struct notifier_block *self,
 	/* REVISIT */
 	switch (phase) {
 	case CPUFREQ_PRECHANGE:
-		if (old_state == F_ENABLE || old_state == F_STARTUP)
+		if (old_state == F_ENABLE)
 			if (pentry->blank_panel)
 				pentry->blank_panel(FB_BLANK_POWERDOWN);
 		break;
 
 	case CPUFREQ_POSTCHANGE:
-		if (old_state == F_ENABLE || old_state == F_STARTUP)
+		if (old_state == F_ENABLE)
 			if (pentry->blank_panel)
 				pentry->blank_panel(FB_BLANK_UNBLANK);
 		break;
@@ -756,7 +755,7 @@ static int __devinit stmp3xxxfb_probe(struct platform_device *pdev)
 		data->phys_start);
 	mutex_init(&data->blank_mutex);
 	INIT_WORK(&data->work, stmp3xxxfb_task);
-	data->state = F_STARTUP;
+	data->state = F_ENABLE;
 
 	stmp3xxxfb_default.bits_per_pixel = pentry->bpp;
 	/* NB: rotated */
