@@ -1289,8 +1289,8 @@ static int mxc_v4l2out_streamon(vout_data * vout)
 				vout->yres = fbvar.yres;
 			}
 
-			fbvar.xres_virtual = out_width;
-			fbvar.yres_virtual = out_height * 2;
+			fbvar.xres_virtual = fbvar.xres;
+			fbvar.yres_virtual = fbvar.yres * 2;
 		}
 
 		if (out_width == vout->v2f.fmt.pix.width &&
