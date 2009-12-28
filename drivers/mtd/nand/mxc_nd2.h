@@ -143,10 +143,11 @@ do { \
 
 #define WRITE_NFC_IP_REG(val,reg) 			\
 	do {	 					\
-		raw_write(NFC_IPC_CREQ, NFC_IPC);	\
-		while (!((raw_read(NFC_IPC) & NFC_IPC_ACK)>>1));\
+		raw_write(raw_read(NFC_IPC) | NFC_IPC_CREQ, NFC_IPC);	\
+		while (!(raw_read(NFC_IPC) & NFC_IPC_ACK)) \
+			; \
 		raw_write(val, reg);			\
-		raw_write(0, NFC_IPC);			\
+		raw_write(raw_read(NFC_IPC) & ~NFC_IPC_CREQ, NFC_IPC);	\
 	} while(0)
 
 #else
@@ -332,11 +333,6 @@ do { \
 /* NFC V3 Specific MACRO functions definitions */
 #define raw_write(v,a)		__raw_writel(v,a)
 #define raw_read(a)		__raw_readl(a)
-
-/* Explcit ack ops status (if any), before issue of any command  */
-#define ACK_OPS	\
-	raw_write((raw_read(REG_NFC_OPS_STAT) & ~NFC_OPS_STAT), \
-	REG_NFC_OPS_STAT);
 
 /* Set RBA buffer id*/
 #define NFC_SET_RBA(val)       \
@@ -668,8 +664,6 @@ do { \
 #define NFC_GET_MAXCHIP_SP() 		1
 #define NFC_SET_WPC(val)                val
 
-/* NULL Definitions */
-#define ACK_OPS
 #define NFC_SET_RBA(val) raw_write(val, REG_NFC_SET_RBA);
 
 #ifdef CONFIG_ARCH_MXC_HAS_NFC_V2_1

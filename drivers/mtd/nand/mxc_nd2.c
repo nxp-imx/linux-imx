@@ -28,7 +28,7 @@
 #include "mxc_nd2.h"
 #include "nand_device_info.h"
 
-#define DVR_VER "2.5"
+#define DVR_VER "3.0"
 
 /* Global address Variables */
 static void __iomem *nfc_axi_base, *nfc_ip_base;
@@ -187,12 +187,16 @@ static void wait_op_done(int maxRetries, bool useirq)
 {
 	if (useirq) {
 		if ((raw_read(REG_NFC_OPS_STAT) & NFC_OPS_STAT) == 0) {
-			/* Enable Interuupt */
+			/* enable interrupt */
 			raw_write(raw_read(REG_NFC_INTRRUPT) & ~NFC_INT_MSK,
 				  REG_NFC_INTRRUPT);
 			if (!wait_event_timeout(irq_waitq,
 				(raw_read(REG_NFC_OPS_STAT) & NFC_OPS_STAT),
 				msecs_to_jiffies(TROP_US_DELAY / 1000)) > 0) {
+				/* disable interrupt */
+				raw_write(raw_read(REG_NFC_INTRRUPT)
+				| NFC_INT_MSK, REG_NFC_INTRRUPT);
+
 				printk(KERN_WARNING "%s(%d): INT not set\n",
 						__func__, __LINE__);
 				return;
@@ -223,9 +227,6 @@ static inline void send_atomic_cmd(u16 cmd, bool useirq)
 {
 	/* fill command */
 	raw_write(cmd, REG_NFC_FLASH_CMD);
-
-	/* clear status */
-	ACK_OPS;
 
 	/* send out command */
 	raw_write(NFC_CMD, REG_NFC_OPS);
@@ -287,7 +288,6 @@ static void auto_cmd_interleave(struct mtd_info *mtd, u16 cmd)
 			obuf += olen;
 
 			NFC_SET_RBA(0);
-			ACK_OPS;
 			raw_write(NFC_AUTO_PROG, REG_NFC_OPS);
 
 			/* wait auto_prog_done bit set */
@@ -304,7 +304,6 @@ static void auto_cmd_interleave(struct mtd_info *mtd, u16 cmd)
 			mxc_do_addr_cycle(mtd, 0, page_addr++);
 
 			NFC_SET_RBA(0);
-			ACK_OPS;
 			raw_write(NFC_AUTO_READ, REG_NFC_OPS);
 			wait_op_done(TROP_US_DELAY, true);
 
@@ -323,7 +322,6 @@ static void auto_cmd_interleave(struct mtd_info *mtd, u16 cmd)
 	case NAND_CMD_ERASE2:
 		for (i = 0; i < j; i++) {
 			mxc_do_addr_cycle(mtd, -1, page_addr++);
-			ACK_OPS;
 			raw_write(NFC_AUTO_ERASE, REG_NFC_OPS);
 			wait_op_done(TROP_US_DELAY, true);
 		}
@@ -404,9 +402,6 @@ static void send_addr(u16 addr, bool useirq)
 	/* fill address */
 	raw_write((addr << NFC_FLASH_ADDR_SHIFT), REG_NFC_FLASH_ADDR);
 
-	/* clear status */
-	ACK_OPS;
-
 	/* send out address */
 	raw_write(NFC_ADDR, REG_NFC_OPS);
 
@@ -427,9 +422,6 @@ static void send_prog_page(u8 buf_id)
 
 	/* set ram buffer id */
 	NFC_SET_RBA(buf_id);
-
-	/* clear status */
-	ACK_OPS;
 
 	/* transfer data from NFC ram to nand */
 	raw_write(NFC_INPUT, REG_NFC_OPS);
@@ -453,9 +445,6 @@ static void send_read_page(u8 buf_id)
 	/* set ram buffer id */
 	NFC_SET_RBA(buf_id);
 
-	/* clear status */
-	ACK_OPS;
-
 	/* transfer data from nand to NFC ram */
 	raw_write(NFC_OUTPUT, REG_NFC_OPS);
 
@@ -473,9 +462,6 @@ static void send_read_id(void)
 	/* Set RBA bits for BUFFER0 */
 	NFC_SET_RBA(0);
 
-	/* clear status */
-	ACK_OPS;
-
 	/* Read ID into main buffer */
 	raw_write(NFC_ID, REG_NFC_OPS);
 
@@ -488,10 +474,6 @@ static void send_read_id(void)
 static inline void read_dev_status(u16 *status)
 {
 	u32 mask = 0xFF << 16;
-
-	/* clear status */
-	ACK_OPS;
-
 
 	/* use atomic mode to read status instead
 	   of using auto mode,auto-mode has issues
@@ -540,9 +522,6 @@ static u16 get_dev_status(void)
 
 	/* Set ram buffer id */
 	NFC_SET_RBA(val);
-
-	/* clear status */
-	ACK_OPS;
 
 	/* Read status into main buffer */
 	raw_write(NFC_STATUS, REG_NFC_OPS);
