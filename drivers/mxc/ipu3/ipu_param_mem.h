@@ -1,5 +1,5 @@
 /*
- * Copyright 2005-2009 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2005-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -278,11 +278,11 @@ static inline void _ipu_ch_param_init(int ch,
 	if (uv_stride)
 		ipu_ch_param_set_field(&params, 1, 128, 14, uv_stride - 1);
 
-	if (u > u_offset)
+	/* Get the uv offset from user when need cropping */
+	if (u || v) {
 		u_offset = u;
-
-	if (v > v_offset)
 		v_offset = v;
+	}
 
 	ipu_ch_param_set_field(&params, 0, 46, 22, u_offset / 8);
 	ipu_ch_param_set_field(&params, 0, 68, 22, v_offset / 8);
