@@ -2,7 +2,7 @@
  * mx35-3stack-pmic-mc13892.c  --  i.MX35 3STACK Driver for Atlas MC13892 PMIC
  */
  /*
-  * Copyright 2009 Freescale Semiconductor, Inc. All Rights Reserved.
+  * Copyright 2009-2010 Freescale Semiconductor, Inc. All Rights Reserved.
   */
 
  /*
@@ -36,6 +36,30 @@
 
 #define STANDBYSECINV_LSH 11
 #define STANDBYSECINV_WID 1
+
+/* regulator standby mask */
+#define GEN1_STBY_MASK          (1 << 1)
+#define IOHI_STBY_MASK          (1 << 4)
+#define DIG_STBY_MASK           (1 << 10)
+#define GEN2_STBY_MASK          (1 << 13)
+#define PLL_STBY_MASK           (1 << 16)
+#define USB2_STBY_MASK          (1 << 19)
+
+#define GEN3_STBY_MASK          (1 << 1)
+#define CAM_STBY_MASK           (1 << 7)
+#define VIDEO_STBY_MASK         (1 << 13)
+#define AUDIO_STBY_MASK         (1 << 16)
+#define SD_STBY_MASK            (1 << 19)
+
+/* 0x92412 */
+#define REG_MODE_0_ALL_MASK     (GEN1_STBY_MASK | \
+		IOHI_STBY_MASK | DIG_STBY_MASK | \
+		GEN2_STBY_MASK | PLL_STBY_MASK | \
+		USB2_STBY_MASK)
+/* 0x92082 */
+#define REG_MODE_1_ALL_MASK     (GEN3_STBY_MASK | \
+		CAM_STBY_MASK | VIDEO_STBY_MASK | \
+		AUDIO_STBY_MASK | SD_STBY_MASK)
 
 /* CPU */
 static struct regulator_consumer_supply sw1_consumers[] = {
@@ -307,6 +331,17 @@ static int init_mc13892(void)
 	/* current limit = 1200mA, PLIM = 1000mw, disable auto charge */
 	value = 0x210068;
 	pmic_write_reg(REG_CHARGE, value, 0x018078);
+
+	/* enable standby controll for regulators */
+	pmic_read_reg(REG_MODE_0, &value, 0xffffff);
+	value &= ~REG_MODE_0_ALL_MASK;
+	value |= (DIG_STBY_MASK | PLL_STBY_MASK | \
+		USB2_STBY_MASK);
+	pmic_write_reg(REG_MODE_0, value, 0xffffff);
+
+	pmic_read_reg(REG_MODE_1, &value, 0xffffff);
+	value |= REG_MODE_1_ALL_MASK;
+	pmic_write_reg(REG_MODE_1, value, 0xffffff);
 
 	return 0;
 }
