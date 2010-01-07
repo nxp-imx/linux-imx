@@ -7,7 +7,7 @@
  *  Copyright (C) 2000 Deep Blue Solutions Ltd.
  *  Modifications for STMP36XX Debug Serial (c) 2005 Sigmatel Inc
  *
- * Copyright 2008-2009 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2008-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  * Copyright 2008 Embedded Alley Solutions, Inc All Rights Reserved.
  */
 
@@ -551,6 +551,46 @@ static int stmpdbg_verify_port(struct uart_port *port,
 	return ret;
 }
 
+#ifdef CONFIG_CONSOLE_POLL
+/*
+ * Console polling routines for writing and reading from the UART while
+ * in an interrupt or debug context.
+ */
+
+static int stmpdbg_get_poll_char(struct uart_port *port)
+{
+	struct uart_stmpdbg_port *uap = (struct uart_stmpdbg_port *)port;
+	unsigned int status;
+
+	/* Wait until a character arrives. */
+
+	do {
+		status = __raw_readl(uap->port.membase + UART01x_FR);
+	} while (status & UART01x_FR_RXFE);
+
+	/* Read the character and return it. */
+
+	return __raw_readl(uap->port.membase + UART01x_DR) & 0xff;
+
+}
+
+static void stmpdbg_put_poll_char(struct uart_port *port, unsigned char c)
+{
+	struct uart_stmpdbg_port *uap = (struct uart_stmpdbg_port *)port;
+
+	/* Wait until the transmit FIFO is empty. */
+
+	while (!(__raw_readl(uap->port.membase + UART01x_FR) & UART011_FR_TXFE))
+		barrier();
+
+	/* Transmit the character. */
+
+	__raw_writel(c, uap->port.membase + UART01x_DR);
+
+}
+
+#endif /* CONFIG_CONSOLE_POLL */
+
 static struct uart_ops stmpdbg_pops = {
 	.tx_empty	= stmpdbg_tx_empty,
 	.set_mctrl	= stmpdbg_set_mctrl,
@@ -568,6 +608,10 @@ static struct uart_ops stmpdbg_pops = {
 	.request_port	= stmpdbg_request_port,
 	.config_port	= stmpdbg_config_port,
 	.verify_port	= stmpdbg_verify_port,
+#ifdef CONFIG_CONSOLE_POLL
+	.poll_get_char  = stmpdbg_get_poll_char,
+	.poll_put_char  = stmpdbg_put_poll_char,
+#endif
 };
 
 static struct uart_stmpdbg_port stmpdbg_ports[UART_NR] = {
