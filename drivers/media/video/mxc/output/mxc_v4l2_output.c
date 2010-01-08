@@ -1,5 +1,5 @@
 /*
- * Copyright 2005-2009 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2005-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -224,6 +224,7 @@ static bool format_is_yuv(u32 pixelformat)
 	switch (pixelformat) {
 	case V4L2_PIX_FMT_YUV420:
 	case V4L2_PIX_FMT_UYVY:
+	case V4L2_PIX_FMT_YUYV:
 	case V4L2_PIX_FMT_YUV422P:
 	case V4L2_PIX_FMT_YVU420:
 	case V4L2_PIX_FMT_NV12:
@@ -1652,6 +1653,8 @@ static inline int valid_mode(u32 palette)
 		(palette == V4L2_PIX_FMT_BGR32) ||
 		(palette == V4L2_PIX_FMT_RGB32) ||
 		(palette == V4L2_PIX_FMT_NV12) ||
+		(palette == V4L2_PIX_FMT_UYVY) ||
+		(palette == V4L2_PIX_FMT_YUYV) ||
 		(palette == V4L2_PIX_FMT_YUV422P) ||
 		(palette == V4L2_PIX_FMT_YUV420));
 }
