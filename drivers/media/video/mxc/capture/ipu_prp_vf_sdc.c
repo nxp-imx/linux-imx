@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2009 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2004-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -23,8 +23,11 @@
 #include <linux/console.h>
 #include <linux/ipu.h>
 #include <linux/mxcfb.h>
+#include <mach/hardware.h>
 #include "mxc_v4l2_capture.h"
 #include "ipu_prp_sw.h"
+
+#define OVERLAY_FB_SUPPORT_NONSTD	(cpu_is_mx51_rev(CHIP_REV_2_0) >= 1)
 
 /*
  * Function definitions
@@ -42,7 +45,7 @@ static int prpvf_start(void *private)
 	struct fb_info *fbi = NULL;
 	cam_data *cam = (cam_data *) private;
 	ipu_channel_params_t vf;
-	u32 format = IPU_PIX_FMT_RGB565;
+	u32 vf_out_format = 0;
 	u32 size = 2, temp = 0;
 	int err = 0, i = 0;
 
@@ -58,8 +61,10 @@ static int prpvf_start(void *private)
 
 	for (i = 0; i < num_registered_fb; i++) {
 		char *idstr = registered_fb[i]->fix.id;
-		if (strcmp(idstr, "DISP3 FG") == 0)
+		if (strcmp(idstr, "DISP3 FG") == 0) {
 			fbi = registered_fb[i];
+			break;
+		}
 	}
 
 	if (fbi == NULL) {
@@ -68,8 +73,20 @@ static int prpvf_start(void *private)
 	}
 
 	fbvar = fbi->var;
+
+	/* Store the overlay frame buffer's original std */
+	cam->fb_origin_std = fbvar.nonstd;
+
+	if (OVERLAY_FB_SUPPORT_NONSTD) {
+		/* Use DP to do CSC so that we can get better performance */
+		vf_out_format = IPU_PIX_FMT_UYVY;
+		fbvar.nonstd = vf_out_format;
+	} else {
+		vf_out_format = IPU_PIX_FMT_RGB565;
+		fbvar.nonstd = 0;
+	}
+
 	fbvar.bits_per_pixel = 16;
-	fbvar.nonstd = 0;
 	fbvar.xres = fbvar.xres_virtual = cam->win.w.width;
 	fbvar.yres = cam->win.w.height;
 	fbvar.yres_virtual = cam->win.w.height * 2;
@@ -90,7 +107,7 @@ static int prpvf_start(void *private)
 		vf.csi_prp_vf_mem.out_width = cam->win.w.height;
 		vf.csi_prp_vf_mem.out_height = cam->win.w.width;
 	}
-	vf.csi_prp_vf_mem.out_pixel_fmt = format;
+	vf.csi_prp_vf_mem.out_pixel_fmt = vf_out_format;
 	size = cam->win.w.width * cam->win.w.height * size;
 
 	err = ipu_init_channel(CSI_PRP_VF_MEM, &vf);
@@ -137,7 +154,7 @@ static int prpvf_start(void *private)
 
 	if (cam->vf_rotation >= IPU_ROTATE_VERT_FLIP) {
 		err = ipu_init_channel_buffer(CSI_PRP_VF_MEM, IPU_OUTPUT_BUFFER,
-					      format,
+					      vf_out_format,
 					      vf.csi_prp_vf_mem.out_width,
 					      vf.csi_prp_vf_mem.out_height,
 					      vf.csi_prp_vf_mem.out_width,
@@ -154,7 +171,7 @@ static int prpvf_start(void *private)
 		}
 
 		err = ipu_init_channel_buffer(MEM_ROT_VF_MEM, IPU_INPUT_BUFFER,
-					      format,
+					      vf_out_format,
 					      vf.csi_prp_vf_mem.out_width,
 					      vf.csi_prp_vf_mem.out_height,
 					      vf.csi_prp_vf_mem.out_width,
@@ -173,7 +190,7 @@ static int prpvf_start(void *private)
 		}
 
 		err = ipu_init_channel_buffer(MEM_ROT_VF_MEM, IPU_OUTPUT_BUFFER,
-					      format,
+					      vf_out_format,
 					      vf.csi_prp_vf_mem.out_height,
 					      vf.csi_prp_vf_mem.out_width,
 					      vf.csi_prp_vf_mem.out_height,
@@ -211,7 +228,7 @@ static int prpvf_start(void *private)
 		ipu_select_buffer(MEM_ROT_VF_MEM, IPU_OUTPUT_BUFFER, 1);
 	} else {
 		err = ipu_init_channel_buffer(CSI_PRP_VF_MEM, IPU_OUTPUT_BUFFER,
-					      format, cam->win.w.width,
+					      vf_out_format, cam->win.w.width,
 					      cam->win.w.height,
 					      cam->win.w.width,
 					      cam->vf_rotation,
@@ -281,14 +298,17 @@ static int prpvf_stop(void *private)
 	cam_data *cam = (cam_data *) private;
 	int err = 0, i = 0;
 	struct fb_info *fbi = NULL;
+	struct fb_var_screeninfo fbvar;
 
 	if (cam->overlay_active == false)
 		return 0;
 
 	for (i = 0; i < num_registered_fb; i++) {
 		char *idstr = registered_fb[i]->fix.id;
-		if (strcmp(idstr, "DISP3 FG") == 0)
+		if (strcmp(idstr, "DISP3 FG") == 0) {
 			fbi = registered_fb[i];
+			break;
+		}
 	}
 
 	if (fbi == NULL) {
@@ -316,6 +336,12 @@ static int prpvf_stop(void *private)
 	acquire_console_sem();
 	fb_blank(fbi, FB_BLANK_POWERDOWN);
 	release_console_sem();
+
+	/* Set the overlay frame buffer std to what it is used to be */
+	fbvar = fbi->var;
+	fbvar.nonstd = cam->fb_origin_std;
+	fbvar.activate |= FB_ACTIVATE_FORCE;
+	fb_set_var(fbi, &fbvar);
 
 	ipu_csi_enable_mclk_if(CSI_MCLK_VF, cam->csi, false, false);
 
