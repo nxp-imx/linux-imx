@@ -1917,6 +1917,7 @@ fec_probe(struct platform_device *pdev)
 	struct net_device *ndev;
 	int i, irq, ret = 0;
 	struct resource *r;
+	struct fec_platform_data *pdata = pdev->dev.platform_data;
 
 	r = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	if (!r)
@@ -1962,6 +1963,10 @@ fec_probe(struct platform_device *pdev)
 		}
 	}
 
+	if (pdata && pdata->init)
+		if (pdata->init())
+			goto failed_platform_init;
+
 	fep->clk = clk_get(&pdev->dev, "fec_clk");
 	if (IS_ERR(fep->clk)) {
 		ret = PTR_ERR(fep->clk);
@@ -1985,6 +1990,7 @@ failed_init:
 	clk_disable(fep->clk);
 	clk_put(fep->clk);
 failed_clk:
+failed_platform_init:
 	for (i = 0; i < 3; i++) {
 		irq = platform_get_irq(pdev, i);
 		if (irq > 0)
@@ -2003,10 +2009,13 @@ fec_drv_remove(struct platform_device *pdev)
 {
 	struct net_device *ndev = platform_get_drvdata(pdev);
 	struct fec_enet_private *fep = netdev_priv(ndev);
+	struct fec_platform_data *pdata = pdev->dev.platform_data;
 
 	platform_set_drvdata(pdev, NULL);
 
 	fec_stop(ndev);
+	if (pdata && pdata->uninit)
+		pdata->uninit();
 	clk_disable(fep->clk);
 	clk_put(fep->clk);
 	iounmap((void __iomem *)ndev->base_addr);

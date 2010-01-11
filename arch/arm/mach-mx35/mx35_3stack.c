@@ -1,5 +1,5 @@
 /*
- * Copyright 2008-2009 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2008-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -516,6 +516,10 @@ static inline void mxc_init_enet(void)
 #endif
 
 #if defined(CONFIG_FEC) || defined(CONFIG_FEC_MODULE)
+extern void gpio_fec_active(void);
+extern void gpio_fec_inactive(void);
+static int fec_enable(void);
+static int fec_disable(void);
 static struct resource mxc_fec_resources[] = {
 	{
 		.start	= MXC_FEC_BASE_ADDR,
@@ -528,12 +532,43 @@ static struct resource mxc_fec_resources[] = {
 	},
 };
 
+static struct fec_platform_data mxc_fec_data = {
+	.init = fec_enable,
+	.uninit = fec_disable,
+};
+
 struct platform_device mxc_fec_device = {
 	.name = "fec",
 	.id = 0,
+	.dev = {
+		.release = mxc_nop_release,
+		.platform_data = &mxc_fec_data,
+	},
 	.num_resources = ARRAY_SIZE(mxc_fec_resources),
 	.resource = mxc_fec_resources,
 };
+
+static int fec_enable(void)
+{
+	mxc_fec_data.vddio_reg = regulator_get(&mxc_fec_device.dev, "VGEN1");
+
+	if (IS_ERR(mxc_fec_data.vddio_reg))
+		return -EINVAL;
+	regulator_enable(mxc_fec_data.vddio_reg);
+	gpio_fec_active();
+	return 0;
+}
+
+static int fec_disable(void)
+{
+	if (IS_ERR(mxc_fec_data.vddio_reg))
+		return -EINVAL;
+
+	gpio_fec_inactive();
+	regulator_disable(mxc_fec_data.vddio_reg);
+	regulator_put(mxc_fec_data.vddio_reg);
+	return 0;
+}
 
 static __init int mxc_init_fec(void)
 {
