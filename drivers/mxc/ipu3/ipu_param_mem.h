@@ -284,6 +284,14 @@ static inline void _ipu_ch_param_init(int ch,
 		v_offset = v;
 	}
 
+	/* UBO and VBO are 22-bit */
+	if (u_offset/8 > 0x3fffff)
+		dev_err(g_ipu_dev,
+			"The value of U offset exceeds IPU limitation\n");
+	if (v_offset/8 > 0x3fffff)
+		dev_err(g_ipu_dev,
+			"The value of V offset exceeds IPU limitation\n");
+
 	ipu_ch_param_set_field(&params, 0, 46, 22, u_offset / 8);
 	ipu_ch_param_set_field(&params, 0, 68, 22, v_offset / 8);
 
@@ -500,6 +508,15 @@ static inline void _ipu_ch_offset_update(int ch,
 
 	if (v_fix > v_offset)
 		v_offset = v_fix;
+
+	/* UBO and VBO are 22-bit */
+	if (u_offset/8 > 0x3fffff)
+		dev_err(g_ipu_dev,
+			"The value of U offset exceeds IPU limitation\n");
+	if (v_offset/8 > 0x3fffff)
+		dev_err(g_ipu_dev,
+			"The value of V offset exceeds IPU limitation\n");
+
 	ipu_ch_param_mod_field(ipu_ch_param_addr(ch), 0, 46, 22, u_offset / 8);
 	ipu_ch_param_mod_field(ipu_ch_param_addr(ch), 0, 68, 22, v_offset / 8);
 
