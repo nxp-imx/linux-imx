@@ -1,5 +1,5 @@
 /*
- * Copyright 2008-2009 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2008-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -1206,6 +1206,21 @@ static struct resource mxc_gpu_resources[] = {
 		.end = MXC_INT_GPU,
 		.name = "gpu_3d_irq",
 		.flags = IORESOURCE_IRQ,},
+	[2] = {
+		.start = GPU2D_BASE_ADDR,
+		.end = GPU2D_BASE_ADDR + SZ_4K - 1,
+		.name = "gpu_2d_registers",
+		.flags = IORESOURCE_MEM,},
+	[3] = {
+		.start = GPU_BASE_ADDR,
+		.end = GPU_BASE_ADDR + SZ_128K - 1,
+		.name = "gpu_3d_registers",
+		.flags = IORESOURCE_MEM,},
+	[4] = {
+		.start = GPU_GMEM_BASE_ADDR,
+		.end = GPU_GMEM_BASE_ADDR + SZ_128K - 1,
+		.name = "gpu_graphics_mem",
+		.flags = IORESOURCE_MEM,},
 };
 
 static struct platform_device gpu_device = {
