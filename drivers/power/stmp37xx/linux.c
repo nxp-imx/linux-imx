@@ -4,7 +4,7 @@
  * Author: Steve Longerbeam <stevel@embeddedalley.com>
  *
  * Copyright (C) 2008 EmbeddedAlley Solutions Inc.
- * Copyright 2008-2009 Freescale Semiconductor, Inc.
+ * Copyright 2008-2010 Freescale Semiconductor, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2, as
@@ -25,9 +25,12 @@
 #include <mach/regs-power.h>
 #include <mach/regs-usbphy.h>
 #include <mach/platform.h>
+#include <mach/irqs.h>
+#include <mach/regs-icoll.h>
 #include <linux/delay.h>
-
+#include <linux/proc_fs.h>
 #include <linux/interrupt.h>
+#include <asm/fiq.h>
 
 enum application_5v_status{
 	_5v_connected_verified,
@@ -61,6 +64,9 @@ struct stmp3xxx_info {
 	uint32_t sm_new_5v_disconnection_jiffies;
 	enum application_5v_status sm_5v_connection_status;
 
+
+
+
 #define USB_ONLINE      0x01
 #define USB_REG_SET     0x02
 #define USB_SM_RESTART  0x04
@@ -90,6 +96,8 @@ struct stmp3xxx_info {
 #ifndef OS_SHUTDOWN_BATTERY_VOLTAGE_THRESHOLD_MV
 #define OS_SHUTDOWN_BATTERY_VOLTAGE_THRESHOLD_MV 3350
 #endif
+
+#define  POWER_FIQ
 
 /* #define DEBUG_IRQS */
 
@@ -602,6 +610,7 @@ out:
 	return ret;
 }
 
+#ifndef POWER_FIQ
 
 static irqreturn_t stmp3xxx_irq_dcdc4p2_bo(int irq, void *cookie)
 {
@@ -647,6 +656,20 @@ static irqreturn_t stmp3xxx_irq_vdda_brnout(int irq, void *cookie)
 #endif
 	return IRQ_HANDLED;
 }
+
+static irqreturn_t stmp3xxx_irq_vdd5v_droop(int irq, void *cookie)
+{
+#ifdef DEBUG_IRQS
+	struct stmp3xxx_info *info = (struct stmp3xxx_info *)cookie;
+	dev_info(info->dev, "vdd5v droop interrupt occurred\n");
+#endif
+	ddi_power_handle_vdd5v_droop();
+
+	return IRQ_HANDLED;
+}
+
+#endif /* if POWER_FIQ */
+
 static irqreturn_t stmp3xxx_irq_vddio_brnout(int irq, void *cookie)
 {
 #ifdef DEBUG_IRQS
@@ -656,16 +679,6 @@ static irqreturn_t stmp3xxx_irq_vddio_brnout(int irq, void *cookie)
 #else
 	ddi_power_handle_vddio_brnout();
 #endif
-	return IRQ_HANDLED;
-}
-static irqreturn_t stmp3xxx_irq_vdd5v_droop(int irq, void *cookie)
-{
-#ifdef DEBUG_IRQS
-	struct stmp3xxx_info *info = (struct stmp3xxx_info *)cookie;
-	dev_info(info->dev, "vdd5v droop interrupt occurred\n");
-#endif
-	ddi_power_handle_vdd5v_droop();
-
 	return IRQ_HANDLED;
 }
 
@@ -738,6 +751,14 @@ static int stmp3xxx_bat_probe(struct platform_device *pdev)
 		goto free_info;
 	}
 
+	info->irq_vddio_brnout = platform_get_resource(
+		pdev, IORESOURCE_IRQ, 5);
+	if (info->irq_vddio_brnout == NULL) {
+		printk(KERN_ERR "%s: failed to get irq resouce\n", __func__);
+		goto free_info;
+	}
+
+#ifndef POWER_FIQ
 	info->irq_dcdc4p2_bo = platform_get_resource(pdev, IORESOURCE_IRQ, 1);
 	if (info->irq_dcdc4p2_bo == NULL) {
 		printk(KERN_ERR "%s: failed to get irq resouce\n", __func__);
@@ -762,19 +783,13 @@ static int stmp3xxx_bat_probe(struct platform_device *pdev)
 		goto free_info;
 	}
 
-	info->irq_vddio_brnout = platform_get_resource(
-		pdev, IORESOURCE_IRQ, 5);
-	if (info->irq_vddio_brnout == NULL) {
-		printk(KERN_ERR "%s: failed to get irq resouce\n", __func__);
-		goto free_info;
-	}
 
 	info->irq_vdd5v_droop = platform_get_resource(pdev, IORESOURCE_IRQ, 6);
 	if (info->irq_vdd5v_droop == NULL) {
 		printk(KERN_ERR "%s: failed to get irq resouce\n", __func__);
 		goto free_info;
 	}
-
+#endif
 
 
 	platform_set_drvdata(pdev, info);
@@ -828,6 +843,15 @@ static int stmp3xxx_bat_probe(struct platform_device *pdev)
 		goto stop_sm;
 	}
 
+	ret = request_irq(info->irq_vddio_brnout->start,
+			stmp3xxx_irq_vddio_brnout, IRQF_DISABLED,
+			pdev->name, info);
+	if (ret) {
+		dev_err(info->dev, "failed to request irq\n");
+		goto stop_sm;
+	}
+
+#ifndef POWER_FIQ
 	ret = request_irq(info->irq_dcdc4p2_bo->start,
 			stmp3xxx_irq_dcdc4p2_bo, IRQF_DISABLED,
 			pdev->name, info);
@@ -860,13 +884,6 @@ static int stmp3xxx_bat_probe(struct platform_device *pdev)
 		goto stop_sm;
 	}
 
-	ret = request_irq(info->irq_vddio_brnout->start,
-			stmp3xxx_irq_vddio_brnout, IRQF_DISABLED,
-			pdev->name, info);
-	if (ret) {
-		dev_err(info->dev, "failed to request irq\n");
-		goto stop_sm;
-	}
 
 	ret = request_irq(info->irq_vdd5v_droop->start,
 			stmp3xxx_irq_vdd5v_droop, IRQF_DISABLED,
@@ -875,7 +892,7 @@ static int stmp3xxx_bat_probe(struct platform_device *pdev)
 		dev_err(info->dev, "failed to request irq\n");
 		goto stop_sm;
 	}
-
+#endif
 
 	ret = power_supply_register(&pdev->dev, &info->bat);
 	if (ret) {
@@ -912,12 +929,15 @@ unregister_bat:
 	power_supply_unregister(&info->bat);
 free_irq:
 	free_irq(info->irq_vdd5v->start, pdev);
+	free_irq(info->irq_vddio_brnout->start, pdev);
+#ifndef	POWER_FIQ
 	free_irq(info->irq_dcdc4p2_bo->start, pdev);
 	free_irq(info->irq_batt_brnout->start, pdev);
 	free_irq(info->irq_vddd_brnout->start, pdev);
 	free_irq(info->irq_vdda_brnout->start, pdev);
-	free_irq(info->irq_vddio_brnout->start, pdev);
 	free_irq(info->irq_vdd5v_droop->start, pdev);
+#endif
+
 stop_sm:
 	ddi_bc_ShutDown();
 free_info:
@@ -932,12 +952,14 @@ static int stmp3xxx_bat_remove(struct platform_device *pdev)
 	if (info->regulator)
 		regulator_put(info->regulator);
 	free_irq(info->irq_vdd5v->start, pdev);
+	free_irq(info->irq_vddio_brnout->start, pdev);
+#ifndef	POWER_FIQ
 	free_irq(info->irq_dcdc4p2_bo->start, pdev);
 	free_irq(info->irq_batt_brnout->start, pdev);
 	free_irq(info->irq_vddd_brnout->start, pdev);
 	free_irq(info->irq_vdda_brnout->start, pdev);
-	free_irq(info->irq_vddio_brnout->start, pdev);
 	free_irq(info->irq_vdd5v_droop->start, pdev);
+#endif
 	ddi_bc_ShutDown();
 	power_supply_unregister(&info->usb);
 	power_supply_unregister(&info->ac);
@@ -1030,8 +1052,89 @@ static struct platform_driver stmp3xxx_batdrv = {
 	},
 };
 
+static int power_relinquish(void *data, int relinquish)
+{
+	return -1;
+}
+
+static struct fiq_handler power_fiq = {
+	.name = "stmp3xxx-battery",
+	.fiq_op = power_relinquish
+};
+
+static struct pt_regs fiq_regs;
+extern char power_fiq_start[], power_fiq_end[];
+extern void lock_vector_tlb(void *);
+extern long power_fiq_count;
+static struct proc_dir_entry *power_fiq_proc;
+
 static int __init stmp3xxx_bat_init(void)
 {
+#ifdef POWER_FIQ
+	int ret;
+	ret = claim_fiq(&power_fiq);
+	if (ret) {
+		pr_err("Can't claim fiq");
+	} else {
+		get_fiq_regs(&fiq_regs);
+		set_fiq_handler(power_fiq_start, power_fiq_end-power_fiq_start);
+		lock_vector_tlb((void *)0xffff0000);
+		lock_vector_tlb(REGS_POWER_BASE);
+
+		/* disable interrupts to be configured as FIQs */
+		__raw_writel(BM_ICOLL_INTERRUPTn_ENABLE,
+				HW_ICOLL_INTERRUPTn_CLR_ADDR(IRQ_DCDC4P2_BO));
+
+		__raw_writel(BM_ICOLL_INTERRUPTn_ENABLE,
+				HW_ICOLL_INTERRUPTn_CLR_ADDR(IRQ_BATT_BRNOUT));
+
+		__raw_writel(BM_ICOLL_INTERRUPTn_ENABLE,
+				HW_ICOLL_INTERRUPTn_CLR_ADDR(IRQ_VDDD_BRNOUT));
+
+		__raw_writel(BM_ICOLL_INTERRUPTn_ENABLE,
+				HW_ICOLL_INTERRUPTn_CLR_ADDR(IRQ_VDD18_BRNOUT));
+
+		__raw_writel(BM_ICOLL_INTERRUPTn_ENABLE,
+				HW_ICOLL_INTERRUPTn_CLR_ADDR(IRQ_VDD5V_DROOP));
+
+		/* Enable these interrupts as FIQs */
+		__raw_writel(BM_ICOLL_INTERRUPTn_ENFIQ,
+			HW_ICOLL_INTERRUPTn_SET_ADDR(IRQ_DCDC4P2_BO));
+
+		__raw_writel(BM_ICOLL_INTERRUPTn_ENFIQ,
+			HW_ICOLL_INTERRUPTn_SET_ADDR(IRQ_BATT_BRNOUT));
+
+		__raw_writel(BM_ICOLL_INTERRUPTn_ENFIQ,
+			HW_ICOLL_INTERRUPTn_SET_ADDR(IRQ_VDDD_BRNOUT));
+
+		__raw_writel(BM_ICOLL_INTERRUPTn_ENFIQ,
+			HW_ICOLL_INTERRUPTn_SET_ADDR(IRQ_VDD18_BRNOUT));
+
+		__raw_writel(BM_ICOLL_INTERRUPTn_ENFIQ,
+			HW_ICOLL_INTERRUPTn_SET_ADDR(IRQ_VDD5V_DROOP));
+
+		/* enable FIQ functionality */
+		__raw_writel(BM_ICOLL_CTRL_FIQ_FINAL_ENABLE,
+				HW_ICOLL_CTRL_SET_ADDR);
+
+		/* enable these interrupts */
+		__raw_writel(BM_ICOLL_INTERRUPTn_ENABLE,
+				HW_ICOLL_INTERRUPTn_SET_ADDR(IRQ_DCDC4P2_BO));
+
+		__raw_writel(BM_ICOLL_INTERRUPTn_ENABLE,
+				HW_ICOLL_INTERRUPTn_SET_ADDR(IRQ_BATT_BRNOUT));
+
+		__raw_writel(BM_ICOLL_INTERRUPTn_ENABLE,
+				HW_ICOLL_INTERRUPTn_SET_ADDR(IRQ_VDDD_BRNOUT));
+
+		__raw_writel(BM_ICOLL_INTERRUPTn_ENABLE,
+				HW_ICOLL_INTERRUPTn_SET_ADDR(IRQ_VDD18_BRNOUT));
+
+		__raw_writel(BM_ICOLL_INTERRUPTn_ENABLE,
+				HW_ICOLL_INTERRUPTn_SET_ADDR(IRQ_VDD5V_DROOP));
+
+	}
+#endif
 	return platform_driver_register(&stmp3xxx_batdrv);
 }
 

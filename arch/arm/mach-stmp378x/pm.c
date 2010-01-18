@@ -3,7 +3,7 @@
  *
  * Author: Vitaly Wool <vital@embeddedalley.com>
  *
- * Copyright 2008-2009 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2008-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  * Copyright 2008 Embedded Alley Solutions, Inc All Rights Reserved.
  */
 
@@ -235,7 +235,7 @@ static inline void do_standby(void)
 	 */
 
 	/* save portion of SRAM to be used by suspend function. */
-	memcpy(saved_sram, (void *)STMP3XXX_OCRAM_BASE,
+	memcpy(saved_sram, (void *)(STMP3XXX_OCRAM_BASE + 0x1000),
 			stmp_standby_alloc_sz);
 
 	/* make sure SRAM copy gets physically written into SDRAM.
@@ -244,7 +244,7 @@ static inline void do_standby(void)
 	flush_cache_all();
 
 	/* copy suspend function into SRAM */
-	memcpy((void *)STMP3XXX_OCRAM_BASE, stmp378x_standby,
+	memcpy((void *)(STMP3XXX_OCRAM_BASE + 0x1000), stmp378x_standby,
 			MAX_POWEROFF_CODE_SIZE);
 
 	/* now switch the CPU to ref_xtal */
@@ -302,7 +302,7 @@ static inline void do_standby(void)
 		REGS_CLKCTRL_BASE + HW_CLKCTRL_XTAL);
 
 	/* do suspend */
-	stmp37xx_cpu_standby_ptr = (void *)STMP3XXX_OCRAM_BASE;
+	stmp37xx_cpu_standby_ptr = (void *)(STMP3XXX_OCRAM_BASE + 0x1000);
 	stmp37xx_cpu_standby_ptr();
 
 	__raw_writel(reg_clkctrl_clkseq, REGS_CLKCTRL_BASE + HW_CLKCTRL_CLKSEQ);
@@ -329,7 +329,7 @@ static inline void do_standby(void)
 	clk_put(cpu_clk);
 
 	/* restoring portion of SRAM that was used by suspend function */
-	memcpy((void *)STMP3XXX_OCRAM_BASE, saved_sram,
+	memcpy((void *)(STMP3XXX_OCRAM_BASE + 0x1000), saved_sram,
 			stmp_standby_alloc_sz);
 }
 
@@ -400,7 +400,7 @@ static noinline void do_mem(void)
 	hbus_rate = clk_get_rate(hbus_clk);
 
 	/* save portion of SRAM to be used by suspend function. */
-	memcpy(saved_sram, (void *)STMP3XXX_OCRAM_BASE, stmp_s2ram_alloc_sz);
+	memcpy(saved_sram, (void *)(STMP3XXX_OCRAM_BASE + 0x1000), stmp_s2ram_alloc_sz);
 
 	/* set the PERSISTENT_SLEEP_BIT for bootloader */
 	__raw_writel(1 << 10,
@@ -413,17 +413,17 @@ static noinline void do_mem(void)
 	flush_cache_all();
 
 	/*copy suspend function into SRAM */
-	memcpy((void *)STMP3XXX_OCRAM_BASE, stmp37xx_cpu_suspend,
+	memcpy((void *)(STMP3XXX_OCRAM_BASE + 0x1000), stmp37xx_cpu_suspend,
 			stmp_s2ram_alloc_sz);
 
 	/* do suspend */
-	stmp37xx_cpu_suspend_ptr = (void *)STMP3XXX_OCRAM_BASE;
+	stmp37xx_cpu_suspend_ptr = (void *)(STMP3XXX_OCRAM_BASE + 0x1000);
 	stmp37xx_cpu_suspend_ptr(0);
 
 	saved_sleep_state = 1;	/* waking from non-standby state */
 
 	/* restoring portion of SRAM that was used by suspend function */
-	memcpy((void *)STMP3XXX_OCRAM_BASE, saved_sram, stmp_s2ram_alloc_sz);
+	memcpy((void *)(STMP3XXX_OCRAM_BASE + 0x1000), saved_sram, stmp_s2ram_alloc_sz);
 
 	/* clocks */
 	for (i = 0; i < ARRAY_SIZE(clk_regs); i++)

@@ -8,12 +8,14 @@ choice
 config ARCH_STMP37XX
 	bool "Freescale SMTP37xx"
 	select CPU_ARM926T
+	select FIQ
 	---help---
 	 STMP37xx refers to 3700 through 3769 chips
 
 config ARCH_STMP378X
 	bool "Freescale STMP378x"
 	select CPU_ARM926T
+	select FIQ
 	---help---
 	 STMP378x refers to 3780 through 3789 chips
 

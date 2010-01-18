@@ -57,6 +57,12 @@ config DMA_ZONE_SIZE
 	  This is the size in MB for the DMA zone. The DMA zone is used for
 	  dedicated memory for large contiguous video buffers
 
+config VECTORS_PHY_ADDR
+	int "vectors address"
+	default 0
+	help
+	  This config set vectors table is located which physical address
+
 # set if we need the UTMI transceiver code
 config UTMI_MXC
 	bool

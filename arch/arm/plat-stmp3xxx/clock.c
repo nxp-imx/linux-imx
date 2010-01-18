@@ -3,7 +3,7 @@
  *
  * Author: Vitaly Wool <vital@embeddedalley.com>
  *
- * Copyright 2009 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2008-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  * Copyright 2008 Embedded Alley Solutions, Inc All Rights Reserved.
  */
 
@@ -442,7 +442,7 @@ static int emi_set_rate(struct clk *clk, u32 rate)
 		int i;
 		struct stmp3xxx_emi_scaling_data sc_data;
 		int (*scale)(struct stmp3xxx_emi_scaling_data *) =
-			(void *)STMP3XXX_OCRAM_BASE;
+			(void *)(STMP3XXX_OCRAM_BASE + 0x1000);
 		void *saved_ocram;
 		u32 clkctrl_emi;
 		u32 clkctrl_frac;
