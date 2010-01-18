@@ -936,7 +936,12 @@ static void __init devicemaps_init(struct machine_desc *mdesc)
 	 * location (0xffff0000).  If we aren't using high-vectors, also
 	 * create a mapping at the low-vectors virtual address.
 	 */
+#ifdef CONFIG_VECTORS_PHY_ADDR
+	/* use OCRAM as vector for CQ116049 */
+	map.pfn = CONFIG_VECTORS_PHY_ADDR ;
+#else
 	map.pfn = __phys_to_pfn(virt_to_phys(vectors));
+#endif
 	map.virtual = 0xffff0000;
 	map.length = PAGE_SIZE;
 	map.type = MT_HIGH_VECTORS;
