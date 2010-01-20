@@ -313,6 +313,17 @@ config ARCH_STMP3XXX
 	help
 	  Support for systems based on the Freescale 3xxx CPUs.
 
+config ARCH_MXS
+	bool "Freescale i.MXS family soc"
+	select HAVE_CLK
+	select ARCH_REQUIRE_GPIOLIB
+	select GENERIC_TIME
+	select GENERIC_CLOCKEVENTS
+	select GENERIC_GPIO
+	select COMMON_CLKDEV
+	help
+	  Support for Freescale i.MXS family of processors.
+
 config ARCH_NETX
 	bool "Hilscher NetX based"
 	select CPU_ARM926T
@@ -717,6 +728,8 @@ source "arch/arm/mach-realview/Kconfig"
 source "arch/arm/mach-at91/Kconfig"
 
 source "arch/arm/plat-mxc/Kconfig"
+
+source "arch/arm/plat-mxs/Kconfig"
 
 source "arch/arm/mach-netx/Kconfig"
 

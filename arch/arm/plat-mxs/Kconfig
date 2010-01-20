@@ -1,0 +1,47 @@
+if ARCH_MXS
+
+menu "Freescale i.MXS implementations"
+
+choice
+	prompt "Select i.MXS chip family"
+
+config ARCH_MX28
+	bool "Freescale MX28"
+	select CPU_ARM926T
+	select ZONE_DMA
+	select MXS_ICOLL
+	select MXS_DMA_ENGINE
+	---help---
+	 Support Freescale MX28 chips
+
+endchoice
+
+if ARCH_MX28
+source arch/arm/mach-mx28/Kconfig
+endif
+
+config DMA_ZONE_SIZE
+	int "DMA memory zone size"
+	range 0 32
+	default 16
+	help
+	    This is the size in MB for the DMA zone. The DMA zone is used for
+	    dedicated memory for large contiguous video buffers
+endmenu
+
+config MXS_ICOLL
+	bool
+
+config MXS_EARLY_CONSOLE
+	bool "Enable console early"
+	default y
+	help
+	  Enable console early for kernel debug.
+
+config MXS_DMA_ENGINE
+	bool "Enable DMA ENGINE support"
+	default y
+	help
+	  Support DMA controller on AHB-APBH and AHB-APBX Bridge
+
+endif
