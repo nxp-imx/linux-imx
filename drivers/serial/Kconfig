@@ -359,6 +359,30 @@ config SERIAL_STMP_APP
         help
           Driver for Sigmatel 36XX/37XX internal application serial port
 
+config SERIAL_MXS_DUART
+        tristate "i.MXS debug serial port support"
+        depends on ARCH_MXS
+        select SERIAL_CORE
+        help
+          Driver for Freescale i.MXS internal debug serial port
+
+config SERIAL_MXS_DUART_CONSOLE
+        bool "Support for console on i.MXS debug serial port"
+        depends on SERIAL_MXS_DUART=y
+        select SERIAL_CORE_CONSOLE
+        ---help---
+          Say Y here if you wish to use the i.MXS debug serial port as the
+          system console (the system console is the device which receives all
+          kernel messages and warnings and which allows logins in single user
+          mode).
+
+          Even if you say Y here, the currently visible framebuffer console
+          (/dev/tty0) will still be used as the system console by default, but
+          you can alter that using a kernel command line option such as
+          "console=ttyAM0". (Try "man bootparam" or see the documentation of
+          your boot loader (lilo or loadlin) about how to pass options to the
+          kernel at boot time.)
+
 config SERIAL_AMBA_PL011
 	tristate "ARM AMBA PL011 serial port support"
 	depends on ARM_AMBA
