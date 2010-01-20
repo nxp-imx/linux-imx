@@ -1,5 +1,5 @@
 /*
- * Copyright 2005-2009 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2005-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -79,6 +79,7 @@ typedef struct _vout_data {
 	struct semaphore param_lock;
 
 	struct timer_list output_timer;
+	struct work_struct timer_work;
 	unsigned long start_jiffies;
 	u32 frame_count;
 
@@ -97,8 +98,10 @@ typedef struct _vout_data {
 	int output_enabled[MXC_V4L2_OUT_NUM_OUTPUTS];
 	struct v4l2_framebuffer v4l2_fb;
 	int ic_bypass;
+	u32 work_irq;
 	ipu_channel_t display_ch;
 	ipu_channel_t post_proc_ch;
+	ipu_channel_t display_input_ch;
 
 	/*!
 	 * FRAME_NUM-buffering, so we need a array
