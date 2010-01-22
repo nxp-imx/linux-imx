@@ -1,5 +1,5 @@
 /*
- * Copyright 2008-2009 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2008-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -20,7 +20,6 @@
 
 #include <mach/hardware.h>
 #include <mach/mmc.h>
-#include <mach/spba.h>
 #include <mach/sdma.h>
 
 #include "iomux.h"
@@ -350,8 +349,6 @@ static struct platform_device mxcspi2_device = {
 
 static inline void mxc_init_spi(void)
 {
-	/* SPBA configuration for CSPI2 - MCU is set */
-	spba_take_ownership(SPBA_CSPI2, SPBA_MASTER_A);
 #ifdef CONFIG_SPI_MXC_SELECT1
 	if (platform_device_register(&mxcspi1_device) < 0)
 		printk(KERN_ERR "Error: Registering the SPI Controller_1\n");
@@ -798,7 +795,5 @@ int __init mxc_init_devices(void)
 	mxc_init_iim();
 	mxc_init_gpu();
 
-	/* SPBA configuration for SSI2 - SDMA and MCU are set */
-	spba_take_ownership(SPBA_SSI2, SPBA_MASTER_C | SPBA_MASTER_A);
 	return 0;
 }

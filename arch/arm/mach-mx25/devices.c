@@ -1,5 +1,5 @@
 /*
- * Copyright 2008-2009 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2008-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -20,7 +20,6 @@
 
 #include <mach/hardware.h>
 #include <mach/mmc.h>
-#include <mach/spba.h>
 #include <mach/sdma.h>
 
 #include "iomux.h"
@@ -256,9 +255,6 @@ static struct platform_device mxcspi3_device = {
 
 static inline void mxc_init_spi(void)
 {
-	spba_take_ownership(SPBA_CSPI2, SPBA_MASTER_A);
-	spba_take_ownership(SPBA_CSPI3, SPBA_MASTER_A);
-
 #ifdef CONFIG_SPI_MXC_SELECT1
 	if (platform_device_register(&mxcspi1_device) < 0)
 		printk(KERN_ERR "Error: Registering the SPI Controller_1\n");
@@ -439,13 +435,6 @@ int __init mxc_register_gpios(void)
 	return mxc_gpio_init(mxc_gpio_ports, ARRAY_SIZE(mxc_gpio_ports));
 }
 
-static inline void mxc_init_ssi(void)
-{
-	/* SPBA configuration for SSI - SDMA and MCU are set */
-	spba_take_ownership(SPBA_SSI1, SPBA_MASTER_A | SPBA_MASTER_C);
-	spba_take_ownership(SPBA_SSI2, SPBA_MASTER_A | SPBA_MASTER_C);
-}
-
 static struct platform_device mxc_dma_device = {
 	.name = "mxc_dma",
 	.id = 0,
@@ -602,7 +591,6 @@ static int __init mxc_init_devices(void)
 	mxc_init_spi();
 	mxc_init_i2c();
 	mxc_init_dma();
-	mxc_init_ssi();
 	mxc_init_surround_audio();
 	mxc_init_rtc();
 	imx_init_adc();

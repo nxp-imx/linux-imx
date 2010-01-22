@@ -1,7 +1,7 @@
 /*
  *  Copyright (C) 2000 Deep Blue Solutions Ltd
  *  Copyright (C) 2002 Shane Nay (shane@minirl.com)
- *  Copyright 2005-2009 Freescale Semiconductor, Inc. All Rights Reserved.
+ *  Copyright (C) 2005-2010 Freescale Semiconductor, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -56,7 +56,6 @@
 #include <mach/memory.h>
 #include <mach/gpio.h>
 #include <mach/mmc.h>
-#include <mach/spba.h>
 #include <mach/pmic_power.h>
 
 #include "board-mx3_3stack.h"
@@ -741,10 +740,7 @@ static inline void mxc_init_mmc(void)
 		mxcsdhc2_device.resource[2].end = cd_irq;
 	}
 
-	spba_take_ownership(SPBA_SDHC1, SPBA_MASTER_A | SPBA_MASTER_C);
 	(void)platform_device_register(&mxcsdhc1_device);
-
-	spba_take_ownership(SPBA_SDHC2, SPBA_MASTER_A | SPBA_MASTER_C);
 	(void)platform_device_register(&mxcsdhc2_device);
 }
 #else

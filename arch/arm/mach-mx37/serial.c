@@ -1,5 +1,5 @@
 /*
- * Copyright 2007-2009 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2007-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -22,7 +22,6 @@
 #include <linux/serial.h>
 #include <mach/hardware.h>
 #include <mach/mxc_uart.h>
-#include <mach/spba.h>
 #include "serial.h"
 #include "board-mx37_3stack.h"
 
@@ -57,7 +56,6 @@ static uart_mxc_port mxc_ports[] = {
 	       .dma_rxbuf_size = UART1_DMA_RXBUFSIZE,
 	       .rx_threshold = UART1_UFCR_RXTL,
 	       .tx_threshold = UART1_UFCR_TXTL,
-	       .shared = UART1_SHARED_PERI,
 	       .dma_tx_id = MXC_DMA_UART1_TX,
 	       .dma_rx_id = MXC_DMA_UART1_RX,
 	       .rxd_mux = MXC_UART_RXDMUX,
@@ -83,7 +81,6 @@ static uart_mxc_port mxc_ports[] = {
 	       .dma_rxbuf_size = UART2_DMA_RXBUFSIZE,
 	       .rx_threshold = UART2_UFCR_RXTL,
 	       .tx_threshold = UART2_UFCR_TXTL,
-	       .shared = UART2_SHARED_PERI,
 	       .dma_tx_id = MXC_DMA_UART2_TX,
 	       .dma_rx_id = MXC_DMA_UART2_RX,
 	       .rxd_mux = MXC_UART_RXDMUX,
@@ -109,7 +106,6 @@ static uart_mxc_port mxc_ports[] = {
 	       .dma_rxbuf_size = UART3_DMA_RXBUFSIZE,
 	       .rx_threshold = UART3_UFCR_RXTL,
 	       .tx_threshold = UART3_UFCR_TXTL,
-	       .shared = UART3_SHARED_PERI,
 	       .dma_tx_id = MXC_DMA_UART3_TX,
 	       .dma_rx_id = MXC_DMA_UART3_RX,
 	       .rxd_mux = MXC_UART_RXDMUX,
@@ -146,13 +142,7 @@ static int __init mxc_init_uart(void)
 	platform_device_register(&mxc_uart_device1);
 	platform_device_register(&mxc_uart_device2);
 
-	/* Grab ownership of shared UARTs 3 and 4, only when enabled */
 #if UART3_ENABLED == 1
-#if UART3_DMA_ENABLE == 1
-	spba_take_ownership(UART3_SHARED_PERI, (SPBA_MASTER_A | SPBA_MASTER_C));
-#else
-	spba_take_ownership(UART3_SHARED_PERI, SPBA_MASTER_A);
-#endif				/* UART3_DMA_ENABLE */
 	platform_device_register(&mxc_uart_device3);
 #endif				/* UART3_ENABLED */
 

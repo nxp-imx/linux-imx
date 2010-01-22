@@ -27,7 +27,6 @@
 #include <linux/iram_alloc.h>
 #include <asm/mach-types.h>
 #include <mach/hardware.h>
-#include <mach/spba.h>
 #include <mach/sdma.h>
 #include <mach/mxc_dvfs.h>
 #include "sdma_script_code.h"
@@ -691,8 +690,6 @@ static struct platform_device mxcspi3_device = {
 
 void __init mxc_init_spi(void)
 {
-	/* SPBA configuration for CSPI2 - MCU is set */
-	spba_take_ownership(SPBA_CSPI1, SPBA_MASTER_A);
 #ifdef CONFIG_SPI_MXC_SELECT1
 	if (machine_is_mx51_babbage()) {
 		mxcspi1_data.chipselect_active =

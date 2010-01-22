@@ -1,5 +1,5 @@
 /*
- * Copyright 2007-2009 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2007-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -38,7 +38,6 @@
 #endif
 
 #include <mach/hardware.h>
-#include <mach/spba.h>
 #include <asm/irq.h>
 #include <asm/setup.h>
 #include <asm/mach-types.h>
@@ -692,14 +691,12 @@ static inline void mxc_init_mmc(void)
 		mxcsdhc1_device.resource[2].end = cd_irq;
 	}
 
-	spba_take_ownership(SPBA_SDHC1, SPBA_MASTER_A | SPBA_MASTER_C);
 	(void)platform_device_register(&mxcsdhc1_device);
 	cd_irq = sdhc_init_card_det(1);
 	if (cd_irq) {
 		mxcsdhc2_device.resource[2].start = cd_irq;
 		mxcsdhc2_device.resource[2].end = cd_irq;
 	}
-	spba_take_ownership(SPBA_SDHC2, SPBA_MASTER_A | SPBA_MASTER_C);
 	(void)platform_device_register(&mxcsdhc2_device);
 }
 #else

@@ -1,7 +1,7 @@
 /*
  * imx-3stack-sgtl5000.c  --  i.MX 3Stack Driver for Freescale SGTL5000 Codec
  *
- * Copyright 2008-2009 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2008-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  *  This program is free software; you can redistribute  it and/or modify it
  *  under  the terms of  the GNU General  Public License as published by the
@@ -32,7 +32,6 @@
 #include <sound/initval.h>
 
 #include <mach/dma.h>
-#include <mach/spba.h>
 #include <mach/clock.h>
 
 #include "../codecs/sgtl5000.h"

@@ -37,7 +37,6 @@
 #include <linux/mxcfb.h>
 #include <mach/common.h>
 #include <mach/hardware.h>
-#include <mach/spba.h>
 #include <asm/irq.h>
 #include <asm/setup.h>
 #include <asm/mach-types.h>

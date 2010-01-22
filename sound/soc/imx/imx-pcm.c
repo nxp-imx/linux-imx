@@ -2,11 +2,12 @@
  * imx-pcm.c -- ALSA SoC interface for the Freescale i.MX3 CPU's
  *
  * Copyright 2006 Wolfson Microelectronics PLC.
+ * Copyright (C) 2006-2010 Freescale Semiconductor, Inc.
  * Author: Liam Girdwood
  *         liam.girdwood@wolfsonmicro.com or linux@wolfsonmicro.com
  *
  * Based on imx31-pcm.c by Nicolas Pitre, (C) 2004 MontaVista Software, Inc.
- * and on mxc-alsa-mc13783 (C) 2006-2009 Freescale.
+ * and on mxc-alsa-mc13783 (C) 2006 Freescale.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -26,7 +27,6 @@
 #include <sound/pcm_params.h>
 #include <sound/soc.h>
 #include <mach/dma.h>
-#include <mach/spba.h>
 #include <mach/clock.h>
 #include <asm/mach-types.h>
 #include <mach/hardware.h>

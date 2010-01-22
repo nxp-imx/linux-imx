@@ -2,7 +2,7 @@
  * imx-3stack-wm8350.c  --  i.MX 3Stack Driver for Wolfson WM8350 Codec
  *
  * Copyright 2007 Wolfson Microelectronics PLC.
- * Copyright 2007-2009 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2007-2010 Freescale Semiconductor, Inc.
  *
  * Author: Liam Girdwood
  *         liam.girdwood@wolfsonmicro.com or linux@wolfsonmicro.com
@@ -39,7 +39,6 @@
 #include <sound/initval.h>
 
 #include <mach/dma.h>
-#include <mach/spba.h>
 #include <mach/clock.h>
 
 #include "../codecs/wm8350.h"

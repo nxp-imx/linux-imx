@@ -26,7 +26,6 @@
 #include <mach/mxc_dptc.h>
 #include <mach/mxc_dvfs.h>
 #include <mach/sdma.h>
-#include <mach/spba.h>
 
 #include "sdma_script_code.h"
 #include "crm_regs.h"
@@ -411,8 +410,6 @@ static struct platform_device mxcspi3_device = {
 
 void __init mxc_init_spi(void)
 {
-	/* SPBA configuration for CSPI2 - MCU is set */
-	spba_take_ownership(SPBA_CSPI2, SPBA_MASTER_A);
 #ifdef CONFIG_SPI_MXC_SELECT1
 	if (platform_device_register(&mxcspi1_device) < 0)
 		printk("Error: Registering the SPI Controller_1\n");
@@ -1080,7 +1077,5 @@ int __init mxc_init_devices(void)
 	mxc_init_rngc();
 	mxc_init_iim();
 
-	/* SPBA configuration for SSI2 - SDMA and MCU are set */
-	spba_take_ownership(SPBA_SSI2, SPBA_MASTER_C | SPBA_MASTER_A);
 	return 0;
 }

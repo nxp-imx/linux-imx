@@ -25,7 +25,6 @@
 #include <mach/hardware.h>
 #include <mach/common.h>
 #include <mach/clock.h>
-#include <mach/spba.h>
 #include <mach/mxc_dvfs.h>
 #include <mach/sdram_autogating.h>
 

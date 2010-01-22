@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2009 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2004-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -43,8 +43,6 @@
 #else
 #include <linux/proc_fs.h>
 #endif
-
-#include <mach/spba.h>
 
 #ifdef PERF_TEST
 #define interruptible_sleep_on(x) sah_Handle_Interrupt()
@@ -192,17 +190,6 @@ OS_DEV_INIT(sah_init)
 			clk_enable(sah_clk);
 	}
 #endif
-
-	/* Check for SPBA need */
-#if defined(CONFIG_ARCH_MXC91231) || defined(CONFIG_ARCH_MXC91321)
-	/* This needs to be a PLATFORM abstraction */
-	if (spba_take_ownership(SPBA_SAHARA, SPBA_MASTER_A)) {
-#ifdef DIAG_DRV_IF
-		LOG_KDIAG("Sahara driver could not take ownership of Sahara\n");
-#endif
-		os_error_code = OS_ERROR_FAIL_S;
-	}
-#endif				/* SPBA */
 
 	if (os_error_code == OS_ERROR_OK_S) {
 		sah_hw_version = sah_HW_Read_Version();

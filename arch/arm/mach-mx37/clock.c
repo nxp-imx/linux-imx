@@ -1,5 +1,5 @@
 /*
- * Copyright 2007-2009 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2007-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -22,7 +22,6 @@
 #include <mach/common.h>
 #include <mach/clock.h>
 #include <mach/mxc_dptc.h>
-#include <mach/spba.h>
 #include <mach/mxc_uart.h>
 #include <mach/mxc_dvfs.h>
 
