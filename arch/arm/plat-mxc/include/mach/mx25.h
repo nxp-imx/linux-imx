@@ -57,21 +57,14 @@
  * IRAM
  */
 #define IRAM_BASE_ADDR       0x78000000	/* internal ram */
-#define IRAM_BASE_ADDR_VIRT  0xFC500000
 #define IRAM_SIZE            SZ_128K
 
-#ifndef CONFIG_SDMA_IRAM
-#define CONFIG_SDMA_IRAM_SIZE 0
-#endif
 #ifdef CONFIG_SND_MXC_SOC_IRAM
 #define SND_RAM_SIZE 0x10000
 #else
 #define SND_RAM_SIZE 0
 #endif
 
-#define SND_RAM_BASE_ADDR	(IRAM_BASE_ADDR + CONFIG_SDMA_IRAM_SIZE)
-
-#define USB_IRAM_BASE_ADDR (SND_RAM_BASE_ADDR + SND_RAM_SIZE)
 #ifdef CONFIG_USB_STATIC_IRAM_PPH
 #define USB_IRAM_SIZE	(2*SZ_8K)
 #else
@@ -281,7 +274,6 @@
 	((x >= AIPS2_BASE_ADDR) && (x < (AIPS2_BASE_ADDR + AIPS2_SIZE))) ? AIPS2_IO_ADDRESS(x):\
 	((x >= ROMP_BASE_ADDR) && (x < (ROMP_BASE_ADDR + ROMP_SIZE))) ? ROMP_IO_ADDRESS(x):\
 	((x >= ASIC_BASE_ADDR) && (x < (ASIC_BASE_ADDR + AVIC_SIZE))) ? ASIC_IO_ADDRESS(x):\
-	((x >= IRAM_BASE_ADDR) && (x < (IRAM_BASE_ADDR + IRAM_SIZE))) ? IRAM_IO_ADDRESS(x):\
 	((x >= X_MEMC_BASE_ADDR) && (x < (X_MEMC_BASE_ADDR + X_MEMC_SIZE))) ? X_MEMC_IO_ADDRESS(x):\
 	((x >= NFC_BASE_ADDR) && (x < (NFC_BASE_ADDR + NFC_SIZE))) ? NFC_IO_ADDRESS(x):\
 	0xDEADBEEF)
@@ -307,9 +299,6 @@
 
 /* for entry-macro.S */
 #define AVIC_IO_ADDRESS(x)	ASIC_IO_ADDRESS(x)
-
-#define IRAM_IO_ADDRESS(x)  \
-	(((x) - IRAM_BASE_ADDR) + IRAM_BASE_ADDR_VIRT)
 
 #define X_MEMC_IO_ADDRESS(x)  \
 	(((x) - X_MEMC_BASE_ADDR) + X_MEMC_BASE_ADDR_VIRT)

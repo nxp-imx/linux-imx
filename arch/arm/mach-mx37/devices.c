@@ -1,5 +1,5 @@
 /*
- * Copyright 2007-2009 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2007-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -19,6 +19,7 @@
 #include <linux/clk.h>
 #include <linux/mxc_scc2_driver.h>
 #include <linux/spi/spi.h>
+#include <linux/iram_alloc.h>
 
 #include <mach/gpio.h>
 #include <mach/hardware.h>
@@ -808,8 +809,6 @@ int __init mxc_register_gpios(void)
 #if defined(CONFIG_MXC_VPU) || defined(CONFIG_MXC_VPU_MODULE)
 static struct resource vpu_resources[] = {
 	[0] = {
-	       .start = VPU_IRAM_BASE_ADDR,
-	       .end = VPU_IRAM_BASE_ADDR + VPU_IRAM_SIZE,
 	       .flags = IORESOURCE_MEM,
 	       },
 	[1] = {
@@ -832,6 +831,8 @@ static struct platform_device mxcvpu_device = {
 
 static inline void mxc_init_vpu(void)
 {
+	iram_alloc(VPU_IRAM_SIZE, (unsigned long *)&vpu_resources[0].start);
+	vpu_resources[0].end = vpu_resources[0].start + VPU_IRAM_SIZE - 1;
 	if (platform_device_register(&mxcvpu_device) < 0)
 		printk(KERN_ERR "Error: Registering the VPU.\n");
 }

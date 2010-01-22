@@ -279,8 +279,6 @@ static struct resource mlb_resource[] = {
 };
 
 static struct mxc_mlb_platform_data mlb_data = {
-	.buf_address = IRAM_BASE_ADDR_VIRT + MLB_IRAM_ADDR_OFFSET,
-	.phy_address = IRAM_BASE_ADDR + MLB_IRAM_ADDR_OFFSET,
 	.reg_nvcc = "VVIDEO",
 	.mlb_clk = "mlb_clk",
 };

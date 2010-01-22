@@ -1,5 +1,5 @@
 /*
- * Copyright 2008-2009 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2008-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -458,7 +458,7 @@ static int _clk_pll1_sw_set_parent(struct clk *clk, struct clk *parent)
 		}
 	}
 	__raw_writel(reg, MXC_CCM_CCSR);
-	
+
 	return 0;
 }
 

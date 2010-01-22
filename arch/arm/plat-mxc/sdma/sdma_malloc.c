@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2009 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2004-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -20,15 +20,17 @@
  * @ingroup SDMA
  */
 
-#include <linux/init.h>
-#include <linux/types.h>
-#include <linux/mm.h>
-#include <asm/dma.h>
-#include <mach/hardware.h>
-
 #include <linux/device.h>
 #include <linux/dma-mapping.h>
 #include <linux/dmapool.h>
+#include <linux/init.h>
+#include <linux/types.h>
+#include <linux/mm.h>
+#include <linux/genalloc.h>
+#include <linux/iram_alloc.h>
+#include <asm/dma.h>
+#include <mach/hardware.h>
+
 
 #define DEBUG 0
 
@@ -39,53 +41,29 @@
 #endif
 
 #ifdef CONFIG_SDMA_IRAM
-#define IRAM_VIRT_BASE  IRAM_BASE_ADDR_VIRT
-#define IRAM_PHYS_BASE  IRAM_BASE_ADDR
-#if (CONFIG_SDMA_IRAM_SIZE&0x3FF)
-#error  "IRAM size of SDMA should be multiple of 1Kbytes"
-#else
-#define IRAM_SDMA_SIZE  CONFIG_SDMA_IRAM_SIZE	/* 4K */
+#define IRAM_SDMA_SIZE	SZ_4K
 #endif
-#define IRAM_UNIT_SIZE  512
-#define IRAM_POOL_SIZE  (IRAM_SDMA_SIZE/IRAM_UNIT_SIZE)
-
-#define IS_IRAM_VIRT(x) (((x)<IRAM_VIRT_BASE)?0:\
-                                (((x) - IRAM_VIRT_BASE)>IRAM_SDMA_SIZE)?0:1)
-
-#define IS_IRAM_PHYS(x) (((x)<IRAM_PHYS_BASE)?0:\
-                                (((x) - IRAM_PHYS_BASE)>IRAM_SDMA_SIZE)?0:1)
-#endif				/*CONFIG_SDMA_IRAM */
 
 /*!
  * Defines SDMA non-cacheable buffers pool
  */
 static struct dma_pool *pool;
-
-#ifdef CONFIG_SDMA_IRAM
-typedef struct iram_head_s {
-	struct list_head list;
-} iram_head_t;
-
-static spinlock_t iram_pool_lock = SPIN_LOCK_UNLOCKED;
-static struct list_head iram_free_list;
-static unsigned char iram_pool_flag[IRAM_POOL_SIZE];
-
-static void sdma_iram_free(void *buf);
-#endif				/*CONFIG_SDMA_IRAM */
+static struct gen_pool *sdma_iram_pool;
 
 /*!
  * SDMA memory conversion hashing structure
  */
 typedef struct {
 	struct list_head node;
-	int use_count;
 	/*! Virtual address */
 	void *virt;
 	/*! Physical address */
 	unsigned long phys;
+	int size;
+	bool in_iram;
 } virt_phys_struct;
 
-static struct list_head buf_map;
+static struct list_head alloc_list;
 
 /*!
  * Defines the size of each buffer in SDMA pool.
@@ -94,68 +72,12 @@ static struct list_head buf_map;
  */
 #define SDMA_POOL_SIZE 1024
 
-/*!
- * Adds new buffer structure into conversion hash tables
- *
- * @param   vf   SDMA memory conversion hashing structure
- *
- * @return       1 on success, 0 on fail
- */
-static int add_entry(virt_phys_struct * vf)
-{
-	virt_phys_struct *p;
-
-	vf->phys &= PAGE_MASK;
-	vf->virt = (void *)((u32) vf->virt & PAGE_MASK);
-
-	list_for_each_entry(p, &buf_map, node) {
-		if (p->virt == vf->virt) {
-			p->use_count++;
-			return 0;
-		}
-	}
-
-	p = kmalloc(sizeof(virt_phys_struct), GFP_KERNEL);
-	if (p == 0) {
-		return -ENOMEM;
-	}
-
-	*p = *vf;
-	p->use_count = 1;
-	list_add_tail(&p->node, &buf_map);
-
-	DPRINTK("added vaddr 0x%p, paddr 0x%08X to list\n", p->virt, p->phys);
-
-	return 0;
-}
-
-/*!
- * Deletes buffer stracture from conversion hash tables
- *
- * @param   buf   SDMA memory buffer virtual addr
- *
- * @return       0 on success, -1 on fail
- */
-static int delete_entry(void *buf)
-{
-	virt_phys_struct *p;
-
-	buf = (void *)((u32) buf & PAGE_MASK);
-
-	list_for_each_entry(p, &buf_map, node) {
-		if (p->virt == buf) {
-			p->use_count--;
-			break;
-		}
-	}
-
-	if (p->use_count == 0) {
-		list_del(&p->node);
-		kfree(p);
-	}
-
-	return 0;
-}
+#ifdef CONFIG_SDMA_IRAM
+static unsigned long iram_paddr;
+static void *iram_vaddr;
+#define iram_phys_to_virt(p) (iram_vaddr + ((p) - iram_paddr))
+#define iram_virt_to_phys(v) (iram_paddr + ((v) - iram_vaddr))
+#endif
 
 /*!
  * Virtual to physical address conversion functio
@@ -171,19 +93,9 @@ unsigned long sdma_virt_to_phys(void *buf)
 
 	DPRINTK("searching for vaddr 0x%p\n", buf);
 
-#ifdef CONFIG_SDMA_IRAM
-	if (IS_IRAM_VIRT((unsigned long)buf)) {
-		if ((unsigned long)buf & (IRAM_UNIT_SIZE - 1)) {
-			printk(KERN_WARNING "%s buffer offset = %ld\n",
-			       __FUNCTION__, (unsigned long)buf);
-		}
-		return (unsigned long)buf + IRAM_PHYS_BASE - IRAM_VIRT_BASE;
-	}
-#endif				/*CONFIG_SDMA_IRAM */
-
-	list_for_each_entry(p, &buf_map, node) {
-		if ((u32) p->virt == ((u32) buf & PAGE_MASK)) {
-			return p->phys | offset;
+	list_for_each_entry(p, &alloc_list, node) {
+		if (((u32)p->virt & PAGE_MASK) == ((u32) buf & PAGE_MASK)) {
+			return (p->phys & PAGE_MASK) | offset;
 		}
 	}
 
@@ -208,19 +120,11 @@ void *sdma_phys_to_virt(unsigned long buf)
 	u32 offset = buf & (~PAGE_MASK);
 	virt_phys_struct *p;
 
-#ifdef CONFIG_SDMA_IRAM
-	if (IS_IRAM_PHYS((unsigned long)buf)) {
-		if (buf & (IRAM_UNIT_SIZE - 1)) {
-			printk(KERN_WARNING "%s buffer offset = %ld\n",
-			       __FUNCTION__, (unsigned long)buf);
-		}
-		return (void *)buf + IRAM_VIRT_BASE - IRAM_PHYS_BASE;
-	}
-#endif				/*CONFIG_SDMA_IRAM */
+	DPRINTK("searching for paddr 0x%p\n", buf);
 
-	list_for_each_entry(p, &buf_map, node) {
-		if (p->phys == (buf & PAGE_MASK)) {
-			return (void *)((u32) p->virt | offset);
+	list_for_each_entry(p, &alloc_list, node) {
+		if ((p->phys & PAGE_MASK) == (buf & PAGE_MASK)) {
+			return (void *)(((u32)p->virt & PAGE_MASK) | offset);
 		}
 	}
 
@@ -239,25 +143,23 @@ void *sdma_malloc(size_t size)
 {
 	void *buf;
 	dma_addr_t dma_addr;
-	virt_phys_struct vf;
+	virt_phys_struct *p;
 
 	if (size > SDMA_POOL_SIZE) {
 		printk(KERN_WARNING
 		       "size in sdma_malloc is more than %d bytes\n",
 		       SDMA_POOL_SIZE);
-		buf = 0;
-	} else {
-		buf = dma_pool_alloc(pool, GFP_KERNEL, &dma_addr);
-		if (buf > 0) {
-			vf.virt = buf;
-			vf.phys = dma_addr;
-
-			if (add_entry(&vf) < 0) {
-				dma_pool_free(pool, buf, dma_addr);
-				buf = 0;
-			}
-		}
+		return 0;
 	}
+
+	buf = dma_pool_alloc(pool, GFP_KERNEL, &dma_addr);
+	if (buf == 0)
+		return 0;
+
+	p = kzalloc(sizeof(*p), GFP_KERNEL);
+	p->virt = buf;
+	p->phys = dma_addr;
+	list_add_tail(&p->node, &alloc_list);
 
 	DPRINTK("allocated vaddr 0x%p\n", buf);
 	return buf;
@@ -270,15 +172,19 @@ void *sdma_malloc(size_t size)
  */
 void sdma_free(void *buf)
 {
-#ifdef CONFIG_SDMA_IRAM
-	if (IS_IRAM_VIRT((unsigned long)buf)) {
-		sdma_iram_free(buf);
-		return;
-	}
-#endif				/*CONFIG_SDMA_IRAM */
+	virt_phys_struct *p;
 
-	dma_pool_free(pool, buf, sdma_virt_to_phys(buf));
-	delete_entry(buf);
+	list_for_each_entry(p, &alloc_list, node) {
+		if (p->virt == buf) {
+			if (p->in_iram)
+				gen_pool_free(sdma_iram_pool, p->phys, p->size);
+			else
+				dma_pool_free(pool, p->virt, p->phys);
+			list_del(&p->node);
+			kfree(p);
+			return;
+		}
+	}
 }
 
 #ifdef CONFIG_SDMA_IRAM
@@ -287,84 +193,21 @@ void sdma_free(void *buf)
  */
 void *sdma_iram_malloc(size_t size)
 {
-	void *buf = NULL;
-	int index = -1;
-	unsigned long flags;
-	if (size > IRAM_UNIT_SIZE) {
-		printk(KERN_WARNING
-		       "size in sdma_iram_malloc is more than %d bytes\n",
-		       IRAM_UNIT_SIZE);
-	} else {
-		spin_lock_irqsave(&iram_pool_lock, flags);
-		if (!list_empty(&iram_free_list)) {
-			buf =
-			    list_entry(iram_free_list.next, iram_head_t, list);
-			list_del(iram_free_list.next);
-			index =
-			    ((unsigned long)buf -
-			     IRAM_VIRT_BASE) / IRAM_UNIT_SIZE;
-			if (index < 0 || index >= IRAM_POOL_SIZE) {
-				spin_unlock_irqrestore(&iram_pool_lock, flags);
-				printk(KERN_ERR "The iram pool has crashed\n");
-				return NULL;
-			}
-			if (iram_pool_flag[index]) {
-				spin_unlock_irqrestore(&iram_pool_lock, flags);
-				printk(KERN_WARNING
-				       "iram block %d  already has been allocated \n",
-				       index);
-			}
-			iram_pool_flag[index] = 1;
-		}
-		spin_unlock_irqrestore(&iram_pool_lock, flags);
-		if ((unsigned long)buf & (IRAM_UNIT_SIZE - 1)) {
-			printk(KERN_WARNING
-			       "the start address is not align of %d, buffer offset %ld\n",
-			       IRAM_UNIT_SIZE, (unsigned long)buf);
+	virt_phys_struct *p = kzalloc(sizeof(*p), GFP_KERNEL);
+	unsigned long buf;
 
-			buf = PTR_ALIGN(buf, IRAM_UNIT_SIZE);
-		}
+	buf = gen_pool_alloc(sdma_iram_pool, size);
+	if (!buf) {
+		kfree(p);
+		return NULL;
 	}
-	return buf;
-}
 
-/*!
- * Free uncacheable buffer into IRAM.
- */
-static void sdma_iram_free(void *buf)
-{
-	iram_head_t *p;
-	int index;
-	unsigned long flags;
-	/* The check of parameter will be done in sdma_free */
-	index = ((unsigned long)buf - IRAM_VIRT_BASE) / IRAM_UNIT_SIZE;
-	spin_lock_irqsave(&iram_pool_lock, flags);
-	p = (iram_head_t *) ((unsigned long)buf & (~(IRAM_UNIT_SIZE - 1)));
-	list_add_tail(&(p->list), &iram_free_list);
-	if (iram_pool_flag[index]) {
-		iram_pool_flag[index] = 0;
-		spin_unlock_irqrestore(&iram_pool_lock, flags);
-	} else {
-		printk(KERN_WARNING
-		       "Free %p which IRAM block %d is already freed\n", buf,
-		       index);
-		spin_unlock_irqrestore(&iram_pool_lock, flags);
-	}
-}
-
-/*!
- * Initialized the free list of IRAM.
- */
-static void iram_pool_init(void)
-{
-	int i;
-	iram_head_t *p;
-	memset(iram_pool_flag, 0, IRAM_POOL_SIZE);
-	INIT_LIST_HEAD(&iram_free_list);
-	for (i = 0; i < IRAM_POOL_SIZE; i++) {
-		p = (iram_head_t *) (IRAM_VIRT_BASE + i * IRAM_UNIT_SIZE);
-		list_add_tail(&(p->list), &iram_free_list);
-	}
+	p->virt = iram_vaddr + (buf - iram_paddr);
+	p->phys = buf;
+	p->size = size;
+	p->in_iram = true;
+	list_add_tail(&p->node, &alloc_list);
+	return p->virt;
 }
 #endif				/*CONFIG_SDMA_IRAM */
 
@@ -373,13 +216,15 @@ static void iram_pool_init(void)
  */
 void __init init_sdma_pool(void)
 {
-#ifdef CONFIG_SDMA_IRAM
-	iram_pool_init();
-#endif				/*CONFIG_SDMA_IRAM */
-
 	pool = dma_pool_create("SDMA", NULL, SDMA_POOL_SIZE, 0, 0);
 
-	INIT_LIST_HEAD(&buf_map);
+#ifdef CONFIG_SDMA_IRAM
+	iram_vaddr = iram_alloc(SZ_4K, &iram_paddr);
+	sdma_iram_pool = gen_pool_create(6, -1);
+	gen_pool_add(sdma_iram_pool, iram_paddr, SZ_4K, -1);
+#endif
+
+	INIT_LIST_HEAD(&alloc_list);
 }
 
 MODULE_AUTHOR("Freescale Semiconductor, Inc.");

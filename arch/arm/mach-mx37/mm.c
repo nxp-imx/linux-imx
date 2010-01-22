@@ -1,5 +1,5 @@
 /*
- * Copyright 2007-2009 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2007-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -29,11 +29,6 @@
  * This structure defines the MX37 memory map.
  */
 static struct map_desc mx37_io_desc[] __initdata = {
-	{
-	 .virtual = IRAM_BASE_ADDR_VIRT,
-	 .pfn = __phys_to_pfn(IRAM_BASE_ADDR),
-	 .length = IRAM_SIZE,
-	 .type = MT_DEVICE_NONSHARED},
 	{
 	 .virtual = PLATFORM_BASE_ADDR_VIRT,
 	 .pfn = __phys_to_pfn(PLATFORM_BASE_ADDR),

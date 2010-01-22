@@ -1,5 +1,5 @@
 /*
- * Copyright 2008-2009 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2008-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -155,17 +155,7 @@ void arch_idle(void)
 		/* gpc clock is needed for SRPG */
 		clk_enable(gpc_dvfs_clk);
 		mxc_cpu_lp_set(arch_idle_mode);
-		if ((mxc_cpu_is_rev(CHIP_REV_2_0)) < 0) {
-			u32 l2_iram_addr = IDLE_IRAM_BASE_ADDR;
-
-			if (!iram_ready)
-				return;
-
-			if (l2_iram_addr > 0x1FFE8000)
-				cpu_cortexa8_do_idle(IO_ADDRESS(l2_iram_addr));
-		} else {
-			cpu_do_idle();
-		}
+		cpu_do_idle();
 		clk_disable(gpc_dvfs_clk);
 	}
 }

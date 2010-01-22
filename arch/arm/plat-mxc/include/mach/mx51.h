@@ -64,7 +64,6 @@
  * IRAM
  */
 #define IRAM_BASE_ADDR		0x1FFE0000	/* internal ram */
-#define IRAM_BASE_ADDR_VIRT	0xFA3E0000
 #define IRAM_PARTITIONS		16
 #define IRAM_PARTITIONS_TO1	12
 #define IRAM_SIZE		(IRAM_PARTITIONS*SZ_8K)	/* 128KB */
@@ -74,12 +73,6 @@
 #define SCC_IRAM_SIZE  SZ_16K
 #else
 #define SCC_IRAM_SIZE  0
-#endif
-
-#ifdef CONFIG_SDMA_IRAM
-#define SDMA_IRAM_SIZE  CONFIG_SDMA_IRAM_SIZE
-#else
-#define SDMA_IRAM_SIZE  0
 #endif
 
 #ifdef CONFIG_SND_MXC_SOC_IRAM
@@ -94,17 +87,6 @@
 #define VPU_IRAM_SIZE 0
 #endif
 
-#if (IRAM_SIZE < (SDMA_IRAM_SIZE + SND_RAM_SIZE + VPU_IRAM_SIZE + \
-	SCC_IRAM_SIZE))
-#error "IRAM size exceeded"
-#endif
-
-#define SCC_IRAM_BASE_ADDR	(IRAM_BASE_ADDR + IRAM_SIZE - SCC_IRAM_SIZE)
-#define VPU_IRAM_BASE_ADDR	(SCC_IRAM_BASE_ADDR - VPU_IRAM_SIZE)
-#define SND_RAM_BASE_ADDR	(VPU_IRAM_BASE_ADDR - SND_RAM_SIZE)
-#define SDMA_IRAM_BASE_ADDR	(SND_RAM_BASE_ADDR - SDMA_IRAM_SIZE)
-#define IDLE_IRAM_BASE_ADDR	(SDMA_IRAM_BASE_ADDR - SZ_4K)
-#define SUSPEND_IRAM_BASE_ADDR	(IDLE_IRAM_BASE_ADDR - SZ_4K)
 /*
  * NFC
  */
@@ -294,10 +276,7 @@
  */
 #define IO_ADDRESS(x)   \
 	(void __force __iomem *) \
-	((((x) >= (unsigned long)IRAM_BASE_ADDR) && \
-	    ((x) < (unsigned long)IRAM_BASE_ADDR + IRAM_SIZE)) ? \
-	     IRAM_IO_ADDRESS(x):\
-	(((x) >= (unsigned long)TZIC_BASE_ADDR) && \
+	((((x) >= (unsigned long)TZIC_BASE_ADDR) && \
 	    ((x) < (unsigned long)TZIC_BASE_ADDR + TZIC_SIZE)) ? \
 	     TZIC_IO_ADDRESS(x):\
 	(((x) >= (unsigned long)DEBUG_BASE_ADDR) && \
@@ -320,9 +299,6 @@
 /*
  * define the address mapping macros: in physical address order
  */
-#define IRAM_IO_ADDRESS(x)  \
-	(((x) - IRAM_BASE_ADDR) + IRAM_BASE_ADDR_VIRT)
-
 #define TZIC_IO_ADDRESS(x)  \
 	(((x) - TZIC_BASE_ADDR) + TZIC_BASE_ADDR_VIRT)
 

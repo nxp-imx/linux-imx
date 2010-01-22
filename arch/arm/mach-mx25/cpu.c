@@ -1,5 +1,5 @@
 /*
- * Copyright 2008-2009 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2008-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -22,8 +22,9 @@
 #include <linux/types.h>
 #include <linux/kernel.h>
 #include <linux/init.h>
+#include <linux/io.h>
+#include <linux/iram_alloc.h>
 #include <mach/hardware.h>
-#include <asm/io.h>
 
 /*!
  * CPU initialization. It is called by fixup_mxc_board()
@@ -38,6 +39,8 @@ static int __init post_cpu_init(void)
 {
 	void __iomem *base;
 	unsigned int reg;
+
+	iram_init(IRAM_BASE_ADDR, IRAM_SIZE);
 
 	base = IO_ADDRESS(AIPS1_BASE_ADDR);
 	__raw_writel(0x0, base + 0x40);

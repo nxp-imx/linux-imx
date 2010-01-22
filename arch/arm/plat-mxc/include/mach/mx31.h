@@ -3,9 +3,7 @@
  */
 #define MX31_IRAM_BASE_ADDR		0x1FFC0000	/* internal ram */
 #define MX31_IRAM_SIZE			SZ_16K
-#define MX31_IRAM_BASE_ADDR_VIRT	0xFC340000
 
-#define USB_IRAM_BASE_ADDR		(MX31_IRAM_BASE_ADDR)
 #ifdef CONFIG_USB_STATIC_IRAM
 #define USB_IRAM_SIZE   (2*SZ_8K)
 #else

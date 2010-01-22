@@ -1,6 +1,6 @@
 /*
  *  Copyright (C) 2001 Deep Blue Solutions Ltd.
- *  Copyright 2004-2009 Freescale Semiconductor, Inc. All Rights Reserved.
+ *  Copyright (C) 2004-2010 Freescale Semiconductor, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -19,8 +19,9 @@
 #include <linux/types.h>
 #include <linux/kernel.h>
 #include <linux/init.h>
-#include <mach/hardware.h>
 #include <linux/io.h>
+#include <linux/iram_alloc.h>
+#include <mach/hardware.h>
 #include <asm/hardware/cache-l2x0.h>
 
 /*!
@@ -44,6 +45,8 @@ void __init mxc_cpu_init(void)
 static int __init post_cpu_init(void)
 {
 	volatile unsigned long aips_reg;
+
+	iram_init(MX31_IRAM_BASE_ADDR, MX31_IRAM_SIZE);
 
 	/*
 	 * S/W workaround: Clear the off platform peripheral modules

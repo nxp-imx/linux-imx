@@ -1,5 +1,5 @@
 /*
- * Copyright 2009 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2009-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -39,7 +39,6 @@
  * IRAM
  */
 #define IRAM_BASE_ADDR		0x10000000	/* internal ram */
-#define IRAM_BASE_ADDR_VIRT	0xF8000000
 #define IRAM_SIZE			(9*SZ_8K)	/* 72KB */
 
 #if defined(CONFIG_MXC_SECURITY_SCC2) \
@@ -47,15 +46,6 @@
 #define SCC_IRAM_SIZE  SZ_16K
 #else
 #define SCC_IRAM_SIZE  0
-#endif
-
-/*#ifndef CONFIG_SDMA_IRAM
-#define CONFIG_SDMA_IRAM_SIZE 0
-#endif*/
-#ifdef CONFIG_SDMA_IRAM
-#define SDMA_IRAM_SIZE  CONFIG_SDMA_IRAM_SIZE
-#else
-#define SDMA_IRAM_SIZE  0
 #endif
 
 #ifdef CONFIG_SND_MXC_SOC_IRAM
@@ -70,22 +60,11 @@
 #define USB_IRAM_SIZE 0
 #endif
 
-#if (IRAM_SIZE < (SCC_IRAM_SIZE + SDMA_IRAM_SIZE + SND_RAM_SIZE + \
-	USB_IRAM_SIZE))
-#error "IRAM size exceeded"
-#endif
-
 #ifdef CONFIG_MXC_VPU_IRAM
-#define VPU_IRAM_SIZE	(IRAM_BASE_ADDR + IRAM_SIZE - VPU_IRAM_BASE_ADDR)
+#define VPU_IRAM_SIZE	(36 * SZ_1K)
 #else
 #define VPU_IRAM_SIZE 0
 #endif
-
-#define SCC_IRAM_BASE_ADDR (IRAM_BASE_ADDR + IRAM_SIZE - SCC_IRAM_SIZE)
-#define SDMA_RAM_BASE_ADDR (IRAM_BASE_ADDR)
-#define SND_RAM_BASE_ADDR	(IRAM_BASE_ADDR + SDMA_IRAM_SIZE)
-#define USB_IRAM_BASE_ADDR	(SND_RAM_BASE_ADDR + SND_RAM_SIZE)
-#define VPU_IRAM_BASE_ADDR	(USB_IRAM_BASE_ADDR + USB_IRAM_SIZE)
 
 /*
  * NFC
@@ -266,22 +245,18 @@
  */
 #define IO_ADDRESS(x)   \
 	(void __force __iomem *) \
-        (((x >= (unsigned long)IRAM_BASE_ADDR) && (x < (unsigned long)IRAM_BASE_ADDR + IRAM_SIZE)) ? IRAM_IO_ADDRESS(x):\
-        ((x >= (unsigned long)PLATFORM_BASE_ADDR) && (x < (unsigned long)PLATFORM_BASE_ADDR + PLATFORM_SIZE)) ? PLATFORM_IO_ADDRESS(x):\
-        ((x >= (unsigned long)TZIC_BASE_ADDR) && (x < (unsigned long)TZIC_BASE_ADDR + TZIC_SIZE)) ? TZIC_IO_ADDRESS(x):\
-        ((x >= (unsigned long)DEBUG_BASE_ADDR) && (x < (unsigned long)DEBUG_BASE_ADDR + DEBUG_SIZE)) ? DEBUG_IO_ADDRESS(x):\
-        ((x >= (unsigned long)SPBA0_BASE_ADDR) && (x < (unsigned long)SPBA0_BASE_ADDR + SPBA0_SIZE)) ? SPBA0_IO_ADDRESS(x):\
-        ((x >= (unsigned long)AIPS1_BASE_ADDR) && (x < (unsigned long)AIPS1_BASE_ADDR + AIPS1_SIZE)) ? AIPS1_IO_ADDRESS(x):\
-        ((x >= (unsigned long)AIPS2_BASE_ADDR) && (x < (unsigned long)AIPS2_BASE_ADDR + AIPS2_SIZE)) ? AIPS2_IO_ADDRESS(x):\
-        ((x >= (unsigned long)NFC_BASE_ADDR_AXI) && (x < (unsigned long)NFC_BASE_ADDR_AXI + NFC_AXI_SIZE)) ? NFC_BASE_ADDR_AXI_IO_ADDRESS(x):\
-        0xDEADBEEF)
+	(((x >= (unsigned long)PLATFORM_BASE_ADDR) && (x < (unsigned long)PLATFORM_BASE_ADDR + PLATFORM_SIZE)) ? PLATFORM_IO_ADDRESS(x) :\
+	((x >= (unsigned long)TZIC_BASE_ADDR) && (x < (unsigned long)TZIC_BASE_ADDR + TZIC_SIZE)) ? TZIC_IO_ADDRESS(x) :\
+	((x >= (unsigned long)DEBUG_BASE_ADDR) && (x < (unsigned long)DEBUG_BASE_ADDR + DEBUG_SIZE)) ? DEBUG_IO_ADDRESS(x) :\
+	((x >= (unsigned long)SPBA0_BASE_ADDR) && (x < (unsigned long)SPBA0_BASE_ADDR + SPBA0_SIZE)) ? SPBA0_IO_ADDRESS(x) :\
+	((x >= (unsigned long)AIPS1_BASE_ADDR) && (x < (unsigned long)AIPS1_BASE_ADDR + AIPS1_SIZE)) ? AIPS1_IO_ADDRESS(x) :\
+	((x >= (unsigned long)AIPS2_BASE_ADDR) && (x < (unsigned long)AIPS2_BASE_ADDR + AIPS2_SIZE)) ? AIPS2_IO_ADDRESS(x) :\
+	((x >= (unsigned long)NFC_BASE_ADDR_AXI) && (x < (unsigned long)NFC_BASE_ADDR_AXI + NFC_AXI_SIZE)) ? NFC_BASE_ADDR_AXI_IO_ADDRESS(x) :\
+	0xDEADBEEF)
 
 /*
  * define the address mapping macros: in physical address order
  */
-
-#define IRAM_IO_ADDRESS(x)  \
-        (((x) - IRAM_BASE_ADDR) + IRAM_BASE_ADDR_VIRT)
 
 #define PLATFORM_IO_ADDRESS(x)  \
         (((x) - PLATFORM_BASE_ADDR) + PLATFORM_BASE_ADDR_VIRT)

@@ -2,7 +2,7 @@
  *  Copyright (C) 1999,2000 Arm Limited
  *  Copyright (C) 2000 Deep Blue Solutions Ltd
  *  Copyright (C) 2002 Shane Nay (shane@minirl.com)
- *  Copyright 2005-2007 Freescale Semiconductor, Inc. All Rights Reserved.
+ *  Copyright (C) 2005-2010 Freescale Semiconductor, Inc.
  *    - add MX31 specific definitions
  *
  * This program is free software; you can redistribute it and/or modify
@@ -68,11 +68,6 @@ static struct map_desc mx31_io_desc[] __initdata = {
 		.pfn		= __phys_to_pfn(SPBA0_BASE_ADDR),
 		.length		= SPBA0_SIZE,
 		.type		= MT_DEVICE_NONSHARED
-	}, {
-	 .virtual		= MX31_IRAM_BASE_ADDR_VIRT & 0xFFF00000,
-	 .pfn			= __phys_to_pfn(MX31_IRAM_BASE_ADDR & 0xFFF00000),
-	 .length		= SZ_1M,
-	 .type			= MT_DEVICE_NONSHARED
 	},
 };
 

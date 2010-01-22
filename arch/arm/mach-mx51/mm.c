@@ -30,11 +30,6 @@
  */
 static struct map_desc mx51_io_desc[] __initdata = {
 	{
-	 .virtual = IRAM_BASE_ADDR_VIRT,
-	 .pfn = __phys_to_pfn(IRAM_BASE_ADDR),
-	 .length = IRAM_SIZE,
-	 .type = MT_DEVICE},
-	{
 	 .virtual = DEBUG_BASE_ADDR_VIRT,
 	 .pfn = __phys_to_pfn(DEBUG_BASE_ADDR),
 	 .length = DEBUG_SIZE,
@@ -79,6 +74,6 @@ void __init mx51_map_io(void)
 	else
 		tzic_addr = TZIC_BASE_ADDR;
 
-	mx51_io_desc[2].pfn =  __phys_to_pfn(tzic_addr);
+	mx51_io_desc[1].pfn =  __phys_to_pfn(tzic_addr);
 	iotable_init(mx51_io_desc, ARRAY_SIZE(mx51_io_desc));
 }

@@ -1,5 +1,5 @@
 /*
- *  Copyright 2008-2009 Freescale Semiconductor, Inc. All Rights Reserved.
+ *  Copyright (C) 2008-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -20,6 +20,7 @@
 #include <linux/suspend.h>
 #include <linux/proc_fs.h>
 #include <linux/cpufreq.h>
+#include <linux/iram_alloc.h>
 #include <asm/cacheflush.h>
 #include <asm/tlb.h>
 #include <asm/mach/map.h>
@@ -79,16 +80,7 @@ static int mx51_suspend_enter(suspend_state_t state)
 		__raw_writel(0, MXC_SRPG_EMPGC0_SRPGCR);
 		__raw_writel(0, MXC_SRPG_EMPGC1_SRPGCR);
 	} else {
-		if ((mxc_cpu_is_rev(CHIP_REV_2_0)) < 0) {
-			/* do cpu_idle_workaround */
-			u32 l2_iram_addr = IDLE_IRAM_BASE_ADDR;
-			if (!iram_ready)
-				return 0;
-			if (l2_iram_addr > 0x1FFE8000)
-				cpu_cortexa8_do_idle(IO_ADDRESS(l2_iram_addr));
-		} else {
 			cpu_do_idle();
-		}
 	}
 	clk_disable(gpc_dvfs_clk);
 
@@ -178,6 +170,7 @@ static struct platform_driver mx51_pm_driver = {
 static int __init pm_init(void)
 {
 	int cpu_wp_nr;
+	unsigned long iram_paddr;
 
 	pr_info("Static Power Management for Freescale i.MX51\n");
 	if (platform_driver_register(&mx51_pm_driver) != 0) {
@@ -186,12 +179,12 @@ static int __init pm_init(void)
 	}
 	suspend_set_ops(&mx51_suspend_ops);
 	/* Move suspend routine into iRAM */
-	suspend_iram_base = IO_ADDRESS(SUSPEND_IRAM_BASE_ADDR);
-	memcpy(suspend_iram_base, cpu_do_suspend_workaround, SZ_4K);
+	iram_alloc(SZ_4K, &iram_paddr);
 	/* Need to remap the area here since we want the memory region
 		 to be executable. */
-	suspend_iram_base = __arm_ioremap(SUSPEND_IRAM_BASE_ADDR, SZ_4K,
-										MT_HIGH_VECTORS);
+	suspend_iram_base = __arm_ioremap(iram_paddr, SZ_4K,
+					  MT_HIGH_VECTORS);
+	memcpy(suspend_iram_base, cpu_do_suspend_workaround, SZ_4K);
 	suspend_in_iram = (void *)suspend_iram_base;
 
 	cpu_wp_tbl = get_cpu_wp(&cpu_wp_nr);

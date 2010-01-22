@@ -1,6 +1,6 @@
 /*
  *  Copyright (C) 2001 Deep Blue Solutions Ltd.
- *  Copyright 2004-2009 Freescale Semiconductor, Inc. All Rights Reserved.
+ *  Copyright (C) 2004-2010 Freescale Semiconductor, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -19,8 +19,9 @@
 #include <linux/types.h>
 #include <linux/kernel.h>
 #include <linux/init.h>
-#include <mach/hardware.h>
 #include <linux/io.h>
+#include <linux/iram_alloc.h>
+#include <mach/hardware.h>
 #include <asm/hardware/cache-l2x0.h>
 
 /*!
@@ -45,6 +46,13 @@ static int __init post_cpu_init(void)
 	u32 reg;
 	void *l2_base;
 	volatile unsigned long aips_reg;
+	int iram_size = IRAM_SIZE;
+
+#if defined(CONFIG_MXC_SECURITY_SCC) || defined(CONFIG_MXC_SECURITY_SCC_MODULE)
+	iram_size -= SCC_RAM_SIZE;
+#endif
+
+	iram_init(IRAM_BASE_ADDR, iram_size);
 
 	/* Set ALP bits to 000. Set ALP_EN bit in Arm Memory Controller reg. */
 	reg = __raw_readl(MXC_ARM1176_BASE + 0x1C);

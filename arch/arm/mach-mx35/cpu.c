@@ -1,5 +1,5 @@
 /*
- * Copyright 2008-2009 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2008-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -22,8 +22,9 @@
 #include <linux/types.h>
 #include <linux/kernel.h>
 #include <linux/init.h>
-#include <mach/hardware.h>
 #include <linux/io.h>
+#include <linux/iram_alloc.h>
+#include <mach/hardware.h>
 #include <asm/hardware/cache-l2x0.h>
 
 /*!
@@ -56,6 +57,8 @@ static int __init post_cpu_init(void)
 	l2_base = ioremap(L2CC_BASE_ADDR, SZ_4K);
 	if (l2_base)
 		l2x0_init(l2_base, 0x00030024, 0x00000000);
+
+	iram_init(MX35_IRAM_BASE_ADDR, MX35_IRAM_SIZE);
 
 	/*
 	 * S/W workaround: Clear the off platform peripheral modules

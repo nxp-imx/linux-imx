@@ -1,5 +1,5 @@
 /*
- * Copyright 2008-2009 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2008-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -22,8 +22,9 @@
 #include <linux/types.h>
 #include <linux/kernel.h>
 #include <linux/init.h>
+#include <linux/iram_alloc.h>
+#include <linux/io.h>
 #include <mach/hardware.h>
-#include <asm/io.h>
 #include "crm_regs.h"
 
 /*!
@@ -39,6 +40,13 @@ static int __init post_cpu_init(void)
 {
 	void __iomem *base;
 	unsigned int reg;
+	int iram_size = IRAM_SIZE;
+
+#if defined(CONFIG_MXC_SECURITY_SCC) || defined(CONFIG_MXC_SECURITY_SCC_MODULE)
+	if (cpu_is_mx51())
+		iram_size -= SCC_RAM_SIZE;
+#endif
+	iram_init(IRAM_BASE_ADDR, iram_size);
 
 	/* Set ALP bits to 000. Set ALP_EN bit in Arm Memory Controller reg. */
 	reg = 0x8;
