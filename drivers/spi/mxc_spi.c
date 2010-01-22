@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2009 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2004-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -1031,7 +1031,8 @@ static int mxc_spi_probe(struct platform_device *pdev)
 		goto err;
 	}
 
-	master_drv_data->base = (void *)IO_ADDRESS(master_drv_data->res->start);
+	master_drv_data->base = ioremap(master_drv_data->res->start,
+		master_drv_data->res->end - master_drv_data->res->start + 1);
 	if (!master_drv_data->base) {
 		dev_err(&pdev->dev, "invalid base address for CSPI%d\n",
 			master->bus_num);
@@ -1123,6 +1124,7 @@ static int mxc_spi_probe(struct platform_device *pdev)
 	clk_put(master_drv_data->clk);
 	free_irq(master_drv_data->irq, master_drv_data);
       err1:
+	iounmap(master_drv_data->base);
 	release_mem_region(pdev->resource[0].start,
 			   pdev->resource[0].end - pdev->resource[0].start + 1);
       err:
@@ -1160,6 +1162,7 @@ static int mxc_spi_remove(struct platform_device *pdev)
 
 		free_irq(master_drv_data->irq, master_drv_data);
 
+		iounmap(master_drv_data->base);
 		release_mem_region(master_drv_data->res->start,
 				   master_drv_data->res->end -
 				   master_drv_data->res->start + 1);

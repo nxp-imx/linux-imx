@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2009 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2004-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -669,7 +669,7 @@ static int mxci2c_probe(struct platform_device *pdev)
 		ret = -ENODEV;
 		goto err1;
 	}
-	mxc_i2c->membase = IO_ADDRESS(res->start);
+	mxc_i2c->membase = ioremap(res->start, res->end - res->start + 1);
 
 	/*
 	 * Request the I2C interrupt
@@ -677,13 +677,13 @@ static int mxci2c_probe(struct platform_device *pdev)
 	mxc_i2c->irq = platform_get_irq(pdev, 0);
 	if (mxc_i2c->irq < 0) {
 		ret = mxc_i2c->irq;
-		goto err1;
+		goto err2;
 	}
 
 	ret = request_irq(mxc_i2c->irq, mxc_i2c_handler,
 			  0, pdev->name, mxc_i2c);
 	if (ret < 0) {
-		goto err1;
+		goto err2;
 	}
 
 	init_waitqueue_head(&mxc_i2c->wq);
@@ -724,15 +724,17 @@ static int mxci2c_probe(struct platform_device *pdev)
 	platform_set_drvdata(pdev, mxc_i2c);
 	i2c_set_adapdata(&mxc_i2c->adap, mxc_i2c);
 	if ((ret = i2c_add_numbered_adapter(&mxc_i2c->adap)) < 0) {
-		goto err2;
+		goto err3;
 	}
 
 	printk(KERN_INFO "MXC I2C driver\n");
 	return 0;
 
-      err2:
+      err3:
 	free_irq(mxc_i2c->irq, mxc_i2c);
 	gpio_i2c_inactive(id);
+      err2:
+	iounmap(mxc_i2c->membase);
       err1:
 	dev_err(&pdev->dev, "failed to probe i2c adapter\n");
 	kfree(mxc_i2c);
@@ -757,6 +759,8 @@ static int mxci2c_remove(struct platform_device *pdev)
 	gpio_i2c_inactive(id);
 	clk_put(mxc_i2c->clk);
 	platform_set_drvdata(pdev, NULL);
+	iounmap(mxc_i2c->membase);
+	kfree(mxc_i2c);
 	return 0;
 }
 

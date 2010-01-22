@@ -3,8 +3,8 @@
  *
  * Watchdog driver for FSL MXC. It is based on omap1610_wdt.c
  *
- * Copyright 2004-2009 Freescale Semiconductor, Inc. All Rights Reserved.
- * 2005 (c) MontaVista Software, Inc.  All Rights Reserved.
+ * Copyright (C) 2004-2010 Freescale Semiconductor, Inc.
+ * 2005 (c) MontaVista Software, Inc.
 
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -44,26 +44,19 @@
 #include <linux/types.h>
 #include <linux/kernel.h>
 #include <linux/fs.h>
-#include <linux/mm.h>
 #include <linux/miscdevice.h>
 #include <linux/watchdog.h>
 #include <linux/reboot.h>
-#include <linux/smp_lock.h>
 #include <linux/init.h>
 #include <linux/err.h>
 #include <linux/platform_device.h>
 #include <linux/interrupt.h>
-#include <linux/moduleparam.h>
 #include <linux/clk.h>
+#include <linux/io.h>
+#include <linux/uaccess.h>
 
-#include <asm/io.h>
-#include <asm/uaccess.h>
-#include <mach/hardware.h>
-#include <asm/irq.h>
-#include <asm/bitops.h>
-
-#include <mach/hardware.h>
 #include "mxc_wdt.h"
+
 #define DVR_VER "2.0"
 
 #define WDOG_SEC_TO_COUNT(s)  ((s * 2) << 8)
@@ -268,7 +261,7 @@ static int __init mxc_wdt_probe(struct platform_device *pdev)
 
 	platform_set_drvdata(pdev, mem);
 
-	wdt_base_reg = IO_ADDRESS(res->start);
+	wdt_base_reg = ioremap(res->start, res->end - res->start + 1);
 	mxc_wdt_disable(wdt_base_reg);
 	mxc_wdt_adjust_timeout(timer_margin);
 
@@ -289,6 +282,7 @@ static int __init mxc_wdt_probe(struct platform_device *pdev)
 	return 0;
 
       fail:
+	iounmap(wdt_base_reg);
 	release_resource(mem);
 	pr_info("MXC Watchdog Probe failed\n");
 	return ret;
@@ -304,6 +298,7 @@ static int __exit mxc_wdt_remove(struct platform_device *pdev)
 {
 	struct resource *mem = platform_get_drvdata(pdev);
 	misc_deregister(&mxc_wdt_miscdev);
+	iounmap(wdt_base_reg);
 	release_resource(mem);
 	pr_info("MXC Watchdog # %d removed\n", dev_num);
 	return 0;

@@ -1,5 +1,5 @@
 /*
- * Copyright 2007-2008 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2007-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -212,17 +212,17 @@ static int mxc_i2c_slave_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "%s: get resource error\n", __func__);
 		goto error2;
 	}
-	mxc_dev->reg_base = IO_ADDRESS(res->start);
+	mxc_dev->reg_base = ioremap(res->start, res->end - res->start + 1);
 
 	mxc_dev->irq = platform_get_irq(pdev, 0);
 	if (mxc_dev->irq < 0) {
 		dev_err(&pdev->dev, "%s: get irq error\n", __func__);
-		goto error2;
+		goto error3;
 	}
 	if (request_irq(mxc_dev->irq, interrupt_handler,
 			0, mxc_dev->dev->name, mxc_dev) < 0) {
 		dev_err(&pdev->dev, "%s: request_irq error\n", __func__);
-		goto error2;
+		goto error3;
 	}
 
 	/*i2c id on soc */
@@ -257,7 +257,7 @@ static int mxc_i2c_slave_probe(struct platform_device *pdev)
 	if (i2c_slave_device_register(mxc_dev->dev) < 0) {
 		dev_err(&pdev->dev, "%s: i2c_slave_device_register error\n",
 			__func__);
-		goto error3;
+		goto error4;
 	}
 
 	platform_set_drvdata(pdev, (void *)mxc_dev);
@@ -265,7 +265,10 @@ static int mxc_i2c_slave_probe(struct platform_device *pdev)
 	/*start(mxc_dev->dev); */
 	return 0;
 
+      error4:
+	free_irq(mxc_dev->irq, mxc_dev);
       error3:
+	iounmap(mxc_dev->reg_base);
       error2:
 	i2c_slave_device_free(mxc_dev->dev);
       error1:
@@ -280,6 +283,8 @@ static int mxc_i2c_slave_remove(struct platform_device *pdev)
 	mxc_dev = (struct mxc_i2c_slave_device *)platform_get_drvdata(pdev);
 
 	i2c_slave_device_unregister(mxc_dev->dev);
+	free_irq(mxc_dev->irq, mxc_dev);
+	iounmap(mxc_dev->reg_base);
 	kfree((void *)mxc_dev);
 
 	return 0;

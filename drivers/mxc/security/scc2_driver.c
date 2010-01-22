@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2009 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2004-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -543,7 +543,7 @@ static int scc_init(void)
 		}
 		/* Map the SCC (SCM and SMN) memory on the internal bus into
 		   kernel address space */
-		scc_base = (void *)IO_ADDRESS(SCC_BASE);
+		scc_base = (void *)ioremap(SCC_BASE, SZ_4K);
 		if (scc_base == NULL) {
 			os_printk(KERN_ERR
 				  "SCC2: Register mapping failed.  Exiting.\n");

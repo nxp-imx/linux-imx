@@ -1,5 +1,5 @@
 /*
- * Copyright 2008 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2008-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -425,7 +425,7 @@ static int mxci2c_hs_probe(struct platform_device *pdev)
 		ret = -ENODEV;
 		goto err1;
 	}
-	i2c_hs->reg_base_virt = IO_ADDRESS(res->start);
+	i2c_hs->reg_base_virt = ioremap(res->start, res->end - res->start + 1);
 	i2c_hs->reg_base_phy = res->start;
 
 	i2c_hs->ipg_clk = clk_get(&pdev->dev, "hsi2c_clk");
@@ -468,6 +468,7 @@ static int mxci2c_hs_probe(struct platform_device *pdev)
 	kfree(adap);
       err1:
 	dev_err(&pdev->dev, "failed to probe high speed i2c adapter\n");
+	iounmap(i2c_hs->reg_base_virt);
 	kfree(i2c_hs);
 	return ret;
 }
@@ -508,6 +509,7 @@ static int mxci2c_hs_remove(struct platform_device *pdev)
 	i2c_del_adapter(adap);
 	gpio_i2c_hs_inactive();
 	platform_set_drvdata(pdev, NULL);
+	iounmap(i2c_hs->reg_base_virt);
 	kfree(i2c_hs);
 	return 0;
 }
