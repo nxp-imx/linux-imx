@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2009 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2004-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -2177,12 +2177,12 @@ int usb_gadget_register_driver(struct usb_gadget_driver *driver)
 	udc_controller->gadget.dev.driver = &driver->driver;
 	spin_unlock_irqrestore(&udc_controller->lock, flags);
 
+	if (udc_controller->pdata->usb_clock_for_pm)
+		udc_controller->pdata->usb_clock_for_pm(true);
+
 	portsc = fsl_readl(&dr_regs->portsc1);
 	portsc &= ~PORTSCX_PHY_LOW_POWER_SPD;
 	fsl_writel(portsc, &dr_regs->portsc1);
-
-	if (udc_controller->pdata->usb_clock_for_pm)
-		udc_controller->pdata->usb_clock_for_pm(true);
 
 	/* bind udc driver to gadget driver */
 	retval = driver->bind(&udc_controller->gadget);
