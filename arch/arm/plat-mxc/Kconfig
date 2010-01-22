@@ -60,6 +60,11 @@ source "arch/arm/mach-mx51/Kconfig"
 
 endmenu
 
+config IRAM_ALLOC
+	bool
+	default y
+	select GENERIC_ALLOCATOR
+
 config MXC_TZIC
 	bool
 	depends on ARCH_MXC

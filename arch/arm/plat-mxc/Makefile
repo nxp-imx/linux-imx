@@ -5,6 +5,8 @@
 # Common support
 obj-y := cpu.o cpu_common.o gpio.o clock.o wdog.o snoop.o io.o time.o
 
+obj-$(CONFIG_IRAM_ALLOC) += iram.o
+
 obj-$(CONFIG_ARCH_MX1) += iomux-mx1-mx2.o dma-mx1-mx2.o
 obj-$(CONFIG_ARCH_MX2) += iomux-mx1-mx2.o dma-mx1-mx2.o
 obj-$(CONFIG_ARCH_MXC_IOMUX_V3) += iomux-v3.o
