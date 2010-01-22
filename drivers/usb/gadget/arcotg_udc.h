@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2009 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2004-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -41,10 +41,6 @@
 #else
 #define IRAM_TD_PPH_SIZE	0
 #define IRAM_PPH_NTD	0
-#endif
-
-#ifndef USB_IRAM_BASE_ADDR
-#define USB_IRAM_BASE_ADDR 0
 #endif
 
 #define NEED_IRAM(ep) ((g_iram_size) && \

@@ -48,6 +48,7 @@
 
 #include "arcotg_udc.h"
 #include <mach/arc_otg.h>
+#include <linux/iram_alloc.h>
 
 #define	DRIVER_DESC	"ARC USBOTG Device Controller driver"
 #define	DRIVER_AUTHOR	"Freescale Semiconductor"
@@ -88,6 +89,8 @@ fsl_ep0_desc = {
 	.wMaxPacketSize =	USB_MAX_CTRL_PAYLOAD,
 };
 static const size_t g_iram_size = IRAM_TD_PPH_SIZE;
+static unsigned long g_iram_base;
+static __iomem void *g_iram_addr;
 
 typedef int (*dev_sus)(struct device *dev, pm_message_t state);
 typedef int (*dev_res) (struct device *dev);
@@ -2847,9 +2850,9 @@ static int __init fsl_udc_probe(struct platform_device *pdev)
 	if (g_iram_size) {
 		for (i = 0; i < IRAM_PPH_NTD; i++) {
 			udc_controller->iram_buffer[i] =
-			    USB_IRAM_BASE_ADDR + i * g_iram_size;
+				g_iram_base + i * g_iram_size;
 			udc_controller->iram_buffer_v[i] =
-			    IO_ADDRESS(udc_controller->iram_buffer[i]);
+				g_iram_addr + i * g_iram_size;
 		}
 	}
 #ifdef POSTPONE_FREE_LAST_DTD
@@ -2910,6 +2913,8 @@ static int __exit fsl_udc_remove(struct platform_device *pdev)
 	remove_proc_file();
 
 	/* Free allocated memory */
+	if (g_iram_size)
+		iram_free(g_iram_base, IRAM_PPH_NTD * g_iram_size);
 	kfree(udc_controller->status_req->req.buf);
 	kfree(udc_controller->status_req);
 	kfree(udc_controller->data_req->req.buf);

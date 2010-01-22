@@ -35,6 +35,7 @@
 
 /* Allocate the key transfer structures from the previously allocated pool */
 #include <linux/smp_lock.h>
+#include <linux/iram_alloc.h>
 
 bool use_iram_qtd;
 
@@ -53,6 +54,8 @@ static spinlock_t g_usb_sema;
 static u32 g_debug_qtd_allocated;
 static u32 g_debug_qH_allocated;
 static int g_alloc_map;
+static unsigned long g_iram_base;
+static __iomem void *g_iram_addr;
 
 /*!
  * usb_pool_initialize
@@ -238,7 +241,7 @@ static u32 alloc_iram_buf(void)
 	for (i = 0; i < IRAM_NTD; i++) {
 		if (!(g_alloc_map & (1 << i))) {
 			g_alloc_map |= (1 << i);
-			return USB_IRAM_BASE_ADDR + i * (IRAM_TD_SIZE * 2);
+			return g_iram_base + i * (IRAM_TD_SIZE * 2);
 		}
 	}
 	panic("Out of IRAM buffers\n");
@@ -246,7 +249,7 @@ static u32 alloc_iram_buf(void)
 
 void free_iram_buf(u32 buf)
 {
-	int i = (buf - USB_IRAM_BASE_ADDR) / (IRAM_TD_SIZE * 2);
+	int i = (buf - g_iram_base) / (IRAM_TD_SIZE * 2);
 
 	g_alloc_map &= ~(1 << i);
 }
@@ -270,7 +273,7 @@ static struct ehci_qtd *ehci_qtd_alloc(struct ehci_hcd *ehci, gfp_t flags)
 	if (use_iram_qtd) {
 		dma = usb_malloc(sizeof(struct ehci_qtd), flags);
 		if (dma != 0)
-			qtd = (struct ehci_qtd *)IO_ADDRESS(dma);
+			qtd = (struct ehci_qtd *)(g_iram_addr + (dma - g_iram_base));
 		else
 			qtd = dma_pool_alloc(ehci->qtd_pool, flags, &dma);
 	}
@@ -291,8 +294,8 @@ static struct ehci_qtd *ehci_qtd_alloc(struct ehci_hcd *ehci, gfp_t flags)
 
 static inline void ehci_qtd_free(struct ehci_hcd *ehci, struct ehci_qtd *qtd)
 {
-	if ((qtd->qtd_dma & (USB_IRAM_BASE_ADDR & 0xFFF00000)) ==
-	    (USB_IRAM_BASE_ADDR & 0xFFF00000))
+	if ((qtd->qtd_dma & (g_iram_base & 0xFFF00000)) ==
+	    (g_iram_base & 0xFFF00000))
 		usb_free(qtd->qtd_dma);
 	else
 		dma_pool_free(ehci->qtd_pool, qtd, qtd->qtd_dma);
@@ -316,8 +319,8 @@ static void qh_destroy(struct ehci_qh *qh)
 			ehci->usb_address[i] = 0;
 	}
 
-	if ((qh->qh_dma & (USB_IRAM_BASE_ADDR & 0xFFF00000)) ==
-	    (USB_IRAM_BASE_ADDR & 0xFFF00000))
+	if ((qh->qh_dma & (g_iram_base & 0xFFF00000)) ==
+	    (g_iram_base & 0xFFF00000))
 		usb_free(qh->qh_dma);
 	else
 		dma_pool_free(ehci->qh_pool, qh, qh->qh_dma);
@@ -331,7 +334,7 @@ static struct ehci_qh *ehci_qh_alloc(struct ehci_hcd *ehci, gfp_t flags)
 
 	dma = usb_malloc(sizeof(struct ehci_qh), flags);
 	if (dma != 0)
-		qh = (struct ehci_qh *)IO_ADDRESS(dma);
+		qh = (struct ehci_qh *)(g_iram_addr + (dma - g_iram_base));
 	else
 		qh = (struct ehci_qh *)
 		    dma_pool_alloc(ehci->qh_pool, flags, &dma);
@@ -413,6 +416,9 @@ static void ehci_mem_cleanup(struct ehci_hcd *ehci)
 	if (ehci->iram_buffer[1])
 		free_iram_buf(ehci->iram_buffer[1]);
 
+	iounmap(g_iram_addr);
+	iram_free(g_iram_base, USB_IRAM_SIZE);
+
 	/* shadow periodic table */
 	kfree(ehci->pshadow);
 	ehci->pshadow = NULL;
@@ -433,14 +439,16 @@ static int ehci_mem_init(struct ehci_hcd *ehci, gfp_t flags)
 	else
 		use_iram_qtd = 1;
 
-	usb_pool_initialize(USB_IRAM_BASE_ADDR + IRAM_TD_SIZE * IRAM_NTD * 2,
+	g_iram_addr = iram_alloc(USB_IRAM_SIZE, &g_iram_base);
+
+	usb_pool_initialize(g_iram_base + IRAM_TD_SIZE * IRAM_NTD * 2,
 			    USB_IRAM_SIZE - IRAM_TD_SIZE * IRAM_NTD * 2, 32);
 
 	if (!ehci->iram_buffer[0]) {
 		ehci->iram_buffer[0] = alloc_iram_buf();
-		ehci->iram_buffer_v[0] = IO_ADDRESS(ehci->iram_buffer[0]);
+		ehci->iram_buffer_v[0] = g_iram_addr + (ehci->iram_buffer[0] - g_iram_base);
 		ehci->iram_buffer[1] = alloc_iram_buf();
-		ehci->iram_buffer_v[1] = IO_ADDRESS(ehci->iram_buffer[1]);
+		ehci->iram_buffer_v[1] = g_iram_addr + (ehci->iram_buffer[1] - g_iram_base);
 	}
 
 	/* QTDs for control/bulk/intr transfers */
