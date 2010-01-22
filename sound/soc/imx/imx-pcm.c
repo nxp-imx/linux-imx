@@ -20,6 +20,7 @@
 #include <linux/platform_device.h>
 #include <linux/slab.h>
 #include <linux/dma-mapping.h>
+#include <linux/iram_alloc.h>
 #include <sound/core.h>
 #include <sound/pcm.h>
 #include <sound/pcm_params.h>
@@ -73,9 +74,6 @@ static const struct snd_pcm_hardware imx_pcm_hardware = {
 	.fifo_size = 0,
 };
 
-static uint32_t audio_iram_phys_base_addr;
-static void *audio_iram_virt_base_addr;
-
 static struct vm_operations_struct snd_mxc_audio_playback_vm_ops = {
 	.open = snd_pcm_mmap_data_open,
 	.close = snd_pcm_mmap_data_close,
@@ -87,6 +85,7 @@ static struct vm_operations_struct snd_mxc_audio_playback_vm_ops = {
 static int imx_iram_audio_playback_mmap(struct snd_pcm_substream *substream,
 					struct vm_area_struct *area)
 {
+	struct snd_dma_buffer *buf = &substream->dma_buffer;
 	unsigned long off;
 	unsigned long phys;
 	unsigned long size;
@@ -96,7 +95,7 @@ static int imx_iram_audio_playback_mmap(struct snd_pcm_substream *substream,
 	area->vm_private_data = substream;
 
 	off = area->vm_pgoff << PAGE_SHIFT;
-	phys = audio_iram_phys_base_addr + off;
+	phys = buf->addr + off;
 	size = area->vm_end - area->vm_start;
 
 	if (off + size > SND_RAM_SIZE)
@@ -111,35 +110,6 @@ static int imx_iram_audio_playback_mmap(struct snd_pcm_substream *substream,
 		area->vm_ops->open(area);
 
 	return ret;
-}
-
-/*
-     Map nbytes in virtual space
-     bytes -audio iram iram partition size
-     phys_addr - physical address of iram buffer
-     returns - virtual address of the iram buffer or NULL if fail
-*/
-static void *imx_iram_init(dma_addr_t *phys_addr, size_t bytes)
-{
-	void *iram_base;
-
-	iram_base = (void *)ioremap((uint32_t) SND_RAM_BASE_ADDR, bytes);
-
-	audio_iram_virt_base_addr = iram_base;
-	audio_iram_phys_base_addr = (uint32_t) SND_RAM_BASE_ADDR;
-	*phys_addr = (dma_addr_t) SND_RAM_BASE_ADDR;
-
-	return audio_iram_virt_base_addr;
-
-}
-
-/*
-     destroy the virtual mapping of the iram buffer
-*/
-
-static void imx_iram_free(void)
-{
-	iounmap(audio_iram_virt_base_addr);
 }
 
 static int imx_get_sdma_transfer(int format, int dai_port,
@@ -589,6 +559,7 @@ static int imx_pcm_preallocate_dma_buffer(struct snd_pcm *pcm, int stream)
 	struct snd_soc_device *socdev = rtd->socdev;
 	struct snd_soc_dai *cpu_dai = socdev->card->dai_link->cpu_dai;
 	struct mxc_audio_platform_data *dev_data;
+	unsigned long buf_paddr;
 	int ext_ram = 0;
 	size_t size = imx_pcm_hardware.buffer_bytes_max;
 
@@ -605,8 +576,10 @@ static int imx_pcm_preallocate_dma_buffer(struct snd_pcm *pcm, int stream)
 		buf->area =
 		    dma_alloc_writecombine(pcm->card->dev, size,
 					   &buf->addr, GFP_KERNEL);
-	else
-		buf->area = imx_iram_init(&buf->addr, size);
+	else {
+		buf->area = iram_alloc(size, &buf_paddr);
+		buf->addr = buf_paddr;
+	}
 
 	if (!buf->area)
 		return -ENOMEM;
@@ -646,8 +619,9 @@ static void imx_pcm_free_dma_buffers(struct snd_pcm *pcm)
 		    || ext_ram || !UseIram)
 			dma_free_writecombine(pcm->card->dev,
 					      buf->bytes, buf->area, buf->addr);
-		else
-			imx_iram_free();
+		else {
+			iram_free(buf->addr, imx_pcm_hardware.buffer_bytes_max);
+		}
 		buf->area = NULL;
 	}
 }
