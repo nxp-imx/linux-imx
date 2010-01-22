@@ -1,7 +1,7 @@
 /*
  * linux/drivers/mxc/mlb/mxc_mlb.c
  *
- * Copyright 2008-2009 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2008-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -27,9 +27,9 @@
 #include <linux/regulator/consumer.h>
 #include <linux/mxc_mlb.h>
 #include <linux/uaccess.h>
+#include <linux/iram_alloc.h>
 
 #include <mach/hardware.h>
-//#include <asm/irq.h>
 
 /*!
  * MLB module memory map registers define
@@ -92,6 +92,7 @@
 #define CTRL_PACKET_SIZE			64
 #define RX_RING_NODES			10
 
+#define MLB_IRAM_SIZE			(MLB_MINOR_DEVICES * (TX_CHANNEL_BUF_SIZE + RX_CHANNEL_BUF_SIZE))
 #define _get_txchan(dev)		mlb_devinfo[dev].channels[TX_CHANNEL]
 #define _get_rxchan(dev)		mlb_devinfo[dev].channels[RX_CHANNEL]
 
@@ -217,6 +218,8 @@ static struct class *mlb_class;	/* device class */
 static struct device *class_dev;
 static unsigned long mlb_base;	/* mlb module base address */
 static unsigned int irq;
+static unsigned long iram_base;
+static __iomem void *iram_addr;
 
 /*!
  * Initial the MLB module device
@@ -792,8 +795,8 @@ static int __devinit mxc_mlb_probe(struct platform_device *pdev)
 	int ret, mlb_major, i, j;
 	struct mxc_mlb_platform_data *plat_data;
 	struct resource *res;
-	void __iomem *base;
-	unsigned long bufaddr, phyaddr;
+	void __iomem *base, *bufaddr;
+	unsigned long phyaddr;
 
 	/* malloc the Rx ring buffer firstly */
 	for (i = 0; i < MLB_MINOR_DEVICES; i++) {
@@ -909,8 +912,8 @@ static int __devinit mxc_mlb_probe(struct platform_device *pdev)
 
 	plat_data = (struct mxc_mlb_platform_data *)pdev->dev.platform_data;
 
-	bufaddr = plat_data->buf_address & ~0x3;
-	phyaddr = plat_data->phy_address & ~0x3;
+	bufaddr = iram_addr = iram_alloc(MLB_IRAM_SIZE, &iram_base);
+	phyaddr = iram_base;
 
 	for (i = 0; i < MLB_MINOR_DEVICES; i++) {
 		/* set the virtual and physical buf head address */
@@ -920,7 +923,7 @@ static int __devinit mxc_mlb_probe(struct platform_device *pdev)
 		bufaddr += TX_CHANNEL_BUF_SIZE;
 		phyaddr += TX_CHANNEL_BUF_SIZE;
 
-		_get_rxchan(i).buf_head = bufaddr;
+		_get_rxchan(i).buf_head = (unsigned long)bufaddr;
 		_get_rxchan(i).phy_head = phyaddr;
 
 		bufaddr += RX_CHANNEL_BUF_SIZE;
@@ -984,6 +987,8 @@ static int __devexit mxc_mlb_remove(struct platform_device *pdev)
 
 	/* inactive GPIO */
 	gpio_mlb_inactive();
+
+	iram_free(iram_base, MLB_IRAM_SIZE);
 
 	/* iounmap */
 	iounmap((void *)mlb_base);
