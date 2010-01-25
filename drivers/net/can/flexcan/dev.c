@@ -1,5 +1,5 @@
 /*
- * Copyright 2008-2009 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2008-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -338,9 +338,9 @@ static ssize_t flexcan_set_attr(struct device *dev,
 		goto set_finish;
 
 	if (attr_id == FLEXCAN_ATTR_BR_CLKSRC) {
-		if (!strcasecmp(buf, "bus"))
+		if (!strncasecmp(buf, "bus", 3))
 			flexcan->br_clksrc = 1;
-		else if (!strcasecmp(buf, "osc"))
+		else if (!strncasecmp(buf, "osc", 3))
 			flexcan->br_clksrc = 0;
 		goto set_finish;
 	}
