@@ -5,8 +5,8 @@
  *
  * Author: dmitry pervushin <dimka@embeddedalley.com>
  *
- * Copyright 2008-2009 Freescale Semiconductor, Inc. All Rights Reserved.
  * Copyright 2008 Embedded Alley Solutions, Inc All Rights Reserved.
+ * Copyright 2008-2010 Freescale Semiconductor, Inc.
  */
 
 /*
@@ -281,7 +281,7 @@ static int bch_read(void *context,
 		readsize += state->nands[index].writesize;
 	}
 
-	printk(KERN_DEBUG"readsize = %ld, bufmask = 0x%X\n", readsize, bufmask);
+	pr_debug("readsize = %ld, bufmask = 0x%X\n", readsize, bufmask);
 	bch_reset(context, index);
 
 	/* wait for ready */
