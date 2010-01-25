@@ -1,7 +1,7 @@
 /*
  * Freescale PWM Register Definitions
  *
- * Copyright 2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2008-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by

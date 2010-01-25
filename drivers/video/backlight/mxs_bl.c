@@ -1,20 +1,26 @@
 /*
- * Backlight Driver for Freescale STMP37XX/STMP378X
+ * Backlight Driver for Freescale MXS
  *
  * Embedded Alley Solutions, Inc <source@embeddedalley.com>
  *
- * Copyright 2008-2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2008-2010 Freescale Semiconductor, Inc.
  * Copyright 2008 Embedded Alley Solutions, Inc All Rights Reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
  */
 
-/*
- * The code contained herein is licensed under the GNU General Public
- * License. You may obtain a copy of the GNU General Public License
- * Version 2 or later at the following locations:
- *
- * http://www.opensource.org/licenses/gpl-license.html
- * http://www.gnu.org/copyleft/gpl.html
- */
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/init.h>
@@ -30,23 +36,23 @@
 #include <mach/lcdif.h>
 #include <mach/regulator.h>
 
-struct stmp3xxx_bl_data {
+struct mxs_bl_data {
 	struct notifier_block nb;
 	struct notifier_block reg_nb;
 	struct notifier_block reg_init_nb;
 	struct backlight_device *bd;
-	struct stmp3xxx_platform_bl_data *pdata;
+	struct mxs_platform_bl_data *pdata;
 	int current_intensity;
 	int saved_intensity;
-	int stmp3xxxbl_suspended;
-	int stmp3xxxbl_constrained;
+	int mxsbl_suspended;
+	int mxsbl_constrained;
 };
 
-static int stmp3xxxbl_do_probe(struct stmp3xxx_bl_data *data,
-		struct stmp3xxx_platform_bl_data *pdata);
-static int stmp3xxxbl_set_intensity(struct backlight_device *bd);
-static inline void bl_register_reg(struct stmp3xxx_platform_bl_data *pdata,
-				   struct stmp3xxx_bl_data *data);
+static int mxsbl_do_probe(struct mxs_bl_data *data,
+		struct mxs_platform_bl_data *pdata);
+static int mxsbl_set_intensity(struct backlight_device *bd);
+static inline void bl_register_reg(struct mxs_platform_bl_data *pdata,
+				   struct mxs_bl_data *data);
 
 
 /*
@@ -55,11 +61,11 @@ static inline void bl_register_reg(struct stmp3xxx_platform_bl_data *pdata,
 static int bl_init_reg_callback(struct notifier_block *self,
 			unsigned long event, void *data)
 {
-	struct stmp3xxx_bl_data *bdata;
-	struct stmp3xxx_platform_bl_data *pdata;
-	struct regulator *r = regulator_get(NULL, "stmp3xxx-bl-1");
+	struct mxs_bl_data *bdata;
+	struct mxs_platform_bl_data *pdata;
+	struct regulator *r = regulator_get(NULL, "mxs-bl-1");
 
-	bdata = container_of(self, struct stmp3xxx_bl_data, reg_init_nb);
+	bdata = container_of(self, struct mxs_bl_data, reg_init_nb);
 	pdata = bdata->pdata;
 
 	if (r && !IS_ERR(r))
@@ -76,7 +82,7 @@ static int bl_init_reg_callback(struct notifier_block *self,
 		bus_unregister_notifier(&platform_bus_type,
 					&bdata->reg_init_nb);
 		mutex_lock(&bdata->bd->ops_lock);
-		stmp3xxxbl_set_intensity(bdata->bd);
+		mxsbl_set_intensity(bdata->bd);
 		mutex_unlock(&bdata->bd->ops_lock);
 	}
 
@@ -87,34 +93,34 @@ out:
 static int bl_reg_callback(struct notifier_block *self,
 			unsigned long event, void *data)
 {
-	struct stmp3xxx_bl_data *bdata;
-	struct stmp3xxx_platform_bl_data *pdata;
-	bdata = container_of(self, struct stmp3xxx_bl_data, reg_nb);
+	struct mxs_bl_data *bdata;
+	struct mxs_platform_bl_data *pdata;
+	bdata = container_of(self, struct mxs_bl_data, reg_nb);
 	pdata = bdata->pdata;
 
 	mutex_lock(&bdata->bd->ops_lock);
 
 	switch (event) {
-	case STMP3XXX_REG5V_IS_USB:
+	case MXS_REG5V_IS_USB:
 		bdata->bd->props.max_brightness = pdata->bl_cons_intensity;
 		bdata->bd->props.brightness = pdata->bl_cons_intensity;
 		bdata->saved_intensity = bdata->current_intensity;
-		bdata->stmp3xxxbl_constrained = 1;
+		bdata->mxsbl_constrained = 1;
 		break;
-	case STMP3XXX_REG5V_NOT_USB:
+	case MXS_REG5V_NOT_USB:
 		bdata->bd->props.max_brightness = pdata->bl_max_intensity;
 		bdata->bd->props.brightness = bdata->saved_intensity;
-		bdata->stmp3xxxbl_constrained = 0;
+		bdata->mxsbl_constrained = 0;
 		break;
 	}
 
-	stmp3xxxbl_set_intensity(bdata->bd);
+	mxsbl_set_intensity(bdata->bd);
 	mutex_unlock(&bdata->bd->ops_lock);
 	return 0;
 }
 
-static inline void bl_unregister_reg(struct stmp3xxx_platform_bl_data *pdata,
-				  struct stmp3xxx_bl_data *data)
+static inline void bl_unregister_reg(struct mxs_platform_bl_data *pdata,
+				  struct mxs_bl_data *data)
 {
 	if (!pdata)
 		return;
@@ -126,10 +132,10 @@ static inline void bl_unregister_reg(struct stmp3xxx_platform_bl_data *pdata,
 	pdata->regulator = NULL;
 }
 
-static inline void bl_register_reg(struct stmp3xxx_platform_bl_data *pdata,
-				   struct stmp3xxx_bl_data *data)
+static inline void bl_register_reg(struct mxs_platform_bl_data *pdata,
+				   struct mxs_bl_data *data)
 {
-	pdata->regulator = regulator_get(NULL, "stmp3xxx-bl-1");
+	pdata->regulator = regulator_get(NULL, "mxs-bl-1");
 	if (pdata->regulator && !IS_ERR(pdata->regulator)) {
 		regulator_set_mode(pdata->regulator, REGULATOR_MODE_FAST);
 		if (pdata->regulator) {
@@ -147,13 +153,13 @@ static inline void bl_register_reg(struct stmp3xxx_platform_bl_data *pdata,
 static int bl_callback(struct notifier_block *self,
 		       unsigned long event, void *data)
 {
-	struct stmp3xxx_platform_fb_entry *pentry = data;
-	struct stmp3xxx_bl_data *bdata;
-	struct stmp3xxx_platform_bl_data *pdata;
+	struct mxs_platform_fb_entry *pentry = data;
+	struct mxs_bl_data *bdata;
+	struct mxs_platform_bl_data *pdata;
 
 	switch (event) {
-	case STMP3XXX_LCDIF_PANEL_INIT:
-		bdata = container_of(self, struct stmp3xxx_bl_data, nb);
+	case MXS_LCDIF_PANEL_INIT:
+		bdata = container_of(self, struct mxs_bl_data, nb);
 		pdata = pentry->bl_data;
 		bdata->pdata = pdata;
 		if (pdata) {
@@ -165,12 +171,12 @@ static int bl_callback(struct notifier_block *self,
 				bus_register_notifier(&platform_bus_type,
 						      &bdata->reg_init_nb);
 			}
-			return stmp3xxxbl_do_probe(bdata, pdata);
+			return mxsbl_do_probe(bdata, pdata);
 		}
 		break;
 
-	case STMP3XXX_LCDIF_PANEL_RELEASE:
-		bdata = container_of(self, struct stmp3xxx_bl_data, nb);
+	case MXS_LCDIF_PANEL_RELEASE:
+		bdata = container_of(self, struct mxs_bl_data, nb);
 		pdata = pentry->bl_data;
 		if (pdata) {
 			bus_unregister_notifier(&platform_bus_type,
@@ -185,56 +191,56 @@ static int bl_callback(struct notifier_block *self,
 }
 
 #ifdef CONFIG_PM
-static int stmp3xxxbl_suspend(struct platform_device *pdev, pm_message_t state)
+static int mxsbl_suspend(struct platform_device *pdev, pm_message_t state)
 {
-	struct stmp3xxx_bl_data *data = platform_get_drvdata(pdev);
-	struct stmp3xxx_platform_bl_data *pdata = data->pdata;
+	struct mxs_bl_data *data = platform_get_drvdata(pdev);
+	struct mxs_platform_bl_data *pdata = data->pdata;
 
-	data->stmp3xxxbl_suspended = 1;
+	data->mxsbl_suspended = 1;
 	if (pdata) {
 		dev_dbg(&pdev->dev, "real suspend\n");
-		stmp3xxxbl_set_intensity(data->bd);
+		mxsbl_set_intensity(data->bd);
 	}
 	return 0;
 }
 
-static int stmp3xxxbl_resume(struct platform_device *pdev)
+static int mxsbl_resume(struct platform_device *pdev)
 {
-	struct stmp3xxx_bl_data *data = platform_get_drvdata(pdev);
-	struct stmp3xxx_platform_bl_data *pdata = data->pdata;
+	struct mxs_bl_data *data = platform_get_drvdata(pdev);
+	struct mxs_platform_bl_data *pdata = data->pdata;
 	int ret = 0;
 
-	data->stmp3xxxbl_suspended = 0;
+	data->mxsbl_suspended = 0;
 	if (pdata) {
 		dev_dbg(&pdev->dev, "real resume\n");
 		pdata->free_bl(pdata);
 		ret = pdata->init_bl(pdata);
 		if (ret)
 			goto out;
-		stmp3xxxbl_set_intensity(data->bd);
+		mxsbl_set_intensity(data->bd);
 	}
 out:
 	return ret;
 }
 #else
-#define stmp3xxxbl_suspend	NULL
-#define stmp3xxxbl_resume	NULL
+#define mxsbl_suspend	NULL
+#define mxsbl_resume	NULL
 #endif
 /*
  *  This function should be called with bd->ops_lock held
  *  Suspend/resume ?
  */
-static int stmp3xxxbl_set_intensity(struct backlight_device *bd)
+static int mxsbl_set_intensity(struct backlight_device *bd)
 {
 	struct platform_device *pdev = dev_get_drvdata(&bd->dev);
-	struct stmp3xxx_bl_data *data = platform_get_drvdata(pdev);
-	struct stmp3xxx_platform_bl_data *pdata = data->pdata;
+	struct mxs_bl_data *data = platform_get_drvdata(pdev);
+	struct mxs_platform_bl_data *pdata = data->pdata;
 
 	if (pdata) {
 		int ret;
 
 		ret = pdata->set_bl_intensity(pdata, bd,
-					      data->stmp3xxxbl_suspended);
+					      data->mxsbl_suspended);
 		if (ret)
 			bd->props.brightness = data->current_intensity;
 		else
@@ -244,21 +250,21 @@ static int stmp3xxxbl_set_intensity(struct backlight_device *bd)
 		return -ENODEV;
 }
 
-static int stmp3xxxbl_get_intensity(struct backlight_device *bd)
+static int mxsbl_get_intensity(struct backlight_device *bd)
 {
 	struct platform_device *pdev = dev_get_drvdata(&bd->dev);
-	struct stmp3xxx_bl_data *data = platform_get_drvdata(pdev);
+	struct mxs_bl_data *data = platform_get_drvdata(pdev);
 
 	return data->current_intensity;
 }
 
-static struct backlight_ops stmp3xxxbl_ops = {
-	.get_brightness = stmp3xxxbl_get_intensity,
-	.update_status  = stmp3xxxbl_set_intensity,
+static struct backlight_ops mxsbl_ops = {
+	.get_brightness = mxsbl_get_intensity,
+	.update_status  = mxsbl_set_intensity,
 };
 
-static int stmp3xxxbl_do_probe(struct stmp3xxx_bl_data *data,
-		struct stmp3xxx_platform_bl_data *pdata)
+static int mxsbl_do_probe(struct mxs_bl_data *data,
+		struct mxs_platform_bl_data *pdata)
 {
 	int ret = pdata->init_bl(pdata);
 
@@ -267,7 +273,7 @@ static int stmp3xxxbl_do_probe(struct stmp3xxx_bl_data *data,
 
 	data->bd->props.power = FB_BLANK_UNBLANK;
 	data->bd->props.fb_blank = FB_BLANK_UNBLANK;
-	if (data->stmp3xxxbl_constrained) {
+	if (data->mxsbl_constrained) {
 		data->bd->props.max_brightness = pdata->bl_cons_intensity;
 		data->bd->props.brightness = pdata->bl_cons_intensity;
 	} else {
@@ -276,16 +282,16 @@ static int stmp3xxxbl_do_probe(struct stmp3xxx_bl_data *data,
 	}
 
 	data->pdata = pdata;
-	stmp3xxxbl_set_intensity(data->bd);
+	mxsbl_set_intensity(data->bd);
 
 out:
 	return ret;
 }
 
-static int __init stmp3xxxbl_probe(struct platform_device *pdev)
+static int __init mxsbl_probe(struct platform_device *pdev)
 {
-	struct stmp3xxx_bl_data *data;
-	struct stmp3xxx_platform_bl_data *pdata = pdev->dev.platform_data;
+	struct mxs_bl_data *data;
+	struct mxs_platform_bl_data *pdata = pdev->dev.platform_data;
 	int ret = 0;
 
 	data = kzalloc(sizeof(*data), GFP_KERNEL);
@@ -294,7 +300,7 @@ static int __init stmp3xxxbl_probe(struct platform_device *pdev)
 		goto out;
 	}
 	data->bd = backlight_device_register(pdev->name, &pdev->dev, pdev,
-					&stmp3xxxbl_ops);
+					&mxsbl_ops);
 	if (IS_ERR(data->bd)) {
 		ret = PTR_ERR(data->bd);
 		goto out_1;
@@ -303,11 +309,11 @@ static int __init stmp3xxxbl_probe(struct platform_device *pdev)
 	get_device(&pdev->dev);
 
 	data->nb.notifier_call = bl_callback;
-	stmp3xxx_lcdif_register_client(&data->nb);
+	mxs_lcdif_register_client(&data->nb);
 	platform_set_drvdata(pdev, data);
 
 	if (pdata) {
-		ret = stmp3xxxbl_do_probe(data, pdata);
+		ret = mxsbl_do_probe(data, pdata);
 		if (ret)
 			goto out_2;
 	}
@@ -322,10 +328,10 @@ out:
 	return ret;
 }
 
-static int stmp3xxxbl_remove(struct platform_device *pdev)
+static int mxsbl_remove(struct platform_device *pdev)
 {
-	struct stmp3xxx_platform_bl_data *pdata = pdev->dev.platform_data;
-	struct stmp3xxx_bl_data *data = platform_get_drvdata(pdev);
+	struct mxs_platform_bl_data *pdata = pdev->dev.platform_data;
+	struct mxs_bl_data *data = platform_get_drvdata(pdev);
 	struct backlight_device *bd = data->bd;
 
 	bd->props.power = FB_BLANK_POWERDOWN;
@@ -334,7 +340,7 @@ static int stmp3xxxbl_remove(struct platform_device *pdev)
 	data->current_intensity = bd->props.brightness;
 
 	if (pdata) {
-		pdata->set_bl_intensity(pdata, bd, data->stmp3xxxbl_suspended);
+		pdata->set_bl_intensity(pdata, bd, data->mxsbl_suspended);
 		if (pdata->free_bl)
 			pdata->free_bl(pdata);
 	}
@@ -343,36 +349,36 @@ static int stmp3xxxbl_remove(struct platform_device *pdev)
 		regulator_put(pdata->regulator);
 	put_device(&pdev->dev);
 	platform_set_drvdata(pdev, NULL);
-	stmp3xxx_lcdif_unregister_client(&data->nb);
+	mxs_lcdif_unregister_client(&data->nb);
 	kfree(data);
 
 	return 0;
 }
 
-static struct platform_driver stmp3xxxbl_driver = {
-	.probe		= stmp3xxxbl_probe,
-	.remove		= __devexit_p(stmp3xxxbl_remove),
-	.suspend	= stmp3xxxbl_suspend,
-	.resume		= stmp3xxxbl_resume,
+static struct platform_driver mxsbl_driver = {
+	.probe		= mxsbl_probe,
+	.remove		= __devexit_p(mxsbl_remove),
+	.suspend	= mxsbl_suspend,
+	.resume		= mxsbl_resume,
 	.driver		= {
-		.name	= "stmp3xxx-bl",
+		.name	= "mxs-bl",
 		.owner	= THIS_MODULE,
 	},
 };
 
-static int __init stmp3xxx_init(void)
+static int __init mxs_init(void)
 {
-	return platform_driver_register(&stmp3xxxbl_driver);
+	return platform_driver_register(&mxsbl_driver);
 }
 
-static void __exit stmp3xxx_exit(void)
+static void __exit mxs_exit(void)
 {
-	platform_driver_unregister(&stmp3xxxbl_driver);
+	platform_driver_unregister(&mxsbl_driver);
 }
 
-module_init(stmp3xxx_init);
-module_exit(stmp3xxx_exit);
+module_init(mxs_init);
+module_exit(mxs_exit);
 
 MODULE_AUTHOR("Embedded Alley Solutions, Inc <sources@embeddedalley.com>");
-MODULE_DESCRIPTION("STMP3xxx Backlight Driver");
+MODULE_DESCRIPTION("MXS Backlight Driver");
 MODULE_LICENSE("GPL");

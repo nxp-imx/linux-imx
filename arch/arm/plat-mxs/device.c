@@ -172,6 +172,17 @@ static struct platform_device mxs_wdt = {
 };
 #endif
 
+#if defined(CONFIG_BACKLIGHT_MXS) || \
+	defined(CONFIG_BACKLIGHT_MXS_MODULE)
+struct platform_device mxs_bl = {
+	.name	= "mxs-bl",
+	.id	= 0,
+	.dev = {
+		.release = mxs_nop_release,
+		},
+};
+#endif
+
 #if defined(CONFIG_RTC_DRV_MXS) || defined(CONFIG_RTC_DRV_MXS_MODULE)
 static struct platform_device mxs_rtc = {
 	.name = "mxs-rtc",
@@ -232,6 +243,16 @@ static struct mxs_dev_lookup dev_lookup[] = {
 	 .pdev = &mxs_rtc,
 	 },
 #endif
+
+#if defined(CONFIG_BACKLIGHT_MXS) || \
+	defined(CONFIG_BACKLIGHT_MXS_MODULE)
+	{
+	 .name	= "mxs-bl",
+	 .size	= 1,
+	 .pdev	= &mxs_bl,
+	 },
+#endif
+
 };
 
 struct platform_device *mxs_get_device(char *name, int id)
@@ -308,6 +329,10 @@ int mxs_device_init(void)
 		}
 	}
 
+#if defined(CONFIG_BACKLIGHT_MXS) || \
+	defined(CONFIG_BACKLIGHT_MXS_MODULE)
+	platform_device_register(&mxs_bl);
+#endif
 	return ret;
 }
 

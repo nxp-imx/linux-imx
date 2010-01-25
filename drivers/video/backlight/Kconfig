@@ -266,6 +266,13 @@ config BACKLIGHT_STMP37XX
 	  If you have a STMP37xx, say y to enable the
 	  backlight driver.
 
+config BACKLIGHT_MXS
+	tristate "Freescale MXS Backlight Driver"
+	depends on BACKLIGHT_CLASS_DEVICE && ARCH_MX28
+	default y
+	help
+	  If you have a MXS, say y to enable the backlight driver.
+
 config BACKLIGHT_WM8350
     tristate "WM8350 Backlight Driver"
     depends on BACKLIGHT_MXC && REGULATOR_WM8350
