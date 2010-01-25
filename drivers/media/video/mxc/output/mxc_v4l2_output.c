@@ -273,19 +273,22 @@ static void setup_next_buf_timer(vout_data *vout, int index)
 			"timer handler next schedule: %lu\n", timeout);
 }
 
-static void wait_for_disp_vsync(vout_data *vout)
+static int wait_for_disp_vsync(vout_data *vout)
 {
 	struct fb_info *fbi =
 		registered_fb[vout->output_fb_num[vout->cur_disp_output]];
 	mm_segment_t old_fs;
+	int ret = 0;
 
 	/* wait for display frame finish */
 	if (fbi->fbops->fb_ioctl) {
 		old_fs = get_fs();
 		set_fs(KERNEL_DS);
-		fbi->fbops->fb_ioctl(fbi, MXCFB_WAIT_FOR_VSYNC, (unsigned int)NULL);
+		ret = fbi->fbops->fb_ioctl(fbi, MXCFB_WAIT_FOR_VSYNC,
+			(unsigned int)NULL);
 		set_fs(old_fs);
 	}
+	return ret;
 }
 
 static void timer_work_func(struct work_struct *work)
@@ -323,7 +326,11 @@ static void timer_work_func(struct work_struct *work)
 		return;
 	}
 
-	wait_for_disp_vsync(vout);
+	if (wait_for_disp_vsync(vout) < 0) {
+		/* ic_bypass need clear display buffer ready for next update*/
+		ipu_clear_buffer_ready(vout->display_ch, IPU_INPUT_BUFFER,
+			!vout->next_done_ipu_buf);
+	}
 
 	spin_lock_irqsave(&g_lock, lock_flags);
 

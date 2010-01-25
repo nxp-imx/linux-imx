@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2009 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2004-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -855,8 +855,25 @@ static int mxcfb_ioctl(struct fb_info *fbi, unsigned int cmd, unsigned long arg)
 		}
 	case MXCFB_WAIT_FOR_VSYNC:
 		{
-			if (mxc_fbi->blank != FB_BLANK_UNBLANK)
+			if (mxc_fbi->ipu_ch == MEM_FG_SYNC) {
+				struct mxcfb_info *bg_mxcfbi = NULL;
+				int i;
+				for (i = 0; i < num_registered_fb; i++) {
+					bg_mxcfbi =
+					((struct mxcfb_info *)(registered_fb[i]->par));
+
+					if (bg_mxcfbi->ipu_ch == MEM_BG_SYNC)
+						break;
+				}
+				if (bg_mxcfbi->blank != FB_BLANK_UNBLANK) {
+					retval = -EINVAL;
+					break;
+				}
+			}
+			if (mxc_fbi->blank != FB_BLANK_UNBLANK) {
+				retval = -EINVAL;
 				break;
+			}
 
 			down(&mxc_fbi->flip_sem);
 			init_completion(&mxc_fbi->vsync_complete);
