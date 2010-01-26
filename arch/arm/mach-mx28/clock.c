@@ -751,6 +751,14 @@ static struct clk pcmspdif_clk = {
 	.enable_bits = BM_CLKCTRL_SPDIF_CLKGATE,
 };
 
+static struct clk enet_out_clk = {
+	.parent = &pll_clk[2],
+	.enable = mx28_raw_enable,
+	.disable = mx28_raw_disable,
+	.enable_reg = CLKCTRL_BASE_ADDR + HW_CLKCTRL_ENET,
+	.enable_bits = BM_CLKCTRL_ENET_DISABLE,
+};
+
 static struct clk_lookup onchip_clocks[] = {
 	{
 	 .con_id = "xtal.0",
@@ -900,6 +908,10 @@ static struct clk_lookup onchip_clocks[] = {
 	 .con_id = "flexcan.1",
 	 .clk = &flexcan_clk[1],
 	 },
+	{
+	.con_id = "fec_clk",
+	.clk = &enet_out_clk,
+	},
 };
 
 static void mx28_clock_scan(void)
@@ -938,10 +950,24 @@ void __init mx28_set_input_clk(unsigned long xtal0,
 	enet_mii_phy_rate = enet;
 }
 
+void  mx28_enet_clk_hook()
+{
+	unsigned long reg;
+
+	reg =  __raw_readl(CLKCTRL_BASE_ADDR + HW_CLKCTRL_ENET);
+
+	reg &= ~BM_CLKCTRL_ENET_SLEEP;
+	reg |= BM_CLKCTRL_ENET_CLK_OUT_EN;
+
+	__raw_writel(reg, CLKCTRL_BASE_ADDR + HW_CLKCTRL_ENET);
+
+}
+
 void __init mx28_clock_init(void)
 {
 	int i;
 	mx28_clock_scan();
+	mx28_enet_clk_hook();
 	for (i = 0; i < ARRAY_SIZE(onchip_clocks); i++)
 		clk_register(&onchip_clocks[i]);
 

@@ -280,7 +280,121 @@ static struct pin_desc mx28evk_fixed_pins[] = {
 	 .pull 		= 0,
 	 },
 #endif
+
+#if defined(CONFIG_FEC) || defined(CONFIG_FEC_MODULE)
+	{
+	 .name = "ENET0_MDC",
+	 .id = PINID_ENET0_MDC,
+	 .fun = PIN_FUN1,
+	 .strength = PAD_8MA,
+	 .pull = 1,
+	 .pullup = 1,
+	 .voltage = PAD_3_3V,
+	 .drive	= 1,
+	 },
+	{
+	 .name = "ENET0_MDIO",
+	 .id = PINID_ENET0_MDIO,
+	 .fun = PIN_FUN1,
+	 .strength = PAD_8MA,
+	 .pull = 1,
+	 .pullup = 1,
+	 .voltage = PAD_3_3V,
+	 .drive	= 1,
+	 },
+	{
+	 .name = "ENET0_RX_EN",
+	 .id = PINID_ENET0_RX_EN,
+	 .fun = PIN_FUN1,
+	 .strength = PAD_8MA,
+	 .pull = 1,
+	 .pullup = 1,
+	 .voltage = PAD_3_3V,
+	 .drive	= 1,
+	 },
+	{
+	 .name = "ENET0_RXD0",
+	 .id = PINID_ENET0_RXD0,
+	 .fun = PIN_FUN1,
+	 .strength = PAD_8MA,
+	 .pull = 1,
+	 .pullup = 1,
+	 .voltage = PAD_3_3V,
+	 .drive	= 1,
+	 },
+	{
+	 .name = "ENET0_RXD1",
+	 .id = PINID_ENET0_RXD1,
+	 .fun = PIN_FUN1,
+	 .strength = PAD_8MA,
+	 .pull = 1,
+	 .pullup = 1,
+	 .voltage = PAD_3_3V,
+	 .drive	= 1,
+	 },
+	{
+	 .name = "ENET0_TX_EN",
+	 .id = PINID_ENET0_TX_EN,
+	 .fun = PIN_FUN1,
+	 .strength = PAD_8MA,
+	 .pull = 1,
+	 .pullup = 1,
+	 .voltage = PAD_3_3V,
+	 .drive	= 1,
+	 },
+	{
+	 .name = "ENET0_TXD0",
+	 .id = PINID_ENET0_TXD0,
+	 .fun = PIN_FUN1,
+	 .strength = PAD_8MA,
+	 .pull = 1,
+	 .pullup = 1,
+	 .voltage = PAD_3_3V,
+	 .drive	= 1,
+	 },
+	{
+	 .name = "ENET0_TXD1",
+	 .id = PINID_ENET0_TXD1,
+	 .fun = PIN_FUN1,
+	 .strength = PAD_8MA,
+	 .pull = 1,
+	 .pullup = 1,
+	 .voltage = PAD_3_3V,
+	 .drive	= 1,
+	 },
+	{
+	 .name = "ENET_CLK",
+	 .id = PINID_ENET_CLK,
+	 .fun = PIN_FUN1,
+	 .strength = PAD_8MA,
+	 .pull = 1,
+	 .pullup = 1,
+	 .voltage = PAD_3_3V,
+	 .drive	= 1,
+	 },
+#endif
 };
+
+#if defined(CONFIG_FEC) || defined(CONFIG_FEC_MODULE)
+int mx28evk_enet_gpio_init(void)
+{
+	/* pwr */
+	gpio_request(MXS_PIN_TO_GPIO(PINID_SSP1_DATA3), "ENET_PWR");
+	gpio_direction_output(MXS_PIN_TO_GPIO(PINID_SSP1_DATA3), 0);
+
+	/* reset phy */
+	gpio_request(MXS_PIN_TO_GPIO(PINID_ENET0_RX_CLK), "PHY_RESET");
+	gpio_direction_output(MXS_PIN_TO_GPIO(PINID_ENET0_RX_CLK), 0);
+	gpio_direction_output(MXS_PIN_TO_GPIO(PINID_ENET0_RX_CLK), 1);
+
+	return 0;
+}
+#else
+int mx28evk_enet_gpio_init(void)
+{
+	return 0;
+}
+#endif
 
 void __init mx28evk_pins_init(void)
 {

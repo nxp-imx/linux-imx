@@ -172,6 +172,19 @@ static struct platform_device mxs_wdt = {
 };
 #endif
 
+#if defined(CONFIG_FEC) || \
+	defined(CONFIG_FEC_MODULE)
+static struct platform_device mxs_fec[] = {
+	{
+	.name = "fec",
+	.id = 0,
+	.dev = {
+		.release = mxs_nop_release,
+		},
+	},
+};
+#endif
+
 #if defined(CONFIG_BACKLIGHT_MXS) || \
 	defined(CONFIG_BACKLIGHT_MXS_MODULE)
 struct platform_device mxs_bl = {
@@ -253,6 +266,13 @@ static struct mxs_dev_lookup dev_lookup[] = {
 	 },
 #endif
 
+#if defined(CONFIG_FEC) || defined(CONFIG_FEC_MODULE)
+	{
+	.name = "mxs-fec",
+	.size = ARRAY_SIZE(mxs_fec),
+	.pdev = mxs_fec,
+	},
+#endif
 };
 
 struct platform_device *mxs_get_device(char *name, int id)
