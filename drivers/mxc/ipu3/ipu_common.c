@@ -1788,6 +1788,7 @@ void ipu_clear_buffer_ready(ipu_channel_t channel, ipu_buffer_t type,
 	__raw_writel(0x0, IPU_GPR); /* write one to set */
 	spin_unlock_irqrestore(&ipu_lock, lock_flags);
 }
+EXPORT_SYMBOL(ipu_clear_buffer_ready);
 
 static irqreturn_t disable_chan_irq_handler(int irq, void *dev_id)
 {
@@ -2161,6 +2162,22 @@ void ipu_free_irq(uint32_t irq, void *dev_id)
 		ipu_irq_list[irq].handler = NULL;
 }
 EXPORT_SYMBOL(ipu_free_irq);
+
+uint32_t ipu_get_cur_buffer_idx(ipu_channel_t channel, ipu_buffer_t type)
+{
+	uint32_t reg, dma_chan;
+
+	dma_chan = channel_2_dma(channel, type);
+	if (!idma_is_valid(dma_chan))
+		return -EINVAL;
+
+	reg = __raw_readl(IPU_CHA_CUR_BUF(dma_chan/32));
+	if (reg & idma_mask(dma_chan))
+		return 1;
+	else
+		return 0;
+}
+EXPORT_SYMBOL(ipu_get_cur_buffer_idx);
 
 uint32_t _ipu_channel_status(ipu_channel_t channel)
 {

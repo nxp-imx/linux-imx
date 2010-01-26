@@ -1204,6 +1204,21 @@ void ipu_clear_buffer_ready(ipu_channel_t channel, ipu_buffer_t type,
 {
 	/*TODO*/
 }
+EXPORT_SYMBOL(ipu_clear_buffer_ready);
+
+uint32_t ipu_get_cur_buffer_idx(ipu_channel_t channel, ipu_buffer_t type)
+{
+	uint32_t reg, dma_chan;
+
+	dma_chan = channel_2_dma(channel, type);
+
+	reg = __raw_readl(IPU_CHA_CUR_BUF);
+	if (reg & (1UL << dma_chan))
+		return 1;
+	else
+		return 0;
+}
+EXPORT_SYMBOL(ipu_get_cur_buffer_idx);
 
 /*!
  * This function disables a logical channel.

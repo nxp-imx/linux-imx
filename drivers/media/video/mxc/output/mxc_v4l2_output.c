@@ -246,6 +246,22 @@ static u32 bpp_to_fmt(struct fb_info *fbi)
 	return 0;
 }
 
+/*
+ * we are using double buffer for video playback, ipu need make
+ * sure current buffer should not be the same buffer of next display
+ * one.
+ */
+static int select_display_buffer(vout_data *vout, int next_buf)
+{
+	int ret = 0;
+
+	if (ipu_get_cur_buffer_idx(vout->display_ch, IPU_INPUT_BUFFER)
+			!= next_buf)
+		ret = ipu_select_buffer(vout->display_ch, IPU_INPUT_BUFFER,
+				next_buf);
+	return ret;
+}
+
 static void setup_next_buf_timer(vout_data *vout, int index)
 {
 	unsigned long timeout;
@@ -347,8 +363,7 @@ static void timer_work_func(struct work_struct *work)
 	}
 
 	if (vout->ic_bypass)
-		ret = ipu_select_buffer(vout->display_ch, IPU_INPUT_BUFFER,
-				vout->next_rdy_ipu_buf);
+		ret = select_display_buffer(vout, vout->next_rdy_ipu_buf);
 	else if (LOAD_3FIELDS(vout))
 		ret = ipu_select_multi_vdi_buffer(vout->next_rdy_ipu_buf);
 	else
@@ -580,8 +595,7 @@ static irqreturn_t mxc_v4l2out_work_irq_handler(int irq, void *dev_id)
 				vout->next_done_ipu_buf = !vout->next_done_ipu_buf;
 
 			} else /* right stripe is done, run display refresh */
-				ret = ipu_select_buffer(vout->display_ch, IPU_INPUT_BUFFER,
-								disp_buf_num);
+				select_display_buffer(vout, disp_buf_num);
 
 			vout->next_rdy_ipu_buf = !vout->next_rdy_ipu_buf;
 
@@ -609,8 +623,7 @@ static irqreturn_t mxc_v4l2out_work_irq_handler(int irq, void *dev_id)
 			vout->pp_split_buf_num = (vout->pp_split_buf_num + 1) & 3;
 		} else {
 			/* show to display */
-			ret = ipu_select_buffer(vout->display_ch, IPU_INPUT_BUFFER,
-					vout->next_done_ipu_buf);
+			select_display_buffer(vout, vout->next_done_ipu_buf);
 			ret += ipu_select_buffer(vout->display_input_ch, IPU_OUTPUT_BUFFER,
 					vout->next_done_ipu_buf);
 		}
