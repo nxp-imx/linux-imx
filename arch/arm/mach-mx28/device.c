@@ -384,12 +384,50 @@ static void __init mx28_init_wdt(void)
 }
 #endif
 
+#if defined(CONFIG_RTC_DRV_MXS) || defined(CONFIG_RTC_DRV_MXS_MODULE)
+static struct resource mx28_rtc_res[] = {
+	{
+	 .flags = IORESOURCE_MEM,
+	 .start = RTC_PHYS_ADDR,
+	 .end   = RTC_PHYS_ADDR + 0x2000 - 1,
+	 },
+	{
+	 .flags = IORESOURCE_IRQ,
+	 .start = IRQ_RTC_ALARM,
+	 .end   = IRQ_RTC_ALARM,
+	 },
+	{
+	 .flags = IORESOURCE_IRQ,
+	 .start = IRQ_RTC_1MSEC,
+	 .end   = IRQ_RTC_1MSEC,
+	},
+};
+
+static void __init mx28_init_rtc(void)
+{
+	struct platform_device *pdev;
+
+	pdev = mxs_get_device("mxs-rtc", 0);
+	if (pdev == NULL || IS_ERR(pdev))
+		return;
+	pdev->resource = mx28_rtc_res;
+	pdev->num_resources = ARRAY_SIZE(mx28_rtc_res);
+	mxs_add_device(pdev, 3);
+}
+#else
+static void __init mx28_init_rtc(void)
+{
+	;
+}
+#endif
+
 int __init mx28_device_init(void)
 {
 	mx28_init_dma();
 	mx28_init_duart();
 	mx28_init_mmc();
 	mx28_init_wdt();
+	mx28_init_rtc();
 	return 0;
 }
 

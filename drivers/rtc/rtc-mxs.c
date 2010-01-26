@@ -23,141 +23,146 @@
 #include <linux/platform_device.h>
 #include <linux/interrupt.h>
 #include <linux/rtc.h>
-#include <linux/bcd.h>
-#include <linux/clk.h>
 #include <linux/io.h>
 #include <linux/irq.h>
 #include <linux/uaccess.h>
 
-#include <mach/stmp3xxx.h>
 #include <mach/hardware.h>
-#include <mach/platform.h>
-#include <mach/irqs.h>
 #include <mach/regs-rtc.h>
 
-struct stmp3xxx_rtc_data {
+struct mxs_rtc_data {
 	struct rtc_device *rtc;
+	unsigned int base;
+	int irq_alarm;
+	int irq_sample;
 	unsigned irq_count;
 };
 
 /* Time read/write */
-static int stmp3xxx_rtc_gettime(struct device *dev, struct rtc_time *rtc_tm)
+static int mxs_rtc_gettime(struct device *pdev, struct rtc_time *rtc_tm)
 {
-	while (__raw_readl(REGS_RTC_BASE + HW_RTC_STAT) & BF(0x80, RTC_STAT_STALE_REGS))
+	struct mxs_rtc_data *rtc_data = dev_get_drvdata(pdev);
+
+	while (__raw_readl(rtc_data->base + HW_RTC_STAT) &
+			   BF_RTC_STAT_STALE_REGS(0x80))
 		cpu_relax();
 
-	rtc_time_to_tm(__raw_readl(REGS_RTC_BASE + HW_RTC_SECONDS), rtc_tm);
+	rtc_time_to_tm(__raw_readl(rtc_data->base + HW_RTC_SECONDS), rtc_tm);
 	return 0;
 }
 
-static int stmp3xxx_rtc_settime(struct device *dev, struct rtc_time *rtc_tm)
+static int mxs_rtc_settime(struct device *pdev, struct rtc_time *rtc_tm)
 {
 	unsigned long t;
 	int rc = rtc_tm_to_time(rtc_tm, &t);
+	struct mxs_rtc_data *rtc_data = dev_get_drvdata(pdev);
 
 	if (rc == 0) {
-		__raw_writel(t, REGS_RTC_BASE + HW_RTC_SECONDS);
+		__raw_writel(t, rtc_data->base + HW_RTC_SECONDS);
 
 		/* The datasheet doesn't say which way round the
 		 * NEW_REGS/STALE_REGS bitfields go. In fact it's 0x1=P0,
 		 * 0x2=P1, .., 0x20=P5, 0x40=ALARM, 0x80=SECONDS,
 		 */
-		while (__raw_readl(REGS_RTC_BASE + HW_RTC_STAT) & BF(0x80, RTC_STAT_NEW_REGS))
+		while (__raw_readl(rtc_data->base + HW_RTC_STAT) &
+				   BF_RTC_STAT_NEW_REGS(0x80))
 			cpu_relax();
 	}
 	return rc;
 }
 
-static irqreturn_t stmp3xxx_rtc_interrupt(int irq, void *dev_id)
+static irqreturn_t mxs_rtc_interrupt(int irq, void *dev_id)
 {
-	struct platform_device *pdev = to_platform_device(dev_id);
-	struct stmp3xxx_rtc_data *data = platform_get_drvdata(pdev);
+	struct mxs_rtc_data *rtc_data = dev_get_drvdata(dev_id);
 	u32 status;
 	u32 events = 0;
 
-	status = __raw_readl(REGS_RTC_BASE + HW_RTC_CTRL) &
+	status = __raw_readl(rtc_data->base + HW_RTC_CTRL) &
 			(BM_RTC_CTRL_ALARM_IRQ | BM_RTC_CTRL_ONEMSEC_IRQ);
 	if (status & BM_RTC_CTRL_ALARM_IRQ) {
 		__raw_writel(BM_RTC_CTRL_ALARM_IRQ,
-			REGS_RTC_BASE + HW_RTC_CTRL_CLR);
+			rtc_data->base + HW_RTC_CTRL_CLR);
 		events |= RTC_AF | RTC_IRQF;
 	}
 	if (status & BM_RTC_CTRL_ONEMSEC_IRQ) {
 		__raw_writel(BM_RTC_CTRL_ONEMSEC_IRQ,
-			REGS_RTC_BASE + HW_RTC_CTRL_CLR);
-		if (++data->irq_count % 1000 == 0) {
+			rtc_data->base + HW_RTC_CTRL_CLR);
+		if (++rtc_data->irq_count % 1000 == 0) {
 			events |= RTC_UF | RTC_IRQF;
-			data->irq_count = 0;
+			rtc_data->irq_count = 0;
 		}
 	}
 
 	if (events)
-		rtc_update_irq(data->rtc, 1, events);
+		rtc_update_irq(rtc_data->rtc, 1, events);
 
 	return IRQ_HANDLED;
 }
 
-static int stmp3xxx_rtc_open(struct device *dev)
+static int mxs_rtc_open(struct device *pdev)
 {
 	int r;
+	struct mxs_rtc_data *rtc_data = dev_get_drvdata(pdev);
 
-	r = request_irq(IRQ_RTC_ALARM, stmp3xxx_rtc_interrupt,
-			IRQF_DISABLED, "RTC alarm", dev);
+	r = request_irq(rtc_data->irq_alarm, mxs_rtc_interrupt,
+			IRQF_DISABLED, "RTC alarm", pdev);
 	if (r) {
-		dev_err(dev, "Cannot claim IRQ%d\n", IRQ_RTC_ALARM);
+		dev_err(pdev, "Cannot claim IRQ%d\n", rtc_data->irq_alarm);
 		goto fail_1;
 	}
-	r = request_irq(IRQ_RTC_1MSEC, stmp3xxx_rtc_interrupt,
-			IRQF_DISABLED, "RTC tick", dev);
+	r = request_irq(rtc_data->irq_sample, mxs_rtc_interrupt,
+			IRQF_DISABLED, "RTC tick", pdev);
 	if (r) {
-		dev_err(dev, "Cannot claim IRQ%d\n", IRQ_RTC_1MSEC);
+		dev_err(pdev, "Cannot claim IRQ%d\n", rtc_data->irq_sample);
 		goto fail_2;
 	}
 
 	return 0;
 fail_2:
-	free_irq(IRQ_RTC_ALARM, dev);
+	free_irq(rtc_data->irq_alarm, pdev);
 fail_1:
 	return r;
 }
 
-static void stmp3xxx_rtc_release(struct device *dev)
+static void mxs_rtc_release(struct device *pdev)
 {
+	struct mxs_rtc_data *rtc_data = dev_get_drvdata(pdev);
+
 	__raw_writel(BM_RTC_CTRL_ALARM_IRQ_EN | BM_RTC_CTRL_ONEMSEC_IRQ_EN,
-		REGS_RTC_BASE + HW_RTC_CTRL_CLR);
-	free_irq(IRQ_RTC_ALARM, dev);
-	free_irq(IRQ_RTC_1MSEC, dev);
+		rtc_data->base + HW_RTC_CTRL_CLR);
+	free_irq(rtc_data->irq_alarm, pdev);
+	free_irq(rtc_data->irq_sample, pdev);
 }
 
-static int stmp3xxx_rtc_ioctl(struct device *dev, unsigned int cmd,
+static int mxs_rtc_ioctl(struct device *pdev, unsigned int cmd,
 			      unsigned long arg)
 {
-	struct stmp3xxx_rtc_data *data = dev_get_drvdata(dev);
+	struct mxs_rtc_data *rtc_data = dev_get_drvdata(pdev);
 
 	switch (cmd) {
 	case RTC_AIE_OFF:
 		__raw_writel(BM_RTC_PERSISTENT0_ALARM_EN |
 				BM_RTC_PERSISTENT0_ALARM_WAKE_EN,
-				REGS_RTC_BASE + HW_RTC_PERSISTENT0_CLR);
+				rtc_data->base + HW_RTC_PERSISTENT0_CLR);
 		__raw_writel(BM_RTC_CTRL_ALARM_IRQ_EN,
-				REGS_RTC_BASE + HW_RTC_CTRL_CLR);
+				rtc_data->base + HW_RTC_CTRL_CLR);
 		break;
 	case RTC_AIE_ON:
 		__raw_writel(BM_RTC_PERSISTENT0_ALARM_EN |
 				BM_RTC_PERSISTENT0_ALARM_WAKE_EN,
-				REGS_RTC_BASE + HW_RTC_PERSISTENT0_SET);
+				rtc_data->base + HW_RTC_PERSISTENT0_SET);
 
 		__raw_writel(BM_RTC_CTRL_ALARM_IRQ_EN,
-				REGS_RTC_BASE + HW_RTC_CTRL_SET);
+				rtc_data->base + HW_RTC_CTRL_SET);
 		break;
 	case RTC_UIE_ON:
-		data->irq_count = 0;
+		rtc_data->irq_count = 0;
 		__raw_writel(BM_RTC_CTRL_ONEMSEC_IRQ_EN,
-			REGS_RTC_BASE + HW_RTC_CTRL_SET);
+			rtc_data->base + HW_RTC_CTRL_SET);
 		break;
 	case RTC_UIE_OFF:
 		__raw_writel(BM_RTC_CTRL_ONEMSEC_IRQ_EN,
-			REGS_RTC_BASE + HW_RTC_CTRL_CLR);
+			rtc_data->base + HW_RTC_CTRL_CLR);
 		break;
 	default:
 		return -ENOIOCTLCMD;
@@ -165,72 +170,83 @@ static int stmp3xxx_rtc_ioctl(struct device *dev, unsigned int cmd,
 
 	return 0;
 }
-static int stmp3xxx_rtc_read_alarm(struct device *dev, struct rtc_wkalrm *alm)
+static int mxs_rtc_read_alarm(struct device *pdev, struct rtc_wkalrm *alm)
 {
-	u32 t = __raw_readl(REGS_RTC_BASE + HW_RTC_ALARM);
+	u32 t;
+	struct mxs_rtc_data *rtc_data = dev_get_drvdata(pdev);
 
+	t = __raw_readl(rtc_data->base + HW_RTC_ALARM);
 	rtc_time_to_tm(t, &alm->time);
-
 	return 0;
 }
 
-static int stmp3xxx_rtc_set_alarm(struct device *dev, struct rtc_wkalrm *alm)
+static int mxs_rtc_set_alarm(struct device *pdev, struct rtc_wkalrm *alm)
 {
 	unsigned long t;
+	struct mxs_rtc_data *rtc_data = dev_get_drvdata(pdev);
 
 	rtc_tm_to_time(&alm->time, &t);
-	__raw_writel(t, REGS_RTC_BASE + HW_RTC_ALARM);
+	__raw_writel(t, rtc_data->base + HW_RTC_ALARM);
 	return 0;
 }
 
-static struct rtc_class_ops stmp3xxx_rtc_ops = {
-	.open		= stmp3xxx_rtc_open,
-	.release	= stmp3xxx_rtc_release,
-	.ioctl          = stmp3xxx_rtc_ioctl,
-	.read_time	= stmp3xxx_rtc_gettime,
-	.set_time	= stmp3xxx_rtc_settime,
-	.read_alarm	= stmp3xxx_rtc_read_alarm,
-	.set_alarm	= stmp3xxx_rtc_set_alarm,
+static struct rtc_class_ops mxs_rtc_ops = {
+	.open		= mxs_rtc_open,
+	.release	= mxs_rtc_release,
+	.ioctl          = mxs_rtc_ioctl,
+	.read_time	= mxs_rtc_gettime,
+	.set_time	= mxs_rtc_settime,
+	.read_alarm	= mxs_rtc_read_alarm,
+	.set_alarm	= mxs_rtc_set_alarm,
 };
 
-static int stmp3xxx_rtc_remove(struct platform_device *dev)
+static int mxs_rtc_probe(struct platform_device *pdev)
 {
-	struct stmp3xxx_rtc_data *rtc_data = platform_get_drvdata(dev);
+	u32 hwversion;
+	u32 rtc_stat;
+	struct resource *res;
+	struct mxs_rtc_data *rtc_data;
 
-	if (rtc_data) {
-		rtc_device_unregister(rtc_data->rtc);
-		kfree(rtc_data);
-	}
+	rtc_data = kzalloc(sizeof(*rtc_data), GFP_KERNEL);
 
-	return 0;
-}
-
-static int stmp3xxx_rtc_probe(struct platform_device *pdev)
-{
-	u32 hwversion = __raw_readl(REGS_RTC_BASE + HW_RTC_VERSION);
-	u32 rtc_stat = __raw_readl(REGS_RTC_BASE + HW_RTC_STAT);
-	struct stmp3xxx_rtc_data *rtc_data = kzalloc(sizeof *rtc_data,
-						     GFP_KERNEL);
-
-	if ((rtc_stat & BM_RTC_STAT_RTC_PRESENT) == 0)
-		return -ENODEV;
 	if (!rtc_data)
 		return -ENOMEM;
 
-	stmp3xxx_reset_block(REGS_RTC_BASE, 1);
+	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+	if (res == NULL) {
+		kfree(rtc_data);
+		return -ENODEV;
+	}
+	rtc_data->base = (unsigned int)IO_ADDRESS(res->start);
+
+	res = platform_get_resource(pdev, IORESOURCE_IRQ, 0);
+	if (res == NULL) {
+		kfree(rtc_data);
+		return -ENODEV;
+	}
+	rtc_data->irq_alarm = res->start;
+
+	res = platform_get_resource(pdev, IORESOURCE_IRQ, 1);
+	if (res == NULL) {
+		kfree(rtc_data);
+		return -ENODEV;
+	}
+	rtc_data->irq_sample = res->start;
 
 	__raw_writel(BM_RTC_PERSISTENT0_ALARM_EN |
 			BM_RTC_PERSISTENT0_ALARM_WAKE_EN |
 			BM_RTC_PERSISTENT0_ALARM_WAKE,
-		     REGS_RTC_BASE + HW_RTC_PERSISTENT0_CLR);
+		     rtc_data->base + HW_RTC_PERSISTENT0_CLR);
 
-	printk(KERN_INFO "STMP3xxx RTC driver v1.0 hardware v%u.%u.%u\n",
+	hwversion = __raw_readl(rtc_data->base + HW_RTC_VERSION);
+	rtc_stat = __raw_readl(rtc_data->base + HW_RTC_STAT);
+	printk(KERN_INFO "MXS RTC driver v1.0 hardware v%u.%u.%u\n",
 	       (hwversion >> 24),
 	       (hwversion >> 16) & 0xFF,
 	       hwversion & 0xFFFF);
 
 	rtc_data->rtc = rtc_device_register(pdev->name, &pdev->dev,
-				&stmp3xxx_rtc_ops, THIS_MODULE);
+				&mxs_rtc_ops, THIS_MODULE);
 	if (IS_ERR(rtc_data->rtc)) {
 		kfree(rtc_data);
 		return PTR_ERR(rtc_data->rtc);
@@ -241,50 +257,63 @@ static int stmp3xxx_rtc_probe(struct platform_device *pdev)
 	return 0;
 }
 
+static int mxs_rtc_remove(struct platform_device *dev)
+{
+	struct mxs_rtc_data *rtc_data = platform_get_drvdata(dev);
+
+	if (rtc_data) {
+		rtc_device_unregister(rtc_data->rtc);
+		kfree(rtc_data);
+	}
+
+	return 0;
+}
+
 #ifdef CONFIG_PM
-static int stmp3xxx_rtc_suspend(struct platform_device *dev, pm_message_t state)
+static int mxs_rtc_suspend(struct platform_device *dev, pm_message_t state)
 {
 	return 0;
 }
 
-static int stmp3xxx_rtc_resume(struct platform_device *dev)
+static int mxs_rtc_resume(struct platform_device *dev)
 {
-	stmp3xxx_reset_block(REGS_RTC_BASE, 1);
+	struct mxs_rtc_data *rtc_data = platform_get_drvdata(dev);
+
 	__raw_writel(BM_RTC_PERSISTENT0_ALARM_EN |
 			BM_RTC_PERSISTENT0_ALARM_WAKE_EN |
 			BM_RTC_PERSISTENT0_ALARM_WAKE,
-		     REGS_RTC_BASE + HW_RTC_PERSISTENT0_CLR);
+		     rtc_data->base + HW_RTC_PERSISTENT0_CLR);
 	return 0;
 }
 #else
-#define stmp3xxx_rtc_suspend	NULL
-#define stmp3xxx_rtc_resume	NULL
+#define mxs_rtc_suspend	NULL
+#define mxs_rtc_resume	NULL
 #endif
 
-static struct platform_driver stmp3xxx_rtcdrv = {
-	.probe		= stmp3xxx_rtc_probe,
-	.remove		= stmp3xxx_rtc_remove,
-	.suspend	= stmp3xxx_rtc_suspend,
-	.resume		= stmp3xxx_rtc_resume,
+static struct platform_driver mxs_rtcdrv = {
+	.probe		= mxs_rtc_probe,
+	.remove		= mxs_rtc_remove,
+	.suspend	= mxs_rtc_suspend,
+	.resume		= mxs_rtc_resume,
 	.driver		= {
-		.name	= "stmp3xxx-rtc",
+		.name	= "mxs-rtc",
 		.owner	= THIS_MODULE,
 	},
 };
 
-static int __init stmp3xxx_rtc_init(void)
+static int __init mxs_rtc_init(void)
 {
-	return platform_driver_register(&stmp3xxx_rtcdrv);
+	return platform_driver_register(&mxs_rtcdrv);
 }
 
-static void __exit stmp3xxx_rtc_exit(void)
+static void __exit mxs_rtc_exit(void)
 {
-	platform_driver_unregister(&stmp3xxx_rtcdrv);
+	platform_driver_unregister(&mxs_rtcdrv);
 }
 
-module_init(stmp3xxx_rtc_init);
-module_exit(stmp3xxx_rtc_exit);
+module_init(mxs_rtc_init);
+module_exit(mxs_rtc_exit);
 
-MODULE_DESCRIPTION("STMP3xxx RTC Driver");
+MODULE_DESCRIPTION("MXS RTC Driver");
 MODULE_AUTHOR("dmitry pervushin <dimka@embeddedalley.com>");
 MODULE_LICENSE("GPL");

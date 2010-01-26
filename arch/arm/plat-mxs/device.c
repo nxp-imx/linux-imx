@@ -144,6 +144,16 @@ static struct platform_device mxs_wdt = {
 };
 #endif
 
+#if defined(CONFIG_RTC_DRV_MXS) || defined(CONFIG_RTC_DRV_MXS_MODULE)
+static struct platform_device mxs_rtc = {
+	.name = "mxs-rtc",
+	.id = 0,
+	.dev = {
+		.release = mxs_nop_release,
+		},
+};
+#endif
+
 static struct mxs_dev_lookup dev_lookup[] = {
 #if defined(CONFIG_SERIAL_MXS_DUART) || \
 	defined(CONFIG_SERIAL_MXS_DUART_MODULE)
@@ -175,6 +185,14 @@ static struct mxs_dev_lookup dev_lookup[] = {
 	 .name = "mxs-wdt",
 	 .size = 1,
 	 .pdev = &mxs_wdt,
+	 },
+#endif
+
+#if defined(CONFIG_RTC_DRV_MXS) || defined(CONFIG_RTC_DRV_MXS_MODULE)
+	{
+	 .name = "mxs-rtc",
+	 .size = 1,
+	 .pdev = &mxs_rtc,
 	 },
 #endif
 };
