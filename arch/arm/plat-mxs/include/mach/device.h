@@ -61,6 +61,23 @@ extern int mxs_add_device(struct platform_device *, int level);
 extern struct platform_device *mxs_get_device(char *name, int id);
 extern struct mxs_dev_lookup *mxs_get_devices(char *name);
 
+/* mxs ssp sd/mmc data definitons */
+struct mxs_mmc_platform_data {
+	int (*hw_init)(void);
+	void (*hw_release)(void);
+	void (*cmd_pullup)(int enable);
+	int (*get_wp)(void);
+	unsigned long (*setclock)(unsigned long hz);
+	unsigned int caps;
+	unsigned int min_clk;
+	unsigned int max_clk;
+	int read_uA;
+	int write_uA;
+	char *power_mmc;
+	char *clock_mmc;
+};
+/* end of mxs ssp sd/mmc data definitions */
+
 #ifdef CONFIG_MXS_ICOLL
 extern void __init avic_init_irq(void __iomem *base, int nr_irqs);
 #endif

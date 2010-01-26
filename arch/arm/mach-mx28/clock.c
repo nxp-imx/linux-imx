@@ -446,6 +446,63 @@ static struct clk emi_clk = {
 
 static unsigned long ssp_get_rate(struct clk *clk);
 
+static int ssp_set_rate(struct clk *clk, unsigned long rate)
+{
+	int ret = -EINVAL;
+	int div = (clk_get_rate(clk->parent) + rate - 1) / rate;
+	u32 reg_frac;
+	const int mask = 0x1FF;
+	int try = 10;
+	int i = -1;
+
+	if (div == 0 || div > mask)
+		goto out;
+
+	reg_frac = __raw_readl(clk->scale_reg);
+	reg_frac &= ~(mask << clk->scale_bits);
+
+	while (try--) {
+		__raw_writel(reg_frac | (div << clk->scale_bits),
+				clk->scale_reg);
+
+		if (clk->busy_reg) {
+			for (i = 10000; i; i--)
+				if (!clk_is_busy(clk))
+					break;
+		}
+		if (i)
+			break;
+	}
+
+	if (!i)
+		ret = -ETIMEDOUT;
+	else
+		ret = 0;
+
+out:
+	if (ret != 0)
+		printk(KERN_ERR "%s: error %d\n", __func__, ret);
+	return ret;
+}
+
+static int ssp_set_parent(struct clk *clk, struct clk *parent)
+{
+	int ret = -EINVAL;
+
+	if (clk->bypass_reg) {
+		if (clk->parent == parent)
+			__raw_writel(1 << clk->bypass_bits,
+					clk->bypass_reg + SET_REGISTER);
+		else
+			__raw_writel(0 << clk->bypass_bits,
+					clk->bypass_reg + CLR_REGISTER);
+
+		ret = 0;
+	}
+
+	return ret;
+}
+
 static struct clk ssp_clk[] = {
 	{
 	 .parent = &ref_io_clk[0],
@@ -454,6 +511,14 @@ static struct clk ssp_clk[] = {
 	 .disable = mx28_raw_disable,
 	 .enable_reg = CLKCTRL_BASE_ADDR + HW_CLKCTRL_SSP0,
 	 .enable_bits = BM_CLKCTRL_SSP0_CLKGATE,
+	 .busy_reg = CLKCTRL_BASE_ADDR + HW_CLKCTRL_SSP0,
+	 .busy_bits = 29,
+	 .scale_reg = CLKCTRL_BASE_ADDR + HW_CLKCTRL_SSP0,
+	 .scale_bits = 0,
+	 .bypass_reg = CLKCTRL_BASE_ADDR + HW_CLKCTRL_CLKSEQ,
+	 .bypass_bits = 3,
+	 .set_rate = ssp_set_rate,
+	 .set_parent = ssp_set_parent,
 	 },
 	{
 	 .parent = &ref_io_clk[0],
@@ -462,6 +527,14 @@ static struct clk ssp_clk[] = {
 	 .disable = mx28_raw_disable,
 	 .enable_reg = CLKCTRL_BASE_ADDR + HW_CLKCTRL_SSP1,
 	 .enable_bits = BM_CLKCTRL_SSP1_CLKGATE,
+	 .busy_reg = CLKCTRL_BASE_ADDR + HW_CLKCTRL_SSP1,
+	 .busy_bits = 29,
+	 .scale_reg = CLKCTRL_BASE_ADDR + HW_CLKCTRL_SSP1,
+	 .scale_bits = 0,
+	 .bypass_reg = CLKCTRL_BASE_ADDR + HW_CLKCTRL_CLKSEQ,
+	 .bypass_bits = 4,
+	 .set_rate = ssp_set_rate,
+	 .set_parent = ssp_set_parent,
 	 },
 	{
 	 .parent = &ref_io_clk[1],

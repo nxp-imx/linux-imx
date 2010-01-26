@@ -23,6 +23,7 @@
 #include <linux/list.h>
 #include <linux/bitops.h>
 #include <linux/platform_device.h>
+#include <linux/dma-mapping.h>
 
 #include <mach/device.h>
 
@@ -35,6 +36,8 @@ static struct list_head mxs_device_level[] = {
 	LIST_HEAD_INIT(mxs_device_level[2]),
 	LIST_HEAD_INIT(mxs_device_level[3]),
 };
+
+static u64 common_dmamask = DMA_BIT_MASK(32);
 
 void mxs_nop_release(struct device *dev)
 {
@@ -107,6 +110,30 @@ static struct platform_device mxs_dma[] = {
 };
 #endif
 
+#if defined(CONFIG_MMC_MXS) || \
+	defined(CONFIG_MMC_MXS_MODULE)
+static struct platform_device mxs_mmc[] = {
+	{
+	 .name	= "mxs-mmc",
+	 .id	= 0,
+	 .dev = {
+		.dma_mask               = &common_dmamask,
+		.coherent_dma_mask      = DMA_BIT_MASK(32),
+		.release = mxs_nop_release,
+		},
+	 },
+	{
+	 .name	= "mxs-mmc",
+	 .id	= 1,
+	 .dev = {
+		.dma_mask               = &common_dmamask,
+		.coherent_dma_mask      = DMA_BIT_MASK(32),
+		.release = mxs_nop_release,
+		},
+	 },
+};
+#endif
+
 static struct mxs_dev_lookup dev_lookup[] = {
 #if defined(CONFIG_SERIAL_MXS_DUART) || \
 	defined(CONFIG_SERIAL_MXS_DUART_MODULE)
@@ -122,6 +149,15 @@ static struct mxs_dev_lookup dev_lookup[] = {
 	 .size = ARRAY_SIZE(mxs_dma),
 	 .pdev = mxs_dma,
 	 },
+#endif
+
+#if defined(CONFIG_MMC_MXS) || \
+	defined(CONFIG_MMC_MXS_MODULE)
+	{
+	.name = "mxs-mmc",
+	.size = ARRAY_SIZE(mxs_mmc),
+	.pdev = mxs_mmc,
+	}
 #endif
 };
 

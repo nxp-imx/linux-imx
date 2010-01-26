@@ -295,6 +295,14 @@ config MMC_STMP3XXX
 
 	  If unsure, say N.
 
+config MMC_MXS
+	tristate "MXS MMC support"
+	depends on MMC && ARCH_MX28
+	help
+	  Select Y if you would like to access MXS MMC support.
+
+	  If unsure, say N.
+
 config MMC_S3C
 	tristate "Samsung S3C SD/MMC Card Interface support"
 	depends on ARCH_S3C2410

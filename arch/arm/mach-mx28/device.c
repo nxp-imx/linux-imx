@@ -24,6 +24,7 @@
 #include <linux/io.h>
 #include <linux/delay.h>
 #include <linux/platform_device.h>
+#include <linux/mmc/host.h>
 
 #include <asm/mach/map.h>
 
@@ -33,6 +34,7 @@
 #include <mach/dma.h>
 
 #include "device.h"
+#include "mx28_pins.h"
 
 #if defined(CONFIG_SERIAL_MXS_DUART) || \
 	defined(CONFIG_SERIAL_MXS_DUART_MODULE)
@@ -117,10 +119,252 @@ static void mx28_init_dma(void)
 }
 #endif
 
+#if defined(CONFIG_MMC_MXS) || defined(CONFIG_MMC_MXS_MODULE)
+#if defined(CONFIG_MACH_MX28EVK)
+#define MMC0_POWER	MXS_PIN_TO_GPIO(PINID_PWM3)
+#define MMC1_POWER	MXS_PIN_TO_GPIO(PINID_PWM4)
+#define MMC0_WP		MXS_PIN_TO_GPIO(PINID_SSP1_SCK)
+#define MMC1_WP		MXS_PIN_TO_GPIO(PINID_GPMI_RESETN)
+#endif
+
+static int mxs_mmc_get_wp_ssp0(void)
+{
+	return gpio_get_value(MMC0_WP);
+}
+
+static int mxs_mmc_hw_init_ssp0(void)
+{
+	int ret = 0;
+
+	/* Configure write protect GPIO pin */
+	ret = gpio_request(MMC0_WP, "mmc0_wp");
+	if (ret)
+		goto out_wp;
+
+	gpio_set_value(MMC0_WP, 0);
+	gpio_direction_input(MMC0_WP);
+
+	/* Configure POWER pin as gpio to drive power to MMC slot */
+	ret = gpio_request(MMC0_POWER, "mmc0_power");
+	if (ret)
+		goto out_power;
+
+	gpio_direction_output(MMC0_POWER, 0);
+	mdelay(100);
+
+	return 0;
+
+out_power:
+	gpio_free(MMC0_WP);
+out_wp:
+	return ret;
+}
+
+static void mxs_mmc_hw_release_ssp0(void)
+{
+	gpio_free(MMC0_POWER);
+	gpio_free(MMC0_WP);
+
+}
+
+static void mxs_mmc_cmd_pullup_ssp0(int enable)
+{
+	mxs_set_pullup(PINID_SSP0_CMD, enable, "mmc0_cmd");
+}
+
+static unsigned long mxs_mmc_setclock_ssp0(unsigned long hz)
+{
+	struct clk *ssp = clk_get(NULL, "ssp.0"), *parent;
+
+	if (hz > 1000000)
+		parent = clk_get(NULL, "ref_io.0");
+	else
+		parent = clk_get(NULL, "xtal.0");
+
+	clk_set_parent(ssp, parent);
+	clk_set_rate(ssp, 2 * hz);
+	clk_put(parent);
+	clk_put(ssp);
+
+	return hz;
+}
+
+static int mxs_mmc_get_wp_ssp1(void)
+{
+	return gpio_get_value(MMC1_WP);
+}
+
+static int mxs_mmc_hw_init_ssp1(void)
+{
+	int ret = 0;
+
+	/* Configure write protect GPIO pin */
+	ret = gpio_request(MMC1_WP, "mmc1_wp");
+	if (ret)
+		goto out_wp;
+
+	gpio_set_value(MMC1_WP, 0);
+	gpio_direction_input(MMC1_WP);
+
+	/* Configure POWER pin as gpio to drive power to MMC slot */
+	ret = gpio_request(MMC1_POWER, "mmc1_power");
+	if (ret)
+		goto out_power;
+
+	gpio_direction_output(MMC1_POWER, 0);
+	mdelay(100);
+
+	return 0;
+
+out_power:
+	gpio_free(MMC1_WP);
+out_wp:
+	return ret;
+}
+
+static void mxs_mmc_hw_release_ssp1(void)
+{
+	gpio_free(MMC1_POWER);
+	gpio_free(MMC1_WP);
+}
+
+static void mxs_mmc_cmd_pullup_ssp1(int enable)
+{
+	mxs_set_pullup(PINID_GPMI_RDY1, enable, "mmc1_cmd");
+}
+
+static unsigned long mxs_mmc_setclock_ssp1(unsigned long hz)
+{
+	struct clk *ssp = clk_get(NULL, "ssp.1"), *parent;
+
+	if (hz > 1000000)
+		parent = clk_get(NULL, "ref_io.0");
+	else
+		parent = clk_get(NULL, "xtal.0");
+
+	clk_set_parent(ssp, parent);
+	clk_set_rate(ssp, 2 * hz);
+	clk_put(parent);
+	clk_put(ssp);
+
+	return hz;
+}
+
+static struct mxs_mmc_platform_data mmc0_data = {
+	.hw_init	= mxs_mmc_hw_init_ssp0,
+	.hw_release	= mxs_mmc_hw_release_ssp0,
+	.get_wp		= mxs_mmc_get_wp_ssp0,
+	.cmd_pullup	= mxs_mmc_cmd_pullup_ssp0,
+	.setclock	= mxs_mmc_setclock_ssp0,
+	.caps 		= MMC_CAP_4_BIT_DATA | MMC_CAP_8_BIT_DATA,
+	.min_clk	= 400000,
+	.max_clk	= 52000000,
+	.read_uA        = 50000,
+	.write_uA       = 70000,
+	.clock_mmc = "ssp.0",
+	.power_mmc = NULL,
+};
+
+static struct resource mmc0_resource[] = {
+	{
+		.flags	= IORESOURCE_MEM,
+		.start	= SSP0_PHYS_ADDR,
+		.end	= SSP0_PHYS_ADDR + 0x2000 - 1,
+	},
+	{
+		.flags	= IORESOURCE_DMA,
+		.start	= MXS_DMA_CHANNEL_AHB_APBH_SSP0,
+		.end	= MXS_DMA_CHANNEL_AHB_APBH_SSP0,
+	},
+	{
+		.flags	= IORESOURCE_IRQ,
+		.start	= IRQ_SSP0_DMA,
+		.end	= IRQ_SSP0_DMA,
+	},
+	{
+		.flags	= IORESOURCE_IRQ,
+		.start	= IRQ_SSP0,
+		.end	= IRQ_SSP0,
+	},
+};
+
+static struct mxs_mmc_platform_data mmc1_data = {
+	.hw_init	= mxs_mmc_hw_init_ssp1,
+	.hw_release	= mxs_mmc_hw_release_ssp1,
+	.get_wp		= mxs_mmc_get_wp_ssp1,
+	.cmd_pullup	= mxs_mmc_cmd_pullup_ssp1,
+	.setclock	= mxs_mmc_setclock_ssp1,
+	.caps 		= MMC_CAP_4_BIT_DATA | MMC_CAP_8_BIT_DATA,
+	.min_clk	= 400000,
+	.max_clk	= 52000000,
+	.read_uA        = 50000,
+	.write_uA       = 70000,
+	.clock_mmc = "ssp.1",
+	.power_mmc = NULL,
+};
+
+static struct resource mmc1_resource[] = {
+	{
+		.flags	= IORESOURCE_MEM,
+		.start	= SSP1_PHYS_ADDR,
+		.end	= SSP1_PHYS_ADDR + 0x2000 - 1,
+	},
+	{
+		.flags	= IORESOURCE_DMA,
+		.start	= MXS_DMA_CHANNEL_AHB_APBH_SSP1,
+		.end	= MXS_DMA_CHANNEL_AHB_APBH_SSP1,
+	},
+	{
+		.flags	= IORESOURCE_IRQ,
+		.start	= IRQ_SSP1_DMA,
+		.end	= IRQ_SSP1_DMA,
+	},
+	{
+		.flags	= IORESOURCE_IRQ,
+		.start	= IRQ_SSP1,
+		.end	= IRQ_SSP1,
+	},
+};
+
+static void __init mx28_init_mmc(void)
+{
+	int i;
+	struct mxs_dev_lookup *lookup;
+	struct platform_device *pdev;
+
+	lookup = mxs_get_devices("mxs-mmc");
+	if (lookup == NULL || IS_ERR(lookup))
+		return;
+	for (i = 0; i < lookup->size; i++) {
+		pdev = lookup->pdev + i;
+		switch (pdev->id) {
+		case 0:
+			pdev->resource = mmc0_resource;
+			pdev->num_resources = ARRAY_SIZE(mmc0_resource);
+			pdev->dev.platform_data = &mmc0_data;
+			break;
+		case 1:
+			pdev->resource = mmc1_resource;
+			pdev->num_resources = ARRAY_SIZE(mmc1_resource);
+			pdev->dev.platform_data = &mmc1_data;
+			break;
+		default:
+			return;
+		}
+		mxs_add_device(pdev, 2);
+	}
+}
+#else
+static void mx28_init_mmc(void)
+{
+}
+#endif
+
 int __init mx28_device_init(void)
 {
 	mx28_init_dma();
 	mx28_init_duart();
+	mx28_init_mmc();
 
 	return 0;
 }
