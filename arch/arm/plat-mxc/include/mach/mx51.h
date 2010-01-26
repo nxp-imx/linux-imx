@@ -1,5 +1,5 @@
 /*
- * Copyright 2008-2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2008-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -117,9 +117,10 @@
  */
 #define GPU_GMEM_BASE_ADDR	0x20000000
 #define GPU_BASE_ADDR			0x30000000
-#define GPU2D_BASE_ADDR			0xD0000000
+#define GPU2D_BASE_ADDR		0xD0000000
 
-#define TZIC_BASE_ADDR		0x8FFFC000
+#define TZIC_BASE_ADDR_T01		0x8FFFC000
+#define TZIC_BASE_ADDR			0xE0000000
 #define TZIC_BASE_ADDR_VIRT	0xFA100000
 #define TZIC_SIZE		SZ_16K
 

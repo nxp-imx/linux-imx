@@ -1,5 +1,5 @@
 /*
- * Copyright 2008-2009 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2008-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -75,9 +75,9 @@ void __init mx51_map_io(void)
 {
 	u32 tzic_addr;
 	if (cpu_is_mx51_rev(CHIP_REV_2_0) < 0)
-		tzic_addr = 0x8FFFC000;
+		tzic_addr = TZIC_BASE_ADDR_T01;
 	else
-		tzic_addr = 0xE0003000;
+		tzic_addr = TZIC_BASE_ADDR;
 
 	mx51_io_desc[2].pfn =  __phys_to_pfn(tzic_addr);
 	iotable_init(mx51_io_desc, ARRAY_SIZE(mx51_io_desc));
