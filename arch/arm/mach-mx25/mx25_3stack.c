@@ -1,5 +1,5 @@
 /*
- * Copyright 2008-2009 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2008-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -656,13 +656,37 @@ struct flexcan_platform_data flexcan_data[] = {
 	 .io_reg = NULL,
 	 .xcvr_enable = flexcan_xcvr_enable,
 	 .active = gpio_can_active,
-	 .inactive = gpio_can_inactive,},
+	 .inactive = gpio_can_inactive,
+	 .br_clksrc = 1,
+	 .br_rjw = 2,
+	 .br_presdiv = 6,
+	 .br_propseg = 4,
+	 .br_pseg1 = 4,
+	 .br_pseg2 = 7,
+	 .bcc = 1,
+	 .srx_dis = 1,
+	 .smp = 1,
+	 .boff_rec = 1,
+	 .ext_msg = 1,
+	 .std_msg = 1,},
 	{
 	 .core_reg = NULL,
 	 .io_reg = NULL,
 	 .xcvr_enable = flexcan_xcvr_enable,
 	 .active = gpio_can_active,
-	 .inactive = gpio_can_inactive,},
+	 .inactive = gpio_can_inactive,
+	 .br_clksrc = 1,
+	 .br_rjw = 2,
+	 .br_presdiv = 6,
+	 .br_propseg = 4,
+	 .br_pseg1 = 4,
+	 .br_pseg2 = 7,
+	 .bcc = 1,
+	 .srx_dis = 1,
+	 .smp = 1,
+	 .boff_rec = 1,
+	 .ext_msg = 1,
+	 .std_msg = 1,},
 };
 #endif
 
