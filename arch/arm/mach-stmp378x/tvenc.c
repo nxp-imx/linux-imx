@@ -3,7 +3,7 @@
  *
  * Embedded Alley Solutions, Inc <source@embeddedalley.com>
  *
- * Copyright 2008-2009 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2008-2010 Freescale Semiconductor, Inc.
  * Copyright 2008 Embedded Alley Solutions, Inc All Rights Reserved.
  */
 
@@ -165,10 +165,8 @@ static int init_panel(struct device *dev, dma_addr_t phys, int memsize,
 	clk_enable(lcd_clk);
 	clk_set_rate(lcd_clk, 1000000 / pentry->cycle_time_ns);	/* kHz */
 
-	clk_ref_vid = clk_get(NULL, "ref_vid");
 	clk_tv108M_ng = clk_get(NULL, "tv108M_ng");
 	clk_tv27M = clk_get(NULL, "tv27M");
-	clk_enable(clk_ref_vid);
 	clk_enable(clk_tv108M_ng);
 	clk_enable(clk_tv27M);
 
@@ -198,11 +196,9 @@ static void release_panel(struct device *dev,
 
 	stmp3xxx_lcdif_dma_release();
 
-	clk_disable(clk_ref_vid);
 	clk_disable(clk_tv108M_ng);
 	clk_disable(clk_tv27M);
 	clk_disable(lcd_clk);
-	clk_put(clk_ref_vid);
 	clk_put(clk_tv108M_ng);
 	clk_put(clk_tv27M);
 	clk_put(lcd_clk);
@@ -247,7 +243,7 @@ static struct stmp3xxx_platform_fb_entry ntsc_fb_entry = {
 	.y_res = NTSC_X_RES,
 	.bpp = 32,
 	/* the pix_clk should be near 27Mhz for proper syncronization */
-	.cycle_time_ns = 74,
+	.cycle_time_ns = 37,
 	.lcd_type = STMP3XXX_LCD_PANEL_DVI,
 	.init_panel = init_panel,
 	.release_panel = release_panel,
@@ -263,7 +259,7 @@ static struct stmp3xxx_platform_fb_entry pal_fb_entry = {
 	.y_res = PAL_X_RES,
 	.bpp = 32,
 	/* the pix_clk should be near 27Mhz for proper syncronization */
-	.cycle_time_ns = 74,
+	.cycle_time_ns = 37,
 	.lcd_type = STMP3XXX_LCD_PANEL_DVI,
 	.init_panel = init_panel,
 	.release_panel = release_panel,
