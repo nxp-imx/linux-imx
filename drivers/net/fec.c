@@ -40,19 +40,27 @@
 #include <linux/irq.h>
 #include <linux/clk.h>
 #include <linux/platform_device.h>
+#include <linux/swab.h>
+#include <linux/fec.h>
 
 #include <asm/cacheflush.h>
 
 #ifndef CONFIG_ARCH_MXC
+#ifndef CONFIG_ARCH_MXS
 #include <asm/coldfire.h>
 #include <asm/mcfsim.h>
+#endif
 #endif
 
 #include "fec.h"
 
-#ifdef CONFIG_ARCH_MXC
+#if defined(CONFIG_ARCH_MXC) || defined(CONFIG_ARCH_MXS)
 #include <mach/hardware.h>
 #define FEC_ALIGNMENT	0xf
+#ifdef CONFIG_ARCH_MXS
+#include <mach/device.h>
+#endif
+static unsigned char    fec_mac_default[6];
 #else
 #define FEC_ALIGNMENT	0x3
 #endif
@@ -160,7 +168,8 @@ typedef struct {
  * account when setting it.
  */
 #if defined(CONFIG_M523x) || defined(CONFIG_M527x) || defined(CONFIG_M528x) || \
-    defined(CONFIG_M520x) || defined(CONFIG_M532x) || defined(CONFIG_ARCH_MXC)
+    defined(CONFIG_M520x) || defined(CONFIG_M532x) || \
+    defined(CONFIG_ARCH_MXC) || defined(CONFIG_ARCH_MXS)
 #define	OPT_FRAME_SIZE	(PKT_MAXBUF_SIZE << 16)
 #else
 #define	OPT_FRAME_SIZE	0
@@ -211,6 +220,7 @@ struct fec_enet_private {
 	uint	phy_speed;
 	phy_info_t const	*phy;
 	struct work_struct phy_task;
+	phy_interface_t	phy_interface;
 
 	uint	sequence_done;
 	uint	mii_phy_task_queued;
@@ -222,6 +232,7 @@ struct fec_enet_private {
 	int	link;
 	int	old_link;
 	int	full_duplex;
+	struct completion anc_done;
 };
 
 static void fec_enet_mii(struct net_device *dev);
@@ -292,6 +303,18 @@ static int	mii_queue(struct net_device *dev, int request,
 #define PHY_STAT_100HDX	0x4000  /* 100 Mbit half duplex selected */
 #define PHY_STAT_100FDX	0x8000  /* 100 Mbit full duplex selected */
 
+#ifdef CONFIG_ARCH_MXS
+static void *swap_buffer(void *bufaddr, int len)
+{
+	int i;
+	unsigned int *buf = bufaddr;
+
+	for (i = 0; i < (len + 3) / 4; i++, buf++)
+		*buf = __swab32(*buf);
+
+	return bufaddr;
+}
+#endif
 
 static int
 fec_enet_start_xmit(struct sk_buff *skb, struct net_device *dev)
@@ -341,6 +364,9 @@ fec_enet_start_xmit(struct sk_buff *skb, struct net_device *dev)
 		bufaddr = fep->tx_bounce[index];
 	}
 
+#ifdef CONFIG_ARCH_MXS
+	swap_buffer(bufaddr, skb->len);
+#endif
 	/* Save skb pointer */
 	fep->tx_skbuff[fep->skb_cur] = skb;
 
@@ -574,7 +600,9 @@ fec_enet_rx(struct net_device *dev)
 
 	        dma_unmap_single(NULL, bdp->cbd_bufaddr, bdp->cbd_datlen,
         			DMA_FROM_DEVICE);
-
+#ifdef CONFIG_ARCH_MXS
+		swap_buffer(data, pkt_len);
+#endif
 		/* This does 16 byte alignment, exactly what we need.
 		 * The packet length includes FCS, but we don't want to
 		 * include that when passing upstream as it messes up
@@ -1141,6 +1169,40 @@ static phy_info_t phy_info_dp83848= {
 	},
 };
 
+#define MII_LAN872X_PHYSCSR    31  /* Sepecial PHY Status Register */
+
+static void mii_parse_lan872x_scsr(uint mii_reg, struct net_device *dev)
+{
+	struct fec_enet_private *fep = netdev_priv(dev);
+	uint *s = &(fep->phy_status);
+
+	*s &= ~(PHY_STAT_SPMASK | PHY_STAT_ANC);
+
+	if (!(mii_reg & 0x1000)) {
+		mii_queue_unlocked(dev,
+		mk_mii_read(MII_LAN872X_PHYSCSR), mii_parse_lan872x_scsr);
+		return ;
+	}
+
+	*s |= PHY_STAT_ANC;
+
+	if (mii_reg & 0x0004) {   /* 10MBps? */
+		if (mii_reg & 0x0010)   /* Full Duplex? */
+			*s |= PHY_STAT_10FDX;
+		else
+			*s |= PHY_STAT_10HDX;
+	} else {                  /* 100 Mbps? */
+		if (mii_reg & 0x0010)   /* Full Duplex? */
+			*s |= PHY_STAT_100FDX;
+		else
+			*s |= PHY_STAT_100HDX;
+	}
+
+	complete(&fep->anc_done);
+
+	fep->full_duplex =
+	!!(fep->phy_status & (PHY_STAT_10FDX | PHY_STAT_100FDX));
+}
 static phy_info_t phy_info_lan8700 = {
 	0x0007C0C,
 	"LAN8700",
@@ -1161,6 +1223,27 @@ static phy_info_t phy_info_lan8700 = {
 		{ mk_mii_end, }
 	},
 };
+static phy_info_t phy_info_lan8720 = {
+	0x0007C0F,
+	"LAN8720",
+	(const phy_cmd_t []) { /* config */
+		{ mk_mii_read(MII_REG_CR), mii_parse_cr },
+		{ mk_mii_read(MII_REG_ANAR), mii_parse_anar },
+		{ mk_mii_end, }
+	},
+	(const phy_cmd_t []) { /* startup */
+		{ mk_mii_write(MII_REG_CR, 0x1200), NULL },/* autonegotiate */
+		{ mk_mii_read(MII_REG_SR), mii_parse_sr },
+		{ mk_mii_read(MII_LAN872X_PHYSCSR), mii_parse_lan872x_scsr },
+		{ mk_mii_end, }
+	},
+	(const phy_cmd_t []) { /* act_int */
+		{ mk_mii_end, }
+	},
+	(const phy_cmd_t []) { /* shutdown */
+		{ mk_mii_end, }
+	},
+};
 /* ------------------------------------------------------------------------- */
 
 static phy_info_t const * const phy_info[] = {
@@ -1171,6 +1254,7 @@ static phy_info_t const * const phy_info[] = {
 	&phy_info_ks8721bl,
 	&phy_info_dp83848,
 	&phy_info_lan8700,
+	&phy_info_lan8720,
 	NULL
 };
 
@@ -1401,6 +1485,8 @@ mii_discover_phy3(uint mii_reg, struct net_device *dev)
 
 	fep->phy = phy_info[i];
 	fep->phy_id_done = 1;
+
+	clk_disable(fep->clk);
 }
 
 /* Scan all of the MII PHY addresses looking for someone to respond
@@ -1422,7 +1508,10 @@ mii_discover_phy(uint mii_reg, struct net_device *dev)
 			mii_queue_unlocked(dev, mk_mii_read(MII_REG_PHYIR2),
 							mii_discover_phy3);
 		} else {
+#ifndef CONFIG_ARCH_MXS
+			/* PHY not working with first access on MX28 evk*/
 			fep->phy_addr++;
+#endif
 			mii_queue_unlocked(dev, mk_mii_read(MII_REG_PHYIR1),
 							mii_discover_phy);
 		}
@@ -1541,6 +1630,7 @@ fec_enet_open(struct net_device *dev)
 	fec_restart(dev, 1);
 
 	if (fep->phy) {
+		init_completion(&fep->anc_done);
 		mii_do_cmd(dev, fep->phy->ack_int);
 		mii_do_cmd(dev, fep->phy->config);
 		mii_do_cmd(dev, phy_cmd_config);  /* display configuration */
@@ -1556,7 +1646,10 @@ fec_enet_open(struct net_device *dev)
 			schedule();
 
 		mii_do_cmd(dev, fep->phy->startup);
+		wait_for_completion_timeout(&fep->anc_done,
+				msecs_to_jiffies(10000));
 	}
+	fec_restart(dev, fep->full_duplex);
 
 	/* Set the initial link state to true. A lot of hardware
 	 * based on this device does not implement a PHY interrupt,
@@ -1696,6 +1789,51 @@ static const struct net_device_ops fec_netdev_ops = {
 	.ndo_tx_timeout		= fec_timeout,
 	.ndo_set_mac_address	= fec_set_mac_address,
 };
+#ifdef CONFIG_ARCH_MXS
+
+static int fec_set_hw_mac(struct net_device *dev, char *mac_addr)
+{
+	struct fec_enet_private *fep = netdev_priv(dev);
+	char *addr = mac_addr;
+
+	if (!is_valid_ether_addr(addr))
+		return -EADDRNOTAVAIL;
+
+	writel(addr[3] | (addr[2] << 8) | (addr[1] << 16) | (addr[0] << 24),
+		fep->hwp + FEC_ADDR_LOW);
+
+	writel((addr[5] << 16) | (addr[4] << 24) | 0x8808,
+		fep->hwp + FEC_ADDR_HIGH);
+
+	return 0;
+
+}
+
+static int fec_mac_addr_setup(char *mac_addr)
+{
+	char *ptr, *p = mac_addr;
+	unsigned long tmp;
+	int i = 0, ret = 0;
+
+	while (p && (*p) && i < 6) {
+		ptr = strchr(p, ':');
+		if (ptr)
+			*ptr++ = '\0';
+
+		if (strlen(p)) {
+			ret = strict_strtoul(p, 16, &tmp);
+			if (ret < 0 || tmp > 0xff)
+				break;
+			fec_mac_default[i++] = tmp;
+		}
+		p = ptr;
+	}
+
+	return 0;
+}
+
+__setup("fec_mac=", fec_mac_addr_setup);
+#endif
 
  /*
   * XXX:  We need to clean up on failure exits here.
@@ -1730,6 +1868,10 @@ int __init fec_enet_init(struct net_device *dev, int index)
 #else
 	{
 		unsigned long l;
+#ifdef CONFIG_ARCH_MXS
+		if (fec_set_hw_mac(dev, fec_mac_default))
+			printk(KERN_WARNING"Invalid MAC address....\n");
+#endif
 		l = readl(fep->hwp + FEC_ADDR_LOW);
 		dev->dev_addr[0] = (unsigned char)((l & 0xFF000000) >> 24);
 		dev->dev_addr[1] = (unsigned char)((l & 0x00FF0000) >> 16);
@@ -1760,6 +1902,10 @@ int __init fec_enet_init(struct net_device *dev, int index)
 	fep->phy_speed = ((((clk_get_rate(fep->clk) / 2 + 4999999)
 					/ 2500000) / 2) & 0x3F) << 1;
 
+#ifdef CONFIG_ARCH_MXS
+	/* Can't get phy(8720) ID when set to 2.5M, lower it*/
+	fep->phy_speed <<= 2;
+#endif
 	/* Initialize the receive buffer descriptors. */
 	bdp = fep->rx_bd_base;
 	for (i = 0; i < RX_RING_SIZE; i++) {
@@ -1808,11 +1954,16 @@ fec_restart(struct net_device *dev, int duplex)
 {
 	struct fec_enet_private *fep = netdev_priv(dev);
 	int i;
-
+#ifdef CONFIG_ARCH_MXS
+	unsigned long reg;
+#endif
 	/* Whack a reset.  We should wait for this. */
 	writel(1, fep->hwp + FEC_ECNTRL);
 	udelay(10);
-
+#ifdef CONFIG_ARCH_MXS
+	/* Reset fec will reset MAC to zero, reconfig it again */
+	fec_set_hw_mac(dev, fec_mac_default);
+#endif
 	/* Clear any outstanding interrupt. */
 	writel(0xffc00000, fep->hwp + FEC_IEVENT);
 
@@ -1823,7 +1974,7 @@ fec_restart(struct net_device *dev, int duplex)
 	writel(0, fep->hwp + FEC_HASH_TABLE_HIGH);
 	writel(0, fep->hwp + FEC_HASH_TABLE_LOW);
 #endif
-
+#ifdef CONFIG_ARCH_MXC
 	if (cpu_is_mx25()) {
 		/*
 		 * Set up the MII gasket for RMII mode
@@ -1841,7 +1992,7 @@ fec_restart(struct net_device *dev, int duplex)
 		/* re-enable the gasket */
 		__raw_writel(FEC_MIIGSK_ENR_EN, fep->hwp + FEC_MIIGSK_ENR);
 	}
-
+#endif
 	/* Set maximum receive buffer size. */
 	writel(PKT_MAXBLR_SIZE, fep->hwp + FEC_R_BUFF_SIZE);
 
@@ -1874,6 +2025,28 @@ fec_restart(struct net_device *dev, int duplex)
 	}
 	fep->full_duplex = duplex;
 
+#ifdef CONFIG_ARCH_MXS
+
+	reg = readl(fep->hwp + FEC_R_CNTRL);
+
+	/* Enable flow control and length check */
+	reg |= (0x40000000 | 0x00000020);
+
+	/* Check MII or RMII */
+	if (fep->phy_interface == PHY_INTERFACE_MODE_RMII)
+		reg |= 0x00000100;
+	else
+		reg &= ~0x00000100;
+
+	/* Check 10M or 100M */
+	if (fep->phy_status & 0x0004)
+		reg |= 0x00000200;
+	else
+		reg &= ~0x00000200;
+
+	writel(reg, fep->hwp + FEC_R_CNTRL);
+
+#endif
 	/* Set MII speed */
 	writel(fep->phy_speed, fep->hwp + FEC_MII_SPEED);
 
@@ -1947,6 +2120,12 @@ fec_probe(struct platform_device *pdev)
 
 	platform_set_drvdata(pdev, ndev);
 
+	if (pdata) {
+		fep->phy_interface = pdata->phy;
+		if (pdata->init && pdata->init())
+			goto failed_platform_init;
+	}
+
 	/* This device has up to three irqs on some platforms */
 	for (i = 0; i < 3; i++) {
 		irq = platform_get_irq(pdev, i);
@@ -1963,10 +2142,6 @@ fec_probe(struct platform_device *pdev)
 		}
 	}
 
-	if (pdata && pdata->init)
-		if (pdata->init())
-			goto failed_platform_init;
-
 	fep->clk = clk_get(&pdev->dev, "fec_clk");
 	if (IS_ERR(fep->clk)) {
 		ret = PTR_ERR(fep->clk);
@@ -1982,7 +2157,6 @@ fec_probe(struct platform_device *pdev)
 	if (ret)
 		goto failed_register;
 
-	clk_disable(fep->clk);
 	return 0;
 
 failed_register:
@@ -1990,7 +2164,6 @@ failed_init:
 	clk_disable(fep->clk);
 	clk_put(fep->clk);
 failed_clk:
-failed_platform_init:
 	for (i = 0; i < 3; i++) {
 		irq = platform_get_irq(pdev, i);
 		if (irq > 0)
@@ -1999,6 +2172,7 @@ failed_platform_init:
 failed_irq:
 	iounmap((void __iomem *)ndev->base_addr);
 failed_ioremap:
+failed_platform_init:
 	free_netdev(ndev);
 
 	return ret;
