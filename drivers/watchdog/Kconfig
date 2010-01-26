@@ -224,6 +224,15 @@ config STMP3XXX_WATCHDOG
 	  To compile this driver as a module, choose M here: the
 	  module will be called stmp3xxx_wdt.
 
+config MXS_WATCHDOG
+	tristate "Freescale mxs watchdog"
+	depends on ARCH_MXS
+	help
+	  Say Y here if to include support for the watchdog timer
+	  for the Freescale mxs family SoC.
+	  To compile this driver as a module, choose M here: the
+	  module will be called mxs_wdt.
+
 config IOP_WATCHDOG
 	tristate "IOP Watchdog"
 	depends on PLAT_IOP
