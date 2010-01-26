@@ -755,6 +755,15 @@ config RTC_DRV_STMP3XXX
 	  This driver can also be build as a module. If so, the module
 	  will be called rtc-stmp3xxx.
 
+config RTC_DRV_MXS
+	tristate "Freescale MXS series SoC RTC"
+	depends on ARCH_MXS && RTC_CLASS
+	help
+	  Say Y here to get support for the real-time clock peripheral
+	  on Freescale MXS series SoCs
+	  This driver can also be build as a module. If so, the module
+	  will be called rtc-mxs.
+
 config RTC_DRV_SUN4V
 	bool "SUN4V Hypervisor RTC"
 	depends on SPARC64
