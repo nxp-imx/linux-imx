@@ -360,12 +360,36 @@ static void mx28_init_mmc(void)
 }
 #endif
 
+#if defined(CONFIG_MXS_WATCHDOG) || defined(CONFIG_MXS_WATCHDOG_MODULE)
+static struct resource mx28_wdt_res = {
+	.flags = IORESOURCE_MEM,
+	.start = RTC_PHYS_ADDR,
+	.end   = RTC_PHYS_ADDR + 0x2000 - 1,
+};
+
+static void __init mx28_init_wdt(void)
+{
+	struct platform_device *pdev;
+	pdev = mxs_get_device("mxs-wdt", 0);
+	if (pdev == NULL || IS_ERR(pdev))
+		return;
+	pdev->resource = &mx28_wdt_res;
+	pdev->num_resources = 1;
+	mxs_add_device(pdev, 3);
+}
+#else
+static void __init mx28_init_wdt(void)
+{
+	;
+}
+#endif
+
 int __init mx28_device_init(void)
 {
 	mx28_init_dma();
 	mx28_init_duart();
 	mx28_init_mmc();
-
+	mx28_init_wdt();
 	return 0;
 }
 

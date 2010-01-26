@@ -134,6 +134,16 @@ static struct platform_device mxs_mmc[] = {
 };
 #endif
 
+#if defined(CONFIG_MXS_WATCHDOG) || defined(CONFIG_MXS_WATCHDOG_MODULE)
+static struct platform_device mxs_wdt = {
+	.name = "mxs-wdt",
+	.id = 0,
+	.dev = {
+		.release = mxs_nop_release,
+		},
+};
+#endif
+
 static struct mxs_dev_lookup dev_lookup[] = {
 #if defined(CONFIG_SERIAL_MXS_DUART) || \
 	defined(CONFIG_SERIAL_MXS_DUART_MODULE)
@@ -157,7 +167,15 @@ static struct mxs_dev_lookup dev_lookup[] = {
 	.name = "mxs-mmc",
 	.size = ARRAY_SIZE(mxs_mmc),
 	.pdev = mxs_mmc,
-	}
+	},
+#endif
+
+#if defined(CONFIG_MXS_WATCHDOG) || defined(CONFIG_MXS_WATCHDOG_MODULE)
+	{
+	 .name = "mxs-wdt",
+	 .size = 1,
+	 .pdev = &mxs_wdt,
+	 },
 #endif
 };
 

@@ -14,44 +14,45 @@
 #include <linux/platform_device.h>
 #include <linux/spinlock.h>
 #include <linux/uaccess.h>
+#include <linux/io.h>
 
-#include <mach/platform.h>
+#include <mach/hardware.h>
 #include <mach/regs-rtc.h>
 
 #define DEFAULT_HEARTBEAT	19
 #define MAX_HEARTBEAT		(0x10000000 >> 6)
 
 /* missing bitmask in headers */
-#define BV_RTC_PERSISTENT1_GENERAL__RTC_FORCE_UPDATER     0x80000000
+#define BV_RTC_PERSISTENT1_GENERAL__RTC_FORCE_UPDATER	0x80000000
 
 #define WDT_IN_USE		0
 #define WDT_OK_TO_CLOSE		1
 
 #define WDOG_COUNTER_RATE	1000 /* 1 kHz clock */
 
-static DEFINE_SPINLOCK(stmp3xxx_wdt_io_lock);
 static unsigned long wdt_status;
-static const int nowayout = WATCHDOG_NOWAYOUT;
 static int heartbeat = DEFAULT_HEARTBEAT;
 static unsigned long boot_status;
+static unsigned long wdt_base;
+static DEFINE_SPINLOCK(mxs_wdt_io_lock);
 
 static void wdt_enable(u32 value)
 {
-	spin_lock(&stmp3xxx_wdt_io_lock);
-	__raw_writel(value, REGS_RTC_BASE + HW_RTC_WATCHDOG);
-	__raw_writel(BM_RTC_CTRL_WATCHDOGEN, REGS_RTC_BASE + HW_RTC_CTRL_SET);
+	spin_lock(&mxs_wdt_io_lock);
+	__raw_writel(value, wdt_base + HW_RTC_WATCHDOG);
 	__raw_writel(BV_RTC_PERSISTENT1_GENERAL__RTC_FORCE_UPDATER,
-			REGS_RTC_BASE + HW_RTC_PERSISTENT1_SET);
-	spin_unlock(&stmp3xxx_wdt_io_lock);
+		     wdt_base + HW_RTC_PERSISTENT1_SET);
+	__raw_writel(BM_RTC_CTRL_WATCHDOGEN, wdt_base + HW_RTC_CTRL_SET);
+	spin_unlock(&mxs_wdt_io_lock);
 }
 
 static void wdt_disable(void)
 {
-	spin_lock(&stmp3xxx_wdt_io_lock);
+	spin_lock(&mxs_wdt_io_lock);
 	__raw_writel(BV_RTC_PERSISTENT1_GENERAL__RTC_FORCE_UPDATER,
-			REGS_RTC_BASE + HW_RTC_PERSISTENT1_CLR);
-	__raw_writel(BM_RTC_CTRL_WATCHDOGEN, REGS_RTC_BASE + HW_RTC_CTRL_CLR);
-	spin_unlock(&stmp3xxx_wdt_io_lock);
+		     wdt_base + HW_RTC_PERSISTENT1_CLR);
+	__raw_writel(BM_RTC_CTRL_WATCHDOGEN, wdt_base + HW_RTC_CTRL_CLR);
+	spin_unlock(&mxs_wdt_io_lock);
 }
 
 static void wdt_ping(void)
@@ -59,7 +60,7 @@ static void wdt_ping(void)
 	wdt_enable(heartbeat * WDOG_COUNTER_RATE);
 }
 
-static int stmp3xxx_wdt_open(struct inode *inode, struct file *file)
+static int mxs_wdt_open(struct inode *inode, struct file *file)
 {
 	if (test_and_set_bit(WDT_IN_USE, &wdt_status))
 		return -EBUSY;
@@ -70,11 +71,11 @@ static int stmp3xxx_wdt_open(struct inode *inode, struct file *file)
 	return nonseekable_open(inode, file);
 }
 
-static ssize_t stmp3xxx_wdt_write(struct file *file, const char __user *data,
+static ssize_t mxs_wdt_write(struct file *file, const char __user *data,
 	size_t len, loff_t *ppos)
 {
 	if (len) {
-		if (!nowayout) {
+		if (WATCHDOG_NOWAYOUT == 0) {
 			size_t i;
 
 			clear_bit(WDT_OK_TO_CLOSE, &wdt_status);
@@ -99,10 +100,10 @@ static struct watchdog_info ident = {
 			  WDIOF_MAGICCLOSE |
 			  WDIOF_SETTIMEOUT |
 			  WDIOF_KEEPALIVEPING,
-	.identity	= "STMP3XXX Watchdog",
+	.identity	= "MXS Watchdog",
 };
 
-static long stmp3xxx_wdt_ioctl(struct file *file, unsigned int cmd,
+static long mxs_wdt_ioctl(struct file *file, unsigned int cmd,
 	unsigned long arg)
 {
 	void __user *argp = (void __user *)arg;
@@ -166,11 +167,11 @@ static long stmp3xxx_wdt_ioctl(struct file *file, unsigned int cmd,
 	return ret;
 }
 
-static int stmp3xxx_wdt_release(struct inode *inode, struct file *file)
+static int mxs_wdt_release(struct inode *inode, struct file *file)
 {
 	int ret = 0;
 
-	if (!nowayout) {
+	if (WATCHDOG_NOWAYOUT == 0) {
 		if (!test_bit(WDT_OK_TO_CLOSE, &wdt_status)) {
 			wdt_ping();
 			pr_debug("%s: Device closed unexpectdly\n", __func__);
@@ -185,50 +186,57 @@ static int stmp3xxx_wdt_release(struct inode *inode, struct file *file)
 	return ret;
 }
 
-static const struct file_operations stmp3xxx_wdt_fops = {
+static const struct file_operations mxs_wdt_fops = {
 	.owner = THIS_MODULE,
 	.llseek = no_llseek,
-	.write = stmp3xxx_wdt_write,
-	.unlocked_ioctl = stmp3xxx_wdt_ioctl,
-	.open = stmp3xxx_wdt_open,
-	.release = stmp3xxx_wdt_release,
+	.write = mxs_wdt_write,
+	.unlocked_ioctl = mxs_wdt_ioctl,
+	.open = mxs_wdt_open,
+	.release = mxs_wdt_release,
 };
 
-static struct miscdevice stmp3xxx_wdt_miscdev = {
+static struct miscdevice mxs_wdt_miscdev = {
 	.minor = WATCHDOG_MINOR,
 	.name = "watchdog",
-	.fops = &stmp3xxx_wdt_fops,
+	.fops = &mxs_wdt_fops,
 };
 
-static int __devinit stmp3xxx_wdt_probe(struct platform_device *pdev)
+static int __devinit mxs_wdt_probe(struct platform_device *pdev)
 {
 	int ret = 0;
+	struct resource *res;
 
 	if (heartbeat < 1 || heartbeat > MAX_HEARTBEAT)
 		heartbeat = DEFAULT_HEARTBEAT;
 
-	boot_status = __raw_readl(REGS_RTC_BASE + HW_RTC_PERSISTENT1) &
+	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+	if (res == NULL)
+		return -ENODEV;
+	wdt_base = (unsigned long)IO_ADDRESS(res->start);
+
+	boot_status = __raw_readl(wdt_base + HW_RTC_PERSISTENT1) &
 			BV_RTC_PERSISTENT1_GENERAL__RTC_FORCE_UPDATER;
 	boot_status = !!boot_status;
 	__raw_writel(BV_RTC_PERSISTENT1_GENERAL__RTC_FORCE_UPDATER,
-			REGS_RTC_BASE + HW_RTC_PERSISTENT1_CLR);
+		     wdt_base + HW_RTC_PERSISTENT1_CLR);
+
 	wdt_disable();		/* disable for now */
 
-	ret = misc_register(&stmp3xxx_wdt_miscdev);
+	ret = misc_register(&mxs_wdt_miscdev);
 	if (ret < 0) {
 		dev_err(&pdev->dev, "cannot register misc device\n");
 		return ret;
 	}
 
-	printk(KERN_INFO "stmp3xxx watchdog: initialized, heartbeat %d sec\n",
+	printk(KERN_INFO "mxs watchdog: initialized, heartbeat %d sec\n",
 		heartbeat);
 
 	return ret;
 }
 
-static int __devexit stmp3xxx_wdt_remove(struct platform_device *pdev)
+static int __devexit mxs_wdt_remove(struct platform_device *pdev)
 {
-	misc_deregister(&stmp3xxx_wdt_miscdev);
+	misc_deregister(&mxs_wdt_miscdev);
 	return 0;
 }
 
@@ -236,55 +244,54 @@ static int __devexit stmp3xxx_wdt_remove(struct platform_device *pdev)
 static int wdt_suspended;
 static u32 wdt_saved_time;
 
-static int stmp3xxx_wdt_suspend(struct platform_device *pdev,
+static int mxs_wdt_suspend(struct platform_device *pdev,
 				pm_message_t state)
 {
-	if (__raw_readl(REGS_RTC_BASE + HW_RTC_CTRL) &
-		BM_RTC_CTRL_WATCHDOGEN) {
-		wdt_suspended = 1;
-		wdt_saved_time = __raw_readl(REGS_RTC_BASE + HW_RTC_WATCHDOG);
+	if (__raw_readl(wdt_base + HW_RTC_CTRL) & BM_RTC_CTRL_WATCHDOGEN) {
+		wdt_saved_time = __raw_readl(wdt_base + HW_RTC_WATCHDOG);
 		wdt_disable();
+		wdt_suspended = 1;
 	}
 	return 0;
 }
 
-static int stmp3xxx_wdt_resume(struct platform_device *pdev)
+static int mxs_wdt_resume(struct platform_device *pdev)
 {
 	if (wdt_suspended) {
-		wdt_enable(wdt_saved_time);
 		wdt_suspended = 0;
+		wdt_enable(wdt_saved_time);
 	}
 	return 0;
 }
 #else
-#define stmp3xxx_wdt_suspend	NULL
-#define stmp3xxx_wdt_resume	NULL
+#define mxs_wdt_suspend	NULL
+#define mxs_wdt_resume	NULL
 #endif
 
-static struct platform_driver platform_wdt_driver = {
+static struct platform_driver mxs_wdt_driver = {
 	.driver = {
-		.name = "stmp3xxx_wdt",
+		.name = "mxs-wdt",
 	},
-	.probe = stmp3xxx_wdt_probe,
-	.remove = __devexit_p(stmp3xxx_wdt_remove),
-	.suspend = stmp3xxx_wdt_suspend,
-	.resume = stmp3xxx_wdt_resume,
+	.probe = mxs_wdt_probe,
+	.remove = __devexit_p(mxs_wdt_remove),
+	.suspend = mxs_wdt_suspend,
+	.resume = mxs_wdt_resume,
 };
 
-static int __init stmp3xxx_wdt_init(void)
+static int __init mxs_wdt_init(void)
 {
-	return platform_driver_register(&platform_wdt_driver);
+	return platform_driver_register(&mxs_wdt_driver);
 }
 
-static void __exit stmp3xxx_wdt_exit(void)
+static void __exit mxs_wdt_exit(void)
 {
-	return platform_driver_unregister(&platform_wdt_driver);
+	return platform_driver_unregister(&mxs_wdt_driver);
 }
 
-module_init(stmp3xxx_wdt_init);
-module_exit(stmp3xxx_wdt_exit);
+module_init(mxs_wdt_init);
+module_exit(mxs_wdt_exit);
 
-MODULE_DESCRIPTION("STMP3XXX Watchdog Driver");
+MODULE_DESCRIPTION("MXS Watchdog Driver");
 MODULE_LICENSE("GPL");
 
 module_param(heartbeat, int, 0);
