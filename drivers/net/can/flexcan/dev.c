@@ -443,24 +443,26 @@ static ssize_t flexcan_set_attr(struct device *dev,
 
 static void flexcan_device_default(struct flexcan_device *dev)
 {
-	dev->br_clksrc = 1;
-	dev->br_rjw = 2;
-	dev->br_presdiv = 6;
-	dev->br_propseg = 4;
-	dev->br_pseg1 = 4;
-	dev->br_pseg2 = 7;
+	struct platform_device *pdev = dev->dev;
+	struct flexcan_platform_data *plat_data = (pdev->dev).platform_data;
+	dev->br_clksrc = plat_data->br_clksrc;
+	dev->br_rjw = plat_data->br_rjw;
+	dev->br_presdiv = plat_data->br_presdiv;
+	dev->br_propseg = plat_data->br_propseg;
+	dev->br_pseg1 = plat_data->br_pseg1;
+	dev->br_pseg2 = plat_data->br_pseg2;
 
-	dev->bcc = 1;
-	dev->srx_dis = 1;
-	dev->smp = 1;
-	dev->boff_rec = 1;
+	dev->bcc = plat_data->bcc;
+	dev->srx_dis = plat_data->srx_dis;
+	dev->smp = plat_data->smp;
+	dev->boff_rec = plat_data->boff_rec;
 
 	dev->maxmb = FLEXCAN_MAX_MB - 1;
 	dev->xmit_maxmb = (FLEXCAN_MAX_MB >> 1) - 1;
 	dev->xmit_mb = dev->maxmb - dev->xmit_maxmb;
 
-	dev->ext_msg = 1;
-	dev->std_msg = 1;
+	dev->ext_msg = plat_data->ext_msg;
+	dev->std_msg = plat_data->std_msg;
 }
 
 static int flexcan_device_attach(struct flexcan_device *flexcan)
