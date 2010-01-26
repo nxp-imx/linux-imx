@@ -76,7 +76,6 @@ enum {
 				 DVI_V_LINES(m))
 
 static struct clk *lcd_clk;
-static struct clk *clk_ref_vid;
 static struct clk *clk_tv108M_ng;
 static struct clk *clk_tv27M;
 
@@ -185,6 +184,7 @@ static int init_panel(struct device *dev, dma_addr_t phys, int memsize,
 			DVI_F2_START(tvenc_mode), DVI_F2_END(tvenc_mode));
 
 	ret = stmp3xxx_lcdif_dma_init(dev, phys, memsize, 1);
+	stmp3xxx_lcdif_notify_clients(STMP3XXX_LCDIF_PANEL_INIT, pentry);
 
 	return ret;
 }
@@ -192,6 +192,7 @@ static int init_panel(struct device *dev, dma_addr_t phys, int memsize,
 static void release_panel(struct device *dev,
 			  struct stmp3xxx_platform_fb_entry *pentry)
 {
+	stmp3xxx_lcdif_notify_clients(STMP3XXX_LCDIF_PANEL_RELEASE, pentry);
 	release_dvi_panel();
 
 	stmp3xxx_lcdif_dma_release();

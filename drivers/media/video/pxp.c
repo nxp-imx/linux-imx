@@ -3,7 +3,7 @@
  *
  * Author: Matt Porter <mporter@embeddedalley.com>
  *
- * Copyright 2008-2009 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2008-2010 Freescale Semiconductor, Inc.
  * Copyright 2008-2009 Embedded Alley Solutions, Inc All Rights Reserved.
  */
 
@@ -35,6 +35,7 @@
 
 #include <mach/platform.h>
 #include <mach/regs-pxp.h>
+#include <mach/lcdif.h>
 
 #include "pxp.h"
 
@@ -1199,6 +1200,21 @@ out:
 	return IRQ_HANDLED;
 }
 
+static int pxp_notifier_callback(struct notifier_block *self,
+		       unsigned long event, void *data)
+{
+	struct pxps *pxp = container_of(self, struct pxps, nb);
+
+	switch (event) {
+	case STMP3XXX_LCDIF_PANEL_INIT:
+		pxp_set_fbinfo(pxp);
+		break;
+	default:
+		break;
+	}
+	return 0;
+}
+
 static int pxp_probe(struct platform_device *pdev)
 {
 	struct pxps *pxp;
@@ -1279,6 +1295,8 @@ static int pxp_probe(struct platform_device *pdev)
 		goto freevdev;
 	}
 
+	pxp->nb.notifier_call = pxp_notifier_callback,
+	stmp3xxx_lcdif_register_client(&pxp->nb);
 	dev_info(&pdev->dev, "initialized\n");
 
 exit:
@@ -1303,6 +1321,7 @@ static int __devexit pxp_remove(struct platform_device *pdev)
 {
 	struct pxps *pxp = platform_get_drvdata(pdev);
 
+	stmp3xxx_lcdif_unregister_client(&pxp->nb);
 	video_unregister_device(pxp->vdev);
 	video_device_release(pxp->vdev);
 
