@@ -42,7 +42,7 @@ int mxs_request_pin(unsigned int pin, enum pin_fun fun, const char *lab)
 	pb = g_chip->banks + bank;
 	if (test_and_set_bit(index, &pb->bitmap))
 		return -EBUSY;
-	pb->lable[index] = lab;
+	pb->label[index] = lab;
 	if (g_chip->set_type)
 		g_chip->set_type(pb, index, fun);
 	return 0;
@@ -64,7 +64,7 @@ int mxs_set_type(unsigned int pin, enum pin_fun fun, const char *lab)
 
 	if (!test_bit(index, &pb->bitmap))
 		return -ENOLCK;
-	if (lab != pb->lable[index])	/* lable is const string */
+	if (lab != pb->label[index])	/* label is const string */
 		return -EINVAL;
 	if (g_chip->set_type)
 		g_chip->set_type(pb, index, fun);
@@ -87,7 +87,7 @@ int mxs_set_strength(unsigned int pin, enum pad_strength cfg, const char *lab)
 
 	if (!test_bit(index, &pb->bitmap))
 		return -ENOLCK;
-	if (lab != pb->lable[index])	/* lable is const string */
+	if (lab != pb->label[index])	/* label is const string */
 		return -EINVAL;
 	if (g_chip->set_strength)
 		g_chip->set_strength(pb, index, cfg);
@@ -110,7 +110,7 @@ int mxs_set_voltage(unsigned int pin, enum pad_voltage cfg, const char *lab)
 
 	if (!test_bit(index, &pb->bitmap))
 		return -ENOLCK;
-	if (lab != pb->lable[index])	/* lable is const string */
+	if (lab != pb->label[index])	/* label is const string */
 		return -EINVAL;
 	if (g_chip->set_voltage)
 		g_chip->set_voltage(pb, index, cfg);
@@ -133,7 +133,7 @@ int mxs_set_pullup(unsigned int pin, int en, const char *lab)
 
 	if (!test_bit(index, &pb->bitmap))
 		return -ENOLCK;
-	if (lab != pb->lable[index])	/* lable is const string */
+	if (lab != pb->label[index])	/* label is const string */
 		return -EINVAL;
 	if (g_chip->set_pullup)
 		g_chip->set_pullup(pb, index, en);
@@ -156,9 +156,9 @@ void mxs_release_pin(unsigned int pin, const char *lab)
 
 	if (!test_bit(index, &pb->bitmap))
 		return;
-	if (lab != pb->lable[index])	/* lable is const string */
+	if (lab != pb->label[index])	/* label is const string */
 		return;
-	pb->lable[index] = NULL;
+	pb->label[index] = NULL;
 
 	clear_bit(index, &pb->bitmap);
 }

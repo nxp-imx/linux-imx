@@ -90,7 +90,7 @@ struct pin_desc {
 };
 
 struct pin_bank {
-	const char *lable[sizeof(long) * 8];
+	const char *label[sizeof(long) * 8];
 	unsigned long id;
 	struct pinctrl_chip *chip;
 	unsigned long bitmap;
