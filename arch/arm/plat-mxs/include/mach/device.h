@@ -57,6 +57,11 @@ struct mxs_i2c_plat_data {
 	unsigned int pioqueue_mode:1;
 };
 
+struct mxs_lradc_plat_data {
+	unsigned int vddio_voltage;
+	unsigned int battery_voltage;
+};
+
 extern void mxs_timer_init(struct mxs_sys_timer *timer);
 
 extern void mxs_nop_release(struct device *dev);

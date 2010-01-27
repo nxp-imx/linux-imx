@@ -32,8 +32,10 @@
 
 #include <mach/hardware.h>
 #include <mach/regs-timrot.h>
+#include <mach/regs-lradc.h>
 #include <mach/device.h>
 #include <mach/dma.h>
+#include <mach/lradc.h>
 
 #include "device.h"
 #include "mx28_pins.h"
@@ -548,6 +550,7 @@ static struct resource fec_resources[] = {
 		.flags  = IORESOURCE_IRQ
 	},
 };
+
 extern int mx28evk_enet_gpio_init(void);
 static struct fec_platform_data fec_pdata = {
 	.phy = PHY_INTERFACE_MODE_RMII,
@@ -557,9 +560,11 @@ static struct fec_platform_data fec_pdata = {
 static void __init mx28_init_fec(void)
 {
 	struct platform_device *pdev;
+
 	pdev = mxs_get_device("mxs-fec", 0);
 	if (pdev == NULL || IS_ERR(pdev))
 		return;
+
 	pdev->resource = fec_resources;
 	pdev->num_resources = ARRAY_SIZE(fec_resources);
 	pdev->dev.platform_data = &fec_pdata;
@@ -571,12 +576,45 @@ static void __init mx28_init_fec(void)
 	;
 }
 #endif
+#ifdef CONFIG_MXS_LRADC
+struct mxs_lradc_plat_data mx28_lradc_data = {
+	.vddio_voltage = BV_LRADC_CTRL4_LRADC6SELECT__CHANNEL10,
+	.battery_voltage = BV_LRADC_CTRL4_LRADC7SELECT__CHANNEL7,
+};
+
+static struct resource mx28_lradc_res[] = {
+	{
+	 .flags = IORESOURCE_MEM,
+	 .start = LRADC_PHYS_ADDR,
+	 .end   = LRADC_PHYS_ADDR + 0x2000 - 1,
+	 },
+};
+
+static void __init mx28_init_lradc(void)
+{
+	struct platform_device *pdev;
+
+	pdev = mxs_get_device("mxs-lradc", 0);
+	if (pdev == NULL || IS_ERR(pdev))
+		return;
+	pdev->resource = mx28_lradc_res;
+	pdev->num_resources = ARRAY_SIZE(mx28_lradc_res);
+	pdev->dev.platform_data = &mx28_lradc_data;
+	mxs_add_device(pdev, 0);
+}
+#else
+static void __init mx28_init_lradc(void)
+{
+	;
+}
+#endif
 
 int __init mx28_device_init(void)
 {
 	mx28_init_dma();
 	mx28_init_duart();
 	mx28_init_i2c();
+	mx28_init_lradc();
 	mx28_init_mmc();
 	mx28_init_wdt();
 	mx28_init_rtc();

@@ -206,6 +206,16 @@ static struct platform_device mxs_rtc = {
 };
 #endif
 
+#ifdef CONFIG_MXS_LRADC
+static struct platform_device mxs_lradc = {
+	.name = "mxs-lradc",
+	.id = 0,
+	.dev = {
+		.release = mxs_nop_release,
+		},
+};
+#endif
+
 static struct mxs_dev_lookup dev_lookup[] = {
 #if defined(CONFIG_SERIAL_MXS_DUART) || \
 	defined(CONFIG_SERIAL_MXS_DUART_MODULE)
@@ -272,6 +282,14 @@ static struct mxs_dev_lookup dev_lookup[] = {
 	.size = ARRAY_SIZE(mxs_fec),
 	.pdev = mxs_fec,
 	},
+#endif
+
+#ifdef CONFIG_MXS_LRADC
+	{
+	 .name = "mxs-lradc",
+	 .size = 1,
+	 .pdev = &mxs_lradc,
+	 },
 #endif
 };
 
