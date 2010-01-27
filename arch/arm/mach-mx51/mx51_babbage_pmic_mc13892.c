@@ -2,7 +2,7 @@
  * mx51-3stack-pmic-mc13892.c  --  i.MX51 3STACK Driver for Atlas MC13892 PMIC
  */
  /*
-  * Copyright 2009 Freescale Semiconductor, Inc. All Rights Reserved.
+  * Copyright 2009-2010 Freescale Semiconductor, Inc. All Rights Reserved.
   */
 
  /*
@@ -76,6 +76,15 @@
 /* 0x92082 */
 #define REG_MODE_1_ALL_MASK	(CAM_STBY_MASK | VIDEO_STBY_MASK |\
 				AUDIO_STBY_MASK | SD_STBY_MASK)
+
+/* switch mode setting */
+#define	SW1MODE_LSB	0
+#define	SW2MODE_LSB	10
+#define	SW3MODE_LSB	0
+#define	SW4MODE_LSB	8
+
+#define	SWMODE_MASK	0xF
+#define SWMODE_AUTO	0x8
 
 /* CPU */
 static struct regulator_consumer_supply sw1_consumers[] = {
@@ -330,6 +339,19 @@ static int mc13892_regulator_init(struct mc13892 *mc13892)
 	pmic_read_reg(REG_MODE_1, &value, 0xffffff);
 	value |= REG_MODE_1_ALL_MASK;
 	pmic_write_reg(REG_MODE_1, value, 0xffffff);
+
+	/* enable switch audo mode */
+	pmic_read_reg(REG_SW_4, &value, 0xffffff);
+	register_mask = (SWMODE_MASK << SW1MODE_LSB) | (SWMODE_MASK << SW2MODE_LSB);
+	value &= ~register_mask;
+	value |= (SWMODE_AUTO << SW1MODE_LSB) | (SWMODE_AUTO << SW2MODE_LSB);
+	pmic_write_reg(REG_SW_4, value, 0xffffff);
+
+	pmic_read_reg(REG_SW_5, &value, 0xffffff);
+	register_mask = (SWMODE_MASK << SW3MODE_LSB) | (SWMODE_MASK << SW4MODE_LSB);
+	value &= ~register_mask;
+	value |= (SWMODE_AUTO << SW3MODE_LSB) | (SWMODE_AUTO << SW4MODE_LSB);
+	pmic_write_reg(REG_SW_5, value, 0xffffff);
 
 	/* Enable coin cell charger */
 	value = BITFVAL(CIONCHEN, 1) | BITFVAL(VCOIN, VCOIN_3_0V);
