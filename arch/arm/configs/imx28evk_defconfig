@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # Linux kernel version: 2.6.31
-# Wed Jan 27 13:36:54 2010
+# Wed Jan 27 18:03:15 2010
 #
 CONFIG_ARM=y
 CONFIG_SYS_SUPPORTS_APM_EMULATION=y
@@ -202,6 +202,7 @@ CONFIG_MACH_MX28EVK=y
 CONFIG_MXS_ICOLL=y
 CONFIG_MXS_EARLY_CONSOLE=y
 CONFIG_MXS_DMA_ENGINE=y
+CONFIG_MXS_LRADC=y
 
 #
 # Processor Type
