@@ -385,6 +385,10 @@ if ARCH_MXC
 source "drivers/video/mxc/Kconfig"
 endif
 
+if ARCH_MXS
+source "drivers/video/mxs/Kconfig"
+endif
+
 config FB_SA1100
 	bool "SA-1100 LCD support"
 	depends on (FB = y) && ARM && ARCH_SA1100

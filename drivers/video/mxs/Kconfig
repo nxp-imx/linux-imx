@@ -1,0 +1,15 @@
+config FB_MXS
+	tristate "MXS Framebuffer driver"
+	depends on FB && ARCH_MX28
+	select FB_CFB_FILLRECT
+	select FB_CFB_COPYAREA
+	select FB_CFB_IMAGEBLIT
+	default y
+	---help---
+	  Say Y here to enable support for the framebuffer driver for the
+	  Freescale MXS Board.
+
+config FB_MXS_LCD_43WVF1G
+	depends on FB_MXS
+	tristate "SEIKO 4.3' LCD WVGA(800x480) PANEL"
+	default y

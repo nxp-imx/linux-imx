@@ -185,6 +185,18 @@ static struct platform_device mxs_fec[] = {
 };
 #endif
 
+#if defined(CONFIG_FB_MXS) || defined(CONFIG_FB_MXS_MODULE)
+static struct platform_device mxs_fb = {
+	.name	= "mxs-fb",
+	.id	= 0,
+	.dev = {
+		.dma_mask               = &common_dmamask,
+		.coherent_dma_mask      = DMA_BIT_MASK(32),
+		.release = mxs_nop_release,
+		},
+};
+#endif
+
 #if defined(CONFIG_BACKLIGHT_MXS) || \
 	defined(CONFIG_BACKLIGHT_MXS_MODULE)
 struct platform_device mxs_bl = {
@@ -286,7 +298,13 @@ static struct mxs_dev_lookup dev_lookup[] = {
 	 .pdev = &mxs_rtc,
 	 },
 #endif
-
+#if defined(CONFIG_FB_MXS) || defined(CONFIG_FB_MXS_MODULE)
+	{
+	 .name	= "mxs-fb",
+	 .size	= 1,
+	 .pdev	= &mxs_fb,
+	 },
+#endif
 #if defined(CONFIG_BACKLIGHT_MXS) || \
 	defined(CONFIG_BACKLIGHT_MXS_MODULE)
 	{

@@ -37,6 +37,7 @@
 #include <mach/device.h>
 #include <mach/dma.h>
 #include <mach/lradc.h>
+#include <mach/lcdif.h>
 
 #include "device.h"
 #include "mx28_pins.h"
@@ -119,6 +120,42 @@ static void __init mx28_init_dma(void)
 }
 #else
 static void mx28_init_dma(void)
+{
+	;
+}
+#endif
+
+#if defined(CONFIG_FB_MXS) || defined(CONFIG_FB_MXS_MODULE)
+static struct resource framebuffer_resource[] = {
+	{
+	 .flags = IORESOURCE_MEM,
+	 .start = LCDIF_PHYS_ADDR,
+	 .end   = LCDIF_PHYS_ADDR + 0x2000 - 1,
+	 },
+	{
+	 .flags = IORESOURCE_IRQ,
+	 .start = IRQ_LCDIF,
+	 .end   = IRQ_LCDIF,
+	 },
+};
+
+static struct mxs_platform_fb_data mxs_framebuffer_pdata = {
+	.list = LIST_HEAD_INIT(mxs_framebuffer_pdata.list),
+};
+
+static void __init mx28_init_lcdif(void)
+{
+	struct platform_device *pdev;
+	pdev = mxs_get_device("mxs-fb", 0);
+	if (pdev == NULL || IS_ERR(pdev))
+		return;
+	pdev->resource = framebuffer_resource;
+	pdev->num_resources = ARRAY_SIZE(framebuffer_resource);
+	pdev->dev.platform_data = &mxs_framebuffer_pdata;
+	mxs_add_device(pdev, 3);
+}
+#else
+static void __init mx28_init_lcdif(void)
 {
 	;
 }
@@ -726,6 +763,8 @@ int __init mx28_device_init(void)
 	mx28_init_fec();
 	mx28_init_kbd();
 	mx28_init_ts();
+	mx28_init_lcdif();
+
 	return 0;
 }
 
