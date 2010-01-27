@@ -264,9 +264,14 @@ static inline void _ipu_ch_param_init(int ch,
 	case IPU_PIX_FMT_NV12:
 		/* BPP & pixel format */
 		ipu_ch_param_set_field(&params, 1, 85, 4, 4);	/* pix format */
-		ipu_ch_param_set_field(&params, 1, 78, 7, 31);	/* burst size */
 		uv_stride = stride;
 		u_offset = (u == 0) ? stride * height : u;
+		if ((ch == 8) || (ch == 9) || (ch == 10)) {
+			ipu_ch_param_set_field(&params, 1, 78, 7, 15);  /* burst size */
+			uv_stride = uv_stride*2;
+		} else {
+			ipu_ch_param_set_field(&params, 1, 78, 7, 31);	/* burst size */
+		}
 		break;
 	default:
 		dev_err(g_ipu_dev, "mxc ipu: unimplemented pixel format\n");
