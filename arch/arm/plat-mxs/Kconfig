@@ -44,4 +44,11 @@ config MXS_DMA_ENGINE
 	help
 	  Support DMA controller on AHB-APBH and AHB-APBX Bridge
 
+config MXS_LRADC
+	bool "Low Resolution ADC support"
+	default y
+	depends on ARCH_MX28
+	help
+	  Enable LRADC support
+
 endif
