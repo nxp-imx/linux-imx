@@ -434,6 +434,40 @@ config I2C_MXC_HS
 
 	  This driver can also be built as a module.
 
+config I2C_MXS
+	tristate "MXS I2C Support"
+	depends on I2C && ARCH_MXS
+	help
+	  If you say yes to this option, support will be included for Freescale
+	  MXS I2C modules.
+
+config I2C_MXS_SELECT0
+	bool "Enable I2C0 module"
+	default y
+	depends on I2C_MXS
+	help
+	  Enable MXS I2C0 Module
+
+config I2C_MXS_SELECT0_PIOQUEUE_MODE
+	tristate "MXS I2C0 PIOQUEUE MODE Support"
+	depends on I2C_MXS_SELECT0
+	help
+	  say yes if you are sure transfer length is eqaul to or less than 24 bytes.
+	  Otherwise say no to use DMA mode by default.
+
+config I2C_MXS_SELECT1
+	bool "Enable I2C1 module"
+	depends on I2C_MXS
+	help
+	  Enable MXS I2C1 Module
+
+config I2C_MXS_SELECT1_PIOQUEUE_MODE
+	tristate "MXS I2C1 PIOQUEUE MODE Support"
+	depends on I2C_MXS_SELECT1
+	help
+	  say yes if you are sure transfer length is eqaul to or less than 24 bytes.
+	  Otherwise say no to use DMA mode by default.
+
 config I2C_STMP378X
 	tristate "STMP378x I2C adapter"
 	depends on MACH_STMP378X

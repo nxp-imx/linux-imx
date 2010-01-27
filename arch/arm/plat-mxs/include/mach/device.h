@@ -53,6 +53,10 @@ struct mxs_dma_plat_data {
 	unsigned int chan_num;
 };
 
+struct mxs_i2c_plat_data {
+	unsigned int pioqueue_mode:1;
+};
+
 extern void mxs_timer_init(struct mxs_sys_timer *timer);
 
 extern void mxs_nop_release(struct device *dev);

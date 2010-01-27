@@ -110,6 +110,34 @@ static struct platform_device mxs_dma[] = {
 };
 #endif
 
+#if defined(CONFIG_I2C_MXS) || \
+	defined(CONFIG_I2C_MXS_MODULE)
+static struct platform_device mxs_i2c[] = {
+#if defined(CONFIG_I2C_MXS_SELECT0)
+	{
+	 .name	= "mxs-i2c",
+	 .id	= 0,
+	 .dev = {
+		.dma_mask               = &common_dmamask,
+		.coherent_dma_mask      = DMA_BIT_MASK(32),
+		.release = mxs_nop_release,
+		},
+	 },
+#endif
+#if defined(CONFIG_I2C_MXS_SELECT1)
+	{
+	 .name	= "mxs-i2c",
+	 .id	= 1,
+	 .dev = {
+		.dma_mask               = &common_dmamask,
+		.coherent_dma_mask      = DMA_BIT_MASK(32),
+		.release = mxs_nop_release,
+		},
+	 },
+#endif
+};
+#endif
+
 #if defined(CONFIG_MMC_MXS) || \
 	defined(CONFIG_MMC_MXS_MODULE)
 static struct platform_device mxs_mmc[] = {
@@ -168,6 +196,15 @@ static struct mxs_dev_lookup dev_lookup[] = {
 	 .name = "mxs-dma",
 	 .size = ARRAY_SIZE(mxs_dma),
 	 .pdev = mxs_dma,
+	 },
+#endif
+
+#if defined(CONFIG_I2C_MXS) || \
+	defined(CONFIG_I2C_MXS_MODULE)
+	{
+	 .name	= "mxs-i2c",
+	 .size	= ARRAY_SIZE(mxs_i2c),
+	 .pdev	= mxs_i2c,
 	 },
 #endif
 

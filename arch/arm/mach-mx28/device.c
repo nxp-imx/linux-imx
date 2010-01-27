@@ -119,6 +119,108 @@ static void mx28_init_dma(void)
 }
 #endif
 
+#if defined(CONFIG_I2C_MXS) || \
+	defined(CONFIG_I2C_MXS_MODULE)
+#ifdef	CONFIG_I2C_MXS_SELECT0
+static struct resource i2c0_resource[] = {
+	{
+	 .flags = IORESOURCE_MEM,
+	 .start = I2C0_PHYS_ADDR,
+	 .end   = I2C0_PHYS_ADDR + 0x2000 - 1,
+	 },
+	{
+	 .flags = IORESOURCE_DMA,
+	 .start = MXS_DMA_CHANNEL_AHB_APBX_I2C0,
+	 .end   = MXS_DMA_CHANNEL_AHB_APBX_I2C0,
+	 },
+	{
+	 .flags = IORESOURCE_IRQ,
+	 .start = IRQ_I2C0_ERROR,
+	 .end   = IRQ_I2C0_ERROR,
+	 },
+	{
+	 .flags = IORESOURCE_IRQ,
+	 .start = IRQ_I2C0_DMA,
+	 .end   = IRQ_I2C0_DMA,
+	 },
+};
+
+static struct mxs_i2c_plat_data i2c0_platdata = {
+#ifdef	CONFIG_I2C_MXS_SELECT0_PIOQUEUE_MODE
+	.pioqueue_mode = 1,
+#endif
+};
+#endif
+
+#ifdef	CONFIG_I2C_MXS_SELECT1
+static struct resource i2c1_resource[] = {
+	{
+	 .flags = IORESOURCE_MEM,
+	 .start = I2C1_PHYS_ADDR,
+	 .end   = I2C1_PHYS_ADDR + 0x2000 - 1,
+	 },
+	{
+	 .flags = IORESOURCE_DMA,
+	 .start = MXS_DMA_CHANNEL_AHB_APBX_I2C1,
+	 .end   = MXS_DMA_CHANNEL_AHB_APBX_I2C1,
+	 },
+	{
+	 .flags = IORESOURCE_IRQ,
+	 .start = IRQ_I2C1_ERROR,
+	 .end   = IRQ_I2C1_ERROR,
+	 },
+	{
+	 .flags = IORESOURCE_IRQ,
+	 .start = IRQ_I2C1_DMA,
+	 .end   = IRQ_I2C1_DMA,
+	 },
+};
+
+static struct mxs_i2c_plat_data i2c1_platdata = {
+#ifdef	CONFIG_I2C_MXS_SELECT1_PIOQUEUE_MODE
+	.pioqueue_mode = 1,
+#endif
+};
+#endif
+
+static void __init mx28_init_i2c(void)
+{
+	int i;
+	struct mxs_dev_lookup *lookup;
+	struct platform_device *pdev;
+
+	lookup = mxs_get_devices("mxs-i2c");
+	if (lookup == NULL || IS_ERR(lookup))
+		return;
+	for (i = 0; i < lookup->size; i++) {
+		pdev = lookup->pdev + i;
+		switch (pdev->id) {
+#ifdef	CONFIG_I2C_MXS_SELECT0
+		case 0:
+			pdev->resource = i2c0_resource;
+			pdev->num_resources = ARRAY_SIZE(i2c0_resource);
+			pdev->dev.platform_data = &i2c0_platdata;
+			break;
+#endif
+#ifdef	CONFIG_I2C_MXS_SELECT1
+		case 1:
+			pdev->resource = i2c1_resource;
+			pdev->num_resources = ARRAY_SIZE(i2c1_resource);
+			pdev->dev.platform_data = &i2c1_platdata;
+			break;
+#endif
+		default:
+			return;
+		}
+		mxs_add_device(pdev, 2);
+	}
+}
+#else
+static void __init mx28_init_i2c(void)
+{
+}
+#endif
+
 #if defined(CONFIG_MMC_MXS) || defined(CONFIG_MMC_MXS_MODULE)
 #if defined(CONFIG_MACH_MX28EVK)
 #define MMC0_POWER	MXS_PIN_TO_GPIO(PINID_PWM3)
@@ -425,6 +527,7 @@ int __init mx28_device_init(void)
 {
 	mx28_init_dma();
 	mx28_init_duart();
+	mx28_init_i2c();
 	mx28_init_mmc();
 	mx28_init_wdt();
 	mx28_init_rtc();

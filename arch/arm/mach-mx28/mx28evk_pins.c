@@ -37,6 +37,25 @@ static struct pin_desc mx28evk_fixed_pins[] = {
 	 .id = PINID_PWM1,
 	 .fun = PIN_FUN3,
 	 },
+#if defined(CONFIG_I2C_MXS) || \
+	defined(CONFIG_I2C_MXS_MODULE)
+	{
+	 .name = "I2C0_SCL",
+	 .id = PINID_I2C0_SCL,
+	 .fun = PIN_FUN1,
+	 .strength = PAD_8MA,
+	 .voltage = PAD_3_3V,
+	 .drive	= 1,
+	 },
+	{
+	 .name = "I2C0_SDA",
+	 .id = PINID_I2C0_SDA,
+	 .fun = PIN_FUN1,
+	 .strength = PAD_8MA,
+	 .voltage = PAD_3_3V,
+	 .drive	= 1,
+	 },
+#endif
 #if defined(CONFIG_MMC_MXS) || defined(CONFIG_MMC_MXS_MODULE)
 	/* Configurations of SSP0 SD/MMC port pins */
 	{
