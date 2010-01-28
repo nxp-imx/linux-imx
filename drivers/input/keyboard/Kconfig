@@ -382,6 +382,12 @@ config KEYBOARD_STMP3XXX
 	help
 	 -to be written-
 
+config KEYBOARD_MXS
+	tristate "MXS keyboard"
+	depends on ARCH_MXS
+	help
+	  This is the Keypad driver for the Freescale mxs soc
+
 
 config KEYBOARD_MC9S08DZ60
 	tristate "mc9s08dz60 keyboard"
