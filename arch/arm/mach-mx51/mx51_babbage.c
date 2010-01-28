@@ -1,5 +1,5 @@
 /*
- * Copyright 2009 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2009-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -421,6 +421,10 @@ static int __init mxc_init_fb(void)
 		 * 3. TVE       YUV	   video_modes[0]
 		 */
 		(void)platform_device_register(&mxc_fb_device[1]);
+		mxc_fb_device[0].num_resources = 0;
+		mxc_fb_device[0].resource = NULL;
+		mxc_fb_device[1].num_resources = ARRAY_SIZE(mxcfb_resources);
+		mxc_fb_device[1].resource = mxcfb_resources;
 		if (fb_data[0].mode_str || fb_data[0].mode)
 			/*
 			 * DI0 -> DC channel:
