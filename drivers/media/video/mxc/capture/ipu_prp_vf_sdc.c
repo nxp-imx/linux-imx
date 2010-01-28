@@ -96,6 +96,10 @@ static int prpvf_start(void *private)
 	ipu_disp_set_window_pos(MEM_FG_SYNC, cam->win.w.left,
 			cam->win.w.top);
 
+	acquire_console_sem();
+	fb_blank(fbi, FB_BLANK_UNBLANK);
+	release_console_sem();
+
 	memset(&vf, 0, sizeof(ipu_channel_params_t));
 	ipu_csi_get_window_size(&vf.csi_prp_vf_mem.in_width,
 				&vf.csi_prp_vf_mem.in_height, cam->csi);
@@ -252,10 +256,6 @@ static int prpvf_start(void *private)
 		ipu_select_buffer(CSI_PRP_VF_MEM, IPU_OUTPUT_BUFFER, 0);
 		ipu_select_buffer(CSI_PRP_VF_MEM, IPU_OUTPUT_BUFFER, 1);
 	}
-
-	acquire_console_sem();
-	fb_blank(fbi, FB_BLANK_UNBLANK);
-	release_console_sem();
 
 	cam->overlay_active = true;
 	return err;
