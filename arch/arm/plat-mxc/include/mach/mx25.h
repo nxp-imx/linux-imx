@@ -1,5 +1,5 @@
 /*
- * Copyright 2008-2009 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2008-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -196,7 +196,7 @@
 #define EPIT2_BASE_ADDR     (AIPS2_BASE_ADDR + 0x00098000)
 #define GPIO4_BASE_ADDR     (AIPS2_BASE_ADDR + 0x0009C000)
 #define PWM2_BASE_ADDR      (AIPS2_BASE_ADDR + 0x000A0000)
-#define GPIO3_BASE_ADDR     (AIPS2_BASE_ADDR + 0x000AD000)
+#define GPIO3_BASE_ADDR     (AIPS2_BASE_ADDR + 0x000A4000)
 #define PWM3_BASE_ADDR      (AIPS2_BASE_ADDR + 0x000A8000)
 #define SCC_BASE_ADDR       (AIPS2_BASE_ADDR + 0x000AC000)
 #define RNGB_BASE_ADDR      (AIPS2_BASE_ADDR + 0x000B0000)
