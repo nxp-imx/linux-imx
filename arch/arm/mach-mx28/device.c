@@ -23,6 +23,7 @@
 #include <linux/err.h>
 #include <linux/io.h>
 #include <linux/delay.h>
+#include <linux/input.h>
 #include <linux/platform_device.h>
 #include <linux/mmc/host.h>
 #include <linux/phy.h>
@@ -609,6 +610,58 @@ static void __init mx28_init_lradc(void)
 }
 #endif
 
+#if defined(CONFIG_KEYBOARD_MXS) || defined(CONFIG_KEYBOARD_MXS_MODULE)
+static struct mxskbd_keypair keyboard_data[] = {
+	{ 100, KEY_F4 },
+	{ 306, KEY_F5 },
+	{ 626, KEY_F6 },
+	{ 932, KEY_F7 },
+	{ 1260, KEY_F8 },
+	{ 1584, KEY_F9 },
+	{ 1907, KEY_F10 },
+	{ 2207, KEY_F11 },
+	{ 2525, KEY_F12 },
+	{ 2831, KEY_F13},
+	{ 3134, KEY_F14 },
+	{ -1, 0 },
+};
+
+static struct mxs_kbd_plat_data mxs_kbd_data = {
+	.keypair = keyboard_data,
+	.channel = LRADC_CH1,
+};
+
+static struct resource mx28_kbd_res[] = {
+	{
+	 .flags = IORESOURCE_MEM,
+	 .start = LRADC_PHYS_ADDR,
+	 .end   = LRADC_PHYS_ADDR + 0x2000 - 1,
+	 },
+	{
+	 .flags = IORESOURCE_IRQ,
+	 .start = IRQ_LRADC_CH1,
+	 .end   = IRQ_LRADC_CH1,
+	 },
+};
+
+static void __init mx28_init_kbd(void)
+{
+	struct platform_device *pdev;
+	pdev = mxs_get_device("mxs-kbd", 0);
+	if (pdev == NULL || IS_ERR(pdev))
+		return;
+	pdev->resource = mx28_kbd_res;
+	pdev->num_resources = ARRAY_SIZE(mx28_kbd_res);
+	pdev->dev.platform_data = &mxs_kbd_data;
+	mxs_add_device(pdev, 3);
+}
+#else
+static void __init mx28_init_kbd(void)
+{
+	;
+}
+#endif
+
 int __init mx28_device_init(void)
 {
 	mx28_init_dma();
@@ -619,6 +672,7 @@ int __init mx28_device_init(void)
 	mx28_init_wdt();
 	mx28_init_rtc();
 	mx28_init_fec();
+	mx28_init_kbd();
 	return 0;
 }
 

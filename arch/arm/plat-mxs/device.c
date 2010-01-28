@@ -216,6 +216,16 @@ static struct platform_device mxs_lradc = {
 };
 #endif
 
+#if defined(CONFIG_KEYBOARD_MXS) || defined(CONFIG_KEYBOARD_MXS_MODULE)
+static struct platform_device mxs_kbd = {
+	.name = "mxs-kbd",
+	.id = 0,
+	.dev = {
+		.release = mxs_nop_release,
+		},
+};
+#endif
+
 static struct mxs_dev_lookup dev_lookup[] = {
 #if defined(CONFIG_SERIAL_MXS_DUART) || \
 	defined(CONFIG_SERIAL_MXS_DUART_MODULE)
@@ -289,6 +299,14 @@ static struct mxs_dev_lookup dev_lookup[] = {
 	 .name = "mxs-lradc",
 	 .size = 1,
 	 .pdev = &mxs_lradc,
+	 },
+#endif
+
+#if defined(CONFIG_KEYBOARD_MXS) || defined(CONFIG_KEYBOARD_MXS_MODULE)
+	{
+	 .name = "mxs-kbd",
+	 .size = 1,
+	 .pdev = &mxs_kbd,
 	 },
 #endif
 };

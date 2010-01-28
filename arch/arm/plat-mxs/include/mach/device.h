@@ -62,6 +62,16 @@ struct mxs_lradc_plat_data {
 	unsigned int battery_voltage;
 };
 
+struct mxskbd_keypair {
+	int raw;
+	int kcode;
+};
+
+struct mxs_kbd_plat_data {
+	struct mxskbd_keypair *keypair;
+	int channel;
+};
+
 extern void mxs_timer_init(struct mxs_sys_timer *timer);
 
 extern void mxs_nop_release(struct device *dev);
