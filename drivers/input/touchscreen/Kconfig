@@ -257,6 +257,14 @@ config TOUCHSCREEN_STMP3XXX
 	  Say Y here if you want to enable TMP3XXX LRADC-based touchscreen.
 	  module will be called stmp3xxx_ts.
 
+config TOUCHSCREEN_MXS
+	tristate "MXS LRADC-based touchscreen"
+	depends on ARCH_MXS
+	select SERIO
+	help
+	  Say Y here if you want to enable MXS LRADC-based touchscreen.
+	  module will be called mxs-ts.
+
 config TOUCHSCREEN_HTCPEN
 	tristate "HTC Shift X9500 touchscreen"
 	depends on ISA
