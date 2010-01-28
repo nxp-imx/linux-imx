@@ -4,5 +4,6 @@ choice
 config MACH_MX28EVK
 	bool "Freescale MX28 EVK board"
 	depends on ARCH_MX28
+	select USB_ARCH_HAS_EHCI
 
 endchoice

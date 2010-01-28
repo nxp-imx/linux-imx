@@ -27,8 +27,10 @@
 #include <mach/clock.h>
 
 #include "regs-clkctrl.h"
+#include "regs-digctl.h"
 
 #define CLKCTRL_BASE_ADDR IO_ADDRESS(CLKCTRL_PHYS_ADDR)
+#define DIGCTRL_BASE_ADDR IO_ADDRESS(DIGCTL_PHYS_ADDR)
 
 /* external clock input */
 static struct clk xtal_clk[];
@@ -751,6 +753,24 @@ static struct clk pcmspdif_clk = {
 	.enable_bits = BM_CLKCTRL_SPDIF_CLKGATE,
 };
 
+/* usb_clk for usb0 */
+static struct clk usb_clk0 = {
+	.parent = &pll_clk[0],
+	.enable = mx28_raw_enable,
+	.disable = mx28_raw_disable,
+	.enable_reg = DIGCTRL_BASE_ADDR + HW_DIGCTL_CTRL,
+	.enable_bits = BM_DIGCTL_CTRL_USB0_CLKGATE,
+};
+
+/* usb_clk for usb1 */
+static struct clk usb_clk1 = {
+	.parent = &pll_clk[1],
+	.enable = mx28_raw_enable,
+	.disable = mx28_raw_disable,
+	.enable_reg = DIGCTRL_BASE_ADDR + HW_DIGCTL_CTRL,
+	.enable_bits = BM_DIGCTL_CTRL_USB1_CLKGATE,
+};
+
 static struct clk enet_out_clk = {
 	.parent = &pll_clk[2],
 	.enable = mx28_raw_enable,
@@ -908,6 +928,14 @@ static struct clk_lookup onchip_clocks[] = {
 	 .con_id = "flexcan.1",
 	 .clk = &flexcan_clk[1],
 	 },
+	{
+	.con_id = "usb_clk0",
+	.clk = &usb_clk0,
+	},
+	{
+	.con_id = "usb_clk1",
+	.clk = &usb_clk1,
+	},
 	{
 	.con_id = "fec_clk",
 	.clk = &enet_out_clk,

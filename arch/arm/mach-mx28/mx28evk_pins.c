@@ -37,6 +37,19 @@ static struct pin_desc mx28evk_fixed_pins[] = {
 	 .id = PINID_PWM1,
 	 .fun = PIN_FUN3,
 	 },
+	{
+	 .name = "usb0",
+	 .id = PINID_AUART2_TX,
+	 .fun = PIN_GPIO,
+	 .data = 1,
+	 },
+	 {
+	 .name  = "usb1",
+	 .id    = PINID_AUART2_RX,
+	 .fun   = PIN_GPIO,
+	 .data  = 1,
+	 },
+
 #if defined(CONFIG_I2C_MXS) || \
 	defined(CONFIG_I2C_MXS_MODULE)
 	{

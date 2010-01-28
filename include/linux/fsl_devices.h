@@ -1,17 +1,19 @@
 /*
- * include/linux/fsl_devices.h
+ * Copyright (C) 2009-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  *
- * Definitions for any platform device related flags or structures for
- * Freescale processor devices
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
  *
- * Maintainer: Kumar Gala <galak@kernel.crashing.org>
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
  *
- * Copyright 2004, 2009 Freescale Semiconductor, Inc
- *
- * This program is free software; you can redistribute  it and/or modify it
- * under  the terms of  the GNU General  Public License as published by the
- * Free Software Foundation;  either version 2 of the  License, or (at your
- * option) any later version.
+ * You should have received a copy of the GNU General Public License along
+ * with this program; if not, write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
 #ifndef _FSL_DEVICE_H_
@@ -78,6 +80,7 @@ struct fsl_usb2_platform_data {
 	int (*platform_init) (struct platform_device *);
 	void (*platform_uninit) (struct fsl_usb2_platform_data *);
 	void __iomem *regs;	/* ioremap'd register base */
+	u32 phy_regs;	/* usb phy register base */
 	u32 xcvr_type;		/* PORTSC_PTS_* */
 	char *transceiver;	/* transceiver name */
 	unsigned power_budget;	/* for hcd->power_budget */
