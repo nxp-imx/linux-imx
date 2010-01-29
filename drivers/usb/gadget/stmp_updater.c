@@ -1,7 +1,7 @@
 /*
  * Freescale STMP378X UUT driver
  *
- * Copyright 2008-2009 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2008-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  * Copyright 2008-2009 Embedded Alley Solutions, Inc All Rights Reserved.
  */
 
@@ -22,9 +22,12 @@ static u64 get_be64(u8 *buf)
 static int utp_init(struct fsg_dev *fsg)
 {
 	init_waitqueue_head(&utp_context.wq);
+	init_waitqueue_head(&utp_context.list_full_wq);
+
 	INIT_LIST_HEAD(&utp_context.read);
 	INIT_LIST_HEAD(&utp_context.write);
 	mutex_init(&utp_context.lock);
+
 	utp_context.buffer = vmalloc(0x10000);
 	if (!utp_context.buffer)
 		return -EIO;
@@ -53,8 +56,22 @@ static struct utp_user_data *utp_user_data_alloc(size_t size)
 
 static void utp_user_data_free(struct utp_user_data *uud)
 {
+	mutex_lock(&utp_context.lock);
 	list_del(&uud->link);
+	mutex_unlock(&utp_context.lock);
 	kfree(uud);
+}
+
+static u32 count_list(struct list_head *l)
+{
+	u32 count = 0;
+	struct list_head *tmp;
+
+	list_for_each(tmp, l) {
+		count++;
+	}
+
+	return count;
 }
 
 #define WAIT_ACTIVITY(queue) \
@@ -75,6 +92,7 @@ static ssize_t utp_file_read(struct file *file,
 	uud = list_first_entry(&utp_context.read, struct utp_user_data, link);
 	mutex_unlock(&utp_context.lock);
 	size_to_put = uud->data.size;
+
 	if (size >= size_to_put)
 		free = !0;
 	if (copy_to_user(buf, &uud->data, size_to_put))
@@ -89,6 +107,8 @@ static ssize_t utp_file_read(struct file *file,
 		pr_err("Will not free utp_user_data, because buffer size = %d,"
 			"need to put %d\n", size, size_to_put);
 	}
+
+	wake_up(&utp_context.list_full_wq);
 
 	return size_to_put;
 }
@@ -470,6 +490,9 @@ static int utp_handle_message(struct fsg_dev *fsg,
 		mutex_unlock(&UTP_CTX(fsg)->lock);
 		wake_up(&UTP_CTX(fsg)->wq);
 		UTP_SS_PASS(fsg);
+
+		wait_event_interruptible(UTP_CTX(fsg)->list_full_wq,
+			count_list(&UTP_CTX(fsg)->read) < 7);
 		break;
 	}
 

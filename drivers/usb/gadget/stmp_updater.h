@@ -1,7 +1,7 @@
 /*
  * Freescale STMP378X UUT driver
  *
- * Copyright 2008-2009 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2008-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  * Copyright 2008-2009 Embedded Alley Solutions, Inc All Rights Reserved.
  */
 
@@ -82,6 +82,7 @@ enum utp_msg_type {
 
 static struct utp_context {
 	wait_queue_head_t wq;
+	wait_queue_head_t list_full_wq;
 	struct mutex lock;
 	struct list_head read;
 	struct list_head write;
