@@ -37,6 +37,50 @@ static struct pin_desc mx28evk_fixed_pins[] = {
 	 .id = PINID_PWM1,
 	 .fun = PIN_FUN3,
 	 },
+#ifdef CONFIG_MXS_AUART0_DEVICE_ENABLE
+	{
+	 .name  = "AUART0.RX",
+	 .id    = PINID_AUART0_RX,
+	 .fun   = PIN_FUN1,
+	 },
+	{
+	 .name  = "AUART0.TX",
+	 .id    = PINID_AUART0_TX,
+	 .fun   = PIN_FUN1,
+	 },
+	{
+	 .name  = "AUART0.CTS",
+	 .id    = PINID_AUART0_CTS,
+	 .fun   = PIN_FUN1,
+	 },
+	{
+	 .name  = "AUART0.RTS",
+	 .id    = PINID_AUART0_RTS,
+	 .fun   = PIN_FUN1,
+	 },
+#endif
+#ifdef CONFIG_MXS_AUART3_DEVICE_ENABLE
+	{
+	 .name  = "AUART3.RX",
+	 .id    = PINID_AUART3_RX,
+	 .fun   = PIN_FUN1,
+	 },
+	{
+	 .name  = "AUART3.TX",
+	 .id    = PINID_AUART3_TX,
+	 .fun   = PIN_FUN1,
+	 },
+	{
+	 .name  = "AUART3.CTS",
+	 .id    = PINID_AUART3_CTS,
+	 .fun   = PIN_FUN1,
+	 },
+	{
+	 .name  = "AUART3.RTS",
+	 .id    = PINID_AUART3_RTS,
+	 .fun   = PIN_FUN1,
+	 },
+#endif
 	{
 	 .name = "usb0",
 	 .id = PINID_AUART2_TX,

@@ -53,7 +53,7 @@ struct mxs_dma_cmd {
 		struct mxs_dma_cmd_bits bits;
 	} cmd;
 	union {
-		unsigned long address;
+		dma_addr_t address;
 		unsigned long alternate;
 	};
 	unsigned long pio_words[DMA_PIO_WORDS];

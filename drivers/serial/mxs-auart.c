@@ -37,543 +37,451 @@
 #include <linux/uaccess.h>
 
 #include <asm/cacheflush.h>
+
 #include <mach/hardware.h>
-#include <mach/regs-apbx.h>
-#include <mach/regs-uartapp.h>
-#include <mach/regs-pinctrl.h>
-#include <mach/stmp3xxx.h>
-#include <mach/platform.h>
+#include <mach/device.h>
+#include <mach/dmaengine.h>
 
-#include <asm/mach-types.h>
+#include "regs-uartapp.h"
 
-#include "stmp-app.h"
+#define MXS_AUART_MAJOR	242
+#define MXS_AUART_RX_THRESHOLD 16
 
-static int pio_mode /* = 0 */; 	/* PIO mode = 1, DMA mode = 0	*/
+struct mxs_auart_port {
+	struct uart_port port;
 
-static struct platform_driver stmp_appuart_driver = {
-	.probe = stmp_appuart_probe,
-	.remove = __devexit_p(stmp_appuart_remove),
-	.suspend = stmp_appuart_suspend,
-	.resume = stmp_appuart_resume,
-	.driver = {
-		.name = "stmp3xxx-appuart",
-		.owner = THIS_MODULE,
-	},
+	unsigned int flags;
+#define MXS_AUART_PORT_OPEN	0x80000000
+#define MXS_AUART_PORT_DMA_MODE	0x80000000
+	unsigned int ctrl;
+
+	unsigned int irq[3];
+
+	struct clk *clk;
+	struct device *dev;
+	unsigned int dma_rx_chan;
+	unsigned int dma_tx_chan;
+	struct list_head rx_done;
+	struct list_head free;
+	struct mxs_dma_desc *tx;
+	struct tasklet_struct rx_task;
 };
 
-static struct uart_driver stmp_appuart_uart = {
-	.owner = THIS_MODULE,
-	.driver_name = "appuart",
-	.dev_name = "ttySP",
-	.major = 242,
-	.minor = 0,
-	.nr = 1,
-};
+static void mxs_auart_stop_tx(struct uart_port *u);
+static void mxs_auart_submit_tx(struct mxs_auart_port *s, int size);
+static void mxs_auart_submit_rx(struct mxs_auart_port *s);
 
-static inline struct stmp_appuart_port *to_appuart(struct uart_port *u)
+static inline struct mxs_auart_port *to_auart_port(struct uart_port *u)
 {
-	return container_of(u, struct stmp_appuart_port, port);
+	return container_of(u, struct mxs_auart_port, port);
 }
 
-static struct uart_ops stmp_appuart_ops = {
-	.tx_empty       = stmp_appuart_tx_empty,
-	.start_tx       = stmp_appuart_start_tx,
-	.stop_tx	= stmp_appuart_stop_tx,
-	.stop_rx	= stmp_appuart_stop_rx,
-	.enable_ms      = stmp_appuart_enable_ms,
-	.break_ctl      = stmp_appuart_break_ctl,
-	.set_mctrl	= stmp_appuart_set_mctrl,
-	.get_mctrl      = stmp_appuart_get_mctrl,
-	.startup	= stmp_appuart_startup,
-	.shutdown       = stmp_appuart_shutdown,
-	.set_termios    = stmp_appuart_settermios,
-	.type	   	= stmp_appuart_type,
-	.release_port   = stmp_appuart_release_port,
-	.request_port   = stmp_appuart_request_port,
-	.config_port    = stmp_appuart_config_port,
-	.verify_port    = stmp_appuart_verify_port,
-};
-
-static inline int chr(int c)
+static inline void mxs_auart_tx_chars(struct mxs_auart_port *s)
 {
-	if (c < 0x20 || c > 0x7F)
-		return '#';
-	return c;
+	struct circ_buf *xmit = &s->port.info->xmit;
+
+	if (s->flags & MXS_AUART_PORT_DMA_MODE) {
+		int i = 0, size;
+		char *buffer = s->tx->buffer;
+
+		if (mxs_dma_desc_pending(s->tx))
+			return;
+		while (!uart_circ_empty(xmit) && !uart_tx_stopped(&s->port)) {
+			if (i >= PAGE_SIZE)
+				break;
+			if (s->port.x_char) {
+				buffer[i++] = s->port.x_char;
+				s->port.x_char = 0;
+				continue;
+			}
+			size = min_t(u32, PAGE_SIZE - i,
+				     CIRC_CNT_TO_END(xmit->head,
+						     xmit->tail,
+						     UART_XMIT_SIZE));
+			memcpy(buffer + i, xmit->buf + xmit->tail, size);
+			xmit->tail = (xmit->tail + size) & (UART_XMIT_SIZE - 1);
+			if (uart_circ_chars_pending(xmit) < WAKEUP_CHARS)
+				uart_write_wakeup(&s->port);
+			i += size;
+		}
+		if (i)
+			mxs_auart_submit_tx(s, i);
+		else {
+			if (uart_tx_stopped(&s->port))
+				mxs_auart_stop_tx(&s->port);
+		}
+		return;
+	}
+
+	while (!(__raw_readl(s->port.membase + HW_UARTAPP_STAT) &
+		 BM_UARTAPP_STAT_TXFF)) {
+		if (s->port.x_char) {
+			__raw_writel(s->port.x_char,
+				     s->port.membase + HW_UARTAPP_DATA);
+			s->port.x_char = 0;
+			continue;
+		}
+		if (!uart_circ_empty(xmit) && !uart_tx_stopped(&s->port)) {
+			__raw_writel(xmit->buf[xmit->tail],
+				     s->port.membase + HW_UARTAPP_DATA);
+			xmit->tail = (xmit->tail + 1) & (UART_XMIT_SIZE - 1);
+			if (uart_circ_chars_pending(xmit) < WAKEUP_CHARS)
+				uart_write_wakeup(&s->port);
+		} else
+			break;
+	}
+	if (uart_circ_empty(&(s->port.info->xmit)))
+		__raw_writel(BM_UARTAPP_INTR_TXIEN,
+			     s->port.membase + HW_UARTAPP_INTR_CLR);
+	else
+		__raw_writel(BM_UARTAPP_INTR_TXIEN,
+			     s->port.membase + HW_UARTAPP_INTR_SET);
+
+	if (uart_tx_stopped(&s->port))
+		mxs_auart_stop_tx(&s->port);
+}
+
+static inline unsigned int
+mxs_auart_rx_char(struct mxs_auart_port *s, unsigned int stat, u8 c)
+{
+	int flag;
+
+	flag = TTY_NORMAL;
+	if (stat & BM_UARTAPP_STAT_BERR) {
+		stat &= ~BM_UARTAPP_STAT_BERR;
+		s->port.icount.brk++;
+		if (uart_handle_break(&s->port))
+			return stat;
+		flag = TTY_BREAK;
+	} else if (stat & BM_UARTAPP_STAT_PERR) {
+		stat &= ~BM_UARTAPP_STAT_PERR;
+		s->port.icount.parity++;
+		flag = TTY_PARITY;
+	} else if (stat & BM_UARTAPP_STAT_FERR) {
+		stat &= ~BM_UARTAPP_STAT_FERR;
+		s->port.icount.frame++;
+		flag = TTY_FRAME;
+	}
+
+	if (stat & BM_UARTAPP_STAT_OERR)
+		s->port.icount.overrun++;
+
+	if (uart_handle_sysrq_char(&s->port, c))
+		return stat;
+
+	uart_insert_char(&s->port, stat, BM_UARTAPP_STAT_OERR, c, flag);
+	return stat;
+}
+
+static void mxs_auart_rx_chars(struct mxs_auart_port *s)
+{
+	u8 c;
+	struct tty_struct *tty = s->port.info->port.tty;
+	u32 stat = 0;
+
+	if (s->flags & MXS_AUART_PORT_DMA_MODE) {
+		int i, count;
+		struct list_head *p, *q;
+		LIST_HEAD(list);
+		struct mxs_dma_desc *pdesc;
+		mxs_dma_cooked(s->dma_rx_chan, &list);
+		stat = __raw_readl(s->port.membase + HW_UARTAPP_STAT);
+		list_for_each_safe(p, q, &list) {
+			u8 *buffer;
+			list_del(p);
+			pdesc = list_entry(p, struct mxs_dma_desc, node);
+			count = stat & BM_UARTAPP_STAT_RXCOUNT;
+			buffer = pdesc->buffer;
+			for (i = 0; i < count; i++)
+				stat = mxs_auart_rx_char(s, stat, buffer[i]);
+			list_add(p, &s->free);
+			stat = __raw_readl(s->port.membase + HW_UARTAPP_STAT);
+		}
+		mxs_auart_submit_rx(s);
+		goto out;
+	}
+	for (;;) {
+		stat = __raw_readl(s->port.membase + HW_UARTAPP_STAT);
+		if (stat & BM_UARTAPP_STAT_RXFE)
+			break;
+		c = __raw_readl(s->port.membase + HW_UARTAPP_DATA);
+		stat = mxs_auart_rx_char(s, stat, c);
+		__raw_writel(stat, s->port.membase + HW_UARTAPP_STAT);
+	}
+out:
+	__raw_writel(stat, s->port.membase + HW_UARTAPP_STAT);
+	tty_flip_buffer_push(tty);
 }
 
 /* Allocate and initialize rx and tx DMA chains */
-static inline int stmp_appuart_dma_init(struct stmp_appuart_port *s)
+static int mxs_auart_dma_init(struct mxs_auart_port *s)
 {
-	int err = 0;
-	struct stmp3xxx_dma_descriptor *t = &s->tx_desc;
-#ifndef RX_CHAIN
-	struct stmp3xxx_dma_descriptor *r = &s->rx_desc;
-#else
-	int i;
-#endif
+	int ret, i;
+	struct list_head *p, *n;
+	struct mxs_dma_desc *pdesc;
 
-	err = stmp3xxx_dma_request(s->dma_rx, s->dev, dev_name(s->dev));
-	if (err)
-		goto out;
-	err = stmp3xxx_dma_request(s->dma_tx, s->dev, dev_name(s->dev));
-	if (err)
-		goto out1;
+	ret = mxs_dma_request(s->dma_rx_chan, s->dev, dev_name(s->dev));
+	if (ret)
+		goto fail_get_dma_rx;
+	ret = mxs_dma_request(s->dma_tx_chan, s->dev, dev_name(s->dev));
+	if (ret)
+		goto fail_get_dma_tx;
+	ret = -ENOMEM;
+	INIT_LIST_HEAD(&s->rx_done);
+	INIT_LIST_HEAD(&s->free);
+	s->tx = NULL;
 
-#ifndef RX_CHAIN
-	err = stmp3xxx_dma_allocate_command(s->dma_rx, r);
-	if (err)
-		goto out2;
-#endif
-	err = stmp3xxx_dma_allocate_command(s->dma_tx, t);
-	if (err)
-		goto out3;
-	t->virtual_buf_ptr = dma_alloc_coherent(s->dev,
-						TX_BUFFER_SIZE,
-						&t->command->buf_ptr, GFP_DMA);
-	if (!t->virtual_buf_ptr)
-		goto out4;
-#ifdef DEBUG
-	memset(t->virtual_buf_ptr, 0x4B, TX_BUFFER_SIZE);
-#endif
 
-#ifndef RX_CHAIN
-	r->virtual_buf_ptr = dma_alloc_coherent(s->dev,
-						RX_BUFFER_SIZE,
-						&r->command->buf_ptr, GFP_DMA);
-	if (!r->virtual_buf_ptr)
-		goto out5;
-#ifdef DEBUG
-	memset(r->virtual_buf_ptr, 0x4C, RX_BUFFER_SIZE);
-#endif
-#else
-	stmp3xxx_dma_make_chain(s->dma_rx, &s->rx_chain, s->rxd, RX_CHAIN);
-	for (i = 0; i < RX_CHAIN; i++) {
-		struct stmp3xxx_dma_descriptor *r = s->rxd + i;
-
-		r->command->cmd =
-		    BF(RX_BUFFER_SIZE, APBX_CHn_CMD_XFER_COUNT) |
-		    BF(1, APBX_CHn_CMD_CMDWORDS) |
-		    BM_APBX_CHn_CMD_WAIT4ENDCMD |
-		    BM_APBX_CHn_CMD_SEMAPHORE |
-		    BM_APBX_CHn_CMD_IRQONCMPLT |
-		    BM_APBX_CHn_CMD_CHAIN |
-		    BF_APBX_CHn_CMD_COMMAND(BV_APBX_CHn_CMD_COMMAND__DMA_WRITE);
-		r->virtual_buf_ptr = dma_alloc_coherent(s->dev,
-							RX_BUFFER_SIZE,
-							&r->command->buf_ptr,
-							GFP_DMA);
-		r->command->pio_words[0] =	/* BM_UARTAPP_CTRL0_RUN | */
-		    BF(RX_BUFFER_SIZE, UARTAPP_CTRL0_XFER_COUNT) |
-		    BM_UARTAPP_CTRL0_RXTO_ENABLE |
-		    BF(3, UARTAPP_CTRL0_RXTIMEOUT);
+	for (i = 0; i < 3; i++) {
+		pdesc = mxs_dma_alloc_desc();
+		if (pdesc == NULL || IS_ERR(pdesc))
+			goto fail_alloc_desc;
+		pdesc->buffer = dma_alloc_coherent(s->dev, PAGE_SIZE,
+						   &pdesc->cmd.address,
+						   GFP_DMA);
+		if (pdesc->buffer == NULL)
+			goto fail_alloc_desc;
+		if (s->tx == NULL)
+			s->tx = pdesc;
+		else
+			list_add_tail(&pdesc->node, &s->free);
 	}
-#endif
-	return 0;
-
 	/*
-	 * would be necessary on other error paths
+	   Tell DMA to select UART.
+	   Both DMA channels are shared between app UART and IrDA.
+	   Target id of 0 means UART, 1 means IrDA
+	 */
+	mxs_dma_set_target(s->dma_rx_chan, 0);
+	mxs_dma_set_target(s->dma_tx_chan, 0);
 
-	dma_free_coherent( s->dev, RX_BUFFER_SIZE, r->virtual_buf_ptr,
-			   r->command->buf_ptr);
-	*/
-out5:
-	dma_free_coherent(s->dev, TX_BUFFER_SIZE, t->virtual_buf_ptr,
-			   t->command->buf_ptr);
-out4:
-	stmp3xxx_dma_free_command(s->dma_tx, t);
-out3:
-#ifndef RX_CHAIN
-	stmp3xxx_dma_free_command(s->dma_rx, r);
-#endif
-out2:
-	stmp3xxx_dma_release(s->dma_tx);
-out1:
-	stmp3xxx_dma_release(s->dma_rx);
-out:
-	WARN_ON(err);
-	return err;
-}
-
-
-static void stmp_appuart_on(struct platform_device *dev)
-{
-	struct stmp_appuart_port *s = platform_get_drvdata(dev);
-
-	if (!pio_mode) {
-		/*
-		   Tell DMA to select UART.
-		   Both DMA channels are shared between app UART and IrDA.
-		   Target id of 0 means UART, 1 means IrDA
-		 */
-		stmp3xxx_dma_set_alt_target(s->dma_rx, 0);
-		stmp3xxx_dma_set_alt_target(s->dma_tx, 0);
-		/*
-		  Reset DMA channels
-		 */
-		stmp3xxx_dma_reset_channel(s->dma_rx);
-		stmp3xxx_dma_reset_channel(s->dma_tx);
-		stmp3xxx_dma_enable_interrupt(s->dma_rx);
-		stmp3xxx_dma_enable_interrupt(s->dma_tx);
-	}
-}
-
-#ifdef CONFIG_CPU_FREQ
-static int stmp_appuart_updateclk(struct device *dev, void *clkdata)
-{
-	struct stmp_appuart_port *s = dev_get_drvdata(dev);
-
-	if (s) {
-		s->port.uartclk = clk_get_rate(s->clk) * 1000;
-		/* FIXME: perform actual update */
-	}
-	return 0;
-}
-
-static int stmp_appuart_notifier(struct notifier_block *self,
-				 unsigned long phase, void *p)
-{
-	int r = 0;
-
-	if ((phase == CPUFREQ_POSTCHANGE) || (phase == CPUFREQ_RESUMECHANGE)) {
-		/* get new uartclock and setspeed */
-		r = driver_for_each_device(&stmp_appuart_driver.driver,
-					   NULL, p, stmp_appuart_updateclk);
-	}
-	return (r == 0) ? NOTIFY_OK : NOTIFY_DONE;
-}
-
-static struct notifier_block stmp_appuart_nb = {
-	.notifier_call = &stmp_appuart_notifier,
-};
-#endif /* CONFIG_CPU_FREQ */
-
-static int __devinit stmp_appuart_probe(struct platform_device *device)
-{
-	struct stmp_appuart_port *s;
-	int err = 0;
-	struct resource *r;
-	int i;
-	u32 version;
-	int (*pinctl)(int req, int id);
-
-	s = kzalloc(sizeof(struct stmp_appuart_port), GFP_KERNEL);
-	if (!s) {
-		err = -ENOMEM;
-		goto out;
-	}
-
-	spin_lock_init(&s->lock);
-
-	s->clk = clk_get(NULL, "uart");
-	if (IS_ERR(s->clk)) {
-		err = PTR_ERR(s->clk);
-		goto out_free;
-	}
-	clk_enable(s->clk);
-	r = platform_get_resource(device, IORESOURCE_MEM, 0);
-	if (!r) {
-		err = -ENXIO;
-		goto out_free_clk;
-	}
-	s->port.mapbase = r->start;
-	s->port.irq = platform_get_irq(device, 0);
-	s->port.ops = &stmp_appuart_ops;
-	s->port.iotype = UPIO_MEM;
-	s->port.line = device->id < 0 ? 0 : device->id;
-	s->port.fifosize = 16;
-	s->port.timeout = HZ/10;
-	s->port.uartclk = clk_get_rate(s->clk) * 1000;
-	s->port.type = PORT_IMX;
-	s->port.dev = s->dev = get_device(&device->dev);
-	s->ctrl = 0;
-	s->keep_irq = 0;
-
-	r = platform_get_resource(device, IORESOURCE_MEM, 0);
-	if (!r) {
-		err = -ENXIO;
-		goto out_free_clk;
-	}
-
-	dev_dbg(s->dev, "%s\n", __func__);
-	for (i = 0; i < ARRAY_SIZE(s->irq); i++) {
-		s->irq[i] = platform_get_irq(device, i);
-		dev_dbg(s->dev, "Resources: irq[%d] = %d\n", i, s->irq[i]);
-		if (s->irq[i] < 0) {
-			err = s->irq[i];
-			goto out_free_clk;
-		}
-	}
-
-	r = platform_get_resource(device, IORESOURCE_DMA, 0);
-	if (!r) {
-		err = -ENXIO;
-		goto out_free;
-	}
-	s->dma_rx = r->start;
-
-	r = platform_get_resource(device, IORESOURCE_DMA, 1);
-	if (!r) {
-		err = -ENXIO;
-		goto out_free;
-	}
-	s->dma_tx = r->start;
-
-	r = platform_get_resource(device, IORESOURCE_MEM, 0);
-	if (!r) {
-		err = -ENXIO;
-		goto out_free;
-	}
-	s->mem = (void __iomem *)(r->start - STMP3XXX_REGS_PHBASE
-			+ (u32)STMP3XXX_REGS_BASE);
-	s->memsize = r->end - r->start;
-
-#ifdef CONFIG_CPU_FREQ
-	cpufreq_register_notifier(&stmp_appuart_nb,
-				  CPUFREQ_TRANSITION_NOTIFIER);
-#endif
-	platform_set_drvdata(device, s);
-
-	device_init_wakeup(&device->dev, 1);
-
-	stmp_appuart_dma_init(s);
-	stmp_appuart_on(device);
-
-	pinctl = device->dev.platform_data;
-	if (pinctl) {
-		err = pinctl(1, device->id);
-		if (err)
-			goto out_free_clk;
-	}
-
-	err = uart_add_one_port(&stmp_appuart_uart, &s->port);
-	if (err)
-		goto out_free_pins;
-
-	version = __raw_readl(REGS_UARTAPP1_BASE + HW_UARTAPP_VERSION);
-	printk(KERN_INFO "Found APPUART %d.%d.%d\n",
-	       (version >> 24) & 0xFF,
-	       (version >> 16) & 0xFF, version & 0xFFFF);
-	return 0;
-
-out_free_pins:
-	if (pinctl)
-		pinctl(0, device->id);
-out_free_clk:
-	clk_put(s->clk);
-out_free:
-	platform_set_drvdata(device, NULL);
-	kfree(s);
-out:
-	return err;
-}
-
-static int __devexit stmp_appuart_remove(struct platform_device *device)
-{
-	struct stmp_appuart_port *s;
-	void (*pinctl)(int req, int id);
-
-	s = platform_get_drvdata(device);
-	if (s) {
-		pinctl = device->dev.platform_data;
-		put_device(s->dev);
-		clk_disable(s->clk);
-		clk_put(s->clk);
-		uart_remove_one_port(&stmp_appuart_uart, &s->port);
-		if (pinctl)
-			pinctl(0, device->id);
-		kfree(s);
-		platform_set_drvdata(device, NULL);
-	}
+	mxs_dma_enable_irq(s->dma_rx_chan, 1);
+	mxs_dma_enable_irq(s->dma_tx_chan, 1);
 
 	return 0;
-}
-
-static int stmp_appuart_suspend(struct platform_device *device,
-				pm_message_t state)
-{
-#ifdef CONFIG_PM
-	struct stmp_appuart_port *s = platform_get_drvdata(device);
-
-	if (!s)
-		return 0;
-	s->keep_irq = device_may_wakeup(&device->dev);
-	uart_suspend_port(&stmp_appuart_uart, &s->port);
-	if (!s->keep_irq)
-		clk_disable(s->clk);
-#endif
-	return 0;
-}
-
-static int stmp_appuart_resume(struct platform_device *device)
-{
-#ifdef CONFIG_PM
-	struct stmp_appuart_port *s = platform_get_drvdata(device);
-
-	if (!s)
-		return 0;
-
-	if (!s->keep_irq)
-		clk_enable(s->clk);
-	stmp_appuart_on(device);
-	uart_resume_port(&stmp_appuart_uart, &s->port);
-	s->keep_irq = 0;
-#endif
-	return 0;
-}
-
-static int __init stmp_appuart_init()
-{
-	int r;
-
-	r = uart_register_driver(&stmp_appuart_uart);
-	if (r)
-		goto out;
-	r = platform_driver_register(&stmp_appuart_driver);
-	if (r)
-		goto out_err;
-	return 0;
-out_err:
-	uart_unregister_driver(&stmp_appuart_uart);
-out:
-	return r;
-}
-
-static void __exit stmp_appuart_exit()
-{
-	platform_driver_unregister(&stmp_appuart_driver);
-	uart_unregister_driver(&stmp_appuart_uart);
-}
-
-module_init(stmp_appuart_init)
-module_exit(stmp_appuart_exit)
-
-static void stmp_appuart_stop_rx(struct uart_port *u)
-{
-	struct stmp_appuart_port *s = to_appuart(u);
-
-	dev_dbg(s->dev, "%s\n", __func__);
-	__raw_writel(BM_UARTAPP_CTRL2_RXE, s->mem + HW_STMP3XXX_CLR);
-}
-
-static void stmp_appuart_break_ctl(struct uart_port *u, int ctl)
-{
-	struct stmp_appuart_port *s = to_appuart(u);
-
-	dev_dbg(s->dev, "%s: break = %s\n", __func__, ctl ? "on" : "off");
-	if (ctl)
-		__raw_writel(BM_UARTAPP_LINECTRL_BRK,
-			      s->mem + HW_UARTAPP_LINECTRL_SET);
-	else
-		__raw_writel(BM_UARTAPP_LINECTRL_BRK,
-				s->mem + HW_UARTAPP_LINECTRL_CLR);
-}
-
-static void stmp_appuart_enable_ms(struct uart_port *port)
-{
-	/* just empty */
-}
-
-static void stmp_appuart_set_mctrl(struct uart_port *u, unsigned mctrl)
-{
-	struct stmp_appuart_port *s = to_appuart(u);
-
-	u32 ctrl = __raw_readl(s->mem + HW_UARTAPP_CTRL2);
-
-	dev_dbg(s->dev, "%s (%x)\n", __func__, mctrl);
-	ctrl &= ~BM_UARTAPP_CTRL2_RTS;
-	if (mctrl & TIOCM_RTS) {
-		dev_dbg(s->dev, "...RTS\n");
-		ctrl |= BM_UARTAPP_CTRL2_RTS;
+fail_alloc_desc:
+	if (s->tx) {
+		if (s->tx->buffer)
+			dma_free_coherent(s->dev,
+					  PAGE_SIZE,
+					  s->tx->buffer,
+					  s->tx->cmd.address);
+		s->tx->buffer = NULL;
+		mxs_dma_free_desc(s->tx);
+		s->tx = NULL;
 	}
-	s->ctrl = mctrl;
-	dev_dbg(s->dev, "...%x; ctrl = %x\n", s->ctrl, ctrl);
-	__raw_writel(ctrl, s->mem + HW_UARTAPP_CTRL2);
-}
-
-static u32 stmp_appuart_get_mctrl(struct uart_port *u)
-{
-	struct stmp_appuart_port *s = to_appuart(u);
-	u32 stat = __raw_readl(s->mem + HW_UARTAPP_STAT);
-	int ctrl2 = __raw_readl(s->mem + HW_UARTAPP_CTRL2);
-	u32 mctrl = s->ctrl;
-
-	dev_dbg(s->dev, "%s:\n", __func__);
-	mctrl &= ~TIOCM_CTS;
-	if (stat & BM_UARTAPP_STAT_CTS) {
-		dev_dbg(s->dev, "CTS");
-		mctrl |= TIOCM_CTS;
+	list_for_each_safe(p, n, &s->free) {
+		list_del(p);
+		pdesc = list_entry(p, struct mxs_dma_desc, node);
+		if (pdesc->buffer)
+			dma_free_coherent(s->dev,
+					  PAGE_SIZE,
+					  pdesc->buffer,
+					  pdesc->cmd.address);
+		pdesc->buffer = NULL;
+		mxs_dma_free_desc(pdesc);
 	}
-	if (ctrl2 & BM_UARTAPP_CTRL2_RTS) {
-		dev_dbg(s->dev, "RTS");
-		mctrl |= TIOCM_RTS;
+	mxs_dma_release(s->dma_tx_chan, s->dev);
+fail_get_dma_tx:
+	mxs_dma_release(s->dma_rx_chan, s->dev);
+fail_get_dma_rx:
+	WARN_ON(ret);
+	return ret;
+}
+
+static void mxs_auart_dma_exit(struct mxs_auart_port *s)
+{
+	struct list_head *p, *n;
+		LIST_HEAD(list);
+	struct mxs_dma_desc *pdesc;
+
+	mxs_dma_enable_irq(s->dma_rx_chan, 0);
+	mxs_dma_enable_irq(s->dma_tx_chan, 0);
+
+	mxs_dma_disable(s->dma_tx_chan);
+	mxs_dma_disable(s->dma_rx_chan);
+
+	mxs_dma_get_cooked(s->dma_tx_chan, &list);
+	mxs_dma_get_cooked(s->dma_rx_chan, &s->free);
+
+	mxs_dma_release(s->dma_tx_chan, s->dev);
+	mxs_dma_release(s->dma_rx_chan, s->dev);
+
+	if (s->tx) {
+		if (s->tx->buffer)
+			dma_free_coherent(s->dev,
+					  PAGE_SIZE,
+					  s->tx->buffer,
+					  s->tx->cmd.address);
+		s->tx->buffer = NULL;
+		mxs_dma_free_desc(s->tx);
+		s->tx = NULL;
 	}
-	dev_dbg(s->dev, "...%x\n", mctrl);
-	return mctrl;
+	list_for_each_safe(p, n, &s->free) {
+		list_del(p);
+		pdesc = list_entry(p, struct mxs_dma_desc, node);
+		if (pdesc->buffer)
+			dma_free_coherent(s->dev,
+					  PAGE_SIZE,
+					  pdesc->buffer,
+					  pdesc->cmd.address);
+		pdesc->buffer = NULL;
+		mxs_dma_free_desc(pdesc);
+	}
 }
 
-static int stmp_appuart_request_port(struct uart_port *u)
+static void mxs_auart_submit_rx(struct mxs_auart_port *s)
 {
-	struct stmp_appuart_port *s = to_appuart(u);
-	int err = 0;
+	int ret;
+	unsigned int pio_value;
+	struct list_head *p, *n;
+	struct mxs_dma_desc *pdesc;
 
-	if (!request_mem_region((u32)s->mem, s->memsize, dev_name(s->dev)))
-		err = -ENXIO;
-	return err;
+	pio_value = BM_UARTAPP_CTRL0_RXTO_ENABLE |
+		     BF_UARTAPP_CTRL0_RXTIMEOUT(0x80) |
+		     BF_UARTAPP_CTRL0_XFER_COUNT(PAGE_SIZE);
 
+	list_for_each_safe(p, n, &s->free) {
+		list_del(p);
+		pdesc = list_entry(p, struct mxs_dma_desc, node);
+		pdesc->cmd.cmd.bits.bytes = PAGE_SIZE;
+		pdesc->cmd.cmd.bits.terminate_flush = 1;
+		pdesc->cmd.cmd.bits.pio_words = 1;
+		pdesc->cmd.cmd.bits.wait4end = 1;
+		pdesc->cmd.cmd.bits.dec_sem = 1;
+		pdesc->cmd.cmd.bits.irq = 1;
+		pdesc->cmd.cmd.bits.chain = 1;
+		pdesc->cmd.cmd.bits.command = DMA_WRITE;
+		pdesc->cmd.pio_words[0] = pio_value;
+		ret = mxs_dma_desc_append(s->dma_rx_chan, pdesc);
+		if (ret)
+			pr_info("%s append dma desc, %d\n", __func__, ret);
+	}
+	ret = mxs_dma_enable(s->dma_rx_chan);
+	if (ret)
+		pr_info("%s enable dma desc, %d\n", __func__, ret);
 }
 
-static void stmp_appuart_release_port(struct uart_port *u)
+static irqreturn_t mxs_auart_irq_dma_rx(int irq, void *context)
 {
-	struct stmp_appuart_port *s = to_appuart(u);
+	struct mxs_auart_port *s = context;
 
-	release_mem_region((u32)s->mem, s->memsize);
+	mxs_dma_ack_irq(s->dma_rx_chan);
+	mxs_auart_rx_chars(s);
+	return IRQ_HANDLED;
 }
 
-static int stmp_appuart_verify_port(struct uart_port *u,
+static void mxs_auart_submit_tx(struct mxs_auart_port *s, int size)
+{
+	int ret;
+	struct mxs_dma_desc *d = s->tx;
+
+	d->cmd.pio_words[0] = BF_UARTAPP_CTRL1_XFER_COUNT(size);
+	d->cmd.cmd.bits.bytes = size;
+	d->cmd.cmd.bits.pio_words = 1;
+	d->cmd.cmd.bits.wait4end = 1;
+	d->cmd.cmd.bits.dec_sem = 1;
+	d->cmd.cmd.bits.irq = 1;
+	d->cmd.cmd.bits.command = DMA_READ;
+	ret = mxs_dma_desc_append(s->dma_tx_chan, s->tx);
+	if (ret)
+		pr_info("append dma desc, %d\n", ret);
+
+	ret = mxs_dma_enable(s->dma_tx_chan);
+	if (ret)
+		pr_info("enable dma desc, %d\n", ret);
+}
+
+static irqreturn_t mxs_auart_irq_dma_tx(int irq, void *context)
+{
+	struct mxs_auart_port *s = context;
+
+	LIST_HEAD(list);
+	mxs_dma_ack_irq(s->dma_tx_chan);
+	mxs_dma_cooked(s->dma_tx_chan, &list);
+	mxs_auart_tx_chars(s);
+	return IRQ_HANDLED;
+}
+
+static int mxs_auart_request_port(struct uart_port *u)
+{
+	struct mxs_auart_port *s = to_auart_port(u);
+
+	if (!request_mem_region((u32)u->mapbase, SZ_4K, dev_name(s->dev)))
+		return -EBUSY;
+	return 0;
+
+}
+
+static int mxs_auart_verify_port(struct uart_port *u,
 				    struct serial_struct *ser)
 {
-	struct stmp_appuart_port *s = to_appuart(u);
-
-	dev_dbg(s->dev, "%s\n", __func__);
+	if (u->type != PORT_UNKNOWN && u->type != PORT_IMX)
+		return -EINVAL;
 	return 0;
 }
 
-static void stmp_appuart_config_port(struct uart_port *u, int flags)
+static void mxs_auart_config_port(struct uart_port *u, int flags)
 {
-	struct stmp_appuart_port *s = to_appuart(u);
-
-	dev_dbg(s->dev, "%s\n", __func__);
 }
 
-static const char *stmp_appuart_type(struct uart_port *u)
+static const char *mxs_auart_type(struct uart_port *u)
 {
-	struct stmp_appuart_port *s = to_appuart(u);
+	struct mxs_auart_port *s = to_auart_port(u);
 
-	dev_dbg(s->dev, "%s\n", __func__);
 	return dev_name(s->dev);
 }
 
-static void stmp_appuart_settermios(struct uart_port *u,
-				    struct ktermios *nw, struct ktermios *old)
+static void mxs_auart_release_port(struct uart_port *u)
 {
-	static struct ktermios saved;
-	struct stmp_appuart_port *s = to_appuart(u);
-	unsigned int cflag;
+	release_mem_region(u->mapbase, SZ_4K);
+}
+
+static void mxs_auart_set_mctrl(struct uart_port *u, unsigned mctrl)
+{
+	struct mxs_auart_port *s = to_auart_port(u);
+
+	u32 ctrl = __raw_readl(u->membase + HW_UARTAPP_CTRL2);
+
+	ctrl &= ~BM_UARTAPP_CTRL2_RTS;
+	if (mctrl & TIOCM_RTS)
+		ctrl |= BM_UARTAPP_CTRL2_RTS;
+	s->ctrl = mctrl;
+	__raw_writel(ctrl, u->membase + HW_UARTAPP_CTRL2);
+}
+
+static u32 mxs_auart_get_mctrl(struct uart_port *u)
+{
+	struct mxs_auart_port *s = to_auart_port(u);
+	u32 stat = __raw_readl(u->membase + HW_UARTAPP_STAT);
+	int ctrl2 = __raw_readl(u->membase + HW_UARTAPP_CTRL2);
+	u32 mctrl = s->ctrl;
+
+	mctrl &= ~TIOCM_CTS;
+	if (stat & BM_UARTAPP_STAT_CTS)
+		mctrl |= TIOCM_CTS;
+
+	if (ctrl2 & BM_UARTAPP_CTRL2_RTS)
+		mctrl |= TIOCM_RTS;
+
+	return mctrl;
+}
+
+static void mxs_auart_settermios(struct uart_port *u,
+				 struct ktermios *termios,
+				 struct ktermios *old)
+{
 	u32 bm, ctrl, ctrl2, div;
-	int err = 0;
-	unsigned baud;
+	unsigned int cflag, baud;
 
-	dev_dbg(s->dev, "%s\n", __func__);
+	if (termios == NULL) {
+		printk(KERN_ERR "Empty ktermios setting:!\n");
+		return;
+	}
 
-	if (nw)
-		memcpy(&saved, nw, sizeof *nw);
-	else
-		nw = old = &saved;
-
-	cflag = nw->c_cflag;
+	cflag = termios->c_cflag;
 
 	ctrl = BM_UARTAPP_LINECTRL_FEN;
-	ctrl2 = __raw_readl(s->mem + HW_UARTAPP_CTRL2);
+	ctrl2 = __raw_readl(u->membase + HW_UARTAPP_CTRL2);
 
 	/* byte size */
 	switch (cflag & CSIZE) {
@@ -590,273 +498,82 @@ static void stmp_appuart_settermios(struct uart_port *u,
 		bm = 3;
 		break;
 	default:
-		err = -EINVAL;
-		break;
+		return;
 	}
-	if (err)
-		goto out;
 
-	dev_dbg(s->dev, "Byte size %d bytes, mask %x\n",
-		bm + 5, BF(bm, UARTAPP_LINECTRL_WLEN));
-	ctrl |= BF(bm, UARTAPP_LINECTRL_WLEN);
+	ctrl |= BF_UARTAPP_LINECTRL_WLEN(bm);
 
 	/* parity */
 	if (cflag & PARENB) {
-		dev_dbg(s->dev, "Parity check enabled\n");
 		ctrl |= BM_UARTAPP_LINECTRL_PEN | BM_UARTAPP_LINECTRL_SPS;
-		if ((cflag & PARODD) == 0) {
-			dev_dbg(s->dev, "(Even) mask = %x\n",
-				BM_UARTAPP_LINECTRL_PEN |
-				BM_UARTAPP_LINECTRL_SPS |
-				BM_UARTAPP_LINECTRL_EPS);
+		if ((cflag & PARODD) == 0)
 			ctrl |= BM_UARTAPP_LINECTRL_EPS;
-		} else
-			dev_dbg(s->dev, "(Odd) mask = %x\n",
-				BM_UARTAPP_LINECTRL_PEN |
-				BM_UARTAPP_LINECTRL_SPS);
-	} else
-		dev_dbg(s->dev, "Parity check disabled.\n");
+	}
 
 	/* figure out the stop bits requested */
-	if (cflag & CSTOPB) {
-		dev_dbg(s->dev, "Stop bits, mask = %x\n",
-			BM_UARTAPP_LINECTRL_STP2);
+	if (cflag & CSTOPB)
 		ctrl |= BM_UARTAPP_LINECTRL_STP2;
-	} else
-		dev_dbg(s->dev, "No stop bits\n");
 
 	/* figure out the hardware flow control settings */
-	if (cflag & CRTSCTS) {
-		dev_dbg(s->dev, "RTS/CTS flow control\n");
+	if (cflag & CRTSCTS)
 		ctrl2 |= BM_UARTAPP_CTRL2_CTSEN /* | BM_UARTAPP_CTRL2_RTSEN */ ;
-	} else {
-		dev_dbg(s->dev, "RTS/CTS disabled\n");
+	else
 		ctrl2 &= ~BM_UARTAPP_CTRL2_CTSEN;
-	}
 
 	/* set baud rate */
-	baud = uart_get_baud_rate(u, nw, old, 0, u->uartclk);
-	dev_dbg(s->dev, "Baud rate requested: %d (clk = %d)\n",
-		baud, u->uartclk);
+	baud = uart_get_baud_rate(u, termios, old, 0, u->uartclk);
 	div = u->uartclk * 32 / baud;
-	ctrl |= BF(div & 0x3F, UARTAPP_LINECTRL_BAUD_DIVFRAC);
-	ctrl |= BF(div >> 6, UARTAPP_LINECTRL_BAUD_DIVINT);
+	ctrl |= BF_UARTAPP_LINECTRL_BAUD_DIVFRAC(div & 0x3F);
+	ctrl |= BF_UARTAPP_LINECTRL_BAUD_DIVINT(div >> 6);
 
-	if ((cflag & CREAD) != 0) {
-		dev_dbg(s->dev, "RX started\n");
-		ctrl2 |= BM_UARTAPP_CTRL2_RXE | BM_UARTAPP_CTRL2_RXDMAE;
-	}
+	if ((cflag & CREAD) != 0)
+		ctrl2 |= BM_UARTAPP_CTRL2_RXE;
 
-	if (!err) {
-		dev_dbg(s->dev, "CTRLS = %x + %x\n", ctrl, ctrl2);
-		__raw_writel(ctrl,
-			     s->mem + HW_UARTAPP_LINECTRL);
-		__raw_writel(ctrl2,
-			     s->mem + HW_UARTAPP_CTRL2);
-	}
-out:
-	return /* err */ ;
+	__raw_writel(ctrl, u->membase + HW_UARTAPP_LINECTRL);
+	__raw_writel(ctrl2, u->membase + HW_UARTAPP_CTRL2);
 }
 
-static int stmp_appuart_free_irqs(struct stmp_appuart_port *s)
+static irqreturn_t mxs_auart_irq_handle(int irq, void *context)
+{
+	u32 istatus, istat;
+	struct mxs_auart_port *s = context;
+	u32 stat = __raw_readl(s->port.membase + HW_UARTAPP_STAT);
+
+	istatus = istat = __raw_readl(s->port.membase + HW_UARTAPP_INTR);
+
+	if (istat & BM_UARTAPP_INTR_CTSMIS) {
+		uart_handle_cts_change(&s->port, stat & BM_UARTAPP_STAT_CTS);
+		__raw_writel(BM_UARTAPP_INTR_CTSMIS,
+				s->port.membase + HW_UARTAPP_INTR_CLR);
+		istat &= ~BM_UARTAPP_INTR_CTSMIS;
+	}
+	if (istat & (BM_UARTAPP_INTR_RTIS | BM_UARTAPP_INTR_RXIS)) {
+		mxs_auart_rx_chars(s);
+		istat &= ~(BM_UARTAPP_INTR_RTIS | BM_UARTAPP_INTR_RXIS);
+	}
+
+	if (istat & BM_UARTAPP_INTR_TXIS) {
+		mxs_auart_tx_chars(s);
+		istat &= ~BM_UARTAPP_INTR_TXIS;
+	}
+	if (istat & 0xFFFF)
+		dev_info(s->dev, "Unhandled status %x\n", istat);
+	__raw_writel(istatus & 0xFFFF,
+			s->port.membase + HW_UARTAPP_INTR_CLR);
+
+	return IRQ_HANDLED;
+}
+
+static int mxs_auart_free_irqs(struct mxs_auart_port *s)
 {
 	int irqn = 0;
 
-	if (s->keep_irq) {
-		dev_dbg(s->dev, "keep_irq != 0, ignoring\n");
-		return 0;
-	}
 	for (irqn = 0; irqn < ARRAY_SIZE(s->irq); irqn++)
 		free_irq(s->irq[irqn], s);
 	return 0;
 }
 
-void stmp_appuart_rx(struct stmp_appuart_port *s, u8 * rx_buffer, int count)
-{
-	u8 c;
-	int flag;
-	struct tty_struct *tty = s->port.info->port.tty;
-	u32 stat;
-
-	spin_lock(&s->lock);
-	stat = __raw_readl(s->mem + HW_UARTAPP_STAT);
-
-	if (count < 0) {
-		count =
-		    __raw_readl(s->mem +
-				HW_UARTAPP_STAT) & BM_UARTAPP_STAT_RXCOUNT;
-		dev_dbg(s->dev, "count = %d\n", count);
-	}
-
-	for (;;) {
-		if (!rx_buffer) {
-			if (stat & BM_UARTAPP_STAT_RXFE)
-				break;
-			c = __raw_readl(s->mem + HW_UARTAPP_DATA) & 0xFF;
-		} else {
-			if (count-- <= 0)
-				break;
-			c = *rx_buffer++;
-			dev_dbg(s->dev, "Received: %x(%c)\n", c, chr(c));
-		}
-
-		flag = TTY_NORMAL;
-		if (stat & BM_UARTAPP_STAT_BERR) {
-			stat &= ~BM_UARTAPP_STAT_BERR;
-			s->port.icount.brk++;
-			if (uart_handle_break(&s->port))
-				goto ignore;
-			flag = TTY_BREAK;
-		} else if (stat & BM_UARTAPP_STAT_PERR) {
-			stat &= ~BM_UARTAPP_STAT_PERR;
-			s->port.icount.parity++;
-			flag = TTY_PARITY;
-		} else if (stat & BM_UARTAPP_STAT_FERR) {
-			stat &= ~BM_UARTAPP_STAT_FERR;
-			s->port.icount.frame++;
-			flag = TTY_FRAME;
-		}
-
-		if (stat & BM_UARTAPP_STAT_OERR)
-			s->port.icount.overrun++;
-
-		if (uart_handle_sysrq_char(&s->port, c))
-			goto ignore;
-
-		uart_insert_char(&s->port, stat, BM_UARTAPP_STAT_OERR, c, flag);
-ignore:
-		if (pio_mode) {
-			__raw_writel(stat, s->mem + HW_UARTAPP_STAT);
-			stat =
-			    __raw_readl(s->mem + HW_UARTAPP_STAT);
-		}
-	}
-
-	__raw_writel(stat, s->mem + HW_UARTAPP_STAT);
-	tty_flip_buffer_push(tty);
-	spin_unlock(&s->lock);
-}
-
-static inline void stmp_appuart_submit_rx(struct stmp_appuart_port *s)
-{
-#ifndef RX_CHAIN
-	struct stmp3xxx_dma_descriptor *r = &s->rx_desc;
-
-	dev_dbg(s->dev, "Submitting RX DMA request\n");
-	r->command->cmd =
-	    BM_APBX_CHn_CMD_HALTONTERMINATE |
-	    BF(RX_BUFFER_SIZE, APBX_CHn_CMD_XFER_COUNT) |
-	    BF(1, APBX_CHn_CMD_CMDWORDS) |
-	    BM_APBX_CHn_CMD_WAIT4ENDCMD |
-	    BM_APBX_CHn_CMD_SEMAPHORE |
-	    BM_APBX_CHn_CMD_IRQONCMPLT |
-	    BF(BV_APBX_CHn_CMD_COMMAND__DMA_WRITE, APBX_CHn_CMD_COMMAND);
-	r->command->pio_words[0] =
-	    __raw_readl(REGS_UARTAPP1_BASE +
-			HW_UARTAPP_CTRL0) | BF(RX_BUFFER_SIZE,
-					       UARTAPP_CTRL0_XFER_COUNT) |
-	    BM_UARTAPP_CTRL0_RXTO_ENABLE | BF(3, UARTAPP_CTRL0_RXTIMEOUT);
-	r->command->pio_words[0] &= ~BM_UARTAPP_CTRL0_RUN;
-
-	stmp3xxx_dma_reset_channel(s->dma_rx);
-	stmp3xxx_dma_go(s->dma_rx, r, 1);
-#endif
-}
-
-static irqreturn_t stmp_appuart_irq_int(int irq, void *context)
-{
-	u32 istatus;
-	struct stmp_appuart_port *s = context;
-	u32 stat = __raw_readl(s->mem + HW_UARTAPP_STAT);
-
-	istatus = __raw_readl(s->mem + HW_UARTAPP_INTR);
-	dev_dbg(s->dev, "IRQ: int(%d), status = %08X\n", irq, istatus);
-
-	if (istatus & BM_UARTAPP_INTR_CTSMIS) {
-		uart_handle_cts_change(&s->port, stat & BM_UARTAPP_STAT_CTS);
-		dev_dbg(s->dev, "CTS change: %x\n", stat & BM_UARTAPP_STAT_CTS);
-		__raw_writel(BM_UARTAPP_INTR_CTSMIS,
-				s->mem + HW_UARTAPP_INTR_CLR);
-	}
-
-	else if (istatus & BM_UARTAPP_INTR_RTIS) {
-		dev_dbg(s->dev, "RX timeout, draining out\n");
-		stmp_appuart_submit_rx(s);
-	}
-
-	else
-		dev_info(s->dev, "Unhandled status %x\n", istatus);
-
-	__raw_writel(istatus & 0xFFFF,
-			s->mem + HW_UARTAPP_INTR_CLR);
-
-	return IRQ_HANDLED;
-}
-
-static irqreturn_t stmp_appuart_irq_rx(int irq, void *context)
-{
-	struct stmp_appuart_port *s = context;
-	int count = -1;
-
-	stmp3xxx_dma_clear_interrupt(s->dma_rx);
-	dev_dbg(s->dev, "%s(%d), count = %d\n", __func__, irq, count);
-
-#ifndef RX_CHAIN
-	stmp_appuart_rx(s, s->rx_desc.virtual_buf_ptr, count);
-	stmp_appuart_submit_rx(s);
-#else
-	if (circ_advance_cooked(&s->rx_chain) == 0) {
-		BUG();
-		return IRQ_HANDLED;
-	}
-
-	circ_advance_active(&s->rx_chain, 1);
-	while (s->rx_chain.cooked_count) {
-		stmp_appuart_rx(s,
-				stmp3xxx_dma_circ_get_cooked_head(&s->
-								  rx_chain)->virtual_buf_ptr,
-				-1);
-		circ_advance_free(&s->rx_chain, 1);
-	}
-#endif
-	return IRQ_HANDLED;
-}
-
-static void stmp_appuart_submit_tx(struct stmp_appuart_port *s, int size)
-{
-	struct stmp3xxx_dma_descriptor *d = &s->tx_desc;
-
-	dev_dbg(s->dev, "Submitting TX DMA request, %d bytes\n", size);
-	d->command->pio_words[0] =
-	    /* BM_UARTAPP_CTRL1_RUN | */ BF(size, UARTAPP_CTRL1_XFER_COUNT);
-	d->command->cmd = BF(size, APBX_CHn_CMD_XFER_COUNT) |
-	    BF(1, APBX_CHn_CMD_CMDWORDS) |
-	    BM_APBX_CHn_CMD_WAIT4ENDCMD |
-	    BM_APBX_CHn_CMD_SEMAPHORE |
-	    BM_APBX_CHn_CMD_IRQONCMPLT |
-	    BF(BV_APBX_CHn_CMD_COMMAND__DMA_READ, APBX_CHn_CMD_COMMAND);
-	stmp3xxx_dma_go(s->dma_tx, d, 1);
-}
-
-static irqreturn_t stmp_appuart_irq_tx(int irq, void *context)
-{
-	struct stmp_appuart_port *s = context;
-	struct uart_port *u = &s->port;
-	int bytes;
-
-	stmp3xxx_dma_clear_interrupt(s->dma_tx);
-	dev_dbg(s->dev, "%s(%d)\n", __func__, irq);
-
-	bytes = stmp_appuart_copy_tx(u, s->tx_desc.virtual_buf_ptr,
-				     TX_BUFFER_SIZE);
-	if (bytes > 0) {
-		dev_dbg(s->dev, "Sending %d bytes\n", bytes);
-		stmp_appuart_submit_tx(s, bytes);
-	}
-	return IRQ_HANDLED;
-}
-
-static int stmp_appuart_request_irqs(struct stmp_appuart_port *s)
+static int mxs_auart_request_irqs(struct mxs_auart_port *s)
 {
 	int err = 0;
 
@@ -864,218 +581,331 @@ static int stmp_appuart_request_irqs(struct stmp_appuart_port *s)
 	 * order counts. resources should be listed in the same order
 	 */
 	irq_handler_t handlers[] = {
-		stmp_appuart_irq_int,
-		stmp_appuart_irq_rx,
-		stmp_appuart_irq_tx,
+		mxs_auart_irq_handle,
+		mxs_auart_irq_dma_rx,
+		mxs_auart_irq_dma_tx,
 	};
 	char *handlers_names[] = {
-		"appuart internal",
-		"appuart rx",
-		"appuart tx",
+		"auart internal",
+		"auart dma rx",
+		"auart dma tx",
 	};
 	int irqn;
 
-	if (s->keep_irq) {
-		dev_dbg(s->dev, "keep_irq is set, skipping request_irq");
-		return 0;
-	}
 	for (irqn = 0; irqn < ARRAY_SIZE(handlers); irqn++) {
 		err = request_irq(s->irq[irqn], handlers[irqn],
 				  0, handlers_names[irqn], s);
-		dev_dbg(s->dev, "Requested IRQ %d with status %d\n",
-			s->irq[irqn], err);
 		if (err)
 			goto out;
 	}
 	return 0;
 out:
-	stmp_appuart_free_irqs(s);
+	mxs_auart_free_irqs(s);
 	return err;
 }
 
-static struct timer_list timer_task;
-
-static void stmp_appuart_check_rx(unsigned long data)
+static inline void mxs_auart_reset(struct uart_port *u)
 {
-	stmp_appuart_rx((struct stmp_appuart_port *)data, NULL, -1);
-	mod_timer(&timer_task, jiffies + 2 * HZ);
+	int i;
+	unsigned int reg;
+
+	__raw_writel(BM_UARTAPP_CTRL0_SFTRST,
+		     u->membase + HW_UARTAPP_CTRL0_CLR);
+
+	for (i = 0; i < 10000; i++) {
+		reg = __raw_readl(u->membase + HW_UARTAPP_CTRL0);
+		if (!(reg & BM_UARTAPP_CTRL0_SFTRST))
+			break;
+		udelay(3);
+	}
+
+	__raw_writel(BM_UARTAPP_CTRL0_CLKGATE,
+		     u->membase + HW_UARTAPP_CTRL0_CLR);
 }
 
-static int stmp_appuart_startup(struct uart_port *u)
+static int mxs_auart_startup(struct uart_port *u)
 {
-	struct stmp_appuart_port *s = to_appuart(u);
-	int err;
+	struct mxs_auart_port *s = to_auart_port(u);
 
-	dev_dbg(s->dev, "%s\n", __func__);
-
-	s->tx_buffer_index = 0;
-
-	err = stmp_appuart_request_irqs(s);
-	if (err)
-		goto out;
-
-	if (!s->keep_irq)
-		/* Release the block from reset and start the clocks. */
-		stmp3xxx_reset_block(s->mem, 0);
+	mxs_auart_reset(u);
 
 	__raw_writel(BM_UARTAPP_CTRL2_UARTEN,
-			s->mem + HW_UARTAPP_CTRL2_SET);
+		     s->port.membase + HW_UARTAPP_CTRL2_SET);
+
 	/* Enable the Application UART DMA bits. */
-	if (!pio_mode) {
+	if (s->flags & MXS_AUART_PORT_DMA_MODE) {
+		int ret;
+		ret = mxs_auart_dma_init(s);
+		if (ret) {
+			__raw_writel(BM_UARTAPP_CTRL2_UARTEN,
+				     s->port.membase + HW_UARTAPP_CTRL2_CLR);
+			return ret;
+		}
 		__raw_writel(BM_UARTAPP_CTRL2_TXDMAE | BM_UARTAPP_CTRL2_RXDMAE
 			      | BM_UARTAPP_CTRL2_DMAONERR,
-			      s->mem + HW_UARTAPP_CTRL2_SET);
+			     s->port.membase + HW_UARTAPP_CTRL2_SET);
 		/* clear any pending interrupts */
-		__raw_writel(0, s->mem + HW_UARTAPP_INTR);
+		__raw_writel(0, s->port.membase + HW_UARTAPP_INTR);
 
 		/* reset all dma channels */
-		stmp3xxx_dma_reset_channel(s->dma_tx);
-		stmp3xxx_dma_reset_channel(s->dma_rx);
-	} else {
-		__raw_writel(BM_UARTAPP_INTR_RXIEN |
-			     BM_UARTAPP_INTR_RTIEN,
-			     s->mem + HW_UARTAPP_INTR);
-	}
+		mxs_dma_reset(s->dma_tx_chan);
+		mxs_dma_reset(s->dma_rx_chan);
+	} else
+		__raw_writel(BM_UARTAPP_INTR_RXIEN | BM_UARTAPP_INTR_RTIEN,
+			     s->port.membase + HW_UARTAPP_INTR);
+
 	__raw_writel(BM_UARTAPP_INTR_CTSMIEN,
-			s->mem + HW_UARTAPP_INTR_SET);
+		     s->port.membase + HW_UARTAPP_INTR_SET);
 
 	/*
 	 * Enable fifo so all four bytes of a DMA word are written to
 	 * output (otherwise, only the LSB is written, ie. 1 in 4 bytes)
 	 */
-	__raw_writel(BM_UARTAPP_LINECTRL_FEN, s->mem + HW_UARTAPP_LINECTRL_SET);
+	__raw_writel(BM_UARTAPP_LINECTRL_FEN,
+		     s->port.membase + HW_UARTAPP_LINECTRL_SET);
 
-	if (!pio_mode) {
-#ifndef RX_CHAIN
-		stmp_appuart_submit_rx(s);
-#else
-		circ_clear_chain(&s->rx_chain);
-		stmp3xxx_dma_go(s->dma_rx, &s->rxd[0], 0);
-		circ_advance_active(&s->rx_chain, 1);
-#endif
-	} else {
-		init_timer(&timer_task);
-		timer_task.function = stmp_appuart_check_rx;
-		timer_task.expires = jiffies + HZ;
-		timer_task.data = (unsigned long)s;
-		add_timer(&timer_task);
-	}
-
-out:
-	return err;
+	if (s->flags & MXS_AUART_PORT_DMA_MODE)
+		mxs_auart_submit_rx(s);
+	return mxs_auart_request_irqs(s);
 }
 
-static void stmp_appuart_shutdown(struct uart_port *u)
+static void mxs_auart_shutdown(struct uart_port *u)
 {
-	struct stmp_appuart_port *s = to_appuart(u);
+	struct mxs_auart_port *s = to_auart_port(u);
 
-	dev_dbg(s->dev, "%s\n", __func__);
+	__raw_writel(BM_UARTAPP_CTRL0_SFTRST,
+		     s->port.membase + HW_UARTAPP_CTRL0_SET);
 
-	if (!s->keep_irq)
-		/* set the IP block to RESET; this should disable clock too. */
-		__raw_writel(
-			BM_UARTAPP_CTRL0_SFTRST, s->mem + HW_UARTAPP_CTRL0_SET);
-
-	if (!pio_mode) {
-		/* reset all dma channels */
-		stmp3xxx_dma_reset_channel(s->dma_tx);
-		stmp3xxx_dma_reset_channel(s->dma_rx);
-	} else {
-		del_timer(&timer_task);
-	}
-	stmp_appuart_free_irqs(s);
-}
-
-static unsigned int stmp_appuart_tx_empty(struct uart_port *u)
-{
-	struct stmp_appuart_port *s = to_appuart(u);
-
-	if (pio_mode)
-		if (__raw_readl(s->mem + HW_UARTAPP_STAT) &
-		    BM_UARTAPP_STAT_TXFE)
-			return TIOCSER_TEMT;
-		else
-			return 0;
+	if (s->flags & MXS_AUART_PORT_DMA_MODE)
+		mxs_auart_dma_exit(s);
 	else
-		return stmp3xxx_dma_running(s->dma_tx) ? 0 : TIOCSER_TEMT;
+		__raw_writel(BM_UARTAPP_INTR_RXIEN | BM_UARTAPP_INTR_RTIEN |
+				BM_UARTAPP_INTR_CTSMIEN,
+			     s->port.membase + HW_UARTAPP_INTR_CLR);
+	mxs_auart_free_irqs(s);
 }
 
-static void stmp_appuart_start_tx(struct uart_port *u)
+static unsigned int mxs_auart_tx_empty(struct uart_port *u)
 {
-	struct stmp_appuart_port *s = to_appuart(u);
-	int bytes;
+	struct mxs_auart_port *s = to_auart_port(u);
 
-	dev_dbg(s->dev, "%s\n", __func__);
+	if (s->flags & MXS_AUART_PORT_DMA_MODE)
+		return mxs_dma_desc_pending(s->tx) ? 0 : TIOCSER_TEMT;
+
+	if (__raw_readl(u->membase + HW_UARTAPP_STAT) &
+	    BM_UARTAPP_STAT_TXFE)
+		return TIOCSER_TEMT;
+	else
+		return 0;
+}
+
+static void mxs_auart_start_tx(struct uart_port *u)
+{
+	struct mxs_auart_port *s = to_auart_port(u);
 
 	/* enable transmitter */
-	__raw_writel(BM_UARTAPP_CTRL2_TXE, s->mem + HW_UARTAPP_CTRL2_SET);
+	__raw_writel(BM_UARTAPP_CTRL2_TXE, u->membase + HW_UARTAPP_CTRL2_SET);
 
-	if (!pio_mode) {
-		if (stmp3xxx_dma_running(s->dma_tx))
-			return;
-		bytes = stmp_appuart_copy_tx(u, s->tx_desc.virtual_buf_ptr,
-					     TX_BUFFER_SIZE);
-		if (bytes <= 0)
-			return;
+	mxs_auart_tx_chars(s);
+}
 
-		dev_dbg(s->dev, "Started DMA transfer with descriptor %p, "
-			"command %p, %d bytes long\n",
-			&s->tx_desc, s->tx_desc.command, bytes);
-		stmp_appuart_submit_tx(s, bytes);
-	} else {
-		int count = 0;
-		u8 c;
+static void mxs_auart_stop_tx(struct uart_port *u)
+{
+	__raw_writel(BM_UARTAPP_CTRL2_TXE, u->membase + HW_UARTAPP_CTRL2_CLR);
+}
 
-		while (!
-		       (__raw_readl
-			(s->mem + HW_UARTAPP_STAT) & BM_UARTAPP_STAT_TXFF)) {
-			if (stmp_appuart_copy_tx(u, &c, 1) <= 0)
-				break;
-			dev_dbg(s->dev, "%d: '%c'/%x\n", ++count, chr(c), c);
-			__raw_writel(c, s->mem + HW_UARTAPP_DATA);
+static void mxs_auart_stop_rx(struct uart_port *u)
+{
+	__raw_writel(BM_UARTAPP_CTRL2_RXE, u->membase + HW_UARTAPP_CTRL2_CLR);
+}
+
+static void mxs_auart_break_ctl(struct uart_port *u, int ctl)
+{
+	if (ctl)
+		__raw_writel(BM_UARTAPP_LINECTRL_BRK,
+			     u->membase + HW_UARTAPP_LINECTRL_SET);
+	else
+		__raw_writel(BM_UARTAPP_LINECTRL_BRK,
+			     u->membase + HW_UARTAPP_LINECTRL_CLR);
+}
+
+static void mxs_auart_enable_ms(struct uart_port *port)
+{
+	/* just empty */
+}
+
+static struct uart_ops mxs_auart_ops = {
+	.tx_empty       = mxs_auart_tx_empty,
+	.start_tx       = mxs_auart_start_tx,
+	.stop_tx	= mxs_auart_stop_tx,
+	.stop_rx	= mxs_auart_stop_rx,
+	.enable_ms      = mxs_auart_enable_ms,
+	.break_ctl      = mxs_auart_break_ctl,
+	.set_mctrl	= mxs_auart_set_mctrl,
+	.get_mctrl      = mxs_auart_get_mctrl,
+	.startup	= mxs_auart_startup,
+	.shutdown       = mxs_auart_shutdown,
+	.set_termios    = mxs_auart_settermios,
+	.type	   	= mxs_auart_type,
+	.release_port   = mxs_auart_release_port,
+	.request_port   = mxs_auart_request_port,
+	.config_port    = mxs_auart_config_port,
+	.verify_port    = mxs_auart_verify_port,
+};
+
+static struct uart_driver auart_driver = {
+	.owner = THIS_MODULE,
+	.driver_name = "auart",
+	.dev_name = "ttySP",
+	.major = MXS_AUART_MAJOR,
+	.minor = 0,
+	.nr = CONFIG_MXS_AUART_PORTS,
+};
+
+static int __devinit mxs_auart_probe(struct platform_device *pdev)
+{
+	struct mxs_auart_plat_data *plat;
+	struct mxs_auart_port *s;
+	u32 version;
+	int i, ret = 0;
+	struct resource *r;
+
+	s = kzalloc(sizeof(struct mxs_auart_port), GFP_KERNEL);
+	if (!s) {
+		ret = -ENOMEM;
+		goto out;
+	}
+
+	plat = pdev->dev.platform_data;
+	if (plat == NULL) {
+		ret = -ENOMEM;
+		goto out_free;
+	}
+
+	if (plat && plat->clk)
+		s->clk = clk_get(NULL, plat->clk);
+	else
+		s->clk = clk_get(NULL, "uart");
+	if (IS_ERR(s->clk)) {
+		ret = PTR_ERR(s->clk);
+		goto out_free;
+	}
+
+	clk_enable(s->clk);
+
+	r = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+	if (!r) {
+		ret = -ENXIO;
+		goto out_free_clk;
+	}
+	s->port.mapbase = r->start;
+	s->port.membase = (void __iomem *)IO_ADDRESS(r->start);
+	s->port.ops = &mxs_auart_ops;
+	s->port.iotype = UPIO_MEM;
+	s->port.line = pdev->id < 0 ? 0 : pdev->id;
+	s->port.fifosize = plat->fifo_size;
+	s->port.timeout = plat->timeout ? plat->timeout : (HZ / 10);
+	s->port.uartclk = clk_get_rate(s->clk);
+	s->port.type = PORT_IMX;
+	s->port.dev = s->dev = get_device(&pdev->dev);
+
+	s->flags = plat->dma_mode ? MXS_AUART_PORT_DMA_MODE : 0;
+	s->ctrl = 0;
+
+	for (i = 0; i < ARRAY_SIZE(s->irq); i++) {
+		s->irq[i] = platform_get_irq(pdev, i);
+		if (s->irq[i] < 0) {
+			ret = s->irq[i];
+			goto out_free_clk;
 		}
 	}
-}
+	s->port.irq = s->irq[0];
 
-static void stmp_appuart_stop_tx(struct uart_port *u)
-{
-	struct stmp_appuart_port *s = to_appuart(u);
-
-	dev_dbg(s->dev, "%s\n", __func__);
-	__raw_writel(BM_UARTAPP_CTRL2_TXE, s->mem + HW_UARTAPP_CTRL2_CLR);
-}
-
-static int stmp_appuart_copy_tx(struct uart_port *u, u8 * target,
-				int tx_buffer_size)
-{
-	int last = 0, portion;
-	struct circ_buf *xmit = &u->info->xmit;
-
-	while (last < tx_buffer_size) {	/* let's fill the only descriptor */
-		if (u->x_char) {
-			target[last++] = u->x_char;
-			u->x_char = 0;
-		} else if (!uart_circ_empty(xmit) && !uart_tx_stopped(u)) {
-			portion = min((u32) tx_buffer_size,
-				      (u32) uart_circ_chars_pending(xmit));
-			portion = min((u32) portion,
-				      (u32) CIRC_CNT_TO_END(xmit->head,
-							    xmit->tail,
-							    UART_XMIT_SIZE));
-			memcpy(target + last, &xmit->buf[xmit->tail], portion);
-			xmit->tail = (xmit->tail + portion) &
-			    (UART_XMIT_SIZE - 1);
-			if (uart_circ_chars_pending(xmit) < WAKEUP_CHARS)
-				uart_write_wakeup(u);
-			last += portion;
-		} else {	/* All tx data copied into buffer */
-			return last;
-		}
+	r = platform_get_resource(pdev, IORESOURCE_DMA, 0);
+	if (!r) {
+		ret = -ENXIO;
+		goto out_free_clk;
 	}
-	return last;
+	s->dma_rx_chan = r->start;
+
+	r = platform_get_resource(pdev, IORESOURCE_DMA, 1);
+	if (!r) {
+		ret = -ENXIO;
+		goto out_free_clk;
+	}
+	s->dma_tx_chan = r->start;
+
+	platform_set_drvdata(pdev, s);
+
+	device_init_wakeup(&pdev->dev, 1);
+
+	ret = uart_add_one_port(&auart_driver, &s->port);
+	if (ret)
+		goto out_free_clk;
+
+	version = __raw_readl(s->port.membase + HW_UARTAPP_VERSION);
+	printk(KERN_INFO "Found APPUART %d.%d.%d\n",
+	       (version >> 24) & 0xFF,
+	       (version >> 16) & 0xFF, version & 0xFFFF);
+	return 0;
+
+out_free_clk:
+	if (!IS_ERR(s->clk))
+		clk_put(s->clk);
+out_free:
+	kfree(s);
+out:
+	return ret;
 }
 
+static int __devexit mxs_auart_remove(struct platform_device *pdev)
+{
+	struct mxs_auart_port *s;
+
+	s = platform_get_drvdata(pdev);
+	if (s) {
+		put_device(s->dev);
+		clk_disable(s->clk);
+		clk_put(s->clk);
+		uart_remove_one_port(&auart_driver, &s->port);
+		kfree(s);
+	}
+	return 0;
+}
+
+static struct platform_driver mxs_auart_driver = {
+	.probe = mxs_auart_probe,
+	.remove = __devexit_p(mxs_auart_remove),
+	.driver = {
+		.name = "mxs-auart",
+		.owner = THIS_MODULE,
+	},
+};
+
+static int __init mxs_auart_init(void)
+{
+	int r;
+
+	r = uart_register_driver(&auart_driver);
+	if (r)
+		goto out;
+	r = platform_driver_register(&mxs_auart_driver);
+	if (r)
+		goto out_err;
+	return 0;
+out_err:
+	uart_unregister_driver(&auart_driver);
+out:
+	return r;
+}
+
+static void __exit mxs_auart_exit(void)
+{
+	platform_driver_unregister(&mxs_auart_driver);
+	uart_unregister_driver(&auart_driver);
+}
+
+module_init(mxs_auart_init)
+module_exit(mxs_auart_exit)
 MODULE_LICENSE("GPL");
-MODULE_DESCRIPTION("stmp3xxx app uart driver");
-MODULE_AUTHOR("dmitry pervushin <dimka@embeddedalley.com>");
-module_param(pio_mode, int, 0);
+MODULE_DESCRIPTION("Freescale MXS application uart driver");

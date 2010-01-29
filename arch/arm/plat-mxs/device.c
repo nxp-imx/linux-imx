@@ -248,6 +248,66 @@ static struct platform_device mxs_ts = {
 };
 #endif
 
+#if defined(CONFIG_SERIAL_MXS_AUART) || defined(CONFIG_SERIAL_MXS_AUART_MODULE)
+static struct platform_device mxs_auart[] = {
+#ifdef CONFIG_MXS_AUART0_DEVICE_ENABLE
+	{
+	 .name = "mxs-auart",
+	 .id = 0,
+	 .dev = {
+		 .release = mxs_nop_release,
+		 .dma_mask = &common_dmamask,
+		 .coherent_dma_mask = DMA_BIT_MASK(32),
+		 },
+	 },
+#endif
+#ifdef CONFIG_MXS_AUART1_DEVICE_ENABLE
+	{
+	 .name = "mxs-auart",
+	 .id = 1,
+	 .dev = {
+		 .release = mxs_nop_release,
+		 .dma_mask = &common_dmamask,
+		 .coherent_dma_mask = DMA_BIT_MASK(32),
+		 },
+	 },
+#endif
+#ifdef CONFIG_MXS_AUART2_DEVICE_ENABLE
+	{
+	 .name = "mxs-auart",
+	 .id = 2,
+	 .dev = {
+		 .release = mxs_nop_release,
+		 .dma_mask = &common_dmamask,
+		 .coherent_dma_mask = DMA_BIT_MASK(32),
+		 },
+	 },
+#endif
+#ifdef CONFIG_MXS_AUART3_DEVICE_ENABLE
+	{
+	 .name = "mxs-auart",
+	 .id = 3,
+	 .dev = {
+		 .release = mxs_nop_release,
+		 .dma_mask = &common_dmamask,
+		 .coherent_dma_mask = DMA_BIT_MASK(32),
+		 },
+	 },
+#endif
+#ifdef CONFIG_MXS_AUART4_DEVICE_ENABLE
+	{
+	 .name = "mxs-auart",
+	 .id = 4,
+	 .dev = {
+		 .release = mxs_nop_release,
+		 .dma_mask = &common_dmamask,
+		 .coherent_dma_mask = DMA_BIT_MASK(32),
+		 },
+	},
+#endif
+};
+#endif
+
 static struct mxs_dev_lookup dev_lookup[] = {
 #if defined(CONFIG_SERIAL_MXS_DUART) || \
 	defined(CONFIG_SERIAL_MXS_DUART_MODULE)
@@ -346,6 +406,13 @@ static struct mxs_dev_lookup dev_lookup[] = {
 	},
 #endif
 
+#if defined(CONFIG_SERIAL_MXS_AUART) || defined(CONFIG_SERIAL_MXS_AUART_MODULE)
+	{
+	 .name = "mxs-auart",
+	 .size = ARRAY_SIZE(mxs_auart),
+	 .pdev = mxs_auart,
+	 },
+#endif
 };
 
 struct platform_device *mxs_get_device(char *name, int id)

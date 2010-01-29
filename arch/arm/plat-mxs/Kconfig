@@ -11,6 +11,7 @@ config ARCH_MX28
 	select ZONE_DMA
 	select MXS_ICOLL
 	select MXS_DMA_ENGINE
+	select MXS_AUART_DMA_SUPPORT
 	---help---
 	 Support Freescale MX28 chips
 
@@ -50,5 +51,83 @@ config MXS_LRADC
 	depends on ARCH_MX28
 	help
 	  Enable LRADC support
+
+menu "Freescale Application UART:"
+
+config MXS_AUART_DMA_SUPPORT
+	bool
+	depends on MXS_DMA_ENGINE
+	default y
+
+config MXS_AUART_PORTS
+	int
+	default 5
+
+config MXS_AUART0_DEVICE_ENABLE
+	bool "Application uart 0 enabled"
+	default y
+	help
+	  Enable applicatoin uart 0
+
+config MXS_AUART0_DMA_ENABLE
+	bool "Set application uart 0 to dma mode"
+	default n
+	depends on MXS_AUART_DMA_SUPPORT
+	help
+	  Set application uart 0 to dma mode
+
+config MXS_AUART1_DEVICE_ENABLE
+	bool "Application uart 1 enabled"
+	default y
+	help
+	  Enable applicatoin uart 1
+
+config MXS_AUART1_DMA_ENABLE
+	bool "Set application uart 1 to dma mode"
+	default n
+	depends on MXS_AUART_DMA_SUPPORT
+	help
+	  Set application uart 1 to dma mode
+
+config MXS_AUART2_DEVICE_ENABLE
+	bool "Application uart 2 enabled"
+	default y
+	help
+	  Enable applicatoin uart 2
+
+config MXS_AUART2_DMA_ENABLE
+	bool "Set application uart 2 to dma mode"
+	default n
+	depends on MXS_AUART_DMA_SUPPORT
+	help
+	  Set application uart 2 to dma mode
+
+config MXS_AUART3_DEVICE_ENABLE
+	bool "Application uart 3 enabled"
+	default y
+	help
+	  Enable applicatoin uart 3
+
+config MXS_AUART3_DMA_ENABLE
+	bool "Set application uart 3 to dma mode"
+	default n
+	depends on MXS_AUART_DMA_SUPPORT
+	help
+	  Set application uart 3 to dma mode
+
+config MXS_AUART4_DEVICE_ENABLE
+	bool "Application uart 4 enabled"
+	default y
+	help
+	  Enable applicatoin uart 4
+
+config MXS_AUART4_DMA_ENABLE
+	bool "Set application uart 4 to dma mode"
+	default n
+	depends on MXS_AUART_DMA_SUPPORT
+	help
+	  Set application uart 4 to dma mode
+
+endmenu
 
 endif

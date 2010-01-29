@@ -87,6 +87,13 @@ struct mxs_touchscreen_plat_data {
 	unsigned int y_minus_mask;
 };
 
+struct mxs_auart_plat_data {
+	unsigned int fifo_size:6;
+	unsigned int dma_mode:1;
+	unsigned int timeout;
+	const char *clk;
+};
+
 extern void mxs_timer_init(struct mxs_sys_timer *timer);
 
 extern void mxs_nop_release(struct device *dev);

@@ -757,6 +757,7 @@ int __init mx28_device_init(void)
 	mx28_init_duart();
 	mx28_init_i2c();
 	mx28_init_lradc();
+	mx28_init_auart();
 	mx28_init_mmc();
 	mx28_init_wdt();
 	mx28_init_rtc();

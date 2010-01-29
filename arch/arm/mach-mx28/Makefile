@@ -1,7 +1,7 @@
 #
 # Makefile for the linux kernel.
 #
-obj-y += pinctrl.o clock.o device.o
+obj-y += pinctrl.o clock.o device.o serial.o
 
 # Board select
 obj-$(CONFIG_MACH_MX28EVK) += mx28evk.o mx28evk_pins.o

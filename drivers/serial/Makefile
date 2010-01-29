@@ -78,6 +78,7 @@ obj-$(CONFIG_SERIAL_MXC_CONSOLE) += mxc_uart_early.o
 obj-$(CONFIG_SERIAL_STMP_DBG) += stmp-dbg.o
 obj-$(CONFIG_SERIAL_STMP_APP) += stmp-app.o
 obj-$(CONFIG_SERIAL_MXS_DUART) += mxs-duart.o
+obj-$(CONFIG_SERIAL_MXS_AUART) += mxs-auart.o
 obj-$(CONFIG_SERIAL_OF_PLATFORM) += of_serial.o
 obj-$(CONFIG_SERIAL_OF_PLATFORM_NWPSERIAL) += nwpserial.o
 obj-$(CONFIG_SERIAL_KS8695) += serial_ks8695.o
