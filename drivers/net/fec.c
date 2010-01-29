@@ -58,9 +58,8 @@
 #include <mach/hardware.h>
 #define FEC_ALIGNMENT	0xf
 #ifdef CONFIG_ARCH_MXS
-#include <mach/device.h>
-#endif
 static unsigned char    fec_mac_default[6];
+#endif
 #else
 #define FEC_ALIGNMENT	0x3
 #endif
@@ -233,6 +232,7 @@ struct fec_enet_private {
 	int	old_link;
 	int	full_duplex;
 	struct completion anc_done;
+	struct completion dsv_phy_done;
 };
 
 static void fec_enet_mii(struct net_device *dev);
@@ -1486,7 +1486,7 @@ mii_discover_phy3(uint mii_reg, struct net_device *dev)
 	fep->phy = phy_info[i];
 	fep->phy_id_done = 1;
 
-	clk_disable(fep->clk);
+	complete(&fep->dsv_phy_done);
 }
 
 /* Scan all of the MII PHY addresses looking for someone to respond
@@ -1618,7 +1618,6 @@ fec_enet_open(struct net_device *dev)
 	/* I should reset the ring buffers here, but I don't yet know
 	 * a simple way to do that.
 	 */
-
 	clk_enable(fep->clk);
 	ret = fec_enet_alloc_buffers(dev);
 	if (ret)
@@ -1646,8 +1645,7 @@ fec_enet_open(struct net_device *dev)
 			schedule();
 
 		mii_do_cmd(dev, fep->phy->startup);
-		wait_for_completion_timeout(&fep->anc_done,
-				msecs_to_jiffies(10000));
+		wait_for_completion_timeout(&fep->anc_done, 10 * HZ);
 	}
 	fec_restart(dev, fep->full_duplex);
 
@@ -1940,7 +1938,10 @@ int __init fec_enet_init(struct net_device *dev, int index)
 	 */
 	fep->phy_id_done = 0;
 	fep->phy_addr = 0;
+
+	init_completion(&fep->dsv_phy_done);
 	mii_queue(dev, mk_mii_read(MII_REG_PHYIR1), mii_discover_phy);
+	wait_for_completion_timeout(&fep->dsv_phy_done, 10 * HZ);
 
 	return 0;
 }
@@ -2157,6 +2158,7 @@ fec_probe(struct platform_device *pdev)
 	if (ret)
 		goto failed_register;
 
+	clk_disable(fep->clk);
 	return 0;
 
 failed_register:
@@ -2226,7 +2228,7 @@ fec_resume(struct platform_device *dev)
 		fep = netdev_priv(ndev);
 		if (netif_running(ndev)) {
 			clk_enable(fep->clk);
-			fec_restart(ndev, 1);
+			fec_restart(ndev, fep->full_duplex);
 			netif_device_attach(ndev);
 		}
 	}
