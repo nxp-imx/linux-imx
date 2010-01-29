@@ -23,6 +23,7 @@
 extern void arch_idle(void);
 
 void arch_reset(char mode, const char *cmd);
+extern void (*machine_arch_reset)(char mode, const char *cmd);
 int mxs_reset_block(void __iomem *hwreg, int just_enable);
 
 #endif /* __ASM_ARCH_SYSTEM_H__ */

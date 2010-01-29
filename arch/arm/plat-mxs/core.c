@@ -23,7 +23,10 @@
 
 #include <asm/proc-fns.h>
 
-static void (*machine_arch_reset) (char mode, const char *cmd);
+#include <mach/hardware.h>
+#include <mach/regs-rtc.h>
+
+void (*machine_arch_reset) (char mode, const char *cmd);
 
 void arch_idle(void)
 {
@@ -34,6 +37,14 @@ void arch_reset(char mode, const char *cmd)
 {
 	if (machine_arch_reset)
 		machine_arch_reset(mode, cmd);
+	else {
+		void *base = IO_ADDRESS(RTC_PHYS_ADDR);
+
+		__raw_writel(1, base + HW_RTC_WATCHDOG);
+		__raw_writel(0x80000000, base + HW_RTC_PERSISTENT1_SET);
+		__raw_writel(BM_RTC_CTRL_WATCHDOGEN, base + HW_RTC_CTRL_SET);
+	}
+	cpu_reset(0);
 }
 
 static int __mxs_reset_block(void __iomem *hwreg, int just_enable)
