@@ -226,6 +226,16 @@ static struct platform_device mxs_kbd = {
 };
 #endif
 
+#if defined(CONFIG_TOUCHSCREEN_MXS) || defined(CONFIG_TOUCHSCREEN_MXS_MODULE)
+static struct platform_device mxs_ts = {
+	.name = "mxs-ts",
+	.id = 0,
+	.dev = {
+		.release = mxs_nop_release,
+		},
+};
+#endif
+
 static struct mxs_dev_lookup dev_lookup[] = {
 #if defined(CONFIG_SERIAL_MXS_DUART) || \
 	defined(CONFIG_SERIAL_MXS_DUART_MODULE)
@@ -309,6 +319,15 @@ static struct mxs_dev_lookup dev_lookup[] = {
 	 .pdev = &mxs_kbd,
 	 },
 #endif
+
+#if defined(CONFIG_TOUCHSCREEN_MXS) || defined(CONFIG_TOUCHSCREEN_MXS_MODULE)
+	{
+	 .name = "mxs-ts",
+	 .size = 1,
+	 .pdev = &mxs_ts,
+	},
+#endif
+
 };
 
 struct platform_device *mxs_get_device(char *name, int id)

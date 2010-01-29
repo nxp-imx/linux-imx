@@ -662,6 +662,58 @@ static void __init mx28_init_kbd(void)
 }
 #endif
 
+#if defined(CONFIG_TOUCHSCREEN_MXS) || defined(CONFIG_TOUCHSCREEN_MXS_MODULE)
+static struct mxs_touchscreen_plat_data mx28_ts_data = {
+	.x_plus_chan = LRADC_TOUCH_X_PLUS,
+	.x_minus_chan = LRADC_TOUCH_X_MINUS,
+	.y_plus_chan = LRADC_TOUCH_Y_PLUS,
+	.y_minus_chan = LRADC_TOUCH_Y_MINUS,
+	.x_plus_val = BM_LRADC_CTRL0_XPULSW,
+	.x_minus_val = BF_LRADC_CTRL0_XNURSW(2),
+	.y_plus_val = BF_LRADC_CTRL0_YPLLSW(1),
+	.y_minus_val = BM_LRADC_CTRL0_YNLRSW,
+	.x_plus_mask = BM_LRADC_CTRL0_XPULSW,
+	.x_minus_mask = BM_LRADC_CTRL0_XNURSW,
+	.y_plus_mask = BM_LRADC_CTRL0_YPLLSW,
+	.y_minus_mask = BM_LRADC_CTRL0_YNLRSW,
+};
+
+static struct resource mx28_ts_res[] = {
+	{
+	 .flags = IORESOURCE_MEM,
+	 .start = LRADC_PHYS_ADDR,
+	 .end   = LRADC_PHYS_ADDR + 0x2000 - 1,
+	 },
+	{
+	 .flags = IORESOURCE_IRQ,
+	 .start = IRQ_LRADC_TOUCH,
+	 .end   = IRQ_LRADC_TOUCH,
+	 },
+	{
+	 .flags = IORESOURCE_IRQ,
+	 .start = IRQ_LRADC_CH5,
+	 .end   = IRQ_LRADC_CH5,
+	 },
+};
+
+static void __init mx28_init_ts(void)
+{
+	struct platform_device *pdev;
+
+	pdev = mxs_get_device("mxs-ts", 0);
+	if (pdev == NULL || IS_ERR(pdev))
+		return;
+	pdev->resource = mx28_ts_res;
+	pdev->num_resources = ARRAY_SIZE(mx28_ts_res);
+	pdev->dev.platform_data = &mx28_ts_data;
+	mxs_add_device(pdev, 3);
+}
+#else
+static void __init mx28_init_ts(void)
+{
+	;
+}
+#endif
 int __init mx28_device_init(void)
 {
 	mx28_init_dma();
@@ -673,6 +725,7 @@ int __init mx28_device_init(void)
 	mx28_init_rtc();
 	mx28_init_fec();
 	mx28_init_kbd();
+	mx28_init_ts();
 	return 0;
 }
 

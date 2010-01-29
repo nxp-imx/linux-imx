@@ -72,6 +72,21 @@ struct mxs_kbd_plat_data {
 	int channel;
 };
 
+struct mxs_touchscreen_plat_data {
+	u8 x_plus_chan;
+	u8 x_minus_chan;
+	u8 y_plus_chan;
+	u8 y_minus_chan;
+	unsigned int x_plus_val;
+	unsigned int x_minus_val;
+	unsigned int y_plus_val;
+	unsigned int y_minus_val;
+	unsigned int x_plus_mask;
+	unsigned int x_minus_mask;
+	unsigned int y_plus_mask;
+	unsigned int y_minus_mask;
+};
+
 extern void mxs_timer_init(struct mxs_sys_timer *timer);
 
 extern void mxs_nop_release(struct device *dev);

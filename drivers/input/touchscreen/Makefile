@@ -26,6 +26,7 @@ obj-$(CONFIG_TOUCHSCREEN_HTCPEN)	+= htcpen.o
 obj-$(CONFIG_TOUCHSCREEN_MXC)		+= mxc_ts.o
 obj-$(CONFIG_TOUCHSCREEN_IMX_ADC)	+= imx_adc_ts.o
 obj-$(CONFIG_TOUCHSCREEN_STMP3XXX)	+= stmp3xxx_ts.o
+obj-$(CONFIG_TOUCHSCREEN_MXS)		+= mxs-ts.o
 obj-$(CONFIG_TOUCHSCREEN_USB_COMPOSITE)	+= usbtouchscreen.o
 obj-$(CONFIG_TOUCHSCREEN_PENMOUNT)	+= penmount.o
 obj-$(CONFIG_TOUCHSCREEN_TOUCHIT213)	+= touchit213.o
