@@ -19,6 +19,7 @@
 #include <linux/kernel.h>
 #include <linux/init.h>
 #include <linux/io.h>
+#include <linux/err.h>
 #include <linux/clk.h>
 #include <linux/platform_device.h>
 
@@ -39,9 +40,53 @@ static void __init fixup_board(struct machine_desc *desc, struct tag *tags,
 	mx28_set_input_clk(24000000, 24000000, 32000, 50000000);
 }
 
+#if defined(CONFIG_LEDS_MXS) || defined(CONFIG_LEDS_MXS_MODULE)
+static struct mxs_pwm_led  mx28evk_led_pwm[2] = {
+	[0] = {
+		.name = "led-pwm0",
+		.pwm = 0,
+		},
+	[1] = {
+		.name = "led-pwm1",
+		.pwm = 1,
+		},
+};
+
+struct mxs_pwm_leds_plat_data mx28evk_led_data = {
+	.num = ARRAY_SIZE(mx28evk_led_pwm),
+	.leds = mx28evk_led_pwm,
+};
+
+static struct resource mx28evk_led_res = {
+	.flags = IORESOURCE_MEM,
+	.start = PWM_PHYS_ADDR,
+	.end   = PWM_PHYS_ADDR + 0x3FFF,
+};
+
+static void __init mx28evk_init_leds(void)
+{
+	struct platform_device *pdev;
+
+	pdev = mxs_get_device("mxs-leds", 0);
+	if (pdev == NULL || IS_ERR(pdev))
+		return;
+
+	pdev->resource = &mx28evk_led_res;
+	pdev->num_resources = 1;
+	pdev->dev.platform_data = &mx28evk_led_data;
+	mxs_add_device(pdev, 3);
+}
+#else
+static void __init mx28evk_init_leds(void)
+{
+	;
+}
+#endif
+
 static void __init mx28evk_device_init(void)
 {
 	/* Add mx28evk special code */
+	mx28evk_init_leds();
 }
 
 static void __init mx28evk_init_machine(void)

@@ -672,6 +672,28 @@ static struct pin_desc mx28evk_fixed_pins[] = {
 	 .drive	= 1,
 	 },
 #endif
+#if defined(CONFIG_LEDS_MXS) || defined(CONFIG_LEDS_MXS_MODULE)
+	{
+	 .name = "LEDS_PWM0",
+	 .id = PINID_AUART1_RX,
+	 .fun           = PIN_FUN3,
+	 .strength      = PAD_8MA,
+	 .voltage       = PAD_3_3V,
+	 .pullup        = 1,
+	 .drive         = 1,
+	 .pull          = 1,
+	 },
+	{
+	 .name = "LEDS_PWM1",
+	 .id = PINID_AUART1_TX,
+	 .fun           = PIN_FUN3,
+	 .strength      = PAD_8MA,
+	 .voltage       = PAD_3_3V,
+	 .pullup        = 1,
+	 .drive         = 1,
+	 .pull          = 1,
+	 },
+#endif
 };
 
 #if defined(CONFIG_FEC) || defined(CONFIG_FEC_MODULE)

@@ -23,6 +23,7 @@
 #include <linux/interrupt.h>
 #include <linux/io.h>
 #include <linux/ioport.h>
+#include <linux/leds.h>
 
 #include <asm/mach/time.h>
 
@@ -92,6 +93,17 @@ struct mxs_auart_plat_data {
 	unsigned int dma_mode:1;
 	unsigned int timeout;
 	const char *clk;
+};
+
+struct mxs_pwm_led {
+	struct led_classdev dev;
+	const char *name;
+	unsigned int pwm;
+};
+
+struct mxs_pwm_leds_plat_data {
+	unsigned int num;
+	struct mxs_pwm_led *leds;
 };
 
 extern void mxs_timer_init(struct mxs_sys_timer *timer);

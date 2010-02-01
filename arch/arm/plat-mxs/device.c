@@ -118,7 +118,7 @@ static struct platform_device mxs_i2c[] = {
 	 .name	= "mxs-i2c",
 	 .id	= 0,
 	 .dev = {
-		.dma_mask               = &common_dmamask,
+		.dma_mask	       = &common_dmamask,
 		.coherent_dma_mask      = DMA_BIT_MASK(32),
 		.release = mxs_nop_release,
 		},
@@ -129,7 +129,7 @@ static struct platform_device mxs_i2c[] = {
 	 .name	= "mxs-i2c",
 	 .id	= 1,
 	 .dev = {
-		.dma_mask               = &common_dmamask,
+		.dma_mask	       = &common_dmamask,
 		.coherent_dma_mask      = DMA_BIT_MASK(32),
 		.release = mxs_nop_release,
 		},
@@ -145,7 +145,7 @@ static struct platform_device mxs_mmc[] = {
 	 .name	= "mxs-mmc",
 	 .id	= 0,
 	 .dev = {
-		.dma_mask               = &common_dmamask,
+		.dma_mask	       = &common_dmamask,
 		.coherent_dma_mask      = DMA_BIT_MASK(32),
 		.release = mxs_nop_release,
 		},
@@ -154,7 +154,7 @@ static struct platform_device mxs_mmc[] = {
 	 .name	= "mxs-mmc",
 	 .id	= 1,
 	 .dev = {
-		.dma_mask               = &common_dmamask,
+		.dma_mask	       = &common_dmamask,
 		.coherent_dma_mask      = DMA_BIT_MASK(32),
 		.release = mxs_nop_release,
 		},
@@ -190,7 +190,7 @@ static struct platform_device mxs_fb = {
 	.name	= "mxs-fb",
 	.id	= 0,
 	.dev = {
-		.dma_mask               = &common_dmamask,
+		.dma_mask	       = &common_dmamask,
 		.coherent_dma_mask      = DMA_BIT_MASK(32),
 		.release = mxs_nop_release,
 		},
@@ -308,6 +308,16 @@ static struct platform_device mxs_auart[] = {
 };
 #endif
 
+#if defined(CONFIG_LEDS_MXS) || defined(CONFIG_LEDS_MXS_MODULE)
+static struct platform_device mxs_led = {
+	.name = "mxs-leds",
+	.id = 0,
+	.dev = {
+		 .release = mxs_nop_release,
+		 },
+};
+#endif
+
 static struct mxs_dev_lookup dev_lookup[] = {
 #if defined(CONFIG_SERIAL_MXS_DUART) || \
 	defined(CONFIG_SERIAL_MXS_DUART_MODULE)
@@ -411,6 +421,14 @@ static struct mxs_dev_lookup dev_lookup[] = {
 	 .name = "mxs-auart",
 	 .size = ARRAY_SIZE(mxs_auart),
 	 .pdev = mxs_auart,
+	 },
+#endif
+
+#if defined(CONFIG_LEDS_MXS) || defined(CONFIG_LEDS_MXS_MODULE)
+	{
+	 .name = "mxs-leds",
+	 .size = 1,
+	 .pdev = &mxs_led,
 	 },
 #endif
 };

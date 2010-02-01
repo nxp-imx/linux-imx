@@ -751,6 +751,7 @@ static void __init mx28_init_ts(void)
 	;
 }
 #endif
+
 int __init mx28_device_init(void)
 {
 	mx28_init_dma();
@@ -765,7 +766,6 @@ int __init mx28_device_init(void)
 	mx28_init_kbd();
 	mx28_init_ts();
 	mx28_init_lcdif();
-
 	return 0;
 }
 

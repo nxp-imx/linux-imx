@@ -1,5 +1,5 @@
 /*
- * Freescale STMP378X PWM LED driver
+ * Freescale MXS PWM LED driver
  *
  * Author: Drew Benedetti <drewb@embeddedalley.com>
  *
@@ -20,171 +20,173 @@
 #include <linux/platform_device.h>
 #include <linux/leds.h>
 #include <linux/err.h>
+#include <linux/io.h>
 #include <linux/clk.h>
+
 #include <mach/hardware.h>
+#include <mach/system.h>
+#include <mach/device.h>
 #include <mach/regs-pwm.h>
-#include <mach/regs-clkctrl.h>
-#include <mach/pwm-led.h>
-#include <mach/stmp3xxx.h>
 
-/* Up to 5 PWM lines are available. */
-#define PWM_MAX 5
 
-/* PWM enables are the lowest PWM_MAX bits of HW_PWM_CTRL register */
-#define BM_PWM_CTRL_PWM_ENABLE(n)	((1<<(n)) & ((1<<(PWM_MAX))-1))
+/*
+ * PWM enables are the lowest bits of HW_PWM_CTRL register
+ */
+#define BM_PWM_CTRL_PWM_ENABLE	((1<<(CONFIG_MXS_PWM_CHANNELS)) - 1)
+#define BF_PWM_CTRL_PWM_ENABLE(n) ((1<<(n)) & BM_PWM_CTRL_PWM_ENABLE)
+
 #define BF_PWM_PERIODn_SETTINGS					\
 		(BF_PWM_PERIODn_CDIV(5) | /* divide by 64 */ 	\
-		BF_PWM_PERIODn_INACTIVE_STATE(2) | /* low */ 	\
-		BF_PWM_PERIODn_ACTIVE_STATE(3) | /* high */ 	\
+		BF_PWM_PERIODn_INACTIVE_STATE(3) | /* low */ 	\
+		BF_PWM_PERIODn_ACTIVE_STATE(2) | /* high */ 	\
 		BF_PWM_PERIODn_PERIOD(LED_FULL)) /* 255 cycles */
 
-struct stmp378x_led {
-	struct led_classdev led_dev;
-	int in_use;
+struct mxs_pwm_leds {
+	struct clk *pwm_clk;
+	unsigned int base;
+	unsigned int led_num;
+	struct mxs_pwm_led *leds;
 };
 
-static struct stmp378x_led leds[PWM_MAX];
+static struct mxs_pwm_leds leds;
 
-static struct clk *pwm_clk;
-
-static void stmp378x_pwm_led_brightness_set(struct led_classdev *pled,
+static void mxs_pwm_led_brightness_set(struct led_classdev *pled,
 					    enum led_brightness value)
 {
-	unsigned int pwmn;
+	struct mxs_pwm_led *pwm_led;
 
-	pwmn = container_of(pled, struct stmp378x_led, led_dev) - leds;
+	pwm_led = container_of(pled, struct mxs_pwm_led, dev);
 
-	if (pwmn < PWM_MAX && leds[pwmn].in_use) {
-		HW_PWM_CTRL_CLR(BM_PWM_CTRL_PWM_ENABLE(pwmn));
-		HW_PWM_ACTIVEn_WR(pwmn, BF_PWM_ACTIVEn_INACTIVE(value) |
-				BF_PWM_ACTIVEn_ACTIVE(0));
-		HW_PWM_PERIODn_WR(pwmn, BF_PWM_PERIODn_SETTINGS);
-		HW_PWM_CTRL_SET(BM_PWM_CTRL_PWM_ENABLE(pwmn));
+	if (pwm_led->pwm < CONFIG_MXS_PWM_CHANNELS) {
+		__raw_writel(BF_PWM_CTRL_PWM_ENABLE(pwm_led->pwm),
+			     leds.base + HW_PWM_CTRL_CLR);
+		__raw_writel(BF_PWM_ACTIVEn_INACTIVE(LED_FULL) |
+				BF_PWM_ACTIVEn_ACTIVE(value),
+			     leds.base + HW_PWM_ACTIVEn(pwm_led->pwm));
+		__raw_writel(BF_PWM_PERIODn_SETTINGS,
+			     leds.base + HW_PWM_PERIODn(pwm_led->pwm));
+		__raw_writel(BF_PWM_CTRL_PWM_ENABLE(pwm_led->pwm),
+			     leds.base + HW_PWM_CTRL_SET);
 	}
 }
 
-static int stmp378x_pwm_led_probe(struct platform_device *pdev)
+static int __devinit mxs_pwm_led_probe(struct platform_device *pdev)
 {
+	struct mxs_pwm_leds_plat_data *plat_data;
+	struct resource *res;
 	struct led_classdev *led;
 	unsigned int pwmn;
 	int leds_in_use = 0, rc = 0;
 	int i;
 
-	stmp3xxx_reset_block(REGS_PWM_BASE, 1);
+	plat_data = (struct mxs_pwm_leds_plat_data *)pdev->dev.platform_data;
+	if (plat_data == NULL)
+		return -ENODEV;
 
-	pwm_clk = clk_get(&pdev->dev, "pwm");
-	if (IS_ERR(pwm_clk)) {
-		rc = PTR_ERR(pwm_clk);
+	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+	if (res == NULL)
+		return -ENODEV;
+	leds.base = (unsigned int)IO_ADDRESS(res->start);
+
+	mxs_reset_block((void __iomem *)leds.base, 1);
+
+	leds.led_num = plat_data->num;
+	if (leds.led_num <= 0 || leds.led_num > CONFIG_MXS_PWM_CHANNELS)
+		return -EFAULT;
+	leds.leds = plat_data->leds;
+	if (leds.leds == NULL)
+		return -EFAULT;
+
+	leds.pwm_clk = clk_get(&pdev->dev, "pwm");
+	if (IS_ERR(leds.pwm_clk)) {
+		rc = PTR_ERR(leds.pwm_clk);
 		return rc;
 	}
 
-	clk_enable(pwm_clk);
+	clk_enable(leds.pwm_clk);
 
-	for (i = 0; i < pdev->num_resources; i++) {
-
-		if (pdev->resource[i].flags & IORESOURCE_DISABLED)
-			continue;
-
-		pwmn = pdev->resource[i].start;
-		if (pwmn >= PWM_MAX) {
-			dev_err(&pdev->dev, "PWM %d doesn't exist\n", pwmn);
-			continue;
-		}
-
-		rc = pwm_led_pinmux_request(pwmn, "stmp378x_pwm_led");
-		if (rc) {
+	for (i = 0; i < leds.led_num; i++) {
+		pwmn = leds.leds[i].pwm;
+		if (pwmn >= CONFIG_MXS_PWM_CHANNELS) {
 			dev_err(&pdev->dev,
-				"PWM %d is not available (err=%d)\n",
-				pwmn, rc);
+				"[led-pwm%d]:PWM %d doesn't exist\n",
+				i, pwmn);
 			continue;
 		}
-
-		led = &leds[pwmn].led_dev;
-
-		led->flags = pdev->resource[i].flags;
-		led->name = pdev->resource[i].name;
+		led = &(leds.leds[i].dev);
+		led->name = leds.leds[i].name;
 		led->brightness = LED_HALF;
 		led->flags = 0;
-		led->brightness_set = stmp378x_pwm_led_brightness_set;
+		led->brightness_set = mxs_pwm_led_brightness_set;
 		led->default_trigger = 0;
 
 		rc = led_classdev_register(&pdev->dev, led);
 		if (rc < 0) {
 			dev_err(&pdev->dev,
 				"Unable to register LED device %d (err=%d)\n",
-				pwmn, rc);
-			pwm_led_pinmux_free(pwmn, "stmp378x_pwm_led");
+				i, rc);
 			continue;
 		}
 
-		/* PWM LED is available now */
-		leds[pwmn].in_use = !0;
 		leds_in_use++;
 
 		/* Set default brightness */
-		stmp378x_pwm_led_brightness_set(led, LED_HALF);
+		mxs_pwm_led_brightness_set(led, LED_HALF);
 	}
 
 	if (leds_in_use == 0) {
 		dev_info(&pdev->dev, "No PWM LEDs available\n");
-		clk_disable(pwm_clk);
-		clk_put(pwm_clk);
+		clk_disable(leds.pwm_clk);
+		clk_put(leds.pwm_clk);
 		return -ENODEV;
 	}
-
 	return 0;
 }
 
-static int stmp378x_pwm_led_remove(struct platform_device *pdev)
+static int __devexit mxs_pwm_led_remove(struct platform_device *pdev)
 {
-	unsigned int pwmn;
-
-	for (pwmn = 0; pwmn < PWM_MAX; pwmn++) {
-
-		if (!leds[pwmn].in_use)
-			continue;
-
-		/* Disable LED */
-		HW_PWM_CTRL_CLR(BM_PWM_CTRL_PWM_ENABLE(pwmn));
-		HW_PWM_ACTIVEn_WR(pwmn, BF_PWM_ACTIVEn_INACTIVE(0) |
-				BF_PWM_ACTIVEn_ACTIVE(0));
-		HW_PWM_PERIODn_WR(pwmn, BF_PWM_PERIODn_SETTINGS);
-
-		led_classdev_unregister(&leds[pwmn].led_dev);
-		pwm_led_pinmux_free(pwmn, "stmp378x_pwm_led");
-
-		leds[pwmn].led_dev.name = 0;
-		leds[pwmn].in_use = 0;
+	int i;
+	unsigned int pwm;
+	for (i = 0; i < leds.led_num; i++) {
+		pwm = leds.leds[i].pwm;
+		__raw_writel(BF_PWM_CTRL_PWM_ENABLE(pwm),
+			     leds.base + HW_PWM_CTRL_CLR);
+		__raw_writel(BF_PWM_ACTIVEn_INACTIVE(0) |
+				BF_PWM_ACTIVEn_ACTIVE(0),
+			     leds.base + HW_PWM_ACTIVEn(pwm));
+		__raw_writel(BF_PWM_PERIODn_SETTINGS,
+			     leds.base + HW_PWM_PERIODn(pwm));
+		led_classdev_unregister(&leds.leds[i].dev);
 	}
 
-	clk_disable(pwm_clk);
-	clk_put(pwm_clk);
+	clk_disable(leds.pwm_clk);
+	clk_put(leds.pwm_clk);
 
 	return 0;
 }
 
 
-static struct platform_driver stmp378x_pwm_led_driver = {
-	.probe   = stmp378x_pwm_led_probe,
-	.remove  = stmp378x_pwm_led_remove,
+static struct platform_driver mxs_pwm_led_driver = {
+	.probe   = mxs_pwm_led_probe,
+	.remove  = __devexit_p(mxs_pwm_led_remove),
 	.driver  = {
-		.name = "stmp378x-pwm-led",
+		.name = "mxs-leds",
 	},
 };
 
-static int __init stmp378x_pwm_led_init(void)
+static int __init mxs_pwm_led_init(void)
 {
-	return platform_driver_register(&stmp378x_pwm_led_driver);
+	return platform_driver_register(&mxs_pwm_led_driver);
 }
 
-static void __exit stmp378x_pwm_led_exit(void)
+static void __exit mxs_pwm_led_exit(void)
 {
-	platform_driver_unregister(&stmp378x_pwm_led_driver);
+	platform_driver_unregister(&mxs_pwm_led_driver);
 }
 
-module_init(stmp378x_pwm_led_init);
-module_exit(stmp378x_pwm_led_exit);
+module_init(mxs_pwm_led_init);
+module_exit(mxs_pwm_led_exit);
 
 MODULE_AUTHOR("Drew Benedetti <drewb@embeddedalley.com>");
-MODULE_DESCRIPTION("STMP378X PWM LED driver");
+MODULE_DESCRIPTION("mxs PWM LED driver");
 MODULE_LICENSE("GPL");

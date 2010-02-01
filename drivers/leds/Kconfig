@@ -24,6 +24,12 @@ config LEDS_STMP378X
 	  This option enables support for the LEDs connected to PWM
 	  outputs on the Freescale STMP378X.
 
+config LEDS_MXS
+	tristate "Support for PWM LEDs on MXS"
+	depends on LEDS_CLASS && ARCH_MXS
+	help
+	  This option enables support for the LEDs connected to PWM
+	  outputs on the Freescale MXS SOC.
 
 config LEDS_ATMEL_PWM
 	tristate "LED Support using Atmel PWM outputs"

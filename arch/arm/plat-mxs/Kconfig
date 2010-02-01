@@ -52,6 +52,12 @@ config MXS_LRADC
 	help
 	  Enable LRADC support
 
+config MXS_PWM_CHANNELS
+	int
+	default 8
+	help
+	  The number of pwm channel on Freescale MXS platform.
+
 menu "Freescale Application UART:"
 
 config MXS_AUART_DMA_SUPPORT
