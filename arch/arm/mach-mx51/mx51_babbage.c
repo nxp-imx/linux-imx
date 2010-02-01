@@ -596,10 +596,20 @@ static struct i2c_board_info mxc_i2c0_board_info[] __initdata = {
 };
 #endif
 #ifdef CONFIG_I2C_MXC_SELECT2
+static struct mxc_lightsensor_platform_data ls_data = {
+	.vdd_reg = "VIOHI",
+	.rext = 100,
+};
+
 static struct i2c_board_info mxc_i2c1_board_info[] __initdata = {
 	{
 	 .type = "sgtl5000-i2c",
 	 .addr = 0x0a,
+	 },
+	{
+	 .type = "isl29003",
+	 .addr = 0x44,
+	 .platform_data = &ls_data,
 	 },
 };
 #endif
