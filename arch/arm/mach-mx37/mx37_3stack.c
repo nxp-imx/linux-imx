@@ -960,7 +960,7 @@ MACHINE_START(MX37_3DS, "Freescale MX37 3-Stack Board")
 	.boot_params = PHYS_OFFSET + 0x100,
 	.fixup = fixup_mxc_board,
 	.map_io = mx37_map_io,
-	.init_irq = mxc_init_irq,
+	.init_irq = mx37_init_irq,
 	.init_machine = mxc_board_init,
 	.timer = &mxc_timer,
 MACHINE_END

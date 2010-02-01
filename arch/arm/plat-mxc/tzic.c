@@ -1,5 +1,5 @@
 /*
- *  Copyright 2004-2009 Freescale Semiconductor, Inc. All Rights Reserved.
+ *  Copyright (C) 2004-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -26,7 +26,9 @@
  * TZIC Registers                        *
  *****************************************
  */
-#define TZIC_BASE               IO_ADDRESS(TZIC_BASE_ADDR)
+void __iomem *tzic_base;
+
+#define TZIC_BASE               (tzic_base)
 #define TZIC_INTCNTL            (TZIC_BASE + 0x0000)	/* control register */
 #define TZIC_INTTYPE            (TZIC_BASE + 0x0004)	/* Controller type register */
 #define TZIC_IMPID              (TZIC_BASE + 0x0008)	/* Distributor Implementer Identification Register */
@@ -117,9 +119,11 @@ static struct irq_chip mxc_tzic_chip = {
  * interrupts. It registers the interrupt enable and disable functions
  * to the kernel for each interrupt source.
  */
-void __init mxc_init_irq(void)
+void __init mxc_tzic_init_irq(unsigned long base)
 {
 	int i;
+
+	tzic_base = ioremap(base, SZ_4K);
 
 	/* put the TZIC into the reset value with
 	 * all interrupts disabled

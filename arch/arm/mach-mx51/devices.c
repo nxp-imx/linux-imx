@@ -26,6 +26,7 @@
 #include <linux/pwm_backlight.h>
 #include <linux/iram_alloc.h>
 #include <asm/mach-types.h>
+#include <mach/common.h>
 #include <mach/hardware.h>
 #include <mach/sdma.h>
 #include <mach/mxc_dvfs.h>
@@ -1325,6 +1326,18 @@ static inline void mxc_init_gpu2d(void)
 {
 }
 #endif
+
+void __init mx51_init_irq(void)
+{
+	unsigned long tzic_addr;
+
+	if (cpu_is_mx51_rev(CHIP_REV_2_0) < 0)
+		tzic_addr = TZIC_BASE_ADDR_T01;
+	else
+		tzic_addr = TZIC_BASE_ADDR;
+
+	mxc_tzic_init_irq(tzic_addr);
+}
 
 int __init mxc_init_devices(void)
 {

@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2007 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2004-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -23,6 +23,9 @@ extern void mx35_map_io(void);
 extern void mx37_map_io(void);
 extern void mx51_map_io(void);
 extern void mxc_init_irq(void);
+extern void mx51_init_irq(void);
+extern void mx37_init_irq(void);
+extern void mxc_tzic_init_irq(unsigned long);
 extern void mxc_timer_init(struct clk *timer_clk, void __iomem *base, int irq);
 extern int mx1_clocks_init(unsigned long fref);
 extern int mx21_clocks_init(unsigned long lref, unsigned long fref);

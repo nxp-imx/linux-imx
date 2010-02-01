@@ -1115,7 +1115,7 @@ MACHINE_START(MX51_BABBAGE, "Freescale MX51 Babbage Board")
 	.boot_params = PHYS_OFFSET + 0x100,
 	.fixup = fixup_mxc_board,
 	.map_io = mx51_map_io,
-	.init_irq = mxc_init_irq,
+	.init_irq = mx51_init_irq,
 	.init_machine = mxc_board_init,
 	.timer = &mxc_timer,
 MACHINE_END

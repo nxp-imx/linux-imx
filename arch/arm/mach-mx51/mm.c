@@ -35,11 +35,6 @@ static struct map_desc mx51_io_desc[] __initdata = {
 	 .length = DEBUG_SIZE,
 	 .type = MT_DEVICE},
 	{
-	 .virtual = TZIC_BASE_ADDR_VIRT,
-	 .pfn = __phys_to_pfn(TZIC_BASE_ADDR),
-	 .length = TZIC_SIZE,
-	 .type = MT_DEVICE},
-	{
 	 .virtual = AIPS1_BASE_ADDR_VIRT,
 	 .pfn = __phys_to_pfn(AIPS1_BASE_ADDR),
 	 .length = AIPS1_SIZE,
@@ -68,12 +63,5 @@ static struct map_desc mx51_io_desc[] __initdata = {
  */
 void __init mx51_map_io(void)
 {
-	u32 tzic_addr;
-	if (cpu_is_mx51_rev(CHIP_REV_2_0) < 0)
-		tzic_addr = TZIC_BASE_ADDR_T01;
-	else
-		tzic_addr = TZIC_BASE_ADDR;
-
-	mx51_io_desc[1].pfn =  __phys_to_pfn(tzic_addr);
 	iotable_init(mx51_io_desc, ARRAY_SIZE(mx51_io_desc));
 }

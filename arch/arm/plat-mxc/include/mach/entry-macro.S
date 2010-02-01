@@ -11,6 +11,8 @@
 
 #include <mach/hardware.h>
 
+.extern tzic_base
+
 #define AVIC_NIMASK	0x04
 
 	@ this macro disables fast irq (not implemented)
@@ -19,7 +21,8 @@
 
 	.macro  get_irqnr_preamble, base, tmp
 #ifdef CONFIG_MXC_TZIC
-	ldr	\base, =TZIC_IO_ADDRESS(TZIC_BASE_ADDR)
+	ldr \tmp, =tzic_base
+	ldr \base, [\tmp]
 #else
 	ldr	\base, =AVIC_IO_ADDRESS(AVIC_BASE_ADDR)
 #ifdef CONFIG_MXC_IRQ_PRIOR

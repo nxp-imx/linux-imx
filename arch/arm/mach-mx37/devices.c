@@ -22,6 +22,7 @@
 #include <linux/iram_alloc.h>
 
 #include <mach/gpio.h>
+#include <mach/common.h>
 #include <mach/hardware.h>
 #include <mach/mxc_dptc.h>
 #include <mach/mxc_dvfs.h>
@@ -1054,6 +1055,11 @@ int __init mxc_init_srpgconfig(void)
 	clk_put(gpcclk);
 
 	return 0;
+}
+
+void __init mx37_init_irq(void)
+{
+	mxc_tzic_init_irq(TZIC_BASE_ADDR);
 }
 
 int __init mxc_init_devices(void)
