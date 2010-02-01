@@ -1,5 +1,5 @@
 /*
- * Copyright 2005-2009 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2005-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -412,6 +412,19 @@ static int mxc_ipu_ioctl(struct inode *inode, struct file *file,
 							offset_parm.v_offset,
 							offset_parm.vertical_offset,
 							offset_parm.horizontal_offset);
+		}
+		break;
+	case IPU_CSC_UPDATE:
+		{
+			int param[5][3];
+			ipu_csc_update csc;
+			if (copy_from_user(&csc, (void *) arg,
+					   sizeof(ipu_csc_update)))
+				return -EFAULT;
+			if (copy_from_user(&param[0][0], (void *) csc.param,
+					   sizeof(param)))
+				return -EFAULT;
+			ipu_set_csc_coefficients(csc.channel, param);
 		}
 		break;
 	default:
