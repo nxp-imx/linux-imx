@@ -30,6 +30,9 @@
 
 #include <linux/module.h>
 #include <mach/hardware.h>
+#ifdef CONFIG_ARCH_MXS
+#include <mach/device.h>
+#endif
 #include "flexcan.h"
 
 enum {

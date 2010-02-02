@@ -1,5 +1,5 @@
 /*
- * Copyright 2008-2009 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2008-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -28,6 +28,9 @@
 #include <linux/platform_device.h>
 #include <linux/regulator/consumer.h>
 #include <linux/clk.h>
+#ifdef CONFIG_ARCH_MXS
+#include <mach/device.h>
+#endif
 
 #include <asm/io.h>
 #include <asm/irq.h>
