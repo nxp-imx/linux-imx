@@ -28,6 +28,7 @@
 
 #include <mach/device.h>
 #include <mach/dmaengine.h>
+#include <mach/hardware.h>
 
 #include "regs-apbh.h"
 

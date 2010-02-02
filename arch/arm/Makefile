@@ -137,6 +137,7 @@ machine-$(CONFIG_ARCH_MX1)		:= mx1
 machine-$(CONFIG_ARCH_MX2)		:= mx2
 machine-$(CONFIG_ARCH_MX25)		:= mx25
 machine-$(CONFIG_ARCH_MX28)		:= mx28
+machine-$(CONFIG_ARCH_MX23)		:= mx23
 machine-$(CONFIG_ARCH_MX3)		:= mx3
 machine-$(CONFIG_ARCH_MX35)		:= mx35
 machine-$(CONFIG_ARCH_MX37)		:= mx37

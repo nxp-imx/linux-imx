@@ -15,10 +15,24 @@ config ARCH_MX28
 	---help---
 	 Support Freescale MX28 chips
 
+config ARCH_MX23
+	bool "Freescale MX23"
+	select CPU_ARM926T
+	select ZONE_DMA
+	select MXS_ICOLL
+	select MXS_DMA_ENGINE
+	select MXS_AUART_DMA_SUPPORT
+	---help---
+	Support Freescale MX23 chips
+
 endchoice
 
 if ARCH_MX28
 source arch/arm/mach-mx28/Kconfig
+endif
+
+if ARCH_MX23
+source arch/arm/mach-mx23/Kconfig
 endif
 
 config DMA_ZONE_SIZE

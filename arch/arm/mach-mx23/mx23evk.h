@@ -16,38 +16,8 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#ifndef __ASM_ARM_ARCH_HARDWARE_H
-#define __ASM_ARM_ARCH_HARDWARE_H
+#ifndef __ASM_ARM_MACH_MX23EVK_H
+#define __ASM_ARM_MACH_MX23EVK_H
 
-#ifdef CONFIG_ARCH_MX28
-# include <mach/mx28.h>
-# define cpu_is_mx28() 1
-# else
-# define cpu_is_mx28() 0
-#endif
-
-#ifdef CONFIG_ARCH_MX23
-# include <mach/mx23.h>
-# define cpu_is_mx23() 1
-# else
-# define cpu_is_mx23() 0
-#endif
-
-#ifndef MXS_EXTEND_IRQS
-#define MXS_EXTEND_IRQS	0
-#endif
-
-#ifndef MXS_ARCH_NR_GPIOS
-#define MXS_ARCH_NR_GPIOS	160
-#endif
-
-#ifndef MXS_EXTEND_NR_GPIOS
-#define MXS_EXTEND_NR_GPIOS	0
-#endif
-
-#define ARCH_NR_GPIOS	(MXS_ARCH_NR_GPIOS + MXS_EXTEND_NR_GPIOS)
-
-#define MXS_GPIO_IRQ_START	ARCH_NR_IRQS
-#define MXS_EXTEND_IRQ_START	(ARCH_NR_IRQS + ARCH_NR_GPIOS)
-
-#endif /* __ASM_ARM_ARCH_HARDWARE_H */
+extern void __init mx23evk_pins_init(void);
+#endif /* __ASM_ARM_MACH_MX28EVK_H */

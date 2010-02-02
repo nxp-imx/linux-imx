@@ -141,6 +141,7 @@ struct flexcan_platform_data {
 };
 
 extern void mxs_timer_init(struct mxs_sys_timer *timer);
+extern void mxs_nomatch_timer_init(struct mxs_sys_timer *timer);
 
 extern void mxs_nop_release(struct device *dev);
 extern int mxs_add_devices(struct platform_device *, int num, int level);

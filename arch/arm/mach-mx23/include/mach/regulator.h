@@ -16,38 +16,15 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#ifndef __ASM_ARM_ARCH_HARDWARE_H
-#define __ASM_ARM_ARCH_HARDWARE_H
+#ifndef __PLAT_REGULATOR_H_
+#define __PLAT_REGULATOR_H_
 
-#ifdef CONFIG_ARCH_MX28
-# include <mach/mx28.h>
-# define cpu_is_mx28() 1
-# else
-# define cpu_is_mx28() 0
+#define MXS_REG5V_NOT_USB 0
+#define MXS_REG5V_IS_USB 1
+#define MXS_VDDD 0
+#define MXS_VDDA 1
+#define MXS_VDDIO 2
+#define MXS_VDDDBO 3
+#define MXS_OVERALL_CUR 4
+
 #endif
-
-#ifdef CONFIG_ARCH_MX23
-# include <mach/mx23.h>
-# define cpu_is_mx23() 1
-# else
-# define cpu_is_mx23() 0
-#endif
-
-#ifndef MXS_EXTEND_IRQS
-#define MXS_EXTEND_IRQS	0
-#endif
-
-#ifndef MXS_ARCH_NR_GPIOS
-#define MXS_ARCH_NR_GPIOS	160
-#endif
-
-#ifndef MXS_EXTEND_NR_GPIOS
-#define MXS_EXTEND_NR_GPIOS	0
-#endif
-
-#define ARCH_NR_GPIOS	(MXS_ARCH_NR_GPIOS + MXS_EXTEND_NR_GPIOS)
-
-#define MXS_GPIO_IRQ_START	ARCH_NR_IRQS
-#define MXS_EXTEND_IRQ_START	(ARCH_NR_IRQS + ARCH_NR_GPIOS)
-
-#endif /* __ASM_ARM_ARCH_HARDWARE_H */

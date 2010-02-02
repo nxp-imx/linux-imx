@@ -16,38 +16,19 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#ifndef __ASM_ARM_ARCH_HARDWARE_H
-#define __ASM_ARM_ARCH_HARDWARE_H
+#ifndef __ASM_ARCH_MACH_DEVICE_H__
+#define __ASM_ARCH_MACH_DEVICE_H__
 
-#ifdef CONFIG_ARCH_MX28
-# include <mach/mx28.h>
-# define cpu_is_mx28() 1
-# else
-# define cpu_is_mx28() 0
+extern struct mxs_sys_timer mx23_timer;
+
+extern void __init mx23_map_io(void);
+extern void __init mx23_clock_init(void);
+extern void __init mx23_irq_init(void);
+extern int __init mx23_pinctrl_init(void);
+extern int __init mx23_gpio_init(void);
+extern int __init mx23_device_init(void);
+extern void __init mx23_init_auart(void);
+extern void __init
+mx23_set_input_clk(unsigned long, unsigned long, unsigned long, unsigned long);
+
 #endif
-
-#ifdef CONFIG_ARCH_MX23
-# include <mach/mx23.h>
-# define cpu_is_mx23() 1
-# else
-# define cpu_is_mx23() 0
-#endif
-
-#ifndef MXS_EXTEND_IRQS
-#define MXS_EXTEND_IRQS	0
-#endif
-
-#ifndef MXS_ARCH_NR_GPIOS
-#define MXS_ARCH_NR_GPIOS	160
-#endif
-
-#ifndef MXS_EXTEND_NR_GPIOS
-#define MXS_EXTEND_NR_GPIOS	0
-#endif
-
-#define ARCH_NR_GPIOS	(MXS_ARCH_NR_GPIOS + MXS_EXTEND_NR_GPIOS)
-
-#define MXS_GPIO_IRQ_START	ARCH_NR_IRQS
-#define MXS_EXTEND_IRQ_START	(ARCH_NR_IRQS + ARCH_NR_GPIOS)
-
-#endif /* __ASM_ARM_ARCH_HARDWARE_H */

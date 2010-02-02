@@ -1,0 +1,9 @@
+choice
+	prompt "Select i.MXS board type"
+
+config MACH_MX23EVK
+	bool "Freescale MX23 EVK board"
+	depends on ARCH_MX23
+	select USB_ARCH_HAS_EHCI
+
+endchoice
