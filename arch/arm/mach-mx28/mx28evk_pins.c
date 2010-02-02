@@ -93,6 +93,60 @@ static struct pin_desc mx28evk_fixed_pins[] = {
 	 .fun   = PIN_GPIO,
 	 .data  = 1,
 	 },
+#if defined(CONFIG_CAN_FLEXCAN) || defined(CONFIG_CAN_FLEXCAN_MODULE)
+	{
+	 .name	= "CAN1_TX",
+	 .id	= PINID_GPMI_CE2N,
+	 .fun	= PIN_FUN2,
+	 .strength	= PAD_4MA,
+	 .voltage	= PAD_3_3V,
+	 .pullup	= 0,
+	 .drive 	= 1,
+	 .pull 		= 0,
+	 },
+	{
+	 .name	= "CAN1_RX",
+	 .id	= PINID_GPMI_CE3N,
+	 .fun	= PIN_FUN2,
+	 .strength	= PAD_4MA,
+	 .voltage	= PAD_3_3V,
+	 .pullup	= 0,
+	 .drive 	= 1,
+	 .pull 		= 0,
+	 },
+	{
+	 .name	= "CAN0_TX",
+	 .id	= PINID_GPMI_RDY2,
+	 .fun	= PIN_FUN2,
+	 .strength	= PAD_4MA,
+	 .voltage	= PAD_3_3V,
+	 .pullup	= 0,
+	 .drive 	= 1,
+	 .pull 		= 0,
+	 },
+	{
+	 .name	= "CAN0_RX",
+	 .id	= PINID_GPMI_RDY3,
+	 .fun	= PIN_FUN2,
+	 .strength	= PAD_4MA,
+	 .voltage	= PAD_3_3V,
+	 .pullup	= 0,
+	 .drive 	= 1,
+	 .pull 		= 0,
+	 },
+	{
+	 .name	= "CAN_PWDN",
+	 .id	= PINID_SSP1_CMD,
+	 .fun	= PIN_GPIO,
+	 .strength	= PAD_4MA,
+	 .voltage	= PAD_3_3V,
+	 .pullup	= 0,
+	 .drive 	= 1,
+	 .pull 		= 0,
+	 .data		= 0,
+	 },
+
+#endif
 
 #if defined(CONFIG_I2C_MXS) || \
 	defined(CONFIG_I2C_MXS_MODULE)

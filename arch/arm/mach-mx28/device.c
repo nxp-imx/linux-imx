@@ -752,6 +752,101 @@ static void __init mx28_init_ts(void)
 }
 #endif
 
+#if defined(CONFIG_CAN_FLEXCAN) || defined(CONFIG_CAN_FLEXCAN_MODULE)
+static void flexcan_xcvr_enable(int id, int en)
+{
+	static int pwdn;
+	if (en) {
+		if (!pwdn++)
+			gpio_set_value(MXS_PIN_TO_GPIO(PINID_SSP1_CMD), 1);
+	} else {
+		if (!--pwdn)
+			gpio_set_value(MXS_PIN_TO_GPIO(PINID_SSP1_CMD), 0);
+	}
+}
+
+struct flexcan_platform_data flexcan_data[] = {
+	{
+	.core_reg = NULL,
+	.io_reg = NULL,
+	.xcvr_enable = flexcan_xcvr_enable,
+	.br_clksrc = 1,
+	.br_rjw = 2,
+	.br_presdiv = 2,
+	.br_propseg = 2,
+	.br_pseg1 = 3,
+	.br_pseg2 = 7,
+	.bcc = 1,
+	.srx_dis = 1,
+	.smp = 1,
+	.boff_rec = 1,
+	.ext_msg = 1,
+	.std_msg = 1,
+	},
+	{
+	.core_reg = NULL,
+	.io_reg = NULL,
+	.xcvr_enable = flexcan_xcvr_enable,
+	.br_clksrc = 1,
+	.br_rjw = 2,
+	.br_presdiv = 2,
+	.br_propseg = 2,
+	.br_pseg1 = 3,
+	.br_pseg2 = 7,
+	.bcc = 1,
+	.srx_dis = 1,
+	.boff_rec = 1,
+	.ext_msg = 1,
+	.std_msg = 1,
+	},
+};
+
+static struct resource flexcan0_resources[] = {
+	{
+	    .start = CAN0_PHYS_ADDR,
+	    .end = CAN0_PHYS_ADDR + 0x1FFF,
+	    .flags = IORESOURCE_MEM,},
+	{
+	    .start = IRQ_CAN0,
+	    .end = IRQ_CAN0,
+	    .flags = IORESOURCE_IRQ,},
+};
+static struct resource flexcan1_resources[] = {
+	{
+	    .start = CAN1_PHYS_ADDR,
+	    .end = CAN1_PHYS_ADDR + 0x1FFF,
+	    .flags = IORESOURCE_MEM,},
+	{
+	    .start = IRQ_CAN1,
+	    .end = IRQ_CAN1,
+	    .flags = IORESOURCE_IRQ,},
+};
+
+static inline void mx28_init_flexcan(void)
+{
+	struct platform_device *pdev;
+	pdev = mxs_get_device("FlexCAN", 0);
+	if (pdev == NULL || IS_ERR(pdev))
+		return;
+	pdev->resource = flexcan0_resources;
+	pdev->num_resources = ARRAY_SIZE(flexcan0_resources);
+	pdev->dev.platform_data = &flexcan_data[0];
+	mxs_add_device(pdev, 2);
+
+	pdev = mxs_get_device("FlexCAN", 1);
+	if (pdev == NULL || IS_ERR(pdev))
+		return;
+	pdev->resource = flexcan1_resources;
+	pdev->num_resources = ARRAY_SIZE(flexcan1_resources);
+	pdev->dev.platform_data = &flexcan_data[1];
+	mxs_add_device(pdev, 2);
+}
+#else
+static inline void mx28_init_flexcan(void)
+{
+}
+#endif
+
 int __init mx28_device_init(void)
 {
 	mx28_init_dma();
@@ -763,6 +858,7 @@ int __init mx28_device_init(void)
 	mx28_init_wdt();
 	mx28_init_rtc();
 	mx28_init_fec();
+	mx28_init_flexcan();
 	mx28_init_kbd();
 	mx28_init_ts();
 	mx28_init_lcdif();
