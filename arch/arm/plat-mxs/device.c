@@ -318,6 +318,26 @@ static struct platform_device mxs_led = {
 };
 #endif
 
+#if defined(CONFIG_CAN_FLEXCAN) || \
+	defined(CONFIG_CAN_FLEXCAN_MODULE)
+static struct platform_device mxs_flexcan[] = {
+	{
+	.name = "FlexCAN",
+	.id = 0,
+	.dev = {
+		.release = mxs_nop_release,
+		},
+	},
+	{
+	.name = "FlexCAN",
+	.id = 1,
+	.dev = {
+		.release = mxs_nop_release,
+		},
+	},
+};
+#endif
+
 static struct mxs_dev_lookup dev_lookup[] = {
 #if defined(CONFIG_SERIAL_MXS_DUART) || \
 	defined(CONFIG_SERIAL_MXS_DUART_MODULE)
@@ -430,6 +450,15 @@ static struct mxs_dev_lookup dev_lookup[] = {
 	 .size = 1,
 	 .pdev = &mxs_led,
 	 },
+#endif
+
+#if defined(CONFIG_CAN_FLEXCAN) || \
+	defined(CONFIG_CAN_FLEXCAN_MODULE)
+	{
+	.name = "FlexCAN",
+	.size = ARRAY_SIZE(mxs_flexcan),
+	.pdev = mxs_flexcan,
+	},
 #endif
 };
 
