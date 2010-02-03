@@ -73,8 +73,34 @@ enum pad_voltage {
 	PAD_3_3V,
 };
 
-/*
- * Structure to define a group of pins and their parameters
+/**
+ * struct pin_desc - Describes the configuration of a pin.
+ *
+ * @name:      A human-readable name that identifies the pin.
+ * @id:        A number that identifies the pin (use a macro from a chip-
+ *             specific header file -- e.g., "PINID_PWM0").
+ * @fun:       The function for which to configure this pin.
+ * @strength:  The drive strength for this pin. Note that this field should be
+ *             ignored and the driver hardware should *not* be configured if the
+ *             "drive" field is not set.
+ * @voltage:   The voltage rail for this pin. Note that this field should be
+ *             ignored and the driver hardware should *not* be configured if the
+ *             "drive" field is not set.
+ * @pullup:    If set, indicates whether the pullup is enabled. Note that this
+ *             field should be ignored and the pullup should *not* be configured
+ *             if the "pull" field is not set.
+ * @drive:     If set, indicates that the driver hardware for this pin should be
+ *             configured. This field does *not* indicate *how* the driver
+ *             hardware should be configured -- only whether or not it should
+ *             be. See the "strength" and "voltage" fields for information about
+ *             how to configure the driver hardware.
+ * @pull:      If set, indicates that the pullup for this pin should be
+ *             configured. This field does *not* indicate *how* the pullup
+ *             should be configured -- only whether or not it should be. See the
+ *             "pullup" field for information about how to configure the pullup.
+ * @input:     For GPIO pins only, this indicates whether the pin is an input.
+ * @data:      The data field is used when the pin is configured to GPIO output
+ *             mode. When data is 0, the pin's output will be 0.
  */
 struct pin_desc {
 	char *name;

@@ -33,8 +33,27 @@
 
 static void *mxs_dma_pool;
 static int mxs_dma_alignment = MXS_DMA_ALIGNMENT;
+
+/*
+ * The mutex that arbitrates access to the array of structures that represent
+ * all the DMA channels in the system (see mxs_dma_channels, below).
+ */
+
 static DEFINE_MUTEX(mxs_dma_mutex);
+
+/*
+ * The list of DMA drivers that manage various DMA channels. A DMA device
+ * driver registers to manage DMA channels by calling mxs_dma_device_register().
+ */
+
 static LIST_HEAD(mxs_dma_devices);
+
+/*
+ * The array of struct mxs_dma_chan that represent every DMA channel in the
+ * system. The index of the structure in the array indicates the specific DMA
+ * hardware it represents (see mach-mx28/include/mach/dma.h).
+ */
+
 static struct mxs_dma_chan mxs_dma_channels[MAX_DMA_CHANNELS];
 
 int mxs_dma_request(int channel, struct device *dev, const char *name)
