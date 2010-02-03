@@ -329,6 +329,7 @@ static void timer_work_func(struct work_struct *work)
 		queue_buf(&vout->done_q, last_buf);
 		vout->ipu_buf[1] = -1;
 		g_buf_output_cnt = 2;
+		wake_up_interruptible(&vout->v4l_bufq);
 		if (vout->state == STATE_STREAM_PAUSED) {
 			index = peek_next_buf(&vout->ready_q);
 			if (index != -1) {
