@@ -178,6 +178,7 @@ static struct regulator_init_data sw4_init = {
 static struct regulator_init_data viohi_init = {
 	.constraints = {
 		.name = "VIOHI",
+		.always_on = 1,
 		.boot_on = 1,
 	}
 };
