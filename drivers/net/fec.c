@@ -1789,10 +1789,10 @@ static const struct net_device_ops fec_netdev_ops = {
 };
 #ifdef CONFIG_ARCH_MXS
 
-static int fec_set_hw_mac(struct net_device *dev, char *mac_addr)
+static int fec_set_hw_mac(struct net_device *dev, unsigned char *mac_addr)
 {
 	struct fec_enet_private *fep = netdev_priv(dev);
-	char *addr = mac_addr;
+	unsigned char *addr = mac_addr;
 
 	if (!is_valid_ether_addr(addr))
 		return -EADDRNOTAVAIL;
