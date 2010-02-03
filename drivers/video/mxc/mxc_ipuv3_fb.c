@@ -1079,6 +1079,23 @@ mxcfb_pan_display(struct fb_var_screeninfo *var, struct fb_info *info)
 	    (info->var.yoffset == var->yoffset))
 		return 0;	/* No change, do nothing */
 
+	/* no pan display during fb blank */
+	if (mxc_fbi->ipu_ch == MEM_FG_SYNC) {
+		struct mxcfb_info *bg_mxcfbi = NULL;
+		int j;
+		for (j = 0; j < num_registered_fb; j++) {
+			bg_mxcfbi =
+				((struct mxcfb_info *)(registered_fb[j]->par));
+
+			if (bg_mxcfbi->ipu_ch == MEM_BG_SYNC)
+				break;
+		}
+		if (bg_mxcfbi->blank != FB_BLANK_UNBLANK)
+			return -EINVAL;
+	}
+	if (mxc_fbi->blank != FB_BLANK_UNBLANK)
+		return -EINVAL;
+
 	y_bottom = var->yoffset;
 
 	if (!(var->vmode & FB_VMODE_YWRAP))
