@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2009 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2004-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -66,8 +66,8 @@ extern void init_sdma_pool(void);
  * Flags are save and restored during interrupt handler
  */
 unsigned long flags;
-
 struct clk *mxc_sdma_ahb_clk, *mxc_sdma_ipg_clk;
+void __iomem *sdma_base;
 
 /*!
  * Structure containing sdma channels information.
@@ -1410,6 +1410,10 @@ int __init sdma_init(void)
 	if (res < 0) {
 		goto sdma_init_fail;
 	}
+
+	sdma_base = ioremap(SDMA_BASE_ADDR, SZ_4K);
+	if (sdma_base == NULL)
+		goto sdma_init_fail;
 
 	init_mutexes();
 

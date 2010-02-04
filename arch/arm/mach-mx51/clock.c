@@ -30,12 +30,6 @@
 
 #include "crm_regs.h"
 
-static unsigned long pll_base[] = {
-	(unsigned long)MXC_DPLL1_BASE,
-	(unsigned long)MXC_DPLL2_BASE,
-	(unsigned long)MXC_DPLL3_BASE,
-};
-
 static struct clk pll1_main_clk;
 static struct clk pll1_sw_clk;
 static struct clk pll2_sw_clk;
@@ -56,6 +50,10 @@ static struct clk gpu2d_clk;
 static struct clk vpu_clk[];
 static int cpu_curr_wp;
 static struct cpu_wp *cpu_wp_tbl;
+
+void __iomem *pll1_base;
+void __iomem *pll2_base;
+void __iomem *pll3_base;
 
 int cpu_wp_nr;
 int lp_high_freq;
@@ -192,18 +190,18 @@ static inline u32 _get_mux_ddr(struct clk *parent, struct clk *m0,
 	return 0;
 }
 
-static inline unsigned long _get_pll_base(struct clk *pll)
+static inline void __iomem *_get_pll_base(struct clk *pll)
 {
 	if (pll == &pll1_main_clk)
-		return pll_base[0];
+		return pll1_base;
 	else if (pll == &pll2_sw_clk)
-		return pll_base[1];
+		return pll2_base;
 	else if (pll == &pll3_sw_clk)
-		return pll_base[2];
+		return pll3_base;
 	else
 		BUG();
 
-	return 0;
+	return NULL;
 }
 
 static struct clk ckih_clk = {
@@ -274,7 +272,7 @@ static void _clk_pll_recalc(struct clk *clk)
 {
 	long mfi, mfn, mfd, pdf, ref_clk, mfn_abs;
 	unsigned long dp_op, dp_mfd, dp_mfn, dp_ctl, pll_hfsm, dbl;
-	unsigned long pllbase;
+	void __iomem *pllbase;
 	s64 temp;
 
 	pllbase = _get_pll_base(clk);
@@ -320,7 +318,7 @@ static void _clk_pll_recalc(struct clk *clk)
 static int _clk_pll_set_rate(struct clk *clk, unsigned long rate)
 {
 	u32 reg, reg1;
-	u32 pllbase;
+	void __iomem *pllbase;
 	struct timespec nstimeofday;
 	struct timespec curtime;
 
@@ -385,7 +383,7 @@ static int _clk_pll_set_rate(struct clk *clk, unsigned long rate)
 static int _clk_pll_enable(struct clk *clk)
 {
 	u32 reg;
-	u32 pllbase;
+	void __iomem *pllbase;
 	struct timespec nstimeofday;
 	struct timespec curtime;
 
@@ -406,7 +404,7 @@ static int _clk_pll_enable(struct clk *clk)
 static void _clk_pll_disable(struct clk *clk)
 {
 	u32 reg;
-	u32 pllbase;
+	void __iomem *pllbase;
 
 	pllbase = _get_pll_base(clk);
 	reg = __raw_readl(pllbase + MXC_PLL_DP_CTL) & ~MXC_PLL_DP_CTL_UPEN;
@@ -3571,17 +3569,17 @@ static void clk_tree_init(void)
 
 	/* set pll1_main_clk parent */
 	pll1_main_clk.parent = &osc_clk;
-	dp_ctl = __raw_readl(pll_base[0] + MXC_PLL_DP_CTL);
+	dp_ctl = __raw_readl(pll1_base + MXC_PLL_DP_CTL);
 	if ((dp_ctl & MXC_PLL_DP_CTL_REF_CLK_SEL_MASK) == 0)
 		pll1_main_clk.parent = &fpm_clk;
 	/* set pll2_sw_clk parent */
 	pll2_sw_clk.parent = &osc_clk;
-	dp_ctl = __raw_readl(pll_base[1] + MXC_PLL_DP_CTL);
+	dp_ctl = __raw_readl(pll2_base + MXC_PLL_DP_CTL);
 	if ((dp_ctl & MXC_PLL_DP_CTL_REF_CLK_SEL_MASK) == 0)
 		pll2_sw_clk.parent = &fpm_clk;
 	/* set pll3_clk parent */
 	pll3_sw_clk.parent = &osc_clk;
-	dp_ctl = __raw_readl(pll_base[2] + MXC_PLL_DP_CTL);
+	dp_ctl = __raw_readl(pll3_base + MXC_PLL_DP_CTL);
 	if ((dp_ctl & MXC_PLL_DP_CTL_REF_CLK_SEL_MASK) == 0)
 		pll3_sw_clk.parent = &fpm_clk;
 
@@ -3624,9 +3622,14 @@ static void clk_tree_init(void)
 
 int __init mx51_clocks_init(unsigned long ckil, unsigned long osc, unsigned long ckih1, unsigned long ckih2)
 {
+	__iomem void *base;
 	struct clk **clkp;
 	int i = 0, j = 0, reg;
 	int wp_cnt = 0;
+
+	pll1_base = ioremap(PLL1_BASE_ADDR, SZ_4K);
+	pll2_base = ioremap(PLL2_BASE_ADDR, SZ_4K);
+	pll3_base = ioremap(PLL3_BASE_ADDR, SZ_4K);
 
 	/* Turn off all possible clocks */
 	if (mxc_jtag_enabled) {
@@ -3840,13 +3843,6 @@ int __init mx51_clocks_init(unsigned long ckil, unsigned long osc, unsigned long
 	propagate_rate(&pll1_sw_clk);
 	propagate_rate(&pll2_sw_clk);
 
-	/*Allow for automatic gating of the EMI internal clock.
-	 * If this is done, emi_intr CCGR bits should be set to 11.
-	 */
-	reg = __raw_readl((IO_ADDRESS(M4IF_BASE_ADDR) + 0x8c));
-	reg &= ~0x1;
-	__raw_writel(reg, (IO_ADDRESS(M4IF_BASE_ADDR) + 0x8c));
-
 	clk_set_parent(&arm_axi_clk, &axi_a_clk);
 	clk_set_parent(&ipu_clk[0], &axi_b_clk);
 	clk_set_parent(&uart_main_clk, &pll2_sw_clk);
@@ -3858,7 +3854,8 @@ int __init mx51_clocks_init(unsigned long ckil, unsigned long osc, unsigned long
 	clk_set_rate(&emi_enfc_clk, clk_round_rate(&emi_enfc_clk,
 			(clk_get_rate(&emi_slow_clk))/4));
 
-	mxc_timer_init(&gpt_clk[0], IO_ADDRESS(GPT1_BASE_ADDR), MXC_INT_GPT);
+	base = ioremap(GPT1_BASE_ADDR, SZ_4K);
+	mxc_timer_init(&gpt_clk[0], base, MXC_INT_GPT);
 	return 0;
 }
 

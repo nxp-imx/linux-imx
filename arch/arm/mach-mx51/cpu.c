@@ -27,6 +27,8 @@
 #include <mach/hardware.h>
 #include "crm_regs.h"
 
+void __iomem *arm_plat_base;
+
 /*!
  * CPU initialization. It is called by fixup_mxc_board()
  */
@@ -49,24 +51,36 @@ static int __init post_cpu_init(void)
 	iram_init(IRAM_BASE_ADDR, iram_size);
 
 	/* Set ALP bits to 000. Set ALP_EN bit in Arm Memory Controller reg. */
+	arm_plat_base = ioremap(ARM_BASE_ADDR, SZ_4K);
 	reg = 0x8;
 	__raw_writel(reg, MXC_CORTEXA8_PLAT_AMC);
 
-	base = IO_ADDRESS(AIPS1_BASE_ADDR);
+	base = ioremap(AIPS1_BASE_ADDR, SZ_4K);
 	__raw_writel(0x0, base + 0x40);
 	__raw_writel(0x0, base + 0x44);
 	__raw_writel(0x0, base + 0x48);
 	__raw_writel(0x0, base + 0x4C);
 	reg = __raw_readl(base + 0x50) & 0x00FFFFFF;
 	__raw_writel(reg, base + 0x50);
+	iounmap(base);
 
-	base = IO_ADDRESS(AIPS2_BASE_ADDR);
+	base = ioremap(AIPS2_BASE_ADDR, SZ_4K);
 	__raw_writel(0x0, base + 0x40);
 	__raw_writel(0x0, base + 0x44);
 	__raw_writel(0x0, base + 0x48);
 	__raw_writel(0x0, base + 0x4C);
 	reg = __raw_readl(base + 0x50) & 0x00FFFFFF;
 	__raw_writel(reg, base + 0x50);
+	iounmap(base);
+
+	/*Allow for automatic gating of the EMI internal clock.
+	 * If this is done, emi_intr CCGR bits should be set to 11.
+	 */
+	base = ioremap(M4IF_BASE_ADDR, SZ_4K);
+	reg = __raw_readl(base + 0x8c);
+	reg &= ~0x1;
+	__raw_writel(reg, base + 0x8c);
+	iounmap(base);
 
 	return 0;
 }

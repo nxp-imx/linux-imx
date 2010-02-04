@@ -1,5 +1,5 @@
 /*
- * Copyright 2009 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2009-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -38,6 +38,7 @@ static struct device *sdram_autogating_dev;
 /* Flag used to indicate if SDRAM M4IF autoclock gating feature is active. */
 static int sdram_autogating_is_active;
 static int sdram_autogating_paused;
+static void __iomem *m4if_base;
 
 void start_sdram_autogating(void);
 void stop_sdram_autogating(void);
@@ -48,16 +49,16 @@ static void enable(void)
 	u32 reg;
 
 	/* Set the Fast arbitration Power saving timer */
-	reg = __raw_readl((IO_ADDRESS(M4IF_BASE_ADDR) + M4IF_CNTL_REG1));
+	reg = __raw_readl(m4if_base + M4IF_CNTL_REG1);
 	reg &= ~0xFF;
 	reg |= 0x09;
-	__raw_writel(reg, (IO_ADDRESS(M4IF_BASE_ADDR) + M4IF_CNTL_REG1));
+	__raw_writel(reg, m4if_base + M4IF_CNTL_REG1);
 	/*Allow for automatic gating of the EMI internal clock.
 	 * If this is done, emi_intr CCGR bits should be set to 11.
 	 */
-	reg = __raw_readl((IO_ADDRESS(M4IF_BASE_ADDR) + M4IF_CNTL_REG0));
+	reg = __raw_readl(m4if_base + M4IF_CNTL_REG0);
 	reg &= ~0x5;
-	__raw_writel(reg, (IO_ADDRESS(M4IF_BASE_ADDR) + M4IF_CNTL_REG0));
+	__raw_writel(reg, m4if_base + M4IF_CNTL_REG0);
 
 	sdram_autogating_is_active = 1;
 }
@@ -66,9 +67,9 @@ static void disable(void)
 {
 	u32 reg;
 
-	reg = __raw_readl((IO_ADDRESS(M4IF_BASE_ADDR) + M4IF_CNTL_REG0));
+	reg = __raw_readl(m4if_base + M4IF_CNTL_REG0);
 	reg |= 0x4;
-	__raw_writel(reg, (IO_ADDRESS(M4IF_BASE_ADDR) + M4IF_CNTL_REG0));
+	__raw_writel(reg, m4if_base + M4IF_CNTL_REG0);
 	sdram_autogating_is_active = 0;
 }
 
@@ -130,9 +131,16 @@ static DEVICE_ATTR(enable, 0644, sdram_autogating_enable_show,
  */
 static int __devinit sdram_autogating_probe(struct platform_device *pdev)
 {
+	struct resource *res;
 	int err = 0;
 
 	sdram_autogating_dev = &pdev->dev;
+
+	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+	if (!res) {
+		return -ENOMEM;
+	}
+	m4if_base = ioremap(res->start, res->end - res->start + 1);
 
 	err = sysfs_create_file(&sdram_autogating_dev->kobj,
 							&dev_attr_enable.attr);

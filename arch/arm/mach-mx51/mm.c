@@ -30,11 +30,6 @@
  */
 static struct map_desc mx51_io_desc[] __initdata = {
 	{
-	 .virtual = DEBUG_BASE_ADDR_VIRT,
-	 .pfn = __phys_to_pfn(DEBUG_BASE_ADDR),
-	 .length = DEBUG_SIZE,
-	 .type = MT_DEVICE},
-	{
 	 .virtual = AIPS1_BASE_ADDR_VIRT,
 	 .pfn = __phys_to_pfn(AIPS1_BASE_ADDR),
 	 .length = AIPS1_SIZE,

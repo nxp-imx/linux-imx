@@ -302,8 +302,8 @@ static struct platform_device mxc_ipu_device = {
 
 static void mxc_init_ipu(void)
 {
-	void __iomem *reg_hsc_mcd = IO_ADDRESS(MIPI_HSC_BASE_ADDR);
-	void __iomem *reg_hsc_mxt_conf = IO_ADDRESS(MIPI_HSC_BASE_ADDR + 0x800);
+	void __iomem *reg_hsc_mcd = ioremap(MIPI_HSC_BASE_ADDR, SZ_4K);
+	void __iomem *reg_hsc_mxt_conf = reg_hsc_mcd + 0x800;
 	struct clk *clk;
 	uint32_t temp;
 
@@ -333,6 +333,7 @@ static void mxc_init_ipu(void)
 		clk_disable(clk);
 		clk_put(clk);
 	}
+	iounmap(reg_hsc_mcd);
 	platform_device_register(&mxc_ipu_device);
 }
 #else
@@ -1152,12 +1153,22 @@ static inline void mxc_init_busfreq(void)
 	(void)platform_device_register(&busfreq_device);
 }
 
+static struct resource mxc_m4if_resources[] = {
+	{
+	 .start = M4IF_BASE_ADDR,
+	 .end = M4IF_BASE_ADDR + SZ_4K - 1,
+	 .flags = IORESOURCE_MEM,
+	 },
+};
+
 static struct platform_device sdram_autogating_device = {
 	.name = "sdram_autogating",
 	.id = 0,
 	.dev = {
 		.release = mxc_nop_release,
 		},
+	.resource = mxc_m4if_resources,
+	.num_resources = ARRAY_SIZE(mxc_m4if_resources),
 };
 
 static inline void mxc_init_sdram_autogating(void)

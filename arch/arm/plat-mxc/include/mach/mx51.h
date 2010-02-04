@@ -103,11 +103,9 @@
 
 #define TZIC_BASE_ADDR_T01		0x8FFFC000
 #define TZIC_BASE_ADDR			0xE0000000
-#define TZIC_BASE_ADDR_VIRT	0xFA100000
 #define TZIC_SIZE		SZ_16K
 
 #define DEBUG_BASE_ADDR	0x60000000
-#define DEBUG_BASE_ADDR_VIRT	0xFA200000
 #define DEBUG_SIZE		SZ_1M
 #define ETB_BASE_ADDR		(DEBUG_BASE_ADDR + 0x00001000)
 #define ETM_BASE_ADDR		(DEBUG_BASE_ADDR + 0x00002000)
@@ -158,7 +156,7 @@
  * AIPS 1
  */
 #define AIPS1_BASE_ADDR 	0x73F00000
-#define AIPS1_BASE_ADDR_VIRT	0xFB000000
+#define AIPS1_BASE_ADDR_VIRT	0xF7E00000
 #define AIPS1_SIZE		SZ_1M
 
 #define OTG_BASE_ADDR	(AIPS1_BASE_ADDR + 0x00080000)
@@ -218,7 +216,7 @@
  * AIPS 2
  */
 #define AIPS2_BASE_ADDR	0x83F00000
-#define AIPS2_BASE_ADDR_VIRT	0xFB200000
+#define AIPS2_BASE_ADDR_VIRT	0xF7D00000
 #define AIPS2_SIZE		SZ_1M
 
 #define PLL1_BASE_ADDR		(AIPS2_BASE_ADDR + 0x00080000)
@@ -276,13 +274,7 @@
  */
 #define IO_ADDRESS(x)   \
 	(void __force __iomem *) \
-	((((x) >= (unsigned long)TZIC_BASE_ADDR) && \
-	    ((x) < (unsigned long)TZIC_BASE_ADDR + TZIC_SIZE)) ? \
-	     TZIC_IO_ADDRESS(x):\
-	(((x) >= (unsigned long)DEBUG_BASE_ADDR) && \
-	  ((x) < (unsigned long)DEBUG_BASE_ADDR + DEBUG_SIZE)) ? \
-	   DEBUG_IO_ADDRESS(x):\
-	(((x) >= (unsigned long)SPBA0_BASE_ADDR) && \
+	((((x) >= (unsigned long)SPBA0_BASE_ADDR) && \
 	  ((x) < (unsigned long)SPBA0_BASE_ADDR + SPBA0_SIZE)) ? \
 	   SPBA0_IO_ADDRESS(x):\
 	(((x) >= (unsigned long)AIPS1_BASE_ADDR) && \
@@ -299,12 +291,6 @@
 /*
  * define the address mapping macros: in physical address order
  */
-#define TZIC_IO_ADDRESS(x)  \
-	(((x) - TZIC_BASE_ADDR) + TZIC_BASE_ADDR_VIRT)
-
-#define DEBUG_IO_ADDRESS(x)  \
-	(((x) - DEBUG_BASE_ADDR) + DEBUG_BASE_ADDR_VIRT)
-
 #define SPBA0_IO_ADDRESS(x)  \
 	(((x) - SPBA0_BASE_ADDR) + SPBA0_BASE_ADDR_VIRT)
 
