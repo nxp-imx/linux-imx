@@ -1,5 +1,5 @@
 /*
- * Copyright 2007-2009 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2007-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -75,7 +75,7 @@ static void lcd_init_fb(struct fb_info *info)
 	}
 
 	var.activate = FB_ACTIVATE_ALL;
-	var.yres_virtual = var.yres * 2;
+	var.yres_virtual = var.yres * 3;
 
 	acquire_console_sem();
 	info->flags |= FBINFO_MISC_USEREVENT;
