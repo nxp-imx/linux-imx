@@ -28,6 +28,7 @@
 #include "crm_regs.h"
 
 void __iomem *arm_plat_base;
+void __iomem *gpc_base;
 
 /*!
  * CPU initialization. It is called by fixup_mxc_board()
@@ -49,6 +50,8 @@ static int __init post_cpu_init(void)
 		iram_size -= SCC_RAM_SIZE;
 #endif
 	iram_init(IRAM_BASE_ADDR, iram_size);
+
+	gpc_base = ioremap(GPC_BASE_ADDR, SZ_4K);
 
 	/* Set ALP bits to 000. Set ALP_EN bit in Arm Memory Controller reg. */
 	arm_plat_base = ioremap(ARM_BASE_ADDR, SZ_4K);

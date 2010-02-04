@@ -1,5 +1,5 @@
 /*
- * Copyright 2009 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2009-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -49,6 +49,17 @@
 #if defined(CONFIG_ARCH_MX37)
 #include <mach/mxc_dptc.h>
 #endif
+
+/* DVFS PER */
+static void __iomem *dvfs_per_base;
+#define MXC_DVFS_PER_LTR0	(dvfs_per_base)
+#define MXC_DVFS_PER_LTR1	(dvfs_per_base + 0x04)
+#define MXC_DVFS_PER_LTR2	(dvfs_per_base + 0x08)
+#define MXC_DVFS_PER_LTR3	(dvfs_per_base + 0x0C)
+#define MXC_DVFS_PER_LTBR0	(dvfs_per_base + 0x10)
+#define MXC_DVFS_PER_LTBR1	(dvfs_per_base + 0x14)
+#define MXC_DVFS_PER_PMCR0	(dvfs_per_base + 0x18)
+#define MXC_DVFS_PER_PMCR1	(dvfs_per_base + 0x1C)
 
 #define DRIVER_NAME "DVFSPER"
 #define DVFS_PER_DEBUG 0
@@ -759,6 +770,7 @@ static int __devinit mxc_dvfsper_probe(struct platform_device *pdev)
 		ret = -ENODEV;
 		goto err1;
 	}
+	dvfs_per_base = gpc_base + 0x1C4;
 
 	/*
 	 * Request the DVFSPER interrupt

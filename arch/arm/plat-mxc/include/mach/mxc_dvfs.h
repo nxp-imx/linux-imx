@@ -1,5 +1,5 @@
 /*
- * Copyright 2009 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2009-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -34,6 +34,8 @@
 #include <linux/workqueue.h>
 #include <linux/device.h>
 
+extern void __iomem *gpc_base;
+
 #define MXC_GPCCNTR_GPCIRQ2M		(1 << 25)
 #define MXC_GPCCNTR_GPCIRQ2		(1 << 24)
 #define MXC_GPCCNTR_GPCIRQM		(1 << 21)
@@ -61,18 +63,6 @@
 #define MXC_DVFSPER_PMCR0_UDCS_MASK		0x8000000
 #define MXC_DVFSPER_PMCR0_ENABLE_MASK	0x10
 #define MXC_DVFSPER_PMCR0_ENABLE			(1 << 4)
-
-#define MXC_DVFS_PER_BASE	IO_ADDRESS(GPC_BASE_ADDR + 0x1C4)
-
-/* DVFS PER */
-#define MXC_DVFS_PER_LTR0	(MXC_DVFS_PER_BASE)
-#define MXC_DVFS_PER_LTR1	(MXC_DVFS_PER_BASE + 0x04)
-#define MXC_DVFS_PER_LTR2	(MXC_DVFS_PER_BASE + 0x08)
-#define MXC_DVFS_PER_LTR3	(MXC_DVFS_PER_BASE + 0x0C)
-#define MXC_DVFS_PER_LTBR0	(MXC_DVFS_PER_BASE + 0x10)
-#define MXC_DVFS_PER_LTBR1	(MXC_DVFS_PER_BASE + 0x14)
-#define MXC_DVFS_PER_PMCR0	(MXC_DVFS_PER_BASE + 0x18)
-#define MXC_DVFS_PER_PMCR1	(MXC_DVFS_PER_BASE + 0x1C)
 
 #define MXC_DVFSLTR0_UPTHR_MASK		0x0FC00000
 #define MXC_DVFSLTR0_UPTHR_OFFSET	22
