@@ -119,9 +119,19 @@ dr_wake_up_enable(struct fsl_udc *udc, bool enable)
 		pdata->wake_up_enable(pdata, enable);
 }
 
+#ifdef CONFIG_WORKAROUND_ARCUSB_REG_RW
+static void safe_writel(u32 val32, void *addr)
+{
+	__asm__ ("swp %0, %0, [%1]" : : "r"(val32), "r"(addr));
+}
+#endif
+
 #ifdef CONFIG_PPC32
 #define fsl_readl(addr)		in_le32((addr))
 #define fsl_writel(addr, val32) out_le32((val32), (addr))
+#elif defined (CONFIG_WORKAROUND_ARCUSB_REG_RW)
+#define fsl_readl(addr)		readl((addr))
+#define fsl_writel(val32, addr) safe_writel(val32, addr)
 #else
 #define fsl_readl(addr)		readl((addr))
 #define fsl_writel(addr, val32) writel((addr), (val32))
