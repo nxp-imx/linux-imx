@@ -1,5 +1,5 @@
 /*
- * Copyright 2008-2009 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2008-2010 Freescale Semiconductor, Inc.
  */
 
 /*
@@ -24,6 +24,8 @@
 #include <crypto/algapi.h>
 #include <crypto/aes.h>
 #include <crypto/sha.h>
+#include <crypto/hash.h>
+#include <crypto/internal/hash.h>
 #include <linux/dma-mapping.h>
 #include <linux/interrupt.h>
 #include <linux/delay.h>
@@ -35,9 +37,6 @@
 
 #include "stmp3xxx_dcp.h"
 
-/* SHA1 is busted */
-#define DISABLE_SHA1
-
 struct stmp3xxx_dcp {
 	struct device *dev;
 	spinlock_t lock;
@@ -46,6 +45,15 @@ struct stmp3xxx_dcp {
 	int wait[STMP3XXX_DCP_NUM_CHANNELS];
 	int dcp_vmi_irq;
 	int dcp_irq;
+
+	/* Following buffers used in hashing to meet 64-byte len alignment */
+	char *buf1;
+	char *buf2;
+	dma_addr_t buf1_phys;
+	dma_addr_t buf2_phys;
+	struct stmp3xxx_dcp_hash_coherent_block *buf1_desc;
+	struct stmp3xxx_dcp_hash_coherent_block *buf2_desc;
+	struct stmp3xxx_dcp_hash_coherent_block *user_buf_desc;
 };
 
 /* cipher flags */
@@ -108,24 +116,21 @@ struct stmp3xxx_dcp_op {
 };
 
 struct stmp3xxx_dcp_hash_coherent_block {
-	struct stmp3xxx_dcp_hw_packet pkt[2]
+	struct stmp3xxx_dcp_hw_packet pkt[1]
 		__attribute__ ((__aligned__(32)));
 	u8 digest[SHA1_DIGEST_SIZE]
 		__attribute__ ((__aligned__(32)));
-	u8 rembuf[32];
+	unsigned int len;
+	dma_addr_t src_phys;
+	void *src;
+	void *dst;
+	dma_addr_t my_phys;
+	struct stmp3xxx_dcp_hash_coherent_block *next;
 };
 
 struct stmp3xxx_dcp_hash_op {
 
 	unsigned int flags;
-
-	void *src;
-	dma_addr_t src_phys;
-
-	void *dst;
-	dma_addr_t dst_phys;
-
-	int len;
 
 	/* the key contains the IV for block modes */
 	union {
@@ -144,14 +149,9 @@ struct stmp3xxx_dcp_hash_op {
 		} hash;
 	};
 
-	union {
-		struct crypto_blkcipher *blk;
-		struct crypto_cipher *cip;
-		struct crypto_hash *hash;
-	} fallback;
-
-	struct stmp3xxx_dcp_hash_coherent_block *hw;
-	dma_addr_t hw_phys;
+	u32 length;
+	struct stmp3xxx_dcp_hash_coherent_block *head_desc;
+	struct stmp3xxx_dcp_hash_coherent_block *tail_desc;
 };
 
 /* only one */
@@ -894,275 +894,283 @@ static struct crypto_alg dcp_aes_cbc_alg = {
 	}
 };
 
-#ifndef DISABLE_SHA1
-
-static void dcp_perform_hash_op(struct stmp3xxx_dcp_hash_op *op)
+static int dcp_perform_hash_op(
+	struct stmp3xxx_dcp_hash_coherent_block *input,
+	u32 num_desc, bool init, bool terminate)
 {
 	struct stmp3xxx_dcp *sdcp = global_sdcp;
-	struct mutex *mutex;
 	int chan;
 	struct stmp3xxx_dcp_hw_packet *pkt;
+	struct stmp3xxx_dcp_hash_coherent_block *hw;
 	unsigned long timeout;
 	u32 stat;
-	int size1, descno;
-
-	BUG_ON((op->flags & STMP3XXX_DCP_MODE_MASK) != STMP3XXX_DCP_SHA1);
+	int descno, mapped;
 
 	chan = HASH_CHAN;
 
-	switch (op->flags & (STMP3XXX_DCP_INIT | STMP3XXX_DCP_UPDATE |
-			     STMP3XXX_DCP_FINAL)) {
+	hw = input;
+	pkt = hw->pkt;
 
-	case STMP3XXX_DCP_INIT | STMP3XXX_DCP_UPDATE:
+	for (descno = 0; descno < num_desc; descno++) {
 
-		BUG_ON(op->len <= 1);
+		if (descno != 0) {
 
-		pkt = &op->hw->pkt[0];
-		pkt->pNext = 0;
-		pkt->pkt1 = BM_DCP_PACKET1_HASH_INIT |
-			    BM_DCP_PACKET1_DECR_SEMAPHORE |
-			    BM_DCP_PACKET1_INTERRUPT |
-			    BM_DCP_PACKET1_ENABLE_HASH;
-		pkt->pkt2 = BF(BV_DCP_PACKET2_HASH_SELECT__SHA1,
-				DCP_PACKET2_HASH_SELECT);
-		pkt->pSrc = (u32)op->src_phys;
-		pkt->pDst = 0;
-		pkt->size = op->len - 1;
-		pkt->pPayload = 0;
-		pkt->stat = 0;
+			/* set next ptr and CHAIN bit in last packet */
+			pkt->pNext = hw->next->my_phys + offsetof(
+				struct stmp3xxx_dcp_hash_coherent_block,
+				pkt[0]);
+			pkt->pkt1 |= BM_DCP_PACKET1_CHAIN;
 
-		/* save last byte */
-		op->hw->rembuf[1] = ((u8 *)op->src)[op->len - 1];
+			/* iterate to next descriptor */
+			hw = hw->next;
+			pkt = hw->pkt;
+		}
 
-		descno = 1;
-		break;
-
-	case STMP3XXX_DCP_UPDATE:
-
-		BUG_ON(op->len <= 1);
-
-		op->hw->rembuf[0] = op->hw->rembuf[1];
-
-		pkt = &op->hw->pkt[0];
-		pkt->pNext = 0;
-		pkt->pkt1 = BM_DCP_PACKET1_CHAIN_CONTIGUOUS |
-			    BM_DCP_PACKET1_ENABLE_HASH;
-		pkt->pkt2 = BF(BV_DCP_PACKET2_HASH_SELECT__SHA1,
-				DCP_PACKET2_HASH_SELECT);
-		pkt->pSrc = (u32)op->hw_phys + offsetof(
-			struct stmp3xxx_dcp_hash_coherent_block, rembuf);
-		pkt->pDst = 0;
-		pkt->size = 1;
-		pkt->pPayload = 0;
-		pkt->stat = 0;
-
-		pkt = &op->hw->pkt[1];
-		pkt->pNext = 0;
 		pkt->pkt1 = BM_DCP_PACKET1_DECR_SEMAPHORE |
-			    BM_DCP_PACKET1_INTERRUPT |
-			    BM_DCP_PACKET1_ENABLE_HASH;
+					BM_DCP_PACKET1_ENABLE_HASH;
+
+		if (init && descno == 0)
+			pkt->pkt1 |= BM_DCP_PACKET1_HASH_INIT;
+
 		pkt->pkt2 = BF(BV_DCP_PACKET2_HASH_SELECT__SHA1,
 				DCP_PACKET2_HASH_SELECT);
-		pkt->pSrc = (u32)op->src_phys;
+
+		/* no need to flush buf1 or buf2, which are uncached */
+		if (hw->src != sdcp->buf1 && hw->src != sdcp->buf2) {
+
+			/* we have to flush the cache for the buffer */
+			hw->src_phys = dma_map_single(sdcp->dev,
+				hw->src, hw->len, DMA_TO_DEVICE);
+
+			if (dma_mapping_error(sdcp->dev, hw->src_phys)) {
+				dev_err(sdcp->dev, "Unable to map source\n");
+
+				/* unmap any previous mapped buffers */
+				for (mapped = 0, hw = input; mapped < descno;
+					mapped++) {
+
+					if (mapped != 0)
+						hw = hw->next;
+					if (hw->src != sdcp->buf1 &&
+						hw->src != sdcp->buf2)
+						dma_unmap_single(sdcp->dev,
+							hw->src_phys, hw->len,
+							DMA_TO_DEVICE);
+				}
+
+				return -EFAULT;
+			}
+		}
+
+		pkt->pSrc = (u32)hw->src_phys;
 		pkt->pDst = 0;
-		pkt->size = op->len - 1;
+		pkt->size = hw->len;
 		pkt->pPayload = 0;
 		pkt->stat = 0;
 
-		/* save last byte */
-		op->hw->rembuf[1] = ((u8 *)op->src)[op->len - 1];
+		/* set HASH_TERM bit on last buf if terminate was set */
+		if (terminate && (descno == (num_desc - 1))) {
+			pkt->pkt1 |= BM_DCP_PACKET1_HASH_TERM;
 
-		descno = 2;
+			memset(input->digest, 0, sizeof(input->digest));
 
-		break;
-
-	case STMP3XXX_DCP_FINAL:
-
-		op->hw->rembuf[0] = op->hw->rembuf[1];
-
-		pkt = &op->hw->pkt[0];
-		pkt->pNext = 0;
-		pkt->pkt1 = BM_DCP_PACKET1_HASH_TERM |
-			    BM_DCP_PACKET1_DECR_SEMAPHORE |
-			    BM_DCP_PACKET1_INTERRUPT |
-			    BM_DCP_PACKET1_ENABLE_HASH;
-		pkt->pkt2 = BF(BV_DCP_PACKET2_HASH_SELECT__SHA1,
-				DCP_PACKET2_HASH_SELECT);
-		pkt->pSrc = (u32)op->hw_phys + offsetof(
-			struct stmp3xxx_dcp_hash_coherent_block, rembuf);
-		pkt->pDst = 0;
-		pkt->size = 1;
-		pkt->pPayload = (u32)op->hw_phys + offsetof(
-			struct stmp3xxx_dcp_hash_coherent_block, digest);
-		pkt->stat = 0;
-
-		descno = 1;
-
-		break;
-
-		/* all others BUG */
-	default:
-		BUG();
-		return;
+			/* set payload ptr to the 1st buffer's digest */
+			pkt->pPayload = (u32)input->my_phys +
+				offsetof(
+				struct stmp3xxx_dcp_hash_coherent_block,
+				digest);
+		}
 	}
 
-	mutex = &sdcp->op_mutex[chan];
-
 	/* submit the work */
-	mutex_lock(mutex);
 
 	__raw_writel(-1, REGS_DCP_BASE + HW_DCP_CHnSTAT_CLR(chan));
 
 	mb();
-	/* Load the work packet pointer and bump the channel semaphore */
-	__raw_writel(chan, (u32)op->hw_phys +
-		offsetof(struct stmp3xxx_dcp_hash_coherent_block, pkt[0]), REGS_DCP_BASE + HW_DCP_CHnCMDPTR);
+	/* Load the 1st descriptor's physical address */
+	__raw_writel((u32)input->my_phys +
+		offsetof(struct stmp3xxx_dcp_hash_coherent_block,
+		pkt[0]), REGS_DCP_BASE + HW_DCP_CHnCMDPTR(chan));
 
 	/* XXX wake from interrupt instead of looping */
 	timeout = jiffies + msecs_to_jiffies(1000);
 
-	__raw_writel(chan, BF(descno, DCP_CHnSEMA_INCREMENT), REGS_DCP_BASE + HW_DCP_CHnSEMA);
+	/* write num_desc into sema register */
+	__raw_writel(BF(num_desc, DCP_CHnSEMA_INCREMENT),
+		REGS_DCP_BASE + HW_DCP_CHnSEMA(chan));
 
 	while (time_before(jiffies, timeout) &&
-		((__raw_readl(chanREGS_DCP_BASE + HW_DCP_CHnSEMA) >> 16) & 0xff) != 0)
+		((__raw_readl(REGS_DCP_BASE +
+		HW_DCP_CHnSEMA(chan)) >> 16) & 0xff) != 0) {
+
 		cpu_relax();
+	}
 
 	if (!time_before(jiffies, timeout)) {
-		dev_err(sdcp->dev, "Timeout while waiting STAT 0x%08x\n",
-				__raw_readl(REGS_DCP_BASE + HW_DCP_STAT));
-		goto out;
+		dev_err(sdcp->dev,
+			"Timeout while waiting STAT 0x%08x\n",
+			__raw_readl(REGS_DCP_BASE + HW_DCP_STAT));
 	}
 
 	stat = __raw_readl(REGS_DCP_BASE + HW_DCP_CHnSTAT(chan));
 	if ((stat & 0xff) != 0)
 		dev_err(sdcp->dev, "Channel stat error 0x%02x\n",
-				__raw_readl(REGS_DCP_BASE + HW_DCP_CHnSTAT(chan)) & 0xff);
+				__raw_readl(REGS_DCP_BASE +
+				HW_DCP_CHnSTAT(chan)) & 0xff);
 
-out:
-	mutex_unlock(mutex);
+	/* unmap all src buffers */
+	for (descno = 0, hw = input; descno < num_desc; descno++) {
+		if (descno != 0)
+			hw = hw->next;
+		if (hw->src != sdcp->buf1 && hw->src != sdcp->buf2)
+			dma_unmap_single(sdcp->dev, hw->src_phys, hw->len,
+				DMA_TO_DEVICE);
+	}
 
-	mdelay(500);
+	return 0;
+
 }
 
-static int fallback_init_hash(struct crypto_tfm *tfm)
+static int dcp_sha1_init(struct shash_desc *desc)
 {
-	const char *name = tfm->__crt_alg->cra_name;
-	struct stmp3xxx_dcp_hash_op *op = crypto_tfm_ctx(tfm);
 	struct stmp3xxx_dcp *sdcp = global_sdcp;
+	struct stmp3xxx_dcp_hash_op *op = shash_desc_ctx(desc);
+	struct mutex *mutex = &sdcp->op_mutex[HASH_CHAN];
 
-	op->fallback.hash = crypto_alloc_hash(name, 0,
-			CRYPTO_ALG_ASYNC | CRYPTO_ALG_NEED_FALLBACK);
-	if (IS_ERR(op->fallback.hash)) {
-		printk(KERN_ERR "Error allocating fallback algo %s\n", name);
-		return PTR_ERR(op->fallback.hash);
-	}
+	mutex_lock(mutex);
 
-	op->hw = dma_alloc_coherent(sdcp->dev, sizeof(*op->hw), &op->hw_phys,
-			GFP_KERNEL);
-	if (op->hw == NULL) {
-		printk(KERN_ERR "Error allocating coherent block for %s\n",
-			name);
-		crypto_free_hash(op->fallback.hash);
-		op->fallback.hash = NULL;
-		return -ENOMEM;
-	}
-	memset(op->hw, 0, sizeof(*op->hw));
+	op->length = 0;
+
+	/* reset the lengths and the pointers of buffer descriptors */
+	sdcp->buf1_desc->len = 0;
+	sdcp->buf1_desc->src = sdcp->buf1;
+	sdcp->buf2_desc->len = 0;
+	sdcp->buf2_desc->src = sdcp->buf2;
+	op->head_desc = sdcp->buf1_desc;
+	op->tail_desc = sdcp->buf2_desc;
 
 	return 0;
 }
 
-static void fallback_exit_hash(struct crypto_tfm *tfm)
-{
-	struct stmp3xxx_dcp_hash_op *op = crypto_tfm_ctx(tfm);
-	struct stmp3xxx_dcp *sdcp = global_sdcp;
-
-	dma_free_coherent(sdcp->dev, sizeof(*op->hw), op->hw, op->hw_phys);
-	crypto_free_hash(op->fallback.hash);
-	op->fallback.hash = NULL;
-}
-
-static void dcp_sha1_init(struct crypto_tfm *tfm)
-{
-	struct stmp3xxx_dcp_hash_op *op = crypto_tfm_ctx(tfm);
-
-	op->hash.init = 1;
-	memset(op->hw->rembuf, 0, sizeof(op->hw->rembuf));
-	memset(op->hw->digest, 0, sizeof(op->hw->digest));
-}
-
-static void dcp_sha1_update(struct crypto_tfm *tfm,
-			const uint8_t *data, unsigned int length)
+static int dcp_sha1_update(struct shash_desc *desc, const u8 *data,
+		      unsigned int length)
 {
 	struct stmp3xxx_dcp *sdcp = global_sdcp;
-	struct stmp3xxx_dcp_hash_op *op = crypto_tfm_ctx(tfm);
+	struct stmp3xxx_dcp_hash_op *op = shash_desc_ctx(desc);
+	struct stmp3xxx_dcp_hash_coherent_block *temp;
+	u32 rem_bytes, bytes_borrowed;
+	int ret = 0;
 
-	op->src = (void *)data;
-	op->dst = NULL;
-	op->flags = STMP3XXX_DCP_SHA1 | STMP3XXX_DCP_UPDATE;
-	if (op->hash.init) {
-		op->hash.init = 0;
-		op->flags |= STMP3XXX_DCP_INIT;
+	sdcp->user_buf_desc->src = (void *)data;
+	sdcp->user_buf_desc->len = length;
+
+	op->tail_desc->len = 0;
+
+	/* check if any pending data from previous updates */
+	if (op->head_desc->len) {
+
+			/* borrow from this buffer to make it 64 bytes */
+			bytes_borrowed = min(64 - op->head_desc->len,
+					sdcp->user_buf_desc->len);
+
+			/* copy n bytes to head */
+			memcpy(op->head_desc->src + op->head_desc->len,
+				sdcp->user_buf_desc->src, bytes_borrowed);
+			op->head_desc->len += bytes_borrowed;
+
+			/* update current buffer's src and len */
+			sdcp->user_buf_desc->src += bytes_borrowed;
+			sdcp->user_buf_desc->len -= bytes_borrowed;
 	}
-	op->len = length;
 
-	/* map the data */
-	op->src_phys = dma_map_single(sdcp->dev, op->src, op->len,
-			DMA_TO_DEVICE);
-	if (dma_mapping_error(sdcp->dev, op->src_phys)) {
-		dev_err(sdcp->dev, "Unable to map source\n");
-		return;
+	/* Is current buffer unaligned to 64 byte length?
+	  * Each buffer's length must be a multiple of 64 bytes for DCP
+	  */
+	rem_bytes = sdcp->user_buf_desc->len % 64;
+
+	/* if length is unaligned, copy remainder to tail */
+	if (rem_bytes) {
+
+		memcpy(op->tail_desc->src, (sdcp->user_buf_desc->src +
+			sdcp->user_buf_desc->len - rem_bytes),
+			rem_bytes);
+
+		/* update length of current buffer */
+		sdcp->user_buf_desc->len -= rem_bytes;
+
+		op->tail_desc->len = rem_bytes;
 	}
-	op->dst_phys = 0;
 
-	/* perform! */
-	dcp_perform_hash_op(op);
+	/* do not send to DCP if length is < 64 */
+	if ((op->head_desc->len + sdcp->user_buf_desc->len) >= 64) {
+		if (op->head_desc->len) {
+			op->head_desc->next = sdcp->user_buf_desc;
 
-	dma_unmap_single(sdcp->dev, op->src_phys, op->len, DMA_TO_DEVICE);
+			ret = dcp_perform_hash_op(op->head_desc,
+				sdcp->user_buf_desc->len ? 2 : 1,
+				op->length == 0, false);
+		} else {
+			ret = dcp_perform_hash_op(sdcp->user_buf_desc, 1,
+				op->length == 0, false);
+		}
+
+		op->length += op->head_desc->len + sdcp->user_buf_desc->len;
+		op->head_desc->len = 0;
+	}
+
+	/* if tail has bytes, make it the head for next time */
+	if (op->tail_desc->len) {
+		temp = op->head_desc;
+		op->head_desc = op->tail_desc;
+		op->tail_desc = temp;
+	}
+
+	return ret;
 }
 
-static void dcp_sha1_final(struct crypto_tfm *tfm, uint8_t *out)
+static int dcp_sha1_final(struct shash_desc *desc, u8 *out)
 {
-	struct stmp3xxx_dcp_hash_op *op = crypto_tfm_ctx(tfm);
-	int i;
+	struct stmp3xxx_dcp_hash_op *op = shash_desc_ctx(desc);
 	const uint8_t *digest;
+	struct stmp3xxx_dcp *sdcp = global_sdcp;
+	u32 i;
+	struct mutex *mutex = &sdcp->op_mutex[HASH_CHAN];
+	int ret = 0;
 
-	op->src = NULL;
-	op->dst = NULL;
-	op->flags = STMP3XXX_DCP_SHA1 | STMP3XXX_DCP_FINAL;
-	op->len = 0;
+	/* Send the leftover bytes in head, which can be length 0,
+	  * but DCP still produces hash result in payload ptr.
+	  * Last data bytes need not be 64-byte multiple.
+	  */
+	ret = dcp_perform_hash_op(op->head_desc, 1, op->length == 0, true);
 
-	/* perform! */
-	dcp_perform_hash_op(op);
+	op->length += op->head_desc->len;
 
 	/* hardware reverses the digest (for some unexplicable reason) */
-	digest = op->hw->digest + SHA1_DIGEST_SIZE;
+	digest = op->head_desc->digest + SHA1_DIGEST_SIZE;
 	for (i = 0; i < SHA1_DIGEST_SIZE; i++)
 		*out++ = *--digest;
-	memcpy(out, op->hw->digest, SHA1_DIGEST_SIZE);
+
+	mutex_unlock(mutex);
+
+	return ret;
 }
 
-static struct crypto_alg dcp_sha1_alg = {
-	.cra_name		= "sha1",
-	.cra_driver_name	= "dcp-sha1",
-	.cra_priority		= 300,
-	.cra_flags		= CRYPTO_ALG_TYPE_DIGEST |
-				  CRYPTO_ALG_NEED_FALLBACK,
-	.cra_blocksize		= SHA1_BLOCK_SIZE,
-	.cra_ctxsize		= sizeof(struct stmp3xxx_dcp_hash_op),
-	.cra_module		= THIS_MODULE,
-	.cra_list		= LIST_HEAD_INIT(dcp_sha1_alg.cra_list),
-	.cra_init		= fallback_init_hash,
-	.cra_exit		= fallback_exit_hash,
-	.cra_u			= {
-		.digest = {
-			.dia_digestsize	= SHA1_DIGEST_SIZE,
-			.dia_init   	= dcp_sha1_init,
-			.dia_update 	= dcp_sha1_update,
-			.dia_final  	= dcp_sha1_final,
-		}
+static struct shash_alg dcp_sha1_alg = {
+	.init			=	dcp_sha1_init,
+	.update			=	dcp_sha1_update,
+	.final			=	dcp_sha1_final,
+	.descsize		=	sizeof(struct stmp3xxx_dcp_hash_op),
+	.digestsize		=	SHA1_DIGEST_SIZE,
+	.base			=	{
+		.cra_name		=	"sha1",
+		.cra_driver_name	=	"sha1-dcp",
+		.cra_priority		=	300,
+		.cra_blocksize		=	SHA1_BLOCK_SIZE,
+		.cra_ctxsize		=
+			sizeof(struct stmp3xxx_dcp_hash_op),
+		.cra_module		=	THIS_MODULE,
 	}
 };
-#endif
 
 static irqreturn_t dcp_common_irq(int irq, void *context)
 {
@@ -1202,6 +1210,7 @@ static int stmp3xxx_dcp_probe(struct platform_device *pdev)
 	struct stmp3xxx_dcp *sdcp = NULL;
 	struct resource *r;
 	int i, ret;
+	dma_addr_t hw_phys;
 
 	if (global_sdcp != NULL) {
 		dev_err(&pdev->dev, "Only one instance allowed\n");
@@ -1260,14 +1269,14 @@ static int stmp3xxx_dcp_probe(struct platform_device *pdev)
 	if (!r) {
 		dev_err(&pdev->dev, "can't get IRQ resource (0)\n");
 		ret = -EIO;
-		goto err_unregister_sha1;
+		goto err_kfree;
 	}
 	sdcp->dcp_vmi_irq = r->start;
 	ret = request_irq(sdcp->dcp_vmi_irq, dcp_vmi_irq, 0, "stmp3xxx-dcp",
 				sdcp);
 	if (ret != 0) {
 		dev_err(&pdev->dev, "can't request_irq (0)\n");
-		goto err_unregister_sha1;
+		goto err_kfree;
 	}
 
 	r = platform_get_resource(pdev, IORESOURCE_IRQ, 1);
@@ -1303,29 +1312,85 @@ static int stmp3xxx_dcp_probe(struct platform_device *pdev)
 		goto err_unregister_aes_ecb;
 	}
 
-#ifndef DISABLE_SHA1
-	ret = crypto_register_alg(&dcp_sha1_alg);
-	if (ret != 0)  {
-		dev_err(&pdev->dev, "Failed to register aes cbc crypto\n");
+	/* Allocate the descriptor to be used for user buffer
+	  * passed in by the "update" function from Crypto API
+	  */
+	sdcp->user_buf_desc = dma_alloc_coherent(sdcp->dev,
+		sizeof(struct stmp3xxx_dcp_hash_coherent_block),  &hw_phys,
+		GFP_KERNEL);
+	if (sdcp->user_buf_desc == NULL) {
+		printk(KERN_ERR "Error allocating coherent block\n");
+		ret = -ENOMEM;
 		goto err_unregister_aes_cbc;
 	}
-#endif
+
+	sdcp->user_buf_desc->my_phys = hw_phys;
+
+	/* Allocate 2 buffers (head & tail) & its descriptors to deal with
+	  * buffer lengths that are not 64 byte aligned, except for the
+	  * last one.
+	  */
+	sdcp->buf1 = dma_alloc_coherent(sdcp->dev,
+		64, &sdcp->buf1_phys, GFP_KERNEL);
+	if (sdcp->buf1 == NULL) {
+		printk(KERN_ERR "Error allocating coherent block\n");
+		ret = -ENOMEM;
+		goto err_unregister_aes_cbc;
+	}
+
+	sdcp->buf2 = dma_alloc_coherent(sdcp->dev,
+		64,  &sdcp->buf2_phys, GFP_KERNEL);
+	if (sdcp->buf2 == NULL) {
+		printk(KERN_ERR "Error allocating coherent block\n");
+		ret = -ENOMEM;
+		goto err_unregister_aes_cbc;
+	}
+
+	sdcp->buf1_desc = dma_alloc_coherent(sdcp->dev,
+		sizeof(struct stmp3xxx_dcp_hash_coherent_block), &hw_phys,
+		GFP_KERNEL);
+	if (sdcp->buf1_desc == NULL) {
+		printk(KERN_ERR "Error allocating coherent block\n");
+		ret = -ENOMEM;
+		goto err_unregister_aes_cbc;
+	}
+
+	sdcp->buf1_desc->my_phys = hw_phys;
+	sdcp->buf1_desc->src = (void *)sdcp->buf1;
+	sdcp->buf1_desc->src_phys = sdcp->buf1_phys;
+
+	sdcp->buf2_desc = dma_alloc_coherent(sdcp->dev,
+		sizeof(struct stmp3xxx_dcp_hash_coherent_block), &hw_phys,
+		GFP_KERNEL);
+	if (sdcp->buf2_desc == NULL) {
+		printk(KERN_ERR "Error allocating coherent block\n");
+		ret = -ENOMEM;
+		goto err_unregister_aes_cbc;
+	}
+
+	sdcp->buf2_desc->my_phys = hw_phys;
+	sdcp->buf2_desc->src = (void *)sdcp->buf2;
+	sdcp->buf2_desc->src_phys = sdcp->buf2_phys;
+
+
+	ret = crypto_register_shash(&dcp_sha1_alg);
+	if (ret != 0)  {
+		dev_err(&pdev->dev, "Failed to register sha1 hash\n");
+		goto err_unregister_aes_cbc;
+	}
 
 	dev_notice(&pdev->dev, "DCP crypto enabled.!\n");
 	return 0;
 
-err_free_irq0:
-	free_irq(sdcp->dcp_vmi_irq, sdcp);
-err_unregister_sha1:
-#ifndef DISABLE_SHA1
-	crypto_unregister_alg(&dcp_sha1_alg);
+	crypto_unregister_shash(&dcp_sha1_alg);
 err_unregister_aes_cbc:
-#endif
 	crypto_unregister_alg(&dcp_aes_cbc_alg);
 err_unregister_aes_ecb:
 	crypto_unregister_alg(&dcp_aes_ecb_alg);
 err_unregister_aes:
 	crypto_unregister_alg(&dcp_aes_alg);
+err_free_irq0:
+	free_irq(sdcp->dcp_vmi_irq, sdcp);
 err_kfree:
 	kfree(sdcp);
 err:
@@ -1342,9 +1407,27 @@ static int stmp3xxx_dcp_remove(struct platform_device *pdev)
 
 	free_irq(sdcp->dcp_irq, sdcp);
 	free_irq(sdcp->dcp_vmi_irq, sdcp);
-#ifndef DISABLE_SHA1
-	crypto_unregister_alg(&dcp_sha1_alg);
-#endif
+
+	/* if head and tail buffers were allocated, free them */
+	if (sdcp->buf1) {
+		dma_free_coherent(sdcp->dev, 64, sdcp->buf1, sdcp->buf1_phys);
+		dma_free_coherent(sdcp->dev, 64, sdcp->buf2, sdcp->buf2_phys);
+
+		dma_free_coherent(sdcp->dev,
+				sizeof(struct stmp3xxx_dcp_hash_coherent_block),
+				sdcp->buf1_desc, sdcp->buf1_desc->my_phys);
+
+		dma_free_coherent(sdcp->dev,
+				sizeof(struct stmp3xxx_dcp_hash_coherent_block),
+				sdcp->buf2_desc, sdcp->buf2_desc->my_phys);
+
+		dma_free_coherent(sdcp->dev,
+			sizeof(struct stmp3xxx_dcp_hash_coherent_block),
+			sdcp->user_buf_desc, sdcp->user_buf_desc->my_phys);
+	}
+
+	crypto_unregister_shash(&dcp_sha1_alg);
+
 	crypto_unregister_alg(&dcp_aes_cbc_alg);
 	crypto_unregister_alg(&dcp_aes_ecb_alg);
 	crypto_unregister_alg(&dcp_aes_alg);
