@@ -1365,13 +1365,47 @@ static int mxc_v4l2out_streamon(vout_data * vout)
 		vout->display_buf_size = vout->xres *
 			vout->yres * fbi->var.bits_per_pixel / 8;
 
+		/* fill black color for init fb, we assume fb has double buffer*/
 		if (format_is_yuv(vout->v2f.fmt.pix.pixelformat)) {
 			int i;
-			short * tmp = (short *) fbi->screen_base;
-			for (i = 0; i < (fbi->fix.line_length * fbi->var.yres_virtual)/2; i++, tmp++)
-				*tmp = 0x80;
+
+			if ((vout->v2f.fmt.pix.pixelformat == V4L2_PIX_FMT_UYVY) ||
+				(vout->v2f.fmt.pix.pixelformat == V4L2_PIX_FMT_YUYV) ||
+				(!vout->ic_bypass)) {
+				short * tmp = (short *) fbi->screen_base;
+				short color;
+				if (vout->v2f.fmt.pix.pixelformat == V4L2_PIX_FMT_YUYV)
+					color = 0x8000;
+				else
+					color = 0x80;
+				for (i = 0; i < (fbi->fix.line_length * fbi->var.yres_virtual)/2;
+					i++, tmp++)
+					*tmp = color;
+			} else if ((vout->v2f.fmt.pix.pixelformat == V4L2_PIX_FMT_YUV420) ||
+				(vout->v2f.fmt.pix.pixelformat == V4L2_PIX_FMT_YVU420) ||
+				(vout->v2f.fmt.pix.pixelformat == V4L2_PIX_FMT_NV12)) {
+				char * base = (char *)fbi->screen_base;
+				int j, screen_size = fbi->var.xres * fbi->var.yres;
+
+				for (j = 0; j < 2; j++) {
+					memset(base, 0, screen_size);
+					base += screen_size;
+					for (i = 0; i < screen_size/2; i++, base++)
+						*base = 0x80;
+				}
+			} else if (vout->v2f.fmt.pix.pixelformat == V4L2_PIX_FMT_YUV422P) {
+				char * base = (char *)fbi->screen_base;
+				int j, screen_size = fbi->var.xres * fbi->var.yres;
+
+				for (j = 0; j < 2; j++) {
+					memset(base, 0, screen_size);
+					base += screen_size;
+					for (i = 0; i < screen_size; i++, base++)
+						*base = 0x80;
+				}
+			}
 		} else
-			memset(fbi->screen_base, 0x10,
+			memset(fbi->screen_base, 0x0,
 					fbi->fix.line_length * fbi->var.yres_virtual);
 
 		if (INTERLACED_CONTENT(vout))
