@@ -1,5 +1,5 @@
 /*
- * Copyright 2008-2009 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2008-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -168,6 +168,7 @@ extern void gpio_can_inactive(int id);
 extern struct flexcan_platform_data flexcan_data[];
 extern void mx2fb_set_brightness(uint8_t);
 extern int __init mx25_3stack_init_mc34704(void);
+extern void imx_adc_set_hsync(int on);
 
 #endif				/* CONFIG_MACH_MX25_3DS */
 #endif				/* __ASM_ARCH_MXC_BOARD_MX25_3STACK_H__ */

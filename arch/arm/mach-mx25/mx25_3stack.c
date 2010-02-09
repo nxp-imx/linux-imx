@@ -209,10 +209,15 @@ static struct platform_device mxc_fb_device = {
  */
 void board_power_lcd(int on)
 {
-	if (on)
+	if (on) {
+		/* Enable HSYNC bit of touch screen */
+		imx_adc_set_hsync(1);
 		mx2fb_set_brightness(MXC_DEFAULT_INTENSITY);
-	else
+	} else {
+		/* disable HSYNC bit of touchscreen */
+		imx_adc_set_hsync(0);
 		mx2fb_set_brightness(MXC_INTENSITY_OFF);
+	}
 }
 EXPORT_SYMBOL_GPL(board_power_lcd);
 
