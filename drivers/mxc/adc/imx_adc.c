@@ -1,5 +1,5 @@
 /*
- * Copyright 2009 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2009-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -121,11 +121,10 @@ void imx_tsc_init(void)
 {
 	unsigned long reg;
 	int lastitemid;
-	int dbtime;
 
 	/* Level sense */
 	reg = __raw_readl(tsc_base + TCQCR);
-	reg |= CQCR_PD_CFG;
+	reg &= ~CQCR_PD_CFG;  /* edge sensitive */
 	reg |= (0xf << CQCR_FIFOWATERMARK_SHIFT);  /* watermark */
 	__raw_writel(reg, tsc_base + TCQCR);
 
@@ -172,10 +171,7 @@ void imx_tsc_init(void)
 	reg = TSC_4WIRE_TOUCH_DETECT;
 	__raw_writel(reg, tsc_base + TICR);
 
-	/* pen down enable */
-	reg = __raw_readl(tsc_base + TGCR);
-	reg |= TGCR_PD_EN | TGCR_PDB_EN;
-	__raw_writel(reg, tsc_base + TGCR);
+	/* pen down mask */
 	reg = __raw_readl(tsc_base + TCQCR);
 	reg &= ~CQCR_PD_MSK;
 	__raw_writel(reg, tsc_base + TCQCR);
@@ -185,12 +181,16 @@ void imx_tsc_init(void)
 
 	/* Debounce time = dbtime*8 adc clock cycles */
 	reg = __raw_readl(tsc_base + TGCR);
-	dbtime = TGCR_PDBTIME128;
 	reg &= ~TGCR_PDBTIME_MASK;
-	reg |= dbtime << TGCR_PDBTIME_SHIFT;
-	reg |= TGCR_HSYNC_EN;
+	reg |= TGCR_PDBTIME128 | TGCR_HSYNC_EN;
 	__raw_writel(reg, tsc_base + TGCR);
 
+	/* pen down enable */
+	reg = __raw_readl(tsc_base + TGCR);
+	reg |= TGCR_PDB_EN;
+	__raw_writel(reg, tsc_base + TGCR);
+	reg |= TGCR_PD_EN;
+	__raw_writel(reg, tsc_base + TGCR);
 }
 
 static irqreturn_t imx_adc_interrupt(int irq, void *dev_id)
@@ -212,7 +212,9 @@ static irqreturn_t imx_adc_interrupt(int irq, void *dev_id)
 		reg = __raw_readl(tsc_base + TCQMR);
 		reg &= ~TCQMR_PD_IRQ_MSK;
 		__raw_writel(reg, tsc_base + TCQMR);
-	} else {
+	} else if ((__raw_readl(tsc_base + TGSR) & 0x1) &&
+		   (__raw_readl(tsc_base + TCQSR) & 0x1)) {
+
 		/* mask pen down detect irq */
 		reg = __raw_readl(tsc_base + TCQMR);
 		reg |= TCQMR_PD_IRQ_MSK;
@@ -261,7 +263,7 @@ enum IMX_ADC_STATUS imx_adc_read_general(unsigned short *result)
 enum IMX_ADC_STATUS imx_adc_read_ts(struct t_touch_screen *touch_sample,
 				    int wait_tsi)
 {
-	int reg;
+	unsigned long reg;
 	int data_num = 0;
 	int detect_sample1, detect_sample2;
 
@@ -287,6 +289,7 @@ enum IMX_ADC_STATUS imx_adc_read_ts(struct t_touch_screen *touch_sample,
 		wait_event_interruptible(tsq, ts_data_ready);
 		while (!(__raw_readl(tsc_base + TCQSR) & CQSR_EOQ))
 			continue;
+
 		/* stop the conversion */
 		reg = __raw_readl(tsc_base + TCQCR);
 		reg &= ~CQCR_QSM_MASK;
@@ -573,6 +576,20 @@ enum IMX_ADC_STATUS imx_adc_get_touch_sample(struct t_touch_screen
 }
 EXPORT_SYMBOL(imx_adc_get_touch_sample);
 
+void imx_adc_set_hsync(int on)
+{
+	unsigned long reg;
+	if (imx_adc_ready) {
+		reg = __raw_readl(tsc_base + TGCR);
+		if (on)
+			reg |= TGCR_HSYNC_EN;
+		else
+			reg &= ~TGCR_HSYNC_EN;
+		__raw_writel(reg, tsc_base + TGCR);
+	}
+}
+EXPORT_SYMBOL(imx_adc_set_hsync);
+
 /*!
  * This is the suspend of power management for the i.MX ADC API.
  * It supports SAVE and POWER_DOWN state.
@@ -691,7 +708,7 @@ static int imx_adc_free(struct inode *inode, struct file *file)
  */
 int imx_adc_init(void)
 {
-	int reg;
+	unsigned long reg;
 
 	pr_debug("imx_adc_init()\n");
 
@@ -743,7 +760,7 @@ EXPORT_SYMBOL(imx_adc_deinit);
 enum IMX_ADC_STATUS imx_adc_convert(enum t_channel channel,
 				    unsigned short *result)
 {
-	int reg;
+	unsigned long reg;
 	int lastitemid;
 	struct t_touch_screen touch_sample;
 
