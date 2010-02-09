@@ -1,5 +1,5 @@
 /*
- * Copyright 2008-2009 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2008-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -53,7 +53,7 @@ void mxc_cpu_lp_set(enum mxc_cpu_pwr_mode mode)
 {
 	unsigned int lpm;
 	unsigned long reg;
-	unsigned int pmcr2, lpimr;
+	unsigned int pmcr1, pmcr2, lpimr;
 	unsigned int cgcr0, cgcr1, cgcr2;
 	struct irq_desc *desc;
 	int i;
@@ -104,6 +104,12 @@ void mxc_cpu_lp_set(enum mxc_cpu_pwr_mode mode)
 			pmcr2 |= (MXC_CCM_PMCR2_OSC24M_DOWN |
 				  MXC_CCM_PMCR2_VSTBY);
 			__raw_writel(pmcr2, MXC_CCM_PMCR2);
+			pmcr1 = __raw_readl(MXC_CCM_PMCR1);
+			pmcr1 &= ~(MXC_CCM_PMCR1_WBCN_MASK |
+				   MXC_CCM_PMCR1_CSPAEM_MASK |
+				   MXC_CCM_PMCR1_CSPA_MASK);
+			pmcr1 |= MXC_CCM_PMCR1_AWB_DEFAULT;
+			__raw_writel(pmcr1, MXC_CCM_PMCR1);
 		}
 		break;
 

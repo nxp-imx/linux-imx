@@ -1,5 +1,5 @@
 /*
- * Copyright 2008-2009 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2008-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -193,8 +193,42 @@
 
 #define MXC_CCM_RCSR_NF16B               (1 << 14)
 
+#define MXC_CCM_PMCR1_CPEN_EMI		(1 << 29)
+#define MXC_CCM_PMCR1_CSPAEM_P_OFFSET	26
+#define MXC_CCM_PMCR1_CSPAEM_N_OFFSET	24
+#define MXC_CCM_PMCR1_CSPAEM_MASK	(0xf << 24)
+#define MXC_CCM_PMCR1_WBCN_OFFSET	16
+#define MXC_CCM_PMCR1_CPEN		(1 << 13)
+#define MXC_CCM_PMCR1_CSPA_P_OFFSET	11
+#define MXC_CCM_PMCR1_CSPA_N_OFFSET	9
+#define MXC_CCM_PMCR1_CSPA_MASK		(0xf << 9)
+
+#define MXC_CCM_PMCR1_WBCN_MASK		(0xff << 16)
+#define MXC_CCM_PMCR1_WBCN_DEFAULT	0xa0
+#define MXC_CCM_PMCR1_WBB_INCR		0
+#define MXC_CCM_PMCR1_WBB_MODE		1
+#define MXC_CCM_PMCR1_WBB_DECR		2
+#define MXC_CCM_PMCR1_WBB_MINI		3
+
 #define MXC_CCM_PMCR2_VSTBY		(1 << 17)
 #define MXC_CCM_PMCR2_OSC24M_DOWN	(1 << 16)
+
+#define MXC_CCM_PMCR1_AWB_EN		(MXC_CCM_PMCR1_CPEN_EMI | \
+					 MXC_CCM_PMCR1_CPEN | \
+					 (MXC_CCM_PMCR1_WBCN_DEFAULT << \
+					 MXC_CCM_PMCR1_WBCN_OFFSET))
+
+#define MXC_CCM_PMCR1_WBB_DEFAULT	((MXC_CCM_PMCR1_WBB_DECR << \
+					 MXC_CCM_PMCR1_CSPAEM_P_OFFSET) | \
+					 (MXC_CCM_PMCR1_WBB_DECR << \
+					 MXC_CCM_PMCR1_CSPAEM_N_OFFSET) | \
+					 (MXC_CCM_PMCR1_WBB_DECR << \
+					 MXC_CCM_PMCR1_CSPA_P_OFFSET) | \
+					 (MXC_CCM_PMCR1_WBB_DECR << \
+					 MXC_CCM_PMCR1_CSPA_N_OFFSET))
+
+#define MXC_CCM_PMCR1_AWB_DEFAULT	(MXC_CCM_PMCR1_AWB_EN | \
+					 MXC_CCM_PMCR1_WBB_DEFAULT)
 
 #define MXC_CCM_MCR_USB_XTAL_MUX_OFFSET  31
 #define MXC_CCM_MCR_CLKO_EN_OFFSET       30
