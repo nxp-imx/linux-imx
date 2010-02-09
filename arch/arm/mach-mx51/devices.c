@@ -1350,6 +1350,65 @@ void __init mx51_init_irq(void)
 	mxc_tzic_init_irq(tzic_addr);
 }
 
+#if defined(CONFIG_SND_MXC_SOC_SSI) || defined(CONFIG_SND_MXC_SOC_SSI_MODULE)
+
+static struct resource ssi1_resources[] = {
+	{
+	 .start = SSI1_BASE_ADDR,
+	 .end = SSI1_BASE_ADDR + 0x5C,
+	 .flags = IORESOURCE_MEM,
+	 },
+	{
+	 .start = MXC_INT_SSI1,
+	 .end = MXC_INT_SSI1,
+	 .flags = IORESOURCE_IRQ,
+	},
+};
+
+static struct platform_device mxc_alsa_ssi1_device = {
+	.name = "mxc_ssi",
+	.id = 0,
+	.dev = {
+		.release = mxc_nop_release,
+		},
+	.num_resources = ARRAY_SIZE(ssi1_resources),
+	.resource = ssi1_resources,
+};
+
+static struct resource ssi2_resources[] = {
+	{
+	 .start = SSI2_BASE_ADDR,
+	 .end = SSI2_BASE_ADDR + 0x5C,
+	 .flags = IORESOURCE_MEM,
+	 },
+	{
+	 .start = MXC_INT_SSI2,
+	 .end = MXC_INT_SSI2,
+	 .flags = IORESOURCE_IRQ,
+	},
+};
+
+static struct platform_device mxc_alsa_ssi2_device = {
+	.name = "mxc_ssi",
+	.id = 1,
+	.dev = {
+		.release = mxc_nop_release,
+		},
+	.num_resources = ARRAY_SIZE(ssi2_resources),
+	.resource = ssi2_resources,
+};
+
+static inline void mxc_init_ssi(void)
+{
+	platform_device_register(&mxc_alsa_ssi1_device);
+	platform_device_register(&mxc_alsa_ssi2_device);
+}
+#else
+static inline void mxc_init_ssi(void)
+{
+}
+#endif /* CONFIG_SND_MXC_SOC_SSI */
+
 int __init mxc_init_devices(void)
 {
 	mxc_init_wdt();
@@ -1374,5 +1433,6 @@ int __init mxc_init_devices(void)
 	mxc_init_gpu2d();
 	mxc_init_pwm();
 	mxc_init_pwm_backlight();
+	mxc_init_ssi();
 	return 0;
 }

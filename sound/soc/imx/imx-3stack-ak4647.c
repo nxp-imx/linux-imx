@@ -1,7 +1,7 @@
 /*
  * imx-3stack-ak4647.c  --  SoC audio for imx_3stack
  *
- * Copyright 2008-2009 Freescale  Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2008-2010 Freescale  Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -357,9 +357,9 @@ static int __init imx_3stack_ak4647_probe(struct platform_device *pdev)
 	dev_data->init();
 
 	if (dev_data->src_port == 1)
-		ak4647_cpu_dai = &imx_ssi_dai[0];
+		ak4647_cpu_dai = imx_ssi_dai[0];
 	else
-		ak4647_cpu_dai = &imx_ssi_dai[2];
+		ak4647_cpu_dai = imx_ssi_dai[2];
 
 	imx_3stack_dai.cpu_dai = ak4647_cpu_dai;
 

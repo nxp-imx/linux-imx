@@ -579,9 +579,9 @@ static int __devinit imx_3stack_sgtl5000_probe(struct platform_device *pdev)
 	imx_3stack_init_dam(plat->src_port, plat->ext_port);
 
 	if (plat->src_port == 2)
-		sgtl5000_cpu_dai = &imx_ssi_dai[2];
+		sgtl5000_cpu_dai = imx_ssi_dai[2];
 	else
-		sgtl5000_cpu_dai = &imx_ssi_dai[0];
+		sgtl5000_cpu_dai = imx_ssi_dai[0];
 
 	imx_3stack_dai.cpu_dai = sgtl5000_cpu_dai;
 

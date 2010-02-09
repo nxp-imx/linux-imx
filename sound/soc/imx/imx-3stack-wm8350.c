@@ -611,9 +611,9 @@ static int __devinit imx_3stack_wm8350_probe(struct platform_device *pdev)
 	imx_3stack_init_dam(plat->src_port, plat->ext_port);
 
 	if (plat->src_port == 2)
-		wm8350_cpu_dai =  &imx_ssi_dai[2];
+		wm8350_cpu_dai =  imx_ssi_dai[2];
 	else
-		wm8350_cpu_dai = &imx_ssi_dai[0];
+		wm8350_cpu_dai = imx_ssi_dai[0];
 
 	imx_3stack_dai.cpu_dai = wm8350_cpu_dai;
 

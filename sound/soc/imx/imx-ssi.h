@@ -197,6 +197,9 @@
 #define SSI_TXFIFO_WATERMARK		0x4
 #define SSI_RXFIFO_WATERMARK		0x6
 
+/* Maximum number of ssi channels (counting two channels per block) */
+#define MAX_SSI_CHANNELS		8
+
 /* i.MX DAI SSP ID's */
 #define IMX_DAI_SSI0			0 /* SSI1 FIFO 0 */
 #define IMX_DAI_SSI1			1 /* SSI1 FIFO 1 */
@@ -228,9 +231,14 @@ struct imx_ssi {
 	bool sync_mode;
 	unsigned int ac97_tx_slots;
 	unsigned int ac97_rx_slots;
+	void __iomem *ioaddr;
+	unsigned long baseaddr;
+	int irq;
+	struct platform_device *pdev;
+	struct clk *ssi_clk;
 };
 
-extern struct snd_soc_dai imx_ssi_dai[];
+extern struct snd_soc_dai *imx_ssi_dai[];
 extern struct snd_soc_dai imx_ac97_dai[];
 
 #endif
