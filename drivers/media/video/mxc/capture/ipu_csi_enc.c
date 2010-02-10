@@ -12,7 +12,7 @@
  */
 
 /*!
- * @file csi_enc.c
+ * @file ipu_csi_enc.c
  *
  * @brief CSI Use case for video capture
  *
@@ -65,7 +65,7 @@ static int csi_enc_setup(cam_data *cam)
 	ipu_channel_params_t params;
 	u32 pixel_fmt;
 	int err = 0;
-	dma_addr_t dummy = 0xdeadbeaf;
+	dma_addr_t dummy = cam->dummy_frame.buffer.m.offset;
 
 	CAMERA_TRACE("In csi_enc_setup\n");
 	if (!cam) {
@@ -143,6 +143,8 @@ static int csi_enc_eba_update(dma_addr_t eba, int *buffer_num)
 	err = ipu_update_channel_buffer(CSI_MEM, IPU_OUTPUT_BUFFER,
 					*buffer_num, eba);
 	if (err != 0) {
+		ipu_clear_buffer_ready(CSI_MEM, IPU_OUTPUT_BUFFER,
+				       *buffer_num);
 		printk(KERN_ERR "err %d buffer_num %d\n", err, *buffer_num);
 		return err;
 	}
@@ -166,6 +168,21 @@ static int csi_enc_enabling_tasks(void *private)
 	int err = 0;
 	CAMERA_TRACE("IPU:In csi_enc_enabling_tasks\n");
 
+	cam->dummy_frame.vaddress = dma_alloc_coherent(0,
+			       PAGE_ALIGN(cam->v2f.fmt.pix.sizeimage),
+			       &cam->dummy_frame.paddress,
+			       GFP_DMA | GFP_KERNEL);
+	if (cam->dummy_frame.vaddress == 0) {
+		pr_err("ERROR: v4l2 capture: Allocate dummy frame "
+		       "failed.\n");
+		return -ENOBUFS;
+	}
+	cam->dummy_frame.buffer.type = V4L2_BUF_TYPE_PRIVATE;
+	cam->dummy_frame.buffer.length =
+	    PAGE_ALIGN(cam->v2f.fmt.pix.sizeimage);
+	cam->dummy_frame.buffer.m.offset = cam->dummy_frame.paddress;
+
+	ipu_clear_irq(IPU_IRQ_CSI0_OUT_EOF);
 	err = ipu_request_irq(IPU_IRQ_CSI0_OUT_EOF,
 			      csi_enc_callback, 0, "Mxc Camera", cam);
 	if (err != 0) {
@@ -199,6 +216,12 @@ static int csi_enc_disabling_tasks(void *private)
 
 	ipu_uninit_channel(CSI_MEM);
 
+	if (cam->dummy_frame.vaddress != 0) {
+		dma_free_coherent(0, cam->dummy_frame.buffer.length,
+				  cam->dummy_frame.vaddress,
+				  cam->dummy_frame.paddress);
+		cam->dummy_frame.vaddress = 0;
+	}
 	ipu_csi_enable_mclk_if(CSI_MCLK_ENC, cam->csi, false, false);
 
 	return err;

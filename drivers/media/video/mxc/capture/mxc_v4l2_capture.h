@@ -111,6 +111,7 @@ typedef struct _cam_data {
 	spinlock_t queue_int_lock;
 	spinlock_t dqueue_int_lock;
 	struct mxc_v4l_frame frame[FRAME_NUM];
+	struct mxc_v4l_frame dummy_frame;
 	int skip_frame;
 	wait_queue_head_t enc_queue;
 	int enc_counter;

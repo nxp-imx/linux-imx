@@ -380,8 +380,8 @@ static int ipu_probe(struct platform_device *pdev)
 	/* DMFC Init */
 	_ipu_dmfc_init(DMFC_NORMAL, 1);
 
-	/* Set sync refresh channels as high priority */
-	__raw_writel(0x18800000L, IDMAC_CHA_PRI(0));
+	/* Set sync refresh channels and CSI->mem channel as high priority */
+	__raw_writel(0x18800001L, IDMAC_CHA_PRI(0));
 
 	/* Set MCU_T to divide MCU access window into 2 */
 	__raw_writel(0x00400000L | (IPU_MCU_T_DEFAULT << 18), IPU_DISP_GEN);
