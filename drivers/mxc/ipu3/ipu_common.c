@@ -513,7 +513,6 @@ int32_t ipu_init_channel(ipu_channel_t channel, ipu_channel_params_t *params)
 		}
 
 		ipu_smfc_use_count++;
-		ipu_csi_use_count[params->csi_mem.csi]++;
 		g_ipu_csi_channel[params->csi_mem.csi] = channel;
 
 		/*SMFC setting*/
@@ -543,7 +542,6 @@ int32_t ipu_init_channel(ipu_channel_t channel, ipu_channel_params_t *params)
 		using_ic_dirct_ch = CSI_PRP_ENC_MEM;
 
 		ipu_ic_use_count++;
-		ipu_csi_use_count[params->csi_prp_enc_mem.csi]++;
 		g_ipu_csi_channel[params->csi_prp_enc_mem.csi] = channel;
 
 		/*Without SMFC, CSI only support parallel data source*/
@@ -577,7 +575,6 @@ int32_t ipu_init_channel(ipu_channel_t channel, ipu_channel_params_t *params)
 		using_ic_dirct_ch = CSI_PRP_VF_MEM;
 
 		ipu_ic_use_count++;
-		ipu_csi_use_count[params->csi_prp_vf_mem.csi]++;
 		g_ipu_csi_channel[params->csi_prp_vf_mem.csi] = channel;
 
 		/*Without SMFC, CSI only support parallel data source*/
@@ -758,10 +755,6 @@ int32_t ipu_init_channel(ipu_channel_t channel, ipu_channel_params_t *params)
 	}
 	if (ipu_smfc_use_count == 1)
 		ipu_conf |= IPU_CONF_SMFC_EN;
-	if (ipu_csi_use_count[0] == 1)
-		ipu_conf |= IPU_CONF_CSI0_EN;
-	if (ipu_csi_use_count[1] == 1)
-		ipu_conf |= IPU_CONF_CSI1_EN;
 
 	__raw_writel(ipu_conf, IPU_CONF);
 
@@ -823,10 +816,8 @@ void ipu_uninit_channel(ipu_channel_t channel)
 		ipu_smfc_use_count--;
 		if (g_ipu_csi_channel[0] == channel) {
 			g_ipu_csi_channel[0] = CHAN_NONE;
-			ipu_csi_use_count[0]--;
 		} else if (g_ipu_csi_channel[1] == channel) {
 			g_ipu_csi_channel[1] = CHAN_NONE;
-			ipu_csi_use_count[1]--;
 		}
 		break;
 	case CSI_PRP_ENC_MEM:
@@ -836,10 +827,8 @@ void ipu_uninit_channel(ipu_channel_t channel)
 		_ipu_ic_uninit_prpenc();
 		if (g_ipu_csi_channel[0] == channel) {
 			g_ipu_csi_channel[0] = CHAN_NONE;
-			ipu_csi_use_count[0]--;
 		} else if (g_ipu_csi_channel[1] == channel) {
 			g_ipu_csi_channel[1] = CHAN_NONE;
-			ipu_csi_use_count[1]--;
 		}
 		break;
 	case CSI_PRP_VF_MEM:
@@ -849,10 +838,8 @@ void ipu_uninit_channel(ipu_channel_t channel)
 		_ipu_ic_uninit_prpvf();
 		if (g_ipu_csi_channel[0] == channel) {
 			g_ipu_csi_channel[0] = CHAN_NONE;
-			ipu_csi_use_count[0]--;
 		} else if (g_ipu_csi_channel[1] == channel) {
 			g_ipu_csi_channel[1] = CHAN_NONE;
-			ipu_csi_use_count[1]--;
 		}
 		break;
 	case MEM_PRP_VF_MEM:
@@ -954,10 +941,6 @@ void ipu_uninit_channel(ipu_channel_t channel)
 	}
 	if (ipu_smfc_use_count == 0)
 		ipu_conf &= ~IPU_CONF_SMFC_EN;
-	if (ipu_csi_use_count[0] == 0)
-		ipu_conf &= ~IPU_CONF_CSI0_EN;
-	if (ipu_csi_use_count[1] == 0)
-		ipu_conf &= ~IPU_CONF_CSI1_EN;
 
 	__raw_writel(ipu_conf, IPU_CONF);
 
@@ -1946,6 +1929,72 @@ int32_t ipu_disable_channel(ipu_channel_t channel, bool wait_for_stop)
 	return 0;
 }
 EXPORT_SYMBOL(ipu_disable_channel);
+
+/*!
+ * This function enables CSI.
+ *
+ * @param       csi	csi num 0 or 1
+ *
+ * @return      This function returns 0 on success or negative error code on
+ *              fail.
+ */
+int32_t ipu_enable_csi(uint32_t csi)
+{
+	uint32_t reg;
+	unsigned long lock_flags;
+
+	if (csi > 1) {
+		dev_err(g_ipu_dev, "Wrong csi num_%d\n", csi);
+		return -EINVAL;
+	}
+
+	spin_lock_irqsave(&ipu_lock, lock_flags);
+	ipu_csi_use_count[csi]++;
+
+	if (ipu_csi_use_count[csi] == 1) {
+		reg = __raw_readl(IPU_CONF);
+		if (csi == 0)
+			__raw_writel(reg | IPU_CONF_CSI0_EN, IPU_CONF);
+		else
+			__raw_writel(reg | IPU_CONF_CSI1_EN, IPU_CONF);
+	}
+	spin_unlock_irqrestore(&ipu_lock, lock_flags);
+	return 0;
+}
+EXPORT_SYMBOL(ipu_enable_csi);
+
+/*!
+ * This function disables CSI.
+ *
+ * @param       csi	csi num 0 or 1
+ *
+ * @return      This function returns 0 on success or negative error code on
+ *              fail.
+ */
+int32_t ipu_disable_csi(uint32_t csi)
+{
+	uint32_t reg;
+	unsigned long lock_flags;
+
+	if (csi > 1) {
+		dev_err(g_ipu_dev, "Wrong csi num_%d\n", csi);
+		return -EINVAL;
+	}
+
+	spin_lock_irqsave(&ipu_lock, lock_flags);
+	ipu_csi_use_count[csi]--;
+
+	if (ipu_csi_use_count[csi] == 0) {
+		reg = __raw_readl(IPU_CONF);
+		if (csi == 0)
+			__raw_writel(reg & ~IPU_CONF_CSI0_EN, IPU_CONF);
+		else
+			__raw_writel(reg & ~IPU_CONF_CSI1_EN, IPU_CONF);
+	}
+	spin_unlock_irqrestore(&ipu_lock, lock_flags);
+	return 0;
+}
+EXPORT_SYMBOL(ipu_disable_csi);
 
 static irqreturn_t ipu_irq_handler(int irq, void *desc)
 {

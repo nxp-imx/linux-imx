@@ -1332,6 +1332,17 @@ int32_t ipu_disable_channel(ipu_channel_t channel, bool wait_for_stop)
 	return 0;
 }
 
+int32_t ipu_enable_csi(uint32_t csi)
+{
+	return 0;
+}
+
+
+int32_t ipu_disable_csi(uint32_t csi)
+{
+	return 0;
+}
+
 static
 irqreturn_t ipu_irq_handler(int irq, void *desc)
 {
@@ -1915,6 +1926,8 @@ EXPORT_SYMBOL(ipu_select_buffer);
 EXPORT_SYMBOL(ipu_link_channels);
 EXPORT_SYMBOL(ipu_enable_channel);
 EXPORT_SYMBOL(ipu_disable_channel);
+EXPORT_SYMBOL(ipu_enable_csi);
+EXPORT_SYMBOL(ipu_disable_csi);
 EXPORT_SYMBOL(ipu_enable_irq);
 EXPORT_SYMBOL(ipu_disable_irq);
 EXPORT_SYMBOL(ipu_clear_irq);

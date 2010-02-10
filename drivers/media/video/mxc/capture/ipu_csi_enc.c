@@ -1,5 +1,5 @@
 /*
- * Copyright 2009 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2009-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -205,6 +205,32 @@ static int csi_enc_disabling_tasks(void *private)
 }
 
 /*!
+ * Enable csi
+ * @param private       struct cam_data * mxc capture instance
+ *
+ * @return  status
+ */
+static int csi_enc_enable_csi(void *private)
+{
+	cam_data *cam = (cam_data *) private;
+
+	return ipu_enable_csi(cam->csi);
+}
+
+/*!
+ * Disable csi
+ * @param private       struct cam_data * mxc capture instance
+ *
+ * @return  status
+ */
+static int csi_enc_disable_csi(void *private)
+{
+	cam_data *cam = (cam_data *) private;
+
+	return ipu_disable_csi(cam->csi);
+}
+
+/*!
  * function to select CSI ENC as the working path
  *
  * @param private       struct cam_data * mxc capture instance
@@ -220,6 +246,8 @@ int csi_enc_select(void *private)
 		cam->enc_update_eba = csi_enc_eba_update;
 		cam->enc_enable = csi_enc_enabling_tasks;
 		cam->enc_disable = csi_enc_disabling_tasks;
+		cam->enc_enable_csi = csi_enc_enable_csi;
+		cam->enc_disable_csi = csi_enc_disable_csi;
 	} else {
 		err = -EIO;
 	}
@@ -243,6 +271,8 @@ int csi_enc_deselect(void *private)
 		cam->enc_update_eba = NULL;
 		cam->enc_enable = NULL;
 		cam->enc_disable = NULL;
+		cam->enc_enable_csi = NULL;
+		cam->enc_disable_csi = NULL;
 	}
 
 	return err;

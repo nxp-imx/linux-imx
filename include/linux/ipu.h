@@ -902,6 +902,9 @@ int32_t ipu_enable_channel(ipu_channel_t channel);
 int32_t ipu_disable_channel(ipu_channel_t channel, bool wait_for_stop);
 int32_t ipu_swap_channel(ipu_channel_t from_ch, ipu_channel_t to_ch);
 
+int32_t ipu_enable_csi(uint32_t csi);
+int32_t ipu_disable_csi(uint32_t csi);
+
 int ipu_lowpwr_display_enable(void);
 int ipu_lowpwr_display_disable(void);
 

@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2009 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2004-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -154,6 +154,7 @@ static int prp_still_start(void *private)
 
 	ipu_select_buffer(CSI_MEM, IPU_OUTPUT_BUFFER, 0);
 	ipu_enable_channel(CSI_MEM);
+	ipu_enable_csi(cam->csi);
 #endif
 
 	return err;
@@ -177,6 +178,7 @@ static int prp_still_stop(void *private)
 	ipu_free_irq(IPU_IRQ_CSI0_OUT_EOF, cam);
 #endif
 
+	ipu_disable_csi(cam->csi);
 	ipu_disable_channel(CSI_MEM, true);
 	ipu_uninit_channel(CSI_MEM);
 	ipu_csi_enable_mclk_if(CSI_MCLK_RAW, cam->csi, false, false);

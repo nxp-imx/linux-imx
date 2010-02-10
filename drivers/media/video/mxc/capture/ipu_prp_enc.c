@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2009 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2004-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -367,6 +367,32 @@ static int prp_enc_disabling_tasks(void *private)
 }
 
 /*!
+ * Enable csi
+ * @param private       struct cam_data * mxc capture instance
+ *
+ * @return  status
+ */
+static int prp_enc_enable_csi(void *private)
+{
+	cam_data *cam = (cam_data *) private;
+
+	return ipu_enable_csi(cam->csi);
+}
+
+/*!
+ * Disable csi
+ * @param private       struct cam_data * mxc capture instance
+ *
+ * @return  status
+ */
+static int prp_enc_disable_csi(void *private)
+{
+	cam_data *cam = (cam_data *) private;
+
+	return ipu_disable_csi(cam->csi);
+}
+
+/*!
  * function to select PRP-ENC as the working path
  *
  * @param private       struct cam_data * mxc capture instance
@@ -382,6 +408,8 @@ int prp_enc_select(void *private)
 		cam->enc_update_eba = prp_enc_eba_update;
 		cam->enc_enable = prp_enc_enabling_tasks;
 		cam->enc_disable = prp_enc_disabling_tasks;
+		cam->enc_enable_csi = prp_enc_enable_csi;
+		cam->enc_disable_csi = prp_enc_disable_csi;
 	} else {
 		err = -EIO;
 	}
@@ -407,6 +435,8 @@ int prp_enc_deselect(void *private)
 		cam->enc_update_eba = NULL;
 		cam->enc_enable = NULL;
 		cam->enc_disable = NULL;
+		cam->enc_enable_csi = NULL;
+		cam->enc_disable_csi = NULL;
 		if (cam->rot_enc_bufs_vaddr[0]) {
 			dma_free_coherent(0, cam->rot_enc_buf_size[0],
 					  cam->rot_enc_bufs_vaddr[0],

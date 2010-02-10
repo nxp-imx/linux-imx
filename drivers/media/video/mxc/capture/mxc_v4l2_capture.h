@@ -168,11 +168,15 @@ typedef struct _cam_data {
 	int (*enc_update_eba) (dma_addr_t eba, int *bufferNum);
 	int (*enc_enable) (void *private);
 	int (*enc_disable) (void *private);
+	int (*enc_enable_csi) (void *private);
+	int (*enc_disable_csi) (void *private);
 	void (*enc_callback) (u32 mask, void *dev);
 	int (*vf_start_adc) (void *private);
 	int (*vf_stop_adc) (void *private);
 	int (*vf_start_sdc) (void *private);
 	int (*vf_stop_sdc) (void *private);
+	int (*vf_enable_csi) (void *private);
+	int (*vf_disable_csi) (void *private);
 	int (*csi_start) (void *private);
 	int (*csi_stop) (void *private);
 

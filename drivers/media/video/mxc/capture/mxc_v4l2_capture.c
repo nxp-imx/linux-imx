@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2009 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2004-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -163,6 +163,8 @@ static video_fmt_idx video_index = TV_NOT_LOCKED;
 static int mxc_v4l2_master_attach(struct v4l2_int_device *slave);
 static void mxc_v4l2_master_detach(struct v4l2_int_device *slave);
 static u8 camera_power(cam_data *cam, bool cameraOn);
+static int start_preview(cam_data *cam);
+static int stop_preview(cam_data *cam);
 
 /*! Information about this driver. */
 static struct v4l2_int_master mxc_v4l2_master = {
@@ -345,6 +347,9 @@ static int mxc_streamon(cam_data *cam)
 
 	cam->capture_pid = current->pid;
 
+	if (cam->overlay_on == true)
+		stop_preview(cam);
+
 	if (cam->enc_enable) {
 		err = cam->enc_enable(cam);
 		if (err != 0) {
@@ -371,6 +376,15 @@ static int mxc_streamon(cam_data *cam)
 		return -EINVAL;
 	}
 
+	if (cam->overlay_on == true)
+		start_preview(cam);
+
+	if (cam->enc_enable_csi) {
+		err = cam->enc_enable_csi(cam);
+		if (err != 0)
+			return err;
+	}
+
 	cam->capture_on = true;
 
 	return err;
@@ -392,9 +406,14 @@ static int mxc_streamoff(cam_data *cam)
 	if (cam->capture_on == false)
 		return 0;
 
-	if (cam->enc_disable) {
-		err = cam->enc_disable(cam);
+	if (cam->enc_disable_csi) {
+		err = cam->enc_disable_csi(cam);
+		if (err != 0)
+			return err;
 	}
+	if (cam->enc_disable)
+		err = cam->enc_disable(cam);
+
 	mxc_free_frames(cam);
 	mxc_capture_inputs[cam->current_input].status |= V4L2_IN_ST_NO_POWER;
 	cam->capture_on = false;
@@ -531,6 +550,11 @@ static int start_preview(cam_data *cam)
 			return err;
 
 		err = cam->vf_start_sdc(cam);
+		if (err != 0)
+			return err;
+
+		if (cam->vf_enable_csi)
+			err = cam->vf_enable_csi(cam);
 	}
 #endif
 
@@ -581,6 +605,12 @@ static int stop_preview(cam_data *cam)
 #endif
 
 #if defined(CONFIG_MXC_IPU_PRP_VF_SDC) || defined(CONFIG_MXC_IPU_PRP_VF_SDC_MODULE)
+	if (cam->vf_disable_csi) {
+		err = cam->vf_disable_csi(cam);
+		if (err != 0)
+			return err;
+	}
+
 	if (cam->output == 0 || cam->output == 2) {
 		if (cam->v4l2_fb.flags == V4L2_FBUF_FLAG_OVERLAY)
 			err = prp_vf_sdc_deselect(cam);
