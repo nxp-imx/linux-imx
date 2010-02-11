@@ -1,5 +1,5 @@
 /*
- * Copyright 2008-2009 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2008-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -649,7 +649,7 @@ static int _tve_get_revision(void)
 extern int g_di1_tvout;
 static int tve_probe(struct platform_device *pdev)
 {
-	int ret, i;
+	int ret, i, primary = 0;
 	struct resource *res;
 	struct tve_platform_data *plat_data = pdev->dev.platform_data;
 	u32 conf_reg;
@@ -683,6 +683,12 @@ static int tve_probe(struct platform_device *pdev)
 	for (i = 0; i < num_registered_fb; i++) {
 		if (strcmp(registered_fb[i]->fix.id, "DISP3 BG - DI1") == 0) {
 			tve_fbi = registered_fb[i];
+			if (i == 0) {
+				primary = 1;
+				acquire_console_sem();
+				fb_blank(tve_fbi, FB_BLANK_POWERDOWN);
+				release_console_sem();
+			}
 			break;
 		}
 	}
@@ -748,6 +754,18 @@ static int tve_probe(struct platform_device *pdev)
 	__raw_writel(0x00000000, tve.base + tve_regs->tve_mv_cont_reg);
 
 	clk_disable(tve.clk);
+
+	/* is primary display? */
+	if (primary) {
+		struct fb_event event;
+
+		event.info = tve_fbi;
+		tve_fb_event(NULL, FB_EVENT_MODE_CHANGE, &event);
+		acquire_console_sem();
+		fb_blank(tve_fbi, FB_BLANK_UNBLANK);
+		release_console_sem();
+		fb_show_logo(tve_fbi, 0);
+	}
 
 	ret = fb_register_client(&nb);
 	if (ret < 0)

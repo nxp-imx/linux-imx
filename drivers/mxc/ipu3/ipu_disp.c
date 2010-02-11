@@ -1,5 +1,5 @@
 /*
- * Copyright 2005-2009 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2005-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -303,8 +303,8 @@ static void _ipu_dc_link_event(int chan, int event, int addr, int priority)
        V = R *  2.000 + G * -1.672 + B * -.328 + 512.250.;*/
 static const int rgb2ycbcr_coeff[5][3] = {
 	{0x4D, 0x96, 0x1D},
-	{0x3D5, 0x3AB, 0x80},
-	{0x80, 0x395, 0x3EB},
+	{-0x2B, -0x55, 0x80},
+	{0x80, -0x6B, -0x15},
 	{0x0000, 0x0200, 0x0200},	/* B0, B1, B2 */
 	{0x2, 0x2, 0x2},	/* S0, S1, S2 */
 };

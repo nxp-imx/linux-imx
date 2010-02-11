@@ -510,12 +510,14 @@ static int swap_channels(struct fb_info *fbi)
 			mxc_fbi_from->ipu_ch_irq);
 		return -EBUSY;
 	}
+	ipu_disable_irq(mxc_fbi_from->ipu_ch_irq);
 	if (ipu_request_irq(mxc_fbi_to->ipu_ch_irq, mxcfb_irq_handler, 0,
 		MXCFB_NAME, fbi_to) != 0) {
 		dev_err(fbi_to->device, "Error registering irq %d\n",
 			mxc_fbi_to->ipu_ch_irq);
 		return -EBUSY;
 	}
+	ipu_disable_irq(mxc_fbi_to->ipu_ch_irq);
 
 	return 0;
 }
