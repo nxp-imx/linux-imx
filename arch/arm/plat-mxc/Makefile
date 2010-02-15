@@ -3,7 +3,7 @@
 #
 
 # Common support
-obj-y := cpu.o cpu_common.o gpio.o clock.o wdog.o snoop.o io.o time.o
+obj-y := cpu.o cpu_common.o gpio.o clock.o wdog.o snoop.o io.o time.o devices.o
 
 obj-$(CONFIG_IRAM_ALLOC) += iram.o
 

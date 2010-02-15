@@ -20,10 +20,12 @@
  */
 
 #include <linux/types.h>
+#include <linux/err.h>
 #include <linux/kernel.h>
 #include <linux/init.h>
 #include <linux/iram_alloc.h>
 #include <linux/io.h>
+#include <linux/clk.h>
 #include <mach/hardware.h>
 #include "crm_regs.h"
 
@@ -39,11 +41,43 @@ void __init mxc_cpu_init(void)
 		mxc_set_system_rev(0x51, CHIP_REV_1_0);
 }
 
+static void __init mipi_hsc_disable(void)
+{
+	void __iomem *reg_hsc_mcd = ioremap(MIPI_HSC_BASE_ADDR, SZ_4K);
+	void __iomem *reg_hsc_mxt_conf = reg_hsc_mcd + 0x800;
+	struct clk *clk;
+	uint32_t temp;
+
+	/* Temporarily setup MIPI module to legacy mode */
+	clk = clk_get(NULL, "mipi_hsp_clk");
+	if (!IS_ERR(clk)) {
+		clk_enable(clk);
+
+		/* Temporarily setup MIPI module to legacy mode */
+		__raw_writel(0xF00, reg_hsc_mcd);
+
+		/* CSI mode reserved*/
+		temp = __raw_readl(reg_hsc_mxt_conf);
+		__raw_writel(temp | 0x0FF, reg_hsc_mxt_conf);
+
+		if (cpu_is_mx51_rev(CHIP_REV_2_0) > 0) {
+			temp = __raw_readl(reg_hsc_mxt_conf);
+			__raw_writel(temp | 0x10000, reg_hsc_mxt_conf);
+		}
+
+		clk_disable(clk);
+		clk_put(clk);
+	}
+	iounmap(reg_hsc_mcd);
+}
+
 static int __init post_cpu_init(void)
 {
 	void __iomem *base;
 	unsigned int reg;
 	int iram_size = IRAM_SIZE;
+
+	mipi_hsc_disable();
 
 #if defined(CONFIG_MXC_SECURITY_SCC) || defined(CONFIG_MXC_SECURITY_SCC_MODULE)
 	if (cpu_is_mx51())

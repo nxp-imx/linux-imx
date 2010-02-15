@@ -646,18 +646,12 @@ static int _tve_get_revision(void)
 	return rev;
 }
 
-extern int g_di1_tvout;
 static int tve_probe(struct platform_device *pdev)
 {
 	int ret, i, primary = 0;
 	struct resource *res;
 	struct tve_platform_data *plat_data = pdev->dev.platform_data;
 	u32 conf_reg;
-
-	if (!g_di1_tvout) {
-		pr_debug("TVE: DI1 was occupied by other device,TVE will not enable\n");
-		return -EBUSY;
-	}
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	if (res == NULL)

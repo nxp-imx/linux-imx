@@ -12,14 +12,10 @@
  */
 
 #include <linux/types.h>
-#include <linux/sched.h>
 #include <linux/delay.h>
 #include <linux/interrupt.h>
 #include <linux/irq.h>
-#include <asm/mach/keypad.h>
 #include <linux/init.h>
-#include <linux/input.h>
-#include <linux/nodemask.h>
 #include <linux/clk.h>
 #include <linux/platform_device.h>
 #include <linux/fsl_devices.h>
@@ -29,6 +25,7 @@
 #include <linux/ata.h>
 #include <linux/pmic_external.h>
 #include <linux/ipu.h>
+#include <linux/pwm_backlight.h>
 #if defined(CONFIG_MTD) || defined(CONFIG_MTD_MODULE)
 #include <linux/mtd/mtd.h>
 #include <linux/mtd/map.h>
@@ -39,16 +36,17 @@
 
 #include <linux/regulator/consumer.h>
 #include <mach/hardware.h>
-#include <asm/irq.h>
 #include <asm/setup.h>
 #include <asm/mach-types.h>
 #include <asm/mach/arch.h>
 #include <asm/mach/time.h>
+#include <asm/mach/keypad.h>
 #include <mach/common.h>
-#include <mach/memory.h>
 #include <mach/gpio.h>
 #include <mach/mmc.h>
+#include <mach/mxc_dvfs.h>
 
+#include "devices.h"
 #include "board-mx51_3stack.h"
 #include "iomux.h"
 #include "crm_regs.h"
@@ -64,6 +62,7 @@ extern void __init mx51_3stack_io_init(void);
 extern struct cpu_wp *(*get_cpu_wp)(int *wp);
 extern void (*set_num_cpu_wp)(int num);
 static int num_cpu_wp = 3;
+static bool debug_board_present;
 
 /* working point(wp): 0 - 800MHz; 1 - 166.25MHz; */
 static struct cpu_wp cpu_wp_auto[] = {
@@ -108,25 +107,15 @@ void mx51_3stack_set_num_cpu_wp(int num)
 	return;
 }
 
-static void mxc_nop_release(struct device *dev)
-{
-	/* Nothing */
-}
+static struct mxc_w1_config mxc_w1_data = {
+	.search_rom_accelerator = 1,
+};
 
-#if defined(CONFIG_KEYBOARD_MXC) || defined(CONFIG_KEYBOARD_MXC_MODULE)
 static u16 keymapping[24] = {
 	KEY_1, KEY_2, KEY_3, KEY_F1, KEY_UP, KEY_F2,
 	KEY_4, KEY_5, KEY_6, KEY_LEFT, KEY_SELECT, KEY_RIGHT,
 	KEY_7, KEY_8, KEY_9, KEY_F3, KEY_DOWN, KEY_F4,
 	KEY_0, KEY_OK, KEY_ESC, KEY_ENTER, KEY_MENU, KEY_BACK,
-};
-
-static struct resource mxc_kpp_resources[] = {
-	[0] = {
-	       .start = MXC_INT_KPP,
-	       .end = MXC_INT_KPP,
-	       .flags = IORESOURCE_IRQ,
-	       }
 };
 
 static struct keypad_data keypad_plat_data = {
@@ -138,27 +127,100 @@ static struct keypad_data keypad_plat_data = {
 	.matrix = keymapping,
 };
 
-/* mxc keypad driver */
-static struct platform_device mxc_keypad_device = {
-	.name = "mxc_keypad",
-	.id = 0,
-	.num_resources = ARRAY_SIZE(mxc_kpp_resources),
-	.resource = mxc_kpp_resources,
-	.dev = {
-		.release = mxc_nop_release,
-		.platform_data = &keypad_plat_data,
-		},
+static struct platform_pwm_backlight_data mxc_pwm_backlight_data = {
+	.pwm_id = 0,
+	.max_brightness = 255,
+	.dft_brightness = 128,
+	.pwm_period_ns = 78770,
 };
 
-static void mxc_init_keypad(void)
-{
-	(void)platform_device_register(&mxc_keypad_device);
-}
-#else
-static inline void mxc_init_keypad(void)
-{
-}
-#endif
+static struct mxc_ipu_config mxc_ipu_data = {
+	.rev = 2,
+};
+
+extern void mx51_babbage_gpio_spi_chipselect_active(int cspi_mode, int status,
+						    int chipselect);
+extern void mx51_babbage_gpio_spi_chipselect_inactive(int cspi_mode, int status,
+						      int chipselect);
+static struct mxc_spi_master mxcspi1_data = {
+	.maxchipselect = 4,
+	.spi_version = 23,
+	.chipselect_active = mx51_babbage_gpio_spi_chipselect_active,
+	.chipselect_inactive = mx51_babbage_gpio_spi_chipselect_inactive,
+};
+
+static struct mxc_i2c_platform_data mxci2c_data = {
+	.i2c_clk = 100000,
+};
+
+static struct mxc_i2c_platform_data mxci2c_hs_data = {
+	.i2c_clk = 400000,
+};
+
+static struct mxc_srtc_platform_data srtc_data = {
+	.srtc_sec_mode_addr = 0x83F98840,
+};
+
+static struct tve_platform_data tve_data = {
+	.dac_reg = "VVIDEO",
+	.dig_reg = "VDIG",
+};
+
+static struct mxc_dvfs_platform_data dvfs_core_data = {
+	.reg_id = "SW1",
+	.clk1_id = "cpu_clk",
+	.clk2_id = "gpc_dvfs_clk",
+	.gpc_cntr_reg_addr = MXC_GPC_CNTR,
+	.gpc_vcr_reg_addr = MXC_GPC_VCR,
+	.ccm_cdcr_reg_addr = MXC_CCM_CDCR,
+	.ccm_cacrr_reg_addr = MXC_CCM_CACRR,
+	.ccm_cdhipr_reg_addr = MXC_CCM_CDHIPR,
+	.dvfs_thrs_reg_addr = MXC_DVFSTHRS,
+	.dvfs_coun_reg_addr = MXC_DVFSCOUN,
+	.dvfs_emac_reg_addr = MXC_DVFSEMAC,
+	.dvfs_cntr_reg_addr = MXC_DVFSCNTR,
+	.prediv_mask = 0x1F800,
+	.prediv_offset = 11,
+	.prediv_val = 3,
+	.div3ck_mask = 0xE0000000,
+	.div3ck_offset = 29,
+	.div3ck_val = 2,
+	.emac_val = 0x08,
+	.upthr_val = 25,
+	.dnthr_val = 9,
+	.pncthr_val = 33,
+	.upcnt_val = 10,
+	.dncnt_val = 10,
+	.delay_time = 30,
+	.num_wp = 3,
+};
+
+static struct mxc_dvfsper_data dvfs_per_data = {
+	.reg_id = "SW2",
+	.clk_id = "gpc_dvfs_clk",
+	.gpc_cntr_reg_addr = MXC_GPC_CNTR,
+	.gpc_vcr_reg_addr = MXC_GPC_VCR,
+	.gpc_adu = 0x0,
+	.vai_mask = MXC_DVFSPMCR0_FSVAI_MASK,
+	.vai_offset = MXC_DVFSPMCR0_FSVAI_OFFSET,
+	.dvfs_enable_bit = MXC_DVFSPMCR0_DVFEN,
+	.irq_mask = MXC_DVFSPMCR0_FSVAIM,
+	.div3_offset = 0,
+	.div3_mask = 0x7,
+	.div3_div = 2,
+	.lp_high = 1200000,
+	.lp_low = 1200000,
+};
+
+static struct mxc_spdif_platform_data mxc_spdif_data = {
+	.spdif_tx = 1,
+	.spdif_rx = 0,
+	.spdif_clk_44100 = 0,	/* spdif_ext_clk source for 44.1KHz */
+	.spdif_clk_48000 = 7,	/* audio osc source */
+	.spdif_clkid = 0,
+	.spdif_clk = NULL,	/* spdif bus clk */
+};
+
 
 /* NAND Flash Partitions */
 #ifdef CONFIG_MTD_PARTITIONS
@@ -188,14 +250,6 @@ static struct mtd_partition nand_flash_partitions[] = {
 
 #endif
 
-/* MTD NAND flash */
-#if defined(CONFIG_MTD_NAND_MXC) \
-	|| defined(CONFIG_MTD_NAND_MXC_MODULE) \
-	|| defined(CONFIG_MTD_NAND_MXC_V2) \
-	|| defined(CONFIG_MTD_NAND_MXC_V2_MODULE) \
-	|| defined(CONFIG_MTD_NAND_MXC_V3) \
-	|| defined(CONFIG_MTD_NAND_MXC_V3_MODULE)
-
 extern void gpio_nand_active(void);
 extern void gpio_nand_inactive(void);
 
@@ -222,57 +276,9 @@ static struct flash_platform_data mxc_nand_data = {
 	.exit = nand_exit,
 };
 
-static struct platform_device mxc_nandv2_mtd_device = {
-	.name = "mxc_nandv2_flash",
-	.id = 0,
-	.dev = {
-		.release = mxc_nop_release,
-		.platform_data = &mxc_nand_data,
-		},
-};
-
-static void mxc_init_nand_mtd(void)
-{
-	(void)platform_device_register(&mxc_nandv2_mtd_device);
-}
-#else
-static inline void mxc_init_nand_mtd(void)
-{
-}
-#endif
-
 /* i.MX MTD NAND Flash Controller */
 
 #if defined(CONFIG_MTD_NAND_IMX_NFC) || defined(CONFIG_MTD_NAND_IMX_NFC_MODULE)
-
-/* Resources for this device. */
-
-static struct resource imx_nfc_resources[] = {
-	{
-		.flags = IORESOURCE_MEM,
-		.start = NFC_BASE_ADDR_AXI + 0x0000,
-		.end   = NFC_BASE_ADDR_AXI + 0x1200 - 1,
-		.name  = IMX_NFC_BUFFERS_ADDR_RES_NAME,
-	},
-	{
-		.flags = IORESOURCE_MEM,
-		.start = NFC_BASE_ADDR_AXI + 0x1E00,
-		.end   = NFC_BASE_ADDR_AXI + 0x1E44 - 1,
-		.name  = IMX_NFC_PRIMARY_REGS_ADDR_RES_NAME,
-	},
-	{
-		.flags = IORESOURCE_MEM,
-		.start = NFC_BASE_ADDR + 0x00,
-		.end   = NFC_BASE_ADDR + 0x34 - 1,
-		.name  = IMX_NFC_SECONDARY_REGS_ADDR_RES_NAME,
-	},
-	{
-		.flags = IORESOURCE_IRQ,
-		.start = MXC_INT_NFC,
-		.end   = MXC_INT_NFC,
-		.name  = IMX_NFC_INTERRUPT_RES_NAME,
-	},
-};
 
 /*
  * Platform-specific information about this device. Some of the details depend
@@ -293,41 +299,7 @@ static struct imx_nfc_platform_data imx_nfc_platform_data = {
 	#endif
 };
 
-/* The structure that represents the NFC device. */
-
-static struct platform_device imx_nfc_device = {
-	.name = IMX_NFC_DRIVER_NAME,
-	.id = 0,
-	.dev = {
-		.release       = mxc_nop_release,
-		.platform_data = &imx_nfc_platform_data,
-	},
-	.resource      = imx_nfc_resources,
-	.num_resources = ARRAY_SIZE(imx_nfc_resources),
-};
-
-/**
- * imx_init_nfc() - Sets up the NFC for this platform.
- *
- * This function sets up data structures representing the NFC device on this
- * platform and registers the device with the platform management system.
- */
-
-static void imx_nfc_init(void)
-{
-	(void)platform_device_register(&imx_nfc_device);
-}
-
-#else
-
-static inline void imx_nfc_init(void)
-{
-}
-
 #endif /* i.MX MTD NAND Flash Controller */
-
-#if defined(CONFIG_FB_MXC_SYNC_PANEL) || \
-	defined(CONFIG_FB_MXC_SYNC_PANEL_MODULE)
 
 static struct mxc_fb_platform_data fb_data[] = {
 	{
@@ -335,35 +307,6 @@ static struct mxc_fb_platform_data fb_data[] = {
 	 },
 	{
 	 .interface_pix_fmt = IPU_PIX_FMT_YUV444,
-	 },
-};
-
-static struct platform_device mxc_fb_device[] = {
-	{
-	 .name = "mxc_sdc_fb",
-	 .id = 0,
-	 .dev = {
-		 .release = mxc_nop_release,
-		 .coherent_dma_mask = 0xFFFFFFFF,
-		 .platform_data = &fb_data[0],
-		 },
-	 },
-	{
-	 .name = "mxc_sdc_fb",
-	 .id = 1,
-	 .dev = {
-		 .release = mxc_nop_release,
-		 .coherent_dma_mask = 0xFFFFFFFF,
-		 .platform_data = &fb_data[1],
-		 },
-	 },
-	{
-	 .name = "mxc_sdc_fb",
-	 .id = 2,
-	 .dev = {
-		 .release = mxc_nop_release,
-		 .coherent_dma_mask = 0xFFFFFFFF,
-		 },
 	 },
 };
 
@@ -394,10 +337,6 @@ static struct mxc_lcd_platform_data lcd_data = {
 
 static struct platform_device mxc_lcd_device = {
 	.name = "lcd_spi",
-	.dev = {
-		.release = mxc_nop_release,
-		.platform_data = &lcd_data,
-		},
 };
 
 static void wvga_reset(void)
@@ -411,42 +350,13 @@ static struct mxc_lcd_platform_data lcd_wvga_data = {
 
 static struct platform_device lcd_wvga_device = {
 	.name = "lcd_claa",
-	.dev = {
-		.release = mxc_nop_release,
-		.platform_data = &lcd_wvga_data,
-		},
 };
-
-extern int g_di1_tvout;
-static void mxc_init_fb(void)
-{
-	g_di1_tvout = 1;
-	if (cpu_is_mx51_rev(CHIP_REV_2_0) > 0)
-		lcd_data.reset = lcd_reset_to2;
-
-	(void)platform_device_register(&mxc_lcd_device);
-	(void)platform_device_register(&lcd_wvga_device);
-
-	(void)platform_device_register(&mxc_fb_device[0]);
-	(void)platform_device_register(&mxc_fb_device[1]);
-	(void)platform_device_register(&mxc_fb_device[2]);
-}
-#else
-static inline void mxc_init_fb(void)
-{
-}
-#endif
 
 static struct platform_device mxcbl_device = {
 	.name = "mxc_mc13892_bl",
 };
 
-static inline void mxc_init_bl(void)
-{
-	platform_device_register(&mxcbl_device);
-}
-
-void si4702_reset(void)
+static void si4702_reset(void)
 {
 	gpio_set_value(IOMUX_TO_GPIO(MX51_PIN_EIM_DTACK), 0);
 	msleep(100);
@@ -454,7 +364,7 @@ void si4702_reset(void)
 	msleep(100);
 }
 
-void si4702_clock_ctl(int flag)
+static void si4702_clock_ctl(int flag)
 {
 }
 
@@ -483,13 +393,6 @@ static struct mxc_fm_platform_data si4702_data = {
 	.seekth = 0xa,
 };
 
-#if defined(CONFIG_I2C_MXC) || defined(CONFIG_I2C_MXC_MODULE)
-
-#ifdef CONFIG_I2C_MXC_SELECT1
-static struct i2c_board_info mxc_i2c0_board_info[] __initdata = {
-};
-#endif
-#ifdef CONFIG_I2C_MXC_SELECT2
 static struct i2c_board_info mxc_i2c1_board_info[] __initdata = {
 	{
 	 .type = "wm8903-i2c",
@@ -510,8 +413,7 @@ static struct i2c_board_info mxc_i2c1_board_info[] __initdata = {
 	 .platform_data = (void *)&si4702_data,
 	 },
 };
-#endif
-#if defined(CONFIG_I2C_MXC_HS) || defined(CONFIG_I2C_MXC_HS_MODULE)
+
 static struct mxc_camera_platform_data camera_data = {
 	.io_regulator = "SW4",
 	.analog_regulator = "VIOHI",
@@ -530,21 +432,16 @@ static struct i2c_board_info mxc_i2c_hs_board_info[] __initdata = {
 		.platform_data = (void *)&camera_data,
 	},
 	{
-	 .type = "isl29003",
-	 .addr = 0x44,
-	 .platform_data = &ls_data,
+		.type = "isl29003",
+		.addr = 0x44,
+		.platform_data = &ls_data,
 	 },
 };
-#endif
 
-#endif
-
-static u32 cpld_base_addr;
-
-/*lan9217 device*/
-#if defined(CONFIG_SMSC911X) || defined(CONFIG_SMSC911X_MODULE)
 static struct resource smsc911x_resources[] = {
 	{
+	 .start = CS5_BASE_ADDR,
+	 .end = CS5_BASE_ADDR + SZ_4K - 1,
 	 .flags = IORESOURCE_MEM,
 	 },
 	{
@@ -562,31 +459,10 @@ struct smsc911x_platform_config smsc911x_config = {
 static struct platform_device smsc_lan9217_device = {
 	.name = "smsc911x",
 	.id = 0,
-	.dev = {
-		.release = mxc_nop_release,
-		.platform_data = &smsc911x_config,
-		},
 	.num_resources = ARRAY_SIZE(smsc911x_resources),
 	.resource = smsc911x_resources,
 };
-static void mxc_init_enet(void)
-{
-	if (cpld_base_addr) {
-		smsc_lan9217_device.resource[0].start =
-		    LAN9217_BASE_ADDR(cpld_base_addr);
-		smsc_lan9217_device.resource[0].end =
-		    LAN9217_BASE_ADDR(cpld_base_addr) + 0x100;
-		(void)platform_device_register(&smsc_lan9217_device);
-	}
-}
-#else
-static inline void mxc_init_enet(void)
-{
-}
-#endif
 
-#if defined(CONFIG_IMX_SIM) || defined(CONFIG_IMX_SIM_MODULE)
-/* Used to configure the SIM bus */
 static struct mxc_sim_platform_data sim_data = {
 	.clk_rate = 4000000,
 	.clock_sim = "sim_clk",
@@ -597,53 +473,9 @@ static struct mxc_sim_platform_data sim_data = {
 };
 
 /*!
- * Resource definition for the SIM
- */
-static struct resource mxc_sim_resources[] = {
-	[0] = {
-	       .start = SIM_BASE_ADDR,
-	       .end = SIM_BASE_ADDR + SZ_4K - 1,
-	       .flags = IORESOURCE_MEM,
-	       },
-	[1] = {
-	       .start = MXC_INT_SIM_IPB,
-	       .end = MXC_INT_SIM_IPB,
-	       .flags = IORESOURCE_IRQ,
-	       },
-	[2] = {
-	       .start = MXC_INT_SIM_DAT,
-	       .end = MXC_INT_SIM_DAT,
-	       .flags = IORESOURCE_IRQ,
-	       },
-};
-
-/*! Device Definition for IMX SIM */
-static struct platform_device mxc_sim_device = {
-	.name = "mxc_sim",
-	.id = 0,
-	.dev = {
-		.release = mxc_nop_release,
-		.platform_data = &sim_data,
-		},
-	.num_resources = ARRAY_SIZE(mxc_sim_resources),
-	.resource = mxc_sim_resources,
-};
-
-static inline void mxc_init_sim(void)
-{
-	(void)platform_device_register(&mxc_sim_device);
-}
-#else
-static inline void mxc_init_sim(void)
-{
-}
-#endif
-
-#if defined(CONFIG_MMC_IMX_ESDHCI) || defined(CONFIG_MMC_IMX_ESDHCI_MODULE)
-/*!
  * Get WP pin value to detect write protection
  */
-int sdhc_write_protect(struct device *dev)
+static int sdhc_write_protect(struct device *dev)
 {
 	unsigned short rc = 0;
 
@@ -654,10 +486,7 @@ int sdhc_write_protect(struct device *dev)
 	return rc;
 }
 
-/*
- * Probe for the card. If present the GPIO data would be set.
- */
-unsigned int sdhc_get_card_det_status(struct device *dev)
+static unsigned int sdhc_get_card_det_status(struct device *dev)
 {
 	int ret;
 
@@ -691,83 +520,6 @@ static struct mxc_mmc_platform_data mmc2_data = {
 	.wp_status = sdhc_write_protect,
 	.clock_mmc = "esdhc_clk",
 };
-
-/*!
- * Resource definition for the SDHC1
- */
-static struct resource mxcsdhc1_resources[] = {
-	[0] = {
-	       .start = MMC_SDHC1_BASE_ADDR,
-	       .end = MMC_SDHC1_BASE_ADDR + SZ_4K - 1,
-	       .flags = IORESOURCE_MEM,
-	       },
-	[1] = {
-	       .start = MXC_INT_MMC_SDHC1,
-	       .end = MXC_INT_MMC_SDHC1,
-	       .flags = IORESOURCE_IRQ,
-	       },
-	[2] = {
-	       .start = IOMUX_TO_IRQ(MX51_PIN_GPIO1_0),
-	       .end = IOMUX_TO_IRQ(MX51_PIN_GPIO1_0),
-	       .flags = IORESOURCE_IRQ,
-	       },
-};
-
-/*!
- * Resource definition for the SDHC2
- */
-static struct resource mxcsdhc2_resources[] = {
-	[0] = {
-	       .start = MMC_SDHC2_BASE_ADDR,
-	       .end = MMC_SDHC2_BASE_ADDR + SZ_4K - 1,
-	       .flags = IORESOURCE_MEM,
-	       },
-	[1] = {
-	       .start = MXC_INT_MMC_SDHC2,
-	       .end = MXC_INT_MMC_SDHC2,
-	       .flags = IORESOURCE_IRQ,
-	       },
-	[2] = {
-	       .start = 0,
-	       .end = 0,
-	       .flags = IORESOURCE_IRQ,
-	       },
-};
-
-/*! Device Definition for MXC SDHC1 */
-static struct platform_device mxcsdhc1_device = {
-	.name = "mxsdhci",
-	.id = 0,
-	.dev = {
-		.release = mxc_nop_release,
-		.platform_data = &mmc1_data,
-		},
-	.num_resources = ARRAY_SIZE(mxcsdhc1_resources),
-	.resource = mxcsdhc1_resources,
-};
-
-/*! Device Definition for MXC SDHC2 */
-static struct platform_device mxcsdhc2_device = {
-	.name = "mxsdhci",
-	.id = 1,
-	.dev = {
-		.release = mxc_nop_release,
-		.platform_data = &mmc2_data,
-		},
-	.num_resources = ARRAY_SIZE(mxcsdhc2_resources),
-	.resource = mxcsdhc2_resources,
-};
-
-static inline void mxc_init_mmc(void)
-{
-	(void)platform_device_register(&mxcsdhc1_device);
-	(void)platform_device_register(&mxcsdhc2_device);
-}
-#else
-static inline void mxc_init_mmc(void)
-{
-}
-#endif
 
 static u32 brd_io;
 static void expio_ack_irq(u32 irq);
@@ -865,10 +617,9 @@ static int __init mxc_expio_init(void)
 	    (__raw_readw(brd_io + MAGIC_NUMBER2_REG) != 0x5555) ||
 	    (__raw_readw(brd_io + MAGIC_NUMBER3_REG) != 0xCAFE)) {
 		pr_info("3-Stack Debug board not detected \n");
-		cpld_base_addr = 0;
 		return -ENODEV;
 	} else {
-		cpld_base_addr = CS5_BASE_ADDR;
+		debug_board_present = true;
 	}
 
 	pr_info("3-Stack Debug board detected, rev = 0x%04X\n",
@@ -897,7 +648,6 @@ static int __init mxc_expio_init(void)
 	return 0;
 }
 
-#if defined(CONFIG_PATA_FSL) || defined(CONFIG_PATA_FSL_MODULE)
 extern void gpio_ata_active(void);
 extern void gpio_ata_inactive(void);
 
@@ -926,54 +676,6 @@ static struct fsl_ata_platform_data ata_data = {
 	.io_reg = NULL,
 };
 
-static struct resource pata_fsl_resources[] = {
-	[0] = {
-	       .start = ATA_BASE_ADDR,
-	       .end = ATA_BASE_ADDR + 0x000000C8,
-	       .flags = IORESOURCE_MEM,},
-	[2] = {
-	       .start = MXC_INT_ATA,
-	       .end = MXC_INT_ATA,
-	       .flags = IORESOURCE_IRQ,},
-};
-
-static struct platform_device pata_fsl_device = {
-	.name = "pata_fsl",
-	.id = -1,
-	.num_resources = ARRAY_SIZE(pata_fsl_resources),
-	.resource = pata_fsl_resources,
-	.dev = {
-		.platform_data = &ata_data,
-		.coherent_dma_mask = ~0,},
-};
-
-static void __init mxc_init_pata(void)
-{
-	(void)platform_device_register(&pata_fsl_device);
-}
-#else				/* CONFIG_PATA_FSL */
-static void __init mxc_init_pata(void)
-{
-}
-#endif				/* CONFIG_PATA_FSL */
-
-#if defined(CONFIG_TOUCHSCREEN_TSC2007) \
-	|| defined(CONFIG_TOUCHSCREEN_TSC2007_MODULE)
-
-static int __init mxc_init_touchscreen(void)
-{
-	gpio_request(IOMUX_TO_GPIO(MX51_PIN_GPIO1_5), "gpio1_5");
-	gpio_direction_input(IOMUX_TO_GPIO(MX51_PIN_GPIO1_5));
-
-	return 0;
-}
-#else
-static int __init mxc_init_touchscreen(void)
-{
-	return 0;
-}
-#endif
-
 static int __init mxc_init_srpgconfig(void)
 {
 	struct clk *gpcclk = clk_get(NULL, "gpc_dvfs_clk");
@@ -998,18 +700,12 @@ static int __init mxc_init_srpgconfig(void)
 	return 0;
 }
 
-#if defined(CONFIG_SND_SOC_IMX_3STACK_WM8903) \
-    || defined(CONFIG_SND_SOC_IMX_3STACK_WM8903_MODULE)
-static struct mxc_audio_platform_data wm8903_data;
-
 static struct platform_device mxc_wm8903_device = {
 	.name = "imx-3stack-wm8903",
 	.id = 0,
-	.dev = {
-		.release = mxc_nop_release,
-		.platform_data = &wm8903_data,
-		},
 };
+
+static struct mxc_audio_platform_data wm8903_data;
 
 static void __init mxc_init_wm8903(void)
 {
@@ -1025,42 +721,17 @@ static void __init mxc_init_wm8903(void)
 
 	(void)platform_device_register(&mxc_wm8903_device);
 }
-#else
-static void __init mxc_init_wm8903(void)
-{
-}
-#endif
 
-#if defined(CONFIG_SND_SOC_IMX_3STACK_SGTL5000) \
-    || defined(CONFIG_SND_SOC_IMX_3STACK_SGTL5000_MODULE)
-static int mxc_sgtl5000_plat_init(void);
-static int mxc_sgtl5000_plat_finit(void);
-static int mxc_sgtl5000_amp_enable(int enable);
+static struct platform_device mxc_sgtl5000_device = {
+	.name = "imx-3stack-sgtl5000",
+};
 
 int headphone_det_status(void)
 {
 	return gpio_get_value(IOMUX_TO_GPIO(MX51_PIN_EIM_A26));
 }
 
-static struct mxc_audio_platform_data sgtl5000_data = {
-	.ssi_num = 1,
-	.src_port = 2,
-	.ext_port = 3,
-	.hp_irq = IOMUX_TO_IRQ(MX51_PIN_EIM_A26),
-	.hp_status = headphone_det_status,
-	.amp_enable = mxc_sgtl5000_amp_enable,
-	.sysclk = 12000000,
-	.init = mxc_sgtl5000_plat_init,
-	.finit = mxc_sgtl5000_plat_finit,
-};
-
-static struct platform_device mxc_sgtl5000_device = {
-	.name = "imx-3stack-sgtl5000",
-	.dev = {
-		.release = mxc_nop_release,
-		.platform_data = &sgtl5000_data,
-		},
-};
+static struct mxc_audio_platform_data sgtl5000_data;
 
 static int mxc_sgtl5000_plat_init(void)
 {
@@ -1097,15 +768,17 @@ static int mxc_sgtl5000_amp_enable(int enable)
 	return 0;
 }
 
-static void mxc_init_sgtl5000(void)
-{
-	platform_device_register(&mxc_sgtl5000_device);
-}
-#else
-static inline void mxc_init_sgtl5000(void)
-{
-}
-#endif
+static struct mxc_audio_platform_data sgtl5000_data = {
+	.ssi_num = 1,
+	.src_port = 2,
+	.ext_port = 3,
+	.hp_irq = IOMUX_TO_IRQ(MX51_PIN_EIM_A26),
+	.hp_status = headphone_det_status,
+	.amp_enable = mxc_sgtl5000_amp_enable,
+	.sysclk = 12000000,
+	.init = mxc_sgtl5000_plat_init,
+	.finit = mxc_sgtl5000_plat_finit,
+};
 
 static void bt_reset(void)
 {
@@ -1123,16 +796,7 @@ static struct mxc_bt_platform_data mxc_bt_data = {
 static struct platform_device mxc_bt_device = {
 	.name = "mxc_bt",
 	.id = 0,
-	.dev = {
-		.release = mxc_nop_release,
-		.platform_data = &mxc_bt_data,
-		},
 };
-
-static void mxc_init_bluetooth(void)
-{
-	(void)platform_device_register(&mxc_bt_device);
-}
 
 static void mxc_unifi_hardreset(int pin_level)
 {
@@ -1150,7 +814,6 @@ struct mxc_unifi_platform_data *get_unifi_plat_data(void)
 {
 	return &unifi_data;
 }
-
 EXPORT_SYMBOL(get_unifi_plat_data);
 
 /*!
@@ -1171,18 +834,8 @@ static void __init fixup_mxc_board(struct machine_desc *desc, struct tag *tags,
 
 	get_cpu_wp = mx51_3stack_get_cpu_wp;
 	set_num_cpu_wp = mx51_3stack_set_num_cpu_wp;
-#ifdef CONFIG_DISCONTIGMEM
-	do {
-		int nid;
-		mi->nr_banks = MXC_NUMNODES;
-		for (nid = 0; nid < mi->nr_banks; nid++)
-			SET_NODE(mi, nid);
-
-	} while (0);
-#endif
 }
 
-#if defined(CONFIG_GPS_IOCTRL) || defined(CONFIG_GPS_IOCTRL_MODULE)
 static struct mxc_gps_platform_data gps_data = {
 	.core_reg = "VIOHI",
 	.analog_reg = "SW4",
@@ -1191,15 +844,7 @@ static struct mxc_gps_platform_data gps_data = {
 static struct platform_device mxc_gps_device = {
 	.name = "gps_ioctrl",
 	.id = -1,
-	.dev = {
-		.platform_data = &gps_data,
-	},
 };
-
-static void __init mxc_init_gps(void)
-{
-	(void)platform_device_register(&mxc_gps_device);
-}
 
 int gpio_gps_access(int para)
 {
@@ -1215,11 +860,6 @@ int gpio_gps_access(int para)
 	return 0;
 }
 EXPORT_SYMBOL(gpio_gps_access);
-#else
-static void __init mxc_init_gps(void)
-{
-}
-#endif
 
 /*!
  * Board specific initialization.
@@ -1228,46 +868,80 @@ static void __init mxc_board_init(void)
 {
 	int err;
 
+	mxc_ipu_data.di_clk[0] = clk_get(NULL, "ipu_di0_clk");
+	mxc_ipu_data.di_clk[1] = clk_get(NULL, "ipu_di1_clk");
+
+	mxc_spdif_data.spdif_core_clk = clk_get(NULL, "spdif_xtal_clk");
+	clk_put(mxc_spdif_data.spdif_core_clk);
+
 	mxc_cpu_common_init();
 	mxc_register_gpios();
 	mx51_3stack_io_init();
 	early_console_setup(saved_command_line);
-	mxc_init_devices();
+
+	mxc_register_device(&mxc_wdt_device, NULL);
+	mxc_register_device(&mxcspi1_device, &mxcspi1_data);
+	mxc_register_device(&mxci2c_devices[0], &mxci2c_data);
+	mxc_register_device(&mxci2c_devices[1], &mxci2c_data);
+	mxc_register_device(&mxci2c_hs_device, &mxci2c_hs_data);
+	mxc_register_device(&mxc_rtc_device, &srtc_data);
+	mxc_register_device(&mxc_w1_master_device, &mxc_w1_data);
+	mxc_register_device(&mxc_ipu_device, &mxc_ipu_data);
+	mxc_register_device(&mxc_tve_device, &tve_data);
+	mxc_register_device(&mxcvpu_device, NULL);
+	mxc_register_device(&gpu_device, NULL);
+	mxc_register_device(&mx51_lpmode_device, NULL);
+	mxc_register_device(&busfreq_device, NULL);
+	mxc_register_device(&sdram_autogating_device, NULL);
+	mxc_register_device(&mxc_dvfs_core_device, &dvfs_core_data);
+	mxc_register_device(&mxc_dvfs_per_device, &dvfs_per_data);
+	mxc_register_device(&mxc_iim_device, NULL);
+	mxc_register_device(&mxc_pwm1_device, NULL);
+	mxc_register_device(&mxc_pwm_backlight_device, &mxc_pwm_backlight_data);
+	mxc_register_device(&mxc_keypad_device, &keypad_plat_data);
+	mxcsdhc1_device.resource[2].start = IOMUX_TO_IRQ(MX51_PIN_GPIO1_0),
+	mxcsdhc1_device.resource[2].end = IOMUX_TO_IRQ(MX51_PIN_GPIO1_0),
+	mxc_register_device(&mxcsdhc1_device, &mmc1_data);
+	mxc_register_device(&mxcsdhc2_device, &mmc2_data);
+	mxc_register_device(&mxc_sim_device, &sim_data);
+	mxc_register_device(&pata_fsl_device, &ata_data);
+	mxc_register_device(&mxc_alsa_spdif_device, &mxc_spdif_data);
 
 	mxc_expio_init();
-	mxc_init_enet();
-	mxc_init_pata();
-	mxc_init_fb();
-	mxc_init_bl();
-	mxc_init_keypad();
-	mxc_init_nand_mtd();
-	imx_nfc_init();
-	mxc_init_mmc();
-	mxc_init_sim();
+	if (debug_board_present)
+		mxc_register_device(&smsc_lan9217_device, &smsc911x_config);
+
+	if (cpu_is_mx51_rev(CHIP_REV_2_0) > 0)
+		lcd_data.reset = lcd_reset_to2;
+
+	mxc_register_device(&mxc_lcd_device, &lcd_data);
+	mxc_register_device(&lcd_wvga_device, &lcd_wvga_data);
+	mxc_register_device(&mxc_fb_devices[0], &fb_data[0]);
+	mxc_register_device(&mxc_fb_devices[1], &fb_data[1]);
+	mxc_register_device(&mxc_fb_devices[2], NULL);
+	mxc_register_device(&mxcbl_device, NULL);
+
+#if defined(CONFIG_MTD_NAND_IMX_NFC) || defined(CONFIG_MTD_NAND_IMX_NFC_MODULE)
+	mxc_register_device(&imx_nfc_device, &imx_nfc_platform_data);
+#else
+	mxc_register_device(&mxc_nandv2_mtd_device, &mxc_nand_data);
+#endif
 	mxc_init_srpgconfig();
 	mx51_3stack_init_mc13892();
 
-#if defined(CONFIG_I2C_MXC) || defined(CONFIG_I2C_MXC_MODULE)
-
-#ifdef CONFIG_I2C_MXC_SELECT1
-	i2c_register_board_info(0, mxc_i2c0_board_info,
-				ARRAY_SIZE(mxc_i2c0_board_info));
-#endif
-#ifdef CONFIG_I2C_MXC_SELECT2
 	i2c_register_board_info(1, mxc_i2c1_board_info,
 				ARRAY_SIZE(mxc_i2c1_board_info));
-#endif
-#if defined(CONFIG_I2C_MXC_HS) || defined(CONFIG_I2C_MXC_HS_MODULE)
 	i2c_register_board_info(3, mxc_i2c_hs_board_info,
 				ARRAY_SIZE(mxc_i2c_hs_board_info));
-#endif
 
-#endif
-	mxc_init_touchscreen();
 	mxc_init_wm8903();
-	mxc_init_sgtl5000();
-	mxc_init_bluetooth();
-	mxc_init_gps();
+	mxc_register_device(&mxc_sgtl5000_device, &sgtl5000_data);
+	mxc_register_device(&mxc_bt_device, &mxc_bt_data);
+	mxc_register_device(&mxc_gps_device, &gps_data);
+
+	/* Setup Touchscreen interrupt */
+	gpio_request(IOMUX_TO_GPIO(MX51_PIN_GPIO1_5), "gpio1_5");
+	gpio_direction_input(IOMUX_TO_GPIO(MX51_PIN_GPIO1_5));
 
 	err = mxc_request_iomux(MX51_PIN_EIM_D19, IOMUX_CONFIG_GPIO);
 	if (err)
