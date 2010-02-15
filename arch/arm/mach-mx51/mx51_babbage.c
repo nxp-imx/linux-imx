@@ -42,12 +42,13 @@
 #include <mach/gpio.h>
 #include <mach/mmc.h>
 #include <mach/mxc_dvfs.h>
+#include <mach/mxc_edid.h>
 
 #include "devices.h"
 #include "board-mx51_babbage.h"
 #include "iomux.h"
 #include "crm_regs.h"
-#include <mach/mxc_edid.h>
+#include "usb.h"
 
 /*!
  * @file mach-mx51/mx51_babbage.c
@@ -947,6 +948,9 @@ static void __init mxc_board_init(void)
 	gpio_request(IOMUX_TO_GPIO(MX51_PIN_EIM_A23), "eim_a23");
 	gpio_direction_output(IOMUX_TO_GPIO(MX51_PIN_EIM_A23), 0);
 	mxc_register_device(&mxc_sgtl5000_device, &sgtl5000_data);
+
+	mx51_usb_dr_init();
+	mx51_usbh1_init();
 }
 
 static void __init mx51_babbage_timer_init(void)

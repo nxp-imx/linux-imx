@@ -1,5 +1,5 @@
 /*
- * Copyright 2005-2009 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2005-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -129,7 +129,7 @@ static void isp1504_clear(u8 bits, int reg, volatile u32 *view)
 		continue;
 }
 
-extern int gpio_usbotg_hs_active(void);
+extern __weak int gpio_usbotg_hs_active(void);
 
 static void isp1508_fix(u32 *view)
 {
@@ -271,7 +271,7 @@ static void __exit isp1504xc_exit(void)
 	fsl_usb_xcvr_unregister(&isp1504_ops);
 }
 
-module_init(isp1504xc_init);
+subsys_initcall(isp1504xc_init);
 module_exit(isp1504xc_exit);
 
 MODULE_AUTHOR("Freescale Semiconductor, Inc.");

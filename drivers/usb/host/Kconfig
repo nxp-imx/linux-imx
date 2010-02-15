@@ -62,6 +62,7 @@ config USB_EHCI_HCD
 config USB_EHCI_ARC
 	bool "Support for Freescale controller"
 	depends on USB_EHCI_HCD && (ARCH_MXC || ARCH_STMP3XXX)
+	select USB_OTG_UTILS
 	---help---
 	   Some Freescale processors have an integrated High Speed
 	   USBOTG controller, which supports EHCI host mode.
@@ -100,54 +101,6 @@ config USB_STATIC_IRAM
 	  penalties and usage restrictions when using this option.
 
 	  If in doubt, say N.
-
-choice
-	prompt "Select transceiver for DR port"
-	depends on USB_EHCI_ARC_OTG
-	default USB_EHCI_FSL_1504 if ARCH_MX3
-	default USB_EHCI_FSL_1301 if ARCH_MX27
-	default USB_EHCI_FSL_UTMI if (ARCH_MX25 || ARCH_MX35 || ARCH_MX37 || ARCH_MX51 || ARCH_STMP3XXX)
-	---help---
-	  Choose the transceiver to use with the Freescale DR port.
-
-config USB_EHCI_FSL_MC13783
-	bool "Freescale MC13783"
-	depends on !MACH_MX25_3DS
-	---help---
-	  Enable support for the Full Speed Freescale MC13783 transceiver.
-
-	  The mx27ads, mx31ads and mx32ads boards require modifications
-	  to support this transceiver.
-
-config USB_EHCI_FSL_1301
-	bool "Philips ISP1301"
-	depends on !MACH_MX25_3DS
-	---help---
-	  Enable support for the Full Speed Philips ISP1301 transceiver.
-
-	  This is the factory default for the mx27ads board.
-	  The mx31ads and mx32ads boards require modifications
-	  to support this transceiver.
-
-config USB_EHCI_FSL_1504
-	bool "Philips ISP1504"
-	depends on MACH_MX27ADS || MACH_MX31ADS || MACH_MX32ADS ||MACH_MX31_3DS
-	---help---
-	  Enable support for the High Speed Philips ISP1504 transceiver.
-
-	  This is the factory default for the mx31ads and mx32ads boards.
-	  The mx27ads board requires modifications to support this transceiver.
-
-config USB_EHCI_FSL_UTMI
-	bool "Internal UTMI"
-	depends on (ARCH_MX25 || ARCH_MX35 || ARCH_MX37 || ARCH_MX51 || ARCH_STMP3XXX)
-	---help---
-	  Enable support for the on-chip High Speed UTMI transceiver.
-
-	  This is the factory default for the mx35ads board.
-
-endchoice
-
 
 config USB_EHCI_ROOT_HUB_TT
 	bool "Root Hub Transaction Translators"
@@ -399,7 +352,7 @@ config USB_SL811_HCD
 	help
 	  The SL811HS is a single-port USB controller that supports either
 	  host side or peripheral side roles.  Enable this option if your
-	  board has this chip, and you want to use it as a host controller. 
+	  board has this chip, and you want to use it as a host controller.
 	  If unsure, say N.
 
 	  To compile this driver as a module, choose M here: the

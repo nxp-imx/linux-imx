@@ -1,5 +1,5 @@
 /*
- * Copyright 2005-2009 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2005-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -282,7 +282,7 @@ static void __exit isp1301xc_exit(void)
 	fsl_usb_xcvr_unregister(&isp1301_ops_otg);
 }
 
-module_init(isp1301xc_init);
+subsys_initcall(isp1301xc_init);
 module_exit(isp1301xc_exit);
 
 MODULE_AUTHOR("Freescale Semiconductor, Inc.");

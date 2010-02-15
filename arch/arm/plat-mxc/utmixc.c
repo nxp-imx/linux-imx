@@ -1,5 +1,5 @@
 /*
- * Copyright 2005-2009 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2005-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -98,7 +98,7 @@ static void __exit utmixc_exit(void)
 	fsl_usb_xcvr_unregister(&utmi_ops);
 }
 
-module_init(utmixc_init);
+subsys_initcall(utmixc_init);
 module_exit(utmixc_exit);
 
 MODULE_AUTHOR("Freescale Semiconductor, Inc.");

@@ -1,5 +1,5 @@
 /*
- * Copyright 2005-2009 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2005-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -53,19 +53,6 @@ static int gpio_usbh1_active(void)
 	return 0;
 }
 
-void gpio_usbh1_setback_stp(void)
-{
-	/* setback USBH1_STP to be function */
-	mxc_request_iomux(MX51_PIN_USBH1_STP, IOMUX_CONFIG_ALT0);
-	mxc_iomux_set_pad(MX51_PIN_USBH1_STP, PAD_CTL_SRE_FAST |
-			  PAD_CTL_DRV_HIGH | PAD_CTL_ODE_OPENDRAIN_NONE |
-			  PAD_CTL_PUE_KEEPER | PAD_CTL_PKE_ENABLE |
-			  PAD_CTL_HYS_ENABLE | PAD_CTL_DDR_INPUT_CMOS |
-			  PAD_CTL_DRV_VOT_LOW);
-	gpio_free(IOMUX_TO_GPIO(MX51_PIN_USBH1_STP));
-}
-EXPORT_SYMBOL(gpio_usbh1_setback_stp);
-
 static void gpio_usbh1_inactive(void)
 {
 	/* Signal only used on MX51-3DS for reset to PHY.*/
@@ -103,9 +90,29 @@ static void usbotg_clock_gate(bool on)
 	clk_put(usb_ahb_clk);
 }
 
+static int fsl_usb_host_init_ext(struct platform_device *pdev)
+{
+	int ret = fsl_usb_host_init(pdev);
+	if (ret)
+		return ret;
+
+	/* setback USBH1_STP to be function */
+	mxc_request_iomux(MX51_PIN_USBH1_STP, IOMUX_CONFIG_ALT0);
+	mxc_iomux_set_pad(MX51_PIN_USBH1_STP, PAD_CTL_SRE_FAST |
+			  PAD_CTL_DRV_HIGH | PAD_CTL_ODE_OPENDRAIN_NONE |
+			  PAD_CTL_PUE_KEEPER | PAD_CTL_PKE_ENABLE |
+			  PAD_CTL_HYS_ENABLE | PAD_CTL_DDR_INPUT_CMOS |
+			  PAD_CTL_DRV_VOT_LOW);
+	gpio_free(IOMUX_TO_GPIO(MX51_PIN_USBH1_STP));
+
+	/* disable remote wakeup irq */
+	USBCTRL &= ~UCTRL_H1WIE;
+	return 0;
+}
+
 static struct fsl_usb2_platform_data usbh1_config = {
 	.name = "Host 1",
-	.platform_init = fsl_usb_host_init,
+	.platform_init = fsl_usb_host_init_ext,
 	.platform_uninit = fsl_usb_host_uninit,
 	.operating_mode = FSL_USB2_MPH_HOST,
 	.phy_mode = FSL_USB2_PHY_ULPI,
@@ -117,26 +124,8 @@ static struct fsl_usb2_platform_data usbh1_config = {
 	.transceiver = "isp1504",
 };
 
-static struct resource usbh1_resources[] = {
-	[0] = {
-	       .start = (u32) (USB_H1REGS_BASE),
-	       .end = (u32) (USB_H1REGS_BASE + 0x1ff),
-	       .flags = IORESOURCE_MEM,
-	       },
-	[1] = {
-	       .start = MXC_INT_USB_H1,
-	       .flags = IORESOURCE_IRQ,
-	       },
-};
-
-static int __init usbh1_init(void)
+void __init mx51_usbh1_init(void)
 {
-	pr_debug("%s: \n", __func__);
-
-	host_pdev_register(usbh1_resources,
-			ARRAY_SIZE(usbh1_resources), &usbh1_config);
-
-	return 0;
+	mxc_register_device(&mxc_usbh1_device, &usbh1_config);
 }
 
-module_init(usbh1_init);

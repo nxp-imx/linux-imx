@@ -50,6 +50,7 @@
 #include "board-mx51_3stack.h"
 #include "iomux.h"
 #include "crm_regs.h"
+#include "usb.h"
 
 /*!
  * @file mach-mx51/mx51_3stack.c
@@ -938,6 +939,9 @@ static void __init mxc_board_init(void)
 	mxc_register_device(&mxc_sgtl5000_device, &sgtl5000_data);
 	mxc_register_device(&mxc_bt_device, &mxc_bt_data);
 	mxc_register_device(&mxc_gps_device, &gps_data);
+
+	mx51_usb_dr_init();
+	mx51_usbh1_init();
 
 	/* Setup Touchscreen interrupt */
 	gpio_request(IOMUX_TO_GPIO(MX51_PIN_GPIO1_5), "gpio1_5");

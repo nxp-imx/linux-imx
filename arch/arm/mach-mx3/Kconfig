@@ -15,6 +15,7 @@ config MX3_OPTIONS
 	select USB_ARCH_HAS_EHCI
 	select ARCH_HAS_EVTMON
 	select ARCH_HAS_RNGA
+	select ISP1504_MXC
 
 comment "MX3 platforms:"
 

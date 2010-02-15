@@ -26,8 +26,6 @@
 #include "ehci-fsl.h"
 #include <mach/fsl_usb.h>
 
-extern struct resource *otg_get_resources(void);
-
 #undef EHCI_PROC_PTC
 #ifdef EHCI_PROC_PTC		/* /proc PORTSC:PTC support */
 /*
@@ -142,34 +140,20 @@ int usb_hcd_fsl_probe(const struct hc_driver *driver,
 		goto err1;
 	}
 
-#if defined(CONFIG_USB_OTG)
-	if (pdata->operating_mode == FSL_USB2_DR_OTG) {
-		res = otg_get_resources();
-		if (!res) {
-			dev_err(&pdev->dev,
-				"Found HC with no IRQ. Check %s setup!\n",
-				dev_name(&pdev->dev));
-			return -ENODEV;
-		}
-		irq = res[1].start;
-		hcd->rsrc_start = res[0].start;
-		hcd->rsrc_len = res[0].end - res[0].start + 1;
-	} else
-#endif
-	{
-		res = platform_get_resource(pdev, IORESOURCE_IRQ, 0);
-		if (!res) {
-			dev_err(&pdev->dev,
-				"Found HC with no IRQ. Check %s setup!\n",
-				dev_name(&pdev->dev));
-			return -ENODEV;
-		}
-		irq = res->start;
+	res = platform_get_resource(pdev, IORESOURCE_IRQ, 0);
+	if (!res) {
+		dev_err(&pdev->dev,
+			"Found HC with no IRQ. Check %s setup!\n",
+			dev_name(&pdev->dev));
+		return -ENODEV;
+	}
+	irq = res->start;
 
-		res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
-		hcd->rsrc_start = res->start;
-		hcd->rsrc_len = resource_size(res);
+	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+	hcd->rsrc_start = res->start;
+	hcd->rsrc_len = resource_size(res);
 
+	if (pdata->operating_mode != FSL_USB2_DR_OTG) {
 		if (!request_mem_region(hcd->rsrc_start, hcd->rsrc_len,
 					driver->description)) {
 			dev_dbg(&pdev->dev, "controller already in use\n");
@@ -204,7 +188,6 @@ int usb_hcd_fsl_probe(const struct hc_driver *driver,
 
 	fsl_platform_set_vbus_power(pdata, 1);
 
-#ifdef CONFIG_USB_OTG
 	if (pdata->operating_mode == FSL_USB2_DR_OTG) {
 		struct ehci_hcd *ehci = hcd_to_ehci(hcd);
 
@@ -213,21 +196,16 @@ int usb_hcd_fsl_probe(const struct hc_driver *driver,
 		ehci->transceiver = otg_get_transceiver();
 		dbg("ehci->transceiver=0x%p\n", ehci->transceiver);
 
-		if (ehci->transceiver) {
-			retval = otg_set_host(ehci->transceiver,
-					      &ehci_to_hcd(ehci)->self);
-			if (retval) {
-				if (ehci->transceiver)
-					put_device(ehci->transceiver->dev);
-				goto err4;
-			}
-		} else {
+		if (!ehci->transceiver) {
 			printk(KERN_ERR "can't find transceiver\n");
 			retval = -ENODEV;
 			goto err4;
 		}
+
+		retval = otg_set_host(ehci->transceiver, &ehci_to_hcd(ehci)->self);
+		if (retval)
+			otg_put_transceiver(ehci->transceiver);
 	}
-#endif
 
 	if (pdata->suspended) {
 		pdata->suspended = 0;
@@ -292,7 +270,7 @@ static void usb_hcd_fsl_remove(struct usb_hcd *hcd,
 
 	if (ehci->transceiver) {
 		(void)otg_set_host(ehci->transceiver, 0);
-		put_device(ehci->transceiver->dev);
+		otg_put_transceiver(ehci->transceiver);
 	} else {
 		release_mem_region(hcd->rsrc_start, hcd->rsrc_len);
 	}

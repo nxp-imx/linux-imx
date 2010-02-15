@@ -1,4 +1,4 @@
-/* Copyright 2005-2009 Freescale Semiconductor, Inc.
+/* Copyright (C) 2005-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute  it and/or modify it
  * under  the terms of  the GNU General  Public License as published by the
@@ -410,4 +410,3 @@ struct fsl_otg_config {
 #define GET_B_BUS_REQ		_IOR(OTG_IOCTL_MAGIC, 9, int)
 
 extern const char *state_string(enum usb_otg_state state);
-extern int otg_set_resources(struct resource *resources);

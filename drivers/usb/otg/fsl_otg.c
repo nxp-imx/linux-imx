@@ -1,5 +1,5 @@
 /*
- * Copyright 2005-2009 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2005-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * Author: Li Yang <LeoLi@freescale.com>
  *         Jerry Huang <Chang-Ming.Huang@freescale.com>
@@ -836,10 +836,6 @@ int usb_otg_start(struct platform_device *pdev)
 	if (pdata->platform_init && pdata->platform_init(pdev) != 0)
 		return -EINVAL;
 
-
-	/* Export DR controller resources */
-	otg_set_resources(pdev->resource);
-
 	/* stop the controller */
 	temp = readl(&p_otg->dr_mem_map->usbcmd);
 	temp &= ~USB_CMD_RUN_STOP;
@@ -1202,7 +1198,7 @@ static void __exit fsl_usb_otg_exit(void)
 	printk(KERN_INFO DRIVER_DESC " unloaded\n");
 }
 
-module_init(fsl_usb_otg_init);
+subsys_initcall(fsl_usb_otg_init);
 module_exit(fsl_usb_otg_exit);
 
 MODULE_DESCRIPTION(DRIVER_INFO);

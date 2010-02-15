@@ -1,5 +1,5 @@
 /*
- * Copyright 2005-2008 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2005-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -29,16 +29,8 @@ static void usbotg_uninit_ext(struct fsl_usb2_platform_data *pdata);
  * based on which transceiver is configured.
  * PDATA is a pointer to it.
  */
-#if defined(CONFIG_ISP1301_MXC)
-static struct fsl_usb2_platform_data __maybe_unused dr_1301_config;
-#define PDATA (&dr_1301_config)
-#elif defined(CONFIG_MC13783_MXC)
-static struct fsl_usb2_platform_data __maybe_unused dr_13783_config;
-#define PDATA (&dr_13783_config)
-#elif defined(CONFIG_UTMI_MXC)
 static struct fsl_usb2_platform_data __maybe_unused dr_utmi_config;
 #define PDATA (&dr_utmi_config)
-#endif
 
 
 /*

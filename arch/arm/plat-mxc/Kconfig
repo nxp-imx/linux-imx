@@ -96,36 +96,22 @@ config DMA_ZONE_SIZE
 # set iff we need the 1504 transceiver code
 config ISP1504_MXC
 	bool
-	select ISP1504_MXC_OTG if USB_GADGET && USB_EHCI_HCD && USB_OTG
-	default y if USB_EHCI_FSL_1504 || USB_GADGET_FSL_1504
-
-config ISP1504_MXC_OTG
-	tristate
-	help
-	  Support for USB OTG pin detect using the ISP1504 transceiver on MXC platforms.
+	default y
 
 # set iff we need the UTMI transceiver code
 config UTMI_MXC
 	bool
-	select UTMI_MXC_OTG if ARCH_MX25 && USB_GADGET && USB_EHCI_HCD && USB_OTG
-	default y if USB_EHCI_FSL_UTMI || USB_GADGET_FSL_UTMI
+	default y
 	depends on ARCH_MX25 || ARCH_MX35 || ARCH_MX37 || ARCH_MX51
-
-config UTMI_MXC_OTG
-	tristate
-	help
-	  Support for USB OTG pin detect using the UTMI transceiver on MXC platforms.
 
 # set iff we need the 1301 transceiver code
 config ISP1301_MXC
 	bool
-	default y if USB_EHCI_FSL_1301 || USB_GADGET_FSL_1301
 	select I2C_MXC
 
 # set iff we need the mx13783 transceiver code
 config MC13783_MXC
 	bool
-	default y if USB_EHCI_FSL_MC13783 || USB_GADGET_FSL_MC13783
 	select SPI_MXC
 
 choice

@@ -1,5 +1,5 @@
 /*
- * Copyright 2005-2009 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2005-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -16,7 +16,6 @@
 #include <linux/delay.h>
 #include <linux/platform_device.h>
 #include <linux/fsl_devices.h>
-#include <asm/mach-types.h>
 #include <mach/arc_otg.h>
 #include "usb.h"
 #include "iomux.h"
@@ -37,22 +36,27 @@ static int gpio_usbh2_active(void)
 	return 0;
 }
 
-void gpio_usbh2_setback_stp(void)
-{
-	/* setback USBH2_STP to be function */
-	mxc_request_iomux(MX51_PIN_EIM_A26, IOMUX_CONFIG_ALT2);
-}
-EXPORT_SYMBOL(gpio_usbh2_setback_stp);
-
 static void gpio_usbh2_inactive(void)
 {
 	gpio_free(IOMUX_TO_GPIO(MX51_PIN_EIM_A26));
 	mxc_free_iomux(MX51_PIN_EIM_A26, IOMUX_CONFIG_GPIO);
 }
 
+static int fsl_usb_host_init_ext(struct platform_device *pdev)
+{
+	int ret = fsl_usb_host_init(pdev);
+	if (ret)
+		return ret;
+
+	/* setback USBH2_STP to be function */
+	mxc_request_iomux(MX51_PIN_EIM_A26, IOMUX_CONFIG_ALT2);
+
+	return 0;
+}
+
 static struct fsl_usb2_platform_data usbh2_config = {
 	.name = "Host 2",
-	.platform_init = fsl_usb_host_init,
+	.platform_init = fsl_usb_host_init_ext,
 	.platform_uninit = fsl_usb_host_uninit,
 	.operating_mode = FSL_USB2_MPH_HOST,
 	.phy_mode = FSL_USB2_PHY_ULPI,
@@ -62,29 +66,8 @@ static struct fsl_usb2_platform_data usbh2_config = {
 	.transceiver = "isp1504",
 };
 
-static struct resource usbh2_resources[] = {
-	[0] = {
-	       .start = (u32) (USB_H2REGS_BASE),
-	       .end = (u32) (USB_H2REGS_BASE + 0x1ff),
-	       .flags = IORESOURCE_MEM,
-	       },
-	[1] = {
-	       .start = MXC_INT_USB_H2,
-	       .flags = IORESOURCE_IRQ,
-	       },
-};
-
-static int __init usbh2_init(void)
+void __init mx51_usbh2_init(void)
 {
-	pr_debug("%s: \n", __func__);
-
-	if (machine_is_mx51_3ds() ||
-	    (machine_is_mx51_babbage() && (cpu_is_mx51_rev(CHIP_REV_2_0) >= 1)))
-		return 0;
-
-	host_pdev_register(usbh2_resources, ARRAY_SIZE(usbh2_resources),
-			   &usbh2_config);
-	return 0;
+	mxc_register_device(&mxc_usbh2_device, &usbh2_config);
 }
 
-module_init(usbh2_init);

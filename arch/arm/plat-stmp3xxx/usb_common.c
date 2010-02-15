@@ -1,8 +1,5 @@
 /*
- * Copyright 2009 Freescale Semiconductor, Inc. All Rights Reserved.
- *
- *	otg_{get,set}_transceiver() are from arm/plat-omap/usb.c.
- *	which is Copyright (C) 2004 Texas Instruments, Inc.
+ * Copyright (C) 2009-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -84,57 +81,6 @@ void fsl_usb_xcvr_unregister(struct fsl_xcvr_ops *xcvr_ops)
 	pr_debug("Failed %s\n", __func__);
 }
 EXPORT_SYMBOL(fsl_usb_xcvr_unregister);
-
-#if defined(CONFIG_USB_OTG)
-static struct otg_transceiver *xceiv;
-
-/**
- * otg_get_transceiver - find the (single) OTG transceiver driver
- *
- * Returns the transceiver driver, after getting a refcount to it; or
- * null if there is no such transceiver.  The caller is responsible for
- * releasing that count.
- */
-struct otg_transceiver *otg_get_transceiver(void)
-{
-	pr_debug("%s xceiv=0x%p\n", __func__, xceiv);
-	if (xceiv)
-		get_device(xceiv->dev);
-	return xceiv;
-}
-EXPORT_SYMBOL(otg_get_transceiver);
-
-int otg_set_transceiver(struct otg_transceiver *x)
-{
-	pr_debug("%s xceiv=0x%p  x=0x%p\n", __func__, xceiv, x);
-	/*
-	if (x == NULL)
-		stmp3xxx_release_pin_group(&usb_mux_pins, "usb");
-		*/
-	if (xceiv && x)
-		return -EBUSY;
-	xceiv = x;
-	return 0;
-}
-EXPORT_SYMBOL(otg_set_transceiver);
-
-static struct resource *otg_resources;
-
-struct resource *otg_get_resources(void)
-{
-	pr_debug("otg_get_resources\n");
-	return otg_resources;
-}
-EXPORT_SYMBOL(otg_get_resources);
-
-int otg_set_resources(struct resource *resources)
-{
-	//stmp3xxx_request_pin_group(&usb_mux_pins, "usb");
-	otg_resources = resources;
-	return 0;
-}
-EXPORT_SYMBOL(otg_set_resources);
-#endif
 
 static struct fsl_xcvr_ops *fsl_usb_get_xcvr(char *name)
 {

@@ -1,8 +1,5 @@
 /*
- * Copyright 2004-2009 Freescale Semiconductor, Inc. All Rights Reserved.
- *
- *	otg_{get,set}_transceiver() are from arm/plat-omap/usb.c.
- *	which is Copyright (C) 2004 Texas Instruments, Inc.
+ * Copyright (C) 2004-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -177,7 +174,7 @@ static u64 ehci_dmamask = ~(u32) 0;
  * to register each host interface.
  */
 static int instance_id = 0;
-struct platform_device *host_pdev_register(struct resource *res, int n_res,
+__init struct platform_device *host_pdev_register(struct resource *res, int n_res,
 					   struct fsl_usb2_platform_data *config)
 {
 	struct platform_device *pdev;
@@ -219,51 +216,6 @@ struct platform_device *host_pdev_register(struct resource *res, int n_res,
 
 	return pdev;
 }
-
-#if defined(CONFIG_USB_OTG)
-static struct otg_transceiver *xceiv;
-
-/**
- * otg_get_transceiver - find the (single) OTG transceiver driver
- *
- * Returns the transceiver driver, after getting a refcount to it; or
- * null if there is no such transceiver.  The caller is responsible for
- * releasing that count.
- */
-struct otg_transceiver *otg_get_transceiver(void)
-{
-	pr_debug("%s xceiv=0x%p\n", __func__, xceiv);
-	if (xceiv)
-		get_device(xceiv->dev);
-	return xceiv;
-}
-EXPORT_SYMBOL(otg_get_transceiver);
-
-int otg_set_transceiver(struct otg_transceiver *x)
-{
-	pr_debug("%s xceiv=0x%p  x=0x%p\n", __func__, xceiv, x);
-	if (xceiv && x)
-		return -EBUSY;
-	xceiv = x;
-	return 0;
-}
-EXPORT_SYMBOL(otg_set_transceiver);
-
-static struct resource *otg_resources;
-
-struct resource *otg_get_resources(void)
-{
-	return otg_resources;
-}
-EXPORT_SYMBOL(otg_get_resources);
-
-int otg_set_resources(struct resource *resources)
-{
-	otg_resources = resources;
-	return 0;
-}
-EXPORT_SYMBOL(otg_set_resources);
-#endif
 
 static void usbh1_set_serial_xcvr(void)
 {
@@ -421,9 +373,6 @@ static int usb_register_remote_wakeup(struct platform_device *pdev)
 	return 0;
 }
 
-extern void gpio_usbh1_setback_stp(void);
-extern void gpio_usbh2_setback_stp(void);
-
 int fsl_usb_host_init(struct platform_device *pdev)
 {
 	struct fsl_usb2_platform_data *pdata = pdev->dev.platform_data;
@@ -482,24 +431,10 @@ int fsl_usb_host_init(struct platform_device *pdev)
 		else
 			usbh1_set_serial_xcvr();
 	} else if (xops->xcvr_type == PORTSC_PTS_ULPI) {
-		if (!strcmp("Host 1", pdata->name)) {
+		if (!strcmp("Host 1", pdata->name))
 			usbh1_set_ulpi_xcvr();
-			if (cpu_is_mx51()) {
-#ifdef CONFIG_USB_EHCI_ARC_H1
-				gpio_usbh1_setback_stp();
-				/* disable remote wakeup irq */
-				USBCTRL &= ~UCTRL_H1WIE;
-#endif
-			}
-		}
-		if (!strcmp("Host 2", pdata->name)) {
+		if (!strcmp("Host 2", pdata->name))
 			usbh2_set_ulpi_xcvr();
-			if (cpu_is_mx51()) {
-#ifdef CONFIG_USB_EHCI_ARC_H2
-				gpio_usbh2_setback_stp();
-#endif
-			}
-		}
 	}
 
 	pr_debug("%s: %s success\n", __func__, pdata->name);

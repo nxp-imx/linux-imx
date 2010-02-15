@@ -2705,13 +2705,8 @@ static int __init fsl_udc_probe(struct platform_device *pdev)
 		ret = -ENODEV;
 		goto err1a;
 	}
+#endif
 
-	res = otg_get_resources();
-	if (!res) {
-		DBG("resource not registered!\n");
-		return -ENODEV;
-	}
-#else
 	if ((pdev->dev.parent) &&
 		(to_platform_device(pdev->dev.parent)->resource)) {
 		pdev->resource =
@@ -2726,6 +2721,7 @@ static int __init fsl_udc_probe(struct platform_device *pdev)
 		goto err1a;
 	}
 
+#ifndef CONFIG_USB_OTG
 	if (!request_mem_region(res->start, resource_size(res),
 				driver_name)) {
 		ERR("request mem region for %s failed \n", pdev->name);
@@ -2763,12 +2759,7 @@ static int __init fsl_udc_probe(struct platform_device *pdev)
 	/* DEN is bidirectional ep number, max_ep doubles the number */
 	udc_controller->max_ep = (dccparams & DCCPARAMS_DEN_MASK) * 2;
 
-#ifdef CONFIG_USB_OTG
-	res++;
-	udc_controller->irq = res->start;
-#else
 	udc_controller->irq = platform_get_irq(pdev, 0);
-#endif
 	if (!udc_controller->irq) {
 		ret = -ENODEV;
 		goto err2;

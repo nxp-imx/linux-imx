@@ -1,5 +1,5 @@
 /*
- * Copyright 2005-2009 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2005-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -291,7 +291,7 @@ void mc13783xc_uninit(void)
 	fsl_usb_xcvr_unregister(&mc13783_ops_otg);
 }
 
-module_init(mc13783xc_init);
+subsys_initcall(mc13783xc_init);
 module_exit(mc13783xc_uninit);
 
 MODULE_AUTHOR("Freescale Semiconductor, Inc.");
