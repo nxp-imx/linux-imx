@@ -2839,6 +2839,7 @@ static int __init fsl_udc_probe(struct platform_device *pdev)
 		goto err4;
 	}
 	if (g_iram_size) {
+		g_iram_addr = iram_alloc(USB_IRAM_SIZE, &g_iram_base);
 		for (i = 0; i < IRAM_PPH_NTD; i++) {
 			udc_controller->iram_buffer[i] =
 				g_iram_base + i * g_iram_size;

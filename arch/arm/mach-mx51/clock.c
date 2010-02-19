@@ -2489,7 +2489,12 @@ static struct clk usboh3_clk[] = {
 	{
 	 .name = "usb_sec_clk",
 	 .parent = &tmax2_clk,
+#if defined(CONFIG_USB_STATIC_IRAM) \
+    || defined(CONFIG_USB_STATIC_IRAM_PPH)
+	 .secondary = &emi_intr_clk,
+#else
 	 .secondary = &emi_fast_clk,
+#endif
 	 },
 };
 static struct clk usb_ahb_clk = {

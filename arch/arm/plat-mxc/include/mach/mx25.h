@@ -1,5 +1,5 @@
 /*
- * Copyright 2008-2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2008-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -65,8 +65,9 @@
 #define SND_RAM_SIZE 0
 #endif
 
-#ifdef CONFIG_USB_STATIC_IRAM_PPH
-#define USB_IRAM_SIZE	(2*SZ_8K)
+#if defined(CONFIG_USB_STATIC_IRAM) \
+    || defined(CONFIG_USB_STATIC_IRAM_PPH)
+#define USB_IRAM_SIZE	SZ_8K
 #else
 #define USB_IRAM_SIZE 0
 #endif

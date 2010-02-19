@@ -87,6 +87,13 @@
 #define VPU_IRAM_SIZE 0
 #endif
 
+#if defined(CONFIG_USB_STATIC_IRAM) \
+    || defined(CONFIG_USB_STATIC_IRAM_PPH)
+#define USB_IRAM_SIZE	SZ_8K
+#else
+#define USB_IRAM_SIZE 0
+#endif
+
 /*
  * NFC
  */

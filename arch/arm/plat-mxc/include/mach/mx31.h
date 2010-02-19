@@ -4,8 +4,9 @@
 #define MX31_IRAM_BASE_ADDR		0x1FFC0000	/* internal ram */
 #define MX31_IRAM_SIZE			SZ_16K
 
-#ifdef CONFIG_USB_STATIC_IRAM
-#define USB_IRAM_SIZE   (2*SZ_8K)
+#if defined(CONFIG_USB_STATIC_IRAM) \
+    || defined(CONFIG_USB_STATIC_IRAM_PPH)
+#define USB_IRAM_SIZE	SZ_8K
 #else
 #define USB_IRAM_SIZE 0
 #endif
