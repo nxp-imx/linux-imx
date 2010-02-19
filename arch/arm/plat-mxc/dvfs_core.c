@@ -1,5 +1,5 @@
 /*
- * Copyright 2008-2009 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2008-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -316,6 +316,10 @@ static int set_cpu_freq(int wp)
 		}
 
 		propagate_rate(pll1_sw_clk);
+		/* Clear the ARM_FREQ_SHIFT_DIVIDER */
+		reg = __raw_readl(dvfs_data->ccm_cdcr_reg_addr);
+		reg &= 0xFFFFFFFB;
+		__raw_writel(reg, dvfs_data->ccm_cdcr_reg_addr);
 	}
 #if defined(CONFIG_CPU_FREQ)
 		cpufreq_trig_needed = 1;

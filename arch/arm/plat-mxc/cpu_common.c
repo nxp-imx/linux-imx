@@ -1,5 +1,6 @@
 /*
- * Copyright 2004-2007 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2004-2007, 2010 Freescale Semiconductor,
+ * Inc. All Rights Reserved.
  */
 
 /*
@@ -35,7 +36,7 @@ static void __init system_rev_setup(char **p)
 __early_param("system_rev=", system_rev_setup);
 
 int mxc_jtag_enabled;		/* OFF: 0 (default), ON: 1 */
-
+int uart_at_24; 			/* OFF: 0 (default); ON: 1 */
 /*
  * Here are the JTAG options from the command line. By default JTAG
  * is OFF which means JTAG is not connected and WFI is enabled
@@ -55,7 +56,20 @@ static void __init jtag_wfi_setup(char **p)
 	}
 }
 
+static void __init uart_parent_setup(char **p)
+{
+	if (memcmp(*p, "on", 2) == 0) {
+		/* set the UART parent clock to be lp-apm */
+		uart_at_24 = 1;
+		*p += 2;
+	} else if (memcmp(*p, "off", 3) == 0) {
+		uart_at_24 = 0;
+		*p += 3;
+	}
+}
+
 __early_param("jtag=", jtag_wfi_setup);
+__early_param("debug_uart=", uart_parent_setup);
 
 void __init mxc_cpu_common_init(void)
 {

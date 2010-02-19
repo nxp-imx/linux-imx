@@ -1,5 +1,5 @@
 /*
- * Copyright 2009 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2009-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -48,6 +48,7 @@
 
 static struct clk *ddr_clk;
 static struct clk *pll2;
+static struct clk *pll3;
 static struct clk *main_bus_clk;
 static struct clk *axi_a_clk;
 static struct clk *axi_b_clk;
@@ -90,7 +91,6 @@ struct dvfs_wp dvfs_core_setpoint[] = {
 						{28, 8, 33, 20, 30, 0x08},
 						{29, 0, 33, 20, 10, 0x08},};
 
-#define DISABLE_PLL1
 
 int set_low_bus_freq(void)
 {
@@ -107,89 +107,45 @@ int set_low_bus_freq(void)
 		stop_dvfs_per();
 
 		stop_sdram_autogating();
-#ifdef DISABLE_PLL1
-		tclk = clk_get(NULL, "ddr_clk");
-		clk_set_parent(tclk, clk_get(NULL, "axi_a_clk"));
-
-		/* Set CPU clock to be derived from PLL2 instead of PLL1 */
-		tclk = clk_get(NULL, "pll1_sw_clk");
-		clk_set_parent(tclk, clk_get(NULL, "pll2"));
-		clk_enable(tclk);
-
-		tclk = clk_get(NULL, "ddr_clk");
-		clk_set_parent(tclk, clk_get(NULL, "ddr_hf_clk"));
-#endif
-
 		/*Change the DDR freq to 133Mhz. */
 		clk_set_rate(ddr_hf_clk,
 			     clk_round_rate(ddr_hf_clk, DDR_LOW_FREQ_CLK));
 
-		clk_enable(gpc_dvfs_clk);
+		/* Set PLL3 to 133Mhz if no-one is using it. */
+		if (clk_get_usecount(pll3) == 0) {
+			u32 pll3_rate = clk_get_rate(pll3);
+			clk_set_rate(pll3, clk_round_rate(pll3, 133000000));
+			/* Set the parent of Periph_apm_clk to be PLL3 */
+			clk_set_parent(periph_apm_clk, pll3);
+			clk_set_parent(main_bus_clk, periph_apm_clk);
 
-		/* Setup the GPC. */
-		reg = __raw_readl(MXC_GPC_VCR);
-		reg &= ~(MXC_GPCVCR_VINC_MASK | MXC_GPCVCR_VCNTU_MASK |
-			 MXC_GPCVCR_VCNT_MASK);
+			/* Set the AHB dividers to be 1. */
+			/* Set the dividers to be  1, so the clock rates
+			  * are at 133MHz.
+			  */
+			reg = __raw_readl(MXC_CCM_CBCDR);
+			reg &= ~(MXC_CCM_CBCDR_AXI_A_PODF_MASK
+					| MXC_CCM_CBCDR_AXI_B_PODF_MASK
+					| MXC_CCM_CBCDR_AHB_PODF_MASK
+					| MXC_CCM_CBCDR_EMI_PODF_MASK
+					| MXC_CCM_CBCDR_NFC_PODF_OFFSET);
+			reg |= (0 << MXC_CCM_CBCDR_AXI_A_PODF_OFFSET
+					| 0 << MXC_CCM_CBCDR_AXI_B_PODF_OFFSET
+					| 0 << MXC_CCM_CBCDR_AHB_PODF_OFFSET
+					| 0 << MXC_CCM_CBCDR_EMI_PODF_OFFSET
+					| 3 << MXC_CCM_CBCDR_NFC_PODF_OFFSET);
+			__raw_writel(reg, MXC_CCM_CBCDR);
 
-		reg |= (1 << MXC_GPCVCR_VCNTU_OFFSET) |
-			(0 << MXC_GPCVCR_VCNT_OFFSET);
-		__raw_writel(reg, MXC_GPC_VCR);
+			while (__raw_readl(MXC_CCM_CDHIPR) & 0x1F)
+				udelay(10);
+			/* Set the source of Periph_APM_Clock to be lp-apm. */
+			clk_set_parent(periph_apm_clk, lp_apm);
 
-		reg = __raw_readl(MXC_GPC_CNTR);
-		reg &= ~(MXC_GPCCNTR_ADU_MASK | MXC_GPCCNTR_FUPD_MASK);
-		reg |= MXC_GPCCNTR_FUPD;
-		__raw_writel(reg, MXC_GPC_CNTR);
-
-		/* Enable DVFS-PER */
-		reg = __raw_readl(MXC_DVFSPER_PMCR0);
-		reg &= ~(MXC_DVFSPER_PMCR0_UDCS_MASK |
-				MXC_DVFSPER_PMCR0_ENABLE_MASK);
-		reg |= MXC_DVFSPER_PMCR0_ENABLE;
-		__raw_writel(reg, MXC_DVFSPER_PMCR0);
-
-		/* Set the dvfs-podf to divide by 4. */
-		reg = __raw_readl(MXC_CCM_CDCR);
-		reg &= ~MXC_CCM_CDCR_PERIPH_CLK_DVFS_PODF_MASK;
-		reg |= 3 << MXC_CCM_CDCR_PERIPH_CLK_DVFS_PODF_OFFSET;
-		__raw_writel(reg, MXC_CCM_CDCR);
-
-		/* Setup the GPC */
-		reg = __raw_readl(MXC_GPC_VCR) & ~MXC_GPCVCR_VINC_MASK;
-		/* Set VINC to 0. */
-		reg |= 0 << MXC_GPCVCR_VINC_OFFSET;
-		__raw_writel(reg, MXC_GPC_VCR);
-
-		reg = __raw_readl(MXC_GPC_CNTR);
-		reg |= MXC_GPCCNTR_STRT;
-		__raw_writel(reg, MXC_GPC_CNTR);
-		while (__raw_readl(MXC_GPC_CNTR) & MXC_GPCCNTR_STRT)
-			udelay(10);
-
-		/* Disable DVFS-PER */
-		reg = __raw_readl(MXC_DVFSPER_PMCR0);
-		reg &= ~MXC_DVFSPER_PMCR0_ENABLE;
-		__raw_writel(reg, MXC_DVFSPER_PMCR0);
-
-		/* Set the dividers to be  close to 24Mhz from 166.25MHz*/
-		reg = __raw_readl(MXC_CCM_CBCDR);
-		reg &= ~(MXC_CCM_CBCDR_AXI_A_PODF_MASK
-				| MXC_CCM_CBCDR_AXI_B_PODF_MASK
-				| MXC_CCM_CBCDR_AHB_PODF_MASK
-				| MXC_CCM_CBCDR_EMI_PODF_MASK
-				| MXC_CCM_CBCDR_NFC_PODF_OFFSET);
-		reg |= (6 << MXC_CCM_CBCDR_AXI_A_PODF_OFFSET
-				| 6 << MXC_CCM_CBCDR_AXI_B_PODF_OFFSET
-				| 6 << MXC_CCM_CBCDR_AHB_PODF_OFFSET
-				| 6 << MXC_CCM_CBCDR_EMI_PODF_OFFSET
-				| 3 << MXC_CCM_CBCDR_NFC_PODF_OFFSET);
-		__raw_writel(reg, MXC_CCM_CBCDR);
-
-		while (__raw_readl(MXC_CCM_CDHIPR) & 0x1F)
-			udelay(10);
-
-		low_bus_freq_mode = 1;
-		high_bus_freq_mode = 0;
-		clk_set_parent(main_bus_clk, pll2);
+			/* Set PLL3 back to original rate. */
+			clk_set_rate(pll3, clk_round_rate(pll3, pll3_rate));
+			low_bus_freq_mode = 1;
+			high_bus_freq_mode = 0;
+		}
 	}
 	return 0;
 }
@@ -201,115 +157,76 @@ int set_high_bus_freq(int high_bus_freq)
 
 	if (bus_freq_scaling_initialized) {
 		stop_sdram_autogating();
+		stop_dvfs_per();
 
 		if (low_bus_freq_mode) {
-			reg = __raw_readl(MXC_CCM_CBCDR);
-			reg &= ~(MXC_CCM_CBCDR_AXI_A_PODF_MASK
+			/* Relock PLL3 to 133MHz */
+			if (clk_get_usecount(pll3) == 0) {
+				u32 pll3_rate = clk_get_rate(pll3);
+				clk_set_rate(pll3,
+					clk_round_rate(pll3, 133000000));
+				clk_set_parent(periph_apm_clk, pll3);
+				/* Set the dividers to the default dividers */
+				reg = __raw_readl(MXC_CCM_CBCDR);
+				reg &= ~(MXC_CCM_CBCDR_AXI_A_PODF_MASK
 					| MXC_CCM_CBCDR_AXI_B_PODF_MASK
 					| MXC_CCM_CBCDR_AHB_PODF_MASK
 					| MXC_CCM_CBCDR_EMI_PODF_MASK
 					| MXC_CCM_CBCDR_NFC_PODF_OFFSET);
-			reg |= (3 << MXC_CCM_CBCDR_AXI_A_PODF_OFFSET
+				reg |= (3 << MXC_CCM_CBCDR_AXI_A_PODF_OFFSET
 					| 4 << MXC_CCM_CBCDR_AXI_B_PODF_OFFSET
 					| 4 << MXC_CCM_CBCDR_AHB_PODF_OFFSET
 					| 4 << MXC_CCM_CBCDR_EMI_PODF_OFFSET
 					| 3 << MXC_CCM_CBCDR_NFC_PODF_OFFSET);
-			__raw_writel(reg, MXC_CCM_CBCDR);
-			while (__raw_readl(MXC_CCM_CDHIPR) & 0x1F)
-				udelay(10);
+				__raw_writel(reg, MXC_CCM_CBCDR);
+				while (__raw_readl(MXC_CCM_CDHIPR) & 0x1F)
+					udelay(10);
 
-			/* Setup the GPC. */
-			reg = __raw_readl(MXC_GPC_VCR);
-			reg &= ~(MXC_GPCVCR_VINC_MASK | MXC_GPCVCR_VCNTU_MASK |
-				 MXC_GPCVCR_VCNT_MASK);
+				low_bus_freq_mode = 0;
+				high_bus_freq_mode = 1;
 
-			reg |= (1 << MXC_GPCVCR_VCNTU_OFFSET) |
-				(0 << MXC_GPCVCR_VCNT_OFFSET);
-			__raw_writel(reg, MXC_GPC_VCR);
+				/*Set the main_bus_clk parent to be PLL2. */
+				clk_set_parent(main_bus_clk, pll2);
+				/* Relock PLL3 to its original rate */
+				clk_set_rate(pll3,
+					clk_round_rate(pll3, pll3_rate));
+			}
 
-			reg = __raw_readl(MXC_GPC_CNTR);
-			reg &= ~(MXC_GPCCNTR_ADU_MASK | MXC_GPCCNTR_FUPD_MASK);
-			reg |= MXC_GPCCNTR_FUPD;
-			__raw_writel(reg, MXC_GPC_CNTR);
-
-			/* Enable DVFS-PER */
-			reg = __raw_readl(MXC_DVFSPER_PMCR0);
-			reg |= MXC_DVFSPER_PMCR0_UDCS;
-			reg |= MXC_DVFSPER_PMCR0_ENABLE;
-			__raw_writel(reg, MXC_DVFSPER_PMCR0);
-
-			/* Set the dvfs-podf to divide by 1. */
-			reg = __raw_readl(MXC_CCM_CDCR);
-			reg &= ~MXC_CCM_CDCR_PERIPH_CLK_DVFS_PODF_MASK;
-			reg |= 1 << MXC_CCM_CDCR_PERIPH_CLK_DVFS_PODF_OFFSET;
-			__raw_writel(reg, MXC_CCM_CDCR);
-
-			/* Setup the GPC */
-			reg = __raw_readl(MXC_GPC_VCR) & ~MXC_GPCVCR_VINC_MASK;
-			/* Set VINC to 1. */
-			reg |= 1 << MXC_GPCVCR_VINC_OFFSET;
-			__raw_writel(reg, MXC_GPC_VCR);
-
-			reg = __raw_readl(MXC_GPC_CNTR);
-			reg |= MXC_GPCCNTR_STRT;
-			__raw_writel(reg, MXC_GPC_CNTR);
-			while (__raw_readl(MXC_GPC_CNTR) & MXC_GPCCNTR_STRT)
-				udelay(10);
-
-			/* Disable DVFS-PER */
-			reg = __raw_readl(MXC_DVFSPER_PMCR0);
-			reg &= ~MXC_DVFSPER_PMCR0_ENABLE;
-			__raw_writel(reg, MXC_DVFSPER_PMCR0);
-
-			low_bus_freq_mode = 0;
-			clk_set_parent(main_bus_clk, pll2);
-			clk_disable(gpc_dvfs_clk);
-#ifdef DISABLE_PLL1
-			tclk = clk_get(NULL, "ddr_clk");
-			clk_set_parent(tclk, clk_get(NULL, "axi_a_clk"));
-
-			/* Set CPU clock to be derived from PLL1 instead of PLL2 */
-			tclk = clk_get(NULL, "pll1_sw_clk");
-			clk_set_parent(tclk, clk_get(NULL, "pll1_main_clk"));
-			clk_disable(tclk);
-
-			tclk = clk_get(NULL, "ddr_clk");
-			clk_set_parent(tclk, clk_get(NULL, "ddr_hf_clk"));
-#endif
 			/*Change the DDR freq to 200MHz*/
 			clk_set_rate(ddr_hf_clk,
 				    clk_round_rate(ddr_hf_clk, DDR_NORMAL_CLK));
+		}
+		if (bus_freq_scaling_is_active) {
+			/*
+			 * If the CPU freq is 800MHz, set the bus to the high
+			 * setpoint (133MHz) and DDR to 200MHz.
+			 */
+			if (clk_get_rate(cpu_clk) !=
+					cpu_wp_tbl[cpu_wp_nr - 1].cpu_rate)
+				high_bus_freq = 1;
 
-			start_dvfs_per();
+			if (((clk_get_rate(ahb_clk) == LP_MED_CLK)
+					&& lp_high_freq) || high_bus_freq) {
+				/* Set to the high setpoint. */
+				high_bus_freq_mode = 1;
+				clk_set_rate(ahb_clk,
+					clk_round_rate(ahb_clk, LP_NORMAL_CLK));
+				clk_set_rate(ddr_hf_clk,
+				    clk_round_rate(ddr_hf_clk, DDR_NORMAL_CLK));
+			}
+			if (!lp_high_freq && !high_bus_freq) {
+				/* Set to the medium setpoint. */
+				high_bus_freq_mode = 0;
+				low_bus_freq_mode = 0;
+				clk_set_rate(ddr_hf_clk,
+					clk_round_rate(ddr_hf_clk,
+						DDR_LOW_FREQ_CLK));
+				clk_set_rate(ahb_clk,
+					clk_round_rate(ahb_clk, LP_MED_CLK));
+			}
 		}
-	if (bus_freq_scaling_is_active) {
-		/*
-		 * If the CPU freq is 800MHz, set the bus to the high setpoint
-		 * (133MHz) and DDR to 200MHz.
-		 */
-		if (clk_get_rate(cpu_clk) != cpu_wp_tbl[cpu_wp_nr - 1].cpu_rate)
-			high_bus_freq = 1;
-
-		if (((clk_get_rate(ahb_clk) == LP_MED_CLK) && lp_high_freq) ||
-							high_bus_freq) {
-			/* Set to the high setpoint. */
-			high_bus_freq_mode = 1;
-			clk_set_rate(ahb_clk,
-				clk_round_rate(ahb_clk, LP_NORMAL_CLK));
-			clk_set_rate(ddr_hf_clk,
-				clk_round_rate(ddr_hf_clk, DDR_NORMAL_CLK));
-		}
-		if (!lp_high_freq && !high_bus_freq) {
-			/* Set to the medium setpoint. */
-			high_bus_freq_mode = 0;
-			low_bus_freq_mode = 0;
-			clk_set_rate(ddr_hf_clk,
-				clk_round_rate(ddr_hf_clk, DDR_LOW_FREQ_CLK));
-			clk_set_rate(ahb_clk,
-				     clk_round_rate(ahb_clk, LP_MED_CLK));
-		}
-	}
-	start_sdram_autogating();
+		start_sdram_autogating();
+		start_dvfs_per();
 	}
 	return 0;
 }
@@ -410,6 +327,12 @@ static int __devinit busfreq_probe(struct platform_device *pdev)
 	if (IS_ERR(pll2)) {
 		printk(KERN_DEBUG "%s: failed to get pll2\n", __func__);
 		return PTR_ERR(pll2);
+	}
+
+	pll3 = clk_get(NULL, "pll3");
+	if (IS_ERR(pll3)) {
+		printk(KERN_DEBUG "%s: failed to get pll3\n", __func__);
+		return PTR_ERR(pll3);
 	}
 
 	axi_a_clk = clk_get(NULL, "axi_a_clk");

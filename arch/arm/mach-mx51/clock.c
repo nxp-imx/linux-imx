@@ -62,6 +62,7 @@ int lp_med_freq;
 #define SPIN_DELAY	1000000 /* in nanoseconds */
 
 extern int mxc_jtag_enabled;
+extern int uart_at_24;
 extern int cpufreq_trig_needed;
 extern int low_bus_freq_mode;
 
@@ -1776,9 +1777,9 @@ static void _clk_tve_disable(struct clk *clk)
 {
 	_clk_disable(clk);
 	if (clk_get_parent(&ipu_di_clk[1]) == clk) {
-		clk_disable(&ipu_di_clk[1]);
 		ipu_di_clk[1].set_parent(&ipu_di_clk[1], &pll3_sw_clk);
 		ipu_di_clk[1].parent = &pll3_sw_clk;
+		clk_disable(&ipu_di_clk[1]);
 	}
 }
 
@@ -3709,8 +3710,6 @@ int __init mx51_clocks_init(unsigned long ckil, unsigned long osc, unsigned long
 	propagate_rate(&pll2_sw_clk);
 
 	clk_enable(&cpu_clk);
-	clk_enable(&main_bus_clk);
-
 	reg = __raw_readl(MXC_CCM_CBCDR) & MXC_CCM_CBCDR_DDR_HF_SEL;
 	reg >>= MXC_CCM_CBCDR_DDR_HF_SEL_OFFSET;
 
@@ -3844,13 +3843,45 @@ int __init mx51_clocks_init(unsigned long ckil, unsigned long osc, unsigned long
 	if (i > cpu_wp_nr)
 		BUG();
 
-	propagate_rate(&osc_clk);
-	propagate_rate(&pll1_sw_clk);
-	propagate_rate(&pll2_sw_clk);
+	/*Allow for automatic gating of the EMI internal clock.
+	 * If this is done, emi_intr CCGR bits should be set to 11.
+	 */
+	reg = __raw_readl((IO_ADDRESS(M4IF_BASE_ADDR) + 0x8c));
+	reg &= ~0x1;
+	__raw_writel(reg, (IO_ADDRESS(M4IF_BASE_ADDR) + 0x8c));
 
 	clk_set_parent(&arm_axi_clk, &axi_a_clk);
 	clk_set_parent(&ipu_clk[0], &axi_b_clk);
-	clk_set_parent(&uart_main_clk, &pll2_sw_clk);
+
+	if (uart_at_24) {
+		/* Move UART to run from lp_apm */
+		clk_set_parent(&uart_main_clk, &lp_apm_clk);
+
+		/* Set the UART dividers to divide, so the UART_CLK is 24MHz. */
+		reg = __raw_readl(MXC_CCM_CSCDR1);
+		reg &= ~MXC_CCM_CSCDR1_UART_CLK_PODF_MASK;
+		reg &= ~MXC_CCM_CSCDR1_UART_CLK_PRED_MASK;
+		reg |= (0 << MXC_CCM_CSCDR1_UART_CLK_PRED_OFFSET) |
+		    (0 << MXC_CCM_CSCDR1_UART_CLK_PODF_OFFSET);
+		__raw_writel(reg, MXC_CCM_CSCDR1);
+	} else {
+		/* Move UART to run from PLL1 */
+		clk_set_parent(&uart_main_clk, &pll1_sw_clk);
+
+		/* Set the UART dividers to divide,
+		 * so the UART_CLK is 66.5MHz.
+		 */
+		reg = __raw_readl(MXC_CCM_CSCDR1);
+		reg &= ~MXC_CCM_CSCDR1_UART_CLK_PODF_MASK;
+		reg &= ~MXC_CCM_CSCDR1_UART_CLK_PRED_MASK;
+		reg |= (5 << MXC_CCM_CSCDR1_UART_CLK_PRED_OFFSET) |
+		    (1 << MXC_CCM_CSCDR1_UART_CLK_PODF_OFFSET);
+		__raw_writel(reg, MXC_CCM_CSCDR1);
+	}
+
+	propagate_rate(&osc_clk);
+	propagate_rate(&pll1_sw_clk);
+	propagate_rate(&pll2_sw_clk);
 
 	clk_set_parent(&emi_slow_clk, &ahb_clk);
 	clk_set_rate(&emi_slow_clk, clk_round_rate(&emi_slow_clk, 130000000));
