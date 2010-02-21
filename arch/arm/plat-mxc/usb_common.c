@@ -266,11 +266,20 @@ static void usbh2_set_ulpi_xcvr(void)
 	u32 tmp;
 
 	pr_debug("%s\n", __func__);
-	USBCTRL &= ~(UCTRL_H2SIC_MASK | UCTRL_BPE);
-	USBCTRL |= UCTRL_H2WIE |	/* wakeup intr enable */
-		   UCTRL_H2UIE |	/* ULPI intr enable */
-		   UCTRL_H2DT |		/* disable H2 TLL */
-		   UCTRL_H2PM;		/* power mask */
+
+	if (cpu_is_mx51()) {
+		USBCTRL_HOST2 &= ~(UCTRL_H2SIC_MASK | UCTRL_BPE);
+		USBCTRL_HOST2 |= UCTRL_H2WIE |	/* wakeup intr enable */
+			UCTRL_H2UIE |	/* ULPI intr enable */
+			UCTRL_H2DT |	/* disable H2 TLL */
+			UCTRL_H2PM;	/* power mask */
+	} else {
+		USBCTRL &= ~(UCTRL_H2SIC_MASK | UCTRL_BPE);
+		USBCTRL |= UCTRL_H2WIE |	/* wakeup intr enable */
+			UCTRL_H2UIE |	/* ULPI intr enable */
+			UCTRL_H2DT |	/* disable H2 TLL */
+			UCTRL_H2PM;	/* power mask */
+	}
 
 	/* must set ULPI phy before turning off clock */
 	tmp = UH2_PORTSC1 & ~PORTSC_PTS_MASK;
