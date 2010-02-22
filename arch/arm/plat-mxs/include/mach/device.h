@@ -71,6 +71,9 @@ struct mxskbd_keypair {
 struct mxs_kbd_plat_data {
 	struct mxskbd_keypair *keypair;
 	int channel;
+	unsigned int btn_enable; /* detect enable bits */
+	unsigned int btn_irq_stat; /* detect irq status bits */
+	unsigned int btn_irq_ctrl; /* detect irq enable bits */
 };
 
 struct mxs_touchscreen_plat_data {

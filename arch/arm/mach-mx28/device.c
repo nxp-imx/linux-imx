@@ -666,6 +666,9 @@ static struct mxskbd_keypair keyboard_data[] = {
 static struct mxs_kbd_plat_data mxs_kbd_data = {
 	.keypair = keyboard_data,
 	.channel = LRADC_CH1,
+	.btn_enable = BM_LRADC_CTRL0_BUTTON1_DETECT_ENABLE,
+	.btn_irq_stat = BM_LRADC_CTRL1_BUTTON1_DETECT_IRQ,
+	.btn_irq_ctrl = BM_LRADC_CTRL1_BUTTON1_DETECT_IRQ_EN,
 };
 
 static struct resource mx28_kbd_res[] = {
@@ -678,6 +681,11 @@ static struct resource mx28_kbd_res[] = {
 	 .flags = IORESOURCE_IRQ,
 	 .start = IRQ_LRADC_CH1,
 	 .end   = IRQ_LRADC_CH1,
+	 },
+	{
+	 .flags = IORESOURCE_IRQ,
+	 .start = IRQ_LRADC_BUTTON1,
+	 .end   = IRQ_LRADC_BUTTON1,
 	 },
 };
 

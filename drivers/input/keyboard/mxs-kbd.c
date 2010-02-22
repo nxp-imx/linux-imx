@@ -41,9 +41,13 @@ struct mxskbd_data {
 	struct input_dev *input;
 	int last_button;
 	int irq;
+	int btn_irq;
 	struct mxskbd_keypair *keycodes;
 	unsigned int base;
 	int chan;
+	unsigned int btn_enable; /* detect enable bits */
+	unsigned int btn_irq_stat; /* detect irq status bits */
+	unsigned int btn_irq_ctrl; /* detect irq enable bits */
 };
 
 static int delay1 = 500;
@@ -137,6 +141,16 @@ static irqreturn_t mxskbd_irq_handler(int irq, void *dev_id)
 	u16 raw_button, normalized_button, vddio;
 	unsigned btn;
 
+	if (devdata->btn_irq == irq) {
+		__raw_writel(devdata->btn_irq_stat,
+			     devdata->base + HW_LRADC_CTRL1_CLR);
+		__raw_writel(BM_LRADC_CTRL1_LRADC0_IRQ << devdata->chan,
+			     devdata->base + HW_LRADC_CTRL1_CLR);
+		__raw_writel(BM_LRADC_CTRL1_LRADC0_IRQ_EN << devdata->chan,
+			     devdata->base + HW_LRADC_CTRL1_SET);
+		return IRQ_HANDLED;
+	}
+
 	raw_button = __raw_readl(devdata->base + HW_LRADC_CHn(devdata->chan)) &
 				 BM_LRADC_CHn_VALUE;
 	vddio = hw_lradc_vddio();
@@ -162,6 +176,10 @@ static irqreturn_t mxskbd_irq_handler(int irq, void *dev_id)
 		input_report_key(GET_INPUT_DEV(devdata),
 				 devdata->last_button, 0);
 		devdata->last_button = -1;
+		if (devdata->btn_irq > 0)
+			__raw_writel(BM_LRADC_CTRL1_LRADC0_IRQ_EN <<
+					devdata->chan,
+				     devdata->base + HW_LRADC_CTRL1_CLR);
 	}
 
 	__raw_writel(BM_LRADC_CTRL1_LRADC0_IRQ << devdata->chan,
@@ -185,10 +203,15 @@ static void mxskbd_hwinit(struct platform_device *pdev)
 	struct mxskbd_data *d = platform_get_drvdata(pdev);
 
 	hw_lradc_init_ladder(d->chan, LRADC_DELAY_TRIGGER_BUTTON, 200);
-	__raw_writel(BM_LRADC_CTRL1_LRADC0_IRQ << d->chan,
-		     d->base + HW_LRADC_CTRL1_CLR);
-	__raw_writel(BM_LRADC_CTRL1_LRADC0_IRQ_EN << d->chan,
-		     d->base + HW_LRADC_CTRL1_SET);
+	if (d->btn_irq > 0) {
+		__raw_writel(d->btn_enable, d->base + HW_LRADC_CTRL0_SET);
+		__raw_writel(d->btn_irq_ctrl, d->base + HW_LRADC_CTRL1_SET);
+	} else {
+		__raw_writel(BM_LRADC_CTRL1_LRADC0_IRQ << d->chan,
+			     d->base + HW_LRADC_CTRL1_CLR);
+		__raw_writel(BM_LRADC_CTRL1_LRADC0_IRQ_EN << d->chan,
+			     d->base + HW_LRADC_CTRL1_SET);
+	}
 	hw_lradc_set_delay_trigger_kick(LRADC_DELAY_TRIGGER_BUTTON, !0);
 }
 
@@ -246,6 +269,10 @@ static int __devinit mxskbd_probe(struct platform_device *pdev)
 	d->base = (unsigned int)IO_ADDRESS(res->start);
 	d->chan = plat_data->channel;
 	d->irq = platform_get_irq(pdev, 0);
+	d->btn_irq = platform_get_irq(pdev, 1);
+	d->btn_enable = plat_data->btn_enable;
+	d->btn_irq_stat = plat_data->btn_irq_stat;
+	d->btn_irq_ctrl = plat_data->btn_irq_ctrl;
 
 	platform_set_drvdata(pdev, d);
 
@@ -256,10 +283,17 @@ static int __devinit mxskbd_probe(struct platform_device *pdev)
 		goto err_free_dev;
 	}
 
+	err = request_irq(d->btn_irq, mxskbd_irq_handler,
+			  IRQF_DISABLED, pdev->name, pdev);
+	if (err) {
+		dev_err(&pdev->dev, "Cannot request keybad detect IRQ\n");
+		goto err_free_irq;
+	}
+
 	/* Register the input device */
 	err = input_register_device(GET_INPUT_DEV(d));
 	if (err)
-		goto err_free_irq;
+		goto err_free_irq2;
 
 	/* these two have to be set after registering the input device */
 	d->input->rep[REP_DELAY] = delay1;
@@ -270,8 +304,10 @@ static int __devinit mxskbd_probe(struct platform_device *pdev)
 
 	return 0;
 
-err_free_irq:
+err_free_irq2:
 	platform_set_drvdata(pdev, NULL);
+	free_irq(d->btn_irq, pdev);
+err_free_irq:
 	free_irq(d->irq, pdev);
 err_free_dev:
 	mxskbd_data_free(d);
