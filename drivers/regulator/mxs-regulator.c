@@ -24,144 +24,144 @@
 #include <mach/power.h>
 #include <mach/regulator.h>
 
-static int stmp3xxx_set_voltage(struct regulator_dev *reg, int MiniV, int uv)
+static int mxs_set_voltage(struct regulator_dev *reg, int MiniV, int uv)
 {
-	struct stmp3xxx_regulator *stmp_reg = rdev_get_drvdata(reg);
+	struct mxs_regulator *mxs_reg = rdev_get_drvdata(reg);
 
-	if (stmp_reg->rdata->set_voltage)
-		return stmp_reg->rdata->set_voltage(stmp_reg, uv);
+	if (mxs_reg->rdata->set_voltage)
+		return mxs_reg->rdata->set_voltage(mxs_reg, uv);
 	else
 		return -ENOTSUPP;
 }
 
 
-static int stmp3xxx_get_voltage(struct regulator_dev *reg)
+static int mxs_get_voltage(struct regulator_dev *reg)
 {
-	struct stmp3xxx_regulator *stmp_reg = rdev_get_drvdata(reg);
+	struct mxs_regulator *mxs_reg = rdev_get_drvdata(reg);
 
-	if (stmp_reg->rdata->get_voltage)
-		return stmp_reg->rdata->get_voltage(stmp_reg);
+	if (mxs_reg->rdata->get_voltage)
+		return mxs_reg->rdata->get_voltage(mxs_reg);
 	else
 		return -ENOTSUPP;
 }
 
-static int stmp3xxx_set_current(struct regulator_dev *reg, int min_uA, int uA)
+static int mxs_set_current(struct regulator_dev *reg, int min_uA, int uA)
 {
-	struct stmp3xxx_regulator *stmp_reg = rdev_get_drvdata(reg);
+	struct mxs_regulator *mxs_reg = rdev_get_drvdata(reg);
 
-	if (stmp_reg->rdata->set_current)
-		return stmp_reg->rdata->set_current(stmp_reg, uA);
+	if (mxs_reg->rdata->set_current)
+		return mxs_reg->rdata->set_current(mxs_reg, uA);
 	else
 		return -ENOTSUPP;
 }
 
-static int stmp3xxx_get_current(struct regulator_dev *reg)
+static int mxs_get_current(struct regulator_dev *reg)
 {
-	struct stmp3xxx_regulator *stmp_reg = rdev_get_drvdata(reg);
+	struct mxs_regulator *mxs_reg = rdev_get_drvdata(reg);
 
-	if (stmp_reg->rdata->get_current)
-		return stmp_reg->rdata->get_current(stmp_reg);
+	if (mxs_reg->rdata->get_current)
+		return mxs_reg->rdata->get_current(mxs_reg);
 	else
 		return -ENOTSUPP;
 }
 
-static int stmp3xxx_enable(struct regulator_dev *reg)
+static int mxs_enable(struct regulator_dev *reg)
 {
-	struct stmp3xxx_regulator *stmp_reg = rdev_get_drvdata(reg);
+	struct mxs_regulator *mxs_reg = rdev_get_drvdata(reg);
 
-	return stmp_reg->rdata->enable(stmp_reg);
+	return mxs_reg->rdata->enable(mxs_reg);
 }
 
-static int stmp3xxx_disable(struct regulator_dev *reg)
+static int mxs_disable(struct regulator_dev *reg)
 {
-	struct stmp3xxx_regulator *stmp_reg = rdev_get_drvdata(reg);
+	struct mxs_regulator *mxs_reg = rdev_get_drvdata(reg);
 
-	return stmp_reg->rdata->disable(stmp_reg);
+	return mxs_reg->rdata->disable(mxs_reg);
 }
 
-static int stmp3xxx_is_enabled(struct regulator_dev *reg)
+static int mxs_is_enabled(struct regulator_dev *reg)
 {
-	struct stmp3xxx_regulator *stmp_reg = rdev_get_drvdata(reg);
+	struct mxs_regulator *mxs_reg = rdev_get_drvdata(reg);
 
-	return stmp_reg->rdata->is_enabled(stmp_reg);
+	return mxs_reg->rdata->is_enabled(mxs_reg);
 }
 
-static int stmp3xxx_set_mode(struct regulator_dev *reg, unsigned int mode)
+static int mxs_set_mode(struct regulator_dev *reg, unsigned int mode)
 {
-	struct stmp3xxx_regulator *stmp_reg = rdev_get_drvdata(reg);
+	struct mxs_regulator *mxs_reg = rdev_get_drvdata(reg);
 
-	return stmp_reg->rdata->set_mode(stmp_reg, mode);
+	return mxs_reg->rdata->set_mode(mxs_reg, mode);
 }
 
-static unsigned int stmp3xxx_get_mode(struct regulator_dev *reg)
+static unsigned int mxs_get_mode(struct regulator_dev *reg)
 {
-	struct stmp3xxx_regulator *stmp_reg = rdev_get_drvdata(reg);
+	struct mxs_regulator *mxs_reg = rdev_get_drvdata(reg);
 
-	return stmp_reg->rdata->get_mode(stmp_reg);
+	return mxs_reg->rdata->get_mode(mxs_reg);
 }
 
-static unsigned int stmp3xxx_get_optimum_mode(struct regulator_dev *reg,
+static unsigned int mxs_get_optimum_mode(struct regulator_dev *reg,
 				int input_uV, int output_uV, int load_uA)
 {
-	struct stmp3xxx_regulator *stmp_reg = rdev_get_drvdata(reg);
+	struct mxs_regulator *mxs_reg = rdev_get_drvdata(reg);
 
-	if (stmp_reg->rdata->get_optimum_mode)
-		return stmp_reg->rdata->get_optimum_mode(stmp_reg, input_uV,
+	if (mxs_reg->rdata->get_optimum_mode)
+		return mxs_reg->rdata->get_optimum_mode(mxs_reg, input_uV,
 							 output_uV, load_uA);
 	else
 		return -ENOTSUPP;
 }
 
-static struct regulator_ops stmp3xxx_rops = {
-	.set_voltage	= stmp3xxx_set_voltage,
-	.get_voltage	= stmp3xxx_get_voltage,
-	.set_current_limit	= stmp3xxx_set_current,
-	.get_current_limit	= stmp3xxx_get_current,
-	.enable		= stmp3xxx_enable,
-	.disable	= stmp3xxx_disable,
-	.is_enabled	= stmp3xxx_is_enabled,
-	.set_mode	= stmp3xxx_set_mode,
-	.get_mode	= stmp3xxx_get_mode,
-	.get_optimum_mode = stmp3xxx_get_optimum_mode,
+static struct regulator_ops mxs_rops = {
+	.set_voltage	= mxs_set_voltage,
+	.get_voltage	= mxs_get_voltage,
+	.set_current_limit	= mxs_set_current,
+	.get_current_limit	= mxs_get_current,
+	.enable		= mxs_enable,
+	.disable	= mxs_disable,
+	.is_enabled	= mxs_is_enabled,
+	.set_mode	= mxs_set_mode,
+	.get_mode	= mxs_get_mode,
+	.get_optimum_mode = mxs_get_optimum_mode,
 };
 
-static struct regulator_desc stmp3xxx_reg_desc[] = {
+static struct regulator_desc mxs_reg_desc[] = {
 	{
 		.name = "vddd",
-		.id = STMP3XXX_VDDD,
-		.ops = &stmp3xxx_rops,
+		.id = MXS_VDDD,
+		.ops = &mxs_rops,
 		.irq = 0,
 		.type = REGULATOR_VOLTAGE,
 		.owner = THIS_MODULE
 	},
 	{
 		.name = "vdda",
-		.id = STMP3XXX_VDDA,
-		.ops = &stmp3xxx_rops,
+		.id = MXS_VDDA,
+		.ops = &mxs_rops,
 		.irq = 0,
 		.type = REGULATOR_VOLTAGE,
 		.owner = THIS_MODULE
 	},
 	{
 		.name = "vddio",
-		.id = STMP3XXX_VDDIO,
-		.ops = &stmp3xxx_rops,
+		.id = MXS_VDDIO,
+		.ops = &mxs_rops,
 		.irq = 0,
 		.type = REGULATOR_VOLTAGE,
 		.owner = THIS_MODULE
 	},
 	{
 		.name = "vddd_bo",
-		.id = STMP3XXX_VDDDBO,
-		.ops = &stmp3xxx_rops,
+		.id = MXS_VDDDBO,
+		.ops = &mxs_rops,
 		.irq = 0,
 		.type = REGULATOR_VOLTAGE,
 		.owner = THIS_MODULE
 	},
 	{
 		.name = "overall_current",
-		.id = STMP3XXX_OVERALL_CUR,
-		.ops = &stmp3xxx_rops,
+		.id = MXS_OVERALL_CUR,
+		.ops = &mxs_rops,
 		.irq = 0,
 		.type = REGULATOR_CURRENT,
 		.owner = THIS_MODULE
@@ -172,16 +172,16 @@ static int reg_callback(struct notifier_block *self,
 			unsigned long event, void *data)
 {
 	unsigned long flags;
-	struct stmp3xxx_regulator *sreg =
-		container_of(self, struct stmp3xxx_regulator , nb);
+	struct mxs_regulator *sreg =
+		container_of(self, struct mxs_regulator , nb);
 
 	switch (event) {
-	case STMP3XXX_REG5V_IS_USB:
+	case MXS_REG5V_IS_USB:
 		spin_lock_irqsave(&sreg->lock, flags);
 		sreg->rdata->max_current = 500000;
 		spin_unlock_irqrestore(&sreg->lock, flags);
 		break;
-	case STMP3XXX_REG5V_NOT_USB:
+	case MXS_REG5V_NOT_USB:
 		spin_lock_irqsave(&sreg->lock, flags);
 		sreg->rdata->max_current = 0x7fffffff;
 		spin_unlock_irqrestore(&sreg->lock, flags);
@@ -191,11 +191,11 @@ static int reg_callback(struct notifier_block *self,
 	return 0;
 }
 
-int stmp3xxx_regulator_probe(struct platform_device *pdev)
+int mxs_regulator_probe(struct platform_device *pdev)
 {
 	struct regulator_desc *rdesc;
 	struct regulator_dev *rdev;
-	struct stmp3xxx_regulator *sreg;
+	struct mxs_regulator *sreg;
 	struct regulator_init_data *initdata;
 
 	sreg = platform_get_drvdata(pdev);
@@ -207,13 +207,13 @@ int stmp3xxx_regulator_probe(struct platform_device *pdev)
 	init_waitqueue_head(&sreg->wait_q);
 	spin_lock_init(&sreg->lock);
 
-	if (pdev->id > STMP3XXX_OVERALL_CUR) {
+	if (pdev->id > MXS_OVERALL_CUR) {
 		rdesc = kzalloc(sizeof(struct regulator_desc), GFP_KERNEL);
-		memcpy(rdesc, &stmp3xxx_reg_desc[STMP3XXX_OVERALL_CUR],
+		memcpy(rdesc, &mxs_reg_desc[MXS_OVERALL_CUR],
 			sizeof(struct regulator_desc));
 		rdesc->name = kstrdup(sreg->rdata->name, GFP_KERNEL);
 	} else
-		rdesc = &stmp3xxx_reg_desc[pdev->id];
+		rdesc = &mxs_reg_desc[pdev->id];
 
 	pr_debug("probing regulator %s %s %d\n",
 			sreg->rdata->name,
@@ -241,7 +241,7 @@ int stmp3xxx_regulator_probe(struct platform_device *pdev)
 }
 
 
-int stmp3xxx_regulator_remove(struct platform_device *pdev)
+int mxs_regulator_remove(struct platform_device *pdev)
 {
 	struct regulator_dev *rdev = platform_get_drvdata(pdev);
 
@@ -251,14 +251,14 @@ int stmp3xxx_regulator_remove(struct platform_device *pdev)
 
 }
 
-int stmp3xxx_register_regulator(
-		struct stmp3xxx_regulator *reg_data, int reg,
+int mxs_register_regulator(
+		struct mxs_regulator *reg_data, int reg,
 			      struct regulator_init_data *initdata)
 {
 	struct platform_device *pdev;
 	int ret;
 
-	pdev = platform_device_alloc("stmp3xxx_reg", reg);
+	pdev = platform_device_alloc("mxs_reg", reg);
 	if (!pdev)
 		return -ENOMEM;
 
@@ -277,25 +277,25 @@ int stmp3xxx_register_regulator(
 
 	return ret;
 }
-EXPORT_SYMBOL_GPL(stmp3xxx_register_regulator);
+EXPORT_SYMBOL_GPL(mxs_register_regulator);
 
-struct platform_driver stmp3xxx_reg = {
+struct platform_driver mxs_reg = {
 	.driver = {
-		.name	= "stmp3xxx_reg",
+		.name	= "mxs_reg",
 	},
-	.probe	= stmp3xxx_regulator_probe,
-	.remove	= stmp3xxx_regulator_remove,
+	.probe	= mxs_regulator_probe,
+	.remove	= mxs_regulator_remove,
 };
 
-int stmp3xxx_regulator_init(void)
+int mxs_regulator_init(void)
 {
-	return platform_driver_register(&stmp3xxx_reg);
+	return platform_driver_register(&mxs_reg);
 }
 
-void stmp3xxx_regulator_exit(void)
+void mxs_regulator_exit(void)
 {
-	platform_driver_unregister(&stmp3xxx_reg);
+	platform_driver_unregister(&mxs_reg);
 }
 
-postcore_initcall(stmp3xxx_regulator_init);
-module_exit(stmp3xxx_regulator_exit);
+postcore_initcall(mxs_regulator_init);
+module_exit(mxs_regulator_exit);

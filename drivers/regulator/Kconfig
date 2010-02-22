@@ -141,6 +141,12 @@ config REGULATOR_STMP3XXX
 	depends on ARCH_STMP3XXX
 	default y
 
+config REGULATOR_MXS
+	tristate "MXS Regulator Support"
+	depends on REGULATOR
+	depends on ARCH_MXS
+	default y
+
 config REGULATOR_MC9S08DZ60
 	tristate "mc9s08dz60 Regulator Support"
 	depends on REGULATOR
