@@ -183,7 +183,6 @@ static struct mxc_srtc_platform_data srtc_data = {
 
 static struct tve_platform_data tve_data = {
 	.dac_reg = "VVIDEO",
-	.dig_reg = "VDIG",
 };
 
 static struct mxc_dvfs_platform_data dvfs_core_data = {

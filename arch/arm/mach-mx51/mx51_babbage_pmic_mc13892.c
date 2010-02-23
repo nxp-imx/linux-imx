@@ -99,11 +99,6 @@ static struct regulator_consumer_supply vdig_consumers[] = {
 		.supply = "VDDA",
 		.dev_name = "1-000a",
 	},
-	{
-		/* sgtl5000 */
-		.supply = "VDDD",
-		.dev_name = "1-000a",
-	},
 };
 
 static struct regulator_consumer_supply vvideo_consumers[] = {
@@ -215,6 +210,7 @@ static struct regulator_init_data vpll_init = {
 		.max_uV = mV_to_uV(1800),
 		.valid_ops_mask = REGULATOR_CHANGE_VOLTAGE,
 		.boot_on = 1,
+		.always_on = 1,
 	}
 };
 
@@ -225,6 +221,7 @@ static struct regulator_init_data vusb2_init = {
 		.max_uV = mV_to_uV(2775),
 		.valid_ops_mask = REGULATOR_CHANGE_VOLTAGE,
 		.boot_on = 1,
+		.always_on = 1,
 	}
 };
 
@@ -234,7 +231,6 @@ static struct regulator_init_data vvideo_init = {
 		.min_uV = mV_to_uV(2775),
 		.max_uV = mV_to_uV(2775),
 		.valid_ops_mask = REGULATOR_CHANGE_VOLTAGE,
-		.always_on = 1,
 		.apply_uV =1,
 	},
 	.num_consumer_supplies = ARRAY_SIZE(vvideo_consumers),
@@ -285,6 +281,7 @@ static struct regulator_init_data vgen2_init = {
 		.min_uV = mV_to_uV(1200),
 		.max_uV = mV_to_uV(3150),
 		.valid_ops_mask = REGULATOR_CHANGE_VOLTAGE,
+		.always_on = 1,
 	}
 };
 
@@ -294,6 +291,7 @@ static struct regulator_init_data vgen3_init = {
 		.min_uV = mV_to_uV(1800),
 		.max_uV = mV_to_uV(2900),
 		.valid_ops_mask = REGULATOR_CHANGE_VOLTAGE,
+		.always_on = 1,
 	}
 };
 
@@ -394,6 +392,8 @@ static int mc13892_regulator_init(struct mc13892 *mc13892)
 	mc13892_register_regulator(mc13892, MC13892_GPO2, &gpo2_init);
 	mc13892_register_regulator(mc13892, MC13892_GPO3, &gpo3_init);
 	mc13892_register_regulator(mc13892, MC13892_GPO4, &gpo4_init);
+
+	regulator_has_full_constraints();
 
 	return 0;
 }
