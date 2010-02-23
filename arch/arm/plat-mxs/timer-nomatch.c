@@ -29,6 +29,9 @@
 #include <mach/device.h>
 #include <mach/regs-timrot.h>
 
+#ifndef HW_TIMROT_TIMCOUNTn
+#define HW_TIMROT_TIMCOUNTn HW_TIMROT_RUNNING_COUNTn
+#endif
 static struct mxs_sys_timer *online_timer;
 
 static irqreturn_t

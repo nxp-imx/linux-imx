@@ -6,4 +6,8 @@ config MACH_MX28EVK
 	depends on ARCH_MX28
 	select USB_ARCH_HAS_EHCI
 
+config MXS_TIMER_WITH_MACH
+	bool
+	default y
+
 endchoice
