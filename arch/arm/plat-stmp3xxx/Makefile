@@ -7,6 +7,7 @@ obj-y += core.o timer.o irq.o dma.o clock.o pinmux.o devices.o \
 	  power-test.o
 
 obj-$(CONFIG_ARCH_STMP378X) += dcp-bootstream.o usb_common.o utmixc.o
+obj-$(CONFIG_IRAM_ALLOC) += iram.o
 
 # Power Management
 obj-$(CONFIG_CPU_FREQ) += cpufreq.o

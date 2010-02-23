@@ -34,6 +34,11 @@ config MACH_STMP378X
 
 endchoice
 
+config IRAM_ALLOC
+	bool
+	default y
+	select GENERIC_ALLOCATOR
+
 source arch/arm/mach-stmp378x/Kconfig
 
 endmenu

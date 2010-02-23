@@ -3,7 +3,7 @@
  *
  * Embedded Alley Solutions, Inc <source@embeddedalley.com>
  *
- * Copyright 2009 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2009-2010 Freescale Semiconductor, Inc.
  * Copyright 2008 Embedded Alley Solutions, Inc All Rights Reserved.
  */
 
@@ -369,6 +369,8 @@ static void __init stmp378x_devb_init(void)
 
 	/* init stmp3xxx platform */
 	stmp3xxx_init();
+	/* Init iram allocate */
+	iram_init(STMP3XXX_OCRAM_PHBASE, STMP3XXX_OCRAM_SIZE);
 
 	stmp3xxx_dbguart.dev.platform_data = dbguart_pinmux;
 	stmp3xxx_appuart.dev.platform_data = appuart_pinmux;

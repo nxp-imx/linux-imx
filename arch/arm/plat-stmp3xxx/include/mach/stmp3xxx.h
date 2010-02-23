@@ -3,7 +3,7 @@
  *
  * Embedded Alley Solutions, Inc <source@embeddedalley.com>
  *
- * Copyright 2008-2009 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2008-2010 Freescale Semiconductor, Inc.
  * Copyright 2008 Embedded Alley Solutions, Inc All Rights Reserved.
  */
 
@@ -58,6 +58,7 @@ struct stmp3xxx_usb_platform_data {
 
 void stmp3xxx_init_irq(struct irq_chip *chip);
 void stmp3xxx_init(void);
+int iram_init(unsigned long base, unsigned long size);
 int stmp3xxx_reset_block(void __iomem *hwreg, int just_enable);
 extern struct platform_device stmp3xxx_dbguart,
 			      stmp3xxx_appuart,

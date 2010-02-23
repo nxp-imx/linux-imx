@@ -1,5 +1,5 @@
 /*
- * Copyright 2005-2009 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2005-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -14,6 +14,13 @@
 #define __ASM_ARCH_MXC_ARC_OTG_H__
 
 #include <mach/hardware.h>
+
+#if defined(CONFIG_USB_STATIC_IRAM) \
+    || defined(CONFIG_USB_STATIC_IRAM_PPH)
+#define USB_IRAM_SIZE   SZ_8K
+#else
+#define USB_IRAM_SIZE 0
+#endif
 
 /*
  * register bits
