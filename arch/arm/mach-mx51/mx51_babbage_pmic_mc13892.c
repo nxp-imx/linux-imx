@@ -342,17 +342,25 @@ static int mc13892_regulator_init(struct mc13892 *mc13892)
 	pmic_write_reg(REG_MODE_1, value, 0xffffff);
 
 	/* enable switch audo mode */
-	pmic_read_reg(REG_SW_4, &value, 0xffffff);
-	register_mask = (SWMODE_MASK << SW1MODE_LSB) | (SWMODE_MASK << SW2MODE_LSB);
-	value &= ~register_mask;
-	value |= (SWMODE_AUTO << SW1MODE_LSB) | (SWMODE_AUTO << SW2MODE_LSB);
-	pmic_write_reg(REG_SW_4, value, 0xffffff);
+	pmic_read_reg(REG_IDENTIFICATION, &value, 0xffffff);
+	/* only for mc13892 2.0A */
+	if ((value & 0x0000FFFF) == 0x45d0) {
+		pmic_read_reg(REG_SW_4, &value, 0xffffff);
+		register_mask = (SWMODE_MASK << SW1MODE_LSB) |
+		       (SWMODE_MASK << SW2MODE_LSB);
+		value &= ~register_mask;
+		value |= (SWMODE_AUTO << SW1MODE_LSB) |
+			(SWMODE_AUTO << SW2MODE_LSB);
+		pmic_write_reg(REG_SW_4, value, 0xffffff);
 
-	pmic_read_reg(REG_SW_5, &value, 0xffffff);
-	register_mask = (SWMODE_MASK << SW3MODE_LSB) | (SWMODE_MASK << SW4MODE_LSB);
-	value &= ~register_mask;
-	value |= (SWMODE_AUTO << SW3MODE_LSB) | (SWMODE_AUTO << SW4MODE_LSB);
-	pmic_write_reg(REG_SW_5, value, 0xffffff);
+		pmic_read_reg(REG_SW_5, &value, 0xffffff);
+		register_mask = (SWMODE_MASK << SW3MODE_LSB) |
+			(SWMODE_MASK << SW4MODE_LSB);
+		value &= ~register_mask;
+		value |= (SWMODE_AUTO << SW3MODE_LSB) |
+			(SWMODE_AUTO << SW4MODE_LSB);
+		pmic_write_reg(REG_SW_5, value, 0xffffff);
+	}
 
 	/* Enable coin cell charger */
 	value = BITFVAL(CIONCHEN, 1) | BITFVAL(VCOIN, VCOIN_3_0V);
