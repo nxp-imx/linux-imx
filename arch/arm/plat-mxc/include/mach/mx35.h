@@ -16,6 +16,13 @@
 #define SND_RAM_SIZE 0
 #endif
 
+#if defined(CONFIG_USB_STATIC_IRAM) \
+    || defined(CONFIG_USB_STATIC_IRAM_PPH)
+#define USB_IRAM_SIZE	SZ_8K
+#else
+#define USB_IRAM_SIZE 0
+#endif
+
 #define MXC_FEC_BASE_ADDR	0x50038000
 #define MX35_NFC_BASE_ADDR	0xBB000000
 #define NFC_BASE_ADDR		MX35_NFC_BASE_ADDR

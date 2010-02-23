@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2007 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2004-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  * Copyright 2008 Juergen Beisert, kernel@pengutronix.de
  *
  * This contains i.MX27-specific hardware definitions. For those
@@ -26,6 +26,13 @@
 
 #ifndef __ASM_ARCH_MXC_HARDWARE_H__
 #error "Do not include directly."
+#endif
+
+#if defined(CONFIG_USB_STATIC_IRAM) \
+    || defined(CONFIG_USB_STATIC_IRAM_PPH)
+#define USB_IRAM_SIZE	SZ_8K
+#else
+#define USB_IRAM_SIZE 0
 #endif
 
 /* IRAM */
