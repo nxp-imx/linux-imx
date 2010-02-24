@@ -380,7 +380,7 @@ config MTD_NAND_NANDSIM
 
 config MTD_NAND_IMX_NFC
 	tristate "i.MX NAND Flash Controller driver"
-	depends on MTD_NAND
+	depends on MTD_NAND && (ARCH_MX2 || ARCH_MX3 || ARCH_MX5)
 	help
 	  Enables the i.MX NAND Flash controller driver.
 
@@ -473,6 +473,12 @@ config MTD_NAND_GPMI_TA3
 	depends on MTD_NAND_GPMI
 	depends on ARCH_STMP378X
 	default y
+
+config MTD_NAND_GPMI1
+        tristate "GPMI NAND Flash driver"
+        depends on MTD_NAND && ARCH_MX28
+        help
+         Enables NAND Flash support.
 
 config MTD_NAND_PLATFORM
 	tristate "Support for generic platform NAND driver"
