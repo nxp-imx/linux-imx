@@ -15,6 +15,7 @@
 /* Includes */
 
 
+#include <linux/kernel.h>
 #include "ddi_bc_internal.h"
 
 
@@ -103,6 +104,7 @@ void ddi_bc_ShutDown()
 
 ddi_bc_Status_t ddi_bc_StateMachine()
 {
+	int ret, state;
 
 	/* -------------------------------------------------------------------------- */
 	/* Check if we've been initialized yet. */
@@ -115,7 +117,12 @@ ddi_bc_Status_t ddi_bc_StateMachine()
 	/* Execute the function for the current state. */
 	/* -------------------------------------------------------------------------- */
 
-	return stateFunctionTable[g_ddi_bc_State] ();
+	state = g_ddi_bc_State;
+	ret = (stateFunctionTable[g_ddi_bc_State] ());
+	if (state != g_ddi_bc_State)
+		pr_info("Charger: transit from state %d to %d\n",
+			state, g_ddi_bc_State);
+	return ret;
 
 }
 

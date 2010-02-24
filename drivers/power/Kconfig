@@ -110,4 +110,11 @@ config BATTERY_STMP3XXX
 	  Say Y to enable support for the battery charger state machine
 	  for the Sigmatel STMP3xxx based SoC's.
 
+config BATTERY_MXS
+	tristate "MXS SoC battery charger driver"
+	depends on ARCH_MXS
+	help
+	  Say Y to enable support for the battery charger state machine
+	  for the Sigmatel MXS based SoC's.
+
 endif # POWER_SUPPLY

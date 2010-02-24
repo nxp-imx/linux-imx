@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2010 Freescale Semiconductor, Inc.
  */
 
 /*
@@ -266,6 +266,8 @@ static void TransitionToBroken(void)
 
 	g_ddi_bc_State = DDI_BC_STATE_BROKEN;
 
+	pr_info("charger------ ddi_bc_gBrokenReason=%d\n",
+		ddi_bc_gBrokenReason);
 #ifdef CONFIG_POWER_SUPPLY_DEBUG
 	printk("Battery charger: declaring a broken battery\n");
 #endif

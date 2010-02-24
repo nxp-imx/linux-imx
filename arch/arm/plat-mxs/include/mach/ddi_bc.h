@@ -705,7 +705,9 @@ ddi_bc_BrokenReason_t ddi_bc_GetBrokenReason(void);
 
 ddi_bc_Status_t ddi_bc_ForceChargingToStart(void);
 
+void fsl_enable_usb_plugindetect(void);
 
+int fsl_is_usb_plugged(void);
 /* End of file */
 
 #endif				/* _DDI_BC_H */

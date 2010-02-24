@@ -1,5 +1,5 @@
 /*
- * Linux glue to STMP3xxx battery state machine.
+ * Linux glue to MXS battery state machine.
  *
  * Author: Steve Longerbeam <stevel@embeddedalley.com>
  *
@@ -16,6 +16,7 @@
 #include <linux/platform_device.h>
 #include <linux/power_supply.h>
 #include <linux/jiffies.h>
+#include <linux/io.h>
 #include <linux/sched.h>
 #include <mach/ddi_bc.h>
 #include "ddi_bc_internal.h"
@@ -23,8 +24,7 @@
 #include <linux/regulator/driver.h>
 #include <mach/regulator.h>
 #include <mach/regs-power.h>
-#include <mach/regs-usbphy.h>
-#include <mach/platform.h>
+#include <mach/mx28.h>
 #include <mach/irqs.h>
 #include <mach/regs-icoll.h>
 #include <linux/delay.h>
@@ -39,7 +39,7 @@ enum application_5v_status{
 	_5v_disconnected_verified,
 };
 
-struct stmp3xxx_info {
+struct mxs_info {
 	struct device *dev;
 	struct regulator *regulator;
 
@@ -75,7 +75,7 @@ struct stmp3xxx_info {
 	int is_usb_online;
 };
 
-#define to_stmp3xxx_info(x) container_of((x), struct stmp3xxx_info, bat)
+#define to_mxs_info(x) container_of((x), struct mxs_info, bat)
 
 #ifndef NON_USB_5V_SUPPLY_CURRENT_LIMIT_MA
 #define NON_USB_5V_SUPPLY_CURRENT_LIMIT_MA 780
@@ -97,7 +97,9 @@ struct stmp3xxx_info {
 #define OS_SHUTDOWN_BATTERY_VOLTAGE_THRESHOLD_MV 3350
 #endif
 
+#ifdef CONFIG_ARCH_STMP3XXX
 #define  POWER_FIQ
+#endif
 
 /* #define DEBUG_IRQS */
 
@@ -107,17 +109,15 @@ struct stmp3xxx_info {
  * is online.
  */
 
-#define is_usb_plugged()(__raw_readl(REGS_USBPHY_BASE + HW_USBPHY_STATUS) & \
-		BM_USBPHY_STATUS_DEVPLUGIN_STATUS)
 
 #define is_ac_online()	\
-		(ddi_power_Get5vPresentFlag() ? (!is_usb_plugged()) : 0)
+		(ddi_power_Get5vPresentFlag() ? (!fsl_is_usb_plugged()) : 0)
 #define is_usb_online()	\
-		(ddi_power_Get5vPresentFlag() ? (!!is_usb_plugged()) : 0)
+		(ddi_power_Get5vPresentFlag() ? (!!fsl_is_usb_plugged()) : 0)
 
 
 
-void init_protection(struct stmp3xxx_info *info)
+void init_protection(struct mxs_info *info)
 {
 	enum ddi_power_5v_status pmu_5v_status;
 	uint16_t battery_voltage;
@@ -126,8 +126,9 @@ void init_protection(struct stmp3xxx_info *info)
 	battery_voltage = ddi_power_GetBattery();
 
 	/* InitializeFiqSystem(); */
-
+#ifdef POWER_FIQ
 	ddi_power_InitOutputBrownouts();
+#endif
 
 
 	/* if we start the kernel with 4p2 already started
@@ -195,7 +196,7 @@ void init_protection(struct stmp3xxx_info *info)
 
 
 
-static void check_and_handle_5v_connection(struct stmp3xxx_info *info)
+static void check_and_handle_5v_connection(struct mxs_info *info)
 {
 
 	switch (ddi_power_GetPmu5vStatus()) {
@@ -284,7 +285,7 @@ static void check_and_handle_5v_connection(struct stmp3xxx_info *info)
 }
 
 
-static void handle_battery_voltage_changes(struct stmp3xxx_info *info)
+static void handle_battery_voltage_changes(struct mxs_info *info)
 {
 #if 0
 	uint16_t battery_voltage;
@@ -319,11 +320,11 @@ static void handle_battery_voltage_changes(struct stmp3xxx_info *info)
 /*
  * Power properties
  */
-static enum power_supply_property stmp3xxx_power_props[] = {
+static enum power_supply_property mxs_power_props[] = {
 	POWER_SUPPLY_PROP_ONLINE,
 };
 
-static int stmp3xxx_power_get_property(struct power_supply *psy,
+static int mxs_power_get_property(struct power_supply *psy,
 				     enum power_supply_property psp,
 				     union power_supply_propval *val)
 {
@@ -345,7 +346,7 @@ static int stmp3xxx_power_get_property(struct power_supply *psy,
 /*
  * Battery properties
  */
-static enum power_supply_property stmp3xxx_bat_props[] = {
+static enum power_supply_property mxs_bat_props[] = {
 	POWER_SUPPLY_PROP_STATUS,
 	POWER_SUPPLY_PROP_PRESENT,
 	POWER_SUPPLY_PROP_HEALTH,
@@ -355,11 +356,11 @@ static enum power_supply_property stmp3xxx_bat_props[] = {
 	POWER_SUPPLY_PROP_TEMP,
 };
 
-static int stmp3xxx_bat_get_property(struct power_supply *psy,
+static int mxs_bat_get_property(struct power_supply *psy,
 				     enum power_supply_property psp,
 				     union power_supply_propval *val)
 {
-	struct stmp3xxx_info *info = to_stmp3xxx_info(psy);
+	struct mxs_info *info = to_mxs_info(psy);
 	ddi_bc_State_t state;
 	ddi_bc_BrokenReason_t reason;
 	int temp_alarm;
@@ -456,7 +457,7 @@ static int stmp3xxx_bat_get_property(struct power_supply *psy,
 
 static void state_machine_timer(unsigned long data)
 {
-	struct stmp3xxx_info *info = (struct stmp3xxx_info *)data;
+	struct mxs_info *info = (struct mxs_info *)data;
 	ddi_bc_Cfg_t *cfg = info->sm_cfg;
 	int ret;
 
@@ -476,8 +477,8 @@ static void state_machine_timer(unsigned long data)
  */
 static void state_machine_work(struct work_struct *work)
 {
-	struct stmp3xxx_info *info =
-		container_of(work, struct stmp3xxx_info, sm_work);
+	struct mxs_info *info =
+		container_of(work, struct mxs_info, sm_work);
 
 	mutex_lock(&info->sm_lock);
 
@@ -565,7 +566,7 @@ out:
 
 
 
-static int bc_sm_restart(struct stmp3xxx_info *info)
+static int bc_sm_restart(struct mxs_info *info)
 {
 	ddi_bc_Status_t bcret;
 	int ret = 0;
@@ -612,10 +613,10 @@ out:
 
 #ifndef POWER_FIQ
 
-static irqreturn_t stmp3xxx_irq_dcdc4p2_bo(int irq, void *cookie)
+static irqreturn_t mxs_irq_dcdc4p2_bo(int irq, void *cookie)
 {
 #ifdef DEBUG_IRQS
-	struct stmp3xxx_info *info = (struct stmp3xxx_info *)cookie;
+	struct mxs_info *info = (struct mxs_info *)cookie;
 	dev_info(info->dev, "dcdc4p2 brownout interrupt occurred\n");
 
 #endif
@@ -623,10 +624,10 @@ static irqreturn_t stmp3xxx_irq_dcdc4p2_bo(int irq, void *cookie)
 	return IRQ_HANDLED;
 }
 
-static irqreturn_t stmp3xxx_irq_batt_brnout(int irq, void *cookie)
+static irqreturn_t mxs_irq_batt_brnout(int irq, void *cookie)
 {
 #ifdef DEBUG_IRQS
-	struct stmp3xxx_info *info = (struct stmp3xxx_info *)cookie;
+	struct mxs_info *info = (struct mxs_info *)cookie;
 	dev_info(info->dev, "battery brownout interrupt occurred\n");
 	ddi_power_disable_power_interrupts();
 #else
@@ -634,10 +635,10 @@ static irqreturn_t stmp3xxx_irq_batt_brnout(int irq, void *cookie)
 #endif
 	return IRQ_HANDLED;
 }
-static irqreturn_t stmp3xxx_irq_vddd_brnout(int irq, void *cookie)
+static irqreturn_t mxs_irq_vddd_brnout(int irq, void *cookie)
 {
 #ifdef DEBUG_IRQS
-	struct stmp3xxx_info *info = (struct stmp3xxx_info *)cookie;
+	struct mxs_info *info = (struct mxs_info *)cookie;
 	dev_info(info->dev, "vddd brownout interrupt occurred\n");
 	ddi_power_disable_power_interrupts();
 #else
@@ -645,10 +646,10 @@ static irqreturn_t stmp3xxx_irq_vddd_brnout(int irq, void *cookie)
 #endif
 	return IRQ_HANDLED;
 }
-static irqreturn_t stmp3xxx_irq_vdda_brnout(int irq, void *cookie)
+static irqreturn_t mxs_irq_vdda_brnout(int irq, void *cookie)
 {
 #ifdef DEBUG_IRQS
-	struct stmp3xxx_info *info = (struct stmp3xxx_info *)cookie;
+	struct mxs_info *info = (struct mxs_info *)cookie;
 	dev_info(info->dev, "vdda brownout interrupt occurred\n");
 	ddi_power_disable_power_interrupts();
 #else
@@ -657,10 +658,10 @@ static irqreturn_t stmp3xxx_irq_vdda_brnout(int irq, void *cookie)
 	return IRQ_HANDLED;
 }
 
-static irqreturn_t stmp3xxx_irq_vdd5v_droop(int irq, void *cookie)
+static irqreturn_t mxs_irq_vdd5v_droop(int irq, void *cookie)
 {
 #ifdef DEBUG_IRQS
-	struct stmp3xxx_info *info = (struct stmp3xxx_info *)cookie;
+	struct mxs_info *info = (struct mxs_info *)cookie;
 	dev_info(info->dev, "vdd5v droop interrupt occurred\n");
 #endif
 	ddi_power_handle_vdd5v_droop();
@@ -670,10 +671,10 @@ static irqreturn_t stmp3xxx_irq_vdd5v_droop(int irq, void *cookie)
 
 #endif /* if POWER_FIQ */
 
-static irqreturn_t stmp3xxx_irq_vddio_brnout(int irq, void *cookie)
+static irqreturn_t mxs_irq_vddio_brnout(int irq, void *cookie)
 {
 #ifdef DEBUG_IRQS
-	struct stmp3xxx_info *info = (struct stmp3xxx_info *)cookie;
+	struct mxs_info *info = (struct mxs_info *)cookie;
 	dev_info(info->dev, "vddio brownout interrupt occurred\n");
 	ddi_power_disable_power_interrupts();
 #else
@@ -682,11 +683,11 @@ static irqreturn_t stmp3xxx_irq_vddio_brnout(int irq, void *cookie)
 	return IRQ_HANDLED;
 }
 
-static irqreturn_t stmp3xxx_irq_vdd5v(int irq, void *cookie)
+static irqreturn_t mxs_irq_vdd5v(int irq, void *cookie)
 {
-	struct stmp3xxx_info *info = (struct stmp3xxx_info *)cookie;
+	struct mxs_info *info = (struct mxs_info *)cookie;
 
-
+	pr_info("%s %d\n", __func__, __LINE__);
 	switch (ddi_power_GetPmu5vStatus()) {
 
 	case new_5v_connection:
@@ -722,9 +723,9 @@ static irqreturn_t stmp3xxx_irq_vdd5v(int irq, void *cookie)
 	return IRQ_HANDLED;
 }
 
-static int stmp3xxx_bat_probe(struct platform_device *pdev)
+static int mxs_bat_probe(struct platform_device *pdev)
 {
-	struct stmp3xxx_info *info;
+	struct mxs_info *info;
 	int ret = 0;
 
 
@@ -800,23 +801,23 @@ static int stmp3xxx_bat_probe(struct platform_device *pdev)
 	/* initialize bat power_supply struct */
 	info->bat.name           = "battery";
 	info->bat.type           = POWER_SUPPLY_TYPE_BATTERY;
-	info->bat.properties     = stmp3xxx_bat_props;
-	info->bat.num_properties = ARRAY_SIZE(stmp3xxx_bat_props);
-	info->bat.get_property   = stmp3xxx_bat_get_property;
+	info->bat.properties     = mxs_bat_props;
+	info->bat.num_properties = ARRAY_SIZE(mxs_bat_props);
+	info->bat.get_property   = mxs_bat_get_property;
 
 	/* initialize ac power_supply struct */
 	info->ac.name           = "ac";
 	info->ac.type           = POWER_SUPPLY_TYPE_MAINS;
-	info->ac.properties     = stmp3xxx_power_props;
-	info->ac.num_properties = ARRAY_SIZE(stmp3xxx_power_props);
-	info->ac.get_property   = stmp3xxx_power_get_property;
+	info->ac.properties     = mxs_power_props;
+	info->ac.num_properties = ARRAY_SIZE(mxs_power_props);
+	info->ac.get_property   = mxs_power_get_property;
 
 	/* initialize usb power_supply struct */
 	info->usb.name           = "usb";
 	info->usb.type           = POWER_SUPPLY_TYPE_USB;
-	info->usb.properties     = stmp3xxx_power_props;
-	info->usb.num_properties = ARRAY_SIZE(stmp3xxx_power_props);
-	info->usb.get_property   = stmp3xxx_power_get_property;
+	info->usb.properties     = mxs_power_props;
+	info->usb.num_properties = ARRAY_SIZE(mxs_power_props);
+	info->usb.get_property   = mxs_power_get_property;
 
 	init_timer(&info->sm_timer);
 	info->sm_timer.data = (unsigned long)info;
@@ -836,7 +837,7 @@ static int stmp3xxx_bat_probe(struct platform_device *pdev)
 
 
 	ret = request_irq(info->irq_vdd5v->start,
-			stmp3xxx_irq_vdd5v, IRQF_DISABLED | IRQF_SHARED,
+			mxs_irq_vdd5v, IRQF_DISABLED | IRQF_SHARED,
 			pdev->name, info);
 	if (ret) {
 		dev_err(info->dev, "failed to request irq\n");
@@ -844,7 +845,7 @@ static int stmp3xxx_bat_probe(struct platform_device *pdev)
 	}
 
 	ret = request_irq(info->irq_vddio_brnout->start,
-			stmp3xxx_irq_vddio_brnout, IRQF_DISABLED,
+			mxs_irq_vddio_brnout, IRQF_DISABLED,
 			pdev->name, info);
 	if (ret) {
 		dev_err(info->dev, "failed to request irq\n");
@@ -853,7 +854,7 @@ static int stmp3xxx_bat_probe(struct platform_device *pdev)
 
 #ifndef POWER_FIQ
 	ret = request_irq(info->irq_dcdc4p2_bo->start,
-			stmp3xxx_irq_dcdc4p2_bo, IRQF_DISABLED,
+			mxs_irq_dcdc4p2_bo, IRQF_DISABLED,
 			pdev->name, info);
 	if (ret) {
 		dev_err(info->dev, "failed to request irq\n");
@@ -861,7 +862,7 @@ static int stmp3xxx_bat_probe(struct platform_device *pdev)
 	}
 
 	ret = request_irq(info->irq_batt_brnout->start,
-			stmp3xxx_irq_batt_brnout, IRQF_DISABLED,
+			mxs_irq_batt_brnout, IRQF_DISABLED,
 			pdev->name, info);
 	if (ret) {
 		dev_err(info->dev, "failed to request irq\n");
@@ -869,7 +870,7 @@ static int stmp3xxx_bat_probe(struct platform_device *pdev)
 	}
 
 	ret = request_irq(info->irq_vddd_brnout->start,
-			stmp3xxx_irq_vddd_brnout, IRQF_DISABLED,
+			mxs_irq_vddd_brnout, IRQF_DISABLED,
 			pdev->name, info);
 	if (ret) {
 		dev_err(info->dev, "failed to request irq\n");
@@ -877,7 +878,7 @@ static int stmp3xxx_bat_probe(struct platform_device *pdev)
 	}
 
 	ret = request_irq(info->irq_vdda_brnout->start,
-			stmp3xxx_irq_vdda_brnout, IRQF_DISABLED,
+			mxs_irq_vdda_brnout, IRQF_DISABLED,
 			pdev->name, info);
 	if (ret) {
 		dev_err(info->dev, "failed to request irq\n");
@@ -886,7 +887,7 @@ static int stmp3xxx_bat_probe(struct platform_device *pdev)
 
 
 	ret = request_irq(info->irq_vdd5v_droop->start,
-			stmp3xxx_irq_vdd5v_droop, IRQF_DISABLED,
+			mxs_irq_vdd5v_droop, IRQF_DISABLED,
 			pdev->name, info);
 	if (ret) {
 		dev_err(info->dev, "failed to request irq\n");
@@ -918,8 +919,7 @@ static int stmp3xxx_bat_probe(struct platform_device *pdev)
 	init_protection(info);
 
 	/* enable usb device presence detection */
-	__raw_writel(BM_USBPHY_CTRL_ENDEVPLUGINDETECT,
-			REGS_USBPHY_BASE + HW_USBPHY_CTRL_SET);
+	fsl_enable_usb_plugindetect();
 
 	return 0;
 
@@ -945,9 +945,9 @@ free_info:
 	return ret;
 }
 
-static int stmp3xxx_bat_remove(struct platform_device *pdev)
+static int mxs_bat_remove(struct platform_device *pdev)
 {
-	struct stmp3xxx_info *info = platform_get_drvdata(pdev);
+	struct mxs_info *info = platform_get_drvdata(pdev);
 
 	if (info->regulator)
 		regulator_put(info->regulator);
@@ -967,7 +967,7 @@ static int stmp3xxx_bat_remove(struct platform_device *pdev)
 	return 0;
 }
 
-static void stmp3xxx_bat_shutdown(struct platform_device *pdev)
+static void mxs_bat_shutdown(struct platform_device *pdev)
 {
 	ddi_bc_ShutDown();
 }
@@ -975,9 +975,9 @@ static void stmp3xxx_bat_shutdown(struct platform_device *pdev)
 
 #ifdef CONFIG_PM
 
-static int stmp3xxx_bat_suspend(struct platform_device *pdev, pm_message_t msg)
+static int mxs_bat_suspend(struct platform_device *pdev, pm_message_t msg)
 {
-	struct stmp3xxx_info *info = platform_get_drvdata(pdev);
+	struct mxs_info *info = platform_get_drvdata(pdev);
 
 	mutex_lock(&info->sm_lock);
 
@@ -991,9 +991,9 @@ static int stmp3xxx_bat_suspend(struct platform_device *pdev, pm_message_t msg)
 	return 0;
 }
 
-static int stmp3xxx_bat_resume(struct platform_device *pdev)
+static int mxs_bat_resume(struct platform_device *pdev)
 {
-	struct stmp3xxx_info *info = platform_get_drvdata(pdev);
+	struct mxs_info *info = platform_get_drvdata(pdev);
 	ddi_bc_Cfg_t *cfg = info->sm_cfg;
 
 	mutex_lock(&info->sm_lock);
@@ -1036,18 +1036,18 @@ static int stmp3xxx_bat_resume(struct platform_device *pdev)
 }
 
 #else
-#define stmp3xxx_bat_suspend NULL
-#define stmp3xxx_bat_resume  NULL
+#define mxs_bat_suspend NULL
+#define mxs_bat_resume  NULL
 #endif
 
-static struct platform_driver stmp3xxx_batdrv = {
-	.probe		= stmp3xxx_bat_probe,
-	.remove		= stmp3xxx_bat_remove,
-	.shutdown       = stmp3xxx_bat_shutdown,
-	.suspend	= stmp3xxx_bat_suspend,
-	.resume		= stmp3xxx_bat_resume,
+static struct platform_driver mxs_batdrv = {
+	.probe		= mxs_bat_probe,
+	.remove		= mxs_bat_remove,
+	.shutdown       = mxs_bat_shutdown,
+	.suspend	= mxs_bat_suspend,
+	.resume		= mxs_bat_resume,
 	.driver		= {
-		.name	= "stmp3xxx-battery",
+		.name	= "mxs-battery",
 		.owner	= THIS_MODULE,
 	},
 };
@@ -1058,7 +1058,7 @@ static int power_relinquish(void *data, int relinquish)
 }
 
 static struct fiq_handler power_fiq = {
-	.name = "stmp3xxx-battery",
+	.name = "mxs-battery",
 	.fiq_op = power_relinquish
 };
 
@@ -1068,7 +1068,7 @@ extern void lock_vector_tlb(void *);
 extern long power_fiq_count;
 static struct proc_dir_entry *power_fiq_proc;
 
-static int __init stmp3xxx_bat_init(void)
+static int __init mxs_bat_init(void)
 {
 #ifdef POWER_FIQ
 	int ret;
@@ -1083,69 +1083,90 @@ static int __init stmp3xxx_bat_init(void)
 
 		/* disable interrupts to be configured as FIQs */
 		__raw_writel(BM_ICOLL_INTERRUPTn_ENABLE,
-				HW_ICOLL_INTERRUPTn_CLR_ADDR(IRQ_DCDC4P2_BO));
+			REGS_ICOLL_BASE +
+			HW_ICOLL_INTERRUPTn_CLR(IRQ_DCDC4P2_BRNOUT));
 
 		__raw_writel(BM_ICOLL_INTERRUPTn_ENABLE,
-				HW_ICOLL_INTERRUPTn_CLR_ADDR(IRQ_BATT_BRNOUT));
+			REGS_ICOLL_BASE +
+			HW_ICOLL_INTERRUPTn_CLR(IRQ_BATT_BRNOUT));
 
 		__raw_writel(BM_ICOLL_INTERRUPTn_ENABLE,
-				HW_ICOLL_INTERRUPTn_CLR_ADDR(IRQ_VDDD_BRNOUT));
+			REGS_ICOLL_BASE +
+			HW_ICOLL_INTERRUPTn_CLR(IRQ_VDDD_BRNOUT));
+
+#ifndef CONFIG_ARCH_MX28
+		__raw_writel(BM_ICOLL_INTERRUPTn_ENABLE,
+			REGS_ICOLL_BASE +
+			HW_ICOLL_INTERRUPTn_CLR(IRQ_VDD18_BRNOUT));
+#endif
 
 		__raw_writel(BM_ICOLL_INTERRUPTn_ENABLE,
-				HW_ICOLL_INTERRUPTn_CLR_ADDR(IRQ_VDD18_BRNOUT));
-
-		__raw_writel(BM_ICOLL_INTERRUPTn_ENABLE,
-				HW_ICOLL_INTERRUPTn_CLR_ADDR(IRQ_VDD5V_DROOP));
+			REGS_ICOLL_BASE +
+			HW_ICOLL_INTERRUPTn_CLR(IRQ_VDD5V_DROOP));
 
 		/* Enable these interrupts as FIQs */
 		__raw_writel(BM_ICOLL_INTERRUPTn_ENFIQ,
-			HW_ICOLL_INTERRUPTn_SET_ADDR(IRQ_DCDC4P2_BO));
+			REGS_ICOLL_BASE +
+			HW_ICOLL_INTERRUPTn_SET(IRQ_DCDC4P2_BRNOUT));
 
 		__raw_writel(BM_ICOLL_INTERRUPTn_ENFIQ,
-			HW_ICOLL_INTERRUPTn_SET_ADDR(IRQ_BATT_BRNOUT));
+			REGS_ICOLL_BASE +
+			HW_ICOLL_INTERRUPTn_SET(IRQ_BATT_BRNOUT));
 
 		__raw_writel(BM_ICOLL_INTERRUPTn_ENFIQ,
-			HW_ICOLL_INTERRUPTn_SET_ADDR(IRQ_VDDD_BRNOUT));
+			REGS_ICOLL_BASE +
+			HW_ICOLL_INTERRUPTn_SET(IRQ_VDDD_BRNOUT));
+
+#ifndef CONFIG_ARCH_MX28
+		__raw_writel(BM_ICOLL_INTERRUPTn_ENFIQ,
+			REGS_ICOLL_BASE +
+			HW_ICOLL_INTERRUPTn_SET(IRQ_VDD18_BRNOUT));
+#endif
 
 		__raw_writel(BM_ICOLL_INTERRUPTn_ENFIQ,
-			HW_ICOLL_INTERRUPTn_SET_ADDR(IRQ_VDD18_BRNOUT));
-
-		__raw_writel(BM_ICOLL_INTERRUPTn_ENFIQ,
-			HW_ICOLL_INTERRUPTn_SET_ADDR(IRQ_VDD5V_DROOP));
+			REGS_ICOLL_BASE +
+			HW_ICOLL_INTERRUPTn_SET(IRQ_VDD5V_DROOP));
 
 		/* enable FIQ functionality */
 		__raw_writel(BM_ICOLL_CTRL_FIQ_FINAL_ENABLE,
-				HW_ICOLL_CTRL_SET_ADDR);
+				REGS_ICOLL_BASE + HW_ICOLL_CTRL_SET);
 
 		/* enable these interrupts */
 		__raw_writel(BM_ICOLL_INTERRUPTn_ENABLE,
-				HW_ICOLL_INTERRUPTn_SET_ADDR(IRQ_DCDC4P2_BO));
+				REGS_ICOLL_BASE +
+				HW_ICOLL_INTERRUPTn_SET(IRQ_DCDC4P2_BRNOUT));
 
 		__raw_writel(BM_ICOLL_INTERRUPTn_ENABLE,
-				HW_ICOLL_INTERRUPTn_SET_ADDR(IRQ_BATT_BRNOUT));
+				REGS_ICOLL_BASE +
+				HW_ICOLL_INTERRUPTn_SET(IRQ_BATT_BRNOUT));
 
 		__raw_writel(BM_ICOLL_INTERRUPTn_ENABLE,
-				HW_ICOLL_INTERRUPTn_SET_ADDR(IRQ_VDDD_BRNOUT));
+				REGS_ICOLL_BASE +
+				HW_ICOLL_INTERRUPTn_SET(IRQ_VDDD_BRNOUT));
+
+#ifndef CONFIG_ARCH_MX28
+		__raw_writel(BM_ICOLL_INTERRUPTn_ENABLE,
+				REGS_ICOLL_BASE +
+				HW_ICOLL_INTERRUPTn_SET(IRQ_VDD18_BRNOUT));
+#endif
 
 		__raw_writel(BM_ICOLL_INTERRUPTn_ENABLE,
-				HW_ICOLL_INTERRUPTn_SET_ADDR(IRQ_VDD18_BRNOUT));
-
-		__raw_writel(BM_ICOLL_INTERRUPTn_ENABLE,
-				HW_ICOLL_INTERRUPTn_SET_ADDR(IRQ_VDD5V_DROOP));
+				REGS_ICOLL_BASE +
+				HW_ICOLL_INTERRUPTn_SET(IRQ_VDD5V_DROOP));
 
 	}
 #endif
-	return platform_driver_register(&stmp3xxx_batdrv);
+	return platform_driver_register(&mxs_batdrv);
 }
 
-static void __exit stmp3xxx_bat_exit(void)
+static void __exit mxs_bat_exit(void)
 {
-	platform_driver_unregister(&stmp3xxx_batdrv);
+	platform_driver_unregister(&mxs_batdrv);
 }
 
-module_init(stmp3xxx_bat_init);
-module_exit(stmp3xxx_bat_exit);
+module_init(mxs_bat_init);
+module_exit(mxs_bat_exit);
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Steve Longerbeam <stevel@embeddedalley.com>");
-MODULE_DESCRIPTION("Linux glue to STMP3xxx battery state machine");
+MODULE_DESCRIPTION("Linux glue to MXS battery state machine");

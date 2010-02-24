@@ -80,7 +80,7 @@
 
 /* IRQ Definitions */
 #define IRQ_BATT_BRNOUT			0
-#define IRQ_VDD_BRNOUT			1
+#define IRQ_VDDD_BRNOUT			1
 #define IRQ_VDDIO_BRNOUT		2
 #define IRQ_VDDA_BRNOUT			3
 #define IRQ_VDD5V_DROOP			4
@@ -209,6 +209,9 @@
 #define IRQ_GPIO0			127
 
 #define ARCH_NR_IRQS		128
+
+/* On i.MX28, all interrupt sources can be configured as FIQ */
+#define FIQ_START		IRQ_BATT_BRNOUT
 
 #define MX28_SOC_IO_ADDRESS(x) \
 	((x) - MX28_SOC_IO_PHYS_BASE + MX28_SOC_IO_VIRT_BASE)

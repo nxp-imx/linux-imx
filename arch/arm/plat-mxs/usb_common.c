@@ -381,3 +381,18 @@ void usb_host_set_wakeup(struct device *wkup_dev, bool para)
 {
 }
 EXPORT_SYMBOL(usb_host_set_wakeup);
+
+int fsl_is_usb_plugged(void)
+{
+	return __raw_readl(REGS_USBPHY_BASE + HW_USBPHY_STATUS) & \
+		BM_USBPHY_STATUS_DEVPLUGIN_STATUS;
+}
+EXPORT_SYMBOL(fsl_is_usb_plugged);
+
+void fsl_enable_usb_plugindetect(void)
+{
+	__raw_writel(BM_USBPHY_CTRL_ENDEVPLUGINDETECT,
+			REGS_USBPHY_BASE + HW_USBPHY_CTRL_SET);
+}
+EXPORT_SYMBOL(fsl_enable_usb_plugindetect);
+

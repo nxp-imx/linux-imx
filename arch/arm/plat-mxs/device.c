@@ -363,6 +363,16 @@ static struct platform_device mxs_dcp = {
 };
 #endif
 
+#if defined(CONFIG_BATTERY_MXS)
+static struct platform_device mxs_battery = {
+	.name   = "mxs-battery",
+	.id = 0,
+	.dev	= {
+		.release = mxs_nop_release,
+		} ,
+};
+#endif
+
 static struct mxs_dev_lookup dev_lookup[] = {
 #if defined(CONFIG_SERIAL_MXS_DUART) || \
 	defined(CONFIG_SERIAL_MXS_DUART_MODULE)
@@ -502,6 +512,15 @@ static struct mxs_dev_lookup dev_lookup[] = {
 	.pdev = &mxs_dcp,
 	},
 #endif
+
+#if defined(CONFIG_BATTERY_MXS)
+	{
+	 .name = "mxs-battery",
+	 .size = 1,
+	 .pdev = &mxs_battery,
+	},
+#endif
+
 };
 
 struct platform_device *mxs_get_device(char *name, int id)
