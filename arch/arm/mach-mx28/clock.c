@@ -883,12 +883,14 @@ static int ssp_set_parent(struct clk *clk, struct clk *parent)
 
 	if (clk->bypass_reg) {
 		if (clk->parent == parent)
+			return 0;
+		if (parent == &ref_io_clk[0] || parent == &ref_io_clk[1])
+			__raw_writel(1 << clk->bypass_bits,
+					clk->bypass_reg + CLR_REGISTER);
+		else
 			__raw_writel(1 << clk->bypass_bits,
 					clk->bypass_reg + SET_REGISTER);
-		else
-			__raw_writel(0 << clk->bypass_bits,
-					clk->bypass_reg + CLR_REGISTER);
-
+		clk->parent = parent;
 		ret = 0;
 	}
 
@@ -935,6 +937,14 @@ static struct clk ssp_clk[] = {
 	 .disable = mx28_raw_disable,
 	 .enable_reg = CLKCTRL_BASE_ADDR + HW_CLKCTRL_SSP2,
 	 .enable_bits = BM_CLKCTRL_SSP2_CLKGATE,
+	 .busy_reg = CLKCTRL_BASE_ADDR + HW_CLKCTRL_SSP2,
+	 .busy_bits = 29,
+	 .scale_reg = CLKCTRL_BASE_ADDR + HW_CLKCTRL_SSP2,
+	 .scale_bits = 0,
+	 .bypass_reg = CLKCTRL_BASE_ADDR + HW_CLKCTRL_CLKSEQ,
+	 .bypass_bits = 5,
+	 .set_rate = ssp_set_rate,
+	 .set_parent = ssp_set_parent,
 	 },
 	{
 	 .parent = &ref_io_clk[1],
@@ -943,6 +953,14 @@ static struct clk ssp_clk[] = {
 	 .disable = mx28_raw_disable,
 	 .enable_reg = CLKCTRL_BASE_ADDR + HW_CLKCTRL_SSP3,
 	 .enable_bits = BM_CLKCTRL_SSP3_CLKGATE,
+	 .busy_reg = CLKCTRL_BASE_ADDR + HW_CLKCTRL_SSP3,
+	 .busy_bits = 29,
+	 .scale_reg = CLKCTRL_BASE_ADDR + HW_CLKCTRL_SSP3,
+	 .scale_bits = 0,
+	 .bypass_reg = CLKCTRL_BASE_ADDR + HW_CLKCTRL_CLKSEQ,
+	 .bypass_bits = 6,
+	 .set_rate = ssp_set_rate,
+	 .set_parent = ssp_set_parent,
 	 },
 };
 
