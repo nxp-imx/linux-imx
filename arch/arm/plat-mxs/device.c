@@ -208,6 +208,19 @@ struct platform_device mxs_bl = {
 };
 #endif
 
+#if defined(CONFIG_VIDEO_PXP) || \
+	defined(CONFIG_VIDEO_PXP_MODULE)
+static struct platform_device mxs_pxp = {
+	.name		= "mxs-pxp",
+	.id		= 0,
+	.dev		= {
+		.release = mxs_nop_release,
+		.dma_mask		= &common_dmamask,
+		.coherent_dma_mask	= DMA_BIT_MASK(32),
+	},
+};
+#endif
+
 #if defined(CONFIG_RTC_DRV_MXS) || defined(CONFIG_RTC_DRV_MXS_MODULE)
 static struct platform_device mxs_rtc = {
 	.name = "mxs-rtc",
@@ -413,6 +426,15 @@ static struct mxs_dev_lookup dev_lookup[] = {
 	 .name	= "mxs-bl",
 	 .size	= 1,
 	 .pdev	= &mxs_bl,
+	 },
+#endif
+
+#if defined(CONFIG_VIDEO_PXP) || \
+	defined(CONFIG_VIDEO_PXP_MODULE)
+	{
+	 .name	= "mxs-pxp",
+	 .size	= 1,
+	 .pdev	= &mxs_pxp,
 	 },
 #endif
 

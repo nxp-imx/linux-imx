@@ -161,6 +161,36 @@ static void __init mx28_init_lcdif(void)
 }
 #endif
 
+#if defined(CONFIG_VIDEO_PXP) || \
+	defined(CONFIG_VIDEO_PXP_MODULE)
+static struct resource pxp_resource[] = {
+	{
+		.flags	= IORESOURCE_MEM,
+		.start	= (unsigned int)IO_ADDRESS(PXP_PHYS_ADDR),
+		.end	= (unsigned int)IO_ADDRESS(PXP_PHYS_ADDR) + 0x2000 - 1,
+	}, {
+		.flags	= IORESOURCE_IRQ,
+		.start	= IRQ_PXP,
+		.end	= IRQ_PXP,
+	},
+};
+static void __init mx28_init_pxp(void)
+{
+	struct platform_device *pdev;
+	pdev = mxs_get_device("mxs-pxp", 0);
+	if (pdev == NULL || IS_ERR(pdev))
+		return;
+	pdev->resource = pxp_resource;
+	pdev->num_resources = ARRAY_SIZE(pxp_resource);
+	mxs_add_device(pdev, 3);
+}
+#else
+static void __init mx28_init_pxp(void)
+{
+	;
+}
+#endif
+
 #if defined(CONFIG_I2C_MXS) || \
 	defined(CONFIG_I2C_MXS_MODULE)
 #ifdef	CONFIG_I2C_MXS_SELECT0
@@ -907,6 +937,7 @@ int __init mx28_device_init(void)
 	mx28_init_kbd();
 	mx28_init_ts();
 	mx28_init_lcdif();
+	mx28_init_pxp();
 	mx28_init_dcp();
 	return 0;
 }

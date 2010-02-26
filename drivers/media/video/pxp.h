@@ -1,19 +1,24 @@
 /*
- * Freescale STMP378X PxP driver
+ * Freescale MXS PxP driver
  *
  * Author: Matt Porter <mporter@embeddedalley.com>
  *
  * Copyright 2008-2010 Freescale Semiconductor, Inc.
  * Copyright 2008-2009 Embedded Alley Solutions, Inc All Rights Reserved.
- */
-
-/*
- * The code contained herein is licensed under the GNU General Public
- * License. You may obtain a copy of the GNU General Public License
- * Version 2 or later at the following locations:
  *
- * http://www.opensource.org/licenses/gpl-license.html
- * http://www.gnu.org/copyleft/gpl.html
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License along
+ * with this program; if not, write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
 struct pxp_overlay_registers {
@@ -125,6 +130,6 @@ struct pxp_data_format {
 	u32 ctrl_s0_fmt;
 };
 
-extern int stmp3xxxfb_get_info(struct fb_var_screeninfo *var,
+extern int mxsfb_get_info(struct fb_var_screeninfo *var,
 				struct fb_fix_screeninfo *fix);
-extern void stmp3xxxfb_cfg_pxp(int enable, dma_addr_t pxp_phys);
+extern void mxsfb_cfg_pxp(int enable, dma_addr_t pxp_phys);

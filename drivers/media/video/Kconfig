@@ -569,8 +569,8 @@ config VIDEO_MXC_OUTPUT
 source "drivers/media/video/mxc/output/Kconfig"
 
 config VIDEO_PXP
-	tristate "STMP3xxx PxP"
-	depends on VIDEO_DEV && VIDEO_V4L2 && ARCH_STMP3XXX
+	tristate "MXS PxP"
+	depends on VIDEO_DEV && VIDEO_V4L2 && (ARCH_STMP3XXX || ARCH_MXS)
 	select VIDEOBUF_DMA_CONTIG
 	---help---
 	  This is a video4linux driver for the Freescale PxP
