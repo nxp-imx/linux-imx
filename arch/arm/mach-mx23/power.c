@@ -3,7 +3,7 @@
  *
  * Embedded Alley Solutions, Inc <source@embeddedalley.com>
  *
- * Copyright (C) 2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2010 Freescale Semiconductor, Inc.
  * Copyright 2008 Embedded Alley Solutions, Inc All Rights Reserved.
  */
 
@@ -19,25 +19,24 @@
 
 #include <linux/device.h>
 #include <linux/delay.h>
+#include <linux/io.h>
 #include <linux/platform_device.h>
 #include <linux/regulator/consumer.h>
 #include <linux/regulator/machine.h>
-#include <mach/platform.h>
 #include <mach/power.h>
 #include <mach/regulator.h>
 #include <mach/regs-power.h>
-#include <mach/stmp3xxx.h>
 
-static int get_voltage(struct stmp3xxx_regulator *sreg)
+static int get_voltage(struct mxs_regulator *sreg)
 {
-	struct stmp3xxx_platform_regulator_data *rdata = sreg->rdata;
+	struct mxs_platform_regulator_data *rdata = sreg->rdata;
 	u32 val = __raw_readl(rdata->control_reg) & 0x1f;
 	int uv  = rdata->min_voltage + val *
 		  (rdata->max_voltage - rdata->min_voltage) / 0x1f;
 	return uv;
 }
 
-static int get_bo_voltage(struct stmp3xxx_regulator *sreg)
+static int get_bo_voltage(struct mxs_regulator *sreg)
 {
 	int uv;
 	int offs;
@@ -50,7 +49,7 @@ static int get_bo_voltage(struct stmp3xxx_regulator *sreg)
 	return uv - 25000*offs;
 }
 
-static int set_voltage(struct stmp3xxx_regulator *sreg, int uv)
+static int set_voltage(struct mxs_regulator *sreg, int uv)
 {
 	u32 val, reg, i;
 
@@ -94,7 +93,7 @@ out:
 	return !i;
 }
 
-static int set_bo_voltage(struct stmp3xxx_regulator *sreg, int bo_uv)
+static int set_bo_voltage(struct mxs_regulator *sreg, int bo_uv)
 {
 	int uv;
 	int offs;
@@ -132,25 +131,25 @@ out:
 	return !i;
 }
 
-static int enable(struct stmp3xxx_regulator *sreg)
+static int enable(struct mxs_regulator *sreg)
 {
 	/* XXX: TODO */
 	return 0;
 }
 
-static int disable(struct stmp3xxx_regulator *sreg)
+static int disable(struct mxs_regulator *sreg)
 {
 	/* XXX: TODO */
 	return 0;
 }
 
-static int is_enabled(struct stmp3xxx_regulator *sreg)
+static int is_enabled(struct mxs_regulator *sreg)
 {
 	/* XXX: TODO */
 	return 1;
 }
 
-static int set_mode(struct stmp3xxx_regulator *sreg, int mode)
+static int set_mode(struct mxs_regulator *sreg, int mode)
 {
 	int ret = 0;
 	u32 val;
@@ -173,14 +172,14 @@ static int set_mode(struct stmp3xxx_regulator *sreg, int mode)
 	return ret;
 }
 
-static int get_mode(struct stmp3xxx_regulator *sreg)
+static int get_mode(struct mxs_regulator *sreg)
 {
 	u32 val = __raw_readl(sreg->rdata->control_reg) & (1 << 17);
 
 	return val ? REGULATOR_MODE_FAST : REGULATOR_MODE_NORMAL;
 }
 
-static struct stmp3xxx_platform_regulator_data vddd_data = {
+static struct mxs_platform_regulator_data vddd_data = {
 	.name		= "vddd",
 	.set_voltage	= set_voltage,
 	.get_voltage	= get_voltage,
@@ -194,7 +193,7 @@ static struct stmp3xxx_platform_regulator_data vddd_data = {
 	.max_voltage	= 1575000,
 };
 
-static struct stmp3xxx_platform_regulator_data vdddbo_data = {
+static struct mxs_platform_regulator_data vdddbo_data = {
 	.name		= "vddd_bo",
 	.parent_name	= "vddd",
 	.set_voltage	= set_bo_voltage,
@@ -208,7 +207,7 @@ static struct stmp3xxx_platform_regulator_data vdddbo_data = {
 	.max_voltage	= 1575000,
 };
 
-static struct stmp3xxx_platform_regulator_data vdda_data = {
+static struct mxs_platform_regulator_data vdda_data = {
 	.name		= "vdda",
 	.set_voltage	= set_voltage,
 	.get_voltage	= get_voltage,
@@ -222,7 +221,7 @@ static struct stmp3xxx_platform_regulator_data vdda_data = {
 	.max_voltage	= 2275000,
 };
 
-static struct stmp3xxx_platform_regulator_data vddio_data = {
+static struct mxs_platform_regulator_data vddio_data = {
 	.name		= "vddio",
 	.set_voltage	= set_voltage,
 	.get_voltage	= get_voltage,
@@ -296,7 +295,7 @@ static struct regulator_init_data vddio_init = {
 
 /* now the current regulators */
 /* Restriction: .... no set_current call on root regulator */
-static int main_add_current(struct stmp3xxx_regulator *sreg,
+static int main_add_current(struct mxs_regulator *sreg,
 			    int uA)
 {
 
@@ -309,7 +308,7 @@ static int main_add_current(struct stmp3xxx_regulator *sreg,
 	return 0;
 }
 
-static int cur_reg_set_current(struct stmp3xxx_regulator *sreg, int uA)
+static int cur_reg_set_current(struct mxs_regulator *sreg, int uA)
 {
 	int ret = 0;
 	unsigned long flags;
@@ -347,30 +346,30 @@ out:
 
 }
 
-static int cur_reg_get_current(struct stmp3xxx_regulator *sreg)
+static int cur_reg_get_current(struct mxs_regulator *sreg)
 {
 	return sreg->cur_current;
 }
 
-static int enable_cur_reg(struct stmp3xxx_regulator *sreg)
+static int enable_cur_reg(struct mxs_regulator *sreg)
 {
 	/* XXX: TODO */
 	return 0;
 }
 
-static int disable_cur_reg(struct stmp3xxx_regulator *sreg)
+static int disable_cur_reg(struct mxs_regulator *sreg)
 {
 	/* XXX: TODO */
 	return 0;
 }
 
-static int cur_reg_is_enabled(struct stmp3xxx_regulator *sreg)
+static int cur_reg_is_enabled(struct mxs_regulator *sreg)
 {
 	/* XXX: TODO */
 	return 1;
 }
 
-static int cur_reg_set_mode(struct stmp3xxx_regulator *sreg, int mode)
+static int cur_reg_set_mode(struct mxs_regulator *sreg, int mode)
 {
 	int ret = 0;
 
@@ -386,12 +385,12 @@ static int cur_reg_set_mode(struct stmp3xxx_regulator *sreg, int mode)
 	return ret;
 }
 
-static int cur_reg_get_mode(struct stmp3xxx_regulator *sreg)
+static int cur_reg_get_mode(struct mxs_regulator *sreg)
 {
 	return sreg->mode;
 }
 
-static struct stmp3xxx_platform_regulator_data overall_cur_data = {
+static struct mxs_platform_regulator_data overall_cur_data = {
 	.name		= "overall_current",
 	.set_current	= cur_reg_set_current,
 	.get_current	= cur_reg_get_current,
@@ -416,7 +415,7 @@ static struct regulator_init_data overall_cur_init = {
 	}
 };
 
-static struct stmp3xxx_platform_regulator_data sibling_cur_data = {
+static struct mxs_platform_regulator_data sibling_cur_data = {
 	.parent_name	= "overall_current",
 	.set_current	= cur_reg_set_current,
 	.get_current	= cur_reg_get_current,
@@ -427,27 +426,14 @@ static struct stmp3xxx_platform_regulator_data sibling_cur_data = {
 	.get_mode	= cur_reg_get_mode,
 };
 
-static struct platform_device *devices[] = {
-	&stmp3xxx_keyboard,
-	&stmp3xxx_touchscreen,
-	&stmp3xxx_appuart,
-	&stmp3xxx_dbguart,
-	&stmp3xxx_watchdog,
-	&stmp3xxx_rtc,
-	&stmp3xxx_framebuffer,
-	&stmp3xxx_backlight,
-	&stmp3xxx_rotdec,
-	&stmp378x_i2c,
-	&stmp3xxx_persistent,
-	&stmp3xxx_dcp_bootstream,
-	&stmp3xxx_dcp,
-	&stmp3xxx_battery,
-	&stmp378x_pxp,
+
+static const char *device_names[] = {
+	"mxs-duart", "mxs-bl", "mxs-i2c"
 };
 
 static int sibling_current_devices_num;
 
-int stmp3xxx_platform_add_regulator(const char *name, int count)
+int mxs_platform_add_regulator(const char *name, int count)
 {
 	int i;
 	pr_debug("%s: name %s, count %d\n", __func__, name, count);
@@ -457,11 +443,11 @@ int stmp3xxx_platform_add_regulator(const char *name, int count)
 		struct regulator_init_data *sibling_init =
 			kzalloc(sizeof(struct regulator_init_data),
 			GFP_KERNEL);
-		struct stmp3xxx_regulator *curr_reg =
-			kzalloc(sizeof(struct stmp3xxx_regulator),
+		struct mxs_regulator *curr_reg =
+			kzalloc(sizeof(struct mxs_regulator),
 			GFP_KERNEL);
-		struct stmp3xxx_platform_regulator_data *d =
-			kzalloc(sizeof(struct stmp3xxx_platform_regulator_data),
+		struct mxs_platform_regulator_data *d =
+			kzalloc(sizeof(struct mxs_platform_regulator_data),
 			GFP_KERNEL);
 		if (!d || !curr_reg || !sibling_init)
 			return -ENOMEM;
@@ -481,29 +467,29 @@ int stmp3xxx_platform_add_regulator(const char *name, int count)
 		sibling_init->constraints.name = kstrdup(d->name, GFP_KERNEL);
 		sibling_init->constraints.always_on = 1;
 		curr_reg->rdata = d;
-		stmp3xxx_register_regulator(curr_reg, 101 + i, sibling_init);
+		mxs_register_regulator(curr_reg, 101 + i, sibling_init);
 	}
 	sibling_current_devices_num += count;
 	return 0;
 }
 
-static struct stmp3xxx_regulator vddd_reg = {
+static struct mxs_regulator vddd_reg = {
 		.rdata = &vddd_data,
 };
 
-static struct stmp3xxx_regulator vdda_reg = {
+static struct mxs_regulator vdda_reg = {
 		.rdata = &vdda_data,
 };
 
-static struct stmp3xxx_regulator vddio_reg = {
+static struct mxs_regulator vddio_reg = {
 		.rdata = &vddio_data,
 };
 
-static struct stmp3xxx_regulator vdddbo_reg = {
+static struct mxs_regulator vdddbo_reg = {
 		.rdata = &vdddbo_data,
 };
 
-static struct stmp3xxx_regulator overall_cur_reg = {
+static struct mxs_regulator overall_cur_reg = {
 		.rdata = &overall_cur_data,
 };
 
@@ -516,22 +502,22 @@ static int __init regulators_init(void)
 	pr_debug("regulators_init \n");
 	__raw_writel(vddio | 0x14, REGS_POWER_BASE + HW_POWER_VDDIOCTRL);
 	vdddbo_reg.parent = &vddd_reg;
-	stmp3xxx_register_regulator(&vddd_reg, STMP3XXX_VDDD, &vddd_init);
-	stmp3xxx_register_regulator(&vdddbo_reg, STMP3XXX_VDDDBO, &vdddbo_init);
-	stmp3xxx_register_regulator(&vdda_reg, STMP3XXX_VDDA, &vdda_init);
-	stmp3xxx_register_regulator(&vddio_reg, STMP3XXX_VDDIO, &vddio_init);
-	stmp3xxx_register_regulator(&overall_cur_reg,
-		STMP3XXX_OVERALL_CUR, &overall_cur_init);
+	mxs_register_regulator(&vddd_reg, MXS_VDDD, &vddd_init);
+	mxs_register_regulator(&vdddbo_reg, MXS_VDDDBO, &vdddbo_init);
+	mxs_register_regulator(&vdda_reg, MXS_VDDA, &vdda_init);
+	mxs_register_regulator(&vddio_reg, MXS_VDDIO, &vddio_init);
+	mxs_register_regulator(&overall_cur_reg,
+		MXS_OVERALL_CUR, &overall_cur_init);
 
-	for (i = 0; i < ARRAY_SIZE(devices); i++) {
-		retval = stmp3xxx_platform_add_regulator(devices[i]->name, 1);
+	for (i = 0; i < ARRAY_SIZE(device_names); i++) {
+		retval = mxs_platform_add_regulator(device_names[i], 1);
 		if (retval)
 			return retval;
 	}
-	stmp3xxx_platform_add_regulator("mmc_ssp", 2);
-	stmp3xxx_platform_add_regulator("charger", 1);
-	stmp3xxx_platform_add_regulator("power-test", 1);
-	stmp3xxx_platform_add_regulator("cpufreq", 1);
+	mxs_platform_add_regulator("mmc_ssp", 2);
+	mxs_platform_add_regulator("charger", 1);
+	mxs_platform_add_regulator("power-test", 1);
+	mxs_platform_add_regulator("cpufreq", 1);
 	return 0;
 }
 postcore_initcall(regulators_init);
