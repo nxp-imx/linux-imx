@@ -301,16 +301,13 @@ struct platform_device mxc_fb_devices[] = {
 
 static struct resource vpu_resources[] = {
 	{
+		.start = VPU_BASE_ADDR,
+		.end = VPU_BASE_ADDR + SZ_4K - 1,
 		.flags = IORESOURCE_MEM,
 	},
 	{
-		.start = IO_ADDRESS(SRC_BASE_ADDR),
-		.end = IO_ADDRESS(SRC_BASE_ADDR),
-		.flags = IORESOURCE_MEM,
-	},
-	{
-		.start	= MXC_INT_VPU_IDLE,
-		.end	= MXC_INT_VPU_IDLE,
+		.start	= MXC_INT_VPU,
+		.end = MXC_INT_VPU,
 		.flags	= IORESOURCE_IRQ,
 	},
 };
@@ -1179,12 +1176,6 @@ static __init void mxc_init_scc_iram(void)
 
 int __init mxc_init_devices(void)
 {
-	unsigned long addr;
-
-	iram_alloc(VPU_IRAM_SIZE, &addr);
-	vpu_resources[0].start = addr;
-	vpu_resources[0].end = addr + VPU_IRAM_SIZE - 1;
-
 	mxc_init_scc_iram();
 	mxc_init_gpu2d();
 	return 0;

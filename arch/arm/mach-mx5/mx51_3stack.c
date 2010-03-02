@@ -139,6 +139,11 @@ static struct mxc_ipu_config mxc_ipu_data = {
 	.rev = 2,
 };
 
+extern void mx51_vpu_reset(void);
+static struct mxc_vpu_platform_data mxc_vpu_data = {
+	.reset = mx51_vpu_reset,
+};
+
 extern void mx51_babbage_gpio_spi_chipselect_active(int cspi_mode, int status,
 						    int chipselect);
 extern void mx51_babbage_gpio_spi_chipselect_inactive(int cspi_mode, int status,
@@ -889,7 +894,7 @@ static void __init mxc_board_init(void)
 	mxc_register_device(&mxc_w1_master_device, &mxc_w1_data);
 	mxc_register_device(&mxc_ipu_device, &mxc_ipu_data);
 	mxc_register_device(&mxc_tve_device, &tve_data);
-	mxc_register_device(&mxcvpu_device, NULL);
+	mxc_register_device(&mxcvpu_device, &mxc_vpu_data);
 	mxc_register_device(&gpu_device, NULL);
 	mxc_register_device(&mx51_lpmode_device, NULL);
 	mxc_register_device(&busfreq_device, NULL);

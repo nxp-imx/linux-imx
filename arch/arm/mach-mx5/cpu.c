@@ -71,6 +71,27 @@ static void __init mipi_hsc_disable(void)
 	iounmap(reg_hsc_mcd);
 }
 
+void mx51_vpu_reset(void)
+{
+	u32 reg;
+	void __iomem *src_base;
+
+	src_base = ioremap(SRC_BASE_ADDR, PAGE_SIZE);
+
+	/* mask interrupt due to vpu passed reset */
+	reg = __raw_readl(src_base + 0x18);
+	reg |= 0x02;
+	__raw_writel(reg, src_base + 0x18);
+
+	reg = __raw_readl(src_base);
+	reg |= 0x5;    /* warm reset vpu */
+	__raw_writel(reg, src_base);
+	while (__raw_readl(src_base) & 0x04)
+		;
+
+	iounmap(src_base);
+}
+
 static int __init post_cpu_init(void)
 {
 	void __iomem *base;
