@@ -36,6 +36,22 @@ void __init mxc_cpu_init(void)
 	}
 }
 
+void mx37_vpu_reset(void)
+{
+	u32 reg;
+	void __iomem *src_base;
+
+	src_base = ioremap(SRC_BASE_ADDR, PAGE_SIZE);
+
+	reg = __raw_readl(src_base);
+	reg |= 0x02;    /* SW_VPU_RST_BIT */
+	 __raw_writel(reg, src_base);
+	while (__raw_readl(src_base) & 0x02)
+		;
+
+	iounmap(src_base);
+}
+
 #define MXC_ARM1176_BASE	IO_ADDRESS(ARM1176_BASE_ADDR)
 
 /*!

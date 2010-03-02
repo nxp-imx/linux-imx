@@ -807,13 +807,20 @@ int __init mxc_register_gpios(void)
 #if defined(CONFIG_MXC_VPU) || defined(CONFIG_MXC_VPU_MODULE)
 static struct resource vpu_resources[] = {
 	[0] = {
+	       .start = VPU_BASE_ADDR,
+	       .end = VPU_BASE_ADDR + SZ_4K - 1,
 	       .flags = IORESOURCE_MEM,
 	       },
 	[1] = {
-	       .start = IO_ADDRESS(SRC_BASE_ADDR),
-	       .end = IO_ADDRESS(SRC_BASE_ADDR),
-	       .flags = IORESOURCE_MEM,
+	       .start  = MXC_INT_VPU,
+	       .end = MXC_INT_VPU,
+	       .flags  = IORESOURCE_IRQ,
 	       },
+};
+
+extern void mx37_vpu_reset(void);
+static struct mxc_vpu_platform_data mxc_vpu_data = {
+	.reset = mx37_vpu_reset,
 };
 
 /*! Platform Data for MXC VPU */
@@ -822,6 +829,7 @@ static struct platform_device mxcvpu_device = {
 	.id = 0,
 	.dev = {
 		.release = mxc_nop_release,
+		.platform_data = &mxc_vpu_data,
 		},
 	.num_resources = ARRAY_SIZE(vpu_resources),
 	.resource = vpu_resources,
@@ -829,8 +837,6 @@ static struct platform_device mxcvpu_device = {
 
 static inline void mxc_init_vpu(void)
 {
-	iram_alloc(VPU_IRAM_SIZE, (unsigned long *)&vpu_resources[0].start);
-	vpu_resources[0].end = vpu_resources[0].start + VPU_IRAM_SIZE - 1;
 	if (platform_device_register(&mxcvpu_device) < 0)
 		printk(KERN_ERR "Error: Registering the VPU.\n");
 }
