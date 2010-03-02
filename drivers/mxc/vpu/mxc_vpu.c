@@ -1,5 +1,5 @@
 /*
- * Copyright 2006-2009 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2006-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -28,6 +28,7 @@
 #include <linux/platform_device.h>
 #include <linux/kdev_t.h>
 #include <linux/dma-mapping.h>
+#include <linux/iram_alloc.h>
 #include <linux/wait.h>
 #include <linux/list.h>
 #include <linux/clk.h>
@@ -71,10 +72,11 @@ static struct vpu_mem_desc pic_para_mem = { 0 };
 static struct vpu_mem_desc user_data_mem = { 0 };
 static struct vpu_mem_desc share_mem = { 0 };
 
+static void __iomem *vpu_base;
+static struct mxc_vpu_platform_data *vpu_plat;
+
 /* IRAM setting */
 static struct iram_setting iram;
-/* store SRC base addr */
-static u32 src_base_addr;
 
 /* implement the blocking ioctl */
 static int codec_done = 0;
@@ -85,10 +87,8 @@ static u32 rd_ptr_regsave[4];
 static u32 wr_ptr_regsave[4];
 static u32 dis_flag_regsave[4];
 
-#define	READ_REG(x)	__raw_readl(IO_ADDRESS(VPU_BASE_ADDR+(x)))
-#define	WRITE_REG(val, x)					\
-		__raw_writel((val), IO_ADDRESS(VPU_BASE_ADDR+(x)))
-
+#define	READ_REG(x)		__raw_readl(vpu_base + x)
+#define	WRITE_REG(val, x)	__raw_writel(val, vpu_base + x)
 #define	SAVE_WORK_REGS	do {					\
 	int i;							\
 	for (i = 0; i < ARRAY_SIZE(workctrl_regsave)/2; i++)	\
@@ -457,26 +457,9 @@ static int vpu_ioctl(struct inode *inode, struct file *filp, u_int cmd,
 		}
 	case VPU_IOC_SYS_SW_RESET:
 		{
-			u32 reg;
+			if (vpu_plat->reset)
+				vpu_plat->reset();
 
-			if (cpu_is_mx37()) {
-				reg = __raw_readl(src_base_addr);
-				reg |= 0x02;	/* SW_VPU_RST_BIT */
-				__raw_writel(reg, src_base_addr);
-				while (__raw_readl(src_base_addr) & 0x02)
-					;
-			} else if (cpu_is_mx51()) {
-				/* mask interrupt due to vpu passed reset */
-				reg = __raw_readl(src_base_addr + 5);
-				reg |= 0x02;
-				__raw_writel(reg, src_base_addr + 5);
-
-				reg = __raw_readl(src_base_addr);
-				reg |= 0x5;    /* warm reset vpu */
-				__raw_writel(reg, src_base_addr);
-				while (__raw_readl(src_base_addr) & 0x04)
-					;
-			}
 			break;
 		}
 	case VPU_IOC_REG_DUMP:
@@ -593,36 +576,30 @@ static int vpu_dev_probe(struct platform_device *pdev)
 	int err = 0;
 	struct device *temp_class;
 	struct resource *res;
+	unsigned long addr = 0;
+
+	vpu_plat = pdev->dev.platform_data;
+
+	iram_alloc(VPU_IRAM_SIZE, &addr);
+	if (addr == 0)
+		iram.start = iram.end = 0;
+	else {
+		iram.start = addr;
+		iram.end = addr + VPU_IRAM_SIZE - 1;
+	}
 
 	if (cpu_is_mx32()) {
-		/* Obtain VL2CC base address */
-		res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
-		if (!res) {
-			printk(KERN_ERR "vpu: unable to get VL2CC base\n");
-			return -ENODEV;
-		}
-
-		err = vl2cc_init(res->start);
+		err = vl2cc_init(iram.start);
 		if (err != 0)
 			return err;
 	}
 
-	if (cpu_is_mx37() || cpu_is_mx51()) {
-		res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
-		if (!res) {
-			printk(KERN_ERR "vpu: unable to get VPU IRAM base\n");
-			return -ENODEV;
-		}
-		iram.start = res->start;
-		iram.end = res->end;
-
-		res = platform_get_resource(pdev, IORESOURCE_MEM, 1);
-		if (!res) {
-			printk(KERN_ERR "vpu: unable to get src base addr\n");
-			return -ENODEV;
-		}
-		src_base_addr = res->start;
+	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+	if (!res) {
+		printk(KERN_ERR "vpu: unable to get vpu base addr\n");
+		return -ENODEV;
 	}
+	vpu_base = ioremap(res->start, res->end - res->start);
 
 	vpu_major = register_chrdev(vpu_major, "mxc_vpu", &vpu_fops);
 	if (vpu_major < 0) {
@@ -650,7 +627,14 @@ static int vpu_dev_probe(struct platform_device *pdev)
 		goto err_out_class;
 	}
 
-	err = request_irq(MXC_INT_VPU, vpu_irq_handler, 0, "VPU_CODEC_IRQ",
+	res = platform_get_resource(pdev, IORESOURCE_IRQ, 0);
+	if (!res) {
+		printk(KERN_ERR "vpu: unable to get vpu interrupt\n");
+		err = -ENXIO;
+		goto err_out_class;
+	}
+
+	err = request_irq(res->start, vpu_irq_handler, 0, "VPU_CODEC_IRQ",
 			  (void *)(&vpu_data));
 	if (err)
 		goto err_out_class;
@@ -664,11 +648,20 @@ static int vpu_dev_probe(struct platform_device *pdev)
       err_out_chrdev:
 	unregister_chrdev(vpu_major, "mxc_vpu");
       error:
+	iounmap(vpu_base);
 	if (cpu_is_mx32()) {
 		vl2cc_cleanup();
 	}
       out:
 	return err;
+}
+
+static int vpu_dev_remove(struct platform_device *pdev)
+{
+	iounmap(vpu_base);
+	iram_free(iram.start, VPU_IRAM_SIZE);
+
+	return 0;
 }
 
 #ifdef CONFIG_PM
@@ -813,6 +806,7 @@ static struct platform_driver mxcvpu_driver = {
 		   .name = "mxc_vpu",
 		   },
 	.probe = vpu_dev_probe,
+	.remove = vpu_dev_remove,
 	.suspend = vpu_suspend,
 	.resume = vpu_resume,
 };

@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2004-2010 Freescale Semiconductor, Inc.
  * Copyright (C) 2008 Juergen Beisert (kernel@pengutronix.de)
  *
  * This program is free software; you can redistribute it and/or
@@ -451,6 +451,10 @@ struct fec_platform_data {
 	int (*init) (void);
 	int (*uninit) (void);
 	struct regulator *vddio_reg;
+};
+
+struct mxc_vpu_platform_data {
+	void (*reset) (void);
 };
 
 /* The name that links the i.MX NAND Flash Controller driver to its devices. */
