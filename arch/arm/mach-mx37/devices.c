@@ -865,6 +865,11 @@ static struct resource spdif_resources[] = {
 	 .end = SPDIF_BASE_ADDR + 0x50,
 	 .flags = IORESOURCE_MEM,
 	 },
+	{
+	 .start = MXC_INT_SPDIF,
+	 .end = MXC_INT_SPDIF,
+	 .flags = IORESOURCE_IRQ,
+	},
 };
 
 static struct mxc_spdif_platform_data mxc_spdif_data = {

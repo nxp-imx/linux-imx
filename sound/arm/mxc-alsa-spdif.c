@@ -1,5 +1,5 @@
 /*
- * Copyright 2007-2009 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2007-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -31,26 +31,19 @@
 #include <linux/platform_device.h>
 #include <linux/init.h>
 #include <linux/errno.h>
-#include <linux/ioctl.h>
+#include <linux/io.h>
 #include <linux/delay.h>
-#include <linux/slab.h>
 #include <linux/dma-mapping.h>
 #include <linux/soundcard.h>
 #include <linux/clk.h>
-#ifdef CONFIG_PM
-#include <linux/pm.h>
-#endif
-
-#include <mach/dma.h>
-#include <asm/mach-types.h>
-#include <asm/io.h>
-#include <asm/irq.h>
 
 #include <sound/core.h>
 #include <sound/pcm.h>
 #include <sound/asoundef.h>
 #include <sound/initval.h>
 #include <sound/control.h>
+
+#include <mach/dma.h>
 
 #define MXC_SPDIF_NAME "MXC_SPDIF"
 static int index[SNDRV_CARDS] = SNDRV_DEFAULT_IDX;
@@ -2069,7 +2062,7 @@ extern void gpio_spdif_active(void);
 static int mxc_alsa_spdif_probe(struct platform_device
 				*pdev)
 {
-	int err, idx;
+	int err, idx, irq;
 	static int dev;
 	struct snd_card *card;
 	struct mxc_spdif_device *chip;
@@ -2139,7 +2132,8 @@ static int mxc_alsa_spdif_probe(struct platform_device
 	/* disable all the interrupts */
 	spdif_intr_enable(0xffffff, 0);
 	/* spdif interrupt register and disable */
-	if (request_irq(MXC_INT_SPDIF, spdif_isr, 0, "spdif", chip)) {
+	irq = platform_get_irq(pdev, 0);
+	if ((irq <= 0) || request_irq(irq, spdif_isr, 0, "spdif", chip)) {
 		pr_err("MXC spdif: failed to request irq\n");
 		err = -EBUSY;
 		goto nodev;
@@ -2184,7 +2178,7 @@ static int mxc_alsa_spdif_remove(struct platform_device *pdev)
 	card = platform_get_drvdata(pdev);
 	plat_data = pdev->dev.platform_data;
 	chip = card->private_data;
-	free_irq(MXC_INT_SPDIF, chip);
+	free_irq(platform_get_irq(pdev, 0), chip);
 	iounmap(chip->reg_base);
 
 	snd_card_free(card);
