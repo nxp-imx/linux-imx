@@ -59,40 +59,6 @@ static struct pin_desc mx23evk_fixed_pins[] = {
 	 .fun   = PIN_FUN1,
 	 },
 #endif
-#ifdef CONFIG_MXS_AUART3_DEVICE_ENABLE
-	{
-	 .name  = "AUART3.RX",
-	 .id    = PINID_AUART3_RX,
-	 .fun   = PIN_FUN1,
-	 },
-	{
-	 .name  = "AUART3.TX",
-	 .id    = PINID_AUART3_TX,
-	 .fun   = PIN_FUN1,
-	 },
-	{
-	 .name  = "AUART3.CTS",
-	 .id    = PINID_AUART3_CTS,
-	 .fun   = PIN_FUN1,
-	 },
-	{
-	 .name  = "AUART3.RTS",
-	 .id    = PINID_AUART3_RTS,
-	 .fun   = PIN_FUN1,
-	 },
-#endif
-	{
-	 .name = "usb0",
-	 .id = PINID_AUART2_TX,
-	 .fun = PIN_GPIO,
-	 .data = 1,
-	 },
-	 {
-	 .name  = "usb1",
-	 .id    = PINID_AUART2_RX,
-	 .fun   = PIN_GPIO,
-	 .data  = 1,
-	 },
 
 #if defined(CONFIG_I2C_MXS) || \
 	defined(CONFIG_I2C_MXS_MODULE)
