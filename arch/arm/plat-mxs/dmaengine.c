@@ -165,6 +165,25 @@ void mxs_dma_disable(int channel)
 }
 EXPORT_SYMBOL(mxs_dma_disable);
 
+int mxs_dma_get_info(int channel, struct mxs_dma_info *info)
+{
+	struct mxs_dma_chan *pchan;
+	struct mxs_dma_device *pdma;
+
+	if (!info)
+		return -EINVAL;
+	if ((channel < 0) || (channel >= MAX_DMA_CHANNELS))
+		return -EINVAL;
+	pchan = mxs_dma_channels + channel;
+	if (!(pchan->flags & MXS_DMA_FLAGS_ALLOCATED))
+		return -EFAULT;
+	pdma = pchan->dma;
+	if (pdma->info)
+		pdma->info(pdma, channel - pdma->chan_base, info);
+	return 0;
+}
+EXPORT_SYMBOL(mxs_dma_get_info);
+
 int mxs_dma_cooked(int channel, struct list_head *head)
 {
 	int sem;
@@ -181,6 +200,9 @@ int mxs_dma_cooked(int channel, struct list_head *head)
 	sem = mxs_dma_read_semaphore(channel);
 	if (sem < 0)
 		return sem;
+	if (sem == pchan->active_num)
+		return 0;
+	BUG_ON(sem > pchan->active_num);
 	spin_lock_irqsave(&pchan->lock, flags);
 	list_for_each_safe(p, q, &pchan->active) {
 		if ((pchan->active_num) <= sem)
@@ -191,7 +213,8 @@ int mxs_dma_cooked(int channel, struct list_head *head)
 			list_move_tail(p, head);
 		else
 			list_move_tail(p, &pchan->done);
-		pchan->active_num--;
+		if (pdesc->flags & MXS_DMA_DESC_LAST)
+			pchan->active_num--;
 	}
 	if (sem == 0)
 		pchan->flags &= ~MXS_DMA_FLAGS_BUSY;
@@ -394,21 +417,29 @@ int mxs_dma_desc_append(int channel, struct mxs_dma_desc *pdesc)
 	if (!(pchan->flags & MXS_DMA_FLAGS_ALLOCATED))
 		return -EINVAL;
 	pdma = pchan->dma;
-	pdesc->cmd.next = 0;
+	pdesc->cmd.next = mxs_dma_cmd_address(pdesc);
+	pdesc->flags |= MXS_DMA_DESC_FIRST | MXS_DMA_DESC_LAST;
 	spin_lock_irqsave(&pchan->lock, flags);
 	if (!list_empty(&pchan->active)) {
 		last = list_entry(pchan->active.prev,
 				  struct mxs_dma_desc, node);
+		if (pdesc->cmd.cmd.bits.dec_sem != last->cmd.cmd.bits.dec_sem) {
+			ret = -EFAULT;
+			goto out;
+		}
+		if (!pdesc->cmd.cmd.bits.dec_sem) {
+			pdesc->flags &= ~MXS_DMA_DESC_FIRST;
+			last->flags &= ~MXS_DMA_DESC_LAST;
+		}
 		pdesc->cmd.next = last->cmd.next;
 		last->cmd.next = mxs_dma_cmd_address(pdesc);
-		if (pdesc->cmd.cmd.bits.chain) {
-			last->cmd.cmd.bits.chain = 1;
-			pdesc->cmd.cmd.bits.chain = 0;
-		}
+		last->cmd.cmd.bits.chain = 1;
 	}
 	pdesc->flags |= MXS_DMA_DESC_READY;
-	pchan->pending_num++;
+	if (pdesc->flags & MXS_DMA_DESC_FIRST)
+		pchan->pending_num++;
 	list_add_tail(&pdesc->node, &pchan->active);
+out:
 	spin_unlock_irqrestore(&pchan->lock, flags);
 	return ret;
 }
@@ -434,27 +465,43 @@ int mxs_dma_desc_add_list(int channel, struct list_head *head)
 	pdma = pchan->dma;
 	list_for_each(p, head) {
 		pcur = list_entry(p, struct mxs_dma_desc, node);
+		if (!(pcur->cmd.cmd.bits.dec_sem || pcur->cmd.cmd.bits.chain))
+			return -EINVAL;
 		if (prev)
 			prev->cmd.next = mxs_dma_cmd_address(pcur);
+		else
+			pcur->flags |= MXS_DMA_DESC_FIRST;
 		pcur->flags |= MXS_DMA_DESC_READY;
 		prev = pcur;
 		size++;
 	}
 	pcur = list_first_entry(head, struct mxs_dma_desc, node);
 	prev->cmd.next = mxs_dma_cmd_address(pcur);
+	prev->flags |= MXS_DMA_DESC_LAST;
 
 	spin_lock_irqsave(&pchan->lock, flags);
 	if (!list_empty(&pchan->active)) {
 		pcur = list_entry(pchan->active.next,
 				  struct mxs_dma_desc, node);
+		if (pcur->cmd.cmd.bits.dec_sem != prev->cmd.cmd.bits.dec_sem) {
+			ret = -EFAULT;
+			goto out;
+		}
 		prev->cmd.next = mxs_dma_cmd_address(pcur);
 		prev = list_entry(pchan->active.prev,
 				  struct mxs_dma_desc, node);
 		pcur = list_first_entry(head, struct mxs_dma_desc, node);
+		pcur->flags &= ~MXS_DMA_DESC_FIRST;
+		prev->flags &= ~MXS_DMA_DESC_LAST;
 		prev->cmd.next = mxs_dma_cmd_address(pcur);
 	}
 	list_splice(head, &pchan->active);
 	pchan->pending_num += size;
+	if (!(pcur->cmd.cmd.bits.dec_sem) && (pcur->flags & MXS_DMA_DESC_FIRST))
+		pchan->pending_num += 1;
+	else
+		pchan->pending_num += size;
+out:
 	spin_unlock_irqrestore(&pchan->lock, flags);
 	return ret;
 }

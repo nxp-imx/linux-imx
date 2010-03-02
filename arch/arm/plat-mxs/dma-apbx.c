@@ -28,7 +28,6 @@
 
 #include <mach/device.h>
 #include <mach/dmaengine.h>
-#include <mach/hardware.h>
 
 #include "regs-apbx.h"
 
@@ -92,6 +91,15 @@ mxs_dma_apbx_unfreeze(struct mxs_dma_device *pdev, unsigned int chan)
 	__raw_writel(1 << chan, pdev->base + HW_APBX_CHANNEL_CTRL_CLR);
 }
 
+static void mxs_dma_apbx_info(struct mxs_dma_device *pdev,
+		unsigned int chan, struct mxs_dma_info *info)
+{
+	unsigned int reg;
+	reg = __raw_readl(pdev->base + HW_APBX_CTRL2);
+	info->status = reg >> chan;
+	info->buf_addr = __raw_readl(pdev->base + HW_APBX_CHn_BAR(chan));
+}
+
 static int
 mxs_dma_apbx_read_semaphore(struct mxs_dma_device *pdev, unsigned int chan)
 {
@@ -135,6 +143,7 @@ static struct mxs_dma_device mxs_dma_apbx = {
 	.reset = mxs_dma_apbx_reset,
 	.freeze = mxs_dma_apbx_freeze,
 	.unfreeze = mxs_dma_apbx_unfreeze,
+	.info = mxs_dma_apbx_info,
 	.read_semaphore = mxs_dma_apbx_read_semaphore,
 	.enable_irq = mxs_dma_apbx_enable_irq,
 	.irq_is_pending = mxs_dma_apbx_irq_is_pending,

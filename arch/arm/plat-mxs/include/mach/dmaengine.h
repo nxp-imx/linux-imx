@@ -93,9 +93,18 @@ struct mxs_dma_desc {
 	struct mxs_dma_cmd cmd;
 	unsigned int flags;
 #define MXS_DMA_DESC_READY 0x80000000
+#define MXS_DMA_DESC_FIRST 0x00000001
+#define MXS_DMA_DESC_LAST  0x00000002
 	dma_addr_t address;
 	void *buffer;
 	struct list_head node;
+};
+
+struct mxs_dma_info {
+	unsigned int status;
+#define MXS_DMA_INFO_ERR       0x00000001
+#define MXS_DMA_INFO_ERR_STAT  0x00010000
+	unsigned int buf_addr;
 };
 
 /**
@@ -176,6 +185,8 @@ struct mxs_dma_device {
 	void (*unfreeze) (struct mxs_dma_device *, unsigned int);
 	int (*read_semaphore) (struct mxs_dma_device *, unsigned int);
 	void (*add_semaphore) (struct mxs_dma_device *, unsigned int, unsigned);
+	void (*info)(struct mxs_dma_device *,
+		unsigned int, struct mxs_dma_info *info);
 	void (*enable_irq) (struct mxs_dma_device *, unsigned int, int);
 	int (*irq_is_pending) (struct mxs_dma_device *, unsigned int);
 	void (*ack_irq) (struct mxs_dma_device *, unsigned int);
@@ -286,7 +297,11 @@ extern void mxs_dma_freeze(int channel);
  * @channel:  The channel number. This is one of the globally unique DMA channel
  *            numbers given in mach/dma.h.
  */
+
 extern void mxs_dma_unfreeze(int channel);
+
+/* get dma channel information */
+extern int mxs_dma_get_info(int channel, struct mxs_dma_info *info);
 
 /**
  * mxs_dma_cooked - Clean up processed DMA descriptors.
