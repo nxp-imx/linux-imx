@@ -586,12 +586,12 @@ static int fifo_err_counter;
 
 static irqreturn_t imx_ssi_irq(int irq, void *dev_id)
 {
-	struct platform_device *pdev = dev_id;
-	struct imx_ssi *pdata = platform_get_drvdata(pdev);
-	void __iomem *ioaddr = pdata->ioaddr;
+	struct imx_ssi *priv = (struct imx_ssi *)dev_id;
+	void __iomem *ioaddr = priv->ioaddr;
 	if (fifo_err_counter++ % 1000 == 0)
 		printk(KERN_ERR "%s %s SISR %x SIER %x fifo_errs=%d\n",
-		       __func__, pdev->name, __raw_readl(ioaddr + SSI_SISR),
+		       __func__, priv->pdev->name,
+		       __raw_readl(ioaddr + SSI_SISR),
 		       __raw_readl(ioaddr + SSI_SIER), fifo_err_counter);
 	__raw_writel((SSI_SIER_TUE0_EN | SSI_SIER_ROE0_EN), ioaddr + SSI_SISR);
 	return IRQ_HANDLED;
@@ -603,7 +603,7 @@ static int imx_ssi_probe(struct platform_device *pdev, struct snd_soc_dai *dai)
 
 	if (priv->irq >= 0) {
 		if (request_irq(priv->irq, imx_ssi_irq, IRQF_SHARED,
-				pdev->name, dai)) {
+				pdev->name, priv)) {
 			printk(KERN_ERR "%s: failure requesting irq for %s\n",
 			       __func__, pdev->name);
 			return -EBUSY;

@@ -572,7 +572,6 @@ static int __devinit imx_3stack_sgtl5000_probe(struct platform_device *pdev)
 	struct snd_soc_dai *sgtl5000_cpu_dai;
 	int ret = 0;
 
-	priv->sysclk = plat->sysclk;
 	priv->pdev = pdev;
 
 	gpio_activate_audio_ports();
@@ -594,6 +593,8 @@ static int __devinit imx_3stack_sgtl5000_probe(struct platform_device *pdev)
 	ret = -EINVAL;
 	if (plat->init && plat->init())
 		goto err_plat_init;
+
+	priv->sysclk = plat->sysclk;
 
 	/* The SGTL5000 has an internal reset that is deasserted 8 SYS_MCLK
 	   cycles after all power rails have been brought up. After this time
