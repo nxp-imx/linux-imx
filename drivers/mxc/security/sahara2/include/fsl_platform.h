@@ -68,7 +68,7 @@
 #define FSL_HAVE_RTIC2
 #define FSL_HAVE_SRTC
 
-#elif defined(CONFIG_ARCH_MX51)
+#elif defined(CONFIG_ARCH_MX5)
 
 #define FSL_HAVE_SCC2
 #define FSL_HAVE_SAHARA4

@@ -46,7 +46,7 @@
 #define NEED_IRAM(ep) ((g_iram_size) && \
 	((ep)->desc->bmAttributes == USB_ENDPOINT_XFER_BULK))
 
-#ifdef CONFIG_ARCH_MX51
+#ifdef CONFIG_ARCH_MX5
 #define POSTPONE_FREE_LAST_DTD
 #else
 #undef POSTPONE_FREE_LAST_DTD
@@ -99,7 +99,7 @@ struct usb_dr_device {
 	u32 endptcomplete;	/* Endpoint Complete Register */
 	u32 endptctrl[8 * 2];	/* Endpoint Control Registers */
 	u32 res8[256];
-#ifdef CONFIG_ARCH_MX51
+#ifdef CONFIG_ARCH_MX5
 	u32 res9[128];		/* i.MX51 start from 0x800 */
 #endif
 	u32 usbctrl;

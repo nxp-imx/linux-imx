@@ -35,7 +35,7 @@
 #include <linux/device.h>
 
 
-#ifdef CONFIG_ARCH_MX51
+#ifdef CONFIG_ARCH_MX5
 extern void start_sdram_autogating(void);
 extern void stop_sdram_autogating(void);
 extern int sdram_autogating_active(void);

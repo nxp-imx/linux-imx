@@ -31,7 +31,7 @@
 #include <mach/hardware.h>
 #define SAHA_BASE_ADDR SAHARA_BASE_ADDR
 #define SAHARA_IRQ     MXC_INT_SAHARA
-#elif defined(CONFIG_ARCH_MX51)
+#elif defined(CONFIG_ARCH_MX5)
 #include <mach/hardware.h>
 #define SAHA_BASE_ADDR SAHARA_BASE_ADDR
 #define SAHARA_IRQ     MXC_INT_SAHARA_H0

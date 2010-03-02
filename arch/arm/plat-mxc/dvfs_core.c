@@ -100,7 +100,7 @@ static struct clk *dvfs_clk;
 static struct regulator *core_regulator;
 
 extern int cpu_wp_nr;
-#ifdef CONFIG_ARCH_MX51
+#ifdef CONFIG_ARCH_MX5
 extern struct cpu_wp *(*get_cpu_wp)(int *wp);
 #endif
 

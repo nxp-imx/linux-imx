@@ -25,7 +25,7 @@ endif
 obj-$(CONFIG_ARCH_MX27) += dma_mx2.o
 obj-$(CONFIG_ARCH_MX3) += dptc.o entry-pm.o
 obj-$(CONFIG_ARCH_MX37) += dptc.o dvfs_core.o
-obj-$(CONFIG_ARCH_MX51) += dvfs_core.o
+obj-$(CONFIG_ARCH_MX5) += dvfs_core.o
 
 # LEDs support
 obj-$(CONFIG_LEDS) += leds.o

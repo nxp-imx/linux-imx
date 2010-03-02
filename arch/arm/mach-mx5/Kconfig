@@ -1,11 +1,15 @@
-menu "MX51 Options"
-	depends on ARCH_MX51
+menu "MX5 Options"
+	depends on ARCH_MX5
+
+config ARCH_MX51
+	bool "Support MX51 based platforms"
+	default y
 
 config FORCE_MAX_ZONEORDER
     int "MAX_ORDER"
     default "13"
 
-config MX51_OPTIONS
+config MX5_OPTIONS
 	bool
 	default y
 	select CPU_V7
@@ -15,12 +19,14 @@ config MX51_OPTIONS
 config MACH_MX51_3DS
 	bool "Support MX51 3-Stack platforms"
 	default y
+	depends on ARCH_MX51
 	help
 	  Include support for MX51 3-Stack platform. This includes specific
 	  configurations for the board and its peripherals.
 
 config MACH_MX51_BABBAGE
 	bool "Support MX51 BABBAGE platforms"
+	depends on ARCH_MX51
 	help
 	  Include support for MX51 Babbage platform. This includes specific
 	  configurations for the board and its peripherals.
@@ -34,7 +40,7 @@ config MXC_SDMA_API
 
 config ARCH_MXC_HAS_NFC_V3
         bool "MXC NFC Hardware Version 3"
-        depends on ARCH_MX51
+        depends on ARCH_MX5
         default y
         help
            This selects the Freescale MXC Nand Flash Controller Hardware Version 3

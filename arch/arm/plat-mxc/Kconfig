@@ -42,8 +42,8 @@ config ARCH_MX37
 	help
 	  This enables support for systems based on Freescale i.MX37
 
-config ARCH_MX51
-	bool "MX51-based"
+config ARCH_MX5
+	bool "MX5-based"
 	help
 	  This enables support for systems based on Freescale i.MX51
 
@@ -56,7 +56,7 @@ source "arch/arm/mach-mx3/Kconfig"
 source "arch/arm/mach-mx25/Kconfig"
 source "arch/arm/mach-mx35/Kconfig"
 source "arch/arm/mach-mx37/Kconfig"
-source "arch/arm/mach-mx51/Kconfig"
+source "arch/arm/mach-mx5/Kconfig"
 
 endmenu
 

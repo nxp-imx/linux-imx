@@ -9,7 +9,7 @@ config MXC_SECURITY_SCC
 
 config MXC_SECURITY_SCC2
         tristate "MXC SCC2 Driver"
-        depends on ARCH_MX37 || ARCH_MX51
+        depends on ARCH_MX37 || ARCH_MX5
         default n
         ---help---
           This module contains the core API's for accessing the SCC2 module.
@@ -57,7 +57,7 @@ config MXC_DRYICE
           This module contains the core API's for accessing the DryIce module.
           If you are unsure about this, say N here.
 
-if (ARCH_MX37 || ARCH_MX51 || ARCH_MX27)
+if (ARCH_MX37 || ARCH_MX5 || ARCH_MX27)
 source "drivers/mxc/security/sahara2/Kconfig"
 endif
 

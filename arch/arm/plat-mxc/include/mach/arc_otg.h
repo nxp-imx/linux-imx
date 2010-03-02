@@ -16,7 +16,7 @@
 #define USB_OTGREGS_BASE	(OTG_BASE_ADDR + 0x000)
 #define USB_H1REGS_BASE		(OTG_BASE_ADDR + 0x200)
 #define USB_H2REGS_BASE		(OTG_BASE_ADDR + 0x400)
-#ifdef CONFIG_ARCH_MX51
+#ifdef CONFIG_ARCH_MX5
 #define USB_H3REGS_BASE		(OTG_BASE_ADDR + 0x600)
 #define USB_OTHERREGS_BASE	(OTG_BASE_ADDR + 0x800)
 #else
@@ -250,7 +250,7 @@
 #define UCTRL_H2SIC_SU6		(2 << 21)	/* single-ended/unidirectional 6 wire */
 #define UCTRL_H2SIC_SB3		(3 << 21)	/* single-ended/bidirectional  3 wire */
 
-#ifdef CONFIG_ARCH_MX51
+#ifdef CONFIG_ARCH_MX5
 #define UCTRL_H2UIE		(1 << 8)	/* HOST2 ULPI intr enable */
 #define UCTRL_H2WIE		(1 << 7)	/* HOST2 wakeup intr enable */
 #define UCTRL_H2PP		0	/* Power Polarity for uh2 */

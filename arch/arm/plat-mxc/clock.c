@@ -42,7 +42,7 @@
 
 #include <mach/clock.h>
 
-#if (defined(CONFIG_ARCH_MX51) || defined(CONFIG_ARCH_MX37))
+#if (defined(CONFIG_ARCH_MX5) || defined(CONFIG_ARCH_MX37))
 extern int dvfs_core_is_active;
 extern int lp_high_freq;
 extern int lp_med_freq;
@@ -181,7 +181,7 @@ int clk_enable(struct clk *clk)
 
 	if ((clk->flags & CPU_FREQ_TRIG_UPDATE)
 			&& (clk_get_usecount(clk) == 1)) {
-#if (defined(CONFIG_ARCH_MX51) || defined(CONFIG_ARCH_MX37))
+#if (defined(CONFIG_ARCH_MX5) || defined(CONFIG_ARCH_MX37))
 		if (low_freq_bus_used() && !low_bus_freq_mode)
 			set_low_bus_freq();
 		else {
@@ -223,7 +223,7 @@ void clk_disable(struct clk *clk)
 
 	if ((clk->flags & CPU_FREQ_TRIG_UPDATE)
 			&& (clk_get_usecount(clk) == 0)) {
-#if (defined(CONFIG_ARCH_MX51) || defined(CONFIG_ARCH_MX37))
+#if (defined(CONFIG_ARCH_MX5) || defined(CONFIG_ARCH_MX37))
 		if (low_freq_bus_used() && !low_bus_freq_mode)
 			set_low_bus_freq();
 		else {
