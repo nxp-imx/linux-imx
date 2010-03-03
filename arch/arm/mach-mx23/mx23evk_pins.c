@@ -37,25 +37,25 @@ static struct pin_desc mx23evk_fixed_pins[] = {
 	 .id = PINID_PWM1,
 	 .fun = PIN_FUN3,
 	 },
-#ifdef CONFIG_MXS_AUART0_DEVICE_ENABLE
+#ifdef CONFIG_MXS_AUART1_DEVICE_ENABLE
 	{
-	 .name  = "AUART0.RX",
-	 .id    = PINID_AUART0_RX,
+	 .name  = "AUART1.RX",
+	 .id    = PINID_AUART1_RX,
 	 .fun   = PIN_FUN1,
 	 },
 	{
-	 .name  = "AUART0.TX",
-	 .id    = PINID_AUART0_TX,
+	 .name  = "AUART1.TX",
+	 .id    = PINID_AUART1_TX,
 	 .fun   = PIN_FUN1,
 	 },
 	{
-	 .name  = "AUART0.CTS",
-	 .id    = PINID_AUART0_CTS,
+	 .name  = "AUART1.CTS",
+	 .id    = PINID_AUART1_CTS,
 	 .fun   = PIN_FUN1,
 	 },
 	{
-	 .name  = "AUART0.RTS",
-	 .id    = PINID_AUART0_RTS,
+	 .name  = "AUART1.RTS",
+	 .id    = PINID_AUART1_RTS,
 	 .fun   = PIN_FUN1,
 	 },
 #endif

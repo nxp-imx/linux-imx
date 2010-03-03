@@ -34,49 +34,6 @@
 #if defined(CONFIG_SERIAL_MXS_AUART) || \
 	defined(CONFIG_SERIAL_MXS_AUART_MODULE)
 
-#ifdef CONFIG_MXS_AUART0_DEVICE_ENABLE
-static struct resource auart0_resource[] = {
-	{
-	 .flags = IORESOURCE_MEM,
-	 .start = AUART0_PHYS_ADDR,
-	 .end	= AUART0_PHYS_ADDR + 0xFFF,
-	 },
-	{
-	 .flags = IORESOURCE_DMA,
-	 .start = MXS_DMA_CHANNEL_AHB_APBX_UART0_RX,
-	 .end = MXS_DMA_CHANNEL_AHB_APBX_UART0_RX,
-	 },
-	{
-	 .flags = IORESOURCE_DMA,
-	 .start = MXS_DMA_CHANNEL_AHB_APBX_UART0_TX,
-	 .end = MXS_DMA_CHANNEL_AHB_APBX_UART0_TX,
-	 },
-	{
-	 .flags = IORESOURCE_IRQ,
-	 .start = IRQ_AUART0,
-	 .end	= IRQ_AUART0,
-	 },
-	{
-	 .flags = IORESOURCE_IRQ,
-	 .start = IRQ_AUART0_RX_DMA,
-	 .end	= IRQ_AUART0_RX_DMA,
-	 },
-	{
-	 .flags = IORESOURCE_IRQ,
-	 .start = IRQ_AUART0_TX_DMA,
-	 .end	= IRQ_AUART0_TX_DMA,
-	 },
-};
-
-static struct mxs_auart_plat_data mxs_auart0_platdata = {
-	.fifo_size = 16,
-#ifdef CONFIG_MXS_AUART0_DMA_ENABLE
-	.dma_mode = 1,
-#endif
-	.timeout = HZ,
-};
-#endif
-
 #ifdef CONFIG_MXS_AUART1_DEVICE_ENABLE
 static struct resource auart1_resource[] = {
 	{
@@ -96,18 +53,18 @@ static struct resource auart1_resource[] = {
 	 },
 	{
 	 .flags = IORESOURCE_IRQ,
-	 .start = IRQ_AUART1,
-	 .end	= IRQ_AUART1,
+	 .start = IRQ_UARTAPP_INTERNAL,
+	 .end	= IRQ_UARTAPP_INTERNAL,
 	 },
 	{
 	 .flags = IORESOURCE_IRQ,
-	 .start = IRQ_AUART1_RX_DMA,
-	 .end	= IRQ_AUART1_RX_DMA,
+	 .start = IRQ_UARTAPP_RX_DMA,
+	 .end	= IRQ_UARTAPP_RX_DMA,
 	 },
 	{
 	 .flags = IORESOURCE_IRQ,
-	 .start = IRQ_AUART1_TX_DMA,
-	 .end	= IRQ_AUART1_TX_DMA,
+	 .start = IRQ_UARTAPP_TX_DMA,
+	 .end	= IRQ_UARTAPP_TX_DMA,
 	 },
 };
 
@@ -116,6 +73,7 @@ static struct mxs_auart_plat_data mxs_auart1_platdata = {
 #ifdef CONFIG_MXS_AUART1_DMA_ENABLE
 	.dma_mode = 1,
 #endif
+	.dma_rx_buffer_size = 8,
 	.timeout = HZ,
 };
 #endif
@@ -139,18 +97,18 @@ static struct resource auart2_resource[] = {
 	 },
 	{
 	 .flags = IORESOURCE_IRQ,
-	 .start = IRQ_AUART2,
-	 .end	= IRQ_AUART2,
+	 .start = IRQ_UARTAPP2_INTERNAL,
+	 .end	= IRQ_UARTAPP2_INTERNAL,
 	 },
 	{
 	 .flags = IORESOURCE_IRQ,
-	 .start = IRQ_AUART2_RX_DMA,
-	 .end	= IRQ_AUART2_RX_DMA,
+	 .start = IRQ_UARTAPP2_RX_DMA,
+	 .end	= IRQ_UARTAPP2_RX_DMA,
 	 },
 	{
 	 .flags = IORESOURCE_IRQ,
-	 .start = IRQ_AUART2_TX_DMA,
-	 .end	= IRQ_AUART2_TX_DMA,
+	 .start = IRQ_UARTAPP2_TX_DMA,
+	 .end	= IRQ_UARTAPP2_TX_DMA,
 	 },
 };
 
@@ -159,92 +117,12 @@ static struct mxs_auart_plat_data mxs_auart2_platdata = {
 #ifdef CONFIG_MXS_AUART2_DMA_ENABLE
 	.dma_mode = 1,
 #endif
+	.dma_rx_buffer_size = 8,
 	.timeout = HZ,
 };
 #endif
 
-#ifdef CONFIG_MXS_AUART3_DEVICE_ENABLE
-static struct resource auart3_resource[] = {
-	{
-	 .flags = IORESOURCE_MEM,
-	 .start = AUART3_PHYS_ADDR,
-	 .end	= AUART3_PHYS_ADDR + 0xFFF,
-	 },
-	{
-	 .flags = IORESOURCE_DMA,
-	 .start = MXS_DMA_CHANNEL_AHB_APBX_UART3_RX,
-	 .end = MXS_DMA_CHANNEL_AHB_APBX_UART3_RX,
-	 },
-	{
-	 .flags = IORESOURCE_DMA,
-	 .start = MXS_DMA_CHANNEL_AHB_APBX_UART3_TX,
-	 .end = MXS_DMA_CHANNEL_AHB_APBX_UART3_TX,
-	 },
-	{
-	 .flags = IORESOURCE_IRQ,
-	 .start = IRQ_AUART3,
-	 .end	= IRQ_AUART3,
-	 },
-	{
-	 .flags = IORESOURCE_IRQ,
-	 .start = IRQ_AUART3_RX_DMA,
-	 .end	= IRQ_AUART3_RX_DMA,
-	 },
-	{
-	 .flags = IORESOURCE_IRQ,
-	 .start = IRQ_AUART3_TX_DMA,
-	 .end	= IRQ_AUART3_TX_DMA,
-	 },
-};
-
-static struct mxs_auart_plat_data mxs_auart3_platdata = {
-	.fifo_size = 16,
-#ifdef CONFIG_MXS_AUART3_DMA_ENABLE
-	.dma_mode = 1,
-#endif
-	.timeout = HZ,
-};
-#endif
-
-#ifdef CONFIG_MXS_AUART4_DEVICE_ENABLE
-static struct resource auart4_resource[] = {
-	{
-	 .flags = IORESOURCE_MEM,
-	 .start = AUART4_PHYS_ADDR,
-	 .end	= AUART4_PHYS_ADDR + 0xFFF,
-	 },
-	{
-	 .flags = IORESOURCE_DMA,
-	 .start = MXS_DMA_CHANNEL_AHB_APBX_UART4_TX,
-	 .end = MXS_DMA_CHANNEL_AHB_APBX_UART4_TX,
-	 },
-	{
-	 .flags = IORESOURCE_IRQ,
-	 .start = IRQ_AUART4,
-	 .end	= IRQ_AUART4,
-	 },
-	{
-	 .flags = IORESOURCE_IRQ,
-	 .start = IRQ_AUART4_RX_DMA,
-	 .end	= IRQ_AUART4_RX_DMA,
-	 },
-	{
-	 .flags = IORESOURCE_IRQ,
-	 .start = IRQ_AUART4_TX_DMA,
-	 .end	= IRQ_AUART4_TX_DMA,
-	 },
-};
-
-static struct mxs_auart_plat_data mxs_auart4_platdata = {
-	.fifo_size = 16,
-#ifdef CONFIG_MXS_AUART4_DMA_ENABLE
-	.dma_mode = 1,
-#endif
-	.timeout = HZ,
-};
-#endif
-
-void __init mx28_init_auart(void)
+void __init mx23_init_auart(void)
 {
 	int i;
 	struct mxs_dev_lookup *plookup;
@@ -256,13 +134,6 @@ void __init mx28_init_auart(void)
 	for (i = 0; i < plookup->size; i++) {
 		pdev = plookup->pdev + i;
 		switch (pdev->id) {
-#ifdef CONFIG_MXS_AUART0_DEVICE_ENABLE
-		case 0:
-			pdev->resource = auart0_resource;
-			pdev->num_resources = ARRAY_SIZE(auart0_resource);
-			pdev->dev.platform_data = &mxs_auart0_platdata;
-			break;
-#endif
 #ifdef CONFIG_MXS_AUART1_DEVICE_ENABLE
 		case 1:
 			pdev->resource = auart1_resource;
@@ -277,20 +148,6 @@ void __init mx28_init_auart(void)
 			pdev->dev.platform_data = &mxs_auart2_platdata;
 			break;
 #endif
-#ifdef CONFIG_MXS_AUART3_DEVICE_ENABLE
-		case 3:
-			pdev->resource = auart3_resource;
-			pdev->num_resources = ARRAY_SIZE(auart3_resource);
-			pdev->dev.platform_data = &mxs_auart3_platdata;
-			break;
-#endif
-#ifdef CONFIG_MXS_AUART4_DEVICE_ENABLE
-		case 4:
-			pdev->resource = auart4_resource;
-			pdev->num_resources = ARRAY_SIZE(auart4_resource);
-			pdev->dev.platform_data = &mxs_auart4_platdata;
-			break;
-#endif
 		default:
 			break;
 		}
@@ -298,7 +155,7 @@ void __init mx28_init_auart(void)
 	}
 }
 #else
-void __init mx28_init_auart(void)
+void __init mx23_init_auart(void)
 {
 }
 #endif

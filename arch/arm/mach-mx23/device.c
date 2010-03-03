@@ -363,7 +363,9 @@ static void __init mx23_init_ts(void)
 #endif
 int __init mx23_device_init(void)
 {
+	mx23_init_dma();
 	mx23_init_duart();
+	mx23_init_auart();
 	return 0;
 }
 

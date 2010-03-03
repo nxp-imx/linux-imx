@@ -73,6 +73,7 @@ static struct mxs_auart_plat_data mxs_auart0_platdata = {
 #ifdef CONFIG_MXS_AUART0_DMA_ENABLE
 	.dma_mode = 1,
 #endif
+	.dma_rx_buffer_size = PAGE_SIZE,
 	.timeout = HZ,
 };
 #endif
@@ -116,6 +117,7 @@ static struct mxs_auart_plat_data mxs_auart1_platdata = {
 #ifdef CONFIG_MXS_AUART1_DMA_ENABLE
 	.dma_mode = 1,
 #endif
+	.dma_rx_buffer_size = PAGE_SIZE,
 	.timeout = HZ,
 };
 #endif
@@ -159,6 +161,7 @@ static struct mxs_auart_plat_data mxs_auart2_platdata = {
 #ifdef CONFIG_MXS_AUART2_DMA_ENABLE
 	.dma_mode = 1,
 #endif
+	.dma_rx_buffer_size = PAGE_SIZE,
 	.timeout = HZ,
 };
 #endif
@@ -202,6 +205,7 @@ static struct mxs_auart_plat_data mxs_auart3_platdata = {
 #ifdef CONFIG_MXS_AUART3_DMA_ENABLE
 	.dma_mode = 1,
 #endif
+	.dma_rx_buffer_size = PAGE_SIZE,
 	.timeout = HZ,
 };
 #endif
@@ -240,6 +244,7 @@ static struct mxs_auart_plat_data mxs_auart4_platdata = {
 #ifdef CONFIG_MXS_AUART4_DMA_ENABLE
 	.dma_mode = 1,
 #endif
+	.dma_rx_buffer_size = PAGE_SIZE,
 	.timeout = HZ,
 };
 #endif

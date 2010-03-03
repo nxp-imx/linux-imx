@@ -95,6 +95,7 @@ struct mxs_auart_plat_data {
 	unsigned int fifo_size:6;
 	unsigned int dma_mode:1;
 	unsigned int timeout;
+	unsigned int dma_rx_buffer_size;
 	const char *clk;
 };
 

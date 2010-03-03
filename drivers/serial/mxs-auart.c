@@ -61,6 +61,7 @@ struct mxs_auart_port {
 	struct device *dev;
 	unsigned int dma_rx_chan;
 	unsigned int dma_tx_chan;
+	unsigned int dma_rx_buffer_size;
 	struct list_head rx_done;
 	struct list_head free;
 	struct mxs_dma_desc *tx;
@@ -232,19 +233,27 @@ static int mxs_auart_dma_init(struct mxs_auart_port *s)
 	s->tx = NULL;
 
 
-	for (i = 0; i < 3; i++) {
+	for (i = 0; i < 5; i++) {
 		pdesc = mxs_dma_alloc_desc();
 		if (pdesc == NULL || IS_ERR(pdesc))
 			goto fail_alloc_desc;
-		pdesc->buffer = dma_alloc_coherent(s->dev, PAGE_SIZE,
+
+		if (s->tx == NULL) {
+			pdesc->buffer = dma_alloc_coherent(s->dev, PAGE_SIZE,
 						   &pdesc->cmd.address,
 						   GFP_DMA);
-		if (pdesc->buffer == NULL)
-			goto fail_alloc_desc;
-		if (s->tx == NULL)
+			if (pdesc->buffer == NULL)
+				goto fail_alloc_desc;
 			s->tx = pdesc;
-		else
+		} else {
+			pdesc->buffer = dma_alloc_coherent(s->dev,
+						s->dma_rx_buffer_size,
+						&pdesc->cmd.address,
+						GFP_DMA);
+			if (pdesc->buffer == NULL)
+				goto fail_alloc_desc;
 			list_add_tail(&pdesc->node, &s->free);
+		}
 	}
 	/*
 	   Tell DMA to select UART.
@@ -274,7 +283,7 @@ fail_alloc_desc:
 		pdesc = list_entry(p, struct mxs_dma_desc, node);
 		if (pdesc->buffer)
 			dma_free_coherent(s->dev,
-					  PAGE_SIZE,
+					  s->dma_rx_buffer_size,
 					  pdesc->buffer,
 					  pdesc->cmd.address);
 		pdesc->buffer = NULL;
@@ -321,7 +330,7 @@ static void mxs_auart_dma_exit(struct mxs_auart_port *s)
 		pdesc = list_entry(p, struct mxs_dma_desc, node);
 		if (pdesc->buffer)
 			dma_free_coherent(s->dev,
-					  PAGE_SIZE,
+					  s->dma_rx_buffer_size,
 					  pdesc->buffer,
 					  pdesc->cmd.address);
 		pdesc->buffer = NULL;
@@ -338,12 +347,12 @@ static void mxs_auart_submit_rx(struct mxs_auart_port *s)
 
 	pio_value = BM_UARTAPP_CTRL0_RXTO_ENABLE |
 		     BF_UARTAPP_CTRL0_RXTIMEOUT(0x80) |
-		     BF_UARTAPP_CTRL0_XFER_COUNT(PAGE_SIZE);
+		     BF_UARTAPP_CTRL0_XFER_COUNT(s->dma_rx_buffer_size);
 
 	list_for_each_safe(p, n, &s->free) {
 		list_del(p);
 		pdesc = list_entry(p, struct mxs_dma_desc, node);
-		pdesc->cmd.cmd.bits.bytes = PAGE_SIZE;
+		pdesc->cmd.cmd.bits.bytes = s->dma_rx_buffer_size;
 		pdesc->cmd.cmd.bits.terminate_flush = 1;
 		pdesc->cmd.cmd.bits.pio_words = 1;
 		pdesc->cmd.cmd.bits.wait4end = 1;
@@ -811,6 +820,7 @@ static int __devinit mxs_auart_probe(struct platform_device *pdev)
 
 	s->flags = plat->dma_mode ? MXS_AUART_PORT_DMA_MODE : 0;
 	s->ctrl = 0;
+	s->dma_rx_buffer_size = plat->dma_rx_buffer_size;
 
 	for (i = 0; i < ARRAY_SIZE(s->irq); i++) {
 		s->irq[i] = platform_get_irq(pdev, i);

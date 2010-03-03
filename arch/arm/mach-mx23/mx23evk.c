@@ -47,10 +47,10 @@ static void __init mx23evk_device_init(void)
 static void __init mx23evk_init_machine(void)
 {
 #if 0
-	mx23_pinctrl_init();
 	mx23_gpio_init();
-	mx23evk_pins_init();
 #endif
+	mx23_pinctrl_init();
+	mx23evk_pins_init();
 	mx23_device_init();
 	mx23evk_device_init();
 }
