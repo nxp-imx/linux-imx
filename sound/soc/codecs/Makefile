@@ -40,6 +40,7 @@ snd-soc-ak4647-objs := ak4647.o
 snd-soc-stmp378x-codec-objs := stmp378x_codec.o
 snd-soc-stmp3xxx-spdif-objs := stmp3xxx_spdif.o
 snd-soc-bluetooth-objs := bluetooth.o
+snd-soc-mxs-spdif-objs := mxs_spdif.o
 
 obj-$(CONFIG_SND_SOC_AC97_CODEC)	+= snd-soc-ac97.o
 obj-$(CONFIG_SND_SOC_AD1980)	+= snd-soc-ad1980.o
@@ -83,3 +84,4 @@ obj-$(CONFIG_SND_SOC_AK4647)    += snd-soc-ak4647.o
 obj-$(CONFIG_SND_SOC_STMP378X_CODEC)	+= snd-soc-stmp378x-codec.o
 obj-$(CONFIG_SND_SOC_STMP3XXX_SPDIF)	+= snd-soc-stmp3xxx-spdif.o
 obj-$(CONFIG_SND_SOC_BLUETOOTH)    += snd-soc-bluetooth.o
+obj-$(CONFIG_SND_SOC_MXS_SPDIF)	+= snd-soc-mxs-spdif.o

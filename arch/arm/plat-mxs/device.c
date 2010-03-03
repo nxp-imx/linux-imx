@@ -386,6 +386,19 @@ static struct platform_device mxs_sgtl5000[] = {
 };
 #endif
 
+#if defined(CONFIG_SND_SOC_MXS_SPDIF) || \
+	defined(CONFIG_SND_SOC_MXS_SPDIF_MODULE)
+static struct platform_device mxs_spdif[] = {
+	{
+	.name = "mxs-spdif",
+	.id = 0,
+	.dev =	{
+		.release = mxs_nop_release,
+		},
+	},
+};
+#endif
+
 static struct mxs_dev_lookup dev_lookup[] = {
 #if defined(CONFIG_SERIAL_MXS_DUART) || \
 	defined(CONFIG_SERIAL_MXS_DUART_MODULE)
@@ -540,6 +553,15 @@ static struct mxs_dev_lookup dev_lookup[] = {
 	.name = "mxs-sgtl5000",
 	.size = ARRAY_SIZE(mxs_sgtl5000),
 	.pdev = mxs_sgtl5000,
+	},
+#endif
+
+#if defined(CONFIG_SND_SOC_MXS_SPDIF) || \
+	defined(CONFIG_SND_SOC_MXS_SPDIF_MODULE)
+	{
+	.name = "mxs-spdif",
+	.size = ARRAY_SIZE(mxs_spdif),
+	.pdev = mxs_spdif,
 	},
 #endif
 };

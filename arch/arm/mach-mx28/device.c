@@ -1079,6 +1079,20 @@ void __init mx28_init_audio(void)
 }
 #endif
 
+#if defined(CONFIG_SND_SOC_MXS_SPDIF) || \
+       defined(CONFIG_SND_SOC_MXS_SPDIF_MODULE)
+void __init mx28_init_spdif(void)
+{	struct platform_device *pdev;
+	pdev = mxs_get_device("mxs-spdif", 0);
+	if (pdev == NULL || IS_ERR(pdev))
+		return;
+	mxs_add_device(pdev, 3);
+}
+#else
+static inline mx28_init_spdif(void)
+{
+}
+#endif
 
 int __init mx28_device_init(void)
 {
@@ -1095,6 +1109,7 @@ int __init mx28_device_init(void)
 	mx28_init_kbd();
 	mx28_init_ts();
 	mx28_init_audio();
+	mx28_init_spdif();
 	mx28_init_lcdif();
 	mx28_init_pxp();
 	mx28_init_dcp();
