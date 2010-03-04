@@ -26,6 +26,7 @@
 #include <linux/delay.h>
 #include <linux/io.h>
 
+#include <mach/hardware.h>
 #include <mach/device.h>
 #include <mach/dmaengine.h>
 
