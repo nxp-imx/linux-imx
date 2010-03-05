@@ -62,7 +62,7 @@ config MXS_DMA_ENGINE
 config MXS_LRADC
 	bool "Low Resolution ADC support"
 	default y
-	depends on ARCH_MX28
+	depends on ARCH_MXS
 	help
 	  Enable LRADC support
 

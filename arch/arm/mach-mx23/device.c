@@ -226,7 +226,7 @@ static void __init mx23_init_rtc(void)
 
 #ifdef CONFIG_MXS_LRADC
 struct mxs_lradc_plat_data mx23_lradc_data = {
-	.vddio_voltage = BV_LRADC_CTRL4_LRADC6SELECT__CHANNEL10,
+	.vddio_voltage = BV_LRADC_CTRL4_LRADC6SELECT__CHANNEL6,
 	.battery_voltage = BV_LRADC_CTRL4_LRADC7SELECT__CHANNEL7,
 };
 
@@ -259,23 +259,20 @@ static void __init mx23_init_lradc(void)
 
 #if defined(CONFIG_KEYBOARD_MXS) || defined(CONFIG_KEYBOARD_MXS_MODULE)
 static struct mxskbd_keypair keyboard_data[] = {
-	{ 100, KEY_F4 },
-	{ 306, KEY_F5 },
-	{ 626, KEY_F6 },
-	{ 932, KEY_F7 },
-	{ 1260, KEY_F8 },
-	{ 1584, KEY_F9 },
-	{ 1907, KEY_F10 },
-	{ 2207, KEY_F11 },
-	{ 2525, KEY_F12 },
-	{ 2831, KEY_F13},
-	{ 3134, KEY_F14 },
+	{ 100, KEY_F1 },
+	{ 306, KEY_RIGHT},
+	{ 626, KEY_F2},
+	{ 932, KEY_LEFT },
+	{ 1584, KEY_UP },
+	{ 2207, KEY_DOWN },
+	{ 1907, KEY_F3 },
+	{ 2831, KEY_SELECT },
 	{ -1, 0 },
 };
 
 static struct mxs_kbd_plat_data mxs_kbd_data = {
 	.keypair = keyboard_data,
-	.channel = LRADC_CH1,
+	.channel = LRADC_CH0,
 };
 
 static struct resource mx23_kbd_res[] = {
@@ -286,8 +283,8 @@ static struct resource mx23_kbd_res[] = {
 	 },
 	{
 	 .flags = IORESOURCE_IRQ,
-	 .start = IRQ_LRADC_CH1,
-	 .end   = IRQ_LRADC_CH1,
+	 .start = IRQ_LRADC_CH0,
+	 .end   = IRQ_LRADC_CH0,
 	 },
 };
 
@@ -366,6 +363,11 @@ int __init mx23_device_init(void)
 	mx23_init_dma();
 	mx23_init_duart();
 	mx23_init_auart();
+	mx23_init_lradc();
+	mx23_init_kbd();
+	mx23_init_wdt();
+	mx23_init_rtc();
+
 	return 0;
 }
 

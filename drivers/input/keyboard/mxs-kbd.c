@@ -283,11 +283,14 @@ static int __devinit mxskbd_probe(struct platform_device *pdev)
 		goto err_free_dev;
 	}
 
-	err = request_irq(d->btn_irq, mxskbd_irq_handler,
+	if (d->btn_irq > 0) {
+		err = request_irq(d->btn_irq, mxskbd_irq_handler,
 			  IRQF_DISABLED, pdev->name, pdev);
-	if (err) {
-		dev_err(&pdev->dev, "Cannot request keybad detect IRQ\n");
-		goto err_free_irq;
+		if (err) {
+			dev_err(&pdev->dev,
+				"Cannot request keybad detect IRQ\n");
+			goto err_free_irq;
+		}
 	}
 
 	/* Register the input device */
@@ -306,7 +309,8 @@ static int __devinit mxskbd_probe(struct platform_device *pdev)
 
 err_free_irq2:
 	platform_set_drvdata(pdev, NULL);
-	free_irq(d->btn_irq, pdev);
+	if (d->btn_irq > 0)
+		free_irq(d->btn_irq, pdev);
 err_free_irq:
 	free_irq(d->irq, pdev);
 err_free_dev:
@@ -322,6 +326,8 @@ static int __devexit mxskbd_remove(struct platform_device *pdev)
 	hw_lradc_unuse_channel(d->chan);
 	input_unregister_device(GET_INPUT_DEV(d));
 	free_irq(d->irq, pdev);
+	if (d->btn_irq > 0)
+		free_irq(d->btn_irq, pdev);
 	mxskbd_data_free(d);
 
 	platform_set_drvdata(pdev, NULL);
