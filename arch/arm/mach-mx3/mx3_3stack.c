@@ -73,7 +73,6 @@ extern void mxc_map_io(void);
 extern void mxc_init_irq(void);
 extern void mxc_cpu_init(void) __init;
 extern void mxc_cpu_common_init(void);
-extern void __init early_console_setup(char *);
 extern int mxc_init_devices(void);
 
 static void mxc_nop_release(struct device *dev)
@@ -952,7 +951,11 @@ static void __init mxc_init_gps(void)
 
 static void __init mx3_3stack_timer_init(void)
 {
+	struct clk *uart_clk;
+
 	mx31_clocks_init(26000000);
+	uart_clk = clk_get(NULL, "uart_clk.0");
+	early_console_setup(UART1_BASE_ADDR, uart_clk);
 }
 
 static struct sys_timer mxc_timer = {
@@ -969,7 +972,6 @@ static void __init mxc_board_init(void)
 
 	mxc_cpu_common_init();
 	mxc_register_gpios();
-	early_console_setup(saved_command_line);
 	mxc_init_devices();
 
 	/*Pull down MX31_PIN_USB_BYP to reset USB3317 */

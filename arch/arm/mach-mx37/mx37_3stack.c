@@ -918,7 +918,6 @@ static void __init mxc_board_init(void)
 	mxc_cpu_common_init();
 	mxc_init_srpgconfig();
 	mxc_register_gpios();
-	early_console_setup(saved_command_line);
 	mxc_init_devices();
 	if (!board_is_rev(BOARD_REV_2))
 		mx37_3stack_fixup_for_board_v1();
@@ -941,7 +940,11 @@ static void __init mxc_board_init(void)
 
 static void __init mx37_3stack_timer_init(void)
 {
+	struct clk *uart_clk;
+
 	mx37_clocks_init(32768, 24000000, 22579200, 0);
+	uart_clk = clk_get(NULL, "uart_clk.0");
+	early_console_setup(UART1_BASE_ADDR, uart_clk);
 }
 
 static struct sys_timer mxc_timer = {

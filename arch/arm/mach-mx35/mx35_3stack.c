@@ -1145,7 +1145,6 @@ static void __init mxc_board_init(void)
 {
 	mxc_cpu_common_init();
 
-	early_console_setup(saved_command_line);
 	mxc_register_gpios();
 	mxc_init_devices();
 	if (!board_is_rev(BOARD_REV_2))
@@ -1287,7 +1286,11 @@ struct cpu_wp *get_cpu_wp(int *wp)
 
 static void __init mx35_3stack_timer_init(void)
 {
+	struct clk *uart_clk;
+
 	mx35_clocks_init();
+	uart_clk = clk_get(NULL, "uart_clk.0");
+	early_console_setup(UART1_BASE_ADDR, uart_clk);
 }
 
 static struct sys_timer mxc_timer = {

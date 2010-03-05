@@ -38,7 +38,7 @@ extern int mx51_clocks_init(unsigned long ckil, unsigned long osc, unsigned long
 extern int mxc_init_devices(void);
 extern void mxc_cpu_init(void) __init;
 extern void mxc_cpu_common_init(void);
-extern void __init early_console_setup(char *);
+extern void __init early_console_setup(unsigned long base, struct clk *clk);
 extern int mxc_register_gpios(void);
 extern int mxc_register_device(struct platform_device *pdev, void *data);
 extern void mxc_set_cpu_type(unsigned int type);

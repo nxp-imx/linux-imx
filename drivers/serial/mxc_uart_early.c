@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2009 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2004-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -51,12 +51,9 @@ struct mxc_early_uart_device {
 	struct uart_port port;
 	char options[16];	/* e.g., 115200n8 */
 	unsigned int baud;
+	struct clk *clk;
 };
-
-int __init mxc_uart_start_console(struct uart_port *, char *);
 static struct mxc_early_uart_device mxc_early_device __initdata;
-static int mxc_early_uart_registered __initdata;
-static struct clk *clk;
 
 /*
  * Write out a character once the UART is ready
@@ -66,8 +63,8 @@ static void __init mxcuart_console_write_char(struct uart_port *port, int ch)
 	unsigned int status;
 
 	do {
-		status = readl(port->membase + MXC_UARTUSR1);
-	} while ((status & MXC_UARTUSR1_TRDY) == 0);
+		status = readl(port->membase + MXC_UARTUSR2);
+	} while ((status & MXC_UARTUSR2_TXFE) == 0);
 	writel(ch, port->membase + MXC_UARTUTXD);
 }
 
@@ -124,25 +121,25 @@ static unsigned int __init probe_baud(struct uart_port *port)
 	return 115200;
 }
 
-static int __init parse_options(struct mxc_early_uart_device *device,
-				char *options)
+static int __init mxc_early_uart_setup(struct console *console, char *options)
 {
+	struct mxc_early_uart_device *device = &mxc_early_device;
 	struct uart_port *port = &device->port;
-	int mapsize = 64;
 	int length;
 
-	if (!options)
+	if (device->port.membase || device->port.iobase)
 		return -ENODEV;
+
+	/* Enable Early MXC UART Clock */
+	clk_enable(device->clk);
 
 	port->uartclk = 5600000;
 	port->iotype = UPIO_MEM;
-	port->mapbase = simple_strtoul(options, &options, 0);
-	port->membase = ioremap(port->mapbase, mapsize);
+	port->membase = ioremap(port->mapbase, SZ_4K);
 
-	if ((options = strchr(options, ','))) {
-		options++;
+	if (options) {
 		device->baud = simple_strtoul(options, NULL, 0);
-		length = min(strcspn(options, " "), sizeof(device->options));
+		length = min(strlen(options), sizeof(device->options));
 		strncpy(device->options, options, length);
 	} else {
 		device->baud = probe_baud(port);
@@ -155,99 +152,33 @@ static int __init parse_options(struct mxc_early_uart_device *device,
 	return 0;
 }
 
-static int __init mxc_early_uart_setup(struct console *console, char *options)
-{
-	struct mxc_early_uart_device *device = &mxc_early_device;
-	int err;
-	if (device->port.membase || device->port.iobase)
-		return 0;
-	if ((err = parse_options(device, options)) < 0)
-		return err;
-	return 0;
-}
-
 static struct console mxc_early_uart_console __initdata = {
-	.name = "mxcuart",
+	.name = "ttymxc",
 	.write = early_mxcuart_console_write,
 	.setup = mxc_early_uart_setup,
-	.flags = CON_PRINTBUFFER,
+	.flags = CON_PRINTBUFFER | CON_BOOT,
 	.index = -1,
 };
 
-static int __init mxc_early_uart_console_init(void)
+int __init mxc_early_serial_console_init(unsigned long base, struct clk *clk)
 {
+	mxc_early_device.clk = clk;
+	mxc_early_device.port.mapbase = base;
 
-	if (!mxc_early_uart_registered) {
-		register_console(&mxc_early_uart_console);
-		mxc_early_uart_registered = 1;
-	}
-
+	register_console(&mxc_early_uart_console);
 	return 0;
 }
 
-int __init mxc_early_serial_console_init(char *cmdline)
-{
-	char *options;
-	int err;
-	int uart_paddr;
-
-	options = strstr(cmdline, "console=mxcuart");
-	if (!options)
-		return -ENODEV;
-
-	/* Extracting MXC UART Uart Port Address from cmdline */
-	options = strchr(cmdline, ',') + 1;
-	uart_paddr = simple_strtoul(options, NULL, 16);
-
-#ifdef UART1_BASE_ADDR
-	if (uart_paddr == UART1_BASE_ADDR)
-		clk = clk_get(NULL, "uart_clk.0");
-#endif
-#ifdef UART2_BASE_ADDR
-	if (uart_paddr == UART2_BASE_ADDR)
-		clk = clk_get(NULL, "uart_clk.1");
-#endif
-#ifdef UART3_BASE_ADDR
-	if (uart_paddr == UART3_BASE_ADDR)
-		clk = clk_get(NULL, "uart_clk.2");
-#endif
-	if (clk == NULL)
-		return -1;
-
-	/* Enable Early MXC UART Clock */
-	clk_enable(clk);
-
-	options = strchr(cmdline, ',') + 1;
-	if ((err = mxc_early_uart_setup(NULL, options)) < 0)
-		return err;
-	return mxc_early_uart_console_init();
-}
-
-int __init mxc_early_uart_console_switch(void)
+int __init mxc_early_uart_console_disable(void)
 {
 	struct mxc_early_uart_device *device = &mxc_early_device;
 	struct uart_port *port = &device->port;
-	int mmio, line;
 
-	if (!(mxc_early_uart_console.flags & CON_ENABLED))
-		return 0;
-	/* Try to start the normal driver on a matching line.  */
-	mmio = (port->iotype == UPIO_MEM);
-	line = mxc_uart_start_console(port, device->options);
-
-	if (line < 0)
-		printk("No ttymxc device at %s 0x%lx for console\n",
-		       mmio ? "MMIO" : "I/O port",
-		       mmio ? port->mapbase : (unsigned long)port->iobase);
-
-	unregister_console(&mxc_early_uart_console);
-	if (mmio)
+	if (mxc_early_uart_console.index >= 0) {
 		iounmap(port->membase);
-
-	clk_disable(clk);
-	clk_put(clk);
-
+		clk_disable(device->clk);
+		clk_put(device->clk);
+	}
 	return 0;
 }
-
-late_initcall(mxc_early_uart_console_switch);
+late_initcall(mxc_early_uart_console_disable);

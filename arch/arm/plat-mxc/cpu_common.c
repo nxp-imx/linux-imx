@@ -18,7 +18,7 @@
 #include <mach/common.h>
 #include <mach/hardware.h>
 
-extern int mxc_early_serial_console_init(char *);
+extern int mxc_early_serial_console_init(unsigned long base, struct clk *clk);
 
 /*!
  * @file plat-mxc/cpu_common.c
@@ -90,9 +90,9 @@ void __init mxc_cpu_common_init(void)
  * This function is developed based on
  * early_console_setup function as defined in arch/ia64/kernel/setup.c
  */
-void __init early_console_setup(char *cmdline)
+void __init early_console_setup(unsigned long base, struct clk *clk)
 {
 #ifdef CONFIG_SERIAL_MXC_CONSOLE
-	mxc_early_serial_console_init(cmdline);
+	mxc_early_serial_console_init(base, clk);
 #endif
 }

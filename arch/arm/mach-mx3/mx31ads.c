@@ -1329,7 +1329,6 @@ static void __init mx31ads_init_irq(void)
 static void __init mxc_board_init(void)
 {
 	mxc_cpu_common_init();
-	early_console_setup(saved_command_line);
 	mxc_init_devices();
 	mxc_init_pmic_audio();
 	mxc_register_gpios();
@@ -1355,6 +1354,7 @@ static void __init mxc_board_init(void)
 
 static void __init mx31ads_timer_init(void)
 {
+	struct clk *uart_clk;
 	unsigned long ckih = 26000000;
 
 	if ((__raw_readw(PBC_BASE_ADDRESS + PBC_BSTAT) &
@@ -1363,6 +1363,8 @@ static void __init mx31ads_timer_init(void)
 	}
 
 	mx31_clocks_init(ckih);
+	uart_clk = clk_get(NULL, "uart_clk.0");
+	early_console_setup(UART1_BASE_ADDR, uart_clk);
 }
 
 static struct sys_timer mx31ads_timer = {

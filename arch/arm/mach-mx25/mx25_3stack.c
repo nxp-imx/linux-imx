@@ -631,7 +631,11 @@ static inline void mxc_init_mmc(void)
 
 static void __init mx25_3stack_timer_init(void)
 {
+	struct clk *uart_clk;
+
 	mx25_clocks_init(24000000);
+	uart_clk = clk_get(NULL, "uart_clk.0");
+	early_console_setup(UART1_BASE_ADDR, uart_clk);
 }
 
 static struct sys_timer mxc_timer = {
@@ -730,7 +734,6 @@ static void __init mxc_board_init(void)
 	mxc_cpu_common_init();
 	mxc_register_gpios();
 	mx25_3stack_gpio_init();
-	early_console_setup(saved_command_line);
 	mxc_init_keypad();
 #ifdef CONFIG_I2C
 	i2c_register_board_info(0, mxc_i2c_board_info,
