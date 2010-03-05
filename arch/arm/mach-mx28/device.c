@@ -1033,6 +1033,12 @@ static struct __initdata map_desc mx28_io_desc[] = {
 	 .length = MX28_SOC_IO_AREA_SIZE,
 	 .type = MT_DEVICE,
 	 },
+	 {
+	 .virtual = MX28_OCRAM_BASE,
+	 .pfn = __phys_to_pfn(MX28_OCRAM_PHBASE),
+	 .length = MX28_OCRAM_SIZE,
+	 .type	= MT_DEVICE,
+	 }
 };
 
 void __init mx28_map_io(void)
@@ -1084,3 +1090,4 @@ struct mxs_sys_timer mx28_timer = {
 	.clk_sel = BV_TIMROT_TIMCTRLn_SELECT__32KHZ_XTAL,
 	.base = IO_ADDRESS(TIMROT_PHYS_ADDR),
 };
+

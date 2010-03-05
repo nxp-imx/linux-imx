@@ -25,6 +25,16 @@
 #define MX28_SOC_IO_VIRT_BASE	0xF0000000
 #define MX28_SOC_IO_AREA_SIZE	SZ_1M
 
+/* Virtual address where OCRAM is mapped */
+#define MX28_OCRAM_PHBASE   0x00000000
+#ifdef __ASSEMBLER__
+#define MX28_OCRAM_BASE     0xf1000000
+#else
+#define MX28_OCRAM_BASE     (void __iomem *)0xf1000000
+#endif
+#define MX28_OCRAM_SIZE     (128 * SZ_1K)
+
+
 #define ICOLL_PHYS_ADDR		(MX28_SOC_IO_PHYS_BASE + 0x000000)
 #define HSADC_PHYS_ADDR		(MX28_SOC_IO_PHYS_BASE + 0x002000)
 #define APBH_DMA_PHYS_ADDR	(MX28_SOC_IO_PHYS_BASE + 0x004000)

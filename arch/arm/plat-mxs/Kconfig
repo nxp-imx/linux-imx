@@ -149,6 +149,10 @@ config MXS_AUART4_DMA_ENABLE
 	help
 	  Set application uart 4 to dma mode
 
+config MXS_RAM_FREQ_SCALING
+        bool "RAM frequency scaling support"
+        depends on ARCH_MXS
+        default y
 endmenu
 
 endif
