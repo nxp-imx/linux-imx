@@ -312,14 +312,14 @@ static struct mxs_touchscreen_plat_data mx23_ts_data = {
 	.x_minus_chan = LRADC_TOUCH_X_MINUS,
 	.y_plus_chan = LRADC_TOUCH_Y_PLUS,
 	.y_minus_chan = LRADC_TOUCH_Y_MINUS,
-	.x_plus_val = BM_LRADC_CTRL0_XPULSW,
-	.x_minus_val = BF_LRADC_CTRL0_XNURSW(2),
-	.y_plus_val = BF_LRADC_CTRL0_YPLLSW(1),
-	.y_minus_val = BM_LRADC_CTRL0_YNLRSW,
-	.x_plus_mask = BM_LRADC_CTRL0_XPULSW,
-	.x_minus_mask = BM_LRADC_CTRL0_XNURSW,
-	.y_plus_mask = BM_LRADC_CTRL0_YPLLSW,
-	.y_minus_mask = BM_LRADC_CTRL0_YNLRSW,
+	.x_plus_val = BM_LRADC_CTRL0_XPLUS_ENABLE,
+	.x_minus_val = BM_LRADC_CTRL0_XMINUS_ENABLE,
+	.y_plus_val = BM_LRADC_CTRL0_YPLUS_ENABLE,
+	.y_minus_val = BM_LRADC_CTRL0_YMINUS_ENABLE,
+	.x_plus_mask = BM_LRADC_CTRL0_XPLUS_ENABLE,
+	.x_minus_mask = BM_LRADC_CTRL0_XMINUS_ENABLE,
+	.y_plus_mask = BM_LRADC_CTRL0_YPLUS_ENABLE,
+	.y_minus_mask = BM_LRADC_CTRL0_YMINUS_ENABLE,
 };
 
 static struct resource mx23_ts_res[] = {
@@ -330,8 +330,8 @@ static struct resource mx23_ts_res[] = {
 	 },
 	{
 	 .flags = IORESOURCE_IRQ,
-	 .start = IRQ_LRADC_TOUCH,
-	 .end   = IRQ_LRADC_TOUCH,
+	 .start = IRQ_TOUCH_DETECT,
+	 .end   = IRQ_TOUCH_DETECT,
 	 },
 	{
 	 .flags = IORESOURCE_IRQ,
@@ -366,6 +366,7 @@ int __init mx23_device_init(void)
 	mx23_init_lradc();
 	mx23_init_kbd();
 	mx23_init_wdt();
+	mx23_init_ts();
 	mx23_init_rtc();
 
 	return 0;
