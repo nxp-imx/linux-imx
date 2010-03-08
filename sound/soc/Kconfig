@@ -37,6 +37,7 @@ source "sound/soc/sh/Kconfig"
 source "sound/soc/txx9/Kconfig"
 source "sound/soc/imx/Kconfig"
 source "sound/soc/stmp3xxx/Kconfig"
+source "sound/soc/mxs/Kconfig"
 
 # Supported codecs
 source "sound/soc/codecs/Kconfig"

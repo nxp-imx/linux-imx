@@ -208,6 +208,7 @@ static void hw_i2c_dma_setup_write(u8 addr, void *buff, int len, int flags)
 	desc[2]->cmd.cmd.bits.command = DMA_READ;
 	desc[2]->cmd.address = i2c_buf_phys;
 	desc[2]->cmd.pio_words[0] = CMD_I2C_WRITE;
+	desc[2]->cmd.pio_words[0] |= BM_I2C_CTRL0_POST_SEND_STOP;
 	desc[2]->cmd.pio_words[0] |= BF_I2C_CTRL0_XFER_COUNT(len + 1) | flags;
 
 	i2c_buf_virt[0] = addr | I2C_WRITE;

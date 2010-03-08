@@ -1,7 +1,7 @@
 /*
  * sgtl5000.c  --  SGTL5000 ALSA SoC Audio driver
  *
- * Copyright 2008-2009 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2008-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -14,6 +14,7 @@
 #include <linux/delay.h>
 #include <linux/pm.h>
 #include <linux/i2c.h>
+#include <linux/clk.h>
 #include <linux/platform_device.h>
 #include <linux/regulator/consumer.h>
 #include <sound/core.h>
@@ -655,11 +656,12 @@ static int sgtl5000_pcm_hw_params(struct snd_pcm_substream *substream,
 	else
 #endif
 	{
+		/*
 		if (!sgtl5000->master) {
 			pr_err("%s: PLL not supported in slave mode\n",
 			       __func__);
 			return -EINVAL;
-		}
+		}*/
 		clk_ctl |= SGTL5000_MCLK_FREQ_PLL << SGTL5000_MCLK_FREQ_SHIFT;
 	}
 
@@ -1050,9 +1052,11 @@ static int sgtl5000_probe(struct platform_device *pdev)
 	    SGTL5000_DAC_MUTE_RIGHT | SGTL5000_DAC_MUTE_LEFT;
 	sgtl5000_write(codec, SGTL5000_CHIP_ADCDAC_CTRL, reg);
 
+#ifdef CONFIG_ARCH_MXC
 	if (cpu_is_mx25())
 		sgtl5000_write(codec, SGTL5000_CHIP_PAD_STRENGTH, 0x01df);
 	else
+#endif
 		sgtl5000_write(codec, SGTL5000_CHIP_PAD_STRENGTH, 0x015f);
 
 	reg = sgtl5000_read(codec, SGTL5000_CHIP_ANA_ADC_CTRL);
@@ -1119,6 +1123,9 @@ static __devinit int sgtl5000_i2c_probe(struct i2c_client *client,
 	struct regulator *reg;
 	int ret = 0;
 	u32 val;
+
+	if (client->dev.platform_data)
+		clk_enable((struct clk *)client->dev.platform_data);
 
 	if (sgtl5000_codec) {
 		dev_err(&client->dev,
@@ -1241,6 +1248,9 @@ static __devexit int sgtl5000_i2c_remove(struct i2c_client *client)
 {
 	struct snd_soc_codec *codec = i2c_get_clientdata(client);
 	struct sgtl5000_priv *sgtl5000 = codec->private_data;
+
+	if (client->dev.platform_data)
+		clk_disable((struct clk *)client->dev.platform_data);
 
 	snd_soc_unregister_dai(&sgtl5000_dai);
 	snd_soc_unregister_codec(codec);

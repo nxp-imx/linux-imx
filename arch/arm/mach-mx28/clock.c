@@ -28,7 +28,14 @@
 
 #include "regs-clkctrl.h"
 #include "regs-digctl.h"
-
+#define HW_SAIF_CTRL    (0x00000000)
+#define HW_SAIF_STAT    (0x00000010)
+#define SAIF0_CTRL (IO_ADDRESS(SAIF0_PHYS_ADDR) + HW_SAIF_CTRL)
+#define SAIF0_STAT (IO_ADDRESS(SAIF0_PHYS_ADDR) + HW_SAIF_STAT)
+#define SAIF1_CTRL (IO_ADDRESS(SAIF1_PHYS_ADDR) + HW_SAIF_CTRL)
+#define SAIF1_STAT (IO_ADDRESS(SAIF1_PHYS_ADDR) + HW_SAIF_STAT)
+#define BM_SAIF_CTRL_RUN        0x00000001
+#define BM_SAIF_STAT_BUSY       0x00000001
 #define CLKCTRL_BASE_ADDR IO_ADDRESS(CLKCTRL_PHYS_ADDR)
 #define DIGCTRL_BASE_ADDR IO_ADDRESS(DIGCTL_PHYS_ADDR)
 
@@ -873,7 +880,7 @@ static int ssp_set_rate(struct clk *clk, unsigned long rate)
 
 out:
 	if (ret != 0)
-		printk(KERN_ERR "%s: error %d\n", __func__, ret);
+		pr_err("%s: error %d\n", __func__, ret);
 	return ret;
 }
 
@@ -1217,6 +1224,9 @@ static struct clk gpmi_clk = {
 };
 
 static unsigned long saif_get_rate(struct clk *clk);
+static unsigned long saif_set_rate(struct clk *clk, unsigned int rate);
+static unsigned long saif_set_parent(struct clk *clk, struct clk *parent);
+
 static struct clk saif_clk[] = {
 	{
 	 .parent = &pll_clk[0],
@@ -1225,6 +1235,14 @@ static struct clk saif_clk[] = {
 	 .disable = mx28_raw_disable,
 	 .enable_reg = CLKCTRL_BASE_ADDR + HW_CLKCTRL_SAIF0,
 	 .enable_bits = BM_CLKCTRL_SAIF0_CLKGATE,
+	 .scale_reg = CLKCTRL_BASE_ADDR + HW_CLKCTRL_SAIF0,
+	 .scale_bits = 0,
+	 .busy_reg = CLKCTRL_BASE_ADDR + HW_CLKCTRL_SAIF0,
+	 .busy_bits = 29,
+	 .bypass_reg = CLKCTRL_BASE_ADDR + HW_CLKCTRL_CLKSEQ,
+	 .bypass_bits = 0,
+	 .set_rate = saif_set_rate,
+	 .set_parent = saif_set_parent,
 	 },
 	{
 	 .parent = &pll_clk[0],
@@ -1233,6 +1251,14 @@ static struct clk saif_clk[] = {
 	 .disable = mx28_raw_disable,
 	 .enable_reg = CLKCTRL_BASE_ADDR + HW_CLKCTRL_SAIF1,
 	 .enable_bits = BM_CLKCTRL_SAIF1_CLKGATE,
+	 .scale_reg = CLKCTRL_BASE_ADDR + HW_CLKCTRL_SAIF1,
+	 .scale_bits = 0,
+	 .busy_reg = CLKCTRL_BASE_ADDR + HW_CLKCTRL_SAIF1,
+	 .busy_bits = 29,
+	 .bypass_reg = CLKCTRL_BASE_ADDR + HW_CLKCTRL_CLKSEQ,
+	 .bypass_bits = 1,
+	 .set_rate = saif_set_rate,
+	 .set_parent = saif_set_parent,
 	 },
 };
 
@@ -1252,6 +1278,109 @@ static unsigned long saif_get_rate(struct clk *clk)
 		return clk->parent->get_rate(clk->parent) / div;
 	return (clk->parent->get_rate(clk->parent) / 0x10000) * div;
 }
+
+static unsigned long saif_set_rate(struct clk *clk, unsigned int rate)
+{
+	u16 div = 0;
+	u32 clkctrl_saif;
+	u64 rates;
+	struct clk *parent = clk->parent;
+
+	pr_debug("%s: rate %d, parent rate %d\n", __func__, rate,
+			clk_get_rate(parent));
+
+	if (rate > clk_get_rate(parent))
+		return -EINVAL;
+	/*saif clock always use frac div*/
+	rates = 65536 * (u64)rate;
+	rates = rates + (u64)(clk_get_rate(parent) / 2);
+	do_div(rates, clk_get_rate(parent));
+	div = rates;
+
+	pr_debug("%s: div calculated is %d\n", __func__, div);
+	if (!div)
+		return -EINVAL;
+
+	clkctrl_saif = __raw_readl(clk->scale_reg);
+	clkctrl_saif &= ~BM_CLKCTRL_SAIF0_DIV_FRAC_EN;
+	clkctrl_saif &= ~BM_CLKCTRL_SAIF0_DIV;
+	clkctrl_saif |= div;
+	clkctrl_saif |= BM_CLKCTRL_SAIF0_DIV_FRAC_EN;
+	clkctrl_saif &= ~BM_CLKCTRL_SAIF0_CLKGATE;
+	__raw_writel(clkctrl_saif, clk->scale_reg);
+	if (clk->busy_reg) {
+		int i;
+		for (i = 10000; i; i--)
+			if (!clk_is_busy(clk))
+				break;
+		if (!i) {
+			pr_err("couldn't set up SAIF clk divisor\n");
+			return -ETIMEDOUT;
+		}
+	}
+	return 0;
+}
+
+static unsigned long saif_set_parent(struct clk *clk, struct clk *parent)
+{
+	int ret = -EINVAL;
+	int shift = 4;
+	/*bypass*/
+	if (parent == &pll_clk[0])
+		shift = 8;
+	if (clk->bypass_reg) {
+		__raw_writel(1 << clk->bypass_bits, clk->bypass_reg + shift);
+		ret = 0;
+	}
+	return ret;
+}
+
+static int saif_mclk_enable(struct clk *clk)
+{
+	/*Check if enabled already*/
+	if (__raw_readl(clk->busy_reg) & clk->busy_bits)
+		return 0;
+	 /*Enable saif to enable mclk*/
+	__raw_writel(0x1, clk->enable_reg);
+	mdelay(1);
+	__raw_writel(0x1, clk->enable_reg);
+	mdelay(1);
+	return 0;
+}
+
+static int saif_mclk_disable(struct clk *clk)
+{
+	/*Check if disabled already*/
+	if (!(__raw_readl(clk->busy_reg) & clk->busy_bits))
+		return 0;
+	 /*Disable saif to disable mclk*/
+	__raw_writel(0x0, clk->enable_reg);
+	mdelay(1);
+	__raw_writel(0x0, clk->enable_reg);
+	mdelay(1);
+	return 0;
+}
+
+static struct clk saif_mclk[] = {
+	{
+	 .parent = &saif_clk[0],
+	 .enable = saif_mclk_enable,
+	 .disable = saif_mclk_disable,
+	 .enable_reg = SAIF0_CTRL,
+	 .enable_bits = BM_SAIF_CTRL_RUN,
+	 .busy_reg = SAIF0_STAT,
+	 .busy_bits = BM_SAIF_STAT_BUSY,
+	 },
+	{
+	 .parent = &saif_clk[1],
+	 .enable = saif_mclk_enable,
+	 .disable = saif_mclk_disable,
+	 .enable_reg = SAIF1_CTRL,
+	 .enable_bits = BM_SAIF_CTRL_RUN,
+	 .busy_reg = SAIF1_STAT,
+	 .busy_bits = BM_SAIF_STAT_BUSY,
+	 },
+};
 
 static unsigned long pcmspdif_get_rate(struct clk *clk)
 {
@@ -1456,6 +1585,14 @@ static struct clk_lookup onchip_clocks[] = {
 	.con_id = "fec_clk",
 	.clk = &enet_out_clk,
 	},
+	{
+	.con_id = "saif_mclk.0",
+	.clk = &saif_mclk[0],
+	},
+	{
+	.con_id = "saif_mclk.1",
+	.clk = &saif_mclk[1],
+	}
 };
 
 static void mx28_clock_scan(void)

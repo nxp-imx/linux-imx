@@ -144,6 +144,24 @@ struct flexcan_platform_data {
 	unsigned int std_msg:1;
 };
 
+struct mxs_audio_platform_data {
+	int saif0_select;
+	int saif1_select;
+	int intr_id_hp;
+	int ext_ram;
+	struct clk *saif_clock;
+
+	int hp_irq;
+	int (*hp_status) (void);
+
+	int sysclk;
+
+	int (*init) (void);	/* board specific init */
+	int (*amp_enable) (int enable);
+	int (*finit) (void);	/* board specific finit */
+	void *priv;		/* used by board specific functions */
+};
+
 extern void mxs_timer_init(struct mxs_sys_timer *timer);
 extern void mxs_nomatch_timer_init(struct mxs_sys_timer *timer);
 

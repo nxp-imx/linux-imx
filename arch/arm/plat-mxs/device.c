@@ -373,6 +373,19 @@ static struct platform_device mxs_battery = {
 };
 #endif
 
+#if defined(CONFIG_SND_SOC_SGTL5000) || \
+	defined(CONFIG_SND_SOC_SGTL5000_MODULE)
+static struct platform_device mxs_sgtl5000[] = {
+	{
+	.name = "mxs-sgtl5000",
+	.id = 0,
+	.dev =	{
+		.release = mxs_nop_release,
+		},
+	},
+};
+#endif
+
 static struct mxs_dev_lookup dev_lookup[] = {
 #if defined(CONFIG_SERIAL_MXS_DUART) || \
 	defined(CONFIG_SERIAL_MXS_DUART_MODULE)
@@ -521,6 +534,14 @@ static struct mxs_dev_lookup dev_lookup[] = {
 	},
 #endif
 
+#if defined(CONFIG_SND_SOC_SGTL5000) || \
+	defined(CONFIG_SND_SOC_SGTL5000_MODULE)
+	{
+	.name = "mxs-sgtl5000",
+	.size = ARRAY_SIZE(mxs_sgtl5000),
+	.pdev = mxs_sgtl5000,
+	},
+#endif
 };
 
 struct platform_device *mxs_get_device(char *name, int id)

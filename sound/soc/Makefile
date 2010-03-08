@@ -15,3 +15,4 @@ obj-$(CONFIG_SND_SOC)	+= sh/
 obj-$(CONFIG_SND_SOC)	+= txx9/
 obj-$(CONFIG_SND_SOC)	+= imx/
 obj-$(CONFIG_SND_SOC)	+= stmp3xxx/
+obj-$(CONFIG_SND_SOC)	+= mxs/

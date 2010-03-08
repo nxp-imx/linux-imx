@@ -748,6 +748,49 @@ static struct pin_desc mx28evk_fixed_pins[] = {
 	 .pull          = 1,
 	 },
 #endif
+#if defined(CONFIG_SND_MXS_SOC_DAI) || defined(CONFIG_SND_MXS_SOC_DAI_MODULE)
+	/* Configurations of SAIF0 port pins */
+	{
+	 .name	= "SAIF0_MCLK",
+	 .id	= PINID_SAIF0_MCLK,
+	 .fun	= PIN_FUN1,
+	 .strength	= PAD_12MA,
+	 .voltage	= PAD_3_3V,
+	 .pullup	= 1,
+	 .drive 	= 1,
+	 .pull 		= 1,
+	 },
+	{
+	 .name	= "SAIF0_LRCLK",
+	 .id	= PINID_SAIF0_LRCLK,
+	 .fun	= PIN_FUN1,
+	 .strength	= PAD_12MA,
+	 .voltage	= PAD_3_3V,
+	 .pullup	= 1,
+	 .drive 	= 1,
+	 .pull 		= 1,
+	 },
+	{
+	 .name	= "SAIF0_BITCLK",
+	 .id	= PINID_SAIF0_BITCLK,
+	 .fun	= PIN_FUN1,
+	 .strength	= PAD_12MA,
+	 .voltage	= PAD_3_3V,
+	 .pullup	= 1,
+	 .drive 	= 1,
+	 .pull 		= 1,
+	 },
+	{
+	 .name	= "SAIF0_SDATA0",
+	 .id	= PINID_SAIF0_SDATA0,
+	 .fun	= PIN_FUN1,
+	 .strength	= PAD_12MA,
+	 .voltage	= PAD_3_3V,
+	 .pullup	= 1,
+	 .drive 	= 1,
+	 .pull 		= 1,
+	 },
+#endif
 };
 
 #if defined(CONFIG_FEC) || defined(CONFIG_FEC_MODULE)

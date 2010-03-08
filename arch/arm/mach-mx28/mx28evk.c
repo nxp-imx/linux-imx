@@ -22,6 +22,7 @@
 #include <linux/err.h>
 #include <linux/clk.h>
 #include <linux/platform_device.h>
+#include <linux/i2c.h>
 
 #include <asm/setup.h>
 #include <asm/mach-types.h>
@@ -33,6 +34,16 @@
 
 #include "device.h"
 #include "mx28evk.h"
+
+static struct i2c_board_info __initdata mxs_i2c_device[] = {
+	{ I2C_BOARD_INFO("sgtl5000-i2c", 0x14), .flags = I2C_M_TEN }
+};
+
+static void i2c_device_init(void)
+{
+	mxs_i2c_device[0].platform_data = (void *)clk_get(NULL, "saif_mclk.0");
+	i2c_register_board_info(0, mxs_i2c_device, ARRAY_SIZE(mxs_i2c_device));
+}
 
 static void __init fixup_board(struct machine_desc *desc, struct tag *tags,
 			       char **cmdline, struct meminfo *mi)
@@ -86,6 +97,7 @@ static void __init mx28evk_init_leds(void)
 static void __init mx28evk_device_init(void)
 {
 	/* Add mx28evk special code */
+	i2c_device_init();
 	mx28evk_init_leds();
 }
 

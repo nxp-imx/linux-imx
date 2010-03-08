@@ -40,6 +40,7 @@
 #include <mach/lcdif.h>
 #include <mach/ddi_bc.h>
 
+#include "regs-digctl.h"
 #include "device.h"
 #include "mx28_pins.h"
 
@@ -1004,6 +1005,81 @@ static void __init mx28_init_dcp(void)
 }
 #endif
 
+#if defined(CONFIG_SND_MXS_SOC_DAI) || defined(CONFIG_SND_MXS_SOC_DAI_MODULE)
+static int audio_clk_init(void)
+{
+	struct clk *saif_clk;
+	struct clk *pll_clk;
+	int ret = -EINVAL;
+	saif_clk = clk_get(NULL, "saif.0");
+	if (IS_ERR(saif_clk)) {
+		pr_err("%s:failed to get saif_clk\n", __func__);
+		goto err_clk_init;
+	}
+	pll_clk = clk_get(NULL, "pll.0");
+	if (IS_ERR(pll_clk)) {
+		pr_err("%s:failed to get pll_clk\n", __func__);
+		goto err_clk_init;
+	}
+	ret = clk_set_parent(saif_clk, pll_clk);
+	if (ret) {
+		pr_err("%s:failed to set parent clk\n", __func__);
+		goto err_clk_init;
+	}
+	ret = 0;
+	/*set a default freq 12M to sgtl5000*/
+	clk_set_rate(saif_clk, 12000000);
+	clk_enable(saif_clk);
+	/*set the saif clk mux*/
+	__raw_writel(BF_DIGCTL_CTRL_SAIF_CLKMUX_SEL(0x0), \
+			IO_ADDRESS(DIGCTL_PHYS_ADDR) + HW_DIGCTL_CTRL);
+err_clk_init:
+	return ret;
+}
+
+static int audio_clk_finit(void)
+{
+	struct clk *saif_clk;
+	int ret = 0;
+	saif_clk = clk_get(NULL, "saif.0");
+	if (IS_ERR(saif_clk)) {
+		pr_err("%s:failed to get saif_clk\n", __func__);
+		ret = -EINVAL;
+		goto err_clk_finit;
+	}
+	clk_disable(saif_clk);
+err_clk_finit:
+	return ret;
+}
+
+static struct mxs_audio_platform_data audio_plat_data = {
+#if defined(CONFIG_SND_MXS_SOC_SAIF0_SELECT)
+	.saif0_select = 1,
+#endif
+#if defined(CONFIG_SND_MXS_SOC_SAIF1_SELECT)
+	.saif1_select = 1,
+#endif
+	.init = audio_clk_init,
+	.finit = audio_clk_finit,
+};
+#endif
+
+#if defined(CONFIG_SND_SOC_SGTL5000) || defined(CONFIG_SND_SOC_SGTL5000_MODULE)
+void __init mx28_init_audio(void)
+{	struct platform_device *pdev;
+	pdev = mxs_get_device("mxs-sgtl5000", 0);
+	if (pdev == NULL || IS_ERR(pdev))
+		return;
+	mxs_add_device(pdev, 3);
+	pdev->dev.platform_data = &audio_plat_data;
+}
+#else
+void __init mx28_init_audio(void)
+{
+}
+#endif
+
+
 int __init mx28_device_init(void)
 {
 	mx28_init_dma();
@@ -1018,6 +1094,7 @@ int __init mx28_device_init(void)
 	mx28_init_flexcan();
 	mx28_init_kbd();
 	mx28_init_ts();
+	mx28_init_audio();
 	mx28_init_lcdif();
 	mx28_init_pxp();
 	mx28_init_dcp();
