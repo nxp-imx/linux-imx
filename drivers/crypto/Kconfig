@@ -209,25 +209,13 @@ config CRYPTO_DEV_PPC4XX
 	help
 	  This option allows you to have support for AMCC crypto acceleration.
 
-config CRYPTO_DEV_STMP3XXX_DCP
-	tristate "Support for the STMP3xxx DCP engine"
-	depends on ARCH_STMP3XXX
-	select CRYPTO_ALGAPI
-	select CRYPTO_BLKCIPHER
-	help
-	  Say 'Y' here to use the STMP3XXX DCP AES and SHA1
-	  engine for the CryptoAPI algorithms.
-
-	  To compile this driver as a module, choose M here: the module
-	  will be called geode-aes.
-
 config CRYPTO_DEV_DCP
 	tristate "Support for the DCP engine"
-	depends on ARCH_MX28
+	depends on ARCH_MX28 || ARCH_MX23
 	select CRYPTO_ALGAPI
 	select CRYPTO_BLKCIPHER
 	help
-	  Say 'Y' here to use the MX28 DCP AES, SHA1, and SHA256
+	  Say 'Y' here to use the MX28 DCP AES and SHA
 	  engine for the CryptoAPI algorithms.
 
 	  To compile this driver as a module, choose M here: the module

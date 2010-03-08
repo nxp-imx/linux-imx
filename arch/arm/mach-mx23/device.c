@@ -358,6 +358,44 @@ static void __init mx23_init_ts(void)
 	;
 }
 #endif
+
+#if defined(CONFIG_CRYPTO_DEV_DCP)
+
+static struct resource dcp_resources[] = {
+
+	{
+		.flags = IORESOURCE_MEM,
+		.start = DCP_PHYS_ADDR,
+		.end   = DCP_PHYS_ADDR + 0x2000 - 1,
+	}, {
+		.flags = IORESOURCE_IRQ,
+		.start = IRQ_DCP_VMI,
+		.end = IRQ_DCP_VMI,
+	}, {
+		.flags = IORESOURCE_IRQ,
+		.start = IRQ_DCP,
+		.end = IRQ_DCP,
+	},
+};
+
+static void __init mx23_init_dcp(void)
+{
+	struct platform_device *pdev;
+
+	pdev = mxs_get_device("dcp", 0);
+	if (pdev == NULL || IS_ERR(pdev))
+		return;
+	pdev->resource = dcp_resources;
+	pdev->num_resources = ARRAY_SIZE(dcp_resources);
+	mxs_add_device(pdev, 3);
+}
+#else
+static void __init mx23_init_dcp(void)
+{
+	;
+}
+#endif
+
 int __init mx23_device_init(void)
 {
 	mx23_init_dma();
@@ -368,6 +406,7 @@ int __init mx23_device_init(void)
 	mx23_init_wdt();
 	mx23_init_ts();
 	mx23_init_rtc();
+	mx23_init_dcp();
 
 	return 0;
 }

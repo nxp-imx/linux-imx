@@ -34,7 +34,7 @@
 #include <linux/delay.h>
 
 #include <asm/cacheflush.h>
-
+#include <mach/hardware.h>
 #include "dcp.h"
 
 struct dcp {
@@ -1282,7 +1282,7 @@ static int dcp_probe(struct platform_device *pdev)
 		ret = -ENXIO;
 		goto err_kfree;
 	}
-	sdcp->dcp_regs_base = IO_ADDRESS(r->start);
+	sdcp->dcp_regs_base = (u32) IO_ADDRESS(r->start);
 
 	/* Soft reset and remove the clock gate */
 	__raw_writel(BM_DCP_CTRL_SFTRST, sdcp->dcp_regs_base + HW_DCP_CTRL_SET);
