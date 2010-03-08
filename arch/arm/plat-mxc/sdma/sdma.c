@@ -28,6 +28,7 @@
 #include <linux/semaphore.h>
 #include <linux/spinlock.h>
 #include <linux/device.h>
+#include <linux/platform_device.h>
 #include <linux/dma-mapping.h>
 #include <linux/proc_fs.h>
 
@@ -1379,12 +1380,11 @@ static int __init init_super_gem(void)
 }
 #endif
 
-/*!
- * Initializes dma
- */
-int __init sdma_init(void)
+int sdma_probe(struct platform_device *pdev)
 {
 	int res = 0;
+	int irq;
+	struct resource *rsrc;
 	configs_data confreg_data;
 
 	/* Initialize to the default values */
@@ -1405,13 +1405,23 @@ int __init sdma_init(void)
 
 	init_sdma_pool();
 
-	res = request_irq(MXC_INT_SDMA, sdma_int_handler, 0, "mxcsdma", 0);
+	irq = platform_get_irq(pdev, 0);
+	if (irq <= 0) {
+		res = -ENODEV;
+		goto sdma_init_fail;
+	}
+	res = request_irq(MXC_INT_SDMA, sdma_int_handler, 0, dev_name(&pdev->dev), 0);
 
 	if (res < 0) {
 		goto sdma_init_fail;
 	}
 
-	sdma_base = ioremap(SDMA_BASE_ADDR, SZ_4K);
+	rsrc = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+	if (rsrc < 0) {
+		res = -ENODEV;
+		goto sdma_init_fail;
+	}
+	sdma_base = ioremap(rsrc->start, SZ_4K);
 	if (sdma_base == NULL)
 		goto sdma_init_fail;
 
@@ -1435,14 +1445,6 @@ int __init sdma_init(void)
 
 	init_event_table();
 
-#if defined(CONFIG_MXC_SUPER_GEM)
-	res = init_super_gem();
-	if (res < 0) {
-		free_irq(MXC_INT_SDMA, 0);
-		goto sdma_init_fail;
-	}
-#endif
-
 	init_proc_fs();
 
 	printk(KERN_INFO "MXC DMA API initialized\n");
@@ -1456,9 +1458,22 @@ int __init sdma_init(void)
 	clk_disable(mxc_sdma_ahb_clk);
 	clk_disable(mxc_sdma_ipg_clk);
 	return res;
-
 }
 
+static struct platform_driver sdma_driver = {
+	.driver = {
+		.name = "mxc_sdma",
+	},
+	.probe = sdma_probe,
+};
+
+/*!
+ * Initializes dma
+ */
+int __init sdma_init(void)
+{
+	return platform_driver_register(&sdma_driver);
+}
 arch_initcall(sdma_init);
 
 EXPORT_SYMBOL(mxc_request_dma);

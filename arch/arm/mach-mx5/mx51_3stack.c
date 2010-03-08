@@ -884,6 +884,7 @@ static void __init mxc_board_init(void)
 	mxc_register_gpios();
 	mx51_3stack_io_init();
 
+	mxc_register_device(&mxc_dma_device, NULL);
 	mxc_register_device(&mxc_wdt_device, NULL);
 	mxc_register_device(&mxcspi1_device, &mxcspi1_data);
 	mxc_register_device(&mxci2c_devices[0], &mxci2c_data);

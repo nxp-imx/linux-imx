@@ -95,6 +95,28 @@ void mxc_sdma_get_script_info(sdma_script_start_addrs * sdma_script_addr)
 	sdma_script_addr->mxc_sdma_ram_code_size = RAM_CODE_SIZE;
 }
 
+static struct resource sdma_resources[] = {
+	{
+		.start = SDMA_BASE_ADDR,
+		.end = SDMA_BASE_ADDR + SZ_4K - 1,
+		.flags = IORESOURCE_MEM,
+	},
+	{
+		.start = MXC_INT_SDMA,
+		.flags = IORESOURCE_IRQ,
+	},
+};
+
+struct platform_device mxc_dma_device = {
+	.name = "mxc_sdma",
+	.id = -1,
+	.dev = {
+		.coherent_dma_mask = DMA_BIT_MASK(32),
+		},
+	.num_resources = ARRAY_SIZE(sdma_resources),
+	.resource = sdma_resources,
+};
+
 static struct resource mxc_w1_master_resources[] = {
 	{
 		.start = OWIRE_BASE_ADDR,

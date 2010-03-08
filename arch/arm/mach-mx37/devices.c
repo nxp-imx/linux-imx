@@ -15,6 +15,7 @@
 #include <linux/kernel.h>
 #include <linux/init.h>
 #include <linux/io.h>
+#include <linux/dma-mapping.h>
 #include <linux/platform_device.h>
 #include <linux/clk.h>
 #include <linux/mxc_scc2_driver.h>
@@ -69,6 +70,32 @@ void mxc_sdma_get_script_info(sdma_script_start_addrs * sdma_script_addr)
 	sdma_script_addr->mxc_sdma_uart_2_per_addr = -1;
 	sdma_script_addr->mxc_sdma_app_2_per_addr = -1;
 	sdma_script_addr->mxc_sdma_mcu_2_spdif_addr = mcu_2_spdif_marley_ADDR;
+}
+
+static struct resource sdma_resources[] = {
+	{
+		.start = SDMA_BASE_ADDR,
+		.end = SDMA_BASE_ADDR + SZ_4K - 1,
+		.flags = IORESOURCE_MEM,
+	},
+	{
+		.start = MXC_INT_SDMA,
+		.flags = IORESOURCE_IRQ,
+	},
+};
+
+static struct platform_device mxc_dma_device = {
+	.name = "mxc_sdma",
+	.dev = {
+		.coherent_dma_mask = DMA_BIT_MASK(32),
+		},
+	.num_resources = ARRAY_SIZE(sdma_resources),
+	.resource = sdma_resources,
+};
+
+static inline void mxc_init_dma(void)
+{
+	(void)platform_device_register(&mxc_dma_device);
 }
 
 static void mxc_nop_release(struct device *dev)
@@ -845,19 +872,6 @@ static inline void mxc_init_vpu(void)
 {
 }
 #endif
-
-static struct platform_device mxc_dma_device = {
-	.name = "mxc_dma",
-	.id = 0,
-	.dev = {
-		.release = mxc_nop_release,
-		},
-};
-
-static inline void mxc_init_dma(void)
-{
-	(void)platform_device_register(&mxc_dma_device);
-}
 
 static struct resource spdif_resources[] = {
 	{

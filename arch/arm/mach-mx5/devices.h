@@ -17,6 +17,7 @@
  * MA 02110-1301, USA.
  */
 
+extern struct platform_device mxc_dma_device;
 extern struct platform_device mxc_w1_master_device;
 extern struct platform_device mxc_keypad_device;
 extern struct platform_device mxc_rtc_device;

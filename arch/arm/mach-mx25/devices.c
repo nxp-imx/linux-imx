@@ -14,6 +14,7 @@
 #include <linux/kernel.h>
 #include <linux/init.h>
 #include <linux/io.h>
+#include <linux/dma-mapping.h>
 #include <linux/platform_device.h>
 #include <linux/clk.h>
 #include <linux/spi/spi.h>
@@ -74,6 +75,32 @@ void mxc_sdma_get_script_info(sdma_script_start_addrs * sdma_script_addr)
 	sdma_script_addr->mxc_sdma_start_addr = (unsigned short *)sdma_code;
 	sdma_script_addr->mxc_sdma_ram_code_size = RAM_CODE_SIZE;
 	sdma_script_addr->mxc_sdma_ram_code_start_addr = RAM_CODE_START_ADDR;
+}
+
+static struct resource sdma_resources[] = {
+	{
+		.start = SDMA_BASE_ADDR,
+		.end = SDMA_BASE_ADDR + SZ_4K - 1,
+		.flags = IORESOURCE_MEM,
+	},
+	{
+		.start = MXC_INT_SDMA,
+		.flags = IORESOURCE_IRQ,
+	},
+};
+
+static struct platform_device mxc_dma_device = {
+	.name = "mxc_sdma",
+	.dev = {
+		.coherent_dma_mask = DMA_BIT_MASK(32),
+		},
+	.num_resources = ARRAY_SIZE(sdma_resources),
+	.resource = sdma_resources,
+};
+
+static inline void mxc_init_dma(void)
+{
+	(void)platform_device_register(&mxc_dma_device);
 }
 
 static void mxc_nop_release(struct device *dev)
@@ -433,19 +460,6 @@ struct mxc_gpio_port mxc_gpio_ports[] = {
 int __init mxc_register_gpios(void)
 {
 	return mxc_gpio_init(mxc_gpio_ports, ARRAY_SIZE(mxc_gpio_ports));
-}
-
-static struct platform_device mxc_dma_device = {
-	.name = "mxc_dma",
-	.id = 0,
-	.dev = {
-		.release = mxc_nop_release,
-		},
-};
-
-static inline void mxc_init_dma(void)
-{
-	(void)platform_device_register(&mxc_dma_device);
 }
 
 /* imx adc driver */
