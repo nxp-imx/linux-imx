@@ -30,7 +30,10 @@
 #include <mach/device.h>
 #include <mach/dmaengine.h>
 
-#include "regs-apbh.h"
+#include <mach/regs-apbh.h>
+#ifndef BM_APBH_CTRL0_APB_BURST_EN
+#define BM_APBH_CTRL0_APB_BURST_EN BM_APBH_CTRL0_APB_BURST4_EN
+#endif
 
 static int mxs_dma_apbh_enable(struct mxs_dma_chan *pchan, unsigned int chan)
 {
@@ -74,24 +77,47 @@ static int mxs_dma_apbh_enable(struct mxs_dma_chan *pchan, unsigned int chan)
 static void mxs_dma_apbh_disable(struct mxs_dma_chan *pchan, unsigned int chan)
 {
 	struct mxs_dma_device *pdev = pchan->dma;
-	__raw_writel(1 << chan, pdev->base + HW_APBH_CTRL0_SET);
+	__raw_writel(1 << (chan + BP_APBH_CTRL0_CLKGATE_CHANNEL),
+		pdev->base + HW_APBH_CTRL0_SET);
 }
 
 static void mxs_dma_apbh_reset(struct mxs_dma_device *pdev, unsigned int chan)
 {
+#ifdef CONFIG_ARCH_MX28
 	__raw_writel(1 << (chan + BP_APBH_CHANNEL_CTRL_RESET_CHANNEL),
 		     pdev->base + HW_APBH_CHANNEL_CTRL_SET);
+#endif
+
+#ifdef CONFIG_ARCH_MX23
+	__raw_writel(1 << (chan + BP_APBH_CTRL0_RESET_CHANNEL),
+				pdev->base + HW_APBH_CTRL0_SET);
+#endif
 }
 
 static void mxs_dma_apbh_freeze(struct mxs_dma_device *pdev, unsigned int chan)
 {
+#ifdef CONFIG_ARCH_MX28
 	__raw_writel(1 << chan, pdev->base + HW_APBH_CHANNEL_CTRL_SET);
+#endif
+
+#ifdef CONFIG_ARCH_MX23
+	__raw_writel(1 << (chan + BP_APBH_CTRL0_FREEZE_CHANNEL),
+				pdev->base + HW_APBH_CTRL0_SET);
+#endif
 }
 
 static void
 mxs_dma_apbh_unfreeze(struct mxs_dma_device *pdev, unsigned int chan)
 {
+#ifdef CONFIG_ARCH_MX28
 	__raw_writel(1 << chan, pdev->base + HW_APBH_CHANNEL_CTRL_CLR);
+#endif
+
+#ifdef CONFIG_ARCH_MX23
+	__raw_writel(1 << (chan + BP_APBH_CTRL0_FREEZE_CHANNEL),
+				pdev->base + HW_APBH_CTRL0_CLR);
+#endif
+
 }
 
 static void mxs_dma_apbh_info(struct mxs_dma_device *pdev,

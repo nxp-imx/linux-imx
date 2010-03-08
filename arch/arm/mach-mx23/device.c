@@ -83,7 +83,7 @@ static struct resource mxs_ahb_apbh_res = {
 
 static struct mxs_dma_plat_data mxs_ahb_apbh_data = {
 	.chan_base = MXS_DMA_CHANNEL_AHB_APBH,
-	.chan_num = 16,
+	.chan_num = 8,
 };
 
 static struct resource mxs_ahb_apbx_res = {
