@@ -268,7 +268,7 @@ config BACKLIGHT_STMP37XX
 
 config BACKLIGHT_MXS
 	tristate "Freescale MXS Backlight Driver"
-	depends on BACKLIGHT_CLASS_DEVICE && ARCH_MX28
+	depends on BACKLIGHT_CLASS_DEVICE && ARCH_MXS
 	default y
 	help
 	  If you have a MXS, say y to enable the backlight driver.

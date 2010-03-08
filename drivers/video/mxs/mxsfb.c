@@ -844,7 +844,9 @@ static int __devinit mxsfb_probe(struct platform_device *pdev)
 		goto out_irq;
 
 	pentry->run_panel();
-	dev_dbg(&pdev->dev, "LCD DMA channel has been started\n");
+	/* REVISIT: temporary workaround for MX23EVK */
+	mxsfb_disable_controller(data);
+	mxsfb_enable_controller(data);
 	data->cur_phys = data->phys_start;
 	dev_dbg(&pdev->dev, "LCD running now\n");
 

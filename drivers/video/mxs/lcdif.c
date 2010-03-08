@@ -27,6 +27,7 @@
 #include <mach/hardware.h>
 #include <mach/lcdif.h>
 #include <mach/regs-lcdif.h>
+#include <mach/system.h>
 
 #define REGS_LCDIF_BASE IO_ADDRESS(LCDIF_PHYS_ADDR)
 

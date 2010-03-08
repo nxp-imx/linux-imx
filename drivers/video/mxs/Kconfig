@@ -1,6 +1,6 @@
 config FB_MXS
 	tristate "MXS Framebuffer driver"
-	depends on FB && ARCH_MX28
+	depends on FB && ARCH_MXS
 	select FB_CFB_FILLRECT
 	select FB_CFB_COPYAREA
 	select FB_CFB_IMAGEBLIT
@@ -12,4 +12,11 @@ config FB_MXS
 config FB_MXS_LCD_43WVF1G
 	depends on FB_MXS
 	tristate "SEIKO 4.3' LCD WVGA(800x480) PANEL"
-	default y
+	default y if ARCH_MX28
+
+config FB_MXS_LCD_LMS430
+	depends on FB_MXS
+	bool "LMS430"
+	default y if ARCH_MX23
+	---help---
+	  Use LMS430 dotclock LCD panel for MXS

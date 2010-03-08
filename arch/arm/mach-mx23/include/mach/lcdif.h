@@ -32,6 +32,7 @@
 #include <linux/platform_device.h>
 
 #include <mach/device.h>
+#include <mach/hardware.h>
 
 #include "regs-lcdif.h"
 
