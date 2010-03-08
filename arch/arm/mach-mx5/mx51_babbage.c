@@ -429,7 +429,6 @@ static int __init mxc_init_fb(void)
 		printk(KERN_INFO "HDTV is specified as %d\n", enable_tv);
 		fb_data[1].interface_pix_fmt = IPU_PIX_FMT_YUV444;
 		fb_data[1].mode = &(video_modes[0]);
-		mxc_register_device(&mxc_tve_device, &tve_data);
 	}
 
 	/* Once a customer knows the platform configuration,

@@ -29,6 +29,8 @@
 #include <linux/pmic_external.h>
 #include <linux/smsc911x.h>
 #include <linux/i2c/tsc2007.h>
+#include <linux/ipu.h>
+#include <linux/mxcfb.h>
 #if defined(CONFIG_MTD) || defined(CONFIG_MTD_MODULE)
 #include <linux/mtd/mtd.h>
 #include <linux/mtd/map.h>
@@ -370,6 +372,25 @@ static struct spi_board_info mxc_spi_board_info[] __initdata = {
 };
 
 #if defined(CONFIG_FB_MXC_SYNC_PANEL) || defined(CONFIG_FB_MXC_SYNC_PANEL_MODULE)
+static int __initdata enable_tv = { 0 };
+static int __init tv_setup(char *s)
+{
+	enable_tv = 1;
+	return 1;
+}
+__setup("tv", tv_setup);
+
+static struct fb_videomode tv_mode = {
+	 /* NTSC TV output */
+	 "TV-NTSC", 60, 720, 480, 74074,
+	 121, 16,
+	 17, 5,
+	 1, 1,
+	 FB_SYNC_HOR_HIGH_ACT | FB_SYNC_VERT_HIGH_ACT | FB_SYNC_EXT,
+	 FB_VMODE_INTERLACED,
+	 0,
+};
+
 static struct platform_device mxc_fb_device[] = {
 	{
 	 .name = "mxc_sdc_fb",
@@ -397,12 +418,20 @@ static struct platform_device mxc_fb_device[] = {
 	 },
 };
 
-extern int g_di1_tvout;
+static struct mxc_fb_platform_data fb_data;
 static void mxc_init_fb(void)
 {
-	g_di1_tvout = 1;
-	(void)platform_device_register(&mxc_fb_device[0]);
-	(void)platform_device_register(&mxc_fb_device[1]);
+	if (enable_tv) {
+		printk(KERN_INFO "TV is primary display\n");
+		fb_data.interface_pix_fmt = IPU_PIX_FMT_YUV444;
+		fb_data.mode = &tv_mode;
+		mxc_fb_device[1].dev.platform_data = &fb_data;
+		(void)platform_device_register(&mxc_fb_device[1]);
+		(void)platform_device_register(&mxc_fb_device[0]);
+	} else {
+		(void)platform_device_register(&mxc_fb_device[0]);
+		(void)platform_device_register(&mxc_fb_device[1]);
+	}
 	(void)platform_device_register(&mxc_fb_device[2]);
 	gpio_lcd_active();
 }

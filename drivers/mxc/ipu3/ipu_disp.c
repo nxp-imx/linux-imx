@@ -56,7 +56,6 @@ struct dp_csc_param_t {
 
 int dmfc_type_setup;
 static int dmfc_size_28, dmfc_size_29, dmfc_size_24, dmfc_size_27, dmfc_size_23;
-int g_di1_tvout;
 
 void _ipu_dmfc_init(int dmfc_type, int first)
 {
@@ -877,7 +876,7 @@ void _ipu_dp_set_csc_coefficients(ipu_channel_t channel, int32_t param[][3])
  * This function is called to adapt synchronous LCD panel to IPU restriction.
  *
  */
-void adapt_panel_to_ipu_restricitions(uint16_t *pixel_clk,
+void adapt_panel_to_ipu_restricitions(uint32_t *pixel_clk,
 				      uint16_t width, uint16_t height,
 				      uint16_t h_start_width,
 				      uint16_t h_end_width,
@@ -931,7 +930,6 @@ void adapt_panel_to_ipu_restricitions(uint16_t *pixel_clk,
  * @return      This function returns 0 on success or negative error code on
  *              fail.
  */
-
 int32_t ipu_init_sync_panel(int disp, uint32_t pixel_clk,
 			    uint16_t width, uint16_t height,
 			    uint32_t pixel_fmt,
@@ -966,11 +964,11 @@ int32_t ipu_init_sync_panel(int disp, uint32_t pixel_clk,
 	dev_dbg(g_ipu_dev, "pixel clk = %d\n", pixel_clk);
 
 	if (sig.ext_clk) {
-		if (!(g_di1_tvout && (disp == 1))) { /* not round div for tvout*/
-			/* Set the  PLL to be an even multiple of the pixel clock. */
-			if ((clk_get_usecount(g_pixel_clk[0]) == 0) &&
-					(clk_get_usecount(g_pixel_clk[1]) == 0)) {
-				di_parent = clk_get_parent(g_di_clk[disp]);
+		/* Set the  PLL to be an even multiple of the pixel clock. not round div for tvout*/
+		if ((clk_get_usecount(g_pixel_clk[0]) == 0) &&
+				(clk_get_usecount(g_pixel_clk[1]) == 0)) {
+			di_parent = clk_get_parent(g_di_clk[disp]);
+			if (strcmp(di_parent->name, "tve_clk") != 0) {
 				rounded_pixel_clk =
 					clk_round_rate(g_pixel_clk[disp], pixel_clk);
 				div  = clk_get_rate(di_parent) / rounded_pixel_clk;
