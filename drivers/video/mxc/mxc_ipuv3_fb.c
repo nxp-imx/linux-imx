@@ -56,7 +56,8 @@
  * Structure containing the MXC specific framebuffer information.
  */
 struct mxcfb_info {
-	int blank;
+	int cur_blank;
+	int next_blank;
 	ipu_channel_t ipu_ch;
 	int ipu_di;
 	u32 ipu_di_pix_fmt;
@@ -314,6 +315,9 @@ static int mxcfb_set_par(struct fb_info *fbi)
 		}
 	}
 
+	if (mxc_fbi->next_blank != FB_BLANK_UNBLANK)
+		return retval;
+
 	_setup_disp_channel1(fbi);
 
 	if (!mxc_fbi->overlay) {
@@ -375,9 +379,7 @@ static int mxcfb_set_par(struct fb_info *fbi)
 	if (retval)
 		return retval;
 
-	if (mxc_fbi->blank == FB_BLANK_UNBLANK) {
-		ipu_enable_channel(mxc_fbi->ipu_ch);
-	}
+	ipu_enable_channel(mxc_fbi->ipu_ch);
 
 	return retval;
 }
@@ -454,13 +456,13 @@ static int swap_channels(struct fb_info *fbi)
 	ipu_free_irq(mxc_fbi_from->ipu_ch_irq, fbi);
 	ipu_free_irq(mxc_fbi_to->ipu_ch_irq, fbi_to);
 
-	if (mxc_fbi_from->blank == FB_BLANK_UNBLANK) {
-		if (mxc_fbi_to->blank == FB_BLANK_UNBLANK)
+	if (mxc_fbi_from->cur_blank == FB_BLANK_UNBLANK) {
+		if (mxc_fbi_to->cur_blank == FB_BLANK_UNBLANK)
 			swap_mode = BOTH_ON;
 		else
 			swap_mode = SRC_ON;
 	} else {
-		if (mxc_fbi_to->blank == FB_BLANK_UNBLANK)
+		if (mxc_fbi_to->cur_blank == FB_BLANK_UNBLANK)
 			swap_mode = TGT_ON;
 		else
 			swap_mode = BOTH_OFF;
@@ -867,12 +869,12 @@ static int mxcfb_ioctl(struct fb_info *fbi, unsigned int cmd, unsigned long arg)
 					if (bg_mxcfbi->ipu_ch == MEM_BG_SYNC)
 						break;
 				}
-				if (bg_mxcfbi->blank != FB_BLANK_UNBLANK) {
+				if (bg_mxcfbi->cur_blank != FB_BLANK_UNBLANK) {
 					retval = -EINVAL;
 					break;
 				}
 			}
-			if (mxc_fbi->blank != FB_BLANK_UNBLANK) {
+			if (mxc_fbi->cur_blank != FB_BLANK_UNBLANK) {
 				retval = -EINVAL;
 				break;
 			}
@@ -1034,10 +1036,10 @@ static int mxcfb_blank(int blank, struct fb_info *info)
 
 	dev_dbg(info->device, "blank = %d\n", blank);
 
-	if (mxc_fbi->blank == blank)
+	if (mxc_fbi->cur_blank == blank)
 		return 0;
 
-	mxc_fbi->blank = blank;
+	mxc_fbi->next_blank = blank;
 
 	switch (blank) {
 	case FB_BLANK_POWERDOWN:
@@ -1051,6 +1053,7 @@ static int mxcfb_blank(int blank, struct fb_info *info)
 		mxcfb_set_par(info);
 		break;
 	}
+	mxc_fbi->cur_blank = blank;
 	return 0;
 }
 
@@ -1092,10 +1095,10 @@ mxcfb_pan_display(struct fb_var_screeninfo *var, struct fb_info *info)
 			if (bg_mxcfbi->ipu_ch == MEM_BG_SYNC)
 				break;
 		}
-		if (bg_mxcfbi->blank != FB_BLANK_UNBLANK)
+		if (bg_mxcfbi->cur_blank != FB_BLANK_UNBLANK)
 			return -EINVAL;
 	}
-	if (mxc_fbi->blank != FB_BLANK_UNBLANK)
+	if (mxc_fbi->cur_blank != FB_BLANK_UNBLANK)
 		return -EINVAL;
 
 	y_bottom = var->yoffset;
@@ -1284,9 +1287,9 @@ static int mxcfb_suspend(struct platform_device *pdev, pm_message_t state)
 
 	acquire_console_sem();
 	fb_set_suspend(fbi, 1);
-	saved_blank = mxc_fbi->blank;
+	saved_blank = mxc_fbi->cur_blank;
 	mxcfb_blank(FB_BLANK_POWERDOWN, fbi);
-	mxc_fbi->blank = saved_blank;
+	mxc_fbi->next_blank = saved_blank;
 	release_console_sem();
 
 	return 0;
@@ -1299,12 +1302,9 @@ static int mxcfb_resume(struct platform_device *pdev)
 {
 	struct fb_info *fbi = platform_get_drvdata(pdev);
 	struct mxcfb_info *mxc_fbi = (struct mxcfb_info *)fbi->par;
-	int saved_blank;
 
 	acquire_console_sem();
-	saved_blank = mxc_fbi->blank;
-	mxc_fbi->blank = FB_BLANK_POWERDOWN;
-	mxcfb_blank(saved_blank, fbi);
+	mxcfb_blank(mxc_fbi->next_blank, fbi);
 	fb_set_suspend(fbi, 0);
 	release_console_sem();
 
@@ -1447,7 +1447,7 @@ static ssize_t swap_disp_chan(struct device *dev,
 				fg_mxcfbi = NULL;
 		}
 		if (!fg_mxcfbi ||
-			fg_mxcfbi->blank == FB_BLANK_UNBLANK) {
+			fg_mxcfbi->cur_blank == FB_BLANK_UNBLANK) {
 			dev_err(dev,
 				"Can not switch while fb2(fb-fg) is on.\n");
 			return count;
@@ -1490,11 +1490,11 @@ static int mxcfb_probe(struct platform_device *pdev)
 	if (!g_dp_in_use) {
 		mxcfbi->ipu_ch_irq = IPU_IRQ_BG_SYNC_EOF;
 		mxcfbi->ipu_ch = MEM_BG_SYNC;
-		mxcfbi->blank = FB_BLANK_UNBLANK;
+		mxcfbi->cur_blank = mxcfbi->next_blank = FB_BLANK_UNBLANK;
 	} else {
 		mxcfbi->ipu_ch_irq = IPU_IRQ_DC_SYNC_EOF;
 		mxcfbi->ipu_ch = MEM_DC_SYNC;
-		mxcfbi->blank = FB_BLANK_POWERDOWN;
+		mxcfbi->cur_blank = mxcfbi->next_blank = FB_BLANK_POWERDOWN;
 	}
 
 	mxcfbi->ipu_di = pdev->id;
@@ -1532,7 +1532,7 @@ static int mxcfb_probe(struct platform_device *pdev)
 		mxcfbi->ipu_ch = MEM_FG_SYNC;
 		mxcfbi->ipu_di = -1;
 		mxcfbi->overlay = true;
-		mxcfbi->blank = FB_BLANK_POWERDOWN;
+		mxcfbi->cur_blank = mxcfbi->next_blank = FB_BLANK_POWERDOWN;
 
 		strcpy(fbi->fix.id, "DISP3 FG");
 
