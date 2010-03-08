@@ -135,8 +135,8 @@ static struct resource framebuffer_resource[] = {
 	 },
 	{
 	 .flags = IORESOURCE_IRQ,
-	 .start = IRQ_LCDIF,
-	 .end   = IRQ_LCDIF,
+	 .start = IRQ_LCDIF_ERROR,
+	 .end   = IRQ_LCDIF_ERROR,
 	 },
 };
 
@@ -534,6 +534,7 @@ int __init mx23_device_init(void)
 	mx23_init_rtc();
 	mx23_init_dcp();
 	mx23_init_mmc();
+	mx23_init_lcdif();
 	return 0;
 }
 
