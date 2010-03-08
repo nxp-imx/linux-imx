@@ -2,7 +2,7 @@
  * mx51-3stack-pmic-mc13892.c  --  i.MX51 3STACK Driver for Atlas MC13892 PMIC
  */
  /*
-  * Copyright 2009 Freescale Semiconductor, Inc. All Rights Reserved.
+  * Copyright (C) 2009-2010 Freescale Semiconductor, Inc. All Rights Reserved.
   */
 
  /*
@@ -137,6 +137,7 @@ static struct regulator_init_data vusb_init = {
 	.constraints = {
 		.name = "VUSB",
 		.boot_on = 1,
+		.always_on = 1,
 	}
 };
 
