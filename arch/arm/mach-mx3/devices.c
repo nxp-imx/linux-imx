@@ -802,6 +802,11 @@ static struct resource vpu_resources[] = {
 	 .end = VL2CC_BASE_ADDR + SZ_8K - 1,
 	 .flags = IORESOURCE_MEM,
 	 },
+	{
+	.start  = MXC_INT_VPU,
+	.end = MXC_INT_VPU,
+	.flags  = IORESOURCE_IRQ,
+	},
 };
 
 /*! Platform Data for MXC VPU */
