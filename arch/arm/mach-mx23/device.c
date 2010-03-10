@@ -162,6 +162,56 @@ static void __init mx23_init_lcdif(void)
 }
 #endif
 
+#if defined(CONFIG_I2C_MXS) || \
+	defined(CONFIG_I2C_MXS_MODULE)
+static struct resource i2c_resource[] = {
+	{
+	 .flags = IORESOURCE_MEM,
+	 .start = I2C0_PHYS_ADDR,
+	 .end   = I2C0_PHYS_ADDR + 0x2000 - 1,
+	 },
+	{
+	 .flags = IORESOURCE_DMA,
+	 .start = MXS_DMA_CHANNEL_AHB_APBX_I2C0,
+	 .end   = MXS_DMA_CHANNEL_AHB_APBX_I2C0,
+	 },
+	{
+	 .flags = IORESOURCE_IRQ,
+	 .start = IRQ_I2C_ERROR,
+	 .end   = IRQ_I2C_ERROR,
+	 },
+	{
+	 .flags = IORESOURCE_IRQ,
+	 .start = IRQ_I2C_DMA,
+	 .end   = IRQ_I2C_DMA,
+	 },
+};
+
+static struct mxs_i2c_plat_data i2c_platdata = {
+#ifdef	CONFIG_I2C_MXS_SELECT0_PIOQUEUE_MODE
+	.pioqueue_mode = 0,
+#endif
+};
+
+static void __init mx23_init_i2c(void)
+{
+	struct platform_device *pdev;
+
+	pdev = mxs_get_device("mxs-i2c", 0);
+	if (pdev == NULL || IS_ERR(pdev))
+		return;
+
+	pdev->resource = i2c_resource;
+	pdev->num_resources = ARRAY_SIZE(i2c_resource);
+	pdev->dev.platform_data = &i2c_platdata;
+
+	mxs_add_device(pdev, 2);
+}
+#else
+static void __init mx23_init_i2c(void)
+{
+}
+#endif
 
 #if defined(CONFIG_MXS_WATCHDOG) || defined(CONFIG_MXS_WATCHDOG_MODULE)
 static struct resource mx23_wdt_res = {
@@ -528,6 +578,7 @@ int __init mx23_device_init(void)
 	mx23_init_duart();
 	mx23_init_auart();
 	mx23_init_lradc();
+	mx23_init_i2c();
 	mx23_init_kbd();
 	mx23_init_wdt();
 	mx23_init_ts();

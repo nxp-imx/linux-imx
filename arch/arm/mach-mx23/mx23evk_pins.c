@@ -63,18 +63,18 @@ static struct pin_desc mx23evk_fixed_pins[] = {
 #if defined(CONFIG_I2C_MXS) || \
 	defined(CONFIG_I2C_MXS_MODULE)
 	{
-	 .name = "I2C0_SCL",
-	 .id = PINID_I2C0_SCL,
+	 .name = "I2C_SCL",
+	 .id = PINID_I2C_SCL,
 	 .fun = PIN_FUN1,
-	 .strength = PAD_8MA,
+	 .strength = PAD_4MA,
 	 .voltage = PAD_3_3V,
 	 .drive	= 1,
 	 },
 	{
-	 .name = "I2C0_SDA",
-	 .id = PINID_I2C0_SDA,
+	 .name = "I2C_SDA",
+	 .id = PINID_I2C_SDA,
 	 .fun = PIN_FUN1,
-	 .strength = PAD_8MA,
+	 .strength = PAD_4MA,
 	 .voltage = PAD_3_3V,
 	 .drive	= 1,
 	 },
