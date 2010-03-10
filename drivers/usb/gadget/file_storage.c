@@ -324,7 +324,11 @@ static struct {
 } mod_data = {					// Default values
 	.transport_parm		= "BBB",
 	.protocol_parm		= "SCSI",
+#ifdef CONFIG_MXS_VBUS_CURRENT_DRAW
+	.removable		= 1,
+#else
 	.removable		= 0,
+#endif
 	.can_stall		= 1,
 	.cdrom			= 0,
 	.vendor			= FSG_VENDOR_ID,
@@ -3579,7 +3583,6 @@ static int __init fsg_init(void)
 {
 	int		rc;
 	struct fsg_dev	*fsg;
-
 	if ((rc = fsg_alloc()) != 0)
 		return rc;
 	fsg = the_fsg;
@@ -3587,8 +3590,12 @@ static int __init fsg_init(void)
 		kref_put(&fsg->ref, fsg_release);
 	return rc;
 }
-module_init(fsg_init);
 
+#ifdef CONFIG_MXS_VBUS_CURRENT_DRAW
+	fs_initcall(fsg_init);
+#else
+	module_init(fsg_init);
+#endif
 
 static void __exit fsg_cleanup(void)
 {
