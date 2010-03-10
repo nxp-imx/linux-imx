@@ -382,20 +382,21 @@ static int ssp_set_parent(struct clk *clk, struct clk *parent)
 
 	if (clk->bypass_reg) {
 		if (clk->parent == parent)
+			return 0;
+		if (parent == &ref_io_clk)
+			__raw_writel(1 << clk->bypass_bits,
+					clk->bypass_reg + CLR_REGISTER);
+		else
 			__raw_writel(1 << clk->bypass_bits,
 					clk->bypass_reg + SET_REGISTER);
-		else
-			__raw_writel(0 << clk->bypass_bits,
-					clk->bypass_reg + CLR_REGISTER);
-
+		clk->parent = parent;
 		ret = 0;
 	}
 
 	return ret;
 }
 
-static struct clk ssp_clk[] = {
-	{
+static struct clk ssp_clk = {
 	 .parent = &ref_io_clk,
 	 .get_rate = ssp_get_rate,
 	 .enable = mx23_raw_enable,
@@ -410,7 +411,6 @@ static struct clk ssp_clk[] = {
 	 .bypass_bits = 3,
 	 .set_rate = ssp_set_rate,
 	 .set_parent = ssp_set_parent,
-	 },
 };
 
 static unsigned long ssp_get_rate(struct clk *clk)
@@ -559,6 +559,10 @@ static struct clk_lookup onchip_clocks[] = {
 	 .clk = &lradc_clk,
 	 },
 	{
+	 .con_id = "ssp.0",
+	 .clk = &ssp_clk,
+	 },
+	{
 	 .con_id = "emi",
 	 .clk = &emi_clk,
 	 },
@@ -579,6 +583,8 @@ static void mx23_clock_scan(void)
 		dis_lcdif_clk.parent = &ref_xtal_clk;
 	if (reg & BM_CLKCTRL_CLKSEQ_BYPASS_EMI)
 		emi_clk.parent = &ref_xtal_clk;
+	if (reg & BM_CLKCTRL_CLKSEQ_BYPASS_SSP)
+		ssp_clk.parent = &ref_xtal_clk;
 };
 
 

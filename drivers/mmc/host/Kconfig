@@ -297,7 +297,7 @@ config MMC_STMP3XXX
 
 config MMC_MXS
 	tristate "MXS MMC support"
-	depends on MMC && ARCH_MX28
+	depends on MMC && (ARCH_MX28 || ARCH_MX23)
 	help
 	  Select Y if you would like to access MXS MMC support.
 

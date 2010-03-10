@@ -396,6 +396,132 @@ static void __init mx23_init_dcp(void)
 }
 #endif
 
+#if defined(CONFIG_MMC_MXS) || defined(CONFIG_MMC_MXS_MODULE)
+#define MMC0_POWER	MXS_PIN_TO_GPIO(PINID_PWM3)
+#define MMC0_WP		MXS_PIN_TO_GPIO(PINID_PWM4)
+
+static int mxs_mmc_get_wp_mmc0(void)
+{
+	return gpio_get_value(MMC0_WP);
+}
+
+static int mxs_mmc_hw_init_mmc0(void)
+{
+	int ret = 0;
+
+	/* Configure write protect GPIO pin */
+	ret = gpio_request(MMC0_WP, "mmc0_wp");
+	if (ret) {
+		pr_err("wp\r\n");
+		goto out_wp;
+	}
+	gpio_set_value(MMC0_WP, 0);
+	gpio_direction_input(MMC0_WP);
+
+	/* Configure POWER pin as gpio to drive power to MMC slot */
+	ret = gpio_request(MMC0_POWER, "mmc0_power");
+	if (ret) {
+		pr_err("power\r\n");
+		goto out_power;
+	}
+	gpio_direction_output(MMC0_POWER, 0);
+	mdelay(100);
+
+	return 0;
+
+out_power:
+	gpio_free(MMC0_WP);
+out_wp:
+	return ret;
+}
+
+static void mxs_mmc_hw_release_mmc0(void)
+{
+	gpio_free(MMC0_POWER);
+	gpio_free(MMC0_WP);
+
+}
+
+static void mxs_mmc_cmd_pullup_mmc0(int enable)
+{
+	mxs_set_pullup(PINID_SSP1_CMD, enable, "mmc0_cmd");
+}
+
+static unsigned long mxs_mmc_setclock_mmc0(unsigned long hz)
+{
+	struct clk *ssp = clk_get(NULL, "ssp.0"), *parent;
+
+	if (hz > 1000000)
+		parent = clk_get(NULL, "ref_io.0");
+	else
+		parent = clk_get(NULL, "xtal.0");
+
+	clk_set_parent(ssp, parent);
+	clk_set_rate(ssp, 2 * hz);
+	clk_put(parent);
+	clk_put(ssp);
+
+	return hz;
+}
+
+static struct mxs_mmc_platform_data mx23_mmc0_data = {
+	.hw_init	= mxs_mmc_hw_init_mmc0,
+	.hw_release	= mxs_mmc_hw_release_mmc0,
+	.get_wp		= mxs_mmc_get_wp_mmc0,
+	.cmd_pullup	= mxs_mmc_cmd_pullup_mmc0,
+	.setclock	= mxs_mmc_setclock_mmc0,
+	.caps 		= MMC_CAP_4_BIT_DATA,
+	.min_clk	= 400000,
+	.max_clk	= 48000000,
+	.read_uA        = 50000,
+	.write_uA       = 70000,
+	.clock_mmc = "ssp.0",
+	.power_mmc = NULL,
+};
+
+static struct resource mx23_mmc0_resource[] = {
+	{
+		.flags	= IORESOURCE_MEM,
+		.start	= SSP1_PHYS_ADDR,
+		.end	= SSP1_PHYS_ADDR + 0x2000 - 1,
+	},
+	{
+		.flags	= IORESOURCE_DMA,
+		.start	= MXS_DMA_CHANNEL_AHB_APBH_SSP1,
+		.end	= MXS_DMA_CHANNEL_AHB_APBH_SSP1,
+	},
+	{
+		.flags	= IORESOURCE_IRQ,
+		.start	= IRQ_SSP1_DMA,
+		.end	= IRQ_SSP1_DMA,
+	},
+	{
+		.flags	= IORESOURCE_IRQ,
+		.start	= IRQ_SSP_ERROR,
+		.end	= IRQ_SSP_ERROR,
+	},
+};
+
+static void __init mx23_init_mmc(void)
+{
+	struct platform_device *pdev;
+
+	pdev = mxs_get_device("mxs-mmc", 0);
+	if (pdev == NULL || IS_ERR(pdev))
+		return;
+	pdev->resource = mx23_mmc0_resource;
+	pdev->num_resources = ARRAY_SIZE(mx23_mmc0_resource);
+	pdev->dev.platform_data = &mx23_mmc0_data;
+
+	mxs_add_device(pdev, 2);
+}
+#else
+static void mx23_init_mmc(void)
+{
+	;
+}
+#endif
+
 int __init mx23_device_init(void)
 {
 	mx23_init_dma();
@@ -407,7 +533,7 @@ int __init mx23_device_init(void)
 	mx23_init_ts();
 	mx23_init_rtc();
 	mx23_init_dcp();
-
+	mx23_init_mmc();
 	return 0;
 }
 

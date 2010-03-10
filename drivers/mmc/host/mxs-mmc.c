@@ -51,6 +51,49 @@
 /* Max value supported for XFER_COUNT */
 #define SSP_BUFFER_SIZE		(65536)
 
+#ifndef BF
+#define BF(value, field) (((value) << BP_##field) & BM_##field)
+#endif
+
+#ifndef HW_SSP_XFER_SIZE
+#define HW_SSP_XFER_SIZE	(0xFFFFFFFF)
+#endif
+#ifndef HW_SSP_BLOCK_SIZE
+#define HW_SSP_BLOCK_SIZE	(0xFFFFFFFF)
+#endif
+
+#ifndef BP_SSP_XFER_SIZE_XFER_COUNT
+#define BP_SSP_XFER_SIZE_XFER_COUNT BP_SSP_CTRL0_XFER_COUNT
+#endif
+#ifndef BM_SSP_XFER_SIZE_XFER_COUNT
+#define BM_SSP_XFER_SIZE_XFER_COUNT BM_SSP_CTRL0_XFER_COUNT
+#endif
+#ifndef BF_SSP_XFER_SIZE_XFER_COUNT
+#define BF_SSP_XFER_SIZE_XFER_COUNT(v)  \
+		(((v) << 0) & BM_SSP_CTRL0_XFER_COUNT)
+#endif
+
+#ifndef BP_SSP_BLOCK_SIZE_BLOCK_COUNT
+#define BP_SSP_BLOCK_SIZE_BLOCK_COUNT	8
+#endif
+#ifndef BM_SSP_BLOCK_SIZE_BLOCK_COUNT
+#define BM_SSP_BLOCK_SIZE_BLOCK_COUNT	0x0000FF00
+#endif
+#ifndef BF_SSP_BLOCK_SIZE_BLOCK_COUNT
+#define BF_SSP_BLOCK_SIZE_BLOCK_COUNT(v)  \
+		(((v) << 8) & BM_SSP_BLOCK_SIZE_BLOCK_COUNT)
+#endif
+#ifndef BP_SSP_BLOCK_SIZE_BLOCK_SIZE
+#define BP_SSP_BLOCK_SIZE_BLOCK_SIZE	16
+#endif
+#ifndef BM_SSP_BLOCK_SIZE_BLOCK_SIZE
+#define BM_SSP_BLOCK_SIZE_BLOCK_SIZE	0x000F0000
+#endif
+#ifndef BF_SSP_BLOCK_SIZE_BLOCK_SIZE
+#define BF_SSP_BLOCK_SIZE_BLOCK_SIZE(v)  \
+		(((v) << 16) & BM_SSP_BLOCK_SIZE_BLOCK_SIZE)
+#endif
+
 struct mxs_mmc_host {
 	struct device *dev;
 	struct mmc_host *mmc;
@@ -202,9 +245,11 @@ static void mxs_mmc_bc(struct mxs_mmc_host *host)
 
 	init_completion(&host->dma_done);
 	mxs_dma_reset(host->dmach);
-	mxs_dma_desc_append(host->dmach, host->dma_desc);
+	if (mxs_dma_desc_append(host->dmach, host->dma_desc) < 0)
+		dev_err(host->dev, "mmc_dma_desc_append failed\n");
 	dev_dbg(host->dev, "%s start DMA.\n", __func__);
-	mxs_dma_enable(host->dmach);
+	if (mxs_dma_enable(host->dmach) < 0)
+		dev_err(host->dev, "mmc_dma_enable failed\n");
 	wait_for_completion(&host->dma_done);
 
 	cmd->error = mxs_mmc_cmd_error(host->status);
@@ -249,9 +294,11 @@ static void mxs_mmc_ac(struct mxs_mmc_host *host)
 
 	mxs_dma_reset(host->dmach);
 	init_completion(&host->dma_done);
-	mxs_dma_desc_append(host->dmach, host->dma_desc);
+	if (mxs_dma_desc_append(host->dmach, host->dma_desc) < 0)
+		dev_err(host->dev, "mmc_dma_desc_append failed\n");
 	dev_dbg(host->dev, "%s start DMA.\n", __func__);
-	mxs_dma_enable(host->dmach);
+	if (mxs_dma_enable(host->dmach) < 0)
+		dev_err(host->dev, "mmc_dma_enable failed\n");
 	wait_for_completion(&host->dma_done);
 
 	switch (mmc_resp_type(cmd)) {
@@ -503,9 +550,11 @@ static void mxs_mmc_adtc(struct mxs_mmc_host *host)
 
 	init_completion(&host->dma_done);
 	mxs_dma_reset(host->dmach);
-	mxs_dma_desc_append(host->dmach, host->dma_desc);
+	if (mxs_dma_desc_append(host->dmach, host->dma_desc) < 0)
+		dev_err(host->dev, "mmc_dma_desc_append failed\n");
 	dev_dbg(host->dev, "%s start DMA.\n", __func__);
-	mxs_dma_enable(host->dmach);
+	if (mxs_dma_enable(host->dmach) < 0)
+		dev_err(host->dev, "mmc_dma_enable failed\n");
 	wait_for_completion(&host->dma_done);
 	if (host->regulator)
 		regulator_set_current_limit(host->regulator, 0, 0);
@@ -636,6 +685,9 @@ mxs_set_sclk_speed(struct mxs_mmc_host *host, unsigned int hz)
 		dev_dbg(host->dev, "Setting clock rate to %d Hz"
 			"(requested %d)\n",
 			host->clkrt, hz);
+		dev_dbg(host->dev, "source %ldk\n",
+			clk_get_rate(host->clk));
+
 		return;
 	}
 
@@ -862,6 +914,7 @@ static int __init mxs_mmc_probe(struct platform_device *pdev)
 	struct mmc_host *mmc;
 	struct resource *r;
 	int err = 0;
+	unsigned int ssp_ver_major;
 
 	mmc_data = dev->platform_data;
 	if (mmc_data == NULL) {
@@ -987,11 +1040,21 @@ static int __init mxs_mmc_probe(struct platform_device *pdev)
 
 	/* Maximum block count requests. */
 	mmc->max_blk_size = 512;
-	mmc->max_blk_count = SSP_BUFFER_SIZE / 512;
-	mmc->max_hw_segs = SSP_BUFFER_SIZE / 512;
-	mmc->max_phys_segs = SSP_BUFFER_SIZE / 512;
-	mmc->max_req_size = SSP_BUFFER_SIZE;
-	mmc->max_seg_size = SSP_BUFFER_SIZE;
+	ssp_ver_major = __raw_readl(host->ssp_base + HW_SSP_VERSION) >> 24;
+	dev_dbg(host->dev, "ssp ver major is 0x%x\n", ssp_ver_major);
+	if (ssp_ver_major > 3) {
+		mmc->max_blk_count = SSP_BUFFER_SIZE / 512;
+		mmc->max_hw_segs = SSP_BUFFER_SIZE / 512;
+		mmc->max_phys_segs = SSP_BUFFER_SIZE / 512;
+		mmc->max_req_size = SSP_BUFFER_SIZE;
+		mmc->max_seg_size = SSP_BUFFER_SIZE;
+	} else {
+		mmc->max_blk_count = SSP_BUFFER_SIZE / 512 - 1;
+		mmc->max_hw_segs = SSP_BUFFER_SIZE / 512 - 1;
+		mmc->max_phys_segs = SSP_BUFFER_SIZE / 512 - 1;
+		mmc->max_req_size = SSP_BUFFER_SIZE - 512;
+		mmc->max_seg_size = SSP_BUFFER_SIZE - 512;
+	}
 
 	mmc->ocr_avail = MMC_VDD_32_33 | MMC_VDD_33_34;
 
