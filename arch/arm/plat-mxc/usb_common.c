@@ -361,11 +361,19 @@ static void usbh2_set_serial_xcvr(void)
  */
 static int usb_register_remote_wakeup(struct platform_device *pdev)
 {
+	struct fsl_usb2_platform_data *pdata = pdev->dev.platform_data;
 	struct resource *res;
 	int irq;
 
 	pr_debug("%s: pdev=0x%p \n", __func__, pdev);
 	if (!cpu_is_mx51() && !cpu_is_mx25())
+		return -ECANCELED;
+
+	/* The Host2 USB controller On mx25 platform
+	 * is no path available from internal USB FS
+	 * PHY to FS PHY wake up interrupt, So to
+	 * remove the function of USB Remote Wakeup on Host2 */
+	if (cpu_is_mx25() && (!strcmp("Host 2", pdata->name)))
 		return -ECANCELED;
 
 	res = platform_get_resource(pdev, IORESOURCE_IRQ, 0);

@@ -1,5 +1,5 @@
 /*
- * Copyright 2005-2009 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2005-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -21,14 +21,6 @@
 #include <mach/arc_otg.h>
 #include "usb.h"
 
-static void _wake_up_enable(struct fsl_usb2_platform_data *pdata, bool enable)
-{
-	if (enable)
-		USBCTRL |= UCTRL_H2WIE;
-	else
-		USBCTRL &= ~UCTRL_H2WIE;
-}
-
 static struct fsl_usb2_platform_data usbh2_config = {
 	.name              = "Host 2",
 	.platform_init     = fsl_usb_host_init,
@@ -39,7 +31,6 @@ static struct fsl_usb2_platform_data usbh2_config = {
 	.gpio_usb_active   = gpio_usbh2_active,
 	.gpio_usb_inactive = gpio_usbh2_inactive,
 	.transceiver       = "serial",		/* on-chip */
-	.wake_up_enable = _wake_up_enable,
 };
 
 static struct resource usbh2_resources[] = {
