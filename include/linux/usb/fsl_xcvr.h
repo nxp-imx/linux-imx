@@ -31,6 +31,8 @@ struct fsl_xcvr_ops {
 	void (*set_device)(void);
 	void (*set_vbus_power)(struct fsl_xcvr_ops *ops,
 			       struct fsl_usb2_platform_data *pdata, int on);
+	void (*set_vbus_draw)(struct fsl_xcvr_ops *ops,
+			struct fsl_usb2_platform_data *pdata, unsigned mA);
 	void (*set_remote_wakeup)(u32 *view);
 	void (*pullup)(int on);
 	void(*set_test_mode)(u32 *view, enum usb_test_mode mode);

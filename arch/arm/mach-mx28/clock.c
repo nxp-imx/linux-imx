@@ -531,6 +531,7 @@ static int cpu_set_rate(struct clk *clk, unsigned long rate)
 static int cpu_set_parent(struct clk *clk, struct clk *parent)
 {
 	int ret = -EINVAL;
+
 	if (clk->bypass_reg) {
 		if (parent == clk->parent)
 			return 0;
@@ -540,7 +541,7 @@ static int cpu_set_parent(struct clk *clk, struct clk *parent)
 			ret = 0;
 		}
 		if (ret && (parent == &ref_cpu_clk)) {
-			__raw_writel(0 << clk->bypass_bits,
+			__raw_writel(1 << clk->bypass_bits,
 				clk->bypass_reg + CLR_REGISTER);
 			ret = 0;
 		}

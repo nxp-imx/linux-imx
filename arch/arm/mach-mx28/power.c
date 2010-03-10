@@ -500,7 +500,7 @@ static int __init regulators_init(void)
 	int retval = 0;
 	u32 vddio = __raw_readl(REGS_POWER_BASE + HW_POWER_VDDIOCTRL) & ~0x1f;
 	pr_debug("regulators_init \n");
-	__raw_writel(vddio | 0x14, REGS_POWER_BASE + HW_POWER_VDDIOCTRL);
+	__raw_writel(vddio | 0xA, REGS_POWER_BASE + HW_POWER_VDDIOCTRL);
 	vdddbo_reg.parent = &vddd_reg;
 	mxs_register_regulator(&vddd_reg, MXS_VDDD, &vddd_init);
 	mxs_register_regulator(&vdddbo_reg, MXS_VDDDBO, &vdddbo_init);

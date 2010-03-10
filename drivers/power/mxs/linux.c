@@ -18,6 +18,7 @@
 #include <linux/jiffies.h>
 #include <linux/io.h>
 #include <linux/sched.h>
+#include <linux/clk.h>
 #include <mach/ddi_bc.h>
 #include "ddi_bc_internal.h"
 #include <linux/regulator/consumer.h>
@@ -26,6 +27,7 @@
 #include <mach/regs-power.h>
 #include <mach/hardware.h>
 #include <mach/irqs.h>
+#include <mach/clock.h>
 #include <linux/delay.h>
 #include <linux/proc_fs.h>
 #include <linux/interrupt.h>
@@ -229,8 +231,24 @@ static void check_and_handle_5v_connection(struct mxs_info *info)
 					_5v_connected_verified;
 				dev_info(info->dev,
 					"5v connection verified\n");
+#ifdef CONFIG_MXS_VBUS_CURRENT_DRAW
+	#ifdef CONFIG_USB_GADGET
+		/* if there is USB 2.0 current limitation requirement,
+		* waiting for USB enum done.
+		*/
+		if ((__raw_readl(REGS_POWER_BASE + HW_POWER_5VCTRL)
+			& BM_POWER_5VCTRL_CHARGE_4P2_ILIMIT) ==
+			(0x8 << BP_POWER_5VCTRL_CHARGE_4P2_ILIMIT)) {
+			dev_info(info->dev, "waiting USB enum done...\r\n");
+		}
+		while ((__raw_readl(REGS_POWER_BASE + HW_POWER_5VCTRL)
+			& BM_POWER_5VCTRL_CHARGE_4P2_ILIMIT)
+			== (0x8 << BP_POWER_5VCTRL_CHARGE_4P2_ILIMIT)) {
+			msleep(50);
+		}
+	#endif
+#endif
 				ddi_power_Enable4p2(450);
-
 
 				/* part of handling for errata.  It is
 				 *  now "somewhat" safe to
@@ -277,6 +295,12 @@ static void check_and_handle_5v_connection(struct mxs_info *info)
 				ddi_power_enable_vddio_interrupt(true);
 				dev_info(info->dev,
 					"5v disconnection handled\n");
+
+				__raw_writel(__raw_readl(REGS_POWER_BASE +
+				HW_POWER_5VCTRL) &
+				(~BM_POWER_5VCTRL_CHARGE_4P2_ILIMIT)
+				| (0x8 << BP_POWER_5VCTRL_CHARGE_4P2_ILIMIT),
+				REGS_POWER_BASE + HW_POWER_5VCTRL);
 
 			}
 		}
@@ -494,8 +518,7 @@ static void state_machine_work(struct work_struct *work)
 	}
 
 	/* if we made it here, we have a verified 5v connection */
-
-	if (is_ac_online()) {
+#ifndef CONFIG_MXS_VBUS_CURRENT_DRAW
 		if (info->is_ac_online)
 			goto done;
 
@@ -518,7 +541,7 @@ static void state_machine_work(struct work_struct *work)
 		}
 		ddi_bc_SetEnable();
 		goto done;
-	}
+#else
 
 	if (!is_usb_online())
 		goto out;
@@ -557,7 +580,7 @@ static void state_machine_work(struct work_struct *work)
 	info->is_usb_online |= USB_REG_SET;
 
 	dev_info(info->dev, "changed power connection to usb/5v present\n");
-
+#endif
 
 done:
 	ddi_bc_StateMachine();
@@ -1073,6 +1096,8 @@ static struct proc_dir_entry *power_fiq_proc;
 
 static int __init mxs_bat_init(void)
 {
+	struct clk *cpu, *pll0;
+
 #ifdef POWER_FIQ
 	int ret;
 	ret = claim_fiq(&power_fiq);
@@ -1118,6 +1143,28 @@ static int __init mxs_bat_init(void)
 	}
 #endif
 
+#ifdef CONFIG_MXS_VBUS_CURRENT_DRAW
+	if (((__raw_readl(REGS_POWER_BASE + HW_POWER_5VCTRL) &
+		BM_POWER_5VCTRL_CHARGE_4P2_ILIMIT) == 0x8000)
+		&& ((__raw_readl(REGS_POWER_BASE + HW_POWER_5VCTRL) &
+		BM_POWER_5VCTRL_PWD_CHARGE_4P2) == 0)) {
+#ifdef CONFIG_USB_GADGET
+		printk(KERN_INFO "USB GADGET exist,wait USB enum done...\r\n");
+		while (((__raw_readl(REGS_POWER_BASE + HW_POWER_5VCTRL)
+			& BM_POWER_5VCTRL_CHARGE_4P2_ILIMIT) == 0x8000) &&
+			((__raw_readl(REGS_POWER_BASE + HW_POWER_5VCTRL) &
+			BM_POWER_5VCTRL_PWD_CHARGE_4P2) == 0))
+			;
+#else
+		printk(KERN_INFO "USB GADGET not exist,\
+		release current limit and let CPU clock up...\r\n");
+#endif
+	}
+	cpu = clk_get(NULL, "cpu");
+	pll0 = clk_get(NULL, "ref_cpu");
+	if (cpu->set_parent)
+		cpu->set_parent(cpu, pll0);
+#endif
 	return platform_driver_register(&mxs_batdrv);
 }
 
@@ -1125,8 +1172,11 @@ static void __exit mxs_bat_exit(void)
 {
 	platform_driver_unregister(&mxs_batdrv);
 }
-
-module_init(mxs_bat_init);
+#ifdef CONFIG_MXS_VBUS_CURRENT_DRAW
+	fs_initcall(mxs_bat_init);
+#else
+	module_init(mxs_bat_init);
+#endif
 module_exit(mxs_bat_exit);
 
 MODULE_LICENSE("GPL");

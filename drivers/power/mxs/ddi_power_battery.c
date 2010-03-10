@@ -888,6 +888,12 @@ int ddi_power_init_battery(void)
 			power driver behavior may not be reliable \n");
 		ret = 1;
 	}
+	if ((__raw_readl(REGS_POWER_BASE + HW_POWER_BATTMONITOR) &
+		BM_POWER_BATTMONITOR_BATT_VAL) == 0) {
+		ret = 1;
+		printk(KERN_INFO "WARNING : No battery connected !\r\n");
+		return ret;
+	}
 
 	/* the following code to enable automatic battery measurement
 	 * should have already been enabled in the boot prep files.  Not

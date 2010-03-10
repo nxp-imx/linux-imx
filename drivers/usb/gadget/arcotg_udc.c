@@ -1356,10 +1356,16 @@ static int fsl_vbus_session(struct usb_gadget *gadget, int is_active)
 static int fsl_vbus_draw(struct usb_gadget *gadget, unsigned mA)
 {
 	struct fsl_udc *udc;
+	struct fsl_usb2_platform_data *pdata;
 
 	udc = container_of(gadget, struct fsl_udc, gadget);
 	if (udc->transceiver)
 		return otg_set_power(udc->transceiver, mA);
+	pdata = udc->pdata;
+	if (pdata->xcvr_ops && pdata->xcvr_ops->set_vbus_draw) {
+		pdata->xcvr_ops->set_vbus_draw(pdata->xcvr_ops, pdata, mA);
+		return 0;
+	}
 	return -ENOTSUPP;
 }
 
@@ -1515,7 +1521,8 @@ static void setup_received_irq(struct fsl_udc *udc,
 	u16 wValue = le16_to_cpu(setup->wValue);
 	u16 wIndex = le16_to_cpu(setup->wIndex);
 	u16 wLength = le16_to_cpu(setup->wLength);
-
+	struct usb_gadget *gadget = &(udc->gadget);
+	unsigned mA = 500;
 	udc_reset_ep_queue(udc, 0);
 
 	if (wLength) {
@@ -1544,7 +1551,8 @@ static void setup_received_irq(struct fsl_udc *udc,
 			break;
 		ch9setaddress(udc, wValue, wIndex, wLength);
 		return;
-
+	case USB_REQ_SET_CONFIGURATION:
+		fsl_vbus_draw(gadget, mA);
 	case USB_REQ_CLEAR_FEATURE:
 	case USB_REQ_SET_FEATURE:
 		/* Status phase from udc */
@@ -3069,9 +3077,11 @@ static int __init udc_init(void)
 	printk(KERN_INFO "%s (%s)\n", driver_desc, DRIVER_VERSION);
 	return platform_driver_register(&udc_driver);
 }
-
-module_init(udc_init);
-
+#ifdef CONFIG_MXS_VBUS_CURRENT_DRAW
+	fs_initcall(udc_init);
+#else
+	module_init(udc_init);
+#endif
 static void __exit udc_exit(void)
 {
 	platform_driver_unregister(&udc_driver);

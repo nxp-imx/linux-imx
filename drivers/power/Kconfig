@@ -117,4 +117,11 @@ config BATTERY_MXS
 	  Say Y to enable support for the battery charger state machine
 	  for the Sigmatel MXS based SoC's.
 
+config MXS_VBUS_CURRENT_DRAW
+	tristate "MXS SoC USB2.0 VBUS Current Limitation"
+	depends on ARCH_MXS
+	help
+	  Say Y to enable 100mA limitation when USB vbus power on system
+	  before enumeration to match USB2.0 requirement.
+
 endif # POWER_SUPPLY
