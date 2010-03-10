@@ -450,14 +450,14 @@ config I2C_MXS_SELECT0
 
 config I2C_MXS_SELECT0_PIOQUEUE_MODE
 	tristate "MXS I2C0 PIOQUEUE MODE Support"
-	depends on I2C_MXS_SELECT0
+	depends on (I2C_MXS_SELECT0 && !ARCH_MX23)
 	help
 	  say yes if you are sure transfer length is eqaul to or less than 24 bytes.
 	  Otherwise say no to use DMA mode by default.
 
 config I2C_MXS_SELECT1
 	bool "Enable I2C1 module"
-	depends on I2C_MXS
+	depends on (I2C_MXS && !ARCH_MX23)
 	help
 	  Enable MXS I2C1 Module
 

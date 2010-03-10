@@ -33,6 +33,7 @@
 #include <mach/device.h>
 #include <mach/regs-i2c.h>
 #include <mach/system.h>
+#include <mach/hardware.h>
 
 #include "i2c-mxs.h"
 
@@ -52,6 +53,18 @@ static u8 *i2c_buf_virt;
 			BM_I2C_CTRL0_DIRECTION)
 #define	CMD_I2C_READ	(BM_I2C_CTRL0_SEND_NAK_ON_LAST |	\
 			BM_I2C_CTRL0_MASTER_MODE)
+
+/* Hack for platform which does not support PioQueue Mode */
+#if !defined(HW_I2C_QUEUECMD) || 	\
+    !defined(HW_I2C_QUEUEDATA) ||	\
+    !defined(HW_I2C_QUEUECTRL_CLR) ||	\
+    !defined(HW_I2C_QUEUECTRL_SET)
+#warning "Pio Queue Mode *NOT* Support!"
+#define HW_I2C_QUEUECMD		HW_I2C_VERSION
+#define HW_I2C_QUEUEDATA	HW_I2C_VERSION
+#define HW_I2C_QUEUECTRL_SET	HW_I2C_VERSION
+#define HW_I2C_QUEUECTRL_CLR	HW_I2C_VERSION
+#endif
 
 static void hw_i2c_dmachan_reset(struct mxs_i2c_dev *dev)
 {
