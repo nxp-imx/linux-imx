@@ -138,6 +138,19 @@ static struct platform_device mxs_i2c[] = {
 };
 #endif
 
+#if defined(CONFIG_MTD_NAND_GPMI1) || \
+	defined(CONFIG_MTD_NAND_GPMI1_MODULE)
+static struct platform_device mxs_gpmi = {
+	.name = "gpmi",
+	.id = 0,
+	.dev = {
+		.dma_mask          = &common_dmamask,
+		.coherent_dma_mask = DMA_BIT_MASK(32),
+		.release           = mxs_nop_release,
+		},
+};
+#endif
+
 #if defined(CONFIG_MMC_MXS) || \
 	defined(CONFIG_MMC_MXS_MODULE)
 static struct platform_device mxs_mmc[] = {
@@ -423,6 +436,15 @@ static struct mxs_dev_lookup dev_lookup[] = {
 	 .size	= ARRAY_SIZE(mxs_i2c),
 	 .pdev	= mxs_i2c,
 	 },
+#endif
+
+#if defined(CONFIG_MTD_NAND_GPMI1) || \
+	defined(CONFIG_MTD_NAND_GPMI1_MODULE)
+	{
+	.name = "gpmi",
+	.size = 1,
+	.pdev = &mxs_gpmi,
+	},
 #endif
 
 #if defined(CONFIG_MMC_MXS) || \

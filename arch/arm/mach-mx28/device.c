@@ -295,6 +295,76 @@ static void __init mx28_init_i2c(void)
 }
 #endif
 
+
+#if defined(CONFIG_MTD_NAND_GPMI1)
+
+extern int enable_gpmi;
+
+static int gpmi_pinmux_handler(void)
+{
+	return !enable_gpmi;
+}
+
+static const char *gpmi_partition_source_types[] = { "cmdlinepart", 0 };
+
+static struct gpmi_platform_data  gpmi_platform_data = {
+	.io_uA                   = 70000,
+	.min_prop_delay_in_ns    = 5,
+	.max_prop_delay_in_ns    = 9,
+	.pinmux_handler          = gpmi_pinmux_handler,
+	.boot_area_size_in_bytes = 20 * SZ_1M,
+	.partitions              = 0,
+	.partition_count         = 0,
+	.partition_source_types  = gpmi_partition_source_types,
+};
+
+static struct resource gpmi_resources[] = {
+	{
+	 .flags = IORESOURCE_MEM,
+	 .start = GPMI_PHYS_ADDR,
+	 .end   = GPMI_PHYS_ADDR + SZ_8K - 1,
+	 },
+	{
+	 .flags = IORESOURCE_IRQ,
+	 .start = IRQ_GPMI_DMA,
+	 .end   = IRQ_GPMI_DMA,
+	 },
+	{
+	 .flags = IORESOURCE_DMA,
+	 .start	= MXS_DMA_CHANNEL_AHB_APBH_GPMI0,
+	 .end	= MXS_DMA_CHANNEL_AHB_APBH_GPMI7,
+	 },
+	{
+	 .flags = IORESOURCE_MEM,
+	 .start = BCH_PHYS_ADDR,
+	 .end   = BCH_PHYS_ADDR + SZ_8K - 1,
+	 },
+	{
+	 .flags = IORESOURCE_IRQ,
+	 .start = IRQ_BCH,
+	 .end   = IRQ_BCH,
+	 },
+};
+
+static void __init mx28_init_gpmi(void)
+{
+	struct platform_device  *pdev;
+
+	pdev = mxs_get_device("gpmi", 0);
+	if (pdev == NULL || IS_ERR(pdev))
+		return;
+	pdev->dev.platform_data = &gpmi_platform_data;
+	pdev->resource          = gpmi_resources;
+	pdev->num_resources     = ARRAY_SIZE(gpmi_resources);
+	mxs_add_device(pdev, 1);
+}
+#else
+static void mx28_init_gpmi(void)
+{
+}
+#endif
+
+
 #if defined(CONFIG_MMC_MXS) || defined(CONFIG_MMC_MXS_MODULE)
 #if defined(CONFIG_MACH_MX28EVK)
 #define MMC0_POWER	MXS_PIN_TO_GPIO(PINID_PWM3)
@@ -1102,6 +1172,7 @@ int __init mx28_device_init(void)
 	mx28_init_lradc();
 	mx28_init_auart();
 	mx28_init_mmc();
+	mx28_init_gpmi();
 	mx28_init_wdt();
 	mx28_init_rtc();
 	mx28_init_fec();

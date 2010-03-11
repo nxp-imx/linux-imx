@@ -43,7 +43,8 @@ struct mxs_dma_cmd_bits {
 
 	unsigned int chain:1;
 	unsigned int irq:1;
-	unsigned int resv:2;
+	unsigned int nand_lock:1;
+	unsigned int nand_wait_4_ready:1;
 	unsigned int dec_sem:1;
 	unsigned int wait4end:1;
 	unsigned int halt_on_terminate:1;
