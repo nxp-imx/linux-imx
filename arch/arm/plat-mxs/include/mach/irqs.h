@@ -35,5 +35,10 @@ struct irq_ic_info {
 #define __irq_ic_info_attr __attribute__((__section__(".irq_ic_info.array")))
 
 extern struct irq_ic_info *current_irq_ic_info;
+
+void mxs_set_irq_fiq(unsigned int irq, unsigned int type);
+void mxs_enable_fiq_functionality(int enable);
+
 #endif
+
 #endif /* __ASM_ARCH_SYSTEM_H__ */

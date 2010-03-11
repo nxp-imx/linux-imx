@@ -36,8 +36,10 @@
 #include <mach/regs-lradc.h>
 #include <mach/device.h>
 #include <mach/dma.h>
+#include <mach/irqs.h>
 #include <mach/lradc.h>
 #include <mach/lcdif.h>
+#include <mach/ddi_bc.h>
 
 #include "device.h"
 #include "mx23_pins.h"
@@ -602,6 +604,89 @@ static void mx23_init_mmc(void)
 }
 #endif
 
+#if defined(CONFIG_BATTERY_MXS)
+/* battery info data */
+static ddi_bc_Cfg_t battery_data = {
+	.u32StateMachinePeriod		 = 100,		/* ms */
+	.u16CurrentRampSlope		 = 75,		/* mA/s */
+	.u16ConditioningThresholdVoltage = 2900, 	/* mV */
+	.u16ConditioningMaxVoltage	 = 3000,	/* mV */
+	.u16ConditioningCurrent		 = 60,		/* mA */
+	.u32ConditioningTimeout		 = 4*60*60*1000, /* ms (4 hours) */
+	.u16ChargingVoltage		 = 4200,	/* mV */
+	/* FIXME: the current comparator could have h/w bugs in current
+	 * detection through POWER_STS.CHRGSTS bit */
+	.u16ChargingCurrent		 = 600,		/* mA 600 */
+	.u16ChargingThresholdCurrent	 = 60,		/* mA 60 */
+	.u32ChargingTimeout		 = 4*60*60*1000,/* ms (4 hours) */
+	.u32TopOffPeriod		 = 30*60*1000,	/* ms (30 minutes) */
+	.monitorDieTemp			 = 1,		/* Monitor the die */
+	.u8DieTempHigh			 = 75,		/* deg centigrade */
+	.u8DieTempLow			 = 65,		/* deg centigrade */
+	.u16DieTempSafeCurrent		 = 0,		/* mA */
+	.monitorBatteryTemp		 = 0,		/* Monitor the battery*/
+	.u8BatteryTempChannel		 = 1,		/* LRADC 1 */
+	.u16BatteryTempHigh		 = 642,		/* Unknown units */
+	.u16BatteryTempLow		 = 497,		/* Unknown units */
+	.u16BatteryTempSafeCurrent	 = 0,		/* mA */
+};
+
+static struct resource battery_resource[] = {
+	{/* 0 */
+		.flags  = IORESOURCE_IRQ,
+		.start  = IRQ_VDD5V,
+		.end    = IRQ_VDD5V,
+	},
+	{/* 1 */
+		.flags  = IORESOURCE_IRQ,
+		.start  = IRQ_DCDC4P2_BO,
+		.end    = IRQ_DCDC4P2_BO,
+	},
+	{/* 2 */
+		.flags  = IORESOURCE_IRQ,
+		.start  = IRQ_BATT_BRNOUT,
+		.end    = IRQ_BATT_BRNOUT,
+	},
+	{/* 3 */
+		.flags  = IORESOURCE_IRQ,
+		.start  = IRQ_VDDD_BRNOUT,
+		.end    = IRQ_VDDD_BRNOUT,
+	},
+	{/* 4 */
+		.flags  = IORESOURCE_IRQ,
+		.start  = IRQ_VDD18_BRNOUT,
+		.end    = IRQ_VDD18_BRNOUT,
+	},
+	{/* 5 */
+		.flags  = IORESOURCE_IRQ,
+		.start  = IRQ_VDDIO_BRNOUT,
+		.end    = IRQ_VDDIO_BRNOUT,
+	},
+	{/* 6 */
+		.flags  = IORESOURCE_IRQ,
+		.start  = IRQ_VDD5V_DROOP,
+		.end    = IRQ_VDD5V_DROOP,
+	},
+};
+
+static void mx23_init_battery(void)
+{
+	struct platform_device *pdev;
+	pdev = mxs_get_device("mxs-battery", 0);
+	if (pdev) {
+		pdev->resource = battery_resource,
+		pdev->num_resources = ARRAY_SIZE(battery_resource),
+		pdev->dev.platform_data = &battery_data;
+		mxs_add_device(pdev, 3);
+	}
+}
+#else
+static void mx23_init_battery(void)
+{
+}
+#endif
+
+
 int __init mx23_device_init(void)
 {
 	mx23_init_dma();
@@ -617,6 +702,8 @@ int __init mx23_device_init(void)
 	mx23_init_mmc();
 	mx23_init_lcdif();
 	mx23_init_pxp();
+	mx23_init_battery();
+
 	return 0;
 }
 

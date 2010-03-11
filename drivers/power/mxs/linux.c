@@ -24,9 +24,8 @@
 #include <linux/regulator/driver.h>
 #include <mach/regulator.h>
 #include <mach/regs-power.h>
-#include <mach/mx28.h>
+#include <mach/hardware.h>
 #include <mach/irqs.h>
-#include <mach/regs-icoll.h>
 #include <linux/delay.h>
 #include <linux/proc_fs.h>
 #include <linux/interrupt.h>
@@ -97,9 +96,11 @@ struct mxs_info {
 #define OS_SHUTDOWN_BATTERY_VOLTAGE_THRESHOLD_MV 3350
 #endif
 
-#ifdef CONFIG_ARCH_STMP3XXX
-#define  POWER_FIQ
+#ifdef CONFIG_ARCH_MX23
+#define IRQ_DCDC4P2_BRNOUT IRQ_DCDC4P2_BO
 #endif
+
+/* #define  POWER_FIQ */
 
 /* #define DEBUG_IRQS */
 
@@ -126,7 +127,7 @@ void init_protection(struct mxs_info *info)
 	battery_voltage = ddi_power_GetBattery();
 
 	/* InitializeFiqSystem(); */
-#ifdef POWER_FIQ
+#ifdef CONFIG_ARCH_MX23
 	ddi_power_InitOutputBrownouts();
 #endif
 
@@ -1082,80 +1083,39 @@ static int __init mxs_bat_init(void)
 		lock_vector_tlb(REGS_POWER_BASE);
 
 		/* disable interrupts to be configured as FIQs */
-		__raw_writel(BM_ICOLL_INTERRUPTn_ENABLE,
-			REGS_ICOLL_BASE +
-			HW_ICOLL_INTERRUPTn_CLR(IRQ_DCDC4P2_BRNOUT));
-
-		__raw_writel(BM_ICOLL_INTERRUPTn_ENABLE,
-			REGS_ICOLL_BASE +
-			HW_ICOLL_INTERRUPTn_CLR(IRQ_BATT_BRNOUT));
-
-		__raw_writel(BM_ICOLL_INTERRUPTn_ENABLE,
-			REGS_ICOLL_BASE +
-			HW_ICOLL_INTERRUPTn_CLR(IRQ_VDDD_BRNOUT));
-
+		disable_irq(IRQ_DCDC4P2_BRNOUT);
+		disable_irq(IRQ_BATT_BRNOUT);
+		disable_irq(IRQ_VDDD_BRNOUT);
 #ifndef CONFIG_ARCH_MX28
-		__raw_writel(BM_ICOLL_INTERRUPTn_ENABLE,
-			REGS_ICOLL_BASE +
-			HW_ICOLL_INTERRUPTn_CLR(IRQ_VDD18_BRNOUT));
+		disable_irq(IRQ_VDD18_BRNOUT);
 #endif
+		disable_irq(IRQ_VDD5V_DROOP);
 
-		__raw_writel(BM_ICOLL_INTERRUPTn_ENABLE,
-			REGS_ICOLL_BASE +
-			HW_ICOLL_INTERRUPTn_CLR(IRQ_VDD5V_DROOP));
 
 		/* Enable these interrupts as FIQs */
-		__raw_writel(BM_ICOLL_INTERRUPTn_ENFIQ,
-			REGS_ICOLL_BASE +
-			HW_ICOLL_INTERRUPTn_SET(IRQ_DCDC4P2_BRNOUT));
-
-		__raw_writel(BM_ICOLL_INTERRUPTn_ENFIQ,
-			REGS_ICOLL_BASE +
-			HW_ICOLL_INTERRUPTn_SET(IRQ_BATT_BRNOUT));
-
-		__raw_writel(BM_ICOLL_INTERRUPTn_ENFIQ,
-			REGS_ICOLL_BASE +
-			HW_ICOLL_INTERRUPTn_SET(IRQ_VDDD_BRNOUT));
-
+		mxs_set_irq_fiq(IRQ_DCDC4P2_BRNOUT, 1);
+		mxs_set_irq_fiq(IRQ_BATT_BRNOUT, 1);
+		mxs_set_irq_fiq(IRQ_VDDD_BRNOUT, 1);
 #ifndef CONFIG_ARCH_MX28
-		__raw_writel(BM_ICOLL_INTERRUPTn_ENFIQ,
-			REGS_ICOLL_BASE +
-			HW_ICOLL_INTERRUPTn_SET(IRQ_VDD18_BRNOUT));
+		mxs_set_irq_fiq(IRQ_VDD18_BRNOUT, 1);
 #endif
+		mxs_set_irq_fiq(IRQ_VDD5V_DROOP, 1);
 
-		__raw_writel(BM_ICOLL_INTERRUPTn_ENFIQ,
-			REGS_ICOLL_BASE +
-			HW_ICOLL_INTERRUPTn_SET(IRQ_VDD5V_DROOP));
 
 		/* enable FIQ functionality */
-		__raw_writel(BM_ICOLL_CTRL_FIQ_FINAL_ENABLE,
-				REGS_ICOLL_BASE + HW_ICOLL_CTRL_SET);
+		mxs_enable_fiq_functionality(1);
 
-		/* enable these interrupts */
-		__raw_writel(BM_ICOLL_INTERRUPTn_ENABLE,
-				REGS_ICOLL_BASE +
-				HW_ICOLL_INTERRUPTn_SET(IRQ_DCDC4P2_BRNOUT));
-
-		__raw_writel(BM_ICOLL_INTERRUPTn_ENABLE,
-				REGS_ICOLL_BASE +
-				HW_ICOLL_INTERRUPTn_SET(IRQ_BATT_BRNOUT));
-
-		__raw_writel(BM_ICOLL_INTERRUPTn_ENABLE,
-				REGS_ICOLL_BASE +
-				HW_ICOLL_INTERRUPTn_SET(IRQ_VDDD_BRNOUT));
-
+		enable_irq(IRQ_DCDC4P2_BRNOUT);
+		enable_irq(IRQ_BATT_BRNOUT);
+		enable_irq(IRQ_VDDD_BRNOUT);
 #ifndef CONFIG_ARCH_MX28
-		__raw_writel(BM_ICOLL_INTERRUPTn_ENABLE,
-				REGS_ICOLL_BASE +
-				HW_ICOLL_INTERRUPTn_SET(IRQ_VDD18_BRNOUT));
+		enable_irq(IRQ_VDD18_BRNOUT);
 #endif
-
-		__raw_writel(BM_ICOLL_INTERRUPTn_ENABLE,
-				REGS_ICOLL_BASE +
-				HW_ICOLL_INTERRUPTn_SET(IRQ_VDD5V_DROOP));
+		enable_irq(IRQ_VDD5V_DROOP);
 
 	}
 #endif
+
 	return platform_driver_register(&mxs_batdrv);
 }
 

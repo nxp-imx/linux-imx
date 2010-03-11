@@ -23,6 +23,7 @@
 
 #include <mach/hardware.h>
 #include <mach/device.h>
+#include <mach/irqs.h>
 
 #include "regs-icoll.h"
 
@@ -106,3 +107,29 @@ void __init avic_init_irq(void __iomem *base, int nr_irqs)
 	/* Barrier */
 	(void)__raw_readl(g_icoll_base + HW_ICOLL_STAT);
 }
+
+void mxs_set_irq_fiq(unsigned int irq, unsigned int type)
+{
+	if (type == 0)
+		__raw_writel(BM_ICOLL_INTERRUPTn_ENFIQ,
+			g_icoll_base +
+			HW_ICOLL_INTERRUPTn_CLR(irq));
+	else
+		__raw_writel(BM_ICOLL_INTERRUPTn_ENFIQ,
+			g_icoll_base +
+			HW_ICOLL_INTERRUPTn_SET(irq));
+}
+EXPORT_SYMBOL(mxs_set_irq_fiq);
+
+void mxs_enable_fiq_functionality(int enable)
+{
+	if (enable)
+		__raw_writel(BM_ICOLL_CTRL_FIQ_FINAL_ENABLE,
+			g_icoll_base + HW_ICOLL_CTRL_SET);
+	else
+		__raw_writel(BM_ICOLL_CTRL_FIQ_FINAL_ENABLE,
+			g_icoll_base + HW_ICOLL_CTRL_CLR);
+
+}
+EXPORT_SYMBOL(mxs_enable_fiq_functionality);
+

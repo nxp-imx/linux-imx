@@ -44,9 +44,11 @@
 #include <linux/usb/otg.h>
 #include <linux/usb/fsl_xcvr.h>
 #include <mach/arc_otg.h>
+#include <mach/hardware.h>
 #include <linux/io.h>
 #include "regs-usbphy.h"
 
+#ifdef CONFIG_ARCH_MX28
 #define MXC_NUMBER_USB_TRANSCEIVER 6
 struct fsl_xcvr_ops *g_xc_ops[MXC_NUMBER_USB_TRANSCEIVER] = { NULL };
 
@@ -376,15 +378,19 @@ int usb_host_wakeup_irq(struct device *wkup_dev)
 	return 0;
 }
 EXPORT_SYMBOL(usb_host_wakeup_irq);
-
+#endif
 void usb_host_set_wakeup(struct device *wkup_dev, bool para)
 {
 }
 EXPORT_SYMBOL(usb_host_set_wakeup);
 
+#ifdef CONFIG_ARCH_MX28
+#define USBPHY_PHYS_ADDR USBPHY0_PHYS_ADDR
+#endif
+
 int fsl_is_usb_plugged(void)
 {
-	return __raw_readl(REGS_USBPHY_BASE + HW_USBPHY_STATUS) & \
+	return __raw_readl(IO_ADDRESS(USBPHY_PHYS_ADDR) + HW_USBPHY_STATUS) & \
 		BM_USBPHY_STATUS_DEVPLUGIN_STATUS;
 }
 EXPORT_SYMBOL(fsl_is_usb_plugged);
@@ -392,7 +398,7 @@ EXPORT_SYMBOL(fsl_is_usb_plugged);
 void fsl_enable_usb_plugindetect(void)
 {
 	__raw_writel(BM_USBPHY_CTRL_ENDEVPLUGINDETECT,
-			REGS_USBPHY_BASE + HW_USBPHY_CTRL_SET);
+			IO_ADDRESS(USBPHY_PHYS_ADDR) + HW_USBPHY_CTRL_SET);
 }
 EXPORT_SYMBOL(fsl_enable_usb_plugindetect);
 

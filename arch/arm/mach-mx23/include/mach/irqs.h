@@ -94,3 +94,9 @@
 
 /* Hard disk IRQ is a GPMI attention IRQ */
 #define IRQ_HARDDISK		IRQ_GPMI_ATTENTION
+
+#ifndef __ASSEMBLY__
+void mxs_set_irq_fiq(unsigned int irq, unsigned int type);
+void mxs_enable_fiq_functionality(int enable);
+#endif
+

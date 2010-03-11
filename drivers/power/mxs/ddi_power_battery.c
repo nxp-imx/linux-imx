@@ -91,6 +91,10 @@
 /* to be re-enabled once FIQ functionality is added */
 #define DISABLE_VDDIO_BO_PROTECTION
 
+#ifdef CONFIG_ARCH_MX28
+#define BM_POWER_STS_VBUSVALID BM_POWER_STS_VBUSVALID0
+#endif
+
 /* Globals & Variables */
 
 
@@ -1374,13 +1378,14 @@ uint16_t ddi_power_ExpressibleCurrent(uint16_t u16Current)
 /*  */
 /* brief */
 
+
 bool ddi_power_Get5vPresentFlag(void)
 {
 	switch (DetectionMethod) {
 	case DDI_POWER_5V_VBUSVALID:
 		/* Check VBUSVALID for 5V present */
 		return ((__raw_readl(REGS_POWER_BASE + HW_POWER_STS) &
-			BM_POWER_STS_VBUSVALID0) != 0);
+			BM_POWER_STS_VBUSVALID) != 0);
 	case DDI_POWER_5V_VDD5V_GT_VDDIO:
 		/* Check VDD5V_GT_VDDIO for 5V present */
 		return ((__raw_readl(REGS_POWER_BASE + HW_POWER_STS) &
