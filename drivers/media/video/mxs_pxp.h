@@ -137,9 +137,6 @@ struct pxps {
 	struct pxp_registers *regs_virt;
 	wait_queue_head_t done;
 	int next_queue_ended;
-
-	/* notifier for PXP when fb changed */
-	struct notifier_block nb;
 };
 
 struct pxp_data_format {
