@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # Linux kernel version: 2.6.31
-# Mon Mar 15 09:38:37 2010
+# Mon Mar 15 16:08:57 2010
 #
 CONFIG_ARM=y
 CONFIG_SYS_SUPPORTS_APM_EMULATION=y
@@ -693,7 +693,7 @@ CONFIG_VIDEO_CAPTURE_DRIVERS=y
 # CONFIG_VIDEO_FIXED_MINOR_RANGES is not set
 CONFIG_VIDEO_HELPER_CHIPS_AUTO=y
 # CONFIG_VIDEO_VIVI is not set
-CONFIG_VIDEO_PXP=y
+CONFIG_VIDEO_MXS_PXP=y
 # CONFIG_VIDEO_CPIA is not set
 # CONFIG_VIDEO_SAA5246A is not set
 # CONFIG_VIDEO_SAA5249 is not set
