@@ -23,7 +23,11 @@
 #include <linux/platform_device.h>
 #include <linux/fsl_devices.h>
 #include <mach/irqs.h>
+#include <mach/mx23.h>
 #include "usb.h"
+#include "mx23_pins.h"
+
+#define USB_POWER_ENABLE MXS_PIN_TO_GPIO(PINID_GMPI_CE2N)
 
 static void usb_host_phy_resume(struct fsl_usb2_platform_data *plat)
 {
@@ -54,7 +58,7 @@ static struct fsl_usb2_platform_data __maybe_unused dr_utmi_config = {
 	.power_budget      = 500,	/* 500 mA max power */
 	.platform_resume = usb_host_phy_resume,
 	.transceiver       = "utmi",
-	.phy_regs          = USBPHY0_PHYS_ADDR,
+	.phy_regs          = USBPHY_PHYS_ADDR,
 };
 
 /*
@@ -62,15 +66,20 @@ static struct fsl_usb2_platform_data __maybe_unused dr_utmi_config = {
  */
 static struct resource otg_resources[] = {
 	[0] = {
-		.start	= (u32)USBCTRL0_PHYS_ADDR,
-		.end	= (u32)(USBCTRL0_PHYS_ADDR + 0x1ff),
+		.start	= (u32)USBCTRL_PHYS_ADDR,
+		.end	= (u32)(USBCTRL_PHYS_ADDR + 0x1ff),
 		.flags	= IORESOURCE_MEM,
 	},
 
 	[1] = {
-		.start	= IRQ_USB0,
+		.start	= IRQ_USB_CTRL,
 		.flags	= IORESOURCE_IRQ,
 	},
+
+	[2] = {
+		.start = IRQ_USB_WAKEUP,
+		.flags = IORESOURCE_IRQ,
+	}
 };
 
 static u64 dr_udc_dmamask = ~(u32) 0;
@@ -124,4 +133,40 @@ static int __init usb_dr_init(void)
 	return 0;
 }
 
+static unsigned int g_usb_power_enable_pin;
+void fsl_phy_usb_utmi_init(struct fsl_xcvr_ops *this)
+{
+	int ret;
+	g_usb_power_enable_pin = 0;
+	ret = gpio_request(USB_POWER_ENABLE, "usb_power");
+	if (ret) {
+		pr_err("request usb power enable fail\n");
+	} else {
+		g_usb_power_enable_pin = USB_POWER_ENABLE;
+		gpio_direction_output(g_usb_power_enable_pin, 0);
+	}
+}
+
+void fsl_phy_usb_utmi_uninit(struct fsl_xcvr_ops *this)
+{
+	if (g_usb_power_enable_pin)
+		gpio_free(g_usb_power_enable_pin);
+}
+
+/*!
+ * set vbus power
+ *
+ * @param       view  viewport register
+ * @param       on    power on or off
+ */
+void fsl_phy_set_power(struct fsl_xcvr_ops *this,
+		      struct fsl_usb2_platform_data *pdata, int on)
+{
+	if (g_usb_power_enable_pin)
+		gpio_set_value(g_usb_power_enable_pin, on);
+	else
+		pr_err("not usb power control pin set\n");
+}
+
 module_init(usb_dr_init);
+

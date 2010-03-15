@@ -58,9 +58,17 @@ static inline void fsl_platform_set_host_mode(struct usb_hcd *hcd)
 static inline void
 fsl_platform_set_vbus_power(struct fsl_usb2_platform_data *pdata, int on)
 {
+	if (pdata->xcvr_ops && pdata->xcvr_ops->set_vbus_power)
+		pdata->xcvr_ops->set_vbus_power(pdata->xcvr_ops, pdata, on);
 }
 
 /* Set USB AHB burst length for host */
 static inline void fsl_platform_set_ahb_burst(struct usb_hcd *hcd)
 {
 }
+
+void fsl_phy_usb_utmi_init(struct fsl_xcvr_ops *this);
+void fsl_phy_usb_utmi_uninit(struct fsl_xcvr_ops *this);
+void fsl_phy_set_power(struct fsl_xcvr_ops *this,
+			struct fsl_usb2_platform_data *pdata, int on);
+

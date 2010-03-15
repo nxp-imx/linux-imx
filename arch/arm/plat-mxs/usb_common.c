@@ -48,7 +48,6 @@
 #include <linux/io.h>
 #include "regs-usbphy.h"
 
-#ifdef CONFIG_ARCH_MX28
 #define MXC_NUMBER_USB_TRANSCEIVER 6
 struct fsl_xcvr_ops *g_xc_ops[MXC_NUMBER_USB_TRANSCEIVER] = { NULL };
 
@@ -95,14 +94,12 @@ EXPORT_SYMBOL(fsl_platform_set_test_mode);
 void fsl_platform_set_usb_phy_dis(struct fsl_usb2_platform_data *pdata,
 				  bool enable)
 {
-	void __iomem *ctrl_reg = IO_ADDRESS(pdata->phy_regs + HW_USBPHY_CTRL);
-	u32 tmp = __raw_readl(ctrl_reg);
-
 	if (enable)
-		tmp |= BM_USBPHY_CTRL_ENHOSTDISCONDETECT;
+		__raw_writel(BM_USBPHY_CTRL_ENHOSTDISCONDETECT,
+			IO_ADDRESS(pdata->phy_regs) + HW_USBPHY_CTRL_SET);
 	else
-		tmp &= ~BM_USBPHY_CTRL_ENHOSTDISCONDETECT;
-	__raw_writel(tmp, ctrl_reg);
+		__raw_writel(BM_USBPHY_CTRL_ENHOSTDISCONDETECT,
+			IO_ADDRESS(pdata->phy_regs) + HW_USBPHY_CTRL_CLR);
 }
 EXPORT_SYMBOL(fsl_platform_set_usb_phy_dis);
 
@@ -307,10 +304,10 @@ int usbotg_init(struct platform_device *pdev)
 
 	if (pdata->operating_mode == FSL_USB2_DR_HOST) {
 		/* enable FS/LS device */
-		tmp = __raw_readl(HW_USBPHY_CTRL_ADDR);
+		tmp = __raw_readl(IO_ADDRESS(pdata->phy_regs) + HW_USBPHY_CTRL);
 		tmp |= (BM_USBPHY_CTRL_ENUTMILEVEL2 |
 			BM_USBPHY_CTRL_ENUTMILEVEL3);
-		__raw_writel(tmp, HW_USBPHY_CTRL_ADDR);
+		__raw_writel(tmp, IO_ADDRESS(pdata->phy_regs) + HW_USBPHY_CTRL);
 	}
 
 	otg_used++;
@@ -378,7 +375,7 @@ int usb_host_wakeup_irq(struct device *wkup_dev)
 	return 0;
 }
 EXPORT_SYMBOL(usb_host_wakeup_irq);
-#endif
+
 void usb_host_set_wakeup(struct device *wkup_dev, bool para)
 {
 }

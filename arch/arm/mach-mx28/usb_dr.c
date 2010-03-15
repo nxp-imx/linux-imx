@@ -124,4 +124,23 @@ static int __init usb_dr_init(void)
 	return 0;
 }
 
+void fsl_phy_usb_utmi_init(struct fsl_xcvr_ops *this)
+{
+}
+
+void fsl_phy_usb_utmi_uninit(struct fsl_xcvr_ops *this)
+{
+}
+
+/*!
+ * set vbus power
+ *
+ * @param       view  viewport register
+ * @param       on    power on or off
+ */
+void fsl_phy_set_power(struct fsl_xcvr_ops *this,
+			struct fsl_usb2_platform_data *pdata, int on)
+{
+}
+
 module_init(usb_dr_init);

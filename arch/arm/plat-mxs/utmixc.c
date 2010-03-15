@@ -32,33 +32,17 @@
 #include <mach/arc_otg.h>
 #include <asm/mach-types.h>
 
-
-static void usb_utmi_init(struct fsl_xcvr_ops *this)
-{
-}
-
-static void usb_utmi_uninit(struct fsl_xcvr_ops *this)
-{
-}
-
-/*!
- * set vbus power
- *
- * @param       view  viewport register
- * @param       on    power on or off
- */
-static void set_power(struct fsl_xcvr_ops *this,
-		      struct fsl_usb2_platform_data *pdata, int on)
-{
-
-}
+extern void fsl_phy_usb_utmi_init(struct fsl_xcvr_ops *this);
+extern void fsl_phy_usb_utmi_uninit(struct fsl_xcvr_ops *this);
+extern void fsl_phy_set_power(struct fsl_xcvr_ops *this,
+			struct fsl_usb2_platform_data *pdata, int on);
 
 static struct fsl_xcvr_ops utmi_ops = {
 	.name = "utmi",
 	.xcvr_type = PORTSC_PTS_UTMI,
-	.init = usb_utmi_init,
-	.uninit = usb_utmi_uninit,
-	.set_vbus_power = set_power,
+	.init = fsl_phy_usb_utmi_init,
+	.uninit = fsl_phy_usb_utmi_uninit,
+	.set_vbus_power = fsl_phy_set_power,
 };
 
 extern void fsl_usb_xcvr_register(struct fsl_xcvr_ops *xcvr_ops);
