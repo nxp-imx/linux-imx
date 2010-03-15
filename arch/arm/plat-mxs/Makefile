@@ -5,7 +5,7 @@
 obj-y += core.o clock.o pinctrl.o device.o timer-nomatch.o
 
 obj-$(CONFIG_MXS_TIMER_WITH_MACH) += timer-match.o
-
+obj-$(CONFIG_IRAM_ALLOC) += iram.o
 obj-$(CONFIG_GENERIC_GPIO) += gpio.o
 
 obj-$(CONFIG_MXS_ICOLL) += icoll.o

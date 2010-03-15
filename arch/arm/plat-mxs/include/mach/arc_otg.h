@@ -20,6 +20,14 @@
 #ifndef __ASM_ARCH_MXC_ARC_OTG_H__
 #define __ASM_ARCH_MXC_ARC_OTG_H__
 
+
+#if defined(CONFIG_USB_STATIC_IRAM) \
+    || defined(CONFIG_USB_STATIC_IRAM_PPH)
+#define USB_IRAM_SIZE   SZ_8K
+#else
+#define USB_IRAM_SIZE 0
+#endif
+
 #define OTG_BASE_ADDR		USBCTRL0_PHYS_ADDR
 #define USB_OTGREGS_BASE	(OTG_BASE_ADDR + 0x000)
 /*

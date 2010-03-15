@@ -153,6 +153,11 @@ config MXS_RAM_FREQ_SCALING
         bool "RAM frequency scaling support"
         depends on ARCH_MXS
         default y
+
+config IRAM_ALLOC
+        bool
+        default y
+        select GENERIC_ALLOCATOR
 endmenu
 
 endif

@@ -714,6 +714,12 @@ static struct __initdata map_desc mx23_io_desc[] = {
 	 .length = MX23_SOC_IO_AREA_SIZE,
 	 .type = MT_DEVICE,
 	 },
+	{
+	 .virtual = MX23_OCRAM_BASE,
+	 .pfn = __phys_to_pfn(MX23_OCRAM_PHBASE),
+	 .length = MX23_OCRAM_SIZE,
+	 .type  = MT_DEVICE,
+	},
 };
 
 void __init mx23_map_io(void)

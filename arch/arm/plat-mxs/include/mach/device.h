@@ -222,6 +222,8 @@ extern int mxs_add_device(struct platform_device *, int level);
 extern struct platform_device *mxs_get_device(char *name, int id);
 extern struct mxs_dev_lookup *mxs_get_devices(char *name);
 
+extern int iram_init(unsigned long base, unsigned long size);
+
 /* mxs ssp sd/mmc data definitons */
 struct mxs_mmc_platform_data {
 	int (*hw_init)(void);

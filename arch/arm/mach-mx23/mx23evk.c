@@ -47,6 +47,10 @@ static void __init mx23evk_device_init(void)
 static void __init mx23evk_init_machine(void)
 {
 	mx23_pinctrl_init();
+
+	/* Init iram allocate */
+	iram_init(MX23_OCRAM_PHBASE, MX23_OCRAM_SIZE);
+
 	mx23_gpio_init();
 	mx23evk_pins_init();
 	mx23_device_init();

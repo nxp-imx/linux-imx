@@ -104,6 +104,9 @@ static void __init mx28evk_device_init(void)
 static void __init mx28evk_init_machine(void)
 {
 	mx28_pinctrl_init();
+	/* Init iram allocate */
+	iram_init(MX28_OCRAM_PHBASE, MX28_OCRAM_SIZE);
+
 	mx28_gpio_init();
 	mx28evk_pins_init();
 	mx28_device_init();

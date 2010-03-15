@@ -26,6 +26,15 @@
 #define MX23_SOC_IO_VIRT_BASE	0xF0000000
 #define MX23_SOC_IO_AREA_SIZE	SZ_1M
 
+/* Virtual address where OCRAM is mapped */
+#define MX23_OCRAM_PHBASE   0x00000000
+#ifdef __ASSEMBLER__
+#define MX23_OCRAM_BASE     0xf1000000
+#else
+#define MX23_OCRAM_BASE     (void __iomem *)0xf1000000
+#endif
+#define MX23_OCRAM_SIZE     (32 * SZ_1K)
+
 #define ICOLL_PHYS_ADDR		(MX23_SOC_IO_PHYS_BASE + 0x000000)
 #define APBH_DMA_PHYS_ADDR	(MX23_SOC_IO_PHYS_BASE + 0x004000)
 #define BCH_PHYS_ADDR		(MX23_SOC_IO_PHYS_BASE + 0x00A000)
