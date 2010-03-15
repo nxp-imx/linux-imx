@@ -221,8 +221,8 @@ struct platform_device mxs_bl = {
 };
 #endif
 
-#if defined(CONFIG_VIDEO_PXP) || \
-	defined(CONFIG_VIDEO_PXP_MODULE)
+#if defined(CONFIG_VIDEO_MXS_PXP) || \
+	defined(CONFIG_VIDEO_MXS_PXP_MODULE)
 static struct platform_device mxs_pxp = {
 	.name		= "mxs-pxp",
 	.id		= 0,
@@ -487,8 +487,8 @@ static struct mxs_dev_lookup dev_lookup[] = {
 	 },
 #endif
 
-#if defined(CONFIG_VIDEO_PXP) || \
-	defined(CONFIG_VIDEO_PXP_MODULE)
+#if defined(CONFIG_VIDEO_MXS_PXP) || \
+	defined(CONFIG_VIDEO_MXS_PXP_MODULE)
 	{
 	 .name	= "mxs-pxp",
 	 .size	= 1,

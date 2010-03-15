@@ -164,8 +164,8 @@ static void __init mx23_init_lcdif(void)
 }
 #endif
 
-#if defined(CONFIG_VIDEO_PXP) || \
-	defined(CONFIG_VIDEO_PXP_MODULE)
+#if defined(CONFIG_VIDEO_MXS_PXP) || \
+	defined(CONFIG_VIDEO_MXS_PXP_MODULE)
 static struct resource pxp_resource[] = {
 	{
 		.flags	= IORESOURCE_MEM,
