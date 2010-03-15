@@ -33,11 +33,13 @@ struct emi_change {
 	unsigned cur_freq;
 	unsigned new_freq;
 };
+
 int mxs_ram_freq_scale(struct emi_change *emi);
 void mxs_ram_freq_scale_end();
 void DDR2EmiController_EDE1116_133MHz();
 void DDR2EmiController_EDE1116_166MHz();
 void DDR2EmiController_EDE1116_200MHz();
+unsigned int *get_current_emidata();
 #endif
 
 #endif
