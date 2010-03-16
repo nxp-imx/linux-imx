@@ -39,10 +39,29 @@ static void __init fixup_board(struct machine_desc *desc, struct tag *tags,
 	mx23_set_input_clk(24000000, 24000000, 32000, 50000000);
 }
 
+#if defined(CONFIG_SND_MXS_SOC_ADC) || defined(CONFIG_SND_MXS_SOC_ADC_MODULE)
+static void __init mx23evk_init_adc(void)
+{
+	struct platform_device *pdev;
+	pdev = mxs_get_device("mxs-adc", 0);
+	if (pdev == NULL)
+		return;
+	mxs_add_device(pdev, 3);
+}
+#else
+static void __init mx23evk_init_adc(void)
+{
+
+}
+#endif
+
+
 static void __init mx23evk_device_init(void)
 {
 	/* Add mx23evk special code */
+	mx23evk_init_adc();
 }
+
 
 static void __init mx23evk_init_machine(void)
 {

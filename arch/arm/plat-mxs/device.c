@@ -412,6 +412,18 @@ static struct platform_device mxs_spdif[] = {
 };
 #endif
 
+#if defined(CONFIG_SND_MXS_SOC_ADC) || \
+	defined(CONFIG_SND_MXS_SOC_ADC_MODULE)
+static struct platform_device mxs_adc = {
+	.name = "mxs-adc-audio",
+	.id = 0,
+	.dev = {
+		.release = mxs_nop_release,
+		},
+};
+#endif
+
+
 static struct mxs_dev_lookup dev_lookup[] = {
 #if defined(CONFIG_SERIAL_MXS_DUART) || \
 	defined(CONFIG_SERIAL_MXS_DUART_MODULE)
@@ -586,6 +598,16 @@ static struct mxs_dev_lookup dev_lookup[] = {
 	.pdev = mxs_spdif,
 	},
 #endif
+
+#if defined(CONFIG_SND_MXS_SOC_ADC) || \
+	defined(CONFIG_SND_MXS_SOC_ADC_MODULE)
+	{
+	.name = "mxs-adc",
+	.size = 1,
+	.pdev = &mxs_adc,
+	},
+#endif
+
 };
 
 struct platform_device *mxs_get_device(char *name, int id)

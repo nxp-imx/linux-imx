@@ -18,6 +18,14 @@ config SND_MXS_SOC_EVK_DEVB
 	  Say Y if you want to add support for SoC audio on MXS EVK development
 	  board with the sgtl5000 codec.
 
+config SND_MXS_SOC_EVK_ADC
+	tristate "SoC Audio support for MXS-EVK ADC/DAC"
+	depends on SND_MXS_SOC && ARCH_MX23
+	select SND_SOC_MXS_ADC_CODEC
+	help
+	  Say Y if you want to add support for SoC audio on MXS EVK development
+	  board with ADC/DAC audio interface.
+
 config SND_MXS_SOC_DAI
 	tristate "MXS Digital Audio Interface SAIF"
 	default y
@@ -38,6 +46,12 @@ config SND_MXS_SOC_SAIF1_SELECT
 	help
 	  Enable MXS SAIF1 Module
 
+config SND_MXS_SOC_ADC
+	tristate "MXS ADC/DAC Audio Interface"
+	default y
+	depends on SND_MXS_SOC_EVK_ADC
+	help
+	  Enable MXS ADC/DAC Audio Interface
 
 config SND_MXS_SOC_EVK_DEVB_SPDIF
 	tristate "SoC SPDIF support for MXS EVK Development Board"
