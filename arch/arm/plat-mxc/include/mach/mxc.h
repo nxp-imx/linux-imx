@@ -447,12 +447,6 @@ struct tve_platform_data {
 	char *dig_reg;
 };
 
-struct fec_platform_data {
-	int (*init) (void);
-	int (*uninit) (void);
-	struct regulator *vddio_reg;
-};
-
 struct mxc_vpu_platform_data {
 	void (*reset) (void);
 };
