@@ -190,16 +190,16 @@ static void pxp_set_ctrl(struct pxps *pxp)
 	pxp->regs_virt->ctrl = ctrl;
 }
 
-static void pxp_set_rgbbuf(struct pxps *pxp)
+static void pxp_set_outbuf(struct pxps *pxp)
 {
-	pxp->regs_virt->rgbbuf = pxp->outb_phys;
+	pxp->regs_virt->outbuf = pxp->outb_phys;
 	/* Always equal to the FB size */
 	if (pxp->rotate % 180)
-		pxp->regs_virt->rgbsize =
+		pxp->regs_virt->outsize =
 		    BF_PXP_OUTSIZE_WIDTH(pxp->fb.fmt.height) |
 		    BF_PXP_OUTSIZE_HEIGHT(pxp->fb.fmt.width);
 	else
-		pxp->regs_virt->rgbsize =
+		pxp->regs_virt->outsize =
 		    BF_PXP_OUTSIZE_WIDTH(pxp->fb.fmt.width) |
 		    BF_PXP_OUTSIZE_HEIGHT(pxp->fb.fmt.height);
 }
@@ -459,7 +459,7 @@ static int pxp_s_output(struct file *file, void *fh, unsigned int i)
 		       fmt->width * fmt->height * bpp, DMA_TO_DEVICE);
 
 out:
-	pxp_set_rgbbuf(pxp);
+	pxp_set_outbuf(pxp);
 
 	return 0;
 }
@@ -665,7 +665,7 @@ static int pxp_streamon(struct file *file, void *priv, enum v4l2_buf_type t)
 	if ((t != V4L2_BUF_TYPE_VIDEO_OUTPUT))
 		return -EINVAL;
 
-	pxp_set_rgbbuf(pxp);
+	pxp_set_outbuf(pxp);
 	ret = videobuf_streamon(&pxp->s0_vbq);
 
 	if (!ret && (pxp->output == 0))

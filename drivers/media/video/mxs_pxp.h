@@ -51,9 +51,9 @@ struct pxp_overlay_registers {
 /* Registers feed for PXP_NEXT */
 struct pxp_registers {
 	u32 ctrl;
-	u32 rgbbuf;
-	u32 rgbbuf2;
-	u32 rgbsize;
+	u32 outbuf;
+	u32 outbuf2;
+	u32 outsize;
 	u32 s0buf;
 	u32 s0ubuf;
 	u32 s0vbuf;
