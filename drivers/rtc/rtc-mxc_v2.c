@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2009 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2004-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -257,7 +257,7 @@ static irqreturn_t mxc_rtc_interrupt(int irq, void *dev_id)
 
 	/* If no interrupts are enabled, turn off interrupts in kernel */
 	if (((lp_cr & SRTC_LPCR_ALL_INT_EN) == 0) && (pdata->irq_enable)) {
-		disable_irq(pdata->irq);
+		disable_irq_nosync(pdata->irq);
 		pdata->irq_enable = false;
 	}
 
