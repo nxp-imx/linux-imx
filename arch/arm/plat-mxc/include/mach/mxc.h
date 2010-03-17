@@ -170,19 +170,16 @@ extern unsigned int system_rev;
 #define mxc_cpu_rev_minor()	(system_rev & 0xF)
 #define mxc_cpu_is_rev(rev)	\
 	((mxc_cpu_rev() == rev) ? 1 : ((mxc_cpu_rev() < rev) ? -1 : 2))
-#define cpu_rev(type)				\
-static inline int type## _rev (int rev)		\
-{						\
-	return (type() ? mxc_cpu_is_rev(rev) : 0);	\
-}
-cpu_rev(cpu_is_mx21);
-cpu_rev(cpu_is_mx25);
-cpu_rev(cpu_is_mx27);
-cpu_rev(cpu_is_mx31);
-cpu_rev(cpu_is_mx35);
-cpu_rev(cpu_is_mx37);
-cpu_rev(cpu_is_mx51);
-cpu_rev(cpu_is_mx53);
+#define cpu_rev(type, rev) (cpu_is_##type() ? mxc_cpu_is_rev(rev) : 0)
+
+#define cpu_is_mx21_rev(rev) cpu_rev(mx21, rev)
+#define cpu_is_mx25_rev(rev) cpu_rev(mx25, rev)
+#define cpu_is_mx27_rev(rev) cpu_rev(mx27, rev)
+#define cpu_is_mx31_rev(rev) cpu_rev(mx31, rev)
+#define cpu_is_mx35_rev(rev) cpu_rev(mx35, rev)
+#define cpu_is_mx37_rev(rev) cpu_rev(mx37, rev)
+#define cpu_is_mx51_rev(rev) cpu_rev(mx51, rev)
+#define cpu_is_mx53_rev(rev) cpu_rev(mx53, rev)
 
 
 #include <linux/types.h>
