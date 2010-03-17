@@ -194,8 +194,14 @@ static void pxp_set_rgbbuf(struct pxps *pxp)
 {
 	pxp->regs_virt->rgbbuf = pxp->outb_phys;
 	/* Always equal to the FB size */
-	pxp->regs_virt->rgbsize = BF_PXP_OUTSIZE_WIDTH(pxp->fb.fmt.width) |
-	    BF_PXP_OUTSIZE_HEIGHT(pxp->fb.fmt.height);
+	if (pxp->rotate % 180)
+		pxp->regs_virt->rgbsize =
+		    BF_PXP_OUTSIZE_WIDTH(pxp->fb.fmt.height) |
+		    BF_PXP_OUTSIZE_HEIGHT(pxp->fb.fmt.width);
+	else
+		pxp->regs_virt->rgbsize =
+		    BF_PXP_OUTSIZE_WIDTH(pxp->fb.fmt.width) |
+		    BF_PXP_OUTSIZE_HEIGHT(pxp->fb.fmt.height);
 }
 
 static void pxp_set_s0colorkey(struct pxps *pxp)
@@ -227,9 +233,14 @@ static void pxp_set_s1colorkey(struct pxps *pxp)
 static void pxp_set_oln(struct pxps *pxp)
 {
 	pxp->regs_virt->ol0.ol = (u32) pxp->fb.base;
-	pxp->regs_virt->ol0.olsize =
-	    BF_PXP_OLnSIZE_WIDTH(pxp->fb.fmt.width >> 3) |
-	    BF_PXP_OLnSIZE_HEIGHT(pxp->fb.fmt.height >> 3);
+	if (pxp->rotate % 180)
+		pxp->regs_virt->ol0.olsize =
+		    BF_PXP_OLnSIZE_WIDTH(pxp->fb.fmt.height >> 3) |
+		    BF_PXP_OLnSIZE_HEIGHT(pxp->fb.fmt.width >> 3);
+	else
+		pxp->regs_virt->ol0.olsize =
+		    BF_PXP_OLnSIZE_WIDTH(pxp->fb.fmt.width >> 3) |
+		    BF_PXP_OLnSIZE_HEIGHT(pxp->fb.fmt.height >> 3);
 }
 
 static void pxp_set_olparam(struct pxps *pxp)
@@ -292,6 +303,7 @@ static int pxp_set_scaling(struct pxps *pxp)
 
 	if ((pxp->srect.width == pxp->drect.width) &&
 	    (pxp->srect.height == pxp->drect.height)) {
+		pxp->regs_virt->s0scale = 0x10001000;
 		pxp->scaling = 0;
 		goto out;
 	}
@@ -653,6 +665,7 @@ static int pxp_streamon(struct file *file, void *priv, enum v4l2_buf_type t)
 	if ((t != V4L2_BUF_TYPE_VIDEO_OUTPUT))
 		return -EINVAL;
 
+	pxp_set_rgbbuf(pxp);
 	ret = videobuf_streamon(&pxp->s0_vbq);
 
 	if (!ret && (pxp->output == 0))
