@@ -2231,11 +2231,11 @@ static int gpmi_scan_middle(struct gpmi_nand_data *g)
  */
 static int  gpmi_register_with_mtd(struct gpmi_nand_data *g)
 {
+	struct mtd_info            *mtd  = &g->mtd;
 #if defined(CONFIG_MTD_PARTITIONS)
 	int                        r;
 	unsigned                   i;
 	struct gpmi_platform_data  *gpd  = g->gpd;
-	struct mtd_info            *mtd  = &g->mtd;
 	struct nand_chip           *nand = &g->nand;
 	struct mtd_partition       partitions[2];
 	struct mtd_info            *search_mtd;
@@ -2379,7 +2379,7 @@ static int  gpmi_register_with_mtd(struct gpmi_nand_data *g)
 	pr_info("MTD partitioning and/or concatenation are disabled.\n"
 		"Registering the entire GPMI medium...\n");
 
-	add_mtd_device(g->mtd);
+	add_mtd_device(mtd);
 
 #else
 
@@ -2524,9 +2524,9 @@ static int  gpmi_register_with_mtd(struct gpmi_nand_data *g)
  */
 static void gpmi_unregister_with_mtd(struct gpmi_nand_data *g)
 {
+	struct mtd_info            *mtd  = &g->mtd;
 #if defined(CONFIG_MTD_PARTITIONS)
 	struct gpmi_platform_data  *gpd  = g->gpd;
-	struct mtd_info            *mtd  = &g->mtd;
 #endif
 
 	/*

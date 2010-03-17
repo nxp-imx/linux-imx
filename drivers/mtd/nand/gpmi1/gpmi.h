@@ -288,7 +288,7 @@ struct gpmi_nand_data {
 
 	struct nand_device_info  device_info;
 
-#if defined(CONFIG_MTD_PARTITIONS) && defined(CONFIG_MTD_CONCAT)
+#if defined(CONFIG_MTD_PARTITIONS)
 	struct mtd_info       *general_use_mtd;
 	struct mtd_partition  *partitions;
 	unsigned              partition_count;
