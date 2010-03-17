@@ -16,6 +16,7 @@ obj-$(CONFIG_ARCH_MXS) += usb_common.o
 
 obj-$(CONFIG_MXS_LRADC) += lradc.o
 # Power Management
+obj-$(CONFIG_CPU_FREQ) += cpufreq.o
 
 # charging/current limitation testing
 
