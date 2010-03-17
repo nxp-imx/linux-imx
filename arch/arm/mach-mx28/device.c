@@ -39,6 +39,7 @@
 #include <mach/lradc.h>
 #include <mach/lcdif.h>
 #include <mach/ddi_bc.h>
+#include <mach/pinctrl.h>
 
 #include "regs-digctl.h"
 #include "device.h"
@@ -574,29 +575,25 @@ static struct resource mmc1_resource[] = {
 
 static void __init mx28_init_mmc(void)
 {
-	int i;
-	struct mxs_dev_lookup *lookup;
 	struct platform_device *pdev;
 
-	lookup = mxs_get_devices("mxs-mmc");
-	if (lookup == NULL || IS_ERR(lookup))
-		return;
-	for (i = 0; i < lookup->size; i++) {
-		pdev = lookup->pdev + i;
-		switch (pdev->id) {
-		case 0:
-			pdev->resource = mmc0_resource;
-			pdev->num_resources = ARRAY_SIZE(mmc0_resource);
-			pdev->dev.platform_data = &mmc0_data;
-			break;
-		case 1:
-			pdev->resource = mmc1_resource;
-			pdev->num_resources = ARRAY_SIZE(mmc1_resource);
-			pdev->dev.platform_data = &mmc1_data;
-			break;
-		default:
+	if (mxs_get_type(PINID_SSP0_CMD) == PIN_FUN1) {
+		pdev = mxs_get_device("mxs-mmc", 0);
+		if (pdev == NULL || IS_ERR(pdev))
 			return;
-		}
+		pdev->resource = mmc0_resource;
+		pdev->num_resources = ARRAY_SIZE(mmc0_resource);
+		pdev->dev.platform_data = &mmc0_data;
+		mxs_add_device(pdev, 2);
+	}
+
+	if (mxs_get_type(PINID_GPMI_RDY1) == PIN_FUN2) {
+		pdev = mxs_get_device("mxs-mmc", 1);
+		if (pdev == NULL || IS_ERR(pdev))
+			return;
+		pdev->resource = mmc1_resource;
+		pdev->num_resources = ARRAY_SIZE(mmc1_resource);
+		pdev->dev.platform_data = &mmc1_data;
 		mxs_add_device(pdev, 2);
 	}
 }

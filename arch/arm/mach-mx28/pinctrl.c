@@ -96,6 +96,19 @@ static void mx28_set_type(struct pin_bank *bank,
 	__raw_writel(cfg << id, addr + SET_REGISTER);
 }
 
+static int mx28_get_type(struct pin_bank *bank,
+			  unsigned int id)
+{
+	void __iomem *addr;
+	int ret;
+	addr = PINCTRL_BASE_ADDR + HW_PINCTRL_MUXSEL0;
+	addr += 0x20 * bank->id + 0x10 * (id >> 4);
+	id &= 0xF;
+	id *= 2;
+	ret = (__raw_readl(addr) >> id) & 0x3;
+	return ret;
+}
+
 static struct pin_bank mx28_pin_banks[6] = {
 	[0] = {
 	       .id = 0,
@@ -132,6 +145,7 @@ static struct pinctrl_chip mx28_pinctrl = {
 	.set_voltage = mx28_set_voltage,
 	.set_pullup = mx28_set_pullup,
 	.set_type = mx28_set_type,
+	.get_type = mx28_get_type,
 };
 
 int __init mx28_pinctrl_init(void)

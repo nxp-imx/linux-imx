@@ -49,6 +49,25 @@ int mxs_request_pin(unsigned int pin, enum pin_fun fun, const char *lab)
 }
 EXPORT_SYMBOL(mxs_request_pin);
 
+int mxs_get_type(unsigned int pin)
+{
+	int bank, index;
+	struct pin_bank *pb;
+	int ret = 0;
+	if (g_chip == NULL)
+		return -ENODEV;
+
+	bank = g_chip->pin2id(g_chip, pin, &index);
+	if (bank < 0 || index < 0 || bank >= g_chip->bank_size)
+		return -EFAULT;
+
+	pb = g_chip->banks + bank;
+	if (g_chip->get_type)
+		ret = g_chip->get_type(pb, index);
+	return ret;
+}
+EXPORT_SYMBOL(mxs_get_type);
+
 int mxs_set_type(unsigned int pin, enum pin_fun fun, const char *lab)
 {
 	int bank, index;

@@ -136,6 +136,7 @@ struct pinctrl_chip {
 	void (*set_voltage) (struct pin_bank *, unsigned int, enum pad_voltage);
 	void (*set_pullup) (struct pin_bank *, unsigned int, int);
 	void (*set_type) (struct pin_bank *, unsigned int, enum pin_fun);
+	int (*get_type) (struct pin_bank *, unsigned int);
 };
 
 extern int __init mxs_set_pinctrl_chip(struct pinctrl_chip *);
@@ -143,6 +144,7 @@ extern int __init mxs_set_pinctrl_chip(struct pinctrl_chip *);
 extern unsigned int mxs_pin2gpio(unsigned int);
 extern int mxs_request_pin(unsigned int, enum pin_fun, const char *);
 extern int mxs_set_type(unsigned int, enum pin_fun, const char *);
+extern int mxs_get_type(unsigned int);
 extern int mxs_set_strength(unsigned int, enum pad_strength, const char *);
 extern int mxs_set_voltage(unsigned int, enum pad_voltage, const char *);
 extern int mxs_set_pullup(unsigned int, int, const char *);
