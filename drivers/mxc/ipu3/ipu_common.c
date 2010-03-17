@@ -309,6 +309,11 @@ static int ipu_probe(struct platform_device *pdev)
 		return -ENODEV;
 
 	ipu_base = res->start;
+	if (g_ipu_hw_rev == 3)	/* IPUv3M */
+		ipu_base += IPUV3M_REG_BASE;
+	else			/* IPUv3D, v3E, v3EX */
+		ipu_base += IPU_REG_BASE;
+
 	ipu_cm_reg = ioremap(ipu_base + IPU_CM_REG_BASE, PAGE_SIZE);
 	ipu_ic_reg = ioremap(ipu_base + IPU_IC_REG_BASE, PAGE_SIZE);
 	ipu_idmac_reg = ioremap(ipu_base + IPU_IDMAC_REG_BASE, PAGE_SIZE);
