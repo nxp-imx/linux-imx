@@ -1,7 +1,7 @@
 /*
- * Freescale STMP378X UUT driver
+ * Freescale UUT driver
  *
- * Copyright 2008-2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2008-2010 Freescale Semiconductor, Inc.
  * Copyright 2008-2009 Embedded Alley Solutions, Inc All Rights Reserved.
  */
 
@@ -16,7 +16,8 @@
 
 static u64 get_be64(u8 *buf)
 {
-	return ((u64)get_unaligned_be32(buf) << 32) | get_unaligned_be32(buf + 4);
+	return ((u64)get_unaligned_be32(buf) << 32) |
+		get_unaligned_be32(buf + 4);
 }
 
 static int utp_init(struct fsg_dev *fsg)

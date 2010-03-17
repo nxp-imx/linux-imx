@@ -1,7 +1,7 @@
 /*
- * Freescale STMP378X UUT driver
+ * Freescale UUT driver
  *
- * Copyright 2008-2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2008-2010 Freescale Semiconductor, Inc.
  * Copyright 2008-2009 Embedded Alley Solutions, Inc All Rights Reserved.
  */
 
@@ -14,8 +14,8 @@
  * http://www.gnu.org/copyleft/gpl.html
  */
 
-#ifndef __STMP_UPDATER_H
-#define __STMP_UPDATER_H
+#ifndef __FSL_UPDATER_H
+#define __FSL_UPDATER_H
 
 #include <linux/miscdevice.h>
 #include <linux/list.h>
@@ -136,5 +136,5 @@ static inline struct utp_context *UTP_CTX(struct fsg_dev *fsg)
 	return (struct utp_context *)fsg->utp;
 }
 
-#endif /* __STMP_UPDATER_H */
+#endif /* __FSL_UPDATER_H */
 

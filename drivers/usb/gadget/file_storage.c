@@ -725,7 +725,7 @@ struct fsg_dev {
 };
 
 #ifdef CONFIG_FSL_UTP
-#include "stmp_updater.h"
+#include "fsl_updater.h"
 #endif
 
 typedef void (*fsg_routine_t)(struct fsg_dev *);
@@ -3991,7 +3991,7 @@ static int __init check_parameters(struct fsg_dev *fsg)
 	return 0;
 }
 #ifdef CONFIG_FSL_UTP
-#include "stmp_updater.c"
+#include "fsl_updater.c"
 #endif
 static int __init fsg_bind(struct usb_gadget *gadget)
 {
