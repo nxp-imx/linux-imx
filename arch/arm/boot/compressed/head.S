@@ -120,6 +120,16 @@ wait:		mrc	p14, 0, pc, c0, c1, 0
 #endif
 		.endm
 
+		.macro	debug_passed_physoffset
+#ifdef DEBUG
+		bleq	1f
+		kputc	#'!'
+		kphex	r9, 8
+		kputc	#'\n'
+1:
+#endif
+		.endm
+
 		.section ".start", #alloc, #execinstr
 /*
  * sort out different calling conventions
@@ -137,6 +147,7 @@ start:
 		.word	_edata			@ zImage end address
 1:		mov	r7, r1			@ save architecture ID
 		mov	r8, r2			@ save atags pointer
+		mov	r9, r3			@ save phys_offset
 
 #ifndef __ARM_ARCH_2__
 		/*
@@ -233,6 +244,43 @@ not_relocated:	mov	r0, #0
 		str	r0, [r2], #4
 		cmp	r2, r3
 		blo	1b
+
+#ifdef CONFIG_RUNTIME_PHYS_OFFSET
+		/*
+		 * assert physoffset passed by bootloader is properly
+		 * 2MiB-aligned, ...
+		 */
+		ldr	r10, =0x001fffff
+
+		tst	r9, r10
+		debug_passed_physoffset
+		tst	r9, r10
+
+		/*
+		 * ... if not guess it based on sp.
+		 * sp & 0xf8000000 should work for most machines.  The needed
+		 * preconditions are:
+		 * - physoffset is aligned to a 128MiB boundary
+		 *   (As of Jan 2010 all but s3c2400, u300 and at91 have it.
+		 *   For the latter it depends on configuration.)
+		 * - sp < physoffset + 128MiB (which is definitely true if you
+		 *   only have 128MiB of RAM or less)
+		 */
+		andne	r9, sp, #0xf8000000
+#ifdef DEBUG
+		kputc	#'P'
+		kphex	r9, 8
+		kputc	#'\n'
+#endif
+
+		add	r4, r9, #TEXT_OFFSET
+#else /* ifdef CONFIG_RUNTIME_PHYS_OFFSET */
+		/* warn on r4(ZRELADDR) != r9 + TEXT_OFFSET */
+		add	r10, r9, #TEXT_OFFSET
+		cmp	r10, r4
+		debug_passed_physoffset
+
+#endif /* ifdef CONFIG_RUNTIME_PHYS_OFFSET / else */
 
 		/*
 		 * The C runtime environment should now be setup
@@ -568,6 +616,7 @@ call_kernel:	bl	cache_clean_flush
 		mov	r0, #0			@ must be zero
 		mov	r1, r7			@ restore architecture number
 		mov	r2, r8			@ restore atags pointer
+		sub	r3, r4, #TEXT_OFFSET	@ physoffset
 		mov	pc, r4			@ call kernel
 
 /*

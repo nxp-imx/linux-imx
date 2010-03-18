@@ -67,6 +67,12 @@ __setup("fpe=", fpe_setup);
 extern void paging_init(struct machine_desc *desc);
 extern void reboot_setup(char *str);
 
+#if defined(CONFIG_RUNTIME_PHYS_OFFSET)
+/* assign a value to prevent phys_offset from ending in up bss */
+unsigned long phys_offset = 0xdeadbeef;
+EXPORT_SYMBOL(phys_offset);
+#endif
+
 unsigned int processor_id;
 EXPORT_SYMBOL(processor_id);
 unsigned int __machine_arch_type;
@@ -648,7 +654,7 @@ static struct init_tags {
 	{ tag_size(tag_core), ATAG_CORE },
 	{ 1, PAGE_SIZE, 0xff },
 	{ tag_size(tag_mem32), ATAG_MEM },
-	{ MEM_SIZE, PHYS_OFFSET },
+	{ MEM_SIZE, },
 	{ 0, ATAG_NONE }
 };
 
@@ -682,6 +688,8 @@ void __init setup_arch(char **cmdline_p)
 		tags = phys_to_virt(__atags_pointer);
 	else if (mdesc->boot_params)
 		tags = phys_to_virt(mdesc->boot_params);
+	else
+		init_tags.mem.start = PHYS_OFFSET;
 
 	/*
 	 * If we have the old style parameters, convert them to

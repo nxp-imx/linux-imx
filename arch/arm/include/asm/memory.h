@@ -24,6 +24,11 @@
  */
 #define UL(x) _AC(x, UL)
 
+#if defined(CONFIG_RUNTIME_PHYS_OFFSET) && !defined(__ASSEMBLY__)
+extern unsigned long phys_offset;
+#define PHYS_OFFSET	phys_offset
+#endif
+
 #ifdef CONFIG_MMU
 
 /*

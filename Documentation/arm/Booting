@@ -126,6 +126,7 @@ In either case, the following conditions must be met:
   r0 = 0,
   r1 = machine type number discovered in (3) above.
   r2 = physical address of tagged list in system RAM.
+  r3 = PHYS_OFFSET
 
 - CPU mode
   All forms of interrupts must be disabled (IRQs and FIQs)
