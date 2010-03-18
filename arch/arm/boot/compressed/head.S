@@ -266,7 +266,11 @@ not_relocated:	mov	r0, #0
 		 * - sp < physoffset + 128MiB (which is definitely true if you
 		 *   only have 128MiB of RAM or less)
 		 */
+#ifdef CONFIG_ARCH_MX5
+		and	r9, sp, #0xf8000000
+#else
 		andne	r9, sp, #0xf8000000
+#endif
 #ifdef DEBUG
 		kputc	#'P'
 		kphex	r9, 8
