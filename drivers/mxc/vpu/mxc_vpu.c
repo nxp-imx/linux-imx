@@ -73,6 +73,7 @@ static struct vpu_mem_desc user_data_mem = { 0 };
 static struct vpu_mem_desc share_mem = { 0 };
 
 static void __iomem *vpu_base;
+static u32 phy_vpu_base_addr;
 static struct mxc_vpu_platform_data *vpu_plat;
 
 /* IRAM setting */
@@ -517,7 +518,7 @@ static int vpu_map_hwregs(struct file *fp, struct vm_area_struct *vm)
 
 	vm->vm_flags |= VM_IO | VM_RESERVED;
 	vm->vm_page_prot = pgprot_noncached(vm->vm_page_prot);
-	pfn = VPU_BASE_ADDR >> PAGE_SHIFT;
+	pfn = phy_vpu_base_addr >> PAGE_SHIFT;
 	pr_debug("size=0x%x,  page no.=0x%x\n",
 		 (int)(vm->vm_end - vm->vm_start), (int)pfn);
 	return remap_pfn_range(vm, vm->vm_start, pfn, vm->vm_end - vm->vm_start,
@@ -599,6 +600,7 @@ static int vpu_dev_probe(struct platform_device *pdev)
 		printk(KERN_ERR "vpu: unable to get vpu base addr\n");
 		return -ENODEV;
 	}
+	phy_vpu_base_addr = res->start;
 	vpu_base = ioremap(res->start, res->end - res->start);
 
 	vpu_major = register_chrdev(vpu_major, "mxc_vpu", &vpu_fops);

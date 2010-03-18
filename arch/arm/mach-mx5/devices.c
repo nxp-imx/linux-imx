@@ -1229,6 +1229,8 @@ int __init mxc_init_devices(void)
 		pwm2_resources[0].end -= MX53_OFFSET;
 		mxc_fec_resources[0].start -= MX53_OFFSET;
 		mxc_fec_resources[0].end -= MX53_OFFSET;
+		vpu_resources[0].start -= MX53_OFFSET;
+		vpu_resources[0].end -= MX53_OFFSET;
 		mxcspi1_resources[0].start -= MX53_OFFSET;
 		mxcspi1_resources[0].end -= MX53_OFFSET;
 		mxcspi2_resources[0].start -= MX53_OFFSET;

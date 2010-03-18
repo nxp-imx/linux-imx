@@ -159,9 +159,9 @@ static struct mxc_ipu_config mxc_ipu_data = {
 	.rev = 2,
 };
 
-extern void mx51_vpu_reset(void);
+extern void mx5_vpu_reset(void);
 static struct mxc_vpu_platform_data mxc_vpu_data = {
-	.reset = mx51_vpu_reset,
+	.reset = mx5_vpu_reset,
 };
 
 extern void mx51_babbage_gpio_spi_chipselect_active(int cspi_mode, int status,

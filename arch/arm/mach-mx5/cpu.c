@@ -63,7 +63,7 @@ static void __init mipi_hsc_disable(void)
 	iounmap(reg_hsc_mcd);
 }
 
-void mx51_vpu_reset(void)
+void mx5_vpu_reset(void)
 {
 	u32 reg;
 	void __iomem *src_base;
