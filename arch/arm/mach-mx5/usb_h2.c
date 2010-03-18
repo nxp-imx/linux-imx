@@ -19,6 +19,7 @@
 #include <mach/arc_otg.h>
 #include "usb.h"
 #include "iomux.h"
+#include "mx51_pins.h"
 
 /*
  * USB Host2 HS port

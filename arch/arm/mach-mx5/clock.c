@@ -2747,7 +2747,7 @@ static int _clk_usb_phy_set_parent(struct clk *clk, struct clk *parent)
 
 static struct clk usb_phy_clk[] = {
 	{
-	.name = "usb_phy_clk",
+	.name = "usb_phy1_clk",
 	.id = 0,
 	.parent = &pll3_sw_clk,
 	.secondary = &tmax3_clk,
@@ -2759,7 +2759,7 @@ static struct clk usb_phy_clk[] = {
 	.disable = _clk_disable,
 	},
 	{
-	.name = "usb_phy_clk",
+	.name = "usb_phy2_clk",
 	.id = 1,
 	.parent = &pll3_sw_clk,
 	.secondary = &tmax3_clk,

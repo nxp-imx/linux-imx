@@ -946,8 +946,8 @@ static void __init mxc_board_init(void)
 	mxc_register_device(&mxc_bt_device, &mxc_bt_data);
 	mxc_register_device(&mxc_gps_device, &gps_data);
 
-	mx51_usb_dr_init();
-	mx51_usbh1_init();
+	mx5_usb_dr_init();
+	mx5_usbh1_init();
 
 	/* Setup Touchscreen interrupt */
 	gpio_request(IOMUX_TO_GPIO(MX51_PIN_GPIO1_5), "gpio1_5");

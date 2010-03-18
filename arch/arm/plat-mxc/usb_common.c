@@ -261,6 +261,68 @@ static void usbh1_set_ulpi_xcvr(void)
 	/* Turn off the usbpll for ulpi tranceivers */
 	clk_disable(usb_clk);
 }
+
+static void usbh1_set_utmi_xcvr(void)
+{
+	u32 tmp;
+
+	/* Stop then Reset */
+	UH1_USBCMD &= ~UCMD_RUN_STOP;
+	while (UH1_USBCMD & UCMD_RUN_STOP)
+		;
+
+	UH1_USBCMD |= UCMD_RESET;
+	while ((UH1_USBCMD) & (UCMD_RESET))
+		;
+
+	/* MX53 EVK is not using OC */
+	USB_PHY_CTR_FUNC |= USB_UH1_OC_DIS;
+
+	USBCTRL &= ~UCTRL_H1PM;	/* OTG Power Mask */
+	USBCTRL &= ~UCTRL_H1WIE;	/* OTG Wakeup Intr Disable */
+
+	/* Over current disable */
+	USB_PHY_CTR_FUNC |= (0x1 << 5);
+
+	/* set UTMI xcvr */
+	tmp = UH1_PORTSC1 & ~PORTSC_PTS_MASK;
+	tmp |= PORTSC_PTS_UTMI;
+	UH1_PORTSC1 = tmp;
+
+	/* Set the PHY clock to 19.2MHz */
+	USBH1_PHY_CTRL1 &= ~USB_UTMI_PHYCTRL2_PLLDIV_MASK;
+	USBH1_PHY_CTRL1 |= 0x01;
+
+	/* Workaround an IC issue for ehci driver:
+	 * when turn off root hub port power, EHCI set
+	 * PORTSC reserved bits to be 0, but PTW with 0
+	 * means 8 bits tranceiver width, here change
+	 * it back to be 16 bits and do PHY diable and
+	 * then enable.
+	 */
+	UH1_PORTSC1 |= PORTSC_PTW;
+
+	/* need to reset the controller here so that the ID pin
+	 * is correctly detected.
+	 */
+	/* Stop then Reset */
+	UH1_USBCMD &= ~UCMD_RUN_STOP;
+	while (UH1_USBCMD & UCMD_RUN_STOP)
+		;
+
+	UH1_USBCMD |= UCMD_RESET;
+	while ((UH1_USBCMD) & (UCMD_RESET))
+		;
+
+	/* allow controller to reset, and leave time for
+	 * the ULPI transceiver to reset too.
+	 */
+	msleep(100);
+
+	/* Turn off the usbpll for UTMI tranceivers */
+	clk_disable(usb_clk);
+}
+
 static void usbh2_set_ulpi_xcvr(void)
 {
 	u32 tmp;
@@ -410,7 +472,7 @@ int fsl_usb_host_init(struct platform_device *pdev)
 		return -EINVAL;
 
 	pr_debug("%s: grab pins\n", __func__);
-	if (pdata->gpio_usb_active())
+	if (pdata->gpio_usb_active && pdata->gpio_usb_active())
 		return -EINVAL;
 
 	if (clk_enable(usb_clk)) {
@@ -452,6 +514,8 @@ int fsl_usb_host_init(struct platform_device *pdev)
 			usbh1_set_ulpi_xcvr();
 		if (!strcmp("Host 2", pdata->name))
 			usbh2_set_ulpi_xcvr();
+	} else if (xops->xcvr_type == PORTSC_PTS_UTMI) {
+		usbh1_set_utmi_xcvr();
 	}
 
 	pr_debug("%s: %s success\n", __func__, pdata->name);
@@ -468,7 +532,8 @@ void fsl_usb_host_uninit(struct fsl_usb2_platform_data *pdata)
 
 	pdata->regs = NULL;
 
-	pdata->gpio_usb_inactive();
+	if (pdata->gpio_usb_inactive)
+		pdata->gpio_usb_inactive();
 	if (pdata->xcvr_type == PORTSC_PTS_SERIAL) {
 		/* Workaround an IC issue for ehci driver.
 		 * when turn off root hub port power, EHCI set
@@ -624,6 +689,9 @@ static void otg_set_utmi_xcvr(void)
 	UOG_USBCMD |= UCMD_RESET;
 	while ((UOG_USBCMD) & (UCMD_RESET)) ;
 
+	if (cpu_is_mx53())
+		USB_PHY_CTR_FUNC |= USB_UTMI_PHYCTRL_OC_DIS;
+
 	if (cpu_is_mx51()) {
 		if (machine_is_mx51_3ds()) {
 			/* OTG Polarity of Overcurrent is Low active */
@@ -648,7 +716,8 @@ static void otg_set_utmi_xcvr(void)
 			USBCTRL |= UCTRL_OLOCKD;
 	}
 
-	USBCTRL &= ~UCTRL_OPM;	/* OTG Power Mask */
+	if (!cpu_is_mx53())
+		USBCTRL &= ~UCTRL_OPM;	/* OTG Power Mask */
 	USBCTRL &= ~UCTRL_OWIE;	/* OTG Wakeup Intr Disable */
 
 	/* set UTMI xcvr */
@@ -730,7 +799,7 @@ int usbotg_init(struct platform_device *pdev)
 			return -EINVAL;
 
 		pr_debug("%s: grab pins\n", __func__);
-		if (pdata->gpio_usb_active())
+		if (pdata->gpio_usb_active && pdata->gpio_usb_active())
 			return -EINVAL;
 
 		if (clk_enable(usb_clk)) {
@@ -785,7 +854,8 @@ void usbotg_uninit(struct fsl_usb2_platform_data *pdata)
 		}
 		msleep(1);
 		UOG_PORTSC1 = UOG_PORTSC1 | PORTSC_PHCD;
-		pdata->gpio_usb_inactive();
+		if (pdata->gpio_usb_inactive)
+			pdata->gpio_usb_inactive();
 		if (pdata->xcvr_type == PORTSC_PTS_SERIAL)
 			clk_disable(usb_clk);
 		clk_disable(usb_ahb_clk);

@@ -953,8 +953,8 @@ static void __init mxc_board_init(void)
 	gpio_direction_output(IOMUX_TO_GPIO(MX51_PIN_EIM_A23), 0);
 	mxc_register_device(&mxc_sgtl5000_device, &sgtl5000_data);
 
-	mx51_usb_dr_init();
-	mx51_usbh1_init();
+	mx5_usb_dr_init();
+	mx5_usbh1_init();
 }
 
 static void __init mx51_babbage_timer_init(void)

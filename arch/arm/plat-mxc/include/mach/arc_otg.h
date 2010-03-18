@@ -1,5 +1,5 @@
 /*
- * Copyright 2005-2009 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2005-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -145,6 +145,8 @@
 #define USB_CTRL_1		USBOTHER_REG(0x10)	/* USB Cotrol Register 1*/
 #define USBCTRL_HOST2		USBOTHER_REG(0x14)	/* USB Cotrol Register 1*/
 #define USBCTRL_HOST3		USBOTHER_REG(0x18)	/* USB Cotrol Register 1*/
+#define USBH1_PHY_CTRL0		USBOTHER_REG(0x1c)	/* USB Cotrol Register 1*/
+#define USBH1_PHY_CTRL1		USBOTHER_REG(0x20)	/* USB Cotrol Register 1*/
 
 /*
  * register bits

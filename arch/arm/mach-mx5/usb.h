@@ -26,9 +26,9 @@ extern void fsl_usb_host_uninit(struct fsl_usb2_platform_data *pdata);
 extern int gpio_usbotg_utmi_active(void);
 extern void gpio_usbotg_utmi_inactive(void);
 
-extern void __init mx51_usb_dr_init(void);
-extern void __init mx51_usbh1_init(void);
-extern void __init mx51_usbh2_init(void);
+extern void __init mx5_usb_dr_init(void);
+extern void __init mx5_usbh1_init(void);
+extern void __init mx5_usbh2_init(void);
 
 /*
  * Used to set pdata->operating_mode before registering the platform_device.

@@ -573,6 +573,8 @@ static void __init mxc_board_init(void)
 	*/
 
 	mxc_register_device(&mxc_sgtl5000_device, &sgtl5000_data);
+	mx5_usb_dr_init();
+	mx5_usbh1_init();
 }
 
 static void __init mx53_evk_timer_init(void)

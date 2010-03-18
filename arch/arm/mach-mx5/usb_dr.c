@@ -52,7 +52,7 @@ static int usbotg_init_ext(struct platform_device *pdev)
 	clk_enable(usb_clk);
 	clk_put(usb_clk);
 
-	usb_clk = clk_get(NULL, "usb_phy_clk");
+	usb_clk = clk_get(&pdev->dev, "usb_phy1_clk");
 	clk_enable(usb_clk);
 	clk_put(usb_clk);
 
@@ -72,7 +72,7 @@ static void usbotg_uninit_ext(struct fsl_usb2_platform_data *pdata)
 	clk_disable(usb_clk);
 	clk_put(usb_clk);
 
-	usb_clk = clk_get(NULL, "usb_phy_clk");
+	usb_clk = clk_get(&pdata->pdev->dev, "usb_phy1_clk");
 	clk_disable(usb_clk);
 	clk_put(usb_clk);
 
@@ -115,7 +115,7 @@ static void usbotg_clock_gate(bool on)
 		clk_enable(usb_clk);
 		clk_put(usb_clk);
 
-		usb_clk = clk_get(NULL, "usb_phy_clk");
+		usb_clk = clk_get(NULL, "usb_phy1_clk");
 		clk_enable(usb_clk);
 		clk_put(usb_clk);
 
@@ -128,7 +128,7 @@ static void usbotg_clock_gate(bool on)
 		clk_disable(usb_clk);
 		clk_put(usb_clk);
 
-		usb_clk = clk_get(NULL, "usb_phy_clk");
+		usb_clk = clk_get(NULL, "usb_phy1_clk");
 		clk_disable(usb_clk);
 		clk_put(usb_clk);
 
@@ -138,7 +138,7 @@ static void usbotg_clock_gate(bool on)
 	}
 }
 
-void __init mx51_usb_dr_init(void)
+void __init mx5_usb_dr_init(void)
 {
 #ifdef CONFIG_USB_OTG
 	dr_utmi_config.operating_mode = FSL_USB2_DR_OTG;
