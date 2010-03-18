@@ -94,7 +94,6 @@ struct dvfs_wp dvfs_core_setpoint[] = {
 
 int set_low_bus_freq(void)
 {
-	struct clk *tclk;
 	u32 reg;
 
 	if (busfreq_suspended)
@@ -153,7 +152,6 @@ int set_low_bus_freq(void)
 int set_high_bus_freq(int high_bus_freq)
 {
 	u32 reg;
-	struct clk *tclk;
 
 	if (bus_freq_scaling_initialized) {
 		stop_sdram_autogating();

@@ -26,20 +26,12 @@
 #include <linux/iram_alloc.h>
 #include <linux/io.h>
 #include <linux/clk.h>
+#include <mach/common.h>
 #include <mach/hardware.h>
 #include "crm_regs.h"
 
 void __iomem *arm_plat_base;
 void __iomem *gpc_base;
-
-/*!
- * CPU initialization. It is called by fixup_mxc_board()
- */
-void __init mxc_cpu_init(void)
-{
-	if (!system_rev)
-		mxc_set_system_rev(0x51, CHIP_REV_1_0);
-}
 
 static void __init mipi_hsc_disable(void)
 {
@@ -76,7 +68,7 @@ void mx51_vpu_reset(void)
 	u32 reg;
 	void __iomem *src_base;
 
-	src_base = ioremap(SRC_BASE_ADDR, PAGE_SIZE);
+	src_base = ioremap(MX53_BASE_ADDR(SRC_BASE_ADDR), PAGE_SIZE);
 
 	/* mask interrupt due to vpu passed reset */
 	reg = __raw_readl(src_base + 0x18);
@@ -98,22 +90,25 @@ static int __init post_cpu_init(void)
 	unsigned int reg;
 	int iram_size = IRAM_SIZE;
 
-	mipi_hsc_disable();
+	if (cpu_is_mx51()) {
+		mipi_hsc_disable();
 
 #if defined(CONFIG_MXC_SECURITY_SCC) || defined(CONFIG_MXC_SECURITY_SCC_MODULE)
-	if (cpu_is_mx51())
 		iram_size -= SCC_RAM_SIZE;
 #endif
-	iram_init(IRAM_BASE_ADDR, iram_size);
+		iram_init(MX51_IRAM_BASE_ADDR, iram_size);
+	} else {
+		iram_init(MX53_IRAM_BASE_ADDR, iram_size);
+	}
 
-	gpc_base = ioremap(GPC_BASE_ADDR, SZ_4K);
+	gpc_base = ioremap(MX53_BASE_ADDR(GPC_BASE_ADDR), SZ_4K);
 
 	/* Set ALP bits to 000. Set ALP_EN bit in Arm Memory Controller reg. */
-	arm_plat_base = ioremap(ARM_BASE_ADDR, SZ_4K);
+	arm_plat_base = ioremap(MX53_BASE_ADDR(ARM_BASE_ADDR), SZ_4K);
 	reg = 0x8;
 	__raw_writel(reg, MXC_CORTEXA8_PLAT_AMC);
 
-	base = ioremap(AIPS1_BASE_ADDR, SZ_4K);
+	base = ioremap(MX53_BASE_ADDR(AIPS1_BASE_ADDR), SZ_4K);
 	__raw_writel(0x0, base + 0x40);
 	__raw_writel(0x0, base + 0x44);
 	__raw_writel(0x0, base + 0x48);
@@ -122,7 +117,7 @@ static int __init post_cpu_init(void)
 	__raw_writel(reg, base + 0x50);
 	iounmap(base);
 
-	base = ioremap(AIPS2_BASE_ADDR, SZ_4K);
+	base = ioremap(MX53_BASE_ADDR(AIPS2_BASE_ADDR), SZ_4K);
 	__raw_writel(0x0, base + 0x40);
 	__raw_writel(0x0, base + 0x44);
 	__raw_writel(0x0, base + 0x48);
@@ -134,7 +129,7 @@ static int __init post_cpu_init(void)
 	/*Allow for automatic gating of the EMI internal clock.
 	 * If this is done, emi_intr CCGR bits should be set to 11.
 	 */
-	base = ioremap(M4IF_BASE_ADDR, SZ_4K);
+	base = ioremap(MX53_BASE_ADDR(M4IF_BASE_ADDR), SZ_4K);
 	reg = __raw_readl(base + 0x8c);
 	reg &= ~0x1;
 	__raw_writel(reg, base + 0x8c);

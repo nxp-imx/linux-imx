@@ -94,7 +94,7 @@ int start_dvfs_per(void);
 void stop_dvfs_per(void);
 int dvfs_per_active(void);
 int dvfs_per_divider_active(void);
-int dvfs_per_pixel_clk_limit();
+int dvfs_per_pixel_clk_limit(void);
 
 extern int low_bus_freq_mode;
 extern int bus_freq_scaling_is_active;

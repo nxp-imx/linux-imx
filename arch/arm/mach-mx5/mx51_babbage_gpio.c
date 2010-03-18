@@ -1,5 +1,5 @@
 /*
- * Copyright 2007-2009 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2007-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -19,9 +19,9 @@
 #include <mach/gpio.h>
 
 #include "iomux.h"
-
+#include "mx51_pins.h"
 /*!
- * @file mach-mx51/mx51_babbage_gpio.c
+ * @file mach-mx5/mx51_babbage_gpio.c
  *
  * @brief This file contains all the GPIO setup functions for the board.
  *

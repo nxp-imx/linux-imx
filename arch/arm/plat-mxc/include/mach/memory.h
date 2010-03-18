@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2009 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2004-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -31,6 +31,10 @@
 #define PHYS_OFFSET             UL(0x90000000)
 #endif
 
+#ifdef CONFIG_ARCH_MX53
+#define PHYS_OFFSET             UL(0x70000000)
+#endif
+
 #ifdef CONFIG_ARCH_MX37
 #define PHYS_OFFSET             UL(0x40000000)
 #endif
@@ -56,7 +60,7 @@
 #define CONSISTENT_DMA_SIZE SZ_8M
 #endif /* CONFIG_MX3_VIDEO */
 
-#ifdef CONFIG_ARCH_MX51
+#ifdef CONFIG_ARCH_MX5
 #define CONSISTENT_DMA_SIZE	(64 * SZ_1M)
 #else
 #define CONSISTENT_DMA_SIZE	(32 * SZ_1M)

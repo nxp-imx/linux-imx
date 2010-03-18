@@ -28,7 +28,7 @@
 /*!
  * This structure defines the MX51 memory map.
  */
-static struct map_desc mx51_io_desc[] __initdata = {
+static struct map_desc mx5_io_desc[] __initdata = {
 	{
 	 .virtual = AIPS1_BASE_ADDR_VIRT,
 	 .pfn = __phys_to_pfn(AIPS1_BASE_ADDR),
@@ -44,11 +44,6 @@ static struct map_desc mx51_io_desc[] __initdata = {
 	 .pfn = __phys_to_pfn(AIPS2_BASE_ADDR),
 	 .length = AIPS2_SIZE,
 	 .type = MT_DEVICE},
-	{
-	 .virtual = NFC_BASE_ADDR_AXI_VIRT,
-	 .pfn = __phys_to_pfn(NFC_BASE_ADDR_AXI),
-	 .length = NFC_AXI_SIZE,
-	 .type = MT_DEVICE},
 };
 
 /*!
@@ -56,7 +51,15 @@ static struct map_desc mx51_io_desc[] __initdata = {
  * system startup to create static physical to virtual memory map for
  * the IO modules.
  */
-void __init mx51_map_io(void)
+void __init mx5_map_io(void)
 {
-	iotable_init(mx51_io_desc, ARRAY_SIZE(mx51_io_desc));
+	int i;
+
+	/* Fixup the mappings for MX53 */
+	if (cpu_is_mx53()) {
+		for (i = 0; i < ARRAY_SIZE(mx5_io_desc); i++)
+			mx5_io_desc[i].pfn -= __phys_to_pfn(0x20000000);
+	}
+
+	iotable_init(mx5_io_desc, ARRAY_SIZE(mx5_io_desc));
 }

@@ -1,5 +1,5 @@
 /*
- *  Copyright 2004-2009 Freescale Semiconductor, Inc. All Rights Reserved.
+ *  Copyright (C) 2004-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -28,8 +28,8 @@
 #define MXC_GPIO_IRQS		(32 * 3)
 #elif defined CONFIG_ARCH_MX37
 #define MXC_GPIO_IRQS		(32 * 3)
-#elif defined CONFIG_ARCH_MX51
-#define MXC_GPIO_IRQS		(32 * 4)
+#elif defined CONFIG_ARCH_MX5
+#define MXC_GPIO_IRQS		(32 * 7)
 #endif
 
 /*
@@ -74,7 +74,7 @@ extern int mxc_set_irq_fiq(unsigned int irq, unsigned int type);
 void mxc_get_wake_irq(u32 * wake_src[]);
 
 /* Define interrupt number for OProfile */
-#if defined CONFIG_ARCH_MX51
+#if defined CONFIG_ARCH_MX5
 #define MXC_INT_PMU		77
 #endif
 

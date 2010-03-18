@@ -73,7 +73,6 @@ __early_param("debug_uart=", uart_parent_setup);
 
 void __init mxc_cpu_common_init(void)
 {
-	mxc_set_cpu_type((((system_rev >> 20) & 0xF) * 10) + ((system_rev >> 16) & 0xF));
 	pr_info("CPU is %s%x Revision %u.%u\n",
 		(mxc_cpu() < 0x100) ? "i.MX" : "MXC",
 		mxc_cpu(), mxc_cpu_rev_major(), mxc_cpu_rev_minor());

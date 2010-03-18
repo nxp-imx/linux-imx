@@ -47,6 +47,7 @@
 #include "devices.h"
 #include "board-mx51_babbage.h"
 #include "iomux.h"
+#include "mx51_pins.h"
 #include "crm_regs.h"
 #include "usb.h"
 
@@ -798,7 +799,7 @@ static void __init fixup_mxc_board(struct machine_desc *desc, struct tag *tags,
 	int size = SZ_512M - SZ_32M;
 	struct tag *t;
 
-	mxc_cpu_init();
+	mxc_set_cpu_type(MXC_CPU_MX51);
 
 	get_cpu_wp = mx51_babbage_get_cpu_wp;
 	set_num_cpu_wp = mx51_babbage_set_num_cpu_wp;
@@ -984,10 +985,9 @@ static struct sys_timer mxc_timer = {
 /* *INDENT-OFF* */
 MACHINE_START(MX51_BABBAGE, "Freescale MX51 Babbage Board")
 	/* Maintainer: Freescale Semiconductor, Inc. */
-	.boot_params = PHYS_OFFSET + 0x100,
 	.fixup = fixup_mxc_board,
-	.map_io = mx51_map_io,
-	.init_irq = mx51_init_irq,
+	.map_io = mx5_map_io,
+	.init_irq = mx5_init_irq,
 	.init_machine = mxc_board_init,
 	.timer = &mxc_timer,
 MACHINE_END

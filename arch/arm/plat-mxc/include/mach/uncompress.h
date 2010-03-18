@@ -48,6 +48,7 @@ unsigned int system_rev;
 
 static void putc(int ch)
 {
+#ifndef CONFIG_ARCH_MX53
 	static unsigned long serial_port = 0;
 
 	if (unlikely(serial_port == 0)) {
@@ -66,6 +67,7 @@ static void putc(int ch)
 		barrier();
 
 	UART(TXR) = ch;
+#endif
 }
 
 #define flush() do { } while (0)

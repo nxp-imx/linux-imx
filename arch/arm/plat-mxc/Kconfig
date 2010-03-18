@@ -45,7 +45,7 @@ config ARCH_MX37
 config ARCH_MX5
 	bool "MX5-based"
 	help
-	  This enables support for systems based on Freescale i.MX51
+	  This enables support for systems based on Freescale i.MX5x SoCs.
 
 endchoice
 
@@ -102,7 +102,7 @@ config ISP1504_MXC
 config UTMI_MXC
 	bool
 	default y
-	depends on ARCH_MX25 || ARCH_MX35 || ARCH_MX37 || ARCH_MX51
+	depends on ARCH_MX25 || ARCH_MX35 || ARCH_MX37 || ARCH_MX5
 
 # set iff we need the 1301 transceiver code
 config ISP1301_MXC
@@ -175,7 +175,7 @@ config ARCH_MXC_IOMUX_V3
 
 config MXC_DVFS_PER
 	bool "Enable DVFS Peripheral"
-	depends on ARCH_MX37 || ARCH_MX51
+	depends on ARCH_MX37 || ARCH_MX5
 	help
 	   Select this if you want to enable HW supported peripheral frequency scaling.
 endif

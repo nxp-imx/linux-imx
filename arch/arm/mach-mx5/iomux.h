@@ -1,5 +1,5 @@
 /*
- * Copyright 2008-2009 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2008-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -10,22 +10,80 @@
  * http://www.opensource.org/licenses/gpl-license.html
  * http://www.gnu.org/copyleft/gpl.html
  */
-#ifndef __MACH_MX51_IOMUX_H__
-#define __MACH_MX51_IOMUX_H__
+#ifndef __MACH_MX5_IOMUX_H__
+#define __MACH_MX5_IOMUX_H__
 
 #include <linux/types.h>
 #include <mach/gpio.h>
-#include "mx51_pins.h"
 
 /*!
- * @file mach-mx51/iomux.h
+ * @file mach-mx5/iomux.h
  *
  * @brief I/O Muxing control definitions and functions
  *
- * @ingroup GPIO_MX51
+ * @ingroup GPIO_MX5
  */
 
+/*!
+ * @name IOMUX/PAD Bit field definitions
+ */
+
+/*! @{ */
+
+/*!
+ * In order to identify pins more effectively, each mux-controlled pin's
+ * enumerated value is constructed in the following way:
+ *
+ * -------------------------------------------------------------------
+ * 31-29 | 28 - 24 |  23 - 21 | 20  - 10| 9 - 0
+ * -------------------------------------------------------------------
+ * IO_P  |  IO_I  | GPIO_I | PAD_I  | MUX_I
+ * -------------------------------------------------------------------
+ *
+ * Bit 0 to 9 contains MUX_I used to identify the register
+ * offset (0-based. base is IOMUX_module_base) defined in the Section
+ * "sw_pad_ctl & sw_mux_ctl details" of the IC Spec. The
+ * similar field definitions are used for the pad control register.
+ * For example, the MX51_PIN_ETM_D0 is defined in the enumeration:
+ *    ( (0x28 - MUX_I_START) << MUX_I)|( (0x250 - PAD_I_START) << PAD_I)
+ * It means the mux control register is at register offset 0x28. The pad control
+ * register offset is: 0x250 and also occupy the least significant bits
+ * within the register.
+ */
+
+/*!
+ * Starting bit position within each entry of \b iomux_pins to represent the
+ * MUX control register offset
+ */
+#define MUX_I			0
+/*!
+ * Starting bit position within each entry of \b iomux_pins to represent the
+ * PAD control register offset
+ */
+#define PAD_I			10
+/*!
+ * Starting bit position within each entry of \b iomux_pins to represent which
+ * mux mode is for GPIO (0-based)
+ */
+#define GPIO_I			21
+
+#define NON_GPIO_PORT		0x7
+#define PIN_TO_MUX_MASK		((1 << (PAD_I - MUX_I)) - 1)
+#define PIN_TO_PAD_MASK		((1 << (GPIO_I - PAD_I)) - 1)
+#define PIN_TO_ALT_GPIO_MASK		((1 << (MUX_IO_I - GPIO_I)) - 1)
+
+#define NON_MUX_I		PIN_TO_MUX_MASK
+#define NON_PAD_I		PIN_TO_PAD_MASK
+
+#define PIN_TO_IOMUX_MUX(pin)	((pin >> MUX_I) & PIN_TO_MUX_MASK)
+#define PIN_TO_IOMUX_PAD(pin)	((pin >> PAD_I) & PIN_TO_PAD_MASK)
+#define PIN_TO_ALT_GPIO(pin)	((pin >> GPIO_I) & PIN_TO_ALT_GPIO_MASK)
+#define PIN_TO_IOMUX_INDEX(pin)	(PIN_TO_IOMUX_MUX(pin) >> 2)
+
+/*! @} End IOMUX/PAD Bit field definitions */
+
 typedef unsigned int iomux_pin_name_t;
+typedef unsigned int iomux_input_select_t;
 
 /*!
  * various IOMUX output functions
@@ -56,7 +114,9 @@ typedef enum iomux_pad_config {
 	PAD_CTL_ODE_OPENDRAIN_NONE = 0x0 << 3,
 	PAD_CTL_ODE_OPENDRAIN_ENABLE = 0x1 << 3,
 	PAD_CTL_100K_PD = 0x0 << 4,
+	PAD_CTL_360K_PD = 0x0 << 4,
 	PAD_CTL_47K_PU = 0x1 << 4,
+	PAD_CTL_75k_PU = 0x1 << 4,
 	PAD_CTL_100K_PU = 0x2 << 4,
 	PAD_CTL_22K_PU = 0x3 << 4,
 	PAD_CTL_PUE_KEEPER = 0x0 << 6,
@@ -70,110 +130,6 @@ typedef enum iomux_pad_config {
 	PAD_CTL_DRV_VOT_LOW = 0x0 << 13,
 	PAD_CTL_DRV_VOT_HIGH = 0x1 << 13,
 } iomux_pad_config_t;
-
-/*!
- * various IOMUX input select register index
- */
-typedef enum iomux_input_select {
-	MUX_IN_AUDMUX_P4_INPUT_DA_AMX_SELECT_I = 0,
-	MUX_IN_AUDMUX_P4_INPUT_DB_AMX_SELECT_I,
-	MUX_IN_AUDMUX_P4_INPUT_TXCLK_AMX_SELECT_INPUT,
-	MUX_IN_AUDMUX_P4_INPUT_TXFS_AMX_SELECT_INPUT,
-	MUX_IN_AUDMUX_P5_INPUT_DA_AMX_SELECT_INPUT,
-	MUX_IN_AUDMUX_P5_INPUT_DB_AMX_SELECT_INPUT,
-	MUX_IN_AUDMUX_P5_INPUT_RXCLK_AMX_SELECT_INPUT,
-	MUX_IN_AUDMUX_P5_INPUT_RXFS_AMX_SELECT,
-	MUX_IN_AUDMUX_P5_INPUT_TXCLK_AMX_SELECT_INPUT,
-	MUX_IN_AUDMUX_P5_INPUT_TXFS_AMX_SELECT_INPUT,
-	MUX_IN_AUDMUX_P6_INPUT_DA_AMX_SELECT_INPUT,
-	MUX_IN_AUDMUX_P6_INPUT_DB_AMX_SELECT_INPUT,
-	MUX_IN_AUDMUX_P6_INPUT_RXCLK_AMX_SELECT_INPUT,
-	MUX_IN_AUDMUX_P6_INPUT_RXFS_AMX_SELECT_INPUT,
-	MUX_IN_AUDMUX_P6_INPUT_TXCLK_AMX_SELECT_INPUT,
-	MUX_IN_AUDMUX_P6_INPUT_TXFS_AMX_SELECT_INPUT,
-	MUX_IN_CCM_IPP_DI_CLK_SELECT_INPUT,
-	/* TO2 */
-	MUX_IN_CCM_IPP_DI1_CLK_SELECT_INPUT,
-	MUX_IN_CCM_PLL1_BYPASS_CLK_SELECT_INPUT,
-	MUX_IN_CCM_PLL2_BYPASS_CLK_SELECT_INPUT,
-	MUX_IN_CSPI_IPP_CSPI_CLK_IN_SELECT_INPUT,
-	MUX_IN_CSPI_IPP_IND_MISO_SELECT_INPUT,
-	MUX_IN_CSPI_IPP_IND_MOSI_SELECT_INPUT,
-	MUX_IN_CSPI_IPP_IND_SS_B_1_SELECT_INPUT,
-	MUX_IN_CSPI_IPP_IND_SS_B_2_SELECT_INPUT,
-	MUX_IN_CSPI_IPP_IND_SS_B_3_SELECT_INPUT,
-	MUX_IN_DPLLIP1_L1T_TOG_EN_SELECT_INPUT,
-	/* TO2 */
-	MUX_IN_ECSPI2_IPP_IND_SS_B_1_SELECT_INPUT,
-	MUX_IN_ECSPI2_IPP_IND_SS_B_3_SELECT_INPUT,
-	MUX_IN_EMI_IPP_IND_RDY_INT_SELECT_INPUT,
-	MUX_IN_ESDHC3_IPP_DAT0_IN_SELECT_INPUT,
-	MUX_IN_ESDHC3_IPP_DAT1_IN_SELECT_INPUT,
-	MUX_IN_ESDHC3_IPP_DAT2_IN_SELECT_INPUT,
-	MUX_IN_ESDHC3_IPP_DAT3_IN_SELECT_INPUT,
-	MUX_IN_FEC_FEC_COL_SELECT_INPUT,
-	MUX_IN_FEC_FEC_CRS_SELECT_INPUT,
-	MUX_IN_FEC_FEC_MDI_SELECT_INPUT,
-	MUX_IN_FEC_FEC_RDATA_0_SELECT_INPUT,
-	MUX_IN_FEC_FEC_RDATA_1_SELECT_INPUT,
-	MUX_IN_FEC_FEC_RDATA_2_SELECT_INPUT,
-	MUX_IN_FEC_FEC_RDATA_3_SELECT_INPUT,
-	MUX_IN_FEC_FEC_RX_CLK_SELECT_INPUT,
-	MUX_IN_FEC_FEC_RX_DV_SELECT_INPUT,
-	MUX_IN_FEC_FEC_RX_ER_SELECT_INPUT,
-	MUX_IN_FEC_FEC_TX_CLK_SELECT_INPUT,
-	MUX_IN_GPIO3_IPP_IND_G_IN_1_SELECT_INPUT,
-	MUX_IN_GPIO3_IPP_IND_G_IN_2_SELECT_INPUT,
-	MUX_IN_GPIO3_IPP_IND_G_IN_3_SELECT_INPUT,
-	MUX_IN_GPIO3_IPP_IND_G_IN_4_SELECT_INPUT,
-	MUX_IN_GPIO3_IPP_IND_G_IN_5_SELECT_INPUT,
-	MUX_IN_GPIO3_IPP_IND_G_IN_6_SELECT_INPUT,
-	MUX_IN_GPIO3_IPP_IND_G_IN_7_SELECT_INPUT,
-	MUX_IN_GPIO3_IPP_IND_G_IN_8_SELECT_INPUT,
-	/* TO2 */
-	MUX_IN_GPIO3_IPP_IND_G_IN_12_SELECT_INPUT,
-	MUX_IN_HSC_MIPI_MIX_IPP_IND_SENS1_DATA_EN_SELECT_INPUT,
-	MUX_IN_HSC_MIPI_MIX_IPP_IND_SENS2_DATA_EN_SELECT_INPUT,
-	/* TO2 */
-	MUX_IN_HSC_MIPI_MIX_PAR_VSYNC_SELECT_INPUT,
-	/* TO2 */
-	MUX_IN_HSC_MIPI_MIX_PAR_DI_WAIT_SELECT_INPUT,
-	MUX_IN_HSC_MIPI_MIX_PAR_SISG_TRIG_SELECT_INPUT,
-	MUX_IN_I2C1_IPP_SCL_IN_SELECT_INPUT,
-	MUX_IN_I2C1_IPP_SDA_IN_SELECT_INPUT,
-	MUX_IN_I2C2_IPP_SCL_IN_SELECT_INPUT,
-	MUX_IN_I2C2_IPP_SDA_IN_SELECT_INPUT,
-
-	MUX_IN_IPU_IPP_DI_0_IND_DISPB_SD_D_SELECT_INPUT,
-
-	MUX_IN_IPU_IPP_DI_1_IND_DISPB_SD_D_SELECT_INPUT,
-
-	MUX_IN_KPP_IPP_IND_COL_6_SELECT_INPUT,
-	MUX_IN_KPP_IPP_IND_COL_7_SELECT_INPUT,
-	MUX_IN_KPP_IPP_IND_ROW_4_SELECT_INPUT,
-	MUX_IN_KPP_IPP_IND_ROW_5_SELECT_INPUT,
-	MUX_IN_KPP_IPP_IND_ROW_6_SELECT_INPUT,
-	MUX_IN_KPP_IPP_IND_ROW_7_SELECT_INPUT,
-	MUX_IN_UART1_IPP_UART_RTS_B_SELECT_INPUT,
-	MUX_IN_UART1_IPP_UART_RXD_MUX_SELECT_INPUT,
-	MUX_IN_UART2_IPP_UART_RTS_B_SELECT_INPUT,
-	MUX_IN_UART2_IPP_UART_RXD_MUX_SELECT_INPUT,
-	MUX_IN_UART3_IPP_UART_RTS_B_SELECT_INPUT,
-	MUX_IN_UART3_IPP_UART_RXD_MUX_SELECT_INPUT,
-	MUX_IN_USBOH3_IPP_IND_UH3_CLK_SELECT_INPUT,
-	MUX_IN_USBOH3_IPP_IND_UH3_DATA_0_SELECT_INPUT,
-	MUX_IN_USBOH3_IPP_IND_UH3_DATA_1_SELECT_INPUT,
-	MUX_IN_USBOH3_IPP_IND_UH3_DATA_2_SELECT_INPUT,
-	MUX_IN_USBOH3_IPP_IND_UH3_DATA_3_SELECT_INPUT,
-	MUX_IN_USBOH3_IPP_IND_UH3_DATA_4_SELECT_INPUT,
-	MUX_IN_USBOH3_IPP_IND_UH3_DATA_5_SELECT_INPUT,
-	MUX_IN_USBOH3_IPP_IND_UH3_DATA_6_SELECT_INPUT,
-	MUX_IN_USBOH3_IPP_IND_UH3_DATA_7_SELECT_INPUT,
-	MUX_IN_USBOH3_IPP_IND_UH3_DIR_SELECT_INPUT,
-	MUX_IN_USBOH3_IPP_IND_UH3_NXT_SELECT_INPUT,
-	MUX_IN_USBOH3_IPP_IND_UH3_STP_SELECT_INPUT,
-	MUX_INPUT_NUM_MUX,
-} iomux_input_select_t;
 
 /*!
  * various IOMUX input functions
@@ -243,4 +199,4 @@ unsigned int mxc_iomux_get_pad(iomux_pin_name_t pin);
  */
 void mxc_iomux_set_input(iomux_input_select_t input, u32 config);
 
-#endif				/*  __MACH_MX51_IOMUX_H__ */
+#endif				/*  __MACH_MX5_IOMUX_H__ */

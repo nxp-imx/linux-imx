@@ -1,8 +1,8 @@
 /*
- * mx51-3stack-pmic-mc13892.c  --  i.MX51 3STACK Driver for Atlas MC13892 PMIC
+ * mx53-evk-pmic-mc13892.c  --  i.MX53 3STACK Driver for Atlas MC13892 PMIC
  */
  /*
-  * Copyright (C) 2009-2010 Freescale Semiconductor, Inc. All Rights Reserved.
+  * Copyright (C) 2010 Freescale Semiconductor, Inc. All Rights Reserved.
   */
 
  /*
@@ -24,7 +24,7 @@
 #include <linux/mfd/mc13892/core.h>
 #include <mach/irqs.h>
 #include "iomux.h"
-#include "mx51_pins.h"
+#include "mx53_pins.h"
 
 /*
  * Convenience conversion.
@@ -138,7 +138,6 @@ static struct regulator_init_data vusb_init = {
 	.constraints = {
 		.name = "VUSB",
 		.boot_on = 1,
-		.always_on = 1,
 	}
 };
 
@@ -344,11 +343,11 @@ static struct mc13892_platform_data mc13892_plat = {
 
 static struct i2c_board_info __initdata mc13892_i2c_device = {
 	I2C_BOARD_INFO("mc13892", 0x08),
-	.irq = IOMUX_TO_IRQ(MX51_PIN_GPIO1_5),
+	.irq = IOMUX_TO_IRQ(MX53_PIN_GPIO_16),
 	.platform_data = &mc13892_plat,
 };
 
-int __init mx51_3stack_init_mc13892(void)
+int __init mx53_evk_init_mc13892(void)
 {
 	return i2c_register_board_info(1, &mc13892_i2c_device, 1);
 }

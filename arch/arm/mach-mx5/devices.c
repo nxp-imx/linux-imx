@@ -25,75 +25,12 @@
 #include <mach/hardware.h>
 #include <mach/gpio.h>
 #include <mach/sdma.h>
-#include "sdma_script_code.h"
 #include "crm_regs.h"
 
 /* Flag used to indicate when IRAM has been initialized */
 int iram_ready;
 /* Flag used to indicate if dvfs_core is active. */
 int dvfs_core_is_active;
-
-void mxc_sdma_get_script_info(sdma_script_start_addrs * sdma_script_addr)
-{
-	/* AP<->BP */
-	sdma_script_addr->mxc_sdma_ap_2_ap_addr = ap_2_ap_ADDR;
-	sdma_script_addr->mxc_sdma_ap_2_bp_addr = -1;
-	sdma_script_addr->mxc_sdma_bp_2_ap_addr = -1;
-	sdma_script_addr->mxc_sdma_ap_2_ap_fixed_addr = -1;
-
-	/*misc */
-	sdma_script_addr->mxc_sdma_loopback_on_dsp_side_addr = -1;
-	sdma_script_addr->mxc_sdma_mcu_interrupt_only_addr = -1;
-
-	/* firi */
-	sdma_script_addr->mxc_sdma_firi_2_per_addr = -1;
-	sdma_script_addr->mxc_sdma_firi_2_mcu_addr = -1;
-	sdma_script_addr->mxc_sdma_per_2_firi_addr = -1;
-	sdma_script_addr->mxc_sdma_mcu_2_firi_addr = -1;
-
-	/* uart */
-	sdma_script_addr->mxc_sdma_uart_2_per_addr = uart_2_per_ADDR;
-	sdma_script_addr->mxc_sdma_uart_2_mcu_addr = uart_2_mcu_ADDR;
-
-	/* UART SH */
-	sdma_script_addr->mxc_sdma_uartsh_2_per_addr = uartsh_2_per_ADDR;
-	sdma_script_addr->mxc_sdma_uartsh_2_mcu_addr = uartsh_2_mcu_ADDR;
-
-	/* SHP */
-	sdma_script_addr->mxc_sdma_per_2_shp_addr = per_2_shp_ADDR;
-	sdma_script_addr->mxc_sdma_shp_2_per_addr = shp_2_per_ADDR;
-	sdma_script_addr->mxc_sdma_mcu_2_shp_addr = mcu_2_shp_ADDR;
-	sdma_script_addr->mxc_sdma_shp_2_mcu_addr = shp_2_mcu_ADDR;
-
-	/* ATA */
-	sdma_script_addr->mxc_sdma_mcu_2_ata_addr = mcu_2_ata_ADDR;
-	sdma_script_addr->mxc_sdma_ata_2_mcu_addr = ata_2_mcu_ADDR;
-
-	/* app */
-	sdma_script_addr->mxc_sdma_app_2_per_addr = app_2_per_ADDR;
-	sdma_script_addr->mxc_sdma_app_2_mcu_addr = app_2_mcu_ADDR;
-	sdma_script_addr->mxc_sdma_per_2_app_addr = per_2_app_ADDR;
-	sdma_script_addr->mxc_sdma_mcu_2_app_addr = mcu_2_app_ADDR;
-
-	/* MSHC */
-	sdma_script_addr->mxc_sdma_mshc_2_mcu_addr = -1;
-	sdma_script_addr->mxc_sdma_mcu_2_mshc_addr = -1;
-
-	/* spdif */
-	sdma_script_addr->mxc_sdma_spdif_2_mcu_addr = -1;
-	sdma_script_addr->mxc_sdma_mcu_2_spdif_addr = mcu_2_spdif_ADDR;
-
-	/* IPU */
-	sdma_script_addr->mxc_sdma_ext_mem_2_ipu_addr = ext_mem__ipu_ram_ADDR;
-
-	/* DVFS */
-	sdma_script_addr->mxc_sdma_dptc_dvfs_addr = -1;
-
-	/* core */
-	sdma_script_addr->mxc_sdma_start_addr = (unsigned short *)sdma_code;
-	sdma_script_addr->mxc_sdma_ram_code_start_addr = RAM_CODE_START_ADDR;
-	sdma_script_addr->mxc_sdma_ram_code_size = RAM_CODE_SIZE;
-}
 
 static struct resource sdma_resources[] = {
 	{
@@ -183,14 +120,14 @@ struct platform_device mxc_nandv2_mtd_device = {
 static struct resource imx_nfc_resources[] = {
 	{
 		.flags = IORESOURCE_MEM,
-		.start = NFC_BASE_ADDR_AXI + 0x0000,
-		.end   = NFC_BASE_ADDR_AXI + 0x1200 - 1,
+		.start = MX51_NFC_BASE_ADDR_AXI,
+		.end   = MX51_NFC_BASE_ADDR_AXI + 0x1200 - 1,
 		.name  = IMX_NFC_BUFFERS_ADDR_RES_NAME,
 	},
 	{
 		.flags = IORESOURCE_MEM,
-		.start = NFC_BASE_ADDR_AXI + 0x1E00,
-		.end   = NFC_BASE_ADDR_AXI + 0x1E44 - 1,
+		.start = MX51_NFC_BASE_ADDR_AXI + 0x1E00,
+		.end   = MX51_NFC_BASE_ADDR_AXI + 0x1E44 - 1,
 		.name  = IMX_NFC_PRIMARY_REGS_ADDR_RES_NAME,
 	},
 	{
@@ -276,8 +213,8 @@ struct platform_device mxc_pwm_backlight_device = {
 
 static struct resource ipu_resources[] = {
 	{
-		.start = IPU_CTRL_BASE_ADDR,
-		.end = IPU_CTRL_BASE_ADDR + SZ_512M,
+		.start = MX51_IPU_CTRL_BASE_ADDR,
+		.end = MX51_IPU_CTRL_BASE_ADDR + SZ_512M,
 		.flags = IORESOURCE_MEM,
 	},
 	{
@@ -447,6 +384,18 @@ static struct resource mxci2c2_resources[] = {
 	},
 };
 
+static struct resource mxci2c3_resources[] = {
+	{
+	       .start = I2C3_BASE_ADDR,
+	       .end = I2C3_BASE_ADDR + SZ_4K - 1,
+	       .flags = IORESOURCE_MEM,
+	       },
+	{
+	       .start = MXC_INT_I2C3,
+	       .end = MXC_INT_I2C3,
+	       .flags = IORESOURCE_IRQ,
+	       },
+};
 
 struct platform_device mxci2c_devices[] = {
 	{
@@ -460,6 +409,12 @@ struct platform_device mxci2c_devices[] = {
 		.id = 1,
 		.num_resources = ARRAY_SIZE(mxci2c2_resources),
 		.resource = mxci2c2_resources,
+	},
+	{
+		.name = "mxc_i2c",
+		.id = 2,
+		.num_resources = ARRAY_SIZE(mxci2c3_resources),
+		.resource = mxci2c3_resources,
 	},
 };
 
@@ -611,10 +566,33 @@ struct mxc_gpio_port mxc_gpio_ports[] = {
 		.irq_high = MXC_INT_GPIO4_HIGH,
 		.virtual_irq_start = MXC_GPIO_IRQ_START + 32 * 3
 	},
+	{
+		.chip.label = "gpio-4",
+		.base = IO_ADDRESS(GPIO5_BASE_ADDR),
+		.irq = MXC_INT_GPIO5_LOW,
+		.irq_high = MXC_INT_GPIO5_HIGH,
+		.virtual_irq_start = MXC_GPIO_IRQ_START + 32 * 4
+	},
+	{
+		.chip.label = "gpio-5",
+		.base = IO_ADDRESS(GPIO6_BASE_ADDR),
+		.irq = MXC_INT_GPIO6_LOW,
+		.irq_high = MXC_INT_GPIO6_HIGH,
+		.virtual_irq_start = MXC_GPIO_IRQ_START + 32 * 5
+	},
+	{
+		.chip.label = "gpio-6",
+		.base = IO_ADDRESS(GPIO7_BASE_ADDR),
+		.irq = MXC_INT_GPIO7_LOW,
+		.irq_high = MXC_INT_GPIO7_HIGH,
+		.virtual_irq_start = MXC_GPIO_IRQ_START + 32 * 6
+	},
 };
 
 int __init mxc_register_gpios(void)
 {
+	if (cpu_is_mx51())
+		return mxc_gpio_init(mxc_gpio_ports, 4);
 	return mxc_gpio_init(mxc_gpio_ports, ARRAY_SIZE(mxc_gpio_ports));
 }
 
@@ -625,8 +603,8 @@ static struct resource spdif_resources[] = {
 		.flags = IORESOURCE_MEM,
 	},
 	{
-		.start = MXC_INT_SPDIF,
-		.end = MXC_INT_SPDIF,
+		.start = MXC_INT_SPDIF_MX51,
+		.end = MXC_INT_SPDIF_MX51,
 		.flags = IORESOURCE_IRQ,
 	},
 };
@@ -735,6 +713,22 @@ static struct resource mxcsdhc2_resources[] = {
 	},
 };
 
+static struct resource mxcsdhc3_resources[] = {
+	{
+		.start = MMC_SDHC3_BASE_ADDR,
+		.end = MMC_SDHC3_BASE_ADDR + SZ_4K - 1,
+		.flags = IORESOURCE_MEM,
+	},
+	{
+		.start = MXC_INT_MMC_SDHC3,
+		.end = MXC_INT_MMC_SDHC3,
+		.flags = IORESOURCE_IRQ,
+	},
+	{
+		.flags = IORESOURCE_IRQ,
+	},
+};
+
 struct platform_device mxcsdhc1_device = {
 	.name = "mxsdhci",
 	.id = 0,
@@ -747,6 +741,13 @@ struct platform_device mxcsdhc2_device = {
 	.id = 1,
 	.num_resources = ARRAY_SIZE(mxcsdhc2_resources),
 	.resource = mxcsdhc2_resources,
+};
+
+struct platform_device mxcsdhc3_device = {
+	.name = "mxsdhci",
+	.id = 2,
+	.num_resources = ARRAY_SIZE(mxcsdhc3_resources),
+	.resource = mxcsdhc3_resources,
 };
 
 static struct resource pata_fsl_resources[] = {
@@ -891,8 +892,8 @@ static struct resource mxc_gpu_resources[] = {
 		.flags = IORESOURCE_IRQ,
 	},
 	{
-		.start = GPU2D_BASE_ADDR,
-		.end = GPU2D_BASE_ADDR + SZ_4K - 1,
+		.start = MX51_GPU2D_BASE_ADDR,
+		.end = MX51_GPU2D_BASE_ADDR + SZ_4K - 1,
 		.name = "gpu_2d_registers",
 		.flags = IORESOURCE_MEM,
 	},
@@ -903,8 +904,8 @@ static struct resource mxc_gpu_resources[] = {
 		.flags = IORESOURCE_MEM,
 	},
 	{
-		.start = GPU_GMEM_BASE_ADDR,
-		.end = GPU_GMEM_BASE_ADDR + SZ_128K - 1,
+		.start = MX51_GPU_GMEM_BASE_ADDR,
+		.end = MX51_GPU_GMEM_BASE_ADDR + SZ_128K - 1,
 		.name = "gpu_graphics_mem",
 		.flags = IORESOURCE_MEM,
 	},
@@ -919,8 +920,8 @@ struct platform_device gpu_device = {
 
 static struct resource mxc_gpu2d_resources[] = {
 	{
-		.start = GPU2D_BASE_ADDR,
-		.end = GPU2D_BASE_ADDR + SZ_4K - 1,
+		.start = MX51_GPU2D_BASE_ADDR,
+		.end = MX51_GPU2D_BASE_ADDR + SZ_4K - 1,
 		.flags = IORESOURCE_MEM,
 	},
 	{
@@ -1004,14 +1005,16 @@ static inline void mxc_init_gpu2d(void)
 }
 #endif
 
-void __init mx51_init_irq(void)
+void __init mx5_init_irq(void)
 {
 	unsigned long tzic_addr;
 
 	if (cpu_is_mx51_rev(CHIP_REV_2_0) < 0)
-		tzic_addr = TZIC_BASE_ADDR_T01;
-	else
-		tzic_addr = TZIC_BASE_ADDR;
+		tzic_addr = MX51_TZIC_BASE_ADDR_T01;
+	else if (cpu_is_mx51_rev(CHIP_REV_2_0) > 0)
+		tzic_addr = MX51_TZIC_BASE_ADDR;
+	else /* mx53 */
+		tzic_addr = MX53_TZIC_BASE_ADDR;
 
 	mxc_tzic_init_irq(tzic_addr);
 }
@@ -1036,6 +1039,9 @@ static __init void mxc_init_scc_iram(void)
 	long cur_ns = 0;
 	long start_ns = 0;
 
+	if (!cpu_is_mx51())
+		return;
+
 	if (cpu_is_mx51_rev(CHIP_REV_2_0) < 0)
 		iram_partitions = 12;
 
@@ -1044,7 +1050,7 @@ static __init void mxc_init_scc_iram(void)
 		printk(KERN_ERR "FAILED TO MAP IRAM REGS\n");
 		return;
 	}
-	scm_ram_base = ioremap((uint32_t) IRAM_BASE_ADDR, IRAM_SIZE);
+	scm_ram_base = ioremap((uint32_t) MX51_IRAM_BASE_ADDR, IRAM_SIZE);
 	if (scm_ram_base == NULL) {
 		printk(KERN_ERR "FAILED TO MAP IRAM\n");
 		return;
@@ -1196,8 +1202,87 @@ static __init void mxc_init_scc_iram(void)
 	iram_ready = 1;
 }
 
+#define MX53_OFFSET 0x20000000
+
 int __init mxc_init_devices(void)
 {
+	if (cpu_is_mx53()) {
+		sdma_resources[0].start -= MX53_OFFSET;
+		sdma_resources[0].end -= MX53_OFFSET;
+		mxc_w1_master_resources[0].start -= MX53_OFFSET;
+		mxc_w1_master_resources[0].end -= MX53_OFFSET;
+		mxc_kpp_resources[0].start -= MX53_OFFSET;
+		mxc_kpp_resources[0].end -= MX53_OFFSET;
+		rtc_resources[0].start -= MX53_OFFSET;
+		rtc_resources[0].end -= MX53_OFFSET;
+		imx_nfc_resources[0].start = MX53_NFC_BASE_ADDR_AXI;
+		imx_nfc_resources[0].end = MX53_NFC_BASE_ADDR_AXI + 0x1200 - 1;
+		imx_nfc_resources[1].start = MX53_NFC_BASE_ADDR_AXI + 0x1E00;
+		imx_nfc_resources[1].end = MX53_NFC_BASE_ADDR_AXI + 0x1E44 - 1;
+		imx_nfc_resources[2].start -= MX53_OFFSET;
+		imx_nfc_resources[2].end -= MX53_OFFSET;
+		wdt_resources[0].start -= MX53_OFFSET;
+		wdt_resources[0].end -= MX53_OFFSET;
+		pwm1_resources[0].start -= MX53_OFFSET;
+		pwm1_resources[0].end -= MX53_OFFSET;
+		pwm2_resources[0].start -= MX53_OFFSET;
+		pwm2_resources[0].end -= MX53_OFFSET;
+		mxc_fec_resources[0].start -= MX53_OFFSET;
+		mxc_fec_resources[0].end -= MX53_OFFSET;
+		mxcspi1_resources[0].start -= MX53_OFFSET;
+		mxcspi1_resources[0].end -= MX53_OFFSET;
+		mxcspi2_resources[0].start -= MX53_OFFSET;
+		mxcspi2_resources[0].end -= MX53_OFFSET;
+		mxcspi3_resources[0].start -= MX53_OFFSET;
+		mxcspi3_resources[0].end -= MX53_OFFSET;
+		mxci2c1_resources[0].start -= MX53_OFFSET;
+		mxci2c1_resources[0].end -= MX53_OFFSET;
+		mxci2c2_resources[0].start -= MX53_OFFSET;
+		mxci2c2_resources[0].end -= MX53_OFFSET;
+		mxci2c3_resources[0].start -= MX53_OFFSET;
+		mxci2c3_resources[0].end -= MX53_OFFSET;
+		ssi1_resources[0].start -= MX53_OFFSET;
+		ssi1_resources[0].end -= MX53_OFFSET;
+		ssi2_resources[0].start -= MX53_OFFSET;
+		ssi2_resources[0].end -= MX53_OFFSET;
+		tve_resources[0].start -= MX53_OFFSET;
+		tve_resources[0].end -= MX53_OFFSET;
+		dvfs_per_resources[0].start -= MX53_OFFSET;
+		dvfs_per_resources[0].end -= MX53_OFFSET;
+		spdif_resources[0].start -= MX53_OFFSET;
+		spdif_resources[0].end -= MX53_OFFSET;
+		spdif_resources[1].start = MXC_INT_SPDIF_MX53;
+		spdif_resources[1].end = MXC_INT_SPDIF_MX53;
+		mxc_m4if_resources[0].start -= MX53_OFFSET;
+		mxc_m4if_resources[0].end -= MX53_OFFSET;
+		mxc_iim_resources[0].start -= MX53_OFFSET;
+		mxc_iim_resources[0].end -= MX53_OFFSET;
+		mxc_sim_resources[0].start -= MX53_OFFSET;
+		mxc_sim_resources[0].end -= MX53_OFFSET;
+		mxcsdhc1_resources[0].start -= MX53_OFFSET;
+		mxcsdhc1_resources[0].end -= MX53_OFFSET;
+		mxcsdhc2_resources[0].start -= MX53_OFFSET;
+		mxcsdhc2_resources[0].end -= MX53_OFFSET;
+		mxcsdhc3_resources[0].start -= MX53_OFFSET;
+		mxcsdhc3_resources[0].end -= MX53_OFFSET;
+		usbotg_resources[0].start -= MX53_OFFSET;
+		usbotg_resources[0].end -= MX53_OFFSET;
+		usbotg_xcvr_resources[0].start -= MX53_OFFSET;
+		usbotg_xcvr_resources[0].end -= MX53_OFFSET;
+		usbh1_resources[0].start -= MX53_OFFSET;
+		usbh1_resources[0].end -= MX53_OFFSET;
+		usbh2_resources[0].start -= MX53_OFFSET;
+		usbh2_resources[0].end -= MX53_OFFSET;
+		mxc_gpu_resources[2].start = MX53_GPU2D_BASE_ADDR;
+		mxc_gpu_resources[2].end = MX53_GPU2D_BASE_ADDR + SZ_4K - 1;
+		mxc_gpu_resources[4].start = MX53_GPU_GMEM_BASE_ADDR;
+		mxc_gpu_resources[4].end = MX53_GPU_GMEM_BASE_ADDR + SZ_256K - 1;
+		mxc_gpu2d_resources[0].start = MX53_GPU2D_BASE_ADDR;
+		mxc_gpu2d_resources[0].end = MX53_GPU2D_BASE_ADDR + SZ_4K - 1;
+		ipu_resources[0].start = MX53_IPU_CTRL_BASE_ADDR;
+		ipu_resources[0].end = MX53_IPU_CTRL_BASE_ADDR + SZ_128M - 1;
+	}
+
 	mxc_init_scc_iram();
 	mxc_init_gpu2d();
 	return 0;

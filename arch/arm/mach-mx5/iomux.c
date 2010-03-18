@@ -1,5 +1,5 @@
 /*
- * Copyright 2008-2009 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2008-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -12,15 +12,15 @@
  */
 
 /*!
- * @defgroup GPIO_MX51 Board GPIO and Muxing Setup
- * @ingroup MSL_MX51
+ * @defgroup GPIO_MX5 Board GPIO and Muxing Setup
+ * @ingroup MSL_MX5
  */
 /*!
- * @file mach-mx51/iomux.c
+ * @file mach-mx5/iomux.c
  *
  * @brief I/O Muxing control functions
  *
- * @ingroup GPIO_MX51
+ * @ingroup GPIO_MX5
  */
 
 #include <linux/io.h>
@@ -30,21 +30,31 @@
 #include <mach/gpio.h>
 #include <mach/irqs.h>
 #include "iomux.h"
+#include "mx51_pins.h"
+
+#define MUX_I_START_MX53	0x0020
+#define PAD_I_START_MX53	0x348
+#define INPUT_CTL_START_MX53	0x730
+#define MUX_I_END_MX53		(PAD_I_START_MX53 - 4)
 
 /*!
- * IOMUX register (base) addresses
+ * IOMUX register (base) addressesf
  */
 #define IOMUXGPR0		(IO_ADDRESS(IOMUXC_BASE_ADDR))
 #define IOMUXGPR1		(IO_ADDRESS(IOMUXC_BASE_ADDR) + 0x004)
 #define IOMUXSW_MUX_CTL		(IO_ADDRESS(IOMUXC_BASE_ADDR))
-#define IOMUXSW_MUX_END		(IO_ADDRESS(IOMUXC_BASE_ADDR) + MUX_I_END)
-#define IOMUXSW_PAD_CTL		(IO_ADDRESS(IOMUXC_BASE_ADDR) + PAD_I_START)
 #define IOMUXSW_INPUT_CTL	(IO_ADDRESS(IOMUXC_BASE_ADDR))
 
-#define MUX_PIN_NUM_MAX        ((MUX_I_END >> 2) + 1)
-
-static u8 iomux_pin_res_table[MUX_PIN_NUM_MAX];
+static u8 iomux_pin_res_table[(0x3F0 / 4) + 1];
 static DEFINE_SPINLOCK(gpio_mux_lock);
+
+static inline void *_get_sw_pad(void)
+{
+	if (cpu_is_mx51())
+		return IO_ADDRESS(IOMUXC_BASE_ADDR) + PAD_I_START_MX51;
+	else
+		return IO_ADDRESS(IOMUXC_BASE_ADDR) + PAD_I_START_MX53;
+}
 
 static inline void * _get_mux_reg(iomux_pin_name_t pin)
 {
@@ -66,26 +76,28 @@ static inline void * _get_mux_reg(iomux_pin_name_t pin)
 static inline void * _get_pad_reg(iomux_pin_name_t pin)
 {
 	u32 pad_reg = PIN_TO_IOMUX_PAD(pin);
+	void __iomem *sw_pad_reg = _get_sw_pad();
+
 
 	if (cpu_is_mx51_rev(CHIP_REV_2_0) < 0) {
 		if ((pin == MX51_PIN_NANDF_RB5) ||
 			(pin == MX51_PIN_NANDF_RB6) ||
 			(pin == MX51_PIN_NANDF_RB7))
 			; /* Do nothing */
-		else if (pad_reg == 0x4D0 - PAD_I_START)
+		else if (pad_reg == 0x4D0 - PAD_I_START_MX51)
 			pad_reg += 0x4C;
-		else if (pad_reg == 0x860 - PAD_I_START)
+		else if (pad_reg == 0x860 - PAD_I_START_MX51)
 			pad_reg += 0x9C;
-		else if (pad_reg >= 0x804 - PAD_I_START)
+		else if (pad_reg >= 0x804 - PAD_I_START_MX51)
 			pad_reg += 0xB0;
-		else if (pad_reg >= 0x7FC - PAD_I_START)
+		else if (pad_reg >= 0x7FC - PAD_I_START_MX51)
 			pad_reg += 0xB4;
-		else if (pad_reg >= 0x4E4 - PAD_I_START)
+		else if (pad_reg >= 0x4E4 - PAD_I_START_MX51)
 			pad_reg += 0xCC;
 		else
 			pad_reg += 8;
 	}
-	return IOMUXSW_PAD_CTL + pad_reg;
+	return sw_pad_reg + pad_reg;
 }
 
 static inline void * _get_mux_end(void)
@@ -193,8 +205,9 @@ EXPORT_SYMBOL(mxc_free_iomux);
 void mxc_iomux_set_pad(iomux_pin_name_t pin, u32 config)
 {
 	void __iomem *pad_reg = _get_pad_reg(pin);
+	void __iomem *sw_pad_reg = _get_sw_pad();
 
-	BUG_ON(pad_reg < IOMUXSW_PAD_CTL);
+	BUG_ON(pad_reg < sw_pad_reg);
 	__raw_writel(config, pad_reg);
 }
 EXPORT_SYMBOL(mxc_iomux_set_pad);
@@ -233,10 +246,11 @@ void mxc_iomux_set_input(iomux_input_select_t input, u32 config)
 		else if (input >= MUX_IN_CCM_PLL1_BYPASS_CLK_SELECT_INPUT)
 			input -= 1;
 
-		reg = IOMUXSW_INPUT_CTL + (input << 2) + INPUT_CTL_START_TO1;
-	} else {
-		reg = IOMUXSW_INPUT_CTL + (input << 2) + INPUT_CTL_START;
-	}
+		reg = IOMUXSW_INPUT_CTL + (input << 2) + INPUT_CTL_START_MX51_TO1;
+	} else if (cpu_is_mx51()) {
+		reg = IOMUXSW_INPUT_CTL + (input << 2) + INPUT_CTL_START_MX51;
+	} else
+		reg = IOMUXSW_INPUT_CTL + (input << 2) + INPUT_CTL_START_MX53;
 
 	BUG_ON(input >= MUX_INPUT_NUM_MUX);
 	__raw_writel(config, reg);
