@@ -17,6 +17,12 @@ config MX5_OPTIONS
 	select USB_ARCH_HAS_EHCI
 	select MXC_TZIC
 
+config MX5_MULTI_ARCH
+	bool
+	default y
+	select RUNTIME_PHYS_OFFSET
+	depends on ARCH_MX51 && ARCH_MX53
+
 config MACH_MX51_3DS
 	bool "Support MX51 3-Stack platform"
 	select ARCH_MX51

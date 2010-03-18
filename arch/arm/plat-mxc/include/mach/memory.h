@@ -14,6 +14,7 @@
 #include <asm/page.h>
 #include <asm/sizes.h>
 
+#ifndef CONFIG_RUNTIME_PHYS_OFFSET
 #if defined CONFIG_ARCH_MX1
 #define PHYS_OFFSET		UL(0x08000000)
 #elif defined CONFIG_ARCH_MX2
@@ -41,6 +42,7 @@
 
 #ifndef PHYS_OFFSET
 #define PHYS_OFFSET	        UL(0x80000000)
+#endif
 #endif
 
 /* Size of contiguous memory for DMA and other h/w blocks */
