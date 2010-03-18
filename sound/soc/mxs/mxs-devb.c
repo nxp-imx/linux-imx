@@ -42,9 +42,6 @@
 #include "mxs-pcm.h"
 #include "../codecs/sgtl5000.h"
 
-/* SAIF BCLK and LRC master */
-#define SGTL5000_SAIF_MASTER	0
-
 struct mxs_evk_priv {
 	int sysclk;
 	int hw;
@@ -74,19 +71,18 @@ static int mxs_evk_audio_hw_params(struct snd_pcm_substream *substream,
 
 	snd_soc_dai_set_sysclk(codec_dai, SGTL5000_SYSCLK, priv->sysclk, 0);
 	snd_soc_dai_set_sysclk(codec_dai, SGTL5000_LRCLK, rate, 0);
-
-#if SGTL5000_SAIF_MASTER
-	dai_format = SND_SOC_DAIFMT_I2S | SND_SOC_DAIFMT_NB_NF |
-	    SND_SOC_DAIFMT_CBM_CFM;
-#else
+	/* set codec to slave mode */
 	dai_format = SND_SOC_DAIFMT_I2S | SND_SOC_DAIFMT_NB_NF |
 	    SND_SOC_DAIFMT_CBS_CFS;
-#endif
 
 	/* set codec DAI configuration */
 	ret = snd_soc_dai_set_fmt(codec_dai, dai_format);
 	if (ret < 0)
 		return ret;
+	/* set cpu_dai to master mode for playback, slave mode for record */
+	if (substream->stream == SNDRV_PCM_STREAM_CAPTURE)
+		dai_format = SND_SOC_DAIFMT_I2S | SND_SOC_DAIFMT_NB_NF |
+			SND_SOC_DAIFMT_CBM_CFM;
 
 	/* set cpu DAI configuration */
 	ret = snd_soc_dai_set_fmt(cpu_dai, dai_format);
@@ -102,13 +98,32 @@ static int mxs_evk_audio_hw_params(struct snd_pcm_substream *substream,
 
 static int mxs_evk_startup(struct snd_pcm_substream *substream)
 {
+	struct snd_soc_pcm_runtime *rtd = substream->private_data;
+	struct snd_soc_dai_link *machine = rtd->dai;
+	struct snd_soc_dai *cpu_dai = machine->cpu_dai;
+	struct mxs_saif *saif_select = (struct mxs_saif *)cpu_dai->private_data;
+
+	if (((saif_select->stream_mapping == PLAYBACK_SAIF0_CAPTURE_SAIF1) && \
+		(substream->stream == SNDRV_PCM_STREAM_PLAYBACK)) || \
+		((saif_select->stream_mapping == PLAYBACK_SAIF1_CAPTURE_SAIF0) \
+		&& (substream->stream == SNDRV_PCM_STREAM_CAPTURE)))
+		saif_select->saif_en = 0;
+	else
+		saif_select->saif_en = 1;
 	return 0;
 }
 
 static void mxs_evk_shutdown(struct snd_pcm_substream *substream)
 {
 	struct mxs_evk_priv *priv = &card_priv;
-	priv->hw = 0;
+	struct snd_soc_pcm_runtime *rtd = substream->private_data;
+	struct snd_soc_dai_link *machine = rtd->dai;
+	struct snd_soc_dai *cpu_dai = machine->cpu_dai;
+
+	if (cpu_dai->playback.active || cpu_dai->capture.active)
+		priv->hw = 1;
+	else
+		priv->hw = 0;
 }
 
 /*
@@ -209,16 +224,14 @@ static struct snd_soc_device mxs_evk_snd_devdata = {
 static int __devinit mxs_evk_sgtl5000_probe(struct platform_device *pdev)
 {
 	struct mxs_audio_platform_data *plat = pdev->dev.platform_data;
-
+	struct mxs_saif *saif_select;
 	int ret = -EINVAL;
-	/*init the clk*/
 	if (plat->init && plat->init())
 		goto err_plat_init;
-
-	if (plat->saif0_select == 1)
-		mxs_evk_dai.cpu_dai = &mxs_saif_dai[0];
-	else
-		mxs_evk_dai.cpu_dai = &mxs_saif_dai[1];
+	mxs_evk_dai.cpu_dai = &mxs_saif_dai[0];
+	saif_select = (struct mxs_saif *)mxs_evk_dai.cpu_dai->private_data;
+	saif_select->stream_mapping = PLAYBACK_SAIF0_CAPTURE_SAIF1;
+	saif_select->saif_mclk = plat->saif_mclock;
 	return 0;
 err_plat_init:
 	if (plat->finit)

@@ -611,6 +611,7 @@ static int sgtl5000_pcm_hw_params(struct snd_pcm_substream *substream,
 	int i2s_ctl;
 	int div2 = 0;
 	int reg;
+	u32 fs;
 
 	pr_debug("%s channels=%d\n", __func__, channels);
 
@@ -645,25 +646,25 @@ static int sgtl5000_pcm_hw_params(struct snd_pcm_substream *substream,
 		       sgtl5000->lrclk);
 		return -EFAULT;
 	}
-
-#if 0	/* SGTL5000 rev1 has a IC bug to prevent switching to MCLK from PLL. */
-	if (fs * 256 == sgtl5000->sysclk)
-		clk_ctl |= SGTL5000_MCLK_FREQ_256FS << SGTL5000_MCLK_FREQ_SHIFT;
-	else if (fs * 384 == sgtl5000->sysclk && fs != 96000)
-		clk_ctl |= SGTL5000_MCLK_FREQ_384FS << SGTL5000_MCLK_FREQ_SHIFT;
-	else if (fs * 512 == sgtl5000->sysclk && fs != 96000)
-		clk_ctl |= SGTL5000_MCLK_FREQ_512FS << SGTL5000_MCLK_FREQ_SHIFT;
-	else
-#endif
-	{
-		/*
-		if (!sgtl5000->master) {
+	fs = sgtl5000->lrclk;
+	/* SGTL5000 rev1 has a IC bug to prevent switching to MCLK from PLL. */
+	if (!sgtl5000->master) {
+		if (fs * 256 == sgtl5000->sysclk)
+			clk_ctl |= SGTL5000_MCLK_FREQ_256FS << \
+				SGTL5000_MCLK_FREQ_SHIFT;
+		else if (fs * 384 == sgtl5000->sysclk && fs != 96000)
+			clk_ctl |= SGTL5000_MCLK_FREQ_384FS << \
+				SGTL5000_MCLK_FREQ_SHIFT;
+		else if (fs * 512 == sgtl5000->sysclk && fs != 96000)
+			clk_ctl |= SGTL5000_MCLK_FREQ_512FS << \
+				SGTL5000_MCLK_FREQ_SHIFT;
+		else {
 			pr_err("%s: PLL not supported in slave mode\n",
 			       __func__);
 			return -EINVAL;
-		}*/
+		}
+	} else
 		clk_ctl |= SGTL5000_MCLK_FREQ_PLL << SGTL5000_MCLK_FREQ_SHIFT;
-	}
 
 	if ((clk_ctl & SGTL5000_MCLK_FREQ_MASK) == SGTL5000_MCLK_FREQ_PLL) {
 		u64 out, t;
@@ -1123,9 +1124,6 @@ static __devinit int sgtl5000_i2c_probe(struct i2c_client *client,
 	struct regulator *reg;
 	int ret = 0;
 	u32 val;
-
-	if (client->dev.platform_data)
-		clk_enable((struct clk *)client->dev.platform_data);
 
 	if (sgtl5000_codec) {
 		dev_err(&client->dev,

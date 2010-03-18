@@ -41,7 +41,6 @@ static struct i2c_board_info __initdata mxs_i2c_device[] = {
 
 static void i2c_device_init(void)
 {
-	mxs_i2c_device[0].platform_data = (void *)clk_get(NULL, "saif_mclk.0");
 	i2c_register_board_info(0, mxs_i2c_device, ARRAY_SIZE(mxs_i2c_device));
 }
 

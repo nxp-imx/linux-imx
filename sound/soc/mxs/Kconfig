@@ -33,19 +33,6 @@ config SND_MXS_SOC_DAI
 	help
 	   Enable MXS Digital Audio Interface SAIF
 
-config SND_MXS_SOC_SAIF0_SELECT
-	bool "Enable SAIF0 module"
-	default y
-	depends on SND_MXS_SOC_DAI
-	help
-	  Enable MXS SAIF0 Module
-
-config SND_MXS_SOC_SAIF1_SELECT
-	bool "Enable SAIF1 module"
-	depends on SND_MXS_SOC_DAI
-	help
-	  Enable MXS SAIF1 Module
-
 config SND_MXS_SOC_ADC
 	tristate "MXS ADC/DAC Audio Interface"
 	default y

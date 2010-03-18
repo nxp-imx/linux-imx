@@ -1105,14 +1105,14 @@ static void __init mx28_init_dcp(void)
 #endif
 
 #if defined(CONFIG_SND_MXS_SOC_DAI) || defined(CONFIG_SND_MXS_SOC_DAI_MODULE)
-static int audio_clk_init(void)
+static int audio_clk_init(struct clk *clk)
 {
-	struct clk *saif_clk;
 	struct clk *pll_clk;
+	struct clk *saif_mclk0;
+	struct clk *saif_mclk1;
 	int ret = -EINVAL;
-	saif_clk = clk_get(NULL, "saif.0");
-	if (IS_ERR(saif_clk)) {
-		pr_err("%s:failed to get saif_clk\n", __func__);
+	if (IS_ERR(clk)) {
+		pr_err("%s:failed to get clk\n", __func__);
 		goto err_clk_init;
 	}
 	pll_clk = clk_get(NULL, "pll.0");
@@ -1120,18 +1120,32 @@ static int audio_clk_init(void)
 		pr_err("%s:failed to get pll_clk\n", __func__);
 		goto err_clk_init;
 	}
-	ret = clk_set_parent(saif_clk, pll_clk);
+	saif_mclk0 = clk_get(NULL, "saif_mclk.0");
+	if (IS_ERR(saif_mclk0)) {
+		pr_err("%s:failed to get saif_mclk\n", __func__);
+		goto err_clk_init;
+	}
+	saif_mclk1 = clk_get(NULL, "saif_mclk.1");
+	if (IS_ERR(saif_mclk1)) {
+		pr_err("%s:failed to get saif_mclk\n", __func__);
+		goto err_clk_init;
+	}
+	ret = clk_set_parent(clk, pll_clk);
 	if (ret) {
 		pr_err("%s:failed to set parent clk\n", __func__);
 		goto err_clk_init;
 	}
 	ret = 0;
-	/*set a default freq 12M to sgtl5000*/
-	clk_set_rate(saif_clk, 12000000);
-	clk_enable(saif_clk);
-	/*set the saif clk mux*/
-	__raw_writel(BF_DIGCTL_CTRL_SAIF_CLKMUX_SEL(0x0), \
+	/*set a default freq of 12M to sgtl5000*/
+	clk_set_rate(clk, 12000000);
+	clk_enable(clk);
+	/*set the saif clk mux, saif0/saif1 both use saif0 clk*/
+	__raw_writel(BF_DIGCTL_CTRL_SAIF_CLKMUX_SEL(0x2), \
 			IO_ADDRESS(DIGCTL_PHYS_ADDR) + HW_DIGCTL_CTRL);
+
+	/*enable saif0/saif1 clk output*/
+	clk_enable(saif_mclk0);
+	clk_enable(saif_mclk1);
 err_clk_init:
 	return ret;
 }
@@ -1139,6 +1153,8 @@ err_clk_init:
 static int audio_clk_finit(void)
 {
 	struct clk *saif_clk;
+	struct clk *saif_mclk0;
+	struct clk *saif_mclk1;
 	int ret = 0;
 	saif_clk = clk_get(NULL, "saif.0");
 	if (IS_ERR(saif_clk)) {
@@ -1147,20 +1163,25 @@ static int audio_clk_finit(void)
 		goto err_clk_finit;
 	}
 	clk_disable(saif_clk);
+
+	saif_mclk0 = clk_get(NULL, "saif_mclk.0");
+	if (IS_ERR(saif_mclk0)) {
+		pr_err("%s:failed to get saif_mclk\n", __func__);
+		goto err_clk_finit;
+	}
+	clk_disable(saif_mclk0);
+
+	saif_mclk1 = clk_get(NULL, "saif_mclk.1");
+	if (IS_ERR(saif_mclk1)) {
+		pr_err("%s:failed to get saif_mclk\n", __func__);
+		goto err_clk_finit;
+	}
+	clk_disable(saif_mclk1);
 err_clk_finit:
 	return ret;
 }
 
-static struct mxs_audio_platform_data audio_plat_data = {
-#if defined(CONFIG_SND_MXS_SOC_SAIF0_SELECT)
-	.saif0_select = 1,
-#endif
-#if defined(CONFIG_SND_MXS_SOC_SAIF1_SELECT)
-	.saif1_select = 1,
-#endif
-	.init = audio_clk_init,
-	.finit = audio_clk_finit,
-};
+static struct mxs_audio_platform_data audio_plat_data;
 #endif
 
 #if defined(CONFIG_SND_SOC_SGTL5000) || defined(CONFIG_SND_SOC_SGTL5000_MODULE)
@@ -1170,6 +1191,8 @@ void __init mx28_init_audio(void)
 	if (pdev == NULL || IS_ERR(pdev))
 		return;
 	mxs_add_device(pdev, 3);
+	audio_plat_data.saif_mclock = clk_get(NULL, "saif.0");
+	audio_clk_init(audio_plat_data.saif_mclock);
 	pdev->dev.platform_data = &audio_plat_data;
 }
 #else

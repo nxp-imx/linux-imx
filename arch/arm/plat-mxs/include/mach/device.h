@@ -145,11 +145,9 @@ struct flexcan_platform_data {
 };
 
 struct mxs_audio_platform_data {
-	int saif0_select;
-	int saif1_select;
 	int intr_id_hp;
 	int ext_ram;
-	struct clk *saif_clock;
+	struct clk *saif_mclock;
 
 	int hp_irq;
 	int (*hp_status) (void);

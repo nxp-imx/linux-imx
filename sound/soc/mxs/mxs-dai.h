@@ -24,13 +24,17 @@
 /* SSI clock sources */
 #define IMX_SSP_SYS_CLK			0
 
+#define SAIF0 0
+#define SAIF1 1
 
-/* SSI Div 2 */
-#define IMX_SSI_DIV_2_OFF		(~SSI_STCCR_DIV2)
-#define IMX_SSI_DIV_2_ON		SSI_STCCR_DIV2
-
-#define IMX_DAI_AC97_1 0
-#define IMX_DAI_AC97_2 1
+/*private info*/
+struct mxs_saif {
+	u8 saif_en;
+#define PLAYBACK_SAIF0_CAPTURE_SAIF1 0
+#define PLAYBACK_SAIF1_CAPTURE_SAIF0 1
+	u16 stream_mapping;
+	struct clk *saif_mclk;
+};
 
 extern struct snd_soc_dai mxs_saif_dai[];
 

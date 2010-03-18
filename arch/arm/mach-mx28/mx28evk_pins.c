@@ -691,6 +691,16 @@ static struct pin_desc mx28evk_fixed_pins[] = {
 	 .drive 	= 1,
 	 .pull 		= 1,
 	 },
+	{
+	 .name	= "SAIF1_SDATA0",
+	 .id	= PINID_SAIF1_SDATA0,
+	 .fun	= PIN_FUN1,
+	 .strength	= PAD_12MA,
+	 .voltage	= PAD_3_3V,
+	 .pullup	= 1,
+	 .drive 	= 1,
+	 .pull 		= 1,
+	 },
 #endif
 #if defined(CONFIG_SND_SOC_MXS_SPDIF) || \
        defined(CONFIG_SND_SOC_MXS_SPDIF_MODULE)

@@ -185,6 +185,8 @@
 #define MXS_DAI_SAIF0 0
 #define MXS_DAI_SAIF1 1
 
+static struct mxs_saif mxs_saif_en;
+
 static int saif_active[2] = { 0, 0 };
 
 struct mxs_pcm_dma_params mxs_saif_0 = {
@@ -206,19 +208,16 @@ struct mxs_pcm_dma_params mxs_saif_1 = {
 static int mxs_saif_set_dai_sysclk(struct snd_soc_dai *cpu_dai,
 				  int clk_id, unsigned int freq, int dir)
 {
-	u32 scr;
 	struct clk *saif_clk;
-
-	if (cpu_dai->id == MXS_DAI_SAIF0) {
-		scr = __raw_readl(SAIF0_CTRL);
-		saif_clk = clk_get(NULL, "saif.0");
-	} else {
-		scr = __raw_readl(SAIF1_CTRL);
-		saif_clk = clk_get(NULL, "saif.1");
-	}
+	struct mxs_saif *saif_select = (struct mxs_saif *)cpu_dai->private_data;
 
 	switch (clk_id) {
 	case IMX_SSP_SYS_CLK:
+		saif_clk = saif_select->saif_mclk;
+		if (IS_ERR(saif_clk)) {
+			pr_err("%s:failed to get sys_clk\n", __func__);
+			return -EINVAL;
+		}
 		clk_set_rate(saif_clk, freq);
 		clk_enable(saif_clk);
 		break;
@@ -247,8 +246,8 @@ static int mxs_saif_set_dai_clkdiv(struct snd_soc_dai *cpu_dai,
 static int mxs_saif_set_dai_fmt(struct snd_soc_dai *cpu_dai, unsigned int fmt)
 {
 	u32 scr, stat;
-
-	if (cpu_dai->id == MXS_DAI_SAIF0) {
+	struct mxs_saif *saif_select = (struct mxs_saif *)cpu_dai->private_data;
+	if (saif_select->saif_en == SAIF0) {
 		scr = __raw_readl(SAIF0_CTRL);
 		stat = __raw_readl(SAIF0_STAT);
 	} else {
@@ -307,9 +306,7 @@ static int mxs_saif_set_dai_fmt(struct snd_soc_dai *cpu_dai, unsigned int fmt)
 		scr |= BM_SAIF_CTRL_SLAVE_MODE;
 		break;
 	}
-
-
-	if (cpu_dai->id == MXS_DAI_SAIF0)
+	if (saif_select->saif_en == SAIF0)
 		__raw_writel(scr, SAIF0_CTRL);
 	else
 		__raw_writel(scr, SAIF1_CTRL);
@@ -321,23 +318,26 @@ static int mxs_saif_set_dai_fmt(struct snd_soc_dai *cpu_dai, unsigned int fmt)
 static int mxs_saif_startup(struct snd_pcm_substream *substream,
 			   struct snd_soc_dai *cpu_dai)
 {
-	/* we cant really change any saif values after saif is enabled
-	 * need to fix in software for max flexibility - lrg */
-	if (cpu_dai->playback.active || cpu_dai->capture.active)
-		return 0;
+	/* we cant really change any saif values after saif is enabled*/
+	struct mxs_saif *saif_select = (struct mxs_saif *)cpu_dai->private_data;
 
-	/* reset the SAIF port - Sect 45.4.4 */
-	if (cpu_dai->id == MXS_DAI_SAIF0)
-		if (saif_active[SAIF0_PORT]++)
-			return 0;
-	if (cpu_dai->id == MXS_DAI_SAIF1)
-		if (saif_active[SAIF1_PORT]++)
-			return 0;
-
-	if (cpu_dai->id == MXS_DAI_SAIF0)
+	if (((saif_select->stream_mapping == PLAYBACK_SAIF0_CAPTURE_SAIF1) && \
+		(substream->stream == SNDRV_PCM_STREAM_PLAYBACK)) || \
+		((saif_select->stream_mapping == PLAYBACK_SAIF1_CAPTURE_SAIF0) \
+		&& (substream->stream == SNDRV_PCM_STREAM_CAPTURE)))
 		cpu_dai->dma_data = &mxs_saif_0;
 	else
 		cpu_dai->dma_data = &mxs_saif_1;
+
+	if (cpu_dai->playback.active && cpu_dai->capture.active)
+		return 0;
+
+	if (saif_select->saif_en == SAIF0)
+		if (saif_active[SAIF0_PORT]++)
+			return 0;
+	if (saif_select->saif_en == SAIF1)
+		if (saif_active[SAIF1_PORT]++)
+			return 0;
 	SAIF_DUMP();
 	return 0;
 }
@@ -350,18 +350,15 @@ static int mxs_saif_hw_params(struct snd_pcm_substream *substream,
 			     struct snd_pcm_hw_params *params,
 			     struct snd_soc_dai *cpu_dai)
 {
-	int id;
 	u32 scr, stat;
-	id = cpu_dai->id;
-
-	if (cpu_dai->id == MXS_DAI_SAIF0) {
+	struct mxs_saif *saif_select = (struct mxs_saif *)cpu_dai->private_data;
+	if (saif_select->saif_en == SAIF0) {
 		scr = __raw_readl(SAIF0_CTRL);
 		stat = __raw_readl(SAIF0_STAT);
 	} else {
 		scr = __raw_readl(SAIF1_CTRL);
 		stat = __raw_readl(SAIF1_STAT);
 	}
-
 	/* cant change any parameters when SAIF is running */
 	/* DAI data (word) size */
 	scr &= ~BM_SAIF_CTRL_WORD_LENGTH;
@@ -379,7 +376,6 @@ static int mxs_saif_hw_params(struct snd_pcm_substream *substream,
 		scr |= BM_SAIF_CTRL_BITCLK_48XFS_ENABLE;
 		break;
 	}
-
 	/* Tx/Rx config */
 	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
 		/* enable TX mode */
@@ -389,48 +385,52 @@ static int mxs_saif_hw_params(struct snd_pcm_substream *substream,
 		scr |= BM_SAIF_CTRL_READ_MODE;
 	}
 
-	if (cpu_dai->id == MXS_DAI_SAIF0)
+	if (saif_select->saif_en == SAIF0)
 		__raw_writel(scr, SAIF0_CTRL);
 	else
 		__raw_writel(scr, SAIF1_CTRL);
-
 	return 0;
 }
 
 static int mxs_saif_prepare(struct snd_pcm_substream *substream,
 			   struct snd_soc_dai *cpu_dai)
 {
-	if (cpu_dai->id == MXS_DAI_SAIF0)
+	struct mxs_saif *saif_select = (struct mxs_saif *)cpu_dai->private_data;
+	if (saif_select->saif_en == SAIF0)
 		__raw_writel(BM_SAIF_CTRL_CLKGATE, SAIF0_CTRL_CLR);
 	else
 		__raw_writel(BM_SAIF_CTRL_CLKGATE, SAIF1_CTRL_CLR);
-
-	/* enable the saif port, note that no other port config
-	 * should happen after SSIEN is set */
 	SAIF_DUMP();
 	return 0;
 }
 
 static int mxs_saif_trigger(struct snd_pcm_substream *substream, int cmd,
-			   struct snd_soc_dai *cpu_dai)
+				struct snd_soc_dai *cpu_dai)
 {
-	u32 scr;
-	if (cpu_dai->id == MXS_DAI_SAIF0)
-		scr = __raw_readl(SAIF0_CTRL);
-	else
-		scr = __raw_readl(SAIF1_CTRL);
-
+	void __iomem *reg;
+	struct mxs_saif *saif_select = (struct mxs_saif *)cpu_dai->private_data;
 	switch (cmd) {
 	case SNDRV_PCM_TRIGGER_START:
 	case SNDRV_PCM_TRIGGER_RESUME:
 	case SNDRV_PCM_TRIGGER_PAUSE_RELEASE:
-		/*write a data to saif data register to trigger the transfer*/
-		__raw_writel(0x0, SAIF0_DATA);
+
+		if (saif_select->saif_en == SAIF0)
+			reg = (void __iomem *)SAIF0_DATA;
+		else
+			reg = (void __iomem *)SAIF1_DATA;
+
+		if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK)
+			/*write a data to saif data register to trigger
+				the transfer*/
+			__raw_writel(0, reg);
+		else
+			/*read a data from saif data register to trigger
+				the receive*/
+			__raw_readl(reg);
 		break;
 	case SNDRV_PCM_TRIGGER_SUSPEND:
 	case SNDRV_PCM_TRIGGER_STOP:
 	case SNDRV_PCM_TRIGGER_PAUSE_PUSH:
-		scr &= ~BM_SAIF_CTRL_RUN;
 		break;
 	default:
 		return -EINVAL;
@@ -442,18 +442,16 @@ static int mxs_saif_trigger(struct snd_pcm_substream *substream, int cmd,
 static void mxs_saif_shutdown(struct snd_pcm_substream *substream,
 			     struct snd_soc_dai *cpu_dai)
 {
-	int id;
-
-	id = cpu_dai->id;
-
+	struct mxs_saif *saif_select = (struct mxs_saif *)cpu_dai->private_data;
 	/* shutdown SAIF if neither Tx or Rx is active */
 	if (cpu_dai->playback.active || cpu_dai->capture.active)
 		return;
 
-	if (id == MXS_DAI_SAIF0) {
+	if (saif_select->saif_en == SAIF0) {
 		if (--saif_active[SAIF0_PORT] > 1)
 			return;
-	} else {
+	}
+	if (saif_select->saif_en == SAIF1) {
 		if (--saif_active[SAIF1_PORT])
 			return;
 	}
@@ -510,32 +508,25 @@ static irqreturn_t saif1_irq(int irq, void *dev_id)
 
 static int mxs_saif_probe(struct platform_device *pdev, struct snd_soc_dai *dai)
 {
-	printk("in mxs_saif_probe\n");
-	if (!strcmp(dai->name, "mxs-saif-0"))
-		if (request_irq(IRQ_SAIF0, saif0_irq, 0, "saif0", dai)) {
-			printk(KERN_ERR "%s: failure requesting irq %s\n",
-			       __func__, "saif0");
-			return -EBUSY;
-		}
+	if (request_irq(IRQ_SAIF0, saif0_irq, 0, "saif0", dai)) {
+		printk(KERN_ERR "%s: failure requesting irq %s\n",
+		       __func__, "saif0");
+		return -EBUSY;
+	}
 
-	if (!strcmp(dai->name, "mxs-saif-1"))
-		if (request_irq(IRQ_SAIF1, saif1_irq, 0, "saif1", dai)) {
-			printk(KERN_ERR "%s: failure requesting irq %s\n",
-			       __func__, "saif1");
-			return -EBUSY;
-		}
-
+	if (request_irq(IRQ_SAIF1, saif1_irq, 0, "saif1", dai)) {
+		printk(KERN_ERR "%s: failure requesting irq %s\n",
+		       __func__, "saif1");
+		return -EBUSY;
+	}
 	return 0;
 }
 
 static void mxs_saif_remove(struct platform_device *pdev,
 			   struct snd_soc_dai *dai)
 {
-	if (!strcmp(dai->name, "mxs-saif-0"))
-		free_irq(IRQ_SAIF0, dai);
-
-	if (!strcmp(dai->name, "mxs-saif-1"))
-		free_irq(IRQ_SAIF1, dai);
+	free_irq(IRQ_SAIF0, dai);
+	free_irq(IRQ_SAIF1, dai);
 }
 
 #define MXS_SAIF_RATES \
@@ -563,8 +554,7 @@ static struct snd_soc_dai_ops mxs_saif_dai_ops = {
 
 struct snd_soc_dai mxs_saif_dai[] = {
 	{
-	.name = "mxs-saif-0",
-	.id = MXS_DAI_SAIF0,
+	.name = "mxs-saif",
 	.probe = mxs_saif_probe,
 	.remove = mxs_saif_remove,
 	.suspend = mxs_saif_suspend,
@@ -582,27 +572,7 @@ struct snd_soc_dai mxs_saif_dai[] = {
 		.formats = MXS_SAIF_FORMATS,
 	},
 	.ops = &mxs_saif_dai_ops,
-	},
-	{
-	.name = "mxs-saif-1",
-	.id = MXS_DAI_SAIF1,
-	.probe = mxs_saif_probe,
-	.remove = mxs_saif_remove,
-	.suspend = mxs_saif_suspend,
-	.resume = mxs_saif_resume,
-	.playback = {
-		.channels_min = 2,
-		.channels_max = 2,
-		.rates = MXS_SAIF_RATES,
-		.formats = MXS_SAIF_FORMATS,
-	},
-	.capture = {
-		.channels_min = 2,
-		.channels_max = 2,
-		.rates = MXS_SAIF_RATES,
-		.formats = MXS_SAIF_FORMATS,
-	},
-	.ops = &mxs_saif_dai_ops,
+	.private_data = &mxs_saif_en,
 	}
 };
 EXPORT_SYMBOL_GPL(mxs_saif_dai);
