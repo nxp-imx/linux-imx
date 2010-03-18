@@ -1976,7 +1976,9 @@ fec_restart(struct net_device *dev, int duplex)
 	writel(0, fep->hwp + FEC_HASH_TABLE_LOW);
 #endif
 #ifdef CONFIG_ARCH_MXC
-	if (cpu_is_mx25()) {
+	if (cpu_is_mx25() || cpu_is_mx53()) {
+
+		unsigned int val;
 		/*
 		 * Set up the MII gasket for RMII mode
 		 */
@@ -1987,11 +1989,18 @@ fec_restart(struct net_device *dev, int duplex)
 		while (__raw_readl(fep->hwp + FEC_MIIGSK_ENR) & FEC_MIIGSK_ENR_READY)
 			udelay(1);
 
+		val = FEC_MIIGSK_CFGR_IF_MODE_RMII;
+		if (cpu_is_mx53() &&
+			fep->phy_status & (PHY_STAT_10FDX | PHY_STAT_10HDX)) /* 10Mb */
+			val |= FEC_MIIGSK_CFGR_FRCONT;
 		/* configure the gasket for RMII, 50 MHz, no loopback, no echo */
-		__raw_writel(FEC_MIIGSK_CFGR_IF_MODE_RMII, fep->hwp + FEC_MIIGSK_CFGR);
+		__raw_writel(val, fep->hwp + FEC_MIIGSK_CFGR);
 
 		/* re-enable the gasket */
 		__raw_writel(FEC_MIIGSK_ENR_EN, fep->hwp + FEC_MIIGSK_ENR);
+		while (!(__raw_readl(fep->hwp + FEC_MIIGSK_ENR)
+			& FEC_MIIGSK_ENR_READY))
+			udelay(1);
 	}
 #endif
 	/* Set maximum receive buffer size. */
