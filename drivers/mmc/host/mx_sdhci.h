@@ -3,7 +3,7 @@
  *  Controller Interface driver
  *
  *  Copyright (C) 2005-2007 Pierre Ossman, All Rights Reserved.
- *  Copyright 2008-2009 Freescale Semiconductor, Inc. All Rights Reserved.
+ *  Copyright (C) 2008-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -131,7 +131,8 @@
 #define  SDHCI_INT_ERROR_MASK	0xFFFF8000
 
 #define  SDHCI_INT_CMD_MASK	(SDHCI_INT_RESPONSE | SDHCI_INT_TIMEOUT | \
-		SDHCI_INT_CRC | SDHCI_INT_END_BIT | SDHCI_INT_INDEX)
+		SDHCI_INT_CRC | SDHCI_INT_END_BIT | SDHCI_INT_INDEX | \
+		SDHCI_INT_ACMD12ERR)
 #define  SDHCI_INT_DATA_MASK	(SDHCI_INT_DATA_END | SDHCI_INT_DMA_END | \
 		SDHCI_INT_DATA_AVAIL | SDHCI_INT_SPACE_AVAIL | \
 		SDHCI_INT_DATA_TIMEOUT | SDHCI_INT_DATA_CRC | \
@@ -140,6 +141,12 @@
 		SDHCI_INT_DATA_AVAIL | SDHCI_INT_SPACE_AVAIL)
 
 #define SDHCI_ACMD12_ERR	0x3C
+#define SDHCI_ACMD12_ERR_NE 	0x00000001
+#define SDHCI_ACMD12_ERR_TOE 	0x00000002
+#define SDHCI_ACMD12_ERR_EBE 	0x00000004
+#define SDHCI_ACMD12_ERR_CE 	0x00000008
+#define SDHCI_ACMD12_ERR_IE 	0x00000010
+#define SDHCI_ACMD12_ERR_CNIBE 	0x00000080
 
 /* 3E-3F reserved */
 

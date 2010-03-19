@@ -234,7 +234,7 @@ static void sdhci_init(struct sdhci_host *host)
 
 	sdhci_reset(host, SDHCI_RESET_ALL);
 
-	intmask = SDHCI_INT_ADMA_ERROR |
+	intmask = SDHCI_INT_ADMA_ERROR | SDHCI_INT_ACMD12ERR |
 	    SDHCI_INT_DATA_END_BIT | SDHCI_INT_DATA_CRC |
 	    SDHCI_INT_DATA_TIMEOUT | SDHCI_INT_INDEX |
 	    SDHCI_INT_END_BIT | SDHCI_INT_CRC | SDHCI_INT_TIMEOUT |
@@ -594,7 +594,7 @@ static void sdhci_prepare_data(struct sdhci_host *host, struct mmc_data *data)
 	}
 
 	/* We do not handle DMA boundaries, so set it to max (512 KiB) */
-	writel((data->blocks << 16) | SDHCI_MAKE_BLKSZ(7, data->blksz),
+	writel((data->blocks << 16) | SDHCI_MAKE_BLKSZ(0, data->blksz),
 	       host->ioaddr + SDHCI_BLOCK_SIZE);
 }
 
@@ -629,19 +629,7 @@ static void sdhci_finish_data(struct sdhci_host *host)
 		blocks = readl(host->ioaddr + SDHCI_BLOCK_COUNT) >> 16;
 	data->bytes_xfered = data->blksz * data->blocks;
 
-	if (data->stop) {
-		/*
-		 * The controller needs a reset of internal state machines
-		 * upon error conditions.
-		 */
-		if (data->error) {
-			sdhci_reset(host, SDHCI_RESET_CMD);
-			sdhci_reset(host, SDHCI_RESET_DATA);
-		}
-
-		sdhci_send_command(host, data->stop);
-	} else
-		tasklet_schedule(&host->finish_tasklet);
+	tasklet_schedule(&host->finish_tasklet);
 }
 
 static void sdhci_send_command(struct sdhci_host *host, struct mmc_command *cmd)
@@ -679,7 +667,7 @@ static void sdhci_send_command(struct sdhci_host *host, struct mmc_command *cmd)
 		udelay(20);
 	}
 
-	mod_timer(&host->timer, jiffies + 1 * HZ);
+	mod_timer(&host->timer, jiffies + 10 * HZ);
 
 	host->cmd = cmd;
 
@@ -691,7 +679,7 @@ static void sdhci_send_command(struct sdhci_host *host, struct mmc_command *cmd)
 	if (cmd->data != NULL) {
 		mode = SDHCI_TRNS_BLK_CNT_EN | SDHCI_TRNS_DPSEL;
 		if (cmd->data->blocks > 1)
-			mode |= SDHCI_TRNS_MULTI;
+			mode |= SDHCI_TRNS_MULTI | SDHCI_TRNS_ACMD12;
 		if (cmd->data->flags & MMC_DATA_READ)
 			mode |= SDHCI_TRNS_READ;
 		else
@@ -773,7 +761,7 @@ static void sdhci_set_clock(struct sdhci_host *host, unsigned int clock)
 {
 	/*This variable holds the value of clock divider, prescaler */
 	int div = 0, prescaler = 0;
-	int clk_rate;
+	int clk_rate = 0;
 	u32 clk;
 	unsigned long timeout;
 
@@ -790,10 +778,13 @@ static void sdhci_set_clock(struct sdhci_host *host, unsigned int clock)
 
 	clk_rate = clk_get_rate(host->clk);
 	clk = readl(host->ioaddr + SDHCI_CLOCK_CONTROL) & ~SDHCI_CLOCK_MASK;
-	writel(clk, host->ioaddr + SDHCI_CLOCK_CONTROL);
+	if (!cpu_is_mx53())
+		writel(clk, host->ioaddr + SDHCI_CLOCK_CONTROL);
 
 	if (clock == host->min_clk)
 		prescaler = 16;
+	else if (cpu_is_mx53())
+		prescaler = 1;
 	else
 		prescaler = 0;
 	while (prescaler <= 0x80) {
@@ -835,7 +826,10 @@ static void sdhci_set_clock(struct sdhci_host *host, unsigned int clock)
 	}
 
       out:
-	host->clock = clock;
+	if (prescaler != 0)
+		 host->clock = (clk_rate / (div + 1)) / (prescaler * 2);
+	 else
+		 host->clock = clk_rate / (div + 1);
 }
 
 static void sdhci_set_power(struct sdhci_host *host, unsigned short power)
@@ -1276,6 +1270,16 @@ static void sdhci_cmd_irq(struct sdhci_host *host, u32 intmask)
 	else if (intmask & (SDHCI_INT_CRC | SDHCI_INT_END_BIT |
 			    SDHCI_INT_INDEX))
 		host->cmd->error = -EILSEQ;
+
+	if (intmask & SDHCI_INT_ACMD12ERR) {
+		int tmp = 0;
+		tmp = readl(host->ioaddr + SDHCI_ACMD12_ERR);
+		if (tmp & (SDHCI_ACMD12_ERR_CE | SDHCI_ACMD12_ERR_IE |
+			   SDHCI_ACMD12_ERR_EBE))
+			host->cmd->error = -EILSEQ;
+		else if (tmp & SDHCI_ACMD12_ERR_TOE)
+			host->cmd->error = -ETIMEDOUT;
+	}
 
 	if (host->cmd->error)
 		tasklet_schedule(&host->finish_tasklet);
