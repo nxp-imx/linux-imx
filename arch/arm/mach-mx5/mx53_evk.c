@@ -144,7 +144,7 @@ static struct mxc_w1_config mxc_w1_data = {
 };
 
 static struct platform_pwm_backlight_data mxc_pwm_backlight_data = {
-	.pwm_id = 0,
+	.pwm_id = 1,
 	.max_brightness = 255,
 	.dft_brightness = 128,
 	.pwm_period_ns = 78770,
@@ -544,7 +544,7 @@ static void __init mxc_board_init(void)
 	mxc_register_device(&mxc_dvfs_per_device, &dvfs_per_data);
 	*/
 	mxc_register_device(&mxc_iim_device, NULL);
-	mxc_register_device(&mxc_pwm1_device, NULL);
+	mxc_register_device(&mxc_pwm2_device, NULL);
 	mxc_register_device(&mxc_pwm_backlight_device, &mxc_pwm_backlight_data);
 /*	mxc_register_device(&mxc_keypad_device, &keypad_plat_data); */
 
@@ -556,7 +556,6 @@ static void __init mxc_board_init(void)
 	mxc_register_device(&mxc_alsa_spdif_device, &mxc_spdif_data);
 	*/
 	mxc_register_device(&mxc_fec_device, NULL);
-
 /*
 	spi_register_board_info(mxc_spi_nor_device,
 					ARRAY_SIZE(mxc_spi_nor_device));

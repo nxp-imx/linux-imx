@@ -229,7 +229,7 @@ static struct mxc_iomux_pin_cfg __initdata mxc_iomux_pins[] = {
 	 MX53_PIN_CSI0_DATA_EN, IOMUX_CONFIG_GPIO,
 	 },
 	{
-	 MX53_PIN_GPIO_1, IOMUX_CONFIG_GPIO,
+	 MX53_PIN_GPIO_1, IOMUX_CONFIG_ALT4,
 	 },
 	{
 	 MX53_PIN_GPIO_2, IOMUX_CONFIG_GPIO,
@@ -587,10 +587,6 @@ void __init mx53_evk_io_init(void)
 			mxc_iomux_set_input(mxc_iomux_pins[i].in_select,
 					    mxc_iomux_pins[i].in_mode);
 	}
-
-	gpio_request(IOMUX_TO_GPIO(MX53_PIN_GPIO_1), "gpio1_1");
-	gpio_direction_output(IOMUX_TO_GPIO(MX53_PIN_GPIO_1), 0);
-	gpio_set_value(IOMUX_TO_GPIO(MX53_PIN_GPIO_1), 1); /*BL*/
 
 	gpio_request(IOMUX_TO_GPIO(MX53_PIN_GPIO_16), "gpio7_11");
 	gpio_direction_input(IOMUX_TO_GPIO(MX53_PIN_GPIO_16));	/*PMIC_INT*/
