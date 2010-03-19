@@ -87,41 +87,41 @@ extern u32 *ipu_vdi_reg;
 #define IPU_GPR			(ipu_cm_reg + 0x00E4/4)
 #define IPU_CHA_DB_MODE_SEL(ch)	(ipu_cm_reg + 0x0150/4 + (ch / 32))
 #define IPU_ALT_CHA_DB_MODE_SEL(ch) (ipu_cm_reg + 0x0168/4 + (ch / 32))
-#define IPU_CHA_CUR_BUF(ch)	({g_ipu_hw_rev == 2 ? \
+#define IPU_CHA_CUR_BUF(ch)	({g_ipu_hw_rev >= 2 ? \
 				  (ipu_cm_reg + 0x023C/4 + (ch / 32)) : \
 				  (ipu_cm_reg + 0x0124/4 + (ch / 32)); })
-#define IPU_ALT_CUR_BUF0	({g_ipu_hw_rev == 2 ? \
+#define IPU_ALT_CUR_BUF0	({g_ipu_hw_rev >= 2 ? \
 				  (ipu_cm_reg + 0x0244/4) : \
 				  (ipu_cm_reg + 0x012C/4); })
-#define IPU_ALT_CUR_BUF1	({g_ipu_hw_rev == 2 ? \
+#define IPU_ALT_CUR_BUF1	({g_ipu_hw_rev >= 2 ? \
 				  (ipu_cm_reg + 0x0248/4) : \
 				  (ipu_cm_reg + 0x0130/4); })
-#define IPU_SRM_STAT		({g_ipu_hw_rev == 2 ? \
+#define IPU_SRM_STAT		({g_ipu_hw_rev >= 2 ? \
 				  (ipu_cm_reg + 0x024C/4) : \
 				  (ipu_cm_reg + 0x0134/4); })
-#define IPU_PROC_TASK_STAT	({g_ipu_hw_rev == 2 ? \
+#define IPU_PROC_TASK_STAT	({g_ipu_hw_rev >= 2 ? \
 				  (ipu_cm_reg + 0x0250/4) : \
 				  (ipu_cm_reg + 0x0138/4); })
-#define IPU_DISP_TASK_STAT	({g_ipu_hw_rev == 2 ? \
+#define IPU_DISP_TASK_STAT	({g_ipu_hw_rev >= 2 ? \
 				  (ipu_cm_reg + 0x0254/4) : \
 				  (ipu_cm_reg + 0x013C/4); })
-#define IPU_CHA_BUF0_RDY(ch)	({g_ipu_hw_rev == 2 ? \
+#define IPU_CHA_BUF0_RDY(ch)	({g_ipu_hw_rev >= 2 ? \
 				  (ipu_cm_reg + 0x0268/4 + (ch / 32)) : \
 				  (ipu_cm_reg + 0x0140/4 + (ch / 32)); })
-#define IPU_CHA_BUF1_RDY(ch)	({g_ipu_hw_rev == 2 ? \
+#define IPU_CHA_BUF1_RDY(ch)	({g_ipu_hw_rev >= 2 ? \
 				  (ipu_cm_reg + 0x0270/4 + (ch / 32)) : \
 				  (ipu_cm_reg + 0x0148/4 + (ch / 32)); })
-#define IPU_ALT_CHA_BUF0_RDY(ch) ({g_ipu_hw_rev == 2 ? \
+#define IPU_ALT_CHA_BUF0_RDY(ch) ({g_ipu_hw_rev >= 2 ? \
 				   (ipu_cm_reg + 0x0278/4 + (ch / 32)) : \
 				   (ipu_cm_reg + 0x0158/4 + (ch / 32)); })
-#define IPU_ALT_CHA_BUF1_RDY(ch) ({g_ipu_hw_rev == 2 ? \
+#define IPU_ALT_CHA_BUF1_RDY(ch) ({g_ipu_hw_rev >= 2 ? \
 				   (ipu_cm_reg + 0x0280/4 + (ch / 32)) : \
 				   (ipu_cm_reg + 0x0160/4 + (ch / 32)); })
 
 #define IPU_INT_CTRL(n)		(ipu_cm_reg + 0x003C/4 + ((n) - 1))
 #define IPU_INT_CTRL_IRQ(irq)	IPU_INT_CTRL(((irq) / 32))
 #define IPU_INT_STAT_IRQ(irq)	IPU_INT_STAT(((irq) / 32))
-#define IPU_INT_STAT(n)		({g_ipu_hw_rev == 2 ? \
+#define IPU_INT_STAT(n)		({g_ipu_hw_rev >= 2 ? \
 				  (ipu_cm_reg + 0x0200/4 + ((n) - 1)) : \
 				  (ipu_cm_reg + 0x00E8/4 + ((n) - 1)); })
 
@@ -178,24 +178,24 @@ extern u32 *ipu_vdi_reg;
 #define IDMAC_ALT_SEP_ALPHA	(ipu_idmac_reg + 0x0010/4)
 #define IDMAC_CHA_PRI(ch)	(ipu_idmac_reg + 0x0014/4 + (ch/32))
 #define IDMAC_WM_EN(ch)		(ipu_idmac_reg + 0x001C/4 + (ch/32))
-#define IDMAC_CH_LOCK_EN_1	({g_ipu_hw_rev == 2 ? \
+#define IDMAC_CH_LOCK_EN_1	({g_ipu_hw_rev >= 2 ? \
 				  (ipu_idmac_reg + 0x0024/4) : 0; })
-#define IDMAC_CH_LOCK_EN_2	({g_ipu_hw_rev == 2 ? \
+#define IDMAC_CH_LOCK_EN_2	({g_ipu_hw_rev >= 2 ? \
 				  (ipu_idmac_reg + 0x0028/4) : \
 				  (ipu_idmac_reg + 0x0024/4); })
-#define IDMAC_SUB_ADDR_0	({g_ipu_hw_rev == 2 ? \
+#define IDMAC_SUB_ADDR_0	({g_ipu_hw_rev >= 2 ? \
 				  (ipu_idmac_reg + 0x002C/4) : \
 				  (ipu_idmac_reg + 0x0028/4); })
-#define IDMAC_SUB_ADDR_1	({g_ipu_hw_rev == 2 ? \
+#define IDMAC_SUB_ADDR_1	({g_ipu_hw_rev >= 2 ? \
 				  (ipu_idmac_reg + 0x0030/4) : \
 				  (ipu_idmac_reg + 0x002C/4); })
-#define IDMAC_SUB_ADDR_2	({g_ipu_hw_rev == 2 ? \
+#define IDMAC_SUB_ADDR_2	({g_ipu_hw_rev >= 2 ? \
 				  (ipu_idmac_reg + 0x0034/4) : \
 				  (ipu_idmac_reg + 0x0030/4); })
-#define IDMAC_BAND_EN(ch)	({g_ipu_hw_rev == 2 ? \
+#define IDMAC_BAND_EN(ch)	({g_ipu_hw_rev >= 2 ? \
 				  (ipu_idmac_reg + 0x0040/4 + (ch/32)) : \
 				  (ipu_idmac_reg + 0x0034/4 + (ch/32)); })
-#define IDMAC_CHA_BUSY(ch)	({g_ipu_hw_rev == 2 ? \
+#define IDMAC_CHA_BUSY(ch)	({g_ipu_hw_rev >= 2 ? \
 				  (ipu_idmac_reg + 0x0100/4 + (ch/32)) : \
 				  (ipu_idmac_reg + 0x0040/4 + (ch/32)); })
 
