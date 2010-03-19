@@ -36,8 +36,8 @@
 #define uV_to_V(uV) (uV_to_mV(uV) / 1000)
 
 /* Coin cell charger enable */
-#define CIONCHEN_LSH	23
-#define CIONCHEN_WID	1
+#define COINCHEN_LSH	23
+#define COINCHEN_WID	1
 /* Coin cell charger voltage setting */
 #define VCOIN_LSH	20
 #define VCOIN_WID	3
@@ -363,8 +363,8 @@ static int mc13892_regulator_init(struct mc13892 *mc13892)
 	}
 
 	/* Enable coin cell charger */
-	value = BITFVAL(CIONCHEN, 1) | BITFVAL(VCOIN, VCOIN_3_0V);
-	register_mask = BITFMASK(CIONCHEN) | BITFMASK(VCOIN);
+	value = BITFVAL(COINCHEN, 1) | BITFVAL(VCOIN, VCOIN_3_0V);
+	register_mask = BITFMASK(COINCHEN) | BITFMASK(VCOIN);
 	pmic_write_reg(REG_POWER_CTL0, value, register_mask);
 
 #if defined(CONFIG_RTC_DRV_MXC_V2) || defined(CONFIG_RTC_DRV_MXC_V2_MODULE)
