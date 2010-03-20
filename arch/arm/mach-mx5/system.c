@@ -94,7 +94,8 @@ void mxc_cpu_lp_set(enum mxc_cpu_pwr_mode mode)
 
 	__raw_writel(plat_lpc, MXC_CORTEXA8_PLAT_LPC);
 	__raw_writel(ccm_clpcr, MXC_CCM_CLPCR);
-	__raw_writel(arm_srpgcr, MXC_SRPG_ARM_SRPGCR);
+	if (cpu_is_mx51())
+		__raw_writel(arm_srpgcr, MXC_SRPG_ARM_SRPGCR);
 	__raw_writel(arm_srpgcr, MXC_SRPG_NEON_SRPGCR);
 	if (stop_mode) {
 		__raw_writel(empgc0, MXC_SRPG_EMPGC0_SRPGCR);
