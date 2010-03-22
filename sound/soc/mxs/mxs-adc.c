@@ -104,21 +104,65 @@ static int mxs_adc_trigger(struct snd_pcm_substream *substream,
 {
 	int playback = substream->stream == SNDRV_PCM_STREAM_PLAYBACK ? 1 : 0;
 	int ret = 0;
+	u32 reg = 0;
+	u32 reg1 = 0;
+	u32 l, r;
+	u32 ll, rr;
+	int i;
 
 	switch (cmd) {
 	case SNDRV_PCM_TRIGGER_START:
-		if (playback)
+
+		if (playback) {
+			reg = __raw_readl(REGS_AUDIOOUT_BASE + \
+					HW_AUDIOOUT_HPVOL);
+			reg1 = BM_AUDIOOUT_HPVOL_VOL_LEFT | \
+				BM_AUDIOOUT_HPVOL_VOL_RIGHT;
+			__raw_writel(reg1, REGS_AUDIOOUT_BASE + \
+				HW_AUDIOOUT_HPVOL);
+
 			__raw_writel(BM_AUDIOOUT_CTRL_RUN,
 				REGS_AUDIOOUT_BASE + HW_AUDIOOUT_CTRL_SET);
+			__raw_writel(BM_AUDIOOUT_ANACTRL_HP_HOLD_GND,
+				REGS_AUDIOOUT_BASE + HW_AUDIOOUT_ANACTRL_CLR);
+
+			reg1 = reg & ~BM_AUDIOOUT_HPVOL_VOL_LEFT;
+			reg1 = reg1 & ~BM_AUDIOOUT_HPVOL_VOL_RIGHT;
+
+			l = (reg & BM_AUDIOOUT_HPVOL_VOL_LEFT) >>
+				BP_AUDIOOUT_HPVOL_VOL_LEFT;
+			r = (reg & BM_AUDIOOUT_HPVOL_VOL_RIGHT) >>
+				BP_AUDIOOUT_HPVOL_VOL_RIGHT;
+			for (i = 0x7f; i > 0 ; i -= 0x8) {
+				ll = i > l ? i : l;
+				rr = i > r ? i : r;
+				/* fade in hp vol */
+				reg = reg1 | BF_AUDIOOUT_HPVOL_VOL_LEFT(ll)
+					| BF_AUDIOOUT_HPVOL_VOL_RIGHT(rr);
+				__raw_writel(reg,
+					REGS_AUDIOOUT_BASE + HW_AUDIOOUT_HPVOL);
+				udelay(100);
+			}
+			__raw_writel(BM_AUDIOOUT_SPEAKERCTRL_MUTE,
+			    REGS_AUDIOIN_BASE + HW_AUDIOOUT_SPEAKERCTRL_CLR);
+		}
 		else
 			__raw_writel(BM_AUDIOIN_CTRL_RUN,
 				REGS_AUDIOIN_BASE + HW_AUDIOIN_CTRL_SET);
+
 		break;
 
 	case SNDRV_PCM_TRIGGER_STOP:
-		if (playback)
+
+		if (playback) {
+			__raw_writel(BM_AUDIOOUT_ANACTRL_HP_HOLD_GND,
+				REGS_AUDIOOUT_BASE + HW_AUDIOOUT_ANACTRL_SET);
+			__raw_writel(BM_AUDIOOUT_SPEAKERCTRL_MUTE,
+			    REGS_AUDIOOUT_BASE + HW_AUDIOOUT_SPEAKERCTRL_SET);
+
 			__raw_writel(BM_AUDIOOUT_CTRL_RUN,
 				REGS_AUDIOOUT_BASE + HW_AUDIOOUT_CTRL_CLR);
+		}
 		else
 			__raw_writel(BM_AUDIOIN_CTRL_RUN,
 				REGS_AUDIOIN_BASE + HW_AUDIOIN_CTRL_CLR);

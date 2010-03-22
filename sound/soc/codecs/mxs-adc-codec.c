@@ -38,6 +38,7 @@
 #include <mach/hardware.h>
 #include <mach/regs-audioin.h>
 #include <mach/regs-audioout.h>
+#include <mach/regs-rtc.h>
 
 #include "mxs-adc-codec.h"
 
@@ -46,6 +47,8 @@
 #ifndef BF
 #define BF(value, field) (((value) << BP_##field) & BM_##field)
 #endif
+
+#define REGS_RTC_BASE  (IO_ADDRESS(RTC_PHYS_ADDR))
 
 struct mxs_codec_priv {
 	struct clk *clk;
@@ -310,7 +313,7 @@ static const struct snd_soc_dapm_widget mxs_codec_widgets[] = {
 	SND_SOC_DAPM_ADC("Left ADC", "Left Capture", DAC_PWRDN_L, 8, 1),
 	SND_SOC_DAPM_ADC("Right ADC", "Right Capture", DAC_PWRDN_H, 0, 1),
 
-	SND_SOC_DAPM_DAC("DAC", "Playback", DAC_PWRDN_L, 12, 1),
+	SND_SOC_DAPM_DAC("DAC", "Playback", SND_SOC_NOPM, 0, 0),
 
 	SND_SOC_DAPM_MUX("Left ADC Mux", SND_SOC_NOPM, 0, 0,
 			 &mxs_left_adc_controls),
@@ -318,12 +321,6 @@ static const struct snd_soc_dapm_widget mxs_codec_widgets[] = {
 			 &mxs_right_adc_controls),
 	SND_SOC_DAPM_MUX("HP Mux", SND_SOC_NOPM, 0, 0,
 			 &mxs_hp_controls),
-
-	SND_SOC_DAPM_PGA("HP_AMP", DAC_PWRDN_L, 0, 1, NULL, 0),
-
-	SND_SOC_DAPM_PGA("HP_CAPLESS", DAC_PWRDN_L, 4, 1, NULL, 0),
-
-	SND_SOC_DAPM_PGA("SPK_AMP", DAC_PWRDN_H, 8, 1, NULL, 0),
 
 	SND_SOC_DAPM_INPUT("LINE1L"),
 	SND_SOC_DAPM_INPUT("LINE1R"),
@@ -360,14 +357,11 @@ static const struct snd_soc_dapm_route intercon[] = {
 	{"HP Mux", "Line In 1", "LINE1R"},
 
 	/* HP output */
-	{"HP_CAPLESS", NULL, "HP Mux"},
-	{"HP_AMP", NULL, "HP_CAPLESS"},
-	{"HPR", NULL, "HP_AMP"},
-	{"HPL", NULL, "HP_AMP"},
+	{"HPR", NULL, "HP MUX"},
+	{"HPL", NULL, "HP MUX"},
 
 	/* Speaker amp */
-	{"SPK_AMP", NULL, "DAC"},
-	{"SPEAKER", NULL, "SPK_AMP"},
+	{"SPEAKER", NULL, "DAC"},
 };
 
 static int mxs_codec_add_widgets(struct snd_soc_codec *codec)
@@ -496,21 +490,26 @@ static int mxs_codec_dig_mute(struct snd_soc_dai *dai, int mute)
 {
 	u32 dac_mask = BM_AUDIOOUT_DACVOLUME_MUTE_LEFT |
 	    BM_AUDIOOUT_DACVOLUME_MUTE_RIGHT;
+	u32 reg1 = 0;
+	u32 reg = 0;
 
 	if (mute) {
+		reg1 = __raw_readl(REGS_AUDIOOUT_BASE + HW_AUDIOOUT_HPVOL);
+		reg = reg1 | BF_AUDIOOUT_HPVOL_VOL_LEFT(0x7f) | \
+			BF_AUDIOOUT_HPVOL_VOL_RIGHT(0x7f);
+		__raw_writel(reg, REGS_AUDIOOUT_BASE + HW_AUDIOOUT_HPVOL);
+
 		__raw_writel(dac_mask,
 			      REGS_AUDIOOUT_BASE + HW_AUDIOOUT_DACVOLUME_SET);
 		__raw_writel(BM_AUDIOOUT_HPVOL_MUTE,
 			      REGS_AUDIOOUT_BASE + HW_AUDIOOUT_HPVOL_SET);
-		__raw_writel(BM_AUDIOOUT_SPEAKERCTRL_MUTE,
-			      REGS_AUDIOOUT_BASE + HW_AUDIOOUT_SPEAKERCTRL_SET);
+
+		__raw_writel(reg1, REGS_AUDIOOUT_BASE + HW_AUDIOOUT_HPVOL);
 	} else {
 		__raw_writel(dac_mask,
 			REGS_AUDIOOUT_BASE + HW_AUDIOOUT_DACVOLUME_CLR);
 		__raw_writel(BM_AUDIOOUT_HPVOL_MUTE,
 			REGS_AUDIOOUT_BASE + HW_AUDIOOUT_HPVOL_CLR);
-		__raw_writel(BM_AUDIOOUT_SPEAKERCTRL_MUTE,
-			REGS_AUDIOOUT_BASE + HW_AUDIOOUT_SPEAKERCTRL_CLR);
 	}
 	return 0;
 }
@@ -543,9 +542,17 @@ mxs_codec_dac_power_on(struct mxs_codec_priv *mxs_adc)
 	__raw_writel(BM_AUDIOOUT_ANACLKCTRL_CLKGATE,
 			REGS_AUDIOOUT_BASE + HW_AUDIOOUT_ANACLKCTRL_CLR);
 
+	/* Set capless mode */
+	__raw_writel(BM_AUDIOOUT_PWRDN_CAPLESS, REGS_AUDIOOUT_BASE
+			+ HW_AUDIOOUT_PWRDN_CLR);
+
 	/* 16 bit word length */
 	__raw_writel(BM_AUDIOOUT_CTRL_WORD_LENGTH,
 		      REGS_AUDIOOUT_BASE + HW_AUDIOOUT_CTRL_SET);
+
+	/* Powerup DAC */
+	__raw_writel(BM_AUDIOOUT_PWRDN_DAC,
+			REGS_AUDIOOUT_BASE + HW_AUDIOOUT_PWRDN_CLR);
 
 	/* Update DAC volume over zero crossings */
 	__raw_writel(BM_AUDIOOUT_DACVOLUME_EN_ZCD,
@@ -562,8 +569,10 @@ mxs_codec_dac_power_on(struct mxs_codec_priv *mxs_adc)
 	/* Prepare powering up HP output */
 	__raw_writel(BM_AUDIOOUT_ANACTRL_HP_HOLD_GND,
 		      REGS_AUDIOOUT_BASE + HW_AUDIOOUT_ANACTRL_SET);
-	/*__raw_writel(BF(0x2, RTC_PERSISTENT0_SPARE_ANALOG),
-		      REGS_RTC_BASE + HW_RTC_PERSISTENT0_SET);*/
+	__raw_writel(BF(0x2, RTC_PERSISTENT0_SPARE_ANALOG),
+		      REGS_RTC_BASE + HW_RTC_PERSISTENT0_SET);
+	__raw_writel(BM_AUDIOOUT_PWRDN_HEADPHONE,
+			REGS_AUDIOOUT_BASE + HW_AUDIOOUT_PWRDN_CLR);
 	__raw_writel(BM_AUDIOOUT_ANACTRL_HP_CLASSAB,
 		      REGS_AUDIOOUT_BASE + HW_AUDIOOUT_ANACTRL_SET);
 	__raw_writel(BM_AUDIOOUT_ANACTRL_HP_HOLD_GND,
@@ -571,7 +580,8 @@ mxs_codec_dac_power_on(struct mxs_codec_priv *mxs_adc)
 	/* Mute HP output */
 	__raw_writel(BM_AUDIOOUT_HPVOL_MUTE,
 		      REGS_AUDIOOUT_BASE + HW_AUDIOOUT_HPVOL_SET);
-
+	__raw_writel(BM_AUDIOOUT_PWRDN_SPEAKER,
+			REGS_AUDIOOUT_BASE + HW_AUDIOOUT_PWRDN_CLR);
 	/* Mute speaker amp */
 	__raw_writel(BM_AUDIOOUT_SPEAKERCTRL_MUTE,
 		      REGS_AUDIOOUT_BASE + HW_AUDIOOUT_SPEAKERCTRL_SET);
@@ -667,9 +677,13 @@ mxs_codec_adc_power_on(struct mxs_codec_priv *mxs_adc)
 		      REGS_AUDIOIN_BASE + HW_AUDIOIN_ADCVOL_SET);
 
 	/* Supply bias voltage to microphone */
-	__raw_writel(BF(2, AUDIOIN_MICLINE_MIC_RESISTOR),
+	__raw_writel(BF(1, AUDIOIN_MICLINE_MIC_RESISTOR),
 		      REGS_AUDIOIN_BASE + HW_AUDIOIN_MICLINE_SET);
 	__raw_writel(BM_AUDIOIN_MICLINE_MIC_SELECT,
+		      REGS_AUDIOIN_BASE + HW_AUDIOIN_MICLINE_SET);
+	__raw_writel(BF(1, AUDIOIN_MICLINE_MIC_GAIN),
+		      REGS_AUDIOIN_BASE + HW_AUDIOIN_MICLINE_SET);
+	__raw_writel(BF(7, AUDIOIN_MICLINE_MIC_BIAS),
 		      REGS_AUDIOIN_BASE + HW_AUDIOIN_MICLINE_SET);
 
 	/* Set max ADC volume */
