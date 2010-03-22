@@ -107,36 +107,6 @@ EXPORT_SYMBOL(fsl_platform_set_usb_phy_dis);
 #if defined(CONFIG_USB_OTG)
 static struct otg_transceiver *xceiv;
 
-/**
- * otg_get_transceiver - find the (single) OTG transceiver driver
- *
- * Returns the transceiver driver, after getting a refcount to it; or
- * null if there is no such transceiver.  The caller is responsible for
- * releasing that count.
- */
-struct otg_transceiver *otg_get_transceiver(void)
-{
-	pr_debug("%s xceiv=0x%p\n", __func__, xceiv);
-	if (xceiv)
-		get_device(xceiv->dev);
-	return xceiv;
-}
-EXPORT_SYMBOL(otg_get_transceiver);
-
-int otg_set_transceiver(struct otg_transceiver *x)
-{
-	pr_debug("%s xceiv=0x%p  x=0x%p\n", __func__, xceiv, x);
-	/*
-	if (x == NULL)
-		stmp3xxx_release_pin_group(&usb_mux_pins, "usb");
-		*/
-	if (xceiv && x)
-		return -EBUSY;
-	xceiv = x;
-	return 0;
-}
-EXPORT_SYMBOL(otg_set_transceiver);
-
 static struct resource *otg_resources;
 
 struct resource *otg_get_resources(void)

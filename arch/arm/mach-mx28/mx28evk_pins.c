@@ -93,6 +93,18 @@ static struct pin_desc mx28evk_fixed_pins[] = {
 	 .fun   = PIN_GPIO,
 	 .data  = 1,
 	 },
+
+#if defined(CONFIG_USB_OTG)
+	 {
+	 .name 	= "usb0_id",
+	 .id 	= PINID_AUART1_RTS,
+	 .fun	= PIN_FUN2,
+	 .data 	= 1,
+	 .pull 	= 1,
+	 .pullup = 1,
+	 },
+#endif
+
 #if defined(CONFIG_CAN_FLEXCAN) || defined(CONFIG_CAN_FLEXCAN_MODULE)
 	{
 	 .name	= "CAN1_TX",
