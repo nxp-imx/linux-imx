@@ -1,6 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # Linux kernel version: 2.6.31
+# Mon Mar 22 14:47:08 2010
 #
 CONFIG_ARM=y
 CONFIG_SYS_SUPPORTS_APM_EMULATION=y
@@ -930,6 +931,7 @@ CONFIG_POWER_SUPPLY=y
 # CONFIG_BATTERY_BQ27x00 is not set
 # CONFIG_BATTERY_MAX17040 is not set
 CONFIG_BATTERY_MXS=y
+# CONFIG_MXS_VBUS_CURRENT_DRAW is not set
 # CONFIG_HWMON is not set
 # CONFIG_THERMAL is not set
 # CONFIG_THERMAL_HWMON is not set
@@ -1374,7 +1376,7 @@ CONFIG_USB_ETH_RNDIS=y
 CONFIG_USB_FILE_STORAGE=m
 # CONFIG_FSL_UTP is not set
 # CONFIG_USB_FILE_STORAGE_TEST is not set
-# CONFIG_USB_G_SERIAL is not set
+CONFIG_USB_G_SERIAL=m
 # CONFIG_USB_MIDI_GADGET is not set
 # CONFIG_USB_G_PRINTER is not set
 # CONFIG_USB_CDC_COMPOSITE is not set
