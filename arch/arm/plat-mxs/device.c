@@ -399,6 +399,16 @@ static struct platform_device mxs_sgtl5000[] = {
 };
 #endif
 
+#if defined(CONFIG_MXS_VIIM) || defined(CONFIG_MXS_VIIM_MODULE)
+struct platform_device mxs_viim = {
+	.name   = "mxs_viim",
+	.id     = 0,
+	.dev = {
+		.release = mxs_nop_release,
+		},
+};
+#endif
+
 #if defined(CONFIG_SND_SOC_MXS_SPDIF) || \
 	defined(CONFIG_SND_SOC_MXS_SPDIF_MODULE)
 static struct platform_device mxs_spdif[] = {
@@ -505,6 +515,14 @@ static struct mxs_dev_lookup dev_lookup[] = {
 	 .name	= "mxs-pxp",
 	 .size	= 1,
 	 .pdev	= &mxs_pxp,
+	 },
+#endif
+
+#if defined(CONFIG_MXS_VIIM) || defined(CONFIG_MXS_VIIM_MODULE)
+	{
+	 .name	= "mxs_viim",
+	 .size	= 1,
+	 .pdev	= &mxs_viim,
 	 },
 #endif
 

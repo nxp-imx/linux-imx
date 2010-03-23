@@ -821,6 +821,7 @@ CONFIG_SERIAL_NONSTANDARD=y
 # CONFIG_SPECIALIX is not set
 # CONFIG_RIO is not set
 CONFIG_STALDRV=y
+CONFIG_MXS_VIIM=y
 
 #
 # Serial drivers

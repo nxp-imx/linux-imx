@@ -194,6 +194,38 @@ static void __init mx23_init_pxp(void)
 }
 #endif
 
+#if defined(CONFIG_MXS_VIIM) || defined(CONFIG_MXS_VIIM_MODULE)
+struct resource viim_resources[] = {
+	[0] = {
+		.start  = DIGCTL_PHYS_ADDR,
+		.end    = DIGCTL_PHYS_ADDR + PAGE_SIZE - 1,
+		.flags  = IORESOURCE_MEM,
+	},
+	[1] = {
+		.start  = OCOTP_PHYS_ADDR,
+		.end    = OCOTP_PHYS_ADDR + PAGE_SIZE - 1,
+		.flags  = IORESOURCE_MEM,
+	},
+};
+static void __init mx23_init_viim(void)
+{
+	struct platform_device *pdev;
+
+	pdev = mxs_get_device("mxs_viim", 0);
+	if (pdev == NULL || IS_ERR(pdev))
+		return;
+
+	pdev->resource = viim_resources;
+	pdev->num_resources = ARRAY_SIZE(viim_resources);
+
+	mxs_add_device(pdev, 2);
+}
+#else
+static void __init mx23_init_viim(void)
+{
+}
+#endif
+
 #if defined(CONFIG_I2C_MXS) || \
 	defined(CONFIG_I2C_MXS_MODULE)
 static struct resource i2c_resource[] = {
@@ -690,6 +722,7 @@ static void mx23_init_battery(void)
 int __init mx23_device_init(void)
 {
 	mx23_init_dma();
+	mx23_init_viim();
 	mx23_init_duart();
 	mx23_init_auart();
 	mx23_init_lradc();
