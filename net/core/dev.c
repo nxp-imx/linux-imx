@@ -4783,12 +4783,6 @@ int register_netdevice(struct net_device *dev)
 	if (dev->features & NETIF_F_SG)
 		dev->features |= NETIF_F_GSO;
 
-	netdev_initialize_kobject(dev);
-	ret = netdev_register_kobject(dev);
-	if (ret)
-		goto err_uninit;
-	dev->reg_state = NETREG_REGISTERED;
-
 	/*
 	 *	Default initial state at registry is that the
 	 *	device is present.
@@ -4799,6 +4793,12 @@ int register_netdevice(struct net_device *dev)
 	dev_init_scheduler(dev);
 	dev_hold(dev);
 	list_netdevice(dev);
+
+	netdev_initialize_kobject(dev);
+	ret = netdev_register_kobject(dev);
+	if (ret)
+		goto err_uninit;
+	dev->reg_state = NETREG_REGISTERED;
 
 	/* Notify protocols, that a new device appeared. */
 	ret = call_netdevice_notifiers(NETDEV_REGISTER, dev);
