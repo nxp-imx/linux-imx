@@ -215,7 +215,7 @@ config CRYPTO_DEV_DCP
 	select CRYPTO_ALGAPI
 	select CRYPTO_BLKCIPHER
 	help
-	  Say 'Y' here to use the MX28 DCP AES and SHA
+	  Say 'Y' here to use the DCP AES and SHA
 	  engine for the CryptoAPI algorithms.
 
 	  To compile this driver as a module, choose M here: the module
