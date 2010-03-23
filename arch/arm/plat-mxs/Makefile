@@ -11,7 +11,7 @@ obj-$(CONFIG_GENERIC_GPIO) += gpio.o
 obj-$(CONFIG_MXS_ICOLL) += icoll.o
 
 obj-$(CONFIG_MXS_DMA_ENGINE) += dmaengine.o dma-apbh.o dma-apbx.o
-obj-$(CONFIG_ARCH_MX28) += utmixc.o
+obj-$(CONFIG_ARCH_MXS) += utmixc.o
 obj-$(CONFIG_ARCH_MXS) += usb_common.o
 
 obj-$(CONFIG_MXS_LRADC) += lradc.o
