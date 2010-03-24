@@ -209,7 +209,8 @@
 #define I2C3_BASE_ADDR		(AIPS1_BASE_ADDR + 0x000EC000)
 #define UART4_BASE_ADDR	(AIPS1_BASE_ADDR + 0x000F0000)
 
-#define DVFSPER_BASE_ADDR 	(GPC_BASE_ADDR + 0x1C4)
+#define DVFSCORE_BASE_ADDR 	(GPC_BASE_ADDR + 0x180)
+#define DVFSPER_BASE_ADDR 		(GPC_BASE_ADDR + 0x1C4)
 /*!
  * Defines for modules using static and dynamic DMA channels
  */

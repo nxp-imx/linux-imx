@@ -155,7 +155,6 @@ int set_high_bus_freq(int high_bus_freq)
 
 	if (bus_freq_scaling_initialized) {
 		stop_sdram_autogating();
-		stop_dvfs_per();
 
 		if (low_bus_freq_mode) {
 			/* Relock PLL3 to 133MHz */
@@ -193,6 +192,7 @@ int set_high_bus_freq(int high_bus_freq)
 			/*Change the DDR freq to 200MHz*/
 			clk_set_rate(ddr_hf_clk,
 				    clk_round_rate(ddr_hf_clk, DDR_NORMAL_CLK));
+			start_dvfs_per();
 		}
 		if (bus_freq_scaling_is_active) {
 			/*
@@ -224,7 +224,6 @@ int set_high_bus_freq(int high_bus_freq)
 			}
 		}
 		start_sdram_autogating();
-		start_dvfs_per();
 	}
 	return 0;
 }

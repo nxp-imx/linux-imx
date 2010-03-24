@@ -499,8 +499,8 @@ struct platform_device mxc_tve_device = {
 
 static struct resource dvfs_core_resources[] = {
 	{
-		.start = MXC_DVFS_CORE_BASE,
-		.end = MXC_DVFS_CORE_BASE + 4 * SZ_16 - 1,
+		.start = DVFSCORE_BASE_ADDR,
+		.end = DVFSCORE_BASE_ADDR + 4 * SZ_16 - 1,
 		.flags = IORESOURCE_MEM,
 	},
 	{
