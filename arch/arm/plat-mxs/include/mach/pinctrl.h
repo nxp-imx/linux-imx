@@ -111,7 +111,7 @@ struct pin_desc {
 	unsigned pullup:1;
 	unsigned drive:1;
 	unsigned pull:1;
-	unsigned input:1;
+	unsigned output:1;
 	unsigned data:1;
 };
 

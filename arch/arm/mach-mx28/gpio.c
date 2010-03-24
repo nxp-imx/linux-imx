@@ -125,8 +125,6 @@ static void mx28_gpio_ack_irq(struct mxs_gpio_port *port, int pin)
 	unsigned int mask;
 	void __iomem *base = PINCTRL_BASE_ADDR + 0x10 * port->id;
 	mask = 1 << pin;
-	mask &= __raw_readl(base + HW_PINCTRL_IRQSTAT0);
-	mask &= __raw_readl(base + HW_PINCTRL_IRQEN0);
 	if (mask)
 		__raw_writel(mask, base + HW_PINCTRL_IRQSTAT0_CLR);
 }

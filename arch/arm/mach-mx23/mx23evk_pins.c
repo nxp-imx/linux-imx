@@ -487,6 +487,17 @@ static struct pin_desc mx23evk_fixed_pins[] = {
 	 .drive	= 1,
 	 },
 #endif
+#if defined(CONFIG_USB_OTG)
+	{
+	 .name = "USB_OTG_ID",
+	 .id   = PINID_ROTARYA,
+	 .fun  = PIN_GPIO,
+	 .pull = 1,
+	 .pullup = 1,
+	 .voltage = PAD_3_3V,
+	},
+#endif
+
 };
 
 #if defined(CONFIG_FEC) || defined(CONFIG_FEC_MODULE)
@@ -527,11 +538,11 @@ void __init mx23evk_pins_init(void)
 		if (pin->pull)
 			mxs_set_pullup(pin->id, pin->pullup, pin->name);
 		if (pin->fun == PIN_GPIO) {
-			if (pin->input)
-				gpio_direction_input(MXS_PIN_TO_GPIO(pin->id));
-			else
+			if (pin->output)
 				gpio_direction_output(MXS_PIN_TO_GPIO(pin->id),
-						      pin->data);
+							pin->data);
+			else
+				gpio_direction_input(MXS_PIN_TO_GPIO(pin->id));
 		}
 	}
 }

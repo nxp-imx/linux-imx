@@ -43,6 +43,8 @@
 #include <linux/time.h>
 #include <linux/fsl_devices.h>
 #include <linux/platform_device.h>
+#include <linux/irq.h>
+#include <linux/gpio.h>
 
 #include <asm/io.h>
 #include <asm/irq.h>
@@ -50,7 +52,6 @@
 #include <asm/byteorder.h>
 #include <asm/uaccess.h>
 #include <asm/unaligned.h>
-
 #include "fsl_otg.h"
 
 #define CONFIG_USB_OTG_DEBUG_FILES
@@ -58,6 +59,7 @@
 #define DRIVER_AUTHOR "Jerry Huang/Li Yang"
 #define DRIVER_DESC "Freescale USB OTG Driver"
 #define DRIVER_INFO DRIVER_VERSION " " DRIVER_DESC
+
 
 MODULE_DESCRIPTION("Freescale USB OTG Transceiver Driver");
 
@@ -72,7 +74,7 @@ const pm_message_t otg_suspend_state = {
 volatile static struct usb_dr_mmap *usb_dr_regs;
 static struct fsl_otg *fsl_otg_dev;
 static int srp_wait_done;
-
+static int gpio_id;
 /* FSM timers */
 struct fsl_otg_timer *a_wait_vrise_tmr, *a_wait_bcon_tmr, *a_aidl_bdis_tmr,
 	*b_ase0_brst_tmr, *b_se0_srp_tmr;
@@ -535,6 +537,13 @@ static int fsl_otg_set_host(struct otg_transceiver *otg_p, struct usb_bus *host)
 			otg_p->state = OTG_STATE_UNDEFINED;
 			fsm->protocol = PROTO_UNDEF;
 		}
+		if (gpio_id) {
+			if (gpio_get_value(gpio_id)) {
+				struct otg_fsm *fsm = &otg_dev->fsm;
+				otg_p->state = OTG_STATE_UNDEFINED;
+				fsm->protocol = PROTO_UNDEF;
+			}
+		}
 	}
 
 	otg_dev->host_working = 0;
@@ -663,7 +672,58 @@ static int fsl_otg_start_hnp(struct otg_transceiver *otg_p)
 
 	return 0;
 }
+/* Interrupt handler for gpio id pin */
+irqreturn_t fsl_otg_isr_gpio(int irq, void *dev_id)
+{
+	struct otg_fsm *fsm;
+	struct fsl_usb2_platform_data *pdata =
+		(struct fsl_usb2_platform_data *)dev_id;
+	struct fsl_otg *p_otg;
+	struct otg_transceiver *otg_trans = otg_get_transceiver();
+	p_otg = container_of(otg_trans, struct fsl_otg, otg);
+	fsm = &p_otg->fsm;
+	int value;
 
+	if (pdata->id_gpio == 0)
+		return IRQ_NONE;
+
+	value = gpio_get_value(pdata->id_gpio) ? 1 : 0;
+
+	if (value)
+		set_irq_type(gpio_to_irq(pdata->id_gpio), IRQ_TYPE_LEVEL_LOW);
+	else
+		set_irq_type(gpio_to_irq(pdata->id_gpio), IRQ_TYPE_LEVEL_HIGH);
+
+
+	if (value == p_otg->fsm.id)
+		return IRQ_HANDLED;
+
+	p_otg->fsm.id = value;
+
+	otg_trans->default_a = (fsm->id == 0);
+	/* clear conn information */
+	if (fsm->id)
+		fsm->b_conn = 0;
+	else
+		fsm->a_conn = 0;
+
+	if (otg_trans->host)
+		otg_trans->host->is_b_host = fsm->id;
+	if (otg_trans->gadget)
+		otg_trans->gadget->is_a_peripheral = !fsm->id;
+
+	VDBG("ID int (ID is %d)\n", fsm->id);
+	if (fsm->id) {  /* switch to gadget */
+		schedule_delayed_work(&p_otg->otg_event, 100);
+
+	} else {        /* switch to host */
+		cancel_delayed_work(&p_otg->otg_event);
+		fsl_otg_start_gadget(fsm, 0);
+		otg_drv_vbus(fsm, 1);
+		fsl_otg_start_host(fsm, 1);
+	}
+	return IRQ_HANDLED;
+}
 /* Interrupt handler.  OTG/host/peripheral share the same int line.
  * OTG driver clears OTGSC interrupts and leaves USB interrupts
  * intact.  It needs to have knowledge of some USB interrupts
@@ -821,10 +881,17 @@ int usb_otg_start(struct platform_device *pdev)
 	p_otg->dr_mem_map = (struct usb_dr_mmap *)usb_dr_regs;
 	pdata->regs = (void *)usb_dr_regs;
 
+	gpio_id = pdata->id_gpio;
 	/* request irq */
-	p_otg->irq = platform_get_irq(pdev, 0);
-	status = request_irq(p_otg->irq, fsl_otg_isr,
+	if (pdata->id_gpio == 0) {
+		p_otg->irq = platform_get_irq(pdev, 0);
+		status = request_irq(p_otg->irq, fsl_otg_isr,
 				IRQF_SHARED, driver_name, p_otg);
+	} else {
+		status = request_irq(gpio_to_irq(pdata->id_gpio),
+					fsl_otg_isr_gpio,
+					IRQF_SHARED, driver_name, pdata);
+	}
 	if (status) {
 		dev_dbg(p_otg->otg.dev, "can't get IRQ %d, error %d\n",
 			p_otg->irq, status);
@@ -892,19 +959,31 @@ int usb_otg_start(struct platform_device *pdev)
 	 * Also: record initial state of ID pin
 	 */
 	if (le32_to_cpu(p_otg->dr_mem_map->otgsc) & OTGSC_STS_USB_ID) {
-		p_otg->otg.state = OTG_STATE_UNDEFINED;
 		p_otg->fsm.id = 1;
 	} else {
-		p_otg->otg.state = OTG_STATE_A_IDLE;
 		p_otg->fsm.id = 0;
 	}
+
+	if (pdata->id_gpio != 0) {
+		p_otg->fsm.id = gpio_get_value(pdata->id_gpio) ? 1 : 0;
+		if (p_otg->fsm.id)
+			set_irq_type(gpio_to_irq(pdata->id_gpio),
+				IRQ_TYPE_LEVEL_LOW);
+		else
+			set_irq_type(gpio_to_irq(pdata->id_gpio),
+				IRQ_TYPE_LEVEL_HIGH);
+	}
+	p_otg->otg.state = p_otg->fsm.id ? OTG_STATE_UNDEFINED :
+					   OTG_STATE_A_IDLE;
 
 	DBG("initial ID pin=%d\n", p_otg->fsm.id);
 
 	/* enable OTG ID pin interrupt */
 	temp = readl(&p_otg->dr_mem_map->otgsc);
-	temp |= OTGSC_INTR_USB_ID_EN;
+	if (!pdata->id_gpio)
+		temp |= OTGSC_INTR_USB_ID_EN;
 	temp &= ~(OTGSC_CTRL_VBUS_DISCHARGE | OTGSC_INTR_1MS_TIMER_EN);
+
 	writel(temp, &p_otg->dr_mem_map->otgsc);
 
 	return 0;

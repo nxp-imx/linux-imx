@@ -86,12 +86,14 @@ static struct pin_desc mx28evk_fixed_pins[] = {
 	 .id = PINID_AUART2_TX,
 	 .fun = PIN_GPIO,
 	 .data = 1,
+	 .output = 1,
 	 },
 	 {
 	 .name  = "usb1",
 	 .id    = PINID_AUART2_RX,
 	 .fun   = PIN_GPIO,
 	 .data  = 1,
+	 .output = 1,
 	 },
 
 #if defined(CONFIG_USB_OTG)
@@ -156,6 +158,7 @@ static struct pin_desc mx28evk_fixed_pins[] = {
 	 .drive 	= 1,
 	 .pull 		= 0,
 	 .data		= 0,
+	 .output	= 1,
 	 },
 
 #endif
@@ -1044,11 +1047,11 @@ void __init mx28evk_init_pin_group(struct pin_desc *pins, unsigned count)
 		if (pin->pull)
 			mxs_set_pullup(pin->id, pin->pullup, pin->name);
 		if (pin->fun == PIN_GPIO) {
-			if (pin->input)
-				gpio_direction_input(MXS_PIN_TO_GPIO(pin->id));
-			else
+			if (pin->output)
 				gpio_direction_output(MXS_PIN_TO_GPIO(pin->id),
-						      pin->data);
+							pin->data);
+			else
+				gpio_direction_input(MXS_PIN_TO_GPIO(pin->id));
 		}
 	}
 }
