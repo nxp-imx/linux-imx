@@ -150,8 +150,10 @@ static struct platform_pwm_backlight_data mxc_pwm_backlight_data = {
 	.pwm_period_ns = 78770,
 };
 
+extern void mx5_ipu_reset(void);
 static struct mxc_ipu_config mxc_ipu_data = {
 	.rev = 3,
+	.reset = mx5_ipu_reset,
 };
 
 extern void mx5_vpu_reset(void);

@@ -194,8 +194,23 @@ static inline void mxc_init_wdt(void)
 #endif
 
 #if defined(CONFIG_MXC_IPU_V3) || defined(CONFIG_MXC_IPU_V3_MODULE)
+/*!
+ * This function resets IPU
+ */
+void mx37_ipu_reset(void)
+{
+	u32 *reg;
+	u32 value;
+	reg = ioremap(SRC_BASE_ADDR, PAGE_SIZE);
+	value = __raw_readl(reg);
+	value = value | 0x8;
+	__raw_writel(value, reg);
+	iounmap(reg);
+}
+
 static struct mxc_ipu_config mxc_ipu_data = {
 	.rev = 1,
+	.reset = mx37_ipu_reset,
 };
 
 static struct resource ipu_resources[] = {

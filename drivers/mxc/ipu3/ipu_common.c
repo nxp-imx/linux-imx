@@ -250,21 +250,6 @@ static struct clk pixel_clk[] = {
 };
 
 /*!
- * This function resets IPU
- */
-void ipu_reset(void)
-{
-	u32 *reg;
-	u32 value;
-	reg = ioremap(SRC_BASE_ADDR, PAGE_SIZE);
-	value = __raw_readl(reg);
-	value = value | SW_IPU_RST;
-	__raw_writel(value, reg);
-	iounmap(reg);
-}
-EXPORT_SYMBOL(ipu_reset);
-
-/*!
  * This function is called by the driver framework to initialize the IPU
  * hardware.
  *
@@ -359,7 +344,8 @@ static int ipu_probe(struct platform_device *pdev)
 	g_ipu_clk = clk_get(&pdev->dev, "ipu_clk");
 	dev_dbg(g_ipu_dev, "ipu_clk = %lu\n", clk_get_rate(g_ipu_clk));
 
-	ipu_reset();
+	if (plat_data->reset)
+		plat_data->reset();
 
 	clk_set_parent(g_pixel_clk[0], g_ipu_clk);
 	clk_set_parent(g_pixel_clk[1], g_ipu_clk);

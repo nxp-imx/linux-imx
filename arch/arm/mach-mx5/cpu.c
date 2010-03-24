@@ -63,6 +63,20 @@ static void __init mipi_hsc_disable(void)
 	iounmap(reg_hsc_mcd);
 }
 
+/*!
+ * This function resets IPU
+ */
+void mx5_ipu_reset(void)
+{
+	u32 *reg;
+	u32 value;
+	reg = ioremap(MX53_BASE_ADDR(SRC_BASE_ADDR), PAGE_SIZE);
+	value = __raw_readl(reg);
+	value = value | 0x8;
+	__raw_writel(value, reg);
+	iounmap(reg);
+}
+
 void mx5_vpu_reset(void)
 {
 	u32 reg;

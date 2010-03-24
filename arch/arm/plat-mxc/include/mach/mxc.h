@@ -220,6 +220,7 @@ struct mxc_spi_master {
 
 struct mxc_ipu_config {
 	int rev;
+	void (*reset) (void);
 	struct clk *di_clk[2];
 };
 
