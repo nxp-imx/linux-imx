@@ -281,13 +281,7 @@ static int mc13892_regulator_init(struct mc13892 *mc13892)
 	pmic_event_callback_t power_key_event;
 	int register_mask;
 
-	printk("Initializing regulators for 3-stack.\n");
-	if (mxc_cpu_is_rev(CHIP_REV_2_0) < 0)
-		sw2_init.constraints.state_mem.uV = 1100000;
-	else if (mxc_cpu_is_rev(CHIP_REV_2_0) == 1) {
-		sw2_init.constraints.state_mem.uV = 1250000;
-		sw1_init.constraints.state_mem.uV = 1000000;
-	}
+	pr_info("Initializing regulators for MX53 EVK \n");
 
 	/* subscribe PWRON1 event to enable ON_OFF key */
 	power_key_event.param = NULL;
