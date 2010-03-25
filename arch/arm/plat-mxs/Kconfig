@@ -154,6 +154,19 @@ config MXS_RAM_FREQ_SCALING
         depends on ARCH_MXS
         default y
 
+choice
+	prompt "Select MXS RAM chip"
+	depends on MXS_RAM_FREQ_SCALING
+
+config MXS_RAM_MDDR
+	bool "mDDR SDRAM"
+	depends on ARCH_MX23
+config MXS_RAM_DDR
+	bool "DDR SDRAM"
+	depends on ARCH_MX23
+
+endchoice
+
 config IRAM_ALLOC
         bool
         default y
