@@ -122,7 +122,7 @@ static unsigned mxskbd_decode_button(struct mxskbd_keypair *codes,
 {
 	pr_debug("Decoding %d\n", raw_button);
 	while (codes->raw != -1) {
-		if ((raw_button > (codes->raw - LRADC_NOISE_MARGIN)) &&
+		if ((raw_button >= (codes->raw - LRADC_NOISE_MARGIN)) &&
 		    (raw_button < (codes->raw + LRADC_NOISE_MARGIN))) {
 			pr_debug("matches code 0x%x = %d\n",
 				codes->kcode, codes->kcode);
