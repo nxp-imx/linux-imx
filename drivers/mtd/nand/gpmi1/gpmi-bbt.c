@@ -157,6 +157,7 @@ static void gpmi_write_fcbs(struct mtd_info *mtd)
 	ops.oobbuf = (u8 *)fcb + mtd->writesize;
 	ops.ooblen = mtd->oobsize;
 	ops.ooboffs = 0;
+	ops.mode = MTD_OOB_RAW;
 
 	/* Loop over FCB locations in the search area. */
 
