@@ -311,6 +311,10 @@ static int pxp_set_scaling(struct pxps *pxp)
 	pxp->scaling = 1;
 	xscale = pxp->srect.width * 0x1000 / pxp->drect.width;
 	yscale = pxp->srect.height * 0x1000 / pxp->drect.height;
+	if (xscale > PXP_DOWNSCALE_THRESHOLD)
+		xscale = PXP_DOWNSCALE_THRESHOLD;
+	if (yscale > PXP_DOWNSCALE_THRESHOLD)
+		yscale = PXP_DOWNSCALE_THRESHOLD;
 	s0scale = BF_PXP_S0SCALE_YSCALE(yscale) | BF_PXP_S0SCALE_XSCALE(xscale);
 	pxp->regs_virt->s0scale = s0scale;
 

@@ -39,6 +39,12 @@
 
 #define BF_PXP_OUTSIZE_WIDTH(v)		BF_PXP_RGBSIZE_WIDTH(v)
 #define BF_PXP_OUTSIZE_HEIGHT(v)	BF_PXP_RGBSIZE_HEIGHT(v)
+
+/* The maximum down scaling factor is 1/2 */
+#define	PXP_DOWNSCALE_THRESHOLD		0x2000
+#else
+/* The maximum down scaling factor is 1/4 */
+#define	PXP_DOWNSCALE_THRESHOLD		0x4000
 #endif
 
 struct pxp_overlay_registers {
