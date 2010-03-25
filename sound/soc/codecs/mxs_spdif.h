@@ -163,7 +163,8 @@
 
 #define MXS_SPDIF_FORMATS       (SNDRV_PCM_FMTBIT_S16_LE | \
 				SNDRV_PCM_FMTBIT_S20_3LE | \
-				SNDRV_PCM_FMTBIT_S24_LE)
+				SNDRV_PCM_FMTBIT_S24_LE | \
+				SNDRV_PCM_FMTBIT_S32_LE)
 
 extern struct snd_soc_dai mxs_spdif_codec_dai;
 extern struct snd_soc_codec_device soc_spdif_codec_dev_mxs;

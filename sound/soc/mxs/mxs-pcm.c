@@ -62,6 +62,7 @@ struct mxs_runtime_data {
 	u32 dma_ch;
 	u32 dma_period;
 	u32 dma_totsize;
+	int format;
 
 	struct mxs_pcm_dma_params *params;
 	struct mxs_dma_desc *dma_desc_array[255];
@@ -224,6 +225,7 @@ static int mxs_pcm_hw_params(struct snd_pcm_substream *substream,
 
 	prtd->dma_period = params_period_bytes(hw_params);
 	prtd->dma_totsize = params_buffer_bytes(hw_params);
+	prtd->format = params_format(hw_params);
 
 	return snd_pcm_lib_malloc_pages(substream,
 					params_buffer_bytes(hw_params));
@@ -340,6 +342,30 @@ static int mxs_pcm_close(struct snd_pcm_substream *substream)
 	return 0;
 }
 
+static int mcs_pcm_copy(struct snd_pcm_substream *substream, int channel,
+			snd_pcm_uframes_t hwoff, void __user *buf,
+			snd_pcm_uframes_t frames)
+{
+	struct snd_pcm_runtime *runtime = substream->runtime;
+	struct mxs_runtime_data *prtd = runtime->private_data;
+	char *hwbuf = runtime->dma_area + frames_to_bytes(runtime, hwoff);
+	unsigned long count = frames_to_bytes(runtime, frames);
+
+	/* For S/PDIF 24-bit playback, fix the buffer.  Code taken
+	   from snd_pcm_lib_write_transfer() in sound/core/pcm_lib.c */
+	if ((prtd->params->dma_ch == MXS_DMA_CHANNEL_AHB_APBX_SPDIF) &&
+	    ((prtd->format == SNDRV_PCM_FORMAT_S24_LE)
+	     || (prtd->format == SNDRV_PCM_FORMAT_S20_3LE))) {
+		if (copy_from_user(hwbuf + 1, buf, count - 1))
+			return -EFAULT;
+	} else {
+		if (copy_from_user(hwbuf, buf, count))
+			return -EFAULT;
+	}
+
+	return 0;
+}
+
 static int mxs_pcm_mmap(struct snd_pcm_substream *substream,
 			     struct vm_area_struct *vma)
 {
@@ -358,6 +384,7 @@ struct snd_pcm_ops mxs_pcm_ops = {
 	.prepare	= mxs_pcm_prepare,
 	.trigger	= mxs_pcm_trigger,
 	.pointer	= mxs_pcm_pointer,
+	.copy		= mcs_pcm_copy,
 	.mmap		= mxs_pcm_mmap,
 };
 

@@ -171,6 +171,7 @@ static int mxs_codec_hw_params(struct snd_pcm_substream *substream,
 		break;
 	case SNDRV_PCM_FORMAT_S20_3LE:
 	case SNDRV_PCM_FORMAT_S24_LE:
+	case SNDRV_PCM_FORMAT_S32_LE:
 		if (playback)
 			__raw_writel(BM_SPDIF_CTRL_WORD_LENGTH,
 				     REGS_SPDIF_BASE + HW_SPDIF_CTRL_CLR);
