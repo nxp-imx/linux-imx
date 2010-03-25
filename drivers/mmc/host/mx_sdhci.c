@@ -1769,7 +1769,10 @@ static int __devinit sdhci_probe_slot(struct platform_device
 	}
 	host->detect_irq = platform_get_irq(pdev, 1);
 	if (!host->detect_irq) {
-		host->flags &= ~SDHCI_CD_PRESENT;
+		if (mmc_plat->card_inserted_state)
+			host->flags |= SDHCI_CD_PRESENT;
+		else
+			host->flags &= ~SDHCI_CD_PRESENT;
 		if ((pdev->id >= 0) && (pdev->id < MXC_SDHCI_NUM))
 			mxc_fix_chips[pdev->id] = chip;
 		goto no_detect_irq;
