@@ -46,12 +46,6 @@ static struct mxc_iomux_pin_cfg __initdata mxc_iomux_pins[] = {
 	 MX53_PIN_EIM_RW, IOMUX_CONFIG_ALT3,
 	 },
 	{
-	 MX53_PIN_EIM_A23, IOMUX_CONFIG_GPIO,
-	 },
-	{
-	 MX53_PIN_EIM_A24, IOMUX_CONFIG_GPIO,
-	 },
-	{
 	 MX53_PIN_EIM_A25, IOMUX_CONFIG_ALT6,
 	 },
 	{
@@ -70,19 +64,10 @@ static struct mxc_iomux_pin_cfg __initdata mxc_iomux_pins[] = {
 	 MX53_PIN_EIM_D20, IOMUX_CONFIG_ALT3,
 	 },
 	{
-	 MX53_PIN_EIM_D21, IOMUX_CONFIG_ALT3,
-	 },
-	{
-	 MX53_PIN_EIM_D22, IOMUX_CONFIG_ALT3,
-	 },
-	{
 	 MX53_PIN_EIM_D23, IOMUX_CONFIG_ALT4,
 	 },
 	{
 	 MX53_PIN_EIM_D24, IOMUX_CONFIG_GPIO,
-	 },
-	{
-	 MX53_PIN_EIM_D25, IOMUX_CONFIG_GPIO,
 	 },
 	{
 	 MX53_PIN_EIM_D26, IOMUX_CONFIG_GPIO,
@@ -98,21 +83,6 @@ static struct mxc_iomux_pin_cfg __initdata mxc_iomux_pins[] = {
 	 },
 	{
 	 MX53_PIN_EIM_D31, IOMUX_CONFIG_ALT4,
-	 },
-	{
-	 MX53_PIN_EIM_DA11, IOMUX_CONFIG_GPIO,
-	 },
-	{
-	 MX53_PIN_EIM_DA12, IOMUX_CONFIG_GPIO,
-	 },
-	{
-	 MX53_PIN_EIM_DA13, IOMUX_CONFIG_GPIO,
-	 },
-	{
-	 MX53_PIN_EIM_DA14, IOMUX_CONFIG_GPIO,
-	 },
-	{
-	 MX53_PIN_EIM_DA15, IOMUX_CONFIG_GPIO,
 	 },
 	{
 	 MX53_PIN_NANDF_CS2, IOMUX_CONFIG_ALT3,
@@ -133,16 +103,10 @@ static struct mxc_iomux_pin_cfg __initdata mxc_iomux_pins[] = {
 	 MX53_PIN_ATA_DA_1, IOMUX_CONFIG_GPIO,
 	 },
 	{
-	 MX53_PIN_ATA_DA_2, IOMUX_CONFIG_GPIO,
-	 },
-	{
 	 MX53_PIN_ATA_DATA4, IOMUX_CONFIG_GPIO,
 	 },
 	{
 	 MX53_PIN_ATA_DATA6, IOMUX_CONFIG_GPIO,
-	 },
-	{
-	 MX53_PIN_ATA_DATA7, IOMUX_CONFIG_GPIO,
 	 },
 	{
 	 MX53_PIN_ATA_DATA12, IOMUX_CONFIG_ALT2,
@@ -225,12 +189,6 @@ static struct mxc_iomux_pin_cfg __initdata mxc_iomux_pins[] = {
 	 MUX_IN_UART1_IPP_UART_RXD_MUX_SELECT_INPUT,
 	 INPUT_CTL_PATH1,
 	},
-	{
-	 MX53_PIN_CSI0_DATA_EN, IOMUX_CONFIG_GPIO,
-	 },
-	{
-	 MX53_PIN_GPIO_1, IOMUX_CONFIG_ALT4,
-	 },
 	{
 	 MX53_PIN_GPIO_2, IOMUX_CONFIG_GPIO,
 	 },
@@ -419,11 +377,6 @@ static struct mxc_iomux_pin_cfg __initdata mxc_iomux_pins[] = {
 	 (PAD_CTL_HYS_NONE | PAD_CTL_PKE_NONE | PAD_CTL_ODE_OPENDRAIN_NONE |
 	  PAD_CTL_DRV_LOW | PAD_CTL_SRE_SLOW),
 	 },
-	{	/* gpio backlight */
-	 MX53_PIN_DI0_PIN4, IOMUX_CONFIG_ALT1,
-	 (PAD_CTL_HYS_NONE | PAD_CTL_PKE_ENABLE | PAD_CTL_PUE_KEEPER |
-	  PAD_CTL_ODE_OPENDRAIN_NONE | PAD_CTL_DRV_HIGH | PAD_CTL_SRE_SLOW),
-	},
 	/* esdhc1 */
 	{
 	 MX53_PIN_SD1_CMD, IOMUX_CONFIG_ALT0 | IOMUX_CONFIG_SION,
@@ -532,12 +485,72 @@ static struct mxc_iomux_pin_cfg __initdata mxc_iomux_pins[] = {
 	 MX53_PIN_FEC_MDC, IOMUX_CONFIG_ALT0,
 	 PAD_CTL_DRV_HIGH,
 	 },
-	{
+};
+
+static struct mxc_iomux_pin_cfg __initdata mx53_evk_iomux_pins[] = {
+	{ /* USB OTG USB_OC */
+	 MX53_PIN_EIM_A24, IOMUX_CONFIG_GPIO,
+	 },
+	{ /* USB OTG USB_PWR */
+	 MX53_PIN_EIM_A23, IOMUX_CONFIG_GPIO,
+	 },
+	{ /* DISPB0_SER_CLK */
+	 MX53_PIN_EIM_D21, IOMUX_CONFIG_ALT3,
+	 },
+	{ /* DI0_PIN1 */
+	 MX53_PIN_EIM_D22, IOMUX_CONFIG_ALT3,
+	 },
+	{ /* SDHC1 SD_CD */
+	 MX53_PIN_EIM_DA13, IOMUX_CONFIG_GPIO,
+	 },
+	{ /* SDHC1 SD_WP */
+	 MX53_PIN_EIM_DA14, IOMUX_CONFIG_GPIO,
+	 },
+	{ /* SDHC3 SD_CD */
+	 MX53_PIN_EIM_DA11, IOMUX_CONFIG_GPIO,
+	 },
+	{ /* SDHC3 SD_WP */
+	 MX53_PIN_EIM_DA12, IOMUX_CONFIG_GPIO,
+	 },
+	{ /* PWM backlight */
+	 MX53_PIN_GPIO_1, IOMUX_CONFIG_ALT4,
+	 },
+	 { /* USB HOST USB_PWR */
+	 MX53_PIN_ATA_DA_2, IOMUX_CONFIG_GPIO,
+	 },
+	{ /* USB HOST USB_RST */
+	 MX53_PIN_CSI0_DATA_EN, IOMUX_CONFIG_GPIO,
+	 },
+	{ /* USB HOST CARD_ON */
+	 MX53_PIN_EIM_DA15, IOMUX_CONFIG_GPIO,
+	 },
+	{ /* USB HOST CARD_RST */
+	 MX53_PIN_ATA_DATA7, IOMUX_CONFIG_GPIO,
+	 },
+	{ /* USB HOST WAN_WAKE */
+	 MX53_PIN_EIM_D25, IOMUX_CONFIG_GPIO,
+	 },
+	{ /* FEC_RST */
 	MX53_PIN_ATA_DA_0, IOMUX_CONFIG_ALT1,
 	},
 	{ /* audio clock out */
 	 MX53_PIN_GPIO_0, IOMUX_CONFIG_ALT3,
 	 },
+};
+
+static struct mxc_iomux_pin_cfg __initdata mx53_arm2_iomux_pins[] = {
+	{ /* USB OTG USB_OC */
+	 MX53_PIN_EIM_D21, IOMUX_CONFIG_GPIO,
+	 },
+	{ /* USB OTG USB_PWR */
+	 MX53_PIN_EIM_D22, IOMUX_CONFIG_GPIO,
+	 },
+	{ /* SDHC1 SD_CD */
+	 MX53_PIN_GPIO_1, IOMUX_CONFIG_GPIO,
+	 },
+	{ /* gpio backlight */
+	 MX53_PIN_DI0_PIN4, IOMUX_CONFIG_GPIO,
+	},
 };
 
 static int __initdata enable_w1 = { 0 };
@@ -553,30 +566,6 @@ void __init mx53_evk_io_init(void)
 {
 	int i;
 
-	/* Host1 Vbus with GPIO high */
-	mxc_iomux_set_pad(MX53_PIN_ATA_DA_2, PAD_CTL_DRV_HIGH |
-			PAD_CTL_PKE_ENABLE | PAD_CTL_SRE_FAST);
-	gpio_request(IOMUX_TO_GPIO(MX53_PIN_ATA_DA_2), "gpio7_8");
-	gpio_direction_output(IOMUX_TO_GPIO(MX53_PIN_ATA_DA_2), 1);
-
-	/* USB HUB RESET - De-assert USB HUB RESET_N */
-	mxc_iomux_set_pad(MX53_PIN_CSI0_DATA_EN, PAD_CTL_DRV_HIGH |
-			  PAD_CTL_PKE_ENABLE | PAD_CTL_SRE_FAST);
-	gpio_request(IOMUX_TO_GPIO(MX53_PIN_CSI0_DATA_EN), "gpio5_20");
-	gpio_direction_output(IOMUX_TO_GPIO(MX53_PIN_CSI0_DATA_EN), 0);
-
-	msleep(1);
-	gpio_set_value(IOMUX_TO_GPIO(MX53_PIN_CSI0_DATA_EN), 0);
-	msleep(1);
-	gpio_set_value(IOMUX_TO_GPIO(MX53_PIN_CSI0_DATA_EN), 1);
-
-	/* Enable OTG VBus with GPIO low */
-	mxc_iomux_set_pad(MX53_PIN_EIM_A23, PAD_CTL_DRV_HIGH |
-			PAD_CTL_PKE_ENABLE | PAD_CTL_SRE_FAST);
-	gpio_request(IOMUX_TO_GPIO(MX53_PIN_EIM_A23), "gpio6_6");
-	gpio_direction_output(IOMUX_TO_GPIO(MX53_PIN_EIM_A23), 0);
-	gpio_set_value(IOMUX_TO_GPIO(MX53_PIN_EIM_A23), 0);
-
 	for (i = 0; i < ARRAY_SIZE(mxc_iomux_pins); i++) {
 		mxc_request_iomux(mxc_iomux_pins[i].pin,
 				  mxc_iomux_pins[i].mux_mode);
@@ -588,28 +577,94 @@ void __init mx53_evk_io_init(void)
 					    mxc_iomux_pins[i].in_mode);
 	}
 
+	if (board_is_mx53_arm2()) {
+		/* MX53 ARM2 CPU board */
+		pr_info("MX53 ARM2 board \n");
+		for (i = 0; i < ARRAY_SIZE(mx53_arm2_iomux_pins); i++) {
+			mxc_request_iomux(mx53_arm2_iomux_pins[i].pin,
+					  mx53_arm2_iomux_pins[i].mux_mode);
+			if (mx53_arm2_iomux_pins[i].pad_cfg)
+				mxc_iomux_set_pad(mx53_arm2_iomux_pins[i].pin,
+						  mx53_arm2_iomux_pins[i].pad_cfg);
+			if (mx53_arm2_iomux_pins[i].in_select)
+				mxc_iomux_set_input(mx53_arm2_iomux_pins[i].in_select,
+						    mx53_arm2_iomux_pins[i].in_mode);
+		}
+
+		/* Enable OTG VBus with GPIO low */
+		mxc_iomux_set_pad(MX53_PIN_EIM_D22, PAD_CTL_DRV_HIGH |
+				PAD_CTL_PKE_ENABLE | PAD_CTL_SRE_FAST);
+		gpio_request(IOMUX_TO_GPIO(MX53_PIN_EIM_D22), "gpio3_22");
+		gpio_direction_output(IOMUX_TO_GPIO(MX53_PIN_EIM_D22), 0);
+		gpio_set_value(IOMUX_TO_GPIO(MX53_PIN_EIM_D22), 0);
+
+		gpio_request(IOMUX_TO_GPIO(MX53_PIN_GPIO_1), "gpio1_1");
+		gpio_direction_input(IOMUX_TO_GPIO(MX53_PIN_GPIO_1));	/* SD1 CD */
+
+		gpio_request(IOMUX_TO_GPIO(MX53_PIN_DI0_PIN4), "gpio4_20");
+		gpio_direction_output(IOMUX_TO_GPIO(MX53_PIN_DI0_PIN4), 0);
+		gpio_set_value(IOMUX_TO_GPIO(MX53_PIN_DI0_PIN4), 1);
+	} else {
+		/* MX53 EVK board */
+		pr_info("MX53 EVK board \n");
+			for (i = 0; i < ARRAY_SIZE(mx53_evk_iomux_pins); i++) {
+			mxc_request_iomux(mx53_evk_iomux_pins[i].pin,
+					  mx53_evk_iomux_pins[i].mux_mode);
+			if (mx53_evk_iomux_pins[i].pad_cfg)
+				mxc_iomux_set_pad(mx53_evk_iomux_pins[i].pin,
+						  mx53_evk_iomux_pins[i].pad_cfg);
+			if (mx53_evk_iomux_pins[i].in_select)
+				mxc_iomux_set_input(mx53_evk_iomux_pins[i].in_select,
+						    mx53_evk_iomux_pins[i].in_mode);
+		}
+		/* Host1 Vbus with GPIO high */
+		mxc_iomux_set_pad(MX53_PIN_ATA_DA_2, PAD_CTL_DRV_HIGH |
+				PAD_CTL_PKE_ENABLE | PAD_CTL_SRE_FAST);
+		gpio_request(IOMUX_TO_GPIO(MX53_PIN_ATA_DA_2), "gpio7_8");
+		gpio_direction_output(IOMUX_TO_GPIO(MX53_PIN_ATA_DA_2), 1);
+
+		/* USB HUB RESET - De-assert USB HUB RESET_N */
+		mxc_iomux_set_pad(MX53_PIN_CSI0_DATA_EN, PAD_CTL_DRV_HIGH |
+				  PAD_CTL_PKE_ENABLE | PAD_CTL_SRE_FAST);
+		gpio_request(IOMUX_TO_GPIO(MX53_PIN_CSI0_DATA_EN), "gpio5_20");
+		gpio_direction_output(IOMUX_TO_GPIO(MX53_PIN_CSI0_DATA_EN), 0);
+
+		msleep(1);
+		gpio_set_value(IOMUX_TO_GPIO(MX53_PIN_CSI0_DATA_EN), 0);
+		msleep(1);
+		gpio_set_value(IOMUX_TO_GPIO(MX53_PIN_CSI0_DATA_EN), 1);
+
+		/* Enable OTG VBus with GPIO low */
+		mxc_iomux_set_pad(MX53_PIN_EIM_A23, PAD_CTL_DRV_HIGH |
+				PAD_CTL_PKE_ENABLE | PAD_CTL_SRE_FAST);
+		gpio_request(IOMUX_TO_GPIO(MX53_PIN_EIM_A23), "gpio6_6");
+		gpio_direction_output(IOMUX_TO_GPIO(MX53_PIN_EIM_A23), 0);
+		gpio_set_value(IOMUX_TO_GPIO(MX53_PIN_EIM_A23), 0);
+
+		gpio_request(IOMUX_TO_GPIO(MX53_PIN_EIM_DA13), "gpio3_13");
+		gpio_direction_input(IOMUX_TO_GPIO(MX53_PIN_EIM_DA13));	/* SD1 CD */
+		gpio_request(IOMUX_TO_GPIO(MX53_PIN_EIM_DA14), "gpio3_14");
+		gpio_direction_input(IOMUX_TO_GPIO(MX53_PIN_EIM_DA14));	/* SD1 WP */
+
+		/* SD3 CD */
+		gpio_request(IOMUX_TO_GPIO(MX53_PIN_EIM_DA11), "gpio3_11");
+		gpio_direction_input(IOMUX_TO_GPIO(MX53_PIN_EIM_DA11));
+
+		/* SD3 WP */
+		gpio_request(IOMUX_TO_GPIO(MX53_PIN_EIM_DA12), "gpio3_12");
+		gpio_direction_input(IOMUX_TO_GPIO(MX53_PIN_EIM_DA11));
+
+		/* reset FEC PHY */
+		gpio_request(IOMUX_TO_GPIO(MX53_PIN_ATA_DA_0), "gpio7_6");
+		gpio_direction_output(IOMUX_TO_GPIO(MX53_PIN_ATA_DA_0), 0);
+		gpio_set_value(IOMUX_TO_GPIO(MX53_PIN_ATA_DA_0), 0);
+		msleep(1);
+		gpio_set_value(IOMUX_TO_GPIO(MX53_PIN_ATA_DA_0), 1);
+	}
+
+
 	gpio_request(IOMUX_TO_GPIO(MX53_PIN_GPIO_16), "gpio7_11");
 	gpio_direction_input(IOMUX_TO_GPIO(MX53_PIN_GPIO_16));	/*PMIC_INT*/
-
-	gpio_request(IOMUX_TO_GPIO(MX53_PIN_EIM_DA13), "gpio3_13");
-	gpio_direction_input(IOMUX_TO_GPIO(MX53_PIN_EIM_DA13));	/* SD1 CD */
-	gpio_request(IOMUX_TO_GPIO(MX53_PIN_EIM_DA14), "gpio3_14");
-	gpio_direction_input(IOMUX_TO_GPIO(MX53_PIN_EIM_DA14));	/* SD1 WP */
-
-	/* SD3 CD */
-	gpio_request(IOMUX_TO_GPIO(MX53_PIN_EIM_DA11), "gpio3_11");
-	gpio_direction_input(IOMUX_TO_GPIO(MX53_PIN_EIM_DA11));
-
-	/* SD3 WP */
-	gpio_request(IOMUX_TO_GPIO(MX53_PIN_EIM_DA12), "gpio3_12");
-	gpio_direction_input(IOMUX_TO_GPIO(MX53_PIN_EIM_DA11));
-
-	/* reset FEC PHY */
-	gpio_request(IOMUX_TO_GPIO(MX53_PIN_ATA_DA_0), "gpio7_6");
-	gpio_direction_output(IOMUX_TO_GPIO(MX53_PIN_ATA_DA_0), 0);
-	gpio_set_value(IOMUX_TO_GPIO(MX53_PIN_ATA_DA_0), 0);
-	msleep(1);
-	gpio_set_value(IOMUX_TO_GPIO(MX53_PIN_ATA_DA_0), 1);
 
 
 	/* i2c1 SDA */

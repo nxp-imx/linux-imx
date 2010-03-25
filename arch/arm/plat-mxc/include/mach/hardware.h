@@ -83,6 +83,10 @@ extern unsigned int system_rev;
 #define board_is_rev(rev)	(((system_rev & 0x0F00) == rev) ? 1 : 0)
 #endif
 
+#ifdef CONFIG_ARCH_MX5
+#define board_is_mx53_arm2() (cpu_is_mx53() && board_is_rev(BOARD_REV_2))
+#endif
+
 #include <mach/mxc.h>
 
 /*!

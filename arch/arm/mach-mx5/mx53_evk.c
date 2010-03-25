@@ -351,12 +351,12 @@ static int sdhc_write_protect(struct device *dev)
 {
 	unsigned short rc = 0;
 
-	if (to_platform_device(dev)->id == 0)
-		rc = gpio_get_value(IOMUX_TO_GPIO(MX53_PIN_EIM_DA14));
-	else if (to_platform_device(dev)->id == 1)
-		rc = gpio_get_value(IOMUX_TO_GPIO(MX53_PIN_GPIO_2));
-	else
-		rc = gpio_get_value(IOMUX_TO_GPIO(MX53_PIN_EIM_DA12));
+	if (!board_is_mx53_arm2()) {
+		if (to_platform_device(dev)->id == 0)
+			rc = gpio_get_value(IOMUX_TO_GPIO(MX53_PIN_EIM_DA14));
+		else
+			rc = gpio_get_value(IOMUX_TO_GPIO(MX53_PIN_EIM_DA12));
+	}
 
 	return rc;
 }
@@ -364,14 +364,18 @@ static int sdhc_write_protect(struct device *dev)
 static unsigned int sdhc_get_card_det_status(struct device *dev)
 {
 	int ret;
-
-	if (to_platform_device(dev)->id == 0) {
-		ret = gpio_get_value(IOMUX_TO_GPIO(MX53_PIN_EIM_DA13));
-	} else if (to_platform_device(dev)->id == 1) {
-		ret = gpio_get_value(IOMUX_TO_GPIO(MX53_PIN_GPIO_4));
-	} else{		/* config the det pin for SDHC3 */
-		ret = gpio_get_value(IOMUX_TO_GPIO(MX53_PIN_EIM_DA11));
-		}
+	if (board_is_mx53_arm2()) {
+		if (to_platform_device(dev)->id == 0)
+			ret = gpio_get_value(IOMUX_TO_GPIO(MX53_PIN_GPIO_1));
+		else
+			ret = 1;
+	} else {
+		if (to_platform_device(dev)->id == 0) {
+			ret = gpio_get_value(IOMUX_TO_GPIO(MX53_PIN_EIM_DA13));
+		} else{		/* config the det pin for SDHC3 */
+			ret = gpio_get_value(IOMUX_TO_GPIO(MX53_PIN_EIM_DA11));
+			}
+	}
 
 	return ret;
 }
@@ -429,21 +433,25 @@ static int mxc_sgtl5000_init(void)
 	struct clk *ssi_ext1;
 	int rate;
 
-	ssi_ext1 = clk_get(NULL, "ssi_ext1_clk");
-	if (IS_ERR(ssi_ext1))
-		return -1;
+	if (board_is_mx53_arm2()) {
+		sgtl5000_data.sysclk = 12000000;
+	} else {
+		ssi_ext1 = clk_get(NULL, "ssi_ext1_clk");
+		if (IS_ERR(ssi_ext1))
+			return -1;
 
-	rate = clk_round_rate(ssi_ext1, 12000000);
-	if (rate < 8000000 || rate > 27000000) {
-		printk(KERN_ERR "Error: SGTL5000 mclk freq %d out of range!\n",
-		       rate);
-		clk_put(ssi_ext1);
-		return -1;
+		rate = clk_round_rate(ssi_ext1, 12000000);
+		if (rate < 8000000 || rate > 27000000) {
+			printk(KERN_ERR "Error: SGTL5000 mclk freq %d out of range!\n",
+			       rate);
+			clk_put(ssi_ext1);
+			return -1;
+		}
+
+		clk_set_rate(ssi_ext1, rate);
+		clk_enable(ssi_ext1);
+		sgtl5000_data.sysclk = rate;
 	}
-
-	clk_set_rate(ssi_ext1, rate);
-	clk_enable(ssi_ext1);
-	sgtl5000_data.sysclk = rate;
 
 	return 0;
 }
@@ -515,10 +523,19 @@ static void __init mxc_board_init(void)
 	mxc_ipu_data.di_clk[1] = clk_get(NULL, "ipu_di1_clk");
 
 	/* SD card detect irqs */
-	mxcsdhc3_device.resource[2].start = IOMUX_TO_IRQ(MX53_PIN_EIM_DA11);
-	mxcsdhc3_device.resource[2].end = IOMUX_TO_IRQ(MX53_PIN_EIM_DA11);
-	mxcsdhc1_device.resource[2].start = IOMUX_TO_IRQ(MX53_PIN_EIM_DA13);
-	mxcsdhc1_device.resource[2].end = IOMUX_TO_IRQ(MX53_PIN_EIM_DA13);
+	if (board_is_mx53_arm2()) {
+		mxcsdhc1_device.resource[2].start = IOMUX_TO_IRQ(MX53_PIN_GPIO_1);
+		mxcsdhc1_device.resource[2].end = IOMUX_TO_IRQ(MX53_PIN_GPIO_1);
+		mmc3_data.card_inserted_state = 1;
+		mmc3_data.status = NULL;
+		mmc3_data.wp_status = NULL;
+		mmc1_data.wp_status = NULL;
+	} else {
+		mxcsdhc3_device.resource[2].start = IOMUX_TO_IRQ(MX53_PIN_EIM_DA11);
+		mxcsdhc3_device.resource[2].end = IOMUX_TO_IRQ(MX53_PIN_EIM_DA11);
+		mxcsdhc1_device.resource[2].start = IOMUX_TO_IRQ(MX53_PIN_EIM_DA13);
+		mxcsdhc1_device.resource[2].end = IOMUX_TO_IRQ(MX53_PIN_EIM_DA13);
+	}
 
 	mxc_cpu_common_init();
 	mxc_register_gpios();
@@ -546,8 +563,10 @@ static void __init mxc_board_init(void)
 	mxc_register_device(&mxc_dvfs_per_device, &dvfs_per_data);
 	*/
 	mxc_register_device(&mxc_iim_device, NULL);
-	mxc_register_device(&mxc_pwm2_device, NULL);
-	mxc_register_device(&mxc_pwm_backlight_device, &mxc_pwm_backlight_data);
+	if (!board_is_mx53_arm2()) {
+		mxc_register_device(&mxc_pwm2_device, NULL);
+		mxc_register_device(&mxc_pwm_backlight_device, &mxc_pwm_backlight_data);
+	}
 /*	mxc_register_device(&mxc_keypad_device, &keypad_plat_data); */
 
 	mxc_register_device(&mxcsdhc1_device, &mmc1_data);
@@ -572,7 +591,6 @@ static void __init mxc_board_init(void)
 /*
 	pm_power_off = mxc_power_off;
 	*/
-
 	mxc_register_device(&mxc_sgtl5000_device, &sgtl5000_data);
 	mx5_usb_dr_init();
 	mx5_usbh1_init();
