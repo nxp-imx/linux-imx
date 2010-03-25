@@ -1,5 +1,5 @@
 /*
- * Copyright 2008-2009 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2008-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -36,6 +36,7 @@
 #include <linux/pmic_status.h>
 
 #include <asm/uaccess.h>
+#include <mach/hardware.h>
 
 #include "pmic.h"
 
@@ -94,7 +95,10 @@ static struct platform_device bleds_ldm = {
 static void pmic_pdev_register(struct device *dev)
 {
 	platform_device_register(&adc_ldm);
-	platform_device_register(&battery_ldm);
+
+	if (!cpu_is_mx53())
+		platform_device_register(&battery_ldm);
+
 	platform_device_register(&rtc_ldm);
 	platform_device_register(&power_ldm);
 	platform_device_register(&light_ldm);
