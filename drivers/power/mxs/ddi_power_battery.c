@@ -965,73 +965,76 @@ int ddi_power_init_battery(void)
 }
 
 /*
- * Use the the lradc1 channel
+ * Use the the lradc channel
  * get the die temperature from on-chip sensor.
  */
 uint16_t MeasureInternalDieTemperature(void)
 {
-	uint32_t  ch8Value, ch9Value;
+	uint32_t  ch8Value, ch9Value, lradc_irq_mask, channel;
+
+	channel = g_ddi_bc_Configuration.u8BatteryTempChannel;
+	lradc_irq_mask = 1 << channel;
 
 	/* power up internal tep sensor block */
 	__raw_writel(BM_LRADC_CTRL2_TEMPSENSE_PWD,
 			REGS_LRADC_BASE + HW_LRADC_CTRL2_CLR);
 
 	/* mux to the lradc 8th temp channel */
-	__raw_writel(BF_LRADC_CTRL4_LRADC1SELECT(0xF),
+	__raw_writel((0xF << (4 * channel)),
 			REGS_LRADC_BASE + HW_LRADC_CTRL4_CLR);
-	__raw_writel(BF_LRADC_CTRL4_LRADC1SELECT(8),
+	__raw_writel((8 << (4 * channel)),
 			REGS_LRADC_BASE + HW_LRADC_CTRL4_SET);
 
 	/* Clear the interrupt flag */
-	__raw_writel(BM_LRADC_CTRL1_LRADC1_IRQ,
+	__raw_writel(lradc_irq_mask,
 			REGS_LRADC_BASE + HW_LRADC_CTRL1_CLR);
-	__raw_writel(BF_LRADC_CTRL0_SCHEDULE(1 << LRADC_CH1),
+	__raw_writel(BF_LRADC_CTRL0_SCHEDULE(1 << channel),
 			REGS_LRADC_BASE + HW_LRADC_CTRL0_SET);
 
 	/* Wait for conversion complete*/
 	while (!(__raw_readl(REGS_LRADC_BASE + HW_LRADC_CTRL1)
-			& BM_LRADC_CTRL1_LRADC1_IRQ))
+			& lradc_irq_mask))
 		cpu_relax();
 
 	/* Clear the interrupt flag again */
-	__raw_writel(BM_LRADC_CTRL1_LRADC1_IRQ,
+	__raw_writel(lradc_irq_mask,
 			REGS_LRADC_BASE + HW_LRADC_CTRL1_CLR);
 
 	/* read temperature value and clr lradc */
 	ch8Value = __raw_readl(REGS_LRADC_BASE +
-			HW_LRADC_CHn(LRADC_CH1)) & BM_LRADC_CHn_VALUE;
+			HW_LRADC_CHn(channel)) & BM_LRADC_CHn_VALUE;
 
 
 	__raw_writel(BM_LRADC_CHn_VALUE,
-			REGS_LRADC_BASE + HW_LRADC_CHn_CLR(LRADC_CH1));
+			REGS_LRADC_BASE + HW_LRADC_CHn_CLR(channel));
 
 	/* mux to the lradc 9th temp channel */
-	__raw_writel(BF_LRADC_CTRL4_LRADC1SELECT(0xF),
+	__raw_writel((0xF << (4 * channel)),
 			REGS_LRADC_BASE + HW_LRADC_CTRL4_CLR);
-	__raw_writel(BF_LRADC_CTRL4_LRADC1SELECT(9),
+	__raw_writel((9 << (4 * channel)),
 			REGS_LRADC_BASE + HW_LRADC_CTRL4_SET);
 
 	/* Clear the interrupt flag */
-	__raw_writel(BM_LRADC_CTRL1_LRADC1_IRQ,
+	__raw_writel(lradc_irq_mask,
 			REGS_LRADC_BASE + HW_LRADC_CTRL1_CLR);
-	__raw_writel(BF_LRADC_CTRL0_SCHEDULE(1 << LRADC_CH1),
+	__raw_writel(BF_LRADC_CTRL0_SCHEDULE(1 << channel),
 			REGS_LRADC_BASE + HW_LRADC_CTRL0_SET);
 	/* Wait for conversion complete */
 	while (!(__raw_readl(REGS_LRADC_BASE + HW_LRADC_CTRL1)
-			& BM_LRADC_CTRL1_LRADC1_IRQ))
+			& lradc_irq_mask))
 		cpu_relax();
 
 	/* Clear the interrupt flag */
-	__raw_writel(BM_LRADC_CTRL1_LRADC1_IRQ,
+	__raw_writel(lradc_irq_mask,
 			REGS_LRADC_BASE + HW_LRADC_CTRL1_CLR);
 	/* read temperature value */
 	ch9Value = __raw_readl(
-			REGS_LRADC_BASE + HW_LRADC_CHn(LRADC_CH1))
+			REGS_LRADC_BASE + HW_LRADC_CHn(channel))
 		  & BM_LRADC_CHn_VALUE;
 
 
 	__raw_writel(BM_LRADC_CHn_VALUE,
-			REGS_LRADC_BASE + HW_LRADC_CHn_CLR(LRADC_CH1));
+			REGS_LRADC_BASE + HW_LRADC_CHn_CLR(channel));
 
 	/* power down temp sensor block */
 	__raw_writel(BM_LRADC_CTRL2_TEMPSENSE_PWD,

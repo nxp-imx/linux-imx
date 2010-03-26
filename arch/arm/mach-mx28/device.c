@@ -987,7 +987,7 @@ static ddi_bc_Cfg_t battery_data = {
 	.u16CurrentRampSlope		 = 75,		/* mA/s */
 	.u16ConditioningThresholdVoltage = 2900, 	/* mV */
 	.u16ConditioningMaxVoltage	 = 3000,	/* mV */
-	.u16ConditioningCurrent		 = 60,		/* mA */
+	.u16ConditioningCurrent		 = 160,		/* mA */
 	.u32ConditioningTimeout		 = 4*60*60*1000, /* ms (4 hours) */
 	.u16ChargingVoltage		 = 4200,	/* mV */
 	/* FIXME: the current comparator could have h/w bugs in current
@@ -1001,7 +1001,7 @@ static ddi_bc_Cfg_t battery_data = {
 	.u8DieTempLow			 = 65,		/* deg centigrade */
 	.u16DieTempSafeCurrent		 = 0,		/* mA */
 	.monitorBatteryTemp		 = 0,		/* Monitor the battery*/
-	.u8BatteryTempChannel		 = 1,		/* LRADC 1 */
+	.u8BatteryTempChannel		 = 0,		/* LRADC 0 */
 	.u16BatteryTempHigh		 = 642,		/* Unknown units */
 	.u16BatteryTempLow		 = 497,		/* Unknown units */
 	.u16BatteryTempSafeCurrent	 = 0,		/* mA */

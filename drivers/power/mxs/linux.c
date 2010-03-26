@@ -1053,6 +1053,7 @@ static struct platform_driver mxs_batdrv = {
 	},
 };
 
+#ifdef POWER_FIQ
 static int power_relinquish(void *data, int relinquish)
 {
 	return -1;
@@ -1068,6 +1069,7 @@ extern char power_fiq_start[], power_fiq_end[];
 extern void lock_vector_tlb(void *);
 extern long power_fiq_count;
 static struct proc_dir_entry *power_fiq_proc;
+#endif
 
 static int __init mxs_bat_init(void)
 {
