@@ -1035,10 +1035,15 @@ static void gpmi_ecc_write_page(struct mtd_info *mtd,
 				struct nand_chip *chip, const uint8_t * buf)
 {
 	struct gpmi_nand_data *g = chip->priv;
+	struct gpmi_platform_data  *gpd = g->gpd;
+	uint8_t *bufvirt, *oobvirt;
 	dma_addr_t bufphys, oobphys;
 	int err;
+	uint64_t  last_write_byte_address;
 
 	/* if we can't map it, copy it */
+	bufvirt = (uint8_t *) buf;
+	oobvirt = chip->oob_poi;
 	bufphys = oobphys = ~0;
 
 	if (map_buffers && virt_addr_valid(buf))
@@ -1046,23 +1051,41 @@ static void gpmi_ecc_write_page(struct mtd_info *mtd,
 					 (void *)buf, mtd->writesize,
 					 DMA_TO_DEVICE);
 	if (dma_mapping_error(&g->dev->dev, bufphys)) {
+		bufvirt = g->data_buffer;
 		bufphys = g->data_buffer_handle;
 		memcpy(g->data_buffer, buf, mtd->writesize);
 		copies++;
 	}
 
-	/* if OOB is all FF, leave it as such */
-	if (!is_ff(chip->oob_poi, mtd->oobsize) || bch_mode()) {
-		if (map_buffers)
-			oobphys = dma_map_single(&g->dev->dev, chip->oob_poi,
-						 mtd->oobsize, DMA_TO_DEVICE);
-		if (dma_mapping_error(&g->dev->dev, oobphys)) {
-			oobphys = g->oob_buffer_handle;
-			memcpy(g->oob_buffer, chip->oob_poi, mtd->oobsize);
-			copies++;
-		}
-	} else
-		ff_writes++;
+	if (map_buffers)
+		oobphys = dma_map_single(&g->dev->dev, chip->oob_poi,
+					 mtd->oobsize, DMA_TO_DEVICE);
+	if (dma_mapping_error(&g->dev->dev, oobphys)) {
+		oobvirt = g->oob_buffer;
+		oobphys = g->oob_buffer_handle;
+		memcpy(g->oob_buffer, chip->oob_poi, mtd->oobsize);
+		copies++;
+	}
+
+	/*
+	 * Check if we're writing to the boot area.
+	 *
+	 * If we're writing to the boot area, then we're almost certainly
+	 * writing a boot stream. In that case, we need to hack the data that's
+	 * being written.
+	 */
+
+	last_write_byte_address = g->last_write_page_address * mtd->writesize;
+
+	if ((gpd->boot_area_size_in_bytes) &&
+		(last_write_byte_address < gpd->boot_area_size_in_bytes)) {
+		/*
+		printk(KERN_INFO
+			"Writing to the boot area at byte:0x%08llx page:0x%08x",
+			last_write_byte_address, g->last_write_page_address);
+		*/
+		oobvirt[0] = bufvirt[0];
+	}
 
 	/* call ECC */
 	g->hc->write(g->hc, g->selected_chip, g->cchip->d,
@@ -1348,6 +1371,7 @@ static int gpmi_dev_ready(struct mtd_info *mtd)
  */
 static void gpmi_hwcontrol(struct mtd_info *mtd, int cmd, unsigned int ctrl)
 {
+	unsigned               i;
 	struct nand_chip       *chip = mtd->priv;
 	struct gpmi_nand_data  *g = chip->priv;
 	struct mxs_dma_desc    **d = g->cchip->d;
@@ -1379,6 +1403,18 @@ static void gpmi_hwcontrol(struct mtd_info *mtd, int cmd, unsigned int ctrl)
 
 	if (g->cmd_buffer_sz == 0)
 		return;
+
+	/*
+	 * Check if this is a command that introduces a page write. If so, we
+	 * need to capture the page address to which we are writing.
+	 */
+
+	if (g->cmd_buffer[0] == NAND_CMD_SEQIN) {
+		g->last_write_page_address = 0;
+		for (i = 3; i < g->cmd_buffer_sz; i++)
+			g->last_write_page_address |=
+				g->cmd_buffer[i] << ((i - 3) * 8);
+	}
 
 	/* output command */
 
