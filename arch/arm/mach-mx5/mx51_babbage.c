@@ -132,16 +132,16 @@ static struct mxc_w1_config mxc_w1_data = {
 	.search_rom_accelerator = 1,
 };
 
-static u16 keymapping[24] = {
-	KEY_1, KEY_2, KEY_3, KEY_F1, KEY_UP, KEY_F2,
-	KEY_4, KEY_5, KEY_6, KEY_LEFT, KEY_SELECT, KEY_RIGHT,
-	KEY_7, KEY_8, KEY_9, KEY_F3, KEY_DOWN, KEY_F4,
-	KEY_0, KEY_OK, KEY_ESC, KEY_ENTER, KEY_MENU, KEY_BACK,
+static u16 keymapping[16] = {
+	KEY_UP, KEY_DOWN, KEY_MENU, KEY_BACK,
+	KEY_RIGHT, KEY_LEFT, KEY_SELECT, KEY_ENTER,
+	KEY_F1, KEY_F3, KEY_1, KEY_3,
+	KEY_F2, KEY_F4, KEY_2, KEY_4,
 };
 
 static struct keypad_data keypad_plat_data = {
 	.rowmax = 4,
-	.colmax = 6,
+	.colmax = 4,
 	.irq = MXC_INT_KPP,
 	.learning = 0,
 	.delay = 2,
