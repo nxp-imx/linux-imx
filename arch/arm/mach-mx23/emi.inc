@@ -224,15 +224,11 @@ mx23_ram_150M_set_timings:
 	mov	pc, lr
 
 __mx23_dram_ctl00:
-@	.word	IO_ADDRESS(0x800E0000)
-	.word	0xF00E0000
-
+	.word 	MX23_SOC_IO_ADDRESS(REGS_DRAM_PHYS)
 __mx23_dram_emi00:
-@	.word	IO_ADDRESS(0x80020000)
-	.word	0xF0020000
+	.word	MX23_SOC_IO_ADDRESS(REGS_EMI_PHYS)
 __mx23_power_vdddctrl:
-@	.word	IO_ADDRESS(0x80044040)
-	.word	0xF0044040
+	.word	MX23_SOC_IO_ADDRESS(REGS_POWER_PHYS + HW_POWER_VDDDCTRL)
 
 mx23_ram_save_timings:
 	ldr	r0, __mx23_dram_ctl00
