@@ -21,8 +21,9 @@
 
 #include <mach/hardware.h>
 
-/* SSI clock sources */
+/* SAIF clock sources */
 #define IMX_SSP_SYS_CLK			0
+#define IMX_SSP_SYS_MCLK		1
 
 #define SAIF0 0
 #define SAIF1 1

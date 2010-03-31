@@ -209,6 +209,7 @@ static int mxs_saif_set_dai_sysclk(struct snd_soc_dai *cpu_dai,
 				  int clk_id, unsigned int freq, int dir)
 {
 	struct clk *saif_clk;
+	u32 scr;
 	struct mxs_saif *saif_select = (struct mxs_saif *)cpu_dai->private_data;
 
 	switch (clk_id) {
@@ -234,6 +235,68 @@ static int mxs_saif_set_dai_sysclk(struct snd_soc_dai *cpu_dai,
 static int mxs_saif_set_dai_clkdiv(struct snd_soc_dai *cpu_dai,
 				  int div_id, int div)
 {
+	u32 scr;
+	struct mxs_saif *saif_select = (struct mxs_saif *)cpu_dai->private_data;
+
+	if (saif_select->saif_en == SAIF0)
+		scr = __raw_readl(SAIF0_CTRL);
+	else
+		scr = __raw_readl(SAIF1_CTRL);
+
+	scr &= ~BM_SAIF_CTRL_BITCLK_MULT_RATE;
+	scr &= ~BM_SAIF_CTRL_BITCLK_BASE_RATE;
+
+	switch (div_id) {
+	case IMX_SSP_SYS_MCLK:
+		switch (div) {
+		case 32:
+			scr |= BF_SAIF_CTRL_BITCLK_MULT_RATE(4);
+			scr &= ~BM_SAIF_CTRL_BITCLK_BASE_RATE;
+			break;
+		case 64:
+			scr |= BF_SAIF_CTRL_BITCLK_MULT_RATE(3);
+			scr &= ~BM_SAIF_CTRL_BITCLK_BASE_RATE;
+			break;
+		case 128:
+			scr |= BF_SAIF_CTRL_BITCLK_MULT_RATE(2);
+			scr &= ~BM_SAIF_CTRL_BITCLK_BASE_RATE;
+			break;
+		case 256:
+			scr |= BF_SAIF_CTRL_BITCLK_MULT_RATE(1);
+			scr &= ~BM_SAIF_CTRL_BITCLK_BASE_RATE;
+			break;
+		case 512:
+			scr |= BF_SAIF_CTRL_BITCLK_MULT_RATE(0);
+			scr &= ~BM_SAIF_CTRL_BITCLK_BASE_RATE;
+			break;
+		case 48:
+			scr |= BF_SAIF_CTRL_BITCLK_MULT_RATE(3);
+			scr |= BM_SAIF_CTRL_BITCLK_BASE_RATE;
+			break;
+		case 96:
+			scr |= BF_SAIF_CTRL_BITCLK_MULT_RATE(2);
+			scr |= BM_SAIF_CTRL_BITCLK_BASE_RATE;
+			break;
+		case 192:
+			scr |= BF_SAIF_CTRL_BITCLK_MULT_RATE(1);
+			scr |= BM_SAIF_CTRL_BITCLK_BASE_RATE;
+			break;
+		case 384:
+			scr |= BF_SAIF_CTRL_BITCLK_MULT_RATE(0);
+			scr |= BM_SAIF_CTRL_BITCLK_BASE_RATE;
+			break;
+		default:
+			return -EINVAL;
+		}
+	default:
+		return -EINVAL;
+	}
+
+	if (saif_select->saif_en == SAIF0)
+		__raw_writel(scr, SAIF0_CTRL);
+	else
+		__raw_writel(scr, SAIF1_CTRL);
+
 	return 0;
 }
 
