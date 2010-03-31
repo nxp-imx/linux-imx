@@ -359,6 +359,68 @@ static struct clk lcdif_clk = {
 	.set_parent	= lcdif_set_parent,
 };
 
+static struct clk cpu_clk, h_clk;
+static int clkseq_set_parent(struct clk *clk, struct clk *parent)
+{
+	int ret = -EINVAL;
+	int shift = 8;
+
+	/* bypass? */
+	if (parent == &ref_xtal_clk)
+		shift = 4;
+
+	if (clk->bypass_reg) {
+		u32 hbus_val, cpu_val;
+
+		if (clk == &cpu_clk && shift == 4) {
+			hbus_val = __raw_readl(CLKCTRL_BASE_ADDR +
+					HW_CLKCTRL_HBUS);
+			cpu_val = __raw_readl(CLKCTRL_BASE_ADDR +
+					HW_CLKCTRL_CPU);
+
+			hbus_val &= ~(BM_CLKCTRL_HBUS_DIV_FRAC_EN |
+				      BM_CLKCTRL_HBUS_DIV);
+			hbus_val |= 1;
+
+			cpu_val &= ~BM_CLKCTRL_CPU_DIV_CPU;
+			cpu_val |= 1;
+
+			__raw_writel(1 << clk->bypass_bits,
+					clk->bypass_reg + shift);
+
+			__raw_writel(hbus_val,
+					CLKCTRL_BASE_ADDR + HW_CLKCTRL_HBUS);
+			__raw_writel(cpu_val,
+					CLKCTRL_BASE_ADDR + HW_CLKCTRL_CPU);
+			/* h_clk.rate = 0; */
+		} else if (clk == &cpu_clk && shift == 8) {
+			hbus_val = __raw_readl(CLKCTRL_BASE_ADDR +
+							HW_CLKCTRL_HBUS);
+			cpu_val = __raw_readl(CLKCTRL_BASE_ADDR +
+							HW_CLKCTRL_CPU);
+			hbus_val &= ~(BM_CLKCTRL_HBUS_DIV_FRAC_EN |
+				      BM_CLKCTRL_HBUS_DIV);
+			hbus_val |= 2;
+			cpu_val &= ~BM_CLKCTRL_CPU_DIV_CPU;
+			cpu_val |= 2;
+
+			__raw_writel(hbus_val,
+				CLKCTRL_BASE_ADDR + HW_CLKCTRL_HBUS);
+			__raw_writel(cpu_val,
+				CLKCTRL_BASE_ADDR + HW_CLKCTRL_CPU);
+			/*	h_clk.rate = 0; */
+
+			__raw_writel(1 << clk->bypass_bits,
+					clk->bypass_reg + shift);
+		} else
+			__raw_writel(1 << clk->bypass_bits,
+					clk->bypass_reg + shift);
+		ret = 0;
+	}
+
+	return ret;
+}
+
 static unsigned long cpu_get_rate(struct clk *clk)
 {
 	unsigned long reg;
@@ -373,7 +435,15 @@ static unsigned long cpu_get_rate(struct clk *clk)
 
 static struct clk cpu_clk = {
 	.parent = &ref_cpu_clk,
+	.scale_reg	= CLKCTRL_BASE_ADDR + HW_CLKCTRL_FRAC,
+	.scale_bits	= 0,
+	.bypass_reg	= CLKCTRL_BASE_ADDR + HW_CLKCTRL_CLKSEQ,
+	.bypass_bits	= 7,
+	.busy_reg	= CLKCTRL_BASE_ADDR + HW_CLKCTRL_CPU,
+	.busy_bits	= 28,
+/*	.flags		= RATE_PROPAGATES | ENABLED,*/
 	.get_rate = cpu_get_rate,
+	.set_parent = clkseq_set_parent,
 };
 
 static unsigned long uart_get_rate(struct clk *clk)
