@@ -59,9 +59,19 @@ static int pwm_backlight_get_brightness(struct backlight_device *bl)
 	return bl->props.brightness;
 }
 
+static int pwm_backlight_check_fb(struct fb_info *info)
+{
+	char *id = info->fix.id;
+	if (!strcmp(id, "DISP3 BG"))
+	    return 1;
+	else
+	return 0;
+}
+
 static const struct backlight_ops pwm_backlight_ops = {
 	.update_status	= pwm_backlight_update_status,
 	.get_brightness	= pwm_backlight_get_brightness,
+	.check_fb = pwm_backlight_check_fb,
 };
 
 static int pwm_backlight_probe(struct platform_device *pdev)
