@@ -634,7 +634,7 @@ static void sdhci_finish_data(struct sdhci_host *host)
 
 static void sdhci_send_command(struct sdhci_host *host, struct mmc_command *cmd)
 {
-	int flags;
+	int flags, tmp;
 	u32 mask;
 	u32 mode = 0;
 	unsigned long timeout;
@@ -678,8 +678,18 @@ static void sdhci_send_command(struct sdhci_host *host, struct mmc_command *cmd)
 	/* Set up the transfer mode */
 	if (cmd->data != NULL) {
 		mode = SDHCI_TRNS_BLK_CNT_EN | SDHCI_TRNS_DPSEL;
-		if (cmd->data->blocks > 1)
+		if (cmd->data->blocks > 1) {
 			mode |= SDHCI_TRNS_MULTI | SDHCI_TRNS_ACMD12;
+			if (cmd->opcode == 0x35) {
+				tmp = readl(host->ioaddr + SDHCI_INT_ENABLE);
+				tmp &= ~SDHCI_INT_ACMD12ERR;
+				writel(tmp, host->ioaddr + SDHCI_INT_ENABLE);
+			} else {
+				tmp = readl(host->ioaddr + SDHCI_INT_ENABLE);
+				tmp |= SDHCI_INT_ACMD12ERR;
+				writel(tmp, host->ioaddr + SDHCI_INT_ENABLE);
+			}
+		}
 		if (cmd->data->flags & MMC_DATA_READ)
 			mode |= SDHCI_TRNS_READ;
 		else
