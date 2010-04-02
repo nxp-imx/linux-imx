@@ -101,9 +101,9 @@
 
 /* Select your 5V Detection method */
 
-/* static ddi_power_5vDetection_t DetectionMethod =
-			DDI_POWER_5V_VDD5V_GT_VDDIO; */
-static ddi_power_5vDetection_t DetectionMethod = DDI_POWER_5V_VBUSVALID;
+static ddi_power_5vDetection_t DetectionMethod =
+			DDI_POWER_5V_VDD5V_GT_VDDIO;
+/* static ddi_power_5vDetection_t DetectionMethod = DDI_POWER_5V_VBUSVALID; */
 
 
 /* Code */
@@ -702,7 +702,7 @@ void ddi_power_Enable4p2(uint16_t target_current_limit_ma)
 
 
 
-		printk(KERN_INFO "4P2 rail started.  5V current limit\
+		printk(KERN_DEBUG "4P2 rail started.  5V current limit\
 			set to %dmA\n",	temp_reg);
 
 	} else {

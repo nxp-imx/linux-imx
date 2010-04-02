@@ -120,7 +120,7 @@ ddi_bc_Status_t ddi_bc_StateMachine()
 	state = g_ddi_bc_State;
 	ret = (stateFunctionTable[g_ddi_bc_State] ());
 	if (state != g_ddi_bc_State)
-		pr_info("Charger: transit from state %d to %d\n",
+		pr_debug("Charger: transit from state %d to %d\n",
 			state, g_ddi_bc_State);
 	return ret;
 

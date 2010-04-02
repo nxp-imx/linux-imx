@@ -229,7 +229,7 @@ static void check_and_handle_5v_connection(struct mxs_info *info)
 				_5V_DEBOUNCE_TIME_MS) {
 				info->sm_5v_connection_status =
 					_5v_connected_verified;
-				dev_info(info->dev,
+				dev_dbg(info->dev,
 					"5v connection verified\n");
 #ifdef CONFIG_MXS_VBUS_CURRENT_DRAW
 	#ifdef CONFIG_USB_GADGET
@@ -293,7 +293,7 @@ static void check_and_handle_5v_connection(struct mxs_info *info)
 				 * turn on vddio interrupts again
 				 */
 				ddi_power_enable_vddio_interrupt(true);
-				dev_info(info->dev,
+				dev_dbg(info->dev,
 					"5v disconnection handled\n");
 
 				__raw_writel(__raw_readl(REGS_POWER_BASE +
@@ -523,8 +523,8 @@ static void state_machine_work(struct work_struct *work)
 			goto done;
 
 		/* ac supply connected */
-		dev_info(info->dev, "changed power connection to ac/5v.\n)");
-		dev_info(info->dev, "5v current limit set to %u.\n",
+		dev_dbg(info->dev, "changed power connection to ac/5v.\n)");
+		dev_dbg(info->dev, "5v current limit set to %u.\n",
 			NON_USB_5V_SUPPLY_CURRENT_LIMIT_MA);
 
 		info->is_ac_online = 1;
@@ -579,8 +579,8 @@ static void state_machine_work(struct work_struct *work)
 
 	info->is_usb_online |= USB_REG_SET;
 
-	dev_info(info->dev, "changed power connection to usb/5v present\n");
 #endif
+	dev_dbg(info->dev, "changed power connection to usb/5v present\n");
 
 done:
 	ddi_bc_StateMachine();
@@ -711,13 +711,12 @@ static irqreturn_t mxs_irq_vdd5v(int irq, void *cookie)
 {
 	struct mxs_info *info = (struct mxs_info *)cookie;
 
-	pr_info("%s %d\n", __func__, __LINE__);
 	switch (ddi_power_GetPmu5vStatus()) {
 
 	case new_5v_connection:
 
 		ddi_power_disable_5v_connection_irq();
-		dev_info(info->dev, "new 5v connection detected\n");
+		dev_dbg(info->dev, "new 5v connection detected\n");
 		info->sm_new_5v_connection_jiffies = jiffies;
 		mod_timer(&info->sm_timer, jiffies + 1);
 		break;
@@ -733,7 +732,7 @@ static irqreturn_t mxs_irq_vdd5v(int irq, void *cookie)
 		/* ddi_power_enable_vddio_interrupt(false); */
 
 		ddi_power_disable_5v_connection_irq();
-		dev_info(info->dev, "new 5v disconnection detected\n");
+		dev_dbg(info->dev, "new 5v disconnection detected\n");
 		info->sm_new_5v_disconnection_jiffies = jiffies;
 		mod_timer(&info->sm_timer, jiffies + 1);
 		break;
@@ -1024,7 +1023,7 @@ static int mxs_bat_resume(struct platform_device *pdev)
 
 	if (is_ac_online()) {
 		/* ac supply connected */
-		dev_info(info->dev, "ac/5v present, enabling state machine\n");
+		dev_dbg(info->dev, "ac/5v present, enabling state machine\n");
 
 		info->is_ac_online = 1;
 		info->is_usb_online = 0;
@@ -1033,7 +1032,7 @@ static int mxs_bat_resume(struct platform_device *pdev)
 		ddi_bc_SetEnable();
 	} else if (is_usb_online()) {
 		/* usb supply connected */
-		dev_info(info->dev, "usb/5v present, enabling state machine\n");
+		dev_dbg(info->dev, "usb/5v present, enabling state machine\n");
 
 		info->is_ac_online = 0;
 		info->is_usb_online = 1;
@@ -1041,7 +1040,7 @@ static int mxs_bat_resume(struct platform_device *pdev)
 		ddi_bc_SetEnable();
 	} else {
 		/* not powered */
-		dev_info(info->dev, "%s: 5v not present\n", __func__);
+		dev_dbg(info->dev, "%s: 5v not present\n", __func__);
 
 		info->is_ac_online = 0;
 		info->is_usb_online = 0;
