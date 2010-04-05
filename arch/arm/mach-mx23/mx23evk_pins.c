@@ -497,7 +497,19 @@ static struct pin_desc mx23evk_fixed_pins[] = {
 	 .voltage = PAD_3_3V,
 	},
 #endif
-
+#if defined(CONFIG_SND_SOC_MXS_SPDIF) || \
+       defined(CONFIG_SND_SOC_MXS_SPDIF_MODULE)
+	{
+	 .name		= "SPDIF",
+	 .id		= PINID_ROTARYA,
+	 .fun		= PIN_FUN3,
+	 .strength	= PAD_12MA,
+	 .voltage	= PAD_3_3V,
+	 .pullup	= 1,
+	 .drive 	= 1,
+	 .pull 		= 1,
+	},
+#endif
 };
 
 #if defined(CONFIG_FEC) || defined(CONFIG_FEC_MODULE)

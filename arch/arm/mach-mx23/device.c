@@ -718,6 +718,20 @@ static void mx23_init_battery(void)
 }
 #endif
 
+#if defined(CONFIG_SND_SOC_MXS_SPDIF) || \
+       defined(CONFIG_SND_SOC_MXS_SPDIF_MODULE)
+void __init mx23_init_spdif(void)
+{	struct platform_device *pdev;
+	pdev = mxs_get_device("mxs-spdif", 0);
+	if (pdev == NULL || IS_ERR(pdev))
+		return;
+	mxs_add_device(pdev, 3);
+}
+#else
+static inline mx23_init_spdif(void)
+{
+}
+#endif
 
 int __init mx23_device_init(void)
 {
@@ -733,6 +747,7 @@ int __init mx23_device_init(void)
 	mx23_init_rtc();
 	mx23_init_dcp();
 	mx23_init_mmc();
+	mx23_init_spdif();
 	mx23_init_lcdif();
 	mx23_init_pxp();
 	mx23_init_battery();

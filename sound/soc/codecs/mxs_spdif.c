@@ -30,6 +30,7 @@
 #include <sound/soc-dapm.h>
 #include <sound/initval.h>
 #include <asm/dma.h>
+#include <mach/hardware.h>
 
 #include "mxs_spdif.h"
 

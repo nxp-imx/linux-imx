@@ -22,6 +22,7 @@
 #include <sound/pcm.h>
 #include <sound/soc.h>
 #include <mach/dma.h>
+#include <mach/hardware.h>
 
 #include "../codecs/mxs_spdif.h"
 #include "mxs-pcm.h"

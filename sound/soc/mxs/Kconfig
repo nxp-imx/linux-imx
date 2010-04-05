@@ -42,7 +42,8 @@ config SND_MXS_SOC_ADC
 
 config SND_MXS_SOC_EVK_DEVB_SPDIF
 	tristate "SoC SPDIF support for MXS EVK Development Board"
-	depends on SND_MXS_SOC && ARCH_MX28
+	default n
+	depends on SND_MXS_SOC && ARCH_MXS
 	select SND_MXS_SOC_SPDIF_DAI
 	select SND_SOC_MXS_SPDIF
 	help

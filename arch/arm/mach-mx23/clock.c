@@ -898,6 +898,20 @@ static unsigned long ssp_get_rate(struct clk *clk)
 	return clk->parent->get_rate(clk->parent) / reg;
 }
 
+static unsigned long pcmspdif_get_rate(struct clk *clk)
+{
+	return clk->parent->get_rate(clk->parent) / 4;
+}
+
+static struct clk pcmspdif_clk = {
+	.parent = &pll_clk,
+	.get_rate = pcmspdif_get_rate,
+	.enable = mx23_raw_enable,
+	.disable = mx23_raw_disable,
+	.enable_reg = CLKCTRL_BASE_ADDR + HW_CLKCTRL_SPDIF,
+	.enable_bits = BM_CLKCTRL_SPDIF_CLKGATE,
+};
+
 /* usb_clk for usb0 */
 static struct clk usb_clk = {
 	.parent = &pll_clk,
@@ -1008,6 +1022,10 @@ static struct clk_lookup onchip_clocks[] = {
 	{
 	.con_id = "audio",
 	.clk = &audio_clk,
+	},
+	{
+	 .con_id = "spdif",
+	 .clk = &pcmspdif_clk,
 	}
 };
 
