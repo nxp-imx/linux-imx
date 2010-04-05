@@ -82,6 +82,23 @@ static inline int clk_is_busy(struct clk *clk)
 	return __raw_readl(clk->busy_reg) & (1 << clk->busy_bits);
 }
 
+struct mxs_emi_scaling_data {
+	u32 emi_div;
+	u32 frac_div;
+	u32 cur_freq;
+	u32 new_freq;
+};
+
+#ifdef CONFIG_MXS_RAM_FREQ_SCALING
+extern void mxs_ram_freq_scale(struct mxs_emi_scaling_data *);
+extern u32 mxs_ram_funcs_sz;
+#else
+static inline void mxs_ram_freq_scale(struct mxs_emi_scaling_data *p)
+{
+}
+static u32 mxs_ram_funcs_sz;
+#endif
+
 /* Clock flags */
 /* 0 ~ 16 attribute flags */
 #define ALWAYS_ENABLED		(1 << 0)	/* Clock cannot be disabled */

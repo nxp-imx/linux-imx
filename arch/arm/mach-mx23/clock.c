@@ -29,7 +29,7 @@
 #include "regs-clkctrl.h"
 #include "regs-digctl.h"
 
-#include "mach/mx23.h"
+#include <mach/mx23.h>
 
 #define CLKCTRL_BASE_ADDR IO_ADDRESS(CLKCTRL_PHYS_ADDR)
 #define DIGCTRL_BASE_ADDR IO_ADDRESS(DIGCTL_PHYS_ADDR)
@@ -139,6 +139,28 @@ ref_clk_get_rate(unsigned long base, unsigned int div)
 	return 1000 * ((rate * 18) / div);
 }
 
+static unsigned long ref_clk_round_rate(struct clk *clk, unsigned long rate)
+{
+	unsigned long base = clk->parent->get_rate(clk->parent);
+	unsigned long div = (base  * 18) / rate;
+	return (base / div) * 18;
+}
+
+static int ref_clk_set_rate(struct clk *clk, unsigned long rate)
+{
+	unsigned long base = clk->parent->get_rate(clk->parent);
+	unsigned long div = ((base/1000)  * 18) / (rate/1000);
+	if (rate != ((base / div) * 18))
+		return -EINVAL;
+	if (clk->scale_reg == 0)
+		return -EINVAL;
+	base = __raw_readl(clk->scale_reg);
+	base &= ~(0x3F << clk->scale_bits);
+	base |= (div << clk->scale_bits);
+	__raw_writel(base, clk->scale_reg);
+	return 0;
+}
+
 static unsigned long ref_cpu_get_rate(struct clk *clk)
 {
 	unsigned int reg;
@@ -150,8 +172,12 @@ static unsigned long ref_cpu_get_rate(struct clk *clk)
 static struct clk ref_cpu_clk = {
 	.parent = &pll_clk,
 	.get_rate = ref_cpu_get_rate,
+	.round_rate = ref_clk_round_rate,
+	.set_rate = ref_clk_set_rate,
 	.enable_reg = CLKCTRL_BASE_ADDR + HW_CLKCTRL_FRAC,
 	.enable_bits = BM_CLKCTRL_FRAC_CLKGATECPU,
+	.scale_reg = CLKCTRL_BASE_ADDR + HW_CLKCTRL_FRAC,
+	.scale_bits = BP_CLKCTRL_FRAC_CPUFRAC,
 };
 
 static unsigned long ref_emi_get_rate(struct clk *clk)
@@ -166,8 +192,12 @@ static unsigned long ref_emi_get_rate(struct clk *clk)
 static struct clk ref_emi_clk = {
 	.parent = &pll_clk,
 	.get_rate = ref_emi_get_rate,
+	.set_rate = ref_clk_set_rate,
+	.round_rate = ref_clk_round_rate,
 	.enable_reg = CLKCTRL_BASE_ADDR + HW_CLKCTRL_FRAC,
 	.enable_bits = BM_CLKCTRL_FRAC_CLKGATEEMI,
+	.scale_reg = CLKCTRL_BASE_ADDR + HW_CLKCTRL_FRAC,
+	.scale_bits = BP_CLKCTRL_FRAC_EMIFRAC,
 };
 
 static unsigned long ref_io_get_rate(struct clk *clk);
@@ -204,6 +234,68 @@ static struct clk ref_pix_clk = {
 	.enable_bits = BM_CLKCTRL_FRAC_CLKGATEPIX,
 };
 
+static struct clk cpu_clk, h_clk;
+static int clkseq_set_parent(struct clk *clk, struct clk *parent)
+{
+	int ret = -EINVAL;
+	int shift = 8;
+
+	/* bypass? */
+	if (parent == &ref_xtal_clk)
+		shift = 4;
+
+	if (clk->bypass_reg) {
+		u32 hbus_val, cpu_val;
+
+		if (clk == &cpu_clk && shift == 4) {
+			hbus_val = __raw_readl(CLKCTRL_BASE_ADDR +
+					HW_CLKCTRL_HBUS);
+			cpu_val = __raw_readl(CLKCTRL_BASE_ADDR +
+					HW_CLKCTRL_CPU);
+
+			hbus_val &= ~(BM_CLKCTRL_HBUS_DIV_FRAC_EN |
+				      BM_CLKCTRL_HBUS_DIV);
+			hbus_val |= 1;
+
+			cpu_val &= ~BM_CLKCTRL_CPU_DIV_CPU;
+			cpu_val |= 1;
+
+			__raw_writel(1 << clk->bypass_bits,
+					clk->bypass_reg + shift);
+
+			__raw_writel(hbus_val,
+					CLKCTRL_BASE_ADDR + HW_CLKCTRL_HBUS);
+			__raw_writel(cpu_val,
+					CLKCTRL_BASE_ADDR + HW_CLKCTRL_CPU);
+			/* h_clk.rate = 0; */
+		} else if (clk == &cpu_clk && shift == 8) {
+			hbus_val = __raw_readl(CLKCTRL_BASE_ADDR +
+							HW_CLKCTRL_HBUS);
+			cpu_val = __raw_readl(CLKCTRL_BASE_ADDR +
+							HW_CLKCTRL_CPU);
+			hbus_val &= ~(BM_CLKCTRL_HBUS_DIV_FRAC_EN |
+				      BM_CLKCTRL_HBUS_DIV);
+			hbus_val |= 2;
+			cpu_val &= ~BM_CLKCTRL_CPU_DIV_CPU;
+			cpu_val |= 2;
+
+			__raw_writel(hbus_val,
+				CLKCTRL_BASE_ADDR + HW_CLKCTRL_HBUS);
+			__raw_writel(cpu_val,
+				CLKCTRL_BASE_ADDR + HW_CLKCTRL_CPU);
+			/*	h_clk.rate = 0; */
+
+			__raw_writel(1 << clk->bypass_bits,
+					clk->bypass_reg + shift);
+		} else
+			__raw_writel(1 << clk->bypass_bits,
+					clk->bypass_reg + shift);
+		ret = 0;
+	}
+
+	return ret;
+}
+
 static unsigned long lcdif_get_rate(struct clk *clk)
 {
 	long rate = clk->parent->get_rate(clk->parent);
@@ -221,7 +313,7 @@ static unsigned long lcdif_get_rate(struct clk *clk)
 	return rate;
 }
 
-static int lcdif_set_rate(struct clk *clk, u32 rate)
+static int lcdif_set_rate(struct clk *clk, unsigned long rate)
 {
 	int ret = 0;
 	/*
@@ -238,10 +330,11 @@ static int lcdif_set_rate(struct clk *clk, u32 rate)
 	 * 108 * ns_cycle <= 875 * div
 	 */
 	u32 ns_cycle = 1000000000 / rate;
-	ns_cycle *= 2; /* Fix calculate double frequency */
 	u32 div, reg_val;
 	u32 lowest_result = (u32) -1;
 	u32 lowest_div = 0, lowest_fracdiv = 0;
+
+	ns_cycle *= 2; /* Fix calculate double frequency */
 
 	for (div = 1; div < 256; ++div) {
 		u32 fracdiv;
@@ -321,28 +414,6 @@ out:
 	return ret;
 }
 
-static int lcdif_set_parent(struct clk *clk, struct clk *parent)
-{
-	int ret = -EINVAL;
-	if (clk->bypass_reg) {
-		if (parent == clk->parent)
-			return 0;
-		if (parent == &ref_xtal_clk) {
-			__raw_writel(1 << clk->bypass_bits,
-				clk->bypass_reg + SET_REGISTER);
-			ret = 0;
-		}
-		if (ret && (parent == &ref_pix_clk)) {
-			__raw_writel(1 << clk->bypass_bits,
-				clk->bypass_reg + CLR_REGISTER);
-			ret = 0;
-		}
-		if (!ret)
-			clk->parent = parent;
-	}
-	return ret;
-}
-
 static struct clk lcdif_clk = {
 	.parent		= &pll_clk,
 	.enable 	= mx23_raw_enable,
@@ -356,94 +427,120 @@ static struct clk lcdif_clk = {
 	.bypass_bits	= 1,
 	.get_rate	= lcdif_get_rate,
 	.set_rate	= lcdif_set_rate,
-	.set_parent	= lcdif_set_parent,
+	.set_parent = clkseq_set_parent,
 };
-
-static struct clk cpu_clk, h_clk;
-static int clkseq_set_parent(struct clk *clk, struct clk *parent)
-{
-	int ret = -EINVAL;
-	int shift = 8;
-
-	/* bypass? */
-	if (parent == &ref_xtal_clk)
-		shift = 4;
-
-	if (clk->bypass_reg) {
-		u32 hbus_val, cpu_val;
-
-		if (clk == &cpu_clk && shift == 4) {
-			hbus_val = __raw_readl(CLKCTRL_BASE_ADDR +
-					HW_CLKCTRL_HBUS);
-			cpu_val = __raw_readl(CLKCTRL_BASE_ADDR +
-					HW_CLKCTRL_CPU);
-
-			hbus_val &= ~(BM_CLKCTRL_HBUS_DIV_FRAC_EN |
-				      BM_CLKCTRL_HBUS_DIV);
-			hbus_val |= 1;
-
-			cpu_val &= ~BM_CLKCTRL_CPU_DIV_CPU;
-			cpu_val |= 1;
-
-			__raw_writel(1 << clk->bypass_bits,
-					clk->bypass_reg + shift);
-
-			__raw_writel(hbus_val,
-					CLKCTRL_BASE_ADDR + HW_CLKCTRL_HBUS);
-			__raw_writel(cpu_val,
-					CLKCTRL_BASE_ADDR + HW_CLKCTRL_CPU);
-			/* h_clk.rate = 0; */
-		} else if (clk == &cpu_clk && shift == 8) {
-			hbus_val = __raw_readl(CLKCTRL_BASE_ADDR +
-							HW_CLKCTRL_HBUS);
-			cpu_val = __raw_readl(CLKCTRL_BASE_ADDR +
-							HW_CLKCTRL_CPU);
-			hbus_val &= ~(BM_CLKCTRL_HBUS_DIV_FRAC_EN |
-				      BM_CLKCTRL_HBUS_DIV);
-			hbus_val |= 2;
-			cpu_val &= ~BM_CLKCTRL_CPU_DIV_CPU;
-			cpu_val |= 2;
-
-			__raw_writel(hbus_val,
-				CLKCTRL_BASE_ADDR + HW_CLKCTRL_HBUS);
-			__raw_writel(cpu_val,
-				CLKCTRL_BASE_ADDR + HW_CLKCTRL_CPU);
-			/*	h_clk.rate = 0; */
-
-			__raw_writel(1 << clk->bypass_bits,
-					clk->bypass_reg + shift);
-		} else
-			__raw_writel(1 << clk->bypass_bits,
-					clk->bypass_reg + shift);
-		ret = 0;
-	}
-
-	return ret;
-}
 
 static unsigned long cpu_get_rate(struct clk *clk)
 {
-	unsigned long reg;
-	reg = __raw_readl(CLKCTRL_BASE_ADDR + HW_CLKCTRL_CPU);
-	if (clk->parent == &ref_cpu_clk)
-		reg = (reg & BM_CLKCTRL_CPU_DIV_CPU) >> BP_CLKCTRL_CPU_DIV_CPU;
-	else
-		reg = (reg & BM_CLKCTRL_CPU_DIV_XTAL) >>
-		    BP_CLKCTRL_CPU_DIV_XTAL;
-	return clk->parent->get_rate(clk->parent) / reg;
+	unsigned long rate, div;
+	rate = (clk->parent->get_rate(clk->parent));
+	div = __raw_readl(CLKCTRL_BASE_ADDR + HW_CLKCTRL_CPU) &
+			  BM_CLKCTRL_CPU_DIV_CPU;
+	rate = rate/div;
+	return rate;
+}
+
+static unsigned long cpu_round_rate(struct clk *clk, unsigned long rate)
+{
+	unsigned long frac_rate, root_rate = clk->parent->get_rate(clk->parent);
+	unsigned int div = root_rate / rate;
+	if (div == 0)
+		return root_rate;
+	if (clk->parent == &ref_cpu_clk) {
+		if (div > 0x3F)
+			div = 0x3F;
+		return root_rate / div;
+	}
+
+	frac_rate = root_rate % rate;
+	div = root_rate / rate;
+	if ((div == 0) || (div >= 0x400))
+		return root_rate;
+	if (frac_rate == 0)
+		return rate;
+	return rate;
+}
+
+static int cpu_set_rate(struct clk *clk, unsigned long rate)
+{
+	unsigned long root_rate =
+			clk->parent->parent->get_rate(clk->parent->parent);
+	int i;
+	u32 clkctrl_cpu = 1;
+	u32 c = clkctrl_cpu;
+	u32 clkctrl_frac = 1;
+	u32 val;
+	u32 reg_val;
+
+	if (rate < 24000)
+		return -EINVAL;
+	else if (rate == 24000) {
+		/* switch to the 24M source */
+		clk_set_parent(clk, &ref_xtal_clk);
+	} else {
+		for ( ; c < 0x40; c++) {
+			u32 f = ((root_rate/1000)*18/c + (rate/1000)/2) /
+				(rate/1000);
+			int s1, s2;
+
+			if (f < 18 || f > 35)
+				continue;
+			s1 = (root_rate/1000)*18/clkctrl_frac/clkctrl_cpu -
+			     (rate/1000);
+			s2 = (root_rate/1000)*18/c/f - (rate/1000);
+			if (abs(s1) > abs(s2)) {
+				clkctrl_cpu = c;
+				clkctrl_frac = f;
+			}
+			if (s2 == 0)
+				break;
+		};
+		if (c == 0x40) {
+			int  d = (root_rate/1000)*18/clkctrl_frac/clkctrl_cpu -
+				(rate/1000);
+			if ((abs(d) > 100) || (clkctrl_frac < 18) ||
+				(clkctrl_frac > 35))
+				return -EINVAL;
+	}
+
+		/* Set Frac div */
+		val = __raw_readl(CLKCTRL_BASE_ADDR + HW_CLKCTRL_FRAC);
+		val &= ~(BM_CLKCTRL_FRAC_CPUFRAC << BP_CLKCTRL_FRAC_CPUFRAC);
+		val |= clkctrl_frac;
+		__raw_writel(val, CLKCTRL_BASE_ADDR + HW_CLKCTRL_FRAC);
+		/* Do not gate */
+		__raw_writel(BM_CLKCTRL_FRAC_CLKGATECPU, CLKCTRL_BASE_ADDR +
+			     HW_CLKCTRL_FRAC_CLR);
+		/* write clkctrl_cpu */
+		reg_val = __raw_readl(CLKCTRL_BASE_ADDR + HW_CLKCTRL_CPU);
+		reg_val &= ~0x3F;
+		reg_val |= clkctrl_cpu;
+
+		__raw_writel(reg_val, CLKCTRL_BASE_ADDR + HW_CLKCTRL_CPU);
+
+		for (i = 10000; i; i--)
+			if (!clk_is_busy(clk))
+				break;
+		if (!i) {
+			printk(KERN_ERR "couldn't set up CPU divisor\n");
+			return -ETIMEDOUT;
+		}
+	}
+	return 0;
 }
 
 static struct clk cpu_clk = {
 	.parent = &ref_cpu_clk,
+	.get_rate = cpu_get_rate,
+	.round_rate = cpu_round_rate,
+	.set_rate = cpu_set_rate,
+	.set_parent = clkseq_set_parent,
 	.scale_reg	= CLKCTRL_BASE_ADDR + HW_CLKCTRL_FRAC,
 	.scale_bits	= 0,
 	.bypass_reg	= CLKCTRL_BASE_ADDR + HW_CLKCTRL_CLKSEQ,
 	.bypass_bits	= 7,
 	.busy_reg	= CLKCTRL_BASE_ADDR + HW_CLKCTRL_CPU,
 	.busy_bits	= 28,
-/*	.flags		= RATE_PROPAGATES | ENABLED,*/
-	.get_rate = cpu_get_rate,
-	.set_parent = clkseq_set_parent,
 };
 
 static unsigned long uart_get_rate(struct clk *clk)
@@ -466,7 +563,6 @@ static struct clk pwm_clk = {
 	.enable_reg = CLKCTRL_BASE_ADDR + HW_CLKCTRL_XTAL,
 	.enable_bits = BM_CLKCTRL_XTAL_PWM_CLK24M_GATE,
 };
-
 
 static unsigned long clk_32k_get_rate(struct clk *clk)
 {
@@ -523,15 +619,68 @@ static struct clk rtc_clk = {
 
 static unsigned long h_get_rate(struct clk *clk)
 {
-	unsigned long reg;
-	reg = __raw_readl(CLKCTRL_BASE_ADDR + HW_CLKCTRL_HBUS) &
-	    BM_CLKCTRL_HBUS_DIV;
-	return clk->parent->get_rate(clk->parent) / reg;
+	unsigned long reg, div;
+	reg = __raw_readl(CLKCTRL_BASE_ADDR + HW_CLKCTRL_HBUS);
+	div = reg & BM_CLKCTRL_HBUS_DIV;
+		return clk->parent->get_rate(clk->parent) / div;
+}
+
+static unsigned long h_round_rate(struct clk *clk, unsigned long rate)
+{
+	unsigned int root_rate, frac_rate;
+	unsigned int div;
+	root_rate = clk->parent->get_rate(clk->parent);
+	frac_rate = root_rate % rate;
+	div = root_rate / rate;
+	if ((div == 0) || (div >= 0x20))
+		return root_rate;
+	if (frac_rate == 0)
+		return rate;
+	else
+		return root_rate / (div + 1);
+}
+
+static int h_set_rate(struct clk *clk, unsigned long rate)
+{
+	unsigned long root_rate;
+	unsigned long round_rate;
+	unsigned int reg, div;
+	root_rate = clk->parent->get_rate(clk->parent);
+	round_rate =  h_round_rate(clk, rate);
+	div = root_rate / round_rate;
+	if ((div == 0) || (div >= 0x20))
+		return -EINVAL;
+
+	if (root_rate % round_rate)
+			return -EINVAL;
+
+	reg = __raw_readl(CLKCTRL_BASE_ADDR + HW_CLKCTRL_HBUS);
+	reg &= ~(BM_CLKCTRL_HBUS_DIV_FRAC_EN | BM_CLKCTRL_HBUS_DIV);
+	reg |= BF_CLKCTRL_HBUS_DIV(div);
+	__raw_writel(reg, CLKCTRL_BASE_ADDR + HW_CLKCTRL_HBUS);
+
+	if (clk->busy_reg) {
+		int i;
+		for (i = 10000; i; i--)
+			if (!clk_is_busy(clk))
+				break;
+		if (!i) {
+			printk(KERN_ERR "couldn't set up AHB divisor\n");
+			return -ETIMEDOUT;
+		}
+	}
+
+	return 0;
 }
 
 static struct clk h_clk = {
 	.parent = &cpu_clk,
 	.get_rate = h_get_rate,
+	.set_rate = h_set_rate,
+	.round_rate = h_round_rate,
+	.scale_reg = CLKCTRL_BASE_ADDR + HW_CLKCTRL_HBUS,
+	.busy_reg	= CLKCTRL_BASE_ADDR + HW_CLKCTRL_HBUS,
+	.busy_bits	= 31,
 };
 
 static struct clk ocrom_clk = {
@@ -550,13 +699,116 @@ static unsigned long emi_get_rate(struct clk *clk)
 	return clk->parent->get_rate(clk->parent) / reg;
 }
 
+static unsigned long emi_round_rate(struct clk *clk, unsigned long rate)
+{
+	unsigned long root_rate = clk->parent->get_rate(clk->parent);
+	unsigned int div = root_rate / rate;
+	if (div == 0)
+		return root_rate;
+	if (clk->parent == &ref_emi_clk) {
+		if (div > 0x3F)
+			div = 0x3F;
+		return root_rate / div;
+	}
+	if (div > 0xF)
+		div = 0xF;
+	return root_rate / div;
+}
+
+static int emi_set_rate(struct clk *clk, unsigned long rate)
+{
+	int ret = 0;
+
+	if (rate < 24000)
+		return -EINVAL;
+	else {
+		int i;
+		struct mxs_emi_scaling_data sc_data;
+		int (*scale)(struct mxs_emi_scaling_data *) =
+			(void *)(MX23_OCRAM_BASE + 0x1000);
+		void *saved_ocram;
+		unsigned long clkctrl_emi;
+		unsigned long clkctrl_frac;
+		int div = 1;
+		unsigned long root_rate =
+			clk->parent->parent->get_rate(clk->parent->parent);
+		/*
+		 * We've been setting div to HW_CLKCTRL_CPU_RD() & 0x3f so far.
+		 * TODO: verify 1 is still valid.
+		 */
+		if (!mxs_ram_funcs_sz)
+			goto out;
+
+		for (clkctrl_emi = div; clkctrl_emi < 0x3f;
+					clkctrl_emi += div) {
+			clkctrl_frac = ((root_rate / 1000) * 18 +
+					(rate / 1000) * clkctrl_emi / 2) /
+					((rate / 1000) * clkctrl_emi);
+			if (clkctrl_frac >= 18 && clkctrl_frac <= 35) {
+				pr_debug("%s: clkctrl_frac found %ld for %ld\n",
+					__func__, clkctrl_frac, clkctrl_emi);
+				if (((root_rate / 1000) * 18 /
+					clkctrl_frac / clkctrl_emi) / 1000 ==
+					rate / 1000 / 1000)
+					break;
+			}
+		}
+
+		if (clkctrl_emi >= 0x3f)
+			return -EINVAL;
+		pr_debug("%s: clkctrl_emi %ld, clkctrl_frac %ld\n",
+			__func__, clkctrl_emi, clkctrl_frac);
+
+		saved_ocram = kmalloc(mxs_ram_funcs_sz, GFP_KERNEL);
+		if (!saved_ocram)
+			return -ENOMEM;
+		memcpy(saved_ocram, scale, mxs_ram_funcs_sz);
+		memcpy(scale, mxs_ram_freq_scale, mxs_ram_funcs_sz);
+
+		sc_data.emi_div = clkctrl_emi;
+		sc_data.frac_div = clkctrl_frac;
+		sc_data.cur_freq = (clk->get_rate(clk)) / 1000 / 1000;
+		sc_data.new_freq = rate / 1000 / 1000;
+
+		local_irq_disable();
+		local_fiq_disable();
+
+		scale(&sc_data);
+
+		local_fiq_enable();
+		local_irq_enable();
+
+		for (i = 10000; i; i--)
+			if (!clk_is_busy(clk))
+				break;
+		memcpy(scale, saved_ocram, mxs_ram_funcs_sz);
+		kfree(saved_ocram);
+
+		if (!i) {
+			printk(KERN_ERR "couldn't set up EMI divisor\n");
+			ret = -ETIMEDOUT;
+			goto out;
+		}
+	}
+out:
+	return ret;
+}
+
 static struct clk emi_clk = {
 	.parent = &ref_emi_clk,
 	.get_rate = emi_get_rate,
+	.set_rate = emi_set_rate,
+	.round_rate = emi_round_rate,
+	.set_parent = clkseq_set_parent,
 	.enable = mx23_raw_enable,
 	.disable = mx23_raw_disable,
 	.enable_reg = CLKCTRL_BASE_ADDR + HW_CLKCTRL_EMI,
 	.enable_bits = BM_CLKCTRL_EMI_CLKGATE,
+	.scale_reg	= CLKCTRL_BASE_ADDR + HW_CLKCTRL_FRAC,
+	.busy_reg	= CLKCTRL_BASE_ADDR + HW_CLKCTRL_EMI,
+	.busy_bits	= 28,
+	.bypass_reg = CLKCTRL_BASE_ADDR + HW_CLKCTRL_CLKSEQ,
+	.bypass_bits = 7,
 };
 
 static unsigned long ssp_get_rate(struct clk *clk);
