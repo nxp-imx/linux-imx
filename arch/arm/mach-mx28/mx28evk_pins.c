@@ -83,9 +83,9 @@ static struct pin_desc mx28evk_fixed_pins[] = {
 #endif
 	{
 	 .name = "usb0",
-	 .id = PINID_AUART2_TX,
+	 .id = PINID_AUART2_TX, /* Power enable pin*/
 	 .fun = PIN_GPIO,
-	 .data = 1,
+	 .data = 0,
 	 .output = 1,
 	 },
 	 {

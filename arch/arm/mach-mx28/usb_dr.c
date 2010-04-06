@@ -22,8 +22,13 @@
 #include <linux/io.h>
 #include <linux/platform_device.h>
 #include <linux/fsl_devices.h>
+#include <linux/gpio.h>
+
 #include <mach/irqs.h>
 #include "usb.h"
+#include "mx28_pins.h"
+
+#define USB_POWER_ENABLE MXS_PIN_TO_GPIO(PINID_AUART2_TX)
 
 static void usb_host_phy_resume(struct fsl_usb2_platform_data *plat)
 {
@@ -141,6 +146,11 @@ void fsl_phy_usb_utmi_uninit(struct fsl_xcvr_ops *this)
 void fsl_phy_set_power(struct fsl_xcvr_ops *this,
 			struct fsl_usb2_platform_data *pdata, int on)
 {
+	/* USB_POWER_ENABLE_PIN have request at pin init*/
+	if (pdata->phy_regs != USBPHY1_PHYS_ADDR) {
+		gpio_direction_output(USB_POWER_ENABLE, on);
+		gpio_set_value(USB_POWER_ENABLE, on);
+	}
 }
 
 #ifdef CONFIG_MXS_VBUS_CURRENT_DRAW
