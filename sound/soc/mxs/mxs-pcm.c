@@ -351,15 +351,21 @@ static int mcs_pcm_copy(struct snd_pcm_substream *substream, int channel,
 	char *hwbuf = runtime->dma_area + frames_to_bytes(runtime, hwoff);
 	unsigned long count = frames_to_bytes(runtime, frames);
 
-	/* For S/PDIF 24-bit playback, fix the buffer.  Code taken
-	   from snd_pcm_lib_write_transfer() in sound/core/pcm_lib.c */
-	if ((prtd->params->dma_ch == MXS_DMA_CHANNEL_AHB_APBX_SPDIF) &&
-	    ((prtd->format == SNDRV_PCM_FORMAT_S24_LE)
-	     || (prtd->format == SNDRV_PCM_FORMAT_S20_3LE))) {
-		if (copy_from_user(hwbuf + 1, buf, count - 1))
-			return -EFAULT;
+	/* For S/PDIF 24-bit playback, fix the buffer.  Code taken from
+	   snd_pcm_lib_write_transfer() and snd_pcm_lib_read_transfer()
+	   in sound/core/pcm_lib.c */
+	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
+		if ((prtd->params->dma_ch == MXS_DMA_CHANNEL_AHB_APBX_SPDIF) &&
+		    ((prtd->format == SNDRV_PCM_FORMAT_S24_LE)
+		     || (prtd->format == SNDRV_PCM_FORMAT_S20_3LE))) {
+			if (copy_from_user(hwbuf + 1, buf, count - 1))
+				return -EFAULT;
+		} else {
+			if (copy_from_user(hwbuf, buf, count))
+				return -EFAULT;
+		}
 	} else {
-		if (copy_from_user(hwbuf, buf, count))
+		if (copy_to_user(buf, hwbuf, count))
 			return -EFAULT;
 	}
 
