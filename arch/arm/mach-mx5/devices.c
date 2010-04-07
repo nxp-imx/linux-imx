@@ -278,6 +278,27 @@ struct platform_device mxcvpu_device = {
 	.resource = vpu_resources,
 };
 
+static struct resource scc_resources[] = {
+	{
+		.start = SCC_BASE_ADDR,
+		.end = SCC_BASE_ADDR + SZ_4K - 1,
+		.flags = IORESOURCE_MEM,
+	},
+	{
+		.start	= MX51_SCC_RAM_BASE_ADDR,
+		.end = MX51_SCC_RAM_BASE_ADDR + SZ_16K - 1,
+		.flags	= IORESOURCE_MEM,
+	},
+};
+
+struct platform_device mxcscc_device = {
+	.name = "mxc_scc",
+	.id = 0,
+	.num_resources = ARRAY_SIZE(scc_resources),
+	.resource = scc_resources,
+};
+
+
 static struct resource mxc_fec_resources[] = {
 	{
 		.start	= FEC_BASE_ADDR,
@@ -1032,27 +1053,33 @@ static __init void mxc_init_scc_iram(void)
 	uint32_t scc_partno;
 	void *scm_ram_base;
 	void *scc_base;
-	uint8_t iram_partitions = 16;
+	uint32_t ram_partitions, ram_partition_size, ram_size;
+	uint32_t scm_version_register;
 	struct timespec stime;
 	struct timespec curtime;
 	long scm_rd_timeout = 0;
 	long cur_ns = 0;
 	long start_ns = 0;
 
-	if (!cpu_is_mx51())
-		return;
-
-	if (cpu_is_mx51_rev(CHIP_REV_2_0) < 0)
-		iram_partitions = 12;
-
-	scc_base = ioremap((uint32_t) SCC_BASE_ADDR, 0x140);
+	scc_base = ioremap((uint32_t) scc_resources[0].start, 0x140);
 	if (scc_base == NULL) {
-		printk(KERN_ERR "FAILED TO MAP IRAM REGS\n");
+		printk(KERN_ERR "FAILED TO MAP SCC REGS\n");
 		return;
 	}
-	scm_ram_base = ioremap((uint32_t) MX51_IRAM_BASE_ADDR, IRAM_SIZE);
+
+	scm_version_register = __raw_readl(scc_base + SCM_VERSION_REG);
+	ram_partitions = 1 + ((scm_version_register & SCM_VER_NP_MASK)
+		>> SCM_VER_NP_SHIFT);
+	ram_partition_size = (uint32_t) (1 <<
+		((scm_version_register & SCM_VER_BPP_MASK)
+		>> SCM_VER_BPP_SHIFT));
+
+	ram_size = (uint32_t)(ram_partitions * ram_partition_size);
+
+	scm_ram_base = ioremap((uint32_t) scc_resources[1].start, ram_size);
+
 	if (scm_ram_base == NULL) {
-		printk(KERN_ERR "FAILED TO MAP IRAM\n");
+		printk(KERN_ERR "FAILED TO MAP SCC RAM\n");
 		return;
 	}
 
@@ -1090,9 +1117,16 @@ static __init void mxc_init_scc_iram(void)
 	}
 
 	scm_rd_timeout = 0;
-	/* Release final two partitions for SCC2 driver */
-	scc_partno = iram_partitions - (SCC_IRAM_SIZE / SZ_8K);
-	for (partition_no = scc_partno; partition_no < iram_partitions;
+
+	/* Release all partitions for SCC2 driver on MX53*/
+	if (cpu_is_mx53())
+		scc_partno = 0;
+	/* Release final two partitions for SCC2 driver on MX51 */
+	else
+		scc_partno = ram_partitions -
+			(SCC_RAM_SIZE / ram_partition_size);
+
+	for (partition_no = scc_partno; partition_no < ram_partitions;
 	     partition_no++) {
 		reg_value = (((partition_no << SCM_ZCMD_PART_SHIFT) &
 			SCM_ZCMD_PART_MASK) | ((0x03 << SCM_ZCMD_CCMD_SHIFT) &
@@ -1129,6 +1163,10 @@ static __init void mxc_init_scc_iram(void)
 			break;
 	}
 
+	/* 4 partitions on MX53 */
+	if (cpu_is_mx53())
+		reg_mask = 0xFF;
+
 	/*Check all expected partitions released */
 	reg_value = __raw_readl(scc_base + SCM_PART_OWNERS_REG);
 	if ((reg_value & reg_mask) != 0) {
@@ -1137,6 +1175,11 @@ static __init void mxc_init_scc_iram(void)
 		iounmap(scc_base);
 		return;
 	}
+
+	/* we are done if this is MX53, since no sharing of IRAM and SCC_RAM */
+	if (cpu_is_mx53())
+		goto exit;
+
 	reg_mask = 0;
 	scm_rd_timeout = 0;
 	/* Allocate remaining partitions for general use */
@@ -1175,7 +1218,8 @@ static __init void mxc_init_scc_iram(void)
 			break;
 		/* Set UMID=0 and permissions for universal data
 		read/write access */
-		MAP_base = scm_ram_base + (partition_no * 0x2000);
+		MAP_base = scm_ram_base +
+			(uint32_t) (partition_no * ram_partition_size);
 		UMID_base = (uint8_t *) MAP_base + 0x10;
 		for (i = 0; i < 16; i++)
 			UMID_base[i] = 0;
@@ -1196,6 +1240,7 @@ static __init void mxc_init_scc_iram(void)
 		return;
 	}
 
+exit:
 	iounmap(scm_ram_base);
 	iounmap(scc_base);
 	printk(KERN_INFO "IRAM READY\n");
@@ -1231,6 +1276,10 @@ int __init mxc_init_devices(void)
 		mxc_fec_resources[0].end -= MX53_OFFSET;
 		vpu_resources[0].start -= MX53_OFFSET;
 		vpu_resources[0].end -= MX53_OFFSET;
+		scc_resources[0].start -= MX53_OFFSET;
+		scc_resources[0].end -= MX53_OFFSET;
+		scc_resources[1].start = MX53_SCC_RAM_BASE_ADDR;
+		scc_resources[1].end = MX53_SCC_RAM_BASE_ADDR + SZ_16K - 1;
 		mxcspi1_resources[0].start -= MX53_OFFSET;
 		mxcspi1_resources[0].end -= MX53_OFFSET;
 		mxcspi2_resources[0].start -= MX53_OFFSET;
@@ -1283,7 +1332,11 @@ int __init mxc_init_devices(void)
 		mxc_gpu2d_resources[0].end = MX53_GPU2D_BASE_ADDR + SZ_4K - 1;
 		ipu_resources[0].start = MX53_IPU_CTRL_BASE_ADDR;
 		ipu_resources[0].end = MX53_IPU_CTRL_BASE_ADDR + SZ_128M - 1;
+	} else if (cpu_is_mx51_rev(CHIP_REV_2_0) < 0) {
+		scc_resources[1].start += 0x8000;
+		scc_resources[1].end += 0x8000;
 	}
+
 
 	mxc_init_scc_iram();
 	mxc_init_gpu2d();

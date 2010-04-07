@@ -75,10 +75,16 @@
 
 #if defined(CONFIG_MXC_SECURITY_SCC2) \
     || defined(CONFIG_MXC_SECURITY_SCC2_MODULE)
-#define SCC_IRAM_SIZE  SZ_16K
+#define SCC_RAM_SIZE  SZ_16K
 #else
-#define SCC_IRAM_SIZE  0
+#define SCC_RAM_SIZE  0
 #endif
+
+/*
+ * SCC RAM BASE: last 2 partitions of IRAM on MX51, separate from IRAM on MX53
+ */
+#define MX51_SCC_RAM_BASE_ADDR	MX51_IRAM_BASE_ADDR
+#define MX53_SCC_RAM_BASE_ADDR	0x07000000
 
 #ifdef CONFIG_SND_MXC_SOC_IRAM
 #define SND_RAM_SIZE 0x6000
