@@ -52,6 +52,7 @@ int cpufreq_trig_needed;
 int cur_freq_table_size;
 int lcd_on_freq_table_size;
 int lcd_off_freq_table_size;
+int high_freq_needed;
 
 extern char *ahb_clk_id;
 extern struct profile profiles[OPERATION_WP_SUPPORTED];
@@ -100,7 +101,7 @@ static int set_freq_table(struct cpufreq_policy *policy, int end_index)
 	return ret;
 }
 
-static int set_op(unsigned int target_freq)
+static int set_op(struct cpufreq_policy *policy, unsigned int target_freq)
 {
 	struct cpufreq_freqs freqs;
 	int ret = 0, i;
@@ -129,7 +130,7 @@ static int set_op(unsigned int target_freq)
 	if (i == 0)
 		freqs.new = profiles[i].cpu;
 
-	if (freqs.old == freqs.new) {
+	if ((freqs.old / 1000) == (freqs.new / 1000)) {
 		if (regulator_get_voltage(vddd) == profiles[i].vddd)
 			return 0;
 	}
@@ -144,8 +145,10 @@ static int set_op(unsigned int target_freq)
 	}
 
 	cpufreq_notify_transition(&freqs, CPUFREQ_PRECHANGE);
+
 	if (freqs.old > freqs.new) {
 		int ss = profiles[i].ss;
+
 		clk_set_rate(cpu_clk, (profiles[i].cpu) * 1000);
 		clk_set_rate(ahb_clk, (profiles[i].ahb) * 1000);
 		clk_set_rate(emi_clk, (profiles[i].emi) * 1000);
@@ -206,20 +209,32 @@ static int set_op(unsigned int target_freq)
 							    profiles[i].vdda);
 		}
 		timing_ctrl_rams(ss);
+		if (freqs.old == 64000)
+			clk_set_rate(ahb_clk, (profiles[i].ahb) * 1000);
 		clk_set_rate(cpu_clk, (profiles[i].cpu) * 1000);
-		clk_set_rate(ahb_clk, (profiles[i].ahb) * 1000);
+		if (freqs.old != 64000)
+			clk_set_rate(ahb_clk, (profiles[i].ahb) * 1000);
 		clk_set_rate(emi_clk, (profiles[i].emi) * 1000);
 	}
 	udelay(100);
 
 	cpu_clk_set_pll_off(cpu_clk, freqs.new);
 
-	cpufreq_notify_transition(&freqs, CPUFREQ_POSTCHANGE);
+	if (high_freq_needed == 0)
+		cpufreq_notify_transition(&freqs, CPUFREQ_POSTCHANGE);
 
 	if (cpu_regulator && (freqs.old > freqs.new))   /* will not fail */
 		regulator_set_current_limit(cpu_regulator,
 					    profiles[i].cur,
 					    profiles[i].cur);
+
+	if (high_freq_needed == 1) {
+		high_freq_needed = 0;
+		cur_freq_table_size = lcd_on_freq_table_size;
+		hbus_auto_slow_mode_disable();
+		set_freq_table(policy, cur_freq_table_size);
+		cpufreq_notify_transition(&freqs, CPUFREQ_POSTCHANGE);
+	}
 
 	return ret;
 }
@@ -259,13 +274,23 @@ static int mxs_target(struct cpufreq_policy *policy,
 		/* Set the current working point. */
 		cpufreq_trig_needed = 0;
 		target_freq = clk_get_rate(cpu_clk) / 1000;
+		low_freq_bus_ready = low_freq_used();
+
+		if ((target_freq < LCD_ON_CPU_FREQ_KHZ) &&
+		    (low_freq_bus_ready == 0)) {
+			high_freq_needed = 1;
+			target_freq = LCD_ON_CPU_FREQ_KHZ;
+			goto change_freq;
+		}
+
+		target_freq = clk_get_rate(cpu_clk) / 1000;
 		freq_KHz = calc_frequency_khz(target_freq, relation);
 
 		freqs.old = target_freq;
 		freqs.new = freq_KHz;
 		freqs.cpu = 0;
 		freqs.flags = 0;
-
+		cpufreq_notify_transition(&freqs, CPUFREQ_PRECHANGE);
 		low_freq_bus_ready = low_freq_used();
 		if (low_freq_bus_ready) {
 			cur_freq_table_size = lcd_off_freq_table_size;
@@ -276,9 +301,7 @@ static int mxs_target(struct cpufreq_policy *policy,
 		}
 
 		set_freq_table(policy, cur_freq_table_size);
-
 		cpufreq_notify_transition(&freqs, CPUFREQ_POSTCHANGE);
-
 		return 0;
 }
 
@@ -287,36 +310,20 @@ static int mxs_target(struct cpufreq_policy *policy,
 	 * which leads to bad things (division by zero etc), ensure
 	 * that such things do not happen.
 	 */
-	if (target_freq < policy->cpuinfo.min_freq)
+change_freq:	if (target_freq < policy->cpuinfo.min_freq)
 		target_freq = policy->cpuinfo.min_freq;
 
 	if (target_freq < policy->min)
 		target_freq = policy->min;
 
 	freq_KHz = calc_frequency_khz(target_freq, relation);
-	return set_op(freq_KHz);
+	return set_op(policy, freq_KHz);
 	}
 
 static unsigned int mxs_getspeed(unsigned int cpu)
 {
-	struct cpufreq_freqs freqs;
-	int freq_KHz;
-	unsigned int target_freq;
-
 	if (cpu)
 		return 0;
-
-	if (cpufreq_trig_needed  == 1) {
-		target_freq = clk_get_rate(cpu_clk) / 1000;
-		freq_KHz = calc_frequency_khz(target_freq, CPUFREQ_RELATION_L);
-
-		freqs.old = target_freq;
-		freqs.new = freq_KHz;
-		freqs.cpu = 0;
-		freqs.flags = 0;
-
-		cpufreq_notify_transition(&freqs, CPUFREQ_PRECHANGE);
-	}
 
 	return clk_get_rate(cpu_clk) / 1000;
 }
@@ -341,7 +348,7 @@ static int __init mxs_cpu_init(struct cpufreq_policy *policy)
 		goto out_cpu;
 	}
 
-	ahb_clk = clk_get(NULL, ahb_clk_id);
+	ahb_clk = clk_get(NULL, "h");
 	if (IS_ERR(ahb_clk)) {
 		ret = PTR_ERR(ahb_clk);
 		goto out_ahb;
@@ -423,6 +430,7 @@ static int __init mxs_cpu_init(struct cpufreq_policy *policy)
 	/* Set the current working point. */
 	set_freq_table(policy, lcd_on_freq_table_size);
 	cpufreq_trig_needed = 0;
+	high_freq_needed = 0;
 	cur_freq_table_size = lcd_on_freq_table_size;
 
 	printk(KERN_INFO "%s: cpufreq init finished\n", __func__);
@@ -451,7 +459,7 @@ static int mxs_cpu_exit(struct cpufreq_policy *policy)
 	cpufreq_frequency_table_put_attr(policy->cpu);
 
 	/* Reset CPU to 392MHz */
-	set_op(profiles[1].cpu);
+	set_op(policy, profiles[1].cpu);
 
 	clk_put(cpu_clk);
 	regulator_put(cpu_regulator);

@@ -30,7 +30,7 @@ struct clk {
 	struct clk *secondary;
 	unsigned long flags;
 
-	unsigned int ref;
+	__s8 ref;
 	unsigned int scale_bits;
 	unsigned int enable_bits;
 	unsigned int bypass_bits;
@@ -103,6 +103,7 @@ static u32 mxs_ram_funcs_sz;
 /* 0 ~ 16 attribute flags */
 #define ALWAYS_ENABLED		(1 << 0)	/* Clock cannot be disabled */
 #define RATE_FIXED		(1 << 1)	/* Fixed clock rate */
+#define CPU_FREQ_TRIG_UPDATE	(1 << 2)	/* CPUFREQ trig update */
 
 /* 16 ~ 23 reservied */
 /* 24 ~ 31 run time flags */

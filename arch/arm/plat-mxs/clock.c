@@ -24,9 +24,11 @@
 #include <linux/clk.h>
 #include <linux/io.h>
 #include <linux/spinlock.h>
+#include <linux/cpufreq.h>
 
 #include <mach/clock.h>
 
+extern int cpufreq_trig_needed;
 static DEFINE_SPINLOCK(clockfw_lock);
 
 /*
@@ -101,13 +103,20 @@ int clk_enable(struct clk *clk)
 {
 	unsigned long flags;
 	int ret = 0;
+	int pre_usage;
 
 	if (clk == NULL || IS_ERR(clk))
 		return -EINVAL;
 
 	spin_lock_irqsave(&clockfw_lock, flags);
+	pre_usage = clk->ref;
 	ret = __clk_enable(clk);
 	spin_unlock_irqrestore(&clockfw_lock, flags);
+	if ((clk->flags & CPU_FREQ_TRIG_UPDATE)
+	    && (pre_usage == 0)) {
+		cpufreq_trig_needed = 1;
+		cpufreq_update_policy(0);
+	}
 	return ret;
 }
 EXPORT_SYMBOL(clk_enable);
@@ -123,13 +132,19 @@ void clk_disable(struct clk *clk)
 	spin_lock_irqsave(&clockfw_lock, flags);
 	__clk_disable(clk);
 	spin_unlock_irqrestore(&clockfw_lock, flags);
+	if ((clk->flags & CPU_FREQ_TRIG_UPDATE)
+			&& (clk->ref == 0)) {
+		cpufreq_trig_needed = 1;
+		cpufreq_update_policy(0);
+	}
 }
 EXPORT_SYMBOL(clk_disable);
 
 int clk_get_usecount(struct clk *clk)
 {
 	if (clk == NULL || IS_ERR(clk))
-		return -EINVAL;
+		return 0;
+
 	return clk->ref & CLK_EN_MASK;
 }
 EXPORT_SYMBOL(clk_get_usecount);

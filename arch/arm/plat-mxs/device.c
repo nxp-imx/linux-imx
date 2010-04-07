@@ -433,6 +433,18 @@ static struct platform_device mxs_adc = {
 };
 #endif
 
+static struct platform_device busfreq_device = {
+	.name = "busfreq",
+	.id = 0,
+	.dev = {
+		.release = mxs_nop_release,
+		},
+};
+
+static inline void mxs_init_busfreq(void)
+{
+	(void)platform_device_register(&busfreq_device);
+}
 
 static struct mxs_dev_lookup dev_lookup[] = {
 #if defined(CONFIG_SERIAL_MXS_DUART) || \
@@ -706,6 +718,8 @@ int mxs_device_init(void)
 	defined(CONFIG_BACKLIGHT_MXS_MODULE)
 	platform_device_register(&mxs_bl);
 #endif
+
+	mxs_init_busfreq();
 	return ret;
 }
 

@@ -20,7 +20,7 @@
 #define BUS_FREQ_H__
 
 #define VERY_HI_RATE		2000000000
-#define LCD_ON_CPU_FREQ_KHZ 261820
+#define LCD_ON_CPU_FREQ_KHZ 261818
 #define OPERATION_WP_SUPPORTED	6
 
 struct profile {
