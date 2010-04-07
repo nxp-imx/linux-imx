@@ -733,7 +733,7 @@ static int fec_enet_mii_probe(struct net_device *dev)
 	/* attach the mac to the phy */
 	phy_dev = phy_connect(dev, dev_name(&phy_dev->dev),
 			     &fec_enet_adjust_link, 0,
-			     PHY_INTERFACE_MODE_MII);
+			     fep->phy_interface);
 	if (IS_ERR(phy_dev)) {
 		printk(KERN_ERR "%s: Could not attach to PHY\n", dev->name);
 		return PTR_ERR(phy_dev);
@@ -1256,14 +1256,13 @@ fec_restart(struct net_device *dev, int duplex)
 	writel(0, fep->hwp + FEC_HASH_TABLE_HIGH);
 	writel(0, fep->hwp + FEC_HASH_TABLE_LOW);
 #endif
-#ifdef CONFIG_ARCH_MXC
-	if (cpu_is_mx25() || cpu_is_mx53()) {
 
+#ifndef CONFIG_ARCH_MXS
+	if (fep->phy_interface == PHY_INTERFACE_MODE_RMII) {
 		unsigned int val;
 		/*
 		 * Set up the MII gasket for RMII mode
 		 */
-		printk("%s: enable RMII gasket\n", dev->name);
 
 		/* disable the gasket and wait */
 		__raw_writel(0, fep->hwp + FEC_MIIGSK_ENR);
@@ -1271,9 +1270,8 @@ fec_restart(struct net_device *dev, int duplex)
 			udelay(1);
 
 		val = FEC_MIIGSK_CFGR_IF_MODE_RMII;
-		if (cpu_is_mx53() && fep->phy_dev->speed == SPEED_10) /* 10Mb */
+		if (fep->phy_dev && fep->phy_dev->speed == SPEED_10)
 			val |= FEC_MIIGSK_CFGR_FRCONT;
-		/* configure the gasket for RMII, 50 MHz, no loopback, no echo */
 		__raw_writel(val, fep->hwp + FEC_MIIGSK_CFGR);
 
 		/* re-enable the gasket */
@@ -1413,7 +1411,8 @@ fec_probe(struct platform_device *pdev)
 		fep->phy_interface = pdata->phy;
 		if (pdata->init && pdata->init())
 			goto failed_platform_init;
-	}
+	} else
+		fep->phy_interface = PHY_INTERFACE_MODE_MII;
 
 	/* This device has up to three irqs on some platforms */
 	for (i = 0; i < 3; i++) {
