@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2008 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2004-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -47,11 +47,12 @@ static char Diag_msg[DIAG_MSG_SIZE];
  */
 uint32_t dar_count;
 
+/* sahara virtual base address */
+void *sah_virt_base;
+
 /*! The "link-list optimize" bit in the Header of a Descriptor */
 #define SAH_HDR_LLO 0x01000000
 
-/* IO_ADDRESS() is Linux macro -- need portable equivalent */
-#define SAHARA_BASE_ADDRESS             IO_ADDRESS(SAHA_BASE_ADDR)
 #define SAHARA_VERSION_REGISTER_OFFSET  0x000
 #define SAHARA_DAR_REGISTER_OFFSET      0x004
 #define SAHARA_CONTROL_REGISTER_OFFSET  0x008
@@ -65,54 +66,6 @@ uint32_t dar_count;
 #define SAHARA_CONFIG_REGISTER_OFFSET   0x02C
 #define SAHARA_MM_STAT_REGISTER_OFFSET  0x030
 
-/*! Register within Sahara which contains hardware version. (1 or 2).  */
-#define SAHARA_VERSION_REGISTER (SAHARA_BASE_ADDRESS + \
-                                 SAHARA_VERSION_REGISTER_OFFSET)
-
-/*! Register within Sahara which is used to provide new work to the block. */
-#define SAHARA_DAR_REGISTER     (SAHARA_BASE_ADDRESS + \
-                                 SAHARA_DAR_REGISTER_OFFSET)
-
-/*! Register with Sahara which is used for configuration. */
-#define SAHARA_CONTROL_REGISTER (SAHARA_BASE_ADDRESS + \
-                                 SAHARA_CONTROL_REGISTER_OFFSET)
-
-/*! Register with Sahara which is used for changing status. */
-#define SAHARA_COMMAND_REGISTER (SAHARA_BASE_ADDRESS + \
-                                 SAHARA_COMMAND_REGISTER_OFFSET)
-
-/*! Register with Sahara which is contains status and state. */
-#define SAHARA_STATUS_REGISTER  (SAHARA_BASE_ADDRESS + \
-                                 SAHARA_STATUS_REGISTER_OFFSET)
-
-/*! Register with Sahara which is contains error status information. */
-#define SAHARA_ESTATUS_REGISTER (SAHARA_BASE_ADDRESS + \
-                                 SAHARA_ESTATUS_REGISTER_OFFSET)
-
-/*! Register with Sahara which is contains faulting address information. */
-#define SAHARA_FLT_ADD_REGISTER (SAHARA_BASE_ADDRESS + \
-                                 SAHARA_FLT_ADD_REGISTER_OFFSET)
-
-/*! Register with Sahara which is contains current descriptor address. */
-#define SAHARA_CDAR_REGISTER    (SAHARA_BASE_ADDRESS + \
-                                 SAHARA_CDAR_REGISTER_OFFSET)
-
-/*! Register with Sahara which is contains initial descriptor address (of a
-    chain). */
-#define SAHARA_IDAR_REGISTER    (SAHARA_BASE_ADDRESS + \
-                                 SAHARA_IDAR_REGISTER_OFFSET)
-
-/*! Register with Sahara which is contains op status information. */
-#define SAHARA_OSTATUS_REGISTER (SAHARA_BASE_ADDRESS + \
-                                 SAHARA_OSTATUS_REGISTER_OFFSET)
-
-/*! Register with Sahara which is contains configuration information. */
-#define SAHARA_CONFIG_REGISTER (SAHARA_BASE_ADDRESS + \
-                                SAHARA_CONFIG_REGISTER_OFFSET)
-
-/*! Register with Sahara which is contains configuration information. */
-#define SAHARA_MM_STAT_REGISTER (SAHARA_BASE_ADDRESS + \
-                                 SAHARA_MM_STAT_REGISTER_OFFSET)
 
 /* Local Functions */
 #if defined DIAG_DRV_IF || defined DO_DBG
@@ -194,8 +147,8 @@ int sah_HW_Reset(void)
 
 #ifdef DIAG_DRV_IF
 	snprintf(Diag_msg, DIAG_MSG_SIZE,
-		 "Address of SAHARA_BASE_ADDRESS = 0x%08x\n",
-		 SAHARA_BASE_ADDRESS);
+		 "Address of sah_virt_base = 0x%08x\n",
+		 sah_virt_base);
 	LOG_KDIAG(Diag_msg);
 	snprintf(Diag_msg, DIAG_MSG_SIZE,
 		 "Sahara Status register before reset: %08x",
@@ -426,7 +379,7 @@ fsl_shw_return_t sah_HW_Set_HA(void)
  */
 uint32_t sah_HW_Read_Version(void)
 {
-	return os_read32(SAHARA_VERSION_REGISTER);
+	return os_read32(sah_virt_base + SAHARA_VERSION_REGISTER_OFFSET);
 }
 
 /*!
@@ -438,7 +391,7 @@ uint32_t sah_HW_Read_Version(void)
  */
 uint32_t sah_HW_Read_Control(void)
 {
-	return os_read32(SAHARA_CONTROL_REGISTER);
+	return os_read32(sah_virt_base + SAHARA_CONTROL_REGISTER_OFFSET);
 }
 
 /*!
@@ -450,7 +403,7 @@ uint32_t sah_HW_Read_Control(void)
  */
 uint32_t sah_HW_Read_Status(void)
 {
-	return os_read32(SAHARA_STATUS_REGISTER);
+	return os_read32(sah_virt_base + SAHARA_STATUS_REGISTER_OFFSET);
 }
 
 /*!
@@ -462,7 +415,7 @@ uint32_t sah_HW_Read_Status(void)
  */
 uint32_t sah_HW_Read_Error_Status(void)
 {
-	return os_read32(SAHARA_ESTATUS_REGISTER);
+	return os_read32(sah_virt_base + SAHARA_ESTATUS_REGISTER_OFFSET);
 }
 
 /*!
@@ -474,7 +427,7 @@ uint32_t sah_HW_Read_Error_Status(void)
  */
 uint32_t sah_HW_Read_Op_Status(void)
 {
-	return os_read32(SAHARA_OSTATUS_REGISTER);
+	return os_read32(sah_virt_base + SAHARA_OSTATUS_REGISTER_OFFSET);
 }
 
 /*!
@@ -486,7 +439,7 @@ uint32_t sah_HW_Read_Op_Status(void)
  */
 uint32_t sah_HW_Read_DAR(void)
 {
-	return os_read32(SAHARA_DAR_REGISTER);
+	return os_read32(sah_virt_base + SAHARA_DAR_REGISTER_OFFSET);
 }
 
 /*!
@@ -498,7 +451,7 @@ uint32_t sah_HW_Read_DAR(void)
  */
 uint32_t sah_HW_Read_CDAR(void)
 {
-	return os_read32(SAHARA_CDAR_REGISTER);
+	return os_read32(sah_virt_base + SAHARA_CDAR_REGISTER_OFFSET);
 }
 
 /*!
@@ -510,7 +463,7 @@ uint32_t sah_HW_Read_CDAR(void)
  */
 uint32_t sah_HW_Read_IDAR(void)
 {
-	return os_read32(SAHARA_IDAR_REGISTER);
+	return os_read32(sah_virt_base + SAHARA_IDAR_REGISTER_OFFSET);
 }
 
 /*!
@@ -522,7 +475,7 @@ uint32_t sah_HW_Read_IDAR(void)
  */
 uint32_t sah_HW_Read_Fault_Address(void)
 {
-	return os_read32(SAHARA_FLT_ADD_REGISTER);
+	return os_read32(sah_virt_base + SAHARA_FLT_ADD_REGISTER_OFFSET);
 }
 
 /*!
@@ -534,7 +487,7 @@ uint32_t sah_HW_Read_Fault_Address(void)
  */
 uint32_t sah_HW_Read_MM_Status(void)
 {
-	return os_read32(SAHARA_MM_STAT_REGISTER);
+	return os_read32(sah_virt_base + SAHARA_MM_STAT_REGISTER_OFFSET);
 }
 
 /*!
@@ -546,7 +499,7 @@ uint32_t sah_HW_Read_MM_Status(void)
  */
 uint32_t sah_HW_Read_Config(void)
 {
-	return os_read32(SAHARA_CONFIG_REGISTER);
+	return os_read32(sah_virt_base + SAHARA_CONFIG_REGISTER_OFFSET);
 }
 
 /*!
@@ -560,7 +513,7 @@ uint32_t sah_HW_Read_Config(void)
  */
 void sah_HW_Write_Command(uint32_t command)
 {
-	os_write32(SAHARA_COMMAND_REGISTER, command);
+	os_write32(sah_virt_base + SAHARA_COMMAND_REGISTER_OFFSET, command);
 }
 
 /*!
@@ -575,7 +528,7 @@ void sah_HW_Write_Command(uint32_t command)
  */
 void sah_HW_Write_Control(uint32_t control)
 {
-	os_write32(SAHARA_CONTROL_REGISTER, control);
+	os_write32(sah_virt_base + SAHARA_CONTROL_REGISTER_OFFSET, control);
 }
 
 /*!
@@ -590,7 +543,8 @@ void sah_HW_Write_Control(uint32_t control)
  */
 void sah_HW_Write_Config(uint32_t configuration)
 {
-	os_write32(SAHARA_CONFIG_REGISTER, configuration);
+	os_write32(sah_virt_base + SAHARA_CONFIG_REGISTER_OFFSET,
+		configuration);
 }
 
 /*!
@@ -605,7 +559,7 @@ void sah_HW_Write_Config(uint32_t configuration)
  */
 void sah_HW_Write_DAR(uint32_t pointer)
 {
-	os_write32(SAHARA_DAR_REGISTER, pointer);
+	os_write32(sah_virt_base + SAHARA_DAR_REGISTER_OFFSET, pointer);
 	dar_count++;
 }
 

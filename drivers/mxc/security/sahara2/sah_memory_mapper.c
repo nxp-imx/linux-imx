@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2009 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2004-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -1311,6 +1311,7 @@ sah_Link *sah_Make_Links(fsl_shw_uco_t * user_ctx,
 	struct page **local_pages = NULL;
 	int nr_pages = 0;
 	int write = (sah_Link_Get_Flags(ptr) & SAH_OUTPUT_LINK) ? WRITE : READ;
+	dma_addr_t phys_addr;
 
 	/* need to retrieve stored key? */
 	if (ptr->flags & SAH_STORED_KEY_INFO) {
@@ -1546,12 +1547,19 @@ sah_Link *sah_Make_Links(fsl_shw_uco_t * user_ctx,
 				buffer_start =
 				    page_address(local_pages[page_index]);
 
+				phys_addr =
+					page_to_phys(local_pages[page_index]);
+
 				if (page_index == 0) {
 					/* If this is the first page, there might be an
 					 * offset. We need to increment the address by this offset
 					 * so we don't just get the start of the page.
 					 */
 					buffer_start +=
+					    (unsigned long)
+					    sah_Link_Get_Data(ptr)
+					    & ~PAGE_MASK;
+					phys_addr +=
 					    (unsigned long)
 					    sah_Link_Get_Data(ptr)
 					    & ~PAGE_MASK;
@@ -1599,7 +1607,7 @@ sah_Link *sah_Make_Links(fsl_shw_uco_t * user_ctx,
 				/* use kernel virtual */
 				link->original_data = buffer_start;
 #endif
-				link->data = (void *)os_pa(buffer_start);
+				link->data = (void *)phys_addr;
 				link->flags = ptr->flags & ~SAH_PREPHYS_DATA;
 				link->vm_info = local_pages[page_index];
 				prev_link = link;
@@ -1639,8 +1647,7 @@ sah_Link *sah_Make_Links(fsl_shw_uco_t * user_ctx,
 					/* use kernel virtual */
 					link->original_data = buffer_start;
 #endif
-					link->data =
-					    (void *)os_pa(buffer_start);
+					link->data = (void *)phys_addr;
 					link->vm_info = prev_link->vm_info;
 					prev_link->vm_info = NULL;	/* delay release */
 					link->flags = ptr->flags;

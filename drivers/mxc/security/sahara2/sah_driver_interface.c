@@ -129,6 +129,7 @@ static struct proc_dir_entry *Sahara_procfs_handle;
 #endif
 
 uint32_t sah_hw_version;
+extern void *sah_virt_base;
 
 /* This is the wait queue to this driver.  Linux declaration. */
 DECLARE_WAIT_QUEUE_HEAD(Wait_queue);
@@ -174,6 +175,8 @@ OS_DEV_INIT(sah_init)
 {
 	/* Status variable */
 	int os_error_code = 0;
+	uint32_t sah_phys_base = SAHARA_BASE_ADDR;
+
 
 	interrupt_registered = 0;
 
@@ -190,6 +193,16 @@ OS_DEV_INIT(sah_init)
 			clk_enable(sah_clk);
 	}
 #endif
+
+	if (cpu_is_mx53())
+		sah_phys_base -= 0x20000000;
+
+	sah_virt_base = (void *)ioremap(sah_phys_base, SZ_16K);
+	if (sah_virt_base == NULL) {
+		os_printk(KERN_ERR
+			  "SAHARA: Register mapping failed\n");
+		os_error_code = OS_ERROR_FAIL_S;
+	}
 
 	if (os_error_code == OS_ERROR_OK_S) {
 		sah_hw_version = sah_HW_Read_Version();
