@@ -1028,7 +1028,7 @@ config HWMON_DEBUG_CHIP
 
 config MXC_MMA7450
 	tristate "MMA7450 device driver"
-	depends on MACH_MX31_3DS
+	depends on MACH_MX31_3DS || MACH_MX23EVK
 	default n
 
 config SENSORS_ISL29003

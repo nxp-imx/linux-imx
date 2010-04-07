@@ -20,4 +20,7 @@
 #define __ASM_ARM_MACH_MX23EVK_H
 
 extern void __init mx23evk_pins_init(void);
-#endif /* __ASM_ARM_MACH_MX28EVK_H */
+extern void  mx23evk_mma7450_pin_init(void);
+extern int mx23evk_mma7450_pin_release(void);
+
+#endif /* __ASM_ARM_MACH_MX23EVK_H */

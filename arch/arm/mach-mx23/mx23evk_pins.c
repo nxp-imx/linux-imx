@@ -512,6 +512,31 @@ static struct pin_desc mx23evk_fixed_pins[] = {
 #endif
 };
 
+#if defined(CONFIG_MXC_MMA7450) || defined(CONFIG_MXC_MMA7450_MODULE)
+int mx23evk_mma7450_pin_init(void)
+{
+	/* intr */
+	gpio_request(MXS_PIN_TO_GPIO(PINID_GPMI_D14), "MMA7450_INTR1");
+	gpio_direction_input(MXS_PIN_TO_GPIO(PINID_GPMI_D14));
+	gpio_request(MXS_PIN_TO_GPIO(PINID_GPMI_D15), "MMA7450_INTR2");
+	gpio_direction_input(MXS_PIN_TO_GPIO(PINID_GPMI_D15));
+	return 0;
+}
+int mx23evk_mma7450_pin_release(void)
+{
+	return 0;
+}
+#else
+int mx23evk_mma7450_pin_init(void)
+{
+	return 0;
+}
+int mx23evk_mma7450_pin_release(void)
+{
+	return 0;
+}
+#endif
+
 #if defined(CONFIG_FEC) || defined(CONFIG_FEC_MODULE)
 int mx23evk_enet_gpio_init(void)
 {

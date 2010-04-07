@@ -110,6 +110,15 @@ struct mxs_pwm_leds_plat_data {
 	struct mxs_pwm_led *leds;
 };
 
+struct mxs_mma7450_platform_data {
+	char *reg_dvdd_io;
+	char *reg_avdd;
+	void (*gpio_pin_get) (void);
+	void (*gpio_pin_put) (void);
+	int int1;
+	int int2;
+};
+
 struct flexcan_platform_data {
 	char *core_reg;
 	char *io_reg;

@@ -21,6 +21,7 @@
 #include <linux/io.h>
 #include <linux/clk.h>
 #include <linux/platform_device.h>
+#include <linux/i2c.h>
 
 #include <asm/setup.h>
 #include <asm/mach-types.h>
@@ -32,6 +33,30 @@
 
 #include "device.h"
 #include "mx23evk.h"
+#include "mx23_pins.h"
+
+static struct mxs_mma7450_platform_data mma7450_platdata = {
+	.reg_dvdd_io = "vddio",
+	.reg_avdd = "vdda",
+	.gpio_pin_get = mx23evk_mma7450_pin_init,
+	.gpio_pin_put = mx23evk_mma7450_pin_release,
+	/* int1 and int2 will be initialized in
+	i2c_device_init */
+	.int1 = 0,
+	.int2 = 0,
+};
+
+static struct i2c_board_info __initdata mma7450_i2c_device = {
+	I2C_BOARD_INFO("mma7450", 0x3A),
+	.platform_data = (void *)&mma7450_platdata,
+};
+
+static void i2c_device_init(void)
+{
+	mma7450_platdata.int1 = gpio_to_irq(MXS_PIN_TO_GPIO(PINID_GPMI_D14));
+	mma7450_platdata.int2 = gpio_to_irq(MXS_PIN_TO_GPIO(PINID_GPMI_D15));
+	i2c_register_board_info(0, &mma7450_i2c_device, 1);
+}
 
 static void __init fixup_board(struct machine_desc *desc, struct tag *tags,
 			       char **cmdline, struct meminfo *mi)
@@ -59,6 +84,7 @@ static void __init mx23evk_init_adc(void)
 static void __init mx23evk_device_init(void)
 {
 	/* Add mx23evk special code */
+	i2c_device_init();
 	mx23evk_init_adc();
 }
 
@@ -72,6 +98,7 @@ static void __init mx23evk_init_machine(void)
 
 	mx23_gpio_init();
 	mx23evk_pins_init();
+	mx23evk_mma7450_pin_init();
 	mx23_device_init();
 	mx23evk_device_init();
 }
