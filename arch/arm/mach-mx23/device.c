@@ -236,8 +236,8 @@ static struct resource i2c_resource[] = {
 	 },
 	{
 	 .flags = IORESOURCE_DMA,
-	 .start = MXS_DMA_CHANNEL_AHB_APBX_I2C0,
-	 .end   = MXS_DMA_CHANNEL_AHB_APBX_I2C0,
+	 .start = MXS_DMA_CHANNEL_AHB_APBX_I2C,
+	 .end   = MXS_DMA_CHANNEL_AHB_APBX_I2C,
 	 },
 	{
 	 .flags = IORESOURCE_IRQ,
