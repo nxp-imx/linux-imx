@@ -22,6 +22,7 @@
 #include <linux/i2c.h>
 #include <linux/platform_device.h>
 #include <linux/smsc911x.h>
+#include <linux/fec.h>
 #if defined(CONFIG_MTD) || defined(CONFIG_MTD_MODULE)
 #include <linux/mtd/mtd.h>
 #include <linux/mtd/map.h>
@@ -462,9 +463,16 @@ static struct resource mxc_fec_resources[] = {
 	},
 };
 
+static struct fec_platform_data fec_data = {
+	.phy = PHY_INTERFACE_MODE_RMII,
+};
+
 struct platform_device mxc_fec_device = {
 	.name = "fec",
 	.id = 0,
+	.dev = {
+		.platform_data = &fec_data,
+	},
 	.num_resources = ARRAY_SIZE(mxc_fec_resources),
 	.resource = mxc_fec_resources,
 };

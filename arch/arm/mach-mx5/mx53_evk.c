@@ -43,6 +43,7 @@
 #include <linux/ipu.h>
 #include <linux/mxcfb.h>
 #include <linux/pwm_backlight.h>
+#include <linux/fec.h>
 #include <mach/common.h>
 #include <mach/hardware.h>
 #include <asm/irq.h>
@@ -196,6 +197,10 @@ static struct mxc_ipu_config mxc_ipu_data = {
 extern void mx5_vpu_reset(void);
 static struct mxc_vpu_platform_data mxc_vpu_data = {
 	.reset = mx5_vpu_reset,
+};
+
+static struct fec_platform_data fec_data = {
+	.phy = PHY_INTERFACE_MODE_RMII,
 };
 
 extern void mx53_evk_gpio_spi_chipselect_active(int cspi_mode, int status,
@@ -696,7 +701,7 @@ static void __init mxc_board_init(void)
 	/*
 	mxc_register_device(&mxc_alsa_spdif_device, &mxc_spdif_data);
 	*/
-	mxc_register_device(&mxc_fec_device, NULL);
+	mxc_register_device(&mxc_fec_device, &fec_data);
 	spi_register_board_info(mxc_dataflash_device,
 				ARRAY_SIZE(mxc_dataflash_device));
 	i2c_register_board_info(0, mxc_i2c0_board_info,
