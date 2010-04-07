@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2009 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2004-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -298,12 +298,6 @@
 #endif
 
 /**
- * Calculate the physical address of a partition from the partition number.
- */
-#define SCM_PART_PHYS_ADDRESS(part)                                     \
- ((uint32_t)scm_ram_phys_base + (part*scc_configuration.partition_size_bytes))
-
-/**
  * Calculate the kernel virtual address of a partition from the partition number.
  */
 #define SCM_PART_ADDRESS(part)                                          \
@@ -374,7 +368,7 @@
 
 
 /** Name of the driver.  Used (on Linux, anyway) when registering interrupts */
-#define SCC_DRIVER_NAME "scc"
+#define SCC_DRIVER_NAME "mxc_scc"
 
 
 /* Port -- these symbols are defined in Linux 2.6 and later.  They are defined
@@ -432,6 +426,8 @@ struct scc_key_slot
 /* Forward-declare a number routines which are not part of user api */
 static int scc_init(void);
 static void scc_cleanup(void);
+static int __init scc_driver_init(void);
+static void __exit scc_driver_exit(void);
 
 /* Forward defines of internal functions */
 OS_DEV_ISR(scc_irq);
@@ -512,10 +508,6 @@ EXPORT_SYMBOL(scc_diminish_permissions);
 EXPORT_SYMBOL(scc_encrypt_region);
 EXPORT_SYMBOL(scc_decrypt_region);
 /*EXPORT_SYMBOL(make_vpu_partition);*/
-/* Tell Linux where to invoke driver at boot/module load time */
-module_init(scc_init);
-/* Tell Linux where to invoke driver on module unload  */
-module_exit(scc_cleanup);
 
 
 /* Tell Linux this is not GPL code */

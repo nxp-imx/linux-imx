@@ -106,13 +106,14 @@ typedef char *(*reg_print_routine_t) (uint32_t value, char *print_buffer,
  * 32 bits wide.
  */
 static volatile void *scc_base;
+uint32_t scc_phys_base;
 
 /** Array to hold function pointers registered by
     #scc_monitor_security_failure() and processed by
     #scc_perform_callbacks() */
 static void (*scc_callbacks[SCC_CALLBACK_SIZE]) (void);
 /*SCC need IRAM's base address but use only the partitions allocated for it.*/
-uint32_t scm_ram_phys_base = IRAM_BASE_ADDR;
+uint32_t scm_ram_phys_base;
 
 void *scm_ram_base = NULL;
 
@@ -543,7 +544,7 @@ static int scc_init(void)
 		}
 		/* Map the SCC (SCM and SMN) memory on the internal bus into
 		   kernel address space */
-		scc_base = (void *)ioremap(SCC_BASE, SZ_4K);
+		scc_base = (void *)ioremap(scc_phys_base, SZ_4K);
 		if (scc_base == NULL) {
 			os_printk(KERN_ERR
 				  "SCC2: Register mapping failed.  Exiting.\n");
@@ -2304,3 +2305,86 @@ void dbg_scc_write_register(uint32_t offset, uint32_t value)
 }
 
 #endif				/* SCC_REGISTER_DEBUG */
+
+static int scc_dev_probe(struct platform_device *pdev)
+{
+	struct resource *r;
+	int ret = 0;
+
+	/* get the scc registers base address */
+	r = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+	if (!r) {
+		dev_err(&pdev->dev, "can't get IORESOURCE_MEM (0)\n");
+		ret = -ENXIO;
+		goto exit;
+	}
+
+	scc_phys_base = r->start;
+
+
+	/* get the scc ram base address */
+	r = platform_get_resource(pdev, IORESOURCE_MEM, 1);
+	if (!r) {
+		dev_err(&pdev->dev, "can't get IORESOURCE_MEM (1)\n");
+		ret = -ENXIO;
+		goto exit;
+	}
+
+	scm_ram_phys_base = r->start;
+
+	/* now initialize the SCC */
+	ret = scc_init();
+
+exit:
+	return ret;
+}
+
+static int scc_dev_remove(struct platform_device *pdev)
+{
+	scc_cleanup();
+	return 0;
+}
+
+
+#ifdef CONFIG_PM
+static int scc_suspend(struct platform_device *pdev,
+		pm_message_t state)
+{
+	return 0;
+}
+
+static int scc_resume(struct platform_device *pdev)
+{
+	return 0;
+}
+#else
+#define scc_suspend	NULL
+#define	scc_resume	NULL
+#endif
+
+/*! Linux Driver definition
+ *
+ */
+static struct platform_driver mxcscc_driver = {
+	.driver = {
+		   .name = SCC_DRIVER_NAME,
+		   },
+	.probe = scc_dev_probe,
+	.remove = scc_dev_remove,
+	.suspend = scc_suspend,
+	.resume = scc_resume,
+};
+
+static int __init scc_driver_init(void)
+{
+	return platform_driver_register(&mxcscc_driver);
+}
+
+module_init(scc_driver_init);
+
+static void __exit scc_driver_exit(void)
+{
+	platform_driver_unregister(&mxcscc_driver);
+}
+
+module_exit(scc_driver_exit);
