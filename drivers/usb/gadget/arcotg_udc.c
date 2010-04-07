@@ -1553,6 +1553,7 @@ static void setup_received_irq(struct fsl_udc *udc,
 		return;
 	case USB_REQ_SET_CONFIGURATION:
 		fsl_vbus_draw(gadget, mA);
+	     break;
 	case USB_REQ_CLEAR_FEATURE:
 	case USB_REQ_SET_FEATURE:
 		/* Status phase from udc */
