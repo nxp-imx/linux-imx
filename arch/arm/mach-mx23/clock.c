@@ -428,6 +428,7 @@ static struct clk lcdif_clk = {
 	.get_rate	= lcdif_get_rate,
 	.set_rate	= lcdif_set_rate,
 	.set_parent = clkseq_set_parent,
+	.flags		= CPU_FREQ_TRIG_UPDATE,
 };
 
 static unsigned long cpu_get_rate(struct clk *clk)
@@ -472,9 +473,9 @@ static int cpu_set_rate(struct clk *clk, unsigned long rate)
 	u32 val;
 	u32 reg_val;
 
-	if (rate < 24000)
+	if (rate < 24000000)
 		return -EINVAL;
-	else if (rate == 24000) {
+	else if (rate == 24000000) {
 		/* switch to the 24M source */
 		clk_set_parent(clk, &ref_xtal_clk);
 	} else {
@@ -511,6 +512,7 @@ static int cpu_set_rate(struct clk *clk, unsigned long rate)
 		/* Do not gate */
 		__raw_writel(BM_CLKCTRL_FRAC_CLKGATECPU, CLKCTRL_BASE_ADDR +
 			     HW_CLKCTRL_FRAC_CLR);
+
 		/* write clkctrl_cpu */
 		reg_val = __raw_readl(CLKCTRL_BASE_ADDR + HW_CLKCTRL_CPU);
 		reg_val &= ~0x3F;
@@ -653,6 +655,9 @@ static int h_set_rate(struct clk *clk, unsigned long rate)
 
 	if (root_rate % round_rate)
 			return -EINVAL;
+
+	if ((root_rate < rate) && (root_rate == 64000000))
+		div = 3;
 
 	reg = __raw_readl(CLKCTRL_BASE_ADDR + HW_CLKCTRL_HBUS);
 	reg &= ~(BM_CLKCTRL_HBUS_DIV_FRAC_EN | BM_CLKCTRL_HBUS_DIV);
@@ -919,6 +924,7 @@ static struct clk usb_clk = {
 	.disable = mx23_raw_disable,
 	.enable_reg = DIGCTRL_BASE_ADDR + HW_DIGCTL_CTRL,
 	.enable_bits = BM_DIGCTL_CTRL_USB_CLKGATE,
+	.flags		= CPU_FREQ_TRIG_UPDATE,
 };
 
 static struct clk audio_clk = {
