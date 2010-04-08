@@ -90,10 +90,10 @@ struct mxs_emi_scaling_data {
 };
 
 #ifdef CONFIG_MXS_RAM_FREQ_SCALING
-extern void mxs_ram_freq_scale(struct mxs_emi_scaling_data *);
+extern int mxs_ram_freq_scale(struct mxs_emi_scaling_data *);
 extern u32 mxs_ram_funcs_sz;
 #else
-static inline void mxs_ram_freq_scale(struct mxs_emi_scaling_data *p)
+static inline int mxs_ram_freq_scale(struct mxs_emi_scaling_data *p)
 {
 }
 static u32 mxs_ram_funcs_sz;

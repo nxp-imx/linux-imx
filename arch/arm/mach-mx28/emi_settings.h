@@ -27,14 +27,6 @@
 #define SCALING_DATA_NEW_FREQ_OFFSET    12
 
 #ifndef __ASSEMBLER__
-struct emi_change {
-	unsigned int emi_div;
-	unsigned int frac_div;
-	unsigned cur_freq;
-	unsigned new_freq;
-};
-
-int mxs_ram_freq_scale(struct emi_change *emi);
 void mxs_ram_freq_scale_end();
 void DDR2EmiController_EDE1116_133MHz();
 void DDR2EmiController_EDE1116_166MHz();

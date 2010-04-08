@@ -820,8 +820,8 @@ static unsigned long emi_round_rate(struct clk *clk, unsigned long rate)
 static int emi_set_rate(struct clk *clk, unsigned long rate)
 {
 	int i;
-	struct emi_change emi;
-	void (*f) (struct emi_change *, unsigned int *);
+	struct mxs_emi_scaling_data emi;
+	void (*f) (struct mxs_emi_scaling_data *, unsigned int *);
 	f = (void *)MX28_OCRAM_BASE;
 	memcpy(f, mxs_ram_freq_scale,
 	       (unsigned int)mxs_ram_freq_scale_end -

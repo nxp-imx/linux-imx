@@ -32,6 +32,7 @@
 #include <asm/mach/map.h>
 
 #include <mach/mx28.h>
+#include <mach/clock.h>
 #include "emi_settings.h"
 
 static unsigned int DRAM_REG[MX28_DRAMCTRLREGNUM];
@@ -42,8 +43,8 @@ unsigned int *get_current_emidata()
 
 void test_emi_change()
 {
-	struct emi_change emi;
-	void (*f) (struct emi_change *, unsigned int *);
+	struct mxs_emi_scaling_data emi;
+	void (*f) (struct mxs_emi_scaling_data *, unsigned int *);
 	f = (void *)MX28_OCRAM_BASE;
 	memcpy(f, mxs_ram_freq_scale,
 	       (unsigned int)mxs_ram_freq_scale_end -
