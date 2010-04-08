@@ -886,7 +886,7 @@ struct snd_soc_dai sgtl5000_dai = {
 		     },
 	.capture = {
 		    .stream_name = "Capture",
-		    .channels_min = 1,
+		    .channels_min = 2,
 		    .channels_max = 2,
 		    .rates = SGTL5000_RATES,
 		    .formats = SGTL5000_FORMATS,
