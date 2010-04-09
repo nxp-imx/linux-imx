@@ -930,6 +930,12 @@ static struct resource mxc_gpu_resources[] = {
 		.name = "gpu_graphics_mem",
 		.flags = IORESOURCE_MEM,
 	},
+	{
+		.start = 0,
+		.end = 0,
+		.name = "gpu_reserved_mem",
+		.flags = IORESOURCE_MEM,
+	},
 };
 
 struct platform_device gpu_device = {

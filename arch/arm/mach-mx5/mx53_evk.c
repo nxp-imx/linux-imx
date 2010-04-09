@@ -473,42 +473,73 @@ static struct platform_device mxc_sgtl5000_device = {
 static void __init fixup_mxc_board(struct machine_desc *desc, struct tag *tags,
 				   char **cmdline, struct meminfo *mi)
 {
-	char *str;
-	int size = 0;
-	unsigned long orig_size;
 	struct tag *t;
+	struct tag *mem_tag = 0;
+	int total_mem = SZ_1G;
+	int left_mem = 0;
+	int gpu_mem = SZ_128M;
+	int fb_mem = SZ_32M;
+	char *str;
 
 	mxc_set_cpu_type(MXC_CPU_MX53);
 
 	get_cpu_wp = mx53_evk_get_cpu_wp;
 	set_num_cpu_wp = mx53_evk_set_num_cpu_wp;
 
-	for_each_tag(t, tags) {
-		if (t->hdr.tag != ATAG_CMDLINE)
-			continue;
-		str = t->u.cmdline.cmdline;
-		str = strstr(str, "mem=");
-		if (str != NULL) {
-			str += 4;
-			size = memparse(str, &str);
-			if (size == 0 || size == SZ_512M)
-				return;
+	for_each_tag(mem_tag, tags) {
+		if (mem_tag->hdr.tag == ATAG_MEM) {
+			total_mem = mem_tag->u.mem.size;
+			left_mem = total_mem - gpu_mem - fb_mem;
+			break;
 		}
 	}
 
 	for_each_tag(t, tags) {
-		if (t->hdr.tag != ATAG_MEM)
-			continue;
+		if (t->hdr.tag == ATAG_CMDLINE) {
+			str = t->u.cmdline.cmdline;
+			str = strstr(str, "mem=");
+			if (str != NULL) {
+				str += 4;
+				left_mem = memparse(str, &str);
+				if (left_mem == 0 || left_mem > total_mem)
+					left_mem = total_mem - gpu_mem - fb_mem;
+			}
 
-		orig_size = t->u.mem.size;
-		if (!size)
-			size = t->u.mem.size - SZ_32M;
-		t->u.mem.size = size;
+			str = t->u.cmdline.cmdline;
+			str = strstr(str, "gpu_memory=");
+			if (str != NULL) {
+				str += 11;
+				gpu_mem = memparse(str, &str);
+			}
+
+			break;
+		}
+	}
+
+	if (mem_tag) {
+		fb_mem = total_mem - left_mem - gpu_mem;
+		if (fb_mem < 0) {
+			gpu_mem = total_mem - left_mem;
+			fb_mem = 0;
+		}
+		mem_tag->u.mem.size = left_mem;
+
+		/*reserve memory for gpu*/
+		gpu_device.resource[5].start =
+				mem_tag->u.mem.start + left_mem;
+		gpu_device.resource[5].end =
+				gpu_device.resource[5].start + gpu_mem - 1;
 #if defined(CONFIG_FB_MXC_SYNC_PANEL) || \
 	defined(CONFIG_FB_MXC_SYNC_PANEL_MODULE)
-		mxcfb_resources[0].start = t->u.mem.start + size;
-		mxcfb_resources[0].end = t->u.mem.start + orig_size - 1;
-		break;
+		if (fb_mem) {
+			mxcfb_resources[0].start =
+				gpu_device.resource[5].end + 1;
+			mxcfb_resources[0].end =
+				mxcfb_resources[0].start + fb_mem - 1;
+		} else {
+			mxcfb_resources[0].start = 0;
+			mxcfb_resources[0].end = 0;
+		}
 #endif
 	}
 }

@@ -1557,7 +1557,7 @@ static int mxcfb_probe(struct platform_device *pdev)
 	ipu_disable_irq(mxcfbi->ipu_ch_irq);
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
-	if (res) {
+	if (res && res->end) {
 		fbi->fix.smem_len = res->end - res->start + 1;
 		fbi->fix.smem_start = res->start;
 		fbi->screen_base = ioremap(fbi->fix.smem_start, fbi->fix.smem_len);
@@ -1589,7 +1589,7 @@ static int mxcfb_probe(struct platform_device *pdev)
 	mxcfb_set_fix(fbi);
 
 	/* alocate fb first */
-	if (!res)
+	if (!res || !res->end)
 		if (mxcfb_map_video_memory(fbi) < 0)
 			return -ENOMEM;
 
