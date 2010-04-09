@@ -2495,17 +2495,21 @@ static void _clk_ssi_ext1_recalc(struct clk *clk)
 
 static int _clk_ssi_ext1_set_rate(struct clk *clk, unsigned long rate)
 {
-	u32 reg, div;
+	u32 reg, div, pre, post;
 
 	div = clk->parent->rate / rate;
 	if (div == 0)
 		div++;
-	if (((clk->parent->rate / div) != rate) || (div > 8))
+	if (((clk->parent->rate / div) != rate) || div > 512)
 		return -EINVAL;
 
+	__calc_pre_post_dividers(div, &pre, &post);
+
 	reg = __raw_readl(MXC_CCM_CS1CDR);
-	reg &= ~MXC_CCM_CS1CDR_SSI_EXT1_CLK_PRED_MASK;
-	reg |= (div - 1) << MXC_CCM_CS1CDR_SSI_EXT1_CLK_PRED_OFFSET;
+	reg &= ~(MXC_CCM_CS1CDR_SSI_EXT1_CLK_PRED_MASK |
+		 MXC_CCM_CS1CDR_SSI_EXT1_CLK_PODF_MASK);
+	reg |= (post - 1) << MXC_CCM_CS1CDR_SSI_EXT1_CLK_PODF_OFFSET;
+	reg |= (pre - 1) << MXC_CCM_CS1CDR_SSI_EXT1_CLK_PRED_OFFSET;
 	__raw_writel(reg, MXC_CCM_CS1CDR);
 
 	clk->rate = rate;
@@ -2536,14 +2540,15 @@ static int _clk_ssi_ext1_set_parent(struct clk *clk, struct clk *parent)
 static unsigned long _clk_ssi_ext1_round_rate(struct clk *clk,
 						unsigned long rate)
 {
-	u32 div;
+	u32 pre, post;
+	u32 div = clk->parent->rate / rate;
 
-	div = clk->parent->rate / rate;
-	if (div > 8)
-		div = 8;
-	else if (div == 0)
+	if (clk->parent->rate % rate)
 		div++;
-	return clk->parent->rate / div;
+
+	__calc_pre_post_dividers(div, &pre, &post);
+
+	return clk->parent->rate / (pre * post);
 }
 
 static struct clk ssi_ext1_clk = {
@@ -4605,8 +4610,11 @@ int __init mx53_clocks_init(unsigned long ckil, unsigned long osc, unsigned long
 	reg |= 1 << MXC_CCM_CS2CDR_SSI2_CLK_PRED_OFFSET;
 	__raw_writel(reg, MXC_CCM_CS2CDR);
 
-	/* Change the SSI_EXT1_CLK to be sourced from SSI1_CLK_ROOT */
-	clk_set_parent(&ssi_ext1_clk, &ssi1_clk[0]);
+	/* Change the SSI_EXT1_CLK to be sourced from PLL2 for camera */
+	clk_disable(&ssi_ext1_clk);
+	clk_set_parent(&ssi_ext1_clk, &pll2_sw_clk);
+	clk_set_rate(&ssi_ext1_clk, 24000000);
+	clk_enable(&ssi_ext1_clk);
 	clk_set_parent(&ssi_ext2_clk, &ssi2_clk[0]);
 
 	/* move usb_phy_clk to 24MHz */

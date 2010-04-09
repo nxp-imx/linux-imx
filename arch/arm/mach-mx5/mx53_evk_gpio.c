@@ -184,9 +184,6 @@ static struct mxc_iomux_pin_cfg __initdata mxc_iomux_pins[] = {
 	 MX53_PIN_CSI0_D4, IOMUX_CONFIG_ALT5,
 	 },
 	{
-	 MX53_PIN_CSI0_D5, IOMUX_CONFIG_ALT5,
-	 },
-	{
 	 MX53_PIN_CSI0_D6, IOMUX_CONFIG_ALT5,
 	 },
 	{
@@ -395,6 +392,61 @@ static struct mxc_iomux_pin_cfg __initdata mxc_iomux_pins[] = {
 	 (PAD_CTL_HYS_NONE | PAD_CTL_PKE_NONE | PAD_CTL_ODE_OPENDRAIN_NONE |
 	  PAD_CTL_DRV_LOW | PAD_CTL_SRE_SLOW),
 	 },
+	{ /* audio and CSI clock out */
+	 MX53_PIN_GPIO_0, IOMUX_CONFIG_ALT3,
+	 },
+	{
+	 MX53_PIN_CSI0_D12, IOMUX_CONFIG_ALT0,
+	 PAD_CTL_HYS_NONE | PAD_CTL_PKE_NONE | PAD_CTL_ODE_OPENDRAIN_NONE |
+	 PAD_CTL_DRV_LOW,
+	 },
+	{
+	 MX53_PIN_CSI0_D13, IOMUX_CONFIG_ALT0,
+	 PAD_CTL_HYS_NONE | PAD_CTL_PKE_NONE | PAD_CTL_ODE_OPENDRAIN_NONE |
+	 PAD_CTL_DRV_LOW,
+	 },
+	{
+	 MX53_PIN_CSI0_D14, IOMUX_CONFIG_ALT0,
+	 PAD_CTL_HYS_NONE | PAD_CTL_PKE_NONE | PAD_CTL_ODE_OPENDRAIN_NONE |
+	 PAD_CTL_DRV_LOW,
+	 },
+	{
+	 MX53_PIN_CSI0_D15, IOMUX_CONFIG_ALT0,
+	 PAD_CTL_HYS_NONE | PAD_CTL_PKE_NONE | PAD_CTL_ODE_OPENDRAIN_NONE |
+	 PAD_CTL_DRV_LOW,
+	 },
+	{
+	 MX53_PIN_CSI0_D16, IOMUX_CONFIG_ALT0,
+	 PAD_CTL_HYS_NONE | PAD_CTL_PKE_NONE | PAD_CTL_ODE_OPENDRAIN_NONE |
+	 PAD_CTL_DRV_LOW,
+	 },
+	{
+	 MX53_PIN_CSI0_D17, IOMUX_CONFIG_ALT0,
+	 PAD_CTL_HYS_NONE | PAD_CTL_PKE_NONE | PAD_CTL_ODE_OPENDRAIN_NONE |
+	 PAD_CTL_DRV_LOW,
+	 },
+	{
+	 MX53_PIN_CSI0_D18, IOMUX_CONFIG_ALT0,
+	 PAD_CTL_HYS_NONE | PAD_CTL_PKE_NONE | PAD_CTL_ODE_OPENDRAIN_NONE |
+	 PAD_CTL_DRV_LOW,
+	 },
+	{
+	 MX53_PIN_CSI0_D19, IOMUX_CONFIG_ALT0,
+	 PAD_CTL_HYS_NONE | PAD_CTL_PKE_NONE | PAD_CTL_ODE_OPENDRAIN_NONE |
+	 PAD_CTL_DRV_LOW,
+	 },
+	{	/* Camera VSYNC */
+	 MX53_PIN_CSI0_VSYNC, IOMUX_CONFIG_ALT0,
+	 },
+	{	/* Camera HSYNC */
+	 MX53_PIN_CSI0_MCLK, IOMUX_CONFIG_ALT0,
+	 },
+	{	/* Camera pixclk */
+	 MX53_PIN_CSI0_PIXCLK, IOMUX_CONFIG_ALT0,
+	 },
+	{	/* Camera low power */
+	 MX53_PIN_CSI0_D5, IOMUX_CONFIG_ALT1,
+	 },
 	/* esdhc1 */
 	{
 	 MX53_PIN_SD1_CMD, IOMUX_CONFIG_ALT0 | IOMUX_CONFIG_SION,
@@ -552,9 +604,6 @@ static struct mxc_iomux_pin_cfg __initdata mx53_evk_iomux_pins[] = {
 	{ /* FEC_RST */
 	MX53_PIN_ATA_DA_0, IOMUX_CONFIG_ALT1,
 	},
-	{ /* audio clock out */
-	 MX53_PIN_GPIO_0, IOMUX_CONFIG_ALT3,
-	 },
 };
 
 static struct mxc_iomux_pin_cfg __initdata mx53_arm2_iomux_pins[] = {
@@ -739,9 +788,14 @@ void __init mx53_evk_io_init(void)
 	/* LCD related gpio */
 
 	/* Camera reset */
+	gpio_request(IOMUX_TO_GPIO(MX53_PIN_GPIO_10), "gpio4_0");
+	gpio_direction_output(IOMUX_TO_GPIO(MX53_PIN_GPIO_10), 0);
+	gpio_set_value(IOMUX_TO_GPIO(MX53_PIN_GPIO_10), 1);
 
 	/* Camera low power */
-
+	gpio_request(IOMUX_TO_GPIO(MX53_PIN_CSI0_D5), "gpio5_23");
+	gpio_direction_output(IOMUX_TO_GPIO(MX53_PIN_CSI0_D5), 0);
+	gpio_set_value(IOMUX_TO_GPIO(MX53_PIN_CSI0_D5), 0);
 }
 
 /* workaround for ecspi chipselect pin may not keep correct level when idle */

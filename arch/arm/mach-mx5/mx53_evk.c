@@ -308,8 +308,7 @@ static int __init tv_setup(char *s)
 __setup("hdtv", tv_setup);
 
 static struct mxc_camera_platform_data camera_data = {
-	.io_regulator = "SW4",
-	.analog_regulator = "VIOHI",
+	.analog_regulator = "VSD",
 	.mclk = 24000000,
 	.csi = 0,
 };
@@ -440,7 +439,7 @@ static int mxc_sgtl5000_init(void)
 		if (IS_ERR(ssi_ext1))
 			return -1;
 
-		rate = clk_round_rate(ssi_ext1, 12000000);
+		rate = clk_round_rate(ssi_ext1, 24000000);
 		if (rate < 8000000 || rate > 27000000) {
 			printk(KERN_ERR "Error: SGTL5000 mclk freq %d out of range!\n",
 			       rate);
