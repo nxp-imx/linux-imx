@@ -1,5 +1,5 @@
 /*
- * Copyright 2008-2009 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2008-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -171,12 +171,35 @@ int _ipu_csi_mclk_set(uint32_t pixel_clk, uint32_t csi)
  */
 int ipu_csi_enable_mclk(int csi, bool flag, bool wait)
 {
+	struct clk *clk;
+
 	if (flag) {
-		clk_enable(g_csi_clk[csi]);
+		if (cpu_is_mx53()) {
+			if (csi == 0) {
+				clk = clk_get(NULL, "ssi_ext1_clk");
+				clk_enable(clk);
+				clk_put(clk);
+			} else {
+				pr_err("invalid csi num %d\n", csi);
+				return -EINVAL;
+			}
+		} else
+			clk_enable(g_csi_clk[csi]);
 		if (wait == true)
 			msleep(10);
-	} else
-		clk_disable(g_csi_clk[csi]);
+	} else {
+		if (cpu_is_mx53()) {
+			if (csi == 0) {
+				clk = clk_get(NULL, "ssi_ext1_clk");
+				clk_disable(clk);
+				clk_put(clk);
+			} else {
+				pr_err("invalid csi num %d\n", csi);
+				return -EINVAL;
+			}
+		} else
+			clk_disable(g_csi_clk[csi]);
+	}
 
 	return 0;
 }

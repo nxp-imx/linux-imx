@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2009 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2004-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -23,6 +23,7 @@
 #include <linux/types.h>
 #include <linux/device.h>
 #include <linux/clk.h>
+#include <mach/hardware.h>
 
 #if defined(CONFIG_MXC_IPU_V1) || defined(CONFIG_VIDEO_MXC_EMMA_CAMERA) \
 			       || defined(CONFIG_VIDEO_MXC_CSI_CAMERA_MODULE) \
@@ -62,13 +63,22 @@ void set_mclk_rate(uint32_t *p_mclk_freq, uint32_t csi)
 	uint32_t freq = 0;
 	char *mclk;
 
-	if (csi == 0) {
-		mclk = "csi_mclk1";
-	} else if (csi == 1) {
-		mclk = "csi_mclk2";
+	if (cpu_is_mx53()) {
+		if (csi == 0)
+			mclk = "ssi_ext1_clk";
+		else {
+			pr_err("invalid csi num %d\n", csi);
+			return;
+		}
 	} else {
-		pr_debug("invalid csi num %d\n", csi);
-		return;
+		if (csi == 0) {
+			mclk = "csi_mclk1";
+		} else if (csi == 1) {
+			mclk = "csi_mclk2";
+		} else {
+			pr_err("invalid csi num %d\n", csi);
+			return;
+		}
 	}
 
 	clk = clk_get(NULL, mclk);
