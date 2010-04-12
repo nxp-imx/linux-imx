@@ -252,20 +252,28 @@ static inline void mxc_init_ipu(void)
 }
 #endif
 
+static struct resource scc_resources[] = {
+	{
+		.start = SCC_BASE_ADDR,
+		.end = SCC_BASE_ADDR + SZ_4K - 1,
+		.flags = IORESOURCE_MEM,
+	},
+	{
+		.start	= IRAM_BASE_ADDR,
+		.end = IRAM_BASE_ADDR + IRAM_SIZE - 1,
+		.flags	= IORESOURCE_MEM,
+	},
+};
+
 /*!
  * This is platform device structure for adding SCC
  */
-#if defined(CONFIG_MXC_SECURITY_SCC) || defined(CONFIG_MXC_SECURITY_SCC_MODULE)
 static struct platform_device mxc_scc_device = {
 	.name = "mxc_scc",
 	.id = 0,
+	.num_resources = ARRAY_SIZE(scc_resources),
+	.resource = scc_resources,
 };
-
-static void mxc_init_scc(void)
-{
-	platform_device_register(&mxc_scc_device);
-}
-#else
 static inline void mxc_init_scc(void)
 {
 	uint32_t reg_value;
@@ -332,12 +340,15 @@ static inline void mxc_init_scc(void)
 		while ((__raw_readl(scc_base + SCM_STATUS_REG) &
 			SCM_STATUS_SRS_READY) != SCM_STATUS_SRS_READY) ;
 	}
+
+	/* Register the SCC device */
+	platform_device_register(&mxc_scc_device);
+
 	iounmap(scm_ram_base);
 	iounmap(scc_base);
 	printk(KERN_INFO "IRAM READY\n");
 
 }
-#endif
 
 /* SPI controller and device data */
 #if defined(CONFIG_SPI_MXC) || defined(CONFIG_SPI_MXC_MODULE)
