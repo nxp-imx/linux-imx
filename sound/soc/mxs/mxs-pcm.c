@@ -62,6 +62,7 @@ struct mxs_runtime_data {
 	u32 dma_ch;
 	u32 dma_period;
 	u32 dma_totsize;
+	unsigned long appl_ptr_bytes;
 	int format;
 
 	struct mxs_pcm_dma_params *params;
@@ -71,8 +72,11 @@ struct mxs_runtime_data {
 static irqreturn_t mxs_pcm_dma_irq(int irq, void *dev_id)
 {
 	struct snd_pcm_substream *substream = dev_id;
+	struct snd_pcm_runtime *runtime = substream->runtime;
 	struct mxs_runtime_data *prtd = substream->runtime->private_data;
 	struct mxs_dma_info dma_info;
+	void *pdma;
+	unsigned long prev_appl_offset, appl_count, cont, appl_ptr_bytes;
 
 	mxs_dma_get_info(prtd->dma_ch, &dma_info);
 
@@ -81,6 +85,32 @@ static irqreturn_t mxs_pcm_dma_irq(int irq, void *dev_id)
 			__func__, prtd->params->dma_ch, prtd->params->name);
 		mxs_dma_ack_irq(prtd->dma_ch);
 	} else {
+		if ((prtd->params->dma_ch == MXS_DMA_CHANNEL_AHB_APBX_SPDIF) &&
+		    (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) &&
+		    (runtime->access == SNDRV_PCM_ACCESS_MMAP_INTERLEAVED) &&
+		    ((prtd->format == SNDRV_PCM_FORMAT_S24_LE)
+		     || (prtd->format == SNDRV_PCM_FORMAT_S20_3LE))) {
+
+			appl_ptr_bytes =
+			    frames_to_bytes(runtime,
+					    runtime->control->appl_ptr);
+
+			appl_count = appl_ptr_bytes - prtd->appl_ptr_bytes;
+			prev_appl_offset =
+			    prtd->appl_ptr_bytes % prtd->dma_totsize;
+			cont = prtd->dma_totsize - prev_appl_offset;
+
+			if (appl_count > cont) {
+				pdma = runtime->dma_area + prev_appl_offset;
+				memmove(pdma + 1, pdma, cont - 1);
+				pdma = runtime->dma_area;
+				memmove(pdma + 1, pdma, appl_count - cont - 1);
+			} else {
+				pdma = runtime->dma_area + prev_appl_offset;
+				memmove(pdma + 1, pdma, appl_count - 1);
+			}
+			prtd->appl_ptr_bytes = appl_ptr_bytes;
+		}
 		mxs_dma_ack_irq(prtd->dma_ch);
 		snd_pcm_period_elapsed(substream);
 	}
@@ -168,11 +198,23 @@ static void mxs_pcm_stop(struct snd_pcm_substream *substream)
 
 static int mxs_pcm_trigger(struct snd_pcm_substream *substream, int cmd)
 {
+	struct snd_pcm_runtime *runtime = substream->runtime;
 	struct mxs_runtime_data *prtd = substream->runtime->private_data;
 	int ret = 0;
 	switch (cmd) {
 
 	case SNDRV_PCM_TRIGGER_START:
+		if ((prtd->params->dma_ch == MXS_DMA_CHANNEL_AHB_APBX_SPDIF) &&
+		    (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) &&
+		    (runtime->access == SNDRV_PCM_ACCESS_MMAP_INTERLEAVED) &&
+		    ((prtd->format == SNDRV_PCM_FORMAT_S24_LE)
+		     || (prtd->format == SNDRV_PCM_FORMAT_S20_3LE))) {
+			prtd->appl_ptr_bytes =
+			    frames_to_bytes(runtime,
+					    runtime->control->appl_ptr);
+			memmove(runtime->dma_area + 1, runtime->dma_area,
+				prtd->appl_ptr_bytes - 1);
+		}
 		mxs_dma_enable(prtd->dma_ch);
 		break;
 
