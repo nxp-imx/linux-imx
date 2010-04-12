@@ -164,5 +164,8 @@ void fsl_phy_set_power(struct fsl_xcvr_ops *this,
 	gpio_free(USB_POWER_ENABLE);
 }
 
-module_init(usb_dr_init);
-
+#ifdef CONFIG_MXS_VBUS_CURRENT_DRAW
+	fs_initcall(usb_dr_init);
+#else
+	module_init(usb_dr_init);
+#endif

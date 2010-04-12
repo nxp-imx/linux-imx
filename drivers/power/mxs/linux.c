@@ -752,6 +752,8 @@ static int mxs_bat_probe(struct platform_device *pdev)
 	int ret = 0;
 
 
+	/* enable usb device presence detection */
+	fsl_enable_usb_plugindetect();
 
 	ret = ddi_power_init_battery();
 	if (ret) {
@@ -941,8 +943,6 @@ static int mxs_bat_probe(struct platform_device *pdev)
 	 */
 	init_protection(info);
 
-	/* enable usb device presence detection */
-	fsl_enable_usb_plugindetect();
 
 	return 0;
 
