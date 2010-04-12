@@ -115,10 +115,8 @@ mxs_dma_apbx_enable_irq(struct mxs_dma_device *pdev,
 {
 	if (enable) {
 		__raw_writel(1 << (chan + 16), pdev->base + HW_APBX_CTRL1_SET);
-		__raw_writel(1 << (chan + 16), pdev->base + HW_APBX_CTRL2_SET);
 	} else {
 		__raw_writel(1 << (chan + 16), pdev->base + HW_APBX_CTRL1_CLR);
-		__raw_writel(1 << (chan + 16), pdev->base + HW_APBX_CTRL2_CLR);
 	}
 }
 

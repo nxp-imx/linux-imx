@@ -143,10 +143,8 @@ mxs_dma_apbh_enable_irq(struct mxs_dma_device *pdev,
 {
 	if (enable) {
 		__raw_writel(1 << (chan + 16), pdev->base + HW_APBH_CTRL1_SET);
-		__raw_writel(1 << (chan + 16), pdev->base + HW_APBH_CTRL2_SET);
 	} else {
 		__raw_writel(1 << (chan + 16), pdev->base + HW_APBH_CTRL1_CLR);
-		__raw_writel(1 << (chan + 16), pdev->base + HW_APBH_CTRL2_CLR);
 	}
 }
 
