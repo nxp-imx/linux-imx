@@ -220,6 +220,18 @@ struct gpmi_platform_data {
 
 };
 
+struct mxs_persistent_bit_config {
+	int reg;
+	int start;
+	int width;
+	const char *name;
+};
+
+struct mxs_platform_persistent_data {
+	const struct mxs_persistent_bit_config *bit_config_tab;
+	int bit_config_cnt;
+};
+
 extern void mxs_timer_init(struct mxs_sys_timer *timer);
 extern void mxs_nomatch_timer_init(struct mxs_sys_timer *timer);
 

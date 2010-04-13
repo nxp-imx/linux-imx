@@ -233,6 +233,11 @@ config ISL29003
 	  This driver can also be built as a module.  If so, the module
 	  will be called isl29003.
 
+config MXS_PERSISTENT
+	tristate "MX23/MX28 persistent bit"
+	depends on ARCH_MXS
+	default y
+
 source "drivers/misc/c2port/Kconfig"
 source "drivers/misc/eeprom/Kconfig"
 source "drivers/misc/cb710/Kconfig"

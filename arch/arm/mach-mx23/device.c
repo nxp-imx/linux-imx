@@ -705,12 +705,13 @@ static void mx23_init_battery(void)
 {
 	struct platform_device *pdev;
 	pdev = mxs_get_device("mxs-battery", 0);
-	if (pdev) {
-		pdev->resource = battery_resource,
-		pdev->num_resources = ARRAY_SIZE(battery_resource),
-		pdev->dev.platform_data = &battery_data;
-		mxs_add_device(pdev, 3);
-	}
+	if (pdev == NULL || IS_ERR(pdev))
+		return;
+	pdev->resource = battery_resource,
+	pdev->num_resources = ARRAY_SIZE(battery_resource),
+	pdev->dev.platform_data = &battery_data;
+	mxs_add_device(pdev, 3);
+
 }
 #else
 static void mx23_init_battery(void)
@@ -733,6 +734,107 @@ static inline mx23_init_spdif(void)
 }
 #endif
 
+#if defined(CONFIG_MXS_PERSISTENT)
+static const struct mxs_persistent_bit_config
+mx23_persistent_bit_config[] = {
+	{ .reg = 0, .start =  0, .width =  1,
+		.name = "CLOCKSOURCE" },
+	{ .reg = 0, .start =  1, .width =  1,
+		.name = "ALARM_WAKE_EN" },
+	{ .reg = 0, .start =  2, .width =  1,
+		.name = "ALARM_EN" },
+	{ .reg = 0, .start =  3, .width =  1,
+		.name = "CLK_SECS" },
+	{ .reg = 0, .start =  4, .width =  1,
+		.name = "XTAL24MHZ_PWRUP" },
+	{ .reg = 0, .start =  5, .width =  1,
+		.name = "XTAL32MHZ_PWRUP" },
+	{ .reg = 0, .start =  6, .width =  1,
+		.name = "XTAL32_FREQ" },
+	{ .reg = 0, .start =  7, .width =  1,
+		.name = "ALARM_WAKE" },
+	{ .reg = 0, .start =  8, .width =  5,
+		.name = "MSEC_RES" },
+	{ .reg = 0, .start = 13, .width =  1,
+		.name = "DISABLE_XTALOK" },
+	{ .reg = 0, .start = 14, .width =  2,
+		.name = "LOWERBIAS" },
+	{ .reg = 0, .start = 16, .width =  1,
+		.name = "DISABLE_PSWITCH" },
+	{ .reg = 0, .start = 17, .width =  1,
+		.name = "AUTO_RESTART" },
+	{ .reg = 0, .start = 18, .width = 14,
+		.name = "SPARE_ANALOG" },
+
+	{ .reg = 1, .start =  0, .width =  1,
+		.name = "FORCE_RECOVERY" },
+	{ .reg = 1, .start =  1, .width =  1,
+		.name = "NAND_SECONDARY_BOOT" },
+	{ .reg = 1, .start =  2, .width =  1,
+		.name = "NAND_SDK_BLOCK_REWRITE" },
+	{ .reg = 1, .start =  3, .width =  1,
+		.name = "SD_SPEED_ENABLE" },
+	{ .reg = 1, .start =  4, .width =  1,
+		.name = "SD_INIT_SEQ_1_DISABLE" },
+	{ .reg = 1, .start =  5, .width =  1,
+		.name = "SD_CMD0_DISABLE" },
+	{ .reg = 1, .start =  6, .width =  1,
+		.name = "SD_INIT_SEQ_2_ENABLE" },
+	{ .reg = 1, .start =  7, .width =  1,
+		.name = "OTG_ATL_ROLE_BIT" },
+	{ .reg = 1, .start =  8, .width =  1,
+		.name = "OTG_HNP_BIT" },
+	{ .reg = 1, .start =  9, .width =  1,
+		.name = "USB_LOW_POWER_MODE" },
+	{ .reg = 1, .start = 10, .width =  1,
+		.name = "SKIP_CHECKDISK" },
+	{ .reg = 1, .start = 11, .width =  1,
+		.name = "USB_BOOT_PLAYER_MODE" },
+	{ .reg = 1, .start = 12, .width =  1,
+		.name = "ENUMERATE_500MA_TWICE" },
+	{ .reg = 1, .start = 13, .width = 19,
+		.name = "SPARE_GENERAL" },
+
+	{ .reg = 2, .start =  0, .width = 32,
+		.name = "SPARE_2" },
+	{ .reg = 3, .start =  0, .width = 32,
+		.name = "SPARE_3" },
+	{ .reg = 4, .start =  0, .width = 32,
+		.name = "SPARE_4" },
+	{ .reg = 5, .start =  0, .width = 32,
+		.name = "SPARE_5" },
+};
+
+static struct mxs_platform_persistent_data mx23_persistent_data = {
+	.bit_config_tab = mx23_persistent_bit_config,
+	.bit_config_cnt = ARRAY_SIZE(mx23_persistent_bit_config),
+};
+
+static struct resource mx23_persistent_res[] = {
+	{
+	 .flags = IORESOURCE_MEM,
+	 .start = RTC_PHYS_ADDR,
+	 .end   = RTC_PHYS_ADDR + 0x2000 - 1,
+	 },
+};
+
+static void mx23_init_persistent(void)
+{
+	struct platform_device *pdev;
+	pdev = mxs_get_device("mxs-persistent", 0);
+	if (pdev == NULL || IS_ERR(pdev))
+		return;
+	pdev->dev.platform_data = &mx23_persistent_data;
+	pdev->resource = mx23_persistent_res,
+	pdev->num_resources = ARRAY_SIZE(mx23_persistent_res),
+	mxs_add_device(pdev, 3);
+}
+#else
+static void mx23_init_persistent()
+{
+}
+#endif
+
 int __init mx23_device_init(void)
 {
 	mx23_init_dma();
@@ -751,6 +853,7 @@ int __init mx23_device_init(void)
 	mx23_init_lcdif();
 	mx23_init_pxp();
 	mx23_init_battery();
+	mx23_init_persistent();
 
 	return 0;
 }

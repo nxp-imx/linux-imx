@@ -24,16 +24,16 @@
 #include <linux/sysfs.h>
 #include <mach/hardware.h>
 #include <asm/irq.h>
-#include <mach/stmp3xxx.h>
-#include <mach/platform.h>
+#include <mach/device.h>
 
 #include <mach/regs-rtc.h>
 
-struct stmp3xxx_persistent_data {
+struct mxs_persistent_data {
 	struct device *dev;
-	struct stmp3xxx_platform_persistent_data *pdata;
+	struct mxs_platform_persistent_data *pdata;
 	int count;
 	struct attribute_group attr_group;
+	unsigned int base;
 	/* attribute ** follow */
 	/* device_attribute follow */
 };
@@ -43,59 +43,65 @@ struct stmp3xxx_persistent_data {
 #define pd_device_attribute_ptr(x) \
 	((struct device_attribute *)(pd_attribute_ptr(x) + (x)->count + 1))
 
-static inline u32 persistent_reg_read(int reg)
+static inline u32 persistent_reg_read(struct mxs_persistent_data *pdata,
+						int reg)
 {
 	u32 msk;
 
 	/* wait for stable value */
-	msk = BF(0x01 << reg, RTC_STAT_STALE_REGS);
-	while (__raw_readl(REGS_RTC_BASE + HW_RTC_STAT) & msk)
+	msk = BF_RTC_STAT_STALE_REGS((0x1 << reg));
+	while (__raw_readl(pdata->base + HW_RTC_STAT) & msk)
 		cpu_relax();
 
-	return __raw_readl(REGS_RTC_BASE + 0x60 + (reg * 0x10));
+	return __raw_readl(pdata->base + 0x60 + (reg * 0x10));
 }
 
-static inline void persistent_reg_wait_settle(int reg)
+static inline void persistent_reg_wait_settle(struct mxs_persistent_data *pdata
+				, int reg)
 {
 	u32 msk;
 
 	/* wait until the change is propagated */
-	msk = BF(0x01 << reg, RTC_STAT_NEW_REGS);
-	while (__raw_readl(REGS_RTC_BASE + HW_RTC_STAT) & msk)
+	msk = BF_RTC_STAT_NEW_REGS((0x1 << reg));
+	while (__raw_readl(pdata->base + HW_RTC_STAT) & msk)
 		cpu_relax();
 }
 
-static inline void persistent_reg_write(u32 val, int reg)
+static inline void persistent_reg_write(struct mxs_persistent_data *pdata,
+				u32 val, int reg)
 {
-	__raw_writel(val, REGS_RTC_BASE + 0x60 + (reg * 0x10));
-	persistent_reg_wait_settle(reg);
+	__raw_writel(val, pdata->base + 0x60 + (reg * 0x10));
+	persistent_reg_wait_settle(pdata, reg);
 }
 
-static inline void persistent_reg_set(u32 val, int reg)
+static inline void persistent_reg_set(struct mxs_persistent_data *pdata,
+				u32 val, int reg)
 {
-	__raw_writel(val, REGS_RTC_BASE + 0x60 + (reg * 0x10) + 0x4);
-	persistent_reg_wait_settle(reg);
+	__raw_writel(val, pdata->base + 0x60 + (reg * 0x10) + 0x4);
+	persistent_reg_wait_settle(pdata, reg);
 }
 
-static inline void persistent_reg_clr(u32 val, int reg)
+static inline void persistent_reg_clr(struct mxs_persistent_data *pdata,
+				u32 val, int reg)
 {
-	__raw_writel(val, REGS_RTC_BASE + 0x60 + (reg * 0x10) + 0x8);
-	persistent_reg_wait_settle(reg);
+	__raw_writel(val, pdata->base + 0x60 + (reg * 0x10) + 0x8);
+	persistent_reg_wait_settle(pdata, reg);
 }
 
-static inline void persistent_reg_tog(u32 val, int reg)
+static inline void persistent_reg_tog(struct mxs_persistent_data *pdata,
+				u32 val, int reg)
 {
-	__raw_writel(val, REGS_RTC_BASE + 0x60 + (reg * 0x10) + 0xc);
-	persistent_reg_wait_settle(reg);
+	__raw_writel(val, pdata->base + 0x60 + (reg * 0x10) + 0xc);
+	persistent_reg_wait_settle(pdata, reg);
 }
 
 static ssize_t
 persistent_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
 	struct platform_device *pdev = to_platform_device(dev);
-	struct stmp3xxx_persistent_data *pd = platform_get_drvdata(pdev);
+	struct mxs_persistent_data *pd = platform_get_drvdata(pdev);
 	struct device_attribute *devattr = pd_device_attribute_ptr(pd);
-	const struct stmp3xxx_persistent_bit_config *pb;
+	const struct mxs_persistent_bit_config *pb;
 	int idx;
 	u32 val;
 
@@ -106,7 +112,7 @@ persistent_show(struct device *dev, struct device_attribute *attr, char *buf)
 	pb = &pd->pdata->bit_config_tab[idx];
 
 	/* read value and shift */
-	val = persistent_reg_read(pb->reg);
+	val = persistent_reg_read(pd, pb->reg);
 	val >>= pb->start;
 	val &= (1 << pb->width) - 1;
 
@@ -118,9 +124,9 @@ persistent_store(struct device *dev, struct device_attribute *attr,
 		const char *buf, size_t count)
 {
 	struct platform_device *pdev = to_platform_device(dev);
-	struct stmp3xxx_persistent_data *pd = platform_get_drvdata(pdev);
+	struct mxs_persistent_data *pd = platform_get_drvdata(pdev);
 	struct device_attribute *devattr = pd_device_attribute_ptr(pd);
-	const struct stmp3xxx_persistent_bit_config *pb;
+	const struct mxs_persistent_bit_config *pb;
 	int idx, r;
 	unsigned long val, msk;
 
@@ -141,21 +147,22 @@ persistent_store(struct device *dev, struct device_attribute *attr,
 
 	/* lockless update, first clear the area */
 	msk = ((1 << pb->width) - 1) << pb->start;
-	persistent_reg_clr(msk, pb->reg);
+	persistent_reg_clr(pd, msk, pb->reg);
 
 	/* shift into position */
 	val <<= pb->start;
-	persistent_reg_set(val, pb->reg);
+	persistent_reg_set(pd, val, pb->reg);
 
 	return count;
 }
 
 
-static int __devinit stmp3xxx_persistent_probe(struct platform_device *pdev)
+static int __devinit mxs_persistent_probe(struct platform_device *pdev)
 {
-	struct stmp3xxx_persistent_data *pd;
-	struct stmp3xxx_platform_persistent_data *pdata;
-	const struct stmp3xxx_persistent_bit_config *pb;
+	struct mxs_persistent_data *pd;
+	struct mxs_platform_persistent_data *pdata;
+	struct resource *res;
+	const struct mxs_persistent_bit_config *pb;
 	struct attribute **attr;
 	struct device_attribute *devattr;
 	int i, cnt, size;
@@ -163,6 +170,10 @@ static int __devinit stmp3xxx_persistent_probe(struct platform_device *pdev)
 
 	pdata = pdev->dev.platform_data;
 	if (pdata == NULL)
+		return -ENODEV;
+
+	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+	if (res == NULL)
 		return -ENODEV;
 
 	cnt = pdata->bit_config_cnt;
@@ -174,6 +185,8 @@ static int __devinit stmp3xxx_persistent_probe(struct platform_device *pdev)
 		return -ENOMEM;
 	pd->dev = &pdev->dev;
 	pd->pdata = pdata;
+	pd->base =  (unsigned int)IO_ADDRESS(res->start);
+
 	platform_set_drvdata(pdev, pd);
 	pd->count = cnt;
 	attr = pd_attribute_ptr(pd);
@@ -200,9 +213,9 @@ static int __devinit stmp3xxx_persistent_probe(struct platform_device *pdev)
 	return 0;
 }
 
-static int stmp3xxx_persistent_remove(struct platform_device *pdev)
+static int __devexit mxs_persistent_remove(struct platform_device *pdev)
 {
-	struct stmp3xxx_persistent_data *pd;
+	struct mxs_persistent_data *pd;
 
 	pd = platform_get_drvdata(pdev);
 	sysfs_remove_group(&pdev->dev.kobj, &pd->attr_group);
@@ -214,44 +227,44 @@ static int stmp3xxx_persistent_remove(struct platform_device *pdev)
 
 #ifdef CONFIG_PM
 static int
-stmp3xxx_persistent_suspend(struct platform_device *pdev, pm_message_t state)
+mxs_persistent_suspend(struct platform_device *pdev, pm_message_t state)
 {
 	return 0;
 }
 
-static int stmp3xxx_persistent_resume(struct platform_device *pdev)
+static int mxs_persistent_resume(struct platform_device *pdev)
 {
 	return 0;
 }
 #else
-#define stmp3xxx_persistent_suspend	NULL
-#define	stmp3xxx_persistent_resume	NULL
+#define mxs_persistent_suspend	NULL
+#define	mxs_persistent_resume	NULL
 #endif
 
-static struct platform_driver stmp3xxx_persistent_driver = {
-	.probe		= stmp3xxx_persistent_probe,
-	.remove		= stmp3xxx_persistent_remove,
-	.suspend	= stmp3xxx_persistent_suspend,
-	.resume		= stmp3xxx_persistent_resume,
+static struct platform_driver mxs_persistent_driver = {
+	.probe		= mxs_persistent_probe,
+	.remove		= __exit_p(mxs_persistent_remove),
+	.suspend	= mxs_persistent_suspend,
+	.resume		= mxs_persistent_resume,
 	.driver		= {
-		.name   = "stmp3xxx-persistent",
+		.name   = "mxs-persistent",
 		.owner	= THIS_MODULE,
 	},
 };
 
-static int __init stmp3xxx_persistent_init(void)
+static int __init mxs_persistent_init(void)
 {
-	return platform_driver_register(&stmp3xxx_persistent_driver);
+	return platform_driver_register(&mxs_persistent_driver);
 }
 
-static void __exit stmp3xxx_persistent_exit(void)
+static void __exit mxs_persistent_exit(void)
 {
-	platform_driver_unregister(&stmp3xxx_persistent_driver);
+	platform_driver_unregister(&mxs_persistent_driver);
 }
 
 MODULE_AUTHOR("Pantelis Antoniou <pantelis@embeddedalley.com>");
 MODULE_DESCRIPTION("Persistent bits user-access driver");
 MODULE_LICENSE("GPL");
 
-module_init(stmp3xxx_persistent_init);
-module_exit(stmp3xxx_persistent_exit);
+module_init(mxs_persistent_init);
+module_exit(mxs_persistent_exit);

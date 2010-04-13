@@ -441,6 +441,16 @@ static struct platform_device busfreq_device = {
 		},
 };
 
+#ifdef CONFIG_MXS_PERSISTENT
+static struct platform_device mxs_persistent = {
+	.name			= "mxs-persistent",
+	.id			= 0,
+	.dev = {
+		.release = mxs_nop_release,
+		},
+};
+#endif
+
 static inline void mxs_init_busfreq(void)
 {
 	(void)platform_device_register(&busfreq_device);
@@ -505,6 +515,15 @@ static struct mxs_dev_lookup dev_lookup[] = {
 	 .pdev = &mxs_rtc,
 	 },
 #endif
+
+#if defined(CONFIG_MXS_PERSISTENT)
+	{
+	.name = "mxs-persistent",
+	.size = 1,
+	.pdev = &mxs_persistent,
+	},
+#endif
+
 #if defined(CONFIG_FB_MXS) || defined(CONFIG_FB_MXS_MODULE)
 	{
 	 .name	= "mxs-fb",
