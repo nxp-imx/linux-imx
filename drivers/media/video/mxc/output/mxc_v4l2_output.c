@@ -1441,6 +1441,13 @@ static int mxc_v4l2out_streamon(vout_data * vout)
 	vout->state = STATE_STREAM_PAUSED;
 
 	if (use_direct_adc == false) {
+		if (fbi) {
+			acquire_console_sem();
+			fb_blank(fbi, FB_BLANK_UNBLANK);
+			release_console_sem();
+		} else {
+			ipu_enable_channel(vout->display_ch);
+		}
 		if (!vout->ic_bypass) {
 #ifndef CONFIG_MXC_IPU_V1
 			ipu_enable_channel(vout->post_proc_ch);
@@ -1471,14 +1478,6 @@ static int mxc_v4l2out_streamon(vout_data * vout)
 			ipu_select_buffer(vout->display_ch, IPU_INPUT_BUFFER, 0);
 			ipu_select_buffer(vout->display_ch, IPU_INPUT_BUFFER, 1);
 			schedule_work(&vout->timer_work);
-		}
-
-		if (fbi) {
-			acquire_console_sem();
-			fb_blank(fbi, FB_BLANK_UNBLANK);
-			release_console_sem();
-		} else {
-			ipu_enable_channel(vout->display_ch);
 		}
 	} else {
 		ipu_select_buffer(vout->post_proc_ch, IPU_INPUT_BUFFER, 0);
