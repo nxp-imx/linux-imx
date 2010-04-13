@@ -203,6 +203,7 @@ static struct mxc_fb_platform_data fb_data[] = {
 
 static int __initdata enable_vga = { 0 };
 static int __initdata enable_tv = { 0 };
+static int __initdata enable_dvi = { 0 };
 
 static void wvga_reset(void)
 {
@@ -226,6 +227,8 @@ static int __init mxc_init_fb(void)
 		printk(KERN_INFO "VGA monitor is primary\n");
 	} else if (enable_tv == 2)
 		printk(KERN_INFO "HDTV is primary\n");
+	else if (enable_dvi)
+		printk(KERN_INFO "DVI is primary\n");
 	else
 		printk(KERN_INFO "WVGA LCD panel is primary\n");
 
@@ -233,6 +236,11 @@ static int __init mxc_init_fb(void)
 		printk(KERN_INFO "HDTV is specified as %d\n", enable_tv);
 		fb_data[1].interface_pix_fmt = IPU_PIX_FMT_YUV444;
 		fb_data[1].mode = &(video_modes[0]);
+	}
+
+	if (enable_dvi) {
+		fb_data[0].mode_str = "1024x768M-16@60";
+		fb_data[0].interface_pix_fmt = IPU_PIX_FMT_RGB24;
 	}
 
 	/* Once a customer knows the platform configuration,
@@ -290,6 +298,13 @@ static int __init mxc_init_fb(void)
 	return 0;
 }
 device_initcall(mxc_init_fb);
+
+static int __init dvi_setup(char *s)
+{
+	enable_dvi = 1;
+	return 1;
+}
+__setup("dvi", dvi_setup);
 
 static int __init vga_setup(char *__unused)
 {
