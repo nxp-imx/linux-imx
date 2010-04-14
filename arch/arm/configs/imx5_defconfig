@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # Linux kernel version: 2.6.31
-# Wed Apr 14 09:50:11 2010
+# Wed Apr 14 18:55:09 2010
 #
 CONFIG_ARM=y
 CONFIG_HAVE_PWM=y
@@ -1953,7 +1953,7 @@ CONFIG_ARM_UNWIND=y
 # CONFIG_KEYS is not set
 # CONFIG_SECURITY is not set
 # CONFIG_SECURITYFS is not set
-# CONFIG_SECURITY_FILE_CAPABILITIES is not set
+CONFIG_SECURITY_FILE_CAPABILITIES=y
 CONFIG_CRYPTO=y
 
 #
