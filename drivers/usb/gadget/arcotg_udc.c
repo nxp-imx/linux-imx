@@ -2198,14 +2198,14 @@ int usb_gadget_register_driver(struct usb_gadget_driver *driver)
 	udc_controller->driver = driver;
 	udc_controller->gadget.dev.driver = &driver->driver;
 	spin_unlock_irqrestore(&udc_controller->lock, flags);
-
+#ifndef CONFIG_USB_OTG
 	if (udc_controller->pdata->usb_clock_for_pm)
 		udc_controller->pdata->usb_clock_for_pm(true);
 
 	portsc = fsl_readl(&dr_regs->portsc1);
 	portsc &= ~PORTSCX_PHY_LOW_POWER_SPD;
 	fsl_writel(portsc, &dr_regs->portsc1);
-
+#endif
 	/* bind udc driver to gadget driver */
 	retval = driver->bind(&udc_controller->gadget);
 	if (retval) {
@@ -2869,7 +2869,7 @@ static int __init fsl_udc_probe(struct platform_device *pdev)
 #ifdef POSTPONE_FREE_LAST_DTD
 	last_free_td = NULL;
 #endif
-
+#ifndef CONFIG_USB_OTG
 	/* disable all INTR */
 	fsl_writel(0, &dr_regs->usbintr);
 
@@ -2882,7 +2882,7 @@ static int __init fsl_udc_probe(struct platform_device *pdev)
 
 	if (udc_controller->pdata->usb_clock_for_pm)
 		udc_controller->pdata->usb_clock_for_pm(false);
-
+#endif
 	create_proc_file();
 	return 0;
 
