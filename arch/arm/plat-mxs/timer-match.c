@@ -59,9 +59,27 @@ static int mxs_set_next_event(unsigned long delta,
 	    > 0 ? -ETIME : 0;
 }
 
+
 static void mxs_set_mode(enum clock_event_mode mode,
 			 struct clock_event_device *evt)
 {
+	switch (mode) {
+	case CLOCK_EVT_MODE_SHUTDOWN:
+	__raw_writel(BM_TIMROT_TIMCTRLn_IRQ_EN | BM_TIMROT_TIMCTRLn_IRQ,
+			online_timer->base  + HW_TIMROT_TIMCTRLn_CLR(0));
+	break;
+	case CLOCK_EVT_MODE_RESUME:
+	case CLOCK_EVT_MODE_ONESHOT:
+	__raw_writel(BM_TIMROT_ROTCTRL_SFTRST | BM_TIMROT_ROTCTRL_CLKGATE,
+			online_timer->base  + HW_TIMROT_ROTCTRL_CLR);
+	__raw_writel(BF_TIMROT_TIMCTRLn_SELECT(online_timer->clk_sel) |
+		     BM_TIMROT_TIMCTRLn_IRQ_EN |
+		     BM_TIMROT_TIMCTRLn_MATCH_MODE,
+		     online_timer->base + HW_TIMROT_TIMCTRLn(online_timer->id));
+	break;
+	default:
+	break;
+	}
 }
 
 static struct clock_event_device mxs_clockevent = {
@@ -142,3 +160,5 @@ void mxs_timer_init(struct mxs_sys_timer *timer)
 	mxs_clockevent_init(online_timer->clk);
 	setup_irq(online_timer->irq, &mxs_timer_irq);
 }
+
+

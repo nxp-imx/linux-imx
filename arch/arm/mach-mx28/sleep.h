@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2010 Freescale Semiconductor, Inc.
+ * Copyright (C) 2010 Freescale Semiconductor, Inc.
  * Copyright 2008 Embedded Alley Solutions, Inc All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
@@ -112,12 +112,12 @@ struct sleep_data {
 	u32		old_c04;
 };
 
-extern int mx23_s2ram_alloc_sz;
-void mx23_cpu_suspend(void);
-extern int mx23_standby_alloc_sz;
-void mx23_cpu_standby(void);
-void mxs_nomatch_suspend_timer(void);
-void mxs_nomatch_resume_timer(void);
+extern int mx2_s2ram_alloc_sz;
+void mx28_cpu_suspend(void);
+extern int mx28_standby_alloc_sz;
+void mx28_cpu_standby(void);
+void mxs_suspend_timer(void);
+void mxs_resume_timer(void);
 
 void *iram_alloc(unsigned int size, unsigned long *dma_addr);
 void iram_free(unsigned long addr, unsigned int size);

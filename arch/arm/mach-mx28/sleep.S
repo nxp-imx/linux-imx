@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2010 Freescale Semiconductor, Inc.
+ * Copyright (C) 2010 Freescale Semiconductor, Inc.
  * Copyright 2008 Embedded Alley Solutions, Inc All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
@@ -24,21 +24,23 @@
 #include <asm/pgtable-hwdef.h>
 #include <mach/hardware.h>
 #include <mach/regs-power.h>
+#include <mach/regs-rtc.h>
 #include "regs-clkctrl.h"
+#include "regs-dram.h"
 #include "sleep.h"
 
+#define BM_DRAM_CTL17_SREFRESH	0x00000001
 #define HW_CLKCTRL_CPU_ADDR \
-	(MX23_SOC_IO_ADDRESS(CLKCTRL_PHYS_ADDR) + HW_CLKCTRL_CPU)
+	(MX28_SOC_IO_ADDRESS(CLKCTRL_PHYS_ADDR) + HW_CLKCTRL_CPU)
 #define HW_POWER_MINPWR_ADDR \
-	(MX23_SOC_IO_ADDRESS(POWER_PHYS_ADDR) + HW_POWER_MINPWR)
+	(MX28_SOC_IO_ADDRESS(POWER_PHYS_ADDR) + HW_POWER_MINPWR)
 #define HW_POWER_RESET_ADDR \
-	(MX23_SOC_IO_ADDRESS(POWER_PHYS_ADDR) + HW_POWER_RESET)
+	(MX28_SOC_IO_ADDRESS(POWER_PHYS_ADDR) + HW_POWER_RESET)
 
-#define HW_DRAM_CTL06	MX23_SOC_IO_ADDRESS(0x800E0018)
-#define HW_DRAM_CTL08	MX23_SOC_IO_ADDRESS(0x800E0020)
-#define HW_EMI_STAT	MX23_SOC_IO_ADDRESS(0x80020010)
-#define HW_RTC_PERSISTENT0 \
-			MX23_SOC_IO_ADDRESS(0x8005C060)
+#define HW_DRAM_CTL17_ADDR \
+	(MX28_SOC_IO_ADDRESS(DRAM_PHYS_ADDR) + HW_DRAM_CTL17)
+#define HW_RTC_PERSISTENT0_ADDR \
+	(MX28_SOC_IO_ADDRESS(RTC_PHYS_ADDR) + HW_RTC_PERSISTENT0)
 
 #define PHYS_RAM_START		0x40000000
 
@@ -47,97 +49,26 @@
 		.text
 
 .align 8
-ENTRY(mx23_cpu_standby)
+ENTRY(mx28_cpu_standby)
 	@ save registers on stack
 	stmfd	sp!, {r0 - r9, lr}
 
-	adr	r9, __mx23_temp_stack
+	adr	r9, __mx28_temp_stack
 
 	@ clean cache
-	ldr	r1, __mx23_flush_cache_addr
+	ldr	r1, __mx28_flush_cache_addr
 	mov	lr, pc
 	mov	pc, r1
 
 	@ put DRAM into self refresh
-	mov	r0, #(HW_DRAM_CTL08 & 0x000000FF)
-	orr	r0, r0, #(HW_DRAM_CTL08 & 0x0000FF00)
-	orr	r0, r0, #(HW_DRAM_CTL08 & 0x00FF0000)
-	orr	r0, r0, #(HW_DRAM_CTL08 & 0xFF000000)
+	mov	r0, #(HW_DRAM_CTL17_ADDR & 0x000000FF)
+	orr	r0, r0, #(HW_DRAM_CTL17_ADDR & 0x0000FF00)
+	orr	r0, r0, #(HW_DRAM_CTL17_ADDR & 0x00FF0000)
+	orr	r0, r0, #(HW_DRAM_CTL17_ADDR & 0xFF000000)
 	ldr	r1, [r0]
-	orr	r1, r1, #(1 << 8)
+	orr	r1, r1, #(BM_DRAM_CTL17_SREFRESH)
 	str	r1, [r0]
 	@ wait for it to actually happen
-	mov	r0, #(HW_EMI_STAT & 0x000000FF)
-	orr	r0, r0, #(HW_EMI_STAT & 0x0000FF00)
-	orr	r0, r0, #(HW_EMI_STAT & 0x00FF0000)
-	orr	r0, r0, #(HW_EMI_STAT & 0xFF000000)
-1:	ldr	r1, [r0]
-	teq	r1, #(1 << 1)
-	beq	1b
-	nop
-	nop
-	nop
-	nop
-	nop
-
-#ifdef CONFIG_STMP378X_RAM_FREQ_SCALING
-	@ RAM to clk from xtal
-	mov	lr, pc
-	b	mx23_ram_save_timings
-	mov	lr, pc
-	b	mx23_ram_24M_set_timings
-
-	mov	r0, #(HW_CLKCTRL_CLKSEQ_ADDR & 0x000000FF)
-	orr	r0, r0, #(HW_CLKCTRL_CLKSEQ_ADDR & 0x0000FF00)
-	orr	r0, r0, #(HW_CLKCTRL_CLKSEQ_ADDR & 0x00FF0000)
-	orr	r0, r0, #(HW_CLKCTRL_CLKSEQ_ADDR & 0xFF000000)
-	ldr	r4, [r0]
-	mov	r1, #(1<<6)
-	str	r1, [r0, #4]
-1:	ldr	r1, [r0]
-	tst	r1, #BM_CLKCTRL_EMI_BUSY_REF_XTAL
-	bne	1b
-
-	@ save RAM divisors
-	mov	r0, #(HW_CLKCTRL_FRAC_ADDR & 0x000000FF)
-	orr	r0, r0, #(HW_CLKCTRL_FRAC_ADDR & 0x0000FF00)
-	orr	r0, r0, #(HW_CLKCTRL_FRAC_ADDR & 0x00FF0000)
-	orr	r0, r0, #(HW_CLKCTRL_FRAC_ADDR & 0xFF000000)
-	ldr	r8, [r0]
-	and	r8, r8, #(0x3F << 8)
-	lsr	r8, r8, #8
-	mov	r0, #(HW_CLKCTRL_EMI_ADDR & 0x000000FF)
-	orr	r0, r0, #(HW_CLKCTRL_EMI_ADDR & 0x0000FF00)
-	orr	r0, r0, #(HW_CLKCTRL_EMI_ADDR & 0x00FF0000)
-	orr	r0, r0, #(HW_CLKCTRL_EMI_ADDR & 0xFF000000)
-	ldr	r7, [r0]
-	and	r7, r7, #0x3F
-
-	@ shut the PLL down
-	mov	r0, #(HW_CLKCTRL_PLLCTRL0_ADDR & 0x000000FF)
-	orr	r0, r0, #(HW_CLKCTRL_PLLCTRL0_ADDR & 0x0000FF00)
-	orr	r0, r0, #(HW_CLKCTRL_PLLCTRL0_ADDR & 0x00FF0000)
-	orr	r0, r0, #(HW_CLKCTRL_PLLCTRL0_ADDR & 0xFF000000)
-	mov	r1, #(1<<16)
-	str	r1, [r0, #0x08]	@ clear
-
-	@ set vddd to minimum
-	mov	r0, #(HW_POWER_VDDDCTRL_ADDR & 0x000000FF)
-	orr	r0, r0, #(HW_POWER_VDDDCTRL_ADDR & 0x0000FF00)
-	orr	r0, r0, #(HW_POWER_VDDDCTRL_ADDR & 0x00FF0000)
-	orr	r0, r0, #(HW_POWER_VDDDCTRL_ADDR & 0xFF000000)
-	ldr	r6, [r0]
-	bic	r1, r6, #0xFF
-	bic	r1, r1, #0x30
-	orr	r1, r1, #0xa
-	str	r1, [r0]
-	/* now wait 1000 us = 24000 cycles */
-	mov	r0, #24 << 10
-3:	sub	r0, r0, #1
-	cmp	r0, #0
-	bne	3b
-	nop
-#endif
 
 	@ do enter standby
 	mov	r0, #(HW_CLKCTRL_CPU_ADDR & 0x000000FF)
@@ -158,73 +89,15 @@ ENTRY(mx23_cpu_standby)
 	nop
 	nop
 
-#ifdef CONFIG_STMP378X_RAM_FREQ_SCALING
-	@ restore vddd
-	mov	r0, #(HW_POWER_VDDDCTRL_ADDR & 0x000000FF)
-	orr	r0, r0, #(HW_POWER_VDDDCTRL_ADDR & 0x0000FF00)
-	orr	r0, r0, #(HW_POWER_VDDDCTRL_ADDR & 0x00FF0000)
-	orr	r0, r0, #(HW_POWER_VDDDCTRL_ADDR & 0xFF000000)
-	ldr	r1, [r0]
-	str	r6, [r0]
-	/* now wait 1000 us = 24000 cycles */
-	mov	r0, #24 << 10
-12:	sub	r0, r0, #1
-	cmp	r0, #0
-	bne	12b
-	nop
-
-	@ put the PLL back up
-	mov	r0, #(HW_CLKCTRL_PLLCTRL0_ADDR & 0x000000FF)
-	orr	r0, r0, #(HW_CLKCTRL_PLLCTRL0_ADDR & 0x0000FF00)
-	orr	r0, r0, #(HW_CLKCTRL_PLLCTRL0_ADDR & 0x00FF0000)
-	orr	r0, r0, #(HW_CLKCTRL_PLLCTRL0_ADDR & 0xFF000000)
-	mov	r1, #(1<<16)
-	str	r1, [r0, #0x04]	@ set
-	/* now wait 10 us = 240 cycles */
-	mov	r0, #240
-11:	sub	r0, r0, #1
-	cmp	r0, #0
-	bne	11b
-	nop
-
-	@ set divisors and switch EMI back to PLL
-	mov	lr, pc
-	b	mx23_ram_restore_timings
-	mov	lr, pc
-	b	__mx23_emi_set_values
-
-	mov	r0, #(HW_CLKCTRL_CLKSEQ_ADDR & 0x000000FF)
-	orr	r0, r0, #(HW_CLKCTRL_CLKSEQ_ADDR & 0x0000FF00)
-	orr	r0, r0, #(HW_CLKCTRL_CLKSEQ_ADDR & 0x00FF0000)
-	orr	r0, r0, #(HW_CLKCTRL_CLKSEQ_ADDR & 0xFF000000)
-	mov	r1, #(1<<6)
-	str	r1, [r0, #8]
-
-	mov	r0, #(HW_CLKCTRL_EMI_ADDR & 0x000000FF)
-	orr	r0, r0, #(HW_CLKCTRL_EMI_ADDR & 0x0000FF00)
-	orr	r0, r0, #(HW_CLKCTRL_EMI_ADDR & 0x00FF0000)
-	orr	r0, r0, #(HW_CLKCTRL_EMI_ADDR & 0xFF000000)
-	ldr	r1, [r0]
-	bic	r1, #BM_CLKCTRL_EMI_DCC_RESYNC_ENABLE
-	str	r1, [r0]
-#endif
-
 	@ restore normal DRAM mode
-	mov	r0, #(HW_DRAM_CTL08 & 0x000000FF)
-	orr	r0, r0, #(HW_DRAM_CTL08 & 0x0000FF00)
-	orr	r0, r0, #(HW_DRAM_CTL08 & 0x00FF0000)
-	orr	r0, r0, #(HW_DRAM_CTL08 & 0xFF000000)
+	mov	r0, #(HW_DRAM_CTL17_ADDR & 0x000000FF)
+	orr	r0, r0, #(HW_DRAM_CTL17_ADDR & 0x0000FF00)
+	orr	r0, r0, #(HW_DRAM_CTL17_ADDR & 0x00FF0000)
+	orr	r0, r0, #(HW_DRAM_CTL17_ADDR & 0xFF000000)
 	ldr	r1, [r0]
-	bic	r1, r1, #(1 << 8)
+	bic	r1, r1, #BM_DRAM_CTL17_SREFRESH
 	str	r1, [r0]
 	@ wait for it to actually happen
-	mov	r0, #(HW_EMI_STAT & 0x000000FF)
-	orr	r0, r0, #(HW_EMI_STAT & 0x0000FF00)
-	orr	r0, r0, #(HW_EMI_STAT & 0x00FF0000)
-	orr	r0, r0, #(HW_EMI_STAT & 0xFF000000)
-102:	ldr	r1, [r0]
-	tst	r1, #(1 << 1)
-	bne	102b
 
 	nop
 	nop
@@ -234,20 +107,20 @@ ENTRY(mx23_cpu_standby)
 	ldmfd   sp!, {r0 - r9, pc}
 
 	.space	0x100
-__mx23_temp_stack:
+__mx28_temp_stack:
 	.word	0
 
 #ifdef CONFIG_STMP378X_RAM_FREQ_SCALING
 #include "emi.inc"
 #endif
 
-__mx23_flush_cache_addr:
+__mx28_flush_cache_addr:
 	.word	arm926_flush_kern_cache_all
 
-ENTRY(mx23_standby_alloc_sz)
-	.word	. - mx23_cpu_standby
+ENTRY(mx28_standby_alloc_sz)
+	.word	. - mx28_cpu_standby
 
-ENTRY(mx23_cpu_suspend)
+ENTRY(mx28_cpu_suspend)
 	@ save registers on stack
 	stmfd	sp!, {r1 - r12, lr}
 
@@ -308,13 +181,13 @@ ENTRY(mx23_cpu_suspend)
 	sub	r1, r1, #(0xC0000000 - PHYS_RAM_START)
 	mov	r0, #0xC0000000
 	str	r1, [r0]
-	ldr	r1, __mx23_resume_point
+	ldr	r1, __mx28_resume_point
 	sub	r1, r1, #(0xC0000000 - PHYS_RAM_START)
 	str	r1, [r0, #4]
 	mov	r0, #0
 
 	@ clean cache
-	ldr	r1, __mx23_flush_cache_addr2
+	ldr	r1, __mx28_flush_cache_addr2
 	mov	lr, pc
 	mov	pc, r1
 
@@ -330,29 +203,23 @@ ENTRY(mx23_cpu_suspend)
 	str	r1, [r2]
 
 	@ enable RTC/RAM clocks
-	mov	r0, #(HW_RTC_PERSISTENT0 & 0x000000FF)
-	orr	r0, r0, #(HW_RTC_PERSISTENT0 & 0x0000FF00)
-	orr	r0, r0, #(HW_RTC_PERSISTENT0 & 0x00FF0000)
-	orr	r0, r0, #(HW_RTC_PERSISTENT0 & 0xFF000000)
+	mov	r0, #(HW_RTC_PERSISTENT0_ADDR & 0x000000FF)
+	orr	r0, r0, #(HW_RTC_PERSISTENT0_ADDR & 0x0000FF00)
+	orr	r0, r0, #(HW_RTC_PERSISTENT0_ADDR & 0x00FF0000)
+	orr	r0, r0, #(HW_RTC_PERSISTENT0_ADDR & 0xFF000000)
 	mov	r1, #((1<<4)|(1<<5)|1)
 	str	r1, [r0, #4]
 
 	@ put DRAM into self refresh
-	mov	r0, #(HW_DRAM_CTL08 & 0x000000FF)
-	orr	r0, r0, #(HW_DRAM_CTL08 & 0x0000FF00)
-	orr	r0, r0, #(HW_DRAM_CTL08 & 0x00FF0000)
-	orr	r0, r0, #(HW_DRAM_CTL08 & 0xFF000000)
+	mov	r0, #(HW_DRAM_CTL17_ADDR & 0x000000FF)
+	orr	r0, r0, #(HW_DRAM_CTL17_ADDR & 0x0000FF00)
+	orr	r0, r0, #(HW_DRAM_CTL17_ADDR & 0x00FF0000)
+	orr	r0, r0, #(HW_DRAM_CTL17_ADDR & 0xFF000000)
 	ldr	r1, [r0]
-	orr	r1, r1, #(1 << 8)
+	orr	r1, r1, #(BM_DRAM_CTL17_SREFRESH)
 	str	r1, [r0]
+
 	@ wait for it to actually happen
-	mov	r0, #(HW_EMI_STAT & 0x000000FF)
-	orr	r0, r0, #(HW_EMI_STAT & 0x0000FF00)
-	orr	r0, r0, #(HW_EMI_STAT & 0x00FF0000)
-	orr	r0, r0, #(HW_EMI_STAT & 0xFF000000)
-1:	ldr	r1, [r0]
-	teq	r1, #(1 << 1)
-	beq	1b
 	nop
 	nop
 	nop
@@ -361,10 +228,10 @@ ENTRY(mx23_cpu_suspend)
 	nop
 
 	@ power off RAM
-	mov	r0, #(HW_DRAM_CTL06 & 0x000000FF)
-	orr	r0, r0, #(HW_DRAM_CTL06 & 0x0000FF00)
-	orr	r0, r0, #(HW_DRAM_CTL06 & 0x00FF0000)
-	orr	r0, r0, #(HW_DRAM_CTL06 & 0xFF000000)
+	mov	r0, #(HW_DRAM_CTL17_ADDR & 0x000000FF)
+	orr	r0, r0, #(HW_DRAM_CTL17_ADDR & 0x0000FF00)
+	orr	r0, r0, #(HW_DRAM_CTL17_ADDR & 0x00FF0000)
+	orr	r0, r0, #(HW_DRAM_CTL17_ADDR & 0xFF000000)
 	ldr	r1, [r0]
 	orr	r1, r1, #(1<<24)
 	str	r1, [r0]
@@ -505,12 +372,12 @@ __resume_after_mmu:
 	ldmfd   sp!, {r1 - r12, lr}
 	mov	pc, lr
 
-__mx23_flush_cache_addr2:
+__mx28_flush_cache_addr2:
 	.word	arm926_flush_kern_cache_all
-__mx23_resume_point:
+__mx28_resume_point:
 	.word	__restore_context
-ENTRY(mx23_s2ram_alloc_sz)
-	.word	. - mx23_cpu_suspend
+ENTRY(mx28_s2ram_alloc_sz)
+	.word	. - mx28_cpu_suspend
 
 __create_temp_page_tables:
 	ldr	r4, =(__temp_ttb - 0xC0000000 + PHYS_RAM_START)
