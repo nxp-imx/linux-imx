@@ -28,6 +28,7 @@
 #include <linux/mmc/host.h>
 #include <linux/phy.h>
 #include <linux/fec.h>
+#include <linux/gpmi-nfc.h>
 
 #include <asm/mach/map.h>
 
@@ -328,75 +329,92 @@ static void __init mx28_init_i2c(void)
 }
 #endif
 
-
-#if defined(CONFIG_MTD_NAND_GPMI1)
+#if defined(CONFIG_MTD_NAND_GPMI_NFC)
 
 extern int enable_gpmi;
 
-static int gpmi_pinmux_handler(void)
+static int gpmi_nfc_platform_init(unsigned int max_chip_count)
 {
 	return !enable_gpmi;
 }
 
-static const char *gpmi_partition_source_types[] = { "cmdlinepart", 0 };
+static void gpmi_nfc_platform_exit(unsigned int max_chip_count)
+{
+}
 
-static struct gpmi_platform_data  gpmi_platform_data = {
-	.io_uA                   = 70000,
+static const char *gpmi_nfc_partition_source_types[] = { "cmdlinepart", 0 };
+
+static struct gpmi_nfc_platform_data  gpmi_nfc_platform_data = {
+	.nfc_version             = 1,
+	.boot_rom_version        = 1,
+	.clock_name              = "gpmi",
+	.platform_init           = gpmi_nfc_platform_init,
+	.platform_exit           = gpmi_nfc_platform_exit,
 	.min_prop_delay_in_ns    = 5,
 	.max_prop_delay_in_ns    = 9,
-	.pinmux_handler          = gpmi_pinmux_handler,
+	.max_chip_count          = 2,
 	.boot_area_size_in_bytes = 20 * SZ_1M,
+	.partition_source_types  = gpmi_nfc_partition_source_types,
 	.partitions              = 0,
 	.partition_count         = 0,
-	.partition_source_types  = gpmi_partition_source_types,
 };
 
-static struct resource gpmi_resources[] = {
+static struct resource gpmi_nfc_resources[] = {
 	{
+	 .name  = GPMI_NFC_GPMI_REGS_ADDR_RES_NAME,
 	 .flags = IORESOURCE_MEM,
 	 .start = GPMI_PHYS_ADDR,
 	 .end   = GPMI_PHYS_ADDR + SZ_8K - 1,
 	 },
 	{
+	 .name  = GPMI_NFC_GPMI_INTERRUPT_RES_NAME,
 	 .flags = IORESOURCE_IRQ,
-	 .start = IRQ_GPMI_DMA,
-	 .end   = IRQ_GPMI_DMA,
-	 },
+	 .start = IRQ_GPMI,
+	 .end   = IRQ_GPMI,
+	},
 	{
-	 .flags = IORESOURCE_DMA,
-	 .start	= MXS_DMA_CHANNEL_AHB_APBH_GPMI0,
-	 .end	= MXS_DMA_CHANNEL_AHB_APBH_GPMI7,
-	 },
-	{
+	 .name  = GPMI_NFC_BCH_REGS_ADDR_RES_NAME,
 	 .flags = IORESOURCE_MEM,
 	 .start = BCH_PHYS_ADDR,
 	 .end   = BCH_PHYS_ADDR + SZ_8K - 1,
 	 },
 	{
+	 .name  = GPMI_NFC_BCH_INTERRUPT_RES_NAME,
 	 .flags = IORESOURCE_IRQ,
 	 .start = IRQ_BCH,
 	 .end   = IRQ_BCH,
 	 },
+	{
+	 .name  = GPMI_NFC_DMA_CHANNELS_RES_NAME,
+	 .flags = IORESOURCE_DMA,
+	 .start	= MXS_DMA_CHANNEL_AHB_APBH_GPMI0,
+	 .end	= MXS_DMA_CHANNEL_AHB_APBH_GPMI7,
+	 },
+	{
+	 .name  = GPMI_NFC_DMA_INTERRUPT_RES_NAME,
+	 .flags = IORESOURCE_IRQ,
+	 .start = IRQ_GPMI_DMA,
+	 .end   = IRQ_GPMI_DMA,
+	},
 };
 
-static void __init mx28_init_gpmi(void)
+static void __init mx28_init_gpmi_nfc(void)
 {
 	struct platform_device  *pdev;
 
-	pdev = mxs_get_device("gpmi", 0);
+	pdev = mxs_get_device(GPMI_NFC_DRIVER_NAME, 0);
 	if (pdev == NULL || IS_ERR(pdev))
 		return;
-	pdev->dev.platform_data = &gpmi_platform_data;
-	pdev->resource          = gpmi_resources;
-	pdev->num_resources     = ARRAY_SIZE(gpmi_resources);
+	pdev->dev.platform_data = &gpmi_nfc_platform_data;
+	pdev->resource          =  gpmi_nfc_resources;
+	pdev->num_resources     = ARRAY_SIZE(gpmi_nfc_resources);
 	mxs_add_device(pdev, 1);
 }
 #else
-static void mx28_init_gpmi(void)
+static void mx28_init_gpmi_nfc(void)
 {
 }
 #endif
-
 
 #if defined(CONFIG_MMC_MXS) || defined(CONFIG_MMC_MXS_MODULE)
 #if defined(CONFIG_MACH_MX28EVK)
@@ -1220,7 +1238,7 @@ int __init mx28_device_init(void)
 	mx28_init_lradc();
 	mx28_init_auart();
 	mx28_init_mmc();
-	mx28_init_gpmi();
+	mx28_init_gpmi_nfc();
 	mx28_init_wdt();
 	mx28_init_rtc();
 	mx28_init_fec();

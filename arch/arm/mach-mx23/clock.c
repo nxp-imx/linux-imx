@@ -1079,6 +1079,98 @@ static unsigned long ssp_get_rate(struct clk *clk)
 	return clk->parent->get_rate(clk->parent) / reg;
 }
 
+static unsigned long gpmi_get_rate(struct clk *clk)
+{
+	unsigned int reg;
+	reg = __raw_readl(CLKCTRL_BASE_ADDR + HW_CLKCTRL_GPMI) &
+		    BM_CLKCTRL_GPMI_DIV;
+
+	return clk->parent->get_rate(clk->parent) / reg;
+}
+
+static int gpmi_set_rate(struct clk *clk, unsigned long rate)
+{
+	int ret = -EINVAL;
+	int div = (clk_get_rate(clk->parent) + rate - 1) / rate;
+	u32 reg_frac;
+	const int mask = (BM_CLKCTRL_GPMI_DIV >> clk->scale_bits);
+	int try = 10;
+	int i = -1;
+
+	if (div == 0 || div > mask)
+		goto out;
+
+	reg_frac  = __raw_readl(clk->scale_reg);
+	reg_frac &= ~(mask << clk->scale_bits);
+
+	while (try--) {
+		__raw_writel(reg_frac | (div << clk->scale_bits),
+								clk->scale_reg);
+
+		if (clk->busy_reg) {
+			for (i = 10000; i; i--)
+				if (!clk_is_busy(clk))
+					break;
+		}
+		if (i)
+			break;
+	}
+
+	if (!i)
+		ret = -ETIMEDOUT;
+	else
+		ret = 0;
+
+out:
+	if (ret != 0)
+		printk(KERN_ERR "%s: error %d\n", __func__, ret);
+	return ret;
+}
+
+static int gpmi_set_parent(struct clk *clk, struct clk *parent)
+{
+	int ret = -EINVAL;
+
+	if (clk->bypass_reg) {
+		if (clk->parent == parent)
+			return 0;
+		if (parent == &ref_io_clk)
+			__raw_writel(1 << clk->bypass_bits,
+					clk->bypass_reg + CLR_REGISTER);
+		else
+			__raw_writel(1 << clk->bypass_bits,
+					clk->bypass_reg + SET_REGISTER);
+		clk->parent = parent;
+		ret = 0;
+	}
+
+	return ret;
+}
+
+static struct clk gpmi_clk = {
+	.parent		= &ref_io_clk,
+	.secondary      = 0,
+	.flags          = 0,
+	.set_parent     = gpmi_set_parent,
+
+	.enable_reg     = CLKCTRL_BASE_ADDR + HW_CLKCTRL_GPMI,
+	.enable_bits    = BM_CLKCTRL_GPMI_CLKGATE,
+	.enable         = mx23_raw_enable,
+	.disable        = mx23_raw_disable,
+
+	.scale_reg      = CLKCTRL_BASE_ADDR + HW_CLKCTRL_GPMI,
+	.scale_bits     = 0,
+	.round_rate     = 0,
+	.set_rate       = gpmi_set_rate,
+	.get_rate       = gpmi_get_rate,
+
+	.bypass_reg     = CLKCTRL_BASE_ADDR + HW_CLKCTRL_CLKSEQ,
+	.bypass_bits    = 4,
+
+	.busy_reg       = CLKCTRL_BASE_ADDR + HW_CLKCTRL_GPMI,
+	.busy_bits      = 29,
+};
+
 static unsigned long pcmspdif_get_rate(struct clk *clk)
 {
 	return clk->parent->get_rate(clk->parent) / 4;
@@ -1245,7 +1337,11 @@ static struct clk_lookup onchip_clocks[] = {
 	{
 	 .con_id = "tv27M",
 	 .clk = &tv27M_clk,
-	}
+	},
+	{
+	 .con_id = "gpmi",
+	 .clk = &gpmi_clk,
+	},
 };
 
 
@@ -1259,6 +1355,8 @@ static void mx23_clock_scan(void)
 		emi_clk.parent = &ref_xtal_clk;
 	if (reg & BM_CLKCTRL_CLKSEQ_BYPASS_SSP)
 		ssp_clk.parent = &ref_xtal_clk;
+	if (reg & BM_CLKCTRL_CLKSEQ_BYPASS_GPMI)
+		gpmi_clk.parent = &ref_xtal_clk;
 };
 
 

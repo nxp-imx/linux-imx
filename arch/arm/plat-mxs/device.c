@@ -24,6 +24,7 @@
 #include <linux/bitops.h>
 #include <linux/platform_device.h>
 #include <linux/dma-mapping.h>
+#include <linux/gpmi-nfc.h>
 
 #include <mach/device.h>
 
@@ -138,10 +139,10 @@ static struct platform_device mxs_i2c[] = {
 };
 #endif
 
-#if defined(CONFIG_MTD_NAND_GPMI1) || \
-	defined(CONFIG_MTD_NAND_GPMI1_MODULE)
-static struct platform_device mxs_gpmi = {
-	.name = "gpmi",
+#if defined(CONFIG_MTD_NAND_GPMI_NFC) || \
+	defined(CONFIG_MTD_NAND_GPMI_NFC_MODULE)
+static struct platform_device gpmi_nfc = {
+	.name = GPMI_NFC_DRIVER_NAME,
 	.id = 0,
 	.dev = {
 		.dma_mask          = &common_dmamask,
@@ -496,12 +497,12 @@ static struct mxs_dev_lookup dev_lookup[] = {
 	 },
 #endif
 
-#if defined(CONFIG_MTD_NAND_GPMI1) || \
-	defined(CONFIG_MTD_NAND_GPMI1_MODULE)
+#if defined(CONFIG_MTD_NAND_GPMI_NFC) || \
+	defined(CONFIG_MTD_NAND_GPMI_NFC_MODULE)
 	{
-	.name = "gpmi",
+	.name = GPMI_NFC_DRIVER_NAME,
 	.size = 1,
-	.pdev = &mxs_gpmi,
+	.pdev = &gpmi_nfc,
 	},
 #endif
 

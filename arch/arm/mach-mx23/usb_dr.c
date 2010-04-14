@@ -27,7 +27,7 @@
 #include "usb.h"
 #include "mx23_pins.h"
 
-#define USB_POWER_ENABLE MXS_PIN_TO_GPIO(PINID_GMPI_CE2N)
+#define USB_POWER_ENABLE MXS_PIN_TO_GPIO(PINID_GPMI_CE2N)
 #define USB_ID_PIN	 MXS_PIN_TO_GPIO(PINID_ROTARYA)
 
 static void usb_host_phy_resume(struct fsl_usb2_platform_data *plat)

@@ -28,6 +28,7 @@
 #include <linux/mmc/host.h>
 #include <linux/phy.h>
 #include <linux/fec.h>
+#include <linux/gpmi-nfc.h>
 
 #include <asm/mach/map.h>
 
@@ -511,6 +512,91 @@ static void __init mx23_init_dcp(void)
 }
 #endif
 
+#if defined(CONFIG_MTD_NAND_GPMI_NFC)
+
+static int gpmi_nfc_platform_init(unsigned int max_chip_count)
+{
+	return 0;
+}
+
+static void gpmi_nfc_platform_exit(unsigned int max_chip_count)
+{
+}
+
+static const char *gpmi_nfc_partition_source_types[] = { "cmdlinepart", 0 };
+
+static struct gpmi_nfc_platform_data  gpmi_nfc_platform_data = {
+	.nfc_version             = 0,
+	.boot_rom_version        = 0,
+	.clock_name              = "gpmi",
+	.platform_init           = gpmi_nfc_platform_init,
+	.platform_exit           = gpmi_nfc_platform_exit,
+	.min_prop_delay_in_ns    = 5,
+	.max_prop_delay_in_ns    = 9,
+	.max_chip_count          = 2,
+	.boot_area_size_in_bytes = 20 * SZ_1M,
+	.partition_source_types  = gpmi_nfc_partition_source_types,
+	.partitions              = 0,
+	.partition_count         = 0,
+};
+
+static struct resource gpmi_nfc_resources[] = {
+	{
+	 .name  = GPMI_NFC_GPMI_REGS_ADDR_RES_NAME,
+	 .flags = IORESOURCE_MEM,
+	 .start = GPMI_PHYS_ADDR,
+	 .end   = GPMI_PHYS_ADDR + SZ_8K - 1,
+	 },
+	{
+	 .name  = GPMI_NFC_GPMI_INTERRUPT_RES_NAME,
+	 .flags = IORESOURCE_IRQ,
+	 .start = IRQ_GPMI_ATTENTION,
+	 .end   = IRQ_GPMI_ATTENTION,
+	},
+	{
+	 .name  = GPMI_NFC_BCH_REGS_ADDR_RES_NAME,
+	 .flags = IORESOURCE_MEM,
+	 .start = BCH_PHYS_ADDR,
+	 .end   = BCH_PHYS_ADDR + SZ_8K - 1,
+	 },
+	{
+	 .name  = GPMI_NFC_BCH_INTERRUPT_RES_NAME,
+	 .flags = IORESOURCE_IRQ,
+	 .start = IRQ_BCH,
+	 .end   = IRQ_BCH,
+	 },
+	{
+	 .name  = GPMI_NFC_DMA_CHANNELS_RES_NAME,
+	 .flags = IORESOURCE_DMA,
+	 .start	= MXS_DMA_CHANNEL_AHB_APBH_GPMI0,
+	 .end	= MXS_DMA_CHANNEL_AHB_APBH_GPMI3,
+	 },
+	{
+	 .name  = GPMI_NFC_DMA_INTERRUPT_RES_NAME,
+	 .flags = IORESOURCE_IRQ,
+	 .start = IRQ_GPMI_DMA,
+	 .end   = IRQ_GPMI_DMA,
+	},
+};
+
+static void __init mx23_init_gpmi_nfc(void)
+{
+	struct platform_device  *pdev;
+
+	pdev = mxs_get_device(GPMI_NFC_DRIVER_NAME, 0);
+	if (pdev == NULL || IS_ERR(pdev))
+		return;
+	pdev->dev.platform_data = &gpmi_nfc_platform_data;
+	pdev->resource          =  gpmi_nfc_resources;
+	pdev->num_resources     = ARRAY_SIZE(gpmi_nfc_resources);
+	mxs_add_device(pdev, 1);
+}
+#else
+static void mx23_init_gpmi_nfc(void)
+{
+}
+#endif
+
 #if defined(CONFIG_MMC_MXS) || defined(CONFIG_MMC_MXS_MODULE)
 static unsigned long mxs_mmc_setclock_mmc0(unsigned long hz)
 {
@@ -862,6 +948,7 @@ int __init mx23_device_init(void)
 	mx23_init_rtc();
 	mx23_init_dcp();
 	mx23_init_ssp1();
+	mx23_init_gpmi_nfc();
 	mx23_init_spdif();
 	mx23_init_lcdif();
 	mx23_init_pxp();
