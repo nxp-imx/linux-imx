@@ -29,9 +29,17 @@
 
 static int get_voltage(struct mxs_regulator *sreg)
 {
+	int uv;
 	struct mxs_platform_regulator_data *rdata = sreg->rdata;
 	u32 val = __raw_readl(rdata->control_reg) & 0x1f;
-	int uv  = rdata->min_voltage + val *
+	if (sreg->rdata->control_reg ==
+		(u32)(REGS_POWER_BASE + HW_POWER_VDDIOCTRL)) {
+		if (val > 0x10)
+			val = 0x10;
+		uv = rdata->min_voltage + val * 50000;
+		pr_info("vddio = %d, val=%u\n", uv, val);
+	} else
+		uv = rdata->min_voltage + val *
 		  (rdata->max_voltage - rdata->min_voltage) / 0x1f;
 	return uv;
 }
@@ -59,7 +67,11 @@ static int set_voltage(struct mxs_regulator *sreg, int uv)
 	if (uv < sreg->rdata->min_voltage || uv > sreg->rdata->max_voltage)
 		return -EINVAL;
 
-	val = (uv - sreg->rdata->min_voltage) * 0x1f /
+	if (sreg->rdata->control_reg ==
+		(u32)(REGS_POWER_BASE + HW_POWER_VDDIOCTRL))
+		val = (uv - sreg->rdata->min_voltage) / 50000;
+	else
+		val = (uv - sreg->rdata->min_voltage) * 0x1f /
 			(sreg->rdata->max_voltage - sreg->rdata->min_voltage);
 	reg = (__raw_readl(sreg->rdata->control_reg) & ~0x1f);
 	pr_debug("%s: calculated val %d\n", __func__, val);
@@ -221,6 +233,7 @@ static struct mxs_platform_regulator_data vdda_data = {
 	.max_voltage	= 2275000,
 };
 
+#define MX28EVK_VDDIO_OFFSET 80000
 static struct mxs_platform_regulator_data vddio_data = {
 	.name		= "vddio",
 	.set_voltage	= set_voltage,
@@ -231,8 +244,8 @@ static struct mxs_platform_regulator_data vddio_data = {
 	.set_mode	= set_mode,
 	.get_mode	= get_mode,
 	.control_reg	= (u32)(REGS_POWER_BASE + HW_POWER_VDDIOCTRL),
-	.min_voltage	= 2800000,
-	.max_voltage	= 3575000,
+	.min_voltage	= 2800000 + MX28EVK_VDDIO_OFFSET,
+	.max_voltage	= 3600000 + MX28EVK_VDDIO_OFFSET,
 };
 
 static struct regulator_init_data vddd_init = {
@@ -282,8 +295,8 @@ static struct regulator_init_data vdda_init = {
 static struct regulator_init_data vddio_init = {
 	.constraints = {
 		.name			= "vddio",
-		.min_uV			= 2800000,
-		.max_uV			= 3575000,
+		.min_uV			= 2800000 + MX28EVK_VDDIO_OFFSET,
+		.max_uV			= 3600000 + MX28EVK_VDDIO_OFFSET,
 		.valid_modes_mask	= REGULATOR_MODE_FAST |
 					  REGULATOR_MODE_NORMAL,
 		.valid_ops_mask		= REGULATOR_CHANGE_VOLTAGE |
