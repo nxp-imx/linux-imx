@@ -135,6 +135,9 @@ struct mxs_mmc_host {
 	u32 status;
 	int read_uA, write_uA;
 	struct regulator *regulator;	/*! Regulator */
+
+	spinlock_t lock;
+	int sdio_irq_en;
 };
 
 /* Return read only state of card */
@@ -201,6 +204,13 @@ static irqreturn_t mmc_irq_handler(int irq, void *dev_id)
 	if (host->cmd)		/* else it is a bogus interrupt */
 		complete(&host->dma_done);
 
+	if ((c1 & BM_SSP_CTRL1_SDIO_IRQ) && (c1 & BM_SSP_CTRL1_SDIO_IRQ_EN)) {
+		__raw_writel(BM_SSP_CTRL0_SDIO_IRQ_CHECK, host->ssp_base + \
+			HW_SSP_CTRL0_CLR);
+		__raw_writel(BM_SSP_CTRL1_SDIO_IRQ_EN, host->ssp_base + \
+			HW_SSP_CTRL1_CLR);
+		mmc_signal_sdio_irq(host->mmc);
+	}
 	return IRQ_HANDLED;
 }
 
@@ -242,6 +252,11 @@ static void mxs_mmc_bc(struct mxs_mmc_host *host)
 	dma_desc->cmd.pio_words[1] = BF(cmd->opcode, SSP_CMD0_CMD) |
 	    BM_SSP_CMD0_APPEND_8CYC;
 	dma_desc->cmd.pio_words[2] = BF(cmd->arg, SSP_CMD1_CMD_ARG);
+
+	if (host->sdio_irq_en) {
+		dma_desc->cmd.pio_words[0] |= BM_SSP_CTRL0_SDIO_IRQ_CHECK;
+		dma_desc->cmd.pio_words[1] |= BM_SSP_CMD0_CONT_CLKING_EN;
+	}
 
 	init_completion(&host->dma_done);
 	mxs_dma_reset(host->dmach);
@@ -287,6 +302,11 @@ static void mxs_mmc_ac(struct mxs_mmc_host *host)
 	ssp_ctrl0 = BM_SSP_CTRL0_ENABLE | ignore_crc | long_resp | resp;
 	ssp_cmd0 = BF(cmd->opcode, SSP_CMD0_CMD);
 	ssp_cmd1 = BF(cmd->arg, SSP_CMD1_CMD_ARG);
+
+	if (host->sdio_irq_en) {
+		ssp_ctrl0 |= BM_SSP_CTRL0_SDIO_IRQ_CHECK;
+		ssp_cmd0 |= BM_SSP_CMD0_CONT_CLKING_EN;
+	}
 
 	dma_desc->cmd.pio_words[0] = ssp_ctrl0;
 	dma_desc->cmd.pio_words[1] = ssp_cmd0;
@@ -470,7 +490,7 @@ static void mxs_mmc_adtc(struct mxs_mmc_host *host)
 	}
 
 	BUG_ON(cmd->data->flags & MMC_DATA_STREAM);
-	BUG_ON((data_size % 8) > 0);
+	/* BUG_ON((data_size % 8) > 0); */
 
 	/* when is_reading is set, DMA controller performs WRITE operation. */
 	dma_desc->cmd.cmd.bits.command = is_reading ? DMA_WRITE : DMA_READ;
@@ -521,9 +541,14 @@ static void mxs_mmc_adtc(struct mxs_mmc_host *host)
 
 	if (ssp_ver_major > 3) {
 		/* Configure the BLOCK SIZE and BLOCK COUNT */
-		val = BF(log2_block_size, SSP_BLOCK_SIZE_BLOCK_SIZE) |
-		BF(cmd->data->blocks - 1, SSP_BLOCK_SIZE_BLOCK_COUNT);
-		__raw_writel(val, host->ssp_base + HW_SSP_BLOCK_SIZE);
+		if ((1<<log2_block_size) != cmd->data->blksz) {
+			BUG_ON(cmd->data->blocks > 1);
+			__raw_writel(0, host->ssp_base + HW_SSP_BLOCK_SIZE);
+		} else{
+			val = BF(log2_block_size, SSP_BLOCK_SIZE_BLOCK_SIZE) |
+			BF(cmd->data->blocks - 1, SSP_BLOCK_SIZE_BLOCK_COUNT);
+			__raw_writel(val, host->ssp_base + HW_SSP_BLOCK_SIZE);
+		}
 		/* Configure the CMD0 */
 		ssp_cmd0 = BF(cmd->opcode, SSP_CMD0_CMD);
 	} else
@@ -532,6 +557,10 @@ static void mxs_mmc_adtc(struct mxs_mmc_host *host)
 		    BF(cmd->opcode, SSP_CMD0_CMD) |
 		    BF(cmd->data->blocks - 1, SSP_BLOCK_SIZE_BLOCK_COUNT);
 
+	if (host->sdio_irq_en) {
+		ssp_ctrl0 |= BM_SSP_CTRL0_SDIO_IRQ_CHECK;
+		ssp_cmd0 |= BM_SSP_CMD0_CONT_CLKING_EN;
+	}
 	if (cmd->opcode == 12)
 		ssp_cmd0 |= BM_SSP_CMD0_APPEND_8CYC;
 
@@ -760,10 +789,46 @@ static void mxs_mmc_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
 		mxs_set_sclk_speed(host, ios->clock);
 }
 
+static void mxs_mmc_enable_sdio_irq(struct mmc_host *mmc, int enable)
+{
+	unsigned long flags;
+	struct mxs_mmc_host *host = mmc_priv(mmc);
+
+	spin_lock_irqsave(&host->lock, flags);
+
+	if (enable) {
+		if (host->sdio_irq_en)
+			goto exit;
+		host->sdio_irq_en = 1;
+		__raw_writel(BM_SSP_CTRL0_SDIO_IRQ_CHECK, host->ssp_base + \
+			HW_SSP_CTRL0_SET);
+		__raw_writel(BM_SSP_CTRL1_SDIO_IRQ_EN, host->ssp_base + \
+			HW_SSP_CTRL1_SET);
+
+		if (__raw_readl(host->ssp_base + \
+		HW_SSP_STATUS) & BM_SSP_STATUS_SDIO_IRQ)
+			mmc_signal_sdio_irq(host->mmc);
+
+	} else {
+		if (host->sdio_irq_en == 0)
+			goto exit;
+		host->sdio_irq_en = 0;
+		__raw_writel(BM_SSP_CTRL0_SDIO_IRQ_CHECK, \
+			host->ssp_base + HW_SSP_CTRL0_CLR);
+		__raw_writel(BM_SSP_CTRL1_SDIO_IRQ_EN, \
+			host->ssp_base + HW_SSP_CTRL1_CLR);
+	}
+
+exit:
+	spin_unlock_irqrestore(&host->lock, flags);
+	return;
+}
+
 static const struct mmc_host_ops mxs_mmc_ops = {
 	.request = mxs_mmc_request,
 	.get_ro = mxs_mmc_get_ro,
 	.set_ios = mxs_mmc_set_ios,
+	.enable_sdio_irq = mxs_mmc_enable_sdio_irq,
 };
 
 /*
@@ -799,6 +864,11 @@ static void mxs_mmc_reset(struct mxs_mmc_host *host)
 		     BF(2, SSP_TIMING_CLOCK_DIVIDE) |
 		     BF(0, SSP_TIMING_CLOCK_RATE),
 		     host->ssp_base + HW_SSP_TIMING);
+
+	if (host->sdio_irq_en) {
+		ssp_ctrl1 |= BM_SSP_CTRL1_SDIO_IRQ_EN;
+		ssp_ctrl0 |= BM_SSP_CTRL0_SDIO_IRQ_CHECK;
+       }
 
 	/* Write the SSP Control Register 0 and 1 values out to the interface */
 	__raw_writel(ssp_ctrl0, host->ssp_base + HW_SSP_CTRL0);
@@ -994,6 +1064,8 @@ static int __init mxs_mmc_probe(struct platform_device *pdev)
 	host->mmc = mmc;
 	host->dev = dev;
 
+	host->sdio_irq_en = 0;
+
 	/* Set minimal clock rate */
 	host->clk = clk_get(dev, mmc_data->clock_mmc);
 	if (IS_ERR(host->clk)) {
@@ -1037,6 +1109,7 @@ static int __init mxs_mmc_probe(struct platform_device *pdev)
 	mmc->f_max = mmc_data->max_clk;
 	mmc->caps = mmc_data->caps;
 	mmc->caps |= MMC_CAP_SD_HIGHSPEED | MMC_CAP_MMC_HIGHSPEED;
+	mmc->caps |= MMC_CAP_SDIO_IRQ;
 
 	/* Maximum block count requests. */
 	mmc->max_blk_size = 512;
@@ -1059,6 +1132,8 @@ static int __init mxs_mmc_probe(struct platform_device *pdev)
 	mmc->ocr_avail = MMC_VDD_32_33 | MMC_VDD_33_34;
 
 	platform_set_drvdata(pdev, mmc);
+
+	spin_lock_init(&host->lock);
 
 	err = mmc_add_host(mmc);
 	if (err) {
