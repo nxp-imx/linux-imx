@@ -101,9 +101,6 @@ void mxs_lcdif_stop(void)
 	__raw_writel(BM_LCDIF_CTRL_LCDIF_MASTER,
 		     REGS_LCDIF_BASE + HW_LCDIF_CTRL_CLR);
 	udelay(100);
-
-	__raw_writel(BM_LCDIF_CTRL_CLKGATE,
-		     REGS_LCDIF_BASE + HW_LCDIF_CTRL_SET);
 }
 EXPORT_SYMBOL(mxs_lcdif_stop);
 

@@ -113,11 +113,17 @@ out:
 static void release_panel(struct device *dev,
 			  struct mxs_platform_fb_entry *pentry)
 {
+	/* Reset LCD panel signel. */
+	__raw_writel(BM_LCDIF_CTRL1_RESET,
+		REGS_LCDIF_BASE + HW_LCDIF_CTRL1_CLR);
+	mdelay(100);
 	mxs_lcdif_notify_clients(MXS_LCDIF_PANEL_RELEASE, pentry);
 	release_dotclk_panel();
 	mxs_lcdif_dma_release();
 	clk_disable(lcd_clk);
 	clk_put(lcd_clk);
+	__raw_writel(BM_LCDIF_CTRL_CLKGATE,
+		     REGS_LCDIF_BASE + HW_LCDIF_CTRL_SET);
 }
 
 static int blank_panel(int blank)
