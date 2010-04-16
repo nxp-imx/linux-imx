@@ -274,6 +274,35 @@ static struct mxc_srtc_platform_data srtc_data = {
 	.srtc_sec_mode_addr = 0x83F98840,
 };
 
+static struct mxc_dvfs_platform_data dvfs_core_data = {
+	.reg_id = "SW1",
+	.clk1_id = "cpu_clk",
+	.clk2_id = "gpc_dvfs_clk",
+	.gpc_cntr_reg_addr = MXC_GPC_CNTR,
+	.gpc_vcr_reg_addr = MXC_GPC_VCR,
+	.ccm_cdcr_reg_addr = MXC_CCM_CDCR,
+	.ccm_cacrr_reg_addr = MXC_CCM_CACRR,
+	.ccm_cdhipr_reg_addr = MXC_CCM_CDHIPR,
+	.dvfs_thrs_reg_addr = MXC_DVFSTHRS,
+	.dvfs_coun_reg_addr = MXC_DVFSCOUN,
+	.dvfs_emac_reg_addr = MXC_DVFSEMAC,
+	.dvfs_cntr_reg_addr = MXC_DVFSCNTR,
+	.prediv_mask = 0x1F800,
+	.prediv_offset = 11,
+	.prediv_val = 3,
+	.div3ck_mask = 0xE0000000,
+	.div3ck_offset = 29,
+	.div3ck_val = 2,
+	.emac_val = 0x08,
+	.upthr_val = 25,
+	.dnthr_val = 9,
+	.pncthr_val = 33,
+	.upcnt_val = 10,
+	.dncnt_val = 10,
+	.delay_time = 30,
+	.num_wp = 3,
+};
+
 static struct tve_platform_data tve_data = {
 	.dac_reg = "VVIDEO",
 };
@@ -719,9 +748,13 @@ static void __init mxc_board_init(void)
 	mxc_register_device(&mx53_lpmode_device, NULL);
 	mxc_register_device(&busfreq_device, NULL);
 	mxc_register_device(&sdram_autogating_device, NULL);
+	*/
 	mxc_register_device(&mxc_dvfs_core_device, &dvfs_core_data);
+
+	/*
 	mxc_register_device(&mxc_dvfs_per_device, &dvfs_per_data);
 	*/
+
 	mxc_register_device(&mxc_iim_device, NULL);
 	if (!board_is_mx53_arm2()) {
 		mxc_register_device(&mxc_pwm2_device, NULL);
