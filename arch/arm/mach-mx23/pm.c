@@ -53,7 +53,7 @@ static int saved_sleep_state;
 #define WAIT_CYCLE(n) for (i = 0; i < n; i++);
 #define LOWER_VDDIO 10
 #define LOWER_VDDA 9
-#define LOWER_VDDD 0xa
+#define LOWER_VDDD 8
 #define MAX_POWEROFF_CODE_SIZE (6 * 1024)
 #define REGS_CLKCTRL_BASE IO_ADDRESS(CLKCTRL_PHYS_ADDR)
 
@@ -63,19 +63,24 @@ static void mx23_standby(void)
 	u32 reg_vddd, reg_vdda, reg_vddio;
 	/* DDR EnterSelfrefreshMode */
 	__raw_writel(
-	BM_DRAM_CTL08_SREFRESH | __raw_readl(IO_ADDRESS(DRAM_PHYS_ADDR)
-		+ HW_DRAM_CTL08),
-	IO_ADDRESS(DRAM_PHYS_ADDR) + HW_DRAM_CTL08);
+	BF_DRAM_CTL16_LOWPOWER_AUTO_ENABLE(0x2) |
+	__raw_readl(IO_ADDRESS(DRAM_PHYS_ADDR)
+		+ HW_DRAM_CTL16),
+	IO_ADDRESS(DRAM_PHYS_ADDR) + HW_DRAM_CTL16);
 
+	__raw_writel(
+	BF_DRAM_CTL16_LOWPOWER_CONTROL(0x2) |
+	__raw_readl(IO_ADDRESS(DRAM_PHYS_ADDR)
+		+ HW_DRAM_CTL16),
+	IO_ADDRESS(DRAM_PHYS_ADDR) + HW_DRAM_CTL16);
 	/* Gating EMI CLock */
 	__raw_writel(BM_CLKCTRL_EMI_CLKGATE |
 			__raw_readl(REGS_CLKCTRL_BASE + HW_CLKCTRL_EMI),
 			REGS_CLKCTRL_BASE + HW_CLKCTRL_EMI);
-#if 0
+
 	/* Disable PLL */
 	__raw_writel(BM_CLKCTRL_PLLCTRL0_POWER,
 		REGS_CLKCTRL_BASE + HW_CLKCTRL_PLLCTRL0_CLR);
-#endif
 
 	/* Reduce the VDDIO (3.050 volt) */
 	reg_vddio = __raw_readl(REGS_POWER_BASE + HW_POWER_VDDIOCTRL);
@@ -153,6 +158,10 @@ static void mx23_standby(void)
 	__raw_writel(BM_CLKCTRL_CPU_INTERRUPT_WAIT,
 			REGS_CLKCTRL_BASE + HW_CLKCTRL_CPU_CLR);
 
+	/* Enable PLL */
+	__raw_writel(BM_CLKCTRL_PLLCTRL0_POWER,
+		REGS_CLKCTRL_BASE + HW_CLKCTRL_PLLCTRL0_SET);
+
 	/* restore the DCDC parameter */
 
 	__raw_writel(BM_POWER_MINPWR_EN_DC_PFM,
@@ -203,9 +212,6 @@ static void mx23_standby(void)
 		;
 
 
-	/* Enable PLL */
-	__raw_writel(BM_CLKCTRL_PLLCTRL0_POWER,
-		REGS_CLKCTRL_BASE + HW_CLKCTRL_PLLCTRL0_SET);
 	/* Ungating EMI CLock */
 	__raw_writel(~BM_CLKCTRL_EMI_CLKGATE &
 			__raw_readl(REGS_CLKCTRL_BASE + HW_CLKCTRL_EMI),
@@ -213,10 +219,16 @@ static void mx23_standby(void)
 
 	/* LeaveSelfrefreshMode */
 	__raw_writel(
-		(~BM_DRAM_CTL08_SREFRESH) &
-			__raw_readl(IO_ADDRESS(DRAM_PHYS_ADDR)
-			+ HW_DRAM_CTL08),
-		IO_ADDRESS(DRAM_PHYS_ADDR) + HW_DRAM_CTL08);
+	(~BF_DRAM_CTL16_LOWPOWER_CONTROL(0x2)) &
+	__raw_readl(IO_ADDRESS(DRAM_PHYS_ADDR)
+		+ HW_DRAM_CTL16),
+	IO_ADDRESS(DRAM_PHYS_ADDR) + HW_DRAM_CTL16);
+
+	__raw_writel(
+	(~BF_DRAM_CTL16_LOWPOWER_AUTO_ENABLE(0x2)) &
+	__raw_readl(IO_ADDRESS(DRAM_PHYS_ADDR)
+		+ HW_DRAM_CTL16),
+	IO_ADDRESS(DRAM_PHYS_ADDR) + HW_DRAM_CTL16);
 }
 
 static inline void do_standby(void)
@@ -279,7 +291,7 @@ static inline void do_standby(void)
 		BM_CLKCTRL_CLKSEQ_BYPASS_SSP |
 		BM_CLKCTRL_CLKSEQ_BYPASS_GPMI |
 		BM_CLKCTRL_CLKSEQ_BYPASS_IR |
-		BM_CLKCTRL_CLKSEQ_BYPASS_PIX|
+		BM_CLKCTRL_CLKSEQ_BYPASS_PIX |
 		BM_CLKCTRL_CLKSEQ_BYPASS_SAIF,
 		REGS_CLKCTRL_BASE + HW_CLKCTRL_CLKSEQ_SET);
 
