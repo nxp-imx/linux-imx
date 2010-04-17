@@ -492,7 +492,7 @@ static void __init fixup_mxc_board(struct machine_desc *desc, struct tag *tags,
 	struct tag *mem_tag = 0;
 	int total_mem = SZ_1G;
 	int left_mem = 0;
-	int gpu_mem = SZ_128M;
+	int gpu_mem = SZ_32M;
 	int fb_mem = SZ_32M;
 	char *str;
 
