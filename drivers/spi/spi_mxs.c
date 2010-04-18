@@ -42,7 +42,7 @@
 #include "spi_mxs.h"
 
 /* 0 means DMA modei(recommended, default), !0 - PIO mode */
-static int pio /* = 0 */;
+static int pio /* = 0 */ ;
 static int debug;
 
 /**
@@ -79,11 +79,11 @@ static void mxs_spi_release_hw(struct mxs_spi *ss)
 }
 
 static int mxs_spi_setup_transfer(struct spi_device *spi,
-		struct spi_transfer *t)
+				  struct spi_transfer *t)
 {
 	u8 bits_per_word;
 	u32 hz;
-	struct mxs_spi *ss /* = spi_master_get_devdata(spi->master) */;
+	struct mxs_spi *ss /* = spi_master_get_devdata(spi->master) */ ;
 	u16 rate;
 
 	ss = spi_master_get_devdata(spi->master);
@@ -93,10 +93,10 @@ static int mxs_spi_setup_transfer(struct spi_device *spi,
 		bits_per_word = t->bits_per_word;
 
 	/*
-	  Calculate speed:
-		- by default, use maximum speed from ssp clk
-		- if device overrides it, use it
-		- if transfer specifies other speed, use transfer's one
+	   Calculate speed:
+	   - by default, use maximum speed from ssp clk
+	   - if device overrides it, use it
+	   - if transfer specifies other speed, use transfer's one
 	 */
 	hz = 1000 * ss->speed_khz / ss->divider;
 	if (spi->max_speed_hz)
@@ -125,22 +125,24 @@ static int mxs_spi_setup_transfer(struct spi_device *spi,
 		return -EINVAL;
 	}
 
-	rate = 1000 * ss->speed_khz/ss->divider/hz;
+	rate = 1000 * ss->speed_khz / ss->divider / hz;
 
 	__raw_writel(BF_SSP_TIMING_CLOCK_DIVIDE(ss->divider) |
-		BF_SSP_TIMING_CLOCK_RATE(rate - 1), ss->regs + HW_SSP_TIMING);
+		     BF_SSP_TIMING_CLOCK_RATE(rate - 1),
+		     ss->regs + HW_SSP_TIMING);
 
 	__raw_writel(BF_SSP_CTRL1_SSP_MODE(BV_SSP_CTRL1_SSP_MODE__SPI) |
-		BF_SSP_CTRL1_WORD_LENGTH(BV_SSP_CTRL1_WORD_LENGTH__EIGHT_BITS) |
-		((spi->mode & SPI_CPOL) ? BM_SSP_CTRL1_POLARITY : 0) |
-		((spi->mode & SPI_CPHA) ? BM_SSP_CTRL1_PHASE : 0) |
-		(pio ? 0 : BM_SSP_CTRL1_DMA_ENABLE), ss->regs + HW_SSP_CTRL1);
+		     BF_SSP_CTRL1_WORD_LENGTH
+		     (BV_SSP_CTRL1_WORD_LENGTH__EIGHT_BITS) |
+		     ((spi->mode & SPI_CPOL) ? BM_SSP_CTRL1_POLARITY : 0) |
+		     ((spi->mode & SPI_CPHA) ? BM_SSP_CTRL1_PHASE : 0) |
+		     (pio ? 0 : BM_SSP_CTRL1_DMA_ENABLE),
+		     ss->regs + HW_SSP_CTRL1);
 
 	__raw_writel(0x00, ss->regs + HW_SSP_CMD0_SET);
 
 	return 0;
 }
-
 
 static void mxs_spi_cleanup(struct spi_device *spi)
 {
@@ -196,13 +198,13 @@ out:
 
 static inline u32 mxs_spi_cs(unsigned cs)
 {
-	return  ((cs & 1) ? BM_SSP_CTRL0_WAIT_FOR_CMD : 0) |
-		((cs & 2) ? BM_SSP_CTRL0_WAIT_FOR_IRQ : 0);
+	return ((cs & 1) ? BM_SSP_CTRL0_WAIT_FOR_CMD : 0) |
+	    ((cs & 2) ? BM_SSP_CTRL0_WAIT_FOR_IRQ : 0);
 }
 
 static int mxs_spi_txrx_dma(struct mxs_spi *ss, int cs,
-		unsigned char *buf, dma_addr_t dma_buf, int len,
-		int *first, int *last, int write)
+			    unsigned char *buf, dma_addr_t dma_buf, int len,
+			    int *first, int *last, int write)
 {
 	u32 c0 = 0;
 	dma_addr_t spi_buf_dma = dma_buf;
@@ -238,11 +240,12 @@ static int mxs_spi_txrx_dma(struct mxs_spi *ss, int cs,
 	mxs_dma_enable(ss->dma);
 	wait_for_completion(&ss->done);
 	count = 10000;
-	while ((__raw_readl(ss->regs + HW_SSP_CTRL0) & BM_SSP_CTRL0_RUN) && count--)
+	while ((__raw_readl(ss->regs + HW_SSP_CTRL0) & BM_SSP_CTRL0_RUN)
+	       && count--)
 		continue;
 	if (count <= 0) {
-		printk(KERN_ERR"%c: timeout on line %s:%d\n",
-				write ? 'W':'C', __func__, __LINE__);
+		printk(KERN_ERR "%c: timeout on line %s:%d\n",
+		       write ? 'W' : 'C', __func__, __LINE__);
 		status = -ETIMEDOUT;
 	}
 
@@ -265,8 +268,8 @@ static inline void mxs_spi_disable(struct mxs_spi *ss)
 }
 
 static int mxs_spi_txrx_pio(struct mxs_spi *ss, int cs,
-		unsigned char *buf, int len,
-		int *first, int *last, int write)
+			    unsigned char *buf, int len,
+			    int *first, int *last, int write)
 {
 	int count;
 
@@ -283,24 +286,25 @@ static int mxs_spi_txrx_pio(struct mxs_spi *ss, int cs,
 			*last = 0;
 		}
 		__raw_writel(BM_SSP_CTRL0_XFER_COUNT,
-				ss->regs + HW_SSP_CTRL0_CLR);
-		__raw_writel(1, ss->regs + HW_SSP_CTRL0_SET); /* byte-by-byte */
+			     ss->regs + HW_SSP_CTRL0_CLR);
+		__raw_writel(1, ss->regs + HW_SSP_CTRL0_SET);	/* byte-by-byte */
 
 		if (write)
 			__raw_writel(BM_SSP_CTRL0_READ,
-				ss->regs + HW_SSP_CTRL0_CLR);
+				     ss->regs + HW_SSP_CTRL0_CLR);
 		else
 			__raw_writel(BM_SSP_CTRL0_READ,
-				ss->regs + HW_SSP_CTRL0_SET);
+				     ss->regs + HW_SSP_CTRL0_SET);
 
 		/* Run! */
 		__raw_writel(BM_SSP_CTRL0_RUN, ss->regs + HW_SSP_CTRL0_SET);
 		count = 10000;
-		while (((__raw_readl(ss->regs + HW_SSP_CTRL0) & BM_SSP_CTRL0_RUN) == 0) && count--)
+		while (((__raw_readl(ss->regs + HW_SSP_CTRL0) &
+			 BM_SSP_CTRL0_RUN) == 0) && count--)
 			continue;
 		if (count <= 0) {
-			printk(KERN_ERR"%c: timeout on line %s:%d\n",
-					write ? 'W':'C', __func__, __LINE__);
+			printk(KERN_ERR "%c: timeout on line %s:%d\n",
+			       write ? 'W' : 'C', __func__, __LINE__);
 			break;
 		}
 
@@ -309,28 +313,29 @@ static int mxs_spi_txrx_pio(struct mxs_spi *ss, int cs,
 
 		/* Set TRANSFER */
 		__raw_writel(BM_SSP_CTRL0_DATA_XFER,
-			ss->regs + HW_SSP_CTRL0_SET);
+			     ss->regs + HW_SSP_CTRL0_SET);
 
 		if (!write) {
 			count = 10000;
 			while (count-- &&
-				(__raw_readl(ss->regs + HW_SSP_STATUS) &
-					BM_SSP_STATUS_FIFO_EMPTY))
+			       (__raw_readl(ss->regs + HW_SSP_STATUS) &
+				BM_SSP_STATUS_FIFO_EMPTY))
 				continue;
 			if (count <= 0) {
-				printk(KERN_ERR"%c: timeout on line %s:%d\n",
-					write ? 'W':'C', __func__, __LINE__);
+				printk(KERN_ERR "%c: timeout on line %s:%d\n",
+				       write ? 'W' : 'C', __func__, __LINE__);
 				break;
 			}
 			*buf = (__raw_readl(ss->regs + HW_SSP_DATA) & 0xFF);
 		}
 
 		count = 10000;
-		while ((__raw_readl(ss->regs + HW_SSP_CTRL0) & BM_SSP_CTRL0_RUN) && count--)
+		while ((__raw_readl(ss->regs + HW_SSP_CTRL0) & BM_SSP_CTRL0_RUN)
+		       && count--)
 			continue;
 		if (count <= 0) {
-			printk(KERN_ERR"%c: timeout on line %s:%d\n",
-				write ? 'W':'C', __func__, __LINE__);
+			printk(KERN_ERR "%c: timeout on line %s:%d\n",
+			       write ? 'W' : 'C', __func__, __LINE__);
 			break;
 		}
 
@@ -361,40 +366,42 @@ static int mxs_spi_handle_message(struct mxs_spi *ss, struct spi_message *m)
 			last = !0;
 		if (t->rx_buf && t->tx_buf) {
 			pr_debug("%s: cannot send and receive simultaneously\n",
-				__func__);
+				 __func__);
 			return -EINVAL;
 		}
 
 		/*
-		  REVISIT:
-		  here driver completely ignores setting of t->cs_change
+		   REVISIT:
+		   here driver completely ignores setting of t->cs_change
 		 */
 		if (t->tx_buf) {
 			status = pio ?
-			   mxs_spi_txrx_pio(ss, cs, (void *)t->tx_buf,
-				   t->len, &first, &last, 1) :
-			   mxs_spi_txrx_dma(ss, cs, (void *)t->tx_buf,
-				   t->tx_dma, t->len, &first, &last, 1);
+			    mxs_spi_txrx_pio(ss, cs, (void *)t->tx_buf,
+					     t->len, &first, &last, 1) :
+			    mxs_spi_txrx_dma(ss, cs, (void *)t->tx_buf,
+					     t->tx_dma, t->len, &first, &last,
+					     1);
 			if (debug) {
 				if (t->len < 0x10)
 					print_hex_dump_bytes("Tx ",
-						DUMP_PREFIX_OFFSET,
-						t->tx_buf, t->len);
+							     DUMP_PREFIX_OFFSET,
+							     t->tx_buf, t->len);
 				else
 					pr_debug("Tx: %d bytes\n", t->len);
 			}
 		}
 		if (t->rx_buf) {
 			status = pio ?
-			   mxs_spi_txrx_pio(ss, cs, t->rx_buf,
-				   t->len, &first, &last, 0):
-			   mxs_spi_txrx_dma(ss, cs, t->rx_buf,
-				   t->rx_dma, t->len, &first, &last, 0);
+			    mxs_spi_txrx_pio(ss, cs, t->rx_buf,
+					     t->len, &first, &last, 0) :
+			    mxs_spi_txrx_dma(ss, cs, t->rx_buf,
+					     t->rx_dma, t->len, &first, &last,
+					     0);
 			if (debug) {
 				if (t->len < 0x10)
 					print_hex_dump_bytes("Rx ",
-						DUMP_PREFIX_OFFSET,
-						t->rx_buf, t->len);
+							     DUMP_PREFIX_OFFSET,
+							     t->rx_buf, t->len);
 				else
 					pr_debug("Rx: %d bytes\n", t->len);
 			}
@@ -479,7 +486,7 @@ static irqreturn_t mxs_spi_irq_err(int irq, void *dev_id)
 
 	c1 = __raw_readl(ss->regs + HW_SSP_CTRL1);
 	st = __raw_readl(ss->regs + HW_SSP_STATUS);
-	printk(KERN_ERR"IRQ - ERROR!, status = 0x%08X, c1 = 0x%08X\n", st, c1);
+	printk(KERN_ERR "IRQ - ERROR!, status = 0x%08X, c1 = 0x%08X\n", st, c1);
 	__raw_writel(c1 & 0xCCCC0000, ss->regs + HW_SSP_CTRL1_CLR);
 
 	return IRQ_HANDLED;
@@ -521,7 +528,7 @@ static int __init mxs_spi_probe(struct platform_device *dev)
 	master->cleanup = mxs_spi_cleanup;
 
 	if (!request_mem_region(r->start,
-			resource_size(r), dev_name(&dev->dev))) {
+				resource_size(r), dev_name(&dev->dev))) {
 		err = -ENXIO;
 		goto out_put_master;
 	}
@@ -571,17 +578,17 @@ static int __init mxs_spi_probe(struct platform_device *dev)
 	ss->speed_khz = clk_get_rate(ss->clk) / 1000;
 	ss->divider = 2;
 	dev_info(&dev->dev, "Max possible speed %d = %ld/%d kHz\n",
-		ss->speed_khz, clk_get_rate(ss->clk), ss->divider);
+		 ss->speed_khz, clk_get_rate(ss->clk), ss->divider);
 
 	/* Register for SPI Interrupt */
 	err = request_irq(ss->irq_dma, mxs_spi_irq_dma, 0,
-			dev_name(&dev->dev), ss);
+			  dev_name(&dev->dev), ss);
 	if (err) {
 		dev_dbg(&dev->dev, "request_irq failed, %d\n", err);
 		goto out_release_hw;
 	}
 	err = request_irq(ss->irq_err, mxs_spi_irq_err, IRQF_SHARED,
-			dev_name(&dev->dev), ss);
+			  dev_name(&dev->dev), ss);
 	if (err) {
 		dev_dbg(&dev->dev, "request_irq(error) failed, %d\n", err);
 		goto out_free_irq;
@@ -593,8 +600,8 @@ static int __init mxs_spi_probe(struct platform_device *dev)
 		goto out_free_irq_2;
 	}
 	dev_info(&dev->dev, "at 0x%08X mapped to 0x%08X, irq=%d, bus %d, %s\n",
-			mem, (u32)ss->regs, ss->irq_dma,
-			master->bus_num, pio ? "PIO" : "DMA");
+		 mem, (u32) ss->regs, ss->irq_dma,
+		 master->bus_num, pio ? "PIO" : "DMA");
 	return 0;
 
 out_free_irq_2:
@@ -663,7 +670,7 @@ static int mxs_spi_resume(struct platform_device *pdev)
 
 	clk_enable(ss->clk);
 	__raw_writel(BM_SSP_CTRL0_SFTRST | BM_SSP_CTRL0_CLKGATE,
-		ss->regs + HW_SSP_CTRL0_CLR);
+		     ss->regs + HW_SSP_CTRL0_CLR);
 	__raw_writel(ss->saved_timings, ss->regs + HW_SSP_TIMING);
 
 	return 0;
@@ -675,14 +682,14 @@ static int mxs_spi_resume(struct platform_device *pdev)
 #endif
 
 static struct platform_driver mxs_spi_driver = {
-	.probe	= mxs_spi_probe,
-	.remove	= __devexit_p(mxs_spi_remove),
+	.probe = mxs_spi_probe,
+	.remove = __devexit_p(mxs_spi_remove),
 	.driver = {
-		.name = "mxs-spi",
-		.owner = THIS_MODULE,
-	},
+		   .name = "mxs-spi",
+		   .owner = THIS_MODULE,
+		   },
 	.suspend = mxs_spi_suspend,
-	.resume  = mxs_spi_resume,
+	.resume = mxs_spi_resume,
 };
 
 static int __init mxs_spi_init(void)

@@ -27,19 +27,19 @@
 #include <mach/dma.h>
 
 struct mxs_spi {
-	void __iomem	*regs;	/* vaddr of the control registers */
+	void __iomem *regs;	/* vaddr of the control registers */
 
-	u32		irq_dma;
-	u32		irq_err;
-	u32		dma;
+	u32 irq_dma;
+	u32 irq_err;
+	u32 dma;
 	struct mxs_dma_desc *pdesc;
 
-	u32		speed_khz;
-	u32		saved_timings;
-	u32		divider;
+	u32 speed_khz;
+	u32 saved_timings;
+	u32 divider;
 
-	struct clk	*clk;
-	struct device	*master_dev;
+	struct clk *clk;
+	struct device *master_dev;
 
 	struct work_struct work;
 	struct workqueue_struct *workqueue;
