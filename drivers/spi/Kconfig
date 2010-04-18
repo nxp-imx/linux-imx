@@ -261,6 +261,11 @@ config SPI_STMP3XXX
 	help
 	  SPI driver for Freescale STMP37xx/378x SoC SSP interface
 
+config SPI_MXS
+	tristate "Freescale MXS SPI/SSP controller"
+	depends on ARCH_MXS && SPI_MASTER
+	help
+	  SPI driver for Freescale MXS SoC SSP interface
 #
 # Add new SPI master controllers in alphabetical order above this line
 #
