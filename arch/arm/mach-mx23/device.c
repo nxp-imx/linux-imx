@@ -636,6 +636,46 @@ static void mx23_init_mmc(void)
 }
 #endif
 
+#if defined(CONFIG_SPI_MXS) || defined(CONFIG_SPI_MXS_MODULE)
+static struct resource ssp1_resources[] = {
+	{
+		.start	= SSP1_PHYS_ADDR,
+		.end	= SSP1_PHYS_ADDR + 0x1FFF,
+		.flags	= IORESOURCE_MEM,
+	}, {
+		.start	= IRQ_SSP1_DMA,
+		.end	= IRQ_SSP1_DMA,
+		.flags	= IORESOURCE_IRQ,
+	}, {
+		.start	= IRQ_SSP_ERROR,
+		.end	= IRQ_SSP_ERROR,
+		.flags	= IORESOURCE_IRQ,
+	}, {
+		.start	= MXS_DMA_CHANNEL_AHB_APBH_SSP1,
+		.end	= MXS_DMA_CHANNEL_AHB_APBH_SSP1,
+		.flags	= IORESOURCE_DMA,
+	},
+};
+
+static void __init mx23_init_spi(void)
+{
+	struct platform_device *pdev;
+
+	pdev = mxs_get_device("mxs-spi", 0);
+	if (pdev == NULL || IS_ERR(pdev))
+		return;
+	pdev->resource = ssp1_resources;
+	pdev->num_resources = ARRAY_SIZE(ssp1_resources);
+
+	mxs_add_device(pdev, 3);
+}
+#else
+static void mx23_init_spi(void)
+{
+	;
+}
+#endif
+
 #if defined(CONFIG_BATTERY_MXS)
 /* battery info data */
 static ddi_bc_Cfg_t battery_data = {
@@ -849,6 +889,7 @@ int __init mx23_device_init(void)
 	mx23_init_rtc();
 	mx23_init_dcp();
 	mx23_init_mmc();
+	mx23_init_spi();
 	mx23_init_spdif();
 	mx23_init_lcdif();
 	mx23_init_pxp();

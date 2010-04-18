@@ -119,6 +119,11 @@ struct mxs_mma7450_platform_data {
 	int int2;
 };
 
+struct mxs_spi_platform_data {
+	int (*hw_pin_init)(void);
+	int (*hw_pin_release)(void);
+};
+
 struct flexcan_platform_data {
 	char *core_reg;
 	char *io_reg;

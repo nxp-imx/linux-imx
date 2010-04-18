@@ -175,6 +175,20 @@ static struct platform_device mxs_mmc[] = {
 };
 #endif
 
+#if defined(CONFIG_SPI_MXS) || defined(CONFIG_SPI_MXS_MODULE)
+static struct platform_device mxs_spi[] = {
+	{
+	 .name	= "mxs-spi",
+	 .id	= 0,
+	 .dev = {
+		.dma_mask	       = &common_dmamask,
+		.coherent_dma_mask      = DMA_BIT_MASK(32),
+		.release = mxs_nop_release,
+		},
+	 },
+};
+#endif
+
 #if defined(CONFIG_MXS_WATCHDOG) || defined(CONFIG_MXS_WATCHDOG_MODULE)
 static struct platform_device mxs_wdt = {
 	.name = "mxs-wdt",
@@ -497,6 +511,14 @@ static struct mxs_dev_lookup dev_lookup[] = {
 	.name = "mxs-mmc",
 	.size = ARRAY_SIZE(mxs_mmc),
 	.pdev = mxs_mmc,
+	},
+#endif
+
+#if defined(CONFIG_SPI_MXS) || defined(CONFIG_SPI_MXS_MODULE)
+	{
+	.name = "mxs-spi",
+	.size = ARRAY_SIZE(mxs_spi),
+	.pdev = mxs_spi,
 	},
 #endif
 

@@ -395,6 +395,41 @@ static struct pin_desc mx23evk_fixed_pins[] = {
 	 },
 #endif
 
+#if defined(CONFIG_SPI_MXS) || defined(CONFIG_SPI_MXS_MODULE)
+	{
+	 .name	= "SSP1_DATA0",
+	 .id	= PINID_SSP1_DATA0,
+	 .fun	= PIN_FUN1,
+	 .strength	= PAD_4MA,
+	 .voltage	= PAD_3_3V,
+	 .drive 	= 1,
+	 },
+	{
+	 .name	= "SSP1_DATA3",
+	 .id	= PINID_SSP1_DATA3,
+	 .fun	= PIN_FUN1,
+	 .strength	= PAD_4MA,
+	 .voltage	= PAD_3_3V,
+	 .drive 	= 1,
+	 },
+	{
+	 .name	= "SSP1_CMD",
+	 .id	= PINID_SSP1_CMD,
+	 .fun	= PIN_FUN1,
+	 .strength	= PAD_4MA,
+	 .voltage	= PAD_3_3V,
+	 .drive 	= 1,
+	 },
+	{
+	 .name	= "SSP1_SCK",
+	 .id	= PINID_SSP1_SCK,
+	 .fun	= PIN_FUN1,
+	 .strength	= PAD_8MA,
+	 .voltage	= PAD_3_3V,
+	 .drive 	= 1,
+	 },
+#endif
+
 #if defined(CONFIG_FEC) || defined(CONFIG_FEC_MODULE)
 	{
 	 .name = "ENET0_MDC",
@@ -532,6 +567,39 @@ int mx23evk_mma7450_pin_init(void)
 	return 0;
 }
 int mx23evk_mma7450_pin_release(void)
+{
+	return 0;
+}
+#endif
+
+extern int mxs_spi_enc_pin_init(void);
+extern int mxs_spi_enc_pin_release(void);
+#if defined(CONFIG_ENC28J60) || defined(CONFIG_ENC28J60_MODULE)
+int mxs_spi_enc_pin_init(void)
+{
+	unsigned gpio = MXS_PIN_TO_GPIO(PINID_SSP1_DATA1);
+
+	gpio_request(gpio, "ENC28J60_INTR");
+	gpio_direction_input(gpio);
+	set_irq_type(gpio_to_irq(gpio), IRQ_TYPE_EDGE_FALLING);
+
+	return 0;
+}
+int mxs_spi_enc_pin_release(void)
+{
+	unsigned gpio = MXS_PIN_TO_GPIO(PINID_SSP1_DATA1);
+
+	gpio_free(gpio);
+	set_irq_type(gpio_to_irq(gpio), IRQ_TYPE_NONE);
+
+	return 0;
+}
+#else
+int mxs_spi_enc_pin_init(void)
+{
+	return 0;
+}
+int mxs_spi_enc_pin_release(void)
 {
 	return 0;
 }

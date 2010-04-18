@@ -22,6 +22,7 @@
 #include <linux/clk.h>
 #include <linux/platform_device.h>
 #include <linux/i2c.h>
+#include <linux/spi/spi.h>
 
 #include <asm/setup.h>
 #include <asm/mach-types.h>
@@ -30,6 +31,7 @@
 #include <mach/hardware.h>
 #include <mach/device.h>
 #include <mach/pinctrl.h>
+#include <mach/regs-ocotp.h>
 
 #include "device.h"
 #include "mx23evk.h"
@@ -58,6 +60,28 @@ static void i2c_device_init(void)
 	i2c_register_board_info(0, &mma7450_i2c_device, 1);
 }
 
+static struct mxs_spi_platform_data enc_data = {
+	.hw_pin_init = mxs_spi_enc_pin_init,
+	.hw_pin_release = mxs_spi_enc_pin_release,
+};
+static struct spi_board_info spi_board_info[] __initdata = {
+#if defined(CONFIG_ENC28J60) || defined(CONFIG_ENC28J60_MODULE)
+	{
+		.modalias       = "enc28j60",
+		.max_speed_hz   = 6 * 1000 * 1000,
+		.bus_num	= 1,
+		.chip_select    = 0,
+		.platform_data  = &enc_data,
+	},
+#endif
+};
+
+static void spi_device_init(void)
+{
+	spi_board_info[0].irq = gpio_to_irq(MXS_PIN_TO_GPIO(PINID_SSP1_DATA1));
+	spi_register_board_info(spi_board_info, ARRAY_SIZE(spi_board_info));
+}
+
 static void __init fixup_board(struct machine_desc *desc, struct tag *tags,
 			       char **cmdline, struct meminfo *mi)
 {
@@ -80,11 +104,23 @@ static void __init mx23evk_init_adc(void)
 }
 #endif
 
+#define REGS_OCOTP_BASE	IO_ADDRESS(OCOTP_PHYS_ADDR)
+int get_evk_board_version()
+{
+	int boardid;
+	boardid = __raw_readl(REGS_OCOTP_BASE + HW_OCOTP_CUSTCAP);
+	boardid &= 0x30000000;
+	boardid = boardid >> 28;
+
+	return boardid;
+}
+EXPORT_SYMBOL_GPL(get_evk_board_version);
 
 static void __init mx23evk_device_init(void)
 {
 	/* Add mx23evk special code */
 	i2c_device_init();
+	spi_device_init();
 	mx23evk_init_adc();
 }
 
