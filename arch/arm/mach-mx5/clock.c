@@ -3122,40 +3122,44 @@ static struct clk mlb_clk = {
 
 static struct clk can1_clk[] = {
 	{
-	.name = "can1_clk",
-	.parent = &pll3_sw_clk,
-	.secondary = &can1_clk[1],
+	.name = "can_clk",
+	.id = 0,
+	.parent = &ipg_clk,
 	.enable = _clk_enable,
+	.secondary = &can1_clk[1],
 	.enable_reg = MXC_CCM_CCGR6,
-	.enable_shift = MXC_CCM_CCGR6_CG11_OFFSET,
+	.enable_shift = MXC_CCM_CCGR6_CG10_OFFSET,
 	.disable = _clk_disable,
 	 },
 	{
-	.name = "can1_ipg_clk",
-	.parent = &ipg_clk,
+	.name = "can_cpi_clk",
+	.id = 0,
+	.parent = &lp_apm_clk,
 	.enable = _clk_enable,
 	.enable_reg = MXC_CCM_CCGR6,
-	.enable_shift = MXC_CCM_CCGR6_CG10_OFFSET,
+	.enable_shift = MXC_CCM_CCGR6_CG11_OFFSET,
 	.disable = _clk_disable,
 	 },
 };
 
 static struct clk can2_clk[] = {
 	{
-	.name = "can2_clk",
-	.parent = &pll3_sw_clk,
-	.secondary = &can2_clk[1],
+	.name = "can_clk",
+	.id = 1,
+	.parent = &ipg_clk,
 	.enable = _clk_enable,
+	.secondary = &can2_clk[1],
 	.enable_reg = MXC_CCM_CCGR4,
-	.enable_shift = MXC_CCM_CCGR4_CG4_OFFSET,
+	.enable_shift = MXC_CCM_CCGR4_CG3_OFFSET,
 	.disable = _clk_disable,
 	 },
 	{
-	.name = "can2_ipg_clk",
-	.parent = &ipg_clk,
+	.name = "can_cpi_clk",
+	.id = 1,
+	.parent = &lp_apm_clk,
 	.enable = _clk_enable,
 	.enable_reg = MXC_CCM_CCGR4,
-	.enable_shift = MXC_CCM_CCGR4_CG3_OFFSET,
+	.enable_shift = MXC_CCM_CCGR4_CG4_OFFSET,
 	.disable = _clk_disable,
 	 },
 };
@@ -4522,6 +4526,8 @@ int __init mx53_clocks_init(unsigned long ckil, unsigned long osc, unsigned long
 	clk_register(&sata_clk);
 	clk_register(&ieee_1588_clk);
 	clk_register(&mlb_clk);
+	clk_register(&can1_clk[0]);
+	clk_register(&can2_clk[0]);
 
 	/* set DDR clock parent */
 	reg = __raw_readl(MXC_CCM_CBCMR) &

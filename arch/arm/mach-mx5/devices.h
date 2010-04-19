@@ -27,6 +27,8 @@ extern struct platform_device mxc_wdt_device;
 extern struct platform_device mxc_pwm1_device;
 extern struct platform_device mxc_pwm2_device;
 extern struct platform_device mxc_pwm_backlight_device;
+extern struct platform_device mxc_flexcan0_device;
+extern struct platform_device mxc_flexcan1_device;
 extern struct platform_device mxc_ipu_device;
 extern struct platform_device mxc_fb_devices[];
 extern struct platform_device mxcvpu_device;

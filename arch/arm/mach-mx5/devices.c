@@ -211,6 +211,46 @@ struct platform_device mxc_pwm_backlight_device = {
 	.id = -1,
 };
 
+static struct resource flexcan0_resources[] = {
+	{
+	    .start = CAN1_BASE_ADDR,
+	    .end = CAN1_BASE_ADDR + 0x3FFF,
+	    .flags = IORESOURCE_MEM,
+	},
+	{
+	    .start = MXC_INT_CAN1,
+	    .end = MXC_INT_CAN1,
+	    .flags = IORESOURCE_IRQ,
+	},
+};
+
+struct platform_device mxc_flexcan0_device = {
+	.name = "FlexCAN",
+	.id = 0,
+	.num_resources = ARRAY_SIZE(flexcan0_resources),
+	.resource = flexcan0_resources,
+};
+
+static struct resource flexcan1_resources[] = {
+	{
+	    .start = CAN2_BASE_ADDR,
+	    .end = CAN2_BASE_ADDR + 0x3FFF,
+	    .flags = IORESOURCE_MEM,
+	},
+	{
+	    .start = MXC_INT_CAN2,
+	    .end = MXC_INT_CAN2,
+	    .flags = IORESOURCE_IRQ,
+	},
+};
+
+struct platform_device mxc_flexcan1_device = {
+	.name = "FlexCAN",
+	.id = 1,
+	.num_resources = ARRAY_SIZE(flexcan1_resources),
+	.resource = flexcan1_resources,
+};
+
 static struct resource ipu_resources[] = {
 	{
 		.start = MX51_IPU_CTRL_BASE_ADDR,
@@ -1278,6 +1318,10 @@ int __init mxc_init_devices(void)
 		pwm1_resources[0].end -= MX53_OFFSET;
 		pwm2_resources[0].start -= MX53_OFFSET;
 		pwm2_resources[0].end -= MX53_OFFSET;
+		flexcan0_resources[0].start -= MX53_OFFSET;
+		flexcan0_resources[0].end -= MX53_OFFSET;
+		flexcan1_resources[0].start -= MX53_OFFSET;
+		flexcan1_resources[0].end -= MX53_OFFSET;
 		mxc_fec_resources[0].start -= MX53_OFFSET;
 		mxc_fec_resources[0].end -= MX53_OFFSET;
 		vpu_resources[0].start -= MX53_OFFSET;

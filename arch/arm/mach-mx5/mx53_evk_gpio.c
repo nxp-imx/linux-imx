@@ -166,25 +166,7 @@ static struct mxc_iomux_pin_cfg __initdata mxc_iomux_pins[] = {
 	 MX53_PIN_KEY_ROW1, IOMUX_CONFIG_ALT2,
 	 },
 	{
-	 MX53_PIN_KEY_COL2, IOMUX_CONFIG_ALT2,
-	 },
-	{
-	 MX53_PIN_KEY_ROW2, IOMUX_CONFIG_ALT2,
-	 },
-	{
 	 MX53_PIN_KEY_COL3, IOMUX_CONFIG_ALT4,
-	 },
-	{
-	 MX53_PIN_KEY_COL4, IOMUX_CONFIG_ALT2,
-	 },
-	{
-	 MX53_PIN_KEY_ROW4, IOMUX_CONFIG_ALT2,
-	 },
-	{
-	 MX53_PIN_CSI0_D4, IOMUX_CONFIG_ALT5,
-	 },
-	{
-	 MX53_PIN_CSI0_D6, IOMUX_CONFIG_ALT5,
 	 },
 	{
 	 MX53_PIN_CSI0_D7, IOMUX_CONFIG_ALT5,
@@ -214,9 +196,6 @@ static struct mxc_iomux_pin_cfg __initdata mxc_iomux_pins[] = {
 	 MX53_PIN_GPIO_4, IOMUX_CONFIG_GPIO,
 	 },
 	{
-	 MX53_PIN_GPIO_5, IOMUX_CONFIG_GPIO,
-	 },
-	{
 	 MX53_PIN_GPIO_6, IOMUX_CONFIG_GPIO,
 	 },
 	{
@@ -228,6 +207,62 @@ static struct mxc_iomux_pin_cfg __initdata mxc_iomux_pins[] = {
 	{
 	 MX53_PIN_GPIO_10, IOMUX_CONFIG_GPIO,
 	 },
+	{ /* CAN1-TX */
+	 MX53_PIN_KEY_COL2, IOMUX_CONFIG_ALT2,
+	 (PAD_CTL_DRV_HIGH | PAD_CTL_HYS_ENABLE | PAD_CTL_PKE_ENABLE |
+	  PAD_CTL_PUE_PULL | PAD_CTL_100K_PU | PAD_CTL_ODE_OPENDRAIN_NONE),
+	 },
+	{ /* CAN1-RX */
+	 MX53_PIN_KEY_ROW2, IOMUX_CONFIG_ALT2,
+	 (PAD_CTL_DRV_HIGH | PAD_CTL_HYS_ENABLE | PAD_CTL_PKE_ENABLE |
+	  PAD_CTL_PUE_PULL | PAD_CTL_360K_PD | PAD_CTL_ODE_OPENDRAIN_NONE),
+	 MUX_IN_CAN1_IPP_IND_CANRX_SELECT_INPUT,
+	 INPUT_CTL_PATH0,
+	 },
+	{ /* CAN1 -- EN */
+	 MX53_PIN_GPIO_18, IOMUX_CONFIG_ALT1,
+	 (PAD_CTL_DRV_HIGH | PAD_CTL_HYS_ENABLE | PAD_CTL_PKE_ENABLE |
+	  PAD_CTL_PUE_PULL | PAD_CTL_360K_PD | PAD_CTL_ODE_OPENDRAIN_NONE),
+	 },
+	{ /* CAN1 -- STBY */
+	 MX53_PIN_GPIO_17, IOMUX_CONFIG_ALT1,
+	 (PAD_CTL_DRV_HIGH | PAD_CTL_HYS_ENABLE | PAD_CTL_PKE_ENABLE |
+	  PAD_CTL_PUE_PULL | PAD_CTL_360K_PD | PAD_CTL_ODE_OPENDRAIN_NONE),
+	 },
+	{ /* CAN1 -- NERR */
+	 MX53_PIN_GPIO_5, IOMUX_CONFIG_ALT1,
+	 (PAD_CTL_DRV_HIGH | PAD_CTL_HYS_ENABLE | PAD_CTL_PKE_ENABLE |
+	  PAD_CTL_PUE_PULL | PAD_CTL_360K_PD | PAD_CTL_ODE_OPENDRAIN_NONE),
+	 MUX_IN_CAN2_IPP_IND_CANRX_SELECT_INPUT,
+	 INPUT_CTL_PATH1,
+	 },
+	{ /* CAN2-TX */
+	 MX53_PIN_KEY_COL4, IOMUX_CONFIG_ALT2,
+	 (PAD_CTL_DRV_HIGH | PAD_CTL_HYS_ENABLE | PAD_CTL_PKE_ENABLE |
+	  PAD_CTL_PUE_PULL | PAD_CTL_100K_PU | PAD_CTL_ODE_OPENDRAIN_NONE),
+	 },
+	{ /* CAN2-RX */
+	 MX53_PIN_KEY_ROW4, IOMUX_CONFIG_ALT2,
+	 (PAD_CTL_DRV_HIGH | PAD_CTL_HYS_ENABLE | PAD_CTL_PKE_ENABLE |
+	  PAD_CTL_PUE_PULL | PAD_CTL_360K_PD | PAD_CTL_ODE_OPENDRAIN_NONE),
+	 MUX_IN_CAN2_IPP_IND_CANRX_SELECT_INPUT,
+	 INPUT_CTL_PATH0,
+	 },
+	{ /* CAN2 -- EN */
+	 MX53_PIN_CSI0_D6, IOMUX_CONFIG_ALT1,
+	 (PAD_CTL_DRV_HIGH | PAD_CTL_HYS_ENABLE | PAD_CTL_PKE_ENABLE |
+	  PAD_CTL_PUE_PULL | PAD_CTL_100K_PU | PAD_CTL_ODE_OPENDRAIN_NONE),
+	 },
+	{ /* CAN2 -- STBY */
+	 MX53_PIN_GPIO_14, IOMUX_CONFIG_ALT0,
+	 (PAD_CTL_DRV_HIGH | PAD_CTL_HYS_ENABLE | PAD_CTL_PKE_ENABLE |
+	  PAD_CTL_PUE_PULL | PAD_CTL_100K_PU | PAD_CTL_ODE_OPENDRAIN_NONE),
+	 },
+	{ /* CAN2 -- NERR */
+	 MX53_PIN_CSI0_D4, IOMUX_CONFIG_ALT1,
+	 (PAD_CTL_DRV_HIGH | PAD_CTL_HYS_ENABLE | PAD_CTL_PKE_ENABLE |
+	  PAD_CTL_PUE_PULL | PAD_CTL_100K_PU | PAD_CTL_ODE_OPENDRAIN_NONE),
+	 },
 	{
 	 MX53_PIN_GPIO_11, IOMUX_CONFIG_GPIO,
 	 },
@@ -238,19 +273,10 @@ static struct mxc_iomux_pin_cfg __initdata mxc_iomux_pins[] = {
 	 MX53_PIN_GPIO_13, IOMUX_CONFIG_GPIO,
 	 },
 	{
-	 MX53_PIN_GPIO_14, IOMUX_CONFIG_GPIO,
-	 },
-	{
 	 MX53_PIN_GPIO_16, IOMUX_CONFIG_ALT1,
 	 },
 	{
-	 MX53_PIN_GPIO_17, IOMUX_CONFIG_GPIO,
-	 },
-	{
-	 MX53_PIN_GPIO_18, IOMUX_CONFIG_GPIO,
-	 },
-	{
-	 MX53_PIN_GPIO_19, IOMUX_CONFIG_ALT3,
+	 MX53_PIN_GPIO_19, IOMUX_CONFIG_ALT1,
 	 },
 	{	/* DI0 display clock */
 	 MX53_PIN_DI0_DISP_CLK, IOMUX_CONFIG_ALT0,
@@ -818,6 +844,23 @@ void __init mx53_evk_io_init(void)
 	gpio_request(IOMUX_TO_GPIO(MX53_PIN_CSI0_D5), "gpio5_23");
 	gpio_direction_output(IOMUX_TO_GPIO(MX53_PIN_CSI0_D5), 0);
 	gpio_set_value(IOMUX_TO_GPIO(MX53_PIN_CSI0_D5), 0);
+
+	/* CAN1 enable GPIO*/
+	gpio_direction_output(IOMUX_TO_GPIO(MX53_PIN_GPIO_18), 0);
+	gpio_set_value(IOMUX_TO_GPIO(MX53_PIN_GPIO_18), 0);
+	gpio_direction_output(IOMUX_TO_GPIO(MX53_PIN_GPIO_17), 0);
+	gpio_set_value(IOMUX_TO_GPIO(MX53_PIN_GPIO_17), 0);
+
+	/* CAN2 enable GPIO*/
+	gpio_direction_output(IOMUX_TO_GPIO(MX53_PIN_CSI0_D6), 0);
+	gpio_set_value(IOMUX_TO_GPIO(MX53_PIN_CSI0_D6), 0);
+	gpio_direction_output(IOMUX_TO_GPIO(MX53_PIN_GPIO_14), 0);
+	gpio_set_value(IOMUX_TO_GPIO(MX53_PIN_GPIO_14), 0);
+
+	/* GPIO for 12V */
+	gpio_direction_output(IOMUX_TO_GPIO(MX53_PIN_GPIO_19), 0);
+	gpio_set_value(IOMUX_TO_GPIO(MX53_PIN_GPIO_19), 0);
+
 }
 
 /* workaround for ecspi chipselect pin may not keep correct level when idle */
@@ -887,6 +930,39 @@ void mx53_evk_gpio_spi_chipselect_inactive(int cspi_mode, int status,
 	}
 }
 EXPORT_SYMBOL(mx53_evk_gpio_spi_chipselect_inactive);
+
+void flexcan_xcvr_enable(int id, int en)
+{
+	static int pwdn;
+	if (id < 0 || id > 1)
+		return;
+
+	if (en) {
+		if (!(pwdn++))
+			gpio_set_value(IOMUX_TO_GPIO(MX53_PIN_GPIO_19), 1);
+
+		if (id == 0) {
+			gpio_set_value(IOMUX_TO_GPIO(MX53_PIN_GPIO_18), 1);
+			gpio_set_value(IOMUX_TO_GPIO(MX53_PIN_GPIO_17), 1);
+		} else {
+			gpio_set_value(IOMUX_TO_GPIO(MX53_PIN_CSI0_D6), 1);
+			gpio_set_value(IOMUX_TO_GPIO(MX53_PIN_GPIO_14), 1);
+		}
+
+	} else {
+		if (!(--pwdn))
+			gpio_set_value(IOMUX_TO_GPIO(MX53_PIN_GPIO_19), 0);
+
+		if (id == 0) {
+			gpio_set_value(IOMUX_TO_GPIO(MX53_PIN_GPIO_18), 0);
+			gpio_set_value(IOMUX_TO_GPIO(MX53_PIN_GPIO_17), 0);
+		} else {
+			gpio_set_value(IOMUX_TO_GPIO(MX53_PIN_CSI0_D6), 0);
+			gpio_set_value(IOMUX_TO_GPIO(MX53_PIN_GPIO_14), 0);
+		}
+	}
+}
+EXPORT_SYMBOL(flexcan_xcvr_enable);
 
 void gpio_lcd_active(void)
 {
