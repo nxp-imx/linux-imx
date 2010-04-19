@@ -201,7 +201,7 @@ static int flexcan_dump_xmit_mb(struct flexcan_device *flexcan, char *buf)
 		ret +=
 		    sprintf(buf + ret,
 			    "mb[%d]::CS:0x%x ID:0x%x DATA[1~2]:0x%02x,0x%02x\n",
-			    i, flexcan->hwmb[i].mb_cs.data,
+			    i, flexcan->hwmb[i].mb_cs,
 			    flexcan->hwmb[i].mb_id, flexcan->hwmb[i].mb_data[1],
 			    flexcan->hwmb[i].mb_data[2]);
 	return ret;
@@ -214,7 +214,7 @@ static int flexcan_dump_rx_mb(struct flexcan_device *flexcan, char *buf)
 		ret +=
 		    sprintf(buf + ret,
 			    "mb[%d]::CS:0x%x ID:0x%x DATA[1~2]:0x%02x,0x%02x\n",
-			    i, flexcan->hwmb[i].mb_cs.data,
+			    i, flexcan->hwmb[i].mb_cs,
 			    flexcan->hwmb[i].mb_id, flexcan->hwmb[i].mb_data[1],
 			    flexcan->hwmb[i].mb_data[2]);
 	return ret;

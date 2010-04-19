@@ -1,5 +1,5 @@
 /*
- * Copyright 2008-2009 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2008-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -32,17 +32,6 @@
 
 #define FLEXCAN_DEVICE_NAME	"FlexCAN"
 
-struct can_mb_cs {
-	unsigned int time_stamp:16;
-	unsigned int length:4;
-	unsigned int rtr:1;
-	unsigned int ide:1;
-	unsigned int srr:1;
-	unsigned int nouse1:1;
-	unsigned int code:4;
-	unsigned int nouse2:4;
-};
-
 #define CAN_MB_RX_INACTIVE	0x0
 #define CAN_MB_RX_EMPTY		0x4
 #define CAN_MB_RX_FULL		0x2
@@ -55,13 +44,23 @@ struct can_mb_cs {
 #define CAN_MB_TX_REMOTE	0xA
 
 struct can_hw_mb {
-	union {
-		struct can_mb_cs cs;
-		unsigned int data;
-	} mb_cs;
+	unsigned int mb_cs;
 	unsigned int mb_id;
 	unsigned char mb_data[8];
 };
+
+#define MB_CS_CODE_OFFSET	24
+#define MB_CS_CODE_MASK		(0xF << MB_CS_CODE_OFFSET)
+#define MB_CS_SRR_OFFSET	22
+#define MB_CS_SRR_MASK		(0x1 << MB_CS_SRR_OFFSET)
+#define MB_CS_IDE_OFFSET	21
+#define MB_CS_IDE_MASK		(0x1 << MB_CS_IDE_OFFSET)
+#define MB_CS_RTR_OFFSET	20
+#define MB_CS_RTR_MASK		(0x1 << MB_CS_RTR_OFFSET)
+#define MB_CS_LENGTH_OFFSET	16
+#define MB_CS_LENGTH_MASK	(0xF << MB_CS_LENGTH_OFFSET)
+#define MB_CS_TIMESTAMP_OFFSET	0
+#define MB_CS_TIMESTAMP_MASK	(0xFF << MB_CS_TIMESTAMP_OFFSET)
 
 #define CAN_HW_REG_MCR		0x00
 #define CAN_HW_REG_CTRL		0x04

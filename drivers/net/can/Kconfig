@@ -86,8 +86,8 @@ config CAN_DEBUG_DEVICES
 
 config CAN_FLEXCAN
         tristate "Freescale FlexCAN"
-        depends on CAN && (ARCH_MX25 || ARCH_MX35 || ARCH_MX28)
-        default m
+        depends on CAN && (ARCH_MX25 || ARCH_MX35 || ARCH_MX28 || ARCH_MX53)
+        default y
         ---help---
           This select the support of Freescale CAN(FlexCAN).
           This driver can also be built as a module.

@@ -1,5 +1,5 @@
 /*
- * Copyright 2008-2009 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2008-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -55,10 +55,13 @@ static void flexcan_mb_bottom(struct net_device *dev, int index)
 
 	hwmb = flexcan->hwmb + index;
 	if (flexcan->fifo || (index >= (flexcan->maxmb - flexcan->xmit_maxmb))) {
-		if (hwmb->mb_cs.cs.code == CAN_MB_TX_ABORT)
-			hwmb->mb_cs.cs.code = CAN_MB_TX_INACTIVE;
+		if ((hwmb->mb_cs & MB_CS_CODE_MASK) >> MB_CS_CODE_OFFSET ==
+							CAN_MB_TX_ABORT) {
+			hwmb->mb_cs &= ~MB_CS_CODE_MASK;
+			hwmb->mb_cs |= CAN_MB_TX_INACTIVE << MB_CS_CODE_OFFSET;
+		}
 
-		if (hwmb->mb_cs.cs.code & CAN_MB_TX_INACTIVE) {
+		if (hwmb->mb_cs & (CAN_MB_TX_INACTIVE << MB_CS_CODE_OFFSET)) {
 			if (netif_queue_stopped(dev))
 				netif_start_queue(dev);
 			return;
@@ -68,16 +71,17 @@ static void flexcan_mb_bottom(struct net_device *dev, int index)
 	if (skb) {
 		frame = (struct can_frame *)skb_put(skb, sizeof(*frame));
 		memset(frame, 0, sizeof(*frame));
-		if (hwmb->mb_cs.cs.ide)
+		if (hwmb->mb_cs & MB_CS_IDE_MASK)
 			frame->can_id =
 			    (hwmb->mb_id & CAN_EFF_MASK) | CAN_EFF_FLAG;
 		else
 			frame->can_id = (hwmb->mb_id >> 18) & CAN_SFF_MASK;
 
-		if (hwmb->mb_cs.cs.rtr)
+		if (hwmb->mb_cs & MB_CS_RTR_MASK)
 			frame->can_id |= CAN_RTR_FLAG;
 
-		frame->can_dlc = hwmb->mb_cs.cs.length;
+		frame->can_dlc =
+		(hwmb->mb_cs & MB_CS_LENGTH_MASK) >> MB_CS_LENGTH_OFFSET;
 
 		if (frame->can_dlc && frame->can_dlc)
 			flexcan_memcpy(frame->data, hwmb->mb_data,
@@ -85,7 +89,8 @@ static void flexcan_mb_bottom(struct net_device *dev, int index)
 
 		if (flexcan->fifo
 		    || (index >= (flexcan->maxmb - flexcan->xmit_maxmb))) {
-			hwmb->mb_cs.cs.code = CAN_MB_TX_INACTIVE;
+			hwmb->mb_cs &= ~MB_CS_CODE_MASK;
+			hwmb->mb_cs |= CAN_MB_TX_INACTIVE << MB_CS_CODE_OFFSET;
 			if (netif_queue_stopped(dev))
 				netif_start_queue(dev);
 		}
@@ -101,13 +106,13 @@ static void flexcan_mb_bottom(struct net_device *dev, int index)
 		skb->ip_summed = CHECKSUM_UNNECESSARY;
 		netif_rx(skb);
 	} else {
-		tmp = hwmb->mb_cs.data;
+		tmp = hwmb->mb_cs;
 		tmp = hwmb->mb_id;
 		tmp = hwmb->mb_data[0];
 		if (flexcan->fifo
 		    || (index >= (flexcan->maxmb - flexcan->xmit_maxmb))) {
-
-			hwmb->mb_cs.cs.code = CAN_MB_TX_INACTIVE;
+			hwmb->mb_cs &= ~MB_CS_CODE_MASK;
+			hwmb->mb_cs |= CAN_MB_TX_INACTIVE << MB_CS_CODE_OFFSET;
 			if (netif_queue_stopped(dev))
 				netif_start_queue(dev);
 		}
@@ -131,17 +136,19 @@ static void flexcan_fifo_isr(struct net_device *dev, unsigned int iflag1)
 			frame =
 			    (struct can_frame *)skb_put(skb, sizeof(*frame));
 			memset(frame, 0, sizeof(*frame));
-			if (hwmb->mb_cs.cs.ide)
+			if (hwmb->mb_cs & MB_CS_IDE_MASK)
 				frame->can_id =
 				    (hwmb->mb_id & CAN_EFF_MASK) | CAN_EFF_FLAG;
 			else
 				frame->can_id =
 				    (hwmb->mb_id >> 18) & CAN_SFF_MASK;
 
-			if (hwmb->mb_cs.cs.rtr)
+			if (hwmb->mb_cs & MB_CS_RTR_MASK)
 				frame->can_id |= CAN_RTR_FLAG;
 
-			frame->can_dlc = hwmb->mb_cs.cs.length;
+			frame->can_dlc =
+				(hwmb->mb_cs & MB_CS_LENGTH_MASK) >>
+						MB_CS_LENGTH_OFFSET;
 
 			if (frame->can_dlc && (frame->can_dlc <= 8))
 				flexcan_memcpy(frame->data, hwmb->mb_data,
@@ -158,7 +165,7 @@ static void flexcan_fifo_isr(struct net_device *dev, unsigned int iflag1)
 			skb->ip_summed = CHECKSUM_UNNECESSARY;
 			netif_rx(skb);
 		} else {
-			tmp = hwmb->mb_cs.data;
+			tmp = hwmb->mb_cs;
 			tmp = hwmb->mb_id;
 			tmp = hwmb->mb_data[0];
 			tmp = __raw_readl(flexcan->io_base + CAN_HW_REG_TIMER);
@@ -252,7 +259,8 @@ int flexcan_mbm_xmit(struct flexcan_device *flexcan, struct can_frame *frame)
 	struct can_hw_mb *hwmb = flexcan->hwmb;
 
 	do {
-		if (hwmb[i].mb_cs.cs.code == CAN_MB_TX_INACTIVE)
+		if ((hwmb[i].mb_cs & MB_CS_CODE_MASK) >> MB_CS_CODE_OFFSET ==
+							    CAN_MB_TX_INACTIVE)
 			break;
 		if ((++i) > flexcan->maxmb) {
 			if (flexcan->fifo)
@@ -273,22 +281,24 @@ int flexcan_mbm_xmit(struct flexcan_device *flexcan, struct can_frame *frame)
 	}
 
 	if (frame->can_id & CAN_RTR_FLAG)
-		hwmb[i].mb_cs.cs.rtr = 1;
+		hwmb[i].mb_cs |= 1 << MB_CS_RTR_OFFSET;
 	else
-		hwmb[i].mb_cs.cs.rtr = 0;
+		hwmb[i].mb_cs &= ~MB_CS_RTR_MASK;
 
 	if (frame->can_id & CAN_EFF_FLAG) {
-		hwmb[i].mb_cs.cs.ide = 1;
-		hwmb[i].mb_cs.cs.srr = 1;
+		hwmb[i].mb_cs |= 1 << MB_CS_IDE_OFFSET;
+		hwmb[i].mb_cs |= 1 << MB_CS_SRR_OFFSET;
 		hwmb[i].mb_id = frame->can_id & CAN_EFF_MASK;
 	} else {
-		hwmb[i].mb_cs.cs.ide = 0;
+		hwmb[i].mb_cs &= ~MB_CS_IDE_MASK;
 		hwmb[i].mb_id = (frame->can_id & CAN_SFF_MASK) << 18;
 	}
 
-	hwmb[i].mb_cs.cs.length = frame->can_dlc;
+	hwmb[i].mb_cs &= MB_CS_LENGTH_MASK;
+	hwmb[i].mb_cs |= frame->can_dlc << MB_CS_LENGTH_OFFSET;
 	flexcan_memcpy(hwmb[i].mb_data, frame->data, frame->can_dlc);
-	hwmb[i].mb_cs.cs.code = CAN_MB_TX_ONCE;
+	hwmb[i].mb_cs &= ~MB_CS_CODE_MASK;
+	hwmb[i].mb_cs |= CAN_MB_TX_ONCE << MB_CS_CODE_OFFSET;
 	return 0;
 }
 
@@ -325,23 +335,27 @@ void flexcan_mbm_init(struct flexcan_device *flexcan)
 			id_table[i] = 0;
 	} else {
 		for (i = 0; i < rx_mb; i++) {
-			hwmb[i].mb_cs.cs.code = CAN_MB_RX_EMPTY;
+			hwmb[i].mb_cs &= ~MB_CS_CODE_MASK;
+			hwmb[i].mb_cs |= CAN_MB_RX_EMPTY << MB_CS_CODE_OFFSET;
 			/*
 			 * IDE bit can not control by mask registers
 			 * So set message buffer to receive extend
 			 * or standard message.
 			 */
-			if (flexcan->ext_msg && flexcan->std_msg)
-				hwmb[i].mb_cs.cs.ide = i & 1;
-			else {
+			if (flexcan->ext_msg && flexcan->std_msg) {
+				hwmb[i].mb_cs &= ~MB_CS_IDE_MASK;
+				hwmb[i].mb_cs |= (i & 1) << MB_CS_IDE_OFFSET;
+			} else {
 				if (flexcan->ext_msg)
-					hwmb[i].mb_cs.cs.ide = 1;
+					hwmb[i].mb_cs |= 1 << MB_CS_IDE_OFFSET;
 			}
 		}
 	}
 
-	for (; i <= flexcan->maxmb; i++)
-		hwmb[i].mb_cs.cs.code = CAN_MB_TX_INACTIVE;
+	for (; i <= flexcan->maxmb; i++) {
+		hwmb[i].mb_cs &= ~MB_CS_CODE_MASK;
+		hwmb[i].mb_cs |= CAN_MB_TX_INACTIVE << MB_CS_CODE_OFFSET;
+	}
 
 	flexcan->xmit_mb = rx_mb;
 }
