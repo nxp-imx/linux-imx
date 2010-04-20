@@ -120,9 +120,12 @@ static int mxs_adc_trigger(struct snd_pcm_substream *substream,
 				BM_AUDIOOUT_HPVOL_VOL_RIGHT;
 			__raw_writel(reg1, REGS_AUDIOOUT_BASE + \
 				HW_AUDIOOUT_HPVOL);
-
-			__raw_writel(BM_AUDIOOUT_CTRL_RUN,
+			/* enable the fifo error interrupt */
+			__raw_writel(BM_AUDIOOUT_CTRL_FIFO_ERROR_IRQ_EN,
 				REGS_AUDIOOUT_BASE + HW_AUDIOOUT_CTRL_SET);
+			/* write a data to data reg to trigger the transfer */
+			__raw_writel(0x0,
+				REGS_AUDIOOUT_BASE + HW_AUDIOOUT_DATA);
 			__raw_writel(BM_AUDIOOUT_ANACTRL_HP_HOLD_GND,
 				REGS_AUDIOOUT_BASE + HW_AUDIOOUT_ANACTRL_CLR);
 
@@ -159,8 +162,8 @@ static int mxs_adc_trigger(struct snd_pcm_substream *substream,
 				REGS_AUDIOOUT_BASE + HW_AUDIOOUT_ANACTRL_SET);
 			__raw_writel(BM_AUDIOOUT_SPEAKERCTRL_MUTE,
 			    REGS_AUDIOOUT_BASE + HW_AUDIOOUT_SPEAKERCTRL_SET);
-
-			__raw_writel(BM_AUDIOOUT_CTRL_RUN,
+			/* disable the fifo error interrupt */
+			__raw_writel(BM_AUDIOOUT_CTRL_FIFO_ERROR_IRQ_EN,
 				REGS_AUDIOOUT_BASE + HW_AUDIOOUT_CTRL_CLR);
 		}
 		else
@@ -211,8 +214,6 @@ static int mxs_adc_startup(struct snd_pcm_substream *substream,
 				REGS_AUDIOOUT_BASE + HW_AUDIOOUT_CTRL_CLR);
 		__raw_writel(BM_AUDIOOUT_CTRL_FIFO_UNDERFLOW_IRQ,
 				REGS_AUDIOOUT_BASE + HW_AUDIOOUT_CTRL_CLR);
-		__raw_writel(BM_AUDIOOUT_CTRL_FIFO_ERROR_IRQ_EN,
-			REGS_AUDIOOUT_BASE + HW_AUDIOOUT_CTRL_SET);
 	} else {
 		__raw_writel(BM_AUDIOIN_CTRL_FIFO_OVERFLOW_IRQ,
 			REGS_AUDIOIN_BASE + HW_AUDIOIN_CTRL_CLR);

@@ -585,11 +585,17 @@ mxs_codec_dac_power_on(struct mxs_codec_priv *mxs_adc)
 	/* Mute speaker amp */
 	__raw_writel(BM_AUDIOOUT_SPEAKERCTRL_MUTE,
 		      REGS_AUDIOOUT_BASE + HW_AUDIOOUT_SPEAKERCTRL_SET);
+	/* Enable the audioout */
+	 __raw_writel(BM_AUDIOOUT_CTRL_RUN,
+			REGS_AUDIOOUT_BASE + HW_AUDIOOUT_CTRL_SET);
 }
 
 static void
 mxs_codec_dac_power_down(struct mxs_codec_priv *mxs_adc)
 {
+	/* Disable the audioout */
+	 __raw_writel(BM_AUDIOOUT_CTRL_RUN,
+		REGS_AUDIOOUT_BASE + HW_AUDIOOUT_CTRL_CLR);
 	/* Disable class AB */
 	__raw_writel(BM_AUDIOOUT_ANACTRL_HP_CLASSAB,
 			REGS_AUDIOOUT_BASE + HW_AUDIOOUT_ANACTRL_CLR);
