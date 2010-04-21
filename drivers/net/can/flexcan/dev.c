@@ -35,6 +35,74 @@
 #endif
 #include "flexcan.h"
 
+#define DEFAULT_BITRATE	    500000
+#define TIME_SEGMENT_MIN    8
+#define TIME_SEGMENT_MAX    25
+#define TIME_SEGMENT_MID    ((TIME_SEGMENT_MIN + TIME_SEGMENT_MAX)/2)
+
+struct time_segment {
+	char propseg;
+	char pseg1;
+	char pseg2;
+};
+
+struct time_segment time_segments[] = {
+    { /* total 8 timequanta */
+	1, 2, 1
+    },
+    { /* total 9 timequanta */
+	1, 2, 2
+    },
+    { /* total 10 timequanta */
+	2, 2, 2
+    },
+    { /* total 11 timequanta */
+	2, 2, 3
+    },
+    { /* total 12 timequanta */
+	2, 3, 3
+    },
+    { /* total 13 timequanta */
+	3, 3, 3
+    },
+    { /* total 14 timequanta */
+	3, 3, 4
+    },
+    { /* total 15 timequanta */
+	3, 4, 4
+    },
+    { /* total 16 timequanta */
+	4, 4, 4
+    },
+    { /* total 17 timequanta */
+	4, 4, 5
+    },
+    { /* total 18 timequanta */
+	4, 5, 5
+    },
+    { /* total 19 timequanta */
+	5, 5, 5
+    },
+    { /* total 20 timequanta */
+	5, 5, 6
+    },
+    { /* total 21 timequanta */
+	5, 6, 6
+    },
+    { /* total 22 timequanta */
+	6, 6, 6
+    },
+    { /* total 23 timequanta */
+	6, 6, 7
+    },
+    { /* total 24 timequanta */
+	6, 7, 7
+    },
+    { /* total 25 timequanta */
+	7, 7, 7
+    },
+};
+
 enum {
 	FLEXCAN_ATTR_STATE = 0,
 	FLEXCAN_ATTR_BITRATE,
@@ -138,6 +206,45 @@ static void flexcan_set_bitrate(struct flexcan_device *flexcan, int bitrate)
 	 * based on the bitrate to get the timing of
 	 * presdiv, pseg1, pseg2, propseg
 	 */
+	int i, rate, div;
+	bool found = false;
+	struct time_segment *segment;
+	rate = clk_get_rate(flexcan->clk);
+
+	if (!bitrate)
+		bitrate = DEFAULT_BITRATE;
+
+	if (rate % bitrate == 0) {
+		div = rate / bitrate;
+		for (i = TIME_SEGMENT_MID; i <= TIME_SEGMENT_MAX; i++) {
+			if (div % i == 0) {
+				found = true;
+				break;
+			}
+		}
+		if (!found) {
+			for (i = TIME_SEGMENT_MID - 1;
+					    i >= TIME_SEGMENT_MIN; i--) {
+				if (div % i == 0) {
+					found = true;
+					break;
+				}
+			}
+
+		}
+	}
+
+	if (found) {
+		segment = &time_segments[i - TIME_SEGMENT_MIN];
+		flexcan->br_presdiv = div/i - 1;
+		flexcan->br_propseg = segment->propseg;
+		flexcan->br_pseg1 = segment->pseg1;
+		flexcan->br_pseg2 = segment->pseg2;
+		flexcan->bitrate = bitrate;
+	} else {
+		pr_info("The bitrate %d can't supported with clock \
+				    rate of %d \n", bitrate, rate);
+	}
 }
 
 static void flexcan_update_bitrate(struct flexcan_device *flexcan)
@@ -575,6 +682,7 @@ struct net_device *flexcan_device_alloc(struct platform_device *pdev,
 		return NULL;
 	}
 	flexcan_device_default(flexcan);
+	flexcan_set_bitrate(flexcan, flexcan->bitrate);
 	flexcan_update_bitrate(flexcan);
 
 	num = ARRAY_SIZE(flexcan_dev_attr);
