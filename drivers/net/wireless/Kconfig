@@ -503,5 +503,6 @@ source "drivers/net/wireless/rt2x00/Kconfig"
 source "drivers/net/wireless/orinoco/Kconfig"
 source "drivers/net/wireless/wl12xx/Kconfig"
 source "drivers/net/wireless/iwmc3200wifi/Kconfig"
+source "drivers/net/wireless/ath6kl/Kconfig"
 
 endmenu
