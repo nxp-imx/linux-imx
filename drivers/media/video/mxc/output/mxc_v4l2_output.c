@@ -1341,8 +1341,19 @@ static int mxc_v4l2out_streamon(vout_data * vout)
 		if (vout->ic_bypass) {
 			pr_debug("Bypassing IC\n");
 			vout->work_irq = -1;
-			fbvar.bits_per_pixel = 8*
-				bytes_per_pixel(vout->v2f.fmt.pix.pixelformat);
+			switch (vout->v2f.fmt.pix.pixelformat) {
+			case V4L2_PIX_FMT_YUV420:
+			case V4L2_PIX_FMT_YVU420:
+			case V4L2_PIX_FMT_NV12:
+				fbvar.bits_per_pixel = 12;
+				break;
+			case V4L2_PIX_FMT_YUV422P:
+				fbvar.bits_per_pixel = 16;
+				break;
+			default:
+				fbvar.bits_per_pixel = 8*
+					bytes_per_pixel(vout->v2f.fmt.pix.pixelformat);
+			}
 			fbvar.nonstd = vout->v2f.fmt.pix.pixelformat;
 		}
 
