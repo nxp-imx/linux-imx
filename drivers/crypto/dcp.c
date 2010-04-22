@@ -17,10 +17,16 @@
 
 #include <linux/module.h>
 #include <linux/kernel.h>
+#include <linux/errno.h>
+#include <linux/sysdev.h>
+#include <linux/bitops.h>
 #include <linux/crypto.h>
 #include <linux/spinlock.h>
+#include <linux/miscdevice.h>
 #include <linux/platform_device.h>
 #include <linux/err.h>
+#include <linux/sysfs.h>
+#include <linux/fs.h>
 #include <crypto/algapi.h>
 #include <crypto/aes.h>
 #include <crypto/sha.h>
@@ -29,6 +35,7 @@
 #include <linux/dma-mapping.h>
 #include <linux/interrupt.h>
 #include <linux/delay.h>
+#include <linux/uaccess.h>
 
 #include <linux/io.h>
 #include <linux/delay.h>
@@ -36,6 +43,13 @@
 #include <asm/cacheflush.h>
 #include <mach/hardware.h>
 #include "dcp.h"
+#include "dcp_bootstream_ioctl.h"
+
+/* Following data only used by DCP bootstream interface */
+struct dcpboot_dma_area {
+	struct dcp_hw_packet hw_packet;
+	uint16_t block[16];
+};
 
 struct dcp {
 	struct device *dev;
@@ -55,6 +69,10 @@ struct dcp {
 	struct dcp_hash_coherent_block *buf1_desc;
 	struct dcp_hash_coherent_block *buf2_desc;
 	struct dcp_hash_coherent_block *user_buf_desc;
+
+	/* Following data only used by DCP bootstream interface */
+	struct dcpboot_dma_area *dcpboot_dma_area;
+	dma_addr_t dcpboot_dma_area_phys;
 };
 
 /* cipher flags */
@@ -1245,6 +1263,106 @@ static irqreturn_t dcp_irq(int irq, void *context)
 	return dcp_common_irq(irq, context);
 }
 
+/* DCP bootstream verification interface: uses OTP key for crypto */
+static int dcp_bootstream_ioctl(struct inode *inode, struct file *file,
+					 unsigned int cmd, unsigned long arg)
+{
+	struct dcp *sdcp = global_sdcp;
+	struct dcpboot_dma_area *da = sdcp->dcpboot_dma_area;
+	void __user *argp = (void __user *)arg;
+	int chan = ROM_DCP_CHAN;
+	unsigned long timeout;
+	struct mutex *mutex;
+	int retVal;
+
+	/* be paranoid */
+	if (sdcp == NULL)
+		return -EBADF;
+
+	if (cmd != DBS_ENC && cmd != DBS_DEC)
+		return -EINVAL;
+
+	/* copy to (aligned) block */
+	if (copy_from_user(da->block, argp, 16))
+		return -EFAULT;
+
+	mutex = &sdcp->op_mutex[chan];
+	mutex_lock(mutex);
+
+	__raw_writel(-1, sdcp->dcp_regs_base +
+		HW_DCP_CHnSTAT_CLR(ROM_DCP_CHAN));
+	__raw_writel(BF(ROM_DCP_CHAN_MASK, DCP_STAT_IRQ),
+		sdcp->dcp_regs_base + HW_DCP_STAT_CLR);
+
+	da->hw_packet.pNext = 0;
+	da->hw_packet.pkt1 = BM_DCP_PACKET1_DECR_SEMAPHORE |
+	    BM_DCP_PACKET1_ENABLE_CIPHER | BM_DCP_PACKET1_OTP_KEY |
+	    BM_DCP_PACKET1_INTERRUPT |
+	    (cmd == DBS_ENC ? BM_DCP_PACKET1_CIPHER_ENCRYPT : 0);
+	da->hw_packet.pkt2 = BF(0, DCP_PACKET2_CIPHER_CFG) |
+	    BF(0, DCP_PACKET2_KEY_SELECT) |
+	    BF(BV_DCP_PACKET2_CIPHER_MODE__ECB, DCP_PACKET2_CIPHER_MODE) |
+	    BF(BV_DCP_PACKET2_CIPHER_SELECT__AES128, DCP_PACKET2_CIPHER_SELECT);
+	da->hw_packet.pSrc = sdcp->dcpboot_dma_area_phys +
+	    offsetof(struct dcpboot_dma_area, block);
+	da->hw_packet.pDst = da->hw_packet.pSrc;	/* in-place */
+	da->hw_packet.size = 16;
+	da->hw_packet.pPayload = 0;
+	da->hw_packet.stat = 0;
+
+	/* Load the work packet pointer and bump the channel semaphore */
+	__raw_writel(sdcp->dcpboot_dma_area_phys +
+		     offsetof(struct dcpboot_dma_area, hw_packet),
+		     sdcp->dcp_regs_base + HW_DCP_CHnCMDPTR(ROM_DCP_CHAN));
+
+	sdcp->wait[chan] = 0;
+	__raw_writel(BF(1, DCP_CHnSEMA_INCREMENT),
+		     sdcp->dcp_regs_base + HW_DCP_CHnSEMA(ROM_DCP_CHAN));
+
+	timeout = jiffies + msecs_to_jiffies(100);
+
+	while (time_before(jiffies, timeout) && sdcp->wait[chan] == 0)
+		cpu_relax();
+
+	if (!time_before(jiffies, timeout)) {
+		dev_err(sdcp->dev,
+			"Timeout while waiting for operation to complete\n");
+		retVal = -ETIMEDOUT;
+		goto exit;
+	}
+
+	if ((__raw_readl(sdcp->dcp_regs_base + HW_DCP_CHnSTAT(ROM_DCP_CHAN))
+			& 0xff) != 0) {
+		dev_err(sdcp->dev, "Channel stat error 0x%02x\n",
+			__raw_readl(sdcp->dcp_regs_base +
+				    HW_DCP_CHnSTAT(ROM_DCP_CHAN)) & 0xff);
+		retVal = -EFAULT;
+		goto exit;
+	}
+
+	if (copy_to_user(argp, da->block, 16)) {
+		retVal =  -EFAULT;
+		goto exit;
+	}
+
+	retVal = 0;
+
+exit:
+	mutex_unlock(mutex);
+	return retVal;
+}
+
+static const struct file_operations dcp_bootstream_fops = {
+	.owner =	THIS_MODULE,
+	.ioctl =	dcp_bootstream_ioctl,
+};
+
+static struct miscdevice dcp_bootstream_misc = {
+	.minor	= MISC_DYNAMIC_MINOR,
+	.name	= "dcpboot",
+	.fops = &dcp_bootstream_fops,
+};
+
 static int dcp_probe(struct platform_device *pdev)
 {
 	struct dcp *sdcp = NULL;
@@ -1439,9 +1557,29 @@ static int dcp_probe(struct platform_device *pdev)
 		}
 	}
 
+	/* register dcpboot interface to allow apps (such as kobs-ng) to
+	 * verify files (such as the bootstream) using the OTP key for crypto */
+	ret = misc_register(&dcp_bootstream_misc);
+	if (ret != 0) {
+		dev_err(&pdev->dev, "Unable to register misc device\n");
+		goto err_unregister_sha1;
+	}
+
+	sdcp->dcpboot_dma_area = dma_alloc_coherent(&pdev->dev,
+		sizeof(*sdcp->dcpboot_dma_area), &sdcp->dcpboot_dma_area_phys,
+		GFP_KERNEL);
+	if (sdcp->dcpboot_dma_area == NULL) {
+		dev_err(&pdev->dev,
+			"Unable to allocate DMAable memory \
+			 for dcpboot interface\n");
+		goto err_dereg;
+	}
+
 	dev_notice(&pdev->dev, "DCP crypto enabled.!\n");
 	return 0;
 
+err_dereg:
+	misc_deregister(&dcp_bootstream_misc);
 err_unregister_sha1:
 	crypto_unregister_shash(&dcp_sha1_alg);
 err_unregister_aes_cbc:
@@ -1487,8 +1625,19 @@ static int dcp_remove(struct platform_device *pdev)
 			sdcp->user_buf_desc, sdcp->user_buf_desc->my_phys);
 	}
 
+	if (sdcp->dcpboot_dma_area) {
+		dma_free_coherent(&pdev->dev, sizeof(*sdcp->dcpboot_dma_area),
+			  sdcp->dcpboot_dma_area, sdcp->dcpboot_dma_area_phys);
+		misc_deregister(&dcp_bootstream_misc);
+	}
+
+
 	crypto_unregister_shash(&dcp_sha1_alg);
-	crypto_unregister_shash(&dcp_sha256_alg);
+
+	if (__raw_readl(sdcp->dcp_regs_base + HW_DCP_CAPABILITY1) &
+		BF_DCP_CAPABILITY1_HASH_ALGORITHMS(
+		BV_DCP_CAPABILITY1_HASH_ALGORITHMS__SHA256))
+		crypto_unregister_shash(&dcp_sha256_alg);
 
 	crypto_unregister_alg(&dcp_aes_cbc_alg);
 	crypto_unregister_alg(&dcp_aes_ecb_alg);

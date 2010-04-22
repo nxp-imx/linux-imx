@@ -19,7 +19,12 @@
 #define HASH_CHAN	0
 #define HASH_MASK	(1 << HASH_CHAN)
 
-#define ALL_MASK	(CIPHER_MASK | HASH_MASK)
+/* DCP boostream interface uses this channel (same as the ROM) */
+#define ROM_DCP_CHAN 3
+#define ROM_DCP_CHAN_MASK (1 << ROM_DCP_CHAN)
+
+
+#define ALL_MASK	(CIPHER_MASK | HASH_MASK | ROM_DCP_CHAN_MASK)
 
 /* Defines the initialization value for the dcp control register */
 #define DCP_CTRL_INIT \
