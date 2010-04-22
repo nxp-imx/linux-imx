@@ -763,10 +763,9 @@ static int fec_enet_mii_init(struct platform_device *pdev)
 	fep->mii_timeout = 0;
 
 	/*
-	 * Set MII speed to 2.5 MHz
+	 * Set MII speed to 2.5 MHz (= clk_get_rate() / 2 * phy_speed)
 	 */
-	fep->phy_speed = ((((clk_get_rate(fep->clk) / 2 + 4999999)
-					/ 2500000) / 2) & 0x3F) << 1;
+	fep->phy_speed = DIV_ROUND_UP(clk_get_rate(fep->clk), 5000000) << 1;
 	writel(fep->phy_speed, fep->hwp + FEC_MII_SPEED);
 
 	fep->mii_bus = mdiobus_alloc();
@@ -1194,10 +1193,6 @@ int __init fec_enet_init(struct net_device *dev, int index)
 	dev->watchdog_timeo = TX_TIMEOUT;
 	dev->netdev_ops = &fec_netdev_ops;
 	dev->ethtool_ops = &fec_enet_ethtool_ops;
-
-	/* Set MII speed to 2.5 MHz */
-	fep->phy_speed = ((((clk_get_rate(fep->clk) / 2 + 4999999)
-					/ 2500000) / 2) & 0x3F) << 1;
 
 #ifdef CONFIG_ARCH_MXS
 	/* Can't get phy(8720) ID when set to 2.5M, lower it*/
