@@ -58,22 +58,11 @@
 #if defined(CONFIG_ARCH_MXC) || defined(CONFIG_ARCH_MXS)
 #include <mach/hardware.h>
 #define FEC_ALIGNMENT	0xf
-#ifdef CONFIG_ARCH_MXS
-static unsigned char    fec_mac_default[6];
-#endif
 #else
 #define FEC_ALIGNMENT	0x3
 #endif
 
-/*
- * Define the fixed address of the FEC hardware.
- */
 #if defined(CONFIG_M5272)
-
-static unsigned char	fec_mac_default[] = {
-	0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-};
-
 /*
  * Some hardware gets it MAC address out of local flash memory.
  * if this is non-zero then assume it is the address to get MAC from.
@@ -208,6 +197,12 @@ struct fec_enet_private {
 	int	link;
 	int	full_duplex;
 };
+
+/*
+ * Define the fixed address of the FEC hardware.
+ */
+static unsigned char	fec_mac_default[ETH_ALEN];
+static struct mii_bus *fec_mii_bus;
 
 static irqreturn_t fec_enet_interrupt(int irq, void * dev_id);
 static void fec_enet_tx(struct net_device *dev);
@@ -570,12 +565,13 @@ rx_processing_done:
 }
 
 /* ------------------------------------------------------------------------- */
-#ifdef CONFIG_M5272
 static void __inline__ fec_get_mac(struct net_device *dev)
 {
 	struct fec_enet_private *fep = netdev_priv(dev);
 	unsigned char *iap, tmpaddr[ETH_ALEN];
+	static int index;
 
+#ifdef CONFIG_M5272
 	if (FEC_FLASHMAC) {
 		/*
 		 * Get MAC address from FLASH.
@@ -588,19 +584,26 @@ static void __inline__ fec_get_mac(struct net_device *dev)
 		if ((iap[0] == 0xff) && (iap[1] == 0xff) && (iap[2] == 0xff) &&
 		    (iap[3] == 0xff) && (iap[4] == 0xff) && (iap[5] == 0xff))
 			iap = fec_mac_default;
-	} else {
-		*((unsigned long *) &tmpaddr[0]) = readl(fep->hwp + FEC_ADDR_LOW);
-		*((unsigned short *) &tmpaddr[4]) = (readl(fep->hwp + FEC_ADDR_HIGH) >> 16);
+	}
+#else
+	if (is_valid_ether_addr(fec_mac_default)) {
+		iap = fec_mac_default;
+	}
+#endif
+	else {
+		*((unsigned long *) &tmpaddr[0]) = be32_to_cpu(readl(fep->hwp + FEC_ADDR_LOW));
+		*((unsigned short *) &tmpaddr[4]) = be16_to_cpu(readl(fep->hwp + FEC_ADDR_HIGH) >> 16);
 		iap = &tmpaddr[0];
 	}
 
 	memcpy(dev->dev_addr, iap, ETH_ALEN);
 
 	/* Adjust MAC if using default MAC address */
-	if (iap == fec_mac_default)
-		 dev->dev_addr[ETH_ALEN-1] = fec_mac_default[ETH_ALEN-1] + fep->index;
+	if (iap == fec_mac_default) {
+		dev->dev_addr[ETH_ALEN-1] = fec_mac_default[ETH_ALEN-1] + index;
+		index++;
+	}
 }
-#endif
 
 /* ------------------------------------------------------------------------- */
 
@@ -717,10 +720,13 @@ static int fec_enet_mii_probe(struct net_device *dev)
 	struct fec_enet_private *fep = netdev_priv(dev);
 	struct phy_device *phy_dev = NULL;
 	int phy_addr;
+	int fec_index = fep->pdev->id > 0 ? fep->pdev->id : 0;
 
-	/* find the first phy */
+	/* find the phy, assuming fec index corresponds to addr */
 	for (phy_addr = 0; phy_addr < PHY_MAX_ADDR; phy_addr++) {
 		if (fep->mii_bus->phy_map[phy_addr]) {
+			if (fec_index--)
+				continue;
 			phy_dev = fep->mii_bus->phy_map[phy_addr];
 			break;
 		}
@@ -750,7 +756,7 @@ static int fec_enet_mii_probe(struct net_device *dev)
 	return 0;
 }
 
-static int fec_enet_mii_init(struct platform_device *pdev)
+static struct mii_bus *fec_enet_mii_init(struct platform_device *pdev)
 {
 	struct net_device *dev = platform_get_drvdata(pdev);
 	struct fec_enet_private *fep = netdev_priv(dev);
@@ -763,6 +769,10 @@ static int fec_enet_mii_init(struct platform_device *pdev)
 	 * Set MII speed to 2.5 MHz (= clk_get_rate() / 2 * phy_speed)
 	 */
 	fep->phy_speed = DIV_ROUND_UP(clk_get_rate(fep->clk), 5000000) << 1;
+#ifdef CONFIG_ARCH_MXS
+	/* Can't get phy(8720) ID when set to 2.5M on MX28, lower it*/
+	fep->phy_speed <<= 2;
+#endif
 	writel(fep->phy_speed, fep->hwp + FEC_MII_SPEED);
 
 	fep->mii_bus = mdiobus_alloc();
@@ -794,19 +804,14 @@ static int fec_enet_mii_init(struct platform_device *pdev)
 	if (mdiobus_register(fep->mii_bus))
 		goto err_out_free_mdio_irq;
 
-	if (fec_enet_mii_probe(dev) != 0)
-		goto err_out_unregister_bus;
+	return fep->mii_bus;
 
-	return 0;
-
-err_out_unregister_bus:
-	mdiobus_unregister(fep->mii_bus);
 err_out_free_mdio_irq:
 	kfree(fep->mii_bus->irq);
 err_out_free_mdiobus:
 	mdiobus_free(fep->mii_bus);
 err_out:
-	return err;
+	return ERR_PTR(err);
 }
 
 static void fec_enet_mii_remove(struct fec_enet_private *fep)
@@ -1089,25 +1094,6 @@ static const struct net_device_ops fec_netdev_ops = {
 	.ndo_set_mac_address	= fec_set_mac_address,
 	.ndo_do_ioctl           = fec_enet_ioctl,
 };
-#ifdef CONFIG_ARCH_MXS
-
-static int fec_set_hw_mac(struct net_device *dev, unsigned char *mac_addr)
-{
-	struct fec_enet_private *fep = netdev_priv(dev);
-	unsigned char *addr = mac_addr;
-
-	if (!is_valid_ether_addr(addr))
-		return -EADDRNOTAVAIL;
-
-	writel(addr[3] | (addr[2] << 8) | (addr[1] << 16) | (addr[0] << 24),
-		fep->hwp + FEC_ADDR_LOW);
-
-	writel((addr[5] << 16) | (addr[4] << 24) | 0x8808,
-		fep->hwp + FEC_ADDR_HIGH);
-
-	return 0;
-
-}
 
 static int fec_mac_addr_setup(char *mac_addr)
 {
@@ -1133,7 +1119,6 @@ static int fec_mac_addr_setup(char *mac_addr)
 }
 
 __setup("fec_mac=", fec_mac_addr_setup);
-#endif
 
  /*
   * XXX:  We need to clean up on failure exits here.
@@ -1162,25 +1147,7 @@ int __init fec_enet_init(struct net_device *dev, int index)
 	fep->netdev = dev;
 
 	/* Set the Ethernet address */
-#ifdef CONFIG_M5272
 	fec_get_mac(dev);
-#else
-	{
-		unsigned long l;
-#ifdef CONFIG_ARCH_MXS
-		if (fec_set_hw_mac(dev, fec_mac_default))
-			printk(KERN_WARNING"Invalid MAC address....\n");
-#endif
-		l = readl(fep->hwp + FEC_ADDR_LOW);
-		dev->dev_addr[0] = (unsigned char)((l & 0xFF000000) >> 24);
-		dev->dev_addr[1] = (unsigned char)((l & 0x00FF0000) >> 16);
-		dev->dev_addr[2] = (unsigned char)((l & 0x0000FF00) >> 8);
-		dev->dev_addr[3] = (unsigned char)((l & 0x000000FF) >> 0);
-		l = readl(fep->hwp + FEC_ADDR_HIGH);
-		dev->dev_addr[4] = (unsigned char)((l & 0xFF000000) >> 24);
-		dev->dev_addr[5] = (unsigned char)((l & 0x00FF0000) >> 16);
-	}
-#endif
 
 	/* Set receive and transmit descriptor base. */
 	fep->rx_bd_base = cbd_base;
@@ -1191,10 +1158,6 @@ int __init fec_enet_init(struct net_device *dev, int index)
 	dev->netdev_ops = &fec_netdev_ops;
 	dev->ethtool_ops = &fec_enet_ethtool_ops;
 
-#ifdef CONFIG_ARCH_MXS
-	/* Can't get phy(8720) ID when set to 2.5M, lower it*/
-	fep->phy_speed <<= 2;
-#endif
 	/* Initialize the receive buffer descriptors. */
 	bdp = fep->rx_bd_base;
 	for (i = 0; i < RX_RING_SIZE; i++) {
@@ -1236,16 +1199,19 @@ fec_restart(struct net_device *dev, int duplex)
 {
 	struct fec_enet_private *fep = netdev_priv(dev);
 	int i;
+	u32 temp_mac[2];
 #ifdef CONFIG_ARCH_MXS
 	unsigned long reg;
 #endif
 	/* Whack a reset.  We should wait for this. */
 	writel(1, fep->hwp + FEC_ECNTRL);
 	udelay(10);
-#ifdef CONFIG_ARCH_MXS
+
 	/* Reset fec will reset MAC to zero, reconfig it again */
-	fec_set_hw_mac(dev, fec_mac_default);
-#endif
+	memcpy(&temp_mac, dev->dev_addr, ETH_ALEN);
+	writel(cpu_to_be32(temp_mac[0]), fep->hwp + FEC_ADDR_LOW);
+	writel(cpu_to_be32(temp_mac[1]), fep->hwp + FEC_ADDR_HIGH);
+
 	/* Clear any outstanding interrupt. */
 	writel(0xffc00000, fep->hwp + FEC_IEVENT);
 
@@ -1327,10 +1293,10 @@ fec_restart(struct net_device *dev, int duplex)
 		reg &= ~0x00000100;
 
 	/* Check 10M or 100M */
-	if (fep->phy_status & 0x0004)
-		reg |= 0x00000200;
+	if (fep->phy_dev && fep->phy_dev->speed == SPEED_100)
+		reg &= ~0x00000200; /* 100M */
 	else
-		reg &= ~0x00000200;
+		reg |= 0x00000200;  /* 10M */
 
 	writel(reg, fep->hwp + FEC_R_CNTRL);
 
@@ -1407,13 +1373,6 @@ fec_probe(struct platform_device *pdev)
 
 	platform_set_drvdata(pdev, ndev);
 
-	if (pdata) {
-		fep->phy_interface = pdata->phy;
-		if (pdata->init && pdata->init())
-			goto failed_platform_init;
-	} else
-		fep->phy_interface = PHY_INTERFACE_MODE_MII;
-
 	/* This device has up to three irqs on some platforms */
 	for (i = 0; i < 3; i++) {
 		irq = platform_get_irq(pdev, i);
@@ -1437,13 +1396,30 @@ fec_probe(struct platform_device *pdev)
 	}
 	clk_enable(fep->clk);
 
+	/* PHY reset should be done during clock on */
+	if (pdata) {
+		fep->phy_interface = pdata->phy;
+		if (pdata->init && pdata->init())
+			goto failed_platform_init;
+	} else
+		fep->phy_interface = PHY_INTERFACE_MODE_MII;
+
 	ret = fec_enet_init(ndev, 0);
 	if (ret)
 		goto failed_init;
 
-	ret = fec_enet_mii_init(pdev);
-	if (ret)
-		goto failed_mii_init;
+	if (pdev->id == 0) {
+		fec_mii_bus = fec_enet_mii_init(pdev);
+		if (IS_ERR(fec_mii_bus)) {
+			ret = -ENOMEM;
+			goto failed_mii_init;
+		}
+	} else {
+		fep->mii_bus = fec_mii_bus;
+	}
+
+	if (fec_enet_mii_probe(ndev) != 0)
+		goto failed_mii_probe;
 
 	ret = register_netdev(ndev);
 	if (ret)
@@ -1458,6 +1434,7 @@ fec_probe(struct platform_device *pdev)
 
 	return 0;
 
+failed_mii_probe:
 failed_register:
 	fec_enet_mii_remove(fep);
 failed_mii_init:
