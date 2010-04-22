@@ -72,12 +72,17 @@
 #define MX23_SOC_IO_ADDRESS(x) \
 	((x) - MX23_SOC_IO_PHYS_BASE + MX23_SOC_IO_VIRT_BASE)
 
+#ifdef __ASSEMBLER__
+#define IO_ADDRESS(x)		\
+		MX23_SOC_IO_ADDRESS(x)
+#else
 #define IO_ADDRESS(x)		\
 	(void __force __iomem *) 	\
 	(((x) >= (unsigned long)MX23_SOC_IO_PHYS_BASE) && \
 	 ((x) < (unsigned long)MX23_SOC_IO_PHYS_BASE + \
 				MX23_SOC_IO_AREA_SIZE) ? \
 		MX23_SOC_IO_ADDRESS(x) : 0xDEADBEEF)
+#endif
 
 #ifdef CONFIG_MXS_EARLY_CONSOLE
 #define MXS_DEBUG_CONSOLE_PHYS DUART_PHYS_ADDR

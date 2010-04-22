@@ -7,3 +7,9 @@ config MACH_MX23EVK
 	select USB_ARCH_HAS_EHCI
 
 endchoice
+
+config VECTORS_PHY_ADDR
+	int "vectors address"
+	default 0
+	help
+	  This config set vectors table is located which physical address

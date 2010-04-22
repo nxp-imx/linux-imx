@@ -1805,9 +1805,11 @@ void ddi_power_enable_vddio_interrupt(bool enable)
 
 }
 
+
 void ddi_power_handle_vddio_brnout(void)
 {
-	if (ddi_power_GetPmu5vStatus() == new_5v_connection) {
+	if (ddi_power_GetPmu5vStatus() == new_5v_connection ||
+		(ddi_power_GetPmu5vStatus() == new_5v_disconnection)) {
 		ddi_power_enable_vddio_interrupt(false);
 	} else {
 #ifdef DEBUG_IRQS

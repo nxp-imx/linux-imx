@@ -22,6 +22,7 @@
 #include <linux/io.h>
 #include <linux/clk.h>
 #include <linux/delay.h>
+#include <linux/iram_alloc.h>
 #include <linux/platform_device.h>
 
 #include <mach/clock.h>
@@ -824,8 +825,14 @@ static int emi_set_rate(struct clk *clk, unsigned long rate)
 {
 	int i;
 	struct mxs_emi_scaling_data emi;
+	unsigned long iram_phy;
 	void (*f) (struct mxs_emi_scaling_data *, unsigned int *);
-	f = (void *)MX28_OCRAM_BASE;
+	f = iram_alloc((unsigned int)mxs_ram_freq_scale_end -
+		(unsigned int)mxs_ram_freq_scale, &iram_phy);
+	if (NULL == f) {
+		pr_err("%s Not enough iram\n", __func__);
+		return -ENOMEM;
+	}
 	memcpy(f, mxs_ram_freq_scale,
 	       (unsigned int)mxs_ram_freq_scale_end -
 	       (unsigned int)mxs_ram_freq_scale);
@@ -852,6 +859,9 @@ static int emi_set_rate(struct clk *clk, unsigned long rate)
 	f(&emi, get_current_emidata());
 	local_fiq_enable();
 	local_irq_enable();
+	iram_free(iram_phy,
+		(unsigned int)mxs_ram_freq_scale_end -
+	       (unsigned int)mxs_ram_freq_scale);
 
 	for (i = 10000; i; i--)
 		if (!clk_is_busy(clk))

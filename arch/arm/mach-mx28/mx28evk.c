@@ -104,7 +104,12 @@ static void __init mx28evk_init_machine(void)
 {
 	mx28_pinctrl_init();
 	/* Init iram allocate */
+#ifdef CONFIG_VECTORS_PHY_ADDR
+	/* reserve the first page for irq vector table*/
+	iram_init(MX28_OCRAM_PHBASE + PAGE_SIZE, MX28_OCRAM_SIZE - PAGE_SIZE);
+#else
 	iram_init(MX28_OCRAM_PHBASE, MX28_OCRAM_SIZE);
+#endif
 
 	mx28_gpio_init();
 	mx28evk_pins_init();

@@ -102,7 +102,7 @@ struct mxs_info {
 #define IRQ_DCDC4P2_BRNOUT IRQ_DCDC4P2_BO
 #endif
 
-/* #define  POWER_FIQ */
+#define  POWER_FIQ
 
 /* #define DEBUG_IRQS */
 
@@ -129,9 +129,7 @@ void init_protection(struct mxs_info *info)
 	battery_voltage = ddi_power_GetBattery();
 
 	/* InitializeFiqSystem(); */
-#ifdef CONFIG_ARCH_MX23
 	ddi_power_InitOutputBrownouts();
-#endif
 
 
 	/* if we start the kernel with 4p2 already started
@@ -659,6 +657,8 @@ static irqreturn_t mxs_irq_batt_brnout(int irq, void *cookie)
 #endif
 	return IRQ_HANDLED;
 }
+
+
 static irqreturn_t mxs_irq_vddd_brnout(int irq, void *cookie)
 {
 #ifdef DEBUG_IRQS

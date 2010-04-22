@@ -130,7 +130,12 @@ static void __init mx23evk_init_machine(void)
 	mx23_pinctrl_init();
 
 	/* Init iram allocate */
+#ifdef CONFIG_VECTORS_PHY_ADDR
+	/* reserve the first page for irq vectors table*/
+	iram_init(MX23_OCRAM_PHBASE + PAGE_SIZE, MX23_OCRAM_SIZE - PAGE_SIZE);
+#else
 	iram_init(MX23_OCRAM_PHBASE, MX23_OCRAM_SIZE);
+#endif
 
 	mx23_gpio_init();
 	mx23evk_pins_init();

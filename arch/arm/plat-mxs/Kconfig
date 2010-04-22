@@ -19,6 +19,7 @@ config ARCH_MX28
 config ARCH_MX23
 	bool "Freescale MX23"
 	select CPU_ARM926T
+	select FIQ
 	select ZONE_DMA
 	select MXS_ICOLL
 	select MXS_DMA_ENGINE

@@ -19,11 +19,10 @@
 
 #include <linux/linkage.h>
 #include <asm/assembler.h>
-#include <mach/platform.h>
 #include <mach/hardware.h>
 #include <asm/pgtable-hwdef.h>
 #include <mach/regs-power.h>
-#include <mach/regs-clkctrl.h>
+#include <mach/../../regs-clkctrl.h>
 #include <mach/regs-timrot.h>
 
 	.align 5
@@ -33,7 +32,6 @@
 	.globl lock_vector_tlb
 
 power_fiq_start:
-
 	ldr 	r8,power_reg
 	ldr	r9,[r8,#HW_POWER_CTRL ]
 	ldr	r10,power_off
@@ -101,7 +99,7 @@ check_dcdc4p2:
 	subs    pc,lr, #4
 
 power_reg:
-	.long REGS_POWER_BASE
+	.long IO_ADDRESS(POWER_PHYS_ADDR)
 power_off:
 	.long 0x3e770001
 power_bo:

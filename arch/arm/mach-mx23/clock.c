@@ -22,6 +22,7 @@
 #include <linux/io.h>
 #include <linux/clk.h>
 #include <linux/delay.h>
+#include <linux/iram_alloc.h>
 #include <linux/platform_device.h>
 
 #include <mach/clock.h>
@@ -729,14 +730,19 @@ static int emi_set_rate(struct clk *clk, unsigned long rate)
 	else {
 		int i;
 		struct mxs_emi_scaling_data sc_data;
+		unsigned long iram_phy;
 		int (*scale)(struct mxs_emi_scaling_data *) =
-			(void *)(MX23_OCRAM_BASE + 0x1000);
-		void *saved_ocram;
+			iram_alloc(0x1000, &iram_phy);
+
 		unsigned long clkctrl_emi;
 		unsigned long clkctrl_frac;
 		int div = 1;
 		unsigned long root_rate =
 			clk->parent->parent->get_rate(clk->parent->parent);
+		if (NULL == scale) {
+			pr_err("%s Not enough iram\n", __func__);
+			return -ENOMEM;
+		}
 		/*
 		 * We've been setting div to HW_CLKCTRL_CPU_RD() & 0x3f so far.
 		 * TODO: verify 1 is still valid.
@@ -764,10 +770,6 @@ static int emi_set_rate(struct clk *clk, unsigned long rate)
 		pr_debug("%s: clkctrl_emi %ld, clkctrl_frac %ld\n",
 			__func__, clkctrl_emi, clkctrl_frac);
 
-		saved_ocram = kmalloc(mxs_ram_funcs_sz, GFP_KERNEL);
-		if (!saved_ocram)
-			return -ENOMEM;
-		memcpy(saved_ocram, scale, mxs_ram_funcs_sz);
 		memcpy(scale, mxs_ram_freq_scale, mxs_ram_funcs_sz);
 
 		sc_data.emi_div = clkctrl_emi;
@@ -777,6 +779,7 @@ static int emi_set_rate(struct clk *clk, unsigned long rate)
 
 		local_irq_disable();
 		local_fiq_disable();
+		iram_free(iram_phy, 0x1000);
 
 		scale(&sc_data);
 
@@ -786,8 +789,6 @@ static int emi_set_rate(struct clk *clk, unsigned long rate)
 		for (i = 10000; i; i--)
 			if (!clk_is_busy(clk))
 				break;
-		memcpy(scale, saved_ocram, mxs_ram_funcs_sz);
-		kfree(saved_ocram);
 
 		if (!i) {
 			printk(KERN_ERR "couldn't set up EMI divisor\n");
