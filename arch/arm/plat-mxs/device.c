@@ -210,6 +210,13 @@ static struct platform_device mxs_fec[] = {
 		.release = mxs_nop_release,
 		},
 	},
+	{
+	.name = "fec",
+	.id = 1,
+	.dev = {
+		.release = mxs_nop_release,
+		},
+	},
 };
 #endif
 

@@ -715,21 +715,24 @@ static void __init mx28_init_rtc(void)
 #endif
 
 #if defined(CONFIG_FEC) || defined(CONFIG_FEC_MODULE)
-static struct resource fec_resources[] = {
+static struct resource fec0_resource[] = {
 	{
 		.start  = ENET_PHYS_ADDR,
-		.end    = ENET_PHYS_ADDR + 0xffff,
+		.end    = ENET_PHYS_ADDR + 0x3fff,
 		.flags  = IORESOURCE_MEM
-	},
-	{
-		.start  = IRQ_ENET_SWI,
-		.end    = IRQ_ENET_SWI,
-		.flags  = IORESOURCE_IRQ
 	},
 	{
 		.start  = IRQ_ENET_MAC0,
 		.end    = IRQ_ENET_MAC0,
 		.flags  = IORESOURCE_IRQ
+	},
+};
+
+static struct resource fec1_resource[] = {
+	{
+		.start  = ENET_PHYS_ADDR + 0x4000,
+		.end    = ENET_PHYS_ADDR + 0x7fff,
+		.flags  = IORESOURCE_MEM
 	},
 	{
 		.start  = IRQ_ENET_MAC1,
@@ -739,7 +742,12 @@ static struct resource fec_resources[] = {
 };
 
 extern int mx28evk_enet_gpio_init(void);
-static struct fec_platform_data fec_pdata = {
+static struct fec_platform_data fec_pdata0 = {
+	.phy = PHY_INTERFACE_MODE_RMII,
+	.init = mx28evk_enet_gpio_init,
+};
+
+static struct fec_platform_data fec_pdata1 = {
 	.phy = PHY_INTERFACE_MODE_RMII,
 	.init = mx28evk_enet_gpio_init,
 };
@@ -747,15 +755,31 @@ static struct fec_platform_data fec_pdata = {
 static void __init mx28_init_fec(void)
 {
 	struct platform_device *pdev;
+	struct mxs_dev_lookup *lookup;
+	int i;
 
-	pdev = mxs_get_device("mxs-fec", 0);
-	if (pdev == NULL || IS_ERR(pdev))
+	lookup = mxs_get_devices("mxs-fec");
+	if (lookup == NULL || IS_ERR(lookup))
 		return;
 
-	pdev->resource = fec_resources;
-	pdev->num_resources = ARRAY_SIZE(fec_resources);
-	pdev->dev.platform_data = &fec_pdata;
-	mxs_add_device(pdev, 2);
+	for (i = 0; i < lookup->size; i++) {
+		pdev = lookup->pdev + i;
+		switch (pdev->id) {
+		case 0:
+			pdev->resource = fec0_resource;
+			pdev->num_resources = ARRAY_SIZE(fec0_resource);
+			pdev->dev.platform_data = &fec_pdata0;
+			break;
+		case 1:
+			pdev->resource = fec1_resource;
+			pdev->num_resources = ARRAY_SIZE(fec1_resource);
+			pdev->dev.platform_data = &fec_pdata1;
+			break;
+		default:
+			return;
+		}
+		mxs_add_device(pdev, 2);
+	}
 }
 #else
 static void __init mx28_init_fec(void)
