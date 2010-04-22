@@ -1864,9 +1864,9 @@ static void _clk_tve_disable(struct clk *clk)
 {
 	_clk_disable(clk);
 	if (clk_get_parent(&ipu_di_clk[1]) == clk) {
-		clk_disable(&ipu_di_clk[1]);
 		ipu_di_clk[1].set_parent(&ipu_di_clk[1], &pll3_sw_clk);
 		ipu_di_clk[1].parent = &pll3_sw_clk;
+		clk_disable(&ipu_di_clk[1]);
 	}
 }
 
@@ -3802,7 +3802,7 @@ static struct clk emi_garb_clk = {
 	.enable = _clk_enable,
 	.enable_reg = MXC_CCM_CCGR6,
 	.enable_shift = MXC_CCM_CCGR6_CG4_OFFSET,
-	.disable = _clk_disable,
+	.disable = _clk_disable_inwait,
 };
 
 static int _clk_gpu2d_set_parent(struct clk *clk, struct clk *parent)

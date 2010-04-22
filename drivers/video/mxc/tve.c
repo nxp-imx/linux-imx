@@ -252,7 +252,6 @@ static int tve_setup(int mode)
 
 	clk_disable(pll3_clk);
 	clk_set_rate(pll3_clk, pll3_clock_rate);
-	clk_enable(pll3_clk);
 	clk_set_rate(ipu_di1_clk, di1_clock_rate);
 
 	clk_enable(tve.clk);
