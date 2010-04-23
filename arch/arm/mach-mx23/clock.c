@@ -268,6 +268,7 @@ static int clkseq_set_parent(struct clk *clk, struct clk *parent)
 					CLKCTRL_BASE_ADDR + HW_CLKCTRL_HBUS);
 			__raw_writel(cpu_val,
 					CLKCTRL_BASE_ADDR + HW_CLKCTRL_CPU);
+			cpu_clk.parent = &ref_xtal_clk;
 			/* h_clk.rate = 0; */
 		} else if (clk == &cpu_clk && shift == 8) {
 			hbus_val = __raw_readl(CLKCTRL_BASE_ADDR +
@@ -288,6 +289,7 @@ static int clkseq_set_parent(struct clk *clk, struct clk *parent)
 
 			__raw_writel(1 << clk->bypass_bits,
 					clk->bypass_reg + shift);
+			cpu_clk.parent = &ref_cpu_clk;
 		} else
 			__raw_writel(1 << clk->bypass_bits,
 					clk->bypass_reg + shift);
