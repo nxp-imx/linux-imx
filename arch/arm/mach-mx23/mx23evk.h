@@ -24,4 +24,9 @@ extern void  mx23evk_mma7450_pin_init(void);
 extern int mx23evk_mma7450_pin_release(void);
 extern int mxs_spi_enc_pin_init(void);
 extern int mxs_spi_enc_pin_release(void);
+extern int mxs_mmc_get_wp_mmc0(void);
+extern int mxs_mmc_hw_init_mmc0(void);
+extern void mxs_mmc_hw_release_mmc0(void);
+extern void mxs_mmc_cmd_pullup_mmc0(int enable);
+
 #endif /* __ASM_ARM_MACH_MX23EVK_H */

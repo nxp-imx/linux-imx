@@ -43,6 +43,7 @@
 
 #include "device.h"
 #include "mx23_pins.h"
+#include "mx23evk.h"
 #include "mach/mx23.h"
 
 #if defined(CONFIG_SERIAL_MXS_DUART) || \
@@ -511,56 +512,6 @@ static void __init mx23_init_dcp(void)
 #endif
 
 #if defined(CONFIG_MMC_MXS) || defined(CONFIG_MMC_MXS_MODULE)
-#define MMC0_POWER	MXS_PIN_TO_GPIO(PINID_PWM3)
-#define MMC0_WP		MXS_PIN_TO_GPIO(PINID_PWM4)
-
-static int mxs_mmc_get_wp_mmc0(void)
-{
-	return gpio_get_value(MMC0_WP);
-}
-
-static int mxs_mmc_hw_init_mmc0(void)
-{
-	int ret = 0;
-
-	/* Configure write protect GPIO pin */
-	ret = gpio_request(MMC0_WP, "mmc0_wp");
-	if (ret) {
-		pr_err("wp\r\n");
-		goto out_wp;
-	}
-	gpio_set_value(MMC0_WP, 0);
-	gpio_direction_input(MMC0_WP);
-
-	/* Configure POWER pin as gpio to drive power to MMC slot */
-	ret = gpio_request(MMC0_POWER, "mmc0_power");
-	if (ret) {
-		pr_err("power\r\n");
-		goto out_power;
-	}
-	gpio_direction_output(MMC0_POWER, 0);
-	mdelay(100);
-
-	return 0;
-
-out_power:
-	gpio_free(MMC0_WP);
-out_wp:
-	return ret;
-}
-
-static void mxs_mmc_hw_release_mmc0(void)
-{
-	gpio_free(MMC0_POWER);
-	gpio_free(MMC0_WP);
-
-}
-
-static void mxs_mmc_cmd_pullup_mmc0(int enable)
-{
-	mxs_set_pullup(PINID_SSP1_CMD, enable, "mmc0_cmd");
-}
-
 static unsigned long mxs_mmc_setclock_mmc0(unsigned long hz)
 {
 	struct clk *ssp = clk_get(NULL, "ssp.0"), *parent;
@@ -657,7 +608,7 @@ static struct resource ssp1_resources[] = {
 	},
 };
 
-static void __init mx23_init_spi(void)
+static void __init mx23_init_spi1(void)
 {
 	struct platform_device *pdev;
 
@@ -670,11 +621,33 @@ static void __init mx23_init_spi(void)
 	mxs_add_device(pdev, 3);
 }
 #else
-static void mx23_init_spi(void)
+static void mx23_init_spi1(void)
 {
 	;
 }
 #endif
+
+#define CMDLINE_DEVICE_CHOOSE(name, dev1, dev2)			\
+	static char *cmdline_device_##name;			\
+	static int cmdline_device_##name##_setup(char *dev)	\
+	{							\
+		cmdline_device_##name = dev + 1;		\
+		return 0;					\
+	}							\
+	__setup(#name, cmdline_device_##name##_setup);		\
+	void mx23_init_##name(void)				\
+	{							\
+		if (!cmdline_device_##name ||			\
+			!strcmp(cmdline_device_##name, #dev1))	\
+				mx23_init_##dev1();		\
+		else if (!strcmp(cmdline_device_##name, #dev2))	\
+				mx23_init_##dev2();		\
+		else						\
+			pr_err("Unknown %s assignment '%s'.\n",	\
+				#name, cmdline_device_##name);	\
+	}
+
+CMDLINE_DEVICE_CHOOSE(ssp1, mmc, spi1)
 
 #if defined(CONFIG_BATTERY_MXS)
 /* battery info data */
@@ -769,7 +742,7 @@ void __init mx23_init_spdif(void)
 	mxs_add_device(pdev, 3);
 }
 #else
-static inline mx23_init_spdif(void)
+static inline void mx23_init_spdif(void)
 {
 }
 #endif
@@ -888,8 +861,7 @@ int __init mx23_device_init(void)
 	mx23_init_ts();
 	mx23_init_rtc();
 	mx23_init_dcp();
-	mx23_init_mmc();
-	mx23_init_spi();
+	mx23_init_ssp1();
 	mx23_init_spdif();
 	mx23_init_lcdif();
 	mx23_init_pxp();
