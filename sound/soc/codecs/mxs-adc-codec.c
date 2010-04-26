@@ -533,6 +533,58 @@ static void mxs_codec_dac_set_vag(void)
 	__raw_writel(refctrl_val, REGS_AUDIOOUT_BASE + HW_AUDIOOUT_REFCTRL);
 }
 
+static bool mxs_codec_dac_is_capless()
+{
+	if ((__raw_readl(REGS_AUDIOOUT_BASE + HW_AUDIOOUT_PWRDN)
+		& BM_AUDIOOUT_PWRDN_CAPLESS) == 0)
+		return false;
+	else
+		return true;
+}
+static void mxs_codec_dac_arm_short_cm(bool bShort)
+{
+	__raw_writel(BF(3, AUDIOOUT_ANACTRL_SHORTMODE_CM),
+		      REGS_AUDIOOUT_BASE + HW_AUDIOOUT_ANACTRL_CLR);
+	__raw_writel(BM_AUDIOOUT_ANACTRL_SHORT_CM_STS,
+		      REGS_AUDIOOUT_BASE + HW_AUDIOOUT_ANACTRL_CLR);
+	if (bShort)
+		__raw_writel(BF(1, AUDIOOUT_ANACTRL_SHORTMODE_CM),
+		      REGS_AUDIOOUT_BASE + HW_AUDIOOUT_ANACTRL_SET);
+}
+static void mxs_codec_dac_arm_short_lr(bool bShort)
+{
+	__raw_writel(BF(3, AUDIOOUT_ANACTRL_SHORTMODE_LR),
+		      REGS_AUDIOOUT_BASE + HW_AUDIOOUT_ANACTRL_CLR);
+	__raw_writel(BM_AUDIOOUT_ANACTRL_SHORT_LR_STS,
+		      REGS_AUDIOOUT_BASE + HW_AUDIOOUT_ANACTRL_CLR);
+	if (bShort)
+		__raw_writel(BF(1, AUDIOOUT_ANACTRL_SHORTMODE_LR),
+		      REGS_AUDIOOUT_BASE + HW_AUDIOOUT_ANACTRL_SET);
+}
+static void mxs_codec_dac_set_short_trip_level(u8 u8level)
+{
+	__raw_writel(__raw_readl(REGS_AUDIOOUT_BASE +
+		HW_AUDIOOUT_ANACTRL)
+		& (~BM_AUDIOOUT_ANACTRL_SHORT_LVLADJL)
+		& (~BM_AUDIOOUT_ANACTRL_SHORT_LVLADJR)
+		| BF(u8level, AUDIOOUT_ANACTRL_SHORT_LVLADJL)
+		| BF(u8level, AUDIOOUT_ANACTRL_SHORT_LVLADJR),
+		REGS_AUDIOOUT_BASE + HW_AUDIOOUT_ANACTRL);
+}
+static void mxs_codec_dac_arm_short(bool bLatchCM, bool bLatchLR)
+{
+	if (bLatchCM) {
+		if (mxs_codec_dac_is_capless())
+			mxs_codec_dac_arm_short_cm(true);
+	} else
+		mxs_codec_dac_arm_short_cm(false);
+
+	if (bLatchLR)
+		mxs_codec_dac_arm_short_lr(true);
+	else
+		mxs_codec_dac_arm_short_lr(false);
+
+}
 static void
 mxs_codec_dac_power_on(struct mxs_codec_priv *mxs_adc)
 {
@@ -553,6 +605,10 @@ mxs_codec_dac_power_on(struct mxs_codec_priv *mxs_adc)
 	/* Powerup DAC */
 	__raw_writel(BM_AUDIOOUT_PWRDN_DAC,
 			REGS_AUDIOOUT_BASE + HW_AUDIOOUT_PWRDN_CLR);
+
+	/* Arm headphone LR short protect */
+	mxs_codec_dac_set_short_trip_level(0);
+	mxs_codec_dac_arm_short(false, true);
 
 	/* Update DAC volume over zero crossings */
 	__raw_writel(BM_AUDIOOUT_DACVOLUME_EN_ZCD,
