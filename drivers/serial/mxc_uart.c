@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2009 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2004-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -1462,8 +1462,18 @@ static void mxcuart_release_port(struct uart_port *port)
  */
 static int mxcuart_request_port(struct uart_port *port)
 {
-	return request_mem_region(port->mapbase, SZ_4K, "serial_mxc")
-	    != NULL ? 0 : -EBUSY;
+	struct platform_device *pdev = to_platform_device(port->dev);
+	struct resource *mmres;
+	void *ret;
+
+	mmres = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+	if (!mmres)
+		return -ENODEV;
+
+	ret = request_mem_region(mmres->start, mmres->end - mmres->start + 1,
+							"serial_mxc");
+
+	return  ret ? 0 : -EBUSY;
 }
 
 /*!
@@ -1853,13 +1863,28 @@ static int mxcuart_resume(struct platform_device *pdev)
 static int mxcuart_probe(struct platform_device *pdev)
 {
 	int id = pdev->id;
+	struct resource *res;
+	void __iomem *base;
 
 	mxc_ports[id] = pdev->dev.platform_data;
 	mxc_ports[id]->port.ops = &mxc_ops;
 
 	/* Do not use UARTs that are disabled during integration */
 	if (mxc_ports[id]->enabled == 1) {
+		res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+		if (!res)
+			return -ENODEV;
+
+		base = ioremap(res->start, res->end - res->start + 1);
+		if (!base)
+			return -ENOMEM;
+
+		mxc_ports[id]->port.membase = base;
+		mxc_ports[id]->port.mapbase = res->start;
 		mxc_ports[id]->port.dev = &pdev->dev;
+		mxc_ports[id]->port.irq = platform_get_irq(pdev, 0);
+		mxc_ports[id]->irqs[0] = platform_get_irq(pdev, 1);
+		mxc_ports[id]->irqs[1] = platform_get_irq(pdev, 2);
 		spin_lock_init(&mxc_ports[id]->port.lock);
 		/* Enable the low latency flag for DMA UART ports */
 		if (mxc_ports[id]->dma_enabled == 1) {
@@ -1893,6 +1918,7 @@ static int mxcuart_remove(struct platform_device *pdev)
 
 	if (umxc) {
 		uart_remove_one_port(&mxc_reg, &umxc->port);
+		iounmap(umxc->port.membase);
 	}
 	return 0;
 }
