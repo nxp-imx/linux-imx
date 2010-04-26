@@ -38,16 +38,12 @@
 static uart_mxc_port mxc_ports[MXC_UART_NR] = {
 	[0] = {
 	       .port = {
-			.membase = (void *)IO_ADDRESS(UART1_BASE_ADDR),
-			.mapbase = UART1_BASE_ADDR,
 			.iotype = SERIAL_IO_MEM,
-			.irq = UART1_INT1,
 			.fifosize = 32,
 			.flags = ASYNC_BOOT_AUTOCONF,
 			.line = 0,
 			},
 	       .ints_muxed = UART1_MUX_INTS,
-	       .irqs = {UART1_INT2, UART1_INT3},
 	       .mode = UART1_MODE,
 	       .ir_mode = UART1_IR,
 	       .enabled = UART1_ENABLED,
@@ -65,16 +61,12 @@ static uart_mxc_port mxc_ports[MXC_UART_NR] = {
 	       },
 	[1] = {
 	       .port = {
-			.membase = (void *)IO_ADDRESS(UART2_BASE_ADDR),
-			.mapbase = UART2_BASE_ADDR,
 			.iotype = SERIAL_IO_MEM,
-			.irq = UART2_INT1,
 			.fifosize = 32,
 			.flags = ASYNC_BOOT_AUTOCONF,
 			.line = 1,
 			},
 	       .ints_muxed = UART2_MUX_INTS,
-	       .irqs = {UART2_INT2, UART2_INT3},
 	       .mode = UART2_MODE,
 	       .ir_mode = UART2_IR,
 	       .enabled = UART2_ENABLED,
@@ -93,16 +85,12 @@ static uart_mxc_port mxc_ports[MXC_UART_NR] = {
 #if UART3_ENABLED == 1
 	[2] = {
 	       .port = {
-			.membase = (void *)IO_ADDRESS(UART3_BASE_ADDR),
-			.mapbase = UART3_BASE_ADDR,
 			.iotype = SERIAL_IO_MEM,
-			.irq = UART3_INT1,
 			.fifosize = 32,
 			.flags = ASYNC_BOOT_AUTOCONF,
 			.line = 2,
 			},
 	       .ints_muxed = UART3_MUX_INTS,
-	       .irqs = {UART3_INT2, UART3_INT3},
 	       .mode = UART3_MODE,
 	       .ir_mode = UART3_IR,
 	       .enabled = UART3_ENABLED,
@@ -122,16 +110,12 @@ static uart_mxc_port mxc_ports[MXC_UART_NR] = {
 #if UART4_ENABLED == 1
 	[3] = {
 	       .port = {
-			.membase = (void *)IO_ADDRESS(UART4_BASE_ADDR),
-			.mapbase = UART4_BASE_ADDR,
 			.iotype = SERIAL_IO_MEM,
-			.irq = UART4_INT1,
 			.fifosize = 32,
 			.flags = ASYNC_BOOT_AUTOCONF,
 			.line = 3,
 			},
 	       .ints_muxed = UART4_MUX_INTS,
-	       .irqs = {UART4_INT2, UART4_INT3},
 	       .mode = UART4_MODE,
 	       .ir_mode = UART4_IR,
 	       .enabled = UART4_ENABLED,
@@ -151,16 +135,12 @@ static uart_mxc_port mxc_ports[MXC_UART_NR] = {
 #if UART5_ENABLED == 1
 	[4] = {
 	       .port = {
-			.membase = (void *)IO_ADDRESS(UART5_BASE_ADDR),
-			.mapbase = UART5_BASE_ADDR,
 			.iotype = SERIAL_IO_MEM,
-			.irq = UART5_INT1,
 			.fifosize = 32,
 			.flags = ASYNC_BOOT_AUTOCONF,
 			.line = 4,
 			},
 	       .ints_muxed = UART5_MUX_INTS,
-	       .irqs = {UART5_INT2, UART5_INT3},
 	       .mode = UART5_MODE,
 	       .ir_mode = UART5_IR,
 	       .enabled = UART5_ENABLED,
@@ -179,26 +159,93 @@ static uart_mxc_port mxc_ports[MXC_UART_NR] = {
 #endif
 };
 
+static struct resource mxc_uart_resources1[] = {
+	{
+		.start = UART1_BASE_ADDR,
+		.end = UART1_BASE_ADDR + 0x0B5,
+		.flags = IORESOURCE_MEM,
+	},
+	{
+		.start = UART1_INT1,
+		.flags = IORESOURCE_IRQ,
+	},
+	{
+		.start = UART1_INT2,
+		.flags = IORESOURCE_IRQ,
+	},
+	{
+		.start = UART1_INT3,
+		.flags = IORESOURCE_IRQ,
+	},
+
+};
+
 static struct platform_device mxc_uart_device1 = {
 	.name = "mxcintuart",
 	.id = 0,
+	.num_resources = ARRAY_SIZE(mxc_uart_resources1),
+	.resource = mxc_uart_resources1,
 	.dev = {
 		.platform_data = &mxc_ports[0],
 		},
 };
 
+static struct resource mxc_uart_resources2[] = {
+	{
+		.start = UART2_BASE_ADDR,
+		.end = UART2_BASE_ADDR + 0x0B5,
+		.flags = IORESOURCE_MEM,
+	},
+	{
+		.start = UART2_INT1,
+		.flags = IORESOURCE_IRQ,
+	},
+	{
+		.start = UART2_INT2,
+		.flags = IORESOURCE_IRQ,
+	},
+	{
+		.start = UART2_INT3,
+		.flags = IORESOURCE_IRQ,
+	},
+};
+
 static struct platform_device mxc_uart_device2 = {
 	.name = "mxcintuart",
 	.id = 1,
+       .num_resources = ARRAY_SIZE(mxc_uart_resources2),
+	.resource = mxc_uart_resources2,
 	.dev = {
 		.platform_data = &mxc_ports[1],
 		},
 };
 
 #if UART3_ENABLED == 1
+static struct resource mxc_uart_resources3[] = {
+	{
+		.start = UART3_BASE_ADDR,
+		.end = UART3_BASE_ADDR + 0x0B5,
+		.flags = IORESOURCE_MEM,
+	},
+	{
+		.start = UART3_INT1,
+		.flags = IORESOURCE_IRQ,
+	},
+	{
+		.start = UART3_INT2,
+		.flags = IORESOURCE_IRQ,
+	},
+	{
+		.start = UART3_INT3,
+		.flags = IORESOURCE_IRQ,
+	},
+};
+
 static struct platform_device mxc_uart_device3 = {
 	.name = "mxcintuart",
 	.id = 2,
+       .num_resources = ARRAY_SIZE(mxc_uart_resources3),
+	.resource = mxc_uart_resources3,
 	.dev = {
 		.platform_data = &mxc_ports[2],
 		},
@@ -206,9 +253,31 @@ static struct platform_device mxc_uart_device3 = {
 #endif
 
 #if UART4_ENABLED == 1
+static struct resource mxc_uart_resources4[] = {
+	{
+		.start = UART4_BASE_ADDR,
+		.end = UART4_BASE_ADDR + 0x0B5,
+		.flags = IORESOURCE_MEM,
+	},
+	{
+		.start = UART4_INT1,
+		.flags = IORESOURCE_IRQ,
+	},
+	{
+		.start = UART4_INT2,
+		.flags = IORESOURCE_IRQ,
+	},
+	{
+		.start = UART4_INT3,
+		.flags = IORESOURCE_IRQ,
+	},
+};
+
 static struct platform_device mxc_uart_device4 = {
 	.name = "mxcintuart",
 	.id = 3,
+	.num_resources = ARRAY_SIZE(mxc_uart_resources4),
+	.resource = mxc_uart_resources4,
 	.dev = {
 		.platform_data = &mxc_ports[3],
 		},
@@ -216,9 +285,31 @@ static struct platform_device mxc_uart_device4 = {
 #endif
 
 #if UART5_ENABLED == 1
+static struct resource mxc_uart_resources5[] = {
+	{
+		.start = UART5_BASE_ADDR,
+		.end = UART5_BASE_ADDR + 0x0B5,
+		.flags = IORESOURCE_MEM,
+	},
+	{
+		.start = UART5_INT1,
+		.flags = IORESOURCE_IRQ,
+	},
+	{
+		.start = UART5_INT2,
+		.flags = IORESOURCE_IRQ,
+	},
+	{
+		.start = UART5_INT3,
+		.flags = IORESOURCE_IRQ,
+	},
+};
+
 static struct platform_device mxc_uart_device5 = {
 	.name = "mxcintuart",
 	.id = 4,
+       .num_resources = ARRAY_SIZE(mxc_uart_resources5),
+	.resource = mxc_uart_resources5,
 	.dev = {
 		.platform_data = &mxc_ports[4],
 		},
