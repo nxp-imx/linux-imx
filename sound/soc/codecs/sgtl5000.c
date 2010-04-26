@@ -200,39 +200,6 @@ static void dump_reg(struct snd_soc_codec *codec)
 }
 #endif
 
-static int dac_mux_put(struct snd_kcontrol *kcontrol,
-		       struct snd_ctl_elem_value *ucontrol)
-{
-	struct snd_soc_dapm_widget *widget = snd_kcontrol_chip(kcontrol);
-	struct snd_soc_codec *codec = widget->codec;
-	unsigned int reg;
-
-	if (ucontrol->value.enumerated.item[0]) {
-		reg = sgtl5000_read(codec, SGTL5000_CHIP_CLK_TOP_CTRL);
-		reg |= SGTL5000_INT_OSC_EN;
-		sgtl5000_write(codec, SGTL5000_CHIP_CLK_TOP_CTRL, reg);
-
-		if (codec->bias_level != SND_SOC_BIAS_ON) {
-			sgtl5000_set_bias_level(codec, SND_SOC_BIAS_PREPARE);
-			snd_soc_dapm_put_enum_double(kcontrol, ucontrol);
-			sgtl5000_set_bias_level(codec, SND_SOC_BIAS_ON);
-		} else
-			snd_soc_dapm_put_enum_double(kcontrol, ucontrol);
-
-		reg = sgtl5000_read(codec, SGTL5000_CHIP_ANA_CTRL);
-		reg &= ~(SGTL5000_LINE_OUT_MUTE | SGTL5000_HP_MUTE);
-		sgtl5000_write(codec, SGTL5000_CHIP_ANA_CTRL, reg);
-	} else {
-		reg = sgtl5000_read(codec, SGTL5000_CHIP_CLK_TOP_CTRL);
-		reg &= ~SGTL5000_INT_OSC_EN;
-		sgtl5000_write(codec, SGTL5000_CHIP_CLK_TOP_CTRL, reg);
-
-		snd_soc_dapm_put_enum_double(kcontrol, ucontrol);
-		sgtl5000_set_bias_level(codec, SND_SOC_BIAS_STANDBY);
-	}
-	return 0;
-}
-
 static const char *adc_mux_text[] = {
 	"MIC_IN", "LINE_IN"
 };
@@ -250,16 +217,8 @@ SOC_ENUM_SINGLE(SGTL5000_CHIP_ANA_CTRL, 6, 2, dac_mux_text);
 static const struct snd_kcontrol_new adc_mux =
 SOC_DAPM_ENUM("ADC Mux", adc_enum);
 
-static const struct snd_kcontrol_new dac_mux = {
-	.iface = SNDRV_CTL_ELEM_IFACE_MIXER,
-	.name = "DAC Mux",
-	.access = SNDRV_CTL_ELEM_ACCESS_READWRITE
-	    | SNDRV_CTL_ELEM_ACCESS_VOLATILE,
-	.info = snd_soc_info_enum_double,
-	.get = snd_soc_dapm_get_enum_double,
-	.put = dac_mux_put,
-	.private_value = (unsigned long)&dac_enum,
-};
+static const struct snd_kcontrol_new dac_mux =
+SOC_DAPM_ENUM("DAC Mux", dac_enum);
 
 static const struct snd_soc_dapm_widget sgtl5000_dapm_widgets[] = {
 	SND_SOC_DAPM_INPUT("LINE_IN"),
