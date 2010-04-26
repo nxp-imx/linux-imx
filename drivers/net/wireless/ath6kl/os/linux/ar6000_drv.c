@@ -111,7 +111,7 @@ unsigned int processDot11Hdr = 0;
 int bmienable = BMIENABLE_DEFAULT;
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,0)
-char ifname[IFNAMSIZ] = {0,};
+char ifname[IFNAMSIZ] = "wlan%d";
 #endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,0) */
 
 int wlaninitmode = WLAN_INIT_MODE_DEFAULT;
