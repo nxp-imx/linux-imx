@@ -297,7 +297,7 @@ static struct mxc_iomux_pin_cfg __initdata mxc_iomux_pins[] = {
 	 (PAD_CTL_HYS_ENABLE | PAD_CTL_100K_PU),
 	 },
 	{
-	 MX51_PIN_GPIO1_1, IOMUX_CONFIG_GPIO | IOMUX_CONFIG_SION,
+	 MX51_PIN_GPIO1_1, IOMUX_CONFIG_GPIO,
 	 (PAD_CTL_HYS_ENABLE | PAD_CTL_100K_PU),
 	 },
 	{

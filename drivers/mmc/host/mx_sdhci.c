@@ -141,32 +141,32 @@ EXPORT_SYMBOL(mxc_mmc_force_detect);
 
 static void sdhci_dumpregs(struct sdhci_host *host)
 {
-	printk(KERN_DEBUG DRIVER_NAME
+	printk(KERN_INFO DRIVER_NAME
 	       ": ============== REGISTER DUMP ==============\n");
 
-	printk(KERN_DEBUG DRIVER_NAME ": Sys addr: 0x%08x | Version:  0x%08x\n",
+	printk(KERN_INFO DRIVER_NAME ": Sys addr: 0x%08x | Version:  0x%08x\n",
 	       readl(host->ioaddr + SDHCI_DMA_ADDRESS),
 	       readl(host->ioaddr + SDHCI_HOST_VERSION));
-	printk(KERN_DEBUG DRIVER_NAME ": Blk size: 0x%08x | Blk cnt:  0x%08x\n",
+	printk(KERN_INFO DRIVER_NAME ": Blk size: 0x%08x | Blk cnt:  0x%08x\n",
 	       (readl(host->ioaddr + SDHCI_BLOCK_SIZE) & 0xFFFF),
 	       (readl(host->ioaddr + SDHCI_BLOCK_COUNT) >> 16));
-	printk(KERN_DEBUG DRIVER_NAME ": Argument: 0x%08x | Trn mode: 0x%08x\n",
+	printk(KERN_INFO DRIVER_NAME ": Argument: 0x%08x | Trn mode: 0x%08x\n",
 	       readl(host->ioaddr + SDHCI_ARGUMENT),
 	       readl(host->ioaddr + SDHCI_TRANSFER_MODE));
-	printk(KERN_DEBUG DRIVER_NAME ": Present:  0x%08x | Host ctl: 0x%08x\n",
+	printk(KERN_INFO DRIVER_NAME ": Present:  0x%08x | Host ctl: 0x%08x\n",
 	       readl(host->ioaddr + SDHCI_PRESENT_STATE),
 	       readl(host->ioaddr + SDHCI_HOST_CONTROL));
-	printk(KERN_DEBUG DRIVER_NAME ": Clock:    0x%08x\n",
+	printk(KERN_INFO DRIVER_NAME ": Clock:    0x%08x\n",
 	       readl(host->ioaddr + SDHCI_CLOCK_CONTROL));
-	printk(KERN_DEBUG DRIVER_NAME ": Int stat: 0x%08x\n",
+	printk(KERN_INFO DRIVER_NAME ": Int stat: 0x%08x\n",
 	       readl(host->ioaddr + SDHCI_INT_STATUS));
-	printk(KERN_DEBUG DRIVER_NAME ": Int enab: 0x%08x | Sig enab: 0x%08x\n",
+	printk(KERN_INFO DRIVER_NAME ": Int enab: 0x%08x | Sig enab: 0x%08x\n",
 	       readl(host->ioaddr + SDHCI_INT_ENABLE),
 	       readl(host->ioaddr + SDHCI_SIGNAL_ENABLE));
-	printk(KERN_DEBUG DRIVER_NAME ": Caps:     0x%08x\n",
+	printk(KERN_INFO DRIVER_NAME ": Caps:     0x%08x\n",
 	       readl(host->ioaddr + SDHCI_CAPABILITIES));
 
-	printk(KERN_DEBUG DRIVER_NAME
+	printk(KERN_INFO DRIVER_NAME
 	       ": ===========================================\n");
 }
 
