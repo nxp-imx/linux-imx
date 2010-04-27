@@ -116,7 +116,6 @@ static int _clk_enable(struct clk *clk)
 	else if (clk->flags & AHB_MED_SET_POINT)
 		lp_med_freq++;
 
-
 	return 0;
 }
 
@@ -2817,24 +2816,22 @@ static int _clk_sdhc1_set_rate(struct clk *clk, unsigned long rate)
 	u32 div;
 	u32 pre, post;
 
-	if (cpu_is_mx53()) {
-		div = clk->parent->rate / rate;
+	div = clk->parent->rate / rate;
 
-		if ((clk->parent->rate / div) != rate)
-			return -EINVAL;
+	if ((clk->parent->rate / div) != rate)
+		return -EINVAL;
 
-		 __calc_pre_post_dividers(div, &pre, &post);
+	 __calc_pre_post_dividers(div, &pre, &post);
 
-		/* Set sdhc1 clock divider */
-		reg = __raw_readl(MXC_CCM_CSCDR1) &
-			~(MXC_CCM_CSCDR1_ESDHC1_MSHC2_CLK_PRED_MASK |
-			MXC_CCM_CSCDR1_ESDHC1_MSHC2_CLK_PODF_MASK);
-		reg |= (post - 1) << MXC_CCM_CSCDR1_ESDHC1_MSHC2_CLK_PODF_OFFSET;
-		reg |= (pre - 1) << MXC_CCM_CSCDR1_ESDHC1_MSHC2_CLK_PRED_OFFSET;
-		__raw_writel(reg, MXC_CCM_CSCDR1);
+	/* Set sdhc1 clock divider */
+	reg = __raw_readl(MXC_CCM_CSCDR1) &
+		~(MXC_CCM_CSCDR1_ESDHC1_MSHC2_CLK_PRED_MASK |
+		MXC_CCM_CSCDR1_ESDHC1_MSHC2_CLK_PODF_MASK);
+	reg |= (post - 1) << MXC_CCM_CSCDR1_ESDHC1_MSHC2_CLK_PODF_OFFSET;
+	reg |= (pre - 1) << MXC_CCM_CSCDR1_ESDHC1_MSHC2_CLK_PRED_OFFSET;
+	__raw_writel(reg, MXC_CCM_CSCDR1);
 
-	       clk->rate = rate;
-	}
+	clk->rate = rate;
 	return 0;
 }
 
@@ -2904,10 +2901,37 @@ static int _clk_esdhc2_set_parent(struct clk *clk, struct clk *parent)
 			reg |= MXC_CCM_CSCMR1_ESDHC2_CLK_SEL;
 		else
 			BUG();
-
 	}
-
 	__raw_writel(reg, MXC_CCM_CSCMR1);
+	return 0;
+}
+
+static int _clk_esdhc2_set_rate(struct clk *clk, unsigned long rate)
+{
+	u32 reg;
+	u32 div;
+	u32 pre, post;
+
+	if (cpu_is_mx51()) {
+		div = clk->parent->rate / rate;
+
+		if ((clk->parent->rate / div) != rate)
+			return -EINVAL;
+
+		 __calc_pre_post_dividers(div, &pre, &post);
+
+		/* Set sdhc1 clock divider */
+		reg = __raw_readl(MXC_CCM_CSCDR1) &
+			~(MXC_CCM_CSCDR1_ESDHC2_MSHC2_CLK_PRED_MASK |
+			MXC_CCM_CSCDR1_ESDHC2_MSHC2_CLK_PODF_MASK);
+		reg |= (post - 1) <<
+				MXC_CCM_CSCDR1_ESDHC2_MSHC2_CLK_PODF_OFFSET;
+		reg |= (pre - 1) <<
+				MXC_CCM_CSCDR1_ESDHC2_MSHC2_CLK_PRED_OFFSET;
+		__raw_writel(reg, MXC_CCM_CSCDR1);
+
+	       clk->rate = rate;
+	}
 	return 0;
 }
 
@@ -4169,6 +4193,7 @@ int __init mx51_clocks_init(unsigned long ckil, unsigned long osc, unsigned long
 
 	/* Fix up clocks unique to MX51. */
 	esdhc2_clk[0].recalc = _clk_esdhc2_recalc;
+	esdhc2_clk[0].set_rate = _clk_esdhc2_set_rate;
 
 	clk_tree_init();
 
@@ -4242,6 +4267,13 @@ int __init mx51_clocks_init(unsigned long ckil, unsigned long osc, unsigned long
 
 	clk_enable(&cpu_clk);
 
+	/* Set SDHC parents to be PLL2 */
+	clk_set_parent(&esdhc1_clk[0], &pll2_sw_clk);
+	clk_set_parent(&esdhc2_clk[0], &pll2_sw_clk);
+
+	/* set SDHC root clock as 166.25MHZ*/
+	clk_set_rate(&esdhc1_clk[0], 166250000);
+	clk_set_rate(&esdhc2_clk[0], 166250000);
 
 	/* Initialise the parents to be axi_b, parents are set to
 	 * axi_a when the clocks are enabled.
@@ -4407,6 +4439,7 @@ int __init mx51_clocks_init(unsigned long ckil, unsigned long osc, unsigned long
 	propagate_rate(&osc_clk);
 	propagate_rate(&pll1_sw_clk);
 	propagate_rate(&pll2_sw_clk);
+	propagate_rate(&pll3_sw_clk);
 
 	clk_set_parent(&emi_slow_clk, &ahb_clk);
 	clk_set_rate(&emi_slow_clk, clk_round_rate(&emi_slow_clk, 130000000));

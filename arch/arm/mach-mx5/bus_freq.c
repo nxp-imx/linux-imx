@@ -114,6 +114,8 @@ int set_low_bus_freq(void)
 		/* Set PLL3 to 133Mhz if no-one is using it. */
 		if (clk_get_usecount(pll3) == 0) {
 			u32 pll3_rate = clk_get_rate(pll3);
+
+			clk_enable(pll3);
 			clk_set_rate(pll3, clk_round_rate(pll3, 133000000));
 			/* Set the parent of Periph_apm_clk to be PLL3 */
 			clk_set_parent(periph_apm_clk, pll3);
@@ -146,6 +148,8 @@ int set_low_bus_freq(void)
 
 			/* Set PLL3 back to original rate. */
 			clk_set_rate(pll3, clk_round_rate(pll3, pll3_rate));
+			clk_disable(pll3);
+
 			low_bus_freq_mode = 1;
 			high_bus_freq_mode = 0;
 		}
@@ -164,6 +168,8 @@ int set_high_bus_freq(int high_bus_freq)
 			/* Relock PLL3 to 133MHz */
 			if (clk_get_usecount(pll3) == 0) {
 				u32 pll3_rate = clk_get_rate(pll3);
+
+				clk_enable(pll3);
 				clk_set_rate(pll3,
 					clk_round_rate(pll3, 133000000));
 				clk_set_parent(periph_apm_clk, pll3);
@@ -184,16 +190,18 @@ int set_high_bus_freq(int high_bus_freq)
 				clk_enable(emi_garb_clk);
 				while (__raw_readl(MXC_CCM_CDHIPR) & 0x1F)
 					udelay(10);
-				clk_disable(emi_garb_clk);
 
 				low_bus_freq_mode = 0;
 				high_bus_freq_mode = 1;
+				clk_disable(emi_garb_clk);
 
 				/*Set the main_bus_clk parent to be PLL2. */
 				clk_set_parent(main_bus_clk, pll2);
+
 				/* Relock PLL3 to its original rate */
 				clk_set_rate(pll3,
 					clk_round_rate(pll3, pll3_rate));
+				clk_disable(pll3);
 			}
 
 			/*Change the DDR freq to 200MHz*/
