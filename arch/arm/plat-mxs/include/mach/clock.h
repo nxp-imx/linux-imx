@@ -35,6 +35,7 @@ struct clk {
 	unsigned int enable_bits;
 	unsigned int bypass_bits;
 	unsigned int busy_bits;
+	unsigned int xtal_busy_bits;
 
 	unsigned int wait:1;
 	unsigned int invert:1;
@@ -76,11 +77,6 @@ struct clk {
 int clk_get_usecount(struct clk *clk);
 extern int clk_register(struct clk_lookup *lookup);
 extern void clk_unregister(struct clk_lookup *lookup);
-
-static inline int clk_is_busy(struct clk *clk)
-{
-	return __raw_readl(clk->busy_reg) & (1 << clk->busy_bits);
-}
 
 struct mxs_emi_scaling_data {
 	u32 emi_div;

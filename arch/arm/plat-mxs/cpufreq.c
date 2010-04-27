@@ -209,14 +209,10 @@ static int set_op(struct cpufreq_policy *policy, unsigned int target_freq)
 							    profiles[i].vdda);
 		}
 		timing_ctrl_rams(ss);
-		if (freqs.old == 64000)
-			clk_set_rate(ahb_clk, (profiles[i].ahb) * 1000);
 		clk_set_rate(cpu_clk, (profiles[i].cpu) * 1000);
-		if (freqs.old != 64000)
-			clk_set_rate(ahb_clk, (profiles[i].ahb) * 1000);
+		clk_set_rate(ahb_clk, (profiles[i].ahb) * 1000);
 		clk_set_rate(emi_clk, (profiles[i].emi) * 1000);
 	}
-	udelay(100);
 
 	cpu_clk_set_pll_off(cpu_clk, freqs.new);
 

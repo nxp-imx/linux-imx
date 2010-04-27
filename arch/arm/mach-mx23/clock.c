@@ -38,8 +38,46 @@
 /* external clock input */
 static struct clk xtal_clk[];
 static unsigned long xtal_clk_rate[3] = { 24000000, 24000000, 32000 };
+static struct clk pll_clk;
+static struct clk ref_xtal_clk;
+
 
 static unsigned long enet_mii_phy_rate;
+
+static inline int clk_is_busy(struct clk *clk)
+{
+	if ((clk->parent == &ref_xtal_clk) && (clk->xtal_busy_bits))
+		return __raw_readl(clk->busy_reg) & (1 << clk->xtal_busy_bits);
+	else if (clk->busy_bits && clk->busy_reg)
+		return __raw_readl(clk->busy_reg) & (1 << clk->busy_bits);
+	else {
+		printk(KERN_ERR "WARNING: clock has no assigned busy \
+			register or bits\n");
+		udelay(10);
+		return 0;
+	}
+}
+
+static inline int clk_busy_wait(struct clk *clk)
+{
+	int i;
+
+	/* pll clock requires up to 10us to
+	 * become stable
+	 */
+	if (clk == &pll_clk) {
+		udelay(10);
+		return 0;
+	}
+
+	for (i = 10000000; i; i--)
+		if (!clk_is_busy(clk))
+			break;
+	if (!i)
+		return -ETIMEDOUT;
+	else
+		return 0;
+}
 
 static int mx23_raw_enable(struct clk *clk)
 {
@@ -179,6 +217,8 @@ static struct clk ref_cpu_clk = {
 	.enable_bits = BM_CLKCTRL_FRAC_CLKGATECPU,
 	.scale_reg = CLKCTRL_BASE_ADDR + HW_CLKCTRL_FRAC,
 	.scale_bits = BP_CLKCTRL_FRAC_CPUFRAC,
+	.busy_reg	= CLKCTRL_BASE_ADDR + HW_CLKCTRL_CPU,
+	.busy_bits	= 28,
 };
 
 static unsigned long ref_emi_get_rate(struct clk *clk)
@@ -469,18 +509,66 @@ static int cpu_set_rate(struct clk *clk, unsigned long rate)
 {
 	unsigned long root_rate =
 			clk->parent->parent->get_rate(clk->parent->parent);
-	int i;
+	int ret = -EINVAL;
 	u32 clkctrl_cpu = 1;
 	u32 c = clkctrl_cpu;
 	u32 clkctrl_frac = 1;
 	u32 val;
-	u32 reg_val;
+	u32 reg_val, hclk_reg;
+
+	/* make sure the cpu div_xtal is 1 */
+	reg_val = __raw_readl(CLKCTRL_BASE_ADDR+HW_CLKCTRL_CPU);
+	reg_val &= ~(BM_CLKCTRL_CPU_DIV_XTAL);
+	reg_val |= (1 << BP_CLKCTRL_CPU_DIV_XTAL);
+	__raw_writel(reg_val, CLKCTRL_BASE_ADDR+HW_CLKCTRL_CPU);
 
 	if (rate < 24000000)
 		return -EINVAL;
 	else if (rate == 24000000) {
+
 		/* switch to the 24M source */
 		clk_set_parent(clk, &ref_xtal_clk);
+
+		/* to avoid bus starvation issues, we'll go ahead
+		 * and change hbus clock divider to 1 now.  Cpufreq
+		 * or other clock management can lower it later if
+		 * desired for power savings or other reasons, but
+		 * there should be no need to with hbus autoslow
+		 * functionality enabled.
+		 */
+
+		ret = clk_busy_wait(&cpu_clk);
+		if (ret) {
+			printk(KERN_ERR "* couldn't set\
+				up CPU divisor\n");
+			return ret;
+		}
+
+		ret = clk_busy_wait(&h_clk);
+		if (ret) {
+			printk(KERN_ERR "* H_CLK busy timeout\n");
+			return ret;
+		}
+
+		hclk_reg = __raw_readl(CLKCTRL_BASE_ADDR+HW_CLKCTRL_HBUS);
+		hclk_reg &= ~(BM_CLKCTRL_HBUS_DIV);
+		hclk_reg |= (1 << BP_CLKCTRL_HBUS_DIV);
+
+		__raw_writel(hclk_reg, CLKCTRL_BASE_ADDR + HW_CLKCTRL_HBUS_SET);
+
+		ret = clk_busy_wait(&cpu_clk);
+		if (ret) {
+			printk(KERN_ERR "** couldn't set\
+				up CPU divisor\n");
+			return ret;
+		}
+
+		ret = clk_busy_wait(&h_clk);
+		if (ret) {
+			printk(KERN_ERR "** CLK busy timeout\n");
+			return ret;
+		}
+
 	} else {
 		for ( ; c < 0x40; c++) {
 			u32 f = ((root_rate/1000)*18/c + (rate/1000)/2) /
@@ -505,33 +593,119 @@ static int cpu_set_rate(struct clk *clk, unsigned long rate)
 			if ((abs(d) > 100) || (clkctrl_frac < 18) ||
 				(clkctrl_frac > 35))
 				return -EINVAL;
-	}
+		}
 
-		/* Set Frac div */
+		/* prepare Frac div */
 		val = __raw_readl(CLKCTRL_BASE_ADDR + HW_CLKCTRL_FRAC);
 		val &= ~(BM_CLKCTRL_FRAC_CPUFRAC << BP_CLKCTRL_FRAC_CPUFRAC);
 		val |= clkctrl_frac;
-		__raw_writel(val, CLKCTRL_BASE_ADDR + HW_CLKCTRL_FRAC);
-		/* Do not gate */
-		__raw_writel(BM_CLKCTRL_FRAC_CLKGATECPU, CLKCTRL_BASE_ADDR +
-			     HW_CLKCTRL_FRAC_CLR);
 
-		/* write clkctrl_cpu */
+		/* prepare clkctrl_cpu div*/
 		reg_val = __raw_readl(CLKCTRL_BASE_ADDR + HW_CLKCTRL_CPU);
 		reg_val &= ~0x3F;
 		reg_val |= clkctrl_cpu;
 
+		/* set safe hbus clock divider. A divider of 3 ensure that
+		 * the Vddd voltage required for the cpuclk is sufficiently
+		 * high for the hbus clock and under 24MHz cpuclk conditions,
+		 * a divider of at least 3 ensures hbusclk doesn't remain
+		 * uneccesarily low which hurts performance
+		 */
+		hclk_reg = __raw_readl(CLKCTRL_BASE_ADDR+HW_CLKCTRL_HBUS);
+		hclk_reg &= ~(BM_CLKCTRL_HBUS_DIV);
+		hclk_reg |= (3 << BP_CLKCTRL_HBUS_DIV);
+
+		/* if the pll was OFF, we need to turn it ON.
+		 * Even if it was ON, we want to temporarily
+		 * increment it by 1 to avoid turning off
+		 * in the upcoming parent clock change to xtal.  This
+		 * avoids waiting an extra 10us for every cpu clock
+		 * change between ref_cpu sourced frequencies.
+		 */
+
+		if (pll_clk.ref < 1) {
+			mx23_raw_enable(&pll_clk);
+			clk_busy_wait(&pll_clk);
+		}
+		pll_clk.ref++;
+
+		/* switch to XTAL CLK source temparily while
+		 * we manipulate ref_cpu frequency */
+		clk_set_parent(clk, &ref_xtal_clk);
+
+		ret = clk_busy_wait(&h_clk);
+
+		if (ret) {
+			printk(KERN_ERR "-* HCLK busy wait timeout\n");
+			return ret;
+		}
+
+		ret = clk_busy_wait(clk);
+
+		if (ret) {
+			printk(KERN_ERR "-* couldn't set\
+				up CPU divisor\n");
+			return ret;
+		}
+
+		__raw_writel(val, CLKCTRL_BASE_ADDR + HW_CLKCTRL_FRAC);
+
+		/* clear the gate */
+		__raw_writel(BM_CLKCTRL_FRAC_CLKGATECPU, CLKCTRL_BASE_ADDR +
+			     HW_CLKCTRL_FRAC_CLR);
+
+		/* set the ref_cpu integer divider */
 		__raw_writel(reg_val, CLKCTRL_BASE_ADDR + HW_CLKCTRL_CPU);
 
-		for (i = 10000; i; i--)
-			if (!clk_is_busy(clk))
-				break;
-		if (!i) {
-			printk(KERN_ERR "couldn't set up CPU divisor\n");
-			return -ETIMEDOUT;
+		/* wait for the ref_cpu path to become stable before
+		 * switching over to it
+		 */
+
+		ret = clk_busy_wait(&ref_cpu_clk);
+
+		if (ret) {
+			printk(KERN_ERR "-** couldn't set\
+				up CPU divisor\n");
+			return ret;
 		}
+
+		/* change hclk divider to safe value for any ref_cpu
+		 * value.
+		 */
+		__raw_writel(hclk_reg, CLKCTRL_BASE_ADDR + HW_CLKCTRL_HBUS);
+
+		ret = clk_busy_wait(&h_clk);
+
+		if (ret) {
+			printk(KERN_ERR "-** HCLK busy wait timeout\n");
+			return ret;
+		}
+
+		clk_set_parent(clk, &ref_cpu_clk);
+
+		/* decrement the pll_clk ref count because
+		 * we temporarily enabled/incremented the count
+		 * above.
+		 */
+		pll_clk.ref--;
+
+		ret = clk_busy_wait(&cpu_clk);
+
+		if (ret) {
+			printk(KERN_ERR "-*** Couldn't set\
+				up CPU divisor\n");
+			return ret;
+		}
+
+		ret = clk_busy_wait(&h_clk);
+
+		if (ret) {
+			printk(KERN_ERR "-*** HCLK busy wait timeout\n");
+			return ret;
+		}
+
 	}
-	return 0;
+	return ret;
 }
 
 static struct clk cpu_clk = {
@@ -546,6 +720,7 @@ static struct clk cpu_clk = {
 	.bypass_bits	= 7,
 	.busy_reg	= CLKCTRL_BASE_ADDR + HW_CLKCTRL_CPU,
 	.busy_bits	= 28,
+	.xtal_busy_bits = 29,
 };
 
 static unsigned long uart_get_rate(struct clk *clk)
@@ -658,9 +833,6 @@ static int h_set_rate(struct clk *clk, unsigned long rate)
 
 	if (root_rate % round_rate)
 			return -EINVAL;
-
-	if ((root_rate < rate) && (root_rate == 64000000))
-		div = 3;
 
 	reg = __raw_readl(CLKCTRL_BASE_ADDR + HW_CLKCTRL_HBUS);
 	reg &= ~(BM_CLKCTRL_HBUS_DIV_FRAC_EN | BM_CLKCTRL_HBUS_DIV);
@@ -815,6 +987,7 @@ static struct clk emi_clk = {
 	.scale_reg	= CLKCTRL_BASE_ADDR + HW_CLKCTRL_FRAC,
 	.busy_reg	= CLKCTRL_BASE_ADDR + HW_CLKCTRL_EMI,
 	.busy_bits	= 28,
+	.xtal_busy_bits = 29,
 	.bypass_reg = CLKCTRL_BASE_ADDR + HW_CLKCTRL_CLKSEQ,
 	.bypass_bits = 7,
 };
