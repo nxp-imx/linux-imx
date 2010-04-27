@@ -938,6 +938,31 @@ static struct clk audio_clk = {
 	.enable_bits = BM_CLKCTRL_XTAL_FILT_CLK24M_GATE,
 };
 
+static struct clk vid_clk = {
+	.parent		= &ref_xtal_clk,
+	.enable         = mx23_raw_enable,
+	.disable        = mx23_raw_disable,
+	.enable_reg	= CLKCTRL_BASE_ADDR + HW_CLKCTRL_FRAC1,
+	.enable_bits	= BM_CLKCTRL_FRAC1_CLKGATEVID,
+};
+
+static struct clk tv108M_ng_clk = {
+	.parent		= &vid_clk,
+	.enable         = mx23_raw_enable,
+	.disable        = mx23_raw_disable,
+	.enable_reg	= CLKCTRL_BASE_ADDR + HW_CLKCTRL_TV,
+	.enable_bits	= BM_CLKCTRL_TV_CLK_TV108M_GATE,
+	.flags		= RATE_FIXED,
+};
+
+static struct clk tv27M_clk = {
+	.parent		= &vid_clk,
+	.enable         = mx23_raw_enable,
+	.disable        = mx23_raw_disable,
+	.enable_reg	= CLKCTRL_BASE_ADDR + HW_CLKCTRL_TV,
+	.enable_bits	= BM_CLKCTRL_TV_CLK_TV_GATE,
+	.flags		= RATE_FIXED,
+};
 
 static struct clk_lookup onchip_clocks[] = {
 	{
@@ -1035,6 +1060,18 @@ static struct clk_lookup onchip_clocks[] = {
 	{
 	 .con_id = "spdif",
 	 .clk = &pcmspdif_clk,
+	},
+	{
+	 .con_id = "ref_vid",
+	 .clk = &vid_clk,
+	},
+	{
+	 .con_id = "tv108M_ng",
+	 .clk = &tv108M_ng_clk,
+	},
+	{
+	 .con_id = "tv27M",
+	 .clk = &tv27M_clk,
 	}
 };
 

@@ -201,10 +201,10 @@ static inline void setup_dotclk_panel(u16 v_pulse_width,
 		     BM_LCDIF_CTRL_INPUT_DATA_SWIZZLE |
 		     BM_LCDIF_CTRL_LCD_DATABUS_WIDTH,
 		     REGS_LCDIF_BASE + HW_LCDIF_CTRL_CLR);
-	__raw_writel(BF_LCDIF_CTRL_WORD_LENGTH(3) |	/* 24 bit */
-		     BM_LCDIF_CTRL_DATA_SELECT |	/* data mode */
-		     BF_LCDIF_CTRL_INPUT_DATA_SWIZZLE(0) |	/* no swap */
-		     BF_LCDIF_CTRL_LCD_DATABUS_WIDTH(3),	/* 24 bit */
+	__raw_writel(BF_LCDIF_CTRL_WORD_LENGTH(3) |/* 24 bit */
+		     BM_LCDIF_CTRL_DATA_SELECT |/* data mode */
+		     BF_LCDIF_CTRL_INPUT_DATA_SWIZZLE(0) |/* no swap */
+		     BF_LCDIF_CTRL_LCD_DATABUS_WIDTH(3),/* 24 bit */
 		     REGS_LCDIF_BASE + HW_LCDIF_CTRL_SET);
 
 	val = __raw_readl(REGS_LCDIF_BASE + HW_LCDIF_VDCTRL0);
@@ -275,4 +275,167 @@ static inline void release_dotclk_panel(void)
 	__raw_writel(0, REGS_LCDIF_BASE + HW_LCDIF_VDCTRL3);
 }
 
+static inline void setup_dvi_panel(u16 h_active, u16 v_active,
+				   u16 h_blanking, u16 v_lines,
+				   u16 v1_blank_start, u16 v1_blank_end,
+				   u16 v2_blank_start, u16 v2_blank_end,
+				   u16 f1_start, u16 f1_end,
+				   u16 f2_start, u16 f2_end)
+{
+	u32 val;
+	/* 32bit packed format (RGB) */
+	__raw_writel(BM_LCDIF_CTRL1_BYTE_PACKING_FORMAT,
+			REGS_LCDIF_BASE + HW_LCDIF_CTRL1_CLR);
+	__raw_writel(BF_LCDIF_CTRL1_BYTE_PACKING_FORMAT(0x7) |
+		      BM_LCDIF_CTRL1_RECOVER_ON_UNDERFLOW,
+		      REGS_LCDIF_BASE + HW_LCDIF_CTRL1_SET);
+
+	val = __raw_readl(REGS_LCDIF_BASE + HW_LCDIF_TRANSFER_COUNT);
+	val &= ~(BM_LCDIF_TRANSFER_COUNT_V_COUNT |
+			BM_LCDIF_TRANSFER_COUNT_H_COUNT);
+	val |= BF_LCDIF_TRANSFER_COUNT_H_COUNT(h_active) |
+			BF_LCDIF_TRANSFER_COUNT_V_COUNT(v_active);
+	__raw_writel(val, REGS_LCDIF_BASE + HW_LCDIF_TRANSFER_COUNT);
+
+	/* set lcdif to DVI mode */
+	__raw_writel(BM_LCDIF_CTRL_DVI_MODE,
+		REGS_LCDIF_BASE + HW_LCDIF_CTRL_SET);
+	__raw_writel(BM_LCDIF_CTRL_VSYNC_MODE,
+			REGS_LCDIF_BASE + HW_LCDIF_CTRL_CLR);
+	__raw_writel(BM_LCDIF_CTRL_DOTCLK_MODE,
+			REGS_LCDIF_BASE + HW_LCDIF_CTRL_CLR);
+
+	__raw_writel(BM_LCDIF_CTRL_BYPASS_COUNT,
+		      REGS_LCDIF_BASE + HW_LCDIF_CTRL_SET);
+	/* convert input RGB -> YCbCr */
+	__raw_writel(BM_LCDIF_CTRL_RGB_TO_YCBCR422_CSC,
+		      REGS_LCDIF_BASE + HW_LCDIF_CTRL_SET);
+	/* interlace odd and even fields */
+	__raw_writel(BM_LCDIF_CTRL1_INTERLACE_FIELDS,
+		      REGS_LCDIF_BASE + HW_LCDIF_CTRL1_SET);
+
+	__raw_writel(BM_LCDIF_CTRL_WORD_LENGTH |
+			BM_LCDIF_CTRL_INPUT_DATA_SWIZZLE |
+			BM_LCDIF_CTRL_LCD_DATABUS_WIDTH,
+			REGS_LCDIF_BASE + HW_LCDIF_CTRL_CLR);
+	__raw_writel(BF_LCDIF_CTRL_WORD_LENGTH(3) |	/* 24 bit */
+		      BM_LCDIF_CTRL_DATA_SELECT |	/* data mode */
+		      BF_LCDIF_CTRL_INPUT_DATA_SWIZZLE(0) |	/* no swap */
+		      BF_LCDIF_CTRL_LCD_DATABUS_WIDTH(1),	/* 8 bit */
+		      REGS_LCDIF_BASE + HW_LCDIF_CTRL_SET);
+
+	/* LCDIF_DVI */
+	/* set frame size */
+	val = __raw_readl(REGS_LCDIF_BASE + HW_LCDIF_DVICTRL0);
+	val &= ~(BM_LCDIF_DVICTRL0_H_ACTIVE_CNT |
+		      BM_LCDIF_DVICTRL0_H_BLANKING_CNT |
+		      BM_LCDIF_DVICTRL0_V_LINES_CNT);
+	val |= BF_LCDIF_DVICTRL0_H_ACTIVE_CNT(1440) |
+		      BF_LCDIF_DVICTRL0_H_BLANKING_CNT(h_blanking) |
+		      BF_LCDIF_DVICTRL0_V_LINES_CNT(v_lines);
+	__raw_writel(val, REGS_LCDIF_BASE + HW_LCDIF_DVICTRL0);
+
+	/* set start/end of field-1 and start of field-2 */
+	val = __raw_readl(REGS_LCDIF_BASE + HW_LCDIF_DVICTRL1);
+	val &= ~(BM_LCDIF_DVICTRL1_F1_START_LINE |
+		      BM_LCDIF_DVICTRL1_F1_END_LINE |
+		      BM_LCDIF_DVICTRL1_F2_START_LINE);
+	val |= BF_LCDIF_DVICTRL1_F1_START_LINE(f1_start) |
+		BF_LCDIF_DVICTRL1_F1_END_LINE(f1_end) |
+		BF_LCDIF_DVICTRL1_F2_START_LINE(f2_start);
+	__raw_writel(val, REGS_LCDIF_BASE + HW_LCDIF_DVICTRL1);
+
+	/* set first vertical blanking interval and end of filed-2 */
+	val = __raw_readl(REGS_LCDIF_BASE + HW_LCDIF_DVICTRL2);
+	val &= ~(BM_LCDIF_DVICTRL2_F2_END_LINE |
+		      BM_LCDIF_DVICTRL2_V1_BLANK_START_LINE |
+		      BM_LCDIF_DVICTRL2_V1_BLANK_END_LINE);
+	val |= BF_LCDIF_DVICTRL2_F2_END_LINE(f2_end) |
+		      BF_LCDIF_DVICTRL2_V1_BLANK_START_LINE(v1_blank_start) |
+		      BF_LCDIF_DVICTRL2_V1_BLANK_END_LINE(v1_blank_end);
+	__raw_writel(val, REGS_LCDIF_BASE + HW_LCDIF_DVICTRL2);
+
+	/* set second vertical blanking interval */
+	val = __raw_readl(REGS_LCDIF_BASE + HW_LCDIF_DVICTRL3);
+	val &= ~(BM_LCDIF_DVICTRL3_V2_BLANK_START_LINE |
+		      BM_LCDIF_DVICTRL3_V2_BLANK_END_LINE);
+	val |= BF_LCDIF_DVICTRL3_V2_BLANK_START_LINE(v2_blank_start) |
+		      BF_LCDIF_DVICTRL3_V2_BLANK_END_LINE(v2_blank_end);
+	__raw_writel(val, REGS_LCDIF_BASE + HW_LCDIF_DVICTRL3);
+
+	/* fill the rest area black color if the input frame
+	 * is not 720 pixels/line
+	 */
+	if (h_active != 720) {
+		/* the input frame can't be less then (720-256) pixels/line */
+		if (720 - h_active > 0xff)
+			h_active = 720 - 0xff;
+
+		val = __raw_readl(REGS_LCDIF_BASE + HW_LCDIF_DVICTRL4);
+		val &= ~(BM_LCDIF_DVICTRL4_H_FILL_CNT |
+			      BM_LCDIF_DVICTRL4_Y_FILL_VALUE |
+			      BM_LCDIF_DVICTRL4_CB_FILL_VALUE |
+			      BM_LCDIF_DVICTRL4_CR_FILL_VALUE);
+		val |= BF_LCDIF_DVICTRL4_H_FILL_CNT(720 - h_active) |
+			      BF_LCDIF_DVICTRL4_Y_FILL_VALUE(16) |
+			      BF_LCDIF_DVICTRL4_CB_FILL_VALUE(128) |
+			      BF_LCDIF_DVICTRL4_CR_FILL_VALUE(128);
+		__raw_writel(val, REGS_LCDIF_BASE + HW_LCDIF_DVICTRL4);
+	}
+
+	/* Color Space Conversion RGB->YCbCr */
+	val = __raw_readl(REGS_LCDIF_BASE + HW_LCDIF_CSC_COEFF0);
+	val &= ~(BM_LCDIF_CSC_COEFF0_C0 |
+		      BM_LCDIF_CSC_COEFF0_CSC_SUBSAMPLE_FILTER);
+	val |= BF_LCDIF_CSC_COEFF0_C0(0x41) |
+		      BF_LCDIF_CSC_COEFF0_CSC_SUBSAMPLE_FILTER(3);
+	__raw_writel(val, REGS_LCDIF_BASE + HW_LCDIF_CSC_COEFF0);
+
+	val = __raw_readl(REGS_LCDIF_BASE + HW_LCDIF_CSC_COEFF1);
+	val &= ~(BM_LCDIF_CSC_COEFF1_C1 | BM_LCDIF_CSC_COEFF1_C2);
+	val |= BF_LCDIF_CSC_COEFF1_C1(0x81) |
+		      BF_LCDIF_CSC_COEFF1_C2(0x19);
+	__raw_writel(val, REGS_LCDIF_BASE + HW_LCDIF_CSC_COEFF1);
+
+	val = __raw_readl(REGS_LCDIF_BASE + HW_LCDIF_CSC_COEFF2);
+	val &= ~(BM_LCDIF_CSC_COEFF2_C3 | BM_LCDIF_CSC_COEFF2_C4);
+	val |= BF_LCDIF_CSC_COEFF2_C3(0x3DB) |
+		      BF_LCDIF_CSC_COEFF2_C4(0x3B6);
+	__raw_writel(val, REGS_LCDIF_BASE + HW_LCDIF_CSC_COEFF2);
+
+	val = __raw_readl(REGS_LCDIF_BASE + HW_LCDIF_CSC_COEFF3);
+	val &= ~(BM_LCDIF_CSC_COEFF3_C5 | BM_LCDIF_CSC_COEFF3_C6);
+	val |= BF_LCDIF_CSC_COEFF3_C5(0x70) |
+		      BF_LCDIF_CSC_COEFF3_C6(0x70);
+	__raw_writel(val, REGS_LCDIF_BASE + HW_LCDIF_CSC_COEFF3);
+
+	val = __raw_readl(REGS_LCDIF_BASE + HW_LCDIF_CSC_COEFF4);
+	val &= ~(BM_LCDIF_CSC_COEFF4_C7 | BM_LCDIF_CSC_COEFF4_C8);
+	val |= BF_LCDIF_CSC_COEFF4_C7(0x3A2) | BF_LCDIF_CSC_COEFF4_C8(0x3EE);
+	__raw_writel(val, REGS_LCDIF_BASE + HW_LCDIF_CSC_COEFF4);
+
+	val = __raw_readl(REGS_LCDIF_BASE + HW_LCDIF_CSC_OFFSET);
+	val &= ~(BM_LCDIF_CSC_OFFSET_CBCR_OFFSET
+		| BM_LCDIF_CSC_OFFSET_Y_OFFSET);
+	val |= BF_LCDIF_CSC_OFFSET_CBCR_OFFSET(0x80) |
+		      BF_LCDIF_CSC_OFFSET_Y_OFFSET(0x10);
+	__raw_writel(val, REGS_LCDIF_BASE + HW_LCDIF_CSC_OFFSET);
+
+	val = __raw_readl(REGS_LCDIF_BASE + HW_LCDIF_CSC_LIMIT);
+	val &= ~(BM_LCDIF_CSC_LIMIT_CBCR_MIN |
+		      BM_LCDIF_CSC_LIMIT_CBCR_MAX |
+		      BM_LCDIF_CSC_LIMIT_Y_MIN |
+		      BM_LCDIF_CSC_LIMIT_Y_MAX);
+	val |= BF_LCDIF_CSC_LIMIT_CBCR_MIN(16) |
+		      BF_LCDIF_CSC_LIMIT_CBCR_MAX(240) |
+		      BF_LCDIF_CSC_LIMIT_Y_MIN(16) |
+		      BF_LCDIF_CSC_LIMIT_Y_MAX(235);
+	__raw_writel(val, REGS_LCDIF_BASE + HW_LCDIF_CSC_LIMIT);
+}
+
+static inline void release_dvi_panel(void)
+{
+	__raw_writel(BM_LCDIF_CTRL_DVI_MODE,
+			REGS_LCDIF_BASE + HW_LCDIF_CTRL_CLR);
+}
 #endif /* _ARCH_ARM_LCDIF_H */
