@@ -198,6 +198,18 @@ static int _setup_disp_channel2(struct fb_info *fbi)
 {
 	int retval = 0;
 	struct mxcfb_info *mxc_fbi = (struct mxcfb_info *)fbi->par;
+	int fb_stride;
+
+	switch (bpp_to_pixfmt(fbi)) {
+	case V4L2_PIX_FMT_YUV420:
+	case V4L2_PIX_FMT_YVU420:
+	case V4L2_PIX_FMT_NV12:
+	case V4L2_PIX_FMT_YUV422P:
+		fb_stride = fbi->var.xres_virtual;
+		break;
+	default:
+		fb_stride = fbi->fix.line_length;
+	}
 
 	mxc_fbi->cur_ipu_buf = 1;
 	sema_init(&mxc_fbi->flip_sem, 1);
@@ -210,7 +222,7 @@ static int _setup_disp_channel2(struct fb_info *fbi)
 	retval = ipu_init_channel_buffer(mxc_fbi->ipu_ch, IPU_INPUT_BUFFER,
 					 bpp_to_pixfmt(fbi),
 					 fbi->var.xres, fbi->var.yres,
-					 fbi->fix.line_length,
+					 fb_stride,
 					 IPU_ROTATE_NONE,
 					 fbi->fix.smem_start +
 					 (fbi->fix.line_length * fbi->var.yres),
