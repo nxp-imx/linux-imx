@@ -62,11 +62,19 @@ static int set_freq_table(struct cpufreq_policy *policy, int end_index)
 {
 	int ret = 0;
 	int i;
+	int zero_no = 0;
+
+	for (i = 0; i < end_index; i++) {
+		if (profiles[i].cpu == 0)
+			zero_no++;
+	}
+
+	end_index -= zero_no;
 
 	cpu_freq_khz_min = profiles[0].cpu;
 	cpu_freq_khz_max = profiles[0].cpu;
 	for (i = 0; i < end_index; i++) {
-		imx_freq_table[end_index - 1 - i].index = end_index  - i;
+		imx_freq_table[end_index - 1 - i].index = end_index - i;
 		imx_freq_table[end_index - 1 - i].frequency =
 						profiles[i].cpu;
 

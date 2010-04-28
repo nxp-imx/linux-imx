@@ -278,65 +278,20 @@ static struct clk ref_pix_clk = {
 static struct clk cpu_clk, h_clk;
 static int clkseq_set_parent(struct clk *clk, struct clk *parent)
 {
-	int ret = -EINVAL;
-	int shift = 8;
+	int shift;
 
+	if (clk->parent == parent)
+		return 0;  /* clock parent already at target.  nothing to do */
 	/* bypass? */
 	if (parent == &ref_xtal_clk)
 		shift = 4;
+	else
+		shift = 8;
 
-	if (clk->bypass_reg) {
-		u32 hbus_val, cpu_val;
+	if (clk->bypass_reg)
+		__raw_writel(1 << clk->bypass_bits, clk->bypass_reg + shift);
 
-		if (clk == &cpu_clk && shift == 4) {
-			hbus_val = __raw_readl(CLKCTRL_BASE_ADDR +
-					HW_CLKCTRL_HBUS);
-			cpu_val = __raw_readl(CLKCTRL_BASE_ADDR +
-					HW_CLKCTRL_CPU);
-
-			hbus_val &= ~(BM_CLKCTRL_HBUS_DIV_FRAC_EN |
-				      BM_CLKCTRL_HBUS_DIV);
-			hbus_val |= 1;
-
-			cpu_val &= ~BM_CLKCTRL_CPU_DIV_CPU;
-			cpu_val |= 1;
-
-			__raw_writel(1 << clk->bypass_bits,
-					clk->bypass_reg + shift);
-
-			__raw_writel(hbus_val,
-					CLKCTRL_BASE_ADDR + HW_CLKCTRL_HBUS);
-			__raw_writel(cpu_val,
-					CLKCTRL_BASE_ADDR + HW_CLKCTRL_CPU);
-			cpu_clk.parent = &ref_xtal_clk;
-			/* h_clk.rate = 0; */
-		} else if (clk == &cpu_clk && shift == 8) {
-			hbus_val = __raw_readl(CLKCTRL_BASE_ADDR +
-							HW_CLKCTRL_HBUS);
-			cpu_val = __raw_readl(CLKCTRL_BASE_ADDR +
-							HW_CLKCTRL_CPU);
-			hbus_val &= ~(BM_CLKCTRL_HBUS_DIV_FRAC_EN |
-				      BM_CLKCTRL_HBUS_DIV);
-			hbus_val |= 2;
-			cpu_val &= ~BM_CLKCTRL_CPU_DIV_CPU;
-			cpu_val |= 2;
-
-			__raw_writel(hbus_val,
-				CLKCTRL_BASE_ADDR + HW_CLKCTRL_HBUS);
-			__raw_writel(cpu_val,
-				CLKCTRL_BASE_ADDR + HW_CLKCTRL_CPU);
-			/*	h_clk.rate = 0; */
-
-			__raw_writel(1 << clk->bypass_bits,
-					clk->bypass_reg + shift);
-			cpu_clk.parent = &ref_cpu_clk;
-		} else
-			__raw_writel(1 << clk->bypass_bits,
-					clk->bypass_reg + shift);
-		ret = 0;
-	}
-
-	return ret;
+	return 0;
 }
 
 static unsigned long lcdif_get_rate(struct clk *clk)
