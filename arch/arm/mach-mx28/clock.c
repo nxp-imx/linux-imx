@@ -48,6 +48,11 @@ static unsigned long xtal_clk_rate[3] = { 24000000, 24000000, 32000 };
 
 static unsigned long enet_mii_phy_rate;
 
+static inline int clk_is_busy(struct clk *clk)
+{
+	return __raw_readl(clk->busy_reg) & (1 << clk->busy_bits);
+}
+
 static int mx28_raw_enable(struct clk *clk)
 {
 	unsigned int reg;
