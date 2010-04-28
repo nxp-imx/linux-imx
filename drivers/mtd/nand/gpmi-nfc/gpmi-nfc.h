@@ -22,11 +22,53 @@
 #ifndef __DRIVERS_MTD_NAND_GPMI_NFC_H
 #define __DRIVERS_MTD_NAND_GPMI_NFC_H
 
+/* Linux header files. */
+
+#include <linux/err.h>
+#include <linux/init.h>
+#include <linux/module.h>
+#include <linux/io.h>
+#include <linux/interrupt.h>
+#include <linux/clk.h>
+#include <linux/platform_device.h>
+#include <linux/dma-mapping.h>
+#include <linux/mtd/mtd.h>
+#include <linux/mtd/nand.h>
+#include <linux/mtd/partitions.h>
+#include <linux/mtd/concat.h>
+#include <linux/gpmi-nfc.h>
+#include <asm/sizes.h>
+
+/* Platform header files. */
+
+#include <mach/system.h>
+#include <mach/dmaengine.h>
+#include <mach/device.h>
+#include <mach/clock.h>
+
+/* Driver header files. */
+
 #include "../nand_device_info.h"
-#include "gpmi-nfc-v0-gpmi-regs.h"
-#include "gpmi-nfc-v1-gpmi-regs.h"
-#include "gpmi-nfc-v0-bch-regs.h"
-#include "gpmi-nfc-v1-bch-regs.h"
+
+/*
+ *------------------------------------------------------------------------------
+ * Fundamental Macros
+ *------------------------------------------------------------------------------
+ */
+
+/* Define this macro to enable detailed information messages. */
+
+#define DETAILED_INFO
+
+/* Define this macro to enable event reporting. */
+
+/*#define EVENT_REPORTING*/
+
+/*
+ *------------------------------------------------------------------------------
+ * Fundamental Data Structures
+ *------------------------------------------------------------------------------
+ */
 
 /**
  * struct resources - The collection of resources the driver needs.
@@ -63,10 +105,12 @@ struct resources {
  *                           This *may* simply be a pointer to the mtd field, if
  *                           we've been instructed NOT to protect the boot
  *                           areas.
- * @partitions:              A pointer to a set of partitions collected from
- *                           information provided by the platform data. These
- *                           partitions are applied to the general use MTD.
+ * @partitions:              A pointer to a set of partitions applied to the
+ *                           general use MTD.
  * @partition_count:         The number of partitions.
+ * @ubi_partition_memory:    If not NULL, a block of memory used to create a set
+ *                           of partitions that help with the problem that UBI
+ *                           can't handle an MTD larger than 2GiB.
  * @current_chip:            The chip currently selected by the NAND Fash MTD
  *                           code. A negative value indicates that no chip is
  *                           selected.
@@ -134,6 +178,7 @@ struct mil {
 	struct mtd_info        *general_use_mtd;
 	struct mtd_partition   *partitions;
 	unsigned int           partition_count;
+	void                   *ubi_partition_memory;
 
 	/* General-use Variables */
 
@@ -312,57 +357,151 @@ struct gpmi_nfc_data {
 };
 
 /**
+ * struct gpmi_nfc_timing - GPMI NFC timing parameters.
+ *
+ * This structure contains the fundamental timing attributes for the NAND Flash
+ * bus and the GPMI NFC hardware.
+ *
+ * @data_setup_in_ns:          The data setup time, in nanoseconds. Usually the
+ *                             maximum of tDS and tWP. A negative value
+ *                             indicates this characteristic isn't known.
+ * @data_hold_in_ns:           The data hold time, in nanoseconds. Usually the
+ *                             maximum of tDH, tWH and tREH. A negative value
+ *                             indicates this characteristic isn't known.
+ * @address_setup_in_ns:       The address setup time, in nanoseconds. Usually
+ *                             the maximum of tCLS, tCS and tALS. A negative
+ *                             value indicates this characteristic isn't known.
+ * @gpmi_sample_time_in_ns:    A GPMI-specific timing parameter. A negative
+ *                             value indicates this characteristic isn't known.
+ * @tREA_in_ns:                tREA, in nanoseconds, from the data sheet. A
+ *                             negative value indicates this characteristic
+ *                             isn't known.
+ * @tRLOH_in_ns:               tRLOH, in nanoseconds, from the data sheet. A
+ *                             negative value indicates this characteristic
+ *                             isn't known.
+ * @tRHOH_in_ns:               tRHOH, in nanoseconds, from the data sheet. A
+ *                             negative value indicates this characteristic
+ *                             isn't known.
+ */
+
+struct gpmi_nfc_timing {
+	int8_t    data_setup_in_ns;
+	int8_t    data_hold_in_ns;
+	int8_t    address_setup_in_ns;
+	int8_t    gpmi_sample_delay_in_ns;
+	int8_t    tREA_in_ns;
+	int8_t    tRLOH_in_ns;
+	int8_t    tRHOH_in_ns;
+};
+
+/**
  * struct nfc_hal - GPMI NFC HAL
  *
  * This structure embodies an abstract interface to the underlying NFC hardware.
  *
- * @version:          The NFC hardware version.
- * @description:      A pointer to a human-readable description of the NFC
- *                    hardware.
- * @max_chip_count:   The maximum number of chips the NFC can possibly support
- *                    (this value is a constant for each NFC version). This may
- *                    *not* be the actual number of chips connected.
- * @dma_descriptors:  A pool of DMA descriptors.
- * @isr_dma_channel:  The DMA channel with which the NFC HAL is working. We
- *                    record this here so the ISR knows which DMA channel to
- *                    acknowledge.
- * @dma_done:         The completion structure used for DMA interrupts.
- * @bch_done:         The completion structure used for BCH interrupts.
- * @init:             Initializes the NFC hardware and data structures. This
- *                    function will be called after everything has been set up
- *                    for communication with the NFC itself, but before the
- *                    platform has set up off-chip communication. Thus, this
- *                    function must not attempt to communicate with the NAND
- *                    Flash hardware.
- * @set_geometry:     Configures the NFC hardware and data structures to match
- *                    the physical NAND Flash geometry.
- * @exit:             Shuts down the NFC hardware and data structures. This
- *                    function will be called after the platform has shut down
- *                    off-chip communication but while communication with the
- *                    NFC itself still works.
- * @is_ready:         Returns true if the given chip is ready.
- * @send_command:     Sends the given buffer of command bytes.
- * @send_data:        Sends the given buffer of data bytes.
- * @read_data:        Reads data bytes into the given buffer.
- * @send_page:        Sends the given given data and OOB bytes, using the ECC
- *                    engine.
- * @read_page:        Reads a page through the ECC engine and delivers the data
- *                    and OOB bytes to the given buffers.
+ * @version:                       The NFC hardware version.
+ * @description:                   A pointer to a human-readable description of
+ *                                 the NFC hardware.
+ * @max_chip_count:                The maximum number of chips the NFC can
+ *                                 possibly support (this value is a constant
+ *                                 for each NFC version). This may *not* be the
+ *                                 actual number of chips connected.
+ * @max_data_setup_cycles:         The maximum number of data setup cycles
+ *                                 that can be expressed in the hardware.
+ * @max_data_sample_delay_cycles:  The maximum number of data sample delay
+ *                                 cycles that can be expressed in the hardware.
+ * @max_dll_clock_period_in_ns:    The maximum period of the GPMI clock that the
+ *                                 sample delay DLL hardware can possibly work
+ *                                 with (the DLL is unusable with longer
+ *                                 periods). At HALF this value, the DLL must be
+ *                                 configured to use half-periods.
+ * @dma_descriptors:               A pool of DMA descriptors.
+ * @isr_dma_channel:               The DMA channel with which the NFC HAL is
+ *                                 working. We record this here so the ISR knows
+ *                                 which DMA channel to acknowledge.
+ * @dma_done:                      The completion structure used for DMA
+ *                                 interrupts.
+ * @bch_done:                      The completion structure used for BCH
+ *                                 interrupts.
+ * @timing:                        The current timing configuration.
+ * @init:                          Initializes the NFC hardware and data
+ *                                 structures. This function will be called
+ *                                 after everything has been set up for
+ *                                 communication with the NFC itself, but before
+ *                                 the platform has set up off-chip
+ *                                 communication. Thus, this function must not
+ *                                 attempt to communicate with the NAND Flash
+ *                                 hardware.
+ * @set_geometry:                  Configures the NFC hardware and data
+ *                                 structures to match the physical NAND Flash
+ *                                 geometry.
+ * @set_geometry:                  Configures the NFC hardware and data
+ *                                 structures to match the physical NAND Flash
+ *                                 geometry.
+ * @exit:                          Shuts down the NFC hardware and data
+ *                                 structures. This function will be called
+ *                                 after the platform has shut down off-chip
+ *                                 communication but while communication with
+ *                                 the NFC itself still works.
+ * @clear_bch:                     Clears a BCH interrupt (intended to be called
+ *                                 by a more general interrupt handler to do
+ *                                 device-specific clearing).
+ * @is_ready:                      Returns true if the given chip is ready.
+ * @begin:                         Begins an interaction with the NFC. This
+ *                                 function must be called before *any* of the
+ *                                 following functions so the NFC can prepare
+ *                                 itself.
+ * @end:                           Ends interaction with the NFC. This function
+ *                                 should be called to give the NFC a chance to,
+ *                                 among other things, enter a lower-power
+ *                                 state.
+ * @send_command:                  Sends the given buffer of command bytes.
+ * @send_data:                     Sends the given buffer of data bytes.
+ * @read_data:                     Reads data bytes into the given buffer.
+ * @send_page:                     Sends the given given data and OOB bytes,
+ *                                 using the ECC engine.
+ * @read_page:                     Reads a page through the ECC engine and
+ *                                 delivers the data and OOB bytes to the given
+ *                                 buffers.
  */
 
 #define  NFC_DMA_DESCRIPTOR_COUNT  (4)
 
 struct nfc_hal {
-	const unsigned int   version;
-	const char           *description;
-	const unsigned int   max_chip_count;
-	struct mxs_dma_desc  *dma_descriptors[NFC_DMA_DESCRIPTOR_COUNT];
-	int                  isr_dma_channel;
-	struct completion    dma_done;
-	struct completion    bch_done;
+
+	/* Hardware attributes. */
+
+	const unsigned int      version;
+	const char              *description;
+	const unsigned int      max_chip_count;
+	const unsigned int      max_data_setup_cycles;
+	const unsigned int      max_data_sample_delay_cycles;
+	const unsigned int      max_dll_clock_period_in_ns;
+
+	/* Working variables. */
+
+	struct mxs_dma_desc     *dma_descriptors[NFC_DMA_DESCRIPTOR_COUNT];
+	int                     isr_dma_channel;
+	struct completion       dma_done;
+	struct completion       bch_done;
+	struct gpmi_nfc_timing  timing;
+
+	/* Configuration functions. */
+
 	int   (*init)        (struct gpmi_nfc_data *);
 	int   (*set_geometry)(struct gpmi_nfc_data *);
+	int   (*set_timing)  (struct gpmi_nfc_data *,
+						const struct gpmi_nfc_timing *);
 	void  (*exit)        (struct gpmi_nfc_data *);
+
+	/* Call these functions to begin and end I/O. */
+
+	void  (*begin)       (struct gpmi_nfc_data *);
+	void  (*end)         (struct gpmi_nfc_data *);
+
+	/* Call these I/O functions only between begin() and end(). */
+
+	void  (*clear_bch)   (struct gpmi_nfc_data *);
 	int   (*is_ready)    (struct gpmi_nfc_data *, unsigned chip);
 	int   (*send_command)(struct gpmi_nfc_data *, unsigned chip,
 				dma_addr_t buffer, unsigned length);
@@ -402,5 +541,53 @@ struct boot_rom_helper {
 	int  (*check_transcription_stamp)(struct gpmi_nfc_data *);
 	int  (*write_transcription_stamp)(struct gpmi_nfc_data *);
 };
+
+/*
+ *------------------------------------------------------------------------------
+ * External Symbols
+ *------------------------------------------------------------------------------
+ */
+
+/* Event Reporting */
+
+#if defined(EVENT_REPORTING)
+	extern void gpmi_nfc_start_event_trace(char *description);
+	extern void gpmi_nfc_add_event(char *description, int delta);
+	extern void gpmi_nfc_stop_event_trace(char *description);
+	extern void gpmi_nfc_dump_event_trace(void);
+#else
+	#define gpmi_nfc_start_event_trace(description)  do {} while (0)
+	#define gpmi_nfc_add_event(description, delta)   do {} while (0)
+	#define gpmi_nfc_stop_event_trace(description)   do {} while (0)
+	#define gpmi_nfc_dump_event_trace()              do {} while (0)
+#endif
+
+/* NFC HAL Common Services */
+
+extern irqreturn_t gpmi_nfc_bch_isr(int irq, void *cookie);
+extern irqreturn_t gpmi_nfc_dma_isr(int irq, void *cookie);
+extern int gpmi_nfc_dma_init(struct gpmi_nfc_data *this);
+extern void gpmi_nfc_dma_exit(struct gpmi_nfc_data *this);
+extern int gpmi_nfc_set_geometry(struct gpmi_nfc_data *this);
+extern int gpmi_nfc_dma_go(struct gpmi_nfc_data *this, int  dma_channel);
+
+/* NFC HAL Structures */
+
+extern struct nfc_hal  gpmi_nfc_hal_v0;
+extern struct nfc_hal  gpmi_nfc_hal_v1;
+
+/* Boot ROM Helper Common Services */
+
+extern int gpmi_nfc_rom_helper_set_geometry(struct gpmi_nfc_data *this);
+
+/* Boot ROM Helper Structures */
+
+extern struct boot_rom_helper  gpmi_nfc_boot_rom_helper_v0;
+extern struct boot_rom_helper  gpmi_nfc_boot_rom_helper_v1;
+
+/* MTD Interface Layer */
+
+extern int  gpmi_nfc_mil_init(struct gpmi_nfc_data *this);
+extern void gpmi_nfc_mil_exit(struct gpmi_nfc_data *this);
 
 #endif

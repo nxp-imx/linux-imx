@@ -1,5 +1,5 @@
 /*
- * Freescale GPMI Register Definitions
+ * Freescale GPMI NFC NAND Flash Driver
  *
  * Copyright 2008-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  *
@@ -17,15 +17,14 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
  *
- * This file is created by xml file. Don't Edit it.
- *
  * Xml Revision: 2.2
  * Template revision: 26195
  */
 
-#ifndef __ARCH_ARM___GPMI_H
-#define __ARCH_ARM___GPMI_H
+#ifndef __GPMI_NFC_GPMI_REGS_H
+#define __GPMI_NFC_GPMI_REGS_H
 
+/*============================================================================*/
 
 #define HW_GPMI_CTRL0	(0x00000000)
 #define HW_GPMI_CTRL0_SET	(0x00000004)
@@ -78,6 +77,8 @@
 #define BF_GPMI_CTRL0_XFER_COUNT(v)  \
 		(((v) << 0) & BM_GPMI_CTRL0_XFER_COUNT)
 
+/*============================================================================*/
+
 #define HW_GPMI_COMPARE	(0x00000010)
 
 #define BP_GPMI_COMPARE_MASK	16
@@ -88,6 +89,8 @@
 #define BM_GPMI_COMPARE_REFERENCE	0x0000FFFF
 #define BF_GPMI_COMPARE_REFERENCE(v)  \
 		(((v) << 0) & BM_GPMI_COMPARE_REFERENCE)
+
+/*============================================================================*/
 
 #define HW_GPMI_ECCCTRL	(0x00000020)
 #define HW_GPMI_ECCCTRL_SET	(0x00000024)
@@ -121,6 +124,8 @@
 #define BV_GPMI_ECCCTRL_BUFFER_MASK__BCH_AUXONLY 0x100
 #define BV_GPMI_ECCCTRL_BUFFER_MASK__BCH_PAGE    0x1FF
 
+/*============================================================================*/
+
 #define HW_GPMI_ECCCOUNT	(0x00000030)
 
 #define BP_GPMI_ECCCOUNT_RSVD2	16
@@ -131,6 +136,8 @@
 #define BM_GPMI_ECCCOUNT_COUNT	0x0000FFFF
 #define BF_GPMI_ECCCOUNT_COUNT(v)  \
 		(((v) << 0) & BM_GPMI_ECCCOUNT_COUNT)
+
+/*============================================================================*/
 
 #define HW_GPMI_PAYLOAD	(0x00000040)
 
@@ -143,6 +150,8 @@
 #define BF_GPMI_PAYLOAD_RSVD0(v)  \
 		(((v) << 0) & BM_GPMI_PAYLOAD_RSVD0)
 
+/*============================================================================*/
+
 #define HW_GPMI_AUXILIARY	(0x00000050)
 
 #define BP_GPMI_AUXILIARY_ADDRESS	2
@@ -153,6 +162,8 @@
 #define BM_GPMI_AUXILIARY_RSVD0	0x00000003
 #define BF_GPMI_AUXILIARY_RSVD0(v)  \
 		(((v) << 0) & BM_GPMI_AUXILIARY_RSVD0)
+
+/*============================================================================*/
 
 #define HW_GPMI_CTRL1	(0x00000060)
 #define HW_GPMI_CTRL1_SET	(0x00000064)
@@ -199,6 +210,8 @@
 #define BV_GPMI_CTRL1_GPMI_MODE__NAND 0x0
 #define BV_GPMI_CTRL1_GPMI_MODE__ATA  0x1
 
+/*============================================================================*/
+
 #define HW_GPMI_TIMING0	(0x00000070)
 
 #define BP_GPMI_TIMING0_RSVD1	24
@@ -218,6 +231,8 @@
 #define BF_GPMI_TIMING0_DATA_SETUP(v)  \
 		(((v) << 0) & BM_GPMI_TIMING0_DATA_SETUP)
 
+/*============================================================================*/
+
 #define HW_GPMI_TIMING1	(0x00000080)
 
 #define BP_GPMI_TIMING1_DEVICE_BUSY_TIMEOUT	16
@@ -228,6 +243,8 @@
 #define BM_GPMI_TIMING1_RSVD1	0x0000FFFF
 #define BF_GPMI_TIMING1_RSVD1(v)  \
 		(((v) << 0) & BM_GPMI_TIMING1_RSVD1)
+
+/*============================================================================*/
 
 #define HW_GPMI_TIMING2	(0x00000090)
 
@@ -247,6 +264,8 @@
 #define BM_GPMI_TIMING2_UDMA_SETUP	0x000000FF
 #define BF_GPMI_TIMING2_UDMA_SETUP(v)  \
 		(((v) << 0) & BM_GPMI_TIMING2_UDMA_SETUP)
+
+/*============================================================================*/
 
 #define HW_GPMI_DATA	(0x000000a0)
 
@@ -270,7 +289,7 @@
 #define BM_GPMI_STAT_DEV4_ERROR	0x00001000
 #define BM_GPMI_STAT_DEV3_ERROR	0x00000800
 #define BM_GPMI_STAT_DEV2_ERROR	0x00000400
-#define BM_GPMI_STAT_DEV1_ERROR	0x00000200
+#define BM_GPMI_STAT_DEERROR	0x00000200
 #define BM_GPMI_STAT_DEV0_ERROR	0x00000100
 #define BP_GPMI_STAT_RSVD1	5
 #define BM_GPMI_STAT_RSVD1	0x000000E0
@@ -287,6 +306,8 @@
 #define BM_GPMI_STAT_PRESENT	0x00000001
 #define BV_GPMI_STAT_PRESENT__UNAVAILABLE 0x0
 #define BV_GPMI_STAT_PRESENT__AVAILABLE   0x1
+
+/*============================================================================*/
 
 #define HW_GPMI_DEBUG	(0x000000c0)
 
@@ -307,6 +328,8 @@
 #define BF_GPMI_DEBUG_CMD_END(v)  \
 		(((v) << 0) & BM_GPMI_DEBUG_CMD_END)
 
+/*============================================================================*/
+
 #define HW_GPMI_VERSION	(0x000000d0)
 
 #define BP_GPMI_VERSION_MAJOR	24
@@ -321,6 +344,8 @@
 #define BM_GPMI_VERSION_STEP	0x0000FFFF
 #define BF_GPMI_VERSION_STEP(v)  \
 		(((v) << 0) & BM_GPMI_VERSION_STEP)
+
+/*============================================================================*/
 
 #define HW_GPMI_DEBUG2	(0x000000e0)
 
@@ -377,6 +402,8 @@
 #define BF_GPMI_DEBUG2_RDN_TAP(v)  \
 		(((v) << 0) & BM_GPMI_DEBUG2_RDN_TAP)
 
+/*============================================================================*/
+
 #define HW_GPMI_DEBUG3	(0x000000f0)
 
 #define BP_GPMI_DEBUG3_APB_WORD_CNTR	16
@@ -387,4 +414,7 @@
 #define BM_GPMI_DEBUG3_DEV_WORD_CNTR	0x0000FFFF
 #define BF_GPMI_DEBUG3_DEV_WORD_CNTR(v)  \
 		(((v) << 0) & BM_GPMI_DEBUG3_DEV_WORD_CNTR)
-#endif /* __ARCH_ARM___GPMI_H */
+
+/*============================================================================*/
+
+#endif

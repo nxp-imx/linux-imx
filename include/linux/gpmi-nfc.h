@@ -21,16 +21,16 @@
 
 /* The name that links together the GPMI NFC driver data structures. */
 
-#define GPMI_NFC_DRIVER_NAME  ("gpmi-nfc")
+#define GPMI_NFC_DRIVER_NAME  "gpmi-nfc"
 
 /* Resource names for the GPMI NFC driver. */
 
-#define GPMI_NFC_GPMI_REGS_ADDR_RES_NAME  ("GPMI NFC GPMI Registers")
-#define GPMI_NFC_GPMI_INTERRUPT_RES_NAME  ("GPMI NFC GPMI Interrupt")
-#define GPMI_NFC_BCH_REGS_ADDR_RES_NAME   ("GPMI NFC BCH Registers")
-#define GPMI_NFC_BCH_INTERRUPT_RES_NAME   ("GPMI NFC BCH Interrupt")
-#define GPMI_NFC_DMA_CHANNELS_RES_NAME    ("GPMI NFC DMA Channels")
-#define GPMI_NFC_DMA_INTERRUPT_RES_NAME   ("GPMI NFC DMA Interrupt")
+#define GPMI_NFC_GPMI_REGS_ADDR_RES_NAME  "GPMI NFC GPMI Registers"
+#define GPMI_NFC_GPMI_INTERRUPT_RES_NAME  "GPMI NFC GPMI Interrupt"
+#define GPMI_NFC_BCH_REGS_ADDR_RES_NAME   "GPMI NFC BCH Registers"
+#define GPMI_NFC_BCH_INTERRUPT_RES_NAME   "GPMI NFC BCH Interrupt"
+#define GPMI_NFC_DMA_CHANNELS_RES_NAME    "GPMI NFC DMA Channels"
+#define GPMI_NFC_DMA_INTERRUPT_RES_NAME   "GPMI NFC DMA Interrupt"
 
 /**
  * struct gpmi_nfc_platform_data - GPMI NFC driver platform data.

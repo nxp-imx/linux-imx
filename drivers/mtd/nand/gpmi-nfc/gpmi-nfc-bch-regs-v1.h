@@ -1,5 +1,5 @@
 /*
- * Freescale BCH Register Definitions
+ * Freescale GPMI NFC NAND Flash Driver
  *
  * Copyright 2008-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  *
@@ -17,15 +17,14 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
  *
- * This file is created by xml file. Don't Edit it.
- *
  * Xml Revision: 2.5
  * Template revision: 26195
  */
 
-#ifndef __ARCH_ARM___BCH_H
-#define __ARCH_ARM___BCH_H
+#ifndef __GPMI_NFC_BCH_REGS_H
+#define __GPMI_NFC_BCH_REGS_H
 
+/*============================================================================*/
 
 #define HW_BCH_CTRL	(0x00000000)
 #define HW_BCH_CTRL_SET	(0x00000004)
@@ -69,6 +68,8 @@
 #define BM_BCH_CTRL_RSVD0	0x00000002
 #define BM_BCH_CTRL_COMPLETE_IRQ	0x00000001
 
+/*============================================================================*/
+
 #define HW_BCH_STATUS0	(0x00000010)
 
 #define BP_BCH_STATUS0_HANDLE	20
@@ -102,6 +103,8 @@
 #define BF_BCH_STATUS0_RSVD0(v)  \
 		(((v) << 0) & BM_BCH_STATUS0_RSVD0)
 
+/*============================================================================*/
+
 #define HW_BCH_MODE	(0x00000020)
 
 #define BP_BCH_MODE_RSVD	8
@@ -113,11 +116,15 @@
 #define BF_BCH_MODE_ERASE_THRESHOLD(v)  \
 		(((v) << 0) & BM_BCH_MODE_ERASE_THRESHOLD)
 
+/*============================================================================*/
+
 #define HW_BCH_ENCODEPTR	(0x00000030)
 
 #define BP_BCH_ENCODEPTR_ADDR	0
 #define BM_BCH_ENCODEPTR_ADDR	0xFFFFFFFF
 #define BF_BCH_ENCODEPTR_ADDR(v)	(v)
+
+/*============================================================================*/
 
 #define HW_BCH_DATAPTR	(0x00000040)
 
@@ -125,11 +132,15 @@
 #define BM_BCH_DATAPTR_ADDR	0xFFFFFFFF
 #define BF_BCH_DATAPTR_ADDR(v)	(v)
 
+/*============================================================================*/
+
 #define HW_BCH_METAPTR	(0x00000050)
 
 #define BP_BCH_METAPTR_ADDR	0
 #define BM_BCH_METAPTR_ADDR	0xFFFFFFFF
 #define BF_BCH_METAPTR_ADDR(v)	(v)
+
+/*============================================================================*/
 
 #define HW_BCH_LAYOUTSELECT	(0x00000070)
 
@@ -198,6 +209,8 @@
 #define BF_BCH_LAYOUTSELECT_CS0_SELECT(v)  \
 		(((v) << 0) & BM_BCH_LAYOUTSELECT_CS0_SELECT)
 
+/*============================================================================*/
+
 #define HW_BCH_FLASH0LAYOUT0	(0x00000080)
 
 #define BP_BCH_FLASH0LAYOUT0_NBLOCKS	24
@@ -228,6 +241,8 @@
 #define BF_BCH_FLASH0LAYOUT0_DATA0_SIZE(v)  \
 		(((v) << 0) & BM_BCH_FLASH0LAYOUT0_DATA0_SIZE)
 
+/*============================================================================*/
+
 #define HW_BCH_FLASH0LAYOUT1	(0x00000090)
 
 #define BP_BCH_FLASH0LAYOUT1_PAGE_SIZE	16
@@ -253,6 +268,8 @@
 #define BM_BCH_FLASH0LAYOUT1_DATAN_SIZE	0x00000FFF
 #define BF_BCH_FLASH0LAYOUT1_DATAN_SIZE(v)  \
 		(((v) << 0) & BM_BCH_FLASH0LAYOUT1_DATAN_SIZE)
+
+/*============================================================================*/
 
 #define HW_BCH_FLASH1LAYOUT0	(0x000000a0)
 
@@ -284,6 +301,8 @@
 #define BF_BCH_FLASH1LAYOUT0_DATA0_SIZE(v)  \
 		(((v) << 0) & BM_BCH_FLASH1LAYOUT0_DATA0_SIZE)
 
+/*============================================================================*/
+
 #define HW_BCH_FLASH1LAYOUT1	(0x000000b0)
 
 #define BP_BCH_FLASH1LAYOUT1_PAGE_SIZE	16
@@ -309,6 +328,8 @@
 #define BM_BCH_FLASH1LAYOUT1_DATAN_SIZE	0x00000FFF
 #define BF_BCH_FLASH1LAYOUT1_DATAN_SIZE(v)  \
 		(((v) << 0) & BM_BCH_FLASH1LAYOUT1_DATAN_SIZE)
+
+/*============================================================================*/
 
 #define HW_BCH_FLASH2LAYOUT0	(0x000000c0)
 
@@ -340,6 +361,8 @@
 #define BF_BCH_FLASH2LAYOUT0_DATA0_SIZE(v)  \
 		(((v) << 0) & BM_BCH_FLASH2LAYOUT0_DATA0_SIZE)
 
+/*============================================================================*/
+
 #define HW_BCH_FLASH2LAYOUT1	(0x000000d0)
 
 #define BP_BCH_FLASH2LAYOUT1_PAGE_SIZE	16
@@ -365,6 +388,8 @@
 #define BM_BCH_FLASH2LAYOUT1_DATAN_SIZE	0x00000FFF
 #define BF_BCH_FLASH2LAYOUT1_DATAN_SIZE(v)  \
 		(((v) << 0) & BM_BCH_FLASH2LAYOUT1_DATAN_SIZE)
+
+/*============================================================================*/
 
 #define HW_BCH_FLASH3LAYOUT0	(0x000000e0)
 
@@ -396,6 +421,8 @@
 #define BF_BCH_FLASH3LAYOUT0_DATA0_SIZE(v)  \
 		(((v) << 0) & BM_BCH_FLASH3LAYOUT0_DATA0_SIZE)
 
+/*============================================================================*/
+
 #define HW_BCH_FLASH3LAYOUT1	(0x000000f0)
 
 #define BP_BCH_FLASH3LAYOUT1_PAGE_SIZE	16
@@ -421,6 +448,8 @@
 #define BM_BCH_FLASH3LAYOUT1_DATAN_SIZE	0x00000FFF
 #define BF_BCH_FLASH3LAYOUT1_DATAN_SIZE(v)  \
 		(((v) << 0) & BM_BCH_FLASH3LAYOUT1_DATAN_SIZE)
+
+/*============================================================================*/
 
 #define HW_BCH_DEBUG0	(0x00000100)
 #define HW_BCH_DEBUG0_SET	(0x00000104)
@@ -466,11 +495,15 @@
 #define BF_BCH_DEBUG0_DEBUG_REG_SELECT(v)  \
 		(((v) << 0) & BM_BCH_DEBUG0_DEBUG_REG_SELECT)
 
+/*============================================================================*/
+
 #define HW_BCH_DBGKESREAD	(0x00000110)
 
 #define BP_BCH_DBGKESREAD_VALUES	0
 #define BM_BCH_DBGKESREAD_VALUES	0xFFFFFFFF
 #define BF_BCH_DBGKESREAD_VALUES(v)	(v)
+
+/*============================================================================*/
 
 #define HW_BCH_DBGCSFEREAD	(0x00000120)
 
@@ -478,11 +511,15 @@
 #define BM_BCH_DBGCSFEREAD_VALUES	0xFFFFFFFF
 #define BF_BCH_DBGCSFEREAD_VALUES(v)	(v)
 
+/*============================================================================*/
+
 #define HW_BCH_DBGSYNDGENREAD	(0x00000130)
 
 #define BP_BCH_DBGSYNDGENREAD_VALUES	0
 #define BM_BCH_DBGSYNDGENREAD_VALUES	0xFFFFFFFF
 #define BF_BCH_DBGSYNDGENREAD_VALUES(v)	(v)
+
+/*============================================================================*/
 
 #define HW_BCH_DBGAHBMREAD	(0x00000140)
 
@@ -490,11 +527,15 @@
 #define BM_BCH_DBGAHBMREAD_VALUES	0xFFFFFFFF
 #define BF_BCH_DBGAHBMREAD_VALUES(v)	(v)
 
+/*============================================================================*/
+
 #define HW_BCH_BLOCKNAME	(0x00000150)
 
 #define BP_BCH_BLOCKNAME_NAME	0
 #define BM_BCH_BLOCKNAME_NAME	0xFFFFFFFF
 #define BF_BCH_BLOCKNAME_NAME(v)	(v)
+
+/*============================================================================*/
 
 #define HW_BCH_VERSION	(0x00000160)
 
@@ -510,4 +551,7 @@
 #define BM_BCH_VERSION_STEP	0x0000FFFF
 #define BF_BCH_VERSION_STEP(v)  \
 		(((v) << 0) & BM_BCH_VERSION_STEP)
-#endif /* __ARCH_ARM___BCH_H */
+
+/*============================================================================*/
+
+#endif
