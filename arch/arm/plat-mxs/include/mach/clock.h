@@ -30,7 +30,7 @@ struct clk {
 	struct clk *secondary;
 	unsigned long flags;
 
-	__s8 ref;
+	int ref;
 	unsigned int scale_bits;
 	unsigned int enable_bits;
 	unsigned int bypass_bits;
