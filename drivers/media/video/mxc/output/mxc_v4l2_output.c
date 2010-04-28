@@ -37,7 +37,8 @@
 #include "mxc_v4l2_output.h"
 
 vout_data *g_vout;
-#define INTERLACED_CONTENT(vout) ((cpu_is_mx51_rev(CHIP_REV_2_0) >= 1) && \
+#define INTERLACED_CONTENT(vout) (((cpu_is_mx51_rev(CHIP_REV_2_0) >= 1) || \
+				   cpu_is_mx53()) &&			\
 				  (((vout)->field_fmt == V4L2_FIELD_INTERLACED_TB) || \
 				   ((vout)->field_fmt == V4L2_FIELD_INTERLACED_BT)))
 #define LOAD_3FIELDS(vout) ((INTERLACED_CONTENT(vout)) && \
@@ -1746,8 +1747,12 @@ static int mxc_v4l2out_s_fmt(vout_data * vout, struct v4l2_format *f)
 			"V4L2_FIELD_ALTERNATE field format not supported yet!\n");
 		break;
 	case V4L2_FIELD_INTERLACED_TB:
-		if (cpu_is_mx51())
+		if (cpu_is_mx51() || cpu_is_mx53())
 			break;
+		dev_err(&vout->video_dev->dev,
+			"De-interlacing not supported in this device!\n");
+		vout->field_fmt = V4L2_FIELD_NONE;
+		break;
 	case V4L2_FIELD_INTERLACED_BT:
 		dev_err(&vout->video_dev->dev,
 			"V4L2_FIELD_INTERLACED_BT field format not supported yet!\n");
