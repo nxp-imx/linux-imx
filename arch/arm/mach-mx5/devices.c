@@ -1072,6 +1072,26 @@ static inline void mxc_init_gpu2d(void)
 }
 #endif
 
+static struct resource mlb_resources[] = {
+	[0] = {
+	       .start = MLB_BASE_ADDR,
+	       .end = MLB_BASE_ADDR + 0x300,
+	       .flags = IORESOURCE_MEM,
+	       },
+	[1] = {
+	       .start = MXC_INT_MLB,
+	       .end = MXC_INT_MLB,
+	       .flags = IORESOURCE_IRQ,
+	       },
+};
+
+struct platform_device mxc_mlb_device = {
+	.name = "mxc_mlb",
+	.id = 0,
+	.num_resources = ARRAY_SIZE(mlb_resources),
+	.resource = mlb_resources,
+};
+
 void __init mx5_init_irq(void)
 {
 	unsigned long tzic_addr;
@@ -1382,6 +1402,8 @@ int __init mxc_init_devices(void)
 		mxc_gpu2d_resources[0].end = MX53_GPU2D_BASE_ADDR + SZ_4K - 1;
 		ipu_resources[0].start = MX53_IPU_CTRL_BASE_ADDR;
 		ipu_resources[0].end = MX53_IPU_CTRL_BASE_ADDR + SZ_128M - 1;
+		mlb_resources[0].start -= MX53_OFFSET;
+		mlb_resources[0].end -= MX53_OFFSET;
 	} else if (cpu_is_mx51_rev(CHIP_REV_2_0) < 0) {
 		scc_resources[1].start += 0x8000;
 		scc_resources[1].end += 0x8000;

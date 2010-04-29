@@ -511,6 +511,11 @@ static struct platform_device mxc_sgtl5000_device = {
 	.name = "imx-3stack-sgtl5000",
 };
 
+static struct mxc_mlb_platform_data mlb_data = {
+	.reg_nvcc = "VCAM",
+	.mlb_clk = "mlb_clk",
+};
+
 /*!
  * Board specific fixup function. It is called by \b setup_arch() in
  * setup.c file very early on during kernel starts. It allows the user to
@@ -678,6 +683,7 @@ static void __init mxc_board_init(void)
 	pm_power_off = mxc_power_off;
 	*/
 	mxc_register_device(&mxc_sgtl5000_device, &sgtl5000_data);
+	mxc_register_device(&mxc_mlb_device, &mlb_data);
 	mx5_usb_dr_init();
 	mx5_usbh1_init();
 }

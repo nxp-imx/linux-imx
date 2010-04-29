@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # Linux kernel version: 2.6.31
-# Mon Apr 26 10:27:23 2010
+# Thu Apr 29 12:53:21 2010
 #
 CONFIG_ARM=y
 CONFIG_HAVE_PWM=y
@@ -1797,6 +1797,7 @@ CONFIG_GPS_IOCTRL=m
 #
 # MXC Media Local Bus Driver
 #
+CONFIG_MXC_MLB=m
 
 #
 # i.MX ADC support

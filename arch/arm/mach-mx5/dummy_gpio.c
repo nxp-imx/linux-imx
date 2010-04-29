@@ -1,5 +1,5 @@
 /*
- * Copyright 2007-2009 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2007-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -111,3 +111,9 @@ EXPORT_SYMBOL(gpio_spdif_active);
 
 void gpio_spdif_inactive(void) {}
 EXPORT_SYMBOL(gpio_spdif_inactive);
+
+void gpio_mlb_active(void) {}
+EXPORT_SYMBOL(gpio_mlb_active);
+
+void gpio_mlb_inactive(void) {}
+EXPORT_SYMBOL(gpio_mlb_inactive);
