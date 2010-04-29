@@ -50,15 +50,21 @@ static struct mxc_iomux_pin_cfg __initdata mxc_iomux_pins[] = {
 	 },
 	{
 	 MX53_PIN_EIM_D16, IOMUX_CONFIG_ALT4,
+	 PAD_CTL_HYS_ENABLE | PAD_CTL_DRV_HIGH,
+	 MUX_IN_ECSPI1_IPP_CSPI_CLK_IN_SELECT_INPUT,
+	 INPUT_CTL_PATH3,
 	 },
 	{
 	 MX53_PIN_EIM_D17, IOMUX_CONFIG_ALT4,
+	 PAD_CTL_HYS_ENABLE | PAD_CTL_DRV_HIGH,
+	 MUX_IN_ECSPI1_IPP_IND_MISO_SELECT_INPUT,
+	 INPUT_CTL_PATH3,
 	 },
 	{
-	 MX53_PIN_EIM_D18, IOMUX_CONFIG_ALT2,
-	 },
-	{
-	 MX53_PIN_EIM_D19, IOMUX_CONFIG_ALT2,
+	 MX53_PIN_EIM_D18, IOMUX_CONFIG_ALT4,
+	 PAD_CTL_HYS_ENABLE | PAD_CTL_DRV_HIGH,
+	 MUX_IN_ECSPI1_IPP_IND_MOSI_SELECT_INPUT,
+	 INPUT_CTL_PATH3,
 	 },
 	{
 	 MX53_PIN_EIM_D20, IOMUX_CONFIG_ALT3,
@@ -879,26 +885,45 @@ void __init mx53_evk_io_init(void)
 void mx53_evk_gpio_spi_chipselect_active(int cspi_mode, int status,
 					     int chipselect)
 {
-	u32 gpio;
-
 	switch (cspi_mode) {
 	case 1:
 		switch (chipselect) {
 		case 0x1:
-			mxc_request_iomux(MX53_PIN_EIM_D19,
-					  IOMUX_CONFIG_ALT4);
+			/* de-select SS1 of instance: ecspi1. */
+			mxc_request_iomux(MX53_PIN_EIM_D19, IOMUX_CONFIG_ALT1);
 			mxc_iomux_set_pad(MX53_PIN_EIM_D19,
 					  PAD_CTL_HYS_ENABLE |
 					  PAD_CTL_PKE_ENABLE |
-					  PAD_CTL_DRV_HIGH | PAD_CTL_SRE_FAST);
+					  PAD_CTL_PUE_PULL |
+					  PAD_CTL_100K_PU |
+					  PAD_CTL_DRV_HIGH);
+
+			/* mux mode: ALT4 mux port: SS0 of instance: ecspi1. */
+			mxc_request_iomux(MX53_PIN_EIM_EB2, IOMUX_CONFIG_ALT4);
+			mxc_iomux_set_pad(MX53_PIN_EIM_EB2,
+					  PAD_CTL_HYS_ENABLE |
+					  PAD_CTL_DRV_HIGH);
+			mxc_iomux_set_input(
+				MUX_IN_ECSPI1_IPP_IND_SS_B_1_SELECT_INPUT,
+					  INPUT_CTL_PATH3);
 			break;
 		case 0x2:
-			gpio = IOMUX_TO_GPIO(MX53_PIN_EIM_D19);
-			mxc_request_iomux(MX53_PIN_EIM_D19,
-					  IOMUX_CONFIG_GPIO);
-			gpio_request(gpio, "cspi1_ss1");
-			gpio_direction_output(gpio, 0);
-			gpio_set_value(gpio, 1 & (~status));
+			/* de-select SS0 of instance: ecspi1. */
+			mxc_request_iomux(MX53_PIN_EIM_EB2, IOMUX_CONFIG_ALT1);
+			mxc_iomux_set_pad(MX53_PIN_EIM_EB2,
+					  PAD_CTL_HYS_ENABLE |
+					  PAD_CTL_PKE_ENABLE |
+					  PAD_CTL_PUE_PULL |
+					  PAD_CTL_100K_PU |
+					  PAD_CTL_DRV_HIGH);
+			mxc_request_iomux(MX53_PIN_EIM_D19, IOMUX_CONFIG_ALT4);
+			mxc_iomux_set_pad(MX53_PIN_EIM_D19,
+					  PAD_CTL_HYS_ENABLE |
+					  PAD_CTL_DRV_HIGH);
+			mxc_iomux_set_input(
+				MUX_IN_ECSPI1_IPP_IND_SS_B_1_SELECT_INPUT,
+					  INPUT_CTL_PATH3);
+
 			break;
 		default:
 			break;
@@ -925,9 +950,14 @@ void mx53_evk_gpio_spi_chipselect_inactive(int cspi_mode, int status,
 			mxc_request_iomux(MX53_PIN_EIM_D19,
 					  IOMUX_CONFIG_GPIO);
 			mxc_free_iomux(MX53_PIN_EIM_D19, IOMUX_CONFIG_GPIO);
+			mxc_free_iomux(MX53_PIN_EIM_EB2, IOMUX_CONFIG_ALT4);
 			break;
 		case 0x2:
-			mxc_free_iomux(MX53_PIN_EIM_D19, IOMUX_CONFIG_GPIO);
+			mxc_free_iomux(MX53_PIN_EIM_EB2, IOMUX_CONFIG_ALT4);
+			mxc_request_iomux(MX53_PIN_EIM_EB2,
+					  IOMUX_CONFIG_GPIO);
+			mxc_free_iomux(MX53_PIN_EIM_EB2, IOMUX_CONFIG_GPIO);
+			mxc_free_iomux(MX53_PIN_EIM_D19, IOMUX_CONFIG_ALT4);
 			break;
 		default:
 			break;

@@ -398,6 +398,35 @@ static struct i2c_board_info mxc_i2c1_board_info[] __initdata = {
 	 },
 };
 
+static struct mtd_partition mxc_dataflash_partitions[] = {
+	{
+	 .name = "bootloader",
+	 .offset = 0,
+	 .size = 0x000100000,},
+	{
+	 .name = "kernel",
+	 .offset = MTDPART_OFS_APPEND,
+	 .size = MTDPART_SIZ_FULL,},
+};
+
+static struct flash_platform_data mxc_spi_flash_data[] = {
+	{
+	 .name = "mxc_dataflash",
+	 .parts = mxc_dataflash_partitions,
+	 .nr_parts = ARRAY_SIZE(mxc_dataflash_partitions),
+	 .type = "at45db321d",}
+};
+
+
+static struct spi_board_info mxc_dataflash_device[] __initdata = {
+	{
+	 .modalias = "mxc_dataflash",
+	 .max_speed_hz = 25000000,	/* max spi clock (SCK) speed in HZ */
+	 .bus_num = 1,
+	 .chip_select = 1,
+	 .platform_data = &mxc_spi_flash_data[0],},
+};
+
 static int sdhc_write_protect(struct device *dev)
 {
 	unsigned short rc = 0;
@@ -668,11 +697,8 @@ static void __init mxc_board_init(void)
 	mxc_register_device(&mxc_alsa_spdif_device, &mxc_spdif_data);
 	*/
 	mxc_register_device(&mxc_fec_device, NULL);
-/*
-	spi_register_board_info(mxc_spi_nor_device,
-					ARRAY_SIZE(mxc_spi_nor_device));
-*/
-
+	spi_register_board_info(mxc_dataflash_device,
+				ARRAY_SIZE(mxc_dataflash_device));
 	i2c_register_board_info(0, mxc_i2c0_board_info,
 				ARRAY_SIZE(mxc_i2c0_board_info));
 	i2c_register_board_info(1, mxc_i2c1_board_info,
