@@ -56,7 +56,7 @@ ATH_DEBUG_INSTANTIATE_MODULE_VAR(android,
 #endif
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,0)
-char fwpath[256] = "/system/wifi";
+char fwpath[256] = "/lib/firmware/ath6k/AR6102";
 #endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,0) */
 int buspm = WLAN_PWR_CTRL_CUT_PWR;
 int wow2mode = WLAN_PWR_CTRL_CUT_PWR;
