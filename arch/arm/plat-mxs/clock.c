@@ -109,7 +109,7 @@ int clk_enable(struct clk *clk)
 		return -EINVAL;
 
 	spin_lock_irqsave(&clockfw_lock, flags);
-	pre_usage = clk->ref;
+	pre_usage = (clk->ref & CLK_EN_MASK);
 	ret = __clk_enable(clk);
 	spin_unlock_irqrestore(&clockfw_lock, flags);
 	if ((clk->flags & CPU_FREQ_TRIG_UPDATE)
@@ -133,7 +133,7 @@ void clk_disable(struct clk *clk)
 	__clk_disable(clk);
 	spin_unlock_irqrestore(&clockfw_lock, flags);
 	if ((clk->flags & CPU_FREQ_TRIG_UPDATE)
-			&& (clk->ref == 0)) {
+			&& ((clk->ref & CLK_EN_MASK) == 0)) {
 		cpufreq_trig_needed = 1;
 		cpufreq_update_policy(0);
 	}
