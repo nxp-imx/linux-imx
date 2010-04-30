@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2009 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2004-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -58,11 +58,167 @@
 #include <linux/clk.h>
 #include <asm/mach/keypad.h>
 
-/*
- * Module header file
+/*!
+ * Keypad Module Name
  */
-#include "mxc_keyb.h"
+#define MOD_NAME  "mxckpd"
 
+/*!
+ * XLATE mode selection
+ */
+#define KEYPAD_XLATE        0
+
+/*!
+ * RAW mode selection
+ */
+#define KEYPAD_RAW          1
+
+/*!
+ * Maximum number of keys.
+ */
+#define MAXROW			8
+#define MAXCOL			8
+#define MXC_MAXKEY		(MAXROW * MAXCOL)
+
+/*!
+ * This define indicates break scancode for every key release. A constant
+ * of 128 is added to the key press scancode.
+ */
+#define  MXC_KEYRELEASE   128
+
+/*
+ * _reg_KPP_KPCR   _reg_KPP_KPSR _reg_KPP_KDDR _reg_KPP_KPDR
+ *  The offset of Keypad Control Register Address
+ */
+#define KPCR    0x00
+
+/*
+ * The offset of Keypad Status Register Address
+ */
+#define KPSR    0x02
+
+/*
+ * The offset of Keypad Data Direction Address
+ */
+#define KDDR   0x04
+
+/*
+ * The offset of Keypad Data Register
+ */
+#define KPDR    0x06
+
+/*
+ * Key Press Interrupt Status bit
+ */
+#define KBD_STAT_KPKD        0x01
+
+/*
+ * Key Release Interrupt Status bit
+ */
+#define KBD_STAT_KPKR        0x02
+
+/*
+ * Key Depress Synchronizer Chain Status bit
+ */
+#define KBD_STAT_KDSC        0x04
+
+/*
+ * Key Release Synchronizer Status bit
+ */
+#define KBD_STAT_KRSS        0x08
+
+/*
+ * Key Depress Interrupt Enable Status bit
+ */
+#define KBD_STAT_KDIE        0x100
+
+/*
+ * Key Release Interrupt Enable
+ */
+#define KBD_STAT_KRIE        0x200
+
+/*
+ * Keypad Clock Enable
+ */
+#define KBD_STAT_KPPEN       0x400
+
+/*!
+ * Buffer size of keypad queue. Should be a power of 2.
+ */
+#define KPP_BUF_SIZE    128
+
+/*!
+ * Test whether bit is set for integer c
+ */
+#define TEST_BIT(c, n) ((c) & (0x1 << (n)))
+
+/*!
+ * Set nth bit in the integer c
+ */
+#define BITSET(c, n)   ((c) | (1 << (n)))
+
+/*!
+ * Reset nth bit in the integer c
+ */
+#define BITRESET(c, n) ((c) & ~(1 << (n)))
+
+/*!
+ * This enum represents the keypad state machine to maintain debounce logic
+ * for key press/release.
+ */
+enum KeyState {
+
+	/*!
+	 * Key press state.
+	 */
+	KStateUp,
+
+	/*!
+	 * Key press debounce state.
+	 */
+	KStateFirstDown,
+
+	/*!
+	 * Key release state.
+	 */
+	KStateDown,
+
+	/*!
+	 * Key release debounce state.
+	 */
+	KStateFirstUp
+};
+
+/*!
+ * Keypad Private Data Structure
+ */
+struct keypad_priv {
+
+	/*!
+	 * Keypad state machine.
+	 */
+	enum KeyState iKeyState;
+
+	/*!
+	 * Number of rows configured in the keypad matrix
+	 */
+	unsigned long kpp_rows;
+
+	/*!
+	 * Number of Columns configured in the keypad matrix
+	 */
+	unsigned long kpp_cols;
+
+	/*!
+	 * Timer used for Keypad polling.
+	 */
+	struct timer_list poll_timer;
+
+	/*!
+	 * The base address
+	 */
+	void __iomem *base;
+};
 /*!
  * This structure holds the keypad private data structure.
  */
@@ -269,26 +425,26 @@ static int mxc_kpp_scan_matrix(void)
 
 	for (col = 0; col < kpp_dev.kpp_cols; col++) {	/* Col */
 		/* 2. Write 1.s to KPDR[15:8] setting column data to 1.s */
-		reg_val = __raw_readw(KPDR);
+		reg_val = __raw_readw(kpp_dev.base + KPDR);
 		reg_val |= 0xff00;
-		__raw_writew(reg_val, KPDR);
+		__raw_writew(reg_val, kpp_dev.base + KPDR);
 
 		/*
 		 * 3. Configure columns as totem pole outputs(for quick
 		 * discharging of keypad capacitance)
 		 */
-		reg_val = __raw_readw(KPCR);
+		reg_val = __raw_readw(kpp_dev.base + KPCR);
 		reg_val &= 0x00ff;
-		__raw_writew(reg_val, KPCR);
+		__raw_writew(reg_val, kpp_dev.base + KPCR);
 
 		udelay(2);
 
 		/*
 		 * 4. Configure columns as open-drain
 		 */
-		reg_val = __raw_readw(KPCR);
+		reg_val = __raw_readw(kpp_dev.base + KPCR);
 		reg_val |= ((1 << kpp_dev.kpp_cols) - 1) << 8;
-		__raw_writew(reg_val, KPCR);
+		__raw_writew(reg_val, kpp_dev.base + KPCR);
 
 		/*
 		 * 5. Write a single column to 0, others to 1.
@@ -298,9 +454,9 @@ static int mxc_kpp_scan_matrix(void)
 		 */
 
 		/* Col bit starts at 8th bit in KPDR */
-		reg_val = __raw_readw(KPDR);
+		reg_val = __raw_readw(kpp_dev.base + KPDR);
 		reg_val &= ~(1 << (8 + col));
-		__raw_writew(reg_val, KPDR);
+		__raw_writew(reg_val, kpp_dev.base + KPDR);
 
 		/* Delay added to avoid propagating the 0 from column to row
 		 * when scanning. */
@@ -308,7 +464,7 @@ static int mxc_kpp_scan_matrix(void)
 		udelay(5);
 
 		/* Read row input */
-		reg_val = __raw_readw(KPDR);
+		reg_val = __raw_readw(kpp_dev.base + KPDR);
 		for (row = 0; row < kpp_dev.kpp_rows; row++) {	/* sample row */
 			if (TEST_BIT(reg_val, row) == 0) {
 				cur_rcmap[row] = BITSET(cur_rcmap[row], col);
@@ -324,12 +480,12 @@ static int mxc_kpp_scan_matrix(void)
 	 * clear the KPKD synchronizer chain by writing "1" to KDSC register
 	 */
 	reg_val = 0x00;
-	__raw_writew(reg_val, KPDR);
-	reg_val = __raw_readw(KPDR);
-	reg_val = __raw_readw(KPSR);
+	__raw_writew(reg_val, kpp_dev.base + KPDR);
+	reg_val = __raw_readw(kpp_dev.base + KPDR);
+	reg_val = __raw_readw(kpp_dev.base + KPSR);
 	reg_val |= KBD_STAT_KPKD | KBD_STAT_KPKR | KBD_STAT_KRSS |
 	    KBD_STAT_KDSC;
-	__raw_writew(reg_val, KPSR);
+	__raw_writew(reg_val, kpp_dev.base + KPSR);
 
 	/* Check key press status change */
 
@@ -558,14 +714,14 @@ static void mxc_kpp_handle_timer(unsigned long data)
 		 * Stop scanning and wait for interrupt.
 		 * Enable press interrupt and disable release interrupt.
 		 */
-		__raw_writew(0x00FF, KPDR);
-		reg_val = __raw_readw(KPSR);
+		__raw_writew(0x00FF, kpp_dev.base + KPDR);
+		reg_val = __raw_readw(kpp_dev.base + KPSR);
 		reg_val |= (KBD_STAT_KPKR | KBD_STAT_KPKD);
 		reg_val |= KBD_STAT_KRSS | KBD_STAT_KDSC;
-		__raw_writew(reg_val, KPSR);
+		__raw_writew(reg_val, kpp_dev.base + KPSR);
 		reg_val |= KBD_STAT_KDIE;
 		reg_val &= ~KBD_STAT_KRIE;
-		__raw_writew(reg_val, KPSR);
+		__raw_writew(reg_val, kpp_dev.base + KPSR);
 
 		/*
 		 * No more keys pressed... make sure unwanted key codes are
@@ -613,7 +769,7 @@ static irqreturn_t mxc_kpp_interrupt(int irq, void *dev_id)
 
 	/* Delete the polling timer */
 	del_timer(&kpp_dev.poll_timer);
-	reg_val = __raw_readw(KPSR);
+	reg_val = __raw_readw(kpp_dev.base + KPSR);
 
 	/* Check if it is key press interrupt */
 	if (reg_val & KBD_STAT_KPKD) {
@@ -621,7 +777,7 @@ static irqreturn_t mxc_kpp_interrupt(int irq, void *dev_id)
 		 * Disable key press(KDIE status bit) interrupt
 		 */
 		reg_val &= ~KBD_STAT_KDIE;
-		__raw_writew(reg_val, KPSR);
+		__raw_writew(reg_val, kpp_dev.base + KPSR);
 	} else {
 		/* spurious interrupt */
 		return IRQ_RETVAL(0);
@@ -767,12 +923,21 @@ static int mxc_kpp_probe(struct platform_device *pdev)
 	int i, irq;
 	int retval;
 	unsigned int reg_val;
+	struct resource *res;
 
 	keypad = (struct keypad_data *)pdev->dev.platform_data;
 
 	kpp_dev.kpp_cols = keypad->colmax;
 	kpp_dev.kpp_rows = keypad->rowmax;
 	key_pad_enabled = 0;
+
+	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+	if (!res)
+		return -ENODEV;
+
+	kpp_dev.base = ioremap(res->start, res->end - res->start + 1);
+	if (!kpp_dev.base)
+		return -ENOMEM;
 
 	irq = platform_get_irq(pdev, 0);
 	keypad->irq = irq;
@@ -793,30 +958,30 @@ static int mxc_kpp_probe(struct platform_device *pdev)
 	 * LSB nibble in KPP is for 8 rows
 	 * MSB nibble in KPP is for 8 cols
 	 */
-	reg_val = __raw_readw(KPCR);
+	reg_val = __raw_readw(kpp_dev.base + KPCR);
 	reg_val |= (1 << keypad->rowmax) - 1;	/* LSB */
 	reg_val |= ((1 << keypad->colmax) - 1) << 8;	/* MSB */
-	__raw_writew(reg_val, KPCR);
+	__raw_writew(reg_val, kpp_dev.base + KPCR);
 
 	/* Write 0's to KPDR[15:8] */
-	reg_val = __raw_readw(KPDR);
+	reg_val = __raw_readw(kpp_dev.base + KPDR);
 	reg_val &= 0x00ff;
-	__raw_writew(reg_val, KPDR);
+	__raw_writew(reg_val, kpp_dev.base + KPDR);
 
 	/* Configure columns as output, rows as input (KDDR[15:0]) */
-	reg_val = __raw_readw(KDDR);
+	reg_val = __raw_readw(kpp_dev.base + KDDR);
 	reg_val |= 0xff00;
 	reg_val &= 0xff00;
-	__raw_writew(reg_val, KDDR);
+	__raw_writew(reg_val, kpp_dev.base + KDDR);
 
-	reg_val = __raw_readw(KPSR);
+	reg_val = __raw_readw(kpp_dev.base + KPSR);
 	reg_val &= ~(KBD_STAT_KPKR | KBD_STAT_KPKD);
 	reg_val |= KBD_STAT_KPKD;
 	reg_val |= KBD_STAT_KRSS | KBD_STAT_KDSC;
-	__raw_writew(reg_val, KPSR);
+	__raw_writew(reg_val, kpp_dev.base + KPSR);
 	reg_val |= KBD_STAT_KDIE;
 	reg_val &= ~KBD_STAT_KRIE;
-	__raw_writew(reg_val, KPSR);
+	__raw_writew(reg_val, kpp_dev.base + KPSR);
 
 	has_leaning_key = keypad->learning;
 	mxckpd_keycodes = keypad->matrix;
@@ -950,16 +1115,16 @@ static int mxc_kpp_remove(struct platform_device *pdev)
 	 * Set KDIE control bit, clear KRIE control bit (avoid false release
 	 * events. Disable the keypad GPIO pins.
 	 */
-	__raw_writew(0x00, KPCR);
-	__raw_writew(0x00, KPDR);
-	__raw_writew(0x00, KDDR);
+	__raw_writew(0x00, kpp_dev.base + KPCR);
+	__raw_writew(0x00, kpp_dev.base + KPDR);
+	__raw_writew(0x00, kpp_dev.base + KDDR);
 
-	reg_val = __raw_readw(KPSR);
+	reg_val = __raw_readw(kpp_dev.base + KPSR);
 	reg_val |= KBD_STAT_KPKD;
 	reg_val &= ~KBD_STAT_KRSS;
 	reg_val |= KBD_STAT_KDIE;
 	reg_val &= ~KBD_STAT_KRIE;
-	__raw_writew(reg_val, KPSR);
+	__raw_writew(reg_val, kpp_dev.base + KPSR);
 
 	gpio_keypad_inactive();
 	clk_disable(kpp_clk);
