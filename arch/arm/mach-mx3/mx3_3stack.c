@@ -92,13 +92,17 @@ static struct resource mxc_kpp_resources[] = {
 	       .start = MXC_INT_KPP,
 	       .end = MXC_INT_KPP,
 	       .flags = IORESOURCE_IRQ,
-	       }
+	       },
+	[1] = {
+		.start = KPP_BASE_ADDR,
+		.end = KPP_BASE_ADDR + SZ_4K - 1,
+		.flags = IORESOURCE_MEM,
+		},
 };
 
 static struct keypad_data keypad_plat_data = {
 	.rowmax = 3,
 	.colmax = 4,
-	.irq = MXC_INT_KPP,
 	.learning = 0,
 	.delay = 2,
 	.matrix = keymapping,
