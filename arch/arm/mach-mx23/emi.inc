@@ -20,15 +20,38 @@
  * with this program; if not, write to the Free Software Foundation, Inc.,
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
-__mx23_emi_set_values:
+
+/*
+ * The code contained herein is licensed under the GNU General Public
+ * License. You may obtain a copy of the GNU General Public License
+ * Version 2 or later at the following locations:
+ *
+ * http://www.opensource.org/licenses/gpl-license.html
+ * http://www.gnu.org/copyleft/gpl.html
+ */
+
+
+__mx23_emi_set_values_xtal:
 	stmfd	r9!, {r0 - r4, lr}
+
 	mov	r1, #(HW_CLKCTRL_EMI_ADDR & 0x000000FF)
 	orr	r1, r1, #(HW_CLKCTRL_EMI_ADDR & 0x0000FF00)
 	orr	r1, r1, #(HW_CLKCTRL_EMI_ADDR & 0x00FF0000)
 	orr	r1, r1, #(HW_CLKCTRL_EMI_ADDR & 0xFF000000)
 
-@	DDC_RESNCY is deprecated at mx23
-@	mov	r3, #BM_CLKCTRL_EMI_DCC_RESYNC_ENABLE
+32:	ldr	r4, [r1]
+	tst	r4, #BM_CLKCTRL_EMI_BUSY_REF_XTAL
+	bne	32b
+	b	4f
+
+__mx23_emi_set_values2:
+
+	stmfd	r9!, {r0 - r4, lr}
+
+	mov	r1, #(HW_CLKCTRL_EMI_ADDR & 0x000000FF)
+	orr	r1, r1, #(HW_CLKCTRL_EMI_ADDR & 0x0000FF00)
+	orr	r1, r1, #(HW_CLKCTRL_EMI_ADDR & 0x00FF0000)
+	orr	r1, r1, #(HW_CLKCTRL_EMI_ADDR & 0xFF000000)
 
 	mov	r0, #(HW_CLKCTRL_FRAC_ADDR & 0x000000FF)
 	orr	r0, r0, #(HW_CLKCTRL_FRAC_ADDR & 0x0000FF00)
@@ -36,17 +59,34 @@ __mx23_emi_set_values:
 	orr	r0, r0, #(HW_CLKCTRL_FRAC_ADDR & 0xFF000000)
 	ldr	r2, [r0]
 
-	and	r4, r2, #BM_CLKCTRL_FRAC_EMIFRAC
-	lsr	r4, r4, #8
-	/* new pll div > cur pll div? */
-	cmp	r4, r8
-	bgt	1f
+	@clear EMIFRAC bits and store result in r4
 	bic	r4, r2, #BM_CLKCTRL_FRAC_EMIFRAC
-	orr	r4, r4, r8, lsl #8
-	str	r4, [r0]
-	nop
-	nop
-	nop
+
+	orr 	r4, r4, r8, lsl #BP_CLKCTRL_FRAC_EMIFRAC
+	str 	r4, [r0]
+
+	@ ungate ref_emi
+	mov	r0, #(HW_CLKCTRL_FRAC_CLR_ADDR & 0x000000FF)
+	orr	r0, r0, #(HW_CLKCTRL_FRAC_CLR_ADDR & 0x0000FF00)
+	orr	r0, r0, #(HW_CLKCTRL_FRAC_CLR_ADDR & 0x00FF0000)
+	orr	r0, r0, #(HW_CLKCTRL_FRAC_CLR_ADDR & 0xFF000000)
+
+	mov r2, #(BM_CLKCTRL_FRAC_CLKGATEEMI)
+	str r2, [r0]
+
+
+	@ set the integer divider
+	ldr r2, [r1]
+	bic r2, r2, #BM_CLKCTRL_EMI_DIV_EMI
+	orr r2, r2, r7, lsl #BP_CLKCTRL_EMI_DIV_EMI
+
+	str r2, [r1]
+
+	@ wait for clock to stabilize
+50:	ldr	r2, [r1]
+	tst	r2, #BM_CLKCTRL_EMI_BUSY_REF_EMI
+	bne	50b
+	b 4f
 
 @ Change integer/fractional dividers.
 
@@ -102,8 +142,6 @@ __mx23_emi_set_values:
 	str	r4, [r1]
 31:	ldr	r4, [r1]
 	tst	r4, #BM_CLKCTRL_EMI_BUSY_REF_EMI
-	bne	31b
-	tst	r4, #BM_CLKCTRL_EMI_BUSY_REF_XTAL
 	bne	31b
 
 4:	ldmfd	r9!, {r0 - r4, lr}
