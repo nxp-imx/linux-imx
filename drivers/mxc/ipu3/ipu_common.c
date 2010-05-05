@@ -1710,8 +1710,12 @@ int32_t ipu_enable_channel(ipu_channel_t channel)
 	}
 
 	if ((channel == MEM_DC_SYNC) || (channel == MEM_BG_SYNC) ||
-	    (channel == MEM_FG_SYNC))
+	    (channel == MEM_FG_SYNC)) {
+		reg = __raw_readl(IDMAC_WM_EN(in_dma));
+		__raw_writel(reg | idma_mask(in_dma), IDMAC_WM_EN(in_dma));
+
 		_ipu_dp_dc_enable(channel);
+	}
 
 	if (_ipu_is_ic_chan(in_dma) || _ipu_is_ic_chan(out_dma) ||
 		_ipu_is_irt_chan(in_dma) || _ipu_is_irt_chan(out_dma))
@@ -1860,6 +1864,12 @@ int32_t ipu_disable_channel(ipu_channel_t channel, bool wait_for_stop)
 	}
 
 	spin_lock_irqsave(&ipu_lock, lock_flags);
+
+	if ((channel == MEM_BG_SYNC) || (channel == MEM_FG_SYNC) ||
+	    (channel == MEM_DC_SYNC)) {
+		reg = __raw_readl(IDMAC_WM_EN(in_dma));
+		__raw_writel(reg & ~idma_mask(in_dma), IDMAC_WM_EN(in_dma));
+	}
 
 	/* Disable IC task */
 	if (_ipu_is_ic_chan(in_dma) || _ipu_is_ic_chan(out_dma) ||
