@@ -18,6 +18,7 @@
 
 #include <linux/kernel.h>
 #include <linux/init.h>
+#include <linux/err.h>
 #include <linux/irq.h>
 #include <linux/io.h>
 #include <linux/clk.h>
@@ -30,16 +31,29 @@
 #include "regs-clkctrl.h"
 #include "regs-digctl.h"
 
+#include <mach/regs-rtc.h>
 #include <mach/mx23.h>
 
 #define CLKCTRL_BASE_ADDR IO_ADDRESS(CLKCTRL_PHYS_ADDR)
 #define DIGCTRL_BASE_ADDR IO_ADDRESS(DIGCTL_PHYS_ADDR)
+#define RTC_BASE_ADDR IO_ADDRESS(RTC_PHYS_ADDR)
+
+/* these are the maximum clock speeds that have been
+ * validated to run at the minumum VddD target voltage level for cpu operation
+ * (presently 1.05V target, .975V Brownout).  Higher clock speeds for GPMI and
+ * SSP have not been validated.
+ */
+#define PLL_ENABLED_MAX_CLK_SSP 96000000
+#define PLL_ENABLED_MAX_CLK_GPMI 96000000
+
 
 /* external clock input */
-static struct clk xtal_clk[];
-static unsigned long xtal_clk_rate[3] = { 24000000, 24000000, 32000 };
 static struct clk pll_clk;
 static struct clk ref_xtal_clk;
+
+#ifdef DEBUG
+static void print_ref_counts(void);
+#endif
 
 
 static unsigned long enet_mii_phy_rate;
@@ -62,14 +76,6 @@ static inline int clk_busy_wait(struct clk *clk)
 {
 	int i;
 
-	/* pll clock requires up to 10us to
-	 * become stable
-	 */
-	if (clk == &pll_clk) {
-		udelay(10);
-		return 0;
-	}
-
 	for (i = 10000000; i; i--)
 		if (!clk_is_busy(clk))
 			break;
@@ -79,6 +85,37 @@ static inline int clk_busy_wait(struct clk *clk)
 		return 0;
 }
 
+static void local_clk_disable(struct clk *clk)
+{
+	if (clk == NULL || IS_ERR(clk) || !clk->ref)
+		return;
+
+	if ((--clk->ref) & CLK_EN_MASK)
+		return;
+
+	if (clk->disable)
+		clk->disable(clk);
+	local_clk_disable(clk->secondary);
+	local_clk_disable(clk->parent);
+}
+
+static int local_clk_enable(struct clk *clk)
+{
+	if (clk == NULL || IS_ERR(clk))
+		return -EINVAL;
+
+	if ((clk->ref++) & CLK_EN_MASK)
+		return 0;
+	if (clk->parent)
+		local_clk_enable(clk->parent);
+	if (clk->secondary)
+		local_clk_enable(clk->secondary);
+	if (clk->enable)
+		clk->enable(clk);
+	return 0;
+}
+
+
 static int mx23_raw_enable(struct clk *clk)
 {
 	unsigned int reg;
@@ -87,6 +124,9 @@ static int mx23_raw_enable(struct clk *clk)
 		reg &= ~clk->enable_bits;
 		__raw_writel(reg, clk->enable_reg);
 	}
+	if (clk->busy_reg)
+		clk_busy_wait(clk);
+
 	return 0;
 }
 
@@ -100,29 +140,14 @@ static void mx23_raw_disable(struct clk *clk)
 	}
 }
 
-static unsigned long xtal_get_rate(struct clk *clk)
+static unsigned long ref_xtal_get_rate(struct clk *clk)
 {
-	int id = clk - xtal_clk;
-	return xtal_clk_rate[id];
+	return 24000000;
 }
 
-static struct clk xtal_clk[] = {
-	{
-	 .flags = RATE_FIXED,
-	 .get_rate = xtal_get_rate,
-	 },
-	{
-	 .flags = RATE_FIXED,
-	 .get_rate = xtal_get_rate,
-	 },
-	{
-	 .flags = RATE_FIXED,
-	 .get_rate = xtal_get_rate,
-	 },
-};
-
 static struct clk ref_xtal_clk = {
-	.parent = &xtal_clk[0],
+	.flags = RATE_FIXED,
+	.get_rate = ref_xtal_get_rate,
 };
 
 static unsigned long pll_get_rate(struct clk *clk);
@@ -146,20 +171,23 @@ static unsigned long pll_get_rate(struct clk *clk)
 
 static int pll_enable(struct clk *clk)
 {
-	int timeout = 100;
-	unsigned long reg;
+	u32 reg;
+
+	reg = __raw_readl(CLKCTRL_BASE_ADDR + HW_CLKCTRL_PLLCTRL0);
+
+	if ((reg & BM_CLKCTRL_PLLCTRL0_POWER) &&
+		(reg & BM_CLKCTRL_PLLCTRL0_EN_USB_CLKS))
+		return 0;
 
 	__raw_writel(BM_CLKCTRL_PLLCTRL0_POWER |
 			     BM_CLKCTRL_PLLCTRL0_EN_USB_CLKS,
 			     CLKCTRL_BASE_ADDR + HW_CLKCTRL_PLLCTRL0_SET);
-	do {
-		udelay(10);
-		reg = __raw_readl(CLKCTRL_BASE_ADDR +
-				  HW_CLKCTRL_PLLCTRL1);
-		timeout--;
-	} while ((timeout > 0) && !(reg & BM_CLKCTRL_PLLCTRL1_LOCK));
-	if (timeout <= 0)
-		return -EFAULT;
+	/* only a 10us delay is need.  PLLCTRL1 LOCK bitfied is only a timer
+	 * and is incorrect (excessive).  Per definition of the PLLCTRL0
+	 * POWER field, waiting at least 10us.
+	 */
+	udelay(10);
+
 	return 0;
 }
 
@@ -210,6 +238,8 @@ static unsigned long ref_cpu_get_rate(struct clk *clk)
 
 static struct clk ref_cpu_clk = {
 	.parent = &pll_clk,
+	.enable = mx23_raw_enable,
+	.disable = mx23_raw_disable,
 	.get_rate = ref_cpu_get_rate,
 	.round_rate = ref_clk_round_rate,
 	.set_rate = ref_clk_set_rate,
@@ -232,6 +262,8 @@ static unsigned long ref_emi_get_rate(struct clk *clk)
 
 static struct clk ref_emi_clk = {
 	.parent = &pll_clk,
+	.enable = mx23_raw_enable,
+	.disable = mx23_raw_disable,
 	.get_rate = ref_emi_get_rate,
 	.set_rate = ref_clk_set_rate,
 	.round_rate = ref_clk_round_rate,
@@ -243,10 +275,12 @@ static struct clk ref_emi_clk = {
 
 static unsigned long ref_io_get_rate(struct clk *clk);
 static struct clk ref_io_clk = {
-	 .parent = &pll_clk,
-	 .get_rate = ref_io_get_rate,
-	 .enable_reg = CLKCTRL_BASE_ADDR + HW_CLKCTRL_FRAC,
-	 .enable_bits = BM_CLKCTRL_FRAC_CLKGATEIO,
+	.parent = &pll_clk,
+	.enable = mx23_raw_enable,
+	.disable = mx23_raw_disable,
+	.get_rate = ref_io_get_rate,
+	.enable_reg = CLKCTRL_BASE_ADDR + HW_CLKCTRL_FRAC,
+	.enable_bits = BM_CLKCTRL_FRAC_CLKGATEIO,
 };
 
 static unsigned long ref_io_get_rate(struct clk *clk)
@@ -270,6 +304,8 @@ static unsigned long ref_pix_get_rate(struct clk *clk)
 
 static struct clk ref_pix_clk = {
 	.parent = &pll_clk,
+	.enable = mx23_raw_enable,
+	.disable = mx23_raw_disable,
 	.get_rate = ref_pix_get_rate,
 	.enable_reg = CLKCTRL_BASE_ADDR + HW_CLKCTRL_FRAC,
 	.enable_bits = BM_CLKCTRL_FRAC_CLKGATEPIX,
@@ -334,6 +370,8 @@ static int lcdif_set_rate(struct clk *clk, unsigned long rate)
 
 	ns_cycle *= 2; /* Fix calculate double frequency */
 
+
+
 	for (div = 1; div < 256; ++div) {
 		u32 fracdiv;
 		u32 ps_result;
@@ -392,16 +430,9 @@ static int lcdif_set_rate(struct clk *clk, unsigned long rate)
 	__raw_writel(reg_val, clk->scale_reg);
 
 	/* Wait for divider update */
-	if (clk->busy_reg) {
-		int i;
-		for (i = 10000; i; i--)
-			if (!clk_is_busy(clk))
-				break;
-		if (!i) {
-			ret = -ETIMEDOUT;
-			goto out;
-		}
-	}
+	ret = clk_busy_wait(clk);
+	if (ret)
+		goto out;
 
 	/* Switch to ref_pix source */
 	reg_val = __raw_readl(CLKCTRL_BASE_ADDR + HW_CLKCTRL_CLKSEQ);
@@ -413,7 +444,7 @@ out:
 }
 
 static struct clk lcdif_clk = {
-	.parent		= &pll_clk,
+	.parent		= &ref_pix_clk,
 	.enable 	= mx23_raw_enable,
 	.disable 	= mx23_raw_disable,
 	.scale_reg	= CLKCTRL_BASE_ADDR + HW_CLKCTRL_PIX,
@@ -462,8 +493,7 @@ static unsigned long cpu_round_rate(struct clk *clk, unsigned long rate)
 
 static int cpu_set_rate(struct clk *clk, unsigned long rate)
 {
-	unsigned long root_rate =
-			clk->parent->parent->get_rate(clk->parent->parent);
+	unsigned long root_rate = pll_clk.get_rate(&pll_clk);
 	int ret = -EINVAL;
 	u32 clkctrl_cpu = 1;
 	u32 c = clkctrl_cpu;
@@ -477,9 +507,13 @@ static int cpu_set_rate(struct clk *clk, unsigned long rate)
 	reg_val |= (1 << BP_CLKCTRL_CPU_DIV_XTAL);
 	__raw_writel(reg_val, CLKCTRL_BASE_ADDR+HW_CLKCTRL_CPU);
 
-	if (rate < 24000000)
+	if (rate < ref_xtal_get_rate(&ref_xtal_clk))
 		return -EINVAL;
-	else if (rate == 24000000) {
+
+	if (rate == clk_get_rate(clk))
+		return 0;
+
+	if (rate == ref_xtal_get_rate(&ref_xtal_clk)) {
 
 		/* switch to the 24M source */
 		clk_set_parent(clk, &ref_xtal_clk);
@@ -552,8 +586,8 @@ static int cpu_set_rate(struct clk *clk, unsigned long rate)
 
 		/* prepare Frac div */
 		val = __raw_readl(CLKCTRL_BASE_ADDR + HW_CLKCTRL_FRAC);
-		val &= ~(BM_CLKCTRL_FRAC_CPUFRAC << BP_CLKCTRL_FRAC_CPUFRAC);
-		val |= clkctrl_frac;
+		val &= ~(BM_CLKCTRL_FRAC_CPUFRAC);
+		val |= (clkctrl_frac << BP_CLKCTRL_FRAC_CPUFRAC);
 
 		/* prepare clkctrl_cpu div*/
 		reg_val = __raw_readl(CLKCTRL_BASE_ADDR + HW_CLKCTRL_CPU);
@@ -577,11 +611,7 @@ static int cpu_set_rate(struct clk *clk, unsigned long rate)
 		 * avoids waiting an extra 10us for every cpu clock
 		 * change between ref_cpu sourced frequencies.
 		 */
-
-		if (pll_clk.ref < 1) {
-			mx23_raw_enable(&pll_clk);
-			clk_busy_wait(&pll_clk);
-		}
+		pll_enable(&pll_clk);
 		pll_clk.ref++;
 
 		/* switch to XTAL CLK source temparily while
@@ -731,25 +761,99 @@ static unsigned long x_get_rate(struct clk *clk)
 	return clk->parent->get_rate(clk->parent) / reg;
 }
 
+static unsigned long x_round_rate(struct clk *clk, unsigned long rate)
+{
+	unsigned int root_rate, frac_rate;
+	unsigned int div;
+	root_rate = clk->parent->get_rate(clk->parent);
+	frac_rate = root_rate % rate;
+	div = root_rate / rate;
+	/* while the reference manual specifies that divider
+	 * values up to 1023 are aloud, other critial SoC compents
+	 * require higher x clock values at all times.  Through
+	 * limited testing, the lradc functionality to measure
+	 * the battery voltage and copy this value to the
+	 * power supply requires at least a 64kHz xclk.
+	 * so the divider will be limited to 375.
+	 */
+	if ((div == 0) || (div > 375))
+		return root_rate;
+	if (frac_rate == 0)
+		return rate;
+	else
+		return root_rate / (div + 1);
+}
+
+static int x_set_rate(struct clk *clk, unsigned long rate)
+{
+	unsigned long root_rate;
+	unsigned long round_rate;
+	unsigned int reg, div;
+	root_rate = clk->parent->get_rate(clk->parent);
+
+	if ((!clk->round_rate) || !(clk->scale_reg))
+		return -EINVAL;
+
+	round_rate =  clk->round_rate(clk, rate);
+	div = root_rate / round_rate;
+
+	if (root_rate % round_rate)
+			return -EINVAL;
+
+	reg = __raw_readl(CLKCTRL_BASE_ADDR + HW_CLKCTRL_XBUS);
+	reg &= ~(BM_CLKCTRL_XBUS_DIV_FRAC_EN | BM_CLKCTRL_XBUS_DIV);
+	reg |= BF_CLKCTRL_XBUS_DIV(div);
+	__raw_writel(reg, CLKCTRL_BASE_ADDR + HW_CLKCTRL_XBUS);
+
+	return clk_busy_wait(clk);
+
+}
+
 static struct clk x_clk = {
 	.parent = &ref_xtal_clk,
 	.get_rate = x_get_rate,
+	.set_rate = x_set_rate,
+	.round_rate = x_round_rate,
+	.scale_reg = CLKCTRL_BASE_ADDR + HW_CLKCTRL_XBUS,
+	.busy_reg	= CLKCTRL_BASE_ADDR + HW_CLKCTRL_XBUS,
+	.busy_bits	= 31,
 };
+
+
 
 static struct clk ana_clk = {
 	.parent = &ref_xtal_clk,
 };
 
-static unsigned long rtc_get_rate(struct clk *clk)
+
+
+static unsigned long xtal_clock32k_get_rate(struct clk *clk)
 {
-	if (clk->parent == &xtal_clk[2])
-		return clk->parent->get_rate(clk->parent);
-	return clk->parent->get_rate(clk->parent) / 768;
+	if (__raw_readl(RTC_BASE_ADDR + HW_RTC_PERSISTENT0) &
+		BM_RTC_PERSISTENT0_XTAL32_FREQ)
+		return 32000;
+	else
+		return 32768;
 }
 
-static struct clk rtc_clk = {
-	.parent = &ref_xtal_clk,
-	.get_rate = rtc_get_rate,
+static struct clk xtal_clock32k_clk = {
+	.get_rate = xtal_clock32k_get_rate,
+};
+
+static unsigned long rtc32k_get_rate(struct clk *clk)
+{
+	if (clk->parent == &ref_xtal_clk)
+		/* mx23 reference manual had error.
+		 * fixed divider is 750 not 768
+		 */
+		return clk->parent->get_rate(clk->parent) / 750;
+	else
+		return xtal_clock32k_get_rate(clk);
+}
+
+static struct clk rtc32k_clk = {
+	.parent = &xtal_clock32k_clk,
+	.get_rate = rtc32k_get_rate,
 };
 
 static unsigned long h_get_rate(struct clk *clk)
@@ -794,15 +898,9 @@ static int h_set_rate(struct clk *clk, unsigned long rate)
 	reg |= BF_CLKCTRL_HBUS_DIV(div);
 	__raw_writel(reg, CLKCTRL_BASE_ADDR + HW_CLKCTRL_HBUS);
 
-	if (clk->busy_reg) {
-		int i;
-		for (i = 10000; i; i--)
-			if (!clk_is_busy(clk))
-				break;
-		if (!i) {
-			printk(KERN_ERR "couldn't set up AHB divisor\n");
-			return -ETIMEDOUT;
-		}
+	if (clk_busy_wait(clk)) {
+		printk(KERN_ERR "couldn't set up AHB divisor\n");
+		return -EINVAL;
 	}
 
 	return 0;
@@ -850,34 +948,39 @@ static unsigned long emi_round_rate(struct clk *clk, unsigned long rate)
 	return root_rate / div;
 }
 
+/* when changing the emi clock, dram access must be
+ * disabled.  Special handling is needed to perform
+ * the emi clock change without touching sdram.
+ */
 static int emi_set_rate(struct clk *clk, unsigned long rate)
 {
 	int ret = 0;
 
-	if (rate < 24000)
-		return -EINVAL;
-	else {
-		int i;
-		struct mxs_emi_scaling_data sc_data;
-		unsigned long iram_phy;
-		int (*scale)(struct mxs_emi_scaling_data *) =
-			iram_alloc(0x1000, &iram_phy);
+	struct mxs_emi_scaling_data sc_data;
 
-		unsigned long clkctrl_emi;
-		unsigned long clkctrl_frac;
-		int div = 1;
-		unsigned long root_rate =
-			clk->parent->parent->get_rate(clk->parent->parent);
-		if (NULL == scale) {
-			pr_err("%s Not enough iram\n", __func__);
-			return -ENOMEM;
-		}
-		/*
-		 * We've been setting div to HW_CLKCTRL_CPU_RD() & 0x3f so far.
-		 * TODO: verify 1 is still valid.
-		 */
-		if (!mxs_ram_funcs_sz)
-			goto out;
+	unsigned long clkctrl_emi;
+	unsigned long clkctrl_frac;
+	int div = 1;
+	unsigned long root_rate, cur_emi_div, cur_emi_frac;
+	struct clk *target_parent_p = &ref_xtal_clk;
+
+	if (rate < ref_xtal_get_rate(&ref_xtal_clk))
+		return -EINVAL;
+
+	if (!mxs_ram_funcs_sz)
+		goto out;
+
+	sc_data.cur_freq = (clk->get_rate(clk)) / 1000 / 1000;
+	sc_data.new_freq = rate / 1000 / 1000;
+
+	if (sc_data.cur_freq == sc_data.new_freq)
+		goto out;
+
+	if (rate != ref_xtal_get_rate(&ref_xtal_clk)) {
+		target_parent_p = &ref_emi_clk;
+		pll_enable(&pll_clk);
+
+		root_rate = pll_clk.get_rate(&pll_clk);
 
 		for (clkctrl_emi = div; clkctrl_emi < 0x3f;
 					clkctrl_emi += div) {
@@ -899,32 +1002,51 @@ static int emi_set_rate(struct clk *clk, unsigned long rate)
 		pr_debug("%s: clkctrl_emi %ld, clkctrl_frac %ld\n",
 			__func__, clkctrl_emi, clkctrl_frac);
 
-		memcpy(scale, mxs_ram_freq_scale, mxs_ram_funcs_sz);
-
 		sc_data.emi_div = clkctrl_emi;
 		sc_data.frac_div = clkctrl_frac;
-		sc_data.cur_freq = (clk->get_rate(clk)) / 1000 / 1000;
-		sc_data.new_freq = rate / 1000 / 1000;
+	}
+
+
+	cur_emi_div = ((__raw_readl(CLKCTRL_BASE_ADDR+HW_CLKCTRL_EMI) &
+		BM_CLKCTRL_EMI_DIV_EMI) >> BP_CLKCTRL_EMI_DIV_EMI);
+	cur_emi_frac = ((__raw_readl(CLKCTRL_BASE_ADDR+HW_CLKCTRL_FRAC) &
+		BM_CLKCTRL_EMI_DIV_EMI) >> BP_CLKCTRL_FRAC_EMIFRAC);
+
+	if ((cur_emi_div == sc_data.emi_div) &&
+		(cur_emi_frac == sc_data.frac_div))
+		goto out;
+
+
+	{
+		unsigned long iram_phy;
+		int (*scale)(struct mxs_emi_scaling_data *) =
+			iram_alloc(mxs_ram_funcs_sz, &iram_phy);
+
+		if (NULL == scale) {
+			pr_err("%s Not enough iram\n", __func__);
+			return -ENOMEM;
+		}
+
+		memcpy(scale, mxs_ram_freq_scale, mxs_ram_funcs_sz);
 
 		local_irq_disable();
 		local_fiq_disable();
-		iram_free(iram_phy, 0x1000);
 
 		scale(&sc_data);
 
+		iram_free(iram_phy, mxs_ram_funcs_sz);
+
 		local_fiq_enable();
 		local_irq_enable();
-
-		for (i = 10000; i; i--)
-			if (!clk_is_busy(clk))
-				break;
-
-		if (!i) {
-			printk(KERN_ERR "couldn't set up EMI divisor\n");
-			ret = -ETIMEDOUT;
-			goto out;
-		}
 	}
+
+	/* this code is for keeping track of ref counts.
+	 * and disabling previous parent if necessary
+	 * actual clkseq changes have already
+	 * been made.
+	 */
+	clk_set_parent(clk, target_parent_p);
+
 out:
 	return ret;
 }
@@ -952,36 +1074,39 @@ static unsigned long ssp_get_rate(struct clk *clk);
 static int ssp_set_rate(struct clk *clk, unsigned long rate)
 {
 	int ret = -EINVAL;
-	int div = (clk_get_rate(clk->parent) + rate - 1) / rate;
-	u32 reg_frac;
-	const int mask = 0x1FF;
-	int try = 10;
-	int i = -1;
+	u32 reg, div;
 
-	if (div == 0 || div > mask)
+
+	/* because SSP_CLK is used by more than one SSP peripheral,
+	 * we only allow the clock to be changed if no driver is currently
+	 * using the clock.
+	 */
+	if (clk->ref & CLK_EN_MASK)
+		return -EBUSY;
+
+	/* if the desired clock can be sourced from ref_xtal,
+	 * use ref_xtal to save power
+	 */
+	if ((rate <= ref_xtal_get_rate(&ref_xtal_clk)) &&
+		((ref_xtal_get_rate(&ref_xtal_clk) % rate) == 0))
+		clk_set_parent(clk, &ref_xtal_clk);
+	else
+		clk_set_parent(clk, &ref_io_clk);
+
+	if (rate > PLL_ENABLED_MAX_CLK_SSP)
+		rate = PLL_ENABLED_MAX_CLK_SSP;
+
+	div = (clk_get_rate(clk->parent) + rate - 1) / rate;
+
+	if (div == 0 || div > BM_CLKCTRL_SSP_DIV)
 		goto out;
 
-	reg_frac = __raw_readl(clk->scale_reg);
-	reg_frac &= ~(mask << clk->scale_bits);
+	reg = __raw_readl(clk->scale_reg);
+	reg &= ~(BM_CLKCTRL_SSP_DIV | BM_CLKCTRL_SSP_DIV_FRAC_EN);
+	reg |= div << clk->scale_bits;
+	__raw_writel(reg, clk->scale_reg);
 
-	while (try--) {
-		__raw_writel(reg_frac | (div << clk->scale_bits),
-				clk->scale_reg);
-
-		if (clk->busy_reg) {
-			for (i = 10000; i; i--)
-				if (!clk_is_busy(clk))
-					break;
-		}
-		if (i)
-			break;
-	}
-
-	if (!i)
-		ret = -ETIMEDOUT;
-	else
-		ret = 0;
-
+	ret = clk_busy_wait(clk);
 out:
 	if (ret != 0)
 		printk(KERN_ERR "%s: error %d\n", __func__, ret);
@@ -1008,6 +1133,26 @@ static int ssp_set_parent(struct clk *clk, struct clk *parent)
 	return ret;
 }
 
+/* handle peripheral clocks whose optimal parent dependent on
+ * system parameters such as cpu_clk rate.  For now, this optimization
+ * only occurs to the peripheral clock when it's not in use to avoid
+ * handling more complex system clock coordination issues.
+ */
+static int ssp_set_sys_dependent_parent(struct clk *clk)
+{
+	if ((clk->ref & CLK_EN_MASK) == 0) {
+		if (clk_get_rate(&cpu_clk) > ref_xtal_get_rate(&ref_xtal_clk)) {
+			clk_set_parent(clk, &ref_io_clk);
+			clk_set_rate(clk, PLL_ENABLED_MAX_CLK_SSP);
+		} else {
+			clk_set_parent(clk, &ref_xtal_clk);
+			clk_set_rate(clk, ref_xtal_get_rate(&ref_xtal_clk));
+		}
+	}
+
+	return 0;
+}
+
 static struct clk ssp_clk = {
 	 .parent = &ref_io_clk,
 	 .get_rate = ssp_get_rate,
@@ -1023,6 +1168,7 @@ static struct clk ssp_clk = {
 	 .bypass_bits = 3,
 	 .set_rate = ssp_set_rate,
 	 .set_parent = ssp_set_parent,
+	 .set_sys_dependent_parent = ssp_set_sys_dependent_parent,
 };
 
 static unsigned long ssp_get_rate(struct clk *clk)
@@ -1046,35 +1192,31 @@ static unsigned long gpmi_get_rate(struct clk *clk)
 static int gpmi_set_rate(struct clk *clk, unsigned long rate)
 {
 	int ret = -EINVAL;
-	int div = (clk_get_rate(clk->parent) + rate - 1) / rate;
-	u32 reg_frac;
-	const int mask = (BM_CLKCTRL_GPMI_DIV >> clk->scale_bits);
-	int try = 10;
-	int i = -1;
+	u32 reg, div;
 
-	if (div == 0 || div > mask)
+	/* if the desired clock can be sourced from ref_xtal,
+	 * use ref_xtal to save power
+	 */
+	if ((rate <= ref_xtal_get_rate(&ref_xtal_clk)) &&
+		((ref_xtal_get_rate(&ref_xtal_clk) % rate) == 0))
+		clk_set_parent(clk, &ref_xtal_clk);
+	else
+		clk_set_parent(clk, &ref_io_clk);
+
+	if (rate > PLL_ENABLED_MAX_CLK_SSP)
+		rate = PLL_ENABLED_MAX_CLK_GPMI;
+
+	div = (clk_get_rate(clk->parent) + rate - 1) / rate;
+
+	if (div == 0 || div > BM_CLKCTRL_GPMI_DIV)
 		goto out;
 
-	reg_frac  = __raw_readl(clk->scale_reg);
-	reg_frac &= ~(mask << clk->scale_bits);
+	reg = __raw_readl(clk->scale_reg);
+	reg &= ~(BM_CLKCTRL_GPMI_DIV | BM_CLKCTRL_GPMI_DIV_FRAC_EN);
+	reg |= div << clk->scale_bits;
+	__raw_writel(reg, clk->scale_reg);
 
-	while (try--) {
-		__raw_writel(reg_frac | (div << clk->scale_bits),
-								clk->scale_reg);
-
-		if (clk->busy_reg) {
-			for (i = 10000; i; i--)
-				if (!clk_is_busy(clk))
-					break;
-		}
-		if (i)
-			break;
-	}
-
-	if (!i)
-		ret = -ETIMEDOUT;
-	else
-		ret = 0;
+	ret = clk_busy_wait(clk);
 
 out:
 	if (ret != 0)
@@ -1186,18 +1328,6 @@ static struct clk tv27M_clk = {
 
 static struct clk_lookup onchip_clocks[] = {
 	{
-	 .con_id = "xtal.0",
-	 .clk = &xtal_clk[0],
-	 },
-	{
-	 .con_id = "xtal.1",
-	 .clk = &xtal_clk[1],
-	 },
-	{
-	 .con_id = "xtal.2",
-	 .clk = &xtal_clk[2],
-	 },
-	{
 	 .con_id = "pll.0",
 	 .clk = &pll_clk,
 	 },
@@ -1226,8 +1356,12 @@ static struct clk_lookup onchip_clocks[] = {
 	 .clk = &lcdif_clk,
 	 },
 	{
+	 .con_id = "xtal_clock32k",
+	 .clk = &xtal_clock32k_clk,
+	 },
+	{
 	 .con_id = "rtc",
-	 .clk = &rtc_clk,
+	 .clk = &rtc32k_clk,
 	 },
 	{
 	 .con_id = "cpu",
@@ -1299,6 +1433,47 @@ static struct clk_lookup onchip_clocks[] = {
 	},
 };
 
+/* for debugging */
+#ifdef DEBUG
+static void print_ref_counts(void)
+{
+
+	printk(KERN_INFO "pll_clk ref count: %i\n",
+		pll_clk.ref & CLK_EN_MASK);
+
+	printk(KERN_INFO "ref_cpu_clk ref count: %i\n",
+		ref_cpu_clk.ref & CLK_EN_MASK);
+
+	printk(KERN_INFO "ref_emi_clk ref count: %i\n",
+		ref_emi_clk.ref & CLK_EN_MASK);
+
+	printk(KERN_INFO "ref_pix_clk ref count: %i\n",
+		ref_pix_clk.ref & CLK_EN_MASK);
+
+	printk(KERN_INFO "lcdif_clk ref count: %i\n",
+		lcdif_clk.ref & CLK_EN_MASK);
+
+	printk(KERN_INFO "ref_io_clk ref count: %i\n",
+		ref_io_clk.ref & CLK_EN_MASK);
+
+	printk(KERN_INFO "ssp_clk ref count: %i\n",
+		ssp_clk.ref & CLK_EN_MASK);
+
+	printk(KERN_INFO "gpmi_clk ref count: %i\n",
+		gpmi_clk.ref & CLK_EN_MASK);
+
+}
+#endif
+
+void clk_set_hbus_autoslow_bits(u16 mask)
+{
+	u32 reg;
+
+	reg = __raw_readl(CLKCTRL_BASE_ADDR + HW_CLKCTRL_HBUS);
+	reg &= 0xFFFF;
+	reg |= mask << 16;
+	__raw_writel(reg, CLKCTRL_BASE_ADDR + HW_CLKCTRL_HBUS);
+}
 
 static void mx23_clock_scan(void)
 {
@@ -1312,16 +1487,17 @@ static void mx23_clock_scan(void)
 		ssp_clk.parent = &ref_xtal_clk;
 	if (reg & BM_CLKCTRL_CLKSEQ_BYPASS_GPMI)
 		gpmi_clk.parent = &ref_xtal_clk;
-};
 
+	reg = __raw_readl(RTC_BASE_ADDR + HW_RTC_PERSISTENT0);
+	if (!(reg & BM_RTC_PERSISTENT0_CLOCKSOURCE))
+		rtc32k_clk.parent = &ref_xtal_clk;
+};
 
 void __init mx23_set_input_clk(unsigned long xtal0,
 			       unsigned long xtal1,
 			       unsigned long xtal2, unsigned long enet)
 {
-	xtal_clk_rate[0] = xtal0;
-	xtal_clk_rate[1] = xtal1;
-	xtal_clk_rate[2] = xtal2;
+
 }
 
 void __init mx23_clock_init(void)

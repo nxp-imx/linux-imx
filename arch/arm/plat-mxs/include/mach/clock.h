@@ -72,11 +72,21 @@ struct clk {
 	void (*disable) (struct clk *);
 	/* Function ptr to set the parent clock of the clock. */
 	int (*set_parent) (struct clk *, struct clk *);
+
+	/* Function ptr to change the parent clock depending
+	 * the system configuration at that time.  Will only
+	 * change the parent clock if the ref count is 0 (the clock
+	 * is not being used)
+	 */
+	int (*set_sys_dependent_parent) (struct clk *);
+
 };
 
 int clk_get_usecount(struct clk *clk);
 extern int clk_register(struct clk_lookup *lookup);
 extern void clk_unregister(struct clk_lookup *lookup);
+
+void clk_set_hbus_autoslow_bits(u16 mask);
 
 struct mxs_emi_scaling_data {
 	u32 emi_div;

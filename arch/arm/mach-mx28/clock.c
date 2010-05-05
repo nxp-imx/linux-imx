@@ -1652,6 +1652,16 @@ static struct clk_lookup onchip_clocks[] = {
 	}
 };
 
+void clk_set_hbus_autoslow_bits(u16 mask)
+{
+	u32 reg;
+
+	reg = __raw_readl(CLKCTRL_BASE_ADDR + HW_CLKCTRL_HBUS);
+	reg &= 0xFFFF;
+	reg |= mask << 16;
+	__raw_writel(reg, CLKCTRL_BASE_ADDR + HW_CLKCTRL_HBUS);
+}
+
 static void mx28_clock_scan(void)
 {
 	unsigned long reg;

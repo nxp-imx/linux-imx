@@ -110,6 +110,10 @@ int clk_enable(struct clk *clk)
 
 	spin_lock_irqsave(&clockfw_lock, flags);
 	pre_usage = (clk->ref & CLK_EN_MASK);
+
+	if (clk->set_sys_dependent_parent)
+		clk->set_sys_dependent_parent(clk);
+
 	ret = __clk_enable(clk);
 	spin_unlock_irqrestore(&clockfw_lock, flags);
 	if ((clk->flags & CPU_FREQ_TRIG_UPDATE)
