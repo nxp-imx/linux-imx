@@ -462,7 +462,7 @@ static inline void _ipu_ch_offset_update(int ch,
 					(uv_stride * vertical_offset / 2) +
 					horizontal_offset / 2;
 		v_offset = u_offset + (uv_stride * height / 2);
-		u_fix = u ? (u + (uv_stride * vertical_offset) +
+		u_fix = u ? (u + (uv_stride * vertical_offset / 2) +
 					(horizontal_offset / 2) -
 					(stride * vertical_offset) - (horizontal_offset)) :
 					u_offset;
@@ -513,9 +513,9 @@ static inline void _ipu_ch_offset_update(int ch,
 		uv_stride = stride;
 		u_offset = stride * (height - vertical_offset - 1) +
 					(stride - horizontal_offset) +
-					(uv_stride * vertical_offset) +
+					(uv_stride * vertical_offset / 2) +
 					horizontal_offset;
-		u_fix = u ? (u + (uv_stride * vertical_offset) +
+		u_fix = u ? (u + (uv_stride * vertical_offset / 2) +
 					horizontal_offset -
 					(stride * vertical_offset) - (horizontal_offset)) :
 					u_offset;

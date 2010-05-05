@@ -321,7 +321,8 @@ typedef union {
 		uint32_t out_width;
 		uint32_t out_height;
 		uint32_t out_pixel_fmt;
-		uint32_t out_resize_ratio;
+		uint32_t outh_resize_ratio;
+		uint32_t outv_resize_ratio;
 	} mem_prp_enc_mem;
 	struct {
 		uint32_t in_width;
@@ -364,7 +365,8 @@ typedef union {
 		uint32_t out_width;
 		uint32_t out_height;
 		uint32_t out_pixel_fmt;
-		uint32_t out_resize_ratio;
+		uint32_t outh_resize_ratio;
+		uint32_t outv_resize_ratio;
 		bool graphics_combine_en;
 		bool global_alpha_en;
 		bool key_color_en;
@@ -388,7 +390,8 @@ typedef union {
 		uint32_t out_width;
 		uint32_t out_height;
 		uint32_t out_pixel_fmt;
-		uint32_t out_resize_ratio;
+		uint32_t outv_resize_ratio;
+		uint32_t outh_resize_ratio;
 		bool graphics_combine_en;
 		bool global_alpha_en;
 		bool key_color_en;
