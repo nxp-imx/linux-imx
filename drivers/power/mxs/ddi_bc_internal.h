@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2010 Freescale Semiconductor, Inc.
  */
 
 /*
@@ -41,6 +41,7 @@
 
 /* Externs */
 
+#include <linux/kernel.h>
 
 extern bool g_ddi_bc_Configured;
 extern ddi_bc_Cfg_t g_ddi_bc_Configuration;
