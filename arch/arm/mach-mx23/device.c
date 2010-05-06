@@ -600,16 +600,9 @@ static void mx23_init_gpmi_nfc(void)
 #if defined(CONFIG_MMC_MXS) || defined(CONFIG_MMC_MXS_MODULE)
 static unsigned long mxs_mmc_setclock_mmc0(unsigned long hz)
 {
-	struct clk *ssp = clk_get(NULL, "ssp.0"), *parent;
+	struct clk *ssp = clk_get(NULL, "ssp.0");
 
-	if (hz > 1000000)
-		parent = clk_get(NULL, "ref_io.0");
-	else
-		parent = clk_get(NULL, "xtal.0");
-
-	clk_set_parent(ssp, parent);
 	clk_set_rate(ssp, 2 * hz);
-	clk_put(parent);
 	clk_put(ssp);
 
 	return hz;
