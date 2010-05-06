@@ -514,7 +514,7 @@ static void mxs_auart_settermios(struct uart_port *u,
 
 	/* parity */
 	if (cflag & PARENB) {
-		ctrl |= BM_UARTAPP_LINECTRL_PEN | BM_UARTAPP_LINECTRL_SPS;
+		ctrl |= BM_UARTAPP_LINECTRL_PEN;
 		if ((cflag & PARODD) == 0)
 			ctrl |= BM_UARTAPP_LINECTRL_EPS;
 	}
