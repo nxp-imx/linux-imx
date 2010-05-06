@@ -505,6 +505,30 @@ static void sdhci_prepare_data(struct sdhci_host *host, struct mmc_data *data)
 		host->flags &= ~SDHCI_REQ_USE_DMA;
 	}
 
+	if (cpu_is_mx25() && (data->blksz * data->blocks < 0x10)) {
+		host->flags &= ~SDHCI_REQ_USE_DMA;
+		DBG("Reverting to PIO in small data transfer.\n");
+		writel(readl(host->ioaddr + SDHCI_INT_ENABLE)
+				| SDHCI_INT_DATA_AVAIL
+				| SDHCI_INT_SPACE_AVAIL,
+				host->ioaddr + SDHCI_INT_ENABLE);
+		writel(readl(host->ioaddr + SDHCI_SIGNAL_ENABLE)
+				| SDHCI_INT_DATA_AVAIL
+				| SDHCI_INT_SPACE_AVAIL,
+				host->ioaddr + SDHCI_SIGNAL_ENABLE);
+	} else if (cpu_is_mx25() && (host->flags & SDHCI_USE_DMA)) {
+		host->flags |= SDHCI_REQ_USE_DMA;
+		DBG("Reverting to DMA in large data transfer.\n");
+		writel(readl(host->ioaddr + SDHCI_INT_ENABLE)
+				& ~(SDHCI_INT_DATA_AVAIL
+				| SDHCI_INT_SPACE_AVAIL),
+				host->ioaddr + SDHCI_INT_ENABLE);
+		writel(readl(host->ioaddr + SDHCI_SIGNAL_ENABLE)
+				& ~(SDHCI_INT_DATA_AVAIL
+				| SDHCI_INT_SPACE_AVAIL),
+				host->ioaddr + SDHCI_SIGNAL_ENABLE);
+	}
+
 	if (host->flags & SDHCI_REQ_USE_DMA) {
 		int i;
 		struct scatterlist *tsg;
@@ -694,7 +718,7 @@ static void sdhci_send_command(struct sdhci_host *host, struct mmc_command *cmd)
 			mode |= SDHCI_TRNS_READ;
 		else
 			mode &= ~SDHCI_TRNS_READ;
-		if (host->flags & SDHCI_USE_DMA)
+		if (host->flags & SDHCI_REQ_USE_DMA)
 			mode |= SDHCI_TRNS_DMA;
 		if (host->flags & SDHCI_USE_EXTERNAL_DMA)
 			DBG("Prepare data completely in %s transfer mode.\n",
