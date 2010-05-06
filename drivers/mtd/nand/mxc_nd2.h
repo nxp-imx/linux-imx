@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2009 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2004-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -40,8 +40,6 @@
 /*
  * For V3 NFC registers Definition
  */
-/* AXI Bus Mapped */
-#define NFC_AXI_BASE_ADDR		NFC_BASE_ADDR_AXI
 
 #if defined(CONFIG_ARCH_MXC_HAS_NFC_V3_1)	/* mx37 */
 #define MXC_INT_NANDFC			MXC_INT_EMI
@@ -472,14 +470,13 @@ do {	\
  * For V1/V2 NFC registers Definition
  */
 
-#define NFC_AXI_BASE_ADDR      		0x00
 /*
  * Addresses for NFC registers
  */
 #ifdef CONFIG_ARCH_MXC_HAS_NFC_V2_1
-#define NFC_REG_BASE			(nfc_ip_base + 0x1000)
+#define NFC_REG_BASE			(nfc_axi_base + 0x1000)
 #else
-#define NFC_REG_BASE			nfc_ip_base
+#define NFC_REG_BASE			nfc_axi_base
 #endif
 #define NFC_BUF_SIZE            	(NFC_REG_BASE + 0xE00)
 #define NFC_BUF_ADDR            	(NFC_REG_BASE + 0xE04)
@@ -517,18 +514,18 @@ do {	\
 /*!
  * Addresses for NFC RAM BUFFER Main area 0
  */
-#define MAIN_AREA0      		(u16 *)(nfc_ip_base + 0x000)
-#define MAIN_AREA1      		(u16 *)(nfc_ip_base + 0x200)
+#define MAIN_AREA0      		(u16 *)(nfc_axi_base + 0x000)
+#define MAIN_AREA1      		(u16 *)(nfc_axi_base + 0x200)
 
 /*!
  * Addresses for NFC SPARE BUFFER Spare area 0
  */
 #ifdef CONFIG_ARCH_MXC_HAS_NFC_V2_1
-#define SPARE_AREA0     		(u16 *)(nfc_ip_base + 0x1000)
+#define SPARE_AREA0     		(u16 *)(nfc_axi_base + 0x1000)
 #define SPARE_LEN			64
 #define SPARE_COUNT			8
 #else
-#define SPARE_AREA0     		(u16 *)(nfc_ip_base + 0x800)
+#define SPARE_AREA0     		(u16 *)(nfc_axi_base + 0x800)
 #define SPARE_LEN       		16
 #define SPARE_COUNT     		4
 #endif

@@ -206,6 +206,26 @@ static struct mtd_partition mxc_nand_partitions[] = {
 	 .size = MTDPART_SIZ_FULL},
 };
 
+static struct resource mxc_nand_resources[] = {
+	{
+		.flags = IORESOURCE_MEM,
+		.name  = "NFC_AXI_BASE",
+		.start = NFC_BASE_ADDR_AXI,
+		.end   = NFC_BASE_ADDR_AXI + SZ_8K - 1,
+	},
+	{
+		.flags = IORESOURCE_MEM,
+		.name  = "NFC_IP_BASE",
+		.start = NFC_BASE_ADDR + 0x00,
+		.end   = NFC_BASE_ADDR + 0x34 - 1,
+	},
+	{
+		.flags = IORESOURCE_IRQ,
+		.start = MXC_INT_EMI,
+		.end   = MXC_INT_EMI,
+	},
+};
+
 static struct flash_platform_data mxc_nand_data = {
 	.parts = mxc_nand_partitions,
 	.nr_parts = ARRAY_SIZE(mxc_nand_partitions),
@@ -219,6 +239,9 @@ static struct platform_device mxc_nandv2_mtd_device = {
 		.release = mxc_nop_release,
 		.platform_data = &mxc_nand_data,
 		},
+	.resource = mxc_nand_resources,
+	.num_resources = ARRAY_SIZE(mxc_nand_resources),
+
 };
 
 static void mxc_init_nand_mtd(void)

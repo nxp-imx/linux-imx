@@ -112,9 +112,31 @@ struct platform_device mxc_rtc_device = {
 	.resource = rtc_resources,
 };
 
+static struct resource mxc_nand_resources[] = {
+	{
+		.flags = IORESOURCE_MEM,
+		.name  = "NFC_AXI_BASE",
+		.start = MX51_NFC_BASE_ADDR_AXI,
+		.end   = MX51_NFC_BASE_ADDR_AXI + SZ_8K - 1,
+	},
+	{
+		.flags = IORESOURCE_MEM,
+		.name  = "NFC_IP_BASE",
+		.start = NFC_BASE_ADDR + 0x00,
+		.end   = NFC_BASE_ADDR + 0x34 - 1,
+	},
+	{
+		.flags = IORESOURCE_IRQ,
+		.start = MXC_INT_NFC,
+		.end   = MXC_INT_NFC,
+	},
+};
+
 struct platform_device mxc_nandv2_mtd_device = {
 	.name = "mxc_nandv2_flash",
 	.id = 0,
+	.resource = mxc_nand_resources,
+	.num_resources = ARRAY_SIZE(mxc_nand_resources),
 };
 
 static struct resource imx_nfc_resources[] = {

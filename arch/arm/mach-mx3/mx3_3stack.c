@@ -172,6 +172,20 @@ static struct platform_device mxc_nand_mtd_device = {
 		},
 };
 
+static struct resource mxc_nand_resources[] = {
+	{
+		.flags = IORESOURCE_MEM,
+		.name  = "NFC_AXI_BASE",
+		.start = NFC_BASE_ADDR,
+		.end   = NFC_BASE_ADDR + SZ_4K - 1,
+	},
+	{
+		.flags = IORESOURCE_IRQ,
+		.start = MXC_INT_NANDFC,
+		.end   = MXC_INT_NANDFC,
+	},
+};
+
 static struct platform_device mxc_nandv2_mtd_device = {
 	.name = "mxc_nandv2_flash",
 	.id = 0,
@@ -179,6 +193,8 @@ static struct platform_device mxc_nandv2_mtd_device = {
 		.release = mxc_nop_release,
 		.platform_data = &mxc_nand_data,
 		},
+	.resource = mxc_nand_resources,
+	.num_resources = ARRAY_SIZE(mxc_nand_resources),
 };
 
 static void mxc_init_nand_mtd(void)

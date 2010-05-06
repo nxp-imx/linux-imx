@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2009 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2004-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -1107,6 +1107,52 @@ static int mxc_nand_scan_bbt(struct mtd_info *mtd)
 	return nand_scan_bbt(mtd, this->badblock_pattern);
 }
 
+static int mxc_get_resources(struct platform_device *pdev)
+{
+	struct resource *r;
+	int error = 0;
+
+#define	MXC_NFC_NO_IP_REG \
+	(cpu_is_mx25() || cpu_is_mx31() || cpu_is_mx32() || cpu_is_mx35())
+
+	r = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+	if (!r) {
+		error = -ENXIO;
+		goto out_0;
+	}
+	nfc_axi_base = ioremap(r->start, resource_size(r));
+
+	if (!MXC_NFC_NO_IP_REG) {
+		r = platform_get_resource(pdev, IORESOURCE_MEM, 1);
+		if (!r) {
+			error = -ENXIO;
+			goto out_1;
+		}
+	}
+	nfc_ip_base = ioremap(r->start, resource_size(r));
+
+	r = platform_get_resource(pdev, IORESOURCE_IRQ, 0);
+	if (!r) {
+		error = -ENXIO;
+		goto out_2;
+	}
+
+	init_waitqueue_head(&irq_waitq);
+	error = request_irq(r->start, mxc_nfc_irq, 0, "mxc_nd", NULL);
+	if (error)
+		goto out_3;
+
+	return 0;
+out_3:
+out_2:
+	if (!MXC_NFC_NO_IP_REG)
+		iounmap(nfc_ip_base);
+out_1:
+	iounmap(nfc_axi_base);
+out_0:
+	return error;
+}
+
 static void mxc_nfc_init(void)
 {
 	/* Disable interrupt */
@@ -1230,8 +1276,10 @@ static int __init mxcnd_probe(struct platform_device *pdev)
 	struct flash_platform_data *flash = pdev->dev.platform_data;
 	int nr_parts = 0, err = 0;
 
-	nfc_axi_base = IO_ADDRESS(NFC_AXI_BASE_ADDR);
-	nfc_ip_base = IO_ADDRESS(NFC_BASE_ADDR);
+	/* get the resource */
+	err = mxc_get_resources(pdev);
+	if (err)
+		goto out;
 
 	/* init the nfc */
 	mxc_nfc_init();
@@ -1279,12 +1327,6 @@ static int __init mxcnd_probe(struct platform_device *pdev)
 
 	nfc_clk = clk_get(&pdev->dev, "nfc_clk");
 	clk_enable(nfc_clk);
-
-	init_waitqueue_head(&irq_waitq);
-	err = request_irq(MXC_INT_NANDFC, mxc_nfc_irq, 0, "mxc_nd", NULL);
-	if (err) {
-		goto out_1;
-	}
 
 	if (hardware_ecc) {
 		this->ecc.read_page = mxc_nand_read_page;
