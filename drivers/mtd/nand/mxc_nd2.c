@@ -121,6 +121,23 @@ static irqreturn_t mxc_nfc_irq(int irq, void *dev_id)
 	return IRQ_HANDLED;
 }
 
+static void mxc_nand_bi_swap(struct mtd_info *mtd)
+{
+	u16 ma, sa, nma, nsa;
+
+	if (!IS_LARGE_PAGE_NAND)
+		return;
+
+	ma = __raw_readw(BAD_BLK_MARKER_MAIN);
+	sa = __raw_readw(BAD_BLK_MARKER_SP);
+
+	nma = (ma & 0xFF00) | (sa >> 8);
+	nsa = (sa & 0x00FF) | (ma << 8);
+
+	__raw_writew(nma, BAD_BLK_MARKER_MAIN);
+	__raw_writew(nsa, BAD_BLK_MARKER_SP);
+}
+
 static void nfc_memcpy(void *dest, void *src, int len)
 {
 	u8 *d = dest;
@@ -282,6 +299,7 @@ static void auto_cmd_interleave(struct mtd_info *mtd, u16 cmd)
 			/* data transfer */
 			memcpy(MAIN_AREA0, dbuf, dlen);
 			copy_spare(mtd, obuf, SPARE_AREA0, olen, false);
+			mxc_nand_bi_swap(mtd);
 
 			/* update the value */
 			dbuf += dlen;
@@ -311,6 +329,7 @@ static void auto_cmd_interleave(struct mtd_info *mtd, u16 cmd)
 			mxc_check_ecc_status(mtd);
 
 			/* data transfer */
+			mxc_nand_bi_swap(mtd);
 			memcpy(dbuf, MAIN_AREA0, dlen);
 			copy_spare(mtd, obuf, SPARE_AREA0, olen, true);
 
@@ -921,6 +940,7 @@ static void mxc_nand_command(struct mtd_info *mtd, unsigned command,
 		 */
 		nfc_memcpy(MAIN_AREA0, data_buf, mtd->writesize);
 		copy_spare(mtd, oob_buf, SPARE_AREA0, mtd->oobsize, false);
+		mxc_nand_bi_swap(mtd);
 #endif
 
 		if (IS_LARGE_PAGE_NAND)
@@ -971,6 +991,7 @@ static void mxc_nand_command(struct mtd_info *mtd, unsigned command,
 		 * byte alignment, so we can use
 		 * memcpy safely
 		 */
+		mxc_nand_bi_swap(mtd);
 		nfc_memcpy(data_buf, MAIN_AREA0, mtd->writesize);
 		copy_spare(mtd, oob_buf, SPARE_AREA0, mtd->oobsize, true);
 #endif
@@ -1086,6 +1107,15 @@ static int mxc_nand_scan_bbt(struct mtd_info *mtd)
 
 	/* jffs2 not write oob */
 	mtd->flags &= ~MTD_OOB_WRITEABLE;
+
+	/* fix up the offset */
+	largepage_memorybased.offs = BAD_BLK_MARKER_OOB_OFFS;
+
+	/* keep compatible for bbt table with old soc */
+	if (cpu_is_mx53()) {
+		bbt_mirror_descr.offs = BAD_BLK_MARKER_OOB_OFFS + 2;
+		bbt_main_descr.offs = BAD_BLK_MARKER_OOB_OFFS + 2;
+	}
 
 	/* use flash based bbt */
 	this->bbt_td = &bbt_main_descr;

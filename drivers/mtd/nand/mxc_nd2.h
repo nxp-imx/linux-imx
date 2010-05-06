@@ -32,9 +32,32 @@
 #define IS_LARGE_PAGE_NAND      ((mtd->writesize / num_of_interleave) > 512)
 
 #define GET_NAND_OOB_SIZE	(mtd->oobsize / num_of_interleave)
+#define GET_NAND_PAGE_SIZE      (mtd->writesize / num_of_interleave)
 
 #define NAND_PAGESIZE_2KB	2048
 #define NAND_PAGESIZE_4KB	4096
+
+/*
+ * main area for bad block marker is in the last data section
+ * the spare area for swapped bad block marker is the second
+ * byte of last spare section
+ */
+#define NAND_SECTIONS        (GET_NAND_PAGE_SIZE >> 9)
+#define NAND_OOB_PER_SECTION (((GET_NAND_OOB_SIZE / NAND_SECTIONS) >> 1) << 1)
+#define NAND_CHUNKS	     (GET_NAND_PAGE_SIZE / (512 + NAND_OOB_PER_SECTION))
+
+#define BAD_BLK_MARKER_MAIN_OFFS \
+	(GET_NAND_PAGE_SIZE - NAND_CHUNKS * NAND_OOB_PER_SECTION)
+
+#define BAD_BLK_MARKER_SP_OFFS (NAND_CHUNKS * SPARE_LEN)
+
+#define BAD_BLK_MARKER_OOB_OFFS (NAND_CHUNKS * NAND_OOB_PER_SECTION)
+
+#define BAD_BLK_MARKER_MAIN  \
+	((u32)MAIN_AREA0 + BAD_BLK_MARKER_MAIN_OFFS)
+
+#define BAD_BLK_MARKER_SP  \
+	((u32)SPARE_AREA0 + BAD_BLK_MARKER_SP_OFFS)
 
 #ifdef CONFIG_ARCH_MXC_HAS_NFC_V3
 /*
