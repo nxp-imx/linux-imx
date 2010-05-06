@@ -429,7 +429,7 @@ static int __init mxs_cpu_init(struct cpufreq_policy *policy)
 	}
 
 	if (i == ARRAY_SIZE(profiles))
-		lcd_off_freq_table_size = i + 1;
+		lcd_off_freq_table_size = i ;
 
 	/* Set the current working point. */
 	set_freq_table(policy, lcd_on_freq_table_size);
