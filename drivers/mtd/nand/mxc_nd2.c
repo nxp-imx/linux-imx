@@ -553,10 +553,7 @@ static int mxc_check_ecc_status(struct mtd_info *mtd)
 	u32 ecc_stat, err;
 	int no_subpages = 1;
 	int ret = 0;
-	u8 ecc_bit_mask, err_limit;
-
-	ecc_bit_mask = (IS_4BIT_ECC ? 0x7 : 0xf);
-	err_limit = (IS_4BIT_ECC ? 0x4 : 0x8);
+	u8 ecc_bit_mask = 0xf;
 
 	no_subpages = mtd->writesize >> 9;
 
@@ -565,7 +562,7 @@ static int mxc_check_ecc_status(struct mtd_info *mtd)
 	ecc_stat = GET_NFC_ECC_STATUS();
 	do {
 		err = ecc_stat & ecc_bit_mask;
-		if (err > err_limit) {
+		if (err == ecc_bit_mask) {
 			mtd->ecc_stats.failed++;
 			printk(KERN_WARNING "UnCorrectable RS-ECC Error\n");
 			return -1;
@@ -575,8 +572,7 @@ static int mxc_check_ecc_status(struct mtd_info *mtd)
 		ecc_stat >>= 4;
 	} while (--no_subpages);
 
-	mtd->ecc_stats.corrected += ret;
-	pr_debug("%d Symbol Correctable RS-ECC Error\n", ret);
+	pr_debug("Correctable ECC Error(%d)\n", ret);
 
 	return ret;
 }
@@ -1164,11 +1160,13 @@ static void mxc_nfc_init(void)
 	/* Unlock the internal RAM Buffer */
 	raw_write(NFC_SET_BLS(NFC_BLS_UNLCOKED), REG_NFC_BLS);
 
-	/* Blocks to be unlocked */
-	UNLOCK_ADDR(0x0, 0xFFFF);
+	if (!(cpu_is_mx53())) {
+		/* Blocks to be unlocked */
+		UNLOCK_ADDR(0x0, 0xFFFF);
 
-	/* Unlock Block Command for given address range */
-	raw_write(NFC_SET_WPC(NFC_WPC_UNLOCK), REG_NFC_WPC);
+		/* Unlock Block Command for given address range */
+		raw_write(NFC_SET_WPC(NFC_WPC_UNLOCK), REG_NFC_WPC);
+	}
 
 	/* Enable symetric mode by default except mx37TO1.0 */
 	if (!(cpu_is_mx37_rev(CHIP_REV_1_0) == 1))
