@@ -1726,6 +1726,8 @@ void  mx28_enet_clk_hook(void)
 
 	reg &= ~BM_CLKCTRL_ENET_SLEEP;
 	reg |= BM_CLKCTRL_ENET_CLK_OUT_EN;
+	/* select clock for 1588 module */
+	reg |= BM_CLKCTRL_ENET_1588_40MHZ;
 
 	__raw_writel(reg, CLKCTRL_BASE_ADDR + HW_CLKCTRL_ENET);
 }
