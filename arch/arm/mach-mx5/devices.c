@@ -1426,6 +1426,12 @@ int __init mxc_init_devices(void)
 		ipu_resources[0].end = MX53_IPU_CTRL_BASE_ADDR + SZ_128M - 1;
 		mlb_resources[0].start -= MX53_OFFSET;
 		mlb_resources[0].end -= MX53_OFFSET;
+		mxc_nandv2_mtd_device.resource[0].start =
+					MX53_NFC_BASE_ADDR_AXI;
+		mxc_nandv2_mtd_device.resource[0].end =
+					MX53_NFC_BASE_ADDR_AXI + SZ_8K - 1;
+		mxc_nandv2_mtd_device.resource[1].start -= MX53_OFFSET;
+		mxc_nandv2_mtd_device.resource[1].end -= MX53_OFFSET;
 	} else if (cpu_is_mx51_rev(CHIP_REV_2_0) < 0) {
 		scc_resources[1].start += 0x8000;
 		scc_resources[1].end += 0x8000;

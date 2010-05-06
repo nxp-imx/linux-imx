@@ -36,7 +36,6 @@
 #include <linux/mtd/mtd.h>
 #include <linux/mtd/map.h>
 #include <linux/mtd/partitions.h>
-#include <linux/spi/flash.h>
 #include <linux/regulator/consumer.h>
 #include <linux/pmic_external.h>
 #include <linux/pmic_status.h>
@@ -52,6 +51,7 @@
 #include <asm/mach/arch.h>
 #include <asm/mach/time.h>
 #include <asm/mach/keypad.h>
+#include <asm/mach/flash.h>
 #include <mach/memory.h>
 #include <mach/gpio.h>
 #include <mach/mmc.h>
@@ -550,6 +550,68 @@ static struct mxc_mlb_platform_data mlb_data = {
 	.mlb_clk = "mlb_clk",
 };
 
+/* NAND Flash Partitions */
+#ifdef CONFIG_MTD_PARTITIONS
+static struct mtd_partition nand_flash_partitions[] = {
+	{
+	 .name = "bootloader",
+	 .offset = 0,
+	 .size = 3 * 1024 * 1024},
+	{
+	 .name = "nand.kernel",
+	 .offset = MTDPART_OFS_APPEND,
+	 .size = 5 * 1024 * 1024},
+	{
+	 .name = "nand.rootfs",
+	 .offset = MTDPART_OFS_APPEND,
+	 .size = 256 * 1024 * 1024},
+	{
+	 .name = "nand.userfs1",
+	 .offset = MTDPART_OFS_APPEND,
+	 .size = 256 * 1024 * 1024},
+	{
+	 .name = "nand.userfs2",
+	 .offset = MTDPART_OFS_APPEND,
+	 .size = MTDPART_SIZ_FULL},
+};
+#endif
+
+static int nand_init(void)
+{
+	u32 i, reg;
+	void __iomem *base;
+
+	#define M4IF_GENP_WEIM_MM_MASK          0x00000001
+	#define WEIM_GCR2_MUX16_BYP_GRANT_MASK  0x00001000
+
+	base = ioremap(MX53_BASE_ADDR(M4IF_BASE_ADDR), SZ_4K);
+	reg = __raw_readl(base + 0xc);
+	reg &= ~M4IF_GENP_WEIM_MM_MASK;
+	__raw_writel(reg, base + 0xc);
+
+	iounmap(base);
+
+	base = ioremap(MX53_BASE_ADDR(WEIM_BASE_ADDR), SZ_4K);
+	for (i = 0x4; i < 0x94; i += 0x18) {
+		reg = __raw_readl((u32)base + i);
+		reg &= ~WEIM_GCR2_MUX16_BYP_GRANT_MASK;
+		__raw_writel(reg, (u32)base + i);
+	}
+
+	iounmap(base);
+
+	return 0;
+}
+
+static struct flash_platform_data mxc_nand_data = {
+#ifdef CONFIG_MTD_PARTITIONS
+	.parts = nand_flash_partitions,
+	.nr_parts = ARRAY_SIZE(nand_flash_partitions),
+#endif
+	.width = 1,
+	.init = nand_init,
+};
+
 /*!
  * Board specific fixup function. It is called by \b setup_arch() in
  * setup.c file very early on during kernel starts. It allows the user to
@@ -717,6 +779,7 @@ static void __init mxc_board_init(void)
 	mxc_register_device(&mxc_mlb_device, &mlb_data);
 	mx5_usb_dr_init();
 	mx5_usbh1_init();
+	mxc_register_device(&mxc_nandv2_mtd_device, &mxc_nand_data);
 }
 
 static void __init mx53_evk_timer_init(void)

@@ -34,6 +34,7 @@ struct flash_platform_data {
 	void		(*mmcontrol)(struct mtd_info *mtd, int sync_read);
 	struct mtd_partition *parts;
 	unsigned int	nr_parts;
+	char		*type;
 };
 
 #endif
