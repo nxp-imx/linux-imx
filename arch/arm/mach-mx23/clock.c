@@ -1123,13 +1123,7 @@ static int ssp_set_rate(struct clk *clk, unsigned long rate)
 	int ret = -EINVAL;
 	u32 reg, div;
 
-
-	/* because SSP_CLK is used by more than one SSP peripheral,
-	 * we only allow the clock to be changed if no driver is currently
-	 * using the clock.
-	 */
-	if (clk->ref & CLK_EN_MASK)
-		return -EBUSY;
+	local_clk_enable(clk);
 
 	/* if the desired clock can be sourced from ref_xtal,
 	 * use ref_xtal to save power
@@ -1155,6 +1149,8 @@ static int ssp_set_rate(struct clk *clk, unsigned long rate)
 
 	ret = clk_busy_wait(clk);
 out:
+	local_clk_disable(clk);
+
 	if (ret != 0)
 		printk(KERN_ERR "%s: error %d\n", __func__, ret);
 	return ret;
