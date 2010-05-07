@@ -1682,12 +1682,10 @@ static int mil_scan_bbt(struct mtd_info *mtd)
 	/*
 	 * Copy the device info into the per-device data. We can't just keep
 	 * the pointer because that storage is reclaimed after initialization.
-	 * Notice that we null out the pointer to the device description, which
-	 * will also be reclaimed.
 	 */
 
 	this->device_info = *info;
-	this->device_info.description = 0;
+	this->device_info.description = kstrdup(info->description, GFP_KERNEL);
 
 	/* Set up geometry. */
 
@@ -1845,8 +1843,8 @@ static int mil_boot_areas_init(struct gpmi_nfc_data *this)
 	 *
 	 * The code that handles "more than one" boot area actually only handles
 	 * two. We *could* write the general case, but that would take a lot of
-	 * time to both write and test -- and, at this writing, we don't have a
-	 * chip that cares.
+	 * time to both write and test -- and, right now, we don't have a chip
+	 * that cares.
 	 */
 
 	/* Check if a boot area is larger than a single chip. */
@@ -1889,13 +1887,25 @@ static int mil_boot_areas_init(struct gpmi_nfc_data *this)
 		/* Find the general use MTD. */
 
 		for (i = 0; i < MAX_MTD_DEVICES; i++) {
+
+			/* Get the current MTD so we can examine it. */
+
 			search_mtd = get_mtd_device(0, i);
-			if (!search_mtd)
+
+			/* Check if we got nonsense. */
+
+			if ((!search_mtd) || (search_mtd == ERR_PTR(-ENODEV)))
 				continue;
-			if (search_mtd == ERR_PTR(-ENODEV))
-				continue;
+
+			/* Check if the current MTD is one of our remainders. */
+
 			if (search_mtd->name == general_use_name)
 				mil->general_use_mtd = search_mtd;
+
+			/* Put the MTD back. We only wanted a quick look. */
+
+			put_mtd_device(search_mtd);
+
 		}
 
 		if (!mil->general_use_mtd) {
@@ -1910,8 +1920,9 @@ static int mil_boot_areas_init(struct gpmi_nfc_data *this)
 #if defined(CONFIG_MTD_PARTITIONS) && defined(CONFIG_MTD_CONCAT)
 
 		/*
-		 * If control arrives here, there is more than one chip. We
-		 * partition the medium and concatenate the remainders like so:
+		 * If control arrives here, there is more than one boot area.
+		 * We partition the medium and concatenate the remainders like
+		 * so:
 		 *
 		 *  --- Chip 0 ---   --- Chip 1 --- ... ------- Chip N -------
 		 * /              \ /                                         \
@@ -1924,29 +1935,18 @@ static int mil_boot_areas_init(struct gpmi_nfc_data *this)
 		 *      |          |/                                      /
 		 *      +----------+----------- ... ----------------------+
 		 *      |                   General Use                   |
-		 *      +----------+----------- ... ----------------------+
+		 *      +---------------------- ... ----------------------+
 		 *
 		 * Notice that the results we leave in the master MTD table
-		 * are a little bit goofy:
+		 * look like this:
 		 *
 		 *    * Chip 0 Boot Area
 		 *    * Chip 1 Boot Area
-		 *    * Chip 0 Remainder
-		 *    * Medium Remainder
+		 *    * General Use
 		 *
-		 * There are two reasons:
-		 *
-		 * 1) Since the remainder partitions aren't very useful, we'd
-		 *    actually prefer to "hide" (create them but not register
-		 *    them). This was possible before 2.6.31, but now the
-		 *    partitioning code automatically registers anything it
-		 *    creates (thanks :(). It might be possible to "unregister"
-		 *    these MTDs after the fact, but I don't have time to look
-		 *    into the other effects that might have.
-		 *
-		 * 2) Some user space programs expect the boot partitions to
-		 *    appear first. This is naive, but let's try not to cause
-		 *    any trouble, where we can avoid it.
+		 * Some user space programs expect the boot partitions to
+		 * appear first. This is naive, but let's try not to cause
+		 * any trouble, where we can avoid it.
 		 */
 
 		/* Chip 0 Boot */

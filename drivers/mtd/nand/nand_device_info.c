@@ -1,5 +1,5 @@
 /*
- * Copyright 2009 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2009-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -1284,9 +1284,9 @@ static struct nand_device_info nand_device_info_table_type_9[] __initdata =
 	.data_hold_in_ns          = 10,
 	.address_setup_in_ns      = 25,
 	.gpmi_sample_delay_in_ns  = 6,
-	.tREA_in_ns               = -1,
-	.tRLOH_in_ns              = -1,
-	.tRHOH_in_ns              = -1,
+	.tREA_in_ns               = 20,
+	.tRLOH_in_ns              = 5,
+	.tRHOH_in_ns              = 15,
 	"K9LBG08U0D",
 	},
 	{

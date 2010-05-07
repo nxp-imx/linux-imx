@@ -151,7 +151,7 @@ static int set_geometry(struct gpmi_nfc_data *this)
 }
 
 /**
- * set_set_timing() - Configures the NFC timing.
+ * set_timing() - Configures the NFC timing.
  *
  * @this:    Per-device data.
  * @timing:  The timing of interest.
@@ -172,6 +172,69 @@ static int set_timing(struct gpmi_nfc_data *this,
 }
 
 /**
+ * get_timing() - Retrieves the NFC hardware timing.
+ *
+ * @this:                    Per-device data.
+ * @clock_frequency_in_hz:   The clock frequency, in Hz, during the current
+ *                           I/O transaction. If no I/O transaction is in
+ *                           progress, this is the clock frequency during the
+ *                           most recent I/O transaction.
+ * @hardware_timing:         The hardware timing configuration in effect during
+ *                           the current I/O transaction. If no I/O transaction
+ *                           is in progress, this is the hardware timing
+ *                           configuration during the most recent I/O
+ *                           transaction.
+ */
+static void get_timing(struct gpmi_nfc_data *this,
+			unsigned long *clock_frequency_in_hz,
+			struct gpmi_nfc_hardware_timing *hardware_timing)
+{
+	struct resources                 *resources = &this->resources;
+	struct nfc_hal                   *nfc       =  this->nfc;
+	unsigned char                    *gpmi_regs = resources->gpmi_regs;
+	uint32_t                         register_image;
+
+	/* Return the clock frequency. */
+
+	*clock_frequency_in_hz = nfc->clock_frequency_in_hz;
+
+	/* We'll be reading the hardware, so let's enable the clock. */
+
+	clk_enable(resources->clock);
+
+	/* Retrieve the hardware timing. */
+
+	register_image = __raw_readl(gpmi_regs + HW_GPMI_TIMING0);
+
+	hardware_timing->data_setup_in_cycles =
+		(register_image & BM_GPMI_TIMING0_DATA_SETUP) >>
+						BP_GPMI_TIMING0_DATA_SETUP;
+
+	hardware_timing->data_hold_in_cycles =
+		(register_image & BM_GPMI_TIMING0_DATA_HOLD) >>
+						BP_GPMI_TIMING0_DATA_HOLD;
+
+	hardware_timing->address_setup_in_cycles =
+		(register_image & BM_GPMI_TIMING0_ADDRESS_SETUP) >>
+						BP_GPMI_TIMING0_ADDRESS_SETUP;
+
+	register_image = __raw_readl(gpmi_regs + HW_GPMI_CTRL1);
+
+	hardware_timing->use_half_periods =
+		(register_image & BM_GPMI_CTRL1_HALF_PERIOD) >>
+						BP_GPMI_CTRL1_HALF_PERIOD;
+
+	hardware_timing->sample_delay_factor =
+		(register_image & BM_GPMI_CTRL1_RDN_DELAY) >>
+						BP_GPMI_CTRL1_RDN_DELAY;
+
+	/* We're done reading the hardware, so disable the clock. */
+
+	clk_disable(resources->clock);
+
+}
+
+/**
  * exit() - Shuts down the NFC hardware.
  *
  * @this:  Per-device data.
@@ -188,11 +251,82 @@ static void exit(struct gpmi_nfc_data *this)
  */
 static void begin(struct gpmi_nfc_data *this)
 {
-	struct resources  *resources = &this->resources;
+	struct resources                 *resources = &this->resources;
+	struct nfc_hal                   *nfc       =  this->nfc;
+	struct gpmi_nfc_hardware_timing  hw;
+	unsigned char                    *gpmi_regs = resources->gpmi_regs;
+	unsigned int                     clock_period_in_ns;
+	uint32_t                         register_image;
+	unsigned int                     dll_wait_time_in_us;
 
 	/* Enable the clock. */
 
 	clk_enable(resources->clock);
+
+	/* Get the timing information we need. */
+
+	nfc->clock_frequency_in_hz = clk_get_rate(resources->clock);
+	clock_period_in_ns = 1000000000 / nfc->clock_frequency_in_hz;
+
+	gpmi_nfc_compute_hardware_timing(this, &hw);
+
+	/* Set up all the simple timing parameters. */
+
+	register_image =
+		BF_GPMI_TIMING0_ADDRESS_SETUP(hw.address_setup_in_cycles) |
+		BF_GPMI_TIMING0_DATA_HOLD(hw.data_hold_in_cycles)         |
+		BF_GPMI_TIMING0_DATA_SETUP(hw.data_setup_in_cycles)       ;
+
+	__raw_writel(register_image, gpmi_regs + HW_GPMI_TIMING0);
+
+	/*
+	 * HEY - PAY ATTENTION!
+	 *
+	 * DLL_ENABLE must be set to zero when setting RDN_DELAY or HALF_PERIOD.
+	 */
+
+	__raw_writel(BM_GPMI_CTRL1_DLL_ENABLE, gpmi_regs + HW_GPMI_CTRL1_CLR);
+
+	/* Clear out the DLL control fields. */
+
+	__raw_writel(BM_GPMI_CTRL1_RDN_DELAY,   gpmi_regs + HW_GPMI_CTRL1_CLR);
+	__raw_writel(BM_GPMI_CTRL1_HALF_PERIOD, gpmi_regs + HW_GPMI_CTRL1_CLR);
+
+	/* If no sample delay is called for, return immediately. */
+
+	if (!hw.sample_delay_factor)
+		return;
+
+	/* Configure the HALF_PERIOD flag. */
+
+	if (hw.use_half_periods)
+		__raw_writel(BM_GPMI_CTRL1_HALF_PERIOD,
+						gpmi_regs + HW_GPMI_CTRL1_SET);
+
+	/* Set the delay factor. */
+
+	__raw_writel(BF_GPMI_CTRL1_RDN_DELAY(hw.sample_delay_factor),
+						gpmi_regs + HW_GPMI_CTRL1_SET);
+
+	/* Enable the DLL. */
+
+	__raw_writel(BM_GPMI_CTRL1_DLL_ENABLE, gpmi_regs + HW_GPMI_CTRL1_SET);
+
+	/*
+	 * After we enable the GPMI DLL, we have to wait 64 clock cycles before
+	 * we can use the GPMI.
+	 *
+	 * Calculate the amount of time we need to wait, in microseconds.
+	 */
+
+	dll_wait_time_in_us = (clock_period_in_ns * 64) / 1000;
+
+	if (!dll_wait_time_in_us)
+		dll_wait_time_in_us = 1;
+
+	/* Wait for the DLL to settle. */
+
+	udelay(dll_wait_time_in_us);
 
 }
 
@@ -676,7 +810,7 @@ static int read_page(struct gpmi_nfc_data *this, unsigned chip,
 
 	(*d)->cmd.pio_words[1] = 0;
 	(*d)->cmd.pio_words[2] =
-		BM_GPMI_ECCCTRL_ENABLE_ECC 	            |
+		BM_GPMI_ECCCTRL_ENABLE_ECC 	         |
 		BF_GPMI_ECCCTRL_ECC_CMD(ecc_command)     |
 		BF_GPMI_ECCCTRL_BUFFER_MASK(buffer_mask) ;
 	(*d)->cmd.pio_words[3] = nfc_geo->page_size_in_bytes;
@@ -763,25 +897,28 @@ static int read_page(struct gpmi_nfc_data *this, unsigned chip,
 /* This structure represents the NFC HAL for this version of the hardware. */
 
 struct nfc_hal  gpmi_nfc_hal_v0 = {
-	.version                      = 0,
-	.description                  = "4-chip GPMI and BCH",
-	.max_chip_count               = 4,
-	.max_data_setup_cycles        = (BM_GPMI_TIMING0_DATA_SETUP >>
+	.version                     = 0,
+	.description                 = "4-chip GPMI and BCH",
+	.max_chip_count              = 4,
+	.max_data_setup_cycles       = (BM_GPMI_TIMING0_DATA_SETUP >>
 						BP_GPMI_TIMING0_DATA_SETUP),
-	.max_data_sample_delay_cycles = (BM_GPMI_CTRL1_RDN_DELAY >>
+	.internal_data_setup_in_ns   = 0,
+	.max_sample_delay_factor     = (BM_GPMI_CTRL1_RDN_DELAY >>
 						BP_GPMI_CTRL1_RDN_DELAY),
-	.max_dll_clock_period_in_ns   = 32,
-	.init                         = init,
-	.set_geometry                 = set_geometry,
-	.set_timing                   = set_timing,
-	.exit                         = exit,
-	.begin                        = begin,
-	.end                          = end,
-	.clear_bch                    = clear_bch,
-	.is_ready                     = is_ready,
-	.send_command                 = send_command,
-	.send_data                    = send_data,
-	.read_data                    = read_data,
-	.send_page                    = send_page,
-	.read_page                    = read_page,
+	.max_dll_clock_period_in_ns  = 32,
+	.max_dll_delay_in_ns         = 16,
+	.init                        = init,
+	.set_geometry                = set_geometry,
+	.set_timing                  = set_timing,
+	.get_timing                  = get_timing,
+	.exit                        = exit,
+	.begin                       = begin,
+	.end                         = end,
+	.clear_bch                   = clear_bch,
+	.is_ready                    = is_ready,
+	.send_command                = send_command,
+	.send_data                   = send_data,
+	.read_data                   = read_data,
+	.send_page                   = send_page,
+	.read_page                   = read_page,
 };

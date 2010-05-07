@@ -58,6 +58,54 @@ static struct boot_rom_helper  *(boot_rom_helpers[]) = {
 };
 
 /**
+ * show_device_report() - Contains a shell script that creates a handy report.
+ *
+ * @d:     The device of interest.
+ * @attr:  The attribute of interest.
+ * @buf:   A buffer that will receive a representation of the attribute.
+ */
+static ssize_t show_device_report(struct device *dev,
+				struct device_attribute *attr, char *buf)
+{
+
+	static const char *script =
+		"GPMISysDirectory=/sys/bus/platform/devices/gpmi-nfc.0\n"
+		"\n"
+		"NodeList='\n"
+		"physical_geometry\n"
+		"nfc_info\n"
+		"nfc_geometry\n"
+		"timing\n"
+		"timing_diagram\n"
+		"rom_geometry\n"
+		"mtd_nand_info\n"
+		"mtd_info\n"
+		"'\n"
+		"\n"
+		"cd ${GPMISysDirectory}\n"
+		"\n"
+		"printf '\\n'\n"
+		"\n"
+		"for NodeName in ${NodeList}\n"
+		"do\n"
+		"\n"
+		"    printf '--------------------------------------------\\n'\n"
+		"    printf '%s\\n' ${NodeName}\n"
+		"    printf '--------------------------------------------\\n'\n"
+		"    printf '\\n'\n"
+		"\n"
+		"    cat ${NodeName}\n"
+		"\n"
+		"    printf '\\n'\n"
+		"\n"
+		"done\n"
+		;
+
+	return sprintf(buf, "%s", script);
+
+}
+
+/**
  * show_device_numchips() - Shows the number of physical chips.
  *
  * This node is made obsolete by the physical_geometry node, but we keep it for
@@ -88,15 +136,18 @@ static ssize_t show_device_physical_geometry(struct device *dev,
 				struct device_attribute *attr, char *buf)
 {
 	struct gpmi_nfc_data      *this     = dev_get_drvdata(dev);
+	struct nand_device_info   *info     = &this->device_info;
 	struct physical_geometry  *physical = &this->physical_geometry;
 
 	return sprintf(buf,
+		"Description            : %s\n"
 		"Chip Count             : %u\n"
 		"Chip Size in Bytes     : %llu\n"
 		"Block Size in Bytes    : %u\n"
 		"Page Data Size in Bytes: %u\n"
 		"Page OOB Size in Bytes : %u\n"
 		,
+		info->description,
 		physical->chip_count,
 		physical->chip_size_in_bytes,
 		physical->block_size_in_bytes,
@@ -116,47 +167,27 @@ static ssize_t show_device_physical_geometry(struct device *dev,
 static ssize_t show_device_nfc_info(struct device *dev,
 				struct device_attribute *attr, char *buf)
 {
-	struct gpmi_nfc_data  *this      = dev_get_drvdata(dev);
-	struct resources      *resources = &this->resources;
-	struct nfc_hal        *nfc       =  this->nfc;
-	struct clk            *parent_clock;
-	unsigned long         parent_clock_rate_in_hz;
-	unsigned long         clock_rate_in_hz;
-	int                   clock_use_count;
-
-	parent_clock            = clk_get_parent(resources->clock);
-	parent_clock_rate_in_hz = clk_get_rate(parent_clock);
-	clock_rate_in_hz        = clk_get_rate(resources->clock);
-	clock_use_count         = clk_get_usecount(resources->clock);
+	struct gpmi_nfc_data  *this = dev_get_drvdata(dev);
+	struct nfc_hal        *nfc  =  this->nfc;
 
 	return sprintf(buf,
-		"Version                : %u\n"
-		"Description            : %s\n"
-		"Max Chip Count         : %u\n"
-		"Parent Clock Rate in Hz: %lu\n"
-		"Clock Rate in Hz       : %lu\n"
-		"Clock Use Count        : %u\n"
-		"Data Setup in ns       : %d\n"
-		"Data Hold in ns        : %d\n"
-		"Address Setup in ns    : %d\n"
-		"Sample Delay in ns     : %d\n"
-		"tREA in ns             : %d\n"
-		"tRLOH in ns            : %d\n"
-		"tRHOH in ns            : %d\n"
+		"Version                   : %u\n"
+		"Description               : %s\n"
+		"Max Chip Count            : %u\n"
+		"Max Data Setup Cycles     : 0x%x\n"
+		"Internal Data Setup in ns : %u\n"
+		"Max Sample Delay Factor   : 0x%x\n"
+		"Max DLL Clock Period in ns: %u\n"
+		"Max DLL Delay in ns       : %u\n"
 		,
 		nfc->version,
 		nfc->description,
 		nfc->max_chip_count,
-		parent_clock_rate_in_hz,
-		clock_rate_in_hz,
-		clock_use_count,
-		nfc->timing.data_setup_in_ns,
-		nfc->timing.data_hold_in_ns,
-		nfc->timing.address_setup_in_ns,
-		nfc->timing.gpmi_sample_delay_in_ns,
-		nfc->timing.tREA_in_ns,
-		nfc->timing.tRLOH_in_ns,
-		nfc->timing.tRHOH_in_ns
+		nfc->max_data_setup_cycles,
+		nfc->internal_data_setup_in_ns,
+		nfc->max_sample_delay_factor,
+		nfc->max_dll_clock_period_in_ns,
+		nfc->max_dll_delay_in_ns
 	);
 
 }
@@ -422,6 +453,288 @@ static ssize_t show_device_mtd_info(struct device *dev,
 }
 
 /**
+  * show_device_timing_diagram() - Shows a timing diagram.
+ *
+ * @dev:   The device of interest.
+ * @attr:  The attribute of interest.
+ * @buf:   A buffer that will receive a representation of the attribute.
+ */
+static ssize_t show_device_timing_diagram(struct device *dev,
+				struct device_attribute *attr, char *buf)
+{
+	struct gpmi_nfc_data             *this      = dev_get_drvdata(dev);
+	struct gpmi_nfc_platform_data    *pdata     =  this->pdata;
+	struct nfc_hal                   *nfc       = this->nfc;
+	struct gpmi_nfc_timing           timing     = nfc->timing;
+	struct gpmi_nfc_hardware_timing  hardware_timing;
+	unsigned long                    clock_frequency_in_hz;
+	unsigned long                    clock_period_in_ns;
+	unsigned int                     data_setup_in_ns;
+	unsigned int                     dll_delay_shift;
+	unsigned int                     sample_delay_in_ns;
+	unsigned int                     tDS_in_ns;
+	unsigned int                     tOPEN_in_ns;
+	unsigned int                     tCLOSE_in_ns;
+	unsigned int                     tEYE_in_ns;
+	unsigned int                     tDELAY_in_ns;
+	unsigned int                     tDS;
+	unsigned int                     tOPEN;
+	unsigned int                     tCLOSE;
+	unsigned int                     tEYE;
+	unsigned int                     tDELAY;
+	const unsigned int               diagram_width_in_chars = 55;
+	unsigned int                     diagram_width_in_ns;
+	int                              o = 0;
+	unsigned int                     i;
+
+	/*
+	 * If there are any timing characteristics we need, but don't know, we
+	 * pretend they're zero.
+	 */
+
+	if (timing.tREA_in_ns < 0)
+		timing.tREA_in_ns = 0;
+
+	if (timing.tRHOH_in_ns < 0)
+		timing.tRHOH_in_ns = 0;
+
+	/* Get information about the current/last I/O transaction. */
+
+	nfc->get_timing(this, &clock_frequency_in_hz, &hardware_timing);
+
+	clock_period_in_ns = 1000000000 / clock_frequency_in_hz;
+
+	/* Compute basic timing facts. */
+
+	data_setup_in_ns =
+		hardware_timing.data_setup_in_cycles * clock_period_in_ns;
+
+	/* Compute data sample delay facts. */
+
+	dll_delay_shift = 3;
+
+	if (hardware_timing.use_half_periods)
+		dll_delay_shift++;
+
+	sample_delay_in_ns =
+		(hardware_timing.sample_delay_factor * clock_period_in_ns) >>
+								dll_delay_shift;
+
+	/* Compute the basic metrics in the diagram, in nanoseconds. */
+
+	tDS_in_ns    = data_setup_in_ns;
+	tOPEN_in_ns  = pdata->max_prop_delay_in_ns + timing.tREA_in_ns;
+	tCLOSE_in_ns = pdata->min_prop_delay_in_ns + timing.tRHOH_in_ns;
+	tEYE_in_ns   = tDS_in_ns + tCLOSE_in_ns - tOPEN_in_ns;
+	tDELAY_in_ns = sample_delay_in_ns;
+
+	/*
+	 * We need to translate nanosecond timings into character widths in the
+	 * diagram. The first step is to discover how "wide" the diagram is in
+	 * nanoseconds. That depends on which happens latest: the sample point
+	 * or the close of the eye.
+	 */
+
+	if (tCLOSE_in_ns >= tDELAY_in_ns)
+		diagram_width_in_ns = tDS_in_ns + tCLOSE_in_ns;
+	else
+		diagram_width_in_ns = tDS_in_ns + tDELAY_in_ns;
+
+	/* Convert the metrics that appear in the diagram. */
+
+	tDS    = (tDS_in_ns    * diagram_width_in_chars) / diagram_width_in_ns;
+	tOPEN  = (tOPEN_in_ns  * diagram_width_in_chars) / diagram_width_in_ns;
+	tCLOSE = (tCLOSE_in_ns * diagram_width_in_chars) / diagram_width_in_ns;
+	tEYE   = (tEYE_in_ns   * diagram_width_in_chars) / diagram_width_in_ns;
+	tDELAY = (tDELAY_in_ns * diagram_width_in_chars) / diagram_width_in_ns;
+
+	/*
+	 * Show the results.
+	 *
+	 * This code is really ugly, but it draws a pretty picture :)
+	 */
+
+	o += sprintf(buf + o, "\n");
+
+
+	o += sprintf(buf + o, "Sample ______");
+	for (i = 0; i < tDS; i++)
+		o += sprintf(buf + o, "_");
+	if (tDELAY > 0)
+		for (i = 0; i < (tDELAY - 1); i++)
+			o += sprintf(buf + o, "_");
+	o += sprintf(buf + o, "|");
+	for (i = 0; i < (diagram_width_in_chars - (tDS + tDELAY)); i++)
+		o += sprintf(buf + o, "_");
+	o += sprintf(buf + o, "\n");
+
+
+	o += sprintf(buf + o, "Strobe       ");
+	for (i = 0; i < tDS; i++)
+		o += sprintf(buf + o, " ");
+	o += sprintf(buf + o, "|");
+	if (tDELAY > 1) {
+		for (i = 2; i < tDELAY; i++)
+			o += sprintf(buf + o, "-");
+		o += sprintf(buf + o, "|");
+	}
+	o += sprintf(buf + o, " tDELAY\n");
+
+
+	o += sprintf(buf + o, "\n");
+
+
+	o += sprintf(buf + o, "         tDS ");
+	o += sprintf(buf + o, "|");
+	if (tDS > 1) {
+		for (i = 2; i < tDS; i++)
+			o += sprintf(buf + o, "-");
+		o += sprintf(buf + o, "|");
+	}
+	o += sprintf(buf + o, "\n");
+
+
+	o += sprintf(buf + o, "       ______");
+	for (i = 0; i < tDS; i++)
+		o += sprintf(buf + o, " ");
+	for (i = 0; i < (diagram_width_in_chars - tDS); i++)
+		o += sprintf(buf + o, "_");
+	o += sprintf(buf + o, "\n");
+
+
+	o += sprintf(buf + o, "RDN          ");
+	if (tDS > 0) {
+		if (tDS == 1)
+			o += sprintf(buf + o, "V");
+		else {
+			o += sprintf(buf + o, "\\");
+			for (i = 2; i < tDS; i++)
+				o += sprintf(buf + o, "_");
+			o += sprintf(buf + o, "/");
+		}
+	}
+	o += sprintf(buf + o, "\n");
+
+
+	o += sprintf(buf + o, "\n");
+
+
+	o += sprintf(buf + o, "       tOPEN ");
+	o += sprintf(buf + o, "|");
+	if (tOPEN > 1) {
+		for (i = 2; i < tOPEN; i++)
+			o += sprintf(buf + o, "-");
+		o += sprintf(buf + o, "|");
+	}
+	o += sprintf(buf + o, "\n");
+
+
+	o += sprintf(buf + o, "             ");
+	for (i = 0; i < tDS; i++)
+		o += sprintf(buf + o, " ");
+	o += sprintf(buf + o, "|");
+	if (tCLOSE > 1) {
+		for (i = 2; i < tCLOSE; i++)
+			o += sprintf(buf + o, "-");
+		o += sprintf(buf + o, "|");
+	}
+	o += sprintf(buf + o, " tCLOSE\n");
+
+
+	o += sprintf(buf + o, "             ");
+	for (i = 0; i < tOPEN; i++)
+		o += sprintf(buf + o, " ");
+	if (tEYE > 2) {
+		o += sprintf(buf + o, " ");
+		for (i = 2; i < tEYE; i++)
+			o += sprintf(buf + o, "_");
+	}
+	o += sprintf(buf + o, "\n");
+
+
+	o += sprintf(buf + o, "Data   ______");
+	for (i = 0; i < tOPEN; i++)
+		o += sprintf(buf + o, "_");
+	if (tEYE > 0) {
+		if (tEYE == 1)
+			o += sprintf(buf + o, "|");
+		else {
+			o += sprintf(buf + o, "/");
+			for (i = 2; i < tEYE; i++)
+				o += sprintf(buf + o, " ");
+			o += sprintf(buf + o, "\\");
+		}
+	}
+	for (i = 0; i < (diagram_width_in_chars - (tOPEN + tEYE)); i++)
+		o += sprintf(buf + o, "_");
+	o += sprintf(buf + o, "\n");
+
+
+	o += sprintf(buf + o, "             ");
+	for (i = 0; i < tOPEN; i++)
+		o += sprintf(buf + o, " ");
+	if (tEYE > 0) {
+		if (tEYE == 1)
+			o += sprintf(buf + o, "|");
+		else {
+			o += sprintf(buf + o, "\\");
+			for (i = 2; i < tEYE; i++)
+				o += sprintf(buf + o, "_");
+			o += sprintf(buf + o, "/");
+		}
+	}
+	o += sprintf(buf + o, "\n");
+
+
+	o += sprintf(buf + o, "             ");
+	for (i = 0; i < tOPEN; i++)
+		o += sprintf(buf + o, " ");
+	o += sprintf(buf + o, "|");
+	if (tEYE > 1) {
+		for (i = 2; i < tEYE; i++)
+			o += sprintf(buf + o, "-");
+		o += sprintf(buf + o, "|");
+	}
+	o += sprintf(buf + o, " tEYE\n");
+
+
+	o += sprintf(buf + o, "\n");
+	o += sprintf(buf + o, "tDS   : %u ns\n", tDS_in_ns);
+	o += sprintf(buf + o, "tOPEN : %u ns\n", tOPEN_in_ns);
+	o += sprintf(buf + o, "tCLOSE: %u ns\n", tCLOSE_in_ns);
+	o += sprintf(buf + o, "tEYE  : %u ns\n", tEYE_in_ns);
+	o += sprintf(buf + o, "tDELAY: %u ns\n", tDELAY_in_ns);
+	o += sprintf(buf + o, "\n");
+
+
+	return o;
+
+}
+
+/**
+ * store_device_invalidate_page_cache() - Invalidates the device's page cache.
+ *
+ * @dev:   The device of interest.
+ * @attr:  The attribute of interest.
+ * @buf:   A buffer containing a new attribute value.
+ * @size:  The size of the buffer.
+ */
+static ssize_t store_device_invalidate_page_cache(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t size)
+{
+	struct gpmi_nfc_data  *this = dev_get_drvdata(dev);
+
+	/* Invalidate the page cache. */
+
+	this->mil.nand.pagebuf = -1;
+
+	/* Return success. */
+
+	return size;
+
+}
+
+/**
  * store_device_mark_block_bad() - Marks a block as bad.
  *
  * @dev:   The device of interest.
@@ -600,21 +913,198 @@ static ssize_t store_device_inject_ecc_error(struct device *dev,
 }
 
 /**
- * store_device_invalidate_page_cache() - Invalidates the device's page cache.
+ * show_device_timing_help() - Show help for setting timing.
+ *
+ * @d:     The device of interest.
+ * @attr:  The attribute of interest.
+ * @buf:   A buffer that will receive a representation of the attribute.
+ */
+static ssize_t show_device_timing_help(struct device *dev,
+				struct device_attribute *attr, char *buf)
+{
+
+	static const char *help =
+		"<Data Setup>,<Data Hold>,<Address Setup>,<Sample Delay>,"
+						"<tREA>,<tRLOH>,<tRHOH>\n";
+
+	return sprintf(buf, "%s", help);
+
+}
+
+/**
+ * show_device_timing() - Shows the current timing.
+ *
+ * @d:     The device of interest.
+ * @attr:  The attribute of interest.
+ * @buf:   A buffer that will receive a representation of the attribute.
+ */
+static ssize_t show_device_timing(struct device *dev,
+				struct device_attribute *attr, char *buf)
+{
+	struct gpmi_nfc_data             *this      = dev_get_drvdata(dev);
+	struct gpmi_nfc_platform_data    *pdata     = this->pdata;
+	struct nfc_hal                   *nfc       = this->nfc;
+	struct gpmi_nfc_timing           *recorded  = &nfc->timing;
+	unsigned long                    clock_frequency_in_hz;
+	unsigned long                    clock_period_in_ns;
+	struct gpmi_nfc_hardware_timing  hardware;
+	unsigned int                     effective_data_setup_in_ns;
+	unsigned int                     effective_data_hold_in_ns;
+	unsigned int                     effective_address_setup_in_ns;
+	unsigned int                     dll_delay_shift;
+	unsigned int                     effective_sample_delay_in_ns;
+
+	/* Get information about the current/last I/O transaction. */
+
+	nfc->get_timing(this, &clock_frequency_in_hz, &hardware);
+
+	clock_period_in_ns = 1000000000 / clock_frequency_in_hz;
+
+	/* Compute basic timing facts. */
+
+	effective_data_setup_in_ns    =
+			hardware.data_setup_in_cycles    * clock_period_in_ns;
+	effective_data_hold_in_ns     =
+			hardware.data_hold_in_cycles     * clock_period_in_ns;
+	effective_address_setup_in_ns =
+			hardware.address_setup_in_cycles * clock_period_in_ns;
+
+	/* Compute data sample delay facts. */
+
+	dll_delay_shift = 3;
+
+	if (hardware.use_half_periods)
+		dll_delay_shift++;
+
+	effective_sample_delay_in_ns =
+		(hardware.sample_delay_factor * clock_period_in_ns) >>
+								dll_delay_shift;
+
+	/* Show the results. */
+
+	return sprintf(buf,
+		"Minimum Propagation Delay in ns  : %u\n"
+		"Maximum Propagation Delay in ns  : %u\n"
+		"Clock Frequency in Hz            : %lu\n"
+		"Clock Period in ns               : %lu\n"
+		"Recorded  Data Setup in ns       : %d\n"
+		"Hardware  Data Setup in cycles   : %u\n"
+		"Effective Data Setup in ns       : %u\n"
+		"Recorded  Data Hold in ns        : %d\n"
+		"Hardware  Data Hold in cycles    : %u\n"
+		"Effective Data Hold in ns        : %u\n"
+		"Recorded  Address Setup in ns    : %d\n"
+		"Hardware  Address Setup in cycles: %u\n"
+		"Effective Address Setup in ns    : %u\n"
+		"Using Half Period                : %s\n"
+		"Recorded  Sample Delay in ns     : %d\n"
+		"Hardware  Sample Delay Factor    : %u\n"
+		"Effective Sample Delay in ns     : %u\n"
+		"Recorded  tREA in ns             : %d\n"
+		"Recorded  tRLOH in ns            : %d\n"
+		"Recorded  tRHOH in ns            : %d\n"
+		,
+		pdata->min_prop_delay_in_ns,
+		pdata->max_prop_delay_in_ns,
+		clock_frequency_in_hz,
+		clock_period_in_ns,
+		recorded->data_setup_in_ns,
+		hardware .data_setup_in_cycles,
+		effective_data_setup_in_ns,
+		recorded->data_hold_in_ns,
+		hardware .data_hold_in_cycles,
+		effective_data_hold_in_ns,
+		recorded->address_setup_in_ns,
+		hardware .address_setup_in_cycles,
+		effective_address_setup_in_ns,
+		hardware .use_half_periods ? "Yes" : "No",
+		recorded->gpmi_sample_delay_in_ns,
+		hardware .sample_delay_factor,
+		effective_sample_delay_in_ns,
+		recorded->tREA_in_ns,
+		recorded->tRLOH_in_ns,
+		recorded->tRHOH_in_ns);
+
+}
+
+/**
+ * store_device_timing() - Sets the current timing.
  *
  * @dev:   The device of interest.
  * @attr:  The attribute of interest.
  * @buf:   A buffer containing a new attribute value.
  * @size:  The size of the buffer.
  */
-static ssize_t store_device_invalidate_page_cache(struct device *dev,
+static ssize_t store_device_timing(struct device *dev,
 		struct device_attribute *attr, const char *buf, size_t size)
 {
-	struct gpmi_nfc_data  *this = dev_get_drvdata(dev);
+	struct gpmi_nfc_data    *this = dev_get_drvdata(dev);
+	struct nfc_hal          *nfc  = this->nfc;
+	const char              *p    = buf;
+	const char              *q;
+	char                    tmps[20];
+	long                    t;
+	struct gpmi_nfc_timing  new;
 
-	/* Invalidate the page cache. */
+	int8_t *field_pointers[] = {
+		&new.data_setup_in_ns,
+		&new.data_hold_in_ns,
+		&new.address_setup_in_ns,
+		&new.gpmi_sample_delay_in_ns,
+		&new.tREA_in_ns,
+		&new.tRLOH_in_ns,
+		&new.tRHOH_in_ns,
+		NULL,
+	};
 
-	this->mil.nand.pagebuf = -1;
+	int8_t **field_pointer = field_pointers;
+
+	/*
+	 * Loop over comma-separated timing values in the incoming buffer,
+	 * assigning them to fields in the timing structure as we go along.
+	 */
+
+	while (*field_pointer != NULL) {
+
+		/* Clear out the temporary buffer. */
+
+		memset(tmps, 0, sizeof(tmps));
+
+		/* Copy the timing value into the temporary buffer. */
+
+		q = strchr(p, ',');
+		if (q)
+			strncpy(tmps, p, min_t(int, sizeof(tmps) - 1, q - p));
+		else
+			strncpy(tmps, p, sizeof(tmps) - 1);
+
+		/* Attempt to convert the current timing value. */
+
+		if (strict_strtol(tmps, 0, &t) < 0)
+			return -EINVAL;
+
+		if ((t > 127) || (t < -128))
+			return -EINVAL;
+
+		/* Assign this value to the current field. */
+
+		**field_pointer = (int8_t) t;
+		field_pointer++;
+
+		/* Check if we ran out of input too soon. */
+
+		if (!q && *field_pointer)
+			return -EINVAL;
+
+		/* Move past the comma to the next timing value. */
+
+		p = q + 1;
+
+	}
+
+	/* Hand over the timing to the NFC. */
+
+	nfc->set_timing(this, &new);
 
 	/* Return success. */
 
@@ -624,6 +1114,7 @@ static ssize_t store_device_invalidate_page_cache(struct device *dev,
 
 /* Device attributes that appear in sysfs. */
 
+static DEVICE_ATTR(report           , 0555, show_device_report           , 0);
 static DEVICE_ATTR(numchips         , 0444, show_device_numchips         , 0);
 static DEVICE_ATTR(physical_geometry, 0444, show_device_physical_geometry, 0);
 static DEVICE_ATTR(nfc_info         , 0444, show_device_nfc_info         , 0);
@@ -631,6 +1122,11 @@ static DEVICE_ATTR(nfc_geometry     , 0444, show_device_nfc_geometry     , 0);
 static DEVICE_ATTR(rom_geometry     , 0444, show_device_rom_geometry     , 0);
 static DEVICE_ATTR(mtd_nand_info    , 0444, show_device_mtd_nand_info    , 0);
 static DEVICE_ATTR(mtd_info         , 0444, show_device_mtd_info         , 0);
+static DEVICE_ATTR(timing_diagram   , 0444, show_device_timing_diagram   , 0);
+static DEVICE_ATTR(timing_help      , 0444, show_device_timing_help      , 0);
+
+static DEVICE_ATTR(invalidate_page_cache, 0644,
+	0, store_device_invalidate_page_cache);
 
 static DEVICE_ATTR(mark_block_bad, 0200,
 	0, store_device_mark_block_bad);
@@ -641,10 +1137,11 @@ static DEVICE_ATTR(ignorebad, 0644,
 static DEVICE_ATTR(inject_ecc_error, 0644,
 	show_device_inject_ecc_error, store_device_inject_ecc_error);
 
-static DEVICE_ATTR(invalidate_page_cache, 0644,
-	0, store_device_invalidate_page_cache);
+static DEVICE_ATTR(timing, 0644,
+	show_device_timing, store_device_timing);
 
 static struct device_attribute *device_attributes[] = {
+	&dev_attr_report,
 	&dev_attr_numchips,
 	&dev_attr_physical_geometry,
 	&dev_attr_nfc_info,
@@ -652,10 +1149,13 @@ static struct device_attribute *device_attributes[] = {
 	&dev_attr_rom_geometry,
 	&dev_attr_mtd_nand_info,
 	&dev_attr_mtd_info,
+	&dev_attr_invalidate_page_cache,
 	&dev_attr_mark_block_bad,
 	&dev_attr_ignorebad,
 	&dev_attr_inject_ecc_error,
-	&dev_attr_invalidate_page_cache,
+	&dev_attr_timing,
+	&dev_attr_timing_help,
+	&dev_attr_timing_diagram,
 };
 
 /**

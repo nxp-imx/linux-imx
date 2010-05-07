@@ -1259,6 +1259,9 @@ static int gpmi_set_rate(struct clk *clk, unsigned long rate)
 	int ret = -EINVAL;
 	u32 reg, div;
 
+	/* Make absolutely certain the clock is enabled. */
+	local_clk_enable(clk);
+
 	/* if the desired clock can be sourced from ref_xtal,
 	 * use ref_xtal to save power
 	 */
@@ -1284,6 +1287,10 @@ static int gpmi_set_rate(struct clk *clk, unsigned long rate)
 	ret = clk_busy_wait(clk);
 
 out:
+
+	/* Undo the enable above. */
+	local_clk_disable(clk);
+
 	if (ret != 0)
 		printk(KERN_ERR "%s: error %d\n", __func__, ret);
 	return ret;
@@ -1309,11 +1316,33 @@ static int gpmi_set_parent(struct clk *clk, struct clk *parent)
 	return ret;
 }
 
+/* handle peripheral clocks whose optimal parent dependent on
+ * system parameters such as cpu_clk rate.  For now, this optimization
+ * only occurs to the peripheral clock when it's not in use to avoid
+ * handling more complex system clock coordination issues.
+ */
+static int gpmi_set_sys_dependent_parent(struct clk *clk)
+{
+
+	if ((clk->ref & CLK_EN_MASK) == 0) {
+		if (clk_get_rate(&cpu_clk) > ref_xtal_get_rate(&ref_xtal_clk)) {
+			clk_set_parent(clk, &ref_io_clk);
+			clk_set_rate(clk, PLL_ENABLED_MAX_CLK_GPMI);
+		} else {
+			clk_set_parent(clk, &ref_xtal_clk);
+			clk_set_rate(clk, ref_xtal_get_rate(&ref_xtal_clk));
+		}
+	}
+
+	return 0;
+}
+
 static struct clk gpmi_clk = {
 	.parent		= &ref_io_clk,
 	.secondary      = 0,
 	.flags          = 0,
 	.set_parent     = gpmi_set_parent,
+	.set_sys_dependent_parent = gpmi_set_sys_dependent_parent,
 
 	.enable_reg     = CLKCTRL_BASE_ADDR + HW_CLKCTRL_GPMI,
 	.enable_bits    = BM_CLKCTRL_GPMI_CLKGATE,

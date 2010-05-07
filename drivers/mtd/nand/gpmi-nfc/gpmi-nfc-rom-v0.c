@@ -88,7 +88,6 @@ static int set_geometry(struct gpmi_nfc_data *this)
 static int check_transcription_stamp(struct gpmi_nfc_data *this)
 {
 	struct physical_geometry  *physical = &this->physical_geometry;
-	struct nfc_geometry       *nfc_geo  = &this->nfc_geometry;
 	struct boot_rom_geometry  *rom_geo  = &this->rom_geometry;
 	struct mil                *mil      = &this->mil;
 	struct mtd_info           *mtd      = &mil->mtd;
