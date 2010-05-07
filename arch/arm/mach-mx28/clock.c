@@ -53,6 +53,36 @@ static inline int clk_is_busy(struct clk *clk)
 	return __raw_readl(clk->busy_reg) & (1 << clk->busy_bits);
 }
 
+static bool mx28_enable_h_autoslow(bool enable)
+{
+	bool currently_enabled;
+
+	if (__raw_readl(CLKCTRL_BASE_ADDR+HW_CLKCTRL_HBUS) &
+		BM_CLKCTRL_HBUS_ASM_ENABLE)
+		currently_enabled = true;
+	else
+		currently_enabled = false;
+
+	if (enable)
+		__raw_writel(BM_CLKCTRL_HBUS_ASM_ENABLE,
+			CLKCTRL_BASE_ADDR + HW_CLKCTRL_HBUS_SET);
+	else
+		__raw_writel(BM_CLKCTRL_HBUS_ASM_ENABLE,
+			CLKCTRL_BASE_ADDR + HW_CLKCTRL_HBUS_CLR);
+	return currently_enabled;
+}
+
+
+static void mx28_set_hbus_autoslow_flags(u16 mask)
+{
+	u32 reg;
+
+	reg = __raw_readl(CLKCTRL_BASE_ADDR + HW_CLKCTRL_HBUS);
+	reg &= 0xFFFF;
+	reg |= mask << 16;
+	__raw_writel(reg, CLKCTRL_BASE_ADDR + HW_CLKCTRL_HBUS);
+}
+
 static int mx28_raw_enable(struct clk *clk)
 {
 	unsigned int reg;
@@ -1652,16 +1682,6 @@ static struct clk_lookup onchip_clocks[] = {
 	}
 };
 
-void clk_set_hbus_autoslow_bits(u16 mask)
-{
-	u32 reg;
-
-	reg = __raw_readl(CLKCTRL_BASE_ADDR + HW_CLKCTRL_HBUS);
-	reg &= 0xFFFF;
-	reg |= mask << 16;
-	__raw_writel(reg, CLKCTRL_BASE_ADDR + HW_CLKCTRL_HBUS);
-}
-
 static void mx28_clock_scan(void)
 {
 	unsigned long reg;
@@ -1720,4 +1740,7 @@ void __init mx28_clock_init(void)
 
 	clk_enable(&cpu_clk);
 	clk_enable(&emi_clk);
+
+	clk_en_public_h_asm_ctrl(mx28_enable_h_autoslow,
+		mx28_set_hbus_autoslow_flags);
 }

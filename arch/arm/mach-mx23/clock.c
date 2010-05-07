@@ -55,7 +55,6 @@ static struct clk ref_xtal_clk;
 static void print_ref_counts(void);
 #endif
 
-
 static unsigned long enet_mii_phy_rate;
 
 static inline int clk_is_busy(struct clk *clk)
@@ -83,6 +82,36 @@ static inline int clk_busy_wait(struct clk *clk)
 		return -ETIMEDOUT;
 	else
 		return 0;
+}
+
+static bool mx23_enable_h_autoslow(bool enable)
+{
+	bool currently_enabled;
+
+	if (__raw_readl(CLKCTRL_BASE_ADDR+HW_CLKCTRL_HBUS) &
+		BM_CLKCTRL_HBUS_AUTO_SLOW_MODE)
+		currently_enabled = true;
+	else
+		currently_enabled = false;
+
+	if (enable)
+		__raw_writel(BM_CLKCTRL_HBUS_AUTO_SLOW_MODE,
+			CLKCTRL_BASE_ADDR + HW_CLKCTRL_HBUS_SET);
+	else
+		__raw_writel(BM_CLKCTRL_HBUS_AUTO_SLOW_MODE,
+			CLKCTRL_BASE_ADDR + HW_CLKCTRL_HBUS_CLR);
+	return currently_enabled;
+}
+
+
+static void mx23_set_hbus_autoslow_flags(u16 mask)
+{
+	u32 reg;
+
+	reg = __raw_readl(CLKCTRL_BASE_ADDR + HW_CLKCTRL_HBUS);
+	reg &= 0xFFFF;
+	reg |= mask << 16;
+	__raw_writel(reg, CLKCTRL_BASE_ADDR + HW_CLKCTRL_HBUS);
 }
 
 static void local_clk_disable(struct clk *clk)
@@ -500,6 +529,7 @@ static int cpu_set_rate(struct clk *clk, unsigned long rate)
 	u32 clkctrl_frac = 1;
 	u32 val;
 	u32 reg_val, hclk_reg;
+	bool h_autoslow;
 
 	/* make sure the cpu div_xtal is 1 */
 	reg_val = __raw_readl(CLKCTRL_BASE_ADDR+HW_CLKCTRL_CPU);
@@ -512,6 +542,11 @@ static int cpu_set_rate(struct clk *clk, unsigned long rate)
 
 	if (rate == clk_get_rate(clk))
 		return 0;
+	/* temporaily disable h autoslow to avoid
+	 * hclk getting too slow while temporarily
+	 * changing clocks
+	 */
+	h_autoslow = mx23_enable_h_autoslow(false);
 
 	if (rate == ref_xtal_get_rate(&ref_xtal_clk)) {
 
@@ -690,6 +725,7 @@ static int cpu_set_rate(struct clk *clk, unsigned long rate)
 		}
 
 	}
+	mx23_enable_h_autoslow(h_autoslow);
 	return ret;
 }
 
@@ -1015,10 +1051,9 @@ static int emi_set_rate(struct clk *clk, unsigned long rate)
 	if ((cur_emi_div == sc_data.emi_div) &&
 		(cur_emi_frac == sc_data.frac_div))
 		goto out;
-
-
 	{
 		unsigned long iram_phy;
+		bool h_autoslow;
 		int (*scale)(struct mxs_emi_scaling_data *) =
 			iram_alloc(mxs_ram_funcs_sz, &iram_phy);
 
@@ -1026,6 +1061,12 @@ static int emi_set_rate(struct clk *clk, unsigned long rate)
 			pr_err("%s Not enough iram\n", __func__);
 			return -ENOMEM;
 		}
+
+		/* temporaily disable h autoslow to maximize
+		 * performance/minimize time spent with no
+		 * sdram access
+		 */
+		h_autoslow = mx23_enable_h_autoslow(false);
 
 		memcpy(scale, mxs_ram_freq_scale, mxs_ram_funcs_sz);
 
@@ -1038,6 +1079,12 @@ static int emi_set_rate(struct clk *clk, unsigned long rate)
 
 		local_fiq_enable();
 		local_irq_enable();
+
+		/* temporaily disable h autoslow to avoid
+		 * hclk getting too slow while temporarily
+		 * changing clocks
+		 */
+		mx23_enable_h_autoslow(h_autoslow);
 	}
 
 	/* this code is for keeping track of ref counts.
@@ -1465,16 +1512,6 @@ static void print_ref_counts(void)
 }
 #endif
 
-void clk_set_hbus_autoslow_bits(u16 mask)
-{
-	u32 reg;
-
-	reg = __raw_readl(CLKCTRL_BASE_ADDR + HW_CLKCTRL_HBUS);
-	reg &= 0xFFFF;
-	reg |= mask << 16;
-	__raw_writel(reg, CLKCTRL_BASE_ADDR + HW_CLKCTRL_HBUS);
-}
-
 static void mx23_clock_scan(void)
 {
 	unsigned long reg;
@@ -1509,4 +1546,7 @@ void __init mx23_clock_init(void)
 
 	clk_enable(&cpu_clk);
 	clk_enable(&emi_clk);
+
+	clk_en_public_h_asm_ctrl(mx23_enable_h_autoslow,
+		mx23_set_hbus_autoslow_flags);
 }

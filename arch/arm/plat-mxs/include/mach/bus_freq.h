@@ -33,13 +33,14 @@ struct profile {
 	int cur;
 	int vddio;
 	int vdda;
-	int pll_off;
+	u16 xbus;
+	/* map of the upper 16 bits of HW_CLKCTRL_HBUS register */
+	u16 h_autoslow_flags;
 };
 
-void hbus_auto_slow_mode_enable(void);
-void hbus_auto_slow_mode_disable(void);
-extern int cpu_clk_set_pll_on(struct clk *clk, unsigned int freq);
-extern int cpu_clk_set_pll_off(struct clk *clk, unsigned int freq);
+/* map of the upper 16 bits of HW_CLKCTRL_HBUS register */
+int is_hclk_autoslow_ok(void);
+
 extern int timing_ctrl_rams(int ss);
 
 #endif

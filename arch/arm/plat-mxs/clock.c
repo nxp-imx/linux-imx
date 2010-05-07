@@ -29,6 +29,9 @@
 #include <mach/clock.h>
 
 extern int cpufreq_trig_needed;
+static bool (*mxs_enable_h_autoslow)(bool enable);
+static void (*mxs_set_h_autoslow_flags)(u16 flags);
+
 static DEFINE_SPINLOCK(clockfw_lock);
 
 /*
@@ -283,3 +286,40 @@ void clk_unregister(struct clk_lookup *lookup)
 		lookup->clk->get_rate = NULL;
 }
 EXPORT_SYMBOL(clk_unregister);
+
+bool clk_enable_h_autoslow(bool enable)
+{
+	unsigned long flags;
+	bool ret = false;
+
+	if (mxs_enable_h_autoslow == NULL)
+		return ret;
+
+	spin_lock_irqsave(&clockfw_lock, flags);
+	ret = mxs_enable_h_autoslow(enable);
+	spin_unlock_irqrestore(&clockfw_lock, flags);
+
+	return ret;
+}
+EXPORT_SYMBOL(clk_enable_h_autoslow);
+
+void clk_set_h_autoslow_flags(u16 mask)
+{
+	unsigned long flags;
+
+	if (mxs_set_h_autoslow_flags == NULL)
+		return;
+
+	spin_lock_irqsave(&clockfw_lock, flags);
+	mxs_set_h_autoslow_flags(mask);
+	spin_unlock_irqrestore(&clockfw_lock, flags);
+}
+EXPORT_SYMBOL(clk_set_h_autoslow_flags);
+
+void clk_en_public_h_asm_ctrl(bool (*enable_func)(bool),
+	void (*set_func)(u16))
+{
+	mxs_enable_h_autoslow = enable_func;
+	mxs_set_h_autoslow_flags = set_func;
+}
+EXPORT_SYMBOL(clk_en_public_h_asm_ctrl);

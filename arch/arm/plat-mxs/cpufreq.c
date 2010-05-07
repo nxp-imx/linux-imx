@@ -40,6 +40,7 @@
 static struct regulator *cpu_regulator;
 static struct clk *cpu_clk;
 static struct clk *ahb_clk;
+static struct clk *x_clk;
 static struct clk *emi_clk;
 static struct regulator *vddd;
 static struct regulator *vdddbo;
@@ -143,8 +144,6 @@ static int set_op(struct cpufreq_policy *policy, unsigned int target_freq)
 			return 0;
 	}
 
-	cpu_clk_set_pll_on(cpu_clk, freqs.new);
-
 	if (cpu_regulator && (freqs.old < freqs.new)) {
 		ret = regulator_set_current_limit(cpu_regulator,
 			profiles[i].cur, profiles[i].cur);
@@ -157,10 +156,16 @@ static int set_op(struct cpufreq_policy *policy, unsigned int target_freq)
 	if (freqs.old > freqs.new) {
 		int ss = profiles[i].ss;
 
+		/* change emi while cpu is fastest to minimize
+		 * time spent changing emiclk
+		 */
+		clk_set_rate(emi_clk, (profiles[i].emi) * 1000);
 		clk_set_rate(cpu_clk, (profiles[i].cpu) * 1000);
 		clk_set_rate(ahb_clk, (profiles[i].ahb) * 1000);
-		clk_set_rate(emi_clk, (profiles[i].emi) * 1000);
+		/* x_clk order doesn't really matter */
+		clk_set_rate(x_clk, (profiles[i].xbus) * 1000);
 		timing_ctrl_rams(ss);
+
 		if (vddd && vdddbo && vddio && vdda) {
 			ret = regulator_set_voltage(vddd,
 						    profiles[i].vddd,
@@ -216,13 +221,18 @@ static int set_op(struct cpufreq_policy *policy, unsigned int target_freq)
 							    profiles[i].vdda,
 							    profiles[i].vdda);
 		}
+		/* x_clk order doesn't really matter */
+		clk_set_rate(x_clk, (profiles[i].xbus) * 1000);
 		timing_ctrl_rams(ss);
 		clk_set_rate(cpu_clk, (profiles[i].cpu) * 1000);
 		clk_set_rate(ahb_clk, (profiles[i].ahb) * 1000);
 		clk_set_rate(emi_clk, (profiles[i].emi) * 1000);
 	}
 
-	cpu_clk_set_pll_off(cpu_clk, freqs.new);
+	if (is_hclk_autoslow_ok())
+		clk_set_h_autoslow_flags(profiles[i].h_autoslow_flags);
+	else
+		clk_enable_h_autoslow(false);
 
 	if (high_freq_needed == 0)
 		cpufreq_notify_transition(&freqs, CPUFREQ_POSTCHANGE);
@@ -235,7 +245,6 @@ static int set_op(struct cpufreq_policy *policy, unsigned int target_freq)
 	if (high_freq_needed == 1) {
 		high_freq_needed = 0;
 		cur_freq_table_size = lcd_on_freq_table_size;
-		hbus_auto_slow_mode_disable();
 		set_freq_table(policy, cur_freq_table_size);
 		cpufreq_notify_transition(&freqs, CPUFREQ_POSTCHANGE);
 	}
@@ -297,11 +306,22 @@ static int mxs_target(struct cpufreq_policy *policy,
 		cpufreq_notify_transition(&freqs, CPUFREQ_PRECHANGE);
 		low_freq_bus_ready = low_freq_used();
 		if (low_freq_bus_ready) {
+			int i;
 			cur_freq_table_size = lcd_off_freq_table_size;
-			hbus_auto_slow_mode_enable();
+			/* find current table index to get
+			 * hbus autoslow flags and enable hbus autoslow.
+			 */
+			for (i = cur_freq_table_size - 1; i > 0; i--) {
+				if (profiles[i].cpu <= target_freq &&
+					target_freq < profiles[i - 1].cpu) {
+					clk_set_h_autoslow_flags(
+					profiles[i].h_autoslow_flags);
+					break;
+				}
+			}
 		} else {
 			cur_freq_table_size = lcd_on_freq_table_size;
-			hbus_auto_slow_mode_disable();
+			clk_enable_h_autoslow(false);
 		}
 
 		set_freq_table(policy, cur_freq_table_size);
@@ -356,6 +376,12 @@ static int __init mxs_cpu_init(struct cpufreq_policy *policy)
 	if (IS_ERR(ahb_clk)) {
 		ret = PTR_ERR(ahb_clk);
 		goto out_ahb;
+	}
+
+	x_clk = clk_get(NULL, "x");
+	if (IS_ERR(ahb_clk)) {
+		ret = PTR_ERR(x_clk);
+		goto out_x;
 	}
 
 	emi_clk = clk_get(NULL, "emi");
@@ -423,13 +449,13 @@ static int __init mxs_cpu_init(struct cpufreq_policy *policy)
 
 	for (i = 0; i < ARRAY_SIZE(profiles); i++) {
 		if ((profiles[i].cpu) == 0) {
-			lcd_off_freq_table_size = i + 1;
+			lcd_off_freq_table_size = i;
 			break;
 		}
 	}
 
 	if (i == ARRAY_SIZE(profiles))
-		lcd_off_freq_table_size = i ;
+		lcd_off_freq_table_size = i;
 
 	/* Set the current working point. */
 	set_freq_table(policy, lcd_on_freq_table_size);
@@ -451,6 +477,8 @@ out_cur:
 
 	clk_put(emi_clk);
 out_emi:
+	clk_put(x_clk);
+out_x:
 	clk_put(ahb_clk);
 out_ahb:
 	clk_put(cpu_clk);
