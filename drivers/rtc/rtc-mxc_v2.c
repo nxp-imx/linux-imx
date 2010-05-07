@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2004-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -37,6 +37,10 @@
 #include <linux/uaccess.h>
 #include <mach/hardware.h>
 #include <asm/io.h>
+#include <linux/mxc_srtc.h>
+
+
+#define SRTC_LPSCLR_LLPSC_LSH	17	 /* start bit for LSB time value */
 
 #define SRTC_LPPDR_INIT       0x41736166	/* init for glitch detect */
 
@@ -146,6 +150,12 @@ struct rtc_drv_data {
 	struct clk *clk;
 	bool irq_enable;
 };
+
+
+/* completion event for implementing RTC_WAIT_FOR_TIME_SET ioctl */
+DECLARE_COMPLETION(srtc_completion);
+/* global to save difference of 47-bit counter value */
+static int64_t time_diff;
 
 /*!
  * @defgroup RTC Real Time Clock (RTC) Driver
@@ -313,6 +323,8 @@ static int mxc_rtc_ioctl(struct device *dev, unsigned int cmd,
 	void __iomem *ioaddr = pdata->ioaddr;
 	unsigned long lock_flags = 0;
 	u32 lp_cr;
+	u64 time_47bit;
+	int retVal;
 
 	switch (cmd) {
 	case RTC_AIE_OFF:
@@ -339,6 +351,36 @@ static int mxc_rtc_ioctl(struct device *dev, unsigned int cmd,
 		__raw_writel(lp_cr, ioaddr + SRTC_LPCR);
 		spin_unlock_irqrestore(&rtc_lock, lock_flags);
 		return 0;
+
+	case RTC_READ_TIME_47BIT:
+		time_47bit = (((u64) __raw_readl(ioaddr + SRTC_LPSCMR)) << 32 |
+			((u64) __raw_readl(ioaddr + SRTC_LPSCLR)));
+		time_47bit >>= SRTC_LPSCLR_LLPSC_LSH;
+
+		if (arg && copy_to_user((u64 *) arg, &time_47bit, sizeof(u64)))
+			return -EFAULT;
+
+		return 0;
+
+	case RTC_WAIT_TIME_SET:
+
+		/* don't block without releasing mutex first */
+		mutex_unlock(&pdata->rtc->ops_lock);
+
+		/* sleep until awakened by SRTC driver when LPSCMR is changed */
+		wait_for_completion(&srtc_completion);
+
+		/* relock mutex because rtc_dev_ioctl will unlock again */
+		retVal = mutex_lock_interruptible(&pdata->rtc->ops_lock);
+
+		/* copy the new time difference = new time - previous time
+		  * to the user param. The difference is a signed value */
+		if (arg && copy_to_user((int64_t *) arg, &time_diff,
+			sizeof(int64_t)))
+			return -EFAULT;
+
+		return retVal;
+
 	}
 
 	return -ENOIOCTLCMD;
@@ -372,13 +414,30 @@ static int mxc_rtc_set_time(struct device *dev, struct rtc_time *tm)
 	struct rtc_drv_data *pdata = dev_get_drvdata(dev);
 	void __iomem *ioaddr = pdata->ioaddr;
 	unsigned long time;
+	u64 old_time_47bit, new_time_47bit;
 	int ret;
 	ret = rtc_tm_to_time(tm, &time);
 	if (ret != 0)
 		return ret;
 
+	old_time_47bit = (((u64) __raw_readl(ioaddr + SRTC_LPSCMR)) << 32 |
+			((u64) __raw_readl(ioaddr + SRTC_LPSCLR)));
+	old_time_47bit >>= SRTC_LPSCLR_LLPSC_LSH;
+
 	__raw_writel(time, ioaddr + SRTC_LPSCMR);
 	rtc_write_sync_lp(ioaddr);
+
+	new_time_47bit = (((u64) __raw_readl(ioaddr + SRTC_LPSCMR)) << 32 |
+			((u64) __raw_readl(ioaddr + SRTC_LPSCLR)));
+	new_time_47bit >>= SRTC_LPSCLR_LLPSC_LSH;
+
+	/* update the difference between previous time and new time */
+	time_diff = new_time_47bit - old_time_47bit;
+
+	/* signal all waiting threads that time changed */
+	complete_all(&srtc_completion);
+	/* reinitialize completion variable */
+	INIT_COMPLETION(srtc_completion);
 
 	return 0;
 }
