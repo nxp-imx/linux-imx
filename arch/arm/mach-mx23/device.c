@@ -613,7 +613,11 @@ static struct mxs_mmc_platform_data mx23_mmc0_data = {
 	.hw_release	= mxs_mmc_hw_release_mmc0,
 	.get_wp		= mxs_mmc_get_wp_mmc0,
 	.cmd_pullup	= mxs_mmc_cmd_pullup_mmc0,
-	.setclock	= mxs_mmc_setclock_mmc0,
+	 /*
+	 Don't change ssp clock because ssp1 and ssp2 share one ssp clock source
+	 ssp module have own divider.
+	 .setclock	= mxs_mmc_setclock_mmc0,
+	 */
 	.caps 		= MMC_CAP_4_BIT_DATA,
 	.min_clk	= 400000,
 	.max_clk	= 48000000,

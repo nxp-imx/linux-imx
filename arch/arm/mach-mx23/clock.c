@@ -145,6 +145,16 @@ static int local_clk_enable(struct clk *clk)
 }
 
 
+static bool mx23_is_clk_enabled(struct clk *clk)
+{
+	if (clk->enable_reg)
+		return (__raw_readl(clk->enable_reg) &
+				clk->enable_bits) ? 0 : 1;
+	else
+		return (clk->ref & CLK_EN_MASK) ? 1 : 0;
+}
+
+
 static int mx23_raw_enable(struct clk *clk)
 {
 	unsigned int reg;
@@ -1113,7 +1123,7 @@ static struct clk emi_clk = {
 	.busy_bits	= 28,
 	.xtal_busy_bits = 29,
 	.bypass_reg = CLKCTRL_BASE_ADDR + HW_CLKCTRL_CLKSEQ,
-	.bypass_bits = 7,
+	.bypass_bits = 6,
 };
 
 static unsigned long ssp_get_rate(struct clk *clk);
@@ -1122,8 +1132,11 @@ static int ssp_set_rate(struct clk *clk, unsigned long rate)
 {
 	int ret = -EINVAL;
 	u32 reg, div;
+	bool is_clk_enable;
 
-	local_clk_enable(clk);
+	is_clk_enable = mx23_is_clk_enabled(clk);
+	if (!is_clk_enable)
+		local_clk_enable(clk);
 
 	/* if the desired clock can be sourced from ref_xtal,
 	 * use ref_xtal to save power
@@ -1149,7 +1162,8 @@ static int ssp_set_rate(struct clk *clk, unsigned long rate)
 
 	ret = clk_busy_wait(clk);
 out:
-	local_clk_disable(clk);
+	if (!is_clk_enable)
+		local_clk_disable(clk);
 
 	if (ret != 0)
 		printk(KERN_ERR "%s: error %d\n", __func__, ret);
@@ -1208,7 +1222,7 @@ static struct clk ssp_clk = {
 	 .scale_reg = CLKCTRL_BASE_ADDR + HW_CLKCTRL_SSP,
 	 .scale_bits = 0,
 	 .bypass_reg = CLKCTRL_BASE_ADDR + HW_CLKCTRL_CLKSEQ,
-	 .bypass_bits = 3,
+	 .bypass_bits = 5,
 	 .set_rate = ssp_set_rate,
 	 .set_parent = ssp_set_parent,
 	 .set_sys_dependent_parent = ssp_set_sys_dependent_parent,
