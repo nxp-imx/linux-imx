@@ -17,6 +17,9 @@
  *
  * Bug fixes and cleanup by Philippe De Muyter (phdm@macqel.be)
  * Copyright (c) 2004-2006 Macq Electronique SA.
+ *
+ * Support for FEC IEEE 1588.
+ * Copyright (C) 2010 Freescale Semiconductor, Inc.
  */
 
 #include <linux/module.h>
@@ -54,6 +57,7 @@
 #endif
 
 #include "fec.h"
+#include "fec_1588.h"
 
 #if defined(CONFIG_ARCH_MXC) || defined(CONFIG_ARCH_MXS)
 #include <mach/hardware.h>
@@ -112,6 +116,8 @@
 #define FEC_ENET_RXB	((uint)0x01000000)	/* A buffer was received */
 #define FEC_ENET_MII	((uint)0x00800000)	/* MII interrupt */
 #define FEC_ENET_EBERR	((uint)0x00400000)	/* SDMA bus error */
+#define FEC_ENET_TS_AVAIL	((uint)0x00010000)
+#define FEC_ENET_TS_TIMER	((uint)0x00008000)
 
 /*
  * RMII mode to be configured via a gasket
@@ -196,6 +202,9 @@ struct fec_enet_private {
 	int	index;
 	int	link;
 	int	full_duplex;
+
+	struct fec_ptp_private *ptp_priv;
+	uint	ptimer_present;
 };
 
 /*
@@ -245,6 +254,7 @@ fec_enet_start_xmit(struct sk_buff *skb, struct net_device *dev)
 	struct bufdesc *bdp;
 	void *bufaddr;
 	unsigned short	status;
+	unsigned long	estatus;
 	unsigned long flags;
 
 	if (!fep->link) {
@@ -308,6 +318,16 @@ fec_enet_start_xmit(struct sk_buff *skb, struct net_device *dev)
 			| BD_ENET_TX_LAST | BD_ENET_TX_TC);
 	bdp->cbd_sc = status;
 
+	if (fep->ptimer_present) {
+		if (fec_ptp_do_txstamp(skb))
+			estatus = BD_ENET_TX_TS;
+		else
+			estatus = 0;
+#ifdef CONFIG_FEC_1588
+		bdp->cbd_esc = (estatus | BD_ENET_TX_INT);
+		bdp->cbd_bdu = 0;
+#endif
+	}
 	dev->trans_start = jiffies;
 
 	/* Trigger transmission start */
@@ -347,6 +367,7 @@ fec_enet_interrupt(int irq, void * dev_id)
 {
 	struct	net_device *dev = dev_id;
 	struct fec_enet_private *fep = netdev_priv(dev);
+	struct fec_ptp_private *fpp = fep->ptp_priv;
 	uint	int_events;
 	irqreturn_t ret = IRQ_NONE;
 
@@ -366,6 +387,16 @@ fec_enet_interrupt(int irq, void * dev_id)
 		if (int_events & FEC_ENET_TXF) {
 			ret = IRQ_HANDLED;
 			fec_enet_tx(dev);
+		}
+		if (int_events & FEC_ENET_TS_AVAIL) {
+			ret = IRQ_HANDLED;
+			fec_ptp_store_txstamp(fep->ptp_priv);
+		}
+
+		if (int_events & FEC_ENET_TS_TIMER) {
+			ret = IRQ_HANDLED;
+			if (fep->ptimer_present)
+				fpp->prtc++;
 		}
 	} while (int_events);
 
@@ -454,6 +485,7 @@ static void
 fec_enet_rx(struct net_device *dev)
 {
 	struct	fec_enet_private *fep = netdev_priv(dev);
+	struct	fec_ptp_private *fpp = fep->ptp_priv;
 	struct bufdesc *bdp;
 	unsigned short status;
 	struct	sk_buff	*skb;
@@ -535,6 +567,9 @@ fec_enet_rx(struct net_device *dev)
 			skb_put(skb, pkt_len - 4);	/* Make room */
 			skb_copy_to_linear_data(skb, data, pkt_len - 4);
 			skb->protocol = eth_type_trans(skb, dev);
+			/* 1588 messeage TS handle */
+			if (fep->ptimer_present)
+				fec_ptp_store_rxstamp(fpp, skb, bdp);
 			netif_rx(skb);
 		}
 
@@ -547,6 +582,11 @@ rx_processing_done:
 		/* Mark the buffer empty */
 		status |= BD_ENET_RX_EMPTY;
 		bdp->cbd_sc = status;
+#ifdef CONFIG_FEC_1588
+		bdp->cbd_esc = BD_ENET_RX_INT;
+		bdp->cbd_prot = 0;
+		bdp->cbd_bdu = 0;
+#endif
 
 		/* Update BD pointer to next entry */
 		if (status & BD_ENET_RX_WRAP)
@@ -921,6 +961,9 @@ static int fec_enet_alloc_buffers(struct net_device *dev)
 		bdp->cbd_bufaddr = dma_map_single(&dev->dev, skb->data,
 				FEC_ENET_RX_FRSIZE, DMA_FROM_DEVICE);
 		bdp->cbd_sc = BD_ENET_RX_EMPTY;
+#ifdef CONFIG_FEC_1588
+		bdp->cbd_esc = BD_ENET_RX_INT;
+#endif
 		bdp++;
 	}
 
@@ -934,6 +977,9 @@ static int fec_enet_alloc_buffers(struct net_device *dev)
 
 		bdp->cbd_sc = 0;
 		bdp->cbd_bufaddr = 0;
+#ifdef CONFIG_FEC_1588
+		bdp->cbd_esc = BD_ENET_TX_INT;
+#endif
 		bdp++;
 	}
 
@@ -1199,6 +1245,7 @@ fec_restart(struct net_device *dev, int duplex)
 {
 	struct fec_enet_private *fep = netdev_priv(dev);
 	int i;
+	uint ret = 0;
 	u32 temp_mac[2];
 #ifdef CONFIG_ARCH_MXS
 	unsigned long reg;
@@ -1304,12 +1351,25 @@ fec_restart(struct net_device *dev, int duplex)
 	/* Set MII speed */
 	writel(fep->phy_speed, fep->hwp + FEC_MII_SPEED);
 
+	if (fep->ptimer_present) {
+		/* Set Timer count */
+		ret = fec_ptp_start(fep->ptp_priv);
+		if (ret) {
+			fep->ptimer_present = 0;
+			reg = 0x0;
+		} else
+			reg = 0x00000010;
+	} else
+		reg = 0x0;
+
 	/* And last, enable the transmit and receive processing */
-	writel(2, fep->hwp + FEC_ECNTRL);
+	reg |= 0x00000002;
+	writel(reg, fep->hwp + FEC_ECNTRL);
 	writel(0, fep->hwp + FEC_R_DES_ACTIVE);
 
 	/* Enable interrupts we wish to service */
-	writel(FEC_ENET_TXF | FEC_ENET_RXF, fep->hwp + FEC_IMASK);
+	writel(FEC_ENET_TXF | FEC_ENET_RXF | FEC_ENET_TS_AVAIL |
+			FEC_ENET_TS_TIMER, fep->hwp + FEC_IMASK);
 }
 
 static void
@@ -1333,6 +1393,9 @@ fec_stop(struct net_device *dev)
 	writel(FEC_ENET_MII, fep->hwp + FEC_IEVENT);
 
 	writel(fep->phy_speed, fep->hwp + FEC_MII_SPEED);
+
+	if (fep->ptimer_present)
+		fec_ptp_stop(fep->ptp_priv);
 }
 
 static int __devinit
@@ -1421,6 +1484,18 @@ fec_probe(struct platform_device *pdev)
 	if (fec_enet_mii_probe(ndev) != 0)
 		goto failed_mii_probe;
 
+	fep->ptp_priv = kmalloc(sizeof(struct fec_ptp_private), GFP_KERNEL);
+	if (fep->ptp_priv) {
+		fep->ptp_priv->hwp = fep->hwp;
+		ret = fec_ptp_init(fep->ptp_priv);
+		if (ret)
+			printk(KERN_WARNING
+					"IEEE1588: ptp-timer is unavailable\n");
+		else
+			fep->ptimer_present = 1;
+	} else
+		printk(KERN_ERR "IEEE1588: failed to malloc memory\n");
+
 	ret = register_netdev(ndev);
 	if (ret)
 		goto failed_register;
@@ -1437,6 +1512,9 @@ fec_probe(struct platform_device *pdev)
 failed_mii_probe:
 failed_register:
 	fec_enet_mii_remove(fep);
+	if (fep->ptimer_present)
+		fec_ptp_cleanup(fep->ptp_priv);
+	kfree(fep->ptp_priv);
 failed_mii_init:
 failed_init:
 	clk_disable(fep->clk);
@@ -1472,6 +1550,9 @@ fec_drv_remove(struct platform_device *pdev)
 	clk_disable(fep->clk);
 	clk_put(fep->clk);
 	iounmap((void __iomem *)ndev->base_addr);
+	if (fep->ptimer_present)
+		fec_ptp_cleanup(fep->ptp_priv);
+	kfree(fep->ptp_priv);
 	unregister_netdev(ndev);
 	free_netdev(ndev);
 	return 0;
