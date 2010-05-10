@@ -1247,9 +1247,8 @@ fec_restart(struct net_device *dev, int duplex)
 	int i;
 	uint ret = 0;
 	u32 temp_mac[2];
-#ifdef CONFIG_ARCH_MXS
 	unsigned long reg;
-#endif
+
 	/* Whack a reset.  We should wait for this. */
 	writel(1, fep->hwp + FEC_ECNTRL);
 	udelay(10);
@@ -1368,8 +1367,11 @@ fec_restart(struct net_device *dev, int duplex)
 	writel(0, fep->hwp + FEC_R_DES_ACTIVE);
 
 	/* Enable interrupts we wish to service */
-	writel(FEC_ENET_TXF | FEC_ENET_RXF | FEC_ENET_TS_AVAIL |
-			FEC_ENET_TS_TIMER, fep->hwp + FEC_IMASK);
+	if (fep->ptimer_present)
+		writel(FEC_ENET_TXF | FEC_ENET_RXF | FEC_ENET_TS_AVAIL |
+				FEC_ENET_TS_TIMER, fep->hwp + FEC_IMASK);
+	else
+		writel(FEC_ENET_TXF | FEC_ENET_RXF, fep->hwp + FEC_IMASK);
 }
 
 static void
