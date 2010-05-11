@@ -63,7 +63,7 @@
 #endif /* CONFIG_MX3_VIDEO */
 
 #ifdef CONFIG_ARCH_MX5
-#define CONSISTENT_DMA_SIZE	(64 * SZ_1M)
+#define CONSISTENT_DMA_SIZE	(96 * SZ_1M)
 #else
 #define CONSISTENT_DMA_SIZE	(32 * SZ_1M)
 #endif
