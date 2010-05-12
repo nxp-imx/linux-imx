@@ -968,7 +968,9 @@ int32_t ipu_init_sync_panel(int disp, uint32_t pixel_clk,
 		if ((clk_get_usecount(g_pixel_clk[0]) == 0) &&
 				(clk_get_usecount(g_pixel_clk[1]) == 0)) {
 			di_parent = clk_get_parent(g_di_clk[disp]);
-			if (strcmp(di_parent->name, "tve_clk") != 0) {
+			if (strcmp(di_parent->name, "tve_clk") != 0 &&
+			    strcmp(di_parent->name, "ldb_di0_clk") != 0 &&
+			    strcmp(di_parent->name, "ldb_di1_clk") != 0)  {
 				rounded_pixel_clk = pixel_clk * 2;
 				while (rounded_pixel_clk < 150000000)
 					rounded_pixel_clk += pixel_clk * 2;

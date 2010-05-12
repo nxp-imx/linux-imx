@@ -1033,6 +1033,24 @@ static int mxcfb_ioctl(struct fb_info *fbi, unsigned int cmd, unsigned long arg)
 				return -EFAULT;
 			break;
 		}
+	case MXCFB_GET_DIFMT:
+		{
+			struct mxcfb_info *mxc_fbi =
+				(struct mxcfb_info *)fbi->par;
+
+			if (put_user(mxc_fbi->ipu_di_pix_fmt, argp))
+				return -EFAULT;
+			break;
+		}
+	case MXCFB_GET_FB_IPU_DI:
+		{
+			struct mxcfb_info *mxc_fbi =
+				(struct mxcfb_info *)fbi->par;
+
+			if (put_user(mxc_fbi->ipu_di, argp))
+				return -EFAULT;
+			break;
+		}
 	default:
 		retval = -EINVAL;
 	}

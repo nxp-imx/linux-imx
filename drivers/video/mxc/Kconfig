@@ -29,6 +29,11 @@ config FB_MXC_TVOUT_TVE
 	depends on FB_MXC_SYNC_PANEL
 	depends on MXC_IPU_V3
 
+config FB_MXC_LDB
+	tristate "MXC LDB"
+	depends on FB_MXC_SYNC_PANEL
+	depends on MXC_IPU_V3
+
 config FB_MXC_CLAA_WVGA_SYNC_PANEL
 	depends on FB_MXC_SYNC_PANEL
 	tristate "CLAA WVGA Panel"
