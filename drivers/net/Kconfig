@@ -1938,6 +1938,13 @@ config IN_BAND
 
 endchoice
 
+config FEC_L2SWITCH
+	bool "L2 Switch Ethernet Controller (of ColdFire CPUs)"
+	depends on ARCH_MX28 && !FEC
+	help
+	  Say Y here if you want to use the built-in 10/100 Ethernet Switch
+	  Controller on some Motorola ColdFire processors.
+
 config FEC2
 	bool "Second FEC ethernet controller (on some ColdFire CPUs)"
 	depends on FEC
