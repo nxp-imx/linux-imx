@@ -96,6 +96,24 @@ static struct cpu_wp cpu_wp_auto[] = {
 
 static struct fb_videomode video_modes[] = {
 	{
+	 /* NTSC TV output */
+	 "TV-NTSC", 60, 720, 480, 74074,
+	 122, 15,
+	 18, 26,
+	 1, 1,
+	 FB_SYNC_HOR_HIGH_ACT | FB_SYNC_VERT_HIGH_ACT | FB_SYNC_EXT,
+	 FB_VMODE_INTERLACED,
+	 0,},
+	{
+	 /* PAL TV output */
+	 "TV-PAL", 50, 720, 576, 74074,
+	 132, 11,
+	 22, 26,
+	 1, 1,
+	 FB_SYNC_HOR_HIGH_ACT | FB_SYNC_VERT_HIGH_ACT | FB_SYNC_EXT,
+	 FB_VMODE_INTERLACED | FB_VMODE_ODD_FLD_FIRST,
+	 0,},
+	{
 	 /* 720p60 TV output */
 	 "720P60", 60, 1280, 720, 13468,
 	 260, 109,
@@ -112,6 +130,12 @@ static struct fb_videomode video_modes[] = {
 	 21, 7,
 	 60, 10,
 	 0,
+	 FB_VMODE_NONINTERLACED,
+	 0,},
+	{
+	 /* 800x480 @ 55 Hz , pixel clk @ 25MHz */
+	 "CLAA-WVGA", 55, 800, 480, 40000, 40, 40, 5, 5, 20, 10,
+	 FB_SYNC_CLK_LAT_FALL,
 	 FB_VMODE_NONINTERLACED,
 	 0,},
 };
@@ -258,30 +282,75 @@ static struct mxc_fb_platform_data fb_data[] = {
 	{
 	 .interface_pix_fmt = IPU_PIX_FMT_RGB24,
 	 .mode_str = "1024x768M-16@60",
+	 .mode = video_modes,
+	 .num_modes = ARRAY_SIZE(video_modes),
 	 },
 	{
 	 .interface_pix_fmt = IPU_PIX_FMT_RGB565,
-	 .mode_str = "1024x768M-16@60",
+	 .mode_str = "CLAA-WVGA",
+	 .mode = video_modes,
+	 .num_modes = ARRAY_SIZE(video_modes),
 	 },
 };
 
-static int __initdata enable_vga = { 0 };
-static int __initdata enable_wvga = { 0 };
-static int __initdata enable_tv = { 0 };
-static int __initdata enable_mitsubishi_xga = { 0 };
-
-static void wvga_reset(void)
+extern int primary_di;
+static int __init mxc_init_fb(void)
 {
+	if (!machine_is_mx51_babbage())
+		return 0;
+
+	/* DI0-LVDS */
+	gpio_set_value(IOMUX_TO_GPIO(MX51_PIN_DI1_D0_CS), 0);
+	msleep(1);
+	gpio_set_value(IOMUX_TO_GPIO(MX51_PIN_DI1_D0_CS), 1);
+	gpio_set_value(IOMUX_TO_GPIO(MX51_PIN_CSI2_D12), 1);
+	gpio_set_value(IOMUX_TO_GPIO(MX51_PIN_CSI2_D13), 1);
+
+	/* DVI Detect */
+	gpio_request(IOMUX_TO_GPIO(MX51_PIN_NANDF_D12), "nandf_d12");
+	gpio_direction_input(IOMUX_TO_GPIO(MX51_PIN_NANDF_D12));
+	/* DVI Reset - Assert for i2c disabled mode */
+	gpio_request(IOMUX_TO_GPIO(MX51_PIN_DISPB2_SER_DIN), "dispb2_ser_din");
+	gpio_set_value(IOMUX_TO_GPIO(MX51_PIN_DISPB2_SER_DIN), 0);
+	gpio_direction_output(IOMUX_TO_GPIO(MX51_PIN_DISPB2_SER_DIN), 0);
+	/* DVI Power-down */
+	gpio_request(IOMUX_TO_GPIO(MX51_PIN_DISPB2_SER_DIO), "dispb2_ser_di0");
+	gpio_set_value(IOMUX_TO_GPIO(MX51_PIN_DISPB2_SER_DIO), 1);
+	gpio_direction_output(IOMUX_TO_GPIO(MX51_PIN_DISPB2_SER_DIO), 0);
+
+	/* WVGA Reset */
 	gpio_set_value(IOMUX_TO_GPIO(MX51_PIN_DI1_D1_CS), 1);
+
+	if (primary_di) {
+		printk(KERN_INFO "DI1 is primary\n");
+
+		/* DI1 -> DP-BG channel: */
+		mxc_fb_devices[1].num_resources = ARRAY_SIZE(mxcfb_resources);
+		mxc_fb_devices[1].resource = mxcfb_resources;
+		mxc_register_device(&mxc_fb_devices[1], &fb_data[1]);
+
+		/* DI0 -> DC channel: */
+		mxc_register_device(&mxc_fb_devices[0], &fb_data[0]);
+	} else {
+		printk(KERN_INFO "DI0 is primary\n");
+
+		/* DI0 -> DP-BG channel: */
+		mxc_fb_devices[0].num_resources = ARRAY_SIZE(mxcfb_resources);
+		mxc_fb_devices[0].resource = mxcfb_resources;
+		mxc_register_device(&mxc_fb_devices[0], &fb_data[0]);
+
+		/* DI1 -> DC channel: */
+		mxc_register_device(&mxc_fb_devices[1], &fb_data[1]);
+	}
+
+	/*
+	 * DI0/1 DP-FG channel:
+	 */
+	mxc_register_device(&mxc_fb_devices[2], NULL);
+
+	return 0;
 }
-
-static struct mxc_lcd_platform_data lcd_wvga_data = {
-	.reset = wvga_reset,
-};
-
-static struct platform_device lcd_wvga_device = {
-	.name = "lcd_claa",
-};
+device_initcall(mxc_init_fb);
 
 static int handle_edid(int *pixclk)
 {
@@ -369,160 +438,6 @@ static int handle_edid(int *pixclk)
 #endif
 	return 0;
 }
-
-static int __init mxc_init_fb(void)
-{
-	int pixclk = 0;
-
-	if (!machine_is_mx51_babbage())
-		return 0;
-
-	if (cpu_is_mx51_rev(CHIP_REV_1_1) == 1) {
-		enable_vga = 1;
-		fb_data[0].mode_str = NULL;
-		fb_data[1].mode_str = NULL;
-	}
-
-	/* DI1: Dumb LCD */
-	if (enable_wvga) {
-		fb_data[1].interface_pix_fmt = IPU_PIX_FMT_RGB565;
-		fb_data[1].mode_str = "800x480M-16@55";
-	}
-
-	/* DI0: lVDS */
-	if (enable_mitsubishi_xga) {
-		fb_data[0].interface_pix_fmt = IPU_PIX_FMT_LVDS666;
-		fb_data[0].mode = &(video_modes[1]);
-
-		gpio_set_value(IOMUX_TO_GPIO(MX51_PIN_DI1_D0_CS), 0);
-		msleep(1);
-		gpio_set_value(IOMUX_TO_GPIO(MX51_PIN_DI1_D0_CS), 1);
-
-		gpio_set_value(IOMUX_TO_GPIO(MX51_PIN_CSI2_D12), 1);
-		gpio_set_value(IOMUX_TO_GPIO(MX51_PIN_CSI2_D13), 1);
-	}
-
-	/* DVI Detect */
-	gpio_request(IOMUX_TO_GPIO(MX51_PIN_NANDF_D12), "nandf_d12");
-	gpio_direction_input(IOMUX_TO_GPIO(MX51_PIN_NANDF_D12));
-	/* DVI Reset - Assert for i2c disabled mode */
-	gpio_request(IOMUX_TO_GPIO(MX51_PIN_DISPB2_SER_DIN), "dispb2_ser_din");
-	gpio_set_value(IOMUX_TO_GPIO(MX51_PIN_DISPB2_SER_DIN), 0);
-	gpio_direction_output(IOMUX_TO_GPIO(MX51_PIN_DISPB2_SER_DIN), 0);
-	/* DVI Power-down */
-	gpio_request(IOMUX_TO_GPIO(MX51_PIN_DISPB2_SER_DIO), "dispb2_ser_di0");
-	gpio_set_value(IOMUX_TO_GPIO(MX51_PIN_DISPB2_SER_DIO), 1);
-	gpio_direction_output(IOMUX_TO_GPIO(MX51_PIN_DISPB2_SER_DIO), 0);
-
-	mxc_register_device(&lcd_wvga_device, &lcd_wvga_data);
-
-	if (cpu_is_mx51_rev(CHIP_REV_1_1) == 2)
-		handle_edid(&pixclk);
-
-	if (enable_vga) {
-		printk(KERN_INFO "VGA monitor is primary\n");
-	} else if (enable_wvga) {
-		printk(KERN_INFO "WVGA LCD panel is primary\n");
-	} else if (enable_tv == 2)
-		printk(KERN_INFO "HDTV is primary\n");
-	else
-		printk(KERN_INFO "DVI monitor is primary\n");
-
-	if (enable_tv) {
-		printk(KERN_INFO "HDTV is specified as %d\n", enable_tv);
-		fb_data[1].interface_pix_fmt = IPU_PIX_FMT_YUV444;
-		fb_data[1].mode = &(video_modes[0]);
-	}
-
-	/* Once a customer knows the platform configuration,
-	   this should be simplified to what is desired.
-	 */
-	if (enable_vga || enable_wvga || enable_tv == 2) {
-		/*
-		 * DI1 -> DP-BG channel:
-		 *
-		 *    dev    di-out-fmt    default-videmode
-		 *
-		 * 1. VGA       RGB 	   1024x768M-16@60
-		 * 2. WVGA      RGB 	   800x480M-16@55
-		 * 3. TVE       YUV	   video_modes[0]
-		 */
-		mxc_fb_devices[1].num_resources = ARRAY_SIZE(mxcfb_resources);
-		mxc_fb_devices[1].resource = mxcfb_resources;
-		mxc_register_device(&mxc_fb_devices[1], &fb_data[1]);
-		if (fb_data[0].mode_str || fb_data[0].mode)
-			/*
-			 * DI0 -> DC channel:
-			 *
-			 *    dev    di-out-fmt    default-videmode
-			 *
-			 * 1. LVDS      RGB 	   video_modes[1]
-			 * 2. DVI       RGB 	   1024x768M-16@60
-			 */
-			mxc_register_device(&mxc_fb_devices[0], &fb_data[0]);
-	} else {
-		/*
-		 * DI0 -> DP-BG channel:
-		 *
-		 *    dev    di-out-fmt    default-videmode
-		 *
-		 * 1. LVDS      RGB 	   video_modes[1]
-		 * 2. DVI       RGB 	   1024x768M-16@60
-		 */
-		mxc_fb_devices[0].num_resources = ARRAY_SIZE(mxcfb_resources);
-		mxc_fb_devices[0].resource = mxcfb_resources;
-		mxc_register_device(&mxc_fb_devices[0], &fb_data[0]);
-		if (fb_data[1].mode_str || fb_data[1].mode)
-			/*
-			 * DI1 -> DC channel:
-			 *
-			 *    dev    di-out-fmt    default-videmode
-			 *
-			 * 1. VGA       RGB 	   1024x768M-16@60
-			 * 2. WVGA      RGB 	   800x480M-16@55
-			 * 3. TVE       YUV	   video_modes[0]
-			 */
-			mxc_register_device(&mxc_fb_devices[1], &fb_data[1]);
-	}
-
-	/*
-	 * DI0/1 DP-FG channel:
-	 */
-	mxc_register_device(&mxc_fb_devices[2], NULL);
-
-	return 0;
-}
-device_initcall(mxc_init_fb);
-
-static int __init vga_setup(char *__unused)
-{
-	enable_vga = 1;
-	return 1;
-}
-__setup("vga", vga_setup);
-
-static int __init wvga_setup(char *__unused)
-{
-	enable_wvga = 1;
-	return 1;
-}
-__setup("wvga", wvga_setup);
-
-static int __init mitsubishi_xga_setup(char *__unused)
-{
-	enable_mitsubishi_xga = 1;
-	return 1;
-}
-__setup("mitsubishi_xga", mitsubishi_xga_setup);
-
-static int __init tv_setup(char *s)
-{
-	enable_tv = 1;
-	if (strcmp(s, "2") == 0 || strcmp(s, "=2") == 0)
-		enable_tv = 2;
-	return 1;
-}
-__setup("hdtv", tv_setup);
 
 static void dvi_reset(void)
 {

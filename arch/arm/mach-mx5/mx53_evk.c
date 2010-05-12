@@ -108,6 +108,24 @@ static struct cpu_wp cpu_wp_auto[] = {
 
 static struct fb_videomode video_modes[] = {
 	{
+	 /* NTSC TV output */
+	 "TV-NTSC", 60, 720, 480, 74074,
+	 122, 15,
+	 18, 26,
+	 1, 1,
+	 FB_SYNC_HOR_HIGH_ACT | FB_SYNC_VERT_HIGH_ACT | FB_SYNC_EXT,
+	 FB_VMODE_INTERLACED,
+	 0,},
+	{
+	 /* PAL TV output */
+	 "TV-PAL", 50, 720, 576, 74074,
+	 132, 11,
+	 22, 26,
+	 1, 1,
+	 FB_SYNC_HOR_HIGH_ACT | FB_SYNC_VERT_HIGH_ACT | FB_SYNC_EXT,
+	 FB_VMODE_INTERLACED | FB_VMODE_ODD_FLD_FIRST,
+	 0,},
+	{
 	 /* 720p60 TV output */
 	 "720P60", 60, 1280, 720, 13468,
 	 260, 109,
@@ -126,6 +144,22 @@ static struct fb_videomode video_modes[] = {
 	 0,
 	 FB_VMODE_NONINTERLACED,
 	 0,},
+	{
+	 /* 800x480 @ 55 Hz , pixel clk @ 25MHz */
+	 "CLAA-WVGA", 55, 800, 480, 40000, 40, 40, 5, 5, 20, 10,
+	 FB_SYNC_CLK_LAT_FALL,
+	 FB_VMODE_NONINTERLACED,
+	 0,},
+	{
+	/* 1600x1200 @ 60 Hz 162M pixel clk*/
+	"UXGA", 60, 1600, 1200, 6172,
+	304, 64,
+	1, 46,
+	192, 3,
+	FB_SYNC_HOR_HIGH_ACT|FB_SYNC_VERT_HIGH_ACT |
+	FB_SYNC_EXT,
+	FB_VMODE_NONINTERLACED,
+	0,},
 };
 
 struct cpu_wp *mx53_evk_get_cpu_wp(int *wp)
@@ -235,101 +269,43 @@ static struct resource mxcfb_resources[] = {
 static struct mxc_fb_platform_data fb_data[] = {
 	{
 	 .interface_pix_fmt = IPU_PIX_FMT_RGB565,
-	 .mode_str = "800x480M-16@55",
+	 .mode_str = "CLAA-WVGA",
+	 .mode = video_modes,
+	 .num_modes = ARRAY_SIZE(video_modes),
 	 },
 	{
-	 .interface_pix_fmt = IPU_PIX_FMT_RGB24,
+	 .interface_pix_fmt = IPU_PIX_FMT_BGR24,
 	 .mode_str = "1024x768M-16@60",
+	 .mode = video_modes,
+	 .num_modes = ARRAY_SIZE(video_modes),
 	 },
 };
 
-static int __initdata enable_vga = { 0 };
-static int __initdata enable_tv = { 0 };
-static int __initdata enable_dvi = { 0 };
-
-static void wvga_reset(void)
-{
-}
-
-static struct mxc_lcd_platform_data lcd_wvga_data = {
-	.reset = wvga_reset,
-};
-
-static struct platform_device lcd_wvga_device = {
-	.name = "lcd_claa",
-};
-
+extern int primary_di;
 static int __init mxc_init_fb(void)
 {
 	if (!machine_is_mx53_evk())
 		return 0;
 
-	/* by default, fb0 is wvga, fb1 is vga or tv */
-	if (enable_vga) {
-		printk(KERN_INFO "VGA monitor is primary\n");
-	} else if (enable_tv == 2)
-		printk(KERN_INFO "HDTV is primary\n");
-	else if (enable_dvi)
-		printk(KERN_INFO "DVI is primary\n");
-	else
-		printk(KERN_INFO "WVGA LCD panel is primary\n");
-
-	if (enable_tv) {
-		printk(KERN_INFO "HDTV is specified as %d\n", enable_tv);
-		fb_data[1].interface_pix_fmt = IPU_PIX_FMT_YUV444;
-		fb_data[1].mode = &(video_modes[0]);
-	}
-
-	if (enable_dvi) {
-		fb_data[0].mode_str = "1024x768M-16@60";
-		fb_data[0].interface_pix_fmt = IPU_PIX_FMT_RGB24;
-	}
-
-	/* Once a customer knows the platform configuration,
-	   this should be simplified to what is desired.
-	 */
-	if (enable_vga || enable_tv == 2) {
-		/*
-		 * DI1 -> DP-BG channel:
-		 *
-		 *    dev    di-out-fmt    default-videmode
-		 *
-		 * 1. VGA       RGB 	   1024x768M-16@60
-		 * 2. TVE       YUV	   video_modes[0]
-		 */
+	if (primary_di) {
+		printk(KERN_INFO "DI1 is primary\n");
+		/* DI1 -> DP-BG channel: */
 		mxc_fb_devices[1].num_resources = ARRAY_SIZE(mxcfb_resources);
 		mxc_fb_devices[1].resource = mxcfb_resources;
 		mxc_register_device(&mxc_fb_devices[1], &fb_data[1]);
-		if (fb_data[0].mode_str || fb_data[0].mode)
-			/*
-			 * DI0 -> DC channel:
-			 *
-			 *    dev    di-out-fmt    default-videmode
-			 *
-			 * 1. WVGA      RGB 	   800x480M-16@55
-			 */
-			mxc_register_device(&mxc_fb_devices[0], &fb_data[0]);
+
+		/* DI0 -> DC channel: */
+		mxc_register_device(&mxc_fb_devices[0], &fb_data[0]);
 	} else {
-		/*
-		 * DI0 -> DP-BG channel:
-		 *
-		 *    dev    di-out-fmt    default-videmode
-		 *
-		 * 1. WVGA      RGB 	   800x480M-16@55
-		 */
+		printk(KERN_INFO "DI0 is primary\n");
+
+		/* DI0 -> DP-BG channel: */
 		mxc_fb_devices[0].num_resources = ARRAY_SIZE(mxcfb_resources);
 		mxc_fb_devices[0].resource = mxcfb_resources;
 		mxc_register_device(&mxc_fb_devices[0], &fb_data[0]);
-		if (fb_data[1].mode_str || fb_data[1].mode)
-			/*
-			 * DI1 -> DC channel:
-			 *
-			 *    dev    di-out-fmt    default-videmode
-			 *
-			 * 1. VGA       RGB 	   1024x768M-16@60
-			 * 2. TVE       YUV	   video_modes[0]
-			 */
-			mxc_register_device(&mxc_fb_devices[1], &fb_data[1]);
+
+		/* DI1 -> DC channel: */
+		mxc_register_device(&mxc_fb_devices[1], &fb_data[1]);
 	}
 
 	/*
@@ -340,29 +316,6 @@ static int __init mxc_init_fb(void)
 	return 0;
 }
 device_initcall(mxc_init_fb);
-
-static int __init dvi_setup(char *s)
-{
-	enable_dvi = 1;
-	return 1;
-}
-__setup("dvi", dvi_setup);
-
-static int __init vga_setup(char *__unused)
-{
-	enable_vga = 1;
-	return 1;
-}
-__setup("vga", vga_setup);
-
-static int __init tv_setup(char *s)
-{
-	enable_tv = 1;
-	if (strcmp(s, "2") == 0 || strcmp(s, "=2") == 0)
-		enable_tv = 2;
-	return 1;
-}
-__setup("hdtv", tv_setup);
 
 static struct mxc_camera_platform_data camera_data = {
 	.analog_regulator = "VSD",
@@ -734,7 +687,6 @@ static void __init mxc_board_init(void)
 	mxc_register_device(&mxc_rtc_device, &srtc_data);
 	mxc_register_device(&mxc_w1_master_device, &mxc_w1_data);
 	mxc_register_device(&mxc_ipu_device, &mxc_ipu_data);
-	mxc_register_device(&lcd_wvga_device, &lcd_wvga_data);
 	mxc_register_device(&mxc_tve_device, &tve_data);
 	mxc_register_device(&mxcvpu_device, &mxc_vpu_data);
 	mxc_register_device(&gpu_device, NULL);

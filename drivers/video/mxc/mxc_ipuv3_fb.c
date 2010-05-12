@@ -56,11 +56,14 @@
  * Structure containing the MXC specific framebuffer information.
  */
 struct mxcfb_info {
+	char *fb_mode_str;
+	int default_bpp;
 	int cur_blank;
 	int next_blank;
 	ipu_channel_t ipu_ch;
 	int ipu_di;
 	u32 ipu_di_pix_fmt;
+	bool ipu_ext_clk;
 	bool overlay;
 	bool alpha_chan_en;
 	dma_addr_t alpha_phy_addr0;
@@ -93,12 +96,9 @@ enum {
 	BOTH_OFF
 };
 
-static char *fb_mode;
-static unsigned long default_bpp = 16;
 static bool g_dp_in_use;
 LIST_HEAD(fb_alloc_list);
 static struct fb_info *mxcfb_info[3];
-static int ext_clk_used;
 
 static uint32_t bpp_to_pixfmt(struct fb_info *fbi)
 {
@@ -125,6 +125,7 @@ static irqreturn_t mxcfb_irq_handler(int irq, void *dev_id);
 static int mxcfb_blank(int blank, struct fb_info *info);
 static int mxcfb_map_video_memory(struct fb_info *fbi);
 static int mxcfb_unmap_video_memory(struct fb_info *fbi);
+static int mxcfb_option_setup(struct fb_info *info, char *options);
 
 /*
  * Set fixed framebuffer parameters based on variable settings.
@@ -347,7 +348,7 @@ static int mxcfb_set_par(struct fb_info *fbi)
 		}
 		if (fbi->var.vmode & FB_VMODE_ODD_FLD_FIRST) /* PAL */
 			sig_cfg.odd_field_first = true;
-		if ((fbi->var.sync & FB_SYNC_EXT) || ext_clk_used)
+		if ((fbi->var.sync & FB_SYNC_EXT) || mxc_fbi->ipu_ext_clk)
 			sig_cfg.ext_clk = true;
 		if (fbi->var.sync & FB_SYNC_HOR_HIGH_ACT)
 			sig_cfg.Hsync_pol = true;
@@ -555,7 +556,7 @@ static int mxcfb_check_var(struct fb_var_screeninfo *var, struct fb_info *info)
 
 	if ((var->bits_per_pixel != 32) && (var->bits_per_pixel != 24) &&
 	    (var->bits_per_pixel != 16) && (var->bits_per_pixel != 8))
-		var->bits_per_pixel = default_bpp;
+		var->bits_per_pixel = 16;
 
 	switch (var->bits_per_pixel) {
 	case 8:
@@ -1487,6 +1488,8 @@ static int mxcfb_probe(struct platform_device *pdev)
 	struct mxcfb_info *mxcfbi;
 	struct mxc_fb_platform_data *plat_data = pdev->dev.platform_data;
 	struct resource *res;
+	char *options;
+	char name[] = "mxcdi0fb";
 	int ret = 0;
 
 	/*
@@ -1498,6 +1501,13 @@ static int mxcfb_probe(struct platform_device *pdev)
 		goto err0;
 	}
 	mxcfbi = (struct mxcfb_info *)fbi->par;
+
+	name[5] += pdev->id;
+	if (fb_get_options(name, &options))
+		return -ENODEV;
+
+	if (options)
+		mxcfb_option_setup(fbi, options);
 
 	if (!g_dp_in_use) {
 		mxcfbi->ipu_ch_irq = IPU_IRQ_BG_SYNC_EOF;
@@ -1579,18 +1589,25 @@ static int mxcfb_probe(struct platform_device *pdev)
 	fbi->var.xres = 240;
 	fbi->var.yres = 320;
 
-	if (!fb_mode && plat_data && plat_data->mode_str)
-		fb_find_mode(&fbi->var, fbi, plat_data->mode_str, NULL, 0, NULL,
-			     default_bpp);
+	if (!mxcfbi->default_bpp)
+		mxcfbi->default_bpp = 16;
 
-	if (fb_mode)
-		fb_find_mode(&fbi->var, fbi, fb_mode, NULL, 0, NULL,
-			     default_bpp);
-
-	if (plat_data) {
+	if (plat_data && !mxcfbi->ipu_di_pix_fmt)
 		mxcfbi->ipu_di_pix_fmt = plat_data->interface_pix_fmt;
-		if (!fb_mode && plat_data->mode)
-			fb_videomode_to_var(&fbi->var, plat_data->mode);
+
+	if (plat_data && plat_data->mode && plat_data->num_modes)
+		fb_videomode_to_modelist(plat_data->mode, plat_data->num_modes,
+				&fbi->modelist);
+
+	if (!mxcfbi->fb_mode_str && plat_data && plat_data->mode_str)
+		mxcfbi->fb_mode_str = plat_data->mode_str;
+
+	if (mxcfbi->fb_mode_str) {
+		ret = fb_find_mode(&fbi->var, fbi, mxcfbi->fb_mode_str, NULL, 0, NULL,
+				mxcfbi->default_bpp);
+		if ((!ret || (ret > 2)) && plat_data && plat_data->mode && plat_data->num_modes)
+			fb_find_mode(&fbi->var, fbi, mxcfbi->fb_mode_str, plat_data->mode,
+					plat_data->num_modes, NULL, mxcfbi->default_bpp);
 	}
 
 	mxcfb_check_var(&fbi->var, fbi);
@@ -1662,28 +1679,55 @@ static struct platform_driver mxcfb_driver = {
 /*
  * Parse user specified options (`video=trident:')
  * example:
- * 	video=trident:800x600,bpp=16,noaccel
+ * 	video=mxcdi0fb:RGB24, 1024x768M-16@60,bpp=16,noaccel
  */
-int mxcfb_setup(char *options)
+static int mxcfb_option_setup(struct fb_info *info, char *options)
 {
+	struct mxcfb_info *mxcfbi = info->par;
 	char *opt;
+
 	if (!options || !*options)
 		return 0;
+
 	while ((opt = strsep(&options, ",")) != NULL) {
 		if (!*opt)
 			continue;
-		if (!strncmp(opt, "ext_clk", 7)) {
-			ext_clk_used = true;
+
+		if (!strncmp(opt, "RGB24", 5)) {
+			mxcfbi->ipu_di_pix_fmt = IPU_PIX_FMT_RGB24;
 			continue;
-		} else
-			ext_clk_used = false;
-
+		}
+		if (!strncmp(opt, "BGR24", 5)) {
+			mxcfbi->ipu_di_pix_fmt = IPU_PIX_FMT_BGR24;
+			continue;
+		}
+		if (!strncmp(opt, "RGB565", 6)) {
+			mxcfbi->ipu_di_pix_fmt = IPU_PIX_FMT_RGB565;
+			continue;
+		}
+		if (!strncmp(opt, "RGB666", 6)) {
+			mxcfbi->ipu_di_pix_fmt = IPU_PIX_FMT_RGB666;
+			continue;
+		}
+		if (!strncmp(opt, "YUV444", 6)) {
+			mxcfbi->ipu_di_pix_fmt = IPU_PIX_FMT_YUV444;
+			continue;
+		}
+		if (!strncmp(opt, "LVDS666", 7)) {
+			mxcfbi->ipu_di_pix_fmt = IPU_PIX_FMT_LVDS666;
+			continue;
+		}
+		if (!strncmp(opt, "ext_clk", 7)) {
+			mxcfbi->ipu_ext_clk = true;
+			continue;
+		}
 		if (!strncmp(opt, "bpp=", 4))
-			default_bpp = simple_strtoul(opt + 4, NULL, 0);
+			mxcfbi->default_bpp =
+				simple_strtoul(opt + 4, NULL, 0);
 		else
-			fb_mode = opt;
-
+			mxcfbi->fb_mode_str = opt;
 	}
+
 	return 0;
 }
 
@@ -1696,19 +1740,7 @@ int mxcfb_setup(char *options)
  */
 int __init mxcfb_init(void)
 {
-	int ret = 0;
-#ifndef MODULE
-	char *option = NULL;
-#endif
-
-#ifndef MODULE
-	if (fb_get_options("mxcfb", &option))
-		return -ENODEV;
-	mxcfb_setup(option);
-#endif
-
-	ret = platform_driver_register(&mxcfb_driver);
-	return ret;
+	return platform_driver_register(&mxcfb_driver);
 }
 
 void mxcfb_exit(void)

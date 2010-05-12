@@ -448,6 +448,7 @@ static void mxc_init_fb(void)
 		printk(KERN_INFO "TV is primary display\n");
 		fb_data.interface_pix_fmt = IPU_PIX_FMT_YUV444;
 		fb_data.mode = &tv_mode;
+		fb_data.num_modes = 1;
 		mxc_fb_device[1].dev.platform_data = &fb_data;
 		(void)platform_device_register(&mxc_fb_device[1]);
 		(void)platform_device_register(&mxc_fb_device[0]);

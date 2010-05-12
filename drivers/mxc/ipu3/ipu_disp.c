@@ -969,17 +969,11 @@ int32_t ipu_init_sync_panel(int disp, uint32_t pixel_clk,
 				(clk_get_usecount(g_pixel_clk[1]) == 0)) {
 			di_parent = clk_get_parent(g_di_clk[disp]);
 			if (strcmp(di_parent->name, "tve_clk") != 0) {
-				rounded_pixel_clk =
-					clk_round_rate(g_pixel_clk[disp], pixel_clk);
-				div  = clk_get_rate(di_parent) / rounded_pixel_clk;
-				if (div % 2)
-					div++;
-
-				if (clk_get_rate(di_parent) != div * rounded_pixel_clk)
-					clk_set_rate(di_parent, div * rounded_pixel_clk);
-				msleep(10);
-				clk_set_rate(g_di_clk[disp], 2 * rounded_pixel_clk);
-				msleep(10);
+				rounded_pixel_clk = pixel_clk * 2;
+				while (rounded_pixel_clk < 150000000)
+					rounded_pixel_clk += pixel_clk * 2;
+				clk_set_rate(di_parent, rounded_pixel_clk);
+				clk_set_rate(g_di_clk[disp], pixel_clk);
 			}
 		}
 		clk_set_parent(g_pixel_clk[disp], g_di_clk[disp]);

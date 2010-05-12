@@ -221,8 +221,9 @@ static int _is_tvout_mode_hd_compatible(void)
 static int tve_setup(int mode)
 {
 	u32 reg;
-	struct clk *pll3_clk;
-	unsigned long pll3_clock_rate = 216000000, di1_clock_rate = 27000000;
+	struct clk *tve_parent_clk;
+	unsigned long parent_clock_rate = 216000000, di1_clock_rate = 27000000;
+	unsigned long tve_clock_rate = 216000000;
 	struct clk *ipu_di1_clk;
 	unsigned long lock_flags;
 
@@ -236,25 +237,30 @@ static int tve_setup(int mode)
 	switch (mode) {
 	case TVOUT_FMT_PAL:
 	case TVOUT_FMT_NTSC:
-		pll3_clock_rate = 216000000;
+		parent_clock_rate = 216000000;
 		di1_clock_rate = 27000000;
 		break;
 	case TVOUT_FMT_720P60:
-		pll3_clock_rate = 297000000;
+		parent_clock_rate = 297000000;
+		if (cpu_is_mx53())
+			tve_clock_rate = 297000000;
 		di1_clock_rate = 74250000;
 		break;
 	}
 	if (enabled)
 		clk_disable(tve.clk);
 
-	pll3_clk = clk_get(NULL, "pll3");
+	tve_parent_clk = clk_get_parent(tve.clk);
 	ipu_di1_clk = clk_get(NULL, "ipu_di1_clk");
 
-	clk_disable(pll3_clk);
-	clk_set_rate(pll3_clk, pll3_clock_rate);
-	clk_set_rate(ipu_di1_clk, di1_clock_rate);
+	clk_disable(tve_parent_clk);
+	clk_set_rate(tve_parent_clk, parent_clock_rate);
+
+	if (cpu_is_mx53())
+		clk_set_rate(tve.clk, tve_clock_rate);
 
 	clk_enable(tve.clk);
+	clk_set_rate(ipu_di1_clk, di1_clock_rate);
 
 	/* select output video format */
 	if (mode == TVOUT_FMT_PAL) {
@@ -748,21 +754,36 @@ static int tve_probe(struct platform_device *pdev)
 
 	clk_disable(tve.clk);
 
+	ret = fb_register_client(&nb);
+	if (ret < 0)
+		goto err2;
+
 	/* is primary display? */
 	if (primary) {
-		struct fb_event event;
+		struct fb_var_screeninfo var;
+		const struct fb_videomode *mode;
 
-		event.info = tve_fbi;
-		tve_fb_event(NULL, FB_EVENT_MODE_CHANGE, &event);
+		memset(&var, 0, sizeof(var));
+		mode = fb_match_mode(&tve_fbi->var, &tve_fbi->modelist);
+		if (mode) {
+			pr_debug("TVE: fb mode found\n");
+			fb_videomode_to_var(&var, mode);
+		} else {
+			pr_warning("TVE: can not find video mode\n");
+			goto err2;
+		}
+		acquire_console_sem();
+		tve_fbi->flags |= FBINFO_MISC_USEREVENT;
+		fb_set_var(tve_fbi, &var);
+		tve_fbi->flags &= ~FBINFO_MISC_USEREVENT;
+		release_console_sem();
+
 		acquire_console_sem();
 		fb_blank(tve_fbi, FB_BLANK_UNBLANK);
 		release_console_sem();
 		fb_show_logo(tve_fbi, 0);
 	}
 
-	ret = fb_register_client(&nb);
-	if (ret < 0)
-		goto err2;
 
 	return 0;
 err2:

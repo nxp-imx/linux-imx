@@ -292,6 +292,7 @@ struct mxc_lightsensor_platform_data {
 
 struct mxc_fb_platform_data {
 	struct fb_videomode *mode;
+	int num_modes;
 	char *mode_str;
 	u32 interface_pix_fmt;
 };
