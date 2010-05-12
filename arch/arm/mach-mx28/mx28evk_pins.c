@@ -539,7 +539,8 @@ static struct pin_desc mx28evk_fixed_pins[] = {
 	 },
 #endif
 
-#if defined(CONFIG_FEC) || defined(CONFIG_FEC_MODULE)
+#if defined(CONFIG_FEC) || defined(CONFIG_FEC_MODULE)\
+	|| defined(CONFIG_FEC_L2SWITCH)
 	{
 	 .name = "ENET0_MDC",
 	 .id = PINID_ENET0_MDC,
@@ -1070,7 +1071,8 @@ static struct pin_desc mx28evk_gpmi_pins[] = {
 	 },
 };
 
-#if defined(CONFIG_FEC) || defined(CONFIG_FEC_MODULE)
+#if defined(CONFIG_FEC) || defined(CONFIG_FEC_MODULE)\
+	|| defined(CONFIG_FEC_L2SWITCH)
 int mx28evk_enet_gpio_init(void)
 {
 	/* pwr */

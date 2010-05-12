@@ -220,6 +220,18 @@ static struct platform_device mxs_fec[] = {
 };
 #endif
 
+#if defined(CONFIG_FEC_L2SWITCH)
+static struct platform_device mxs_l2switch[] = {
+	{
+	.name = "mxs-l2switch",
+	.id = 0,
+	.dev = {
+		.release = mxs_nop_release,
+		},
+	},
+};
+#endif
+
 #if defined(CONFIG_FB_MXS) || defined(CONFIG_FB_MXS_MODULE)
 static struct platform_device mxs_fb = {
 	.name	= "mxs-fb",
@@ -592,6 +604,14 @@ static struct mxs_dev_lookup dev_lookup[] = {
 	.name = "mxs-fec",
 	.size = ARRAY_SIZE(mxs_fec),
 	.pdev = mxs_fec,
+	},
+#endif
+
+#if defined(CONFIG_FEC_L2SWITCH)
+	{
+	.name = "mxs-l2switch",
+	.size = ARRAY_SIZE(mxs_l2switch),
+	.pdev = mxs_l2switch,
 	},
 #endif
 

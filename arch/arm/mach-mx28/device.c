@@ -44,6 +44,7 @@
 
 #include "regs-digctl.h"
 #include "device.h"
+#include "mx28evk.h"
 #include "mx28_pins.h"
 
 #if defined(CONFIG_SERIAL_MXS_DUART) || \
@@ -787,6 +788,58 @@ static void __init mx28_init_fec(void)
 	;
 }
 #endif
+
+#if defined(CONFIG_FEC_L2SWITCH)
+static struct resource l2switch_resources[] = {
+	{
+		.start  = ENET_PHYS_ADDR,
+		.end    = ENET_PHYS_ADDR + 0x17FFC,
+		.flags  = IORESOURCE_MEM
+	},
+	{
+		.start  = IRQ_ENET_SWI,
+		.end    = IRQ_ENET_SWI,
+		.flags  = IORESOURCE_IRQ
+	},
+};
+
+/* Define the fixed address of the L2 Switch hardware. */
+static unsigned int switch_platform_hw[2] = {
+	(0x800F8000),
+	(0x800FC000),
+};
+
+static struct fec_platform_data fec_enet = {
+	.phy = PHY_INTERFACE_MODE_RMII,
+	.init = mx28evk_enet_gpio_init,
+};
+
+static struct switch_platform_data l2switch_data = {
+	.id 		= 0,
+	.fec_enet	= &fec_enet,
+	.hash_table	= 0,
+	.switch_hw	= switch_platform_hw,
+};
+
+static void __init mx28_init_l2switch(void)
+{
+	struct platform_device *pdev;
+	pdev = mxs_get_device("mxs-l2switch", 0);
+	if (pdev == NULL || IS_ERR(pdev))
+		return;
+
+	pdev->resource = l2switch_resources;
+	pdev->num_resources = ARRAY_SIZE(l2switch_resources);
+	pdev->dev.platform_data = &l2switch_data;
+	mxs_add_device(pdev, 2);
+}
+#else
+static void __init mx28_init_l2switch(void)
+{
+	;
+}
+#endif
+
 #ifdef CONFIG_MXS_LRADC
 struct mxs_lradc_plat_data mx28_lradc_data = {
 	.vddio_voltage = BV_LRADC_CTRL4_LRADC6SELECT__CHANNEL10,
@@ -1266,6 +1319,7 @@ int __init mx28_device_init(void)
 	mx28_init_wdt();
 	mx28_init_rtc();
 	mx28_init_fec();
+	mx28_init_l2switch();
 	mx28_init_flexcan();
 	mx28_init_kbd();
 	mx28_init_ts();

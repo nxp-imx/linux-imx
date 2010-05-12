@@ -20,4 +20,6 @@
 #define __ASM_ARM_MACH_MX28EVK_H
 
 extern void __init mx28evk_pins_init(void);
+extern int mx28evk_enet_gpio_init(void);
+
 #endif /* __ASM_ARM_MACH_MX28EVK_H */
