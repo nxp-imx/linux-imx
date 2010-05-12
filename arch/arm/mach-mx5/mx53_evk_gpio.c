@@ -863,22 +863,23 @@ void __init mx53_evk_io_init(void)
 		msleep(1);
 		gpio_set_value(IOMUX_TO_GPIO(MX53_PIN_ATA_DA_0), 1);
 
-		/* DVI Detect */
-		gpio_request(IOMUX_TO_GPIO(MX53_PIN_EIM_D31), "gpio3_31");
-		gpio_direction_input(IOMUX_TO_GPIO(MX53_PIN_EIM_D31));
-		/* DVI Reset - Assert for i2c disabled mode */
-		gpio_request(IOMUX_TO_GPIO(MX53_PIN_EIM_WAIT), "gpio5_0");
-		gpio_set_value(IOMUX_TO_GPIO(MX53_PIN_EIM_WAIT), 0);
-		gpio_direction_output(IOMUX_TO_GPIO(MX53_PIN_EIM_WAIT), 0);
-		/* DVI Power-down */
-		gpio_request(IOMUX_TO_GPIO(MX53_PIN_EIM_D24), "gpio3_24");
-		gpio_direction_output(IOMUX_TO_GPIO(MX53_PIN_EIM_D24), 0);
-		gpio_set_value(IOMUX_TO_GPIO(MX53_PIN_EIM_D24), 1);
-		/* DVI I2C enable */
-		gpio_request(IOMUX_TO_GPIO(MX53_PIN_EIM_D28), "gpio3_28");
-		gpio_direction_output(IOMUX_TO_GPIO(MX53_PIN_EIM_D28), 0);
-		gpio_set_value(IOMUX_TO_GPIO(MX53_PIN_EIM_D28), 0);
 	}
+
+	/* DVI Detect */
+	gpio_request(IOMUX_TO_GPIO(MX53_PIN_EIM_D31), "gpio3_31");
+	gpio_direction_input(IOMUX_TO_GPIO(MX53_PIN_EIM_D31));
+	/* DVI Reset - Assert for i2c disabled mode */
+	gpio_request(IOMUX_TO_GPIO(MX53_PIN_EIM_WAIT), "gpio5_0");
+	gpio_set_value(IOMUX_TO_GPIO(MX53_PIN_EIM_WAIT), 0);
+	gpio_direction_output(IOMUX_TO_GPIO(MX53_PIN_EIM_WAIT), 0);
+	/* DVI Power-down */
+	gpio_request(IOMUX_TO_GPIO(MX53_PIN_EIM_D24), "gpio3_24");
+	gpio_direction_output(IOMUX_TO_GPIO(MX53_PIN_EIM_D24), 0);
+	gpio_set_value(IOMUX_TO_GPIO(MX53_PIN_EIM_D24), 1);
+	/* DVI I2C enable */
+	gpio_request(IOMUX_TO_GPIO(MX53_PIN_EIM_D28), "gpio3_28");
+	gpio_direction_output(IOMUX_TO_GPIO(MX53_PIN_EIM_D28), 0);
+	gpio_set_value(IOMUX_TO_GPIO(MX53_PIN_EIM_D28), 0);
 
 	for (i = 0; i <  ARRAY_SIZE(nand_iomux_pins); i++) {
 		mxc_request_iomux(nand_iomux_pins[i].pin,
