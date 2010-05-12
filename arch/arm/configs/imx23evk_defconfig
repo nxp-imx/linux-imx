@@ -1,6 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # Linux kernel version: 2.6.31
+# Wed May 12 14:38:18 2010
 #
 CONFIG_ARM=y
 CONFIG_SYS_SUPPORTS_APM_EMULATION=y
@@ -506,8 +507,7 @@ CONFIG_MTD_CMDLINE_PARTS=y
 #
 CONFIG_MTD_CHAR=y
 CONFIG_MTD_BLKDEVS=y
-# CONFIG_MTD_BLOCK is not set
-# CONFIG_MTD_BLOCK_RO is not set
+CONFIG_MTD_BLOCK=y
 # CONFIG_FTL is not set
 # CONFIG_NFTL is not set
 # CONFIG_INFTL is not set
