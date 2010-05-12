@@ -460,6 +460,11 @@ struct tve_platform_data {
 	char *dig_reg;
 };
 
+struct ldb_platform_data {
+	char *lvds_bg_reg;
+	u32 ext_ref;
+};
+
 struct mxc_vpu_platform_data {
 	void (*reset) (void);
 };

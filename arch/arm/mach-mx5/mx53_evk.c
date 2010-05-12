@@ -160,6 +160,24 @@ static struct fb_videomode video_modes[] = {
 	FB_SYNC_EXT,
 	FB_VMODE_NONINTERLACED,
 	0,},
+	{
+	 /* 1080p LVDS panel */
+	 "LDB-1080p", 60, 1920, 1080, 7692,
+	 100, 40,
+	 30, 3,
+	 10, 2,
+	 FB_SYNC_EXT,
+	 FB_VMODE_NONINTERLACED,
+	 0,},
+	{
+	 /* XGA LVDS panel */
+	 "LDB-XGA", 60, 1024, 768, 15385,
+	 220, 40,
+	 21, 7,
+	 60, 10,
+	 FB_SYNC_EXT,
+	 FB_VMODE_NONINTERLACED,
+	 0,},
 };
 
 struct cpu_wp *mx53_evk_get_cpu_wp(int *wp)
@@ -258,6 +276,11 @@ static struct mxc_srtc_platform_data srtc_data = {
 
 static struct tve_platform_data tve_data = {
 	.dac_reg = "VVIDEO",
+};
+
+static struct ldb_platform_data ldb_data = {
+	.lvds_bg_reg = "VAUDIO",
+	.ext_ref = 1,
 };
 
 static struct resource mxcfb_resources[] = {
@@ -687,6 +710,7 @@ static void __init mxc_board_init(void)
 	mxc_register_device(&mxc_rtc_device, &srtc_data);
 	mxc_register_device(&mxc_w1_master_device, &mxc_w1_data);
 	mxc_register_device(&mxc_ipu_device, &mxc_ipu_data);
+	mxc_register_device(&mxc_ldb_device, &ldb_data);
 	mxc_register_device(&mxc_tve_device, &tve_data);
 	mxc_register_device(&mxcvpu_device, &mxc_vpu_data);
 	mxc_register_device(&gpu_device, NULL);

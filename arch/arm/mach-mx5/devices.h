@@ -31,6 +31,7 @@ extern struct platform_device mxc_flexcan0_device;
 extern struct platform_device mxc_flexcan1_device;
 extern struct platform_device mxc_ipu_device;
 extern struct platform_device mxc_fb_devices[];
+extern struct platform_device mxc_ldb_device;
 extern struct platform_device mxcvpu_device;
 extern struct platform_device mxcscc_device;
 extern struct platform_device mxcspi1_device;

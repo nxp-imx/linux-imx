@@ -17,6 +17,8 @@
 #include <linux/dma-mapping.h>
 #include <linux/platform_device.h>
 #include <linux/clk.h>
+#include <linux/ipu.h>
+#include <linux/fb.h>
 #include <linux/delay.h>
 #include <linux/uio_driver.h>
 #include <linux/mxc_scc2_driver.h>
@@ -318,6 +320,21 @@ struct platform_device mxc_fb_devices[] = {
 			.coherent_dma_mask = DMA_BIT_MASK(32),
 		},
 	},
+};
+
+static struct resource ldb_resources[] = {
+	{
+		.start = IOMUXC_BASE_ADDR,
+		.end = IOMUXC_BASE_ADDR + SZ_4K - 1,
+		.flags = IORESOURCE_MEM,
+	},
+};
+
+struct platform_device mxc_ldb_device = {
+	.name = "mxc_ldb",
+	.id = -1,
+	.num_resources = ARRAY_SIZE(ldb_resources),
+	.resource = ldb_resources,
 };
 
 static struct resource vpu_resources[] = {
@@ -1432,6 +1449,8 @@ int __init mxc_init_devices(void)
 					MX53_NFC_BASE_ADDR_AXI + SZ_8K - 1;
 		mxc_nandv2_mtd_device.resource[1].start -= MX53_OFFSET;
 		mxc_nandv2_mtd_device.resource[1].end -= MX53_OFFSET;
+		ldb_resources[0].start -=  MX53_OFFSET;
+		ldb_resources[0].end -=  MX53_OFFSET;
 	} else if (cpu_is_mx51_rev(CHIP_REV_2_0) < 0) {
 		scc_resources[1].start += 0x8000;
 		scc_resources[1].end += 0x8000;
