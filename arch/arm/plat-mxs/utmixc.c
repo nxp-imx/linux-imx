@@ -45,7 +45,7 @@ static void set_vbus_draw(struct fsl_xcvr_ops *this,
 {
 #ifdef CONFIG_MXS_VBUS_CURRENT_DRAW
 	if ((__raw_readl(REGS_POWER_BASE + HW_POWER_5VCTRL)
-		& BM_POWER_5VCTRL_CHARGE_4P2_ILIMIT) == 0x8000) {
+		& BM_POWER_5VCTRL_CHARGE_4P2_ILIMIT) == 0x20000) {
 		printk(KERN_INFO "USB enumeration done,current limitation release\r\n");
 		__raw_writel(__raw_readl(REGS_POWER_BASE + HW_POWER_5VCTRL) |
 		BM_POWER_5VCTRL_CHARGE_4P2_ILIMIT, REGS_POWER_BASE +

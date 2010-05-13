@@ -236,12 +236,12 @@ static void check_and_handle_5v_connection(struct mxs_info *info)
 		*/
 		if ((__raw_readl(REGS_POWER_BASE + HW_POWER_5VCTRL)
 			& BM_POWER_5VCTRL_CHARGE_4P2_ILIMIT) ==
-			(0x8 << BP_POWER_5VCTRL_CHARGE_4P2_ILIMIT)) {
+			(0x20 << BP_POWER_5VCTRL_CHARGE_4P2_ILIMIT)) {
 			dev_info(info->dev, "waiting USB enum done...\r\n");
 		}
 		while ((__raw_readl(REGS_POWER_BASE + HW_POWER_5VCTRL)
 			& BM_POWER_5VCTRL_CHARGE_4P2_ILIMIT)
-			== (0x8 << BP_POWER_5VCTRL_CHARGE_4P2_ILIMIT)) {
+			== (0x20 << BP_POWER_5VCTRL_CHARGE_4P2_ILIMIT)) {
 			msleep(50);
 		}
 	#endif
@@ -297,7 +297,7 @@ static void check_and_handle_5v_connection(struct mxs_info *info)
 				__raw_writel(__raw_readl(REGS_POWER_BASE +
 				HW_POWER_5VCTRL) &
 				(~BM_POWER_5VCTRL_CHARGE_4P2_ILIMIT)
-				| (0x8 << BP_POWER_5VCTRL_CHARGE_4P2_ILIMIT),
+				| (0x20 << BP_POWER_5VCTRL_CHARGE_4P2_ILIMIT),
 				REGS_POWER_BASE + HW_POWER_5VCTRL);
 
 			}
@@ -1144,13 +1144,13 @@ static int __init mxs_bat_init(void)
 
 #ifdef CONFIG_MXS_VBUS_CURRENT_DRAW
 	if (((__raw_readl(REGS_POWER_BASE + HW_POWER_5VCTRL) &
-		BM_POWER_5VCTRL_CHARGE_4P2_ILIMIT) == 0x8000)
+		BM_POWER_5VCTRL_CHARGE_4P2_ILIMIT) == 0x20000)
 		&& ((__raw_readl(REGS_POWER_BASE + HW_POWER_5VCTRL) &
 		BM_POWER_5VCTRL_PWD_CHARGE_4P2) == 0)) {
 #ifdef CONFIG_USB_GADGET
 		printk(KERN_INFO "USB GADGET exist,wait USB enum done...\r\n");
 		while (((__raw_readl(REGS_POWER_BASE + HW_POWER_5VCTRL)
-			& BM_POWER_5VCTRL_CHARGE_4P2_ILIMIT) == 0x8000) &&
+			& BM_POWER_5VCTRL_CHARGE_4P2_ILIMIT) == 0x20000) &&
 			((__raw_readl(REGS_POWER_BASE + HW_POWER_5VCTRL) &
 			BM_POWER_5VCTRL_PWD_CHARGE_4P2) == 0))
 			;
@@ -1161,8 +1161,7 @@ static int __init mxs_bat_init(void)
 	}
 	cpu = clk_get(NULL, "cpu");
 	pll0 = clk_get(NULL, "ref_cpu");
-	if (cpu->set_parent)
-		cpu->set_parent(cpu, pll0);
+	clk_set_parent(cpu, pll0);
 #endif
 	return platform_driver_register(&mxs_batdrv);
 }
