@@ -147,6 +147,37 @@ static int __init dmfc_setup(char *options)
 }
 __setup("dmfc=", dmfc_setup);
 
+static bool _ipu_update_dmfc_used_size(int dma_chan, int width, int dmfc_size)
+{
+	u32 fifo_size_5f = 1;
+	u32 dmfc_dp_chan = __raw_readl(DMFC_DP_CHAN);
+
+	if ((width > 352) && (dmfc_size == (256 * 4)))
+		fifo_size_5f = 1;
+	else if (width > 176)
+		fifo_size_5f = 2;
+	else if (width > 88)
+		fifo_size_5f = 3;
+	else if (width > 44)
+		fifo_size_5f = 4;
+	else if (width > 22)
+		fifo_size_5f = 5;
+	else if (width > 11)
+		fifo_size_5f = 6;
+	else if (width > 6)
+		fifo_size_5f = 7;
+	else
+		return false;
+
+	if (dma_chan == 27) {
+		dmfc_dp_chan &= ~DMFC_FIFO_SIZE_5F;
+		dmfc_dp_chan |= fifo_size_5f << 11;
+		__raw_writel(dmfc_dp_chan, DMFC_DP_CHAN);
+	}
+
+	return true;
+}
+
 void _ipu_dmfc_set_wait4eot(int dma_chan, int width)
 {
 	u32 dmfc_gen1 = __raw_readl(DMFC_GENERAL1);
@@ -169,7 +200,7 @@ void _ipu_dmfc_set_wait4eot(int dma_chan, int width)
 		else
 			dmfc_gen1 &= ~(1UL << 22);
 	} else if (dma_chan == 27) { /*5F*/
-		if (dmfc_size_27/width > 2)
+		if (!_ipu_update_dmfc_used_size(dma_chan, width, dmfc_size_27))
 			dmfc_gen1 |= 1UL << 21;
 		else
 			dmfc_gen1 &= ~(1UL << 21);
