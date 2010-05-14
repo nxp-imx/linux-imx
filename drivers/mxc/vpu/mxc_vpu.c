@@ -690,19 +690,21 @@ static int vpu_suspend(struct platform_device *pdev, pm_message_t state)
 	for (i = 0; i < vpu_clk_usercount; i++)
 		clk_disable(vpu_clk);
 
-	clk_enable(vpu_clk);
-	if (bitwork_mem.cpu_addr != 0) {
-		SAVE_WORK_REGS;
-		SAVE_CTRL_REGS;
-		SAVE_RDWR_PTR_REGS;
-		SAVE_DIS_FLAG_REGS;
+	if (!cpu_is_mx53()) {
+		clk_enable(vpu_clk);
+		if (bitwork_mem.cpu_addr != 0) {
+			SAVE_WORK_REGS;
+			SAVE_CTRL_REGS;
+			SAVE_RDWR_PTR_REGS;
+			SAVE_DIS_FLAG_REGS;
 
-		WRITE_REG(0x1, BIT_BUSY_FLAG);
-		WRITE_REG(VPU_SLEEP_REG_VALUE, BIT_RUN_COMMAND);
-		while (READ_REG(BIT_BUSY_FLAG)) ;
+			WRITE_REG(0x1, BIT_BUSY_FLAG);
+			WRITE_REG(VPU_SLEEP_REG_VALUE, BIT_RUN_COMMAND);
+			while (READ_REG(BIT_BUSY_FLAG))
+				;
+		}
+		clk_disable(vpu_clk);
 	}
-
-	clk_disable(vpu_clk);
 
 	if (cpu_is_mx37() || cpu_is_mx51())
 		mxc_pg_enable(pdev);
@@ -722,8 +724,10 @@ static int vpu_resume(struct platform_device *pdev)
 	if (cpu_is_mx37() || cpu_is_mx51())
 		mxc_pg_disable(pdev);
 
-	clk_enable(vpu_clk);
+	if (cpu_is_mx53())
+		goto recover_clk;
 
+	clk_enable(vpu_clk);
 	if (bitwork_mem.cpu_addr != 0) {
 		u32 *p = (u32 *) bitwork_mem.cpu_addr;
 		u32 data;
@@ -786,9 +790,9 @@ static int vpu_resume(struct platform_device *pdev)
 		WRITE_REG(VPU_WAKE_REG_VALUE, BIT_RUN_COMMAND);
 		while (READ_REG(BIT_BUSY_FLAG)) ;
 	}
-
 	clk_disable(vpu_clk);
 
+recover_clk:
 	/* Recover vpu clock */
 	for (i = 0; i < vpu_clk_usercount; i++)
 		clk_enable(vpu_clk);
