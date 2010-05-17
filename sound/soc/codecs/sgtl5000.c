@@ -1,7 +1,7 @@
 /*
  * sgtl5000.c  --  SGTL5000 ALSA SoC Audio driver
  *
- * Copyright 2008-2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2008-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -570,7 +570,7 @@ static int sgtl5000_pcm_hw_params(struct snd_pcm_substream *substream,
 	int i2s_ctl;
 	int div2 = 0;
 	int reg;
-	u32 fs;
+	int sys_fs;
 
 	pr_debug("%s channels=%d\n", __func__, channels);
 
@@ -588,6 +588,31 @@ static int sgtl5000_pcm_hw_params(struct snd_pcm_substream *substream,
 		sgtl5000->capture_channels = channels;
 
 	switch (sgtl5000->lrclk) {
+	case 8000:
+	case 16000:
+		sys_fs = 32000;
+		break;
+	case 11025:
+	case 22050:
+		sys_fs = 44100;
+		break;
+	default:
+		sys_fs = sgtl5000->lrclk;
+		break;
+	}
+
+	switch (sys_fs / sgtl5000->lrclk) {
+	case 4:
+		clk_ctl |= SGTL5000_RATE_MODE_DIV_4 << SGTL5000_RATE_MODE_SHIFT;
+		break;
+	case 2:
+		clk_ctl |= SGTL5000_RATE_MODE_DIV_2 << SGTL5000_RATE_MODE_SHIFT;
+		break;
+	default:
+		break;
+	}
+
+	switch (sys_fs) {
 	case 32000:
 		clk_ctl |= SGTL5000_SYS_FS_32k << SGTL5000_SYS_FS_SHIFT;
 		break;
@@ -605,16 +630,15 @@ static int sgtl5000_pcm_hw_params(struct snd_pcm_substream *substream,
 		       sgtl5000->lrclk);
 		return -EFAULT;
 	}
-	fs = sgtl5000->lrclk;
 	/* SGTL5000 rev1 has a IC bug to prevent switching to MCLK from PLL. */
 	if (!sgtl5000->master) {
-		if (fs * 256 == sgtl5000->sysclk)
+		if (sys_fs * 256 == sgtl5000->sysclk)
 			clk_ctl |= SGTL5000_MCLK_FREQ_256FS << \
 				SGTL5000_MCLK_FREQ_SHIFT;
-		else if (fs * 384 == sgtl5000->sysclk && fs != 96000)
+		else if (sys_fs * 384 == sgtl5000->sysclk && sys_fs != 96000)
 			clk_ctl |= SGTL5000_MCLK_FREQ_384FS << \
 				SGTL5000_MCLK_FREQ_SHIFT;
-		else if (fs * 512 == sgtl5000->sysclk && fs != 96000)
+		else if (sys_fs * 512 == sgtl5000->sysclk && sys_fs != 96000)
 			clk_ctl |= SGTL5000_MCLK_FREQ_512FS << \
 				SGTL5000_MCLK_FREQ_SHIFT;
 		else {
@@ -635,7 +659,7 @@ static int sgtl5000_pcm_hw_params(struct snd_pcm_substream *substream,
 			div2 = 0;
 			in = sgtl5000->sysclk;
 		}
-		if (sgtl5000->lrclk == 44100)
+		if (sys_fs == 44100)
 			out = 180633600;
 		else
 			out = 196608000;
@@ -678,7 +702,7 @@ static int sgtl5000_pcm_hw_params(struct snd_pcm_substream *substream,
 		return -EINVAL;
 	}
 
-	pr_debug("fs=%d,clk_ctl=%d,pll_ctl=%d,i2s_ctl=%d,div2=%d\n",
+	pr_debug("\nfs=%d,clk_ctl=%04x,pll_ctl=%04x,i2s_ctl=%04x,div2=%d\n",
 		 sgtl5000->lrclk, clk_ctl, pll_ctl, i2s_ctl, div2);
 
 	if ((clk_ctl & SGTL5000_MCLK_FREQ_MASK) == SGTL5000_MCLK_FREQ_PLL) {
@@ -815,7 +839,11 @@ static int sgtl5000_set_bias_level(struct snd_soc_codec *codec,
 	return 0;
 }
 
-#define SGTL5000_RATES (SNDRV_PCM_RATE_32000 |\
+#define SGTL5000_RATES (SNDRV_PCM_RATE_8000 |\
+		      SNDRV_PCM_RATE_11025 |\
+		      SNDRV_PCM_RATE_16000 |\
+		      SNDRV_PCM_RATE_22050 |\
+		      SNDRV_PCM_RATE_32000 |\
 		      SNDRV_PCM_RATE_44100 |\
 		      SNDRV_PCM_RATE_48000 |\
 		      SNDRV_PCM_RATE_96000)

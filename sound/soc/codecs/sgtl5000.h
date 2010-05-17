@@ -1,7 +1,7 @@
 /*
  * sgtl5000.h - SGTL5000 audio codec interface
  *
- * Copyright 2008-2009 Freescale Semiconductor, Inc.
+ * Copyright (C) 2008-2010 Freescale Semiconductor, Inc.
  *
  *  This program is free software; you can redistribute  it and/or modify it
  *  under  the terms of  the GNU General  Public License as published by the
@@ -98,7 +98,14 @@ extern struct snd_soc_codec_device soc_codec_dev_sgtl5000;
 /*
  * SGTL5000_CHIP_CLK_CTRL
  */
-#define SGTL5000_SYS_FS_MASK			0x00c0
+#define SGTL5000_RATE_MODE_MASK			0x0030
+#define SGTL5000_RATE_MODE_SHIFT		4
+#define SGTL5000_RATE_MODE_WIDTH		2
+#define SGTL5000_RATE_MODE_DIV_1		0
+#define SGTL5000_RATE_MODE_DIV_2		1
+#define SGTL5000_RATE_MODE_DIV_4		2
+#define SGTL5000_RATE_MODE_DIV_6		3
+#define SGTL5000_SYS_FS_MASK			0x000c
 #define SGTL5000_SYS_FS_SHIFT			2
 #define SGTL5000_SYS_FS_WIDTH			2
 #define SGTL5000_SYS_FS_32k			0x0
