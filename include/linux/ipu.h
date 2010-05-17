@@ -390,8 +390,8 @@ typedef union {
 		uint32_t out_width;
 		uint32_t out_height;
 		uint32_t out_pixel_fmt;
-		uint32_t outv_resize_ratio;
 		uint32_t outh_resize_ratio;
+		uint32_t outv_resize_ratio;
 		bool graphics_combine_en;
 		bool global_alpha_en;
 		bool key_color_en;
