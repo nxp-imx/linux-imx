@@ -698,6 +698,13 @@ static void mxs_mmc_request(struct mmc_host *mmc, struct mmc_request *mrq)
 	struct mxs_mmc_host *host = mmc_priv(mmc);
 
 	dev_dbg(host->dev, "MMC request\n");
+
+	if (!host->present) {
+		mrq->cmd->error = -ETIMEDOUT;
+		mmc_request_done(mmc, mrq);
+		return;
+	}
+
 	BUG_ON(host->mrq != NULL);
 	host->mrq = mrq;
 
