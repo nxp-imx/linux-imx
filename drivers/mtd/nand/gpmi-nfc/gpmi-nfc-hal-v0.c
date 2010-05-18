@@ -292,7 +292,6 @@ static int send_command(struct gpmi_nfc_data *this, unsigned chip,
 	(*d)->cmd.address = buffer;
 
 	(*d)->cmd.pio_words[0] =
-		BM_GPMI_CTRL0_LOCK_CS                    |
 		BF_GPMI_CTRL0_COMMAND_MODE(command_mode) |
 		BM_GPMI_CTRL0_WORD_LENGTH                |
 		BF_GPMI_CTRL0_CS(chip)                   |
@@ -364,7 +363,6 @@ static int send_data(struct gpmi_nfc_data *this, unsigned chip,
 	(*d)->cmd.address = buffer;
 
 	(*d)->cmd.pio_words[0] =
-		BM_GPMI_CTRL0_LOCK_CS                    |
 		BF_GPMI_CTRL0_COMMAND_MODE(command_mode) |
 		BM_GPMI_CTRL0_WORD_LENGTH                |
 		BF_GPMI_CTRL0_CS(chip)                   |
@@ -435,7 +433,6 @@ static int read_data(struct gpmi_nfc_data *this, unsigned chip,
 	(*d)->cmd.address = buffer;
 
 	(*d)->cmd.pio_words[0] =
-		BM_GPMI_CTRL0_LOCK_CS                    |
 		BF_GPMI_CTRL0_COMMAND_MODE(command_mode) |
 		BM_GPMI_CTRL0_WORD_LENGTH                |
 		BF_GPMI_CTRL0_CS(chip)                   |
@@ -474,7 +471,6 @@ static int read_data(struct gpmi_nfc_data *this, unsigned chip,
 
 	(*d)->cmd.pio_words[0] =
 		BF_GPMI_CTRL0_COMMAND_MODE(command_mode) |
-		BM_GPMI_CTRL0_LOCK_CS                    |
 		BM_GPMI_CTRL0_WORD_LENGTH                |
 		BF_GPMI_CTRL0_CS(chip)                   |
 		BF_GPMI_CTRL0_ADDRESS(address)           |
@@ -550,7 +546,6 @@ static int send_page(struct gpmi_nfc_data *this, unsigned chip,
 	(*d)->cmd.address = 0;
 
 	(*d)->cmd.pio_words[0] =
-		BM_GPMI_CTRL0_LOCK_CS                    |
 		BF_GPMI_CTRL0_COMMAND_MODE(command_mode) |
 		BM_GPMI_CTRL0_WORD_LENGTH                |
 		BF_GPMI_CTRL0_CS(chip)                   |
@@ -641,7 +636,6 @@ static int read_page(struct gpmi_nfc_data *this, unsigned chip,
 
 	(*d)->cmd.pio_words[0] =
 		BF_GPMI_CTRL0_COMMAND_MODE(command_mode) |
-		BM_GPMI_CTRL0_LOCK_CS                    |
 		BM_GPMI_CTRL0_WORD_LENGTH                |
 		BF_GPMI_CTRL0_CS(chip)                   |
 		BF_GPMI_CTRL0_ADDRESS(address)           |
@@ -674,7 +668,6 @@ static int read_page(struct gpmi_nfc_data *this, unsigned chip,
 	(*d)->cmd.address = 0;
 
 	(*d)->cmd.pio_words[0] =
-		BM_GPMI_CTRL0_LOCK_CS                                 |
 		BF_GPMI_CTRL0_COMMAND_MODE(command_mode)              |
 		BM_GPMI_CTRL0_WORD_LENGTH                             |
 		BF_GPMI_CTRL0_CS(chip)                                |
@@ -715,7 +708,6 @@ static int read_page(struct gpmi_nfc_data *this, unsigned chip,
 
 	(*d)->cmd.pio_words[0] =
 		BF_GPMI_CTRL0_COMMAND_MODE(command_mode)              |
-		BM_GPMI_CTRL0_LOCK_CS                                 |
 		BM_GPMI_CTRL0_WORD_LENGTH                             |
 		BF_GPMI_CTRL0_CS(chip)                                |
 		BF_GPMI_CTRL0_ADDRESS(address)                        |
