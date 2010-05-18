@@ -522,9 +522,8 @@ static void mxc_v4l2out_timer_handler(unsigned long arg)
 	}
 
 	/* set next buffer ready */
-	if (schedule_work(&vout->timer_work) == 0) {
-		dev_err(&vout->video_dev->dev,
-				"timer work already in queue\n");
+	if (queue_work(vout->v4l_wq, &vout->timer_work) == 0) {
+		dev_err(&vout->video_dev->dev, "work was in queue already!\n ");
 		vout->state = STATE_STREAM_PAUSED;
 	}
 
@@ -1581,7 +1580,7 @@ static int mxc_v4l2out_streamon(vout_data * vout)
 				1, vout->v4l2_bufs[vout->ipu_buf[1]].m.offset);
 			ipu_select_buffer(vout->display_ch, IPU_INPUT_BUFFER, 0);
 			ipu_select_buffer(vout->display_ch, IPU_INPUT_BUFFER, 1);
-			schedule_work(&vout->timer_work);
+			queue_work(vout->v4l_wq, &vout->timer_work);
 		}
 	} else {
 		ipu_select_buffer(vout->post_proc_ch, IPU_INPUT_BUFFER, 0);
@@ -1982,6 +1981,14 @@ static int mxc_v4l2out_open(struct file *file)
 		vout->state = STATE_STREAM_OFF;
 		vout->rotate = IPU_ROTATE_NONE;
 
+		vout->v4l_wq = create_singlethread_workqueue("v4l2q");
+		if (!vout->v4l_wq) {
+			dev_dbg(&dev->dev,
+					"Could not create work queue\n");
+			err = -ENOMEM;
+			goto oops;
+		}
+
 		INIT_WORK(&vout->timer_work, timer_work_func);
 	}
 
@@ -2022,6 +2029,9 @@ static int mxc_v4l2out_close(struct file *file)
 
 		/* capture off */
 		wake_up_interruptible(&vout->v4l_bufq);
+
+		flush_workqueue(vout->v4l_wq);
+		destroy_workqueue(vout->v4l_wq);
 	}
 
 	return 0;

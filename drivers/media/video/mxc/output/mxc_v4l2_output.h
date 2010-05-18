@@ -79,6 +79,7 @@ typedef struct _vout_data {
 	struct semaphore param_lock;
 
 	struct timer_list output_timer;
+	struct workqueue_struct *v4l_wq;
 	struct work_struct timer_work;
 	unsigned long start_jiffies;
 	u32 frame_count;
