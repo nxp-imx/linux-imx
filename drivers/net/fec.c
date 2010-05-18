@@ -762,6 +762,8 @@ static int fec_enet_mii_probe(struct net_device *dev)
 	int phy_addr;
 	int fec_index = fep->pdev->id > 0 ? fep->pdev->id : 0;
 
+	fep->phy_dev = NULL;
+
 	/* find the phy, assuming fec index corresponds to addr */
 	for (phy_addr = 0; phy_addr < PHY_MAX_ADDR; phy_addr++) {
 		if (fep->mii_bus->phy_map[phy_addr]) {
@@ -792,6 +794,12 @@ static int fec_enet_mii_probe(struct net_device *dev)
 	fep->phy_dev = phy_dev;
 	fep->link = 0;
 	fep->full_duplex = 0;
+
+	printk(KERN_INFO "%s: Freescale FEC PHY driver [%s] "
+               "(mii_bus:phy_addr=%s, irq=%d)\n", dev->name,
+               fep->phy_dev->drv->name, dev_name(&fep->phy_dev->dev),
+               fep->phy_dev->irq);
+
 
 	return 0;
 }
@@ -1004,7 +1012,12 @@ fec_enet_open(struct net_device *dev)
 	if (ret)
 		return ret;
 
-	/* schedule a link state check */
+	/* Probe and connect to PHY when open the interface */
+	ret = fec_enet_mii_probe(dev);
+	if (ret) {
+	       fec_enet_free_buffers(dev);
+	       return ret;
+	}
 	phy_start(fep->phy_dev);
 	netif_start_queue(dev);
 	fep->opened = 1;
@@ -1018,9 +1031,11 @@ fec_enet_close(struct net_device *dev)
 
 	/* Don't know what to do yet. */
 	fep->opened = 0;
-	phy_stop(fep->phy_dev);
 	netif_stop_queue(dev);
 	fec_stop(dev);
+
+	if (fep->phy_dev)
+		phy_disconnect(fep->phy_dev);
 
         fec_enet_free_buffers(dev);
 	clk_disable(fep->clk);
@@ -1483,9 +1498,6 @@ fec_probe(struct platform_device *pdev)
 		fep->mii_bus = fec_mii_bus;
 	}
 
-	if (fec_enet_mii_probe(ndev) != 0)
-		goto failed_mii_probe;
-
 	fep->ptp_priv = kmalloc(sizeof(struct fec_ptp_private), GFP_KERNEL);
 	if (fep->ptp_priv) {
 		fep->ptp_priv->hwp = fep->hwp;
@@ -1504,14 +1516,8 @@ fec_probe(struct platform_device *pdev)
 
 	clk_disable(fep->clk);
 
-	printk(KERN_INFO "%s: Freescale FEC PHY driver [%s] "
-		"(mii_bus:phy_addr=%s, irq=%d)\n", ndev->name,
-		fep->phy_dev->drv->name, dev_name(&fep->phy_dev->dev),
-		fep->phy_dev->irq);
-
 	return 0;
 
-failed_mii_probe:
 failed_register:
 	fec_enet_mii_remove(fep);
 	if (fep->ptimer_present)
