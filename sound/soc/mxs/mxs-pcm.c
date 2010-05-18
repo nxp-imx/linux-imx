@@ -141,6 +141,7 @@ static int mxs_pcm_prepare(struct snd_pcm_substream *substream)
 		/* Link with previous command */
 		prtd->dma_desc_array[i]->cmd.cmd.bits.bytes = prtd->dma_period;
 		prtd->dma_desc_array[i]->cmd.cmd.bits.irq = 1;
+		prtd->dma_desc_array[i]->cmd.cmd.bits.dec_sem = 0;
 		prtd->dma_desc_array[i]->cmd.cmd.bits.chain = 1;
 		/* Set DMA direction */
 		if (playback)
@@ -194,6 +195,8 @@ static void mxs_pcm_stop(struct snd_pcm_substream *substream)
 	prtd->dma_desc_array[(desc + 1)%8]->cmd.cmd.bits.command = NO_DMA_XFER;
 
 	mxs_dma_unfreeze(prtd->dma_ch);
+
+	mxs_dma_disable(prtd->dma_ch);
 }
 
 static int mxs_pcm_trigger(struct snd_pcm_substream *substream, int cmd)

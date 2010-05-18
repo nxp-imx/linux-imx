@@ -159,7 +159,7 @@ void mxs_dma_disable(int channel)
 	pchan->flags &= ~MXS_DMA_FLAGS_BUSY;
 	pchan->active_num = 0;
 	pchan->pending_num = 0;
-	list_splice(&pchan->active, &pchan->done);
+	list_splice_init(&pchan->active, &pchan->done);
 	spin_unlock_irqrestore(&pchan->lock, flags);
 	mutex_unlock(&mxs_dma_mutex);
 }
