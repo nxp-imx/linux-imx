@@ -716,7 +716,6 @@ static int fec_enet_mdio_read(struct mii_bus *bus, int mii_id, int regnum)
 {
 	struct fec_enet_private *fep = bus->priv;
 
-
 	/* clear MII end of transfer bit*/
 	writel(FEC_ENET_MII, fep->hwp + FEC_IEVENT);
 
@@ -739,8 +738,8 @@ static int fec_enet_mdio_write(struct mii_bus *bus, int mii_id, int regnum,
 	/* clear MII end of transfer bit*/
 	writel(FEC_ENET_MII, fep->hwp + FEC_IEVENT);
 
-	/* start a read op */
-	writel(FEC_MMFR_ST | FEC_MMFR_OP_READ |
+	/* start a write op */
+	writel(FEC_MMFR_ST | FEC_MMFR_OP_WRITE |
 		FEC_MMFR_PA(mii_id) | FEC_MMFR_RA(regnum) |
 		FEC_MMFR_TA | FEC_MMFR_DATA(value),
 		fep->hwp + FEC_MII_DATA);
@@ -1019,6 +1018,7 @@ fec_enet_open(struct net_device *dev)
 	       return ret;
 	}
 	phy_start(fep->phy_dev);
+	fec_restart(dev, fep->phy_dev->duplex);
 	netif_start_queue(dev);
 	fep->opened = 1;
 	return 0;
@@ -1034,9 +1034,10 @@ fec_enet_close(struct net_device *dev)
 	netif_stop_queue(dev);
 	fec_stop(dev);
 
-	if (fep->phy_dev)
+	if (fep->phy_dev) {
+		phy_stop(fep->phy_dev);
 		phy_disconnect(fep->phy_dev);
-
+	}
         fec_enet_free_buffers(dev);
 	clk_disable(fep->clk);
 
