@@ -496,6 +496,7 @@ static unsigned long cpu_round_rate(struct clk *clk, unsigned long rate)
 	return rate;
 }
 
+static struct clk  h_clk;
 static int cpu_set_rate(struct clk *clk, unsigned long rate)
 {
 	unsigned long root_rate =
@@ -505,7 +506,7 @@ static int cpu_set_rate(struct clk *clk, unsigned long rate)
 	u32 c = clkctrl_cpu;
 	u32 clkctrl_frac = 1;
 	u32 val;
-	u32 reg_val;
+	u32 reg_val, hclk_reg;
 
 	if (rate < 24000)
 		return -EINVAL;
@@ -536,7 +537,31 @@ static int cpu_set_rate(struct clk *clk, unsigned long rate)
 			if ((abs(d) > 100) || (clkctrl_frac < 18) ||
 				(clkctrl_frac > 35))
 				return -EINVAL;
-	}
+		}
+
+		/* Set safe hbus clock divider. A divider of 3 ensure that
+		 * the Vddd voltage required for the cpuclk is sufficiently
+		 * high for the hbus clock.
+		 */
+		hclk_reg = __raw_readl(CLKCTRL_BASE_ADDR + HW_CLKCTRL_HBUS);
+		if ((hclk_reg & BP_CLKCTRL_HBUS_DIV) != 3) {
+			hclk_reg &= ~(BM_CLKCTRL_HBUS_DIV);
+			hclk_reg |= BF_CLKCTRL_HBUS_DIV(3);
+
+			/* change hclk divider to safe value for any ref_cpu
+			 * value.
+			 */
+			__raw_writel(hclk_reg, CLKCTRL_BASE_ADDR +
+				     HW_CLKCTRL_HBUS);
+		}
+
+		for (i = 10000; i; i--)
+			if (!clk_is_busy(&h_clk))
+				break;
+		if (!i) {
+			printk(KERN_ERR "couldn't set up HCLK divisor\n");
+			return -ETIMEDOUT;
+		}
 
 		/* Set Frac div */
 		val = __raw_readl(CLKCTRL_BASE_ADDR + HW_CLKCTRL_FRAC0);
@@ -546,6 +571,7 @@ static int cpu_set_rate(struct clk *clk, unsigned long rate)
 		/* Do not gate */
 		__raw_writel(BM_CLKCTRL_FRAC0_CLKGATECPU, CLKCTRL_BASE_ADDR +
 			     HW_CLKCTRL_FRAC0_CLR);
+
 		/* write clkctrl_cpu */
 		reg_val = __raw_readl(CLKCTRL_BASE_ADDR + HW_CLKCTRL_CPU);
 		reg_val &= ~0x3F;
