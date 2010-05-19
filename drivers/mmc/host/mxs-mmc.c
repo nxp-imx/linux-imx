@@ -245,7 +245,6 @@ static void mxs_mmc_bc(struct mxs_mmc_host *host)
 	struct mxs_dma_desc *dma_desc = host->dma_desc;
 	unsigned long flags;
 
-	spin_lock_irqsave(&host->lock, flags);
 	dma_desc->cmd.cmd.bits.command = NO_DMA_XFER;
 	dma_desc->cmd.cmd.bits.irq = 1;
 	dma_desc->cmd.cmd.bits.dec_sem = 1;
@@ -273,7 +272,6 @@ static void mxs_mmc_bc(struct mxs_mmc_host *host)
 	if (mxs_dma_enable(host->dmach) < 0)
 		dev_err(host->dev, "mmc_dma_enable failed\n");
 
-	spin_unlock_irqrestore(&host->lock, flags);
 	wait_for_completion(&host->dma_done);
 
 	cmd->error = mxs_mmc_cmd_error(host->status);
@@ -296,7 +294,6 @@ static void mxs_mmc_ac(struct mxs_mmc_host *host)
 	u32 ssp_cmd1;
 	unsigned long flags;
 
-	spin_lock_irqsave(&host->lock, flags);
 	ignore_crc = (mmc_resp_type(cmd) & MMC_RSP_CRC) ?
 	    0 : BM_SSP_CTRL0_IGNORE_CRC;
 	resp = (mmc_resp_type(cmd) & MMC_RSP_PRESENT) ?
@@ -332,7 +329,6 @@ static void mxs_mmc_ac(struct mxs_mmc_host *host)
 	dev_dbg(host->dev, "%s start DMA.\n", __func__);
 	if (mxs_dma_enable(host->dmach) < 0)
 		dev_err(host->dev, "mmc_dma_enable failed\n");
-	spin_unlock_irqrestore(&host->lock, flags);
 	wait_for_completion(&host->dma_done);
 
 	switch (mmc_resp_type(cmd)) {
@@ -479,7 +475,6 @@ static void mxs_mmc_adtc(struct mxs_mmc_host *host)
 		cmd->data->blksz, cmd->data->blocks, cmd->data->timeout_ns,
 		cmd->data->timeout_clks, cmd->data->flags);
 
-	spin_lock_irqsave(&host->lock, flags);
 	if (cmd->data->flags & MMC_DATA_WRITE) {
 		dev_dbg(host->dev, "Data Write\n");
 		copy_size = mxs_sg_dma_copy(host, data_size, 1);
@@ -609,7 +604,6 @@ static void mxs_mmc_adtc(struct mxs_mmc_host *host)
 	dev_dbg(host->dev, "%s start DMA.\n", __func__);
 	if (mxs_dma_enable(host->dmach) < 0)
 		dev_err(host->dev, "mmc_dma_enable failed\n");
-	spin_unlock_irqrestore(&host->lock, flags);
 	wait_for_completion(&host->dma_done);
 	if (host->regulator)
 		regulator_set_current_limit(host->regulator, 0, 0);
