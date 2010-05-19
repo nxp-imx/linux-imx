@@ -482,8 +482,16 @@ out:
 	return ret;
 }
 
+/*
+ * We set lcdif_clk's parent as &pll_clk deliberately, although
+ * in IC spec lcdif_clk(CLK_PIX) is derived from ref_pix which in turn
+ * is derived from PLL. By doing so, users just need to set/get clock rate
+ * for lcdif_clk, without need to take care of ref_pix, because the clock
+ * driver will automatically calculate the fracdivider for HW_CLKCTRL_FRAC
+ * and the divider for HW_CLKCTRL_PIX conjointly.
+ */
 static struct clk lcdif_clk = {
-	.parent		= &ref_pix_clk,
+	.parent		= &pll_clk,
 	.enable 	= mx23_raw_enable,
 	.disable 	= mx23_raw_disable,
 	.scale_reg	= CLKCTRL_BASE_ADDR + HW_CLKCTRL_PIX,
@@ -1503,9 +1511,6 @@ static void print_ref_counts(void)
 
 	printk(KERN_INFO "ref_emi_clk ref count: %i\n",
 		ref_emi_clk.ref & CLK_EN_MASK);
-
-	printk(KERN_INFO "ref_pix_clk ref count: %i\n",
-		ref_pix_clk.ref & CLK_EN_MASK);
 
 	printk(KERN_INFO "lcdif_clk ref count: %i\n",
 		lcdif_clk.ref & CLK_EN_MASK);
