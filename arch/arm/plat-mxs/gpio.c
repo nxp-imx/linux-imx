@@ -175,6 +175,8 @@ static struct irq_chip gpio_irq_chip = {
 	.ack = mxs_gpio_ack_irq,
 	.mask = mxs_gpio_mask_irq,
 	.unmask = mxs_gpio_unmask_irq,
+	.enable = mxs_gpio_unmask_irq,
+	.disable = mxs_gpio_mask_irq,
 	.set_type = mxs_gpio_set_irq_type,
 };
 
