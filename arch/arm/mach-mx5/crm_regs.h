@@ -193,8 +193,8 @@ extern void __iomem *pll4_base;
 #define MXC_CCM_CBCDR_PERCLK_PODF_MASK		(0x7)
 
 /* Define the bits in register CBCMR */
-#define MXC_CCM_CBCMR_GPU2D_CLK_SEL_MX53_OFFSET	(16)
-#define MXC_CCM_CBCMR_GPU2D_CLK_SEL_MX53_MASK		(0x3 << 16)
+#define MXC_CCM_CBCMR_GPU2D_CLK_SEL_OFFSET		(16)
+#define MXC_CCM_CBCMR_GPU2D_CLK_SEL_MASK		(0x3 << 16)
 #define MXC_CCM_CBCMR_VPU_AXI_CLK_SEL_OFFSET	(14)
 #define MXC_CCM_CBCMR_VPU_AXI_CLK_SEL_MASK		(0x3 << 14)
 #define MXC_CCM_CBCMR_PERIPH_CLK_SEL_OFFSET		(12)
@@ -207,8 +207,6 @@ extern void __iomem *pll4_base;
 #define MXC_CCM_CBCMR_IPU_HSP_CLK_SEL_MASK		(0x3 << 6)
 #define MXC_CCM_CBCMR_GPU_CLK_SEL_OFFSET		(4)
 #define MXC_CCM_CBCMR_GPU_CLK_SEL_MASK		(0x3 << 4)
-#define MXC_CCM_CBCMR_GPU2D_CLK_SEL_OFFSET        (14)
-#define MXC_CCM_CBCMR_GPU2D_CLK_SEL_MASK      (0x3 << 14)
 #define MXC_CCM_CBCMR_PERCLK_LP_APM_CLK_SEL		(0x1 << 1)
 #define MXC_CCM_CBCMR_PERCLK_IPG_CLK_SEL		(0x1 << 0)
 
