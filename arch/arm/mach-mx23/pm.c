@@ -280,6 +280,7 @@ static inline void do_standby(void)
 	}
 
 	local_fiq_disable();
+	mxs_nomatch_suspend_timer();
 
 	__raw_writel(BM_POWER_CTRL_ENIRQ_PSWITCH,
 		REGS_POWER_BASE + HW_POWER_CTRL_SET);
@@ -502,7 +503,6 @@ static suspend_state_t saved_state;
 
 static int mx23_pm_begin(suspend_state_t state)
 {
-	mxs_nomatch_suspend_timer();
 	saved_state = state;
 	return 0;
 }
