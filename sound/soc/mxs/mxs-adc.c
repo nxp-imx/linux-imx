@@ -209,8 +209,6 @@ static int mxs_adc_trigger(struct snd_pcm_substream *substream,
 					REGS_AUDIOOUT_BASE + HW_AUDIOOUT_HPVOL);
 				udelay(100);
 			}
-			__raw_writel(BM_AUDIOOUT_SPEAKERCTRL_MUTE,
-			    REGS_AUDIOIN_BASE + HW_AUDIOOUT_SPEAKERCTRL_CLR);
 		}
 		else
 			__raw_writel(BM_AUDIOIN_CTRL_RUN,
@@ -223,8 +221,6 @@ static int mxs_adc_trigger(struct snd_pcm_substream *substream,
 		if (playback) {
 			__raw_writel(BM_AUDIOOUT_ANACTRL_HP_HOLD_GND,
 				REGS_AUDIOOUT_BASE + HW_AUDIOOUT_ANACTRL_SET);
-			__raw_writel(BM_AUDIOOUT_SPEAKERCTRL_MUTE,
-			    REGS_AUDIOOUT_BASE + HW_AUDIOOUT_SPEAKERCTRL_SET);
 			/* disable the fifo error interrupt */
 			__raw_writel(BM_AUDIOOUT_CTRL_FIFO_ERROR_IRQ_EN,
 				REGS_AUDIOOUT_BASE + HW_AUDIOOUT_CTRL_CLR);
