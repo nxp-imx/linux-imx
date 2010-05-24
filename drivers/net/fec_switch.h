@@ -259,12 +259,30 @@ struct  eswAddrTable_t {
 #define ESW_GET_PIRORITY_MAC                0x920B
 #define ESW_SET_PIRORITY_DEFAULT            0x910C
 #define ESW_GET_PIRORITY_DEFAULT            0x920C
+#define ESW_SET_P0_FORCED_FORWARD           0x910D
+#define ESW_GET_P0_FORCED_FORWARD           0x920D
+#define ESW_SET_SWITCH_MODE                 0x910E
+#define ESW_GET_SWITCH_MODE                 0x920E
+#define ESW_SET_BRIDGE_CONFIG               0x910F
+#define ESW_GET_BRIDGE_CONFIG               0x920F
+#define ESW_SET_VLAN_OUTPUT_PROCESS         0x9110
+#define ESW_GET_VLAN_OUTPUT_PROCESS         0x9210
+#define ESW_SET_VLAN_INPUT_PROCESS          0x9111
+#define ESW_GET_VLAN_INPUT_PROCESS          0x9211
+#define ESW_SET_VLAN_DOMAIN_VERIFICATION    0x9112
+#define ESW_GET_VLAN_DOMAIN_VERIFICATION    0x9212
+#define ESW_SET_VLAN_RESOLUTION_TABLE       0x9113
+#define ESW_GET_VLAN_RESOLUTION_TABLE       0x9213
+
 
 #define ESW_GET_STATISTICS_STATUS           0x9221
 #define ESW_GET_PORT0_STATISTICS_STATUS     0x9222
 #define ESW_GET_PORT1_STATISTICS_STATUS     0x9223
 #define ESW_GET_PORT2_STATISTICS_STATUS     0x9224
+#define ESW_SET_OUTPUT_QUEUE_MEMORY         0x9125
 #define ESW_GET_OUTPUT_QUEUE_STATUS         0x9225
+#define ESW_UPDATE_STATIC_MACTABLE          0x9226
+#define ESW_CLEAR_ALL_MACTABLE              0x9227
 
 struct eswIoctlPortConfig {
 	int port;
@@ -280,27 +298,34 @@ struct  eswIoctlPortEnableConfig {
 struct  eswIoctlIpsnoopConfig {
 	int num;
 	int mode;
-	unsigned long ip_header_protocol;
+	unsigned char ip_header_protocol;
 };
 
-struct  eswIoctlPortsnoopConfig {
+struct eswIoctlP0ForcedForwardConfig {
+	int port1;
+	int port2;
+	int enable;
+};
+
+struct eswIoctlPortsnoopConfig {
      int num;
      int mode;
-     int compare_port;
+     unsigned short compare_port;
      int compare_num;
 };
 
 struct  eswIoctlPortMirrorConfig {
 	int mirror_port;
 	int port;
-	unsigned char *src_mac;
-	unsigned char *des_mac;
 	int egress_en;
 	int ingress_en;
 	int egress_mac_src_en;
 	int egress_mac_des_en;
 	int ingress_mac_src_en;
 	int ingress_mac_des_en;
+	unsigned char *src_mac;
+	unsigned char *des_mac;
+	int mirror_enable;
 };
 
 struct  eswIoctlPriorityVlanConfig {
@@ -326,6 +351,77 @@ struct  eswIoctlPriorityDefaultConfig{
 	int port;
 	unsigned char priority_value;
 };
+
+struct eswIoctlIrqStatus {
+	unsigned long isr;
+	unsigned long imr;
+	unsigned long rx_buf_pointer;
+	unsigned long tx_buf_pointer;
+	unsigned long rx_max_size;
+	unsigned long rx_buf_active;
+	unsigned long tx_buf_active;
+};
+
+struct eswIoctlPortMirrorStatus {
+	unsigned long ESW_MCR;
+	unsigned long ESW_EGMAP;
+	unsigned long ESW_INGMAP;
+	unsigned long ESW_INGSAL;
+	unsigned long ESW_INGSAH;
+	unsigned long ESW_INGDAL;
+	unsigned long ESW_INGDAH;
+	unsigned long ESW_ENGSAL;
+	unsigned long ESW_ENGSAH;
+	unsigned long ESW_ENGDAL;
+	unsigned long ESW_ENGDAH;
+	unsigned long ESW_MCVAL;
+};
+
+struct eswIoctlVlanOutputConfig {
+	int port;
+	int mode;
+};
+
+struct eswIoctlVlanInputConfig {
+	int port;
+	int mode;
+	unsigned short port_vlanid;
+	int vlan_verify_en;
+	int vlan_domain_num;
+	int vlan_domain_port;
+};
+
+struct eswIoctlVlanVerificationConfig {
+	int port;
+	int vlan_domain_verify_en;
+	int vlan_discard_unknown_en;
+};
+
+struct eswIoctlVlanResoultionTable {
+	unsigned short port_vlanid;
+	int vlan_domain_num;
+	int vlan_domain_port;
+};
+
+struct eswIoctlVlanInputStatus {
+	unsigned long ESW_VLANV;
+	unsigned long ESW_PID[3];
+	unsigned long ESW_VIMSEL;
+	unsigned long ESW_VIMEN;
+	unsigned long ESW_VRES[32];
+};
+
+struct eswIoctlUpdateStaticMACtable {
+	unsigned char *mac_addr;
+	int port;
+	int priority;
+};
+
+struct eswIoctlOutputQueue {
+	int fun_num;
+	struct esw_output_queue_status  sOutputQueue;
+};
+
 /*=============================================================*/
 #define LEARNING_AGING_TIMER (10 * HZ)
 /*
@@ -380,8 +476,13 @@ struct eswAddrTableStaticEntry {
  *	Define the buffer descriptor structure.
  */
 struct cbd_t {
+#if defined(CONFIG_ARCH_MXC) || defined(CONFIG_ARCH_MXS)
+	unsigned short	cbd_datlen;		/* Data length */
+	unsigned short	cbd_sc;			/* Control and status info */
+#else
 	unsigned short	cbd_sc;			/* Control and status info */
 	unsigned short	cbd_datlen;		/* Data length */
+#endif
 	unsigned long	cbd_bufaddr;		/* Buffer address */
 #ifdef MODELO_BUFFER
 	unsigned long   ebd_status;
@@ -505,6 +606,7 @@ struct switch_enet_private {
 	/**/
 	/* Timer for Aging */
 	struct timer_list       timer_aging;
+	int learning_irqhandle_enable;
 	/* Phylib and MDIO interface */
 	struct  mii_bus *mii_bus;
 	struct  phy_device *phy_dev;
