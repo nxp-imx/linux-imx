@@ -82,6 +82,8 @@ static int csi_enc_setup(cam_data *cam)
 		pixel_fmt = IPU_PIX_FMT_YUV422P;
 	else if (cam->v2f.fmt.pix.pixelformat == V4L2_PIX_FMT_UYVY)
 		pixel_fmt = IPU_PIX_FMT_UYVY;
+	else if (cam->v2f.fmt.pix.pixelformat == V4L2_PIX_FMT_YUYV)
+		pixel_fmt = IPU_PIX_FMT_YUYV;
 	else if (cam->v2f.fmt.pix.pixelformat == V4L2_PIX_FMT_NV12)
 		pixel_fmt = IPU_PIX_FMT_NV12;
 	else if (cam->v2f.fmt.pix.pixelformat == V4L2_PIX_FMT_BGR24)

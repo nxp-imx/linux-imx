@@ -94,6 +94,12 @@ static int prp_enc_setup(cam_data * cam)
 	} else if (cam->v2f.fmt.pix.pixelformat == V4L2_PIX_FMT_YUV422P) {
 		enc.csi_prp_enc_mem.out_pixel_fmt = IPU_PIX_FMT_YUV422P;
 		pr_info("YUV422P\n");
+	} else if (cam->v2f.fmt.pix.pixelformat == V4L2_PIX_FMT_YUYV) {
+		enc.csi_prp_enc_mem.out_pixel_fmt = IPU_PIX_FMT_YUYV;
+		pr_info("YUYV\n");
+	} else if (cam->v2f.fmt.pix.pixelformat == V4L2_PIX_FMT_UYVY) {
+		enc.csi_prp_enc_mem.out_pixel_fmt = IPU_PIX_FMT_UYVY;
+		pr_info("UYVY\n");
 	} else if (cam->v2f.fmt.pix.pixelformat == V4L2_PIX_FMT_NV12) {
 		enc.csi_prp_enc_mem.out_pixel_fmt = IPU_PIX_FMT_NV12;
 		pr_info("NV12\n");

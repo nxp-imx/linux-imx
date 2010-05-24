@@ -316,6 +316,7 @@ static inline int valid_mode(u32 palette)
 		(palette == V4L2_PIX_FMT_RGB32) ||
 		(palette == V4L2_PIX_FMT_YUV422P) ||
 		(palette == V4L2_PIX_FMT_UYVY) ||
+		(palette == V4L2_PIX_FMT_YUYV) ||
 		(palette == V4L2_PIX_FMT_YUV420) ||
 		(palette == V4L2_PIX_FMT_NV12));
 }
@@ -774,6 +775,7 @@ static int mxc_v4l2_s_fmt(cam_data *cam, struct v4l2_format *f)
 			bytesperline = f->fmt.pix.width;
 			break;
 		case V4L2_PIX_FMT_UYVY:
+		case V4L2_PIX_FMT_YUYV:
 			size = f->fmt.pix.width * f->fmt.pix.height * 2;
 			bytesperline = f->fmt.pix.width * 2;
 			break;
