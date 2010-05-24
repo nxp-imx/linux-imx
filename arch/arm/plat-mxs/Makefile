@@ -8,6 +8,8 @@ obj-$(CONFIG_MXS_TIMER_WITH_MACH) += timer-match.o
 obj-$(CONFIG_IRAM_ALLOC) += iram.o
 obj-$(CONFIG_GENERIC_GPIO) += gpio.o
 
+obj-$(CONFIG_MXS_UNIQUE_ID)        += unique-id.o
+
 obj-$(CONFIG_MXS_ICOLL) += icoll.o
 
 obj-$(CONFIG_MXS_DMA_ENGINE) += dmaengine.o dma-apbh.o dma-apbx.o

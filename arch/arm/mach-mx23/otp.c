@@ -25,11 +25,12 @@
 #include <linux/mutex.h>
 #include <linux/clk.h>
 #include <linux/err.h>
+#include <linux/io.h>
 
 #include <mach/unique-id.h>
 #include <mach/regs-ocotp.h>
 #include <mach/regs-power.h>
-#include <mach/platform.h>
+#include <mach/mx23.h>
 
 static DEFINE_MUTEX(otp_mutex);
 static unsigned otp_mode;
@@ -40,6 +41,8 @@ static int otp_full; /* = 0. By default, show/set only customer bits */
 #define OTP_USER_OFFSET 0
 #define OTP_USER_SIZE	4
 
+#define REGS_OCOTP_BASE (IO_ADDRESS(OCOTP_PHYS_ADDR))
+#define BF(value, field) (((value) << BP_##field) & BM_##field)
 /**
  * otp_wait_busy - wait for completion of operation
  *
@@ -91,7 +94,7 @@ static int otp_open(int mode)
 		}
 
 		/* 2. Set RD_BANK_OPEN */
-		stmp3xxx_setl(BM_OCOTP_CTRL_RD_BANK_OPEN, REGS_OCOTP_BASE + HW_OCOTP_CTRL);
+		__raw_writel(BM_OCOTP_CTRL_RD_BANK_OPEN, REGS_OCOTP_BASE + HW_OCOTP_CTRL_SET);
 		udelay(10);
 
 		otp_wait_busy(0);
@@ -163,7 +166,7 @@ static void otp_close(void)
 
 	if (otp_mode == O_RDONLY) {
 		/* 5. clear RD_BANK_OPEN */
-		stmp3xxx_clearl(BM_OCOTP_CTRL_RD_BANK_OPEN, REGS_OCOTP_BASE + HW_OCOTP_CTRL);
+		__raw_writel(BM_OCOTP_CTRL_RD_BANK_OPEN, REGS_OCOTP_BASE + HW_OCOTP_CTRL_CLR);
 	}
 
 	else if (otp_mode == O_WRONLY) {
@@ -171,7 +174,7 @@ static void otp_close(void)
 		clk_set_rate(hclk, otp_hclk_saved);
 		__raw_writel(otp_voltage_saved, REGS_POWER_BASE + HW_POWER_VDDIOCTRL);
 		otp_wait_busy(0);
-		stmp3xxx_setl(BM_OCOTP_CTRL_RELOAD_SHADOWS, REGS_OCOTP_BASE + HW_OCOTP_CTRL);
+		__raw_writel(BM_OCOTP_CTRL_RELOAD_SHADOWS, REGS_OCOTP_BASE + HW_OCOTP_CTRL_SET);
 		otp_wait_busy(BM_OCOTP_CTRL_RELOAD_SHADOWS);
 	}
 

@@ -8,6 +8,16 @@ config MACH_MX23EVK
 
 endchoice
 
+
+config MXS_UNIQUE_ID
+	bool "Support for UniqueID on boot media"
+	default y
+
+config MXS_UNIQUE_ID_OTP
+	bool "UniqueID on OTP"
+	depends on MXS_UNIQUE_ID
+	default y
+
 config VECTORS_PHY_ADDR
 	int "vectors address"
 	default 0
