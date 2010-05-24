@@ -31,6 +31,7 @@
 #include <linux/platform_device.h>
 #include <linux/vmalloc.h>
 #include <linux/videodev2.h>
+#include <linux/delay.h>
 
 #include <media/videobuf-dma-contig.h>
 #include <media/v4l2-common.h>
@@ -671,6 +672,7 @@ static int pxp_streamon(struct file *file, void *priv, enum v4l2_buf_type t)
 
 	pxp_set_outbuf(pxp);
 	ret = videobuf_streamon(&pxp->s0_vbq);
+	msleep(20);
 
 	if (!ret && (pxp->output == 0))
 		mxsfb_cfg_pxp(1, pxp->outb_phys);
@@ -686,7 +688,9 @@ static int pxp_streamoff(struct file *file, void *priv, enum v4l2_buf_type t)
 	if ((t != V4L2_BUF_TYPE_VIDEO_OUTPUT))
 		return -EINVAL;
 
+	cancel_work_sync(&pxp->work);
 	ret = videobuf_streamoff(&pxp->s0_vbq);
+	msleep(20);
 
 	if (!ret)
 		mxsfb_cfg_pxp(0, 0);
@@ -1101,8 +1105,10 @@ static int pxp_close(struct file *file)
 {
 	struct pxps *pxp = video_get_drvdata(video_devdata(file));
 
-	if (pxp->workqueue)
+	if (pxp->workqueue) {
+		flush_workqueue(pxp->workqueue);
 		destroy_workqueue(pxp->workqueue);
+	}
 
 	videobuf_stop(&pxp->s0_vbq);
 	videobuf_mmap_free(&pxp->s0_vbq);
