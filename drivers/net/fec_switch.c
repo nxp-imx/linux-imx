@@ -281,7 +281,7 @@ static void switch_platform_flush_cache(void)
  *          The first byte is the first byte transmitted
  *   return The 8-bit CRC in bits 7:0
  */
-int crc8_calc(unsigned char *pmacaddress)
+static int crc8_calc(unsigned char *pmacaddress)
 {
 	/* byte index */
 	int byt;
@@ -316,7 +316,7 @@ int crc8_calc(unsigned char *pmacaddress)
 	return crc;
 }
 
-void read_atable(struct switch_enet_private *fep,
+static void read_atable(struct switch_enet_private *fep,
 	int index,
 	unsigned long *read_lo, unsigned long *read_hi)
 {
@@ -326,7 +326,7 @@ void read_atable(struct switch_enet_private *fep,
 	*read_hi = readl(atable_base + (index<<3) + 4);
 }
 
-void write_atable(struct switch_enet_private *fep,
+static void write_atable(struct switch_enet_private *fep,
 	int index,
 	unsigned long write_lo, unsigned long write_hi)
 {
@@ -336,41 +336,11 @@ void write_atable(struct switch_enet_private *fep,
 	writel(write_hi, atable_base + (index<<3) + 4);
 }
 
-/*
- * Check if the Port Info FIFO has data available
- * for reading. 1 valid, 0 invalid
- */
-int esw_portinfofifo_status(struct switch_enet_private *fep)
-{
-	struct switch_t  *fecp;
-	fecp = fep->hwp;
-	return fecp->ESW_LSR;
-}
-
-/* Initialize the Port Info FIFO */
-void esw_portinfofifo_initialize(
-	struct switch_enet_private *fep)
-{
-	struct switch_t  *fecp;
-	unsigned long tmp;
-	fecp = fep->hwp;
-
-	/*disable all learn*/
-	fecp->switch_imask &= (~MCF_ESW_IMR_LRN);
-	/* remove all entries from FIFO */
-	while (esw_portinfofifo_status(fep)) {
-		/* read one data word */
-		tmp = fecp->ESW_LREC0;
-		tmp = fecp->ESW_LREC1;
-	}
-
-}
-
 /* Read one element from the HW receive FIFO (Queue)
  * if available and return it.
  * return ms_HwPortInfo or null if no data is available
  */
-struct eswPortInfo *esw_portinfofifo_read(
+static struct eswPortInfo *esw_portinfofifo_read(
 	struct switch_enet_private *fep)
 {
 	struct switch_t  *fecp;
@@ -405,23 +375,11 @@ struct eswPortInfo *esw_portinfofifo_read(
 /*
  * Clear complete MAC Look Up Table
  */
-void esw_clear_atable(struct switch_enet_private *fep)
+static void esw_clear_atable(struct switch_enet_private *fep)
 {
 	int index;
 	for (index = 0; index < 2048; index++)
 		write_atable(fep, index, 0, 0);
-}
-
-void esw_dump_atable(struct switch_enet_private *fep)
-{
-	int index;
-	unsigned long read_lo, read_hi;
-	for (index = 0; index < 2048; index++) {
-		read_atable(fep, index, &read_lo, &read_hi);
-		printk(KERN_ERR "%s: index %d, lo %lu hi %lu\n",
-			__func__, index, read_lo, read_hi);
-	}
-
 }
 
 /*
@@ -438,7 +396,7 @@ void esw_dump_atable(struct switch_enet_private *fep)
  *
  * return 0 for a successful update else -1  when no slot available
  */
-int esw_update_atable_static(unsigned char *mac_addr,
+static int esw_update_atable_static(unsigned char *mac_addr,
 	unsigned int port, unsigned int priority,
 	struct switch_enet_private *fep)
 {
@@ -488,95 +446,7 @@ int esw_update_atable_static(unsigned char *mac_addr,
 	return -1;
 }
 
-/* lookup entry in given Address Table slot and
- * insert (learn) it if it is not found.
- * return 0 if entry was found and updated.
- *        1 if entry was not found and has been inserted (learned).
- */
-int esw_update_atable_dynamic(unsigned char *mac_addr,
-	unsigned int port, unsigned int currTime,
-	struct switch_enet_private *fep)
-{
-	unsigned long block_index, entry, index_end;
-	unsigned long read_lo, read_hi;
-	unsigned long write_lo, write_hi;
-	unsigned long tmp;
-	int time, timeold, indexold;
-
-	/* prepare update port and timestamp */
-	write_hi = (mac_addr[5] << 8) | (mac_addr[4]);
-	write_lo = (unsigned long)((mac_addr[3] << 24) |
-			(mac_addr[2] << 16) |
-			(mac_addr[1] << 8) |
-			mac_addr[0]);
-	tmp = AT_ENTRY_RECORD_VALID << AT_ENTRY_VALID_shift;
-	tmp |= AT_ENTRY_TYPE_DYNAMIC << AT_ENTRY_TYPE_shift;
-	tmp |= currTime << AT_DENTRY_TIME_shift;
-	tmp |= port << AT_DENTRY_PORT_shift;
-	tmp |= write_hi;
-
-	/*
-	 * linear search through all slot
-	 * entries and update if found
-	 */
-	block_index = GET_BLOCK_PTR(crc8_calc(mac_addr));
-	index_end = block_index + ATABLE_ENTRY_PER_SLOT;
-	 /* Now search all the entries in the selected block */
-	for (entry = block_index; entry < index_end; entry++) {
-		read_atable(fep, entry, &read_lo, &read_hi);
-		if ((read_lo == write_lo) &&
-			((read_hi & 0x0000ffff) ==
-			(write_hi & 0x0000ffff))) {
-			/* found correct address,
-			 * update timestamp. */
-			write_atable(fep, entry, write_lo, tmp);
-			return 0;
-		} else if (!(read_hi & (1 << 16))) {
-			/* slot is empty, then use it
-			 * for new entry
-			 * Note: There are no holes,
-			 * therefore cannot be any
-			 * more that need to be compared.
-			 */
-			write_atable(fep, entry, write_lo, tmp);
-			/* statistics (we do it between writing
-			 * .hi an .lo due to
-			 * hardware limitation...
-			 */
-			fep->atCurrEntries++;
-			/* newly inserted */
-			return 1;
-		}
-	}
-
-	/*
-	 * no more entry available in blockk ...
-	 * overwrite oldest
-	 */
-	timeold = 0;
-	indexold = 0;
-	for (entry = block_index; entry < index_end; entry++) {
-		read_atable(fep, entry, &read_lo, &read_hi);
-		time = AT_EXTRACT_TIMESTAMP(read_hi);
-		time = TIMEDELTA(currTime, time);
-		if (time > timeold) {
-			/* is it older ?*/
-			timeold = time;
-			indexold = entry;
-		}
-	}
-
-	write_atable(fep, indexold, write_lo, tmp);
-	/* Statistics (do it inbetween
-	 * writing to .lo and .hi
-	 */
-	fep->atBlockOverflows++;
-	/* newly inserted */
-	return 1;
-
-}
-
-int esw_update_atable_dynamic1(unsigned long write_lo,
+static int esw_update_atable_dynamic1(unsigned long write_lo,
 	unsigned long write_hi, int block_index,
 	unsigned int port, unsigned int currTime,
 	struct switch_enet_private *fep)
@@ -624,9 +494,7 @@ int esw_update_atable_dynamic1(unsigned long write_lo,
 			fep->atCurrEntries++;
 			/* newly inserted */
 			return 1;
-		} else {
 		}
-			printk(KERN_ERR "%s: nothing to do\n", __func__);
 	}
 
 	/*
@@ -660,227 +528,8 @@ int esw_update_atable_dynamic1(unsigned long write_lo,
 	return 1;
 }
 
-/*
- * Delete one dynamic entry within the given block
- * of 64-bit entries.
- * return number of valid entries in the block after deletion.
- */
-int esw_del_atable_dynamic(struct switch_enet_private *fep,
-	int blockidx, int entryidx)
-{
-	unsigned long index_start, index_end;
-	int i;
-	unsigned long read_lo, read_hi;
-
-	/* the entry to delete */
-	index_start = blockidx + entryidx;
-	/* one after last */
-	index_end = blockidx + ATABLE_ENTRY_PER_SLOT;
-	/* Statistics */
-	fep->atCurrEntries--;
-
-	if (entryidx == (ATABLE_ENTRY_PER_SLOT - 1)) {
-		/*
-		 * if it is the very last entry,
-		 * just delete it without further efford
-		 */
-		write_atable(fep, index_start, 0, 0);
-		/*number of entries left*/
-		i = ATABLE_ENTRY_PER_SLOT - 1;
-		return i;
-	} else {
-		/*
-		 * not the last in the block, then
-		 * shift all that follow the one
-		 * that is deleted to avoid "holes".
-		 */
-		for (i = index_start; i < (index_end - 1); i++) {
-			read_atable(fep, i + 1, &read_lo, &read_hi);
-			/* move it down */
-			write_atable(fep, i, read_lo, read_hi);
-			if (!(read_hi & (1 << 16))) {
-				/* stop if we just copied the last */
-				return i - blockidx;
-			}
-		}
-
-		/*
-		 * moved all entries up to the last.
-		 * then set invalid flag in the last
-		 */
-		write_atable(fep, index_end - 1, 0, 0);
-		/* number of valid entries left */
-		return i - blockidx;
-	}
-
-}
-
-void esw_atable_dynamicms_del_entries_for_port(
-	struct switch_enet_private *fep,
-	int port_index)
-{
-	unsigned long read_lo, read_hi;
-
-	unsigned int port_idx;
-	int i;
-
-	for (i = 0; i < ESW_ATABLE_MEM_NUM_ENTRIES; i++) {
-		read_atable(fep, i, &read_lo, &read_hi);
-		if (read_hi & (1 << 16)) {
-			port_idx = AT_EXTRACT_PORT(read_hi);
-
-			if (port_idx == port_index) {
-				write_atable(fep, i, 0, 0);
-				printk(KERN_ERR "Deleted entry "
-					"is number %d\n", i);
-			}
-		}
-	}
-
-}
-
-/*
- *  Scan one complete block (Slot) for outdated entries and delete them.
- *  blockidx index of block of entries that should be analyzed.
- *  return number of deleted entries, 0 if nothing was modified.
- */
-int esw_atable_dynamicms_check_block_age(
-	struct switch_enet_private *fep, int blockidx) {
-
-	int i, tm, tdelta;
-	int deleted = 0, entries = 0;
-	unsigned long read_lo, read_hi;
-	/* Scan all entries from last down to
-	 * have faster deletion speed if necessary
-	 */
-	for (i = (blockidx + ATABLE_ENTRY_PER_SLOT - 1);
-		i >= blockidx; i--) {
-		read_atable(fep, i, &read_lo, &read_hi);
-
-		if (read_hi & (1 << 16)) {
-			/* the entry is valide */
-			tm = AT_EXTRACT_TIMESTAMP(read_hi);
-			tdelta = TIMEDELTA(fep->currTime, tm);
-			if (tdelta > fep->ageMax) {
-				esw_del_atable_dynamic(fep,
-					blockidx, i-blockidx);
-				deleted++;
-			} else {
-				/* statistics */
-				entries++;
-			}
-		}
-	}
-
-	/* update statistics */
-	if (fep->atMaxEntriesPerBlock < entries)
-		fep->atMaxEntriesPerBlock = entries;
-
-	return deleted;
-}
-
-/* scan the complete address table and find the most current entry.
- * The time of the most current entry then is used as current time
- * for the context structure.
- * In addition the atCurrEntries value is updated as well.
- * return time that has been set in the context.
- */
-int esw_atable_dynamicms_find_set_latesttime(
-	struct switch_enet_private *fep) {
-
-	int tm_min, tm_max, tm;
-	int delta, current_val, i;
-	unsigned long read_lo, read_hi;
-
-	tm_min = (1 << AT_DENTRY_TIMESTAMP_WIDTH) - 1;
-	tm_max = 0;
-	current_val = 0;
-
-	for (i = 0; i < ESW_ATABLE_MEM_NUM_ENTRIES; i++) {
-		read_atable(fep, i, &read_lo, &read_hi);
-		if (read_hi & (1 << 16)) {
-			/* the entry is valid */
-			tm = AT_EXTRACT_TIMESTAMP(read_hi);
-			if (tm > tm_max)
-				tm_max = tm;
-			if (tm < tm_min)
-				tm_min = tm;
-			current_val++;
-		}
-	}
-
-	delta = TIMEDELTA(tm_max, tm_min);
-	if (delta < fep->ageMax) {
-		/* Difference must be in range */
-		fep->currTime = tm_max;
-	} else {
-		fep->currTime = tm_min;
-	}
-
-	fep->atCurrEntries = current_val;
-	return fep->currTime;
-}
-
-int esw_atable_dynamicms_get_port(
-	struct switch_enet_private *fep,
-	unsigned long write_lo,
-	unsigned long write_hi,
-	int block_index)
-{
-
-	int i, index_end;
-	unsigned long read_lo, read_hi, port;
-
-	index_end = block_index + ATABLE_ENTRY_PER_SLOT;
-	/* Now search all the entries in the selected block */
-	for (i = block_index; i < index_end; i++) {
-		read_atable(fep, i, &read_lo, &read_hi);
-
-		if ((read_lo == write_lo) &&
-			((read_hi & 0x0000ffff) ==
-			(write_hi & 0x0000ffff))) {
-			/* found correct address,*/
-			if (read_hi & (1 << 16)) {
-				/*
-				 * extract the port index
-				 * from the valid entry
-				 */
-				port = AT_EXTRACT_PORT(read_hi);
-				return port;
-			}
-		}
-	}
-
-	return -1;
-
-}
-
-
-/* Get the port index from the source MAC address
- * of the received frame
- * @return port index
- */
-int esw_atable_dynamicms_get_portindex_from_mac(
-	struct switch_enet_private *fep,
-	unsigned char *mac_addr,
-	unsigned long write_lo,
-	unsigned long write_hi)
-{
-
-	int blockIdx;
-	int rc;
-	/* compute the block index */
-	blockIdx = GET_BLOCK_PTR(crc8_calc(mac_addr));
-	/* Get the ingress port index of the received BPDU */
-	rc = esw_atable_dynamicms_get_port(fep,
-		write_lo, write_hi, blockIdx);
-
-	return rc;
-
-}
-
 /* dynamicms MAC address table learn and migration */
-int esw_atable_dynamicms_learn_migration(
+static int esw_atable_dynamicms_learn_migration(
 	struct switch_enet_private *fep,
 	int currTime)
 {
@@ -906,32 +555,21 @@ int esw_atable_dynamicms_learn_migration(
 
 }
 
-void esw_basic_switching(struct switch_enet_private *fep)
-{
-	struct switch_t  *fecp;
-
-	fecp = fep->hwp;
-	fecp->ESW_DBCR = MCF_ESW_DBCR_P1;
-}
-
 /*
  * esw_forced_forward
  * The frame is forwared to the forced destination ports.
  * It only replace the MAC lookup function,
  * all other filtering(eg.VLAN verification) act as normal
  */
-int esw_forced_forward(struct switch_enet_private *fep,
-	int port1, int port2)
+static int esw_forced_forward(struct switch_enet_private *fep,
+	int port1, int port2, int enable)
 {
 	unsigned long tmp = 0;
 	struct switch_t  *fecp;
 
 	fecp = fep->hwp;
-	/* Enable Deafault broadcast for port 0 */
-	writel(MCF_ESW_DBCR_P0, fecp + MCF_ESW_DBCR);
 
 	/* Enable Forced forwarding for port num */
-	tmp = MCF_ESW_P0FFEN_FEN;
 	if ((port1 == 1) && (port2 == 1))
 		tmp |= MCF_ESW_P0FFEN_FD(3);
 	else if (port1 == 1)
@@ -948,10 +586,48 @@ int esw_forced_forward(struct switch_enet_private *fep,
 		return -1;
 	}
 
+	if (enable == 1)
+		tmp |= MCF_ESW_P0FFEN_FEN;
+	else if (enable == 0)
+		tmp &= ~MCF_ESW_P0FFEN_FEN;
+	else {
+		printk(KERN_ERR "%s: the enable %x is error\n",
+			__func__, enable);
+		return -2;
+	}
+
 	fecp->ESW_P0FFEN = tmp;
 	return 0;
 }
 
+static int esw_get_forced_forward(
+	struct switch_enet_private *fep,
+	unsigned long *ulForceForward)
+{
+	struct switch_t  *fecp;
+
+	fecp = fep->hwp;
+	*ulForceForward = fecp->ESW_P0FFEN;
+#ifdef DEBUG_FORCED_FORWARD
+	printk(KERN_INFO "%s  ESW_P0FFEN %x\n",
+		__func__, fecp->ESW_P0FFEN);
+#endif
+	return 0;
+}
+
+static void esw_get_port_enable(
+	struct switch_enet_private *fep,
+	unsigned long *ulPortEnable)
+{
+	struct switch_t  *fecp;
+
+	fecp = fep->hwp;
+	*ulPortEnable = fecp->ESW_PER;
+#ifdef DEBUG_PORT_ENABLE
+	printk(KERN_INFO "%s  fecp->ESW_PER %x\n",
+		__func__, fecp->ESW_PER);
+#endif
+}
 /*
  * enable or disable port n tx or rx
  * tx_en 0 disable port n tx
@@ -959,7 +635,7 @@ int esw_forced_forward(struct switch_enet_private *fep,
  * rx_en 0 disbale port n rx
  * rx_en 1 enable  port n rx
  */
-int esw_port_enable_config(struct switch_enet_private *fep,
+static int esw_port_enable_config(struct switch_enet_private *fep,
 	int port, int tx_en, int rx_en)
 {
 	unsigned long tmp = 0;
@@ -968,11 +644,11 @@ int esw_port_enable_config(struct switch_enet_private *fep,
 	fecp = fep->hwp;
 	tmp = fecp->ESW_PER;
 	if (tx_en == 1) {
-		if (port == 1)
+		if (port == 0)
 			tmp |= MCF_ESW_PER_TE0;
-		else if (port == 2)
+		else if (port == 1)
 			tmp |= MCF_ESW_PER_TE1;
-		else if (port == 3)
+		else if (port == 2)
 			tmp |= MCF_ESW_PER_TE2;
 		else {
 			printk(KERN_ERR "%s:do not support the"
@@ -981,11 +657,11 @@ int esw_port_enable_config(struct switch_enet_private *fep,
 			return -1;
 		}
 	} else if (tx_en == 0) {
-		if (port == 1)
+		if (port == 0)
 			tmp &= (~MCF_ESW_PER_TE0);
-		else if (port == 2)
+		else if (port == 1)
 			tmp &= (~MCF_ESW_PER_TE1);
-		else if (port == 3)
+		else if (port == 2)
 			tmp &= (~MCF_ESW_PER_TE2);
 		else {
 			printk(KERN_ERR "%s:do not support "
@@ -1001,11 +677,11 @@ int esw_port_enable_config(struct switch_enet_private *fep,
 	}
 
 	if (rx_en == 1) {
-		if (port == 1)
+		if (port == 0)
 			tmp |= MCF_ESW_PER_RE0;
-		else if (port == 2)
+		else if (port == 1)
 			tmp |= MCF_ESW_PER_RE1;
-		else if (port == 3)
+		else if (port == 2)
 			tmp |= MCF_ESW_PER_RE2;
 		else {
 			printk(KERN_ERR "%s:do not support the "
@@ -1014,11 +690,11 @@ int esw_port_enable_config(struct switch_enet_private *fep,
 			return -4;
 		}
 	} else if (rx_en == 0) {
-		if (port == 1)
+		if (port == 0)
 			tmp &= (~MCF_ESW_PER_RE0);
-		else if (port == 2)
+		else if (port == 1)
 			tmp &= (~MCF_ESW_PER_RE1);
-		else if (port == 3)
+		else if (port == 2)
 			tmp &= (~MCF_ESW_PER_RE2);
 		else {
 			printk(KERN_ERR "%s:do not support the "
@@ -1037,7 +713,22 @@ int esw_port_enable_config(struct switch_enet_private *fep,
 	return 0;
 }
 
-int esw_port_broadcast_config(
+
+static void esw_get_port_broadcast(
+	struct switch_enet_private *fep,
+	unsigned long *ulPortBroadcast)
+{
+	struct switch_t  *fecp;
+
+	fecp = fep->hwp;
+	*ulPortBroadcast = fecp->ESW_DBCR;
+#ifdef DEBUG_PORT_BROADCAST
+	printk(KERN_INFO "%s  fecp->ESW_DBCR %x\n",
+		__func__, fecp->ESW_DBCR);
+#endif
+}
+
+static int esw_port_broadcast_config(
 	struct switch_enet_private *fep,
 	int port, int enable)
 {
@@ -1074,7 +765,22 @@ int esw_port_broadcast_config(
 	return 0;
 }
 
-int esw_port_multicast_config(
+
+static void esw_get_port_multicast(
+	struct switch_enet_private *fep,
+	unsigned long *ulPortMulticast)
+{
+	struct switch_t  *fecp;
+
+	fecp = fep->hwp;
+	*ulPortMulticast = fecp->ESW_DMCR;
+#ifdef DEBUG_PORT_MULTICAST
+	printk(KERN_INFO "%s  fecp->ESW_DMCR %x\n",
+		__func__, fecp->ESW_DMCR);
+#endif
+}
+
+static int esw_port_multicast_config(
 	struct switch_enet_private *fep,
 	int port, int enable)
 {
@@ -1111,7 +817,22 @@ int esw_port_multicast_config(
 	return 0;
 }
 
-int esw_port_blocking_config(
+
+static void esw_get_port_blocking(
+	struct switch_enet_private *fep,
+	unsigned long *ulPortBlocking)
+{
+	struct switch_t  *fecp;
+
+	fecp = fep->hwp;
+	*ulPortBlocking = (fecp->ESW_BKLR & 0x00ff);
+#ifdef DEBUG_PORT_BLOCKING
+	printk(KERN_INFO "%s  fecp->ESW_BKLR %x\n",
+		__func__, fecp->ESW_BKLR);
+#endif
+}
+
+static int esw_port_blocking_config(
 	struct switch_enet_private *fep,
 	int port, int enable)
 {
@@ -1148,7 +869,22 @@ int esw_port_blocking_config(
 	return 0;
 }
 
-int esw_port_learning_config(
+
+static void esw_get_port_learning(
+	struct switch_enet_private *fep,
+	unsigned long *ulPortLearning)
+{
+	struct switch_t  *fecp;
+
+	fecp = fep->hwp;
+	*ulPortLearning = (fecp->ESW_BKLR & 0xff00) >> 16;
+#ifdef DEBUG_PORT_LEARNING
+	printk(KERN_INFO "%s  fecp->ESW_BKLR %x\n",
+		__func__, fecp->ESW_BKLR);
+#endif
+}
+
+static int esw_port_learning_config(
 	struct switch_enet_private *fep,
 	int port, int disable)
 {
@@ -1166,6 +902,7 @@ int esw_port_learning_config(
 
 	tmp = fecp->ESW_BKLR;
 	if (disable == 1) {
+		fep->learning_irqhandle_enable = 0;
 		if (port == 0)
 			tmp |= MCF_ESW_BKLR_LD0;
 		else if (port == 1)
@@ -1173,6 +910,8 @@ int esw_port_learning_config(
 		else if (port == 2)
 			tmp |= MCF_ESW_BKLR_LD2;
 	} else if (disable == 0) {
+		fep->learning_irqhandle_enable = 1;
+		fecp->switch_imask |= MCF_ESW_IMR_LRN;
 		if (port == 0)
 			tmp &= ~MCF_ESW_BKLR_LD0;
 		else if (port == 1)
@@ -1182,6 +921,10 @@ int esw_port_learning_config(
 	}
 
 	fecp->ESW_BKLR = tmp;
+#ifdef DEBUG_PORT_LEARNING
+	printk(KERN_INFO "%s  ESW_BKLR %x, switch_imask %x\n",
+		__func__, fecp->ESW_BKLR, fecp->switch_imask);
+#endif
 	return 0;
 }
 
@@ -1191,30 +934,36 @@ int esw_port_learning_config(
  * mode 1 : The snooped frame is copy to management port and
  *              normal forwarding is checked.
  * mode 2 : The snooped frame is discarded.
- *
+ * mode 3 : Disable the ip snoop function
  * ip_header_protocol : the IP header protocol field
  */
-int esw_ip_snoop_config(struct switch_enet_private *fep,
+static int esw_ip_snoop_config(struct switch_enet_private *fep,
 	int num, int mode, unsigned long ip_header_protocol)
 {
 	struct switch_t  *fecp;
-	unsigned long tmp, protocol_type;
+	unsigned long tmp = 0, protocol_type = 0;
 
 	fecp = fep->hwp;
-	/* Enable transmit/receive on all ports */
-	fecp->ESW_PER = 0x50003;
-	fecp->ESW_P0FFEN = (MCF_ESW_P0FFEN_FD(1) | MCF_ESW_P0FFEN_FEN);
-
-	/* Enable IP Snooping */
-	tmp = MCF_ESW_IPSNP_EN;
-	if (mode == 0)
-		tmp |= MCF_ESW_IPSNP_MODE(0);/* For Forward */
-	else if (mode == 1)/* For Forward and copy_to_mangmnt_port */
+	/* Config IP Snooping */
+	if (mode == 0) {
+		/* Enable IP Snooping */
+		tmp = MCF_ESW_IPSNP_EN;
+		tmp |= MCF_ESW_IPSNP_MODE(0);/*For Forward*/
+	} else if (mode == 1) {
+		/* Enable IP Snooping */
+		tmp = MCF_ESW_IPSNP_EN;
+		/*For Forward and copy_to_mangmnt_port*/
 		tmp |= MCF_ESW_IPSNP_MODE(1);
-	else if (mode == 2)
-		tmp |= MCF_ESW_IPSNP_MODE(2);/* discard */
-	else {
-		printk(KERN_ERR "%s: the mode %d "
+	} else if (mode == 2) {
+		/* Enable IP Snooping */
+		tmp = MCF_ESW_IPSNP_EN;
+		tmp |= MCF_ESW_IPSNP_MODE(2);/*discard*/
+	} else if (mode == 3) {
+		/* disable IP Snooping */
+		tmp = MCF_ESW_IPSNP_EN;
+		tmp &= ~MCF_ESW_IPSNP_EN;
+	} else {
+		printk(KERN_ERR "%s: the mode %x "
 			"we do not support\n", __func__, mode);
 		return -1;
 	}
@@ -1222,10 +971,29 @@ int esw_ip_snoop_config(struct switch_enet_private *fep,
 	protocol_type = ip_header_protocol;
 	fecp->ESW_IPSNP[num] =
 		tmp | MCF_ESW_IPSNP_PROTOCOL(protocol_type);
-
+	printk(KERN_INFO "%s : ESW_IPSNP[%d] %#lx\n",
+		__func__, num, fecp->ESW_IPSNP[num]);
 	return 0;
 }
 
+static void esw_get_ip_snoop_config(
+	struct switch_enet_private *fep,
+	unsigned long *ulpESW_IPSNP)
+{
+	int i;
+	struct switch_t  *fecp;
+
+	fecp = fep->hwp;
+	for (i = 0; i < 8; i++)
+		*(ulpESW_IPSNP + i) = fecp->ESW_IPSNP[i];
+#ifdef DEBUG_IP_SNOOP
+	printk(KERN_INFO "%s  ", __func__);
+	for (i = 0; i < 8; i++)
+		printk(KERN_INFO " reg(%d) %x", fecp->ESW_IPSNP[i]);
+	printk(KERN_INFO "\n");
+#endif
+
+}
 /*
  * Checks TCP/UDP Port Snoop options of handling the snooped frame.
  * mode 0 : The snooped frame is forward only to management port
@@ -1237,26 +1005,24 @@ int esw_ip_snoop_config(struct switch_enet_private *fep,
  * compare_num 2: TCP/UDP destination port number is compared
  * compare_num 3: TCP/UDP source and destination port number is compared
  */
-int esw_tcpudp_port_snoop_config(struct switch_enet_private *fep,
+static int esw_tcpudp_port_snoop_config(struct switch_enet_private *fep,
 	int num, int mode, int compare_port, int compare_num)
 {
 	struct switch_t  *fecp;
 	unsigned long tmp = 0;
 
 	fecp = fep->hwp;
-	/* Enable transmit/receive on all ports */
-	fecp->ESW_PER = 0x50003;
-	fecp->ESW_P0FFEN = (MCF_ESW_P0FFEN_FD(1) | MCF_ESW_P0FFEN_FEN);
 
 	/* Enable TCP/UDP port Snooping */
-	tmp = MCF_ESW_PSNP_EN |
-		MCF_ESW_PSNP_PORT_COMPARE(compare_port);
+	tmp = MCF_ESW_PSNP_EN;
 	if (mode == 0)
 		tmp |= MCF_ESW_PSNP_MODE(0);/* For Forward */
-	else if (mode == 1)/* For Forward and copy_to_mangmnt_port */
+	else if (mode == 1)/*For Forward and copy_to_mangmnt_port*/
 		tmp |= MCF_ESW_PSNP_MODE(1);
 	else if (mode == 2)
 		tmp |= MCF_ESW_PSNP_MODE(2);/* discard */
+	else if (mode == 3) /* disable the port function */
+		tmp &= (~MCF_ESW_PSNP_EN);
 	else {
 		printk(KERN_ERR "%s: the mode %x we do not support\n",
 			__func__, mode);
@@ -1278,12 +1044,64 @@ int esw_tcpudp_port_snoop_config(struct switch_enet_private *fep,
 
 	fecp->ESW_PSNP[num] = tmp |
 		MCF_ESW_PSNP_PORT_COMPARE(compare_port);
-
+	printk(KERN_INFO "ESW_PSNP[%d] %#lx\n",
+			num, fecp->ESW_PSNP[num]);
 	return 0;
 }
 
-int esw_port_mirroring_config(struct switch_enet_private *fep,
-	int mirror_port, int port,
+static void esw_get_tcpudp_port_snoop_config(
+	struct switch_enet_private *fep,
+	unsigned long *ulpESW_PSNP)
+{
+	int i;
+	struct switch_t  *fecp;
+
+	fecp = fep->hwp;
+	for (i = 0; i < 8; i++)
+		*(ulpESW_PSNP + i) = fecp->ESW_PSNP[i];
+#ifdef DEBUG_TCPUDP_PORT_SNOOP
+	 printk(KERN_INFO "%s  ", __func__);
+	 for (i = 0; i < 8; i++)
+		printk(KERN_INFO " reg(%d) %x", fecp->ESW_PSNP[i]);
+	 printk(KERN_INFO "\n");
+#endif
+
+}
+
+static void esw_get_port_mirroring(
+	struct switch_enet_private *fep,
+	struct eswIoctlPortMirrorStatus *pPortMirrorStatus)
+{
+	struct switch_t  *fecp;
+
+	fecp = fep->hwp;
+	pPortMirrorStatus->ESW_MCR    = fecp->ESW_MCR;
+	pPortMirrorStatus->ESW_EGMAP  = fecp->ESW_EGMAP;
+	pPortMirrorStatus->ESW_INGMAP = fecp->ESW_INGMAP;
+	pPortMirrorStatus->ESW_INGSAL = fecp->ESW_INGSAL;
+	pPortMirrorStatus->ESW_INGSAH = fecp->ESW_INGSAH;
+	pPortMirrorStatus->ESW_INGDAL = fecp->ESW_INGDAL;
+	pPortMirrorStatus->ESW_INGDAH = fecp->ESW_INGDAH;
+	pPortMirrorStatus->ESW_ENGSAL = fecp->ESW_ENGSAL;
+	pPortMirrorStatus->ESW_ENGSAH = fecp->ESW_ENGSAH;
+	pPortMirrorStatus->ESW_ENGDAL = fecp->ESW_ENGDAL;
+	pPortMirrorStatus->ESW_ENGDAH = fecp->ESW_ENGDAH;
+	pPortMirrorStatus->ESW_MCVAL  = fecp->ESW_MCVAL;
+#ifdef DEBUG_PORT_MIRROR
+	printk(KERN_INFO "%s : ESW_MCR %x, ESW_EGMAP %x\n"
+		"ESW_INGMAP %x, ESW_INGSAL %x, "
+		"ESW_INGSAH %x ESW_INGDAL %x, ESW_INGDAH %x\n"
+		"ESW_ENGSAL %x, ESW_ENGSAH%x, ESW_ENGDAL %x,"
+		"ESW_ENGDAH %x, ESW_MCVAL %x\n",
+		__func__, fecp->ESW_MCR, fecp->ESW_EGMAP, fecp->ESW_INGMAP,
+		fecp->ESW_INGSAL, fecp->ESW_INGSAH, fecp->ESW_INGDAL,
+		fecp->ESW_INGDAH, fecp->ESW_ENGSAL, fecp->ESW_ENGSAH,
+		fecp->ESW_ENGDAL, fecp->ESW_ENGDAH, fecp->ESW_MCVAL);
+#endif
+}
+
+static int esw_port_mirroring_config(struct switch_enet_private *fep,
+	int mirror_port, int port, int mirror_enable,
 	unsigned char *src_mac, unsigned char *des_mac,
 	int egress_en, int ingress_en,
 	int egress_mac_src_en, int egress_mac_des_en,
@@ -1293,15 +1111,9 @@ int esw_port_mirroring_config(struct switch_enet_private *fep,
 	unsigned long tmp = 0;
 
 	fecp = fep->hwp;
-	/* Enable transmit/receive on all ports */
-	fecp->ESW_PER = 0x50003;
-	writel(0, fecp + MCF_ESW_DBCR);
-	fecp->ESW_P0FFEN = (MCF_ESW_P0FFEN_FD(1) | MCF_ESW_P0FFEN_FEN);
 
-	/* Enable TCP/UDP port Snooping */
-
-	/* mirroring config */
-	tmp = MCF_ESW_MCR_MEN | MCF_ESW_MCR_PORT(mirror_port);
+	/*mirroring config*/
+	tmp = 0;
 	if (egress_en == 1) {
 		tmp |= MCF_ESW_MCR_EGMAP;
 		if (port == 0)
@@ -1315,7 +1127,9 @@ int esw_port_mirroring_config(struct switch_enet_private *fep,
 					__func__, port);
 			return -1;
 		}
-	} else if (egress_en != 0) {
+	} else if (egress_en == 0) {
+		tmp &= (~MCF_ESW_MCR_EGMAP);
+	} else {
 		printk(KERN_ERR "%s: egress_en %x we do not support\n",
 			__func__, egress_en);
 		return -1;
@@ -1334,7 +1148,9 @@ int esw_port_mirroring_config(struct switch_enet_private *fep,
 				__func__, port);
 			return -1;
 		}
-	} else if (ingress_en != 0) {
+	} else if (ingress_en == 0) {
+		tmp &= ~MCF_ESW_MCR_INGMAP;
+	} else{
 		printk(KERN_ERR "%s: ingress_en %x we do not support\n",
 				__func__, ingress_en);
 		return -1;
@@ -1347,7 +1163,9 @@ int esw_port_mirroring_config(struct switch_enet_private *fep,
 					(src_mac[2] << 16) |
 					(src_mac[1] << 8) |
 					src_mac[0]);
-	} else if (egress_mac_src_en != 0) {
+	} else if (egress_mac_src_en == 0) {
+		tmp &= ~MCF_ESW_MCR_EGSA;
+	} else {
 		printk(KERN_ERR "%s: egress_mac_src_en  %x we do not support\n",
 			__func__, egress_mac_src_en);
 		return -1;
@@ -1360,7 +1178,9 @@ int esw_port_mirroring_config(struct switch_enet_private *fep,
 					(des_mac[2] << 16) |
 					(des_mac[1] << 8) |
 					des_mac[0]);
-	} else if (egress_mac_des_en != 0) {
+	} else if (egress_mac_des_en == 0) {
+		tmp &= ~MCF_ESW_MCR_EGDA;
+	} else {
 		printk(KERN_ERR "%s: egress_mac_des_en  %x we do not support\n",
 			__func__, egress_mac_des_en);
 		return -1;
@@ -1373,7 +1193,9 @@ int esw_port_mirroring_config(struct switch_enet_private *fep,
 					(src_mac[2] << 16) |
 					(src_mac[1] << 8) |
 					src_mac[0]);
-	} else if (ingress_mac_src_en != 0) {
+	} else if (ingress_mac_src_en == 0) {
+		tmp &= ~MCF_ESW_MCR_INGSA;
+	} else {
 		printk(KERN_ERR "%s: ingress_mac_src_en  %x we do not support\n",
 			__func__, ingress_mac_src_en);
 		return -1;
@@ -1381,24 +1203,200 @@ int esw_port_mirroring_config(struct switch_enet_private *fep,
 
 	if (ingress_mac_des_en == 1) {
 		tmp |= MCF_ESW_MCR_INGDA;
-		fecp->ESW_INGSAH = (des_mac[5] << 8) | (des_mac[4]);
-		fecp->ESW_INGSAL = (unsigned long)((des_mac[3] << 24) |
+		fecp->ESW_INGDAH = (des_mac[5] << 8) | (des_mac[4]);
+		fecp->ESW_INGDAL = (unsigned long)((des_mac[3] << 24) |
 					(des_mac[2] << 16) |
 					(des_mac[1] << 8) |
 					des_mac[0]);
-	} else if (ingress_mac_des_en != 0) {
+	} else if (ingress_mac_des_en == 0) {
+		tmp &= ~MCF_ESW_MCR_INGDA;
+	} else {
 		printk(KERN_ERR "%s: ingress_mac_des_en  %x we do not support\n",
 			__func__, ingress_mac_des_en);
 		return -1;
 	}
 
-	fecp->ESW_MCR = tmp;
-	fecp->ESW_MCVAL = MCF_ESW_MCVAL_COUNT(0);
+	/*------------------------------------------------------------------*/
+	if (mirror_enable == 1)
+		tmp |= MCF_ESW_MCR_MEN | MCF_ESW_MCR_PORT(mirror_port);
+	else if (mirror_enable == 0)
+		tmp &= ~MCF_ESW_MCR_MEN;
+	else
+		printk(KERN_ERR "%s: the mirror enable %x is error\n",
+			__func__, mirror_enable);
 
+
+	fecp->ESW_MCR = tmp;
+	printk(KERN_INFO "%s : MCR %#lx, EGMAP %#lx, INGMAP %#lx;\n"
+		"ENGSAH %#lx, ENGSAL %#lx ;ENGDAH %#lx, ENGDAL %#lx;\n"
+		"INGSAH %#lx, INGSAL %#lx\n;INGDAH %#lx, INGDAL %#lx;\n",
+		__func__, fecp->ESW_MCR, fecp->ESW_EGMAP, fecp->ESW_INGMAP,
+		fecp->ESW_ENGSAH, fecp->ESW_ENGSAL,
+		fecp->ESW_ENGDAH, fecp->ESW_ENGDAL,
+		fecp->ESW_INGSAH, fecp->ESW_INGSAL,
+		fecp->ESW_INGDAH, fecp->ESW_INGDAL);
 	return 0;
 }
 
-int esw_vlan_input_process(struct switch_enet_private *fep,
+static void esw_get_vlan_verification(
+	struct switch_enet_private *fep,
+	unsigned long *ulValue)
+{
+	struct switch_t  *fecp;
+	fecp = fep->hwp;
+	*ulValue = fecp->ESW_VLANV;
+
+#ifdef DEBUG_VLAN_VERIFICATION_CONFIG
+	printk(KERN_INFO "%s: ESW_VLANV %x\n",
+		__func__, fecp->ESW_VLANV);
+#endif
+}
+
+static int esw_set_vlan_verification(
+	struct switch_enet_private *fep, int port,
+	int vlan_domain_verify_en,
+	int vlan_discard_unknown_en)
+{
+	struct switch_t  *fecp;
+
+	fecp = fep->hwp;
+	if ((port < 0) || (port > 2)) {
+		printk(KERN_ERR "%s: do not support the port %d\n",
+			__func__, port);
+		return -1;
+	}
+
+	if (vlan_domain_verify_en == 1) {
+		if (port == 0)
+			fecp->ESW_VLANV |= MCF_ESW_VLANV_VV0;
+		else if (port == 1)
+			fecp->ESW_VLANV |= MCF_ESW_VLANV_VV1;
+		else if (port == 2)
+			fecp->ESW_VLANV |= MCF_ESW_VLANV_VV2;
+	} else if (vlan_domain_verify_en == 0) {
+		if (port == 0)
+			fecp->ESW_VLANV &= ~MCF_ESW_VLANV_VV0;
+		else if (port == 1)
+			fecp->ESW_VLANV &= ~MCF_ESW_VLANV_VV1;
+		else if (port == 2)
+			fecp->ESW_VLANV &= ~MCF_ESW_VLANV_VV2;
+	} else {
+		printk(KERN_INFO "%s: donot support "
+			"vlan_domain_verify %x\n",
+			__func__, vlan_domain_verify_en);
+		return -2;
+	}
+
+	if (vlan_discard_unknown_en == 1) {
+		if (port == 0)
+			fecp->ESW_VLANV |= MCF_ESW_VLANV_DU0;
+		else if (port == 1)
+			fecp->ESW_VLANV |= MCF_ESW_VLANV_DU1;
+		else if (port == 2)
+			fecp->ESW_VLANV |= MCF_ESW_VLANV_DU2;
+	} else if (vlan_discard_unknown_en == 0) {
+		if (port == 0)
+			fecp->ESW_VLANV &= ~MCF_ESW_VLANV_DU0;
+		else if (port == 1)
+			fecp->ESW_VLANV &= ~MCF_ESW_VLANV_DU1;
+		else if (port == 2)
+			fecp->ESW_VLANV &= ~MCF_ESW_VLANV_DU2;
+	} else {
+		printk(KERN_INFO "%s: donot support "
+			"vlan_discard_unknown %x\n",
+			__func__, vlan_discard_unknown_en);
+		return -3;
+	}
+
+#ifdef DEBUG_VLAN_VERIFICATION_CONFIG
+	printk(KERN_INFO "%s: ESW_VLANV %x\n",
+		__func__, fecp->ESW_VLANV);
+#endif
+	return 0;
+}
+
+static void esw_get_vlan_resolution_table(
+	struct switch_enet_private *fep,
+	int vlan_domain_num,
+	unsigned long *ulValue)
+{
+	struct switch_t  *fecp;
+	fecp = fep->hwp;
+
+	*ulValue = fecp->ESW_VRES[vlan_domain_num];
+
+#ifdef DEBUG_VLAN_DOMAIN_TABLE
+	printk(KERN_INFO "%s: ESW_VRES[%d] = %x\n",
+		__func__, vlan_domain_num,
+		fecp->ESW_VRES[vlan_domain_num]);
+#endif
+}
+
+int esw_set_vlan_resolution_table(
+	struct switch_enet_private *fep,
+	unsigned short port_vlanid,
+	int vlan_domain_num,
+	int vlan_domain_port)
+{
+	struct switch_t  *fecp;
+
+	fecp = fep->hwp;
+	if ((vlan_domain_num < 0)
+		|| (vlan_domain_num > 31)) {
+		printk(KERN_ERR "%s: do not support the "
+			"vlan_domain_num %d\n",
+		__func__, vlan_domain_num);
+		return -1;
+	}
+
+	if ((vlan_domain_port < 0)
+		|| (vlan_domain_port > 7)) {
+		printk(KERN_ERR "%s: do not support the "
+			"vlan_domain_port %d\n",
+			__func__, vlan_domain_port);
+		return -2;
+	}
+
+	fecp->ESW_VRES[vlan_domain_num] =
+		MCF_ESW_VRES_VLANID(port_vlanid)
+		| vlan_domain_port;
+
+#ifdef DEBUG_VLAN_DOMAIN_TABLE
+	printk(KERN_INFO "%s: ESW_VRES[%d] = %x\n",
+		__func__, vlan_domain_num,
+		fecp->ESW_VRES[vlan_domain_num]);
+#endif
+	return 0;
+}
+
+static void esw_get_vlan_input_config(
+	struct switch_enet_private *fep,
+	struct eswIoctlVlanInputStatus *pVlanInputConfig)
+{
+	struct switch_t  *fecp;
+	int i;
+
+	fecp = fep->hwp;
+	for (i = 0; i < 3; i++)
+		pVlanInputConfig->ESW_PID[i] = fecp->ESW_PID[i];
+
+	pVlanInputConfig->ESW_VLANV  = fecp->ESW_VLANV;
+	pVlanInputConfig->ESW_VIMSEL = fecp->ESW_VIMSEL;
+	pVlanInputConfig->ESW_VIMEN  = fecp->ESW_VIMEN;
+
+	for (i = 0; i < 32; i++)
+		pVlanInputConfig->ESW_VRES[i] = fecp->ESW_VRES[i];
+#ifdef DEBUG_VLAN_INTPUT_CONFIG
+	printk(KERN_INFO "%s: ESW_VLANV %x, ESW_VIMSEL %x, "
+		"ESW_VIMEN %x, ESW_PID[0], ESW_PID[1] %x, "
+		"ESW_PID[2] %x", __func__,
+		fecp->ESW_VLANV, fecp->ESW_VIMSEL, fecp->ESW_VIMEN,
+		fecp->ESW_PID[0], fecp->ESW_PID[1], fecp->ESW_PID[2]);
+#endif
+}
+
+
+static int esw_vlan_input_process(struct switch_enet_private *fep,
 	int port, int mode, unsigned short port_vlanid,
 	int vlan_verify_en, int vlan_domain_num,
 	int vlan_domain_port)
@@ -1406,14 +1404,9 @@ int esw_vlan_input_process(struct switch_enet_private *fep,
 	struct switch_t  *fecp;
 
 	fecp = fep->hwp;
-	/* Enable transmit/receive on all ports */
-	fecp->ESW_PER = 0x70007;
-	fecp->ESW_DBCR = 0;
-	/* transmit packet */
-	/* fecp->ESW_P0FFEN = (MCF_ESW_P0FFEN_FD(1) | MCF_ESW_P0FFEN_FEN); */
 
-	/* we only support mode1 mode2 mode3 mode4 */
-	if ((mode < 1) || (mode > 4)) {
+	/*we only support mode1 mode2 mode3 mode4*/
+	if ((mode < 0) || (mode > 3)) {
 		printk(KERN_ERR "%s: do not support the"
 			" VLAN input processing mode %d\n",
 			__func__, mode);
@@ -1441,7 +1434,7 @@ int esw_vlan_input_process(struct switch_enet_private *fep,
 				| MCF_ESW_VRES_P0;
 
 		fecp->ESW_VIMEN |= MCF_ESW_VIMEN_EN0;
-		fecp->ESW_VIMSEL |= MCF_ESW_VIMSEL_IM0(mode - 1);
+		fecp->ESW_VIMSEL |= MCF_ESW_VIMSEL_IM0(mode);
 	} else if (port == 1) {
 		if (vlan_verify_en == 1)
 			fecp->ESW_VRES[vlan_domain_num] =
@@ -1449,7 +1442,7 @@ int esw_vlan_input_process(struct switch_enet_private *fep,
 				| MCF_ESW_VRES_P1;
 
 		fecp->ESW_VIMEN |= MCF_ESW_VIMEN_EN1;
-		fecp->ESW_VIMSEL |= MCF_ESW_VIMSEL_IM1(mode - 1);
+		fecp->ESW_VIMSEL |= MCF_ESW_VIMSEL_IM1(mode);
 	} else if (port == 2) {
 		if (vlan_verify_en == 1)
 			fecp->ESW_VRES[vlan_domain_num] =
@@ -1457,7 +1450,7 @@ int esw_vlan_input_process(struct switch_enet_private *fep,
 				| MCF_ESW_VRES_P2;
 
 		fecp->ESW_VIMEN |= MCF_ESW_VIMEN_EN2;
-		fecp->ESW_VIMSEL |= MCF_ESW_VIMSEL_IM2(mode - 1);
+		fecp->ESW_VIMSEL |= MCF_ESW_VIMSEL_IM2(mode);
 	} else {
 		printk(KERN_ERR "%s: do not support the port %d\n",
 			__func__, port);
@@ -1467,28 +1460,39 @@ int esw_vlan_input_process(struct switch_enet_private *fep,
 	return 0;
 }
 
-int esw_vlan_output_process(struct switch_enet_private *fep,
+static void esw_get_vlan_output_config(struct switch_enet_private *fep,
+	unsigned long *ulVlanOutputConfig)
+{
+	struct switch_t  *fecp;
+
+	fecp = fep->hwp;
+
+	*ulVlanOutputConfig = fecp->ESW_VOMSEL;
+#ifdef DEBUG_VLAN_OUTPUT_CONFIG
+	printk(KERN_INFO "%s: ESW_VOMSEL %x", __func__,
+			fecp->ESW_VOMSEL);
+#endif
+}
+
+static int esw_vlan_output_process(struct switch_enet_private *fep,
 	int port, int mode)
 {
 	struct switch_t  *fecp;
 
 	fecp = fep->hwp;
-	/* Enable transmit/receive on all ports */
-	fecp->ESW_PER = 0x70007;
-	fecp->ESW_DBCR = 0;
 
-	if ((port < 0) || (port > 3)) {
+	if ((port < 0) || (port > 2)) {
 		printk(KERN_ERR "%s: do not support the port %d\n",
 			__func__, mode);
 		return -1;
 	}
 
 	if (port == 0) {
-		fecp->ESW_VOMSEL |= MCF_ESW_VOMSEL_OM0(mode - 1);
+		fecp->ESW_VOMSEL |= MCF_ESW_VOMSEL_OM0(mode);
 	} else if (port == 1) {
-		fecp->ESW_VOMSEL |= MCF_ESW_VOMSEL_OM1(mode - 1);
+		fecp->ESW_VOMSEL |= MCF_ESW_VOMSEL_OM1(mode);
 	} else if (port == 2) {
-		fecp->ESW_VOMSEL |= MCF_ESW_VOMSEL_OM2(mode - 1);
+		fecp->ESW_VOMSEL |= MCF_ESW_VOMSEL_OM2(mode);
 	} else {
 		printk(KERN_ERR "%s: do not support the port %d\n",
 			__func__, port);
@@ -1499,7 +1503,7 @@ int esw_vlan_output_process(struct switch_enet_private *fep,
 
 /* frame calssify and priority resolution */
 /* vlan priority lookup */
-int esw_framecalssify_vlan_priority_lookup(
+static int esw_framecalssify_vlan_priority_lookup(
 	struct switch_enet_private *fep,
 	int port, int func_enable,
 	int vlan_pri_table_num,
@@ -1508,13 +1512,6 @@ int esw_framecalssify_vlan_priority_lookup(
 	struct switch_t  *fecp;
 
 	fecp = fep->hwp;
-
-	/* Enable transmit/receive on all ports */
-	fecp->ESW_PER = 0x70007;
-
-	/* Broadcast configure */
-	fecp->ESW_DBCR = 0;
-
 
 	if ((port < 0) || (port > 3)) {
 		printk(KERN_ERR "%s: do not support the port %d\n",
@@ -1543,7 +1540,7 @@ int esw_framecalssify_vlan_priority_lookup(
 	return 0;
 }
 
-int esw_framecalssify_ip_priority_lookup(
+static int esw_framecalssify_ip_priority_lookup(
 	struct switch_enet_private *fep,
 	int port, int func_enable, int ipv4_en,
 	int ip_priority_num,
@@ -1553,10 +1550,6 @@ int esw_framecalssify_ip_priority_lookup(
 	unsigned long tmp = 0, tmp_prio = 0;
 
 	fecp = fep->hwp;
-	/* Enable transmit/receive on all ports */
-	fecp->ESW_PER = 0x70007;
-	/* Broadcast configure */
-	fecp->ESW_DBCR = 0;
 
 	if ((port < 0) || (port > 3)) {
 		printk(KERN_ERR "%s: do not support the port %d\n",
@@ -1618,7 +1611,7 @@ int esw_framecalssify_ip_priority_lookup(
 	return 0;
 }
 
-int esw_framecalssify_mac_priority_lookup(
+static int esw_framecalssify_mac_priority_lookup(
 	struct switch_enet_private *fep,
 	int port)
 {
@@ -1631,12 +1624,12 @@ int esw_framecalssify_mac_priority_lookup(
 	}
 
 	fecp = fep->hwp;
-	fecp->ESW_PRES[port] |= MCF_ESW_PRES_IP;
+	fecp->ESW_PRES[port] |= MCF_ESW_PRES_MAC;
 
 	return 0;
 }
 
-int esw_frame_calssify_priority_init(
+static int esw_frame_calssify_priority_init(
 	struct switch_enet_private *fep,
 	int port, unsigned char priority_value)
 {
@@ -1656,7 +1649,7 @@ int esw_frame_calssify_priority_init(
 	return 0;
 }
 
-int esw_get_statistics_status(
+static int esw_get_statistics_status(
 	struct switch_enet_private *fep,
 	struct esw_statistics_status *pStatistics)
 {
@@ -1667,7 +1660,7 @@ int esw_get_statistics_status(
 	pStatistics->ESW_DISCB   = fecp->ESW_DISCB;
 	pStatistics->ESW_NDISCN  = fecp->ESW_NDISCN;
 	pStatistics->ESW_NDISCB  = fecp->ESW_NDISCB;
-#ifdef debug_statistics
+#ifdef DEBUG_STATISTICS
 	printk(KERN_ERR "%s:ESW_DISCN %x, ESW_DISCB %x,"
 		"ESW_NDISCN %x, ESW_NDISCB %x\n",
 		__func__, fecp->ESW_DISCN, fecp->ESW_DISCB,
@@ -1676,7 +1669,7 @@ int esw_get_statistics_status(
 	return 0;
 }
 
-int esw_get_port_statistics_status(
+static int esw_get_port_statistics_status(
 	struct switch_enet_private *fep,
 	int port,
 	struct esw_port_statistics_status *pPortStatistics)
@@ -1711,7 +1704,7 @@ int esw_get_port_statistics_status(
 	return 0;
 }
 
-int esw_get_output_queue_status(
+static int esw_get_output_queue_status(
 	struct switch_enet_private *fep,
 	struct esw_output_queue_status *pOutputQueue)
 {
@@ -1736,108 +1729,868 @@ int esw_get_output_queue_status(
 	return 0;
 }
 
-/* The timer should create an interrupt every 4 seconds */
+/* set output queue memory status and configure*/
+static int esw_set_output_queue_memory(
+	struct switch_enet_private *fep,
+	int fun_num,
+	struct esw_output_queue_status *pOutputQueue)
+{
+	struct switch_t  *fecp;
+
+	fecp = fep->hwp;
+
+	if (fun_num == 1) {
+		/* memory manager status*/
+		fecp->ESW_MMSR = pOutputQueue->ESW_MMSR;
+	} else if (fun_num == 2) {
+		/*low memory threshold*/
+		fecp->ESW_LMT = pOutputQueue->ESW_LMT;
+	} else if (fun_num == 3) {
+		/*lowest number of free cells*/
+		fecp->ESW_LFC = pOutputQueue->ESW_LFC;
+	} else if (fun_num == 4) {
+		/*queue weights*/
+		fecp->ESW_QWT = pOutputQueue->ESW_QWT;
+	} else if (fun_num == 5) {
+		/*port 0 backpressure congenstion thresled*/
+		fecp->ESW_P0BCT = pOutputQueue->ESW_P0BCT;
+	} else {
+		printk(KERN_INFO "%s: do not support the cmd %x\n",
+			__func__, fun_num);
+		return -1;
+	}
+#ifdef DEBUG_OUTPUT_QUEUE
+	printk(KERN_ERR "%s:ESW_MMSR %x, ESW_LMT %x, ESW_LFC %x, "
+		"ESW_IOSR %x, ESW_PCSR %x, ESW_QWT %x, ESW_P0BCT %x\n",
+		__func__, fecp->ESW_MMSR,
+		fecp->ESW_LMT, fecp->ESW_LFC,
+		fecp->ESW_IOSR,  fecp->ESW_PCSR,
+		fecp->ESW_QWT, fecp->ESW_P0BCT);
+#endif
+	return 0;
+}
+
+int esw_set_irq_mask(
+	struct switch_enet_private *fep,
+	unsigned long mask, int enable)
+{
+	struct switch_t  *fecp;
+
+	fecp = fep->hwp;
+#ifdef DEBUG_IRQ
+	printk(KERN_INFO "%s: irq event %x, irq mask %x "
+		" mask %x, enable %x\n",
+		__func__, fecp->switch_ievent,
+		fecp->switch_imask, mask, enable);
+#endif
+	if (enable == 1)
+		fecp->switch_imask |= mask;
+	else if (enable == 1)
+		fecp->switch_imask &= (~mask);
+	else {
+		printk(KERN_INFO "%s: enable %x is error value\n",
+			__func__, enable);
+		return -1;
+	}
+#ifdef DEBUG_IRQ
+	printk(KERN_INFO "%s: irq event %x, irq mask %x, "
+		"rx_des_start %x, tx_des_start %x, "
+		"rx_buff_size %x, rx_des_active %x, "
+		"tx_des_active %x\n",
+		__func__, fecp->switch_ievent, fecp->switch_imask,
+		fecp->fec_r_des_start, fecp->fec_x_des_start,
+		fecp->fec_r_buff_size, fecp->fec_r_des_active,
+		fecp->fec_x_des_active);
+#endif
+	return 0;
+}
+
+static void esw_get_switch_mode(
+	struct switch_enet_private *fep,
+	unsigned long *ulModeConfig)
+{
+	struct switch_t  *fecp;
+
+	fecp = fep->hwp;
+	*ulModeConfig = fecp->ESW_MODE;
+#ifdef DEBUG_SWITCH_MODE
+	printk(KERN_INFO "%s: mode %x \n"
+		__func__, fecp->ESW_MODE);
+#endif
+}
+
+static void esw_switch_mode_configure(
+	struct switch_enet_private *fep,
+	unsigned long configure)
+{
+	struct switch_t  *fecp;
+
+	fecp = fep->hwp;
+	fecp->ESW_MODE |= configure;
+#ifdef DEBUG_SWITCH_MODE
+	printk(KERN_INFO "%s: mode %x \n"
+		__func__, fecp->ESW_MODE);
+#endif
+}
+
+
+static void esw_get_bridge_port(
+	struct switch_enet_private *fep,
+	unsigned long *ulBMPConfig)
+{
+	struct switch_t  *fecp;
+
+	fecp = fep->hwp;
+	*ulBMPConfig = fecp->ESW_BMPC;
+#ifdef DEBUG_BRIDGE_PORT
+	printk(KERN_INFO "%s: bridge management port %x \n"
+		__func__, fecp->ESW_BMPC);
+#endif
+}
+
+static void  esw_bridge_port_configure(
+	struct switch_enet_private *fep,
+	unsigned long configure)
+{
+	struct switch_t  *fecp;
+
+	fecp = fep->hwp;
+	fecp->ESW_BMPC |= configure;
+#ifdef DEBUG_BRIDGE_PORT
+	printk(KERN_INFO "%s: bridge management port %x \n"
+		__func__, fecp->ESW_BMPC);
+#endif
+}
+
+/* The timer should create an interrupt every 4 seconds*/
 static void l2switch_aging_timer(unsigned long data)
 {
 	struct switch_enet_private *fep;
 
 	fep = (struct switch_enet_private *)data;
 
-	/* spin_lock_irqsave(&host->lock, flags); */
 	if (fep) {
 		TIMEINCREMENT(fep->currTime);
 		fep->timeChanged++;
 	}
 
-	/* switch_enet_dump(fep); */
-
 	mod_timer(&fep->timer_aging, jiffies + LEARNING_AGING_TIMER);
-	/* spin_unlock_irqrestore(&host->lock, flags); */
 }
 
-/* ----------------------------------------------------------------------- */
 void esw_check_rxb_txb_interrupt(struct switch_enet_private *fep)
 {
 	struct switch_t  *fecp;
+
 	fecp = fep->hwp;
 
-	/* Enable Forced forwarding for port 1 */
+	/*Enable Forced forwarding for port 1*/
 	fecp->ESW_P0FFEN = MCF_ESW_P0FFEN_FEN |
 		MCF_ESW_P0FFEN_FD(1);
-	/* Disable learning for all ports */
+	/*Disable learning for all ports*/
 
-	writel(MCF_ESW_IMR_TXB | MCF_ESW_IMR_TXF
-			| MCF_ESW_IMR_LRN | MCF_ESW_IMR_RXB | MCF_ESW_IMR_RXF
-			, fecp + MCF_ESW_IMR);
+	fecp->switch_imask = MCF_ESW_IMR_TXB | MCF_ESW_IMR_TXF |
+		MCF_ESW_IMR_LRN | MCF_ESW_IMR_RXB | MCF_ESW_IMR_RXF;
+	printk(KERN_ERR "%s: fecp->ESW_DBCR %#lx, fecp->ESW_P0FFEN %#lx"
+		" fecp->ESW_BKLR %#lx\n", __func__, fecp->ESW_DBCR,
+		fecp->ESW_P0FFEN, fecp->ESW_BKLR);
 }
 
-static void esw_basic_switching_test(struct switch_enet_private *fep)
+static void esw_mac_addr_static(struct switch_enet_private *fep)
 {
-	unsigned char mac_addr0[6] = {0x00, 0x04, 0x9F, 0x00, 0xB3, 0x49};
-	unsigned char mac_addr1[6] = {0x00, 0x00, 0x45, 0x67, 0x89, 0xAB};
-	unsigned char mac_addr2[6] = {0x00, 0x0B, 0xDB, 0xD0, 0x25, 0x9A};
 	unsigned char mac_addr[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+	unsigned char mac_addr0[6] = {0x00, 0x04, 0x9F, 0x00, 0xB3, 0x49};
 	struct switch_t  *fecp;
+
 	fecp = fep->hwp;
-
 	fecp->ESW_DBCR = MCF_ESW_DBCR_P1;
-
 	esw_update_atable_static(mac_addr, 7, 7, fep);
-	/* port0 MAC is forwared to port1 and port2 */
 	esw_update_atable_static(mac_addr0, 7, 7, fep);
-	esw_update_atable_static(mac_addr1, 7, 7, fep);
-	/* port2 MAC is forwared to port0 and port1 */
-	esw_update_atable_static(mac_addr2, 7, 7, fep);
 }
 
-static void esw_test_main(struct switch_enet_private *fep)
+static void esw_main(struct switch_enet_private *fep)
 {
 	struct switch_t  *fecp;
 	fecp = fep->hwp;
-	esw_basic_switching_test(fep);
-	/* test case 1 */
-	/*
-	 * fecp->ESW_IPSNP[0] = (MCF_ESW_IPSNP_PROTOCOL(0x01) |
-	 * 	MCF_ESW_IPSNP_MODE(1)  |
-	 * 	MCF_ESW_IPSNP_EN);
-	 * fecp->ESW_PSNP[0] = (MCF_ESW_PSNP_PORT_COMPARE(1080) |
-	 * 	MCF_ESW_PSNP_CD |
-	 * 	MCF_ESW_PSNP_MODE(1) |
-	 * 	MCF_ESW_PSNP_EN);
-	 */
 
-	/* test case 2 */
-	fecp->ESW_BKLR = MCF_ESW_BKLR_LD0 | MCF_ESW_BKLR_LD1 |
-		MCF_ESW_BKLR_LD2;
-	/*
-	 * MCF_ESW_IMR = MCF_ESW_IMR_TXB | MCF_ESW_IMR_TXF |
-	 * 	MCF_ESW_IMR_LRN | MCF_ESW_IMR_RXB | MCF_ESW_IMR_RXF;
-	 */
+	esw_mac_addr_static(fep);
+	fecp->ESW_BKLR = 0;
+	fecp->switch_imask = MCF_ESW_IMR_TXB | MCF_ESW_IMR_TXF |
+		MCF_ESW_IMR_LRN | MCF_ESW_IMR_RXB | MCF_ESW_IMR_RXF;
+	fecp->ESW_PER = 0x70007;
+	fecp->ESW_DBCR = MCF_ESW_DBCR_P1 | MCF_ESW_DBCR_P2;
+}
 
-	/* test case 3 */
-	/*
-	 * writel(0x70007, fecp + MCF_ESW_PER);
-	 * fecp->ESW_DBCR = MCF_ESW_DBCR_P1;
-	 * fecp->ESW_MCR = MCF_ESW_MCR_INGMAP | MCF_ESW_MCR_MEN |
-	 * 	MCF_ESW_MCR_PORT(0);
-	 * fecp->ESW_INGMAP = MCF_ESW_INGMAP_ING2;
-	 * fecp->ESW_MCVAL = MCF_ESW_MCVAL_COUNT(0);
-	 */
+static int switch_enet_ioctl(
+	struct net_device *dev,
+	struct ifreq *ifr, int cmd)
+{
+	struct switch_enet_private *fep;
+	struct switch_t       *fecp;
+	int ret = 0;
 
-	/* test case 4 */
-	writel(0x70007, fecp + MCF_ESW_PER);
-	/*
-	 * fecp->ESW_DBCR = MCF_ESW_DBCR_P1;
-	 * fecp->ESW_MCR = MCF_ESW_MCR_INGSA | MCF_ESW_MCR_INGMAP |
-	 * 	MCF_ESW_MCR_MEN | MCF_ESW_MCR_PORT(0);
-	 * fecp->ESW_INGMAP = MCF_ESW_INGMAP_ING2;
-	 * fecp->ESW_INGSAH = 0x00009A25;
-	 * fecp->ESW_INGSAL = 0xD0DB0B00;\
-	 * fecp->ESW_MCVAL = MCF_ESW_MCVAL_COUNT(0);
-	 */
+	printk(KERN_INFO "%s cmd %x\n", __func__, cmd);
+	fep = netdev_priv(dev);
+	fecp = (struct switch_t *)dev->base_addr;
 
-	/* test case 5 */
-	fecp->ESW_DBCR = MCF_ESW_DBCR_P1;/* 0 P0 P2 */
+	switch (cmd) {
+	case ESW_SET_PORTENABLE_CONF:
+	{
+		struct eswIoctlPortEnableConfig configData;
+		ret = copy_from_user(&configData,
+			ifr->ifr_data,
+			sizeof(struct eswIoctlPortEnableConfig));
+		if (ret)
+			return -EFAULT;
+
+		ret = esw_port_enable_config(fep,
+			configData.port,
+			configData.tx_enable,
+			configData.rx_enable);
+	}
+		break;
+	case ESW_SET_BROADCAST_CONF:
+	{
+		struct eswIoctlPortConfig configData;
+		ret = copy_from_user(&configData,
+			ifr->ifr_data, sizeof(struct eswIoctlPortConfig));
+		if (ret)
+			return -EFAULT;
+
+		ret = esw_port_broadcast_config(fep,
+			configData.port, configData.enable);
+	}
+		break;
+
+	case ESW_SET_MULTICAST_CONF:
+	{
+		struct eswIoctlPortConfig configData;
+		ret = copy_from_user(&configData,
+			ifr->ifr_data, sizeof(struct eswIoctlPortConfig));
+		if (ret)
+			return -EFAULT;
+
+		ret = esw_port_multicast_config(fep,
+			configData.port, configData.enable);
+	}
+		break;
+
+	case ESW_SET_BLOCKING_CONF:
+	{
+		struct eswIoctlPortConfig configData;
+		ret = copy_from_user(&configData,
+			ifr->ifr_data, sizeof(struct eswIoctlPortConfig));
+
+		if (ret)
+			return -EFAULT;
+
+		ret = esw_port_blocking_config(fep,
+			configData.port, configData.enable);
+	}
+		break;
+
+	case ESW_SET_LEARNING_CONF:
+	{
+		struct eswIoctlPortConfig configData;
+		printk(KERN_INFO "ESW_SET_LEARNING_CONF\n");
+		ret = copy_from_user(&configData,
+			ifr->ifr_data, sizeof(struct eswIoctlPortConfig));
+		if (ret)
+			return -EFAULT;
+		printk(KERN_INFO "ESW_SET_LEARNING_CONF: %x %x\n",
+				configData.port, configData.enable);
+		ret = esw_port_learning_config(fep,
+			configData.port, configData.enable);
+	}
+		break;
+
+	case ESW_SET_IP_SNOOP_CONF:
+	{
+		struct eswIoctlIpsnoopConfig configData;
+
+		ret = copy_from_user(&configData,
+			ifr->ifr_data, sizeof(struct eswIoctlIpsnoopConfig));
+		if (ret)
+			return -EFAULT;
+		printk(KERN_INFO "ESW_SET_IP_SNOOP_CONF:: %x %x %x\n",
+				configData.num, configData.mode,
+				configData.ip_header_protocol);
+		ret = esw_ip_snoop_config(fep,
+			configData.num, configData.mode,
+			configData.ip_header_protocol);
+	}
+		break;
+
+	case ESW_SET_PORT_SNOOP_CONF:
+	{
+		struct eswIoctlPortsnoopConfig configData;
+
+		ret = copy_from_user(&configData,
+			ifr->ifr_data, sizeof(struct eswIoctlPortsnoopConfig));
+		if (ret)
+			return -EFAULT;
+		printk(KERN_INFO "ESW_SET_PORT_SNOOP_CONF:: %x %x %x %x\n",
+			configData.num, configData.mode,
+			configData.compare_port, configData.compare_num);
+		ret = esw_tcpudp_port_snoop_config(fep,
+			configData.num, configData.mode,
+			configData.compare_port,
+			configData.compare_num);
+	}
+		break;
+
+	case ESW_SET_PORT_MIRROR_CONF:
+	{
+		struct eswIoctlPortMirrorConfig configData;
+
+		ret = copy_from_user(&configData,
+			ifr->ifr_data, sizeof(struct eswIoctlPortMirrorConfig));
+		if (ret)
+			return -EFAULT;
+		printk(KERN_INFO "ESW_SET_PORT_MIRROR_CONF:: %x %x %x "
+			"%s %s\n %x %x %x %x %x %x\n",
+			configData.mirror_port, configData.port,
+			configData.mirror_enable,
+			configData.src_mac, configData.des_mac,
+			configData.egress_en, configData.ingress_en,
+			configData.egress_mac_src_en,
+			configData.egress_mac_des_en,
+			configData.ingress_mac_src_en,
+			configData.ingress_mac_des_en);
+		ret = esw_port_mirroring_config(fep,
+			configData.mirror_port, configData.port,
+			configData.mirror_enable,
+			configData.src_mac, configData.des_mac,
+			configData.egress_en, configData.ingress_en,
+			configData.egress_mac_src_en,
+			configData.egress_mac_des_en,
+			configData.ingress_mac_src_en,
+			configData.ingress_mac_des_en);
+	}
+		break;
+
+	case ESW_SET_PIRORITY_VLAN:
+	{
+		struct eswIoctlPriorityVlanConfig configData;
+
+		ret = copy_from_user(&configData,
+			ifr->ifr_data,
+			sizeof(struct eswIoctlPriorityVlanConfig));
+		if (ret)
+			return -EFAULT;
+
+		ret = esw_framecalssify_vlan_priority_lookup(fep,
+			configData.port, configData.func_enable,
+			configData.vlan_pri_table_num,
+			configData.vlan_pri_table_value);
+	}
+		break;
+
+	case ESW_SET_PIRORITY_IP:
+	{
+		struct eswIoctlPriorityIPConfig configData;
+
+		ret = copy_from_user(&configData,
+			ifr->ifr_data, sizeof(struct eswIoctlPriorityIPConfig));
+		if (ret)
+			return -EFAULT;
+
+		ret = esw_framecalssify_ip_priority_lookup(fep,
+			configData.port, configData.func_enable,
+			configData.ipv4_en, configData.ip_priority_num,
+			configData.ip_priority_value);
+	}
+		break;
+
+	case ESW_SET_PIRORITY_MAC:
+	{
+		struct eswIoctlPriorityMacConfig configData;
+
+		ret = copy_from_user(&configData,
+			ifr->ifr_data,
+			sizeof(struct eswIoctlPriorityMacConfig));
+		if (ret)
+			return -EFAULT;
+
+		ret = esw_framecalssify_mac_priority_lookup(fep,
+			configData.port);
+	}
+		break;
+
+	case ESW_SET_PIRORITY_DEFAULT:
+	{
+		struct eswIoctlPriorityDefaultConfig configData;
+
+		ret = copy_from_user(&configData,
+			ifr->ifr_data,
+			sizeof(struct eswIoctlPriorityDefaultConfig));
+		if (ret)
+			return -EFAULT;
+
+		ret = esw_frame_calssify_priority_init(fep,
+			configData.port, configData.priority_value);
+	}
+		break;
+
+	case ESW_SET_P0_FORCED_FORWARD:
+	{
+		struct eswIoctlP0ForcedForwardConfig configData;
+
+		ret = copy_from_user(&configData,
+			ifr->ifr_data,
+			sizeof(struct eswIoctlP0ForcedForwardConfig));
+		if (ret)
+			return -EFAULT;
+
+		ret = esw_forced_forward(fep, configData.port1,
+			configData.port2, configData.enable);
+	}
+		break;
+
+	case ESW_SET_BRIDGE_CONFIG:
+	{
+		unsigned long configData;
+
+		ret = copy_from_user(&configData,
+			ifr->ifr_data, sizeof(unsigned long));
+		if (ret)
+			return -EFAULT;
+
+		esw_bridge_port_configure(fep, configData);
+	}
+		break;
+
+	case ESW_SET_SWITCH_MODE:
+	{
+		unsigned long configData;
+
+		ret = copy_from_user(&configData,
+			ifr->ifr_data, sizeof(unsigned long));
+		if (ret)
+			return -EFAULT;
+
+		esw_switch_mode_configure(fep, configData);
+	}
+		break;
+
+	case ESW_SET_OUTPUT_QUEUE_MEMORY:
+	{
+		struct eswIoctlOutputQueue configData;
+
+		ret = copy_from_user(&configData,
+			ifr->ifr_data, sizeof(struct eswIoctlOutputQueue));
+		if (ret)
+			return -EFAULT;
+
+		printk(KERN_INFO "ESW_SET_OUTPUT_QUEUE_MEMORY:: %#x \n"
+			"%#lx %#lx %#lx %#lx\n"
+			"%#lx %#lx %#lx\n",
+			configData.fun_num,
+			configData.sOutputQueue.ESW_MMSR,
+			configData.sOutputQueue.ESW_LMT,
+			configData.sOutputQueue.ESW_LFC,
+			configData.sOutputQueue.ESW_PCSR,
+			configData.sOutputQueue.ESW_IOSR,
+			configData.sOutputQueue.ESW_QWT,
+			configData.sOutputQueue.ESW_P0BCT);
+		ret = esw_set_output_queue_memory(fep,
+			configData.fun_num, &configData.sOutputQueue);
+	}
+		break;
+
+	case ESW_SET_VLAN_OUTPUT_PROCESS:
+	{
+		struct eswIoctlVlanOutputConfig configData;
+
+		ret = copy_from_user(&configData,
+			ifr->ifr_data, sizeof(struct eswIoctlVlanOutputConfig));
+		if (ret)
+			return -EFAULT;
+
+		printk(KERN_INFO "ESW_SET_VLAN_OUTPUT_PROCESS: %x %x\n",
+			configData.port, configData.mode);
+		ret = esw_vlan_output_process(fep,
+			configData.port, configData.mode);
+	}
+		break;
+
+	case ESW_SET_VLAN_INPUT_PROCESS:
+	{
+		struct eswIoctlVlanInputConfig configData;
+
+		ret = copy_from_user(&configData,
+			ifr->ifr_data,
+			sizeof(struct eswIoctlVlanInputConfig));
+		if (ret)
+			return -EFAULT;
+
+		printk(KERN_INFO "ESW_SET_VLAN_INPUT_PROCESS: %x %x"
+				"%x %x %x %x\n",
+			configData.port, configData.mode,
+			configData.port_vlanid,
+			configData.vlan_verify_en,
+			configData.vlan_domain_num,
+			configData.vlan_domain_port);
+		ret = esw_vlan_input_process(fep, configData.port,
+				configData.mode, configData.port_vlanid,
+				configData.vlan_verify_en,
+				configData.vlan_domain_num,
+				configData.vlan_domain_port);
+	}
+		break;
+
+	case ESW_SET_VLAN_DOMAIN_VERIFICATION:
+	{
+		struct eswIoctlVlanVerificationConfig configData;
+
+		ret = copy_from_user(&configData,
+			ifr->ifr_data,
+			sizeof(struct eswIoctlVlanVerificationConfig));
+		if (ret)
+			return -EFAULT;
+
+		printk("ESW_SET_VLAN_DOMAIN_VERIFICATION: "
+			"%x %x %x\n",
+			configData.port,
+			configData.vlan_domain_verify_en,
+			configData.vlan_discard_unknown_en);
+		ret = esw_set_vlan_verification(
+			fep, configData.port,
+			configData.vlan_domain_verify_en,
+			configData.vlan_discard_unknown_en);
+	}
+		break;
+
+	case ESW_SET_VLAN_RESOLUTION_TABLE:
+	{
+		struct eswIoctlVlanResoultionTable configData;
+
+		ret = copy_from_user(&configData,
+			ifr->ifr_data,
+			sizeof(struct eswIoctlVlanResoultionTable));
+		if (ret)
+			return -EFAULT;
+
+		printk(KERN_INFO "ESW_SET_VLAN_RESOLUTION_TABLE: "
+			"%x %x %x\n",
+			configData.port_vlanid,
+			configData.vlan_domain_num,
+			configData.vlan_domain_port);
+
+		ret = esw_set_vlan_resolution_table(
+			fep, configData.port_vlanid,
+			configData.vlan_domain_num,
+			configData.vlan_domain_port);
+
+	}
+		break;
+	case ESW_UPDATE_STATIC_MACTABLE:
+	{
+		struct eswIoctlUpdateStaticMACtable configData;
+
+		ret = copy_from_user(&configData,
+			ifr->ifr_data,
+			sizeof(struct eswIoctlUpdateStaticMACtable));
+		if (ret)
+			return -EFAULT;
+
+		printk(KERN_INFO "%s: ESW_UPDATE_STATIC_MACTABLE: mac %s, "
+			"port %x, priority %x\n", __func__,
+			configData.mac_addr,
+			configData.port,
+			configData.priority);
+		ret = esw_update_atable_static(configData.mac_addr,
+				configData.port, configData.priority, fep);
+	}
+		break;
+
+	case ESW_CLEAR_ALL_MACTABLE:
+	{
+		esw_clear_atable(fep);
+	}
+		break;
+
+	case ESW_GET_STATISTICS_STATUS:
+	{
+		struct esw_statistics_status Statistics;
+		ret = esw_get_statistics_status(fep, &Statistics);
+		if (ret != 0) {
+			printk(KERN_ERR "%s: cmd %x fail\n",
+				__func__, cmd);
+			return -1;
+		}
+
+		ret = copy_to_user(ifr->ifr_data, &Statistics,
+			sizeof(struct esw_statistics_status));
+		if (ret)
+			return -EFAULT;
+	}
+		break;
+
+	case ESW_GET_PORT0_STATISTICS_STATUS:
+	{
+		struct esw_port_statistics_status PortStatistics;
+
+		ret = esw_get_port_statistics_status(fep,
+			0, &PortStatistics);
+		if (ret != 0) {
+			printk(KERN_ERR "%s: cmd %x fail\n",
+				__func__, cmd);
+			return -1;
+		}
+
+		ret = copy_to_user(ifr->ifr_data, &PortStatistics,
+			sizeof(struct esw_port_statistics_status));
+		if (ret)
+			return -EFAULT;
+	}
+		break;
+
+	case ESW_GET_PORT1_STATISTICS_STATUS:
+	{
+		struct esw_port_statistics_status PortStatistics;
+
+		ret = esw_get_port_statistics_status(fep,
+			1, &PortStatistics);
+		if (ret != 0) {
+			printk(KERN_ERR "%s: cmd %x fail\n",
+				__func__, cmd);
+			return -1;
+		}
+
+		ret = copy_to_user(ifr->ifr_data, &PortStatistics,
+			sizeof(struct esw_port_statistics_status));
+		if (ret)
+			return -EFAULT;
+	}
+		break;
+
+	case ESW_GET_PORT2_STATISTICS_STATUS:
+	{
+		struct esw_port_statistics_status PortStatistics;
+
+		ret = esw_get_port_statistics_status(fep,
+			2, &PortStatistics);
+		if (ret != 0) {
+			printk(KERN_ERR "%s: cmd %x fail\n",
+				__func__, cmd);
+			return -1;
+		}
+
+		ret = copy_to_user(ifr->ifr_data, &PortStatistics,
+			sizeof(struct esw_port_statistics_status));
+		if (ret)
+			return -EFAULT;
+	}
+		break;
+
+	case ESW_GET_LEARNING_CONF:
+	{
+		unsigned long PortLearning;
+
+		esw_get_port_learning(fep, &PortLearning);
+		ret = copy_to_user(ifr->ifr_data, &PortLearning,
+			sizeof(unsigned long));
+		if (ret)
+			return -EFAULT;
+	}
+		break;
+
+	case ESW_GET_BLOCKING_CONF:
+	{
+		unsigned long PortBlocking;
+
+		esw_get_port_blocking(fep, &PortBlocking);
+		ret = copy_to_user(ifr->ifr_data, &PortBlocking,
+			sizeof(unsigned long));
+		if (ret)
+			return -EFAULT;
+	}
+		break;
+
+	case ESW_GET_MULTICAST_CONF:
+	{
+		unsigned long PortMulticast;
+
+		esw_get_port_multicast(fep, &PortMulticast);
+		ret = copy_to_user(ifr->ifr_data, &PortMulticast,
+			sizeof(unsigned long));
+		if (ret)
+			return -EFAULT;
+	}
+		break;
+
+	case ESW_GET_BROADCAST_CONF:
+	{
+		unsigned long PortBroadcast;
+
+		esw_get_port_broadcast(fep, &PortBroadcast);
+		ret = copy_to_user(ifr->ifr_data, &PortBroadcast,
+		sizeof(unsigned long));
+		if (ret)
+			return -EFAULT;
+	}
+		break;
+
+	case ESW_GET_PORTENABLE_CONF:
+	{
+		unsigned long PortEnable;
+
+		esw_get_port_enable(fep, &PortEnable);
+		ret = copy_to_user(ifr->ifr_data, &PortEnable,
+			sizeof(unsigned long));
+		if (ret)
+			return -EFAULT;
+	}
+		break;
+
+	case ESW_GET_IP_SNOOP_CONF:
+	{
+		unsigned long ESW_IPSNP[8];
+
+		esw_get_ip_snoop_config(fep, (unsigned long *)ESW_IPSNP);
+		ret = copy_to_user(ifr->ifr_data, ESW_IPSNP,
+			(8 * sizeof(unsigned long)));
+		if (ret)
+			return -EFAULT;
+	}
+		break;
+
+	case ESW_GET_PORT_SNOOP_CONF:
+	{
+		unsigned long ESW_PSNP[8];
+
+		esw_get_tcpudp_port_snoop_config(fep,
+				(unsigned long *)ESW_PSNP);
+		ret = copy_to_user(ifr->ifr_data, ESW_PSNP,
+			(8 * sizeof(unsigned long)));
+		if (ret)
+			return -EFAULT;
+	}
+		break;
+
+	case ESW_GET_PORT_MIRROR_CONF:
+	{
+		struct eswIoctlPortMirrorStatus PortMirrorStatus;
+
+		esw_get_port_mirroring(fep, &PortMirrorStatus);
+		ret = copy_to_user(ifr->ifr_data, &PortMirrorStatus,
+			sizeof(struct eswIoctlPortMirrorStatus));
+		if (ret)
+			return -EFAULT;
+	}
+		break;
+
+	case ESW_GET_P0_FORCED_FORWARD:
+	{
+		unsigned long ForceForward;
+
+		esw_get_forced_forward(fep, &ForceForward);
+		ret = copy_to_user(ifr->ifr_data, &ForceForward,
+			sizeof(unsigned long));
+		if (ret)
+			return -EFAULT;
+	}
+		break;
+
+	case ESW_GET_SWITCH_MODE:
+	{
+		unsigned long Config;
+
+		esw_get_switch_mode(fep, &Config);
+		ret = copy_to_user(ifr->ifr_data, &Config,
+			sizeof(unsigned long));
+		if (ret)
+			return -EFAULT;
+	}
+		break;
+
+	case ESW_GET_BRIDGE_CONFIG:
+	{
+		unsigned long Config;
+
+		esw_get_bridge_port(fep, &Config);
+		ret = copy_to_user(ifr->ifr_data, &Config,
+			sizeof(unsigned long));
+		if (ret)
+			return -EFAULT;
+	}
+		break;
+	case ESW_GET_OUTPUT_QUEUE_STATUS:
+	{
+		struct esw_output_queue_status Config;
+		esw_get_output_queue_status(fep,
+			&Config);
+		ret = copy_to_user(ifr->ifr_data, &Config,
+			sizeof(struct esw_output_queue_status));
+		if (ret)
+			return -EFAULT;
+	}
+		break;
+
+	case ESW_GET_VLAN_OUTPUT_PROCESS:
+	{
+		unsigned long Config;
+
+		esw_get_vlan_output_config(fep, &Config);
+		ret = copy_to_user(ifr->ifr_data, &Config,
+			sizeof(unsigned long));
+		if (ret)
+			return -EFAULT;
+	}
+		break;
+
+	case ESW_GET_VLAN_INPUT_PROCESS:
+	{
+		struct eswIoctlVlanInputStatus Config;
+
+		esw_get_vlan_input_config(fep, &Config);
+		ret = copy_to_user(ifr->ifr_data, &Config,
+			sizeof(struct eswIoctlVlanInputStatus));
+		if (ret)
+			return -EFAULT;
+	}
+		break;
+
+	case ESW_GET_VLAN_RESOLUTION_TABLE:
+	{
+		unsigned long Config;
+		unsigned char ConfigData;
+		ret = copy_from_user(&ConfigData,
+			ifr->ifr_data,
+			sizeof(unsigned char));
+		if (ret)
+			return -EFAULT;
+
+		printk(KERN_INFO "ESW_GET_VLAN_RESOLUTION_TABLE: %x \n",
+			ConfigData);
+
+		esw_get_vlan_resolution_table(fep, ConfigData, &Config);
+
+		ret = copy_to_user(ifr->ifr_data, &Config,
+			sizeof(unsigned long));
+		if (ret)
+			return -EFAULT;
+	}
+		break;
+
+	case ESW_GET_VLAN_DOMAIN_VERIFICATION:
+	{
+		unsigned long Config;
+
+		esw_get_vlan_verification(fep, &Config);
+		ret = copy_to_user(ifr->ifr_data, &Config,
+			sizeof(unsigned long));
+		if (ret)
+			return -EFAULT;
+	}
+		break;
+	/*------------------------------------------------------------------*/
+	default:
+		return -EOPNOTSUPP;
+	}
+
+
+	return ret;
 }
 
 static int
@@ -1999,6 +2752,7 @@ static irqreturn_t
 switch_enet_interrupt(int irq, void *dev_id)
 {
 	struct	net_device *dev = dev_id;
+	struct switch_enet_private *fep = netdev_priv(dev);
 	struct switch_t *fecp;
 	uint	int_events;
 	irqreturn_t ret = IRQ_NONE;
@@ -2009,7 +2763,6 @@ switch_enet_interrupt(int irq, void *dev_id)
 	do {
 		int_events = fecp->switch_ievent;
 		fecp->switch_ievent = int_events;
-		/* switch_enet_dump(fep); */
 		/* Handle receive event in its own function. */
 
 		/* Transmit OK, or non-fatal error. Update the buffer
@@ -2017,8 +2770,10 @@ switch_enet_interrupt(int irq, void *dev_id)
 		 *  them as part of the transmit process.
 		 */
 		if (int_events & MCF_ESW_ISR_LRN) {
+			if (fep->learning_irqhandle_enable)
+				esw_atable_dynamicms_learn_migration(
+					fep, fep->currTime);
 			ret = IRQ_HANDLED;
-			printk(KERN_INFO "\n");
 		}
 
 		if (int_events & MCF_ESW_ISR_OD0)
@@ -2165,7 +2920,6 @@ switch_enet_rx(struct net_device *dev)
 #endif
 
 while (!((status = bdp->cbd_sc) & BD_ENET_RX_EMPTY)) {
-
 	/*
 	 * Since we have allocated space to hold a complete frame,
 	 * the last indicator should be set.
@@ -2252,7 +3006,7 @@ rx_processing_done:
 	 * incoming frames.  On a heavily loaded network, we should be
 	 * able to keep up at the expense of system resources.
 	 */
-	/* fecp->fec_r_des_active = MCF_ESW_RDAR_R_DES_ACTIVE; */
+	fecp->fec_r_des_active = MCF_ESW_RDAR_R_DES_ACTIVE;
    } /* while (!((status = bdp->cbd_sc) & BD_ENET_RX_EMPTY)) */
 	fep->cur_rx = (struct cbd_t *)bdp;
 
@@ -2457,8 +3211,6 @@ static struct mii_bus *fec_enet_mii_init(struct net_device *dev)
 		fep->mii_bus->irq[i] = PHY_POLL;
 
 	if (mdiobus_register(fep->mii_bus)) {
-		printk(KERN_INFO "[%s][%d]err = %#x\n",
-				__func__, __LINE__, err);
 		goto err_out_free_mdio_irq;
 	}
 
@@ -2624,14 +3376,16 @@ switch_enet_open(struct net_device *dev)
 		fep->sequence_done = 0;
 
 	fep->currTime = 0;
+	fep->learning_irqhandle_enable = 0;
 	/* enable timer for Learning Aging Function */
 	/* add_timer(&fep->timer_aging); */
 
-	esw_test_main(fep);
+	esw_main(fep);
 
 	netif_start_queue(dev);
 	fep->opened = 1;
-	return 0;
+
+	return 0;		/* Success */
 }
 
 static int
@@ -2738,16 +3492,17 @@ static struct ethtool_ops fec_enet_ethtool_ops = {
 	.get_link               = ethtool_op_get_link,
  };
 static const struct net_device_ops fec_netdev_ops = {
-       .ndo_open               = switch_enet_open,
-       .ndo_stop               = switch_enet_close,
-       .ndo_start_xmit         = switch_enet_start_xmit,
-       .ndo_set_multicast_list = set_multicast_list,
-       .ndo_tx_timeout         = switch_timeout,
-       .ndo_set_mac_address    = switch_set_mac_address,
+       .ndo_open		= switch_enet_open,
+       .ndo_stop		= switch_enet_close,
+       .ndo_do_ioctl		= switch_enet_ioctl,
+       .ndo_start_xmit		= switch_enet_start_xmit,
+       .ndo_set_multicast_list	= set_multicast_list,
+       .ndo_tx_timeout		= switch_timeout,
+       .ndo_set_mac_address	= switch_set_mac_address,
 };
 
 /* Initialize the FEC Ethernet */
-int __init switch_enet_init(struct net_device *dev,
+static int __init switch_enet_init(struct net_device *dev,
 	int slot, struct platform_device *pdev)
 {
 	struct switch_enet_private	*fep = netdev_priv(dev);
