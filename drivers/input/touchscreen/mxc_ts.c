@@ -1,7 +1,7 @@
 /*
  * Freescale touchscreen driver
  *
- * Copyright (C) 2007-2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2007-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -39,6 +39,7 @@
 #include <linux/input.h>
 #include <linux/init.h>
 #include <linux/delay.h>
+#include <linux/earlysuspend.h>
 #include <linux/freezer.h>
 #include <linux/pmic_external.h>
 #include <linux/pmic_adc.h>
@@ -60,6 +61,28 @@ static struct task_struct *tstask;
 static int calibration[7];
 module_param_array(calibration, int, NULL, S_IRUGO | S_IWUSR);
 
+static wait_queue_head_t ts_wait;
+static int ts_suspend;
+
+#ifdef CONFIG_HAS_EARLYSUSPEND
+static void stop_ts_early_suspend(struct early_suspend *h)
+{
+	ts_suspend = 1;
+}
+
+static void start_ts_late_resume(struct early_suspend *h)
+{
+	ts_suspend = 0;
+	wake_up_interruptible(&ts_wait);
+}
+
+static struct early_suspend stop_ts_early_suspend_desc = {
+	.level = EARLY_SUSPEND_LEVEL_STOP_DRAWING,
+	.suspend = stop_ts_early_suspend,
+	.resume = start_ts_late_resume,
+};
+#endif
+
 static int ts_thread(void *arg)
 {
 	t_touch_screen ts_sample;
@@ -69,6 +92,7 @@ static int ts_thread(void *arg)
 		int x, y;
 		static int last_x = -1, last_y = -1, last_press = -1;
 
+		wait_event_interruptible(ts_wait, !ts_suspend);
 		memset(&ts_sample, 0, sizeof(t_touch_screen));
 		if (0 != pmic_adc_get_touch_sample(&ts_sample, !wait))
 			continue;
@@ -164,6 +188,8 @@ static int __init mxc_ts_init(void)
 		tstask = NULL;
 		return -1;
 	}
+	init_waitqueue_head(&ts_wait);
+	register_early_suspend(&stop_ts_early_suspend_desc);
 	printk("mxc input touchscreen loaded\n");
 	return 0;
 }
@@ -179,6 +205,7 @@ static void __exit mxc_ts_exit(void)
 		input_free_device(mxc_inputdev);
 		mxc_inputdev = NULL;
 	}
+	unregister_early_suspend(&stop_ts_early_suspend_desc);
 }
 
 late_initcall(mxc_ts_init);
