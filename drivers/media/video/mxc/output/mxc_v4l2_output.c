@@ -1428,6 +1428,7 @@ static int mxc_v4l2out_streamon(vout_data * vout)
 
 		if (vout->ic_bypass) {
 			pr_debug("Bypassing IC\n");
+			vout->pp_split = 0;
 			vout->work_irq = -1;
 			switch (vout->v2f.fmt.pix.pixelformat) {
 			case V4L2_PIX_FMT_YUV420:
