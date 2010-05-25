@@ -579,6 +579,14 @@ static int imx_pcm_preallocate_dma_buffer(struct snd_pcm *pcm, int stream)
 	else {
 		buf->area = iram_alloc(size, &buf_paddr);
 		buf->addr = buf_paddr;
+
+		if (!buf->area) {
+			pr_warning("imx-pcm: Falling back to external ram.\n");
+			UseIram = 0;
+			buf->area =
+			    dma_alloc_writecombine(pcm->card->dev, size,
+						   &buf->addr, GFP_KERNEL);
+		}
 	}
 
 	if (!buf->area)

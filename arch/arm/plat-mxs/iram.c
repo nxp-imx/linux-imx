@@ -36,6 +36,11 @@ void *iram_alloc(unsigned int size, unsigned long *dma_addr)
 
 	*dma_addr = gen_pool_alloc(iram_pool, size);
 	pr_debug("iram alloc - %dB@0x%p\n", size, (void *)*dma_addr);
+
+	WARN_ON(!*dma_addr);
+	if (!*dma_addr)
+		return NULL;
+
 	return iram_phys_to_virt(*dma_addr);
 }
 EXPORT_SYMBOL(iram_alloc);
