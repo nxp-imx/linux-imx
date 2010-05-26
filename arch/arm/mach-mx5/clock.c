@@ -4747,6 +4747,9 @@ int __init mx53_clocks_init(unsigned long ckil, unsigned long osc, unsigned long
 
 	clk_enable(&main_bus_clk);
 
+	/* Set AXI_B_CLK to be 200MHz */
+	clk_set_rate(&axi_b_clk, 200000000);
+
 	/* Initialise the parents to be axi_b, parents are set to
 	 * axi_a when the clocks are enabled.
 	 */
