@@ -24,6 +24,7 @@
 #include <linux/slab.h>
 #include <linux/delay.h>
 #include <linux/io.h>
+#include <mach/hardware.h>
 
 #include "../w1.h"
 #include "../w1_int.h"
@@ -43,6 +44,8 @@
 #define MXC_W1_TXRX             0x08
 #define MXC_W1_INTERRUPT        0x0A
 #define MXC_W1_INTERRUPT_EN     0x0C
+
+static DECLARE_COMPLETION(transmit_done);
 
 struct mxc_w1_device {
 	void __iomem *regs;
@@ -103,10 +106,155 @@ static u8 mxc_w1_ds2_touch_bit(void *data, u8 bit)
 	return ((__raw_readb(ctrl_addr)) >> 3) & 0x1;
 }
 
+static void mxc_w1_ds2_write_byte(void *data, u8 byte)
+{
+	struct mxc_w1_device *dev = (struct mxc_w1_device *)data;
+	INIT_COMPLETION(transmit_done);
+	__raw_writeb(byte, (dev->regs + MXC_W1_TXRX));
+	__raw_writeb(0x10, (dev->regs + MXC_W1_INTERRUPT_EN));
+	wait_for_completion(&transmit_done);
+}
+static u8 mxc_w1_ds2_read_byte(void *data)
+{
+	volatile u8 reg_val;
+	struct mxc_w1_device *dev = (struct mxc_w1_device *)data;
+	mxc_w1_ds2_write_byte(data, 0xFF);
+	reg_val = __raw_readb((dev->regs + MXC_W1_TXRX));
+	return reg_val;
+}
+static u8 mxc_w1_read_byte(void *data)
+{
+	volatile u8 reg_val;
+	struct mxc_w1_device *dev = (struct mxc_w1_device *)data;
+	reg_val = __raw_readb((dev->regs + MXC_W1_TXRX));
+	return reg_val;
+}
+static irqreturn_t w1_interrupt_handler(int irq, void *data)
+{
+	u8 reg_val;
+	irqreturn_t ret = IRQ_NONE;
+	struct mxc_w1_device *dev = (struct mxc_w1_device *)data;
+	reg_val = __raw_readb((dev->regs + MXC_W1_INTERRUPT));
+	if ((reg_val & 0x10)) {
+		complete(&transmit_done);
+		reg_val = __raw_readb((dev->regs + MXC_W1_TXRX));
+		ret = IRQ_HANDLED;
+	}
+	return ret;
+}
+void search_ROM_accelerator(void *data, struct w1_master *master, u8 search_type,
+			    w1_slave_found_callback cb)
+{
+	u64 rn[2], last_rn[2], rn2[2];
+	u64 rn1, rom_id, temp, temp1;
+	int i, j, z, w, last_zero, loop;
+	u8 bit, reg_val, bit2;
+	u8 byte, byte1;
+	int disc, prev_disc, last_disc;
+	struct mxc_w1_device *dev = (struct mxc_w1_device *)data;
+	last_rn[0] = 0;
+	last_rn[1] = 0;
+	rom_id = 0;
+	prev_disc = 0;
+	loop = 0;
+	disc = -1;
+	last_disc = 0;
+	last_zero = 0;
+	while (!last_zero) {
+		/*
+		 * Reset bus and all 1-wire device state machines
+		 * so they can respond to our requests.
+		 *
+		 * Return 0 - device(s) present, 1 - no devices present.
+		 */
+		if (mxc_w1_ds2_reset_bus(data)) {
+			pr_debug("No devices present on the wire.\n");
+			break;
+		}
+		rn[0] = 0;
+		rn[1] = 0;
+		__raw_writeb(0x80, (dev->regs + MXC_W1_CONTROL));
+		mdelay(1);
+		mxc_w1_ds2_write_byte(data, 0xF0);
+		__raw_writeb(0x02, (dev->regs + MXC_W1_COMMAND));
+		memcpy(rn2, last_rn, 16);
+		z = 0;
+		w = 0;
+		for (i = 0; i < 16; i++) {
+			reg_val = rn2[z] >> (8 * w);
+			mxc_w1_ds2_write_byte(data, reg_val);
+			reg_val = mxc_w1_read_byte(data);
+			if ((reg_val & 0x3) == 0x3) {
+				pr_debug("Device is Not Responding\n");
+				break;
+			}
+			for (j = 0; j < 8; j += 2) {
+				byte = 0xFF;
+				byte1 = 1;
+				byte ^= byte1 << j;
+				bit = (reg_val >> j) & 0x1;
+				bit2 = (reg_val >> j);
+				if (bit) {
+					prev_disc = disc;
+					disc = 8 * i + j;
+					reg_val &= byte;
+				}
+			}
+			rn1 = 0;
+			rn1 = reg_val;
+			rn[z] |= rn1 << (8 * w);
+			w++;
+			if (i == 7) {
+				z++;
+				w = 0;
+			}
+		}
+		if ((disc == -1) || (disc == prev_disc))
+			last_zero = 1;
+		if (disc == last_disc)
+			disc = prev_disc;
+		z = 0;
+		rom_id = 0;
+		for (i = 0, j = 1; i < 64; i++) {
+			temp = 0;
+			temp = (rn[z] >> j) & 0x1;
+			rom_id |= (temp << i);
+			j += 2;
+			if (i == 31) {
+				z++;
+				j = 1;
+			}
+
+		}
+		if (disc > 63) {
+			last_rn[0] = rn[0];
+			temp1 = rn[1];
+			loop = disc % 64;
+			temp = 1;
+			temp1 |= (temp << (loop + 1)) - 1;
+			temp1 |= (temp << (loop + 1));
+			last_rn[1] = temp1;
+
+		} else {
+			last_rn[1] = 0;
+			temp1 = rn[0];
+			temp = 1;
+			temp1 |= (temp << (loop + 1)) - 1;
+			temp1 |= (temp << (loop + 1));
+			last_rn[0] = temp1;
+		}
+		last_disc = disc;
+		cb(master, rom_id);
+	}
+}
+
 static int __devinit mxc_w1_probe(struct platform_device *pdev)
 {
 	struct mxc_w1_device *mdev;
+	struct mxc_w1_config *data =
+	    (struct mxc_w1_config *)pdev->dev.platform_data;
 	struct resource *res;
+	int irq = 0;
 	int err = 0;
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
@@ -144,6 +292,22 @@ static int __devinit mxc_w1_probe(struct platform_device *pdev)
 	mdev->bus_master.data = mdev;
 	mdev->bus_master.reset_bus = mxc_w1_ds2_reset_bus;
 	mdev->bus_master.touch_bit = mxc_w1_ds2_touch_bit;
+	if (data->search_rom_accelerator) {
+		mdev->bus_master.write_byte = &mxc_w1_ds2_write_byte;
+		mdev->bus_master.read_byte = &mxc_w1_ds2_read_byte;
+		mdev->bus_master.search = &search_ROM_accelerator;
+		irq = platform_get_irq(pdev, 0);
+		if (irq < 0) {
+			err = -ENOENT;
+			goto failed_irq;
+		}
+		err = request_irq(irq, w1_interrupt_handler, 0, "mxc_w1", mdev);
+		if (err) {
+			pr_debug("OWire:request_irq(%d) returned error %d\n",
+				 irq, err);
+			goto failed_irq;
+		}
+	}
 
 	err = w1_add_master_device(&mdev->bus_master);
 
@@ -154,6 +318,9 @@ static int __devinit mxc_w1_probe(struct platform_device *pdev)
 	return 0;
 
 failed_add:
+	if (irq)
+		free_irq(irq, mdev);
+failed_irq:
 	iounmap(mdev->regs);
 failed_ioremap:
 	release_mem_region(res->start, resource_size(res));
@@ -171,6 +338,9 @@ static int __devexit mxc_w1_remove(struct platform_device *pdev)
 {
 	struct mxc_w1_device *mdev = platform_get_drvdata(pdev);
 	struct resource *res;
+	struct mxc_w1_config *data =
+	    (struct mxc_w1_config *)pdev->dev.platform_data;
+	int irq;
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 
@@ -178,6 +348,11 @@ static int __devexit mxc_w1_remove(struct platform_device *pdev)
 
 	iounmap(mdev->regs);
 	release_mem_region(res->start, resource_size(res));
+
+	irq = platform_get_irq(pdev, 0);
+	if ((irq >= 0) && (data->search_rom_accelerator))
+		free_irq(irq, mdev);
+
 	clk_disable(mdev->clk);
 	clk_put(mdev->clk);
 
