@@ -35,7 +35,7 @@
 static DECLARE_WAIT_QUEUE_HEAD(ptp_rx_ts_wait);
 #define PTP_GET_RX_TIMEOUT      (HZ/10)
 
-static struct fec_ptp_private *ptp_private;
+static struct fec_ptp_private *ptp_private[2];
 
 /* Alloc the ring resource */
 static int fec_ptp_init_circ(struct circ_buf *ptp_buf)
@@ -88,14 +88,15 @@ static int fec_ptp_is_full(struct circ_buf *buf)
 }
 
 static int fec_ptp_insert(struct circ_buf *ptp_buf,
-				struct fec_ptp_data_t *data)
+			  struct fec_ptp_data_t *data,
+			  struct fec_ptp_private *priv)
 {
 	struct fec_ptp_data_t *tmp;
 
 	if (fec_ptp_is_full(ptp_buf))
 		return 1;
 
-	spin_lock(&ptp_private->ptp_lock);
+	spin_lock(&priv->ptp_lock);
 	tmp = (struct fec_ptp_data_t *)(ptp_buf->buf) + ptp_buf->tail;
 
 	tmp->key = data->key;
@@ -104,13 +105,15 @@ static int fec_ptp_insert(struct circ_buf *ptp_buf,
 
 	ptp_buf->tail = fec_ptp_calc_index(DEFAULT_PTP_RX_BUF_SZ,
 					ptp_buf->tail, 1);
-	spin_unlock(&ptp_private->ptp_lock);
+	spin_unlock(&priv->ptp_lock);
 
 	return 0;
 }
 
 static int fec_ptp_find_and_remove(struct circ_buf *ptp_buf,
-			int key, struct fec_ptp_data_t *data)
+				   int key,
+				   struct fec_ptp_data_t *data,
+				   struct fec_ptp_private *priv)
 {
 	int i;
 	int size = DEFAULT_PTP_RX_BUF_SZ;
@@ -129,10 +132,10 @@ static int fec_ptp_find_and_remove(struct circ_buf *ptp_buf,
 		i = fec_ptp_calc_index(size, i, 1);
 	}
 
-	spin_lock_irqsave(&ptp_private->ptp_lock, flags);
+	spin_lock_irqsave(&priv->ptp_lock, flags);
 	if (i == end) {
 		ptp_buf->head = end;
-		spin_unlock_irqrestore(&ptp_private->ptp_lock, flags);
+		spin_unlock_irqrestore(&priv->ptp_lock, flags);
 		return 1;
 	}
 
@@ -140,7 +143,7 @@ static int fec_ptp_find_and_remove(struct circ_buf *ptp_buf,
 	data->ts_time.nsec = tmp->ts_time.nsec;
 
 	ptp_buf->head = fec_ptp_calc_index(size, i, 1);
-	spin_unlock_irqrestore(&ptp_private->ptp_lock, flags);
+	spin_unlock_irqrestore(&priv->ptp_lock, flags);
 
 	return 0;
 }
@@ -154,9 +157,9 @@ int fec_ptp_start(struct fec_ptp_private *priv)
 	writel(FEC_T_CTRL_RESTART, fpp->hwp + FEC_ATIME_CTRL);
 	writel(FEC_T_INC_40MHZ << FEC_T_INC_OFFSET, fpp->hwp + FEC_ATIME_INC);
 	writel(FEC_T_PERIOD_ONE_SEC, fpp->hwp + FEC_ATIME_EVT_PERIOD);
-	writel(FEC_T_CTRL_PERIOD_RST, fpp->hwp + FEC_ATIME_CTRL);
 	/* start counter */
-	writel(FEC_T_CTRL_ENABLE, fpp->hwp + FEC_ATIME_CTRL);
+	writel(FEC_T_CTRL_PERIOD_RST | FEC_T_CTRL_ENABLE,
+			fpp->hwp + FEC_ATIME_CTRL);
 
 	return 0;
 }
@@ -190,12 +193,12 @@ static void fec_set_1588cnt(struct fec_ptp_private *priv,
 	u32 tempval;
 	unsigned long flags;
 
-	spin_lock_irqsave(&ptp_private->cnt_lock, flags);
+	spin_lock_irqsave(&priv->cnt_lock, flags);
 	priv->prtc = fec_time->rtc_time.sec;
 
 	tempval = fec_time->rtc_time.nsec;
 	writel(tempval, priv->hwp + FEC_ATIME);
-	spin_unlock_irqrestore(&ptp_private->cnt_lock, flags);
+	spin_unlock_irqrestore(&priv->cnt_lock, flags);
 }
 
 /* Set the BD to ptp */
@@ -207,11 +210,11 @@ int fec_ptp_do_txstamp(struct sk_buff *skb)
 	if (skb->len > 44) {
 		/* Check if port is 319 for PTP Event, and check for UDP */
 		iph = ip_hdr(skb);
-		if (iph->protocol != FEC_PACKET_TYPE_UDP)
+		if (iph == NULL || iph->protocol != FEC_PACKET_TYPE_UDP)
 			return 0;
 
 		udph = udp_hdr(skb);
-		if (udph->source == 319)
+		if (udph != NULL && udph->source == 319)
 			return 1;
 	}
 
@@ -257,11 +260,11 @@ void fec_ptp_store_rxstamp(struct fec_ptp_private *priv,
 	switch (control) {
 
 	case PTP_MSG_SYNC:
-		fec_ptp_insert(&(priv->rx_time_sync), &tmp_rx_time);
+		fec_ptp_insert(&(priv->rx_time_sync), &tmp_rx_time, priv);
 		break;
 
 	case PTP_MSG_DEL_REQ:
-		fec_ptp_insert(&(priv->rx_time_del_req), &tmp_rx_time);
+		fec_ptp_insert(&(priv->rx_time_del_req), &tmp_rx_time, priv);
 		break;
 
 	/* clear transportSpecific field*/
@@ -271,11 +274,11 @@ void fec_ptp_store_rxstamp(struct fec_ptp_private *priv,
 		switch (msg_type) {
 		case PTP_MSG_P_DEL_REQ:
 			fec_ptp_insert(&(priv->rx_time_pdel_req),
-						&tmp_rx_time);
+						&tmp_rx_time, priv);
 			break;
 		case PTP_MSG_P_DEL_RESP:
 			fec_ptp_insert(&(priv->rx_time_pdel_resp),
-					&tmp_rx_time);
+					&tmp_rx_time, priv);
 			break;
 		default:
 			break;
@@ -308,20 +311,20 @@ static uint8_t fec_get_rx_time(struct fec_ptp_private *priv,
 	switch (mode) {
 	case PTP_MSG_SYNC:
 		flag = fec_ptp_find_and_remove(&(priv->rx_time_sync),
-						key, &tmp);
+						key, &tmp, priv);
 		break;
 	case PTP_MSG_DEL_REQ:
 		flag = fec_ptp_find_and_remove(&(priv->rx_time_del_req),
-						key, &tmp);
+						key, &tmp, priv);
 		break;
 
 	case PTP_MSG_P_DEL_REQ:
 		flag = fec_ptp_find_and_remove(&(priv->rx_time_pdel_req),
-						key, &tmp);
+						key, &tmp, priv);
 		break;
 	case PTP_MSG_P_DEL_RESP:
 		flag = fec_ptp_find_and_remove(&(priv->rx_time_pdel_resp),
-						key, &tmp);
+						key, &tmp, priv);
 		break;
 
 	default:
@@ -341,19 +344,19 @@ static uint8_t fec_get_rx_time(struct fec_ptp_private *priv,
 		switch (mode) {
 		case PTP_MSG_SYNC:
 			flag = fec_ptp_find_and_remove(&(priv->rx_time_sync),
-				key, &tmp);
+				key, &tmp, priv);
 			break;
 		case PTP_MSG_DEL_REQ:
 			flag = fec_ptp_find_and_remove(
-				&(priv->rx_time_del_req), key, &tmp);
+				&(priv->rx_time_del_req), key, &tmp, priv);
 			break;
 		case PTP_MSG_P_DEL_REQ:
 			flag = fec_ptp_find_and_remove(
-				&(priv->rx_time_pdel_req), key, &tmp);
+				&(priv->rx_time_pdel_req), key, &tmp, priv);
 			break;
 		case PTP_MSG_P_DEL_RESP:
 			flag = fec_ptp_find_and_remove(
-				&(priv->rx_time_pdel_resp), key, &tmp);
+				&(priv->rx_time_pdel_resp), key, &tmp, priv);
 			break;
 		}
 
@@ -388,9 +391,10 @@ static int ptp_ioctl(
 	struct ptp_time rx_time, tx_time;
 	struct ptp_ts_data *p_ts;
 	struct fec_ptp_private *priv;
+	unsigned int minor = MINOR(inode->i_rdev);
 	int retval = 0;
 
-	priv = (struct fec_ptp_private *) ptp_private;
+	priv = (struct fec_ptp_private *) ptp_private[minor];
 	switch (cmd) {
 	case PTP_GET_RX_TIMESTAMP:
 		p_ts = (struct ptp_ts_data *)arg;
@@ -466,7 +470,7 @@ static void ptp_free(void)
 /*
  * Resource required for accessing 1588 Timer Registers.
  */
-int fec_ptp_init(struct fec_ptp_private *priv)
+int fec_ptp_init(struct fec_ptp_private *priv, int id)
 {
 	fec_ptp_init_circ(&(priv->rx_time_sync));
 	fec_ptp_init_circ(&(priv->rx_time_del_req));
@@ -475,8 +479,9 @@ int fec_ptp_init(struct fec_ptp_private *priv)
 
 	spin_lock_init(&priv->ptp_lock);
 	spin_lock_init(&priv->cnt_lock);
-	ptp_private = priv;
-	init_ptp();
+	ptp_private[id] = priv;
+	if (id == 0)
+		init_ptp();
 	return 0;
 }
 EXPORT_SYMBOL(fec_ptp_init);

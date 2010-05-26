@@ -33,7 +33,7 @@
 #define FEC_T_INC_MASK			0x0000007f
 #define FEC_T_INC_OFFSET		0
 
-#define FEC_T_INC_40MHZ			20
+#define FEC_T_INC_40MHZ			25
 
 #define FEC_T_PERIOD_ONE_SEC		0x3B9ACA00
 
@@ -124,7 +124,7 @@ struct fec_ptp_private {
 };
 
 #ifdef CONFIG_FEC_1588
-extern int fec_ptp_init(struct fec_ptp_private *priv);
+extern int fec_ptp_init(struct fec_ptp_private *priv, int id);
 extern void fec_ptp_cleanup(struct fec_ptp_private *priv);
 extern int fec_ptp_start(struct fec_ptp_private *priv);
 extern void fec_ptp_stop(struct fec_ptp_private *priv);
@@ -134,7 +134,7 @@ extern void fec_ptp_store_rxstamp(struct fec_ptp_private *priv,
 				  struct sk_buff *skb,
 				  struct bufdesc *bdp);
 #else
-static inline int fec_ptp_init(struct fec_ptp_private *priv)
+static inline int fec_ptp_init(struct fec_ptp_private *priv, int id)
 {
 	return 1;
 }

@@ -1499,10 +1499,10 @@ fec_probe(struct platform_device *pdev)
 		fep->mii_bus = fec_mii_bus;
 	}
 
-	fep->ptp_priv = kmalloc(sizeof(struct fec_ptp_private), GFP_KERNEL);
+	fep->ptp_priv = kzalloc(sizeof(struct fec_ptp_private), GFP_KERNEL);
 	if (fep->ptp_priv) {
 		fep->ptp_priv->hwp = fep->hwp;
-		ret = fec_ptp_init(fep->ptp_priv);
+		ret = fec_ptp_init(fep->ptp_priv, pdev->id);
 		if (ret)
 			printk(KERN_WARNING
 					"IEEE1588: ptp-timer is unavailable\n");
