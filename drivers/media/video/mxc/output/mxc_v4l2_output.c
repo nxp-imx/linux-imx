@@ -1579,6 +1579,18 @@ static int mxc_v4l2out_streamon(vout_data * vout)
 			ipu_update_channel_buffer(vout->display_ch,
 				IPU_INPUT_BUFFER,
 				1, vout->v4l2_bufs[vout->ipu_buf[1]].m.offset);
+			if (vout->offset.u_offset || vout->offset.v_offset)
+				/* only update u/v offset */
+				ipu_update_channel_offset(vout->display_ch,
+						IPU_INPUT_BUFFER,
+						vout->v2f.fmt.pix.pixelformat,
+						vout->v2f.fmt.pix.width,
+						vout->v2f.fmt.pix.height,
+						vout->bytesperline,
+						vout->offset.u_offset,
+						vout->offset.v_offset,
+						0,
+						0);
 			ipu_select_buffer(vout->display_ch, IPU_INPUT_BUFFER, 0);
 			ipu_select_buffer(vout->display_ch, IPU_INPUT_BUFFER, 1);
 			queue_work(vout->v4l_wq, &vout->timer_work);
