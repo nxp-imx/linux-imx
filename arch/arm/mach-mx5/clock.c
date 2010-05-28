@@ -61,8 +61,18 @@ void __iomem *pll4_base;
 int cpu_wp_nr;
 int lp_high_freq;
 int lp_med_freq;
+int max_axi_a_clk;
+int max_axi_b_clk;
+
 
 #define SPIN_DELAY	1000000 /* in nanoseconds */
+#define MAX_AXI_A_CLK_MX51 	166250000
+#define MAX_AXI_A_CLK_MX53 	400000000
+#define MAX_AXI_B_CLK_MX51 	133000000
+#define MAX_AXI_B_CLK_MX53 	200000000
+#define MAX_AHB_CLK			133000000
+#define MAX_EMI_SLOW_CLK		133000000
+#define MAX_DDR_HF_RATE		200000000
 
 extern int mxc_jtag_enabled;
 extern int uart_at_24;
@@ -739,10 +749,16 @@ static unsigned long _clk_axi_a_round_rate(struct clk *clk,
 	u32 div;
 
 	div = clk->parent->rate / rate;
+
+	/* Make sure rate is not greater than the maximum value for the clock.
+	 * Also prevent a div of 0.
+	 */
+	if ((clk->parent->rate / div > max_axi_a_clk) || div == 0)
+		div++;
+
 	if (div > 8)
 		div = 8;
-	else if (div == 0)
-		div++;
+
 	return clk->parent->rate / div;
 }
 
@@ -772,10 +788,16 @@ static unsigned long _clk_ddr_hf_round_rate(struct clk *clk,
 	u32 div;
 
 	div = clk->parent->rate / rate;
+
+	/* Make sure rate is not greater than the maximum value for the clock.
+	 * Also prevent a div of 0.
+	 */
+	if ((clk->parent->rate / div > MAX_DDR_HF_RATE) || div == 0)
+		div++;
+
 	if (div > 8)
 		div = 8;
-	else if (div == 0)
-		div++;
+
 	return clk->parent->rate / div;
 }
 
@@ -876,10 +898,16 @@ static unsigned long _clk_axi_b_round_rate(struct clk *clk,
 	u32 div;
 
 	div = clk->parent->rate / rate;
+
+	/* Make sure rate is not greater than the maximum value for the clock.
+	 * Also prevent a div of 0.
+	 */
+	if ((clk->parent->rate / div > max_axi_b_clk) || div == 0)
+		div++;
+
 	if (div > 8)
 		div = 8;
-	else if (div == 0)
-		div++;
+
 	return clk->parent->rate / div;
 }
 
@@ -946,10 +974,16 @@ static unsigned long _clk_ahb_round_rate(struct clk *clk,
 	u32 div;
 
 	div = clk->parent->rate / rate;
+
+	/* Make sure rate is not greater than the maximum value for the clock.
+	 * Also prevent a div of 0.
+	 */
+	if ((clk->parent->rate / div > MAX_AHB_CLK) || div == 0)
+		div++;
+
 	if (div > 8)
 		div = 8;
-	else if (div == 0)
-		div++;
+
 	return clk->parent->rate / div;
 }
 
@@ -1079,10 +1113,16 @@ static unsigned long _clk_emi_slow_round_rate(struct clk *clk,
 	u32 div;
 
 	div = clk->parent->rate / rate;
+
+	/* Make sure rate is not greater than the maximum value for the clock.
+	 * Also prevent a div of 0.
+	 */
+	if ((clk->parent->rate / div > MAX_EMI_SLOW_CLK) || div == 0)
+		div++;
+
 	if (div > 8)
 		div = 8;
-	else if (div == 0)
-		div++;
+
 	return clk->parent->rate / div;
 }
 
@@ -1144,6 +1184,9 @@ static struct clk emi_intr_clk[] = {
 	.disable = _clk_disable_inwait,
 	},
 	{
+	/* On MX51 - this clock is name emi_garb_clk, and controls the
+	 * access of ARM to GARB.
+	 */
 	.name = "emi_intr_clk",
 	.id = 1,
 	.parent = &ahb_clk,
@@ -3816,7 +3859,6 @@ static struct clk pgc_clk = {
 };
 
 /*usb OTG clock */
-
 static struct clk usb_clk = {
 	.name = "usb_clk",
 	.rate = 60000000,
@@ -3932,16 +3974,6 @@ static int _clk_gpu3d_set_parent(struct clk *clk, struct clk *parent)
 	return 0;
 }
 
-static struct clk gpu3d_clk = {
-	.name = "gpu3d_clk",
-	.parent = &axi_a_clk,
-	.set_parent = _clk_gpu3d_set_parent,
-	.enable = _clk_enable,
-	.enable_reg = MXC_CCM_CCGR5,
-	.enable_shift = MXC_CCM_CCGR5_CG1_OFFSET,
-	.disable = _clk_disable,
-	.flags = AHB_HIGH_SET_POINT | CPU_FREQ_TRIG_UPDATE,
-};
 
 static struct clk garb_clk = {
 	.name = "garb_clk",
@@ -3952,13 +3984,16 @@ static struct clk garb_clk = {
 	.disable = _clk_disable,
 };
 
-static struct clk emi_garb_clk = {
-	.name = "emi_garb_clk",
+static struct clk gpu3d_clk = {
+	.name = "gpu3d_clk",
 	.parent = &axi_a_clk,
+	.set_parent = _clk_gpu3d_set_parent,
 	.enable = _clk_enable,
-	.enable_reg = MXC_CCM_CCGR6,
-	.enable_shift = MXC_CCM_CCGR6_CG4_OFFSET,
-	.disable = _clk_disable_inwait,
+	.enable_reg = MXC_CCM_CCGR5,
+	.enable_shift = MXC_CCM_CCGR5_CG1_OFFSET,
+	.disable = _clk_disable,
+	.flags = AHB_HIGH_SET_POINT | CPU_FREQ_TRIG_UPDATE,
+	.secondary = &garb_clk,
 };
 
 static int _clk_gpu2d_set_parent(struct clk *clk, struct clk *parent)
@@ -4179,6 +4214,7 @@ static struct clk *mxc_clks[] = {
 	&emi_enfc_clk,
 	&emi_fast_clk,
 	&emi_intr_clk[0],
+	&emi_intr_clk[1],
 	&spdif_xtal_clk,
 	&spdif0_clk[0],
 	&spdif0_clk[1],
@@ -4324,6 +4360,7 @@ int __init mx51_clocks_init(unsigned long ckil, unsigned long osc, unsigned long
 	esdhc2_clk[0].recalc = _clk_esdhc2_recalc;
 	esdhc2_clk[0].set_rate = _clk_esdhc2_set_rate;
 
+	emi_intr_clk[1].name = "emi_garb_clk";
 	clk_tree_init();
 
 	for (clkp = mxc_clks; clkp < mxc_clks + ARRAY_SIZE(mxc_clks); clkp++)
@@ -4342,7 +4379,9 @@ int __init mx51_clocks_init(unsigned long ckil, unsigned long osc, unsigned long
 	clk_register(&spdif1_clk[0]);
 	clk_register(&spdif1_clk[1]);
 	clk_register(&ddr_hf_clk);
-	clk_register(&emi_garb_clk);
+
+	max_axi_a_clk = MAX_AXI_A_CLK_MX51;
+	max_axi_b_clk = MAX_AXI_B_CLK_MX51;
 
 	/* set DDR clock parent */
 	reg = 0;
@@ -4677,7 +4716,6 @@ int __init mx53_clocks_init(unsigned long ckil, unsigned long osc, unsigned long
 		clk_register(*clkp);
 
 	clk_register(&pll4_sw_clk);
-	clk_register(&emi_intr_clk[1]);
 	clk_register(&uart4_clk[0]);
 	clk_register(&uart4_clk[1]);
 	clk_register(&uart5_clk[0]);
@@ -4695,6 +4733,9 @@ int __init mx53_clocks_init(unsigned long ckil, unsigned long osc, unsigned long
 
 	ldb_di_clk[0].parent = ldb_di_clk[1].parent =
 	tve_clk.parent = &pll4_sw_clk;
+
+	max_axi_a_clk = MAX_AXI_A_CLK_MX53;
+	max_axi_b_clk = MAX_AXI_B_CLK_MX53;
 
 	/* set DDR clock parent */
 	reg = __raw_readl(MXC_CCM_CBCMR) &
@@ -4756,8 +4797,6 @@ int __init mx53_clocks_init(unsigned long ckil, unsigned long osc, unsigned long
 
 	clk_set_parent(&vpu_clk[0], &axi_b_clk);
 	clk_set_parent(&vpu_clk[1], &axi_b_clk);
-	clk_set_parent(&gpu3d_clk, &axi_a_clk);
-	clk_set_parent(&gpu2d_clk, &axi_a_clk);
 
 	/* move cspi to 24MHz */
 	clk_set_parent(&cspi_main_clk, &lp_apm_clk);
