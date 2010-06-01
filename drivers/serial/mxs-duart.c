@@ -735,9 +735,40 @@ static int __devexit duart_remove(struct platform_device *pdev)
 	return 0;
 }
 
+#ifdef CONFIG_PM
+static int duart_suspend(struct platform_device *pdev,
+		pm_message_t state)
+{
+	int ret = 0;
+	if (!duart_port.suspended) {
+		ret = uart_suspend_port(&duart_drv, &duart_port.port);
+		if (!ret)
+			duart_port.suspended = 1;
+	}
+	return ret;
+}
+
+static int duart_resume(struct platform_device *pdev,
+		pm_message_t state)
+{
+	int ret = 0;
+	if (duart_port.suspended) {
+		ret = uart_resume_port(&duart_drv, &duart_port.port);
+		if (!ret)
+			duart_port.suspended = 0;
+	}
+	return ret;
+}
+#else
+#define	duart_suspend	NULL
+#define	duart_resume	NULL
+#endif
+
 static struct platform_driver duart_driver = {
 	.probe = duart_probe,
 	.remove = __devexit_p(duart_remove),
+	.suspend = duart_suspend,
+	.resume = duart_resume,
 	.driver = {
 		   .name = "mxs-duart",
 		   .owner = THIS_MODULE,

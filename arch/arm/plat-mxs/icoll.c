@@ -56,10 +56,16 @@ static void icoll_unmask_irq(unsigned int irq)
 		     g_icoll_base + HW_ICOLL_INTERRUPTn_SET(irq));
 }
 
+static int icoll_set_wake_irq(unsigned int irq, unsigned int enabled)
+{
+	return 0;
+}
+
 static struct irq_chip icoll_chip = {
 	.ack = icoll_ack_irq,
 	.mask = icoll_mask_irq,
 	.unmask = icoll_unmask_irq,
+	.set_wake = icoll_set_wake_irq,
 };
 
 void __init avic_init_irq(void __iomem *base, int nr_irqs)
