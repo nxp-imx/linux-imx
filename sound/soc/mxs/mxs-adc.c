@@ -37,6 +37,7 @@
 #define MXS_ADC_RATES	SNDRV_PCM_RATE_8000_192000
 #define MXS_ADC_FORMATS	(SNDRV_PCM_FMTBIT_S16_LE | \
 				SNDRV_PCM_FMTBIT_S32_LE)
+#define ADC_VOLUME_MIN  0x37
 
 struct mxs_pcm_dma_params mxs_audio_in = {
 	.name = "mxs-audio-in",
@@ -51,6 +52,11 @@ struct mxs_pcm_dma_params mxs_audio_out = {
 };
 
 static struct delayed_work work;
+static struct delayed_work adc_ramp_work;
+static struct delayed_work dac_ramp_work;
+static bool adc_ramp_done = 1;
+static bool dac_ramp_done = 1;
+
 static void mxs_adc_schedule_work(struct delayed_work *work)
 {
 	schedule_delayed_work(work, HZ / 10);
@@ -92,6 +98,98 @@ static void mxs_adc_work(struct work_struct *work)
 
 	/* enable irq for next short detect*/
 	enable_irq(IRQ_HEADPHONE_SHORT);
+}
+
+static void mxs_adc_schedule_ramp_work(struct delayed_work *work)
+{
+	schedule_delayed_work(work, msecs_to_jiffies(2));
+	adc_ramp_done = 0;
+}
+
+static void mxs_adc_ramp_work(struct work_struct *work)
+{
+	u32 reg = 0;
+	u32 reg1 = 0;
+	u32 reg2 = 0;
+	u32 l, r;
+	u32 ll, rr;
+	int i;
+
+	reg = __raw_readl(REGS_AUDIOIN_BASE + \
+		HW_AUDIOIN_ADCVOLUME);
+
+	reg1 = reg & ~BM_AUDIOIN_ADCVOLUME_VOLUME_LEFT;
+	reg1 = reg1 & ~BM_AUDIOIN_ADCVOLUME_VOLUME_RIGHT;
+	/* minimize adc volume */
+	reg2 = reg1 |
+	    BF_AUDIOIN_ADCVOLUME_VOLUME_LEFT(ADC_VOLUME_MIN) |
+	    BF_AUDIOIN_ADCVOLUME_VOLUME_RIGHT(ADC_VOLUME_MIN);
+	__raw_writel(reg2,
+		REGS_AUDIOIN_BASE + HW_AUDIOIN_ADCVOLUME);
+	msleep(1);
+
+	l = (reg & BM_AUDIOIN_ADCVOLUME_VOLUME_LEFT) >>
+		BP_AUDIOIN_ADCVOLUME_VOLUME_LEFT;
+	r = (reg & BM_AUDIOIN_ADCVOLUME_VOLUME_RIGHT) >>
+		BP_AUDIOIN_ADCVOLUME_VOLUME_RIGHT;
+
+	/* fade in adc vol */
+	for (i = ADC_VOLUME_MIN; (i < l) || (i < r);) {
+		i += 0x8;
+		ll = i < l ? i : l;
+		rr = i < r ? i : r;
+		reg2 = reg1 |
+		    BF_AUDIOIN_ADCVOLUME_VOLUME_LEFT(ll) |
+		    BF_AUDIOIN_ADCVOLUME_VOLUME_RIGHT(rr);
+		__raw_writel(reg2,
+		    REGS_AUDIOIN_BASE + HW_AUDIOIN_ADCVOLUME);
+		msleep(1);
+	}
+	adc_ramp_done = 1;
+}
+
+static void mxs_dac_schedule_ramp_work(struct delayed_work *work)
+{
+	schedule_delayed_work(work, msecs_to_jiffies(2));
+	dac_ramp_done = 0;
+}
+
+static void mxs_dac_ramp_work(struct work_struct *work)
+{
+	u32 reg = 0;
+	u32 reg1 = 0;
+	u32 l, r;
+	u32 ll, rr;
+	int i;
+
+	/* unmute hp and speaker */
+	__raw_writel(BM_AUDIOOUT_HPVOL_MUTE,
+		REGS_AUDIOOUT_BASE + HW_AUDIOOUT_HPVOL_CLR);
+	__raw_writel(BM_AUDIOOUT_SPEAKERCTRL_MUTE,
+		REGS_AUDIOOUT_BASE + HW_AUDIOOUT_SPEAKERCTRL_CLR);
+
+	reg = __raw_readl(REGS_AUDIOOUT_BASE + \
+			HW_AUDIOOUT_HPVOL);
+
+	reg1 = reg & ~BM_AUDIOOUT_HPVOL_VOL_LEFT;
+	reg1 = reg1 & ~BM_AUDIOOUT_HPVOL_VOL_RIGHT;
+
+	l = (reg & BM_AUDIOOUT_HPVOL_VOL_LEFT) >>
+		BP_AUDIOOUT_HPVOL_VOL_LEFT;
+	r = (reg & BM_AUDIOOUT_HPVOL_VOL_RIGHT) >>
+		BP_AUDIOOUT_HPVOL_VOL_RIGHT;
+	/* fade in hp vol */
+	for (i = 0x7f; i > 0 ;) {
+		i -= 0x8;
+		ll = i > (int)l ? i : l;
+		rr = i > (int)r ? i : r;
+		reg = reg1 | BF_AUDIOOUT_HPVOL_VOL_LEFT(ll)
+			| BF_AUDIOOUT_HPVOL_VOL_RIGHT(rr);
+		__raw_writel(reg,
+			REGS_AUDIOOUT_BASE + HW_AUDIOOUT_HPVOL);
+		msleep(1);
+	}
+	dac_ramp_done = 1;
 }
 
 static irqreturn_t mxs_short_irq(int irq, void *dev_id)
@@ -167,68 +265,47 @@ static int mxs_adc_trigger(struct snd_pcm_substream *substream,
 {
 	int playback = substream->stream == SNDRV_PCM_STREAM_PLAYBACK ? 1 : 0;
 	int ret = 0;
-	u32 reg = 0;
-	u32 reg1 = 0;
-	u32 l, r;
-	u32 ll, rr;
-	int i;
 
 	switch (cmd) {
 	case SNDRV_PCM_TRIGGER_START:
 
 		if (playback) {
-			reg = __raw_readl(REGS_AUDIOOUT_BASE + \
-					HW_AUDIOOUT_HPVOL);
-			reg1 = BM_AUDIOOUT_HPVOL_VOL_LEFT | \
-				BM_AUDIOOUT_HPVOL_VOL_RIGHT;
-			__raw_writel(reg1, REGS_AUDIOOUT_BASE + \
-				HW_AUDIOOUT_HPVOL);
 			/* enable the fifo error interrupt */
 			__raw_writel(BM_AUDIOOUT_CTRL_FIFO_ERROR_IRQ_EN,
 				REGS_AUDIOOUT_BASE + HW_AUDIOOUT_CTRL_SET);
 			/* write a data to data reg to trigger the transfer */
 			__raw_writel(0x0,
 				REGS_AUDIOOUT_BASE + HW_AUDIOOUT_DATA);
-			__raw_writel(BM_AUDIOOUT_ANACTRL_HP_HOLD_GND,
-				REGS_AUDIOOUT_BASE + HW_AUDIOOUT_ANACTRL_CLR);
-
-			reg1 = reg & ~BM_AUDIOOUT_HPVOL_VOL_LEFT;
-			reg1 = reg1 & ~BM_AUDIOOUT_HPVOL_VOL_RIGHT;
-
-			l = (reg & BM_AUDIOOUT_HPVOL_VOL_LEFT) >>
-				BP_AUDIOOUT_HPVOL_VOL_LEFT;
-			r = (reg & BM_AUDIOOUT_HPVOL_VOL_RIGHT) >>
-				BP_AUDIOOUT_HPVOL_VOL_RIGHT;
-			for (i = 0x7f; i > 0 ; i -= 0x8) {
-				ll = i > l ? i : l;
-				rr = i > r ? i : r;
-				/* fade in hp vol */
-				reg = reg1 | BF_AUDIOOUT_HPVOL_VOL_LEFT(ll)
-					| BF_AUDIOOUT_HPVOL_VOL_RIGHT(rr);
-				__raw_writel(reg,
-					REGS_AUDIOOUT_BASE + HW_AUDIOOUT_HPVOL);
-				udelay(100);
-			}
-		}
-		else
+			mxs_dac_schedule_ramp_work(&dac_ramp_work);
+		} else {
 			__raw_writel(BM_AUDIOIN_CTRL_RUN,
 				REGS_AUDIOIN_BASE + HW_AUDIOIN_CTRL_SET);
-
+			mxs_adc_schedule_ramp_work(&adc_ramp_work);
+		}
 		break;
 
 	case SNDRV_PCM_TRIGGER_STOP:
 
 		if (playback) {
-			__raw_writel(BM_AUDIOOUT_ANACTRL_HP_HOLD_GND,
-				REGS_AUDIOOUT_BASE + HW_AUDIOOUT_ANACTRL_SET);
+			if (dac_ramp_done == 0) {
+				cancel_delayed_work(&dac_ramp_work);
+				dac_ramp_done = 1;
+			}
+			__raw_writel(BM_AUDIOOUT_HPVOL_MUTE,
+			  REGS_AUDIOOUT_BASE + HW_AUDIOOUT_HPVOL_SET);
+			__raw_writel(BM_AUDIOOUT_SPEAKERCTRL_MUTE,
+			  REGS_AUDIOOUT_BASE + HW_AUDIOOUT_SPEAKERCTRL_SET);
 			/* disable the fifo error interrupt */
 			__raw_writel(BM_AUDIOOUT_CTRL_FIFO_ERROR_IRQ_EN,
 				REGS_AUDIOOUT_BASE + HW_AUDIOOUT_CTRL_CLR);
-			mdelay(50);
-		}
-		else
+		} else {
+			if (adc_ramp_done == 0) {
+				cancel_delayed_work(&adc_ramp_work);
+				adc_ramp_done = 1;
+			}
 			__raw_writel(BM_AUDIOIN_CTRL_RUN,
 				REGS_AUDIOIN_BASE + HW_AUDIOIN_CTRL_CLR);
+		}
 		break;
 
 	case SNDRV_PCM_TRIGGER_RESUME:
@@ -254,6 +331,8 @@ static int mxs_adc_startup(struct snd_pcm_substream *substream,
 	int ret;
 
 	INIT_DELAYED_WORK(&work, mxs_adc_work);
+	INIT_DELAYED_WORK(&adc_ramp_work, mxs_adc_ramp_work);
+	INIT_DELAYED_WORK(&dac_ramp_work, mxs_dac_ramp_work);
 
 	if (playback) {
 		irq = IRQ_DAC_ERROR;

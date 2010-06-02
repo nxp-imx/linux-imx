@@ -33,12 +33,119 @@
 #include "mxs-adc.h"
 #include "mxs-pcm.h"
 
+/* mxs evk machine connections to the codec pins */
+static const struct snd_soc_dapm_route audio_map[] = {
+	/* HPR/HPL OUT --> Headphone Jack */
+	{"Headphone Jack", NULL, "HPR"},
+	{"Headphone Jack", NULL, "HPL"},
+
+	/* SPEAKER OUT --> Ext Speaker */
+	{"Ext Spk", NULL, "SPEAKER"},
+};
+
+static int mxs_evk_jack_func;
+static int mxs_evk_spk_func;
+
+static const char *jack_function[] = { "off", "on"};
+
+static const char *spk_function[] = { "off", "on" };
+
+
+static const struct soc_enum mxs_evk_enum[] = {
+	SOC_ENUM_SINGLE_EXT(2, jack_function),
+	SOC_ENUM_SINGLE_EXT(2, spk_function),
+};
+
+static int mxs_evk_get_jack(struct snd_kcontrol *kcontrol,
+			     struct snd_ctl_elem_value *ucontrol)
+{
+	ucontrol->value.enumerated.item[0] = mxs_evk_jack_func;
+	return 0;
+}
+
+static int mxs_evk_set_jack(struct snd_kcontrol *kcontrol,
+			     struct snd_ctl_elem_value *ucontrol)
+{
+	struct snd_soc_codec *codec = snd_kcontrol_chip(kcontrol);
+
+	if (mxs_evk_jack_func == ucontrol->value.enumerated.item[0])
+		return 0;
+
+	mxs_evk_jack_func = ucontrol->value.enumerated.item[0];
+	if (mxs_evk_jack_func)
+		snd_soc_dapm_enable_pin(codec, "Headphone Jack");
+	else
+		snd_soc_dapm_disable_pin(codec, "Headphone Jack");
+
+	snd_soc_dapm_sync(codec);
+	return 1;
+}
+
+static int mxs_evk_get_spk(struct snd_kcontrol *kcontrol,
+			    struct snd_ctl_elem_value *ucontrol)
+{
+	ucontrol->value.enumerated.item[0] = mxs_evk_spk_func;
+	return 0;
+}
+
+static int mxs_evk_set_spk(struct snd_kcontrol *kcontrol,
+			    struct snd_ctl_elem_value *ucontrol)
+{
+	struct snd_soc_codec *codec = snd_kcontrol_chip(kcontrol);
+
+	if (mxs_evk_spk_func == ucontrol->value.enumerated.item[0])
+		return 0;
+
+	mxs_evk_spk_func = ucontrol->value.enumerated.item[0];
+	if (mxs_evk_spk_func)
+		snd_soc_dapm_enable_pin(codec, "Ext Spk");
+	else
+		snd_soc_dapm_disable_pin(codec, "Ext Spk");
+
+	snd_soc_dapm_sync(codec);
+	return 1;
+}
+/* mxs evk card dapm widgets */
+static const struct snd_soc_dapm_widget mxs_evk_dapm_widgets[] = {
+	SND_SOC_DAPM_SPK("Ext Spk", NULL),
+	SND_SOC_DAPM_HP("Headphone Jack", NULL),
+};
+
+static const struct snd_kcontrol_new mxs_evk_controls[] = {
+	SOC_ENUM_EXT("HP Playback Switch", mxs_evk_enum[0], mxs_evk_get_jack,
+		     mxs_evk_set_jack),
+	SOC_ENUM_EXT("Speaker Playback Switch", mxs_evk_enum[1],
+		     mxs_evk_get_spk, mxs_evk_set_spk),
+};
+
+static int mxs_evk_codec_init(struct snd_soc_codec *codec)
+{
+	int i, ret;
+	/* Add mxs evk specific controls */
+	snd_soc_add_controls(codec, mxs_evk_controls,
+		ARRAY_SIZE(mxs_evk_controls));
+
+	/* Add mxs evk specific widgets */
+	snd_soc_dapm_new_controls(codec, mxs_evk_dapm_widgets,
+				  ARRAY_SIZE(mxs_evk_dapm_widgets));
+
+	/* Set up mxs evk specific audio path audio_map */
+	snd_soc_dapm_add_routes(codec, audio_map, ARRAY_SIZE(audio_map));
+
+	snd_soc_dapm_sync(codec);
+	/* default on */
+	mxs_evk_jack_func = 1;
+	mxs_evk_spk_func = 1;
+
+	return ret;
+}
 /* mxs evk dac/adc audio interface glue - connects codec <--> CPU */
 static struct snd_soc_dai_link mxs_evk_codec_dai = {
 	.name = "MXS ADC/DAC",
 	.stream_name = "MXS ADC/DAC",
 	.cpu_dai = &mxs_adc_dai,
 	.codec_dai = &mxs_codec_dai,
+	.init = mxs_evk_codec_init,
 };
 
 /* mxs evk audio machine driver */
