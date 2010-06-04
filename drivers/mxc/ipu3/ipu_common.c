@@ -1734,6 +1734,38 @@ int32_t ipu_enable_channel(ipu_channel_t channel)
 EXPORT_SYMBOL(ipu_enable_channel);
 
 /*!
+ * This function check buffer ready for a logical channel.
+ *
+ * @param       channel         Input parameter for the logical channel ID.
+ *
+ * @param       type            Input parameter which buffer to clear.
+ *
+ * @param       bufNum          Input parameter for which buffer number clear
+ * 				ready state.
+ *
+ */
+int32_t ipu_check_buffer_busy(ipu_channel_t channel, ipu_buffer_t type,
+		uint32_t bufNum)
+{
+	uint32_t dma_chan = channel_2_dma(channel, type);
+	uint32_t reg;
+
+	if (dma_chan == IDMA_CHAN_INVALID)
+		return -EINVAL;
+
+	if (bufNum == 0)
+		reg = __raw_readl(IPU_CHA_BUF0_RDY(dma_chan));
+	else
+		reg = __raw_readl(IPU_CHA_BUF1_RDY(dma_chan));
+
+	if (reg & idma_mask(dma_chan))
+		return 1;
+	else
+		return 0;
+}
+EXPORT_SYMBOL(ipu_check_buffer_busy);
+
+/*!
  * This function clear buffer ready for a logical channel.
  *
  * @param       channel         Input parameter for the logical channel ID.

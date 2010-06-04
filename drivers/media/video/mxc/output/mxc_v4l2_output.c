@@ -260,6 +260,9 @@ static int select_display_buffer(vout_data *vout, int next_buf)
 			!= next_buf)
 		ret = ipu_select_buffer(vout->display_ch, IPU_INPUT_BUFFER,
 				next_buf);
+	else
+		dev_dbg(&vout->video_dev->dev,
+			"display buffer not ready for select\n");
 	return ret;
 }
 
@@ -297,13 +300,32 @@ static int wait_for_disp_vsync(vout_data *vout)
 	mm_segment_t old_fs;
 	int ret = 0;
 
-	/* wait for display frame finish */
-	if (fbi->fbops->fb_ioctl) {
-		old_fs = get_fs();
-		set_fs(KERNEL_DS);
-		ret = fbi->fbops->fb_ioctl(fbi, MXCFB_WAIT_FOR_VSYNC,
-			(unsigned int)NULL);
-		set_fs(old_fs);
+	if (vout->ic_bypass) {
+		if (ipu_check_buffer_busy(vout->display_ch,
+					IPU_INPUT_BUFFER, vout->next_done_ipu_buf)) {
+			/* wait for display frame finish */
+			if (fbi->fbops->fb_ioctl) {
+				old_fs = get_fs();
+				set_fs(KERNEL_DS);
+				ret = fbi->fbops->fb_ioctl(fbi, MXCFB_WAIT_FOR_VSYNC,
+						(unsigned int)NULL);
+				set_fs(old_fs);
+			}
+		}
+	} else {
+		/* wait for display frame finish */
+		if (fbi->fbops->fb_ioctl) {
+			old_fs = get_fs();
+			set_fs(KERNEL_DS);
+			ret = fbi->fbops->fb_ioctl(fbi, MXCFB_WAIT_FOR_VSYNC,
+					(unsigned int)NULL);
+			set_fs(old_fs);
+		}
+	}
+	if (ret < 0) {
+		/* ic_bypass need clear display buffer ready for next update*/
+		ipu_clear_buffer_ready(vout->display_ch, IPU_INPUT_BUFFER,
+				vout->next_done_ipu_buf);
 	}
 	return ret;
 }
@@ -318,18 +340,20 @@ static void timer_work_func(struct work_struct *work)
 
 	/* wait 2 first frame finish for ic bypass mode*/
 	if ((g_buf_output_cnt == 0) && vout->ic_bypass) {
-		wait_for_disp_vsync(vout);
-		wait_for_disp_vsync(vout);
+		int i;
+
+		for (i = 0; i < 2; i++) {
+			wait_for_disp_vsync(vout);
+			spin_lock_irqsave(&g_lock, lock_flags);
+			last_buf = vout->ipu_buf[i];
+			vout->v4l2_bufs[last_buf].flags = V4L2_BUF_FLAG_DONE;
+			queue_buf(&vout->done_q, last_buf);
+			vout->ipu_buf[i] = -1;
+			g_buf_output_cnt++;
+			vout->next_done_ipu_buf = !vout->next_done_ipu_buf;
+			spin_unlock_irqrestore(&g_lock, lock_flags);
+		}
 		spin_lock_irqsave(&g_lock, lock_flags);
-		last_buf = vout->ipu_buf[0];
-		vout->v4l2_bufs[last_buf].flags = V4L2_BUF_FLAG_DONE;
-		queue_buf(&vout->done_q, last_buf);
-		vout->ipu_buf[0] = -1;
-		last_buf = vout->ipu_buf[1];
-		vout->v4l2_bufs[last_buf].flags = V4L2_BUF_FLAG_DONE;
-		queue_buf(&vout->done_q, last_buf);
-		vout->ipu_buf[1] = -1;
-		g_buf_output_cnt = 2;
 		wake_up_interruptible(&vout->v4l_bufq);
 		if (vout->state == STATE_STREAM_PAUSED) {
 			index = peek_next_buf(&vout->ready_q);
@@ -344,11 +368,7 @@ static void timer_work_func(struct work_struct *work)
 		return;
 	}
 
-	if (wait_for_disp_vsync(vout) < 0) {
-		/* ic_bypass need clear display buffer ready for next update*/
-		ipu_clear_buffer_ready(vout->display_ch, IPU_INPUT_BUFFER,
-			!vout->next_done_ipu_buf);
-	}
+	wait_for_disp_vsync(vout);
 
 	spin_lock_irqsave(&g_lock, lock_flags);
 
@@ -364,9 +384,7 @@ static void timer_work_func(struct work_struct *work)
 		}
 	}
 
-	if (vout->ic_bypass)
-		ret = select_display_buffer(vout, vout->next_rdy_ipu_buf);
-	else if (LOAD_3FIELDS(vout))
+	if (LOAD_3FIELDS(vout))
 		ret = ipu_select_multi_vdi_buffer(vout->next_rdy_ipu_buf);
 	else
 		ret = ipu_select_buffer(vout->post_proc_ch, IPU_INPUT_BUFFER,
@@ -376,8 +394,8 @@ static void timer_work_func(struct work_struct *work)
 				"unable to set IPU buffer ready\n");
 	}
 
-	/* Non IC split action */
-	if (!vout->pp_split)
+	/* Non IC split/IC bypass action */
+	if (!vout->pp_split && !vout->ic_bypass)
 		vout->next_rdy_ipu_buf = !vout->next_rdy_ipu_buf;
 
 	/* Setup timer for next buffer */
@@ -457,6 +475,8 @@ static void mxc_v4l2out_timer_handler(unsigned long arg)
 		ret = ipu_update_channel_buffer(vout->display_ch, IPU_INPUT_BUFFER,
 				      vout->next_rdy_ipu_buf,
 				      vout->v4l2_bufs[index].m.offset);
+		ret += select_display_buffer(vout, vout->next_rdy_ipu_buf);
+		vout->next_rdy_ipu_buf = !vout->next_rdy_ipu_buf;
 	} else {
 		if (LOAD_3FIELDS(vout)) {
 			int index_n = index;
