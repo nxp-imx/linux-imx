@@ -59,6 +59,7 @@ static int utp_handle_message(struct fsg_dev *fsg,
 #define UTP_SS_BUSY(fsg, r)	utp_set_sense(fsg, UTP_REPLY_BUSY, (u64)r)
 #define UTP_SS_SIZE(fsg, r)	utp_set_sense(fsg, UTP_REPLY_SIZE, (u64)r)
 
+/* the structure of utp message which is mapped to 16-byte SCSI CBW's CDB */
 #pragma pack(1)
 struct utp_msg {
 	u8  f0;
