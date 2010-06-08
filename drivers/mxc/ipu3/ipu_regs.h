@@ -261,6 +261,14 @@ extern u32 *ipu_vdi_reg;
 #define DC_EVT_NEW_CHAN_R_1	9
 #define DC_EVT_NEW_DATA_R_0	10
 #define DC_EVT_NEW_DATA_R_1	11
+#define DC_EVEN_UGDE0 		12
+#define DC_ODD_UGDE0 		13
+#define DC_EVEN_UGDE1 		14
+#define DC_ODD_UGDE1 		15
+#define DC_EVEN_UGDE2 		16
+#define DC_ODD_UGDE2 		17
+#define DC_EVEN_UGDE3 		18
+#define DC_ODD_UGDE3 		19
 
 #define dc_ch_offset(ch) \
 ({ \

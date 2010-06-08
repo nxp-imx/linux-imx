@@ -1736,6 +1736,22 @@ static int mxcfb_option_setup(struct fb_info *info, char *options)
 			mxcfbi->ipu_di_pix_fmt = IPU_PIX_FMT_LVDS666;
 			continue;
 		}
+		if (!strncmp(opt, "YUYV16", 6)) {
+			mxcfbi->ipu_di_pix_fmt = IPU_PIX_FMT_YUYV;
+			continue;
+		}
+		if (!strncmp(opt, "UYVY16", 6)) {
+			mxcfbi->ipu_di_pix_fmt = IPU_PIX_FMT_UYVY;
+			continue;
+		}
+		if (!strncmp(opt, "YVYU16", 6)) {
+			mxcfbi->ipu_di_pix_fmt = IPU_PIX_FMT_YVYU;
+			continue;
+		}
+		if (!strncmp(opt, "VYUY16", 6)) {
+			mxcfbi->ipu_di_pix_fmt = IPU_PIX_FMT_VYUY;
+			continue;
+		}
 		if (!strncmp(opt, "ext_clk", 7)) {
 			mxcfbi->ipu_ext_clk = true;
 			continue;

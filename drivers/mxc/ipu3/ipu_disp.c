@@ -276,6 +276,24 @@ static void _ipu_di_sync_config(int di, int wave_gen,
 	__raw_writel(reg, DI_STP_REP(di, wave_gen));
 }
 
+static void _ipu_dc_map_link(int current_map,
+			     int base_map_0, int buf_num_0,
+			     int base_map_1, int buf_num_1,
+			     int base_map_2, int buf_num_2)
+{
+	int ptr_0 = base_map_0 * 3 + buf_num_0;
+	int ptr_1 = base_map_1 * 3 + buf_num_1;
+	int ptr_2 = base_map_2 * 3 + buf_num_2;
+	int ptr;
+	u32 reg;
+	ptr = (ptr_2 << 10) +  (ptr_1 << 5) + ptr_0;
+
+	reg = __raw_readl(DC_MAP_CONF_PTR(current_map));
+	reg &= ~(0x1F << ((16 * (current_map & 0x1))));
+	reg |= ptr << ((16 * (current_map & 0x1)));
+	__raw_writel(reg, DC_MAP_CONF_PTR(current_map));
+}
+
 static void _ipu_dc_map_config(int map, int byte_num, int offset, int mask)
 {
 	int ptr = map * 3 + byte_num;
@@ -321,11 +339,30 @@ static void _ipu_dc_write_tmpl(int word, u32 opcode, u32 operand, int map,
 static void _ipu_dc_link_event(int chan, int event, int addr, int priority)
 {
 	u32 reg;
-
-	reg = __raw_readl(DC_RL_CH(chan, event));
-	reg &= ~(0xFFFF << (16 * (event & 0x1)));
-	reg |= ((addr << 8) | priority) << (16 * (event & 0x1));
-	__raw_writel(reg, DC_RL_CH(chan, event));
+	u32 address_shift;
+	if (event < DC_EVEN_UGDE0) {
+		reg = __raw_readl(DC_RL_CH(chan, event));
+		reg &= ~(0xFFFF << (16 * (event & 0x1)));
+		reg |= ((addr << 8) | priority) << (16 * (event & 0x1));
+		__raw_writel(reg, DC_RL_CH(chan, event));
+	} else {
+		reg = __raw_readl(DC_UGDE_0((event - DC_EVEN_UGDE0) / 2));
+		if ((event - DC_EVEN_UGDE0) & 0x1) {
+			reg &= ~(0x2FF << 16);
+			reg |= (addr << 16);
+			reg |= priority ? (2 << 24) : 0x0;
+		} else {
+			reg &= ~0xFC00FFFF;
+			if (priority)
+				chan = (chan >> 1) +
+					((((chan & 0x1) + ((chan & 0x2) >> 1))) | (chan >> 3));
+			else
+				chan = 0x7;
+			address_shift = ((event - DC_EVEN_UGDE0) >> 1) ? 7 : 8;
+			reg |= (addr << address_shift) | (priority << 3) | chan;
+		}
+		__raw_writel(reg, DC_UGDE_0((event - DC_EVEN_UGDE0) / 2));
+	}
 }
 
 /*     Y = R *  1.200 + G *  2.343 + B *  .453 + 0.250;
@@ -548,10 +585,14 @@ void _ipu_dc_init(int dc_chan, int di, bool interlaced)
 				_ipu_dc_link_event(dc_chan, DC_EVT_NL, 2, 3);
 				_ipu_dc_link_event(dc_chan, DC_EVT_EOL, 3, 2);
 				_ipu_dc_link_event(dc_chan, DC_EVT_NEW_DATA, 4, 1);
+				_ipu_dc_link_event(dc_chan, DC_ODD_UGDE1, 9, 5);
+				_ipu_dc_link_event(dc_chan, DC_EVEN_UGDE1, 8, 5);
 			} else {
 				_ipu_dc_link_event(dc_chan, DC_EVT_NL, 5, 3);
 				_ipu_dc_link_event(dc_chan, DC_EVT_EOL, 6, 2);
 				_ipu_dc_link_event(dc_chan, DC_EVT_NEW_DATA, 7, 1);
+				_ipu_dc_link_event(dc_chan, DC_ODD_UGDE0, 10, 5);
+				_ipu_dc_link_event(dc_chan, DC_EVEN_UGDE0, 11, 5);
 			}
 		}
 		_ipu_dc_link_event(dc_chan, DC_EVT_NF, 0, 0);
@@ -593,6 +634,10 @@ void _ipu_dc_uninit(int dc_chan)
 		_ipu_dc_link_event(dc_chan, DC_EVT_EOFIELD, 0, 0);
 		_ipu_dc_link_event(dc_chan, DC_EVT_NEW_CHAN, 0, 0);
 		_ipu_dc_link_event(dc_chan, DC_EVT_NEW_ADDR, 0, 0);
+		_ipu_dc_link_event(dc_chan, DC_ODD_UGDE0, 0, 0);
+		_ipu_dc_link_event(dc_chan, DC_EVEN_UGDE0, 0, 0);
+		_ipu_dc_link_event(dc_chan, DC_ODD_UGDE1, 0, 0);
+		_ipu_dc_link_event(dc_chan, DC_EVEN_UGDE1, 0, 0);
 	} else if ((dc_chan == 8) || (dc_chan == 9)) {
 		_ipu_dc_link_event(dc_chan, DC_EVT_NEW_ADDR_W_0, 0, 0);
 		_ipu_dc_link_event(dc_chan, DC_EVT_NEW_ADDR_W_1, 0, 0);
@@ -852,6 +897,34 @@ void _ipu_init_dc_mappings(void)
 	_ipu_dc_map_config(4, 0, 5, 0xFC);
 	_ipu_dc_map_config(4, 1, 13, 0xFC);
 	_ipu_dc_map_config(4, 2, 21, 0xFC);
+
+	/* IPU_PIX_FMT_VYUY 16bit width */
+	_ipu_dc_map_clear(5);
+	_ipu_dc_map_config(5, 0, 7, 0xFF);
+	_ipu_dc_map_config(5, 1, 0, 0x0);
+	_ipu_dc_map_config(5, 2, 15, 0xFF);
+	_ipu_dc_map_clear(6);
+	_ipu_dc_map_config(6, 0, 0, 0x0);
+	_ipu_dc_map_config(6, 1, 7, 0xFF);
+	_ipu_dc_map_config(6, 2, 15, 0xFF);
+
+	/* IPU_PIX_FMT_UYUV 16bit width */
+	_ipu_dc_map_clear(7);
+	_ipu_dc_map_link(7, 6, 0, 6, 1, 6, 2);
+	_ipu_dc_map_clear(8);
+	_ipu_dc_map_link(8, 5, 0, 5, 1, 5, 2);
+
+	/* IPU_PIX_FMT_YUYV 16bit width */
+	_ipu_dc_map_clear(9);
+	_ipu_dc_map_link(9, 5, 2, 5, 1, 5, 0);
+	_ipu_dc_map_clear(10);
+	_ipu_dc_map_link(10, 5, 1, 5, 2, 5, 0);
+
+	/* IPU_PIX_FMT_YVYU 16bit width */
+	_ipu_dc_map_clear(11);
+	_ipu_dc_map_link(11, 5, 1, 5, 2, 5, 0);
+	_ipu_dc_map_clear(12);
+	_ipu_dc_map_link(12, 5, 2, 5, 1, 5, 0);
 }
 
 int _ipu_pixfmt_to_map(uint32_t fmt)
@@ -868,6 +941,14 @@ int _ipu_pixfmt_to_map(uint32_t fmt)
 		return 3;
 	case IPU_PIX_FMT_LVDS666:
 		return 4;
+	case IPU_PIX_FMT_VYUY:
+		return 6;
+	case IPU_PIX_FMT_UYVY:
+		return 8;
+	case IPU_PIX_FMT_YUYV:
+		return 10;
+	case IPU_PIX_FMT_YVYU:
+		return 12;
 	}
 
 	return -1;
@@ -1349,10 +1430,28 @@ int32_t ipu_init_sync_panel(int disp, uint32_t pixel_clk,
 
 		/* Init template microcode */
 		if (disp) {
+			if ((pixel_fmt == IPU_PIX_FMT_YUYV) ||
+				(pixel_fmt == IPU_PIX_FMT_UYVY) ||
+				(pixel_fmt == IPU_PIX_FMT_YVYU) ||
+				(pixel_fmt == IPU_PIX_FMT_VYUY)) {
+				_ipu_dc_write_tmpl(8, WROD(0), 0, (map - 1), SYNC_WAVE, 0, 5);
+				_ipu_dc_write_tmpl(9, WROD(0), 0, map, SYNC_WAVE, 0, 5);
+				/* configure user events according to DISP NUM */
+				__raw_writel((width - 1), DC_UGDE_3(disp));
+			}
 		   _ipu_dc_write_tmpl(2, WROD(0), 0, map, SYNC_WAVE, 8, 5);
 		   _ipu_dc_write_tmpl(3, WROD(0), 0, map, SYNC_WAVE, 4, 5);
 		   _ipu_dc_write_tmpl(4, WROD(0), 0, map, SYNC_WAVE, 0, 5);
 		} else {
+			if ((pixel_fmt == IPU_PIX_FMT_YUYV) ||
+				(pixel_fmt == IPU_PIX_FMT_UYVY) ||
+				(pixel_fmt == IPU_PIX_FMT_YVYU) ||
+				(pixel_fmt == IPU_PIX_FMT_VYUY)) {
+				_ipu_dc_write_tmpl(10, WROD(0), 0, (map - 1), SYNC_WAVE, 0, 5);
+				_ipu_dc_write_tmpl(11, WROD(0), 0, map, SYNC_WAVE, 0, 5);
+				/* configure user events according to DISP NUM */
+				__raw_writel(width - 1, DC_UGDE_3(disp));
+			}
 		   _ipu_dc_write_tmpl(5, WROD(0), 0, map, SYNC_WAVE, 8, 5);
 		   _ipu_dc_write_tmpl(6, WROD(0), 0, map, SYNC_WAVE, 4, 5);
 		   _ipu_dc_write_tmpl(7, WROD(0), 0, map, SYNC_WAVE, 0, 5);
@@ -1367,6 +1466,12 @@ int32_t ipu_init_sync_panel(int disp, uint32_t pixel_clk,
 			/* Set the clock to stop at counter 6. */
 			di_gen |= 0x6000000;
 	}
+	/* changinc DISP_CLK polarity: it can be wrong for some applications */
+	if ((pixel_fmt == IPU_PIX_FMT_YUYV) ||
+		(pixel_fmt == IPU_PIX_FMT_UYVY) ||
+		(pixel_fmt == IPU_PIX_FMT_YVYU) ||
+		(pixel_fmt == IPU_PIX_FMT_VYUY))
+			di_gen |= 0x00020000;
 
 	__raw_writel(di_gen, DI_GENERAL(disp));
 
