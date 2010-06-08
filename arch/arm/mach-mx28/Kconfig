@@ -6,10 +6,6 @@ config MACH_MX28EVK
 	depends on ARCH_MX28
 	select USB_ARCH_HAS_EHCI
 
-config MXS_TIMER_WITH_MACH
-	bool
-	default y
-
 endchoice
 
 config VECTORS_PHY_ADDR
@@ -17,4 +13,8 @@ config VECTORS_PHY_ADDR
 	default 0
 	help
 	  This config set vectors table is located which physical address
+
+config MXS_TIMER_WITH_MACH
+	bool "System Timer support Compare Match interrupt"
+	default y
 
