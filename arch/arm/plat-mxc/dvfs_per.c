@@ -51,15 +51,14 @@
 #endif
 
 /* DVFS PER */
-static void __iomem *dvfs_per_base;
-#define MXC_DVFS_PER_LTR0	(dvfs_per_base)
-#define MXC_DVFS_PER_LTR1	(dvfs_per_base + 0x04)
-#define MXC_DVFS_PER_LTR2	(dvfs_per_base + 0x08)
-#define MXC_DVFS_PER_LTR3	(dvfs_per_base + 0x0C)
-#define MXC_DVFS_PER_LTBR0	(dvfs_per_base + 0x10)
-#define MXC_DVFS_PER_LTBR1	(dvfs_per_base + 0x14)
-#define MXC_DVFS_PER_PMCR0	(dvfs_per_base + 0x18)
-#define MXC_DVFS_PER_PMCR1	(dvfs_per_base + 0x1C)
+#define MXC_DVFS_PER_LTR0	0x00
+#define MXC_DVFS_PER_LTR1	0x04
+#define MXC_DVFS_PER_LTR2	0x08
+#define MXC_DVFS_PER_LTR3	0x0C
+#define MXC_DVFS_PER_LTBR0	0x10
+#define MXC_DVFS_PER_LTBR1	0x14
+#define MXC_DVFS_PER_PMCR0	0x18
+#define MXC_DVFS_PER_PMCR1	0x1C
 
 #define DRIVER_NAME "DVFSPER"
 #define DVFS_PER_DEBUG 0
@@ -134,16 +133,16 @@ static void dvfs_per_load_config(void)
 {
 	u32 reg;
 
-	reg = __raw_readl(MXC_DVFS_PER_LTR0);
+	reg = __raw_readl(dvfsper_plt_data->membase + MXC_DVFS_PER_LTR0);
 	reg &= ~MXC_DVFSLTR0_UPTHR_MASK;
 	reg &= ~MXC_DVFSLTR0_DNTHR_MASK;
 	reg |= dvfs_per_setpoint[cur_setpoint].upthr <<
 						MXC_DVFSLTR0_UPTHR_OFFSET;
 	reg |= dvfs_per_setpoint[cur_setpoint].downthr <<
 						MXC_DVFSLTR0_DNTHR_OFFSET;
-	__raw_writel(reg, MXC_DVFS_PER_LTR0);
+	__raw_writel(reg, dvfsper_plt_data->membase + MXC_DVFS_PER_LTR0);
 
-	reg = __raw_readl(MXC_DVFS_PER_LTR1);
+	reg = __raw_readl(dvfsper_plt_data->membase + MXC_DVFS_PER_LTR1);
 	reg &= ~MXC_DVFSLTR1_PNCTHR_MASK;
 	reg &= ~MXC_DVFSLTR1_DNCNT_MASK;
 	reg &= ~MXC_DVFSLTR1_UPCNT_MASK;
@@ -153,11 +152,11 @@ static void dvfs_per_load_config(void)
 				MXC_DVFSLTR1_UPCNT_OFFSET;
 	reg |= dvfs_per_setpoint[cur_setpoint].panicthr <<
 				MXC_DVFSLTR1_PNCTHR_OFFSET;
-	__raw_writel(reg, MXC_DVFS_PER_LTR1);
+	__raw_writel(reg, dvfsper_plt_data->membase + MXC_DVFS_PER_LTR1);
 
 	reg = dvfs_per_setpoint[cur_setpoint].emac <<
 				MXC_DVFSLTR2_EMAC_OFFSET;
-	__raw_writel(reg, MXC_DVFS_PER_LTR2);
+	__raw_writel(reg, dvfsper_plt_data->membase + MXC_DVFS_PER_LTR2);
 }
 
 /*!
@@ -175,29 +174,29 @@ static int init_dvfs_per_controller(void)
 {
 	u32 reg;
 
-	reg = __raw_readl(MXC_DVFS_PER_LTR0);
+	reg = __raw_readl(dvfsper_plt_data->membase + MXC_DVFS_PER_LTR0);
 	/* DIV3CLK */
 	reg &= ~dvfsper_plt_data->div3_mask;
 	reg |= (dvfsper_plt_data->div3_div <<
 		  dvfsper_plt_data->div3_offset);
-	__raw_writel(reg, MXC_DVFS_PER_LTR0);
+	__raw_writel(reg, dvfsper_plt_data->membase + MXC_DVFS_PER_LTR0);
 
-	reg = __raw_readl(MXC_DVFS_PER_LTR1);
+	reg = __raw_readl(dvfsper_plt_data->membase + MXC_DVFS_PER_LTR1);
 	/* Set load tracking buffer register source */
 	reg &= ~MXC_DVFSLTR1_LTBRSR;
 	reg |= MXC_DVFSLTR1_LTBRSR;
 	reg &= ~MXC_DVFSLTR1_LTBRSH;
-	__raw_writel(reg, MXC_DVFS_PER_LTR1);
+	__raw_writel(reg, dvfsper_plt_data->membase + MXC_DVFS_PER_LTR1);
 
 	/* Enable all the peripheral signals, but VPU and IPU panic*/
-	__raw_writel(0x30000, MXC_DVFS_PER_PMCR1);
+	__raw_writel(0x30000, dvfsper_plt_data->membase + MXC_DVFS_PER_PMCR1);
 	/* Disable weighted load tracking signals */
-	__raw_writel(0, MXC_DVFS_PER_LTR3);
+	__raw_writel(0, dvfsper_plt_data->membase + MXC_DVFS_PER_LTR3);
 
-	reg = __raw_readl(MXC_DVFS_PER_PMCR0);
+	reg = __raw_readl(dvfsper_plt_data->membase + MXC_DVFS_PER_PMCR0);
 	reg &= ~MXC_DVFSPMCR0_DVFEV;
 	reg |= MXC_DVFSPMCR0_LBMI;
-	__raw_writel(reg, MXC_DVFS_PER_PMCR0);
+	__raw_writel(reg, dvfsper_plt_data->membase + MXC_DVFS_PER_PMCR0);
 
 	/* DVFS loading config */
 	dvfs_per_load_config();
@@ -220,14 +219,22 @@ static void dump_dvfs_per_regs(void)
 	if (diff < 90000)
 		printk(KERN_INFO "diff = %d\n", diff);
 
-	printk(KERN_INFO "LTRO = 0x%08x\n", __raw_readl(MXC_DVFS_PER_LTR0));
-	printk(KERN_INFO "LTR1 = 0x%08x\n", __raw_readl(MXC_DVFS_PER_LTR1));
-	printk(KERN_INFO "LTR2 = 0x%08x\n", __raw_readl(MXC_DVFS_PER_LTR2));
-	printk(KERN_INFO "LTR3 = 0x%08x\n", __raw_readl(MXC_DVFS_PER_LTR3));
-	printk(KERN_INFO "LBTR0 = 0x%08x\n", __raw_readl(MXC_DVFS_PER_LTBR0));
-	printk(KERN_INFO "LBTR1 = 0x%08x\n", __raw_readl(MXC_DVFS_PER_LTBR1));
-	printk(KERN_INFO "PMCR0 = 0x%08x\n", __raw_readl(MXC_DVFS_PER_PMCR0));
-	printk(KERN_INFO "PMCR1 = 0x%08x\n", __raw_readl(MXC_DVFS_PER_PMCR1));
+	printk(KERN_INFO "LTRO = 0x%08x\n",
+		__raw_readl(dvfsper_plt_data->membase + MXC_DVFS_PER_LTR0));
+	printk(KERN_INFO "LTR1 = 0x%08x\n",
+		__raw_readl(dvfsper_plt_data->membase + MXC_DVFS_PER_LTR1));
+	printk(KERN_INFO "LTR2 = 0x%08x\n",
+		__raw_readl(dvfsper_plt_data->membase + MXC_DVFS_PER_LTR2));
+	printk(KERN_INFO "LTR3 = 0x%08x\n",
+		__raw_readl(dvfsper_plt_data->membase + MXC_DVFS_PER_LTR3));
+	printk(KERN_INFO "LBTR0 = 0x%08x\n",
+		__raw_readl(dvfsper_plt_data->membase + MXC_DVFS_PER_LTBR0));
+	printk(KERN_INFO "LBTR1 = 0x%08x\n",
+		__raw_readl(dvfsper_plt_data->membase + MXC_DVFS_PER_LTBR1));
+	printk(KERN_INFO "PMCR0 = 0x%08x\n",
+		__raw_readl(dvfsper_plt_data->membase + MXC_DVFS_PER_PMCR0));
+	printk(KERN_INFO "PMCR1 = 0x%08x\n",
+		__raw_readl(dvfsper_plt_data->membase + MXC_DVFS_PER_PMCR1));
 }
 #endif
 
@@ -240,21 +247,22 @@ static irqreturn_t dvfs_per_irq(int irq, void *dev_id)
 						MXC_GPCCNTR_DVFS1CR) == 0)
 		return IRQ_NONE;
 	/* Mask DVFS irq */
-	reg = __raw_readl(MXC_DVFS_PER_PMCR0);
+	reg = __raw_readl(dvfsper_plt_data->membase + MXC_DVFS_PER_PMCR0);
 	/* FSVAIM=1 */
 	reg |= MXC_DVFSPMCR0_FSVAIM;
-	__raw_writel(reg, MXC_DVFS_PER_PMCR0);
+	__raw_writel(reg, dvfsper_plt_data->membase + MXC_DVFS_PER_PMCR0);
 	/* Mask GPC1 irq */
 	reg = __raw_readl(dvfsper_plt_data->gpc_cntr_reg_addr);
 	reg |= MXC_GPCCNTR_GPCIRQM | 0x1000000;
 	__raw_writel(reg, dvfsper_plt_data->gpc_cntr_reg_addr);
 
-	reg = __raw_readl(MXC_DVFS_PER_PMCR0);
+	reg = __raw_readl(dvfsper_plt_data->membase + MXC_DVFS_PER_PMCR0);
 	if (reg & MXC_DVFSPMCR0_LBFL) {
 		/* clear LBFL */
 		reg = (reg & ~MXC_DVFSPMCR0_LBFL);
 		reg |= MXC_DVFSPMCR0_LBFL;
-		__raw_writel(reg, MXC_DVFS_PER_PMCR0);
+		__raw_writel(reg, dvfsper_plt_data->membase
+				  + MXC_DVFS_PER_PMCR0);
 	}
 	schedule_delayed_work(&dvfs_per_work, 0);
 	return IRQ_HANDLED;
@@ -269,7 +277,7 @@ static void dvfs_per_handler(struct work_struct *work)
 	int retry = 20;
 
 	/* Check DVFS frequency adjustment interrupt status */
-	reg = __raw_readl(MXC_DVFS_PER_PMCR0);
+	reg = __raw_readl(dvfsper_plt_data->membase + MXC_DVFS_PER_PMCR0);
 	fsvai = (reg & MXC_DVFSPMCR0_FSVAI_MASK) >> MXC_DVFSPMCR0_FSVAI_OFFSET;
 	/* Check FSVAI, FSVAI=0 is error */
 	if (fsvai == FSVAI_FREQ_NOCHANGE) {
@@ -290,9 +298,11 @@ static void dvfs_per_handler(struct work_struct *work)
 
 #ifndef DVFS_SW_WORKAROUND
 		spin_lock_irqsave(&mxc_dvfs_per_lock, flags);
-		reg = __raw_readl(MXC_DVFS_PER_PMCR0);
+		reg = __raw_readl(dvfsper_plt_data->membase
+				  + MXC_DVFS_PER_PMCR0);
 		reg &= ~MXC_DVFSPMCR0_UDCS;
-		__raw_writel(reg, MXC_DVFS_PER_PMCR0);
+		__raw_writel(reg, dvfsper_plt_data->membase
+				  + MXC_DVFS_PER_PMCR0);
 
 		/* Set the peripheral divider */
 		reg = __raw_readl(dvfsper_plt_data->gpc_cntr_reg_addr);
@@ -367,9 +377,11 @@ static void dvfs_per_handler(struct work_struct *work)
 
 #ifndef DVFS_SW_WORKAROUND
 		spin_lock_irqsave(&mxc_dvfs_per_lock, flags);
-		reg = __raw_readl(MXC_DVFS_PER_PMCR0);
+		reg = __raw_readl(dvfsper_plt_data->membase
+				  + MXC_DVFS_PER_PMCR0);
 		reg |= MXC_DVFSPMCR0_UDCS;
-		__raw_writel(reg, MXC_DVFS_PER_PMCR0);
+		__raw_writel(reg, dvfsper_plt_data->membase
+				  + MXC_DVFS_PER_PMCR0);
 
 		reg = __raw_readl(dvfsper_plt_data->gpc_cntr_reg_addr);
 		reg &= ~(MXC_GPCCNTR_ADU_MASK | MXC_GPCCNTR_FUPD_MASK);
@@ -432,13 +444,15 @@ END:
 	dump_dvfs_per_regs(void)();
 #endif
 	if (dvfs_per_is_active) {
-		reg = __raw_readl(MXC_DVFS_PER_PMCR0);
+		reg = __raw_readl(dvfsper_plt_data->membase
+				  + MXC_DVFS_PER_PMCR0);
 		/* Enable dVFS interrupt */
 		/* FSVAIM=0 */
 		reg &= ~MXC_DVFSPMCR0_FSVAI_MASK;
 		reg |= FSVAI_FREQ_NOCHANGE;
 		reg = (reg & ~MXC_DVFSPMCR0_FSVAIM);
-		__raw_writel(reg, MXC_DVFS_PER_PMCR0);
+		__raw_writel(reg, dvfsper_plt_data->membase
+				  + MXC_DVFS_PER_PMCR0);
 		/*Unmask GPC1 IRQ */
 		reg = __raw_readl(dvfsper_plt_data->gpc_cntr_reg_addr);
 		reg &= ~MXC_GPCCNTR_GPCIRQM;
@@ -453,9 +467,9 @@ static void force_freq_change(void)
 
 	freq_increased = 0;
 
-	reg = __raw_readl(MXC_DVFS_PER_PMCR0);
+	reg = __raw_readl(dvfsper_plt_data->membase + MXC_DVFS_PER_PMCR0);
 	reg |= MXC_DVFSPMCR0_UDCS;
-	__raw_writel(reg, MXC_DVFS_PER_PMCR0);
+	__raw_writel(reg, dvfsper_plt_data->membase + MXC_DVFS_PER_PMCR0);
 
 	if (cpu_is_mx51()) {
 		/*Change the DDR freq to 133Mhz. */
@@ -513,7 +527,8 @@ static int start(void)
 
 	if (bus_freq_scaling_is_active) {
 		dvfs_per_is_paused = 1;
-		printk(KERN_INFO "Cannot start DVFS-PER since bus_freq_scaling is active\n");
+		printk(KERN_INFO "Cannot start DVFS-PER since bus_freq_scaling\
+			is active\n");
 		return 0;
 	}
 
@@ -539,7 +554,7 @@ static int start(void)
 	reg &= ~MXC_GPCCNTR_ADU;
 	__raw_writel(reg, dvfsper_plt_data->gpc_cntr_reg_addr);
 
-	reg = __raw_readl(MXC_DVFS_PER_PMCR0);
+	reg = __raw_readl(dvfsper_plt_data->membase + MXC_DVFS_PER_PMCR0);
 	/* Select ARM domain */
 	reg |= MXC_DVFSPMCR0_DVFIS;
 	/* Set the UDCS bit */
@@ -550,7 +565,7 @@ static int start(void)
 	/*Set the FSVAI to no_freq_change */
 	reg &= ~MXC_DVFSPMCR0_FSVAI_MASK;
 	reg |= FSVAI_FREQ_NOCHANGE << MXC_DVFSPMCR0_FSVAI_OFFSET;
-	__raw_writel(reg, MXC_DVFS_PER_PMCR0);
+	__raw_writel(reg, dvfsper_plt_data->membase + MXC_DVFS_PER_PMCR0);
 
 	/* config reg GPC_CNTR */
 	reg = __raw_readl(dvfsper_plt_data->gpc_cntr_reg_addr);
@@ -560,9 +575,9 @@ static int start(void)
 	__raw_writel(reg, dvfsper_plt_data->gpc_cntr_reg_addr);
 
 	/* Enable DVFS */
-	reg = __raw_readl(MXC_DVFS_PER_PMCR0);
+	reg = __raw_readl(dvfsper_plt_data->membase + MXC_DVFS_PER_PMCR0);
 	reg |= MXC_DVFSPMCR0_DVFEN;
-	__raw_writel(reg, MXC_DVFS_PER_PMCR0);
+	__raw_writel(reg, dvfsper_plt_data->membase + MXC_DVFS_PER_PMCR0);
 
 	dvfs_per_is_active = 1;
 	spin_unlock_irqrestore(&mxc_dvfs_per_lock, flags);
@@ -598,17 +613,21 @@ static void stop(void)
 		spin_lock_irqsave(&mxc_dvfs_per_lock, flags);
 
 		/* Mask dvfs irq, disable DVFS */
-		reg = __raw_readl(MXC_DVFS_PER_PMCR0);
+		reg = __raw_readl(dvfsper_plt_data->membase
+				  + MXC_DVFS_PER_PMCR0);
 		/* FSVAIM=1 */
 		reg |= MXC_DVFSPMCR0_FSVAIM;
-		__raw_writel(reg, MXC_DVFS_PER_PMCR0);
+		__raw_writel(reg, dvfsper_plt_data->membase
+				  + MXC_DVFS_PER_PMCR0);
 
 		if (cur_setpoint != 0)
 			force_freq_change();
 
-		reg = __raw_readl(MXC_DVFS_PER_PMCR0);
+		reg = __raw_readl(dvfsper_plt_data->membase
+				  + MXC_DVFS_PER_PMCR0);
 		reg = (reg & ~MXC_DVFSPMCR0_DVFEN);
-		__raw_writel(reg, MXC_DVFS_PER_PMCR0);
+		__raw_writel(reg, dvfsper_plt_data->membase
+				  + MXC_DVFS_PER_PMCR0);
 
 		spin_unlock_irqrestore(&mxc_dvfs_per_lock, flags);
 		clk_disable(dvfs_clk);
@@ -770,7 +789,8 @@ static int __devinit mxc_dvfsper_probe(struct platform_device *pdev)
 		ret = -ENODEV;
 		goto err1;
 	}
-	dvfs_per_base = gpc_base + 0x1C4;
+	dvfsper_plt_data->membase = ioremap(res->start,
+					    res->end - res->start + 1);
 
 	/*
 	 * Request the DVFSPER interrupt

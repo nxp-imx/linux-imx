@@ -1,5 +1,5 @@
 /*
- * Copyright 2005-2009 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2005-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -67,6 +67,7 @@ enum {
 
 struct device *dev_data0;
 struct device *dev_data1;
+struct dptc_device *dptc_device_data;
 
 /*!
  * In case the MXC device has multiple DPTC modules, this structure is used to
@@ -89,6 +90,8 @@ struct dptc_device {
 	int curr_wp;
 	/* DPTC vai bits */
 	u32 ptvai;
+	/* The base address of the DPTC */
+	void __iomem *membase;
 	/* The interrupt number used by the DPTC device */
 	int irq;
 	/* DPTC platform data pointer */
@@ -104,13 +107,13 @@ static void update_dptc_wp(struct dptc_device *drv_data, u32 wp)
 	voltage_uV = dptc_data->dptc_wp_allfreq[wp].voltage * 1000;
 
 	__raw_writel(dptc_data->dptc_wp_allfreq[wp].dcvr0,
-		     dptc_data->dcvr0_reg_addr);
+		     drv_data->membase + dptc_data->dcvr0_reg_addr);
 	__raw_writel(dptc_data->dptc_wp_allfreq[wp].dcvr1,
-		     dptc_data->dcvr0_reg_addr + 0x4);
+		     drv_data->membase + dptc_data->dcvr0_reg_addr + 0x4);
 	__raw_writel(dptc_data->dptc_wp_allfreq[wp].dcvr2,
-		     dptc_data->dcvr0_reg_addr + 0x8);
+		     drv_data->membase + dptc_data->dcvr0_reg_addr + 0x8);
 	__raw_writel(dptc_data->dptc_wp_allfreq[wp].dcvr3,
-		     dptc_data->dcvr0_reg_addr + 0xC);
+		     drv_data->membase + dptc_data->dcvr0_reg_addr + 0xC);
 
 	/* Set the voltage */
 	ret = regulator_set_voltage(drv_data->dptc_reg, voltage_uV, voltage_uV);
@@ -130,7 +133,8 @@ static irqreturn_t dptc_irq(int irq, void *dev_id)
 	struct device *dev = dev_id;
 	struct dptc_device *drv_data = dev->driver_data;
 	struct mxc_dptc_data *dptc_data = dev->platform_data;
-	u32 dptccr = __raw_readl(dptc_data->dptccr_reg_addr);
+	u32 dptccr = __raw_readl(drv_data->membase
+				 + dptc_data->dptccr_reg_addr);
 	u32 gpc_cntr = __raw_readl(dptc_data->gpc_cntr_reg_addr);
 
 	gpc_cntr = (gpc_cntr & dptc_data->dptccr);
@@ -145,7 +149,8 @@ static irqreturn_t dptc_irq(int irq, void *dev_id)
 		dptccr = (dptccr & ~(dptc_data->dptc_enable_bit)) |
 		    (dptc_data->irq_mask);
 		dptccr = (dptccr & ~(dptc_data->dptc_nvcr_bit));
-		__raw_writel(dptccr, dptc_data->dptccr_reg_addr);
+		__raw_writel(dptccr, drv_data->membase
+			     + dptc_data->dptccr_reg_addr);
 
 		if (drv_data->turbo_mode_active == 1)
 			schedule_delayed_work(&drv_data->dptc_work, 0);
@@ -162,7 +167,8 @@ static void dptc_workqueue_handler(struct work_struct *work1)
 	struct dptc_device *drv_data =
 	    container_of(dptc_work_tmp, struct dptc_device, dptc_work);
 	struct mxc_dptc_data *dptc_data = drv_data->dptc_platform_data;
-	u32 dptccr = __raw_readl(dptc_data->dptccr_reg_addr);
+	u32 dptccr = __raw_readl(drv_data->membase
+				 + dptc_data->dptccr_reg_addr);
 
 	switch (drv_data->ptvai) {
 	case DPTC_PTVAI_DECREASE:
@@ -193,7 +199,7 @@ static void dptc_workqueue_handler(struct work_struct *work1)
 	/* Enable DPTC and unmask its interrupt */
 	dptccr = (dptccr & ~(dptc_data->irq_mask)) |
 	    dptc_data->dptc_nvcr_bit | dptc_data->dptc_enable_bit;
-	__raw_writel(dptccr, dptc_data->dptccr_reg_addr);
+	__raw_writel(dptccr, drv_data->membase + dptc_data->dptccr_reg_addr);
 }
 
 /* Start DPTC unconditionally */
@@ -228,12 +234,12 @@ static int start_dptc(struct device *dev)
 			     dptc_data->gpc_cntr_reg_addr);
 	}
 
-	dptccr = __raw_readl(dptc_data->dptccr_reg_addr);
+	dptccr = __raw_readl(drv_data->membase + dptc_data->dptccr_reg_addr);
 
 	/* Enable DPTC and unmask its interrupt */
 	dptccr = ((dptccr & ~(dptc_data->irq_mask)) | dptc_data->enable_config);
 
-	__raw_writel(dptccr, dptc_data->dptccr_reg_addr);
+	__raw_writel(dptccr, drv_data->membase + dptc_data->dptccr_reg_addr);
 
 	spin_unlock_irqrestore(&drv_data->lock, flags);
 
@@ -257,13 +263,13 @@ static void stop_dptc(struct device *dev)
 	struct dptc_device *drv_data = dev->driver_data;
 	u32 dptccr;
 
-	dptccr = __raw_readl(dptc_data->dptccr_reg_addr);
+	dptccr = __raw_readl(drv_data->membase + dptc_data->dptccr_reg_addr);
 
 	/* disable DPTC and mask its interrupt */
 	dptccr = ((dptccr & ~(dptc_data->dptc_enable_bit)) |
 		  dptc_data->irq_mask) & (~dptc_data->dptc_nvcr_bit);
 
-	__raw_writel(dptccr, dptc_data->dptccr_reg_addr);
+	__raw_writel(dptccr, drv_data->membase + dptc_data->dptccr_reg_addr);
 
 	/* Restore Turbo Mode voltage to highest wp */
 	update_dptc_wp(drv_data, 0);
@@ -304,12 +310,12 @@ void dptc_suspend(int id)
 	if (!drv_data->dptc_is_active)
 		return;
 
-	dptccr = __raw_readl(dptc_data->dptccr_reg_addr);
+	dptccr = __raw_readl(drv_data->membase + dptc_data->dptccr_reg_addr);
 
 	/* Disable DPTC and mask its interrupt */
 	dptccr = (dptccr & ~(dptc_data->dptc_enable_bit)) | dptc_data->irq_mask;
 
-	__raw_writel(dptccr, dptc_data->dptccr_reg_addr);
+	__raw_writel(dptccr, drv_data->membase + dptc_data->dptccr_reg_addr);
 }
 EXPORT_SYMBOL(dptc_suspend);
 
@@ -344,20 +350,20 @@ void dptc_resume(int id)
 		return;
 
 	__raw_writel(dptc_data->dptc_wp_allfreq[0].dcvr0,
-		     dptc_data->dcvr0_reg_addr);
+		     drv_data->membase + dptc_data->dcvr0_reg_addr);
 	__raw_writel(dptc_data->dptc_wp_allfreq[0].dcvr1,
-		     dptc_data->dcvr0_reg_addr + 0x4);
+		     drv_data->membase + dptc_data->dcvr0_reg_addr + 0x4);
 	__raw_writel(dptc_data->dptc_wp_allfreq[0].dcvr2,
-		     dptc_data->dcvr0_reg_addr + 0x8);
+		     drv_data->membase + dptc_data->dcvr0_reg_addr + 0x8);
 	__raw_writel(dptc_data->dptc_wp_allfreq[0].dcvr3,
-		     dptc_data->dcvr0_reg_addr + 0xC);
+		     drv_data->membase + dptc_data->dcvr0_reg_addr + 0xC);
 
-	dptccr = __raw_readl(dptc_data->dptccr_reg_addr);
+	dptccr = __raw_readl(drv_data->membase + dptc_data->dptccr_reg_addr);
 
 	/* Enable DPTC and unmask its interrupt */
 	dptccr = (dptccr & ~(dptc_data->irq_mask)) | dptc_data->dptc_enable_bit;
 
-	__raw_writel(dptccr, dptc_data->dptccr_reg_addr);
+	__raw_writel(dptccr, drv_data->membase + dptc_data->dptccr_reg_addr);
 }
 EXPORT_SYMBOL(dptc_resume);
 
@@ -426,7 +432,6 @@ static DEVICE_ATTR(enable, 0644, dptc_show, dptc_store);
  */
 static int __devinit mxc_dptc_probe(struct platform_device *pdev)
 {
-	struct dptc_device *dptc_device_data;
 	int ret = 0;
 	struct resource *res;
 	u32 dptccr = 0;
@@ -449,13 +454,16 @@ static int __devinit mxc_dptc_probe(struct platform_device *pdev)
 		goto err1;
 	}
 
+	dptc_device_data->membase = ioremap(res->start,
+					    res->end - res->start + 1);
+
 	/*
 	 * Request the DPTC interrupt
 	 */
 	dptc_device_data->irq = platform_get_irq(pdev, 0);
 	if (dptc_device_data->irq < 0) {
 		ret = dptc_device_data->irq;
-		goto err1;
+		goto err2;
 	}
 
 	ret =
@@ -463,7 +471,7 @@ static int __devinit mxc_dptc_probe(struct platform_device *pdev)
 			pdev->name, &pdev->dev);
 	if (ret) {
 		printk(KERN_ERR "DPTC: Unable to attach to DPTC interrupt\n");
-		goto err1;
+		goto err2;
 	}
 
 	dptc_device_data->curr_wp = 0;
@@ -471,7 +479,8 @@ static int __devinit mxc_dptc_probe(struct platform_device *pdev)
 	dptc_device_data->turbo_mode_active = 0;
 	dptc_device_data->ptvai = 0;
 
-	dptccr = __raw_readl(dptc_data->dptccr_reg_addr);
+	dptccr = __raw_readl(dptc_device_data->membase
+			     + dptc_data->dptccr_reg_addr);
 
 	printk(KERN_INFO "DPTC mxc_dptc_probe()\n");
 
@@ -487,32 +496,33 @@ static int __devinit mxc_dptc_probe(struct platform_device *pdev)
 		else
 			printk(KERN_ERR "DPTC: Pointer to DPTC table is NULL\
 					not started\n");
-		goto err1;
+		goto err3;
 	}
 
 	dptc_device_data->dptc_reg = regulator_get(NULL, dptc_data->reg_id);
 	if (IS_ERR(dptc_device_data->dptc_reg)) {
 		clk_put(dptc_device_data->dptc_clk);
 		printk(KERN_ERR "%s: failed to get regulator\n", __func__);
-		goto err1;
+		goto err3;
 	}
 
 	INIT_DELAYED_WORK(&dptc_device_data->dptc_work, dptc_workqueue_handler);
 
 	/* Enable Reference Circuits */
 	dptccr = (dptccr & ~(dptc_data->dcr_mask)) | dptc_data->init_config;
-	__raw_writel(dptccr, dptc_data->dptccr_reg_addr);
+	__raw_writel(dptccr, dptc_device_data->membase
+			     + dptc_data->dptccr_reg_addr);
 
 	ret = sysfs_create_file(&pdev->dev.kobj, &dev_attr_enable.attr);
 	if (ret) {
 		printk(KERN_ERR
 		       "DPTC: Unable to register sysdev entry for dptc");
-		goto err1;
+		goto err3;
 	}
 
 	if (ret != 0) {
 		printk(KERN_ERR "DPTC: Unable to start");
-		goto err1;
+		goto err3;
 	}
 
 	dptc_device_data->dptc_clk = clk_get(NULL, dptc_data->clk_id);
@@ -529,6 +539,10 @@ static int __devinit mxc_dptc_probe(struct platform_device *pdev)
 
 	return 0;
 
+err3:
+	free_irq(dptc_device_data->irq, &pdev->dev);
+err2:
+	iounmap(dptc_device_data->membase);
 err1:
 	dev_err(&pdev->dev, "Failed to probe DPTC\n");
 	kfree(dptc_device_data);
@@ -607,6 +621,10 @@ static int __init dptc_init(void)
 
 static void __exit dptc_cleanup(void)
 {
+	free_irq(dptc_device_data->irq, NULL);
+	iounmap(dptc_device_data->membase);
+	kfree(dptc_device_data);
+
 	/* Unregister the device structure */
 	platform_driver_unregister(&mxc_dptc_driver);
 

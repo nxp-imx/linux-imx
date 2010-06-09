@@ -135,18 +135,19 @@ static void dvfs_load_config(int set_point)
 	reg |= dvfs_core_setpoint[set_point].downthr <<
 	    MXC_DVFSTHRS_DNTHR_OFFSET;
 	reg |= dvfs_core_setpoint[set_point].panicthr;
-	__raw_writel(reg, dvfs_data->dvfs_thrs_reg_addr);
+	__raw_writel(reg, dvfs_data->membase + MXC_DVFSCORE_THRS);
 
 	reg = 0;
 	reg |= dvfs_core_setpoint[set_point].downcnt <<
 	    MXC_DVFSCOUN_DNCNT_OFFSET;
 	reg |= dvfs_core_setpoint[set_point].upcnt << MXC_DVFSCOUN_UPCNT_OFFSET;
-	__raw_writel(reg, dvfs_data->dvfs_coun_reg_addr);
+	__raw_writel(reg, dvfs_data->membase + MXC_DVFSCORE_COUN);
 
 	/* Set EMAC value */
 	__raw_writel((dvfs_core_setpoint[set_point].emac <<
 					MXC_DVFSEMAC_EMAC_OFFSET),
-					dvfs_data->dvfs_emac_reg_addr);
+					dvfs_data->membase
+					+ MXC_DVFSCORE_EMAC);
 
 
 }
@@ -202,7 +203,7 @@ static int set_cpu_freq(int wp)
 			reg |= 1 << MXC_GPCVCR_VINC_OFFSET;
 
 		reg |= (1 << MXC_GPCVCR_VCNTU_OFFSET) |
-		    (1 << MXC_GPCVCR_VCNT_OFFSET);
+		       (1 << MXC_GPCVCR_VCNT_OFFSET);
 		__raw_writel(reg, dvfs_data->gpc_vcr_reg_addr);
 
 		reg = __raw_readl(dvfs_data->gpc_cntr_reg_addr);
@@ -354,13 +355,13 @@ static int start_dvfs(void)
 	__raw_writel(reg, dvfs_data->gpc_cntr_reg_addr);
 
 	/* Set PREDIV bits */
-	reg = __raw_readl(dvfs_data->dvfs_cntr_reg_addr);
+	reg = __raw_readl(dvfs_data->membase + MXC_DVFSCORE_CNTR);
 	reg = (reg & ~(dvfs_data->prediv_mask));
 	reg |= (dvfs_data->prediv_val) << (dvfs_data->prediv_offset);
-	__raw_writel(reg, dvfs_data->dvfs_cntr_reg_addr);
+	__raw_writel(reg, dvfs_data->membase + MXC_DVFSCORE_CNTR);
 
 	/* Enable DVFS interrupt */
-	reg = __raw_readl(dvfs_data->dvfs_cntr_reg_addr);
+	reg = __raw_readl(dvfs_data->membase + MXC_DVFSCORE_CNTR);
 	/* FSVAIM=0 */
 	reg = (reg & ~MXC_DVFSCNTR_FSVAIM);
 	/* Set MAXF, MINF */
@@ -376,12 +377,12 @@ static int start_dvfs(void)
 	/* Set DIV3CK */
 	reg = (reg & ~(dvfs_data->div3ck_mask));
 	reg |= (dvfs_data->div3ck_val) << (dvfs_data->div3ck_offset);
-	__raw_writel(reg, dvfs_data->dvfs_cntr_reg_addr);
+	__raw_writel(reg, dvfs_data->membase + MXC_DVFSCORE_CNTR);
 
 	/* Enable DVFS */
-	reg = __raw_readl(dvfs_data->dvfs_cntr_reg_addr);
+	reg = __raw_readl(dvfs_data->membase + MXC_DVFSCORE_CNTR);
 	reg |= MXC_DVFSCNTR_DVFEN;
-	__raw_writel(reg, dvfs_data->dvfs_cntr_reg_addr);
+	__raw_writel(reg, dvfs_data->membase + MXC_DVFSCORE_CNTR);
 
 	dvfs_core_is_active = 1;
 
@@ -421,10 +422,10 @@ static irqreturn_t dvfs_irq(int irq, void *dev_id)
 		return IRQ_NONE;
 
 	/* Mask DVFS irq */
-	reg = __raw_readl(dvfs_data->dvfs_cntr_reg_addr);
+	reg = __raw_readl(dvfs_data->membase + MXC_DVFSCORE_CNTR);
 	/* FSVAIM=1 */
 	reg |= MXC_DVFSCNTR_FSVAIM;
-	__raw_writel(reg, dvfs_data->dvfs_cntr_reg_addr);
+	__raw_writel(reg, dvfs_data->membase + MXC_DVFSCORE_CNTR);
 
 	/* Mask GPC1 irq */
 	reg = __raw_readl(dvfs_data->gpc_cntr_reg_addr);
@@ -448,7 +449,7 @@ static void dvfs_core_work_handler(struct work_struct *work)
 	low_freq_bus_ready = low_freq_bus_used();
 
 	/* Check DVFS frequency adjustment interrupt status */
-	reg = __raw_readl(dvfs_data->dvfs_cntr_reg_addr);
+	reg = __raw_readl(dvfs_data->membase + MXC_DVFSCORE_CNTR);
 	fsvai = (reg & MXC_DVFSCNTR_FSVAI_MASK) >> MXC_DVFSCNTR_FSVAI_OFFSET;
 	/* Check FSVAI, FSVAI=0 is error */
 	if (fsvai == FSVAI_FREQ_NOCHANGE) {
@@ -520,7 +521,7 @@ static void dvfs_core_work_handler(struct work_struct *work)
 
 
 END:	/* Set MAXF, MINF */
-	reg = __raw_readl(dvfs_data->dvfs_cntr_reg_addr);
+	reg = __raw_readl(dvfs_data->membase + MXC_DVFSCORE_CNTR);
 	reg = (reg & ~(MXC_DVFSCNTR_MAXF_MASK | MXC_DVFSCNTR_MINF_MASK));
 	reg |= maxf << MXC_DVFSCNTR_MAXF_OFFSET;
 	reg |= minf << MXC_DVFSCNTR_MINF_OFFSET;
@@ -532,7 +533,7 @@ END:	/* Set MAXF, MINF */
 	/* LBFL=1 */
 	reg = (reg & ~MXC_DVFSCNTR_LBFL);
 	reg |= MXC_DVFSCNTR_LBFL;
-	__raw_writel(reg, dvfs_data->dvfs_cntr_reg_addr);
+	__raw_writel(reg, dvfs_data->membase + MXC_DVFSCORE_CNTR);
 	/*Unmask GPC1 IRQ */
 	reg = __raw_readl(dvfs_data->gpc_cntr_reg_addr);
 	reg &= ~MXC_GPCCNTR_GPCIRQM;
@@ -559,10 +560,12 @@ static void stop_dvfs(void)
 	if (dvfs_core_is_active) {
 
 		/* Mask dvfs irq, disable DVFS */
-		reg = __raw_readl(dvfs_data->dvfs_cntr_reg_addr);
+		reg = __raw_readl(dvfs_data->membase
+				  + MXC_DVFSCORE_CNTR);
 		/* FSVAIM=1 */
 		reg |= MXC_DVFSCNTR_FSVAIM;
-		__raw_writel(reg, dvfs_data->dvfs_cntr_reg_addr);
+		__raw_writel(reg, dvfs_data->membase
+				  + MXC_DVFSCORE_CNTR);
 
 		curr_wp = 0;
 		if (!high_bus_freq_mode)
@@ -580,9 +583,11 @@ static void stop_dvfs(void)
 		}
 		spin_lock_irqsave(&mxc_dvfs_core_lock, flags);
 
-		reg = __raw_readl(dvfs_data->dvfs_cntr_reg_addr);
+		reg = __raw_readl(dvfs_data->membase
+				  + MXC_DVFSCORE_CNTR);
 		reg = (reg & ~MXC_DVFSCNTR_DVFEN);
-		__raw_writel(reg, dvfs_data->dvfs_cntr_reg_addr);
+		__raw_writel(reg, dvfs_data->membase
+				  + MXC_DVFSCORE_CNTR);
 
 		spin_unlock_irqrestore(&mxc_dvfs_core_lock, flags);
 
@@ -610,39 +615,56 @@ void dump_dvfs_core_regs()
 		printk(KERN_DEBUG "diff = %d\n", diff);
 
 	printk(KERN_INFO "THRS = 0x%08x\n",
-			__raw_readl(dvfs_data->dvfs_thrs_reg_addr));
+			__raw_readl(dvfs_data->membase
+				    + MXC_DVFSCORE_THRS));
 	printk(KERN_INFO "COUNT = 0x%08x\n",
-			__raw_readl(dvfs_data->dvfs_thrs_reg_addr+0x04));
+			__raw_readl(dvfs_data->membase
+				    + MXC_DVFSCORE_THRS + 0x04));
 	printk(KERN_INFO "SIG1 = 0x%08x\n",
-			__raw_readl(dvfs_data->dvfs_thrs_reg_addr+0x08));
+			__raw_readl(dvfs_data->membase
+				    + MXC_DVFSCORE_THRS + 0x08));
 	printk(KERN_INFO "SIG0 = 0x%08x\n",
-			__raw_readl(dvfs_data->dvfs_thrs_reg_addr+0x0c));
+			__raw_readl(dvfs_data->membase
+				    + MXC_DVFSCORE_THRS + 0x0c));
 	printk(KERN_INFO "GPC0 = 0x%08x\n",
-			__raw_readl(dvfs_data->dvfs_thrs_reg_addr+0x10));
+			__raw_readl(dvfs_data->membase
+				    + MXC_DVFSCORE_THRS + 0x10));
 	printk(KERN_INFO "GPC1 = 0x%08x\n",
-			__raw_readl(dvfs_data->dvfs_thrs_reg_addr+0x14));
+			__raw_readl(dvfs_data->membase
+				    + MXC_DVFSCORE_THRS + 0x14));
 	printk(KERN_INFO "GPBT = 0x%08x\n",
-			__raw_readl(dvfs_data->dvfs_thrs_reg_addr+0x18));
+			__raw_readl(dvfs_data->membase
+				    + MXC_DVFSCORE_THRS + 0x18));
 	printk(KERN_INFO "EMAC = 0x%08x\n",
-			__raw_readl(dvfs_data->dvfs_thrs_reg_addr+0x1c));
+			__raw_readl(dvfs_data->membase
+				    + MXC_DVFSCORE_THRS + 0x1c));
 	printk(KERN_INFO "CNTR = 0x%08x\n",
-			__raw_readl(dvfs_data->dvfs_thrs_reg_addr+0x20));
+			__raw_readl(dvfs_data->membase
+				    + MXC_DVFSCORE_THRS + 0x20));
 	printk(KERN_INFO "LTR0_0 = 0x%08x\n",
-			__raw_readl(dvfs_data->dvfs_thrs_reg_addr+0x24));
+			__raw_readl(dvfs_data->membase
+				    + MXC_DVFSCORE_THRS + 0x24));
 	printk(KERN_INFO "LTR0_1 = 0x%08x\n",
-			__raw_readl(dvfs_data->dvfs_thrs_reg_addr+0x28));
+			__raw_readl(dvfs_data->membase
+				    + MXC_DVFSCORE_THRS + 0x28));
 	printk(KERN_INFO "LTR1_0 = 0x%08x\n",
-			__raw_readl(dvfs_data->dvfs_thrs_reg_addr+0x2c));
+			__raw_readl(dvfs_data->membase
+				    + MXC_DVFSCORE_THRS + 0x2c));
 	printk(KERN_DEBUG "LTR1_1 = 0x%08x\n",
-			__raw_readl(dvfs_data->dvfs_thrs_reg_addr+0x30));
+			__raw_readl(dvfs_data->membase
+				    + MXC_DVFSCORE_THRS + 0x30));
 	printk(KERN_INFO "PT0 = 0x%08x\n",
-			__raw_readl(dvfs_data->dvfs_thrs_reg_addr+0x34));
+			__raw_readl(dvfs_data->membase
+				    + MXC_DVFSCORE_THRS + 0x34));
 	printk(KERN_INFO "PT1 = 0x%08x\n",
-			__raw_readl(dvfs_data->dvfs_thrs_reg_addr+0x38));
+			__raw_readl(dvfs_data->membase
+				    + MXC_DVFSCORE_THRS + 0x38));
 	printk(KERN_INFO "PT2 = 0x%08x\n",
-			__raw_readl(dvfs_data->dvfs_thrs_reg_addr+0x3c));
+			__raw_readl(dvfs_data->membase
+				    + MXC_DVFSCORE_THRS + 0x3c));
 	printk(KERN_INFO "PT3 = 0x%08x\n",
-			__raw_readl(dvfs_data->dvfs_thrs_reg_addr+0x40));
+			__raw_readl(dvfs_data->membase
+				    + MXC_DVFSCORE_THRS + 0x40));
 }
 
 static ssize_t downthreshold_show(struct device *dev,
@@ -741,7 +763,6 @@ static int __devinit mxc_dvfs_core_probe(struct platform_device *pdev)
 {
 	int err = 0;
 	struct resource *res;
-	int irq;
 
 	printk(KERN_INFO "mxc_dvfs_core_probe\n");
 	dvfs_dev = &pdev->dev;
@@ -780,22 +801,26 @@ static int __devinit mxc_dvfs_core_probe(struct platform_device *pdev)
 		err = -ENODEV;
 		goto err1;
 	}
+	dvfs_data->membase = ioremap(res->start, res->end - res->start + 1);
 
 	/*
 	 * Request the DVFS interrupt
 	 */
-	irq = platform_get_irq(pdev, 0);
-	if (irq < 0) {
-		err = irq;
-		goto err1;
+	dvfs_data->irq = platform_get_irq(pdev, 0);
+	if (dvfs_data->irq < 0) {
+		err = dvfs_data->irq;
+		goto err2;
 	}
 
 	/* request the DVFS interrupt */
-	err = request_irq(irq, dvfs_irq, IRQF_SHARED, "dvfs", dvfs_dev);
-	if (err)
+	err = request_irq(dvfs_data->irq, dvfs_irq, IRQF_SHARED, "dvfs",
+			  dvfs_dev);
+	if (err) {
 		printk(KERN_ERR
 		       "DVFS: Unable to attach to DVFS interrupt,err = %d",
 		       err);
+		goto err2;
+	}
 
 	clk_enable(dvfs_clk);
 	err = init_dvfs_controller();
@@ -809,14 +834,14 @@ static int __devinit mxc_dvfs_core_probe(struct platform_device *pdev)
 	if (err) {
 		printk(KERN_ERR
 		       "DVFS: Unable to register sysdev entry for DVFS");
-		return err;
+		goto err3;
 	}
 
 	err = sysfs_create_file(&dvfs_dev->kobj, &dev_attr_show_regs.attr);
 	if (err) {
 		printk(KERN_ERR
 		       "DVFS: Unable to register sysdev entry for DVFS");
-		return err;
+		goto err3;
 	}
 
 
@@ -824,14 +849,14 @@ static int __devinit mxc_dvfs_core_probe(struct platform_device *pdev)
 	if (err) {
 		printk(KERN_ERR
 		       "DVFS: Unable to register sysdev entry for DVFS");
-		return err;
+		goto err3;
 	}
 
 	err = sysfs_create_file(&dvfs_dev->kobj, &dev_attr_down_count.attr);
 	if (err) {
 		printk(KERN_ERR
 		       "DVFS: Unable to register sysdev entry for DVFS");
-		return err;
+		goto err3;
 	}
 
 	/* Set the current working point. */
@@ -842,7 +867,10 @@ static int __devinit mxc_dvfs_core_probe(struct platform_device *pdev)
 	cpufreq_trig_needed = 0;
 
 	return err;
-
+err3:
+	free_irq(dvfs_data->irq, dvfs_dev);
+err2:
+	iounmap(dvfs_data->membase);
 err1:
 	dev_err(&pdev->dev, "Failed to probe DVFS CORE\n");
 	return err;
@@ -912,13 +940,14 @@ static void __exit dvfs_cleanup(void)
 	stop_dvfs();
 
 	/* release the DVFS interrupt */
-	free_irq(MXC_INT_GPC1, NULL);
+	free_irq(dvfs_data->irq, dvfs_dev);
 
 	sysfs_remove_file(&dvfs_dev->kobj, &dev_attr_enable.attr);
 
 	/* Unregister the device structure */
 	platform_driver_unregister(&mxc_dvfs_core_driver);
 
+	iounmap(dvfs_data->membase);
 	clk_put(cpu_clk);
 	clk_put(dvfs_clk);
 

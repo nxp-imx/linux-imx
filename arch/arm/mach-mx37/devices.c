@@ -645,8 +645,8 @@ void __init mxc_init_tve(void)
  */
 static struct resource dvfs_core_resources[] = {
 	[0] = {
-	       .start = MXC_DVFS_CORE_BASE,
-	       .end = MXC_DVFS_CORE_BASE + 4 * SZ_16 - 1,
+	       .start = DVFSCORE_BASE_ADDR,
+	       .end = DVFSCORE_BASE_ADDR + 4 * SZ_16 - 1,
 	       .flags = IORESOURCE_MEM,
 	       },
 	[1] = {
@@ -666,10 +666,6 @@ struct mxc_dvfs_platform_data dvfs_core_data = {
 	.ccm_cdcr_reg_addr = MXC_CCM_CDCR,
 	.ccm_cacrr_reg_addr = MXC_CCM_CACRR,
 	.ccm_cdhipr_reg_addr = MXC_CCM_CDHIPR,
-	.dvfs_thrs_reg_addr = MXC_DVFSTHRS,
-	.dvfs_coun_reg_addr = MXC_DVFSCOUN,
-	.dvfs_emac_reg_addr = MXC_DVFSEMAC,
-	.dvfs_cntr_reg_addr = MXC_DVFSCNTR,
 	.prediv_mask = 0x3800,
 	.prediv_offset = 11,
 	.prediv_val = 1,
@@ -710,8 +706,8 @@ static inline void mxc_init_dvfs_core(void)
  */
 static struct resource dptc_gp_resources[] = {
 	[0] = {
-	       .start = MXC_DPTC_GP_BASE,
-	       .end = MXC_DPTC_GP_BASE + 8 * SZ_16 - 1,
+	       .start = DPTCGP_BASE_ADDR,
+	       .end = DPTCGP_BASE_ADDR + 8 * SZ_16 - 1,
 	       .flags = IORESOURCE_MEM,
 	       },
 	[1] = {
@@ -725,8 +721,8 @@ static struct resource dptc_gp_resources[] = {
 struct mxc_dptc_data dptc_gp_data = {
 	.reg_id = "SW1",
 	.clk_id = "cpu_clk",
-	.dptccr_reg_addr = MXC_GP_DPTCCR,
-	.dcvr0_reg_addr = MXC_GP_DCVR0,
+	.dptccr_reg_addr = MXC_DPTCCR,
+	.dcvr0_reg_addr = MXC_DCVR0,
 	.gpc_cntr_reg_addr = MXC_GPC_CNTR,
 	.dptccr = MXC_GPCCNTR_DPTC0CR,
 	.dptc_wp_supported = DPTC_GP_WP_SUPPORTED,
@@ -754,8 +750,8 @@ struct mxc_dptc_data dptc_gp_data = {
  */
 static struct resource dptc_lp_resources[] = {
 	[0] = {
-	       .start = MXC_DPTC_LP_BASE,
-	       .end = MXC_DPTC_LP_BASE + 8 * SZ_16 - 1,
+	       .start = DPTCLP_BASE_ADDR,
+	       .end = DPTCLP_BASE_ADDR + 8 * SZ_16 - 1,
 	       .flags = IORESOURCE_MEM,
 	       },
 	[1] = {
@@ -769,8 +765,8 @@ static struct resource dptc_lp_resources[] = {
 struct mxc_dptc_data dptc_lp_data = {
 	.reg_id = "SW2",
 	.clk_id = "ahb_clk",
-	.dptccr_reg_addr = MXC_LP_DPTCCR,
-	.dcvr0_reg_addr = MXC_LP_DCVR0,
+	.dptccr_reg_addr = MXC_DPTCCR,
+	.dcvr0_reg_addr = MXC_DCVR0,
 	.gpc_cntr_reg_addr = MXC_GPC_CNTR,
 	.dptccr = MXC_GPCCNTR_DPTC1CR,
 	.dptc_wp_supported = DPTC_LP_WP_SUPPORTED,

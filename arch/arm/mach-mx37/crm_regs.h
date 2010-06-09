@@ -1,5 +1,5 @@
 /*
- * Copyright 2007-2009 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2008-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -10,6 +10,7 @@
  * http://www.opensource.org/licenses/gpl-license.html
  * http://www.gnu.org/copyleft/gpl.html
  */
+
 #ifndef __ARCH_ARM_MACH_MX37_CRM_REGS_H__
 #define __ARCH_ARM_MACH_MX37_CRM_REGS_H__
 
@@ -548,21 +549,13 @@
 #define MXC_DVFSPT2 		(MXC_DVFS_CORE_BASE + 0x3C)
 #define MXC_DVFSPT3 		(MXC_DVFS_CORE_BASE + 0x40)
 
-/* DPTC GP */
-#define MXC_GP_DPTCCR		(MXC_DPTC_GP_BASE + 0x00)
-#define MXC_GP_DPTCDBG		(MXC_DPTC_GP_BASE + 0x04)
-#define MXC_GP_DCVR0		(MXC_DPTC_GP_BASE + 0x08)
-#define MXC_GP_DCVR1		(MXC_DPTC_GP_BASE + 0x0C)
-#define MXC_GP_DCVR2		(MXC_DPTC_GP_BASE + 0x10)
-#define MXC_GP_DCVR3		(MXC_DPTC_GP_BASE + 0x14)
-
-/* DPTC LP */
-#define MXC_LP_DPTCCR		(MXC_DPTC_LP_BASE + 0x00)
-#define MXC_LP_DPTCDBG		(MXC_DPTC_LP_BASE + 0x04)
-#define MXC_LP_DCVR0		(MXC_DPTC_LP_BASE + 0x08)
-#define MXC_LP_DCVR1		(MXC_DPTC_LP_BASE + 0x0C)
-#define MXC_LP_DCVR2		(MXC_DPTC_LP_BASE + 0x10)
-#define MXC_LP_DCVR3		(MXC_DPTC_LP_BASE + 0x14)
+/* DPTC register offset */
+#define MXC_DPTCCR		0x00
+#define MXC_DPTCDBG		0x04
+#define MXC_DCVR0		0x08
+#define MXC_DCVR1		0x0C
+#define MXC_DCVR2		0x10
+#define MXC_DCVR3		0x14
 
 #define MXC_DPTCCR_DRCE3                     0x00400000
 #define MXC_DPTCCR_DRCE2                     0x00200000

@@ -1407,6 +1407,8 @@ int __init mxc_init_devices(void)
 		ssi2_resources[0].end -= MX53_OFFSET;
 		tve_resources[0].start -= MX53_OFFSET;
 		tve_resources[0].end -= MX53_OFFSET;
+		dvfs_core_resources[0].start -= MX53_OFFSET;
+		dvfs_core_resources[0].end -= MX53_OFFSET;
 		dvfs_per_resources[0].start -= MX53_OFFSET;
 		dvfs_per_resources[0].end -= MX53_OFFSET;
 		spdif_resources[0].start -= MX53_OFFSET;
