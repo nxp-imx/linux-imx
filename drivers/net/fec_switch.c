@@ -103,7 +103,6 @@ static int switch_enet_close(struct net_device *dev);
 static void set_multicast_list(struct net_device *dev);
 static void switch_restart(struct net_device *dev, int duplex);
 static void switch_stop(struct net_device *dev);
-static int switch_set_mac_address(struct net_device *dev, void *addr);
 
 #define		NMII	20
 
@@ -124,7 +123,8 @@ static void *swap_buffer(void *bufaddr, int len)
 
 	for (i = 0; i < (len + 3) / 4; i++, buf++)
 		*buf = __swab32(*buf);
-		return bufaddr;
+
+	return bufaddr;
 }
 #endif
 
@@ -132,7 +132,7 @@ static void *swap_buffer(void *bufaddr, int len)
 struct eswPortInfo g_info;
 
 static unsigned char    switch_mac_default[] = {
-	0x00, 0x04, 0x9F, 0x00, 0xB3, 0x49,
+	0x00, 0x08, 0x02, 0x6B, 0xA3, 0x1A,
 };
 
 static void switch_request_intrs(struct net_device *dev,
@@ -159,17 +159,17 @@ static void switch_set_mii(struct net_device *dev)
 	fecp = (struct switch_t *)fep->hwp;
 
 	writel(MCF_FEC_RCR_PROM | MCF_FEC_RCR_RMII_MODE |
-			MCF_FEC_RCR_MAX_FL(1522) | MCF_FEC_RCR_CRC_FWD,
+			MCF_FEC_RCR_MAX_FL(1522),
 			fep->enet_addr + MCF_FEC_RCR0);
 	writel(MCF_FEC_RCR_PROM | MCF_FEC_RCR_RMII_MODE |
-			MCF_FEC_RCR_MAX_FL(1522) | MCF_FEC_RCR_CRC_FWD,
+			MCF_FEC_RCR_MAX_FL(1522),
 			fep->enet_addr + MCF_FEC_RCR1);
 	/* TCR */
 	writel(MCF_FEC_TCR_FDEN, fep->enet_addr + MCF_FEC_TCR0);
 	writel(MCF_FEC_TCR_FDEN, fep->enet_addr + MCF_FEC_TCR1);
 
 	/* ECR */
-#ifdef MODELO_ENHANCE_BUFFER
+#ifdef L2SWITCH_ENHANCED_BUFFER
 	writel(MCF_FEC_ECR_ETHER_EN | MCF_FEC_ECR_ENA_1588,
 			fep->enet_addr + MCF_FEC_ECR0);
 	writel(MCF_FEC_ECR_ETHER_EN | MCF_FEC_ECR_ENA_1588,
@@ -191,10 +191,9 @@ static void switch_set_mii(struct net_device *dev)
 
 #ifdef CONFIG_ARCH_MXS
 	/* Can't get phy(8720) ID when set to 2.5M on MX28, lower it*/
-	writel((readl(fep->enet_addr + MCF_FEC_MSCR0) << 2),
-			fep->enet_addr + MCF_FEC_MSCR0);
-	writel((readl(fep->enet_addr + MCF_FEC_MSCR0) << 2),
-			fep->enet_addr + MCF_FEC_MSCR1);
+	fep->phy_speed = readl(fep->enet_addr + MCF_FEC_MSCR0) << 2;
+	writel(fep->phy_speed, fep->enet_addr + MCF_FEC_MSCR0);
+	writel(fep->phy_speed, fep->enet_addr + MCF_FEC_MSCR1);
 #endif
 
 }
@@ -204,7 +203,6 @@ static void switch_get_mac(struct net_device *dev)
 	struct switch_enet_private *fep = netdev_priv(dev);
 	unsigned char *iap, tmpaddr[ETH_ALEN];
 	static int index;
-
 #ifdef CONFIG_M5272
 	if (FEC_FLASHMAC) {
 		/*
@@ -609,7 +607,7 @@ static int esw_get_forced_forward(
 	fecp = fep->hwp;
 	*ulForceForward = fecp->ESW_P0FFEN;
 #ifdef DEBUG_FORCED_FORWARD
-	printk(KERN_INFO "%s  ESW_P0FFEN %x\n",
+	printk(KERN_INFO "%s  ESW_P0FFEN %#lx\n",
 		__func__, fecp->ESW_P0FFEN);
 #endif
 	return 0;
@@ -624,7 +622,7 @@ static void esw_get_port_enable(
 	fecp = fep->hwp;
 	*ulPortEnable = fecp->ESW_PER;
 #ifdef DEBUG_PORT_ENABLE
-	printk(KERN_INFO "%s  fecp->ESW_PER %x\n",
+	printk(KERN_INFO "%s  fecp->ESW_PER %#lx\n",
 		__func__, fecp->ESW_PER);
 #endif
 }
@@ -723,7 +721,7 @@ static void esw_get_port_broadcast(
 	fecp = fep->hwp;
 	*ulPortBroadcast = fecp->ESW_DBCR;
 #ifdef DEBUG_PORT_BROADCAST
-	printk(KERN_INFO "%s  fecp->ESW_DBCR %x\n",
+	printk(KERN_INFO "%s  fecp->ESW_DBCR %#lx\n",
 		__func__, fecp->ESW_DBCR);
 #endif
 }
@@ -775,7 +773,7 @@ static void esw_get_port_multicast(
 	fecp = fep->hwp;
 	*ulPortMulticast = fecp->ESW_DMCR;
 #ifdef DEBUG_PORT_MULTICAST
-	printk(KERN_INFO "%s  fecp->ESW_DMCR %x\n",
+	printk(KERN_INFO "%s  fecp->ESW_DMCR %#lx\n",
 		__func__, fecp->ESW_DMCR);
 #endif
 }
@@ -827,7 +825,7 @@ static void esw_get_port_blocking(
 	fecp = fep->hwp;
 	*ulPortBlocking = (fecp->ESW_BKLR & 0x00ff);
 #ifdef DEBUG_PORT_BLOCKING
-	printk(KERN_INFO "%s  fecp->ESW_BKLR %x\n",
+	printk(KERN_INFO "%s  fecp->ESW_BKLR %#lx\n",
 		__func__, fecp->ESW_BKLR);
 #endif
 }
@@ -879,7 +877,7 @@ static void esw_get_port_learning(
 	fecp = fep->hwp;
 	*ulPortLearning = (fecp->ESW_BKLR & 0xff00) >> 16;
 #ifdef DEBUG_PORT_LEARNING
-	printk(KERN_INFO "%s  fecp->ESW_BKLR %x\n",
+	printk(KERN_INFO "%s  fecp->ESW_BKLR %#lx\n",
 		__func__, fecp->ESW_BKLR);
 #endif
 }
@@ -922,7 +920,7 @@ static int esw_port_learning_config(
 
 	fecp->ESW_BKLR = tmp;
 #ifdef DEBUG_PORT_LEARNING
-	printk(KERN_INFO "%s  ESW_BKLR %x, switch_imask %x\n",
+	printk(KERN_INFO "%s  ESW_BKLR %#lx, switch_imask %#lx\n",
 		__func__, fecp->ESW_BKLR, fecp->switch_imask);
 #endif
 	return 0;
@@ -989,7 +987,7 @@ static void esw_get_ip_snoop_config(
 #ifdef DEBUG_IP_SNOOP
 	printk(KERN_INFO "%s  ", __func__);
 	for (i = 0; i < 8; i++)
-		printk(KERN_INFO " reg(%d) %x", fecp->ESW_IPSNP[i]);
+		printk(KERN_INFO " reg(%d) %#lx", fecp->ESW_IPSNP[i]);
 	printk(KERN_INFO "\n");
 #endif
 
@@ -1062,7 +1060,7 @@ static void esw_get_tcpudp_port_snoop_config(
 #ifdef DEBUG_TCPUDP_PORT_SNOOP
 	 printk(KERN_INFO "%s  ", __func__);
 	 for (i = 0; i < 8; i++)
-		printk(KERN_INFO " reg(%d) %x", fecp->ESW_PSNP[i]);
+		printk(KERN_INFO " reg(%d) %#lx", fecp->ESW_PSNP[i]);
 	 printk(KERN_INFO "\n");
 #endif
 
@@ -1088,11 +1086,11 @@ static void esw_get_port_mirroring(
 	pPortMirrorStatus->ESW_ENGDAH = fecp->ESW_ENGDAH;
 	pPortMirrorStatus->ESW_MCVAL  = fecp->ESW_MCVAL;
 #ifdef DEBUG_PORT_MIRROR
-	printk(KERN_INFO "%s : ESW_MCR %x, ESW_EGMAP %x\n"
-		"ESW_INGMAP %x, ESW_INGSAL %x, "
-		"ESW_INGSAH %x ESW_INGDAL %x, ESW_INGDAH %x\n"
-		"ESW_ENGSAL %x, ESW_ENGSAH%x, ESW_ENGDAL %x,"
-		"ESW_ENGDAH %x, ESW_MCVAL %x\n",
+	printk(KERN_INFO "%s : ESW_MCR %#lx, ESW_EGMAP %#lx\n"
+		"ESW_INGMAP %#lx, ESW_INGSAL %#lx, "
+		"ESW_INGSAH %#lx ESW_INGDAL %#lx, ESW_INGDAH %#lx\n"
+		"ESW_ENGSAL %#lx, ESW_ENGSAH%#lx, ESW_ENGDAL %#lx,"
+		"ESW_ENGDAH %#lx, ESW_MCVAL %#lx\n",
 		__func__, fecp->ESW_MCR, fecp->ESW_EGMAP, fecp->ESW_INGMAP,
 		fecp->ESW_INGSAL, fecp->ESW_INGSAH, fecp->ESW_INGDAL,
 		fecp->ESW_INGDAH, fecp->ESW_ENGSAL, fecp->ESW_ENGSAH,
@@ -1247,7 +1245,7 @@ static void esw_get_vlan_verification(
 	*ulValue = fecp->ESW_VLANV;
 
 #ifdef DEBUG_VLAN_VERIFICATION_CONFIG
-	printk(KERN_INFO "%s: ESW_VLANV %x\n",
+	printk(KERN_INFO "%s: ESW_VLANV %#lx\n",
 		__func__, fecp->ESW_VLANV);
 #endif
 }
@@ -1309,7 +1307,7 @@ static int esw_set_vlan_verification(
 	}
 
 #ifdef DEBUG_VLAN_VERIFICATION_CONFIG
-	printk(KERN_INFO "%s: ESW_VLANV %x\n",
+	printk(KERN_INFO "%s: ESW_VLANV %#lx\n",
 		__func__, fecp->ESW_VLANV);
 #endif
 	return 0;
@@ -1326,7 +1324,7 @@ static void esw_get_vlan_resolution_table(
 	*ulValue = fecp->ESW_VRES[vlan_domain_num];
 
 #ifdef DEBUG_VLAN_DOMAIN_TABLE
-	printk(KERN_INFO "%s: ESW_VRES[%d] = %x\n",
+	printk(KERN_INFO "%s: ESW_VRES[%d] = %#lx\n",
 		__func__, vlan_domain_num,
 		fecp->ESW_VRES[vlan_domain_num]);
 #endif
@@ -1362,7 +1360,7 @@ int esw_set_vlan_resolution_table(
 		| vlan_domain_port;
 
 #ifdef DEBUG_VLAN_DOMAIN_TABLE
-	printk(KERN_INFO "%s: ESW_VRES[%d] = %x\n",
+	printk(KERN_INFO "%s: ESW_VRES[%d] = %#lx\n",
 		__func__, vlan_domain_num,
 		fecp->ESW_VRES[vlan_domain_num]);
 #endif
@@ -1387,9 +1385,9 @@ static void esw_get_vlan_input_config(
 	for (i = 0; i < 32; i++)
 		pVlanInputConfig->ESW_VRES[i] = fecp->ESW_VRES[i];
 #ifdef DEBUG_VLAN_INTPUT_CONFIG
-	printk(KERN_INFO "%s: ESW_VLANV %x, ESW_VIMSEL %x, "
-		"ESW_VIMEN %x, ESW_PID[0], ESW_PID[1] %x, "
-		"ESW_PID[2] %x", __func__,
+	printk(KERN_INFO "%s: ESW_VLANV %#lx, ESW_VIMSEL %#lx, "
+		"ESW_VIMEN %#lx, ESW_PID[0], ESW_PID[1] %#lx, "
+		"ESW_PID[2] %#lx", __func__,
 		fecp->ESW_VLANV, fecp->ESW_VIMSEL, fecp->ESW_VIMEN,
 		fecp->ESW_PID[0], fecp->ESW_PID[1], fecp->ESW_PID[2]);
 #endif
@@ -1469,7 +1467,7 @@ static void esw_get_vlan_output_config(struct switch_enet_private *fep,
 
 	*ulVlanOutputConfig = fecp->ESW_VOMSEL;
 #ifdef DEBUG_VLAN_OUTPUT_CONFIG
-	printk(KERN_INFO "%s: ESW_VOMSEL %x", __func__,
+	printk(KERN_INFO "%s: ESW_VOMSEL %#lx", __func__,
 			fecp->ESW_VOMSEL);
 #endif
 }
@@ -1661,8 +1659,8 @@ static int esw_get_statistics_status(
 	pStatistics->ESW_NDISCN  = fecp->ESW_NDISCN;
 	pStatistics->ESW_NDISCB  = fecp->ESW_NDISCB;
 #ifdef DEBUG_STATISTICS
-	printk(KERN_ERR "%s:ESW_DISCN %x, ESW_DISCB %x,"
-		"ESW_NDISCN %x, ESW_NDISCB %x\n",
+	printk(KERN_ERR "%s:ESW_DISCN %#lx, ESW_DISCB %#lx,"
+		"ESW_NDISCN %#lx, ESW_NDISCB %#lx\n",
 		__func__, fecp->ESW_DISCN, fecp->ESW_DISCB,
 		fecp->ESW_NDISCN, fecp->ESW_NDISCB);
 #endif
@@ -1693,8 +1691,8 @@ static int esw_get_port_statistics_status(
 	pPortStatistics->MCF_ESW_PBL    =
 		fecp->port_statistics_status[port].MCF_ESW_PBL;
 #ifdef DEBUG_PORT_STATISTICS
-	printk(KERN_ERR "%s : port[%d].MCF_ESW_POQC %x, MCF_ESW_PMVID %x,"
-		" MCF_ESW_PMVTAG %x, MCF_ESW_PBL %x\n",
+	printk(KERN_ERR "%s : port[%d].MCF_ESW_POQC %#lx, MCF_ESW_PMVID %#lx,"
+		" MCF_ESW_PMVTAG %#lx, MCF_ESW_PBL %#lx\n",
 		__func__, port,
 		fecp->port_statistics_status[port].MCF_ESW_POQC,
 		fecp->port_statistics_status[port].MCF_ESW_PMVID,
@@ -1719,8 +1717,8 @@ static int esw_get_output_queue_status(
 	pOutputQueue->ESW_QWT   = fecp->ESW_QWT;
 	pOutputQueue->ESW_P0BCT = fecp->ESW_P0BCT;
 #ifdef DEBUG_OUTPUT_QUEUE
-	printk(KERN_ERR "%s:ESW_MMSR %x, ESW_LMT %x, ESW_LFC %x, "
-		"ESW_IOSR %x, ESW_PCSR %x, ESW_QWT %x, ESW_P0BCT %x\n",
+	printk(KERN_ERR "%s:ESW_MMSR %#lx, ESW_LMT %#lx, ESW_LFC %#lx, "
+		"ESW_IOSR %#lx, ESW_PCSR %#lx, ESW_QWT %#lx, ESW_P0BCT %#lx\n",
 		__func__, fecp->ESW_MMSR,
 		fecp->ESW_LMT, fecp->ESW_LFC,
 		fecp->ESW_IOSR,  fecp->ESW_PCSR,
@@ -1760,8 +1758,8 @@ static int esw_set_output_queue_memory(
 		return -1;
 	}
 #ifdef DEBUG_OUTPUT_QUEUE
-	printk(KERN_ERR "%s:ESW_MMSR %x, ESW_LMT %x, ESW_LFC %x, "
-		"ESW_IOSR %x, ESW_PCSR %x, ESW_QWT %x, ESW_P0BCT %x\n",
+	printk(KERN_ERR "%s:ESW_MMSR %#lx, ESW_LMT %#lx, ESW_LFC %#lx, "
+		"ESW_IOSR %#lx, ESW_PCSR %#lx, ESW_QWT %#lx, ESW_P0BCT %#lx\n",
 		__func__, fecp->ESW_MMSR,
 		fecp->ESW_LMT, fecp->ESW_LFC,
 		fecp->ESW_IOSR,  fecp->ESW_PCSR,
@@ -1778,7 +1776,7 @@ int esw_set_irq_mask(
 
 	fecp = fep->hwp;
 #ifdef DEBUG_IRQ
-	printk(KERN_INFO "%s: irq event %x, irq mask %x "
+	printk(KERN_INFO "%s: irq event %#lx, irq mask %#lx "
 		" mask %x, enable %x\n",
 		__func__, fecp->switch_ievent,
 		fecp->switch_imask, mask, enable);
@@ -1793,10 +1791,10 @@ int esw_set_irq_mask(
 		return -1;
 	}
 #ifdef DEBUG_IRQ
-	printk(KERN_INFO "%s: irq event %x, irq mask %x, "
-		"rx_des_start %x, tx_des_start %x, "
-		"rx_buff_size %x, rx_des_active %x, "
-		"tx_des_active %x\n",
+	printk(KERN_INFO "%s: irq event %#lx, irq mask %#lx, "
+		"rx_des_start %#lx, tx_des_start %#lx, "
+		"rx_buff_size %#lx, rx_des_active %#lx, "
+		"tx_des_active %#lx\n",
 		__func__, fecp->switch_ievent, fecp->switch_imask,
 		fecp->fec_r_des_start, fecp->fec_x_des_start,
 		fecp->fec_r_buff_size, fecp->fec_r_des_active,
@@ -1814,7 +1812,7 @@ static void esw_get_switch_mode(
 	fecp = fep->hwp;
 	*ulModeConfig = fecp->ESW_MODE;
 #ifdef DEBUG_SWITCH_MODE
-	printk(KERN_INFO "%s: mode %x \n"
+	printk(KERN_INFO "%s: mode %#lx \n",
 		__func__, fecp->ESW_MODE);
 #endif
 }
@@ -1828,7 +1826,7 @@ static void esw_switch_mode_configure(
 	fecp = fep->hwp;
 	fecp->ESW_MODE |= configure;
 #ifdef DEBUG_SWITCH_MODE
-	printk(KERN_INFO "%s: mode %x \n"
+	printk(KERN_INFO "%s: mode %#lx \n",
 		__func__, fecp->ESW_MODE);
 #endif
 }
@@ -1843,7 +1841,7 @@ static void esw_get_bridge_port(
 	fecp = fep->hwp;
 	*ulBMPConfig = fecp->ESW_BMPC;
 #ifdef DEBUG_BRIDGE_PORT
-	printk(KERN_INFO "%s: bridge management port %x \n"
+	printk(KERN_INFO "%s: bridge management port %#lx \n",
 		__func__, fecp->ESW_BMPC);
 #endif
 }
@@ -1857,7 +1855,7 @@ static void  esw_bridge_port_configure(
 	fecp = fep->hwp;
 	fecp->ESW_BMPC |= configure;
 #ifdef DEBUG_BRIDGE_PORT
-	printk(KERN_INFO "%s: bridge management port %x \n"
+	printk(KERN_INFO "%s: bridge management port %#lx \n",
 		__func__, fecp->ESW_BMPC);
 #endif
 }
@@ -1895,16 +1893,22 @@ void esw_check_rxb_txb_interrupt(struct switch_enet_private *fep)
 		fecp->ESW_P0FFEN, fecp->ESW_BKLR);
 }
 
-static void esw_mac_addr_static(struct switch_enet_private *fep)
+static int esw_mac_addr_static(struct switch_enet_private *fep)
 {
-	unsigned char mac_addr[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
-	unsigned char mac_addr0[6] = {0x00, 0x04, 0x9F, 0x00, 0xB3, 0x49};
 	struct switch_t  *fecp;
 
 	fecp = fep->hwp;
 	fecp->ESW_DBCR = MCF_ESW_DBCR_P1;
-	esw_update_atable_static(mac_addr, 7, 7, fep);
-	esw_update_atable_static(mac_addr0, 7, 7, fep);
+
+	if (is_valid_ether_addr(fep->netdev->dev_addr))
+		esw_update_atable_static(fep->netdev->dev_addr, 7, 7, fep);
+	else{
+		printk(KERN_ERR "Can not add available mac address"
+				" for switch!!\n");
+		return -EFAULT;
+	}
+
+	return 0;
 }
 
 static void esw_main(struct switch_enet_private *fep)
@@ -2599,6 +2603,7 @@ switch_enet_start_xmit(struct sk_buff *skb, struct net_device *dev)
 	struct switch_enet_private *fep;
 	struct switch_t	*fecp;
 	struct cbd_t	*bdp;
+	void *bufaddr;
 	unsigned short	status;
 	unsigned long flags;
 
@@ -2625,30 +2630,26 @@ switch_enet_start_xmit(struct sk_buff *skb, struct net_device *dev)
 	status &= ~BD_ENET_TX_STATS;
 
 	/* Set buffer length and buffer pointer	*/
-	bdp->cbd_bufaddr = __pa(skb->data);
+	bufaddr = skb->data;
 	bdp->cbd_datlen = skb->len;
-	printk(KERN_ERR "%s: skb->len %u, dev->stats.tx_bytes %lx,"
-		" bdp->cbd_bufaddr %lx skb->data %lx\n",
-		__func__, skb->len, dev->stats.tx_bytes,
-		bdp->cbd_bufaddr, (unsigned long)skb->data);
+
 	/*
 	 * On some FEC implementations data must be aligned on
 	 * 4-byte boundaries. Use bounce buffers to copy data
 	 * and get it aligned. Ugh.
 	 */
-	if (bdp->cbd_bufaddr & FEC_ALIGNMENT) {
-		unsigned int index1;
-		index1 = bdp - fep->tx_bd_base;
-		printk(KERN_ERR "%s: bdp->cbd_bufaddr %lx\n",
-			__func__, bdp->cbd_bufaddr);
-		memcpy(fep->tx_bounce[index1],
-		       (void *)skb->data, bdp->cbd_datlen);
-		bdp->cbd_bufaddr = __pa(fep->tx_bounce[index1]);
+	if ((unsigned long) bufaddr & FEC_ALIGNMENT) {
+		unsigned int index;
+		index = bdp - fep->tx_bd_base;
+		memcpy(fep->tx_bounce[index],
+		       (void *)skb->data, skb->len);
+		bufaddr = fep->tx_bounce[index];
 	}
 
 #ifdef CONFIG_ARCH_MXS
-	swap_buffer((void *)bdp->cbd_bufaddr, skb->len);
+	swap_buffer(bufaddr, skb->len);
 #endif
+
 	/* Save skb pointer. */
 	fep->tx_skbuff[fep->skb_cur] = skb;
 
@@ -2659,7 +2660,7 @@ switch_enet_start_xmit(struct sk_buff *skb, struct net_device *dev)
 	 * Push the data cache so the CPM does not get stale memory
 	 * data.
 	 */
-	bdp->cbd_bufaddr = dma_map_single(&dev->dev, (void *)bdp->cbd_bufaddr,
+	bdp->cbd_bufaddr = dma_map_single(&dev->dev, bufaddr,
 		FEC_ENET_TX_FRSIZE, DMA_TO_DEVICE);
 
 	/*
@@ -2670,7 +2671,7 @@ switch_enet_start_xmit(struct sk_buff *skb, struct net_device *dev)
 	status |= (BD_ENET_TX_READY | BD_ENET_TX_INTR
 			| BD_ENET_TX_LAST | BD_ENET_TX_TC);
 	bdp->cbd_sc = status;
-#ifdef MODELO_BUFFER
+#ifdef L2SWITCH_ENHANCED_BUFFER
 	bdp->bdu = 0x00000000;
 	bdp->ebd_status = TX_BD_INT | TX_BD_TS;
 #endif
@@ -2693,7 +2694,7 @@ switch_enet_start_xmit(struct sk_buff *skb, struct net_device *dev)
 		printk(KERN_ERR "%s:  net stop\n", __func__);
 	}
 
-	fep->cur_tx = (struct cbd_t *)bdp;
+	fep->cur_tx = bdp;
 
 	spin_unlock_irqrestore(&fep->hw_lock, flags);
 
@@ -2823,6 +2824,9 @@ switch_enet_tx(struct net_device *dev)
 		if (bdp == fep->cur_tx && fep->tx_full == 0)
 			break;
 
+		dma_unmap_single(&dev->dev, bdp->cbd_bufaddr,
+				FEC_ENET_TX_FRSIZE, DMA_TO_DEVICE);
+		bdp->cbd_bufaddr = 0;
 		skb = fep->tx_skbuff[fep->skb_dirty];
 		/* Check for errors */
 		if (status & (BD_ENET_TX_HB | BD_ENET_TX_LC |
@@ -2875,7 +2879,7 @@ switch_enet_tx(struct net_device *dev)
 				netif_wake_queue(dev);
 		}
 	}
-	fep->dirty_tx = (struct cbd_t *)bdp;
+	fep->dirty_tx = bdp;
 	spin_unlock(&fep->hw_lock);
 }
 
@@ -2910,8 +2914,8 @@ switch_enet_rx(struct net_device *dev)
 	 * These get messed up if we get called due to a busy condition.
 	 */
 	bdp = fep->cur_rx;
-#ifdef MODELO_BUFFER
-	printk(KERN_ERR "%s: cbd_sc %x cbd_datlen %x cbd_bufaddr %x "
+#ifdef L2SWITCH_ENHANCED_BUFFER
+	printk(KERN_INFO "%s: cbd_sc %x cbd_datlen %x cbd_bufaddr %x "
 		"ebd_status %x bdu %x length_proto_type %x "
 		"payload_checksum %x\n",
 		__func__, bdp->cbd_sc, bdp->cbd_datlen,
@@ -2963,29 +2967,33 @@ while (!((status = bdp->cbd_sc) & BD_ENET_RX_EMPTY)) {
 	dev->stats.rx_bytes += pkt_len;
 	data = (__u8 *)__va(bdp->cbd_bufaddr);
 
+	dma_unmap_single(NULL, bdp->cbd_bufaddr, bdp->cbd_datlen,
+			DMA_FROM_DEVICE);
+#ifdef CONFIG_ARCH_MXS
+	swap_buffer(data, pkt_len);
+#endif
 	/*
 	 * This does 16 byte alignment, exactly what we need.
 	 * The packet length includes FCS, but we don't want to
 	 * include that when passing upstream as it messes up
 	 * bridging applications.
 	 */
-	/* skb = dev_alloc_skb(pkt_len - 4); */
-	skb = dev_alloc_skb(pkt_len);
-
-	if (skb == NULL) {
-		printk(KERN_ERR "%s: Memory squeeze, "
-			"dropping packet.\n", dev->name);
+	skb = dev_alloc_skb(pkt_len - 4 + NET_IP_ALIGN);
+	if (unlikely(!skb)) {
+		printk("%s: Memory squeeze, dropping packet.\n",
+			dev->name);
 		dev->stats.rx_dropped++;
 	} else {
-		/*
-		 * skb_put(skb, pkt_len -4);
-		 * skb_copy_to_linear_data(skb, data, pkt_len - 4);
-		 */
-		skb_put(skb, pkt_len);	/* Make room */
-		skb_copy_to_linear_data(skb, data, pkt_len);
+		skb_reserve(skb, NET_IP_ALIGN);
+		skb_put(skb, pkt_len - 4);      /* Make room */
+		skb_copy_to_linear_data(skb, data, pkt_len - 4);
 		skb->protocol = eth_type_trans(skb, dev);
 		netif_rx(skb);
 	}
+
+	bdp->cbd_bufaddr = dma_map_single(NULL, data, bdp->cbd_datlen,
+		DMA_FROM_DEVICE);
+
 rx_processing_done:
 
 	/* Clear the status flags for this buffer */
@@ -3008,18 +3016,7 @@ rx_processing_done:
 	 */
 	fecp->fec_r_des_active = MCF_ESW_RDAR_R_DES_ACTIVE;
    } /* while (!((status = bdp->cbd_sc) & BD_ENET_RX_EMPTY)) */
-	fep->cur_rx = (struct cbd_t *)bdp;
-
-#if 0
-	/* Doing this here will allow us to process all frames in the
-	 * ring before the FEC is allowed to put more there.  On a heavily
-	 * loaded network, some frames may be lost.  Unfortunately, this
-	 * increases the interrupt overhead since we can potentially work
-	 * our way back to the interrupt return only to come right back
-	 * here.
-	 */
-	fecp->fec_r_des_active = 0;
-#endif
+	fep->cur_rx = bdp;
 
 	spin_unlock(&fep->hw_lock);
 }
@@ -3337,14 +3334,94 @@ static int fec_switch_init_phy(struct net_device *dev)
 }
 #endif
 
+static void fec_enet_free_buffers(struct net_device *dev)
+{
+	struct switch_enet_private *fep = netdev_priv(dev);
+	int i;
+	struct sk_buff *skb;
+	struct cbd_t	*bdp;
+
+	bdp = fep->rx_bd_base;
+	for (i = 0; i < RX_RING_SIZE; i++) {
+		skb = fep->rx_skbuff[i];
+
+		if (bdp->cbd_bufaddr)
+			dma_unmap_single(&dev->dev, bdp->cbd_bufaddr,
+					FEC_ENET_RX_FRSIZE, DMA_FROM_DEVICE);
+		if (skb)
+			dev_kfree_skb(skb);
+		bdp++;
+	}
+
+	bdp = fep->tx_bd_base;
+	for (i = 0; i < TX_RING_SIZE; i++)
+		kfree(fep->tx_bounce[i]);
+}
+
+static int fec_enet_alloc_buffers(struct net_device *dev)
+{
+	struct switch_enet_private *fep = netdev_priv(dev);
+	int i;
+	struct sk_buff *skb;
+	struct cbd_t	*bdp;
+
+	bdp = fep->rx_bd_base;
+	for (i = 0; i < RX_RING_SIZE; i++) {
+		skb = dev_alloc_skb(SWITCH_ENET_RX_FRSIZE);
+		if (!skb) {
+			fec_enet_free_buffers(dev);
+			return -ENOMEM;
+		}
+		fep->rx_skbuff[i] = skb;
+
+		bdp->cbd_bufaddr = dma_map_single(&dev->dev, skb->data,
+				SWITCH_ENET_RX_FRSIZE, DMA_FROM_DEVICE);
+		bdp->cbd_sc = BD_ENET_RX_EMPTY;
+#ifdef L2SWITCH_ENHANCED_BUFFER
+	bdp->bdu = 0x00000000;
+	bdp->ebd_status = RX_BD_INT;
+#endif
+#ifdef CONFIG_FEC_1588
+		bdp->cbd_esc = BD_ENET_RX_INT;
+#endif
+		bdp++;
+	}
+
+	/* Set the last buffer to wrap. */
+	bdp--;
+	bdp->cbd_sc |= BD_SC_WRAP;
+
+	bdp = fep->tx_bd_base;
+	for (i = 0; i < TX_RING_SIZE; i++) {
+		fep->tx_bounce[i] = kmalloc(SWITCH_ENET_TX_FRSIZE, GFP_KERNEL);
+
+		bdp->cbd_sc = 0;
+		bdp->cbd_bufaddr = 0;
+#ifdef CONFIG_FEC_1588
+		bdp->cbd_esc = BD_ENET_TX_INT;
+#endif
+		bdp++;
+	}
+
+	/* Set the last buffer to wrap. */
+	bdp--;
+	bdp->cbd_sc |= BD_SC_WRAP;
+
+	return 0;
+}
+
 static int
 switch_enet_open(struct net_device *dev)
 {
+	int ret;
 	struct switch_enet_private *fep = netdev_priv(dev);
 	/* I should reset the ring buffers here, but I don't yet know
 	 * a simple way to do that.
 	 */
-	switch_set_mac_address(dev, NULL);
+	clk_enable(fep->clk);
+	ret = fec_enet_alloc_buffers(dev);
+	if (ret)
+		return ret;
 
 	fep->link = 0;
 #ifdef FEC_PHY
@@ -3377,8 +3454,6 @@ switch_enet_open(struct net_device *dev)
 
 	fep->currTime = 0;
 	fep->learning_irqhandle_enable = 0;
-	/* enable timer for Learning Aging Function */
-	/* add_timer(&fep->timer_aging); */
 
 	esw_main(fep);
 
@@ -3401,6 +3476,9 @@ switch_enet_close(struct net_device *dev)
 	phy_stop(fep->phydev);
 	phy_write(fep->phydev, MII_BMCR, BMCR_PDOWN);
 #endif
+	fec_enet_free_buffers(dev);
+	clk_disable(fep->clk);
+
 	return 0;
 }
 
@@ -3480,8 +3558,37 @@ static void set_multicast_list(struct net_device *dev)
 
 /* Set a MAC change in hardware */
 static int
-switch_set_mac_address(struct net_device *dev, void *addr)
+switch_set_mac_address(struct net_device *dev, void *p)
 {
+	struct switch_enet_private *fep = netdev_priv(dev);
+	struct sockaddr *addr = p;
+	struct switch_t  *fecp;
+
+	if (!is_valid_ether_addr(addr->sa_data))
+		return -EADDRNOTAVAIL;
+
+	fecp = fep->hwp;
+	fecp->ESW_DBCR = MCF_ESW_DBCR_P1;
+
+	memcpy(dev->dev_addr, addr->sa_data, dev->addr_len);
+
+	writel(dev->dev_addr[3] | (dev->dev_addr[2] << 8) |
+		(dev->dev_addr[1] << 16) | (dev->dev_addr[0] << 24),
+		fep->enet_addr + MCF_FEC_PAUR0);
+	writel((dev->dev_addr[5] << 16)
+		| ((dev->dev_addr[4]+(unsigned char)(0)) << 24),
+		fep->enet_addr + MCF_FEC_PAUR0);
+
+	writel(dev->dev_addr[3] | (dev->dev_addr[2] << 8) |
+		(dev->dev_addr[1] << 16) | (dev->dev_addr[0] << 24),
+		fep->enet_addr + MCF_FEC_PAUR1);
+	writel((dev->dev_addr[5] << 16)
+		| ((dev->dev_addr[4]+(unsigned char)(1)) << 24),
+		fep->enet_addr + MCF_FEC_PAUR1);
+
+	esw_update_atable_static(dev->dev_addr, 7, 7, fep);
+	fecp->ESW_DBCR = MCF_ESW_DBCR_P1 | MCF_ESW_DBCR_P2;
+
 	return 0;
 }
 
@@ -3501,17 +3608,40 @@ static const struct net_device_ops fec_netdev_ops = {
        .ndo_set_mac_address	= switch_set_mac_address,
 };
 
+static int switch_mac_addr_setup(char *mac_addr)
+{
+	char *ptr, *p = mac_addr;
+	unsigned long tmp;
+	int i = 0, ret = 0;
+
+	while (p && (*p) && i < 6) {
+		ptr = strchr(p, ':');
+		if (ptr)
+			*ptr++ = '\0';
+		if (strlen(p)) {
+			ret = strict_strtoul(p, 16, &tmp);
+			if (ret < 0 || tmp > 0xff)
+				break;
+			switch_mac_default[i++] = tmp;
+		}
+		p = ptr;
+	}
+
+	return 0;
+}
+
+__setup("fec_mac=", switch_mac_addr_setup);
+
 /* Initialize the FEC Ethernet */
 static int __init switch_enet_init(struct net_device *dev,
 	int slot, struct platform_device *pdev)
 {
 	struct switch_enet_private	*fep = netdev_priv(dev);
 	struct resource 	*r;
-	unsigned long		mem_addr;
 	struct cbd_t		*bdp;
 	struct cbd_t		*cbd_base;
 	struct switch_t	*fecp;
-	int	i, j;
+	int	i;
 	struct switch_platform_data *plat = pdev->dev.platform_data;
 
 	/* Only allow us to be probed once. */
@@ -3519,9 +3649,10 @@ static int __init switch_enet_init(struct net_device *dev,
 		return -ENXIO;
 
 	/* Allocate memory for buffer descriptors */
-	mem_addr = __get_free_page(GFP_DMA);
-	if (mem_addr == 0) {
-		printk(KERN_ERR "Switch: allocate descriptor memory failed?\n");
+	cbd_base = dma_alloc_coherent(NULL, PAGE_SIZE, &fep->bd_dma,
+			 GFP_KERNEL);
+	if (!cbd_base) {
+		printk(KERN_ERR "FEC: allocate descriptor memory failed?\n");
 		return -ENOMEM;
 	}
 
@@ -3614,48 +3745,20 @@ static int __init switch_enet_init(struct net_device *dev,
 	if (plat && plat->get_mac)
 		plat->get_mac(dev);
 
-	cbd_base = (struct cbd_t *)mem_addr;
-	if (cbd_base == 0) {
-		printk(KERN_ERR "Switch: allocate memory failed?\n");
-		return -ENOMEM;
-	}
-	if (plat && plat->uncache)
-		plat->uncache(mem_addr);
-
 	/* Set receive and transmit descriptor base */
 	fep->rx_bd_base = cbd_base;
 	fep->tx_bd_base = cbd_base + RX_RING_SIZE;
 
-	fep->dirty_tx = fep->cur_tx = fep->tx_bd_base;
-	fep->cur_rx = fep->rx_bd_base;
-
-	fep->skb_cur = fep->skb_dirty = 0;
-
 	/* Initialize the receive buffer descriptors */
 	bdp = fep->rx_bd_base;
-	for (i = 0; i < SWITCH_ENET_RX_PAGES; i++) {
+	for (i = 0; i < RX_RING_SIZE; i++) {
+		bdp->cbd_sc = 0;
 
-		/* Allocate a page */
-		mem_addr = __get_free_page(GFP_DMA);
-		if (mem_addr == 0) {
-			printk(KERN_ERR "Switch: allocate memory failed?\n");
-			return -ENOMEM;
-		}
-
-		if (plat && plat->uncache)
-			plat->uncache(mem_addr);
-
-		/* Initialize the BD for every fragment in the page */
-		for (j = 0; j < SWITCH_ENET_RX_FRPPG; j++) {
-			bdp->cbd_sc = BD_ENET_RX_EMPTY;
-			bdp->cbd_bufaddr = __pa(mem_addr);
-#ifdef MODELO_BUFFER
-			bdp->bdu = 0x00000000;
-			bdp->ebd_status = RX_BD_INT;
+#ifdef L2SWITCH_ENHANCED_BUFFER
+		bdp->bdu = 0x00000000;
+		bdp->ebd_status = RX_BD_INT;
 #endif
-			mem_addr += SWITCH_ENET_RX_FRSIZE;
-			bdp++;
-		}
+		bdp++;
 	}
 
 	/* Set the last buffer to wrap */
@@ -3664,16 +3767,7 @@ static int __init switch_enet_init(struct net_device *dev,
 
 	/* ...and the same for transmmit */
 	bdp = fep->tx_bd_base;
-	for (i = 0, j = SWITCH_ENET_TX_FRPPG; i < TX_RING_SIZE; i++) {
-		if (j >= SWITCH_ENET_TX_FRPPG) {
-			mem_addr = __get_free_page(GFP_DMA);
-			j = 1;
-		} else {
-			mem_addr += SWITCH_ENET_TX_FRSIZE;
-			j++;
-		}
-		fep->tx_bounce[i] = (unsigned char *) mem_addr;
-
+	for (i = 0; i < TX_RING_SIZE; i++) {
 		/* Initialize the BD for every fragment in the page */
 		bdp->cbd_sc = 0;
 		bdp->cbd_bufaddr = 0;
@@ -3684,30 +3778,12 @@ static int __init switch_enet_init(struct net_device *dev,
 	bdp--;
 	bdp->cbd_sc |= BD_SC_WRAP;
 
-	/* Set receive and transmit descriptor base */
-	fecp->fec_r_des_start = __pa((uint)(fep->rx_bd_base));
-	fecp->fec_x_des_start = __pa((uint)(fep->tx_bd_base));
-
 	/*
 	 * Install our interrupt handlers. This varies depending on
 	 * the architecture.
 	 */
 	if (plat && plat->request_intrs)
 		plat->request_intrs(dev, switch_enet_interrupt, dev);
-
-	/*
-	 * fecp->fec_grp_hash_table_high = 0;
-	 * fecp->fec_grp_hash_table_low = 0;
-	 */
-	fecp->fec_r_buff_size = RX_BUFFER_SIZE;
-	/* fecp->fec_r_buff_size = PKT_MAXBLR_SIZE; */
-	fecp->fec_r_des_active = MCF_ESW_RDAR_R_DES_ACTIVE;
-	/*
-	 * if (plat->hash_table == 0) {
-	 *	fecp->fec_hash_table_high = 0;
-	 *	fecp->fec_hash_table_low = 0;
-	 * }
-	 */
 
 	dev->base_addr = (unsigned long)fecp;
 
@@ -3719,11 +3795,6 @@ static int __init switch_enet_init(struct net_device *dev,
 	if (plat && plat->set_mii)
 		plat->set_mii(dev);
 
-	/* Clear and enable interrupts */
-	fecp->switch_ievent = 0xffffffff;
-	fecp->switch_imask  = MCF_ESW_IMR_RXB | MCF_ESW_IMR_TXB |
-		MCF_ESW_IMR_RXF | MCF_ESW_IMR_TXF;
-	esw_clear_atable(fep);
 
 #ifndef CONFIG_FEC_SHARED_PHY
 	fep->phy_addr = 0;
@@ -3735,6 +3806,112 @@ static int __init switch_enet_init(struct net_device *dev,
 	return 0;
 }
 
+static void enet_reset(struct net_device *dev, int duplex)
+{
+	struct switch_enet_private	*fep = netdev_priv(dev);
+
+	/* ECR */
+#ifdef L2SWITCH_ENHANCED_BUFFER
+	writel(MCF_FEC_ECR_ENA_1588
+			| MCF_FEC_ECR_MAGIC_ENA,
+			fep->enet_addr + MCF_FEC_ECR0);
+	writel(MCF_FEC_ECR_ENA_1588,
+			| MCF_FEC_ECR_MAGIC_ENA,
+			fep->enet_addr + MCF_FEC_ECR1);
+#else /*legac buffer*/
+	writel(MCF_FEC_ECR_MAGIC_ENA,
+			fep->enet_addr + MCF_FEC_ECR0);
+	writel(MCF_FEC_ECR_MAGIC_ENA,
+			fep->enet_addr + MCF_FEC_ECR1);
+#endif
+	/* EMRBR */
+	writel(PKT_MAXBLR_SIZE, fep->enet_addr + MCF_FEC_EMRBR0);
+	writel(PKT_MAXBLR_SIZE, fep->enet_addr + MCF_FEC_EMRBR1);
+
+	/*
+	 * set the receive and transmit BDs ring base to
+	 * hardware registers(ERDSR & ETDSR)
+	 */
+	writel(fep->bd_dma, fep->enet_addr + MCF_FEC_ERDSR0);
+	writel(fep->bd_dma, fep->enet_addr + MCF_FEC_ERDSR1);
+	writel((unsigned long)fep->bd_dma + sizeof(struct cbd_t) * RX_RING_SIZE,
+			fep->enet_addr + MCF_FEC_ETDSR0);
+	writel((unsigned long)fep->bd_dma + sizeof(struct cbd_t) * RX_RING_SIZE,
+			fep->enet_addr + MCF_FEC_ETDSR1);
+#ifdef CONFIG_ARCH_MXS
+	/* Can't get phy(8720) ID when set to 2.5M on MX28, lower it */
+	writel(fep->phy_speed,
+			fep->enet_addr + MCF_FEC_MSCR0);
+	writel(fep->phy_speed,
+			fep->enet_addr + MCF_FEC_MSCR1);
+#endif
+	fep->full_duplex = duplex;
+
+	/* EIR */
+	writel(0, fep->enet_addr + MCF_FEC_EIR0);
+	writel(0, fep->enet_addr + MCF_FEC_EIR1);
+
+	/* IAUR */
+	writel(0, fep->enet_addr + MCF_FEC_IAUR0);
+	writel(0, fep->enet_addr + MCF_FEC_IAUR1);
+
+	/* IALR */
+	writel(0, fep->enet_addr + MCF_FEC_IALR0);
+	writel(0, fep->enet_addr + MCF_FEC_IALR1);
+
+	/* GAUR */
+	writel(0, fep->enet_addr + MCF_FEC_GAUR0);
+	writel(0, fep->enet_addr + MCF_FEC_GAUR1);
+
+	/* GALR */
+	writel(0, fep->enet_addr + MCF_FEC_GALR0);
+	writel(0, fep->enet_addr + MCF_FEC_GALR1);
+
+	/* EMRBR */
+	writel(PKT_MAXBLR_SIZE, fep->enet_addr + MCF_FEC_EMRBR0);
+	writel(PKT_MAXBLR_SIZE, fep->enet_addr + MCF_FEC_EMRBR1);
+	msleep(10);
+
+	/* EIMR */
+	writel(FEC_ENET_TXF | FEC_ENET_RXF, fep->enet_addr + MCF_FEC_EIMR0);
+	writel(FEC_ENET_TXF | FEC_ENET_RXF, fep->enet_addr + MCF_FEC_EIMR1);
+
+	/* PALR PAUR */
+	/* Set the station address for the ENET Adapter */
+	writel(dev->dev_addr[3] |
+		dev->dev_addr[2]<<8 |
+		dev->dev_addr[1]<<16 |
+		dev->dev_addr[0]<<24, fep->enet_addr + MCF_FEC_PALR0);
+	writel(dev->dev_addr[5]<<16 |
+		(dev->dev_addr[4]+(unsigned char)(0))<<24,
+		fep->enet_addr + MCF_FEC_PAUR0);
+	writel(dev->dev_addr[3] |
+		dev->dev_addr[2]<<8 |
+		dev->dev_addr[1]<<16 |
+		dev->dev_addr[0]<<24, fep->enet_addr + MCF_FEC_PALR1);
+	writel(dev->dev_addr[5]<<16 |
+		(dev->dev_addr[4]+(unsigned char)(1))<<24,
+		fep->enet_addr + MCF_FEC_PAUR1);
+
+	/* RCR */
+	writel(readl(fep->enet_addr + MCF_FEC_RCR0)
+		| MCF_FEC_RCR_FCE | MCF_FEC_RCR_PROM,
+		fep->enet_addr + MCF_FEC_RCR0);
+	writel(readl(fep->enet_addr + MCF_FEC_RCR1)
+		| MCF_FEC_RCR_FCE | MCF_FEC_RCR_PROM,
+		fep->enet_addr + MCF_FEC_RCR1);
+
+	/* TCR */
+	writel(0x1c, fep->enet_addr + MCF_FEC_TCR0);
+	writel(0x1c, fep->enet_addr + MCF_FEC_TCR1);
+
+	/* ECR */
+	writel(readl(fep->enet_addr + MCF_FEC_ECR0) | MCF_FEC_ECR_ETHER_EN,
+			fep->enet_addr + MCF_FEC_ECR0);
+	writel(readl(fep->enet_addr + MCF_FEC_ECR1) | MCF_FEC_ECR_ETHER_EN,
+			fep->enet_addr + MCF_FEC_ECR1);
+}
+
 /*
  * This function is called to start or restart the FEC during a link
  * change.  This only happens when switching between half and full
@@ -3744,7 +3921,6 @@ static void
 switch_restart(struct net_device *dev, int duplex)
 {
 	struct switch_enet_private *fep;
-	struct cbd_t *bdp;
 	struct switch_t *fecp;
 	int i;
 	struct switch_platform_data *plat;
@@ -3775,13 +3951,10 @@ switch_restart(struct net_device *dev, int duplex)
 	 *	plat->enable_phy_intr();
 	 */
 
-	/* Set station address */
-	switch_set_mac_address(dev, NULL);
-
 	/* Reset all multicast */
 	/*
 	 * fecp->fec_grp_hash_table_high = 0;
-	 *fecp->fec_grp_hash_table_low = 0;
+	 * fecp->fec_grp_hash_table_low = 0;
 	 */
 
 	/* Set maximum receive buffer size */
@@ -3789,9 +3962,11 @@ switch_restart(struct net_device *dev, int duplex)
 
 	if (plat && plat->localhw_setup)
 		plat->localhw_setup();
+
 	/* Set receive and transmit descriptor base */
-	fecp->fec_r_des_start = __pa((uint)(fep->rx_bd_base));
-	fecp->fec_x_des_start = __pa((uint)(fep->tx_bd_base));
+	fecp->fec_r_des_start = fep->bd_dma;
+	fecp->fec_x_des_start = (unsigned long)fep->bd_dma
+		+ sizeof(struct cbd_t) * RX_RING_SIZE;
 
 	fep->dirty_tx = fep->cur_tx = fep->tx_bd_base;
 	fep->cur_rx = fep->rx_bd_base;
@@ -3805,42 +3980,10 @@ switch_restart(struct net_device *dev, int duplex)
 		}
 	}
 
-	/* Initialize the receive buffer descriptors */
-	bdp = fep->rx_bd_base;
-	for (i = 0; i < RX_RING_SIZE; i++) {
-
-		/* Initialize the BD for every fragment in the page */
-		bdp->cbd_sc = BD_ENET_RX_EMPTY;
-#ifdef MODELO_BUFFER
-		bdp->bdu = 0x00000000;
-		bdp->ebd_status = RX_BD_INT;
-#endif
-		bdp++;
-	}
-
-	/* Set the last buffer to wrap */
-	bdp--;
-	bdp->cbd_sc |= BD_SC_WRAP;
-
-	/* ...and the same for transmmit */
-	bdp = fep->tx_bd_base;
-	for (i = 0; i < TX_RING_SIZE; i++) {
-
-		/* Initialize the BD for every fragment in the page */
-		bdp->cbd_sc = 0;
-		bdp->cbd_bufaddr = 0;
-		bdp++;
-	}
-
-	/* Set the last buffer to wrap */
-	bdp--;
-	bdp->cbd_sc |= BD_SC_WRAP;
-
-	fep->full_duplex = duplex;
+	enet_reset(dev, duplex);
+	esw_clear_atable(fep);
 
 	/* And last, enable the transmit and receive processing */
-	fecp->fec_r_buff_size = RX_BUFFER_SIZE;
-	/* fecp->fec_r_buff_size = PKT_MAXBLR_SIZE; */
 	fecp->fec_r_des_active = MCF_ESW_RDAR_R_DES_ACTIVE;
 
 	/* Enable interrupts we wish to service */

@@ -224,15 +224,44 @@ struct  eswAddrTable_t {
 #define MCF_FEC_ECR0		(0x24 / sizeof(unsigned long))
 #define MCF_FEC_ECR1		(0x4024 / sizeof(unsigned long))
 
-#define MCF_FEC_RCR_PROM                     (0x00000008)
-#define MCF_FEC_RCR_RMII_MODE                (0x00000100)
-#define MCF_FEC_RCR_MAX_FL(x)                (((x)&0x00003FFF)<<16)
-#define MCF_FEC_RCR_CRC_FWD                  (0x00004000)
+#define MCF_FEC_PALR0          (0xE4 / sizeof(unsigned long))
+#define MCF_FEC_PALR1          (0x40E4 / sizeof(unsigned long))
+#define MCF_FEC_PAUR0          (0xE8 / sizeof(unsigned long))
+#define MCF_FEC_PAUR1          (0x40E8 / sizeof(unsigned long))
 
-#define MCF_FEC_TCR_FDEN                     (0x00000004)
+#define MCF_FEC_ERDSR0         (0x180 / sizeof(unsigned long))
+#define MCF_FEC_ERDSR1         (0x4180 / sizeof(unsigned long))
+#define MCF_FEC_ETDSR0         (0x184 / sizeof(unsigned long))
+#define MCF_FEC_ETDSR1         (0x4184 / sizeof(unsigned long))
 
-#define MCF_FEC_ECR_ETHER_EN                 (0x00000002)
-#define MCF_FEC_ECR_ENA_1588                 (0x00000010)
+#define MCF_FEC_IAUR0          (0x118 / sizeof(unsigned long))
+#define MCF_FEC_IAUR1          (0x4118 / sizeof(unsigned long))
+#define MCF_FEC_IALR0          (0x11C / sizeof(unsigned long))
+#define MCF_FEC_IALR1          (0x411C / sizeof(unsigned long))
+
+#define MCF_FEC_GAUR0          (0x120 / sizeof(unsigned long))
+#define MCF_FEC_GAUR1          (0x4120 / sizeof(unsigned long))
+#define MCF_FEC_GALR0          (0x124 / sizeof(unsigned long))
+#define MCF_FEC_GALR1          (0x4124 / sizeof(unsigned long))
+
+#define MCF_FEC_EMRBR0         (0x188 / sizeof(unsigned long))
+#define MCF_FEC_EMRBR1         (0x4188 / sizeof(unsigned long))
+
+#define MCF_FEC_RCR_DRT	(0x00000002)
+#define MCF_FEC_RCR_PROM       (0x00000008)
+#define MCF_FEC_RCR_FCE	(0x00000020)
+#define MCF_FEC_RCR_RMII_MODE  (0x00000100)
+#define MCF_FEC_RCR_MAX_FL(x)  (((x)&0x00003FFF)<<16)
+#define MCF_FEC_RCR_CRC_FWD    (0x00004000)
+#define MCF_FEC_RCR_NO_LGTH_CHECK (0x40000000)
+#define MCF_FEC_TCR_FDEN       (0x00000004)
+
+#define MCF_FEC_ECR_RESET      (0x00000001)
+#define MCF_FEC_ECR_ETHER_EN   (0x00000002)
+#define MCF_FEC_ECR_MAGIC_ENA  (0x00000004)
+#define MCF_FEC_ECR_ENA_1588   (0x00000010)
+
+#define MCF_FEC_ERDSR(x)       ((x) << 2)
 
 /*-------------ioctl command ---------------------------------------*/
 #define ESW_SET_LEARNING_CONF               0x9101
@@ -484,7 +513,7 @@ struct cbd_t {
 	unsigned short	cbd_datlen;		/* Data length */
 #endif
 	unsigned long	cbd_bufaddr;		/* Buffer address */
-#ifdef MODELO_BUFFER
+#ifdef L2SWITCH_ENHANCED_BUFFER
 	unsigned long   ebd_status;
 	unsigned short  length_proto_type;
 	unsigned short  payload_checksum;
@@ -532,11 +561,12 @@ struct switch_enet_private {
 	/* The saved address of a sent-in-place packet/buffer, for skfree(). */
 	unsigned char *tx_bounce[TX_RING_SIZE];
 	struct  sk_buff *tx_skbuff[TX_RING_SIZE];
+	struct  sk_buff *rx_skbuff[RX_RING_SIZE];
 	ushort  skb_cur;
 	ushort  skb_dirty;
 
-	/* CPM dual port RAM relative addresses.
-	 */
+	/* CPM dual port RAM relative addresses */
+	dma_addr_t      bd_dma;
 	struct cbd_t   *rx_bd_base;	/* Address of Rx and Tx buffers. */
 	struct cbd_t   *tx_bd_base;
 	struct cbd_t   *cur_rx, *cur_tx;	/* The next free ring entry */
