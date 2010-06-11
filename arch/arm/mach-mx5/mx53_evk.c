@@ -617,6 +617,15 @@ static struct flash_platform_data mxc_nand_data = {
 	.init = nand_init,
 };
 
+static struct mxc_spdif_platform_data mxc_spdif_data = {
+	.spdif_tx = 1,
+	.spdif_rx = 0,
+	.spdif_clk_44100 = 0,	/* Souce from CKIH1 for 44.1K */
+	.spdif_clk_48000 = 7,	/* Source from CKIH2 for 48k and 32k */
+	.spdif_clkid = 0,
+	.spdif_clk = NULL,	/* spdif bus clk */
+};
+
 /*!
  * Board specific fixup function. It is called by \b setup_arch() in
  * setup.c file very early on during kernel starts. It allows the user to
@@ -709,6 +718,8 @@ static void __init mxc_board_init(void)
 {
 	mxc_ipu_data.di_clk[0] = clk_get(NULL, "ipu_di0_clk");
 	mxc_ipu_data.di_clk[1] = clk_get(NULL, "ipu_di1_clk");
+	mxc_spdif_data.spdif_core_clk = clk_get(NULL, "spdif_xtal_clk");
+	clk_put(mxc_spdif_data.spdif_core_clk);
 
 	/* SD card detect irqs */
 	if (board_is_mx53_arm2()) {
@@ -769,9 +780,8 @@ static void __init mxc_board_init(void)
 	mxc_register_device(&mxcsdhc3_device, &mmc3_data);
 	mxc_register_device(&mxc_ssi1_device, NULL);
 	mxc_register_device(&mxc_ssi2_device, NULL);
-	/*
 	mxc_register_device(&mxc_alsa_spdif_device, &mxc_spdif_data);
-	*/
+
 	mxc_register_device(&mxc_fec_device, &fec_data);
 	spi_register_board_info(mxc_dataflash_device,
 				ARRAY_SIZE(mxc_dataflash_device));

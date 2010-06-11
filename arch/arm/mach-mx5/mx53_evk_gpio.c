@@ -794,6 +794,15 @@ static struct mxc_iomux_pin_cfg __initdata nand_iomux_pins[] = {
 	},
 };
 
+static int __initdata enable_spdif = { 0 };
+static int __init spdif_setup(char *__unused)
+{
+	enable_spdif = 1;
+	return 1;
+}
+
+__setup("spdif", spdif_setup);
+
 void __init mx53_evk_io_init(void)
 {
 	int i;
@@ -957,10 +966,18 @@ void __init mx53_evk_io_init(void)
 	gpio_direction_output(IOMUX_TO_GPIO(MX53_PIN_GPIO_14), 0);
 	gpio_set_value(IOMUX_TO_GPIO(MX53_PIN_GPIO_14), 0);
 
-	/* GPIO for 12V */
-	gpio_direction_output(IOMUX_TO_GPIO(MX53_PIN_GPIO_19), 0);
-	gpio_set_value(IOMUX_TO_GPIO(MX53_PIN_GPIO_19), 0);
-
+	if (enable_spdif) {
+		mxc_free_iomux(MX53_PIN_GPIO_19, IOMUX_CONFIG_ALT1);
+		mxc_request_iomux(MX53_PIN_GPIO_19, IOMUX_CONFIG_ALT3);
+		mxc_iomux_set_pad(MX53_PIN_GPIO_19,
+			PAD_CTL_DRV_HIGH | PAD_CTL_HYS_ENABLE |
+			PAD_CTL_PUE_PULL | PAD_CTL_100K_PU |
+			PAD_CTL_PKE_ENABLE);
+	} else {
+		/* GPIO for CAN 12V */
+		gpio_direction_output(IOMUX_TO_GPIO(MX53_PIN_GPIO_19), 0);
+		gpio_set_value(IOMUX_TO_GPIO(MX53_PIN_GPIO_19), 0);
+	}
 }
 
 /* workaround for ecspi chipselect pin may not keep correct level when idle */
