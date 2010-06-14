@@ -41,6 +41,7 @@
 
 #define BOARD_REV_1		0x000
 #define BOARD_REV_2		0x100
+#define BOARD_REV_3		0x200
 
 #define IMX_IO_ADDRESS(addr, module)					\
 	((void __force __iomem *)					\
@@ -90,6 +91,8 @@ extern unsigned int system_rev;
 
 #ifdef CONFIG_ARCH_MX5
 #define board_is_mx53_arm2() (cpu_is_mx53() && board_is_rev(BOARD_REV_2))
+#define board_is_mx53_evk_a()    (cpu_is_mx53() && board_is_rev(BOARD_REV_1))
+#define board_is_mx53_evk_b()    (cpu_is_mx53() && board_is_rev(BOARD_REV_3))
 #endif
 
 #include <mach/mxc.h>

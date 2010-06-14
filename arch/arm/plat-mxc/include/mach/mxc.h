@@ -32,6 +32,7 @@
 #define MXC_CPU_MX32		32
 #define MXC_CPU_MX35		35
 #define MXC_CPU_MX37		37
+#define MXC_CPU_MX50		50
 #define MXC_CPU_MX51		51
 #define MXC_CPU_MX53		53
 #define MXC_CPU_MXC91231	91231
@@ -158,6 +159,18 @@ extern unsigned int __mxc_cpu_type;
 # define cpu_is_mxc91231()	(mxc_cpu_type == MXC_CPU_MXC91231)
 #else
 # define cpu_is_mxc91231()	(0)
+#endif
+
+#ifdef CONFIG_ARCH_MX50
+# ifdef mxc_cpu_type
+#  undef mxc_cpu_type
+#  define mxc_cpu_type __mxc_cpu_type
+# else
+#  define mxc_cpu_type MXC_CPU_MX50
+# endif
+# define cpu_is_mx50()		(mxc_cpu_type == MXC_CPU_MX50)
+#else
+# define cpu_is_mx50()		(0)
 #endif
 
 #define cpu_is_mx32()		(0)
@@ -603,6 +616,12 @@ struct mxc_sim_platform_data {
 #define DPTC_GP_ID 0
 #define DPTC_LP_ID 1
 
+#define MUX_IO_P		29
+#define MUX_IO_I		24
+#define IOMUX_TO_GPIO(pin) 	((((unsigned int)pin >> MUX_IO_P) * 32) + ((pin >> MUX_IO_I) & ((1 << (MUX_IO_P - MUX_IO_I)) - 1)))
+#define IOMUX_TO_IRQ(pin)	(MXC_GPIO_IRQ_START + IOMUX_TO_GPIO(pin))
+
+
 #ifndef __ASSEMBLY__
 
 struct cpu_wp {
@@ -648,7 +667,7 @@ void gpio_deactivate_esai_ports(void);
 #define CSCR_A(n) (IO_ADDRESS(WEIM_BASE_ADDR + n * 0x10 + 0x8))
 #endif
 
-#define cpu_is_mx5()	(cpu_is_mx51() || cpu_is_mx53())
+#define cpu_is_mx5()	(cpu_is_mx51() || cpu_is_mx53() || cpu_is_mx50())
 #define cpu_is_mx3()	(cpu_is_mx31() || cpu_is_mx35() || cpu_is_mxc91231())
 #define cpu_is_mx2()	(cpu_is_mx21() || cpu_is_mx27())
 

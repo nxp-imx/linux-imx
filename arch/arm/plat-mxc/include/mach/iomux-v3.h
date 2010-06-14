@@ -75,7 +75,9 @@ struct pad_desc {
 #define PAD_CTL_PKE			(1 << 7)
 #define PAD_CTL_PUE			(1 << 6)
 #define PAD_CTL_PUS_100K_DOWN		(0 << 4)
+#define PAD_CTL_PUS_360K_DOWN		(0 << 4)
 #define PAD_CTL_PUS_47K_UP		(1 << 4)
+#define PAD_CTL_PUS_75K_UP		(1 << 4)
 #define PAD_CTL_PUS_100K_UP		(2 << 4)
 #define PAD_CTL_PUS_22K_UP		(3 << 4)
 

@@ -59,7 +59,6 @@ source "arch/arm/mach-mx3/Kconfig"
 source "arch/arm/mach-mx25/Kconfig"
 source "arch/arm/mach-mxc91231/Kconfig"
 source "arch/arm/mach-mx5/Kconfig"
-source "arch/arm/mach-mx37/Kconfig"
 
 endmenu
 

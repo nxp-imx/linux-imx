@@ -147,6 +147,7 @@
 #define USBCTRL_HOST3		USBOTHER_REG(0x18)	/* USB Cotrol Register 1*/
 #define USBH1_PHY_CTRL0		USBOTHER_REG(0x1c)	/* USB Cotrol Register 1*/
 #define USBH1_PHY_CTRL1		USBOTHER_REG(0x20)	/* USB Cotrol Register 1*/
+#define USB_CLKONOFF_CTRL       USBOTHER_REG(0x24)      /* USB Clock on/off Control Register */
 
 /*
  * register bits
@@ -245,6 +246,7 @@
 #define UCTRL_OBPVAL_RXDP	(1 << 26)	/* OTG RxDp status in bypass mode */
 #define UCTRL_OBPVAL_RXDM	(1 << 25)	/* OTG RxDm status in bypass mode */
 #define UCTRL_OPM		(1 << 24)	/* OTG power mask */
+#define UCTRL_O_PWR_POL	(1 << 24)	/* OTG power pin polarity */
 #define UCTRL_H2WIR		(1 << 23)	/* HOST2 wakeup intr request received */
 #define UCTRL_H2SIC_MASK	(3 << 21)	/* HOST2 Serial Interface Config: */
 #define UCTRL_H2SIC_DU6		(0 << 21)	/* Differential/unidirectional 6 wire */
@@ -329,6 +331,7 @@
 #define USB_UTMI_PHYCTRL_OC_POL	(1 << 9)	/* OTG Polarity of Overcurrent */
 #define USB_UTMI_PHYCTRL_OC_DIS	(1 << 8)	/* OTG Disable Overcurrent Event */
 #define USB_UH1_OC_DIS	(1 << 5)		/* UH1 Disable Overcurrent Event */
+#define USB_UH1_OC_POL	(1 << 6)		/* UH1 Polarity of OC,Low active */
 /* USB_PHY_CTRL_FUNC2*/
 #define USB_UTMI_PHYCTRL2_PLLDIV_MASK		0x3
 #define USB_UTMI_PHYCTRL2_PLLDIV_SHIFT		0
@@ -355,6 +358,8 @@
 #define ULPIVW_WDATA_SHIFT	0
 
 #define HCSPARAMS_PPC           (0x1<<4)        /* Port Power Control */
-
+/* USB Clock on/off Control Register */
+#define OTG_AHBCLK_OFF          (0x1<<17)      /* 1: OFF */
+#define H1_AHBCLK_OFF           (0x1<<18)      /* 1: OFF */
 extern enum fsl_usb2_modes get_usb_mode(struct fsl_usb2_platform_data *pdata);
 #endif

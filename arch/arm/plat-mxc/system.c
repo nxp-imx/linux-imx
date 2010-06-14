@@ -1,7 +1,7 @@
 /*
  * Copyright (C) 1999 ARM Limited
  * Copyright (C) 2000 Deep Blue Solutions Ltd
- * Copyright 2006-2007 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2006-2010 Freescale Semiconductor
  * Copyright 2008 Juergen Beisert, kernel@pengutronix.de
  * Copyright 2009 Ilya Yanok, Emcraft Systems Ltd, yanok@emcraft.com
  *
@@ -46,6 +46,15 @@ void arch_reset(char mode, const char *cmd)
 		return;
 	}
 #endif
+
+#ifdef CONFIG_ARCH_MX51
+	/* Workaround to reset NFC_CONFIG3 register
+	 * due to the chip warm reset does not reset it
+	 */
+	 if (cpu_is_mx51() || cpu_is_mx53())
+		__raw_writel(0x20600, IO_ADDRESS(NFC_BASE_ADDR) + 0x28);
+#endif
+
 	if (cpu_is_mx1()) {
 		wcr_enable = (1 << 0);
 	} else {

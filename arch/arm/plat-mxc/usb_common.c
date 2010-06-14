@@ -277,21 +277,25 @@ static void usbh1_set_utmi_xcvr(void)
 	while ((UH1_USBCMD) & (UCMD_RESET))
 		;
 
-	/* MX53 EVK is not using OC */
-	USB_PHY_CTR_FUNC |= USB_UH1_OC_DIS;
+	/* For OC and PWR, it is board level setting
+	 * The default setting is for mx53 evk
+	 */
+	USBCTRL &= ~UCTRL_H1PM;	/* Host1 Power Mask */
+	USBCTRL &= ~UCTRL_H1WIE; /* Host1 Wakeup Intr Disable */
+	USB_PHY_CTR_FUNC |= USB_UH1_OC_DIS; /* Over current disable */
 
-	USBCTRL &= ~UCTRL_H1PM;	/* OTG Power Mask */
-	USBCTRL &= ~UCTRL_H1WIE;	/* OTG Wakeup Intr Disable */
-
-	/* Over current disable */
-	USB_PHY_CTR_FUNC |= (0x1 << 5);
-
+	if (machine_is_mx50_arm2()) {
+		USBCTRL |= UCTRL_H1PM; /* Host1 Power Mask */
+		USB_PHY_CTR_FUNC &= ~USB_UH1_OC_DIS; /* Over current enable */
+		/* Over current polarity low active */
+		USB_PHY_CTR_FUNC |= USB_UH1_OC_POL;
+	}
 	/* set UTMI xcvr */
 	tmp = UH1_PORTSC1 & ~PORTSC_PTS_MASK;
 	tmp |= PORTSC_PTS_UTMI;
 	UH1_PORTSC1 = tmp;
 
-	/* Set the PHY clock to 19.2MHz */
+	/* Set the PHY clock to 24MHz */
 	USBH1_PHY_CTRL1 &= ~USB_UTMI_PHYCTRL2_PLLDIV_MASK;
 	USBH1_PHY_CTRL1 |= 0x01;
 
@@ -483,6 +487,10 @@ int fsl_usb_host_init(struct platform_device *pdev)
 		clk_enable(usboh3_clk);
 		clk_put(usboh3_clk);
 	}
+
+	if (cpu_is_mx50())
+		/* Turn on AHB CLK for H1*/
+		USB_CLKONOFF_CTRL &= ~H1_AHBCLK_OFF;
 
 	/* enable board power supply for xcvr */
 	if (pdata->xcvr_pwr) {
@@ -705,6 +713,11 @@ static void otg_set_utmi_xcvr(void)
 	} else if (cpu_is_mx25()) {
 		USBCTRL |= UCTRL_OCPOL;
 		USBCTRL &= ~UCTRL_PP;
+	} else if (cpu_is_mx50()) {
+		USB_PHY_CTR_FUNC |= USB_UTMI_PHYCTRL_OC_DIS;
+		if (machine_is_mx50_arm2())
+			/* OTG Power pin polarity low */
+			USBCTRL |= UCTRL_O_PWR_POL;
 	} else {
 		/* USBOTG_PWR low active */
 		USBCTRL &= ~UCTRL_PP;
@@ -716,8 +729,9 @@ static void otg_set_utmi_xcvr(void)
 			USBCTRL |= UCTRL_OLOCKD;
 	}
 
-	if (!cpu_is_mx53())
+	if (cpu_is_mx51())
 		USBCTRL &= ~UCTRL_OPM;	/* OTG Power Mask */
+
 	USBCTRL &= ~UCTRL_OWIE;	/* OTG Wakeup Intr Disable */
 
 	/* set UTMI xcvr */
@@ -799,6 +813,9 @@ int usbotg_init(struct platform_device *pdev)
 	if (!mxc_otg_used) {
 		if (fsl_check_usbclk() != 0)
 			return -EINVAL;
+		if (cpu_is_mx50())
+			/* Turn on AHB CLK for OTG*/
+			USB_CLKONOFF_CTRL &= ~OTG_AHBCLK_OFF;
 
 		pr_debug("%s: grab pins\n", __func__);
 		if (pdata->gpio_usb_active && pdata->gpio_usb_active())
