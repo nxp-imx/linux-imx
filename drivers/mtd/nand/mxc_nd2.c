@@ -38,6 +38,7 @@ struct mxc_mtd_s {
 	struct nand_chip nand;
 	struct mtd_partition *parts;
 	struct device *dev;
+	int disable_bi_swap; /* disable bi swap */
 };
 
 static struct mxc_mtd_s *mxc_nand_data;
@@ -126,6 +127,10 @@ static void mxc_nand_bi_swap(struct mtd_info *mtd)
 	u16 ma, sa, nma, nsa;
 
 	if (!IS_LARGE_PAGE_NAND)
+		return;
+
+	/* Disable bi swap if the user set disable_bi_swap at sys entry */
+	if (mxc_nand_data->disable_bi_swap)
 		return;
 
 	ma = __raw_readw(BAD_BLK_MARKER_MAIN);
@@ -1287,6 +1292,81 @@ int nand_scan_mid(struct mtd_info *mtd)
 	return 0;
 }
 
+/*!
+ * show_device_disable_bi_swap()
+ * Shows the value of the 'disable_bi_swap' flag.
+ *
+ * @dev:   The device of interest.
+ * @attr:  The attribute of interest.
+ * @buf:   A buffer that will receive a representation of the attribute.
+ */
+static ssize_t show_device_disable_bi_swap(struct device *dev,
+				struct device_attribute *attr, char *buf)
+{
+	return sprintf(buf, "%d\n", mxc_nand_data->disable_bi_swap);
+}
+
+/*!
+ * store_device_disable_bi_swap()
+ * Sets the value of the 'disable_bi_swap' flag.
+ *
+ * @dev:   The device of interest.
+ * @attr:  The attribute of interest.
+ * @buf:   A buffer containing a new attribute value.
+ * @size:  The size of the buffer.
+ */
+static ssize_t store_device_disable_bi_swap(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t size)
+{
+	const char *p = buf;
+	unsigned long v;
+
+	/* Try to make sense of what arrived from user space. */
+
+	if (strict_strtoul(p, 0, &v) < 0)
+		return size;
+
+	if (v > 0)
+		v = 1;
+	mxc_nand_data->disable_bi_swap = v;
+	return size;
+
+}
+
+static DEVICE_ATTR(disable_bi_swap, 0644,
+	show_device_disable_bi_swap, store_device_disable_bi_swap);
+static struct device_attribute *device_attributes[] = {
+	&dev_attr_disable_bi_swap,
+};
+/*!
+ * manage_sysfs_files() - Creates/removes sysfs files for this device.
+ *
+ * @create: create/remove the sys entry.
+ */
+static void manage_sysfs_files(int create)
+{
+	struct device *dev = mxc_nand_data->dev;
+	int error;
+	unsigned int i;
+	struct device_attribute **attr;
+
+	for (i = 0, attr = device_attributes;
+			i < ARRAY_SIZE(device_attributes); i++, attr++) {
+
+		if (create) {
+			error = device_create_file(dev, *attr);
+			if (error) {
+				while (--attr >= device_attributes)
+					device_remove_file(dev, *attr);
+				return;
+			}
+		} else {
+			device_remove_file(dev, *attr);
+		}
+	}
+
+}
+
 
 /*!
  * This function is called during the driver binding process.
@@ -1407,6 +1487,9 @@ static int __init mxcnd_probe(struct platform_device *pdev)
 		add_mtd_device(mtd);
 	}
 
+	/* Create sysfs entries for this device. */
+	manage_sysfs_files(true);
+
 	platform_set_drvdata(pdev, mtd);
 
 	return 0;
@@ -1434,6 +1517,7 @@ static int __exit mxcnd_remove(struct platform_device *pdev)
 	if (flash->exit)
 		flash->exit();
 
+	manage_sysfs_files(false);
 	mxc_free_buf();
 
 	clk_disable(nfc_clk);
