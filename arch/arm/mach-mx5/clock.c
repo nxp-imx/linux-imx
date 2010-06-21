@@ -3310,13 +3310,21 @@ static struct clk ieee_1588_clk = {
 	.disable = _clk_disable,
 };
 
-static struct clk mlb_clk = {
+static struct clk mlb_clk[] = {
+	{
 	.name = "mlb_clk",
 	.parent = &ipg_clk,
 	.enable = _clk_enable,
 	.enable_reg = MXC_CCM_CCGR7,
 	.enable_shift = MXC_CCM_CCGR7_CG2_OFFSET,
 	.disable = _clk_disable,
+	.secondary = &mlb_clk[1],
+	},
+	{
+	.name = "mlb_mem_clk",
+	.parent = &emi_fast_clk,
+	.secondary = &emi_intr_clk[1],
+	},
 };
 
 static struct clk can1_clk[] = {
@@ -4725,7 +4733,7 @@ int __init mx53_clocks_init(unsigned long ckil, unsigned long osc, unsigned long
 	clk_register(&ocram_clk);
 	clk_register(&sata_clk);
 	clk_register(&ieee_1588_clk);
-	clk_register(&mlb_clk);
+	clk_register(&mlb_clk[0]);
 	clk_register(&can1_clk[0]);
 	clk_register(&can2_clk[0]);
 	clk_register(&ldb_di_clk[0]);
