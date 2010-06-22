@@ -1306,6 +1306,112 @@ static inline mx28_init_spdif(void)
 }
 #endif
 
+#if defined(CONFIG_MXS_PERSISTENT)
+static const struct mxs_persistent_bit_config
+mx28_persistent_bit_config[] = {
+	{ .reg = 0, .start =  0, .width =  1,
+		.name = "CLOCKSOURCE" },
+	{ .reg = 0, .start =  1, .width =  1,
+		.name = "ALARM_WAKE_EN" },
+	{ .reg = 0, .start =  2, .width =  1,
+		.name = "ALARM_EN" },
+	{ .reg = 0, .start =  3, .width =  1,
+		.name = "CLK_SECS" },
+	{ .reg = 0, .start =  4, .width =  1,
+		.name = "XTAL24MHZ_PWRUP" },
+	{ .reg = 0, .start =  5, .width =  1,
+		.name = "XTAL32MHZ_PWRUP" },
+	{ .reg = 0, .start =  6, .width =  1,
+		.name = "XTAL32_FREQ" },
+	{ .reg = 0, .start =  7, .width =  1,
+		.name = "ALARM_WAKE" },
+	{ .reg = 0, .start =  8, .width =  5,
+		.name = "MSEC_RES" },
+	{ .reg = 0, .start = 13, .width =  1,
+		.name = "DISABLE_XTALOK" },
+	{ .reg = 0, .start = 14, .width =  2,
+		.name = "LOWERBIAS" },
+	{ .reg = 0, .start = 16, .width =  1,
+		.name = "DISABLE_PSWITCH" },
+	{ .reg = 0, .start = 17, .width =  1,
+		.name = "AUTO_RESTART" },
+	{ .reg = 0, .start = 18, .width = 1,
+		.name = "ENABLE_LRADC_PWRUP" },
+	{ .reg = 0, .start = 20, .width = 1,
+		.name = "THERMAL_RESET" },
+	{ .reg = 0, .start = 21, .width = 1,
+		.name = "EXTERNAL_RESET" },
+	{ .reg = 0, .start = 28, .width = 4,
+		.name = "ADJ_POSLIMITBUCK" },
+	{ .reg = 1, .start =  0, .width =  1,
+		.name = "FORCE_RECOVERY" },
+	{ .reg = 1, .start =  1, .width =  1,
+		.name = "ROM_REDUNDANT_BOOT" },
+	{ .reg = 1, .start =  2, .width =  1,
+		.name = "NAND_SDK_BLOCK_REWRITE" },
+	{ .reg = 1, .start =  3, .width =  1,
+		.name = "SD_SPEED_ENABLE" },
+	{ .reg = 1, .start =  4, .width =  1,
+		.name = "SD_INIT_SEQ_1_DISABLE" },
+	{ .reg = 1, .start =  5, .width =  1,
+		.name = "SD_CMD0_DISABLE" },
+	{ .reg = 1, .start =  6, .width =  1,
+		.name = "SD_INIT_SEQ_2_ENABLE" },
+	{ .reg = 1, .start =  7, .width =  1,
+		.name = "OTG_ATL_ROLE_BIT" },
+	{ .reg = 1, .start =  8, .width =  1,
+		.name = "OTG_HNP_BIT" },
+	{ .reg = 1, .start =  9, .width =  1,
+		.name = "USB_LOW_POWER_MODE" },
+	{ .reg = 1, .start = 10, .width =  1,
+		.name = "SKIP_CHECKDISK" },
+	{ .reg = 1, .start = 11, .width =  1,
+		.name = "USB_BOOT_PLAYER_MODE" },
+	{ .reg = 1, .start = 12, .width =  1,
+		.name = "ENUMERATE_500MA_TWICE" },
+	{ .reg = 1, .start = 13, .width = 19,
+		.name = "SPARE_GENERAL" },
+
+	{ .reg = 2, .start =  0, .width = 32,
+		.name = "SPARE_2" },
+	{ .reg = 3, .start =  0, .width = 32,
+		.name = "SPARE_3" },
+	{ .reg = 4, .start =  0, .width = 32,
+		.name = "SPARE_4" },
+	{ .reg = 5, .start =  0, .width = 32,
+		.name = "SPARE_5" },
+};
+
+static struct mxs_platform_persistent_data mx28_persistent_data = {
+	.bit_config_tab = mx28_persistent_bit_config,
+	.bit_config_cnt = ARRAY_SIZE(mx28_persistent_bit_config),
+};
+
+static struct resource mx28_persistent_res[] = {
+	{
+	 .flags = IORESOURCE_MEM,
+	 .start = RTC_PHYS_ADDR,
+	 .end   = RTC_PHYS_ADDR + 0x2000 - 1,
+	 },
+};
+
+static void mx28_init_persistent(void)
+{
+	struct platform_device *pdev;
+	pdev = mxs_get_device("mxs-persistent", 0);
+	if (pdev == NULL || IS_ERR(pdev))
+		return;
+	pdev->dev.platform_data = &mx28_persistent_data;
+	pdev->resource = mx28_persistent_res,
+	pdev->num_resources = ARRAY_SIZE(mx28_persistent_res),
+	mxs_add_device(pdev, 3);
+}
+#else
+static void mx28_init_persistent()
+{
+}
+#endif
+
 int __init mx28_device_init(void)
 {
 	mx28_init_dma();
@@ -1329,7 +1435,7 @@ int __init mx28_device_init(void)
 	mx28_init_pxp();
 	mx28_init_dcp();
 	mx28_init_battery();
-
+	mx28_init_persistent();
 	return 0;
 }
 
