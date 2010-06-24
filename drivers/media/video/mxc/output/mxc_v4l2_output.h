@@ -39,7 +39,6 @@
 
 #define MXC_V4L2_OUT_NUM_OUTPUTS        6
 #define MXC_V4L2_OUT_2_SDC              0
-#define MXC_V4L2_OUT_2_ADC              1
 
 
 typedef struct {

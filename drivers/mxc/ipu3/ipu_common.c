@@ -1655,27 +1655,27 @@ int32_t ipu_enable_channel(ipu_channel_t channel)
 	spin_lock_irqsave(&ipu_lock, lock_flags);
 
 	ipu_conf = __raw_readl(IPU_CONF);
-	if (ipu_di_use_count[0] == 1) {
+	if (ipu_di_use_count[0] > 0) {
 		ipu_conf |= IPU_CONF_DI0_EN;
 	}
-	if (ipu_di_use_count[1] == 1) {
+	if (ipu_di_use_count[1] > 0) {
 		ipu_conf |= IPU_CONF_DI1_EN;
 	}
-	if (ipu_dp_use_count == 1)
+	if (ipu_dp_use_count > 0)
 		ipu_conf |= IPU_CONF_DP_EN;
-	if (ipu_dc_use_count == 1)
+	if (ipu_dc_use_count > 0)
 		ipu_conf |= IPU_CONF_DC_EN;
-	if (ipu_dmfc_use_count == 1)
+	if (ipu_dmfc_use_count > 0)
 		ipu_conf |= IPU_CONF_DMFC_EN;
-	if (ipu_ic_use_count == 1)
+	if (ipu_ic_use_count > 0)
 		ipu_conf |= IPU_CONF_IC_EN;
-	if (ipu_vdi_use_count == 1) {
+	if (ipu_vdi_use_count > 0) {
 		ipu_conf |= IPU_CONF_VDI_EN;
 		ipu_conf |= IPU_CONF_IC_INPUT;
 	}
-	if (ipu_rot_use_count == 1)
+	if (ipu_rot_use_count > 0)
 		ipu_conf |= IPU_CONF_ROT_EN;
-	if (ipu_smfc_use_count == 1)
+	if (ipu_smfc_use_count > 0)
 		ipu_conf |= IPU_CONF_SMFC_EN;
 	__raw_writel(ipu_conf, IPU_CONF);
 
