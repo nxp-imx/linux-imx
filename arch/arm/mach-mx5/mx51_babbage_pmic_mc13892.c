@@ -23,8 +23,8 @@
 #include <linux/regulator/machine.h>
 #include <linux/mfd/mc13892/core.h>
 #include <mach/irqs.h>
-#include "iomux.h"
-#include "mx51_pins.h"
+#include <mach/hardware.h>
+#include <mach/iomux-mx51.h>
 
 /*
  * Convenience conversion.
@@ -406,7 +406,7 @@ static struct mc13892_platform_data mc13892_plat = {
 
 static struct spi_board_info __initdata mc13892_spi_device = {
 	.modalias = "pmic_spi",
-	.irq = IOMUX_TO_IRQ(MX51_PIN_GPIO1_8),
+	.irq = IOMUX_TO_IRQ_V3(8),
 	.max_speed_hz = 6000000,	/* max spi SCK clock speed in HZ */
 	.bus_num = 1,
 	.chip_select = 0,

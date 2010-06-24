@@ -13,6 +13,6 @@ obj-$(CONFIG_ARCH_MX53) += clock.o suspend.o
 obj-$(CONFIG_ARCH_MX50) += clock_mx50.o mx50_suspend.o
 
 obj-$(CONFIG_MACH_MX51_3DS) += mx51_3stack.o mx51_3stack_gpio.o mx51_3stack_pmic_mc13892.o
-obj-$(CONFIG_MACH_MX51_BABBAGE) += mx51_babbage.o mx51_babbage_gpio.o mx51_babbage_pmic_mc13892.o
+obj-$(CONFIG_MACH_MX51_BABBAGE) += mx51_babbage.o mx51_babbage_pmic_mc13892.o
 obj-$(CONFIG_MACH_MX53_EVK) += mx53_evk.o mx53_evk_gpio.o mx53_evk_pmic_mc13892.o
 obj-$(CONFIG_MACH_MX50_ARM2) += mx50_arm2.o mx50_arm2_pmic_mc13892.o

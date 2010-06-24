@@ -43,10 +43,10 @@
 #include <mach/mmc.h>
 #include <mach/mxc_dvfs.h>
 #include <mach/mxc_edid.h>
+#include <mach/iomux-mx51.h>
+#include <mach/gpio.h>
 
 #include "devices.h"
-#include "iomux.h"
-#include "mx51_pins.h"
 #include "crm_regs.h"
 #include "usb.h"
 
@@ -57,11 +57,178 @@
  *
  * @ingroup MSL_MX51
  */
+
+#define BABBAGE_SD1_CD			(0*32 + 0)	/* GPIO_1_0 */
+#define BABBAGE_SD1_WP		(0*32 + 1)	/* GPIO_1_1 */
+#define BABBAGE_SD2_CD_2_0		(0*32 + 4)	/* GPIO_1_4 */
+#define BABBAGE_SD2_WP		(0*32 + 5)	/* GPIO_1_5 */
+#define BABBAGE_SD2_CD_2_5		(0*32 + 6)	/* GPIO_1_6 */
+#define BABBAGE_PMIC_INT		(0*32 + 8)	/* GPIO_1_8 */
+
+#define BABBAGE_USB_CLK_EN_B		(1*32 + 1)	/* GPIO_2_1 */
+#define BABBAGE_OSC_EN_B		(1*32 + 2)	/* GPIO_2_2 */
+#define BABBAGE_PHY_RESET		(1*32 + 5)	/* GPIO_2_5 */
+#define BABBAGE_CAM_RESET		(1*32 + 7)	/* GPIO_2_7 */
+#define BABBAGE_FM_PWR		(1*32 + 12)	/* GPIO_2_12 */
+#define BABBAGE_VGA_RESET		(1*32 + 13)	/* GPIO_2_13 */
+#define BABBAGE_FEC_PHY_RESET		(1*32 + 14)	/* GPIO_2_14 */
+#define BABBAGE_FM_RESET		(1*32 + 15)	/* GPIO_2_15 */
+#define BABBAGE_AUDAMP_STBY		(1*32 + 17)	/* GPIO_2_17 */
+#define BABBAGE_POWER_KEY		(1*32 + 21)	/* GPIO_2_21 */
+
+#define BABBAGE_26M_OSC_EN		(2*32 + 1)	/* GPIO_3_1 */
+#define BABBAGE_LVDS_POWER_DOWN	(2*32 + 3)	/* GPIO_3_3 */
+#define BABBAGE_DISP_BRIGHTNESS_CTL	(2*32 + 4)	/* GPIO_3_4 */
+#define BABBAGE_DVI_RESET		(2*32 + 5)	/* GPIO_3_5 */
+#define BABBAGE_DVI_POWER		(2*32 + 6)	/* GPIO_3_6 */
+#define BABBAGE_HEADPHONE_DET	(2*32 + 26)	/* GPIO_3_26 */
+#define BABBAGE_DVI_DET		(2*32 + 28)	/* GPIO_3_28 */
+
+#define BABBAGE_LCD_3V3_ON		(3*32 + 9)	/* GPIO_4_9 */
+#define BABBAGE_LCD_5V_ON		(3*32 + 10)	/* GPIO_4_10 */
+#define BABBAGE_CAM_LOW_POWER	(3*32 + 10)	/* GPIO_4_12 */
+#define BABBAGE_DVI_I2C_EN		(3*32 + 14)	/* GPIO_4_14 */
+#define BABBAGE_CSP1_SS0_GPIO		(3*32 + 24)	/* GPIO_4_24 */
+#define BABBAGE_AUDIO_CLK_EN		(3*32 + 26)	/* GPIO_4_26 */
+
 extern int __init mx51_babbage_init_mc13892(void);
-extern void __init mx51_babbage_io_init(void);
 extern struct cpu_wp *(*get_cpu_wp)(int *wp);
 extern void (*set_num_cpu_wp)(int num);
 static int num_cpu_wp = 3;
+
+static struct pad_desc mx51babbage_pads[] = {
+	/* UART1 */
+	MX51_PAD_UART1_RXD__UART1_RXD,
+	MX51_PAD_UART1_TXD__UART1_TXD,
+	MX51_PAD_UART1_RTS__UART1_RTS,
+	MX51_PAD_UART1_CTS__UART1_CTS,
+
+	/* USB HOST1 */
+	MX51_PAD_USBH1_STP__USBH1_STP,
+	MX51_PAD_USBH1_CLK__USBH1_CLK,
+	MX51_PAD_USBH1_DIR__USBH1_DIR,
+	MX51_PAD_USBH1_NXT__USBH1_NXT,
+	MX51_PAD_USBH1_DATA0__USBH1_DATA0,
+	MX51_PAD_USBH1_DATA1__USBH1_DATA1,
+	MX51_PAD_USBH1_DATA2__USBH1_DATA2,
+	MX51_PAD_USBH1_DATA3__USBH1_DATA3,
+	MX51_PAD_USBH1_DATA4__USBH1_DATA4,
+	MX51_PAD_USBH1_DATA5__USBH1_DATA5,
+	MX51_PAD_USBH1_DATA6__USBH1_DATA6,
+	MX51_PAD_USBH1_DATA7__USBH1_DATA7,
+
+	MX51_PAD_GPIO_1_0__GPIO_1_0,
+	MX51_PAD_GPIO_1_1__GPIO_1_1,
+	MX51_PAD_GPIO_1_4__GPIO_1_4,
+	MX51_PAD_GPIO_1_5__GPIO_1_5,
+	MX51_PAD_GPIO_1_6__GPIO_1_6,
+	MX51_PAD_GPIO_1_8__GPIO_1_8,
+	MX51_PAD_UART3_RXD__GPIO_1_22,
+
+	MX51_PAD_EIM_D17__GPIO_2_1,
+	MX51_PAD_EIM_D18__GPIO_2_2,
+	MX51_PAD_EIM_D21__GPIO_2_5,
+	MX51_PAD_EIM_D23__GPIO_2_7,
+	MX51_PAD_EIM_A16__GPIO_2_10,
+	MX51_PAD_EIM_A17__GPIO_2_11,
+	MX51_PAD_EIM_A18__GPIO_2_12,
+	MX51_PAD_EIM_A19__GPIO_2_13,
+	MX51_PAD_EIM_A20__GPIO_2_14,
+	MX51_PAD_EIM_A21__GPIO_2_15,
+	MX51_PAD_EIM_A22__GPIO_2_16,
+	MX51_PAD_EIM_A23__GPIO_2_17,
+	MX51_PAD_EIM_A27__GPIO_2_21,
+	MX51_PAD_EIM_DTACK__GPIO_2_31,
+
+	MX51_PAD_EIM_LBA__GPIO_3_1,
+	MX51_PAD_DI1_D0_CS__GPIO_3_3,
+	MX51_PAD_DISPB2_SER_DIN__GPIO_3_5,
+	MX51_PAD_DISPB2_SER_DIO__GPIO_3_6,
+	MX51_PAD_NANDF_CS0__GPIO_3_16,
+	MX51_PAD_NANDF_CS1__GPIO_3_17,
+	MX51_PAD_NANDF_D14__GPIO_3_26,
+	MX51_PAD_NANDF_D12__GPIO_3_28,
+
+	MX51_PAD_CSI2_D12__GPIO_4_9,
+	MX51_PAD_CSI2_D13__GPIO_4_10,
+	MX51_PAD_CSI2_D19__GPIO_4_12,
+	MX51_PAD_CSI2_HSYNC__GPIO_4_14,
+	MX51_PAD_CSPI1_RDY__GPIO_4_26,
+
+	MX51_PAD_EIM_EB2__FEC_MDIO,
+	MX51_PAD_EIM_EB3__FEC_RDAT1,
+	MX51_PAD_EIM_CS2__FEC_RDAT2,
+	MX51_PAD_EIM_CS3__FEC_RDAT3,
+	MX51_PAD_EIM_CS4__FEC_RX_ER,
+	MX51_PAD_EIM_CS5__FEC_CRS,
+	MX51_PAD_NANDF_RB2__FEC_COL,
+	MX51_PAD_NANDF_RB3__FEC_RXCLK,
+	MX51_PAD_NANDF_RB6__FEC_RDAT0,
+	MX51_PAD_NANDF_RB7__FEC_TDAT0,
+	MX51_PAD_NANDF_CS2__FEC_TX_ER,
+	MX51_PAD_NANDF_CS3__FEC_MDC,
+	MX51_PAD_NANDF_CS4__FEC_TDAT1,
+	MX51_PAD_NANDF_CS5__FEC_TDAT2,
+	MX51_PAD_NANDF_CS6__FEC_TDAT3,
+	MX51_PAD_NANDF_CS7__FEC_TX_EN,
+	MX51_PAD_NANDF_RDY_INT__FEC_TX_CLK,
+
+	MX51_PAD_GPIO_NAND__PATA_INTRQ,
+
+	MX51_PAD_DI_GP4__DI2_PIN15,
+#ifdef CONFIG_FB_MXC_CLAA_WVGA_SYNC_PANEL
+	MX51_PAD_DISP1_DAT22__DISP2_DAT16,
+	MX51_PAD_DISP1_DAT23__DISP2_DAT17,
+
+	MX51_PAD_DI1_D1_CS__GPIO_3_4,
+#endif
+	MX51_PAD_I2C1_CLK__HSI2C_CLK,
+	MX51_PAD_I2C1_DAT__HSI2C_DAT,
+	MX51_PAD_EIM_D16__I2C1_SDA,
+	MX51_PAD_EIM_D19__I2C1_SCL,
+
+	MX51_PAD_GPIO_1_2__PWM_PWMO,
+
+	MX51_PAD_GPIO_1_3__I2C2_SDA,
+	MX51_PAD_KEY_COL4__I2C2_SCL,
+
+	MX51_PAD_SD1_CMD__SD1_CMD,
+	MX51_PAD_SD1_CLK__SD1_CLK,
+	MX51_PAD_SD1_DATA0__SD1_DATA0,
+	MX51_PAD_SD1_DATA1__SD1_DATA1,
+	MX51_PAD_SD1_DATA2__SD1_DATA2,
+	MX51_PAD_SD1_DATA3__SD1_DATA3,
+
+	MX51_PAD_SD2_CMD__SD2_CMD,
+	MX51_PAD_SD2_CLK__SD2_CLK,
+	MX51_PAD_SD2_DATA0__SD2_DATA0,
+	MX51_PAD_SD2_DATA1__SD2_DATA1,
+	MX51_PAD_SD2_DATA2__SD2_DATA2,
+	MX51_PAD_SD2_DATA3__SD2_DATA3,
+
+	MX51_PAD_AUD3_BB_TXD__AUD3_BB_TXD,
+	MX51_PAD_AUD3_BB_RXD__AUD3_BB_RXD,
+	MX51_PAD_AUD3_BB_CK__AUD3_BB_CK,
+	MX51_PAD_AUD3_BB_FS__AUD3_BB_FS,
+
+	MX51_PAD_CSPI1_SS1__CSPI1_SS1,
+
+	MX51_PAD_DI_GP3__CSI1_DATA_EN,
+	MX51_PAD_CSI1_D10__CSI1_D10,
+	MX51_PAD_CSI1_D11__CSI1_D11,
+	MX51_PAD_CSI1_D12__CSI1_D12,
+	MX51_PAD_CSI1_D13__CSI1_D13,
+	MX51_PAD_CSI1_D14__CSI1_D14,
+	MX51_PAD_CSI1_D15__CSI1_D15,
+	MX51_PAD_CSI1_D16__CSI1_D16,
+	MX51_PAD_CSI1_D17__CSI1_D17,
+	MX51_PAD_CSI1_D18__CSI1_D18,
+	MX51_PAD_CSI1_D19__CSI1_D19,
+	MX51_PAD_CSI1_VSYNC__CSI1_VSYNC,
+	MX51_PAD_CSI1_HSYNC__CSI1_HSYNC,
+
+	MX51_PAD_OWIRE_LINE__SPDIF_OUT1,
+};
 
 /* working point(wp): 0 - 800MHz; 1 - 166.25MHz; */
 static struct cpu_wp cpu_wp_auto[] = {
@@ -124,7 +291,7 @@ static struct fb_videomode video_modes[] = {
 	 FB_VMODE_NONINTERLACED,
 	 0,},
 	{
-	 /* MITSUBISHI LVDS panel */
+	 /*MITSUBISHI LVDS panel */
 	 "XGA", 60, 1024, 768, 15385,
 	 220, 40,
 	 21, 7,
@@ -190,10 +357,68 @@ static struct mxc_vpu_platform_data mxc_vpu_data = {
 	.reset = mx5_vpu_reset,
 };
 
-extern void mx51_babbage_gpio_spi_chipselect_active(int cspi_mode, int status,
-						    int chipselect);
-extern void mx51_babbage_gpio_spi_chipselect_inactive(int cspi_mode, int status,
-						      int chipselect);
+/* workaround for ecspi chipselect pin may not keep correct level when idle */
+static void mx51_babbage_gpio_spi_chipselect_active(int cspi_mode, int status,
+					     int chipselect)
+{
+	switch (cspi_mode) {
+	case 1:
+		switch (chipselect) {
+		case 0x1:
+			{
+			struct pad_desc cspi1_ss0 = MX51_PAD_CSPI1_SS0__CSPI1_SS0;
+
+			mxc_iomux_v3_setup_pad(&cspi1_ss0);
+			break;
+			}
+		case 0x2:
+			{
+			struct pad_desc cspi1_ss0_gpio = MX51_PAD_CSPI1_SS0__GPIO_4_24;
+
+			mxc_iomux_v3_setup_pad(&cspi1_ss0_gpio);
+			gpio_request(BABBAGE_CSP1_SS0_GPIO, "cspi1-gpio");
+			gpio_direction_output(BABBAGE_CSP1_SS0_GPIO, 0);
+			gpio_set_value(BABBAGE_CSP1_SS0_GPIO, 1 & (~status));
+			break;
+			}
+		default:
+			break;
+		}
+		break;
+	case 2:
+		break;
+	case 3:
+		break;
+	default:
+		break;
+	}
+}
+
+static void mx51_babbage_gpio_spi_chipselect_inactive(int cspi_mode, int status,
+					       int chipselect)
+{
+	switch (cspi_mode) {
+	case 1:
+		switch (chipselect) {
+		case 0x1:
+			break;
+		case 0x2:
+			gpio_free(BABBAGE_CSP1_SS0_GPIO);
+			break;
+
+		default:
+			break;
+		}
+		break;
+	case 2:
+		break;
+	case 3:
+		break;
+	default:
+		break;
+	}
+}
+
 static struct mxc_spi_master mxcspi1_data = {
 	.maxchipselect = 4,
 	.spi_version = 23,
@@ -296,26 +521,24 @@ static int __init mxc_init_fb(void)
 		return 0;
 
 	/* DI0-LVDS */
-	gpio_set_value(IOMUX_TO_GPIO(MX51_PIN_DI1_D0_CS), 0);
+	gpio_set_value(BABBAGE_LVDS_POWER_DOWN, 0);
 	msleep(1);
-	gpio_set_value(IOMUX_TO_GPIO(MX51_PIN_DI1_D0_CS), 1);
-	gpio_set_value(IOMUX_TO_GPIO(MX51_PIN_CSI2_D12), 1);
-	gpio_set_value(IOMUX_TO_GPIO(MX51_PIN_CSI2_D13), 1);
+	gpio_set_value(BABBAGE_LVDS_POWER_DOWN, 1);
+	gpio_set_value(BABBAGE_LCD_3V3_ON, 1);
+	gpio_set_value(BABBAGE_LCD_5V_ON, 1);
 
 	/* DVI Detect */
-	gpio_request(IOMUX_TO_GPIO(MX51_PIN_NANDF_D12), "nandf_d12");
-	gpio_direction_input(IOMUX_TO_GPIO(MX51_PIN_NANDF_D12));
+	gpio_request(BABBAGE_DVI_DET, "dvi-detect");
+	gpio_direction_input(BABBAGE_DVI_DET);
 	/* DVI Reset - Assert for i2c disabled mode */
-	gpio_request(IOMUX_TO_GPIO(MX51_PIN_DISPB2_SER_DIN), "dispb2_ser_din");
-	gpio_set_value(IOMUX_TO_GPIO(MX51_PIN_DISPB2_SER_DIN), 0);
-	gpio_direction_output(IOMUX_TO_GPIO(MX51_PIN_DISPB2_SER_DIN), 0);
+	gpio_request(BABBAGE_DVI_RESET, "dvi-reset");
+	gpio_direction_output(BABBAGE_DVI_RESET, 0);
 	/* DVI Power-down */
-	gpio_request(IOMUX_TO_GPIO(MX51_PIN_DISPB2_SER_DIO), "dispb2_ser_di0");
-	gpio_set_value(IOMUX_TO_GPIO(MX51_PIN_DISPB2_SER_DIO), 1);
-	gpio_direction_output(IOMUX_TO_GPIO(MX51_PIN_DISPB2_SER_DIO), 0);
+	gpio_request(BABBAGE_DVI_POWER, "dvi-power");
+	gpio_direction_output(BABBAGE_DVI_POWER, 1);
 
 	/* WVGA Reset */
-	gpio_set_value(IOMUX_TO_GPIO(MX51_PIN_DI1_D1_CS), 1);
+	gpio_set_value(BABBAGE_DISP_BRIGHTNESS_CTL, 1);
 
 	if (primary_di) {
 		printk(KERN_INFO "DI1 is primary\n");
@@ -437,15 +660,15 @@ static int handle_edid(int *pixclk)
 
 static void dvi_reset(void)
 {
-	gpio_direction_output(IOMUX_TO_GPIO(MX51_PIN_DISPB2_SER_DIN), 0);
-	gpio_set_value(IOMUX_TO_GPIO(MX51_PIN_DISPB2_SER_DIN), 0);
+	gpio_direction_output(BABBAGE_DVI_RESET, 0);
+	gpio_set_value(BABBAGE_DVI_RESET, 0);
 	msleep(50);
 
 	/* do reset */
-	gpio_set_value(IOMUX_TO_GPIO(MX51_PIN_DISPB2_SER_DIN), 1);
+	gpio_set_value(BABBAGE_DVI_RESET, 1);
 	msleep(20);		/* tRES >= 50us */
 
-	gpio_set_value(IOMUX_TO_GPIO(MX51_PIN_DISPB2_SER_DIN), 0);
+	gpio_set_value(BABBAGE_DVI_RESET, 0);
 }
 
 static struct mxc_lcd_platform_data dvi_data = {
@@ -456,14 +679,13 @@ static struct mxc_lcd_platform_data dvi_data = {
 
 static void vga_reset(void)
 {
-	gpio_request(IOMUX_TO_GPIO(MX51_PIN_EIM_A19), "eim_a19");
-	gpio_direction_output(IOMUX_TO_GPIO(MX51_PIN_EIM_A19), 0);
-	gpio_set_value(IOMUX_TO_GPIO(MX51_PIN_EIM_A19), 0);
+
+	gpio_set_value(BABBAGE_VGA_RESET, 0);
 	msleep(50);
 	/* do reset */
-	gpio_set_value(IOMUX_TO_GPIO(MX51_PIN_EIM_A19), 1);
+	gpio_set_value(BABBAGE_VGA_RESET, 1);
 	msleep(10);		/* tRES >= 50us */
-	gpio_set_value(IOMUX_TO_GPIO(MX51_PIN_EIM_A19), 0);
+	gpio_set_value(BABBAGE_VGA_RESET, 0);
 }
 
 static struct mxc_lcd_platform_data vga_data = {
@@ -476,22 +698,23 @@ static struct mxc_lcd_platform_data vga_data = {
 static void si4702_reset(void)
 {
 	return;
-	gpio_set_value(IOMUX_TO_GPIO(MX51_PIN_EIM_A21), 0);
+
+	gpio_set_value(BABBAGE_FM_RESET, 0);
 	msleep(100);
-	gpio_set_value(IOMUX_TO_GPIO(MX51_PIN_EIM_A21), 1);
+	gpio_set_value(BABBAGE_FM_RESET, 1);
 	msleep(100);
 }
 
 static void si4702_clock_ctl(int flag)
 {
-	gpio_set_value(IOMUX_TO_GPIO(MX51_PIN_EIM_A18), flag);
+	gpio_set_value(BABBAGE_FM_PWR, flag);
 	msleep(100);
 }
 
 static void si4702_gpio_get(void)
 {
-	gpio_request(IOMUX_TO_GPIO(MX51_PIN_EIM_A18), "eim_a18");
-	gpio_direction_output(IOMUX_TO_GPIO(MX51_PIN_EIM_A18), 0);
+	gpio_request(BABBAGE_FM_PWR, "fm-power");
+	gpio_direction_output(BABBAGE_FM_PWR, 0);
 }
 
 static void si4702_gpio_put(void)
@@ -617,9 +840,9 @@ static int sdhc_write_protect(struct device *dev)
 	unsigned short rc = 0;
 
 	if (to_platform_device(dev)->id == 0)
-		rc = gpio_get_value(IOMUX_TO_GPIO(MX51_PIN_GPIO1_1));
+		rc = gpio_get_value(BABBAGE_SD1_WP);
 	else
-		rc = gpio_get_value(IOMUX_TO_GPIO(MX51_PIN_GPIO1_5));
+		rc = gpio_get_value(BABBAGE_SD2_WP);
 
 	return rc;
 }
@@ -629,15 +852,15 @@ static unsigned int sdhc_get_card_det_status(struct device *dev)
 	int ret;
 
 	if (to_platform_device(dev)->id == 0) {
-		ret = gpio_get_value(IOMUX_TO_GPIO(MX51_PIN_GPIO1_0));
+		ret = gpio_get_value(BABBAGE_SD1_CD);
 		return ret;
 	} else {		/* config the det pin for SDHC2 */
 		if (board_is_rev(BOARD_REV_2))
 			/* BB2.5 */
-			ret = gpio_get_value(IOMUX_TO_GPIO(MX51_PIN_GPIO1_6));
+			ret = gpio_get_value(BABBAGE_SD2_CD_2_5);
 		else
 			/* BB2.0 */
-			ret = gpio_get_value(IOMUX_TO_GPIO(MX51_PIN_GPIO1_4));
+			ret = gpio_get_value(BABBAGE_SD2_CD_2_0);
 		return ret;
 	}
 }
@@ -669,23 +892,20 @@ static struct mxc_mmc_platform_data mmc2_data = {
 
 static int mxc_sgtl5000_amp_enable(int enable)
 {
-	gpio_set_value(IOMUX_TO_GPIO(MX51_PIN_EIM_A23), enable ? 1 : 0);
+	gpio_set_value(BABBAGE_AUDAMP_STBY, enable ? 1 : 0);
 	return 0;
 }
 
 static int headphone_det_status(void)
 {
-	if (cpu_is_mx51_rev(CHIP_REV_1_1) == 2)
-		return (gpio_get_value(IOMUX_TO_GPIO(MX51_PIN_NANDF_D14)) == 0);
-
-	return gpio_get_value(IOMUX_TO_GPIO(MX51_PIN_NANDF_CS0));
+	return (gpio_get_value(BABBAGE_HEADPHONE_DET) == 0);
 }
 
 static struct mxc_audio_platform_data sgtl5000_data = {
 	.ssi_num = 1,
 	.src_port = 2,
 	.ext_port = 3,
-	.hp_irq = IOMUX_TO_IRQ(MX51_PIN_NANDF_D14),
+	.hp_irq = IOMUX_TO_IRQ_V3(BABBAGE_HEADPHONE_DET),
 	.hp_status = headphone_det_status,
 	.amp_enable = mxc_sgtl5000_amp_enable,
 	.sysclk = 12288000,
@@ -694,6 +914,15 @@ static struct mxc_audio_platform_data sgtl5000_data = {
 static struct platform_device mxc_sgtl5000_device = {
 	.name = "imx-3stack-sgtl5000",
 };
+
+static int __initdata enable_w1 = { 0 };
+static int __init w1_setup(char *__unused)
+{
+	enable_w1 = 1;
+	return cpu_is_mx51();
+}
+
+__setup("w1", w1_setup);
 
 /*!
  * Board specific fixup function. It is called by \b setup_arch() in
@@ -811,7 +1040,7 @@ static int __init mxc_init_power_key(void)
 {
 	/* Set power key as wakeup resource */
 	int irq, ret;
-	irq = IOMUX_TO_IRQ(MX51_PIN_EIM_A27);
+	irq = IOMUX_TO_IRQ_V3(BABBAGE_POWER_KEY);
 	set_irq_type(irq, IRQF_TRIGGER_RISING);
 	ret = request_irq(irq, power_key_int, 0, "power_key", 0);
 	if (ret)
@@ -821,6 +1050,106 @@ static int __init mxc_init_power_key(void)
 	return ret;
 }
 late_initcall(mxc_init_power_key);
+
+static void __init mx51_babbage_io_init(void)
+{
+	mxc_iomux_v3_setup_multiple_pads(mx51babbage_pads,
+					ARRAY_SIZE(mx51babbage_pads));
+
+	gpio_request(BABBAGE_PMIC_INT, "pmic-int");
+	gpio_request(BABBAGE_SD1_CD, "sdhc1-detect");
+	gpio_request(BABBAGE_SD1_WP, "sdhc1-wp");
+
+	gpio_direction_input(BABBAGE_PMIC_INT);
+	gpio_direction_input(BABBAGE_SD1_CD);
+	gpio_direction_input(BABBAGE_SD1_WP);
+
+	if (board_is_rev(BOARD_REV_2)) {
+		/* SD2 CD for BB2.5 */
+		gpio_request(BABBAGE_SD2_CD_2_5, "sdhc2-detect");
+		gpio_direction_input(BABBAGE_SD2_CD_2_5);
+	} else {
+		/* SD2 CD for BB2.0 */
+		gpio_request(BABBAGE_SD2_CD_2_0, "sdhc2-detect");
+		gpio_direction_input(BABBAGE_SD2_CD_2_0);
+	}
+	gpio_request(BABBAGE_SD2_WP, "sdhc2-wp");
+	gpio_direction_input(BABBAGE_SD2_WP);
+
+	/* reset FEC PHY */
+	gpio_request(BABBAGE_FEC_PHY_RESET, "fec-phy-reset");
+	gpio_direction_output(BABBAGE_FEC_PHY_RESET, 0);
+	msleep(10);
+	gpio_set_value(BABBAGE_FEC_PHY_RESET, 1);
+
+	/* reset FM */
+	gpio_request(BABBAGE_FM_RESET, "fm-reset");
+	gpio_direction_output(BABBAGE_FM_RESET, 0);
+	msleep(10);
+	gpio_set_value(BABBAGE_FM_RESET, 1);
+
+	/* Drive 26M_OSC_EN line high */
+	gpio_request(BABBAGE_26M_OSC_EN, "26m-osc-en");
+	gpio_direction_output(BABBAGE_26M_OSC_EN, 1);
+
+	/* Drive USB_CLK_EN_B line low */
+	gpio_request(BABBAGE_USB_CLK_EN_B, "usb-clk_en_b");
+	gpio_direction_output(BABBAGE_USB_CLK_EN_B, 0);
+
+	/* De-assert USB PHY RESETB */
+	gpio_request(BABBAGE_PHY_RESET, "usb-phy-reset");
+	gpio_direction_output(BABBAGE_PHY_RESET, 1);
+
+	/* hphone_det_b */
+	gpio_request(BABBAGE_HEADPHONE_DET, "hphone-det");
+	gpio_direction_input(BABBAGE_HEADPHONE_DET);
+
+	/* audio_clk_en_b */
+	gpio_request(BABBAGE_AUDIO_CLK_EN, "audio-clk-en");
+	gpio_direction_output(BABBAGE_AUDIO_CLK_EN, 0);
+
+	/* power key */
+	gpio_request(BABBAGE_POWER_KEY, "power-key");
+	gpio_direction_input(BABBAGE_POWER_KEY);
+
+	if (cpu_is_mx51_rev(CHIP_REV_3_0) > 0) {
+		/* DVI_I2C_ENB = 0 tristates the DVI I2C level shifter */
+		gpio_request(BABBAGE_DVI_I2C_EN, "dvi-i2c-en");
+		gpio_direction_output(BABBAGE_DVI_I2C_EN, 0);
+	}
+
+	/* Deassert VGA reset to free i2c bus */
+	gpio_request(BABBAGE_VGA_RESET, "vga-reset");
+	gpio_direction_output(BABBAGE_VGA_RESET, 1);
+
+	/* LCD related gpio */
+	gpio_request(BABBAGE_DISP_BRIGHTNESS_CTL, "disp-brightness-ctl");
+	gpio_request(BABBAGE_LVDS_POWER_DOWN, "lvds-power-down");
+	gpio_request(BABBAGE_LCD_3V3_ON, "lcd-3v3-on");
+	gpio_request(BABBAGE_LCD_5V_ON, "lcd-5v-on");
+	gpio_direction_output(BABBAGE_DISP_BRIGHTNESS_CTL, 0);
+	gpio_direction_output(BABBAGE_LVDS_POWER_DOWN, 0);
+	gpio_direction_output(BABBAGE_LCD_3V3_ON, 0);
+	gpio_direction_output(BABBAGE_LCD_5V_ON, 0);
+
+	/* Camera reset */
+	gpio_request(BABBAGE_CAM_RESET, "cam-reset");
+	gpio_direction_output(BABBAGE_CAM_RESET, 1);
+
+	/* Camera low power */
+	gpio_request(BABBAGE_CAM_LOW_POWER, "cam-low-power");
+	gpio_direction_output(BABBAGE_CAM_LOW_POWER, 0);
+
+	/* OSC_EN */
+	gpio_request(BABBAGE_OSC_EN_B, "osc-en");
+	gpio_direction_output(BABBAGE_OSC_EN_B, 1);
+
+	if (enable_w1) {
+		/* OneWire */
+		struct pad_desc onewire = MX51_PAD_OWIRE_LINE__OWIRE_LINE;
+		mxc_iomux_v3_setup_pad(&onewire);
+	}
+}
 
 /*!
  * Board specific initialization.
@@ -833,10 +1162,10 @@ static void __init mxc_board_init(void)
 	mxc_spdif_data.spdif_core_clk = clk_get(NULL, "spdif_xtal_clk");
 	clk_put(mxc_spdif_data.spdif_core_clk);
 	/* SD card detect irqs */
-	mxcsdhc2_device.resource[2].start = IOMUX_TO_IRQ(MX51_PIN_GPIO1_6);
-	mxcsdhc2_device.resource[2].end = IOMUX_TO_IRQ(MX51_PIN_GPIO1_6);
-	mxcsdhc1_device.resource[2].start = IOMUX_TO_IRQ(MX51_PIN_GPIO1_0);
-	mxcsdhc1_device.resource[2].end = IOMUX_TO_IRQ(MX51_PIN_GPIO1_0);
+	mxcsdhc2_device.resource[2].start = IOMUX_TO_IRQ_V3(BABBAGE_SD2_CD_2_5);
+	mxcsdhc2_device.resource[2].end = IOMUX_TO_IRQ_V3(BABBAGE_SD2_CD_2_5);
+	mxcsdhc1_device.resource[2].start = IOMUX_TO_IRQ_V3(BABBAGE_SD1_CD);
+	mxcsdhc1_device.resource[2].end = IOMUX_TO_IRQ_V3(BABBAGE_SD1_CD);
 
 	mxc_cpu_common_init();
 	mxc_register_gpios();
@@ -900,8 +1229,8 @@ static void __init mxc_board_init(void)
 	if (cpu_is_mx51_rev(CHIP_REV_1_1) == 2) {
 		sgtl5000_data.sysclk = 26000000;
 	}
-	gpio_request(IOMUX_TO_GPIO(MX51_PIN_EIM_A23), "eim_a23");
-	gpio_direction_output(IOMUX_TO_GPIO(MX51_PIN_EIM_A23), 0);
+	gpio_request(BABBAGE_AUDAMP_STBY, "audioamp-stdby");
+	gpio_direction_output(BABBAGE_AUDAMP_STBY, 0);
 	mxc_register_device(&mxc_sgtl5000_device, &sgtl5000_data);
 
 	mx5_usb_dr_init();
