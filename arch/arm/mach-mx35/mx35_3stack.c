@@ -418,7 +418,7 @@ static struct mxc_fm_platform_data si4702_data = {
 
 static void adv7180_pwdn(int pwdn)
 {
-	pmic_gpio_set_bit_val(MCU_GPIO_REG_GPIO_CONTROL_1, 1, pwdn);
+	pmic_gpio_set_bit_val(MCU_GPIO_REG_GPIO_CONTROL_1, 1, ~pwdn);
 }
 
 static void adv7180_reset(void)
