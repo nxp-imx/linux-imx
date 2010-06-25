@@ -128,30 +128,30 @@ static video_fmt_t video_fmts[] = {
 	{			/*! NTSC */
 	 .v4l2_id = V4L2_STD_NTSC,
 	 .name = "NTSC",
-	 .raw_width = 720 - 1,		/* SENS_FRM_WIDTH */
-	 .raw_height = 288 - 1,		/* SENS_FRM_HEIGHT */
-	 .active_width = 720,		/* ACT_FRM_WIDTH plus 1 */
-	 .active_height = (480 / 2),	/* ACT_FRM_HEIGHT plus 1 */
-	 .active_top = 12,
+	 .raw_width = 720,		/* SENS_FRM_WIDTH */
+	 .raw_height = 525,		/* SENS_FRM_HEIGHT */
+	 .active_width = 720,		/* ACT_FRM_WIDTH */
+	 .active_height = 240,		/* ACT_FRM_HEIGHT */
+	 .active_top = 0,
 	 .active_left = 0,
 	 },
 	{			/*! (B, G, H, I, N) PAL */
 	 .v4l2_id = V4L2_STD_PAL,
 	 .name = "PAL",
-	 .raw_width = 720 - 1,
-	 .raw_height = (576 / 2) + 24 * 2 - 1,
+	 .raw_width = 720,
+	 .raw_height = 625,
 	 .active_width = 720,
-	 .active_height = (576 / 2),
+	 .active_height = 288,
 	 .active_top = 0,
 	 .active_left = 0,
 	 },
 	{			/*! Unlocked standard */
 	 .v4l2_id = V4L2_STD_ALL,
 	 .name = "Autodetect",
-	 .raw_width = 720 - 1,
-	 .raw_height = (576 / 2) + 24 * 2 - 1,
+	 .raw_width = 720,
+	 .raw_height = 625,
 	 .active_width = 720,
-	 .active_height = (576 / 2),
+	 .active_height = 288,
 	 .active_top = 0,
 	 .active_left = 0,
 	 },
@@ -1139,7 +1139,7 @@ static int mxc_v4l2_s_param(cam_data *cam, struct v4l2_streamparm *parm)
 	/* This may not work on other platforms. Check when adding a new one.*/
 	pr_debug("   clock_curr=mclk=%d\n", ifparm.u.bt656.clock_curr);
 	if (ifparm.u.bt656.clock_curr == 0) {
-		csi_param.clk_mode = IPU_CSI_CLK_MODE_CCIR656_PROGRESSIVE;
+		csi_param.clk_mode = IPU_CSI_CLK_MODE_CCIR656_INTERLACED;
 	} else {
 		csi_param.clk_mode = IPU_CSI_CLK_MODE_GATED_CLK;
 	}
@@ -2569,6 +2569,7 @@ static int mxc_v4l2_master_attach(struct v4l2_int_device *slave)
 	}
 
 	ipu_csi_enable_mclk_if(CSI_MCLK_I2C, cam->csi, true, true);
+	vidioc_int_s_power(cam->sensor, 1);
 	vidioc_int_dev_init(slave);
 	ipu_csi_enable_mclk_if(CSI_MCLK_I2C, cam->csi, false, false);
 	cam_fmt.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;

@@ -101,10 +101,17 @@ ipu_csi_init_interface(uint16_t width, uint16_t height, uint32_t pixel_fmt,
 	__raw_writel((width - 1) | (height - 1) << 16, CSI_SENS_FRM_SIZE(csi));
 
 	/* Set CCIR registers */
-	if ((cfg_param.clk_mode == IPU_CSI_CLK_MODE_CCIR656_PROGRESSIVE) ||
-	    (cfg_param.clk_mode == IPU_CSI_CLK_MODE_CCIR656_INTERLACED)) {
-		_ipu_csi_ccir_err_detection_enable(csi);
+	if (cfg_param.clk_mode == IPU_CSI_CLK_MODE_CCIR656_PROGRESSIVE) {
 		__raw_writel(0x40030, CSI_CCIR_CODE_1(csi));
+		__raw_writel(0xFF0000, CSI_CCIR_CODE_3(csi));
+	} else if (cfg_param.clk_mode == IPU_CSI_CLK_MODE_CCIR656_INTERLACED) {
+		_ipu_csi_ccir_err_detection_enable(csi);
+		/* Field0BlankEnd = 0x7, Field0BlankStart = 0x3,
+		   Field0ActiveEnd = 0x5, Field0ActiveStart = 0x1 */
+		__raw_writel(0xD07DF, CSI_CCIR_CODE_1(csi));
+		/* Field1BlankEnd = 0x6, Field1BlankStart = 0x2,
+		   Field1ActiveEnd = 0x4, Field1ActiveStart = 0 */
+		__raw_writel(0x40596, CSI_CCIR_CODE_2(csi));
 		__raw_writel(0xFF0000, CSI_CCIR_CODE_3(csi));
 	} else if ((cfg_param.clk_mode ==
 			IPU_CSI_CLK_MODE_CCIR1120_PROGRESSIVE_DDR) ||

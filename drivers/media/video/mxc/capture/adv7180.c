@@ -1,5 +1,5 @@
 /*
- * Copyright 2005-2009 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2005-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -39,6 +39,7 @@ static struct regulator *dvddio_regulator;
 static struct regulator *dvdd_regulator;
 static struct regulator *avdd_regulator;
 static struct regulator *pvdd_regulator;
+static struct mxc_tvin_platform_data *tvin_plat;
 
 extern void gpio_sensor_active(void);
 extern void gpio_sensor_inactive(void);
@@ -118,26 +119,26 @@ static video_fmt_t video_fmts[] = {
 	{			/*! NTSC */
 	 .v4l2_id = V4L2_STD_NTSC,
 	 .name = "NTSC",
-	 .raw_width = 720 - 1,	/* SENS_FRM_WIDTH */
-	 .raw_height = 288 - 1,	/* SENS_FRM_HEIGHT */
+	 .raw_width = 720,	/* SENS_FRM_WIDTH */
+	 .raw_height = 525,	/* SENS_FRM_HEIGHT */
 	 .active_width = 720,	/* ACT_FRM_WIDTH plus 1 */
-	 .active_height = (480 / 2),	/* ACT_FRM_WIDTH plus 1 */
+	 .active_height = 480,	/* ACT_FRM_WIDTH plus 1 */
 	 },
 	{			/*! (B, G, H, I, N) PAL */
 	 .v4l2_id = V4L2_STD_PAL,
 	 .name = "PAL",
-	 .raw_width = 720 - 1,
-	 .raw_height = (576 / 2) + 24 * 2 - 1,
+	 .raw_width = 720,
+	 .raw_height = 625,
 	 .active_width = 720,
-	 .active_height = (576 / 2),
+	 .active_height = 576,
 	 },
 	{			/*! Unlocked standard */
 	 .v4l2_id = V4L2_STD_ALL,
 	 .name = "Autodetect",
-	 .raw_width = 720 - 1,
-	 .raw_height = (576 / 2) + 24 * 2 - 1,
+	 .raw_width = 720,
+	 .raw_height = 625,
 	 .active_width = 720,
-	 .active_height = (576 / 2),
+	 .active_height = 576,
 	 },
 };
 
@@ -246,6 +247,10 @@ static void adv7180_get_std(v4l2_std_id *std)
 
 	dev_dbg(&adv7180_data.i2c_client->dev, "In adv7180_get_std\n");
 
+	/* Make sure power on */
+	if (tvin_plat->pwdn)
+		tvin_plat->pwdn(0);
+
 	/* Read the AD_RESULT to get the detect output video standard */
 	tmp = adv7180_read(ADV7180_STATUS_1) & 0x70;
 
@@ -335,6 +340,11 @@ static int ioctl_s_power(struct v4l2_int_device *s, int on)
 
 	if (on && !sensor->on) {
 		gpio_sensor_active();
+
+		/* Make sure pwoer on */
+		if (tvin_plat->pwdn)
+			tvin_plat->pwdn(0);
+
 		if (adv7180_write_reg(ADV7180_PWR_MNG, 0) != 0)
 			return -EIO;
 	} else if (!on && sensor->on) {
@@ -500,6 +510,10 @@ static int ioctl_g_ctrl(struct v4l2_int_device *s, struct v4l2_control *vc)
 
 	dev_dbg(&adv7180_data.i2c_client->dev, "In adv7180:ioctl_g_ctrl\n");
 
+	/* Make sure power on */
+	if (tvin_plat->pwdn)
+		tvin_plat->pwdn(0);
+
 	switch (vc->id) {
 	case V4L2_CID_BRIGHTNESS:
 		dev_dbg(&adv7180_data.i2c_client->dev,
@@ -592,6 +606,10 @@ static int ioctl_s_ctrl(struct v4l2_int_device *s, struct v4l2_control *vc)
 	u8 tmp;
 
 	dev_dbg(&adv7180_data.i2c_client->dev, "In adv7180:ioctl_s_ctrl\n");
+
+	/* Make sure power on */
+	if (tvin_plat->pwdn)
+		tvin_plat->pwdn(0);
 
 	switch (vc->id) {
 	case V4L2_CID_BRIGHTNESS:
@@ -803,13 +821,13 @@ static int adv7180_probe(struct i2c_client *client,
 {
 	int rev_id;
 	int ret = 0;
-	struct mxc_tvin_platform_data *plat_data = client->dev.platform_data;
+	tvin_plat = client->dev.platform_data;
 
 	dev_dbg(&adv7180_data.i2c_client->dev, "In adv7180_probe\n");
 
-	if (plat_data->dvddio_reg) {
+	if (tvin_plat->dvddio_reg) {
 		dvddio_regulator =
-		    regulator_get(&client->dev, plat_data->dvddio_reg);
+		    regulator_get(&client->dev, tvin_plat->dvddio_reg);
 		if (!IS_ERR_VALUE((unsigned long)dvddio_regulator)) {
 			regulator_set_voltage(dvddio_regulator, 3300000, 3300000);
 			if (regulator_enable(dvddio_regulator) != 0)
@@ -817,9 +835,9 @@ static int adv7180_probe(struct i2c_client *client,
 		}
 	}
 
-	if (plat_data->dvdd_reg) {
+	if (tvin_plat->dvdd_reg) {
 		dvdd_regulator =
-		    regulator_get(&client->dev, plat_data->dvdd_reg);
+		    regulator_get(&client->dev, tvin_plat->dvdd_reg);
 		if (!IS_ERR_VALUE((unsigned long)dvdd_regulator)) {
 			regulator_set_voltage(dvdd_regulator, 1800000, 1800000);
 			if (regulator_enable(dvdd_regulator) != 0)
@@ -827,9 +845,9 @@ static int adv7180_probe(struct i2c_client *client,
 		}
 	}
 
-	if (plat_data->avdd_reg) {
+	if (tvin_plat->avdd_reg) {
 		avdd_regulator =
-		    regulator_get(&client->dev, plat_data->avdd_reg);
+		    regulator_get(&client->dev, tvin_plat->avdd_reg);
 		if (!IS_ERR_VALUE((unsigned long)avdd_regulator)) {
 			regulator_set_voltage(avdd_regulator, 1800000, 1800000);
 			if (regulator_enable(avdd_regulator) != 0)
@@ -837,9 +855,9 @@ static int adv7180_probe(struct i2c_client *client,
 		}
 	}
 
-	if (plat_data->pvdd_reg) {
+	if (tvin_plat->pvdd_reg) {
 		pvdd_regulator =
-		    regulator_get(&client->dev, plat_data->pvdd_reg);
+		    regulator_get(&client->dev, tvin_plat->pvdd_reg);
 		if (!IS_ERR_VALUE((unsigned long)pvdd_regulator)) {
 			regulator_set_voltage(pvdd_regulator, 1800000, 1800000);
 			if (regulator_enable(pvdd_regulator) != 0)
@@ -847,11 +865,12 @@ static int adv7180_probe(struct i2c_client *client,
 		}
 	}
 
-	if (plat_data->reset)
-		plat_data->reset();
 
-	if (plat_data->pwdn)
-		plat_data->pwdn(1);
+	if (tvin_plat->reset)
+		tvin_plat->reset();
+
+	if (tvin_plat->pwdn)
+		tvin_plat->pwdn(0);
 
 	msleep(1);
 
@@ -913,7 +932,7 @@ static int adv7180_detach(struct i2c_client *client)
 		__func__, IF_NAME, client->addr << 1, client->adapter->name);
 
 	if (plat_data->pwdn)
-		plat_data->pwdn(0);
+		plat_data->pwdn(1);
 
 	if (dvddio_regulator) {
 		regulator_disable(dvddio_regulator);

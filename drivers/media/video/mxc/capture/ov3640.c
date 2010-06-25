@@ -1,5 +1,5 @@
 /*
- * Copyright 2005-2009 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2005-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -674,6 +674,7 @@ static struct regulator *io_regulator;
 static struct regulator *core_regulator;
 static struct regulator *analog_regulator;
 static struct regulator *gpo_regulator;
+static struct mxc_camera_platform_data *camera_plat;
 
 static int ov3640_probe(struct i2c_client *adapter,
 				const struct i2c_device_id *device_id);
@@ -843,6 +844,10 @@ static int ioctl_s_power(struct v4l2_int_device *s, int on)
 		if (analog_regulator)
 			if (regulator_enable(analog_regulator) != 0)
 				return -EIO;
+		/* Make sure power on */
+		if (camera_plat->pwdn)
+			camera_plat->pwdn(0);
+
 	} else if (!on && sensor->on) {
 		if (analog_regulator)
 			regulator_disable(analog_regulator);
@@ -919,6 +924,10 @@ static int ioctl_s_parm(struct v4l2_int_device *s, struct v4l2_streamparm *a)
 	u32 tgt_fps;	/* target frames per secound */
 	enum ov3640_frame_rate frame_rate;
 	int ret = 0;
+
+	/* Make sure power on */
+	if (camera_plat->pwdn)
+		camera_plat->pwdn(0);
 
 	switch (a->type) {
 	/* This is the only case currently handled. */
@@ -1296,6 +1305,11 @@ static int ov3640_probe(struct i2c_client *client,
 		} else
 			gpo_regulator = NULL;
 	}
+
+	if (plat_data->pwdn)
+		plat_data->pwdn(0);
+
+	camera_plat = plat_data;
 
 	ov3640_int_device.priv = &ov3640_data;
 	retval = v4l2_int_device_register(&ov3640_int_device);

@@ -1,5 +1,5 @@
 /*
- * Copyright 2005-2009 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2005-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -90,9 +90,12 @@ ipu_csi_init_interface(uint16_t width, uint16_t height, uint32_t pixel_fmt,
 	__raw_writel(height << 16 | 0x22, CSI_FLASH_STROBE_2);
 
 	/* Set CCIR registers */
-	if ((sig.clk_mode == IPU_CSI_CLK_MODE_CCIR656_PROGRESSIVE) ||
-	    (sig.clk_mode == IPU_CSI_CLK_MODE_CCIR656_INTERLACED)) {
+	if (sig.clk_mode == IPU_CSI_CLK_MODE_CCIR656_PROGRESSIVE) {
 		__raw_writel(0x40030, CSI_CCIR_CODE_1);
+		__raw_writel(0xFF0000, CSI_CCIR_CODE_3);
+	} else if (sig.clk_mode == IPU_CSI_CLK_MODE_CCIR656_INTERLACED) {
+		__raw_writel(0xD07DF, CSI_CCIR_CODE_1);
+		__raw_writel(0x40596, CSI_CCIR_CODE_2);
 		__raw_writel(0xFF0000, CSI_CCIR_CODE_3);
 	}
 
