@@ -183,6 +183,17 @@ static int mxc_ipu_ioctl(struct inode *inode, struct file *file,
 
 		}
 		break;
+	case IPU_SELECT_MULTI_VDI_BUFFER:
+		{
+			uint32_t parm;
+			if (copy_from_user
+				(&parm, (uint32_t *) arg,
+				sizeof(uint32_t)))
+				return -EFAULT;
+
+			ret = ipu_select_multi_vdi_buffer(parm);
+		}
+		break;
 	case IPU_LINK_CHANNELS:
 		{
 			ipu_channel_link link;

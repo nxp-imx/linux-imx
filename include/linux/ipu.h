@@ -609,6 +609,9 @@ enum ipu_irq_line {
 	IPU_IRQ_CSI1_OUT_EOF = 1,
 	IPU_IRQ_CSI2_OUT_EOF = 2,
 	IPU_IRQ_CSI3_OUT_EOF = 3,
+	IPU_IRQ_VDI_P_IN_EOF = 8,
+	IPU_IRQ_VDI_C_IN_EOF = 9,
+	IPU_IRQ_VDI_N_IN_EOF = 10,
 	IPU_IRQ_PP_IN_EOF = 11,
 	IPU_IRQ_PRP_IN_EOF = 12,
 	IPU_IRQ_PRP_GRAPH_IN_EOF = 14,
@@ -1267,6 +1270,7 @@ typedef struct _ipu_csc_update {
 #define IPU_CALC_STRIPES_SIZE	      _IOWR('I', 0x27, ipu_stripe_parm)
 #define IPU_UPDATE_BUF_OFFSET         _IOW('I', 0x28, ipu_buf_offset_parm)
 #define IPU_CSC_UPDATE                _IOW('I', 0x29, ipu_csc_update)
+#define IPU_SELECT_MULTI_VDI_BUFFER   _IOW('I', 0x2A, uint32_t)
 
 int ipu_calc_stripes_sizes(const unsigned int input_frame_width,
 				unsigned int output_frame_width,
