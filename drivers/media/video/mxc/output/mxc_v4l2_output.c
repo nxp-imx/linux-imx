@@ -58,7 +58,6 @@ struct v4l2_output mxc_outputs[1] = {
 static int video_nr = 16;
 static spinlock_t g_lock = SPIN_LOCK_UNLOCKED;
 static int last_index_n;
-static int last_index_c;
 static unsigned int ipu_ic_out_max_width_size;
 static unsigned int ipu_ic_out_max_height_size;
 /* debug counters */
@@ -409,7 +408,6 @@ static void mxc_v4l2out_timer_handler(unsigned long arg)
 	int index, ret;
 	unsigned long lock_flags = 0;
 	vout_data *vout = (vout_data *) arg;
-	unsigned int aid_field_offset = 0, current_field_offset = 0;
 
 	spin_lock_irqsave(&g_lock, lock_flags);
 
@@ -438,59 +436,35 @@ static void mxc_v4l2out_timer_handler(unsigned long arg)
 	}
 
 	/* Dequeue buffer and pass to IPU */
-	if (INTERLACED_CONTENT(vout)) {
-		if (((LOAD_3FIELDS(vout)) && (vout->next_rdy_ipu_buf)) ||
-		    ((!LOAD_3FIELDS(vout)) && !(vout->next_rdy_ipu_buf))) {
-			aid_field_offset = vout->bytesperline;
-			current_field_offset = 0;
-			index = last_index_n;
-		} else {
-			aid_field_offset = 0;
-			current_field_offset = vout->bytesperline;
-			index = dequeue_buf(&vout->ready_q);
-			if (index == -1) {	/* no buffers ready, should never occur */
-				dev_err(&vout->video_dev->dev,
-					"mxc_v4l2out: timer - no queued buffers ready\n");
-				goto exit0;
-			}
-			g_buf_dq_cnt++;
-			vout->frame_count++;
-			last_index_n = index;
-		}
-	} else {
-		current_field_offset = 0;
-		index = dequeue_buf(&vout->ready_q);
-		if (index == -1) {	/* no buffers ready, should never occur */
-			dev_err(&vout->video_dev->dev,
-				"mxc_v4l2out: timer - no queued buffers ready\n");
-			goto exit0;
-		}
-		g_buf_dq_cnt++;
-		vout->frame_count++;
+	index = dequeue_buf(&vout->ready_q);
+	if (index == -1) {	/* no buffers ready, should never occur */
+		dev_err(&vout->video_dev->dev,
+			"mxc_v4l2out: timer - no queued buffers ready\n");
+		goto exit0;
 	}
+	g_buf_dq_cnt++;
+	vout->frame_count++;
 
 	/* update next buffer */
 	if (LOAD_3FIELDS(vout)) {
 		int index_n = index;
-		int index_p = last_index_c;
-		index = last_index_n;
-		vout->ipu_buf_p[vout->next_rdy_ipu_buf] = index_p;
-		vout->ipu_buf[vout->next_rdy_ipu_buf] = last_index_c = index;
-		vout->ipu_buf_n[vout->next_rdy_ipu_buf] = last_index_n = index_n;
-		last_index_n = vout->ipu_buf_n[vout->next_rdy_ipu_buf];
-		last_index_c = vout->ipu_buf[vout->next_rdy_ipu_buf];
+		int index_p = last_index_n;
+		vout->ipu_buf_p[vout->next_rdy_ipu_buf] = last_index_n;
+		vout->ipu_buf[vout->next_rdy_ipu_buf] = index;
+		vout->ipu_buf_n[vout->next_rdy_ipu_buf] = index;
 		ret = ipu_update_channel_buffer(vout->post_proc_ch,
 				IPU_INPUT_BUFFER,
 				vout->next_rdy_ipu_buf,
-				vout->v4l2_bufs[index].m.offset+current_field_offset);
+				vout->v4l2_bufs[index].m.offset);
 		ret += ipu_update_channel_buffer(MEM_VDI_PRP_VF_MEM_P,
 				IPU_INPUT_BUFFER,
 				vout->next_rdy_ipu_buf,
-				vout->v4l2_bufs[index_p].m.offset+aid_field_offset);
+				vout->v4l2_bufs[index_p].m.offset + vout->bytesperline);
 		ret += ipu_update_channel_buffer(MEM_VDI_PRP_VF_MEM_N,
 				IPU_INPUT_BUFFER,
 				vout->next_rdy_ipu_buf,
-				vout->v4l2_bufs[index_n].m.offset+aid_field_offset);
+				vout->v4l2_bufs[index_n].m.offset) + vout->bytesperline;
+		last_index_n = index;
 	} else {
 		vout->ipu_buf[vout->next_rdy_ipu_buf] = index;
 		if (vout->pp_split) {
@@ -501,8 +475,7 @@ static void mxc_v4l2out_timer_handler(unsigned long arg)
 					0,/* vout->next_rdy_ipu_buf,*/
 					(vout->v4l2_bufs[index].m.offset) +
 					vout->pp_left_stripe.input_column +
-					vout->pp_up_stripe.input_column * vout->bytesperline
-					+ current_field_offset);
+					vout->pp_up_stripe.input_column * vout->bytesperline);
 
 			/* the U/V offset has to be updated inside of IDMAC */
 			/* according to stripe offset */
@@ -515,14 +488,12 @@ static void mxc_v4l2out_timer_handler(unsigned long arg)
 					vout->offset.u_offset,
 					vout->offset.v_offset,
 					vout->pp_up_stripe.input_column,
-					vout->pp_left_stripe.input_column +
-					current_field_offset);
+					vout->pp_left_stripe.input_column);
 		} else
 			ret = ipu_update_channel_buffer(vout->post_proc_ch,
 					IPU_INPUT_BUFFER,
 					vout->next_rdy_ipu_buf,
-					vout->v4l2_bufs[index].m.offset +
-					current_field_offset);
+					vout->v4l2_bufs[index].m.offset);
 	}
 
 	if (ret < 0) {
@@ -709,12 +680,10 @@ static irqreturn_t mxc_v4l2out_work_irq_handler(int irq, void *dev_id)
 		/* release buffer. For split mode: if second stripe is done */
 		release_buffer = vout->pp_split ? (!(vout->pp_split_buf_num & 0x3)) : 1;
 		if (release_buffer) {
-			if ((!INTERLACED_CONTENT(vout)) || (vout->next_done_ipu_buf)) {
-				g_buf_output_cnt++;
-				vout->v4l2_bufs[last_buf].flags = V4L2_BUF_FLAG_DONE;
-				queue_buf(&vout->done_q, last_buf);
-				wake_up_interruptible(&vout->v4l_bufq);
-			}
+			g_buf_output_cnt++;
+			vout->v4l2_bufs[last_buf].flags = V4L2_BUF_FLAG_DONE;
+			queue_buf(&vout->done_q, last_buf);
+			wake_up_interruptible(&vout->v4l_bufq);
 			vout->ipu_buf[vout->next_done_ipu_buf] = -1;
 			if (LOAD_3FIELDS(vout)) {
 				vout->ipu_buf_p[vout->next_done_ipu_buf] = -1;
@@ -779,7 +748,6 @@ static int init_VDI_channel(vout_data *vout, ipu_channel_params_t params)
 static int init_VDI_in_channel_buffer(vout_data *vout, uint32_t in_pixel_fmt,
 				   uint16_t in_width, uint16_t in_height,
 				   uint32_t stride,
-				   dma_addr_t phyaddr_0, dma_addr_t phyaddr_1,
 				   uint32_t u_offset, uint32_t v_offset)
 {
 	struct device *dev = &vout->video_dev->dev;
@@ -787,7 +755,7 @@ static int init_VDI_in_channel_buffer(vout_data *vout, uint32_t in_pixel_fmt,
 	if (ipu_init_channel_buffer(MEM_VDI_PRP_VF_MEM, IPU_INPUT_BUFFER,
 				    in_pixel_fmt, in_width, in_height, stride,
 				    IPU_ROTATE_NONE,
-				    vout->v4l2_bufs[vout->ipu_buf[0]].m.offset+vout->bytesperline,
+				    vout->v4l2_bufs[vout->ipu_buf[0]].m.offset,
 				    vout->v4l2_bufs[vout->ipu_buf[0]].m.offset,
 				    u_offset, v_offset) != 0) {
 		dev_err(dev, "Error initializing VDI current input buffer\n");
@@ -798,7 +766,7 @@ static int init_VDI_in_channel_buffer(vout_data *vout, uint32_t in_pixel_fmt,
 					    IPU_INPUT_BUFFER,
 					    in_pixel_fmt, in_width, in_height,
 					    stride, IPU_ROTATE_NONE,
-					    vout->v4l2_bufs[vout->ipu_buf_p[0]].m.offset,
+					    vout->v4l2_bufs[vout->ipu_buf_p[0]].m.offset+vout->bytesperline,
 					    vout->v4l2_bufs[vout->ipu_buf_p[0]].m.offset+vout->bytesperline,
 					    u_offset, v_offset) != 0) {
 			dev_err(dev, "Error initializing VDI previous input buffer\n");
@@ -808,7 +776,7 @@ static int init_VDI_in_channel_buffer(vout_data *vout, uint32_t in_pixel_fmt,
 					    IPU_INPUT_BUFFER,
 					    in_pixel_fmt, in_width, in_height,
 					    stride, IPU_ROTATE_NONE,
-					    vout->v4l2_bufs[vout->ipu_buf_n[0]].m.offset,
+					    vout->v4l2_bufs[vout->ipu_buf_n[0]].m.offset+vout->bytesperline,
 					    vout->v4l2_bufs[vout->ipu_buf_n[0]].m.offset+vout->bytesperline,
 					    u_offset, v_offset) != 0) {
 			dev_err(dev, "Error initializing VDI next input buffer\n");
@@ -849,8 +817,6 @@ static int init_VDI(ipu_channel_params_t params, vout_data *vout,
 				       params.mem_prp_vf_mem.in_height,
 				       bytes_per_pixel(params.mem_prp_vf_mem.
 						       in_pixel_fmt),
-				       vout->v4l2_bufs[vout->ipu_buf[0]].m.offset,
-				       vout->v4l2_bufs[vout->ipu_buf[1]].m.offset,
 				       vout->offset.u_offset,
 				       vout->offset.v_offset) != 0) {
 		return -EINVAL;
@@ -1260,15 +1226,13 @@ static int mxc_v4l2out_streamon(vout_data * vout)
 		vout->ipu_buf[0] = dequeue_buf(&vout->ready_q);
 		vout->ipu_buf[1] = -1;
 		vout->frame_count = 1;
-		last_index_n = vout->ipu_buf[0];
 	} else {
 		vout->ipu_buf_p[0] = dequeue_buf(&vout->ready_q);
-		vout->ipu_buf[0] = vout->ipu_buf_p[0];
-		vout->ipu_buf_n[0] = dequeue_buf(&vout->ready_q);
+		vout->ipu_buf[0] = dequeue_buf(&vout->ready_q);
+		vout->ipu_buf_n[0] = vout->ipu_buf[0];
 		vout->ipu_buf_p[1] = -1;
 		vout->ipu_buf[1] = -1;
 		vout->ipu_buf_n[1] = -1;
-		last_index_c = vout->ipu_buf[0];
 		last_index_n = vout->ipu_buf_n[0];
 		vout->frame_count = 2;
 	}
@@ -1299,10 +1263,11 @@ static int mxc_v4l2out_streamon(vout_data * vout)
 	}
 
 	if (out_width == vout->v2f.fmt.pix.width &&
-		out_height == vout->v2f.fmt.pix.height &&
-		vout->xres == out_width &&
-		vout->yres == out_height &&
-		ipu_can_rotate_in_place(vout->rotate)) {
+	    out_height == vout->v2f.fmt.pix.height &&
+	    vout->xres == out_width &&
+	    vout->yres == out_height &&
+	    ipu_can_rotate_in_place(vout->rotate) &&
+	    !INTERLACED_CONTENT(vout)) {
 		vout->ic_bypass = 1;
 	} else {
 		vout->ic_bypass = 0;
@@ -1311,15 +1276,20 @@ static int mxc_v4l2out_streamon(vout_data * vout)
 #ifdef CONFIG_MXC_IPU_V1
 	/* IPUv1 needs IC to do CSC */
 	if (format_is_yuv(vout->v2f.fmt.pix.pixelformat) !=
-			format_is_yuv(bpp_to_fmt(fbi)))
+	    format_is_yuv(bpp_to_fmt(fbi)))
 		vout->ic_bypass = 0;
 #endif
 
-	/* We are using IC to do input cropping */
-	if (vout->queue_buf_paddr[vout->ipu_buf[0]] !=
-		vout->v4l2_bufs[vout->ipu_buf[0]].m.offset ||
-		vout->queue_buf_paddr[vout->ipu_buf[1]] !=
-		vout->v4l2_bufs[vout->ipu_buf[1]].m.offset)
+	/*
+	 * We are using IC to do input cropping.
+	 * We don't access v4l2 buffer if source video is interlaced,
+	 * because the buffer index may be -1.
+	 */
+	if (!INTERLACED_CONTENT(vout) &&
+	    (vout->queue_buf_paddr[vout->ipu_buf[0]] !=
+	     vout->v4l2_bufs[vout->ipu_buf[0]].m.offset ||
+	     vout->queue_buf_paddr[vout->ipu_buf[1]] !=
+	     vout->v4l2_bufs[vout->ipu_buf[1]].m.offset))
 		vout->ic_bypass = 0;
 
 	if (fbi->fbops->fb_ioctl) {
@@ -1633,6 +1603,10 @@ static int mxc_v4l2out_streamoff(vout_data * vout)
 		}
 
 		ipu_disable_channel(MEM_VDI_PRP_VF_MEM, true);
+		if (LOAD_3FIELDS(vout)) {
+			ipu_disable_channel(MEM_VDI_PRP_VF_MEM_P, true);
+			ipu_disable_channel(MEM_VDI_PRP_VF_MEM_N, true);
+		}
 
 		fbi->var.activate |= FB_ACTIVATE_FORCE;
 		fb_set_var(fbi, &fbi->var);
@@ -1647,6 +1621,10 @@ static int mxc_v4l2out_streamoff(vout_data * vout)
 		vout->display_bufs[1] = 0;
 
 		ipu_uninit_channel(MEM_VDI_PRP_VF_MEM);
+		if (LOAD_3FIELDS(vout)) {
+			ipu_uninit_channel(MEM_VDI_PRP_VF_MEM_P);
+			ipu_uninit_channel(MEM_VDI_PRP_VF_MEM_N);
+		}
 		if (!ipu_can_rotate_in_place(vout->rotate))
 			ipu_uninit_channel(MEM_ROT_VF_MEM);
 	}
