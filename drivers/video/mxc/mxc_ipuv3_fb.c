@@ -1174,7 +1174,18 @@ mxcfb_pan_display(struct fb_var_screeninfo *var, struct fb_info *info)
 	down(&mxc_fbi->flip_sem);
 	init_completion(&mxc_fbi->vsync_complete);
 
+	i = 0;
 	mxc_fbi->cur_ipu_buf = !mxc_fbi->cur_ipu_buf;
+	while (ipu_check_buffer_busy(mxc_fbi->ipu_ch,
+			IPU_INPUT_BUFFER, mxc_fbi->cur_ipu_buf) && (i < 3)) {
+		/* Not ready for update, wait vsync again */
+		dev_dbg(info->device, "Not ready for update, wait vsync again\n");
+		ipu_clear_irq(mxc_fbi->ipu_ch_irq);
+		ipu_enable_irq(mxc_fbi->ipu_ch_irq);
+		down(&mxc_fbi->flip_sem);
+		init_completion(&mxc_fbi->vsync_complete);
+		i++;
+	}
 	if (ipu_update_channel_buffer(mxc_fbi->ipu_ch, IPU_INPUT_BUFFER,
 				      mxc_fbi->cur_ipu_buf, base) == 0) {
 		/* Update the DP local alpha buffer only for graphic plane */
@@ -1196,6 +1207,10 @@ mxcfb_pan_display(struct fb_var_screeninfo *var, struct fb_info *info)
 		dev_err(info->device,
 			"Error updating SDC buf %d to address=0x%08lX\n",
 			mxc_fbi->cur_ipu_buf, base);
+		mxc_fbi->cur_ipu_buf = !mxc_fbi->cur_ipu_buf;
+		ipu_clear_irq(mxc_fbi->ipu_ch_irq);
+		ipu_enable_irq(mxc_fbi->ipu_ch_irq);
+		return -EBUSY;
 	}
 
 	dev_dbg(info->device, "Update complete\n");
