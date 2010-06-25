@@ -157,7 +157,6 @@ void _ipu_vdi_init(ipu_channel_t channel, ipu_channel_params_t *params)
 {
 	uint32_t reg;
 	uint32_t pixel_fmt;
-	bool top_field_0;
 
 	reg = ((params->mem_prp_vf_mem.in_height-1) << 16) |
 	  (params->mem_prp_vf_mem.in_width-1);
@@ -186,19 +185,7 @@ void _ipu_vdi_init(ipu_channel_t channel, ipu_channel_params_t *params)
 	}
 	__raw_writel(reg, VDI_C);
 
-	/* MED_MOTION and LOW_MOTION algorithm that are using 3 fields
-	 * should start presenting using the 2nd field.
-	 */
-	if (((params->mem_prp_vf_mem.field_fmt == V4L2_FIELD_INTERLACED_TB) &&
-	     (params->mem_prp_vf_mem.motion_sel != HIGH_MOTION)) ||
-	    ((params->mem_prp_vf_mem.field_fmt == V4L2_FIELD_INTERLACED_BT) &&
-	     (params->mem_prp_vf_mem.motion_sel == HIGH_MOTION)))
-		top_field_0 = false;
-	else
-		top_field_0 = true;
-
-	/* Buffer selection toggle the value therefore init val is inverted. */
-	_ipu_vdi_set_top_field_man(!top_field_0);
+	_ipu_vdi_set_top_field_man(false);
 
 	_ipu_vdi_set_motion(params->mem_prp_vf_mem.motion_sel);
 

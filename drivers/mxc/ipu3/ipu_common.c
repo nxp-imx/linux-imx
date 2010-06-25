@@ -52,8 +52,8 @@ unsigned char g_dc_di_assignment[10];
 ipu_channel_t g_ipu_csi_channel[2];
 int g_ipu_irq[2];
 int g_ipu_hw_rev;
-bool g_sec_chan_en[22];
-bool g_thrd_chan_en[21];
+bool g_sec_chan_en[24];
+bool g_thrd_chan_en[24];
 uint32_t g_channel_init_mask;
 uint32_t g_channel_enable_mask;
 DEFINE_SPINLOCK(ipu_lock);
@@ -753,8 +753,8 @@ void ipu_uninit_channel(ipu_channel_t channel)
 
 	/* Make sure channel is disabled */
 	/* Get input and output dma channels */
-	in_dma = channel_2_dma(channel, IPU_OUTPUT_BUFFER);
-	out_dma = channel_2_dma(channel, IPU_VIDEO_IN_BUFFER);
+	in_dma = channel_2_dma(channel, IPU_VIDEO_IN_BUFFER);
+	out_dma = channel_2_dma(channel, IPU_OUTPUT_BUFFER);
 
 	if (idma_is_set(IDMAC_CHA_EN, in_dma) ||
 	    idma_is_set(IDMAC_CHA_EN, out_dma)) {
@@ -774,8 +774,10 @@ void ipu_uninit_channel(ipu_channel_t channel)
 	reg = __raw_readl(IPU_CHA_DB_MODE_SEL(out_dma));
 	__raw_writel(reg & ~idma_mask(out_dma), IPU_CHA_DB_MODE_SEL(out_dma));
 
-	g_sec_chan_en[IPU_CHAN_ID(channel)] = false;
-	g_thrd_chan_en[IPU_CHAN_ID(channel)] = false;
+	if (_ipu_is_ic_chan(in_dma) || _ipu_is_dp_graphic_chan(in_dma)) {
+		g_sec_chan_en[IPU_CHAN_ID(channel)] = false;
+		g_thrd_chan_en[IPU_CHAN_ID(channel)] = false;
+	}
 
 	switch (channel) {
 	case CSI_MEM0:
@@ -826,6 +828,9 @@ void ipu_uninit_channel(ipu_channel_t channel)
 		_ipu_vdi_uninit();
 		reg = __raw_readl(IPU_FS_PROC_FLOW1);
 		__raw_writel(reg & ~FS_VF_IN_VALID, IPU_FS_PROC_FLOW1);
+		break;
+	case MEM_VDI_PRP_VF_MEM_P:
+	case MEM_VDI_PRP_VF_MEM_N:
 		break;
 	case MEM_ROT_VF_MEM:
 		ipu_rot_use_count--;
@@ -891,6 +896,7 @@ void ipu_uninit_channel(ipu_channel_t channel)
 	if (ipu_ic_use_count == 0)
 		ipu_conf &= ~IPU_CONF_IC_EN;
 	if (ipu_vdi_use_count == 0) {
+		ipu_conf &= ~IPU_CONF_ISP_EN;
 		ipu_conf &= ~IPU_CONF_VDI_EN;
 		ipu_conf &= ~IPU_CONF_IC_INPUT;
 	}
@@ -1217,8 +1223,6 @@ int32_t ipu_select_buffer(ipu_channel_t channel, ipu_buffer_t type,
 		__raw_writel(idma_mask(dma_chan) | reg,
 			     IPU_CHA_BUF1_RDY(dma_chan));
 	}
-	if (channel == MEM_VDI_PRP_VF_MEM)
-		_ipu_vdi_toggle_top_field_man();
 	return 0;
 }
 EXPORT_SYMBOL(ipu_select_buffer);
@@ -1247,10 +1251,9 @@ int32_t ipu_select_multi_vdi_buffer(uint32_t bufNum)
 		__raw_writel(mask_bit | reg, IPU_CHA_BUF0_RDY(dma_chan));
 	} else {
 		/*Mark buffer 1 as ready. */
-		reg = __raw_readl(IPU_CHA_BUF0_RDY(dma_chan));
+		reg = __raw_readl(IPU_CHA_BUF1_RDY(dma_chan));
 		__raw_writel(mask_bit | reg, IPU_CHA_BUF1_RDY(dma_chan));
 	}
-	_ipu_vdi_toggle_top_field_man();
 	return 0;
 }
 EXPORT_SYMBOL(ipu_select_multi_vdi_buffer);
@@ -1260,7 +1263,7 @@ static int proc_dest_sel[] =
   { 0, 1, 1, 3, 5, 5, 4, 7, 8, 9, 10, 11, 12, 14, 15, 16,
     0, 1, 1, 5, 5, 5, 5, 5, 7, 8, 9, 10, 11, 12, 14, 31 };
 static int proc_src_sel[] = { 0, 6, 7, 6, 7, 8, 5, NA, NA, NA,
-  NA, NA, NA, NA, NA,  1,  2,  3,  4,  7,  8, NA, NA, NA };
+  NA, NA, NA, NA, NA,  1,  2,  3,  4,  7,  8, NA, 8, NA };
 static int disp_src_sel[] = { 0, 6, 7, 8, 3, 4, 5, NA, NA, NA,
   NA, NA, NA, NA, NA,  1, NA,  2, NA,  3,  4,  4,  4,  4 };
 
@@ -1670,6 +1673,7 @@ int32_t ipu_enable_channel(ipu_channel_t channel)
 	if (ipu_ic_use_count > 0)
 		ipu_conf |= IPU_CONF_IC_EN;
 	if (ipu_vdi_use_count > 0) {
+		ipu_conf |= IPU_CONF_ISP_EN;
 		ipu_conf |= IPU_CONF_VDI_EN;
 		ipu_conf |= IPU_CONF_IC_INPUT;
 	}
