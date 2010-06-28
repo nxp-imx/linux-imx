@@ -33,12 +33,8 @@
 #include <mach/sdram_autogating.h>
 #include "crm_regs.h"
 
-#define LP_NORMAL_CLK			133000000
-#define LP_MED_CLK			83125000
 #define LP_APM_CLK   			24000000
 #define NAND_LP_APM_CLK			12000000
-#define DDR_LOW_FREQ_CLK		133000000
-#define DDR_NORMAL_CLK			200000000
 #define AXI_A_NORMAL_CLK		166250000
 #define AXI_A_CLK_NORMAL_DIV		4
 #define AXI_B_CLK_NORMAL_DIV		5
@@ -46,7 +42,13 @@
 #define EMI_SLOW_CLK_NORMAL_DIV		AXI_B_CLK_NORMAL_DIV
 #define NFC_CLK_NORMAL_DIV      	4
 
+static unsigned long lp_normal_rate;
+static unsigned long lp_med_rate;
+static unsigned long ddr_normal_rate;
+static unsigned long ddr_low_rate;
+
 static struct clk *ddr_clk;
+static struct clk *pll1_sw_clk;
 static struct clk *pll2;
 static struct clk *pll3;
 static struct clk *main_bus_clk;
@@ -93,7 +95,6 @@ struct dvfs_wp dvfs_core_setpoint[] = {
 						{28, 8, 33, 20, 30, 0x08},
 						{29, 0, 33, 20, 10, 0x08},};
 
-
 int set_low_bus_freq(void)
 {
 	u32 reg;
@@ -102,7 +103,12 @@ int set_low_bus_freq(void)
 		return 0;
 
 	if (bus_freq_scaling_initialized) {
+		/* can not enter low bus freq, when cpu is in highest freq */
 		if (clk_get_rate(cpu_clk) != cpu_wp_tbl[cpu_wp_nr - 1].cpu_rate)
+			return 0;
+
+		/* currently not support on mx53 */
+		if (cpu_is_mx53())
 			return 0;
 
 		stop_dvfs_per();
@@ -110,7 +116,7 @@ int set_low_bus_freq(void)
 		stop_sdram_autogating();
 		/*Change the DDR freq to 133Mhz. */
 		clk_set_rate(ddr_hf_clk,
-			     clk_round_rate(ddr_hf_clk, DDR_LOW_FREQ_CLK));
+		     clk_round_rate(ddr_hf_clk, ddr_low_rate));
 
 		/* Set PLL3 to 133Mhz if no-one is using it. */
 		if (clk_get_usecount(pll3) == 0) {
@@ -163,6 +169,7 @@ int set_high_bus_freq(int high_bus_freq)
 	u32 reg;
 
 	if (bus_freq_scaling_initialized) {
+
 		stop_sdram_autogating();
 
 		if (low_bus_freq_mode) {
@@ -207,7 +214,8 @@ int set_high_bus_freq(int high_bus_freq)
 
 			/*Change the DDR freq to 200MHz*/
 			clk_set_rate(ddr_hf_clk,
-				    clk_round_rate(ddr_hf_clk, DDR_NORMAL_CLK));
+			    clk_round_rate(ddr_hf_clk, ddr_normal_rate));
+
 			start_dvfs_per();
 		}
 		if (bus_freq_scaling_is_active) {
@@ -219,24 +227,28 @@ int set_high_bus_freq(int high_bus_freq)
 					cpu_wp_tbl[cpu_wp_nr - 1].cpu_rate)
 				high_bus_freq = 1;
 
-			if (((clk_get_rate(ahb_clk) == LP_MED_CLK)
+			if (((clk_get_rate(ahb_clk) == lp_med_rate)
 					&& lp_high_freq) || high_bus_freq) {
 				/* Set to the high setpoint. */
 				high_bus_freq_mode = 1;
+
 				clk_set_rate(ahb_clk,
-					clk_round_rate(ahb_clk, LP_NORMAL_CLK));
+				clk_round_rate(ahb_clk, lp_normal_rate));
+
 				clk_set_rate(ddr_hf_clk,
-				    clk_round_rate(ddr_hf_clk, DDR_NORMAL_CLK));
+				clk_round_rate(ddr_hf_clk, ddr_normal_rate));
 			}
+
 			if (!lp_high_freq && !high_bus_freq) {
 				/* Set to the medium setpoint. */
 				high_bus_freq_mode = 0;
 				low_bus_freq_mode = 0;
+
 				clk_set_rate(ddr_hf_clk,
-					clk_round_rate(ddr_hf_clk,
-						DDR_LOW_FREQ_CLK));
+				clk_round_rate(ddr_hf_clk, ddr_low_rate));
+
 				clk_set_rate(ahb_clk,
-					clk_round_rate(ahb_clk, LP_MED_CLK));
+					clk_round_rate(ahb_clk, lp_med_rate));
 			}
 		}
 		start_sdram_autogating();
@@ -289,6 +301,7 @@ static ssize_t bus_freq_scaling_enable_store(struct device *dev,
 		clk_set_parent(main_bus_clk, pll2);
 
 		bus_freq_scaling_is_active = 1;
+		set_high_bus_freq(0);
 	}
 	else if (strstr(buf, "0") != NULL) {
 		if (bus_freq_scaling_is_active)
@@ -326,6 +339,7 @@ static DEVICE_ATTR(enable, 0644, bus_freq_scaling_enable_show,
 static int __devinit busfreq_probe(struct platform_device *pdev)
 {
 	int err = 0;
+	unsigned long pll2_rate, pll1_rate;
 
 	busfreq_dev = &pdev->dev;
 
@@ -336,10 +350,39 @@ static int __devinit busfreq_probe(struct platform_device *pdev)
 		return PTR_ERR(main_bus_clk);
 	}
 
+	pll1_sw_clk = clk_get(NULL, "pll1_sw_clk");
+	if (IS_ERR(pll1_sw_clk)) {
+		printk(KERN_DEBUG "%s: failed to get pll1_sw_clk\n", __func__);
+		return PTR_ERR(pll1_sw_clk);
+	}
+
 	pll2 = clk_get(NULL, "pll2");
 	if (IS_ERR(pll2)) {
 		printk(KERN_DEBUG "%s: failed to get pll2\n", __func__);
 		return PTR_ERR(pll2);
+	}
+
+	pll1_rate = clk_get_rate(pll1_sw_clk);
+	pll2_rate = clk_get_rate(pll2);
+
+	if (pll2_rate == 665000000) {
+		/* for mx51 */
+		lp_normal_rate = pll2_rate / 5;
+		lp_med_rate = pll2_rate / 8;
+		ddr_normal_rate = pll1_rate / 4; /* 200M */
+		ddr_low_rate = pll1_rate / 6; /* 133M */
+	} else if (pll2_rate == 600000000) {
+		/* for mx53 evk rev.A */
+		lp_normal_rate = pll2_rate / 5;
+		lp_med_rate = pll2_rate / 8;
+		ddr_normal_rate = pll2_rate / 2;
+		ddr_low_rate = pll2_rate / 2;
+	} else if (pll2_rate == 400000000) {
+		/* for mx53 evk rev.B */
+		lp_normal_rate = pll2_rate / 3;
+		lp_med_rate = pll2_rate / 5;
+		ddr_normal_rate = pll2_rate / 1;
+		ddr_low_rate = pll2_rate / 3;
 	}
 
 	pll3 = clk_get(NULL, "pll3");
@@ -362,7 +405,11 @@ static int __devinit busfreq_probe(struct platform_device *pdev)
 		return PTR_ERR(axi_b_clk);
 	}
 
-	ddr_hf_clk = clk_get(NULL, "ddr_hf_clk");
+	if (cpu_is_mx51())
+		ddr_hf_clk = clk_get(NULL, "ddr_hf_clk");
+	else
+		ddr_hf_clk = clk_get(NULL, "axi_a_clk");
+
 	if (IS_ERR(ddr_hf_clk)) {
 		printk(KERN_DEBUG "%s: failed to get ddr_hf_clk\n",
 		       __func__);

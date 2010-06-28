@@ -1411,7 +1411,10 @@ static int _clk_ipu_enable(struct clk *clk)
 	_clk_enable(clk);
 	/* Handshake with IPU when certain clock rates are changed. */
 	reg = __raw_readl(MXC_CCM_CCDR);
-	reg &= ~MXC_CCM_CCDR_IPU_HS_MASK;
+	if (cpu_is_mx51())
+		reg &= ~MXC_CCM_CCDR_IPU_HS_MASK;
+	else
+		reg &= ~MXC_CCM_CCDR_IPU_HS_MX53_MASK;
 	__raw_writel(reg, MXC_CCM_CCDR);
 
 	/* Handshake with IPU when LPM is entered as its enabled. */
@@ -1717,7 +1720,7 @@ static struct clk ldb_di_clk[] = {
 	.set_rate = _clk_ldb_di_set_rate,
 	.enable = _clk_ldb_di_enable,
 	.disable = _clk_ldb_di_disable,
-	.flags = RATE_PROPAGATES,
+	.flags = RATE_PROPAGATES | AHB_MED_SET_POINT,
 	},
 	{
 	.name = "ldb_di1_clk",
@@ -1731,7 +1734,7 @@ static struct clk ldb_di_clk[] = {
 	.set_rate = _clk_ldb_di_set_rate,
 	.enable = _clk_ldb_di_enable,
 	.disable = _clk_ldb_di_disable,
-	.flags = RATE_PROPAGATES,
+	.flags = RATE_PROPAGATES | AHB_MED_SET_POINT,
 	},
 };
 
@@ -4828,13 +4831,6 @@ int __init mx53_clocks_init(unsigned long ckil, unsigned long osc, unsigned long
 		| MXC_CCM_CLPCR_BYPASS_SDMA_LPM_HS;
 	__raw_writel(reg, MXC_CCM_CLPCR);
 #endif
-
-	/* Disable the handshake with HSC block as its not
-	  * initialised right now.
-	  */
-	reg = __raw_readl(MXC_CCM_CCDR);
-	reg |= MXC_CCM_CCDR_EMI_HS_MASK;
-	__raw_writel(reg, MXC_CCM_CCDR);
 
 	/* This will propagate to all children and init all the clock rates */
 	propagate_rate(&osc_clk);

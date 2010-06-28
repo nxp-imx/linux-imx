@@ -98,7 +98,7 @@ static struct cpu_wp cpu_wp_auto[] = {
 	 .cpu_voltage = 1050000,},
 	{
 	 .pll_rate = 800000000,
-	 .cpu_rate = 166250000,
+	 .cpu_rate = 160000000,
 	 .pdf = 4,
 	 .mfi = 8,
 	 .mfd = 2,
@@ -974,6 +974,7 @@ static void __init mxc_board_init(void)
 	mxc_register_device(&sdram_autogating_device, NULL);
 	*/
 	mxc_register_device(&mxc_dvfs_core_device, &dvfs_core_data);
+	mxc_register_device(&busfreq_device, NULL);
 
 	/*
 	mxc_register_device(&mxc_dvfs_per_device, &dvfs_per_data);
