@@ -202,10 +202,12 @@ static int _setup_disp_channel2(struct fb_info *fbi)
 	int fb_stride;
 
 	switch (bpp_to_pixfmt(fbi)) {
-	case V4L2_PIX_FMT_YUV420:
-	case V4L2_PIX_FMT_YVU420:
-	case V4L2_PIX_FMT_NV12:
-	case V4L2_PIX_FMT_YUV422P:
+	case IPU_PIX_FMT_YUV420P2:
+	case IPU_PIX_FMT_YVU420P:
+	case IPU_PIX_FMT_NV12:
+	case IPU_PIX_FMT_YUV422P:
+	case IPU_PIX_FMT_YVU422P:
+	case IPU_PIX_FMT_YUV420P:
 		fb_stride = fbi->var.xres_virtual;
 		break;
 	default:
@@ -1142,7 +1144,7 @@ mxcfb_pan_display(struct fb_var_screeninfo *var, struct fb_info *info)
 		return -EINVAL;
 
 	base = (var->yoffset * var->xres_virtual + var->xoffset);
-	base *= (var->bits_per_pixel) / 8;
+	base = (var->bits_per_pixel) * base / 8;
 	base += info->fix.smem_start;
 
 	dev_dbg(info->device, "Updating SDC %s buf %d address=0x%08lX\n",
