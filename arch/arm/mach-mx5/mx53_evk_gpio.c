@@ -163,7 +163,7 @@ static struct mxc_iomux_pin_cfg __initdata mxc_iomux_pins[] = {
 	 MX53_PIN_KEY_ROW1, IOMUX_CONFIG_ALT2,
 	 },
 	{
-	 MX53_PIN_CSI0_D7, IOMUX_CONFIG_ALT5,
+	 MX53_PIN_CSI0_D7, IOMUX_CONFIG_ALT1,
 	 },
 	{ /* UART1 Tx */
 	 MX53_PIN_CSI0_D10, IOMUX_CONFIG_ALT2,
@@ -952,10 +952,12 @@ void __init mx53_evk_io_init(void)
 	gpio_direction_output(IOMUX_TO_GPIO(MX53_PIN_GPIO_10), 0);
 	gpio_set_value(IOMUX_TO_GPIO(MX53_PIN_GPIO_10), 1);
 
-	/* Camera low power */
-	gpio_request(IOMUX_TO_GPIO(MX53_PIN_CSI0_D5), "gpio5_23");
-	gpio_direction_output(IOMUX_TO_GPIO(MX53_PIN_CSI0_D5), 0);
-	gpio_set_value(IOMUX_TO_GPIO(MX53_PIN_CSI0_D5), 0);
+	/* TVIN reset */
+	gpio_request(IOMUX_TO_GPIO(MX53_PIN_CSI0_D7), "gpio5_25");
+	gpio_direction_output(IOMUX_TO_GPIO(MX53_PIN_CSI0_D7), 0);
+	gpio_set_value(IOMUX_TO_GPIO(MX53_PIN_CSI0_D7), 0);
+	msleep(5);
+	gpio_set_value(IOMUX_TO_GPIO(MX53_PIN_CSI0_D7), 1);
 
 	/* CAN1 enable GPIO*/
 	gpio_direction_output(IOMUX_TO_GPIO(MX53_PIN_GPIO_18), 0);

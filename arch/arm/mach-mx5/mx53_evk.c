@@ -308,6 +308,25 @@ static struct ldb_platform_data ldb_data = {
 	.ext_ref = 1,
 };
 
+static void adv7180_pwdn(int pwdn)
+{
+	gpio_request(IOMUX_TO_GPIO(MX53_PIN_CSI0_D5), "gpio5_23");
+	gpio_direction_output(IOMUX_TO_GPIO(MX53_PIN_CSI0_D5), 0);
+	if (pwdn)
+		gpio_set_value(IOMUX_TO_GPIO(MX53_PIN_CSI0_D5), 0);
+	else
+		gpio_set_value(IOMUX_TO_GPIO(MX53_PIN_CSI0_D5), 1);
+}
+
+static struct mxc_tvin_platform_data adv7180_data = {
+	.dvddio_reg = NULL,
+	.dvdd_reg = NULL,
+	.avdd_reg = NULL,
+	.pvdd_reg = NULL,
+	.pwdn = adv7180_pwdn,
+	.reset = NULL,
+};
+
 static struct resource mxcfb_resources[] = {
 	[0] = {
 	       .flags = IORESOURCE_MEM,
@@ -365,10 +384,18 @@ static int __init mxc_init_fb(void)
 }
 device_initcall(mxc_init_fb);
 
+static void camera_pwdn(int pwdn)
+{
+	gpio_request(IOMUX_TO_GPIO(MX53_PIN_CSI0_D5), "gpio5_23");
+	gpio_direction_output(IOMUX_TO_GPIO(MX53_PIN_CSI0_D5), 0);
+	gpio_set_value(IOMUX_TO_GPIO(MX53_PIN_CSI0_D5), pwdn);
+}
+
 static struct mxc_camera_platform_data camera_data = {
 	.analog_regulator = "VSD",
 	.mclk = 24000000,
 	.csi = 0,
+	.pwdn = camera_pwdn,
 };
 
 static struct i2c_board_info mxc_i2c0_board_info[] __initdata = {
@@ -376,6 +403,11 @@ static struct i2c_board_info mxc_i2c0_board_info[] __initdata = {
 	.type = "ov3640",
 	.addr = 0x3C,
 	.platform_data = (void *)&camera_data,
+	 },
+	{
+	.type = "adv7180",
+	.addr = 0x21,
+	.platform_data = (void *)&adv7180_data,
 	 },
 };
 
