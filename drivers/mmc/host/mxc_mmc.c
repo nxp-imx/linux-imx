@@ -13,7 +13,7 @@
  */
 
 /*
- * Copyright 2004-2009 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2004-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -1232,7 +1232,7 @@ static int mxcmci_probe(struct platform_device *pdev)
 	mmc->f_max = mmc_plat->max_clk;
 	mmc->max_req_size = 32 * 1024;
 	mmc->max_seg_size = mmc->max_req_size;
-	mmc->max_blk_count = 65536;
+	mmc->max_blk_count = 32;
 
 	spin_lock_init(&host->lock);
 	host->mmc = mmc;

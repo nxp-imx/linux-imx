@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright 2007-2009 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2007-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -766,10 +766,11 @@ static int __devinit pata_fsl_probe(struct platform_device *pdev)
 	/*
 	 * Set up resources
 	 */
-	if (unlikely(pdev->num_resources != 3)) {
+	if (unlikely(pdev->num_resources != 2)) {
 		dev_err(&pdev->dev, "invalid number of resources\n");
 		return -EINVAL;
 	}
+
 	/*
 	 * Get an ata_host structure for this device
 	 */

@@ -855,16 +855,16 @@ static struct fsl_ata_platform_data ata_data = {
 };
 
 static struct resource pata_fsl_resources[] = {
-	[0] = {			/* I/O */
-	       .start = ATA_BASE_ADDR + 0x00,
-	       .end = ATA_BASE_ADDR + 0xD8,
-	       .flags = IORESOURCE_MEM,
-	       },
-	[2] = {			/* IRQ */
-	       .start = MXC_INT_ATA,
-	       .end = MXC_INT_ATA,
-	       .flags = IORESOURCE_IRQ,
-	       },
+	{
+		.start = ATA_BASE_ADDR,
+		.end = ATA_BASE_ADDR + 0x000000D8,
+		.flags = IORESOURCE_MEM,
+	},
+	{
+		.start = MXC_INT_ATA,
+		.end = MXC_INT_ATA,
+		.flags = IORESOURCE_IRQ,
+	},
 };
 
 static struct platform_device pata_fsl_device = {

@@ -864,8 +864,6 @@ static void __init mxc_board_init(void)
 	mxc_register_device(&mxc_pwm1_device, NULL);
 	mxc_register_device(&mxc_pwm_backlight_device, &mxc_pwm_backlight_data);
 	mxc_register_device(&mxc_keypad_device, &keypad_plat_data);
-	mxcsdhc1_device.resource[2].start = IOMUX_TO_IRQ(MX51_PIN_GPIO1_0),
-	mxcsdhc1_device.resource[2].end = IOMUX_TO_IRQ(MX51_PIN_GPIO1_0),
 	mxc_register_device(&mxcsdhc1_device, &mmc1_data);
 	mxc_register_device(&mxcsdhc2_device, &mmc2_data);
 	mxc_register_device(&mxc_ssi1_device, NULL);
