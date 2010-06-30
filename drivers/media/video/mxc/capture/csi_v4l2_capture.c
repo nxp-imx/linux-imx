@@ -1,5 +1,5 @@
 /*
- * Copyright 2009 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2009-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -789,15 +789,15 @@ static ssize_t csi_v4l_read(struct file *file, char *buf, size_t count,
 							  (cam->v2f.fmt.
 							   pix.sizeimage),
 							  &cam->
-							  still_buf,
+							  still_buf[0],
 							  GFP_DMA | GFP_KERNEL);
 		if (cam->still_buf_vaddr == NULL) {
 			pr_err("alloc dma memory failed\n");
 			return -ENOMEM;
 		}
 		cam->still_counter = 0;
-		__raw_writel(cam->still_buf, CSI_CSIDMASA_FB2);
-		__raw_writel(cam->still_buf, CSI_CSIDMASA_FB1);
+		__raw_writel(cam->still_buf[0], CSI_CSIDMASA_FB2);
+		__raw_writel(cam->still_buf[0], CSI_CSIDMASA_FB1);
 		__raw_writel(__raw_readl(CSI_CSICR3) | BIT_DMA_REFLASH_RFF,
 			     CSI_CSICR3);
 		__raw_writel(__raw_readl(CSI_CSISR), CSI_CSISR);
@@ -813,8 +813,8 @@ static ssize_t csi_v4l_read(struct file *file, char *buf, size_t count,
 
 	if (cam->still_buf_vaddr != NULL) {
 		dma_free_coherent(0, PAGE_ALIGN(cam->v2f.fmt.pix.sizeimage),
-				  cam->still_buf_vaddr, cam->still_buf);
-		cam->still_buf = 0;
+				  cam->still_buf_vaddr, cam->still_buf[0]);
+		cam->still_buf[0] = 0;
 		cam->still_buf_vaddr = NULL;
 	}
 

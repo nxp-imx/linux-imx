@@ -123,7 +123,7 @@ typedef struct _cam_data {
 	/* still image capture */
 	wait_queue_head_t still_queue;
 	int still_counter;
-	dma_addr_t still_buf;
+	dma_addr_t still_buf[2];
 	void *still_buf_vaddr;
 
 	/* overlay */

@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2009 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2004-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -858,7 +858,7 @@ static void mxc_csi_dma_chaining(void *data)
 
 		/* Config DMA */
 		memset(&dma_request, 0, sizeof(mxc_dma_requestbuf_t));
-		dma_request.dst_addr = cam->still_buf
+		dma_request.dst_addr = cam->still_buf[0]
 		    + (chained % max_dma) * CSI_DMA_LENGTH;
 		dma_request.src_addr = (dma_addr_t) CSI_CSIRXFIFO_PHYADDR;
 		dma_request.num_of_bytes = count;
@@ -1040,7 +1040,7 @@ mxc_v4l_read(struct file *file, char *buf, size_t count, loff_t *ppos)
 
 	cam->still_buf_vaddr = dma_alloc_coherent(0,
 						  PAGE_ALIGN(CSI_MEM_SIZE),
-						  &cam->still_buf,
+						  &cam->still_buf[0],
 						  GFP_DMA | GFP_KERNEL);
 
 	if (!cam->still_buf_vaddr) {
@@ -1120,8 +1120,8 @@ mxc_v4l_read(struct file *file, char *buf, size_t count, loff_t *ppos)
 
       exit1:
 	dma_free_coherent(0, PAGE_ALIGN(CSI_MEM_SIZE),
-			  cam->still_buf_vaddr, cam->still_buf);
-	cam->still_buf = 0;
+			  cam->still_buf_vaddr, cam->still_buf[0]);
+	cam->still_buf[0] = 0;
 
       exit0:
 	up(&cam->busy_lock);
@@ -1160,7 +1160,8 @@ mxc_v4l_read(struct file *file, char *buf, size_t count, loff_t *ppos)
 
 	v_address = dma_alloc_coherent(0,
 				       PAGE_ALIGN(cam->v2f.fmt.pix.sizeimage),
-				       &cam->still_buf, GFP_DMA | GFP_KERNEL);
+				       &cam->still_buf[0],
+				       GFP_DMA | GFP_KERNEL);
 
 	if (!v_address) {
 		pr_info("mxc_v4l_read failed at allocate still_buf\n");
@@ -1194,8 +1195,8 @@ mxc_v4l_read(struct file *file, char *buf, size_t count, loff_t *ppos)
 
       exit1:
 	dma_free_coherent(0, cam->v2f.fmt.pix.sizeimage, v_address,
-			  cam->still_buf);
-	cam->still_buf = 0;
+			  cam->still_buf[0]);
+	cam->still_buf[0] = 0;
 
       exit0:
 	up(&cam->busy_lock);

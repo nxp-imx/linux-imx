@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2007 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2004-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -702,7 +702,7 @@ static int prp_still_start(void *private)
 	cam_data *cam = (cam_data *) private;
 
 	g_still_on = 1;
-	g_prp_cfg.ch2_ptr = (unsigned int)cam->still_buf;
+	g_prp_cfg.ch2_ptr = (unsigned int)cam->still_buf[0];
 	g_prp_cfg.ch2_ptr2 = 0;
 
 	if (prp_v4l2_cfg(&g_prp_cfg, cam))

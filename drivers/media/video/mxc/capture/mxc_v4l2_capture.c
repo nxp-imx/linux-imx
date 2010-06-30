@@ -1572,7 +1572,7 @@ static ssize_t mxc_v4l_read(struct file *file, char *buf, size_t count,
 			    loff_t *ppos)
 {
 	int err = 0;
-	u8 *v_address;
+	u8 *v_address[2];
 	struct video_device *dev = video_devdata(file);
 	cam_data *cam = video_get_drvdata(dev);
 
@@ -1583,11 +1583,17 @@ static ssize_t mxc_v4l_read(struct file *file, char *buf, size_t count,
 	if (cam->overlay_on == true)
 		stop_preview(cam);
 
-	v_address = dma_alloc_coherent(0,
+	v_address[0] = dma_alloc_coherent(0,
 				       PAGE_ALIGN(cam->v2f.fmt.pix.sizeimage),
-				       &cam->still_buf, GFP_DMA | GFP_KERNEL);
+				       &cam->still_buf[0],
+				       GFP_DMA | GFP_KERNEL);
 
-	if (!v_address) {
+	v_address[1] = dma_alloc_coherent(0,
+				       PAGE_ALIGN(cam->v2f.fmt.pix.sizeimage),
+				       &cam->still_buf[1],
+				       GFP_DMA | GFP_KERNEL);
+
+	if (!v_address[0] || !v_address[1]) {
 		err = -ENOBUFS;
 		goto exit0;
 	}
@@ -1595,14 +1601,14 @@ static ssize_t mxc_v4l_read(struct file *file, char *buf, size_t count,
 	err = prp_still_select(cam);
 	if (err != 0) {
 		err = -EIO;
-		goto exit1;
+		goto exit0;
 	}
 
 	cam->still_counter = 0;
 	err = cam->csi_start(cam);
 	if (err != 0) {
 		err = -EIO;
-		goto exit2;
+		goto exit1;
 	}
 
 	if (!wait_event_interruptible_timeout(cam->still_queue,
@@ -1611,19 +1617,23 @@ static ssize_t mxc_v4l_read(struct file *file, char *buf, size_t count,
 		pr_err("ERROR: v4l2 capture: mxc_v4l_read timeout counter %x\n",
 		       cam->still_counter);
 		err = -ETIME;
-		goto exit2;
+		goto exit1;
 	}
-	err = copy_to_user(buf, v_address, cam->v2f.fmt.pix.sizeimage);
-
-      exit2:
-	prp_still_deselect(cam);
+	err = copy_to_user(buf, v_address[1], cam->v2f.fmt.pix.sizeimage);
 
       exit1:
-	dma_free_coherent(0, cam->v2f.fmt.pix.sizeimage, v_address,
-			  cam->still_buf);
-	cam->still_buf = 0;
+	prp_still_deselect(cam);
 
       exit0:
+	if (v_address[0] != 0)
+		dma_free_coherent(0, cam->v2f.fmt.pix.sizeimage, v_address[0],
+				  cam->still_buf[0]);
+	if (v_address[1] != 0)
+		dma_free_coherent(0, cam->v2f.fmt.pix.sizeimage, v_address[1],
+				  cam->still_buf[1]);
+
+	cam->still_buf[0] = cam->still_buf[1] = 0;
+
 	if (cam->overlay_on == true) {
 		start_preview(cam);
 	}
