@@ -1131,17 +1131,18 @@ fec_set_mac_address(struct net_device *dev, void *p)
 {
 	struct fec_enet_private *fep = netdev_priv(dev);
 	struct sockaddr *addr = p;
+	u32 temp_mac[2];
 
 	if (!is_valid_ether_addr(addr->sa_data))
 		return -EADDRNOTAVAIL;
 
 	memcpy(dev->dev_addr, addr->sa_data, dev->addr_len);
 
-	writel(dev->dev_addr[3] | (dev->dev_addr[2] << 8) |
-		(dev->dev_addr[1] << 16) | (dev->dev_addr[0] << 24),
-		fep->hwp + FEC_ADDR_LOW);
-	writel((dev->dev_addr[5] << 16) | (dev->dev_addr[4] << 24),
-		fep + FEC_ADDR_HIGH);
+	memcpy(&temp_mac, dev->dev_addr, ETH_ALEN);
+
+	writel(cpu_to_be32(temp_mac[0]), fep->hwp + FEC_ADDR_LOW);
+	writel(cpu_to_be32(temp_mac[1]), fep->hwp + FEC_ADDR_HIGH);
+
 	return 0;
 }
 
