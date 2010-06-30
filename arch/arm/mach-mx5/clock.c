@@ -2245,28 +2245,6 @@ static struct clk uart5_clk[] = {
 	 },
 };
 
-static struct clk esai_clk[] = {
-	{
-	 .name = "esai_clk",
-	 .id = 2,
-	 .parent = &pll3_sw_clk,
-	 .secondary = &esai_clk[1],
-	 .enable_reg = MXC_CCM_CCGR6,
-	 .enable_shift = MXC_CCM_CCGR6_CG9_OFFSET,
-	 .enable = _clk_enable,
-	 .disable = _clk_disable,
-	 },
-	{
-	 .name = "esai_ipg_clk",
-	 .id = 2,
-	 .parent = &pll3_sw_clk,
-	 .enable_reg = MXC_CCM_CCGR6,
-	 .enable_shift = MXC_CCM_CCGR6_CG8_OFFSET,
-	 .enable = _clk_enable,
-	 .disable = _clk_disable,
-	 },
-};
-
 static struct clk gpt_clk[] = {
 	{
 	 .name = "gpt_clk",
@@ -2787,6 +2765,83 @@ static struct clk ssi_ext2_clk = {
 	.enable_shift = MXC_CCM_CCGR3_CG15_OFFSET,
 	.enable = _clk_enable,
 	.disable = _clk_disable,
+};
+
+static int _clk_esai_set_parent(struct clk *clk, struct clk *parent)
+{
+	u32 reg, mux;
+
+	reg = __raw_readl(MXC_CCM_CSCMR2);
+	if (parent ==  &pll1_sw_clk || parent ==  &pll2_sw_clk ||
+		    parent ==  &pll3_sw_clk) {
+		mux = _get_mux(parent, &pll1_sw_clk, &pll2_sw_clk, &pll3_sw_clk,
+			NULL);
+		reg &= ~MXC_CCM_CSCMR2_ESAI_PRE_SEL_MASK;
+		reg |= mux << MXC_CCM_CSCMR2_ESAI_PRE_SEL_OFFSET;
+		reg &= ~MXC_CCM_CSCMR2_ESAI_POST_SEL_MASK;
+		reg |= 0 << MXC_CCM_CSCMR2_ESAI_POST_SEL_OFFSET;
+		/* divider setting */
+	} else {
+		mux = _get_mux(parent, &ssi1_clk[0], &ssi2_clk[0], &ckih_clk,
+			&ckih2_clk);
+		reg &= ~MXC_CCM_CSCMR2_ESAI_POST_SEL_MASK;
+		reg |= (mux + 1) << MXC_CCM_CSCMR2_ESAI_POST_SEL_OFFSET;
+		/* divider setting */
+	}
+
+	__raw_writel(reg, MXC_CCM_CSCMR2);
+
+	/* set podf = 0 */
+	reg = __raw_readl(MXC_CCM_CS1CDR);
+	reg &= ~MXC_CCM_CS1CDR_ESAI_CLK_PODF_MASK;
+	__raw_writel(reg, MXC_CCM_CS1CDR);
+
+	return 0;
+}
+
+static void _clk_esai_recalc(struct clk *clk)
+{
+	u32 reg, pred, podf;
+
+	reg = __raw_readl(MXC_CCM_CS1CDR);
+	if (clk->parent ==  &pll1_sw_clk || clk->parent ==  &pll2_sw_clk ||
+		    clk->parent ==  &pll3_sw_clk) {
+		pred = ((reg & MXC_CCM_CS1CDR_ESAI_CLK_PRED_MASK) >>
+			MXC_CCM_CS1CDR_ESAI_CLK_PRED_OFFSET) + 1;
+		podf = ((reg & MXC_CCM_CS1CDR_ESAI_CLK_PODF_MASK) >>
+			MXC_CCM_CS1CDR_ESAI_CLK_PODF_OFFSET) + 1;
+
+		clk->rate = clk->parent->rate / (pred * podf);
+	} else {
+		podf = ((reg & MXC_CCM_CS1CDR_ESAI_CLK_PODF_MASK) >>
+			MXC_CCM_CS1CDR_ESAI_CLK_PODF_OFFSET) + 1;
+
+		clk->rate = clk->parent->rate / podf;
+	}
+}
+
+static struct clk esai_clk[] = {
+	{
+	 .name = "esai_clk",
+	 .id = 0,
+	 .parent = &pll3_sw_clk,
+	 .set_parent = _clk_esai_set_parent,
+	 .recalc = _clk_esai_recalc,
+	 .secondary = &esai_clk[1],
+	 .enable_reg = MXC_CCM_CCGR6,
+	 .enable_shift = MXC_CCM_CCGR6_CG9_OFFSET,
+	 .enable = _clk_enable,
+	 .disable = _clk_disable,
+	 },
+	{
+	 .name = "esai_ipg_clk",
+	 .id = 0,
+	 .parent = &ipg_clk,
+	 .enable_reg = MXC_CCM_CCGR6,
+	 .enable_shift = MXC_CCM_CCGR6_CG8_OFFSET,
+	 .enable = _clk_enable,
+	 .disable = _clk_disable,
+	 },
 };
 
 static struct clk iim_clk = {
@@ -4732,6 +4787,10 @@ int __init mx53_clocks_init(unsigned long ckil, unsigned long osc, unsigned long
 	clk_register(&can2_clk[0]);
 	clk_register(&ldb_di_clk[0]);
 	clk_register(&ldb_di_clk[1]);
+	/* OSC of 22.5792M or 24.576M for ESAI */
+	clk_register(&esai_clk[0]);
+	clk_set_parent(&esai_clk[0], &ckih_clk);
+	clk_register(&esai_clk[1]);
 
 	ldb_di_clk[0].parent = ldb_di_clk[1].parent =
 	tve_clk.parent = &pll4_sw_clk;

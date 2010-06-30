@@ -578,6 +578,26 @@ struct platform_device mxc_ssi2_device = {
 	.resource = ssi2_resources,
 };
 
+static struct resource esai_resources[] = {
+	{
+		.start = ESAI_BASE_ADDR,
+		.end = ESAI_BASE_ADDR + 0x100,
+		.flags = IORESOURCE_MEM,
+	},
+	{
+		.start = MXC_INT_ESAI,
+		.end = MXC_INT_ESAI,
+		.flags = IORESOURCE_IRQ,
+	},
+};
+
+struct platform_device mxc_esai_device = {
+	.name = "mxc_esai",
+	.id = 0,
+	.num_resources = ARRAY_SIZE(esai_resources),
+	.resource = esai_resources,
+};
+
 static struct resource tve_resources[] = {
 	{
 		.start = TVE_BASE_ADDR,
@@ -1428,6 +1448,8 @@ int __init mxc_init_devices(void)
 		ssi1_resources[0].end -= MX53_OFFSET;
 		ssi2_resources[0].start -= MX53_OFFSET;
 		ssi2_resources[0].end -= MX53_OFFSET;
+		esai_resources[0].start -= MX53_OFFSET;
+		esai_resources[0].end -= MX53_OFFSET;
 		tve_resources[0].start -= MX53_OFFSET;
 		tve_resources[0].end -= MX53_OFFSET;
 		dvfs_core_resources[0].start -= MX53_OFFSET;

@@ -309,6 +309,10 @@ static struct ldb_platform_data ldb_data = {
 	.ext_ref = 1,
 };
 
+static struct mxc_esai_platform_data esai_data = {
+	.activate_esai_ports = gpio_activate_esai_ports,
+};
+
 static void adv7180_pwdn(int pwdn)
 {
 	gpio_request(IOMUX_TO_GPIO(MX53_PIN_CSI0_D5), "gpio5_23");
@@ -409,6 +413,10 @@ static struct i2c_board_info mxc_i2c0_board_info[] __initdata = {
 	.type = "adv7180",
 	.addr = 0x21,
 	.platform_data = (void *)&adv7180_data,
+	 },
+	{
+	 .type = "cs42888",
+	 .addr = 0x48,
 	 },
 };
 
@@ -810,6 +818,26 @@ static struct mxc_spdif_platform_data mxc_spdif_data = {
 	.spdif_clk = NULL,	/* spdif bus clk */
 };
 
+static struct mxc_audio_platform_data mxc_surround_audio_data = {
+	.ext_ram = 1,
+};
+
+
+static struct platform_device mxc_alsa_surround_device = {
+	.name = "imx-3stack-cs42888",
+};
+
+static int __initdata mxc_apc_on = { 0 };	/* OFF: 0 (default), ON: 1 */
+
+static int __init apc_setup(char *__unused)
+{
+	mxc_apc_on = 1;
+	printk(KERN_INFO "Automotive Port Card is Plugged on\n");
+	return 1;
+}
+__setup("apc", apc_setup);
+
+
 /*!
  * Board specific fixup function. It is called by \b setup_arch() in
  * setup.c file very early on during kernel starts. It allows the user to
@@ -966,8 +994,8 @@ static void __init mxc_board_init(void)
 	mxc_register_device(&mxc_ssi2_device, NULL);
 	mxc_register_device(&ahci_fsl_device, &sata_data);
 	mxc_register_device(&mxc_alsa_spdif_device, &mxc_spdif_data);
-
-	mxc_register_device(&mxc_fec_device, &fec_data);
+	if (!mxc_apc_on)
+		mxc_register_device(&mxc_fec_device, &fec_data);
 	spi_register_board_info(mxc_dataflash_device,
 				ARRAY_SIZE(mxc_dataflash_device));
 	i2c_register_board_info(0, mxc_i2c0_board_info,
@@ -984,6 +1012,11 @@ static void __init mxc_board_init(void)
 	mx5_usb_dr_init();
 	mx5_usbh1_init();
 	mxc_register_device(&mxc_nandv2_mtd_device, &mxc_nand_data);
+	if (mxc_apc_on) {
+		mxc_register_device(&mxc_esai_device, &esai_data);
+		mxc_register_device(&mxc_alsa_surround_device,
+			&mxc_surround_audio_data);
+	}
 }
 
 static void __init mx53_evk_timer_init(void)

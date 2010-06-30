@@ -272,8 +272,11 @@ static struct mxc_iomux_pin_cfg __initdata mxc_iomux_pins[] = {
 	{
 	 MX53_PIN_GPIO_11, IOMUX_CONFIG_GPIO,
 	 },
-	{
-	 MX53_PIN_GPIO_12, IOMUX_CONFIG_GPIO,
+	{ /* ESAI reset */
+	 MX53_PIN_GPIO_12, IOMUX_CONFIG_ALT0,
+	(PAD_CTL_DRV_HIGH | PAD_CTL_HYS_ENABLE | PAD_CTL_PKE_ENABLE |
+	  PAD_CTL_PUE_PULL | PAD_CTL_100K_PU | PAD_CTL_ODE_OPENDRAIN_ENABLE |
+	  PAD_CTL_SRE_FAST),
 	 },
 	{
 	 MX53_PIN_GPIO_13, IOMUX_CONFIG_GPIO,
@@ -905,6 +908,10 @@ void __init mx53_evk_io_init(void)
 		msleep(1);
 		gpio_set_value(IOMUX_TO_GPIO(MX53_PIN_ATA_DA_0), 1);
 
+		/* CS42888 reset GPIO */
+		gpio_direction_output(IOMUX_TO_GPIO(MX53_PIN_GPIO_12), 0);
+		gpio_set_value(IOMUX_TO_GPIO(MX53_PIN_GPIO_12), 0);
+
 	}
 
 	/* DVI Detect */
@@ -1115,3 +1122,110 @@ void gpio_lcd_active(void)
 /* TO DO */
 }
 EXPORT_SYMBOL(gpio_lcd_active);
+
+void gpio_activate_esai_ports(void)
+{
+	unsigned int pad_val;
+
+	/* ESAI1-HCKR */
+	mxc_request_iomux(MX53_PIN_FEC_RX_ER, IOMUX_CONFIG_ALT2);
+	/* ESAI1-SCKR */
+	mxc_request_iomux(MX53_PIN_FEC_MDIO, IOMUX_CONFIG_ALT2);
+	/* ESAI1-FSR */
+	mxc_request_iomux(MX53_PIN_FEC_REF_CLK, IOMUX_CONFIG_ALT2);
+	/* ESAI1-HCKT */
+	mxc_request_iomux(MX53_PIN_FEC_RXD0, IOMUX_CONFIG_ALT2);
+	/* ESAI1-SCKT */
+	mxc_request_iomux(MX53_PIN_FEC_CRS_DV, IOMUX_CONFIG_ALT2);
+	/* ESAI1-FST */
+	mxc_request_iomux(MX53_PIN_FEC_RXD1, IOMUX_CONFIG_ALT2);
+	/* ESAI1-TX5-RX0 */
+	mxc_request_iomux(MX53_PIN_FEC_MDC, IOMUX_CONFIG_ALT2);
+	/* ESAI1-TX4-RX1 */
+	mxc_request_iomux(MX53_PIN_FEC_TXD0, IOMUX_CONFIG_ALT2);
+	/* ESAI1-TX3-RX2 */
+	mxc_request_iomux(MX53_PIN_FEC_TX_EN, IOMUX_CONFIG_ALT2);
+	/* ESAI1-TX2-RX3 */
+	mxc_request_iomux(MX53_PIN_FEC_TXD1, IOMUX_CONFIG_ALT2);
+	/* ESAI1-TX1 */
+	mxc_request_iomux(MX53_PIN_NANDF_CS3, IOMUX_CONFIG_ALT3);
+	/* ESAI1-TX0 */
+	mxc_request_iomux(MX53_PIN_NANDF_CS2, IOMUX_CONFIG_ALT3);
+
+	pad_val = PAD_CTL_DRV_HIGH | PAD_CTL_HYS_ENABLE |
+		    PAD_CTL_PKE_ENABLE | PAD_CTL_PUE_PULL |
+		    PAD_CTL_100K_PU | PAD_CTL_ODE_OPENDRAIN_NONE;
+
+	/* ESAI1-HCKR */
+	mxc_iomux_set_pad(MX53_PIN_FEC_RX_ER, pad_val);
+	/* ESAI1-SCKR */
+	mxc_iomux_set_pad(MX53_PIN_FEC_MDIO, pad_val);
+	/* ESAI1-FSR */
+	mxc_iomux_set_pad(MX53_PIN_FEC_REF_CLK, pad_val);
+	/* ESAI1-HCKT */
+	mxc_iomux_set_pad(MX53_PIN_FEC_RXD0, pad_val);
+	/* ESAI1-SCKT */
+	mxc_iomux_set_pad(MX53_PIN_FEC_CRS_DV, pad_val);
+	/* ESAI1-FST */
+	mxc_iomux_set_pad(MX53_PIN_FEC_RXD1, pad_val);
+	/* ESAI1-TX5-RX0 */
+	mxc_iomux_set_pad(MX53_PIN_FEC_MDC, pad_val);
+	/* ESAI1-TX4-RX1 */
+	mxc_iomux_set_pad(MX53_PIN_FEC_TXD0, pad_val);
+	/* ESAI1-TX3-RX2 */
+	mxc_iomux_set_pad(MX53_PIN_FEC_TX_EN, pad_val);
+	/* ESAI1-TX2-RX3 */
+	mxc_iomux_set_pad(MX53_PIN_FEC_TXD1, pad_val);
+	/* ESAI1-TX1 */
+	mxc_iomux_set_pad(MX53_PIN_NANDF_CS3, pad_val);
+	/* ESAI1-TX0 */
+	mxc_iomux_set_pad(MX53_PIN_NANDF_CS2, pad_val);
+
+	/* ESAI1-HCKR */
+	mxc_iomux_set_input(MUX_IN_ESAI1_IPP_IND_HCKR_SELECT_INPUT,
+		INPUT_CTL_PATH0);
+	/* ESAI1-SCKR */
+	mxc_iomux_set_input(MUX_IN_ESAI1_IPP_IND_SCKR_SELECT_INPUT,
+		INPUT_CTL_PATH0);
+	/* ESAI1-FSR */
+	mxc_iomux_set_input(MUX_IN_ESAI1_IPP_IND_FSR_SELECT_INPUT,
+		INPUT_CTL_PATH0);
+	/* ESAI1-HCKT */
+	mxc_iomux_set_input(MUX_IN_ESAI1_IPP_IND_HCKT_SELECT_INPUT,
+		INPUT_CTL_PATH0);
+	/* ESAI1-SCKT */
+	mxc_iomux_set_input(MUX_IN_ESAI1_IPP_IND_SCKT_SELECT_INPUT,
+		INPUT_CTL_PATH0);
+	/* ESAI1-FST */
+	mxc_iomux_set_input(MUX_IN_ESAI1_IPP_IND_FST_SELECT_INPUT,
+		INPUT_CTL_PATH0);
+	/* ESAI1-TX5-RX0 */
+	mxc_iomux_set_input(MUX_IN_ESAI1_IPP_IND_SDO5_SDI0_SELECT_INPUT,
+		INPUT_CTL_PATH0);
+	/* ESAI1-TX4-RX1 */
+	mxc_iomux_set_input(MUX_IN_ESAI1_IPP_IND_SDO4_SDI1_SELECT_INPUT,
+		INPUT_CTL_PATH0);
+	/* ESAI1-TX3-RX2 */
+	mxc_iomux_set_input(MUX_IN_ESAI1_IPP_IND_SDO3_SDI2_SELECT_INPUT,
+		INPUT_CTL_PATH0);
+	/* ESAI1-TX2-RX3 */
+	mxc_iomux_set_input(MUX_IN_ESAI1_IPP_IND_SDO2_SDI3_SELECT_INPUT,
+		INPUT_CTL_PATH0);
+	/* ESAI1-TX1 */
+	mxc_iomux_set_input(MUX_IN_ESAI1_IPP_IND_SDO1_SELECT_INPUT,
+		INPUT_CTL_PATH0);
+	/* ESAI1-TX0 */
+	mxc_iomux_set_input(MUX_IN_ESAI1_IPP_IND_SDO0_SELECT_INPUT,
+		INPUT_CTL_PATH0);
+
+}
+EXPORT_SYMBOL(gpio_activate_esai_ports);
+
+void gpio_cs42888_pdwn(int pdwn)
+{
+	if (pdwn)
+		gpio_set_value(IOMUX_TO_GPIO(MX53_PIN_GPIO_12), 0);
+	else
+		gpio_set_value(IOMUX_TO_GPIO(MX53_PIN_GPIO_12), 1);
+}
+EXPORT_SYMBOL(gpio_cs42888_pdwn);
