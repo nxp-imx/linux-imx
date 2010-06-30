@@ -753,7 +753,9 @@ static unsigned long _clk_axi_a_round_rate(struct clk *clk,
 	/* Make sure rate is not greater than the maximum value for the clock.
 	 * Also prevent a div of 0.
 	 */
-	if ((clk->parent->rate / div > max_axi_a_clk) || div == 0)
+	if (div == 0)
+		div++;
+	if (clk->parent->rate / div > max_axi_a_clk)
 		div++;
 
 	if (div > 8)
@@ -792,7 +794,9 @@ static unsigned long _clk_ddr_hf_round_rate(struct clk *clk,
 	/* Make sure rate is not greater than the maximum value for the clock.
 	 * Also prevent a div of 0.
 	 */
-	if ((clk->parent->rate / div > MAX_DDR_HF_RATE) || div == 0)
+	if (div == 0)
+		div++;
+	if (clk->parent->rate / div > MAX_DDR_HF_RATE)
 		div++;
 
 	if (div > 8)
@@ -902,7 +906,9 @@ static unsigned long _clk_axi_b_round_rate(struct clk *clk,
 	/* Make sure rate is not greater than the maximum value for the clock.
 	 * Also prevent a div of 0.
 	 */
-	if ((clk->parent->rate / div > max_axi_b_clk) || div == 0)
+	if (div == 0)
+		div++;
+	if (clk->parent->rate / div > max_axi_b_clk)
 		div++;
 
 	if (div > 8)
@@ -978,7 +984,9 @@ static unsigned long _clk_ahb_round_rate(struct clk *clk,
 	/* Make sure rate is not greater than the maximum value for the clock.
 	 * Also prevent a div of 0.
 	 */
-	if ((clk->parent->rate / div > MAX_AHB_CLK) || div == 0)
+	if (div == 0)
+		div++;
+	if (clk->parent->rate / div > MAX_AHB_CLK)
 		div++;
 
 	if (div > 8)
@@ -1117,7 +1125,9 @@ static unsigned long _clk_emi_slow_round_rate(struct clk *clk,
 	/* Make sure rate is not greater than the maximum value for the clock.
 	 * Also prevent a div of 0.
 	 */
-	if ((clk->parent->rate / div > MAX_EMI_SLOW_CLK) || div == 0)
+	if (div == 0)
+		div++;
+	if (clk->parent->rate / div > MAX_EMI_SLOW_CLK)
 		div++;
 
 	if (div > 8)
