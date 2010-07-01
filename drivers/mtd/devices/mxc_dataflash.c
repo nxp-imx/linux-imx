@@ -1,5 +1,5 @@
 /*
- * Copyright 2009 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2009-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  * (c) 2005 MontaVista Software, Inc.
  *
  * This code is based on mtd_dataflash.c by adding FSL spi access.
@@ -22,10 +22,10 @@
 #include <linux/err.h>
 
 #include <linux/spi/spi.h>
-#include <linux/spi/flash.h>
 
 #include <linux/mtd/mtd.h>
 #include <linux/mtd/partitions.h>
+#include <asm/mach/flash.h>
 
 /*
  * DataFlash is a kind of SPI flash.  Most AT45 chips have two buffers in

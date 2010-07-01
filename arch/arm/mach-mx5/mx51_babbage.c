@@ -25,7 +25,6 @@
 #include <linux/mtd/mtd.h>
 #include <linux/mtd/map.h>
 #include <linux/mtd/partitions.h>
-#include <linux/spi/flash.h>
 #include <linux/regulator/consumer.h>
 #include <linux/pmic_external.h>
 #include <linux/pmic_status.h>
@@ -39,6 +38,7 @@
 #include <asm/mach/arch.h>
 #include <asm/mach/time.h>
 #include <asm/mach/keypad.h>
+#include <asm/mach/flash.h>
 #include <mach/gpio.h>
 #include <mach/mmc.h>
 #include <mach/mxc_dvfs.h>
