@@ -1,7 +1,7 @@
 /*
  * imx-3stack-wm8580.c  --  SoC 5.1 audio for imx_3stack
  *
- * Copyright 2008-2009 Freescale  Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2008-2010 Freescale  Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -68,9 +68,6 @@ static struct asrc_esai asrc_esai_data;
 struct imx_3stack_pcm_state {
 	int lr_clk_active;
 };
-
-extern void gpio_activate_esai_ports(void);
-extern void gpio_deactivate_esai_ports(void);
 
 static struct imx_3stack_pcm_state clk_state;
 
@@ -374,20 +371,17 @@ static int __devinit imx_3stack_wm8580_probe(struct platform_device *pdev)
 	struct wm8580_setup_data *setup;
 
 	imx_3stack_dai.cpu_dai = &imx_esai_dai[2];
+	imx_3stack_dai.cpu_dai->dev = &pdev->dev;
 
 	setup = kzalloc(sizeof(struct wm8580_setup_data), GFP_KERNEL);
 	setup->spi = 1;
 	imx_3stack_snd_devdata.codec_data = setup;
-
-	/* Configure audio port 3 */
-	gpio_activate_esai_ports();
 
 	return 0;
 }
 
 static int __devexit imx_3stack_wm8580_remove(struct platform_device *pdev)
 {
-	gpio_deactivate_esai_ports();
 	return 0;
 }
 

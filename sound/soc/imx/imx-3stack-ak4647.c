@@ -363,8 +363,6 @@ static int __init imx_3stack_ak4647_probe(struct platform_device *pdev)
 
 	imx_3stack_dai.cpu_dai = ak4647_cpu_dai;
 
-	/* Configure audio port 3 */
-	gpio_activate_audio_ports();
 	imx_3stack_init_dam(dev_data->src_port, dev_data->ext_port);
 
 	ret = request_irq(dev_data->intr_id_hp, imx_headphone_detect_handler, 0,
@@ -388,7 +386,6 @@ err:
 static int __devexit imx_3stack_ak4647_remove(struct platform_device *pdev)
 {
 	struct mxc_audio_platform_data *dev_data = pdev->dev.platform_data;
-	gpio_inactivate_audio_ports();
 	free_irq(dev_data->intr_id_hp, NULL);
 	driver_remove_file(pdev->dev.driver, &driver_attr_headphone);
 	return 0;

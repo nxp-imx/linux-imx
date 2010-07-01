@@ -1,7 +1,7 @@
 /*
  * imx-3stack-ak5702.c  --  SoC audio for imx_3stack
  *
- * Copyright 2009 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2009-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -171,13 +171,11 @@ static int __devinit imx_3stack_ak5702_probe(struct platform_device *pdev)
 	setup->i2c_address = 0x13;
 	imx_3stack_snd_devdata.codec_data = setup;
 
-	gpio_activate_esai_ports();
 	return 0;
 }
 
 static int imx_3stack_ak5702_remove(struct platform_device *pdev)
 {
-	gpio_deactivate_esai_ports();
 	return 0;
 }
 

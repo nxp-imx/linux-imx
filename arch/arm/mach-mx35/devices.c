@@ -585,11 +585,58 @@ static inline void mxc_init_spdif(void)
 	platform_device_register(&mxc_alsa_spdif_device);
 }
 
+#if defined(CONFIG_SND_MXC_SOC_ESAI) || defined(CONFIG_SND_MXC_SOC_ESAI_MODULE)
+
+static struct mxc_esai_platform_data esai_data = {
+	.activate_esai_ports = gpio_activate_esai_ports,
+	.deactivate_esai_ports = gpio_deactivate_esai_ports,
+};
+
+static struct resource esai_resources[] = {
+	{
+		.start = ESAI_BASE_ADDR,
+		.end = ESAI_BASE_ADDR + 0x100,
+		.flags = IORESOURCE_MEM,
+	},
+	{
+		.start = MXC_INT_ESAI,
+		.end = MXC_INT_ESAI,
+		.flags = IORESOURCE_IRQ,
+	},
+};
+
+struct platform_device mxc_esai_device = {
+	.name = "mxc_esai",
+	.id = 0,
+	.num_resources = ARRAY_SIZE(esai_resources),
+	.resource = esai_resources,
+	.dev = {
+		.release = mxc_nop_release,
+		.platform_data = &esai_data,
+		},
+};
+
+static void mxc_init_esai(void)
+{
+	platform_device_register(&mxc_esai_device);
+}
+#else
+static void mxc_init_esai(void)
+{
+
+}
+#endif
+
+static struct mxc_audio_platform_data mxc_surround_audio_data = {
+	.ext_ram = 1,
+};
+
 static struct platform_device mxc_alsa_surround_device = {
 	.name = "imx-3stack-wm8580",
 	.id = 0,
 	.dev = {
 		.release = mxc_nop_release,
+		.platform_data = &mxc_surround_audio_data,
 		},
 };
 
@@ -873,6 +920,7 @@ int __init mxc_init_devices(void)
 	mxc_init_iim();
 	mxc_init_gpu();
 	mxc_init_ssi();
+	mxc_init_esai();
 
 	return 0;
 }

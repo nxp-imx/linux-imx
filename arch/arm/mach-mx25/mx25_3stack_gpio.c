@@ -1,5 +1,5 @@
 /*
- * Copyright 2008-2009 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2008-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -1333,10 +1333,10 @@ void gpio_activate_audio_ports(void)
 EXPORT_SYMBOL(gpio_activate_audio_ports);
 
 /*!
- * This function inactivates DAM port 4 for
+ * This function deactivates DAM port 4 for
  * audio I/O
  */
-void gpio_inactive_audio_ports(void)
+void gpio_deactive_audio_ports(void)
 {
 	gpio_request(IOMUX_TO_GPIO(MX25_PIN_EB0), NULL); /*SSI4_STXD*/
 	gpio_request(IOMUX_TO_GPIO(MX25_PIN_EB1), NULL); /*SSI4_SRXD*/
@@ -1352,7 +1352,7 @@ void gpio_inactive_audio_ports(void)
 	mxc_free_iomux(MX25_PIN_A10, MUX_CONFIG_GPIO);
 	mxc_free_iomux(MX25_PIN_D13, MUX_CONFIG_GPIO);
 }
-EXPORT_SYMBOL(gpio_inactive_audio_ports);
+EXPORT_SYMBOL(gpio_deactive_audio_ports);
 
 int headphone_det_status(void)
 {
