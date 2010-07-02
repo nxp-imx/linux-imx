@@ -2704,11 +2704,6 @@ static int __init fsl_udc_probe(struct platform_device *pdev)
 	unsigned int i;
 	u32 dccparams, portsc;
 
-	if (strcmp(pdev->name, driver_name)) {
-		VDBG("Wrong device\n");
-		return -ENODEV;
-	}
-
 	udc_controller = kzalloc(sizeof(struct fsl_udc), GFP_KERNEL);
 	if (udc_controller == NULL) {
 		ERR("malloc udc failed\n");
