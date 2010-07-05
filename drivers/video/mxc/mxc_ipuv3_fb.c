@@ -77,6 +77,8 @@ struct mxcfb_info {
 
 	u32 pseudo_palette[16];
 
+	bool wait4vsync;
+	uint32_t waitcnt;
 	struct semaphore flip_sem;
 	struct semaphore alpha_flip_sem;
 	struct completion vsync_complete;
@@ -895,10 +897,10 @@ static int mxcfb_ioctl(struct fb_info *fbi, unsigned int cmd, unsigned long arg)
 				break;
 			}
 
-			down(&mxc_fbi->flip_sem);
 			init_completion(&mxc_fbi->vsync_complete);
 
 			ipu_clear_irq(mxc_fbi->ipu_ch_irq);
+			mxc_fbi->wait4vsync = 1;
 			ipu_enable_irq(mxc_fbi->ipu_ch_irq);
 			retval = wait_for_completion_interruptible_timeout(
 				&mxc_fbi->vsync_complete, 1 * HZ);
@@ -906,6 +908,7 @@ static int mxcfb_ioctl(struct fb_info *fbi, unsigned int cmd, unsigned long arg)
 				dev_err(fbi->device,
 					"MXCFB_WAIT_FOR_VSYNC: timeout %d\n",
 					retval);
+				mxc_fbi->wait4vsync = 0;
 				retval = -ETIME;
 			} else if (retval > 0) {
 				retval = 0;
@@ -1147,9 +1150,6 @@ mxcfb_pan_display(struct fb_var_screeninfo *var, struct fb_info *info)
 	base = (var->bits_per_pixel) * base / 8;
 	base += info->fix.smem_start;
 
-	dev_dbg(info->device, "Updating SDC %s buf %d address=0x%08lX\n",
-		info->fix.id, mxc_fbi->cur_ipu_buf, base);
-
 	/* Check if DP local alpha is enabled and find the graphic fb */
 	if (mxc_fbi->ipu_ch == MEM_BG_SYNC || mxc_fbi->ipu_ch == MEM_FG_SYNC) {
 		for (i = 0; i < num_registered_fb; i++) {
@@ -1174,20 +1174,12 @@ mxcfb_pan_display(struct fb_var_screeninfo *var, struct fb_info *info)
 	}
 
 	down(&mxc_fbi->flip_sem);
-	init_completion(&mxc_fbi->vsync_complete);
 
-	i = 0;
 	mxc_fbi->cur_ipu_buf = !mxc_fbi->cur_ipu_buf;
-	while (ipu_check_buffer_busy(mxc_fbi->ipu_ch,
-			IPU_INPUT_BUFFER, mxc_fbi->cur_ipu_buf) && (i < 3)) {
-		/* Not ready for update, wait vsync again */
-		dev_dbg(info->device, "Not ready for update, wait vsync again\n");
-		ipu_clear_irq(mxc_fbi->ipu_ch_irq);
-		ipu_enable_irq(mxc_fbi->ipu_ch_irq);
-		down(&mxc_fbi->flip_sem);
-		init_completion(&mxc_fbi->vsync_complete);
-		i++;
-	}
+
+	dev_dbg(info->device, "Updating SDC %s buf %d address=0x%08lX\n",
+		info->fix.id, mxc_fbi->cur_ipu_buf, base);
+
 	if (ipu_update_channel_buffer(mxc_fbi->ipu_ch, IPU_INPUT_BUFFER,
 				      mxc_fbi->cur_ipu_buf, base) == 0) {
 		/* Update the DP local alpha buffer only for graphic plane */
@@ -1306,9 +1298,29 @@ static irqreturn_t mxcfb_irq_handler(int irq, void *dev_id)
 	struct fb_info *fbi = dev_id;
 	struct mxcfb_info *mxc_fbi = fbi->par;
 
-	complete(&mxc_fbi->vsync_complete);
-	up(&mxc_fbi->flip_sem);
-	ipu_disable_irq(irq);
+	if (mxc_fbi->wait4vsync) {
+		complete(&mxc_fbi->vsync_complete);
+		ipu_disable_irq(irq);
+		mxc_fbi->wait4vsync = 0;
+	} else {
+		if (!ipu_check_buffer_busy(mxc_fbi->ipu_ch,
+				IPU_INPUT_BUFFER, mxc_fbi->cur_ipu_buf)
+				|| (mxc_fbi->waitcnt > 2)) {
+			/*
+			 * This interrupt come after pan display select
+			 * cur_ipu_buf buffer, this buffer should become
+			 * idle after show. If it keep busy, clear it manually.
+			 */
+			if (mxc_fbi->waitcnt > 2)
+				ipu_clear_buffer_ready(mxc_fbi->ipu_ch,
+						IPU_INPUT_BUFFER,
+						mxc_fbi->cur_ipu_buf);
+			up(&mxc_fbi->flip_sem);
+			ipu_disable_irq(irq);
+			mxc_fbi->waitcnt = 0;
+		} else
+			mxc_fbi->waitcnt++;
+	}
 	return IRQ_HANDLED;
 }
 
