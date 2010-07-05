@@ -470,6 +470,11 @@ struct mxc_vpu_platform_data {
 	void (*reset) (void);
 };
 
+struct mxc_esai_platform_data {
+	void (*activate_esai_ports) (void);
+	void (*deactivate_esai_ports) (void);
+};
+
 /* The name that links the i.MX NAND Flash Controller driver to its devices. */
 
 #define IMX_NFC_DRIVER_NAME  ("imx_nfc")
