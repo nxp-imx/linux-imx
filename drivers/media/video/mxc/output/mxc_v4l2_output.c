@@ -1558,7 +1558,19 @@ static int mxc_v4l2out_streamoff(vout_data * vout)
 		}
 	}
 
-	if (vout->post_proc_ch == MEM_PP_MEM ||
+	if (vout->ic_bypass) {
+		fbi->var.activate |= FB_ACTIVATE_FORCE;
+		fb_set_var(fbi, &fbi->var);
+
+		if (vout->display_ch == MEM_FG_SYNC) {
+			acquire_console_sem();
+			fb_blank(fbi, FB_BLANK_POWERDOWN);
+			release_console_sem();
+		}
+
+		vout->display_bufs[0] = 0;
+		vout->display_bufs[1] = 0;
+	} else if (vout->post_proc_ch == MEM_PP_MEM ||
 	    vout->post_proc_ch == MEM_PRP_VF_MEM) {
 		/* SDC with Rotation */
 		if (!ipu_can_rotate_in_place(vout->rotate)) {
@@ -1637,6 +1649,7 @@ static int mxc_v4l2out_streamoff(vout_data * vout)
 		vout->v4l2_bufs[i].timestamp.tv_usec = 0;
 	}
 
+	vout->post_proc_ch = CHAN_NONE;
 	vout->state = STATE_STREAM_OFF;
 
 	return retval;
