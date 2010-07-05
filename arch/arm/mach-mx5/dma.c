@@ -1344,7 +1344,7 @@ static void __init mx53_sdma_get_script_info(sdma_script_start_addrs *sdma_scrip
 	sdma_script_addr->mxc_sdma_dptc_dvfs_addr = -1;
 
 	/* core */
-	sdma_script_addr->mxc_sdma_start_addr = (unsigned short *)sdma_code;
+	sdma_script_addr->mxc_sdma_start_addr = (unsigned short *)sdma_code_mx53;
 	sdma_script_addr->mxc_sdma_ram_code_start_addr = RAM_CODE_START_ADDR_MX53;
 	sdma_script_addr->mxc_sdma_ram_code_size = RAM_CODE_SIZE_MX53;
 }

@@ -2496,23 +2496,15 @@ static struct clk cspi2_clk[] = {
 	 },
 };
 
-static struct clk cspi3_clk[] = {
-	{
-	 .name = "cspi_clk",
-	 .id = 2,
-	 .parent = &cspi_main_clk,
-	 .enable_reg = MXC_CCM_CCGR4,
-	 .enable_shift = MXC_CCM_CCGR4_CG13_OFFSET,
-	 .enable = _clk_enable,
-	 .disable = _clk_disable,
-	 .secondary = &cspi3_clk[1],
-	 },
-	{
-	 .name = "cspi_ipg_clk",
-	 .id = 2,
-	 .parent = &ipg_clk,
-	 .secondary = &aips_tz2_clk,
-	 },
+static struct clk cspi3_clk = {
+	.name = "cspi_ipg_clk",
+	.id = 2,
+	.parent = &ipg_clk,
+	.enable_reg = MXC_CCM_CCGR4,
+	.enable_shift = MXC_CCM_CCGR4_CG13_OFFSET,
+	.enable = _clk_enable,
+	.disable = _clk_disable,
+	.secondary = &aips_tz2_clk,
 };
 
 static int _clk_ssi_lp_apm_set_parent(struct clk *clk, struct clk *parent)
@@ -4197,8 +4189,7 @@ static struct clk *mxc_clks[] = {
 	&cspi1_clk[1],
 	&cspi2_clk[0],
 	&cspi2_clk[1],
-	&cspi3_clk[0],
-	&cspi3_clk[1],
+	&cspi3_clk,
 	&ssi_lp_apm_clk,
 	&ssi1_clk[0],
 	&ssi1_clk[1],
@@ -4585,13 +4576,6 @@ int __init mx51_clocks_init(unsigned long ckil, unsigned long osc, unsigned long
 	}
 	if (i > cpu_wp_nr)
 		BUG();
-
-	/*Allow for automatic gating of the EMI internal clock.
-	 * If this is done, emi_intr CCGR bits should be set to 11.
-	 */
-	reg = __raw_readl((IO_ADDRESS(M4IF_BASE_ADDR) + 0x8c));
-	reg &= ~0x1;
-	__raw_writel(reg, (IO_ADDRESS(M4IF_BASE_ADDR) + 0x8c));
 
 	clk_set_parent(&arm_axi_clk, &axi_a_clk);
 	clk_set_parent(&ipu_clk[0], &axi_b_clk);
