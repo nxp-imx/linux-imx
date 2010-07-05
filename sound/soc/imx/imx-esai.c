@@ -58,10 +58,8 @@ static int imx_esai_set_dai_sysclk(struct snd_soc_dai *cpu_dai,
 			    ~(ESAI_RCCR_RHCKD | ESAI_RCCR_RCKD |
 			      ESAI_RCCR_RFSD);
 	} else {
-		if (cpu_dai->id & IMX_DAI_ESAI_TX)
 			tccr |=
 			    ESAI_TCCR_THCKD | ESAI_TCCR_TCKD | ESAI_TCCR_TFSD;
-		if (cpu_dai->id & IMX_DAI_ESAI_RX)
 			rccr |=
 			    ESAI_RCCR_RHCKD | ESAI_RCCR_RCKD | ESAI_RCCR_RFSD;
 		if (clk_id == ESAI_CLK_FSYS) {
@@ -70,14 +68,10 @@ static int imx_esai_set_dai_sysclk(struct snd_soc_dai *cpu_dai,
 			if (cpu_dai->id & IMX_DAI_ESAI_RX)
 				ecr &= ~(ESAI_ECR_ERI | ESAI_ECR_ERO);
 		} else if (clk_id == ESAI_CLK_EXTAL) {
-			if (cpu_dai->id & IMX_DAI_ESAI_TX) {
 				ecr |= ESAI_ECR_ETI;
 				ecr &= ~ESAI_ECR_ETO;
-			}
-			if (cpu_dai->id & IMX_DAI_ESAI_RX) {
 				ecr |= ESAI_ECR_ERI;
 				ecr &= ~ESAI_ECR_ERO;
-			}
 		}
 	}
 
@@ -103,7 +97,10 @@ static int imx_esai_set_dai_clkdiv(struct snd_soc_dai *cpu_dai,
 	switch (div_id) {
 	case ESAI_TX_DIV_PSR:
 		tccr &= ESAI_TCCR_TPSR_MASK;
-		tccr |= div;
+		if (div)
+			tccr |= ESAI_TCCR_TPSR_BYPASS;
+		else
+			tccr &= ~ESAI_TCCR_TPSR_DIV8;
 		break;
 	case ESAI_TX_DIV_PM:
 		tccr &= ESAI_TCCR_TPM_MASK;
@@ -115,7 +112,10 @@ static int imx_esai_set_dai_clkdiv(struct snd_soc_dai *cpu_dai,
 		break;
 	case ESAI_RX_DIV_PSR:
 		rccr &= ESAI_RCCR_RPSR_MASK;
-		rccr |= div;
+		if (div)
+			rccr |= ESAI_RCCR_RPSR_BYPASS;
+		else
+			rccr &= ~ESAI_RCCR_RPSR_DIV8;
 		break;
 	case ESAI_RX_DIV_PM:
 		rccr &= ESAI_RCCR_RPM_MASK;
@@ -408,7 +408,7 @@ static int imx_esai_hw_rx_params(struct snd_pcm_substream *substream,
 	switch (params_format(params)) {
 	case SNDRV_PCM_FORMAT_S16_LE:
 		rfcr |= ESAI_WORD_LEN_16;
-		rcr |= ESAI_RCR_RSHFD_MSB | ESAI_RCR_RSWS_STL16_WDL16;
+		rcr |= ESAI_RCR_RSHFD_MSB | ESAI_RCR_RSWS_STL32_WDL16;
 		break;
 	}
 
@@ -446,6 +446,7 @@ static int imx_esai_trigger(struct snd_pcm_substream *substream, int cmd,
 			    struct snd_soc_dai *dai)
 {
 	u32 reg, tfcr = 0, rfcr = 0;
+	u32 temp;
 
 	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
 		tfcr = __raw_readl(ESAI_TFCR);
@@ -465,6 +466,9 @@ static int imx_esai_trigger(struct snd_pcm_substream *substream, int cmd,
 			reg |= ESAI_TCR_TE(substream->runtime->channels);
 			__raw_writel(reg, ESAI_TCR);
 		} else {
+			temp = __raw_readl(ESAI_TCR);
+			temp &= ~ESAI_TCR_TPR;
+			__raw_writel(temp, ESAI_TCR);
 			rfcr |= ESAI_RFCR_RFEN;
 			__raw_writel(rfcr, ESAI_RFCR);
 			reg &= ~ESAI_RCR_RPR;

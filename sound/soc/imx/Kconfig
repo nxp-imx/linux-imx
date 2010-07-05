@@ -71,4 +71,14 @@ config SND_SOC_IMX_3STACK_BLUETOOTH
  help
    Say Y if you want to add support for Soc audio on IMX 3STACK
    with the BLUETOOTH
+
+config SND_SOC_IMX_3STACK_CS42888
+ tristate "SoC Audio support for IMX - CS42888"
+ select SND_MXC_SOC_ESAI
+ select SND_SOC_CS42888
+ help
+   Say Y if you want to add support for Soc audio on IMX 3STACK
+   with the CS42888
+
+
 endif

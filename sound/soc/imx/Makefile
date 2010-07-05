@@ -22,3 +22,6 @@ snd-soc-imx-3stack-ak5702-objs := imx-3stack-ak5702.o
 obj-$(CONFIG_SND_SOC_IMX_3STACK_AK5702) += snd-soc-imx-3stack-ak5702.o
 snd-soc-imx-3stack-bt-objs := imx-3stack-bt.o
 obj-$(CONFIG_SND_SOC_IMX_3STACK_BLUETOOTH) += snd-soc-imx-3stack-bt.o
+snd-soc-imx-3stack-cs42888-objs := imx-3stack-cs42888.o
+obj-$(CONFIG_SND_SOC_IMX_3STACK_CS42888) += snd-soc-imx-3stack-cs42888.o
+
