@@ -54,6 +54,7 @@ extern struct platform_device mxc_sim_device;
 extern struct platform_device mxcsdhc1_device;
 extern struct platform_device mxcsdhc2_device;
 extern struct platform_device mxcsdhc3_device;
+extern struct platform_device ahci_fsl_device;
 extern struct platform_device pata_fsl_device;
 extern struct platform_device gpu_device;
 extern struct platform_device mxc_fec_device;

@@ -873,6 +873,29 @@ struct platform_device pata_fsl_device = {
 	},
 };
 
+static struct resource ahci_fsl_resources[] = {
+	{
+		.start = MX53_SATA_BASE_ADDR,
+		.end = MX53_SATA_BASE_ADDR + SZ_4K - 1,
+		.flags = IORESOURCE_MEM,
+	},
+	{
+		.start = MXC_INT_SATA,
+		.end = MXC_INT_SATA,
+		.flags = IORESOURCE_IRQ,
+	},
+};
+
+struct platform_device ahci_fsl_device = {
+	.name = "ahci",
+	.id = 0,
+	.num_resources = ARRAY_SIZE(ahci_fsl_resources),
+	.resource = ahci_fsl_resources,
+	.dev = {
+		.coherent_dma_mask = DMA_BIT_MASK(32),
+	},
+};
+
 static u64 usb_dma_mask = DMA_BIT_MASK(32);
 
 static struct resource usbotg_resources[] = {
