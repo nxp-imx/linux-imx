@@ -608,41 +608,30 @@ static int mxc_rtc_probe(struct platform_device *pdev)
 
 	/* clear lp interrupt status */
 	__raw_writel(0xFFFFFFFF, ioaddr + SRTC_LPSR);
-	udelay(100);;
+	udelay(100);
 
 	plat_data = (struct mxc_srtc_platform_data *)pdev->dev.platform_data;
-	clk = clk_get(NULL, "iim_clk");
-	clk_enable(clk);
-	srtc_secmode_addr = ioremap(plat_data->srtc_sec_mode_addr, 1);
 
-	/* Check SRTC security mode */
-	if (((__raw_readl(srtc_secmode_addr) & SRTC_SECMODE_MASK) ==
-	    SRTC_SECMODE_LOW) && (cpu_is_mx51_rev(CHIP_REV_1_0) == 1)) {
-		/* Workaround for MX51 TO1 due to inaccurate CKIL clock */
-		__raw_writel(SRTC_LPCR_EN_LP, ioaddr + SRTC_LPCR);
-		udelay(100);
-	} else {
-		/* move out of init state */
-		__raw_writel((SRTC_LPCR_IE | SRTC_LPCR_NSA),
-			     ioaddr + SRTC_LPCR);
+	/* move out of init state */
+	__raw_writel((SRTC_LPCR_IE | SRTC_LPCR_NSA),
+		     ioaddr + SRTC_LPCR);
 
-		udelay(100);
+	udelay(100);
 
-		while ((__raw_readl(ioaddr + SRTC_LPSR) & SRTC_LPSR_IES) == 0);
+	while ((__raw_readl(ioaddr + SRTC_LPSR) & SRTC_LPSR_IES) == 0)
+		;
 
-		/* move out of non-valid state */
-		__raw_writel((SRTC_LPCR_IE | SRTC_LPCR_NVE | SRTC_LPCR_NSA |
-			      SRTC_LPCR_EN_LP), ioaddr + SRTC_LPCR);
+	/* move out of non-valid state */
+	__raw_writel((SRTC_LPCR_IE | SRTC_LPCR_NVE | SRTC_LPCR_NSA |
+		      SRTC_LPCR_EN_LP), ioaddr + SRTC_LPCR);
 
-		udelay(100);
+	udelay(100);
 
-		while ((__raw_readl(ioaddr + SRTC_LPSR) & SRTC_LPSR_NVES) == 0);
+	while ((__raw_readl(ioaddr + SRTC_LPSR) & SRTC_LPSR_NVES) == 0)
+		;
 
-		__raw_writel(0xFFFFFFFF, ioaddr + SRTC_LPSR);
-		udelay(100);
-	}
-	clk_disable(clk);
-	clk_put(clk);
+	__raw_writel(0xFFFFFFFF, ioaddr + SRTC_LPSR);
+	udelay(100);
 
 	rtc = rtc_device_register(pdev->name, &pdev->dev,
 				  &mxc_rtc_ops, THIS_MODULE);
