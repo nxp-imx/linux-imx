@@ -766,7 +766,7 @@ static int sgtl5000_set_bias_level(struct snd_soc_codec *codec,
 		   avoid pops. */
 		reg = sgtl5000_read(codec, SGTL5000_CHIP_ANA_POWER);
 		if (reg & SGTL5000_VAG_POWERUP)
-			delay = 400;
+			delay = 600;
 		reg &= ~SGTL5000_VAG_POWERUP;
 		reg |= SGTL5000_DAC_POWERUP;
 		reg |= SGTL5000_HP_POWERUP;
