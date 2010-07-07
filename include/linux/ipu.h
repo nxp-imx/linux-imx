@@ -425,6 +425,8 @@ typedef union {
 	struct {
 		uint32_t di;
 		bool interlaced;
+		uint32_t in_pixel_fmt;
+		uint32_t out_pixel_fmt;
 	} mem_dc_sync;
 	struct {
 		uint32_t temp;

@@ -178,20 +178,33 @@ static int _setup_disp_channel1(struct fb_info *fbi)
 			}
 		}
 	}
-	if (fbi->var.vmode & FB_VMODE_INTERLACED) {
-		params.mem_dp_bg_sync.interlaced = true;
-		params.mem_dp_bg_sync.out_pixel_fmt =
-			IPU_PIX_FMT_YUV444;
+	if (mxc_fbi->ipu_ch == MEM_DC_SYNC) {
+		if (fbi->var.vmode & FB_VMODE_INTERLACED) {
+			params.mem_dc_sync.interlaced = true;
+			params.mem_dc_sync.out_pixel_fmt =
+				IPU_PIX_FMT_YUV444;
+		} else {
+			if (mxc_fbi->ipu_di_pix_fmt)
+				params.mem_dc_sync.out_pixel_fmt = mxc_fbi->ipu_di_pix_fmt;
+			else
+				params.mem_dc_sync.out_pixel_fmt = IPU_PIX_FMT_RGB666;
+		}
+		params.mem_dc_sync.in_pixel_fmt = bpp_to_pixfmt(fbi);
 	} else {
-		if (mxc_fbi->ipu_di_pix_fmt)
-			params.mem_dp_bg_sync.out_pixel_fmt = mxc_fbi->ipu_di_pix_fmt;
-		else
-			params.mem_dp_bg_sync.out_pixel_fmt = IPU_PIX_FMT_RGB666;
+		if (fbi->var.vmode & FB_VMODE_INTERLACED) {
+			params.mem_dp_bg_sync.interlaced = true;
+			params.mem_dp_bg_sync.out_pixel_fmt =
+				IPU_PIX_FMT_YUV444;
+		} else {
+			if (mxc_fbi->ipu_di_pix_fmt)
+				params.mem_dp_bg_sync.out_pixel_fmt = mxc_fbi->ipu_di_pix_fmt;
+			else
+				params.mem_dp_bg_sync.out_pixel_fmt = IPU_PIX_FMT_RGB666;
+		}
+		params.mem_dp_bg_sync.in_pixel_fmt = bpp_to_pixfmt(fbi);
+		if (mxc_fbi->alpha_chan_en)
+			params.mem_dp_bg_sync.alpha_chan_en = true;
 	}
-	params.mem_dp_bg_sync.in_pixel_fmt = bpp_to_pixfmt(fbi);
-	if (mxc_fbi->alpha_chan_en)
-		params.mem_dp_bg_sync.alpha_chan_en = true;
-
 	ipu_init_channel(mxc_fbi->ipu_ch, &params);
 
 	return 0;

@@ -571,7 +571,7 @@ void _ipu_dp_uninit(ipu_channel_t channel)
 	__ipu_dp_csc_setup(dp, dp_csc_array[bg_csc_type][fg_csc_type], false);
 }
 
-void _ipu_dc_init(int dc_chan, int di, bool interlaced)
+void _ipu_dc_init(int dc_chan, int di, bool interlaced, uint32_t pixel_fmt)
 {
 	u32 reg = 0;
 
@@ -585,14 +585,24 @@ void _ipu_dc_init(int dc_chan, int di, bool interlaced)
 				_ipu_dc_link_event(dc_chan, DC_EVT_NL, 2, 3);
 				_ipu_dc_link_event(dc_chan, DC_EVT_EOL, 3, 2);
 				_ipu_dc_link_event(dc_chan, DC_EVT_NEW_DATA, 4, 1);
-				_ipu_dc_link_event(dc_chan, DC_ODD_UGDE1, 9, 5);
-				_ipu_dc_link_event(dc_chan, DC_EVEN_UGDE1, 8, 5);
+				if ((pixel_fmt == IPU_PIX_FMT_YUYV) ||
+				(pixel_fmt == IPU_PIX_FMT_UYVY) ||
+				(pixel_fmt == IPU_PIX_FMT_YVYU) ||
+				(pixel_fmt == IPU_PIX_FMT_VYUY)) {
+					_ipu_dc_link_event(dc_chan, DC_ODD_UGDE1, 9, 5);
+					_ipu_dc_link_event(dc_chan, DC_EVEN_UGDE1, 8, 5);
+				}
 			} else {
 				_ipu_dc_link_event(dc_chan, DC_EVT_NL, 5, 3);
 				_ipu_dc_link_event(dc_chan, DC_EVT_EOL, 6, 2);
 				_ipu_dc_link_event(dc_chan, DC_EVT_NEW_DATA, 7, 1);
-				_ipu_dc_link_event(dc_chan, DC_ODD_UGDE0, 10, 5);
-				_ipu_dc_link_event(dc_chan, DC_EVEN_UGDE0, 11, 5);
+				if ((pixel_fmt == IPU_PIX_FMT_YUYV) ||
+				(pixel_fmt == IPU_PIX_FMT_UYVY) ||
+				(pixel_fmt == IPU_PIX_FMT_YVYU) ||
+				(pixel_fmt == IPU_PIX_FMT_VYUY)) {
+					_ipu_dc_link_event(dc_chan, DC_ODD_UGDE0, 10, 5);
+					_ipu_dc_link_event(dc_chan, DC_EVEN_UGDE0, 11, 5);
+				}
 			}
 		}
 		_ipu_dc_link_event(dc_chan, DC_EVT_NF, 0, 0);

@@ -1,5 +1,5 @@
 /*
- * Copyright 2005-2009 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2005-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -60,7 +60,7 @@ void _ipu_init_dc_mappings(void);
 int _ipu_dp_init(ipu_channel_t channel, uint32_t in_pixel_fmt,
 		 uint32_t out_pixel_fmt);
 void _ipu_dp_uninit(ipu_channel_t channel);
-void _ipu_dc_init(int dc_chan, int di, bool interlaced);
+void _ipu_dc_init(int dc_chan, int di, bool interlaced, uint32_t pixel_fmt);
 void _ipu_dc_uninit(int dc_chan);
 void _ipu_dp_dc_enable(ipu_channel_t channel);
 void _ipu_dp_dc_disable(ipu_channel_t channel, bool swap);

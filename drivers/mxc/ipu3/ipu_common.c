@@ -660,7 +660,8 @@ int32_t ipu_init_channel(ipu_channel_t channel, ipu_channel_params_t *params)
 
 		g_dc_di_assignment[1] = params->mem_dc_sync.di;
 		_ipu_dc_init(1, params->mem_dc_sync.di,
-			     params->mem_dc_sync.interlaced);
+			     params->mem_dc_sync.interlaced,
+			     params->mem_dc_sync.out_pixel_fmt);
 		ipu_di_use_count[params->mem_dc_sync.di]++;
 		ipu_dc_use_count++;
 		ipu_dmfc_use_count++;
@@ -678,7 +679,8 @@ int32_t ipu_init_channel(ipu_channel_t channel, ipu_channel_params_t *params)
 		_ipu_dp_init(channel, params->mem_dp_bg_sync.in_pixel_fmt,
 			     params->mem_dp_bg_sync.out_pixel_fmt);
 		_ipu_dc_init(5, params->mem_dp_bg_sync.di,
-			     params->mem_dp_bg_sync.interlaced);
+			     params->mem_dp_bg_sync.interlaced,
+			     params->mem_dp_bg_sync.out_pixel_fmt);
 		ipu_di_use_count[params->mem_dp_bg_sync.di]++;
 		ipu_dc_use_count++;
 		ipu_dp_use_count++;
@@ -702,7 +704,7 @@ int32_t ipu_init_channel(ipu_channel_t channel, ipu_channel_params_t *params)
 		}
 
 		g_dc_di_assignment[8] = params->direct_async.di;
-		_ipu_dc_init(8, params->direct_async.di, false);
+		_ipu_dc_init(8, params->direct_async.di, false, IPU_PIX_FMT_GENERIC);
 		ipu_di_use_count[params->direct_async.di]++;
 		ipu_dc_use_count++;
 		break;
@@ -713,7 +715,7 @@ int32_t ipu_init_channel(ipu_channel_t channel, ipu_channel_params_t *params)
 		}
 
 		g_dc_di_assignment[9] = params->direct_async.di;
-		_ipu_dc_init(9, params->direct_async.di, false);
+		_ipu_dc_init(9, params->direct_async.di, false, IPU_PIX_FMT_GENERIC);
 		ipu_di_use_count[params->direct_async.di]++;
 		ipu_dc_use_count++;
 		break;
