@@ -80,11 +80,12 @@ static int busfreq_suspended;
 /* True if bus_frequency is scaled not using DVFS-PER */
 int bus_freq_scaling_is_active;
 
-extern int lp_high_freq;
-extern int lp_med_freq;
+int cpu_wp_nr;
+int lp_high_freq;
+int lp_med_freq;
+
 extern int dvfs_core_is_active;
 extern struct cpu_wp *(*get_cpu_wp)(int *wp);
-extern int cpu_wp_nr;
 
 struct dvfs_wp dvfs_core_setpoint[] = {
 						{33, 8, 33, 10, 10, 0x08},

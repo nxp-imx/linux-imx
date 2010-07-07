@@ -80,6 +80,8 @@ int sdram_autogating_active()
 
 void start_sdram_autogating()
 {
+	if (cpu_is_mx50())
+		return;
 	if (sdram_autogating_paused) {
 		enable();
 		sdram_autogating_paused = 0;
@@ -88,6 +90,9 @@ void start_sdram_autogating()
 
 void  stop_sdram_autogating()
 {
+	if (cpu_is_mx50())
+		return;
+
 	if (sdram_autogating_is_active) {
 		sdram_autogating_paused = 1;
 		disable();

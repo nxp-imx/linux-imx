@@ -42,6 +42,9 @@
 void __iomem *arm_plat_base;
 void __iomem *gpc_base;
 
+struct cpu_wp *(*get_cpu_wp)(int *wp);
+void (*set_num_cpu_wp)(int num);
+
 static void __init mipi_hsc_disable(void)
 {
 	void __iomem *reg_hsc_mcd = ioremap(MIPI_HSC_BASE_ADDR, SZ_4K);
@@ -167,14 +170,16 @@ static int __init post_cpu_init(void)
 	__raw_writel(reg, base + 0x50);
 	iounmap(base);
 
-	/*Allow for automatic gating of the EMI internal clock.
-	 * If this is done, emi_intr CCGR bits should be set to 11.
-	 */
-	base = ioremap(MX53_BASE_ADDR(M4IF_BASE_ADDR), SZ_4K);
-	reg = __raw_readl(base + 0x8c);
-	reg &= ~0x1;
-	__raw_writel(reg, base + 0x8c);
-	iounmap(base);
+	if (cpu_is_mx51() || cpu_is_mx53()) {
+		/*Allow for automatic gating of the EMI internal clock.
+		 * If this is done, emi_intr CCGR bits should be set to 11.
+		 */
+		base = ioremap(MX53_BASE_ADDR(M4IF_BASE_ADDR), SZ_4K);
+		reg = __raw_readl(base + 0x8c);
+		reg &= ~0x1;
+		__raw_writel(reg, base + 0x8c);
+		iounmap(base);
+	}
 
 	return 0;
 }

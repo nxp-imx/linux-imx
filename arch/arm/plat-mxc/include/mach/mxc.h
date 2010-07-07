@@ -34,6 +34,7 @@
 #define MXC_CPU_MX37		37
 #define MXC_CPU_MX51		51
 #define MXC_CPU_MX53		53
+#define MXC_CPU_MX50		50
 
 #ifndef __ASSEMBLY__
 extern unsigned int __mxc_cpu_type;
@@ -145,6 +146,18 @@ extern unsigned int __mxc_cpu_type;
 # define cpu_is_mx53()		(mxc_cpu_type == MXC_CPU_MX53)
 #else
 # define cpu_is_mx53()		(0)
+#endif
+
+#ifdef CONFIG_ARCH_MX50
+# ifdef mxc_cpu_type
+#  undef mxc_cpu_type
+#  define mxc_cpu_type __mxc_cpu_type
+# else
+#  define mxc_cpu_type MXC_CPU_MX50
+# endif
+# define cpu_is_mx50()		(mxc_cpu_type == MXC_CPU_MX50)
+#else
+# define cpu_is_mx50()		(0)
 #endif
 
 #define cpu_is_mx32()		(0)
@@ -655,7 +668,7 @@ void gpio_deactivate_esai_ports(void);
 #define CSCR_A(n) (IO_ADDRESS(WEIM_BASE_ADDR) + n * 0x10 + 0x8)
 #endif
 
-#define cpu_is_mx5()	(cpu_is_mx51() || cpu_is_mx53())
+#define cpu_is_mx5()	(cpu_is_mx51() || cpu_is_mx53() || cpu_is_mx50())
 #define cpu_is_mx3()	(cpu_is_mx31() || cpu_is_mx35())
 #define cpu_is_mx2()	(cpu_is_mx21() || cpu_is_mx27())
 

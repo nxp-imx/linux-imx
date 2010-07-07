@@ -56,7 +56,7 @@ void __init mx5_map_io(void)
 	int i;
 
 	/* Fixup the mappings for MX53 */
-	if (cpu_is_mx53()) {
+	if (cpu_is_mx53() || cpu_is_mx50()) {
 		for (i = 0; i < ARRAY_SIZE(mx5_io_desc); i++)
 			mx5_io_desc[i].pfn -= __phys_to_pfn(0x20000000);
 	}

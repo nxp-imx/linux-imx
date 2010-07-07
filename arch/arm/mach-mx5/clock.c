@@ -53,14 +53,14 @@ static struct clk vpu_clk[];
 static int cpu_curr_wp;
 static struct cpu_wp *cpu_wp_tbl;
 
-void __iomem *pll1_base;
-void __iomem *pll2_base;
-void __iomem *pll3_base;
-void __iomem *pll4_base;
+static void __iomem *pll1_base;
+static void __iomem *pll2_base;
+static void __iomem *pll3_base;
+static void __iomem *pll4_base;
 
-int cpu_wp_nr;
-int lp_high_freq;
-int lp_med_freq;
+extern int cpu_wp_nr;
+extern int lp_high_freq;
+extern int lp_med_freq;
 int max_axi_a_clk;
 int max_axi_b_clk;
 
@@ -81,8 +81,8 @@ extern int low_bus_freq_mode;
 
 static int cpu_clk_set_wp(int wp);
 extern void propagate_rate(struct clk *tclk);
-struct cpu_wp *(*get_cpu_wp)(int *wp);
-void (*set_num_cpu_wp)(int num);
+extern struct cpu_wp *(*get_cpu_wp)(int *wp);
+extern void (*set_num_cpu_wp)(int num);
 
 static struct clk esdhc3_clk[];
 
@@ -1016,7 +1016,7 @@ static int _clk_max_enable(struct clk *clk)
 	if (cpu_is_mx51())
 		reg &= ~MXC_CCM_CLPCR_BYPASS_MAX_LPM_HS_MX51;
 	else
-		reg &= ~MXC_CCM_CLPCR_BYPASS_MAX_LPM_HS_MX53;
+		reg &= ~MXC_CCM_CLPCR_BYPASS_MAX_LPM_HS;
 	__raw_writel(reg, MXC_CCM_CLPCR);
 
 	return 0;
@@ -1034,7 +1034,7 @@ static void _clk_max_disable(struct clk *clk)
 	if (cpu_is_mx51())
 		reg |= MXC_CCM_CLPCR_BYPASS_MAX_LPM_HS_MX51;
 	else
-		reg |= MXC_CCM_CLPCR_BYPASS_MAX_LPM_HS_MX53;
+		reg |= MXC_CCM_CLPCR_BYPASS_MAX_LPM_HS;
 	__raw_writel(reg, MXC_CCM_CLPCR);
 }
 
@@ -1365,7 +1365,7 @@ static int _clk_sdma_enable(struct clk *clk)
 	if (cpu_is_mx51())
 		reg &= ~MXC_CCM_CLPCR_BYPASS_SDMA_LPM_HS_MX51;
 	else
-		reg &= ~MXC_CCM_CLPCR_BYPASS_SDMA_LPM_HS_MX53;
+		reg &= ~MXC_CCM_CLPCR_BYPASS_SDMA_LPM_HS;
 	__raw_writel(reg, MXC_CCM_CLPCR);
 
 	return 0;
@@ -1381,7 +1381,7 @@ static void _clk_sdma_disable(struct clk *clk)
 	if (cpu_is_mx51())
 		reg |= MXC_CCM_CLPCR_BYPASS_SDMA_LPM_HS_MX51;
 	else
-		reg |= MXC_CCM_CLPCR_BYPASS_SDMA_LPM_HS_MX53;
+		reg |= MXC_CCM_CLPCR_BYPASS_SDMA_LPM_HS;
 	__raw_writel(reg, MXC_CCM_CLPCR);
 }
 
@@ -5042,27 +5042,27 @@ static int cpu_clk_set_wp(int wp)
 		__raw_writel(reg, MXC_CCM_CCSR);
 
 		/* Stop the PLL */
-		reg = __raw_readl(MXC_DPLL1_BASE + MXC_PLL_DP_CTL);
+		reg = __raw_readl(pll1_base + MXC_PLL_DP_CTL);
 		reg &= ~MXC_PLL_DP_CTL_UPEN;
-		__raw_writel(reg, MXC_DPLL1_BASE + MXC_PLL_DP_CTL);
+		__raw_writel(reg, pll1_base + MXC_PLL_DP_CTL);
 
 		/* PDF and MFI */
 		reg = p->pdf | p->mfi << MXC_PLL_DP_OP_MFI_OFFSET;
-		__raw_writel(reg, MXC_DPLL1_BASE + MXC_PLL_DP_OP);
+		__raw_writel(reg, pll1_base + MXC_PLL_DP_OP);
 
 		/* MFD */
-		__raw_writel(p->mfd, MXC_DPLL1_BASE + MXC_PLL_DP_MFD);
+		__raw_writel(p->mfd, pll1_base + MXC_PLL_DP_MFD);
 
 		/* MFI */
-		__raw_writel(p->mfn, MXC_DPLL1_BASE + MXC_PLL_DP_MFN);
+		__raw_writel(p->mfn, pll1_base + MXC_PLL_DP_MFN);
 
-		reg = __raw_readl(MXC_DPLL1_BASE + MXC_PLL_DP_CTL);
+		reg = __raw_readl(pll1_base + MXC_PLL_DP_CTL);
 		reg |= MXC_PLL_DP_CTL_UPEN;
 		/* Set the UPEN bits */
-		__raw_writel(reg, MXC_DPLL1_BASE + MXC_PLL_DP_CTL);
+		__raw_writel(reg, pll1_base + MXC_PLL_DP_CTL);
 		/* Forcefully restart the PLL */
 		reg |= MXC_PLL_DP_CTL_RST;
-		__raw_writel(reg, MXC_DPLL1_BASE + MXC_PLL_DP_CTL);
+		__raw_writel(reg, pll1_base + MXC_PLL_DP_CTL);
 
 		/* Wait for the PLL to lock */
 		getnstimeofday(&nstimeofday);
@@ -5070,7 +5070,7 @@ static int cpu_clk_set_wp(int wp)
 			getnstimeofday(&curtime);
 			if ((curtime.tv_nsec - nstimeofday.tv_nsec) > SPIN_DELAY)
 				panic("pll1 relock failed\n");
-			stat = __raw_readl(MXC_DPLL1_BASE + MXC_PLL_DP_CTL) &
+			stat = __raw_readl(pll1_base + MXC_PLL_DP_CTL) &
 			    MXC_PLL_DP_CTL_LRF;
 		} while (!stat);
 

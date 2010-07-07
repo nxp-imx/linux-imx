@@ -34,6 +34,7 @@ extern int mx27_clocks_init(unsigned long fref);
 extern int mx31_clocks_init(unsigned long fref);
 extern int mx35_clocks_init(void);
 extern int mx37_clocks_init(unsigned long ckil, unsigned long osc, unsigned long ckih1, unsigned long ckih2);
+extern int mx50_clocks_init(unsigned long ckil, unsigned long osc, unsigned long ckih);
 extern int mx51_clocks_init(unsigned long ckil, unsigned long osc, unsigned long ckih1, unsigned long ckih2);
 extern int mx53_clocks_init(unsigned long ckil, unsigned long osc, unsigned long ckih1, unsigned long ckih2);
 extern int mxc_init_devices(void);

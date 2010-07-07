@@ -20,6 +20,7 @@
 #include "serial.h"
 #include "sdma_script_code.h"
 #include "sdma_script_code_mx53.h"
+#include "sdma_script_code_mx50.h"
 
 #define MXC_MMC_BUFFER_ACCESS     0x20
 #define MXC_SDHC_MMC_WML          64
@@ -1351,11 +1352,77 @@ static void __init mx53_sdma_get_script_info(sdma_script_start_addrs *sdma_scrip
 	sdma_script_addr->mxc_sdma_ram_code_size = RAM_CODE_SIZE_MX53;
 }
 
+static void __init mx50_sdma_get_script_info(sdma_script_start_addrs *sdma_script_addr)
+{
+	/* AP<->BP */
+	sdma_script_addr->mxc_sdma_ap_2_ap_addr = ap_2_ap_ADDR_MX50;
+	sdma_script_addr->mxc_sdma_ap_2_bp_addr = -1;
+	sdma_script_addr->mxc_sdma_bp_2_ap_addr = -1;
+	sdma_script_addr->mxc_sdma_ap_2_ap_fixed_addr = -1;
+
+	/*misc */
+	sdma_script_addr->mxc_sdma_loopback_on_dsp_side_addr = -1;
+	sdma_script_addr->mxc_sdma_mcu_interrupt_only_addr = -1;
+
+	/* firi */
+	sdma_script_addr->mxc_sdma_firi_2_per_addr = -1;
+	sdma_script_addr->mxc_sdma_firi_2_mcu_addr = -1;
+	sdma_script_addr->mxc_sdma_per_2_firi_addr = -1;
+	sdma_script_addr->mxc_sdma_mcu_2_firi_addr = -1;
+
+	/* uart */
+	sdma_script_addr->mxc_sdma_uart_2_per_addr = uart_2_mcu_ADDR_MX50;
+	sdma_script_addr->mxc_sdma_uart_2_mcu_addr = uart_2_mcu_ADDR_MX50;
+
+	/* UART SH */
+	sdma_script_addr->mxc_sdma_uartsh_2_per_addr = uartsh_2_mcu_ADDR_MX50;
+	sdma_script_addr->mxc_sdma_uartsh_2_mcu_addr = uartsh_2_mcu_ADDR_MX50;
+
+	/* SHP */
+	sdma_script_addr->mxc_sdma_per_2_shp_addr = mcu_2_shp_ADDR_MX50;
+	sdma_script_addr->mxc_sdma_shp_2_per_addr = shp_2_mcu_ADDR_MX50;
+	sdma_script_addr->mxc_sdma_mcu_2_shp_addr = mcu_2_shp_ADDR_MX50;
+	sdma_script_addr->mxc_sdma_shp_2_mcu_addr = shp_2_mcu_ADDR_MX50;
+
+	/* ATA use it's own DMA */
+	sdma_script_addr->mxc_sdma_mcu_2_ata_addr = -1;
+	sdma_script_addr->mxc_sdma_ata_2_mcu_addr = -1;
+
+	/* app */
+	sdma_script_addr->mxc_sdma_app_2_per_addr = app_2_mcu_ADDR_MX50;
+	sdma_script_addr->mxc_sdma_app_2_mcu_addr = app_2_mcu_ADDR_MX50;
+	sdma_script_addr->mxc_sdma_per_2_app_addr = mcu_2_app_ADDR_MX50;
+	sdma_script_addr->mxc_sdma_mcu_2_app_addr = mcu_2_app_ADDR_MX50;
+
+	/* MSHC */
+	sdma_script_addr->mxc_sdma_mshc_2_mcu_addr = -1;
+	sdma_script_addr->mxc_sdma_mcu_2_mshc_addr = -1;
+
+	/* spdif */
+	sdma_script_addr->mxc_sdma_spdif_2_mcu_addr = -1;
+	sdma_script_addr->mxc_sdma_mcu_2_spdif_addr = -1;
+
+	sdma_script_addr->mxc_sdma_asrc_2_mcu_addr = -1;
+
+	/* IPU */
+	sdma_script_addr->mxc_sdma_ext_mem_2_ipu_addr = -1;
+
+	/* DVFS */
+	sdma_script_addr->mxc_sdma_dptc_dvfs_addr = -1;
+
+	/* core */
+	sdma_script_addr->mxc_sdma_start_addr = (unsigned short *)sdma_code_mx50;
+	sdma_script_addr->mxc_sdma_ram_code_start_addr = RAM_CODE_START_ADDR_MX50;
+	sdma_script_addr->mxc_sdma_ram_code_size = RAM_CODE_SIZE_MX50;
+}
+
 void __init mxc_sdma_get_script_info(sdma_script_start_addrs *sdma_script_addr)
 {
 	if (cpu_is_mx51())
 		mx51_sdma_get_script_info(sdma_script_addr);
-	else
+	else if (cpu_is_mx53())
 		mx53_sdma_get_script_info(sdma_script_addr);
+	else
+		mx50_sdma_get_script_info(sdma_script_addr);
 }
 

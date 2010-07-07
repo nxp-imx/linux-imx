@@ -297,6 +297,52 @@ struct platform_device mxc_ipu_device = {
 	.resource = ipu_resources,
 };
 
+static struct resource epdc_resources[] = {
+	{
+	 .start = EPDC_BASE_ADDR,
+	 .end = EPDC_BASE_ADDR + SZ_4K - 1,
+	 .flags = IORESOURCE_MEM,
+	 },
+	{
+	.start  = MXC_INT_EPDC,
+	.end = MXC_INT_EPDC,
+	.flags  = IORESOURCE_IRQ,
+	},
+};
+
+struct platform_device epdc_device = {
+	.name = "mxc_epdc_fb",
+	.id = -1,
+	.dev = {
+		.coherent_dma_mask = DMA_BIT_MASK(32),
+		},
+	.num_resources = ARRAY_SIZE(epdc_resources),
+	.resource = epdc_resources,
+};
+
+static struct resource elcdif_resources[] = {
+	{
+	 .start = ELCDIF_BASE_ADDR,
+	 .end = ELCDIF_BASE_ADDR + SZ_4K - 1,
+	 .flags = IORESOURCE_MEM,
+	 },
+	{
+	.start  = MXC_INT_ELCDIF,
+	.end = MXC_INT_ELCDIF,
+	.flags  = IORESOURCE_IRQ,
+	},
+};
+
+struct platform_device elcdif_device = {
+	.name = "mxc_elcdif_fb",
+	.id = -1,
+	.dev = {
+		.coherent_dma_mask = DMA_BIT_MASK(32),
+		},
+	.num_resources = ARRAY_SIZE(elcdif_resources),
+	.resource = elcdif_resources,
+};
+
 struct platform_device mxc_fb_devices[] = {
 	{
 		.name = "mxc_sdc_fb",
@@ -712,6 +758,8 @@ int __init mxc_register_gpios(void)
 {
 	if (cpu_is_mx51())
 		return mxc_gpio_init(mxc_gpio_ports, 4);
+	else if (cpu_is_mx50())
+		return mxc_gpio_init(mxc_gpio_ports, 6);
 	return mxc_gpio_init(mxc_gpio_ports, ARRAY_SIZE(mxc_gpio_ports));
 }
 
@@ -1173,6 +1221,30 @@ struct platform_device mxc_mlb_device = {
 	.resource = mlb_resources,
 };
 
+static struct resource pxp_resources[] = {
+	{
+	 .start = EPXP_BASE_ADDR,
+	 .end = EPXP_BASE_ADDR + SZ_4K - 1,
+	 .flags = IORESOURCE_MEM,
+	 },
+	{
+	 .start = MXC_INT_EPXP,
+	 .flags = IORESOURCE_IRQ,
+	 },
+};
+
+struct platform_device mxc_pxp_device = {
+	.name = "mxc-pxp",
+	.id = -1,
+	.num_resources = ARRAY_SIZE(pxp_resources),
+	.resource = pxp_resources,
+};
+
+struct platform_device mxc_pxp_client_device = {
+	.name = "pxp-device",
+	.id = -1,
+};
+
 void __init mx5_init_irq(void)
 {
 	unsigned long tzic_addr;
@@ -1181,7 +1253,7 @@ void __init mx5_init_irq(void)
 		tzic_addr = MX51_TZIC_BASE_ADDR_T01;
 	else if (cpu_is_mx51_rev(CHIP_REV_2_0) > 0)
 		tzic_addr = MX51_TZIC_BASE_ADDR;
-	else /* mx53 */
+	else /* mx53 and mx50 */
 		tzic_addr = MX53_TZIC_BASE_ADDR;
 
 	mxc_tzic_init_irq(tzic_addr);
@@ -1398,7 +1470,7 @@ exit:
 
 int __init mxc_init_devices(void)
 {
-	if (cpu_is_mx53()) {
+	if (cpu_is_mx53() || cpu_is_mx50()) {
 		sdma_resources[0].start -= MX53_OFFSET;
 		sdma_resources[0].end -= MX53_OFFSET;
 		mxc_w1_master_resources[0].start -= MX53_OFFSET;
@@ -1503,7 +1575,8 @@ int __init mxc_init_devices(void)
 	}
 
 
-	mxc_init_scc_iram();
+	if (cpu_is_mx51() || cpu_is_mx53())
+		mxc_init_scc_iram();
 	mxc_init_gpu2d();
 	return 0;
 }

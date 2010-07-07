@@ -32,6 +32,10 @@
 #define PHYS_OFFSET             UL(0x90000000)
 #endif
 
+#ifdef CONFIG_ARCH_MX50
+#define PHYS_OFFSET             UL(0x70000000)
+#endif
+
 #ifdef CONFIG_ARCH_MX53
 #define PHYS_OFFSET             UL(0x70000000)
 #endif

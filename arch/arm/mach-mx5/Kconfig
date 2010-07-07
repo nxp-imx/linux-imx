@@ -6,6 +6,9 @@ config ARCH_MX51
 config ARCH_MX53
 	bool
 
+config ARCH_MX50
+	bool
+
 config FORCE_MAX_ZONEORDER
     int "MAX_ORDER"
     default "13"
@@ -21,7 +24,8 @@ config MX5_MULTI_ARCH
 	bool
 	default y
 	select RUNTIME_PHYS_OFFSET
-	depends on ARCH_MX51 && ARCH_MX53
+	depends on ARCH_MX51
+	depends on ARCH_MX50 || ARCH_MX53
 
 config MACH_MX51_3DS
 	bool "Support MX51 3-Stack platform"
@@ -42,6 +46,13 @@ config MACH_MX53_EVK
 	select ARCH_MX53
 	help
 	  Include support for MX53 EVK platform. This includes specific
+	  configurations for the board and its peripherals.
+
+config MACH_MX50_ARM2
+	bool "Support MX50 Armadillo2 platform"
+	select ARCH_MX50
+	help
+	  Include support for MX50 EVK platform. This includes specific
 	  configurations for the board and its peripherals.
 
 comment "MX5x Options:"

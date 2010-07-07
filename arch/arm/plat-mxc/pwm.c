@@ -61,7 +61,7 @@ int pwm_config(struct pwm_device *pwm, int duty_ns, int period_ns)
 	if (pwm == NULL || period_ns == 0 || duty_ns > period_ns)
 		return -EINVAL;
 
-	if (cpu_is_mx27() || cpu_is_mx3() || cpu_is_mx51() || cpu_is_mx53()) {
+	if (cpu_is_mx27() || cpu_is_mx3() || cpu_is_mx5()) {
 		unsigned long long c;
 		unsigned long period_cycles, duty_cycles, prescale;
 		c = clk_get_rate(pwm->clk);

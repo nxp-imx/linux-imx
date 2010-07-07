@@ -37,6 +37,9 @@
 #define INPUT_CTL_START_MX53	0x730
 #define MUX_I_END_MX53		(PAD_I_START_MX53 - 4)
 
+#define PAD_I_START_MX50	0x2CC
+#define INPUT_CTL_START_MX50	0x6C4
+
 /*!
  * IOMUX register (base) addressesf
  */
@@ -52,8 +55,10 @@ static inline void *_get_sw_pad(void)
 {
 	if (cpu_is_mx51())
 		return IO_ADDRESS(IOMUXC_BASE_ADDR) + PAD_I_START_MX51;
-	else
+	else if (cpu_is_mx53())
 		return IO_ADDRESS(IOMUXC_BASE_ADDR) + PAD_I_START_MX53;
+	else
+		return IO_ADDRESS(IOMUXC_BASE_ADDR) + PAD_I_START_MX50;
 }
 
 static inline void * _get_mux_reg(iomux_pin_name_t pin)
@@ -102,6 +107,9 @@ static inline void * _get_pad_reg(iomux_pin_name_t pin)
 
 static inline void * _get_mux_end(void)
 {
+	if (cpu_is_mx50())
+		return IO_ADDRESS(IOMUXC_BASE_ADDR) + 0x2C8;
+
 	if (cpu_is_mx51_rev(CHIP_REV_2_0) < 0)
 		return(IO_ADDRESS(IOMUXC_BASE_ADDR) + (0x3F8 - 4));
 	else
@@ -249,8 +257,10 @@ void mxc_iomux_set_input(iomux_input_select_t input, u32 config)
 		reg = IOMUXSW_INPUT_CTL + (input << 2) + INPUT_CTL_START_MX51_TO1;
 	} else if (cpu_is_mx51()) {
 		reg = IOMUXSW_INPUT_CTL + (input << 2) + INPUT_CTL_START_MX51;
-	} else
+	} else if (cpu_is_mx53()) {
 		reg = IOMUXSW_INPUT_CTL + (input << 2) + INPUT_CTL_START_MX53;
+	} else
+		reg = IOMUXSW_INPUT_CTL + (input << 2) + INPUT_CTL_START_MX50;
 
 	BUG_ON(input >= MUX_INPUT_NUM_MUX);
 	__raw_writel(config, reg);

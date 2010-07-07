@@ -244,7 +244,7 @@ static struct platform_device mxc_uart_device5 = {
 
 static int __init mxc_init_uart(void)
 {
-	if (cpu_is_mx53()) {
+	if (cpu_is_mx53() || cpu_is_mx50()) {
 		mxc_uart_resources1[0].start -= 0x20000000;
 		mxc_uart_resources1[0].end -= 0x20000000;
 		mxc_uart_resources2[0].start -= 0x20000000;
