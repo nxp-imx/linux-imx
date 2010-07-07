@@ -596,10 +596,6 @@ static int sgtl5000_pcm_hw_params(struct snd_pcm_substream *substream,
 	case 22050:
 		sys_fs = 44100;
 		break;
-	case 12000:
-	case 24000:
-		sys_fs = 48000;
-		break;
 	default:
 		sys_fs = sgtl5000->lrclk;
 		break;
@@ -850,8 +846,7 @@ static int sgtl5000_set_bias_level(struct snd_soc_codec *codec,
 		      SNDRV_PCM_RATE_32000 |\
 		      SNDRV_PCM_RATE_44100 |\
 		      SNDRV_PCM_RATE_48000 |\
-		      SNDRV_PCM_RATE_96000 |\
-		      SNDRV_PCM_RATE_KNOT)
+		      SNDRV_PCM_RATE_96000)
 
 #define SGTL5000_FORMATS (SNDRV_PCM_FMTBIT_S16_LE |\
 			SNDRV_PCM_FMTBIT_S20_3LE |\
