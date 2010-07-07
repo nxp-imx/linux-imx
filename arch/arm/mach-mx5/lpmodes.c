@@ -37,7 +37,6 @@
 #include <mach/clock.h>
 #include <mach/hardware.h>
 #include <linux/regulator/machine.h>
-#include "crm_regs.h"
 
 #define ARM_LP_CLK  166250000
 #define GP_LPM_VOLTAGE 775000

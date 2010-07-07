@@ -28,7 +28,16 @@
 #include <linux/clk.h>
 #include <mach/common.h>
 #include <mach/hardware.h>
-#include "crm_regs.h"
+
+#define CORTEXA8_PLAT_AMC	0x18
+#define SRPG_NEON_PUPSCR	0x284
+#define SRPG_NEON_PDNSCR	0x288
+#define SRPG_ARM_PUPSCR		0x2A4
+#define SRPG_ARM_PDNSCR		0x2A8
+#define SRPG_EMPGC0_PUPSCR	0x2E4
+#define SRPG_EMPGC0_PDNSCR	0x2E8
+#define SRPG_EMPGC1_PUPSCR	0x304
+#define SRPG_EMPGC1_PDNSCR	0x308
 
 void __iomem *arm_plat_base;
 void __iomem *gpc_base;
@@ -102,6 +111,7 @@ static int __init post_cpu_init(void)
 {
 	void __iomem *base;
 	unsigned int reg;
+	struct clk *gpcclk = clk_get(NULL, "gpc_dvfs_clk");
 	int iram_size = IRAM_SIZE;
 
 	if (cpu_is_mx51()) {
@@ -116,11 +126,28 @@ static int __init post_cpu_init(void)
 	}
 
 	gpc_base = ioremap(MX53_BASE_ADDR(GPC_BASE_ADDR), SZ_4K);
+	clk_enable(gpcclk);
+
+	/* Setup the number of clock cycles to wait for SRPG
+	 * power up and power down requests.
+	 */
+	__raw_writel(0x010F0201, gpc_base + SRPG_ARM_PUPSCR);
+	__raw_writel(0x010F0201, gpc_base + SRPG_NEON_PUPSCR);
+	__raw_writel(0x00000008, gpc_base + SRPG_EMPGC0_PUPSCR);
+	__raw_writel(0x00000008, gpc_base + SRPG_EMPGC1_PUPSCR);
+
+	__raw_writel(0x01010101, gpc_base + SRPG_ARM_PDNSCR);
+	__raw_writel(0x01010101, gpc_base + SRPG_NEON_PDNSCR);
+	__raw_writel(0x00000018, gpc_base + SRPG_EMPGC0_PDNSCR);
+	__raw_writel(0x00000018, gpc_base + SRPG_EMPGC1_PDNSCR);
+
+	clk_disable(gpcclk);
+	clk_put(gpcclk);
 
 	/* Set ALP bits to 000. Set ALP_EN bit in Arm Memory Controller reg. */
 	arm_plat_base = ioremap(MX53_BASE_ADDR(ARM_BASE_ADDR), SZ_4K);
 	reg = 0x8;
-	__raw_writel(reg, MXC_CORTEXA8_PLAT_AMC);
+	__raw_writel(reg, arm_plat_base + CORTEXA8_PLAT_AMC);
 
 	base = ioremap(MX53_BASE_ADDR(AIPS1_BASE_ADDR), SZ_4K);
 	__raw_writel(0x0, base + 0x40);

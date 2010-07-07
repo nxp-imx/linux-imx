@@ -27,7 +27,6 @@
 #include <mach/hardware.h>
 #include <mach/gpio.h>
 #include <mach/sdma.h>
-#include "crm_regs.h"
 
 /* Flag used to indicate when IRAM has been initialized */
 int iram_ready;

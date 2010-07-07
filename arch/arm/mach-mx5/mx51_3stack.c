@@ -681,30 +681,6 @@ static struct fsl_ata_platform_data ata_data = {
 	.io_reg = NULL,
 };
 
-static int __init mxc_init_srpgconfig(void)
-{
-	struct clk *gpcclk = clk_get(NULL, "gpc_dvfs_clk");
-	clk_enable(gpcclk);
-
-	/* Setup the number of clock cycles to wait for SRPG
-	 * power up and power down requests.
-	 */
-	__raw_writel(0x010F0201, MXC_SRPG_ARM_PUPSCR);
-	__raw_writel(0x010F0201, MXC_SRPG_NEON_PUPSCR);
-	__raw_writel(0x00000008, MXC_SRPG_EMPGC0_PUPSCR);
-	__raw_writel(0x00000008, MXC_SRPG_EMPGC1_PUPSCR);
-
-	__raw_writel(0x01010101, MXC_SRPG_ARM_PDNSCR);
-	__raw_writel(0x01010101, MXC_SRPG_NEON_PDNSCR);
-	__raw_writel(0x00000018, MXC_SRPG_EMPGC0_PDNSCR);
-	__raw_writel(0x00000018, MXC_SRPG_EMPGC1_PDNSCR);
-
-	clk_disable(gpcclk);
-	clk_put(gpcclk);
-
-	return 0;
-}
-
 static struct platform_device mxc_wm8903_device = {
 	.name = "imx-3stack-wm8903",
 	.id = 0,
@@ -932,7 +908,6 @@ static void __init mxc_board_init(void)
 #else
 	mxc_register_device(&mxc_nandv2_mtd_device, &mxc_nand_data);
 #endif
-	mxc_init_srpgconfig();
 	mx51_3stack_init_mc13892();
 
 	i2c_register_board_info(1, mxc_i2c1_board_info,

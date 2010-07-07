@@ -25,7 +25,9 @@
 #include <asm/tlb.h>
 #include <asm/mach/map.h>
 #include <mach/hardware.h>
-#include "crm_regs.h"
+
+#define MXC_SRPG_EMPGC0_SRPGCR	(IO_ADDRESS(GPC_BASE_ADDR) + 0x2C0)
+#define MXC_SRPG_EMPGC1_SRPGCR	(IO_ADDRESS(GPC_BASE_ADDR) + 0x2D0)
 
 static struct cpu_wp *cpu_wp_tbl;
 static struct clk *cpu_clk;

@@ -13,17 +13,7 @@
 #ifndef __ARCH_ARM_MACH_MX51_CRM_REGS_H__
 #define __ARCH_ARM_MACH_MX51_CRM_REGS_H__
 
-extern void __iomem *ccm_base;
-extern void __iomem *pll1_base;
-extern void __iomem *pll2_base;
-extern void __iomem *pll3_base;
-extern void __iomem *pll4_base;
-
 #define MXC_CCM_BASE	(IO_ADDRESS(CCM_BASE_ADDR))
-#define MXC_DPLL1_BASE	(pll1_base)
-#define MXC_DPLL2_BASE	(pll2_base)
-#define MXC_DPLL3_BASE	(pll3_base)
-#define MXC_DPLL4_BASE (pll4_base)
 
 /* PLL Register Offsets */
 #define MXC_PLL_DP_CTL			0x00
@@ -116,6 +106,17 @@ extern void __iomem *pll4_base;
 #define MXC_CCM_CCGR6		(MXC_CCM_BASE + 0x80)
 #define MXC_CCM_CCGR7		(MXC_CCM_BASE + 0x84)
 #define MXC_CCM_CMEOR		(MXC_CCM_BASE + 0x88)
+#define MXC_CCM_CSR2		(MXC_CCM_BASE + 0x8C)
+#define MXC_CCM_CLKSEQ_BYPASS	(MXC_CCM_BASE + 0x90)
+#define MXC_CCM_CLK_SYS		(MXC_CCM_BASE + 0x94)
+#define MXC_CCM_CLK_DDR		(MXC_CCM_BASE + 0x98)
+#define MXC_CCM_ELCDIFPIX	(MXC_CCM_BASE + 0x9C)
+#define MXC_CCM_EPDCPIX		(MXC_CCM_BASE + 0xA0)
+#define MXC_CCM_DISPLAY_AXI	(MXC_CCM_BASE + 0xA4)
+#define MXC_CCM_EPDC_AXI	(MXC_CCM_BASE + 0xA8)
+#define MXC_CCM_GPMI		(MXC_CCM_BASE + 0xAC)
+#define MXC_CCM_BCH		(MXC_CCM_BASE + 0xB0)
+#define MXC_CCM_MSHC_XMSCKI	(MXC_CCM_BASE + 0xB4)
 
 /* Define the bits in register CCR */
 #define MXC_CCM_CCR_COSC_EN		(1 << 12)
@@ -149,8 +150,11 @@ extern void __iomem *pll4_base;
 #define MXC_CCM_CSR_REF_EN_B		(1 << 0)
 
 /* Define the bits in register CCSR */
-#define MXC_CCM_CCSR_LP_APM_SEL		(0x1 << 9)
-#define MXC_CCM_CCSR_LP_APM_SEL_MX53		(0x1 << 10)
+#define MXC_CCM_CCSR_PLL3_PFD_EN		(0x1 << 13)
+#define MXC_CCM_CCSR_PLL2_PFD_EN		(0x1 << 12)
+#define MXC_CCM_CCSR_PLL1_PFD_EN		(0x1 << 11)
+#define MXC_CCM_CCSR_LP_APM_SEL			(0x1 << 10)
+#define MXC_CCM_CCSR_LP_APM_SE_MX51L		(0x1 << 9)
 #define MXC_CCM_CCSR_PLL4_SW_CLK_SEL		(1 << 9)
 #define MXC_CCM_CCSR_STEP_SEL_OFFSET		(7)
 #define MXC_CCM_CCSR_STEP_SEL_MASK		(0x3 << 7)
@@ -167,8 +171,11 @@ extern void __iomem *pll4_base;
 #define MXC_CCM_CACRR_ARM_PODF_MASK		(0x7)
 
 /* Define the bits in register CBCDR */
+#define MX50_CCM_CBCDR_WEIM_CLK_SEL		(0x1 << 27)
 #define MXC_CCM_CBCDR_EMI_CLK_SEL			(0x1 << 26)
 #define MXC_CCM_CBCDR_PERIPH_CLK_SEL			(0x1 << 25)
+#define MX50_CCM_CBCDR_PERIPH_CLK_SEL_OFFSET	(25)
+#define MX50_CCM_CBCDR_PERIPH_CLK_SEL_MASK	(0x3 << 25)
 #define MXC_CCM_CBCDR_DDR_HF_SEL_OFFSET		(30)
 #define MXC_CCM_CBCDR_DDR_HF_SEL			(0x1 << 30)
 #define MXC_CCM_CBCDR_DDR_PODF_OFFSET		(27)
@@ -207,6 +214,8 @@ extern void __iomem *pll4_base;
 #define MXC_CCM_CBCMR_IPU_HSP_CLK_SEL_MASK		(0x3 << 6)
 #define MXC_CCM_CBCMR_GPU_CLK_SEL_OFFSET		(4)
 #define MXC_CCM_CBCMR_GPU_CLK_SEL_MASK		(0x3 << 4)
+#define MXC_CCM_CBCMR_DBG_APB_CLK_SEL_OFFSET	(2)
+#define MXC_CCM_CBCMR_DBG_APB_CLK_SEL_MASK	(0x3 << 2)
 #define MXC_CCM_CBCMR_PERCLK_LP_APM_CLK_SEL		(0x1 << 1)
 #define MXC_CCM_CBCMR_PERCLK_IPG_CLK_SEL		(0x1 << 0)
 
@@ -226,6 +235,10 @@ extern void __iomem *pll4_base;
 #define MXC_CCM_CSCMR1_ESDHC3_CLK_SEL_MX51		(0x1 << 19)
 #define MXC_CCM_CSCMR1_ESDHC2_CLK_SEL			(0x1 << 19)
 #define MXC_CCM_CSCMR1_ESDHC4_CLK_SEL			(0x1 << 18)
+#define MX50_CCM_CSCMR1_ESDHC1_CLK_SEL_OFFSET	(21)
+#define MX50_CCM_CSCMR1_ESDHC1_CLK_SEL_MASK	(0x3 << 21)
+#define MX50_CCM_CSCMR1_ESDHC2_CLK_SEL			(0x1 << 20)
+#define MX50_CCM_CSCMR1_ESDHC4_CLK_SEL			(0x1 << 19)
 #define MXC_CCM_CSCMR1_ESDHC3_MSHC2_CLK_SEL_OFFSET	(16)
 #define MXC_CCM_CSCMR1_ESDHC3_MSHC2_CLK_SEL_MASK		(0x3 << 16)
 #define MXC_CCM_CSCMR1_SSI1_CLK_SEL_OFFSET			(14)
@@ -437,6 +450,9 @@ extern void __iomem *pll4_base;
 #define MXC_CCM_CDHIPR_AXI_A_PODF_BUSY			(1 << 0)
 
 /* Define the bits in register CDCR */
+#define MX50_CCM_CDCR_SW_PERIPH_CLK_DIV_REQ_STATUS	(0x1 << 7)
+#define MX50_CCM_CDCR_SW_PERIPH_CLK_DIV_REQ		(0x1 << 6)
+#define MX50_CCM_CDCR_SW_DVFS_EN				(0x1 << 5)
 #define MXC_CCM_CDCR_ARM_FREQ_SHIFT_DIVIDER			(0x1 << 2)
 #define MXC_CCM_CDCR_PERIPH_CLK_DVFS_PODF_OFFSET		(0)
 #define MXC_CCM_CDCR_PERIPH_CLK_DVFS_PODF_MASK		(0x3)
@@ -451,9 +467,10 @@ extern void __iomem *pll4_base;
 #define MXC_CCM_CLPCR_BYPASS_CAN2_LPM_HS			(0x1 << 27)
 #define MXC_CCM_CLPCR_BYPASS_CAN1_LPM_HS			(0x1 << 27)
 #define MXC_CCM_CLPCR_BYPASS_SCC_LPM_HS_MX53			(0x1 << 26)
-#define MXC_CCM_CLPCR_BYPASS_MAX_LPM_HS_MX53			(0x1 << 25)
-#define MXC_CCM_CLPCR_BYPASS_SDMA_LPM_HS_MX53			(0x1 << 24)
+#define MXC_CCM_CLPCR_BYPASS_MAX_LPM_HS			(0x1 << 25)
+#define MXC_CCM_CLPCR_BYPASS_SDMA_LPM_HS			(0x1 << 24)
 #define MXC_CCM_CLPCR_BYPASS_EMI_INT2_LPM_HS		(0x1 << 23)
+#define MX50_CCM_CLPCR_BYPASS_RNGB_LPM_HS		(0x1 << 23)
 #define MXC_CCM_CLPCR_BYPASS_EMI_INT1_LPM_HS		(0x1 << 22)
 #define MXC_CCM_CLPCR_BYPASS_EMI_SLOW_LPM_HS		(0x1 << 21)
 #define MXC_CCM_CLPCR_BYPASS_EMI_FAST_LPM_HS		(0x1 << 20)
@@ -470,12 +487,13 @@ extern void __iomem *pll4_base;
 #define MXC_CCM_CLPCR_ARM_CLK_DIS_ON_LPM		(0x1 << 5)
 #define MXC_CCM_CLPCR_LPSR_CLK_SEL_OFFSET		(3)
 #define MXC_CCM_CLPCR_LPSR_CLK_SEL_MASK		(0x3 << 3)
+#define MXC_CCM_CLPCR_BYPASS_PMIC_VFUNC_READY		(0x1 << 2)
 #define MXC_CCM_CLPCR_LPM_OFFSET			(0)
 #define MXC_CCM_CLPCR_LPM_MASK			(0x3)
 
 /* Define the bits in register CISR */
 #define MXC_CCM_CISR_ARM_PODF_LOADED_MX51		(0x1 << 25)
-#define MXC_CCM_CISR_ARM_PODF_LOADED_MX53		(0x1 << 26)
+#define MXC_CCM_CISR_ARM_PODF_LOADED		(0x1 << 26)
 #define MXC_CCM_CISR_TEMP_MON_ALARM				(0x1 << 25)
 #define MXC_CCM_CISR_EMI_CLK_SEL_LOADED			(0x1 << 23)
 #define MXC_CCM_CISR_PER_CLK_SEL_LOADED			(0x1 << 22)
@@ -488,6 +506,7 @@ extern void __iomem *pll4_base;
 #define MXC_CCM_CISR_COSC_READY				(0x1 << 6)
 #define MXC_CCM_CISR_CKIH2_READY				(0x1 << 5)
 #define MXC_CCM_CISR_CKIH_READY				(0x1 << 4)
+#define MX50_CCM_CISR_CAMP1_READY			(0x1 << 4)
 #define MXC_CCM_CISR_FPM_READY				(0x1 << 3)
 #define MXC_CCM_CISR_LRF_PLL3					(0x1 << 2)
 #define MXC_CCM_CISR_LRF_PLL2					(0x1 << 1)
@@ -497,13 +516,14 @@ extern void __iomem *pll4_base;
 #define MXC_CCM_CIMR_MASK_ARM_PODF_LOADED_MX51		(0x1 << 25)
 #define MXC_CCM_CIMR_MASK_EMI_PODF_LOADED_MX51		(0x1 << 20)
 #define MXC_CCM_CIMR_MASK_AXI_C_PODF_LOADED_MX51	(0x1 << 19)
-#define MXC_CCM_CIMR_MASK_ARM_PODF_LOADED_MX53		(0x1 << 26)
+#define MXC_CCM_CIMR_MASK_ARM_PODF_LOADED		(0x1 << 26)
 #define MXC_CCM_CIMR_MASK_TEMP_MON_ALARM		(0x1 << 25)
 #define MXC_CCM_CIMR_MASK_EMI_CLK_SEL_LOADED		(0x1 << 23)
 #define MXC_CCM_CIMR_MASK_PER_CLK_SEL_LOADED		(0x1 << 22)
 #define MXC_CCM_CIMR_MASK_NFC_IPG_INT_MEM_PODF_LOADED	(0x1 << 21)
 #define MXC_CCM_CIMR_MASK_AHB_PODF_LOADED_MX53		(0x1 << 20)
 #define MXC_CCM_CIMR_MASK_EMI_SLOW_PODF_LOADED_MX53		(0x1 << 19)
+#define MX50_CCM_CIMR_MASK_WEIM_PODF_LOADED		(0x1 << 19)
 #define MXC_CCM_CIMR_MASK_AXI_B_PODF_LOADED		(0x1 << 18)
 #define MXC_CCM_CIMR_MASK_AXI_A_PODF_LOADED		(0x1 << 17)
 #define MXC_CCM_CIMR_MASK_DIVIDER_LOADED		(0x1 << 16)
@@ -511,8 +531,8 @@ extern void __iomem *pll4_base;
 #define MXC_CCM_CIMR_MASK_COSC_READY_MX51			(0x1 << 5)
 #define MXC_CCM_CIMR_MASK_CKIH_READY			(0x1 << 4)
 #define MXC_CCM_CIMR_MASK_FPM_READY			(0x1 << 3)
-/* MX53 */
-#define MXC_CCM_CIMR_MASK_COSC_READY_MX53			(0x1 << 6)
+/* MX53/MX50 */
+#define MXC_CCM_CIMR_MASK_COSC_READY			(0x1 << 6)
 #define MXC_CCM_CIMR_MASK_CAMP2_READY			(0x1 << 5)
 #define MXC_CCM_CIMR_MASK_CAMP1_READY			(0x1 << 4)
 #define MXC_CCM_CIMR_MASK_LRF_PLL4			(0x1 << 3)
@@ -539,6 +559,13 @@ extern void __iomem *pll4_base;
 #define MXC_CCM_CGPR_FPM_SEL				(0x1 << 3)
 #define MXC_CCM_CGPR_VL_L2BIST_CLKDIV_OFFSET		(0)
 #define MXC_CCM_CGPR_VL_L2BIST_CLKDIV_MASK		(0x7)
+
+#define MX50_CCM_CCOSR_CKO1_SLOW_SEL			(0x1 << 8)
+#define MX50_CCM_CCOSR_CKO1_EN				(0x1 << 7)
+#define MX50_CCM_CCOSR_CKO1_DIV_OFFSET			(4)
+#define MX50_CCM_CCOSR_CKO1_DIV_MASK			(0x7 << 4)
+#define MX50_CCM_CCOSR_CKO1_SEL_OFFSET			(0)
+#define MX50_CCM_CCOSR_CKO1_SEL_MASK			(0xF)
 
 /* Define the bits in registers CCGRx */
 #define MXC_CCM_CCGR_CG_MASK				0x3
@@ -726,6 +753,58 @@ extern void __iomem *pll4_base;
 #define MXC_CCM_CCGR7_CG2_MASK			(0x3 << 4)
 #define MXC_CCM_CCGR7_CG1_OFFSET			2
 #define MXC_CCM_CCGR7_CG0_OFFSET			0
+
+/* Define the bits in registers CSR2  */
+#define MXC_CCM_CSR2_ELCDIF_PIX_BUSY			(0x1 << 9)
+#define MXC_CCM_CSR2_EPDC_PIX_BUSY			(0x1 << 8)
+#define MXC_CCM_CSR2_EPDC_AXI_BUSY			(0x1 << 4)
+#define MXC_CCM_CSR2_DISPLAY_AXI_BUSY			(0x1 << 3)
+
+/* Define the bits in registers CLKSEQ_BYPASS  */
+#define MXC_CCM_CLKSEQ_BYPASS_BYPASS_ELCDIF_PIX_CLK_SEL_OFFSET	14
+#define MXC_CCM_CLKSEQ_BYPASS_BYPASS_ELCDIF_PIX_CLK_SEL_MASK	(0x3 << 14)
+#define MXC_CCM_CLKSEQ_BYPASS_BYPASS_EPDC_PIX_CLK_SEL_OFFSET	12
+#define MXC_CCM_CLKSEQ_BYPASS_BYPASS_EPDC_PIX_CLK_SEL_MASK	(0x3 << 12)
+#define MXC_CCM_CLKSEQ_BYPASS_BYPASS_EPDC_AXI_CLK_SEL_OFFSET	4
+#define MXC_CCM_CLKSEQ_BYPASS_BYPASS_EPDC_AXI_CLK_SEL_MASK	(0x3 << 4)
+#define MXC_CCM_CLKSEQ_BYPASS_BYPASS_DISPLAY_AXI_CLK_SEL_OFFSET	2
+#define MXC_CCM_CLKSEQ_BYPASS_BYPASS_DISPLAY_AXI_CLK_SEL_MASK	(0x3 << 2)
+
+
+/* Define the bits in registers CLK_DDR */
+#define MXC_CCM_CLK_DDR_DDR_CLKGATE_OFFSET	(30)
+#define MXC_CCM_CLK_DDR_DDR_CLKGATE_MASK	(0x3 << 30)
+#define MXC_CCM_CLK_DDR_DDR_PFD_SEL		(1 << 6)
+#define MXC_CCM_CLK_DDR_DDR_DIV_PLL_OFFSET	(0)
+#define MXC_CCM_CLK_DDR_DDR_DIV_PLL_MASK	(0x3F)
+
+/* Define the bits in register DISPLAY_AXI */
+#define MXC_CCM_DISPLAY_AXI_CLKGATE_OFFSET	(30)
+#define MXC_CCM_DISPLAY_AXI_CLKGATE_MASK	(0x3 << 30)
+#define MXC_CCM_DISPLAY_AXI_DIV_OFFSET		(0)
+#define MXC_CCM_DISPLAY_AXI_DIV_MASK		(0x3F)
+
+/* Define the bits in register EPDC_AXI */
+#define MXC_CCM_EPDC_AXI_CLKGATE_OFFSET	(30)
+#define MXC_CCM_EPDC_AXI_CLKGATE_MASK	(0x3 << 30)
+#define MXC_CCM_EPDC_AXI_DIV_OFFSET		(0)
+#define MXC_CCM_EPDC_AXI_DIV_MASK		(0x3F)
+
+/* Define the bits in register EPDCPIX */
+#define MXC_CCM_EPDC_PIX_CLKGATE_OFFSET		(30)
+#define MXC_CCM_EPDC_PIX_CLKGATE_MASK		(0x3 << 30)
+#define MXC_CCM_EPDC_PIX_CLK_PRED_OFFSET	(12)
+#define MXC_CCM_EPDC_PIX_CLK_PRED_MASK		(0x3 << 12)
+#define MXC_CCM_EPDC_PIX_CLK_PODF_OFFSET	(0)
+#define MXC_CCM_EPDC_PIX_CLK_PODF_MASK		(0xFFF)
+
+/* Define the bits in register ELCDIFPIX */
+#define MXC_CCM_ELCDIFPIX_CLKGATE_OFFSET	(30)
+#define MXC_CCM_ELCDIFPIX_CLKGATE_MASK		(0x3 << 30)
+#define MXC_CCM_ELCDIFPIX_CLK_PRED_OFFSET	(12)
+#define MXC_CCM_ELCDIFPIX_CLK_PRED_MASK		(0x3 << 12)
+#define MXC_CCM_ELCDIFPIX_CLK_PODF_OFFSET	(0)
+#define MXC_CCM_ELCDIFPIX_CLK_PODF_MASK		(0xFFF)
 
 #define MXC_GPC_BASE		(IO_ADDRESS(GPC_BASE_ADDR))
 #define MXC_DPTC_LP_BASE	(MXC_GPC_BASE + 0x80)
