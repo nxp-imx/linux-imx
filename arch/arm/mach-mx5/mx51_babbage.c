@@ -45,7 +45,6 @@
 #include <mach/mxc_edid.h>
 
 #include "devices.h"
-#include "board-mx51_babbage.h"
 #include "iomux.h"
 #include "mx51_pins.h"
 #include "crm_regs.h"
@@ -58,6 +57,7 @@
  *
  * @ingroup MSL_MX51
  */
+extern int __init mx51_babbage_init_mc13892(void);
 extern void __init mx51_babbage_io_init(void);
 extern struct cpu_wp *(*get_cpu_wp)(int *wp);
 extern void (*set_num_cpu_wp)(int num);

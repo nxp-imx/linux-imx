@@ -13,7 +13,9 @@
 #include <linux/init.h>
 #include <linux/device.h>
 #include <asm/dma.h>
+#include <mach/dma.h>
 #include <mach/hardware.h>
+#include <mach/mxc_uart.h>
 
 #include "serial.h"
 #include "sdma_script_code.h"

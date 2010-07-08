@@ -23,7 +23,6 @@
 #include <mach/hardware.h>
 #include <mach/mxc_uart.h>
 #include "serial.h"
-#include "board-mx53_evk.h"
 
 #if defined(CONFIG_SERIAL_MXC) || defined(CONFIG_SERIAL_MXC_MODULE)
 
@@ -42,13 +41,11 @@ static uart_mxc_port mxc_ports[] = {
 			.flags = ASYNC_BOOT_AUTOCONF,
 			.line = 0,
 			},
-	       .ints_muxed = UART1_MUX_INTS,
-	       .mode = UART1_MODE,
-	       .ir_mode = UART1_IR,
-	       .enabled = UART1_ENABLED,
-	       .hardware_flow = UART1_HW_FLOW,
+	       .ints_muxed = 1,
+	       .mode = MODE_DCE,
+	       .ir_mode = NO_IRDA,
+	       .enabled = 1,
 	       .cts_threshold = UART1_UCR4_CTSTL,
-	       .dma_enabled = UART1_DMA_ENABLE,
 	       .dma_rxbuf_size = UART1_DMA_RXBUFSIZE,
 	       .rx_threshold = UART1_UFCR_RXTL,
 	       .tx_threshold = UART1_UFCR_TXTL,
@@ -63,13 +60,11 @@ static uart_mxc_port mxc_ports[] = {
 			.flags = ASYNC_BOOT_AUTOCONF,
 			.line = 1,
 			},
-	       .ints_muxed = UART2_MUX_INTS,
-	       .mode = UART2_MODE,
-	       .ir_mode = UART2_IR,
-	       .enabled = UART2_ENABLED,
-	       .hardware_flow = UART2_HW_FLOW,
+	       .ints_muxed = 1,
+	       .mode = MODE_DCE,
+	       .ir_mode = NO_IRDA,
+	       .enabled = 1,
 	       .cts_threshold = UART2_UCR4_CTSTL,
-	       .dma_enabled = UART2_DMA_ENABLE,
 	       .dma_rxbuf_size = UART2_DMA_RXBUFSIZE,
 	       .rx_threshold = UART2_UFCR_RXTL,
 	       .tx_threshold = UART2_UFCR_TXTL,
@@ -84,13 +79,12 @@ static uart_mxc_port mxc_ports[] = {
 			.flags = ASYNC_BOOT_AUTOCONF,
 			.line = 2,
 			},
-	       .ints_muxed = UART3_MUX_INTS,
-	       .mode = UART3_MODE,
-	       .ir_mode = UART3_IR,
-	       .enabled = UART3_ENABLED,
-	       .hardware_flow = UART3_HW_FLOW,
+	       .ints_muxed = 1,
+	       .mode = MODE_DCE,
+	       .ir_mode = NO_IRDA,
+	       .enabled = 1,
 	       .cts_threshold = UART3_UCR4_CTSTL,
-	       .dma_enabled = UART3_DMA_ENABLE,
+	       .dma_enabled = 1,
 	       .dma_rxbuf_size = UART3_DMA_RXBUFSIZE,
 	       .rx_threshold = UART3_UFCR_RXTL,
 	       .tx_threshold = UART3_UFCR_TXTL,
@@ -105,13 +99,11 @@ static uart_mxc_port mxc_ports[] = {
 			.flags = ASYNC_BOOT_AUTOCONF,
 			.line = 3,
 			},
-	       .ints_muxed = UART4_MUX_INTS,
-	       .mode = UART4_MODE,
-	       .ir_mode = UART4_IR,
-	       .enabled = UART4_ENABLED,
-	       .hardware_flow = UART4_HW_FLOW,
+	       .ints_muxed = 1,
+	       .mode = MODE_DCE,
+	       .ir_mode = NO_IRDA,
+	       .enabled = 1,
 	       .cts_threshold = UART4_UCR4_CTSTL,
-	       .dma_enabled = UART4_DMA_ENABLE,
 	       .dma_rxbuf_size = UART4_DMA_RXBUFSIZE,
 	       .rx_threshold = UART4_UFCR_RXTL,
 	       .tx_threshold = UART4_UFCR_TXTL,
@@ -126,13 +118,11 @@ static uart_mxc_port mxc_ports[] = {
 			.flags = ASYNC_BOOT_AUTOCONF,
 			.line = 4,
 			},
-	       .ints_muxed = UART5_MUX_INTS,
-	       .mode = UART5_MODE,
-	       .ir_mode = UART5_IR,
-	       .enabled = UART5_ENABLED,
-	       .hardware_flow = UART5_HW_FLOW,
+	       .ints_muxed = 1,
+	       .mode = MODE_DCE,
+	       .ir_mode = NO_IRDA,
+	       .enabled = 1,
 	       .cts_threshold = UART5_UCR4_CTSTL,
-	       .dma_enabled = UART5_DMA_ENABLE,
 	       .dma_rxbuf_size = UART5_DMA_RXBUFSIZE,
 	       .rx_threshold = UART5_UFCR_RXTL,
 	       .tx_threshold = UART5_UFCR_TXTL,
@@ -149,18 +139,9 @@ static struct resource mxc_uart_resources1[] = {
 		.flags = IORESOURCE_MEM,
 	},
 	{
-		.start = UART1_INT1,
+		.start = MXC_INT_UART1,
 		.flags = IORESOURCE_IRQ,
 	},
-	{
-		.start = UART1_INT2,
-		.flags = IORESOURCE_IRQ,
-	},
-	{
-		.start = UART1_INT3,
-		.flags = IORESOURCE_IRQ,
-	},
-
 };
 
 static struct platform_device mxc_uart_device1 = {
@@ -180,15 +161,7 @@ static struct resource mxc_uart_resources2[] = {
 		.flags = IORESOURCE_MEM,
 	},
 	{
-		.start = UART2_INT1,
-		.flags = IORESOURCE_IRQ,
-	},
-	{
-		.start = UART2_INT2,
-		.flags = IORESOURCE_IRQ,
-	},
-	{
-		.start = UART2_INT3,
+		.start = MXC_INT_UART2,
 		.flags = IORESOURCE_IRQ,
 	},
 };
@@ -210,15 +183,7 @@ static struct resource mxc_uart_resources3[] = {
 		.flags = IORESOURCE_MEM,
 	},
 	{
-		.start = UART3_INT1,
-		.flags = IORESOURCE_IRQ,
-	},
-	{
-		.start = UART3_INT2,
-		.flags = IORESOURCE_IRQ,
-	},
-	{
-		.start = UART3_INT3,
+		.start = MXC_INT_UART3,
 		.flags = IORESOURCE_IRQ,
 	},
 };
@@ -240,15 +205,7 @@ static struct resource mxc_uart_resources4[] = {
 		.flags = IORESOURCE_MEM,
 	},
 	{
-		.start = UART4_INT1,
-		.flags = IORESOURCE_IRQ,
-	},
-	{
-		.start = UART4_INT2,
-		.flags = IORESOURCE_IRQ,
-	},
-	{
-		.start = UART4_INT3,
+		.start = MXC_INT_UART4,
 		.flags = IORESOURCE_IRQ,
 	},
 };
@@ -270,15 +227,7 @@ static struct resource mxc_uart_resources5[] = {
 		.flags = IORESOURCE_MEM,
 	},
 	{
-		.start = UART5_INT1,
-		.flags = IORESOURCE_IRQ,
-	},
-	{
-		.start = UART5_INT2,
-		.flags = IORESOURCE_IRQ,
-	},
-	{
-		.start = UART5_INT3,
+		.start = MXC_INT_UART5,
 		.flags = IORESOURCE_IRQ,
 	},
 };
@@ -311,16 +260,10 @@ static int __init mxc_init_uart(void)
 	/* Register all the MXC UART platform device structures */
 	platform_device_register(&mxc_uart_device1);
 	platform_device_register(&mxc_uart_device2);
-#if UART3_ENABLED == 1
 	platform_device_register(&mxc_uart_device3);
-#endif				/* UART3_ENABLED */
 	if (cpu_is_mx53()) {
-#if UART4_ENABLED == 1
 		platform_device_register(&mxc_uart_device4);
-#endif				/* UART4_ENABLED */
-#if UART5_ENABLED == 1
 		platform_device_register(&mxc_uart_device5);
-#endif				/* UART5_ENABLED */
 	}
 	return 0;
 }

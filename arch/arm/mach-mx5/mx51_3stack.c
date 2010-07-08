@@ -47,7 +47,6 @@
 #include <mach/mxc_dvfs.h>
 
 #include "devices.h"
-#include "board-mx51_3stack.h"
 #include "iomux.h"
 #include "mx51_pins.h"
 #include "crm_regs.h"
@@ -60,6 +59,44 @@
  *
  * @ingroup MSL_MX51
  */
+#define DEBUG_BOARD_BASE_ADDRESS(n)	(n)
+/* LAN9217 ethernet base address */
+#define LAN9217_BASE_ADDR(n)	(DEBUG_BOARD_BASE_ADDRESS(n))
+
+#define BOARD_IO_ADDR(n)	(DEBUG_BOARD_BASE_ADDRESS(n) + 0x20000)
+/* LED switchs */
+#define LED_SWITCH_REG		0x00
+/* buttons */
+#define SWITCH_BUTTONS_REG	0x08
+/* status, interrupt */
+#define INTR_STATUS_REG	0x10
+#define INTR_MASK_REG		0x38
+#define INTR_RESET_REG		0x20
+/* magic word for debug CPLD */
+#define MAGIC_NUMBER1_REG	0x40
+#define MAGIC_NUMBER2_REG	0x48
+/* CPLD code version */
+#define CPLD_CODE_VER_REG	0x50
+/* magic word for debug CPLD */
+#define MAGIC_NUMBER3_REG	0x58
+/* module reset register*/
+#define MODULE_RESET_REG	0x60
+/* CPU ID and Personality ID */
+#define MCU_BOARD_ID_REG	0x68
+
+/* interrupts like external uart , external ethernet etc*/
+#define EXPIO_PARENT_INT	IOMUX_TO_IRQ(MX51_PIN_GPIO1_6)
+
+#define EXPIO_INT_ENET		(MXC_BOARD_IRQ_START + 0)
+#define EXPIO_INT_XUART_A 	(MXC_BOARD_IRQ_START + 1)
+#define EXPIO_INT_XUART_B 	(MXC_BOARD_IRQ_START + 2)
+#define EXPIO_INT_BUTTON_A 	(MXC_BOARD_IRQ_START + 3)
+#define EXPIO_INT_BUTTON_B 	(MXC_BOARD_IRQ_START + 4)
+
+/*! This is System IRQ used by LAN9217 */
+#define LAN9217_IRQ	EXPIO_INT_ENET
+
+extern int __init mx51_3stack_init_mc13892(void);
 extern void __init mx51_3stack_io_init(void);
 extern struct cpu_wp *(*get_cpu_wp)(int *wp);
 extern void (*set_num_cpu_wp)(int num);
