@@ -20,3 +20,4 @@ obj-$(CONFIG_FB_MXC_TVOUT_TVE)              += tve.o
 obj-$(CONFIG_FB_MXC_LDB)                    += ldb.o
 obj-$(CONFIG_FB_MXC_CH7026)		    		+= mxcfb_ch7026.o
 #obj-$(CONFIG_FB_MODE_HELPERS)				+= mxc_edid.o
+obj-$(CONFIG_FB_MXC_EINK_PANEL)             += mxc_epdc_fb.o
