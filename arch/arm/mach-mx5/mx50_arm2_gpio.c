@@ -386,7 +386,7 @@ static struct mxc_iomux_pin_cfg __initdata mxc_iomux_pins[] = {
 	 */
 	{
 	 MX50_PIN_OWIRE, IOMUX_CONFIG_ALT2,
-	 PAD_CTL_PKE_ENABLE | PAD_CTL_DRV_HIGH,
+	 PAD_CTL_PKE_ENABLE | PAD_CTL_PUE_PULL | PAD_CTL_DRV_HIGH | PAD_CTL_47K_PU,
 	},
 	/* USB_OTG_PWR */
 	{
@@ -399,7 +399,7 @@ static struct mxc_iomux_pin_cfg __initdata mxc_iomux_pins[] = {
 	 */
 	{
 	 MX50_PIN_PWM1, IOMUX_CONFIG_ALT2,
-	 PAD_CTL_PKE_ENABLE | PAD_CTL_DRV_HIGH,
+	 PAD_CTL_PKE_ENABLE | PAD_CTL_PUE_PULL | PAD_CTL_DRV_HIGH | PAD_CTL_47K_PU,
 	 MUX_IN_USBOH1_IPP_IND_OTG_OC_SELECT_INPUT, INPUT_CTL_PATH1,
 	},
 	{ /* FEC_MDIO */
