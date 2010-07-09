@@ -296,6 +296,17 @@ fec_enet_start_xmit(struct sk_buff *skb, struct net_device *dev)
 		bufaddr = fep->tx_bounce[index];
 	}
 
+	if (fep->ptimer_present) {
+		if (fec_ptp_do_txstamp(skb))
+			estatus = BD_ENET_TX_TS;
+		else
+			estatus = 0;
+#ifdef CONFIG_FEC_1588
+		bdp->cbd_esc = (estatus | BD_ENET_TX_INT);
+		bdp->cbd_bdu = 0;
+#endif
+	}
+
 #ifdef CONFIG_ARCH_MXS
 	swap_buffer(bufaddr, skb->len);
 #endif
@@ -318,16 +329,6 @@ fec_enet_start_xmit(struct sk_buff *skb, struct net_device *dev)
 			| BD_ENET_TX_LAST | BD_ENET_TX_TC);
 	bdp->cbd_sc = status;
 
-	if (fep->ptimer_present) {
-		if (fec_ptp_do_txstamp(skb))
-			estatus = BD_ENET_TX_TS;
-		else
-			estatus = 0;
-#ifdef CONFIG_FEC_1588
-		bdp->cbd_esc = (estatus | BD_ENET_TX_INT);
-		bdp->cbd_bdu = 0;
-#endif
-	}
 	dev->trans_start = jiffies;
 
 	/* Trigger transmission start */

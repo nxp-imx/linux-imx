@@ -24,6 +24,9 @@
 
 #include <linux/circ_buf.h>
 
+#define FALSE			0
+#define TRUE			1
+
 /* FEC 1588 register bits */
 #define FEC_T_CTRL_CAPTURE		0x00000800
 #define FEC_T_CTRL_RESTART		0x00000200
@@ -32,8 +35,11 @@
 
 #define FEC_T_INC_MASK			0x0000007f
 #define FEC_T_INC_OFFSET		0
+#define FEC_T_INC_CORR_MASK		0x00007f00
+#define FEC_T_INC_CORR_OFFSET		8
 
 #define FEC_T_INC_40MHZ			25
+#define FEC_ATIME_40MHZ			40000000
 
 #define FEC_T_PERIOD_ONE_SEC		0x3B9ACA00
 
@@ -52,7 +58,7 @@
 #define PTP_MSG_ALL_OTHER		0x5
 
 #define PTP_GET_TX_TIMESTAMP		0x1
-#define PTP_GET_RX_TIMESTAMP		0x2
+#define PTP_GET_RX_TIMESTAMP		0x9
 #define PTP_SET_RTC_TIME		0x3
 #define PTP_SET_COMPENSATION		0x4
 #define PTP_GET_CURRENT_TIME		0x5
@@ -64,12 +70,14 @@
 #define PTP_GET_RX_TIMESTAMP_PDELAY_RESP	0xD
 
 #define FEC_PTP_DOMAIN_DLFT		0xe0000181
-#define FEC_PTP_IP_OFFS			0xE
-#define FEC_PTP_UDP_OFFS		0x22
-#define FEC_PTP_MSG_TYPE_OFFS		0x2A
-#define FEC_PTP_SEQ_ID_OFFS		0x48
-#define FEC_PTP_CTRL_OFFS		0x4A
+#define FEC_PTP_IP_OFFS			0x0
+#define FEC_PTP_UDP_OFFS		0x14
+#define FEC_PTP_MSG_TYPE_OFFS		0x1C
+#define FEC_PTP_SEQ_ID_OFFS		0x3A
+#define FEC_PTP_CTRL_OFFS		0x3C
 #define FEC_PACKET_TYPE_UDP		0x11
+
+#define FEC_PTP_ORIG_COMP		0x15555555
 
 /* PTP standard time representation structure */
 struct ptp_time{
@@ -100,6 +108,31 @@ struct ptp_ts_data {
 /* interface for PTP driver command SET_RTC_TIME/GET_CURRENT_TIME */
 struct ptp_rtc_time {
 	struct ptp_time rtc_time;
+};
+
+/* interface for PTP driver command SET_COMPENSATION */
+struct ptp_set_comp {
+	u32 drift;
+	bool o_ops;
+};
+
+/* interface for PTP driver command GET_ORIG_COMP */
+struct ptp_get_comp {
+	/* the initial compensation value */
+	u32 dw_origcomp;
+	/* the minimum compensation value */
+	u32 dw_mincomp;
+	/*the max compensation value*/
+	u32 dw_maxcomp;
+	/*the min drift applying min compensation value in ppm*/
+	u32 dw_mindrift;
+	/*the max drift applying max compensation value in ppm*/
+	u32 dw_maxdrift;
+};
+
+struct ptp_time_correct {
+	u32 corr_period;
+	u32 corr_inc;
 };
 
 /* PTP message version */

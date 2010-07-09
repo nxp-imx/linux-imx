@@ -178,12 +178,19 @@ void fec_ptp_stop(struct fec_ptp_private *priv)
 static void fec_get_curr_cnt(struct fec_ptp_private *priv,
 			struct ptp_rtc_time *curr_time)
 {
+	u32 tempval;
+
+	writel(FEC_T_CTRL_CAPTURE, priv->hwp + FEC_ATIME_CTRL);
 	writel(FEC_T_CTRL_CAPTURE, priv->hwp + FEC_ATIME_CTRL);
 	curr_time->rtc_time.nsec = readl(priv->hwp + FEC_ATIME);
 	curr_time->rtc_time.sec = priv->prtc;
+
 	writel(FEC_T_CTRL_CAPTURE, priv->hwp + FEC_ATIME_CTRL);
-	if (readl(priv->hwp + FEC_ATIME) < curr_time->rtc_time.nsec)
-		curr_time->rtc_time.sec++;
+	tempval = readl(priv->hwp + FEC_ATIME);
+	if (tempval < curr_time->rtc_time.nsec) {
+		curr_time->rtc_time.nsec = tempval;
+		curr_time->rtc_time.sec = priv->prtc;
+	}
 }
 
 /* Set the 1588 timer counter registers */
@@ -214,7 +221,7 @@ int fec_ptp_do_txstamp(struct sk_buff *skb)
 			return 0;
 
 		udph = udp_hdr(skb);
-		if (udph != NULL && udph->source == 319)
+		if (udph != NULL && ntohs(udph->source) == 319)
 			return 1;
 	}
 
@@ -247,13 +254,13 @@ void fec_ptp_store_rxstamp(struct fec_ptp_private *priv,
 		return;
 
 	udph = (struct udphdr *)(skb->data + FEC_PTP_UDP_OFFS);
-	if (udph->source != 319)
+	if (ntohs(udph->source) != 319)
 		return;
 
 	seq_id = *((u16 *)(skb->data + FEC_PTP_SEQ_ID_OFFS));
 	control = *((u8 *)(skb->data + FEC_PTP_CTRL_OFFS));
 
-	tmp_rx_time.key = seq_id;
+	tmp_rx_time.key = ntohs(seq_id);
 	tmp_rx_time.ts_time.sec = fpp->prtc;
 	tmp_rx_time.ts_time.nsec = bdp->ts;
 
@@ -370,6 +377,75 @@ static uint8_t fec_get_rx_time(struct fec_ptp_private *priv,
 	}
 }
 
+static void fec_handle_ptpdrift(struct ptp_set_comp *comp,
+				struct ptp_time_correct *ptc)
+{
+	u32 ndrift;
+	u32 i;
+	u32 tmp, tmp_ns, tmp_prid;
+	u32 min_ns, min_prid, miss_ns;
+
+	ndrift = comp->drift;
+	if (ndrift == 0) {
+		ptc->corr_inc = 0;
+		ptc->corr_period = 0;
+		return;
+	}
+
+	if (ndrift >= FEC_ATIME_40MHZ) {
+		ptc->corr_inc = (u32)(ndrift / FEC_ATIME_40MHZ);
+		ptc->corr_period = 1;
+		return;
+	}
+
+	min_ns = 1;
+	tmp = FEC_ATIME_40MHZ % ndrift;
+	tmp_prid = (u32)(FEC_ATIME_40MHZ / ndrift);
+	min_prid = tmp_prid;
+	miss_ns = tmp / tmp_prid;
+	for (i = 2; i <= FEC_T_INC_40MHZ; i++) {
+		tmp = (FEC_ATIME_40MHZ * i) % ndrift;
+		tmp_prid = (FEC_ATIME_40MHZ * i) / ndrift;
+		tmp_ns = tmp / tmp_prid;
+		if (tmp_ns <= 10) {
+			min_ns = i;
+			min_prid = tmp_prid;
+			break;
+		}
+		if (tmp_ns < miss_ns) {
+			min_ns = i;
+			min_prid = tmp_prid;
+			miss_ns = tmp_ns;
+		}
+	}
+
+	ptc->corr_inc = min_ns;
+	ptc->corr_period = min_prid;
+}
+
+static void fec_set_drift(struct fec_ptp_private *priv,
+			  struct ptp_set_comp *comp)
+{
+	struct ptp_time_correct	tc;
+	struct fec_ptp_private *fpp = priv;
+	u32 tmp, corr_ns;
+
+	fec_handle_ptpdrift(comp, &tc);
+	if (tc.corr_inc == 0)
+		return;
+
+	if (comp->o_ops == TRUE)
+		corr_ns = FEC_T_INC_40MHZ + tc.corr_inc;
+	else
+		corr_ns = FEC_T_INC_40MHZ - tc.corr_inc;
+
+	tmp = readl(fpp->hwp + FEC_ATIME_INC) & FEC_T_INC_MASK;
+	tmp |= corr_ns << FEC_T_INC_CORR_OFFSET;
+	writel(tmp, fpp->hwp + FEC_ATIME_INC);
+
+	writel(tc.corr_period, fpp->hwp + FEC_ATIME_CORR);
+}
+
 static int ptp_open(struct inode *inode, struct file *file)
 {
 	return 0;
@@ -390,6 +466,7 @@ static int ptp_ioctl(
 	struct ptp_rtc_time curr_time;
 	struct ptp_time rx_time, tx_time;
 	struct ptp_ts_data *p_ts;
+	struct ptp_set_comp *p_comp;
 	struct fec_ptp_private *priv;
 	unsigned int minor = MINOR(inode->i_rdev);
 	int retval = 0;
@@ -432,10 +509,11 @@ static int ptp_ioctl(
 		priv->rx_time_pdel_resp.tail = 0;
 		break;
 	case PTP_SET_COMPENSATION:
-		/* TBD */
+		p_comp = (struct ptp_set_comp *)arg;
+		fec_set_drift(priv, p_comp);
 		break;
 	case PTP_GET_ORIG_COMP:
-		/* TBD */
+		((struct ptp_get_comp *)arg)->dw_origcomp = FEC_PTP_ORIG_COMP;
 		break;
 	default:
 		return -EINVAL;
