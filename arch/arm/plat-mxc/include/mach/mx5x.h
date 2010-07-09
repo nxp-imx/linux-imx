@@ -93,7 +93,7 @@
 #endif
 
 #ifdef CONFIG_MXC_VPU_IRAM
-#define VPU_IRAM_SIZE  0x11000
+#define VPU_IRAM_SIZE  0x14000
 #else
 #define VPU_IRAM_SIZE 0
 #endif
