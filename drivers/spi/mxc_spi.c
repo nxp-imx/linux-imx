@@ -654,7 +654,7 @@ void mxc_spi_chipselect(struct spi_device *spi, int is_active)
 		if (spi->mode & SPI_CPHA)
 			ctrl_reg |=
 			    spi_ver_def->mode_mask << spi_ver_def->pha_shift;
-		if (!(spi->mode & SPI_CPOL))
+		if (spi->mode & SPI_CPOL)
 			ctrl_reg |=
 			    spi_ver_def->mode_mask << spi_ver_def->
 			    low_pol_shift;
