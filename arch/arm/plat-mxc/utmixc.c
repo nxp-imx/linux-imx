@@ -73,6 +73,8 @@ static void set_power(struct fsl_xcvr_ops *this,
 			regulator_put(usbotg_regux);
 		}
 	}
+	if (pdata && pdata->platform_driver_vbus)
+		pdata->platform_driver_vbus(on);
 }
 
 static struct fsl_xcvr_ops utmi_ops = {

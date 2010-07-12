@@ -20,6 +20,7 @@
 #include <mach/hardware.h>
 #include "usb.h"
 
+
 static int usbotg_init_ext(struct platform_device *pdev);
 static void usbotg_uninit_ext(struct fsl_usb2_platform_data *pdata);
 static void _wake_up_enable(struct fsl_usb2_platform_data *pdata, bool enable);
@@ -136,6 +137,11 @@ static void usbotg_clock_gate(bool on)
 		clk_disable(usb_clk);
 		clk_put(usb_clk);
 	}
+}
+
+void mx5_set_otghost_vbus_func(driver_vbus_func driver_vbus)
+{
+	dr_utmi_config.platform_driver_vbus = driver_vbus;
 }
 
 void __init mx5_usb_dr_init(void)

@@ -24,7 +24,6 @@
 #include "iomux.h"
 #include "mx51_pins.h"
 
-
 /*
  * USB Host1 HS port
  */
@@ -174,6 +173,10 @@ static struct fsl_usb2_platform_data usbh1_config = {
 	.transceiver = "utmi",
 };
 
+void mx5_set_host1_vbus_func(driver_vbus_func driver_vbus)
+{
+	usbh1_config.platform_driver_vbus = driver_vbus;
+}
 void __init mx5_usbh1_init(void)
 {
 	if (cpu_is_mx51()) {

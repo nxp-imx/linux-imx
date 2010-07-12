@@ -41,6 +41,7 @@
 #include <linux/usb/gadget.h>
 #include <linux/workqueue.h>
 #include <linux/time.h>
+#include <linux/usb/fsl_xcvr.h>
 #include <linux/fsl_devices.h>
 #include <linux/platform_device.h>
 #include <linux/irq.h>
@@ -136,7 +137,7 @@ void fsl_otg_dischrg_vbus(int on)
 }
 
 /* A-device driver vbus, controlled through PP bit in PORTSC */
-void fsl_otg_drv_vbus(int on)
+void fsl_otg_drv_vbus(struct fsl_usb2_platform_data *pdata, int on)
 {
 /*	if (on)
 		usb_dr_regs->portsc =
@@ -147,6 +148,8 @@ void fsl_otg_drv_vbus(int on)
 		    cpu_to_le32(le32_to_cpu(usb_dr_regs->portsc) &
 				~PORTSC_W1C_BITS & ~PORTSC_PORT_POWER);
 */
+	if (pdata->xcvr_ops && pdata->xcvr_ops->set_vbus_power)
+		pdata->xcvr_ops->set_vbus_power(pdata->xcvr_ops, pdata, on);
 }
 
 /*
@@ -438,7 +441,7 @@ int fsl_otg_start_host(struct otg_fsm *fsm, int on)
 				retval = host_pdrv->resume(host_pdev);
 				if (fsm->id) {
 					/* default-b */
-					fsl_otg_drv_vbus(1);
+					fsl_otg_drv_vbus(dev->platform_data, 1);
 					/* Workaround: b_host can't driver
 					 * vbus, but PP in PORTSC needs to
 					 * be 1 for host to work.
@@ -463,7 +466,7 @@ int fsl_otg_start_host(struct otg_fsm *fsm, int on)
 							otg_suspend_state);
 				if (fsm->id)
 					/* default-b */
-					fsl_otg_drv_vbus(0);
+					fsl_otg_drv_vbus(dev->platform_data, 0);
 			}
 			otg_dev->host_working = 0;
 		}
@@ -782,9 +785,19 @@ irqreturn_t fsl_otg_isr(int irq, void *dev_id)
 	return IRQ_NONE;
 }
 
+static void fsl_otg_fsm_drv_vbus(int on)
+{
+	struct otg_fsm *fsm = &(fsl_otg_dev->fsm);
+	struct otg_transceiver *xceiv = fsm->transceiver;
+	struct device *dev = xceiv->host->controller;
+
+	fsl_otg_drv_vbus(dev->platform_data, on);
+
+}
+
 static struct otg_fsm_ops fsl_otg_ops = {
 	.chrg_vbus = fsl_otg_chrg_vbus,
-	.drv_vbus = fsl_otg_drv_vbus,
+	.drv_vbus = fsl_otg_fsm_drv_vbus,
 	.loc_conn = fsl_otg_loc_conn,
 	.loc_sof = fsl_otg_loc_sof,
 	.start_pulse = fsl_otg_start_pulse,

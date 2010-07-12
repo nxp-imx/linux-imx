@@ -838,12 +838,12 @@ void __init mx53_evk_io_init(void)
 						    mx53_arm2_iomux_pins[i].in_mode);
 		}
 
-		/* Enable OTG VBus with GPIO low */
+		/* Config GPIO for OTG VBus */
 		mxc_iomux_set_pad(MX53_PIN_EIM_D22, PAD_CTL_DRV_HIGH |
 				PAD_CTL_PKE_ENABLE | PAD_CTL_SRE_FAST);
 		gpio_request(IOMUX_TO_GPIO(MX53_PIN_EIM_D22), "gpio3_22");
 		gpio_direction_output(IOMUX_TO_GPIO(MX53_PIN_EIM_D22), 0);
-		gpio_set_value(IOMUX_TO_GPIO(MX53_PIN_EIM_D22), 0);
+		gpio_set_value(IOMUX_TO_GPIO(MX53_PIN_EIM_D22), 1);
 
 		gpio_request(IOMUX_TO_GPIO(MX53_PIN_GPIO_1), "gpio1_1");
 		gpio_direction_input(IOMUX_TO_GPIO(MX53_PIN_GPIO_1));	/* SD1 CD */
@@ -869,6 +869,9 @@ void __init mx53_evk_io_init(void)
 				PAD_CTL_PKE_ENABLE | PAD_CTL_SRE_FAST);
 		gpio_request(IOMUX_TO_GPIO(MX53_PIN_ATA_DA_2), "gpio7_8");
 		gpio_direction_output(IOMUX_TO_GPIO(MX53_PIN_ATA_DA_2), 1);
+		/* shutdown the Host1 Vbus when system bring up,
+		 * Vbus will be opened in Host1 driver's probe function */
+		gpio_set_value(IOMUX_TO_GPIO(MX53_PIN_ATA_DA_2), 0);
 
 		/* USB HUB RESET - De-assert USB HUB RESET_N */
 		mxc_iomux_set_pad(MX53_PIN_CSI0_DATA_EN, PAD_CTL_DRV_HIGH |
@@ -881,12 +884,16 @@ void __init mx53_evk_io_init(void)
 		msleep(1);
 		gpio_set_value(IOMUX_TO_GPIO(MX53_PIN_CSI0_DATA_EN), 1);
 
-		/* Enable OTG VBus with GPIO low */
+		/* Config GPIO for OTG VBus */
 		mxc_iomux_set_pad(MX53_PIN_EIM_A23, PAD_CTL_DRV_HIGH |
 				PAD_CTL_PKE_ENABLE | PAD_CTL_SRE_FAST);
 		gpio_request(IOMUX_TO_GPIO(MX53_PIN_EIM_A23), "gpio6_6");
 		gpio_direction_output(IOMUX_TO_GPIO(MX53_PIN_EIM_A23), 0);
-		gpio_set_value(IOMUX_TO_GPIO(MX53_PIN_EIM_A23), 0);
+
+		if (board_is_mx53_evk_a()) /*rev A,"1" disable, "0" enable vbus*/
+			gpio_set_value(IOMUX_TO_GPIO(MX53_PIN_EIM_A23), 1);
+		else if (board_is_mx53_evk_b()) /* rev B,"0" disable,"1" enable Vbus*/
+			gpio_set_value(IOMUX_TO_GPIO(MX53_PIN_EIM_A23), 0);
 
 		gpio_request(IOMUX_TO_GPIO(MX53_PIN_EIM_DA13), "gpio3_13");
 		gpio_direction_input(IOMUX_TO_GPIO(MX53_PIN_EIM_DA13));	/* SD1 CD */
@@ -1229,3 +1236,56 @@ void gpio_cs42888_pdwn(int pdwn)
 		gpio_set_value(IOMUX_TO_GPIO(MX53_PIN_GPIO_12), 1);
 }
 EXPORT_SYMBOL(gpio_cs42888_pdwn);
+
+static void gpio_usbotg_vbus_active(void)
+{
+	if (board_is_mx53_arm2()) {
+		/* MX53 ARM2 CPU board */
+		/* Enable OTG VBus with GPIO low */
+		gpio_set_value(IOMUX_TO_GPIO(MX53_PIN_EIM_D22), 0);
+	} else  if (board_is_mx53_evk_a()) {
+		/* MX53 EVK board ver A*/
+		/* Enable OTG VBus with GPIO low */
+		gpio_set_value(IOMUX_TO_GPIO(MX53_PIN_EIM_A23), 0);
+	} else  if (board_is_mx53_evk_b()) {
+		/* MX53 EVK board ver B*/
+		/* Enable OTG VBus with GPIO high */
+		gpio_set_value(IOMUX_TO_GPIO(MX53_PIN_EIM_A23), 1);
+	}
+}
+
+static void gpio_usbotg_vbus_inactive(void)
+{
+	if (board_is_mx53_arm2()) {
+		/* MX53 ARM2 CPU board */
+		/* Disable OTG VBus with GPIO high */
+		gpio_set_value(IOMUX_TO_GPIO(MX53_PIN_EIM_D22), 1);
+	} else  if (board_is_mx53_evk_a()) {
+		/* MX53 EVK board ver A*/
+		/* Disable OTG VBus with GPIO high */
+		gpio_set_value(IOMUX_TO_GPIO(MX53_PIN_EIM_A23), 1);
+	} else  if (board_is_mx53_evk_b()) {
+		/* MX53 EVK board ver B*/
+		/* Disable OTG VBus with GPIO low */
+		gpio_set_value(IOMUX_TO_GPIO(MX53_PIN_EIM_A23), 0);
+	}
+}
+
+
+void mx53_gpio_usbotg_driver_vbus(bool on)
+{
+	if (on)
+		gpio_usbotg_vbus_active();
+	else
+		gpio_usbotg_vbus_inactive();
+}
+EXPORT_SYMBOL(mx53_gpio_usbotg_driver_vbus);
+
+void mx53_gpio_host1_driver_vbus(bool on)
+{
+	if (on)
+		gpio_set_value(IOMUX_TO_GPIO(MX53_PIN_ATA_DA_2), 1);
+	else
+		gpio_set_value(IOMUX_TO_GPIO(MX53_PIN_ATA_DA_2), 0);
+}
+EXPORT_SYMBOL(mx53_gpio_host1_driver_vbus);

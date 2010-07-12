@@ -30,6 +30,9 @@ extern void __init mx5_usb_dr_init(void);
 extern void __init mx5_usbh1_init(void);
 extern void __init mx5_usbh2_init(void);
 
+typedef void (*driver_vbus_func)(bool);
+extern void mx5_set_host1_vbus_func(driver_vbus_func);
+extern void mx5_set_otghost_vbus_func(driver_vbus_func);
 /*
  * Used to set pdata->operating_mode before registering the platform_device.
  * If OTG is configured, the controller operates in OTG mode,
