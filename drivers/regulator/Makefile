@@ -15,6 +15,7 @@ obj-$(CONFIG_REGULATOR_WM8350) += wm8350-regulator.o
 obj-$(CONFIG_REGULATOR_WM8400) += wm8400-regulator.o
 obj-$(CONFIG_REGULATOR_DA903X)	+= da903x.o
 obj-$(CONFIG_REGULATOR_PCF50633) += pcf50633-regulator.o
+obj-$(CONFIG_REGULATOR_MAX17135) += max17135-regulator.o
 
 obj-$(CONFIG_REGULATOR_MC13892) += reg-mc13892.o
 obj-$(CONFIG_REGULATOR_MC13783) += reg-mc13783.o
