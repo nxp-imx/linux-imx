@@ -3962,7 +3962,8 @@ static struct clk ata_clk = {
 };
 
 static struct clk owire_clk = {
-	.name = "owire_clk",
+	/* 1w driver come from upstream and use owire as clock name*/
+	.name = "owire",
 	.parent = &ipg_perclk,
 	.enable = _clk_enable,
 	.enable_reg = MXC_CCM_CCGR2,
