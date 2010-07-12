@@ -37,6 +37,8 @@
 #include <linux/mtd/map.h>
 #include <linux/mtd/partitions.h>
 #include <linux/regulator/consumer.h>
+#include <linux/regulator/machine.h>
+#include <linux/regulator/max17135.h>
 #include <linux/pmic_external.h>
 #include <linux/pmic_status.h>
 #include <linux/videodev2.h>
@@ -142,6 +144,78 @@ static struct mxc_srtc_platform_data srtc_data = {
 	.srtc_sec_mode_addr = OCOTP_CTRL_BASE_ADDR + 0x80,
 };
 
+#define mV_to_uV(mV) (mV * 1000)
+#define uV_to_mV(uV) (uV / 1000)
+#define V_to_uV(V) (mV_to_uV(V * 1000))
+#define uV_to_V(uV) (uV_to_mV(uV) / 1000)
+
+static struct regulator_init_data max17135_init_data[] __initdata = {
+	{
+		.constraints = {
+			.name = "DISPLAY",
+		},
+	}, {
+		.constraints = {
+			.name = "GVDD",
+			.min_uV = V_to_uV(20),
+			.max_uV = V_to_uV(20),
+		},
+	}, {
+		.constraints = {
+			.name = "GVEE",
+			.min_uV = V_to_uV(-22),
+			.max_uV = V_to_uV(-22),
+		},
+	}, {
+		.constraints = {
+			.name = "HVINN",
+			.min_uV = V_to_uV(-22),
+			.max_uV = V_to_uV(-22),
+		},
+	}, {
+		.constraints = {
+			.name = "HVINP",
+			.min_uV = V_to_uV(20),
+			.max_uV = V_to_uV(20),
+		},
+	}, {
+		.constraints = {
+			.name = "VCOM",
+			.min_uV = mV_to_uV(-4325),
+			.max_uV = mV_to_uV(-500),
+			.valid_ops_mask = REGULATOR_CHANGE_VOLTAGE,
+		},
+	}, {
+		.constraints = {
+			.name = "VNEG",
+			.min_uV = V_to_uV(-15),
+			.max_uV = V_to_uV(-15),
+		},
+	}, {
+		.constraints = {
+			.name = "VPOS",
+			.min_uV = V_to_uV(15),
+			.max_uV = V_to_uV(15),
+		},
+	},
+};
+
+static struct max17135_platform_data max17135_pdata = {
+	.vneg_pwrup = 1,
+	.gvee_pwrup = 1,
+	.vpos_pwrup = 2,
+	.gvdd_pwrup = 1,
+	.gvdd_pwrdn = 1,
+	.vpos_pwrdn = 2,
+	.gvee_pwrdn = 1,
+	.vneg_pwrdn = 1,
+	.gpio_pmic_pwrgood = IOMUX_TO_GPIO(MX50_PIN_EPDC_PWRSTAT),
+	.gpio_pmic_vcom_ctrl = IOMUX_TO_GPIO(MX50_PIN_EPDC_VCOM0),
+	.gpio_pmic_wakeup = IOMUX_TO_GPIO(MX50_PIN_UART4_TXD),
+	.gpio_pmic_intr = IOMUX_TO_GPIO(MX50_PIN_UART4_RXD),
+	.regulator_init = max17135_init_data,
+};
+
 static struct i2c_board_info mxc_i2c1_board_info[] __initdata = {
 	{
 	 .type = "sgtl5000-i2c",
@@ -160,6 +234,7 @@ static struct i2c_board_info mxc_i2c1_board_info[] __initdata = {
 static struct i2c_board_info mxc_i2c2_board_info[] __initdata = {
 	{
 	 I2C_BOARD_INFO("max17135", 0x48),
+	 .platform_data = &max17135_pdata,
 	 },
 };
 
