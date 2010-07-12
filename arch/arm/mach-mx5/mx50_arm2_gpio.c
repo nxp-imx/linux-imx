@@ -511,6 +511,15 @@ static struct mxc_iomux_pin_cfg __initdata mxc_iomux_pins[] = {
 	 },
 };
 
+static int __initdata enable_w1 = { 0 };
+static int __init w1_setup(char *__unused)
+{
+	enable_w1 = 1;
+	return cpu_is_mx50();
+}
+
+__setup("w1", w1_setup);
+
 void __init mx50_arm2_io_init(void)
 {
 	int i;
@@ -571,6 +580,18 @@ void __init mx50_arm2_io_init(void)
 	/* ELCDIF backlight */
 	gpio_request(IOMUX_TO_GPIO(MX50_PIN_DISP_BUSY), "gp2_18");
 	gpio_direction_output(IOMUX_TO_GPIO(MX50_PIN_DISP_BUSY), 1);
+
+	if (enable_w1) {
+		/* OneWire */
+		mxc_request_iomux(MX50_PIN_OWIRE, IOMUX_CONFIG_ALT0);
+		mxc_iomux_set_pad(MX50_PIN_OWIRE, PAD_CTL_HYS_ENABLE |
+						  PAD_CTL_PKE_ENABLE |
+						  PAD_CTL_ODE_OPENDRAIN_ENABLE |
+						  PAD_CTL_DRV_HIGH |
+						  PAD_CTL_SRE_FAST |
+						  PAD_CTL_100K_PU |
+						  PAD_CTL_PUE_PULL);
+	}
 }
 
 /* workaround for cspi chipselect pin may not keep correct level when idle */

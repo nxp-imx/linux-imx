@@ -485,7 +485,7 @@ static int __initdata enable_w1 = { 0 };
 static int __init w1_setup(char *__unused)
 {
 	enable_w1 = 1;
-	return 1;
+	return cpu_is_mx51();
 }
 
 __setup("w1", w1_setup);
