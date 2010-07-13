@@ -273,8 +273,10 @@ static int sdhc_write_protect(struct device *dev)
 
 	if (to_platform_device(dev)->id == 0)
 		rc = gpio_get_value(IOMUX_TO_GPIO(MX50_PIN_ECSPI2_SS0));
-	else
+	else if (to_platform_device(dev)->id == 1)
 		rc = gpio_get_value(IOMUX_TO_GPIO(MX50_PIN_SD2_WP));
+	else if (to_platform_device(dev)->id == 2)
+		rc = gpio_get_value(IOMUX_TO_GPIO(MX50_PIN_SD3_WP));
 
 	return rc;
 }
@@ -284,8 +286,10 @@ static unsigned int sdhc_get_card_det_status(struct device *dev)
 	int ret;
 	if (to_platform_device(dev)->id == 0)
 		ret = gpio_get_value(IOMUX_TO_GPIO(MX50_PIN_EIM_CRE));
-	else
+	else if (to_platform_device(dev)->id == 1)
 		ret = gpio_get_value(IOMUX_TO_GPIO(MX50_PIN_SD2_CD));
+	else if (to_platform_device(dev)->id == 2)
+		ret = gpio_get_value(IOMUX_TO_GPIO(MX50_PIN_KEY_COL2));
 
 	return ret;
 }
@@ -304,6 +308,18 @@ static struct mxc_mmc_platform_data mmc1_data = {
 };
 
 static struct mxc_mmc_platform_data mmc2_data = {
+	.ocr_mask = MMC_VDD_27_28 | MMC_VDD_28_29 | MMC_VDD_29_30
+		| MMC_VDD_31_32,
+	.caps = MMC_CAP_4_BIT_DATA | MMC_CAP_8_BIT_DATA,
+	.min_clk = 400000,
+	.max_clk = 50000000,
+	.card_inserted_state = 0,
+	.status = sdhc_get_card_det_status,
+	.wp_status = sdhc_write_protect,
+	.clock_mmc = "esdhc_clk",
+};
+
+static struct mxc_mmc_platform_data mmc3_data = {
 	.ocr_mask = MMC_VDD_27_28 | MMC_VDD_28_29 | MMC_VDD_29_30
 		| MMC_VDD_31_32,
 	.caps = MMC_CAP_4_BIT_DATA | MMC_CAP_8_BIT_DATA,
@@ -456,10 +472,12 @@ static void __init fixup_mxc_board(struct machine_desc *desc, struct tag *tags,
 static void __init mxc_board_init(void)
 {
 	/* SD card detect irqs */
-	mxcsdhc2_device.resource[2].start = IOMUX_TO_IRQ(MX50_PIN_SD2_CD);
-	mxcsdhc2_device.resource[2].end = IOMUX_TO_IRQ(MX50_PIN_SD2_CD);
 	mxcsdhc1_device.resource[2].start = IOMUX_TO_IRQ(MX50_PIN_EIM_CRE);
 	mxcsdhc1_device.resource[2].end = IOMUX_TO_IRQ(MX50_PIN_EIM_CRE);
+	mxcsdhc2_device.resource[2].start = IOMUX_TO_IRQ(MX50_PIN_SD2_CD);
+	mxcsdhc2_device.resource[2].end = IOMUX_TO_IRQ(MX50_PIN_SD2_CD);
+	mxcsdhc3_device.resource[2].start = IOMUX_TO_IRQ(MX50_PIN_KEY_COL2);
+	mxcsdhc3_device.resource[2].end = IOMUX_TO_IRQ(MX50_PIN_KEY_COL2);
 
 	mxc_cpu_common_init();
 	mxc_register_gpios();
@@ -489,6 +507,7 @@ static void __init mxc_board_init(void)
 
 	mxc_register_device(&mxcsdhc1_device, &mmc1_data);
 	mxc_register_device(&mxcsdhc2_device, &mmc2_data);
+	mxc_register_device(&mxcsdhc3_device, &mmc3_data);
 	mxc_register_device(&mxc_ssi1_device, NULL);
 	mxc_register_device(&mxc_ssi2_device, NULL);
 	mxc_register_device(&mxc_fec_device, &fec_data);
