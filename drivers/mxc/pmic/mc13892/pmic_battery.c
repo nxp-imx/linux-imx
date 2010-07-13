@@ -1,5 +1,5 @@
 /*
- * Copyright 2009 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2009-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -536,7 +536,7 @@ static int pmic_battery_probe(struct platform_device *pdev)
 		pr_debug("Battery driver is only applied for MC13892 V2.0\n");
 		return -1;
 	}
-	if (machine_is_mx51_babbage()) {
+	if (machine_is_mx51_babbage() || machine_is_mx50_arm2()) {
 		pr_debug("mc13892 charger is not used for this platform\n");
 		return -1;
 	}
