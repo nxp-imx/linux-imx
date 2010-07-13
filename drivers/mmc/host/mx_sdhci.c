@@ -750,6 +750,11 @@ static void sdhci_send_command(struct sdhci_host *host, struct mmc_command *cmd)
 		flags |= SDHCI_CMD_DATA;
 
 	mode |= SDHCI_MAKE_CMD(cmd->opcode, flags);
+	if (host->mmc->ios.bus_width & MMC_BUS_WIDTH_DDR) {
+		/* Eanble the DDR mode */
+		mode |= SDHCI_TRNS_DDR_EN;
+	} else
+		mode &= ~SDHCI_TRNS_DDR_EN;
 	DBG("Complete sending cmd, transfer mode would be 0x%x.\n", mode);
 	writel(mode, host->ioaddr + SDHCI_TRANSFER_MODE);
 }
@@ -798,6 +803,7 @@ static void sdhci_set_clock(struct sdhci_host *host, unsigned int clock)
 	int clk_rate = 0;
 	u32 clk;
 	unsigned long timeout;
+	struct mmc_ios ios = host->mmc->ios;
 
 	if (clock == 0) {
 		goto out;
@@ -807,7 +813,7 @@ static void sdhci_set_clock(struct sdhci_host *host, unsigned int clock)
 			host->plat_data->clk_flg = 1;
 		}
 	}
-	if (clock == host->clock)
+	if (clock == host->clock && !(ios.bus_width & MMC_BUS_WIDTH_DDR))
 		return;
 
 	clk_rate = clk_get_rate(host->clk);
@@ -842,6 +848,75 @@ static void sdhci_set_clock(struct sdhci_host *host, unsigned int clock)
 	}
 	DBG("prescaler = 0x%x, divider = 0x%x\n", prescaler, div);
 	clk |= (prescaler << 8) | (div << 4);
+
+	/* Configure the DLL when DDR mode is enabled */
+	if (ios.bus_width & MMC_BUS_WIDTH_DDR) {
+		/* Enable the DLL and delay chain */
+		writel(readl(host->ioaddr + SDHCI_DLL_CONTROL)
+				| DLL_CTRL_ENABLE,
+				host->ioaddr + SDHCI_DLL_CONTROL);
+
+		timeout = 1000000;
+		while (timeout > 0) {
+			timeout--;
+			if (readl(host->ioaddr + SDHCI_DLL_STATUS)
+					& DLL_STS_REF_LOCK)
+				break;
+			else if (timeout == 0)
+				printk(KERN_ERR "DLL REF LOCK Timeout!\n");
+		};
+		DBG("dll stat: 0x%x\n", readl(host->ioaddr + SDHCI_DLL_STATUS));
+
+		writel(readl(host->ioaddr + SDHCI_DLL_CONTROL)
+				| DLL_CTRL_SLV_UP_INT | DLL_CTRL_REF_UP_INT,
+				host->ioaddr + SDHCI_DLL_CONTROL);
+
+		writel(readl(host->ioaddr + SDHCI_DLL_CONTROL)
+				| DLL_CTRL_SLV_DLY_TAR,
+				host->ioaddr + SDHCI_DLL_CONTROL);
+
+		timeout = 1000000;
+		while (timeout > 0) {
+			timeout--;
+			if (readl(host->ioaddr + SDHCI_DLL_STATUS)
+					& DLL_STS_SLV_LOCK)
+				break;
+			else if (timeout == 0)
+				printk(KERN_ERR "DLL SLV LOCK Timeout!\n");
+		};
+
+		writel(readl(host->ioaddr + SDHCI_DLL_CONTROL)
+				| DLL_CTRL_SLV_FORCE_UPD,
+				host->ioaddr + SDHCI_DLL_CONTROL);
+
+		writel(readl(host->ioaddr + SDHCI_DLL_CONTROL)
+				& (~DLL_CTRL_SLV_FORCE_UPD),
+				host->ioaddr + SDHCI_DLL_CONTROL);
+
+		timeout = 1000000;
+		while (timeout > 0) {
+			timeout--;
+			if (readl(host->ioaddr + SDHCI_DLL_STATUS)
+					& DLL_STS_REF_LOCK)
+				break;
+			else if (timeout == 0)
+				printk(KERN_ERR "DLL REF LOCK Timeout!\n");
+		};
+		timeout = 1000000;
+		while (timeout > 0) {
+			timeout--;
+			if (readl(host->ioaddr + SDHCI_DLL_STATUS)
+					& DLL_STS_SLV_LOCK)
+				break;
+			else if (timeout == 0)
+				printk(KERN_ERR "DLL SLV LOCK Timeout!\n");
+		};
+		DBG("dll stat: 0x%x\n", readl(host->ioaddr + SDHCI_DLL_STATUS));
+	} else if (readl(host->ioaddr + SDHCI_DLL_STATUS) & DLL_STS_SLV_LOCK) {
+		/* reset DLL CTRL */
+		writel(readl(host->ioaddr + SDHCI_DLL_CONTROL) | DLL_CTRL_RESET,
+				host->ioaddr + SDHCI_DLL_CONTROL);
+	}
 
 	/* Configure the clock control register */
 	clk |=
@@ -956,8 +1031,8 @@ static void sdhci_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
 	u32 tmp;
 	mxc_dma_device_t dev_id = 0;
 
-	DBG("%s: clock %u, bus %lu, power %u, vdd %u\n", DRIVER_NAME,
-	    ios->clock, 1UL << ios->bus_width, ios->power_mode, ios->vdd);
+	DBG("%s: clock %u, bus %u, power %u, vdd %u\n", DRIVER_NAME,
+	    ios->clock, ios->bus_width, ios->power_mode, ios->vdd);
 
 	host = mmc_priv(mmc);
 
@@ -1023,10 +1098,10 @@ static void sdhci_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
 
 	tmp = readl(host->ioaddr + SDHCI_HOST_CONTROL);
 
-	if (ios->bus_width == MMC_BUS_WIDTH_4) {
+	if ((ios->bus_width & ~MMC_BUS_WIDTH_DDR) == MMC_BUS_WIDTH_4) {
 		tmp &= ~SDHCI_CTRL_8BITBUS;
 		tmp |= SDHCI_CTRL_4BITBUS;
-	} else if (ios->bus_width == MMC_BUS_WIDTH_8) {
+	} else if ((ios->bus_width & ~MMC_BUS_WIDTH_DDR) == MMC_BUS_WIDTH_8) {
 		tmp &= ~SDHCI_CTRL_4BITBUS;
 		tmp |= SDHCI_CTRL_8BITBUS;
 	} else if (ios->bus_width == MMC_BUS_WIDTH_1) {

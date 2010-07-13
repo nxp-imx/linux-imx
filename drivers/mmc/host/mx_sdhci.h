@@ -2,7 +2,6 @@
  *  linux/drivers/mmc/host/mx_sdhci.h - Secure Digital Host
  *  Controller Interface driver
  *
- *  Copyright (C) 2005-2007 Pierre Ossman, All Rights Reserved.
  *  Copyright (C) 2008-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
@@ -28,6 +27,7 @@
 #define  SDHCI_TRNS_DMA		0x00000001
 #define  SDHCI_TRNS_BLK_CNT_EN	0x00000002
 #define  SDHCI_TRNS_ACMD12	0x00000004
+#define  SDHCI_TRNS_DDR_EN 	0x00000008
 #define  SDHCI_TRNS_READ	0x00000010
 #define  SDHCI_TRNS_MULTI	0x00000020
 #define  SDHCI_TRNS_DPSEL	0x00200000
@@ -188,6 +188,17 @@
 #define SDHCI_ADMA_ADDRESS	0x58
 
 /* 60-FB reserved */
+#define SDHCI_DLL_CONTROL 	0x60
+#define DLL_CTRL_ENABLE 	0x00000001
+#define DLL_CTRL_RESET 		0x00000002
+#define DLL_CTRL_SLV_FORCE_UPD 	0x00000004
+#define DLL_CTRL_SLV_DLY_TAR 	0x00000020
+#define DLL_CTRL_SLV_UP_INT 	0x00200000
+#define DLL_CTRL_REF_UP_INT 	0x20000000
+
+#define SDHCI_DLL_STATUS 	0x64
+#define DLL_STS_SLV_LOCK 	0x00000001
+#define DLL_STS_REF_LOCK 	0x00000002
 
 /* ADMA Addr Descriptor Attribute Filed */
 enum {
