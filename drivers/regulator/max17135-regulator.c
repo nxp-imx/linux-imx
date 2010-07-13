@@ -357,7 +357,7 @@ static int max17135_wait_power_good(struct max17135 *max17135)
 {
 	int i;
 
-	for (i = 0; i < max17135->max_wait; i++) {
+	for (i = 0; i < max17135->max_wait * 3; i++) {
 		if (gpio_get_value(max17135->gpio_pmic_pwrgood))
 			return 0;
 
