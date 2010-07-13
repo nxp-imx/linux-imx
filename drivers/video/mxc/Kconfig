@@ -82,6 +82,10 @@ config FB_MXC_EINK_AUTO_UPDATE_MODE
     default n
     depends on FB_MXC_EINK_PANEL
 
+config FB_MXC_ELCDIF_FB
+	depends on FB && ARCH_MXC
+	tristate "Support MXC ELCDIF framebuffer"
+
 choice
 	prompt "Async Panel Interface Type"
 	depends on FB_MXC_ASYNC_PANEL && FB_MXC

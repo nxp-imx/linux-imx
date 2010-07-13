@@ -48,8 +48,8 @@ static int lcd_on;
 
 static struct fb_videomode video_modes[] = {
 	{
-	 /* 800x480 @ 55 Hz , pixel clk @ 25MHz */
-	 "CLAA-WVGA", 55, 800, 480, 40000, 40, 40, 5, 5, 20, 10,
+	 /* 800x480 @ 57 Hz , pixel clk @ 27MHz */
+	 "CLAA-WVGA", 57, 800, 480, 37037, 40, 60, 10, 10, 20, 10,
 	 FB_SYNC_CLK_LAT_FALL,
 	 FB_VMODE_NONINTERLACED,
 	 0,},
@@ -77,13 +77,14 @@ static int lcd_fb_event(struct notifier_block *nb, unsigned long val, void *v)
 {
 	struct fb_event *event = v;
 
-	if (strcmp(event->info->fix.id, "DISP3 BG")) {
+	if (strcmp(event->info->fix.id, "DISP3 BG") &&
+	    strcmp(event->info->fix.id, "mxc_elcdif_fb"))
 		return 0;
-	}
 
 	switch (val) {
 	case FB_EVENT_FB_REGISTERED:
 		lcd_init_fb(event->info);
+		fb_show_logo(event->info, 0);
 		lcd_poweron();
 		break;
 	case FB_EVENT_BLANK:
@@ -133,7 +134,8 @@ static int __devinit lcd_probe(struct platform_device *pdev)
 	}
 
 	for (i = 0; i < num_registered_fb; i++) {
-		if (strcmp(registered_fb[i]->fix.id, "DISP3 BG") == 0) {
+		if (strcmp(registered_fb[i]->fix.id, "DISP3 BG") == 0 ||
+		    strcmp(registered_fb[i]->fix.id, "mxc_elcdif_fb") == 0) {
 			lcd_init_fb(registered_fb[i]);
 			fb_show_logo(registered_fb[i], 0);
 			lcd_poweron();
