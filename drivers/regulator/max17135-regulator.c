@@ -30,6 +30,12 @@
 #include <linux/gpio.h>
 
 /*
+ * Define this as 1 when using a Rev 1 MAX17135 part.  These parts have
+ * some limitations, including an inability to turn on the PMIC via I2C.
+ */
+#define MAX17135_REV 1
+
+/*
  * PMIC Register Addresses
  */
 enum {
@@ -170,11 +176,27 @@ enum {
 #define MAX17135_GVEE_MIN_VAL         0
 #define MAX17135_GVEE_MAX_VAL         1
 
+#if (MAX17135_REV == 1)
 #define MAX17135_VCOM_MIN_uV   -4325000
 #define MAX17135_VCOM_MAX_uV    -500000
 #define MAX17135_VCOM_STEP_uV     15000
 #define MAX17135_VCOM_MIN_VAL         0
 #define MAX17135_VCOM_MAX_VAL       255
+/* Required due to discrepancy between
+ * observed VCOM programming and
+ * what is suggested in the spec.
+ */
+#define MAX17135_VCOM_FUDGE_FACTOR 330000
+#else
+#define MAX17135_VCOM_MIN_uV   -3050000
+#define MAX17135_VCOM_MAX_uV    -500000
+#define MAX17135_VCOM_STEP_uV     10000
+#define MAX17135_VCOM_MIN_VAL         0
+#define MAX17135_VCOM_MAX_VAL       255
+#define MAX17135_VCOM_FUDGE_FACTOR 330000
+#endif
+
+#define MAX17135_VCOM_VOLTAGE_DEFAULT -1250000
 
 #define MAX17135_VNEG_MIN_uV    5000000
 #define MAX17135_VNEG_MAX_uV   20000000
@@ -206,16 +228,10 @@ struct max17135 {
 	int gpio_pmic_wakeup;
 	int gpio_pmic_intr;
 
+	bool vcom_setup;
+
 	int max_wait;
 };
-
-static int vcom_voltage = -1250000; /* default VCOM voltage */
-
-/*
- * Define this as 1 when using a Rev 1 MAX17135 part.  These parts have
- * some limitations, including an inability to turn on the PMIC via I2C.
- */
-#define MAX17135_REV 1
 
 /*
  * Regulator operations
@@ -294,19 +310,29 @@ static int max17135_vcom_set_voltage(struct regulator_dev *reg,
 	struct max17135 *max17135 = rdev_get_drvdata(reg);
 	struct i2c_client *client = max17135->i2c_client;
 	unsigned int reg_val;
+	int vcom_read;
 
 	if ((uV < MAX17135_VCOM_MIN_uV) || (uV > MAX17135_VCOM_MAX_uV))
 		return -EINVAL;
 
-	vcom_voltage = uV;
-
 	reg_val = i2c_smbus_read_byte_data(client, REG_MAX17135_DVR);
-	reg_val &= ~BITFMASK(DVR);
-	reg_val |= BITFVAL(DVR, vcom_uV_to_rs(uV)); /* shift to correct bit */
-	i2c_smbus_write_byte_data(client, REG_MAX17135_DVR, reg_val);
 
-	reg_val = BITFVAL(CTRL_DVR, true); /* shift to correct bit */
-	return 	i2c_smbus_write_byte_data(client, REG_MAX17135_PRGM_CTRL, reg_val);
+	/*
+	 * Only program VCOM if it is not set to the desired value.
+	 * Programming VCOM excessively degrades ability to keep
+	 * DVR register value persistent.
+	 */
+	vcom_read = vcom_rs_to_uV(reg_val) - MAX17135_VCOM_FUDGE_FACTOR;
+	if (vcom_read != MAX17135_VCOM_VOLTAGE_DEFAULT) {
+		reg_val &= ~BITFMASK(DVR);
+		reg_val |= BITFVAL(DVR,
+			vcom_uV_to_rs(uV + MAX17135_VCOM_FUDGE_FACTOR));
+		i2c_smbus_write_byte_data(client, REG_MAX17135_DVR, reg_val);
+
+		reg_val = BITFVAL(CTRL_DVR, true); /* shift to correct bit */
+		return i2c_smbus_write_byte_data(client,
+			REG_MAX17135_PRGM_CTRL, reg_val);
+	}
 }
 
 static int max17135_vcom_get_voltage(struct regulator_dev *reg)
@@ -322,6 +348,19 @@ static int max17135_vcom_get_voltage(struct regulator_dev *reg)
 static int max17135_vcom_enable(struct regulator_dev *reg)
 {
 	struct max17135 *max17135 = rdev_get_drvdata(reg);
+
+	/*
+	 * Check to see if we need to set the VCOM voltage.
+	 * Should only be done one time. And, we can
+	 * only change vcom voltage if we have been enabled.
+	 */
+	if (!max17135->vcom_setup
+		&& gpio_get_value(max17135->gpio_pmic_pwrgood)) {
+		max17135_vcom_set_voltage(reg,
+			MAX17135_VCOM_VOLTAGE_DEFAULT,
+			MAX17135_VCOM_VOLTAGE_DEFAULT);
+		max17135->vcom_setup = true;
+	}
 
 	/* enable VCOM regulator output */
 #if (MAX17135_REV == 1)
@@ -554,6 +593,15 @@ static int max17135_register_regulator(struct max17135 *max17135, int reg,
 	struct platform_device *pdev;
 	int ret;
 
+	struct i2c_client *client = max17135->i2c_client;
+	/* If we can't find PMIC via I2C, we should not register regulators */
+	if (i2c_smbus_read_byte_data(client,
+		REG_MAX17135_PRODUCT_REV >= 0)) {
+		dev_err(max17135->dev,
+			"Max17135 PMIC not found!\n");
+		return -ENXIO;
+	}
+
 	if (max17135->pdev[reg])
 		return -EBUSY;
 
@@ -610,6 +658,8 @@ static int max17135_i2c_probe(struct i2c_client *client,
 	max17135->gpio_pmic_wakeup = pdata->gpio_pmic_wakeup;
 	max17135->gpio_pmic_intr = pdata->gpio_pmic_intr;
 
+	max17135->vcom_setup = false;
+
 	ret = platform_driver_register(&max17135_regulator_driver);
 	if (ret < 0)
 		goto err;
@@ -625,17 +675,6 @@ static int max17135_i2c_probe(struct i2c_client *client,
 
 	max17135->max_wait = pdata->vpos_pwrup + pdata->vneg_pwrup +
 		pdata->gvdd_pwrup + pdata->gvee_pwrup;
-	i2c_smbus_write_byte_data(client, REG_MAX17135_TIMING1, pdata->gvee_pwrup);
-	i2c_smbus_write_byte_data(client, REG_MAX17135_TIMING2, pdata->vneg_pwrup);
-	i2c_smbus_write_byte_data(client, REG_MAX17135_TIMING3, pdata->vpos_pwrup);
-	i2c_smbus_write_byte_data(client, REG_MAX17135_TIMING4, pdata->gvdd_pwrup);
-	i2c_smbus_write_byte_data(client, REG_MAX17135_TIMING5, pdata->gvdd_pwrdn);
-	i2c_smbus_write_byte_data(client, REG_MAX17135_TIMING6, pdata->vpos_pwrdn);
-	i2c_smbus_write_byte_data(client, REG_MAX17135_TIMING7, pdata->vneg_pwrdn);
-	i2c_smbus_write_byte_data(client, REG_MAX17135_TIMING8, pdata->gvee_pwrdn);
-
-	/* save the timings to MTP on PMIC */
-	i2c_smbus_write_byte_data(client, REG_MAX17135_PRGM_CTRL, 0x02);
 
 	/* Initialize the PMIC device */
 	dev_info(&client->dev, "PMIC MAX17135 for eInk display\n");
