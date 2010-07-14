@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2010 Freescale Semiconductor, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -21,7 +21,7 @@
  * Copyright 2008 Embedded Alley Solutions, Inc All Rights Reserved.
  */
 
-/*#define		NO_POWERDOWN */
+/*#define		NO_POWERDOWN*/
 
 #include <linux/module.h>
 #include <linux/kernel.h>
@@ -881,9 +881,6 @@ static void epdc_init_sequence(struct mxc_epdc_fb_data *fb_data)
 	epdc_init_settings(fb_data);
 	__raw_writel(fb_data->waveform_buffer_phys, EPDC_WVADDR);
 	__raw_writel(fb_data->working_buffer_phys, EPDC_WB_ADDR);
-	/* get pmic regulators */
-	fb_data->display_regulator = regulator_get(NULL, "DISPLAY");
-	fb_data->vcom_regulator = regulator_get(NULL, "VCOM");
 	epdc_powerup(fb_data);
 	draw_mode0(fb_data);
 	epdc_powerdown(fb_data);
@@ -2630,7 +2627,22 @@ int __devinit mxc_epdc_fb_probe(struct platform_device *pdev)
 	fb_deferred_io_init(info);
 #endif
 
-	if (!device_create_file(info->dev, &fb_attrs[0]))
+	/* get pmic regulators */
+	fb_data->display_regulator = regulator_get(NULL, "DISPLAY");
+	if (IS_ERR(fb_data->display_regulator)) {
+		dev_err(&pdev->dev, "Unable to get display PMIC regulator."
+			"err = 0x%x\n", fb_data->display_regulator);
+		goto out_dma_work_buf;
+	}
+	fb_data->vcom_regulator = regulator_get(NULL, "VCOM");
+	if (IS_ERR(fb_data->vcom_regulator)) {
+		regulator_put(fb_data->display_regulator);
+		dev_err(&pdev->dev, "Unable to get VCOM regulator."
+			"err = 0x%x\n", fb_data->vcom_regulator);
+		goto out_dma_work_buf;
+	}
+
+	if (device_create_file(info->dev, &fb_attrs[0]))
 		dev_err(&pdev->dev, "Unable to create file from fb_attrs\n");
 
 	fb_data->cur_update = NULL;
