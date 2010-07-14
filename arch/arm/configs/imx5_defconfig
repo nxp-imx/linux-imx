@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # Linux kernel version: 2.6.31
-# Wed Jun 30 16:57:27 2010
+# Wed Jul 14 13:56:00 2010
 #
 CONFIG_ARM=y
 CONFIG_HAVE_PWM=y
@@ -1335,7 +1335,6 @@ CONFIG_FB_MXC_CH7026=y
 # CONFIG_FB_MXC_ASYNC_PANEL is not set
 CONFIG_FB_MXC_EINK_PANEL=y
 # CONFIG_FB_MXC_EINK_AUTO_UPDATE_MODE is not set
-# CONFIG_FB_MXC_LCDIF is not set
 # CONFIG_FB_UVESA is not set
 # CONFIG_FB_S1D13XXX is not set
 # CONFIG_FB_VIRTUAL is not set
@@ -1853,6 +1852,11 @@ CONFIG_MXC_MLB=m
 # i.MX ADC support
 #
 # CONFIG_IMX_ADC is not set
+
+#
+# MXC GPU support
+#
+CONFIG_MXC_AMD_GPU=m
 
 #
 # File systems
