@@ -775,29 +775,6 @@ void _ipu_dp_dc_disable(ipu_channel_t channel, bool swap)
 			if (timeout <= 0)
 				break;
 		}
-
-		timeout = 50;
-
-		/*
-		 * Wait for DC triple buffer to empty,
-		 * this check is useful for tv overlay.
-		 */
-		if (g_dc_di_assignment[dc_chan] == 0)
-			while ((__raw_readl(DC_STAT) & 0x00000002)
-			       != 0x00000002) {
-				msleep(2);
-				timeout -= 2;
-				if (timeout <= 0)
-					break;
-			}
-		else if (g_dc_di_assignment[dc_chan] == 1)
-			while ((__raw_readl(DC_STAT) & 0x00000020)
-			       != 0x00000020) {
-				msleep(2);
-				timeout -= 2;
-				if (timeout <= 0)
-					break;
-			}
 		return;
 	} else {
 		return;
@@ -829,26 +806,6 @@ void _ipu_dp_dc_disable(ipu_channel_t channel, bool swap)
 		__raw_writel(reg, DC_WR_CH_CONF(dc_chan));
 		spin_unlock_irqrestore(&ipu_lock, lock_flags);
 	} else {
-		timeout = 50;
-
-		/* Wait for DC triple buffer to empty */
-		if (g_dc_di_assignment[dc_chan] == 0)
-			while ((__raw_readl(DC_STAT) & 0x00000002)
-				!= 0x00000002) {
-				msleep(2);
-				timeout -= 2;
-				if (timeout <= 0)
-					break;
-			}
-		else if (g_dc_di_assignment[dc_chan] == 1)
-			while ((__raw_readl(DC_STAT) & 0x00000020)
-				!= 0x00000020) {
-				msleep(2);
-				timeout -= 2;
-				if (timeout <= 0)
-					break;
-			}
-
 		spin_lock_irqsave(&ipu_lock, lock_flags);
 		reg = __raw_readl(DC_WR_CH_CONF(dc_chan));
 		reg &= ~DC_WR_CH_CONF_PROG_TYPE_MASK;
