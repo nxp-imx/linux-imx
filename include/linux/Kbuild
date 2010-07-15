@@ -397,6 +397,7 @@ unifdef-y += pmic_light.h
 unifdef-y += pmic_rtc.h
 unifdef-y += pmic_status.h
 unifdef-y += soundcard.h
+unifdef-y += pxp_dma.h
 
 objhdr-y += version.h
 header-y += wimax.h
