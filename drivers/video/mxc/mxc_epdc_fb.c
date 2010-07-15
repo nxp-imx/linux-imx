@@ -207,7 +207,7 @@ void __iomem *epdc_base;
 static struct fb_videomode panel_modes[NUM_PANELS] = {
 	{
 	 /* 800x600 @ 60 Hz , pixel clk @ 20MHz */
-	 "E-INK SVGA", 60, 800, 600, 50000, 8, 142, 4, 10, 20, 4,
+	 "E-INK SVGA", 60, 800, 600, 50000, 10, 217, 4, 10, 20, 4,
 	 0,
 	 FB_VMODE_NONINTERLACED,
 	 0,},
@@ -2315,7 +2315,7 @@ static int mxc_epdc_fb_init_hw(struct fb_info *info)
 
 	/* Enable pix clk for EPDC */
 	clk_enable(fb_data->epdc_clk_pix);
-	clk_set_rate(fb_data->epdc_clk_pix, 17700000);
+	clk_set_rate(fb_data->epdc_clk_pix, 20000000);
 
 	epdc_init_sequence(fb_data);
 
@@ -2574,8 +2574,6 @@ int __devinit mxc_epdc_fb_probe(struct platform_device *pdev)
 
 	fb_data->epdc_clk_axi = clk_get(fb_data->dev, "epdc_axi");
 	fb_data->epdc_clk_pix = clk_get(fb_data->dev, "epdc_pix");
-
-	clk_set_rate(fb_data->epdc_clk_axi, 200000000);
 
 	fb_data->in_init = false;
 
