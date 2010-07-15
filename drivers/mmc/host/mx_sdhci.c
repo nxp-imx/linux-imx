@@ -817,7 +817,7 @@ static void sdhci_set_clock(struct sdhci_host *host, unsigned int clock)
 
 	if (clock == host->min_clk)
 		prescaler = 16;
-	else if (cpu_is_mx53())
+	else if (cpu_is_mx53() || cpu_is_mx50())
 		prescaler = 1;
 	else
 		prescaler = 0;
