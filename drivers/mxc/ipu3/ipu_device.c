@@ -463,12 +463,20 @@ static int mxc_ipu_release(struct inode *inode, struct file *file)
 	return 0;
 }
 
+int mxc_ipu_fsync(struct file *filp, struct dentry *dentry, int datasync)
+{
+	flush_cache_all();
+	outer_flush_all();
+	return 0;
+}
+
 static struct file_operations mxc_ipu_fops = {
 	.owner = THIS_MODULE,
 	.open = mxc_ipu_open,
 	.mmap = mxc_ipu_mmap,
 	.release = mxc_ipu_release,
-	.ioctl = mxc_ipu_ioctl
+	.ioctl = mxc_ipu_ioctl,
+	.fsync = mxc_ipu_fsync
 };
 
 int register_ipu_device()
