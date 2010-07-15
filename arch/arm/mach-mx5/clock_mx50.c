@@ -3107,14 +3107,6 @@ int __init mx50_clocks_init(unsigned long ckil, unsigned long osc, unsigned long
 
 	clk_register(&apbh_dma_clk);
 
-	clk_set_parent(&epdc_axi_clk, &pll1_sw_clk);
-	/* Set EPDC AXI to 200MHz */
-	/*
-	clk_set_rate(&epdc_axi_clk, 200000000);
-	*/
-	__raw_writel(0xC0000008, MXC_CCM_EPDC_AXI);
-	clk_set_parent(&epdc_pix_clk, &pll1_sw_clk);
-
 	reg = __raw_readl(MXC_CCM_ELCDIFPIX);
 	reg &= ~MXC_CCM_ELCDIFPIX_CLKGATE_MASK;
 	reg = 0x3 << MXC_CCM_ELCDIFPIX_CLKGATE_OFFSET;
@@ -3150,6 +3142,13 @@ int __init mx50_clocks_init(unsigned long ckil, unsigned long osc, unsigned long
 	/* set DISPLAY_AXI to 200Mhz */
 	clk_set_parent(&display_axi_clk, &pll1_sw_clk);
 	clk_set_rate(&display_axi_clk, 200000000);
+
+	/* Enable and set EPDC AXI to 200MHz */
+	clk_set_parent(&epdc_axi_clk, &pfd3_clk);
+	clk_enable(&epdc_axi_clk);
+	clk_set_rate(&epdc_axi_clk, 200000000);
+
+	clk_set_parent(&epdc_pix_clk, &pfd5_clk);
 
 	/* Move SSI clocks to SSI_LP_APM clock */
 	clk_set_parent(&ssi_lp_apm_clk, &lp_apm_clk);
