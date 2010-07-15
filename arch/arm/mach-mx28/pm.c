@@ -255,38 +255,52 @@ static struct mx28_pswitch_state pswitch_state = {
 	.dev_running = 0,
 };
 
-static irqreturn_t pswitch_interrupt(int irq, void *dev)
+#define PSWITCH_POWER_DOWN_DELAY 30
+static 	struct delayed_work pswitch_work;
+static void pswitch_check_work(struct work_struct *work)
 {
 	int pin_value, i;
-
-	/* check if irq by pswitch */
-	if (!(__raw_readl(REGS_POWER_BASE + HW_POWER_CTRL) &
-		BM_POWER_CTRL_PSWITCH_IRQ))
-		return IRQ_HANDLED;
-	for (i = 0; i < 3000; i++) {
+	for (i = 0; i < PSWITCH_POWER_DOWN_DELAY; i++) {
 		pin_value = __raw_readl(REGS_POWER_BASE + HW_POWER_STS) &
 			BF_POWER_STS_PSWITCH(0x1);
 		if (pin_value == 0)
 			break;
-		mdelay(1);
+		msleep(100);
 	}
-	if (i < 3000) {
+	if (i < PSWITCH_POWER_DOWN_DELAY) {
 		pr_info("pswitch goto suspend\n");
 		complete(&suspend_request);
 	} else {
 		pr_info("release pswitch to power down\n");
-		for (i = 0; i < 5000; i++) {
+		for (i = 0; i < 500; i++) {
 			pin_value = __raw_readl(REGS_POWER_BASE + HW_POWER_STS)
 				& BF_POWER_STS_PSWITCH(0x1);
 			if (pin_value == 0)
 				break;
-			mdelay(1);
+			msleep(10);
 		}
 		pr_info("pswitch power down\n");
 		mx28_pm_power_off();
 	}
 	__raw_writel(BM_POWER_CTRL_PSWITCH_IRQ,
 		REGS_POWER_BASE + HW_POWER_CTRL_CLR);
+	__raw_writel(BM_POWER_CTRL_ENIRQ_PSWITCH,
+		REGS_POWER_BASE + HW_POWER_CTRL_SET);
+	__raw_writel(BM_POWER_CTRL_PSWITCH_IRQ,
+		REGS_POWER_BASE + HW_POWER_CTRL_CLR);
+}
+
+
+static irqreturn_t pswitch_interrupt(int irq, void *dev)
+{
+
+	/* check if irq by pswitch */
+	if (!(__raw_readl(REGS_POWER_BASE + HW_POWER_CTRL) &
+		BM_POWER_CTRL_PSWITCH_IRQ))
+		return IRQ_HANDLED;
+	__raw_writel(BM_POWER_CTRL_ENIRQ_PSWITCH,
+		REGS_POWER_BASE + HW_POWER_CTRL_CLR);
+	schedule_delayed_work(&pswitch_work, 1);
 	return IRQ_HANDLED;
 }
 
@@ -299,6 +313,7 @@ static struct irqaction pswitch_irq = {
 
 static void init_pswitch(void)
 {
+	INIT_DELAYED_WORK(&pswitch_work, pswitch_check_work);
 	kthread_run(suspend_thread_fn, NULL, "pswitch");
 	__raw_writel(BM_POWER_CTRL_PSWITCH_IRQ,
 		REGS_POWER_BASE + HW_POWER_CTRL_CLR);
