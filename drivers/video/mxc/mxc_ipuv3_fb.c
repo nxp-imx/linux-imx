@@ -1505,6 +1505,7 @@ static ssize_t swap_disp_chan(struct device *dev,
 	struct mxcfb_info *mxcfbi = (struct mxcfb_info *)info->par;
 	struct mxcfb_info *fg_mxcfbi = NULL;
 
+	acquire_console_sem();
 	/* swap only happen between DP-BG and DC, while DP-FG disable */
 	if (((mxcfbi->ipu_ch == MEM_BG_SYNC) &&
 	     (strstr(buf, "1-layer-fb") != NULL)) ||
@@ -1524,6 +1525,7 @@ static ssize_t swap_disp_chan(struct device *dev,
 			fg_mxcfbi->cur_blank == FB_BLANK_UNBLANK) {
 			dev_err(dev,
 				"Can not switch while fb2(fb-fg) is on.\n");
+			release_console_sem();
 			return count;
 		}
 
@@ -1531,6 +1533,7 @@ static ssize_t swap_disp_chan(struct device *dev,
 			dev_err(dev, "Swap display channel failed.\n");
 	}
 
+	release_console_sem();
 	return count;
 }
 DEVICE_ATTR(fsl_disp_property, 644, show_disp_chan, swap_disp_chan);
