@@ -365,6 +365,7 @@ struct usb_sys_interface {
 
 /* PHY control0 Register Bit Masks */
 #define	PHY_CTRL0_CONF2			(1 << 26)
+#define PHY_CTRL0_USBEN			(1 << 24) /* USB UTMI PHY Enable */
 
 /* USB UH2 CTRL Register Bits */
 #define USB_UH2_OVBWK_EN		(1 << 6) /* OTG VBUS Wakeup Enable */
