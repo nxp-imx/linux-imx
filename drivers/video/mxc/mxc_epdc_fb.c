@@ -2561,10 +2561,10 @@ int __devinit mxc_epdc_fb_probe(struct platform_device *pdev)
 			upd_list->size, upd_list->phys_addr);
 	}
 
-	fb_data->working_buffer_size = pentry->y_res * pentry->x_res / 2;
+	fb_data->working_buffer_size = pentry->y_res * pentry->x_res * 2;
 	/* Allocate memory for EPDC working buffer */
 	fb_data->working_buffer_virt =
-	    dma_alloc_coherent(&pdev->dev, pentry->y_res * pentry->x_res / 2,
+	    dma_alloc_coherent(&pdev->dev, fb_data->working_buffer_size,
 			       &fb_data->working_buffer_phys, GFP_DMA);
 	if (fb_data->working_buffer_virt == NULL) {
 		dev_err(&pdev->dev, "Can't allocate mem for working buf!\n");
