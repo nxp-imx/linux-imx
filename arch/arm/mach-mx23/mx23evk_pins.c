@@ -61,6 +61,28 @@ static struct pin_desc mx23evk_fixed_pins[] = {
 	 },
 #endif
 
+#ifdef CONFIG_MXS_AUART2_DEVICE_ENABLE
+	{
+	 .name  = "AUART2.RX",
+	 .id    = PINID_GPMI_D14,
+	 .fun   = PIN_FUN2,
+	},
+	{
+	 .name  = "AUART2.TX",
+	 .id    = PINID_GPMI_D15,
+	 .fun   = PIN_FUN2,
+	},
+	{
+	 .name  = "AUART2.CTS",
+	 .id    = PINID_ROTARYB,
+	 .fun   = PIN_FUN2,
+	},
+	{
+	 .name  = "AUART2.RTS",
+	 .id    = PINID_ROTARYA,
+	 .fun   = PIN_FUN2,
+	},
+#endif
 #if defined(CONFIG_I2C_MXS) || \
 	defined(CONFIG_I2C_MXS_MODULE)
 	{
