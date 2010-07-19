@@ -462,18 +462,19 @@ kgsl_hal_getdevconfig(gsl_deviceid_t device_id, gsl_devconfig_t *config)
 KGSLHAL_API gsl_chipid_t
 kgsl_hal_getchipid(gsl_deviceid_t device_id)
 {
+    gsl_device_t *device = &gsl_driver.device[device_id-1]; 
     gsl_chipid_t chipid;
     unsigned int coreid, majorid, minorid, patchid, revid;
 
     // YDX
-    kgsl_device_regread(device_id, mmRBBM_PERIPHID1, &coreid);
+    device->ftbl.device_regread(device, mmRBBM_PERIPHID1, &coreid);
     coreid &= 0xF;
 
     // 2.
-    kgsl_device_regread(device_id, mmRBBM_PERIPHID2, &majorid);
+    device->ftbl.device_regread(device, mmRBBM_PERIPHID2, &majorid);
     majorid = (majorid >> 4) & 0xF;
 
-    kgsl_device_regread(device_id, mmRBBM_PATCH_RELEASE, &revid);
+    device->ftbl.device_regread(device, mmRBBM_PATCH_RELEASE, &revid);
     
     //   2.
     minorid = ((revid >> 0)  & 0xFF); // this is a 16bit field, but extremely unlikely it would ever get this high
@@ -507,6 +508,7 @@ kgsl_hal_getplatformtype(char *platform)
 KGSLHAL_API int
 kgsl_hal_setpowerstate(gsl_deviceid_t device_id, int state, unsigned int value)
 {
+	gsl_device_t *device = &gsl_driver.device[device_id-1];
 	struct clk *gpu_clk = 0;
 	struct clk *garb_clk = clk_get(0, "garb_clk");
 	struct clk *emi_garb_clk = clk_get(0, "emi_garb_clk");
@@ -542,7 +544,7 @@ kgsl_hal_setpowerstate(gsl_deviceid_t device_id, int state, unsigned int value)
 	case GSL_PWRFLAGS_CLK_OFF:
 		break;
 	case GSL_PWRFLAGS_POWER_OFF:
-		if (kgsl_device_idle(device_id, GSL_TIMEOUT_DEFAULT) != GSL_SUCCESS)
+		if (device->ftbl.device_idle(device, GSL_TIMEOUT_DEFAULT) != GSL_SUCCESS)
 		{
 			return (GSL_FAILURE_DEVICEERROR);
 		}

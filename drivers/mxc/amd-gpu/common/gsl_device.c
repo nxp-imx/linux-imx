@@ -15,7 +15,7 @@
  * 02110-1301, USA.
  *
  */
-
+ 
 #include "gsl.h"
 #include "gsl_hal.h"
 
@@ -96,13 +96,13 @@ kgsl_device_init(gsl_device_t *device, gsl_deviceid_t device_id)
         }
 
         // allocate memory store
-        status = kgsl_sharedmem_alloc(device->id, GSL_MEMFLAGS_ALIGNPAGE | GSL_MEMFLAGS_CONPHYS, sizeof(gsl_devmemstore_t), &device->memstore);
+        status = kgsl_sharedmem_alloc0(device->id, GSL_MEMFLAGS_ALIGNPAGE | GSL_MEMFLAGS_CONPHYS, sizeof(gsl_devmemstore_t), &device->memstore);
 
         KGSL_DEBUG(GSL_DBGFLAGS_DUMPX,
         {
             // dumpx needs this to be in EMEM0 aperture
-            kgsl_sharedmem_free(&device->memstore);
-            status = kgsl_sharedmem_alloc(device->id, GSL_MEMFLAGS_ALIGNPAGE, sizeof(gsl_devmemstore_t), &device->memstore);
+            kgsl_sharedmem_free0(&device->memstore, GSL_CALLER_PROCESSID_GET());
+            status = kgsl_sharedmem_alloc0(device->id, GSL_MEMFLAGS_ALIGNPAGE, sizeof(gsl_devmemstore_t), &device->memstore);
         });
 
         if (status != GSL_SUCCESS)
@@ -110,7 +110,7 @@ kgsl_device_init(gsl_device_t *device, gsl_deviceid_t device_id)
             kgsl_device_stop(device->id);
             return (status);
         }
-        kgsl_sharedmem_set(&device->memstore, 0, 0, device->memstore.size);
+        kgsl_sharedmem_set0(&device->memstore, 0, 0, device->memstore.size);
 
         // init memqueue
         device->memqueue.head = NULL;
@@ -174,7 +174,7 @@ kgsl_device_close(gsl_device_t *device)
     // DumpX allocates memstore from MMU aperture
     if (device->memstore.hostptr && !(gsl_driver.flags_debug & GSL_DBGFLAGS_DUMPX))
     {
-        kgsl_sharedmem_free(&device->memstore);
+        kgsl_sharedmem_free0(&device->memstore, GSL_CALLER_PROCESSID_GET());
     }
 
 #ifndef _LINUX	
@@ -418,9 +418,9 @@ kgsl_device_start(gsl_deviceid_t device_id, gsl_flags_t flags)
     GSL_API_MUTEX_LOCK();
 
     device = &gsl_driver.device[device_id-1];       // device_id is 1 based
-
+    
     kgsl_device_active(device);
-
+    
     if (!(device->flags & GSL_FLAGS_INITIALIZED))
     {
         GSL_API_MUTEX_UNLOCK();
@@ -515,7 +515,7 @@ kgsl_device_idle(gsl_deviceid_t device_id, unsigned int timeout)
     device = &gsl_driver.device[device_id-1];       // device_id is 1 based
 
     kgsl_device_active(device);
-
+    
     if (device->ftbl.device_idle)
     {
         status = device->ftbl.device_idle(device, timeout);
@@ -646,3 +646,4 @@ kgsl_device_runpending(gsl_device_t *device)
 
     return (status);
 }
+

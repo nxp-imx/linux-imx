@@ -18,10 +18,6 @@
 
 #include "gsl.h"
 #include "gsl_hal.h"
-#if defined(_LINUX) && !defined(PAGE_SIZE)
-#define PAGE_SIZE (1<<12)
-#define PAGE_SHIFT (12)
-#endif
 
 
 //////////////////////////////////////////////////////////////////////////////
@@ -67,18 +63,6 @@ const unsigned int GSL_PT_PAGE_AP[4] = {(GSL_PT_PAGE_READ | GSL_PT_PAGE_WRITE), 
 /////////////////////////////////////////////////////////////////////////////
 // macros
 //////////////////////////////////////////////////////////////////////////////
-#ifdef GSL_LOCKING_FINEGRAIN
-#define GSL_MMU_MUTEX_CREATE()              mmu->mutex = kos_mutex_create("gsl_mmu"); \
-                                            if (!mmu->mutex) {return (GSL_FAILURE);}
-#define GSL_MMU_LOCK()                      kos_mutex_lock(mmu->mutex)
-#define GSL_MMU_UNLOCK()                    kos_mutex_unlock(mmu->mutex)
-#define GSL_MMU_MUTEX_FREE()                kos_mutex_free(mmu->mutex); mmu->mutex = 0;
-#else
-#define GSL_MMU_MUTEX_CREATE()
-#define GSL_MMU_LOCK()
-#define GSL_MMU_UNLOCK()
-#define GSL_MMU_MUTEX_FREE()
-#endif
 
 #define GSL_PT_ENTRY_GET(va)                ((va - pagetable->va_base) >> GSL_PAGESIZE_SHIFT)
 #define GSL_PT_VIRT_GET(pte)                (pagetable->va_base + (pte * GSL_PAGESIZE))
@@ -160,7 +144,7 @@ kgsl_mh_intrcallback(gsl_intrid_t id, void *cookie)
         id == gsl_cfg_mh_intr[devindex].AXI_WRITE_ERROR ||
         id == gsl_cfg_mh_intr[devindex].MMU_PAGE_FAULT)
     {
-        kgsl_device_destroy(mmu->device);
+        mmu->device->ftbl.device_destroy(mmu->device);
     }
 
     kgsl_log_write( KGSL_LOG_GROUP_MEMORY | KGSL_LOG_LEVEL_TRACE, "<-- kgsl_mh_intrcallback.\n" );
@@ -176,14 +160,14 @@ kgsl_mmu_debug(gsl_mmu_t *mmu, gsl_mmu_debug_t *regs)
 
     kos_memset(regs, 0, sizeof(gsl_mmu_debug_t));
 
-    kgsl_device_regread(mmu->device->id, gsl_cfg_mmu_reg[devindex].CONFIG,     &regs->config);
-    kgsl_device_regread(mmu->device->id, gsl_cfg_mmu_reg[devindex].MPU_BASE,   &regs->mpu_base);
-    kgsl_device_regread(mmu->device->id, gsl_cfg_mmu_reg[devindex].MPU_END,    &regs->mpu_end);
-    kgsl_device_regread(mmu->device->id, gsl_cfg_mmu_reg[devindex].VA_RANGE,   &regs->va_range);
-    kgsl_device_regread(mmu->device->id, gsl_cfg_mmu_reg[devindex].PT_BASE,    &regs->pt_base);
-    kgsl_device_regread(mmu->device->id, gsl_cfg_mmu_reg[devindex].PAGE_FAULT, &regs->page_fault);
-    kgsl_device_regread(mmu->device->id, gsl_cfg_mmu_reg[devindex].TRAN_ERROR, &regs->trans_error);
-    kgsl_device_regread(mmu->device->id, gsl_cfg_mmu_reg[devindex].INVALIDATE, &regs->invalidate);
+    mmu->device->ftbl.device_regread(mmu->device, gsl_cfg_mmu_reg[devindex].CONFIG,     &regs->config);
+    mmu->device->ftbl.device_regread(mmu->device, gsl_cfg_mmu_reg[devindex].MPU_BASE,   &regs->mpu_base);
+    mmu->device->ftbl.device_regread(mmu->device, gsl_cfg_mmu_reg[devindex].MPU_END,    &regs->mpu_end);
+    mmu->device->ftbl.device_regread(mmu->device, gsl_cfg_mmu_reg[devindex].VA_RANGE,   &regs->va_range);
+    mmu->device->ftbl.device_regread(mmu->device, gsl_cfg_mmu_reg[devindex].PT_BASE,    &regs->pt_base);
+    mmu->device->ftbl.device_regread(mmu->device, gsl_cfg_mmu_reg[devindex].PAGE_FAULT, &regs->page_fault);
+    mmu->device->ftbl.device_regread(mmu->device, gsl_cfg_mmu_reg[devindex].TRAN_ERROR, &regs->trans_error);
+    mmu->device->ftbl.device_regread(mmu->device, gsl_cfg_mmu_reg[devindex].INVALIDATE, &regs->invalidate);
 }
 #endif
 
@@ -269,7 +253,7 @@ kgsl_mmu_destroypagetableobject(gsl_mmu_t *mmu, unsigned int pid)
 
             if (pagetable->base.gpuaddr)
             {
-                kgsl_sharedmem_free(&pagetable->base);
+                kgsl_sharedmem_free0(&pagetable->base, GSL_CALLER_PROCESSID_GET());
             }
 
             kos_free(pagetable);
@@ -365,12 +349,12 @@ kgsl_mmu_createpagetableobject(gsl_mmu_t *mmu, unsigned int pid)
 
             // allocate page table memory
             flags  = (GSL_MEMFLAGS_ALIGN4K | GSL_MEMFLAGS_CONPHYS | GSL_MEMFLAGS_STRICTREQUEST);
-            status = kgsl_sharedmem_alloc(mmu->device->id, flags, mmu->pagetable[pindex]->max_entries * GSL_PT_ENTRY_SIZEBYTES, &mmu->pagetable[pindex]->base);
+            status = kgsl_sharedmem_alloc0(mmu->device->id, flags, mmu->pagetable[pindex]->max_entries * GSL_PT_ENTRY_SIZEBYTES, &mmu->pagetable[pindex]->base);
 
             if (status == GSL_SUCCESS)
             {
                 // reset page table entries
-                kgsl_sharedmem_set(&mmu->pagetable[pindex]->base, 0, 0, mmu->pagetable[pindex]->base.size);
+                kgsl_sharedmem_set0(&mmu->pagetable[pindex]->base, 0, 0, mmu->pagetable[pindex]->base.size);
 
                 KGSL_DEBUG(GSL_DBGFLAGS_DUMPX, KGSL_DEBUG_DUMPX(BB_DUMP_MMU_TBLADDR, mmu->pagetable[pindex]->base.gpuaddr, 0, mmu->pagetable[pindex]->base.size, "kgsl_mmu_init"));
             }
@@ -400,8 +384,6 @@ kgsl_mmu_setpagetable(gsl_device_t *device, unsigned int pid)
 
     kgsl_log_write( KGSL_LOG_GROUP_MEMORY | KGSL_LOG_LEVEL_TRACE,
                     "--> gsl_pagetable_t* kgsl_mmu_setpagetable(gsl_device_t *device=0x%08x)\n", device );
-
-    GSL_MMU_LOCK();
 
     if (mmu->flags & GSL_FLAGS_STARTED)
     {
@@ -440,8 +422,6 @@ kgsl_mmu_setpagetable(gsl_device_t *device, unsigned int pid)
 			GSL_MMU_STATS(mmu->stats.tlbflushes++);
 		}
 	}
-
-    GSL_MMU_UNLOCK();
 
     kgsl_log_write( KGSL_LOG_GROUP_MEMORY | KGSL_LOG_LEVEL_TRACE, "<-- kgsl_mmu_setpagetable. Return value %B\n", status );
 
@@ -494,7 +474,7 @@ kgsl_mmu_init(gsl_device_t *device)
     }
 
     // setup MMU and sub-client behavior
-    kgsl_device_regwrite(device->id, gsl_cfg_mmu_reg[devindex].CONFIG, mmu->config);
+    device->ftbl.device_regwrite(device, gsl_cfg_mmu_reg[devindex].CONFIG, mmu->config);
 
     // enable axi interrupts
     kgsl_intr_attach(&device->intr, gsl_cfg_mh_intr[devindex].AXI_READ_ERROR, kgsl_mh_intrcallback, (void *) mmu);
@@ -509,15 +489,15 @@ kgsl_mmu_init(gsl_device_t *device)
     if (mmu->config & 0x1)
     {
         // idle device
-        kgsl_device_idle(device->id, GSL_TIMEOUT_DEFAULT);
+        device->ftbl.device_idle(device, GSL_TIMEOUT_DEFAULT);
 
         // make sure aligned to pagesize
         KOS_ASSERT((mmu->mpu_base & ((1 << GSL_PAGESIZE_SHIFT)-1)) == 0);
         KOS_ASSERT(((mmu->mpu_base + mmu->mpu_range) & ((1 << GSL_PAGESIZE_SHIFT)-1)) == 0);
 
         // define physical memory range accessible by the core
-        kgsl_device_regwrite(device->id, gsl_cfg_mmu_reg[devindex].MPU_BASE, mmu->mpu_base);
-        kgsl_device_regwrite(device->id, gsl_cfg_mmu_reg[devindex].MPU_END,  mmu->mpu_base + mmu->mpu_range);
+        device->ftbl.device_regwrite(device, gsl_cfg_mmu_reg[devindex].MPU_BASE, mmu->mpu_base);
+        device->ftbl.device_regwrite(device, gsl_cfg_mmu_reg[devindex].MPU_END,  mmu->mpu_base + mmu->mpu_range);
 
         // enable page fault interrupt
         kgsl_intr_attach(&device->intr, gsl_cfg_mh_intr[devindex].MMU_PAGE_FAULT, kgsl_mh_intrcallback, (void *) mmu);
@@ -528,8 +508,6 @@ kgsl_mmu_init(gsl_device_t *device)
         // sub-client MMU lookups require address translation
         if ((mmu->config & ~0x1) > 0)
         {
-            GSL_MMU_MUTEX_CREATE();
-
             // make sure virtual address range is a multiple of 64Kb
             KOS_ASSERT((mmu->va_range & ((1 << 16)-1)) == 0);
 
@@ -557,14 +535,14 @@ kgsl_mmu_init(gsl_device_t *device)
             GSL_TLBFLUSH_FILTER_RESET();
 
             // set page table base
-            kgsl_device_regwrite(device->id, gsl_cfg_mmu_reg[devindex].PT_BASE, mmu->hwpagetable->base.gpuaddr);
+            device->ftbl.device_regwrite(device, gsl_cfg_mmu_reg[devindex].PT_BASE, mmu->hwpagetable->base.gpuaddr);
 
             // define virtual address range
-            kgsl_device_regwrite(device->id, gsl_cfg_mmu_reg[devindex].VA_RANGE, (mmu->hwpagetable->va_base | (mmu->hwpagetable->va_range >> 16)));
+            device->ftbl.device_regwrite(device, gsl_cfg_mmu_reg[devindex].VA_RANGE, (mmu->hwpagetable->va_base | (mmu->hwpagetable->va_range >> 16)));
 
             // allocate memory used for completing r/w operations that cannot be mapped by the MMU
             flags  = (GSL_MEMFLAGS_ALIGN32 | GSL_MEMFLAGS_CONPHYS | GSL_MEMFLAGS_STRICTREQUEST);
-            status = kgsl_sharedmem_alloc(device->id, flags, 32, &mmu->dummyspace);
+            status = kgsl_sharedmem_alloc0(device->id, flags, 32, &mmu->dummyspace);
             if (status != GSL_SUCCESS)
             {
                 kgsl_log_write( KGSL_LOG_GROUP_MEMORY | KGSL_LOG_LEVEL_ERROR, "ERROR: Unable to allocate dummy space memory.\n" );
@@ -573,7 +551,7 @@ kgsl_mmu_init(gsl_device_t *device)
                 return (status);
             }
 
-            kgsl_device_regwrite(device->id, gsl_cfg_mmu_reg[devindex].TRAN_ERROR, mmu->dummyspace.gpuaddr);
+            device->ftbl.device_regwrite(device, gsl_cfg_mmu_reg[devindex].TRAN_ERROR, mmu->dummyspace.gpuaddr);
 
             // call device specific tlb invalidate
 			device->ftbl.mmu_tlbinvalidate(device, gsl_cfg_mmu_reg[devindex].INVALIDATE, mmu->hwpagetable->pid);
@@ -622,12 +600,9 @@ kgsl_mmu_map(gsl_mmu_t *mmu, gpuaddr_t gpubaseaddr, const gsl_scatterlist_t *sca
     // get gpu access permissions
     ap = GSL_PT_PAGE_AP[((flags & GSL_MEMFLAGS_GPUAP_MASK) >> GSL_MEMFLAGS_GPUAP_SHIFT)];
 
-    GSL_MMU_LOCK();
-
     pagetable = kgsl_mmu_getpagetableobject(mmu, pid);
     if (!pagetable)
     {
-        GSL_MMU_UNLOCK();
         return (GSL_FAILURE);
     }
 
@@ -702,8 +677,6 @@ kgsl_mmu_map(gsl_mmu_t *mmu, gpuaddr_t gpubaseaddr, const gsl_scatterlist_t *sca
         status = GSL_FAILURE;
     }
 
-    GSL_MMU_UNLOCK();
-
     kgsl_log_write( KGSL_LOG_GROUP_MEMORY | KGSL_LOG_LEVEL_TRACE, "<-- kgsl_mmu_map. Return value %B\n", GSL_SUCCESS );
 
     return (status);
@@ -740,12 +713,9 @@ kgsl_mmu_unmap(gsl_mmu_t *mmu, gpuaddr_t gpubaseaddr, int range, unsigned int pi
         numpages++;
     }
 
-    GSL_MMU_LOCK();
-
     pagetable = kgsl_mmu_getpagetableobject(mmu, pid);
     if (!pagetable)
     {
-        GSL_MMU_UNLOCK();
         return (GSL_FAILURE);
     }
 
@@ -797,8 +767,6 @@ kgsl_mmu_unmap(gsl_mmu_t *mmu, gpuaddr_t gpubaseaddr, int range, unsigned int pi
     // invalidate tlb, debug only
 	KGSL_DEBUG(GSL_DBGFLAGS_MMU, mmu->device->ftbl.mmu_tlbinvalidate(mmu->device, gsl_cfg_mmu_reg[mmu->device->id-1].INVALIDATE, pagetable->pid));
 
-    GSL_MMU_UNLOCK();
-
     kgsl_log_write( KGSL_LOG_GROUP_MEMORY | KGSL_LOG_LEVEL_TRACE, "<-- kgsl_mmu_unmap. Return value %B\n", GSL_SUCCESS );
 
     return (status);
@@ -833,12 +801,9 @@ kgsl_mmu_getmap(gsl_mmu_t *mmu, gpuaddr_t gpubaseaddr, int range, gsl_scatterlis
         return (GSL_FAILURE);
     }
 
-    GSL_MMU_LOCK();
-
     pagetable = kgsl_mmu_getpagetableobject(mmu, pid);
     if (!pagetable)
     {
-        GSL_MMU_UNLOCK();
         return (GSL_FAILURE);
     }
 
@@ -871,8 +836,6 @@ kgsl_mmu_getmap(gsl_mmu_t *mmu, gpuaddr_t gpubaseaddr, int range, gsl_scatterlis
         // coalesce physically contiguous pages into a single scatter list entry
         scatterlist->pages[0] = GSL_PT_MAP_GETADDR(ptefirst);
     }
-
-    GSL_MMU_UNLOCK();
 
     scatterlist->contiguous = contiguous;
 
@@ -931,7 +894,7 @@ kgsl_mmu_close(gsl_device_t *device)
             kgsl_intr_detach(&device->intr, gsl_cfg_mh_intr[devindex].MMU_PAGE_FAULT);
 
             // disable MMU
-            kgsl_device_regwrite(device->id, gsl_cfg_mmu_reg[devindex].CONFIG, 0x00000000);
+            device->ftbl.device_regwrite(device, gsl_cfg_mmu_reg[devindex].CONFIG, 0x00000000);
 
             if (mmu->tlbflushfilter.base)
             {
@@ -940,10 +903,8 @@ kgsl_mmu_close(gsl_device_t *device)
 
             if (mmu->dummyspace.gpuaddr)
             {
-                kgsl_sharedmem_free(&mmu->dummyspace);
+                kgsl_sharedmem_free0(&mmu->dummyspace, GSL_CALLER_PROCESSID_GET());
             }
-
-            GSL_MMU_MUTEX_FREE();
 
             mmu->flags &= ~GSL_FLAGS_STARTED;
             mmu->flags &= ~GSL_FLAGS_INITIALIZED;
@@ -971,8 +932,6 @@ kgsl_mmu_attachcallback(gsl_mmu_t *mmu, unsigned int pid)
 
     kgsl_log_write( KGSL_LOG_GROUP_MEMORY | KGSL_LOG_LEVEL_TRACE, "--> int kgsl_mmu_attachcallback(gsl_mmu_t *mmu=0x%08x, unsigned int pid=0x%08x)\n", mmu, pid );
 
-    GSL_MMU_LOCK();
-
     if (mmu->flags & GSL_FLAGS_INITIALIZED0)
     {
         // attach to current device mmu
@@ -993,8 +952,6 @@ kgsl_mmu_attachcallback(gsl_mmu_t *mmu, unsigned int pid)
         }
     }
 
-    GSL_MMU_UNLOCK();
-
     kgsl_log_write( KGSL_LOG_GROUP_MEMORY | KGSL_LOG_LEVEL_TRACE, "<-- kgsl_mmu_attachcallback. Return value %B\n", status );
 
     return (status);
@@ -1012,8 +969,6 @@ kgsl_mmu_detachcallback(gsl_mmu_t *mmu, unsigned int pid)
     gsl_pagetable_t  *pagetable;
 
     kgsl_log_write( KGSL_LOG_GROUP_MEMORY | KGSL_LOG_LEVEL_TRACE, "--> int kgsl_mmu_detachcallback(gsl_mmu_t *mmu=0x%08x, unsigned int pid=0x%08x)\n", mmu, pid );
-
-    GSL_MMU_LOCK();
 
     if (mmu->flags & GSL_FLAGS_INITIALIZED0)
     {
@@ -1035,8 +990,6 @@ kgsl_mmu_detachcallback(gsl_mmu_t *mmu, unsigned int pid)
         }
     }
 
-    GSL_MMU_UNLOCK();
-
     kgsl_log_write( KGSL_LOG_GROUP_MEMORY | KGSL_LOG_LEVEL_TRACE, "<-- kgsl_mmu_detachcallback. Return value %B\n", status );
 
     return (status);
@@ -1052,8 +1005,6 @@ kgsl_mmu_querystats(gsl_mmu_t *mmu, gsl_mmustats_t *stats)
 
     KOS_ASSERT(stats);
 
-    GSL_MMU_LOCK();
-
     if (mmu->flags & GSL_FLAGS_STARTED)
     {
 		kos_memcpy(stats, &mmu->stats, sizeof(gsl_mmustats_t));
@@ -1062,8 +1013,6 @@ kgsl_mmu_querystats(gsl_mmu_t *mmu, gsl_mmustats_t *stats)
     {
 		kos_memset(stats, 0, sizeof(gsl_mmustats_t));
     }
-
-    GSL_MMU_UNLOCK();
 
     return (status);
 #else

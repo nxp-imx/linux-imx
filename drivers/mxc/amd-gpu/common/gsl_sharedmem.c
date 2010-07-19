@@ -18,10 +18,6 @@
 
 #include "gsl.h"
 #include "gsl_hal.h"
-#if defined(_LINUX) && !defined(PAGE_SIZE)
-#define PAGE_SIZE (1<<12)
-#define PAGE_SHIFT (12)
-#endif
 
 /////////////////////////////////////////////////////////////////////////////
 // macros
@@ -204,8 +200,8 @@ kgsl_sharedmem_close(gsl_sharedmem_t *shmem)
 
 //----------------------------------------------------------------------------
 
-KGSL_API int
-kgsl_sharedmem_alloc(gsl_deviceid_t device_id, gsl_flags_t flags, int sizebytes, gsl_memdesc_t *memdesc)
+int
+kgsl_sharedmem_alloc0(gsl_deviceid_t device_id, gsl_flags_t flags, int sizebytes, gsl_memdesc_t *memdesc)
 {
     gsl_apertureid_t  aperture_id;
     gsl_channelid_t   channel_id;
@@ -227,12 +223,9 @@ kgsl_sharedmem_alloc(gsl_deviceid_t device_id, gsl_flags_t flags, int sizebytes,
 
     kos_memset(memdesc, 0, sizeof(gsl_memdesc_t));
 
-    GSL_API_MUTEX_LOCK();
-
     if (!(shmem->flags & GSL_FLAGS_INITIALIZED))
     {
         kgsl_log_write( KGSL_LOG_GROUP_MEMORY | KGSL_LOG_LEVEL_ERROR, "ERROR: Shared memory not initialized.\n" );
-        GSL_API_MUTEX_UNLOCK();
         kgsl_log_write( KGSL_LOG_GROUP_MEMORY | KGSL_LOG_LEVEL_TRACE, "<-- kgsl_sharedmem_alloc. Return value %B\n", GSL_FAILURE );
         return (GSL_FAILURE);
     }
@@ -269,7 +262,6 @@ kgsl_sharedmem_alloc(gsl_deviceid_t device_id, gsl_flags_t flags, int sizebytes,
             else
             {
                 kgsl_log_write( KGSL_LOG_GROUP_MEMORY | KGSL_LOG_LEVEL_ERROR, "ERROR: Invalid device.\n" );
-                GSL_API_MUTEX_UNLOCK();
                 kgsl_log_write( KGSL_LOG_GROUP_MEMORY | KGSL_LOG_LEVEL_TRACE, "<-- kgsl_sharedmem_alloc. Return value %B\n", GSL_FAILURE );
                 return (GSL_FAILURE);
             }
@@ -338,8 +330,6 @@ kgsl_sharedmem_alloc(gsl_deviceid_t device_id, gsl_flags_t flags, int sizebytes,
         }
     }
 
-    GSL_API_MUTEX_UNLOCK();
-
     if (result == GSL_SUCCESS)
     {
         GSL_MEMDESC_APERTURE_SET(memdesc, aperture_index);
@@ -394,6 +384,18 @@ kgsl_sharedmem_alloc(gsl_deviceid_t device_id, gsl_flags_t flags, int sizebytes,
 
 //----------------------------------------------------------------------------
 
+KGSL_API int
+kgsl_sharedmem_alloc(gsl_deviceid_t device_id, gsl_flags_t flags, int sizebytes, gsl_memdesc_t *memdesc)
+{
+	int status = GSL_SUCCESS;
+	GSL_API_MUTEX_LOCK();
+	status = kgsl_sharedmem_alloc0(device_id, flags, sizebytes, memdesc);
+	GSL_API_MUTEX_UNLOCK();
+	return status;
+}
+
+//----------------------------------------------------------------------------
+
 int
 kgsl_sharedmem_free0(gsl_memdesc_t *memdesc, unsigned int pid)
 {
@@ -406,8 +408,6 @@ kgsl_sharedmem_free0(gsl_memdesc_t *memdesc, unsigned int pid)
 
     GSL_MEMDESC_APERTURE_GET(memdesc, aperture_index);
     GSL_MEMDESC_DEVICE_GET(memdesc, device_id);
-
-    GSL_API_MUTEX_LOCK();
 
     shmem = &gsl_driver.shmem;
 
@@ -433,8 +433,6 @@ kgsl_sharedmem_free0(gsl_memdesc_t *memdesc, unsigned int pid)
         status = GSL_FAILURE;
     }
 
-    GSL_API_MUTEX_UNLOCK();
-
     kgsl_log_write( KGSL_LOG_GROUP_MEMORY | KGSL_LOG_LEVEL_TRACE, "<-- kgsl_sharedmem_free. Return value %B\n", status );
 
     return (status);
@@ -445,13 +443,17 @@ kgsl_sharedmem_free0(gsl_memdesc_t *memdesc, unsigned int pid)
 KGSL_API int
 kgsl_sharedmem_free(gsl_memdesc_t *memdesc)
 {
-    return (kgsl_sharedmem_free0(memdesc, GSL_CALLER_PROCESSID_GET()));
+	int status = GSL_SUCCESS;
+    GSL_API_MUTEX_LOCK();
+    status = kgsl_sharedmem_free0(memdesc, GSL_CALLER_PROCESSID_GET());
+    GSL_API_MUTEX_UNLOCK();
+    return status;
 }
 
 //----------------------------------------------------------------------------
 
-KGSL_API int
-kgsl_sharedmem_read(const gsl_memdesc_t *memdesc, void *dst, unsigned int offsetbytes, unsigned int sizebytes, unsigned int touserspace)
+int
+kgsl_sharedmem_read0(const gsl_memdesc_t *memdesc, void *dst, unsigned int offsetbytes, unsigned int sizebytes, unsigned int touserspace)
 {
     int              aperture_index;
     gsl_sharedmem_t  *shmem;
@@ -469,14 +471,11 @@ kgsl_sharedmem_read(const gsl_memdesc_t *memdesc, void *dst, unsigned int offset
         return (GSL_FAILURE_BADPARAM);
     }
 
-    GSL_API_MUTEX_LOCK();
-
     shmem = &gsl_driver.shmem;
 
     if (!(shmem->flags & GSL_FLAGS_INITIALIZED))
     {
         kgsl_log_write( KGSL_LOG_GROUP_MEMORY | KGSL_LOG_LEVEL_ERROR, "ERROR: Shared memory not initialized.\n" );
-        GSL_API_MUTEX_UNLOCK();
         kgsl_log_write( KGSL_LOG_GROUP_MEMORY | KGSL_LOG_LEVEL_TRACE, "<-- kgsl_sharedmem_read. Return value %B\n", GSL_FAILURE );
         return (GSL_FAILURE);
     }
@@ -490,8 +489,6 @@ kgsl_sharedmem_read(const gsl_memdesc_t *memdesc, void *dst, unsigned int offset
 
     GSL_HAL_MEM_READ(dst, shmem->apertures[aperture_index].memarena->hostbaseaddr, gpuoffsetbytes, sizebytes, touserspace);
 
-    GSL_API_MUTEX_UNLOCK();
-
     kgsl_log_write( KGSL_LOG_GROUP_MEMORY | KGSL_LOG_LEVEL_TRACE, "<-- kgsl_sharedmem_read. Return value %B\n", GSL_SUCCESS );
 
     return (GSL_SUCCESS);
@@ -500,7 +497,19 @@ kgsl_sharedmem_read(const gsl_memdesc_t *memdesc, void *dst, unsigned int offset
 //----------------------------------------------------------------------------
 
 KGSL_API int
-kgsl_sharedmem_write(const gsl_memdesc_t *memdesc, unsigned int offsetbytes, void *src, unsigned int sizebytes, unsigned int fromuserspace)
+kgsl_sharedmem_read(const gsl_memdesc_t *memdesc, void *dst, unsigned int offsetbytes, unsigned int sizebytes, unsigned int touserspace)
+{
+	int status = GSL_SUCCESS;
+	GSL_API_MUTEX_LOCK();
+	status = kgsl_sharedmem_read0(memdesc, dst, offsetbytes, sizebytes, touserspace);
+	GSL_API_MUTEX_UNLOCK();
+	return status;
+}
+
+//----------------------------------------------------------------------------
+
+int
+kgsl_sharedmem_write0(const gsl_memdesc_t *memdesc, unsigned int offsetbytes, void *src, unsigned int sizebytes, unsigned int fromuserspace)
 {
     int              aperture_index;
     gsl_sharedmem_t  *shmem;
@@ -518,14 +527,11 @@ kgsl_sharedmem_write(const gsl_memdesc_t *memdesc, unsigned int offsetbytes, voi
         return (GSL_FAILURE_BADPARAM);
     }
 
-    GSL_API_MUTEX_LOCK();
-
     shmem = &gsl_driver.shmem;
 
     if (!(shmem->flags & GSL_FLAGS_INITIALIZED))
     {
         kgsl_log_write( KGSL_LOG_GROUP_MEMORY | KGSL_LOG_LEVEL_ERROR, "ERROR: Shared memory not initialized.\n" );
-        GSL_API_MUTEX_UNLOCK();
         kgsl_log_write( KGSL_LOG_GROUP_MEMORY | KGSL_LOG_LEVEL_TRACE, "<-- kgsl_sharedmem_write. Return value %B\n", GSL_FAILURE );
         return (GSL_FAILURE);
     }
@@ -543,8 +549,6 @@ kgsl_sharedmem_write(const gsl_memdesc_t *memdesc, unsigned int offsetbytes, voi
 
     KGSL_DEBUG_TBDUMP_SYNCMEM( (memdesc->gpuaddr + offsetbytes), src, sizebytes );
 
-    GSL_API_MUTEX_UNLOCK();
-
     kgsl_log_write( KGSL_LOG_GROUP_MEMORY | KGSL_LOG_LEVEL_TRACE, "<-- kgsl_sharedmem_write. Return value %B\n", GSL_SUCCESS );
 
     return (GSL_SUCCESS);
@@ -553,7 +557,19 @@ kgsl_sharedmem_write(const gsl_memdesc_t *memdesc, unsigned int offsetbytes, voi
 //----------------------------------------------------------------------------
 
 KGSL_API int
-kgsl_sharedmem_set(const gsl_memdesc_t *memdesc, unsigned int offsetbytes, unsigned int value, unsigned int sizebytes)
+kgsl_sharedmem_write(const gsl_memdesc_t *memdesc, unsigned int offsetbytes, void *src, unsigned int sizebytes, unsigned int fromuserspace)
+{
+	int status = GSL_SUCCESS;
+	GSL_API_MUTEX_LOCK();
+	status = kgsl_sharedmem_write0(memdesc, offsetbytes, src, sizebytes, fromuserspace);
+	GSL_API_MUTEX_UNLOCK();
+	return status;
+}
+
+//----------------------------------------------------------------------------
+
+int
+kgsl_sharedmem_set0(const gsl_memdesc_t *memdesc, unsigned int offsetbytes, unsigned int value, unsigned int sizebytes)
 {
     int              aperture_index;
     gsl_sharedmem_t  *shmem;
@@ -571,14 +587,11 @@ kgsl_sharedmem_set(const gsl_memdesc_t *memdesc, unsigned int offsetbytes, unsig
         return (GSL_FAILURE_BADPARAM);
     }
 
-    GSL_API_MUTEX_LOCK();
-
     shmem = &gsl_driver.shmem;
 
     if (!(shmem->flags & GSL_FLAGS_INITIALIZED))
     {
         kgsl_log_write( KGSL_LOG_GROUP_MEMORY | KGSL_LOG_LEVEL_ERROR, "ERROR: Shared memory not initialized.\n" );
-        GSL_API_MUTEX_UNLOCK();
         kgsl_log_write( KGSL_LOG_GROUP_MEMORY | KGSL_LOG_LEVEL_TRACE, "<-- kgsl_sharedmem_set. Return value %B\n", GSL_FAILURE );
         return (GSL_FAILURE);
     }
@@ -595,11 +608,21 @@ kgsl_sharedmem_set(const gsl_memdesc_t *memdesc, unsigned int offsetbytes, unsig
 
     KGSL_DEBUG_TBDUMP_SETMEM( (memdesc->gpuaddr + offsetbytes), value, sizebytes );
 
-    GSL_API_MUTEX_UNLOCK();
-
     kgsl_log_write( KGSL_LOG_GROUP_MEMORY | KGSL_LOG_LEVEL_TRACE, "<-- kgsl_sharedmem_set. Return value %B\n", GSL_SUCCESS );
 
     return (GSL_SUCCESS);
+}
+
+//----------------------------------------------------------------------------
+
+KGSL_API int
+kgsl_sharedmem_set(const gsl_memdesc_t *memdesc, unsigned int offsetbytes, unsigned int value, unsigned int sizebytes)
+{
+	int status = GSL_SUCCESS;
+	GSL_API_MUTEX_LOCK();
+	status = kgsl_sharedmem_set0(memdesc, offsetbytes, value, sizebytes);
+	GSL_API_MUTEX_UNLOCK();
+	return status;
 }
 
 //----------------------------------------------------------------------------
@@ -665,8 +688,6 @@ kgsl_sharedmem_map(gsl_deviceid_t device_id, gsl_flags_t flags, const gsl_scatte
                     "--> int kgsl_sharedmem_map(gsl_deviceid_t device_id=%D, gsl_flags_t flags=0x%08x, gsl_scatterlist_t scatterlist=%M, gsl_memdesc_t *memdesc=%M)\n",
                     device_id, flags, memdesc, scatterlist );
 
-    GSL_API_MUTEX_LOCK();
-
     // execute pending device action
     tmp_id = (device_id != GSL_DEVICE_ANY) ? device_id : device_id+1;
     for ( ; tmp_id <= GSL_DEVICE_MAX; tmp_id++)
@@ -699,7 +720,6 @@ kgsl_sharedmem_map(gsl_deviceid_t device_id, gsl_flags_t flags, const gsl_scatte
             else
             {
                 kgsl_log_write( KGSL_LOG_GROUP_MEMORY | KGSL_LOG_LEVEL_ERROR, "ERROR: Invalid device.\n" );
-                GSL_API_MUTEX_UNLOCK();
                 kgsl_log_write( KGSL_LOG_GROUP_MEMORY | KGSL_LOG_LEVEL_TRACE, "<-- kgsl_sharedmem_map. Return value %B\n", GSL_FAILURE );
                 return (GSL_FAILURE);
             }
@@ -734,8 +754,6 @@ kgsl_sharedmem_map(gsl_deviceid_t device_id, gsl_flags_t flags, const gsl_scatte
             }
         }
     }
-
-    GSL_API_MUTEX_UNLOCK();
 
     kgsl_log_write( KGSL_LOG_GROUP_MEMORY | KGSL_LOG_LEVEL_TRACE, "<-- kgsl_sharedmem_map. Return value %B\n", status );
 

@@ -37,13 +37,13 @@
 #ifdef VG_HDK
 #define GSL_CMDSTREAM_GET_SOP_TIMESTAMP(device, data)
 #else
-#define GSL_CMDSTREAM_GET_SOP_TIMESTAMP(device, data)   kgsl_sharedmem_read(&device->memstore, (data), GSL_DEVICE_MEMSTORE_OFFSET(soptimestamp), 4, false)
+#define GSL_CMDSTREAM_GET_SOP_TIMESTAMP(device, data)   kgsl_sharedmem_read0(&device->memstore, (data), GSL_DEVICE_MEMSTORE_OFFSET(soptimestamp), 4, false)
 #endif
 
 #ifdef VG_HDK
 #define GSL_CMDSTREAM_GET_EOP_TIMESTAMP(device, data)   (*((int*)data) = (gsl_driver.device[GSL_DEVICE_G12-1]).timestamp)
 #else
-#define GSL_CMDSTREAM_GET_EOP_TIMESTAMP(device, data)   kgsl_sharedmem_read(&device->memstore, (data), GSL_DEVICE_MEMSTORE_OFFSET(eoptimestamp), 4, false)
+#define GSL_CMDSTREAM_GET_EOP_TIMESTAMP(device, data)   kgsl_sharedmem_read0(&device->memstore, (data), GSL_DEVICE_MEMSTORE_OFFSET(eoptimestamp), 4, false)
 #endif
 
 
@@ -54,6 +54,7 @@
 //////////////////////////////////////////////////////////////////////////////
 // functions
 //////////////////////////////////////////////////////////////////////////////
+gsl_timestamp_t kgsl_cmdstream_readtimestamp0(gsl_deviceid_t device_id, gsl_timestamp_type_t type);
 void kgsl_cmdstream_memqueue_drain(gsl_device_t *device);
 int kgsl_cmdstream_init(gsl_device_t *device);
 int kgsl_cmdstream_close(gsl_device_t *device);

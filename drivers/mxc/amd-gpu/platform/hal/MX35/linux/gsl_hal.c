@@ -453,6 +453,7 @@ kgsl_hal_getplatformtype(char *platform)
 KGSLHAL_API int
 kgsl_hal_setpowerstate(gsl_deviceid_t device_id, int state, unsigned int value)
 {
+	gsl_device_t *device = &gsl_driver.device[device_id-1];        // device_id is 1 based
 	struct clk *gpu_clk = 0;
 
     // unreferenced formal parameters
@@ -473,15 +474,15 @@ kgsl_hal_setpowerstate(gsl_deviceid_t device_id, int state, unsigned int value)
     switch (state)
     {
 	case GSL_PWRFLAGS_CLK_ON:
-		break;
+	    break;
 	case GSL_PWRFLAGS_POWER_ON:
 		clk_enable(gpu_clk);
 		kgsl_device_autogate_init(&gsl_driver.device[device_id-1]);
 		break;
 	case GSL_PWRFLAGS_CLK_OFF:
-		break;
+	    break;
 	case GSL_PWRFLAGS_POWER_OFF:
-		if (kgsl_device_idle(device_id, GSL_TIMEOUT_DEFAULT) != GSL_SUCCESS)
+		if (device->ftbl.device_idle(device, GSL_TIMEOUT_DEFAULT) != GSL_SUCCESS)
 		{
 			return (GSL_FAILURE_DEVICEERROR);
 		}

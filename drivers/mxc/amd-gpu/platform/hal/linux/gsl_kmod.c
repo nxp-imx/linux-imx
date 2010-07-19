@@ -15,7 +15,7 @@
  * 02110-1301, USA.
  *
  */
-
+ 
 #include "gsl_types.h"
 #include "gsl.h"
 #include "gsl_buildconfig.h"
@@ -34,12 +34,10 @@
 #include <asm/uaccess.h>
 #include <linux/mm.h>
 #include <linux/mutex.h>
+#include <linux/cdev.h>
+
 #include <linux/platform_device.h>
 #include <linux/vmalloc.h>
-
-static int gsl_kmod_major;  // TODO: move to gsl_kmod_data
-static struct vm_operations_struct gsl_kmod_vmops = {0};
-DEFINE_MUTEX(gsl_mutex);    // TODO: move to gsl_kmod_data?
 
 static int gpu_2d_irq, gpu_3d_irq;
 
@@ -51,26 +49,132 @@ int gmem_size;
 phys_addr_t gpu_reserved_mem;
 int gpu_reserved_mem_size;
 
-/* structure to hold kernel module specific data. */
-struct gsl_kmod_data
+static ssize_t gsl_kmod_read(struct file *fd, char __user *buf, size_t len, loff_t *ptr);
+static ssize_t gsl_kmod_write(struct file *fd, const char __user *buf, size_t len, loff_t *ptr);
+static int gsl_kmod_ioctl(struct inode *inode, struct file *fd, unsigned int cmd, unsigned long arg);
+static int gsl_kmod_mmap(struct file *fd, struct vm_area_struct *vma);
+static int gsl_kmod_fault(struct vm_area_struct *vma, struct vm_fault *vmf);
+static int gsl_kmod_open(struct inode *inode, struct file *fd);
+static int gsl_kmod_release(struct inode *inode, struct file *fd);
+static irqreturn_t z160_irq_handler(int irq, void *dev_id);
+#if defined(MX51)
+static irqreturn_t z430_irq_handler(int irq, void *dev_id);
+#endif
+
+static int gsl_kmod_major;
+static struct class *gsl_kmod_class;
+DEFINE_MUTEX(gsl_mutex);
+
+static const struct file_operations gsl_kmod_fops =
 {
-//    unsigned int major;
-    struct device *device;
-    /* stores the current open file descriptor during user process calls.
-     * It's a hack but in Linux the upper level driver cannot track processes
-     * as they are unique in Linux and not represent thread group as in WinCE.
-     */
-    struct file *current_fd;
+    .owner = THIS_MODULE,
+    .read = gsl_kmod_read,
+    .write = gsl_kmod_write,
+    .ioctl = gsl_kmod_ioctl,
+    .mmap = gsl_kmod_mmap,
+    .open = gsl_kmod_open,
+    .release = gsl_kmod_release
 };
 
-static struct gsl_kmod_data gsl_kmod_data = {0};
-
-static unsigned int current_fd;
-
-unsigned int get_current_fd(void)
+static struct vm_operations_struct gsl_kmod_vmops =
 {
-	return current_fd;
+	.fault = gsl_kmod_fault,
+};
+
+static int __init gsl_kmod_init(void)
+{
+    struct device *dev;
+
+    if (kgsl_driver_init() != GSL_SUCCESS)
+    {
+        printk(KERN_ERR "%s: kgsl_driver_init error\n", __func__);
+        goto kgsl_driver_init_error;
+    }
+
+#if defined(MX51)
+    if (request_irq(MX51_YDX_INTERRUPT, z430_irq_handler, 0, "ydx", NULL) < 0)
+    {
+        printk(KERN_ERR "%s: request_irq error\n", __func__);
+        goto request_irq_error;
+    }
+#endif
+
+#if defined(MX51)
+    if (request_irq(MX51_G12_INTERRUPT, z160_irq_handler, 0, "g12", NULL) < 0)
+#elif defined(MX35)
+    if (request_irq(MX35_G12_INTERRUPT, z160_irq_handler, 0, "g12", NULL) < 0)
+#endif
+    {
+        printk(KERN_ERR "%s: request_irq error\n", __func__);
+        goto request_irq_error;
+    }
+
+    gsl_kmod_major = register_chrdev(0, "gsl_kmod", &gsl_kmod_fops);
+    gsl_kmod_vmops.fault = gsl_kmod_fault;
+
+    if (gsl_kmod_major <= 0)
+    {
+        pr_err("%s: register_chrdev error\n", __func__);
+        goto register_chrdev_error;
+    }
+
+    gsl_kmod_class = class_create(THIS_MODULE, "gsl_kmod");
+
+    if (IS_ERR(gsl_kmod_class))
+    {
+        pr_err("%s: class_create error\n", __func__);
+        goto class_create_error;
+    }
+
+    #if(LINUX_VERSION_CODE < KERNEL_VERSION(2,6,28))
+        dev = device_create(gsl_kmod_class, NULL, MKDEV(gsl_kmod_major, 0), "gsl_kmod");
+    #else
+        dev = device_create(gsl_kmod_class, NULL, MKDEV(gsl_kmod_major, 0), NULL,"gsl_kmod");
+    #endif
+
+    if (!IS_ERR(dev))
+    {
+        return 0;
+    }
+
+    pr_err("%s: device_create error\n", __func__);
+
+class_create_error:
+    class_destroy(gsl_kmod_class);
+
+register_chrdev_error:
+    unregister_chrdev(gsl_kmod_major, "gsl_kmod");
+
+request_irq_error:
+kgsl_driver_init_error:
+    kgsl_driver_close();
+    return 0;   // TODO: return proper error code
 }
+
+static void __exit gsl_kmod_exit(void)
+{
+    device_destroy(gsl_kmod_class, MKDEV(gsl_kmod_major, 0));
+    class_destroy(gsl_kmod_class);
+    unregister_chrdev(gsl_kmod_major, "gsl_kmod");
+#if defined(MX51)
+    free_irq(MX51_YDX_INTERRUPT, NULL);
+    free_irq(MX51_G12_INTERRUPT, NULL);
+#elif defined(MX35)
+	free_irq(MX35_G12_INTERRUPT, NULL);
+#endif
+    kgsl_driver_close();
+}
+
+module_init(gsl_kmod_init);
+module_exit(gsl_kmod_exit);
+
+MODULE_AUTHOR("Advanced Micro Devices");
+#if defined(MX51)
+MODULE_DESCRIPTION("AMD 2D/3D graphics core driver for i.MX51");
+#elif defined(MX35)
+MODULE_DESCRIPTION("AMD 2D graphics core driver for i.MX35");
+#endif
+MODULE_LICENSE("GPL v2");
 
 static ssize_t gsl_kmod_read(struct file *fd, char __user *buf, size_t len, loff_t *ptr)
 {
@@ -85,12 +189,6 @@ static ssize_t gsl_kmod_write(struct file *fd, const char __user *buf, size_t le
 static int gsl_kmod_ioctl(struct inode *inode, struct file *fd, unsigned int cmd, unsigned long arg)
 {
     int kgslStatus = GSL_FAILURE;
-
-    if(mutex_lock_interruptible(&gsl_mutex))
-    {
-        return -EINTR;
-    }
-    current_fd = (unsigned int)fd;
 
     switch (cmd) {
     case IOCTL_KGSL_DEVICE_START:
@@ -502,7 +600,7 @@ static int gsl_kmod_ioctl(struct inode *inode, struct file *fd, unsigned int cmd
             {
                 printk(KERN_ERR "%s: kgsl_sharedmem_write failed\n", __func__);
             }
-
+            
             break;
         }
     case IOCTL_KGSL_SHAREDMEM_SET:
@@ -603,6 +701,7 @@ static int gsl_kmod_ioctl(struct inode *inode, struct file *fd, unsigned int cmd
             kgslStatus = GSL_SUCCESS;
             break;
         }
+    
     case IOCTL_KGSL_DEVICE_CLOCK:
         {
             kgsl_device_clock_t param;
@@ -620,10 +719,6 @@ static int gsl_kmod_ioctl(struct inode *inode, struct file *fd, unsigned int cmd
         break;
     }
 
-    current_fd = 0;
-    
-    mutex_unlock(&gsl_mutex);
-
     return kgslStatus;
 }
 
@@ -639,13 +734,6 @@ static int gsl_kmod_mmap(struct file *fd, struct vm_area_struct *vma)
 	void *va;
 #endif
 
-    if(mutex_lock_interruptible(&gsl_mutex))
-    {
-        return -EINTR;
-    }
-
-    current_fd = (unsigned int)fd;
-
 #ifdef GSL_MMU_TRANSLATION_ENABLED
 	if (addr < GSL_LINUX_MAP_RANGE_END && addr >= GSL_LINUX_MAP_RANGE_START)
 	{
@@ -654,8 +742,6 @@ static int gsl_kmod_mmap(struct file *fd, struct vm_area_struct *vma)
 		{
 			if (remap_pfn_range(vma, start, vmalloc_to_pfn(va), PAGE_SIZE, prot))
 			{
-				current_fd = 0;
-				mutex_unlock(&gsl_mutex);
 				return -EAGAIN;
 			}
 			start += PAGE_SIZE;
@@ -674,16 +760,9 @@ static int gsl_kmod_mmap(struct file *fd, struct vm_area_struct *vma)
 
     vma->vm_ops = &gsl_kmod_vmops;
 
-    current_fd = 0;
-
-    mutex_unlock(&gsl_mutex);
-
     return status;
 }
 
-/* we install fault handler here to signal bus error if user tries to access
- * outside of VMA.
- */
 static int gsl_kmod_fault(struct vm_area_struct *vma, struct vm_fault *vmf)
 {
     return VM_FAULT_SIGBUS;
@@ -699,8 +778,6 @@ static int gsl_kmod_open(struct inode *inode, struct file *fd)
     {
         return -EINTR;
     }
-
-    current_fd = (unsigned int)fd;
 
     if (kgsl_driver_entry(flags) != GSL_SUCCESS)
     {
@@ -726,8 +803,6 @@ static int gsl_kmod_open(struct inode *inode, struct file *fd)
         }
     }
 
-    current_fd = 0;
-
     mutex_unlock(&gsl_mutex);
 
     return err;
@@ -742,8 +817,6 @@ static int gsl_kmod_release(struct inode *inode, struct file *fd)
     {
         return -EINTR;
     }
-
-    current_fd = (unsigned int)fd;
 
     /* make sure contexts are destroyed */
     del_all_devices_contexts(fd);
@@ -762,25 +835,12 @@ static int gsl_kmod_release(struct inode *inode, struct file *fd)
         fd->private_data = 0;
     }
 
-    current_fd = 0;
-
     mutex_unlock(&gsl_mutex);
 
     return err;
 }
 
 static struct class *gsl_kmod_class;
-
-static const struct file_operations gsl_kmod_fops =
-{
-    .owner = THIS_MODULE,
-    .read = gsl_kmod_read,
-    .write = gsl_kmod_write,
-    .ioctl = gsl_kmod_ioctl,
-    .mmap = gsl_kmod_mmap,
-    .open = gsl_kmod_open,
-    .release = gsl_kmod_release
-};
 
 static irqreturn_t z160_irq_handler(int irq, void *dev_id)
 {
@@ -891,7 +951,7 @@ static int gpu_probe(struct platform_device *pdev)
 
     if (!IS_ERR(dev))
     {
-        gsl_kmod_data.device = dev;
+    //    gsl_kmod_data.device = dev;
         return 0;
     }
 
@@ -987,20 +1047,6 @@ static struct platform_driver gpu_driver = {
     .resume = gpu_resume,
 };
 
-static int __init gsl_kmod_init(void)
-{
-    int ret = platform_driver_register(&gpu_driver);
-
-    return ret;
-}
-
-static void __exit gsl_kmod_exit(void)
-{
-    platform_driver_unregister(&gpu_driver);
-}
-
-module_init(gsl_kmod_init);
-module_exit(gsl_kmod_exit);
 
 MODULE_AUTHOR("Advanced Micro Devices Inc.");
 #if defined(MX51)

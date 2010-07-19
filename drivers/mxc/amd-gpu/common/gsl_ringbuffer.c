@@ -87,7 +87,7 @@ kgsl_cp_intrcallback(gsl_intrid_t id, void *cookie)
         case GSL_INTR_YDX_CP_RESERVED_BIT_ERROR:
         case GSL_INTR_YDX_CP_IB_ERROR:
 
-            kgsl_device_destroy(rb->device);
+            rb->device->ftbl.device_destroy(rb->device);
             break;
 
         // non-error condition interrupt
@@ -120,8 +120,6 @@ kgsl_ringbuffer_watchdog()
 
     if (rb->flags & GSL_FLAGS_STARTED)
     {
-        GSL_RB_MUTEX_LOCK();
-
         GSL_RB_GET_READPTR(rb, &rb->rptr);
 
         // ringbuffer is currently not empty
@@ -137,7 +135,7 @@ kgsl_ringbuffer_watchdog()
                     kgsl_log_write( KGSL_LOG_GROUP_COMMAND | KGSL_LOG_LEVEL_FATAL,
                                      "ERROR: Watchdog detected core hung.\n" );
 
-                    kgsl_device_destroy(rb->device);
+                    rb->device->ftbl.device_destroy(rb->device);
                     return;
                 }
             }
@@ -152,7 +150,6 @@ kgsl_ringbuffer_watchdog()
             rb->watchdog.flags &= ~GSL_FLAGS_ACTIVE;
         }
 
-        GSL_RB_MUTEX_UNLOCK();
     }
 
     kgsl_log_write( KGSL_LOG_GROUP_COMMAND | KGSL_LOG_LEVEL_TRACE, "<-- kgsl_ringbuffer_watchdog.\n" );
@@ -350,16 +347,16 @@ kgsl_ringbuffer_submit(gsl_ringbuffer_t *rb)
     KOS_ASSERT(rb->wptr != 0);
 
     kgsl_device_active(rb->device);
-
+    
     GSL_RB_UPDATE_WPTR_POLLING(rb);
 
     // send the wptr to the hw
-    kgsl_device_regwrite(rb->device->id, mmCP_RB_WPTR, rb->wptr);
+    rb->device->ftbl.device_regwrite(rb->device, mmCP_RB_WPTR, rb->wptr);
 
     // force wptr register to be updated
     do
     {
-        kgsl_device_regread(rb->device->id, mmCP_RB_WPTR, &value);
+        rb->device->ftbl.device_regread(rb->device, mmCP_RB_WPTR, &value);
     } while (value != rb->wptr);
 
     rb->flags |= GSL_FLAGS_ACTIVE;
@@ -497,66 +494,66 @@ kgsl_ringbuffer_start(gsl_ringbuffer_t *rb)
     }
 
     // clear memptrs values
-    kgsl_sharedmem_set(&rb->memptrs_desc, 0, 0, sizeof(gsl_rbmemptrs_t));
+    kgsl_sharedmem_set0(&rb->memptrs_desc, 0, 0, sizeof(gsl_rbmemptrs_t));
 
     // clear ringbuffer
-    kgsl_sharedmem_set(&rb->buffer_desc, 0, 0x12341234, (rb->sizedwords << 2));
+    kgsl_sharedmem_set0(&rb->buffer_desc, 0, 0x12341234, (rb->sizedwords << 2));
 
     // setup WPTR polling address
-    kgsl_device_regwrite(device->id, mmCP_RB_WPTR_BASE, (rb->memptrs_desc.gpuaddr + GSL_RB_MEMPTRS_WPTRPOLL_OFFSET));
+    device->ftbl.device_regwrite(device, mmCP_RB_WPTR_BASE, (rb->memptrs_desc.gpuaddr + GSL_RB_MEMPTRS_WPTRPOLL_OFFSET));
 
     // setup WPTR delay
-    kgsl_device_regwrite(device->id, mmCP_RB_WPTR_DELAY, 0/*0x70000010*/);
+    device->ftbl.device_regwrite(device, mmCP_RB_WPTR_DELAY, 0/*0x70000010*/);
 
     // setup RB_CNTL
-    kgsl_device_regread(device->id, mmCP_RB_CNTL, (unsigned int *)&cp_rb_cntl);
+    device->ftbl.device_regread(device, mmCP_RB_CNTL, (unsigned int *)&cp_rb_cntl);
 
     cp_rb_cntl.f.rb_bufsz       = gsl_ringbuffer_sizelog2quadwords(rb->sizedwords); // size of ringbuffer
     cp_rb_cntl.f.rb_blksz       = rb->blksizequadwords;                             // quadwords to read before updating mem RPTR
     cp_rb_cntl.f.rb_poll_en     = GSL_RB_CNTL_POLL_EN;                              // WPTR polling
     cp_rb_cntl.f.rb_no_update   = GSL_RB_CNTL_NO_UPDATE;                            // mem RPTR writebacks
 
-    kgsl_device_regwrite(device->id, mmCP_RB_CNTL, cp_rb_cntl.val);
+    device->ftbl.device_regwrite(device, mmCP_RB_CNTL, cp_rb_cntl.val);
 
     // setup RB_BASE
-    kgsl_device_regwrite(device->id, mmCP_RB_BASE, rb->buffer_desc.gpuaddr);
+    device->ftbl.device_regwrite(device, mmCP_RB_BASE, rb->buffer_desc.gpuaddr);
 
     // setup RPTR_ADDR
-    kgsl_device_regwrite(device->id, mmCP_RB_RPTR_ADDR, rb->memptrs_desc.gpuaddr + GSL_RB_MEMPTRS_RPTR_OFFSET);
+    device->ftbl.device_regwrite(device, mmCP_RB_RPTR_ADDR, rb->memptrs_desc.gpuaddr + GSL_RB_MEMPTRS_RPTR_OFFSET);
 
     // explicitly clear all cp interrupts when running in safe mode
     if (rb->device->flags & GSL_FLAGS_SAFEMODE)
     {
-        kgsl_device_regwrite(device->id, mmCP_INT_ACK, 0xFFFFFFFF);
+        device->ftbl.device_regwrite(device, mmCP_INT_ACK, 0xFFFFFFFF);
     }
 
     // setup scratch/timestamp addr
-    kgsl_device_regwrite(device->id, mmSCRATCH_ADDR, device->memstore.gpuaddr + GSL_DEVICE_MEMSTORE_OFFSET(soptimestamp));
+    device->ftbl.device_regwrite(device, mmSCRATCH_ADDR, device->memstore.gpuaddr + GSL_DEVICE_MEMSTORE_OFFSET(soptimestamp));
 
     // setup scratch/timestamp mask
-    kgsl_device_regwrite(device->id, mmSCRATCH_UMSK, GSL_RB_MEMPTRS_SCRATCH_MASK);
+    device->ftbl.device_regwrite(device, mmSCRATCH_UMSK, GSL_RB_MEMPTRS_SCRATCH_MASK);
 
     // load the CP ucode
-    kgsl_device_regwrite(device->id, mmCP_DEBUG, 0x02000000);
-    kgsl_device_regwrite(device->id, mmCP_ME_RAM_WADDR, 0);
+    device->ftbl.device_regwrite(device, mmCP_DEBUG, 0x02000000);
+    device->ftbl.device_regwrite(device, mmCP_ME_RAM_WADDR, 0);
 
     for (i = 0; i < PM4_MICROCODE_SIZE; i++ )
     {
-        kgsl_device_regwrite(device->id, mmCP_ME_RAM_DATA, aPM4_Microcode[i][0]);
-        kgsl_device_regwrite(device->id, mmCP_ME_RAM_DATA, aPM4_Microcode[i][1]);
-        kgsl_device_regwrite(device->id, mmCP_ME_RAM_DATA, aPM4_Microcode[i][2]);
+        device->ftbl.device_regwrite(device, mmCP_ME_RAM_DATA, aPM4_Microcode[i][0]);
+        device->ftbl.device_regwrite(device, mmCP_ME_RAM_DATA, aPM4_Microcode[i][1]);
+        device->ftbl.device_regwrite(device, mmCP_ME_RAM_DATA, aPM4_Microcode[i][2]);
     }
 
     // load the prefetch parser ucode
-    kgsl_device_regwrite(device->id, mmCP_PFP_UCODE_ADDR, 0);
+    device->ftbl.device_regwrite(device, mmCP_PFP_UCODE_ADDR, 0);
 
     for ( i = 0; i < PFP_MICROCODE_SIZE_NRT; i++ )
     {
-        kgsl_device_regwrite(device->id, mmCP_PFP_UCODE_DATA, aPFP_Microcode_nrt[i]);
+        device->ftbl.device_regwrite(device, mmCP_PFP_UCODE_DATA, aPFP_Microcode_nrt[i]);
     }
 
     // queue thresholds ???
-    kgsl_device_regwrite(device->id, mmCP_QUEUE_THRESHOLDS, 0x000C0804);
+    device->ftbl.device_regwrite(device, mmCP_QUEUE_THRESHOLDS, 0x000C0804);
 
     // reset pointers
     rb->rptr = 0;
@@ -567,7 +564,7 @@ kgsl_ringbuffer_start(gsl_ringbuffer_t *rb)
     GSL_RB_INIT_TIMESTAMP(rb);
 
     // clear ME_HALT to start micro engine
-    kgsl_device_regwrite(device->id, mmCP_ME_CNTL, 0);
+    device->ftbl.device_regwrite(device, mmCP_ME_CNTL, 0);
 
     // ME_INIT
     cmds  = kgsl_ringbuffer_addcmds(rb, 19);
@@ -598,7 +595,7 @@ kgsl_ringbuffer_start(gsl_ringbuffer_t *rb)
     kgsl_ringbuffer_submit(rb);
 
     // idle device to validate ME INIT
-    status = kgsl_device_idle(device->id, GSL_TIMEOUT_DEFAULT);
+    status = device->ftbl.device_idle(device, GSL_TIMEOUT_DEFAULT);
 
     if (status == GSL_SUCCESS)
     {
@@ -652,7 +649,7 @@ kgsl_ringbuffer_stop(gsl_ringbuffer_t *rb)
         kgsl_intr_detach(&rb->device->intr, GSL_INTR_YDX_CP_RING_BUFFER);
 
         // ME_HALT
-        kgsl_device_regwrite(rb->device->id, mmCP_ME_CNTL, 0x10000000);
+        rb->device->ftbl.device_regwrite(rb->device, mmCP_ME_CNTL, 0x10000000);
 
         rb->flags &= ~GSL_FLAGS_STARTED;
     }
@@ -678,14 +675,12 @@ kgsl_ringbuffer_init(gsl_device_t *device)
     rb->sizedwords       = (2 << gsl_cfg_rb_sizelog2quadwords);
     rb->blksizequadwords = gsl_cfg_rb_blksizequadwords;
 
-    GSL_RB_MUTEX_CREATE();
-
     // allocate memory for ringbuffer, needs to be double octword aligned
     // align on page from contiguous physical memory
     flags = (GSL_MEMFLAGS_ALIGNPAGE | GSL_MEMFLAGS_CONPHYS | GSL_MEMFLAGS_STRICTREQUEST);
     KGSL_DEBUG(GSL_DBGFLAGS_DUMPX, flags = (GSL_MEMFLAGS_ALIGNPAGE | GSL_MEMFLAGS_STRICTREQUEST)); /* set MMU table for ringbuffer */
 
-    status = kgsl_sharedmem_alloc(device->id, flags, (rb->sizedwords << 2), &rb->buffer_desc);
+    status = kgsl_sharedmem_alloc0(device->id, flags, (rb->sizedwords << 2), &rb->buffer_desc);
 
     KGSL_DEBUG(GSL_DBGFLAGS_DUMPX, KGSL_DEBUG_DUMPX(BB_DUMP_RINGBUF_SET, (unsigned int)rb->buffer_desc.gpuaddr, (unsigned int)rb->buffer_desc.hostptr, 0, "kgsl_ringbuffer_init"));
 
@@ -700,7 +695,7 @@ kgsl_ringbuffer_init(gsl_device_t *device)
     flags = (GSL_MEMFLAGS_ALIGN32 | GSL_MEMFLAGS_CONPHYS);
     KGSL_DEBUG(GSL_DBGFLAGS_DUMPX, flags = GSL_MEMFLAGS_ALIGN32);
 
-    status = kgsl_sharedmem_alloc(device->id, flags, sizeof(gsl_rbmemptrs_t), &rb->memptrs_desc);
+    status = kgsl_sharedmem_alloc0(device->id, flags, sizeof(gsl_rbmemptrs_t), &rb->memptrs_desc);
 
     if (status != GSL_SUCCESS)
     {
@@ -742,28 +737,22 @@ kgsl_ringbuffer_close(gsl_ringbuffer_t *rb)
     kgsl_log_write( KGSL_LOG_GROUP_COMMAND | KGSL_LOG_LEVEL_TRACE,
                     "--> int kgsl_ringbuffer_close(gsl_ringbuffer_t *rb=0x%08x)\n", rb );
 
-    GSL_RB_MUTEX_LOCK();
-
     // stop ringbuffer
     kgsl_ringbuffer_stop(rb);
 
     // free buffer
     if (rb->buffer_desc.hostptr)
     {
-        kgsl_sharedmem_free(&rb->buffer_desc);
+        kgsl_sharedmem_free0(&rb->buffer_desc, GSL_CALLER_PROCESSID_GET());
     }
 
     // free memory pointers
     if (rb->memptrs_desc.hostptr)
     {
-        kgsl_sharedmem_free(&rb->memptrs_desc);
+        kgsl_sharedmem_free0(&rb->memptrs_desc, GSL_CALLER_PROCESSID_GET());
     }
 
     rb->flags &= ~GSL_FLAGS_INITIALIZED;
-
-    GSL_RB_MUTEX_UNLOCK();
-
-    GSL_RB_MUTEX_FREE();
 
     kos_memset(rb, 0, sizeof(gsl_ringbuffer_t));
 
@@ -787,11 +776,8 @@ kgsl_ringbuffer_issuecmds(gsl_device_t *device, int pmodeoff, unsigned int *cmds
                     "--> gsl_timestamp_t kgsl_ringbuffer_issuecmds(gsl_device_t *device=0x%08x, int pmodeoff=%d, unsigned int *cmds=0x%08x, int sizedwords=%d, unsigned int pid=0x%08x)\n",
                      device, pmodeoff, cmds, sizedwords, pid );
 
-    GSL_RB_MUTEX_LOCK();
-
 	if (!(device->ringbuffer.flags & GSL_FLAGS_STARTED))
 	{
-		GSL_RB_MUTEX_UNLOCK();
 		return (0);
 	}
 
@@ -859,8 +845,6 @@ kgsl_ringbuffer_issuecmds(gsl_device_t *device, int pmodeoff, unsigned int *cmds
     GSL_RB_STATS(rb->stats.wordstotal += sizedwords);
     GSL_RB_STATS(rb->stats.issues++);
 
-    GSL_RB_MUTEX_UNLOCK();
-
     kgsl_log_write( KGSL_LOG_GROUP_COMMAND | KGSL_LOG_LEVEL_TRACE, "<-- kgsl_ringbuffer_issuecmds. Return value %d\n", timestamp );
 
     // return timestamp of issued commands
@@ -890,7 +874,6 @@ kgsl_ringbuffer_issueibcmds(gsl_device_t *device, int drawctxt_index, gpuaddr_t 
 
     KGSL_DEBUG(GSL_DBGFLAGS_DUMPX, dumpx_swap = kgsl_dumpx_parse_ibs(ibaddr, sizedwords));
 
-    GSL_RB_MUTEX_LOCK();
 	// context switch if needed
 	kgsl_drawctxt_switch(device, &device->drawctxt[drawctxt_index], flags);
 
@@ -903,7 +886,7 @@ kgsl_ringbuffer_issueibcmds(gsl_device_t *device, int drawctxt_index, gpuaddr_t 
     // idle device when running in safe mode
     if (device->flags & GSL_FLAGS_SAFEMODE)
     {
-        kgsl_device_idle(device->id, GSL_TIMEOUT_DEFAULT);
+        device->ftbl.device_idle(device, GSL_TIMEOUT_DEFAULT);
     }
     else
     {
@@ -911,10 +894,9 @@ kgsl_ringbuffer_issueibcmds(gsl_device_t *device, int drawctxt_index, gpuaddr_t 
         {
             // insert wait for idle after every IB1
             // this is conservative but works reliably and is ok even for performance simulations
-            kgsl_device_idle(device->id, GSL_TIMEOUT_DEFAULT);
+            device->ftbl.device_idle(device, GSL_TIMEOUT_DEFAULT);
         });
     }
-    GSL_RB_MUTEX_UNLOCK();
     KGSL_DEBUG(GSL_DBGFLAGS_DUMPX,
     {
         if(dumpx_swap)
@@ -940,19 +922,19 @@ kgsl_ringbuffer_debug(gsl_ringbuffer_t *rb, gsl_rb_debug_t *rb_debug)
     rb_debug->pm4_ucode_rel = PM4_MICROCODE_VERSION;
     rb_debug->pfp_ucode_rel = PFP_MICROCODE_VERSION;
 
-    kgsl_device_regread(rb->device->id, mmCP_RB_BASE,      (unsigned int *)&rb_debug->cp_rb_base);
-    kgsl_device_regread(rb->device->id, mmCP_RB_CNTL,      (unsigned int *)&rb_debug->cp_rb_cntl);
-    kgsl_device_regread(rb->device->id, mmCP_RB_RPTR_ADDR, (unsigned int *)&rb_debug->cp_rb_rptr_addr);
-    kgsl_device_regread(rb->device->id, mmCP_RB_RPTR,      (unsigned int *)&rb_debug->cp_rb_rptr);
-    kgsl_device_regread(rb->device->id, mmCP_RB_WPTR,      (unsigned int *)&rb_debug->cp_rb_wptr);
-    kgsl_device_regread(rb->device->id, mmCP_RB_WPTR_BASE, (unsigned int *)&rb_debug->cp_rb_wptr_base);
-    kgsl_device_regread(rb->device->id, mmSCRATCH_UMSK,    (unsigned int *)&rb_debug->scratch_umsk);
-    kgsl_device_regread(rb->device->id, mmSCRATCH_ADDR,    (unsigned int *)&rb_debug->scratch_addr);
-    kgsl_device_regread(rb->device->id, mmCP_ME_CNTL,      (unsigned int *)&rb_debug->cp_me_cntl);
-    kgsl_device_regread(rb->device->id, mmCP_ME_STATUS,    (unsigned int *)&rb_debug->cp_me_status);
-    kgsl_device_regread(rb->device->id, mmCP_DEBUG,        (unsigned int *)&rb_debug->cp_debug);
-    kgsl_device_regread(rb->device->id, mmCP_STAT,         (unsigned int *)&rb_debug->cp_stat);
-    kgsl_device_regread(rb->device->id, mmRBBM_STATUS,     (unsigned int *)&rb_debug->rbbm_status);
+    rb->device->ftbl.device_regread(rb->device, mmCP_RB_BASE,      (unsigned int *)&rb_debug->cp_rb_base);
+    rb->device->ftbl.device_regread(rb->device, mmCP_RB_CNTL,      (unsigned int *)&rb_debug->cp_rb_cntl);
+    rb->device->ftbl.device_regread(rb->device, mmCP_RB_RPTR_ADDR, (unsigned int *)&rb_debug->cp_rb_rptr_addr);
+    rb->device->ftbl.device_regread(rb->device, mmCP_RB_RPTR,      (unsigned int *)&rb_debug->cp_rb_rptr);
+    rb->device->ftbl.device_regread(rb->device, mmCP_RB_WPTR,      (unsigned int *)&rb_debug->cp_rb_wptr);
+    rb->device->ftbl.device_regread(rb->device, mmCP_RB_WPTR_BASE, (unsigned int *)&rb_debug->cp_rb_wptr_base);
+    rb->device->ftbl.device_regread(rb->device, mmSCRATCH_UMSK,    (unsigned int *)&rb_debug->scratch_umsk);
+    rb->device->ftbl.device_regread(rb->device, mmSCRATCH_ADDR,    (unsigned int *)&rb_debug->scratch_addr);
+    rb->device->ftbl.device_regread(rb->device, mmCP_ME_CNTL,      (unsigned int *)&rb_debug->cp_me_cntl);
+    rb->device->ftbl.device_regread(rb->device, mmCP_ME_STATUS,    (unsigned int *)&rb_debug->cp_me_status);
+    rb->device->ftbl.device_regread(rb->device, mmCP_DEBUG,        (unsigned int *)&rb_debug->cp_debug);
+    rb->device->ftbl.device_regread(rb->device, mmCP_STAT,         (unsigned int *)&rb_debug->cp_stat);
+    rb->device->ftbl.device_regread(rb->device, mmRBBM_STATUS,     (unsigned int *)&rb_debug->rbbm_status);
     rb_debug->sop_timestamp = kgsl_cmdstream_readtimestamp(rb->device->id, GSL_TIMESTAMP_CONSUMED);
     rb_debug->eop_timestamp = kgsl_cmdstream_readtimestamp(rb->device->id, GSL_TIMESTAMP_RETIRED);
 }
@@ -1022,7 +1004,7 @@ kgsl_ringbuffer_bist(gsl_ringbuffer_t *rb)
 
     kgsl_ringbuffer_submit(rb);
 
-    status = kgsl_device_idle(rb->device->id, GSL_TIMEOUT_DEFAULT);
+    status = rb->device->ftbl.device_idle(rb->device, GSL_TIMEOUT_DEFAULT);
 
     if (status != GSL_SUCCESS)
     {
@@ -1049,7 +1031,7 @@ kgsl_ringbuffer_bist(gsl_ringbuffer_t *rb)
 
     kgsl_ringbuffer_submit(rb);
 
-    status = kgsl_device_idle(rb->device->id, GSL_TIMEOUT_DEFAULT);
+    status = rb->device->ftbl.device_idle(rb->device, GSL_TIMEOUT_DEFAULT);
 
     if (status != GSL_SUCCESS)
     {
@@ -1060,7 +1042,7 @@ kgsl_ringbuffer_bist(gsl_ringbuffer_t *rb)
         return (status);
     }
 
-    kgsl_device_regread(rb->device->id, mmSCRATCH_REG7, &temp);
+    rb->device->ftbl.device_regread(rb->device, mmSCRATCH_REG7, &temp);
 
     if (temp != 0xFEEDF00D)
     {
@@ -1097,7 +1079,7 @@ kgsl_ringbuffer_bist(gsl_ringbuffer_t *rb)
 
         kgsl_ringbuffer_submit(rb);
 
-        status = kgsl_device_idle(rb->device->id, GSL_TIMEOUT_DEFAULT);
+        status = rb->device->ftbl.device_idle(rb->device, GSL_TIMEOUT_DEFAULT);
 
         if (status != GSL_SUCCESS)
         {
@@ -1108,7 +1090,7 @@ kgsl_ringbuffer_bist(gsl_ringbuffer_t *rb)
             return (status);
         }
 
-        kgsl_device_regread(rb->device->id, mmSCRATCH_REG7, &temp);
+        rb->device->ftbl.device_regread(rb->device, mmSCRATCH_REG7, &temp);
 
         if (temp != k)
         {
@@ -1137,7 +1119,7 @@ kgsl_ringbuffer_bist(gsl_ringbuffer_t *rb)
 
         kgsl_ringbuffer_submit(rb);
 
-        status = kgsl_device_idle(rb->device->id, GSL_TIMEOUT_DEFAULT);
+        status = rb->device->ftbl.device_idle(rb->device, GSL_TIMEOUT_DEFAULT);
 
         if (status != GSL_SUCCESS)
         {

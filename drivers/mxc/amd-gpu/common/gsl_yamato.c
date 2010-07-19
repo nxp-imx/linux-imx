@@ -52,7 +52,7 @@ kgsl_yamato_gmeminit(gsl_device_t *device)
     rb_edram_info.f.edram_mapping_mode = 0;                                     // EDRAM_MAP_UPPER
     rb_edram_info.f.edram_range        = (device->gmemspace.gpu_base >> 14);    // must be aligned to size
 
-    kgsl_device_regwrite(device->id, mmRB_EDRAM_INFO, (unsigned int)rb_edram_info.val);
+    device->ftbl.device_regwrite(device, mmRB_EDRAM_INFO, (unsigned int)rb_edram_info.val);
 
     return (GSL_SUCCESS);
 }
@@ -62,7 +62,7 @@ kgsl_yamato_gmeminit(gsl_device_t *device)
 static int
 kgsl_yamato_gmemclose(gsl_device_t *device)
 {
-    kgsl_device_regwrite(device->id, mmRB_EDRAM_INFO, 0x00000000);
+    device->ftbl.device_regwrite(device, mmRB_EDRAM_INFO, 0x00000000);
 
     return (GSL_SUCCESS);
 }
@@ -79,7 +79,7 @@ kgsl_yamato_rbbmintrcallback(gsl_intrid_t id, void *cookie)
         // error condition interrupt
         case GSL_INTR_YDX_RBBM_READ_ERROR:
 
-            kgsl_device_destroy(device);
+            device->ftbl.device_destroy(device);
             break;
 
         // non-error condition interrupt
@@ -189,15 +189,15 @@ kgsl_yamato_isr(gsl_device_t *device)
 #endif // DEBUG
 
     // determine if yamato is interrupting, and if so, which block
-    kgsl_device_regread(device->id, mmMASTER_INT_SIGNAL, &status);
+    device->ftbl.device_regread(device, mmMASTER_INT_SIGNAL, &status);
 
     if (status & MASTER_INT_SIGNAL__MH_INT_STAT)
     {
 #ifdef _DEBUG
         // obtain mh error information
-        kgsl_device_regread(device->id, mmMH_MMU_PAGE_FAULT, (unsigned int *)&page_fault);
-        kgsl_device_regread(device->id, mmMH_AXI_ERROR, (unsigned int *)&axi_error);
-        kgsl_device_regread(device->id, mmMH_CLNT_AXI_ID_REUSE, (unsigned int *)&clnt_axi_id_reuse);
+        device->ftbl.device_regread(device, mmMH_MMU_PAGE_FAULT, (unsigned int *)&page_fault);
+        device->ftbl.device_regread(device, mmMH_AXI_ERROR, (unsigned int *)&axi_error);
+        device->ftbl.device_regread(device, mmMH_CLNT_AXI_ID_REUSE, (unsigned int *)&clnt_axi_id_reuse);
 #endif // DEBUG
 
         kgsl_intr_decode(device, GSL_INTR_BLOCK_YDX_MH);
@@ -212,7 +212,7 @@ kgsl_yamato_isr(gsl_device_t *device)
     {
 #ifdef _DEBUG
         // obtain rbbm error information
-        kgsl_device_regread(device->id, mmRBBM_READ_ERROR, (unsigned int *)&read_error);
+        device->ftbl.device_regread(device, mmRBBM_READ_ERROR, (unsigned int *)&read_error);
 #endif // DEBUG
 
         kgsl_intr_decode(device, GSL_INTR_BLOCK_YDX_RBBM);
@@ -248,7 +248,7 @@ kgsl_yamato_tlbinvalidate(gsl_device_t *device, unsigned int reg_invalidate, uns
 	else
 	{
 
-        kgsl_device_regwrite(device->id, reg_invalidate, mh_mmu_invalidate.val);
+        device->ftbl.device_regwrite(device, reg_invalidate, mh_mmu_invalidate.val);
     }
 
     return (GSL_SUCCESS);
@@ -307,9 +307,8 @@ kgsl_yamato_setpagetable(gsl_device_t *device, unsigned int reg_ptbase, gpuaddr_
 	}
 	else
 	{
-		kgsl_device_idle(device->id, GSL_TIMEOUT_DEFAULT);
-
-		kgsl_device_regwrite(device->id, reg_ptbase, ptbase);
+		device->ftbl.device_idle(device, GSL_TIMEOUT_DEFAULT);
+		device->ftbl.device_regwrite(device, reg_ptbase, ptbase);
     }
 
     return (GSL_SUCCESS);
@@ -329,29 +328,29 @@ kgsl_yamato_init(gsl_device_t *device)
     //We need to make sure all blocks are powered up and clocked before
     //issuing a soft reset.  The overrides will be turned off (set to 0)
     //later in kgsl_yamato_start.
-    kgsl_device_regwrite(device->id, mmRBBM_PM_OVERRIDE1, 0xfffffffe);
-    kgsl_device_regwrite(device->id, mmRBBM_PM_OVERRIDE2, 0xffffffff);
+    device->ftbl.device_regwrite(device, mmRBBM_PM_OVERRIDE1, 0xfffffffe);
+    device->ftbl.device_regwrite(device, mmRBBM_PM_OVERRIDE2, 0xffffffff);
 
     // soft reset
-    kgsl_device_regwrite(device->id, mmRBBM_SOFT_RESET, 0xFFFFFFFF);
+    device->ftbl.device_regwrite(device, mmRBBM_SOFT_RESET, 0xFFFFFFFF);
     kos_sleep(50);
-    kgsl_device_regwrite(device->id, mmRBBM_SOFT_RESET, 0x00000000);
+    device->ftbl.device_regwrite(device, mmRBBM_SOFT_RESET, 0x00000000);
 
     // RBBM control
-    kgsl_device_regwrite(device->id, mmRBBM_CNTL, 0x00004442);
+    device->ftbl.device_regwrite(device, mmRBBM_CNTL, 0x00004442);
 
     // setup MH arbiter
-    kgsl_device_regwrite(device->id, mmMH_ARBITER_CONFIG, *(unsigned int *) &gsl_cfg_yamato_mharb);
+    device->ftbl.device_regwrite(device, mmMH_ARBITER_CONFIG, *(unsigned int *) &gsl_cfg_yamato_mharb);
 
     // SQ_*_PROGRAM
-    kgsl_device_regwrite(device->id, mmSQ_VS_PROGRAM, 0x00000000);
-    kgsl_device_regwrite(device->id, mmSQ_PS_PROGRAM, 0x00000000);
+    device->ftbl.device_regwrite(device, mmSQ_VS_PROGRAM, 0x00000000);
+    device->ftbl.device_regwrite(device, mmSQ_PS_PROGRAM, 0x00000000);
 
     // init interrupt
     status = kgsl_intr_init(device);
     if (status != GSL_SUCCESS)
     {
-        kgsl_device_stop(device->id);
+        device->ftbl.device_stop(device);
         return (status);
     }
 
@@ -359,7 +358,7 @@ kgsl_yamato_init(gsl_device_t *device)
     status = kgsl_mmu_init(device);
     if (status != GSL_SUCCESS)
     {
-        kgsl_device_stop(device->id);
+        device->ftbl.device_stop(device);
         return (status);
     }
 
@@ -409,7 +408,7 @@ kgsl_yamato_destroy(gsl_device_t *device)
         pid = device->callerprocess[i];
         if (pid)
         {
-            kgsl_device_stop(device->id);
+            device->ftbl.device_stop(device);
             kgsl_driver_destroy(pid);
 
             // todo: terminate client process?
@@ -436,8 +435,8 @@ kgsl_yamato_start(gsl_device_t *device, gsl_flags_t flags)
     // default power management override when running in safe mode
     pm1 = (device->flags & GSL_FLAGS_SAFEMODE) ? 0xFFFFFFFE : 0x00000000;
     pm2 = (device->flags & GSL_FLAGS_SAFEMODE) ? 0x000000FF : 0x00000000;
-    kgsl_device_regwrite(device->id, mmRBBM_PM_OVERRIDE1, pm1);
-    kgsl_device_regwrite(device->id, mmRBBM_PM_OVERRIDE2, pm2);
+    device->ftbl.device_regwrite(device, mmRBBM_PM_OVERRIDE1, pm1);
+    device->ftbl.device_regwrite(device, mmRBBM_PM_OVERRIDE2, pm2);
 
     // enable rbbm interrupts
     kgsl_intr_attach(&device->intr, GSL_INTR_YDX_RBBM_READ_ERROR, kgsl_yamato_rbbmintrcallback, (void *) device);
@@ -465,7 +464,7 @@ kgsl_yamato_start(gsl_device_t *device, gsl_flags_t flags)
     status = kgsl_ringbuffer_init(device);
     if (status != GSL_SUCCESS)
     {
-        kgsl_device_stop(device->id);
+        device->ftbl.device_stop(device);
         return (status);
     }
 
@@ -473,7 +472,7 @@ kgsl_yamato_start(gsl_device_t *device, gsl_flags_t flags)
     status = kgsl_drawctxt_init(device);
     if (status != GSL_SUCCESS)
     {
-        kgsl_device_stop(device->id);
+        device->ftbl.device_stop(device);
         return (status);
     }
 
@@ -570,13 +569,13 @@ kgsl_yamato_setproperty(gsl_device_t *device, gsl_property_type_t type, void *va
         {
             if (power->flags & GSL_PWRFLAGS_OVERRIDE_ON)
             {
-                kgsl_device_regwrite(device->id, mmRBBM_PM_OVERRIDE1, 0xfffffffe);
-                kgsl_device_regwrite(device->id, mmRBBM_PM_OVERRIDE2, 0xffffffff);
+                device->ftbl.device_regwrite(device, mmRBBM_PM_OVERRIDE1, 0xfffffffe);
+                device->ftbl.device_regwrite(device, mmRBBM_PM_OVERRIDE2, 0xffffffff);
             }
             else if (power->flags & GSL_PWRFLAGS_OVERRIDE_OFF)
             {
-                kgsl_device_regwrite(device->id, mmRBBM_PM_OVERRIDE1, 0x00000000);
-                kgsl_device_regwrite(device->id, mmRBBM_PM_OVERRIDE2, 0x00000000);
+                device->ftbl.device_regwrite(device, mmRBBM_PM_OVERRIDE1, 0x00000000);
+                device->ftbl.device_regwrite(device, mmRBBM_PM_OVERRIDE2, 0x00000000);
             }
             else
             {
@@ -730,10 +729,7 @@ kgsl_yamato_idle(gsl_device_t *device, unsigned int timeout)
 
     (void) timeout;      // unreferenced formal parameter
 
-    KGSL_DEBUG(GSL_DBGFLAGS_DUMPX, KGSL_DEBUG_DUMPX(BB_DUMP_REGPOLL, device->id, mmRBBM_STATUS, 0x80000000, "kgsl_device_idle"));
-
-    GSL_RB_MUTEX_LOCK();
-    GSL_API_MUTEX_UNLOCK();
+    KGSL_DEBUG(GSL_DBGFLAGS_DUMPX, KGSL_DEBUG_DUMPX(BB_DUMP_REGPOLL, device->id, mmRBBM_STATUS, 0x80000000, "kgsl_yamato_idle"));
 
     // first, wait until the CP has consumed all the commands in the ring buffer
     if (rb->flags & GSL_FLAGS_STARTED)
@@ -748,7 +744,7 @@ kgsl_yamato_idle(gsl_device_t *device, unsigned int timeout)
     // now, wait for the GPU to finish its operations
     for ( ; ; )
     {
-        kgsl_device_regread(device->id, mmRBBM_STATUS, (unsigned int *)&rbbm_status);
+        device->ftbl.device_regread(device, mmRBBM_STATUS, (unsigned int *)&rbbm_status);
 
         if (!(rbbm_status.val & 0x80000000))
         {
@@ -757,9 +753,6 @@ kgsl_yamato_idle(gsl_device_t *device, unsigned int timeout)
         }
 
     }
-
-    GSL_API_MUTEX_LOCK();
-    GSL_RB_MUTEX_UNLOCK();
 
     return (status);
 }
@@ -798,7 +791,7 @@ kgsl_yamato_regwrite(gsl_device_t *device, unsigned int offsetwords, unsigned in
     // idle device when running in safe mode
     if (device->flags & GSL_FLAGS_SAFEMODE)
     {
-        kgsl_device_idle(device->id, GSL_TIMEOUT_DEFAULT);
+        device->ftbl.device_idle(device, GSL_TIMEOUT_DEFAULT);
     }
 
     return (GSL_SUCCESS);
@@ -816,18 +809,14 @@ kgsl_yamato_waitirq(gsl_device_t *device, gsl_intrid_t intr_id, unsigned int *co
     {
         if (kgsl_intr_isenabled(&device->intr, intr_id) == GSL_SUCCESS)
         {
-            GSL_API_MUTEX_UNLOCK();
-
             // wait until intr completion event is received
             if (kos_event_wait(device->intr.evnt[intr_id], timeout) == OS_SUCCESS)
             {
-                GSL_API_MUTEX_LOCK();
                 *count = 1;
                 status = GSL_SUCCESS;
             }
             else
             {
-                GSL_API_MUTEX_LOCK();
                 status = GSL_FAILURE_TIMEOUT;
             }
         }

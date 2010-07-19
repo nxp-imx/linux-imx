@@ -48,7 +48,6 @@
 #define GSL_APERTURE_GETHOSTADDR(shmem, aperture_index) \
     shmem.apertures[aperture_index].memarena->hostbaseaddr;
 
-
 //////////////////////////////////////////////////////////////////////////////
 //  types
 //////////////////////////////////////////////////////////////////////////////
@@ -100,7 +99,11 @@ typedef struct _gsl_sharedmem_t
 //////////////////////////////////////////////////////////////////////////////
 int             kgsl_sharedmem_init(gsl_sharedmem_t *shmem);
 int             kgsl_sharedmem_close(gsl_sharedmem_t *shmem);
+int             kgsl_sharedmem_alloc0(gsl_deviceid_t device_id, gsl_flags_t flags, int sizebytes, gsl_memdesc_t *memdesc);
 int             kgsl_sharedmem_free0(gsl_memdesc_t *memdesc, unsigned int pid);
+int             kgsl_sharedmem_read0(const gsl_memdesc_t *memdesc, void *dst, unsigned int offsetbytes, unsigned int sizebytes, unsigned int touserspace);
+int             kgsl_sharedmem_write0(const gsl_memdesc_t *memdesc, unsigned int offsetbytes, void *src, unsigned int sizebytes, unsigned int fromuserspace);
+int             kgsl_sharedmem_set0(const gsl_memdesc_t *memdesc, unsigned int offsetbytes, unsigned int value, unsigned int sizebytes);
 int             kgsl_sharedmem_querystats(gsl_sharedmem_t *shmem, gsl_sharedmem_stats_t *stats);
 unsigned int    kgsl_sharedmem_convertaddr(unsigned int addr, int type);
 

@@ -137,8 +137,6 @@ typedef struct _gsl_ringbuffer_t {
     gsl_device_t      *device;
     gsl_flags_t       flags;
 
-    oshandle_t        mutex;
-
     gsl_memdesc_t     buffer_desc;              // allocated memory descriptor
     gsl_memdesc_t     memptrs_desc;
 
@@ -164,19 +162,6 @@ typedef struct _gsl_ringbuffer_t {
 //////////////////////////////////////////////////////////////////////////////
 // macros
 //////////////////////////////////////////////////////////////////////////////
-
-#ifdef GSL_LOCKING_FINEGRAIN
-#define GSL_RB_MUTEX_CREATE()               rb->mutex = kos_mutex_create("gsl_ringbuffer"); \
-                                            if (!rb->mutex) {return (GSL_FAILURE);}
-#define GSL_RB_MUTEX_LOCK()                 kos_mutex_lock(rb->mutex)
-#define GSL_RB_MUTEX_UNLOCK()               kos_mutex_unlock(rb->mutex)
-#define GSL_RB_MUTEX_FREE()                 kos_mutex_free(rb->mutex); rb->mutex = 0;
-#else
-#define GSL_RB_MUTEX_CREATE()
-#define GSL_RB_MUTEX_LOCK()
-#define GSL_RB_MUTEX_UNLOCK()
-#define GSL_RB_MUTEX_FREE()
-#endif
 
 // ----------
 // ring write
@@ -206,10 +191,10 @@ typedef struct _gsl_ringbuffer_t {
 // --------
 #ifdef  GSL_RB_USE_MEM_RPTR
 #define GSL_RB_CNTL_NO_UPDATE               0x0     // enable
-#define GSL_RB_GET_READPTR(rb, data)        kgsl_sharedmem_read(&(rb)->memptrs_desc, (data), GSL_RB_MEMPTRS_RPTR_OFFSET, 4, false)
+#define GSL_RB_GET_READPTR(rb, data)        kgsl_sharedmem_read0(&(rb)->memptrs_desc, (data), GSL_RB_MEMPTRS_RPTR_OFFSET, 4, false)
 #else
 #define GSL_RB_CNTL_NO_UPDATE               0x1     // disable
-#define GSL_RB_GET_READPTR(rb, data)        kgsl_device_regread((rb)->device->id, mmCP_RB_RPTR,(data))
+#define GSL_RB_GET_READPTR(rb, data)        (rb)->device->fbtl.device_regread((rb)->device, mmCP_RB_RPTR,(data))
 #endif // GSL_RB_USE_MEMRPTR
 
 // ------------

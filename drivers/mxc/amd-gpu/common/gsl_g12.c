@@ -21,7 +21,6 @@
 #include "kos_libapi.h"
 #include "gsl_cmdstream.h"
 #ifdef _LINUX
-#include <linux/kthread.h>
 #include <linux/sched.h>
 #endif
 
@@ -133,7 +132,7 @@ kgsl_g12_intrcallback(gsl_intrid_t id, void *cookie)
 
         // error condition interrupt
         case GSL_INTR_G12_FIFO:
-            kgsl_device_destroy(device);
+            device->ftbl.device_destroy(device);
             break;
 
         case GSL_INTR_G12_MH:
@@ -157,7 +156,7 @@ kgsl_g12_isr(gsl_device_t *device)
 #endif // DEBUG
 
     // determine if G12 is interrupting
-    kgsl_device_regread(device->id, (ADDR_VGC_IRQSTATUS >> 2), &status);
+    device->ftbl.device_regread(device, (ADDR_VGC_IRQSTATUS >> 2), &status);
 
     if (status)
     {
@@ -166,8 +165,8 @@ kgsl_g12_isr(gsl_device_t *device)
         {
 #ifdef _DEBUG
             // obtain mh error information
-            kgsl_device_regread(device->id, ADDR_MH_MMU_PAGE_FAULT, (unsigned int *)&page_fault);
-            kgsl_device_regread(device->id, ADDR_MH_AXI_ERROR, (unsigned int *)&axi_error);
+            device->ftbl.device_regread(device, ADDR_MH_MMU_PAGE_FAULT, (unsigned int *)&page_fault);
+            device->ftbl.device_regread(device, ADDR_MH_AXI_ERROR, (unsigned int *)&axi_error);
 #endif // DEBUG
 
             kgsl_intr_decode(device, GSL_INTR_BLOCK_G12_MH);
@@ -193,7 +192,7 @@ kgsl_g12_tlbinvalidate(gsl_device_t *device, unsigned int reg_invalidate, unsign
     mh_mmu_invalidate.INVALIDATE_ALL = 1;
     mh_mmu_invalidate.INVALIDATE_TC  = 1;
 
-    kgsl_device_regwrite(device->id, reg_invalidate, *(unsigned int *) &mh_mmu_invalidate);
+    device->ftbl.device_regwrite(device, reg_invalidate, *(unsigned int *) &mh_mmu_invalidate);
 #else
     (void)device;
     (void)reg_invalidate;
@@ -206,13 +205,11 @@ kgsl_g12_tlbinvalidate(gsl_device_t *device, unsigned int reg_invalidate, unsign
 int
 kgsl_g12_setpagetable(gsl_device_t *device, unsigned int reg_ptbase, gpuaddr_t ptbase, unsigned int pid)
 {
-#ifndef GSL_NO_MMU
-    // unreferenced formal parameter
+	// unreferenced formal parameter
 	(void) pid;
-
-    kgsl_device_idle(device->id, GSL_TIMEOUT_DEFAULT);
-
-	kgsl_device_regwrite(device->id, reg_ptbase, ptbase);
+#ifndef GSL_NO_MMU
+    device->ftbl.device_idle(device, GSL_TIMEOUT_DEFAULT);
+	device->ftbl.device_regwrite(device, reg_ptbase, ptbase);
 #else
     (void)device;
     (void)reg_ptbase;
@@ -227,11 +224,11 @@ kgsl_g12_setpagetable(gsl_device_t *device, unsigned int reg_ptbase, gpuaddr_t p
 static void kgsl_g12_updatetimestamp(gsl_device_t *device)
 {
 	unsigned int count = 0;
-	kgsl_device_regread(device->id, (ADDR_VGC_IRQ_ACTIVE_CNT >> 2), &count);
+	device->ftbl.device_regread(device, (ADDR_VGC_IRQ_ACTIVE_CNT >> 2), &count);
 	count >>= 8;
 	count &= 255;
 	device->timestamp += count;	
-	kgsl_sharedmem_write(&device->memstore, GSL_DEVICE_MEMSTORE_OFFSET(eoptimestamp), &device->timestamp, 4, 0);
+	kgsl_sharedmem_write0(&device->memstore, GSL_DEVICE_MEMSTORE_OFFSET(eoptimestamp), &device->timestamp, 4, 0);
 }
 
 //----------------------------------------------------------------------------
@@ -256,18 +253,18 @@ kgsl_g12_init(gsl_device_t *device)
     kgsl_hal_setpowerstate(device->id, GSL_PWRFLAGS_POWER_ON, 100);
 
     // setup MH arbiter - MH offsets are considered to be dword based, therefore no down shift
-    kgsl_device_regwrite(device->id, ADDR_MH_ARBITER_CONFIG, *(unsigned int *) &gsl_cfg_g12_mharb);
+    device->ftbl.device_regwrite(device, ADDR_MH_ARBITER_CONFIG, *(unsigned int *) &gsl_cfg_g12_mharb);
 
     // init interrupt
     status = kgsl_intr_init(device);
     if (status != GSL_SUCCESS)
     {
-        kgsl_device_stop(device->id);
+        device->ftbl.device_stop(device);
         return (status);
     }
 
     // enable irq
-    kgsl_device_regwrite(device->id, (ADDR_VGC_IRQENABLE >> 2), 0x3);
+    device->ftbl.device_regwrite(device, (ADDR_VGC_IRQENABLE >> 2), 0x3);
 
 #ifndef GSL_NO_MMU
     // enable master interrupt for G12 MH
@@ -278,7 +275,7 @@ kgsl_g12_init(gsl_device_t *device)
     status = kgsl_mmu_init(device);
     if (status != GSL_SUCCESS)
     {
-        kgsl_device_stop(device->id);
+        device->ftbl.device_stop(device);
         return (status);
     }
 #endif
@@ -318,20 +315,15 @@ kgsl_g12_init(gsl_device_t *device)
 int
 kgsl_g12_close(gsl_device_t *device)
 {
-#if defined(_LINUX)
-    int status;
-//    printk(KERN_INFO "\npid=%u, %s\n", current->pid, __func__);
-#endif
+    int status = GSL_FAILURE; 
 
     if (device->refcnt == 0)
     {
         // wait pending interrupts before shutting down G12 intr thread to
         // empty irq counters. Otherwise there's a possibility to have them in
         // registers next time systems starts up and this results in a hang.
-#ifndef _WIN32_WCE
-        status = kgsl_g12_idle(device, 1000);
+        status = device->ftbl.device_idle(device, 1000);
         KOS_ASSERT(status == GSL_SUCCESS);
-#endif
 
 #ifndef _LINUX
         kos_thread_destroy(device->irq_thread_handle);
@@ -359,7 +351,7 @@ kgsl_g12_close(gsl_device_t *device)
 
         kgsl_hal_setpowerstate(device->id, GSL_PWRFLAGS_POWER_OFF, 0);
 
-        kgsl_device_idle(device->id, GSL_TIMEOUT_NONE);
+        device->ftbl.device_idle(device, GSL_TIMEOUT_NONE);
         device->flags &= ~GSL_FLAGS_INITIALIZED;
 
 #if defined(__SYMBIAN32__)
@@ -396,7 +388,7 @@ kgsl_g12_destroy(gsl_device_t *device)
         pid = device->callerprocess[i];
         if (pid)
         {
-            kgsl_device_stop(device->id);
+            device->ftbl.device_stop(device);
             kgsl_driver_destroy(pid);
 
             // todo: terminate client process?
@@ -421,7 +413,7 @@ kgsl_g12_start(gsl_device_t *device, gsl_flags_t flags)
     status = kgsl_cmdwindow_init(device);
     if (status != GSL_SUCCESS)
     {
-        kgsl_device_stop(device->id);
+        device->ftbl.device_stop(device);
         return (status);
     }
 
@@ -442,7 +434,7 @@ kgsl_g12_stop(gsl_device_t *device)
     KOS_ASSERT(device->refcnt == 0);
 
     /* wait for device to idle before setting it's clock off */
-    status = kgsl_g12_idle(device, 1000);
+    status = device->ftbl.device_idle(device, 1000);
     KOS_ASSERT(status == GSL_SUCCESS);
 
     status = kgsl_hal_setpowerstate(device->id, GSL_PWRFLAGS_CLK_OFF, 0);
@@ -509,21 +501,18 @@ kgsl_g12_setproperty(gsl_device_t *device, gsl_property_type_t type, void *value
 int             
 kgsl_g12_idle(gsl_device_t *device, unsigned int timeout)
 {
-    unsigned int timestamp;
-    int deltaTimestamp = 0;
-    // unreferenced formal parameters
-    (void) timeout;
+	if ( device->flags & GSL_FLAGS_STARTED )
+	{
+		for ( ; ; )
+		{
+			gsl_timestamp_t retired = kgsl_cmdstream_readtimestamp0( device->id, GSL_TIMESTAMP_RETIRED );
+			gsl_timestamp_t ts_diff = retired - device->current_timestamp;
+			if ( ts_diff >= 0 || ts_diff < -GSL_TIMESTAMP_EPSILON )
+				break;
+			kos_sleep(10);
+		}
+	}
 
-   if ((device->flags & GSL_FLAGS_STARTED))
-    {
-        do
-        {
-            timestamp = kgsl_cmdstream_readtimestamp( device->id, GSL_TIMESTAMP_RETIRED );
-            kos_sleep( 0 );
-            deltaTimestamp = timestamp - device->current_timestamp;         
-        }
-        while(!((deltaTimestamp >= 0) || (deltaTimestamp < -GSL_TIMESTAMP_EPSILON)));
-    }
     return (GSL_SUCCESS);
 }
 
@@ -537,10 +526,10 @@ kgsl_g12_regread(gsl_device_t *device, unsigned int offsetwords, unsigned int *v
         (offsetwords >= ADDR_MH_MMU_CONFIG     && offsetwords <= ADDR_MH_MMU_MPU_END))
     {
 #ifdef _Z180
-        kgsl_device_regwrite(device->id, (ADDR_VGC_MH_READ_ADDR >> 2), offsetwords);
+        device->ftbl.device_regwrite(device, (ADDR_VGC_MH_READ_ADDR >> 2), offsetwords);
         GSL_HAL_REG_READ(device->id, (unsigned int) device->regspace.mmio_virt_base, (ADDR_VGC_MH_READ_ADDR >> 2), value);
 #else
-        kgsl_device_regwrite(device->id, (ADDR_MMU_READ_ADDR >> 2), offsetwords);
+        device->ftbl.device_regwrite(device, (ADDR_MMU_READ_ADDR >> 2), offsetwords);
         GSL_HAL_REG_READ(device->id, (unsigned int) device->regspace.mmio_virt_base, (ADDR_MMU_READ_DATA >> 2), value);
 #endif
     }
@@ -561,7 +550,7 @@ kgsl_g12_regwrite(gsl_device_t *device, unsigned int offsetwords, unsigned int v
     if ((offsetwords >= ADDR_MH_ARBITER_CONFIG && offsetwords <= ADDR_MH_AXI_HALT_CONTROL) ||
         (offsetwords >= ADDR_MH_MMU_CONFIG     && offsetwords <= ADDR_MH_MMU_MPU_END))
     {
-        kgsl_cmdwindow_write(device->id, GSL_CMDWINDOW_MMU, offsetwords, value);
+        kgsl_cmdwindow_write0(device->id, GSL_CMDWINDOW_MMU, offsetwords, value);
     }
     else
     {
@@ -571,7 +560,7 @@ kgsl_g12_regwrite(gsl_device_t *device, unsigned int offsetwords, unsigned int v
     // idle device when running in safe mode
     if (device->flags & GSL_FLAGS_SAFEMODE)
     {
-        kgsl_device_idle(device->id, GSL_TIMEOUT_DEFAULT);
+        device->ftbl.device_idle(device, GSL_TIMEOUT_DEFAULT);
     }
 
     return (GSL_SUCCESS);
@@ -607,12 +596,12 @@ kgsl_g12_waitirq(gsl_device_t *device, gsl_intrid_t intr_id, unsigned int *count
                 {
                     unsigned int cntrs;
                     int          i;
-		    kgsl_device_active(device);
+                    kgsl_device_active(device);
 #ifndef VG_HDK
                     kos_event_reset(device->intr.evnt[intr_id]);
-                    kgsl_device_regread(device->id, (ADDR_VGC_IRQ_ACTIVE_CNT >> 2), &cntrs);
+                    device->ftbl.device_regread(device, (ADDR_VGC_IRQ_ACTIVE_CNT >> 2), &cntrs);
 #else
-                    kgsl_device_regread(device->id, (0x38 >> 2), &cntrs);
+                    device->ftbl.device_regread(device, (0x38 >> 2), &cntrs);
 #endif
 
                     for (i = 0; i < GSL_G12_INTR_COUNT; i++) 
@@ -763,10 +752,7 @@ kgsl_g12_issueibcmds(gsl_device_t* device, int drawctxt_index, gpuaddr_t ibaddr,
 		GSL_CMDSTREAM_GET_EOP_TIMESTAMP(device, (int *)&processed_timestamp);
     }
 	
-    device->current_timestamp++;
-    g_z1xx.timestamp[nextbuf] = device->current_timestamp;
-
-    *timestamp = device->current_timestamp;
+    *timestamp = g_z1xx.timestamp[nextbuf] = device->current_timestamp + 1;
 
     /* context switch */
     if (drawctxt_index != (int)g_z1xx.prevctx)
@@ -780,18 +766,21 @@ kgsl_g12_issueibcmds(gsl_device_t* device, int drawctxt_index, gpuaddr_t ibaddr,
     beginpacket(&g_z1xx, cmd+ofs, cnt);
 
     tmp.gpuaddr=ibaddr+(sizedwords*sizeof(unsigned int));
-    kgsl_sharedmem_write(&tmp, 4, &nextaddr, 4, false);
-    kgsl_sharedmem_write(&tmp, 8, &nextcnt,  4, false);
+    kgsl_sharedmem_write0(&tmp, 4, &nextaddr, 4, false);
+    kgsl_sharedmem_write0(&tmp, 8, &nextcnt,  4, false);
 
     /* sync mem */ 
-    kgsl_sharedmem_write((const gsl_memdesc_t *)&g_z1xx.cmdbufdesc[g_z1xx.curr], 0, g_z1xx.cmdbuf[g_z1xx.curr], (512 + 13) * sizeof(unsigned int), false);
+    kgsl_sharedmem_write0((const gsl_memdesc_t *)&g_z1xx.cmdbufdesc[g_z1xx.curr], 0, g_z1xx.cmdbuf[g_z1xx.curr], (512 + 13) * sizeof(unsigned int), false);
 
     g_z1xx.offs = 0;
     g_z1xx.curr = nextbuf;
 
-    // quick & dirty hack --- note mark count is transferred through flags argument for now!!! FIX API
-    kgsl_cmdwindow_write(2, GSL_CMDWINDOW_2D, ADDR_VGV3_CONTROL, flags);
-    kgsl_cmdwindow_write(2, GSL_CMDWINDOW_2D, ADDR_VGV3_CONTROL, 0);
+    /* increment mark counter */
+    kgsl_cmdwindow_write0(2, GSL_CMDWINDOW_2D, ADDR_VGV3_CONTROL, flags);
+    kgsl_cmdwindow_write0(2, GSL_CMDWINDOW_2D, ADDR_VGV3_CONTROL, 0);
+
+    /* increment consumed timestamp */
+    device->current_timestamp++;
 
     return (GSL_SUCCESS);
 }
@@ -804,14 +793,14 @@ kgsl_g12_context_create(gsl_device_t* device, gsl_context_type_t type, unsigned 
     int status = 0;
     int i;
     int cmd;
-	gsl_flags_t gslflags = (GSL_MEMFLAGS_ALIGN4K);
+	gsl_flags_t gslflags = (GSL_MEMFLAGS_CONPHYS | GSL_MEMFLAGS_ALIGNPAGE);
 
     // unreferenced formal parameters
     (void) device;
     (void) type;
     //(void) drawctxt_id;
     (void) flags;
-
+    
     kgsl_device_active(device);
     
     if (g_z1xx.numcontext==0)
@@ -819,7 +808,7 @@ kgsl_g12_context_create(gsl_device_t* device, gsl_context_type_t type, unsigned 
          /* todo: move this to device create or start. Error checking!! */ 
         for (i=0;i<GSL_HAL_NUMCMDBUFFERS;i++)
         {
-            status = kgsl_sharedmem_alloc(GSL_DEVICE_ANY, gslflags, GSL_HAL_CMDBUFFERSIZE, &g_z1xx.cmdbufdesc[i]);
+            status = kgsl_sharedmem_alloc0(GSL_DEVICE_ANY, gslflags, GSL_HAL_CMDBUFFERSIZE, &g_z1xx.cmdbufdesc[i]);
             KOS_ASSERT(status == GSL_SUCCESS);          
             g_z1xx.cmdbuf[i]=kos_malloc(GSL_HAL_CMDBUFFERSIZE);
             KOS_ASSERT(g_z1xx.cmdbuf[i]);
@@ -828,33 +817,33 @@ kgsl_g12_context_create(gsl_device_t* device, gsl_context_type_t type, unsigned 
             g_z1xx.curr = i;
             g_z1xx.offs = 0;
             addmarker(&g_z1xx);
-            status = kgsl_sharedmem_write(&g_z1xx.cmdbufdesc[i],0, g_z1xx.cmdbuf[i],  (512 + 13) * sizeof(unsigned int), false);
+            status = kgsl_sharedmem_write0(&g_z1xx.cmdbufdesc[i],0, g_z1xx.cmdbuf[i],  (512 + 13) * sizeof(unsigned int), false);
             KOS_ASSERT(status == GSL_SUCCESS);
         }
         g_z1xx.curr = 0;
         cmd = (int)(((VGV3_NEXTCMD_JUMP) & VGV3_NEXTCMD_NEXTCMD_FMASK)<< VGV3_NEXTCMD_NEXTCMD_FSHIFT);
 
         /* set cmd stream buffer to hw */
-        status |= kgsl_cmdwindow_write(GSL_DEVICE_G12, GSL_CMDWINDOW_2D, ADDR_VGV3_MODE, 4);
-        status |= kgsl_cmdwindow_write(GSL_DEVICE_G12, GSL_CMDWINDOW_2D, ADDR_VGV3_NEXTADDR, g_z1xx.cmdbufdesc[0].gpuaddr );
-        status |= kgsl_cmdwindow_write(GSL_DEVICE_G12, GSL_CMDWINDOW_2D, ADDR_VGV3_NEXTCMD,  cmd | 5);
+        status |= kgsl_cmdwindow_write0(GSL_DEVICE_G12, GSL_CMDWINDOW_2D, ADDR_VGV3_MODE, 4);
+        status |= kgsl_cmdwindow_write0(GSL_DEVICE_G12, GSL_CMDWINDOW_2D, ADDR_VGV3_NEXTADDR, g_z1xx.cmdbufdesc[0].gpuaddr );
+        status |= kgsl_cmdwindow_write0(GSL_DEVICE_G12, GSL_CMDWINDOW_2D, ADDR_VGV3_NEXTCMD,  cmd | 5);
 
         KOS_ASSERT(status == GSL_SUCCESS);
 
         /* Edge buffer setup todo: move register setup to own function. 
            This function can be then called, if power managemnet is used and clocks are turned off and then on.
         */ 
-        status |= kgsl_sharedmem_alloc(GSL_DEVICE_ANY, gslflags, GSL_HAL_EDGE0BUFSIZE, &g_z1xx.e0);
-        status |= kgsl_sharedmem_alloc(GSL_DEVICE_ANY, gslflags, GSL_HAL_EDGE1BUFSIZE, &g_z1xx.e1);
-        status |= kgsl_sharedmem_set(&g_z1xx.e0, 0, 0, GSL_HAL_EDGE0BUFSIZE);
-        status |= kgsl_sharedmem_set(&g_z1xx.e1, 0, 0, GSL_HAL_EDGE1BUFSIZE);
+        status |= kgsl_sharedmem_alloc0(GSL_DEVICE_ANY, gslflags, GSL_HAL_EDGE0BUFSIZE, &g_z1xx.e0);
+        status |= kgsl_sharedmem_alloc0(GSL_DEVICE_ANY, gslflags, GSL_HAL_EDGE1BUFSIZE, &g_z1xx.e1);
+        status |= kgsl_sharedmem_set0(&g_z1xx.e0, 0, 0, GSL_HAL_EDGE0BUFSIZE);
+        status |= kgsl_sharedmem_set0(&g_z1xx.e1, 0, 0, GSL_HAL_EDGE1BUFSIZE);
 
-        status |= kgsl_cmdwindow_write(GSL_DEVICE_G12, GSL_CMDWINDOW_2D, GSL_HAL_EDGE0REG, g_z1xx.e0.gpuaddr);
-        status |= kgsl_cmdwindow_write(GSL_DEVICE_G12, GSL_CMDWINDOW_2D, GSL_HAL_EDGE1REG, g_z1xx.e1.gpuaddr);
+        status |= kgsl_cmdwindow_write0(GSL_DEVICE_G12, GSL_CMDWINDOW_2D, GSL_HAL_EDGE0REG, g_z1xx.e0.gpuaddr);
+        status |= kgsl_cmdwindow_write0(GSL_DEVICE_G12, GSL_CMDWINDOW_2D, GSL_HAL_EDGE1REG, g_z1xx.e1.gpuaddr);
 #ifdef _Z180
-        kgsl_sharedmem_alloc(GSL_DEVICE_ANY, gslflags, GSL_HAL_EDGE2BUFSIZE, &g_z1xx.e2);
-        kgsl_sharedmem_set(&g_z1xx.e2, 0, 0, GSL_HAL_EDGE2BUFSIZE);
-        kgsl_cmdwindow_write(GSL_DEVICE_G12, GSL_CMDWINDOW_2D, GSL_HAL_EDGE2REG, g_z1xx.e2.gpuaddr);
+        kgsl_sharedmem_alloc0(GSL_DEVICE_ANY, gslflags, GSL_HAL_EDGE2BUFSIZE, &g_z1xx.e2);
+        kgsl_sharedmem_set0(&g_z1xx.e2, 0, 0, GSL_HAL_EDGE2BUFSIZE);
+        kgsl_cmdwindow_write0(GSL_DEVICE_G12, GSL_CMDWINDOW_2D, GSL_HAL_EDGE2REG, g_z1xx.e2.gpuaddr);
 #endif  
         KOS_ASSERT(status == GSL_SUCCESS);
     } 
@@ -895,13 +884,13 @@ kgsl_g12_context_destroy(gsl_device_t* device, unsigned int drawctxt_id)
         int i;
         for (i=0;i<GSL_HAL_NUMCMDBUFFERS;i++)
         {
-            kgsl_sharedmem_free(&g_z1xx.cmdbufdesc[i]);
+            kgsl_sharedmem_free0(&g_z1xx.cmdbufdesc[i], GSL_CALLER_PROCESSID_GET());
             kos_free(g_z1xx.cmdbuf[i]);
         }
-        kgsl_sharedmem_free(&g_z1xx.e0);
-        kgsl_sharedmem_free(&g_z1xx.e1);
+        kgsl_sharedmem_free0(&g_z1xx.e0, GSL_CALLER_PROCESSID_GET());
+        kgsl_sharedmem_free0(&g_z1xx.e1, GSL_CALLER_PROCESSID_GET());
 #ifdef _Z180
-        kgsl_sharedmem_free(&g_z1xx.e2);
+        kgsl_sharedmem_free0(&g_z1xx.e2, GSL_CALLER_PROCESSID_GET());
 #endif
         kos_memset(&g_z1xx,0,sizeof(gsl_z1xx_t));
     }
@@ -957,7 +946,7 @@ static void irq_thread(void)
 #ifdef VG_HDK
             device->timestamp = timestamp;
 #else
-            kgsl_sharedmem_write(&device->memstore, GSL_DEVICE_MEMSTORE_OFFSET(eoptimestamp), &timestamp, 4, false);
+            kgsl_sharedmem_write0(&device->memstore, GSL_DEVICE_MEMSTORE_OFFSET(eoptimestamp), &timestamp, 4, false);
 #endif
 
             /* Notify timestamp event */
@@ -967,29 +956,14 @@ static void irq_thread(void)
         {
             /* Timeout */
 
-            /* Read a timestamp value */
-#ifdef VG_HDK            
-            timestamp = device->timestamp;
-#else
-            GSL_CMDSTREAM_GET_EOP_TIMESTAMP(device, (int *)&timestamp);
-#endif
-
-            /* TODO Add power management code */
-
-            if(timestamp < device->current_timestamp)
+           
+            if(!(device->flags&GSL_FLAGS_INITIALIZED))
             {
-                /* There is still pending IRQ's from HW */
-            }
-            else
-            {
-                if(!(device->flags&GSL_FLAGS_INITIALIZED))
-                {
-                    /* if device is closed -> thread exit */
+                /* if device is closed -> thread exit */
 #if defined(__SYMBIAN32__)
-                    device->irq_thread = 0;
+                device->irq_thread = 0;
 #endif
-                    return;
-                }
+                return;
             }
         }
     }

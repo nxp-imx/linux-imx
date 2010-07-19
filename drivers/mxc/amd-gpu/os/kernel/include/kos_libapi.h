@@ -57,9 +57,9 @@ extern "C" {
 //   KOS lib entrypoints
 //////////////////////////////////////////////////////////////////////////////
 #ifdef __KOSLIB_EXPORTS
-#define KOS_API         extern //KOS_DLLEXPORT
+#define KOS_API         KOS_DLLEXPORT
 #else
-#define KOS_API         extern //KOS_DLLIMPORT
+#define KOS_API         KOS_DLLIMPORT
 #endif // __KOSLIB_EXPORTS
 
 //////////////////////////////////////////////////////////////////////////////
@@ -79,16 +79,12 @@ KOS_API void                    kos_assert_hook(const char* file, int line, int 
 //#include <assert.h>
 //#define   KOS_ASSERT(expression)  assert(expression)
 #define KOS_ASSERT(expression)  /**/
-#elif defined(_LINUX)
-#include <assert.h>
-#define KOS_ASSERT(expression)  //BUG_ON(!(expression));
-#error KOS_ASSERT DEFINED, FINALLY!
 #elif defined(__ARM__)
 #define KOS_ASSERT(expression)
-#endif // _WIN32 _WIN32_WCE
-
 #elif defined(_LINUX)
-    #define KOS_ASSERT(expression) //kos_assert_hook(__FILE__, __LINE__, (int)(expression));
+#define KOS_ASSERT(expression) //kos_assert_hook(__FILE__, __LINE__, (int)(expression))
+#endif
+
 #else
 
 #define KOS_ASSERT(expression)
@@ -381,7 +377,7 @@ KOS_API unsigned int    kos_strtoul(const char* nptr, char** endptr, int base);
  * \param   void* name      Name string for the new mutex.
  * \return  Returns a handle to the mutex.
  *//*-------------------------------------------------------------------*/
-KOS_API oshandle_t      kos_mutex_create(char* name);
+KOS_API oshandle_t      kos_mutex_create(const char* name);
 /*-------------------------------------------------------------------*//*!
  * \external
  * \brief   Get a handle to an already existing mutex.
@@ -390,7 +386,7 @@ KOS_API oshandle_t      kos_mutex_create(char* name);
  * \param   void* name      Name string for the new mutex.
  * \return  Returns a handle to the mutex.
  *//*-------------------------------------------------------------------*/
-KOS_API oshandle_t      kos_mutex_open(char* name);
+KOS_API oshandle_t      kos_mutex_open(const char* name);
 /*-------------------------------------------------------------------*//*!
  * \external
  * \brief   Free the given mutex.

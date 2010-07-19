@@ -58,13 +58,13 @@ kgsl_intr_decode(gsl_device_t *device, gsl_intrblock_t block_id)
     unsigned int               status;
 
     // read the block's interrupt status bits
-    kgsl_device_regread(device->id, block->status_reg, &status);
+    device->ftbl.device_regread(device, block->status_reg, &status);
 
     // mask off any interrupts which are disabled
     status &= device->intr.enabled[block->id];
 
     // acknowledge the block's interrupts
-    kgsl_device_regwrite(device->id, block->clear_reg, status);
+    device->ftbl.device_regwrite(device, block->clear_reg, status);
 
     // loop through the block's masks, determine which interrupt bits are active, and call callback (or TODO queue DPC)
     for (id = block->first_id; id <= block->last_id; id++) 
@@ -91,7 +91,7 @@ kgsl_intr_isr()
 
         if (device->intr.flags & GSL_FLAGS_INITIALIZED)
         {
-	    kgsl_device_active(device);
+            kgsl_device_active(device);
             device->ftbl.intr_isr(device);
         }
     }
@@ -186,7 +186,7 @@ int kgsl_intr_enable(gsl_intr_t *intr, gsl_intrid_t id)
 
         enabled                 |= mask;
         intr->enabled[block->id] = enabled;
-        kgsl_device_regwrite(intr->device->id, block->mask_reg, enabled);
+        intr->device->ftbl.device_regwrite(intr->device, block->mask_reg, enabled);
     }
 
     return (GSL_SUCCESS);
@@ -223,7 +223,7 @@ int kgsl_intr_disable(gsl_intr_t *intr, gsl_intrid_t id)
     {
         enabled                 &= ~mask;
         intr->enabled[block->id] = enabled;
-        kgsl_device_regwrite(intr->device->id, block->mask_reg, enabled);
+        intr->device->ftbl.device_regwrite(intr->device, block->mask_reg, enabled);
 
         kos_event_signal(intr->evnt[id]); // wake up waiting threads before destroying the event
         kos_event_destroy(intr->evnt[id]);

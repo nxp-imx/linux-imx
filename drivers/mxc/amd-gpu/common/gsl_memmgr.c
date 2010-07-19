@@ -18,10 +18,6 @@
  
 #include "gsl.h"
 #include "gsl_hal.h"
-#if defined(_LINUX) && !defined(PAGE_SIZE)
-#define PAGE_SIZE (1<<12)
-#define PAGE_SHIFT (12)
-#endif
 
 //////////////////////////////////////////////////////////////////////////////
 //  defines                    
