@@ -1267,6 +1267,8 @@ static int mxc_v4l2out_streamon(vout_data * vout)
 	    vout->xres == out_width &&
 	    vout->yres == out_height &&
 	    ipu_can_rotate_in_place(vout->rotate) &&
+	    (vout->bytesperline ==
+	     bytes_per_pixel(vout->v2f.fmt.pix.pixelformat) * out_width) &&
 	    !INTERLACED_CONTENT(vout)) {
 		vout->ic_bypass = 1;
 	} else {
@@ -1279,18 +1281,6 @@ static int mxc_v4l2out_streamon(vout_data * vout)
 	    format_is_yuv(bpp_to_fmt(fbi)))
 		vout->ic_bypass = 0;
 #endif
-
-	/*
-	 * We are using IC to do input cropping.
-	 * We don't access v4l2 buffer if source video is interlaced,
-	 * because the buffer index may be -1.
-	 */
-	if (!INTERLACED_CONTENT(vout) &&
-	    (vout->queue_buf_paddr[vout->ipu_buf[0]] !=
-	     vout->v4l2_bufs[vout->ipu_buf[0]].m.offset ||
-	     vout->queue_buf_paddr[vout->ipu_buf[1]] !=
-	     vout->v4l2_bufs[vout->ipu_buf[1]].m.offset))
-		vout->ic_bypass = 0;
 
 	if (fbi->fbops->fb_ioctl) {
 		old_fs = get_fs();
