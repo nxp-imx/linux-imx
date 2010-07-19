@@ -49,7 +49,7 @@
 #define MXS_MMC_DETECT_TIMEOUT		(HZ/2)
 
 /* Max value supported for XFER_COUNT */
-#define SSP_BUFFER_SIZE		(65536)
+#define SSP_BUFFER_SIZE		(65535)
 
 #ifndef BF
 #define BF(value, field) (((value) << BP_##field) & BM_##field)
@@ -92,6 +92,9 @@
 #ifndef BF_SSP_BLOCK_SIZE_BLOCK_SIZE
 #define BF_SSP_BLOCK_SIZE_BLOCK_SIZE(v)  \
 		(((v) << 16) & BM_SSP_BLOCK_SIZE_BLOCK_SIZE)
+#endif
+#ifndef BM_SSP_CMD0_DBL_DATA_RATE_EN
+#define BM_SSP_CMD0_DBL_DATA_RATE_EN	0x02000000
 #endif
 
 struct mxs_mmc_host {
@@ -159,6 +162,7 @@ static inline int mxs_mmc_is_plugged(struct mxs_mmc_host *host)
 	return !(status & BM_SSP_STATUS_CARD_DETECT);
 }
 
+static void mxs_mmc_reset(struct mxs_mmc_host *host);
 /* Card detection polling function */
 static void mxs_mmc_detect_poll(unsigned long arg)
 {
@@ -167,6 +171,8 @@ static void mxs_mmc_detect_poll(unsigned long arg)
 
 	card_status = mxs_mmc_is_plugged(host);
 	if (card_status != host->present) {
+		/* Reset MMC block */
+		mxs_mmc_reset(host);
 		host->present = card_status;
 		mmc_detect_change(host->mmc, 0);
 	}
@@ -552,6 +558,9 @@ static void mxs_mmc_adtc(struct mxs_mmc_host *host)
 	dev_dbg(host->dev, "%s blksz is 0x%x.\n", __func__, log2_block_size);
 
 	if (ssp_ver_major > 3) {
+		/* Configure the CMD0 */
+		ssp_cmd0 = BF(cmd->opcode, SSP_CMD0_CMD);
+
 		/* Configure the BLOCK SIZE and BLOCK COUNT */
 		if ((1<<log2_block_size) != cmd->data->blksz) {
 			BUG_ON(cmd->data->blocks > 1);
@@ -560,9 +569,13 @@ static void mxs_mmc_adtc(struct mxs_mmc_host *host)
 			val = BF(log2_block_size, SSP_BLOCK_SIZE_BLOCK_SIZE) |
 			BF(cmd->data->blocks - 1, SSP_BLOCK_SIZE_BLOCK_COUNT);
 			__raw_writel(val, host->ssp_base + HW_SSP_BLOCK_SIZE);
+			if (host->mmc->ios.bus_width & MMC_BUS_WIDTH_DDR)
+				/* Enable the DDR mode */
+				ssp_cmd0 |= BM_SSP_CMD0_DBL_DATA_RATE_EN;
+			else
+				ssp_cmd0 &= ~BM_SSP_CMD0_DBL_DATA_RATE_EN;
+
 		}
-		/* Configure the CMD0 */
-		ssp_cmd0 = BF(cmd->opcode, SSP_CMD0_CMD);
 	} else {
 		if ((1<<log2_block_size) != cmd->data->blksz) {
 			BUG_ON(cmd->data->blocks > 1);
@@ -805,9 +818,9 @@ static void mxs_mmc_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
 		dev_warn(host->dev,
 			 "Platform does not support CMD pin pullup control\n");
 
-	if (ios->bus_width == MMC_BUS_WIDTH_8)
+	if ((ios->bus_width & ~MMC_BUS_WIDTH_DDR) == MMC_BUS_WIDTH_8)
 		host->bus_width = 2;
-	else if (ios->bus_width == MMC_BUS_WIDTH_4)
+	else if ((ios->bus_width & ~MMC_BUS_WIDTH_DDR) == MMC_BUS_WIDTH_4)
 		host->bus_width = 1;
 	else
 		host->bus_width = 0;
@@ -879,7 +892,6 @@ static void mxs_mmc_reset(struct mxs_mmc_host *host)
 	/* Configure SSP Control Register 1 */
 	ssp_ctrl1 =
 	    BM_SSP_CTRL1_DMA_ENABLE |
-	    BM_SSP_CTRL1_POLARITY |
 	    BM_SSP_CTRL1_RECV_TIMEOUT_IRQ_EN |
 	    BM_SSP_CTRL1_DATA_CRC_IRQ_EN |
 	    BM_SSP_CTRL1_DATA_TIMEOUT_IRQ_EN |
