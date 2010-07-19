@@ -1972,8 +1972,6 @@ int32_t ipu_disable_channel(ipu_channel_t channel, bool wait_for_stop)
 
 	g_channel_enable_mask &= ~(1L << IPU_CHAN_ID(channel));
 
-	spin_unlock_irqrestore(&ipu_lock, lock_flags);
-
 	/* Set channel buffers NOT to be ready */
 	if (idma_is_valid(in_dma)) {
 		ipu_clear_buffer_ready(channel, IPU_VIDEO_IN_BUFFER, 0);
@@ -1991,6 +1989,8 @@ int32_t ipu_disable_channel(ipu_channel_t channel, bool wait_for_stop)
 		ipu_clear_buffer_ready(channel, IPU_ALPHA_IN_BUFFER, 0);
 		ipu_clear_buffer_ready(channel, IPU_ALPHA_IN_BUFFER, 1);
 	}
+
+	spin_unlock_irqrestore(&ipu_lock, lock_flags);
 
 	return 0;
 }
