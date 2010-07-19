@@ -19,6 +19,7 @@
 #include <linux/device.h>
 #include <linux/errno.h>
 #include <linux/init.h>
+#include <linux/console.h>
 #include <linux/interrupt.h>
 #include <linux/module.h>
 #include <linux/slab.h>
@@ -46,6 +47,8 @@
 
 #define MXS_AUART_MAJOR	242
 #define MXS_AUART_RX_THRESHOLD 16
+
+static struct uart_driver auart_driver;
 
 struct mxs_auart_port {
 	struct uart_port port;
@@ -785,7 +788,160 @@ static struct uart_ops mxs_auart_ops = {
 	.config_port    = mxs_auart_config_port,
 	.verify_port    = mxs_auart_verify_port,
 };
+#ifdef CONFIG_SERIAL_MXS_AUART_CONSOLE
+static struct mxs_auart_port auart_port[CONFIG_MXS_AUART_PORTS] = {};
 
+static void
+auart_console_write(struct console *co, const char *s, unsigned int count)
+{
+	struct uart_port *port;
+	unsigned int status, old_cr;
+	int i;
+
+	if (co->index >	CONFIG_MXS_AUART_PORTS || co->index < 0)
+		return;
+
+	port = &auart_port[co->index].port;
+
+	/* First save the CR then disable the interrupts */
+	old_cr = __raw_readl(port->membase + HW_UARTAPP_CTRL2);
+	__raw_writel(BM_UARTAPP_CTRL2_UARTEN | BM_UARTAPP_CTRL2_TXE,
+		     port->membase + HW_UARTAPP_CTRL2_SET);
+
+	/* Now, do each character */
+	for (i = 0; i < count; i++) {
+		do {
+			status = __raw_readl(port->membase + HW_UARTAPP_STAT);
+		} while (status & BM_UARTAPP_STAT_TXFF);
+
+		__raw_writel(s[i], port->membase + HW_UARTAPP_DATA);
+		if (s[i] == '\n') {
+			do {
+				status = __raw_readl(port->membase +
+						     HW_UARTAPP_STAT);
+			} while (status & BM_UARTAPP_STAT_TXFF);
+			__raw_writel('\r', port->membase + HW_UARTAPP_DATA);
+		}
+	}
+
+	/*
+	 *      Finally, wait for transmitter to become empty
+	 *      and restore the TCR
+	 */
+	do {
+		status = __raw_readl(port->membase + HW_UARTAPP_STAT);
+	} while (status & BM_UARTAPP_STAT_BUSY);
+	__raw_writel(old_cr, port->membase + HW_UARTAPP_CTRL2);
+}
+
+static void __init
+auart_console_get_options(struct uart_port *port, int *baud,
+			  int *parity, int *bits)
+{
+	if (__raw_readl(port->membase + HW_UARTAPP_CTRL2)
+				& BM_UARTAPP_CTRL2_UARTEN) {
+		unsigned int lcr_h, quot;
+		lcr_h = __raw_readl(port->membase + HW_UARTAPP_LINECTRL);
+
+		*parity = 'n';
+		if (lcr_h & BM_UARTAPP_LINECTRL_PEN) {
+			if (lcr_h & BM_UARTAPP_LINECTRL_EPS)
+				*parity = 'e';
+			else
+				*parity = 'o';
+		}
+
+		if ((lcr_h & BM_UARTAPP_LINECTRL_WLEN)
+				== BF_UARTAPP_LINECTRL_WLEN(2))
+			*bits = 7;
+		else
+			*bits = 8;
+
+		quot = (((__raw_readl(port->membase + HW_UARTAPP_LINECTRL)
+				& BM_UARTAPP_LINECTRL_BAUD_DIVINT))
+				    >> (BP_UARTAPP_LINECTRL_BAUD_DIVINT - 6))
+			| (((__raw_readl(port->membase + HW_UARTAPP_LINECTRL)
+				& BM_UARTAPP_LINECTRL_BAUD_DIVFRAC))
+					>> BP_UARTAPP_LINECTRL_BAUD_DIVFRAC);
+		if (quot == 0)
+			quot = 1;
+		*baud = (port->uartclk << 2) / quot;
+	}
+}
+
+static int __init auart_console_setup(struct console *co, char *options)
+{
+	struct mxs_auart_port *port;
+	int baud = 115200;
+	int bits = 8;
+	int parity = 'n';
+	int flow = 'n';
+	/*
+	 * Check whether an invalid uart number has been specified, and
+	 * if so, search for the first available port that does have
+	 * console support.
+	 */
+	if (co->index > CONFIG_MXS_AUART_PORTS || co->index < 0)
+		return -EINVAL;
+
+	port = &auart_port[co->index].port;
+
+	if (port->port.membase == 0) {
+		if (cpu_is_mx23()) {
+			if (co->index == 1) {
+				port->port.membase = IO_ADDRESS(0x8006C000);
+				port->port.mapbase = 0x8006C000;
+			} else {
+				port->port.membase = IO_ADDRESS(0x8006E000);
+				port->port.mapbase = 0x8006E000;
+			}
+		}
+
+		port->port.fifosize = 16;
+		port->port.ops = &mxs_auart_ops;
+		port->port.flags = ASYNC_BOOT_AUTOCONF;
+		port->port.line = 0;
+	}
+	mxs_auart_reset(port);
+
+	__raw_writel(BM_UARTAPP_CTRL2_UARTEN,
+		port->port.membase + HW_UARTAPP_CTRL2_SET);
+
+	if (port->clk == NULL || IS_ERR(port->clk)) {
+		port->clk = clk_get(NULL, "uart");
+		if (port->clk == NULL || IS_ERR(port->clk))
+			return -ENODEV;
+		port->port.uartclk = clk_get_rate(port->clk);
+	}
+
+	if (options)
+		uart_parse_options(options, &baud, &parity, &bits, &flow);
+	else
+		auart_console_get_options(port, &baud, &parity, &bits);
+	return uart_set_options(port, co, baud, parity, bits, flow);
+}
+
+static struct console auart_console = {
+	.name = "ttySP",
+	.write = auart_console_write,
+	.device = uart_console_device,
+	.setup = auart_console_setup,
+	.flags = CON_PRINTBUFFER,
+	.index = -1,
+	.data = &auart_driver,
+};
+
+#ifdef CONFIG_MXS_EARLY_CONSOLE
+static int __init auart_console_init(void)
+{
+	register_console(&auart_console);
+	return 0;
+}
+
+console_initcall(auart_console_init);
+#endif
+
+#endif
 static struct uart_driver auart_driver = {
 	.owner = THIS_MODULE,
 	.driver_name = "auart",
@@ -793,6 +949,9 @@ static struct uart_driver auart_driver = {
 	.major = MXS_AUART_MAJOR,
 	.minor = 0,
 	.nr = CONFIG_MXS_AUART_PORTS,
+#ifdef CONFIG_SERIAL_MXS_AUART_CONSOLE
+	.cons = &auart_console,
+#endif
 };
 
 static int __devinit mxs_auart_probe(struct platform_device *pdev)
@@ -872,6 +1031,10 @@ static int __devinit mxs_auart_probe(struct platform_device *pdev)
 	platform_set_drvdata(pdev, s);
 
 	device_init_wakeup(&pdev->dev, 1);
+
+#ifdef CONFIG_SERIAL_MXS_AUART_CONSOLE
+	memcpy(&auart_port[pdev->id], s, sizeof(struct mxs_auart_port));
+#endif
 
 	ret = uart_add_one_port(&auart_driver, &s->port);
 	if (ret)
