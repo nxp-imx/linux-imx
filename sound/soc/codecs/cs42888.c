@@ -839,20 +839,16 @@ struct snd_soc_dai cs42888_dai = {
 		.stream_name = "Playback",
 		.channels_min = 1,
 		.channels_max = 8,
-		.rates = (SNDRV_PCM_RATE_32000|SNDRV_PCM_RATE_44100 |\
-			SNDRV_PCM_RATE_48000|SNDRV_PCM_RATE_64000 |\
-			SNDRV_PCM_RATE_88200|SNDRV_PCM_RATE_96000 |\
-			SNDRV_PCM_RATE_176400|SNDRV_PCM_RATE_192000),
+		.rates = (SNDRV_PCM_RATE_44100 | SNDRV_PCM_RATE_88200 |\
+			SNDRV_PCM_RATE_176400),
 		.formats = CS42888_FORMATS,
 	},
 	.capture = {
 		.stream_name = "Capture",
 		.channels_min = 1,
 		.channels_max = 4,
-		.rates = (SNDRV_PCM_RATE_32000|SNDRV_PCM_RATE_44100 |\
-			SNDRV_PCM_RATE_48000|SNDRV_PCM_RATE_64000 |\
-			SNDRV_PCM_RATE_88200|SNDRV_PCM_RATE_96000 |\
-			SNDRV_PCM_RATE_176400|SNDRV_PCM_RATE_192000),
+		.rates = (SNDRV_PCM_RATE_44100 | SNDRV_PCM_RATE_88200 |\
+			SNDRV_PCM_RATE_176400),
 		.formats = CS42888_FORMATS,
 	},
 	.ops = &cs42888_dai_ops,
