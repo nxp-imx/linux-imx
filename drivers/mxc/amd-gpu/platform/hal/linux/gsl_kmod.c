@@ -81,101 +81,6 @@ static struct vm_operations_struct gsl_kmod_vmops =
 	.fault = gsl_kmod_fault,
 };
 
-static int __init gsl_kmod_init(void)
-{
-    struct device *dev;
-
-    if (kgsl_driver_init() != GSL_SUCCESS)
-    {
-        printk(KERN_ERR "%s: kgsl_driver_init error\n", __func__);
-        goto kgsl_driver_init_error;
-    }
-
-#if defined(MX51)
-    if (request_irq(MX51_YDX_INTERRUPT, z430_irq_handler, 0, "ydx", NULL) < 0)
-    {
-        printk(KERN_ERR "%s: request_irq error\n", __func__);
-        goto request_irq_error;
-    }
-#endif
-
-#if defined(MX51)
-    if (request_irq(MX51_G12_INTERRUPT, z160_irq_handler, 0, "g12", NULL) < 0)
-#elif defined(MX35)
-    if (request_irq(MX35_G12_INTERRUPT, z160_irq_handler, 0, "g12", NULL) < 0)
-#endif
-    {
-        printk(KERN_ERR "%s: request_irq error\n", __func__);
-        goto request_irq_error;
-    }
-
-    gsl_kmod_major = register_chrdev(0, "gsl_kmod", &gsl_kmod_fops);
-    gsl_kmod_vmops.fault = gsl_kmod_fault;
-
-    if (gsl_kmod_major <= 0)
-    {
-        pr_err("%s: register_chrdev error\n", __func__);
-        goto register_chrdev_error;
-    }
-
-    gsl_kmod_class = class_create(THIS_MODULE, "gsl_kmod");
-
-    if (IS_ERR(gsl_kmod_class))
-    {
-        pr_err("%s: class_create error\n", __func__);
-        goto class_create_error;
-    }
-
-    #if(LINUX_VERSION_CODE < KERNEL_VERSION(2,6,28))
-        dev = device_create(gsl_kmod_class, NULL, MKDEV(gsl_kmod_major, 0), "gsl_kmod");
-    #else
-        dev = device_create(gsl_kmod_class, NULL, MKDEV(gsl_kmod_major, 0), NULL,"gsl_kmod");
-    #endif
-
-    if (!IS_ERR(dev))
-    {
-        return 0;
-    }
-
-    pr_err("%s: device_create error\n", __func__);
-
-class_create_error:
-    class_destroy(gsl_kmod_class);
-
-register_chrdev_error:
-    unregister_chrdev(gsl_kmod_major, "gsl_kmod");
-
-request_irq_error:
-kgsl_driver_init_error:
-    kgsl_driver_close();
-    return 0;   // TODO: return proper error code
-}
-
-static void __exit gsl_kmod_exit(void)
-{
-    device_destroy(gsl_kmod_class, MKDEV(gsl_kmod_major, 0));
-    class_destroy(gsl_kmod_class);
-    unregister_chrdev(gsl_kmod_major, "gsl_kmod");
-#if defined(MX51)
-    free_irq(MX51_YDX_INTERRUPT, NULL);
-    free_irq(MX51_G12_INTERRUPT, NULL);
-#elif defined(MX35)
-	free_irq(MX35_G12_INTERRUPT, NULL);
-#endif
-    kgsl_driver_close();
-}
-
-module_init(gsl_kmod_init);
-module_exit(gsl_kmod_exit);
-
-MODULE_AUTHOR("Advanced Micro Devices");
-#if defined(MX51)
-MODULE_DESCRIPTION("AMD 2D/3D graphics core driver for i.MX51");
-#elif defined(MX35)
-MODULE_DESCRIPTION("AMD 2D graphics core driver for i.MX35");
-#endif
-MODULE_LICENSE("GPL v2");
-
 static ssize_t gsl_kmod_read(struct file *fd, char __user *buf, size_t len, loff_t *ptr)
 {
     return 0;
@@ -1047,13 +952,22 @@ static struct platform_driver gpu_driver = {
     .resume = gpu_resume,
 };
 
+static int __init gsl_kmod_init(void)
+{
+     return platform_driver_register(&gpu_driver);
+}
 
-MODULE_AUTHOR("Advanced Micro Devices Inc.");
+static void __exit gsl_kmod_exit(void)
+{
+     platform_driver_unregister(&gpu_driver);
+}
+
+module_init(gsl_kmod_init);
+module_exit(gsl_kmod_exit);
+MODULE_AUTHOR("Advanced Micro Devices");
 #if defined(MX51)
-MODULE_DESCRIPTION("Device driver for AMD 3D graphics core");
-MODULE_SUPPORTED_DEVICE("Z430");
+MODULE_DESCRIPTION("AMD 2D/3D graphics core driver for i.MX51");
 #elif defined(MX35)
-MODULE_DESCRIPTION("Device driver for AMD 2D graphics core");
-MODULE_SUPPORTED_DEVICE("Z160");
+MODULE_DESCRIPTION("AMD 2D graphics core driver for i.MX35");
 #endif
 MODULE_LICENSE("GPL v2");
