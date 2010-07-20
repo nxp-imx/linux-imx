@@ -667,7 +667,7 @@ static void sdhci_send_command(struct sdhci_host *host, struct mmc_command *cmd)
 	WARN_ON(host->cmd);
 
 	/* Wait max 10 ms */
-	timeout = 5000;
+	timeout = 500;
 
 	mask = SDHCI_CMD_INHIBIT;
 	if ((cmd->data != NULL) || (cmd->flags & MMC_RSP_BUSY))
@@ -928,7 +928,7 @@ static void sdhci_set_clock(struct sdhci_host *host, unsigned int clock)
 		       host->ioaddr + SDHCI_CLOCK_CONTROL);
 
 	/* Wait max 10 ms */
-	timeout = 5000;
+	timeout = 500;
 	while (timeout > 0) {
 		timeout--;
 		udelay(20);
