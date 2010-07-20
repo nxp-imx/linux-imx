@@ -380,17 +380,13 @@ static int __init imx_3stack_asoc_init(void)
 	if (ret < 0)
 		goto exit;
 
-	if (snd_soc_card_imx_3stack.codec == NULL) {
-		ret = -ENOMEM;
-		goto err_device_alloc;
-	}
 	imx_3stack_snd_device = platform_device_alloc("soc-audio", 1);
 	if (!imx_3stack_snd_device)
 		goto err_device_alloc;
 	platform_set_drvdata(imx_3stack_snd_device, &imx_3stack_snd_devdata);
 	imx_3stack_snd_devdata.dev = &imx_3stack_snd_device->dev;
 	ret = platform_device_add(imx_3stack_snd_device);
-	if (0 == ret)
+	if (0 == ret && snd_soc_card_imx_3stack.codec != NULL)
 		goto exit;
 
 	platform_device_put(imx_3stack_snd_device);
