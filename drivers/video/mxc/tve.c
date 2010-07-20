@@ -78,6 +78,7 @@ struct tve_data {
 	int detect;
 	void *base;
 	int irq;
+	int blank;
 	struct clk *clk;
 	struct regulator *dac_reg;
 	struct regulator *dig_reg;
@@ -228,12 +229,7 @@ static int tve_setup(int mode)
 	struct clk *ipu_di1_clk;
 	unsigned long lock_flags;
 
-	if (tve.cur_mode == mode)
-		return 0;
-
 	spin_lock_irqsave(&tve_lock, lock_flags);
-
-	tve.cur_mode = mode;
 
 	switch (mode) {
 	case TVOUT_FMT_PAL:
@@ -262,6 +258,15 @@ static int tve_setup(int mode)
 
 	clk_enable(tve.clk);
 	clk_set_rate(ipu_di1_clk, di1_clock_rate);
+
+	if (tve.cur_mode == mode) {
+		if (!enabled)
+			clk_disable(tve.clk);
+		spin_unlock_irqrestore(&tve_lock, lock_flags);
+		return 0;
+	}
+
+	tve.cur_mode = mode;
 
 	/* select output video format */
 	if (mode == TVOUT_FMT_PAL) {
@@ -504,6 +509,17 @@ static irqreturn_t tve_detect_handler(int irq, void *data)
 	return IRQ_HANDLED;
 }
 
+/* Re-construct clk for tve display */
+static inline void tve_recfg_fb(struct fb_info *fbi)
+{
+	struct fb_var_screeninfo var;
+
+	memset(&var, 0, sizeof(var));
+	fb_videomode_to_var(&var, fbi->mode);
+	fbi->flags &= ~FBINFO_MISC_USEREVENT;
+	fb_set_var(fbi, &var);
+}
+
 int tve_fb_event(struct notifier_block *nb, unsigned long val, void *v)
 {
 	struct fb_event *event = v;
@@ -571,31 +587,33 @@ int tve_fb_event(struct notifier_block *nb, unsigned long val, void *v)
 			return 0;
 
 		if (*((int *)event->data) == FB_BLANK_UNBLANK) {
-			if (fb_mode_is_equal(fbi->mode, &video_modes[0])) {
-				if (tve.cur_mode != TVOUT_FMT_NTSC) {
+			if (tve.blank != FB_BLANK_UNBLANK) {
+				if (fb_mode_is_equal(fbi->mode, &video_modes[0])) {
 					tve_disable();
 					tve_setup(TVOUT_FMT_NTSC);
-				}
-				tve_enable();
-			} else if (fb_mode_is_equal(fbi->mode,
-					&video_modes[1])) {
-				if (tve.cur_mode != TVOUT_FMT_PAL) {
+					tve_enable();
+					tve_recfg_fb(fbi);
+				} else if (fb_mode_is_equal(fbi->mode,
+							&video_modes[1])) {
 					tve_disable();
 					tve_setup(TVOUT_FMT_PAL);
-				}
-				tve_enable();
-			} else if (fb_mode_is_equal(fbi->mode,
-					&video_modes[2])) {
-				if (tve.cur_mode != TVOUT_FMT_720P60) {
+					tve_enable();
+					tve_recfg_fb(fbi);
+				} else if (fb_mode_is_equal(fbi->mode,
+							&video_modes[2])) {
 					tve_disable();
 					tve_setup(TVOUT_FMT_720P60);
+					tve_enable();
+					tve_recfg_fb(fbi);
+				} else {
+					tve_setup(TVOUT_FMT_OFF);
 				}
-				tve_enable();
-			} else {
-				tve_setup(TVOUT_FMT_OFF);
+				tve.blank = FB_BLANK_UNBLANK;
 			}
-		} else
+		} else {
 			tve_disable();
+			tve.blank = FB_BLANK_POWERDOWN;
+		}
 		break;
 	}
 	return 0;
@@ -685,8 +703,12 @@ static int tve_probe(struct platform_device *pdev)
 	for (i = 0; i < num_registered_fb; i++) {
 		if (strcmp(registered_fb[i]->fix.id, "DISP3 BG - DI1") == 0) {
 			tve_fbi = registered_fb[i];
-			if (i == 0)
+			if (i == 0) {
 				primary = 1;
+				acquire_console_sem();
+				fb_blank(tve_fbi, FB_BLANK_POWERDOWN);
+				release_console_sem();
+			}
 			break;
 		}
 	}
@@ -757,6 +779,8 @@ static int tve_probe(struct platform_device *pdev)
 	if (ret < 0)
 		goto err2;
 
+	tve.blank = -1;
+
 	/* is primary display? */
 	if (primary) {
 		struct fb_var_screeninfo var;
@@ -775,6 +799,10 @@ static int tve_probe(struct platform_device *pdev)
 		tve_fbi->flags |= FBINFO_MISC_USEREVENT;
 		fb_set_var(tve_fbi, &var);
 		tve_fbi->flags &= ~FBINFO_MISC_USEREVENT;
+		release_console_sem();
+
+		acquire_console_sem();
+		fb_blank(tve_fbi, FB_BLANK_UNBLANK);
 		release_console_sem();
 
 		fb_show_logo(tve_fbi, 0);
