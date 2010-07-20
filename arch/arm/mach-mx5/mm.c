@@ -16,6 +16,7 @@
 #include <mach/hardware.h>
 #include <asm/pgtable.h>
 #include <asm/mach/map.h>
+#include <mach/iomux-v3.h>
 
 /*!
  * @file mach-mx51/mm.c
@@ -55,6 +56,7 @@ void __init mx5_map_io(void)
 {
 	int i;
 
+	mxc_iomux_v3_init(IO_ADDRESS(IOMUXC_BASE_ADDR));
 	/* Fixup the mappings for MX53 */
 	if (cpu_is_mx53() || cpu_is_mx50()) {
 		for (i = 0; i < ARRAY_SIZE(mx5_io_desc); i++)
