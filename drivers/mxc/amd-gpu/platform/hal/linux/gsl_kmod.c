@@ -633,7 +633,7 @@ static int gsl_kmod_mmap(struct file *fd, struct vm_area_struct *vma)
     unsigned long start = vma->vm_start;
     unsigned long pfn = vma->vm_pgoff;
     unsigned long size = vma->vm_end - vma->vm_start;
-    unsigned long prot = pgprot_noncached(vma->vm_page_prot);
+    unsigned long prot = pgprot_writecombine(vma->vm_page_prot);
 #ifdef GSL_MMU_TRANSLATION_ENABLED
 	unsigned long addr = vma->vm_pgoff << PAGE_SHIFT;
 	void *va;
