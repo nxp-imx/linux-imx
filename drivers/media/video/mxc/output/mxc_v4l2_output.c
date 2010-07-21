@@ -426,6 +426,14 @@ static void mxc_v4l2out_timer_handler(unsigned long arg)
 		goto exit0;
 	}
 
+	/* VDI need both buffer done before update buffer? */
+	if (INTERLACED_CONTENT(vout) &&
+		(vout->ipu_buf[!vout->next_rdy_ipu_buf] != -1)) {
+		dev_dbg(&vout->video_dev->dev, "IPU buffer busy\n");
+		vout->state = STATE_STREAM_PAUSED;
+		goto exit0;
+	}
+
 	/* Handle ic bypass mode in work queue */
 	if (vout->ic_bypass) {
 		if (queue_work(vout->v4l_wq, &vout->timer_work) == 0) {
