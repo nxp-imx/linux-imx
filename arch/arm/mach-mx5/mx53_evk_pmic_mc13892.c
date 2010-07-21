@@ -23,8 +23,8 @@
 #include <linux/regulator/machine.h>
 #include <linux/mfd/mc13892/core.h>
 #include <mach/irqs.h>
-#include "iomux.h"
-#include "mx53_pins.h"
+
+#include <mach/iomux-mx53.h>
 
 /*
  * Convenience conversion.
@@ -337,7 +337,7 @@ static struct mc13892_platform_data mc13892_plat = {
 
 static struct i2c_board_info __initdata mc13892_i2c_device = {
 	I2C_BOARD_INFO("mc13892", 0x08),
-	.irq = IOMUX_TO_IRQ(MX53_PIN_GPIO_16),
+	.irq = IOMUX_TO_IRQ_V3(203),
 	.platform_data = &mc13892_plat,
 };
 
