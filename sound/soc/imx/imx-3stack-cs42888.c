@@ -389,7 +389,7 @@ static int __init imx_3stack_asoc_init(void)
 	if (0 == ret && snd_soc_card_imx_3stack.codec != NULL)
 		goto exit;
 
-	platform_device_put(imx_3stack_snd_device);
+	platform_device_unregister(imx_3stack_snd_device);
 err_device_alloc:
 	platform_driver_unregister(&imx_3stack_cs42888_driver);
 exit:
