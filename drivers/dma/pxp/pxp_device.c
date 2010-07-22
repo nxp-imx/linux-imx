@@ -486,7 +486,7 @@ static int __devexit pxp_device_remove(struct platform_device *pdev)
 	return 0;
 }
 
-static struct platform_driver pxp_device = {
+static struct platform_driver pxp_client_driver = {
 	.probe = pxp_device_probe,
 	.remove = __exit_p(pxp_device_remove),
 	.driver = {
@@ -497,12 +497,12 @@ static struct platform_driver pxp_device = {
 
 static int __init pxp_device_init(void)
 {
-	return platform_driver_register(&pxp_device);
+	return platform_driver_register(&pxp_client_driver);
 }
 
 static void __exit pxp_device_exit(void)
 {
-	platform_driver_unregister(&pxp_device);
+	platform_driver_unregister(&pxp_client_driver);
 }
 
 module_init(pxp_device_init);
