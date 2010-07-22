@@ -39,7 +39,15 @@ static struct clk pll1_main_clk;
 static struct clk pll1_sw_clk;
 static struct clk pll2_sw_clk;
 static struct clk pll3_sw_clk;
-static struct clk pll4_sw_clk;
+static struct clk apll_clk;
+static struct clk pfd0_clk;
+static struct clk pfd1_clk;
+static struct clk pfd2_clk;
+static struct clk pfd3_clk;
+static struct clk pfd4_clk;
+static struct clk pfd5_clk;
+static struct clk pfd6_clk;
+static struct clk pfd7_clk;
 static struct clk lp_apm_clk;
 static struct clk weim_clk;
 static struct clk ddr_clk;
@@ -52,7 +60,7 @@ static struct cpu_wp *cpu_wp_tbl;
 static void __iomem *pll1_base;
 static void __iomem *pll2_base;
 static void __iomem *pll3_base;
-static void __iomem *pll4_base;
+static void __iomem *apll_base;
 
 extern int cpu_wp_nr;
 extern int lp_high_freq;
@@ -223,8 +231,6 @@ static inline void __iomem *_get_pll_base(struct clk *pll)
 		return pll2_base;
 	else if (pll == &pll3_sw_clk)
 		return pll3_base;
-	else if (pll == &pll4_sw_clk)
-		return pll4_base;
 	else
 		BUG();
 
@@ -246,48 +252,197 @@ static struct clk osc_clk = {
 	.flags = RATE_PROPAGATES,
 };
 
+static int apll_enable(struct clk *clk)
+{
+	__raw_writel(1, apll_base + MXC_ANADIG_MISC_SET);
+	udelay(10);
+	return 0;
+}
+
+static void apll_disable(struct clk *clk)
+{
+	__raw_writel(1, apll_base + MXC_ANADIG_MISC_CLR);
+}
+
 static struct clk apll_clk = {
 	.name = "apll",
+	.rate = 480000000,
+	.enable = apll_enable,
+	.disable = apll_disable,
 	.flags = RATE_PROPAGATES,
 };
 
+static void pfd_recalc(struct clk *clk)
+{
+	u32 frac;
+	u64 rate;
+	frac = __raw_readl(apll_base +
+		(int)clk->enable_reg) >> clk->enable_shift;
+	frac &= MXC_ANADIG_PFD_FRAC_MASK;
+	rate = (u64)clk->parent->rate * 18;
+	do_div(rate, frac);
+	clk->rate = rate;
+}
+
+static unsigned long pfd_round_rate(struct clk *clk, unsigned long rate)
+{
+	u32 frac;
+	u64 tmp;
+	tmp = (u64)clk->parent->rate * 18;
+	do_div(tmp, rate);
+	frac = tmp;
+	frac = frac < 18 ? 18 : frac;
+	frac = frac > 35 ? 35 : frac;
+	do_div(tmp, frac);
+	return tmp;
+}
+
+static int pfd_set_rate(struct clk *clk, unsigned long rate)
+{
+	u32 frac;
+	u64 tmp;
+	tmp = (u64)clk->parent->rate * 18;
+	do_div(tmp, rate);
+	frac = tmp;
+	frac = frac < 18 ? 18 : frac;
+	frac = frac > 35 ? 35 : frac;
+	/* clear clk frac bits */
+	__raw_writel(MXC_ANADIG_PFD_FRAC_MASK << clk->enable_shift,
+			apll_base + (int)clk->enable_reg + 8);
+	/* set clk frac bits */
+	__raw_writel(frac << clk->enable_shift,
+			apll_base + (int)clk->enable_reg + 4);
+
+	tmp = (u64)clk->parent->rate * 18;
+	do_div(tmp, frac);
+	clk->rate = tmp;
+	return 0;
+}
+
+static int pfd_enable(struct clk *clk)
+{
+	int index;
+	index = _get_mux8(clk, &pfd0_clk, &pfd1_clk, &pfd2_clk, &pfd3_clk,
+			&pfd4_clk, &pfd5_clk, &pfd6_clk, &pfd7_clk);
+	__raw_writel(1 << index, apll_base + MXC_ANADIG_PLLCTRL_CLR);
+	/* clear clk gate bit */
+	__raw_writel((1 << (clk->enable_shift + 7)),
+			apll_base + (int)clk->enable_reg + 8);
+	return 0;
+}
+
+static void pfd_disable(struct clk *clk)
+{
+	int index;
+	index = _get_mux8(clk, &pfd0_clk, &pfd1_clk, &pfd2_clk, &pfd3_clk,
+			&pfd4_clk, &pfd5_clk, &pfd6_clk, &pfd7_clk);
+	/* set clk gate bit */
+	__raw_writel((1 << (clk->enable_shift + 7)),
+			apll_base + (int)clk->enable_reg + 4);
+	__raw_writel(1 << index, apll_base + MXC_ANADIG_PLLCTRL_SET);
+}
+
 static struct clk pfd0_clk = {
 	.name = "pfd0",
+	.parent = &apll_clk,
+	.enable_reg = (void *)MXC_ANADIG_FRAC0,
+	.enable_shift = MXC_ANADIG_PFD0_FRAC_OFFSET,
+	.recalc = pfd_recalc,
+	.set_rate = pfd_set_rate,
+	.round_rate = pfd_round_rate,
+	.enable = pfd_enable,
+	.disable = pfd_disable,
 	.flags = RATE_PROPAGATES,
 };
 
 static struct clk pfd1_clk = {
 	.name = "pfd1",
+	.parent = &apll_clk,
+	.enable_reg = (void *)MXC_ANADIG_FRAC0,
+	.enable_shift = MXC_ANADIG_PFD1_FRAC_OFFSET,
+	.recalc = pfd_recalc,
+	.set_rate = pfd_set_rate,
+	.round_rate = pfd_round_rate,
+	.enable = pfd_enable,
+	.disable = pfd_disable,
 	.flags = RATE_PROPAGATES,
 };
 
 static struct clk pfd2_clk = {
 	.name = "pfd2",
+	.parent = &apll_clk,
+	.enable_reg = (void *)MXC_ANADIG_FRAC0,
+	.enable_shift = MXC_ANADIG_PFD2_FRAC_OFFSET,
+	.recalc = pfd_recalc,
+	.set_rate = pfd_set_rate,
+	.round_rate = pfd_round_rate,
+	.enable = pfd_enable,
+	.disable = pfd_disable,
 	.flags = RATE_PROPAGATES,
 };
 
 static struct clk pfd3_clk = {
 	.name = "pfd3",
+	.parent = &apll_clk,
+	.enable_reg = (void *)MXC_ANADIG_FRAC0,
+	.enable_shift = MXC_ANADIG_PFD3_FRAC_OFFSET,
+	.recalc = pfd_recalc,
+	.set_rate = pfd_set_rate,
+	.round_rate = pfd_round_rate,
+	.enable = pfd_enable,
+	.disable = pfd_disable,
 	.flags = RATE_PROPAGATES,
 };
 
 static struct clk pfd4_clk = {
 	.name = "pfd4",
+	.parent = &apll_clk,
+	.enable_reg = (void *)MXC_ANADIG_FRAC1,
+	.enable_shift = MXC_ANADIG_PFD4_FRAC_OFFSET,
+	.recalc = pfd_recalc,
+	.set_rate = pfd_set_rate,
+	.round_rate = pfd_round_rate,
+	.enable = pfd_enable,
+	.disable = pfd_disable,
 	.flags = RATE_PROPAGATES,
 };
 
 static struct clk pfd5_clk = {
 	.name = "pfd5",
+	.parent = &apll_clk,
+	.enable_reg = (void *)MXC_ANADIG_FRAC1,
+	.enable_shift = MXC_ANADIG_PFD5_FRAC_OFFSET,
+	.recalc = pfd_recalc,
+	.set_rate = pfd_set_rate,
+	.round_rate = pfd_round_rate,
+	.enable = pfd_enable,
+	.disable = pfd_disable,
 	.flags = RATE_PROPAGATES,
 };
 
 static struct clk pfd6_clk = {
 	.name = "pfd6",
+	.parent = &apll_clk,
+	.enable_reg = (void *)MXC_ANADIG_FRAC1,
+	.enable_shift = MXC_ANADIG_PFD6_FRAC_OFFSET,
+	.recalc = pfd_recalc,
+	.set_rate = pfd_set_rate,
+	.round_rate = pfd_round_rate,
+	.enable = pfd_enable,
+	.disable = pfd_disable,
 	.flags = RATE_PROPAGATES,
 };
 
 static struct clk pfd7_clk = {
 	.name = "pfd7",
+	.parent = &apll_clk,
+	.enable_reg = (void *)MXC_ANADIG_FRAC1,
+	.enable_shift = MXC_ANADIG_PFD7_FRAC_OFFSET,
+	.recalc = pfd_recalc,
+	.set_rate = pfd_set_rate,
+	.round_rate = pfd_round_rate,
+	.enable = pfd_enable,
+	.disable = pfd_disable,
 	.flags = RATE_PROPAGATES,
 };
 
@@ -543,17 +698,6 @@ static struct clk pll2_sw_clk = {
 /* same as pll3_main_clk. These two clocks should always be the same */
 static struct clk pll3_sw_clk = {
 	.name = "pll3",
-	.parent = &osc_clk,
-	.set_rate = _clk_pll_set_rate,
-	.recalc = _clk_pll_recalc,
-	.enable = _clk_pll_enable,
-	.disable = _clk_pll_disable,
-	.flags = RATE_PROPAGATES,
-};
-
-/* same as pll4_main_clk. These two clocks should always be the same */
-static struct clk pll4_sw_clk = {
-	.name = "pll4",
 	.parent = &osc_clk,
 	.set_rate = _clk_pll_set_rate,
 	.recalc = _clk_pll_recalc,
@@ -2742,6 +2886,15 @@ static struct clk *mxc_clks[] = {
 	&pll1_sw_clk,
 	&pll2_sw_clk,
 	&pll3_sw_clk,
+	&apll_clk,
+	&pfd0_clk,
+	&pfd1_clk,
+	&pfd2_clk,
+	&pfd3_clk,
+	&pfd4_clk,
+	&pfd5_clk,
+	&pfd6_clk,
+	&pfd7_clk,
 	&ipmux1_clk,
 	&ipmux2_clk,
 	&gpc_dvfs_clk,
@@ -2877,6 +3030,7 @@ int __init mx50_clocks_init(unsigned long ckil, unsigned long osc, unsigned long
 	pll1_base = ioremap(MX53_BASE_ADDR(PLL1_BASE_ADDR), SZ_4K);
 	pll2_base = ioremap(MX53_BASE_ADDR(PLL2_BASE_ADDR), SZ_4K);
 	pll3_base = ioremap(MX53_BASE_ADDR(PLL3_BASE_ADDR), SZ_4K);
+	apll_base = ioremap(ANATOP_BASE_ADDR, SZ_4K);
 
 	/* Turn off all possible clocks */
 	if (mxc_jtag_enabled) {
@@ -2912,7 +3066,8 @@ int __init mx50_clocks_init(unsigned long ckil, unsigned long osc, unsigned long
 				3 << MXC_CCM_CCGR6_CG8_OFFSET |
 				3 << MXC_CCM_CCGR6_CG9_OFFSET |
 				3 << MXC_CCM_CCGR6_CG12_OFFSET |
-				3 << MXC_CCM_CCGR6_CG13_OFFSET , MXC_CCM_CCGR6);
+				3 << MXC_CCM_CCGR6_CG13_OFFSET |
+				2 << MXC_CCM_CCGR6_CG14_OFFSET, MXC_CCM_CCGR6);
 
 	__raw_writel(0, MXC_CCM_CCGR7);
 
@@ -2978,6 +3133,8 @@ int __init mx50_clocks_init(unsigned long ckil, unsigned long osc, unsigned long
 	clk_enable(&main_bus_clk);
 
 	clk_enable(&apbh_dma_clk);
+
+	propagate_rate(&apll_clk);
 
 	/* Initialise the parents to be axi_b, parents are set to
 	 * axi_a when the clocks are enabled.
