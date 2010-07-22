@@ -200,7 +200,7 @@ static struct regulator_init_data max17135_init_data[] __initdata = {
 	},
 };
 
-static struct max17135_platform_data max17135_pdata = {
+static struct max17135_platform_data max17135_pdata __initdata = {
 	.vneg_pwrup = 1,
 	.gvee_pwrup = 1,
 	.vpos_pwrup = 2,
