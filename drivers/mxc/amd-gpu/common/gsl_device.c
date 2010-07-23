@@ -18,7 +18,9 @@
  
 #include "gsl.h"
 #include "gsl_hal.h"
-
+#ifdef _LINUX
+#include <linux/sched.h>
+#endif
 
 //////////////////////////////////////////////////////////////////////////////
 //  inline functions
@@ -174,7 +176,7 @@ kgsl_device_close(gsl_device_t *device)
     // DumpX allocates memstore from MMU aperture
     if (device->memstore.hostptr && !(gsl_driver.flags_debug & GSL_DBGFLAGS_DUMPX))
     {
-        kgsl_sharedmem_free0(&device->memstore, GSL_CALLER_PROCESSID_GET());
+        //kgsl_sharedmem_free0(&device->memstore, GSL_CALLER_PROCESSID_GET());
     }
 
 #ifndef _LINUX	
@@ -185,6 +187,8 @@ kgsl_device_close(gsl_device_t *device)
         kos_event_destroy( device->timestamp_event );
         device->timestamp_event = 0;
     }
+#else
+    wake_up_interruptible_all(&(device->timestamp_waitq));
 #endif	
 
     kgsl_log_write( KGSL_LOG_GROUP_DEVICE | KGSL_LOG_LEVEL_TRACE, "<-- kgsl_device_close. Return value %B\n", status );

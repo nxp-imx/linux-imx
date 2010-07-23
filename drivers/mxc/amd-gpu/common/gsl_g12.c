@@ -950,7 +950,11 @@ static void irq_thread(void)
 #endif
 
             /* Notify timestamp event */
+#ifndef _LINUX
             kos_event_signal( device->timestamp_event );
+#else
+            wake_up_interruptible_all(&(device->timestamp_waitq));
+#endif
         }
         else
         {

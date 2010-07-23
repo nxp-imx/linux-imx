@@ -482,8 +482,16 @@ kgsl_sharedmem_read0(const gsl_memdesc_t *memdesc, void *dst, unsigned int offse
 
     KOS_ASSERT(dst);
     KOS_ASSERT(sizebytes);
-    KOS_ASSERT(memdesc->gpuaddr >= shmem->apertures[aperture_index].memarena->gpubaseaddr);
-    KOS_ASSERT((memdesc->gpuaddr + sizebytes) <= (shmem->apertures[aperture_index].memarena->gpubaseaddr + shmem->apertures[aperture_index].memarena->sizebytes));
+
+    if (memdesc->gpuaddr < shmem->apertures[aperture_index].memarena->gpubaseaddr)
+    {
+        return (GSL_FAILURE_BADPARAM);
+    }
+
+    if (memdesc->gpuaddr + sizebytes > shmem->apertures[aperture_index].memarena->gpubaseaddr + shmem->apertures[aperture_index].memarena->sizebytes)
+    {
+        return (GSL_FAILURE_BADPARAM);
+    }
 
     gpuoffsetbytes = (memdesc->gpuaddr - shmem->apertures[aperture_index].memarena->gpubaseaddr) + offsetbytes;
 
