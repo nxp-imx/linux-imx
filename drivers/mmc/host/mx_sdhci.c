@@ -818,7 +818,10 @@ static void sdhci_set_clock(struct sdhci_host *host, unsigned int clock)
 
 	clk_rate = clk_get_rate(host->clk);
 	clk = readl(host->ioaddr + SDHCI_CLOCK_CONTROL) & ~SDHCI_CLOCK_MASK;
-	if (!cpu_is_mx53())
+	if (cpu_is_mx53() || cpu_is_mx50())
+		writel(clk | SDHCI_CLOCK_SDCLKFS1,
+				host->ioaddr + SDHCI_CLOCK_CONTROL);
+	else
 		writel(clk, host->ioaddr + SDHCI_CLOCK_CONTROL);
 
 	if (clock == host->min_clk)
@@ -851,6 +854,13 @@ static void sdhci_set_clock(struct sdhci_host *host, unsigned int clock)
 
 	/* Configure the DLL when DDR mode is enabled */
 	if (ios.bus_width & MMC_BUS_WIDTH_DDR) {
+		/* Make sure that the PER, HLK, IPG are all enabled */
+		writel(readl(host->ioaddr + SDHCI_CLOCK_CONTROL)
+				| SDHCI_CLOCK_IPG_EN
+				| SDHCI_CLOCK_HLK_EN
+				| SDHCI_CLOCK_PER_EN,
+				host->ioaddr + SDHCI_CLOCK_CONTROL);
+
 		/* Enable the DLL and delay chain */
 		writel(readl(host->ioaddr + SDHCI_DLL_CONTROL)
 				| DLL_CTRL_ENABLE,
@@ -868,10 +878,7 @@ static void sdhci_set_clock(struct sdhci_host *host, unsigned int clock)
 		DBG("dll stat: 0x%x\n", readl(host->ioaddr + SDHCI_DLL_STATUS));
 
 		writel(readl(host->ioaddr + SDHCI_DLL_CONTROL)
-				| DLL_CTRL_SLV_UP_INT | DLL_CTRL_REF_UP_INT,
-				host->ioaddr + SDHCI_DLL_CONTROL);
-
-		writel(readl(host->ioaddr + SDHCI_DLL_CONTROL)
+				| DLL_CTRL_SLV_UP_INT | DLL_CTRL_REF_UP_INT
 				| DLL_CTRL_SLV_DLY_TAR,
 				host->ioaddr + SDHCI_DLL_CONTROL);
 
@@ -912,6 +919,13 @@ static void sdhci_set_clock(struct sdhci_host *host, unsigned int clock)
 				printk(KERN_ERR "DLL SLV LOCK Timeout!\n");
 		};
 		DBG("dll stat: 0x%x\n", readl(host->ioaddr + SDHCI_DLL_STATUS));
+
+		/* Let the PER, HLK, IPG to be auto-gate */
+		writel(readl(host->ioaddr + SDHCI_CLOCK_CONTROL)
+				& ~(SDHCI_CLOCK_IPG_EN | SDHCI_CLOCK_HLK_EN
+					| SDHCI_CLOCK_PER_EN),
+				host->ioaddr + SDHCI_CLOCK_CONTROL);
+
 	} else if (readl(host->ioaddr + SDHCI_DLL_STATUS) & DLL_STS_SLV_LOCK) {
 		/* reset DLL CTRL */
 		writel(readl(host->ioaddr + SDHCI_DLL_CONTROL) | DLL_CTRL_RESET,
