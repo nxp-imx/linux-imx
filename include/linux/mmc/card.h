@@ -54,6 +54,10 @@ struct mmc_ext_csd {
 	unsigned int		sec_trim_mult;	/* Secure trim multiplier  */
 	unsigned int		sec_erase_mult;	/* Secure erase multiplier */
 	unsigned int		trim_timeout;		/* In milliseconds */
+#define MMC_DDR_MODE_MASK 	(0x3<<2)
+	unsigned char		boot_info;
+	unsigned char		boot_size_mult;
+	unsigned char		boot_config;
 };
 
 struct sd_scr {
