@@ -35,9 +35,6 @@ extern int mxc_jtag_enabled;
 extern int iram_ready;
 static struct clk *gpc_dvfs_clk;
 
-extern void cpu_cortexa8_do_idle(void *addr);
-
-
 /* set cpu low power mode before WFI instruction */
 void mxc_cpu_lp_set(enum mxc_cpu_pwr_mode mode)
 {
@@ -66,6 +63,7 @@ void mxc_cpu_lp_set(enum mxc_cpu_pwr_mode mode)
 		if (mode == WAIT_UNCLOCKED_POWER_OFF) {
 			ccm_clpcr |= (0x1 << MXC_CCM_CLPCR_LPM_OFFSET);
 			ccm_clpcr &= ~MXC_CCM_CLPCR_VSTBY;
+			ccm_clpcr &= ~MXC_CCM_CLPCR_SBYOS;
 			stop_mode = 0;
 		} else {
 			ccm_clpcr |= (0x2 << MXC_CCM_CLPCR_LPM_OFFSET);
@@ -94,6 +92,7 @@ void mxc_cpu_lp_set(enum mxc_cpu_pwr_mode mode)
 
 	__raw_writel(plat_lpc, MXC_CORTEXA8_PLAT_LPC);
 	__raw_writel(ccm_clpcr, MXC_CCM_CLPCR);
+	/* Need to fix this for MX53 and MX508 */
 	if (cpu_is_mx51())
 		__raw_writel(arm_srpgcr, MXC_SRPG_ARM_SRPGCR);
 	__raw_writel(arm_srpgcr, MXC_SRPG_NEON_SRPGCR);
@@ -150,7 +149,7 @@ static int arch_idle_mode = WAIT_UNCLOCKED_POWER_OFF;
  */
 void arch_idle(void)
 {
-	if (likely(!mxc_jtag_enabled)) {
+/*	if (likely(!mxc_jtag_enabled))*/ {
 		if (gpc_dvfs_clk == NULL)
 			gpc_dvfs_clk = clk_get(NULL, "gpc_dvfs_clk");
 		/* gpc clock is needed for SRPG */

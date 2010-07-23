@@ -3035,7 +3035,7 @@ int __init mx50_clocks_init(unsigned long ckil, unsigned long osc, unsigned long
 	/* Turn off all possible clocks */
 	if (mxc_jtag_enabled) {
 		__raw_writel(1 << MXC_CCM_CCGR0_CG0_OFFSET |
-			      1 << MXC_CCM_CCGR0_CG2_OFFSET |
+			      3 << MXC_CCM_CCGR0_CG2_OFFSET |
 			      3 << MXC_CCM_CCGR0_CG3_OFFSET |
 			      3 << MXC_CCM_CCGR0_CG4_OFFSET |
 			      3 << MXC_CCM_CCGR0_CG8_OFFSET |
@@ -3067,7 +3067,8 @@ int __init mx50_clocks_init(unsigned long ckil, unsigned long osc, unsigned long
 				3 << MXC_CCM_CCGR6_CG9_OFFSET |
 				3 << MXC_CCM_CCGR6_CG12_OFFSET |
 				3 << MXC_CCM_CCGR6_CG13_OFFSET |
-				2 << MXC_CCM_CCGR6_CG14_OFFSET, MXC_CCM_CCGR6);
+				2 << MXC_CCM_CCGR6_CG14_OFFSET |
+				3 << MXC_CCM_CCGR6_CG15_OFFSET, MXC_CCM_CCGR6);
 
 	__raw_writel(0, MXC_CCM_CCGR7);
 

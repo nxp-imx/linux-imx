@@ -328,9 +328,9 @@ static int mc13892_regulator_init(struct mc13892 *mc13892)
 {
 	unsigned int value, register_mask;
 	printk("Initializing regulators for mx50 arm2.\n");
-	sw2_init.constraints.state_mem.uV = 1200000;
-	sw1_init.constraints.state_mem.uV = 1000000;
 
+	/* TBD later. */
+#if 0
 	/* enable standby controll for all regulators */
 	pmic_read_reg(REG_MODE_0, &value, 0xffffff);
 	value |= REG_MODE_0_ALL_MASK;
@@ -339,6 +339,7 @@ static int mc13892_regulator_init(struct mc13892 *mc13892)
 	pmic_read_reg(REG_MODE_1, &value, 0xffffff);
 	value |= REG_MODE_1_ALL_MASK;
 	pmic_write_reg(REG_MODE_1, value, 0xffffff);
+#endif
 
 	/* enable switch audo mode */
 	pmic_read_reg(REG_IDENTIFICATION, &value, 0xffffff);
@@ -360,7 +361,6 @@ static int mc13892_regulator_init(struct mc13892 *mc13892)
 			(SWMODE_AUTO << SW4MODE_LSB);
 		pmic_write_reg(REG_SW_5, value, 0xffffff);
 	}
-
 	/* Enable coin cell charger */
 	value = BITFVAL(COINCHEN, 1) | BITFVAL(VCOIN, VCOIN_3_0V);
 	register_mask = BITFMASK(COINCHEN) | BITFMASK(VCOIN);

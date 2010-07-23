@@ -132,6 +132,11 @@
  */
 #define MX53_SATA_BASE_ADDR 		0x10000000
 
+/*
+ * Databahn MX50
+ */
+ #define MX50_DATABAHN_BASE_ADDR		0x14000000
+
 #define DEBUG_BASE_ADDR	0x40000000
 /*MX53 + 0x2000000 */
 #define DEBUG_SIZE		SZ_1M
