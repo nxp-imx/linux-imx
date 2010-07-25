@@ -426,23 +426,6 @@ static inline void dump_all_updates(struct mxc_epdc_fb_data *fb_data) {}
 
 #endif
 
-void check_waveform(u32 *wv_buf_orig, u32 *wv_buf_cur, u32 wv_buf_size)
-{
-	int i;
-	bool is_mismatch = false;
-	for (i = 0; i < wv_buf_size; i++) {
-		if (wv_buf_orig[i] != wv_buf_cur[i]) {
-			is_mismatch = true;
-			printk
-			    ("Waveform mismatch - wv_buf_orig[%d] = 0x%x, wv_buf_cur[%d] = 0x%x\n",
-			     i, wv_buf_orig[i], i, wv_buf_cur[i]);
-		}
-	}
-
-	if (!is_mismatch)
-		printk("No mismatches!\n");
-}
-
 static struct fb_var_screeninfo mxc_epdc_fb_default __devinitdata = {
 	.activate = FB_ACTIVATE_TEST,
 	.height = -1,
@@ -1833,10 +1816,6 @@ static int mxc_epdc_fb_blank(int blank, struct fb_info *info)
 	case FB_BLANK_NORMAL:
 		mxc_epdc_fb_disable(fb_data);
 		break;
-	case FB_BLANK_UNBLANK:
-		epdc_powerup(fb_data);
-		mxc_epdc_fb_set_par(info);
-		break;
 	}
 	return 0;
 }
@@ -2264,7 +2243,6 @@ static void draw_mode0(struct mxc_epdc_fb_data *fb_data)
 static int mxc_epdc_fb_init_hw(struct fb_info *info)
 {
 	struct mxc_epdc_fb_data *fb_data = (struct mxc_epdc_fb_data *)info;
-	u32 wv_buf_size;
 	const struct firmware *fw;
 	struct mxcfb_update_data update;
 	struct mxcfb_waveform_data_file *wv_file;
@@ -2293,10 +2271,11 @@ static int mxc_epdc_fb_init_hw(struct fb_info *info)
 
 	/* Get offset and size for waveform data */
 	wv_data_offs = sizeof(wv_file->wdh) + fb_data->trt_entries + 1;
-	wv_buf_size = fw->size - wv_data_offs;
+	fb_data->waveform_buffer_size = fw->size - wv_data_offs;
 
 	/* Allocate memory for waveform data */
-	fb_data->waveform_buffer_virt = dma_alloc_coherent(fb_data->dev, wv_buf_size,
+	fb_data->waveform_buffer_virt = dma_alloc_coherent(fb_data->dev,
+						fb_data->waveform_buffer_size,
 						  &fb_data->waveform_buffer_phys,
 						  GFP_DMA);
 	if (fb_data->waveform_buffer_virt == NULL) {
@@ -2304,9 +2283,8 @@ static int mxc_epdc_fb_init_hw(struct fb_info *info)
 		ret = -ENOMEM;
 	}
 
-	memcpy(fb_data->waveform_buffer_virt, (u8 *)(fw->data) + wv_data_offs, wv_buf_size);
-	check_waveform((u32 *)(fw->data + wv_data_offs),
-		fb_data->waveform_buffer_virt, wv_buf_size / 4);
+	memcpy(fb_data->waveform_buffer_virt, (u8 *)(fw->data) + wv_data_offs,
+		fb_data->waveform_buffer_size);
 
 	release_firmware(fw);
 
@@ -2615,6 +2593,7 @@ int __devinit mxc_epdc_fb_probe(struct platform_device *pdev)
 	if (ret) {
 		dev_err(&pdev->dev, "request_irq (%d) failed with error %d\n",
 			fb_data->epdc_irq, ret);
+		ret = -ENODEV;
 		goto out_dma_work_buf;
 	}
 
@@ -2630,6 +2609,7 @@ int __devinit mxc_epdc_fb_probe(struct platform_device *pdev)
 	if (IS_ERR(fb_data->display_regulator)) {
 		dev_err(&pdev->dev, "Unable to get display PMIC regulator."
 			"err = 0x%x\n", fb_data->display_regulator);
+		ret = -ENODEV;
 		goto out_dma_work_buf;
 	}
 	fb_data->vcom_regulator = regulator_get(NULL, "VCOM");
@@ -2637,6 +2617,7 @@ int __devinit mxc_epdc_fb_probe(struct platform_device *pdev)
 		regulator_put(fb_data->display_regulator);
 		dev_err(&pdev->dev, "Unable to get VCOM regulator."
 			"err = 0x%x\n", fb_data->vcom_regulator);
+		ret = -ENODEV;
 		goto out_dma_work_buf;
 	}
 
@@ -2762,7 +2743,7 @@ out_dmaengine:
 out_irq:
 	free_irq(fb_data->epdc_irq, fb_data);
 out_dma_work_buf:
-	dma_free_writecombine(&pdev->dev, pentry->y_res * pentry->x_res / 2,
+	dma_free_writecombine(&pdev->dev, fb_data->working_buffer_size,
 		fb_data->working_buffer_virt, fb_data->working_buffer_phys);
 out_upd_buffers:
 	list_for_each_entry_safe(plist, temp_list, &fb_data->upd_buf_free_list->list, list) {
