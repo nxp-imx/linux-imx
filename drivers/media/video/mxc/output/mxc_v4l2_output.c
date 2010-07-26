@@ -36,7 +36,6 @@
 
 #include "mxc_v4l2_output.h"
 
-vout_data *g_vout;
 #define INTERLACED_CONTENT(vout) (((cpu_is_mx51_rev(CHIP_REV_2_0) >= 1) || \
 				   cpu_is_mx53()) &&			\
 				  (((vout)->field_fmt == V4L2_FIELD_INTERLACED_TB) || \
@@ -2498,7 +2497,7 @@ static int mxc_v4l2out_probe(struct platform_device *pdev)
 	/*
 	 * Allocate sufficient memory for the fb structure
 	 */
-	g_vout = vout = kmalloc(sizeof(vout_data), GFP_KERNEL);
+	vout = kmalloc(sizeof(vout_data), GFP_KERNEL);
 
 	if (!vout)
 		return 0;
@@ -2565,10 +2564,7 @@ static int mxc_v4l2out_remove(struct platform_device *pdev)
 	vout_data *vout = platform_get_drvdata(pdev);
 
 	if (vout->video_dev) {
-		if (-1 != vout->video_dev->minor)
-			video_unregister_device(vout->video_dev);
-		else
-			video_device_release(vout->video_dev);
+		video_unregister_device(vout->video_dev);
 		vout->video_dev = NULL;
 	}
 
@@ -2584,15 +2580,10 @@ static int mxc_v4l2out_remove(struct platform_device *pdev)
  */
 static struct platform_driver mxc_v4l2out_driver = {
 	.driver = {
-		   .name = "MXC Video Output",
+		   .name = "mxc_v4l2_output",
 		   },
 	.probe = mxc_v4l2out_probe,
 	.remove = mxc_v4l2out_remove,
-};
-
-static struct platform_device mxc_v4l2out_device = {
-	.name = "MXC Video Output",
-	.id = 0,
 };
 
 /*!
@@ -2601,13 +2592,7 @@ static struct platform_device mxc_v4l2out_device = {
  */
 static int mxc_v4l2out_init(void)
 {
-	u8 err = 0;
-
-	err = platform_driver_register(&mxc_v4l2out_driver);
-	if (err == 0) {
-		platform_device_register(&mxc_v4l2out_device);
-	}
-	return err;
+	return platform_driver_register(&mxc_v4l2out_driver);
 }
 
 /*!
@@ -2616,12 +2601,7 @@ static int mxc_v4l2out_init(void)
  */
 static void mxc_v4l2out_clean(void)
 {
-	video_unregister_device(g_vout->video_dev);
-
 	platform_driver_unregister(&mxc_v4l2out_driver);
-	platform_device_unregister(&mxc_v4l2out_device);
-	kfree(g_vout);
-	g_vout = NULL;
 }
 
 module_init(mxc_v4l2out_init);

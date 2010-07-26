@@ -2247,15 +2247,6 @@ static void camera_platform_release(struct device *device)
 {
 }
 
-/*! Device Definition for Mt9v111 devices */
-static struct platform_device mxc_v4l2_devices = {
-	.name = "mxc_v4l2",
-	.dev = {
-		.release = camera_platform_release,
-		},
-	.id = 0,
-};
-
 /*!
  * Camera V4l2 callback function.
  *
@@ -2391,7 +2382,7 @@ static void camera_callback(u32 mask, void *dev)
  *
  * @return status  0 Success
  */
-static void init_camera_struct(cam_data *cam)
+static void init_camera_struct(cam_data *cam, struct platform_device *pdev)
 {
 	pr_debug("In MVC: init_camera_struct\n");
 
@@ -2408,7 +2399,7 @@ static void init_camera_struct(cam_data *cam)
 	*(cam->video_dev) = mxc_v4l_template;
 
 	video_set_drvdata(cam->video_dev, cam);
-	dev_set_drvdata(&mxc_v4l2_devices.dev, (void *)cam);
+	dev_set_drvdata(&pdev->dev, (void *)cam);
 	cam->video_dev->minor = -1;
 
 	init_waitqueue_head(&cam->enc_queue);
@@ -2483,6 +2474,73 @@ static u8 camera_power(cam_data *cam, bool cameraOn)
 }
 
 /*!
+ * This function is called to probe the devices if registered.
+ *
+ * @param   pdev  the device structure used to give information on which device
+ *                to probe
+ *
+ * @return  The function returns 0 on success and -1 on failure.
+ */
+static int mxc_v4l2_probe(struct platform_device *pdev)
+{
+	/* Create g_cam and initialize it. */
+	g_cam = kmalloc(sizeof(cam_data), GFP_KERNEL);
+	if (g_cam == NULL) {
+		pr_err("ERROR: v4l2 capture: failed to register camera\n");
+		return -1;
+	}
+	init_camera_struct(g_cam, pdev);
+	pdev->dev.release = camera_platform_release;
+
+	/* Set up the v4l2 device and register it*/
+	mxc_v4l2_int_device.priv = g_cam;
+	/* This function contains a bug that won't let this be rmmod'd. */
+	v4l2_int_device_register(&mxc_v4l2_int_device);
+
+	/* register v4l video device */
+	if (video_register_device(g_cam->video_dev, VFL_TYPE_GRABBER, video_nr)
+	    == -1) {
+		kfree(g_cam);
+		g_cam = NULL;
+		pr_err("ERROR: v4l2 capture: video_register_device failed\n");
+		return -1;
+	}
+	pr_debug("   Video device registered: %s #%d\n",
+		 g_cam->video_dev->name, g_cam->video_dev->minor);
+
+	return 0;
+}
+
+/*!
+ * This function is called to remove the devices when device unregistered.
+ *
+ * @param   pdev  the device structure used to give information on which device
+ *                to remove
+ *
+ * @return  The function returns 0 on success and -1 on failure.
+ */
+static int mxc_v4l2_remove(struct platform_device *pdev)
+{
+
+	if (g_cam->open_count) {
+		pr_err("ERROR: v4l2 capture:camera open "
+			"-- setting ops to NULL\n");
+		return -EBUSY;
+	} else {
+		pr_info("V4L2 freeing image input device\n");
+		v4l2_int_device_unregister(&mxc_v4l2_int_device);
+		video_unregister_device(g_cam->video_dev);
+
+		mxc_free_frame_buf(g_cam);
+		kfree(g_cam);
+		g_cam = NULL;
+	}
+
+	pr_info("V4L2 unregistering video\n");
+	return 0;
+}
+
+/*!
  * This function is called to put the sensor in a low power state.
  * Refer to the document driver-model/driver.txt in the kernel source tree
  * for more information.
@@ -2551,10 +2609,10 @@ static int mxc_v4l2_resume(struct platform_device *pdev)
  */
 static struct platform_driver mxc_v4l2_driver = {
 	.driver = {
-		   .name = "mxc_v4l2",
+		   .name = "mxc_v4l2_capture",
 		   },
-	.probe = NULL,
-	.remove = NULL,
+	.probe = mxc_v4l2_probe,
+	.remove = mxc_v4l2_remove,
 	.suspend = mxc_v4l2_suspend,
 	.resume = mxc_v4l2_resume,
 	.shutdown = NULL,
@@ -2647,43 +2705,6 @@ static __init int camera_init(void)
 		return err;
 	}
 
-	/* Create g_cam and initialize it. */
-	if ((g_cam = kmalloc(sizeof(cam_data), GFP_KERNEL)) == NULL) {
-		pr_err("ERROR: v4l2 capture: failed to register camera\n");
-		platform_driver_unregister(&mxc_v4l2_driver);
-		return -1;
-	}
-	init_camera_struct(g_cam);
-
-	/* Set up the v4l2 device and register it*/
-	mxc_v4l2_int_device.priv = g_cam;
-	/* This function contains a bug that won't let this be rmmod'd. */
-	v4l2_int_device_register(&mxc_v4l2_int_device);
-
-	/* Register the I2C device */
-	err = platform_device_register(&mxc_v4l2_devices);
-	if (err != 0) {
-		pr_err("ERROR: v4l2 capture: camera_init: "
-		       "platform_device_register failed.\n");
-		platform_driver_unregister(&mxc_v4l2_driver);
-		kfree(g_cam);
-		g_cam = NULL;
-		return err;
-	}
-
-	/* register v4l video device */
-	if (video_register_device(g_cam->video_dev, VFL_TYPE_GRABBER, video_nr)
-	    == -1) {
-		platform_device_unregister(&mxc_v4l2_devices);
-		platform_driver_unregister(&mxc_v4l2_driver);
-		kfree(g_cam);
-		g_cam = NULL;
-		pr_err("ERROR: v4l2 capture: video_register_device failed\n");
-		return -1;
-	}
-	pr_debug("   Video device registered: %s #%d\n",
-		 g_cam->video_dev->name, g_cam->video_dev->minor);
-
 	return err;
 }
 
@@ -2694,22 +2715,7 @@ static void __exit camera_exit(void)
 {
 	pr_debug("In MVC: camera_exit\n");
 
-	pr_info("V4L2 unregistering video\n");
-
-	if (g_cam->open_count) {
-		pr_err("ERROR: v4l2 capture:camera open "
-			"-- setting ops to NULL\n");
-	} else {
-		pr_info("V4L2 freeing image input device\n");
-		v4l2_int_device_unregister(&mxc_v4l2_int_device);
-		video_unregister_device(g_cam->video_dev);
-		platform_driver_unregister(&mxc_v4l2_driver);
-		platform_device_unregister(&mxc_v4l2_devices);
-
-		mxc_free_frame_buf(g_cam);
-		kfree(g_cam);
-		g_cam = NULL;
-	}
+	platform_driver_unregister(&mxc_v4l2_driver);
 }
 
 module_init(camera_init);
