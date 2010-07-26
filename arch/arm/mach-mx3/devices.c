@@ -891,6 +891,22 @@ static inline void mxc_init_iim(void)
 }
 #endif
 
+static struct platform_device mxc_v4l2_device = {
+	.name = "mxc_v4l2_capture",
+	.id = 0,
+};
+
+static struct platform_device mxc_v4l2out_device = {
+	.name = "mxc_v4l2_output",
+	.id = 0,
+};
+
+static inline void mxc_init_v4l2()
+{
+	platform_device_register(&mxc_v4l2_device);
+	platform_device_register(&mxc_v4l2out_device);
+}
+
 int __init mxc_init_devices(void)
 {
 	mxc_init_wdt();
@@ -910,6 +926,7 @@ int __init mxc_init_devices(void)
 	mxc_init_vpu();
 	mxc_init_rnga();
 	mxc_init_iim();
+	mxc_init_v4l2();
 
 	return 0;
 }

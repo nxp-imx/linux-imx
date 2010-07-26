@@ -1646,6 +1646,8 @@ static void __init mxc_board_init(void)
 		mxc_register_device(&mxc_alsa_surround_device,
 			&mxc_surround_audio_data);
 	}
+	mxc_register_device(&mxc_v4l2_device, NULL);
+	mxc_register_device(&mxc_v4l2out_device, NULL);
 }
 
 static void __init mx53_evk_timer_init(void)

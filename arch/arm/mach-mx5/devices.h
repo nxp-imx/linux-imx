@@ -70,3 +70,5 @@ extern struct platform_device mxc_pxp_device;
 extern struct platform_device mxc_pxp_client_device;
 extern struct platform_device epdc_device;
 extern struct platform_device elcdif_device;
+extern struct platform_device mxc_v4l2_device;
+extern struct platform_device mxc_v4l2out_device;

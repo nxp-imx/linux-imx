@@ -1256,6 +1256,16 @@ struct platform_device mxc_pxp_client_device = {
 	.id = -1,
 };
 
+struct platform_device mxc_v4l2_device = {
+	.name = "mxc_v4l2_capture",
+	.id = 0,
+};
+
+struct platform_device mxc_v4l2out_device = {
+	.name = "mxc_v4l2_output",
+	.id = 0,
+};
+
 void __init mx5_init_irq(void)
 {
 	unsigned long tzic_addr;

@@ -902,6 +902,22 @@ static inline void mxc_init_ssi(void)
 }
 #endif /* CONFIG_SND_MXC_SOC_SSI */
 
+static struct platform_device mxc_v4l2_device = {
+	.name = "mxc_v4l2_capture",
+	.id = 0,
+};
+
+static struct platform_device mxc_v4l2out_device = {
+	.name = "mxc_v4l2_output",
+	.id = 0,
+};
+
+static inline void mxc_init_v4l2()
+{
+	platform_device_register(&mxc_v4l2_device);
+	platform_device_register(&mxc_v4l2out_device);
+}
+
 int __init mxc_init_devices(void)
 {
 	mxc_init_wdt();
@@ -921,6 +937,7 @@ int __init mxc_init_devices(void)
 	mxc_init_gpu();
 	mxc_init_ssi();
 	mxc_init_esai();
+	mxc_init_v4l2();
 
 	return 0;
 }
