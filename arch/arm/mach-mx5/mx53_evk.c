@@ -127,22 +127,12 @@ static struct fb_videomode video_modes[] = {
 	 FB_VMODE_INTERLACED | FB_VMODE_ODD_FLD_FIRST,
 	 0,},
 	{
-	 /* 720p60 TV output */
 	 "720P60", 60, 1280, 720, 13468,
 	 260, 109,
 	 25, 4,
 	 1, 1,
 	 FB_SYNC_HOR_HIGH_ACT | FB_SYNC_VERT_HIGH_ACT |
 			FB_SYNC_EXT,
-	 FB_VMODE_NONINTERLACED,
-	 0,},
-	{
-	 /* MITSUBISHI LVDS panel */
-	 "XGA", 60, 1024, 768, 15385,
-	 220, 40,
-	 21, 7,
-	 60, 10,
-	 0,
 	 FB_VMODE_NONINTERLACED,
 	 0,},
 	{
@@ -162,8 +152,7 @@ static struct fb_videomode video_modes[] = {
 	FB_VMODE_NONINTERLACED,
 	0,},
 	{
-	 /* 1080p LVDS panel */
-	 "LDB-1080p", 60, 1920, 1080, 7692,
+	 "1080P60", 60, 1920, 1080, 7692,
 	 100, 40,
 	 30, 3,
 	 10, 2,
@@ -171,8 +160,7 @@ static struct fb_videomode video_modes[] = {
 	 FB_VMODE_NONINTERLACED,
 	 0,},
 	{
-	 /* XGA LVDS panel */
-	 "LDB-XGA", 60, 1024, 768, 15385,
+	 "XGA", 60, 1024, 768, 15385,
 	 220, 40,
 	 21, 7,
 	 60, 10,
