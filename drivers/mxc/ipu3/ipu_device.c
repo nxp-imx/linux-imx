@@ -446,7 +446,7 @@ static int mxc_ipu_ioctl(struct inode *inode, struct file *file,
 
 static int mxc_ipu_mmap(struct file *file, struct vm_area_struct *vma)
 {
-//	vma->vm_page_prot = pgprot_writethru(vma->vm_page_prot);
+	vma->vm_page_prot = pgprot_writethru(vma->vm_page_prot);
 
 	if (remap_pfn_range(vma, vma->vm_start, vma->vm_pgoff,
 				vma->vm_end - vma->vm_start,
