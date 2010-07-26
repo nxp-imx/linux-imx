@@ -97,12 +97,15 @@ static struct ldb_data {
 	struct clk *ldb_di_clk[2];
 	struct regulator *lvds_bg_reg;
 	struct list_head modelist;
-	bool boot_cmd;
 } ldb;
 
 static struct device *g_ldb_dev;
 static u32 *ldb_reg;
 static bool enabled[2];
+static int g_chan_mode_opt;
+static int g_chan_bit_map[2];
+static bool g_enable_ldb;
+static bool g_boot_cmd;
 
 DEFINE_SPINLOCK(ldb_lock);
 
@@ -782,6 +785,9 @@ static int ldb_probe(struct platform_device *pdev)
 	const struct fb_videomode *mode;
 	struct class *mxc_ldb_class;
 
+	if (g_enable_ldb == false)
+		return 0;
+
 	spin_lock_init(&ldb_lock);
 
 	g_ldb_dev = &pdev->dev;
@@ -792,6 +798,12 @@ static int ldb_probe(struct platform_device *pdev)
 
 	memset(&ldb, 0, sizeof(struct ldb_data));
 	enabled[0] = enabled[1] = false;
+	var[0] = var[1] = NULL;
+	if (g_boot_cmd) {
+		ldb.chan_mode_opt = g_chan_mode_opt;
+		ldb.chan_bit_map[0] = g_chan_bit_map[0];
+		ldb.chan_bit_map[1] = g_chan_bit_map[1];
+	}
 
 	ldb.base_addr = res->start;
 	ldb_reg = ioremap(ldb.base_addr, res->end - res->start + 1);
@@ -820,7 +832,7 @@ static int ldb_probe(struct platform_device *pdev)
 			 * 1080p: DI0 split, SPWG
 			 * others: single, SPWG
 			 */
-			if (ldb.boot_cmd == false) {
+			if (g_boot_cmd == false) {
 				ldb.chan_bit_map[0] = LDB_BIT_MAP_SPWG;
 				if (fb_mode_is_equal(mode, &mxcfb_ldb_modedb[0])) {
 					ldb.chan_mode_opt = LDB_SPL_DI0;
@@ -1359,31 +1371,36 @@ static struct platform_driver mxcldb_driver = {
  */
 static int __init ldb_setup(char *options)
 {
-	ldb.boot_cmd = true;
+	g_enable_ldb = true;
+
+	if (!strlen(options))
+		return 1;
+	else if (!strsep(&options, "="))
+		return 1;
 
 	if (!strncmp(options, "single", 6)) {
 		strsep(&options, ",");
 		if (!strncmp(options, "di=0", 4))
-			ldb.chan_mode_opt = LDB_SIN_DI0;
+			g_chan_mode_opt = LDB_SIN_DI0;
 		else
-			ldb.chan_mode_opt = LDB_SIN_DI1;
+			g_chan_mode_opt = LDB_SIN_DI1;
 	} else if (!strncmp(options, "separate", 8)) {
-		ldb.chan_mode_opt = LDB_SEP;
+		g_chan_mode_opt = LDB_SEP;
 	} else if (!strncmp(options, "dual", 4)) {
 		strsep(&options, ",");
 		if (!strncmp(options, "di=", 3)) {
 			if (simple_strtoul(options + 3, NULL, 0) == 0)
-				ldb.chan_mode_opt = LDB_DUL_DI0;
+				g_chan_mode_opt = LDB_DUL_DI0;
 			else
-				ldb.chan_mode_opt = LDB_DUL_DI1;
+				g_chan_mode_opt = LDB_DUL_DI1;
 		}
 	} else if (!strncmp(options, "split", 5)) {
 		strsep(&options, ",");
 		if (!strncmp(options, "di=", 3)) {
 			if (simple_strtoul(options + 3, NULL, 0) == 0)
-				ldb.chan_mode_opt = LDB_SPL_DI0;
+				g_chan_mode_opt = LDB_SPL_DI0;
 			else
-				ldb.chan_mode_opt = LDB_SPL_DI1;
+				g_chan_mode_opt = LDB_SPL_DI1;
 		}
 	} else
 		return 1;
@@ -1391,24 +1408,26 @@ static int __init ldb_setup(char *options)
 	if ((strsep(&options, ",") != NULL) &&
 	    !strncmp(options, "ch0_map=", 8)) {
 		if (!strncmp(options + 8, "SPWG", 4))
-			ldb.chan_bit_map[0] = LDB_BIT_MAP_SPWG;
+			g_chan_bit_map[0] = LDB_BIT_MAP_SPWG;
 		else
-			ldb.chan_bit_map[0] = LDB_BIT_MAP_JEIDA;
+			g_chan_bit_map[0] = LDB_BIT_MAP_JEIDA;
 	}
 
-	if (!(ldb.chan_mode_opt == LDB_SIN_DI0 ||
-	      ldb.chan_mode_opt == LDB_SIN_DI1) &&
+	if (!(g_chan_mode_opt == LDB_SIN_DI0 ||
+	      g_chan_mode_opt == LDB_SIN_DI1) &&
 	    (strsep(&options, ",") != NULL) &&
 	    !strncmp(options, "ch1_map=", 8)) {
 		if (!strncmp(options + 8, "SPWG", 4))
-			ldb.chan_bit_map[1] = LDB_BIT_MAP_SPWG;
+			g_chan_bit_map[1] = LDB_BIT_MAP_SPWG;
 		else
-			ldb.chan_bit_map[1] = LDB_BIT_MAP_JEIDA;
+			g_chan_bit_map[1] = LDB_BIT_MAP_JEIDA;
 	}
+
+	g_boot_cmd = true;
 
 	return 1;
 }
-__setup("ldb=", ldb_setup);
+__setup("ldb", ldb_setup);
 
 static int __init ldb_init(void)
 {
