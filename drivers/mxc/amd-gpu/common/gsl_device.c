@@ -174,9 +174,10 @@ kgsl_device_close(gsl_device_t *device)
     }
 
     // DumpX allocates memstore from MMU aperture
-    if (device->memstore.hostptr && !(gsl_driver.flags_debug & GSL_DBGFLAGS_DUMPX))
+    if ((device->refcnt == 0) && device->memstore.hostptr
+	&& !(gsl_driver.flags_debug & GSL_DBGFLAGS_DUMPX))
     {
-        //kgsl_sharedmem_free0(&device->memstore, GSL_CALLER_PROCESSID_GET());
+	kgsl_sharedmem_free0(&device->memstore, GSL_CALLER_PROCESSID_GET());
     }
 
 #ifndef _LINUX	
