@@ -69,6 +69,7 @@ DEFINE_SPINLOCK(tve_lock);
 
 static struct fb_info *tve_fbi;
 static struct fb_modelist tve_modelist;
+static bool g_enable_tve;
 
 struct tve_data {
 	struct platform_device *pdev;
@@ -677,6 +678,9 @@ static int tve_probe(struct platform_device *pdev)
 	struct tve_platform_data *plat_data = pdev->dev.platform_data;
 	u32 conf_reg;
 
+	if (g_enable_tve == false)
+		return 0;
+
 	INIT_LIST_HEAD(&tve_modelist.list);
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
@@ -886,6 +890,14 @@ static struct platform_driver tve_driver = {
 	.suspend = tve_suspend,
 	.resume = tve_resume,
 };
+
+static int __init enable_tve_setup(char *options)
+{
+	g_enable_tve = true;
+
+	return 1;
+}
+__setup("tve", enable_tve_setup);
 
 static int __init tve_init(void)
 {
