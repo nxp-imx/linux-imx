@@ -111,8 +111,7 @@ DEFINE_SPINLOCK(ldb_lock);
 
 struct fb_videomode mxcfb_ldb_modedb[] = {
 	{
-	 /* 1080p LVDS panel */
-	 "LDB-1080p", 60, 1920, 1080, 7692,
+	 "1080P60", 60, 1920, 1080, 7692,
 	 100, 40,
 	 30, 3,
 	 10, 2,
@@ -120,8 +119,7 @@ struct fb_videomode mxcfb_ldb_modedb[] = {
 	 FB_VMODE_NONINTERLACED,
 	 0,},
 	{
-	 /* XGA LVDS panel */
-	 "LDB-XGA", 60, 1024, 768, 15385,
+	 "XGA", 60, 1024, 768, 15385,
 	 220, 40,
 	 21, 7,
 	 60, 10,
