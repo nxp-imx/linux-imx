@@ -1778,6 +1778,39 @@ int32_t ipu_disp_set_window_pos(ipu_channel_t channel, int16_t x_pos,
 }
 EXPORT_SYMBOL(ipu_disp_set_window_pos);
 
+int32_t ipu_disp_get_window_pos(ipu_channel_t channel, int16_t *x_pos,
+				int16_t *y_pos)
+{
+	u32 reg;
+	unsigned long lock_flags;
+	uint32_t flow = 0;
+
+	if (channel == MEM_FG_SYNC)
+		flow = DP_SYNC;
+	else if (channel == MEM_FG_ASYNC0)
+		flow = DP_ASYNC0;
+	else if (channel == MEM_FG_ASYNC1)
+		flow = DP_ASYNC1;
+	else
+		return -EINVAL;
+
+	if (!g_ipu_clk_enabled)
+		clk_enable(g_ipu_clk);
+	spin_lock_irqsave(&ipu_lock, lock_flags);
+
+	reg = __raw_readl(DP_FG_POS(flow));
+
+	*x_pos = (reg >> 16) & 0x7FF;
+	*y_pos = reg & 0x7FF;
+
+	spin_unlock_irqrestore(&ipu_lock, lock_flags);
+	if (!g_ipu_clk_enabled)
+		clk_disable(g_ipu_clk);
+
+	return 0;
+}
+EXPORT_SYMBOL(ipu_disp_get_window_pos);
+
 void ipu_disp_direct_write(ipu_channel_t channel, u32 value, u32 offset)
 {
 	if (channel == DIRECT_ASYNC0)

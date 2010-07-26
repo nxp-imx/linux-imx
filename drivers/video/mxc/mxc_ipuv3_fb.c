@@ -565,6 +565,36 @@ static int mxcfb_check_var(struct fb_var_screeninfo *var, struct fb_info *info)
 {
 	u32 vtotal;
 	u32 htotal;
+	struct mxcfb_info *mxc_fbi = (struct mxcfb_info *)info->par;
+
+	/* fg should not bigger than bg */
+	if (mxc_fbi->ipu_ch == MEM_FG_SYNC) {
+		struct fb_info *fbi_tmp;
+		struct mxcfb_info *mxc_fbi_tmp;
+		int i, bg_xres, bg_yres;
+		int16_t pos_x, pos_y;
+
+		bg_xres = var->xres;
+		bg_yres = var->yres;
+
+		for (i = 0; i < num_registered_fb; i++) {
+			fbi_tmp = registered_fb[i];
+			mxc_fbi_tmp = (struct mxcfb_info *)
+				(fbi_tmp->par);
+			if (mxc_fbi_tmp->ipu_ch == MEM_BG_SYNC) {
+				bg_xres = fbi_tmp->var.xres;
+				bg_yres = fbi_tmp->var.yres;
+				break;
+			}
+		}
+
+		ipu_disp_get_window_pos(mxc_fbi->ipu_ch, &pos_x, &pos_y);
+
+		if ((var->xres + pos_x) > bg_xres)
+			var->xres = bg_xres - pos_x;
+		if ((var->yres + pos_y) > bg_yres)
+			var->yres = bg_yres - pos_y;
+	}
 
 	if (var->xres_virtual < var->xres)
 		var->xres_virtual = var->xres;
