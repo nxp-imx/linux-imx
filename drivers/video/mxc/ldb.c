@@ -784,7 +784,7 @@ static int ldb_probe(struct platform_device *pdev)
 	struct class *mxc_ldb_class;
 
 	if (g_enable_ldb == false)
-		return 0;
+		return -ENODEV;
 
 	spin_lock_init(&ldb_lock);
 
