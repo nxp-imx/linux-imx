@@ -679,7 +679,7 @@ static int tve_probe(struct platform_device *pdev)
 	u32 conf_reg;
 
 	if (g_enable_tve == false)
-		return 0;
+		return -ENODEV;
 
 	INIT_LIST_HEAD(&tve_modelist.list);
 
