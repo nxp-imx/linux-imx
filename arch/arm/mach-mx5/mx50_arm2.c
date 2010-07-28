@@ -765,6 +765,7 @@ static void __init mxc_board_init(void)
 	mxc_register_device(&epdc_device, NULL);
 	mxc_register_device(&lcd_wvga_device, &lcd_wvga_data);
 	mxc_register_device(&elcdif_device, &fb_data[0]);
+	mxc_register_device(&mxs_viim, NULL);
 
 	mx50_arm2_init_mc13892();
 /*

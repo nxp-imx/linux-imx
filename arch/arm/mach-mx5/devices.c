@@ -1266,6 +1266,25 @@ struct platform_device mxc_v4l2out_device = {
 	.id = 0,
 };
 
+struct resource viim_resources[] = {
+	[0] = {
+		.start  = (GPT1_BASE_ADDR - 0x20000000),
+		.end    = (GPT1_BASE_ADDR - 0x20000000) + PAGE_SIZE - 1,
+		.flags  = IORESOURCE_MEM,
+	},
+	[1] = {
+		.start  = OCOTP_CTRL_BASE_ADDR,
+		.end    = OCOTP_CTRL_BASE_ADDR + PAGE_SIZE - 1,
+		.flags  = IORESOURCE_MEM,
+	},
+};
+struct platform_device mxs_viim = {
+	.name   = "mxs_viim",
+	.id     = -1,
+	.num_resources = ARRAY_SIZE(viim_resources),
+	.resource = viim_resources,
+};
+
 void __init mx5_init_irq(void)
 {
 	unsigned long tzic_addr;
