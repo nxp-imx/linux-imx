@@ -132,8 +132,6 @@ static int pxp_ioc_config_chan(unsigned long arg)
 
 	init_waitqueue_head(&(irq_info[chan_id].waitq));
 
-	/* Fixme */
-	mdelay(100);
 	/* find the channel */
 	spin_lock(&pxp_chan_lock);
 	list_for_each_entry(info, &list, list) {

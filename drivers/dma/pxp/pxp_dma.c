@@ -57,6 +57,7 @@ struct pxps {
 	struct pxp_channel channel[NR_PXP_VIRT_CHANNEL];
 	struct work_struct work;
 	struct workqueue_struct *workqueue;
+	wait_queue_head_t done;
 
 	/* describes most recent processing configuration */
 	struct pxp_config_data pxp_conf_state;
@@ -69,6 +70,9 @@ struct pxps {
 
 #define PXP_DEF_BUFS	2
 #define PXP_MIN_PIX	8
+
+#define PXP_WAITCON	((__raw_readl(pxp->base + HW_PXP_STAT) & \
+				BM_PXP_STAT_IRQ) != BM_PXP_STAT_IRQ)
 
 static uint32_t pxp_s0_formats[] = {
 	PXP_PIX_FMT_RGB24,
@@ -636,13 +640,9 @@ static void pxpdma_dostart_work(struct work_struct *w)
 	struct pxps *pxp = container_of(w, struct pxps, work);
 	struct pxp_channel *pxp_chan = NULL;
 	unsigned long flags, flags1;
-	int val;
 
-	val = __raw_readl(pxp->base + HW_PXP_CTRL);
-	if (val & BM_PXP_CTRL_ENABLE) {
-		pr_warning("pxp is active, quit.\n");
-		return;
-	}
+	while (__raw_readl(pxp->base + HW_PXP_CTRL) & BM_PXP_CTRL_ENABLE)
+		;
 
 	spin_lock_irqsave(&pxp->lock, flags);
 	if (list_empty(&head)) {
@@ -795,13 +795,12 @@ static int pxp_uninit_channel(struct pxp_dma *pxp_dma,
 
 static irqreturn_t pxp_irq(int irq, void *dev_id)
 {
-	struct pxp_channel *pxp_chan = dev_id;
-	struct pxp_dma *pxp_dma = to_pxp_dma(pxp_chan->dma_chan.device);
-	struct pxps *pxp = to_pxp(pxp_dma);
+	struct pxps *pxp = dev_id;
+	struct pxp_channel *pxp_chan;
 	struct pxp_tx_desc *desc;
 	dma_async_tx_callback callback;
 	void *callback_param;
-	unsigned long flags;
+	unsigned long flags, flags1;
 	u32 hist_status;
 
 	hist_status =
@@ -811,9 +810,19 @@ static irqreturn_t pxp_irq(int irq, void *dev_id)
 
 	spin_lock_irqsave(&pxp->lock, flags);
 
+	if (list_empty(&head)) {
+		spin_unlock_irqrestore(&pxp->lock, flags);
+		return IRQ_NONE;
+	}
+
+	spin_lock_irqsave(&pxp_chan->lock, flags1);
+	pxp_chan = list_entry(head.next, struct pxp_channel, list);
+	list_del_init(&pxp_chan->list);
+
 	if (list_empty(&pxp_chan->active_list)) {
 		pr_debug("PXP_IRQ pxp_chan->active_list empty. chan_id %d\n",
 			 pxp_chan->dma_chan.chan_id);
+		spin_unlock_irqrestore(&pxp_chan->lock, flags1);
 		spin_unlock_irqrestore(&pxp->lock, flags);
 		return IRQ_NONE;
 	}
@@ -839,9 +848,10 @@ static irqreturn_t pxp_irq(int irq, void *dev_id)
 
 	list_del(&pxp_chan->list);
 
-	spin_unlock_irqrestore(&pxp->lock, flags);
+	wake_up(&pxp->done);
 
-	queue_work(pxp->workqueue, &pxp->work);
+	spin_unlock_irqrestore(&pxp_chan->lock, flags1);
+	spin_unlock_irqrestore(&pxp->lock, flags);
 
 	return IRQ_HANDLED;
 }
@@ -958,17 +968,24 @@ static void pxp_issue_pending(struct dma_chan *chan)
 
 	spin_lock_irqsave(&pxp->lock, flags0);
 	spin_lock_irqsave(&pxp_chan->lock, flags);
-	if (!list_empty(&pxp_chan->active_list))
-		queue_work(pxp->workqueue, &pxp->work);
 
 	if (!list_empty(&pxp_chan->queue)) {
 		pxpdma_dequeue(pxp_chan, &pxp_chan->active_list);
 		pxp_chan->status = PXP_CHANNEL_READY;
 		list_add_tail(&pxp_chan->list, &head);
-		queue_work(pxp->workqueue, &pxp->work);
+	} else {
+		spin_unlock_irqrestore(&pxp_chan->lock, flags);
+		spin_unlock_irqrestore(&pxp->lock, flags0);
+		return;
 	}
 	spin_unlock_irqrestore(&pxp_chan->lock, flags);
 	spin_unlock_irqrestore(&pxp->lock, flags0);
+
+	if (!wait_event_interruptible_timeout(pxp->done, PXP_WAITCON, 2 * HZ) ||
+		signal_pending(current))
+		return;
+
+	queue_work(pxp->workqueue, &pxp->work);
 }
 
 static void __pxp_terminate_all(struct dma_chan *chan)
@@ -1016,11 +1033,6 @@ static int pxp_alloc_chan_resources(struct dma_chan *chan)
 	if (ret < 0)
 		goto err_chan;
 
-	ret = request_irq(pxp_chan->eof_irq, pxp_irq, IRQF_SHARED,
-			  "pxp-irq", pxp_chan);
-	if (ret < 0)
-		goto err_irq;
-
 	pxp_chan->status = PXP_CHANNEL_INITIALIZED;
 
 	dev_dbg(&chan->dev->device, "Found channel 0x%x, irq %d\n",
@@ -1028,8 +1040,6 @@ static int pxp_alloc_chan_resources(struct dma_chan *chan)
 
 	return ret;
 
-err_irq:
-	pxp_uninit_channel(pxp_dma, pxp_chan);
 err_chan:
 	return ret;
 }
@@ -1046,8 +1056,6 @@ static void pxp_free_chan_resources(struct dma_chan *chan)
 	pxp_chan->status = PXP_CHANNEL_FREE;
 
 	pxp_uninit_channel(pxp_dma, pxp_chan);
-
-	free_irq(pxp_chan->eof_irq, pxp_chan);
 
 	mutex_unlock(&pxp_chan->chan_mutex);
 }
@@ -1270,11 +1278,15 @@ static int pxp_probe(struct platform_device *pdev)
 		goto release;
 	}
 
+	err = request_irq(pxp->irq, pxp_irq, 0, "pxp-irq", pxp);
+	if (err)
+		goto release;
 	/* Initialize DMA engine */
 	err = pxp_dma_init(pxp);
 	if (err < 0)
 		goto err_dma_init;
 
+	init_waitqueue_head(&pxp->done);
 	INIT_WORK(&pxp->work, pxpdma_dostart_work);
 	pxp->workqueue = create_singlethread_workqueue("pxp_dma");
 exit:
