@@ -288,6 +288,7 @@ static int mxs_saif_set_dai_clkdiv(struct snd_soc_dai *cpu_dai,
 		default:
 			return -EINVAL;
 		}
+		break;
 	default:
 		return -EINVAL;
 	}

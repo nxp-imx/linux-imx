@@ -634,6 +634,8 @@ static int sgtl5000_pcm_hw_params(struct snd_pcm_substream *substream,
 	}
 	/* SGTL5000 rev1 has a IC bug to prevent switching to MCLK from PLL. */
 	if (!sgtl5000->master) {
+		sys_fs = sgtl5000->lrclk;
+		clk_ctl = SGTL5000_RATE_MODE_DIV_1 << SGTL5000_RATE_MODE_SHIFT;
 		if (sys_fs * 256 == sgtl5000->sysclk)
 			clk_ctl |= SGTL5000_MCLK_FREQ_256FS << \
 				SGTL5000_MCLK_FREQ_SHIFT;
