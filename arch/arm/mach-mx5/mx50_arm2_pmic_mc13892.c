@@ -74,11 +74,7 @@
 #define AUDIO_STBY_MASK		(1 << 16)
 #define SD_STBY_MASK		(1 << 19)
 
-/* 0x92412 */
-#define REG_MODE_0_ALL_MASK	(GEN1_STBY_MASK |\
-				DIG_STBY_MASK | GEN2_STBY_MASK |\
-				PLL_STBY_MASK)
-/* 0x92082 */
+#define REG_MODE_0_ALL_MASK	(DIG_STBY_MASK | GEN1_STBY_MASK)
 #define REG_MODE_1_ALL_MASK	(CAM_STBY_MASK | VIDEO_STBY_MASK |\
 				AUDIO_STBY_MASK | SD_STBY_MASK)
 
@@ -153,11 +149,17 @@ static struct regulator_init_data sw2_init = {
 static struct regulator_init_data sw3_init = {
 	.constraints = {
 		.name = "SW3",
-		.min_uV = mV_to_uV(1100),
+		.min_uV = mV_to_uV(900),
 		.max_uV = mV_to_uV(1850),
 		.valid_ops_mask = REGULATOR_CHANGE_VOLTAGE,
 		.always_on = 1,
 		.boot_on = 1,
+		.initial_state = PM_SUSPEND_MEM,
+		.state_mem = {
+			.uV = 950000,
+			.mode = REGULATOR_MODE_NORMAL,
+			.enabled = 1,
+		},
 	}
 };
 
@@ -329,8 +331,6 @@ static int mc13892_regulator_init(struct mc13892 *mc13892)
 	unsigned int value, register_mask;
 	printk("Initializing regulators for mx50 arm2.\n");
 
-	/* TBD later. */
-#if 0
 	/* enable standby controll for all regulators */
 	pmic_read_reg(REG_MODE_0, &value, 0xffffff);
 	value |= REG_MODE_0_ALL_MASK;
@@ -339,7 +339,6 @@ static int mc13892_regulator_init(struct mc13892 *mc13892)
 	pmic_read_reg(REG_MODE_1, &value, 0xffffff);
 	value |= REG_MODE_1_ALL_MASK;
 	pmic_write_reg(REG_MODE_1, value, 0xffffff);
-#endif
 
 	/* enable switch audo mode */
 	pmic_read_reg(REG_IDENTIFICATION, &value, 0xffffff);
