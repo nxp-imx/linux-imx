@@ -61,6 +61,7 @@
 #include <mach/i2c.h>
 
 #include "devices.h"
+#include "crm_regs.h"
 #include "usb.h"
 #include "dma-apbh.h"
 
@@ -83,7 +84,7 @@
 extern int __init mx50_arm2_init_mc13892(void);
 extern struct cpu_wp *(*get_cpu_wp)(int *wp);
 extern void (*set_num_cpu_wp)(int num);
-static int num_cpu_wp = 3;
+static int num_cpu_wp = 2;
 
 static struct pad_desc  mx50_armadillo2[] = {
 	/* SD1 */
@@ -249,17 +250,33 @@ static struct pad_desc  mx50_gpmi_nand[] = {
 	MX50_PIN_SD3_WP__NANDF_RESETN,
 };
 
+static struct mxc_dvfs_platform_data dvfs_core_data = {
+	.reg_id = "SW1",
+	.clk1_id = "cpu_clk",
+	.clk2_id = "gpc_dvfs_clk",
+	.gpc_cntr_offset = MXC_GPC_CNTR_OFFSET,
+	.gpc_vcr_offset = MXC_GPC_VCR_OFFSET,
+	.ccm_cdcr_offset = MXC_CCM_CDCR_OFFSET,
+	.ccm_cacrr_offset = MXC_CCM_CACRR_OFFSET,
+	.ccm_cdhipr_offset = MXC_CCM_CDHIPR_OFFSET,
+	.prediv_mask = 0x1F800,
+	.prediv_offset = 11,
+	.prediv_val = 3,
+	.div3ck_mask = 0xE0000000,
+	.div3ck_offset = 29,
+	.div3ck_val = 2,
+	.emac_val = 0x08,
+	.upthr_val = 25,
+	.dnthr_val = 9,
+	.pncthr_val = 33,
+	.upcnt_val = 10,
+	.dncnt_val = 10,
+	.delay_time = 30,
+	.num_wp = 2,
+};
+
 /* working point(wp): 0 - 800MHz; 1 - 166.25MHz; */
 static struct cpu_wp cpu_wp_auto[] = {
-	{
-	 .pll_rate = 1000000000,
-	 .cpu_rate = 1000000000,
-	 .pdf = 0,
-	 .mfi = 10,
-	 .mfd = 11,
-	 .mfn = 5,
-	 .cpu_podf = 0,
-	 .cpu_voltage = 1175000,},
 	{
 	 .pll_rate = 800000000,
 	 .cpu_rate = 800000000,
@@ -268,7 +285,7 @@ static struct cpu_wp cpu_wp_auto[] = {
 	 .mfd = 2,
 	 .mfn = 1,
 	 .cpu_podf = 0,
-	 .cpu_voltage = 1100000,},
+	 .cpu_voltage = 1050000,},
 	{
 	 .pll_rate = 800000000,
 	 .cpu_rate = 166250000,
@@ -811,10 +828,10 @@ static void __init mxc_board_init(void)
 	mxc_register_device(&gpu_device, NULL);
 	mxc_register_device(&mxc_pxp_device, NULL);
 	mxc_register_device(&mxc_pxp_client_device, NULL);
+	mxc_register_device(&mxc_dvfs_core_device, &dvfs_core_data);
 	/*
 	mxc_register_device(&mx53_lpmode_device, NULL);
 	mxc_register_device(&busfreq_device, NULL);
-	mxc_register_device(&mxc_dvfs_core_device, &dvfs_core_data);
 	mxc_register_device(&mxc_dvfs_per_device, &dvfs_per_data);
 	*/
 
