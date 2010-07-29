@@ -257,6 +257,7 @@ struct mxc_spdif_device {
 	 * SPDIF module register base address
 	 */
 	unsigned long __iomem *reg_base;
+	unsigned long reg_phys_base;
 
 	/*!
 	 * spdif tx available or not
@@ -943,8 +944,9 @@ static void spdif_stop_tx(struct mxc_spdif_stream *s)
   */
 static void spdif_start_tx(struct mxc_spdif_stream *s)
 {
-	struct snd_pcm_substream *substream;
-	struct snd_pcm_runtime *runtime;
+	struct snd_pcm_substream *substream = s->stream;
+	struct snd_pcm_runtime *runtime = substream->runtime;
+	struct mxc_spdif_device *chip = snd_pcm_substream_chip(substream);
 	unsigned int dma_size = 0;
 	unsigned int offset;
 	int ret = 0;
@@ -960,7 +962,7 @@ static void spdif_start_tx(struct mxc_spdif_stream *s)
 				  (NULL, runtime->dma_area + offset, dma_size,
 				   DMA_TO_DEVICE));
 
-		dma_request.dst_addr = (dma_addr_t) (SPDIF_BASE_ADDR + 0x2c);
+		dma_request.dst_addr = (dma_addr_t) (chip->reg_phys_base + 0x2c);
 
 		dma_request.num_of_bytes = dma_size;
 		mxc_dma_config(s->dma_wchannel, &dma_request, 1,
@@ -1279,15 +1281,14 @@ static void spdif_stop_rx(struct mxc_spdif_stream *s)
   */
 static void spdif_start_rx(struct mxc_spdif_stream *s)
 {
-	struct snd_pcm_substream *substream;
-	struct snd_pcm_runtime *runtime;
+	struct snd_pcm_substream *substream = s->stream;
+	struct snd_pcm_runtime *runtime = substream->runtime;
+	struct mxc_spdif_device *chip = snd_pcm_substream_chip(substream);
 	unsigned int dma_size = 0;
 	unsigned int offset;
 	int ret = 0;
 	mxc_dma_requestbuf_t dma_request;
 
-	substream = s->stream;
-	runtime = substream->runtime;
 	memset(&dma_request, 0, sizeof(mxc_dma_requestbuf_t));
 
 	if (s->active) {
@@ -1305,7 +1306,7 @@ static void spdif_start_rx(struct mxc_spdif_stream *s)
 				   DMA_FROM_DEVICE));
 
 		dma_request.src_addr =
-		    (dma_addr_t) (SPDIF_BASE_ADDR + SPDIF_REG_SRL);
+		    (dma_addr_t) (chip->reg_phys_base + SPDIF_REG_SRL);
 		dma_request.num_of_bytes = dma_size;
 		/* config and enable sdma for RX */
 		mxc_dma_config(s->dma_wchannel, &dma_request, 1,
@@ -2089,6 +2090,7 @@ static int mxc_alsa_spdif_probe(struct platform_device
 	chip = card->private_data;
 	chip->card = card;
 	card->dev = &pdev->dev;
+	chip->reg_phys_base = res->start;
 	chip->reg_base = ioremap(res->start, res->end - res->start + 1);
 	spdif_base_addr = (unsigned long)chip->reg_base;
 	plat_data = (struct mxc_spdif_platform_data *)pdev->dev.platform_data;
