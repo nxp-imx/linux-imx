@@ -57,9 +57,7 @@ static int gsl_kmod_fault(struct vm_area_struct *vma, struct vm_fault *vmf);
 static int gsl_kmod_open(struct inode *inode, struct file *fd);
 static int gsl_kmod_release(struct inode *inode, struct file *fd);
 static irqreturn_t z160_irq_handler(int irq, void *dev_id);
-#if defined(MX51)
 static irqreturn_t z430_irq_handler(int irq, void *dev_id);
-#endif
 
 static int gsl_kmod_major;
 static struct class *gsl_kmod_class;
@@ -753,13 +751,11 @@ static irqreturn_t z160_irq_handler(int irq, void *dev_id)
     return IRQ_HANDLED;
 }
 
-#if defined(MX51)
 static irqreturn_t z430_irq_handler(int irq, void *dev_id)
 {
     kgsl_intr_isr();
     return IRQ_HANDLED;
 }
-#endif
 
 static int gpu_probe(struct platform_device *pdev)
 {
@@ -817,18 +813,21 @@ static int gpu_probe(struct platform_device *pdev)
         goto kgsl_driver_init_error;
     }
 
-#if defined(MX51)
-    if (request_irq(gpu_3d_irq, z430_irq_handler, 0, "ydx", NULL) < 0)
+    if (gpu_3d_irq > 0)
     {
-        printk(KERN_ERR "%s: request_irq error\n", __func__);
-        goto request_irq_error;
+	if (request_irq(gpu_3d_irq, z430_irq_handler, 0, "ydx", NULL) < 0) {
+	    printk(KERN_ERR "%s: request_irq error\n", __func__);
+	    gpu_3d_irq = 0;
+	    goto request_irq_error;
+	}
     }
-#endif
 
-    if (request_irq(gpu_2d_irq, z160_irq_handler, 0, "g12", NULL) < 0)
+    if (gpu_2d_irq > 0)
     {
-        printk(KERN_ERR "2D Acceleration Enabled, OpenVG Disabled!\n");
-        gpu_2d_irq = 0;
+	if (request_irq(gpu_2d_irq, z160_irq_handler, 0, "g12", NULL) < 0) {
+	    printk(KERN_ERR "2D Acceleration Enabled, OpenVG Disabled!\n");
+	    gpu_2d_irq = 0;
+	}
     }
 
     gsl_kmod_major = register_chrdev(0, "gsl_kmod", &gsl_kmod_fops);
@@ -879,7 +878,7 @@ static int gpu_remove(struct platform_device *pdev)
     device_destroy(gsl_kmod_class, MKDEV(gsl_kmod_major, 0));
     class_destroy(gsl_kmod_class);
     unregister_chrdev(gsl_kmod_major, "gsl_kmod");
-#if defined(MX51)
+
     if (gpu_3d_irq)
     {
         free_irq(gpu_3d_irq, NULL);
@@ -889,12 +888,7 @@ static int gpu_remove(struct platform_device *pdev)
     {
         free_irq(gpu_2d_irq, NULL);
     }
-#elif defined(MX35)
-    if (gpu_2d_irq)
-    {
-        free_irq(gpu_2d_irq, NULL);
-    }
-#endif	
+
     kgsl_driver_close();
     return 0;
 }
@@ -965,9 +959,5 @@ static void __exit gsl_kmod_exit(void)
 module_init(gsl_kmod_init);
 module_exit(gsl_kmod_exit);
 MODULE_AUTHOR("Advanced Micro Devices");
-#if defined(MX51)
-MODULE_DESCRIPTION("AMD 2D/3D graphics core driver for i.MX51");
-#elif defined(MX35)
-MODULE_DESCRIPTION("AMD 2D graphics core driver for i.MX35");
-#endif
+MODULE_DESCRIPTION("AMD graphics core driver for i.MX");
 MODULE_LICENSE("GPL v2");

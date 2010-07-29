@@ -161,6 +161,10 @@ kgsl_device_close(gsl_device_t *device)
     kgsl_log_write( KGSL_LOG_GROUP_DEVICE | KGSL_LOG_LEVEL_TRACE,
                     "--> int kgsl_device_close(gsl_device_t *device=0x%08x )\n", device );
 
+    if (!(device->flags & GSL_FLAGS_INITIALIZED)) {
+	return status;
+    }
+
     /* make sure the device is stopped before close
        kgsl_device_close is only called for last running caller process
     */
@@ -174,12 +178,8 @@ kgsl_device_close(gsl_device_t *device)
     status = kgsl_cmdstream_close(device);
     if( status != GSL_SUCCESS ) return status;
 
-    if (device->flags & GSL_FLAGS_INITIALIZED)
-    {
-        if (device->ftbl.device_close)
-        {
-            status = device->ftbl.device_close(device);
-        }
+    if (device->ftbl.device_close) {
+	status = device->ftbl.device_close(device);
     }
 
     // DumpX allocates memstore from MMU aperture

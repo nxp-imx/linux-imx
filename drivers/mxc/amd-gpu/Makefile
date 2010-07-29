@@ -25,25 +25,7 @@ gpu-objs += 	common/gsl_cmdstream.o \
 		common/gsl_yamato.o \
 		platform/hal/linux/gsl_linux_map.o \
 		platform/hal/linux/gsl_kmod.o \
+		platform/hal/linux/gsl_hal.o \
 		platform/hal/linux/gsl_kmod_cleanup.o \
 		platform/hal/linux/misc.o \
 		os/kernel/src/linux/kos_lib.o
-ifeq ($(CONFIG_ARCH_MX5),y)
-EXTRA_CFLAGS += -DMX51=1 \
-		-I$(obj)/platform/hal/MX51 \
-		-I$(obj)/platform/hal/MX51/linux \
-		-I$(obj)/platform/hal/MX51/memcfg
-
-gpu-objs +=	platform/hal/MX51/linux/gsl_hal.o \
-		platform/hal/MX51/memcfg/gsl_memcfg.o
-endif
-
-ifeq ($(CONFIG_ARCH_MX35),y)
-EXTRA_CFLAGS += -DMX35=1 \
-		-I$(obj)/platform/hal/MX35 \
-		-I$(obj)/platform/hal/MX35/linux \
-		-I$(obj)/platform/hal/MX35/memcfg
-
-gpu-objs +=	platform/hal/MX35/linux/gsl_hal.o \
-		platform/hal/MX35/memcfg/gsl_memcfg.o
-endif

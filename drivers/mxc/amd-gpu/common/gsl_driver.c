@@ -203,7 +203,7 @@ kgsl_driver_entry(gsl_flags_t flags)
                     status = kgsl_device_init(&gsl_driver.device[i], (gsl_deviceid_t)(i + 1));
                     if (status != GSL_SUCCESS)
                     {
-                        break;
+			continue;
                     }
                 }
             }

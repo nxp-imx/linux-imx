@@ -26,16 +26,31 @@
  *
  */
 
-#ifndef GSL_MEMCFG_H
-#define GSL_MEMCFG_H
+/*
+ * Copyright (C) 2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ */
 
-//
-//  Return the maximum amount of memory that can be allocated to the Z430.  This number
-//  will be constrained to 2MB as a minimum and the original hardcoded value for the caller
-//  as a maximum.  If the return value is outside of this range, then the original value in 
-//  the caller will be used.  For this reason, returning 0 is used to signify to use the
-//  original value as the default.
-//
-KOS_DLLEXPORT unsigned long kgsl_get_z160_memory_amount(void);
+#ifndef __GSL__BUILDCONFIG_H
+#define __GSL__BUILDCONFIG_H
 
-#endif
+#define GSL_BLD_YAMATO
+#define GSL_BLD_G12
+
+#define GSL_LOCKING_COURSEGRAIN
+
+#define GSL_STATS_MEM
+#define GSL_STATS_RINGBUFFER
+#define GSL_STATS_MMU
+
+#define GSL_RB_USE_MEM_RPTR
+#define GSL_RB_USE_MEM_TIMESTAMP
+#define GSL_RB_TIMESTAMP_INTERUPT
+/* #define GSL_RB_USE_WPTR_POLLING */
+
+/* #define GSL_MMU_TRANSLATION_ENABLED */
+/* #define GSL_MMU_PAGETABLE_PERPROCESS */
+
+#define GSL_CALLER_PROCESS_MAX      10
+#define GSL_SHMEM_MAX_APERTURES     3
+
+#endif /* __GSL__BUILDCONFIG_H */
