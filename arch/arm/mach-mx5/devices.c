@@ -1593,10 +1593,20 @@ int __init mxc_init_devices(void)
 		usbh2_resources[0].end -= MX53_OFFSET;
 		mxc_gpu_resources[2].start = MX53_GPU2D_BASE_ADDR;
 		mxc_gpu_resources[2].end = MX53_GPU2D_BASE_ADDR + SZ_4K - 1;
-		mxc_gpu_resources[4].start = MX53_GPU_GMEM_BASE_ADDR;
-		mxc_gpu_resources[4].end = MX53_GPU_GMEM_BASE_ADDR + SZ_256K - 1;
 		mxc_gpu2d_resources[0].start = MX53_GPU2D_BASE_ADDR;
 		mxc_gpu2d_resources[0].end = MX53_GPU2D_BASE_ADDR + SZ_4K - 1;
+		if (cpu_is_mx53()) {
+			mxc_gpu_resources[4].start = MX53_GPU_GMEM_BASE_ADDR;
+			mxc_gpu_resources[4].end = MX53_GPU_GMEM_BASE_ADDR
+						+ SZ_256K - 1;
+		} else {
+			mxc_gpu_resources[1].start = 0;
+			mxc_gpu_resources[1].end = 0;
+			mxc_gpu_resources[3].start = 0;
+			mxc_gpu_resources[3].end = 0;
+			mxc_gpu_resources[4].start = 0;
+			mxc_gpu_resources[4].end = 0;
+		}
 		ipu_resources[0].start = MX53_IPU_CTRL_BASE_ADDR;
 		ipu_resources[0].end = MX53_IPU_CTRL_BASE_ADDR + SZ_128M - 1;
 		mlb_resources[0].start -= MX53_OFFSET;
