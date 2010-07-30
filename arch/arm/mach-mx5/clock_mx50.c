@@ -75,8 +75,10 @@ extern int lp_med_freq;
 	getnstimeofday(&nstimeofday); \
 	while (!(exp)) { \
 		getnstimeofday(&curtime); \
-		if ((curtime.tv_nsec - nstimeofday.tv_nsec) > (timeout)) \
+		if ((curtime.tv_nsec - nstimeofday.tv_nsec) > (timeout)) { \
 			result = 0; \
+			break; \
+		} \
 	} \
 	result; \
 })
