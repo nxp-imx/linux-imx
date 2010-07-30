@@ -13,10 +13,12 @@
 #ifndef __LINUX_FEC_H__
 #define __LINUX_FEC_H__
 
+#include <linux/etherdevice.h>
 #include <linux/phy.h>
 
 struct fec_platform_data {
 	phy_interface_t phy;
+	unsigned char mac[ETH_ALEN];
 	int (*init)(void);
 	int (*uninit)(void);
 	struct regulator *vddio_reg;
