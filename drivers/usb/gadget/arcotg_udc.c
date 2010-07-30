@@ -2205,14 +2205,13 @@ int usb_gadget_register_driver(struct usb_gadget_driver *driver)
 	udc_controller->gadget.dev.driver = &driver->driver;
 	spin_unlock_irqrestore(&udc_controller->lock, flags);
 
-	if (!device_may_wakeup(udc_controller->gadget.dev.parent)) {
-		if (udc_controller->pdata->usb_clock_for_pm)
-			udc_controller->pdata->usb_clock_for_pm(true);
+	if (udc_controller->pdata->usb_clock_for_pm)
+		udc_controller->pdata->usb_clock_for_pm(true);
 
-		portsc = fsl_readl(&dr_regs->portsc1);
-		portsc &= ~PORTSCX_PHY_LOW_POWER_SPD;
-		fsl_writel(portsc, &dr_regs->portsc1);
-	}
+	portsc = fsl_readl(&dr_regs->portsc1);
+	portsc &= ~PORTSCX_PHY_LOW_POWER_SPD;
+	fsl_writel(portsc, &dr_regs->portsc1);
+
 	/* bind udc driver to gadget driver */
 	retval = driver->bind(&udc_controller->gadget);
 	if (retval) {
