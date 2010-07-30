@@ -2429,11 +2429,11 @@ int __devinit mxc_epdc_fb_probe(struct platform_device *pdev)
 	mxc_epdc_fb_default.xres = pentry->x_res;
 	mxc_epdc_fb_default.yres = pentry->y_res;
 	mxc_epdc_fb_default.xres_virtual = pentry->x_res;
-	mxc_epdc_fb_default.yres_virtual = pentry->y_res * 2; /* FB doubled in virtual space */
+	/* Additional screens allow for panning  and buffer flipping */
+	mxc_epdc_fb_default.yres_virtual = pentry->y_res * NUM_SCREENS;
 
 	mxc_epdc_fb_fix.smem_start = fb_data->phys_start;
-	mxc_epdc_fb_fix.smem_len = mxc_epdc_fb_default.yres_virtual
-				* pentry->x_res * 2 * pentry->bpp / 8;
+	mxc_epdc_fb_fix.smem_len = fb_data->map_size;
 	mxc_epdc_fb_fix.ypanstep = 0;
 
 	switch (pentry->bpp) {
@@ -2779,9 +2779,12 @@ static int mxc_epdc_fb_remove(struct platform_device *pdev)
 	unregister_framebuffer(&fb_data->info);
 	free_irq(fb_data->epdc_irq, fb_data);
 
-	dma_free_writecombine(&pdev->dev, fb_data->working_buffer_size, fb_data->working_buffer_virt,
+	dma_free_writecombine(&pdev->dev, fb_data->working_buffer_size,
+				fb_data->working_buffer_virt,
 			      fb_data->working_buffer_phys);
-	dma_free_writecombine(&pdev->dev, fb_data->waveform_buffer_size, fb_data->waveform_buffer_virt,
+	if (fb_data->waveform_buffer_virt != NULL)
+		dma_free_writecombine(&pdev->dev, fb_data->waveform_buffer_size,
+				fb_data->waveform_buffer_virt,
 			      fb_data->waveform_buffer_phys);
 	list_for_each_entry_safe(plist, temp_list, &fb_data->upd_buf_free_list->list, list) {
 		list_del(&plist->list);
@@ -2789,6 +2792,10 @@ static int mxc_epdc_fb_remove(struct platform_device *pdev)
 				      plist->phys_addr);
 		kfree(plist);
 	}
+#ifdef CONFIG_FB_MXC_EINK_AUTO_UPDATE_MODE
+	fb_deferred_io_cleanup(&fb_data->info);
+#endif
+
 	dma_free_writecombine(&pdev->dev, fb_data->map_size, fb_data->info.screen_base,
 			      fb_data->phys_start);
 
