@@ -26,7 +26,7 @@
 #define OV3640_VOLTAGE_ANALOG               2800000
 #define OV3640_VOLTAGE_DIGITAL_CORE         1500000
 #define OV3640_VOLTAGE_DIGITAL_IO           1800000
-
+#define OV3640_VOLTAGE_DIGITAL_GPO	    2800000
 
 /* Check these values! */
 #define MIN_FPS 15
@@ -1317,12 +1317,15 @@ static int ov3640_probe(struct i2c_client *client,
 		gpo_regulator = regulator_get(&client->dev,
 					      plat_data->gpo_regulator);
 		if (!IS_ERR(gpo_regulator)) {
+			regulator_set_voltage(gpo_regulator,
+					      OV3640_VOLTAGE_DIGITAL_GPO,
+					      OV3640_VOLTAGE_DIGITAL_GPO);
 			if (regulator_enable(gpo_regulator) != 0) {
-				pr_err("%s:gpo3 enable error\n", __func__);
+				pr_err("%s:gpo enable error\n", __func__);
 				goto err4;
 			} else {
 				dev_dbg(&client->dev,
-					"%s:gpo3 enable ok\n", __func__);
+					"%s:gpo enable ok\n", __func__);
 			}
 		} else
 			gpo_regulator = NULL;
