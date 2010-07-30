@@ -2379,7 +2379,7 @@ static struct clk gpu2d_clk = {
 
 static struct clk apbh_dma_clk = {
 	.name = "apbh_dma_clk",
-	.parent = &pll1_sw_clk,
+	.parent = &ahb_clk,
 	.enable = _clk_enable,
 	.disable = _clk_disable,
 	.enable_reg = MXC_CCM_CCGR7,
@@ -3136,7 +3136,7 @@ int __init mx50_clocks_init(unsigned long ckil, unsigned long osc, unsigned long
 	clk_set_rate(&cspi_main_clk, 12000000);
 
 	/* set DISPLAY_AXI to 200Mhz */
-	clk_set_parent(&display_axi_clk, &pll1_sw_clk);
+	clk_set_parent(&display_axi_clk, &pfd2_clk);
 	clk_set_rate(&display_axi_clk, 200000000);
 
 	/* Enable and set EPDC AXI to 200MHz */
