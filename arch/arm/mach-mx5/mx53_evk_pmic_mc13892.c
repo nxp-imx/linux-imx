@@ -183,6 +183,8 @@ static struct regulator_init_data vvideo_init = {
 		.min_uV = mV_to_uV(2500),
 		.max_uV = mV_to_uV(2775),
 		.valid_ops_mask = REGULATOR_CHANGE_VOLTAGE,
+		.always_on = 1,
+		.boot_on = 1,
 	}
 };
 
