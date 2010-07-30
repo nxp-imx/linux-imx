@@ -44,6 +44,7 @@ struct mmc_ios {
 #define MMC_BUS_WIDTH_1		0
 #define MMC_BUS_WIDTH_4		2
 #define MMC_BUS_WIDTH_8		3
+#define MMC_BUS_WIDTH_DDR	8
 
 	unsigned char	timing;			/* timing specification used */
 
@@ -155,6 +156,7 @@ struct mmc_host {
 #define MMC_CAP_DISABLE		(1 << 7)	/* Can the host be disabled */
 #define MMC_CAP_NONREMOVABLE	(1 << 8)	/* Nonremovable e.g. eMMC */
 #define MMC_CAP_WAIT_WHILE_BUSY	(1 << 9)	/* Waits while card is busy */
+#define MMC_CAP_DATA_DDR	(1 << 10)	/* Can the host do ddr transfers */
 
 	mmc_pm_flag_t		pm_caps;	/* supported pm features */
 

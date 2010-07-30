@@ -122,7 +122,7 @@ static int mmc_decode_csd(struct mmc_card *card)
 	 * v1.2 has extra information in bits 15, 11 and 10.
 	 */
 	csd_struct = UNSTUFF_BITS(resp, 126, 2);
-	if (csd_struct != 1 && csd_struct != 2) {
+	if (csd_struct < 1 || csd_struct > 3) {
 		printk(KERN_ERR "%s: unrecognised CSD structure version %d\n",
 			mmc_hostname(card->host), csd_struct);
 		return -EINVAL;
@@ -226,6 +226,8 @@ static int mmc_read_ext_csd(struct mmc_card *card)
 			mmc_card_set_blockaddr(card);
 	}
 
+	card->ext_csd.card_type = ext_csd[EXT_CSD_CARD_TYPE];
+
 	switch (ext_csd[EXT_CSD_CARD_TYPE] & EXT_CSD_CARD_TYPE_MASK) {
 	case EXT_CSD_CARD_TYPE_52 | EXT_CSD_CARD_TYPE_26:
 		card->ext_csd.hs_max_dtr = 52000000;
@@ -238,6 +240,9 @@ static int mmc_read_ext_csd(struct mmc_card *card)
 		printk(KERN_WARNING "%s: card is mmc v4 but doesn't "
 			"support any high-speed modes.\n",
 			mmc_hostname(card->host));
+		printk(KERN_WARNING "%s: card type is 0x%x\n",
+			mmc_hostname(card->host), ext_csd[EXT_CSD_CARD_TYPE]);
+		goto out;
 	}
 
 	if (card->ext_csd.rev >= 3) {
@@ -447,10 +452,21 @@ static int mmc_init_card(struct mmc_host *host, u32 ocr,
 	 * Activate wide bus (if supported).
 	 */
 	if ((card->csd.mmca_vsn >= CSD_SPEC_VER_4) &&
-	    (host->caps & (MMC_CAP_4_BIT_DATA | MMC_CAP_8_BIT_DATA))) {
+		(host->caps & (MMC_CAP_4_BIT_DATA | MMC_CAP_8_BIT_DATA
+			       | MMC_CAP_DATA_DDR))) {
 		unsigned ext_csd_bit, bus_width;
 
-		if (host->caps & MMC_CAP_8_BIT_DATA) {
+		if ((host->caps & MMC_CAP_8_BIT_DATA) &&
+				(host->caps & MMC_CAP_DATA_DDR) &&
+				(card->ext_csd.card_type & MMC_DDR_MODE_MASK)) {
+			ext_csd_bit = EXT_CSD_BUS_WIDTH_8_DDR;
+			bus_width = MMC_BUS_WIDTH_8 | MMC_BUS_WIDTH_DDR;
+		} else if ((host->caps & MMC_CAP_4_BIT_DATA) &&
+				(host->caps & MMC_CAP_DATA_DDR) &&
+				(card->ext_csd.card_type & MMC_DDR_MODE_MASK)) {
+			ext_csd_bit = EXT_CSD_BUS_WIDTH_4_DDR;
+			bus_width = MMC_BUS_WIDTH_4 | MMC_BUS_WIDTH_DDR;
+		} else if (host->caps & MMC_CAP_8_BIT_DATA) {
 			ext_csd_bit = EXT_CSD_BUS_WIDTH_8;
 			bus_width = MMC_BUS_WIDTH_8;
 		} else {
