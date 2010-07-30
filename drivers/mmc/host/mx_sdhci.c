@@ -852,85 +852,12 @@ static void sdhci_set_clock(struct sdhci_host *host, unsigned int clock)
 	DBG("prescaler = 0x%x, divider = 0x%x\n", prescaler, div);
 	clk |= (prescaler << 8) | (div << 4);
 
-	/* Configure the DLL when DDR mode is enabled */
-	if (ios.bus_width & MMC_BUS_WIDTH_DDR) {
-		/* Make sure that the PER, HLK, IPG are all enabled */
-		writel(readl(host->ioaddr + SDHCI_CLOCK_CONTROL)
-				| SDHCI_CLOCK_IPG_EN
-				| SDHCI_CLOCK_HLK_EN
-				| SDHCI_CLOCK_PER_EN,
-				host->ioaddr + SDHCI_CLOCK_CONTROL);
-
-		/* Enable the DLL and delay chain */
-		writel(readl(host->ioaddr + SDHCI_DLL_CONTROL)
-				| DLL_CTRL_ENABLE,
-				host->ioaddr + SDHCI_DLL_CONTROL);
-
-		timeout = 1000000;
-		while (timeout > 0) {
-			timeout--;
-			if (readl(host->ioaddr + SDHCI_DLL_STATUS)
-					& DLL_STS_REF_LOCK)
-				break;
-			else if (timeout == 0)
-				printk(KERN_ERR "DLL REF LOCK Timeout!\n");
-		};
-		DBG("dll stat: 0x%x\n", readl(host->ioaddr + SDHCI_DLL_STATUS));
-
-		writel(readl(host->ioaddr + SDHCI_DLL_CONTROL)
-				| DLL_CTRL_SLV_UP_INT | DLL_CTRL_REF_UP_INT
-				| DLL_CTRL_SLV_DLY_TAR,
-				host->ioaddr + SDHCI_DLL_CONTROL);
-
-		timeout = 1000000;
-		while (timeout > 0) {
-			timeout--;
-			if (readl(host->ioaddr + SDHCI_DLL_STATUS)
-					& DLL_STS_SLV_LOCK)
-				break;
-			else if (timeout == 0)
-				printk(KERN_ERR "DLL SLV LOCK Timeout!\n");
-		};
-
-		writel(readl(host->ioaddr + SDHCI_DLL_CONTROL)
-				| DLL_CTRL_SLV_FORCE_UPD,
-				host->ioaddr + SDHCI_DLL_CONTROL);
-
-		writel(readl(host->ioaddr + SDHCI_DLL_CONTROL)
-				& (~DLL_CTRL_SLV_FORCE_UPD),
-				host->ioaddr + SDHCI_DLL_CONTROL);
-
-		timeout = 1000000;
-		while (timeout > 0) {
-			timeout--;
-			if (readl(host->ioaddr + SDHCI_DLL_STATUS)
-					& DLL_STS_REF_LOCK)
-				break;
-			else if (timeout == 0)
-				printk(KERN_ERR "DLL REF LOCK Timeout!\n");
-		};
-		timeout = 1000000;
-		while (timeout > 0) {
-			timeout--;
-			if (readl(host->ioaddr + SDHCI_DLL_STATUS)
-					& DLL_STS_SLV_LOCK)
-				break;
-			else if (timeout == 0)
-				printk(KERN_ERR "DLL SLV LOCK Timeout!\n");
-		};
-		DBG("dll stat: 0x%x\n", readl(host->ioaddr + SDHCI_DLL_STATUS));
-
-		/* Let the PER, HLK, IPG to be auto-gate */
-		writel(readl(host->ioaddr + SDHCI_CLOCK_CONTROL)
-				& ~(SDHCI_CLOCK_IPG_EN | SDHCI_CLOCK_HLK_EN
-					| SDHCI_CLOCK_PER_EN),
-				host->ioaddr + SDHCI_CLOCK_CONTROL);
-
-	} else if (readl(host->ioaddr + SDHCI_DLL_STATUS) & DLL_STS_SLV_LOCK) {
-		/* reset DLL CTRL */
-		writel(readl(host->ioaddr + SDHCI_DLL_CONTROL) | DLL_CTRL_RESET,
-				host->ioaddr + SDHCI_DLL_CONTROL);
-	}
+	/* Configure the clock delay line */
+	if ((host->plat_data->vendor_ver >= ESDHC_VENDOR_V3)
+		&& host->plat_data->dll_override_en)
+		writel((host->plat_data->dll_delay_cells << 10)
+			| DLL_CTRL_SLV_OVERRIDE,
+			host->ioaddr + SDHCI_DLL_CONTROL);
 
 	/* Configure the clock control register */
 	clk |=
