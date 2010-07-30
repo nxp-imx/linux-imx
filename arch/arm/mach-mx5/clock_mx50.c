@@ -2410,10 +2410,8 @@ static int _clk_display_axi_set_rate(struct clk *clk, unsigned long rate)
 	reg |= new_div << MXC_CCM_DISPLAY_AXI_DIV_OFFSET;
 	__raw_writel(reg, MXC_CCM_DISPLAY_AXI);
 
-#if 0
 	while (__raw_readl(MXC_CCM_CSR2) & MXC_CCM_CSR2_DISPLAY_AXI_BUSY)
 		;
-#endif
 
 	return 0;
 }
@@ -2428,6 +2426,7 @@ static struct clk display_axi_clk = {
 	.disable = _clk_disable,
 	.enable_reg = MXC_CCM_DISPLAY_AXI,
 	.enable_shift = MXC_CCM_DISPLAY_AXI_CLKGATE_OFFSET,
+	.flags = RATE_PROPAGATES,
 };
 
 /* TODO: check Auto-Slow Mode */
@@ -2609,7 +2608,8 @@ static void _clk_epdc_axi_disable(struct clk *clk)
 
 /* TODO: check Auto-Slow Mode */
 static struct clk epdc_axi_clk = {
-	.parent = &apbh_dma_clk,
+	.parent = &osc_clk,
+	.secondary = &apbh_dma_clk,
 	.set_parent = _clk_epdc_axi_set_parent,
 	.get_rate = _clk_epdc_axi_get_rate,
 	.set_rate = _clk_epdc_axi_set_rate,
@@ -3052,15 +3052,25 @@ int __init mx50_clocks_init(unsigned long ckil, unsigned long osc, unsigned long
 	clk_set_parent(&cspi_main_clk, &lp_apm_clk);
 	clk_set_rate(&cspi_main_clk, 12000000);
 
-	/* set DISPLAY_AXI to 200Mhz */
+	/*
+	 * Set DISPLAY_AXI to 200Mhz
+	 * For Display AXI, source clocks must be
+	 * enabled before dividers can be changed
+	 */
 	clk_set_parent(&display_axi_clk, &pfd2_clk);
+	clk_enable(&display_axi_clk);
 	clk_set_rate(&display_axi_clk, 200000000);
+	clk_disable(&display_axi_clk);
 
-	/* Enable and set EPDC AXI to 200MHz
-	TO DO
+	/*
+	 * Enable and set EPDC AXI to 200MHz
+	 * For EPDC AXI, source clocks must be
+	 * enabled before dividers can be changed
+	 */
 	clk_set_parent(&epdc_axi_clk, &pfd3_clk);
 	clk_enable(&epdc_axi_clk);
-	clk_set_rate(&epdc_axi_clk, 200000000);*/
+	clk_set_rate(&epdc_axi_clk, 200000000);
+	clk_disable(&epdc_axi_clk);
 
 	clk_set_parent(&epdc_pix_clk, &pfd5_clk);
 
