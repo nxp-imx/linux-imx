@@ -80,7 +80,7 @@ static void __exit utmixc_exit(void)
 #ifdef CONFIG_MXS_VBUS_CURRENT_DRAW
 	fs_initcall(utmixc_init);
 #else
-	module_init(utmixc_init);
+	subsys_initcall(utmixc_init);
 #endif
 module_exit(utmixc_exit);
 
