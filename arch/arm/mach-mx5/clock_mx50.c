@@ -83,8 +83,10 @@ static int max_axi_b_clk;
 	getnstimeofday(&nstimeofday); \
 	while (!(exp)) { \
 		getnstimeofday(&curtime); \
-		if ((curtime.tv_nsec - nstimeofday.tv_nsec) > (timeout)) \
+		if ((curtime.tv_nsec - nstimeofday.tv_nsec) > (timeout)) { \
 			result = 0; \
+			break; \
+		} \
 	} \
 	result; \
 })
