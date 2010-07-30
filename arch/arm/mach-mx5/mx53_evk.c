@@ -876,6 +876,7 @@ static void camera_pwdn(int pwdn)
 
 static struct mxc_camera_platform_data camera_data = {
 	.analog_regulator = "VSD",
+	.gpo_regulator = "VVIDEO",
 	.mclk = 24000000,
 	.csi = 0,
 	.pwdn = camera_pwdn,
