@@ -27,7 +27,6 @@
 #include <linux/platform_device.h>
 #include <linux/mmc/host.h>
 #include <linux/phy.h>
-#include <linux/fec.h>
 
 #include <asm/mach/map.h>
 
