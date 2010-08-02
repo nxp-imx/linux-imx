@@ -40,6 +40,7 @@ struct mxc_mmc_platform_data {
 	unsigned int min_clk;
 	unsigned int max_clk;
 	unsigned int clk_flg;	/* 1 clock enable, 0 not */
+	unsigned int clk_always_on;     /* Needed by SDIO cards and etc */
 	unsigned int dll_override_en;	/* Enable dll override delay line */
 	unsigned int dll_delay_cells;	/* The number of delay cells (0-0x3f) */
 	unsigned int reserved:16;
