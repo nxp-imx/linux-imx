@@ -32,6 +32,7 @@
 #include <linux/vmalloc.h>
 #include <linux/dmaengine.h>
 #include <linux/pxp_dma.h>
+#include <linux/timer.h>
 #include <linux/clk.h>
 
 #include "regs-pxp.h"
@@ -51,7 +52,10 @@ struct pxps {
 	int irq;		/* PXP IRQ to the CPU */
 
 	spinlock_t lock;
-	struct mutex mutex;
+	struct mutex mutex_clk;
+	int clk_stat;
+#define	CLK_STAT_OFF		0
+#define	CLK_STAT_ON		1
 
 	struct device *dev;
 	struct pxp_dma pxp_dma;
@@ -62,6 +66,9 @@ struct pxps {
 
 	/* describes most recent processing configuration */
 	struct pxp_config_data pxp_conf_state;
+
+	/* to turn clock off when pxp is inactive */
+	struct timer_list clk_timer;
 };
 
 #define to_pxp_dma(d) container_of(d, struct pxp_dma, dma)
@@ -585,6 +592,43 @@ static int pxp_config(struct pxps *pxp, struct pxp_channel *pxp_chan)
 	return 0;
 }
 
+static void pxp_clk_enable(struct pxps *pxp)
+{
+	mutex_lock(&pxp->mutex_clk);
+
+	if (pxp->clk_stat == CLK_STAT_ON) {
+		mutex_unlock(&pxp->mutex_clk);
+		return;
+	}
+
+	clk_enable(pxp->clk);
+	pxp->clk_stat = CLK_STAT_ON;
+
+	mutex_unlock(&pxp->mutex_clk);
+}
+
+static void pxp_clk_disable(struct pxps *pxp)
+{
+	mutex_lock(&pxp->mutex_clk);
+
+	if (pxp->clk_stat == CLK_STAT_OFF) {
+		mutex_unlock(&pxp->mutex_clk);
+		return;
+	}
+
+	clk_disable(pxp->clk);
+	pxp->clk_stat = CLK_STAT_OFF;
+
+	mutex_unlock(&pxp->mutex_clk);
+}
+
+static void pxp_clkoff_timer(unsigned long arg)
+{
+	struct pxps *pxp = (struct pxps *)arg;
+
+	pxp_clk_disable(pxp);
+}
+
 static struct pxp_tx_desc *pxpdma_first_active(struct pxp_channel *pxp_chan)
 {
 	return list_entry(pxp_chan->active_list.next, struct pxp_tx_desc, list);
@@ -809,6 +853,8 @@ static irqreturn_t pxp_irq(int irq, void *dev_id)
 
 	__raw_writel(BM_PXP_STAT_IRQ, pxp->base + HW_PXP_STAT_CLR);
 
+	mod_timer(&pxp->clk_timer, jiffies + msecs_to_jiffies(4000));
+
 	spin_lock_irqsave(&pxp->lock, flags);
 
 	if (list_empty(&head)) {
@@ -982,9 +1028,12 @@ static void pxp_issue_pending(struct dma_chan *chan)
 	spin_unlock_irqrestore(&pxp_chan->lock, flags);
 	spin_unlock_irqrestore(&pxp->lock, flags0);
 
+	pxp_clk_enable(pxp);
 	if (!wait_event_interruptible_timeout(pxp->done, PXP_WAITCON, 2 * HZ) ||
-		signal_pending(current))
+		signal_pending(current)) {
+		pxp_clk_disable(pxp);
 		return;
+	}
 
 	queue_work(pxp->workqueue, &pxp->work);
 }
@@ -1265,7 +1314,7 @@ static int pxp_probe(struct platform_device *pdev)
 	pxp->irq = irq;
 
 	spin_lock_init(&pxp->lock);
-	mutex_init(&pxp->mutex);
+	mutex_init(&pxp->mutex_clk);
 
 	if (!request_mem_region(res->start, resource_size(res), "pxp-mem")) {
 		err = -EBUSY;
@@ -1283,6 +1332,7 @@ static int pxp_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "failed to initialize hardware\n");
 		goto release;
 	}
+	clk_disable(pxp->clk);
 
 	err = request_irq(pxp->irq, pxp_irq, 0, "pxp-irq", pxp);
 	if (err)
@@ -1295,11 +1345,13 @@ static int pxp_probe(struct platform_device *pdev)
 	init_waitqueue_head(&pxp->done);
 	INIT_WORK(&pxp->work, pxpdma_dostart_work);
 	pxp->workqueue = create_singlethread_workqueue("pxp_dma");
+	init_timer(&pxp->clk_timer);
+	pxp->clk_timer.function = pxp_clkoff_timer;
+	pxp->clk_timer.data = (unsigned long)pxp;
 exit:
 	return err;
 err_dma_init:
 	free_irq(pxp->irq, pxp);
-	clk_disable(pxp->clk);
 release:
 	release_mem_region(res->start, resource_size(res));
 freepxp:
@@ -1313,8 +1365,8 @@ static int __devexit pxp_remove(struct platform_device *pdev)
 	struct pxps *pxp = platform_get_drvdata(pdev);
 
 	cancel_work_sync(&pxp->work);
-	kfree(pxp);
 
+	del_timer_sync(&pxp->clk_timer);
 	free_irq(pxp->irq, pxp);
 	clk_disable(pxp->clk);
 	clk_put(pxp->clk);
@@ -1330,11 +1382,12 @@ static int pxp_suspend(struct platform_device *pdev, pm_message_t state)
 {
 	struct pxps *pxp = platform_get_drvdata(pdev);
 
+	pxp_clk_enable(pxp);
 	while (__raw_readl(pxp->base + HW_PXP_CTRL) & BM_PXP_CTRL_ENABLE)
 		;
 
 	__raw_writel(BM_PXP_CTRL_SFTRST, pxp->base + HW_PXP_CTRL);
-	clk_disable(pxp->clk);
+	pxp_clk_disable(pxp);
 
 	return 0;
 }
@@ -1343,9 +1396,10 @@ static int pxp_resume(struct platform_device *pdev)
 {
 	struct pxps *pxp = platform_get_drvdata(pdev);
 
-	clk_enable(pxp->clk);
+	pxp_clk_enable(pxp);
 	/* Pull PxP out of reset */
 	__raw_writel(0, pxp->base + HW_PXP_CTRL);
+	pxp_clk_disable(pxp);
 
 	return 0;
 }
