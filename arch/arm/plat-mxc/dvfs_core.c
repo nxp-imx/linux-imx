@@ -187,14 +187,14 @@ static int set_cpu_freq(int wp)
 		}
 		spin_lock_irqsave(&mxc_dvfs_core_lock, flags);
 		/* PLL_RELOCK, set ARM_FREQ_SHIFT_DIVIDER */
-		reg = __raw_readl(dvfs_data->ccm_cdcr_reg_addr);
+		reg = __raw_readl(ccm_base + dvfs_data->ccm_cdcr_offset);
 		reg &= 0xFFFFFFFB;
-		__raw_writel(reg, dvfs_data->ccm_cdcr_reg_addr);
+		__raw_writel(reg, ccm_base + dvfs_data->ccm_cdcr_offset);
 
 		setup_pll();
 		/* START the GPC main control FSM */
 		/* set VINC */
-		reg = __raw_readl(dvfs_data->gpc_vcr_reg_addr);
+		reg = __raw_readl(gpc_base + dvfs_data->gpc_vcr_offset);
 		reg &= ~(MXC_GPCVCR_VINC_MASK | MXC_GPCVCR_VCNTU_MASK |
 			 MXC_GPCVCR_VCNT_MASK);
 
@@ -203,17 +203,18 @@ static int set_cpu_freq(int wp)
 
 		reg |= (1 << MXC_GPCVCR_VCNTU_OFFSET) |
 		       (1 << MXC_GPCVCR_VCNT_OFFSET);
-		__raw_writel(reg, dvfs_data->gpc_vcr_reg_addr);
+		__raw_writel(reg, gpc_base + dvfs_data->gpc_vcr_offset);
 
-		reg = __raw_readl(dvfs_data->gpc_cntr_reg_addr);
+		reg = __raw_readl(gpc_base + dvfs_data->gpc_cntr_offset);
 		reg &= ~(MXC_GPCCNTR_ADU_MASK | MXC_GPCCNTR_FUPD_MASK);
 		reg |= MXC_GPCCNTR_FUPD;
 		reg |= MXC_GPCCNTR_ADU;
-		__raw_writel(reg, dvfs_data->gpc_cntr_reg_addr);
+		__raw_writel(reg, gpc_base + dvfs_data->gpc_cntr_offset);
 
 		reg |= MXC_GPCCNTR_STRT;
-		__raw_writel(reg, dvfs_data->gpc_cntr_reg_addr);
-		while (__raw_readl(dvfs_data->gpc_cntr_reg_addr) & 0x4000)
+		__raw_writel(reg, gpc_base + dvfs_data->gpc_cntr_offset);
+		while (__raw_readl(gpc_base + dvfs_data->gpc_cntr_offset)
+				& 0x4000)
 			udelay(10);
 		spin_unlock_irqrestore(&mxc_dvfs_core_lock, flags);
 
@@ -234,13 +235,13 @@ static int set_cpu_freq(int wp)
 
 		/* Change arm_podf only */
 		/* set ARM_FREQ_SHIFT_DIVIDER */
-		reg = __raw_readl(dvfs_data->ccm_cdcr_reg_addr);
+		reg = __raw_readl(ccm_base + dvfs_data->ccm_cdcr_offset);
 		reg &= 0xFFFFFFFB;
 		reg |= 1 << 2;
-		__raw_writel(reg, dvfs_data->ccm_cdcr_reg_addr);
+		__raw_writel(reg, ccm_base + dvfs_data->ccm_cdcr_offset);
 
 		/* Get ARM_PODF */
-		reg = __raw_readl(dvfs_data->ccm_cacrr_reg_addr);
+		reg = __raw_readl(ccm_base + dvfs_data->ccm_cacrr_offset);
 		arm_podf = reg & 0x07;
 		if (podf == arm_podf) {
 			printk(KERN_DEBUG
@@ -268,37 +269,38 @@ static int set_cpu_freq(int wp)
 		reg &= 0xFFFFFFF8;
 		reg |= arm_podf;
 
-		reg1 = __raw_readl(dvfs_data->ccm_cdhipr_reg_addr);
+		reg1 = __raw_readl(ccm_base + dvfs_data->ccm_cdhipr_offset);
 		if ((reg1 & 0x00010000) == 0)
-			__raw_writel(reg, dvfs_data->ccm_cacrr_reg_addr);
+			__raw_writel(reg,
+				ccm_base + dvfs_data->ccm_cacrr_offset);
 		else {
 			printk(KERN_DEBUG "ARM_PODF still in busy!!!!\n");
 			return 0;
 		}
 
 		/* START the GPC main control FSM */
-		reg = __raw_readl(dvfs_data->gpc_cntr_reg_addr);
+		reg = __raw_readl(gpc_base + dvfs_data->gpc_cntr_offset);
 		reg |= MXC_GPCCNTR_FUPD;
 		/* ADU=1, select ARM domain */
 		reg |= MXC_GPCCNTR_ADU;
-		__raw_writel(reg, dvfs_data->gpc_cntr_reg_addr);
+		__raw_writel(reg, gpc_base + dvfs_data->gpc_cntr_offset);
 		/* set VINC */
-		reg = __raw_readl(dvfs_data->gpc_vcr_reg_addr);
+		reg = __raw_readl(gpc_base + dvfs_data->gpc_vcr_offset);
 		reg &=
 		    ~(MXC_GPCVCR_VINC_MASK | MXC_GPCVCR_VCNTU_MASK |
 		      MXC_GPCVCR_VCNT_MASK);
 		reg |= (1 << MXC_GPCVCR_VCNTU_OFFSET) |
 		    (100 << MXC_GPCVCR_VCNT_OFFSET) |
 		    (vinc << MXC_GPCVCR_VINC_OFFSET);
-		__raw_writel(reg, dvfs_data->gpc_vcr_reg_addr);
+		__raw_writel(reg, gpc_base + dvfs_data->gpc_vcr_offset);
 
-		reg = __raw_readl(dvfs_data->gpc_cntr_reg_addr);
+		reg = __raw_readl(gpc_base + dvfs_data->gpc_cntr_offset);
 		reg &= (~(MXC_GPCCNTR_ADU | MXC_GPCCNTR_FUPD));
 		reg |= MXC_GPCCNTR_ADU | MXC_GPCCNTR_FUPD | MXC_GPCCNTR_STRT;
-		__raw_writel(reg, dvfs_data->gpc_cntr_reg_addr);
+		__raw_writel(reg, gpc_base + dvfs_data->gpc_cntr_offset);
 
 		/* Wait for arm podf Enable */
-		while ((__raw_readl(dvfs_data->gpc_cntr_reg_addr) &
+		while ((__raw_readl(gpc_base + dvfs_data->gpc_cntr_offset) &
 			MXC_GPCCNTR_STRT) == MXC_GPCCNTR_STRT) {
 			printk(KERN_DEBUG "Waiting arm_podf enabled!\n");
 			udelay(10);
@@ -316,9 +318,9 @@ static int set_cpu_freq(int wp)
 		}
 
 		/* Clear the ARM_FREQ_SHIFT_DIVIDER */
-		reg = __raw_readl(dvfs_data->ccm_cdcr_reg_addr);
+		reg = __raw_readl(ccm_base + dvfs_data->ccm_cdcr_offset);
 		reg &= 0xFFFFFFFB;
-		__raw_writel(reg, dvfs_data->ccm_cdcr_reg_addr);
+		__raw_writel(reg, ccm_base + dvfs_data->ccm_cdcr_offset);
 	}
 #if defined(CONFIG_CPU_FREQ)
 		cpufreq_trig_needed = 1;
@@ -343,14 +345,14 @@ static int start_dvfs(void)
 	dvfs_load_config(0);
 
 	/* config reg GPC_CNTR */
-	reg = __raw_readl(dvfs_data->gpc_cntr_reg_addr);
+	reg = __raw_readl(gpc_base + dvfs_data->gpc_cntr_offset);
 
 	reg &= ~MXC_GPCCNTR_GPCIRQM;
 	/* GPCIRQ=1, select ARM IRQ */
 	reg |= MXC_GPCCNTR_GPCIRQ_ARM;
 	/* ADU=1, select ARM domain */
 	reg |= MXC_GPCCNTR_ADU;
-	__raw_writel(reg, dvfs_data->gpc_cntr_reg_addr);
+	__raw_writel(reg, gpc_base + dvfs_data->gpc_cntr_offset);
 
 	/* Set PREDIV bits */
 	reg = __raw_readl(dvfs_data->membase + MXC_DVFSCORE_CNTR);
@@ -415,8 +417,8 @@ static irqreturn_t dvfs_irq(int irq, void *dev_id)
 	u32 reg;
 
 	/* Check if DVFS0 (ARM) id requesting for freqency/voltage update */
-	if ((__raw_readl(dvfs_data->gpc_cntr_reg_addr) & MXC_GPCCNTR_DVFS0CR) ==
-	    0)
+	if ((__raw_readl(gpc_base + dvfs_data->gpc_cntr_offset)
+			& MXC_GPCCNTR_DVFS0CR) == 0)
 		return IRQ_NONE;
 
 	/* Mask DVFS irq */
@@ -426,9 +428,9 @@ static irqreturn_t dvfs_irq(int irq, void *dev_id)
 	__raw_writel(reg, dvfs_data->membase + MXC_DVFSCORE_CNTR);
 
 	/* Mask GPC1 irq */
-	reg = __raw_readl(dvfs_data->gpc_cntr_reg_addr);
+	reg = __raw_readl(gpc_base + dvfs_data->gpc_cntr_offset);
 	reg |= MXC_GPCCNTR_GPCIRQM | 0x1000000;
-	__raw_writel(reg, dvfs_data->gpc_cntr_reg_addr);
+	__raw_writel(reg, gpc_base + dvfs_data->gpc_cntr_offset);
 
 	schedule_delayed_work(&dvfs_core_handler, 0);
 	return IRQ_HANDLED;
@@ -533,9 +535,9 @@ END:	/* Set MAXF, MINF */
 	reg |= MXC_DVFSCNTR_LBFL;
 	__raw_writel(reg, dvfs_data->membase + MXC_DVFSCORE_CNTR);
 	/*Unmask GPC1 IRQ */
-	reg = __raw_readl(dvfs_data->gpc_cntr_reg_addr);
+	reg = __raw_readl(gpc_base + dvfs_data->gpc_cntr_offset);
 	reg &= ~MXC_GPCCNTR_GPCIRQM;
-	__raw_writel(reg, dvfs_data->gpc_cntr_reg_addr);
+	__raw_writel(reg, gpc_base + dvfs_data->gpc_cntr_offset);
 
 #if defined(CONFIG_CPU_FREQ)
 	if (cpufreq_trig_needed == 1) {
@@ -800,7 +802,6 @@ static int __devinit mxc_dvfs_core_probe(struct platform_device *pdev)
 		goto err1;
 	}
 	dvfs_data->membase = ioremap(res->start, res->end - res->start + 1);
-
 	/*
 	 * Request the DVFS interrupt
 	 */
@@ -945,6 +946,7 @@ static void __exit dvfs_cleanup(void)
 	/* Unregister the device structure */
 	platform_driver_unregister(&mxc_dvfs_core_driver);
 
+	iounmap(ccm_base);
 	iounmap(dvfs_data->membase);
 	clk_put(cpu_clk);
 	clk_put(dvfs_clk);

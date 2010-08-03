@@ -166,6 +166,11 @@
 #define MXC_CCM_BCH		(MXC_CCM_BASE + 0xB0)
 #define MXC_CCM_MSHC_XMSCKI	(MXC_CCM_BASE + 0xB4)
 
+/* CCM Register Offsets. */
+#define MXC_CCM_CDCR_OFFSET		0x4C
+#define MXC_CCM_CACRR_OFFSET		0x10
+#define MXC_CCM_CDHIPR_OFFSET	0x48
+
 /* Define the bits in register CCR */
 #define MXC_CCM_CCR_COSC_EN		(1 << 12)
 #define MXC_CCM_CCR_FPM_MULT_MASK	(1 << 11)
@@ -783,11 +788,12 @@ extern void __iomem *arm_plat_base;
 #define MXC_DVFSPER_PMCR1	(MXC_DVFS_PER_BASE + 0x1C)
 
 /* GPC */
-#define MXC_GPC_CNTR		(MXC_GPC_BASE + 0x0)
-#define MXC_GPC_PGR		(MXC_GPC_BASE + 0x4)
-#define MXC_GPC_VCR		(MXC_GPC_BASE + 0x8)
-#define MXC_GPC_ALL_PU		(MXC_GPC_BASE + 0xC)
-#define MXC_GPC_NEON		(MXC_GPC_BASE + 0x10)
+#define MXC_GPC_CNTR				(MXC_GPC_BASE  + 0x0)
+#define MXC_GPC_PGR				(MXC_GPC_BASE  + 0x4)
+#define MXC_GPC_VCR				(MXC_GPC_BASE  + 0x8)
+#define MXC_GPC_CNTR_OFFSET		0x0
+#define MXC_GPC_PGR_OFFSET		0x4
+#define MXC_GPC_VCR_OFFSET		0x8
 
 /* PGC */
 #define MXC_PGC_IPU_PGCR	(MXC_PGC_IPU_BASE + 0x0)
