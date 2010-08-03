@@ -61,6 +61,7 @@
 
 #include "devices.h"
 #include "usb.h"
+#include "dma-apbh.h"
 
 #define SD1_WP	(3*32 + 19)	/*GPIO_4_19 */
 #define SD1_CD	(0*32 + 27)	/*GPIO_1_27 */
@@ -642,6 +643,11 @@ static int __init w1_setup(char *__unused)
 
 __setup("w1", w1_setup);
 
+static struct mxs_dma_plat_data dma_apbh_data = {
+	.chan_base = MXS_DMA_CHANNEL_AHB_APBH,
+	.chan_num = MXS_MAX_DMA_CHANNELS,
+};
+
 /*!
  * Board specific fixup function. It is called by \b setup_arch() in
  * setup.c file very early on during kernel starts. It allows the user to
@@ -730,6 +736,7 @@ static void __init mxc_board_init(void)
 	mx50_arm2_io_init();
 
 	mxc_register_device(&mxc_dma_device, NULL);
+	mxc_register_device(&mxs_dma_apbh_device, &dma_apbh_data);
 	mxc_register_device(&mxc_wdt_device, NULL);
 	mxc_register_device(&mxcspi1_device, &mxcspi1_data);
 	mxc_register_device(&mxcspi3_device, &mxcspi3_data);

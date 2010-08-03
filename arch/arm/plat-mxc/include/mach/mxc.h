@@ -221,6 +221,12 @@ void mxc_pg_disable(struct platform_device *pdev);
 
 struct mxc_unifi_platform_data *get_unifi_plat_data(void);
 
+struct mxs_dma_plat_data {
+	unsigned int burst8:1;
+	unsigned int burst:1;
+	unsigned int chan_base;
+	unsigned int chan_num;
+};
 #endif				/* __ASSEMBLY__ */
 
 /* DMA driver defines */

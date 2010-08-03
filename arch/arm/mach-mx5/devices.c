@@ -28,7 +28,7 @@
 #include <mach/hardware.h>
 #include <mach/gpio.h>
 #include <mach/sdma.h>
-/*#include "dma-apbh.h"*/
+#include "dma-apbh.h"
 
 /* Flag used to indicate when IRAM has been initialized */
 int iram_ready;
