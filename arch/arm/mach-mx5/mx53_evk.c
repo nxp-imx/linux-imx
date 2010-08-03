@@ -1474,7 +1474,7 @@ static void __init mx53_evk_io_init(void)
 		gpio_direction_input(EVK_SD3_CD);
 
 		/* SD3 WP */
-		gpio_request(EVK_SD3_CD, "sdhc3-wp");
+		gpio_request(EVK_SD3_WP, "sdhc3-wp");
 		gpio_direction_input(EVK_SD3_WP);
 
 		/* reset FEC PHY */
