@@ -25,6 +25,7 @@
 #include <asm/hardware/cache-l2x0.h>
 
 void __iomem *gpc_base;
+void __iomem *ccm_base;
 
 /*!
  * CPU initialization. It is called by fixup_mxc_board()
@@ -73,6 +74,7 @@ static int __init post_cpu_init(void)
 	iram_init(IRAM_BASE_ADDR, iram_size);
 
 	gpc_base = ioremap(GPC_BASE_ADDR, SZ_4K);
+	ccm_base = ioremap(CCM_BASE_ADDR, SZ_4K);
 
 	/* Set ALP bits to 000. Set ALP_EN bit in Arm Memory Controller reg. */
 	reg = __raw_readl(MXC_ARM1176_BASE + 0x1C);

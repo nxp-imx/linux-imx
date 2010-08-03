@@ -35,6 +35,7 @@
 #include <linux/device.h>
 
 extern void __iomem *gpc_base;
+extern void __iomem *ccm_base;
 
 #define MXC_GPCCNTR_GPCIRQ2M		(1 << 25)
 #define MXC_GPCCNTR_GPCIRQ2		(1 << 24)
@@ -143,16 +144,16 @@ struct mxc_dvfs_platform_data {
 	void __iomem *membase;
 	/* The interrupt number used by the DVFS core */
 	int irq;
-	/* GPC control reg address */
-	void __iomem *gpc_cntr_reg_addr;
-	/* GPC voltage counter reg address */
-	void __iomem *gpc_vcr_reg_addr;
-	/* CCM DVFS control reg address */
-	void __iomem *ccm_cdcr_reg_addr;
-	/* CCM ARM clock root reg address */
-	void __iomem *ccm_cacrr_reg_addr;
-	/* CCM divider handshake in-progree reg address */
-	void __iomem *ccm_cdhipr_reg_addr;
+	/* GPC control reg offset */
+	int gpc_cntr_offset;
+	/* GPC voltage counter reg offset */
+	int gpc_vcr_offset;
+	/* CCM DVFS control reg offset */
+	int ccm_cdcr_offset;
+	/* CCM ARM clock root reg offset */
+	int ccm_cacrr_offset;
+	/* CCM divider handshake in-progress reg offset */
+	int ccm_cdhipr_offset;
 	/* PREDIV mask */
 	u32 prediv_mask;
 	/* PREDIV offset */

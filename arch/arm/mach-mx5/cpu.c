@@ -41,6 +41,7 @@
 
 void __iomem *arm_plat_base;
 void __iomem *gpc_base;
+void __iomem *ccm_base;
 
 struct cpu_wp *(*get_cpu_wp)(int *wp);
 void (*set_num_cpu_wp)(int num);
@@ -129,6 +130,8 @@ static int __init post_cpu_init(void)
 	}
 
 	gpc_base = ioremap(MX53_BASE_ADDR(GPC_BASE_ADDR), SZ_4K);
+	ccm_base = ioremap(MX53_BASE_ADDR(CCM_BASE_ADDR), SZ_4K);
+
 	clk_enable(gpcclk);
 
 	/* Setup the number of clock cycles to wait for SRPG
