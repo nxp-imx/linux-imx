@@ -55,9 +55,18 @@ kgsl_device_init(gsl_device_t *device, gsl_deviceid_t device_id)
 {
     int              status = GSL_SUCCESS;
     gsl_devconfig_t  config;
+    gsl_hal_t        *hal = (gsl_hal_t *)gsl_driver.hal;
 
     kgsl_log_write( KGSL_LOG_GROUP_DEVICE | KGSL_LOG_LEVEL_TRACE,
                     "--> int kgsl_device_init(gsl_device_t *device=0x%08x, gsl_deviceid_t device_id=%D )\n", device, device_id );
+
+    if ((GSL_DEVICE_YAMATO == device_id) && !(hal->has_z430)) {
+	return GSL_FAILURE_NOTSUPPORTED;
+    }
+
+    if ((GSL_DEVICE_G12 == device_id) && !(hal->has_z160)) {
+	return GSL_FAILURE_NOTSUPPORTED;
+    }
 
     if (device->flags & GSL_FLAGS_INITIALIZED)
     {
@@ -425,11 +434,22 @@ kgsl_device_start(gsl_deviceid_t device_id, gsl_flags_t flags)
 {
     int           status = GSL_FAILURE_NOTINITIALIZED;
     gsl_device_t  *device;
+    gsl_hal_t     *hal = (gsl_hal_t *)gsl_driver.hal;
 
     kgsl_log_write( KGSL_LOG_GROUP_DEVICE | KGSL_LOG_LEVEL_TRACE,
                     "--> int kgsl_device_start(gsl_deviceid_t device_id=%D, gsl_flags_t flags=%d)\n", device_id, flags );
 
     GSL_API_MUTEX_LOCK();
+
+    if ((GSL_DEVICE_G12 == device_id) && !(hal->has_z160)) {
+	GSL_API_MUTEX_UNLOCK();
+	return GSL_FAILURE_NOTSUPPORTED;
+    }
+
+    if ((GSL_DEVICE_YAMATO == device_id) && !(hal->has_z430)) {
+	GSL_API_MUTEX_UNLOCK();
+	return GSL_FAILURE_NOTSUPPORTED;
+    }
 
     device = &gsl_driver.device[device_id-1];       // device_id is 1 based
     

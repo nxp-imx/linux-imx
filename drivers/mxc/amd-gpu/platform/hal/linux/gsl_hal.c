@@ -40,15 +40,6 @@
 
 /* #define GSL_HAL_DEBUG */
 
-typedef struct _gsl_hal_t {
-    gsl_memregion_t z160_regspace;
-    gsl_memregion_t z430_regspace;
-    gsl_memregion_t memchunk;
-    gsl_memregion_t memspace[GSL_SHMEM_MAX_APERTURES];
-    unsigned int has_z160;
-    unsigned int has_z430;
-} gsl_hal_t;
-
 extern phys_addr_t gpu_2d_regbase;
 extern int gpu_2d_regsize;
 extern phys_addr_t gpu_3d_regbase;
@@ -56,6 +47,7 @@ extern int gpu_3d_regsize;
 extern int gmem_size;
 extern phys_addr_t gpu_reserved_mem;
 extern int gpu_reserved_mem_size;
+extern int gpu_2d_irq, gpu_3d_irq;
 
 
 KGSLHAL_API int
@@ -116,13 +108,13 @@ kgsl_hal_init(void)
     /* overlay structure on hal memory */
     hal = (gsl_hal_t *) gsl_driver.hal;
 
-    if (gpu_3d_regbase && gpu_3d_regsize) {
+    if (gpu_3d_regbase && gpu_3d_regsize && gpu_3d_irq) {
 	hal->has_z430 = 1;
     } else {
 	hal->has_z430 = 0;
     }
 
-    if (gpu_2d_regbase && gpu_2d_regsize) {
+    if (gpu_2d_regbase && gpu_2d_regsize && gpu_2d_irq) {
 	hal->has_z160 = 1;
     } else {
 	hal->has_z160 = 0;

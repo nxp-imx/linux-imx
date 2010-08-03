@@ -39,7 +39,7 @@
 #include <linux/platform_device.h>
 #include <linux/vmalloc.h>
 
-static int gpu_2d_irq, gpu_3d_irq;
+int gpu_2d_irq, gpu_3d_irq;
 
 phys_addr_t gpu_2d_regbase;
 int gpu_2d_regsize;
@@ -807,12 +807,6 @@ static int gpu_probe(struct platform_device *pdev)
         }
     }
 
-    if (kgsl_driver_init() != GSL_SUCCESS)
-    {
-        printk(KERN_ERR "%s: kgsl_driver_init error\n", __func__);
-        goto kgsl_driver_init_error;
-    }
-
     if (gpu_3d_irq > 0)
     {
 	if (request_irq(gpu_3d_irq, z430_irq_handler, 0, "ydx", NULL) < 0) {
@@ -828,6 +822,11 @@ static int gpu_probe(struct platform_device *pdev)
 	    printk(KERN_ERR "2D Acceleration Enabled, OpenVG Disabled!\n");
 	    gpu_2d_irq = 0;
 	}
+    }
+
+    if (kgsl_driver_init() != GSL_SUCCESS) {
+	printk(KERN_ERR "%s: kgsl_driver_init error\n", __func__);
+	goto kgsl_driver_init_error;
     }
 
     gsl_kmod_major = register_chrdev(0, "gsl_kmod", &gsl_kmod_fops);
@@ -867,9 +866,15 @@ class_create_error:
 register_chrdev_error:
     unregister_chrdev(gsl_kmod_major, "gsl_kmod");
 
-request_irq_error:
 kgsl_driver_init_error:
     kgsl_driver_close();
+    if (gpu_2d_irq > 0) {
+	free_irq(gpu_2d_irq, NULL);
+    }
+    if (gpu_3d_irq > 0) {
+	free_irq(gpu_3d_irq, NULL);
+    }
+request_irq_error:
     return 0;   // TODO: return proper error code
 }
 

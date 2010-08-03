@@ -198,13 +198,12 @@ kgsl_driver_entry(gsl_flags_t flags)
             if (status == GSL_SUCCESS)
             {
                 // init devices
+		status = GSL_FAILURE;
                 for (i = 0; i < GSL_DEVICE_MAX; i++)
                 {
-                    status = kgsl_device_init(&gsl_driver.device[i], (gsl_deviceid_t)(i + 1));
-                    if (status != GSL_SUCCESS)
-                    {
-			continue;
-                    }
+		    if (kgsl_device_init(&gsl_driver.device[i], (gsl_deviceid_t)(i + 1)) == GSL_SUCCESS) {
+			status = GSL_SUCCESS;
+		    }
                 }
             }
 
