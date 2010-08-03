@@ -264,7 +264,6 @@ int usbotg_init(struct platform_device *pdev)
 	pdata->xcvr_type = xops->xcvr_type;
 	pdata->pdev = pdev;
 
-	otg_used = 0;
 	if (!otg_used) {
 		pr_debug("%s: grab pins\n", __func__);
 		if (xops->init)
