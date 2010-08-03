@@ -813,6 +813,7 @@ static void sdhci_set_clock(struct sdhci_host *host, unsigned int clock)
 			host->plat_data->clk_flg = 1;
 		}
 	}
+
 	if (clock == host->clock && !(ios.bus_width & MMC_BUS_WIDTH_DDR))
 		return;
 
@@ -851,6 +852,14 @@ static void sdhci_set_clock(struct sdhci_host *host, unsigned int clock)
 	}
 	DBG("prescaler = 0x%x, divider = 0x%x\n", prescaler, div);
 	clk |= (prescaler << 8) | (div << 4);
+
+	if (host->plat_data->clk_always_on
+		| (host->mmc->card && mmc_card_sdio(host->mmc->card)))
+		clk |= SDHCI_CLOCK_PER_EN | SDHCI_CLOCK_HLK_EN
+			| SDHCI_CLOCK_IPG_EN;
+	else
+		clk &= ~(SDHCI_CLOCK_PER_EN | SDHCI_CLOCK_HLK_EN
+			| SDHCI_CLOCK_IPG_EN);
 
 	/* Configure the clock delay line */
 	if ((host->plat_data->vendor_ver >= ESDHC_VENDOR_V3)
@@ -1083,7 +1092,7 @@ static void sdhci_enable_sdio_irq(struct mmc_host *mmc, int enable)
 {
 	struct sdhci_host *host;
 	unsigned long flags;
-	u32 ier, prot, clk, present;
+	u32 ier, prot, present;
 
 	host = mmc_priv(mmc);
 
@@ -1096,19 +1105,13 @@ static void sdhci_enable_sdio_irq(struct mmc_host *mmc, int enable)
 		if (--(host->sdio_enable))
 			goto exit_unlock;
 	}
-	/* Enable the clock */
-	if (!host->plat_data->clk_flg) {
-		clk_enable(host->clk);
-		host->plat_data->clk_flg = 1;
-	}
+
 	ier = readl(host->ioaddr + SDHCI_SIGNAL_ENABLE);
 	prot = readl(host->ioaddr + SDHCI_HOST_CONTROL);
-	clk = readl(host->ioaddr + SDHCI_CLOCK_CONTROL);
 
 	if (enable) {
 		ier |= SDHCI_INT_CARD_INT;
 		prot |= SDHCI_CTRL_D3CD;
-		clk |= SDHCI_CLOCK_PER_EN | SDHCI_CLOCK_IPG_EN;
 		present = readl(host->ioaddr + SDHCI_PRESENT_STATE);
 		if ((present & SDHCI_CARD_INT_MASK) != SDHCI_CARD_INT_ID)
 			writel(SDHCI_INT_CARD_INT,
@@ -1116,12 +1119,10 @@ static void sdhci_enable_sdio_irq(struct mmc_host *mmc, int enable)
 	} else {
 		ier &= ~SDHCI_INT_CARD_INT;
 		prot &= ~SDHCI_CTRL_D3CD;
-		clk &= ~(SDHCI_CLOCK_PER_EN | SDHCI_CLOCK_IPG_EN);
 	}
 
 	writel(prot, host->ioaddr + SDHCI_HOST_CONTROL);
 	writel(ier, host->ioaddr + SDHCI_SIGNAL_ENABLE);
-	writel(clk, host->ioaddr + SDHCI_CLOCK_CONTROL);
 
 	mmiowb();
       exit_unlock:
@@ -1231,17 +1232,13 @@ static void sdhci_tasklet_finish(unsigned long param)
 	/* Stop the clock when the req is done */
 	req_done = !(readl(host->ioaddr + SDHCI_PRESENT_STATE) &
 		(SDHCI_DATA_ACTIVE | SDHCI_DOING_WRITE | SDHCI_DOING_READ));
-	/* Do not disable the eSDHC clk on MX35 3DS board,
-	 * since SYSTEM can't boot up after the reset key
-	 * is pressed when the SD/MMC boot mode is used.
-	 * The root cause is that the ROM code don't ensure
-	 * the SD/MMC clk is running when boot system.
-	 * */
-	if (!machine_is_mx35_3ds() && req_done && host->plat_data->clk_flg &&
-	    !(host->mmc && host->mmc->card && mmc_card_sdio(host->mmc->card))) {
+	if (req_done && host->plat_data->clk_flg &&
+		!(host->plat_data->clk_always_on) &&
+		!(host->mmc->card && mmc_card_sdio(host->mmc->card))) {
 		clk_disable(host->clk);
 		host->plat_data->clk_flg = 0;
 	}
+
 	mmc_request_done(host->mmc, mrq);
 }
 
@@ -1803,8 +1800,11 @@ static int __devinit sdhci_probe_slot(struct platform_device
 
 	/* Get the SDHC clock from clock system APIs */
 	host->clk = clk_get(&pdev->dev, mmc_plat->clock_mmc);
-	if (IS_ERR(host->clk))
+	if (NULL == host->clk) {
 		printk(KERN_ERR "MXC MMC can't get clock.\n");
+		goto out1;
+	} else
+		clk_enable(host->clk);
 	DBG("SDHC:%d clock:%lu\n", pdev->id, clk_get_rate(host->clk));
 
 	host->res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
