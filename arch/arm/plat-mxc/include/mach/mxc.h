@@ -603,6 +603,12 @@ struct mxc_sim_platform_data {
 	unsigned int detect; /* 1 have detect pin, 0 not */
 };
 
+struct mxs_dma_plat_data {
+	unsigned int burst8:1;
+	unsigned int burst:1;
+	unsigned int chan_base;
+	unsigned int chan_num;
+};
 #endif				/* __ASSEMBLY__ */
 
 #define MUX_IO_P		29

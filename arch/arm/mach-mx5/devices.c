@@ -27,6 +27,7 @@
 #include <mach/hardware.h>
 #include <mach/gpio.h>
 #include <mach/sdma.h>
+#include "dma-apbh.h"
 
 /* Flag used to indicate when IRAM has been initialized */
 int iram_ready;
@@ -1283,6 +1284,20 @@ struct platform_device mxs_viim = {
 	.id     = -1,
 	.num_resources = ARRAY_SIZE(viim_resources),
 	.resource = viim_resources,
+};
+
+static struct resource dma_apbh_resources[] = {
+	{
+		.start = APBHDMA_BASE_ADDR,
+		.end = APBHDMA_BASE_ADDR + 0x2000 - 1,
+		.flags = IORESOURCE_MEM,
+	},
+};
+
+struct platform_device mxs_dma_apbh_device = {
+	.name = "mxs-dma-apbh",
+	.num_resources = ARRAY_SIZE(dma_apbh_resources),
+	.resource = dma_apbh_resources,
 };
 
 void __init mx5_init_irq(void)
