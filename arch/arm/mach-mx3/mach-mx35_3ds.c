@@ -132,6 +132,13 @@ static struct mxc_mmc_platform_data mmc1_data = {
 #endif
 	.min_clk = 150000,
 	.max_clk = 52000000,
+	/* Do not disable the eSDHC clk on MX35 3DS board,
+	* since SYSTEM can't boot up after the reset key
+	* is pressed when the SD/MMC boot mode is used.
+	* The root cause is that the ROM code don't ensure
+	* the SD/MMC clk is running when boot system.
+	* */
+	.clk_always_on = 1,
 	.card_inserted_state = 0,
 	.status = sdhc_get_card_det_status,
 	.wp_status = sdhc_write_protect,
