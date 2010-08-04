@@ -190,6 +190,12 @@ static int uio_pdrv_genirq_remove(struct platform_device *pdev)
 
 	uio_unregister_device(priv->uioinfo);
 	pm_runtime_disable(&pdev->dev);
+
+	priv->uioinfo->irq_flags = 0;
+	priv->uioinfo->handler = NULL;
+	priv->uioinfo->irqcontrol = NULL;
+	priv->uioinfo->priv = NULL;
+
 	kfree(priv);
 	return 0;
 }
