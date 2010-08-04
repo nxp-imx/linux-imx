@@ -174,8 +174,8 @@ static int mil_incoming_buffer_dma_begin(struct gpmi_nfc_data *this,
 	 * If we can, we want to use the caller's buffer directly for DMA. Check
 	 * if the system will let us map them.
 	 */
-
-	if (map_io_buffers && virt_addr_valid(destination))
+	if (map_io_buffers && virt_addr_valid(destination) &&
+				!((int)destination & 0x3) && 0)
 		destination_phys =
 			dma_map_single(dev,
 				(void *) destination, length, DMA_FROM_DEVICE);
@@ -387,6 +387,7 @@ static void mil_select_chip(struct mtd_info *mtd, int chip)
 		gpmi_nfc_add_event("< mil_select_chip", -1);
 	} else if ((mil->current_chip >= 0) && (chip < 0)) {
 		gpmi_nfc_add_event("> mil_select_chip", 1);
+		gpmi_nfc_add_event("> not disable clk", 1);
 		clk_disable(clock);
 		nfc->end(this);
 		gpmi_nfc_stop_event_trace("< mil_select_chip");
@@ -423,7 +424,6 @@ static void mil_read_buf(struct mtd_info *mtd, uint8_t *buf, int len)
 	gpmi_nfc_add_event("> mil_read_buf", 1);
 
 	/* Set up DMA. */
-
 	error = mil_incoming_buffer_dma_begin(this, buf, len,
 					mil->payload_virt, mil->payload_phys,
 					nfc_geo->payload_size_in_bytes,
@@ -1414,6 +1414,12 @@ static int mil_set_geometry(struct gpmi_nfc_data  *this)
 	struct device        *dev      =  this->dev;
 	struct nfc_geometry  *nfc_geo  = &this->nfc_geometry;
 	struct mil           *mil      = &this->mil;
+
+
+	/* Free the memory for read ID case */
+	if (mil->page_buffer_virt && virt_addr_valid(mil->page_buffer_virt))
+		dma_free_coherent(dev, nfc_geo->payload_size_in_bytes,
+				mil->page_buffer_virt, mil->page_buffer_phys);
 
 	/* Set up the various layers of geometry, in this specific order. */
 
@@ -2496,8 +2502,27 @@ int gpmi_nfc_mil_init(struct gpmi_nfc_data *this)
 		dma_alloc_coherent(dev,
 			MIL_COMMAND_BUFFER_SIZE, &mil->cmd_phys, GFP_DMA);
 
-	if (!mil->cmd_virt)
+	if (!mil->cmd_virt) {
+		error = -ENOMEM;
 		goto exit_cmd_allocation;
+	}
+
+
+	/* Allocate buf  read ID case */
+	this->nfc_geometry.payload_size_in_bytes = 1024;
+	mil->page_buffer_virt =
+		dma_alloc_coherent(dev,
+				this->nfc_geometry.payload_size_in_bytes,
+				&mil->page_buffer_phys, GFP_DMA);
+
+	if (!mil->page_buffer_virt) {
+		error = -ENOMEM;
+		goto exit_buf_allocation;
+	}
+
+	/* Slice up the page buffer. */
+	mil->payload_virt = mil->page_buffer_virt;
+	mil->payload_phys = mil->page_buffer_phys;
 
 	/*
 	 * Ask the NAND Flash system to scan for chips.
@@ -2546,10 +2571,11 @@ int gpmi_nfc_mil_init(struct gpmi_nfc_data *this)
 exit_partitions:
 	nand_release(&mil->mtd);
 exit_nand_scan:
-	dma_free_coherent(dev, MIL_COMMAND_BUFFER_SIZE,
-						mil->cmd_virt, mil->cmd_phys);
 	mil->cmd_virt =  0;
 	mil->cmd_phys = ~0;
+exit_buf_allocation:
+	dma_free_coherent(dev, MIL_COMMAND_BUFFER_SIZE,
+				mil->cmd_virt, mil->cmd_phys);
 exit_cmd_allocation:
 
 	return error;

@@ -490,7 +490,7 @@ config MXC_NAND_LOW_LEVEL_ERASE
 
 config MTD_NAND_GPMI_NFC
         tristate "GPMI NAND Flash Controller driver"
-        depends on MTD_NAND && (ARCH_MX23 || ARCH_MX28)
+        depends on MTD_NAND && (ARCH_MX23 || ARCH_MX28 || ARCH_MX50)
         help
          Enables NAND Flash support.
 
