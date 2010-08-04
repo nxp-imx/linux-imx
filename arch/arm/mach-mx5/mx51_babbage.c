@@ -64,6 +64,7 @@
 #define BABBAGE_SD2_CD_2_0		(0*32 + 4)	/* GPIO_1_4 */
 #define BABBAGE_SD2_WP		(0*32 + 5)	/* GPIO_1_5 */
 #define BABBAGE_SD2_CD_2_5		(0*32 + 6)	/* GPIO_1_6 */
+#define BABBAGE_USBH1_HUB_RST		(0*32 + 7)	/* GPIO_1_7 */
 #define BABBAGE_PMIC_INT		(0*32 + 8)	/* GPIO_1_8 */
 
 #define BABBAGE_USB_CLK_EN_B		(1*32 + 1)	/* GPIO_2_1 */
@@ -123,6 +124,7 @@ static struct pad_desc mx51babbage_pads[] = {
 	MX51_PAD_GPIO_1_4__GPIO_1_4,
 	MX51_PAD_GPIO_1_5__GPIO_1_5,
 	MX51_PAD_GPIO_1_6__GPIO_1_6,
+	MX51_PAD_GPIO_1_7__GPIO_1_7,
 	MX51_PAD_GPIO_1_8__GPIO_1_8,
 	MX51_PAD_UART3_RXD__GPIO_1_22,
 
@@ -1075,6 +1077,13 @@ static void __init mx51_babbage_io_init(void)
 	}
 	gpio_request(BABBAGE_SD2_WP, "sdhc2-wp");
 	gpio_direction_input(BABBAGE_SD2_WP);
+
+	/* reset usbh1 hub */
+	gpio_request(BABBAGE_USBH1_HUB_RST, "hub-rst");
+	gpio_direction_output(BABBAGE_USBH1_HUB_RST, 0);
+	gpio_set_value(BABBAGE_USBH1_HUB_RST, 0);
+	msleep(1);
+	gpio_set_value(BABBAGE_USBH1_HUB_RST, 1);
 
 	/* reset FEC PHY */
 	gpio_request(BABBAGE_FEC_PHY_RESET, "fec-phy-reset");
