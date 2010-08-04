@@ -142,6 +142,89 @@ struct platform_device mxc_nandv2_mtd_device = {
 	.num_resources = ARRAY_SIZE(mxc_nand_resources),
 };
 
+static struct resource gpmi_nfc_resources[] = {
+	{
+	 .name  = GPMI_NFC_GPMI_REGS_ADDR_RES_NAME,
+	 .flags = IORESOURCE_MEM,
+	 .start = GPMI_BASE_ADDR,
+	 .end   = GPMI_BASE_ADDR + SZ_8K - 1,
+	 },
+	{
+	 .name  = GPMI_NFC_GPMI_INTERRUPT_RES_NAME,
+	 .flags = IORESOURCE_IRQ,
+	 .start = MXC_INT_RAWNAND_GPMI,
+	 .end   = MXC_INT_RAWNAND_GPMI,
+	},
+	{
+	 .name  = GPMI_NFC_BCH_REGS_ADDR_RES_NAME,
+	 .flags = IORESOURCE_MEM,
+	 .start = BCH_BASE_ADDR,
+	 .end   = BCH_BASE_ADDR + SZ_8K - 1,
+	 },
+	{
+	 .name  = GPMI_NFC_BCH_INTERRUPT_RES_NAME,
+	 .flags = IORESOURCE_IRQ,
+	 .start = MXC_INT_RAWNAND_BCH,
+	 .end   = MXC_INT_RAWNAND_BCH,
+	 },
+	{
+	 .name  = GPMI_NFC_DMA_CHANNELS_RES_NAME,
+	 .flags = IORESOURCE_DMA,
+	 .start	= MXS_DMA_CHANNEL_AHB_APBH_GPMI0,
+	 .end	= MXS_DMA_CHANNEL_AHB_APBH_GPMI7,
+	 },
+	{
+	 .name  = GPMI_NFC_DMA_INTERRUPT_RES_NAME,
+	 .flags = IORESOURCE_IRQ,
+	 .start = MXC_INT_APBHDMA_CHAN0,
+	 .end   = MXC_INT_APBHDMA_CHAN7,
+	},
+};
+
+struct platform_device gpmi_nfc_device = {
+	.name = GPMI_NFC_DRIVER_NAME,
+	.id = 0,
+	.dev = {
+		.coherent_dma_mask = DMA_BIT_MASK(32),
+		},
+	.resource = gpmi_nfc_resources,
+	.num_resources = ARRAY_SIZE(gpmi_nfc_resources),
+};
+
+static struct resource imx_nfc_resources[] = {
+	{
+		.flags = IORESOURCE_MEM,
+		.start = MX51_NFC_BASE_ADDR_AXI,
+		.end   = MX51_NFC_BASE_ADDR_AXI + 0x1200 - 1,
+		.name  = IMX_NFC_BUFFERS_ADDR_RES_NAME,
+	},
+	{
+		.flags = IORESOURCE_MEM,
+		.start = MX51_NFC_BASE_ADDR_AXI + 0x1E00,
+		.end   = MX51_NFC_BASE_ADDR_AXI + 0x1E44 - 1,
+		.name  = IMX_NFC_PRIMARY_REGS_ADDR_RES_NAME,
+	},
+	{
+		.flags = IORESOURCE_MEM,
+		.start = NFC_BASE_ADDR + 0x00,
+		.end   = NFC_BASE_ADDR + 0x34 - 1,
+		.name  = IMX_NFC_SECONDARY_REGS_ADDR_RES_NAME,
+	},
+	{
+		.flags = IORESOURCE_IRQ,
+		.start = MXC_INT_NFC,
+		.end   = MXC_INT_NFC,
+		.name  = IMX_NFC_INTERRUPT_RES_NAME,
+	},
+};
+
+struct platform_device imx_nfc_device = {
+	.name = IMX_NFC_DRIVER_NAME,
+	.id = 0,
+	.resource      = imx_nfc_resources,
+	.num_resources = ARRAY_SIZE(imx_nfc_resources),
+};
+
 static struct resource wdt_resources[] = {
 	{
 		.start = WDOG1_BASE_ADDR,

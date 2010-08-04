@@ -712,6 +712,19 @@
 #define MXC_CCM_ELCDIFPIX_CLK_PODF_OFFSET	(0)
 #define MXC_CCM_ELCDIFPIX_CLK_PODF_MASK		(0xFFF)
 
+
+/* Define the bits in register GPMI */
+#define MXC_CCM_GPMI_CLKGATE_OFFSET		(30)
+#define MXC_CCM_GPMI_CLKGATE_MASK		(0x3 << 30)
+#define MXC_CCM_GPMI_CLK_DIV_OFFSET		(0)
+#define MXC_CCM_GPMI_CLK_DIV_MASK		(0x3F)
+
+/* Define the bits in register BCH */
+#define MXC_CCM_BCH_CLKGATE_OFFSET		(30)
+#define MXC_CCM_BCH_CLKGATE_MASK		(0x3 << 30)
+#define MXC_CCM_BCH_CLK_DIV_OFFSET		(0)
+#define MXC_CCM_BCH_CLK_DIV_MASK		(0x3F)
+
 #define MXC_GPC_BASE		(IO_ADDRESS(GPC_BASE_ADDR))
 #define MXC_DPTC_LP_BASE	(MXC_GPC_BASE + 0x80)
 #define MXC_DPTC_GP_BASE	(MXC_GPC_BASE + 0x100)

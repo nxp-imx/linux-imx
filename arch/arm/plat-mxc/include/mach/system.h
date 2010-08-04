@@ -1,7 +1,7 @@
 /*
  *  Copyright (C) 1999 ARM Limited
  *  Copyright (C) 2000 Deep Blue Solutions Ltd
- *  Copyright 2004-2007 Freescale Semiconductor, Inc. All Rights Reserved.
+ *  Copyright 2004-2010 Freescale Semiconductor, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -37,5 +37,6 @@ static inline void arch_idle(void)
 }
 
 void arch_reset(char mode, const char *cmd);
+int mxs_reset_block(void __iomem *hwreg, int just_enable);
 
 #endif /* __ASM_ARCH_MXC_SYSTEM_H__ */

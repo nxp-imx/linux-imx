@@ -2333,6 +2333,84 @@ static struct clk fec_clk[] = {
 	},
 };
 
+
+static int gpmi_clk_enable(struct clk *clk)
+{
+	u32 reg;
+
+	reg = __raw_readl(MXC_CCM_GPMI);
+	reg |= MXC_CCM_GPMI_CLKGATE_MASK;
+	__raw_writel(reg, MXC_CCM_GPMI);
+	_clk_enable(clk);
+	return 0;
+}
+
+static void gpmi_clk_disable(struct clk *clk)
+{
+	u32 reg;
+
+	reg = __raw_readl(MXC_CCM_GPMI);
+	reg &= ~MXC_CCM_GPMI_CLKGATE_MASK;
+	__raw_writel(reg, MXC_CCM_GPMI);
+	_clk_disable(clk);
+}
+
+
+static int bch_clk_enable(struct clk *clk)
+{
+	u32 reg;
+
+	reg = __raw_readl(MXC_CCM_BCH);
+	reg |= MXC_CCM_BCH_CLKGATE_MASK;
+	__raw_writel(reg, MXC_CCM_BCH);
+	_clk_enable(clk);
+	return 0;
+}
+
+static void bch_clk_disable(struct clk *clk)
+{
+	u32 reg;
+
+	reg = __raw_readl(MXC_CCM_BCH);
+	reg &= ~MXC_CCM_BCH_CLKGATE_MASK;
+	__raw_writel(reg, MXC_CCM_BCH);
+	_clk_disable(clk);
+}
+
+static struct clk gpmi_nfc_clk[] = {
+	{
+	.parent = &osc_clk,
+	.secondary = &gpmi_nfc_clk[1],
+	.enable = gpmi_clk_enable,
+	.enable_reg = MXC_CCM_CCGR7,
+	.enable_shift = MXC_CCM_CCGRx_CG9_OFFSET,
+	.disable = gpmi_clk_disable,
+	},
+	{
+	.parent = &ahb_clk,
+	.secondary = &gpmi_nfc_clk[2],
+	.enable = _clk_enable,
+	.enable_reg = MXC_CCM_CCGR7,
+	.enable_shift = MXC_CCM_CCGRx_CG8_OFFSET,
+	.disable = _clk_disable,
+	},
+	{
+	.parent = &osc_clk,
+	.secondary = &gpmi_nfc_clk[3],
+	.enable = bch_clk_enable,
+	.enable_reg = MXC_CCM_CCGR7,
+	.enable_shift = MXC_CCM_CCGRx_CG0_OFFSET,
+	.disable = bch_clk_disable,
+	},
+	{
+	.parent = &ahb_clk,
+	.enable = _clk_enable,
+	.enable_reg = MXC_CCM_CCGR7,
+	.enable_shift = MXC_CCM_CCGRx_CG12_OFFSET,
+	.disable = _clk_disable,
+	},
+};
+
 static int _clk_gpu2d_set_parent(struct clk *clk, struct clk *parent)
 {
 	u32 reg, mux;
@@ -2904,6 +2982,10 @@ static struct clk_lookup lookups[] = {
 	_REGISTER_CLOCK(NULL, "gpt", gpt_clk[0]),
 	_REGISTER_CLOCK("fec.0", NULL, fec_clk[0]),
 	_REGISTER_CLOCK("mxc_w1.0", NULL, owire_clk),
+	_REGISTER_CLOCK(NULL, "gpmi-nfc", gpmi_nfc_clk[0]),
+	_REGISTER_CLOCK(NULL, "gpmi-apb", gpmi_nfc_clk[1]),
+	_REGISTER_CLOCK(NULL, "bch", gpmi_nfc_clk[2]),
+	_REGISTER_CLOCK(NULL, "bch-apb", gpmi_nfc_clk[3]),
 };
 
 static void clk_tree_init(void)
@@ -3102,6 +3184,9 @@ int __init mx50_clocks_init(unsigned long ckil, unsigned long osc, unsigned long
 	/* move usb_phy_clk to 24MHz */
 	clk_set_parent(&usb_phy_clk[0], &osc_clk);
 	clk_set_parent(&usb_phy_clk[1], &osc_clk);
+
+	/* move gpmi-nfc to 24MHz */
+	clk_set_parent(&gpmi_nfc_clk[0], &osc_clk);
 
 	/* set SDHC root clock as 200MHZ*/
 	clk_set_rate(&esdhc1_clk[0], 200000000);
