@@ -1446,9 +1446,6 @@ fec_probe(struct platform_device *pdev)
 	fep = netdev_priv(ndev);
 	memset(fep, 0, sizeof(*fep));
 
-	if (!is_valid_ether_addr(fec_mac_default))
-		memcpy(fec_mac_default, pdata->mac, sizeof(fec_mac_default));
-
 	ndev->base_addr = (unsigned long)ioremap(r->start, resource_size(r));
 	fep->pdev = pdev;
 
@@ -1487,6 +1484,18 @@ fec_probe(struct platform_device *pdev)
 		fep->phy_interface = pdata->phy;
 		if (pdata->init && pdata->init())
 			goto failed_platform_init;
+
+		/*
+		 * The priority for getting MAC address is:
+		 * (1) kernel command line fec_mac = xx:xx:xx...
+		 * (2) platform data mac field got from fuse etc
+		 * (3) bootloader set the FEC mac register
+		 */
+
+		if (!is_valid_ether_addr(fec_mac_default) &&
+			pdata->mac && is_valid_ether_addr(pdata->mac))
+			memcpy(fec_mac_default, pdata->mac,
+						sizeof(fec_mac_default));
 	} else
 		fep->phy_interface = PHY_INTERFACE_MODE_MII;
 
