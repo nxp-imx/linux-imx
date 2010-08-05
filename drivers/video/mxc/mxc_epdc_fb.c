@@ -2372,6 +2372,9 @@ int __devinit mxc_epdc_fb_probe(struct platform_device *pdev)
 	struct update_data_list *upd_list;
 	struct update_data_list *plist, *temp_list;
 	int i;
+#ifdef CONFIG_FRAMEBUFFER_CONSOLE
+	struct mxcfb_update_data update;
+#endif
 
 	fb_data = (struct mxc_epdc_fb_data *)framebuffer_alloc(
 			sizeof(struct mxc_epdc_fb_data), &pdev->dev);
@@ -2733,6 +2736,26 @@ int __devinit mxc_epdc_fb_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "Failed to read firmware!\n");
 		goto out_dmaengine;
 	}
+#endif
+
+#ifdef CONFIG_FRAMEBUFFER_CONSOLE
+	/* If FB console included, update display to show logo */
+	update.update_region.left = 0;
+	update.update_region.width = info->var.xres;
+	update.update_region.top = 0;
+	update.update_region.height = info->var.yres;
+	update.update_mode = UPDATE_MODE_PARTIAL;
+	update.waveform_mode = WAVEFORM_MODE_AUTO;
+	update.update_marker = INIT_UPDATE_MARKER;
+	update.temp = TEMP_USE_AMBIENT;
+	update.use_alt_buffer = false;
+
+	mxc_epdc_fb_send_update(&update, info);
+
+	ret = mxc_epdc_fb_wait_update_complete(update.update_marker, info);
+	if (ret < 0)
+		dev_err(fb_data->dev,
+			"Wait for update complete failed.  Error = 0x%x", ret);
 #endif
 
 	goto out;
