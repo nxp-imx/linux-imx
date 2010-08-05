@@ -32,7 +32,7 @@
 #include "gsl_halconfig.h"
 
 #define GSL_LINUX_MAP_RANGE_START (1024*1024)
-#define GSL_LINUX_MAP_RANGE_END (GSL_LINUX_MAP_RANGE_START+GSL_HAL_SHMEM_SIZE_EMEM1)
+#define GSL_LINUX_MAP_RANGE_END (GSL_LINUX_MAP_RANGE_START+GSL_HAL_SHMEM_SIZE_EMEM1_MMU)
 
 int gsl_linux_map_init(void);
 void *gsl_linux_map_alloc(unsigned int gpu_addr, unsigned int size);

@@ -40,14 +40,9 @@
 OSINLINE void
 kgsl_hwaccess_memread(void *dst, unsigned int gpubase, unsigned int gpuoffset, unsigned int sizebytes, unsigned int touserspace)
 {
-#ifdef GSL_MMU_TRANSLATION_ENABLED
-    if(gpubase >= GSL_LINUX_MAP_RANGE_START && gpubase < GSL_LINUX_MAP_RANGE_END)
-    {
+    if (gsl_driver.enable_mmu && (gpubase >= GSL_LINUX_MAP_RANGE_START) && (gpubase < GSL_LINUX_MAP_RANGE_END)) {
         gsl_linux_map_read(dst, gpubase+gpuoffset, sizebytes, touserspace);
-    }
-    else
-#endif
-    {
+    } else {
         mb();
         dsb();
         if (touserspace)
@@ -71,14 +66,9 @@ kgsl_hwaccess_memread(void *dst, unsigned int gpubase, unsigned int gpuoffset, u
 OSINLINE void
 kgsl_hwaccess_memwrite(unsigned int gpubase, unsigned int gpuoffset, void *src, unsigned int sizebytes, unsigned int fromuserspace)
 {
-#ifdef GSL_MMU_TRANSLATION_ENABLED
-    if(gpubase >= GSL_LINUX_MAP_RANGE_START && gpubase < GSL_LINUX_MAP_RANGE_END)
-    {
+    if (gsl_driver.enable_mmu && (gpubase >= GSL_LINUX_MAP_RANGE_START) && (gpubase < GSL_LINUX_MAP_RANGE_END)) {
         gsl_linux_map_write(src, gpubase+gpuoffset, sizebytes, fromuserspace);
-    }
-    else
-#endif
-    {
+    } else {
         mb();
         dsb();
         if (fromuserspace)
@@ -102,12 +92,9 @@ kgsl_hwaccess_memwrite(unsigned int gpubase, unsigned int gpuoffset, void *src, 
 OSINLINE void
 kgsl_hwaccess_memset(unsigned int gpubase, unsigned int gpuoffset, unsigned int value, unsigned int sizebytes)
 {
-#ifdef GSL_MMU_TRANSLATION_ENABLED
-	if(gpubase >= GSL_LINUX_MAP_RANGE_START && gpubase < GSL_LINUX_MAP_RANGE_END)
-		gsl_linux_map_set(gpuoffset+gpubase, value, sizebytes);
-	else
-#endif
-    {
+    if (gsl_driver.enable_mmu && (gpubase >= GSL_LINUX_MAP_RANGE_START) && (gpubase < GSL_LINUX_MAP_RANGE_END)) {
+	gsl_linux_map_set(gpuoffset+gpubase, value, sizebytes);
+    } else {
         mb();
         dsb();
         kos_memset((void *)(gpubase + gpuoffset), value, sizebytes);

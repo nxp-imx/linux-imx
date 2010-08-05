@@ -72,6 +72,7 @@ typedef struct _gsl_driver_t {
     gsl_flags_t      dmi_mode;      //  single, double, or triple buffering
     int              dmi_frame;     //  set to -1 when DMI is enabled
     int              dmi_max_frame; //  indicates the maximum frame # that we will support
+    int              enable_mmu;
 } gsl_driver_t;
 
 

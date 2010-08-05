@@ -120,6 +120,12 @@ kgsl_hal_init(void)
 	hal->has_z160 = 0;
     }
 
+    if (hal->has_z430) {
+	gsl_driver.enable_mmu = 0;
+    } else {
+	gsl_driver.enable_mmu = 1;
+    }
+
     /* setup register space */
     if (hal->has_z430) {
 	hal->z430_regspace.mmio_phys_base = gpu_3d_regbase;
@@ -153,27 +159,27 @@ kgsl_hal_init(void)
 #endif
     }
 
-#ifdef GSL_MMU_TRANSLATION_ENABLED
-    totalsize = GSL_HAL_SHMEM_SIZE_EMEM2 + GSL_HAL_SHMEM_SIZE_PHYS;
-    mem1size = GSL_HAL_SHMEM_SIZE_EMEM1;
-    if (gpu_reserved_mem && gpu_reserved_mem_size >= totalsize) {
-	pa = gpu_reserved_mem;
-	va = (unsigned int)ioremap(gpu_reserved_mem, totalsize);
+    if (gsl_driver.enable_mmu) {
+	totalsize = GSL_HAL_SHMEM_SIZE_EMEM2_MMU + GSL_HAL_SHMEM_SIZE_PHYS_MMU;
+	mem1size = GSL_HAL_SHMEM_SIZE_EMEM1_MMU;
+	if (gpu_reserved_mem && gpu_reserved_mem_size >= totalsize) {
+	    pa = gpu_reserved_mem;
+	    va = (unsigned int)ioremap(gpu_reserved_mem, totalsize);
+	} else {
+	    va = (unsigned int)dma_alloc_coherent(0, totalsize, (dma_addr_t *)&pa, GFP_DMA | GFP_KERNEL);
+	}
     } else {
-	va = (unsigned int)dma_alloc_coherent(0, totalsize, (dma_addr_t *)&pa, GFP_DMA | GFP_KERNEL);
+	if (gpu_reserved_mem && gpu_reserved_mem_size >= SZ_8M) {
+	    totalsize = gpu_reserved_mem_size;
+	    pa = gpu_reserved_mem;
+	    va = (unsigned int)ioremap(gpu_reserved_mem, gpu_reserved_mem_size);
+	} else {
+	    gpu_reserved_mem = 0;
+	    totalsize = GSL_HAL_SHMEM_SIZE_EMEM1_NOMMU + GSL_HAL_SHMEM_SIZE_EMEM2_NOMMU + GSL_HAL_SHMEM_SIZE_PHYS_NOMMU;
+	    va = (unsigned int)dma_alloc_coherent(0, totalsize, (dma_addr_t *)&pa, GFP_DMA | GFP_KERNEL);
+	}
+	mem1size = totalsize - (GSL_HAL_SHMEM_SIZE_EMEM2_NOMMU + GSL_HAL_SHMEM_SIZE_PHYS_NOMMU);
     }
-#else
-    if (gpu_reserved_mem && gpu_reserved_mem_size >= SZ_8M) {
-	totalsize = gpu_reserved_mem_size;
-	pa = gpu_reserved_mem;
-	va = (unsigned int)ioremap(gpu_reserved_mem, gpu_reserved_mem_size);
-    } else {
-	gpu_reserved_mem = 0;
-	totalsize = GSL_HAL_SHMEM_SIZE_EMEM1 + GSL_HAL_SHMEM_SIZE_EMEM2 + GSL_HAL_SHMEM_SIZE_PHYS;
-	va = (unsigned int)dma_alloc_coherent(0, totalsize, (dma_addr_t *)&pa, GFP_DMA | GFP_KERNEL);
-    }
-    mem1size = totalsize - (GSL_HAL_SHMEM_SIZE_EMEM2 + GSL_HAL_SHMEM_SIZE_PHYS);
-#endif
 
     if (va) {
 	kos_memset((void *)va, 0, totalsize);
@@ -190,9 +196,15 @@ kgsl_hal_init(void)
 
 	hal->memspace[GSL_HAL_MEM2].mmio_virt_base = (void *) va;
 	hal->memspace[GSL_HAL_MEM2].gpu_base       = pa;
-	hal->memspace[GSL_HAL_MEM2].sizebytes      = GSL_HAL_SHMEM_SIZE_EMEM2;
-	va += GSL_HAL_SHMEM_SIZE_EMEM2;
-	pa += GSL_HAL_SHMEM_SIZE_EMEM2;
+	if (gsl_driver.enable_mmu) {
+	    hal->memspace[GSL_HAL_MEM2].sizebytes  = GSL_HAL_SHMEM_SIZE_EMEM2_MMU;
+	    va += GSL_HAL_SHMEM_SIZE_EMEM2_MMU;
+	    pa += GSL_HAL_SHMEM_SIZE_EMEM2_MMU;
+	} else {
+	    hal->memspace[GSL_HAL_MEM2].sizebytes  = GSL_HAL_SHMEM_SIZE_EMEM2_NOMMU;
+	    va += GSL_HAL_SHMEM_SIZE_EMEM2_NOMMU;
+	    pa += GSL_HAL_SHMEM_SIZE_EMEM2_NOMMU;
+	}
 
 #ifdef GSL_HAL_DEBUG
 	printk(KERN_INFO "%s: hal->memspace[GSL_HAL_MEM2].gpu_base       = 0x%p\n", __func__, (void *)hal->memspace[GSL_HAL_MEM2].gpu_base);
@@ -202,9 +214,15 @@ kgsl_hal_init(void)
 
 	hal->memspace[GSL_HAL_MEM3].mmio_virt_base  = (void *) va;
 	hal->memspace[GSL_HAL_MEM3].gpu_base        = pa;
-	hal->memspace[GSL_HAL_MEM3].sizebytes       = GSL_HAL_SHMEM_SIZE_PHYS;
-	va += GSL_HAL_SHMEM_SIZE_PHYS;
-	pa += GSL_HAL_SHMEM_SIZE_PHYS;
+	if (gsl_driver.enable_mmu) {
+	    hal->memspace[GSL_HAL_MEM3].sizebytes   = GSL_HAL_SHMEM_SIZE_PHYS_MMU;
+	    va += GSL_HAL_SHMEM_SIZE_PHYS_MMU;
+	    pa += GSL_HAL_SHMEM_SIZE_PHYS_MMU;
+	} else {
+	    hal->memspace[GSL_HAL_MEM3].sizebytes   = GSL_HAL_SHMEM_SIZE_PHYS_NOMMU;
+	    va += GSL_HAL_SHMEM_SIZE_PHYS_NOMMU;
+	    pa += GSL_HAL_SHMEM_SIZE_PHYS_NOMMU;
+	}
 
 #ifdef GSL_HAL_DEBUG
 	printk(KERN_INFO "%s: hal->memspace[GSL_HAL_MEM3].gpu_base       = 0x%p\n", __func__, (void *)hal->memspace[GSL_HAL_MEM3].gpu_base);
@@ -212,16 +230,16 @@ kgsl_hal_init(void)
 	printk(KERN_INFO "%s: hal->memspace[GSL_HAL_MEM3].sizebytes      = 0x%08x\n", __func__, hal->memspace[GSL_HAL_MEM3].sizebytes);
 #endif
 
-#ifdef GSL_MMU_TRANSLATION_ENABLED
-	gsl_linux_map_init();
-	hal->memspace[GSL_HAL_MEM1].mmio_virt_base = (void *)GSL_LINUX_MAP_RANGE_START;
-	hal->memspace[GSL_HAL_MEM1].gpu_base       = GSL_LINUX_MAP_RANGE_START;
-	hal->memspace[GSL_HAL_MEM1].sizebytes      = mem1size;
-#else
-	hal->memspace[GSL_HAL_MEM1].mmio_virt_base = (void *) va;
-	hal->memspace[GSL_HAL_MEM1].gpu_base       = pa;
-	hal->memspace[GSL_HAL_MEM1].sizebytes      = mem1size;
-#endif
+	if (gsl_driver.enable_mmu) {
+	    gsl_linux_map_init();
+	    hal->memspace[GSL_HAL_MEM1].mmio_virt_base = (void *)GSL_LINUX_MAP_RANGE_START;
+	    hal->memspace[GSL_HAL_MEM1].gpu_base       = GSL_LINUX_MAP_RANGE_START;
+	    hal->memspace[GSL_HAL_MEM1].sizebytes      = mem1size;
+	} else {
+	    hal->memspace[GSL_HAL_MEM1].mmio_virt_base = (void *) va;
+	    hal->memspace[GSL_HAL_MEM1].gpu_base       = pa;
+	    hal->memspace[GSL_HAL_MEM1].sizebytes      = mem1size;
+	}
 
 #ifdef GSL_HAL_DEBUG
 	printk(KERN_INFO "%s: hal->memspace[GSL_HAL_MEM1].gpu_base       = 0x%p\n", __func__, (void *)hal->memspace[GSL_HAL_MEM1].gpu_base);
@@ -263,9 +281,9 @@ kgsl_hal_close(void)
 	    dma_free_coherent(0, hal->memchunk.sizebytes, hal->memchunk.mmio_virt_base, hal->memchunk.mmio_phys_base);
 	}
 
-#ifdef GSL_MMU_TRANSLATION_ENABLED
-	gsl_linux_map_destroy();
-#endif
+	if (gsl_driver.enable_mmu) {
+	    gsl_linux_map_destroy();
+	}
 
 	/* release hal struct */
 	kos_memset(hal, 0, sizeof(gsl_hal_t));
@@ -289,11 +307,11 @@ kgsl_hal_getshmemconfig(gsl_shmemconfig_t *config)
     if (hal) {
 	config->numapertures = GSL_SHMEM_MAX_APERTURES;
 
-#ifdef GSL_MMU_TRANSLATION_ENABLED
-	config->apertures[0].id        = GSL_APERTURE_MMU;
-#else
-	config->apertures[0].id        = GSL_APERTURE_EMEM;
-#endif
+	if (gsl_driver.enable_mmu) {
+	    config->apertures[0].id    = GSL_APERTURE_MMU;
+	} else {
+	    config->apertures[0].id    = GSL_APERTURE_EMEM;
+	}
 	config->apertures[0].channel   = GSL_CHANNEL_1;
 	config->apertures[0].hostbase  = (unsigned int)hal->memspace[GSL_HAL_MEM1].mmio_virt_base;
 	config->apertures[0].gpubase   = hal->memspace[GSL_HAL_MEM1].gpu_base;
@@ -349,29 +367,31 @@ kgsl_hal_getdevconfig(gsl_deviceid_t device_id, gsl_devconfig_t *config)
 		config->regspace.sizebytes        = GSL_HAL_SIZE_REG_YDX;
 
 		mmu_config.f.mmu_enable           = 1;
-#ifdef GSL_MMU_TRANSLATION_ENABLED
-		mmu_config.f.split_mode_enable    = 0;
-		mmu_config.f.rb_w_clnt_behavior   = 1;
-		mmu_config.f.cp_w_clnt_behavior   = 1;
-		mmu_config.f.cp_r0_clnt_behavior  = 1;
-		mmu_config.f.cp_r1_clnt_behavior  = 1;
-		mmu_config.f.cp_r2_clnt_behavior  = 1;
-		mmu_config.f.cp_r3_clnt_behavior  = 1;
-		mmu_config.f.cp_r4_clnt_behavior  = 1;
-		mmu_config.f.vgt_r0_clnt_behavior = 1;
-		mmu_config.f.vgt_r1_clnt_behavior = 1;
-		mmu_config.f.tc_r_clnt_behavior   = 1;
-		mmu_config.f.pa_w_clnt_behavior   = 1;
-#endif /* GSL_MMU_TRANSLATION_ENABLED */
+
+		if (gsl_driver.enable_mmu) {
+		    mmu_config.f.split_mode_enable    = 0;
+		    mmu_config.f.rb_w_clnt_behavior   = 1;
+		    mmu_config.f.cp_w_clnt_behavior   = 1;
+		    mmu_config.f.cp_r0_clnt_behavior  = 1;
+		    mmu_config.f.cp_r1_clnt_behavior  = 1;
+		    mmu_config.f.cp_r2_clnt_behavior  = 1;
+		    mmu_config.f.cp_r3_clnt_behavior  = 1;
+		    mmu_config.f.cp_r4_clnt_behavior  = 1;
+		    mmu_config.f.vgt_r0_clnt_behavior = 1;
+		    mmu_config.f.vgt_r1_clnt_behavior = 1;
+		    mmu_config.f.tc_r_clnt_behavior   = 1;
+		    mmu_config.f.pa_w_clnt_behavior   = 1;
+		}
 
 		config->mmu_config                = mmu_config.val;
-#ifdef GSL_MMU_TRANSLATION_ENABLED
-		config->va_base                   = hal->memspace[GSL_HAL_MEM1].gpu_base;
-		config->va_range                  = hal->memspace[GSL_HAL_MEM1].sizebytes;
-#else
-		config->va_base                   = 0x00000000;
-		config->va_range                  = 0x00000000;
-#endif /* GSL_MMU_TRANSLATION_ENABLED */
+
+		if (gsl_driver.enable_mmu) {
+		    config->va_base               = hal->memspace[GSL_HAL_MEM1].gpu_base;
+		    config->va_range              = hal->memspace[GSL_HAL_MEM1].sizebytes;
+		} else {
+		    config->va_base               = 0x00000000;
+		    config->va_range              = 0x00000000;
+		}
 
 		/* turn off memory protection unit by setting acceptable physical address range to include all pages */
 		config->mpu_base                  = 0x00000000; /* hal->memchunk.mmio_virt_base; */
@@ -392,15 +412,15 @@ kgsl_hal_getdevconfig(gsl_deviceid_t device_id, gsl_devconfig_t *config)
 
 		mmu_config.f.mmu_enable           = 1;
 
-#ifdef GSL_MMU_TRANSLATION_ENABLED
-		config->mmu_config              = 0x00555551;
-		config->va_base                 = hal->memspace[GSL_HAL_MEM1].gpu_base;
-		config->va_range                = hal->memspace[GSL_HAL_MEM1].sizebytes;
-#else
-		config->mmu_config              = mmu_config.val;
-		config->va_base                 = 0x00000000;
-		config->va_range                = 0x00000000;
-#endif /* GSL_MMU_TRANSLATION_ENABLED */
+		if (gsl_driver.enable_mmu) {
+		    config->mmu_config              = 0x00555551;
+		    config->va_base                 = hal->memspace[GSL_HAL_MEM1].gpu_base;
+		    config->va_range                = hal->memspace[GSL_HAL_MEM1].sizebytes;
+		} else {
+		    config->mmu_config              = mmu_config.val;
+		    config->va_base                 = 0x00000000;
+		    config->va_range                = 0x00000000;
+		}
 
 		config->mpu_base                = 0x00000000; /* (unsigned int) hal->memchunk.mmio_virt_base; */
 		config->mpu_range               = 0xFFFFF000; /* hal->memchunk.sizebytes; */

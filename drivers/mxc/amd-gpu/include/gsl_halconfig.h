@@ -38,14 +38,12 @@
 
 #define GSL_HAL_SIZE_REG_G12            0x00001000            /* 4KB */
 
-#if defined(GSL_MMU_TRANSLATION_ENABLED)
-#define GSL_HAL_SHMEM_SIZE_EMEM1        0x01800000            /* 24MB */
-#define GSL_HAL_SHMEM_SIZE_EMEM2        0x00400000            /* 4MB */
-#define GSL_HAL_SHMEM_SIZE_PHYS         0x00400000            /* 4MB */
-#else
-#define GSL_HAL_SHMEM_SIZE_EMEM1        0x00D00000            /* 13MB */
-#define GSL_HAL_SHMEM_SIZE_EMEM2        0x00200000            /* 2MB */
-#define GSL_HAL_SHMEM_SIZE_PHYS         0x00100000            /* 1MB */
-#endif
+#define GSL_HAL_SHMEM_SIZE_EMEM1_MMU    0x01800000            /* 24MB */
+#define GSL_HAL_SHMEM_SIZE_EMEM2_MMU    0x00400000            /* 4MB */
+#define GSL_HAL_SHMEM_SIZE_PHYS_MMU     0x00400000            /* 4MB */
+
+#define GSL_HAL_SHMEM_SIZE_EMEM1_NOMMU  0x00D00000            /* 13MB */
+#define GSL_HAL_SHMEM_SIZE_EMEM2_NOMMU  0x00200000            /* 2MB */
+#define GSL_HAL_SHMEM_SIZE_PHYS_NOMMU   0x00100000            /* 1MB */
 
 #endif  /* __GSL_HALCONFIG_H */

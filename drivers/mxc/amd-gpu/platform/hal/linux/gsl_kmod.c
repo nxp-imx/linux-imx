@@ -632,34 +632,24 @@ static int gsl_kmod_mmap(struct file *fd, struct vm_area_struct *vma)
     unsigned long pfn = vma->vm_pgoff;
     unsigned long size = vma->vm_end - vma->vm_start;
     unsigned long prot = pgprot_writecombine(vma->vm_page_prot);
-#ifdef GSL_MMU_TRANSLATION_ENABLED
-	unsigned long addr = vma->vm_pgoff << PAGE_SHIFT;
-	void *va;
-#endif
+    unsigned long addr = vma->vm_pgoff << PAGE_SHIFT;
+    void *va = NULL;
 
-#ifdef GSL_MMU_TRANSLATION_ENABLED
-	if (addr < GSL_LINUX_MAP_RANGE_END && addr >= GSL_LINUX_MAP_RANGE_START)
-	{
-		va = gsl_linux_map_find(addr);
-		while (size > 0)
-		{
-			if (remap_pfn_range(vma, start, vmalloc_to_pfn(va), PAGE_SIZE, prot))
-			{
-				return -EAGAIN;
-			}
-			start += PAGE_SIZE;
-			va += PAGE_SIZE;
-			size -= PAGE_SIZE;
-		}
+    if (gsl_driver.enable_mmu && (addr < GSL_LINUX_MAP_RANGE_END) && (addr >= GSL_LINUX_MAP_RANGE_START)) {
+	va = gsl_linux_map_find(addr);
+	while (size > 0) {
+	    if (remap_pfn_range(vma, start, vmalloc_to_pfn(va), PAGE_SIZE, prot)) {
+		return -EAGAIN;
+	    }
+	    start += PAGE_SIZE;
+	    va += PAGE_SIZE;
+	    size -= PAGE_SIZE;
 	}
-	else
-#endif
-	{
-		if (remap_pfn_range(vma, start, pfn, size, prot))
-		{
-			status = -EAGAIN;
-		}
+    } else {
+	if (remap_pfn_range(vma, start, pfn, size, prot)) {
+	    status = -EAGAIN;
 	}
+    }
 
     vma->vm_ops = &gsl_kmod_vmops;
 
