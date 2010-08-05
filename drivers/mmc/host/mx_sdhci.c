@@ -1811,8 +1811,7 @@ static int __devinit sdhci_probe_slot(struct platform_device
 	if (NULL == host->clk) {
 		printk(KERN_ERR "MXC MMC can't get clock.\n");
 		goto out1;
-	} else
-		clk_enable(host->clk);
+	}
 	DBG("SDHC:%d clock:%lu\n", pdev->id, clk_get_rate(host->clk));
 
 	host->res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
