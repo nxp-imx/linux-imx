@@ -1396,6 +1396,17 @@ fec_probe(struct platform_device *pdev)
 	ret = pdata->init();
 	if (ret)
 		goto failed_platform_init;
+	/*
+	 * The priority for getting MAC address is:
+	 * (1) kernel command line fec_mac = xx:xx:xx...
+	 * (2) platform data mac field got from fuse etc
+	 * (3) bootloader set the FEC mac register
+	 */
+
+	if (pdata && !is_valid_ether_addr(fec_mac_default) &&
+		pdata->mac && is_valid_ether_addr(pdata->mac))
+		memcpy(fec_mac_default, pdata->mac,
+					sizeof(fec_mac_default));
 
 	ret = fec_enet_init(ndev, 0);
 	if (ret)
