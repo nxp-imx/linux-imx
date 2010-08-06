@@ -82,11 +82,6 @@ struct mxc_epdc_platform_fb_entry {
 	struct list_head link;
 };
 
-struct mxc_epdc_platform_fb_data {
-	struct list_head list;
-	struct mxc_epdc_platform_fb_entry *cur;
-};
-
 struct update_marker_data {
 	u32 update_marker;
 	struct completion update_completion;
@@ -115,6 +110,7 @@ struct mxc_epdc_fb_data {
 	u32 pseudo_palette[16];
 	struct list_head list;
 	struct mxc_epdc_platform_fb_entry *cur;
+	struct mxc_epdc_fb_platform_data *pdata;
 	int blank;
 	ssize_t mem_size;
 	ssize_t map_size;
@@ -813,6 +809,10 @@ static void epdc_powerup(struct mxc_epdc_fb_data *fb_data)
 
 	dev_dbg(fb_data->dev, "EPDC Powerup\n");
 
+	/* Enable pins used by EPDC */
+	if (fb_data->pdata->enable_pins)
+		fb_data->pdata->enable_pins();
+
 	/* Enable clocks to EPDC */
 	clk_enable(fb_data->epdc_clk_axi);
 	clk_enable(fb_data->epdc_clk_pix);
@@ -851,6 +851,10 @@ static void epdc_powerdown(struct mxc_epdc_fb_data *fb_data)
 	__raw_writel(EPDC_CTRL_CLKGATE, EPDC_CTRL_SET);
 	clk_disable(fb_data->epdc_clk_pix);
 	clk_disable(fb_data->epdc_clk_axi);
+
+	/* Disable pins used by EPDC (to prevent leakage current) */
+	if (fb_data->pdata->disable_pins)
+		fb_data->pdata->disable_pins();
 
 	fb_data->power_state = POWER_STATE_OFF;
 	fb_data->powering_down = false;
@@ -2276,8 +2280,8 @@ static int mxc_epdc_fb_init_hw(struct fb_info *info)
 	/* Allocate memory for waveform data */
 	fb_data->waveform_buffer_virt = dma_alloc_coherent(fb_data->dev,
 						fb_data->waveform_buffer_size,
-						  &fb_data->waveform_buffer_phys,
-						  GFP_DMA);
+						&fb_data->waveform_buffer_phys,
+						GFP_DMA);
 	if (fb_data->waveform_buffer_virt == NULL) {
 		dev_err(fb_data->dev, "Can't allocate mem for waveform!\n");
 		ret = -ENOMEM;
@@ -2364,7 +2368,6 @@ int __devinit mxc_epdc_fb_probe(struct platform_device *pdev)
 	struct mxc_epdc_fb_data *fb_data;
 	struct resource *res;
 	struct fb_info *info;
-	struct mxc_epdc_platform_fb_data *pdata;
 	struct mxc_epdc_platform_fb_entry *pentry;
 	struct pxp_config_data *pxp_conf;
 	struct pxp_proc_data *proc_data;
@@ -2389,6 +2392,13 @@ int __devinit mxc_epdc_fb_probe(struct platform_device *pdev)
 	fb_data->cur = pentry;
 	platform_set_drvdata(pdev, fb_data);
 	info = &fb_data->info;
+
+	/* Get platform data */
+	fb_data->pdata = pdev->dev.platform_data;
+	if (fb_data->pdata == NULL) {
+		ret = -EINVAL;
+		goto out_fbdata;
+	}
 
 	/* Allocate color map for the FB */
 	ret = fb_alloc_cmap(&info->cmap, 256, 0);
@@ -2553,6 +2563,10 @@ int __devinit mxc_epdc_fb_probe(struct platform_device *pdev)
 		goto out_upd_buffers;
 	}
 
+	/* Initialize EPDC pins */
+	if (fb_data->pdata->get_pins)
+		fb_data->pdata->get_pins();
+
 	fb_data->epdc_clk_axi = clk_get(fb_data->dev, "epdc_axi");
 	fb_data->epdc_clk_pix = clk_get(fb_data->dev, "epdc_pix");
 
@@ -2677,7 +2691,7 @@ int __devinit mxc_epdc_fb_probe(struct platform_device *pdev)
 	 * Initialize OL0 channel parameters
 	 * No overlay will be used for PxP operation
 	 */
-	 for (i = 0; i < 8; i++) {
+	for (i = 0; i < 8; i++) {
 		pxp_conf->ol_param[i].combine_enable = false;
 		pxp_conf->ol_param[i].width = 0;
 		pxp_conf->ol_param[i].height = 0;
@@ -2768,6 +2782,8 @@ out_irq:
 out_dma_work_buf:
 	dma_free_writecombine(&pdev->dev, fb_data->working_buffer_size,
 		fb_data->working_buffer_virt, fb_data->working_buffer_phys);
+	if (fb_data->pdata->put_pins)
+		fb_data->pdata->put_pins();
 out_upd_buffers:
 	list_for_each_entry_safe(plist, temp_list, &fb_data->upd_buf_free_list->list, list) {
 		list_del(&plist->list);
@@ -2821,6 +2837,9 @@ static int mxc_epdc_fb_remove(struct platform_device *pdev)
 
 	dma_free_writecombine(&pdev->dev, fb_data->map_size, fb_data->info.screen_base,
 			      fb_data->phys_start);
+
+	if (fb_data->pdata->put_pins)
+		fb_data->pdata->put_pins();
 
 	/* Release PxP-related resources */
 	if (fb_data->pxp_chan != NULL)
