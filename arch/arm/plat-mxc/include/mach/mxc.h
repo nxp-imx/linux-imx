@@ -317,6 +317,13 @@ struct mxc_lcd_platform_data {
 	void (*reset) (void);
 };
 
+struct mxc_epdc_fb_platform_data {
+	void (*get_pins) (void);
+	void (*put_pins) (void);
+	void (*enable_pins) (void);
+	void (*disable_pins) (void);
+};
+
 
 struct mxc_tsc_platform_data {
 	char *vdd_reg;
