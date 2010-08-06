@@ -73,6 +73,28 @@
 #define SD3_CD	(3*32 + 4) /*GPIO_4_4 */
 #define HP_DETECT	(3*32 + 15)	/*GPIO_4_15 */
 #define PWR_INT		(3*32 + 18)	/*GPIO_4_18 */
+
+#define EPDC_D0		(2*32 + 1)	/*GPIO_3_0 */
+#define EPDC_D1		(2*32 + 2)	/*GPIO_3_1 */
+#define EPDC_D2		(2*32 + 3)	/*GPIO_3_2 */
+#define EPDC_D3		(2*32 + 4)	/*GPIO_3_3 */
+#define EPDC_D4		(2*32 + 5)	/*GPIO_3_4 */
+#define EPDC_D5		(2*32 + 6)	/*GPIO_3_5 */
+#define EPDC_D6		(2*32 + 7)	/*GPIO_3_6 */
+#define EPDC_D7		(2*32 + 8)	/*GPIO_3_7 */
+#define EPDC_GDCLK	(2*32 + 16)	/*GPIO_3_16 */
+#define EPDC_GDSP	(2*32 + 17)	/*GPIO_3_17 */
+#define EPDC_GDOE	(2*32 + 18)	/*GPIO_3_18 */
+#define EPDC_GDRL	(2*32 + 19)	/*GPIO_3_19 */
+#define EPDC_SDCLK	(2*32 + 20)	/*GPIO_3_20 */
+#define EPDC_SDOE	(2*32 + 23)	/*GPIO_3_23 */
+#define EPDC_SDLE	(2*32 + 24)	/*GPIO_3_24 */
+#define EPDC_SDSHR	(2*32 + 26)	/*GPIO_3_26 */
+#define EPDC_BDR0	(3*32 + 23)	/*GPIO_4_23 */
+#define EPDC_SDCE0	(3*32 + 25)	/*GPIO_4_25 */
+#define EPDC_SDCE1	(3*32 + 26)	/*GPIO_4_26 */
+#define EPDC_SDCE2	(3*32 + 27)	/*GPIO_4_27 */
+
 #define EPDC_PMIC_WAKE		(5*32 + 16)	/*GPIO_6_16 */
 #define EPDC_PMIC_INT		(5*32 + 17)	/*GPIO_6_17 */
 #define EPDC_VCOM	(3*32 + 21)	/*GPIO_4_21 */
@@ -469,6 +491,199 @@ static struct regulator_init_data max17135_init_data[] __initdata = {
 	},
 };
 
+void epdc_get_pins(void)
+{
+	/* Claim GPIOs for EPDC pins - used during power up/down */
+	gpio_request(EPDC_D0, "epdc_d0");
+	gpio_request(EPDC_D1, "epdc_d1");
+	gpio_request(EPDC_D2, "epdc_d2");
+	gpio_request(EPDC_D3, "epdc_d3");
+	gpio_request(EPDC_D4, "epdc_d4");
+	gpio_request(EPDC_D5, "epdc_d5");
+	gpio_request(EPDC_D6, "epdc_d6");
+	gpio_request(EPDC_D7, "epdc_d7");
+	gpio_request(EPDC_GDCLK, "epdc_gdclk");
+	gpio_request(EPDC_GDSP, "epdc_gdsp");
+	gpio_request(EPDC_GDOE, "epdc_gdoe");
+	gpio_request(EPDC_GDRL, "epdc_gdrl");
+	gpio_request(EPDC_SDCLK, "epdc_sdclk");
+	gpio_request(EPDC_SDOE, "epdc_sdoe");
+	gpio_request(EPDC_SDLE, "epdc_sdle");
+	gpio_request(EPDC_SDSHR, "epdc_sdshr");
+	gpio_request(EPDC_BDR0, "epdc_bdr0");
+	gpio_request(EPDC_SDCE0, "epdc_sdce0");
+	gpio_request(EPDC_SDCE1, "epdc_sdce1");
+	gpio_request(EPDC_SDCE2, "epdc_sdce2");
+}
+
+void epdc_put_pins(void)
+{
+	gpio_free(EPDC_D0);
+	gpio_free(EPDC_D1);
+	gpio_free(EPDC_D2);
+	gpio_free(EPDC_D3);
+	gpio_free(EPDC_D4);
+	gpio_free(EPDC_D5);
+	gpio_free(EPDC_D6);
+	gpio_free(EPDC_D7);
+	gpio_free(EPDC_GDCLK);
+	gpio_free(EPDC_GDSP);
+	gpio_free(EPDC_GDOE);
+	gpio_free(EPDC_GDRL);
+	gpio_free(EPDC_SDCLK);
+	gpio_free(EPDC_SDOE);
+	gpio_free(EPDC_SDLE);
+	gpio_free(EPDC_SDSHR);
+	gpio_free(EPDC_BDR0);
+	gpio_free(EPDC_SDCE0);
+	gpio_free(EPDC_SDCE1);
+	gpio_free(EPDC_SDCE2);
+}
+
+void epdc_enable_pins(void)
+{
+	struct pad_desc epdc_d0 = MX50_PAD_EPDC_D0__EPDC_D0;
+	struct pad_desc epdc_d1 = MX50_PAD_EPDC_D1__EPDC_D1;
+	struct pad_desc epdc_d2 = MX50_PAD_EPDC_D2__EPDC_D2;
+	struct pad_desc epdc_d3 = MX50_PAD_EPDC_D3__EPDC_D3;
+	struct pad_desc epdc_d4 = MX50_PAD_EPDC_D4__EPDC_D4;
+	struct pad_desc epdc_d5 = MX50_PAD_EPDC_D5__EPDC_D5;
+	struct pad_desc epdc_d6 = MX50_PAD_EPDC_D6__EPDC_D6;
+	struct pad_desc epdc_d7 = MX50_PAD_EPDC_D7__EPDC_D7;
+	struct pad_desc epdc_gdclk = MX50_PAD_EPDC_GDCLK__EPDC_GDCLK;
+	struct pad_desc epdc_gdsp = MX50_PAD_EPDC_GDSP__EPDC_GDSP;
+	struct pad_desc epdc_gdoe = MX50_PAD_EPDC_GDOE__EPDC_GDOE;
+	struct pad_desc epdc_gdrl = MX50_PAD_EPDC_GDRL__EPDC_GDRL;
+	struct pad_desc epdc_sdclk = MX50_PAD_EPDC_SDCLK__EPDC_SDCLK;
+	struct pad_desc epdc_sdoe = MX50_PAD_EPDC_SDOE__EPDC_SDOE;
+	struct pad_desc epdc_sdle = MX50_PAD_EPDC_SDLE__EPDC_SDLE;
+	struct pad_desc epdc_sdshr = MX50_PAD_EPDC_SDSHR__EPDC_SDSHR;
+	struct pad_desc epdc_bdr0 = MX50_PAD_EPDC_BDR0__EPDC_BDR0;
+	struct pad_desc epdc_sdce0 = MX50_PAD_EPDC_SDCE0__EPDC_SDCE0;
+	struct pad_desc epdc_sdce1 = MX50_PAD_EPDC_SDCE1__EPDC_SDCE1;
+	struct pad_desc epdc_sdce2 = MX50_PAD_EPDC_SDCE2__EPDC_SDCE2;
+
+	/* Configure MUX settings to enable EPDC use */
+	mxc_iomux_v3_setup_pad(&epdc_d0);
+	mxc_iomux_v3_setup_pad(&epdc_d1);
+	mxc_iomux_v3_setup_pad(&epdc_d2);
+	mxc_iomux_v3_setup_pad(&epdc_d3);
+	mxc_iomux_v3_setup_pad(&epdc_d4);
+	mxc_iomux_v3_setup_pad(&epdc_d5);
+	mxc_iomux_v3_setup_pad(&epdc_d6);
+	mxc_iomux_v3_setup_pad(&epdc_d7);
+	mxc_iomux_v3_setup_pad(&epdc_gdclk);
+	mxc_iomux_v3_setup_pad(&epdc_gdsp);
+	mxc_iomux_v3_setup_pad(&epdc_gdoe);
+	mxc_iomux_v3_setup_pad(&epdc_gdrl);
+	mxc_iomux_v3_setup_pad(&epdc_sdclk);
+	mxc_iomux_v3_setup_pad(&epdc_sdoe);
+	mxc_iomux_v3_setup_pad(&epdc_sdle);
+	mxc_iomux_v3_setup_pad(&epdc_sdshr);
+	mxc_iomux_v3_setup_pad(&epdc_bdr0);
+	mxc_iomux_v3_setup_pad(&epdc_sdce0);
+	mxc_iomux_v3_setup_pad(&epdc_sdce1);
+	mxc_iomux_v3_setup_pad(&epdc_sdce2);
+
+	gpio_direction_input(EPDC_D0);
+	gpio_direction_input(EPDC_D1);
+	gpio_direction_input(EPDC_D2);
+	gpio_direction_input(EPDC_D3);
+	gpio_direction_input(EPDC_D4);
+	gpio_direction_input(EPDC_D5);
+	gpio_direction_input(EPDC_D6);
+	gpio_direction_input(EPDC_D7);
+	gpio_direction_input(EPDC_GDCLK);
+	gpio_direction_input(EPDC_GDSP);
+	gpio_direction_input(EPDC_GDOE);
+	gpio_direction_input(EPDC_GDRL);
+	gpio_direction_input(EPDC_SDCLK);
+	gpio_direction_input(EPDC_SDOE);
+	gpio_direction_input(EPDC_SDLE);
+	gpio_direction_input(EPDC_SDSHR);
+	gpio_direction_input(EPDC_BDR0);
+	gpio_direction_input(EPDC_SDCE0);
+	gpio_direction_input(EPDC_SDCE1);
+	gpio_direction_input(EPDC_SDCE2);
+}
+
+void epdc_disable_pins(void)
+{
+	struct pad_desc epdc_d0 = MX50_PAD_EPDC_D0__GPIO_3_0;
+	struct pad_desc epdc_d1 = MX50_PAD_EPDC_D1__GPIO_3_1;
+	struct pad_desc epdc_d2 = MX50_PAD_EPDC_D2__GPIO_3_2;
+	struct pad_desc epdc_d3 = MX50_PAD_EPDC_D3__GPIO_3_3;
+	struct pad_desc epdc_d4 = MX50_PAD_EPDC_D4__GPIO_3_4;
+	struct pad_desc epdc_d5 = MX50_PAD_EPDC_D5__GPIO_3_5;
+	struct pad_desc epdc_d6 = MX50_PAD_EPDC_D6__GPIO_3_6;
+	struct pad_desc epdc_d7 = MX50_PAD_EPDC_D7__GPIO_3_7;
+	struct pad_desc epdc_gdclk = MX50_PAD_EPDC_GDCLK__GPIO_3_16;
+	struct pad_desc epdc_gdsp = MX50_PAD_EPDC_GDSP__GPIO_3_17;
+	struct pad_desc epdc_gdoe = MX50_PAD_EPDC_GDOE__GPIO_3_18;
+	struct pad_desc epdc_gdrl = MX50_PAD_EPDC_GDRL__GPIO_3_19;
+	struct pad_desc epdc_sdclk = MX50_PAD_EPDC_SDCLK__GPIO_3_20;
+	struct pad_desc epdc_sdoe = MX50_PAD_EPDC_SDOE__GPIO_3_23;
+	struct pad_desc epdc_sdle = MX50_PAD_EPDC_SDLE__GPIO_3_24;
+	struct pad_desc epdc_sdshr = MX50_PAD_EPDC_SDSHR__GPIO_3_26;
+	struct pad_desc epdc_bdr0 = MX50_PAD_EPDC_BDR0__GPIO_4_23;
+	struct pad_desc epdc_sdce0 = MX50_PAD_EPDC_SDCE0__GPIO_4_25;
+	struct pad_desc epdc_sdce1 = MX50_PAD_EPDC_SDCE1__GPIO_4_26;
+	struct pad_desc epdc_sdce2 = MX50_PAD_EPDC_SDCE2__GPIO_4_27;
+
+	/* Configure MUX settings for EPDC pins to
+	 * GPIO and drive to 0. */
+	mxc_iomux_v3_setup_pad(&epdc_d0);
+	mxc_iomux_v3_setup_pad(&epdc_d1);
+	mxc_iomux_v3_setup_pad(&epdc_d2);
+	mxc_iomux_v3_setup_pad(&epdc_d3);
+	mxc_iomux_v3_setup_pad(&epdc_d4);
+	mxc_iomux_v3_setup_pad(&epdc_d5);
+	mxc_iomux_v3_setup_pad(&epdc_d6);
+	mxc_iomux_v3_setup_pad(&epdc_d7);
+	mxc_iomux_v3_setup_pad(&epdc_gdclk);
+	mxc_iomux_v3_setup_pad(&epdc_gdsp);
+	mxc_iomux_v3_setup_pad(&epdc_gdoe);
+	mxc_iomux_v3_setup_pad(&epdc_gdrl);
+	mxc_iomux_v3_setup_pad(&epdc_sdclk);
+	mxc_iomux_v3_setup_pad(&epdc_sdoe);
+	mxc_iomux_v3_setup_pad(&epdc_sdle);
+	mxc_iomux_v3_setup_pad(&epdc_sdshr);
+	mxc_iomux_v3_setup_pad(&epdc_bdr0);
+	mxc_iomux_v3_setup_pad(&epdc_sdce0);
+	mxc_iomux_v3_setup_pad(&epdc_sdce1);
+	mxc_iomux_v3_setup_pad(&epdc_sdce2);
+
+	gpio_direction_output(EPDC_D0, 0);
+	gpio_direction_output(EPDC_D1, 0);
+	gpio_direction_output(EPDC_D2, 0);
+	gpio_direction_output(EPDC_D3, 0);
+	gpio_direction_output(EPDC_D4, 0);
+	gpio_direction_output(EPDC_D5, 0);
+	gpio_direction_output(EPDC_D6, 0);
+	gpio_direction_output(EPDC_D7, 0);
+	gpio_direction_output(EPDC_GDCLK, 0);
+	gpio_direction_output(EPDC_GDSP, 0);
+	gpio_direction_output(EPDC_GDOE, 0);
+	gpio_direction_output(EPDC_GDRL, 0);
+	gpio_direction_output(EPDC_SDCLK, 0);
+	gpio_direction_output(EPDC_SDOE, 0);
+	gpio_direction_output(EPDC_SDLE, 0);
+	gpio_direction_output(EPDC_SDSHR, 0);
+	gpio_direction_output(EPDC_BDR0, 0);
+	gpio_direction_output(EPDC_SDCE0, 0);
+	gpio_direction_output(EPDC_SDCE1, 0);
+	gpio_direction_output(EPDC_SDCE2, 0);
+}
+
+
+static struct mxc_epdc_fb_platform_data epdc_data = {
+	.get_pins = epdc_get_pins,
+	.put_pins = epdc_put_pins,
+	.enable_pins = epdc_enable_pins,
+	.disable_pins = epdc_disable_pins,
+};
+
+
 static struct max17135_platform_data max17135_pdata __initdata = {
 	.vneg_pwrup = 1,
 	.gvee_pwrup = 1,
@@ -850,7 +1065,7 @@ static void __init mxc_board_init(void)
 	i2c_register_board_info(2, mxc_i2c2_board_info,
 				ARRAY_SIZE(mxc_i2c2_board_info));
 
-	mxc_register_device(&epdc_device, NULL);
+	mxc_register_device(&epdc_device, &epdc_data);
 	mxc_register_device(&lcd_wvga_device, &lcd_wvga_data);
 	mxc_register_device(&elcdif_device, &fb_data[0]);
 	mxc_register_device(&mxs_viim, NULL);
