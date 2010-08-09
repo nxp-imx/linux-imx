@@ -294,7 +294,7 @@ int flexcan_mbm_xmit(struct flexcan_device *flexcan, struct can_frame *frame)
 		hwmb[i].mb_id = (frame->can_id & CAN_SFF_MASK) << 18;
 	}
 
-	hwmb[i].mb_cs &= MB_CS_LENGTH_MASK;
+	hwmb[i].mb_cs &= ~MB_CS_LENGTH_MASK;
 	hwmb[i].mb_cs |= frame->can_dlc << MB_CS_LENGTH_OFFSET;
 	flexcan_memcpy(hwmb[i].mb_data, frame->data, frame->can_dlc);
 	hwmb[i].mb_cs &= ~MB_CS_CODE_MASK;
