@@ -14,6 +14,7 @@ config ARCH_MX53
 
 config ARCH_MX50
 	bool
+	select ARCH_HAS_RNGC
 
 config FORCE_MAX_ZONEORDER
     int "MAX_ORDER"

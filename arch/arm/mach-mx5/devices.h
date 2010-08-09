@@ -81,3 +81,4 @@ extern struct platform_device mxc_v4l2out_device;
 extern struct platform_device mxs_viim;
 extern struct platform_device mxs_dma_apbh_device;
 extern struct platform_device gpmi_nfc_device;
+extern struct platform_device mxc_rngb_device;

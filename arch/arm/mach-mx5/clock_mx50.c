@@ -2305,6 +2305,14 @@ static struct clk rtc_clk = {
 	.disable = _clk_disable,
 };
 
+struct clk rng_clk = {
+	.parent = &ipg_clk,
+	.enable = _clk_enable,
+	.enable_reg = MXC_CCM_CCGR7,
+	.enable_shift = MXC_CCM_CCGRx_CG1_OFFSET,
+	.disable = _clk_disable,
+};
+
 static struct clk owire_clk = {
 	.parent = &ipg_perclk,
 	.enable = _clk_enable,
@@ -2986,6 +2994,7 @@ static struct clk_lookup lookups[] = {
 	_REGISTER_CLOCK(NULL, "gpmi-apb", gpmi_nfc_clk[1]),
 	_REGISTER_CLOCK(NULL, "bch", gpmi_nfc_clk[2]),
 	_REGISTER_CLOCK(NULL, "bch-apb", gpmi_nfc_clk[3]),
+	_REGISTER_CLOCK(NULL, "rng_clk", rng_clk),
 };
 
 static void clk_tree_init(void)
