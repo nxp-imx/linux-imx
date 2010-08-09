@@ -356,6 +356,7 @@ static int __exit fsl_rngc_remove(struct platform_device *pdev)
 static int fsl_rngc_suspend(struct platform_device *pdev,
 		pm_message_t state)
 {
+#ifdef CONFIG_PM
 	struct clk *clk = clk_get(&pdev->dev, "rng_clk");
 
 	if (IS_ERR(clk)) {
@@ -364,12 +365,14 @@ static int fsl_rngc_suspend(struct platform_device *pdev,
 	}
 
 	clk_disable(clk);
+#endif
 
 	return 0;
 }
 
 static int fsl_rngc_resume(struct platform_device *pdev)
 {
+#ifdef CONFIG_PM
 	struct clk *clk = clk_get(&pdev->dev, "rng_clk");
 
 	if (IS_ERR(clk)) {
@@ -378,6 +381,7 @@ static int fsl_rngc_resume(struct platform_device *pdev)
 	}
 
 	clk_enable(clk);
+#endif
 
 	return 0;
 }
