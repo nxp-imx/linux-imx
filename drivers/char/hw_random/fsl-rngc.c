@@ -1,7 +1,7 @@
 /*
  * RNG driver for Freescale RNGC
  *
- * Copyright 2008-2009 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2008-2010 Freescale Semiconductor, Inc.
  */
 
 /*
@@ -42,7 +42,6 @@
 #include <linux/interrupt.h>
 #include <linux/hw_random.h>
 #include <linux/io.h>
-#include <asm/hardware.h>
 
 #define RNGC_VERSION_MAJOR3 3
 
@@ -292,7 +291,7 @@ static int __init fsl_rngc_probe(struct platform_device *pdev)
 	if (rng_dev)
 		return -EBUSY;
 
-	clk = clk_get(NULL, "rng_clk");
+	clk = clk_get(&pdev->dev, "rng_clk");
 
 	if (IS_ERR(clk)) {
 		dev_err(&pdev->dev, "Can not get rng_clk\n");
@@ -334,8 +333,16 @@ static int __init fsl_rngc_probe(struct platform_device *pdev)
 
 static int __exit fsl_rngc_remove(struct platform_device *pdev)
 {
+	struct clk *clk;
 	struct resource *mem = dev_get_drvdata(&pdev->dev);
 	void __iomem *rngc_base = (void __iomem *)fsl_rngc.priv;
+
+	clk = clk_get(&pdev->dev, "rng_clk");
+
+	if (IS_ERR(clk))
+		dev_err(&pdev->dev, "Can not get rng_clk\n");
+	else
+		clk_disable(clk);
 
 	hwrng_unregister(&fsl_rngc);
 
@@ -346,12 +353,43 @@ static int __exit fsl_rngc_remove(struct platform_device *pdev)
 	return 0;
 }
 
+static int fsl_rngc_suspend(struct platform_device *pdev,
+		pm_message_t state)
+{
+	struct clk *clk = clk_get(&pdev->dev, "rng_clk");
+
+	if (IS_ERR(clk)) {
+		dev_err(&pdev->dev, "Can not get rng_clk\n");
+		return PTR_ERR(clk);
+	}
+
+	clk_disable(clk);
+
+	return 0;
+}
+
+static int fsl_rngc_resume(struct platform_device *pdev)
+{
+	struct clk *clk = clk_get(&pdev->dev, "rng_clk");
+
+	if (IS_ERR(clk)) {
+		dev_err(&pdev->dev, "Can not get rng_clk\n");
+		return PTR_ERR(clk);
+	}
+
+	clk_enable(clk);
+
+	return 0;
+}
+
 static struct platform_driver fsl_rngc_driver = {
 	.driver = {
 		   .name = "fsl_rngc",
 		   .owner = THIS_MODULE,
 		   },
 	.remove = __exit_p(fsl_rngc_remove),
+	.suspend	= fsl_rngc_suspend,
+	.resume	= fsl_rngc_resume,
 };
 
 static int __init mod_init(void)
