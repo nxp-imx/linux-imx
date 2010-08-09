@@ -42,7 +42,7 @@
 #define GSL_HAL_SHMEM_SIZE_EMEM2_MMU    0x00400000            /* 4MB */
 #define GSL_HAL_SHMEM_SIZE_PHYS_MMU     0x00400000            /* 4MB */
 
-#define GSL_HAL_SHMEM_SIZE_EMEM1_NOMMU  0x00D00000            /* 13MB */
+#define GSL_HAL_SHMEM_SIZE_EMEM1_NOMMU  0x00A00000            /* 10MB */
 #define GSL_HAL_SHMEM_SIZE_EMEM2_NOMMU  0x00200000            /* 2MB */
 #define GSL_HAL_SHMEM_SIZE_PHYS_NOMMU   0x00100000            /* 1MB */
 

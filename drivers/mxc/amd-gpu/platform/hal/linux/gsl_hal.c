@@ -120,11 +120,8 @@ kgsl_hal_init(void)
 	hal->has_z160 = 0;
     }
 
-    if (hal->has_z430) {
-	gsl_driver.enable_mmu = 0;
-    } else {
-	gsl_driver.enable_mmu = 1;
-    }
+    /* there is still some problem to enable mmu currently */
+    gsl_driver.enable_mmu = 0;
 
     /* setup register space */
     if (hal->has_z430) {
