@@ -863,6 +863,8 @@ static void __init mxc_board_init(void)
 	mxc_register_device(&gpmi_nfc_device, &gpmi_nfc_platform_data);
 	mx5_usb_dr_init();
 	mx5_usbh1_init();
+
+	mxc_register_device(&mxc_rngb_device, NULL);
 }
 
 static void __init mx50_arm2_timer_init(void)

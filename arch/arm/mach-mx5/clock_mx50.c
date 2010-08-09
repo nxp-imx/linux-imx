@@ -2322,6 +2322,16 @@ static struct clk rtc_clk = {
 	.disable = _clk_disable,
 };
 
+struct clk rng_clk = {
+	.name = "rng_clk",
+	.id = 0,
+	.parent = &ipg_clk,
+	.enable = _clk_enable,
+	.enable_reg = MXC_CCM_CCGR7,
+	.enable_shift = MXC_CCM_CCGR7_CG1_OFFSET,
+	.disable = _clk_disable,
+};
+
 static struct clk owire_clk = {
 	/* 1w driver come from upstream and use owire as clock name*/
 	.name = "owire",
@@ -3043,6 +3053,7 @@ static struct clk *mxc_clks[] = {
 	&ddr_clk,
 	&pgc_clk,
 	&rtc_clk,
+	&rng_clk,
 	&owire_clk,
 	&fec_clk[0],
 	&fec_clk[1],

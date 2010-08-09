@@ -473,6 +473,25 @@ struct platform_device mxcscc_device = {
 	.resource = scc_resources,
 };
 
+static struct resource rngb_resources[] = {
+	{
+		.start = RNGB_BASE_ADDR,
+		.end = RNGB_BASE_ADDR + SZ_4K - 1,
+		.flags = IORESOURCE_MEM,
+	},
+	{
+		.start = MXC_INT_RNGB_BLOCK,
+		.flags = IORESOURCE_IRQ,
+	},
+};
+
+/* the RNGC driver applies for MX50's RNGB hw */
+struct platform_device mxc_rngb_device = {
+	.name = "fsl_rngc",
+	.id = 0,
+	.num_resources = ARRAY_SIZE(rngb_resources),
+	.resource = rngb_resources,
+};
 
 static struct resource mxc_fec_resources[] = {
 	{
@@ -1608,6 +1627,8 @@ int __init mxc_init_devices(void)
 		scc_resources[0].end -= MX53_OFFSET;
 		scc_resources[1].start = MX53_SCC_RAM_BASE_ADDR;
 		scc_resources[1].end = MX53_SCC_RAM_BASE_ADDR + SZ_16K - 1;
+		rngb_resources[0].start -= MX53_OFFSET;
+		rngb_resources[0].end -= MX53_OFFSET;
 		mxcspi1_resources[0].start -= MX53_OFFSET;
 		mxcspi1_resources[0].end -= MX53_OFFSET;
 		mxcspi2_resources[0].start -= MX53_OFFSET;
