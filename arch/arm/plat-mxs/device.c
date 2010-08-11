@@ -39,6 +39,7 @@ static struct list_head mxs_device_level[] = {
 };
 
 static u64 common_dmamask = DMA_BIT_MASK(32);
+static u64 pxp_dmamask = ISA_DMA_THRESHOLD;
 
 void mxs_nop_release(struct device *dev)
 {
@@ -262,8 +263,8 @@ static struct platform_device mxs_pxp = {
 	.id		= 0,
 	.dev		= {
 		.release = mxs_nop_release,
-		.dma_mask		= &common_dmamask,
-		.coherent_dma_mask	= DMA_BIT_MASK(32),
+		.dma_mask		= &pxp_dmamask,
+		.coherent_dma_mask	= ISA_DMA_THRESHOLD,
 	},
 };
 #endif
