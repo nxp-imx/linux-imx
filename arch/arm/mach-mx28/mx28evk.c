@@ -39,7 +39,7 @@ static struct i2c_board_info __initdata mxs_i2c_device[] = {
 	{ I2C_BOARD_INFO("sgtl5000-i2c", 0x14), .flags = I2C_M_TEN }
 };
 
-static void i2c_device_init(void)
+static void __init i2c_device_init(void)
 {
 	i2c_register_board_info(0, mxs_i2c_device, ARRAY_SIZE(mxs_i2c_device));
 }
