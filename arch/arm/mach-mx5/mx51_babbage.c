@@ -190,7 +190,7 @@ static struct pad_desc mx51babbage_pads[] = {
 
 	MX51_PAD_GPIO_1_2__PWM_PWMO,
 
-	MX51_PAD_GPIO_1_3__I2C2_SDA,
+	MX51_PAD_KEY_COL5__I2C2_SDA,
 	MX51_PAD_KEY_COL4__I2C2_SCL,
 
 	MX51_PAD_SD1_CMD__SD1_CMD,
