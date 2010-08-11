@@ -2571,11 +2571,16 @@ int gpmi_nfc_mil_init(struct gpmi_nfc_data *this)
 exit_partitions:
 	nand_release(&mil->mtd);
 exit_nand_scan:
-	mil->cmd_virt =  0;
-	mil->cmd_phys = ~0;
+	dma_free_coherent(dev,
+			this->nfc_geometry.payload_size_in_bytes,
+			mil->page_buffer_virt, mil->page_buffer_phys);
+	mil->page_buffer_virt = 0;
+	mil->page_buffer_phys = ~0;
 exit_buf_allocation:
 	dma_free_coherent(dev, MIL_COMMAND_BUFFER_SIZE,
-				mil->cmd_virt, mil->cmd_phys);
+			mil->cmd_virt, mil->cmd_phys);
+	mil->cmd_virt =  0;
+	mil->cmd_phys = ~0;
 exit_cmd_allocation:
 
 	return error;
