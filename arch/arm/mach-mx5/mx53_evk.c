@@ -899,6 +899,18 @@ static struct i2c_board_info mxc_i2c0_board_info[] __initdata = {
 	 },
 };
 
+static void sii9022_hdmi_reset(void)
+{
+	gpio_set_value(MX53_DVI_RESET, 0);
+	msleep(10);
+	gpio_set_value(MX53_DVI_RESET, 1);
+	msleep(10);
+}
+
+static struct mxc_lcd_platform_data sii9022_hdmi_data = {
+	.reset = sii9022_hdmi_reset,
+};
+
 /* TO DO add platform data */
 static struct i2c_board_info mxc_i2c1_board_info[] __initdata = {
 	{
@@ -922,6 +934,11 @@ static struct i2c_board_info mxc_i2c1_board_info[] __initdata = {
 	 .type = "eeprom",
 	 .addr = 0x50,
 	 },
+	{
+	.type = "sii9022",
+	.addr = 0x39,
+	.platform_data = &sii9022_hdmi_data,
+	},
 };
 
 static struct mtd_partition mxc_dataflash_partitions[] = {
