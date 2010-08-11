@@ -1320,6 +1320,17 @@ fec_stop(struct net_device *dev)
 	writel(1, fep->hwp + FEC_ECNTRL);
 	udelay(10);
 
+#ifdef CONFIG_ARCH_MXS
+	/* Check MII or RMII */
+	if (fep->phy_interface == PHY_INTERFACE_MODE_RMII)
+		writel(readl(fep->hwp + FEC_R_CNTRL) | 0x100,
+					fep->hwp + FEC_R_CNTRL);
+	else
+		writel(readl(fep->hwp + FEC_R_CNTRL) & ~0x100,
+					fep->hwp + FEC_R_CNTRL);
+#endif
+	/* Clear outstanding MII command interrupts. */
+	writel(FEC_ENET_MII, fep->hwp + FEC_IEVENT);
 	writel(fep->phy_speed, fep->hwp + FEC_MII_SPEED);
 }
 
