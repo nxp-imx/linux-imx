@@ -16,10 +16,6 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
  * MA 02110-1301, USA.
  */
-
-extern struct platform_device mxc_uart_device0;
-extern struct platform_device mxc_uart_device1;
-extern struct platform_device mxc_uart_device2;
 extern struct platform_device mxc_fec_device;
 extern struct platform_device mxc_ptp_device;
 extern struct platform_device mxc_dma_device;
