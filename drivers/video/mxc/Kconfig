@@ -38,6 +38,10 @@ config FB_MXC_CLAA_WVGA_SYNC_PANEL
 	depends on FB_MXC_SYNC_PANEL
 	tristate "CLAA WVGA Panel"
 
+config FB_MXC_SII9022
+	depends on FB_MXC_SYNC_PANEL
+	tristate "Si Image SII9022 DVI/HDMI Interface Chip"
+
 config FB_MXC_CH7026
 	depends on FB_MXC_SYNC_PANEL
 	tristate "Chrontel CH7026 VGA Interface Chip"
