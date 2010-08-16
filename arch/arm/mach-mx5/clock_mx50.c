@@ -2485,6 +2485,28 @@ static struct clk apbh_dma_clk = {
 	.enable_shift = MXC_CCM_CCGR7_CG10_OFFSET,
 };
 
+struct clk dcp_clk[] = {
+	{
+	.name = "dcp_clk",
+	.id = 0,
+	.parent = &ahb_clk,
+	.secondary = &dcp_clk[1],
+	.enable = _clk_enable,
+	.enable_reg = MXC_CCM_CCGR7,
+	.enable_shift = MXC_CCM_CCGR7_CG11_OFFSET,
+	.disable = _clk_disable,
+	},
+	{
+	 .name = "dcp_sec1_clk",
+	 .parent = &apbh_dma_clk,
+	 .secondary = &dcp_clk[2],
+	},
+	{
+	 .name = "dcp_sec2_clk",
+	 .parent = &ddr_clk,
+	},
+};
+
 static int _clk_display_axi_set_parent(struct clk *clk, struct clk *parent)
 {
 	u32 reg, mux;
@@ -3059,6 +3081,9 @@ static struct clk *mxc_clks[] = {
 	&pgc_clk,
 	&rtc_clk,
 	&rng_clk,
+	&dcp_clk[0],
+	&dcp_clk[1],
+	&dcp_clk[2],
 	&owire_clk,
 	&fec_clk[0],
 	&fec_clk[1],

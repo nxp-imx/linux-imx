@@ -1080,6 +1080,7 @@ static void __init mxc_board_init(void)
 	mx5_usbh1_init();
 
 	mxc_register_device(&mxc_rngb_device, NULL);
+	mxc_register_device(&dcp_device, NULL);
 }
 
 static void __init mx50_arm2_timer_init(void)
