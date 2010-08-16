@@ -20,4 +20,4 @@
 /*
  * System time clock is sourced from the 32k clock
  */
-#define CLOCK_TICK_RATE		32768
+#define CLOCK_TICK_RATE		32000
