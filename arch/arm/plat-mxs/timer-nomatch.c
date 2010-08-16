@@ -21,6 +21,7 @@
 #include <linux/clocksource.h>
 #include <linux/clockchips.h>
 #include <linux/io.h>
+#include <linux/clk.h>
 #include <linux/irq.h>
 #include <linux/interrupt.h>
 
@@ -119,9 +120,9 @@ void mxs_nomatch_timer_init(struct mxs_sys_timer *timer)
 
 	online_timer = timer;
 
-	cksrc_mxs_nomatch.mult = clocksource_hz2mult(CLOCK_TICK_RATE,
+	cksrc_mxs_nomatch.mult = clocksource_hz2mult(clk_get_rate(timer->clk),
 				cksrc_mxs_nomatch.shift);
-	ckevt_timrot.mult = div_sc(CLOCK_TICK_RATE, NSEC_PER_SEC,
+	ckevt_timrot.mult = div_sc(clk_get_rate(timer->clk), NSEC_PER_SEC,
 				ckevt_timrot.shift);
 	ckevt_timrot.min_delta_ns = clockevent_delta2ns(2, &ckevt_timrot);
 	ckevt_timrot.max_delta_ns = clockevent_delta2ns(0xFFF, &ckevt_timrot);
@@ -145,7 +146,7 @@ void mxs_nomatch_timer_init(struct mxs_sys_timer *timer)
 		BM_TIMROT_TIMCTRLn_IRQ_EN,
 			online_timer->base + HW_TIMROT_TIMCTRLn(1));
 
-	__raw_writel(CLOCK_TICK_RATE / HZ - 1,
+	__raw_writel(clk_get_rate(timer->clk) / HZ - 1,
 			online_timer->base + HW_TIMROT_TIMCOUNTn(0));
 	__raw_writel(0xFFFF, online_timer->base + HW_TIMROT_TIMCOUNTn(1));
 
@@ -181,7 +182,7 @@ void mxs_nomatch_resume_timer(void)
 		BM_TIMROT_TIMCTRLn_UPDATE |
 		BM_TIMROT_TIMCTRLn_IRQ_EN,
 			online_timer->base  + HW_TIMROT_TIMCTRLn(1));
-	__raw_writel(CLOCK_TICK_RATE / HZ - 1,
+	__raw_writel(clk_get_rate(online_timer->clk) / HZ - 1,
 			online_timer->base  + HW_TIMROT_TIMCOUNTn(0));
 	__raw_writel(0xFFFF, online_timer->base  + HW_TIMROT_TIMCOUNTn(1));
 }
