@@ -1012,9 +1012,13 @@ int32_t ipu_init_sync_panel(int disp, uint32_t pixel_clk,
 	dev_dbg(g_ipu_dev, "pixel clk = %d\n", pixel_clk);
 
 	if (sig.ext_clk) {
-		/* Set the  PLL to be an even multiple of the pixel clock. not round div for tvout*/
-		if ((clk_get_usecount(g_pixel_clk[0]) == 0) &&
-				(clk_get_usecount(g_pixel_clk[1]) == 0)) {
+		/*
+		 * Set the  PLL to be an even multiple of the pixel clock.
+		 * Not round div for tvout and ldb.
+		 * Did not consider both DI come from the same ext clk, if
+		 * meet such case, ext clk rate should be set specially.
+		 */
+		if (clk_get_usecount(g_pixel_clk[disp]) == 0) {
 			di_parent = clk_get_parent(g_di_clk[disp]);
 			if (clk_get(NULL, "tve_clk") != di_parent &&
 			    clk_get(NULL, "ldb_di0_clk") != di_parent &&
