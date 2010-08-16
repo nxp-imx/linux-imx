@@ -245,6 +245,7 @@ static int select_display_buffer(vout_data *vout, int next_buf)
 {
 	int ret = 0;
 
+	vout->disp_buf_num = next_buf;
 	if (ipu_get_cur_buffer_idx(vout->display_ch, IPU_INPUT_BUFFER)
 			!= next_buf)
 		ret = ipu_select_buffer(vout->display_ch, IPU_INPUT_BUFFER,
@@ -289,10 +290,9 @@ static int finish_previous_frame(vout_data *vout)
 	mm_segment_t old_fs;
 	int ret = 0;
 
-	/* make sure buf[next_done_ipu_buf] showed */
+	/* make sure buf[vout->disp_buf_num] in showing */
 	while (ipu_check_buffer_busy(vout->display_ch,
-			IPU_INPUT_BUFFER, vout->next_done_ipu_buf)) {
-		/* wait for display frame finish */
+			IPU_INPUT_BUFFER, vout->disp_buf_num)) {
 		if (fbi->fbops->fb_ioctl) {
 			old_fs = get_fs();
 			set_fs(KERNEL_DS);
@@ -303,7 +303,7 @@ static int finish_previous_frame(vout_data *vout)
 			if (ret < 0) {
 				/* ic_bypass need clear display buffer ready for next update*/
 				ipu_clear_buffer_ready(vout->display_ch, IPU_INPUT_BUFFER,
-						vout->next_done_ipu_buf);
+						vout->disp_buf_num);
 			}
 		}
 	}
@@ -318,9 +318,9 @@ static int show_current_frame(vout_data *vout)
 	mm_segment_t old_fs;
 	int ret = 0;
 
-	/* make sure buf[next_rdy_ipu_buf] begin to show */
+	/* make sure buf[vout->disp_buf_num] begin to show */
 	if (ipu_get_cur_buffer_idx(vout->display_ch, IPU_INPUT_BUFFER)
-		!= vout->next_rdy_ipu_buf) {
+		!= vout->disp_buf_num) {
 		/* wait for display frame finish */
 		if (fbi->fbops->fb_ioctl) {
 			old_fs = get_fs();
@@ -334,10 +334,10 @@ static int show_current_frame(vout_data *vout)
 	return ret;
 }
 
-static void timer_work_func(struct work_struct *work)
+static void icbypass_work_func(struct work_struct *work)
 {
 	vout_data *vout =
-		container_of(work, vout_data, timer_work);
+		container_of(work, vout_data, icbypass_work);
 	int index, ret;
 	int last_buf;
 	unsigned long lock_flags = 0;
@@ -346,34 +346,30 @@ static void timer_work_func(struct work_struct *work)
 
 	spin_lock_irqsave(&g_lock, lock_flags);
 
-	if (g_buf_output_cnt == 0) {
-		ipu_select_buffer(vout->display_ch, IPU_INPUT_BUFFER, 1);
-	} else {
-		index = dequeue_buf(&vout->ready_q);
-		if (index == -1) {	/* no buffers ready, should never occur */
-			dev_err(&vout->video_dev->dev,
-					"mxc_v4l2out: timer - no queued buffers ready\n");
-			goto exit;
-		}
-		g_buf_dq_cnt++;
-		vout->frame_count++;
-
-		vout->ipu_buf[vout->next_rdy_ipu_buf] = index;
-		ret = ipu_update_channel_buffer(vout->display_ch, IPU_INPUT_BUFFER,
-				vout->next_rdy_ipu_buf,
-				vout->v4l2_bufs[index].m.offset);
-		ret += select_display_buffer(vout, vout->next_rdy_ipu_buf);
-		if (ret < 0) {
-			dev_err(&vout->video_dev->dev,
-					"unable to update buffer %d address rc=%d\n",
-					vout->next_rdy_ipu_buf, ret);
-			goto exit;
-		}
-		spin_unlock_irqrestore(&g_lock, lock_flags);
-		show_current_frame(vout);
-		spin_lock_irqsave(&g_lock, lock_flags);
-		vout->next_rdy_ipu_buf = !vout->next_rdy_ipu_buf;
+	index = dequeue_buf(&vout->ready_q);
+	if (index == -1) {	/* no buffers ready, should never occur */
+		dev_err(&vout->video_dev->dev,
+				"mxc_v4l2out: timer - no queued buffers ready\n");
+		goto exit;
 	}
+	g_buf_dq_cnt++;
+	vout->frame_count++;
+
+	vout->ipu_buf[vout->next_rdy_ipu_buf] = index;
+	ret = ipu_update_channel_buffer(vout->display_ch, IPU_INPUT_BUFFER,
+			vout->next_rdy_ipu_buf,
+			vout->v4l2_bufs[index].m.offset);
+	ret += select_display_buffer(vout, vout->next_rdy_ipu_buf);
+	if (ret < 0) {
+		dev_err(&vout->video_dev->dev,
+				"unable to update buffer %d address rc=%d\n",
+				vout->next_rdy_ipu_buf, ret);
+		goto exit;
+	}
+	spin_unlock_irqrestore(&g_lock, lock_flags);
+	show_current_frame(vout);
+	spin_lock_irqsave(&g_lock, lock_flags);
+	vout->next_rdy_ipu_buf = !vout->next_rdy_ipu_buf;
 
 	last_buf = vout->ipu_buf[vout->next_done_ipu_buf];
 	if (last_buf != -1) {
@@ -401,6 +397,24 @@ static void timer_work_func(struct work_struct *work)
 	}
 exit:
 	spin_unlock_irqrestore(&g_lock, lock_flags);
+}
+
+static int get_cur_fb_blank(vout_data *vout)
+{
+	struct fb_info *fbi =
+		registered_fb[vout->output_fb_num[vout->cur_disp_output]];
+	mm_segment_t old_fs;
+	int ret = 0;
+
+	if (fbi->fbops->fb_ioctl) {
+		old_fs = get_fs();
+		set_fs(KERNEL_DS);
+		ret = fbi->fbops->fb_ioctl(fbi, MXCFB_GET_FB_BLANK,
+				(unsigned int)(&vout->fb_blank));
+		set_fs(old_fs);
+	}
+
+	return ret;
 }
 
 static void mxc_v4l2out_timer_handler(unsigned long arg)
@@ -436,12 +450,22 @@ static void mxc_v4l2out_timer_handler(unsigned long arg)
 
 	/* Handle ic bypass mode in work queue */
 	if (vout->ic_bypass) {
-		if (queue_work(vout->v4l_wq, &vout->timer_work) == 0) {
-			dev_err(&vout->video_dev->dev, "work was in queue already!\n ");
+		if (queue_work(vout->v4l_wq, &vout->icbypass_work) == 0) {
+			dev_err(&vout->video_dev->dev,
+				"ic bypass work was in queue already!\n ");
 			vout->state = STATE_STREAM_PAUSED;
 		}
 		goto exit0;
+	} else if (!vout->fb_blank &&
+		(ipu_get_cur_buffer_idx(vout->display_ch, IPU_INPUT_BUFFER)
+		== vout->next_disp_ipu_buf)) {
+		dev_dbg(&vout->video_dev->dev, "IPU disp busy\n");
+		get_cur_fb_blank(vout);
+		index = peek_next_buf(&vout->ready_q);
+		setup_next_buf_timer(vout, index);
+		goto exit0;
 	}
+	vout->fb_blank = 0;
 
 	/* Dequeue buffer and pass to IPU */
 	index = dequeue_buf(&vout->ready_q);
@@ -523,9 +547,12 @@ static void mxc_v4l2out_timer_handler(unsigned long arg)
 		goto exit0;
 	}
 
-	/* Non IC split action */
+	/* Split mode use buf 0 only, no need swith buf */
 	if (!vout->pp_split)
 		vout->next_rdy_ipu_buf = !vout->next_rdy_ipu_buf;
+
+	/* Always assume display in double buffers */
+	vout->next_disp_ipu_buf = !vout->next_disp_ipu_buf;
 
 	/* Setup timer for next buffer */
 	index = peek_next_buf(&vout->ready_q);
@@ -628,13 +655,6 @@ static irqreturn_t mxc_v4l2out_work_irq_handler(int irq, void *dev_id)
 				if (ret < 0)
 					dev_err(&vout->video_dev->dev,
 					"unable to set IPU buffer ready\n");
-					vout->next_rdy_ipu_buf = !vout->next_rdy_ipu_buf;
-
-			} else {/* last stripe is done, run display refresh */
-				select_display_buffer(vout, disp_buf_num);
-				vout->ipu_buf[vout->next_done_ipu_buf] = -1;
-				vout->next_done_ipu_buf = !vout->next_done_ipu_buf;
-				vout->next_rdy_ipu_buf = !vout->next_rdy_ipu_buf;
 			}
 
 			/* offset for next buffer's EBA */
@@ -676,11 +696,8 @@ static irqreturn_t mxc_v4l2out_work_irq_handler(int irq, void *dev_id)
 
 			/* next stripe_buffer index 0..7 */
 			vout->pp_split_buf_num = (vout->pp_split_buf_num + vout->pp_split) & 0x7;
-
-
 		} else {
-			/* show to display */
-			select_display_buffer(vout, vout->next_done_ipu_buf);
+			disp_buf_num = vout->next_done_ipu_buf;
 			ret += ipu_select_buffer(vout->display_input_ch, IPU_OUTPUT_BUFFER,
 					vout->next_done_ipu_buf);
 		}
@@ -688,6 +705,7 @@ static irqreturn_t mxc_v4l2out_work_irq_handler(int irq, void *dev_id)
 		/* release buffer. For split mode: if second stripe is done */
 		release_buffer = vout->pp_split ? (!(vout->pp_split_buf_num & 0x3)) : 1;
 		if (release_buffer) {
+			select_display_buffer(vout, disp_buf_num);
 			g_buf_output_cnt++;
 			vout->v4l2_bufs[last_buf].flags = V4L2_BUF_FLAG_DONE;
 			queue_buf(&vout->done_q, last_buf);
@@ -697,7 +715,9 @@ static irqreturn_t mxc_v4l2out_work_irq_handler(int irq, void *dev_id)
 				vout->ipu_buf_p[vout->next_done_ipu_buf] = -1;
 				vout->ipu_buf_n[vout->next_done_ipu_buf] = -1;
 			}
-			vout->next_done_ipu_buf = !vout->next_done_ipu_buf;
+			/* split mode use buf 0 only, no need switch buf */
+			if (!vout->pp_split)
+				vout->next_done_ipu_buf = !vout->next_done_ipu_buf;
 		}
 	} /* end of last_buf != -1 */
 
@@ -932,6 +952,9 @@ static int init_PP(ipu_channel_params_t *params, vout_data *vout,
 	u32 eba_offset;
 	u16 x_pos;
 	u16 y_pos;
+	dma_addr_t phy_addr0;
+	dma_addr_t phy_addr1;
+
 	eba_offset = 0;
 	x_pos = 0;
 	y_pos = 0;
@@ -1021,6 +1044,12 @@ static int init_PP(ipu_channel_params_t *params, vout_data *vout,
 		return -EINVAL;
 	}
 
+	/* always enable double buffer */
+	phy_addr0 = vout->v4l2_bufs[vout->ipu_buf[0]].m.offset;
+	if (vout->ipu_buf[1] == -1)
+		phy_addr1 = phy_addr0;
+	else
+		phy_addr1 = vout->v4l2_bufs[vout->ipu_buf[1]].m.offset;
 	if (ipu_init_channel_buffer(vout->post_proc_ch,
 				    IPU_INPUT_BUFFER,
 				    params->mem_pp_mem.in_pixel_fmt,
@@ -1030,8 +1059,8 @@ static int init_PP(ipu_channel_params_t *params, vout_data *vout,
 				    bytes_per_pixel(params->mem_pp_mem.
 					    in_pixel_fmt),
 				    IPU_ROTATE_NONE,
-				    vout->v4l2_bufs[vout->ipu_buf[0]].m.offset,
-				    vout->v4l2_bufs[vout->ipu_buf[1]].m.offset,
+				    phy_addr0,
+				    phy_addr1,
 				    vout->offset.u_offset,
 				    vout->offset.v_offset) != 0) {
 		dev_err(dev, "Error initializing PP input buffer\n");
@@ -1196,8 +1225,10 @@ static int mxc_v4l2out_streamon(vout_data *vout)
 	g_irq_cnt = g_buf_output_cnt = g_buf_q_cnt = g_buf_dq_cnt = 0;
 	out_width = vout->crop_current.width;
 	out_height = vout->crop_current.height;
+	vout->disp_buf_num = 0;
 	vout->next_done_ipu_buf = 0;
-	vout->next_rdy_ipu_buf = 1;
+	vout->next_rdy_ipu_buf = vout->next_disp_ipu_buf = 1;
+	vout->fb_blank = 0;
 	vout->pp_split = 0;
 	ipu_ic_out_max_height_size = 1024;
 #ifdef CONFIG_MXC_IPU_V1
@@ -1212,12 +1243,12 @@ static int mxc_v4l2out_streamon(vout_data *vout)
 		(out_height > ipu_ic_out_max_height_size))
 		vout->pp_split = 4;
 	if (!INTERLACED_CONTENT(vout)) {
-		vout->next_done_ipu_buf = vout->next_rdy_ipu_buf = 0;
 		vout->ipu_buf[0] = dequeue_buf(&vout->ready_q);
 		/* split IC by two stripes, the by pass is impossible*/
 		if ((out_width != vout->v2f.fmt.pix.width ||
 			out_height != vout->v2f.fmt.pix.height) &&
 			vout->pp_split) {
+			vout->next_done_ipu_buf = vout->next_rdy_ipu_buf = 0;
 			vout->ipu_buf[1] = vout->ipu_buf[0];
 			vout->frame_count = 1;
 			if ((out_width > ipu_ic_out_max_width_size) &&
@@ -1228,8 +1259,8 @@ static int mxc_v4l2out_streamon(vout_data *vout)
 			else
 				vout->pp_split = 3; /*2 vertical stripes*/
 		} else {
-			vout->ipu_buf[1] = dequeue_buf(&vout->ready_q);
-			vout->frame_count = 2;
+			vout->ipu_buf[1] = -1;
+			vout->frame_count = 1;
 		}
 	} else if (!LOAD_3FIELDS(vout)) {
 		vout->ipu_buf[0] = dequeue_buf(&vout->ready_q);
@@ -1460,13 +1491,8 @@ static int mxc_v4l2out_streamon(vout_data *vout)
 			ipu_enable_channel(MEM_VDI_PRP_VF_MEM_P);
 			ipu_enable_channel(MEM_VDI_PRP_VF_MEM_N);
 			ipu_select_multi_vdi_buffer(0);
-		} else if (INTERLACED_CONTENT(vout)) {
+		} else
 			ipu_select_buffer(vout->post_proc_ch, IPU_INPUT_BUFFER, 0);
-		} else {
-			ipu_select_buffer(vout->post_proc_ch, IPU_INPUT_BUFFER, 0);
-			if (!vout->pp_split)
-				ipu_select_buffer(vout->post_proc_ch, IPU_INPUT_BUFFER, 1);
-		}
 		ipu_select_buffer(vout->post_proc_ch, IPU_OUTPUT_BUFFER, 0);
 		ipu_select_buffer(vout->post_proc_ch, IPU_OUTPUT_BUFFER, 1);
 #ifdef CONFIG_MXC_IPU_V1
@@ -1476,9 +1502,6 @@ static int mxc_v4l2out_streamon(vout_data *vout)
 		ipu_update_channel_buffer(vout->display_ch,
 				IPU_INPUT_BUFFER,
 				0, vout->v4l2_bufs[vout->ipu_buf[0]].m.offset);
-		ipu_update_channel_buffer(vout->display_ch,
-				IPU_INPUT_BUFFER,
-				1, vout->v4l2_bufs[vout->ipu_buf[1]].m.offset);
 		if (vout->offset.u_offset || vout->offset.v_offset)
 			/* only update u/v offset */
 			ipu_update_channel_offset(vout->display_ch,
@@ -1492,7 +1515,7 @@ static int mxc_v4l2out_streamon(vout_data *vout)
 					0,
 					0);
 		ipu_select_buffer(vout->display_ch, IPU_INPUT_BUFFER, 0);
-		queue_work(vout->v4l_wq, &vout->timer_work);
+		queue_work(vout->v4l_wq, &vout->icbypass_work);
 	}
 
 	vout->start_jiffies = jiffies;
@@ -1530,7 +1553,7 @@ static int mxc_v4l2out_streamoff(vout_data *vout)
 		ipu_free_irq(vout->work_irq, vout);
 
 	if (vout->ic_bypass)
-		cancel_work_sync(&vout->timer_work);
+		cancel_work_sync(&vout->icbypass_work);
 
 	spin_lock_irqsave(&g_lock, lockflag);
 
@@ -1891,7 +1914,7 @@ static int mxc_v4l2out_open(struct file *file)
 			goto oops;
 		}
 
-		INIT_WORK(&vout->timer_work, timer_work_func);
+		INIT_WORK(&vout->icbypass_work, icbypass_work_func);
 	}
 
 	file->private_data = dev;
