@@ -37,7 +37,7 @@
 #include <linux/interrupt.h>
 #include <linux/delay.h>
 #include <linux/uaccess.h>
-
+#include <linux/clk.h>
 #include <linux/io.h>
 #include <linux/delay.h>
 
@@ -61,6 +61,8 @@ struct dcp {
 	int dcp_vmi_irq;
 	int dcp_irq;
 	u32 dcp_regs_base;
+	ulong clock_state;
+	bool chan_in_use[DCP_NUM_CHANNELS];
 
 	/* Following buffers used in hashing to meet 64-byte len alignment */
 	char *buf1;
@@ -95,6 +97,10 @@ struct dcp {
 #define DCP_COPY	0x4000
 #define DCP_FILL	0x5000
 #define DCP_MODE_MASK	0xf000
+
+/* clock defines */
+#define CLOCK_ON	1
+#define CLOCK_OFF	0
 
 struct dcp_op {
 
@@ -177,6 +183,45 @@ struct dcp_hash_op {
 
 /* only one */
 static struct dcp *global_sdcp;
+
+static void dcp_clock(struct dcp *sdcp,  ulong state, bool force)
+{
+	u32 chan;
+	struct clk *clk = clk_get(sdcp->dev, "dcp_clk");
+
+	/* unless force is true (used during suspend/resume), if any
+	  * channel is running, then clk is already on, and must stay on */
+	if (!force)
+		for (chan = 0; chan < DCP_NUM_CHANNELS; chan++)
+			if (sdcp->chan_in_use[chan])
+				goto exit;
+
+	if (state == CLOCK_OFF) {
+		/* gate at clock source */
+		if (!IS_ERR(clk))
+			clk_disable(clk);
+		/* gate at DCP */
+		else
+			__raw_writel(BM_DCP_CTRL_CLKGATE,
+				sdcp->dcp_regs_base + HW_DCP_CTRL_SET);
+
+		sdcp->clock_state = CLOCK_OFF;
+
+	} else {
+		/* ungate at clock source */
+		if (!IS_ERR(clk))
+			clk_enable(clk);
+		/* ungate at DCP */
+		else
+			__raw_writel(BM_DCP_CTRL_CLKGATE,
+				sdcp->dcp_regs_base + HW_DCP_CTRL_CLR);
+
+		sdcp->clock_state = CLOCK_ON;
+	}
+
+exit:
+	return;
+}
 
 static void dcp_perform_op(struct dcp_op *op)
 {
@@ -263,6 +308,8 @@ static void dcp_perform_op(struct dcp_op *op)
 
 	/* submit the work */
 	mutex_lock(mutex);
+	dcp_clock(sdcp, CLOCK_ON, false);
+	sdcp->chan_in_use[chan] = true;
 
 	__raw_writel(-1, sdcp->dcp_regs_base + HW_DCP_CHnSTAT_CLR(chan));
 
@@ -291,8 +338,9 @@ static void dcp_perform_op(struct dcp_op *op)
 				__raw_readl(sdcp->dcp_regs_base +
 				HW_DCP_CHnSTAT(chan)) & 0xff);
 out:
+	sdcp->chan_in_use[chan] = false;
+	dcp_clock(sdcp, CLOCK_OFF, false);
 	mutex_unlock(mutex);
-
 	dma_unmap_single(sdcp->dev, pkt_phys, sizeof(*pkt), DMA_TO_DEVICE);
 }
 
@@ -1062,6 +1110,8 @@ static int dcp_sha_init(struct shash_desc *desc)
 	struct mutex *mutex = &sdcp->op_mutex[HASH_CHAN];
 
 	mutex_lock(mutex);
+	dcp_clock(sdcp, CLOCK_ON, false);
+	sdcp->chan_in_use[HASH_CHAN] = true;
 
 	op->length = 0;
 
@@ -1191,6 +1241,8 @@ static int dcp_sha_final(struct shash_desc *desc, u8 *out)
 	for (i = 0; i < digest_len; i++)
 		*out++ = *--digest;
 
+	sdcp->chan_in_use[HASH_CHAN] = false;
+	dcp_clock(sdcp, CLOCK_OFF, false);
 	mutex_unlock(mutex);
 
 	return ret;
@@ -1289,6 +1341,8 @@ static int dcp_bootstream_ioctl(struct inode *inode, struct file *file,
 
 	mutex = &sdcp->op_mutex[chan];
 	mutex_lock(mutex);
+	dcp_clock(sdcp, CLOCK_ON, false);
+	sdcp->chan_in_use[chan] = true;
 
 	__raw_writel(-1, sdcp->dcp_regs_base +
 		HW_DCP_CHnSTAT_CLR(ROM_DCP_CHAN));
@@ -1349,6 +1403,8 @@ static int dcp_bootstream_ioctl(struct inode *inode, struct file *file,
 	retVal = 0;
 
 exit:
+	sdcp->chan_in_use[chan] = false;
+	dcp_clock(sdcp, CLOCK_OFF, false);
 	mutex_unlock(mutex);
 	return retVal;
 }
@@ -1391,6 +1447,7 @@ static int dcp_probe(struct platform_device *pdev)
 	for (i = 0; i < DCP_NUM_CHANNELS; i++) {
 		mutex_init(&sdcp->op_mutex[i]);
 		init_completion(&sdcp->op_wait[i]);
+		sdcp->chan_in_use[i] = false;
 	}
 
 	platform_set_drvdata(pdev, sdcp);
@@ -1401,7 +1458,8 @@ static int dcp_probe(struct platform_device *pdev)
 		ret = -ENXIO;
 		goto err_kfree;
 	}
-	sdcp->dcp_regs_base = (u32) IO_ADDRESS(r->start);
+	sdcp->dcp_regs_base = (u32) ioremap(r->start, r->end - r->start + 1);
+	dcp_clock(sdcp, CLOCK_ON, true);
 
 	/* Soft reset and remove the clock gate */
 	__raw_writel(BM_DCP_CTRL_SFTRST, sdcp->dcp_regs_base + HW_DCP_CTRL_SET);
@@ -1437,14 +1495,14 @@ static int dcp_probe(struct platform_device *pdev)
 	if (!r) {
 		dev_err(&pdev->dev, "can't get IRQ resource (0)\n");
 		ret = -EIO;
-		goto err_kfree;
+		goto err_gate_clk;
 	}
 	sdcp->dcp_vmi_irq = r->start;
 	ret = request_irq(sdcp->dcp_vmi_irq, dcp_vmi_irq, 0, "dcp",
 				sdcp);
 	if (ret != 0) {
 		dev_err(&pdev->dev, "can't request_irq (0)\n");
-		goto err_kfree;
+		goto err_gate_clk;
 	}
 
 	r = platform_get_resource(pdev, IORESOURCE_IRQ, 1);
@@ -1465,7 +1523,7 @@ static int dcp_probe(struct platform_device *pdev)
 	ret = crypto_register_alg(&dcp_aes_alg);
 	if (ret != 0)  {
 		dev_err(&pdev->dev, "Failed to register aes crypto\n");
-		goto err_kfree;
+		goto err_free_irq1;
 	}
 
 	ret = crypto_register_alg(&dcp_aes_ecb_alg);
@@ -1576,6 +1634,7 @@ static int dcp_probe(struct platform_device *pdev)
 		goto err_dereg;
 	}
 
+	dcp_clock(sdcp, CLOCK_OFF, false);
 	dev_notice(&pdev->dev, "DCP crypto enabled.!\n");
 	return 0;
 
@@ -1589,8 +1648,12 @@ err_unregister_aes_ecb:
 	crypto_unregister_alg(&dcp_aes_ecb_alg);
 err_unregister_aes:
 	crypto_unregister_alg(&dcp_aes_alg);
+err_free_irq1:
+	free_irq(sdcp->dcp_irq, sdcp);
 err_free_irq0:
 	free_irq(sdcp->dcp_vmi_irq, sdcp);
+err_gate_clk:
+	dcp_clock(sdcp, CLOCK_OFF, false);
 err_kfree:
 	kfree(sdcp);
 err:
@@ -1604,6 +1667,8 @@ static int dcp_remove(struct platform_device *pdev)
 
 	sdcp = platform_get_drvdata(pdev);
 	platform_set_drvdata(pdev, NULL);
+
+	dcp_clock(sdcp, CLOCK_ON, false);
 
 	free_irq(sdcp->dcp_irq, sdcp);
 	free_irq(sdcp->dcp_vmi_irq, sdcp);
@@ -1643,28 +1708,41 @@ static int dcp_remove(struct platform_device *pdev)
 	crypto_unregister_alg(&dcp_aes_cbc_alg);
 	crypto_unregister_alg(&dcp_aes_ecb_alg);
 	crypto_unregister_alg(&dcp_aes_alg);
+
+	dcp_clock(sdcp, CLOCK_OFF, true);
+	iounmap((void *) sdcp->dcp_regs_base);
 	kfree(sdcp);
 	global_sdcp = NULL;
 
 	return 0;
 }
 
-
-#ifdef CONFIG_PM
 static int dcp_suspend(struct platform_device *pdev,
 		pm_message_t state)
 {
+#ifdef CONFIG_PM
+	struct dcp *sdcp = platform_get_drvdata(pdev);
+
+	if (sdcp->clock_state == CLOCK_ON) {
+		dcp_clock(sdcp, CLOCK_OFF, true);
+		/* indicate that clock needs to be turned on upon resume */
+		sdcp->clock_state = CLOCK_ON;
+	}
+#endif
 	return 0;
 }
 
 static int dcp_resume(struct platform_device *pdev)
 {
+#ifdef CONFIG_PM
+	struct dcp *sdcp = platform_get_drvdata(pdev);
+
+	/* if clock was on prior to suspend, turn it back on */
+	if (sdcp->clock_state == CLOCK_ON)
+		dcp_clock(sdcp, CLOCK_ON, true);
+#endif
 	return 0;
 }
-#else
-#define dcp_suspend	NULL
-#define	dcp_resume	NULL
-#endif
 
 static struct platform_driver dcp_driver = {
 	.probe		= dcp_probe,

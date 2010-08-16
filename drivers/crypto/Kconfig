@@ -245,7 +245,7 @@ config CRYPTO_DEV_OMAP_SHAM
 
 config CRYPTO_DEV_DCP
 	tristate "Support for the DCP engine"
-	depends on ARCH_MX28 || ARCH_MX23
+	depends on ARCH_MX28 || ARCH_MX23 || ARCH_MX50
 	select CRYPTO_ALGAPI
 	select CRYPTO_BLKCIPHER
 	help
