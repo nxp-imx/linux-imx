@@ -700,6 +700,36 @@ static struct max17135_platform_data max17135_pdata __initdata = {
 	.regulator_init = max17135_init_data,
 };
 
+static int __initdata max17135_pass_num = { 1 };
+static int __initdata max17135_vcom = { -1250000 };
+/*
+ * Parse user specified options (`max17135:')
+ * example:
+ * 	max17135:pass=2,vcom=-1250000
+ */
+static int __init max17135_setup(char *options)
+{
+	char *opt;
+	while ((opt = strsep(&options, ",")) != NULL) {
+		if (!*opt)
+			continue;
+		if (!strncmp(opt, "pass=", 5))
+			max17135_pass_num =
+				simple_strtoul(opt + 5, NULL, 0);
+		if (!strncmp(opt, "vcom=", 5)) {
+			int offs = 5;
+			if (opt[5] == '-')
+				offs = 6;
+			max17135_vcom =
+				simple_strtoul(opt + offs, NULL, 0);
+			max17135_vcom = -max17135_vcom;
+		}
+	}
+	return 1;
+}
+
+__setup("max17135:", max17135_setup);
+
 static struct i2c_board_info mxc_i2c1_board_info[] __initdata = {
 	{
 	 .type = "sgtl5000-i2c",
@@ -1062,6 +1092,8 @@ static void __init mxc_board_init(void)
 				ARRAY_SIZE(mxc_dataflash_device));
 	i2c_register_board_info(1, mxc_i2c1_board_info,
 				ARRAY_SIZE(mxc_i2c1_board_info));
+	max17135_pdata.pass_num = max17135_pass_num;
+	max17135_pdata.vcom_uV = max17135_vcom;
 	i2c_register_board_info(2, mxc_i2c2_board_info,
 				ARRAY_SIZE(mxc_i2c2_board_info));
 
