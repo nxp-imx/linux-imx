@@ -243,4 +243,16 @@ config CRYPTO_DEV_OMAP_SHAM
 	  OMAP processors have SHA1/MD5 hw accelerator. Select this if you
 	  want to use the OMAP module for SHA1/MD5 algorithms.
 
+config CRYPTO_DEV_DCP
+	tristate "Support for the DCP engine"
+	depends on ARCH_MX28 || ARCH_MX23
+	select CRYPTO_ALGAPI
+	select CRYPTO_BLKCIPHER
+	help
+	  Say 'Y' here to use the DCP AES and SHA
+	  engine for the CryptoAPI algorithms.
+
+	  To compile this driver as a module, choose M here: the module
+	  will be called geode-aes.
+
 endif # CRYPTO_HW

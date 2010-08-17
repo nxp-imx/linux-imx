@@ -382,6 +382,14 @@ config PATA_EFAR
 
 	  If unsure, say N.
 
+config PATA_FSL
+       tristate "Freescale on-chip PATA support"
+       depends on (ARCH_MX5 || ARCH_MX37 || ARCH_MX35 || ARCH_MX3 || ARCH_MX27)
+       help
+         On Freescale processors, say Y here if you wish to use the on-chip
+         ATA interface.
+         If you are unsure, say N to this.
+
 config PATA_HPT366
 	tristate "HPT 366/368 PATA support"
 	depends on PCI

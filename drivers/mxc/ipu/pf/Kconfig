@@ -1,0 +1,7 @@
+config MXC_IPU_PF
+	tristate "MXC MPEG4/H.264 Post Filter Driver"
+	depends on MXC_IPU_V1
+    default y
+	help
+        Driver for MPEG4 dering and deblock and H.264 deblock
+        using MXC IPU h/w

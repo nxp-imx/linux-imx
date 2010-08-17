@@ -47,10 +47,12 @@
 #include <sound/pcm_params.h>
 #include <sound/soc.h>
 
+#include <mach/dma.h>
 #include <mach/ssi.h>
 #include <mach/hardware.h>
 
 #include "imx-ssi.h"
+#include "imx-pcm.h"
 
 #define SSI_SACNT_DEFAULT (SSI_SACNT_AC97EN | SSI_SACNT_FV)
 
@@ -335,12 +337,14 @@ static int imx_ssi_trigger(struct snd_pcm_substream *substream, int cmd,
 }
 
 static struct snd_soc_dai_ops imx_ssi_pcm_dai_ops = {
-	.hw_params	= imx_ssi_hw_params,
-	.set_fmt	= imx_ssi_set_dai_fmt,
-	.set_clkdiv	= imx_ssi_set_dai_clkdiv,
-	.set_sysclk	= imx_ssi_set_dai_sysclk,
-	.set_tdm_slot	= imx_ssi_set_dai_tdm_slot,
-	.trigger	= imx_ssi_trigger,
+	.startup = imx_ssi_startup,
+	.trigger = imx_ssi_trigger,
+	.prepare = imx_ssi_prepare,
+	.hw_params = imx_ssi_hw_params,
+	.set_sysclk = imx_ssi_set_dai_sysclk,
+	.set_clkdiv = imx_ssi_set_dai_clkdiv,
+	.set_fmt = imx_ssi_set_dai_fmt,
+	.set_tdm_slot = imx_ssi_set_dai_tdm_slot,
 };
 
 static struct snd_soc_dai imx_ssi_dai = {
@@ -348,13 +352,17 @@ static struct snd_soc_dai imx_ssi_dai = {
 		.channels_min = 2,
 		.channels_max = 2,
 		.rates = SNDRV_PCM_RATE_8000_96000,
-		.formats = SNDRV_PCM_FMTBIT_S16_LE,
+		.formats = (SNDRV_PCM_FMTBIT_S16_LE | \
+			SNDRV_PCM_FMTBIT_S20_3LE | \
+			SNDRV_PCM_FMTBIT_S24_LE),
 	},
 	.capture = {
 		.channels_min = 2,
 		.channels_max = 2,
 		.rates = SNDRV_PCM_RATE_8000_96000,
-		.formats = SNDRV_PCM_FMTBIT_S16_LE,
+		.formats = (SNDRV_PCM_FMTBIT_S16_LE | \
+			SNDRV_PCM_FMTBIT_S20_3LE | \
+			SNDRV_PCM_FMTBIT_S24_LE),
 	},
 	.ops = &imx_ssi_pcm_dai_ops,
 };
@@ -570,7 +578,7 @@ struct snd_ac97_bus_ops soc_ac97_ops = {
 };
 EXPORT_SYMBOL_GPL(soc_ac97_ops);
 
-struct snd_soc_dai imx_ssi_pcm_dai[2];
+struct snd_soc_dai *imx_ssi_pcm_dai[MAX_SSI_CHANNELS];
 EXPORT_SYMBOL_GPL(imx_ssi_pcm_dai);
 
 static int imx_ssi_probe(struct platform_device *pdev)
@@ -760,4 +768,3 @@ module_exit(imx_ssi_exit);
 MODULE_AUTHOR("Sascha Hauer, <s.hauer@pengutronix.de>");
 MODULE_DESCRIPTION("i.MX I2S/ac97 SoC Interface");
 MODULE_LICENSE("GPL");
-

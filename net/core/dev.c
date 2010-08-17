@@ -4531,6 +4531,9 @@ static int dev_ifsioc(struct net *net, struct ifreq *ifr, unsigned int cmd)
 	default:
 		if ((cmd >= SIOCDEVPRIVATE &&
 		    cmd <= SIOCDEVPRIVATE + 15) ||
+#if defined(CONFIG_FEC_L2SWITCH)
+		    (cmd >= 0x9101 && cmd <= 0x92ff) ||
+#endif
 		    cmd == SIOCBONDENSLAVE ||
 		    cmd == SIOCBONDRELEASE ||
 		    cmd == SIOCBONDSETHWADDR ||
@@ -4723,6 +4726,9 @@ int dev_ioctl(struct net *net, unsigned int cmd, void __user *arg)
 	 */
 	default:
 		if (cmd == SIOCWANDEV ||
+#if defined(CONFIG_FEC_L2SWITCH)
+		    (cmd >= 0x9101 && cmd <= 0x92ff) ||
+#endif
 		    (cmd >= SIOCDEVPRIVATE &&
 		     cmd <= SIOCDEVPRIVATE + 15)) {
 			dev_load(net, ifr.ifr_name);

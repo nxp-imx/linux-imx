@@ -1,5 +1,5 @@
 /*
- * Copyright 2005-2008 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2005-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  * Copyright 2008 Luotao Fu, kernel@pengutronix.de
  *
  * This program is free software; you can redistribute it and/or
@@ -24,7 +24,7 @@
 #include <linux/slab.h>
 #include <linux/delay.h>
 #include <linux/io.h>
-#include <mach/hardware.h>
+#include <linux/fsl_devices.h>
 
 #include "../w1.h"
 #include "../w1_int.h"

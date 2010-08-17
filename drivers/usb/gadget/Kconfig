@@ -209,17 +209,6 @@ config USB_OMAP
 	default USB_GADGET
 	select USB_GADGET_SELECTED
 
-config USB_OTG
-	boolean "OTG Support"
-	depends on USB_GADGET_OMAP && ARCH_OMAP_OTG && USB_OHCI_HCD
-	help
-	   The most notable feature of USB OTG is support for a
-	   "Dual-Role" device, which can act as either a device
-	   or a host.  The initial role choice can be changed
-	   later, when two dual-role devices talk to each other.
-
-	   Select this only if your OMAP board has a Mini-AB connector.
-
 config USB_GADGET_PXA25X
 	boolean "PXA 25x or IXP 4xx"
 	depends on (ARCH_PXA && PXA25x) || ARCH_IXP4XX
@@ -484,6 +473,40 @@ config USB_GOKU
 	default USB_GADGET
 	select USB_GADGET_SELECTED
 
+config USB_GADGET_ARC
+	boolean "Freescale USB Device Controller"
+	depends on ARCH_MXC || ARCH_STMP3XXX || ARCH_MXS
+	select USB_GADGET_DUALSPEED
+	select USB_OTG_UTILS
+	select USB_GADGET_DUALSPEED if USB_GADGET_FSL_1504 || USB_GADGET_FSL_UTMI
+	help
+	   Some Freescale processors have a USBOTG controller,
+	   which supports device mode.
+
+	   Say "y" to link the driver statically, or "m" to build a
+	   dynamically linked module called "arc_udc" and force all
+	   gadget drivers to also be dynamically linked.
+
+config USB_STATIC_IRAM_PPH
+	bool "Apply static IRAM patch"
+	depends on USB_GADGET_ARC && (ARCH_MX37 || ARCH_MX3 || ARCH_MX25 || ARCH_MX51)
+	help
+	   Apply static IRAM patch to peripheral driver.
+
+config USB_ARC
+	tristate
+	depends on USB_GADGET_ARC
+	default USB_GADGET
+	select USB_GADGET_SELECTED
+
+config WORKAROUND_ARCUSB_REG_RW
+        bool "work around mx28 arch register write"
+        depends on ARCH_MX28 && USB_ARC
+        default ARCH_MX28
+        help
+           MX28 require read ARC register before write. Use SWP intructure to
+           implement this requirement.
+
 config USB_GADGET_LANGWELL
 	boolean "Intel Langwell USB Device Controller"
 	depends on PCI
@@ -551,6 +574,18 @@ config USB_GADGET_DUALSPEED
 	help
 	  Means that gadget drivers should include extra descriptors
 	  and code to handle dual-speed controllers.
+
+config USB_OTG
+	boolean "OTG Support"
+	depends on (USB_GADGET_OMAP && ARCH_OMAP_OTG && USB_OHCI_HCD) || \
+		   (USB_GADGET_ARC && (ARCH_MXC || ARCH_STMP3XXX || ARCH_MXS) && USB_EHCI_HCD)
+	help
+	   The most notable feature of USB OTG is support for a
+	   "Dual-Role" device, which can act as either a device
+	   or a host.  The initial role choice can be changed
+	   later, when two dual-role devices talk to each other.
+
+	   Select this only if your OMAP board has a Mini-AB connector.
 
 #
 # USB Gadget Drivers

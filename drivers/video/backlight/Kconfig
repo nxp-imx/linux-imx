@@ -307,6 +307,39 @@ config BACKLIGHT_PCF50633
 	  If you have a backlight driven by a NXP PCF50633 MFD, say Y here to
 	  enable its driver.
 
+config BACKLIGHT_MXC_IPU
+	tristate "IPU PWM Backlight Driver"
+	depends on MXC_IPU_V1
+	default y
+
+config BACKLIGHT_MXC_LCDC
+	tristate "LCDC PWM Backlight Driver"
+	depends on (ARCH_MX21 || ARCH_MX27 || ARCH_MX25)
+	default y
+
+config BACKLIGHT_MXC_PMIC
+	tristate "PMIC Backlight Driver"
+	depends on MXC_MC13783_LIGHT
+	depends on MXC_MC13783_POWER
+	default y
+
+config BACKLIGHT_MXC_MC13892
+	tristate "Mc13892 Backlight Driver"
+	depends on MXC_MC13892_LIGHT
+	default y
+
+config BACKLIGHT_MXS
+	tristate "Freescale MXS Backlight Driver"
+	depends on ARCH_MXS
+	default y
+	help
+	  If you have a MXS, say y to enable the backlight driver.
+
+config BACKLIGHT_WM8350
+    tristate "WM8350 Backlight Driver"
+    depends on REGULATOR_WM8350
+    default y
+
 endif # BACKLIGHT_CLASS_DEVICE
 
 endif # BACKLIGHT_LCD_SUPPORT

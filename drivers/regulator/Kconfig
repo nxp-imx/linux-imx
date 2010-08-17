@@ -201,5 +201,30 @@ config REGULATOR_88PM8607
 	help
 	  This driver supports 88PM8607 voltage regulator chips.
 
+config REGULATOR_MC13892
+	tristate "MC13892 Regulator Support"
+	depends on MXC_PMIC_MC13892
+	default y
+
+config REGULATOR_MC34704
+	tristate "MC34704 Regulator Support"
+	depends on MXC_PMIC_MC34704
+	default y
+
+config REGULATOR_MXS
+	tristate "MXS Regulator Support"
+	depends on ARCH_MXS
+	default y
+
+config REGULATOR_MC9S08DZ60
+	tristate "mc9s08dz60 Regulator Support"
+	depends on MXC_PMIC_MC9S08DZ60
+	default y
+
+config REGULATOR_MAX17135
+	tristate "Maxim MAX17135 Regulator Support"
+	depends on REGULATOR
+	default n
+
 endif
 

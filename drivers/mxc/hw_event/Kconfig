@@ -1,0 +1,11 @@
+menu "MXC HARDWARE EVENT"
+
+config MXC_HWEVENT
+	bool "MXC Hardware Event Handler"
+	default y
+	depends on ARCH_MXC
+	help
+	  If you plan to use the Hardware Event Handler in the MXC, say
+	  Y here. If unsure, select Y.
+
+endmenu

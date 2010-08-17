@@ -2,7 +2,6 @@
 # Makefile for regulator drivers.
 #
 
-
 obj-$(CONFIG_REGULATOR) += core.o
 obj-$(CONFIG_REGULATOR_FIXED_VOLTAGE) += fixed.o
 obj-$(CONFIG_REGULATOR_VIRTUAL_CONSUMER) += virtual.o
@@ -31,5 +30,14 @@ obj-$(CONFIG_REGULATOR_AB3100) += ab3100.o
 obj-$(CONFIG_REGULATOR_TPS65023) += tps65023-regulator.o
 obj-$(CONFIG_REGULATOR_TPS6507X) += tps6507x-regulator.o
 obj-$(CONFIG_REGULATOR_88PM8607) += 88pm8607.o
+
+obj-$(CONFIG_REGULATOR_MAX17135) += max17135-regulator.o
+
+obj-$(CONFIG_REGULATOR_MC13892) += reg-mc13892.o
+obj-$(CONFIG_REGULATOR_MC34704) += reg-mc34704.o
+obj-$(CONFIG_REGULATOR_STMP3XXX) += stmp3xxx.o
+obj-$(CONFIG_REGULATOR_MXS) += mxs-regulator.o
+
+obj-$(CONFIG_REGULATOR_MC9S08DZ60) += reg-mc9s08dz60.o
 
 ccflags-$(CONFIG_REGULATOR_DEBUG) += -DDEBUG

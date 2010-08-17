@@ -29,8 +29,6 @@
 #include <linux/delay.h>
 #include <linux/spi/spi.h>
 
-#include <mach/platform.h>
-
 #include "enc28j60_hw.h"
 
 #define DRV_NAME	"enc28j60"
@@ -52,9 +50,17 @@
 #define MAX_TX_RETRYCOUNT	16
 
 #ifdef CONFIG_ARCH_STMP3XXX
+#include <mach/platform.h>
 #include <mach/stmp3xxx.h>
 #include <mach/regs-ocotp.h>
 #endif
+#ifdef CONFIG_ARCH_MXS
+#include <mach/system.h>
+#include <mach/hardware.h>
+#include <mach/regs-ocotp.h>
+#define REGS_OCOTP_BASE	IO_ADDRESS(OCOTP_PHYS_ADDR)
+#endif
+
 enum {
 	RXFILTER_NORMAL,
 	RXFILTER_MULTI,
@@ -103,12 +109,14 @@ static int enc28j60_get_mac(unsigned char *dev_addr, int idx)
 		return false;
 
 	if (!mac[idx]) {
-#ifdef CONFIG_ARCH_STMP3XXX
+#if defined(CONFIG_ARCH_STMP3XXX) || defined(CONFIG_ARCH_MXS)
 		if (get_evk_board_version() >= 1) {
 			int mac1 , mac2 , retry = 0;
 
-			stmp3xxx_setl(BM_OCOTP_CTRL_RD_BANK_OPEN, REGS_OCOTP_BASE + HW_OCOTP_CTRL);
-			while (__raw_readl(REGS_OCOTP_BASE + HW_OCOTP_CTRL) & BM_OCOTP_CTRL_BUSY) {
+			__raw_writel(BM_OCOTP_CTRL_RD_BANK_OPEN,
+					REGS_OCOTP_BASE + HW_OCOTP_CTRL_SET);
+			while (__raw_readl(REGS_OCOTP_BASE + HW_OCOTP_CTRL) &
+					BM_OCOTP_CTRL_BUSY) {
 				msleep(10);
 				retry++;
 				if (retry > 10)

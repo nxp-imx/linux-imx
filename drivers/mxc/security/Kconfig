@@ -1,0 +1,11 @@
+menu "MXC Security Drivers"
+
+config MXC_DRYICE
+        tristate "MXC DryIce Driver"
+        depends on ARCH_MX25
+        default n
+        ---help---
+          This module contains the core API's for accessing the DryIce module.
+          If you are unsure about this, say N here.
+
+endmenu

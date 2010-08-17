@@ -678,6 +678,36 @@ config VIDEO_W9966
 	  Check out <file:Documentation/video4linux/w9966.txt> for more
 	  information.
 
+config VIDEO_MXC_CAMERA
+	tristate "MXC Video For Linux Camera"
+	depends on VIDEO_DEV && ARCH_MXC
+	default y
+	---help---
+	  This is the video4linux2 capture driver based on MXC IPU/eMMA module.
+
+source "drivers/media/video/mxc/capture/Kconfig"
+
+config VIDEO_MXC_OUTPUT
+	tristate "MXC Video For Linux Video Output"
+	depends on VIDEO_DEV && ARCH_MXC
+	default y
+	---help---
+	  This is the video4linux2 output driver based on MXC IPU/eMMA module.
+
+source "drivers/media/video/mxc/output/Kconfig"
+
+config VIDEO_MXS_PXP
+	tristate "MXS PxP"
+	depends on VIDEO_DEV && VIDEO_V4L2 && ARCH_MXS
+	select VIDEOBUF_DMA_CONTIG
+	---help---
+	  This is a video4linux driver for the Freescale PxP
+	  (Pixel Pipeline). This module supports output overlay of
+	  the MXS framebuffer on a video stream.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called pxp.
+
 config VIDEO_CPIA
 	tristate "CPiA Video For Linux (DEPRECATED)"
 	depends on VIDEO_V4L1

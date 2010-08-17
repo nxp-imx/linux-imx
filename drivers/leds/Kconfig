@@ -33,6 +33,17 @@ config LEDS_ATMEL_PWM
 	  This option enables support for LEDs driven using outputs
 	  of the dedicated PWM controller found on newer Atmel SOCs.
 
+config LEDS_MXS
+	tristate "Support for PWM LEDs on MXS"
+	depends on LEDS_CLASS && ARCH_MXS
+	help
+	  This option enables support for the LEDs connected to PWM
+	  outputs on the Freescale MXS SOC.
+
+config LEDS_MC13892
+	tristate "LED Support for mc13892 pmic"
+	depends on LEDS_CLASS && MXC_MC13892_LIGHT
+
 config LEDS_LOCOMO
 	tristate "LED Support for Locomo device"
 	depends on SHARP_LOCOMO

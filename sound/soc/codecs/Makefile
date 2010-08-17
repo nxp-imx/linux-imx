@@ -10,6 +10,7 @@ snd-soc-ak4642-objs := ak4642.o
 snd-soc-ak4671-objs := ak4671.o
 snd-soc-cq93vc-objs := cq93vc.o
 snd-soc-cs4270-objs := cs4270.o
+snd-soc-cs42888-objs := cs42888.o
 snd-soc-cx20442-objs := cx20442.o
 snd-soc-da7210-objs := da7210.o
 snd-soc-l3-objs := l3.o
@@ -56,6 +57,12 @@ snd-soc-wm9705-objs := wm9705.o
 snd-soc-wm9712-objs := wm9712.o
 snd-soc-wm9713-objs := wm9713.o
 snd-soc-wm-hubs-objs := wm_hubs.o
+snd-soc-sgtl5000-objs := sgtl5000.o
+snd-soc-ak4647-objs := ak4647.o
+snd-soc-ak5702-objs := ak5702.o
+snd-soc-bluetooth-objs := bluetooth.o
+snd-soc-mxs-spdif-objs := mxs_spdif.o
+snd-soc-mxs-adc-objs := mxs-adc-codec.o
 
 # Amp
 snd-soc-max9877-objs := max9877.o
@@ -75,6 +82,7 @@ obj-$(CONFIG_SND_SOC_AK4642)	+= snd-soc-ak4642.o
 obj-$(CONFIG_SND_SOC_AK4671)	+= snd-soc-ak4671.o
 obj-$(CONFIG_SND_SOC_CQ0093VC) += snd-soc-cq93vc.o
 obj-$(CONFIG_SND_SOC_CS4270)	+= snd-soc-cs4270.o
+obj-$(CONFIG_SND_SOC_CS42888)	+= snd-soc-cs42888.o
 obj-$(CONFIG_SND_SOC_CX20442)	+= snd-soc-cx20442.o
 obj-$(CONFIG_SND_SOC_DA7210)	+= snd-soc-da7210.o
 obj-$(CONFIG_SND_SOC_L3)	+= snd-soc-l3.o
@@ -121,6 +129,12 @@ obj-$(CONFIG_SND_SOC_WM9705)	+= snd-soc-wm9705.o
 obj-$(CONFIG_SND_SOC_WM9712)	+= snd-soc-wm9712.o
 obj-$(CONFIG_SND_SOC_WM9713)	+= snd-soc-wm9713.o
 obj-$(CONFIG_SND_SOC_WM_HUBS)	+= snd-soc-wm-hubs.o
+obj-$(CONFIG_SND_SOC_SGTL5000)	+= snd-soc-sgtl5000.o
+obj-$(CONFIG_SND_SOC_AK4647)    += snd-soc-ak4647.o
+obj-$(CONFIG_SND_SOC_AK5702)	+= snd-soc-ak5702.o
+obj-$(CONFIG_SND_SOC_BLUETOOTH)    += snd-soc-bluetooth.o
+obj-$(CONFIG_SND_SOC_MXS_SPDIF)	+= snd-soc-mxs-spdif.o
+obj-$(CONFIG_SND_SOC_MXS_ADC_CODEC) += snd-soc-mxs-adc.o
 
 # Amp
 obj-$(CONFIG_SND_SOC_MAX9877)	+= snd-soc-max9877.o

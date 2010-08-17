@@ -403,5 +403,9 @@ config SH_IRDA
 	help
 	  Say Y here if your want to enable SuperH IrDA devices.
 
+config MXC_FIR
+	tristate "Freescale MXC FIR driver"
+	depends on ARCH_MXC && IRDA
+
 endmenu
 

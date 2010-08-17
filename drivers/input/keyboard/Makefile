@@ -38,3 +38,7 @@ obj-$(CONFIG_KEYBOARD_SUNKBD)		+= sunkbd.o
 obj-$(CONFIG_KEYBOARD_TWL4030)		+= twl4030_keypad.o
 obj-$(CONFIG_KEYBOARD_XTKBD)		+= xtkbd.o
 obj-$(CONFIG_KEYBOARD_W90P910)		+= w90p910_keypad.o
+obj-$(CONFIG_KEYBOARD_MXC)		+= mxc_keyb.o
+obj-$(CONFIG_KEYBOARD_MPR084)		+= mpr084.o
+obj-$(CONFIG_KEYBOARD_MXS)		+= mxs-kbd.o
+obj-$(CONFIG_KEYBOARD_MC9S08DZ60)	+= mc9s08dz60_keyb.o

@@ -1108,6 +1108,11 @@ static struct regulator *_regulator_get(struct device *dev, const char *id,
 			goto found;
 		}
 	}
+	list_for_each_entry(rdev, &regulator_list, list) {
+		if (strcmp(rdev->desc->name, id) == 0) {
+			goto found;
+		}
+	}
 
 #ifdef CONFIG_REGULATOR_DUMMY
 	if (!devname)

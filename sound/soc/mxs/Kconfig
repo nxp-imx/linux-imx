@@ -1,0 +1,51 @@
+config SND_MXS_SOC
+	tristate "SoC Audio for the MXS chips"
+	depends on ARCH_MXS && SND_SOC
+	select SND_PCM
+	help
+	  Say Y or M if you want to add support for codecs attached to
+	  the MXS I2S or SSP interface.
+
+
+config SND_MXS_SOC_SPDIF_DAI
+	tristate
+
+config SND_MXS_SOC_EVK_DEVB
+	tristate "SoC Audio support for MXS-EVK SGTL5000"
+	depends on SND_MXS_SOC && ARCH_MX28
+	select SND_SOC_SGTL5000
+	help
+	  Say Y if you want to add support for SoC audio on MXS EVK development
+	  board with the sgtl5000 codec.
+
+config SND_MXS_SOC_EVK_ADC
+	tristate "SoC Audio support for MXS-EVK ADC/DAC"
+	depends on SND_MXS_SOC && ARCH_MX23
+	select SND_SOC_MXS_ADC_CODEC
+	help
+	  Say Y if you want to add support for SoC audio on MXS EVK development
+	  board with ADC/DAC audio interface.
+
+config SND_MXS_SOC_DAI
+	tristate "MXS Digital Audio Interface SAIF"
+	default y
+	depends on SND_MXS_SOC_EVK_DEVB
+	help
+	   Enable MXS Digital Audio Interface SAIF
+
+config SND_MXS_SOC_ADC
+	tristate "MXS ADC/DAC Audio Interface"
+	default y
+	depends on SND_MXS_SOC_EVK_ADC
+	help
+	  Enable MXS ADC/DAC Audio Interface
+
+config SND_MXS_SOC_EVK_DEVB_SPDIF
+	tristate "SoC SPDIF support for MXS EVK Development Board"
+	default n
+	depends on SND_MXS_SOC && ARCH_MXS
+	select SND_MXS_SOC_SPDIF_DAI
+	select SND_SOC_MXS_SPDIF
+	help
+	  Say Y if you want to add support for SoC audio on MXS EVK development
+	  board with the SPDIF transmitter.

@@ -69,4 +69,11 @@ config NOP_USB_XCEIV
 	 built-in with usb ip or which are autonomous and doesn't require any
 	 phy programming such as ISP1x04 etc.
 
+config MXC_OTG
+	tristate "USB OTG pin detect support"
+	select USB_OTG
+	depends on USB_GADGET_ARC && USB_EHCI_HCD
+	help
+	  Support for USB OTG PIN detect on MXC platforms.
+
 endif # USB || OTG

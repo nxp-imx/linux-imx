@@ -29,6 +29,7 @@ static int utp_init(struct fsg_dev *fsg)
 	INIT_LIST_HEAD(&utp_context.write);
 	mutex_init(&utp_context.lock);
 
+	/* the max message is 64KB */
 	utp_context.buffer = vmalloc(0x10000);
 	if (!utp_context.buffer)
 		return -EIO;
@@ -63,6 +64,7 @@ static void utp_user_data_free(struct utp_user_data *uud)
 	kfree(uud);
 }
 
+/* Get the number of element for list */
 static u32 count_list(struct list_head *l)
 {
 	u32 count = 0;
@@ -74,10 +76,11 @@ static u32 count_list(struct list_head *l)
 
 	return count;
 }
-
+/* The routine will not go on if utp_context.queue is empty */
 #define WAIT_ACTIVITY(queue) \
  wait_event_interruptible(utp_context.wq, !list_empty(&utp_context.queue))
 
+/* Called by userspace program (uuc) */
 static ssize_t utp_file_read(struct file *file,
 			     char __user *buf,
 			     size_t size,
@@ -109,11 +112,14 @@ static ssize_t utp_file_read(struct file *file,
 			"need to put %d\n", size, size_to_put);
 	}
 
+	/*
+	 * The user program has already finished data process,
+	 * go on getting data from the host
+	 */
 	wake_up(&utp_context.list_full_wq);
 
 	return size_to_put;
 }
-
 
 static ssize_t utp_file_write(struct file *file, const char __user *buf,
 				size_t size, loff_t *off)
@@ -127,11 +133,13 @@ static ssize_t utp_file_write(struct file *file, const char __user *buf,
 		return -EACCES;
 	mutex_lock(&utp_context.lock);
 	list_add_tail(&uud->link, &utp_context.write);
+	/* Go on EXEC routine process */
 	wake_up(&utp_context.wq);
 	mutex_unlock(&utp_context.lock);
 	return size;
 }
 
+/* Will be called when the host wants to get the sense data */
 static int utp_get_sense(struct fsg_dev *fsg)
 {
 	if (UTP_CTX(fsg)->processed == 0)
@@ -186,6 +194,7 @@ static int utp_do_read(struct fsg_dev *fsg, void *data, size_t size)
 		/* Perform the read */
 		pr_info("Copied to %p, %d bytes started from %d\n",
 				bh->buf, amount, size - amount_left);
+		/* from upt buffer to file_storeage buffer */
 		memcpy(bh->buf, data + size - amount_left, amount);
 		amount_left  -= amount;
 		fsg->residue -= amount;
@@ -196,6 +205,7 @@ static int utp_do_read(struct fsg_dev *fsg, void *data, size_t size)
 		/* Send this buffer and go read some more */
 		bh->inreq->zero = 0;
 
+		/* USB Physical transfer: Data from device to host */
 		start_transfer(fsg, fsg->bulk_in, bh->inreq,
 				&bh->inreq_busy, &bh->state);
 
@@ -326,8 +336,8 @@ static void utp_poll(struct fsg_dev *fsg)
 
 	if (uud) {
 		if (uud->data.flags & UTP_FLAG_STATUS) {
-			pr_debug("%s: exit with status %d\n", __func__,
-				uud->data.status);
+			printk(KERN_WARNING "%s: exit with status %d\n",
+					__func__, uud->data.status);
 			UTP_SS_EXIT(fsg, uud->data.status);
 		} else {
 			pr_debug("%s: pass\n", __func__);
@@ -356,11 +366,16 @@ static int utp_exec(struct fsg_dev *fsg,
 	mutex_lock(&ctx->lock);
 	list_add_tail(&uud2r->link, &ctx->read);
 	mutex_unlock(&ctx->lock);
+	/* wake up the read routine */
 	wake_up(&ctx->wq);
 
 	if (command[0] == '!')	/* there will be no response */
 		return 0;
 
+	/*
+	 * the user program (uuc) will return utp_message
+	 * and add list to write list
+	 */
 	WAIT_ACTIVITY(write);
 
 	mutex_lock(&ctx->lock);
@@ -382,21 +397,19 @@ static int utp_exec(struct fsg_dev *fsg,
 	if (uud->data.flags & UTP_FLAG_DATA) {
 		memcpy(ctx->buffer, uud->data.data, uud->data.bufsize);
 		UTP_SS_SIZE(fsg, uud->data.bufsize);
-		utp_user_data_free(uud);
-		return 0;
-	}
-
-	if (uud->data.flags & UTP_FLAG_REPORT_BUSY) {
-		utp_user_data_free(uud);
+	} else if (uud->data.flags & UTP_FLAG_REPORT_BUSY) {
 		ctx->counter = 0xFFFF;
 		UTP_SS_BUSY(fsg, ctx->counter);
-		return 0;
+	} else if (uud->data.flags & UTP_FLAG_STATUS) {
+		printk(KERN_WARNING "%s: exit with status %d\n", __func__,
+				uud->data.status);
+		UTP_SS_EXIT(fsg, uud->data.status);
+	} else {
+		pr_debug("%s: pass\n", __func__);
+		UTP_SS_PASS(fsg);
 	}
-
 	utp_user_data_free(uud);
-	UTP_SS_PASS(fsg);
-
-	return -1;
+	return 0;
 }
 
 static int utp_send_status(struct fsg_dev *fsg)
@@ -470,16 +483,17 @@ static int utp_handle_message(struct fsg_dev *fsg,
 	case UTP_EXEC:
 		pr_debug("%s: EXEC\n", __func__);
 		data = kzalloc(fsg->data_size, GFP_KERNEL);
+		/* copy data from usb buffer to utp buffer */
 		utp_do_write(fsg, data, fsg->data_size);
 		utp_exec(fsg, data, fsg->data_size, param);
 		kfree(data);
 		break;
-	case UTP_GET:
+	case UTP_GET: /* data from device to host */
 		pr_debug("%s: GET, %d bytes\n", __func__, fsg->data_size);
 		r = utp_do_read(fsg, UTP_CTX(fsg)->buffer, fsg->data_size);
 		UTP_SS_PASS(fsg);
 		break;
-	case UTP_PUT:
+	case UTP_PUT: /* data from host to device */
 		pr_debug("%s: PUT, %d bytes\n", __func__, fsg->data_size);
 		uud2r = utp_user_data_alloc(fsg->data_size);
 		uud2r->data.bufsize = fsg->data_size;
@@ -490,6 +504,37 @@ static int utp_handle_message(struct fsg_dev *fsg,
 		list_add_tail(&uud2r->link, &UTP_CTX(fsg)->read);
 		mutex_unlock(&UTP_CTX(fsg)->lock);
 		wake_up(&UTP_CTX(fsg)->wq);
+		/*
+		 * Return PASS or FAIL according to uuc's status
+		 * Please open it if need to check uuc's status
+		 * and use another version uuc
+		 */
+#if 0
+		struct utp_user_data *uud = NULL;
+		struct utp_context *ctx;
+		WAIT_ACTIVITY(write);
+		ctx = UTP_CTX(fsg);
+		mutex_lock(&ctx->lock);
+
+		if (!list_empty(&ctx->write))
+			uud = list_first_entry(&ctx->write,
+					struct utp_user_data, link);
+
+		mutex_unlock(&ctx->lock);
+		if (uud) {
+			if (uud->data.flags & UTP_FLAG_STATUS) {
+				printk(KERN_WARNING "%s: exit with status %d\n",
+					 __func__, uud->data.status);
+				UTP_SS_EXIT(fsg, uud->data.status);
+			} else {
+				pr_debug("%s: pass\n", __func__);
+				UTP_SS_PASS(fsg);
+			}
+			utp_user_data_free(uud);
+		} else{
+			UTP_SS_PASS(fsg);
+		}
+#endif
 		UTP_SS_PASS(fsg);
 
 		wait_event_interruptible(UTP_CTX(fsg)->list_full_wq,

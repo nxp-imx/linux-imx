@@ -337,6 +337,18 @@ config SPI_NUC900
 	help
 	  SPI driver for Nuvoton NUC900 series ARM SoCs
 
+config SPI_MXC
+	tristate "Freescale MXC CSPI controller"
+	depends on ARCH_MXC && SPI_MASTER
+	help
+	  SPI driver for Freescale MXC CSPI interface
+
+config SPI_MXS
+	tristate "Freescale MXS SPI/SSP controller"
+	depends on ARCH_MXS && SPI_MASTER
+	help
+	  SPI driver for Freescale MXS SoC SSP interface
+
 #
 # Add new SPI master controllers in alphabetical order above this line
 #

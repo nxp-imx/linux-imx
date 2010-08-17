@@ -426,4 +426,31 @@ config KEYBOARD_W90P910
 	  To compile this driver as a module, choose M here: the
 	  module will be called w90p910_keypad.
 
+config KEYBOARD_MXC
+	tristate "MXC Keypad Driver"
+	depends on ARCH_MXC
+	help
+	  This is the Keypad driver for the Freescale MXC application
+	  processors.
+
+config KEYBOARD_MXS
+	tristate "MXS keyboard"
+	depends on ARCH_MXS
+	help
+	  This is the Keypad driver for the Freescale mxs soc
+
+
+config KEYBOARD_MC9S08DZ60
+	tristate "mc9s08dz60 keyboard"
+	depends on MXC_PMIC_MC9S08DZ60
+	help
+	 -to be written-
+
+config KEYBOARD_MPR084
+	tristate "Freescale MPR084 Touch Keypad Driver"
+	depends on ARCH_MX37
+	help
+	  This is the Keypad driver for the Freescale Proximity Capacitive
+	  Touch Sensor controller chip.
+
 endif

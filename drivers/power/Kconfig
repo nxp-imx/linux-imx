@@ -142,4 +142,25 @@ config CHARGER_PCF50633
 	help
 	 Say Y to include support for NXP PCF50633 Main Battery Charger.
 
+config BATTERY_STMP3XXX
+	tristate "Sigmatel STMP3xxx SoC battery charger driver"
+	depends on ARCH_STMP3XXX
+	help
+	  Say Y to enable support for the battery charger state machine
+	  for the Sigmatel STMP3xxx based SoC's.
+
+config BATTERY_MXS
+	tristate "MXS SoC battery charger driver"
+	depends on ARCH_MXS
+	help
+	  Say Y to enable support for the battery charger state machine
+	  for the Sigmatel MXS based SoC's.
+
+config MXS_VBUS_CURRENT_DRAW
+	tristate "MXS SoC USB2.0 VBUS Current Limitation"
+	depends on ARCH_MXS
+	help
+	  Say Y to enable 100mA limitation when USB vbus power on system
+	  before enumeration to match USB2.0 requirement.
+
 endif # POWER_SUPPLY

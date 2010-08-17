@@ -23,6 +23,7 @@ config SND_SOC_ALL_CODECS
 	select SND_SOC_AK4671 if I2C
 	select SND_SOC_CQ0093VC if MFD_DAVINCI_VOICECODEC
 	select SND_SOC_CS4270 if I2C
+	select SND_SOC_CS42888 if I2C
 	select SND_SOC_MAX9877 if I2C
 	select SND_SOC_DA7210 if I2C
 	select SND_SOC_PCM3008
@@ -117,6 +118,10 @@ config SND_SOC_AK4642
 config SND_SOC_AK4671
 	tristate
 
+config SND_SOC_AK5702
+	tristate
+	depends on I2C
+
 config SND_SOC_CQ0093VC
 	tristate
 
@@ -136,6 +141,9 @@ config SND_SOC_CS4270_VD33_ERRATA
 	depends on SND_SOC_CS4270
 
 config SND_SOC_CX20442
+	tristate
+
+config SND_SOC_CS42888
 	tristate
 
 config SND_SOC_L3
@@ -267,6 +275,21 @@ config SND_SOC_WM9712
 	tristate
 
 config SND_SOC_WM9713
+	tristate
+
+config SND_SOC_SGTL5000
+	tristate
+
+config SND_SOC_AK4647
+        tristate
+
+config SND_SOC_MXS_ADC_CODEC
+	tristate
+
+config SND_SOC_BLUETOOTH
+        tristate
+
+config SND_SOC_MXS_SPDIF
 	tristate
 
 # Amp

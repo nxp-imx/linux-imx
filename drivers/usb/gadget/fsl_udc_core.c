@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2004-2007 Freescale Semicondutor, Inc. All rights reserved.
+ * Copyright (C) 2004-2010 Freescale Semicondutor, Inc. All rights reserved.
  *
  * Author: Li Yang <leoli@freescale.com>
  *         Jiang Bo <tanya.jiang@freescale.com>
@@ -2475,8 +2475,11 @@ static int __init udc_init(void)
 	return platform_driver_probe(&udc_driver, fsl_udc_probe);
 }
 
-module_init(udc_init);
-
+#ifdef CONFIG_MXS_VBUS_CURRENT_DRAW
+	fs_initcall(udc_init);
+#else
+	module_init(udc_init);
+#endif
 static void __exit udc_exit(void)
 {
 	platform_driver_unregister(&udc_driver);
