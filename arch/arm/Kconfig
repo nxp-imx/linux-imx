@@ -350,6 +350,8 @@ config ARCH_MXC
 	select GENERIC_CLOCKEVENTS
 	select ARCH_REQUIRE_GPIOLIB
 	select COMMON_CLKDEV
+	select ZONE_DMA
+	select ARCH_HAS_CPUFREQ
 	help
 	  Support for Freescale MXC/iMX-based family of processors
 
@@ -1325,7 +1327,7 @@ config LEDS
 		   ARCH_OMAP || ARCH_P720T || ARCH_PXA_IDP || \
 		   ARCH_SA1100 || ARCH_SHARK || ARCH_VERSATILE || \
 		   ARCH_AT91 || ARCH_DAVINCI || \
-		   ARCH_KS8695 || MACH_RD88F5182 || ARCH_REALVIEW
+		   ARCH_KS8695 || MACH_RD88F5182 || ARCH_REALVIEW || ARCH_MXC
 	help
 	  If you say Y here, the LEDs on your machine will be used
 	  to provide useful information about your current system status.
@@ -1526,6 +1528,12 @@ config CPU_FREQ_SA1100
 
 config CPU_FREQ_SA1110
 	bool
+
+config CPU_FREQ_IMX
+         tristate "CPUfreq driver for i.MX CPUs"
+         depends on ARCH_MXC && CPU_FREQ && REGULATOR
+         help
+           This enables the CPUfreq driver for i.MX CPUs.
 
 config CPU_FREQ_INTEGRATOR
 	tristate "CPUfreq driver for ARM Integrator CPUs"

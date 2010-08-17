@@ -1,5 +1,5 @@
 /*
- * Copyright (C)2004-2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2004-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * The code contained herein is licensed under the GNU General Public
  * License. You may obtain a copy of the GNU General Public License
@@ -166,8 +166,8 @@ int tzic_enable_wake(int is_idle)
 		return -EAGAIN;
 
 	for (i = 0; i < 4; i++) {
-		v = is_idle ? __raw_readl(TZIC_ENSET0(i)) : wakeup_intr[i];
-		__raw_writel(v, TZIC_WAKEUP0(i));
+		v = is_idle ? __raw_readl(tzic_base + TZIC_ENSET0(i)) : wakeup_intr[i];
+		__raw_writel(v, tzic_base + TZIC_WAKEUP0(i));
 	}
 
 	return 0;

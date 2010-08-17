@@ -49,7 +49,7 @@
 #ifdef UART_PADDR
 #error "CONFIG_DEBUG_LL is incompatible with multiple archs"
 #endif
-#include <mach/mx51.h>
+#include <mach/mx5x.h>
 #define UART_PADDR	MX51_UART1_BASE_ADDR
 #define UART_VADDR	MX51_AIPS1_IO_ADDRESS(MX51_UART1_BASE_ADDR)
 #endif

@@ -1,5 +1,5 @@
 /*
- *  Copyright 2009 Freescale Semiconductor, Inc. All Rights Reserved
+ *  Copyright 2009-2010 Freescale Semiconductor, Inc. All Rights Reserved
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -18,5 +18,31 @@
 
 #ifndef __ASM_ARCH_MXC_BOARD_MX35PDK_H__
 #define __ASM_ARCH_MXC_BOARD_MX35PDK_H__
+
+#define MXC_PSEUDO_PARENT	MXC_INT_FORCE
+
+enum {
+	MCU_INT_HEADPHONE = 0,
+	MCU_INT_GPS,
+	MCU_INT_SD1_CD,
+	MCU_INT_SD1_WP,
+	MCU_INT_SD2_CD,
+	MCU_INT_SD2_WP,
+	MCU_INT_POWER_KEY,
+	MCU_INT_RTC,
+	MCU_INT_TS_ADC,
+	MCU_INT_KEYPAD,
+};
+
+#define MXC_PSEUDO_IRQ_HEADPHONE	(MXC_PSEUDO_IO_BASE + MCU_INT_HEADPHONE)
+#define MXC_PSEUDO_IRQ_GPS		(MXC_PSEUDO_IO_BASE + MCU_INT_GPS)
+#define MXC_PSEUDO_IRQ_SD1_CD		(MXC_PSEUDO_IO_BASE + MCU_INT_SD1_CD)
+#define MXC_PSEUDO_IRQ_SD1_WP		(MXC_PSEUDO_IO_BASE + MCU_INT_SD1_WP)
+#define MXC_PSEUDO_IRQ_SD2_CD		(MXC_PSEUDO_IO_BASE + MCU_INT_SD2_CD)
+#define MXC_PSEUDO_IRQ_SD2_WP		(MXC_PSEUDO_IO_BASE + MCU_INT_SD2_WP)
+#define MXC_PSEUDO_IRQ_POWER_KEY	(MXC_PSEUDO_IO_BASE + MCU_INT_POWER_KEY)
+#define MXC_PSEUDO_IRQ_KEYPAD		(MXC_PSEUDO_IO_BASE + MCU_INT_KEYPAD)
+#define MXC_PSEUDO_IRQ_RTC		(MXC_PSEUDO_IO_BASE + MCU_INT_RTC)
+#define MXC_PSEUDO_IRQ_TS_ADC		(MXC_PSEUDO_IO_BASE + MCU_INT_TS_ADC)
 
 #endif /* __ASM_ARCH_MXC_BOARD_MX35PDK_H__ */

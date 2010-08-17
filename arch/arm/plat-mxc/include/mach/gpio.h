@@ -1,5 +1,5 @@
 /*
- * Copyright 2007 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2007-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  * Copyright 2008 Juergen Beisert, kernel@pengutronix.de
  *
  * This program is free software; you can redistribute it and/or
@@ -34,9 +34,12 @@
 struct mxc_gpio_port {
 	void __iomem *base;
 	int irq;
+	int irq_high;
 	int virtual_irq_start;
 	struct gpio_chip chip;
 	u32 both_edges;
+	u32 suspend_wakeup;
+	u32 saved_wakeup;
 	spinlock_t lock;
 };
 

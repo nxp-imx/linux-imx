@@ -20,9 +20,11 @@
  */
 
 #include <linux/init.h>
+#include <linux/interrupt.h>
 #include <linux/io.h>
 #include <linux/irq.h>
 #include <linux/gpio.h>
+#include <linux/sysdev.h>
 #include <mach/hardware.h>
 #include <asm-generic/bug.h>
 
@@ -119,6 +121,12 @@ static int gpio_set_irq_type(u32 irq, u32 type)
 		return -EINVAL;
 	}
 
+	/* set the correct irq handler */
+	if (type & IRQ_TYPE_EDGE_BOTH)
+		set_irq_handler(irq, handle_edge_irq);
+	else if (type & (IRQ_TYPE_LEVEL_LOW | IRQ_TYPE_LEVEL_HIGH))
+		set_irq_handler(irq, handle_level_irq);
+
 	reg += GPIO_ICR1 + ((gpio & 0x10) >> 2); /* lower or upper register */
 	bit = gpio & 0xf;
 	val = __raw_readl(reg) & ~(0x3 << (bit << 1));
@@ -174,11 +182,18 @@ static void mxc_gpio_irq_handler(struct mxc_gpio_port *port, u32 irq_stat)
 static void mx3_gpio_irq_handler(u32 irq, struct irq_desc *desc)
 {
 	u32 irq_stat;
+	u32 mask = 0xFFFFFFFF;
 	struct mxc_gpio_port *port = (struct mxc_gpio_port *)get_irq_data(irq);
 
-	irq_stat = __raw_readl(port->base + GPIO_ISR) &
-			__raw_readl(port->base + GPIO_IMR);
+	if (port->irq_high) {
+		if (irq == port->irq)
+			mask = 0x0000FFFF;
+		else
+			mask = 0xFFFF0000;
+	}
 
+	irq_stat = __raw_readl(port->base + GPIO_ISR) &
+			(__raw_readl(port->base + GPIO_IMR) & mask);
 	mxc_gpio_irq_handler(port, irq_stat);
 }
 
@@ -201,11 +216,44 @@ static void mx2_gpio_irq_handler(u32 irq, struct irq_desc *desc)
 	}
 }
 
+/*
+ * Set interrupt number "irq" in the GPIO as a wake-up source.
+ * While system is running all registered GPIO interrupts need to have
+ * wake-up enabled. When system is suspended, only selected GPIO interrupts
+ * need to have wake-up enabled.
+ * @param  irq          interrupt source number
+ * @param  enable       enable as wake-up if equal to non-zero
+ * @return       This function returns 0 on success.
+ */
+static int gpio_set_wake_irq(u32 irq, u32 enable)
+{
+	u32 gpio = irq_to_gpio(irq);
+	u32 gpio_idx = gpio & 0x1F;
+	struct mxc_gpio_port *port = &mxc_gpio_ports[gpio / 32];
+
+	if (enable) {
+		port->suspend_wakeup |= (1 << gpio_idx);
+		if (port->irq_high && (gpio_idx >= 16))
+			enable_irq_wake(port->irq_high);
+		else
+			enable_irq_wake(port->irq);
+	} else {
+		port->suspend_wakeup &= ~(1 << gpio_idx);
+		if (port->irq_high && (gpio_idx >= 16))
+			disable_irq_wake(port->irq_high);
+		else
+			disable_irq_wake(port->irq);
+	}
+
+	return 0;
+}
+
 static struct irq_chip gpio_irq_chip = {
 	.ack = gpio_ack_irq,
 	.mask = gpio_mask_irq,
 	.unmask = gpio_unmask_irq,
 	.set_type = gpio_set_irq_type,
+	.set_wake = gpio_set_wake_irq,
 };
 
 static void _set_gpio_direction(struct gpio_chip *chip, unsigned offset,
@@ -265,6 +313,7 @@ static int mxc_gpio_direction_output(struct gpio_chip *chip,
 int __init mxc_gpio_init(struct mxc_gpio_port *port, int cnt)
 {
 	int i, j;
+	int ret = 0;
 
 	/* save for local usage */
 	mxc_gpio_ports = port;
@@ -296,10 +345,14 @@ int __init mxc_gpio_init(struct mxc_gpio_port *port, int cnt)
 		/* its a serious configuration bug when it fails */
 		BUG_ON( gpiochip_add(&port[i].chip) < 0 );
 
-		if (cpu_is_mx1() || cpu_is_mx3() || cpu_is_mx25() || cpu_is_mx51()) {
+		if (!cpu_is_mx2() || cpu_is_mx25()) {
 			/* setup one handler for each entry */
 			set_irq_chained_handler(port[i].irq, mx3_gpio_irq_handler);
 			set_irq_data(port[i].irq, &port[i]);
+			if (port[i].irq_high) {
+				set_irq_chained_handler(port[i].irq_high, mx3_gpio_irq_handler);
+				set_irq_data(port[i].irq_high, &port[i]);
+			}
 		}
 	}
 
@@ -309,5 +362,103 @@ int __init mxc_gpio_init(struct mxc_gpio_port *port, int cnt)
 		set_irq_data(port[0].irq, port);
 	}
 
+	return ret;
+}
+
+#ifdef CONFIG_PM
+/*!
+ * This function puts the GPIO in low-power mode/state.
+ * All the interrupts that are enabled are first saved.
+ * Only those interrupts which registers as a wake source by calling
+ * enable_irq_wake are enabled. All other interrupts are disabled.
+ *
+ * @param   dev  the system device structure used to give information
+ *                on GPIO to suspend
+ * @param   mesg the power state the device is entering
+ *
+ * @return  The function always returns 0.
+ */
+static int mxc_gpio_suspend(struct sys_device *dev, pm_message_t mesg)
+{
+	int i;
+	struct mxc_gpio_port *port = mxc_gpio_ports;
+
+	for (i = 0; i < gpio_table_size; i++) {
+		void __iomem *isr_reg;
+		void __iomem *imr_reg;
+
+		isr_reg = port[i].base + GPIO_ISR;
+		imr_reg = port[i].base + GPIO_IMR;
+
+		if (__raw_readl(isr_reg) & port[i].suspend_wakeup)
+			return -EPERM;
+
+		port[i].saved_wakeup = __raw_readl(imr_reg);
+		__raw_writel(port[i].suspend_wakeup, imr_reg);
+	}
+
 	return 0;
 }
+
+/*!
+ * This function brings the GPIO back from low-power state.
+ * All the interrupts enabled before suspension are re-enabled from
+ * the saved information.
+ *
+ * @param   dev  the system device structure used to give information
+ *                on GPIO to resume
+ *
+ * @return  The function always returns 0.
+ */
+static int mxc_gpio_resume(struct sys_device *dev)
+{
+	int i;
+	struct mxc_gpio_port *port = mxc_gpio_ports;
+
+	for (i = 0; i < gpio_table_size; i++) {
+		void __iomem *isr_reg;
+		void __iomem *imr_reg;
+
+		isr_reg = port[i].base + GPIO_ISR;
+		imr_reg = port[i].base + GPIO_IMR;
+
+		__raw_writel(port[i].saved_wakeup, imr_reg);
+	}
+
+	return 0;
+}
+#else
+#define mxc_gpio_suspend  NULL
+#define mxc_gpio_resume   NULL
+#endif				/* CONFIG_PM */
+
+/*!
+ * This structure contains pointers to the power management callback functions.
+ */
+static struct sysdev_class mxc_gpio_sysclass = {
+	.name = "mxc_gpio",
+	.suspend = mxc_gpio_suspend,
+	.resume = mxc_gpio_resume,
+};
+
+/*!
+ * This structure represents GPIO as a system device.
+ * System devices follow a slightly different driver model.
+ * They don't need to do dynammic driver binding, can't be probed,
+ * and don't reside on any type of peripheral bus.
+ * So, it is represented and treated a little differently.
+ */
+static struct sys_device mxc_gpio_device = {
+	.id = 0,
+	.cls = &mxc_gpio_sysclass,
+};
+
+static int gpio_sysdev_init(void)
+{
+	int ret = sysdev_class_register(&mxc_gpio_sysclass);
+	if (ret)
+		return ret;
+	return sysdev_register(&mxc_gpio_device);
+}
+arch_initcall(gpio_sysdev_init);
+
