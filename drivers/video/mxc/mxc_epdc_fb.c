@@ -21,8 +21,6 @@
  * Copyright 2008 Embedded Alley Solutions, Inc All Rights Reserved.
  */
 
-/*#define		NO_POWERDOWN*/
-
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/device.h>
@@ -151,9 +149,10 @@ struct mxc_epdc_fb_data {
 	struct update_marker_data update_marker_array[EPDC_MAX_NUM_UPDATES];
 	u32 lut_update_type[EPDC_NUM_LUTS];
 	struct completion updates_done;
-	struct work_struct epdc_done_work;
+	struct delayed_work epdc_done_work;
 	struct mutex power_mutex;
 	bool powering_down;
+	int pwrdown_delay;
 
 	/* FB elements related to PxP DMA */
 	struct completion pxp_tx_cmpl;
@@ -1676,52 +1675,98 @@ static int mxc_epdc_fb_wait_update_complete(u32 update_marker,
 	return 0;
 }
 
+static int mxc_epdc_fb_set_pwrdown_delay(u32 pwrdown_delay,
+					    struct fb_info *info)
+{
+	struct mxc_epdc_fb_data *fb_data = (struct mxc_epdc_fb_data *)info;
+	int ret;
+
+	fb_data->pwrdown_delay = pwrdown_delay;
+
+	return 0;
+}
+
 static int mxc_epdc_fb_ioctl(struct fb_info *info, unsigned int cmd,
 			     unsigned long arg)
 {
 	void __user *argp = (void __user *)arg;
-	struct mxc_epdc_fb_data *fb_data = (struct mxc_epdc_fb_data *)info;
-	struct mxcfb_waveform_modes modes;
-	int temperature;
-	u32 auto_mode = 0;
-	struct mxcfb_update_data upd_data;
-	u32 update_marker = 0;
 	int ret = -EINVAL;
 
 	switch (cmd) {
 	case MXCFB_SET_WAVEFORM_MODES:
-		if (!copy_from_user(&modes, argp, sizeof(modes))) {
-			memcpy(&fb_data->wv_modes, &modes, sizeof(modes));
-			ret = 0;
+		{
+			struct mxcfb_waveform_modes modes;
+			struct mxc_epdc_fb_data *fb_data =
+				(struct mxc_epdc_fb_data *)info;
+			if (!copy_from_user(&modes, argp, sizeof(modes))) {
+				memcpy(&fb_data->wv_modes, &modes,
+					sizeof(modes));
+				ret = 0;
+			}
+			break;
 		}
-		break;
 	case MXCFB_SET_TEMPERATURE:
-		if (!get_user(temperature, (int32_t __user *) arg))
-			ret =
-			    mxc_epdc_fb_set_temperature(temperature,
-							info);
-		break;
+		{
+			int temperature;
+			if (!get_user(temperature, (int32_t __user *) arg))
+				ret =
+				    mxc_epdc_fb_set_temperature(temperature,
+					info);
+			break;
+		}
 	case MXCFB_SET_AUTO_UPDATE_MODE:
-		if (!get_user(auto_mode, (__u32 __user *) arg))
-			ret =
-			    mxc_epdc_fb_set_auto_update(auto_mode, info);
-		break;
+		{
+			u32 auto_mode = 0;
+			if (!get_user(auto_mode, (__u32 __user *) arg))
+				ret =
+				    mxc_epdc_fb_set_auto_update(auto_mode,
+					info);
+			break;
+		}
 	case MXCFB_SEND_UPDATE:
-		if (!copy_from_user(&upd_data, argp, sizeof(upd_data))) {
-			ret = mxc_epdc_fb_send_update(&upd_data, info);
-			if (ret == 0 && copy_to_user(argp, &upd_data, sizeof(upd_data)))
+		{
+			struct mxcfb_update_data upd_data;
+			if (!copy_from_user(&upd_data, argp,
+				sizeof(upd_data))) {
+				ret = mxc_epdc_fb_send_update(&upd_data, info);
+				if (ret == 0 && copy_to_user(argp, &upd_data,
+					sizeof(upd_data)))
+					ret = -EFAULT;
+			} else {
 				ret = -EFAULT;
-		} else {
-			ret = -EFAULT;
+			}
+
+			break;
+		}
+	case MXCFB_WAIT_FOR_UPDATE_COMPLETE:
+		{
+			u32 update_marker = 0;
+			if (!get_user(update_marker, (__u32 __user *) arg))
+				ret =
+				    mxc_epdc_fb_wait_update_complete(update_marker,
+					info);
+			break;
 		}
 
-		break;
-	case MXCFB_WAIT_FOR_UPDATE_COMPLETE:
-		if (!get_user(update_marker, (__u32 __user *) arg))
-			ret =
-			    mxc_epdc_fb_wait_update_complete(update_marker,
-							     info);
-		break;
+	case MXCFB_SET_PWRDOWN_DELAY:
+		{
+			int delay = 0;
+			if (!get_user(delay, (__u32 __user *) arg))
+				ret =
+				    mxc_epdc_fb_set_pwrdown_delay(delay, info);
+			break;
+		}
+
+	case MXCFB_GET_PWRDOWN_DELAY:
+		{
+			struct mxc_epdc_fb_data *fb_data =
+				(struct mxc_epdc_fb_data *)info;
+			if (put_user(fb_data->pwrdown_delay,
+				(int __user *)argp))
+				ret = -EFAULT;
+			ret = 0;
+			break;
+		}
 	default:
 		break;
 	}
@@ -2022,16 +2067,17 @@ static irqreturn_t mxc_epdc_irq_handler(int irq, void *dev_id)
 		(fb_data->cur_update == NULL) &&
 		!epdc_any_luts_active()) {
 
-#ifndef NO_POWERDOWN
-		/*
-		 * Set variable to prevent overlapping
-		  * enable/disable requests
-		  */
-		fb_data->powering_down = true;
+		if (fb_data->pwrdown_delay != FB_POWERDOWN_DISABLE) {
+			/*
+			 * Set variable to prevent overlapping
+			  * enable/disable requests
+			  */
+			fb_data->powering_down = true;
 
-		/* Schedule task to disable EPDC HW until next update */
-		schedule_work(&fb_data->epdc_done_work);
-#endif
+			/* Schedule task to disable EPDC HW until next update */
+			schedule_delayed_work(&fb_data->epdc_done_work,
+				jiffies_to_msecs(fb_data->pwrdown_delay));
+		}
 
 		if (fb_data->waiting_for_idle)
 			complete(&fb_data->updates_done);
@@ -2614,7 +2660,7 @@ int __devinit mxc_epdc_fb_probe(struct platform_device *pdev)
 		goto out_dma_work_buf;
 	}
 
-	INIT_WORK(&fb_data->epdc_done_work, epdc_done_work_func);
+	INIT_DELAYED_WORK(&fb_data->epdc_done_work, epdc_done_work_func);
 
 	info->fbdefio = &mxc_epdc_fb_defio;
 #ifdef CONFIG_FB_MXC_EINK_AUTO_UPDATE_MODE
@@ -2735,6 +2781,7 @@ int __devinit mxc_epdc_fb_probe(struct platform_device *pdev)
 	fb_data->blank = FB_BLANK_UNBLANK;
 	fb_data->power_state = POWER_STATE_OFF;
 	fb_data->powering_down = false;
+	fb_data->pwrdown_delay = 0;
 
 	/* Register FB */
 	ret = register_framebuffer(info);
