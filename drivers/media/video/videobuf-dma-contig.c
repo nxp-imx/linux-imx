@@ -284,7 +284,7 @@ static int __videobuf_mmap_mapper(struct videobuf_queue *q,
 
 	mem->size = PAGE_ALIGN(buf->bsize);
 	mem->vaddr = dma_alloc_coherent(q->dev, mem->size,
-					&mem->dma_handle, GFP_KERNEL);
+					&mem->dma_handle, GFP_DMA);
 	if (!mem->vaddr) {
 		dev_err(q->dev, "dma_alloc_coherent size %ld failed\n",
 			mem->size);
