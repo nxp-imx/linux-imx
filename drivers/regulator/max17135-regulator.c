@@ -30,12 +30,6 @@
 #include <linux/gpio.h>
 
 /*
- * Define this as 1 when using a Rev 1 MAX17135 part.  These parts have
- * some limitations, including an inability to turn on the PMIC via I2C.
- */
-#define MAX17135_REV 1
-
-/*
  * PMIC Register Addresses
  */
 enum {
@@ -176,27 +170,8 @@ enum {
 #define MAX17135_GVEE_MIN_VAL         0
 #define MAX17135_GVEE_MAX_VAL         1
 
-#if (MAX17135_REV == 1)
-#define MAX17135_VCOM_MIN_uV   -4325000
-#define MAX17135_VCOM_MAX_uV    -500000
-#define MAX17135_VCOM_STEP_uV     15000
 #define MAX17135_VCOM_MIN_VAL         0
 #define MAX17135_VCOM_MAX_VAL       255
-/* Required due to discrepancy between
- * observed VCOM programming and
- * what is suggested in the spec.
- */
-#define MAX17135_VCOM_FUDGE_FACTOR 330000
-#else
-#define MAX17135_VCOM_MIN_uV   -3050000
-#define MAX17135_VCOM_MAX_uV    -500000
-#define MAX17135_VCOM_STEP_uV     10000
-#define MAX17135_VCOM_MIN_VAL         0
-#define MAX17135_VCOM_MAX_VAL       255
-#define MAX17135_VCOM_FUDGE_FACTOR 330000
-#endif
-
-#define MAX17135_VCOM_VOLTAGE_DEFAULT -1250000
 
 #define MAX17135_VNEG_MIN_uV    5000000
 #define MAX17135_VNEG_MAX_uV   20000000
@@ -209,6 +184,25 @@ enum {
 #define MAX17135_VPOS_STEP_uV   1000000
 #define MAX17135_VPOS_MIN_VAL         0
 #define MAX17135_VPOS_MAX_VAL         1
+
+struct max17135_vcom_programming_data {
+	int vcom_min_uV;
+	int vcom_max_uV;
+	int vcom_step_uV;
+};
+
+struct max17135_vcom_programming_data vcom_data[2] = {
+	{
+		-4325000,
+		-500000,
+		15000,
+	},
+	{
+		-3050000,
+		-500000,
+		10000,
+	},
+};
 
 struct max17135 {
 	/* chip revision */
@@ -227,6 +221,9 @@ struct max17135 {
 	int gpio_pmic_vcom_ctrl;
 	int gpio_pmic_wakeup;
 	int gpio_pmic_intr;
+
+	int pass_num;
+	int vcom_uV;
 
 	bool vcom_setup;
 
@@ -293,15 +290,17 @@ static int max17135_hvinp_disable(struct regulator_dev *reg)
 }
 
 /* Convert uV to the VCOM register bitfield setting */
-static inline int vcom_uV_to_rs(int uV)
+static inline int vcom_uV_to_rs(int uV, int pass_num)
 {
-	return (MAX17135_VCOM_MAX_uV - uV) / MAX17135_VCOM_STEP_uV;
+	return (vcom_data[pass_num].vcom_max_uV - uV)
+		/ vcom_data[pass_num].vcom_step_uV;
 }
 
 /* Convert the VCOM register bitfield setting to uV */
-static inline int vcom_rs_to_uV(int rs)
+static inline int vcom_rs_to_uV(int rs, int pass_num)
 {
-	return MAX17135_VCOM_MAX_uV - (MAX17135_VCOM_STEP_uV * rs);
+	return vcom_data[pass_num].vcom_max_uV
+		- (vcom_data[pass_num].vcom_step_uV * rs);
 }
 
 static int max17135_vcom_set_voltage(struct regulator_dev *reg,
@@ -312,7 +311,8 @@ static int max17135_vcom_set_voltage(struct regulator_dev *reg,
 	unsigned int reg_val;
 	int vcom_read;
 
-	if ((uV < MAX17135_VCOM_MIN_uV) || (uV > MAX17135_VCOM_MAX_uV))
+	if ((uV < vcom_data[max17135->pass_num-1].vcom_min_uV)
+		|| (uV > vcom_data[max17135->pass_num-1].vcom_max_uV))
 		return -EINVAL;
 
 	reg_val = i2c_smbus_read_byte_data(client, REG_MAX17135_DVR);
@@ -322,11 +322,11 @@ static int max17135_vcom_set_voltage(struct regulator_dev *reg,
 	 * Programming VCOM excessively degrades ability to keep
 	 * DVR register value persistent.
 	 */
-	vcom_read = vcom_rs_to_uV(reg_val) - MAX17135_VCOM_FUDGE_FACTOR;
-	if (vcom_read != MAX17135_VCOM_VOLTAGE_DEFAULT) {
+	vcom_read = vcom_rs_to_uV(reg_val, max17135->pass_num-1);
+	if (vcom_read != max17135->vcom_uV) {
 		reg_val &= ~BITFMASK(DVR);
-		reg_val |= BITFVAL(DVR,
-			vcom_uV_to_rs(uV + MAX17135_VCOM_FUDGE_FACTOR));
+		reg_val |= BITFVAL(DVR, vcom_uV_to_rs(uV,
+			max17135->pass_num-1));
 		i2c_smbus_write_byte_data(client, REG_MAX17135_DVR, reg_val);
 
 		reg_val = BITFVAL(CTRL_DVR, true); /* shift to correct bit */
@@ -342,7 +342,7 @@ static int max17135_vcom_get_voltage(struct regulator_dev *reg)
 	unsigned int reg_val;
 
 	reg_val = i2c_smbus_read_byte_data(client, REG_MAX17135_DVR);
-	return vcom_rs_to_uV(BITFEXT(reg_val, DVR));
+	return vcom_rs_to_uV(BITFEXT(reg_val, DVR), max17135->pass_num-1);
 }
 
 static int max17135_vcom_enable(struct regulator_dev *reg)
@@ -357,38 +357,41 @@ static int max17135_vcom_enable(struct regulator_dev *reg)
 	if (!max17135->vcom_setup
 		&& gpio_get_value(max17135->gpio_pmic_pwrgood)) {
 		max17135_vcom_set_voltage(reg,
-			MAX17135_VCOM_VOLTAGE_DEFAULT,
-			MAX17135_VCOM_VOLTAGE_DEFAULT);
+			max17135->vcom_uV,
+			max17135->vcom_uV);
 		max17135->vcom_setup = true;
 	}
 
 	/* enable VCOM regulator output */
-#if (MAX17135_REV == 1)
-	gpio_set_value(max17135->gpio_pmic_vcom_ctrl, 1);
-#else
-	struct i2c_client *client = max17135->i2c_client;
+	if (max17135->pass_num == 1)
+		gpio_set_value(max17135->gpio_pmic_vcom_ctrl, 1);
+	else {
+		struct i2c_client *client = max17135->i2c_client;
+		unsigned int reg_val;
 
-	reg_val = i2c_smbus_read_byte_data(client, REG_MAX17135_ENABLE);
-	reg_val &= ~BITFMASK(VCOM_ENABLE);
-	reg_val |= BITFVAL(VCOM_ENABLE, 1); /* shift to correct bit */
-	i2c_smbus_write_byte_data(client, REG_MAX17135_ENABLE, reg_val);
-#endif
+		reg_val = i2c_smbus_read_byte_data(client, REG_MAX17135_ENABLE);
+		reg_val &= ~BITFMASK(VCOM_ENABLE);
+		reg_val |= BITFVAL(VCOM_ENABLE, 1); /* shift to correct bit */
+		i2c_smbus_write_byte_data(client, REG_MAX17135_ENABLE, reg_val);
+	}
+
 	return 0;
 }
 
 static int max17135_vcom_disable(struct regulator_dev *reg)
 {
 	struct max17135 *max17135 = rdev_get_drvdata(reg);
-#if (MAX17135_REV == 1)
-	gpio_set_value(max17135->gpio_pmic_vcom_ctrl, 0);
-#else
-	struct i2c_client *client = max17135->i2c_client;
-	unsigned int reg_val;
+	if (max17135->pass_num == 1)
+		gpio_set_value(max17135->gpio_pmic_vcom_ctrl, 0);
+	else {
+		struct i2c_client *client = max17135->i2c_client;
+		unsigned int reg_val;
 
-	reg_val = i2c_smbus_read_byte_data(client, REG_MAX17135_ENABLE);
-	reg_val &= ~BITFMASK(VCOM_ENABLE);
-	i2c_smbus_write_byte_data(client, REG_MAX17135_ENABLE, reg_val);
-#endif
+		reg_val = i2c_smbus_read_byte_data(client, REG_MAX17135_ENABLE);
+		reg_val &= ~BITFMASK(VCOM_ENABLE);
+		i2c_smbus_write_byte_data(client, REG_MAX17135_ENABLE, reg_val);
+	}
+
 	return 0;
 }
 
@@ -408,17 +411,21 @@ static int max17135_wait_power_good(struct max17135 *max17135)
 static int max17135_display_enable(struct regulator_dev *reg)
 {
 	struct max17135 *max17135 = rdev_get_drvdata(reg);
-#if (MAX17135_REV == 1)
-	gpio_set_value(max17135->gpio_pmic_wakeup, 1);
-#else
-	struct i2c_client *client = max17135->i2c_client;
-	unsigned int reg_val;
 
-	reg_val = i2c_smbus_read_byte_data(client, REG_MAX17135_ENABLE);
-	reg_val &= ~BITFMASK(ENABLE);
-	reg_val |= BITFVAL(ENABLE, 1);
-	i2c_smbus_write_byte_data(client, REG_MAX17135_ENABLE, reg_val);
-#endif
+	/* The Pass 1 parts cannot turn on the PMIC via I2C. */
+	if (max17135->pass_num == 1)
+		gpio_set_value(max17135->gpio_pmic_wakeup, 1);
+	else {
+		struct i2c_client *client = max17135->i2c_client;
+		unsigned int reg_val;
+
+		reg_val = i2c_smbus_read_byte_data(client,
+			REG_MAX17135_ENABLE);
+		reg_val &= ~BITFMASK(ENABLE);
+		reg_val |= BITFVAL(ENABLE, 1);
+		i2c_smbus_write_byte_data(client, REG_MAX17135_ENABLE,
+			reg_val);
+	}
 
 	return max17135_wait_power_good(max17135);
 }
@@ -426,17 +433,20 @@ static int max17135_display_enable(struct regulator_dev *reg)
 static int max17135_display_disable(struct regulator_dev *reg)
 {
 	struct max17135 *max17135 = rdev_get_drvdata(reg);
-#if (MAX17135_REV == 1)
-	gpio_set_value(max17135->gpio_pmic_wakeup, 0);
-#else
-	struct i2c_client *client = max17135->i2c_client;
-	unsigned int reg_val;
 
-	reg_val = i2c_smbus_read_byte_data(client, REG_MAX17135_ENABLE);
-	reg_val &= ~BITFMASK(ENABLE);
-	i2c_smbus_write_byte_data(client, REG_MAX17135_ENABLE, reg_val);
-	msleep(PMIC_DISABLE__V3P3_DESERT/1000);
-#endif
+	if (max17135->pass_num == 1)
+		gpio_set_value(max17135->gpio_pmic_wakeup, 0);
+	else {
+		struct i2c_client *client = max17135->i2c_client;
+		unsigned int reg_val;
+
+		reg_val = i2c_smbus_read_byte_data(client,
+			REG_MAX17135_ENABLE);
+		reg_val &= ~BITFMASK(ENABLE);
+		i2c_smbus_write_byte_data(client, REG_MAX17135_ENABLE,
+			reg_val);
+	}
+
 	return 0;
 }
 
@@ -657,6 +667,9 @@ static int max17135_i2c_probe(struct i2c_client *client,
 	max17135->gpio_pmic_vcom_ctrl = pdata->gpio_pmic_vcom_ctrl;
 	max17135->gpio_pmic_wakeup = pdata->gpio_pmic_wakeup;
 	max17135->gpio_pmic_intr = pdata->gpio_pmic_intr;
+
+	max17135->pass_num = pdata->pass_num;
+	max17135->vcom_uV = pdata->vcom_uV;
 
 	max17135->vcom_setup = false;
 

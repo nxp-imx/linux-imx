@@ -50,6 +50,8 @@ struct max17135_platform_data {
 	int gpio_pmic_vcom_ctrl;
 	int gpio_pmic_wakeup;
 	int gpio_pmic_intr;
+	int pass_num;
+	int vcom_uV;
 	struct regulator_init_data *regulator_init;
 };
 
