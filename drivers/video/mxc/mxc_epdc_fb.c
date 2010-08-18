@@ -110,7 +110,6 @@ struct mxc_epdc_fb_data {
 	struct mxc_epdc_platform_fb_entry *cur;
 	struct mxc_epdc_fb_platform_data *pdata;
 	int blank;
-	ssize_t mem_size;
 	ssize_t map_size;
 	dma_addr_t phys_start;
 	u32 fb_offset;
@@ -1061,7 +1060,7 @@ static int mxc_epdc_fb_set_par(struct fb_info *info)
 			break;
 		}
 	}
-	pxp_conf->s0_param.width = screeninfo->xres;
+	pxp_conf->s0_param.width = screeninfo->xres_virtual;
 	pxp_conf->s0_param.height = screeninfo->yres;
 	pxp_conf->s0_param.color_key = -1;
 	pxp_conf->s0_param.color_key_enable = false;
@@ -1228,13 +1227,11 @@ static int mxc_epdc_fb_check_var(struct fb_var_screeninfo *var,
 	case FB_ROTATE_UD:
 		var->xres = var->xres_virtual = fb_data->native_width;
 		var->yres = fb_data->native_height;
-		var->yres_virtual = var->yres * 2;
 		break;
 	case FB_ROTATE_CW:
 	case FB_ROTATE_CCW:
 		var->xres = var->xres_virtual = fb_data->native_height;
 		var->yres = fb_data->native_width;
-		var->yres_virtual = var->yres * 2;
 		break;
 	default:
 		/* Invalid rotation value */
@@ -1242,6 +1239,9 @@ static int mxc_epdc_fb_check_var(struct fb_var_screeninfo *var,
 		dev_dbg(fb_data->dev, "Invalid rotation request\n");
 		return -EINVAL;
 	}
+
+	var->xres_virtual = ALIGN(var->xres, 32);
+	var->yres_virtual = ALIGN(var->yres, 128) * NUM_SCREENS;
 
 	var->height = -1;
 	var->width = -1;
@@ -1426,7 +1426,7 @@ static int mxc_epdc_fb_send_update(struct mxcfb_update_data *upd_data,
 		src_width = upd_data->alt_buffer_data.width;
 		src_upd_region = &upd_data->alt_buffer_data.alt_update_region;
 	} else {
-		src_width = fb_data->info.var.xres;
+		src_width = fb_data->info.var.xres_virtual;
 		src_upd_region = screen_upd_region;
 	}
 
@@ -2415,6 +2415,7 @@ int __devinit mxc_epdc_fb_probe(struct platform_device *pdev)
 	struct resource *res;
 	struct fb_info *info;
 	struct mxc_epdc_platform_fb_entry *pentry;
+	int xres_virt, yres_virt, buf_size;
 	struct pxp_config_data *pxp_conf;
 	struct pxp_proc_data *proc_data;
 	struct scatterlist *sg;
@@ -2454,9 +2455,17 @@ int __devinit mxc_epdc_fb_probe(struct platform_device *pdev)
 	dev_dbg(&pdev->dev, "resolution %dx%d, bpp %d\n", pentry->x_res,
 		pentry->y_res, pentry->bpp);
 
-	fb_data->mem_size = pentry->x_res * pentry->y_res * pentry->bpp/8;
+	/*
+	 * GPU alignment restrictions dictate framebuffer parameters:
+	 * - 32-byte alignment for buffer width
+	 * - 128-byte alignment for buffer height
+	 * => 4K buffer alignment for buffer start
+	 */
+	xres_virt = ALIGN(pentry->x_res, 32);
+	yres_virt = ALIGN(pentry->y_res, 128);
+	buf_size = xres_virt * yres_virt * pentry->bpp/8;
 
-	fb_data->map_size = PAGE_ALIGN(fb_data->mem_size) * NUM_SCREENS;
+	fb_data->map_size = PAGE_ALIGN(buf_size) * NUM_SCREENS;
 	dev_dbg(&pdev->dev, "memory to allocate: %d\n", fb_data->map_size);
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
@@ -2487,9 +2496,9 @@ int __devinit mxc_epdc_fb_probe(struct platform_device *pdev)
 	mxc_epdc_fb_default.bits_per_pixel = pentry->bpp;
 	mxc_epdc_fb_default.xres = pentry->x_res;
 	mxc_epdc_fb_default.yres = pentry->y_res;
-	mxc_epdc_fb_default.xres_virtual = pentry->x_res;
+	mxc_epdc_fb_default.xres_virtual = xres_virt;
 	/* Additional screens allow for panning  and buffer flipping */
-	mxc_epdc_fb_default.yres_virtual = pentry->y_res * NUM_SCREENS;
+	mxc_epdc_fb_default.yres_virtual = yres_virt * NUM_SCREENS;
 
 	mxc_epdc_fb_fix.smem_start = fb_data->phys_start;
 	mxc_epdc_fb_fix.smem_len = fb_data->map_size;
@@ -2728,7 +2737,7 @@ int __devinit mxc_epdc_fb_probe(struct platform_device *pdev)
 	 * Parameters should match FB format/width/height
 	 */
 	pxp_conf->s0_param.pixel_fmt = PXP_PIX_FMT_RGB565;
-	pxp_conf->s0_param.width = fb_data->info.var.xres;
+	pxp_conf->s0_param.width = fb_data->info.var.xres_virtual;
 	pxp_conf->s0_param.height = fb_data->info.var.yres;
 	pxp_conf->s0_param.color_key = -1;
 	pxp_conf->s0_param.color_key_enable = false;
