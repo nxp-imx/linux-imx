@@ -1035,7 +1035,19 @@ struct platform_device ahci_fsl_device = {
 
 static u64 usb_dma_mask = DMA_BIT_MASK(32);
 
-static struct resource usbotg_resources[] = {
+static struct resource usbotg_host_resources[] = {
+	{
+		.start = OTG_BASE_ADDR,
+		.end = OTG_BASE_ADDR + 0x1ff,
+		.flags = IORESOURCE_MEM,
+	},
+	{
+		.start = MXC_INT_USB_OTG,
+		.flags = IORESOURCE_IRQ,
+	},
+};
+
+static struct resource usbotg_udc_resources[] = {
 	{
 		.start = OTG_BASE_ADDR,
 		.end = OTG_BASE_ADDR + 0x1ff,
@@ -1066,8 +1078,8 @@ struct platform_device mxc_usbdr_udc_device = {
 		.dma_mask = &usb_dma_mask,
 		.coherent_dma_mask = DMA_BIT_MASK(32),
 	},
-	.resource      = usbotg_resources,
-	.num_resources	= ARRAY_SIZE(usbotg_resources),
+	.resource      = usbotg_udc_resources,
+	.num_resources = ARRAY_SIZE(usbotg_udc_resources),
 };
 
 struct platform_device mxc_usbdr_otg_device = {
@@ -1084,8 +1096,8 @@ struct platform_device mxc_usbdr_otg_device = {
 struct platform_device mxc_usbdr_host_device = {
 	.name = "fsl-ehci",
 	.id = 0,
-	.num_resources = ARRAY_SIZE(usbotg_resources),
-	.resource = usbotg_resources,
+	.num_resources = ARRAY_SIZE(usbotg_host_resources),
+	.resource = usbotg_host_resources,
 	.dev = {
 		.dma_mask = &usb_dma_mask,
 		.coherent_dma_mask = DMA_BIT_MASK(32),
@@ -1664,8 +1676,10 @@ int __init mxc_init_devices(void)
 		mxcsdhc2_resources[0].end -= MX53_OFFSET;
 		mxcsdhc3_resources[0].start -= MX53_OFFSET;
 		mxcsdhc3_resources[0].end -= MX53_OFFSET;
-		usbotg_resources[0].start -= MX53_OFFSET;
-		usbotg_resources[0].end -= MX53_OFFSET;
+		usbotg_host_resources[0].start -= MX53_OFFSET;
+		usbotg_host_resources[0].end -= MX53_OFFSET;
+		usbotg_udc_resources[0].start -= MX53_OFFSET;
+		usbotg_udc_resources[0].end -= MX53_OFFSET;
 		usbotg_xcvr_resources[0].start -= MX53_OFFSET;
 		usbotg_xcvr_resources[0].end -= MX53_OFFSET;
 		usbh1_resources[0].start -= MX53_OFFSET;
