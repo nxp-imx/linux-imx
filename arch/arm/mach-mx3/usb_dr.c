@@ -1,5 +1,5 @@
 /*
- * Copyright 2005-2009 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2005-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -59,7 +59,7 @@ static struct fsl_usb2_platform_data __maybe_unused dr_1504_config = {
 
 
 /*
- * resources
+ * OTG resources
  */
 static struct resource otg_resources[] = {
 	[0] = {
@@ -73,6 +73,20 @@ static struct resource otg_resources[] = {
 	},
 };
 
+/*
+ * UDC resources (same as OTG resource)
+ */
+static struct resource udc_resources[] = {
+	[0] = {
+		.start = (u32)(USB_OTGREGS_BASE),
+		.end   = (u32)(USB_OTGREGS_BASE + 0x1ff),
+		.flags = IORESOURCE_MEM,
+	},
+	[1] = {
+		.start = MXC_INT_USB3,
+		.flags = IORESOURCE_IRQ,
+	},
+};
 
 static u64 dr_udc_dmamask = ~(u32) 0;
 static void dr_udc_release(struct device *dev)
@@ -96,8 +110,8 @@ static struct platform_device __maybe_unused dr_udc_device = {
 		.dma_mask          = &dr_udc_dmamask,
 		.coherent_dma_mask = 0xffffffff,
 	},
-	.resource      = otg_resources,
-	.num_resources = ARRAY_SIZE(otg_resources),
+	.resource      = udc_resources,
+	.num_resources = ARRAY_SIZE(udc_resources),
 };
 
 static struct platform_device __maybe_unused dr_otg_device = {

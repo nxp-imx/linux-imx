@@ -63,9 +63,25 @@ static struct fsl_usb2_platform_data __maybe_unused dr_utmi_config = {
 };
 
 /*
- * resources
+ * OTG resources
  */
 static struct resource otg_resources[] = {
+	[0] = {
+		.start	= (u32)USBCTRL0_PHYS_ADDR,
+		.end	= (u32)(USBCTRL0_PHYS_ADDR + 0x1ff),
+		.flags	= IORESOURCE_MEM,
+	},
+
+	[1] = {
+		.start	= IRQ_USB0,
+		.flags	= IORESOURCE_IRQ,
+	},
+};
+
+/*
+ * UDC resources (same as OTG resource)
+ */
+static struct resource udc_resources[] = {
 	[0] = {
 		.start	= (u32)USBCTRL0_PHYS_ADDR,
 		.end	= (u32)(USBCTRL0_PHYS_ADDR + 0x1ff),
@@ -111,8 +127,8 @@ static struct platform_device __maybe_unused dr_otg_device = {
 		.dma_mask          = &dr_otg_dmamask,
 		.coherent_dma_mask = 0xffffffff,
 	},
-	.resource      = otg_resources,
-	.num_resources = ARRAY_SIZE(otg_resources),
+	.resource      = udc_resources,
+	.num_resources = ARRAY_SIZE(udc_resources),
 };
 
 
