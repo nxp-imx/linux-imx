@@ -141,7 +141,7 @@ do { \
 					NFC_ECC_MODE_16), NFC_CONFIG2); \
 		else \
 			raw_write(((raw_read(NFC_CONFIG2) & \
-					~(3 << 6)) & \
+					~(3 << 6)) | \
 					NFC_ECC_MODE_4), NFC_CONFIG2); \
 	} else if (cpu_is_mx51_rev(CHIP_REV_2_0) > 0) { \
 		if ((v) == NFC_SPAS_218 || (v) == NFC_SPAS_112) \
@@ -150,16 +150,17 @@ do { \
 					NFC_ECC_MODE_8), NFC_CONFIG2); \
 		else \
 			raw_write(((raw_read(NFC_CONFIG2) & \
-					~(1 << 6)) & \
+					~(1 << 6)) | \
 					NFC_ECC_MODE_4), NFC_CONFIG2); \
 	} else { \
 		if ((v) == NFC_SPAS_218 || (v) == NFC_SPAS_112) \
 			raw_write(((raw_read(NFC_CONFIG2) & \
-					~(1 << 6))), NFC_CONFIG2); \
+					~(1 << 6)) | \
+					NFC_ECC_MODE_4), NFC_CONFIG2); \
 		else \
 			raw_write(((raw_read(NFC_CONFIG2) & \
 					~(1 << 6)) | \
-					NFC_ECC_MODE_4), NFC_CONFIG2); \
+					NFC_ECC_MODE_8), NFC_CONFIG2); \
 	} \
 } while (0)
 
@@ -315,7 +316,6 @@ do { \
     defined(CONFIG_ARCH_MXC_HAS_NFC_V3_2)
 #define NFC_ECC_MODE_4    		(0x0 << 6)
 #define NFC_ECC_MODE_8			(0x1 << 6)
-#define NFC_ECC_MODE_14                 (0x3 << 6)
 #define NFC_ECC_MODE_16                 (0x3 << 6)
 #define NFC_SPAS_16			8
 #define NFC_SPAS_64		 	32
