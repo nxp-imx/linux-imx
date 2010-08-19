@@ -379,6 +379,7 @@ static int mxs_pcm_close(struct snd_pcm_substream *substream)
 	free_irq(prtd->params->irq, substream);
 	mxs_dma_get_cooked(prtd->dma_ch, &list);
 	/* Free DMA channel*/
+	mxs_dma_reset(prtd->dma_ch);
 	for (desc = 0; desc < desc_num; desc++)
 		mxs_dma_free_desc(prtd->dma_desc_array[desc]);
 	mxs_dma_release(prtd->dma_ch, mxs_pcm_dev);
