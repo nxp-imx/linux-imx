@@ -317,13 +317,28 @@ struct mxc_lcd_platform_data {
 	void (*reset) (void);
 };
 
+struct mxc_epdc_fb_mode {
+	struct fb_videomode *vmode;
+	int vscan_holdoff;
+	int sdoed_width;
+	int sdoed_delay;
+	int sdoez_width;
+	int sdoez_delay;
+	int gdclk_hp_offs;
+	int gdsp_offs;
+	int gdoe_offs;
+	int gdclk_offs;
+	int num_ce;
+};
+
 struct mxc_epdc_fb_platform_data {
+	struct mxc_epdc_fb_mode *epdc_mode;
+	int num_modes;
 	void (*get_pins) (void);
 	void (*put_pins) (void);
 	void (*enable_pins) (void);
 	void (*disable_pins) (void);
 };
-
 
 struct mxc_tsc_platform_data {
 	char *vdd_reg;
