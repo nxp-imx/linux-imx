@@ -37,12 +37,13 @@
 #include <mach/dma.h>
 #include <mach/regs-rtc.h>
 #include "regs-clkctrl.h"
-#include "regs-pinctrl.h"
 #include <mach/regs-power.h>
 #include <mach/regs-pwm.h>
 #include <mach/regs-rtc.h>
 #include <mach/../../regs-icoll.h>
 #include "regs-dram.h"
+#include "mx28_pins.h"
+#include "mx28evk.h"
 
 #include "sleep.h"
 
@@ -80,7 +81,8 @@ static inline void do_standby(void)
 	u32 reg_clkctrl_clkseq, reg_clkctrl_xtal;
 	unsigned long iram_phy_addr;
 	void *iram_virtual_addr;
-
+	int wakeupirq;
+	mx28evk_enet_io_lowerpower_enter();
 	/*
 	 * 1) switch clock domains from PLL to 24MHz
 	 * 2) lower voltage (TODO)
@@ -111,7 +113,8 @@ static inline void do_standby(void)
 		cpu_parent = clk_get_parent(cpu_clk);
 		hbus_rate = clk_get_rate(hbus_clk);
 		clk_set_parent(cpu_clk, osc_clk);
-	}
+	} else
+		pr_err("fail to get cpu clk\n");
 
 	local_fiq_disable();
 
@@ -123,15 +126,18 @@ static inline void do_standby(void)
 
 	reg_clkctrl_xtal = __raw_readl(REGS_CLKCTRL_BASE + HW_CLKCTRL_XTAL);
 
+
 	/* do suspend */
 	mx28_cpu_standby_ptr = iram_virtual_addr;
 
 	mx28_cpu_standby_ptr();
 
+	wakeupirq = __raw_readl(IO_ADDRESS(ICOLL_PHYS_ADDR) + HW_ICOLL_STAT);
+
+	pr_info("wakeup irq = %d\n", wakeupirq);
 
 	__raw_writel(reg_clkctrl_clkseq, REGS_CLKCTRL_BASE + HW_CLKCTRL_CLKSEQ);
 	__raw_writel(reg_clkctrl_xtal, REGS_CLKCTRL_BASE + HW_CLKCTRL_XTAL);
-
 	saved_sleep_state = 0;  /* waking from standby */
 	__raw_writel(BM_POWER_CTRL_PSWITCH_IRQ,
 		REGS_POWER_BASE + HW_POWER_CTRL_CLR);
@@ -150,6 +156,7 @@ static inline void do_standby(void)
 	clk_put(cpu_clk);
 
 	iram_free(iram_phy_addr, MAX_POWEROFF_CODE_SIZE);
+	mx28evk_enet_io_lowerpower_exit();
 }
 
 static noinline void do_mem(void)

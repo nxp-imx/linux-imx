@@ -538,9 +538,99 @@ static struct pin_desc mx28evk_fixed_pins[] = {
 	 .pull 		= 0,
 	 },
 #endif
+#if defined(CONFIG_LEDS_MXS) || defined(CONFIG_LEDS_MXS_MODULE)
+	{
+	 .name = "LEDS_PWM0",
+	 .id = PINID_AUART1_RX,
+	 .fun           = PIN_FUN3,
+	 .strength      = PAD_8MA,
+	 .voltage       = PAD_3_3V,
+	 .pullup        = 1,
+	 .drive         = 1,
+	 .pull          = 1,
+	 },
+	{
+	 .name = "LEDS_PWM1",
+	 .id = PINID_AUART1_TX,
+	 .fun           = PIN_FUN3,
+	 .strength      = PAD_8MA,
+	 .voltage       = PAD_3_3V,
+	 .pullup        = 1,
+	 .drive         = 1,
+	 .pull          = 1,
+	 },
+#endif
+#if defined(CONFIG_SND_MXS_SOC_DAI) || defined(CONFIG_SND_MXS_SOC_DAI_MODULE)
+	/* Configurations of SAIF0 port pins */
+	{
+	 .name	= "SAIF0_MCLK",
+	 .id	= PINID_SAIF0_MCLK,
+	 .fun	= PIN_FUN1,
+	 .strength	= PAD_12MA,
+	 .voltage	= PAD_3_3V,
+	 .pullup	= 1,
+	 .drive 	= 1,
+	 .pull 		= 1,
+	 },
+	{
+	 .name	= "SAIF0_LRCLK",
+	 .id	= PINID_SAIF0_LRCLK,
+	 .fun	= PIN_FUN1,
+	 .strength	= PAD_12MA,
+	 .voltage	= PAD_3_3V,
+	 .pullup	= 1,
+	 .drive 	= 1,
+	 .pull 		= 1,
+	 },
+	{
+	 .name	= "SAIF0_BITCLK",
+	 .id	= PINID_SAIF0_BITCLK,
+	 .fun	= PIN_FUN1,
+	 .strength	= PAD_12MA,
+	 .voltage	= PAD_3_3V,
+	 .pullup	= 1,
+	 .drive 	= 1,
+	 .pull 		= 1,
+	 },
+	{
+	 .name	= "SAIF0_SDATA0",
+	 .id	= PINID_SAIF0_SDATA0,
+	 .fun	= PIN_FUN1,
+	 .strength	= PAD_12MA,
+	 .voltage	= PAD_3_3V,
+	 .pullup	= 1,
+	 .drive 	= 1,
+	 .pull 		= 1,
+	 },
+	{
+	 .name	= "SAIF1_SDATA0",
+	 .id	= PINID_SAIF1_SDATA0,
+	 .fun	= PIN_FUN1,
+	 .strength	= PAD_12MA,
+	 .voltage	= PAD_3_3V,
+	 .pullup	= 1,
+	 .drive 	= 1,
+	 .pull 		= 1,
+	 },
+#endif
+#if defined(CONFIG_SND_SOC_MXS_SPDIF) || \
+       defined(CONFIG_SND_SOC_MXS_SPDIF_MODULE)
+	{
+	 .name	= "SPDIF",
+	 .id	= PINID_SPDIF,
+	 .fun	= PIN_FUN1,
+	 .strength	= PAD_12MA,
+	 .voltage	= PAD_3_3V,
+	 .pullup	= 1,
+	 .drive 	= 1,
+	 .pull 		= 1,
+	},
+#endif
+};
 
 #if defined(CONFIG_FEC) || defined(CONFIG_FEC_MODULE)\
 	|| defined(CONFIG_FEC_L2SWITCH)
+static struct pin_desc mx28evk_eth_pins[] = {
 	{
 	 .name = "ENET0_MDC",
 	 .id = PINID_ENET0_MDC,
@@ -691,97 +781,8 @@ static struct pin_desc mx28evk_fixed_pins[] = {
 	 .voltage = PAD_3_3V,
 	 .drive	= 1,
 	 },
-#endif
-#if defined(CONFIG_LEDS_MXS) || defined(CONFIG_LEDS_MXS_MODULE)
-	{
-	 .name = "LEDS_PWM0",
-	 .id = PINID_AUART1_RX,
-	 .fun           = PIN_FUN3,
-	 .strength      = PAD_8MA,
-	 .voltage       = PAD_3_3V,
-	 .pullup        = 1,
-	 .drive         = 1,
-	 .pull          = 1,
-	 },
-	{
-	 .name = "LEDS_PWM1",
-	 .id = PINID_AUART1_TX,
-	 .fun           = PIN_FUN3,
-	 .strength      = PAD_8MA,
-	 .voltage       = PAD_3_3V,
-	 .pullup        = 1,
-	 .drive         = 1,
-	 .pull          = 1,
-	 },
-#endif
-#if defined(CONFIG_SND_MXS_SOC_DAI) || defined(CONFIG_SND_MXS_SOC_DAI_MODULE)
-	/* Configurations of SAIF0 port pins */
-	{
-	 .name	= "SAIF0_MCLK",
-	 .id	= PINID_SAIF0_MCLK,
-	 .fun	= PIN_FUN1,
-	 .strength	= PAD_12MA,
-	 .voltage	= PAD_3_3V,
-	 .pullup	= 1,
-	 .drive 	= 1,
-	 .pull 		= 1,
-	 },
-	{
-	 .name	= "SAIF0_LRCLK",
-	 .id	= PINID_SAIF0_LRCLK,
-	 .fun	= PIN_FUN1,
-	 .strength	= PAD_12MA,
-	 .voltage	= PAD_3_3V,
-	 .pullup	= 1,
-	 .drive 	= 1,
-	 .pull 		= 1,
-	 },
-	{
-	 .name	= "SAIF0_BITCLK",
-	 .id	= PINID_SAIF0_BITCLK,
-	 .fun	= PIN_FUN1,
-	 .strength	= PAD_12MA,
-	 .voltage	= PAD_3_3V,
-	 .pullup	= 1,
-	 .drive 	= 1,
-	 .pull 		= 1,
-	 },
-	{
-	 .name	= "SAIF0_SDATA0",
-	 .id	= PINID_SAIF0_SDATA0,
-	 .fun	= PIN_FUN1,
-	 .strength	= PAD_12MA,
-	 .voltage	= PAD_3_3V,
-	 .pullup	= 1,
-	 .drive 	= 1,
-	 .pull 		= 1,
-	 },
-	{
-	 .name	= "SAIF1_SDATA0",
-	 .id	= PINID_SAIF1_SDATA0,
-	 .fun	= PIN_FUN1,
-	 .strength	= PAD_12MA,
-	 .voltage	= PAD_3_3V,
-	 .pullup	= 1,
-	 .drive 	= 1,
-	 .pull 		= 1,
-	 },
-#endif
-#if defined(CONFIG_SND_SOC_MXS_SPDIF) || \
-       defined(CONFIG_SND_SOC_MXS_SPDIF_MODULE)
-	{
-	 .name	= "SPDIF",
-	 .id	= PINID_SPDIF,
-	 .fun	= PIN_FUN1,
-	 .strength	= PAD_12MA,
-	 .voltage	= PAD_3_3V,
-	 .pullup	= 1,
-	 .drive 	= 1,
-	 .pull 		= 1,
-	},
-#endif
 };
-
+#endif
 
 static int __initdata enable_ssp1 = { 0 };
 static int __init ssp1_setup(char *__unused)
@@ -1087,11 +1088,49 @@ int mx28evk_enet_gpio_init(void)
 
 	return 0;
 }
+
+void mx28evk_enet_io_lowerpower_enter(void)
+{
+	int i;
+	gpio_direction_output(MXS_PIN_TO_GPIO(PINID_SSP1_DATA3), 1);
+	gpio_direction_output(MXS_PIN_TO_GPIO(PINID_ENET0_RX_CLK), 0);
+	gpio_request(MXS_PIN_TO_GPIO(PINID_ENET0_TX_CLK), "ETH_INT");
+	gpio_direction_output(MXS_PIN_TO_GPIO(PINID_ENET0_TX_CLK), 0);
+
+	for (i = 0; i < ARRAY_SIZE(mx28evk_eth_pins); i++) {
+		mxs_release_pin(mx28evk_eth_pins[i].id,
+			mx28evk_eth_pins[i].name);
+		gpio_request(MXS_PIN_TO_GPIO(mx28evk_eth_pins[i].id),
+			mx28evk_eth_pins[i].name);
+		gpio_direction_output(
+			MXS_PIN_TO_GPIO(mx28evk_eth_pins[i].id), 0);
+	}
+
+}
+
+void mx28evk_enet_io_lowerpower_exit(void)
+{
+	int i;
+	gpio_direction_output(MXS_PIN_TO_GPIO(PINID_SSP1_DATA3), 0);
+	gpio_direction_output(MXS_PIN_TO_GPIO(PINID_ENET0_RX_CLK), 1);
+	gpio_free(MXS_PIN_TO_GPIO(PINID_ENET0_TX_CLK));
+	for (i = 0; i < ARRAY_SIZE(mx28evk_eth_pins); i++) {
+		gpio_free(MXS_PIN_TO_GPIO(mx28evk_eth_pins[i].id));
+		mxs_request_pin(mx28evk_eth_pins[i].id,
+			mx28evk_eth_pins[i].fun,
+			mx28evk_eth_pins[i].name);
+	}
+}
+
 #else
 int mx28evk_enet_gpio_init(void)
 {
 	return 0;
 }
+void mx28evk_enet_io_lowerpower_enter(void)
+{}
+void mx28evk_enet_io_lowerpower_exit(void)
+
 #endif
 
 void __init mx28evk_init_pin_group(struct pin_desc *pins, unsigned count)
@@ -1135,5 +1174,9 @@ void __init mx28evk_pins_init(void)
 		mx28evk_init_pin_group(mx28evk_gpmi_pins,
 						ARRAY_SIZE(mx28evk_gpmi_pins));
 	}
-
+#if defined(CONFIG_FEC) || defined(CONFIG_FEC_MODULE)\
+	|| defined(CONFIG_FEC_L2SWITCH)
+		mx28evk_init_pin_group(mx28evk_eth_pins,
+						ARRAY_SIZE(mx28evk_eth_pins));
+#endif
 }
