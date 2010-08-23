@@ -849,13 +849,36 @@ static struct switch_platform_data l2switch_data = {
 static void __init mx28_init_l2switch(void)
 {
 	struct platform_device *pdev;
+	struct switch_platform_data *pswitch;
+	struct fec_platform_data *pfec;
+	u32 val;
+
+	__raw_writel(BM_OCOTP_CTRL_RD_BANK_OPEN,
+			IO_ADDRESS(OCOTP_PHYS_ADDR) + HW_OCOTP_CTRL_SET);
+
+	while (BM_OCOTP_CTRL_BUSY &
+		__raw_readl(IO_ADDRESS(OCOTP_PHYS_ADDR) + HW_OCOTP_CTRL))
+		udelay(10);
+
 	pdev = mxs_get_device("mxs-l2switch", 0);
 	if (pdev == NULL || IS_ERR(pdev))
 		return;
 
+	val =  __raw_readl(IO_ADDRESS(OCOTP_PHYS_ADDR) +
+					HW_OCOTP_CUSTn(pdev->id));
 	pdev->resource = l2switch_resources;
 	pdev->num_resources = ARRAY_SIZE(l2switch_resources);
 	pdev->dev.platform_data = &l2switch_data;
+
+	pswitch = (struct switch_platform_data *)pdev->dev.platform_data;
+	pfec = pswitch->fec_enet;
+	pfec->mac[0] = 0x00;
+	pfec->mac[1] = 0x04;
+	pfec->mac[2] = (val >> 24) & 0xFF;
+	pfec->mac[3] = (val >> 16) & 0xFF;
+	pfec->mac[4] = (val >> 8) & 0xFF;
+	pfec->mac[5] = (val >> 0) & 0xFF;
+
 	mxs_add_device(pdev, 2);
 }
 #else
