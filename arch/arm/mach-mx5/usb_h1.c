@@ -76,6 +76,20 @@ static void _wake_up_enable(struct fsl_usb2_platform_data *pdata, bool enable)
 static void usbotg_clock_gate(bool on)
 {
 	struct clk *usb_clk;
+	if (cpu_is_mx50()) {
+		if (on) {
+			usb_clk = clk_get(NULL, "usb_ahb_clk");
+			clk_enable(usb_clk);
+			clk_put(usb_clk);
+
+		} else {
+			usb_clk = clk_get(NULL, "usb_ahb_clk");
+			clk_disable(usb_clk);
+			clk_put(usb_clk);
+		}
+		return;
+	}
+
 	if (on) {
 		usb_clk = clk_get(NULL, "usb_ahb_clk");
 		clk_enable(usb_clk);

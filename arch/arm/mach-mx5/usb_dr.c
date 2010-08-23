@@ -48,6 +48,13 @@ static struct fsl_usb2_platform_data dr_utmi_config = {
 static int usbotg_init_ext(struct platform_device *pdev)
 {
 	struct clk *usb_clk;
+	if (cpu_is_mx50()) {
+		usb_clk = clk_get(&pdev->dev, "usb_phy1_clk");
+		clk_enable(usb_clk);
+		clk_put(usb_clk);
+
+		return usbotg_init(pdev);
+	}
 
 	usb_clk = clk_get(NULL, "usboh3_clk");
 	clk_enable(usb_clk);
@@ -68,6 +75,15 @@ static int usbotg_init_ext(struct platform_device *pdev)
 static void usbotg_uninit_ext(struct fsl_usb2_platform_data *pdata)
 {
 	struct clk *usb_clk;
+
+	if (cpu_is_mx50()) {
+		usb_clk = clk_get(&pdata->pdev->dev, "usb_phy1_clk");
+		clk_disable(usb_clk);
+		clk_put(usb_clk);
+
+		usbotg_uninit(pdata);
+		return;
+	}
 
 	usb_clk = clk_get(NULL, "usboh3_clk");
 	clk_disable(usb_clk);
@@ -106,6 +122,27 @@ static void _wake_up_enable(struct fsl_usb2_platform_data *pdata, bool enable)
 static void usbotg_clock_gate(bool on)
 {
 	struct clk *usb_clk;
+
+	if (cpu_is_mx50()) {
+		if (on) {
+			usb_clk = clk_get(NULL, "usb_ahb_clk");
+			clk_enable(usb_clk);
+			clk_put(usb_clk);
+
+			usb_clk = clk_get(NULL, "usb_phy1_clk");
+			clk_enable(usb_clk);
+			clk_put(usb_clk);
+		} else {
+			usb_clk = clk_get(NULL, "usb_phy1_clk");
+			clk_disable(usb_clk);
+			clk_put(usb_clk);
+
+			usb_clk = clk_get(NULL, "usb_ahb_clk");
+			clk_disable(usb_clk);
+			clk_put(usb_clk);
+		}
+		return;
+	}
 
 	if (on) {
 		usb_clk = clk_get(NULL, "usb_ahb_clk");
