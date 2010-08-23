@@ -48,6 +48,7 @@ int gpu_3d_regsize;
 int gmem_size;
 phys_addr_t gpu_reserved_mem;
 int gpu_reserved_mem_size;
+int z160_version;
 
 static ssize_t gsl_kmod_read(struct file *fd, char __user *buf, size_t len, loff_t *ptr);
 static ssize_t gsl_kmod_write(struct file *fd, const char __user *buf, size_t len, loff_t *ptr);
@@ -752,6 +753,11 @@ static int gpu_probe(struct platform_device *pdev)
     int i;
     struct resource *res;
     struct device *dev;
+
+    if (pdev->dev.platform_data)
+	z160_version = *((int *)(pdev->dev.platform_data));
+    else
+	z160_version = 0;
 
     for(i = 0; i < 2; i++){
         res = platform_get_resource(pdev, IORESOURCE_IRQ, i);

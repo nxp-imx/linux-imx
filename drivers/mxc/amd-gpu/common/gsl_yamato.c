@@ -541,6 +541,7 @@ kgsl_yamato_getproperty(gsl_device_t *device, gsl_property_type_t type, void *va
         devinfo->gmem_hostbaseaddr = device->gmemspace.mmio_virt_base;
         devinfo->gmem_gpubaseaddr  = device->gmemspace.gpu_base;
         devinfo->gmem_sizebytes    = device->gmemspace.sizebytes;
+	devinfo->high_precision    = 0;
 
         status = GSL_SUCCESS;
     }

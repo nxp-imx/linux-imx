@@ -91,6 +91,8 @@ typedef struct
 
 static gsl_z1xx_t   g_z1xx      = {0}; 
 
+extern int z160_version;
+
 //----------------------------------------------------------------------------
 
 
@@ -463,6 +465,10 @@ kgsl_g12_getproperty(gsl_device_t *device, gsl_property_type_t type, void *value
 #ifndef GSL_NO_MMU
         devinfo->mmu_enabled = kgsl_mmu_isenabled(&device->mmu);
 #endif
+	if (z160_version == 1)
+	    devinfo->high_precision = 1;
+	else
+	    devinfo->high_precision = 0;
 
         status = GSL_SUCCESS;
     }

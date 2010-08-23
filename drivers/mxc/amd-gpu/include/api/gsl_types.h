@@ -267,6 +267,7 @@ typedef struct _gsl_devinfo_t {
     unsigned int    gmem_gpubaseaddr;
     void *          gmem_hostbaseaddr;  // if gmem_hostbaseaddr is NULL, we would know its not mapped into mmio space
     unsigned int    gmem_sizebytes;
+    unsigned int    high_precision; /* mx50 z160 has higher gradient/texture precision */
 
 } gsl_devinfo_t;
 
