@@ -131,9 +131,13 @@ static void *swap_buffer(void *bufaddr, int len)
 /*last read entry from learning interface*/
 struct eswPortInfo g_info;
 
+#ifdef USE_DEFAULT_SWITCH_PORT0_MAC
 static unsigned char    switch_mac_default[] = {
 	0x00, 0x08, 0x02, 0x6B, 0xA3, 0x1A,
 };
+#else
+static unsigned char    switch_mac_default[ETH_ALEN];
+#endif
 
 static void switch_request_intrs(struct net_device *dev,
 	irqreturn_t switch_net_irq_handler(int irq, void *private),
@@ -3700,6 +3704,19 @@ static int __init switch_enet_init(struct net_device *dev,
 		fep->phy_interface = plat->fec_enet->phy;
 		if (plat->fec_enet->init && plat->fec_enet->init())
 			return -EIO;
+
+		/*
+		 * The priority for getting MAC address is:
+		 * (1) kernel command line fec_mac = xx:xx:xx...
+		 * (2) platform data mac field got from fuse etc
+		 * (3) bootloader set the FEC mac register
+		 */
+
+		if (!is_valid_ether_addr(switch_mac_default) &&
+			plat->fec_enet->mac &&
+			is_valid_ether_addr(plat->fec_enet->mac))
+			memcpy(switch_mac_default, plat->fec_enet->mac,
+						sizeof(switch_mac_default));
 	} else
 		fep->phy_interface = PHY_INTERFACE_MODE_MII;
 
