@@ -677,8 +677,54 @@ void epdc_disable_pins(void)
 	gpio_direction_output(EPDC_SDCE2, 0);
 }
 
+static struct fb_videomode e60_mode = {
+	.name = "E60",
+	.refresh = 50,
+	.xres = 800,
+	.yres = 600,
+	.pixclock = 20000000,
+	.left_margin = 10,
+	.right_margin = 217,
+	.upper_margin = 4,
+	.lower_margin = 10,
+	.hsync_len = 20,
+	.vsync_len = 4,
+	.sync = 0,
+	.vmode = FB_VMODE_NONINTERLACED,
+	.flag = 0,
+};
+
+static struct fb_videomode e97_mode = {
+	.name = "E97",
+	.refresh = 50,
+	.xres = 1200,
+	.yres = 825,
+	.pixclock = 32000000,
+	.left_margin = 8,
+	.right_margin = 125,
+	.upper_margin = 4,
+	.lower_margin = 17,
+	.hsync_len = 20,
+	.vsync_len = 4,
+	.sync = 0,
+	.vmode = FB_VMODE_NONINTERLACED,
+	.flag = 0,
+};
+
+static struct mxc_epdc_fb_mode panel_modes[] = {
+	{
+		&e60_mode,
+		4, 10, 20, 10, 20, 480, 20, 0, 1, 1,
+	},
+	{
+		&e97_mode,
+		8, 10, 20, 10, 20, 580, 20, 0, 1, 3,
+	},
+};
 
 static struct mxc_epdc_fb_platform_data epdc_data = {
+	.epdc_mode = panel_modes,
+	.num_modes = ARRAY_SIZE(panel_modes),
 	.get_pins = epdc_get_pins,
 	.put_pins = epdc_put_pins,
 	.enable_pins = epdc_enable_pins,
