@@ -165,10 +165,35 @@ static int __devexit mxs_pwm_led_remove(struct platform_device *pdev)
 	return 0;
 }
 
+#ifdef CONFIG_PM
+static int mxs_led_suspend(struct platform_device *dev, pm_message_t state)
+{
+	int i;
+
+	for (i = 0; i < leds.led_num; i++)
+		led_classdev_suspend(&leds.leds[i].dev);
+	return 0;
+}
+
+static int mxs_led_resume(struct platform_device *dev)
+{
+	int i;
+
+	for (i = 0; i < leds.led_num; i++)
+		led_classdev_resume(&leds.leds[i].dev);
+	return 0;
+}
+#else
+#define mxs_led_suspend NULL
+#define mxs_led_resume NULL
+#endif
+
 
 static struct platform_driver mxs_pwm_led_driver = {
 	.probe   = mxs_pwm_led_probe,
 	.remove  = __devexit_p(mxs_pwm_led_remove),
+	.suspend = mxs_led_suspend,
+	.resume = mxs_led_resume,
 	.driver  = {
 		.name = "mxs-leds",
 	},
