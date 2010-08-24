@@ -4584,17 +4584,17 @@ int __init mx53_clocks_init(unsigned long ckil, unsigned long osc, unsigned long
 		     1 << MXC_CCM_CCGRx_CG6_OFFSET |
 		     3 << MXC_CCM_CCGRx_CG7_OFFSET |
 		     1 << MXC_CCM_CCGRx_CG8_OFFSET |
-		     3 << MXC_CCM_CCGRx_CG9_OFFSET |
+		     1 << MXC_CCM_CCGRx_CG9_OFFSET |
 		     1 << MXC_CCM_CCGRx_CG10_OFFSET |
 		     3 << MXC_CCM_CCGRx_CG11_OFFSET, MXC_CCM_CCGR5);
 
-	__raw_writel(3 << MXC_CCM_CCGRx_CG0_OFFSET |
-				3 << MXC_CCM_CCGRx_CG1_OFFSET |
-				3 << MXC_CCM_CCGRx_CG4_OFFSET |
-				3 << MXC_CCM_CCGRx_CG8_OFFSET |
-				3 << MXC_CCM_CCGRx_CG9_OFFSET |
-				3 << MXC_CCM_CCGRx_CG12_OFFSET |
-				3 << MXC_CCM_CCGRx_CG13_OFFSET , MXC_CCM_CCGR6);
+	__raw_writel(1 << MXC_CCM_CCGRx_CG0_OFFSET |
+				1 << MXC_CCM_CCGRx_CG1_OFFSET |
+				1 << MXC_CCM_CCGRx_CG4_OFFSET |
+				1 << MXC_CCM_CCGRx_CG8_OFFSET |
+				1 << MXC_CCM_CCGRx_CG9_OFFSET |
+				1 << MXC_CCM_CCGRx_CG12_OFFSET |
+				1 << MXC_CCM_CCGRx_CG13_OFFSET , MXC_CCM_CCGR6);
 
 	__raw_writel(0, MXC_CCM_CCGR7);
 

@@ -41,6 +41,8 @@
 #define AHB_CLK_NORMAL_DIV		AXI_B_CLK_NORMAL_DIV
 #define EMI_SLOW_CLK_NORMAL_DIV		AXI_B_CLK_NORMAL_DIV
 #define NFC_CLK_NORMAL_DIV      	4
+#define SPIN_DELAY	1000000 /* in nanoseconds */
+
 
 static unsigned long lp_normal_rate;
 static unsigned long lp_med_rate;
@@ -49,8 +51,10 @@ static unsigned long ddr_low_rate;
 
 static struct clk *ddr_clk;
 static struct clk *pll1_sw_clk;
+static struct clk *pll1;
 static struct clk *pll2;
 static struct clk *pll3;
+static struct clk *pll4;
 static struct clk *main_bus_clk;
 static struct clk *axi_a_clk;
 static struct clk *axi_b_clk;
@@ -79,6 +83,7 @@ char *lp_reg_id = "SW2";
 static struct cpu_wp *cpu_wp_tbl;
 static struct device *busfreq_dev;
 static int busfreq_suspended;
+static int cpu_podf;
 /* True if bus_frequency is scaled not using DVFS-PER */
 int bus_freq_scaling_is_active;
 
@@ -88,6 +93,7 @@ int lp_med_freq;
 
 extern int dvfs_core_is_active;
 extern struct cpu_wp *(*get_cpu_wp)(int *wp);
+extern void propagate_rate(struct clk *tclk);
 
 struct dvfs_wp dvfs_core_setpoint[] = {
 						{33, 8, 33, 10, 10, 0x08},
@@ -95,9 +101,14 @@ struct dvfs_wp dvfs_core_setpoint[] = {
 						{28, 8, 33, 20, 30, 0x08},
 						{29, 0, 33, 20, 10, 0x08},};
 
+static void __iomem *pll1_base;
+static void __iomem *pll4_base;
+
 int set_low_bus_freq(void)
 {
 	u32 reg;
+	struct timespec nstimeofday;
+	struct timespec curtime;
 
 	if (busfreq_suspended)
 		return 0;
@@ -105,10 +116,6 @@ int set_low_bus_freq(void)
 	if (bus_freq_scaling_initialized) {
 		/* can not enter low bus freq, when cpu is in highest freq */
 		if (clk_get_rate(cpu_clk) != cpu_wp_tbl[cpu_wp_nr - 1].cpu_rate)
-			return 0;
-
-		/* currently not support on mx53 */
-		if (cpu_is_mx53())
 			return 0;
 
 		stop_dvfs_per();
@@ -119,7 +126,7 @@ int set_low_bus_freq(void)
 		     clk_round_rate(ddr_hf_clk, ddr_low_rate));
 
 		/* Set PLL3 to 133Mhz if no-one is using it. */
-		if (clk_get_usecount(pll3) == 0) {
+		if ((clk_get_usecount(pll3) == 0) && cpu_is_mx51()) {
 			u32 pll3_rate = clk_get_rate(pll3);
 
 			clk_enable(pll3);
@@ -159,7 +166,57 @@ int set_low_bus_freq(void)
 
 			low_bus_freq_mode = 1;
 			high_bus_freq_mode = 0;
+		} else {
+			/* move cpu clk to pll2, 400 / 3 = 133Mhz for cpu  */
+			clk_set_parent(pll1_sw_clk, pll2);
+
+			cpu_podf = __raw_readl(MXC_CCM_CACRR);
+			reg = __raw_readl(MXC_CCM_CDHIPR);
+			if ((reg & MXC_CCM_CDHIPR_ARM_PODF_BUSY) == 0)
+				__raw_writel(0x2, MXC_CCM_CACRR);
+			else
+				printk(KERN_DEBUG "ARM_PODF still in busy!!!!\n");
+
+			/* ahb = 400/8, axi_b = 400/8, axi_a = 133*/
+			reg = __raw_readl(MXC_CCM_CBCDR);
+			reg &= ~(MXC_CCM_CBCDR_AXI_A_PODF_MASK
+				| MXC_CCM_CBCDR_AXI_B_PODF_MASK
+				| MXC_CCM_CBCDR_AHB_PODF_MASK);
+			reg |= (2 << MXC_CCM_CBCDR_AXI_A_PODF_OFFSET
+				| 7 << MXC_CCM_CBCDR_AXI_B_PODF_OFFSET
+				| 7 << MXC_CCM_CBCDR_AHB_PODF_OFFSET);
+			__raw_writel(reg, MXC_CCM_CBCDR);
+
+			getnstimeofday(&nstimeofday);
+			while (__raw_readl(MXC_CCM_CDHIPR) &
+					(MXC_CCM_CDHIPR_AXI_A_PODF_BUSY |
+					 MXC_CCM_CDHIPR_AXI_B_PODF_BUSY |
+					 MXC_CCM_CDHIPR_AHB_PODF_BUSY)) {
+					getnstimeofday(&curtime);
+				if (curtime.tv_nsec - nstimeofday.tv_nsec
+					       > SPIN_DELAY)
+					panic("low bus freq set rate error\n");
+			}
+
+			/* keep this infront of propagating */
+			low_bus_freq_mode = 1;
+			high_bus_freq_mode = 0;
+
+			propagate_rate(main_bus_clk);
+			propagate_rate(pll1_sw_clk);
+
+			if (clk_get_usecount(pll1) == 0) {
+				reg = __raw_readl(pll1_base + MXC_PLL_DP_CTL);
+				reg &= ~MXC_PLL_DP_CTL_UPEN;
+				__raw_writel(reg, pll1_base + MXC_PLL_DP_CTL);
+			}
+			if (clk_get_usecount(pll4) == 0) {
+				reg = __raw_readl(pll4_base + MXC_PLL_DP_CTL);
+				reg &= ~MXC_PLL_DP_CTL_UPEN;
+				__raw_writel(reg, pll4_base + MXC_PLL_DP_CTL);
+			}
 		}
+
 	}
 	return 0;
 }
@@ -167,6 +224,8 @@ int set_low_bus_freq(void)
 int set_high_bus_freq(int high_bus_freq)
 {
 	u32 reg;
+	struct timespec nstimeofday;
+	struct timespec curtime;
 
 	if (bus_freq_scaling_initialized) {
 
@@ -174,7 +233,7 @@ int set_high_bus_freq(int high_bus_freq)
 
 		if (low_bus_freq_mode) {
 			/* Relock PLL3 to 133MHz */
-			if (clk_get_usecount(pll3) == 0) {
+			if ((clk_get_usecount(pll3) == 0) && cpu_is_mx51()) {
 				u32 pll3_rate = clk_get_rate(pll3);
 
 				clk_enable(pll3);
@@ -210,9 +269,49 @@ int set_high_bus_freq(int high_bus_freq)
 				clk_set_rate(pll3,
 					clk_round_rate(pll3, pll3_rate));
 				clk_disable(pll3);
+			} else {
+				/* move cpu clk to pll1 */
+				reg = __raw_readl(MXC_CCM_CDHIPR);
+				if ((reg & MXC_CCM_CDHIPR_ARM_PODF_BUSY) == 0)
+					__raw_writel(cpu_podf & 0x7,
+							MXC_CCM_CACRR);
+				else
+					printk(KERN_DEBUG
+						"ARM_PODF still in busy!!!!\n");
+
+				clk_set_parent(pll1_sw_clk, pll1);
+
+				/* ahb = 400/3, axi_b = 400/3, axi_a = 400*/
+				reg = __raw_readl(MXC_CCM_CBCDR);
+				reg &= ~(MXC_CCM_CBCDR_AXI_A_PODF_MASK
+					| MXC_CCM_CBCDR_AXI_B_PODF_MASK
+					| MXC_CCM_CBCDR_AHB_PODF_MASK);
+				reg |= (0 << MXC_CCM_CBCDR_AXI_A_PODF_OFFSET
+					| 2 << MXC_CCM_CBCDR_AXI_B_PODF_OFFSET
+					| 2 << MXC_CCM_CBCDR_AHB_PODF_OFFSET);
+				__raw_writel(reg, MXC_CCM_CBCDR);
+
+				getnstimeofday(&nstimeofday);
+				while (__raw_readl(MXC_CCM_CDHIPR) &
+					(MXC_CCM_CDHIPR_AXI_A_PODF_BUSY |
+					 MXC_CCM_CDHIPR_AXI_B_PODF_BUSY |
+					 MXC_CCM_CDHIPR_AHB_PODF_BUSY)) {
+						getnstimeofday(&curtime);
+					if (curtime.tv_nsec
+						- nstimeofday.tv_nsec
+						> SPIN_DELAY)
+						panic("bus freq error\n");
+				}
+
+				/* keep this infront of propagating */
+				low_bus_freq_mode = 1;
+				high_bus_freq_mode = 0;
+
+				propagate_rate(main_bus_clk);
+				propagate_rate(pll1_sw_clk);
 			}
 
-			/*Change the DDR freq to 200MHz*/
+			/*Change the DDR freq to mormal_rate*/
 			clk_set_rate(ddr_hf_clk,
 			    clk_round_rate(ddr_hf_clk, ddr_normal_rate));
 
@@ -286,8 +385,7 @@ static ssize_t bus_freq_scaling_enable_store(struct device *dev,
 {
 	u32 reg;
 
-
-	if (strstr(buf, "1") != NULL) {
+	if (strncmp(buf, "1", 1) == 0) {
 		if (dvfs_per_active()) {
 			printk(KERN_INFO "bus frequency scaling cannot be\
 				 enabled when DVFS-PER is active\n");
@@ -302,11 +400,12 @@ static ssize_t bus_freq_scaling_enable_store(struct device *dev,
 
 		bus_freq_scaling_is_active = 1;
 		set_high_bus_freq(0);
-	} else if (strstr(buf, "0") != NULL) {
+	} else if (strncmp(buf, "0", 1) == 0) {
 		if (bus_freq_scaling_is_active)
 			set_high_bus_freq(1);
 		bus_freq_scaling_is_active = 0;
 	}
+
 	return size;
 }
 
@@ -340,6 +439,9 @@ static int __devinit busfreq_probe(struct platform_device *pdev)
 	int err = 0;
 	unsigned long pll2_rate, pll1_rate;
 
+	pll1_base = ioremap(MX53_BASE_ADDR(PLL1_BASE_ADDR), SZ_4K);
+	pll4_base = ioremap(MX53_BASE_ADDR(PLL4_BASE_ADDR), SZ_4K);
+
 	busfreq_dev = &pdev->dev;
 
 	main_bus_clk = clk_get(NULL, "main_bus_clk");
@@ -355,10 +457,28 @@ static int __devinit busfreq_probe(struct platform_device *pdev)
 		return PTR_ERR(pll1_sw_clk);
 	}
 
+	pll1 = clk_get(NULL, "pll1_main_clk");
+	if (IS_ERR(pll1)) {
+		printk(KERN_DEBUG "%s: failed to get pll1\n", __func__);
+		return PTR_ERR(pll1);
+	}
+
 	pll2 = clk_get(NULL, "pll2");
 	if (IS_ERR(pll2)) {
 		printk(KERN_DEBUG "%s: failed to get pll2\n", __func__);
 		return PTR_ERR(pll2);
+	}
+
+	pll3 = clk_get(NULL, "pll3");
+	if (IS_ERR(pll3)) {
+		printk(KERN_DEBUG "%s: failed to get pll3\n", __func__);
+		return PTR_ERR(pll3);
+	}
+
+	pll4 = clk_get(NULL, "pll4");
+	if (IS_ERR(pll4)) {
+		printk(KERN_DEBUG "%s: failed to get pll4\n", __func__);
+		return PTR_ERR(pll4);
 	}
 
 	pll1_rate = clk_get_rate(pll1_sw_clk);
