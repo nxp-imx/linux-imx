@@ -26,6 +26,7 @@
 #include <linux/delay.h>
 #include <linux/ipu.h>
 #include <linux/clk.h>
+#include <mach/mxc_dvfs.h>
 
 #include "ipu_prv.h"
 #include "ipu_regs.h"
@@ -92,6 +93,12 @@ ipu_csi_init_interface(uint16_t width, uint16_t height, uint32_t pixel_fmt,
 		cfg_param.pack_tight << CSI_SENS_CONF_PACK_TIGHT_SHIFT |
 		cfg_param.force_eof << CSI_SENS_CONF_FORCE_EOF_SHIFT |
 		cfg_param.data_en_pol << CSI_SENS_CONF_DATA_EN_POL_SHIFT;
+
+	if (g_ipu_clk_enabled == false) {
+		stop_dvfs_per();
+		g_ipu_clk_enabled = true;
+		clk_enable(g_ipu_clk);
+	}
 
 	spin_lock_irqsave(&ipu_lock, lock_flags);
 
@@ -202,6 +209,12 @@ void ipu_csi_get_window_size(uint32_t *width, uint32_t *height, uint32_t csi)
 	uint32_t reg;
 	unsigned long lock_flags;
 
+	if (g_ipu_clk_enabled == false) {
+		stop_dvfs_per();
+		g_ipu_clk_enabled = true;
+		clk_enable(g_ipu_clk);
+	}
+
 	spin_lock_irqsave(&ipu_lock, lock_flags);
 
 	reg = __raw_readl(CSI_ACT_FRM_SIZE(csi));
@@ -223,6 +236,12 @@ void ipu_csi_set_window_size(uint32_t width, uint32_t height, uint32_t csi)
 {
 	unsigned long lock_flags;
 
+	if (g_ipu_clk_enabled == false) {
+		stop_dvfs_per();
+		g_ipu_clk_enabled = true;
+		clk_enable(g_ipu_clk);
+	}
+
 	spin_lock_irqsave(&ipu_lock, lock_flags);
 
 	__raw_writel((width - 1) | (height - 1) << 16, CSI_ACT_FRM_SIZE(csi));
@@ -242,6 +261,12 @@ void ipu_csi_set_window_pos(uint32_t left, uint32_t top, uint32_t csi)
 {
 	uint32_t temp;
 	unsigned long lock_flags;
+
+	if (g_ipu_clk_enabled == false) {
+		stop_dvfs_per();
+		g_ipu_clk_enabled = true;
+		clk_enable(g_ipu_clk);
+	}
 
 	spin_lock_irqsave(&ipu_lock, lock_flags);
 
@@ -265,6 +290,12 @@ void _ipu_csi_horizontal_downsize_enable(uint32_t csi)
 	uint32_t temp;
 	unsigned long lock_flags;
 
+	if (g_ipu_clk_enabled == false) {
+		stop_dvfs_per();
+		g_ipu_clk_enabled = true;
+		clk_enable(g_ipu_clk);
+	}
+
 	spin_lock_irqsave(&ipu_lock, lock_flags);
 
 	temp = __raw_readl(CSI_OUT_FRM_CTRL(csi));
@@ -284,6 +315,12 @@ void _ipu_csi_horizontal_downsize_disable(uint32_t csi)
 {
 	uint32_t temp;
 	unsigned long lock_flags;
+
+	if (g_ipu_clk_enabled == false) {
+		stop_dvfs_per();
+		g_ipu_clk_enabled = true;
+		clk_enable(g_ipu_clk);
+	}
 
 	spin_lock_irqsave(&ipu_lock, lock_flags);
 
@@ -305,6 +342,12 @@ void _ipu_csi_vertical_downsize_enable(uint32_t csi)
 	uint32_t temp;
 	unsigned long lock_flags;
 
+	if (g_ipu_clk_enabled == false) {
+		stop_dvfs_per();
+		g_ipu_clk_enabled = true;
+		clk_enable(g_ipu_clk);
+	}
+
 	spin_lock_irqsave(&ipu_lock, lock_flags);
 
 	temp = __raw_readl(CSI_OUT_FRM_CTRL(csi));
@@ -324,6 +367,12 @@ void _ipu_csi_vertical_downsize_disable(uint32_t csi)
 {
 	uint32_t temp;
 	unsigned long lock_flags;
+
+	if (g_ipu_clk_enabled == false) {
+		stop_dvfs_per();
+		g_ipu_clk_enabled = true;
+		clk_enable(g_ipu_clk);
+	}
 
 	spin_lock_irqsave(&ipu_lock, lock_flags);
 
@@ -350,6 +399,12 @@ void ipu_csi_set_test_generator(bool active, uint32_t r_value,
 {
 	uint32_t temp;
 	unsigned long lock_flags;
+
+	if (g_ipu_clk_enabled == false) {
+		stop_dvfs_per();
+		g_ipu_clk_enabled = true;
+		clk_enable(g_ipu_clk);
+	}
 
 	spin_lock_irqsave(&ipu_lock, lock_flags);
 
@@ -386,6 +441,12 @@ void _ipu_csi_ccir_err_detection_enable(uint32_t csi)
 {
 	uint32_t temp;
 
+	if (g_ipu_clk_enabled == false) {
+		stop_dvfs_per();
+		g_ipu_clk_enabled = true;
+		clk_enable(g_ipu_clk);
+	}
+
 	temp = __raw_readl(CSI_CCIR_CODE_1(csi));
 	temp |= CSI_CCIR_ERR_DET_EN;
 	__raw_writel(temp, CSI_CCIR_CODE_1(csi));
@@ -401,6 +462,12 @@ void _ipu_csi_ccir_err_detection_enable(uint32_t csi)
 void _ipu_csi_ccir_err_detection_disable(uint32_t csi)
 {
 	uint32_t temp;
+
+	if (g_ipu_clk_enabled == false) {
+		stop_dvfs_per();
+		g_ipu_clk_enabled = true;
+		clk_enable(g_ipu_clk);
+	}
 
 	temp = __raw_readl(CSI_CCIR_CODE_1(csi));
 	temp &= ~CSI_CCIR_ERR_DET_EN;
@@ -425,6 +492,12 @@ int _ipu_csi_set_mipi_di(uint32_t num, uint32_t di_val, uint32_t csi)
 	if (di_val > 0xFFL) {
 		retval = -EINVAL;
 		goto err;
+	}
+
+	if (g_ipu_clk_enabled == false) {
+		stop_dvfs_per();
+		g_ipu_clk_enabled = true;
+		clk_enable(g_ipu_clk);
 	}
 
 	spin_lock_irqsave(&ipu_lock, lock_flags);
@@ -484,6 +557,12 @@ int _ipu_csi_set_skip_isp(uint32_t skip, uint32_t max_ratio, uint32_t csi)
 		goto err;
 	}
 
+	if (g_ipu_clk_enabled == false) {
+		stop_dvfs_per();
+		g_ipu_clk_enabled = true;
+		clk_enable(g_ipu_clk);
+	}
+
 	spin_lock_irqsave(&ipu_lock, lock_flags);
 
 	temp = __raw_readl(CSI_SKIP(csi));
@@ -519,6 +598,12 @@ int _ipu_csi_set_skip_smfc(uint32_t skip, uint32_t max_ratio,
 	if (max_ratio > 5 || id > 3) {
 		retval = -EINVAL;
 		goto err;
+	}
+
+	if (g_ipu_clk_enabled == false) {
+		stop_dvfs_per();
+		g_ipu_clk_enabled = true;
+		clk_enable(g_ipu_clk);
 	}
 
 	spin_lock_irqsave(&ipu_lock, lock_flags);
@@ -588,6 +673,12 @@ void _ipu_smfc_set_wmc(ipu_channel_t channel, bool set, uint32_t level)
 {
 	uint32_t temp;
 	unsigned long lock_flags;
+
+	if (g_ipu_clk_enabled == false) {
+		stop_dvfs_per();
+		g_ipu_clk_enabled = true;
+		clk_enable(g_ipu_clk);
+	}
 
 	spin_lock_irqsave(&ipu_lock, lock_flags);
 
