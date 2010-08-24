@@ -1130,7 +1130,7 @@ int mx28evk_enet_gpio_init(void)
 void mx28evk_enet_io_lowerpower_enter(void)
 {}
 void mx28evk_enet_io_lowerpower_exit(void)
-
+{}
 #endif
 
 void __init mx28evk_init_pin_group(struct pin_desc *pins, unsigned count)
