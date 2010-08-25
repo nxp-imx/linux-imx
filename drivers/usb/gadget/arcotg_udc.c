@@ -2157,7 +2157,13 @@ static irqreturn_t fsl_udc_irq(int irq, void *_udc)
 	}
 
 	if (irq_src & (USB_STS_ERR | USB_STS_SYS_ERR)) {
-		VDBG("Error IRQ %x ", irq_src);
+		printk(KERN_ERR "Error IRQ %x ", irq_src);
+		if (irq_src & USB_STS_SYS_ERR) {
+			printk(KERN_ERR "This error can't be recoveried, \
+					please reboot your board\n");
+			printk(KERN_ERR "If this error happens frequently, \
+				please check your dma buffer\n");
+		}
 	}
 
 	spin_unlock_irqrestore(&udc->lock, flags);
