@@ -2404,9 +2404,11 @@ int __devinit mxc_epdc_fb_probe(struct platform_device *pdev)
 		goto out;
 	}
 
-	/* Get platform data */
+	/* Get platform data and check validity */
 	fb_data->pdata = pdev->dev.platform_data;
-	if ((fb_data->pdata == NULL) || (fb_data->pdata->num_modes < 1)) {
+	if ((fb_data->pdata == NULL) || (fb_data->pdata->num_modes < 1)
+		|| (fb_data->pdata->epdc_mode == NULL)
+		|| (fb_data->pdata->epdc_mode->vmode == NULL)) {
 		ret = -EINVAL;
 		goto out_fbdata;
 	}
@@ -2436,12 +2438,14 @@ int __devinit mxc_epdc_fb_probe(struct platform_device *pdev)
 	/* Set default (first defined mode) before searching for a match */
 	fb_data->cur_mode = &fb_data->pdata->epdc_mode[0];
 
-	for (i = 0; i < fb_data->pdata->num_modes; i++)
-		if (!strcmp(fb_data->pdata->epdc_mode[i].vmode->name,
-					panel_str)) {
-			fb_data->cur_mode = &fb_data->pdata->epdc_mode[i];
-			break;
-		}
+	if (panel_str)
+		for (i = 0; i < fb_data->pdata->num_modes; i++)
+			if (!strcmp(fb_data->pdata->epdc_mode[i].vmode->name,
+						panel_str)) {
+				fb_data->cur_mode =
+					&fb_data->pdata->epdc_mode[i];
+				break;
+			}
 
 	vmode = fb_data->cur_mode->vmode;
 
