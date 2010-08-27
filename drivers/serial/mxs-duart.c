@@ -742,7 +742,6 @@ static int duart_suspend(struct platform_device *pdev,
 	int ret = 0;
 	if (!duart_port.suspended) {
 		ret = uart_suspend_port(&duart_drv, &duart_port.port);
-		duart_shutdown((struct uart_port *)&duart_port);
 		if (!ret)
 			duart_port.suspended = 1;
 	}
@@ -755,7 +754,6 @@ static int duart_resume(struct platform_device *pdev,
 	int ret = 0;
 	if (duart_port.suspended) {
 		ret = uart_resume_port(&duart_drv, &duart_port.port);
-		duart_startup((struct uart_port *)&duart_port);
 		if (!ret)
 			duart_port.suspended = 0;
 	}
