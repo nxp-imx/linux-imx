@@ -235,6 +235,7 @@ struct mxc_ipu_config {
 	int rev;
 	void (*reset) (void);
 	struct clk *di_clk[2];
+	struct clk *csi_clk[2];
 };
 
 struct mxc_ir_platform_data {

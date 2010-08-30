@@ -950,6 +950,8 @@ static void __init mxc_board_init(void)
 
 	mxc_ipu_data.di_clk[0] = clk_get(NULL, "ipu_di0_clk");
 	mxc_ipu_data.di_clk[1] = clk_get(NULL, "ipu_di1_clk");
+	mxc_ipu_data.csi_clk[0] = clk_get(NULL, "csi_mclk1");
+	mxc_ipu_data.csi_clk[1] = clk_get(NULL, "csi_mclk2");
 
 	mxc_spdif_data.spdif_core_clk = clk_get(NULL, "spdif_xtal_clk");
 	clk_put(mxc_spdif_data.spdif_core_clk);
