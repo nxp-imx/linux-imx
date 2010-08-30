@@ -1106,7 +1106,12 @@ static void sdhci_enable_sdio_irq(struct mmc_host *mmc, int enable)
 			goto exit_unlock;
 	}
 
-	ier = readl(host->ioaddr + SDHCI_SIGNAL_ENABLE);
+	/* Enable the clock */
+	if (!host->plat_data->clk_flg) {
+		clk_enable(host->clk);
+		host->plat_data->clk_flg = 1;
+	}
+	ier = readl(host->ioaddr + SDHCI_INT_ENABLE);
 	prot = readl(host->ioaddr + SDHCI_HOST_CONTROL);
 
 	if (enable) {
@@ -1122,7 +1127,21 @@ static void sdhci_enable_sdio_irq(struct mmc_host *mmc, int enable)
 	}
 
 	writel(prot, host->ioaddr + SDHCI_HOST_CONTROL);
+	writel(ier, host->ioaddr + SDHCI_INT_ENABLE);
 	writel(ier, host->ioaddr + SDHCI_SIGNAL_ENABLE);
+
+	/*
+	 * Using D3CD to manually driver the HW to re-sample the SDIO interrupt
+	 * on bus one more time to guarantee the SDIO interrupt signal sent
+	 * from card during the interrupt signal disabled period will not
+	 * be lost.
+	 */
+	prot |= SDHCI_CTRL_CDSS;
+	writel(prot, host->ioaddr + SDHCI_HOST_CONTROL);
+	prot &= ~SDHCI_CTRL_D3CD;
+	writel(prot, host->ioaddr + SDHCI_HOST_CONTROL);
+	prot |= SDHCI_CTRL_D3CD;
+	writel(prot, host->ioaddr + SDHCI_HOST_CONTROL);
 
 	mmiowb();
       exit_unlock:
