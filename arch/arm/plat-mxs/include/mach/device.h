@@ -54,6 +54,12 @@ struct mxs_dma_plat_data {
 	unsigned int chan_num;
 };
 
+struct fsl_otp_data {
+	char 		**fuse_name;
+	char		*regulator_name;
+	unsigned int 	fuse_num;
+};
+
 struct mxs_i2c_plat_data {
 	unsigned int pioqueue_mode:1;
 };

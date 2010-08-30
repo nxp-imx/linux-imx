@@ -1010,6 +1010,20 @@ struct platform_device pata_fsl_device = {
 	},
 };
 
+/* On-Chip OTP device and resource */
+static struct resource otp_resource = {
+	.start	= OCOTP_CTRL_BASE_ADDR,
+	.end 	= OCOTP_CTRL_BASE_ADDR + SZ_8K - 1,
+	.flags 	= IORESOURCE_MEM,
+};
+
+struct platform_device fsl_otp_device = {
+	.name	= "ocotp",
+	.id	= -1,
+	.resource      = &otp_resource,
+	.num_resources = 1,
+};
+
 static struct resource ahci_fsl_resources[] = {
 	{
 		.start = MX53_SATA_BASE_ADDR,

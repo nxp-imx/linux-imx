@@ -2424,6 +2424,14 @@ static struct clk gpmi_nfc_clk[] = {
 	},
 };
 
+static struct clk ocotp_clk = {
+	.parent = &ahb_clk,
+	.enable = _clk_enable,
+	.enable_reg = MXC_CCM_CCGR7,
+	.enable_shift = MXC_CCM_CCGR7_CG13_OFFSET,
+	.disable = _clk_disable,
+};
+
 static int _clk_gpu2d_set_parent(struct clk *clk, struct clk *parent)
 {
 	u32 reg, mux;
@@ -3000,6 +3008,10 @@ static struct clk_lookup lookups[] = {
 	_REGISTER_CLOCK(NULL, "bch", gpmi_nfc_clk[2]),
 	_REGISTER_CLOCK(NULL, "bch-apb", gpmi_nfc_clk[3]),
 	_REGISTER_CLOCK(NULL, "rng_clk", rng_clk),
+	_REGISTER_CLOCK(NULL, "dcp_clk", dcp_clk[0]),
+	_REGISTER_CLOCK(NULL, "dcp_sec1_clk", dcp_clk[1]),
+	_REGISTER_CLOCK(NULL, "dcp_sec2_clk", dcp_clk[2]),
+	_REGISTER_CLOCK(NULL, "ocotp_ctrl_apb", ocotp_clk),
 };
 
 static void clk_tree_init(void)
@@ -3135,8 +3147,11 @@ int __init mx50_clocks_init(unsigned long ckil, unsigned long osc, unsigned long
 
 	clk_enable(&main_bus_clk);
 
-	/* TO DO
-	clk_enable(&apbh_dma_clk);*/
+	clk_enable(&ocotp_clk);
+
+	clk_enable(&apbh_dma_clk);
+
+	propagate_rate(&apll_clk);
 
 	/* Initialise the parents to be axi_b, parents are set to
 	 * axi_a when the clocks are enabled.

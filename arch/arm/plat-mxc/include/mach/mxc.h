@@ -221,6 +221,12 @@ void mxc_pg_disable(struct platform_device *pdev);
 
 struct mxc_unifi_platform_data *get_unifi_plat_data(void);
 
+struct fsl_otp_data {
+	char 		**fuse_name;
+	char		*regulator_name;
+	unsigned int 	fuse_num;
+};
+
 struct mxs_dma_plat_data {
 	unsigned int burst8:1;
 	unsigned int burst:1;

@@ -1460,6 +1460,50 @@ static void mx28_init_persistent()
 }
 #endif
 
+#if defined(CONFIG_FSL_OTP)
+/* Building up eight registers's names of a bank */
+#define BANK(a, b, c, d, e, f, g, h)	\
+	{\
+	("HW_OCOTP_"#a), ("HW_OCOTP_"#b), ("HW_OCOTP_"#c), ("HW_OCOTP_"#d), \
+	("HW_OCOTP_"#e), ("HW_OCOTP_"#f), ("HW_OCOTP_"#g), ("HW_OCOTP_"#h) \
+	}
+
+#define BANKS		(5)
+#define BANK_ITEMS	(8)
+static const char *bank_reg_desc[BANKS][BANK_ITEMS] = {
+	BANK(CUST0, CUST1, CUST2, CUST3, CRYPTO0, CRYPTO1, CRYPTO2, CRYPTO3),
+	BANK(HWCAP0, HWCAP1, HWCAP2, HWCAP3, HWCAP4, HWCAP5, SWCAP, CUSTCAP),
+	BANK(LOCK, OPS0, OPS1, OPS2, OPS3, UN0, UN1, UN2),
+	BANK(ROM0, ROM1, ROM2, ROM3, ROM4, ROM5, ROM6, ROM7),
+	BANK(SRK0, SRK1, SRK2, SRK3, SRK4, SRK5, SRK6, SRK7),
+};
+
+static struct fsl_otp_data otp_data = {
+	.fuse_name	= (char **)bank_reg_desc,
+	.regulator_name	= "vddio",
+	.fuse_num	= BANKS * BANK_ITEMS,
+};
+#undef BANK
+#undef BANKS
+#undef BANK_ITEMS
+
+static void __init mx28_init_otp(void)
+{
+	struct platform_device *pdev;
+	pdev = mxs_get_device("ocotp", 0);
+	if (pdev == NULL || IS_ERR(pdev))
+		return;
+	pdev->dev.platform_data = &otp_data;
+	pdev->resource = NULL;
+	pdev->num_resources = 0;
+	mxs_add_device(pdev, 3);
+}
+#else
+static void mx28_init_otp(void)
+{
+}
+#endif
+
 int __init mx28_device_init(void)
 {
 	mx28_init_dma();
@@ -1484,6 +1528,7 @@ int __init mx28_device_init(void)
 	mx28_init_dcp();
 	mx28_init_battery();
 	mx28_init_persistent();
+	mx28_init_otp();
 	return 0;
 }
 
