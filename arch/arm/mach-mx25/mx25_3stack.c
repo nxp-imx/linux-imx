@@ -318,7 +318,7 @@ static struct spi_board_info mxc_spi_board_info[] __initdata = {
 	 .max_speed_hz = 18000000,
 	 .bus_num = 1,
 	 .chip_select = 0,
-	 .mode = SPI_MODE_2,
+	 .mode = SPI_MODE_0,
 	 },
 	{
 	 .modalias = "wm8580_spi",
