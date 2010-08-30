@@ -1098,7 +1098,7 @@ int32_t ipu_init_sync_panel(int disp, uint32_t pixel_clk,
 	di_gen = __raw_readl(DI_GENERAL(disp));
 
 	if (sig.interlaced) {
-		if (cpu_is_mx51_rev(CHIP_REV_2_0)) {
+		if (g_ipu_hw_rev >= 2) {
 			/* Setup internal HSYNC waveform */
 			_ipu_di_sync_config(
 					disp, 			/* display */

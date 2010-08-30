@@ -354,8 +354,8 @@ static int ipu_probe(struct platform_device *pdev)
 	g_di_clk[0] = plat_data->di_clk[0];
 	g_di_clk[1] = plat_data->di_clk[1];
 
-	g_csi_clk[0] = clk_get(&pdev->dev, "csi_mclk1");
-	g_csi_clk[1] = clk_get(&pdev->dev, "csi_mclk2");
+	g_csi_clk[0] = plat_data->csi_clk[0];
+	g_csi_clk[1] = plat_data->csi_clk[1];
 
 	__raw_writel(0x807FFFFF, IPU_MEM_RST);
 	while (__raw_readl(IPU_MEM_RST) & 0x80000000) ;
