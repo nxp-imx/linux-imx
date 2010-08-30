@@ -2037,9 +2037,6 @@ static int __devinit sdhci_probe_slot(struct platform_device
 		}
 		mxc_dma_callback_set(host->dma, sdhci_dma_irq, (void *)host);
 	}
-#ifdef CONFIG_MMC_DEBUG
-	sdhci_dumpregs(host);
-#endif
 
 	mmiowb();
 
