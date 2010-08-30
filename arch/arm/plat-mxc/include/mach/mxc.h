@@ -625,6 +625,12 @@ struct mxc_sim_platform_data {
 	unsigned int detect; /* 1 have detect pin, 0 not */
 };
 
+struct fsl_otp_data {
+	char 		**fuse_name;
+	char		*regulator_name;
+	unsigned int 	fuse_num;
+};
+
 struct mxs_dma_plat_data {
 	unsigned int burst8:1;
 	unsigned int burst:1;

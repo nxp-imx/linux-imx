@@ -2452,6 +2452,15 @@ static struct clk gpmi_nfc_clk[] = {
 	},
 };
 
+static struct clk ocotp_clk = {
+	.name = "ocotp_ctrl_apb",
+	.parent = &ahb_clk,
+	.enable = _clk_enable,
+	.enable_reg = MXC_CCM_CCGR7,
+	.enable_shift = MXC_CCM_CCGR7_CG13_OFFSET,
+	.disable = _clk_disable,
+};
+
 static int _clk_gpu2d_set_parent(struct clk *clk, struct clk *parent)
 {
 	u32 reg, mux;
@@ -3100,6 +3109,7 @@ static struct clk *mxc_clks[] = {
 	&gpmi_nfc_clk[1],
 	&gpmi_nfc_clk[2],
 	&gpmi_nfc_clk[3],
+	&ocotp_clk,
 };
 
 static void clk_tree_init(void)
@@ -3249,6 +3259,8 @@ int __init mx50_clocks_init(unsigned long ckil, unsigned long osc, unsigned long
 	clk_enable(&cpu_clk);
 
 	clk_enable(&main_bus_clk);
+
+	clk_enable(&ocotp_clk);
 
 	clk_enable(&apbh_dma_clk);
 
