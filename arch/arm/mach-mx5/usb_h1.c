@@ -76,12 +76,17 @@ static void _wake_up_enable(struct fsl_usb2_platform_data *pdata, bool enable)
 static void usbotg_clock_gate(bool on)
 {
 	struct clk *usb_clk;
+
 	if (on) {
+		usb_clk = clk_get(NULL, "usboh3_clk");
+		clk_enable(usb_clk);
+		clk_put(usb_clk);
+
 		usb_clk = clk_get(NULL, "usb_ahb_clk");
 		clk_enable(usb_clk);
 		clk_put(usb_clk);
 
-		usb_clk = clk_get(NULL, "usboh3_clk");
+		usb_clk = clk_get(NULL, "usb_phy2_clk");
 		clk_enable(usb_clk);
 		clk_put(usb_clk);
 
@@ -91,6 +96,10 @@ static void usbotg_clock_gate(bool on)
 		clk_put(usb_clk);
 
 		usb_clk = clk_get(NULL, "usb_ahb_clk");
+		clk_disable(usb_clk);
+		clk_put(usb_clk);
+
+		usb_clk = clk_get(NULL, "usb_phy2_clk");
 		clk_disable(usb_clk);
 		clk_put(usb_clk);
 	}
