@@ -66,7 +66,7 @@
 
 #define PHYS_RAM_START		0x40000000
 
-#define LOWER_VDDIO 5
+#define LOWER_VDDIO 6
 #define LOWER_VDDA 9
 #define LOWER_VDDD 0x16
 
