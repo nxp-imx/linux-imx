@@ -4,7 +4,7 @@
  * Copyright (C) 2004 - 2005 Nokia corporation
  * Written by Tuukka Tikkanen <tuukka.tikkanen@elektrobit.com>
  * Modified for omap shared clock framework by Tony Lindgren <tony@atomide.com>
- * Copyright 2007-2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2007-2010 Freescale Semiconductor, Inc.
  * Copyright 2008 Juergen Beisert, kernel@pengutronix.de
  *
  * This program is free software; you can redistribute it and/or
@@ -174,14 +174,8 @@ int clk_enable(struct clk *clk)
 	if (clk == NULL || IS_ERR(clk))
 		return -EINVAL;
 
-	spin_lock_irqsave(&clockfw_lock, flags);
-
-	ret = __clk_enable(clk);
-
-	spin_unlock_irqrestore(&clockfw_lock, flags);
-
 	if ((clk->flags & CPU_FREQ_TRIG_UPDATE)
-			&& (clk_get_usecount(clk) == 1)) {
+			&& (clk_get_usecount(clk) == 0)) {
 #if (defined(CONFIG_ARCH_MX5) || defined(CONFIG_ARCH_MX37))
 		if (low_freq_bus_used() && !low_bus_freq_mode)
 			set_low_bus_freq();
@@ -200,6 +194,13 @@ int clk_enable(struct clk *clk)
 		}
 #endif
 	}
+
+
+	spin_lock_irqsave(&clockfw_lock, flags);
+
+	ret = __clk_enable(clk);
+
+	spin_unlock_irqrestore(&clockfw_lock, flags);
 
 	return ret;
 }
@@ -229,12 +230,12 @@ void clk_disable(struct clk *clk)
 			set_low_bus_freq();
 		else {
 			if (!high_bus_freq_mode) {
-				/* Currently at ow or medium set point,
+				/* Currently at low or medium set point,
 				  * need to set to high setpoint
 				  */
 				set_high_bus_freq(0);
 			} else if (high_bus_freq_mode || low_bus_freq_mode) {
-				/* Currently at ow or high set point,
+				/* Currently at low or high set point,
 				  * need to set to medium setpoint
 				  */
 				set_high_bus_freq(0);
