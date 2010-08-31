@@ -42,6 +42,7 @@
 void __iomem *arm_plat_base;
 void __iomem *gpc_base;
 void __iomem *ccm_base;
+void __iomem *databahn_base;
 
 struct cpu_wp *(*get_cpu_wp)(int *wp);
 void (*set_num_cpu_wp)(int num);
@@ -184,6 +185,7 @@ static int __init post_cpu_init(void)
 		iounmap(base);
 	}
 
+	databahn_base = ioremap(MX50_DATABAHN_BASE_ADDR, SZ_16K);
 	return 0;
 }
 

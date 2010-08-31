@@ -1173,15 +1173,25 @@ static int _clk_sys_clk_enable(struct clk *clk)
 
 static void _clk_sys_clk_disable(struct clk *clk)
 {
-	u32 reg;
+	u32 reg, reg1;
 
+	reg1 = (__raw_readl(databahn + DATABAHN_CTL_REG55))
+					& DDR_SYNC_MODE;
 	reg = __raw_readl(MXC_CCM_CLK_SYS);
 	reg &= ~(MXC_CCM_CLK_SYS_SYS_XTAL_CLKGATE_MASK |
 				MXC_CCM_CLK_SYS_SYS_PLL_CLKGATE_MASK);
 	if (__raw_readl(MXC_CCM_CLKSEQ_BYPASS) & 0x1)
 		reg |= 1 << MXC_CCM_CLK_SYS_SYS_PLL_CLKGATE_OFFSET;
-	else
-		reg |= 1 << MXC_CCM_CLK_SYS_SYS_XTAL_CLKGATE_OFFSET;
+	else {
+		/* If DDR is sourced from SYS_CLK (in Sync mode), we cannot
+		 * gate its clock when ARM is in wait if the DDR is not in
+		 * self refresh.
+		 */
+		if (reg1 == DDR_SYNC_MODE)
+			reg |= 3 << MXC_CCM_CLK_SYS_SYS_XTAL_CLKGATE_OFFSET;
+		else
+			reg |= 1 << MXC_CCM_CLK_SYS_SYS_XTAL_CLKGATE_OFFSET;
+	}
 	__raw_writel(reg, MXC_CCM_CLK_SYS);
 }
 
@@ -2379,14 +2389,6 @@ static int _clk_ddr_enable(struct clk *clk)
 
 static void _clk_ddr_disable(struct clk *clk)
 {
-	u32 reg, reg1;
-	reg = __raw_readl(MXC_CCM_CLK_DDR);
-	reg &= ~MXC_CCM_CLK_DDR_DDR_CLKGATE_MASK;
-	reg1 = (__raw_readl(databahn + DATABAHN_CTL_REG55))
-					& DDR_SYNC_MODE;
-	if (reg1 != DDR_SYNC_MODE)
-		reg |= 1 << MXC_CCM_CLK_DDR_DDR_CLKGATE_OFFSET;
-	__raw_writel(reg, MXC_CCM_CLK_DDR);
 	_clk_disable_inwait(clk);
 }
 
@@ -2683,6 +2685,7 @@ static struct clk pxp_axi_clk = {
 	.disable = _clk_disable,
 	.enable_reg = MXC_CCM_CCGR6,
 	.enable_shift = MXC_CCM_CCGR6_CG9_OFFSET,
+	.flags = AHB_MED_SET_POINT | CPU_FREQ_TRIG_UPDATE,
 };
 
 static struct clk elcdif_axi_clk = {
@@ -3509,6 +3512,10 @@ int __init mx50_clocks_init(unsigned long ckil, unsigned long osc, unsigned long
 
 	clk_set_parent(&weim_clk[0], &ahb_clk);
 	clk_set_rate(&weim_clk[0], clk_round_rate(&weim_clk[0], 130000000));
+
+	/* Do the following just to disable the PLL since its not used */
+	clk_enable(&pll3_sw_clk);
+	clk_disable(&pll3_sw_clk);
 
 	base = ioremap(MX53_BASE_ADDR(GPT1_BASE_ADDR), SZ_4K);
 	mxc_timer_init(&gpt_clk[0], base, MXC_INT_GPT);
