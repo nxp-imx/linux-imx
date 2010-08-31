@@ -39,6 +39,7 @@ static struct clk pll1_main_clk;
 static struct clk pll1_sw_clk;
 static struct clk pll2_sw_clk;
 static struct clk pll3_sw_clk;
+static struct clk apbh_dma_clk;
 static struct clk apll_clk;
 static struct clk pfd0_clk;
 static struct clk pfd1_clk;
@@ -49,7 +50,7 @@ static struct clk pfd5_clk;
 static struct clk pfd6_clk;
 static struct clk pfd7_clk;
 static struct clk lp_apm_clk;
-static struct clk weim_clk;
+static struct clk weim_clk[];
 static struct clk ddr_clk;
 static struct clk axi_a_clk;
 static struct clk axi_b_clk;
@@ -65,7 +66,9 @@ static void __iomem *apll_base;
 extern int cpu_wp_nr;
 extern int lp_high_freq;
 extern int lp_med_freq;
+void __iomem *databahn;
 
+#define DDR_SYNC_MODE		0x30000
 #define SPIN_DELAY	1000000 /* in nanoseconds */
 #define WAIT(exp, timeout) \
 ({ \
@@ -290,12 +293,16 @@ static void pfd_recalc(struct clk *clk)
 {
 	u32 frac;
 	u64 rate;
+	if (apbh_dma_clk.usecount == 0)
+		apbh_dma_clk.enable(&apbh_dma_clk);
 	frac = __raw_readl(apll_base +
 		(int)clk->enable_reg) >> clk->enable_shift;
 	frac &= MXC_ANADIG_PFD_FRAC_MASK;
 	rate = (u64)clk->parent->rate * 18;
 	do_div(rate, frac);
 	clk->rate = rate;
+	if (apbh_dma_clk.usecount == 0)
+		apbh_dma_clk.disable(&apbh_dma_clk);
 }
 
 static unsigned long pfd_round_rate(struct clk *clk, unsigned long rate)
@@ -315,6 +322,9 @@ static int pfd_set_rate(struct clk *clk, unsigned long rate)
 {
 	u32 frac;
 	u64 tmp;
+
+	if (apbh_dma_clk.usecount == 0)
+		apbh_dma_clk.enable(&apbh_dma_clk);
 	tmp = (u64)clk->parent->rate * 18;
 	do_div(tmp, rate);
 	frac = tmp;
@@ -330,12 +340,17 @@ static int pfd_set_rate(struct clk *clk, unsigned long rate)
 	tmp = (u64)clk->parent->rate * 18;
 	do_div(tmp, frac);
 	clk->rate = tmp;
+	if (apbh_dma_clk.usecount == 0)
+		apbh_dma_clk.disable(&apbh_dma_clk);
 	return 0;
 }
 
 static int pfd_enable(struct clk *clk)
 {
 	int index;
+
+	if (apbh_dma_clk.usecount == 0)
+		apbh_dma_clk.enable(&apbh_dma_clk);
 	index = _get_mux8(clk, &pfd0_clk, &pfd1_clk, &pfd2_clk, &pfd3_clk,
 			&pfd4_clk, &pfd5_clk, &pfd6_clk, &pfd7_clk);
 	__raw_writel(1 << (index + MXC_ANADIG_PFD_DIS_OFFSET),
@@ -355,13 +370,17 @@ static int pfd_enable(struct clk *clk)
 			  & MXC_ANADIG_APLL_LOCK, SPIN_DELAY))
 			panic("pfd_enable failed!\n");
 	}
-
+	if (apbh_dma_clk.usecount == 0)
+		apbh_dma_clk.disable(&apbh_dma_clk);
 	return 0;
 }
 
 static void pfd_disable(struct clk *clk)
 {
 	int index;
+
+	if (apbh_dma_clk.usecount == 0)
+		apbh_dma_clk.enable(&apbh_dma_clk);
 	index = _get_mux8(clk, &pfd0_clk, &pfd1_clk, &pfd2_clk, &pfd3_clk,
 			&pfd4_clk, &pfd5_clk, &pfd6_clk, &pfd7_clk);
 	/* set clk gate bit */
@@ -369,6 +388,8 @@ static void pfd_disable(struct clk *clk)
 			apll_base + (int)clk->enable_reg + 4);
 	__raw_writel(1 << (index + MXC_ANADIG_PFD_DIS_OFFSET),
 			apll_base + MXC_ANADIG_PLLCTRL_SET);
+	if (apbh_dma_clk.usecount == 0)
+		apbh_dma_clk.disable(&apbh_dma_clk);
 }
 
 static struct clk pfd0_clk = {
@@ -820,7 +841,7 @@ static int _clk_main_bus_set_parent(struct clk *clk, struct clk *parent)
 	mux = _get_mux(parent, &pll1_sw_clk, &pll2_sw_clk, &pll3_sw_clk,
 			&lp_apm_clk);
 	reg = __raw_readl(MXC_CCM_CBCDR) & ~MX50_CCM_CBCDR_PERIPH_CLK_SEL_MASK;
-	reg |= mux;
+	reg |= (mux << MX50_CCM_CBCDR_PERIPH_CLK_SEL_OFFSET);
 	__raw_writel(reg, MXC_CCM_CBCDR);
 
 	return 0;
@@ -1041,80 +1062,6 @@ static struct clk ahb_max_clk = {
 	.disable = _clk_max_disable,
 };
 
-static int _clk_weim_set_parent(struct clk *clk, struct clk *parent)
-{
-	u32 reg;
-
-	reg = __raw_readl(MXC_CCM_CBCDR);
-	if (parent == &ahb_clk)
-		reg |= MX50_CCM_CBCDR_WEIM_CLK_SEL;
-	else if (parent == &main_bus_clk)
-		reg &= ~MX50_CCM_CBCDR_WEIM_CLK_SEL;
-	else
-		BUG();
-	__raw_writel(reg, MXC_CCM_CBCDR);
-
-	return 0;
-}
-
-static void _clk_weim_recalc(struct clk *clk)
-{
-	u32 reg, div;
-
-	reg = __raw_readl(MXC_CCM_CBCDR);
-	div = ((reg & MXC_CCM_CBCDR_EMI_PODF_MASK) >>
-	       MXC_CCM_CBCDR_EMI_PODF_OFFSET) + 1;
-	clk->rate = clk->parent->rate / div;
-}
-
-static int _clk_weim_set_rate(struct clk *clk, unsigned long rate)
-{
-	u32 reg, div;
-
-	div = clk->parent->rate / rate;
-	if (div == 0)
-		div++;
-	if (((clk->parent->rate / div) != rate) || (div > 8))
-		return -EINVAL;
-	reg = __raw_readl(MXC_CCM_CBCDR);
-	reg &= ~MXC_CCM_CBCDR_EMI_PODF_MASK;
-	reg |= (div - 1) << MXC_CCM_CBCDR_EMI_PODF_OFFSET;
-	__raw_writel(reg, MXC_CCM_CBCDR);
-	if (!WAIT(!(__raw_readl(MXC_CCM_CDHIPR) & MXC_CCM_CDHIPR_EMI_PODF_BUSY),
-		  SPIN_DELAY))
-		panic("_clk_emi_slow_set_rate failed\n");
-	clk->rate = rate;
-
-	return 0;
-}
-
-static unsigned long _clk_weim_round_rate(struct clk *clk,
-					      unsigned long rate)
-{
-	u32 div;
-
-	div = clk->parent->rate / rate;
-	if (div > 8)
-		div = 8;
-	else if (div == 0)
-		div++;
-	return clk->parent->rate / div;
-}
-
-
-static struct clk weim_clk = {
-	.name = "weim_clk",
-	.parent = &main_bus_clk,
-	.set_parent = _clk_weim_set_parent,
-	.recalc = _clk_weim_recalc,
-	.set_rate = _clk_weim_set_rate,
-	.round_rate = _clk_weim_round_rate,
-	.enable = _clk_enable,
-	.enable_reg = MXC_CCM_CCGR5,
-	.enable_shift = MXC_CCM_CCGR5_CG8_OFFSET,
-	.disable = _clk_disable_inwait,
-	.flags = RATE_PROPAGATES,
-};
 
 static struct clk ahbmux1_clk = {
 	.name = "ahbmux1_clk",
@@ -1209,6 +1156,128 @@ static struct clk ipmux2_clk = {
 	.disable = _clk_disable,
 };
 
+static int _clk_sys_clk_enable(struct clk *clk)
+{
+	u32 reg;
+
+	reg = __raw_readl(MXC_CCM_CLK_SYS);
+	reg &= ~(MXC_CCM_CLK_SYS_SYS_XTAL_CLKGATE_MASK |
+				MXC_CCM_CLK_SYS_SYS_PLL_CLKGATE_MASK);
+	if (__raw_readl(MXC_CCM_CLKSEQ_BYPASS) & 0x1)
+		reg |= MXC_CCM_CLK_SYS_SYS_PLL_CLKGATE_MASK;
+	else
+		reg |= MXC_CCM_CLK_SYS_SYS_XTAL_CLKGATE_MASK;
+	__raw_writel(reg, MXC_CCM_CLK_SYS);
+	return 0;
+}
+
+static void _clk_sys_clk_disable(struct clk *clk)
+{
+	u32 reg;
+
+	reg = __raw_readl(MXC_CCM_CLK_SYS);
+	reg &= ~(MXC_CCM_CLK_SYS_SYS_XTAL_CLKGATE_MASK |
+				MXC_CCM_CLK_SYS_SYS_PLL_CLKGATE_MASK);
+	if (__raw_readl(MXC_CCM_CLKSEQ_BYPASS) & 0x1)
+		reg |= 1 << MXC_CCM_CLK_SYS_SYS_PLL_CLKGATE_OFFSET;
+	else
+		reg |= 1 << MXC_CCM_CLK_SYS_SYS_XTAL_CLKGATE_OFFSET;
+	__raw_writel(reg, MXC_CCM_CLK_SYS);
+}
+
+static struct clk sys_clk = {
+	.name = "sys_clk",
+	.enable = _clk_sys_clk_enable,
+	.disable = _clk_sys_clk_disable,
+};
+
+
+static int _clk_weim_set_parent(struct clk *clk, struct clk *parent)
+{
+	u32 reg;
+
+	reg = __raw_readl(MXC_CCM_CBCDR);
+	if (parent == &ahb_clk)
+		reg |= MX50_CCM_CBCDR_WEIM_CLK_SEL;
+	else if (parent == &main_bus_clk)
+		reg &= ~MX50_CCM_CBCDR_WEIM_CLK_SEL;
+	else
+		BUG();
+	__raw_writel(reg, MXC_CCM_CBCDR);
+
+	return 0;
+}
+
+static void _clk_weim_recalc(struct clk *clk)
+{
+	u32 reg, div;
+
+	reg = __raw_readl(MXC_CCM_CBCDR);
+	div = ((reg & MXC_CCM_CBCDR_EMI_PODF_MASK) >>
+	       MXC_CCM_CBCDR_EMI_PODF_OFFSET) + 1;
+	clk->rate = clk->parent->rate / div;
+}
+
+static int _clk_weim_set_rate(struct clk *clk, unsigned long rate)
+{
+	u32 reg, div;
+
+	div = clk->parent->rate / rate;
+	if (div == 0)
+		div++;
+	if (((clk->parent->rate / div) != rate) || (div > 8))
+		return -EINVAL;
+	reg = __raw_readl(MXC_CCM_CBCDR);
+	reg &= ~MXC_CCM_CBCDR_EMI_PODF_MASK;
+	reg |= (div - 1) << MXC_CCM_CBCDR_EMI_PODF_OFFSET;
+	__raw_writel(reg, MXC_CCM_CBCDR);
+	if (!WAIT(!(__raw_readl(MXC_CCM_CDHIPR) & MXC_CCM_CDHIPR_EMI_PODF_BUSY),
+		  SPIN_DELAY))
+		panic("_clk_emi_slow_set_rate failed\n");
+	clk->rate = rate;
+
+	return 0;
+}
+
+static unsigned long _clk_weim_round_rate(struct clk *clk,
+					      unsigned long rate)
+{
+	u32 div;
+
+	div = clk->parent->rate / rate;
+	if (div > 8)
+		div = 8;
+	else if (div == 0)
+		div++;
+	return clk->parent->rate / div;
+}
+
+static struct clk weim_clk[] = {
+	{
+	.name = "weim_clk",
+	.parent = &main_bus_clk,
+	.set_parent = _clk_weim_set_parent,
+	.recalc = _clk_weim_recalc,
+	.set_rate = _clk_weim_set_rate,
+	.round_rate = _clk_weim_round_rate,
+	.enable = _clk_enable,
+	.enable_reg = MXC_CCM_CCGR5,
+	.enable_shift = MXC_CCM_CCGR5_CG8_OFFSET,
+	.disable = _clk_disable_inwait,
+	.flags = RATE_PROPAGATES,
+	.secondary = &weim_clk[1],
+	},
+	{
+	.name = "weim_ipg_clk",
+	.parent = &ipg_clk,
+	.secondary = &sys_clk,
+	.enable = _clk_enable,
+	.enable_reg = MXC_CCM_CCGR5,
+	.enable_shift = MXC_CCM_CCGR5_CG9_OFFSET,
+	.disable = _clk_disable_inwait,
+	}
+};
+
 static int _clk_ocram_enable(struct clk *clk)
 {
 	return 0;
@@ -1220,12 +1289,12 @@ static void _clk_ocram_disable(struct clk *clk)
 
 static struct clk ocram_clk = {
 	.name = "ocram_clk",
+	.parent = &sys_clk,
 	.enable_reg = MXC_CCM_CCGR6,
 	.enable_shift = MXC_CCM_CCGR6_CG1_OFFSET,
 	.enable = _clk_ocram_enable,
 	.disable = _clk_ocram_disable,
 };
-
 
 static struct clk aips_tz1_clk = {
 	.name = "aips_tz1_clk",
@@ -1293,6 +1362,7 @@ static struct clk sdma_clk[] = {
 	{
 	 .name = "sdma_ipg_clk",
 	 .parent = &ipg_clk,
+	 .secondary = &ddr_clk,
 	 },
 };
 
@@ -1479,17 +1549,16 @@ static struct clk gpt_clk[] = {
 	 .parent = &ipg_perclk,
 	 .id = 0,
 	 .enable_reg = MXC_CCM_CCGR2,
-	 .enable_shift = MXC_CCM_CCGR2_CG9_OFFSET,
+	 .enable_shift = MXC_CCM_CCGR2_CG10_OFFSET,
 	 .enable = _clk_enable,
 	 .disable = _clk_disable,
-	 .secondary = &gpt_clk[1],
 	 },
 	{
 	 .name = "gpt_ipg_clk",
 	 .id = 0,
 	 .parent = &ipg_clk,
 	 .enable_reg = MXC_CCM_CCGR2,
-	 .enable_shift = MXC_CCM_CCGR2_CG10_OFFSET,
+	 .enable_shift = MXC_CCM_CCGR2_CG9_OFFSET,
 	 .enable = _clk_enable,
 	 .disable = _clk_disable,
 	 },
@@ -1963,10 +2032,12 @@ static struct clk tmax2_clk = {
 static struct clk usb_ahb_clk = {
 	 .name = "usb_ahb_clk",
 	 .parent = &ipg_clk,
+	 .secondary = &ddr_clk,
 	 .enable = _clk_enable,
 	 .enable_reg = MXC_CCM_CCGR2,
 	 .enable_shift = MXC_CCM_CCGR2_CG13_OFFSET,
 	 .disable = _clk_disable,
+	.flags = AHB_MED_SET_POINT | CPU_FREQ_TRIG_UPDATE,
 };
 
 static struct clk usb_phy_clk[] = {
@@ -1993,6 +2064,7 @@ static struct clk usb_phy_clk[] = {
 static struct clk esdhc_dep_clks = {
 	 .name = "sd_dep_clk",
 	 .parent = &spba_clk,
+	 .secondary = &ddr_clk,
 };
 
 static void _clk_esdhc1_recalc(struct clk *clk)
@@ -2061,6 +2133,7 @@ static struct clk esdhc1_clk[] = {
 	 .enable_shift = MXC_CCM_CCGR3_CG1_OFFSET,
 	 .disable = _clk_disable,
 	 .secondary = &esdhc1_clk[1],
+	.flags = AHB_HIGH_SET_POINT | CPU_FREQ_TRIG_UPDATE,
 	 },
 	{
 	 .name = "esdhc_ipg_clk",
@@ -2107,6 +2180,7 @@ static struct clk esdhc2_clk[] = {
 	 .enable_shift = MXC_CCM_CCGR3_CG3_OFFSET,
 	 .disable = _clk_disable,
 	 .secondary = &esdhc2_clk[1],
+	.flags = AHB_HIGH_SET_POINT | CPU_FREQ_TRIG_UPDATE,
 	 },
 	{
 	 .name = "esdhc_ipg_clk",
@@ -2193,6 +2267,7 @@ static struct clk esdhc3_clk[] = {
 	 .enable_shift = MXC_CCM_CCGR3_CG5_OFFSET,
 	 .disable = _clk_disable,
 	 .secondary = &esdhc3_clk[1],
+	.flags = AHB_HIGH_SET_POINT | CPU_FREQ_TRIG_UPDATE,
 	 },
 	{
 	 .name = "esdhc_ipg_clk",
@@ -2239,6 +2314,7 @@ static struct clk esdhc4_clk[] = {
 	 .enable_shift = MXC_CCM_CCGR3_CG7_OFFSET,
 	 .disable = _clk_disable,
 	 .secondary = &esdhc4_clk[1],
+	.flags = AHB_HIGH_SET_POINT | CPU_FREQ_TRIG_UPDATE,
 	 },
 	{
 	 .name = "esdhc_ipg_clk",
@@ -2269,6 +2345,7 @@ static int _clk_ddr_set_parent(struct clk *clk, struct clk *parent)
 		reg &= ~MXC_CCM_CLK_DDR_DDR_PFD_SEL;
 	else
 		return -EINVAL;
+	__raw_writel(reg, MXC_CCM_CLK_DDR);
 	return 0;
 }
 
@@ -2285,12 +2362,45 @@ static void _clk_ddr_recalc(struct clk *clk)
 		clk->rate = 0;
 }
 
+static int _clk_ddr_enable(struct clk *clk)
+{
+	u32 reg;
+
+	_clk_enable(clk);
+	reg = (__raw_readl(databahn + DATABAHN_CTL_REG55)) &
+				DDR_SYNC_MODE;
+	if (reg != DDR_SYNC_MODE) {
+		reg = __raw_readl(MXC_CCM_CLK_DDR);
+		reg |= MXC_CCM_CLK_DDR_DDR_CLKGATE_MASK;
+		__raw_writel(reg, MXC_CCM_CLK_DDR);
+	}
+	return 0;
+}
+
+static void _clk_ddr_disable(struct clk *clk)
+{
+	u32 reg, reg1;
+	reg = __raw_readl(MXC_CCM_CLK_DDR);
+	reg &= ~MXC_CCM_CLK_DDR_DDR_CLKGATE_MASK;
+	reg1 = (__raw_readl(databahn + DATABAHN_CTL_REG55))
+					& DDR_SYNC_MODE;
+	if (reg1 != DDR_SYNC_MODE)
+		reg |= 1 << MXC_CCM_CLK_DDR_DDR_CLKGATE_OFFSET;
+	__raw_writel(reg, MXC_CCM_CLK_DDR);
+	_clk_disable_inwait(clk);
+}
+
+
 static struct clk ddr_clk = {
 	.name = "ddr_clk",
 	.parent = &pll1_sw_clk,
+	.secondary = &sys_clk,
 	.set_parent = _clk_ddr_set_parent,
 	.recalc = _clk_ddr_recalc,
-	.flags = RATE_PROPAGATES,
+	.enable = _clk_ddr_enable,
+	.enable_reg = MXC_CCM_CCGR6,
+	.enable_shift = MXC_CCM_CCGR6_CG15_OFFSET,
+	.disable = _clk_ddr_disable,
 };
 
 static void _clk_pgc_recalc(struct clk *clk)
@@ -2311,7 +2421,6 @@ static struct clk pgc_clk = {
 };
 
 /*usb OTG clock */
-
 static struct clk usb_clk = {
 	.name = "usb_clk",
 	.rate = 60000000,
@@ -2347,7 +2456,6 @@ static struct clk owire_clk = {
 	.disable = _clk_disable,
 };
 
-
 static struct clk fec_clk[] = {
 	{
 	.name = "fec_clk",
@@ -2361,15 +2469,10 @@ static struct clk fec_clk[] = {
 	},
 	{
 	 .name = "fec_sec1_clk",
-	 .parent = &tmax2_clk,
-	 .secondary = &fec_clk[2],
-	},
-	{
-	 .name = "fec_sec2_clk",
 	 .parent = &aips_tz2_clk,
+	 .secondary = &ddr_clk,
 	},
 };
-
 
 static int gpmi_clk_enable(struct clk *clk)
 {
@@ -2391,7 +2494,6 @@ static void gpmi_clk_disable(struct clk *clk)
 	__raw_writel(reg, MXC_CCM_GPMI);
 	_clk_disable(clk);
 }
-
 
 static int bch_clk_enable(struct clk *clk)
 {
@@ -2466,7 +2568,7 @@ static int _clk_gpu2d_set_parent(struct clk *clk, struct clk *parent)
 	u32 reg, mux;
 
 	reg = __raw_readl(MXC_CCM_CBCMR);
-	mux = _get_mux(parent, &axi_a_clk, &axi_b_clk, &weim_clk, &ahb_clk);
+	mux = _get_mux(parent, &axi_a_clk, &axi_b_clk, &weim_clk[0], &ahb_clk);
 	reg = (reg & ~MXC_CCM_CBCMR_GPU2D_CLK_SEL_MASK) |
 	    (mux << MXC_CCM_CBCMR_GPU2D_CLK_SEL_OFFSET);
 	__raw_writel(reg, MXC_CCM_CBCMR);
@@ -2477,6 +2579,7 @@ static int _clk_gpu2d_set_parent(struct clk *clk, struct clk *parent)
 static struct clk gpu2d_clk = {
 	.name = "gpu2d_clk",
 	.parent = &axi_a_clk,
+	.secondary = &ddr_clk,
 	.set_parent = _clk_gpu2d_set_parent,
 	.enable = _clk_enable,
 	.enable_reg = MXC_CCM_CCGR6,
@@ -2488,32 +2591,22 @@ static struct clk gpu2d_clk = {
 static struct clk apbh_dma_clk = {
 	.name = "apbh_dma_clk",
 	.parent = &ahb_clk,
+	.secondary = &ddr_clk,
 	.enable = _clk_enable,
-	.disable = _clk_disable,
+	.disable = _clk_disable_inwait,
 	.enable_reg = MXC_CCM_CCGR7,
 	.enable_shift = MXC_CCM_CCGR7_CG10_OFFSET,
 };
 
-struct clk dcp_clk[] = {
-	{
+struct clk dcp_clk = {
 	.name = "dcp_clk",
 	.id = 0,
 	.parent = &ahb_clk,
-	.secondary = &dcp_clk[1],
+	.secondary = &apbh_dma_clk,
 	.enable = _clk_enable,
 	.enable_reg = MXC_CCM_CCGR7,
 	.enable_shift = MXC_CCM_CCGR7_CG11_OFFSET,
 	.disable = _clk_disable,
-	},
-	{
-	 .name = "dcp_sec1_clk",
-	 .parent = &apbh_dma_clk,
-	 .secondary = &dcp_clk[2],
-	},
-	{
-	 .name = "dcp_sec2_clk",
-	 .parent = &ddr_clk,
-	},
 };
 
 static int _clk_display_axi_set_parent(struct clk *clk, struct clk *parent)
@@ -2564,13 +2657,13 @@ static int _clk_display_axi_set_rate(struct clk *clk, unsigned long rate)
 
 	while (__raw_readl(MXC_CCM_CSR2) & MXC_CCM_CSR2_DISPLAY_AXI_BUSY)
 		;
-
 	return 0;
 }
 
 static struct clk display_axi_clk = {
 	.name = "display_axi",
 	.parent = &osc_clk,
+	.secondary = &apbh_dma_clk,
 	.set_parent = _clk_display_axi_set_parent,
 	.recalc = _clk_display_axi_recalc,
 	.set_rate = _clk_display_axi_set_rate,
@@ -2586,7 +2679,6 @@ static struct clk display_axi_clk = {
 static struct clk pxp_axi_clk = {
 	.name = "pxp_axi",
 	.parent = &display_axi_clk,
-	.secondary = &apbh_dma_clk,
 	.enable = _clk_enable,
 	.disable = _clk_disable,
 	.enable_reg = MXC_CCM_CCGR6,
@@ -2600,6 +2692,7 @@ static struct clk elcdif_axi_clk = {
 	.disable = _clk_disable,
 	.enable_reg = MXC_CCM_CCGR6,
 	.enable_shift = MXC_CCM_CCGR6_CG10_OFFSET,
+	.flags = AHB_MED_SET_POINT | CPU_FREQ_TRIG_UPDATE,
 };
 
 static int _clk_elcdif_pix_set_parent(struct clk *clk, struct clk *parent)
@@ -2654,17 +2747,40 @@ static int _clk_elcdif_pix_set_rate(struct clk *clk, unsigned long rate)
 	return 0;
 }
 
+static int _clk_elcdif_pix_enable(struct clk *clk)
+{
+	u32 reg;
+
+	_clk_enable(clk);
+	reg = __raw_readl(MXC_CCM_ELCDIFPIX);
+	reg |= 0x3 << MXC_CCM_ELCDIFPIX_CLKGATE_OFFSET;
+	__raw_writel(reg, MXC_CCM_ELCDIFPIX);
+	return 0;
+}
+
+static void _clk_elcdif_pix_disable(struct clk *clk)
+{
+	u32 reg;
+
+	reg = __raw_readl(MXC_CCM_ELCDIFPIX);
+	reg &= ~MXC_CCM_ELCDIFPIX_CLKGATE_MASK;
+	__raw_writel(reg, MXC_CCM_ELCDIFPIX);
+	_clk_disable(clk);
+}
+
 static struct clk elcdif_pix_clk = {
 	.name = "elcdif_pix",
 	.parent = &osc_clk,
-	.enable = _clk_enable,
-	.disable = _clk_disable,
+	.secondary = &ddr_clk,
+	.enable = _clk_elcdif_pix_enable,
+	.disable = _clk_elcdif_pix_disable,
 	.enable_reg = MXC_CCM_CCGR6,
 	.enable_shift = MXC_CCM_CCGR6_CG6_OFFSET,
 	.set_parent = _clk_elcdif_pix_set_parent,
 	.recalc = _clk_elcdif_pix_recalc,
 	.round_rate = _clk_elcdif_pix_round_rate,
 	.set_rate = _clk_elcdif_pix_set_rate,
+	.flags = AHB_MED_SET_POINT | CPU_FREQ_TRIG_UPDATE,
 };
 
 static int _clk_epdc_axi_set_parent(struct clk *clk, struct clk *parent)
@@ -2738,10 +2854,7 @@ static int _clk_epdc_axi_enable(struct clk *clk)
 {
 	u32 reg;
 
-	reg = __raw_readl(MXC_CCM_CCGR6);
-	reg |= MXC_CCM_CCGR6_CG8_MASK;
-	__raw_writel(reg, MXC_CCM_CCGR6);
-
+	_clk_enable(clk);
 	reg = __raw_readl(MXC_CCM_EPDC_AXI);
 	reg |= MXC_CCM_EPDC_AXI_CLKGATE_MASK;
 	__raw_writel(reg, MXC_CCM_EPDC_AXI);
@@ -2753,13 +2866,10 @@ static void _clk_epdc_axi_disable(struct clk *clk)
 {
 	u32 reg;
 
-	reg = __raw_readl(MXC_CCM_CCGR6);
-	reg &= ~MXC_CCM_CCGR6_CG8_MASK;
-	__raw_writel(reg, MXC_CCM_CCGR6);
-
 	reg = __raw_readl(MXC_CCM_EPDC_AXI);
 	reg &= ~MXC_CCM_EPDC_AXI_CLKGATE_MASK;
 	__raw_writel(reg, MXC_CCM_EPDC_AXI);
+	_clk_disable(clk);
 }
 
 /* TODO: check Auto-Slow Mode */
@@ -2767,12 +2877,15 @@ static struct clk epdc_axi_clk = {
 	.name = "epdc_axi",
 	.parent = &osc_clk,
 	.secondary = &apbh_dma_clk,
+	.enable_reg = MXC_CCM_CCGR6,
+	.enable_shift = MXC_CCM_CCGR6_CG8_OFFSET,
 	.set_parent = _clk_epdc_axi_set_parent,
 	.recalc = _clk_epdc_axi_recalc,
 	.set_rate = _clk_epdc_axi_set_rate,
 	.round_rate = _clk_epdc_axi_round_rate,
 	.enable = _clk_epdc_axi_enable,
 	.disable = _clk_epdc_axi_disable,
+	.flags = AHB_MED_SET_POINT | CPU_FREQ_TRIG_UPDATE,
 };
 
 
@@ -2835,10 +2948,7 @@ static int _clk_epdc_pix_enable(struct clk *clk)
 {
 	u32 reg;
 
-	reg = __raw_readl(MXC_CCM_CCGR6);
-	reg |= MXC_CCM_CCGR6_CG5_MASK;
-	__raw_writel(reg, MXC_CCM_CCGR6);
-
+	_clk_enable(clk);
 	reg = __raw_readl(MXC_CCM_EPDCPIX);
 	reg |= MXC_CCM_EPDC_PIX_CLKGATE_MASK;
 	__raw_writel(reg, MXC_CCM_EPDCPIX);
@@ -2850,25 +2960,26 @@ static void _clk_epdc_pix_disable(struct clk *clk)
 {
 	u32 reg;
 
-	reg = __raw_readl(MXC_CCM_CCGR6);
-	reg &= ~MXC_CCM_CCGR6_CG5_MASK;
-	__raw_writel(reg, MXC_CCM_CCGR6);
-
 	reg = __raw_readl(MXC_CCM_EPDCPIX);
 	reg &= ~MXC_CCM_EPDC_PIX_CLKGATE_MASK;
 	__raw_writel(reg, MXC_CCM_EPDCPIX);
+	_clk_disable(clk);
 }
 
 /* TODO: check Auto-Slow Mode */
 static struct clk epdc_pix_clk = {
 	.name = "epdc_pix",
 	.parent = &osc_clk,
+	.secondary = &apbh_dma_clk,
+	.enable_reg = MXC_CCM_CCGR6,
+	.enable_shift = MXC_CCM_CCGR6_CG5_OFFSET,
 	.set_parent = _clk_epdc_pix_set_parent,
 	.recalc = _clk_epdc_pix_recalc,
 	.set_rate = _clk_epdc_pix_set_rate,
 	.round_rate = _clk_epdc_pix_round_rate,
 	.enable = _clk_epdc_pix_enable,
 	.disable = _clk_epdc_pix_disable,
+	.flags = AHB_MED_SET_POINT | CPU_FREQ_TRIG_UPDATE,
 };
 
 static void cko1_recalc(struct clk *clk)
@@ -2964,7 +3075,7 @@ static int cko1_set_parent(struct clk *clk, struct clk *parent)
 	} else if (parent == &pfd6_clk) {
 		sel = 7;
 		fast = 0;
-	} else if (parent == &weim_clk) {
+	} else if (parent == &weim_clk[0]) {
 		sel = 10;
 		fast = 0;
 	} else if (parent == &ahb_clk) {
@@ -2992,6 +3103,7 @@ static int cko1_set_parent(struct clk *clk, struct clk *parent)
 	__raw_writel(reg, MXC_CCM_CCOSR);
 	return 0;
 }
+
 static struct clk cko1_clk = {
 	.name = "cko1_clk",
 	.parent = &pll1_sw_clk,
@@ -3085,18 +3197,16 @@ static struct clk *mxc_clks[] = {
 	&esdhc4_clk[0],
 	&esdhc4_clk[1],
 	&esdhc_dep_clks,
-	&weim_clk,
+	&weim_clk[0],
+	&weim_clk[1],
 	&ddr_clk,
 	&pgc_clk,
 	&rtc_clk,
 	&rng_clk,
-	&dcp_clk[0],
-	&dcp_clk[1],
-	&dcp_clk[2],
+	&dcp_clk,
 	&owire_clk,
 	&fec_clk[0],
 	&fec_clk[1],
-	&fec_clk[2],
 	&gpu2d_clk,
 	&cko1_clk,
 	&display_axi_clk,
@@ -3139,10 +3249,10 @@ static void clk_tree_init(void)
 	pll3_sw_clk.parent = &osc_clk;
 
 	/* set weim_clk parent */
-	weim_clk.parent = &main_bus_clk;
+	weim_clk[0].parent = &main_bus_clk;
 	reg = __raw_readl(MXC_CCM_CBCDR);
 	if ((reg & MX50_CCM_CBCDR_WEIM_CLK_SEL) != 0)
-		weim_clk.parent = &ahb_clk;
+		weim_clk[0].parent = &ahb_clk;
 
 	/* set ipg_perclk parent */
 	ipg_perclk.parent = &lp_apm_clk;
@@ -3191,17 +3301,12 @@ int __init mx50_clocks_init(unsigned long ckil, unsigned long osc, unsigned long
 	__raw_writel(0, MXC_CCM_CCGR3);
 	__raw_writel(0, MXC_CCM_CCGR4);
 
-	__raw_writel(1 << MXC_CCM_CCGR5_CG6_OFFSET |
+	__raw_writel(3 << MXC_CCM_CCGR5_CG6_OFFSET |
 		     1 << MXC_CCM_CCGR5_CG8_OFFSET |
 		     3 << MXC_CCM_CCGR5_CG9_OFFSET, MXC_CCM_CCGR5);
 
 	__raw_writel(3 << MXC_CCM_CCGR6_CG0_OFFSET |
 				3 << MXC_CCM_CCGR6_CG1_OFFSET |
-				3 << MXC_CCM_CCGR6_CG4_OFFSET |
-				3 << MXC_CCM_CCGR6_CG8_OFFSET |
-				3 << MXC_CCM_CCGR6_CG9_OFFSET |
-				3 << MXC_CCM_CCGR6_CG12_OFFSET |
-				3 << MXC_CCM_CCGR6_CG13_OFFSET |
 				2 << MXC_CCM_CCGR6_CG14_OFFSET |
 				3 << MXC_CCM_CCGR6_CG15_OFFSET, MXC_CCM_CCGR6);
 
@@ -3226,6 +3331,8 @@ int __init mx50_clocks_init(unsigned long ckil, unsigned long osc, unsigned long
 	clk_register(&i2c_clk[2]);
 	clk_register(&usb_phy_clk[1]);
 	clk_register(&ocram_clk);
+	clk_register(&apbh_dma_clk);
+	clk_register(&sys_clk);
 
 	/* set DDR clock parent */
 	reg = __raw_readl(MXC_CCM_CLK_DDR) &
@@ -3240,14 +3347,6 @@ int __init mx50_clocks_init(unsigned long ckil, unsigned long osc, unsigned long
 	clk_set_parent(&esdhc2_clk[0], &esdhc1_clk[0]);
 	clk_set_parent(&esdhc3_clk[0], &pll2_sw_clk);
 
-	clk_register(&apbh_dma_clk);
-
-	reg = __raw_readl(MXC_CCM_ELCDIFPIX);
-	reg &= ~MXC_CCM_ELCDIFPIX_CLKGATE_MASK;
-	reg = 0x3 << MXC_CCM_ELCDIFPIX_CLKGATE_OFFSET;
-	__raw_writel(reg, MXC_CCM_ELCDIFPIX);
-	clk_set_parent(&elcdif_pix_clk, &pll1_sw_clk);
-
 	/* This will propagate to all children and init all the clock rates */
 	propagate_rate(&osc_clk);
 	propagate_rate(&ckih_clk);
@@ -3255,6 +3354,7 @@ int __init mx50_clocks_init(unsigned long ckil, unsigned long osc, unsigned long
 	propagate_rate(&pll1_sw_clk);
 	propagate_rate(&pll2_sw_clk);
 	propagate_rate(&pll3_sw_clk);
+	propagate_rate(&apll_clk);
 
 	clk_enable(&cpu_clk);
 
@@ -3262,9 +3362,7 @@ int __init mx50_clocks_init(unsigned long ckil, unsigned long osc, unsigned long
 
 	clk_enable(&ocotp_clk);
 
-	clk_enable(&apbh_dma_clk);
-
-	propagate_rate(&apll_clk);
+	databahn = ioremap(MX50_DATABAHN_BASE_ADDR, SZ_16K);
 
 	/* Initialise the parents to be axi_b, parents are set to
 	 * axi_a when the clocks are enabled.
@@ -3281,18 +3379,26 @@ int __init mx50_clocks_init(unsigned long ckil, unsigned long osc, unsigned long
 	 * For Display AXI, source clocks must be
 	 * enabled before dividers can be changed
 	 */
-	clk_set_parent(&display_axi_clk, &pfd2_clk);
 	clk_enable(&display_axi_clk);
+	clk_enable(&elcdif_axi_clk);
+	clk_enable(&pxp_axi_clk);
+	clk_set_parent(&display_axi_clk, &pfd2_clk);
 	clk_set_rate(&display_axi_clk, 200000000);
 	clk_disable(&display_axi_clk);
+	clk_disable(&pxp_axi_clk);
+	clk_disable(&elcdif_axi_clk);
+
+	clk_enable(&elcdif_pix_clk);
+	clk_set_parent(&elcdif_pix_clk, &pll1_sw_clk);
+	clk_disable(&elcdif_pix_clk);
 
 	/*
 	 * Enable and set EPDC AXI to 200MHz
 	 * For EPDC AXI, source clocks must be
 	 * enabled before dividers can be changed
 	 */
-	clk_set_parent(&epdc_axi_clk, &pfd3_clk);
 	clk_enable(&epdc_axi_clk);
+	clk_set_parent(&epdc_axi_clk, &pfd3_clk);
 	clk_set_rate(&epdc_axi_clk, 200000000);
 	clk_disable(&epdc_axi_clk);
 
@@ -3316,11 +3422,8 @@ int __init mx50_clocks_init(unsigned long ckil, unsigned long osc, unsigned long
 	reg |= 1 << MXC_CCM_CS2CDR_SSI2_CLK_PRED_OFFSET;
 	__raw_writel(reg, MXC_CCM_CS2CDR);
 
-	/* Change the SSI_EXT1_CLK to be sourced from PLL2 for camera */
-	clk_disable(&ssi_ext1_clk);
-	clk_set_parent(&ssi_ext1_clk, &pll2_sw_clk);
-	clk_set_rate(&ssi_ext1_clk, 24000000);
-	clk_enable(&ssi_ext1_clk);
+	/* Change the SSI_EXT1_CLK to be sourced from SSI1_CLK_ROOT */
+	clk_set_parent(&ssi_ext1_clk, &ssi1_clk[0]);
 	clk_set_parent(&ssi_ext2_clk, &ssi2_clk[0]);
 
 	/* move usb_phy_clk to 24MHz */
@@ -3404,8 +3507,8 @@ int __init mx50_clocks_init(unsigned long ckil, unsigned long osc, unsigned long
 	clk_set_parent(&uart_main_clk, &lp_apm_clk);
 	clk_set_parent(&gpu2d_clk, &axi_b_clk);
 
-	clk_set_parent(&weim_clk, &ahb_clk);
-	clk_set_rate(&weim_clk, clk_round_rate(&weim_clk, 130000000));
+	clk_set_parent(&weim_clk[0], &ahb_clk);
+	clk_set_rate(&weim_clk[0], clk_round_rate(&weim_clk[0], 130000000));
 
 	base = ioremap(MX53_BASE_ADDR(GPT1_BASE_ADDR), SZ_4K);
 	mxc_timer_init(&gpt_clk[0], base, MXC_INT_GPT);
