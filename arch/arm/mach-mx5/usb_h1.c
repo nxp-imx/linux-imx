@@ -90,6 +90,16 @@ static void usbotg_clock_gate(bool on)
 		return;
 	}
 
+	if (cpu_is_mx53()) {
+		usb_clk = clk_get(NULL, "usb_phy2_clk");
+		if (on) {
+			clk_enable(usb_clk);
+		} else {
+			clk_disable(usb_clk);
+		}
+		clk_put(usb_clk);
+	}
+
 	if (on) {
 		usb_clk = clk_get(NULL, "usb_ahb_clk");
 		clk_enable(usb_clk);
