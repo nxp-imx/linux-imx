@@ -24,6 +24,7 @@
 #include <linux/mxc_scc2_driver.h>
 #include <linux/iram_alloc.h>
 #include <linux/gpmi-nfc.h>
+#include <linux/fsl_devices.h>
 #include <mach/common.h>
 #include <mach/hardware.h>
 #include <mach/gpio.h>
@@ -1350,6 +1351,16 @@ struct platform_device mxc_pxp_device = {
 struct platform_device mxc_pxp_client_device = {
 	.name = "pxp-device",
 	.id = -1,
+};
+
+static u64 pxp_dma_mask = DMA_BIT_MASK(32);
+struct platform_device mxc_pxp_v4l2 = {
+	.name = "pxp-v4l2",
+	.id = -1,
+	.dev		= {
+		.dma_mask		= &pxp_dma_mask,
+		.coherent_dma_mask	= DMA_BIT_MASK(32),
+	},
 };
 
 struct platform_device mxc_v4l2_device = {
