@@ -518,7 +518,7 @@ static inline void mxc_init_elcdif(void)
 	return;
 }
 
-static inline int mxc_elcdif_dma_init(dma_addr_t phys)
+int mxc_elcdif_frame_addr_setup(dma_addr_t phys)
 {
 	int ret = 0;
 
@@ -846,7 +846,7 @@ static int mxc_elcdif_fb_set_par(struct fb_info *fbi)
 			   data->output_pix_fmt,
 			   sig_cfg,
 			   1);
-	mxc_elcdif_dma_init(fbi->fix.smem_start);
+	mxc_elcdif_frame_addr_setup(fbi->fix.smem_start);
 	mxc_elcdif_run();
 	mxc_elcdif_blank_panel(FB_BLANK_UNBLANK);
 
@@ -991,6 +991,15 @@ static int mxc_elcdif_fb_ioctl(struct fb_info *info, unsigned int cmd,
 		if (!get_user(channel, (__u32 __user *) arg))
 			ret = mxc_elcdif_fb_wait_for_vsync(channel, info);
 		break;
+	case MXCFB_GET_FB_BLANK:
+		{
+			struct mxc_elcdif_fb_data *data =
+				(struct mxc_elcdif_fb_data *)info->par;
+
+			if (put_user(data->cur_blank, (__u32 __user *)arg))
+				return -EFAULT;
+			break;
+		}
 	default:
 		break;
 	}
