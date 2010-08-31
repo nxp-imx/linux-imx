@@ -193,7 +193,8 @@ void __iomem *epdc_base;
 static int mxc_epdc_fb_blank(int blank, struct fb_info *info);
 static int mxc_epdc_fb_init_hw(struct fb_info *info);
 static int pxp_process_update(struct mxc_epdc_fb_data *fb_data,
-			      struct mxcfb_rect *update_region);
+			      struct mxcfb_rect *update_region,
+			      int x_start_offs);
 static int pxp_complete_update(struct mxc_epdc_fb_data *fb_data, u32 *hist_stat);
 
 static void draw_mode0(struct mxc_epdc_fb_data *fb_data);
@@ -1279,7 +1280,7 @@ static int mxc_epdc_fb_send_update(struct mxcfb_update_data *upd_data,
 	u32 offset_from_8, bytes_per_pixel;
 	u32 post_rotation_xcoord, post_rotation_ycoord, width_pxp_blocks;
 	u32 pxp_input_offs, pxp_output_offs, pxp_output_shift;
-	int adj_left, adj_top;
+	int x_start_offs = 0;
 	u32 hist_stat = 0;
 	int temp_index;
 	bool wait_for_power = false;
@@ -1408,11 +1409,21 @@ static int mxc_epdc_fb_send_update(struct mxcfb_update_data *upd_data,
 		pxp_upd_region.left = 0;
 	}
 
+	/*
+	 * We want PxP processing region to start at the first pixel
+	 * that we have to process in each row, but PxP alignment
+	 * restricts the input mem address to be 32-bit aligned
+	 *
+	 * We work around this by using x_start_offs to offset
+	 * to offset from our starting pixel location to the
+	 * first pixel that is in the relevant update region
+	 * for each row.
+	 */
+	x_start_offs = pxp_upd_region.left & 0x7;
+
 	/* Update region to meet 8x8 pixel requirement */
-	adj_left = pxp_upd_region.left & 0x7;
-	adj_top = pxp_upd_region.top & 0x7;
-	pxp_upd_region.width = ALIGN(src_upd_region->width + adj_left, 8);
-	pxp_upd_region.height = ALIGN(src_upd_region->height + adj_top, 8);
+	pxp_upd_region.width = ALIGN(src_upd_region->width, 8);
+	pxp_upd_region.height = ALIGN(src_upd_region->height, 8);
 	pxp_upd_region.top &= ~0x7;
 	pxp_upd_region.left &= ~0x7;
 
@@ -1471,7 +1482,8 @@ static int mxc_epdc_fb_send_update(struct mxcfb_update_data *upd_data,
 	mutex_lock(&fb_data->pxp_mutex);
 
 	/* This is a blocking call, so upon return PxP tx should be done */
-	ret = pxp_process_update(fb_data, &pxp_upd_region);
+	ret = pxp_process_update(fb_data, &pxp_upd_region,
+		x_start_offs);
 	if (ret) {
 		dev_err(fb_data->dev, "Unable to submit PxP update task.\n");
 		mutex_unlock(&fb_data->pxp_mutex);
@@ -3002,7 +3014,8 @@ static int pxp_chan_init(struct mxc_epdc_fb_data *fb_data)
  * Note: This is a blocking call, so upon return the PxP tx should be complete.
  */
 static int pxp_process_update(struct mxc_epdc_fb_data *fb_data,
-			      struct mxcfb_rect *update_region)
+			      struct mxcfb_rect *update_region,
+			      int x_start_offs)
 {
 	dma_cookie_t cookie;
 	struct scatterlist *sg = fb_data->sg;
@@ -3063,7 +3076,7 @@ static int pxp_process_update(struct mxc_epdc_fb_data *fb_data,
 	 * probe() and should not need to be changed.
 	 */
 	proc_data->srect.top = update_region->top;
-	proc_data->srect.left = update_region->left;
+	proc_data->srect.left = update_region->left + x_start_offs;
 	proc_data->srect.width = update_region->width;
 	proc_data->srect.height = update_region->height;
 
