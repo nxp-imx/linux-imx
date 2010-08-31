@@ -73,6 +73,7 @@ static struct vpu_mem_desc user_data_mem = { 0 };
 static struct vpu_mem_desc share_mem = { 0 };
 
 static void __iomem *vpu_base;
+static int vpu_irq;
 static u32 phy_vpu_base_addr;
 static struct mxc_vpu_platform_data *vpu_plat;
 
@@ -635,8 +636,9 @@ static int vpu_dev_probe(struct platform_device *pdev)
 		err = -ENXIO;
 		goto err_out_class;
 	}
+	vpu_irq = res->start;
 
-	err = request_irq(res->start, vpu_irq_handler, 0, "VPU_CODEC_IRQ",
+	err = request_irq(vpu_irq, vpu_irq_handler, 0, "VPU_CODEC_IRQ",
 			  (void *)(&vpu_data));
 	if (err)
 		goto err_out_class;
@@ -660,6 +662,7 @@ static int vpu_dev_probe(struct platform_device *pdev)
 
 static int vpu_dev_remove(struct platform_device *pdev)
 {
+	free_irq(vpu_irq, &vpu_data);
 	iounmap(vpu_base);
 	iram_free(iram.start, VPU_IRAM_SIZE);
 
@@ -828,7 +831,6 @@ static int __init vpu_init(void)
 
 static void __exit vpu_exit(void)
 {
-	free_irq(MXC_INT_VPU, (void *)(&vpu_data));
 	if (vpu_major > 0) {
 		device_destroy(vpu_class, MKDEV(vpu_major, 0));
 		class_destroy(vpu_class);

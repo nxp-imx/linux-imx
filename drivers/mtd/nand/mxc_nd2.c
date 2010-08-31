@@ -32,6 +32,7 @@
 
 /* Global address Variables */
 static void __iomem *nfc_axi_base, *nfc_ip_base;
+static int nfc_irq;
 
 struct mxc_mtd_s {
 	struct mtd_info mtd;
@@ -1193,9 +1194,10 @@ static int mxc_get_resources(struct platform_device *pdev)
 		error = -ENXIO;
 		goto out_2;
 	}
+	nfc_irq = r->start;
 
 	init_waitqueue_head(&irq_waitq);
-	error = request_irq(r->start, mxc_nfc_irq, 0, "mxc_nd", NULL);
+	error = request_irq(nfc_irq, mxc_nfc_irq, 0, "mxc_nd", NULL);
 	if (error)
 		goto out_3;
 
@@ -1553,7 +1555,7 @@ static int __exit mxcnd_remove(struct platform_device *pdev)
 
 	if (mxc_nand_data) {
 		nand_release(mtd);
-		free_irq(MXC_INT_NANDFC, NULL);
+		free_irq(nfc_irq, NULL);
 		kfree(mxc_nand_data);
 	}
 

@@ -1077,7 +1077,7 @@ static int mxc_kpp_probe(struct platform_device *pdev)
 	retval = request_irq(irq, mxc_kpp_interrupt, 0, MOD_NAME, MOD_NAME);
 	if (retval) {
 		pr_debug("KPP: request_irq(%d) returned error %d\n",
-			 MXC_INT_KPP, retval);
+			 irq, retval);
 		goto err3;
 	}
 
