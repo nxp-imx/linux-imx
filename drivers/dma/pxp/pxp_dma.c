@@ -95,72 +95,76 @@ static uint32_t pxp_s0_formats[] = {
  */
 static void dump_pxp_reg(struct pxps *pxp)
 {
-	dev_err(pxp->dev, "PXP_CTRL 0x%x",
+	dev_dbg(pxp->dev, "PXP_CTRL 0x%x",
 		__raw_readl(pxp->base + HW_PXP_CTRL));
-	dev_err(pxp->dev, "PXP_STAT 0x%x",
+	dev_dbg(pxp->dev, "PXP_STAT 0x%x",
 		__raw_readl(pxp->base + HW_PXP_STAT));
-	dev_err(pxp->dev, "PXP_OUTBUF 0x%x",
+	dev_dbg(pxp->dev, "PXP_OUTBUF 0x%x",
 		__raw_readl(pxp->base + HW_PXP_OUTBUF));
-	dev_err(pxp->dev, "PXP_OUTBUF2 0x%x",
+	dev_dbg(pxp->dev, "PXP_OUTBUF2 0x%x",
 		__raw_readl(pxp->base + HW_PXP_OUTBUF2));
-	dev_err(pxp->dev, "PXP_OUTSIZE 0x%x",
+	dev_dbg(pxp->dev, "PXP_OUTSIZE 0x%x",
 		__raw_readl(pxp->base + HW_PXP_OUTSIZE));
-	dev_err(pxp->dev, "PXP_S0BUF 0x%x",
+	dev_dbg(pxp->dev, "PXP_S0BUF 0x%x",
 		__raw_readl(pxp->base + HW_PXP_S0BUF));
-	dev_err(pxp->dev, "PXP_S0UBUF 0x%x",
+	dev_dbg(pxp->dev, "PXP_S0UBUF 0x%x",
 		__raw_readl(pxp->base + HW_PXP_S0UBUF));
-	dev_err(pxp->dev, "PXP_S0VBUF 0x%x",
+	dev_dbg(pxp->dev, "PXP_S0VBUF 0x%x",
 		__raw_readl(pxp->base + HW_PXP_S0VBUF));
-	dev_err(pxp->dev, "PXP_S0PARAM 0x%x",
+	dev_dbg(pxp->dev, "PXP_S0PARAM 0x%x",
 		__raw_readl(pxp->base + HW_PXP_S0PARAM));
-	dev_err(pxp->dev, "PXP_S0BACKGROUND 0x%x",
+	dev_dbg(pxp->dev, "PXP_S0BACKGROUND 0x%x",
 		__raw_readl(pxp->base + HW_PXP_S0BACKGROUND));
-	dev_err(pxp->dev, "PXP_S0CROP 0x%x",
+	dev_dbg(pxp->dev, "PXP_S0CROP 0x%x",
 		__raw_readl(pxp->base + HW_PXP_S0CROP));
-	dev_err(pxp->dev, "PXP_S0SCALE 0x%x",
+	dev_dbg(pxp->dev, "PXP_S0SCALE 0x%x",
 		__raw_readl(pxp->base + HW_PXP_S0SCALE));
-	dev_err(pxp->dev, "PXP_OLn 0x%x",
+	dev_dbg(pxp->dev, "PXP_OLn 0x%x",
 		__raw_readl(pxp->base + HW_PXP_OLn(0)));
-	dev_err(pxp->dev, "PXP_OLnSIZE 0x%x",
+	dev_dbg(pxp->dev, "PXP_OLnSIZE 0x%x",
 		__raw_readl(pxp->base + HW_PXP_OLnSIZE(0)));
-	dev_err(pxp->dev, "PXP_OLnPARAM 0x%x",
+	dev_dbg(pxp->dev, "PXP_OLnPARAM 0x%x",
 		__raw_readl(pxp->base + HW_PXP_OLnPARAM(0)));
-	dev_err(pxp->dev, "PXP_CSCCOEF0 0x%x",
+	dev_dbg(pxp->dev, "PXP_CSCCOEF0 0x%x",
 		__raw_readl(pxp->base + HW_PXP_CSCCOEF0));
-	dev_err(pxp->dev, "PXP_CSC2CTRL 0x%x",
+	dev_dbg(pxp->dev, "PXP_CSCCOEF1 0x%x",
+		__raw_readl(pxp->base + HW_PXP_CSCCOEF1));
+	dev_dbg(pxp->dev, "PXP_CSCCOEF2 0x%x",
+		__raw_readl(pxp->base + HW_PXP_CSCCOEF2));
+	dev_dbg(pxp->dev, "PXP_CSC2CTRL 0x%x",
 		__raw_readl(pxp->base + HW_PXP_CSC2CTRL));
-	dev_err(pxp->dev, "PXP_CSC2COEF0 0x%x",
+	dev_dbg(pxp->dev, "PXP_CSC2COEF0 0x%x",
 		__raw_readl(pxp->base + HW_PXP_CSC2COEF0));
-	dev_err(pxp->dev, "PXP_CSC2COEF1 0x%x",
+	dev_dbg(pxp->dev, "PXP_CSC2COEF1 0x%x",
 		__raw_readl(pxp->base + HW_PXP_CSC2COEF1));
-	dev_err(pxp->dev, "PXP_CSC2COEF2 0x%x",
+	dev_dbg(pxp->dev, "PXP_CSC2COEF2 0x%x",
 		__raw_readl(pxp->base + HW_PXP_CSC2COEF2));
-	dev_err(pxp->dev, "PXP_CSC2COEF3 0x%x",
+	dev_dbg(pxp->dev, "PXP_CSC2COEF3 0x%x",
 		__raw_readl(pxp->base + HW_PXP_CSC2COEF3));
-	dev_err(pxp->dev, "PXP_CSC2COEF4 0x%x",
+	dev_dbg(pxp->dev, "PXP_CSC2COEF4 0x%x",
 		__raw_readl(pxp->base + HW_PXP_CSC2COEF4));
-	dev_err(pxp->dev, "PXP_CSC2COEF5 0x%x",
+	dev_dbg(pxp->dev, "PXP_CSC2COEF5 0x%x",
 		__raw_readl(pxp->base + HW_PXP_CSC2COEF5));
-	dev_err(pxp->dev, "PXP_LUT_CTRL 0x%x",
+	dev_dbg(pxp->dev, "PXP_LUT_CTRL 0x%x",
 		__raw_readl(pxp->base + HW_PXP_LUT_CTRL));
-	dev_err(pxp->dev, "PXP_LUT 0x%x", __raw_readl(pxp->base + HW_PXP_LUT));
-	dev_err(pxp->dev, "PXP_HIST_CTRL 0x%x",
+	dev_dbg(pxp->dev, "PXP_LUT 0x%x", __raw_readl(pxp->base + HW_PXP_LUT));
+	dev_dbg(pxp->dev, "PXP_HIST_CTRL 0x%x",
 		__raw_readl(pxp->base + HW_PXP_HIST_CTRL));
-	dev_err(pxp->dev, "PXP_HIST2_PARAM 0x%x",
+	dev_dbg(pxp->dev, "PXP_HIST2_PARAM 0x%x",
 		__raw_readl(pxp->base + HW_PXP_HIST2_PARAM));
-	dev_err(pxp->dev, "PXP_HIST4_PARAM 0x%x",
+	dev_dbg(pxp->dev, "PXP_HIST4_PARAM 0x%x",
 		__raw_readl(pxp->base + HW_PXP_HIST4_PARAM));
-	dev_err(pxp->dev, "PXP_HIST8_PARAM0 0x%x",
+	dev_dbg(pxp->dev, "PXP_HIST8_PARAM0 0x%x",
 		__raw_readl(pxp->base + HW_PXP_HIST8_PARAM0));
-	dev_err(pxp->dev, "PXP_HIST8_PARAM1 0x%x",
+	dev_dbg(pxp->dev, "PXP_HIST8_PARAM1 0x%x",
 		__raw_readl(pxp->base + HW_PXP_HIST8_PARAM1));
-	dev_err(pxp->dev, "PXP_HIST16_PARAM0 0x%x",
+	dev_dbg(pxp->dev, "PXP_HIST16_PARAM0 0x%x",
 		__raw_readl(pxp->base + HW_PXP_HIST16_PARAM0));
-	dev_err(pxp->dev, "PXP_HIST16_PARAM1 0x%x",
+	dev_dbg(pxp->dev, "PXP_HIST16_PARAM1 0x%x",
 		__raw_readl(pxp->base + HW_PXP_HIST16_PARAM1));
-	dev_err(pxp->dev, "PXP_HIST16_PARAM2 0x%x",
+	dev_dbg(pxp->dev, "PXP_HIST16_PARAM2 0x%x",
 		__raw_readl(pxp->base + HW_PXP_HIST16_PARAM2));
-	dev_err(pxp->dev, "PXP_HIST16_PARAM3 0x%x",
+	dev_dbg(pxp->dev, "PXP_HIST16_PARAM3 0x%x",
 		__raw_readl(pxp->base + HW_PXP_HIST16_PARAM3));
 }
 
@@ -265,13 +269,19 @@ static int pxp_start(struct pxps *pxp)
 static void pxp_set_outbuf(struct pxps *pxp)
 {
 	struct pxp_config_data *pxp_conf = &pxp->pxp_conf_state;
+	struct pxp_proc_data *proc_data = &pxp_conf->proc_data;
 	struct pxp_layer_param *out_params = &pxp_conf->out_param;
 
 	__raw_writel(out_params->paddr, pxp->base + HW_PXP_OUTBUF);
 
-	__raw_writel(BF_PXP_OUTSIZE_WIDTH(out_params->width) |
-		     BF_PXP_OUTSIZE_HEIGHT(out_params->height),
-		     pxp->base + HW_PXP_OUTSIZE);
+	if (proc_data->rotate % 180)
+		__raw_writel(BF_PXP_OUTSIZE_WIDTH(out_params->height) |
+			     BF_PXP_OUTSIZE_HEIGHT(out_params->width),
+			     pxp->base + HW_PXP_OUTSIZE);
+	else
+		__raw_writel(BF_PXP_OUTSIZE_WIDTH(out_params->width) |
+			     BF_PXP_OUTSIZE_HEIGHT(out_params->height),
+			     pxp->base + HW_PXP_OUTSIZE);
 }
 
 static void pxp_set_s0colorkey(struct pxps *pxp)
@@ -336,7 +346,7 @@ static void pxp_set_olparam(int layer_no, struct pxps *pxp)
 	else
 		olparam |=
 		    BF_PXP_OLnPARAM_FORMAT(BV_PXP_OLnPARAM_FORMAT__RGB565);
-	if (olparams_data->global_alpha)
+	if (olparams_data->global_alpha_enable)
 		olparam |=
 		    BF_PXP_OLnPARAM_ALPHA_CNTL
 		    (BV_PXP_OLnPARAM_ALPHA_CNTL__Override);
@@ -489,9 +499,9 @@ static void pxp_set_csc(struct pxps *pxp)
 		 */
 
 		/* CSC1 - YUV->RGB */
-		__raw_writel(0x04030000, pxp->base + HW_PXP_CSCCOEF0);
-		__raw_writel(0x01230208, pxp->base + HW_PXP_CSCCOEF1);
-		__raw_writel(0x076b079c, pxp->base + HW_PXP_CSCCOEF2);
+		__raw_writel(0x84ab01f0, pxp->base + HW_PXP_CSCCOEF0);
+		__raw_writel(0x01230204, pxp->base + HW_PXP_CSCCOEF1);
+		__raw_writel(0x0730079c, pxp->base + HW_PXP_CSCCOEF2);
 
 		/* CSC2 - Bypass */
 		__raw_writel(0x1, pxp->base + HW_PXP_CSC2CTRL);
@@ -809,7 +819,7 @@ static int pxp_init_channel(struct pxp_dma *pxp_dma,
 	spin_lock_irqsave(&pxp->lock, flags);
 
 	/* max desc nr: S0+OL+OUT = 1+8+1 */
-	n_desc = 10;
+	n_desc = 16;
 
 	spin_unlock_irqrestore(&pxp->lock, flags);
 
@@ -847,6 +857,8 @@ static irqreturn_t pxp_irq(int irq, void *dev_id)
 	void *callback_param;
 	unsigned long flags, flags1;
 	u32 hist_status;
+
+	dump_pxp_reg(pxp);
 
 	hist_status =
 	    __raw_readl(pxp->base + HW_PXP_HIST_CTRL) & BM_PXP_HIST_CTRL_STATUS;
