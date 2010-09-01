@@ -53,4 +53,5 @@ obj-$(CONFIG_TI_ST)		+= ti-st/
 obj-$(CONFIG_ADIS16255)		+= adis16255/
 obj-$(CONFIG_FB_XGI)		+= xgifb/
 obj-$(CONFIG_TOUCHSCREEN_MRSTOUCH)	+= mrst-touchscreen/
+obj-$(CONFIG_ATH6K_LEGACY)	+= ath6kl/
 obj-$(CONFIG_MSM_STAGING)	+= msm/
