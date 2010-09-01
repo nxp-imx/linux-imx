@@ -11,6 +11,7 @@
  * http://www.gnu.org/copyleft/gpl.html
  */
 
+#include <linux/slab.h>
 #include <linux/types.h>
 #include <linux/delay.h>
 #include <linux/pm.h>
