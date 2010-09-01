@@ -69,8 +69,17 @@ static u8 *i2c_buf_virt;
 
 static void hw_i2c_dmachan_reset(struct mxs_i2c_dev *dev)
 {
+	mxs_dma_disable(dev->dma_chan);
 	mxs_dma_reset(dev->dma_chan);
 	mxs_dma_ack_irq(dev->dma_chan);
+}
+
+static mxs_i2c_reset(struct mxs_i2c_dev *mxs_i2c)
+{
+	hw_i2c_dmachan_reset(mxs_i2c);
+	mxs_dma_enable_irq(mxs_i2c->dma_chan, 1);
+	mxs_reset_block((void __iomem *)mxs_i2c->regbase, 0);
+	__raw_writel(0x0000FF00, mxs_i2c->regbase + HW_I2C_CTRL1_SET);
 }
 
 static int hw_i2c_dma_init(struct platform_device *pdev)
@@ -160,7 +169,7 @@ static void hw_i2c_dma_setup_read(u8 addr, void *buff, int len, int flags)
 	desc[0]->cmd.cmd.bits.pio_words = 1;
 	desc[0]->cmd.cmd.bits.wait4end = 1;
 	desc[0]->cmd.cmd.bits.dec_sem = 1;
-	desc[0]->cmd.cmd.bits.irq = 1;
+	desc[0]->cmd.cmd.bits.irq = 0;
 	desc[0]->cmd.cmd.bits.chain = 1;
 	desc[0]->cmd.cmd.bits.command = DMA_READ;
 	desc[0]->cmd.address = i2c_buf_phys;
@@ -320,6 +329,7 @@ static int mxs_i2c_xfer_msg(struct i2c_adapter *adap,
 							msecs_to_jiffies(1000)
 	    );
 	if (err <= 0) {
+		mxs_i2c_reset(dev);
 		dev_dbg(dev->dev, "controller is timed out\n");
 		return -ETIMEDOUT;
 	}
@@ -366,7 +376,17 @@ static irqreturn_t mxs_i2c_dma_isr(int this_irq, void *dev_id)
 	mxs_dma_ack_irq(mxs_i2c->dma_chan);
 	mxs_dma_cooked(mxs_i2c->dma_chan, &list);
 
+	complete(&mxs_i2c->cmd_complete);
+
 	return IRQ_HANDLED;
+}
+
+static void mxs_i2c_task(struct work_struct *work)
+{
+	struct mxs_i2c_dev *mxs_i2c = container_of(work,
+					struct mxs_i2c_dev, work);
+	mxs_i2c_reset(mxs_i2c);
+	complete(&mxs_i2c->cmd_complete);
 }
 
 #define I2C_IRQ_MASK 0x000000FF
@@ -383,20 +403,8 @@ static irqreturn_t mxs_i2c_isr(int this_irq, void *dev_id)
 
 	if (stat & BM_I2C_CTRL1_NO_SLAVE_ACK_IRQ) {
 		mxs_i2c->cmd_err = -EREMOTEIO;
-
-		/*
-		 * Stop DMA
-		 * Clear NAK
-		 */
-		__raw_writel(BM_I2C_CTRL1_CLR_GOT_A_NAK,
-			     mxs_i2c->regbase + HW_I2C_CTRL1_SET);
-		hw_i2c_dmachan_reset(mxs_i2c);
-		mxs_reset_block((void __iomem *)mxs_i2c->regbase, 1);
-		/* Will catch all error (IRQ mask) */
-		__raw_writel(0x0000FF00, mxs_i2c->regbase + HW_I2C_CTRL1_SET);
-
-		complete(&mxs_i2c->cmd_complete);
-
+		/* it takes long time to reset i2c */
+		schedule_work(&mxs_i2c->work);
 		goto done;
 	}
 
@@ -408,7 +416,10 @@ static irqreturn_t mxs_i2c_isr(int this_irq, void *dev_id)
 		complete(&mxs_i2c->cmd_complete);
 		goto done;
 	}
-	if ((stat & done_mask) == done_mask)
+
+	if ((stat & done_mask) == done_mask &&
+		(mxs_i2c->flags & MXS_I2C_PIOQUEUE_MODE))
+
 		complete(&mxs_i2c->cmd_complete);
 
 done:
@@ -524,6 +535,8 @@ static int mxs_i2c_probe(struct platform_device *pdev)
 		goto no_i2c_adapter;
 
 	}
+
+	INIT_WORK(&mxs_i2c->work, mxs_i2c_task);
 
 	return 0;
 
