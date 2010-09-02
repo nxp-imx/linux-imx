@@ -748,6 +748,18 @@ static int pxp_buf_prepare(struct videobuf_queue *q,
 					&pxp_conf->s0_param,
 					sizeof(struct pxp_layer_param));
 			} else if (i == 1) { /* Output */
+				if (proc_data->rotate % 180) {
+					pxp_conf->out_param.width =
+						pxp->fb.fmt.height;
+					pxp_conf->out_param.height =
+						pxp->fb.fmt.width;
+				} else {
+					pxp_conf->out_param.width =
+						pxp->fb.fmt.width;
+					pxp_conf->out_param.height =
+						pxp->fb.fmt.height;
+				}
+
 				pxp_conf->out_param.paddr = pxp->outb_phys;
 				memcpy(&desc->layer_param.out_param,
 					&pxp_conf->out_param,
@@ -1056,6 +1068,8 @@ static int pxp_close(struct file *file)
 	videobuf_stop(&pxp->s0_vbq);
 	videobuf_mmap_free(&pxp->s0_vbq);
 	pxp->active = NULL;
+	kfree(pxp->outb);
+	pxp->outb = NULL;
 
 	mutex_lock(&pxp->mutex);
 	pxp->users--;
@@ -1191,7 +1205,6 @@ static int __devexit pxp_remove(struct platform_device *pdev)
 	video_unregister_device(pxp->vdev);
 	video_device_release(pxp->vdev);
 
-	kfree(pxp->outb);
 	kfree(pxp);
 
 	return 0;
