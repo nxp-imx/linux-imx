@@ -274,14 +274,9 @@ static void pxp_set_outbuf(struct pxps *pxp)
 
 	__raw_writel(out_params->paddr, pxp->base + HW_PXP_OUTBUF);
 
-	if (proc_data->rotate % 180)
-		__raw_writel(BF_PXP_OUTSIZE_WIDTH(out_params->height) |
-			     BF_PXP_OUTSIZE_HEIGHT(out_params->width),
-			     pxp->base + HW_PXP_OUTSIZE);
-	else
-		__raw_writel(BF_PXP_OUTSIZE_WIDTH(out_params->width) |
-			     BF_PXP_OUTSIZE_HEIGHT(out_params->height),
-			     pxp->base + HW_PXP_OUTSIZE);
+	__raw_writel(BF_PXP_OUTSIZE_WIDTH(out_params->width) |
+		     BF_PXP_OUTSIZE_HEIGHT(out_params->height),
+		     pxp->base + HW_PXP_OUTSIZE);
 }
 
 static void pxp_set_s0colorkey(struct pxps *pxp)
