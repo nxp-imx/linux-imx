@@ -46,6 +46,8 @@ struct mxs_spi {
 	spinlock_t lock;
 	struct list_head queue;
 
+	u32 ver_major;
+
 	struct completion done;
 };
 

@@ -41,6 +41,21 @@
 
 #include "spi_mxs.h"
 
+#ifndef BF_SSP_CTRL0_XFER_COUNT
+#define BF_SSP_CTRL0_XFER_COUNT(len)	HW_SSP_VERSION
+#endif
+#ifndef BM_SSP_CTRL0_XFER_COUNT
+#define BM_SSP_CTRL0_XFER_COUNT		HW_SSP_VERSION
+#endif
+
+#ifndef BF_SSP_XFER_SIZE_XFER_COUNT
+#define BF_SSP_XFER_SIZE_XFER_COUNT(len)	HW_SSP_VERSION
+#endif
+#ifndef BM_SSP_XFER_SIZE_XFER_COUNT
+#define BM_SSP_XFER_SIZE_XFER_COUNT	HW_SSP_VERSION
+#endif
+
+
 /* 0 means DMA modei(recommended, default), !0 - PIO mode */
 static int pio /* = 0 */ ;
 static int debug;
@@ -206,7 +221,7 @@ static int mxs_spi_txrx_dma(struct mxs_spi *ss, int cs,
 			    unsigned char *buf, dma_addr_t dma_buf, int len,
 			    int *first, int *last, int write)
 {
-	u32 c0 = 0;
+	u32 c0 = 0, xfer_size = 0;
 	dma_addr_t spi_buf_dma = dma_buf;
 	int count, status = 0;
 	enum dma_data_direction dir = write ? DMA_TO_DEVICE : DMA_FROM_DEVICE;
@@ -218,7 +233,12 @@ static int mxs_spi_txrx_dma(struct mxs_spi *ss, int cs,
 
 	c0 |= mxs_spi_cs(cs);
 
-	c0 |= BF_SSP_CTRL0_XFER_COUNT(len);
+	if (ss->ver_major > 3) {
+		xfer_size = BF_SSP_XFER_SIZE_XFER_COUNT(len);
+		__raw_writel(xfer_size, ss->regs + HW_SSP_XFER_SIZE);
+	} else {
+		c0 |= BF_SSP_CTRL0_XFER_COUNT(len);
+	}
 
 	if (!dma_buf)
 		spi_buf_dma = dma_map_single(ss->master_dev, buf, len, dir);
@@ -285,9 +305,15 @@ static int mxs_spi_txrx_pio(struct mxs_spi *ss, int cs,
 			mxs_spi_disable(ss);
 			*last = 0;
 		}
-		__raw_writel(BM_SSP_CTRL0_XFER_COUNT,
-			     ss->regs + HW_SSP_CTRL0_CLR);
-		__raw_writel(1, ss->regs + HW_SSP_CTRL0_SET);	/* byte-by-byte */
+
+		/* byte-by-byte */
+		if (ss->ver_major > 3) {
+			__raw_writel(1, ss->regs + HW_SSP_XFER_SIZE);
+		} else {
+			__raw_writel(BM_SSP_CTRL0_XFER_COUNT,
+				     ss->regs + HW_SSP_CTRL0_CLR);
+			__raw_writel(1, ss->regs + HW_SSP_CTRL0_SET);
+		}
 
 		if (write)
 			__raw_writel(BM_SSP_CTRL0_READ,
@@ -580,6 +606,8 @@ static int __init mxs_spi_probe(struct platform_device *dev)
 	dev_info(&dev->dev, "Max possible speed %d = %ld/%d kHz\n",
 		 ss->speed_khz, clk_get_rate(ss->clk), ss->divider);
 
+	ss->ver_major = __raw_readl(ss->regs + HW_SSP_VERSION) >> 24;
+
 	/* Register for SPI Interrupt */
 	err = request_irq(ss->irq_dma, mxs_spi_irq_dma, 0,
 			  dev_name(&dev->dev), ss);
@@ -599,9 +627,9 @@ static int __init mxs_spi_probe(struct platform_device *dev)
 		dev_dbg(&dev->dev, "cannot register spi master, %d\n", err);
 		goto out_free_irq_2;
 	}
-	dev_info(&dev->dev, "at 0x%08X mapped to 0x%08X, irq=%d, bus %d, %s\n",
+	dev_info(&dev->dev, "at 0x%08X mapped to 0x%08X, irq=%d, bus %d, %s ver_major %d\n",
 		 mem, (u32) ss->regs, ss->irq_dma,
-		 master->bus_num, pio ? "PIO" : "DMA");
+		 master->bus_num, pio ? "PIO" : "DMA", ss->ver_major);
 	return 0;
 
 out_free_irq_2:
