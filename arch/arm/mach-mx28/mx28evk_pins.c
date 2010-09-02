@@ -1072,6 +1072,43 @@ static struct pin_desc mx28evk_gpmi_pins[] = {
 	 },
 };
 
+#if defined(CONFIG_SPI_MXS) || defined(CONFIG_SPI_MXS_MODULE)
+static struct pin_desc mx28evk_spi_pins[] = {
+	{
+	 .name	= "SSP2 MOSI",
+	 .id	= PINID_SSP2_MOSI,
+	 .fun	= PIN_FUN1,
+	 .strength	= PAD_4MA,
+	 .voltage	= PAD_3_3V,
+	 .drive 	= 1,
+	 },
+	{
+	 .name	= "SSP2 MISO",
+	 .id	= PINID_SSP2_MISO,
+	 .fun	= PIN_FUN1,
+	 .strength	= PAD_4MA,
+	 .voltage	= PAD_3_3V,
+	 .drive 	= 1,
+	 },
+	{
+	 .name	= "SSP2 SCK",
+	 .id	= PINID_SSP2_SCK,
+	 .fun	= PIN_FUN1,
+	 .strength	= PAD_4MA,
+	 .voltage	= PAD_3_3V,
+	 .drive 	= 1,
+	 },
+	{
+	 .name	= "SSP2 SS0",
+	 .id	= PINID_SSP2_SS0,
+	 .fun	= PIN_FUN1,
+	 .strength	= PAD_8MA,
+	 .voltage	= PAD_3_3V,
+	 .drive 	= 1,
+	 },
+};
+#endif
+
 #if defined(CONFIG_FEC) || defined(CONFIG_FEC_MODULE)\
 	|| defined(CONFIG_FEC_L2SWITCH)
 int mx28evk_enet_gpio_init(void)
@@ -1174,6 +1211,12 @@ void __init mx28evk_pins_init(void)
 		mx28evk_init_pin_group(mx28evk_gpmi_pins,
 						ARRAY_SIZE(mx28evk_gpmi_pins));
 	}
+
+#if defined(CONFIG_SPI_MXS) || defined(CONFIG_SPI_MXS_MODULE)
+	mx28evk_init_pin_group(mx28evk_spi_pins,
+					ARRAY_SIZE(mx28evk_spi_pins));
+#endif
+
 #if defined(CONFIG_FEC) || defined(CONFIG_FEC_MODULE)\
 	|| defined(CONFIG_FEC_L2SWITCH)
 		mx28evk_init_pin_group(mx28evk_eth_pins,

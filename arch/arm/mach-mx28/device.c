@@ -659,6 +659,49 @@ static void mx28_init_mmc(void)
 }
 #endif
 
+#if defined(CONFIG_SPI_MXS) || defined(CONFIG_SPI_MXS_MODULE)
+static struct mxs_spi_platform_data spi_data = {
+	.clk = "ssp.2",
+};
+static struct resource ssp2_resources[] = {
+	{
+		.start	= SSP2_PHYS_ADDR,
+		.end	= SSP2_PHYS_ADDR + 0x2000 - 1,
+		.flags	= IORESOURCE_MEM,
+	}, {
+		.start	= MXS_DMA_CHANNEL_AHB_APBH_SSP2,
+		.end	= MXS_DMA_CHANNEL_AHB_APBH_SSP2,
+		.flags	= IORESOURCE_DMA,
+	}, {
+		.start	= IRQ_SSP2_DMA,
+		.end	= IRQ_SSP2_DMA,
+		.flags	= IORESOURCE_IRQ,
+	}, {
+		.start	= IRQ_SSP2,
+		.end	= IRQ_SSP2,
+		.flags	= IORESOURCE_IRQ,
+	},
+};
+
+static void __init mx28_init_spi(void)
+{
+	struct platform_device *pdev;
+
+	pdev = mxs_get_device("mxs-spi", 0);
+	if (pdev == NULL || IS_ERR(pdev))
+		return;
+	pdev->resource = ssp2_resources;
+	pdev->num_resources = ARRAY_SIZE(ssp2_resources);
+	pdev->dev.platform_data = &spi_data;
+
+	mxs_add_device(pdev, 3);
+}
+#else
+static void mx28_init_spi(void)
+{
+}
+#endif
+
 #if defined(CONFIG_MXS_WATCHDOG) || defined(CONFIG_MXS_WATCHDOG_MODULE)
 static struct resource mx28_wdt_res = {
 	.flags = IORESOURCE_MEM,
@@ -1513,6 +1556,7 @@ int __init mx28_device_init(void)
 	mx28_init_lradc();
 	mx28_init_auart();
 	mx28_init_mmc();
+	mx28_init_spi();
 	mx28_init_gpmi_nfc();
 	mx28_init_wdt();
 	mx28_init_rtc();

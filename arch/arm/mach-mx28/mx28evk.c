@@ -32,6 +32,8 @@
 #include <mach/device.h>
 #include <mach/pinctrl.h>
 
+#include <linux/spi/spi.h>
+
 #include "device.h"
 #include "mx28evk.h"
 
@@ -42,6 +44,14 @@ static struct i2c_board_info __initdata mxs_i2c_device[] = {
 static void __init i2c_device_init(void)
 {
 	i2c_register_board_info(0, mxs_i2c_device, ARRAY_SIZE(mxs_i2c_device));
+}
+
+static struct spi_board_info spi_board_info[] __initdata = {
+};
+
+static void spi_device_init(void)
+{
+	spi_register_board_info(spi_board_info, ARRAY_SIZE(spi_board_info));
 }
 
 static void __init fixup_board(struct machine_desc *desc, struct tag *tags,
@@ -97,6 +107,7 @@ static void __init mx28evk_device_init(void)
 {
 	/* Add mx28evk special code */
 	i2c_device_init();
+	spi_device_init();
 	mx28evk_init_leds();
 }
 
