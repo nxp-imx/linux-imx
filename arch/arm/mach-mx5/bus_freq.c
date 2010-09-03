@@ -262,21 +262,6 @@ void enter_lpapm_mode_mx50()
 	reg = __raw_readl(MXC_CCM_CLK_SYS);
 	reg &= ~MXC_CCM_CLK_SYS_SYS_PLL_CLKGATE_MASK;
 	__raw_writel(reg, MXC_CCM_CLK_SYS);
-
-	local_flush_tlb_all();
-	flush_cache_all();
-
-	memcpy(ddr_freq_change_iram_base, mx50_ddr_freq_change, SZ_8K);
-	change_ddr_freq = (void *)ddr_freq_change_iram_base;
-
-	/* Set the DDR to run from 24MHz.
-	 * Need to source the DDR from the SYS_CLK after
-	 * setting it into self-refresh mode. This code needs to run from iRAM.
-	 */
-	change_ddr_freq(ccm_base, databahn_base, LP_APM_CLK);
-
-	udelay(100);
-
 	spin_unlock_irqrestore(&ddr_freq_lock, flags);
 
 }
@@ -433,18 +418,6 @@ void exit_lpapm_mode_mx50()
 	unsigned long flags;
 
 	spin_lock_irqsave(&ddr_freq_lock, flags);
-
-	local_flush_tlb_all();
-	flush_cache_all();
-
-	memcpy(ddr_freq_change_iram_base, mx50_ddr_freq_change, SZ_8K);
-	change_ddr_freq = (void *)ddr_freq_change_iram_base;
-
-	/* Set the DDR to default freq.
-	 */
-	change_ddr_freq(ccm_base, databahn_base, ddr_normal_rate);
-
-	udelay(100);
 
 	/* Set SYS_CLK to source from PLL1 */
 	/* Set sys_clk back to 200MHz. */

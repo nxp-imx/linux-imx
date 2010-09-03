@@ -48,12 +48,12 @@ struct clk *gpc_dvfs_clk;
 extern void cpu_do_suspend_workaround(u32 sdclk_iomux_addr);
 extern void mx50_suspend(u32 databahn_addr);
 extern struct cpu_wp *(*get_cpu_wp)(int *wp);
+extern void __iomem *databahn_base;
 
 extern int iram_ready;
 void *suspend_iram_base;
 void (*suspend_in_iram)(void *sdclk_iomux_addr) = NULL;
 void __iomem *suspend_param1;
-u32 *suspend_param;
 
 static int mx5_suspend_enter(suspend_state_t state)
 {
@@ -90,7 +90,7 @@ static int mx5_suspend_enter(suspend_state_t state)
 			local_flush_tlb_all();
 			flush_cache_all();
 
-			suspend_in_iram(suspend_param);
+			suspend_in_iram(databahn_base);
 	} else {
 			cpu_do_idle();
 	}
@@ -196,7 +196,6 @@ static int __init pm_init(void)
 		 to be executable. */
 	suspend_iram_base = __arm_ioremap(iram_paddr, SZ_4K,
 					  MT_HIGH_VECTORS);
-	suspend_param = (u32 *)iram_alloc(SZ_4K, &iram_paddr1);
 
 	if (cpu_is_mx51()) {
 		suspend_param1 = IO_ADDRESS(IOMUXC_BASE_ADDR + 0x4b8);
@@ -208,19 +207,8 @@ static int __init pm_init(void)
 		 * to be put into self refresh mode manually.
 		 */
 		memcpy(suspend_iram_base, mx50_suspend, SZ_4K);
-		suspend_param1 = ioremap(MX50_DATABAHN_BASE_ADDR, SZ_4K);
-		/* DDR Controller [0] */
-		*suspend_param = (u32)suspend_param1 +
-								DATABAHN_CTL_REG0;
-		/* DDR Controller [19] */
-		*(suspend_param + 1) = (u32)suspend_param1 +
-								DATABAHN_CTL_REG19;
-		/* DDR Controller [79] */
-		*(suspend_param + 2) = (u32)suspend_param1 +
-								DATABAHN_CTL_REG79;
-		/* DDR Controller PHY [25] */
-		*(suspend_param + 3) = (u32)suspend_param1 +
-								DATABAHN_PHY_REG25;
+
+		suspend_param1 = databahn_base;
 	}
 	suspend_in_iram = (void *)suspend_iram_base;
 

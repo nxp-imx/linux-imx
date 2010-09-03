@@ -16,6 +16,7 @@
 #include <linux/platform_device.h>
 #include <asm/io.h>
 #include <mach/hardware.h>
+#include <mach/clock.h>
 #include <asm/proc-fns.h>
 #include <asm/system.h>
 #include "crm_regs.h"
@@ -33,6 +34,12 @@
 
 extern int mxc_jtag_enabled;
 extern int iram_ready;
+extern void __iomem *ccm_base;
+extern void __iomem *databahn_base;
+extern void (*wait_in_iram)(void *ccm_addr, void *databahn_addr);
+extern void *wait_in_iram_base;
+extern void mx50_wait(u32 ccm_base, u32 databahn_addr);
+
 static struct clk *gpc_dvfs_clk;
 
 /* set cpu low power mode before WFI instruction */
@@ -149,14 +156,21 @@ static int arch_idle_mode = WAIT_UNCLOCKED_POWER_OFF;
  */
 void mx51_idle(void)
 {
-/*	if (likely(!mxc_jtag_enabled))*/ {
+/*	if (likely(!mxc_jtag_enabled)) */{
+		struct clk *ddr_clk = clk_get(NULL, "ddr_clk");
 		if (gpc_dvfs_clk == NULL)
 			gpc_dvfs_clk = clk_get(NULL, "gpc_dvfs_clk");
 		/* gpc clock is needed for SRPG */
 		clk_enable(gpc_dvfs_clk);
 		mxc_cpu_lp_set(arch_idle_mode);
-		cpu_do_idle();
+		if (cpu_is_mx50() && (clk_get_usecount(ddr_clk) == 0)) {
+			memcpy(wait_in_iram_base, mx50_wait, SZ_4K);
+			wait_in_iram = (void *)wait_in_iram_base;
+			wait_in_iram(ccm_base, databahn_base);
+		} else
+			cpu_do_idle();
 		clk_disable(gpc_dvfs_clk);
+		clk_put(ddr_clk);
 	}
 }
 
