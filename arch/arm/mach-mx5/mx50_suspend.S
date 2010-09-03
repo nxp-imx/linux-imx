@@ -30,9 +30,20 @@
  *  IRQs are already disabled.
  */
 ENTRY(mx50_suspend)
-    stmfd   sp!, {r4,r5,r6,r7,r9,r10,r11}     @ Save registers
+    stmfd   sp!, {r4,r5,r6,r7,r8, r9,r10,r11}     @ Save registers
 
     mov    r6, r0                       @save databahn address
+
+/* Before putting DDR into self-refresh, make sure
+    any LPM mode that the DDR might be in is exited.
+*/
+    /* If Databahn is in LPM4, exit that mode first. */
+    ldr     r8,[r6, #0x50]             @Store LPM mode in r8
+    mov   r0, r8
+    bic     r0, r0, #0x1F
+    str     r0,[r6, #0x50]
+
+
     /* Disable L1 caches */
     mrc     p15, 0, r0, c1, c0, 0    @ R0 = system control reg
     bic     r0, r0, #ARM_CTRL_ICACHE @ Disable ICache
@@ -96,63 +107,57 @@ FinishedClean:
      being made.
 */
 EnterWFI:
-    ldr     r1,[r6, #0x8]
-    ldr     r0,[r1]
-    and     r0, r0, #0x100
+    ldr     r0,[r6, #0x13c]
+    and    r0, r0, #0x100
     ldr     r2, =0x100
     cmp     r0, r2
     beq     EnterWFI
+
     /* Enter self-refresh mode */
-    ldr     r1,[r6, #0x4]
-    ldr     r0,[r1]
+    ldr     r0,[r6, #0x4c]
     orr     r0,r0,#0x1
-    str     r0,[r1]
+    str     r0,[r6, #0x4c]
 
 LoopCKE0:
     /* Wait for CKE = 0 */
-    ldr     r1,[r6, #0x8]
-    ldr     r0,[r1]
-    and     r0, r0, #0x10
-    ldr     r2, =0x10
+    ldr     r0,[r6, #0xfc]
+    and    r0, r0, #0x10000
+    ldr     r2, =0x10000
     cmp     r0, r2
     beq     LoopCKE0
+
     /* Stop controller */
-    ldr     r1,[r6, #0]
-    ldr     r0,[r1]
-    and     r0,r0,#0xfffffffe
-    str     r0,[r1]
+    ldr     r0,[r6]
+    bic     r0, r0, #0x1
+    str     r0,[r6]
 
     .long     0xe320f003              @ Opcode for WFI
 
-
     /* Start controller */
-    ldr     r1,[r6, #0]
-    ldr     r0,[r1]
+    ldr     r0,[r6]
     orr     r0,r0,#0x1
-    str     r0,[r1]
+    str     r0,[r6]
 
 LoopPHY:
     /* Wait for PHY ready */
-    ldr     r1,[r6, #0xC]
-    ldr     r0,[r1]
-    and     r0, r0, #0xfffffffe
-    ldr     r2, =0x0
-    cmp     r0, r2
+    ldr     r0,[r6, #0x264]
+    and    r0, r0, #0xfffffffe
+    ldr      r2, =0x0
+    cmp    r0, r2
     beq     LoopPHY
+
     /*Leave self-refresh mode */
-    ldr     r1,[r6, #4]
-    ldr     r0,[r1]
-    and     r0,r0,#0xfffffffe
-    str     r0,[r1]
+    ldr     r0,[r6, #0x4c]
+    and    r0,r0,#0xfffffffe
+    str     r0,[r6, #0x4c]
 
 LoopCKE1:
     /*Wait for CKE = 1 */
-    ldr     r1,[r6, #0x8]
-    ldr     r0,[r1]
-    and     r0, r0, #0x10
-    ldr     r2, =0x0
+    ldr     r0,[r6, #0xfc]
+    and    r0, r0, #0x10000
+    ldr     r2, =0x10000
     cmp     r0, r2
-    beq     LoopCKE1
+    bne     LoopCKE1
 
     mov     r0, #0
     mcr     p15, 0, r0, c7, c5, 0      @ Invalidate inst cache
@@ -216,8 +221,11 @@ FinishedInvalidate:
     orr     r0, r0, #ARM_CTRL_DCACHE @ Enable DCache
     mcr     p15, 0, r0, c1, c0, 0    @ Update system control reg
 
+    /* restore LPM mode. */
+    str       r8, [r6, #0x50]
+
     /* Restore registers */
-    ldmfd sp!, {r4,r5,r6,r7,r9,r10,r11}
+    ldmfd sp!, {r4,r5,r6,r7,r8,r9,r10,r11}
     mov     pc, lr
 
     .type   mx50_do_suspend, #object

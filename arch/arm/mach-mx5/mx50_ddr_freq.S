@@ -40,6 +40,14 @@ ENTRY(mx50_ddr_freq_change)
     bic     r0, #0x1F
     str     r0,[r5, #0x50]
 
+LoopCKE2:
+    /*Wait for CKE = 1 */
+    ldr     r0,[r5, #0xfc]
+    and    r0, r0, #0x10000
+    ldr     r2, =0x10000
+    cmp     r0, r2
+    bne     LoopCKE2
+
     /*
      * Make sure the DDR is self-refresh, before switching its frequency
      * and clock source
@@ -81,9 +89,9 @@ LoopCKE0:
     str     r0, [r5, #0xac]
 
      /* Change the freq now */
-     /* If the freq req is below 200MHz, set DDR to synchronous mode.
+     /* If the freq req is below 24MHz, set DDR to synchronous mode.
       * else set to async mode. */
-    ldr     r0, =200000000
+    ldr     r0, =24000000
     cmp   r4, r0
     bgt    Async_Mode
 
