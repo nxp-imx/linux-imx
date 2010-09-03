@@ -45,6 +45,7 @@
 #include <linux/mxcfb.h>
 #include <linux/gpio.h>
 #include <linux/regulator/driver.h>
+#include <linux/fsl_devices.h>
 
 #include "epdc_regs.h"
 
@@ -55,6 +56,7 @@
 /*#define DEFAULT_PANEL_HW_INIT*/
 
 #define NUM_SCREENS	2
+#define NUM_SCREENS_X 16
 #define EPDC_NUM_LUTS 16
 #define EPDC_MAX_NUM_UPDATES 20
 #define INVALID_LUT -1
@@ -70,6 +72,7 @@
 #define POWER_STATE_ON	1
 
 static unsigned long default_bpp = 16;
+static unsigned long g_num_screens = NUM_SCREENS;
 
 struct update_marker_data {
 	u32 update_marker;
@@ -1197,7 +1200,7 @@ static int mxc_epdc_fb_check_var(struct fb_var_screeninfo *var,
 	}
 
 	var->xres_virtual = ALIGN(var->xres, 32);
-	var->yres_virtual = ALIGN(var->yres, 128) * NUM_SCREENS;
+	var->yres_virtual = ALIGN(var->yres, 128) * g_num_screens;
 
 	var->height = -1;
 	var->width = -1;
@@ -2384,6 +2387,7 @@ int __devinit mxc_epdc_fb_probe(struct platform_device *pdev)
 	struct update_data_list *upd_list;
 	struct update_data_list *plist, *temp_list;
 	int i;
+	unsigned long x_mem_size = 0;
 #ifdef CONFIG_FRAMEBUFFER_CONSOLE
 	struct mxcfb_update_data update;
 #endif
@@ -2417,6 +2421,9 @@ int __devinit mxc_epdc_fb_probe(struct platform_device *pdev)
 			if (!strncmp(opt, "bpp=", 4))
 				fb_data->default_bpp =
 					simple_strtoul(opt + 4, NULL, 0);
+			else if (!strncmp(opt, "x_mem=", 6))
+				x_mem_size =
+					simple_strtoul(opt + 6, NULL, 0);
 			else
 				panel_str = opt;
 		}
@@ -2462,7 +2469,10 @@ int __devinit mxc_epdc_fb_probe(struct platform_device *pdev)
 	yres_virt = ALIGN(vmode->yres, 128);
 	buf_size = xres_virt * yres_virt * fb_data->default_bpp/8;
 
-	fb_data->map_size = PAGE_ALIGN(buf_size) * NUM_SCREENS;
+	if (x_mem_size > 0)
+		g_num_screens = NUM_SCREENS_X;
+
+	fb_data->map_size = PAGE_ALIGN(buf_size) * g_num_screens;
 	dev_dbg(&pdev->dev, "memory to allocate: %d\n", fb_data->map_size);
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
@@ -2497,7 +2507,7 @@ int __devinit mxc_epdc_fb_probe(struct platform_device *pdev)
 	var_info->yres = vmode->yres;
 	var_info->xres_virtual = xres_virt;
 	/* Additional screens allow for panning  and buffer flipping */
-	var_info->yres_virtual = yres_virt * NUM_SCREENS;
+	var_info->yres_virtual = yres_virt * g_num_screens;
 
 	var_info->pixclock = vmode->pixclock;
 	var_info->left_margin = vmode->left_margin;
