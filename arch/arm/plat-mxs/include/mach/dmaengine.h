@@ -106,6 +106,7 @@ struct mxs_dma_info {
 #define MXS_DMA_INFO_ERR       0x00000001
 #define MXS_DMA_INFO_ERR_STAT  0x00010000
 	unsigned int buf_addr;
+	unsigned int xfer_count;
 };
 
 /**
