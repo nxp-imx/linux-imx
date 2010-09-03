@@ -99,6 +99,9 @@ static void mxs_dma_apbx_info(struct mxs_dma_device *pdev,
 	reg = __raw_readl(pdev->base + HW_APBX_CTRL2);
 	info->status = reg >> chan;
 	info->buf_addr = __raw_readl(pdev->base + HW_APBX_CHn_BAR(chan));
+	reg = __raw_readl(pdev->base + HW_APBX_CHn_CMD(chan));
+	info->xfer_count = (reg & BM_APBX_CHn_CMD_XFER_COUNT) >> \
+		BP_APBX_CHn_CMD_XFER_COUNT;
 }
 
 static int
