@@ -702,6 +702,8 @@ void add_interrupt_randomness(int irq)
 	add_timer_randomness(state, 0x100 + irq);
 }
 
+EXPORT_SYMBOL_GPL(add_interrupt_randomness);
+
 #ifdef CONFIG_BLOCK
 void add_disk_randomness(struct gendisk *disk)
 {
