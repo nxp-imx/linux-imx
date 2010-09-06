@@ -124,40 +124,6 @@ struct mxs_spi_platform_data {
 	int (*hw_pin_release)(void);
 };
 
-struct flexcan_platform_data {
-	char *core_reg;
-	char *io_reg;
-	void (*xcvr_enable) (int id, int en);
-	void (*active) (int id);
-	void (*inactive) (int id);
-	/* word 1 */
-	unsigned int br_presdiv:8;
-	unsigned int br_rjw:2;
-	unsigned int br_propseg:3;
-	unsigned int br_pseg1:3;
-	unsigned int br_pseg2:3;
-	unsigned int maxmb:6;
-	unsigned int xmit_maxmb:6;
-	unsigned int wd1_resv:1;
-
-	/* word 2 */
-	unsigned int fifo:1;
-	unsigned int wakeup:1;
-	unsigned int srx_dis:1;
-	unsigned int wak_src:1;
-	unsigned int bcc:1;
-	unsigned int lprio:1;
-	unsigned int abort:1;
-	unsigned int br_clksrc:1;
-	unsigned int loopback:1;
-	unsigned int smp:1;
-	unsigned int boff_rec:1;
-	unsigned int tsyn:1;
-	unsigned int listen:1;
-	unsigned int ext_msg:1;
-	unsigned int std_msg:1;
-};
-
 struct mxs_audio_platform_data {
 	int intr_id_hp;
 	int ext_ram;

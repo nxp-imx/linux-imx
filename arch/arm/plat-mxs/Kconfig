@@ -13,6 +13,7 @@ config ARCH_MX28
 	select MXS_ICOLL
 	select MXS_DMA_ENGINE
 	select MXS_AUART_DMA_SUPPORT
+	select ARCH_HAS_CPUFREQ
 	---help---
 	 Support Freescale MX28 chips
 
@@ -24,6 +25,7 @@ config ARCH_MX23
 	select MXS_ICOLL
 	select MXS_DMA_ENGINE
 	select MXS_AUART_DMA_SUPPORT
+	select ARCH_HAS_CPUFREQ
 	---help---
 	Support Freescale MX23 chips
 

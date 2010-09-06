@@ -26,6 +26,7 @@
 #include <linux/io.h>
 #include <linux/irq.h>
 #include <linux/kthread.h>
+#include <linux/slab.h>
 
 #include <asm/cacheflush.h>
 #include <asm/mach-types.h>

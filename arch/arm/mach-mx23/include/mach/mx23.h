@@ -95,17 +95,4 @@
 #define MXS_LL_UART_VADDR MX23_SOC_IO_ADDRESS(DUART_PHYS_ADDR)
 #endif
 
-#ifndef __ASSEMBLY__
-/* for using the mma7450.c file ,we
-need to define this struct */
-struct mxc_mma7450_platform_data {
-	char *reg_dvdd_io;
-	char *reg_avdd;
-	void (*gpio_pin_get) (void);
-	void (*gpio_pin_put) (void);
-	int int1;
-	int int2;
-};
-#endif
-
 #endif /* __ASM_ARCH_MACH_MX23_H__ */

@@ -150,6 +150,8 @@ machine-$(CONFIG_ARCH_MX2)		:= mx2
 machine-$(CONFIG_ARCH_MX25)		:= mx25
 machine-$(CONFIG_ARCH_MX3)		:= mx3
 machine-$(CONFIG_ARCH_MX5)		:= mx5
+machine-$(CONFIG_ARCH_MX28)             := mx28
+machine-$(CONFIG_ARCH_MX23)             := mx23
 machine-$(CONFIG_ARCH_MXC91231)		:= mxc91231
 machine-$(CONFIG_ARCH_NETX)		:= netx
 machine-$(CONFIG_ARCH_NOMADIK)		:= nomadik
@@ -190,6 +192,7 @@ machine-$(CONFIG_MACH_SPEAR600)		:= spear6xx
 # Platform directory name.  This list is sorted alphanumerically
 # by CONFIG_* macro name.
 plat-$(CONFIG_ARCH_MXC)		:= mxc
+plat-$(CONFIG_ARCH_MXS)         := mxs
 plat-$(CONFIG_ARCH_OMAP)	:= omap
 plat-$(CONFIG_ARCH_S3C64XX)	:= samsung
 plat-$(CONFIG_ARCH_STMP3XXX)	:= stmp3xxx

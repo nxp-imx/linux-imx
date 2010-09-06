@@ -23,6 +23,8 @@
 #include <linux/regulator/consumer.h>
 #include <linux/regulator/machine.h>
 #include <linux/io.h>
+#include <linux/slab.h>
+
 #include <mach/power.h>
 #include <mach/regulator.h>
 #include <mach/regs-power.h>

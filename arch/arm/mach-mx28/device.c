@@ -29,6 +29,7 @@
 #include <linux/phy.h>
 #include <linux/fec.h>
 #include <linux/gpmi-nfc.h>
+#include <linux/fsl_devices.h>
 
 #include <asm/mach/map.h>
 

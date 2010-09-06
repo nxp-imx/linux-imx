@@ -24,6 +24,7 @@
 #include <linux/err.h>
 #include <linux/timer.h>
 #include <linux/spinlock.h>
+#include <linux/slab.h>
 
 #include <mach/unique-id.h>
 
