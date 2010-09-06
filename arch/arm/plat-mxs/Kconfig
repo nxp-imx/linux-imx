@@ -1,0 +1,177 @@
+if ARCH_MXS
+
+menu "Freescale i.MXS implementations"
+
+choice
+	prompt "Select i.MXS chip family"
+
+config ARCH_MX28
+	bool "Freescale MX28"
+	select CPU_ARM926T
+	select FIQ
+	select ZONE_DMA
+	select MXS_ICOLL
+	select MXS_DMA_ENGINE
+	select MXS_AUART_DMA_SUPPORT
+	---help---
+	 Support Freescale MX28 chips
+
+config ARCH_MX23
+	bool "Freescale MX23"
+	select CPU_ARM926T
+	select FIQ
+	select ZONE_DMA
+	select MXS_ICOLL
+	select MXS_DMA_ENGINE
+	select MXS_AUART_DMA_SUPPORT
+	---help---
+	Support Freescale MX23 chips
+
+endchoice
+
+if ARCH_MX28
+source arch/arm/mach-mx28/Kconfig
+endif
+
+if ARCH_MX23
+source arch/arm/mach-mx23/Kconfig
+endif
+
+config DMA_ZONE_SIZE
+	int "DMA memory zone size"
+	range 0 32
+	default 16
+	help
+	    This is the size in MB for the DMA zone. The DMA zone is used for
+	    dedicated memory for large contiguous video buffers
+endmenu
+
+config MXS_ICOLL
+	bool
+
+config MXS_EARLY_CONSOLE
+	bool "Enable console early"
+	default y
+	help
+	  Enable console early for kernel debug.
+
+config MXS_DMA_ENGINE
+	bool "Enable DMA ENGINE support"
+	default y
+	help
+	  Support DMA controller on AHB-APBH and AHB-APBX Bridge
+
+config MXS_LRADC
+	bool "Low Resolution ADC support"
+	default y
+	depends on ARCH_MXS
+	help
+	  Enable LRADC support
+
+config MXS_PWM_CHANNELS
+	int
+	default 8
+	help
+	  The number of pwm channel on Freescale MXS platform.
+
+menu "Freescale Application UART:"
+
+config MXS_AUART_DMA_SUPPORT
+	bool
+	depends on MXS_DMA_ENGINE
+	default y
+
+config MXS_AUART_PORTS
+	int
+	default 5
+
+config MXS_AUART0_DEVICE_ENABLE
+	bool "Application uart 0 enabled"
+	default y
+	help
+	  Enable applicatoin uart 0
+
+config MXS_AUART0_DMA_ENABLE
+	bool "Set application uart 0 to dma mode"
+	default n
+	depends on MXS_AUART_DMA_SUPPORT
+	help
+	  Set application uart 0 to dma mode
+
+config MXS_AUART1_DEVICE_ENABLE
+	bool "Application uart 1 enabled"
+	default y
+	help
+	  Enable applicatoin uart 1
+
+config MXS_AUART1_DMA_ENABLE
+	bool "Set application uart 1 to dma mode"
+	default n
+	depends on MXS_AUART_DMA_SUPPORT
+	help
+	  Set application uart 1 to dma mode
+
+config MXS_AUART2_DEVICE_ENABLE
+	bool "Application uart 2 enabled"
+	default y
+	help
+	  Enable applicatoin uart 2
+
+config MXS_AUART2_DMA_ENABLE
+	bool "Set application uart 2 to dma mode"
+	default n
+	depends on MXS_AUART_DMA_SUPPORT
+	help
+	  Set application uart 2 to dma mode
+
+config MXS_AUART3_DEVICE_ENABLE
+	bool "Application uart 3 enabled"
+	default y
+	help
+	  Enable applicatoin uart 3
+
+config MXS_AUART3_DMA_ENABLE
+	bool "Set application uart 3 to dma mode"
+	default n
+	depends on MXS_AUART_DMA_SUPPORT
+	help
+	  Set application uart 3 to dma mode
+
+config MXS_AUART4_DEVICE_ENABLE
+	bool "Application uart 4 enabled"
+	default y
+	help
+	  Enable applicatoin uart 4
+
+config MXS_AUART4_DMA_ENABLE
+	bool "Set application uart 4 to dma mode"
+	default n
+	depends on MXS_AUART_DMA_SUPPORT
+	help
+	  Set application uart 4 to dma mode
+
+config MXS_RAM_FREQ_SCALING
+        bool "RAM frequency scaling support"
+        depends on ARCH_MXS
+        default y
+
+choice
+	prompt "Select MXS RAM chip"
+	depends on MXS_RAM_FREQ_SCALING
+
+config MXS_RAM_MDDR
+	bool "mDDR SDRAM"
+	depends on ARCH_MX23
+config MXS_RAM_DDR
+	bool "DDR SDRAM"
+	depends on ARCH_MX23
+
+endchoice
+
+config IRAM_ALLOC
+        bool
+        default y
+        select GENERIC_ALLOCATOR
+endmenu
+
+endif

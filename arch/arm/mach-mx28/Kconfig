@@ -1,0 +1,20 @@
+choice
+	prompt "Select i.MXS board type"
+
+config MACH_MX28EVK
+	bool "Freescale MX28 EVK board"
+	depends on ARCH_MX28
+	select USB_ARCH_HAS_EHCI
+
+endchoice
+
+config VECTORS_PHY_ADDR
+	int "vectors address"
+	default 0
+	help
+	  This config set vectors table is located which physical address
+
+config MXS_TIMER_WITH_MACH
+	bool "System Timer support Compare Match interrupt"
+	default y
+

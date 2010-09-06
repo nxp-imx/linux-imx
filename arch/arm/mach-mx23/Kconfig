@@ -1,0 +1,25 @@
+choice
+	prompt "Select i.MXS board type"
+
+config MACH_MX23EVK
+	bool "Freescale MX23 EVK board"
+	depends on ARCH_MX23
+	select USB_ARCH_HAS_EHCI
+
+endchoice
+
+
+config MXS_UNIQUE_ID
+	bool "Support for UniqueID on boot media"
+	default y
+
+config MXS_UNIQUE_ID_OTP
+	bool "UniqueID on OTP"
+	depends on MXS_UNIQUE_ID
+	default y
+
+config VECTORS_PHY_ADDR
+	int "vectors address"
+	default 0
+	help
+	  This config set vectors table is located which physical address
