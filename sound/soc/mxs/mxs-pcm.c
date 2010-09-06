@@ -58,17 +58,6 @@ static const struct snd_pcm_hardware mxs_pcm_hardware = {
  */
 struct device *mxs_pcm_dev;
 
-struct mxs_runtime_data {
-	u32 dma_ch;
-	u32 dma_period;
-	u32 dma_totsize;
-	unsigned long appl_ptr_bytes;
-	int format;
-
-	struct mxs_pcm_dma_params *params;
-	struct mxs_dma_desc *dma_desc_array[255];
-};
-
 static irqreturn_t mxs_pcm_dma_irq(int irq, void *dev_id)
 {
 	struct snd_pcm_substream *substream = dev_id;

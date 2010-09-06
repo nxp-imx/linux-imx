@@ -31,6 +31,7 @@
 #include <mach/hardware.h>
 #include <mach/regs-audioin.h>
 #include <mach/regs-audioout.h>
+#include <mach/dmaengine.h>
 
 #include "mxs-pcm.h"
 
@@ -264,23 +265,45 @@ static int mxs_adc_trigger(struct snd_pcm_substream *substream,
 				struct snd_soc_dai *dai)
 {
 	int playback = substream->stream == SNDRV_PCM_STREAM_PLAYBACK ? 1 : 0;
+	struct mxs_runtime_data *prtd = substream->runtime->private_data;
 	int ret = 0;
+	u32 xfer_count1 = 0;
+	u32 xfer_count2 = 0;
+	u32 cur_bar1 = 0;
+	u32 cur_bar2 = 0;
+	u32 reg;
+	struct mxs_dma_info dma_info;
 
 	switch (cmd) {
 	case SNDRV_PCM_TRIGGER_START:
 
 		if (playback) {
 			/* enable the fifo error interrupt */
-			__raw_writel(BM_AUDIOOUT_CTRL_FIFO_ERROR_IRQ_EN,
-				REGS_AUDIOOUT_BASE + HW_AUDIOOUT_CTRL_SET);
+		    __raw_writel(BM_AUDIOOUT_CTRL_FIFO_ERROR_IRQ_EN,
+			REGS_AUDIOOUT_BASE + HW_AUDIOOUT_CTRL_SET);
 			/* write a data to data reg to trigger the transfer */
-			__raw_writel(0x0,
-				REGS_AUDIOOUT_BASE + HW_AUDIOOUT_DATA);
-			mxs_dac_schedule_ramp_work(&dac_ramp_work);
+		    __raw_writel(0x0,
+			REGS_AUDIOOUT_BASE + HW_AUDIOOUT_DATA);
+		    mxs_dac_schedule_ramp_work(&dac_ramp_work);
 		} else {
-			__raw_writel(BM_AUDIOIN_CTRL_RUN,
-				REGS_AUDIOIN_BASE + HW_AUDIOIN_CTRL_SET);
-			mxs_adc_schedule_ramp_work(&adc_ramp_work);
+		    mxs_dma_get_info(prtd->dma_ch, &dma_info);
+		    cur_bar1 = dma_info.buf_addr;
+		    xfer_count1 = dma_info.xfer_count;
+
+		    __raw_writel(BM_AUDIOIN_CTRL_RUN,
+			REGS_AUDIOIN_BASE + HW_AUDIOIN_CTRL_SET);
+		    udelay(100);
+
+		    mxs_dma_get_info(prtd->dma_ch, &dma_info);
+		    cur_bar2 = dma_info.buf_addr;
+		    xfer_count2 = dma_info.xfer_count;
+
+		    /* check if DMA getting stuck */
+		    if ((xfer_count1 == xfer_count2) && (cur_bar1 == cur_bar2))
+			/* read a data from data reg to trigger the receive */
+			reg = __raw_readl(REGS_AUDIOIN_BASE + HW_AUDIOIN_DATA);
+
+		    mxs_adc_schedule_ramp_work(&adc_ramp_work);
 		}
 		break;
 
