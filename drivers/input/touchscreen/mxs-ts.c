@@ -25,6 +25,7 @@
 #include <linux/interrupt.h>
 #include <linux/fsl_devices.h>
 
+#include <mach/hardware.h>
 #include <mach/lradc.h>
 #include <mach/device.h>
 #include <mach/regs-lradc.h>

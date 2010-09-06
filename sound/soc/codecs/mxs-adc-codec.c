@@ -25,6 +25,7 @@
 #include <linux/platform_device.h>
 #include <linux/dma-mapping.h>
 #include <linux/interrupt.h>
+#include <linux/slab.h>
 
 #include <sound/core.h>
 #include <sound/pcm.h>
@@ -913,7 +914,7 @@ static void mxs_codec_adc_disable(struct mxs_codec_priv *mxs_adc)
 
 static void mxs_codec_startup(struct snd_soc_codec *codec)
 {
-	struct mxs_codec_priv *mxs_adc = codec->private_data;
+	struct mxs_codec_priv *mxs_adc = snd_soc_codec_get_drvdata(codec);
 
 	/* Soft reset DAC block */
 	__raw_writel(BM_AUDIOOUT_CTRL_SFTRST,
@@ -943,7 +944,7 @@ static void mxs_codec_startup(struct snd_soc_codec *codec)
 
 static void mxs_codec_stop(struct snd_soc_codec *codec)
 {
-	struct mxs_codec_priv *mxs_adc = codec->private_data;
+	struct mxs_codec_priv *mxs_adc = snd_soc_codec_get_drvdata(codec);
 	mxs_codec_dac_disable(mxs_adc);
 	mxs_codec_adc_disable(mxs_adc);
 }
@@ -997,14 +998,6 @@ static int mxs_codec_probe(struct platform_device *pdev)
 
 	mxs_codec_startup(codec);
 
-	/* Register the socdev */
-	ret = snd_soc_init_card(socdev);
-	if (ret < 0) {
-		dev_err(codec->dev, "failed to register card\n");
-		snd_soc_dapm_free(socdev);
-		snd_soc_free_pcms(socdev);
-		return ret;
-	}
 	/* Set default bias level*/
 	mxs_codec_set_bias_level(codec, SND_SOC_BIAS_STANDBY);
 	return 0;
@@ -1035,7 +1028,7 @@ static int mxs_codec_suspend(struct platform_device *pdev,
 	if (codec == NULL)
 		goto out;
 
-	mxs_adc = codec->private_data;
+	mxs_adc = snd_soc_codec_get_drvdata(codec);
 
 	mxs_codec_dac_disable(mxs_adc);
 	mxs_codec_adc_disable(mxs_adc);
@@ -1056,7 +1049,7 @@ static int mxs_codec_resume(struct platform_device *pdev)
 	if (codec == NULL)
 		goto out;
 
-	mxs_adc = codec->private_data;
+	mxs_adc = snd_soc_codec_get_drvdata(codec);
 	clk_enable(mxs_adc->clk);
 
 	/* Soft reset DAC block */
@@ -1127,7 +1120,7 @@ static int __init mxs_codec_audio_probe(struct platform_device *pdev)
 	codec->dev = &pdev->dev;
 	codec->name = "mxs adc/dac";
 	codec->owner = THIS_MODULE;
-	codec->private_data = mxs_adc;
+	snd_soc_codec_set_drvdata(codec, mxs_adc);
 	codec->read = mxs_codec_read;
 	codec->write = mxs_codec_write;
 	codec->bias_level = SND_SOC_BIAS_OFF;

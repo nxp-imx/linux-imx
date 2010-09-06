@@ -107,7 +107,7 @@ static int mxs_spdif_startup(struct snd_pcm_substream *substream,
 
 	if (playback) {
 		irq = IRQ_SPDIF_ERROR;
-		cpu_dai->dma_data = &mxs_spdif;
+		snd_soc_dai_set_dma_data(cpu_dai, substream, &mxs_spdif);
 	}
 
 	ret = request_irq(irq, mxs_err_irq, 0, "Mxs SPDIF Error",

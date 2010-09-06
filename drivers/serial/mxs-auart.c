@@ -82,7 +82,7 @@ static inline struct mxs_auart_port *to_auart_port(struct uart_port *u)
 
 static inline void mxs_auart_tx_chars(struct mxs_auart_port *s)
 {
-	struct circ_buf *xmit = &s->port.info->xmit;
+	struct circ_buf *xmit = &s->port.state->xmit;
 
 	if (s->flags & MXS_AUART_PORT_DMA_MODE) {
 		int i = 0, size;
@@ -134,7 +134,7 @@ static inline void mxs_auart_tx_chars(struct mxs_auart_port *s)
 		} else
 			break;
 	}
-	if (uart_circ_empty(&(s->port.info->xmit)))
+	if (uart_circ_empty(&(s->port.state->xmit)))
 		__raw_writel(BM_UARTAPP_INTR_TXIEN,
 			     s->port.membase + HW_UARTAPP_INTR_CLR);
 	else
@@ -180,7 +180,7 @@ mxs_auart_rx_char(struct mxs_auart_port *s, unsigned int stat, u8 c)
 static void mxs_auart_rx_chars(struct mxs_auart_port *s)
 {
 	u8 c;
-	struct tty_struct *tty = s->port.info->port.tty;
+	struct tty_struct *tty = s->port.state->port.tty;
 	u32 stat = 0;
 
 	if (s->flags & MXS_AUART_PORT_DMA_MODE) {

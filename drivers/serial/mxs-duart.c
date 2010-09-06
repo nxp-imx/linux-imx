@@ -100,7 +100,7 @@ static void duart_enable_ms(struct uart_port *port)
 
 static void duart_rx_chars(struct duart_port *dp)
 {
-	struct tty_struct *tty = dp->port.info->port.tty;
+	struct tty_struct *tty = dp->port.state->port.tty;
 	unsigned int status, ch, flag, rsr, max_count = SERIAL_RX_LIMIT;
 
 	status = __raw_readl(dp->port.membase + HW_UARTDBGFR);
@@ -157,7 +157,7 @@ ignore_char:
 static void duart_tx_chars(struct duart_port *dp)
 {
 	int count;
-	struct circ_buf *xmit = &dp->port.info->xmit;
+	struct circ_buf *xmit = &dp->port.state->xmit;
 
 	if (dp->port.x_char) {
 		__raw_writel(dp->port.x_char, dp->port.membase + HW_UARTDBGDR);
@@ -208,7 +208,7 @@ static void duart_modem_status(struct duart_port *dp)
 	if (delta & BM_UARTDBGFR_CTS)
 		uart_handle_cts_change(&dp->port, status & BM_UARTDBGFR_CTS);
 
-	wake_up_interruptible(&dp->port.info->delta_msr_wait);
+	wake_up_interruptible(&dp->port.state->port.delta_msr_wait);
 }
 
 static irqreturn_t duart_int(int irq, void *dev_id)

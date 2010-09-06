@@ -388,9 +388,9 @@ static int mxs_saif_startup(struct snd_pcm_substream *substream,
 		(substream->stream == SNDRV_PCM_STREAM_PLAYBACK)) || \
 		((saif_select->stream_mapping == PLAYBACK_SAIF1_CAPTURE_SAIF0) \
 		&& (substream->stream == SNDRV_PCM_STREAM_CAPTURE)))
-		cpu_dai->dma_data = &mxs_saif_0;
+		snd_soc_dai_set_dma_data(cpu_dai, substream, &mxs_saif_0);
 	else
-		cpu_dai->dma_data = &mxs_saif_1;
+		snd_soc_dai_set_dma_data(cpu_dai, substream, &mxs_saif_1);
 
 	if (cpu_dai->playback.active && cpu_dai->capture.active)
 		return 0;

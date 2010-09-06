@@ -336,10 +336,10 @@ static int mxs_adc_startup(struct snd_pcm_substream *substream,
 
 	if (playback) {
 		irq = IRQ_DAC_ERROR;
-		cpu_dai->dma_data = &mxs_audio_out;
+		snd_soc_dai_set_dma_data(dai, substream, &mxs_audio_out);
 	} else {
 		irq = IRQ_ADC_ERROR;
-		cpu_dai->dma_data = &mxs_audio_in;
+		snd_soc_dai_set_dma_data(dai, substream, &mxs_audio_in);
 	}
 
 	ret = request_irq(irq, mxs_err_irq, 0, "MXS DAC/ADC Error",

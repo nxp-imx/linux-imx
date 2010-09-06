@@ -1247,7 +1247,7 @@ static int mxs_mmc_suspend(struct platform_device *pdev,
 	mmc = platform_get_drvdata(pdev);
 	host = mmc_priv(mmc);
 
-	ret = mmc_suspend_host(mmc, state);
+	ret = mmc_suspend_host(mmc);
 	if (!ret) {
 		if (mmc_data && mmc_data->hw_release)
 			mmc_data->hw_release();

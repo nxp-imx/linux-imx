@@ -23,6 +23,7 @@
 #include <linux/platform_device.h>
 #include <linux/dma-mapping.h>
 #include <linux/interrupt.h>
+#include <linux/slab.h>
 
 #include <sound/core.h>
 #include <sound/pcm.h>
@@ -209,7 +210,7 @@ static void mxs_codec_spdif_disable(struct mxs_codec_priv *mxs_spdif)
 
 static void mxs_codec_init(struct snd_soc_codec *codec)
 {
-	struct mxs_codec_priv *mxs_spdif = codec->private_data;
+	struct mxs_codec_priv *mxs_spdif = codec->drvdata;
 
 	/* Soft reset SPDIF block */
 	__raw_writel(BM_SPDIF_CTRL_SFTRST, REGS_SPDIF_BASE + HW_SPDIF_CTRL_SET);
@@ -226,7 +227,7 @@ static void mxs_codec_init(struct snd_soc_codec *codec)
 
 static void mxs_codec_exit(struct snd_soc_codec *codec)
 {
-	struct mxs_codec_priv *mxs_spdif = codec->private_data;
+	struct mxs_codec_priv *mxs_spdif = codec->drvdata;
 
 	mxs_codec_spdif_disable(mxs_spdif);
 }
@@ -268,15 +269,6 @@ static int mxs_codec_probe(struct platform_device *pdev)
 
 	mxs_codec_init(codec);
 
-	/* Register the socdev */
-	ret = snd_soc_init_card(socdev);
-	if (ret < 0) {
-		dev_err(codec->dev, "failed to register card\n");
-		snd_soc_dapm_free(socdev);
-		snd_soc_free_pcms(socdev);
-		return ret;
-	}
-
 	return 0;
 }
 
@@ -304,7 +296,7 @@ static int mxs_codec_suspend(struct platform_device *pdev, pm_message_t state)
 	if (codec == NULL)
 		goto out;
 
-	mxs_spdif = codec->private_data;
+	mxs_spdif = codec->drvdata;
 
 	mxs_codec_spdif_disable(mxs_spdif);
 	clk_disable(mxs_spdif->clk);
@@ -324,7 +316,7 @@ static int mxs_codec_resume(struct platform_device *pdev)
 	if (codec == NULL)
 		goto out;
 
-	mxs_spdif = codec->private_data;
+	mxs_spdif = codec->drvdata;
 	clk_enable(mxs_spdif->clk);
 
 	/* Soft reset SPDIF block */
@@ -368,7 +360,7 @@ static int __init mxs_spdif_probe(struct platform_device *pdev)
 	codec = &mxs_spdif->codec;
 	codec->name = "mxs spdif";
 	codec->owner = THIS_MODULE;
-	codec->private_data = mxs_spdif;
+	codec->drvdata = mxs_spdif;
 	codec->read = mxs_codec_read;
 	codec->write = mxs_codec_write;
 	codec->dai = &mxs_spdif_codec_dai;

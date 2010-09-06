@@ -21,6 +21,7 @@
 
 #include <linux/slab.h>
 #include "gpmi-nfc.h"
+#include "linux/slab.h"
 
 /*
  * This structure contains the "safe" GPMI timing that should succeed with any

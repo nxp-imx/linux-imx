@@ -3,7 +3,7 @@
  *
  * Author: dmitry pervushin <dimka@embeddedalley.com>
  *
- * Copyright 2008-2009 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2008-2010 Freescale Semiconductor, Inc.
  * Copyright 2008 Embedded Alley Solutions, Inc. All Rights Reserved.
  *
  * The code contained herein is licensed under the GNU General Public
@@ -496,7 +496,7 @@ static void *ubiblk_add_locked(int ubi_num, int ubi_vol_id)
 
 	list_add_tail(&u->list, &ubiblk_devices);
 	add_mtd_blktrans_dev(&u->m);
-	ubiblk_sysfs(u->m.blkcore_priv, true);
+	ubiblk_sysfs(u->m.priv, true);
 out:
 	return u;
 }
@@ -514,7 +514,7 @@ static int ubiblk_del_locked(struct ubiblk_dev *u)
 {
 	if (u->usecount != 0)
 		return -EBUSY;
-	ubiblk_sysfs(u->m.blkcore_priv, false);
+	ubiblk_sysfs(u->m.priv, false);
 	del_mtd_blktrans_dev(&u->m);
 	list_del(&u->list);
 	BUG_ON(u->cache_data != NULL); /* who did not free the cache ?! */

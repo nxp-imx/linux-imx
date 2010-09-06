@@ -18,6 +18,7 @@
 #include <linux/clk.h>
 #include <linux/platform_device.h>
 #include <linux/regulator/consumer.h>
+#include <linux/slab.h>
 #include <sound/core.h>
 #include <sound/pcm.h>
 #include <sound/pcm_params.h>
@@ -1070,14 +1071,6 @@ static int sgtl5000_probe(struct platform_device *pdev)
 	sgtl5000_add_widgets(codec);
 
 	sgtl5000_set_bias_level(codec, SND_SOC_BIAS_STANDBY);
-
-	ret = snd_soc_init_card(socdev);
-	if (ret < 0) {
-		printk(KERN_ERR "sgtl5000: failed to register card\n");
-		snd_soc_free_pcms(socdev);
-		snd_soc_dapm_free(socdev);
-		return ret;
-	}
 
 	return 0;
 }

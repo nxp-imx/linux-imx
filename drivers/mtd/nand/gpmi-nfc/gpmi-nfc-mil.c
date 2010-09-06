@@ -21,6 +21,7 @@
 
 #include <linux/slab.h>
 #include "gpmi-nfc.h"
+#include "linux/slab.h"
 
 /*
  * Indicates the driver should register the MTD that represents the entire
@@ -1887,16 +1888,13 @@ static int mil_boot_areas_init(struct gpmi_nfc_data *this)
 
 		/* Find the general use MTD. */
 
-		for (i = 0; i < MAX_MTD_DEVICES; i++) {
-
-			/* Get the current MTD so we can examine it. */
-
-			search_mtd = get_mtd_device(0, i);
+		i = 0;
+		while (search_mtd = get_mtd_device(0, i)) {
 
 			/* Check if we got nonsense. */
 
 			if ((!search_mtd) || (search_mtd == ERR_PTR(-ENODEV)))
-				continue;
+				break;
 
 			/* Check if the current MTD is one of our remainders. */
 
@@ -1907,6 +1905,7 @@ static int mil_boot_areas_init(struct gpmi_nfc_data *this)
 
 			put_mtd_device(search_mtd);
 
+			i++;
 		}
 
 		if (!mil->general_use_mtd) {
@@ -1985,17 +1984,13 @@ static int mil_boot_areas_init(struct gpmi_nfc_data *this)
 		add_mtd_partitions(mtd, partitions, 4);
 
 		/* Find the remainder partitions. */
-
-		for (i = 0; i < MAX_MTD_DEVICES; i++) {
-
-			/* Get the current MTD so we can examine it. */
-
-			search_mtd = get_mtd_device(0, i);
+		i = 0;
+		while (search_mtd = get_mtd_device(0, i)) {
 
 			/* Check if we got nonsense. */
 
 			if ((!search_mtd) || (search_mtd == ERR_PTR(-ENODEV)))
-				continue;
+				break;
 
 			/* Check if the current MTD is one of our remainders. */
 
@@ -2009,6 +2004,7 @@ static int mil_boot_areas_init(struct gpmi_nfc_data *this)
 
 			put_mtd_device(search_mtd);
 
+			i++;
 		}
 
 		if (!chip_0_remainder_mtd || !medium_remainder_mtd) {

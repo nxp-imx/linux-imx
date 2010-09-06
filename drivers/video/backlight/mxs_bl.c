@@ -301,7 +301,7 @@ static int __init mxsbl_probe(struct platform_device *pdev)
 		goto out;
 	}
 	data->bd = backlight_device_register(pdev->name, &pdev->dev, pdev,
-					&mxsbl_ops);
+					&mxsbl_ops, NULL);
 	if (IS_ERR(data->bd)) {
 		ret = PTR_ERR(data->bd);
 		goto out_1;
