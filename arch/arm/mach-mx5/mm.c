@@ -59,5 +59,6 @@ void __init mx5_map_io(void)
 	}
 
 	iotable_init(mx5_io_desc, ARRAY_SIZE(mx5_io_desc));
+	mxc_arch_reset_init(IO_ADDRESS(WDOG1_BASE_ADDR));
 }
 
