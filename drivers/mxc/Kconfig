@@ -33,6 +33,7 @@ source "drivers/mxc/bt/Kconfig"
 source "drivers/mxc/gps_ioctrl/Kconfig"
 source "drivers/mxc/mlb/Kconfig"
 source "drivers/mxc/adc/Kconfig"
+source "drivers/mxc/amd-gpu/Kconfig"
 
 endmenu
 
