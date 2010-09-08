@@ -45,6 +45,7 @@
 #include <mach/gpio.h>
 #include <mach/mmc.h>
 #include <mach/mxc_dvfs.h>
+#include <mach/i2c.h>
 
 #include "devices.h"
 #include "iomux.h"
@@ -258,8 +259,8 @@ static struct mxc_spi_master mxcspi1_data = {
 	.chipselect_inactive = mx51_3ds_gpio_spi_chipselect_inactive,
 };
 
-static struct mxc_i2c_platform_data mxci2c_data = {
-	.i2c_clk = 100000,
+static struct imxi2c_platform_data mxci2c_data = {
+	.bitrate = 100000,
 };
 
 static struct mxc_i2c_platform_data mxci2c_hs_data = {

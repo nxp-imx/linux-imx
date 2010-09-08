@@ -531,19 +531,19 @@ static struct resource mxci2c3_resources[] = {
 
 struct platform_device mxci2c_devices[] = {
 	{
-		.name = "mxc_i2c",
+		.name = "imx-i2c",
 		.id = 0,
 		.num_resources = ARRAY_SIZE(mxci2c1_resources),
 		.resource = mxci2c1_resources,
 	},
 	{
-		.name = "mxc_i2c",
+		.name = "imx-i2c",
 		.id = 1,
 		.num_resources = ARRAY_SIZE(mxci2c2_resources),
 		.resource = mxci2c2_resources,
 	},
 	{
-		.name = "mxc_i2c",
+		.name = "imx-i2c",
 		.id = 2,
 		.num_resources = ARRAY_SIZE(mxci2c3_resources),
 		.resource = mxci2c3_resources,
