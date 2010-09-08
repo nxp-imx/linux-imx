@@ -2044,8 +2044,8 @@ static int _clk_esdhc1_set_parent(struct clk *clk, struct clk *parent)
 	reg = __raw_readl(MXC_CCM_CSCMR1);
 	mux = _get_mux(parent, &pll1_sw_clk, &pll2_sw_clk, &pll3_sw_clk,
 		       &lp_apm_clk);
-	reg = reg & ~MXC_CCM_CSCMR1_ESDHC1_MSHC2_CLK_SEL_MASK;
-	reg |= mux << MXC_CCM_CSCMR1_ESDHC1_MSHC2_CLK_SEL_OFFSET;
+	reg = reg & ~MX50_CCM_CSCMR1_ESDHC1_CLK_SEL_MASK;
+	reg |= mux << MX50_CCM_CSCMR1_ESDHC1_CLK_SEL_OFFSET;
 	__raw_writel(reg, MXC_CCM_CSCMR1);
 
 	return 0;
@@ -2114,9 +2114,9 @@ static int _clk_esdhc2_set_parent(struct clk *clk, struct clk *parent)
 
 	reg = __raw_readl(MXC_CCM_CSCMR1);
 	if (parent == &esdhc1_clk[0])
-		reg &= ~MXC_CCM_CSCMR1_ESDHC2_CLK_SEL;
+		reg &= ~MX50_CCM_CSCMR1_ESDHC2_CLK_SEL;
 	else if (parent == &esdhc3_clk[0])
-		reg |= MXC_CCM_CSCMR1_ESDHC2_CLK_SEL;
+		reg |= MX50_CCM_CSCMR1_ESDHC2_CLK_SEL;
 	else
 		BUG();
 	__raw_writel(reg, MXC_CCM_CSCMR1);
@@ -2159,8 +2159,8 @@ static int _clk_esdhc3_set_parent(struct clk *clk, struct clk *parent)
 	mux = _get_mux8(parent, &pll1_sw_clk, &pll2_sw_clk,
 			&pll3_sw_clk, &lp_apm_clk, &pfd0_clk,
 			&pfd1_clk, &pfd4_clk, &osc_clk);
-	reg = reg & ~MXC_CCM_CSCMR1_ESDHC3_MSHC2_CLK_SEL_MASK;
-	reg |= mux << MXC_CCM_CSCMR1_ESDHC3_MSHC2_CLK_SEL_OFFSET;
+	reg = reg & ~MX50_CCM_CSCMR1_ESDHC3_CLK_SEL_MASK;
+	reg |= mux << MX50_CCM_CSCMR1_ESDHC3_CLK_SEL_OFFSET;
 	__raw_writel(reg, MXC_CCM_CSCMR1);
 
 	return 0;
@@ -2241,9 +2241,9 @@ static int _clk_esdhc4_set_parent(struct clk *clk, struct clk *parent)
 
 	reg = __raw_readl(MXC_CCM_CSCMR1);
 	if (parent == &esdhc1_clk[0])
-		reg &= ~MXC_CCM_CSCMR1_ESDHC4_CLK_SEL;
+		reg &= ~MX50_CCM_CSCMR1_ESDHC4_CLK_SEL;
 	else if (parent == &esdhc3_clk[0])
-		reg |= MXC_CCM_CSCMR1_ESDHC4_CLK_SEL;
+		reg |= MX50_CCM_CSCMR1_ESDHC4_CLK_SEL;
 	else
 		BUG();
 	__raw_writel(reg, MXC_CCM_CSCMR1);
