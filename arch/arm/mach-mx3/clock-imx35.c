@@ -370,7 +370,8 @@ DEFINE_CLOCK(rngc_clk,   0, CCM_CGR1, 30, get_rate_ipg, NULL);
 DEFINE_CLOCK(rtc_clk,    0, CCM_CGR2,  0, get_rate_ipg, NULL);
 DEFINE_CLOCK(rtic_clk,   0, CCM_CGR2,  2, get_rate_ahb, NULL);
 DEFINE_CLOCK(scc_clk,    0, CCM_CGR2,  4, get_rate_ipg, NULL);
-DEFINE_CLOCK(sdma_clk,   0, CCM_CGR2,  6, NULL, NULL);
+DEFINE_CLOCK(sdma_a_clk, 0, CCM_CGR2,  6, get_rate_ahb, NULL);
+DEFINE_CLOCK(sdma_p_clk, 0, CCM_CGR2,  6, get_rate_ipg, NULL);
 DEFINE_CLOCK(spba_clk,   0, CCM_CGR2,  8, get_rate_ipg, NULL);
 DEFINE_CLOCK(spdif_clk,  0, CCM_CGR2, 10, NULL, NULL);
 DEFINE_CLOCK(ssi1_clk,   0, CCM_CGR2, 12, get_rate_ssi, NULL);
@@ -438,9 +439,9 @@ static struct clk_lookup lookups[] = {
 	_REGISTER_CLOCK(NULL, "epit", epit1_clk)
 	_REGISTER_CLOCK(NULL, "epit", epit2_clk)
 	_REGISTER_CLOCK(NULL, "esai", esai_clk)
-	_REGISTER_CLOCK(NULL, "sdhc", esdhc1_clk)
-	_REGISTER_CLOCK(NULL, "sdhc", esdhc2_clk)
-	_REGISTER_CLOCK(NULL, "sdhc", esdhc3_clk)
+	_REGISTER_CLOCK("mxsdhci.0", NULL, esdhc1_clk)
+	_REGISTER_CLOCK("mxsdhci.1", NULL, esdhc2_clk)
+	_REGISTER_CLOCK("mxsdhci.2", NULL, esdhc3_clk)
 	_REGISTER_CLOCK("fec.0", NULL, fec_clk)
 	_REGISTER_CLOCK(NULL, "gpio", gpio1_clk)
 	_REGISTER_CLOCK(NULL, "gpio", gpio2_clk)
@@ -461,7 +462,8 @@ static struct clk_lookup lookups[] = {
 	_REGISTER_CLOCK(NULL, "rtc", rtc_clk)
 	_REGISTER_CLOCK(NULL, "rtic", rtic_clk)
 	_REGISTER_CLOCK(NULL, "scc", scc_clk)
-	_REGISTER_CLOCK(NULL, "sdma", sdma_clk)
+	_REGISTER_CLOCK(NULL, "sdma_ahb_clk", sdma_a_clk)
+	_REGISTER_CLOCK(NULL, "sdma_ipg_clk", sdma_p_clk)
 	_REGISTER_CLOCK(NULL, "spba", spba_clk)
 	_REGISTER_CLOCK(NULL, "spdif", spdif_clk)
 	_REGISTER_CLOCK("imx-ssi.0", NULL, ssi1_clk)

@@ -1,5 +1,5 @@
 /*
- * Copyright 2005-2007 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2005-2010 Freescale Semiconductor, Inc.
  * Copyright (C) 2008 by Sascha Hauer <kernel@pengutronix.de>
  *
  * This program is free software; you can redistribute it and/or
@@ -36,6 +36,11 @@
 
 #define PRE_DIV_MIN_FREQ    10000000 /* Minimum Frequency after Predivider */
 
+static int cpu_curr_wp;
+static struct cpu_wp *cpu_wp_tbl;
+static int cpu_wp_nr;
+static int cpu_clk_set_wp(int wp);
+
 static void __calc_pre_post_dividers(u32 div, u32 *pre, u32 *post)
 {
 	u32 min_pre, temp_pre, old_err, err;
@@ -70,6 +75,8 @@ static void __calc_pre_post_dividers(u32 div, u32 *pre, u32 *post)
 
 static struct clk mcu_pll_clk;
 static struct clk serial_pll_clk;
+static struct clk usb_pll_clk;
+static struct clk ahb_clk;
 static struct clk ipg_clk;
 static struct clk ckih_clk;
 
@@ -117,6 +124,73 @@ static unsigned long pll_ref_get_rate(void)
 		return clk_get_rate(&ckih_clk);
 }
 
+static int pll_set_rate(struct clk *clk, unsigned long rate)
+{
+	u32 reg;
+	signed long pd = 1;	/* Pre-divider */
+	signed long mfi;	/* Multiplication Factor (Integer part) */
+	signed long mfn;	/* Multiplication Factor (Integer part) */
+	signed long mfd;	/* Multiplication Factor (Denominator Part) */
+	signed long tmp;
+	u32 ref_freq = clk_get_rate(clk->parent);
+
+	while (((ref_freq / pd) * 10) > rate)
+		pd++;
+
+	if ((ref_freq / pd) < PRE_DIV_MIN_FREQ)
+		return -EINVAL;
+
+	/* the ref_freq/2 in the following is to round up */
+	mfi = (((rate / 2) * pd) + (ref_freq / 2)) / ref_freq;
+	if (mfi < 5 || mfi > 15)
+		return -EINVAL;
+
+	/* pick a mfd value that will work
+	 * then solve for mfn */
+	mfd = ref_freq / 50000;
+
+	/*
+	 *          pll_freq * pd * mfd
+	 *   mfn = --------------------  -  (mfi * mfd)
+	 *           2 * ref_freq
+	 */
+	/* the tmp/2 is for rounding */
+	tmp = ref_freq / 10000;
+	mfn =
+	    ((((((rate / 2) + (tmp / 2)) / tmp) * pd) * mfd) / 10000) -
+	    (mfi * mfd);
+
+	mfn = mfn & 0x3ff;
+	pd--;
+	mfd--;
+
+	/* Change the Pll value */
+	reg = (mfi << MXC_CCM_PCTL_MFI_OFFSET) |
+	    (mfn << MXC_CCM_PCTL_MFN_OFFSET) |
+	    (mfd << MXC_CCM_PCTL_MFD_OFFSET) | (pd << MXC_CCM_PCTL_PD_OFFSET);
+
+	if (clk == &mcu_pll_clk)
+		__raw_writel(reg, MXC_CCM_MPCTL);
+	else if (clk == &usb_pll_clk)
+		__raw_writel(reg, MXC_CCM_UPCTL);
+	else if (clk == &serial_pll_clk)
+		__raw_writel(reg, MXC_CCM_SRPCTL);
+
+	return 0;
+}
+
+static int _clk_cpu_set_rate(struct clk *clk, unsigned long rate)
+{
+	u32 ahb_rate = clk_get_rate(&ahb_clk);
+	if ((rate < ahb_rate) || (rate % ahb_rate != 0)) {
+		printk(KERN_ERR "Wrong rate %lu in _clk_cpu_set_rate\n", rate);
+		return -EINVAL;
+	}
+
+	cpu_clk_set_wp(rate / ahb_rate - 1);
+
+	return 0;
+}
 static unsigned long usb_pll_get_rate(struct clk *clk)
 {
 	unsigned long reg;
@@ -207,6 +281,15 @@ static unsigned long mcu_main_get_rate(struct clk *clk)
 		return clk_get_rate(&serial_pll_clk);
 	else
 		return clk_get_rate(&mcu_pll_clk);
+}
+
+static unsigned long _clk_cpu_get_rate(struct clk *clk)
+{
+	unsigned long mcu_pdf;
+
+	mcu_pdf = PDR0(MXC_CCM_PDR0_MCU_PODF_MASK,
+		       MXC_CCM_PDR0_MCU_PODF_OFFSET);
+	return clk_get_rate(clk->parent) / (mcu_pdf + 1);
 }
 
 static unsigned long ahb_get_rate(struct clk *clk)
@@ -414,6 +497,7 @@ static struct clk ckih_clk = {
 
 static struct clk mcu_pll_clk = {
 	.parent = &ckih_clk,
+	.set_rate = pll_set_rate,
 	.get_rate = mcu_pll_get_rate,
 };
 
@@ -424,6 +508,7 @@ static struct clk mcu_main_clk = {
 
 static struct clk serial_pll_clk = {
 	.parent = &ckih_clk,
+	.set_rate = pll_set_rate,
 	.get_rate = serial_pll_get_rate,
 	.enable = serial_pll_enable,
 	.disable = serial_pll_disable,
@@ -431,9 +516,16 @@ static struct clk serial_pll_clk = {
 
 static struct clk usb_pll_clk = {
 	.parent = &ckih_clk,
+	.set_rate = pll_set_rate,
 	.get_rate = usb_pll_get_rate,
 	.enable = usb_pll_enable,
 	.disable = usb_pll_disable,
+};
+
+static struct clk cpu_clk = {
+	.parent = &mcu_main_clk,
+	.get_rate = _clk_cpu_get_rate,
+	.set_rate = _clk_cpu_set_rate,
 };
 
 static struct clk ahb_clk = {
@@ -524,6 +616,7 @@ DEFINE_CLOCK(ipg_clk,     0, NULL,          0, ipg_get_rate, NULL, &ahb_clk);
 	},
 
 static struct clk_lookup lookups[] = {
+	_REGISTER_CLOCK(NULL, "cpu_clk", cpu_clk)
 	_REGISTER_CLOCK(NULL, "emi", emi_clk)
 	_REGISTER_CLOCK("spi_imx.0", NULL, cspi1_clk)
 	_REGISTER_CLOCK("spi_imx.1", NULL, cspi2_clk)
@@ -588,23 +681,6 @@ int __init mx31_clocks_init(unsigned long fref)
 		if (clk_set_parent(&csi_clk, &usb_pll_clk))
 			pr_err("%s: error changing csi_clk parent\n", __func__);
 
-
-	/* Turn off all possible clocks */
-	__raw_writel((3 << 4), MXC_CCM_CGR0);
-	__raw_writel(0, MXC_CCM_CGR1);
-	__raw_writel((3 << 8) | (3 << 14) | (3 << 16)|
-		     1 << 27 | 1 << 28, /* Bit 27 and 28 are not defined for
-					   MX32, but still required to be set */
-		     MXC_CCM_CGR2);
-
-	/*
-	 * Before turning off usb_pll make sure ipg_per_clk is generated
-	 * by ipg_clk and not usb_pll.
-	 */
-	__raw_writel(__raw_readl(MXC_CCM_CCMR) | (1 << 24), MXC_CCM_CCMR);
-
-	usb_pll_disable(&usb_pll_clk);
-
 	pr_info("Clock input source is %ld\n", clk_get_rate(&ckih_clk));
 
 	clk_enable(&gpt_clk);
@@ -622,9 +698,137 @@ int __init mx31_clocks_init(unsigned long fref)
 		__raw_writel(reg, MXC_CCM_PMCR1);
 	}
 
+	cpu_curr_wp = clk_get_rate(&cpu_clk) / clk_get_rate(&ahb_clk) - 1;
+	cpu_wp_tbl = get_cpu_wp(&cpu_wp_nr);
+
+	/* Init serial PLL according */
+	clk_set_rate(&serial_pll_clk, (cpu_wp_tbl[2].pll_rate));
+
 	mxc_timer_init(&ipg_clk, MX31_IO_ADDRESS(MX31_GPT1_BASE_ADDR),
 			MX31_INT_GPT);
 
 	return 0;
 }
 
+#define MXC_PMCR0_DVFS_MASK	(MXC_CCM_PMCR0_DVSUP_MASK | \
+				 MXC_CCM_PMCR0_UDSC_MASK | \
+				MXC_CCM_PMCR0_VSCNT_MASK | \
+				 MXC_CCM_PMCR0_DPVCR)
+
+#define MXC_PDR0_MAX_MCU_MASK	(MXC_CCM_PDR0_MAX_PODF_MASK | \
+				 MXC_CCM_PDR0_MCU_PODF_MASK | \
+				 MXC_CCM_PDR0_HSP_PODF_MASK | \
+				 MXC_CCM_PDR0_IPG_PODF_MASK | \
+				 MXC_CCM_PDR0_NFC_PODF_MASK)
+
+/*!
+ * Setup cpu clock based on working point.
+ * @param	wp	cpu freq working point (0 is the slowest)
+ * @return		0 on success or error code on failure.
+ */
+static int cpu_clk_set_wp(int wp)
+{
+	struct cpu_wp *p;
+	u32 dvsup;
+	u32 pmcr0, pmcr1;
+	u32 pdr0;
+	u32 cgr2 = 0x80000000;
+	u32 vscnt = MXC_CCM_PMCR0_VSCNT_2;
+	u32 udsc = MXC_CCM_PMCR0_UDSC_DOWN;
+	void __iomem *ipu_base = MX31_IO_ADDRESS(MX31_IPU_CTRL_BASE_ADDR);
+	u32 ipu_conf;
+
+	if (wp >= cpu_wp_nr || wp < 0) {
+		printk(KERN_ERR "Wrong wp: %d for cpu_clk_set_wp\n", wp);
+		return -EINVAL;
+	}
+	if (wp == cpu_curr_wp)
+		return 0;
+
+	pmcr0 = __raw_readl(MXC_CCM_PMCR0);
+	pmcr1 = __raw_readl(MXC_CCM_PMCR1);
+	pdr0 = __raw_readl(MXC_CCM_PDR0);
+
+	if (!(pmcr0 & MXC_CCM_PMCR0_UPDTEN))
+		return -EBUSY;
+
+	if (wp > cpu_curr_wp) {
+		/* going faster */
+		if (wp == (cpu_wp_nr - 1)) {
+			/* Only update vscnt going into Turbo */
+			vscnt = MXC_CCM_PMCR0_VSCNT_8;
+		}
+		udsc = MXC_CCM_PMCR0_UDSC_UP;
+	}
+
+	p = &cpu_wp_tbl[wp];
+
+	dvsup = (cpu_wp_nr - 1 - wp) << MXC_CCM_PMCR0_DVSUP_OFFSET;
+
+	if ((clk_get_rate(&mcu_main_clk) == 399000000) &&
+				(p->cpu_rate == 532000000)) {
+		cgr2 = __raw_readl(MXC_CCM_CGR2);
+		cgr2 &= 0x7fffffff;
+		vscnt = 0;
+		pmcr0 = (pmcr0 & ~MXC_PMCR0_DVFS_MASK) | dvsup | vscnt;
+		pr_debug("manul dvfs, dvsup = %x\n", dvsup);
+		__raw_writel(cgr2, MXC_CCM_CGR2);
+		__raw_writel(pmcr0, MXC_CCM_PMCR0);
+		udelay(100);
+	}
+
+	if (clk_get_rate(&mcu_main_clk) == p->pll_rate) {
+		/* No pll switching and relocking needed */
+		pmcr0 |= MXC_CCM_PMCR0_DFSUP0_PDR;
+	} else {
+		/* pll switching and relocking needed */
+		pmcr0 ^= MXC_CCM_PMCR0_DFSUP1;	/* flip MSB bit */
+		pmcr0 &= ~(MXC_CCM_PMCR0_DFSUP0);
+	}
+
+	pmcr0 = (pmcr0 & ~MXC_PMCR0_DVFS_MASK) | dvsup | vscnt | udsc;
+	/* also enable DVFS hardware */
+	pmcr0 |= MXC_CCM_PMCR0_DVFEN;
+
+	__raw_writel(pmcr0, MXC_CCM_PMCR0);
+
+	/* IPU and DI submodule must be on for PDR0 update to take effect */
+	if (!clk_get_usecount(&ipu_clk))
+		ipu_clk.enable(&ipu_clk);
+	ipu_conf = __raw_readl(ipu_base);
+	if (!(ipu_conf & 0x40))
+		__raw_writel(ipu_conf | 0x40, ipu_base);
+
+	__raw_writel((pdr0 & ~MXC_PDR0_MAX_MCU_MASK) | p->pdr0_reg,
+		     MXC_CCM_PDR0);
+
+	if ((pmcr0 & MXC_CCM_PMCR0_DFSUP0) == MXC_CCM_PMCR0_DFSUP0_PLL) {
+		/* prevent pll restart */
+		pmcr1 |= 0x80;
+		__raw_writel(pmcr1, MXC_CCM_PMCR1);
+		/* PLL and post divider update */
+		if ((pmcr0 & MXC_CCM_PMCR0_DFSUP1) ==
+					MXC_CCM_PMCR0_DFSUP1_SPLL) {
+			__raw_writel(p->pll_reg, MXC_CCM_SRPCTL);
+			mcu_main_clk.parent = &serial_pll_clk;
+		} else {
+			__raw_writel(p->pll_reg, MXC_CCM_MPCTL);
+			mcu_main_clk.parent = &mcu_pll_clk;
+		}
+	}
+
+	if ((cgr2 & 0x80000000) == 0x0) {
+		pr_debug("start auto dvfs\n");
+		cgr2 |= 0x80000000;
+		__raw_writel(cgr2, MXC_CCM_CGR2);
+	}
+
+	cpu_curr_wp = wp;
+
+	/* Restore IPU_CONF setting */
+	__raw_writel(ipu_conf, ipu_base);
+	if (!clk_get_usecount(&ipu_clk))
+		ipu_clk.disable(&ipu_clk);
+
+	return 0;
+}

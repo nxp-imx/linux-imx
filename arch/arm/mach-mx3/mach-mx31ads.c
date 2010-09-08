@@ -1,7 +1,7 @@
 /*
  *  Copyright (C) 2000 Deep Blue Solutions Ltd
  *  Copyright (C) 2002 Shane Nay (shane@minirl.com)
- *  Copyright 2005-2007 Freescale Semiconductor, Inc. All Rights Reserved.
+ *  Copyright 2005-2010 Freescale Semiconductor, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -44,6 +44,7 @@
 #endif
 
 #include "devices.h"
+#include "devices-imx31.h"
 
 /*!
  * @file mx31ads.c
@@ -98,7 +99,7 @@ static inline int mxc_init_extuart(void)
 #endif
 
 #if defined(CONFIG_SERIAL_IMX) || defined(CONFIG_SERIAL_IMX_MODULE)
-static struct imxuart_platform_data uart_pdata = {
+static const struct imxuart_platform_data uart_pdata __initconst = {
 	.flags = IMXUART_HAVE_RTSCTS,
 };
 
@@ -112,7 +113,7 @@ static unsigned int uart_pins[] = {
 static inline void mxc_init_imx_uart(void)
 {
 	mxc_iomux_setup_multiple_pins(uart_pins, ARRAY_SIZE(uart_pins), "uart-0");
-	mxc_register_device(&mxc_uart_device0, &uart_pdata);
+	imx31_add_imx_uart0(&uart_pdata);
 }
 #else /* !SERIAL_IMX */
 static inline void mxc_init_imx_uart(void)
@@ -467,7 +468,7 @@ static struct i2c_board_info __initdata mx31ads_i2c1_devices[] = {
 #endif
 };
 
-static void mxc_init_i2c(void)
+static void __init mxc_init_i2c(void)
 {
 	i2c_register_board_info(1, mx31ads_i2c1_devices,
 				ARRAY_SIZE(mx31ads_i2c1_devices));
@@ -475,7 +476,7 @@ static void mxc_init_i2c(void)
 	mxc_iomux_mode(IOMUX_MODE(MX31_PIN_CSPI2_MOSI, IOMUX_CONFIG_ALT1));
 	mxc_iomux_mode(IOMUX_MODE(MX31_PIN_CSPI2_MISO, IOMUX_CONFIG_ALT1));
 
-	mxc_register_device(&mxc_i2c_device1, NULL);
+	imx31_add_imx_i2c1(NULL);
 }
 #else
 static void mxc_init_i2c(void)

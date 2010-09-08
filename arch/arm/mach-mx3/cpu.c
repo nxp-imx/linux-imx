@@ -11,6 +11,7 @@
 
 #include <linux/module.h>
 #include <linux/io.h>
+#include <linux/iram_alloc.h>
 #include <mach/hardware.h>
 #include <mach/iim.h>
 
@@ -55,3 +56,39 @@ void __init mx31_read_cpu_rev(void)
 
 	printk(KERN_WARNING "Unknown CPU identifier. srev = %02x\n", srev);
 }
+
+/*!
+ * Post CPU init code
+ *
+ * @return 0 always
+ */
+static int __init post_cpu_init(void)
+{
+	volatile unsigned long aips_reg;
+
+	iram_init(MX31_IRAM_BASE_ADDR, MX31_IRAM_SIZE);
+
+	/*
+	 * S/W workaround: Clear the off platform peripheral modules
+	 * Supervisor Protect bit for SDMA to access them.
+	 */
+	__raw_writel(0x0, IO_ADDRESS(AIPS1_BASE_ADDR + 0x40));
+	__raw_writel(0x0, IO_ADDRESS(AIPS1_BASE_ADDR + 0x44));
+	__raw_writel(0x0, IO_ADDRESS(AIPS1_BASE_ADDR + 0x48));
+	__raw_writel(0x0, IO_ADDRESS(AIPS1_BASE_ADDR + 0x4C));
+	aips_reg = __raw_readl(IO_ADDRESS(AIPS1_BASE_ADDR + 0x50));
+	aips_reg &= 0x00FFFFFF;
+	__raw_writel(aips_reg, IO_ADDRESS(AIPS1_BASE_ADDR + 0x50));
+
+	__raw_writel(0x0, IO_ADDRESS(AIPS2_BASE_ADDR + 0x40));
+	__raw_writel(0x0, IO_ADDRESS(AIPS2_BASE_ADDR + 0x44));
+	__raw_writel(0x0, IO_ADDRESS(AIPS2_BASE_ADDR + 0x48));
+	__raw_writel(0x0, IO_ADDRESS(AIPS2_BASE_ADDR + 0x4C));
+	aips_reg = __raw_readl(IO_ADDRESS(AIPS2_BASE_ADDR + 0x50));
+	aips_reg &= 0x00FFFFFF;
+	__raw_writel(aips_reg, IO_ADDRESS(AIPS2_BASE_ADDR + 0x50));
+
+	return 0;
+}
+
+postcore_initcall(post_cpu_init);

@@ -1,5 +1,5 @@
 /*
- * Copyright 2006-2007 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2006-2010 Freescale Semiconductor, Inc.
  * Copyright 2008 Sascha Hauer, kernel@pengutronix.de
  *
  * This program is free software; you can redistribute it and/or
@@ -27,6 +27,8 @@
 #include <mach/common.h>
 #include <mach/imx-uart.h>
 #include <mach/mx3_camera.h>
+#include <mach/sdma.h>
+#include <mach/mxc_dptc.h>
 
 #include "devices.h"
 
@@ -184,6 +186,41 @@ struct platform_device mxc_nand_device = {
 	.id = 0,
 	.num_resources = ARRAY_SIZE(mxc_nand_resources),
 	.resource = mxc_nand_resources,
+};
+
+static struct resource mxc_nor_flash_resource = {
+	.start = 0xa0000000,
+	.end = 0xa0000000 + 0x04000000 - 1,
+	.flags = IORESOURCE_MEM,
+
+};
+
+struct platform_device mxc_nor_mtd_device = {
+	.name = "mxc_nor_flash",
+	.id = 0,
+	.num_resources = 1,
+	.resource = &mxc_nor_flash_resource,
+};
+
+static struct resource mxc_nandv2_resources[] = {
+	{
+		.flags = IORESOURCE_MEM,
+		.name  = "NFC_AXI_BASE",
+		.start	= 0, /* runtime dependent */
+		.end	= 0,
+	},
+	{
+		.flags = IORESOURCE_IRQ,
+		.start = MXC_INT_NANDFC,
+		.end   = MXC_INT_NANDFC,
+	},
+};
+
+struct platform_device mxc_nandv2_device = {
+	.name = "mxc_nandv2_flash",
+	.id = 0,
+	.resource = mxc_nandv2_resources,
+	.num_resources = ARRAY_SIZE(mxc_nandv2_resources),
 };
 
 static struct resource mxc_i2c0_resources[] = {
@@ -626,6 +663,133 @@ struct platform_device imx_kpp_device = {
 	.resource = imx_kpp_resources,
 };
 
+
+static struct resource sdma_resources[] = {
+	{
+		.start = SDMA_BASE_ADDR,
+		.end = SDMA_BASE_ADDR + SZ_4K - 1,
+		.flags = IORESOURCE_MEM,
+	},
+	{
+		.start = MXC_INT_SDMA,
+		.flags = IORESOURCE_IRQ,
+	},
+};
+
+struct platform_device mxc_dma_device = {
+	.name = "mxc_sdma",
+	.dev = {
+		.coherent_dma_mask = DMA_BIT_MASK(32),
+		},
+	.num_resources = ARRAY_SIZE(sdma_resources),
+	.resource = sdma_resources,
+};
+
+static struct resource ipu_resources[] = {
+	{
+	 .start = IPU_CTRL_BASE_ADDR,
+	 .end = IPU_CTRL_BASE_ADDR + SZ_4K,
+	 .flags = IORESOURCE_MEM,
+	 },
+	{
+	 .start = MXC_INT_IPU_SYN,
+	 .flags = IORESOURCE_IRQ,
+	 },
+	{
+	 .start = MXC_INT_IPU_ERR,
+	 .flags = IORESOURCE_IRQ,
+	 },
+};
+
+static struct platform_device mxc_ipu_device = {
+	.name = "mxc_ipu",
+	.id = -1,
+	.num_resources = ARRAY_SIZE(ipu_resources),
+	.resource = ipu_resources,
+};
+
+static struct platform_device mxc_alsa_device = {
+	.name = "mxc_alsa",
+	.id = 0,
+};
+
+static struct platform_device mxc_scc_device = {
+	.name = "mxc_scc",
+	.id = 0,
+};
+
+static struct platform_device hmp4e_device = {
+	.name = "mxc_hmp4e",
+	.id = 0,
+};
+
+/*!
+ * Resource definition for the DPTC LP
+ */
+static struct resource dptc_resources[] = {
+	[0] = {
+	       .start = CCM_BASE_ADDR,
+	       .end = CCM_BASE_ADDR + SZ_4K - 1,
+	       .flags = IORESOURCE_MEM,
+	       },
+	[1] = {
+	       .start = MXC_INT_CCM,
+	       .end = MXC_INT_CCM,
+	       .flags = IORESOURCE_IRQ,
+	       },
+};
+
+/*! Device Definition for MXC DPTC */
+static struct platform_device mxc_dptc_device = {
+	.name = "mxc_dptc",
+	.id = 0,
+	.num_resources = ARRAY_SIZE(dptc_resources),
+	.resource = dptc_resources,
+};
+
+static struct resource mxc_iim_resources[] = {
+	{
+	 .start = MX31_IIM_BASE_ADDR,
+	 .end = MX31_IIM_BASE_ADDR + SZ_4K - 1,
+	 .flags = IORESOURCE_MEM,
+	 },
+};
+
+static struct platform_device mxc_iim_device = {
+	.name = "mxc_iim",
+	.id = 0,
+	.num_resources = ARRAY_SIZE(mxc_iim_resources),
+	.resource = mxc_iim_resources
+};
+
+static struct resource pata_fsl_resources[] = {
+	{
+		.start = MX31_ATA_BASE_ADDR,
+		.end = MX31_ATA_BASE_ADDR + 0xD8,
+		.flags = IORESOURCE_MEM,
+	},
+	{
+		.start = MX31_INT_ATA,
+		.end = MX31_INT_ATA,
+		.flags = IORESOURCE_IRQ,
+	},
+};
+
+static struct platform_device pata_fsl_device = {
+	.name = "pata_fsl",
+	.id = -1,
+	.num_resources = ARRAY_SIZE(pata_fsl_resources),
+	.resource = pata_fsl_resources,
+	.dev = {
+		.coherent_dma_mask = DMA_BIT_MASK(32),
+		},
+};
+
+struct platform_device mxc_pseudo_irq_device = {
+	.name = "mxc_pseudo_irq",
+	.id = 0,
+};
+
 static int __init mx3_devices_init(void)
 {
 	if (cpu_is_mx31()) {
@@ -636,8 +800,8 @@ static int __init mx3_devices_init(void)
 		mxc_register_device(&mxc_rnga_device, NULL);
 	}
 	if (cpu_is_mx35()) {
-		mxc_nand_resources[0].start = MX35_NFC_BASE_ADDR;
-		mxc_nand_resources[0].end = MX35_NFC_BASE_ADDR + 0x1fff;
+		mxc_nandv2_resources[0].start = MX35_NFC_BASE_ADDR;
+		mxc_nandv2_resources[0].end = MX35_NFC_BASE_ADDR + 0x1fff;
 		otg_resources[0].start = MX35_OTG_BASE_ADDR;
 		otg_resources[0].end = MX35_OTG_BASE_ADDR + 0x1ff;
 		otg_resources[1].start = MXC_INT_USBOTG;
