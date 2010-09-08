@@ -3,12 +3,16 @@
 #
 
 # Common support
-obj-y := irq.o cpu.o cpu_common.o system.o gpio.o clock.o snoop.o io.o time.o devices.o
+obj-y :=cpu.o cpu_common.o system.o gpio.o clock.o snoop.o io.o time.o devices.o
 
 obj-$(CONFIG_IRAM_ALLOC) += iram.o
 
 # MX51 uses the TZIC interrupt controller, older platforms use AVIC (irq.o)
+ifeq ($(CONFIG_MXC_TZIC),y)
 obj-$(CONFIG_MXC_TZIC) += tzic.o
+else
+obj-y += irq.o
+endif
 
 obj-$(CONFIG_ARCH_MX1) += dma-mx1-mx2.o
 obj-$(CONFIG_ARCH_MX2) += dma-mx1-mx2.o
