@@ -1380,7 +1380,7 @@ static void manage_sysfs_files(int create)
  *
  * @return  The function always returns 0.
  */
-static int __init mxcnd_probe(struct platform_device *pdev)
+static int __devinit mxcnd_probe(struct platform_device *pdev)
 {
 	struct nand_chip *this;
 	struct mtd_info *mtd;
