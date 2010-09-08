@@ -286,7 +286,8 @@ static int mxs_pcm_dma_request(struct snd_pcm_substream *substream)
 	struct snd_pcm_runtime *runtime = substream->runtime;
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	struct mxs_runtime_data *prtd = runtime->private_data;
-	struct mxs_pcm_dma_params *dma_data = snd_soc_dai_get_dma_data(rtd->dai, substream);
+	struct mxs_pcm_dma_params *dma_data =
+		snd_soc_dai_get_dma_data(rtd->dai->cpu_dai, substream);
 	int desc_num = mxs_pcm_hardware.periods_max;
 	int desc;
 	int ret;

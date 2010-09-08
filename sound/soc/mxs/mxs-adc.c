@@ -342,7 +342,7 @@ static int mxs_adc_startup(struct snd_pcm_substream *substream,
 		snd_soc_dai_set_dma_data(dai, substream, &mxs_audio_in);
 	}
 
-	ret = request_irq(irq, mxs_err_irq, 0, "MXS DAC/ADC Error",
+	ret = request_irq(irq, mxs_err_irq, 0, "MXS DAC and ADC Error",
 			  substream);
 	if (ret) {
 		printk(KERN_ERR "%s: Unable to request ADC/DAC error irq %d\n",
@@ -352,7 +352,7 @@ static int mxs_adc_startup(struct snd_pcm_substream *substream,
 
 	irq_short = IRQ_HEADPHONE_SHORT;
 	ret = request_irq(irq_short, mxs_short_irq,
-		IRQF_DISABLED | IRQF_SHARED, "MXS DAC/ADC HP SHORT", substream);
+		IRQF_DISABLED | IRQF_SHARED, "MXS DAC and ADC HP SHORT", substream);
 	if (ret) {
 		printk(KERN_ERR "%s: Unable to request ADC/DAC HP SHORT irq %d\n",
 		       __func__, IRQ_DAC_ERROR);
