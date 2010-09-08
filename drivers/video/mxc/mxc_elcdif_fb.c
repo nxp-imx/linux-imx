@@ -68,15 +68,12 @@ struct mxc_elcdif_fb_data {
 	int cur_blank;
 	int next_blank;
 	int output_pix_fmt;
-	int elcdif_mode;
-	ssize_t mem_size;
-	ssize_t map_size;
-	dma_addr_t phys_start;
-	dma_addr_t cur_phys;
 	int dma_irq;
-	int err_irq;
-	void *virt_start;
+	bool wait4vsync;
+	bool wait4framedone;
+	bool panning;
 	struct completion vsync_complete;
+	struct completion frame_done_complete;
 	struct semaphore flip_sem;
 	u32 pseudo_palette[16];
 };
@@ -697,17 +694,25 @@ static irqreturn_t lcd_irq_handler(int irq, void *dev_id)
 	u32 status_lcd = __raw_readl(elcdif_base + HW_ELCDIF_CTRL1);
 	dev_dbg(g_elcdif_dev, "%s: irq %d\n", __func__, irq);
 
-	if (status_lcd & BM_ELCDIF_CTRL1_VSYNC_EDGE_IRQ) {
+	if ((status_lcd & BM_ELCDIF_CTRL1_VSYNC_EDGE_IRQ) &&
+		data->wait4vsync) {
 		dev_dbg(g_elcdif_dev, "%s: VSYNC irq\n", __func__);
-		__raw_writel(BM_ELCDIF_CTRL1_VSYNC_EDGE_IRQ,
+		__raw_writel(BM_ELCDIF_CTRL1_VSYNC_EDGE_IRQ_EN,
 			     elcdif_base + HW_ELCDIF_CTRL1_CLR);
+		data->wait4vsync = 0;
 		complete(&data->vsync_complete);
 	}
-	if (status_lcd & BM_ELCDIF_CTRL1_CUR_FRAME_DONE_IRQ) {
+	if ((status_lcd & BM_ELCDIF_CTRL1_CUR_FRAME_DONE_IRQ) &&
+		data->wait4framedone) {
 		dev_dbg(g_elcdif_dev, "%s: frame done irq\n", __func__);
-		__raw_writel(BM_ELCDIF_CTRL1_CUR_FRAME_DONE_IRQ,
+		__raw_writel(BM_ELCDIF_CTRL1_CUR_FRAME_DONE_IRQ_EN,
 			     elcdif_base + HW_ELCDIF_CTRL1_CLR);
-		up(&data->flip_sem);
+		if (data->panning) {
+			up(&data->flip_sem);
+			data->panning = 0;
+		}
+		data->wait4framedone = 0;
+		complete(&data->frame_done_complete);
 	}
 	if (status_lcd & BM_ELCDIF_CTRL1_UNDERFLOW_IRQ) {
 		dev_dbg(g_elcdif_dev, "%s: underflow irq\n", __func__);
@@ -946,7 +951,7 @@ static int mxc_elcdif_fb_check_var(struct fb_var_screeninfo *var,
 	return 0;
 }
 
-static int mxc_elcdif_fb_wait_for_vsync(u32 channel, struct fb_info *info)
+static int mxc_elcdif_fb_wait_for_vsync(struct fb_info *info)
 {
 	struct mxc_elcdif_fb_data *data =
 				(struct mxc_elcdif_fb_data *)info->par;
@@ -960,23 +965,52 @@ static int mxc_elcdif_fb_wait_for_vsync(u32 channel, struct fb_info *info)
 
 	init_completion(&data->vsync_complete);
 
+	__raw_writel(BM_ELCDIF_CTRL1_VSYNC_EDGE_IRQ,
+		elcdif_base + HW_ELCDIF_CTRL1_CLR);
+	data->wait4vsync = 1;
 	__raw_writel(BM_ELCDIF_CTRL1_VSYNC_EDGE_IRQ_EN,
 		elcdif_base + HW_ELCDIF_CTRL1_SET);
 	ret = wait_for_completion_interruptible_timeout(
 				&data->vsync_complete, 1 * HZ);
 	if (ret == 0) {
 		dev_err(info->device,
-			"MXC ELCDIF wait for vsync: timeout %d\n",
-			ret);
+			"MXC ELCDIF wait for vsync timeout\n");
+		data->wait4vsync = 0;
 		ret = -ETIME;
 	} else if (ret > 0) {
 		ret = 0;
 	}
-	__raw_writel(BM_ELCDIF_CTRL1_VSYNC_EDGE_IRQ_EN,
+	return ret;
+}
+
+static int mxc_elcdif_fb_wait_for_frame_done(struct fb_info *info)
+{
+	struct mxc_elcdif_fb_data *data =
+				(struct mxc_elcdif_fb_data *)info->par;
+	int ret = 0;
+
+	if (data->cur_blank != FB_BLANK_UNBLANK) {
+		dev_err(info->device, "can't wait for frame done when fb "
+			"is blank\n");
+		return -EINVAL;
+	}
+
+	init_completion(&data->frame_done_complete);
+
+	__raw_writel(BM_ELCDIF_CTRL1_CUR_FRAME_DONE_IRQ,
 		elcdif_base + HW_ELCDIF_CTRL1_CLR);
-	if (!ret) {
-		dev_err(info->device, "wait for vsync timed out\n");
-		ret = -ETIMEDOUT;
+	data->wait4framedone = 1;
+	__raw_writel(BM_ELCDIF_CTRL1_CUR_FRAME_DONE_IRQ_EN,
+		elcdif_base + HW_ELCDIF_CTRL1_SET);
+	ret = wait_for_completion_interruptible_timeout(
+				&data->frame_done_complete, 1 * HZ);
+	if (ret == 0) {
+		dev_err(info->device,
+			"MXC ELCDIF wait for frame done timeout\n");
+		data->wait4framedone = 0;
+		ret = -ETIME;
+	} else if (ret > 0) {
+		ret = 0;
 	}
 	return ret;
 }
@@ -984,13 +1018,11 @@ static int mxc_elcdif_fb_wait_for_vsync(u32 channel, struct fb_info *info)
 static int mxc_elcdif_fb_ioctl(struct fb_info *info, unsigned int cmd,
 			unsigned long arg)
 {
-	u32 channel = 0;
 	int ret = -EINVAL;
 
 	switch (cmd) {
 	case MXCFB_WAIT_FOR_VSYNC:
-		if (!get_user(channel, (__u32 __user *) arg))
-			ret = mxc_elcdif_fb_wait_for_vsync(channel, info);
+		ret = mxc_elcdif_fb_wait_for_vsync(info);
 		break;
 	case MXCFB_GET_FB_BLANK:
 		{
@@ -1062,8 +1094,7 @@ static int mxc_elcdif_fb_pan_display(struct fb_var_screeninfo *var,
 {
 	struct mxc_elcdif_fb_data *data =
 				(struct mxc_elcdif_fb_data *)info->par;
-	int ret = 0;
-	unsigned long base;
+	unsigned long base = 0;
 
 	if (data->cur_blank != FB_BLANK_UNBLANK) {
 		dev_err(info->device, "can't do pan display when fb "
@@ -1083,26 +1114,15 @@ static int mxc_elcdif_fb_pan_display(struct fb_var_screeninfo *var,
 
 	/* update framebuffer visual */
 	base = (var->yoffset * var->xres_virtual + var->xoffset);
-	base *= (var->bits_per_pixel) / 8;
+	base = (var->bits_per_pixel) * base / 8;
 	base += info->fix.smem_start;
+
+	down(&data->flip_sem);
 
 	__raw_writel(base, elcdif_base + HW_ELCDIF_NEXT_BUF);
 
-	init_completion(&data->vsync_complete);
-
-	/*
-	 * Wait for an interrupt or we will lose frame
-	 * if we call pan-dislay too fast.
-	 */
-	__raw_writel(BM_ELCDIF_CTRL1_CUR_FRAME_DONE_IRQ,
-		elcdif_base + HW_ELCDIF_CTRL1_CLR);
-	__raw_writel(BM_ELCDIF_CTRL1_CUR_FRAME_DONE_IRQ_EN,
-		elcdif_base + HW_ELCDIF_CTRL1_SET);
-	down(&data->flip_sem);
-	__raw_writel(BM_ELCDIF_CTRL1_CUR_FRAME_DONE_IRQ_EN,
-		elcdif_base + HW_ELCDIF_CTRL1_CLR);
-
-	return ret;
+	data->panning = 1;
+	return mxc_elcdif_fb_wait_for_frame_done(info);
 }
 
 static struct fb_ops mxc_elcdif_fb_ops = {
