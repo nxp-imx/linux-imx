@@ -1,5 +1,7 @@
 if ARCH_MXC
 
+source "arch/arm/plat-mxc/devices/Kconfig"
+
 menu "Freescale MXC Implementations"
 
 choice
@@ -165,6 +167,17 @@ config MXC_PWM
 	select HAVE_PWM
 	help
 	  Enable support for the i.MX PWM controller(s).
+
+config MXC_DEBUG_BOARD
+	bool "Enable MXC debug board(for 3-stack)"
+	help
+	  The debug board is an integral part of the MXC 3-stack(PDK)
+	  platforms, it can be attached or removed from the peripheral
+	  board. On debug board, several debug devices(ethernet, UART,
+	  buttons, LEDs and JTAG) are implemented. Between the MCU and
+	  these devices, a CPLD is added as a bridge which performs
+	  data/address de-multiplexing and decode, signal level shift,
+	  interrupt control and various board functions.
 
 config MXC_ULPI
 	bool

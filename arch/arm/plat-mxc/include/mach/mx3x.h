@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2007 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2004-2010 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -152,16 +152,7 @@
  * and returning the virtual address. If the physical address is not mapped,
  * it returns 0xDEADBEEF
  */
-#define IO_ADDRESS(x)   \
-	(void __force __iomem *) \
-	(((x >= AIPS1_BASE_ADDR) && (x < (AIPS1_BASE_ADDR + AIPS1_SIZE))) ? AIPS1_IO_ADDRESS(x):\
-	((x >= SPBA0_BASE_ADDR) && (x < (SPBA0_BASE_ADDR + SPBA0_SIZE))) ? SPBA0_IO_ADDRESS(x):\
-	((x >= AIPS2_BASE_ADDR) && (x < (AIPS2_BASE_ADDR + AIPS2_SIZE))) ? AIPS2_IO_ADDRESS(x):\
-	((x >= ROMP_BASE_ADDR) && (x < (ROMP_BASE_ADDR + ROMP_SIZE))) ? ROMP_IO_ADDRESS(x):\
-	((x >= AVIC_BASE_ADDR) && (x < (AVIC_BASE_ADDR + AVIC_SIZE))) ? AVIC_IO_ADDRESS(x):\
-	((x >= CS4_BASE_ADDR) && (x < (CS4_BASE_ADDR + CS4_SIZE))) ? CS4_IO_ADDRESS(x):\
-	((x >= X_MEMC_BASE_ADDR) && (x < (X_MEMC_BASE_ADDR + X_MEMC_SIZE))) ? X_MEMC_IO_ADDRESS(x):\
-	0xDEADBEEF)
+#define IO_ADDRESS MX31_IO_ADDRESS
 
 /*
  * define the address mapping macros: in physical address order
@@ -197,6 +188,35 @@
 	(((x) - X_MEMC_BASE_ADDR) + X_MEMC_BASE_ADDR_VIRT)
 
 /*
+ * DMA request assignments
+ */
+#define MX3x_DMA_REQ_ECT        31
+#define MX3x_DMA_REQ_NFC        30
+#define MX3x_DMA_REQ_SSI1_TX1   29
+#define MX3x_DMA_REQ_SSI1_RX1   28
+#define MX3x_DMA_REQ_SSI1_TX2   27
+#define MX3x_DMA_REQ_SSI1_RX2   26
+#define MX3x_DMA_REQ_SSI2_TX1   25
+#define MX3x_DMA_REQ_SSI2_RX1   24
+#define MX3x_DMA_REQ_SSI2_TX2   23
+#define MX3x_DMA_REQ_SSI2_RX2   22
+#define MX3x_DMA_REQ_UART1_TX   19
+#define MX3x_DMA_REQ_UART1_RX   18
+#define MX3x_DMA_REQ_UART2_TX   17
+#define MX3x_DMA_REQ_UART2_RX   16
+#define MX3x_DMA_REQ_EXTREQ1    15
+#define MX3x_DMA_REQ_EXTREQ2    14
+#define MX3x_DMA_REQ_CSPI1_TX   9
+#define MX3x_DMA_REQ_CSPI1_RX   8
+#define MX3x_DMA_REQ_CSPI2_TX   7
+#define MX3x_DMA_REQ_CSPI2_RX   6
+#define MX3x_DMA_REQ_ATA_RX     4
+#define MX3x_DMA_REQ_ATA_TX     3
+#define MX3x_DMA_REQ_ATA_TX_END 2
+#define MX3x_DMA_REQ_CCM        1
+#define MX3x_DMA_REQ_EXTREQ0    0
+
+/*
  * Interrupt numbers
  */
 #define MX3x_INT_I2C3		3
@@ -217,6 +237,7 @@
 #define MX3x_INT_EPIT1		28
 #define MX3x_INT_GPT		29
 #define MX3x_INT_POWER_FAIL	30
+#define MX3x_INT_DVFS		31
 #define MX3x_INT_UART2		32
 #define MX3x_INT_NANDFC		33
 #define MX3x_INT_SDMA		34
@@ -389,17 +410,6 @@ static inline int mx31_revision(void)
 #define MXC_INT_EXT_WDOG MX3x_INT_EXT_WDOG
 #define MXC_INT_EXT_TV MX3x_INT_EXT_TV
 #define PROD_SIGNATURE MX3x_PROD_SIGNATURE
-#define CHIP_REV_1_0 MX3x_CHIP_REV_1_0
-#define CHIP_REV_1_1 MX3x_CHIP_REV_1_1
-#define CHIP_REV_1_2 MX3x_CHIP_REV_1_2
-#define CHIP_REV_1_3 MX3x_CHIP_REV_1_3
-#define CHIP_REV_2_0 MX3x_CHIP_REV_2_0
-#define CHIP_REV_2_1 MX3x_CHIP_REV_2_1
-#define CHIP_REV_2_2 MX3x_CHIP_REV_2_2
-#define CHIP_REV_2_3 MX3x_CHIP_REV_2_3
-#define CHIP_REV_3_0 MX3x_CHIP_REV_3_0
-#define CHIP_REV_3_1 MX3x_CHIP_REV_3_1
-#define CHIP_REV_3_2 MX3x_CHIP_REV_3_2
 #define SYSTEM_REV_MIN MX3x_SYSTEM_REV_MIN
 #define SYSTEM_REV_NUM MX3x_SYSTEM_REV_NUM
 #endif

@@ -20,6 +20,7 @@
 #define __MACH_IOMUX_MX35_H__
 
 #include <mach/iomux-v3.h>
+#include <mach/irqs.h>
 
 /*
  * The naming convention for the pad modes is MX35_PAD_<padname>__<padmode>
@@ -1263,5 +1264,10 @@
 
 #define MX35_PAD_TEST_MODE__TCU_TEST_MODE			IOMUX_PAD(0x790, 0x0,   0, 0x0,   0, NO_PAD_CTRL)
 
+#define MX35_GPIO1_1		(0 * 32 + 1)
+#define MX35_GPIO1_4		(0 * 32 + 4)
+#define MX35_GPIO2_0		(1 * 32 + 0)
+
+#define IOMUX_TO_IRQ(pin)	(MXC_GPIO_IRQ_START + pin)
 
 #endif /* __MACH_IOMUX_MX35_H__ */

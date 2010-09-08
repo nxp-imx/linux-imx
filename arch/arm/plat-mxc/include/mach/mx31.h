@@ -138,6 +138,23 @@ static inline void mx31_setup_weimcs(size_t cs,
 }
 #endif
 
+/*
+ * DMA request assignments
+ */
+#define MX31_DMA_REQ_SDHC2      21
+#define MX31_DMA_REQ_SDHC1      20
+#define MX31_DMA_REQ_FIRI_TX    17
+#define MX31_DMA_REQ_FIRI_RX    16
+#define MX31_DMA_REQ_UART4_TX   13
+#define MX31_DMA_REQ_UART4_RX   12
+#define MX31_DMA_REQ_CSPI3_TX   11
+#define MX31_DMA_REQ_CSPI3_RX   10
+#define MX31_DMA_REQ_UART5_TX   11
+#define MX31_DMA_REQ_UART5_RX   10
+#define MX31_DMA_REQ_UART3_TX   9
+#define MX31_DMA_REQ_UART3_RX   8
+#define MX31_DMA_REQ_SIM        5
+
 #define MX31_INT_I2C3		3
 #define MX31_INT_I2C2		4
 #define MX31_INT_MPEG4_ENCODER	5
@@ -196,6 +213,8 @@ static inline void mx31_setup_weimcs(size_t cs,
 #define MX31_INT_EXT_SENSOR61	61
 #define MX31_INT_EXT_WDOG	62
 #define MX31_INT_EXT_TV		63
+
+#define ARM11_PMU_IRQ		MXC_INT_EVTMON
 
 #define MX31_PROD_SIGNATURE		0x1	/* For MX31 */
 

@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2006 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2004-2010 Freescale Semiconductor, Inc.
  * Copyright (C) 2008 by Sascha Hauer <kernel@pengutronix.de>
  * Copyright (C) 2009 by Jan Weitzel Phytec Messtechnik GmbH,
  *                       <armlinux@phytec.de>
@@ -64,6 +64,42 @@ int mxc_iomux_v3_setup_multiple_pads(struct pad_desc *pad_list, unsigned count)
 	return 0;
 }
 EXPORT_SYMBOL(mxc_iomux_v3_setup_multiple_pads);
+
+int mxc_iomux_v3_setup_pad_ext(struct pad_cfg *pd)
+{
+	struct pad_desc *pad = &(pd->pd);
+
+	if (pad->mux_ctrl_ofs)
+		__raw_writel(pad->mux_mode, base + pad->mux_ctrl_ofs);
+
+	if (pad->select_input_ofs)
+		__raw_writel(pad->select_input,
+				base + pad->select_input_ofs);
+
+	if (pd->pad_ctrl && pad->pad_ctrl_ofs)
+		__raw_writel(pd->pad_ctrl, base + pad->pad_ctrl_ofs);
+	else if (!(pad->pad_ctrl & NO_PAD_CTRL) && pad->pad_ctrl_ofs)
+		__raw_writel(pad->pad_ctrl, base + pad->pad_ctrl_ofs);
+	return 0;
+}
+EXPORT_SYMBOL(mxc_iomux_v3_setup_pad_ext);
+
+int mxc_iomux_v3_setup_multiple_pads_ext(struct pad_cfg *pad_list,
+						unsigned count)
+{
+	struct pad_cfg *p = pad_list;
+	int i;
+	int ret;
+
+	for (i = 0; i < count; i++) {
+		ret = mxc_iomux_v3_setup_pad_ext(p);
+		if (ret)
+			return ret;
+		p++;
+	}
+	return 0;
+}
+EXPORT_SYMBOL(mxc_iomux_v3_setup_multiple_pads_ext);
 
 void mxc_iomux_v3_init(void __iomem *iomux_v3_base)
 {
