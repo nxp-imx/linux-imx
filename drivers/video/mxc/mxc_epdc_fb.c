@@ -2025,7 +2025,7 @@ static irqreturn_t mxc_epdc_irq_handler(int irq, void *dev_id)
 
 			/* Schedule task to disable EPDC HW until next update */
 			schedule_delayed_work(&fb_data->epdc_done_work,
-				jiffies_to_msecs(fb_data->pwrdown_delay));
+				msecs_to_jiffies(fb_data->pwrdown_delay));
 		}
 
 		if (fb_data->waiting_for_idle)
