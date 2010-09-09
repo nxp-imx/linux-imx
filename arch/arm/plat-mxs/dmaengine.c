@@ -127,14 +127,16 @@ int mxs_dma_enable(int channel)
 	if (!(pchan->flags & MXS_DMA_FLAGS_ALLOCATED))
 		return -EINVAL;
 
+	/*
+	 *  neednot mutex lock, this function will be called in irq context.
+	 *  The mutex may cause process schedule.
+	 */
 	pdma = pchan->dma;
-	mutex_lock(&mxs_dma_mutex);
 	spin_lock_irqsave(&pchan->lock, flags);
 	if (pchan->pending_num && pdma->enable)
 		ret = pdma->enable(pchan, channel - pdma->chan_base);
 	pchan->flags |= MXS_DMA_FLAGS_BUSY;
 	spin_unlock_irqrestore(&pchan->lock, flags);
-	mutex_unlock(&mxs_dma_mutex);
 	return ret;
 }
 EXPORT_SYMBOL(mxs_dma_enable);
@@ -151,8 +153,11 @@ void mxs_dma_disable(int channel)
 		return;
 	if (!(pchan->flags & MXS_DMA_FLAGS_BUSY))
 		return;
+	/*
+	 *  neednot mutex lock, this function will be called in irq context.
+	 *  The mutex may cause process schedule.
+	 */
 	pdma = pchan->dma;
-	mutex_lock(&mxs_dma_mutex);
 	spin_lock_irqsave(&pchan->lock, flags);
 	if (pdma->disable)
 		pdma->disable(pchan, channel - pdma->chan_base);
@@ -161,7 +166,6 @@ void mxs_dma_disable(int channel)
 	pchan->pending_num = 0;
 	list_splice_init(&pchan->active, &pchan->done);
 	spin_unlock_irqrestore(&pchan->lock, flags);
-	mutex_unlock(&mxs_dma_mutex);
 }
 EXPORT_SYMBOL(mxs_dma_disable);
 
