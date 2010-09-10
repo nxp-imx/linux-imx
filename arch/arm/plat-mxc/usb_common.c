@@ -449,6 +449,7 @@ static int usb_register_remote_wakeup(struct platform_device *pdev)
 	}
 	irq = res->start;
 	pdev->dev.power.can_wakeup = 1;
+	device_set_wakeup_enable(&(pdev->dev), 1);
 	enable_irq_wake(irq);
 
 	return 0;
