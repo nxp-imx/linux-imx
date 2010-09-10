@@ -56,6 +56,13 @@ config MACH_MX50_ARM2
 	  Include support for MX50 EVK platform. This includes specific
 	  configurations for the board and its peripherals.
 
+config MACH_MX50_RDP
+	bool "Support MX50 Reference Design Platform"
+	select ARCH_MX50
+	help
+	  Include support for MX50 RDP platform. This includes specific
+	  configurations for the board and its peripherals.
+
 comment "MX5x Options:"
 
 config MXC_SDMA_API

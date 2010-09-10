@@ -454,6 +454,9 @@ typedef enum iomux_config {
 						PAD_CTL_PKE | PAD_CTL_DSE_HIGH)
 #define MX50_PAD_PWM1__USBOTG_OC	IOMUX_PAD(0x304, 0x58, 2, 0x7E8, 1, \
 						MX50_USB_PAD_CTRL)
+#define MX50_PAD_I2C3_SCL__USBOTG_OC	IOMUX_PAD(0x2FC, 0x50, 7, 0x7E8, 0, \
+	MX50_USB_PAD_CTRL)
+
 
 /* FEC */
 #define MX50_PAD_SSI_RXC__FEC_MDIO	IOMUX_PAD(0x32C, 0x80, 6, 0x774, 1, \
@@ -507,6 +510,7 @@ typedef enum iomux_config {
 						NO_PAD_CTRL)
 #define MX50_PAD_CSPI_MISO__CSPI_MISO	IOMUX_PAD(0x368, 0xBC, 0, 0x0, 0, \
 						NO_PAD_CTRL)
+
 /* NAND */
 #define MX50_PIN_EIM_DA8__NANDF_CLE	IOMUX_PAD(0x618, 0x27C, 2, 0x0, 0, \
 						PAD_CTL_DSE_HIGH)
@@ -548,5 +552,24 @@ typedef enum iomux_config {
 						PAD_CTL_DSE_HIGH)
 #define MX50_PIN_SD3_WP__NANDF_RESETN	IOMUX_PAD(0x46C, 0x18C, 2, 0x0, 0, \
 						PAD_CTL_DSE_HIGH)
+
+/* Keypad */
+#define MX50_PAD_KEY_COL0__KEY_COL0	IOMUX_PAD(0x2CC, 0x20, 0, 0x0, 0, \
+						NO_PAD_CTRL)
+#define MX50_PAD_KEY_ROW0__KEY_ROW0	IOMUX_PAD(0x2D0, 0x24, 0, 0x0, 0, \
+						NO_PAD_CTRL)
+#define MX50_PAD_KEY_COL1__KEY_COL1	IOMUX_PAD(0x2D4, 0x28, 0, 0x0, 0, \
+						NO_PAD_CTRL)
+#define MX50_PAD_KEY_ROW1__KEY_ROW1	IOMUX_PAD(0x2D8, 0x2C, 0, 0x0, 0, \
+						NO_PAD_CTRL)
+#define MX50_PAD_KEY_COL2__KEY_COL2	IOMUX_PAD(0x2DC, 0x30, 0, 0x0, 0, \
+						MX50_SD_PAD_CTRL)
+#define MX50_PAD_KEY_ROW2__KEY_ROW2	IOMUX_PAD(0x2E0, 0x34, 0, 0x0, 0, \
+						NO_PAD_CTRL)
+#define MX50_PAD_KEY_COL3__KEY_COL3	IOMUX_PAD(0x2E4, 0x38, 0, 0x0, 0, \
+						NO_PAD_CTRL)
+#define MX50_PAD_KEY_ROW3__KEY_ROW3	IOMUX_PAD(0x2E8, 0x3C, 0, 0x0, 0, \
+						NO_PAD_CTRL)
+
 #endif /* __MACH_IOMUX_MX53_H__ */
 
