@@ -604,14 +604,21 @@ static void mxs_dma_proc_seq_stop(struct seq_file *file, void *data)
 
 static int mxs_dma_proc_seq_show(struct seq_file *file, void *data)
 {
-	int result;
-	struct mxs_dma_chan *pchan = (struct mxs_dma_chan *)data;
-	struct mxs_dma_device *pdev = pchan->dma;
-	result = seq_printf(file, "%s-channel%-d	(%s)\n",
+	struct mxs_dma_chan *pchan;
+	struct mxs_dma_device *pdev;
+
+	if (data == NULL)
+		return 0;
+
+	pchan = (struct mxs_dma_chan *)data;
+	pdev = pchan->dma;
+	if (pdev == NULL)
+		return 0;
+
+	return  seq_printf(file, "%s-channel%-d	(%s)\n",
 			    pdev->name,
 			    pchan - mxs_dma_channels,
 			    pchan->name ? pchan->name : "idle");
-	return result;
 }
 
 static const struct seq_operations mxc_dma_proc_seq_ops = {
