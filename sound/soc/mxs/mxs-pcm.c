@@ -170,11 +170,17 @@ static void mxs_pcm_stop(struct snd_pcm_substream *substream)
 	struct mxs_dma_info dma_info;
 	int desc;
 
+	int periods_num = prtd->dma_totsize / prtd->dma_period;
 	/* Freez DMA channel for a moment */
 	mxs_dma_freeze(prtd->dma_ch);
 	mxs_dma_get_info(prtd->dma_ch, &dma_info);
 
 	desc = (dma_info.buf_addr - runtime->dma_addr) / prtd->dma_period;
+
+	if (desc >= periods_num)
+		desc = 0;
+	else if (desc < 0)
+		desc = 0;
 
 	/* Set up the next descriptor to decrement DMA channel sempahore */
 	prtd->dma_desc_array[(desc + 1)%8]->cmd.cmd.bits.bytes = 0;
