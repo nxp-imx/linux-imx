@@ -2883,7 +2883,7 @@ static struct clk_lookup lookups[] = {
 	_REGISTER_CLOCK("mxc_spi.2", NULL, cspi3_clk),
 	_REGISTER_CLOCK(NULL, "ssi_lp_apm_clk", ssi_lp_apm_clk),
 	_REGISTER_CLOCK("mxc_ssi.0", NULL, ssi1_clk[0]),
-	_REGISTER_CLOCK("mxc_ssi.0", NULL, ssi2_clk[0]),
+	_REGISTER_CLOCK("mxc_ssi.1", NULL, ssi2_clk[0]),
 	_REGISTER_CLOCK(NULL, "ssi_ext1_clk", ssi_ext1_clk),
 	_REGISTER_CLOCK(NULL, "ssi_ext2_clk", ssi_ext2_clk),
 	_REGISTER_CLOCK(NULL, "usb_ahb_clk", usb_ahb_clk),
