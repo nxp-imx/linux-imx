@@ -692,6 +692,26 @@ static bool dc_swap;
 static irqreturn_t dc_irq_handler(int irq, void *dev_id)
 {
 	struct completion *comp = dev_id;
+	uint32_t reg;
+	uint32_t dc_chan;
+
+	if (irq == IPU_IRQ_DC_FC_1)
+		dc_chan = 1;
+	else
+		dc_chan = 5;
+
+	if (!dc_swap) {
+		reg = __raw_readl(DC_WR_CH_CONF(dc_chan));
+		reg &= ~DC_WR_CH_CONF_PROG_TYPE_MASK;
+		__raw_writel(reg, DC_WR_CH_CONF(dc_chan));
+
+		reg = __raw_readl(IPU_DISP_GEN);
+		if (g_dc_di_assignment[dc_chan])
+			reg &= ~DI1_COUNTER_RELEASE;
+		else
+			reg &= ~DI0_COUNTER_RELEASE;
+		__raw_writel(reg, IPU_DISP_GEN);
+	}
 
 	complete(comp);
 	return IRQ_HANDLED;
@@ -775,19 +795,6 @@ void _ipu_dp_dc_disable(ipu_channel_t channel, bool swap)
 		__raw_writel(reg, DC_WR_CH_CONF(dc_chan));
 		spin_unlock_irqrestore(&ipu_lock, lock_flags);
 	} else {
-		spin_lock_irqsave(&ipu_lock, lock_flags);
-		reg = __raw_readl(DC_WR_CH_CONF(dc_chan));
-		reg &= ~DC_WR_CH_CONF_PROG_TYPE_MASK;
-		__raw_writel(reg, DC_WR_CH_CONF(dc_chan));
-
-		reg = __raw_readl(IPU_DISP_GEN);
-		if (g_dc_di_assignment[dc_chan])
-			reg &= ~DI1_COUNTER_RELEASE;
-		else
-			reg &= ~DI0_COUNTER_RELEASE;
-		__raw_writel(reg, IPU_DISP_GEN);
-
-		spin_unlock_irqrestore(&ipu_lock, lock_flags);
 		/* Clock is already off because it must be done quickly, but
 		   we need to fix the ref count */
 		clk_disable(g_pixel_clk[g_dc_di_assignment[dc_chan]]);

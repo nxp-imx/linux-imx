@@ -1857,29 +1857,24 @@ int32_t ipu_disable_channel(ipu_channel_t channel, bool wait_for_stop)
 
 	if ((channel == MEM_BG_SYNC) || (channel == MEM_FG_SYNC) ||
 	    (channel == MEM_DC_SYNC)) {
-		int timeout = 50;
-		int irq;
-
 		_ipu_dp_dc_disable(channel, false);
 
 		/*
-		 * wait for display channel EOF then disable IDMAC,
-		 * it avoid NFB4EOF error.
+		 * wait for BG channel EOF then disable FG-IDMAC,
+		 * it avoid FG NFB4EOF error.
 		 */
-		if (channel == MEM_BG_SYNC)
-			irq = IPU_IRQ_BG_SYNC_EOF;
-		if (channel == MEM_FG_SYNC)
-			irq = IPU_IRQ_FG_SYNC_EOF;
-		else
-			irq = IPU_IRQ_DC_SYNC_EOF;
-		__raw_writel(IPUIRQ_2_MASK(irq),
-			     IPUIRQ_2_STATREG(irq));
-		while ((__raw_readl(IPUIRQ_2_STATREG(irq)) &
-			IPUIRQ_2_MASK(irq)) == 0) {
-			msleep(10);
-			timeout -= 10;
-			if (timeout <= 0)
-				break;
+		if (channel == MEM_FG_SYNC) {
+			int timeout = 50;
+
+			__raw_writel(IPUIRQ_2_MASK(IPU_IRQ_BG_SYNC_EOF),
+					IPUIRQ_2_STATREG(IPU_IRQ_BG_SYNC_EOF));
+			while ((__raw_readl(IPUIRQ_2_STATREG(IPU_IRQ_BG_SYNC_EOF)) &
+					IPUIRQ_2_MASK(IPU_IRQ_BG_SYNC_EOF)) == 0) {
+				msleep(10);
+				timeout -= 10;
+				if (timeout <= 0)
+					break;
+			}
 		}
 	} else if (wait_for_stop) {
 		while (idma_is_set(IDMAC_CHA_BUSY, in_dma) ||
