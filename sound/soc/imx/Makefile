@@ -1,12 +1,11 @@
 # i.MX Platform Support
-snd-soc-imx-objs := imx-ssi.o imx-pcm-fiq.o imx-pcm.o
+snd-soc-imx-objs := imx-pcm.o
+snd-soc-imx-ssi-objs := imx-ssi.o
 snd-soc-imx-esai-objs := imx-esai.o
 
 ifdef CONFIG_MACH_MX27
 snd-soc-imx-objs += imx-pcm-dma-mx2.o
 endif
-
-obj-$(CONFIG_SND_IMX_SOC) += snd-soc-imx.o
 
 # i.MX Machine Support
 snd-soc-phycore-ac97-objs := phycore-ac97.o

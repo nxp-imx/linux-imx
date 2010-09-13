@@ -24,6 +24,7 @@
 #include <linux/err.h>
 #include <linux/irq.h>
 #include <linux/io.h>
+#include <linux/fsl_devices.h>
 #include <sound/core.h>
 #include <sound/pcm.h>
 #include <sound/pcm_params.h>
@@ -153,7 +154,9 @@ static int imx_3stack_audio_hw_params(struct snd_pcm_substream *substream,
 
 	/* set i.MX active slot mask */
 	snd_soc_dai_set_tdm_slot(cpu_dai,
-				 channels == 1 ? 0xfffffffe : 0xfffffffc, 2);
+				 channels == 1 ? 0xfffffffe : 0xfffffffc,
+				 channels == 1 ? 0xfffffffe : 0xfffffffc,
+				 2, 32);
 
 	/* set cpu DAI configuration */
 	ret = snd_soc_dai_set_fmt(cpu_dai, dai_format);

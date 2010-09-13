@@ -22,6 +22,7 @@
 #include <linux/slab.h>
 #include <linux/dma-mapping.h>
 #include <linux/iram_alloc.h>
+#include <linux/fsl_devices.h>
 #include <sound/core.h>
 #include <sound/pcm.h>
 #include <sound/pcm_params.h>
@@ -106,8 +107,6 @@ static int imx_iram_audio_playback_mmap(struct snd_pcm_substream *substream,
 	ret =
 	    remap_pfn_range(area, area->vm_start, phys >> PAGE_SHIFT,
 			    size, area->vm_page_prot);
-	if (ret == 0)
-		area->vm_ops->open(area);
 
 	return ret;
 }
