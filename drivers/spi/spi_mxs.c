@@ -67,9 +67,17 @@ static int debug;
  */
 static int mxs_spi_init_hw(struct mxs_spi *ss)
 {
+	struct mxs_spi_platform_data *pdata;
 	int err;
 
-	ss->clk = clk_get(NULL, "ssp.0");
+	pdata = ss->master_dev->platform_data;
+
+	if (!pdata->clk) {
+		dev_err(ss->master_dev, "unknown clock\n");
+		err = -EINVAL;
+		goto out;
+	}
+	ss->clk = clk_get(ss->master_dev, pdata->clk);
 	if (IS_ERR(ss->clk)) {
 		err = PTR_ERR(ss->clk);
 		goto out;
