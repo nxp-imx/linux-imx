@@ -161,17 +161,13 @@ static int mxs_spi_setup_transfer(struct spi_device *spi,
 
 static void mxs_spi_cleanup(struct spi_device *spi)
 {
-	struct mxs_spi_platform_data *pdata = spi->dev.platform_data;
-
-	if (pdata && pdata->hw_pin_release)
-		pdata->hw_pin_release();
+	return;
 }
 
 /* the spi->mode bits understood by this driver: */
 #define MODEBITS (SPI_CPOL | SPI_CPHA)
 static int mxs_spi_setup(struct spi_device *spi)
 {
-	struct mxs_spi_platform_data *pdata;
 	struct mxs_spi *ss;
 	int err = 0;
 
@@ -190,22 +186,11 @@ static int mxs_spi_setup(struct spi_device *spi)
 	dev_dbg(&spi->dev, "%s, mode %d, %u bits/w\n",
 		__func__, spi->mode & MODEBITS, spi->bits_per_word);
 
-	pdata = spi->dev.platform_data;
-
-	if (pdata && pdata->hw_pin_init) {
-		err = pdata->hw_pin_init();
-		if (err)
-			goto out;
-	}
-
 	err = mxs_spi_setup_transfer(spi, NULL);
 	if (err)
-		goto out2;
+		goto out;
 	return 0;
 
-out2:
-	if (pdata && pdata->hw_pin_release)
-		pdata->hw_pin_release();
 out:
 	dev_err(&spi->dev, "Failed to setup transfer, error = %d\n", err);
 	return err;
@@ -520,11 +505,20 @@ static irqreturn_t mxs_spi_irq_err(int irq, void *dev_id)
 
 static int __init mxs_spi_probe(struct platform_device *dev)
 {
+	struct mxs_spi_platform_data *pdata;
 	int err = 0;
 	struct spi_master *master;
 	struct mxs_spi *ss;
 	struct resource *r;
 	u32 mem;
+
+	pdata = dev->dev.platform_data;
+
+	if (pdata && pdata->hw_pin_init) {
+		err = pdata->hw_pin_init();
+		if (err)
+			goto out0;
+	}
 
 	/* Get resources(memory, IRQ) associated with the device */
 	master = spi_alloc_master(&dev->dev, sizeof(struct mxs_spi));
@@ -652,6 +646,10 @@ static int __devexit mxs_spi_remove(struct platform_device *dev)
 {
 	struct mxs_spi *ss;
 	struct spi_master *master;
+	struct mxs_spi_platform_data *pdata = dev->dev.platform_data;
+
+	if (pdata && pdata->hw_pin_release)
+		pdata->hw_pin_release();
 
 	master = platform_get_drvdata(dev);
 	if (master == NULL)
