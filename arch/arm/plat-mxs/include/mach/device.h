@@ -128,6 +128,8 @@ struct mxs_mma7450_platform_data {
 struct mxs_spi_platform_data {
 	int (*hw_pin_init)(void);
 	int (*hw_pin_release)(void);
+
+	char *clk;
 };
 
 struct mxs_audio_platform_data {
