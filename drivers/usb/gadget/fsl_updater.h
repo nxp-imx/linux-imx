@@ -20,6 +20,8 @@
 #include <linux/miscdevice.h>
 #include <linux/list.h>
 #include <linux/vmalloc.h>
+#include <linux/ioctl.h>
+#include <mach/hardware.h>
 
 static int utp_init(struct fsg_dev *fsg);
 static void utp_exit(struct fsg_dev *fsg);
@@ -33,6 +35,8 @@ static ssize_t utp_file_write(struct file *file,
 			      size_t size,
 			      loff_t *off);
 
+static int utp_ioctl(struct inode *inode, struct file *file,
+	      unsigned int cmd, unsigned long arg);
 static struct utp_user_data *utp_user_data_alloc(size_t size);
 static void utp_user_data_free(struct utp_user_data *uud);
 static int utp_get_sense(struct fsg_dev *fsg);
@@ -59,6 +63,8 @@ static int utp_handle_message(struct fsg_dev *fsg,
 #define UTP_SS_BUSY(fsg, r)	utp_set_sense(fsg, UTP_REPLY_BUSY, (u64)r)
 #define UTP_SS_SIZE(fsg, r)	utp_set_sense(fsg, UTP_REPLY_SIZE, (u64)r)
 
+#define	UTP_IOCTL_BASE	'U'
+#define	UTP_GET_CPU_ID	_IOR(UTP_IOCTL_BASE, 0, int)
 /* the structure of utp message which is mapped to 16-byte SCSI CBW's CDB */
 #pragma pack(1)
 struct utp_msg {
@@ -98,6 +104,7 @@ static const struct file_operations utp_fops = {
 	.open	= nonseekable_open,
 	.read	= utp_file_read,
 	.write	= utp_file_write,
+	.ioctl  = utp_ioctl,
 };
 
 static struct miscdevice utp_dev = {

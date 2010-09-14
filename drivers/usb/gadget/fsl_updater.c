@@ -139,6 +139,44 @@ static ssize_t utp_file_write(struct file *file, const char __user *buf,
 	return size;
 }
 
+static int
+utp_ioctl(struct inode *inode, struct file *file,
+	      unsigned int cmd, unsigned long arg)
+{
+	int cpu_id = 0;
+	switch (cmd) {
+	case UTP_GET_CPU_ID:
+/* Currently, it only supports below SoC for manufacture tool
+ * The naming rule
+ * 1. The numberic for SoC string
+ * 2. If there is next SoC version, and the corresponding utp
+ * operation will be differ, then, need to add '1' next to SoC
+ * name. Such as the next 50 SoC version is: cpu_is = 501
+ */
+#ifdef CONFIG_ARCH_MXS
+		if (cpu_is_mx23())
+			cpu_id = 23;
+		else if (cpu_is_mx28())
+			cpu_id = 28;
+#endif
+#ifdef CONFIG_ARCH_MXC
+		if (cpu_is_mx25())
+			cpu_id = 25;
+		else if (cpu_is_mx35())
+			cpu_id = 35;
+		else if (cpu_is_mx51())
+			cpu_id = 51;
+		else if (cpu_is_mx53())
+			cpu_id = 53;
+		else if (cpu_is_mx50())
+			cpu_id = 50;
+#endif
+		return put_user(cpu_id, (int __user *)arg);
+	default:
+		return -ENOIOCTLCMD;
+	}
+}
+
 /* Will be called when the host wants to get the sense data */
 static int utp_get_sense(struct fsg_dev *fsg)
 {
