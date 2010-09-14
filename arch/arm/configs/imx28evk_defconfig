@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # Linux kernel version: 2.6.31
-# Tue Sep 14 14:57:31 2010
+# Tue Sep 14 15:10:24 2010
 #
 CONFIG_ARM=y
 CONFIG_SYS_SUPPORTS_APM_EMULATION=y
@@ -525,7 +525,8 @@ CONFIG_MTD_CFI_I2=y
 #
 # CONFIG_MTD_DATAFLASH is not set
 # CONFIG_MTD_MXC_DATAFLASH is not set
-# CONFIG_MTD_M25P80 is not set
+CONFIG_MTD_M25P80=m
+CONFIG_M25PXX_USE_FAST_READ=y
 # CONFIG_MTD_SLRAM is not set
 # CONFIG_MTD_PHRAM is not set
 # CONFIG_MTD_MTDRAM is not set
