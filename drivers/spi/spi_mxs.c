@@ -426,6 +426,7 @@ static int mxs_spi_handle_message(struct mxs_spi *ss, struct spi_message *m)
 			}
 		}
 
+		m->actual_length += t->len;
 		if (status)
 			break;
 
@@ -480,6 +481,7 @@ static int mxs_spi_transfer(struct spi_device *spi, struct spi_message *m)
 	struct mxs_spi *ss = spi_master_get_devdata(spi->master);
 	unsigned long flags;
 
+	m->actual_length = 0;
 	m->status = -EINPROGRESS;
 	spin_lock_irqsave(&ss->lock, flags);
 	list_add_tail(&m->queue, &ss->queue);
