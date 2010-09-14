@@ -154,9 +154,9 @@ static int arch_idle_mode = WAIT_UNCLOCKED_POWER_OFF;
  * This function puts the CPU into idle mode. It is called by default_idle()
  * in process.c file.
  */
-void mx51_idle(void)
+void arch_idle(void)
 {
-/*	if (likely(!mxc_jtag_enabled)) */{
+	if (likely(!mxc_jtag_enabled)) {
 		struct clk *ddr_clk = clk_get(NULL, "ddr_clk");
 		if (gpc_dvfs_clk == NULL)
 			gpc_dvfs_clk = clk_get(NULL, "gpc_dvfs_clk");

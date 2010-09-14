@@ -1,7 +1,7 @@
 /*
  *  Copyright (C) 1999 ARM Limited
  *  Copyright (C) 2000 Deep Blue Solutions Ltd
- *  Copyright 2004-2010 Freescale Semiconductor, Inc.
+ *  Copyright (C) 2004-2010 Freescale Semiconductor, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -24,17 +24,7 @@
 #include <mach/hardware.h>
 #include <mach/common.h>
 
-static inline void arch_idle(void)
-{
-#ifdef CONFIG_ARCH_MXC91231
-	if (cpu_is_mxc91231()) {
-		/* Need this to set DSM low-power mode */
-		mxc91231_prepare_idle();
-	}
-#endif
-
-	cpu_do_idle();
-}
+void arch_idle(void);
 
 void arch_reset(char mode, const char *cmd);
 int mxs_reset_block(void __iomem *hwreg, int just_enable);
