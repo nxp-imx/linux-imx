@@ -1290,7 +1290,7 @@ static void enc28j60_irq_work_handler(struct work_struct *work)
 					printk(KERN_DEBUG DRV_NAME
 						": LateCollision TXErr (%d)\n",
 						priv->tx_retry_count);
-				if (priv->tx_retry_count++ < MAX_TX_RETRYCOUNT)
+				if (priv->tx_retry_count++ > MAX_TX_RETRYCOUNT)
 					locked_reg_bfset(priv, ECON1,
 							   ECON1_TXRTS);
 				else
