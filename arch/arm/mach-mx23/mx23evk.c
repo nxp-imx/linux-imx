@@ -60,10 +60,6 @@ static void i2c_device_init(void)
 	i2c_register_board_info(0, &mma7450_i2c_device, 1);
 }
 
-static struct mxs_spi_platform_data enc_data = {
-	.hw_pin_init = mxs_spi_enc_pin_init,
-	.hw_pin_release = mxs_spi_enc_pin_release,
-};
 static struct spi_board_info spi_board_info[] __initdata = {
 #if defined(CONFIG_ENC28J60) || defined(CONFIG_ENC28J60_MODULE)
 	{
@@ -71,7 +67,6 @@ static struct spi_board_info spi_board_info[] __initdata = {
 		.max_speed_hz   = 6 * 1000 * 1000,
 		.bus_num	= 1,
 		.chip_select    = 0,
-		.platform_data  = &enc_data,
 	},
 #endif
 };

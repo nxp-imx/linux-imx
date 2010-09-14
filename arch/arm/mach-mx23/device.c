@@ -671,6 +671,12 @@ static void mx23_init_mmc(void)
 #endif
 
 #if defined(CONFIG_SPI_MXS) || defined(CONFIG_SPI_MXS_MODULE)
+static struct mxs_spi_platform_data ssp1_data = {
+	.hw_pin_init = mxs_spi_enc_pin_init,
+	.hw_pin_release = mxs_spi_enc_pin_release,
+	.clk = "ssp.0",
+};
+
 static struct resource ssp1_resources[] = {
 	{
 		.start	= SSP1_PHYS_ADDR,
@@ -700,6 +706,7 @@ static void __init mx23_init_spi1(void)
 		return;
 	pdev->resource = ssp1_resources;
 	pdev->num_resources = ARRAY_SIZE(ssp1_resources);
+	pdev->dev.platform_data = &ssp1_data;
 
 	mxs_add_device(pdev, 3);
 }
