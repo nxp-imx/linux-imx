@@ -1081,7 +1081,9 @@ static int sata_init(struct device *dev)
 	int rc = 0;
 	u32 tmpdata;
 
-	clk = clk_get(dev, "sata_clk");
+	clk = clk_get(dev, "imx_sata_clk");
+	if (IS_ERR(clk))
+		printk(KERN_ERR "IMX SATA can't get clock.\n");
 	clk_enable(clk);
 
 	mmio = ioremap(MX53_SATA_BASE_ADDR, SZ_4K);
@@ -1174,7 +1176,7 @@ static void sata_exit(struct device *dev)
 {
 	struct clk *clk;
 
-	clk = clk_get(dev, "sata_clk");
+	clk = clk_get(dev, "imx_sata_clk");
 	clk_disable(clk);
 	clk_put(clk);
 }

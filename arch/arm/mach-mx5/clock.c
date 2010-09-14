@@ -4178,7 +4178,7 @@ static struct clk_lookup mx53_lookups[] = {
 	_REGISTER_CLOCK("imx-i2c.2", NULL, i2c_clk[2]),
 	_REGISTER_CLOCK(NULL, "usb_phy2_clk", usb_phy_clk[1]),
 	_REGISTER_CLOCK(NULL, "ocram_clk", ocram_clk),
-	_REGISTER_CLOCK("imx-sata.0", NULL, sata_clk),
+	_REGISTER_CLOCK(NULL, "imx_sata_clk", sata_clk),
 	_REGISTER_CLOCK(NULL, "ieee_1588_clk", ieee_1588_clk),
 	_REGISTER_CLOCK("mxc_mlb.0", NULL, mlb_clk[0]),
 	_REGISTER_CLOCK("FlexCAN.0", NULL, can1_clk[0]),
