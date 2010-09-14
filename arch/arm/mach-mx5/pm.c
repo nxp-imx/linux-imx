@@ -79,7 +79,7 @@ static int mx5_suspend_enter(suspend_state_t state)
 		local_flush_tlb_all();
 		flush_cache_all();
 
-		if (cpu_is_mx51()) {
+		if (cpu_is_mx51() || cpu_is_mx53()) {
 			/* Run the suspend code from iRAM. */
 			suspend_in_iram(suspend_param1);
 
@@ -87,9 +87,6 @@ static int mx5_suspend_enter(suspend_state_t state)
 			__raw_writel(0, MXC_SRPG_EMPGC0_SRPGCR);
 			__raw_writel(0, MXC_SRPG_EMPGC1_SRPGCR);
 		} else
-			local_flush_tlb_all();
-			flush_cache_all();
-
 			suspend_in_iram(databahn_base);
 	} else {
 			cpu_do_idle();
@@ -182,7 +179,7 @@ static struct platform_driver mx5_pm_driver = {
 static int __init pm_init(void)
 {
 	int cpu_wp_nr;
-	unsigned long iram_paddr, iram_paddr1;
+	unsigned long iram_paddr;
 
 	pr_info("Static Power Management for Freescale i.MX5\n");
 	if (platform_driver_register(&mx5_pm_driver) != 0) {
@@ -197,7 +194,7 @@ static int __init pm_init(void)
 	suspend_iram_base = __arm_ioremap(iram_paddr, SZ_4K,
 					  MT_HIGH_VECTORS);
 
-	if (cpu_is_mx51()) {
+	if (cpu_is_mx51() || cpu_is_mx53()) {
 		suspend_param1 = IO_ADDRESS(IOMUXC_BASE_ADDR + 0x4b8);
 		memcpy(suspend_iram_base, cpu_do_suspend_workaround,
 				SZ_4K);
