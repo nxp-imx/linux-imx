@@ -610,7 +610,7 @@ static int cs42888_set_dai_sysclk(struct snd_soc_dai *codec_dai,
 				 int clk_id, unsigned int freq, int dir)
 {
 	struct snd_soc_codec *codec = codec_dai->codec;
-	struct cs42888_private *cs42888 = codec->private_data;
+	struct cs42888_private *cs42888 = codec->drvdata;
 
 	cs42888->mclk = freq;
 
@@ -634,7 +634,7 @@ static int cs42888_set_dai_fmt(struct snd_soc_dai *codec_dai,
 			      unsigned int format)
 {
 	struct snd_soc_codec *codec = codec_dai->codec;
-	struct cs42888_private *cs42888 = codec->private_data;
+	struct cs42888_private *cs42888 = codec->drvdata;
 	int ret = 0;
 	u8 val;
 	val = cs42888_read_reg_cache(codec, CS42888_FORMAT);
@@ -714,7 +714,7 @@ static int cs42888_hw_params(struct snd_pcm_substream *substream,
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	struct snd_soc_device *socdev = rtd->socdev;
 	struct snd_soc_codec *codec = socdev->card->codec;
-	struct cs42888_private *cs42888 = codec->private_data;
+	struct cs42888_private *cs42888 = codec->drvdata;
 	int ret;
 	unsigned int i;
 	unsigned int rate;
@@ -889,13 +889,6 @@ static int cs42888_probe(struct platform_device *pdev)
 	/* Add DAPM controls */
 	ca42888_add_widgets(codec);
 
-	/* And finally, register the socdev */
-	ret = snd_soc_init_card(socdev);
-	if (ret < 0) {
-		dev_err(codec->dev, "failed to register card\n");
-		goto error_free_pcms;
-	}
-
 	return 0;
 
 error_free_pcms:
@@ -1005,7 +998,7 @@ static int cs42888_i2c_probe(struct i2c_client *i2c_client,
 	INIT_LIST_HEAD(&codec->dapm_widgets);
 	INIT_LIST_HEAD(&codec->dapm_paths);
 
-	codec->private_data = cs42888;
+	codec->drvdata = cs42888;
 	codec->name = "CS42888";
 	codec->owner = THIS_MODULE;
 	codec->read = cs42888_read_reg_cache;

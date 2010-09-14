@@ -20,6 +20,7 @@
 #include <linux/module.h>
 #include <linux/init.h>
 #include <linux/platform_device.h>
+#include <linux/fsl_devices.h>
 #include <linux/slab.h>
 #include <linux/dma-mapping.h>
 #include <linux/clk.h>
@@ -137,31 +138,31 @@ static int imx_esai_set_dai_clkdiv(struct snd_soc_dai *cpu_dai,
 /*
  * ESAI Network Mode or TDM slots configuration.
  */
-static int imx_esai_set_dai_tdm_slot(struct snd_soc_dai *cpu_dai,
-				     unsigned int mask, int slots)
+static int imx_esai_set_dai_tdm_slot(struct snd_soc_dai *dai,
+	unsigned int tx_mask, unsigned int rx_mask, int slots, int slot_width)
 {
 	u32 tccr, rccr;
 
-	if (cpu_dai->id & IMX_DAI_ESAI_TX) {
+	if (dai->id & IMX_DAI_ESAI_TX) {
 		tccr = __raw_readl(ESAI_TCCR);
 
 		tccr &= ESAI_TCCR_TDC_MASK;
 		tccr |= ESAI_TCCR_TDC(slots - 1);
 
 		__raw_writel(tccr, ESAI_TCCR);
-		__raw_writel((mask & 0xffff), ESAI_TSMA);
-		__raw_writel(((mask >> 16) & 0xffff), ESAI_TSMB);
+		__raw_writel((tx_mask & 0xffff), ESAI_TSMA);
+		__raw_writel(((tx_mask >> 16) & 0xffff), ESAI_TSMB);
 	}
 
-	if (cpu_dai->id & IMX_DAI_ESAI_RX) {
+	if (dai->id & IMX_DAI_ESAI_RX) {
 		rccr = __raw_readl(ESAI_RCCR);
 
 		rccr &= ESAI_RCCR_RDC_MASK;
 		rccr |= ESAI_RCCR_RDC(slots - 1);
 
 		__raw_writel(rccr, ESAI_RCCR);
-		__raw_writel((mask & 0xffff), ESAI_RSMA);
-		__raw_writel(((mask >> 16) & 0xffff), ESAI_RSMB);
+		__raw_writel((rx_mask & 0xffff), ESAI_RSMA);
+		__raw_writel(((rx_mask >> 16) & 0xffff), ESAI_RSMB);
 	}
 
 	ESAI_DUMP();
@@ -552,7 +553,8 @@ static int imx_esai_probe(struct platform_device *pdev, struct snd_soc_dai *dai)
 	imx_esai_txrx_state = 0;
 
 	esai_clk = clk_get(NULL, "esai_clk");
-
+	if (!esai_clk)
+		printk(KERN_WARNING "Can't get the clock esai_clk \n");
 	return 0;
 }
 

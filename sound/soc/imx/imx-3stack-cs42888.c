@@ -13,6 +13,7 @@
 
 #include <linux/module.h>
 #include <linux/moduleparam.h>
+#include <linux/slab.h>
 #include <linux/device.h>
 #include <linux/i2c.h>
 #include <linux/clk.h>
@@ -93,10 +94,10 @@ static int imx_3stack_startup(struct snd_pcm_substream *substream)
 
 static void imx_3stack_shutdown(struct snd_pcm_substream *substream)
 {
+#if defined(CONFIG_MXC_ASRC) || defined(CONFIG_MXC_ASRC_MODULE)
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	struct snd_soc_dai_link *pcm_link = rtd->dai;
 
-#if defined(CONFIG_MXC_ASRC) || defined(CONFIG_MXC_ASRC_MODULE)
 	if (asrc_esai_data.output_sample_rate >= 32000) {
 		struct snd_soc_dai *cpu_dai = pcm_link->cpu_dai;
 		codec_dai->playback.rates = asrc_esai_data.codec_dai_rates;
@@ -118,7 +119,9 @@ static int imx_3stack_surround_hw_params(struct snd_pcm_substream *substream,
 	unsigned int rate = params_rate(params);
 	u32 dai_format;
 	unsigned int mclk_freq = 0, lrclk_ratio = 0;
+#if defined(CONFIG_MXC_ASRC) || defined(CONFIG_MXC_ASRC_MODULE)
 	unsigned int channel = params_channels(params);
+#endif
 	struct imx_esai *esai_mode = (struct imx_esai *)cpu_dai->private_data;
 	if (clk_state.lr_clk_active > 1)
 		return 0;
@@ -207,7 +210,7 @@ static int imx_3stack_surround_hw_params(struct snd_pcm_substream *substream,
 	/* set cpu DAI configuration */
 	snd_soc_dai_set_fmt(cpu_dai, dai_format);
 	/* set i.MX active slot mask */
-	snd_soc_dai_set_tdm_slot(cpu_dai, channel == 1 ? 0x1 : 0x3, 2);
+	snd_soc_dai_set_tdm_slot(cpu_dai, 0x3, 0x3, 2, 32);
 	/* set the ESAI system clock as output */
 	snd_soc_dai_set_sysclk(cpu_dai, ESAI_CLK_EXTAL,
 		mclk_freq, SND_SOC_CLOCK_OUT);

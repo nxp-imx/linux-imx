@@ -279,9 +279,11 @@ config SND_SOC_WM9713
 
 config SND_SOC_SGTL5000
 	tristate
+	depends on I2C
 
 config SND_SOC_AK4647
         tristate
+        depends on I2C
 
 config SND_SOC_MXS_ADC_CODEC
 	tristate
