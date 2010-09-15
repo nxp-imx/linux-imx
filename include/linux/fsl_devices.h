@@ -294,6 +294,13 @@ struct mxc_tvin_platform_data {
 	void (*reset) (void);
 };
 
+struct mxc_epdc_fb_platform_data {
+	void (*get_pins) (void);
+	void (*put_pins) (void);
+	void (*enable_pins) (void);
+	void (*disable_pins) (void);
+};
+
 /*! Platform data for the IDE drive structure. */
 struct mxc_ide_platform_data {
 	char *power_drive;	/*!< The power pointer */
