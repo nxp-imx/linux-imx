@@ -361,6 +361,7 @@ static int mxc_rtc_ioctl(struct device *dev, unsigned int cmd,
 
 		return 0;
 
+	/* NOTE: This IOCTL does not work properly on kernel 2.6.35 */
 	case RTC_WAIT_TIME_SET:
 
 		/* don't block without releasing mutex first */
@@ -592,7 +593,7 @@ static int mxc_rtc_probe(struct platform_device *pdev)
 		}
 	}
 
-	clk = clk_get(NULL, "rtc_clk");
+	clk = clk_get(&pdev->dev, "rtc_clk");
 	if (clk_get_rate(clk) != 32768) {
 		printk(KERN_ALERT "rtc clock is not valid");
 		ret = -EINVAL;
