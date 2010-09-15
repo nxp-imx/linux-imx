@@ -1362,9 +1362,6 @@ fec_probe(struct platform_device *pdev)
 	fep = netdev_priv(ndev);
 	memset(fep, 0, sizeof(*fep));
 
-	if (!is_valid_ether_addr(fec_mac_default))
-		memcpy(fec_mac_default, pdata->mac, sizeof(fec_mac_default));
-
 	ndev->base_addr = (unsigned long)ioremap(r->start, resource_size(r));
 	fep->pdev = pdev;
 
@@ -1378,6 +1375,9 @@ fec_probe(struct platform_device *pdev)
 	pdata = pdev->dev.platform_data;
 	if (pdata)
 		fep->phy_interface = pdata->phy;
+
+	if (pdata && !is_valid_ether_addr(fec_mac_default))
+		memcpy(fec_mac_default, pdata->mac, sizeof(fec_mac_default));
 
 	/* This device has up to three irqs on some platforms */
 	for (i = 0; i < 3; i++) {
