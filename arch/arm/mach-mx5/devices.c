@@ -474,6 +474,34 @@ struct platform_device mxcscc_device = {
 	.resource = scc_resources,
 };
 
+static struct resource dcp_resources[] = {
+
+	{
+		.flags = IORESOURCE_MEM,
+		.start = DCP_BASE_ADDR,
+		.end   = DCP_BASE_ADDR + 0x2000 - 1,
+	}, {
+		.flags = IORESOURCE_IRQ,
+		.start = MXC_INT_DCP_CHAN0,
+		.end = MXC_INT_DCP_CHAN0,
+	}, {
+		.flags = IORESOURCE_IRQ,
+		.start = MXC_INT_DCP_CHAN1_3,
+		.end = MXC_INT_DCP_CHAN1_3,
+	},
+};
+
+struct platform_device dcp_device = {
+	.name = "dcp",
+	.id = 0,
+	.num_resources = ARRAY_SIZE(dcp_resources),
+	.resource = dcp_resources,
+	.dev = {
+		.coherent_dma_mask = DMA_BIT_MASK(32),
+	},
+};
+
+
 static struct resource rngb_resources[] = {
 	{
 		.start = RNGB_BASE_ADDR,
