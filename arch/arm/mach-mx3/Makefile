@@ -4,7 +4,7 @@
 
 # Object file lists.
 
-obj-y				:= mm.o devices.o cpu.o
+obj-y				:= mm.o devices.o cpu.o system.o
 obj-y				+= dma.o dummy_gpio.o mx3x-dma.o
 
 obj-$(CONFIG_ARCH_MX31)		+= clock-imx31.o iomux-imx31.o entry-pm.o

@@ -91,13 +91,3 @@ void arch_idle(void)
 	}
 }
 
-/*
- * This function resets the system. It is called by machine_restart().
- *
- * @param  mode         indicates different kinds of resets
- */
-void arch_reset(char mode)
-{
-	/* Assert SRS signal */
-	mxc_wd_reset();
-}
