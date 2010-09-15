@@ -32,6 +32,8 @@
 #include <asm/system.h>
 
 static void __iomem *wdog_base;
+extern int dvfs_core_is_active;
+extern void stop_dvfs(void);
 
 /*
  * Reset the system. It is called by machine_restart().
@@ -53,6 +55,12 @@ void arch_reset(char mode, const char *cmd)
 	 */
 	 if (cpu_is_mx51() || cpu_is_mx53())
 		__raw_writel(0x20600, IO_ADDRESS(NFC_BASE_ADDR) + 0x28);
+#endif
+
+#ifdef CONFIG_ARCH_MX5
+	/* Stop DVFS-CORE before reboot. */
+	if (dvfs_core_is_active)
+		stop_dvfs();
 #endif
 
 	if (cpu_is_mx1()) {

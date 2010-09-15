@@ -89,6 +89,7 @@ extern int cpufreq_trig_needed;
 struct timeval core_prev_intr;
 
 void dump_dvfs_core_regs(void);
+void stop_dvfs(void);
 static struct delayed_work dvfs_core_handler;
 
 /*
@@ -551,7 +552,7 @@ END:	/* Set MAXF, MINF */
 /*!
  * This function disables the DVFS module.
  */
-static void stop_dvfs(void)
+void stop_dvfs(void)
 {
 	u32 reg = 0;
 	unsigned long flags;
