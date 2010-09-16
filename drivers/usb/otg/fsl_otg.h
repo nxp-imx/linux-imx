@@ -363,7 +363,7 @@ struct fsl_otg_timer {
 	struct list_head list;
 };
 
-struct inline fsl_otg_timer * otg_timer_initializer
+inline struct fsl_otg_timer *otg_timer_initializer
 (void (*function)(unsigned long), unsigned long expires, unsigned long data)
 {
 	struct fsl_otg_timer *timer;
