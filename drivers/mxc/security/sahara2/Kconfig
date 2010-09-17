@@ -1,0 +1,35 @@
+menu "SAHARA2 Security Hardware Support"
+
+config MXC_SAHARA
+	tristate "Security Hardware Support (FSL SHW)"
+	---help---
+	  Provides driver and kernel mode API for using cryptographic
+	  accelerators.
+
+config MXC_SAHARA_USER_MODE
+	tristate "User Mode API for FSL SHW"
+	depends on MXC_SAHARA
+	---help---
+	  Provides kernel driver for User Mode API.
+
+config MXC_SAHARA_POLL_MODE
+	bool "Force driver to POLL for hardware completion."
+	depends on MXC_SAHARA
+	default n
+	---help---
+	  When this flag is yes, the driver will not use interrupts to
+	  determine when the hardware has completed a task, but instead
+	  will hold onto the CPU and continually poll the hardware until
+	  it completes.
+
+config MXC_SAHARA_POLL_MODE_TIMEOUT
+    hex "Poll loop timeout"
+    depends on MXC_SAHARA_POLL_MODE
+    default "0xFFFFFFFF"
+    help
+        To avoid infinite polling, a timeout is provided. Should the
+        timeout be reached, a fault is reported, indicating there must
+        be something wrong with SAHARA, and SAHARA is reset. The loop
+        will exit after the given number of iterations.
+
+endmenu
