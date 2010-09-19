@@ -21,6 +21,7 @@
 #include <linux/spi/spi.h>
 #include <linux/platform_device.h>
 #include <linux/regulator/consumer.h>
+#include <linux/fsl_devices.h>
 
 #include <sound/core.h>
 #include <sound/pcm.h>
@@ -745,6 +746,8 @@ static int cs42888_hw_params(struct snd_pcm_substream *substream,
 		val = cs42888_read_reg_cache(codec, CS42888_MODE);
 		val &= ~CS42888_MODE_SPEED_MASK;
 		val |= CS42888_MODE_SLAVE;
+		val &= ~CS42888_MODE_DIV_MASK;
+		val |= cs42888_mode_ratios[i].mclk;
 	}
 	ret = cs42888_i2c_write(codec, CS42888_MODE, val);
 	if (ret < 0) {
@@ -929,7 +932,8 @@ static int cs42888_i2c_probe(struct i2c_client *i2c_client,
 	struct snd_soc_codec *codec;
 	struct cs42888_private *cs42888;
 	int ret;
-	struct regulator *regulator_vsd;
+	struct mxc_audio_codec_platform_data *plat_data =
+			    i2c_client->dev.platform_data;
 	u8 val;
 
 	if (cs42888_codec) {
@@ -949,13 +953,12 @@ static int cs42888_i2c_probe(struct i2c_client *i2c_client,
 	}
 
 	/* hold on reset */
-	gpio_cs42888_pdwn(1);
+	if (plat_data->pwdn)
+		plat_data->pwdn(1);
 
-	regulator_vsd = regulator_get(&i2c_client->dev, "VSD");
-	if (!IS_ERR(regulator_vsd))
-		cs42888->regulator_vsd = regulator_vsd;
-
-	if (cs42888->regulator_vsd) {
+	cs42888->regulator_vsd =
+		regulator_get(&i2c_client->dev, plat_data->analog_regulator);
+	if (!IS_ERR(cs42888->regulator_vsd)) {
 		regulator_set_voltage(cs42888->regulator_vsd,
 		    2800000, 2800000);
 		if (regulator_enable(cs42888->regulator_vsd) != 0) {
@@ -968,7 +971,8 @@ static int cs42888_i2c_probe(struct i2c_client *i2c_client,
 
 	msleep(1);
 	/* out of reset state */
-	gpio_cs42888_pdwn(0);
+	if (plat_data->pwdn)
+		plat_data->pwdn(0);
 
 	/* Verify that we have a CS42888 */
 	ret = cs42888_read_reg(CS42888_CHIPID, &val);

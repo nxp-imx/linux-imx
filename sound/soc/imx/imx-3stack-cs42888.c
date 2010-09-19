@@ -19,6 +19,7 @@
 #include <linux/clk.h>
 #include <linux/delay.h>
 #include <linux/regulator/consumer.h>
+#include <linux/fsl_devices.h>
 #include <sound/core.h>
 #include <sound/pcm.h>
 #include <sound/soc.h>
@@ -70,6 +71,7 @@ struct imx_3stack_pcm_state {
 };
 
 static struct imx_3stack_pcm_state clk_state;
+unsigned int mclk_freq;
 
 static int imx_3stack_startup(struct snd_pcm_substream *substream)
 {
@@ -118,7 +120,7 @@ static int imx_3stack_surround_hw_params(struct snd_pcm_substream *substream,
 	struct snd_soc_dai *codec_dai = pcm_link->codec_dai;
 	unsigned int rate = params_rate(params);
 	u32 dai_format;
-	unsigned int mclk_freq = 0, lrclk_ratio = 0;
+	unsigned int lrclk_ratio = 0;
 #if defined(CONFIG_MXC_ASRC) || defined(CONFIG_MXC_ASRC_MODULE)
 	unsigned int channel = params_channels(params);
 #endif
@@ -162,39 +164,30 @@ static int imx_3stack_surround_hw_params(struct snd_pcm_substream *substream,
 	switch (rate) {
 	case 32000:
 		lrclk_ratio = 3;
-		mclk_freq = 12288000;
 		break;
 	case 48000:
 		lrclk_ratio = 3;
-		mclk_freq = 12288000;
 		break;
 	case 64000:
 		lrclk_ratio = 1;
-		mclk_freq = 12288000;
 		break;
 	case 96000:
 		lrclk_ratio = 1;
-		mclk_freq = 12288000;
 		break;
 	case 128000:
 		lrclk_ratio = 1;
-		mclk_freq = 12288000;
 		break;
 	case 44100:
 		lrclk_ratio = 3;
-		mclk_freq = 11289600;
 		break;
 	case 88200:
 		lrclk_ratio = 1;
-		mclk_freq = 11289600;
 		break;
 	case 176400:
 		lrclk_ratio = 0;
-		mclk_freq = 11289600;
 		break;
 	case 192000:
 		lrclk_ratio = 0;
-		mclk_freq = 12288000;
 		break;
 	default:
 		pr_info("Rate not support.\n");
@@ -221,7 +214,6 @@ static int imx_3stack_surround_hw_params(struct snd_pcm_substream *substream,
 	snd_soc_dai_set_clkdiv(cpu_dai, ESAI_RX_DIV_PSR, 1);
 	snd_soc_dai_set_clkdiv(cpu_dai, ESAI_RX_DIV_PM, 0);
 	snd_soc_dai_set_clkdiv(cpu_dai, ESAI_RX_DIV_FP, lrclk_ratio);
-
 
 	/* set codec DAI configuration */
 	snd_soc_dai_set_fmt(codec_dai, dai_format);
@@ -354,8 +346,30 @@ static struct snd_soc_device imx_3stack_snd_devdata = {
  */
 static int __devinit imx_3stack_cs42888_probe(struct platform_device *pdev)
 {
+	struct mxc_audio_platform_data *plat_data = pdev->dev.platform_data;
 	imx_3stack_dai.cpu_dai = &imx_esai_dai[2];
 	imx_3stack_dai.cpu_dai->dev = &pdev->dev;
+	mclk_freq = plat_data->sysclk;
+	if (!(mclk_freq % 44100)) {
+		imx_3stack_dai.codec_dai->playback.rates =
+						    SNDRV_PCM_RATE_44100 |\
+						    SNDRV_PCM_RATE_88200 |\
+						    SNDRV_PCM_RATE_176400;
+		imx_3stack_dai.codec_dai->capture.rates =
+						    SNDRV_PCM_RATE_44100 |\
+						    SNDRV_PCM_RATE_88200 |\
+						    SNDRV_PCM_RATE_176400;
+	}
+	if (!(mclk_freq % 48000)) {
+		imx_3stack_dai.codec_dai->playback.rates =
+						    SNDRV_PCM_RATE_48000 |\
+						    SNDRV_PCM_RATE_96000 |\
+						    SNDRV_PCM_RATE_192000;
+		imx_3stack_dai.codec_dai->capture.rates =
+						    SNDRV_PCM_RATE_48000 |\
+						    SNDRV_PCM_RATE_96000 |\
+						    SNDRV_PCM_RATE_192000;
+	}
 
 	return 0;
 }
