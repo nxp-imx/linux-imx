@@ -232,7 +232,8 @@ static struct regulator_init_data vvideo_init = {
 		.name = "VVIDEO",
 		.min_uV = mV_to_uV(2775),
 		.max_uV = mV_to_uV(2775),
-		.valid_ops_mask = REGULATOR_CHANGE_VOLTAGE,
+		.valid_ops_mask = REGULATOR_CHANGE_VOLTAGE |
+			REGULATOR_CHANGE_STATUS,
 		.apply_uV = 1,
 	},
 	.num_consumer_supplies = ARRAY_SIZE(vvideo_consumers),
@@ -244,7 +245,8 @@ static struct regulator_init_data vaudio_init = {
 		.name = "VAUDIO",
 		.min_uV = mV_to_uV(2300),
 		.max_uV = mV_to_uV(3000),
-		.valid_ops_mask = REGULATOR_CHANGE_VOLTAGE,
+		.valid_ops_mask = REGULATOR_CHANGE_VOLTAGE |
+			REGULATOR_CHANGE_STATUS,
 	}
 };
 
@@ -253,7 +255,8 @@ static struct regulator_init_data vsd_init = {
 		.name = "VSD",
 		.min_uV = mV_to_uV(1800),
 		.max_uV = mV_to_uV(3150),
-		.valid_ops_mask = REGULATOR_CHANGE_VOLTAGE,
+		.valid_ops_mask = REGULATOR_CHANGE_VOLTAGE |
+			REGULATOR_CHANGE_STATUS,
 	}
 };
 
@@ -263,7 +266,8 @@ static struct regulator_init_data vcam_init = {
 		.min_uV = mV_to_uV(2500),
 		.max_uV = mV_to_uV(3000),
 		.valid_ops_mask =
-			REGULATOR_CHANGE_VOLTAGE | REGULATOR_CHANGE_MODE,
+			REGULATOR_CHANGE_VOLTAGE | REGULATOR_CHANGE_MODE |
+			REGULATOR_CHANGE_STATUS,
 		.valid_modes_mask = REGULATOR_MODE_FAST | REGULATOR_MODE_NORMAL,
 	}
 };
@@ -273,7 +277,8 @@ static struct regulator_init_data vgen1_init = {
 		.name = "VGEN1",
 		.min_uV = mV_to_uV(1200),
 		.max_uV = mV_to_uV(1200),
-		.valid_ops_mask = REGULATOR_CHANGE_VOLTAGE,
+		.valid_ops_mask = REGULATOR_CHANGE_VOLTAGE |
+			REGULATOR_CHANGE_STATUS,
 	}
 };
 
