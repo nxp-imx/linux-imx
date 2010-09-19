@@ -739,7 +739,6 @@ void gpio_cs42888_pdwn(int pdwn)
 	else
 		gpio_set_value(MX53_ESAI_RESET, 1);
 }
-EXPORT_SYMBOL(gpio_cs42888_pdwn);
 
 static void gpio_usbotg_vbus_active(void)
 {
@@ -882,6 +881,11 @@ static struct mxc_camera_platform_data camera_data = {
 	.pwdn = camera_pwdn,
 };
 
+static struct mxc_audio_codec_platform_data cs42888_data = {
+	.analog_regulator = "VSD",
+	.pwdn = gpio_cs42888_pdwn,
+};
+
 static struct i2c_board_info mxc_i2c0_board_info[] __initdata = {
 	{
 	.type = "ov3640",
@@ -896,6 +900,7 @@ static struct i2c_board_info mxc_i2c0_board_info[] __initdata = {
 	{
 	 .type = "cs42888",
 	 .addr = 0x48,
+	 .platform_data = &cs42888_data,
 	 },
 };
 
@@ -1319,6 +1324,7 @@ static struct mxc_spdif_platform_data mxc_spdif_data = {
 
 static struct mxc_audio_platform_data mxc_surround_audio_data = {
 	.ext_ram = 1,
+	.sysclk = 22579200,
 };
 
 
