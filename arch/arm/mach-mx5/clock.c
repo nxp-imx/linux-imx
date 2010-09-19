@@ -4129,7 +4129,7 @@ static struct clk_lookup lookups[] = {
 	_REGISTER_CLOCK("mxc_ssi.1", NULL, ssi2_clk[0]),
 	_REGISTER_CLOCK(NULL, "ssi_ext1_clk", ssi_ext1_clk),
 	_REGISTER_CLOCK(NULL, "ssi_ext2_clk", ssi_ext2_clk),
-	_REGISTER_CLOCK("mxc_iim.0", NULL, iim_clk),
+	_REGISTER_CLOCK(NULL, "iim_clk", iim_clk),
 	_REGISTER_CLOCK(NULL, "usboh3_clk", usboh3_clk[0]),
 	_REGISTER_CLOCK(NULL, "usb_ahb_clk", usb_ahb_clk),
 	_REGISTER_CLOCK(NULL, "usb_phy1_clk", usb_phy_clk[0]),
@@ -4183,7 +4183,8 @@ static struct clk_lookup mx53_lookups[] = {
 	_REGISTER_CLOCK("mxc_mlb.0", NULL, mlb_clk[0]),
 	_REGISTER_CLOCK("FlexCAN.0", NULL, can1_clk[0]),
 	_REGISTER_CLOCK("FlexCAM.1", NULL, can2_clk[0]),
-	_REGISTER_CLOCK("mxc_ldb", NULL, ldb_di_clk[0]),
+	_REGISTER_CLOCK(NULL, "ldb_di0_clk", ldb_di_clk[0]),
+	_REGISTER_CLOCK(NULL, "ldb_di1_clk", ldb_di_clk[1]),
 	_REGISTER_CLOCK("esai_clk", NULL, esai_clk[0]),
 	_REGISTER_CLOCK("esai_ipg_clk", NULL, esai_clk[1]),
 
