@@ -137,8 +137,11 @@ static int __devinit sii9022_probe(struct i2c_client *client,
 	}
 
 	/* Set 9022 in hardware TPI mode on and jump out of D3 state */
-	i2c_smbus_write_byte_data(sii9022_client, 0xc7, 0x00);
-	msleep(10);
+	if (i2c_smbus_write_byte_data(sii9022_client, 0xc7, 0x00) < 0) {
+		dev_err(&sii9022_client->dev,
+			"SII9022: cound not find device\n");
+		return -ENODEV;
+	}
 
 	/* read device ID */
 	for (i = 10; i > 0; i--) {
