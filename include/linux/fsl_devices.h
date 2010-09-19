@@ -251,6 +251,13 @@ struct mxc_bt_platform_data {
 	void (*bt_reset) (void);
 };
 
+struct mxc_audio_codec_platform_data {
+	char *core_regulator;
+	char *io_regulator;
+	char *analog_regulator;
+	void (*pwdn)(int pwdn);
+};
+
 struct mxc_lightsensor_platform_data {
 	char *vdd_reg;
 	int rext;
