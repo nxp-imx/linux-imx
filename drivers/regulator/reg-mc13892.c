@@ -1468,6 +1468,97 @@ static int mc13892_power_gating_disable(struct regulator_dev *reg)
 	return pmic_write_reg(register1, register_val, register_mask);
 }
 
+static int mc13892_regulator_is_enabled(struct regulator_dev *rdev)
+{
+	unsigned int register1;
+	unsigned int register_mask;
+	int id = rdev_get_id(rdev);
+	unsigned int register_val = 0;
+
+	switch (id) {
+	case MC13892_SWBST:
+		register_mask = BITFMASK(SWBST_EN);
+		register1 = REG_SW_5;
+		break;
+	case MC13892_VIOHI:
+		register_mask = BITFMASK(VIOHI_EN);
+		register1 = REG_MODE_0;
+		break;
+	case MC13892_VPLL:
+		register_mask = BITFMASK(VPLL_EN);
+		register1 = REG_MODE_0;
+		break;
+	case MC13892_VDIG:
+		register_mask = BITFMASK(VDIG_EN);
+		register1 = REG_MODE_0;
+		break;
+	case MC13892_VSD:
+		register_mask = BITFMASK(VSD_EN);
+		register1 = REG_MODE_1;
+		break;
+	case MC13892_VUSB2:
+		register_mask = BITFMASK(VUSB2_EN);
+		register1 = REG_MODE_0;
+		break;
+	case MC13892_VVIDEO:
+		register_mask = BITFMASK(VVIDEO_EN);
+		register1 = REG_MODE_1;
+		break;
+	case MC13892_VAUDIO:
+		register_mask = BITFMASK(VAUDIO_EN);
+		register1 = REG_MODE_1;
+		break;
+	case MC13892_VCAM:
+		register_mask = BITFMASK(VCAM_EN);
+		register1 = REG_MODE_1;
+		break;
+	case MC13892_VGEN1:
+		register_mask = BITFMASK(VGEN1_EN);
+		register1 = REG_MODE_0;
+		break;
+	case MC13892_VGEN2:
+		register_mask = BITFMASK(VGEN2_EN);
+		register1 = REG_MODE_0;
+		break;
+	case MC13892_VGEN3:
+		register_mask = BITFMASK(VGEN3_EN);
+		register1 = REG_MODE_1;
+		break;
+	case MC13892_VUSB:
+		register_mask = BITFMASK(VUSB_EN);
+		register1 = REG_USB1;
+		break;
+	case MC13892_GPO1:
+		register_mask = BITFMASK(GPO1_EN);
+		register1 = REG_POWER_MISC;
+		break;
+	case MC13892_GPO2:
+		register_mask = BITFMASK(GPO2_EN);
+		register1 = REG_POWER_MISC;
+		break;
+	case MC13892_GPO3:
+		register_mask = BITFMASK(GPO3_EN);
+		register1 = REG_POWER_MISC;
+		break;
+	case MC13892_GPO4:
+		register_mask = BITFMASK(GPO4_EN);
+		register1 = REG_POWER_MISC;
+		break;
+	case MC13892_PWGT1:
+		register_mask = BITFMASK(PWGT1SPI_EN);
+		register1 = REG_POWER_MISC;
+		break;
+	case MC13892_PWGT2:
+		register_mask = BITFMASK(PWGT2SPI_EN);
+		register1 = REG_POWER_MISC;
+		break;
+	default:
+		return 1;
+	}
+	CHECK_ERROR(pmic_read_reg(register1, &register_val, register_mask));
+	return (register_val != 0);
+}
+
 static struct regulator_ops mc13892_sw_ops = {
 	.enable = mc13892_sw_stby_enable,
 	.disable = mc13892_sw_stby_disable,
@@ -1482,16 +1573,19 @@ static struct regulator_ops mc13892_sw_ops = {
 static struct regulator_ops mc13892_swbst_ops = {
 	.enable = mc13892_swbst_enable,
 	.disable = mc13892_swbst_disable,
+	.is_enabled = mc13892_regulator_is_enabled,
 };
 
 static struct regulator_ops mc13892_viohi_ops = {
 	.enable = mc13892_viohi_enable,
 	.disable = mc13892_viohi_disable,
+	.is_enabled = mc13892_regulator_is_enabled,
 };
 
 static struct regulator_ops mc13892_vusb_ops = {
 	.enable = mc13892_vusb_enable,
 	.disable = mc13892_vusb_disable,
+	.is_enabled = mc13892_regulator_is_enabled,
 };
 
 static struct regulator_ops mc13892_vdig_ops = {
@@ -1499,6 +1593,7 @@ static struct regulator_ops mc13892_vdig_ops = {
 	.get_voltage = mc13892_vdig_get_voltage,
 	.enable = mc13892_vdig_enable,
 	.disable = mc13892_vdig_disable,
+	.is_enabled = mc13892_regulator_is_enabled,
 };
 
 static struct regulator_ops mc13892_vpll_ops = {
@@ -1506,6 +1601,7 @@ static struct regulator_ops mc13892_vpll_ops = {
 	.get_voltage = mc13892_vpll_get_voltage,
 	.enable = mc13892_vpll_enable,
 	.disable = mc13892_vpll_disable,
+	.is_enabled = mc13892_regulator_is_enabled,
 };
 
 static struct regulator_ops mc13892_vusb2_ops = {
@@ -1513,6 +1609,7 @@ static struct regulator_ops mc13892_vusb2_ops = {
 	.get_voltage = mc13892_vusb2_get_voltage,
 	.enable = mc13892_vusb2_enable,
 	.disable = mc13892_vusb2_disable,
+	.is_enabled = mc13892_regulator_is_enabled,
 };
 
 static struct regulator_ops mc13892_vvideo_ops = {
@@ -1520,6 +1617,7 @@ static struct regulator_ops mc13892_vvideo_ops = {
 	.get_voltage = mc13892_vvideo_get_voltage,
 	.enable = mc13892_vvideo_enable,
 	.disable = mc13892_vvideo_disable,
+	.is_enabled = mc13892_regulator_is_enabled,
 };
 
 static struct regulator_ops mc13892_vaudio_ops = {
@@ -1527,6 +1625,7 @@ static struct regulator_ops mc13892_vaudio_ops = {
 	.get_voltage = mc13892_vaudio_get_voltage,
 	.enable = mc13892_vaudio_enable,
 	.disable = mc13892_vaudio_disable,
+	.is_enabled = mc13892_regulator_is_enabled,
 };
 
 static struct regulator_ops mc13892_vsd_ops = {
@@ -1534,6 +1633,7 @@ static struct regulator_ops mc13892_vsd_ops = {
 	.get_voltage = mc13892_vsd_get_voltage,
 	.enable = mc13892_vsd_enable,
 	.disable = mc13892_vsd_disable,
+	.is_enabled = mc13892_regulator_is_enabled,
 };
 
 static struct regulator_ops mc13892_vcam_ops = {
@@ -1541,6 +1641,7 @@ static struct regulator_ops mc13892_vcam_ops = {
 	.get_voltage = mc13892_vcam_get_voltage,
 	.enable = mc13892_vcam_enable,
 	.disable = mc13892_vcam_disable,
+	.is_enabled = mc13892_regulator_is_enabled,
 	.set_mode = mc13892_vcam_set_mode,
 	.get_mode = mc13892_vcam_get_mode,
 };
@@ -1550,6 +1651,7 @@ static struct regulator_ops mc13892_vgen1_ops = {
 	.get_voltage = mc13892_vgen1_get_voltage,
 	.enable = mc13892_vgen1_enable,
 	.disable = mc13892_vgen1_disable,
+	.is_enabled = mc13892_regulator_is_enabled,
 };
 
 static struct regulator_ops mc13892_vgen2_ops = {
@@ -1557,6 +1659,7 @@ static struct regulator_ops mc13892_vgen2_ops = {
 	.get_voltage = mc13892_vgen2_get_voltage,
 	.enable = mc13892_vgen2_enable,
 	.disable = mc13892_vgen2_disable,
+	.is_enabled = mc13892_regulator_is_enabled,
 };
 
 static struct regulator_ops mc13892_vgen3_ops = {
@@ -1564,16 +1667,19 @@ static struct regulator_ops mc13892_vgen3_ops = {
 	.get_voltage = mc13892_vgen3_get_voltage,
 	.enable = mc13892_vgen3_enable,
 	.disable = mc13892_vgen3_disable,
+	.is_enabled = mc13892_regulator_is_enabled,
 };
 
 static struct regulator_ops mc13892_gpo_ops = {
 	.enable = mc13892_gpo_enable,
 	.disable = mc13892_gpo_disable,
+	.is_enabled = mc13892_regulator_is_enabled,
 };
 
 static struct regulator_ops mc13892_power_gating_ops = {
 	.enable = mc13892_power_gating_enable,
 	.disable = mc13892_power_gating_disable,
+	.is_enabled = mc13892_regulator_is_enabled,
 
 };
 
