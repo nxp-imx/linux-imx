@@ -261,6 +261,7 @@ int ipu_calc_stripes_sizes(const unsigned int input_frame_width,
 			left->output_width = right->output_width = right->output_column =
 				output_frame_width >> 1;
 			left->input_column = 0;
+			left->output_column = 0;
 			div = _do_div(((((u64)irr_steps) << 32) *
 				       (right->input_width - 1)), (right->output_width - 1));
 			left->irr = right->irr = truncate(0, div, 1);
