@@ -536,7 +536,8 @@ static int pmic_battery_probe(struct platform_device *pdev)
 		pr_debug("Battery driver is only applied for MC13892 V2.0\n");
 		return -1;
 	}
-	if (machine_is_mx51_babbage() || machine_is_mx50_arm2()) {
+	if (machine_is_mx51_babbage() || machine_is_mx50_arm2()
+		|| machine_is_mx50_rdp()) {
 		pr_debug("mc13892 charger is not used for this platform\n");
 		return -1;
 	}
