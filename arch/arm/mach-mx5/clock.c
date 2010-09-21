@@ -4185,8 +4185,8 @@ static struct clk_lookup mx53_lookups[] = {
 	_REGISTER_CLOCK("FlexCAM.1", NULL, can2_clk[0]),
 	_REGISTER_CLOCK(NULL, "ldb_di0_clk", ldb_di_clk[0]),
 	_REGISTER_CLOCK(NULL, "ldb_di1_clk", ldb_di_clk[1]),
-	_REGISTER_CLOCK("esai_clk", NULL, esai_clk[0]),
-	_REGISTER_CLOCK("esai_ipg_clk", NULL, esai_clk[1]),
+	_REGISTER_CLOCK(NULL, "esai_clk", esai_clk[0]),
+	_REGISTER_CLOCK(NULL, "esai_ipg_clk", esai_clk[1]),
 
 };
 
