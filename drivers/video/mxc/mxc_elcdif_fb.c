@@ -29,6 +29,7 @@
 #include <linux/platform_device.h>
 #include <linux/interrupt.h>
 #include <linux/fb.h>
+#include <linux/fsl_devices.h>
 #include <linux/init.h>
 #include <linux/delay.h>
 #include <linux/dma-mapping.h>

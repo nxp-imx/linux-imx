@@ -1,14 +1,21 @@
 /*
- * Copyright 2008-2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2010 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
- * The code contained herein is licensed under the GNU General Public
- * License. You may obtain a copy of the GNU General Public License
- * Version 2 or later at the following locations:
- *
- * http://www.opensource.org/licenses/gpl-license.html
- * http://www.gnu.org/copyleft/gpl.html
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+
+ * You should have received a copy of the GNU General Public License along
+ * with this program; if not, write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
 /*!
@@ -16,7 +23,7 @@
  */
 
 /*!
- * @file mxcfb_claa_wvga.c
+ * @file mxcfb_seiko_wvga.c
  *
  * @brief MXC Frame buffer driver for SDC
  *
@@ -49,8 +56,8 @@ static int lcd_on;
 
 static struct fb_videomode video_modes[] = {
 	{
-	 /* 800x480 @ 57 Hz , pixel clk @ 27MHz */
-	 "CLAA-WVGA", 57, 800, 480, 37037, 40, 60, 10, 10, 20, 10,
+	 /* 800x480 @ 57 Hz , pixel clk @ 32MHz */
+	 "SEIKO-WVGA", 60, 800, 480, 29850, 99, 164, 33, 10, 10, 10,
 	 FB_SYNC_CLK_LAT_FALL,
 	 FB_VMODE_NONINTERLACED,
 	 0,},
@@ -78,8 +85,7 @@ static int lcd_fb_event(struct notifier_block *nb, unsigned long val, void *v)
 {
 	struct fb_event *event = v;
 
-	if (strcmp(event->info->fix.id, "DISP3 BG") &&
-	    strcmp(event->info->fix.id, "mxc_elcdif_fb"))
+	if (strcmp(event->info->fix.id, "mxc_elcdif_fb"))
 		return 0;
 
 	switch (val) {
@@ -93,11 +99,10 @@ static int lcd_fb_event(struct notifier_block *nb, unsigned long val, void *v)
 		    (event->info->var.yres != 480)) {
 			break;
 		}
-		if (*((int *)event->data) == FB_BLANK_UNBLANK) {
+		if (*((int *)event->data) == FB_BLANK_UNBLANK)
 			lcd_poweron();
-		} else {
+		else
 			lcd_poweroff();
-		}
 		break;
 	}
 	return 0;
@@ -108,9 +113,9 @@ static struct notifier_block nb = {
 };
 
 /*!
- * This function is called whenever the SPI slave device is detected.
+ * This function is called whenever the platform device is detected.
  *
- * @param	spi	the SPI slave device
+ * @param	pdev	the platform device
  *
  * @return 	Returns 0 on SUCCESS and error on FAILURE.
  */
@@ -127,21 +132,17 @@ static int __devinit lcd_probe(struct platform_device *pdev)
 		if (IS_ERR(io_reg))
 			io_reg = NULL;
 		core_reg = regulator_get(&pdev->dev, plat->core_reg);
-		if (!IS_ERR(core_reg)) {
+		if (!IS_ERR(core_reg))
 			regulator_set_voltage(io_reg, 1800000, 1800000);
-		} else {
+		else
 			core_reg = NULL;
-		}
 	}
 
 	for (i = 0; i < num_registered_fb; i++) {
-		if (strcmp(registered_fb[i]->fix.id, "DISP3 BG") == 0 ||
-		    strcmp(registered_fb[i]->fix.id, "mxc_elcdif_fb") == 0) {
+		if (strcmp(registered_fb[i]->fix.id, "mxc_elcdif_fb") == 0) {
 			lcd_init_fb(registered_fb[i]);
 			fb_show_logo(registered_fb[i], 0);
 			lcd_poweron();
-		} else if (strcmp(registered_fb[i]->fix.id, "DISP3 FG") == 0) {
-			lcd_init_fb(registered_fb[i]);
 		}
 	}
 
@@ -180,11 +181,11 @@ static int lcd_resume(struct platform_device *pdev)
 #endif
 
 /*!
- * platform driver structure for CLAA WVGA
+ * platform driver structure for SEIKO WVGA
  */
 static struct platform_driver lcd_driver = {
 	.driver = {
-		   .name = "lcd_claa"},
+		   .name = "lcd_seiko"},
 	.probe = lcd_probe,
 	.remove = __devexit_p(lcd_remove),
 	.suspend = lcd_suspend,
@@ -192,7 +193,7 @@ static struct platform_driver lcd_driver = {
 };
 
 /*
- * Send Power On commands to L4F00242T03
+ * Send Power
  *
  */
 static void lcd_poweron(void)
@@ -209,7 +210,7 @@ static void lcd_poweron(void)
 }
 
 /*
- * Send Power Off commands to L4F00242T03
+ * Send Power Off
  *
  */
 static void lcd_poweroff(void)
@@ -222,19 +223,19 @@ static void lcd_poweroff(void)
 		regulator_disable(core_reg);
 }
 
-static int __init claa_lcd_init(void)
+static int __init seiko_wvga_lcd_init(void)
 {
 	return platform_driver_register(&lcd_driver);
 }
 
-static void __exit claa_lcd_exit(void)
+static void __exit seiko_wvga_lcd_exit(void)
 {
 	platform_driver_unregister(&lcd_driver);
 }
 
-module_init(claa_lcd_init);
-module_exit(claa_lcd_exit);
+module_init(seiko_wvga_lcd_init);
+module_exit(seiko_wvga_lcd_exit);
 
 MODULE_AUTHOR("Freescale Semiconductor, Inc.");
-MODULE_DESCRIPTION("CLAA WVGA LCD init driver");
+MODULE_DESCRIPTION("SEIKO WVGA LCD init driver");
 MODULE_LICENSE("GPL");
