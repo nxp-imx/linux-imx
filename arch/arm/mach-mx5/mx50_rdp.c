@@ -73,7 +73,16 @@
 #define EPDC_PMIC_INT		(5*32 + 17)	/*GPIO_6_17 */
 #define EPDC_VCOM	(3*32 + 21)	/*GPIO_4_21 */
 #define EPDC_PWRSTAT	(2*32 + 28)	/*GPIO_3_28 */
-#define EPDC_ELCDIF_BACKLIGHT	(1*32 + 18)	/*GPIO_2_18 */
+#define ELCDIF_BACKLIGHT	(5*32 + 24)	/*GPIO_6_24 */
+#define ELCDIF_PWR_ON	(1*32 + 21)	/*GPIO_2_21 */
+#define ELCDIF_DAT0_DUMMY	(0*32 + 0)	/*GPIO_1_0 */
+#define ELCDIF_DAT1_DUMMY	(0*32 + 1)	/*GPIO_1_1 */
+#define ELCDIF_DAT2_DUMMY	(0*32 + 2)	/*GPIO_1_2 */
+#define ELCDIF_DAT8_DUMMY	(0*32 + 3)	/*GPIO_1_3 */
+#define ELCDIF_DAT9_DUMMY	(0*32 + 4)	/*GPIO_1_4 */
+#define ELCDIF_DAT16_DUMMY	(0*32 + 5)	/*GPIO_1_5 */
+#define ELCDIF_DAT17_DUMMY	(0*32 + 6)	/*GPIO_1_6 */
+#define ELCDIF_DAT18_DUMMY	(0*32 + 7)	/*GPIO_1_7 */
 #define CSPI_CS1	(3*32 + 13)	/*GPIO_4_13 */
 #define CSPI_CS2	(3*32 + 11) /*GPIO_4_11*/
 #define SGTL_OSCEN (5*32 + 8) /*GPIO_6_8*/
@@ -184,9 +193,12 @@ static struct pad_desc  mx50_rdp[] = {
 	MX50_PAD_DISP_RS__ELCDIF_VSYNC,
 
 	/* ELCDIF contrast */
-	MX50_PAD_DISP_BUSY__GPIO_2_18,
+	MX50_PAD_PWM1__GPIO_6_24,
 
-	MX50_PAD_DISP_CS__ELCDIF_HSYNC,
+	/* ELCDIF power on */
+	MX50_PAD_DISP_CS__GPIO_2_21,
+
+	MX50_PAD_DISP_BUSY__ELCDIF_HSYNC,
 	MX50_PAD_DISP_RD__ELCDIF_EN,
 	MX50_PAD_DISP_WR__ELCDIF_PIXCLK,
 
@@ -621,12 +633,38 @@ static struct pad_desc rdp_wvga_pads[] = {
 	MX50_PAD_DISP_D5__DISP_D5,
 	MX50_PAD_DISP_D6__DISP_D6,
 	MX50_PAD_DISP_D7__DISP_D7,
+	MX50_PAD_EIM_DA0__GPIO_1_0,
+	MX50_PAD_EIM_DA1__GPIO_1_1,
+	MX50_PAD_EIM_DA2__GPIO_1_2,
+	MX50_PAD_EIM_DA3__GPIO_1_3,
+	MX50_PAD_EIM_DA4__GPIO_1_4,
+	MX50_PAD_EIM_DA5__GPIO_1_5,
+	MX50_PAD_EIM_DA6__GPIO_1_6,
+	MX50_PAD_EIM_DA7__GPIO_1_7,
 };
 
 static void wvga_reset(void)
 {
 	mxc_iomux_v3_setup_multiple_pads(rdp_wvga_pads, \
 				ARRAY_SIZE(rdp_wvga_pads));
+
+	gpio_direction_output(FEC_EN, 1);
+
+	gpio_request(ELCDIF_DAT0_DUMMY, "elcdif-data0");
+	gpio_direction_output(ELCDIF_DAT0_DUMMY, 0);
+	gpio_request(ELCDIF_DAT1_DUMMY, "elcdif-data1");
+	gpio_direction_output(ELCDIF_DAT1_DUMMY, 0);
+	gpio_request(ELCDIF_DAT2_DUMMY, "elcdif-data2");
+	gpio_direction_output(ELCDIF_DAT2_DUMMY, 0);
+	gpio_request(ELCDIF_DAT8_DUMMY, "elcdif-data8");
+	gpio_direction_output(ELCDIF_DAT8_DUMMY, 0);
+	gpio_request(ELCDIF_DAT9_DUMMY, "elcdif-data9");
+	gpio_direction_output(ELCDIF_DAT9_DUMMY, 0);
+	gpio_request(ELCDIF_DAT16_DUMMY, "elcdif-data16");
+	gpio_direction_output(ELCDIF_DAT16_DUMMY, 0);
+	gpio_request(ELCDIF_DAT17_DUMMY, "elcdif-data17");
+	gpio_direction_output(ELCDIF_DAT17_DUMMY, 0);
+
 	return;
 }
 
@@ -635,7 +673,7 @@ static struct mxc_lcd_platform_data lcd_wvga_data = {
 };
 
 static struct platform_device lcd_wvga_device = {
-	.name = "lcd_claa",
+	.name = "lcd_seiko",
 	.dev = {
 		.platform_data = &lcd_wvga_data,
 		},
@@ -643,8 +681,8 @@ static struct platform_device lcd_wvga_device = {
 
 static struct fb_videomode video_modes[] = {
 	{
-	 /* 800x480 @ 57 Hz , pixel clk @ 27MHz */
-	 "CLAA-WVGA", 57, 800, 480, 37037, 40, 60, 10, 10, 20, 10,
+	 /* 800x480 @ 57 Hz , pixel clk @ 32MHz */
+	 "SEIKO-WVGA", 60, 800, 480, 29850, 99, 164, 33, 10, 10, 10,
 	 FB_SYNC_CLK_LAT_FALL,
 	 FB_VMODE_NONINTERLACED,
 	 0,},
@@ -653,7 +691,7 @@ static struct fb_videomode video_modes[] = {
 static struct mxc_fb_platform_data fb_data[] = {
 	{
 	 .interface_pix_fmt = V4L2_PIX_FMT_RGB565,
-	 .mode_str = "CLAA-WVGA",
+	 .mode_str = "SEIKO-WVGA",
 	 .mode = video_modes,
 	 .num_modes = ARRAY_SIZE(video_modes),
 	 },
@@ -723,9 +761,11 @@ static void __init mx50_rdp_io_init(void)
 	gpio_request(EPDC_PWRSTAT, "epdc-pwrstat");
 	gpio_direction_input(EPDC_PWRSTAT);
 
-	/* ELCDIF backlight */
-	gpio_request(EPDC_ELCDIF_BACKLIGHT, "elcdif-backlight");
-	gpio_direction_output(EPDC_ELCDIF_BACKLIGHT, 1);
+	gpio_request(ELCDIF_BACKLIGHT, "elcdif-backlight");
+	gpio_direction_output(ELCDIF_BACKLIGHT, 1);
+
+	gpio_request(ELCDIF_PWR_ON, "elcdif-power-on");
+	gpio_direction_output(ELCDIF_PWR_ON, 1);
 
 	if (enable_w1) {
 		struct pad_desc one_wire = MX50_PAD_OWIRE__OWIRE;
@@ -743,7 +783,6 @@ static void __init mx50_rdp_io_init(void)
 	gpio_direction_output(FEC_RESET_B, 0);
 	udelay(500);
 	gpio_set_value(FEC_RESET_B, 1);
-
 }
 
 /*!
