@@ -33,6 +33,7 @@
 #include <linux/smsc911x.h>
 #include <linux/spi/spi.h>
 #include <linux/i2c.h>
+#include <linux/i2c/pca953x.h>
 #include <linux/ata.h>
 #include <linux/mtd/mtd.h>
 #include <linux/mtd/map.h>
@@ -101,6 +102,17 @@
 #define ARD_CAN_EN			(6*32 + 6)	/* GPIO_7_6 */
 #define ARD_TS_INT			(6*32 + 12)	/* GPIO_7_12 */
 #define ARD_SD1_LCTL		(6*32 + 13)	/* GPIO_7_13 */
+
+/* Start directly after the CPU's GPIO*/
+#define MAX7310_BASE_ADDR		224	/* 7x32 */
+#define ARD_BACKLIGHT_ON		MAX7310_BASE_ADDR
+#define ARD_SPARE			(MAX7310_BASE_ADDR + 1)
+#define ARD_CPU_PER_RST_B		(MAX7310_BASE_ADDR + 2)
+#define ARD_MAIN_PER_RST_B		(MAX7310_BASE_ADDR + 3)
+#define ARD_IPOD_RST_B			(MAX7310_BASE_ADDR + 4)
+#define ARD_MLB_RST_B			(MAX7310_BASE_ADDR + 5)
+#define ARD_SSI_STEERING		(MAX7310_BASE_ADDR + 6)
+#define ARD_GPS_RST_B			(MAX7310_BASE_ADDR + 7)
 
 /*!
  * @file mach-mx53/mx53_ard.c
@@ -688,6 +700,35 @@ static struct mxc_audio_codec_platform_data cs42888_data = {
 	.analog_regulator = "VSD",
 };
 
+static int mx53_ard_max7310_setup(struct i2c_client *client,
+			       unsigned gpio_base, unsigned ngpio,
+			       void *context)
+{
+	static int max7310_gpio_value[] = {
+		1, 1, 1, 1, 0, 0, 0, 0,
+	};
+	int n;
+
+	for (n = 0; n < ARRAY_SIZE(max7310_gpio_value); ++n) {
+		gpio_request(gpio_base + n, "MAX7310 GPIO Expander");
+		if (max7310_gpio_value[n] < 0)
+			gpio_direction_input(gpio_base + n);
+		else
+			gpio_direction_output(gpio_base + n,
+					      max7310_gpio_value[n]);
+		/* Export, direction locked down */
+		gpio_export(gpio_base + n, 0);
+	}
+
+	return 0;
+}
+
+static struct pca953x_platform_data mx53_i2c_max7310_platdata = {
+	.gpio_base	= MAX7310_BASE_ADDR,
+	.invert		= 0, /* Do not invert */
+	.setup		= mx53_ard_max7310_setup,
+};
+
 static struct i2c_board_info mxc_i2c1_board_info[] __initdata = {
 	{
 	.type = "cs42888",
@@ -717,6 +758,7 @@ static struct i2c_board_info mxc_i2c2_board_info[] __initdata = {
 	{
 	 .type = "max7310",
 	 .addr = 0x18,
+	 .platform_data = &mx53_i2c_max7310_platdata,
 	},
 	{
 	 .type = "mlb",
