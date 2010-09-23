@@ -745,6 +745,7 @@ void epdc_init_settings(struct mxc_epdc_fb_data *fb_data)
 
 static void epdc_powerup(struct mxc_epdc_fb_data *fb_data)
 {
+	int ret = 0;
 	mutex_lock(&fb_data->power_mutex);
 
 	/*
@@ -772,8 +773,20 @@ static void epdc_powerup(struct mxc_epdc_fb_data *fb_data)
 	__raw_writel(EPDC_CTRL_CLKGATE, EPDC_CTRL_CLEAR);
 
 	/* Enable power to the EPD panel */
-	regulator_enable(fb_data->display_regulator);
-	regulator_enable(fb_data->vcom_regulator);
+	ret = regulator_enable(fb_data->display_regulator);
+	if (IS_ERR(ret)) {
+		dev_err(fb_data->dev, "Unable to enable DISPLAY regulator."
+			"err = 0x%x\n", ret);
+		mutex_unlock(&fb_data->power_mutex);
+		return;
+	}
+	ret = regulator_enable(fb_data->vcom_regulator);
+	if (IS_ERR(ret)) {
+		dev_err(fb_data->dev, "Unable to enable VCOM regulator."
+			"err = 0x%x\n", ret);
+		mutex_unlock(&fb_data->power_mutex);
+		return;
+	}
 
 	fb_data->power_state = POWER_STATE_ON;
 
@@ -2243,7 +2256,7 @@ static int mxc_epdc_fb_init_hw(struct fb_info *info)
 {
 	struct mxc_epdc_fb_data *fb_data = (struct mxc_epdc_fb_data *)info;
 	const struct firmware *fw;
-	char *fw_str = "imx/epdc";
+	char fw_str[24] = "imx/epdc_";
 	struct mxcfb_update_data update;
 	struct mxcfb_waveform_data_file *wv_file;
 	int wv_data_offs;
@@ -2255,7 +2268,6 @@ static int mxc_epdc_fb_init_hw(struct fb_info *info)
 	 * Format is "imx/epdc_[panel string].fw"
 	 */
 	if (fb_data->cur_mode) {
-		strcat(fw_str, "_");
 		strcat(fw_str, fb_data->cur_mode->vmode->name);
 		strcat(fw_str, ".fw");
 	}
@@ -2307,7 +2319,7 @@ static int mxc_epdc_fb_init_hw(struct fb_info *info)
 
 	epdc_init_sequence(fb_data);
 
-	/* Enable clocks to access EPDC regs */
+	/* Disable clocks */
 	clk_disable(fb_data->epdc_clk_axi);
 	clk_disable(fb_data->epdc_clk_pix);
 
@@ -2649,7 +2661,19 @@ int __devinit mxc_epdc_fb_probe(struct platform_device *pdev)
 		fb_data->pdata->get_pins();
 
 	fb_data->epdc_clk_axi = clk_get(fb_data->dev, "epdc_axi");
+	if (IS_ERR(fb_data->epdc_clk_axi)) {
+		dev_err(&pdev->dev, "Unable to get EPDC AXI clk."
+			"err = 0x%x\n", (int)fb_data->epdc_clk_axi);
+		ret = -ENODEV;
+		goto out_upd_buffers;
+	}
 	fb_data->epdc_clk_pix = clk_get(fb_data->dev, "epdc_pix");
+	if (IS_ERR(fb_data->epdc_clk_pix)) {
+		dev_err(&pdev->dev, "Unable to get EPDC pix clk."
+			"err = 0x%x\n", (int)fb_data->epdc_clk_pix);
+		ret = -ENODEV;
+		goto out_upd_buffers;
+	}
 
 	fb_data->in_init = false;
 
@@ -2900,11 +2924,11 @@ static int mxc_epdc_fb_remove(struct platform_device *pdev)
 
 	dma_free_writecombine(&pdev->dev, fb_data->working_buffer_size,
 				fb_data->working_buffer_virt,
-			      fb_data->working_buffer_phys);
+				fb_data->working_buffer_phys);
 	if (fb_data->waveform_buffer_virt != NULL)
 		dma_free_writecombine(&pdev->dev, fb_data->waveform_buffer_size,
 				fb_data->waveform_buffer_virt,
-			      fb_data->waveform_buffer_phys);
+				fb_data->waveform_buffer_phys);
 	list_for_each_entry_safe(plist, temp_list, &fb_data->upd_buf_free_list->list, list) {
 		list_del(&plist->list);
 		dma_free_writecombine(&pdev->dev, plist->size, plist->virt_addr,
@@ -2929,9 +2953,6 @@ static int mxc_epdc_fb_remove(struct platform_device *pdev)
 
 	iounmap(epdc_base);
 
-#ifdef CONFIG_FB_MXC_EINK_AUTO_UPDATE_MODE
-	fb_deferred_io_cleanup(&fb_data->info);
-#endif
 	fb_dealloc_cmap(&fb_data->info.cmap);
 
 	framebuffer_release(&fb_data->info);
