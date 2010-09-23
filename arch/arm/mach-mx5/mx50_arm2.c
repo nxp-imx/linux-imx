@@ -446,6 +446,7 @@ static struct regulator_init_data max17135_init_data[] __initdata = {
 	{
 		.constraints = {
 			.name = "DISPLAY",
+			.valid_ops_mask =  REGULATOR_CHANGE_STATUS,
 		},
 	}, {
 		.constraints = {
@@ -476,7 +477,8 @@ static struct regulator_init_data max17135_init_data[] __initdata = {
 			.name = "VCOM",
 			.min_uV = mV_to_uV(-4325),
 			.max_uV = mV_to_uV(-500),
-			.valid_ops_mask = REGULATOR_CHANGE_VOLTAGE,
+			.valid_ops_mask = REGULATOR_CHANGE_VOLTAGE |
+			REGULATOR_CHANGE_STATUS,
 		},
 	}, {
 		.constraints = {

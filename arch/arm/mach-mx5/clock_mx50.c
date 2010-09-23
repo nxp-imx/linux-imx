@@ -3049,6 +3049,15 @@ static struct clk_lookup lookups[] = {
 	_REGISTER_CLOCK(NULL, "pll1_sw_clk", pll1_sw_clk),
 	_REGISTER_CLOCK(NULL, "pll2", pll2_sw_clk),
 	_REGISTER_CLOCK(NULL, "pll3", pll3_sw_clk),
+	_REGISTER_CLOCK(NULL, "apll", apll_clk),
+	_REGISTER_CLOCK(NULL, "pfd0", pfd0_clk),
+	_REGISTER_CLOCK(NULL, "pfd1", pfd1_clk),
+	_REGISTER_CLOCK(NULL, "pfd2", pfd2_clk),
+	_REGISTER_CLOCK(NULL, "pfd3", pfd3_clk),
+	_REGISTER_CLOCK(NULL, "pfd4", pfd4_clk),
+	_REGISTER_CLOCK(NULL, "pfd5", pfd5_clk),
+	_REGISTER_CLOCK(NULL, "pfd6", pfd6_clk),
+	_REGISTER_CLOCK(NULL, "pfd7", pfd7_clk),
 	_REGISTER_CLOCK(NULL, "gpc_dvfs_clk", gpc_dvfs_clk),
 	_REGISTER_CLOCK(NULL, "lp_apm", lp_apm_clk),
 	_REGISTER_CLOCK(NULL, "cpu_clk", cpu_clk),
@@ -3108,6 +3117,8 @@ static struct clk_lookup lookups[] = {
 	_REGISTER_CLOCK(NULL, "display_axi", display_axi_clk),
 	_REGISTER_CLOCK(NULL, "elcdif_axi", elcdif_axi_clk),
 	_REGISTER_CLOCK(NULL, "pxp_axi", pxp_axi_clk),
+	_REGISTER_CLOCK("mxc_epdc_fb", "epdc_axi", epdc_axi_clk),
+	_REGISTER_CLOCK("mxc_epdc_fb", "epdc_pix", epdc_pix_clk),
 };
 
 static void clk_tree_init(void)
