@@ -780,6 +780,7 @@ static int pxp_desc_alloc(struct pxp_channel *pxp_chan, int n)
 		struct dma_async_tx_descriptor *txd = &desc->txd;
 
 		memset(txd, 0, sizeof(*txd));
+		INIT_LIST_HEAD(&desc->tx_list);
 		dma_async_tx_descriptor_init(txd, &pxp_chan->dma_chan);
 		txd->tx_submit = pxp_tx_submit;
 
