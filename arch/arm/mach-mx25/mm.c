@@ -2,7 +2,7 @@
  *  Copyright (C) 1999,2000 Arm Limited
  *  Copyright (C) 2000 Deep Blue Solutions Ltd
  *  Copyright (C) 2002 Shane Nay (shane@minirl.com)
- *  Copyright 2005-2007 Freescale Semiconductor, Inc. All Rights Reserved.
+ *  Copyright (C) 2005-2007, 2010 Freescale Semiconductor, Inc.
  *    - add MX31 specific definitions
  *
  * This program is free software; you can redistribute it and/or modify

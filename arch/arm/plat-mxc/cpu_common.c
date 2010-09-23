@@ -28,9 +28,10 @@ extern int mxc_early_serial_console_init(unsigned long base, struct clk *clk);
  * @ingroup MSL_MX31 MSL_MXC91321
  */
 
-static void __init system_rev_setup(char **p)
+static int __init system_rev_setup(char *p)
 {
-	system_rev = simple_strtoul(*p, NULL, 16);
+	system_rev = simple_strtoul(p, NULL, 16);
+	return 0;
 }
 early_param("system_rev=", system_rev_setup);
 
@@ -44,28 +45,30 @@ int uart_at_24; 			/* OFF: 0 (default); ON: 1 */
  *       "off" -- JTAG is disconnected, so WFI is enabled
  */
 
-static void __init jtag_wfi_setup(char **p)
+static int __init jtag_wfi_setup(char *p)
 {
-	if (memcmp(*p, "on", 2) == 0) {
+	if (memcmp(p, "on", 2) == 0) {
 		mxc_jtag_enabled = 1;
-		*p += 2;
-	} else if (memcmp(*p, "off", 3) == 0) {
+		p += 2;
+	} else if (memcmp(p, "off", 3) == 0) {
 		mxc_jtag_enabled = 0;
-		*p += 3;
+		p += 3;
 	}
+	return 0;
 }
 early_param("jtag=", jtag_wfi_setup);
 
-static void __init uart_parent_setup(char **p)
+static int __init uart_parent_setup(char *p)
 {
-	if (memcmp(*p, "on", 2) == 0) {
+	if (memcmp(p, "on", 2) == 0) {
 		/* set the UART parent clock to be lp-apm */
 		uart_at_24 = 1;
-		*p += 2;
-	} else if (memcmp(*p, "off", 3) == 0) {
+		p += 2;
+	} else if (memcmp(p, "off", 3) == 0) {
 		uart_at_24 = 0;
-		*p += 3;
+		p += 3;
 	}
+	return 0;
 }
 early_param("debug_uart=", uart_parent_setup);
 

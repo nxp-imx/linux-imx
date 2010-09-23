@@ -3,7 +3,7 @@
 #
 
 # Common support
-obj-y :=cpu.o cpu_common.o system.o gpio.o clock.o snoop.o io.o time.o devices.o
+obj-y :=cpu.o cpu_common.o system.o gpio.o clock.o snoop.o io.o time.o devices.o usb_common.o
 
 obj-$(CONFIG_IRAM_ALLOC) += iram.o
 
@@ -34,7 +34,7 @@ obj-y += sdma/
 endif
 
 obj-$(CONFIG_ARCH_MX37) += dptc.o dvfs_core.o
-obj-$(CONFIG_ARCH_MX5) += dvfs_core.o usb_common.o
+obj-$(CONFIG_ARCH_MX5) += dvfs_core.o
 
 # CPU FREQ support
 obj-$(CONFIG_CPU_FREQ_IMX)    += cpufreq.o

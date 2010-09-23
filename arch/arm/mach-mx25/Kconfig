@@ -5,4 +5,79 @@ comment "MX25 platforms:"
 config MACH_MX25_3DS
 	bool "Support MX25PDK (3DS) Platform"
 
+menu "MX25 Options"
+
+config MX25_OPTIONS
+	bool
+	default y
+	select CPU_ARM926T
+	select USB_ARCH_HAS_EHCI
+
+config MX25_DOZE_DURING_IDLE
+	bool "Enter Doze mode during idle"
+	help
+	  Turning on this option will put the CPU into Doze mode during idle.
+	  The default is to enter Wait mode during idle. Doze mode during
+	  idle will save additional power over Wait mode.
+
+config MXC_SDMA_API
+        bool "Use SDMA API"
+        default y
+        help
+           This selects the Freescale MXC SDMA API.
+           If unsure, say N.
+
+config SDMA_IRAM
+	bool "Use Internal RAM for SDMA transfer"
+	depends on MXC_SDMA_API
+	help
+	  Support Internal RAM as SDMA buffer or control structures
+
+config ARCH_MXC_HAS_NFC_V2
+        bool "MXC NFC Hardware Version 2"
+        depends on ARCH_MX25
+        default y
+        help
+           This selects the Freescale MXC Nand Flash Controller Hardware Version 2
+           If unsure, say N.
+
+config ARCH_MXC_HAS_NFC_V2_1
+        bool "MXC NFC Hardware Version 2.1"
+        depends on ARCH_MXC_HAS_NFC_V2
+        default y
+        help
+           This selects the Freescale MXC Nand Flash Controller Hardware Version 2.1
+           If unsure, say N.
+
+menu "Device options"
+
+config I2C_MXC_SELECT1
+	bool "Enable I2C1 module"
+	default y
+	depends on I2C_MXC
+	help
+	  Enable MX25 I2C1 module.
+
+config I2C_MXC_SELECT2
+	bool "Enable I2C2 module"
+	default n
+	depends on I2C_MXC
+	help
+	  Enable MX25 I2C2 module.
+
+config I2C_MXC_SELECT3
+	bool "Enable I2C3 module"
+	default n
+	depends on I2C_MXC
+	help
+	  Enable MX25 I2C3 module.
+
+config FLEXCAN_MXC_SELECT1
+	bool "Enable FlexCAN1 module"
+	depends on CAN_FLEXCAN
+	help
+	  Enable MX25 FlexCAN1 module.
+
+endmenu
+endmenu
 endif
