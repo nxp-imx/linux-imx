@@ -395,6 +395,30 @@ static int max17135_vcom_disable(struct regulator_dev *reg)
 	return 0;
 }
 
+static int max17135_vcom_is_enabled(struct regulator_dev *reg)
+{
+	struct max17135 *max17135 = rdev_get_drvdata(reg);
+
+	/* read VCOM regulator enable setting */
+	if (max17135->pass_num == 1) {
+		int gpio = gpio_get_value(max17135->gpio_pmic_vcom_ctrl);
+		if (gpio == 0)
+			return 0;
+		else
+			return 1;
+	} else {
+		struct i2c_client *client = max17135->i2c_client;
+		unsigned int reg_val;
+
+		reg_val = i2c_smbus_read_byte_data(client, REG_MAX17135_ENABLE);
+		reg_val &= BITFMASK(VCOM_ENABLE);
+		if (reg_val != 0)
+			return 1;
+		else
+			return 0;
+	}
+}
+
 static int max17135_wait_power_good(struct max17135 *max17135)
 {
 	int i;
@@ -492,6 +516,7 @@ static struct regulator_ops max17135_vcom_ops = {
 	.disable = max17135_vcom_disable,
 	.get_voltage = max17135_vcom_get_voltage,
 	.set_voltage = max17135_vcom_set_voltage,
+	.is_enabled = max17135_vcom_is_enabled,
 };
 
 static struct regulator_ops max17135_vneg_ops = {
