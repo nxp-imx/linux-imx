@@ -62,9 +62,9 @@ static inline unsigned int ak5702_read(struct snd_soc_codec *codec,
 	u8 data;
 	data = reg;
 
-	if (codec->hw_write(codec->control_data, &data, 1) != 1)
+	if (i2c_master_send(codec->control_data, &data, 1) != 1)
 		return -EIO;
-	if (codec->hw_read(codec->control_data, &data, 1) != 1)
+	if (i2c_master_recv(codec->control_data, &data, 1) != 1)
 		return -EIO;
 
 	return data;
@@ -95,7 +95,7 @@ static int ak5702_write(struct snd_soc_codec *codec, unsigned int reg,
 	data[1] = value & 0xff;
 
 	ak5702_write_reg_cache(codec, reg, value);
-	if (codec->hw_write(codec->control_data, data, 2) == 2)
+	if (i2c_master_send(codec->control_data, data, 2) == 2)
 		return 0;
 	else
 		return -EIO;
@@ -176,7 +176,6 @@ static int ak5702_add_widgets(struct snd_soc_codec *codec)
 				  ARRAY_SIZE(ak5702_dapm_widgets));
 	snd_soc_dapm_add_routes(codec, audio_map, ARRAY_SIZE(audio_map));
 
-	snd_soc_dapm_new_widgets(codec);
 	return 0;
 }
 
@@ -248,7 +247,8 @@ static int ak5702_set_dai_fmt(struct snd_soc_dai *codec_dai, unsigned int fmt)
 }
 
 static int ak5702_set_dai_pll(struct snd_soc_dai *codec_dai, int pll_id,
-			      unsigned int freq_in, unsigned int freq_out)
+			      int source, unsigned int freq_in,
+			      unsigned int freq_out)
 {
 	struct snd_soc_codec *codec = codec_dai->codec;
 	u8 reg = 0;
@@ -453,16 +453,8 @@ static int ak5702_probe(struct platform_device *pdev)
 			     ARRAY_SIZE(ak5702_snd_controls));
 	ak5702_add_widgets(codec);
 
-	ret = snd_soc_init_card(socdev);
-	if (ret < 0) {
-		printk(KERN_ERR "ak5702: failed to register card\n");
-		goto card_err;
-	}
-
 	return ret;
-card_err:
-	snd_soc_free_pcms(socdev);
-	snd_soc_dapm_free(socdev);
+
 pcm_err:
 	kfree(codec->reg_cache);
 	return ret;
@@ -492,7 +484,7 @@ static int ak5702_i2c_probe(struct i2c_client *client,
 		return -ENOMEM;
 	}
 
-	codec->private_data = ak5702;
+	snd_soc_codec_set_drvdata(codec, ak5702);
 	mutex_init(&codec->mutex);
 	INIT_LIST_HEAD(&codec->dapm_widgets);
 	INIT_LIST_HEAD(&codec->dapm_paths);
@@ -512,9 +504,6 @@ static int ak5702_i2c_probe(struct i2c_client *client,
 	codec->reg_cache = (void *)&ak5702_reg;
 	if (codec->reg_cache == NULL)
 		return -ENOMEM;
-
-	codec->hw_write = (hw_write_t) i2c_master_send;
-	codec->hw_read = (hw_read_t) i2c_master_recv;
 
 	ak5702_codec = codec;
 	ak5702_dai.dev = &client->dev;
@@ -537,7 +526,7 @@ static int ak5702_i2c_probe(struct i2c_client *client,
 static __devexit int ak5702_i2c_remove(struct i2c_client *client)
 {
 	struct snd_soc_codec *codec = i2c_get_clientdata(client);
-	struct ak5702_priv *ak5702 = codec->private_data;
+	struct ak5702_priv *ak5702 = snd_soc_codec_get_drvdata(codec);
 
 	snd_soc_unregister_dai(&ak5702_dai);
 	snd_soc_unregister_codec(codec);
@@ -578,8 +567,6 @@ static int ak5702_remove(struct platform_device *pdev)
 #if defined(CONFIG_I2C) || defined(CONFIG_I2C_MODULE)
 	i2c_del_driver(&ak5702_i2c_driver);
 #endif
-	kfree(codec->private_data);
-	kfree(codec);
 	return 0;
 }
 

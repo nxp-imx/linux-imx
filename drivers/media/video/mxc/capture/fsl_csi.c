@@ -232,6 +232,7 @@ EXPORT_SYMBOL(csi_set_12bit_imagpara);
 static void csi_mclk_recalc(struct clk *clk)
 {
 	u32 div;
+	unsigned long rate;
 
 	div = (__raw_readl(CSI_CSICR1) & BIT_MCLKDIV) >> SHIFT_MCLKDIV;
 	if (div == 0)
@@ -239,7 +240,8 @@ static void csi_mclk_recalc(struct clk *clk)
 	else
 		div = div * 2;
 
-	clk->rate = clk->parent->rate / div;
+	rate = clk_get_rate(clk->parent) / div;
+	clk_set_rate(clk, rate);
 }
 
 void csi_mclk_enable(void)
@@ -265,9 +267,7 @@ int32_t __init csi_init_module(void)
 		return PTR_ERR(per_clk);
 
 	clk_put(per_clk);
-	csi_mclk.name = "csi_mclk";
 	csi_mclk.parent = per_clk;
-	clk_register(&csi_mclk);
 	clk_enable(per_clk);
 	csi_mclk_recalc(&csi_mclk);
 
@@ -277,7 +277,6 @@ int32_t __init csi_init_module(void)
 void __exit csi_cleanup_module(void)
 {
 	clk_disable(&csi_mclk);
-	clk_unregister(&csi_mclk);
 }
 
 module_init(csi_init_module);

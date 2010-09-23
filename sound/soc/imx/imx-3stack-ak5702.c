@@ -54,7 +54,7 @@ static void imx_3stack_shutdown(struct snd_pcm_substream *substream)
 
 	/* disable the PLL if there are no active Rx channels */
 	if (!codec_dai->active)
-		snd_soc_dai_set_pll(codec_dai, 0, 0, 0);
+		snd_soc_dai_set_pll(codec_dai, 0, 0, 0, 0);
 	clk_state.lr_clk_active--;
 }
 
@@ -85,7 +85,7 @@ static int imx_3stack_surround_hw_params(struct snd_pcm_substream *substream,
 	snd_soc_dai_set_fmt(cpu_dai, dai_format);
 
 	/* set i.MX active slot mask */
-	snd_soc_dai_set_tdm_slot(cpu_dai, 0xffffffff, 2);
+	snd_soc_dai_set_tdm_slot(cpu_dai, 0xffffffff, 0xffffffff, 2, 0);
 
 	/* set the ESAI system clock as input */
 	snd_soc_dai_set_sysclk(cpu_dai, 0, 0, SND_SOC_CLOCK_IN);
@@ -96,7 +96,7 @@ static int imx_3stack_surround_hw_params(struct snd_pcm_substream *substream,
 
 	snd_soc_dai_set_sysclk(codec_dai, 0, rate, SND_SOC_CLOCK_OUT);
 
-	snd_soc_dai_set_pll(codec_dai, 1, 12000000, 0);
+	snd_soc_dai_set_pll(codec_dai, 1, 0, 12000000, 0);
 	return 0;
 }
 

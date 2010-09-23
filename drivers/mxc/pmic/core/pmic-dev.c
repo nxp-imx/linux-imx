@@ -58,7 +58,7 @@ static void user_notify_callback(void *event)
 {
 	down(&event_mutex);
 	if (CIRC_SPACE(pmic_events.head, pmic_events.tail, CIRC_BUF_MAX)) {
-		pmic_events.buf[pmic_events.head] = (char)event;
+		pmic_events.buf[pmic_events.head] = (int)event;
 		pmic_events.head = (pmic_events.head + 1) & (CIRC_BUF_MAX - 1);
 	} else {
 		pr_info("Failed to notify event to the user\n");
@@ -82,7 +82,7 @@ static int pmic_dev_ioctl(struct inode *inode, struct file *file,
 {
 	register_info reg_info;
 	pmic_event_callback_t event_sub;
-	type_event event;
+	type_event event = EVENT_NB;
 	int ret = 0;
 
 	if (_IOC_TYPE(cmd) != 'P')
@@ -154,8 +154,7 @@ static int pmic_dev_ioctl(struct inode *inode, struct file *file,
 			event = (int)pmic_events.buf[pmic_events.tail];
 			pmic_events.tail = (pmic_events.tail + 1) & (CIRC_BUF_MAX - 1);
 		} else {
-			elem = -1;
-		pr_info("No valid notified event\n");
+			pr_info("No valid notified event\n");
 		}
 		up(&event_mutex);
 

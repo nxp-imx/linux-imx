@@ -248,7 +248,7 @@ int mc34704_register_regulator(struct mc34704 *mc34704, int reg,
 	initdata->driver_data = mc34704;
 
 	pdev->dev.platform_data = initdata;
-	pdev->dev.driver_data = &mc34704_reg_priv[reg];
+
 	pdev->dev.parent = mc34704->dev;
 	platform_set_drvdata(pdev, mc34704);
 	ret = platform_device_add(pdev);

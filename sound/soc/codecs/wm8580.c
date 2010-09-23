@@ -686,16 +686,16 @@ static int wm8580_set_paif_dai_sysclk(struct snd_soc_dai *codec_dai,
 
 	switch (clk_id) {
 	case WM8580_BCLK_CLKDIV:
-		reg = wm8580_read(codec, WM8580_PAIF1) &
+		reg = snd_soc_read(codec, WM8580_PAIF1) &
 			~WM8580_AIF_BCLKSEL_MASK;
-		wm8580_write(codec, WM8580_PAIF1, reg | freq);
-		reg = wm8580_read(codec, WM8580_PAIF2) &
+		snd_soc_write(codec, WM8580_PAIF1, reg | freq);
+		reg = snd_soc_read(codec, WM8580_PAIF2) &
 			~WM8580_AIF_BCLKSEL_MASK;
-		wm8580_write(codec, WM8580_PAIF2, reg | freq);
+		snd_soc_write(codec, WM8580_PAIF2, reg | freq);
 		break;
 	case WM8580_LRCLK_CLKDIV:
-		reg = wm8580_read(codec, WM8580_PAIF1) & ~0x07;
-		wm8580_write(codec, WM8580_PAIF1, reg | freq);
+		reg = snd_soc_read(codec, WM8580_PAIF1) & ~0x07;
+		snd_soc_write(codec, WM8580_PAIF1, reg | freq);
 		break;
 
 	default:
@@ -1057,12 +1057,11 @@ static int __devinit wm8580_spi_probe(struct spi_device *spi)
 
 	spi_set_drvdata(spi, wm8580);
 	codec->hw_write = (hw_write_t) spi_rw;
-	codec->hw_read = (hw_read_t) spi_rw;
 	codec->control_data = spi;
 
 	codec->dev = &spi->dev;
 
-	return wm8580_register(wm8580);
+	return wm8580_register(wm8580, SND_SOC_SPI);
 }
 
 static int __devinit wm8580_spi_remove(struct spi_device *spi)

@@ -76,7 +76,7 @@ static int mxcbl_get_intensity(struct backlight_device *bd)
 	return devdata->intensity;
 }
 
-static int mxcbl_check_fb(struct fb_info *info)
+static int mxcbl_check_fb(struct backlight_device *bd, struct fb_info *info)
 {
 	if (strcmp(info->fix.id, "DISP0 BG") == 0) {
 		return 1;
@@ -94,6 +94,7 @@ static int __init mxcbl_probe(struct platform_device *pdev)
 {
 	struct backlight_device *bd;
 	struct mxcbl_dev_data *devdata;
+	struct backlight_properties props;
 	int ret = 0;
 
 	devdata = kzalloc(sizeof(struct mxcbl_dev_data), GFP_KERNEL);
@@ -102,8 +103,11 @@ static int __init mxcbl_probe(struct platform_device *pdev)
 
 	devdata->clk = clk_get(NULL, "lcdc_clk");
 
+	memset(&props, 0, sizeof(struct backlight_properties));
+	props.max_brightness = MXC_MAX_INTENSITY;
+
 	bd = backlight_device_register(dev_name(&pdev->dev), &pdev->dev, devdata,
-				       &mxcbl_ops);
+				       &mxcbl_ops, &props);
 	if (IS_ERR(bd)) {
 		ret = PTR_ERR(bd);
 		goto err0;
@@ -111,7 +115,6 @@ static int __init mxcbl_probe(struct platform_device *pdev)
 	platform_set_drvdata(pdev, bd);
 
 	bd->props.brightness = MXC_DEFAULT_INTENSITY;
-	bd->props.max_brightness = MXC_MAX_INTENSITY;
 	bd->props.power = FB_BLANK_UNBLANK;
 	bd->props.fb_blank = FB_BLANK_UNBLANK;
 	mx2fb_set_brightness(MXC_DEFAULT_INTENSITY);
