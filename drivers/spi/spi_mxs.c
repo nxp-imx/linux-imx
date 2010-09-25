@@ -55,6 +55,9 @@
 #define BM_SSP_XFER_SIZE_XFER_COUNT	HW_SSP_VERSION
 #endif
 
+#ifndef HW_SSP_XFER_SIZE
+#define HW_SSP_XFER_SIZE HW_SSP_VERSION
+#endif
 
 /* 0 means DMA modei(recommended, default), !0 - PIO mode */
 static int pio /* = 0 */ ;
