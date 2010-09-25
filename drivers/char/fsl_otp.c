@@ -28,6 +28,7 @@
 #include <linux/clk.h>
 #include <linux/err.h>
 #include <linux/io.h>
+#include <linux/slab.h>
 #include <linux/platform_device.h>
 
 #include "fsl_otp.h"
