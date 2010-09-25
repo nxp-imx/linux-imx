@@ -1448,6 +1448,25 @@ static struct nand_device_info nand_device_info_table_bch_ecc12[] __initdata = {
 	{
 	.end_of_table             = false,
 	.manufacturer_code        = 0xad,
+	.device_code              = 0xd5,
+	.cell_technology          = NAND_DEVICE_CELL_TECH_MLC,
+	.chip_size_in_bytes       = 2LL*SZ_1G,
+	.block_size_in_pages      = 128,
+	.page_total_size_in_bytes = 4*SZ_1K + 224,
+	.ecc_strength_in_bits     = 12,
+	.ecc_size_in_bytes        = 512,
+	.data_setup_in_ns         = 15,
+	.data_hold_in_ns          = 10,
+	.address_setup_in_ns      = 20,
+	.gpmi_sample_delay_in_ns  = 6,
+	.tREA_in_ns               = 20,
+	.tRLOH_in_ns              = 5,
+	.tRHOH_in_ns              = 15,
+	"H27UAG8T2ATR (2GB, 1CE)",
+	},
+	{
+	.end_of_table             = false,
+	.manufacturer_code        = 0xad,
 	.device_code              = 0xd7,
 	.cell_technology          = NAND_DEVICE_CELL_TECH_MLC,
 	.chip_size_in_bytes       = 4LL*SZ_1G,
@@ -1635,6 +1654,7 @@ static struct nand_device_info nand_device_info_table_bch_ecc12[] __initdata = {
     #define ID_SAMSUNG_DEVICE_CODE_1_GBIT           (0xf1)
     #define ID_SAMSUNG_DEVICE_CODE_2_GBIT           (0xda)
     #define ID_HYNIX_DEVICE_CODE_ECC12              (0xd7)
+    #define ID_HYNIX_DEVICE_CODE_ECC12_ODD	    (0xd5)
     #define ID_HYNIX_DEVICE_CODE_ECC12_LARGE        (0xde)
     #define ID_MICRON_DEVICE_CODE_ECC12             (0xd7) /* ECC12        */
     #define ID_MICRON_DEVICE_CODE_ECC12_LARGE       (0xd9) /* ECC12 8GB/CE */
@@ -1971,7 +1991,8 @@ static struct nand_device_info * __init nand_device_info_fn_hynix(const uint8_t 
 	 * is 0x25, whereas H27UDG8WFM (ECC8) 4th byte is 0xB6.
 	 */
 
-	if ((ID_GET_DEVICE_CODE(id) == ID_HYNIX_DEVICE_CODE_ECC12 &&
+	if ((((ID_GET_DEVICE_CODE(id) == ID_HYNIX_DEVICE_CODE_ECC12) ||
+		(ID_GET_DEVICE_CODE(id) == ID_HYNIX_DEVICE_CODE_ECC12_ODD)) &&
 			ID_GET_BYTE_4(id) == ID_HYNIX_BYTE_4_ECC12_DEVICE) ||
 	    (ID_GET_DEVICE_CODE(id) == ID_HYNIX_DEVICE_CODE_ECC12_LARGE)) {
 		/* BCH ECC 12 */
