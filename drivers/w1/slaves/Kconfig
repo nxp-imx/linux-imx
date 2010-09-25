@@ -46,6 +46,7 @@ config W1_SLAVE_DS2433
 
 config W1_SLAVE_DS2438
 	tristate "Smart Battery Monitor (DS2438)"
+	depends on W1
 	help
 	  Say Y here if you want to use a 1-wire
 	  Smart Battery Monitor family device (DS2438).

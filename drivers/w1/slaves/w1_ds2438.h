@@ -116,4 +116,10 @@ static inline void ds2438_writew(u8 *raw, u16 data)
 	*raw++ = data & 0xFF;
 	*raw = (data >> 8) & 0xFF;
 }
+
+extern int w1_ds2438_read_page(struct device *dev, u8 page, u8 *buf);
+extern int w1_ds2438_write_page(struct device *dev, u8 page, u8 *buf);
+extern int w1_ds2438_command(struct device *dev, u8 command, u8 data);
+extern int w1_ds2438_drain_sram(struct device *dev, u8 page);
+extern int w1_ds2438_load_sram(struct device *dev, u8 page);
 #endif				/* __W1_DS2438_H__ */

@@ -163,4 +163,10 @@ config MXS_VBUS_CURRENT_DRAW
 	  Say Y to enable 100mA limitation when USB vbus power on system
 	  before enumeration to match USB2.0 requirement.
 
+config BATTERY_DS2438
+	tristate "DS2438 battery driver"
+	select W1
+	select W1_SLAVE_DS2438
+	help
+	  Say Y here to enable support for batteries with ds2438 chip.
 endif # POWER_SUPPLY
