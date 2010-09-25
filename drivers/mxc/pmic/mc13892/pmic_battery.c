@@ -436,7 +436,8 @@ static void mc13892_battery_update_status(struct mc13892_dev_info *di)
 	dev_dbg(di->bat.dev, "bat status: %d\n",
 		di->battery_status);
 
-	if (di->battery_status != old_battery_status)
+	if (old_battery_status != POWER_SUPPLY_STATUS_UNKNOWN &&
+		di->battery_status != old_battery_status)
 		power_supply_changed(&di->bat);
 }
 
@@ -550,21 +551,6 @@ static int pmic_battery_probe(struct platform_device *pdev)
 
 	platform_set_drvdata(pdev, di);
 
-	di->dev	= &pdev->dev;
-	di->bat.name	= "mc13892_bat";
-	di->bat.type = POWER_SUPPLY_TYPE_BATTERY;
-	di->bat.properties = mc13892_battery_props;
-	di->bat.num_properties = ARRAY_SIZE(mc13892_battery_props);
-	di->bat.get_property = mc13892_battery_get_property;
-	di->bat.use_for_apm = 1;
-
-	di->battery_status = POWER_SUPPLY_STATUS_UNKNOWN;
-
-	retval = power_supply_register(&pdev->dev, &di->bat);
-	if (retval) {
-		dev_err(di->dev, "failed to register battery\n");
-		goto batt_failed;
-	}
 	di->charger.name	= "mc13892_charger";
 	di->charger.type = POWER_SUPPLY_TYPE_MAINS;
 	di->charger.properties = mc13892_charger_props;
@@ -582,6 +568,22 @@ static int pmic_battery_probe(struct platform_device *pdev)
 		goto workqueue_failed;
 	}
 	queue_delayed_work(di->monitor_wqueue, &di->monitor_work, HZ * 10);
+
+	di->dev	= &pdev->dev;
+	di->bat.name	= "mc13892_bat";
+	di->bat.type = POWER_SUPPLY_TYPE_BATTERY;
+	di->bat.properties = mc13892_battery_props;
+	di->bat.num_properties = ARRAY_SIZE(mc13892_battery_props);
+	di->bat.get_property = mc13892_battery_get_property;
+	di->bat.use_for_apm = 1;
+
+	di->battery_status = POWER_SUPPLY_STATUS_UNKNOWN;
+
+	retval = power_supply_register(&pdev->dev, &di->bat);
+	if (retval) {
+		dev_err(di->dev, "failed to register battery\n");
+		goto batt_failed;
+	}
 
 	bat_event_callback.func = charger_online_event_callback;
 	bat_event_callback.param = (void *) di;
