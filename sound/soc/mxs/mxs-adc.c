@@ -321,6 +321,7 @@ static int mxs_adc_trigger(struct snd_pcm_substream *substream,
 			/* disable the fifo error interrupt */
 			__raw_writel(BM_AUDIOOUT_CTRL_FIFO_ERROR_IRQ_EN,
 				REGS_AUDIOOUT_BASE + HW_AUDIOOUT_CTRL_CLR);
+			mdelay(50);
 		} else {
 			if (adc_ramp_done == 0) {
 				cancel_delayed_work(&adc_ramp_work);

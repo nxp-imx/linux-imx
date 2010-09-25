@@ -183,11 +183,13 @@ static void mxs_pcm_stop(struct snd_pcm_substream *substream)
 		desc = 0;
 
 	/* Set up the next descriptor to decrement DMA channel sempahore */
-	prtd->dma_desc_array[(desc + 1)%8]->cmd.cmd.bits.bytes = 0;
-	prtd->dma_desc_array[(desc + 1)%8]->cmd.cmd.bits.pio_words = 0;
-	prtd->dma_desc_array[(desc + 1)%8]->cmd.cmd.bits.dec_sem = 1;
-	prtd->dma_desc_array[(desc + 1)%8]->cmd.cmd.bits.irq = 0;
-	prtd->dma_desc_array[(desc + 1)%8]->cmd.cmd.bits.command = NO_DMA_XFER;
+	prtd->dma_desc_array[(desc + 1)%periods_num]->cmd.cmd.bits.bytes = 0;
+	prtd->dma_desc_array[(desc + 1)%periods_num]->cmd.cmd.bits.pio_words = \
+		0;
+	prtd->dma_desc_array[(desc + 1)%periods_num]->cmd.cmd.bits.dec_sem = 1;
+	prtd->dma_desc_array[(desc + 1)%periods_num]->cmd.cmd.bits.irq = 0;
+	prtd->dma_desc_array[(desc + 1)%periods_num]->cmd.cmd.bits.command = \
+		NO_DMA_XFER;
 
 	mxs_dma_unfreeze(prtd->dma_ch);
 
