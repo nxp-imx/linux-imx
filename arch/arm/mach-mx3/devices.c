@@ -789,7 +789,7 @@ struct platform_device mxc_pseudo_irq_device = {
 	.name = "mxc_pseudo_irq",
 	.id = 0,
 };
-
+volatile u32 *mx3_usb_otg_addr;
 static int __init mx3_devices_init(void)
 {
 	if (cpu_is_mx31()) {
@@ -798,6 +798,7 @@ static int __init mx3_devices_init(void)
 		imx_wdt_resources[0].start = MX31_WDOG_BASE_ADDR;
 		imx_wdt_resources[0].end = MX31_WDOG_BASE_ADDR + 0x3fff;
 		mxc_register_device(&mxc_rnga_device, NULL);
+		mx3_usb_otg_addr = MX31_OTG_BASE_ADDR;
 	}
 	if (cpu_is_mx35()) {
 		mxc_nandv2_resources[0].start = MX35_NFC_BASE_ADDR;
@@ -816,6 +817,7 @@ static int __init mx3_devices_init(void)
 		imx_ssi_resources1[1].end = MX35_INT_SSI2;
 		imx_wdt_resources[0].start = MX35_WDOG_BASE_ADDR;
 		imx_wdt_resources[0].end = MX35_WDOG_BASE_ADDR + 0x3fff;
+		mx3_usb_otg_addr = MX35_OTG_BASE_ADDR;
 	}
 
 	return 0;

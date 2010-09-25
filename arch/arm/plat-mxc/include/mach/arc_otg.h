@@ -13,6 +13,10 @@
 #ifndef __ASM_ARCH_MXC_ARC_OTG_H__
 #define __ASM_ARCH_MXC_ARC_OTG_H__
 
+#ifdef CONFIG_ARCH_MX3
+extern volatile u32 *mx3_usb_otg_addr;
+#define OTG_BASE_ADDR		mx3_usb_otg_addr
+#endif
 #define USB_OTGREGS_BASE	(OTG_BASE_ADDR + 0x000)
 #define USB_H1REGS_BASE		(OTG_BASE_ADDR + 0x200)
 #define USB_H2REGS_BASE		(OTG_BASE_ADDR + 0x400)
