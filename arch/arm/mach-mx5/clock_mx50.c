@@ -3097,7 +3097,7 @@ static struct clk_lookup lookups[] = {
 	_REGISTER_CLOCK(NULL, "ddr_clk", ddr_clk),
 	_REGISTER_CLOCK("mxc_rtc.0", NULL, rtc_clk),
 	_REGISTER_CLOCK("mxc_w1.0", NULL, owire_clk),
-	_REGISTER_CLOCK("mxc_gpu.0", "gpu2d_clk", gpu2d_clk),
+	_REGISTER_CLOCK(NULL, "gpu2d_clk", gpu2d_clk),
 	_REGISTER_CLOCK(NULL, "cko1", cko1_clk),
 	_REGISTER_CLOCK(NULL, "gpt", gpt_clk[0]),
 	_REGISTER_CLOCK("fec.0", NULL, fec_clk[0]),
