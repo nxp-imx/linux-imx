@@ -90,8 +90,8 @@ void mxc_sdma_get_script_info(sdma_script_start_addrs *sdma_script_addr)
 
 static struct resource sdma_resources[] = {
 	{
-		.start = MX25_SDMA_BASE_ADDR,
-		.end = MX25_SDMA_BASE_ADDR + SZ_4K - 1,
+		.start = SDMA_BASE_ADDR,
+		.end = SDMA_BASE_ADDR + SZ_4K - 1,
 		.flags = IORESOURCE_MEM,
 	},
 	{
