@@ -43,12 +43,10 @@ obj-$(CONFIG_CPU_FREQ_IMX)    += cpufreq.o
 obj-$(CONFIG_MXC_DVFS_PER) 	+= dvfs_per.o
 
 # USB support
-ifdef CONFIG_USB_EHCI_ARC
 obj-$(CONFIG_ISP1504_MXC) += isp1504xc.o
 obj-$(CONFIG_ISP1301_MXC) += isp1301xc.o
 obj-$(CONFIG_MC13783_MXC) += mc13783_xc.o
 obj-$(CONFIG_UTMI_MXC) += utmixc.o
 obj-$(CONFIG_USB) += serialxc.o
-endif
 
 obj-y += devices/

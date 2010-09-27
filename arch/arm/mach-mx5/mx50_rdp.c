@@ -54,6 +54,7 @@
 #include <mach/common.h>
 #include <mach/hardware.h>
 #include <mach/memory.h>
+#include <mach/arc_otg.h>
 #include <mach/gpio.h>
 #include <mach/mmc.h>
 #include <mach/mxc_dvfs.h>
@@ -89,6 +90,7 @@
 #define SGTL_OSCEN (5*32 + 8) /*GPIO_6_8*/
 #define FEC_EN (5*32 + 23) /*GPIO_6_23*/
 #define FEC_RESET_B (3*32 + 12) /*GPIO_4_12*/
+#define USB_OTG_PWR	(5*32 + 25) /*GPIO_6_25*/
 
 extern int __init mx50_rdp_init_mc13892(void);
 extern struct cpu_wp *(*get_cpu_wp)(int *wp);
@@ -214,7 +216,8 @@ static struct pad_desc  mx50_rdp[] = {
 	 * one needs to debug owire.
 	 */
 	MX50_PAD_OWIRE__USBH1_OC,
-	MX50_PAD_PWM2__USBOTG_PWR,
+	/* using gpio to control otg pwr */
+	MX50_PAD_PWM2__GPIO_6_25,
 	MX50_PAD_I2C3_SCL__USBOTG_OC,
 
 	MX50_PAD_SSI_RXC__FEC_MDIO,
@@ -714,6 +717,11 @@ static struct mxc_fb_platform_data fb_data[] = {
 	 },
 };
 
+static void mx50_arm2_usb_set_vbus(bool enable)
+{
+	gpio_set_value(USB_OTG_PWR, enable);
+}
+
 static int __initdata enable_w1 = { 0 };
 static int __init w1_setup(char *__unused)
 {
@@ -800,6 +808,11 @@ static void __init mx50_rdp_io_init(void)
 	gpio_direction_output(FEC_RESET_B, 0);
 	udelay(500);
 	gpio_set_value(FEC_RESET_B, 1);
+
+	/* USB OTG PWR */
+	gpio_request(USB_OTG_PWR, "usb otg power");
+	gpio_direction_output(USB_OTG_PWR, 1);
+	gpio_set_value(USB_OTG_PWR, 0);
 }
 
 /*!
@@ -864,6 +877,7 @@ static void __init mxc_board_init(void)
 /*
 	pm_power_off = mxc_power_off;
 	*/
+	mx5_set_otghost_vbus_func(mx50_arm2_usb_set_vbus);
 	mxc_register_device(&mxc_sgtl5000_device, &sgtl5000_data);
 	mx5_usb_dr_init();
 	mx5_usbh1_init();

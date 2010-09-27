@@ -284,7 +284,7 @@ static void usbh1_set_utmi_xcvr(void)
 	USBCTRL &= ~UCTRL_H1WIE; /* Host1 Wakeup Intr Disable */
 	USB_PHY_CTR_FUNC |= USB_UH1_OC_DIS; /* Over current disable */
 
-	if (machine_is_mx50_arm2()) {
+	if (cpu_is_mx50()) {
 		USBCTRL |= UCTRL_H1PM; /* Host1 Power Mask */
 		USB_PHY_CTR_FUNC &= ~USB_UH1_OC_DIS; /* Over current enable */
 		/* Over current polarity low active */
@@ -716,9 +716,6 @@ static void otg_set_utmi_xcvr(void)
 		USBCTRL &= ~UCTRL_PP;
 	} else if (cpu_is_mx50()) {
 		USB_PHY_CTR_FUNC |= USB_UTMI_PHYCTRL_OC_DIS;
-		if (machine_is_mx50_arm2())
-			/* OTG Power pin polarity low */
-			USBCTRL |= UCTRL_O_PWR_POL;
 	} else {
 		/* USBOTG_PWR low active */
 		USBCTRL &= ~UCTRL_PP;
@@ -811,9 +808,9 @@ int usbotg_init(struct platform_device *pdev)
 	pdata->xcvr_type = xops->xcvr_type;
 	pdata->pdev = pdev;
 
+	if (fsl_check_usbclk() != 0)
+		return -EINVAL;
 	if (!mxc_otg_used) {
-		if (fsl_check_usbclk() != 0)
-			return -EINVAL;
 		if (cpu_is_mx50())
 			/* Turn on AHB CLK for OTG*/
 			USB_CLKONOFF_CTRL &= ~OTG_AHBCLK_OFF;
@@ -883,6 +880,16 @@ void usbotg_uninit(struct fsl_usb2_platform_data *pdata)
 }
 EXPORT_SYMBOL(usbotg_uninit);
 
+void usb_debounce_id_pin(void)
+{
+
+	/* Because the IC design needs to remove the glitch on ID so the otgsc bit 8 will
+	 * be delayed max 2 ms to show the real ID pin value
+	 */
+	mdelay(3);
+}
+EXPORT_SYMBOL(usb_debounce_id_pin);
+
 int usb_host_wakeup_irq(struct device *wkup_dev)
 {
 	int wakeup_req = 0;
@@ -892,8 +899,8 @@ int usb_host_wakeup_irq(struct device *wkup_dev)
 		wakeup_req = USBCTRL & UCTRL_H1WIR;
 	} else if (!strcmp("DR", pdata->name)) {
 		wakeup_req = USBCTRL & UCTRL_OWIR;
-		/* If DR is in device mode, let udc handle it */
-		if (wakeup_req && ((UOG_USBMODE & 0x3) == 0x2))
+		usb_debounce_id_pin();
+		if (wakeup_req && (UOG_OTGSC & OTGSC_STS_USB_ID))
 			wakeup_req = 0;
 	}
 
