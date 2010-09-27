@@ -1826,6 +1826,8 @@ static struct clk_lookup lookups[] = {
 	_REGISTER_CLOCK(NULL, "per_uart_clk", per_clk[15])
 };
 
+static struct mxc_clk mxc_clks[ARRAY_SIZE(lookups)];
+
 /*!
  * Function to get timer clock rate early in boot process before clock tree is
  * initialized.
@@ -1848,6 +1850,16 @@ int __init mx25_clocks_init(void)
 	unsigned long ahb_rate;
 
 	clkdev_add_table(lookups, ARRAY_SIZE(lookups));
+
+	for (i = 0; i < ARRAY_SIZE(lookups); i++) {
+		clkdev_add(&lookups[i]);
+		mxc_clks[i].reg_clk = lookups[i].clk;
+		if (lookups[i].con_id != NULL)
+			strcpy(mxc_clks[i].name, lookups[i].con_id);
+		else
+			strcpy(mxc_clks[i].name, lookups[i].dev_id);
+		clk_register(&mxc_clks[i]);
+	}
 
 	/* Turn off all clocks except the ones we need to survive, namely:
 	 * EMI, GPIO1-3 (CCM_CGCR1[18:16]), GPT1, IOMUXC (CCM_CGCR1[27]), IIM,

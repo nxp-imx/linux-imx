@@ -366,11 +366,10 @@ struct clk *clk_get_parent(struct clk *clk)
 }
 EXPORT_SYMBOL(clk_get_parent);
 
-#ifndef CONFIG_COMMON_CLKDEV
 /*
  * Add a new clock to the clock tree.
  */
-int clk_register(struct clk *clk)
+int clk_register(struct mxc_clk *clk)
 {
 	if (clk == NULL || IS_ERR(clk))
 		return -EINVAL;
@@ -384,7 +383,7 @@ int clk_register(struct clk *clk)
 EXPORT_SYMBOL(clk_register);
 
 /* Remove a clock from the clock tree */
-void clk_unregister(struct clk *clk)
+void clk_unregister(struct mxc_clk *clk)
 {
 	if (clk == NULL || IS_ERR(clk))
 		return;
@@ -402,8 +401,8 @@ static void *mxc_proc_clocks_seq_start(struct seq_file *file, loff_t *index)
 	unsigned int  i;
 	unsigned int  name_length;
 	unsigned int  longest_length = 0;
-	struct clk    *current_clock = 0;
-	struct clk    *clock;
+	struct mxc_clk    *current_clock = 0;
+	struct mxc_clk    *clock;
 
 	/* Examine the clock list. */
 
@@ -434,7 +433,7 @@ static void *mxc_proc_clocks_seq_start(struct seq_file *file, loff_t *index)
 static void *mxc_proc_clocks_seq_next(struct seq_file *file, void *data,
 								loff_t *index)
 {
-	struct clk  *current_clock = (struct clk *) data;
+	struct mxc_clk  *current_clock = (struct clk *) data;
 
 	/* Check for nonsense. */
 
@@ -466,60 +465,43 @@ static void mxc_proc_clocks_seq_stop(struct seq_file *file, void *data)
 static int mxc_proc_clocks_seq_show(struct seq_file *file, void *data)
 {
 	int            result;
-	struct clk     *clock = (struct clk *) data;
-	struct clk     *parent = clock->parent;
+	struct mxc_clk     *clock = (struct mxc_clk *) data;
+	struct clk     *parent = clock->reg_clk->parent;
 	unsigned int   longest_length = (unsigned int) file->private;
 	unsigned long  range_divisor;
 	const char     *range_units;
+	int rate = clk_get_rate(clock->reg_clk);
 
-	if (clock->rate >= 1000000) {
+	if (rate >= 1000000) {
 		range_divisor = 1000000;
 		range_units   = "MHz";
-	} else if (clock->rate >= 1000) {
+	} else if (rate >= 1000) {
 		range_divisor = 1000;
 		range_units   = "KHz";
 	} else {
 		range_divisor = 1;
 		range_units   = "Hz";
 	}
-
-	if (parent)
-		result = seq_printf(file,
-			"%s-%-d%*s  %s-%-d%*s  %c%c%c%c%c%c  %3d",
-			clock->name,
-			clock->id,
-			longest_length - strlen(clock->name), "",
-			parent->name,
-			parent->id,
-			longest_length - strlen(parent->name), "",
-			(clock->flags & RATE_PROPAGATES)      ? 'P' : '_',
-			(clock->flags & ALWAYS_ENABLED)       ? 'A' : '_',
-			(clock->flags & RATE_FIXED)           ? 'F' : '_',
-			(clock->flags & CPU_FREQ_TRIG_UPDATE) ? 'T' : '_',
-			(clock->flags & AHB_HIGH_SET_POINT)   ? 'H' : '_',
-			(clock->flags & AHB_MED_SET_POINT)    ? 'M' : '_',
-			clock->usecount);
-	else
-		result = seq_printf(file,
-			"%s-%-d%*s  %*s  %c%c%c%c%c%c  %3d",
-			clock->name,
-			clock->id,
-			longest_length - strlen(clock->name), "",
-			longest_length + 2, "",
-			(clock->flags & RATE_PROPAGATES)      ? 'P' : '_',
-			(clock->flags & ALWAYS_ENABLED)       ? 'A' : '_',
-			(clock->flags & RATE_FIXED)           ? 'F' : '_',
-			(clock->flags & CPU_FREQ_TRIG_UPDATE) ? 'T' : '_',
-			(clock->flags & AHB_HIGH_SET_POINT)   ? 'H' : '_',
-			(clock->flags & AHB_MED_SET_POINT)    ? 'M' : '_',
-			clock->usecount);
+	result = seq_printf(file,
+		"%s-%-d%*s  %*s  %c%c%c%c%c%c  %3d",
+		clock->name,
+		clock->reg_clk->id,
+		longest_length - strlen(clock->name), "",
+		longest_length + 2, "",
+		(clock->reg_clk->flags & RATE_PROPAGATES)      ? 'P' : '_',
+		(clock->reg_clk->flags & ALWAYS_ENABLED)       ? 'A' : '_',
+		(clock->reg_clk->flags & RATE_FIXED)           ? 'F' : '_',
+		(clock->reg_clk->flags & CPU_FREQ_TRIG_UPDATE) ? 'T' : '_',
+		(clock->reg_clk->flags & AHB_HIGH_SET_POINT)   ? 'H' : '_',
+		(clock->reg_clk->flags & AHB_MED_SET_POINT)    ? 'M' : '_',
+		clock->reg_clk->usecount);
 
 	if (result)
 		return result;
 
 	result = seq_printf(file, "  %10lu (%lu%s)\n",
-		clock->rate,
-		clock->rate / range_divisor, range_units);
+		rate,
+		rate / range_divisor, range_units);
 
 	return result;
 
@@ -559,7 +541,6 @@ static int __init mxc_setup_proc_entry(void)
 
 late_initcall(mxc_setup_proc_entry);
 #endif /* CONFIG_PROC_FS */
-#endif
 
 /*
  * Get the resulting clock rate from a PLL register value and the input

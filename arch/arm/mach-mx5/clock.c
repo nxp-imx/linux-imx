@@ -4203,6 +4203,9 @@ static struct clk_lookup mx53_lookups[] = {
 	_REGISTER_CLOCK(NULL, "esai_ipg_clk", esai_clk[1]),
 };
 
+static struct mxc_clk mx51_clks[ARRAY_SIZE(lookups) + ARRAY_SIZE(mx51_lookups)];
+static struct mxc_clk mx53_clks[ARRAY_SIZE(lookups) + ARRAY_SIZE(mx53_lookups)];
+
 static void clk_tree_init(void)
 {
 	u32 reg, dp_ctl;
@@ -4326,10 +4329,26 @@ int __init mx51_clocks_init(unsigned long ckil, unsigned long osc, unsigned long
 
 	clk_tree_init();
 
-	for (i = 0; i < ARRAY_SIZE(lookups); i++)
+	for (i = 0; i < ARRAY_SIZE(lookups); i++) {
 		clkdev_add(&lookups[i]);
-	for (i = 0; i < ARRAY_SIZE(mx51_lookups); i++)
+		mx51_clks[i].reg_clk = lookups[i].clk;
+		if (lookups[i].con_id != NULL)
+			strcpy(mx51_clks[i].name, lookups[i].con_id);
+		else
+			strcpy(mx51_clks[i].name, lookups[i].dev_id);
+		clk_register(&mx51_clks[i]);
+	}
+
+	j = ARRAY_SIZE(lookups);
+	for (i = 0; i < ARRAY_SIZE(mx51_lookups); i++) {
 		clkdev_add(&mx51_lookups[i]);
+		mx51_clks[i+j].reg_clk = mx51_lookups[i].clk;
+		if (mx51_lookups[i].con_id != NULL)
+			strcpy(mx51_clks[i+j].name, mx51_lookups[i].con_id);
+		else
+			strcpy(mx51_clks[i+j].name, mx51_lookups[i].dev_id);
+		clk_register(&mx51_clks[i+j]);
+	}
 
 	max_axi_a_clk = MAX_AXI_A_CLK_MX51;
 	max_axi_b_clk = MAX_AXI_B_CLK_MX51;
@@ -4642,10 +4661,26 @@ int __init mx53_clocks_init(unsigned long ckil, unsigned long osc, unsigned long
 
 	clk_tree_init();
 
-	for (i = 0; i < ARRAY_SIZE(lookups); i++)
+	for (i = 0; i < ARRAY_SIZE(lookups); i++) {
 		clkdev_add(&lookups[i]);
-	for (i = 0; i < ARRAY_SIZE(mx53_lookups); i++)
+		mx53_clks[i].reg_clk = lookups[i].clk;
+		if (lookups[i].con_id != NULL)
+			strcpy(mx53_clks[i].name, lookups[i].con_id);
+		else
+			strcpy(mx53_clks[i].name, lookups[i].dev_id);
+		clk_register(&mx53_clks[i]);
+	}
+
+	j = ARRAY_SIZE(lookups);
+	for (i = 0; i < ARRAY_SIZE(mx53_lookups); i++) {
 		clkdev_add(&mx53_lookups[i]);
+		mx53_clks[i+j].reg_clk = mx53_lookups[i].clk;
+		if (mx53_lookups[i].con_id != NULL)
+			strcpy(mx53_clks[i+j].name, mx53_lookups[i].con_id);
+		else
+			strcpy(mx53_clks[i+j].name, mx53_lookups[i].dev_id);
+		clk_register(&mx53_clks[i+j]);
+	}
 
 	clk_set_parent(&esai_clk[0], &ckih_clk);
 

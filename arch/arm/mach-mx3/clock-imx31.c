@@ -20,6 +20,8 @@
 #include <linux/module.h>
 #include <linux/spinlock.h>
 #include <linux/delay.h>
+#include <linux/init.h>
+#include <linux/list.h>
 #include <linux/clk.h>
 #include <linux/err.h>
 #include <linux/io.h>
@@ -667,13 +669,26 @@ static struct clk_lookup lookups[] = {
 	_REGISTER_CLOCK(NULL, "mbx", mbx_clk)
 };
 
+static struct mxc_clk mxc_clks[ARRAY_SIZE(lookups)];
+
 int __init mx31_clocks_init(unsigned long fref)
 {
 	u32 reg;
+	int i;
 
 	ckih_rate = fref;
 
 	clkdev_add_table(lookups, ARRAY_SIZE(lookups));
+
+	for (i = 0; i < ARRAY_SIZE(lookups); i++) {
+		clkdev_add(&lookups[i]);
+		mxc_clks[i].reg_clk = lookups[i].clk;
+		if (lookups[i].con_id != NULL)
+			strcpy(mxc_clks[i].name, lookups[i].con_id);
+		else
+			strcpy(mxc_clks[i].name, lookups[i].dev_id);
+		clk_register(&mxc_clks[i]);
+	}
 
 	/* change the csi_clk parent if necessary */
 	reg = __raw_readl(MXC_CCM_CCMR);

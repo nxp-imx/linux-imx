@@ -680,7 +680,7 @@ static int __devinit busfreq_probe(struct platform_device *pdev)
 	}
 
 	if (cpu_is_mx51())
-		emi_garb_clk = clk_get(NULL, "emi_garb_clk");
+		emi_garb_clk = clk_get(NULL, "emi_intr_clk.1");
 	else if (cpu_is_mx53())
 		emi_garb_clk = clk_get(NULL, "emi_intr_clk.1");
 	else
@@ -753,6 +753,7 @@ static int __devinit busfreq_probe(struct platform_device *pdev)
 			ddr_low_rate = LP_APM_CLK;
 		}
 	}
+
 	if (cpu_is_mx50()) {
 		iram_alloc(SZ_8K, &iram_paddr);
 		/* Need to remap the area here since we want the memory region

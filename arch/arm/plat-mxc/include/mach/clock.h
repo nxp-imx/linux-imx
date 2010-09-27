@@ -25,6 +25,12 @@
 
 struct module;
 
+struct mxc_clk {
+	struct list_head node;
+	char name[20];
+	struct clk *reg_clk;
+};
+
 struct clk {
 	int id;
 	/* Source clock this clk depends on */
@@ -57,8 +63,8 @@ struct clk {
 	int (*set_parent) (struct clk *, struct clk *);
 };
 
-int clk_register(struct clk *clk);
-void clk_unregister(struct clk *clk);
+int clk_register(struct mxc_clk *clk);
+void clk_unregister(struct mxc_clk *clk);
 int clk_get_usecount(struct clk *clk);
 int clk_set_pll_dither(struct clk *clk, unsigned int pll_ppm);
 

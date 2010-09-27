@@ -72,8 +72,6 @@ extern int cpu_wp_nr;
 extern int lp_high_freq;
 extern int lp_med_freq;
 
-static int max_axi_a_clk;
-static int max_axi_b_clk;
 void __iomem *databahn;
 
 #define DDR_SYNC_MODE		0x30000
@@ -3121,6 +3119,8 @@ static struct clk_lookup lookups[] = {
 	_REGISTER_CLOCK("mxc_epdc_fb", "epdc_pix", epdc_pix_clk),
 };
 
+static struct mxc_clk mxc_clks[ARRAY_SIZE(lookups)];
+
 static void clk_tree_init(void)
 {
 	u32 reg;
@@ -3220,8 +3220,15 @@ int __init mx50_clocks_init(unsigned long ckil, unsigned long osc, unsigned long
 
 	clk_tree_init();
 
-	for (i = 0; i < ARRAY_SIZE(lookups); i++)
+	for (i = 0; i < ARRAY_SIZE(lookups); i++) {
 		clkdev_add(&lookups[i]);
+		mxc_clks[i].reg_clk = lookups[i].clk;
+		if (lookups[i].con_id != NULL)
+			strcpy(mxc_clks[i].name, lookups[i].con_id);
+		else
+			strcpy(mxc_clks[i].name, lookups[i].dev_id);
+		clk_register(&mxc_clks[i]);
+	}
 
 	/* set DDR clock parent */
 	reg = __raw_readl(MXC_CCM_CLK_DDR) &

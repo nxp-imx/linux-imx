@@ -21,6 +21,7 @@
 #include <linux/list.h>
 #include <linux/clk.h>
 #include <linux/io.h>
+#include <linux/module.h>
 
 #include <asm/clkdev.h>
 
@@ -485,15 +486,28 @@ static struct clk_lookup lookups[] = {
 	_REGISTER_CLOCK("mxc_nand.0", NULL, nfc_clk)
 };
 
+static struct mxc_clk mxc_clks[ARRAY_SIZE(lookups)];
+
 int __init mx35_clocks_init()
 {
 	unsigned int ll = 0;
+	int i;
 
 #if defined(CONFIG_DEBUG_LL) && !defined(CONFIG_DEBUG_ICEDCC)
 	ll = (3 << 16);
 #endif
 
 	clkdev_add_table(lookups, ARRAY_SIZE(lookups));
+
+	for (i = 0; i < ARRAY_SIZE(lookups); i++) {
+		mxc_clks[i].reg_clk = lookups[i].clk;
+		if (lookups[i].con_id != NULL)
+			strcpy(mxc_clks[i].name, lookups[i].con_id);
+		else
+			strcpy(mxc_clks[i].name, lookups[i].dev_id);
+		clk_register(&mxc_clks[i]);
+	}
+
 
 	/* Turn off all clocks except the ones we need to survive, namely:
 	 * EMI, GPIO1/2/3, GPT, IOMUX, MAX and eventually uart
