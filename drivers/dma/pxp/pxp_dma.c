@@ -60,8 +60,6 @@ struct pxps {
 	struct device *dev;
 	struct pxp_dma pxp_dma;
 	struct pxp_channel channel[NR_PXP_VIRT_CHANNEL];
-	struct work_struct work;
-	struct workqueue_struct *workqueue;
 	wait_queue_head_t done;
 
 	/* describes most recent processing configuration */
@@ -168,7 +166,7 @@ static void dump_pxp_reg(struct pxps *pxp)
 		__raw_readl(pxp->base + HW_PXP_HIST16_PARAM3));
 }
 
-static bool is_yuv(pix_fmt)
+static bool is_yuv(u32 pix_fmt)
 {
 	if ((pix_fmt == PXP_PIX_FMT_YUYV) |
 	    (pix_fmt == PXP_PIX_FMT_UYVY) |
@@ -269,7 +267,6 @@ static int pxp_start(struct pxps *pxp)
 static void pxp_set_outbuf(struct pxps *pxp)
 {
 	struct pxp_config_data *pxp_conf = &pxp->pxp_conf_state;
-	struct pxp_proc_data *proc_data = &pxp_conf->proc_data;
 	struct pxp_layer_param *out_params = &pxp_conf->out_param;
 
 	__raw_writel(out_params->paddr, pxp->base + HW_PXP_OUTBUF);
@@ -685,9 +682,8 @@ static void __pxpdma_dostart(struct pxp_channel *pxp_chan)
 		 pxp->pxp_conf_state.out_param.paddr);
 }
 
-static void pxpdma_dostart_work(struct work_struct *w)
+static void pxpdma_dostart_work(struct pxps *pxp)
 {
-	struct pxps *pxp = container_of(w, struct pxps, work);
 	struct pxp_channel *pxp_chan = NULL;
 	unsigned long flags, flags1;
 
@@ -851,7 +847,7 @@ static irqreturn_t pxp_irq(int irq, void *dev_id)
 	struct pxp_tx_desc *desc;
 	dma_async_tx_callback callback;
 	void *callback_param;
-	unsigned long flags, flags1;
+	unsigned long flags;
 	u32 hist_status;
 
 	dump_pxp_reg(pxp);
@@ -870,14 +866,12 @@ static irqreturn_t pxp_irq(int irq, void *dev_id)
 		return IRQ_NONE;
 	}
 
-	spin_lock_irqsave(&pxp_chan->lock, flags1);
 	pxp_chan = list_entry(head.next, struct pxp_channel, list);
 	list_del_init(&pxp_chan->list);
 
 	if (list_empty(&pxp_chan->active_list)) {
 		pr_debug("PXP_IRQ pxp_chan->active_list empty. chan_id %d\n",
 			 pxp_chan->dma_chan.chan_id);
-		spin_unlock_irqrestore(&pxp_chan->lock, flags1);
 		spin_unlock_irqrestore(&pxp->lock, flags);
 		return IRQ_NONE;
 	}
@@ -905,25 +899,22 @@ static irqreturn_t pxp_irq(int irq, void *dev_id)
 
 	wake_up(&pxp->done);
 
-	spin_unlock_irqrestore(&pxp_chan->lock, flags1);
 	spin_unlock_irqrestore(&pxp->lock, flags);
 
 	return IRQ_HANDLED;
 }
 
+/* called with pxp_chan->lock hold */
 static struct pxp_tx_desc *pxp_desc_get(struct pxp_channel *pxp_chan)
 {
 	struct pxp_tx_desc *desc, *_desc;
 	struct pxp_tx_desc *ret = NULL;
-	unsigned long flags;
 
-	spin_lock_irqsave(&pxp_chan->lock, flags);
 	list_for_each_entry_safe(desc, _desc, &pxp_chan->free_list, list) {
 		list_del_init(&desc->list);
 		ret = desc;
 		break;
 	}
-	spin_unlock_irqrestore(&pxp_chan->lock, flags);
 
 	return ret;
 }
@@ -1043,16 +1034,13 @@ static void pxp_issue_pending(struct dma_chan *chan)
 		return;
 	}
 
-	queue_work(pxp->workqueue, &pxp->work);
+	pxpdma_dostart_work(pxp);
 }
 
 static void __pxp_terminate_all(struct dma_chan *chan)
 {
 	struct pxp_channel *pxp_chan = to_pxp_channel(chan);
-	struct pxp_dma *pxp_dma = to_pxp_dma(chan->device);
 	unsigned long flags;
-
-	cancel_work_sync(&to_pxp(pxp_dma)->work);
 
 	/* pchan->queue is modified in ISR, have to spinlock */
 	spin_lock_irqsave(&pxp_chan->lock, flags);
@@ -1064,7 +1052,8 @@ static void __pxp_terminate_all(struct dma_chan *chan)
 	pxp_chan->status = PXP_CHANNEL_INITIALIZED;
 }
 
-static void pxp_control(struct dma_chan *chan, enum dma_ctrl_cmd cmd)
+static int pxp_control(struct dma_chan *chan, enum dma_ctrl_cmd cmd,
+			unsigned long arg)
 {
 	struct pxp_channel *pxp_chan = to_pxp_channel(chan);
 
@@ -1075,6 +1064,8 @@ static void pxp_control(struct dma_chan *chan, enum dma_ctrl_cmd cmd)
 	mutex_lock(&pxp_chan->chan_mutex);
 	__pxp_terminate_all(chan);
 	mutex_unlock(&pxp_chan->chan_mutex);
+
+	return 0;
 }
 
 static int pxp_alloc_chan_resources(struct dma_chan *chan)
@@ -1351,8 +1342,6 @@ static int pxp_probe(struct platform_device *pdev)
 		goto err_dma_init;
 
 	init_waitqueue_head(&pxp->done);
-	INIT_WORK(&pxp->work, pxpdma_dostart_work);
-	pxp->workqueue = create_singlethread_workqueue("pxp_dma");
 	init_timer(&pxp->clk_timer);
 	pxp->clk_timer.function = pxp_clkoff_timer;
 	pxp->clk_timer.data = (unsigned long)pxp;
@@ -1371,8 +1360,6 @@ freepxp:
 static int __devexit pxp_remove(struct platform_device *pdev)
 {
 	struct pxps *pxp = platform_get_drvdata(pdev);
-
-	cancel_work_sync(&pxp->work);
 
 	del_timer_sync(&pxp->clk_timer);
 	free_irq(pxp->irq, pxp);
