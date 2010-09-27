@@ -142,6 +142,12 @@
 #define gadget_is_s3c_hsotg(g)    0
 #endif
 
+#ifdef CONFIG_USB_GADGET_ARC
+#define gadget_is_arcotg(g)     (!strcmp("fsl-usb2-udc", (g)->name))
+#else
+#define gadget_is_arcotg(g)     0
+#endif
+
 
 /**
  * usb_gadget_controller_number - support bcdDevice id convention
@@ -199,6 +205,8 @@ static inline int usb_gadget_controller_number(struct usb_gadget *gadget)
 	else if (gadget_is_r8a66597(gadget))
 		return 0x25;
 	else if (gadget_is_s3c_hsotg(gadget))
+		return 0x26;
+	else if (gadget_is_arcotg(gadget))
 		return 0x26;
 	return -ENOENT;
 }

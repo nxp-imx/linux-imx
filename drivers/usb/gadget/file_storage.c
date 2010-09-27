@@ -490,7 +490,7 @@ struct fsg_dev {
 #ifdef CONFIG_FSL_UTP
 #include "fsl_updater.h"
 #endif
-
+static int do_set_interface(struct fsg_dev *fsg, int altsetting);
 typedef void (*fsg_routine_t)(struct fsg_dev *);
 
 static int exception_in_progress(struct fsg_dev *fsg)
@@ -669,6 +669,15 @@ static void fsg_disconnect(struct usb_gadget *gadget)
 	struct fsg_dev		*fsg = get_gadget_data(gadget);
 
 	DBG(fsg, "disconnect or port reset\n");
+	/*
+	 * The disconnect exception will call do_set_config, and therefore will
+	 * visit controller registers. However it is a delayed event, and will be
+	 * handled at another process, so the controller maybe have already closed the
+	 * usb clock.
+	 */
+	if (fsg->new_config)
+		do_set_interface(fsg, -1);/* disable the interface */
+
 	raise_exception(fsg, FSG_STATE_DISCONNECT);
 }
 
