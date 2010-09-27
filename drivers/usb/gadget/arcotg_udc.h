@@ -261,6 +261,7 @@ struct usb_sys_interface {
 #define  PORTSCX_SPEED_BIT_POS                (26)
 
 /* OTGSC Register Bit Masks */
+#define  OTGSC_ID_CHANGE_IRQ_STS		(1 << 16)
 #define  OTGSC_B_SESSION_VALID_IRQ_EN           (1 << 27)
 #define  OTGSC_B_SESSION_VALID_IRQ_STS          (1 << 19)
 #define  OTGSC_B_SESSION_VALID                  (1 << 11)
@@ -588,9 +589,15 @@ struct fsl_udc {
 	struct otg_transceiver *transceiver;
 	unsigned softconnect:1;
 	unsigned vbus_active:1;
-	unsigned stopped:1;
 	unsigned remote_wakeup:1;
-	unsigned already_stopped:1;
+	/* we must distinguish the stopped and suspended state,
+	 * stopped means the udc enter lowpower mode, suspended
+	 * means the udc is suspended by system pm or by otg
+	 * switching to host mode.if the udc in suspended state
+	 * it also in the stopped state, while if the udc in
+	 * stopped state,it may not be in the suspended state*/
+	unsigned stopped:1;
+	int suspended;
 
 	struct ep_queue_head *ep_qh;	/* Endpoints Queue-Head */
 	struct fsl_req *status_req;	/* ep0 status request */
@@ -696,7 +703,7 @@ static void dump_msg(const char *label, const u8 * buf, unsigned int length)
 #if defined(CONFIG_ARCH_MXC) || defined(CONFIG_ARCH_STMP3XXX) || \
 	defined(CONFIG_ARCH_MXS)
 #include <mach/fsl_usb_gadget.h>
-#elif CONFIG_PPC32
+#elif defined (CONFIG_PPC32)
 #include <asm/fsl_usb_gadget.h>
 #endif
 
