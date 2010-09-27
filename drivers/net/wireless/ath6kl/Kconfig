@@ -1,7 +1,7 @@
 config ATH6K_LEGACY
 	tristate "Atheros AR600x support (non mac80211)"
 	depends on MMC
-	depends on WLAN_80211
+	depends on WLAN
 	help
 	This module adds support for wireless adapters based on Atheros AR600x chipset running over SDIO. If you choose to build it as a module, it will be called ath6kl.
 
