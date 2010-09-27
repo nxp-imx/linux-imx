@@ -435,9 +435,6 @@ static void sdhci_prepare_data(struct sdhci_host *host, struct mmc_data *data)
 
 	host->data = data;
 	host->data_early = 0;
-	if (host->data->flags & MMC_DATA_READ)
-		writel(readl(host->ioaddr + SDHCI_CLOCK_CONTROL) |
-		       SDHCI_CLOCK_HLK_EN, host->ioaddr + SDHCI_CLOCK_CONTROL);
 
 	/* timeout in us */
 	target_timeout = data->timeout_ns / 1000 +
@@ -853,13 +850,9 @@ static void sdhci_set_clock(struct sdhci_host *host, unsigned int clock)
 	DBG("prescaler = 0x%x, divider = 0x%x\n", prescaler, div);
 	clk |= (prescaler << 8) | (div << 4);
 
-	if (host->plat_data->clk_always_on
-		| (host->mmc->card && mmc_card_sdio(host->mmc->card)))
-		clk |= SDHCI_CLOCK_PER_EN | SDHCI_CLOCK_HLK_EN
-			| SDHCI_CLOCK_IPG_EN;
-	else
-		clk &= ~(SDHCI_CLOCK_PER_EN | SDHCI_CLOCK_HLK_EN
-			| SDHCI_CLOCK_IPG_EN);
+	/* Disable clock auto gate to get better compatibility */
+	clk |= SDHCI_CLOCK_PER_EN | SDHCI_CLOCK_HLK_EN
+		| SDHCI_CLOCK_IPG_EN;
 
 	/* Configure the clock delay line */
 	if ((host->plat_data->vendor_ver >= ESDHC_VENDOR_V3)
@@ -1417,10 +1410,6 @@ static void sdhci_data_irq(struct sdhci_host *host, u32 intmask)
 			       host->ioaddr + SDHCI_DMA_ADDRESS);
 
 		if (intmask & SDHCI_INT_DATA_END) {
-			if (host->data->flags & MMC_DATA_READ)
-				writel(readl(host->ioaddr + SDHCI_CLOCK_CONTROL)
-				       & ~SDHCI_CLOCK_HLK_EN,
-				       host->ioaddr + SDHCI_CLOCK_CONTROL);
 			if (host->cmd) {
 				/*
 				 * Data managed to finish before the
