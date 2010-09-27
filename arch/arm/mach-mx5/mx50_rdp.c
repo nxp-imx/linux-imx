@@ -812,6 +812,7 @@ static void __init mxc_board_init(void)
 	mxc_register_device(&gpu_device, NULL);
 	mxc_register_device(&mxc_pxp_device, NULL);
 	mxc_register_device(&mxc_pxp_client_device, NULL);
+	mxc_register_device(&mxc_pxp_v4l2, NULL);
 	/*
 	mxc_register_device(&mx53_lpmode_device, NULL);
 	mxc_register_device(&busfreq_device, NULL);
