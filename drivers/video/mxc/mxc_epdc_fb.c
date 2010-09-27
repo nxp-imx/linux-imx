@@ -55,8 +55,7 @@
  */
 /*#define DEFAULT_PANEL_HW_INIT*/
 
-#define NUM_SCREENS	2
-#define NUM_SCREENS_X 16
+#define NUM_SCREENS_MIN	2
 #define EPDC_NUM_LUTS 16
 #define EPDC_MAX_NUM_UPDATES 20
 #define INVALID_LUT -1
@@ -72,7 +71,6 @@
 #define POWER_STATE_ON	1
 
 static unsigned long default_bpp = 16;
-static unsigned long g_num_screens = NUM_SCREENS;
 
 struct update_marker_data {
 	u32 update_marker;
@@ -111,6 +109,7 @@ struct mxc_epdc_fb_data {
 	int default_bpp;
 	int native_width;
 	int native_height;
+	int num_screens;
 	int epdc_irq;
 	struct device *dev;
 	wait_queue_head_t vsync_wait_q;
@@ -1214,7 +1213,7 @@ static int mxc_epdc_fb_check_var(struct fb_var_screeninfo *var,
 	}
 
 	var->xres_virtual = ALIGN(var->xres, 32);
-	var->yres_virtual = ALIGN(var->yres, 128) * g_num_screens;
+	var->yres_virtual = ALIGN(var->yres, 128) * fb_data->num_screens;
 
 	var->height = -1;
 	var->width = -1;
@@ -2437,8 +2436,7 @@ int __devinit mxc_epdc_fb_probe(struct platform_device *pdev)
 				fb_data->default_bpp =
 					simple_strtoul(opt + 4, NULL, 0);
 			else if (!strncmp(opt, "x_mem=", 6))
-				x_mem_size =
-					simple_strtoul(opt + 6, NULL, 0);
+				x_mem_size = memparse(opt + 6, NULL);
 			else
 				panel_str = opt;
 		}
@@ -2482,12 +2480,19 @@ int __devinit mxc_epdc_fb_probe(struct platform_device *pdev)
 	 */
 	xres_virt = ALIGN(vmode->xres, 32);
 	yres_virt = ALIGN(vmode->yres, 128);
-	buf_size = xres_virt * yres_virt * fb_data->default_bpp/8;
+	buf_size = PAGE_ALIGN(xres_virt * yres_virt * fb_data->default_bpp/8);
 
-	if (x_mem_size > 0)
-		g_num_screens = NUM_SCREENS_X;
+	/* Compute the number of screens needed based on X memory requested */
+	if (x_mem_size > 0) {
+		fb_data->num_screens = DIV_ROUND_UP(x_mem_size, buf_size);
+		if (fb_data->num_screens < NUM_SCREENS_MIN)
+			fb_data->num_screens = NUM_SCREENS_MIN;
+		else if (buf_size * fb_data->num_screens > SZ_16M)
+			fb_data->num_screens = SZ_16M / buf_size;
+	} else
+		fb_data->num_screens = NUM_SCREENS_MIN;
 
-	fb_data->map_size = PAGE_ALIGN(buf_size) * g_num_screens;
+	fb_data->map_size = buf_size * fb_data->num_screens;
 	dev_dbg(&pdev->dev, "memory to allocate: %d\n", fb_data->map_size);
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
@@ -2506,7 +2511,7 @@ int __devinit mxc_epdc_fb_probe(struct platform_device *pdev)
 	info->screen_base = dma_alloc_writecombine(&pdev->dev,
 						  fb_data->map_size,
 						  &fb_data->phys_start,
-						  GFP_KERNEL);
+						  GFP_DMA);
 
 	if (info->screen_base == NULL) {
 		ret = -ENOMEM;
@@ -2522,7 +2527,7 @@ int __devinit mxc_epdc_fb_probe(struct platform_device *pdev)
 	var_info->yres = vmode->yres;
 	var_info->xres_virtual = xres_virt;
 	/* Additional screens allow for panning  and buffer flipping */
-	var_info->yres_virtual = yres_virt * g_num_screens;
+	var_info->yres_virtual = yres_virt * fb_data->num_screens;
 
 	var_info->pixclock = vmode->pixclock;
 	var_info->left_margin = vmode->left_margin;
