@@ -32,6 +32,12 @@
 #define HIF_LINUX_MMC_SCATTER_SUPPORT
 #endif
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 27)
+#include <asm/semaphore.h>
+#else
+#include <linux/semaphore.h>
+#endif
+
 #define BUS_REQUEST_MAX_NUM                64
 
 #define SDIO_CLOCK_FREQUENCY_DEFAULT       25000000
