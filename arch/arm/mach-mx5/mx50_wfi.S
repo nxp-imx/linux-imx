@@ -44,6 +44,12 @@ LoopCKE0:
     cmp     r0, r2
     beq     LoopCKE0
 
+    /* Check if Databahn is in SYNC or ASYNC mode. */
+    ldr      r4, [r5, #0xdc]
+    and     r4, r4, #0x30000
+    cmp    r4, #0x30000
+    beq     Sync_mode
+
     /* Set the DDR_CLKGATE to 0x1. */
     ldr      r0, [r6, #0x98]
     bic     r0, r0, #0x80000000
@@ -55,7 +61,59 @@ LoopCKE0:
     ldr      r0, [r6, #0x98]
     orr     r0, r0, #0xC0000000
     str     r0, [r6, #0x98]
+    b       Wfi_Done
 
+Sync_mode:
+    /* Check if PLL1 is sourcing SYS_CLK. */
+    ldr     r5, [r6, #0x90]
+    and    r5, r0, #0x1
+    cmp   r5, #0x1
+    beq    pll1_source
+
+    /* Set the SYS_XTAL_CLKGATE to 0x1. */
+    ldr      r0, [r6, #0x94]
+    bic     r0, r0, #0x80000000
+    str     r0, [r6, #0x94]
+
+    /* Set the SYS_XTAL_DIV to 0xF (1.6MHz) to reduce power.
+     * since this clock is not gated when ARM is in WFI.
+     */
+
+    ldr      r0, [r6, #0x94]
+    orr      r0, r0, #0x3c0
+    str      r0, [r6, #0x94]
+
+    b       do_wfi
+pll1_source:
+    /* Set the SYS_PLL_CLKGATE to 0x1. */
+    ldr      r0, [r6, #0x94]
+    bic     r0, r0, #0x40000000
+    str     r0, [r6, #0x94]
+
+do_wfi:
+    .long     0xe320f003              @ Opcode for WFI
+
+     cmp    r5, #1
+     beq    pll1_source1
+    /* Set the SYS_XTAL_DIV to 24MHz.*/
+    ldr      r0, [r6, #0x94]
+    bic      r0, r0, #0x3c0
+    orr      r0, r0, #0x40
+    str      r0, [r6, #0x94]
+
+    /* Set the SYS_XTAL_CLKGATE to 0x3. */
+    ldr      r0, [r6, #0x94]
+    orr     r0, r0, #0xC0000000
+    str     r0, [r6, #0x94]
+    b       Wfi_Done
+
+pll1_source1:
+    /* Set the SYS_PLL_CLKGATE to 0x3. */
+    ldr      r0, [r6, #0x94]
+    orr     r0, r0, #0x30000000
+    str     r0, [r6, #0x94]
+
+Wfi_Done:
     /* Restore registers */
     ldmfd sp!, {r3,r4,r5,r6,r7,r8,r9,r10,r11}
     mov     pc, lr

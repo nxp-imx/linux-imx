@@ -32,7 +32,29 @@ ENTRY(mx50_ddr_freq_change)
     mov    r5, r1                       @save DataBahn address
     mov    r4, r2                       @save new freq requested
 
-    ldr     r0, [r6, #0x90]
+    /* Make sure no TLB miss will occur when the DDR is in self refresh. */
+    /* Invalidate TLB single entry to ensure that the address is not
+      * already in the TLB.
+      */
+    adr   r3, LoopCKE2               @Address in this function.
+    mcr   p15, 0, r3, c8, c7, 1      @ Make sure freq code address
+                                             @ is not already in TLB.
+    mcr   p15, 0, r6, c8, c7, 1      @ Make sure CCM address
+                                             @ is not already in TLB.
+    mcr   p15, 0, r5, c8, c7, 1      @ make sure Databahn address
+                                             @ is not already in TLB.
+    mrc   p15, 0, r0, c10, c0, 0    @ Read the TLB lockdown register
+    orr    r0, r0, #1                    @ Set the Preserve bit.
+    mcr   p15, 0, r0, c10, c0, 0    @ Write to the lockdown register
+    ldr    r2, [r6]                        @ TLB will miss,
+                                             @CCM address will be loaded
+    ldr    r2, [r5]                        @ TLB will miss,
+                                             @Databahn address will be loaded
+    ldr    r2, [r3]                        @ TLB will miss
+    mrc  p15, 0, r0, c10, c0, 0      @ Read the lockdown register
+                                             @ (victim will be incremented)
+    bic   r0, r0, #1                     @ Clear the preserve bit
+    mcr   p15, 0, r0, c10, c0, 0     @ Write to the lockdown register.
 
     /* If Databahn is in LPM4, exit that mode first. */
     ldr     r1,[r5, #0x50]             @Store LPM mode in r1.
@@ -47,6 +69,17 @@ LoopCKE2:
     ldr     r2, =0x10000
     cmp     r0, r2
     bne     LoopCKE2
+
+/* Wait for the databahn to idle
+     Meaning, no access to the databahn is
+     being made.
+*/
+NotIdle:
+    ldr     r0,[r5, #0x13c]
+    and    r0, r0, #0x100
+    ldr     r2, =0x100
+    cmp     r0, r2
+    beq     NotIdle
 
     /*
      * Make sure the DDR is self-refresh, before switching its frequency
@@ -91,7 +124,7 @@ LoopCKE0:
      /* Change the freq now */
      /* If the freq req is below 24MHz, set DDR to synchronous mode.
       * else set to async mode. */
-    ldr     r0, =24000000
+    ldr     r0, =200000000
     cmp   r4, r0
     bgt    Async_Mode
 
@@ -144,81 +177,13 @@ Div_Found:
     b       Ddr_not_24
 
 databahn_ddr_24:
-    ldr    r0, =0x00000003
-    str    r0, [r5, #0x08]
-    ldr    r0, =0x000012c0
-    str    r0, [r5, #0x0c]
-
-    ldr    r0, =0x00000018
-    str    r0, [r5, #0x10]
-    ldr    r0, =0x000000f0
-    str    r0, [r5, #0x14]
-    ldr    r0, =0x02010b0c
-    str    r0, [r5, #0x18]
-    ldr    r0, =0x02020102
-    str    r0, [r5, #0x1c]
-
-    ldr    r0, =0x05010102
-    str    r0, [r5, #0x20]
-    ldr    r0, =0x01000103
-    str    r0, [r5, #0x28]
-    ldr    r0, =0x04030101
-    str    r0, [r5, #0x2c]
-
-    ldr    r0, =0x00000202
-    str    r0, [r5, #0x34]
-    ldr    r0, =0x00000001
-    str    r0, [r5, #0x38]
-    ldr    r0, =0x00000401
-    str    r0, [r5, #0x3c]
-
     ldr    r0, =0x00050056
     str    r0, [r5, #0x40]
-    ldr    r0, =0x00040004
-    str    r0, [r5, #0x48]
-
-    ldr    r0, =0x00040022
-    str    r0, [r5, #0x6c]
-
-    ldr    r0, =0x00040022
-    str    r0, [r5, #0x78]
-
-    ldr    r0, =0x00180000
-    str    r0, [r5, #0x80]
-    ldr    r0, =0x00000009
-    str    r0, [r5, #0x84]
-    ldr    r0, =0x02400003
-    str    r0, [r5, #0x88]
-    ldr    r0, =0x01000200
-    str    r0, [r5, #0x8c]
-
-    ldr    r0, =0x00000000
-    str    r0, [r5, #0xcc]
-
-    ldr    r0, =0x01000201
-    str    r0, [r5, #0xd0]
-    ldr    r0, =0x01010301
-    str    r0, [r5, #0xd4]
-    ldr    r0, =0x00000101
-    str    r0, [r5, #0xd8]
-
-    ldr    r0, =0x02000602
-    str    r0, [r5, #0x104]
-    ldr    r0, =0x00560000
-    str    r0, [r5, #0x108]
-    ldr    r0, =0x00560056
-    str    r0, [r5, #0x10c]
-
-    ldr    r0, =0x00560056
-    str    r0, [r5, #0x110]
-    ldr    r0, =0x03060056
-    str    r0, [r5, #0x114]
-
     /* Set the Databahn DLL in bypass mode */
     /* PHY Register settings. */
-    ldr    r0, =0x00000100
+    ldr    r0, =0x0
     str    r0, [r5, #0x200]
-    ldr    r0, =0x000f1100
+    ldr    r0, =0x0
     str    r0, [r5, #0x204]
     ldr    r0, =0xf3003a27
     str    r0, [r5, #0x208]
@@ -268,9 +233,65 @@ databahn_ddr_24:
     ldr    r0, =0x00219f01
     str    r0, [r5, #0x25c]
 
+    /* Set SYS_CLK to be sourced from 24MHz. */
+    /* Set the SYS_XTAL_DIV */
+    ldr    r0, [r6, #0x94]
+    bic    r0, r0, #0x3c0
+    orr    r0, r0, #0x40
+    str    r0, [r6, #0x94]
+
+    /* Enable SYS_XTAL_CLKGATE. */
+    ldr    r0, [r6, #0x94]
+    orr    r0, r0, #0xC0000000
+    str    r0, [r6, #0x94]
+
+    /* set SYS_CLK to be sourced from XTAL. */
+    ldr     r0, [r6, #0x90]
+    bic     r0, r0, #0x1
+    str     r0, [r6, #0x90]
+
+    /* Disable SYS_PLL_CLKGATE.*/
+    ldr    r0, [r6, #0x94]
+    bic    r0, r0, #0x30000000
+    str    r0, [r6, #0x94]
     b       Setup_Done
 
 Async_Mode:
+    /* If SYS_CLK is running at 24MHz, increase
+      * it to 200MHz.
+      */
+    ldr     r0, [r6, #0x90]
+    and    r0, r0, #0x1
+    cmp   r0, #0
+    bne    Sys_Clk_Not_24
+
+   /* Disable SYS_PLL_CLKGATE. */
+    ldr     r0, [r6, #0x94]
+    bic     r0, r0, #0x30000000
+    str     r0, [r6, #0x94]
+
+    /* Set the new divider. */
+    ldr     r0, [r6, #0x94]
+    bic    r0, r0, #0x3f
+    orr     r0, r0, #4
+    str     r0, [r6, #0x94]
+
+   /* Enable SYS_PLL_CLKGATE. */
+    ldr     r0, [r6, #0x94]
+    orr     r0, r0, #0x30000000
+    str     r0, [r6, #0x94]
+
+    /* SYS_CLK to be sourced from PLL1. */
+    ldr     r0, [r6, #0x90]
+    orr     r0, r0, #0x3
+    str     r0, [r6, #0x90]
+
+   /* Disable SYS_XTAL_CLKGATE. */
+    ldr     r0, [r6, #0x94]
+    bic     r0, r0, #0xC0000000
+    str     r0, [r6, #0x94]
+
+Sys_Clk_Not_24:
     /* Set the Databahn to async mode. */
     ldr     r0, [r5, #0xdc]
     and    r0, r0, #0xfffcffff
@@ -287,8 +308,13 @@ Loop2:
     bgt     Loop2
 
 Div_Found1:
+    /* Turn OFF the DDR_CKLGATE_MASK in MXC_CCM_DDR */
     ldr     r0, [r6, #0x98]
-    bic    r0, r0, #0x3f
+    bic     r0, r0, #0xC0000000
+    str     r0, [r6, #0x98]
+
+    ldr     r0, [r6, #0x98]
+    bic     r0, r0, #0x3f
     orr     r0, r0, r3
     str     r0, [r6, #0x98]
 
@@ -299,7 +325,7 @@ Div_Found1:
 
     /* Turn ON the DDR_CKLGATE_MASK in MXC_CCM_DDR */
     ldr     r0, [r6, #0x98]
-    orr     r0, r0, #0x40000000
+    orr     r0, r0, #0xC0000000
     str     r0, [r6, #0x98]
 
     ldr     r0, =24000000
@@ -307,76 +333,8 @@ Div_Found1:
     beq    databahn_ddr_24
 
 Ddr_not_24:
-    ldr     r0, =0x0000001b
-    str     r0, [r5, #0x8]
-    ldr     r0, =0x0000d056
-    str     r0, [r5, #0xc]
-
-    ldr     r0, =0x0000010b
-    str     r0, [r5, #0x10]
-    ldr     r0, =0x00000a6b
-    str     r0, [r5, #0x14]
-    ldr     r0, =0x02020d0c
-    str     r0, [r5, #0x18]
-    ldr     r0, =0x0c110302
-    str     r0, [r5, #0x1c]
-
-    ldr     r0, =0x05020503
-    str     r0, [r5, #0x20]
-    ldr     r0, =0x01000403
-    str     r0, [r5, #0x28]
-    ldr     r0, =0x09040501
-    str     r0, [r5, #0x2c]
-
-    ldr     r0, =0x00000e02
-    str     r0, [r5, #0x34]
-    ldr     r0, =0x00000006
-    str     r0, [r5, #0x38]
-    ldr     r0, =0x00002301
-    str     r0, [r5, #0x3c]
-
     ldr     r0, =0x00050408
     str     r0, [r5, #0x40]
-    ldr     r0, =0x00260026
-    str     r0, [r5, #0x48]
-
-    ldr     r0, =0x00040042
-    str     r0, [r5, #0x6c]
-
-    ldr     r0, =0x00040042
-    str     r0, [r5, #0x78]
-
-    ldr     r0, =0x010b0000
-    str     r0, [r5, #0x80]
-    ldr     r0, =0x00000060
-    str     r0, [r5, #0x84]
-    ldr     r0, =0x02400018
-    str     r0, [r5, #0x88]
-    ldr     r0, =0x01000e00
-    str     r0, [r5, #0x8c]
-
-    ldr     r0, =0x01000000
-    str     r0, [r5, #0xcc]
-
-    ldr     r0, =0x01000201
-    str     r0, [r5, #0xd0]
-    ldr     r0, =0x00000200
-    str     r0, [r5, #0xd4]
-    ldr     r0, =0x00000102
-    str     r0, [r5, #0xd8]
-
-    ldr     r0, =0x02000802
-    str     r0, [r5, #0x104]
-    ldr     r0, =0x04080000
-    str     r0, [r5, #0x108]
-    ldr     r0, =0x04080408
-    str     r0, [r5, #0x10c]
-
-    ldr     r0, =0x04080408
-    str     r0, [r5, #0x110]
-    ldr     r0, =0x03060408
-    str     r0, [r5, #0x114]
-
     /* PHY setting for 266MHz */
     ldr     r0, =0x00000000
     str     r0, [r5, #0x200]

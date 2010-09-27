@@ -22,6 +22,7 @@
  * @ingroup PM
  */
 #include <asm/io.h>
+#include <linux/sched.h>
 #include <linux/proc_fs.h>
 #include <linux/clk.h>
 #include <linux/delay.h>
@@ -49,6 +50,8 @@
 #define EMI_SLOW_CLK_NORMAL_DIV		AXI_B_CLK_NORMAL_DIV
 #define NFC_CLK_NORMAL_DIV      	4
 #define SPIN_DELAY	1000000 /* in nanoseconds */
+#define HW_QOS_DISABLE		0x70
+#define HW_QOS_DISABLE_SET		0x74
 
 DEFINE_SPINLOCK(ddr_freq_lock);
 
@@ -78,6 +81,10 @@ static struct clk *emi_garb_clk;
 static void __iomem *pll1_base;
 static void __iomem *pll4_base;
 
+static void __iomem *qosc_base;
+
+struct regulator *pll_regulator;
+
 struct regulator *lp_regulator;
 int low_bus_freq_mode;
 int high_bus_freq_mode;
@@ -95,6 +102,11 @@ int bus_freq_scaling_is_active;
 int cpu_wp_nr;
 int lp_high_freq;
 int lp_med_freq;
+
+static int lp_voltage;
+struct workqueue_struct *voltage_wq;
+static struct work_struct voltage_change_handler;
+struct completion voltage_change_cmpl;
 
 void enter_lpapm_mode_mx50(void);
 void enter_lpapm_mode_mx51(void);
@@ -116,6 +128,23 @@ struct dvfs_wp dvfs_core_setpoint[] = {
 						{28, 8, 33, 20, 30, 0x08},
 						{29, 0, 33, 20, 10, 0x08},};
 
+static DEFINE_SPINLOCK(voltage_lock);
+
+static void voltage_work_handler(struct work_struct *work)
+{
+	if (lp_regulator != NULL) {
+		u32 ret = 0;
+		ret = regulator_set_voltage(lp_regulator,
+					lp_voltage, lp_voltage);
+		udelay(400);
+		if (ret < 0) {
+			printk(KERN_ERR "COULD NOT SET LP VOLTAGE!!!!!!\n");
+			return;
+		}
+	}
+	complete_all(&voltage_change_cmpl);
+}
+
 int set_low_bus_freq(void)
 {
 	u32 reg;
@@ -135,20 +164,11 @@ int set_low_bus_freq(void)
 		stop_dvfs_per();
 
 		stop_sdram_autogating();
-		/* Set PLL3 to 133Mhz if no-one is using it. */
-		if ((clk_get_usecount(pll3) == 0) && !cpu_is_mx53()) {
-			u32 pll3_rate = clk_get_rate(pll3);
-
-			clk_enable(pll3);
-			clk_set_rate(pll3, clk_round_rate(pll3, 133000000));
+		if (!cpu_is_mx53()) {
 			if (cpu_is_mx50())
 				enter_lpapm_mode_mx50();
 			else
 				enter_lpapm_mode_mx51();
-
-			/* Set PLL3 back to original rate. */
-			clk_set_rate(pll3, clk_round_rate(pll3, pll3_rate));
-			clk_disable(pll3);
 
 		} else if (cpu_is_mx53()) {
 			/*Change the DDR freq to 133Mhz. */
@@ -212,12 +232,57 @@ void enter_lpapm_mode_mx50()
 
 	spin_lock_irqsave(&ddr_freq_lock, flags);
 
+	local_flush_tlb_all();
+	flush_cache_all();
+
+	/* Disable all masters from accessing the DDR. */
+	reg = __raw_readl(qosc_base + HW_QOS_DISABLE);
+	reg |= 0xFFE;
+	__raw_writel(reg, qosc_base + HW_QOS_DISABLE_SET);
+	udelay(10);
+
+	/* Set the DDR to run from 24MHz.
+	 * Need to source the DDR from the SYS_CLK after
+	 * setting it into self-refresh mode. This code needs to run from iRAM.
+	 */
+	change_ddr_freq(ccm_base, databahn_base, LP_APM_CLK);
+
+	/* Enable all masters to access the DDR. */
+	reg = __raw_readl(qosc_base + HW_QOS_DISABLE);
+	reg = 0x0;
+	__raw_writel(reg, qosc_base + HW_QOS_DISABLE);
+
+	udelay(100);
+
 	/* Set the parent of main_bus_clk to be PLL3 */
 	clk_set_parent(main_bus_clk, pll3);
 
+	/* Set the AHB dividers to be 2.
+	 * Set the dividers so that clock rates
+	 * are not greater than current clock rate.
+	 */
+	reg = __raw_readl(MXC_CCM_CBCDR);
+	reg &= ~(MXC_CCM_CBCDR_AXI_A_PODF_MASK
+			| MXC_CCM_CBCDR_AXI_B_PODF_MASK
+			| MXC_CCM_CBCDR_AHB_PODF_MASK
+			| MX50_CCM_CBCDR_WEIM_PODF_MASK);
+	reg |= (1 << MXC_CCM_CBCDR_AXI_A_PODF_OFFSET
+			| 1 << MXC_CCM_CBCDR_AXI_B_PODF_OFFSET
+			| 1 << MXC_CCM_CBCDR_AHB_PODF_OFFSET
+			| 0 << MX50_CCM_CBCDR_WEIM_PODF_OFFSET);
+	__raw_writel(reg, MXC_CCM_CBCDR);
+	while (__raw_readl(MXC_CCM_CDHIPR) & 0x0F)
+		udelay(10);
+
+	low_bus_freq_mode = 1;
+	high_bus_freq_mode = 0;
+
+	/* Set the source of main_bus_clk to be lp-apm. */
+	clk_set_parent(main_bus_clk, lp_apm);
+
 	/* Set the AHB dividers to be 1. */
 	/* Set the dividers to be  1, so the clock rates
-	 * are at 133MHz.
+	 * are at 24Mhz
 	 */
 	reg = __raw_readl(MXC_CCM_CBCDR);
 	reg &= ~(MXC_CCM_CBCDR_AXI_A_PODF_MASK
@@ -231,76 +296,66 @@ void enter_lpapm_mode_mx50()
 	__raw_writel(reg, MXC_CCM_CBCDR);
 	while (__raw_readl(MXC_CCM_CDHIPR) & 0x0F)
 		udelay(10);
-	low_bus_freq_mode = 1;
-	high_bus_freq_mode = 0;
 
-	/* Set the source of main_bus_clk to be lp-apm. */
-	clk_set_parent(main_bus_clk, lp_apm);
-
-	/* Set SYS_CLK to 24MHz. sourced from XTAL*/
-	/* Turn on the XTAL_CLK_GATE. */
-	reg = __raw_readl(MXC_CCM_CLK_SYS);
-	reg |= 3 << MXC_CCM_CLK_SYS_SYS_XTAL_CLKGATE_OFFSET;
-	__raw_writel(reg, MXC_CCM_CLK_SYS);
-
-	/* Set the divider. */
-	reg = __raw_readl(MXC_CCM_CLK_SYS);
-	reg &= ~MXC_CCM_CLK_SYS_DIV_XTAL_MASK;
-	reg |= 1 << MXC_CCM_CLK_SYS_DIV_XTAL_OFFSET;
-	__raw_writel(reg, MXC_CCM_CLK_SYS);
-	while (__raw_readl(MXC_CCM_CSR2) & 0x1)
-		udelay(10);
-
-	/* Set the source to be XTAL. */
-	reg = __raw_readl(MXC_CCM_CLKSEQ_BYPASS);
-	reg &= ~0x1;
-	__raw_writel(reg, MXC_CCM_CLKSEQ_BYPASS);
-	while (!(__raw_readl(MXC_CCM_CSR2) & 0x400))
-		udelay(10);
-
-	/* Turn OFF the PLL_CLK_GATE. */
-	reg = __raw_readl(MXC_CCM_CLK_SYS);
-	reg &= ~MXC_CCM_CLK_SYS_SYS_PLL_CLKGATE_MASK;
-	__raw_writel(reg, MXC_CCM_CLK_SYS);
 	spin_unlock_irqrestore(&ddr_freq_lock, flags);
 
+	spin_lock_irqsave(&voltage_lock, flags);
+	lp_voltage = LP_LOW_VOLTAGE;
+	INIT_COMPLETION(voltage_change_cmpl);
+	queue_work(voltage_wq, &voltage_change_handler);
+	spin_unlock_irqrestore(&voltage_lock, flags);
+
+	udelay(100);
 }
 
 void enter_lpapm_mode_mx51()
 {
 	u32 reg;
 
-	/*Change the DDR freq to 133Mhz. */
-	clk_set_rate(ddr_hf_clk,
-	     clk_round_rate(ddr_hf_clk, ddr_low_rate));
+	/* Set PLL3 to 133Mhz if no-one is using it. */
+	if (clk_get_usecount(pll3) == 0) {
+		u32 pll3_rate = clk_get_rate(pll3);
 
-	/* Set the parent of Periph_apm_clk to be PLL3 */
-	clk_set_parent(periph_apm_clk, pll3);
-	clk_set_parent(main_bus_clk, periph_apm_clk);
+		clk_enable(pll3);
+		clk_set_rate(pll3, clk_round_rate(pll3, 133000000));
 
-	/* Set the dividers to be  1, so the clock rates
-	  * are at 133MHz.
-	  */
-	reg = __raw_readl(MXC_CCM_CBCDR);
-	reg &= ~(MXC_CCM_CBCDR_AXI_A_PODF_MASK
-			| MXC_CCM_CBCDR_AXI_B_PODF_MASK
-			| MXC_CCM_CBCDR_AHB_PODF_MASK
-			| MXC_CCM_CBCDR_EMI_PODF_MASK
-			| MXC_CCM_CBCDR_NFC_PODF_OFFSET);
-	reg |= (0 << MXC_CCM_CBCDR_AXI_A_PODF_OFFSET
-			| 0 << MXC_CCM_CBCDR_AXI_B_PODF_OFFSET
-			| 0 << MXC_CCM_CBCDR_AHB_PODF_OFFSET
-			| 0 << MXC_CCM_CBCDR_EMI_PODF_OFFSET
-			| 3 << MXC_CCM_CBCDR_NFC_PODF_OFFSET);
-	__raw_writel(reg, MXC_CCM_CBCDR);
+		/*Change the DDR freq to 133Mhz. */
+		clk_set_rate(ddr_hf_clk,
+		     clk_round_rate(ddr_hf_clk, ddr_low_rate));
 
-	clk_enable(emi_garb_clk);
-	while (__raw_readl(MXC_CCM_CDHIPR) & 0x1F)
-		udelay(10);
-	clk_disable(emi_garb_clk);
+		/* Set the parent of Periph_apm_clk to be PLL3 */
+		clk_set_parent(periph_apm_clk, pll3);
+		clk_set_parent(main_bus_clk, periph_apm_clk);
 
-	/* Set the source of Periph_APM_Clock to be lp-apm. */
-	clk_set_parent(periph_apm_clk, lp_apm);
+		/* Set the dividers to be  1, so the clock rates
+		  * are at 133MHz.
+		  */
+		reg = __raw_readl(MXC_CCM_CBCDR);
+		reg &= ~(MXC_CCM_CBCDR_AXI_A_PODF_MASK
+				| MXC_CCM_CBCDR_AXI_B_PODF_MASK
+				| MXC_CCM_CBCDR_AHB_PODF_MASK
+				| MXC_CCM_CBCDR_EMI_PODF_MASK
+				| MXC_CCM_CBCDR_NFC_PODF_OFFSET);
+		reg |= (0 << MXC_CCM_CBCDR_AXI_A_PODF_OFFSET
+				| 0 << MXC_CCM_CBCDR_AXI_B_PODF_OFFSET
+				| 0 << MXC_CCM_CBCDR_AHB_PODF_OFFSET
+				| 0 << MXC_CCM_CBCDR_EMI_PODF_OFFSET
+				| 3 << MXC_CCM_CBCDR_NFC_PODF_OFFSET);
+		__raw_writel(reg, MXC_CCM_CBCDR);
+
+		clk_enable(emi_garb_clk);
+		while (__raw_readl(MXC_CCM_CDHIPR) & 0x1F)
+			udelay(10);
+		clk_disable(emi_garb_clk);
+
+		/* Set the source of Periph_APM_Clock to be lp-apm. */
+		clk_set_parent(periph_apm_clk, lp_apm);
+
+		/* Set PLL3 back to original rate. */
+		clk_set_rate(pll3, clk_round_rate(pll3, pll3_rate));
+		clk_disable(pll3);
+
+	}
 }
 
 int set_high_bus_freq(int high_bus_freq)
@@ -315,22 +370,12 @@ int set_high_bus_freq(int high_bus_freq)
 
 		if (low_bus_freq_mode) {
 			/* Relock PLL3 to 133MHz */
-			if ((clk_get_usecount(pll3) == 0) && !cpu_is_mx53()) {
-				u32 pll3_rate = clk_get_rate(pll3);
-
-				clk_enable(pll3);
-				clk_set_rate(pll3,
-					clk_round_rate(pll3, 133000000));
+			if (!cpu_is_mx53()) {
 				if (cpu_is_mx50())
 					exit_lpapm_mode_mx50();
 				else
 					exit_lpapm_mode_mx51();
-
-				/* Relock PLL3 to its original rate */
-				clk_set_rate(pll3,
-					clk_round_rate(pll3, pll3_rate));
-				clk_disable(pll3);
-			} else if (cpu_is_mx53()) {
+			} else {
 				/* move cpu clk to pll1 */
 				reg = __raw_readl(MXC_CCM_CDHIPR);
 				if ((reg & MXC_CCM_CDHIPR_ARM_PODF_BUSY) == 0)
@@ -414,36 +459,64 @@ int set_high_bus_freq(int high_bus_freq)
 
 void exit_lpapm_mode_mx50()
 {
-	u32 reg, ret;
+	u32 reg;
 	unsigned long flags;
 
+	do {
+		if (completion_done(&voltage_change_cmpl)) {
+			spin_lock_irqsave(&voltage_lock, flags);
+			break;
+		} else {
+			set_user_nice(get_current(), 10);
+			yield();
+			set_user_nice(get_current(), -10);
+		}
+	} while (1);
+	if (completion_done(&voltage_change_cmpl)) {
+		if (lp_voltage != LP_NORMAL_VOLTAGE) {
+			INIT_COMPLETION(voltage_change_cmpl);
+			lp_voltage = LP_NORMAL_VOLTAGE;
+			if (!queue_work(voltage_wq, &voltage_change_handler))
+				printk(KERN_ERR "WORK_NOT_ADDED\n");
+			spin_unlock_irqrestore(&voltage_lock, flags);
+			while (!completion_done(&voltage_change_cmpl)) {
+				set_user_nice(get_current(), 10);
+				yield();
+				set_user_nice(get_current(), -10);
+			}
+		} else
+			spin_unlock_irqrestore(&voltage_lock, flags);
+	} else {
+		spin_unlock_irqrestore(&voltage_lock, flags);
+		while (!completion_done(&voltage_change_cmpl)) {
+			set_user_nice(get_current(), 10);
+			yield();
+			set_user_nice(get_current(), -10);
+		}
+	}
+
 	spin_lock_irqsave(&ddr_freq_lock, flags);
+	if (!low_bus_freq_mode) {
+		spin_unlock_irqrestore(&ddr_freq_lock, flags);
+		return;
+	}
 
-	/* Set SYS_CLK to source from PLL1 */
-	/* Set sys_clk back to 200MHz. */
-	/* Set the divider to 4. */
-	reg = __raw_readl(MXC_CCM_CLK_SYS);
-	reg &= ~MXC_CCM_CLK_SYS_DIV_PLL_MASK;
-	reg |= 0x4 << MXC_CCM_CLK_SYS_DIV_PLL_OFFSET;
-	__raw_writel(reg, MXC_CCM_CLK_SYS);
-	udelay(100);
+	/* Temporarily set the dividers when the source is PLL3.
+	 * No clock rate is above 133MHz.
+	 */
+	reg = __raw_readl(MXC_CCM_CBCDR);
+	reg &= ~(MXC_CCM_CBCDR_AXI_A_PODF_MASK
+		| MXC_CCM_CBCDR_AXI_B_PODF_MASK
+		| MXC_CCM_CBCDR_AHB_PODF_MASK
+		| MX50_CCM_CBCDR_WEIM_PODF_MASK);
+	reg |= (1 << MXC_CCM_CBCDR_AXI_A_PODF_OFFSET
+		|1 << MXC_CCM_CBCDR_AXI_B_PODF_OFFSET
+		|1 << MXC_CCM_CBCDR_AHB_PODF_OFFSET
+		|0 << MX50_CCM_CBCDR_WEIM_PODF_OFFSET);
+	__raw_writel(reg, MXC_CCM_CBCDR);
 
-	/* Turn ON the PLL CLK_GATE. */
-	reg = __raw_readl(MXC_CCM_CLK_SYS);
-	reg |= 3 << MXC_CCM_CLK_SYS_SYS_PLL_CLKGATE_OFFSET;
-	__raw_writel(reg, MXC_CCM_CLK_SYS);
-
-	/* Source the SYS_CLK from PLL */
-	reg = __raw_readl(MXC_CCM_CLKSEQ_BYPASS);
-	reg |= 0x3;
-	__raw_writel(reg, MXC_CCM_CLKSEQ_BYPASS);
-	while (__raw_readl(MXC_CCM_CSR2) & 0x400)
+	while (__raw_readl(MXC_CCM_CDHIPR) & 0xF)
 		udelay(10);
-
-	/* Turn OFF the XTAL_CLK_GATE. */
-	reg = __raw_readl(MXC_CCM_CLK_SYS);
-	reg &= ~MXC_CCM_CLK_SYS_SYS_XTAL_CLKGATE_MASK;
-	__raw_writel(reg, MXC_CCM_CLK_SYS);
 
 	clk_set_parent(main_bus_clk, pll3);
 
@@ -467,14 +540,54 @@ void exit_lpapm_mode_mx50()
 
 	/*Set the main_bus_clk parent to be PLL2. */
 	clk_set_parent(main_bus_clk, pll2);
-	spin_unlock_irqrestore(&ddr_freq_lock, flags);
 
+	/* Disable all masters from accessing the DDR. */
+	reg = __raw_readl(qosc_base + HW_QOS_DISABLE);
+	reg |= 0xFFE;
+	__raw_writel(reg, qosc_base + HW_QOS_DISABLE_SET);
+		udelay(10);
+
+	local_flush_tlb_all();
+	flush_cache_all();
+
+	/* Set the DDR to default freq.
+	 */
+	change_ddr_freq(ccm_base, databahn_base, ddr_normal_rate);
+
+	/* Enable all masters to access the DDR. */
+	reg = __raw_readl(qosc_base + HW_QOS_DISABLE);
+	reg = 0x0;
+	__raw_writel(reg, qosc_base + HW_QOS_DISABLE);
+
+	spin_unlock_irqrestore(&ddr_freq_lock, flags);
 	udelay(100);
 }
 
 void exit_lpapm_mode_mx51()
 {
 	u32 reg;
+
+
+	/* Temporarily Set the dividers  is PLL3.
+	 * No clock rate is above 133MHz.
+	 */
+	reg = __raw_readl(MXC_CCM_CBCDR);
+	reg &= ~(MXC_CCM_CBCDR_AXI_A_PODF_MASK
+		| MXC_CCM_CBCDR_AXI_B_PODF_MASK
+		| MXC_CCM_CBCDR_AHB_PODF_MASK
+		| MXC_CCM_CBCDR_EMI_PODF_MASK
+		| MXC_CCM_CBCDR_NFC_PODF_OFFSET);
+	reg |= (1 << MXC_CCM_CBCDR_AXI_A_PODF_OFFSET
+		| 1 << MXC_CCM_CBCDR_AXI_B_PODF_OFFSET
+		| 1 << MXC_CCM_CBCDR_AHB_PODF_OFFSET
+		| 1 << MXC_CCM_CBCDR_EMI_PODF_OFFSET
+		| 3 << MXC_CCM_CBCDR_NFC_PODF_OFFSET);
+	__raw_writel(reg, MXC_CCM_CBCDR);
+
+	clk_enable(emi_garb_clk);
+	while (__raw_readl(MXC_CCM_CDHIPR) & 0x1F)
+		udelay(10);
+	clk_disable(emi_garb_clk);
 
 	clk_set_parent(periph_apm_clk, pll3);
 
@@ -707,12 +820,6 @@ static int __devinit busfreq_probe(struct platform_device *pdev)
 		return PTR_ERR(lp_apm);
 	}
 
-	osc = clk_get(NULL, "osc");
-	if (IS_ERR(osc)) {
-		printk(KERN_DEBUG "%s: failed to get osc\n", __func__);
-		return PTR_ERR(osc);
-	}
-
 	gpc_dvfs_clk = clk_get(NULL, "gpc_dvfs_clk");
 	if (IS_ERR(gpc_dvfs_clk)) {
 		printk(KERN_DEBUG "%s: failed to get gpc_dvfs_clk\n", __func__);
@@ -755,6 +862,8 @@ static int __devinit busfreq_probe(struct platform_device *pdev)
 	}
 
 	if (cpu_is_mx50()) {
+		u32 reg;
+
 		iram_alloc(SZ_8K, &iram_paddr);
 		/* Need to remap the area here since we want the memory region
 			 to be executable. */
@@ -769,6 +878,17 @@ static int __devinit busfreq_probe(struct platform_device *pdev)
 			"%s: failed to get lp regulator\n", __func__);
 			return PTR_ERR(lp_regulator);
 		}
+
+		qosc_base = ioremap(QOSC_BASE_ADDR, SZ_4K);
+		/* Enable the QoSC */
+		reg = __raw_readl(qosc_base);
+		reg &= ~0xC0000000;
+		__raw_writel(reg, qosc_base);
+
+		voltage_wq = create_singlethread_workqueue("voltage_change");
+		INIT_WORK(&voltage_change_handler, voltage_work_handler);
+
+		init_completion(&voltage_change_cmpl);
 	}
 	cpu_wp_tbl = get_cpu_wp(&cpu_wp_nr);
 	low_bus_freq_mode = 0;

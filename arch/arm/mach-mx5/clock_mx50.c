@@ -66,7 +66,7 @@ static struct cpu_wp *cpu_wp_tbl;
 static void __iomem *pll1_base;
 static void __iomem *pll2_base;
 static void __iomem *pll3_base;
-static void __iomem *apll_base;
+void __iomem *apll_base;
 
 extern int cpu_wp_nr;
 extern int lp_high_freq;
@@ -324,7 +324,7 @@ static struct clk apll_clk = {
 	.get_rate = apll_get_rate,
 	.enable = apll_enable,
 	.disable = apll_disable,
-	.flags = RATE_PROPAGATES,
+	.flags = RATE_PROPAGATES | AHB_MED_SET_POINT | CPU_FREQ_TRIG_UPDATE,
 };
 
 static unsigned long pfd_round_rate(struct clk *clk, unsigned long rate)
@@ -423,7 +423,7 @@ static struct clk pfd0_clk = {
 	.round_rate = pfd_round_rate,
 	.enable = pfd_enable,
 	.disable = pfd_disable,
-	.flags = RATE_PROPAGATES,
+	.flags = RATE_PROPAGATES | AHB_MED_SET_POINT | CPU_FREQ_TRIG_UPDATE,
 };
 
 static struct clk pfd1_clk = {
@@ -434,7 +434,7 @@ static struct clk pfd1_clk = {
 	.round_rate = pfd_round_rate,
 	.enable = pfd_enable,
 	.disable = pfd_disable,
-	.flags = RATE_PROPAGATES,
+	.flags = RATE_PROPAGATES | AHB_MED_SET_POINT | CPU_FREQ_TRIG_UPDATE,
 };
 
 static struct clk pfd2_clk = {
@@ -445,7 +445,7 @@ static struct clk pfd2_clk = {
 	.round_rate = pfd_round_rate,
 	.enable = pfd_enable,
 	.disable = pfd_disable,
-	.flags = RATE_PROPAGATES,
+	.flags = RATE_PROPAGATES | AHB_MED_SET_POINT | CPU_FREQ_TRIG_UPDATE,
 };
 
 static struct clk pfd3_clk = {
@@ -456,7 +456,7 @@ static struct clk pfd3_clk = {
 	.round_rate = pfd_round_rate,
 	.enable = pfd_enable,
 	.disable = pfd_disable,
-	.flags = RATE_PROPAGATES,
+	.flags = RATE_PROPAGATES | AHB_MED_SET_POINT | CPU_FREQ_TRIG_UPDATE,
 };
 
 static struct clk pfd4_clk = {
@@ -467,7 +467,7 @@ static struct clk pfd4_clk = {
 	.round_rate = pfd_round_rate,
 	.enable = pfd_enable,
 	.disable = pfd_disable,
-	.flags = RATE_PROPAGATES,
+	.flags = RATE_PROPAGATES | AHB_MED_SET_POINT | CPU_FREQ_TRIG_UPDATE,
 };
 
 static struct clk pfd5_clk = {
@@ -478,7 +478,7 @@ static struct clk pfd5_clk = {
 	.round_rate = pfd_round_rate,
 	.enable = pfd_enable,
 	.disable = pfd_disable,
-	.flags = RATE_PROPAGATES,
+	.flags = RATE_PROPAGATES | AHB_MED_SET_POINT | CPU_FREQ_TRIG_UPDATE,
 };
 
 static struct clk pfd6_clk = {
@@ -489,7 +489,7 @@ static struct clk pfd6_clk = {
 	.round_rate = pfd_round_rate,
 	.enable = pfd_enable,
 	.disable = pfd_disable,
-	.flags = RATE_PROPAGATES,
+	.flags = RATE_PROPAGATES | AHB_MED_SET_POINT | CPU_FREQ_TRIG_UPDATE,
 };
 
 static struct clk pfd7_clk = {
@@ -500,7 +500,7 @@ static struct clk pfd7_clk = {
 	.round_rate = pfd_round_rate,
 	.enable = pfd_enable,
 	.disable = pfd_disable,
-	.flags = RATE_PROPAGATES,
+	.flags = RATE_PROPAGATES | AHB_MED_SET_POINT | CPU_FREQ_TRIG_UPDATE,
 };
 
 static unsigned long _clk_pll_get_rate(struct clk *clk)
@@ -664,12 +664,13 @@ static int _clk_pll1_sw_set_parent(struct clk *clk, struct clk *parent)
 		    (mux << MXC_CCM_CCSR_STEP_SEL_OFFSET);
 	} else {
 		if (parent == &lp_apm_clk) {
-			reg |= MXC_CCM_CCSR_PLL1_SW_CLK_SEL;
-			reg = __raw_readl(MXC_CCM_CCSR);
 			mux = _get_mux(parent, &lp_apm_clk, NULL, &pll2_sw_clk,
 				       &pll3_sw_clk);
 			reg = (reg & ~MXC_CCM_CCSR_STEP_SEL_MASK) |
 			    (mux << MXC_CCM_CCSR_STEP_SEL_OFFSET);
+			__raw_writel(reg, MXC_CCM_CCSR);
+			reg = __raw_readl(MXC_CCM_CCSR);
+			reg |= MXC_CCM_CCSR_PLL1_SW_CLK_SEL;
 		} else {
 			mux = _get_mux(parent, &lp_apm_clk, NULL, &pll2_sw_clk,
 				       &pll3_sw_clk);
@@ -2592,7 +2593,7 @@ static struct clk display_axi_clk = {
 	.disable = _clk_disable,
 	.enable_reg = MXC_CCM_DISPLAY_AXI,
 	.enable_shift = MXC_CCM_DISPLAY_AXI_CLKGATE_OFFSET,
-	.flags = RATE_PROPAGATES,
+	.flags = RATE_PROPAGATES | AHB_MED_SET_POINT | CPU_FREQ_TRIG_UPDATE,
 };
 
 /* TODO: check Auto-Slow Mode */

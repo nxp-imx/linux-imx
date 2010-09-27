@@ -14,6 +14,8 @@
 #include <linux/kernel.h>
 #include <linux/clk.h>
 #include <linux/platform_device.h>
+#include <linux/regulator/consumer.h>
+#include <linux/pmic_external.h>
 #include <asm/io.h>
 #include <mach/hardware.h>
 #include <mach/clock.h>
@@ -37,12 +39,20 @@ extern int iram_ready;
 extern int dvfs_core_is_active;
 extern void __iomem *ccm_base;
 extern void __iomem *databahn_base;
+extern int low_bus_freq_mode;
 extern void (*wait_in_iram)(void *ccm_addr, void *databahn_addr);
-extern void *wait_in_iram_base;
 extern void mx50_wait(u32 ccm_base, u32 databahn_addr);
 extern void stop_dvfs(void);
+extern void *wait_in_iram_base;
+extern void __iomem *apll_base;
 
 static struct clk *gpc_dvfs_clk;
+static struct regulator *vpll;
+static struct clk *pll1_sw_clk;
+static struct clk *osc;
+static struct clk *pll1_main_clk;
+static struct clk *ddr_clk ;
+static int dvfs_core_paused;
 
 /* set cpu low power mode before WFI instruction */
 void mxc_cpu_lp_set(enum mxc_cpu_pwr_mode mode)
@@ -159,16 +169,53 @@ static int arch_idle_mode = WAIT_UNCLOCKED_POWER_OFF;
 void arch_idle(void)
 {
 	if (likely(!mxc_jtag_enabled)) {
-		struct clk *ddr_clk = clk_get(NULL, "ddr_clk");
+		if (ddr_clk == NULL)
+			ddr_clk = clk_get(NULL, "ddr_clk");
 		if (gpc_dvfs_clk == NULL)
 			gpc_dvfs_clk = clk_get(NULL, "gpc_dvfs_clk");
 		/* gpc clock is needed for SRPG */
 		clk_enable(gpc_dvfs_clk);
 		mxc_cpu_lp_set(arch_idle_mode);
+
 		if (cpu_is_mx50() && (clk_get_usecount(ddr_clk) == 0)) {
 			memcpy(wait_in_iram_base, mx50_wait, SZ_4K);
 			wait_in_iram = (void *)wait_in_iram_base;
-			wait_in_iram(ccm_base, databahn_base);
+			if (low_bus_freq_mode) {
+				u32 reg, cpu_podf;
+
+				reg = __raw_readl(apll_base + 0x50);
+				reg = 0x120490;
+				__raw_writel(reg, apll_base + 0x50);
+				reg = __raw_readl(apll_base + 0x80);
+				reg |= 1;
+				__raw_writel(reg, apll_base + 0x80);
+
+				/* Move ARM to be sourced from 24MHz XTAL.
+				 * when ARM is in WFI.
+				 */
+				if (pll1_sw_clk == NULL)
+					pll1_sw_clk = clk_get(NULL,
+							"pll1_sw_clk");
+				if (osc == NULL)
+					osc = clk_get(NULL, "lp_apm");
+				if (pll1_main_clk == NULL)
+					pll1_main_clk = clk_get(NULL,
+							"pll1_main_clk");
+
+				clk_set_parent(pll1_sw_clk, osc);
+				/* Set the ARM-PODF divider to 1. */
+				cpu_podf = __raw_readl(MXC_CCM_CACRR);
+				__raw_writel(0x01, MXC_CCM_CACRR);
+
+				wait_in_iram(ccm_base, databahn_base);
+
+				/* Set the ARM-POD divider back
+				 * to the original.
+				 */
+				__raw_writel(cpu_podf, MXC_CCM_CACRR);
+				clk_set_parent(pll1_sw_clk, pll1_main_clk);
+			} else
+				wait_in_iram(ccm_base, databahn_base);
 		} else
 			cpu_do_idle();
 		clk_disable(gpc_dvfs_clk);
