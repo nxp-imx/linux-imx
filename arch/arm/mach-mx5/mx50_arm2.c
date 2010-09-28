@@ -498,7 +498,7 @@ static struct regulator_init_data max17135_init_data[] __initdata = {
 	},
 };
 
-void epdc_get_pins(void)
+static void epdc_get_pins(void)
 {
 	/* Claim GPIOs for EPDC pins - used during power up/down */
 	gpio_request(EPDC_D0, "epdc_d0");
@@ -523,7 +523,7 @@ void epdc_get_pins(void)
 	gpio_request(EPDC_SDCE2, "epdc_sdce2");
 }
 
-void epdc_put_pins(void)
+static void epdc_put_pins(void)
 {
 	gpio_free(EPDC_D0);
 	gpio_free(EPDC_D1);
@@ -547,50 +547,57 @@ void epdc_put_pins(void)
 	gpio_free(EPDC_SDCE2);
 }
 
-void epdc_enable_pins(void)
-{
-	struct pad_desc epdc_d0 = MX50_PAD_EPDC_D0__EPDC_D0;
-	struct pad_desc epdc_d1 = MX50_PAD_EPDC_D1__EPDC_D1;
-	struct pad_desc epdc_d2 = MX50_PAD_EPDC_D2__EPDC_D2;
-	struct pad_desc epdc_d3 = MX50_PAD_EPDC_D3__EPDC_D3;
-	struct pad_desc epdc_d4 = MX50_PAD_EPDC_D4__EPDC_D4;
-	struct pad_desc epdc_d5 = MX50_PAD_EPDC_D5__EPDC_D5;
-	struct pad_desc epdc_d6 = MX50_PAD_EPDC_D6__EPDC_D6;
-	struct pad_desc epdc_d7 = MX50_PAD_EPDC_D7__EPDC_D7;
-	struct pad_desc epdc_gdclk = MX50_PAD_EPDC_GDCLK__EPDC_GDCLK;
-	struct pad_desc epdc_gdsp = MX50_PAD_EPDC_GDSP__EPDC_GDSP;
-	struct pad_desc epdc_gdoe = MX50_PAD_EPDC_GDOE__EPDC_GDOE;
-	struct pad_desc epdc_gdrl = MX50_PAD_EPDC_GDRL__EPDC_GDRL;
-	struct pad_desc epdc_sdclk = MX50_PAD_EPDC_SDCLK__EPDC_SDCLK;
-	struct pad_desc epdc_sdoe = MX50_PAD_EPDC_SDOE__EPDC_SDOE;
-	struct pad_desc epdc_sdle = MX50_PAD_EPDC_SDLE__EPDC_SDLE;
-	struct pad_desc epdc_sdshr = MX50_PAD_EPDC_SDSHR__EPDC_SDSHR;
-	struct pad_desc epdc_bdr0 = MX50_PAD_EPDC_BDR0__EPDC_BDR0;
-	struct pad_desc epdc_sdce0 = MX50_PAD_EPDC_SDCE0__EPDC_SDCE0;
-	struct pad_desc epdc_sdce1 = MX50_PAD_EPDC_SDCE1__EPDC_SDCE1;
-	struct pad_desc epdc_sdce2 = MX50_PAD_EPDC_SDCE2__EPDC_SDCE2;
+static struct pad_desc  mx50_epdc_pads_enabled[] = {
+	MX50_PAD_EPDC_D0__EPDC_D0,
+	MX50_PAD_EPDC_D1__EPDC_D1,
+	MX50_PAD_EPDC_D2__EPDC_D2,
+	MX50_PAD_EPDC_D3__EPDC_D3,
+	MX50_PAD_EPDC_D4__EPDC_D4,
+	MX50_PAD_EPDC_D5__EPDC_D5,
+	MX50_PAD_EPDC_D6__EPDC_D6,
+	MX50_PAD_EPDC_D7__EPDC_D7,
+	MX50_PAD_EPDC_GDCLK__EPDC_GDCLK,
+	MX50_PAD_EPDC_GDSP__EPDC_GDSP,
+	MX50_PAD_EPDC_GDOE__EPDC_GDOE,
+	MX50_PAD_EPDC_GDRL__EPDC_GDRL,
+	MX50_PAD_EPDC_SDCLK__EPDC_SDCLK,
+	MX50_PAD_EPDC_SDOE__EPDC_SDOE,
+	MX50_PAD_EPDC_SDLE__EPDC_SDLE,
+	MX50_PAD_EPDC_SDSHR__EPDC_SDSHR,
+	MX50_PAD_EPDC_BDR0__EPDC_BDR0,
+	MX50_PAD_EPDC_SDCE0__EPDC_SDCE0,
+	MX50_PAD_EPDC_SDCE1__EPDC_SDCE1,
+	MX50_PAD_EPDC_SDCE2__EPDC_SDCE2,
+};
 
+static struct pad_desc  mx50_epdc_pads_disabled[] = {
+	MX50_PAD_EPDC_D0__GPIO_3_0,
+	MX50_PAD_EPDC_D1__GPIO_3_1,
+	MX50_PAD_EPDC_D2__GPIO_3_2,
+	MX50_PAD_EPDC_D3__GPIO_3_3,
+	MX50_PAD_EPDC_D4__GPIO_3_4,
+	MX50_PAD_EPDC_D5__GPIO_3_5,
+	MX50_PAD_EPDC_D6__GPIO_3_6,
+	MX50_PAD_EPDC_D7__GPIO_3_7,
+	MX50_PAD_EPDC_GDCLK__GPIO_3_16,
+	MX50_PAD_EPDC_GDSP__GPIO_3_17,
+	MX50_PAD_EPDC_GDOE__GPIO_3_18,
+	MX50_PAD_EPDC_GDRL__GPIO_3_19,
+	MX50_PAD_EPDC_SDCLK__GPIO_3_20,
+	MX50_PAD_EPDC_SDOE__GPIO_3_23,
+	MX50_PAD_EPDC_SDLE__GPIO_3_24,
+	MX50_PAD_EPDC_SDSHR__GPIO_3_26,
+	MX50_PAD_EPDC_BDR0__GPIO_4_23,
+	MX50_PAD_EPDC_SDCE0__GPIO_4_25,
+	MX50_PAD_EPDC_SDCE1__GPIO_4_26,
+	MX50_PAD_EPDC_SDCE2__GPIO_4_27,
+};
+
+static void epdc_enable_pins(void)
+{
 	/* Configure MUX settings to enable EPDC use */
-	mxc_iomux_v3_setup_pad(&epdc_d0);
-	mxc_iomux_v3_setup_pad(&epdc_d1);
-	mxc_iomux_v3_setup_pad(&epdc_d2);
-	mxc_iomux_v3_setup_pad(&epdc_d3);
-	mxc_iomux_v3_setup_pad(&epdc_d4);
-	mxc_iomux_v3_setup_pad(&epdc_d5);
-	mxc_iomux_v3_setup_pad(&epdc_d6);
-	mxc_iomux_v3_setup_pad(&epdc_d7);
-	mxc_iomux_v3_setup_pad(&epdc_gdclk);
-	mxc_iomux_v3_setup_pad(&epdc_gdsp);
-	mxc_iomux_v3_setup_pad(&epdc_gdoe);
-	mxc_iomux_v3_setup_pad(&epdc_gdrl);
-	mxc_iomux_v3_setup_pad(&epdc_sdclk);
-	mxc_iomux_v3_setup_pad(&epdc_sdoe);
-	mxc_iomux_v3_setup_pad(&epdc_sdle);
-	mxc_iomux_v3_setup_pad(&epdc_sdshr);
-	mxc_iomux_v3_setup_pad(&epdc_bdr0);
-	mxc_iomux_v3_setup_pad(&epdc_sdce0);
-	mxc_iomux_v3_setup_pad(&epdc_sdce1);
-	mxc_iomux_v3_setup_pad(&epdc_sdce2);
+	mxc_iomux_v3_setup_multiple_pads(mx50_epdc_pads_enabled, \
+				ARRAY_SIZE(mx50_epdc_pads_enabled));
 
 	gpio_direction_input(EPDC_D0);
 	gpio_direction_input(EPDC_D1);
@@ -614,51 +621,12 @@ void epdc_enable_pins(void)
 	gpio_direction_input(EPDC_SDCE2);
 }
 
-void epdc_disable_pins(void)
+static void epdc_disable_pins(void)
 {
-	struct pad_desc epdc_d0 = MX50_PAD_EPDC_D0__GPIO_3_0;
-	struct pad_desc epdc_d1 = MX50_PAD_EPDC_D1__GPIO_3_1;
-	struct pad_desc epdc_d2 = MX50_PAD_EPDC_D2__GPIO_3_2;
-	struct pad_desc epdc_d3 = MX50_PAD_EPDC_D3__GPIO_3_3;
-	struct pad_desc epdc_d4 = MX50_PAD_EPDC_D4__GPIO_3_4;
-	struct pad_desc epdc_d5 = MX50_PAD_EPDC_D5__GPIO_3_5;
-	struct pad_desc epdc_d6 = MX50_PAD_EPDC_D6__GPIO_3_6;
-	struct pad_desc epdc_d7 = MX50_PAD_EPDC_D7__GPIO_3_7;
-	struct pad_desc epdc_gdclk = MX50_PAD_EPDC_GDCLK__GPIO_3_16;
-	struct pad_desc epdc_gdsp = MX50_PAD_EPDC_GDSP__GPIO_3_17;
-	struct pad_desc epdc_gdoe = MX50_PAD_EPDC_GDOE__GPIO_3_18;
-	struct pad_desc epdc_gdrl = MX50_PAD_EPDC_GDRL__GPIO_3_19;
-	struct pad_desc epdc_sdclk = MX50_PAD_EPDC_SDCLK__GPIO_3_20;
-	struct pad_desc epdc_sdoe = MX50_PAD_EPDC_SDOE__GPIO_3_23;
-	struct pad_desc epdc_sdle = MX50_PAD_EPDC_SDLE__GPIO_3_24;
-	struct pad_desc epdc_sdshr = MX50_PAD_EPDC_SDSHR__GPIO_3_26;
-	struct pad_desc epdc_bdr0 = MX50_PAD_EPDC_BDR0__GPIO_4_23;
-	struct pad_desc epdc_sdce0 = MX50_PAD_EPDC_SDCE0__GPIO_4_25;
-	struct pad_desc epdc_sdce1 = MX50_PAD_EPDC_SDCE1__GPIO_4_26;
-	struct pad_desc epdc_sdce2 = MX50_PAD_EPDC_SDCE2__GPIO_4_27;
-
 	/* Configure MUX settings for EPDC pins to
 	 * GPIO and drive to 0. */
-	mxc_iomux_v3_setup_pad(&epdc_d0);
-	mxc_iomux_v3_setup_pad(&epdc_d1);
-	mxc_iomux_v3_setup_pad(&epdc_d2);
-	mxc_iomux_v3_setup_pad(&epdc_d3);
-	mxc_iomux_v3_setup_pad(&epdc_d4);
-	mxc_iomux_v3_setup_pad(&epdc_d5);
-	mxc_iomux_v3_setup_pad(&epdc_d6);
-	mxc_iomux_v3_setup_pad(&epdc_d7);
-	mxc_iomux_v3_setup_pad(&epdc_gdclk);
-	mxc_iomux_v3_setup_pad(&epdc_gdsp);
-	mxc_iomux_v3_setup_pad(&epdc_gdoe);
-	mxc_iomux_v3_setup_pad(&epdc_gdrl);
-	mxc_iomux_v3_setup_pad(&epdc_sdclk);
-	mxc_iomux_v3_setup_pad(&epdc_sdoe);
-	mxc_iomux_v3_setup_pad(&epdc_sdle);
-	mxc_iomux_v3_setup_pad(&epdc_sdshr);
-	mxc_iomux_v3_setup_pad(&epdc_bdr0);
-	mxc_iomux_v3_setup_pad(&epdc_sdce0);
-	mxc_iomux_v3_setup_pad(&epdc_sdce1);
-	mxc_iomux_v3_setup_pad(&epdc_sdce2);
+	mxc_iomux_v3_setup_multiple_pads(mx50_epdc_pads_disabled, \
+				ARRAY_SIZE(mx50_epdc_pads_disabled));
 
 	gpio_direction_output(EPDC_D0, 0);
 	gpio_direction_output(EPDC_D1, 0);
@@ -736,7 +704,6 @@ static struct mxc_epdc_fb_platform_data epdc_data = {
 	.disable_pins = epdc_disable_pins,
 };
 
-
 static struct max17135_platform_data max17135_pdata __initdata = {
 	.vneg_pwrup = 1,
 	.gvee_pwrup = 1,
@@ -752,36 +719,6 @@ static struct max17135_platform_data max17135_pdata __initdata = {
 	.gpio_pmic_intr = EPDC_PMIC_INT,
 	.regulator_init = max17135_init_data,
 };
-
-static int __initdata max17135_pass_num = { 1 };
-static int __initdata max17135_vcom = { -1250000 };
-/*
- * Parse user specified options (`max17135:')
- * example:
- * 	max17135:pass=2,vcom=-1250000
- */
-static int __init max17135_setup(char *options)
-{
-	char *opt;
-	while ((opt = strsep(&options, ",")) != NULL) {
-		if (!*opt)
-			continue;
-		if (!strncmp(opt, "pass=", 5))
-			max17135_pass_num =
-				simple_strtoul(opt + 5, NULL, 0);
-		if (!strncmp(opt, "vcom=", 5)) {
-			int offs = 5;
-			if (opt[5] == '-')
-				offs = 6;
-			max17135_vcom =
-				simple_strtoul(opt + offs, NULL, 0);
-			max17135_vcom = -max17135_vcom;
-		}
-	}
-	return 1;
-}
-
-__setup("max17135:", max17135_setup);
 
 static struct i2c_board_info mxc_i2c1_board_info[] __initdata = {
 	{
@@ -1184,8 +1121,6 @@ static void __init mxc_board_init(void)
 				ARRAY_SIZE(mxc_dataflash_device));
 	i2c_register_board_info(1, mxc_i2c1_board_info,
 				ARRAY_SIZE(mxc_i2c1_board_info));
-	max17135_pdata.pass_num = max17135_pass_num;
-	max17135_pdata.vcom_uV = max17135_vcom;
 	i2c_register_board_info(2, mxc_i2c2_board_info,
 				ARRAY_SIZE(mxc_i2c2_board_info));
 
