@@ -418,6 +418,7 @@ struct mxc_mlb_platform_data {
 struct flexcan_platform_data {
 	char *core_reg;
 	char *io_reg;
+	char *root_clk_id;
 	void (*xcvr_enable) (int id, int en);
 	void (*active) (int id);
 	void (*inactive) (int id);
