@@ -188,13 +188,10 @@
 #define GSL_TIMEOUT_NONE                        0
 #define GSL_TIMEOUT_DEFAULT                     0xFFFFFFFF
 
-#ifdef _LINUX
-#define GSL_PAGESIZE                            PAGE_SIZE
-#define GSL_PAGESIZE_SHIFT                      PAGE_SHIFT
-#else
 #define GSL_PAGESIZE                            0x1000
 #define GSL_PAGESIZE_SHIFT                      12
-#endif
+
+#define GSL_TIMESTAMP_EPSILON           20000
 
 //////////////////////////////////////////////////////////////////////////////
 // types
@@ -407,6 +404,7 @@ typedef struct _gsl_rect_t {
     unsigned int y;
     unsigned int width;
     unsigned int height;
+	unsigned int pitch;
 } gsl_rect_t;
 
 // -----------------------
@@ -414,8 +412,10 @@ typedef struct _gsl_rect_t {
 // -----------------------
 typedef struct _gsl_buffer_desc_t {
     gsl_memdesc_t data;
-    unsigned int stride_bytes;
-    unsigned int bpp;
+	unsigned int width;
+	unsigned int height;
+	unsigned int pitch;
+	unsigned int format;
     unsigned int enabled;
 } gsl_buffer_desc_t;
 

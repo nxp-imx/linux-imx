@@ -50,6 +50,10 @@ typedef struct _kgsl_device_idle_t {
     unsigned int    timeout;
 } kgsl_device_idle_t;
 
+typedef struct _kgsl_device_isidle_t {
+    gsl_deviceid_t  device_id;
+} kgsl_device_isidle_t;
+
 typedef struct _kgsl_device_getproperty_t {
     gsl_deviceid_t  device_id;
     gsl_property_type_t type;
@@ -209,29 +213,30 @@ typedef struct _kgsl_device_clock_t {
 #define IOCTL_KGSL_DEVICE_START                 _IOW(GSL_MAGIC, 0x20, struct _kgsl_device_start_t)
 #define IOCTL_KGSL_DEVICE_STOP                  _IOW(GSL_MAGIC, 0x21, struct _kgsl_device_stop_t)
 #define IOCTL_KGSL_DEVICE_IDLE                  _IOW(GSL_MAGIC, 0x22, struct _kgsl_device_idle_t)
-#define IOCTL_KGSL_DEVICE_GETPROPERTY           _IOWR(GSL_MAGIC, 0x23, struct _kgsl_device_getproperty_t)
-#define IOCTL_KGSL_DEVICE_SETPROPERTY           _IOW(GSL_MAGIC, 0x24, struct _kgsl_device_setproperty_t)
-#define IOCTL_KGSL_DEVICE_REGREAD               _IOWR(GSL_MAGIC, 0x25, struct _kgsl_device_regread_t)
-#define IOCTL_KGSL_DEVICE_REGWRITE              _IOW(GSL_MAGIC, 0x26, struct _kgsl_device_regwrite_t)
-#define IOCTL_KGSL_DEVICE_WAITIRQ               _IOWR(GSL_MAGIC, 0x27, struct _kgsl_device_waitirq_t)
-#define IOCTL_KGSL_CMDSTREAM_ISSUEIBCMDS        _IOWR(GSL_MAGIC, 0x28, struct _kgsl_cmdstream_issueibcmds_t)
-#define IOCTL_KGSL_CMDSTREAM_READTIMESTAMP      _IOWR(GSL_MAGIC, 0x29, struct _kgsl_cmdstream_readtimestamp_t)
-#define IOCTL_KGSL_CMDSTREAM_FREEMEMONTIMESTAMP _IOW(GSL_MAGIC, 0x2A, struct _kgsl_cmdstream_freememontimestamp_t)
-#define IOCTL_KGSL_CMDSTREAM_WAITTIMESTAMP      _IOW(GSL_MAGIC, 0x2B, struct _kgsl_cmdstream_waittimestamp_t)
-#define IOCTL_KGSL_CMDWINDOW_WRITE              _IOW(GSL_MAGIC, 0x2C, struct _kgsl_cmdwindow_write_t)
-#define IOCTL_KGSL_CONTEXT_CREATE               _IOWR(GSL_MAGIC, 0x2D, struct _kgsl_context_create_t)
-#define IOCTL_KGSL_CONTEXT_DESTROY              _IOW(GSL_MAGIC, 0x2E, struct _kgsl_context_destroy_t)
-#define IOCTL_KGSL_DRAWCTXT_BIND_GMEM_SHADOW    _IOW(GSL_MAGIC, 0x2F, struct _kgsl_drawctxt_bind_gmem_shadow_t)
-#define IOCTL_KGSL_SHAREDMEM_ALLOC              _IOWR(GSL_MAGIC, 0x30, struct _kgsl_sharedmem_alloc_t)
-#define IOCTL_KGSL_SHAREDMEM_FREE               _IOW(GSL_MAGIC, 0x31, struct _kgsl_sharedmem_free_t)
-#define IOCTL_KGSL_SHAREDMEM_READ               _IOWR(GSL_MAGIC, 0x32, struct _kgsl_sharedmem_read_t)
-#define IOCTL_KGSL_SHAREDMEM_WRITE              _IOW(GSL_MAGIC, 0x33, struct _kgsl_sharedmem_write_t)
-#define IOCTL_KGSL_SHAREDMEM_SET                _IOW(GSL_MAGIC, 0x34, struct _kgsl_sharedmem_set_t)
-#define IOCTL_KGSL_SHAREDMEM_LARGESTFREEBLOCK   _IOWR(GSL_MAGIC, 0x35, struct _kgsl_sharedmem_largestfreeblock_t)
-#define IOCTL_KGSL_SHAREDMEM_CACHEOPERATION     _IOW(GSL_MAGIC, 0x36, struct _kgsl_sharedmem_cacheoperation_t)
-#define IOCTL_KGSL_SHAREDMEM_FROMHOSTPOINTER    _IOW(GSL_MAGIC, 0x37, struct _kgsl_sharedmem_fromhostpointer_t)
-#define IOCTL_KGSL_ADD_TIMESTAMP                _IOWR(GSL_MAGIC, 0x38, struct _kgsl_add_timestamp_t)
-#define IOCTL_KGSL_DRIVER_EXIT		        _IOWR(GSL_MAGIC, 0x39, NULL)
+#define IOCTL_KGSL_DEVICE_ISIDLE                _IOR(GSL_MAGIC, 0x23, struct _kgsl_device_isidle_t)
+#define IOCTL_KGSL_DEVICE_GETPROPERTY           _IOWR(GSL_MAGIC, 0x24, struct _kgsl_device_getproperty_t)
+#define IOCTL_KGSL_DEVICE_SETPROPERTY           _IOW(GSL_MAGIC, 0x25, struct _kgsl_device_setproperty_t)
+#define IOCTL_KGSL_DEVICE_REGREAD               _IOWR(GSL_MAGIC, 0x26, struct _kgsl_device_regread_t)
+#define IOCTL_KGSL_DEVICE_REGWRITE              _IOW(GSL_MAGIC, 0x27, struct _kgsl_device_regwrite_t)
+#define IOCTL_KGSL_DEVICE_WAITIRQ               _IOWR(GSL_MAGIC, 0x28, struct _kgsl_device_waitirq_t)
+#define IOCTL_KGSL_CMDSTREAM_ISSUEIBCMDS        _IOWR(GSL_MAGIC, 0x29, struct _kgsl_cmdstream_issueibcmds_t)
+#define IOCTL_KGSL_CMDSTREAM_READTIMESTAMP      _IOWR(GSL_MAGIC, 0x2A, struct _kgsl_cmdstream_readtimestamp_t)
+#define IOCTL_KGSL_CMDSTREAM_FREEMEMONTIMESTAMP _IOW(GSL_MAGIC, 0x2B, struct _kgsl_cmdstream_freememontimestamp_t)
+#define IOCTL_KGSL_CMDSTREAM_WAITTIMESTAMP      _IOW(GSL_MAGIC, 0x2C, struct _kgsl_cmdstream_waittimestamp_t)
+#define IOCTL_KGSL_CMDWINDOW_WRITE              _IOW(GSL_MAGIC, 0x2D, struct _kgsl_cmdwindow_write_t)
+#define IOCTL_KGSL_CONTEXT_CREATE               _IOWR(GSL_MAGIC, 0x2E, struct _kgsl_context_create_t)
+#define IOCTL_KGSL_CONTEXT_DESTROY              _IOW(GSL_MAGIC, 0x2F, struct _kgsl_context_destroy_t)
+#define IOCTL_KGSL_DRAWCTXT_BIND_GMEM_SHADOW    _IOW(GSL_MAGIC, 0x30, struct _kgsl_drawctxt_bind_gmem_shadow_t)
+#define IOCTL_KGSL_SHAREDMEM_ALLOC              _IOWR(GSL_MAGIC, 0x31, struct _kgsl_sharedmem_alloc_t)
+#define IOCTL_KGSL_SHAREDMEM_FREE               _IOW(GSL_MAGIC, 0x32, struct _kgsl_sharedmem_free_t)
+#define IOCTL_KGSL_SHAREDMEM_READ               _IOWR(GSL_MAGIC, 0x33, struct _kgsl_sharedmem_read_t)
+#define IOCTL_KGSL_SHAREDMEM_WRITE              _IOW(GSL_MAGIC, 0x34, struct _kgsl_sharedmem_write_t)
+#define IOCTL_KGSL_SHAREDMEM_SET                _IOW(GSL_MAGIC, 0x35, struct _kgsl_sharedmem_set_t)
+#define IOCTL_KGSL_SHAREDMEM_LARGESTFREEBLOCK   _IOWR(GSL_MAGIC, 0x36, struct _kgsl_sharedmem_largestfreeblock_t)
+#define IOCTL_KGSL_SHAREDMEM_CACHEOPERATION     _IOW(GSL_MAGIC, 0x37, struct _kgsl_sharedmem_cacheoperation_t)
+#define IOCTL_KGSL_SHAREDMEM_FROMHOSTPOINTER    _IOW(GSL_MAGIC, 0x38, struct _kgsl_sharedmem_fromhostpointer_t)
+#define IOCTL_KGSL_ADD_TIMESTAMP                _IOWR(GSL_MAGIC, 0x39, struct _kgsl_add_timestamp_t)
+#define IOCTL_KGSL_DRIVER_EXIT		        _IOWR(GSL_MAGIC, 0x3A, NULL)
 #define IOCTL_KGSL_DEVICE_CLOCK			_IOWR(GSL_MAGIC, 0x60, struct _kgsl_device_clock_t)
 
 

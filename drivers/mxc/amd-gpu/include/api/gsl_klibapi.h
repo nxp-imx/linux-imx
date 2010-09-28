@@ -74,6 +74,7 @@ KGSL_API int                kgsl_driver_destroy(unsigned int pid);
 KGSL_API int                kgsl_device_start(gsl_deviceid_t device_id, gsl_flags_t flags);
 KGSL_API int                kgsl_device_stop(gsl_deviceid_t device_id);
 KGSL_API int                kgsl_device_idle(gsl_deviceid_t device_id, unsigned int timeout);
+KGSL_API int                kgsl_device_isidle(gsl_deviceid_t device_id);
 KGSL_API int                kgsl_device_getproperty(gsl_deviceid_t device_id, gsl_property_type_t type, void *value, unsigned int sizebytes);
 KGSL_API int                kgsl_device_setproperty(gsl_deviceid_t device_id, gsl_property_type_t type, void *value, unsigned int sizebytes);
 KGSL_API int                kgsl_device_regread(gsl_deviceid_t device_id, unsigned int offsetwords, unsigned int *value);

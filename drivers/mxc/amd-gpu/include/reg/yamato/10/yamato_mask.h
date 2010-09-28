@@ -28,20 +28,6 @@
 
 #if !defined (_yamato_MASK_HEADER)
 #define _yamato_MASK_HEADER
-/*
-*   yamato_mask.h
-*
-*   Register Spec Release:  Chip Spec 1.0
-*
-*
-*    (c) 2000 ATI Technologies Inc.  (unpublished)
-*
-*    All rights reserved.  This notice is intended as a precaution against
-*    inadvertent publication and does not imply publication or any waiver
-*    of confidentiality.  The year included in the foregoing notice is the
-*    year of creation of the work.
-*
-*/
 
 // PA_CL_VPORT_XSCALE
 #define PA_CL_VPORT_XSCALE__VPORT_XSCALE_MASK              0xffffffffL

@@ -488,6 +488,13 @@ kgsl_yamato_start(gsl_device_t *device, gsl_flags_t flags)
 int
 kgsl_yamato_stop(gsl_device_t *device)
 {
+	// HW WORKAROUND: Ringbuffer hangs during next start if it is stopped without any
+	// commands ever being submitted. To avoid this, submit a dummy wait packet.
+	unsigned int cmds[2];
+    cmds[0] = pm4_type3_packet(PM4_WAIT_FOR_IDLE, 1);
+    cmds[0] = 0;
+	kgsl_ringbuffer_issuecmds(device, 0, cmds, 2, GSL_CALLER_PROCESSID_GET());
+
     // disable rbbm interrupts
     kgsl_intr_detach(&device->intr, GSL_INTR_YDX_RBBM_READ_ERROR);
     kgsl_intr_detach(&device->intr, GSL_INTR_YDX_RBBM_DISPLAY_UPDATE);
@@ -732,6 +739,8 @@ kgsl_yamato_idle(gsl_device_t *device, unsigned int timeout)
 
     KGSL_DEBUG(GSL_DBGFLAGS_DUMPX, KGSL_DEBUG_DUMPX(BB_DUMP_REGPOLL, device->id, mmRBBM_STATUS, 0x80000000, "kgsl_yamato_idle"));
 
+    GSL_RB_MUTEX_LOCK();
+
     // first, wait until the CP has consumed all the commands in the ring buffer
     if (rb->flags & GSL_FLAGS_STARTED)
     {
@@ -754,6 +763,8 @@ kgsl_yamato_idle(gsl_device_t *device, unsigned int timeout)
         }
 
     }
+	
+    GSL_RB_MUTEX_UNLOCK();
 
     return (status);
 }

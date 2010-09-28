@@ -135,6 +135,9 @@ typedef struct _gsl_tlbflushfilter_t {
 // mmu object
 // ----------
 typedef struct _gsl_mmu_t {
+#ifdef GSL_LOCKING_FINEGRAIN
+    oshandle_t            mutex;
+#endif
     unsigned int          refcnt;
     gsl_flags_t           flags;
     gsl_device_t          *device;

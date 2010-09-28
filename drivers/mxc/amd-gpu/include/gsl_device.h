@@ -91,12 +91,18 @@ struct _gsl_device_t {
 #ifdef GSL_BLD_YAMATO
     gsl_memregion_t   gmemspace;
     gsl_ringbuffer_t  ringbuffer;
+#ifdef GSL_LOCKING_FINEGRAIN
+    oshandle_t        drawctxt_mutex;
+#endif
     unsigned int      drawctxt_count;
     gsl_drawctxt_t    *drawctxt_active;
     gsl_drawctxt_t    drawctxt[GSL_CONTEXT_MAX];
 #endif // GSL_BLD_YAMATO
 
 #ifdef GSL_BLD_G12
+#ifdef GSL_LOCKING_FINEGRAIN
+    oshandle_t        cmdwindow_mutex;
+#endif
     unsigned int      intrcnt[GSL_G12_INTR_COUNT];
     gsl_timestamp_t   current_timestamp;
     gsl_timestamp_t   timestamp;
@@ -108,6 +114,9 @@ struct _gsl_device_t {
     oshandle_t        irqthread_event;
 #endif
 #endif // GSL_BLD_G12
+#ifdef GSL_LOCKING_FINEGRAIN
+    oshandle_t        cmdstream_mutex;
+#endif
 #ifndef _LINUX	
     oshandle_t        timestamp_event;
 #else

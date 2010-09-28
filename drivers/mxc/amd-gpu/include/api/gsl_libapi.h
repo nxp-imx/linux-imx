@@ -65,6 +65,7 @@ GSL_API int                     gsl_library_close(void);
 GSL_API gsl_devhandle_t         gsl_device_open(gsl_deviceid_t device_id, gsl_flags_t flags);
 GSL_API int                     gsl_device_close(gsl_devhandle_t devhandle);
 GSL_API int                     gsl_device_idle(gsl_devhandle_t devhandle, unsigned int timeout);
+GSL_API int                     gsl_device_isidle(gsl_devhandle_t devhandle);
 GSL_API int                     gsl_device_getcount(void);
 GSL_API int                     gsl_device_getinfo(gsl_devhandle_t devhandle, gsl_devinfo_t *devinfo);
 GSL_API int                     gsl_device_setpowerstate(gsl_devhandle_t devhandle, gsl_flags_t flags);

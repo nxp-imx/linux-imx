@@ -59,13 +59,21 @@ typedef struct _gmem_shadow_t
 
     // 256 KB GMEM surface = 4 bytes-per-pixel x 256 pixels/row x 256 rows.
     // width & height must be a multiples of 32, in case tiled textures are used.
-    unsigned int    size;       // Size of surface used to store GMEM
+    unsigned int    size;           // Size of surface used to store GMEM
     unsigned int    width;          // Width of surface used to store GMEM
     unsigned int    height;         // Height of surface used to store GMEM
     unsigned int    pitch;          // Pitch of surface used to store GMEM
+	unsigned int    format;         // Format of surface used to store GMEM
+
     int             offset;
-    unsigned int    offset_x;
-    unsigned int    offset_y;
+
+    unsigned int    offset_x;    
+	unsigned int    offset_y;
+
+	unsigned int	gmem_width;     // GMEM width
+	unsigned int	gmem_height;    // GMEM height
+	unsigned int    gmem_pitch;     // GMEM pitch
+
     unsigned int    gmem_offset_x;
     unsigned int    gmem_offset_y;
 

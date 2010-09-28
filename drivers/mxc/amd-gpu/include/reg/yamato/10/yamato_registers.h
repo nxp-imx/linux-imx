@@ -28,20 +28,6 @@
 
 #if !defined (_yamato_REG_HEADER)
 #define _yamato_REG_HEADER
-/*
-*   yamato_registers.h
-*
-*   Register Spec Release:  Chip Spec 1.0
-*
-*
-*    (c) 2000 ATI Technologies Inc.  (unpublished)
-*
-*    All rights reserved.  This notice is intended as a precaution against
-*    inadvertent publication and does not imply publication or any waiver
-*    of confidentiality.  The year included in the foregoing notice is the
-*    year of creation of the work.
-*
-*/
 
     union PA_CL_VPORT_XSCALE {
     struct {

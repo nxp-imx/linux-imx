@@ -7826,21 +7826,6 @@ typedef union {
 #if !defined (_RBBM_FIDDLE_H)
 #define _RBBM_FIDDLE_H
 
-/*****************************************************************************************************************
- *
- *  rbbm_reg.h
- *
- *  Register Spec Release:  Block Spec 1.0
- *
- *   (c) 2000 ATI Technologies Inc.  (unpublished)
- *
- *   All rights reserved.  This notice is intended as a precaution against
- *   inadvertent publication and does not imply publication or any waiver
- *   of confidentiality.  The year included in the foregoing notice is the
- *   year of creation of the work.
- *
- *****************************************************************************************************************/
-
 /*******************************************************
  * Enums
  *******************************************************/
@@ -10525,21 +10510,6 @@ typedef union {
 
 #if !defined (_MH_FIDDLE_H)
 #define _MH_FIDDLE_H
-
-/*****************************************************************************************************************
- *
- *  mh_reg.h
- *
- *  Register Spec Release:  Block Spec 1.0
- *
- *   (c) 2000 ATI Technologies Inc.  (unpublished)
- *
- *   All rights reserved.  This notice is intended as a precaution against
- *   inadvertent publication and does not imply publication or any waiver
- *   of confidentiality.  The year included in the foregoing notice is the
- *   year of creation of the work.
- *
- *****************************************************************************************************************/
 
 /*******************************************************
  * Enums
@@ -19151,21 +19121,6 @@ typedef union {
 #if !defined (_PA_FIDDLE_H)
 #define _PA_FIDDLE_H
 
-/*****************************************************************************************************************
- *
- *  pa_reg.h
- *
- *  Register Spec Release:  Block Spec 1.0
- *
- *   (c) 2000 ATI Technologies Inc.  (unpublished)
- *
- *   All rights reserved.  This notice is intended as a precaution against
- *   inadvertent publication and does not imply publication or any waiver
- *   of confidentiality.  The year included in the foregoing notice is the
- *   year of creation of the work.
- *
- *****************************************************************************************************************/
-
 /*******************************************************
  * Enums
  *******************************************************/
@@ -26983,21 +26938,6 @@ typedef union {
 #if !defined (_VGT_FIDDLE_H)
 #define _VGT_FIDDLE_H
 
-/*****************************************************************************************************************
- *
- *  vgt_reg.h
- *
- *  Register Spec Release:  Block Spec 1.0
- *
- *   (c) 2000 ATI Technologies Inc.  (unpublished)
- *
- *   All rights reserved.  This notice is intended as a precaution against
- *   inadvertent publication and does not imply publication or any waiver
- *   of confidentiality.  The year included in the foregoing notice is the
- *   year of creation of the work.
- *
- *****************************************************************************************************************/
-
 /*******************************************************
  * Enums
  *******************************************************/
@@ -32093,21 +32033,6 @@ typedef union {
 
 #if !defined (_SQ_FIDDLE_H)
 #define _SQ_FIDDLE_H
-
-/*****************************************************************************************************************
- *
- *  sq_reg.h
- *
- *  Register Spec Release:  Block Spec 1.0
- *
- *   (c) 2000 ATI Technologies Inc.  (unpublished)
- *
- *   All rights reserved.  This notice is intended as a precaution against
- *   inadvertent publication and does not imply publication or any waiver
- *   of confidentiality.  The year included in the foregoing notice is the
- *   year of creation of the work.
- *
- *****************************************************************************************************************/
 
 /*******************************************************
  * Enums
@@ -40867,21 +40792,6 @@ typedef union {
 #if !defined (_SX_FIDDLE_H)
 #define _SX_FIDDLE_H
 
-/*****************************************************************************************************************
- *
- *  sx_reg.h
- *
- *  Register Spec Release:  Block Spec 1.0
- *
- *   (c) 2000 ATI Technologies Inc.  (unpublished)
- *
- *   All rights reserved.  This notice is intended as a precaution against
- *   inadvertent publication and does not imply publication or any waiver
- *   of confidentiality.  The year included in the foregoing notice is the
- *   year of creation of the work.
- *
- *****************************************************************************************************************/
-
 /*******************************************************
  * Enums
  *******************************************************/
@@ -40901,21 +40811,6 @@ typedef union {
 
 #if !defined (_TP_FIDDLE_H)
 #define _TP_FIDDLE_H
-
-/*****************************************************************************************************************
- *
- *  tp_reg.h
- *
- *  Register Spec Release:  Block Spec 1.0
- *
- *   (c) 2000 ATI Technologies Inc.  (unpublished)
- *
- *   All rights reserved.  This notice is intended as a precaution against
- *   inadvertent publication and does not imply publication or any waiver
- *   of confidentiality.  The year included in the foregoing notice is the
- *   year of creation of the work.
- *
- *****************************************************************************************************************/
 
 /*******************************************************
  * Enums
@@ -47069,21 +46964,6 @@ typedef union {
 #if !defined (_TC_FIDDLE_H)
 #define _TC_FIDDLE_H
 
-/*****************************************************************************************************************
- *
- *  tc_reg.h
- *
- *  Register Spec Release:  Block Spec 1.0
- *
- *   (c) 2000 ATI Technologies Inc.  (unpublished)
- *
- *   All rights reserved.  This notice is intended as a precaution against
- *   inadvertent publication and does not imply publication or any waiver
- *   of confidentiality.  The year included in the foregoing notice is the
- *   year of creation of the work.
- *
- *****************************************************************************************************************/
-
 /*******************************************************
  * Enums
  *******************************************************/
@@ -47104,21 +46984,6 @@ typedef union {
 #if !defined (_SC_FIDDLE_H)
 #define _SC_FIDDLE_H
 
-/*****************************************************************************************************************
- *
- *  sc_reg.h
- *
- *  Register Spec Release:  Block Spec 1.0
- *
- *   (c) 2000 ATI Technologies Inc.  (unpublished)
- *
- *   All rights reserved.  This notice is intended as a precaution against
- *   inadvertent publication and does not imply publication or any waiver
- *   of confidentiality.  The year included in the foregoing notice is the
- *   year of creation of the work.
- *
- *****************************************************************************************************************/
-
 /*******************************************************
  * Enums
  *******************************************************/
@@ -47138,21 +47003,6 @@ typedef union {
 
 #if !defined (_BC_FIDDLE_H)
 #define _BC_FIDDLE_H
-
-/*****************************************************************************************************************
- *
- *  bc_reg.h
- *
- *  Register Spec Release:  Block Spec 1.0
- *
- *   (c) 2000 ATI Technologies Inc.  (unpublished)
- *
- *   All rights reserved.  This notice is intended as a precaution against
- *   inadvertent publication and does not imply publication or any waiver
- *   of confidentiality.  The year included in the foregoing notice is the
- *   year of creation of the work.
- *
- *****************************************************************************************************************/
 
 /*******************************************************
  * Enums

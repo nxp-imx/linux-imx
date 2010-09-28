@@ -24,9 +24,6 @@
 
 #ifdef GSL_BLD_YAMATO
 
-//#define DISABLE_SHADOW_WRITES
-
-/*
 //////////////////////////////////////////////////////////////////////////////
 //
 // Memory Map for Register, Constant & Instruction Shadow, and Command Buffers (34.5KB)
@@ -34,8 +31,8 @@
 // +---------------------+------------+-------------+---+---------------------+
 // | ALU Constant Shadow | Reg Shadow | C&V Buffers |Tex| Shader Instr Shadow |
 // +---------------------+------------+-------------+---+---------------------+
-//   ________________________________/               \___________________
-//  /                                                                    \
+//   ________________________________'               '___________________
+//  '                                                                    '
 // +--------------+-----------+------+-----------+------------------------+
 // | Restore Regs | Save Regs | Quad | Gmem Save | Gmem Restore | unused  |
 // +--------------+-----------+------+-----------+------------------------+
@@ -69,14 +66,10 @@
 // constants would require an additional 8KB each, for alignment.]
 //
 //////////////////////////////////////////////////////////////////////////////
-*/
 
 //////////////////////////////////////////////////////////////////////////////
 // Constants
 //////////////////////////////////////////////////////////////////////////////
-
-
-
 
 #define ALU_CONSTANTS           2048                // DWORDS
 #define NUM_REGISTERS           1024                // DWORDS
@@ -115,6 +108,23 @@
 #define SHADER_OFFSET           ((TEX_OFFSET + TEX_SHADOW_SIZE + 32) & ~31)
 
 #define CONTEXT_SIZE            (SHADER_OFFSET + 3 * SHADER_SHADOW_SIZE)
+
+
+/////////////////////////////////////////////////////////////////////////////
+// macros
+//////////////////////////////////////////////////////////////////////////////
+#ifdef GSL_LOCKING_FINEGRAIN
+#define GSL_CONTEXT_MUTEX_CREATE()          device->drawctxt_mutex = kos_mutex_create("gsl_drawctxt"); \
+                                            if (!device->drawctxt_mutex) {return (GSL_FAILURE);}
+#define GSL_CONTEXT_MUTEX_LOCK()            kos_mutex_lock(device->drawctxt_mutex)
+#define GSL_CONTEXT_MUTEX_UNLOCK()          kos_mutex_unlock(device->drawctxt_mutex)
+#define GSL_CONTEXT_MUTEX_FREE()            kos_mutex_free(device->drawctxt_mutex); device->drawctxt_mutex = 0;
+#else
+#define GSL_CONTEXT_MUTEX_CREATE()
+#define GSL_CONTEXT_MUTEX_LOCK()
+#define GSL_CONTEXT_MUTEX_UNLOCK()
+#define GSL_CONTEXT_MUTEX_FREE()
+#endif
 
 
 //////////////////////////////////////////////////////////////////////////////
@@ -392,6 +402,41 @@ static unsigned int gmem_copy_texcoord[TEXCOORD_LEN] = {
     0x3f800000, 0x00000000
 };
 
+#define NUM_COLOR_FORMATS   13
+
+static SurfaceFormat surface_format_table[NUM_COLOR_FORMATS] =
+{
+	FMT_4_4_4_4,		   // COLORX_4_4_4_4
+	FMT_1_5_5_5,		   // COLORX_1_5_5_5
+	FMT_5_6_5,		       // COLORX_5_6_5
+	FMT_8,			       // COLORX_8
+	FMT_8_8,		       // COLORX_8_8
+	FMT_8_8_8_8,		   // COLORX_8_8_8_8
+	FMT_8_8_8_8,		   // COLORX_S8_8_8_8
+	FMT_16_FLOAT,		   // COLORX_16_FLOAT
+	FMT_16_16_FLOAT,	   // COLORX_16_16_FLOAT
+	FMT_16_16_16_16_FLOAT, // COLORX_16_16_16_16_FLOAT
+	FMT_32_FLOAT,		   // COLORX_32_FLOAT
+	FMT_32_32_FLOAT,	   // COLORX_32_32_FLOAT
+	FMT_32_32_32_32_FLOAT, // COLORX_32_32_32_32_FLOAT
+};
+
+static unsigned int format2bytesperpixel[NUM_COLOR_FORMATS] =
+{
+    2,  // COLORX_4_4_4_4
+	2,  // COLORX_1_5_5_5
+	2,  // COLORX_5_6_5
+	1,  // COLORX_8
+	2,  // COLORX_8_8_8
+	4,  // COLORX_8_8_8_8
+	4,  // COLORX_S8_8_8_8
+	2,  // COLORX_16_FLOAT
+	4,  // COLORX_16_16_FLOAT
+	8,  // COLORX_16_16_16_16_FLOAT
+	4,  // COLORX_32_FLOAT
+	8,  // COLORX_32_32_FLOAT
+	16, // COLORX_32_32_32_32_FLOAT
+};
 
 //////////////////////////////////////////////////////////////////////////////
 // shader linkage info
@@ -426,10 +471,14 @@ config_gmemsize(gmem_shadow_t *shadow, int gmem_size)
             h *= 2;
 
     shadow->width  = w;
-    shadow->pitch  = w;
     shadow->height = h;
+    shadow->pitch  = w;
+	shadow->format = COLORX_8_8_8_8;
+    shadow->size   = shadow->pitch * shadow->height * 4;
 
-    shadow->size = shadow->pitch * shadow->height * 4;
+	shadow->gmem_width  = w;
+	shadow->gmem_height = h;
+	shadow->gmem_pitch  = w;
 }
 
 
@@ -490,7 +539,7 @@ reg_to_mem(unsigned int *cmds, gpuaddr_t dst, gpuaddr_t src, int dwords)
 
 #ifdef DISABLE_SHADOW_WRITES
 
-static void build_reg_to_mem_range(unsigned int start, unsigned int end, unsigned int** cmd, /*ctx_t *ctx, unsigned int* offset) //*/gsl_drawctxt_t *drawctxt)
+static void build_reg_to_mem_range(unsigned int start, unsigned int end, unsigned int** cmd, gsl_drawctxt_t *drawctxt)
 {
     unsigned int i = start;
 
@@ -687,16 +736,19 @@ build_gmem2sys_cmds(gsl_drawctxt_t *drawctxt, ctx_t* ctx, gmem_shadow_t *shadow)
     // change colour buffer to RGBA8888, MSAA = 1, and matching pitch
     *cmds++ = pm4_type3_packet(PM4_SET_CONSTANT, 3);
     *cmds++ = PM4_REG(mmRB_SURFACE_INFO);
-    *cmds++ = drawctxt->context_gmem_shadow.pitch; // GMEM pitch is equal to context GMEM shadow pitch
+    *cmds++ = shadow->gmem_pitch;
 
     // RB_COLOR_INFO        Endian=none, Linear, Format=RGBA8888, Swap=0, Base=gmem_base
     if( ctx )
     {
         KOS_ASSERT((ctx->gmem_base & 0xFFF) == 0);   // gmem base assumed 4K aligned.
-        *cmds++ = (COLORX_8_8_8_8 << RB_COLOR_INFO__COLOR_FORMAT__SHIFT) | ctx->gmem_base;
+        *cmds++ = (shadow->format << RB_COLOR_INFO__COLOR_FORMAT__SHIFT) | ctx->gmem_base;
     }
     else
-        cmds++;
+    {
+		unsigned int temp = *cmds;
+		*cmds++ = (temp & ~RB_COLOR_INFO__COLOR_FORMAT_MASK) | (shadow->format << RB_COLOR_INFO__COLOR_FORMAT__SHIFT);
+    }
 
     // disable Z
     *cmds++ = pm4_type3_packet(PM4_SET_CONSTANT, 2);
@@ -714,12 +766,12 @@ build_gmem2sys_cmds(gsl_drawctxt_t *drawctxt, ctx_t* ctx, gmem_shadow_t *shadow)
     // set the scissor to the extents of the draw surface
     *cmds++ = pm4_type3_packet(PM4_SET_CONSTANT, 3);
     *cmds++ = PM4_REG(mmPA_SC_SCREEN_SCISSOR_TL);
-    *cmds++ = (0 << 16) | 0;
-    *cmds++ = (drawctxt->context_gmem_shadow.height << 16) | drawctxt->context_gmem_shadow.width;
+    *cmds++ = (shadow->gmem_offset_y << 16) | shadow->gmem_offset_x;
+    *cmds++ = (shadow->gmem_height << 16) | shadow->gmem_width;
     *cmds++ = pm4_type3_packet(PM4_SET_CONSTANT, 3);
     *cmds++ = PM4_REG(mmPA_SC_WINDOW_SCISSOR_TL);
-    *cmds++ = (unsigned int) ((1U << 31) | (0 << 16) | 0);
-    *cmds++ = (drawctxt->context_gmem_shadow.height << 16) | drawctxt->context_gmem_shadow.width;
+    *cmds++ = (1U << 31) | (0 << 16) | 0;
+    *cmds++ = (shadow->height << 16) | shadow->width;
 
     // load the viewport so that z scale = clear depth and z offset = 0.0f
     *cmds++ = pm4_type3_packet(PM4_SET_CONSTANT, 3);
@@ -732,19 +784,18 @@ build_gmem2sys_cmds(gsl_drawctxt_t *drawctxt, ctx_t* ctx, gmem_shadow_t *shadow)
     *cmds++ = PM4_REG(mmRB_COPY_CONTROL);
     *cmds++ = 0;                                                // RB_COPY_CONTROL
 
-    *cmds++ = (shadow->gmemshadow.gpuaddr+shadow->offset*4) & 0xfffff000;   // RB_COPY_DEST_BASE
-
-    *cmds++ = shadow->pitch >> 5;           // RB_COPY_DEST_PITCH
-    *cmds++ = 0x0003c058;                   // Endian=none, Linear, Format=RGBA8888,Swap=0,!Dither,MaskWrite:R=G=B=A=1
-
     {
         // Calculate the new offset based on the adjusted base
-        unsigned int addr = (shadow->gmemshadow.gpuaddr+shadow->offset*4);
-        unsigned int offset = (addr-(addr&0xfffff000))/4;
+		unsigned int bytesperpixel = format2bytesperpixel[shadow->format];
+		unsigned int addr = (shadow->gmemshadow.gpuaddr + shadow->offset * bytesperpixel);
+		unsigned int offset = (addr - (addr & 0xfffff000)) / bytesperpixel;
 
-        kos_assert( (offset & 0xfffff000) == 0 ); // Make sure we stay in offsetx field.
+		*cmds++ = addr & 0xfffff000;   // RB_COPY_DEST_BASE
+		*cmds++ = shadow->pitch >> 5;  // RB_COPY_DEST_PITCH
+		*cmds++ = 0x0003c008 | (shadow->format << RB_COPY_DEST_INFO__COPY_DEST_FORMAT__SHIFT); // Endian=none, Linear, Format=RGBA8888,Swap=0,!Dither,MaskWrite:R=G=B=A=1
 
-        *cmds++ = offset;
+        KOS_ASSERT( (offset & 0xfffff000) == 0 ); // Make sure we stay in offsetx field.
+		*cmds++ = offset;
     }
 
     *cmds++ = pm4_type3_packet(PM4_SET_CONSTANT, 2);
@@ -851,7 +902,6 @@ build_sys2gmem_cmds(gsl_drawctxt_t *drawctxt, ctx_t* ctx, gmem_shadow_t *shadow)
 
     *cmds++ = pm4_type3_packet(PM4_SET_CONSTANT, 2);
     *cmds++ = PM4_REG(mmSQ_INTERPOLATOR_CNTL);
-    //*cmds++ = 0x0000ffff; //mmSQ_INTERPOLATOR_CNTL
     *cmds++ = 0xffffffff; //mmSQ_INTERPOLATOR_CNTL
 
     *cmds++ = pm4_type3_packet(PM4_SET_CONSTANT, 2);
@@ -872,38 +922,40 @@ build_sys2gmem_cmds(gsl_drawctxt_t *drawctxt, ctx_t* ctx, gmem_shadow_t *shadow)
     *cmds++ = (0x1 << 16) | (0 * 6);
     kos_memcpy(cmds, sys2gmem_tex_const, SYS2GMEM_TEX_CONST_LEN<<2);
     cmds[0] |= (shadow->pitch >> 5) << 22;
-    cmds[1] |= shadow->gmemshadow.gpuaddr;
+    cmds[1] |= shadow->gmemshadow.gpuaddr | surface_format_table[shadow->format];
     cmds[2] |= (shadow->width+shadow->offset_x-1) | (shadow->height+shadow->offset_y-1) << 13;
     cmds += SYS2GMEM_TEX_CONST_LEN;
 
     // change colour buffer to RGBA8888, MSAA = 1, and matching pitch
     *cmds++ = pm4_type3_packet(PM4_SET_CONSTANT, 3);
     *cmds++ = PM4_REG(mmRB_SURFACE_INFO);
-    *cmds++ = drawctxt->context_gmem_shadow.pitch; // GMEM pitch is equal to context GMEM shadow pitch
-
+    *cmds++ = shadow->gmem_pitch; // GMEM pitch is equal to context GMEM shadow pitch
 
     // RB_COLOR_INFO        Endian=none, Linear, Format=RGBA8888, Swap=0, Base=gmem_base
     if( ctx )
-        *cmds++ = (COLORX_8_8_8_8 << RB_COLOR_INFO__COLOR_FORMAT__SHIFT) | ctx->gmem_base;
+	{
+        *cmds++ = (shadow->format << RB_COLOR_INFO__COLOR_FORMAT__SHIFT) | ctx->gmem_base;
+	}
     else
-        cmds++;
+	{
+		unsigned int temp = *cmds;
+		*cmds++ = (temp & ~RB_COLOR_INFO__COLOR_FORMAT_MASK) | (shadow->format << RB_COLOR_INFO__COLOR_FORMAT__SHIFT);
+	}
 
     // RB_DEPTHCONTROL
     *cmds++ = pm4_type3_packet(PM4_SET_CONSTANT, 2);
     *cmds++ = PM4_REG(mmRB_DEPTHCONTROL);
     *cmds++ = 0;                            // disable Z
 
-
     // set the scissor to the extents of the draw surface
     *cmds++ = pm4_type3_packet(PM4_SET_CONSTANT, 3);
     *cmds++ = PM4_REG(mmPA_SC_SCREEN_SCISSOR_TL);
     *cmds++ = (0 << 16) | 0;
-    *cmds++ = (drawctxt->context_gmem_shadow.height << 16) | drawctxt->context_gmem_shadow.width;
-
+    *cmds++ = (shadow->height << 16) | shadow->width;
     *cmds++ = pm4_type3_packet(PM4_SET_CONSTANT, 3);
     *cmds++ = PM4_REG(mmPA_SC_WINDOW_SCISSOR_TL);
-    *cmds++ = (unsigned int) ((1U << 31) | (shadow->gmem_offset_y << 16) | shadow->gmem_offset_x);
-    *cmds++ = (drawctxt->context_gmem_shadow.height << 16) | drawctxt->context_gmem_shadow.width;
+    *cmds++ = (1U << 31) | (shadow->gmem_offset_y << 16) | shadow->gmem_offset_x;
+    *cmds++ = (shadow->gmem_height << 16) | shadow->gmem_width;
 
     // PA_CL_VTE_CNTL
     *cmds++ = pm4_type3_packet(PM4_SET_CONSTANT, 2);
@@ -966,10 +1018,6 @@ build_regrestore_cmds(gsl_drawctxt_t *drawctxt, ctx_t *ctx)
     unsigned int *start = ctx->cmd;
     unsigned int *cmd = start;
 
-
-    //*cmd++ = pm4_type3_packet(PM4_WAIT_FOR_IDLE, 1);
-    //*cmd++ = 0;
-
     // H/W Registers
     cmd++; // deferred pm4_type3_packet(PM4_LOAD_CONSTANT_CONTEXT, ???);
 #ifdef DISABLE_SHADOW_WRITES
@@ -983,7 +1031,7 @@ build_regrestore_cmds(gsl_drawctxt_t *drawctxt, ctx_t *ctx)
     cmd = reg_range(cmd, mmVGT_MAX_VTX_INDX,                mmPA_CL_VPORT_ZOFFSET);
     cmd = reg_range(cmd, mmSQ_PROGRAM_CNTL,                 mmSQ_WRAPPING_1);
     cmd = reg_range(cmd, mmRB_DEPTHCONTROL,                 mmRB_MODECONTROL);
-    cmd = reg_range(cmd, mmPA_SU_POINT_SIZE,                mmPA_SC_VIZ_QUERY/*mmVGT_ENHANCE*/);
+    cmd = reg_range(cmd, mmPA_SU_POINT_SIZE,                mmPA_SC_VIZ_QUERY);
     cmd = reg_range(cmd, mmPA_SC_LINE_CNTL,                 mmRB_COLOR_DEST_MASK);
     cmd = reg_range(cmd, mmPA_SU_POLY_OFFSET_FRONT_SCALE,   mmPA_SU_POLY_OFFSET_BACK_OFFSET);
 
@@ -1062,10 +1110,10 @@ static void set_gmem_copy_quad( gmem_shadow_t* shadow )
 
     // set vertex buffer values
 
-    gmem_copy_quad[1] = uint2float( shadow->height + shadow->gmem_offset_y );
-    gmem_copy_quad[3] = uint2float( shadow->width + shadow->gmem_offset_x );
-    gmem_copy_quad[4] = uint2float( shadow->height + shadow->gmem_offset_y );
-    gmem_copy_quad[9] = uint2float( shadow->width + shadow->gmem_offset_x );
+    gmem_copy_quad[1] = uint2float( shadow->gmem_height + shadow->gmem_offset_y );
+    gmem_copy_quad[3] = uint2float( shadow->gmem_width + shadow->gmem_offset_x );
+    gmem_copy_quad[4] = uint2float( shadow->gmem_height + shadow->gmem_offset_y );
+    gmem_copy_quad[9] = uint2float( shadow->gmem_width + shadow->gmem_offset_x );
 
     gmem_copy_quad[0] = uint2float( shadow->gmem_offset_x );
     gmem_copy_quad[6] = uint2float( shadow->gmem_offset_x );
@@ -1358,6 +1406,8 @@ create_gmem_shadow(gsl_device_t *device, gsl_drawctxt_t *drawctxt, ctx_t *ctx)
 int
 kgsl_drawctxt_init(gsl_device_t *device)
 {
+    GSL_CONTEXT_MUTEX_CREATE();
+
     return (GSL_SUCCESS);
 }
 
@@ -1369,6 +1419,8 @@ kgsl_drawctxt_init(gsl_device_t *device)
 int
 kgsl_drawctxt_close(gsl_device_t *device)
 {
+    GSL_CONTEXT_MUTEX_FREE();
+
     return (GSL_SUCCESS);
 }
 
@@ -1386,8 +1438,10 @@ kgsl_drawctxt_create(gsl_device_t* device, gsl_context_type_t type, unsigned int
 
     kgsl_device_active(device);
     
+    GSL_CONTEXT_MUTEX_LOCK();
     if (device->drawctxt_count >= GSL_CONTEXT_MAX)
     {
+        GSL_CONTEXT_MUTEX_UNLOCK();
         return (GSL_FAILURE);
     }
 
@@ -1403,6 +1457,7 @@ kgsl_drawctxt_create(gsl_device_t* device, gsl_context_type_t type, unsigned int
 
     if (index >= GSL_CONTEXT_MAX)
     {
+        GSL_CONTEXT_MUTEX_UNLOCK();
         return (GSL_FAILURE);
     }
 
@@ -1422,14 +1477,12 @@ kgsl_drawctxt_create(gsl_device_t* device, gsl_context_type_t type, unsigned int
         if (create_gpustate_shadow(device, drawctxt, &ctx) != GSL_SUCCESS)
         {
             kgsl_drawctxt_destroy(device, index);
+            GSL_CONTEXT_MUTEX_UNLOCK();
             return (GSL_FAILURE);
         }
 
-        // Save the shader instruction memory on context switching
-        drawctxt->flags |= CTXT_FLAGS_SHADER_SAVE;
-
-        if(!(flags & GSL_CONTEXT_NO_GMEM_ALLOC))
-            drawctxt->flags |= CTXT_FLAGS_GMEM_SHADOW;
+        // Save the shader instruction memory & GMEM on context switching
+        drawctxt->flags |= ( CTXT_FLAGS_SHADER_SAVE | CTXT_FLAGS_GMEM_SHADOW );
 
         // Clear out user defined GMEM shadow buffer structs
         kos_memset( drawctxt->user_gmem_shadow, 0, sizeof(gmem_shadow_t)*GSL_MAX_GMEM_SHADOW_BUFFERS );
@@ -1438,15 +1491,16 @@ kgsl_drawctxt_create(gsl_device_t* device, gsl_context_type_t type, unsigned int
         if (create_gmem_shadow(device, drawctxt, &ctx) != GSL_SUCCESS)
         {
             kgsl_drawctxt_destroy(device, index);
+            GSL_CONTEXT_MUTEX_UNLOCK();
             return (GSL_FAILURE);
         }
-
 
         KOS_ASSERT(ctx.cmd - ctx.start <= CMD_BUFFER_LEN);
     }
 
     *drawctxt_id = index;
 
+    GSL_CONTEXT_MUTEX_UNLOCK();
     return (GSL_SUCCESS);
 }
 
@@ -1459,6 +1513,8 @@ int
 kgsl_drawctxt_destroy(gsl_device_t* device, unsigned int drawctxt_id)
 {
     gsl_drawctxt_t *drawctxt;
+
+    GSL_CONTEXT_MUTEX_LOCK();
 
     drawctxt = &device->drawctxt[drawctxt_id];
 
@@ -1494,6 +1550,8 @@ kgsl_drawctxt_destroy(gsl_device_t* device, unsigned int drawctxt_id)
         KOS_ASSERT(device->drawctxt_count >= 0);
     }
 
+    GSL_CONTEXT_MUTEX_UNLOCK();
+
     return (GSL_SUCCESS);
 }
 
@@ -1521,88 +1579,57 @@ kgsl_drawctxt_destroy(gsl_device_t* device, unsigned int drawctxt_id)
 //////////////////////////////////////////////////////////////////////////////
 KGSL_API int kgsl_drawctxt_bind_gmem_shadow(gsl_deviceid_t device_id, unsigned int drawctxt_id, const gsl_rect_t* gmem_rect, unsigned int shadow_x, unsigned int shadow_y, const gsl_buffer_desc_t* shadow_buffer, unsigned int buffer_id)
 {
-    gsl_device_t   *device;
-    gsl_drawctxt_t *drawctxt;
-    gmem_shadow_t  *shadow; // Shadow struct being modified
+    gsl_device_t   *device = &gsl_driver.device[device_id-1];
+    gsl_drawctxt_t *drawctxt = &device->drawctxt[drawctxt_id];
+    gmem_shadow_t  *shadow = &drawctxt->user_gmem_shadow[buffer_id];
     unsigned int    i;
 
     GSL_API_MUTEX_LOCK();
+    GSL_CONTEXT_MUTEX_LOCK();
 
-    device = &gsl_driver.device[device_id-1];       // device_id is 1 based
-
-    drawctxt = &device->drawctxt[drawctxt_id];
-
-    shadow = &drawctxt->user_gmem_shadow[buffer_id];
-
-    if( !shadow_buffer->enabled )
+	if( !shadow_buffer->enabled )
     {
         // Disable shadow
         shadow->gmemshadow.size = 0;
     }
     else
     {
-        // Binding to a buffer
-        unsigned int width, height, gmem_x, gmem_y, gmem_width, gmem_height, pixel_ratio;
+		// Sanity checks
+		KOS_ASSERT((gmem_rect->x % 2) == 0);      // Needs to be a multiple of 2
+		KOS_ASSERT((gmem_rect->y % 2) == 0);      // Needs to be a multiple of 2
+		KOS_ASSERT((gmem_rect->width % 2) == 0);  // Needs to be a multiple of 2
+		KOS_ASSERT((gmem_rect->height % 2) == 0); // Needs to be a multiple of 2
+		KOS_ASSERT((gmem_rect->pitch % 32) == 0); // Needs to be a multiple of 32
 
-        KOS_ASSERT(shadow_buffer->stride_bytes%4 == 0);
+		KOS_ASSERT((shadow_x % 2) == 0);  // Needs to be a multiple of 2
+		KOS_ASSERT((shadow_y % 2) == 0);  // Needs to be a multiple of 2
 
-        // Convert to 32bpp pixel units
-        if( shadow_buffer->bpp <= 32 )
-        {
-            KOS_ASSERT(32%shadow_buffer->bpp==0);
-            pixel_ratio = 32/shadow_buffer->bpp;
-            KOS_ASSERT(gmem_rect->x%pixel_ratio==0); // Needs to be at 32bit boundary
-            gmem_x = gmem_rect->x/pixel_ratio;
-            KOS_ASSERT(gmem_x%8==0); // Needs to be a multiple of 8
-            KOS_ASSERT(gmem_rect->y%pixel_ratio==0);  // Needs to be at 32bit boundary
-            gmem_y = gmem_rect->y/pixel_ratio;
-            KOS_ASSERT(gmem_y%8==0);  // Needs to be a multiple of 8
-            KOS_ASSERT(gmem_rect->width%pixel_ratio==0);  // Needs to be at 32bit boundary
-            gmem_width = gmem_rect->width/pixel_ratio;
-            KOS_ASSERT(gmem_rect->height%pixel_ratio==0);  // Needs to be at 32bit boundary
-            gmem_height = gmem_rect->height/pixel_ratio;
-            KOS_ASSERT(shadow_x%pixel_ratio==0);  // Needs to be at 32bit boundary
-            shadow_x = shadow_x/pixel_ratio;
-            KOS_ASSERT(shadow_x%8==0);  // Needs to be a multiple of 8
-            KOS_ASSERT(shadow_y%pixel_ratio==0);  // Needs to be at 32bit boundary
-            shadow_y = shadow_y/pixel_ratio;
-            KOS_ASSERT(shadow_y%8==0);  // Needs to be a multiple of 8
-        }
-        else
-        {
-            KOS_ASSERT(shadow_buffer->bpp==64 || shadow_buffer->bpp==128);
-            pixel_ratio = shadow_buffer->bpp/32;
-            gmem_x = gmem_rect->x*pixel_ratio;
-            KOS_ASSERT(gmem_x%8==0); // Needs to be a multiple of 8
-            gmem_y = gmem_rect->y*pixel_ratio;
-            KOS_ASSERT(gmem_y%8==0);  // Needs to be a multiple of 8
-            gmem_width = gmem_rect->width*pixel_ratio;
-            gmem_height = gmem_rect->height*pixel_ratio;
-            shadow_x = shadow_x*pixel_ratio;
-            KOS_ASSERT(shadow_x%8==0);  // Needs to be a multiple of 8
-            shadow_y = shadow_y*pixel_ratio;
-            KOS_ASSERT(shadow_y%8==0);  // Needs to be a multiple of 8
-        }
+		KOS_ASSERT(shadow_buffer->format >= COLORX_4_4_4_4);
+		KOS_ASSERT(shadow_buffer->format <= COLORX_32_32_32_32_FLOAT);
+		KOS_ASSERT((shadow_buffer->pitch % 32) == 0); // Needs to be a multiple of 32
+		KOS_ASSERT(buffer_id >= 0);
+		KOS_ASSERT(buffer_id < GSL_MAX_GMEM_SHADOW_BUFFERS);
 
-        KOS_ASSERT( buffer_id >= 0 && buffer_id < GSL_MAX_GMEM_SHADOW_BUFFERS );
+		// Set up GMEM shadow regions
+        kos_memcpy( &shadow->gmemshadow, &shadow_buffer->data, sizeof( gsl_memdesc_t ) );
+        shadow->size = shadow->gmemshadow.size;
 
-        width = gmem_width < drawctxt->context_gmem_shadow.width ? gmem_width : drawctxt->context_gmem_shadow.width;
-        height = gmem_height < drawctxt->context_gmem_shadow.height ? gmem_height : drawctxt->context_gmem_shadow.height;
+		shadow->width = shadow_buffer->width;
+		shadow->height = shadow_buffer->height;
+		shadow->pitch = shadow_buffer->pitch;
+		shadow->format = shadow_buffer->format;
 
-        drawctxt->user_gmem_shadow[buffer_id].width = width;
-        drawctxt->user_gmem_shadow[buffer_id].height = height;
-        drawctxt->user_gmem_shadow[buffer_id].pitch = shadow_buffer->stride_bytes/4;
+        shadow->offset = shadow->pitch * (shadow_y - gmem_rect->y) + shadow_x - gmem_rect->x;
 
-        kos_memcpy( &drawctxt->user_gmem_shadow[buffer_id].gmemshadow, &shadow_buffer->data, sizeof( gsl_memdesc_t ) );
-        // Calculate offset
-        drawctxt->user_gmem_shadow[buffer_id].offset = (int)shadow_buffer->stride_bytes/4*((int)shadow_y-(int)gmem_y)+(int)shadow_x-(int)gmem_x;
+        shadow->offset_x = shadow_x;
+        shadow->offset_y = shadow_y;
 
-        drawctxt->user_gmem_shadow[buffer_id].offset_x = shadow_x;
-        drawctxt->user_gmem_shadow[buffer_id].offset_y = shadow_y;
-        drawctxt->user_gmem_shadow[buffer_id].gmem_offset_x = gmem_x;
-        drawctxt->user_gmem_shadow[buffer_id].gmem_offset_y = gmem_y;
+		shadow->gmem_width = gmem_rect->width;
+		shadow->gmem_height = gmem_rect->height;
+		shadow->gmem_pitch = gmem_rect->pitch;
 
-        drawctxt->user_gmem_shadow[buffer_id].size = drawctxt->user_gmem_shadow[buffer_id].gmemshadow.size;
+        shadow->gmem_offset_x = gmem_rect->x;
+        shadow->gmem_offset_y = gmem_rect->y;
 
         // Modify quad vertices
         set_gmem_copy_quad(shadow);
@@ -1629,6 +1656,7 @@ KGSL_API int kgsl_drawctxt_bind_gmem_shadow(gsl_deviceid_t device_id, unsigned i
         }
     }
 
+    GSL_CONTEXT_MUTEX_UNLOCK();
     GSL_API_MUTEX_UNLOCK();
 
     return (GSL_SUCCESS);
@@ -1647,7 +1675,7 @@ kgsl_drawctxt_switch(gsl_device_t *device, gsl_drawctxt_t *drawctxt, gsl_flags_t
 
 	if (drawctxt != GSL_CONTEXT_NONE)
 	{
-		if(0) // flags & GSL_CONTEXT_SAVE_GMEM )
+		if( flags & GSL_CONTEXT_SAVE_GMEM )
 		{
 			// Set the flag in context so that the save is done when this context is switched out.
 			drawctxt->flags |= CTXT_FLAGS_GMEM_SAVE;
@@ -1766,6 +1794,8 @@ kgsl_drawctxt_destroyall(gsl_device_t *device)
     int             i;
     gsl_drawctxt_t  *drawctxt;
 
+    GSL_CONTEXT_MUTEX_LOCK();
+
     for (i = 0; i < GSL_CONTEXT_MAX; i++)
     {
         drawctxt = &device->drawctxt[i];
@@ -1789,6 +1819,8 @@ kgsl_drawctxt_destroyall(gsl_device_t *device)
             KOS_ASSERT(device->drawctxt_count >= 0);
         }
     }
+
+    GSL_CONTEXT_MUTEX_UNLOCK();
 
     return (GSL_SUCCESS);
 }

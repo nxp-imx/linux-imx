@@ -131,6 +131,18 @@ static int gsl_kmod_ioctl(struct inode *inode, struct file *fd, unsigned int cmd
             kgslStatus = kgsl_device_idle(param.device_id, param.timeout);
             break;
         }
+    case IOCTL_KGSL_DEVICE_ISIDLE:
+        {
+            kgsl_device_isidle_t param;
+            if (copy_from_user(&param, (void __user *)arg, sizeof(kgsl_device_isidle_t)))
+            {
+                printk(KERN_ERR "%s: copy_from_user error\n", __func__);
+                kgslStatus = GSL_FAILURE;
+                break;
+            }
+            kgslStatus = kgsl_device_isidle(param.device_id);
+            break;
+        }
     case IOCTL_KGSL_DEVICE_GETPROPERTY:
         {
             kgsl_device_getproperty_t param;

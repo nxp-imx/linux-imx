@@ -39,7 +39,7 @@
 #define GSL_CALLER_PROCESSID_GET()      kos_process_getid()
 #endif // GSL_DEDICATED_PROCESS
 
-#ifdef GSL_LOCKING_COURSEGRAIN
+#ifdef GSL_LOCKING_COARSEGRAIN
 #define GSL_API_MUTEX_CREATE()          gsl_driver.mutex = kos_mutex_create("gsl_global"); \
                                         if (!gsl_driver.mutex) {return (GSL_FAILURE);}
 #define GSL_API_MUTEX_LOCK()            kos_mutex_lock(gsl_driver.mutex)

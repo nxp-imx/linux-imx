@@ -20,6 +20,20 @@
 #include "gsl_hal.h"
 #include "gsl_cmdstream.h"
 
+#ifdef GSL_LOCKING_FINEGRAIN
+#define GSL_CMDSTREAM_MUTEX_CREATE()        device->cmdstream_mutex = kos_mutex_create("gsl_cmdstream"); \
+                                            if (!device->cmdstream_mutex) return (GSL_FAILURE);
+#define GSL_CMDSTREAM_MUTEX_LOCK()          kos_mutex_lock(device->cmdstream_mutex)
+#define GSL_CMDSTREAM_MUTEX_UNLOCK()        kos_mutex_unlock(device->cmdstream_mutex)
+#define GSL_CMDSTREAM_MUTEX_FREE()          kos_mutex_free(device->cmdstream_mutex); device->cmdstream_mutex = 0;
+#else
+#define GSL_CMDSTREAM_MUTEX_CREATE()
+#define GSL_CMDSTREAM_MUTEX_LOCK()
+#define GSL_CMDSTREAM_MUTEX_UNLOCK()
+#define GSL_CMDSTREAM_MUTEX_FREE()
+#endif
+
+
 //////////////////////////////////////////////////////////////////////////////
 // functions
 //////////////////////////////////////////////////////////////////////////////
@@ -27,6 +41,8 @@
 int
 kgsl_cmdstream_init(gsl_device_t *device)
 {
+    GSL_CMDSTREAM_MUTEX_CREATE();
+
     return GSL_SUCCESS;
 }
 
@@ -35,6 +51,8 @@ kgsl_cmdstream_init(gsl_device_t *device)
 int
 kgsl_cmdstream_close(gsl_device_t *device)
 {
+    GSL_CMDSTREAM_MUTEX_FREE();
+
     return GSL_SUCCESS;
 }
 
@@ -133,17 +151,22 @@ kgsl_cmdstream_memqueue_drain(gsl_device_t *device)
     gsl_memnode_t     *memnode, *nextnode, *freehead;
     gsl_timestamp_t   timestamp, ts_processed;
     gsl_memqueue_t    *memqueue = &device->memqueue;
+
+    GSL_CMDSTREAM_MUTEX_LOCK();
+
     // check head
     if (memqueue->head == NULL)
     {
+        GSL_CMDSTREAM_MUTEX_UNLOCK();
         return;
     }
     // get current EOP timestamp
     ts_processed = kgsl_cmdstream_readtimestamp0(device->id, GSL_TIMESTAMP_RETIRED);
     timestamp = memqueue->head->timestamp;
     // check head timestamp
-    if (!(((ts_processed - timestamp) >= 0) || ((ts_processed - timestamp) < -20000)))
+    if (!(((ts_processed - timestamp) >= 0) || ((ts_processed - timestamp) < -GSL_TIMESTAMP_EPSILON)))
     {
+        GSL_CMDSTREAM_MUTEX_UNLOCK();
         return;
     }
     memnode  = memqueue->head;
@@ -160,7 +183,7 @@ kgsl_cmdstream_memqueue_drain(gsl_device_t *device)
             break;
         }
         timestamp = nextnode->timestamp;
-        if (!(((ts_processed - timestamp) >= 0) || ((ts_processed - timestamp) < -20000)))
+        if (!(((ts_processed - timestamp) >= 0) || ((ts_processed - timestamp) < -GSL_TIMESTAMP_EPSILON)))
         {
             // drained up to a point
             memqueue->head = nextnode;
@@ -177,6 +200,8 @@ kgsl_cmdstream_memqueue_drain(gsl_device_t *device)
         kgsl_sharedmem_free0(&memnode->memdesc, memnode->pid);
         kos_free(memnode);
     }
+
+    GSL_CMDSTREAM_MUTEX_UNLOCK();
 }
 
 //----------------------------------------------------------------------------
@@ -190,6 +215,7 @@ kgsl_cmdstream_freememontimestamp(gsl_deviceid_t device_id, gsl_memdesc_t *memde
     (void)type; // unref. For now just use EOP timestamp
 
 	GSL_API_MUTEX_LOCK();
+	GSL_CMDSTREAM_MUTEX_LOCK();
 
 	memqueue = &device->memqueue;
 
@@ -198,6 +224,7 @@ kgsl_cmdstream_freememontimestamp(gsl_deviceid_t device_id, gsl_memdesc_t *memde
     if (!memnode)
     {
         // other solution is to idle and free which given that the upper level driver probably wont check, probably a better idea
+		GSL_CMDSTREAM_MUTEX_UNLOCK();
 		GSL_API_MUTEX_UNLOCK();
         return (GSL_FAILURE);
     }
@@ -220,6 +247,7 @@ kgsl_cmdstream_freememontimestamp(gsl_deviceid_t device_id, gsl_memdesc_t *memde
         memqueue->tail = memnode;
     }
 
+    GSL_CMDSTREAM_MUTEX_UNLOCK();
 	GSL_API_MUTEX_UNLOCK();
 
     return (GSL_SUCCESS);
@@ -228,7 +256,7 @@ kgsl_cmdstream_freememontimestamp(gsl_deviceid_t device_id, gsl_memdesc_t *memde
 static int kgsl_cmdstream_timestamp_cmp(gsl_timestamp_t ts_new, gsl_timestamp_t ts_old)
 {
 	gsl_timestamp_t ts_diff = ts_new - ts_old;
-	return (ts_diff >= 0) || (ts_diff < -20000);
+	return (ts_diff >= 0) || (ts_diff < -GSL_TIMESTAMP_EPSILON);
 }
 
 int kgsl_cmdstream_check_timestamp(gsl_deviceid_t device_id, gsl_timestamp_t timestamp)

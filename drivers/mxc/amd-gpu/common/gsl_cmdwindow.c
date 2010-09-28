@@ -31,12 +31,31 @@
 
 
 //////////////////////////////////////////////////////////////////////////////
+// macros
+//////////////////////////////////////////////////////////////////////////////
+#ifdef GSL_LOCKING_FINEGRAIN
+#define GSL_CMDWINDOW_MUTEX_CREATE()        device->cmdwindow_mutex = kos_mutex_create("gsl_cmdwindow"); \
+                                            if (!device->cmdwindow_mutex) return (GSL_FAILURE);
+#define GSL_CMDWINDOW_MUTEX_LOCK()          kos_mutex_lock(device->cmdwindow_mutex)
+#define GSL_CMDWINDOW_MUTEX_UNLOCK()        kos_mutex_unlock(device->cmdwindow_mutex)
+#define GSL_CMDWINDOW_MUTEX_FREE()          kos_mutex_free(device->cmdwindow_mutex); device->cmdwindow_mutex = 0;
+#else
+#define GSL_CMDWINDOW_MUTEX_CREATE()
+#define GSL_CMDWINDOW_MUTEX_LOCK()
+#define GSL_CMDWINDOW_MUTEX_UNLOCK()
+#define GSL_CMDWINDOW_MUTEX_FREE()
+#endif
+
+
+//////////////////////////////////////////////////////////////////////////////
 // functions
 //////////////////////////////////////////////////////////////////////////////
 
 int
 kgsl_cmdwindow_init(gsl_device_t *device)
 {
+    GSL_CMDWINDOW_MUTEX_CREATE();
+
     return (GSL_SUCCESS);
 }
 
@@ -45,6 +64,8 @@ kgsl_cmdwindow_init(gsl_device_t *device)
 int 
 kgsl_cmdwindow_close(gsl_device_t *device)
 {
+    GSL_CMDWINDOW_MUTEX_FREE();
+
     return (GSL_SUCCESS);
 }
 
@@ -98,6 +119,8 @@ kgsl_cmdwindow_write0(gsl_deviceid_t device_id, gsl_cmdwindow_t target, unsigned
     cmdwinaddr  = ((target << GSL_CMDWINDOW_TARGET_SHIFT) & GSL_CMDWINDOW_TARGET_MASK);
     cmdwinaddr |= ((addr   << GSL_CMDWINDOW_ADDR_SHIFT)   & GSL_CMDWINDOW_ADDR_MASK);
 
+    GSL_CMDWINDOW_MUTEX_LOCK();
+
 #ifndef GSL_NO_MMU
     // set mmu pagetable
 	kgsl_mmu_setpagetable(device, GSL_CALLER_PROCESSID_GET());
@@ -108,6 +131,8 @@ kgsl_cmdwindow_write0(gsl_deviceid_t device_id, gsl_cmdwindow_t target, unsigned
 
     // write data
     device->ftbl.device_regwrite(device, (cmdstream)>>2, data);
+
+    GSL_CMDWINDOW_MUTEX_UNLOCK();
 
     kgsl_log_write( KGSL_LOG_GROUP_COMMAND | KGSL_LOG_LEVEL_TRACE, "<-- kgsl_cmdwindow_write. Return value %B\n", GSL_SUCCESS );
 

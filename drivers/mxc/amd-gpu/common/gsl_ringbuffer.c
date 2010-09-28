@@ -120,6 +120,8 @@ kgsl_ringbuffer_watchdog()
 
     if (rb->flags & GSL_FLAGS_STARTED)
     {
+        GSL_RB_MUTEX_LOCK();
+
         GSL_RB_GET_READPTR(rb, &rb->rptr);
 
         // ringbuffer is currently not empty
@@ -150,6 +152,7 @@ kgsl_ringbuffer_watchdog()
             rb->watchdog.flags &= ~GSL_FLAGS_ACTIVE;
         }
 
+        GSL_RB_MUTEX_UNLOCK();
     }
 
     kgsl_log_write( KGSL_LOG_GROUP_COMMAND | KGSL_LOG_LEVEL_TRACE, "<-- kgsl_ringbuffer_watchdog.\n" );
@@ -675,6 +678,8 @@ kgsl_ringbuffer_init(gsl_device_t *device)
     rb->sizedwords       = (2 << gsl_cfg_rb_sizelog2quadwords);
     rb->blksizequadwords = gsl_cfg_rb_blksizequadwords;
 
+    GSL_RB_MUTEX_CREATE();
+
     // allocate memory for ringbuffer, needs to be double octword aligned
     // align on page from contiguous physical memory
     flags = (GSL_MEMFLAGS_ALIGNPAGE | GSL_MEMFLAGS_CONPHYS | GSL_MEMFLAGS_STRICTREQUEST);
@@ -737,6 +742,8 @@ kgsl_ringbuffer_close(gsl_ringbuffer_t *rb)
     kgsl_log_write( KGSL_LOG_GROUP_COMMAND | KGSL_LOG_LEVEL_TRACE,
                     "--> int kgsl_ringbuffer_close(gsl_ringbuffer_t *rb=0x%08x)\n", rb );
 
+    GSL_RB_MUTEX_LOCK();
+
     // stop ringbuffer
     kgsl_ringbuffer_stop(rb);
 
@@ -753,6 +760,10 @@ kgsl_ringbuffer_close(gsl_ringbuffer_t *rb)
     }
 
     rb->flags &= ~GSL_FLAGS_INITIALIZED;
+
+    GSL_RB_MUTEX_UNLOCK();
+
+    GSL_RB_MUTEX_FREE();
 
     kos_memset(rb, 0, sizeof(gsl_ringbuffer_t));
 
@@ -874,6 +885,8 @@ kgsl_ringbuffer_issueibcmds(gsl_device_t *device, int drawctxt_index, gpuaddr_t 
 
     KGSL_DEBUG(GSL_DBGFLAGS_DUMPX, dumpx_swap = kgsl_dumpx_parse_ibs(ibaddr, sizedwords));
 
+	GSL_RB_MUTEX_LOCK();
+
 	// context switch if needed
 	kgsl_drawctxt_switch(device, &device->drawctxt[drawctxt_index], flags);
 
@@ -882,6 +895,8 @@ kgsl_ringbuffer_issueibcmds(gsl_device_t *device, int drawctxt_index, gpuaddr_t 
     link[2] = sizedwords;
 
 	*timestamp = kgsl_ringbuffer_issuecmds(device, 0, &link[0], 3, GSL_CALLER_PROCESSID_GET());
+
+	GSL_RB_MUTEX_UNLOCK();
 
     // idle device when running in safe mode
     if (device->flags & GSL_FLAGS_SAFEMODE)

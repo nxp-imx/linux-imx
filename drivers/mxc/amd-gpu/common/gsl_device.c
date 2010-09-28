@@ -565,6 +565,17 @@ kgsl_device_idle(gsl_deviceid_t device_id, unsigned int timeout)
 //----------------------------------------------------------------------------
 
 KGSL_API int
+kgsl_device_isidle(gsl_deviceid_t device_id)
+{
+	gsl_timestamp_t retired = kgsl_cmdstream_readtimestamp0(device_id, GSL_TIMESTAMP_RETIRED);
+	gsl_timestamp_t consumed = kgsl_cmdstream_readtimestamp0(device_id, GSL_TIMESTAMP_CONSUMED);
+	gsl_timestamp_t ts_diff = retired - consumed;
+	return (ts_diff >= 0) || (ts_diff < -GSL_TIMESTAMP_EPSILON) ? GSL_SUCCESS : GSL_FAILURE;
+}
+
+//----------------------------------------------------------------------------
+
+KGSL_API int
 kgsl_device_regread(gsl_deviceid_t device_id, unsigned int offsetwords, unsigned int *value)
 {
     int           status = GSL_FAILURE_NOTINITIALIZED;

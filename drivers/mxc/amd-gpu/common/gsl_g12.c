@@ -24,8 +24,11 @@
 #include <linux/sched.h>
 #endif
 
+#ifdef CONFIG_ARCH_MX35
+#define V3_SYNC
+#endif
+
 #ifdef GSL_BLD_G12
-#define GSL_TIMESTAMP_EPSILON   20000
 #define GSL_IRQ_TIMEOUT         200
 
 
@@ -230,6 +233,13 @@ static void kgsl_g12_updatetimestamp(gsl_device_t *device)
 	count >>= 8;
 	count &= 255;
 	device->timestamp += count;	
+#ifdef V3_SYNC
+	if (device->current_timestamp > device->timestamp)
+	{
+	    kgsl_cmdwindow_write0(2, GSL_CMDWINDOW_2D, ADDR_VGV3_CONTROL, 2);
+	    kgsl_cmdwindow_write0(2, GSL_CMDWINDOW_2D, ADDR_VGV3_CONTROL, 0);
+	}
+#endif
 	kgsl_sharedmem_write0(&device->memstore, GSL_DEVICE_MEMSTORE_OFFSET(eoptimestamp), &device->timestamp, 4, 0);
 }
 
@@ -353,7 +363,6 @@ kgsl_g12_close(gsl_device_t *device)
 
         kgsl_hal_setpowerstate(device->id, GSL_PWRFLAGS_POWER_OFF, 0);
 
-        device->ftbl.device_idle(device, GSL_TIMEOUT_NONE);
         device->flags &= ~GSL_FLAGS_INITIALIZED;
 
 #if defined(__SYMBIAN32__)
@@ -782,12 +791,20 @@ kgsl_g12_issueibcmds(gsl_device_t* device, int drawctxt_index, gpuaddr_t ibaddr,
     g_z1xx.curr = nextbuf;
 
     /* increment mark counter */
-    kgsl_cmdwindow_write0(2, GSL_CMDWINDOW_2D, ADDR_VGV3_CONTROL, flags);
-    kgsl_cmdwindow_write0(2, GSL_CMDWINDOW_2D, ADDR_VGV3_CONTROL, 0);
+#ifdef V3_SYNC
+    if (device->timestamp == device->current_timestamp)
+    {
+		kgsl_cmdwindow_write0(2, GSL_CMDWINDOW_2D, ADDR_VGV3_CONTROL, flags);
+		kgsl_cmdwindow_write0(2, GSL_CMDWINDOW_2D, ADDR_VGV3_CONTROL, 0);
+    }
+#else
+	kgsl_cmdwindow_write0(2, GSL_CMDWINDOW_2D, ADDR_VGV3_CONTROL, flags);
+	kgsl_cmdwindow_write0(2, GSL_CMDWINDOW_2D, ADDR_VGV3_CONTROL, 0);
+#endif
 
     /* increment consumed timestamp */
     device->current_timestamp++;
-
+    kgsl_sharedmem_write0(&device->memstore, GSL_DEVICE_MEMSTORE_OFFSET(soptimestamp), &device->current_timestamp, 4, 0);
     return (GSL_SUCCESS);
 }
 
@@ -947,12 +964,16 @@ static void irq_thread(void)
             /* Increase the timestamp value */
             timestamp += irq_count;
 
-            KOS_ASSERT( timestamp <= device->current_timestamp );
             /* Write the new timestamp value */
-#ifdef VG_HDK
             device->timestamp = timestamp;
-#else
             kgsl_sharedmem_write0(&device->memstore, GSL_DEVICE_MEMSTORE_OFFSET(eoptimestamp), &timestamp, 4, false);
+
+#ifdef V3_SYNC
+        	if (device->current_timestamp > device->timestamp)
+        	{
+        	    kgsl_cmdwindow_write0(2, GSL_CMDWINDOW_2D, ADDR_VGV3_CONTROL, 2);
+        	    kgsl_cmdwindow_write0(2, GSL_CMDWINDOW_2D, ADDR_VGV3_CONTROL, 0);
+        	}
 #endif
 
             /* Notify timestamp event */

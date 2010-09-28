@@ -63,6 +63,18 @@ const unsigned int GSL_PT_PAGE_AP[4] = {(GSL_PT_PAGE_READ | GSL_PT_PAGE_WRITE), 
 /////////////////////////////////////////////////////////////////////////////
 // macros
 //////////////////////////////////////////////////////////////////////////////
+#ifdef GSL_LOCKING_FINEGRAIN
+#define GSL_MMU_MUTEX_CREATE()              mmu->mutex = kos_mutex_create("gsl_mmu"); \
+                                            if (!mmu->mutex) {return (GSL_FAILURE);}
+#define GSL_MMU_LOCK()                      kos_mutex_lock(mmu->mutex)
+#define GSL_MMU_UNLOCK()                    kos_mutex_unlock(mmu->mutex)
+#define GSL_MMU_MUTEX_FREE()                kos_mutex_free(mmu->mutex); mmu->mutex = 0;
+#else
+#define GSL_MMU_MUTEX_CREATE()
+#define GSL_MMU_LOCK()
+#define GSL_MMU_UNLOCK()
+#define GSL_MMU_MUTEX_FREE()
+#endif
 
 #define GSL_PT_ENTRY_GET(va)                ((va - pagetable->va_base) >> GSL_PAGESIZE_SHIFT)
 #define GSL_PT_VIRT_GET(pte)                (pagetable->va_base + (pte * GSL_PAGESIZE))
@@ -385,6 +397,8 @@ kgsl_mmu_setpagetable(gsl_device_t *device, unsigned int pid)
     kgsl_log_write( KGSL_LOG_GROUP_MEMORY | KGSL_LOG_LEVEL_TRACE,
                     "--> gsl_pagetable_t* kgsl_mmu_setpagetable(gsl_device_t *device=0x%08x)\n", device );
 
+    GSL_MMU_LOCK();
+
     if (mmu->flags & GSL_FLAGS_STARTED)
     {
 #ifdef GSL_MMU_PAGETABLE_PERPROCESS
@@ -422,6 +436,8 @@ kgsl_mmu_setpagetable(gsl_device_t *device, unsigned int pid)
 			GSL_MMU_STATS(mmu->stats.tlbflushes++);
 		}
 	}
+
+    GSL_MMU_UNLOCK();
 
     kgsl_log_write( KGSL_LOG_GROUP_MEMORY | KGSL_LOG_LEVEL_TRACE, "<-- kgsl_mmu_setpagetable. Return value %B\n", status );
 
@@ -508,6 +524,8 @@ kgsl_mmu_init(gsl_device_t *device)
         // sub-client MMU lookups require address translation
         if ((mmu->config & ~0x1) > 0)
         {
+            GSL_MMU_MUTEX_CREATE();
+
             // make sure virtual address range is a multiple of 64Kb
             KOS_ASSERT((mmu->va_range & ((1 << 16)-1)) == 0);
 
@@ -600,9 +618,12 @@ kgsl_mmu_map(gsl_mmu_t *mmu, gpuaddr_t gpubaseaddr, const gsl_scatterlist_t *sca
     // get gpu access permissions
     ap = GSL_PT_PAGE_AP[((flags & GSL_MEMFLAGS_GPUAP_MASK) >> GSL_MEMFLAGS_GPUAP_SHIFT)];
 
+    GSL_MMU_LOCK();
+
     pagetable = kgsl_mmu_getpagetableobject(mmu, pid);
     if (!pagetable)
     {
+        GSL_MMU_UNLOCK();
         return (GSL_FAILURE);
     }
 
@@ -677,6 +698,8 @@ kgsl_mmu_map(gsl_mmu_t *mmu, gpuaddr_t gpubaseaddr, const gsl_scatterlist_t *sca
         status = GSL_FAILURE;
     }
 
+    GSL_MMU_UNLOCK();
+
     kgsl_log_write( KGSL_LOG_GROUP_MEMORY | KGSL_LOG_LEVEL_TRACE, "<-- kgsl_mmu_map. Return value %B\n", GSL_SUCCESS );
 
     return (status);
@@ -713,9 +736,12 @@ kgsl_mmu_unmap(gsl_mmu_t *mmu, gpuaddr_t gpubaseaddr, int range, unsigned int pi
         numpages++;
     }
 
+    GSL_MMU_LOCK();
+
     pagetable = kgsl_mmu_getpagetableobject(mmu, pid);
     if (!pagetable)
     {
+        GSL_MMU_UNLOCK();
         return (GSL_FAILURE);
     }
 
@@ -767,6 +793,8 @@ kgsl_mmu_unmap(gsl_mmu_t *mmu, gpuaddr_t gpubaseaddr, int range, unsigned int pi
     // invalidate tlb, debug only
 	KGSL_DEBUG(GSL_DBGFLAGS_MMU, mmu->device->ftbl.mmu_tlbinvalidate(mmu->device, gsl_cfg_mmu_reg[mmu->device->id-1].INVALIDATE, pagetable->pid));
 
+    GSL_MMU_UNLOCK();
+
     kgsl_log_write( KGSL_LOG_GROUP_MEMORY | KGSL_LOG_LEVEL_TRACE, "<-- kgsl_mmu_unmap. Return value %B\n", GSL_SUCCESS );
 
     return (status);
@@ -801,9 +829,12 @@ kgsl_mmu_getmap(gsl_mmu_t *mmu, gpuaddr_t gpubaseaddr, int range, gsl_scatterlis
         return (GSL_FAILURE);
     }
 
+    GSL_MMU_LOCK();
+
     pagetable = kgsl_mmu_getpagetableobject(mmu, pid);
     if (!pagetable)
     {
+        GSL_MMU_UNLOCK();
         return (GSL_FAILURE);
     }
 
@@ -836,6 +867,8 @@ kgsl_mmu_getmap(gsl_mmu_t *mmu, gpuaddr_t gpubaseaddr, int range, gsl_scatterlis
         // coalesce physically contiguous pages into a single scatter list entry
         scatterlist->pages[0] = GSL_PT_MAP_GETADDR(ptefirst);
     }
+
+    GSL_MMU_UNLOCK();
 
     scatterlist->contiguous = contiguous;
 
@@ -906,6 +939,8 @@ kgsl_mmu_close(gsl_device_t *device)
                 kgsl_sharedmem_free0(&mmu->dummyspace, GSL_CALLER_PROCESSID_GET());
             }
 
+            GSL_MMU_MUTEX_FREE();
+
             mmu->flags &= ~GSL_FLAGS_STARTED;
             mmu->flags &= ~GSL_FLAGS_INITIALIZED;
             mmu->flags &= ~GSL_FLAGS_INITIALIZED0;
@@ -932,6 +967,8 @@ kgsl_mmu_attachcallback(gsl_mmu_t *mmu, unsigned int pid)
 
     kgsl_log_write( KGSL_LOG_GROUP_MEMORY | KGSL_LOG_LEVEL_TRACE, "--> int kgsl_mmu_attachcallback(gsl_mmu_t *mmu=0x%08x, unsigned int pid=0x%08x)\n", mmu, pid );
 
+    GSL_MMU_LOCK();
+
     if (mmu->flags & GSL_FLAGS_INITIALIZED0)
     {
         // attach to current device mmu
@@ -952,6 +989,8 @@ kgsl_mmu_attachcallback(gsl_mmu_t *mmu, unsigned int pid)
         }
     }
 
+    GSL_MMU_UNLOCK();
+
     kgsl_log_write( KGSL_LOG_GROUP_MEMORY | KGSL_LOG_LEVEL_TRACE, "<-- kgsl_mmu_attachcallback. Return value %B\n", status );
 
     return (status);
@@ -969,6 +1008,8 @@ kgsl_mmu_detachcallback(gsl_mmu_t *mmu, unsigned int pid)
     gsl_pagetable_t  *pagetable;
 
     kgsl_log_write( KGSL_LOG_GROUP_MEMORY | KGSL_LOG_LEVEL_TRACE, "--> int kgsl_mmu_detachcallback(gsl_mmu_t *mmu=0x%08x, unsigned int pid=0x%08x)\n", mmu, pid );
+
+    GSL_MMU_LOCK();
 
     if (mmu->flags & GSL_FLAGS_INITIALIZED0)
     {
@@ -990,6 +1031,8 @@ kgsl_mmu_detachcallback(gsl_mmu_t *mmu, unsigned int pid)
         }
     }
 
+    GSL_MMU_UNLOCK();
+
     kgsl_log_write( KGSL_LOG_GROUP_MEMORY | KGSL_LOG_LEVEL_TRACE, "<-- kgsl_mmu_detachcallback. Return value %B\n", status );
 
     return (status);
@@ -1005,6 +1048,8 @@ kgsl_mmu_querystats(gsl_mmu_t *mmu, gsl_mmustats_t *stats)
 
     KOS_ASSERT(stats);
 
+    GSL_MMU_LOCK();
+
     if (mmu->flags & GSL_FLAGS_STARTED)
     {
 		kos_memcpy(stats, &mmu->stats, sizeof(gsl_mmustats_t));
@@ -1013,6 +1058,8 @@ kgsl_mmu_querystats(gsl_mmu_t *mmu, gsl_mmustats_t *stats)
     {
 		kos_memset(stats, 0, sizeof(gsl_mmustats_t));
     }
+
+    GSL_MMU_UNLOCK();
 
     return (status);
 #else
