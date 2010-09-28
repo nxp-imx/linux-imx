@@ -3305,22 +3305,35 @@ static struct clk mlb_clk[] = {
 	},
 };
 
+static int _can_root_clk_set(struct clk *clk, struct clk *parent)
+{
+	u32 reg, mux;
+
+	mux = _get_mux(parent, &ipg_clk, &ckih_clk, &ckih2_clk, &lp_apm_clk);
+	reg = __raw_readl(MXC_CCM_CSCMR2) & ~MXC_CCM_CSCMR2_CAN_CLK_SEL_MASK;
+	reg |= mux << MXC_CCM_CSCMR2_CAN_CLK_SEL_OFFSET;
+	__raw_writel(reg, MXC_CCM_CSCMR2);
+
+	return 0;
+}
+
 static struct clk can1_clk[] = {
 	{
 	.id = 0,
-	.parent = &ipg_clk,
+	.parent = &lp_apm_clk,
+	.set_parent = _can_root_clk_set,
 	.enable = _clk_enable,
 	.secondary = &can1_clk[1],
 	.enable_reg = MXC_CCM_CCGR6,
-	.enable_shift = MXC_CCM_CCGRx_CG10_OFFSET,
+	.enable_shift = MXC_CCM_CCGRx_CG11_OFFSET,
 	.disable = _clk_disable,
 	 },
 	{
 	.id = 0,
-	.parent = &lp_apm_clk,
+	.parent = &ipg_clk,
 	.enable = _clk_enable,
 	.enable_reg = MXC_CCM_CCGR6,
-	.enable_shift = MXC_CCM_CCGRx_CG11_OFFSET,
+	.enable_shift = MXC_CCM_CCGRx_CG10_OFFSET,
 	.disable = _clk_disable,
 	 },
 };
@@ -3328,11 +3341,12 @@ static struct clk can1_clk[] = {
 static struct clk can2_clk[] = {
 	{
 	.id = 1,
-	.parent = &ipg_clk,
+	.parent = &lp_apm_clk,
+	.set_parent = _can_root_clk_set,
 	.enable = _clk_enable,
 	.secondary = &can2_clk[1],
 	.enable_reg = MXC_CCM_CCGR4,
-	.enable_shift = MXC_CCM_CCGRx_CG3_OFFSET,
+	.enable_shift = MXC_CCM_CCGRx_CG4_OFFSET,
 	.disable = _clk_disable,
 	 },
 	{
@@ -3340,7 +3354,7 @@ static struct clk can2_clk[] = {
 	.parent = &lp_apm_clk,
 	.enable = _clk_enable,
 	.enable_reg = MXC_CCM_CCGR4,
-	.enable_shift = MXC_CCM_CCGRx_CG4_OFFSET,
+	.enable_shift = MXC_CCM_CCGRx_CG3_OFFSET,
 	.disable = _clk_disable,
 	 },
 };
@@ -4181,13 +4195,12 @@ static struct clk_lookup mx53_lookups[] = {
 	_REGISTER_CLOCK(NULL, "imx_sata_clk", sata_clk),
 	_REGISTER_CLOCK(NULL, "ieee_1588_clk", ieee_1588_clk),
 	_REGISTER_CLOCK("mxc_mlb.0", NULL, mlb_clk[0]),
-	_REGISTER_CLOCK("FlexCAN.0", NULL, can1_clk[0]),
-	_REGISTER_CLOCK("FlexCAM.1", NULL, can2_clk[0]),
+	_REGISTER_CLOCK(NULL, "can_clk", can1_clk[0]),
+	_REGISTER_CLOCK(NULL, "can_clk", can2_clk[0]),
 	_REGISTER_CLOCK(NULL, "ldb_di0_clk", ldb_di_clk[0]),
 	_REGISTER_CLOCK(NULL, "ldb_di1_clk", ldb_di_clk[1]),
 	_REGISTER_CLOCK(NULL, "esai_clk", esai_clk[0]),
 	_REGISTER_CLOCK(NULL, "esai_ipg_clk", esai_clk[1]),
-
 };
 
 static void clk_tree_init(void)
