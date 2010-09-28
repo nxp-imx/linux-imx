@@ -250,16 +250,22 @@ static void flexcan_set_bitrate(struct flexcan_device *flexcan, int bitrate)
 static void flexcan_update_bitrate(struct flexcan_device *flexcan)
 {
 	int rate, div;
+	struct flexcan_platform_data *plat_data;
+	plat_data = flexcan->dev->dev.platform_data;
 
-	if (flexcan->br_clksrc)
+	if (plat_data->root_clk_id)
 		rate = clk_get_rate(flexcan->clk);
 	else {
-		struct clk *clk;
-		clk = clk_get(NULL, "ckih");
-		if (!clk)
-			return;
-		rate = clk_get_rate(clk);
-		clk_put(clk);
+		if (flexcan->br_clksrc)
+			rate = clk_get_rate(flexcan->clk);
+		else {
+			struct clk *clk;
+			clk = clk_get(NULL, "ckih");
+			if (!clk)
+				return;
+			rate = clk_get_rate(clk);
+			clk_put(clk);
+		}
 	}
 	if (!rate)
 		return;
@@ -581,6 +587,7 @@ static int flexcan_device_attach(struct flexcan_device *flexcan)
 	struct resource *res;
 	struct platform_device *pdev = flexcan->dev;
 	struct flexcan_platform_data *plat_data = (pdev->dev).platform_data;
+	struct clk *can_root_clk;
 
 	res = platform_get_resource(flexcan->dev, IORESOURCE_MEM, 0);
 	if (!res)
@@ -613,6 +620,10 @@ static int flexcan_device_attach(struct flexcan_device *flexcan)
 		}
 	}
 	flexcan->clk = clk_get(&(flexcan->dev)->dev, "can_clk");
+	if (plat_data->root_clk_id) {
+		can_root_clk = clk_get(NULL, plat_data->root_clk_id);
+		clk_set_parent(flexcan->clk, can_root_clk);
+	}
 	flexcan->hwmb = (struct can_hw_mb *)(flexcan->io_base + CAN_MB_BASE);
 	flexcan->rx_mask = (unsigned int *)(flexcan->io_base + CAN_RXMASK_BASE);
 
