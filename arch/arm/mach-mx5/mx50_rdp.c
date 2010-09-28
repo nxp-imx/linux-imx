@@ -44,6 +44,7 @@
 #include <linux/videodev2.h>
 #include <linux/mxcfb.h>
 #include <linux/fec.h>
+#include <linux/gpmi-nfc.h>
 #include <asm/irq.h>
 #include <asm/setup.h>
 #include <asm/mach-types.h>
@@ -270,6 +271,28 @@ static struct pad_desc  mx50_rdp[] = {
 	MX50_PAD_KEY_COL2__KEY_COL2,
 	MX50_PAD_KEY_ROW2__KEY_ROW2,
 
+};
+
+static struct pad_desc  mx50_gpmi_nand[] = {
+	MX50_PIN_EIM_DA8__NANDF_CLE,
+	MX50_PIN_EIM_DA9__NANDF_ALE,
+	MX50_PIN_EIM_DA10__NANDF_CE0,
+	MX50_PIN_EIM_DA11__NANDF_CE1,
+	MX50_PIN_EIM_DA12__NANDF_CE2,
+	MX50_PIN_EIM_DA13__NANDF_CE3,
+	MX50_PIN_EIM_DA14__NANDF_READY,
+	MX50_PIN_EIM_DA15__NANDF_DQS,
+	MX50_PIN_SD3_D4__NANDF_D0,
+	MX50_PIN_SD3_D5__NANDF_D1,
+	MX50_PIN_SD3_D6__NANDF_D2,
+	MX50_PIN_SD3_D7__NANDF_D3,
+	MX50_PIN_SD3_D0__NANDF_D4,
+	MX50_PIN_SD3_D1__NANDF_D5,
+	MX50_PIN_SD3_D2__NANDF_D6,
+	MX50_PIN_SD3_D3__NANDF_D7,
+	MX50_PIN_SD3_CLK__NANDF_RDN,
+	MX50_PIN_SD3_CMD__NANDF_WRN,
+	MX50_PIN_SD3_WP__NANDF_RESETN,
 };
 
 static struct mxc_dvfs_platform_data dvfs_core_data = {
@@ -959,6 +982,35 @@ static int __init w1_setup(char *__unused)
 
 __setup("w1", w1_setup);
 
+static int gpmi_nfc_platform_init(unsigned int max_chip_count)
+{
+	mxc_iomux_v3_setup_multiple_pads(mx50_gpmi_nand,
+				ARRAY_SIZE(mx50_gpmi_nand));
+
+	return 0;
+}
+
+static void gpmi_nfc_platform_exit(unsigned int max_chip_count)
+{
+}
+
+static const char *gpmi_nfc_partition_source_types[] = { "cmdlinepart", 0 };
+
+static struct gpmi_nfc_platform_data  gpmi_nfc_platform_data = {
+	.nfc_version             = 2,
+	.boot_rom_version        = 1,
+	.clock_name              = "gpmi-nfc",
+	.platform_init           = gpmi_nfc_platform_init,
+	.platform_exit           = gpmi_nfc_platform_exit,
+	.min_prop_delay_in_ns    = 5,
+	.max_prop_delay_in_ns    = 9,
+	.max_chip_count          = 2,
+	.boot_area_size_in_bytes = 20 * SZ_1M,
+	.partition_source_types  = gpmi_nfc_partition_source_types,
+	.partitions              = 0,
+	.partition_count         = 0,
+};
+
 /*!
  * Board specific fixup function. It is called by \b setup_arch() in
  * setup.c file very early on during kernel starts. It allows the user to
@@ -1100,6 +1152,7 @@ static void __init mxc_board_init(void)
 	*/
 	mx5_set_otghost_vbus_func(mx50_arm2_usb_set_vbus);
 	mxc_register_device(&mxc_sgtl5000_device, &sgtl5000_data);
+	mxc_register_device(&gpmi_nfc_device, &gpmi_nfc_platform_data);
 	mx5_usb_dr_init();
 	mx5_usbh1_init();
 }

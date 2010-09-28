@@ -924,15 +924,6 @@ static int __init w1_setup(char *__unused)
 
 __setup("w1", w1_setup);
 
-int enable_gpmi_nand = { 0 };
-static int __init gpmi_nand_setup(char *__unused)
-{
-	enable_gpmi_nand = 1;
-	return 1;
-}
-
-__setup("gpmi:nand", gpmi_nand_setup);
-
 static struct mxs_dma_plat_data dma_apbh_data = {
 	.chan_base = MXS_DMA_CHANNEL_AHB_APBH,
 	.chan_num = MXS_MAX_DMA_CHANNELS,
@@ -940,7 +931,9 @@ static struct mxs_dma_plat_data dma_apbh_data = {
 
 static int gpmi_nfc_platform_init(unsigned int max_chip_count)
 {
-	return !enable_gpmi_nand;
+	mxc_iomux_v3_setup_multiple_pads(mx50_gpmi_nand,
+				ARRAY_SIZE(mx50_gpmi_nand));
+	return 0;
 }
 
 static void gpmi_nfc_platform_exit(unsigned int max_chip_count)
@@ -1059,10 +1052,6 @@ static void __init mx50_arm2_io_init(void)
 		struct pad_desc one_wire = MX50_PAD_OWIRE__OWIRE;
 		mxc_iomux_v3_setup_pad(&one_wire);
 	}
-
-	if (enable_gpmi_nand)
-		mxc_iomux_v3_setup_multiple_pads(mx50_gpmi_nand, \
-					ARRAY_SIZE(mx50_gpmi_nand));
 
 	/* USB OTG PWR */
 	gpio_request(USB_OTG_PWR, "usb otg power");
