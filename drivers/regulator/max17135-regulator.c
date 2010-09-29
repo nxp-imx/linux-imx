@@ -216,6 +216,16 @@ struct max17135 {
 	/* Client devices */
 	struct platform_device *pdev[MAX17135_REG_NUM];
 
+	/* Timings */
+	unsigned int gvee_pwrup;
+	unsigned int vneg_pwrup;
+	unsigned int vpos_pwrup;
+	unsigned int gvdd_pwrup;
+	unsigned int gvdd_pwrdn;
+	unsigned int vpos_pwrdn;
+	unsigned int vneg_pwrdn;
+	unsigned int gvee_pwrdn;
+
 	/* GPIOs */
 	int gpio_pmic_pwrgood;
 	int gpio_pmic_vcom_ctrl;
@@ -229,6 +239,9 @@ struct max17135 {
 
 	int max_wait;
 };
+
+static int max17135_pass_num = { 1 };
+static int max17135_vcom = { -1250000 };
 
 /*
  * Regulator operations
@@ -333,6 +346,8 @@ static int max17135_vcom_set_voltage(struct regulator_dev *reg,
 		return i2c_smbus_write_byte_data(client,
 			REG_MAX17135_PRGM_CTRL, reg_val);
 	}
+
+	return 0;
 }
 
 static int max17135_vcom_get_voltage(struct regulator_dev *reg)
@@ -471,6 +486,8 @@ static int max17135_display_disable(struct regulator_dev *reg)
 			reg_val);
 	}
 
+	msleep(max17135->max_wait);
+
 	return 0;
 }
 
@@ -587,6 +604,55 @@ static struct regulator_desc max17135_reg[MAX17135_NUM_REGULATORS] = {
 },
 };
 
+static void max17135_setup_timings(struct max17135 *max17135)
+{
+	struct i2c_client *client = max17135->i2c_client;
+	unsigned int reg_val;
+
+	int timing1, timing2, timing3, timing4,
+		timing5, timing6, timing7, timing8;
+
+	timing1 = i2c_smbus_read_byte_data(client, REG_MAX17135_TIMING1);
+	timing2 = i2c_smbus_read_byte_data(client, REG_MAX17135_TIMING2);
+	timing3 = i2c_smbus_read_byte_data(client, REG_MAX17135_TIMING3);
+	timing4 = i2c_smbus_read_byte_data(client, REG_MAX17135_TIMING4);
+	timing5 = i2c_smbus_read_byte_data(client, REG_MAX17135_TIMING5);
+	timing6 = i2c_smbus_read_byte_data(client, REG_MAX17135_TIMING6);
+	timing7 = i2c_smbus_read_byte_data(client, REG_MAX17135_TIMING7);
+	timing8 = i2c_smbus_read_byte_data(client, REG_MAX17135_TIMING8);
+
+	if ((timing1 != max17135->gvee_pwrup) ||
+		(timing2 != max17135->vneg_pwrup) ||
+		(timing3 != max17135->vpos_pwrup) ||
+		(timing4 != max17135->gvdd_pwrup) ||
+		(timing5 != max17135->gvdd_pwrdn) ||
+		(timing6 != max17135->vpos_pwrdn) ||
+		(timing7 != max17135->vneg_pwrdn) ||
+		(timing8 != max17135->gvee_pwrdn)) {
+		i2c_smbus_write_byte_data(client, REG_MAX17135_TIMING1,
+			max17135->gvee_pwrup);
+		i2c_smbus_write_byte_data(client, REG_MAX17135_TIMING2,
+			max17135->vneg_pwrup);
+		i2c_smbus_write_byte_data(client, REG_MAX17135_TIMING3,
+			max17135->vpos_pwrup);
+		i2c_smbus_write_byte_data(client, REG_MAX17135_TIMING4,
+			max17135->gvdd_pwrup);
+		i2c_smbus_write_byte_data(client, REG_MAX17135_TIMING5,
+			max17135->gvdd_pwrdn);
+		i2c_smbus_write_byte_data(client, REG_MAX17135_TIMING6,
+			max17135->vpos_pwrdn);
+		i2c_smbus_write_byte_data(client, REG_MAX17135_TIMING7,
+			max17135->vneg_pwrdn);
+		i2c_smbus_write_byte_data(client, REG_MAX17135_TIMING8,
+			max17135->gvee_pwrdn);
+
+		reg_val = BITFVAL(CTRL_TIMING, true); /* shift to correct bit */
+		i2c_smbus_write_byte_data(client,
+			REG_MAX17135_PRGM_CTRL, reg_val);
+	}
+}
+
+
 /*
  * Regulator init/probing/exit functions
  */
@@ -688,13 +754,22 @@ static int max17135_i2c_probe(struct i2c_client *client,
 	max17135->dev = &client->dev;
 	max17135->i2c_client = client;
 
+	max17135->gvee_pwrup = pdata->gvee_pwrup;
+	max17135->vneg_pwrup = pdata->vneg_pwrup;
+	max17135->vpos_pwrup = pdata->vpos_pwrup;
+	max17135->gvdd_pwrup = pdata->gvdd_pwrup;
+	max17135->gvdd_pwrdn = pdata->gvdd_pwrdn;
+	max17135->vpos_pwrdn = pdata->vpos_pwrdn;
+	max17135->vneg_pwrdn = pdata->vneg_pwrdn;
+	max17135->gvee_pwrdn = pdata->gvee_pwrdn;
+
 	max17135->gpio_pmic_pwrgood = pdata->gpio_pmic_pwrgood;
 	max17135->gpio_pmic_vcom_ctrl = pdata->gpio_pmic_vcom_ctrl;
 	max17135->gpio_pmic_wakeup = pdata->gpio_pmic_wakeup;
 	max17135->gpio_pmic_intr = pdata->gpio_pmic_intr;
 
-	max17135->pass_num = pdata->pass_num;
-	max17135->vcom_uV = pdata->vcom_uV;
+	max17135->pass_num = max17135_pass_num;
+	max17135->vcom_uV = max17135_vcom;
 
 	max17135->vcom_setup = false;
 
@@ -713,6 +788,13 @@ static int max17135_i2c_probe(struct i2c_client *client,
 
 	max17135->max_wait = pdata->vpos_pwrup + pdata->vneg_pwrup +
 		pdata->gvdd_pwrup + pdata->gvee_pwrup;
+
+	/*
+	 * Set up PMIC timing values.
+	 * Should only be done one time!  Timing values may only be changed
+	 * a limited number of times according to spec.
+	 */
+	max17135_setup_timings(max17135);
 
 	/* Initialize the PMIC device */
 	dev_info(&client->dev, "PMIC MAX17135 for eInk display\n");
@@ -768,6 +850,39 @@ static void __exit max17135_exit(void)
 	i2c_del_driver(&max17135_i2c_driver);
 }
 module_exit(max17135_exit);
+
+/*
+ * Parse user specified options (`max17135:')
+ * example:
+ *   max17135:pass=2,vcom=-1250000
+ */
+static int __init max17135_setup(char *options)
+{
+	int ret;
+	char *opt;
+	while ((opt = strsep(&options, ",")) != NULL) {
+		if (!*opt)
+			continue;
+		if (!strncmp(opt, "pass=", 5)) {
+			ret = strict_strtoul(opt + 5, 0, &max17135_pass_num);
+			if (ret < 0)
+				return ret;
+		}
+		if (!strncmp(opt, "vcom=", 5)) {
+			int offs = 5;
+			if (opt[5] == '-')
+				offs = 6;
+			ret = strict_strtoul(opt + offs, 0, &max17135_vcom);
+			if (ret < 0)
+				return ret;
+			max17135_vcom = -max17135_vcom;
+		}
+	}
+
+	return 1;
+}
+
+__setup("max17135:", max17135_setup);
 
 /* Module information */
 MODULE_DESCRIPTION("MAX17135 regulator driver");
