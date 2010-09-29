@@ -20,7 +20,6 @@
 #include <mach/hardware.h>
 #include <asm/delay.h>
 #include "usb.h"
-
 static int usbotg_init_ext(struct platform_device *pdev);
 static void usbotg_uninit_ext(struct fsl_usb2_platform_data *pdata);
 static void usbotg_clock_gate(bool on);
@@ -88,7 +87,7 @@ static void __wakeup_irq_enable(bool on, int source)
 	 * all enable the wakeup irq, we can enable the OWIE bit
 	 */
 	if (on) {
-#ifdef CONFIG_MXC_OTG
+#ifdef CONFIG_USB_OTG
 		wakeup_irq_enable_src |= source;
 		if (wakeup_irq_enable_src == (ENABLED_BY_HOST | ENABLED_BY_DEVICE)) {
 			USBCTRL |= UCTRL_OWIE;
@@ -146,7 +145,7 @@ static void __phy_lowpower_suspend(bool enable, int source)
 {
 	if (enable) {
 		low_power_enable_src |= source;
-#ifdef CONFIG_MXC_OTG
+#ifdef CONFIG_USB_OTG
 		if (low_power_enable_src == (ENABLED_BY_HOST | ENABLED_BY_DEVICE)) {
 			pr_debug("phy lowpower enabled\n");
 			UOG_PORTSC1 |= PORTSC_PHCD;
@@ -215,6 +214,8 @@ void mx5_set_otghost_vbus_func(driver_vbus_func driver_vbus)
 void __init mx5_usb_dr_init(void)
 {
 #ifdef CONFIG_USB_OTG
+	/* wake_up_enalbe is useless, just for usb_register_remote_wakeup execution*/
+	dr_utmi_config.wake_up_enable = _device_wakeup_enable;
 	dr_utmi_config.operating_mode = FSL_USB2_DR_OTG;
 	platform_device_add_data(&mxc_usbdr_otg_device, &dr_utmi_config, sizeof(dr_utmi_config));
 	platform_device_register(&mxc_usbdr_otg_device);
