@@ -47,6 +47,7 @@
 #include "board-mx25_3stack.h"
 #include "crm_regs.h"
 #include "iomux.h"
+#include "devices.h"
 
 /*!
  * @file mach-mx25/mx25_3stack.c
@@ -118,7 +119,7 @@ static struct keypad_data keypad_plat_data = {
 };
 
 /* mxc keypad driver */
-static struct platform_device mxc_keypad_device = {
+struct platform_device mxc_keypad_device = {
 	.name = "mxc_keypad",
 	.id = 0,
 	.num_resources = ARRAY_SIZE(mxc_kpp_resources),
@@ -826,6 +827,7 @@ static void __init mxc_board_init(void)
 	mxc_init_sim();
 	mxc_init_fec();
 	mxc_init_flexcan();
+	mxc_register_device(&mx25_rtc_device, NULL);
 }
 
 /*

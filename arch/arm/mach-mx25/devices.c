@@ -387,25 +387,6 @@ struct platform_device mxc_pwm_device2 = {
 	.resource = mxc_pwm_resources2,
 };
 
-static struct resource mxc_keypad_resources[] = {
-	{
-		.start	= 0x43fa8000,
-		.end	= 0x43fabfff,
-		.flags	= IORESOURCE_MEM,
-	}, {
-		.start   = 24,
-		.end     = 24,
-		.flags   = IORESOURCE_IRQ,
-	}
-};
-
-struct platform_device mxc_keypad_device = {
-	.name = "mxc-keypad",
-	.id = -1,
-	.num_resources = ARRAY_SIZE(mxc_keypad_resources),
-	.resource = mxc_keypad_resources,
-};
-
 static struct resource mxc_pwm_resources3[] = {
 	{
 		.start	= 0x53fc8000,
