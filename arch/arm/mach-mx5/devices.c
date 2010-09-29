@@ -1253,90 +1253,6 @@ static struct resource mxc_gpu2d_resources[] = {
 	},
 };
 
-#if defined(CONFIG_UIO_PDRV_GENIRQ) || defined(CONFIG_UIO_PDRV_GENIRQ_MODULE)
-static struct clk *gpu_clk;
-static atomic_t *gpu_use_count;
-
-int gpu2d_open(struct uio_info *info, struct inode *inode)
-{
-	int err = 0;
-
-	if (atomic_inc_return(gpu_use_count) == 1) {
-		gpu_clk = clk_get(NULL, "gpu2d_clk");
-		if (IS_ERR(gpu_clk))
-			err = PTR_ERR(gpu_clk);
-
-		err = clk_enable(gpu_clk);
-	}
-	return err;
-}
-
-int gpu2d_release(struct uio_info *info, struct inode *inode)
-{
-	if (atomic_dec_and_test(gpu_use_count)) {
-		if (IS_ERR(gpu_clk))
-			return PTR_ERR(gpu_clk);
-
-		clk_disable(gpu_clk);
-		clk_put(gpu_clk);
-	}
-	return 0;
-}
-
-static int gpu2d_mmap(struct uio_info *info, struct vm_area_struct *vma)
-{
-	int mi = vma->vm_pgoff;
-	if (mi < 0)
-		return -EINVAL;
-
-	vma->vm_flags |= VM_IO | VM_RESERVED;
-	vma->vm_page_prot = pgprot_writecombine(vma->vm_page_prot);
-
-	return remap_pfn_range(vma,
-			       vma->vm_start,
-			       info->mem[mi].addr >> PAGE_SHIFT,
-			       vma->vm_end - vma->vm_start,
-			       vma->vm_page_prot);
-}
-
-static struct uio_info gpu2d_info = {
-	.name = "imx_gpu2d",
-	.version = "1",
-	.irq = MXC_INT_GPU2_IRQ,
-	.open = gpu2d_open,
-	.release = gpu2d_release,
-	.mmap = gpu2d_mmap,
-};
-
-static struct platform_device mxc_gpu2d_device = {
-	.name = "uio_pdrv_genirq",
-	.dev = {
-		.platform_data = &gpu2d_info,
-		.coherent_dma_mask = DMA_BIT_MASK(32),
-		},
-	.num_resources = ARRAY_SIZE(mxc_gpu2d_resources),
-	.resource = mxc_gpu2d_resources,
-};
-
-static inline void mxc_init_gpu2d(void)
-{
-	void *gpu_mem;
-	gpu_mem = dma_alloc_coherent(&mxc_gpu2d_device.dev, SZ_64K, &mxc_gpu2d_resources[1].start, GFP_DMA);
-	mxc_gpu2d_resources[1].end = mxc_gpu2d_resources[1].start + SZ_64K - 1;
-	memset(gpu_mem, 0, SZ_64K);
-	gpu_use_count = gpu_mem + SZ_64K - 4;
-
-	dma_alloc_coherent(&mxc_gpu2d_device.dev, 88 * SZ_1K, &mxc_gpu2d_resources[2].start, GFP_DMA);
-	mxc_gpu2d_resources[2].end = mxc_gpu2d_resources[2].start + (88 * SZ_1K) - 1;
-
-	platform_device_register(&mxc_gpu2d_device);
-}
-#else
-static inline void mxc_init_gpu2d(void)
-{
-}
-#endif
-
 static struct resource mlb_resources[] = {
 	[0] = {
 	       .start = MLB_BASE_ADDR,
@@ -1775,7 +1691,6 @@ int __init mxc_init_devices(void)
 
 	if (cpu_is_mx51() || cpu_is_mx53())
 		mxc_init_scc_iram();
-	mxc_init_gpu2d();
 	return 0;
 }
 postcore_initcall(mxc_init_devices);
