@@ -3050,6 +3050,22 @@ static int __exit fsl_udc_remove(struct platform_device *pdev)
 	return 0;
 }
 
+static bool udc_can_wakeup_system(void)
+{
+	struct fsl_usb2_platform_data *pdata = udc_controller->pdata;
+
+	if (pdata->operating_mode == FSL_USB2_DR_OTG)
+		if (device_may_wakeup(udc_controller->transceiver->dev))
+			return true;
+		else
+			return false;
+	else
+		if (device_may_wakeup(udc_controller->gadget.dev.parent))
+			return true;
+		else
+			return false;
+}
+
 static int udc_suspend(struct fsl_udc *udc)
 {
 	u32 mode, usbcmd;
@@ -3063,7 +3079,7 @@ static int udc_suspend(struct fsl_udc *udc)
 	printk(KERN_DEBUG "udc suspend begins\n");
 	if (udc_controller->gadget.dev.parent->power.status
 			== DPM_SUSPENDING) {
-		if (!device_may_wakeup(udc_controller->gadget.dev.parent))
+		if (!udc_can_wakeup_system())
 			dr_wake_up_enable(udc, false);
 		else
 			dr_wake_up_enable(udc, true);
@@ -3094,14 +3110,6 @@ static int udc_suspend(struct fsl_udc *udc)
 	/* stop the controller */
 	usbcmd = fsl_readl(&dr_regs->usbcmd) & ~USB_CMD_RUN_STOP;
 	fsl_writel(usbcmd, &dr_regs->usbcmd);
-
-	/* if the suspend is not for switch to host in otg mode */
-	if ((!(udc->gadget.is_otg)) ||
-			(fsl_readl(&dr_regs->otgsc) & OTGSC_STS_USB_ID)) {
-		if (device_may_wakeup(udc_controller->gadget.dev.parent)) {
-			dr_wake_up_enable(udc, true);
-		}
-	}
 
 	dr_phy_low_power_mode(udc, true);
 	printk(KERN_DEBUG "USB Gadget suspend ends\n");
@@ -3162,7 +3170,7 @@ static int fsl_udc_resume(struct platform_device *pdev)
 		 * set the abilities to wakeup itself. Otherwise, the usb
 		 * subsystem will not leave from low power mode.
 		 */
-		if (!device_may_wakeup(udc_controller->gadget.dev.parent) &&
+		if (!udc_can_wakeup_system() &&
 			udc_controller->gadget.dev.parent->power.status
 			== DPM_RESUMING){
 			if (udc_controller->pdata->usb_clock_for_pm)

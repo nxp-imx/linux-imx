@@ -539,6 +539,25 @@ static int ehci_fsl_drv_remove(struct platform_device *pdev)
 }
 
 #ifdef CONFIG_PM
+
+static bool host_can_wakeup_system(struct platform_device *pdev)
+{
+	struct usb_hcd *hcd = platform_get_drvdata(pdev);
+	struct ehci_hcd *ehci = hcd_to_ehci(hcd);
+	struct fsl_usb2_platform_data *pdata = pdev->dev.platform_data;
+
+	if (pdata->operating_mode == FSL_USB2_DR_OTG)
+		if (device_may_wakeup(ehci->transceiver->dev))
+			return true;
+		else
+			return false;
+	else
+		if (device_may_wakeup(&(pdev->dev)))
+			return true;
+		else
+			return false;
+}
+
 /* suspend/resume, section 4.3 */
 
 /* These routines rely on the bus (pci, platform, etc)
@@ -561,7 +580,7 @@ static int ehci_fsl_drv_suspend(struct platform_device *pdev,
 	/* Only handles OTG mode switch event, system suspend event will be done in bus suspend */
 	if (pdev->dev.power.status == DPM_SUSPENDING) {
 		printk(KERN_DEBUG "%s, pm event \n", __func__);
-		if (!device_may_wakeup(&(pdev->dev))) {
+		if (!host_can_wakeup_system(pdev)) {
 			int mask;
 			/* Need open clock for register access */
 			if (!test_bit(HCD_FLAG_HW_ACCESSIBLE, &hcd->flags))
@@ -643,7 +662,7 @@ static int ehci_fsl_drv_resume(struct platform_device *pdev)
 	printk(KERN_DEBUG "ehci fsl drv resume begins: %s\n", pdata->name);
 	if (pdev->dev.power.status == DPM_RESUMING) {
 		printk(KERN_DEBUG "%s, pm event \n", __func__);
-		if (!device_may_wakeup(&(pdev->dev))) {
+		if (!host_can_wakeup_system(pdev)) {
 			if (!test_bit(HCD_FLAG_HW_ACCESSIBLE, &hcd->flags)) {
 				fsl_usb_clk_gate(hcd->self.controller->platform_data, true);
 			}
