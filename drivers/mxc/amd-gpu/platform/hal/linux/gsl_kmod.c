@@ -815,9 +815,10 @@ static int gpu_probe(struct platform_device *pdev)
     if (gpu_2d_irq > 0)
     {
 	if (request_irq(gpu_2d_irq, z160_irq_handler, 0, "g12", NULL) < 0) {
-	    printk(KERN_ERR "2D Acceleration Enabled, OpenVG Disabled!\n");
+	    printk(KERN_ERR "DO NOT use uio_pdrv_genirq kernel module for X acceleration!\n");
 	    gpu_2d_irq = 0;
 	}
+        printk(KERN_ERR "Do NOT run OpenVG apps while also running imx-drv X device driver!\n");
     }
 
     if (kgsl_driver_init() != GSL_SUCCESS) {
