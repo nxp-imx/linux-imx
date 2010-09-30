@@ -1074,13 +1074,6 @@ static void __init mxc_board_init(void)
 	mxc_register_device(&busfreq_device, NULL);
 	mxc_register_device(&mxc_dvfs_core_device, &dvfs_core_data);
 
-	/*
-	mxc_register_device(&mx53_lpmode_device, NULL);
-	mxc_register_device(&mxc_dvfs_per_device, &dvfs_per_data);
-	*/
-
-	mxc_register_device(&mxc_keypad_device, &keypad_plat_data);
-
 	mxc_register_device(&mxcsdhc1_device, &mmc1_data);
 	mxc_register_device(&mxcsdhc2_device, &mmc2_data);
 	mxc_register_device(&mxcsdhc3_device, &mmc3_data);
