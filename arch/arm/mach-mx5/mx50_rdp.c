@@ -65,6 +65,7 @@
 #include "devices.h"
 #include "usb.h"
 #include "crm_regs.h"
+#include "dma-apbh.h"
 
 #define SD1_WP	(3*32 + 19)	/*GPIO_4_19 */
 #define SD1_CD	(0*32 + 27)	/*GPIO_1_27 */
@@ -982,6 +983,11 @@ static int __init w1_setup(char *__unused)
 
 __setup("w1", w1_setup);
 
+static struct mxs_dma_plat_data dma_apbh_data = {
+	.chan_base = MXS_DMA_CHANNEL_AHB_APBH,
+	.chan_num = MXS_MAX_DMA_CHANNELS,
+};
+
 static int gpmi_nfc_platform_init(unsigned int max_chip_count)
 {
 	mxc_iomux_v3_setup_multiple_pads(mx50_gpmi_nand,
@@ -1110,6 +1116,7 @@ static void __init mxc_board_init(void)
 	mx50_rdp_io_init();
 
 	mxc_register_device(&mxc_dma_device, NULL);
+	mxc_register_device(&mxs_dma_apbh_device, &dma_apbh_data);
 	mxc_register_device(&mxc_wdt_device, NULL);
 	mxc_register_device(&mxcspi1_device, &mxcspi1_data);
 	mxc_register_device(&mxcspi3_device, &mxcspi3_data);
