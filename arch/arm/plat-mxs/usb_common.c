@@ -359,6 +359,16 @@ void fsl_usb_host_uninit(struct fsl_usb2_platform_data *pdata)
 }
 EXPORT_SYMBOL(fsl_usb_host_uninit);
 
+void usb_debounce_id_pin(void)
+{
+
+	/* Because the IC design needs to remove the glitch on ID so the otgsc bit 8 will
+	 * be delayed max 2 ms to show the real ID pin value
+	 */
+	mdelay(3);
+}
+EXPORT_SYMBOL(usb_debounce_id_pin);
+
 int usb_host_wakeup_irq(struct device *wkup_dev)
 {
 	return 0;
