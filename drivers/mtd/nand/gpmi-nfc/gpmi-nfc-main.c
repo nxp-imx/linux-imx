@@ -23,6 +23,8 @@
 #include "gpmi-nfc.h"
 #include "linux/slab.h"
 
+static int enable_gpmi_nand = { 0 };
+
 /*
  * This structure contains the "safe" GPMI timing that should succeed with any
  * NAND Flash device (although, with less-than-optimal performance).
@@ -1881,6 +1883,11 @@ static int __init gpmi_nfc_init(void)
 
 	pr_info("i.MX GPMI NFC\n");
 
+#ifdef	CONFIG_ARCH_MX50
+	if (enable_gpmi_nand == 0)
+		return 0;
+#endif
+
 	/* Register this driver with the platform management system. */
 
 	if (platform_driver_register(&gpmi_nfc_driver) != 0) {
@@ -1901,6 +1908,13 @@ static void __exit gpmi_nfc_exit(void)
 {
 	platform_driver_unregister(&gpmi_nfc_driver);
 }
+
+static int __init gpmi_nand_setup(char *__unused)
+{
+	enable_gpmi_nand = 1;
+	return 1;
+}
+__setup("gpmi:nand", gpmi_nand_setup);
 
 module_init(gpmi_nfc_init);
 module_exit(gpmi_nfc_exit);
