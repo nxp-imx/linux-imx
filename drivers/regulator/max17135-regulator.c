@@ -232,16 +232,24 @@ struct max17135 {
 	int gpio_pmic_wakeup;
 	int gpio_pmic_intr;
 
+	/* MAX17135 part variables */
 	int pass_num;
 	int vcom_uV;
 
+	/* One-time VCOM setup counter */
 	bool vcom_setup;
 
+	/* powerup/powerdown wait time */
 	int max_wait;
+
+	/* Dynamically determined polarity for PWRGOOD */
+	int pwrgood_polarity;
 };
 
 static int max17135_pass_num = { 1 };
 static int max17135_vcom = { -1250000 };
+
+static int max17135_is_power_good(struct max17135 *max17135);
 
 /*
  * Regulator operations
@@ -369,8 +377,7 @@ static int max17135_vcom_enable(struct regulator_dev *reg)
 	 * Should only be done one time. And, we can
 	 * only change vcom voltage if we have been enabled.
 	 */
-	if (!max17135->vcom_setup
-		&& gpio_get_value(max17135->gpio_pmic_pwrgood)) {
+	if (!max17135->vcom_setup && max17135_is_power_good(max17135)) {
 		max17135_vcom_set_voltage(reg,
 			max17135->vcom_uV,
 			max17135->vcom_uV);
@@ -434,12 +441,22 @@ static int max17135_vcom_is_enabled(struct regulator_dev *reg)
 	}
 }
 
+static int max17135_is_power_good(struct max17135 *max17135)
+{
+	/*
+	 * XOR of polarity (starting value) and current
+	 * value yields whether power is good.
+	 */
+	return gpio_get_value(max17135->gpio_pmic_pwrgood) ^
+		max17135->pwrgood_polarity;
+}
+
 static int max17135_wait_power_good(struct max17135 *max17135)
 {
 	int i;
 
 	for (i = 0; i < max17135->max_wait * 3; i++) {
-		if (gpio_get_value(max17135->gpio_pmic_pwrgood))
+		if (max17135_is_power_good(max17135))
 			return 0;
 
 		msleep(1);
@@ -795,6 +812,9 @@ static int max17135_i2c_probe(struct i2c_client *client,
 	 * a limited number of times according to spec.
 	 */
 	max17135_setup_timings(max17135);
+
+	max17135->pwrgood_polarity =
+		gpio_get_value(max17135->gpio_pmic_pwrgood);
 
 	/* Initialize the PMIC device */
 	dev_info(&client->dev, "PMIC MAX17135 for eInk display\n");
