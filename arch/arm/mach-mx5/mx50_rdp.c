@@ -855,7 +855,7 @@ static int mxc_sgtl5000_amp_enable(int enable)
 
 static int headphone_det_status(void)
 {
-	return (gpio_get_value(HP_DETECT) != 0);
+	return (gpio_get_value(HP_DETECT) == 0);
 }
 
 static struct mxc_audio_platform_data sgtl5000_data = {
