@@ -361,7 +361,7 @@ static int mxc_rtc_ioctl(struct device *dev, unsigned int cmd,
 
 		return 0;
 
-	/* NOTE: This IOCTL does not work properly on kernel 2.6.35 */
+	/* This IOCTL to be used by processes to be notified of time changes */
 	case RTC_WAIT_TIME_SET:
 
 		/* don't block without releasing mutex first */
@@ -436,6 +436,10 @@ static int mxc_rtc_set_time(struct device *dev, struct rtc_time *tm)
 
 	/* signal all waiting threads that time changed */
 	complete_all(&srtc_completion);
+
+	/* allow signalled threads to handle the time change notification */
+	schedule();
+
 	/* reinitialize completion variable */
 	INIT_COMPLETION(srtc_completion);
 
