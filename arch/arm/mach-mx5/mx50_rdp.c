@@ -919,6 +919,12 @@ static int mxc_sgtl5000_amp_enable(int enable)
 	return 0;
 }
 
+static int mxc_sgtl5000_clock_enable(int enable)
+{
+	gpio_set_value(SGTL_OSCEN, enable);
+	return 0;
+}
+
 static int headphone_det_status(void)
 {
 	return (gpio_get_value(HP_DETECT) == 0);
@@ -931,6 +937,7 @@ static struct mxc_audio_platform_data sgtl5000_data = {
 	.hp_irq = IOMUX_TO_IRQ_V3(HP_DETECT),
 	.hp_status = headphone_det_status,
 	.amp_enable = mxc_sgtl5000_amp_enable,
+	.clock_enable = mxc_sgtl5000_clock_enable,
 	.sysclk = 12288000,
 };
 
