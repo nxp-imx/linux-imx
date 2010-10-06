@@ -403,4 +403,8 @@ extern struct snd_soc_codec_device soc_codec_dev_sgtl5000;
 #define SGTL5000_SYSCLK		0x00
 #define SGTL5000_LRCLK		0x01
 
+struct sgtl5000_setup_data {
+	int (*clock_enable) (int enable);
+};
+
 #endif
