@@ -1,7 +1,6 @@
 #
 # Automatically generated make config: don't edit
 # Linux kernel version: 2.6.35.3
-# Tue Oct 12 13:56:09 2010
 #
 CONFIG_ARM=y
 CONFIG_HAVE_PWM=y
@@ -1185,6 +1184,7 @@ CONFIG_HWMON=y
 # CONFIG_SENSORS_LM95241 is not set
 # CONFIG_SENSORS_MAX1111 is not set
 # CONFIG_SENSORS_MAX1619 is not set
+CONFIG_SENSORS_MAX17135=y
 # CONFIG_SENSORS_MAX6650 is not set
 # CONFIG_SENSORS_PC87360 is not set
 # CONFIG_SENSORS_PC87427 is not set
@@ -1264,6 +1264,7 @@ CONFIG_MFD_SUPPORT=y
 # CONFIG_ABX500_CORE is not set
 # CONFIG_EZX_PCAP is not set
 # CONFIG_AB8500_CORE is not set
+CONFIG_MFD_MAX17135=y
 CONFIG_REGULATOR=y
 # CONFIG_REGULATOR_DEBUG is not set
 # CONFIG_REGULATOR_DUMMY is not set

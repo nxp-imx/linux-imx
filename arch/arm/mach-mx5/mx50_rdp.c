@@ -38,7 +38,7 @@
 #include <linux/mtd/partitions.h>
 #include <linux/regulator/consumer.h>
 #include <linux/regulator/machine.h>
-#include <linux/regulator/max17135.h>
+#include <linux/mfd/max17135.h>
 #include <linux/pmic_external.h>
 #include <linux/pmic_status.h>
 #include <linux/videodev2.h>
@@ -118,6 +118,7 @@
 extern int __init mx50_rdp_init_mc13892(void);
 extern struct cpu_wp *(*get_cpu_wp)(int *wp);
 extern void (*set_num_cpu_wp)(int num);
+static int max17135_regulator_init(struct max17135 *max17135);
 static int num_cpu_wp = 2;
 
 static struct pad_desc  mx50_rdp[] = {
@@ -778,6 +779,11 @@ static struct mxc_epdc_fb_platform_data epdc_data = {
 	.disable_pins = epdc_disable_pins,
 };
 
+static struct platform_device max17135_sensor_device = {
+	.name = "max17135_sensor",
+	.id = 0,
+};
+
 static struct max17135_platform_data max17135_pdata __initdata = {
 	.vneg_pwrup = 1,
 	.gvee_pwrup = 1,
@@ -792,7 +798,48 @@ static struct max17135_platform_data max17135_pdata __initdata = {
 	.gpio_pmic_wakeup = EPDC_PMIC_WAKE,
 	.gpio_pmic_intr = EPDC_PMIC_INT,
 	.regulator_init = max17135_init_data,
+	.init = max17135_regulator_init,
 };
+
+static int max17135_regulator_init(struct max17135 *max17135)
+{
+	struct max17135_platform_data *pdata = &max17135_pdata;
+	int i, ret;
+
+	max17135->gvee_pwrup = pdata->gvee_pwrup;
+	max17135->vneg_pwrup = pdata->vneg_pwrup;
+	max17135->vpos_pwrup = pdata->vpos_pwrup;
+	max17135->gvdd_pwrup = pdata->gvdd_pwrup;
+	max17135->gvdd_pwrdn = pdata->gvdd_pwrdn;
+	max17135->vpos_pwrdn = pdata->vpos_pwrdn;
+	max17135->vneg_pwrdn = pdata->vneg_pwrdn;
+	max17135->gvee_pwrdn = pdata->gvee_pwrdn;
+
+	max17135->max_wait = pdata->vpos_pwrup + pdata->vneg_pwrup +
+		pdata->gvdd_pwrup + pdata->gvee_pwrup;
+
+	max17135->gpio_pmic_pwrgood = pdata->gpio_pmic_pwrgood;
+	max17135->gpio_pmic_vcom_ctrl = pdata->gpio_pmic_vcom_ctrl;
+	max17135->gpio_pmic_wakeup = pdata->gpio_pmic_wakeup;
+	max17135->gpio_pmic_intr = pdata->gpio_pmic_intr;
+
+	max17135->vcom_setup = false;
+	max17135->init_done = false;
+
+	for (i = 0; i <= MAX17135_VPOS; i++) {
+		ret = max17135_register_regulator(max17135, i,
+			&pdata->regulator_init[i]);
+		if (ret != 0) {
+			printk(KERN_ERR"max17135 regulator init failed: %d\n",
+				ret);
+			return ret;
+		}
+	}
+
+	regulator_has_full_constraints();
+
+	return 0;
+}
 
 static struct imxi2c_platform_data mxci2c_data = {
        .bitrate = 100000,
@@ -1226,6 +1273,7 @@ static void __init mxc_board_init(void)
 	i2c_register_board_info(1, mxc_i2c1_board_info,
 				ARRAY_SIZE(mxc_i2c1_board_info));
 
+	mxc_register_device(&max17135_sensor_device, NULL);
 	mxc_register_device(&epdc_device, &epdc_data);
 	mxc_register_device(&lcd_wvga_device, &lcd_wvga_data);
 	mxc_register_device(&elcdif_device, &fb_data[0]);
