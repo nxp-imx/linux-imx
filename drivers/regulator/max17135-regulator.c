@@ -26,117 +26,8 @@
 #include <linux/platform_device.h>
 #include <linux/regulator/machine.h>
 #include <linux/regulator/driver.h>
-#include <linux/regulator/max17135.h>
+#include <linux/mfd/max17135.h>
 #include <linux/gpio.h>
-
-/*
- * PMIC Register Addresses
- */
-enum {
-    REG_MAX17135_EXT_TEMP = 0x0,
-    REG_MAX17135_CONFIG,
-    REG_MAX17135_INT_TEMP = 0x4,
-    REG_MAX17135_STATUS,
-    REG_MAX17135_PRODUCT_REV,
-    REG_MAX17135_PRODUCT_ID,
-    REG_MAX17135_DVR,
-    REG_MAX17135_ENABLE,
-    REG_MAX17135_FAULT,  /*0x0A*/
-    REG_MAX17135_HVINP,
-    REG_MAX17135_PRGM_CTRL,
-    REG_MAX17135_TIMING1 = 0x10,    /* Timing regs base address is 0x10 */
-    REG_MAX17135_TIMING2,
-    REG_MAX17135_TIMING3,
-    REG_MAX17135_TIMING4,
-    REG_MAX17135_TIMING5,
-    REG_MAX17135_TIMING6,
-    REG_MAX17135_TIMING7,
-    REG_MAX17135_TIMING8,
-};
-#define MAX17135_REG_NUM        21
-#define MAX17135_MAX_REGISTER   0xFF
-
-/*
- * Bitfield macros that use rely on bitfield width/shift information.
- */
-#define BITFMASK(field) (((1U << (field ## _WID)) - 1) << (field ## _LSH))
-#define BITFVAL(field, val) ((val) << (field ## _LSH))
-#define BITFEXT(var, bit) ((var & BITFMASK(bit)) >> (bit ## _LSH))
-
-/*
- * Shift and width values for each register bitfield
- */
-#define EXT_TEMP_LSH    7
-#define EXT_TEMP_WID    9
-
-#define THERMAL_SHUTDOWN_LSH    0
-#define THERMAL_SHUTDOWN_WID    1
-
-#define INT_TEMP_LSH    7
-#define INT_TEMP_WID    9
-
-#define STAT_BUSY_LSH   0
-#define STAT_BUSY_WID   1
-#define STAT_OPEN_LSH   1
-#define STAT_OPEN_WID   1
-#define STAT_SHRT_LSH   2
-#define STAT_SHRT_WID   1
-
-#define PROD_REV_LSH    0
-#define PROD_REV_WID    8
-
-#define PROD_ID_LSH     0
-#define PROD_ID_WID     8
-
-#define DVR_LSH         0
-#define DVR_WID         8
-
-#define ENABLE_LSH      0
-#define ENABLE_WID      1
-#define VCOM_ENABLE_LSH 1
-#define VCOM_ENABLE_WID 1
-
-#define FAULT_FBPG_LSH      0
-#define FAULT_FBPG_WID      1
-#define FAULT_HVINP_LSH     1
-#define FAULT_HVINP_WID     1
-#define FAULT_HVINN_LSH     2
-#define FAULT_HVINN_WID     1
-#define FAULT_FBNG_LSH      3
-#define FAULT_FBNG_WID      1
-#define FAULT_HVINPSC_LSH   4
-#define FAULT_HVINPSC_WID   1
-#define FAULT_HVINNSC_LSH   5
-#define FAULT_HVINNSC_WID   1
-#define FAULT_OT_LSH        6
-#define FAULT_OT_WID        1
-#define FAULT_POK_LSH       7
-#define FAULT_POK_WID       1
-
-#define HVINP_LSH           0
-#define HVINP_WID           4
-
-#define CTRL_DVR_LSH        0
-#define CTRL_DVR_WID        1
-#define CTRL_TIMING_LSH     1
-#define CTRL_TIMING_WID     1
-
-#define TIMING1_LSH         0
-#define TIMING1_WID         8
-#define TIMING2_LSH         0
-#define TIMING2_WID         8
-#define TIMING3_LSH         0
-#define TIMING3_WID         8
-#define TIMING4_LSH         0
-#define TIMING4_WID         8
-#define TIMING5_LSH         0
-#define TIMING5_WID         8
-#define TIMING6_LSH         0
-#define TIMING6_WID         8
-#define TIMING7_LSH         0
-#define TIMING7_WID         8
-#define TIMING8_LSH         0
-#define TIMING8_WID         8
 
 /*
  * Regulator definitions
@@ -191,6 +82,9 @@ struct max17135_vcom_programming_data {
 	int vcom_step_uV;
 };
 
+static int max17135_pass_num = { 1 };
+static int max17135_vcom = { -1250000 };
+
 struct max17135_vcom_programming_data vcom_data[2] = {
 	{
 		-4325000,
@@ -204,51 +98,6 @@ struct max17135_vcom_programming_data vcom_data[2] = {
 	},
 };
 
-struct max17135 {
-	/* chip revision */
-	int rev;
-
-	struct device *dev;
-
-	/* Platform connection */
-	struct i2c_client *i2c_client;
-
-	/* Client devices */
-	struct platform_device *pdev[MAX17135_REG_NUM];
-
-	/* Timings */
-	unsigned int gvee_pwrup;
-	unsigned int vneg_pwrup;
-	unsigned int vpos_pwrup;
-	unsigned int gvdd_pwrup;
-	unsigned int gvdd_pwrdn;
-	unsigned int vpos_pwrdn;
-	unsigned int vneg_pwrdn;
-	unsigned int gvee_pwrdn;
-
-	/* GPIOs */
-	int gpio_pmic_pwrgood;
-	int gpio_pmic_vcom_ctrl;
-	int gpio_pmic_wakeup;
-	int gpio_pmic_intr;
-
-	/* MAX17135 part variables */
-	int pass_num;
-	int vcom_uV;
-
-	/* One-time VCOM setup counter */
-	bool vcom_setup;
-
-	/* powerup/powerdown wait time */
-	int max_wait;
-
-	/* Dynamically determined polarity for PWRGOOD */
-	int pwrgood_polarity;
-};
-
-static int max17135_pass_num = { 1 };
-static int max17135_vcom = { -1250000 };
-
 static int max17135_is_power_good(struct max17135 *max17135);
 
 /*
@@ -259,8 +108,6 @@ static int max17135_hvinp_set_voltage(struct regulator_dev *reg,
 {
 	unsigned int reg_val;
 	unsigned int fld_val;
-	struct max17135 *max17135 = rdev_get_drvdata(reg);
-	struct i2c_client *client = max17135->i2c_client;
 
 	if ((uV >= MAX17135_HVINP_MIN_uV) &&
 	    (uV <= MAX17135_HVINP_MAX_uV))
@@ -269,12 +116,12 @@ static int max17135_hvinp_set_voltage(struct regulator_dev *reg,
 	else
 		return -EINVAL;
 
-	reg_val = i2c_smbus_read_byte_data(client, REG_MAX17135_HVINP);
+	max17135_reg_read(REG_MAX17135_HVINP, &reg_val);
 
 	reg_val &= ~BITFMASK(HVINP);
 	reg_val |= BITFVAL(HVINP, fld_val); /* shift to correct bit */
 
-	return i2c_smbus_write_byte_data(client, REG_MAX17135_HVINP, reg_val);
+	return max17135_reg_write(REG_MAX17135_HVINP, reg_val);
 }
 
 static int max17135_hvinp_get_voltage(struct regulator_dev *reg)
@@ -282,10 +129,8 @@ static int max17135_hvinp_get_voltage(struct regulator_dev *reg)
 	unsigned int reg_val;
 	unsigned int fld_val;
 	int volt;
-	struct max17135 *max17135 = rdev_get_drvdata(reg);
-	struct i2c_client *client = max17135->i2c_client;
 
-	reg_val = i2c_smbus_read_byte_data(client, REG_MAX17135_HVINP);
+	max17135_reg_read(REG_MAX17135_HVINP, &reg_val);
 
 	fld_val = (reg_val & BITFMASK(HVINP)) >> HVINP_LSH;
 
@@ -328,7 +173,6 @@ static int max17135_vcom_set_voltage(struct regulator_dev *reg,
 					int minuV, int uV)
 {
 	struct max17135 *max17135 = rdev_get_drvdata(reg);
-	struct i2c_client *client = max17135->i2c_client;
 	unsigned int reg_val;
 	int vcom_read;
 
@@ -336,7 +180,7 @@ static int max17135_vcom_set_voltage(struct regulator_dev *reg,
 		|| (uV > vcom_data[max17135->pass_num-1].vcom_max_uV))
 		return -EINVAL;
 
-	reg_val = i2c_smbus_read_byte_data(client, REG_MAX17135_DVR);
+	max17135_reg_read(REG_MAX17135_DVR, &reg_val);
 
 	/*
 	 * Only program VCOM if it is not set to the desired value.
@@ -348,11 +192,10 @@ static int max17135_vcom_set_voltage(struct regulator_dev *reg,
 		reg_val &= ~BITFMASK(DVR);
 		reg_val |= BITFVAL(DVR, vcom_uV_to_rs(uV,
 			max17135->pass_num-1));
-		i2c_smbus_write_byte_data(client, REG_MAX17135_DVR, reg_val);
+		max17135_reg_write(REG_MAX17135_DVR, reg_val);
 
 		reg_val = BITFVAL(CTRL_DVR, true); /* shift to correct bit */
-		return i2c_smbus_write_byte_data(client,
-			REG_MAX17135_PRGM_CTRL, reg_val);
+		return max17135_reg_write(REG_MAX17135_PRGM_CTRL, reg_val);
 	}
 
 	return 0;
@@ -361,10 +204,9 @@ static int max17135_vcom_set_voltage(struct regulator_dev *reg,
 static int max17135_vcom_get_voltage(struct regulator_dev *reg)
 {
 	struct max17135 *max17135 = rdev_get_drvdata(reg);
-	struct i2c_client *client = max17135->i2c_client;
 	unsigned int reg_val;
 
-	reg_val = i2c_smbus_read_byte_data(client, REG_MAX17135_DVR);
+	max17135_reg_read(REG_MAX17135_DVR, &reg_val);
 	return vcom_rs_to_uV(BITFEXT(reg_val, DVR), max17135->pass_num-1);
 }
 
@@ -388,13 +230,12 @@ static int max17135_vcom_enable(struct regulator_dev *reg)
 	if (max17135->pass_num == 1)
 		gpio_set_value(max17135->gpio_pmic_vcom_ctrl, 1);
 	else {
-		struct i2c_client *client = max17135->i2c_client;
 		unsigned int reg_val;
 
-		reg_val = i2c_smbus_read_byte_data(client, REG_MAX17135_ENABLE);
+		max17135_reg_read(REG_MAX17135_ENABLE, &reg_val);
 		reg_val &= ~BITFMASK(VCOM_ENABLE);
 		reg_val |= BITFVAL(VCOM_ENABLE, 1); /* shift to correct bit */
-		i2c_smbus_write_byte_data(client, REG_MAX17135_ENABLE, reg_val);
+		max17135_reg_write(REG_MAX17135_ENABLE, reg_val);
 	}
 
 	return 0;
@@ -403,15 +244,15 @@ static int max17135_vcom_enable(struct regulator_dev *reg)
 static int max17135_vcom_disable(struct regulator_dev *reg)
 {
 	struct max17135 *max17135 = rdev_get_drvdata(reg);
+
 	if (max17135->pass_num == 1)
 		gpio_set_value(max17135->gpio_pmic_vcom_ctrl, 0);
 	else {
-		struct i2c_client *client = max17135->i2c_client;
 		unsigned int reg_val;
 
-		reg_val = i2c_smbus_read_byte_data(client, REG_MAX17135_ENABLE);
+		max17135_reg_read(REG_MAX17135_ENABLE, &reg_val);
 		reg_val &= ~BITFMASK(VCOM_ENABLE);
-		i2c_smbus_write_byte_data(client, REG_MAX17135_ENABLE, reg_val);
+		max17135_reg_write(REG_MAX17135_ENABLE, reg_val);
 	}
 
 	return 0;
@@ -429,10 +270,9 @@ static int max17135_vcom_is_enabled(struct regulator_dev *reg)
 		else
 			return 1;
 	} else {
-		struct i2c_client *client = max17135->i2c_client;
 		unsigned int reg_val;
 
-		reg_val = i2c_smbus_read_byte_data(client, REG_MAX17135_ENABLE);
+		max17135_reg_read(REG_MAX17135_ENABLE, &reg_val);
 		reg_val &= BITFMASK(VCOM_ENABLE);
 		if (reg_val != 0)
 			return 1;
@@ -472,15 +312,12 @@ static int max17135_display_enable(struct regulator_dev *reg)
 	if (max17135->pass_num == 1)
 		gpio_set_value(max17135->gpio_pmic_wakeup, 1);
 	else {
-		struct i2c_client *client = max17135->i2c_client;
 		unsigned int reg_val;
 
-		reg_val = i2c_smbus_read_byte_data(client,
-			REG_MAX17135_ENABLE);
+		max17135_reg_read(REG_MAX17135_ENABLE, &reg_val);
 		reg_val &= ~BITFMASK(ENABLE);
 		reg_val |= BITFVAL(ENABLE, 1);
-		i2c_smbus_write_byte_data(client, REG_MAX17135_ENABLE,
-			reg_val);
+		max17135_reg_write(REG_MAX17135_ENABLE, reg_val);
 	}
 
 	return max17135_wait_power_good(max17135);
@@ -493,14 +330,11 @@ static int max17135_display_disable(struct regulator_dev *reg)
 	if (max17135->pass_num == 1)
 		gpio_set_value(max17135->gpio_pmic_wakeup, 0);
 	else {
-		struct i2c_client *client = max17135->i2c_client;
 		unsigned int reg_val;
 
-		reg_val = i2c_smbus_read_byte_data(client,
-			REG_MAX17135_ENABLE);
+		max17135_reg_read(REG_MAX17135_ENABLE, &reg_val);
 		reg_val &= ~BITFMASK(ENABLE);
-		i2c_smbus_write_byte_data(client, REG_MAX17135_ENABLE,
-			reg_val);
+		max17135_reg_write(REG_MAX17135_ENABLE, reg_val);
 	}
 
 	msleep(max17135->max_wait);
@@ -623,20 +457,19 @@ static struct regulator_desc max17135_reg[MAX17135_NUM_REGULATORS] = {
 
 static void max17135_setup_timings(struct max17135 *max17135)
 {
-	struct i2c_client *client = max17135->i2c_client;
 	unsigned int reg_val;
 
 	int timing1, timing2, timing3, timing4,
 		timing5, timing6, timing7, timing8;
 
-	timing1 = i2c_smbus_read_byte_data(client, REG_MAX17135_TIMING1);
-	timing2 = i2c_smbus_read_byte_data(client, REG_MAX17135_TIMING2);
-	timing3 = i2c_smbus_read_byte_data(client, REG_MAX17135_TIMING3);
-	timing4 = i2c_smbus_read_byte_data(client, REG_MAX17135_TIMING4);
-	timing5 = i2c_smbus_read_byte_data(client, REG_MAX17135_TIMING5);
-	timing6 = i2c_smbus_read_byte_data(client, REG_MAX17135_TIMING6);
-	timing7 = i2c_smbus_read_byte_data(client, REG_MAX17135_TIMING7);
-	timing8 = i2c_smbus_read_byte_data(client, REG_MAX17135_TIMING8);
+	max17135_reg_read(REG_MAX17135_TIMING1, &timing1);
+	max17135_reg_read(REG_MAX17135_TIMING2, &timing2);
+	max17135_reg_read(REG_MAX17135_TIMING3, &timing3);
+	max17135_reg_read(REG_MAX17135_TIMING4, &timing4);
+	max17135_reg_read(REG_MAX17135_TIMING5, &timing5);
+	max17135_reg_read(REG_MAX17135_TIMING6, &timing6);
+	max17135_reg_read(REG_MAX17135_TIMING7, &timing7);
+	max17135_reg_read(REG_MAX17135_TIMING8, &timing8);
 
 	if ((timing1 != max17135->gvee_pwrup) ||
 		(timing2 != max17135->vneg_pwrup) ||
@@ -646,26 +479,17 @@ static void max17135_setup_timings(struct max17135 *max17135)
 		(timing6 != max17135->vpos_pwrdn) ||
 		(timing7 != max17135->vneg_pwrdn) ||
 		(timing8 != max17135->gvee_pwrdn)) {
-		i2c_smbus_write_byte_data(client, REG_MAX17135_TIMING1,
-			max17135->gvee_pwrup);
-		i2c_smbus_write_byte_data(client, REG_MAX17135_TIMING2,
-			max17135->vneg_pwrup);
-		i2c_smbus_write_byte_data(client, REG_MAX17135_TIMING3,
-			max17135->vpos_pwrup);
-		i2c_smbus_write_byte_data(client, REG_MAX17135_TIMING4,
-			max17135->gvdd_pwrup);
-		i2c_smbus_write_byte_data(client, REG_MAX17135_TIMING5,
-			max17135->gvdd_pwrdn);
-		i2c_smbus_write_byte_data(client, REG_MAX17135_TIMING6,
-			max17135->vpos_pwrdn);
-		i2c_smbus_write_byte_data(client, REG_MAX17135_TIMING7,
-			max17135->vneg_pwrdn);
-		i2c_smbus_write_byte_data(client, REG_MAX17135_TIMING8,
-			max17135->gvee_pwrdn);
+		max17135_reg_write(REG_MAX17135_TIMING1, max17135->gvee_pwrup);
+		max17135_reg_write(REG_MAX17135_TIMING2, max17135->vneg_pwrup);
+		max17135_reg_write(REG_MAX17135_TIMING3, max17135->vpos_pwrup);
+		max17135_reg_write(REG_MAX17135_TIMING4, max17135->gvdd_pwrup);
+		max17135_reg_write(REG_MAX17135_TIMING5, max17135->gvdd_pwrdn);
+		max17135_reg_write(REG_MAX17135_TIMING6, max17135->vpos_pwrdn);
+		max17135_reg_write(REG_MAX17135_TIMING7, max17135->vneg_pwrdn);
+		max17135_reg_write(REG_MAX17135_TIMING8, max17135->gvee_pwrdn);
 
 		reg_val = BITFVAL(CTRL_TIMING, true); /* shift to correct bit */
-		i2c_smbus_write_byte_data(client,
-			REG_MAX17135_PRGM_CTRL, reg_val);
+		max17135_reg_write(REG_MAX17135_PRGM_CTRL, reg_val);
 	}
 }
 
@@ -705,7 +529,7 @@ static struct platform_driver max17135_regulator_driver = {
 	},
 };
 
-static int max17135_register_regulator(struct max17135 *max17135, int reg,
+int max17135_register_regulator(struct max17135 *max17135, int reg,
 				     struct regulator_init_data *initdata)
 {
 	struct platform_device *pdev;
@@ -714,7 +538,7 @@ static int max17135_register_regulator(struct max17135 *max17135, int reg,
 	struct i2c_client *client = max17135->i2c_client;
 	/* If we can't find PMIC via I2C, we should not register regulators */
 	if (i2c_smbus_read_byte_data(client,
-		REG_MAX17135_PRODUCT_REV >= 0)) {
+		REG_MAX17135_PRODUCT_REV) != 0) {
 		dev_err(max17135->dev,
 			"Max17135 PMIC not found!\n");
 		return -ENXIO;
@@ -745,131 +569,38 @@ static int max17135_register_regulator(struct max17135 *max17135, int reg,
 		max17135->pdev[reg] = NULL;
 	}
 
-	return ret;
-}
+	if (!max17135->init_done) {
+		max17135->pass_num = max17135_pass_num;
+		max17135->vcom_uV = max17135_vcom;
 
-static int max17135_i2c_probe(struct i2c_client *client,
-			    const struct i2c_device_id *id)
-{
-	int i;
-	struct max17135 *max17135;
-	struct max17135_platform_data *pdata = client->dev.platform_data;
-	int ret = 0;
+		/*
+		 * Set up PMIC timing values.
+		 * Should only be done one time!  Timing values may only be
+		 * changed a limited number of times according to spec.
+		 */
+		max17135_setup_timings(max17135);
 
-	if (!pdata || !pdata->regulator_init)
-		return -ENODEV;
+		max17135->pwrgood_polarity =
+			gpio_get_value(max17135->gpio_pmic_pwrgood);
 
-	/* Create the PMIC data structure */
-	max17135 = kzalloc(sizeof(struct max17135), GFP_KERNEL);
-	if (max17135 == NULL) {
-		kfree(client);
-		return -ENOMEM;
+		max17135->init_done = true;
 	}
-
-	/* Initialize the PMIC data structure */
-	i2c_set_clientdata(client, max17135);
-	max17135->dev = &client->dev;
-	max17135->i2c_client = client;
-
-	max17135->gvee_pwrup = pdata->gvee_pwrup;
-	max17135->vneg_pwrup = pdata->vneg_pwrup;
-	max17135->vpos_pwrup = pdata->vpos_pwrup;
-	max17135->gvdd_pwrup = pdata->gvdd_pwrup;
-	max17135->gvdd_pwrdn = pdata->gvdd_pwrdn;
-	max17135->vpos_pwrdn = pdata->vpos_pwrdn;
-	max17135->vneg_pwrdn = pdata->vneg_pwrdn;
-	max17135->gvee_pwrdn = pdata->gvee_pwrdn;
-
-	max17135->gpio_pmic_pwrgood = pdata->gpio_pmic_pwrgood;
-	max17135->gpio_pmic_vcom_ctrl = pdata->gpio_pmic_vcom_ctrl;
-	max17135->gpio_pmic_wakeup = pdata->gpio_pmic_wakeup;
-	max17135->gpio_pmic_intr = pdata->gpio_pmic_intr;
-
-	max17135->pass_num = max17135_pass_num;
-	max17135->vcom_uV = max17135_vcom;
-
-	max17135->vcom_setup = false;
-
-	ret = platform_driver_register(&max17135_regulator_driver);
-	if (ret < 0)
-		goto err;
-
-	for (i = 0; i <= MAX17135_VPOS; i++) {
-		ret = max17135_register_regulator(max17135, i, &pdata->regulator_init[i]);
-		if (ret != 0) {
-			dev_err(max17135->dev, "Platform init() failed: %d\n",
-			ret);
-		goto err;
-		}
-	}
-
-	max17135->max_wait = pdata->vpos_pwrup + pdata->vneg_pwrup +
-		pdata->gvdd_pwrup + pdata->gvee_pwrup;
-
-	/*
-	 * Set up PMIC timing values.
-	 * Should only be done one time!  Timing values may only be changed
-	 * a limited number of times according to spec.
-	 */
-	max17135_setup_timings(max17135);
-
-	max17135->pwrgood_polarity =
-		gpio_get_value(max17135->gpio_pmic_pwrgood);
-
-	/* Initialize the PMIC device */
-	dev_info(&client->dev, "PMIC MAX17135 for eInk display\n");
-
-	return ret;
-err:
-	kfree(max17135);
 
 	return ret;
 }
 
-
-static int max17135_i2c_remove(struct i2c_client *i2c)
+static int __init max17135_regulator_init(void)
 {
-	struct max17135 *max17135 = i2c_get_clientdata(i2c);
-	int i;
+	return platform_driver_register(&max17135_regulator_driver);
+}
+subsys_initcall(max17135_regulator_init);
 
-	for (i = 0; i < ARRAY_SIZE(max17135->pdev); i++)
-		platform_device_unregister(max17135->pdev[i]);
-
+static void __exit max17135_regulator_exit(void)
+{
 	platform_driver_unregister(&max17135_regulator_driver);
-
-	kfree(max17135);
-
-	return 0;
 }
+module_exit(max17135_regulator_exit);
 
-static const struct i2c_device_id max17135_i2c_id[] = {
-       { "max17135", 0 },
-       { }
-};
-MODULE_DEVICE_TABLE(i2c, max17135_i2c_id);
-
-
-static struct i2c_driver max17135_i2c_driver = {
-	.driver = {
-		   .name = "max17135",
-		   .owner = THIS_MODULE,
-	},
-	.probe = max17135_i2c_probe,
-	.remove = max17135_i2c_remove,
-	.id_table = max17135_i2c_id,
-};
-
-static int __init max17135_init(void)
-{
-	return i2c_add_driver(&max17135_i2c_driver);
-}
-module_init(max17135_init);
-
-static void __exit max17135_exit(void)
-{
-	i2c_del_driver(&max17135_i2c_driver);
-}
-module_exit(max17135_exit);
 
 /*
  * Parse user specified options (`max17135:')

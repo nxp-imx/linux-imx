@@ -223,7 +223,7 @@ config REGULATOR_MC9S08DZ60
 
 config REGULATOR_MAX17135
 	tristate "Maxim MAX17135 Regulator Support"
-	depends on REGULATOR
+	depends on MFD_MAX17135
 	default n
 
 endif
