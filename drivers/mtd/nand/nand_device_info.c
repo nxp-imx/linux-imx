@@ -1129,6 +1129,25 @@ static struct nand_device_info nand_device_info_table_type_8[] __initdata = {
 	.tRHOH_in_ns              = -1,
 	"H27UCG",
 	},
+	{
+	.end_of_table             = false,
+	.manufacturer_code        = 0xad,
+	.device_code              = 0xd3,
+	.cell_technology          = NAND_DEVICE_CELL_TECH_MLC,
+	.chip_size_in_bytes       = 8LL*SZ_1G,
+	.block_size_in_pages      = 128,
+	.page_total_size_in_bytes = 4*SZ_1K + 128,
+	.ecc_strength_in_bits     = 4,
+	.ecc_size_in_bytes        = 512,
+	.data_setup_in_ns         = 15,
+	.data_hold_in_ns          = 10,
+	.address_setup_in_ns      = 20,
+	.gpmi_sample_delay_in_ns  = 6,
+	.tREA_in_ns               = -1,
+	.tRLOH_in_ns              = -1,
+	.tRHOH_in_ns              = -1,
+	"H27U8G8T2B",
+	},
 	{true}
 };
 
