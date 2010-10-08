@@ -335,25 +335,29 @@ static void usbh2_set_ulpi_xcvr(void)
 
 	pr_debug("%s\n", __func__);
 
-	if (cpu_is_mx51()) {
-		USBCTRL_HOST2 &= ~(UCTRL_H2SIC_MASK | UCTRL_BPE);
-		USBCTRL_HOST2 |= UCTRL_H2WIE |	/* wakeup intr enable */
-			UCTRL_H2UIE |	/* ULPI intr enable */
-			UCTRL_H2DT |	/* disable H2 TLL */
-			UCTRL_H2PM;	/* power mask */
-	} else {
-		USBCTRL &= ~(UCTRL_H2SIC_MASK | UCTRL_BPE);
-		USBCTRL |= UCTRL_H2WIE |	/* wakeup intr enable */
-			UCTRL_H2UIE |	/* ULPI intr enable */
-			UCTRL_H2DT |	/* disable H2 TLL */
-			UCTRL_H2PM;	/* power mask */
-	}
+	UH2_USBCMD &= ~UCMD_RUN_STOP;
+	while (UH2_USBCMD & UCMD_RUN_STOP)
+		;
 
+	UH2_USBCMD |= UCMD_RESET;
+	while (UH2_USBCMD & UCMD_RESET)
+
+	USBCTRL_HOST2 &= ~(UCTRL_H2SIC_MASK | UCTRL_BPE);
+	USBCTRL_HOST2 &= ~UCTRL_H2WIE;	/* wakeup intr enable */
+	USBCTRL_HOST2 &= ~UCTRL_H2UIE;	/* ULPI intr enable */
+	USB_CTRL_1 |= USB_CTRL_UH2_EXT_CLK_EN;
+	if (cpu_is mx53())
+		USB_CTRL_1 |= USB_CTRL_UH2_CLK_FROM_ULPI_PHY;
+	if (cpu_is_mx51())/* not tested */
+		USBCTRL_HOST2 |= (1 << 12);
 	/* must set ULPI phy before turning off clock */
 	tmp = UH2_PORTSC1 & ~PORTSC_PTS_MASK;
 	tmp |= PORTSC_PTS_ULPI;
 	UH2_PORTSC1 = tmp;
-
+	if (cpu_is_mx53()) {
+		/* turn off the internal 60MHZ clk  */
+		USB_CLKONOFF_CTRL |= (1 << 21);
+	}
 	UH2_USBCMD |= UCMD_RESET;	/* reset the controller */
 
 	/* allow controller to reset, and leave time for
@@ -896,6 +900,8 @@ int usb_host_wakeup_irq(struct device *wkup_dev)
 
 	if (!strcmp("Host 1", pdata->name)) {
 		wakeup_req = USBCTRL & UCTRL_H1WIR;
+	} else if (!strcmp("Host 2", pdata->name)) {
+		wakeup_req = USBCTRL_HOST2 & UCTRL_H2WIR;
 	} else if (!strcmp("DR", pdata->name)) {
 		wakeup_req = USBCTRL & UCTRL_OWIR;
 		usb_debounce_id_pin();

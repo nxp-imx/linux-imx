@@ -251,7 +251,11 @@ extern volatile u32 *mx3_usb_otg_addr;
 #define UCTRL_OBPVAL_RXDM	(1 << 25)	/* OTG RxDm status in bypass mode */
 #define UCTRL_OPM		(1 << 24)	/* OTG power mask */
 #define UCTRL_O_PWR_POL	(1 << 24)	/* OTG power pin polarity */
+#ifdef CONFIG_ARCH_MX5
+#define UCTRL_H2WIR		(1 << 17)	/* HOST2 wakeup intr request received */
+#else
 #define UCTRL_H2WIR		(1 << 23)	/* HOST2 wakeup intr request received */
+#endif
 #define UCTRL_H2SIC_MASK	(3 << 21)	/* HOST2 Serial Interface Config: */
 #define UCTRL_H2SIC_DU6		(0 << 21)	/* Differential/unidirectional 6 wire */
 #define UCTRL_H2SIC_DB4		(1 << 21)	/* Differential/bidirectional  4 wire */
@@ -345,7 +349,7 @@ extern volatile u32 *mx3_usb_otg_addr;
 /* USB_CTRL_1 */
 #define USB_CTRL_UH1_EXT_CLK_EN			(1 << 25)
 #define USB_CTRL_UH2_EXT_CLK_EN			(1 << 26)
-
+#define USB_CTRL_UH2_CLK_FROM_ULPI_PHY  	(1 << 2)
 /* ULPIVIEW register bits */
 #define ULPIVW_OFF		(0x170)
 #define ULPIVW_WU		(1 << 31)	/* Wakeup */

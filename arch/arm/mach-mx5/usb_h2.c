@@ -14,6 +14,7 @@
 #include <linux/kernel.h>
 #include <linux/types.h>
 #include <linux/delay.h>
+#include <linux/clk.h>
 #include <linux/platform_device.h>
 #include <linux/fsl_devices.h>
 #include <mach/arc_otg.h>
@@ -43,32 +44,114 @@ static void gpio_usbh2_inactive(void)
 	mxc_free_iomux(MX51_PIN_EIM_A26, IOMUX_CONFIG_GPIO);
 }
 
+static void _wake_up_enable(struct fsl_usb2_platform_data *pdata, bool enable)
+{
+	printk(KERN_DEBUG "host2, %s, enable is %d\n", __func__, enable);
+	if (enable)
+		USBCTRL_HOST2 |= UCTRL_H2WIE;
+	else {
+		USBCTRL_HOST2 &= ~UCTRL_H2WIE;
+		/* The interrupt must be disabled for at least 3
+		* cycles of the standby clock(32k Hz) , that is 0.094 ms*/
+		udelay(100);
+	}
+}
+
+static void _phy_lowpower_suspend(bool enable)
+{
+	printk(KERN_DEBUG "host2, %s, enable is %d\n", __func__, enable);
+	if (enable) {
+		UH2_PORTSC1 |= PORTSC_PHCD;
+	} else {
+		UH2_PORTSC1 &= ~PORTSC_PHCD;
+	}
+}
+
+static void fsl_usbh2_clock_gate(bool on)
+{
+	struct clk *usb_clk;
+	if (on) {
+		usb_clk = clk_get(NULL, "usb_ahb_clk");
+		clk_enable(usb_clk);
+		clk_put(usb_clk);
+
+		usb_clk = clk_get(NULL, "usboh3_clk");
+		clk_enable(usb_clk);
+		clk_put(usb_clk);
+	} else {
+		usb_clk = clk_get(NULL, "usb_ahb_clk");
+		clk_disable(usb_clk);
+		clk_put(usb_clk);
+
+		usb_clk = clk_get(NULL, "usboh3_clk");
+		clk_disable(usb_clk);
+		clk_put(usb_clk);
+	}
+}
+
 static int fsl_usb_host_init_ext(struct platform_device *pdev)
 {
-	int ret = fsl_usb_host_init(pdev);
-	if (ret)
-		return ret;
+	int ret = 0;
+	struct clk *usb_clk;
+
+	usb_clk = clk_get(NULL, "usboh3_clk");
+	clk_enable(usb_clk);
+	clk_put(usb_clk);
+
+	/*derive clock from oscillator */
+	usb_clk = clk_get(NULL, "usb_utmi_clk");
+	clk_disable(usb_clk);
+	clk_put(usb_clk);
+
+	/* on mx53, there is a hardware limitation that when switch the host2's clk mode
+	 * ,usb phy1 clk must be on, after finish switching this clk can be off */
+	if (cpu_is_mx53()) {
+		usb_clk = clk_get(NULL, "usb_phy1_clk");
+		clk_enable(usb_clk);
+		clk_put(usb_clk);
+	}
+
+	ret = fsl_usb_host_init(pdev);
+
+	if (cpu_is_mx53()) {
+		usb_clk = clk_get(NULL, "usb_phy1_clk");
+		clk_disable(usb_clk);
+		clk_put(usb_clk);
+	}
 
 	/* setback USBH2_STP to be function */
 	mxc_request_iomux(MX51_PIN_EIM_A26, IOMUX_CONFIG_ALT2);
 
-	return 0;
+	return ret;
+}
+
+static void fsl_usb_host_uninit_ext(struct fsl_usb2_platform_data *pdata)
+{
+	struct clk *usb_clk;
+
+	usb_clk = clk_get(NULL, "usboh3_clk");
+	clk_disable(usb_clk);
+	clk_put(usb_clk);
+
+	fsl_usb_host_uninit(pdata);
 }
 
 static struct fsl_usb2_platform_data usbh2_config = {
 	.name = "Host 2",
 	.platform_init = fsl_usb_host_init_ext,
-	.platform_uninit = fsl_usb_host_uninit,
+	.platform_uninit = fsl_usb_host_uninit_ext,
 	.operating_mode = FSL_USB2_MPH_HOST,
 	.phy_mode = FSL_USB2_PHY_ULPI,
 	.power_budget = 500,	/* 500 mA max power */
+	.wake_up_enable = _wake_up_enable,
+	.usb_clock_for_pm  = fsl_usbh2_clock_gate,
+	.phy_lowpower_suspend = _phy_lowpower_suspend,
 	.gpio_usb_active = gpio_usbh2_active,
 	.gpio_usb_inactive = gpio_usbh2_inactive,
 	.transceiver = "isp1504",
 };
 
-void __init mx51_usbh2_init(void)
+void __init mx5_usbh2_init(void)
 {
 	mxc_register_device(&mxc_usbh2_device, &usbh2_config);
 }
-

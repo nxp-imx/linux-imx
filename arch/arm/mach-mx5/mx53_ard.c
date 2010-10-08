@@ -1370,6 +1370,7 @@ static void __init mxc_board_init(void)
 	mx5_usb_dr_init();
 	mx5_set_host1_vbus_func(mx53_ard_host1_driver_vbus);
 	mx5_usbh1_init();
+	mx5_usbh2_init();
 	mxc_register_device(&mxc_nandv2_mtd_device, &mxc_nand_data);
 	mxc_register_device(&mxc_esai_device, &esai_data);
 	mxc_register_device(&mxc_alsa_surround_device,
