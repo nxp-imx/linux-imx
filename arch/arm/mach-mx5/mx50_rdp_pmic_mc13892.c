@@ -94,12 +94,15 @@ static struct regulator_consumer_supply sw1_consumers[] = {
 	}
 };
 
-static struct regulator_consumer_supply vgen1_consumers[] = {
+static struct regulator_consumer_supply sw4_consumers[] = {
 	{
 		/* sgtl5000 */
 		.supply = "VDDA",
 		.dev_name = "1-000a",
 	},
+};
+
+static struct regulator_consumer_supply vgen1_consumers[] = {
 	{
 		/* sgtl5000 */
 		.supply = "VDDIO",
@@ -171,7 +174,9 @@ static struct regulator_init_data sw4_init = {
 		.valid_ops_mask = REGULATOR_CHANGE_VOLTAGE,
 		.always_on = 1,
 		.boot_on = 1,
-	}
+	},
+	.num_consumer_supplies = ARRAY_SIZE(sw4_consumers),
+	.consumer_supplies = sw4_consumers,
 };
 
 static struct regulator_init_data viohi_init = {
