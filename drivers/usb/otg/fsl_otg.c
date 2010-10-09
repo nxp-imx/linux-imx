@@ -792,6 +792,8 @@ irqreturn_t fsl_otg_isr_gpio(int irq, void *dev_id)
  * intact.  It needs to have knowledge of some USB interrupts
  * such as port change.
  */
+extern int usb_event_is_otg_wakeup(void);
+extern void usb_debounce_id_pin(void);
 irqreturn_t fsl_otg_isr(int irq, void *dev_id)
 {
 	struct fsl_otg *fotg = (struct fsl_otg *)dev_id;
@@ -800,6 +802,11 @@ irqreturn_t fsl_otg_isr(int irq, void *dev_id)
 	irqreturn_t ret = IRQ_NONE;
 
 	fsl_otg_clk_ctl();
+	/* if this is an wakeup event, we should debounce ID pin
+	 * so we can get the correct ID value(ID status) here */
+	if (usb_event_is_otg_wakeup())
+		usb_debounce_id_pin();
+
 	otg_sc = le32_to_cpu(usb_dr_regs->otgsc);
 	otg_int_src = otg_sc & OTGSC_INTSTS_MASK & (otg_sc >> 8);
 

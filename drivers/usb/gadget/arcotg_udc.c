@@ -2033,7 +2033,6 @@ static void suspend_irq(struct fsl_udc *udc)
  */
  static bool wake_up_irq(struct fsl_udc *udc)
  {
-	usb_debounce_id_pin();
 	/* if the ID=0, let arc host process the wakeup */
 	if (fsl_readl(&dr_regs->otgsc) & OTGSC_STS_USB_ID) {
 		dr_wake_up_enable(udc_controller, false);
@@ -2131,7 +2130,6 @@ bool try_wake_up_udc(struct fsl_udc *udc)
 	irq_src = fsl_readl(&dr_regs->otgsc);
 	if (irq_src & OTGSC_B_SESSION_VALID_IRQ_STS) {
 		u32 tmp;
-		usb_debounce_id_pin();
 		b_device = (irq_src & OTGSC_STS_USB_ID) ? true : false;
 		fsl_writel(irq_src, &dr_regs->otgsc);
 		if (!b_device)
