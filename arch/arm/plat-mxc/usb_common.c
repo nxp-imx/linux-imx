@@ -883,16 +883,18 @@ void usbotg_uninit(struct fsl_usb2_platform_data *pdata)
 }
 EXPORT_SYMBOL(usbotg_uninit);
 
+/* the debounce function is only used when OTG is enabled,
+ * if otg disabled, the ID pin is not used */
 void usb_debounce_id_pin(void)
 {
-
+#ifdef CONFIG_USB_OTG
 	/* Because the IC design needs to remove the glitch on ID so the otgsc bit 8 will
 	 * be delayed max 2 ms to show the real ID pin value
 	 */
 	mdelay(3);
+#endif
 }
 EXPORT_SYMBOL(usb_debounce_id_pin);
-
 int usb_host_wakeup_irq(struct device *wkup_dev)
 {
 	int wakeup_req = 0;
@@ -904,14 +906,25 @@ int usb_host_wakeup_irq(struct device *wkup_dev)
 		wakeup_req = USBCTRL_HOST2 & UCTRL_H2WIR;
 	} else if (!strcmp("DR", pdata->name)) {
 		wakeup_req = USBCTRL & UCTRL_OWIR;
+		/*if only host mode is enabled, the wakeup event
+		 * must be host wakeup event */
+#ifdef CONFIG_USB_OTG
 		usb_debounce_id_pin();
 		if (wakeup_req && (UOG_OTGSC & OTGSC_STS_USB_ID))
 			wakeup_req = 0;
+#endif
 	}
 
 	return wakeup_req;
 }
 EXPORT_SYMBOL(usb_host_wakeup_irq);
+
+int usb_event_is_otg_wakeup(void)
+{
+	int ret = (USBCTRL & UCTRL_OWIR) ? 1 : 0;
+	return ret;
+}
+EXPORT_SYMBOL(usb_event_is_otg_wakeup);
 
 void usb_host_set_wakeup(struct device *wkup_dev, bool para)
 {

@@ -368,7 +368,11 @@ void usb_debounce_id_pin(void)
 	mdelay(3);
 }
 EXPORT_SYMBOL(usb_debounce_id_pin);
-
+int usb_event_is_otg_wakeup(void)
+{
+	return 0;
+}
+EXPORT_SYMBOL(usb_event_is_otg_wakeup);
 int usb_host_wakeup_irq(struct device *wkup_dev)
 {
 	return 0;
