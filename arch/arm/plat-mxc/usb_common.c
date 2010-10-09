@@ -346,7 +346,7 @@ static void usbh2_set_ulpi_xcvr(void)
 	USBCTRL_HOST2 &= ~UCTRL_H2WIE;	/* wakeup intr enable */
 	USBCTRL_HOST2 &= ~UCTRL_H2UIE;	/* ULPI intr enable */
 	USB_CTRL_1 |= USB_CTRL_UH2_EXT_CLK_EN;
-	if (cpu_is mx53())
+	if (cpu_is_mx53())
 		USB_CTRL_1 |= USB_CTRL_UH2_CLK_FROM_ULPI_PHY;
 	if (cpu_is_mx51())/* not tested */
 		USBCTRL_HOST2 |= (1 << 12);
