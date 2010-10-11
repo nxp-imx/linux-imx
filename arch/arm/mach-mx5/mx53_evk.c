@@ -1520,7 +1520,7 @@ static void __init mx53_evk_io_init(void)
 	gpio_direction_input(MX53_DVI_DETECT);
 	/* DVI Reset - Assert for i2c disabled mode */
 	gpio_request(MX53_DVI_RESET, "dvi-reset");
-	gpio_set_value(MX53_DVI_RESET, 0);
+	gpio_direction_output(MX53_DVI_RESET, 0);
 
 	/* DVI Power-down */
 	gpio_request(MX53_DVI_PD, "dvi-pd");
