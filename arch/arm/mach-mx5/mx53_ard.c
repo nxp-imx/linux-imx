@@ -712,7 +712,7 @@ static int __init mxc_init_fb(void)
 device_initcall(mxc_init_fb);
 
 static struct mxc_audio_codec_platform_data cs42888_data = {
-	.analog_regulator = "VSD",
+	.analog_regulator = NULL,
 };
 
 static int mx53_ard_max7310_setup(struct i2c_client *client,
@@ -749,10 +749,6 @@ static struct i2c_board_info mxc_i2c1_board_info[] __initdata = {
 	.type = "cs42888",
 	.addr = 0x48,
 	.platform_data = &cs42888_data,
-	},
-	{
-	.type = "ltc3589",
-	.addr = 0x34,
 	},
 	{
 	.type = "ipod",
@@ -1039,7 +1035,7 @@ static struct platform_device ard_smsc_lan9220_device = {
 };
 
 static struct mxc_mlb_platform_data mlb_data = {
-	.reg_nvcc = "VCAM",
+	.reg_nvcc = NULL,
 	.mlb_clk = "mlb_clk",
 };
 
