@@ -68,6 +68,8 @@ extern int lp_high_freq;
 extern int lp_med_freq;
 static int max_axi_a_clk;
 static int max_axi_b_clk;
+static int max_ahb_clk;
+static int max_emi_slow_clk;
 
 
 #define SPIN_DELAY	1000000 /* in nanoseconds */
@@ -75,9 +77,15 @@ static int max_axi_b_clk;
 #define MAX_AXI_A_CLK_MX53 	400000000
 #define MAX_AXI_B_CLK_MX51 	133000000
 #define MAX_AXI_B_CLK_MX53 	200000000
-#define MAX_AHB_CLK			133000000
-#define MAX_EMI_SLOW_CLK		133000000
+#define MAX_AHB_CLK_MX51	133000000
+#define MAX_EMI_SLOW_CLK_MX51	133000000
+#define MAX_AHB_CLK_MX53	133333333
+#define MAX_EMI_SLOW_CLK_MX53	133333333
 #define MAX_DDR_HF_RATE		200000000
+/* To keep compatible with some NAND flash, limit
+ * max NAND clk to 34MHZ. The user can modify it for
+ * dedicate NAND flash */
+#define MAX_NFC_CLK		34000000
 
 extern int mxc_jtag_enabled;
 extern int uart_at_24;
@@ -1002,7 +1010,7 @@ static unsigned long _clk_ahb_round_rate(struct clk *clk,
 	 */
 	if (div == 0)
 		div++;
-	if (parent_rate / div > MAX_AHB_CLK)
+	if (parent_rate / div > max_ahb_clk)
 		div++;
 
 	if (div > 8)
@@ -1126,6 +1134,7 @@ static int _clk_emi_slow_set_rate(struct clk *clk, unsigned long rate)
 
 	if (emi_fast_clk.usecount == 0)
 		emi_fast_clk.disable(&emi_fast_clk);
+
 	return 0;
 }
 
@@ -1142,7 +1151,7 @@ static unsigned long _clk_emi_slow_round_rate(struct clk *clk,
 	 */
 	if (div == 0)
 		div++;
-	if (parent_rate / div > MAX_EMI_SLOW_CLK)
+	if (parent_rate / div > max_emi_slow_clk)
 		div++;
 
 	if (div > 8)
@@ -3466,21 +3475,9 @@ static unsigned long _clk_nfc_round_rate(struct clk *clk,
 	 */
 
 	div = parent_rate / rate;
-
-	/*
-	 * If there's a remainder after the division, then we have to increment
-	 * the divider. There are two reasons for this:
-	 *
-	 * 1) The frequency we round to must be LESS THAN OR EQUAL to the
-	 *    target. We aren't allowed to round to a frequency that is higher
-	 *    than the target.
-	 *
-	 * 2) This also catches the case where target rate is less than the
-	 *    parent rate, which implies a divider of zero. We can't allow a
-	 *    divider of zero.
-	 */
-
-	if (parent_rate % rate)
+	if (div == 0)
+		div++;
+	if (parent_rate / div > MAX_NFC_CLK)
 		div++;
 
 	/*
@@ -4352,6 +4349,8 @@ int __init mx51_clocks_init(unsigned long ckil, unsigned long osc, unsigned long
 
 	max_axi_a_clk = MAX_AXI_A_CLK_MX51;
 	max_axi_b_clk = MAX_AXI_B_CLK_MX51;
+	max_ahb_clk = MAX_AHB_CLK_MX51;
+	max_emi_slow_clk = MAX_AHB_CLK_MX51;
 
 	/* set DDR clock parent */
 	reg = 0;
@@ -4689,6 +4688,9 @@ int __init mx53_clocks_init(unsigned long ckil, unsigned long osc, unsigned long
 
 	max_axi_a_clk = MAX_AXI_A_CLK_MX53;
 	max_axi_b_clk = MAX_AXI_B_CLK_MX53;
+	max_ahb_clk = MAX_AHB_CLK_MX53;
+	max_emi_slow_clk = MAX_AHB_CLK_MX53;
+
 
 	/* set DDR clock parent */
 	reg = __raw_readl(MXC_CCM_CBCMR) &
@@ -4860,11 +4862,10 @@ int __init mx53_clocks_init(unsigned long ckil, unsigned long osc, unsigned long
 	clk_set_parent(&gpu2d_clk, &axi_b_clk);
 
 	clk_set_parent(&emi_slow_clk, &ahb_clk);
-	clk_set_rate(&emi_slow_clk, clk_round_rate(&emi_slow_clk, 130000000));
+	clk_set_rate(&emi_slow_clk, clk_round_rate(&emi_slow_clk, 133333333));
 
-	/* Change the NFC clock rate to be 1:4 ratio with emi clock. */
 	clk_set_rate(&emi_enfc_clk, clk_round_rate(&emi_enfc_clk,
-			(clk_get_rate(&emi_slow_clk))/4));
+			MAX_NFC_CLK));
 
 	base = ioremap(MX53_BASE_ADDR(GPT1_BASE_ADDR), SZ_4K);
 	mxc_timer_init(&gpt_clk[0], base, MXC_INT_GPT);
