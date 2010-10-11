@@ -1,0 +1,224 @@
+/*
+ * Copyright (C) 2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License along
+ * with this program; if not, write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+ */
+
+#ifndef __LINUX_LTC3589_PMIC_H
+#define __LINUX_LTC3589_PMIC_H
+
+#include <linux/platform_device.h>
+#include <linux/leds.h>
+#include <linux/regulator/machine.h>
+
+/*
+ * Register values.
+ */
+#define	LTC3589_REG_IRSTAT		0x02
+#define	LTC3589_REG_SCR1		0x07
+#define	LTC3589_REG_OVEN		0x10
+#define	LTC3589_REG_SCR2		0x12
+#define	LTC3589_REG_PGSTAT		0x13
+#define	LTC3589_REG_VCCR		0x20
+#define	LTC3589_REG_CLIRQ		0x21
+#define	LTC3589_REG_B1DTV1		0x23
+#define	LTC3589_REG_B1DTV2		0x24
+#define	LTC3589_REG_VRRCR		0x25
+#define	LTC3589_REG_B2DTV1		0x26
+#define	LTC3589_REG_B2DTV2		0x27
+#define	LTC3589_REG_B3DTV1		0x29
+#define	LTC3589_REG_B3DTV2		0x2A
+#define	LTC3589_REG_L2DTV1		0x32
+#define	LTC3589_REG_L2DTV2		0x33
+
+/*
+ * IRQSTAT (0x02) - Event register
+ */
+#define LTC3589_IRQSTAT_TIMEOUT_SHUTDOWN	0x08
+#define LTC3589_IRQSTAT_NRAE_UNDERVOLTAGE	0x10
+#define LTC3589_IRQSTAT_UNDERVOLTAGE_SHUTDOWN	0x20
+#define LTC3589_IRQSTAT_NRAE_THERMAL		0x40
+#define LTC3589_IRQSTAT_THERMAL_SHUTDOWN	0x80
+
+/*
+ * SCR1 (0x07) - System control register 1
+ */
+#define LTC3589_SCR1_SWITCH_REG1_MODE_SHIFT	0
+#define LTC3589_SCR1_SWITCH_REG2_MODE_SHIFT	2
+#define LTC3589_SCR1_SWITCH_REG3_MODE_SHIFT	4
+#define LTC3589_SCR1_SWITCH_REG_MODE_MASK	0x3
+#define LTC3589_SCR1_BUCK_BOOST_MODE		0x40
+
+/* Bit values for SCR1 (0x07) */
+#define LTC3589_SCR1_REG_MODE_PULSE_SKIPPING		0
+#define LTC3589_SCR1_REG_MODE_BURST			1
+#define LTC3589_SCR1_REG_MODE_FORCED_CONTINUOUS		2
+#define LTC3589_SCR1_BUCK_BOOST_MODE_CONTINUOUS		0
+#define LTC3589_SCR1_BUCK_BOOST_MODE_BURST_MODE		1
+
+/*
+ * OVEN (0x10) - Output voltage enable register
+ */
+#define LTC3589_OVEN_EN1		0x01
+#define LTC3589_OVEN_EN2		0x02
+#define LTC3589_OVEN_EN3		0x04
+#define LTC3589_OVEN_EN4		0x08
+#define LTC3589_OVEN_EN_LDO2		0x10
+#define LTC3589_OVEN_EN_LDO3		0x20
+#define LTC3589_OVEN_EN_LDO4		0x40
+#define LTC3589_OVEN_PWR_ON		0x80
+
+/*
+ * SCR2 (0x12) - System control register 2
+ */
+#define LTC3589_SCR2_REG1_STARTUP_SHIFT		0
+#define LTC3589_SCR2_REG2_STARTUP_SHIFT		1
+#define LTC3589_SCR2_REG3_STARTUP_SHIFT		2
+#define LTC3589_SCR2_BUCK_BOOST_STARTUP_SHIFT	3
+#define LTC3589_SCR2_LDO2_STARTUP_SHIFT		4
+#define LTC3589_SCR2_LDO3_STARTUP_SHIFT		5
+#define LTC3589_SCR2_LDO4_STARTUP_SHIFT		6
+#define LTC3589_SCR2_PGOOD_SHUTDOWN_SHIFT	7
+
+/* Bit values for SCR2 (0x12) */
+#define LTC3589_SCR2_WAIT_FOR_OUTPUT		0
+#define LTC3589_SCR2_DO_NOT_WAIT		1
+#define LTC3589_SCR2_ALLOW_PGOOD_TIMEOUT_SHUTDOWN	0
+#define LTC3589_SCR2_INHIBIT_PGOOD_HARD_SHUTDOWN	1
+
+/*
+ * PGSTAT (0x13) - Power good status register
+ */
+#define LTC3589_PGSTAT_LDO1_STATUS		0x01
+#define LTC3589_PGSTAT_SWITCH_REG1_STATUS	0x02
+#define LTC3589_PGSTAT_SWITCH_REG2_STATUS	0x04
+#define LTC3589_PGSTAT_SWITCH_REG3_STATUS	0x08
+#define LTC3589_PGSTAT_BUCK_BOOST_STATUS	0x10
+#define LTC3589_PGSTAT_LDO2_STATUS		0x20
+#define LTC3589_PGSTAT_LDO3_STATUS		0x40
+#define LTC3589_PGSTAT_LDO4_STATUS		0x80
+
+/* Bit values for PGSTAT (0x13) */
+#define LTC3589_PGSTAT_V_OUT_LOW		0
+#define LTC3589_PGSTAT_V_OUT_GOOD		1
+
+/*
+ * VCCR (0x20) - Voltage change control register
+ */
+#define LTC3589_VCCR_START_REG1_SLEW		0x01
+#define LTC3589_VCCR_REG1_REF_SELECT		0x02
+#define LTC3589_VCCR_START_REG2_SLEW		0x04
+#define LTC3589_VCCR_REG2_REF_SELECT		0x08
+#define LTC3589_VCCR_START_REG3_SLEW		0x10
+#define LTC3589_VCCR_REG3_REF_SELECT		0x20
+#define LTC3589_VCCR_LDO2_SLEW			0x40
+#define LTC3589_VCCR_LDO2_REF_SELECT		0x80
+
+/* Bit values for VCCR (0x20) */
+#define LTC3589_VCCR_WENT			0
+#define LTC3589_VCCR_GO				1
+#define LTC3589_VCCR_REF_SELECT_DTV1		0
+#define LTC3589_VCCR_REF_SELECT_DTV2		1
+
+/*
+ * B1DTV1 (0x23) - REG1 DAC Dynamic Target Voltage V1 register
+ */
+#define LTC3589_B1DTV1_REG1_REF_INPUT_V1_MASK	0x1F
+#define LTC3589_B1DTV1_REG1_REF_INPUT_V1_SHIFT	0
+#define LTC3589_B1DTV1_PGOOD_MASK		0x20
+#define LTC3589_B1DTV1_SWITCH_DV_DT_CTRL_MASK	0x03
+#define LTC3589_B1DTV1_SWITCH_DV_DT_CTRL_SHIFT	6
+
+/* Bit values for B1DTV1 (0x23) */
+#define LTC3589_B1DTV1_PGOOD_LOW		0
+#define LTC3589_B1DTV1_PGOOD_NOT_FORCED_LOW	1
+#define LTC3589_B1DTV1_DV_DT_CTRL_WW_NS		0
+#define LTC3589_B1DTV1_DV_DT_CTRL_XX_NS		1
+#define LTC3589_B1DTV1_DV_DT_CTRL_YY_NS		2
+#define LTC3589_B1DTV1_DV_DT_CTRL_ZZ_NS		3
+
+/*
+ * B1DTV2 (0x24) - REG1 DAC Dynamic Target Voltage V2 register
+ */
+#define LTC3589_B1DTV2_REG1_REF_INPUT_V2_MASK	0x1F
+#define LTC3589_B1DTV2_REG1_REF_INPUT_V2_SHIFT	0
+
+/*
+ * VRRCR (0x25) - Voltage ramp rate command register
+ */
+#define LTC3589_VRRCR_REG1_REF_SLEW_RATE_MASK	0x3
+#define LTC3589_VRRCR_REG1_REF_SLEW_RATE_SHIFT	0
+#define LTC3589_VRRCR_REG2_REF_SLEW_RATE_MASK	0x3
+#define LTC3589_VRRCR_REG2_REF_SLEW_RATE_SHIFT	2
+#define LTC3589_VRRCR_REG3_REF_SLEW_RATE_MASK	0x3
+#define LTC3589_VRRCR_REG3_REF_SLEW_RATE_SHIFT	4
+#define LTC3589_VRRCR_LDO2_REF_SLEW_RATE_MASK	0x3
+#define LTC3589_VRRCR_LDO2_REF_SLEW_RATE_SHIFT	6
+
+/* Bit values for VRRCR (0x25) */
+#define LTC3589_VRRCR_SLEW_RATE_0P88MV_US	0
+#define LTC3589_VRRCR_SLEW_RATE_1P75MV_US	1
+#define LTC3589_VRRCR_SLEW_RATE_3P50MV_US	2
+#define LTC3589_VRRCR_SLEW_RATE_7P00MV_US	3
+
+/*
+ * B2DTV1 (0x26) - REG2 DAC Dynamic Target Voltage V1 register
+ */
+#define LTC3589_B2DTV1_REG2_REF_INPUT_V1_MASK	0x1F
+#define LTC3589_B2DTV1_REG2_REF_INPUT_V1_SHIFT	0
+#define LTC3589_B2DTV1_PGOOD_MASK		0x20
+
+/*
+ * B2DTV2 (0x27) - REG2 DAC Dynamic Target Voltage V2 register
+ */
+#define LTC3589_B2DTV2_REG2_REF_INPUT_V2_MASK	0x1F
+#define LTC3589_B2DTV2_REG2_REF_INPUT_V2_SHIFT	0
+
+/*
+ * B3DTV1 (0x29) - REG3 DAC Dynamic Target Voltage V1 register
+ */
+#define LTC3589_B3DTV1_REG3_REF_INPUT_V1_MASK	0x1F
+#define LTC3589_B3DTV1_REG3_REF_INPUT_V1_SHIFT	0
+#define LTC3589_B3DTV1_PGOOD_MASK		0x20
+
+/*
+ * B3DTV2 (0x2A) - REG3 DAC Dynamic Target Voltage V2 register
+ */
+#define LTC3589_B3DTV2_REG3_REF_INPUT_V2_MASK	0x1F
+#define LTC3589_B3DTV2_REG3_REF_INPUT_V2_SHIFT	0
+
+/*
+ * L2DTV1 (0x32) - LDO2 DAC Dynamic Target Voltage V1 register
+ */
+#define LTC3589_L2DTV1_LDO2_REF_INPUT_V1_MASK	0x1F
+#define LTC3589_L2DTV1_LDO2_REF_INPUT_V1_SHIFT	0
+#define LTC3589_L2DTV1_PGOOD_MASK		0x20
+
+/*
+ * L2DTV2 (0x33) - LDO2 DAC Dynamic Target Voltage V2 register
+ */
+#define LTC3589_L2DTV2_LDO2_REF_INPUT_V2_MASK	0x1F
+#define LTC3589_L2DTV2_LDO2_REF_INPUT_V2_SHIFT	0
+#define LTC3589_L2DTV2_LDO4_OUTPUT_VOLTAGE_MASK	0x3
+#define LTC3589_L2DTV2_LDO4_OUTPUT_VOLTAGE_SHIFT 5
+#define LTC3589_L2DTV2_LDO4_CONTROL_MODE_SHIFT	7
+
+/* Bit values for L2DTV2 (0x33) */
+#define LTC3589_L2DTV2_LDO4_OUTPUT_VOL_1P8V	0
+#define LTC3589_L2DTV2_LDO4_OUTPUT_VOL_2P5V	1
+#define LTC3589_L2DTV2_LDO4_OUTPUT_VOL_3P0V	2
+#define LTC3589_L2DTV2_LDO4_OUTPUT_VOL_3P3V	3
+
+#endif

@@ -211,6 +211,12 @@ config REGULATOR_MC34704
 	depends on MXC_PMIC_MC34704
 	default y
 
+config REGULATOR_LTC3589
+	tristate "LTC3589 Regulator Support"
+	depends on MFD_LTC3589_I2C
+	depends on REGULATOR
+	default n
+
 config REGULATOR_MXS
 	tristate "MXS Regulator Support"
 	depends on ARCH_MXS

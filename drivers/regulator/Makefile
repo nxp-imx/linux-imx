@@ -37,6 +37,7 @@ obj-$(CONFIG_REGULATOR_MC13892) += reg-mc13892.o
 obj-$(CONFIG_REGULATOR_MC34704) += reg-mc34704.o
 obj-$(CONFIG_REGULATOR_STMP3XXX) += stmp3xxx.o
 obj-$(CONFIG_REGULATOR_MXS) += mxs-regulator.o
+obj-$(CONFIG_REGULATOR_LTC3589) += ltc3589-regulator.o
 
 obj-$(CONFIG_REGULATOR_MC9S08DZ60) += reg-mc9s08dz60.o
 
