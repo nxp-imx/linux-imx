@@ -963,7 +963,10 @@ static int mxc_epdc_fb_set_fix(struct fb_info *info)
 
 	fix->type = FB_TYPE_PACKED_PIXELS;
 	fix->accel = FB_ACCEL_NONE;
-	fix->visual = FB_VISUAL_TRUECOLOR;
+	if (var->grayscale)
+		fix->visual = FB_VISUAL_STATIC_PSEUDOCOLOR;
+	else
+		fix->visual = FB_VISUAL_TRUECOLOR;
 	fix->xpanstep = 1;
 	fix->ypanstep = 1;
 
