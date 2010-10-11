@@ -288,7 +288,7 @@ static int finish_previous_frame(vout_data *vout)
 	struct fb_info *fbi =
 		registered_fb[vout->output_fb_num[vout->cur_disp_output]];
 	mm_segment_t old_fs;
-	int ret = 0;
+	int ret = 0, try = 0;
 
 	/* make sure buf[vout->disp_buf_num] in showing */
 	while (ipu_check_buffer_busy(vout->display_ch,
@@ -300,12 +300,17 @@ static int finish_previous_frame(vout_data *vout)
 					(unsigned int)NULL);
 			set_fs(old_fs);
 
-			if (ret < 0) {
-				/* ic_bypass need clear display buffer ready for next update*/
+			if ((ret < 0) || (try == 1)) {
+				/*
+				 * ic_bypass need clear display buffer ready for next update.
+				 * when fb doing blank and unblank, it has chance to go into
+				 * dead loop: fb unblank just after buffer 1 ready selected.
+				 */
 				ipu_clear_buffer_ready(vout->display_ch, IPU_INPUT_BUFFER,
 						vout->disp_buf_num);
 			}
 		}
+		try++;
 	}
 
 	return ret;
@@ -406,6 +411,33 @@ static int get_cur_fb_blank(vout_data *vout)
 	mm_segment_t old_fs;
 	int ret = 0;
 
+	/* Check BG blank first, if BG is blank, FG should be blank too */
+	if (vout->display_ch == MEM_FG_SYNC) {
+		int i, bg_found = 0;
+		for (i = 0; i < num_registered_fb; i++) {
+			struct fb_info *bg_fbi;
+			char *idstr = registered_fb[i]->fix.id;
+			if (strncmp(idstr, "DISP3 BG", 8) == 0) {
+				bg_found = 1;
+				bg_fbi = registered_fb[i];
+				if (bg_fbi->fbops->fb_ioctl) {
+					old_fs = get_fs();
+					set_fs(KERNEL_DS);
+					ret = bg_fbi->fbops->fb_ioctl(bg_fbi,
+							MXCFB_GET_FB_BLANK,
+							(unsigned int)(&vout->fb_blank));
+					set_fs(old_fs);
+				}
+			}
+			if (bg_found) {
+				if (vout->fb_blank == FB_BLANK_UNBLANK)
+					break;
+				else
+					return ret;
+			}
+		}
+	}
+
 	if (fbi->fbops->fb_ioctl) {
 		old_fs = get_fs();
 		set_fs(KERNEL_DS);
@@ -422,6 +454,7 @@ static void mxc_v4l2out_timer_handler(unsigned long arg)
 	int index, ret;
 	unsigned long lock_flags = 0;
 	vout_data *vout = (vout_data *) arg;
+	static int old_fb_blank = FB_BLANK_UNBLANK;
 
 	spin_lock_irqsave(&g_lock, lock_flags);
 
@@ -456,16 +489,27 @@ static void mxc_v4l2out_timer_handler(unsigned long arg)
 			vout->state = STATE_STREAM_PAUSED;
 		}
 		goto exit0;
-	} else if (!vout->fb_blank &&
-		(ipu_get_cur_buffer_idx(vout->display_ch, IPU_INPUT_BUFFER)
-		== vout->next_disp_ipu_buf)) {
-		dev_dbg(&vout->video_dev->dev, "IPU disp busy\n");
-		get_cur_fb_blank(vout);
-		index = peek_next_buf(&vout->ready_q);
-		setup_next_buf_timer(vout, index);
-		goto exit0;
 	}
-	vout->fb_blank = 0;
+
+	get_cur_fb_blank(vout);
+	if (vout->fb_blank == FB_BLANK_UNBLANK) {
+		/* if first come back from fb blank, recover correct stack */
+		if (old_fb_blank != FB_BLANK_UNBLANK) {
+			if (vout->next_disp_ipu_buf == 1)
+				ipu_select_buffer(vout->display_ch, IPU_INPUT_BUFFER, 0);
+			else
+				ipu_select_buffer(vout->display_ch, IPU_INPUT_BUFFER, 1);
+		}
+		if (ipu_get_cur_buffer_idx(vout->display_ch, IPU_INPUT_BUFFER)
+				== vout->next_disp_ipu_buf) {
+			dev_dbg(&vout->video_dev->dev, "IPU disp busy\n");
+			index = peek_next_buf(&vout->ready_q);
+			setup_next_buf_timer(vout, index);
+			old_fb_blank = vout->fb_blank;
+			goto exit0;
+		}
+	}
+	old_fb_blank = vout->fb_blank;
 
 	/* Dequeue buffer and pass to IPU */
 	index = dequeue_buf(&vout->ready_q);
@@ -705,7 +749,8 @@ static irqreturn_t mxc_v4l2out_work_irq_handler(int irq, void *dev_id)
 		/* release buffer. For split mode: if second stripe is done */
 		release_buffer = vout->pp_split ? (!(vout->pp_split_buf_num & 0x3)) : 1;
 		if (release_buffer) {
-			select_display_buffer(vout, disp_buf_num);
+			if (vout->fb_blank == FB_BLANK_UNBLANK)
+				select_display_buffer(vout, disp_buf_num);
 			g_buf_output_cnt++;
 			vout->v4l2_bufs[last_buf].flags = V4L2_BUF_FLAG_DONE;
 			queue_buf(&vout->done_q, last_buf);
@@ -1228,7 +1273,6 @@ static int mxc_v4l2out_streamon(vout_data *vout)
 	vout->disp_buf_num = 0;
 	vout->next_done_ipu_buf = 0;
 	vout->next_rdy_ipu_buf = vout->next_disp_ipu_buf = 1;
-	vout->fb_blank = 0;
 	vout->pp_split = 0;
 	ipu_ic_out_max_height_size = 1024;
 #ifdef CONFIG_MXC_IPU_V1
@@ -1338,7 +1382,7 @@ static int mxc_v4l2out_streamon(vout_data *vout)
 	vout->display_ch = ipu_ch;
 
 	if (vout->ic_bypass) {
-		pr_debug("Bypassing IC\n");
+		dev_info(dev, "Bypassing IC\n");
 		vout->pp_split = 0;
 		switch (vout->v2f.fmt.pix.pixelformat) {
 		case V4L2_PIX_FMT_YUV420:
@@ -1480,6 +1524,7 @@ static int mxc_v4l2out_streamon(vout_data *vout)
 		acquire_console_sem();
 		fb_blank(fbi, FB_BLANK_UNBLANK);
 		release_console_sem();
+		vout->fb_blank = FB_BLANK_UNBLANK;
 	} else {
 		ipu_enable_channel(vout->display_ch);
 	}
