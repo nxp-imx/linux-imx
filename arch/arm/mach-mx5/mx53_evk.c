@@ -1643,7 +1643,8 @@ static void __init mxc_board_init(void)
 	mxc_register_device(&mxc_iim_device, NULL);
 	if (!board_is_mx53_arm2()) {
 		mxc_register_device(&mxc_pwm2_device, NULL);
-		mxc_register_device(&mxc_pwm_backlight_device, &mxc_pwm_backlight_data);
+		mxc_register_device(&mxc_pwm1_backlight_device,
+			&mxc_pwm_backlight_data);
 	}
 	mxc_register_device(&mxc_flexcan0_device, &flexcan0_data);
 	mxc_register_device(&mxc_flexcan1_device, &flexcan1_data);

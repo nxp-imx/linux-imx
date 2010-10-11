@@ -465,11 +465,26 @@ void mx53_ard_set_num_cpu_wp(int num)
 	return;
 }
 
-static struct platform_pwm_backlight_data mxc_pwm_backlight_data = {
+static struct mxc_pwm_platform_data mxc_pwm1_platform_data = {
+	.pwmo_invert = 1,
+};
+
+static struct platform_pwm_backlight_data mxc_pwm1_backlight_data = {
+	.pwm_id = 0,
+	.max_brightness = 255,
+	.dft_brightness = 128,
+	.pwm_period_ns = 5000000,
+};
+
+static struct mxc_pwm_platform_data mxc_pwm2_platform_data = {
+	.pwmo_invert = 1,
+};
+
+static struct platform_pwm_backlight_data mxc_pwm2_backlight_data = {
 	.pwm_id = 1,
 	.max_brightness = 255,
 	.dft_brightness = 128,
-	.pwm_period_ns = 78770,
+	.pwm_period_ns = 5000000,
 };
 
 static void flexcan_xcvr_enable(int id, int en)
@@ -1349,8 +1364,14 @@ static void __init mxc_board_init(void)
 	mxc_register_device(&busfreq_device, NULL);
 
 	mxc_register_device(&mxc_iim_device, NULL);
-	mxc_register_device(&mxc_pwm2_device, NULL);
-	mxc_register_device(&mxc_pwm_backlight_device, &mxc_pwm_backlight_data);
+
+	mxc_register_device(&mxc_pwm1_device, &mxc_pwm1_platform_data);
+	mxc_register_device(&mxc_pwm1_backlight_device,
+		&mxc_pwm1_backlight_data);
+
+	mxc_register_device(&mxc_pwm2_device, &mxc_pwm2_platform_data);
+	mxc_register_device(&mxc_pwm2_backlight_device,
+		&mxc_pwm2_backlight_data);
 
 	mxc_register_device(&mxc_flexcan0_device, &flexcan0_data);
 	mxc_register_device(&mxc_flexcan1_device, &flexcan1_data);

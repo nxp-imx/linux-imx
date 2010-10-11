@@ -281,9 +281,14 @@ struct platform_device mxc_pwm2_device = {
 	.resource = pwm2_resources,
 };
 
-struct platform_device mxc_pwm_backlight_device = {
+struct platform_device mxc_pwm1_backlight_device = {
 	.name = "pwm-backlight",
-	.id = -1,
+	.id = 0,
+};
+
+struct platform_device mxc_pwm2_backlight_device = {
+	.name = "pwm-backlight",
+	.id = 1,
 };
 
 static struct resource flexcan0_resources[] = {
