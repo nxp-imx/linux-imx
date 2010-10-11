@@ -40,6 +40,9 @@ struct mxc_mtd_s {
 	struct mtd_partition *parts;
 	struct device *dev;
 	int disable_bi_swap; /* disable bi swap */
+	int ignore_bad_block; /* ignore bad block marker */
+	void *saved_bbt;
+	int (*saved_block_bad)(struct mtd_info *mtd, loff_t ofs, int getchip);
 	int clk_active;
 };
 
@@ -1076,6 +1079,30 @@ static void mxc_nand_write_page(struct mtd_info *mtd, struct nand_chip *chip,
 
 }
 
+/*!
+ * mxc_nand_block_bad - Claims all blocks are good
+ * In principle, this function is *only* called when the NAND Flash MTD system
+ * isn't allowed to keep an in-memory bad block table, so it is forced to ask
+ * the driver for bad block information.
+ *
+ * In fact, we permit the NAND Flash MTD system to have an in-memory BBT, so
+ * this function is *only* called when we take it away.
+ *
+ * We take away the in-memory BBT when the user sets the "ignorebad" parameter,
+ * which indicates that all blocks should be reported good.
+ *
+ * Thus, this function is only called when we want *all* blocks to look good,
+ * so it *always* return success.
+ *
+ * @mtd:      Ignored.
+ * @ofs:      Ignored.
+ * @getchip:  Ignored.
+ */
+static int mxc_nand_block_bad(struct mtd_info *mtd, loff_t ofs, int getchip)
+{
+	return 0;
+}
+
 /* Define some generic bad / good block scan pattern which are used
  * while scanning a device for factory marked good / bad blocks. */
 static uint8_t scan_ff_pattern[] = { 0xff, 0xff };
@@ -1364,8 +1391,85 @@ static ssize_t store_device_disable_bi_swap(struct device *dev,
 
 static DEVICE_ATTR(disable_bi_swap, 0644,
 	show_device_disable_bi_swap, store_device_disable_bi_swap);
+
+/*!
+ * show_device_ignorebad()
+ * Shows the value of the 'ignore_bad_block' flag.
+ *
+ * @dev:   The device of interest.
+ * @attr:  The attribute of interest.
+ * @buf:   A buffer that will receive a representation of the attribute.
+ */
+static ssize_t show_device_ignorebad(struct device *dev,
+				struct device_attribute *attr, char *buf)
+{
+	return sprintf(buf, "%d\n", mxc_nand_data->ignore_bad_block);
+}
+
+/*!
+ * store_device_ignorebad()
+ * Sets the value of the 'ignore_bad_block' flag.
+ *
+ * @dev:   The device of interest.
+ * @attr:  The attribute of interest.
+ * @buf:   A buffer containing a new attribute value.
+ * @size:  The size of the buffer.
+ */
+static ssize_t store_device_ignorebad(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t size)
+{
+	const char *p = buf;
+	unsigned long v;
+
+	/* Try to make sense of what arrived from user space. */
+
+	if (strict_strtoul(p, 0, &v) < 0)
+		return size;
+
+	if (v > 0)
+		v = 1;
+
+	/* Only do something if the value is changing. */
+	if (v != mxc_nand_data->ignore_bad_block) {
+		if (v) {
+			/*
+			 * If control arrives here, we want to begin ignoring
+			 * bad block marks. Reach into the NAND Flash MTD data
+			 * structures and set the in-memory BBT pointer to NULL.
+			 * This will cause the NAND Flash MTD code to believe
+			 * that it never created a BBT and force it to call our
+			 * block_bad function.
+			 */
+			mxc_nand_data->saved_bbt = mxc_nand_data->nand.bbt;
+			mxc_nand_data->nand.bbt  = 0;
+			mxc_nand_data->saved_block_bad =
+				mxc_nand_data->nand.block_bad;
+			mxc_nand_data->nand.block_bad =
+				mxc_nand_block_bad;
+		} else {
+			/*
+			 * If control arrives here, we want to stop ignoring
+			 * bad block marks. Restore the NAND Flash MTD's pointer
+			 * to its in-memory BBT.
+			 */
+			mxc_nand_data->nand.bbt = mxc_nand_data->saved_bbt;
+			mxc_nand_data->nand.block_bad =
+				mxc_nand_data->saved_block_bad;
+		}
+		mxc_nand_data->ignore_bad_block = v;
+	}
+
+	return size;
+
+}
+
+static DEVICE_ATTR(ignorebad, 0644,
+	show_device_ignorebad, store_device_ignorebad);
+
+
 static struct device_attribute *device_attributes[] = {
 	&dev_attr_disable_bi_swap,
+	&dev_attr_ignorebad,
 };
 /*!
  * manage_sysfs_files() - Creates/removes sysfs files for this device.
