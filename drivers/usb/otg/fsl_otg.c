@@ -47,7 +47,7 @@
 #include <linux/platform_device.h>
 #include <linux/irq.h>
 #include <linux/gpio.h>
-
+#include <linux/suspend.h>
 #include <asm/io.h>
 #include <asm/irq.h>
 #include <asm/system.h>
@@ -99,6 +99,12 @@ static struct fsl_otg_config fsl_otg_initdata = {
 static unsigned long last_busy;
 static bool clk_stopped;
 static struct timer_list monitor_timer;
+static struct workqueue_struct *otg_queue;
+
+static void schedule_otg_work(struct delayed_work *dwork, unsigned long delay)
+{
+	queue_delayed_work(otg_queue, dwork, delay);
+}
 
 int write_ulpi(u8 addr, u8 data)
 {
@@ -582,7 +588,7 @@ static int fsl_otg_set_host(struct otg_transceiver *otg_p, struct usb_bus *host)
 		 * so suspend the host after a short delay.
 		 */
 		otg_dev->host_working = 1;
-		schedule_delayed_work(&otg_dev->otg_event, 100);
+		schedule_otg_work(&otg_dev->otg_event, 100);
 		return 0;
 	} else {		/* host driver going away */
 
@@ -693,6 +699,7 @@ static void fsl_otg_event(struct work_struct *work)
 	struct otg_fsm *fsm = &og->fsm;
 	struct otg_transceiver *otg = &og->otg;
 
+	mutex_lock(&pm_mutex);
 	otg->default_a = (fsm->id == 0);
 	/* clear conn information */
 	if (fsm->id)
@@ -714,6 +721,7 @@ static void fsl_otg_event(struct work_struct *work)
 		otg_drv_vbus(fsm, 1);
 		fsl_otg_start_host(fsm, 1);
 	}
+	mutex_unlock(&pm_mutex);
 }
 
 /* B-device start SRP */
@@ -776,7 +784,7 @@ irqreturn_t fsl_otg_isr_gpio(int irq, void *dev_id)
 	f_otg->fsm.id = value;
 
 	cancel_delayed_work(&f_otg->otg_event);
-	schedule_delayed_work(&f_otg->otg_event, msecs_to_jiffies(10));
+	schedule_otg_work(&f_otg->otg_event, msecs_to_jiffies(10));
 	/* if host mode, we should clear B_SESSION_VLD event and disable
 	 * B_SESSION_VLD irq
 	 */
@@ -827,7 +835,7 @@ irqreturn_t fsl_otg_isr(int irq, void *dev_id)
 			printk(KERN_DEBUG "ID int (ID is %d)\n", fotg->fsm.id);
 
 			cancel_delayed_work(&fotg->otg_event);
-			schedule_delayed_work(&fotg->otg_event, msecs_to_jiffies(10));
+			schedule_otg_work(&fotg->otg_event, msecs_to_jiffies(10));
 			/* if host mode, we should clear B_SESSION_VLD event and disable
 			 * B_SESSION_VLD irq
 			 */
@@ -891,7 +899,11 @@ static int fsl_otg_conf(struct platform_device *pdev)
 	fsl_otg_tc = kzalloc(sizeof(struct fsl_otg), GFP_KERNEL);
 	if (!fsl_otg_tc)
 		return -ENODEV;
-
+	otg_queue = create_workqueue("otg_switch");
+	if (otg_queue == NULL) {
+		printk(KERN_ERR "Coulndn't create work queue\n");
+		return -ENOMEM;
+	}
 	INIT_DELAYED_WORK(&fsl_otg_tc->otg_event, fsl_otg_event);
 
 	INIT_LIST_HEAD(&active_timers);

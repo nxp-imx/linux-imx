@@ -1072,14 +1072,14 @@ fsl_ep_queue(struct usb_ep *_ep, struct usb_request *_req, gfp_t gfp_flags)
 	unsigned long flags;
 	int is_iso = 0;
 
+	if (!_ep || (!ep->desc && ep_index(ep))) {
+		VDBG("%s, bad ep\n", __func__);
+		return -EINVAL;
+	}
 	/* catch various bogus parameters */
 	if (!_req || !req->req.buf || (ep_index(ep)
 				      && !list_empty(&req->queue))) {
 		VDBG("%s, bad params\n", __func__);
-		return -EINVAL;
-	}
-	if (!_ep || (!ep->desc && ep_index(ep))) {
-		VDBG("%s, bad ep\n", __func__);
 		return -EINVAL;
 	}
 	if (ep->desc->bmAttributes == USB_ENDPOINT_XFER_ISOC) {
@@ -2036,7 +2036,13 @@ static void suspend_irq(struct fsl_udc *udc)
 	/* if the ID=0, let arc host process the wakeup */
 	if (fsl_readl(&dr_regs->otgsc) & OTGSC_STS_USB_ID) {
 		dr_wake_up_enable(udc_controller, false);
-		dr_phy_low_power_mode(udc, false);
+#ifdef CONFIG_USB_OTG
+		/* if no gadget register in this driver, we need clear the wakeup event */
+		if (udc->transceiver->gadget == NULL)
+			dr_wake_up_enable(udc_controller, true);
+		else
+#endif
+			dr_phy_low_power_mode(udc, false);
 		pr_debug("at %s: device wake up event\n", __func__);
 		return true;
 	} else {/* wakeup is vbus wake event, but not for device so we need to clear b session */
@@ -2164,7 +2170,7 @@ bool try_wake_up_udc(struct fsl_udc *udc)
 static irqreturn_t fsl_udc_irq(int irq, void *_udc)
 {
 	struct fsl_udc *udc = _udc;
-	u32 irq_src;
+	u32 irq_src, clr_remain_irq = 0;
 	irqreturn_t status = IRQ_NONE;
 	unsigned long flags;
 
@@ -2173,19 +2179,21 @@ static irqreturn_t fsl_udc_irq(int irq, void *_udc)
 		dr_clk_gate(true);
 
 	if (try_wake_up_udc(udc) == false) {
+		clr_remain_irq = 1;
 		goto irq_end;
 	}
 #ifdef CONFIG_USB_OTG
 	/* if no gadget register in this driver, we need do noting */
 	if (udc->transceiver->gadget == NULL)
+		clr_remain_irq = 1;
 		goto irq_end;
 
 	/* only handle device interrupt event */
 	if (!(fsl_readl(&dr_regs->otgsc) & OTGSC_STS_USB_ID)) {
+		clr_remain_irq = 1;
 		goto irq_end;
 	}
 #endif
-
 	irq_src = fsl_readl(&dr_regs->usbsts) & fsl_readl(&dr_regs->usbintr);
 	/* Clear notification bits */
 	fsl_writel(irq_src, &dr_regs->usbsts);
@@ -2245,6 +2253,13 @@ static irqreturn_t fsl_udc_irq(int irq, void *_udc)
 	}
 
 irq_end:
+	/* clear the unprocessed events(mainly PCD bit).
+	 * this isr is the last on the shared irq
+	 * chain, so we can clear the remained events */
+	if (clr_remain_irq) {
+		irq_src = fsl_readl(&dr_regs->usbsts);
+		fsl_writel(irq_src, &dr_regs->usbsts);
+	}
 	if (udc->stopped) {
 		dr_clk_gate(false);
 	}
@@ -3195,8 +3210,7 @@ static int fsl_udc_resume(struct platform_device *pdev)
 		}
 		dr_wake_up_enable(udc_controller, false);
 		dr_phy_low_power_mode(udc_controller, false);
-		mdelay(1);
-
+		mdelay(3);/* IC have the debounce for ID\vbus status in otgsc */
 		dr_controller_setup(udc_controller);
 		dr_controller_run(udc_controller);
 	}
