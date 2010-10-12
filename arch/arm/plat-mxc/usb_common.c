@@ -909,7 +909,6 @@ int usb_host_wakeup_irq(struct device *wkup_dev)
 		/*if only host mode is enabled, the wakeup event
 		 * must be host wakeup event */
 #ifdef CONFIG_USB_OTG
-		usb_debounce_id_pin();
 		if (wakeup_req && (UOG_OTGSC & OTGSC_STS_USB_ID))
 			wakeup_req = 0;
 #endif
