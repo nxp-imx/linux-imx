@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # Linux kernel version: 2.6.35.3
-# Sun Sep 26 15:36:27 2010
+# Tue Oct 12 13:56:09 2010
 #
 CONFIG_ARM=y
 CONFIG_HAVE_PWM=y
@@ -527,7 +527,13 @@ CONFIG_BT_HCIVHCI=y
 # CONFIG_BT_ATH3K is not set
 # CONFIG_AF_RXRPC is not set
 CONFIG_WIRELESS=y
+CONFIG_WIRELESS_EXT=y
+CONFIG_WEXT_CORE=y
+CONFIG_WEXT_PROC=y
+CONFIG_WEXT_SPY=y
+CONFIG_WEXT_PRIV=y
 # CONFIG_CFG80211 is not set
+CONFIG_WIRELESS_EXT_SYSFS=y
 # CONFIG_LIB80211 is not set
 
 #
@@ -833,6 +839,17 @@ CONFIG_FEC=y
 CONFIG_WLAN=y
 # CONFIG_USB_ZD1201 is not set
 # CONFIG_HOSTAP is not set
+CONFIG_ATH6K_LEGACY=m
+CONFIG_AR600x_SD31_XXX=y
+# CONFIG_AR600x_WB31_XXX is not set
+# CONFIG_AR600x_SD32_XXX is not set
+# CONFIG_AR600x_CUSTOM_XXX is not set
+# CONFIG_ATH6KL_ENABLE_COEXISTENCE is not set
+# CONFIG_ATH6KL_HCI_BRIDGE is not set
+# CONFIG_ATH6KL_CFG80211 is not set
+# CONFIG_ATH6KL_HTC_RAW_INTERFACE is not set
+# CONFIG_ATH6KL_VIRTUAL_SCATTER_GATHER is not set
+# CONFIG_ATH6KL_DEBUG is not set
 
 #
 # Enable WiMAX (Networking options) to see the WiMAX drivers
@@ -1974,8 +1991,6 @@ CONFIG_DMA_ENGINE=y
 # CONFIG_DMATEST is not set
 # CONFIG_AUXDISPLAY is not set
 # CONFIG_UIO is not set
-# CONFIG_UIO_PDRV is not set
-# CONFIG_UIO_PDRV_GENIRQ is not set
 # CONFIG_STAGING is not set
 
 #
