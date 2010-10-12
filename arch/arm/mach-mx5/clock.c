@@ -2586,6 +2586,57 @@ static struct clk ssi2_clk[] = {
 	 },
 };
 
+static int _clk_ssi3_set_parent(struct clk *clk, struct clk *parent)
+{
+	u32 reg;
+	reg = __raw_readl(MXC_CCM_CSCMR1) & ~MXC_CCM_CSCMR1_SSI3_CLK_SEL;
+
+	if (parent == &ssi1_clk[0])
+		reg &= ~MXC_CCM_CSCMR1_SSI3_CLK_SEL;
+	else if (parent == &ssi2_clk[0])
+		reg |= MXC_CCM_CSCMR1_SSI3_CLK_SEL;
+	else {
+		printk(KERN_ERR"Set ssi3 clock parent failed!\n");
+		printk(KERN_ERR"ssi3 only support");
+		printk(KERN_ERR"ssi1 and ssi2 as parent clock\n");
+		return -1;
+	}
+
+	__raw_writel(reg, MXC_CCM_CSCMR1);
+	return 0;
+}
+
+static struct clk ssi3_clk[] = {
+	{
+	 .id = 2,
+	 .parent = &ssi1_clk[0],
+	 .set_parent = _clk_ssi3_set_parent,
+	 .secondary = &ssi3_clk[1],
+	 .enable_reg = MXC_CCM_CCGR3,
+	 .enable_shift = MXC_CCM_CCGRx_CG13_OFFSET,
+	 .enable = _clk_enable,
+	 .disable = _clk_disable,
+	 },
+	{
+	 .id = 2,
+	 .parent = &ipg_clk,
+	 .secondary = &ssi3_clk[2],
+	 .enable_reg = MXC_CCM_CCGR3,
+	 .enable_shift = MXC_CCM_CCGRx_CG12_OFFSET,
+	 .enable = _clk_enable,
+	 .disable = _clk_disable,
+	 },
+	{
+	 .id = 2,
+	 .parent = &aips_tz2_clk,
+#ifdef CONFIG_SND_MXC_SOC_IRAM
+	 .secondary = &emi_intr_clk,
+#else
+	 .secondary = &emi_fast_clk,
+#endif
+	 },
+};
+
 static unsigned long _clk_ssi_ext1_get_rate(struct clk *clk)
 {
 	u32 reg, prediv, podf;
@@ -4138,6 +4189,7 @@ static struct clk_lookup lookups[] = {
 	_REGISTER_CLOCK(NULL, "ssi_lp_apm_clk", ssi_lp_apm_clk),
 	_REGISTER_CLOCK("mxc_ssi.0", NULL, ssi1_clk[0]),
 	_REGISTER_CLOCK("mxc_ssi.1", NULL, ssi2_clk[0]),
+	_REGISTER_CLOCK("mxc_ssi.2", NULL, ssi3_clk[0]),
 	_REGISTER_CLOCK(NULL, "ssi_ext1_clk", ssi_ext1_clk),
 	_REGISTER_CLOCK(NULL, "ssi_ext2_clk", ssi_ext2_clk),
 	_REGISTER_CLOCK(NULL, "iim_clk", iim_clk),
@@ -4448,6 +4500,12 @@ int __init mx51_clocks_init(unsigned long ckil, unsigned long osc, unsigned long
 	reg &= ~MXC_CCM_CS2CDR_SSI2_CLK_PRED_MASK;
 	reg |= 1 << MXC_CCM_CS2CDR_SSI2_CLK_PRED_OFFSET;
 	__raw_writel(reg, MXC_CCM_CS2CDR);
+
+	/*
+	 * SSI3 has no clock divide register,
+	 * we always set SSI3 parent clock to SSI1 and freq same to SSI1
+	 */
+	clk_set_parent(&ssi3_clk[0], &ssi1_clk[0]);
 
 	/* Change the SSI_EXT1_CLK to be sourced from SSI1_CLK_ROOT */
 	clk_set_parent(&ssi_ext1_clk, &ssi1_clk[0]);

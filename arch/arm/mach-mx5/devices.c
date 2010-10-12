@@ -731,6 +731,26 @@ struct platform_device mxc_ssi2_device = {
 	.resource = ssi2_resources,
 };
 
+static struct resource ssi3_resources[] = {
+	{
+		.start = SSI3_BASE_ADDR,
+		.end = SSI3_BASE_ADDR + 0x5C,
+		.flags = IORESOURCE_MEM,
+	},
+	{
+		.start = MXC_INT_SSI3,
+		.end = MXC_INT_SSI3,
+		.flags = IORESOURCE_IRQ,
+	},
+};
+
+struct platform_device mxc_ssi3_device = {
+	.name = "mxc_ssi",
+	.id = 2,
+	.num_resources = ARRAY_SIZE(ssi3_resources),
+	.resource = ssi3_resources,
+};
+
 static struct resource esai_resources[] = {
 	{
 		.start = ESAI_BASE_ADDR,
