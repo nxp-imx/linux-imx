@@ -90,6 +90,7 @@ typedef struct
   gsl_timestamp_t   timestamp[GSL_HAL_NUMCMDBUFFERS];
 
   unsigned int      numcontext;
+  unsigned int      nextUniqueContextID;
 }gsl_z1xx_t;
 
 static gsl_z1xx_t   g_z1xx      = {0}; 
@@ -828,6 +829,7 @@ kgsl_g12_context_create(gsl_device_t* device, gsl_context_type_t type, unsigned 
     
     if (g_z1xx.numcontext==0)
     {
+	g_z1xx.nextUniqueContextID = 0;
          /* todo: move this to device create or start. Error checking!! */ 
         for (i=0;i<GSL_HAL_NUMCMDBUFFERS;i++)
         {
@@ -874,7 +876,8 @@ kgsl_g12_context_create(gsl_device_t* device, gsl_context_type_t type, unsigned 
     if(g_z1xx.numcontext < GSL_CONTEXT_MAX)
     {
         g_z1xx.numcontext++;
-        *drawctxt_id=g_z1xx.numcontext;
+	g_z1xx.nextUniqueContextID++;
+	*drawctxt_id=g_z1xx.nextUniqueContextID;
         status = GSL_SUCCESS;
     }
     else
