@@ -215,6 +215,38 @@ static int imx_get_sdma_transfer(int format, int dai_port,
 				else if (format == SNDRV_PCM_FORMAT_S20_3LE)
 					transfer = MXC_DMA_SSI2_24BIT_RX1;
 			}
+		} else if (dai_port == IMX_DAI_SSI4) {
+			if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
+				if (format == SNDRV_PCM_FORMAT_S16_LE)
+					transfer = MXC_DMA_SSI3_16BIT_TX0;
+				else if (format == SNDRV_PCM_FORMAT_S24_LE)
+					transfer = MXC_DMA_SSI3_24BIT_TX0;
+				else if (format == SNDRV_PCM_FORMAT_S20_3LE)
+					transfer = MXC_DMA_SSI3_24BIT_TX0;
+			} else {
+				if (format == SNDRV_PCM_FORMAT_S16_LE)
+					transfer = MXC_DMA_SSI3_16BIT_RX0;
+				else if (format == SNDRV_PCM_FORMAT_S24_LE)
+					transfer = MXC_DMA_SSI3_24BIT_RX0;
+				else if (format == SNDRV_PCM_FORMAT_S20_3LE)
+					transfer = MXC_DMA_SSI3_24BIT_RX0;
+			}
+		} else if (dai_port == IMX_DAI_SSI5) {
+			if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
+				if (format == SNDRV_PCM_FORMAT_S16_LE)
+					transfer = MXC_DMA_SSI3_16BIT_TX1;
+				else if (format == SNDRV_PCM_FORMAT_S24_LE)
+					transfer = MXC_DMA_SSI3_24BIT_TX1;
+				else if (format == SNDRV_PCM_FORMAT_S20_3LE)
+					transfer = MXC_DMA_SSI3_24BIT_TX1;
+			} else {
+				if (format == SNDRV_PCM_FORMAT_S16_LE)
+					transfer = MXC_DMA_SSI3_16BIT_RX1;
+				else if (format == SNDRV_PCM_FORMAT_S24_LE)
+					transfer = MXC_DMA_SSI3_24BIT_RX1;
+				else if (format == SNDRV_PCM_FORMAT_S20_3LE)
+					transfer = MXC_DMA_SSI3_24BIT_RX1;
+			}
 		} else if ((dai_port & IMX_DAI_ESAI_TX)
 			   || (dai_port & IMX_DAI_ESAI_RX)) {
 			if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {

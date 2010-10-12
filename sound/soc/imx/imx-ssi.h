@@ -198,13 +198,15 @@
 #define SSI_RXFIFO_WATERMARK		0x6
 
 /* Maximum number of ssi channels (counting two channels per block) */
-#define MAX_SSI_CHANNELS		8
+#define MAX_SSI_CHANNELS		12
 
 /* i.MX DAI SSP ID's */
 #define IMX_DAI_SSI0			0 /* SSI1 FIFO 0 */
 #define IMX_DAI_SSI1			1 /* SSI1 FIFO 1 */
 #define IMX_DAI_SSI2			2 /* SSI2 FIFO 0 */
 #define IMX_DAI_SSI3			3 /* SSI2 FIFO 1 */
+#define IMX_DAI_SSI4			4 /* SSI3 FIFO 0 */
+#define IMX_DAI_SSI5			5 /* SSI3 FIFO 1 */
 
 /* SSI clock sources */
 #define IMX_SSP_SYS_CLK			0
