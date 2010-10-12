@@ -1313,13 +1313,6 @@ int usb_resume(struct device *dev, pm_message_t msg)
 	struct usb_device	*udev = to_usb_device(dev);
 	int			status;
 
-	/*
-	 * At otg mode, it should not call host resume for usb gadget device
-	 * Otherwise, this usb device can't be recognized as a gadget
-	 */
-	if (udev->bus->is_b_host)
-		return 0;
-
 	/* For PM complete calls, all we do is rebind interfaces */
 	if (msg.event == PM_EVENT_ON) {
 		if (udev->state != USB_STATE_NOTATTACHED)
