@@ -473,6 +473,10 @@ struct mxc_esai_platform_data {
 	void (*deactivate_esai_ports) (void);
 };
 
+struct mxc_pwm_platform_data {
+	int pwmo_invert;
+};
+
 /* The name that links the i.MX NAND Flash Controller driver to its devices. */
 
 #define IMX_NFC_DRIVER_NAME  ("imx_nfc")
