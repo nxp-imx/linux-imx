@@ -271,6 +271,16 @@ static struct pad_desc  mx50_rdp[] = {
 	MX50_PAD_KEY_ROW1__KEY_ROW1,
 	MX50_PAD_KEY_COL2__KEY_COL2,
 	MX50_PAD_KEY_ROW2__KEY_ROW2,
+	MX50_PAD_KEY_COL3__KEY_COL3,
+	MX50_PAD_KEY_ROW3__KEY_ROW3,
+	MX50_PAD_EIM_DA0__KEY_COL4,
+	MX50_PAD_EIM_DA1__KEY_ROW4,
+	MX50_PAD_EIM_DA2__KEY_COL5,
+	MX50_PAD_EIM_DA3__KEY_ROW5,
+	MX50_PAD_EIM_DA4__KEY_COL6,
+	MX50_PAD_EIM_DA5__KEY_ROW6,
+	MX50_PAD_EIM_DA6__KEY_COL7,
+	MX50_PAD_EIM_DA7__KEY_ROW7,
 
 };
 
@@ -363,14 +373,20 @@ static struct fec_platform_data fec_data = {
 	.phy = PHY_INTERFACE_MODE_RMII,
 };
 
-static u16 keymapping[8] = {
-	KEY_F1, KEY_UP, KEY_SELECT, KEY_LEFT,
-	KEY_ENTER, KEY_RIGHT, KEY_MENU, KEY_DOWN,
+static u16 keymapping[] = {
+	KEY_9, KEY_0, KEY_O, KEY_P, KEY_L, KEY_DELETE, KEY_SLASH, KEY_ENTER,
+	KEY_F4, KEY_F1, KEY_F6, KEY_F9, KEY_F5, KEY_BACKSPACE, KEY_MENU, 0,
+	KEY_PREVIOUS, KEY_NEXT, KEY_HOME, KEY_NEXT, KEY_F2, KEY_F3, KEY_F8, KEY_F7,
+	KEY_F11, KEY_CAPSLOCK, KEY_SPACE, KEY_SPACE, KEY_LEFTALT, KEY_LEFTSHIFT, 0, 0,
+	KEY_COMMA, KEY_M, KEY_N, KEY_B, KEY_V, KEY_C, KEY_X, KEY_Z,
+	KEY_K, KEY_J, KEY_H, KEY_G, KEY_F, KEY_D, KEY_S, KEY_A,
+	KEY_I, KEY_U, KEY_Y, KEY_T, KEY_R, KEY_E, KEY_W, KEY_Q,
+	KEY_8, KEY_7, KEY_6, KEY_5, KEY_4, KEY_3, KEY_2, KEY_1
 };
 
 static struct keypad_data keypad_plat_data = {
-	.rowmax = 3,
-	.colmax = 3,
+	.rowmax = 8,
+	.colmax = 8,
 	.irq = MXC_INT_KPP,
 	.learning = 0,
 	.delay = 2,
@@ -983,6 +999,15 @@ static int __init w1_setup(char *__unused)
 
 __setup("w1", w1_setup);
 
+static int __initdata enable_keypad = {0};
+static int __init keypad_setup(char *__unused)
+{
+	enable_keypad = 1;
+	return cpu_is_mx50();
+}
+
+__setup("keypad", keypad_setup);
+
 static struct mxs_dma_plat_data dma_apbh_data = {
 	.chan_base = MXS_DMA_CHANNEL_AHB_APBH,
 	.chan_num = MXS_MAX_DMA_CHANNELS,
@@ -1132,6 +1157,9 @@ static void __init mxc_board_init(void)
 	mxc_register_device(&mxc_pxp_v4l2, NULL);
 	mxc_register_device(&busfreq_device, NULL);
 	mxc_register_device(&mxc_dvfs_core_device, &dvfs_core_data);
+
+	if (enable_keypad)
+		mxc_register_device(&mxc_keypad_device, &keypad_plat_data);
 
 	mxc_register_device(&mxcsdhc1_device, &mmc1_data);
 	mxc_register_device(&mxcsdhc2_device, &mmc2_data);
