@@ -537,13 +537,23 @@ static int sgtl5000_pcm_startup(struct snd_pcm_substream *substream,
 	if (sgtl5000->master_substream) {
 		master_runtime = sgtl5000->master_substream->runtime;
 
-		pr_debug("Constraining to %d bits\n",
-			 master_runtime->sample_bits);
+		if (master_runtime->rate != 0) {
+			pr_debug("Constraining to %dHz\n",
+				 master_runtime->rate);
+			snd_pcm_hw_constraint_minmax(substream->runtime,
+						     SNDRV_PCM_HW_PARAM_RATE,
+						     master_runtime->rate,
+						     master_runtime->rate);
+		}
 
-		snd_pcm_hw_constraint_minmax(substream->runtime,
-					     SNDRV_PCM_HW_PARAM_SAMPLE_BITS,
-					     master_runtime->sample_bits,
-					     master_runtime->sample_bits);
+		if (master_runtime->sample_bits != 0) {
+			pr_debug("Constraining to %d bits\n",
+				 master_runtime->sample_bits);
+			snd_pcm_hw_constraint_minmax(substream->runtime,
+						     SNDRV_PCM_HW_PARAM_SAMPLE_BITS,
+						     master_runtime->sample_bits,
+						     master_runtime->sample_bits);
+		}
 
 		sgtl5000->slave_substream = substream;
 	} else
@@ -935,7 +945,6 @@ struct snd_soc_dai sgtl5000_dai = {
 		    .formats = SGTL5000_FORMATS,
 		    },
 	.ops = &sgtl5000_ops,
-	.symmetric_rates = 1,
 };
 EXPORT_SYMBOL_GPL(sgtl5000_dai);
 
