@@ -2647,8 +2647,6 @@ static unsigned long _clk_ssi_ext1_get_rate(struct clk *clk)
 		reg = __raw_readl(MXC_CCM_CS1CDR);
 		prediv = ((reg & MXC_CCM_CS1CDR_SSI_EXT1_CLK_PRED_MASK) >>
 			  MXC_CCM_CS1CDR_SSI_EXT1_CLK_PRED_OFFSET) + 1;
-		if (prediv == 1)
-			BUG();
 		podf = ((reg & MXC_CCM_CS1CDR_SSI_EXT1_CLK_PODF_MASK) >>
 			MXC_CCM_CS1CDR_SSI_EXT1_CLK_PODF_OFFSET) + 1;
 		div = prediv * podf;
