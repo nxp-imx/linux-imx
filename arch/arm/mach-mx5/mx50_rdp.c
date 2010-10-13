@@ -1152,7 +1152,7 @@ static void __init mxc_board_init(void)
 	mxc_register_device(&mxs_viim, NULL);
 	mxc_register_device(&mxc_rngb_device, NULL);
 	mxc_register_device(&dcp_device, NULL);
-
+	mxc_register_device(&mxc_powerkey_device, NULL);
 	mx50_rdp_init_mc13892();
 /*
 	pm_power_off = mxc_power_off;

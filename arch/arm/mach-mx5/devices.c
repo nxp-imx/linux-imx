@@ -97,6 +97,10 @@ struct platform_device mxc_keypad_device = {
 	.resource = mxc_kpp_resources,
 };
 
+struct platform_device mxc_powerkey_device = {
+	.name = "mxcpwrkey",
+	.id = 0,
+};
 static struct resource rtc_resources[] = {
 	{
 		.start = SRTC_BASE_ADDR,

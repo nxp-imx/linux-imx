@@ -27,6 +27,7 @@ extern struct platform_device mxc_usbdr_udc_device;
 extern struct platform_device mxc_dma_device;
 extern struct platform_device mxc_w1_master_device;
 extern struct platform_device mxc_keypad_device;
+extern struct platform_device mxc_powerkey_device;
 extern struct platform_device mxc_rtc_device;
 extern struct platform_device mxc_nandv2_mtd_device;
 extern struct platform_device imx_nfc_device;
