@@ -17,6 +17,7 @@
 #include <linux/clk.h>
 #include <linux/io.h>
 #include <linux/pwm.h>
+#include <linux/fsl_devices.h>
 #include <mach/hardware.h>
 
 
@@ -56,6 +57,7 @@ struct pwm_device {
 
 	unsigned int	use_count;
 	unsigned int	pwm_id;
+	int		pwmo_invert;
 };
 
 int pwm_config(struct pwm_device *pwm, int duty_ns, int period_ns)
@@ -67,6 +69,9 @@ int pwm_config(struct pwm_device *pwm, int duty_ns, int period_ns)
 		unsigned long long c;
 		unsigned long period_cycles, duty_cycles, prescale;
 		u32 cr;
+
+		if (pwm->pwmo_invert)
+			duty_ns = period_ns - duty_ns;
 
 		c = clk_get_rate(pwm->clk);
 		c = c * period_ns;
@@ -111,6 +116,8 @@ int pwm_config(struct pwm_device *pwm, int duty_ns, int period_ns)
 		 * (/2 .. /16).
 		 */
 		u32 max = readl(pwm->mmio_base + MX1_PWMP);
+		if (pwm->pwmo_invert)
+			duty_ns = period_ns - duty_ns;
 		u32 p = max * duty_ns / period_ns;
 		writel(max - p, pwm->mmio_base + MX1_PWMS);
 	} else {
@@ -199,6 +206,7 @@ static int __devinit mxc_pwm_probe(struct platform_device *pdev)
 {
 	struct pwm_device *pwm;
 	struct resource *r;
+	struct mxc_pwm_platform_data *plat_data = pdev->dev.platform_data;
 	int ret = 0;
 
 	pwm = kzalloc(sizeof(struct pwm_device), GFP_KERNEL);
@@ -219,6 +227,8 @@ static int __devinit mxc_pwm_probe(struct platform_device *pdev)
 	pwm->use_count = 0;
 	pwm->pwm_id = pdev->id;
 	pwm->pdev = pdev;
+	if (plat_data != NULL)
+		pwm->pwmo_invert = plat_data->pwmo_invert;
 
 	r = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	if (r == NULL) {
