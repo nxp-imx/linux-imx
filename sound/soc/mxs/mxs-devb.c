@@ -181,8 +181,6 @@ static int mxs_evk_sgtl5000_init(struct snd_soc_codec *codec)
 	/* Set up mxs_evk specific audio path audio_map */
 	snd_soc_dapm_add_routes(codec, audio_map, ARRAY_SIZE(audio_map));
 
-	snd_soc_dapm_disable_pin(codec, "Line In Jack");
-
 	snd_soc_dapm_sync(codec);
 
 	return 0;
