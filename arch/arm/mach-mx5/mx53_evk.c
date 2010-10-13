@@ -1256,10 +1256,14 @@ static struct mxc_mlb_platform_data mlb_data = {
 /* NAND Flash Partitions */
 #ifdef CONFIG_MTD_PARTITIONS
 static struct mtd_partition nand_flash_partitions[] = {
+/* MX53 ROM require the boot FCB/DBBT support which need
+ * more space to store such info on NAND boot partition.
+ * 16M should cover all kind of NAND boot support on MX53.
+ */
 	{
 	 .name = "bootloader",
 	 .offset = 0,
-	 .size = 3 * 1024 * 1024},
+	 .size = 16 * 1024 * 1024},
 	{
 	 .name = "nand.kernel",
 	 .offset = MTDPART_OFS_APPEND,
