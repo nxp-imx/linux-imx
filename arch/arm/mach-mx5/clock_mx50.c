@@ -2088,7 +2088,6 @@ static struct clk esdhc1_clk[] = {
 	 .enable_shift = MXC_CCM_CCGRx_CG1_OFFSET,
 	 .disable = _clk_disable,
 	 .secondary = &esdhc1_clk[1],
-	.flags = AHB_HIGH_SET_POINT | CPU_FREQ_TRIG_UPDATE,
 	 },
 	{
 	 .id = 0,
@@ -2132,7 +2131,6 @@ static struct clk esdhc2_clk[] = {
 	 .enable_shift = MXC_CCM_CCGRx_CG3_OFFSET,
 	 .disable = _clk_disable,
 	 .secondary = &esdhc2_clk[1],
-	.flags = AHB_HIGH_SET_POINT | CPU_FREQ_TRIG_UPDATE,
 	 },
 	{
 	 .id = 1,
@@ -2216,7 +2214,6 @@ static struct clk esdhc3_clk[] = {
 	 .enable_shift = MXC_CCM_CCGRx_CG5_OFFSET,
 	 .disable = _clk_disable,
 	 .secondary = &esdhc3_clk[1],
-	.flags = AHB_HIGH_SET_POINT | CPU_FREQ_TRIG_UPDATE,
 	 },
 	{
 	 .id = 2,
@@ -2260,7 +2257,6 @@ static struct clk esdhc4_clk[] = {
 	 .enable_shift = MXC_CCM_CCGRx_CG7_OFFSET,
 	 .disable = _clk_disable,
 	 .secondary = &esdhc4_clk[1],
-	.flags = AHB_HIGH_SET_POINT | CPU_FREQ_TRIG_UPDATE,
 	 },
 	{
 	 .id = 3,
