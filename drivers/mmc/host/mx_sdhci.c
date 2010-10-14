@@ -109,11 +109,18 @@ static unsigned int *adma_des_table;
 #define MXC_SDHCI_NUM	4
 #endif
 
+/*
+ * Define ahb clock and esdhc clock in low power mode
+ */
+#define LP_AHB_CLOCK	24000000
+#define LP_ESDHC_CLOCK	20000000
+
 static struct sdhci_chip *mxc_fix_chips[MXC_SDHCI_NUM];
 
 static void sdhci_prepare_data(struct sdhci_host *, struct mmc_data *);
 static void sdhci_finish_data(struct sdhci_host *);
 
+static void sdhci_set_clock(struct sdhci_host *host, unsigned int clock);
 static void sdhci_send_command(struct sdhci_host *, struct mmc_command *);
 static void sdhci_finish_command(struct sdhci_host *);
 
@@ -659,12 +666,28 @@ static void sdhci_send_command(struct sdhci_host *host, struct mmc_command *cmd)
 	u32 mask;
 	u32 mode = 0;
 	unsigned long timeout;
+	struct clk *ahb_clk;
 
 	DBG("sdhci_send_command 0x%x is starting...\n", cmd->opcode);
 	WARN_ON(host->cmd);
 
 	/* Wait max 10 ms */
 	timeout = 500;
+	if (cpu_is_mx50()) {
+		ahb_clk = clk_get(NULL, "ahb_clk");
+
+		if (clk_get_rate(ahb_clk) == LP_AHB_CLOCK) {
+			host->lp_mode = 1;
+
+			if (host->req_clock != LP_ESDHC_CLOCK)
+				sdhci_set_clock(host, LP_ESDHC_CLOCK);
+		} else {
+			if (host->lp_mode)
+				sdhci_set_clock(host, host->max_clk);
+
+			host->lp_mode = 0;
+		}
+	}
 
 	mask = SDHCI_CMD_INHIBIT;
 	if ((cmd->data != NULL) || (cmd->flags & MMC_RSP_BUSY))
@@ -882,6 +905,8 @@ static void sdhci_set_clock(struct sdhci_host *host, unsigned int clock)
 		 host->clock = (clk_rate / (div + 1)) / (prescaler * 2);
 	 else
 		 host->clock = clk_rate / (div + 1);
+
+	host->req_clock = clock;
 }
 
 static void sdhci_set_power(struct sdhci_host *host, unsigned short power)
