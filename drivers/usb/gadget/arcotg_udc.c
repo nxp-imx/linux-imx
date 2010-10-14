@@ -2184,10 +2184,10 @@ static irqreturn_t fsl_udc_irq(int irq, void *_udc)
 	}
 #ifdef CONFIG_USB_OTG
 	/* if no gadget register in this driver, we need do noting */
-	if (udc->transceiver->gadget == NULL)
+	if (udc->transceiver->gadget == NULL) {
 		clr_remain_irq = 1;
 		goto irq_end;
-
+	}
 	/* only handle device interrupt event */
 	if (!(fsl_readl(&dr_regs->otgsc) & OTGSC_STS_USB_ID)) {
 		clr_remain_irq = 1;
