@@ -551,6 +551,36 @@ struct platform_device mxc_fec_device = {
 	.resource = mxc_fec_resources,
 };
 
+static struct resource mxc_ptp_resources[] = {
+	{
+		.start	= PTP_BASE_ADDR,
+		.end	= PTP_BASE_ADDR + SZ_4K - 1,
+		.flags	= IORESOURCE_MEM
+	},
+	{
+		.start	= RTC_BASE_ADDR,
+		.end	= RTC_BASE_ADDR + SZ_4K - 1,
+		.flags	= IORESOURCE_MEM
+	},
+	{
+		.start	= MXC_INT_PTP,
+		.end	= MXC_INT_PTP,
+		.flags	= IORESOURCE_IRQ
+	},
+	{
+		.start	= MXC_INT_RTC,
+		.end	= MXC_INT_RTC,
+		.flags	= IORESOURCE_IRQ
+	},
+};
+
+struct platform_device mxc_ptp_device = {
+	.name = "ptp",
+	.id = 0,
+	.num_resources = ARRAY_SIZE(mxc_ptp_resources),
+	.resource = mxc_ptp_resources,
+};
+
 static struct resource mxcspi1_resources[] = {
 	{
 		.start = CSPI1_BASE_ADDR,
@@ -1626,6 +1656,10 @@ int __init mxc_init_devices(void)
 		flexcan1_resources[0].end -= MX53_OFFSET;
 		mxc_fec_resources[0].start -= MX53_OFFSET;
 		mxc_fec_resources[0].end -= MX53_OFFSET;
+		mxc_ptp_resources[0].start -= MX53_OFFSET;
+		mxc_ptp_resources[0].end -= MX53_OFFSET;
+		mxc_ptp_resources[1].start -= MX53_OFFSET;
+		mxc_ptp_resources[1].end -= MX53_OFFSET;
 		vpu_resources[0].start -= MX53_OFFSET;
 		vpu_resources[0].end -= MX53_OFFSET;
 		scc_resources[0].start -= MX53_OFFSET;

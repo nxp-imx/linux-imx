@@ -2449,6 +2449,81 @@ static struct clk cspi3_clk = {
 	.secondary = &aips_tz2_clk,
 };
 
+static unsigned long _clk_ieee_rtc_get_rate(struct clk *clk)
+{
+	u32 reg, prediv, podf;
+
+	reg = __raw_readl(MXC_CCM_CSCDR2);
+	prediv = ((reg & MXC_CCM_CSCDR2_IEEE_CLK_PRED_MASK) >>
+		  MXC_CCM_CSCDR2_IEEE_CLK_PRED_OFFSET) + 1;
+	if (prediv == 1)
+		BUG();
+	podf = ((reg & MXC_CCM_CSCDR2_IEEE_CLK_PODF_MASK) >>
+		MXC_CCM_CSCDR2_IEEE_CLK_PODF_OFFSET) + 1;
+
+	return clk_get_rate(clk->parent) / (prediv * podf);
+}
+
+static int _clk_ieee_rtc_set_rate(struct clk *clk, unsigned long rate)
+{
+	u32 reg, div, pre, post;
+	u32 parent_rate = clk_get_rate(clk->parent);
+
+	div = parent_rate / rate;
+	if (div == 0)
+		div++;
+	if (((parent_rate / div) != rate) || div > 512)
+		return -EINVAL;
+
+	__calc_pre_post_dividers(div, &pre, &post);
+
+	reg = __raw_readl(MXC_CCM_CSCDR2);
+	reg &= ~(MXC_CCM_CSCDR2_IEEE_CLK_PRED_MASK |
+		 MXC_CCM_CSCDR2_IEEE_CLK_PODF_MASK);
+	reg |= (post - 1) << MXC_CCM_CSCDR2_IEEE_CLK_PODF_OFFSET;
+	reg |= (pre - 1) << MXC_CCM_CSCDR2_IEEE_CLK_PRED_OFFSET;
+	__raw_writel(reg, MXC_CCM_CSCDR2);
+
+	return 0;
+}
+
+static unsigned long _clk_ieee_rtc_round_rate(struct clk *clk,
+						unsigned long rate)
+{
+	u32 pre, post;
+	u32 parent_rate = clk_get_rate(clk->parent);
+	u32 div = parent_rate / rate;
+
+	if (parent_rate % rate)
+		div++;
+
+	__calc_pre_post_dividers(div, &pre, &post);
+
+	return parent_rate / (pre * post);
+}
+
+static int _clk_ieee_rtc_set_parent(struct clk *clk, struct clk *parent)
+{
+	u32 reg, mux;
+
+	mux = _get_mux(parent, &pll3_sw_clk, &pll4_sw_clk,
+		       NULL, NULL);
+	reg = __raw_readl(MXC_CCM_CSCMR2) & ~MXC_CCM_CSCMR2_IEEE_CLK_SEL_MASK;
+	reg |= mux << MXC_CCM_CSCMR2_IEEE_CLK_SEL_OFFSET;
+	__raw_writel(reg, MXC_CCM_CSCMR2);
+
+	return 0;
+}
+
+static struct clk ieee_rtc_clk = {
+	.id = 0,
+	.parent = &pll3_sw_clk,
+	.set_parent = _clk_ieee_rtc_set_parent,
+	.set_rate = _clk_ieee_rtc_set_rate,
+	.round_rate = _clk_ieee_rtc_round_rate,
+	.get_rate = _clk_ieee_rtc_get_rate,
+};
+
 static int _clk_ssi_lp_apm_set_parent(struct clk *clk, struct clk *parent)
 {
 	u32 reg, mux;
@@ -4241,6 +4316,7 @@ static struct clk_lookup mx53_lookups[] = {
 	_REGISTER_CLOCK(NULL, "ocram_clk", ocram_clk),
 	_REGISTER_CLOCK(NULL, "imx_sata_clk", sata_clk),
 	_REGISTER_CLOCK(NULL, "ieee_1588_clk", ieee_1588_clk),
+	_REGISTER_CLOCK(NULL, "ieee_rtc_clk", ieee_rtc_clk),
 	_REGISTER_CLOCK("mxc_mlb.0", NULL, mlb_clk[0]),
 	_REGISTER_CLOCK(NULL, "can_clk", can1_clk[0]),
 	_REGISTER_CLOCK(NULL, "can_clk", can2_clk[0]),
@@ -4845,6 +4921,10 @@ int __init mx53_clocks_init(unsigned long ckil, unsigned long osc, unsigned long
 	/* set SDHC root clock as 200MHZ*/
 	clk_set_rate(&esdhc1_clk[0], 200000000);
 	clk_set_rate(&esdhc3_clk[0], 200000000);
+
+	 /* Set the 1588 RTC input clocks as 108MHZ */
+	clk_set_parent(&ieee_rtc_clk, &pll3_sw_clk);
+	clk_set_rate(&ieee_rtc_clk, 108000000);
 
 	/* Set the current working point. */
 	cpu_wp_tbl = get_cpu_wp(&cpu_wp_nr);

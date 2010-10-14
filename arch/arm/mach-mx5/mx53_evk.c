@@ -1657,8 +1657,10 @@ static void __init mxc_board_init(void)
 	mxc_register_device(&mxc_ssi2_device, NULL);
 	mxc_register_device(&ahci_fsl_device, &sata_data);
 	mxc_register_device(&mxc_alsa_spdif_device, &mxc_spdif_data);
-	if (!mxc_apc_on)
+	if (!mxc_apc_on) {
 		mxc_register_device(&mxc_fec_device, &fec_data);
+		mxc_register_device(&mxc_ptp_device, NULL);
+	}
 	spi_register_board_info(mxc_dataflash_device,
 				ARRAY_SIZE(mxc_dataflash_device));
 	i2c_register_board_info(0, mxc_i2c0_board_info,
