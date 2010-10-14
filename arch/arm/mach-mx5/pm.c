@@ -25,6 +25,10 @@
 #include <asm/tlb.h>
 #include <asm/mach/map.h>
 #include <mach/hardware.h>
+#include <mach/gpio.h>
+#ifdef CONFIG_ARCH_MX50
+#include <mach/iomux-mx50.h>
+#endif
 
 #define MXC_SRPG_EMPGC0_SRPGCR	(IO_ADDRESS(GPC_BASE_ADDR) + 0x2C0)
 #define MXC_SRPG_EMPGC1_SRPGCR	(IO_ADDRESS(GPC_BASE_ADDR) + 0x2D0)
@@ -54,6 +58,8 @@ extern int iram_ready;
 void *suspend_iram_base;
 void (*suspend_in_iram)(void *sdclk_iomux_addr) = NULL;
 void __iomem *suspend_param1;
+
+#define FEC_EN (5*32 + 23) /*GPIO_6_23*/
 
 static int mx5_suspend_enter(suspend_state_t state)
 {
@@ -86,8 +92,26 @@ static int mx5_suspend_enter(suspend_state_t state)
 			/*clear the EMPGC0/1 bits */
 			__raw_writel(0, MXC_SRPG_EMPGC0_SRPGCR);
 			__raw_writel(0, MXC_SRPG_EMPGC1_SRPGCR);
-		} else
+		} else {
+			/* Setup GPIO/IOMUX settings to lower power. */
+			struct pad_desc cspi_keeper1 =
+					MX50_PAD_I2C3_SDA__GPIO_6_23;
+			/* Disable the Pull/keeper */
+			cspi_keeper1.pad_ctrl = 0xE;
+			mxc_iomux_v3_setup_pad(&cspi_keeper1);
+
+			gpio_request(FEC_EN, "fec-en");
+			gpio_direction_input(FEC_EN);
+
+			/* Suspend now. */
 			suspend_in_iram(databahn_base);
+
+			/* Enable the Pull/keeper */
+			cspi_keeper1.pad_ctrl = 0x8e;
+			mxc_iomux_v3_setup_pad(&cspi_keeper1);
+
+			gpio_direction_output(FEC_EN, 0);
+		}
 	} else {
 			cpu_do_idle();
 	}

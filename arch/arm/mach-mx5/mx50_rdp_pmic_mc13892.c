@@ -74,9 +74,11 @@
 #define AUDIO_STBY_MASK		(1 << 16)
 #define SD_STBY_MASK		(1 << 19)
 
-#define REG_MODE_0_ALL_MASK	(DIG_STBY_MASK | GEN1_STBY_MASK)
+#define REG_MODE_0_ALL_MASK	(DIG_STBY_MASK | GEN1_STBY_MASK\
+					| USB2_STBY_MASK | PLL_STBY_MASK\
+					| IOHI_STBY_MASK)
 #define REG_MODE_1_ALL_MASK	(CAM_STBY_MASK | VIDEO_STBY_MASK |\
-				AUDIO_STBY_MASK | SD_STBY_MASK)
+				AUDIO_STBY_MASK | SD_STBY_MASK | GEN3_STBY_MASK)
 
 /* switch mode setting */
 #define	SW1MODE_LSB	0
@@ -259,7 +261,6 @@ static struct regulator_init_data vsd_init = {
 		.min_uV = mV_to_uV(1800),
 		.max_uV = mV_to_uV(3150),
 		.valid_ops_mask = REGULATOR_CHANGE_VOLTAGE,
-		.always_on = 1,
 	}
 };
 
@@ -271,7 +272,6 @@ static struct regulator_init_data vcam_init = {
 		.valid_ops_mask =
 			REGULATOR_CHANGE_VOLTAGE | REGULATOR_CHANGE_MODE,
 		.valid_modes_mask = REGULATOR_MODE_FAST | REGULATOR_MODE_NORMAL,
-		.always_on = 1,
 	}
 };
 
@@ -281,10 +281,7 @@ static struct regulator_init_data vgen1_init = {
 		.min_uV = mV_to_uV(3000),
 		.max_uV = mV_to_uV(3000),
 		.valid_ops_mask = REGULATOR_CHANGE_VOLTAGE,
-		.always_on = 1,
 	},
-	.num_consumer_supplies = ARRAY_SIZE(vgen1_consumers),
-	.consumer_supplies = vgen1_consumers,
 };
 
 static struct regulator_init_data vgen2_init = {
@@ -303,7 +300,6 @@ static struct regulator_init_data vgen3_init = {
 		.min_uV = mV_to_uV(1800),
 		.max_uV = mV_to_uV(2900),
 		.valid_ops_mask = REGULATOR_CHANGE_VOLTAGE,
-		.always_on = 1,
 	}
 };
 

@@ -283,6 +283,31 @@ static struct pad_desc  mx50_rdp[] = {
 	MX50_PAD_EIM_DA6__KEY_COL7,
 	MX50_PAD_EIM_DA7__KEY_ROW7,
 
+	/*EIM pads */
+	MX50_PAD_EIM_DA0__GPIO_1_0,
+	MX50_PAD_EIM_DA1__GPIO_1_1,
+	MX50_PAD_EIM_DA2__GPIO_1_2,
+	MX50_PAD_EIM_DA3__GPIO_1_3,
+	MX50_PAD_EIM_DA4__GPIO_1_4,
+	MX50_PAD_EIM_DA5__GPIO_1_5,
+	MX50_PAD_EIM_DA7__GPIO_1_7,
+	MX50_PAD_EIM_DA8__GPIO_1_8,
+	MX50_PAD_EIM_DA9__GPIO_1_9,
+	MX50_PAD_EIM_DA10__GPIO_1_10,
+	MX50_PAD_EIM_DA11__GPIO_1_11,
+	MX50_PAD_EIM_DA12__GPIO_1_12,
+	MX50_PAD_EIM_DA13__GPIO_1_13,
+	MX50_PAD_EIM_DA14__GPIO_1_14,
+	MX50_PAD_EIM_DA15__GPIO_1_15,
+	MX50_PAD_EIM_CS2__GPIO_1_16,
+	MX50_PAD_EIM_CS1__GPIO_1_17,
+	MX50_PAD_EIM_CS0__GPIO_1_18,
+	MX50_PAD_EIM_EB0__GPIO_1_19,
+	MX50_PAD_EIM_EB1__GPIO_1_20,
+	MX50_PAD_EIM_WAIT__GPIO_1_21,
+	MX50_PAD_EIM_BCLK__GPIO_1_22,
+	MX50_PAD_EIM_RDY__GPIO_1_23,
+	MX50_PAD_EIM_OE__GPIO_1_24,
 };
 
 static struct pad_desc  mx50_gpmi_nand[] = {
@@ -1079,6 +1104,8 @@ static void __init fixup_mxc_board(struct machine_desc *desc, struct tag *tags,
 
 static void __init mx50_rdp_io_init(void)
 {
+	struct pad_desc cspi_keeper = MX50_PAD_ECSPI1_SCLK__GPIO_4_12;
+
 	mxc_iomux_v3_setup_multiple_pads(mx50_rdp, \
 			ARRAY_SIZE(mx50_rdp));
 
@@ -1139,6 +1166,9 @@ static void __init mx50_rdp_io_init(void)
 	gpio_request(USB_OTG_PWR, "usb otg power");
 	gpio_direction_output(USB_OTG_PWR, 1);
 	gpio_set_value(USB_OTG_PWR, 0);
+
+	cspi_keeper.pad_ctrl = 0x0; /* Disable all keepers */
+	mxc_iomux_v3_setup_pad(&cspi_keeper);
 }
 
 /*!
