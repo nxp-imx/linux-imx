@@ -44,6 +44,7 @@
 #include <linux/pwm_backlight.h>
 #include <linux/fec.h>
 #include <linux/ahci_platform.h>
+#include <linux/powerkey.h>
 #include <mach/common.h>
 #include <mach/hardware.h>
 #include <asm/irq.h>
@@ -1253,6 +1254,19 @@ static struct mxc_mlb_platform_data mlb_data = {
 	.mlb_clk = "mlb_clk",
 };
 
+static void mxc_register_powerkey(key_press_call_back kp_cb, void *param)
+{
+	pmic_event_callback_t power_key_event;
+
+	power_key_event.param = param;
+	power_key_event.func = (void *)kp_cb;
+	pmic_event_subscribe(EVENT_PWRONI, power_key_event);
+}
+
+static struct power_key_platform_data pwrkey_data = {
+	.register_key_press_handler = mxc_register_powerkey,
+};
+
 /* NAND Flash Partitions */
 #ifdef CONFIG_MTD_PARTITIONS
 static struct mtd_partition nand_flash_partitions[] = {
@@ -1674,7 +1688,7 @@ static void __init mxc_board_init(void)
 	*/
 	mxc_register_device(&mxc_sgtl5000_device, &sgtl5000_data);
 	mxc_register_device(&mxc_mlb_device, &mlb_data);
-	mxc_register_device(&mxc_powerkey_device, NULL);
+	mxc_register_device(&mxc_powerkey_device, &pwrkey_data);
 	mx5_set_otghost_vbus_func(mx53_gpio_usbotg_driver_vbus);
 	mx5_usb_dr_init();
 	mx5_set_host1_vbus_func(mx53_gpio_host1_driver_vbus);

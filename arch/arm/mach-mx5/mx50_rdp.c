@@ -45,6 +45,7 @@
 #include <linux/mxcfb.h>
 #include <linux/fec.h>
 #include <linux/gpmi-nfc.h>
+#include <linux/powerkey.h>
 #include <asm/irq.h>
 #include <asm/setup.h>
 #include <asm/mach-types.h>
@@ -990,6 +991,20 @@ static void mx50_arm2_usb_set_vbus(bool enable)
 	gpio_set_value(USB_OTG_PWR, enable);
 }
 
+static void mxc_register_powerkey(key_press_call_back kp_cb, void *param)
+{
+	pmic_event_callback_t power_key_event;
+
+	power_key_event.param = param;
+	power_key_event.func = (void *)kp_cb;
+	pmic_event_subscribe(EVENT_PWRONI, power_key_event);
+}
+
+static struct power_key_platform_data pwrkey_data = {
+	.register_key_press_handler = mxc_register_powerkey,
+};
+
+
 static int __initdata enable_w1 = { 0 };
 static int __init w1_setup(char *__unused)
 {
@@ -1180,7 +1195,7 @@ static void __init mxc_board_init(void)
 	mxc_register_device(&mxs_viim, NULL);
 	mxc_register_device(&mxc_rngb_device, NULL);
 	mxc_register_device(&dcp_device, NULL);
-	mxc_register_device(&mxc_powerkey_device, NULL);
+	mxc_register_device(&mxc_powerkey_device, &pwrkey_data);
 	mx50_rdp_init_mc13892();
 /*
 	pm_power_off = mxc_power_off;
