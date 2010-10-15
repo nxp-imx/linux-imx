@@ -1753,7 +1753,7 @@ extern void v6_flush_kern_cache_all_L2(void);
 {                                                                         \
     void *s = (void*)start;                                               \
     void *e = s + len;                                                    \
-    clean_dcache_area(s, len);                                               \
+    dmac_map_area(s, len, DMA_TO_DEVICE);                   \
     outer_clean_range(__pa(s), __pa(e));                                  \
 }
 #endif
@@ -1774,7 +1774,7 @@ extern void v6_flush_kern_cache_all_L2(void);
 {                                                                         \
     void *s = (void*)start;                                               \
     void *e = s + len;                                                    \
-    invalidate_kernel_vmap_range(s, len);                                                 \
+    dmac_unmap_area(s, len, DMA_FROM_DEVICE);            \
     outer_inv_range(__pa(s), __pa(e));                                    \
 }
 #endif
