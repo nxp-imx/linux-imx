@@ -885,6 +885,7 @@ static void mxs_mmc_reset(struct mxs_mmc_host *host)
 	/* Configure SSP Control Register 1 */
 	ssp_ctrl1 =
 	    BM_SSP_CTRL1_DMA_ENABLE |
+	    BM_SSP_CTRL1_POLARITY |
 	    BM_SSP_CTRL1_RECV_TIMEOUT_IRQ_EN |
 	    BM_SSP_CTRL1_DATA_CRC_IRQ_EN |
 	    BM_SSP_CTRL1_DATA_TIMEOUT_IRQ_EN |
