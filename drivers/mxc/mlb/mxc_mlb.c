@@ -939,11 +939,15 @@ static int __devinit mxc_mlb_probe(struct platform_device *pdev)
 	/* enable GPIO */
 	gpio_mlb_active();
 
-	/* power on MLB */
-	reg_nvcc = regulator_get(&pdev->dev, plat_data->reg_nvcc);
-	/* set MAX LDO6 for NVCC to 2.5V */
-	regulator_set_voltage(reg_nvcc, 2500000, 2500000);
-	regulator_enable(reg_nvcc);
+	if (plat_data->reg_nvcc) {
+		/* power on MLB */
+		reg_nvcc = regulator_get(&pdev->dev, plat_data->reg_nvcc);
+		if (!IS_ERR(reg_nvcc)) {
+			/* set MAX LDO6 for NVCC to 2.5V */
+			regulator_set_voltage(reg_nvcc, 2500000, 2500000);
+			regulator_enable(reg_nvcc);
+		}
+	}
 
 	/* enable clock */
 	mlb_clk = clk_get(&pdev->dev, plat_data->mlb_clk);
