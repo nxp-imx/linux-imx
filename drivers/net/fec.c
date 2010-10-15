@@ -17,6 +17,9 @@
  *
  * Bug fixes and cleanup by Philippe De Muyter (phdm@macqel.be)
  * Copyright (c) 2004-2006 Macq Electronique SA.
+ *
+ * Support for FEC IEEE 1588.
+ * Copyright (C) 2010 Freescale Semiconductor, Inc.
  */
 
 #include <linux/module.h>
@@ -54,6 +57,7 @@
 #endif
 
 #include "fec.h"
+#include "fec_1588.h"
 
 #if defined(CONFIG_ARCH_MXC) || defined(CONFIG_ARCH_MXS)
 #define FEC_ALIGNMENT	0xf
@@ -185,6 +189,9 @@ struct fec_enet_private {
 	int	link;
 	int	full_duplex;
 	struct  completion mdio_done;
+
+	struct	fec_ptp_private *ptp_priv;
+	uint	ptimer_present;
 };
 
 /*
@@ -273,6 +280,11 @@ fec_enet_start_xmit(struct sk_buff *skb, struct net_device *dev)
 		index = bdp - fep->tx_bd_base;
 		memcpy(fep->tx_bounce[index], (void *)skb->data, skb->len);
 		bufaddr = fep->tx_bounce[index];
+	}
+
+	if (fep->ptimer_present) {
+		if (fec_ptp_do_txstamp(skb))
+			status |= BD_ENET_TX_PTP;
 	}
 
 #ifdef CONFIG_ARCH_MXS
@@ -446,6 +458,7 @@ static void
 fec_enet_rx(struct net_device *dev)
 {
 	struct	fec_enet_private *fep = netdev_priv(dev);
+	struct  fec_ptp_private *fpp = fep->ptp_priv;
 	struct bufdesc *bdp;
 	unsigned short status;
 	struct	sk_buff	*skb;
@@ -526,6 +539,9 @@ fec_enet_rx(struct net_device *dev)
 			skb_reserve(skb, NET_IP_ALIGN);
 			skb_put(skb, pkt_len - 4);	/* Make room */
 			skb_copy_to_linear_data(skb, data, pkt_len - 4);
+			/* 1588 messeage TS handle */
+			if (fep->ptimer_present)
+				fec_ptp_store_rxstamp(fpp, skb, bdp);
 			skb->protocol = eth_type_trans(skb, dev);
 			netif_rx(skb);
 		}
@@ -1197,6 +1213,7 @@ fec_restart(struct net_device *dev, int duplex)
 {
 	struct fec_enet_private *fep = netdev_priv(dev);
 	int i;
+	uint ret = 0;
 	u32 temp_mac[2];
 	unsigned long reg;
 	int val;
@@ -1278,6 +1295,13 @@ fec_restart(struct net_device *dev, int duplex)
 	/* Set MII speed */
 	writel(fep->phy_speed, fep->hwp + FEC_MII_SPEED);
 
+	if (fep->ptimer_present) {
+		/* Set Timer count */
+		ret = fec_ptp_start(fep->ptp_priv);
+		if (ret)
+			fep->ptimer_present = 0;
+	}
+
 #ifdef FEC_MIIGSK_ENR
 	if (fep->phy_interface == PHY_INTERFACE_MODE_RMII) {
 		/* disable the gasket and wait */
@@ -1333,6 +1357,8 @@ fec_stop(struct net_device *dev)
 	/* Clear outstanding MII command interrupts. */
 	writel(FEC_ENET_MII, fep->hwp + FEC_IEVENT);
 	writel(fep->phy_speed, fep->hwp + FEC_MII_SPEED);
+	if (fep->ptimer_present)
+		fec_ptp_stop(fep->ptp_priv);
 	writel(FEC_DEFAULT_IMASK, fep->hwp + FEC_IMASK);
 }
 
@@ -1435,6 +1461,19 @@ fec_probe(struct platform_device *pdev)
 		fep->mii_bus = fec_mii_bus;
 	}
 
+	if (fec_ptp_malloc_priv(&(fep->ptp_priv))) {
+		if (fep->ptp_priv) {
+			fep->ptp_priv->hwp = fep->hwp;
+			ret = fec_ptp_init(fep->ptp_priv, pdev->id);
+			if (ret)
+				printk(KERN_WARNING
+				       "IEEE1588: ptp-timer is unavailable\n");
+			else
+				fep->ptimer_present = 1;
+		} else
+			printk(KERN_ERR "IEEE1588: failed to malloc memory\n");
+	}
+
 	ret = register_netdev(ndev);
 	if (ret)
 		goto failed_register;
@@ -1445,6 +1484,9 @@ fec_probe(struct platform_device *pdev)
 
 failed_register:
 	fec_enet_mii_remove(fep);
+	if (fep->ptimer_present)
+		fec_ptp_cleanup(fep->ptp_priv);
+	kfree(fep->ptp_priv);
 failed_mii_init:
 failed_init:
 	clk_disable(fep->clk);
@@ -1480,6 +1522,9 @@ fec_drv_remove(struct platform_device *pdev)
 	clk_disable(fep->clk);
 	clk_put(fep->clk);
 	iounmap((void __iomem *)ndev->base_addr);
+	if (fep->ptimer_present)
+		fec_ptp_cleanup(fep->ptp_priv);
+	kfree(fep->ptp_priv);
 	unregister_netdev(ndev);
 	free_netdev(ndev);
 	return 0;

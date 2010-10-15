@@ -126,6 +126,8 @@ struct bufdesc {
 #define BD_ENET_RX_CL           ((ushort)0x0001)
 #define BD_ENET_RX_STATS        ((ushort)0x013f)        /* All status bits */
 
+#define BD_ENET_RX_PTP		((ushort)0x0400)
+
 /* Buffer descriptor control/status used by Ethernet transmit.
 */
 #define BD_ENET_TX_READY        ((ushort)0x8000)
@@ -143,6 +145,7 @@ struct bufdesc {
 #define BD_ENET_TX_CSL          ((ushort)0x0001)
 #define BD_ENET_TX_STATS        ((ushort)0x03ff)        /* All status bits */
 
+#define BD_ENET_TX_PTP		((ushort)0x0100)
 
 /****************************************************************************/
 #endif /* FEC_H */
