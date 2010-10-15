@@ -30,14 +30,14 @@
 #include <linux/irq.h>
 #include <linux/interrupt.h>
 #include <linux/platform_device.h>
-#include <linux/pmic_external.h>
+#include <linux/powerkey.h>
 
 #define KEYCODE_ONOFF            KEY_F4
 
 /*! Input device structure. */
 static struct input_dev *mxcpwrkey_dev;
 static bool key_press;
-static void power_key_event_handler(void)
+static void power_key_event_handler(void *param)
 {
 	if (!key_press) {
 		key_press = true;
@@ -54,8 +54,12 @@ static void power_key_event_handler(void)
 static int mxcpwrkey_probe(struct platform_device *pdev)
 {
 	int retval, err;
-	pmic_event_callback_t power_key_event;
+	struct power_key_platform_data *pdata = pdev->dev.platform_data;
 
+	if (!pdata) {
+		printk(KERN_DEBUG "power key platform data is NULL, there is no power key\n");
+		return 0;
+	}
 	printk(KERN_INFO "PMIC powerkey probe\n");
 
 	key_press = false;
@@ -71,9 +75,7 @@ static int mxcpwrkey_probe(struct platform_device *pdev)
 	mxcpwrkey_dev->id.bustype = BUS_HOST;
 	mxcpwrkey_dev->evbit[0] = BIT_MASK(EV_KEY);
 
-	power_key_event.param = NULL;
-	power_key_event.func = (void *)power_key_event_handler;
-	pmic_event_subscribe(EVENT_PWRONI, power_key_event);
+	pdata->register_key_press_handler(power_key_event_handler, NULL);
 
 	input_set_capability(mxcpwrkey_dev, EV_KEY, KEYCODE_ONOFF);
 
