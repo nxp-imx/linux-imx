@@ -325,7 +325,11 @@ static int imx_ssi_set_dai_fmt(struct snd_soc_dai *cpu_dai, unsigned int fmt)
 	/* tdm - only for stereo atm */
 	if (priv->network_mode)
 		scr |= SSI_SCR_NET;
-
+#ifdef CONFIG_MXC_SSI_DUAL_FIFO
+	stcr |= SSI_STCR_TFEN1;
+	srcr |= SSI_SRCR_RFEN1;
+	scr |= SSI_SCR_TCH_EN;
+#endif
 	__raw_writel(stcr, ioaddr + SSI_STCR);
 	__raw_writel(srcr, ioaddr + SSI_SRCR);
 	__raw_writel(scr, ioaddr + SSI_SCR);

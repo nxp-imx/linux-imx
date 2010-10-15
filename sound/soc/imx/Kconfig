@@ -97,4 +97,10 @@ config SND_SOC_IMX_3STACK_CS42888
 	  Say Y if you want to add support for Soc audio on IMX 3STACK
 	  with the CS42888
 
+config MXC_SSI_DUAL_FIFO
+	bool "MXC SSI enable dual fifoes"
+	def_bool y
+	depends on SND_MXC_SOC_SSI && (ARCH_MX51 || ARCH_MX53)
+	help
+	  Say Y if you want to use 2 ssi fifo for audio transfer
 endif
