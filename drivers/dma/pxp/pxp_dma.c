@@ -52,10 +52,10 @@ struct pxps {
 	int irq;		/* PXP IRQ to the CPU */
 
 	spinlock_t lock;
-	struct mutex mutex_clk;
 	int clk_stat;
 #define	CLK_STAT_OFF		0
 #define	CLK_STAT_ON		1
+	int pxp_ongoing;
 
 	struct device *dev;
 	struct pxp_dma pxp_dma;
@@ -596,39 +596,44 @@ static int pxp_config(struct pxps *pxp, struct pxp_channel *pxp_chan)
 
 static void pxp_clk_enable(struct pxps *pxp)
 {
-	mutex_lock(&pxp->mutex_clk);
+	unsigned long flags;
+	spin_lock_irqsave(&pxp->lock, flags);
 
 	if (pxp->clk_stat == CLK_STAT_ON) {
-		mutex_unlock(&pxp->mutex_clk);
+		spin_unlock_irqrestore(&pxp->lock, flags);
 		return;
 	}
 
 	clk_enable(pxp->clk);
 	pxp->clk_stat = CLK_STAT_ON;
 
-	mutex_unlock(&pxp->mutex_clk);
+	spin_unlock_irqrestore(&pxp->lock, flags);
 }
 
 static void pxp_clk_disable(struct pxps *pxp)
 {
-	mutex_lock(&pxp->mutex_clk);
+	unsigned long flags;
+	spin_lock_irqsave(&pxp->lock, flags);
 
 	if (pxp->clk_stat == CLK_STAT_OFF) {
-		mutex_unlock(&pxp->mutex_clk);
+		spin_unlock_irqrestore(&pxp->lock, flags);
 		return;
 	}
 
 	clk_disable(pxp->clk);
 	pxp->clk_stat = CLK_STAT_OFF;
 
-	mutex_unlock(&pxp->mutex_clk);
+	spin_unlock_irqrestore(&pxp->lock, flags);
 }
 
 static void pxp_clkoff_timer(unsigned long arg)
 {
 	struct pxps *pxp = (struct pxps *)arg;
 
-	pxp_clk_disable(pxp);
+	if ((pxp->pxp_ongoing == 0) && list_empty(&head))
+		pxp_clk_disable(pxp);
+	else
+		mod_timer(&pxp->clk_timer, jiffies + msecs_to_jiffies(4000));
 }
 
 static struct pxp_tx_desc *pxpdma_first_active(struct pxp_channel *pxp_chan)
@@ -692,6 +697,7 @@ static void pxpdma_dostart_work(struct pxps *pxp)
 
 	spin_lock_irqsave(&pxp->lock, flags);
 	if (list_empty(&head)) {
+		pxp->pxp_ongoing = 0;
 		spin_unlock_irqrestore(&pxp->lock, flags);
 		return;
 	}
@@ -711,6 +717,8 @@ static void pxpdma_dostart_work(struct pxps *pxp)
 	pxp_config(pxp, pxp_chan);
 
 	pxp_start(pxp);
+
+	mod_timer(&pxp->clk_timer, jiffies + msecs_to_jiffies(4000));
 
 	spin_unlock_irqrestore(&pxp->lock, flags);
 }
@@ -857,11 +865,10 @@ static irqreturn_t pxp_irq(int irq, void *dev_id)
 
 	__raw_writel(BM_PXP_STAT_IRQ, pxp->base + HW_PXP_STAT_CLR);
 
-	mod_timer(&pxp->clk_timer, jiffies + msecs_to_jiffies(4000));
-
 	spin_lock_irqsave(&pxp->lock, flags);
 
 	if (list_empty(&head)) {
+		pxp->pxp_ongoing = 0;
 		spin_unlock_irqrestore(&pxp->lock, flags);
 		return IRQ_NONE;
 	}
@@ -872,6 +879,7 @@ static irqreturn_t pxp_irq(int irq, void *dev_id)
 	if (list_empty(&pxp_chan->active_list)) {
 		pr_debug("PXP_IRQ pxp_chan->active_list empty. chan_id %d\n",
 			 pxp_chan->dma_chan.chan_id);
+		pxp->pxp_ongoing = 0;
 		spin_unlock_irqrestore(&pxp->lock, flags);
 		return IRQ_NONE;
 	}
@@ -898,6 +906,7 @@ static irqreturn_t pxp_irq(int irq, void *dev_id)
 	list_del(&pxp_chan->list);
 
 	wake_up(&pxp->done);
+	pxp->pxp_ongoing = 0;
 
 	spin_unlock_irqrestore(&pxp->lock, flags);
 
@@ -1034,6 +1043,7 @@ static void pxp_issue_pending(struct dma_chan *chan)
 		return;
 	}
 
+	pxp->pxp_ongoing = 1;
 	pxpdma_dostart_work(pxp);
 }
 
@@ -1312,8 +1322,9 @@ static int pxp_probe(struct platform_device *pdev)
 	platform_set_drvdata(pdev, pxp);
 	pxp->irq = irq;
 
+	pxp->pxp_ongoing = 0;
+
 	spin_lock_init(&pxp->lock);
-	mutex_init(&pxp->mutex_clk);
 
 	if (!request_mem_region(res->start, resource_size(res), "pxp-mem")) {
 		err = -EBUSY;
