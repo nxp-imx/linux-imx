@@ -177,8 +177,77 @@ Div_Found:
     b       Ddr_not_24
 
 databahn_ddr_24:
-    ldr    r0, =0x00050056
+    ldr    r0, =0x00000003
+    str    r0, [r5, #0x08]
+    ldr    r0, =0x000012c0
+    str    r0, [r5, #0x0c]
+    ldr    r0, =0x00000018
+
+    str    r0, [r5, #0x10]
+    ldr    r0, =0x000000f0
+    str    r0, [r5, #0x14]
+    ldr    r0, =0x02030b0c
+    str    r0, [r5, #0x18]
+    ldr    r0, =0x02020104
+    str    r0, [r5, #0x1c]
+
+    ldr    r0, =0x05010102
+    str    r0, [r5, #0x20]
+    ldr    r0, =0x00068005
+    str    r0, [r5, #0x24]
+    ldr    r0, =0x01000103
+    str    r0, [r5, #0x28]
+    ldr    r0, =0x04030101
+    str    r0, [r5, #0x2c]
+
+    ldr    r0, =0x00000202
+    str    r0, [r5, #0x34]
+    ldr    r0, =0x00000001
+    str    r0, [r5, #0x38]
+    ldr    r0, =0x00000401
+    str    r0, [r5, #0x3c]
+
+    /* Set TREF. */
+    ldr    r0, =0x00030050
     str    r0, [r5, #0x40]
+    ldr    r0, =0x00040004
+    str    r0, [r5, #0x48]
+
+    ldr    r0, =0x00040022
+    str    r0, [r5, #0x6c]
+
+    ldr    r0, =0x00040022
+    str    r0, [r5, #0x78]
+
+    ldr    r0, =0x00180000
+    str    r0, [r5, #0x80]
+    ldr    r0, =0x00000009
+    str    r0, [r5, #0x84]
+    ldr    r0, =0x02400003
+    str    r0, [r5, #0x88]
+    ldr    r0, =0x01000200
+    str    r0, [r5, #0x8c]
+
+    ldr    r0, =0x00000000
+    str    r0, [r5, #0xcc]
+
+    ldr    r0, =0x01010301
+    str    r0, [r5, #0xd4]
+    ldr    r0, =0x00000101
+    str    r0, [r5, #0xd8]
+
+    ldr    r0, =0x02000602
+    str    r0, [r5, #0x104]
+    ldr    r0, =0x00560000
+    str    r0, [r5, #0x108]
+    ldr    r0, =0x00560056
+    str    r0, [r5, #0x10c]
+
+    ldr    r0, =0x00560056
+    str    r0, [r5, #0x110]
+    ldr    r0, =0x03060056
+    str    r0, [r5, #0x114]
+
     /* Set the Databahn DLL in bypass mode */
     /* PHY Register settings. */
     ldr    r0, =0x0
@@ -210,27 +279,27 @@ databahn_ddr_24:
 
     ldr    r0, =0x00810004
     str    r0, [r5, #0x234]
-    ldr     r0, =0x30219f14
+    ldr     r0, =0x30219fd3
     str    r0, [r5, #0x238]
-    ldr    r0, =0x00219f01
+    ldr    r0, =0x00219fc1
     str    r0, [r5, #0x23c]
 
-    ldr     r0, =0x30219f14
+    ldr     r0, =0x30219fd3
     str    r0, [r5, #0x240]
-    ldr    r0, =0x00219f01
+    ldr    r0, =0x00219fc1
     str    r0, [r5, #0x244]
-    ldr     r0, =0x30219f14
+    ldr     r0, =0x30219fd3
     str    r0, [r5, #0x248]
-    ldr    r0, =0x00219f01
+    ldr    r0, =0x00219fc1
     str    r0, [r5, #0x24c]
 
-    ldr     r0, =0x30219f14
+    ldr     r0, =0x30219fd3
     str    r0, [r5, #0x250]
-    ldr    r0, =0x00219f01
+    ldr    r0, =0x00219fc1
     str    r0, [r5, #0x254]
-    ldr     r0, =0x30219f14
+    ldr     r0, =0x30219fd3
     str    r0, [r5, #0x258]
-    ldr    r0, =0x00219f01
+    ldr    r0, =0x00219fc1
     str    r0, [r5, #0x25c]
 
     /* Set SYS_CLK to be sourced from 24MHz. */
@@ -333,8 +402,77 @@ Div_Found1:
     beq    databahn_ddr_24
 
 Ddr_not_24:
-    ldr     r0, =0x00050408
+    ldr     r0, =0x0000001b
+    str     r0, [r5, #0x8]
+    ldr     r0, =0x0000d056
+    str     r0, [r5, #0xc]
+
+    ldr     r0, =0x0000010b
+    str     r0, [r5, #0x10]
+    ldr     r0, =0x00000a6b
+    str     r0, [r5, #0x14]
+    ldr     r0, =0x02030d0c
+    str     r0, [r5, #0x18]
+    ldr     r0, =0x0c110304
+    str     r0, [r5, #0x1c]
+
+    ldr     r0, =0x05020503
+    str     r0, [r5, #0x20]
+    ldr     r0, =0x0048D005
+    str     r0, [r5, #0x24]
+    ldr     r0, =0x01000403
+    str     r0, [r5, #0x28]
+    ldr     r0, =0x09040501
+    str     r0, [r5, #0x2c]
+
+    ldr     r0, =0x00000e02
+    str     r0, [r5, #0x34]
+    ldr     r0, =0x00000006
+    str     r0, [r5, #0x38]
+    ldr     r0, =0x00002301
+    str     r0, [r5, #0x3c]
+
+    ldr     r0, =0x00050300
     str     r0, [r5, #0x40]
+
+    ldr     r0, =0x00260026
+    str     r0, [r5, #0x48]
+
+    ldr     r0, =0x00040042
+    str     r0, [r5, #0x6c]
+
+    ldr     r0, =0x00040042
+    str     r0, [r5, #0x78]
+
+    ldr     r0, =0x010b0000
+    str     r0, [r5, #0x80]
+    ldr     r0, =0x00000060
+    str     r0, [r5, #0x84]
+    ldr     r0, =0x02400018
+    str     r0, [r5, #0x88]
+    ldr     r0, =0x01000e00
+    str     r0, [r5, #0x8c]
+
+    ldr     r0, =0x01000000
+    str     r0, [r5, #0xcc]
+
+    ldr     r0, =0x00000200
+    str     r0, [r5, #0xd4]
+    ldr     r0, =0x00000102
+    str     r0, [r5, #0xd8]
+
+    ldr     r0, =0x02000802
+    str     r0, [r5, #0x104]
+    ldr     r0, =0x04080000
+    str     r0, [r5, #0x108]
+    ldr     r0, =0x04080408
+    str     r0, [r5, #0x10c]
+
+    ldr     r0, =0x04080408
+    str     r0, [r5, #0x110]
+    ldr     r0, =0x03060408
+    str     r0, [r5, #0x114]
+
     /* PHY setting for 266MHz */
     ldr     r0, =0x00000000
     str     r0, [r5, #0x200]
@@ -366,25 +504,25 @@ Ddr_not_24:
 
     ldr     r0, =0x00810006
     str     r0, [r5, #0x234]
-    ldr     r0, =0x20099414
+    ldr     r0, =0x60099414
     str     r0, [r5, #0x238]
     ldr     r0, =0x000a1401
     str     r0, [r5, #0x23c]
 
-    ldr     r0, =0x20099414
+    ldr     r0, =0x60099414
     str     r0, [r5, #0x240]
     ldr     r0, =0x000a1401
     str     r0, [r5, #0x244]
-    ldr     r0, =0x20099414
+    ldr     r0, =0x60099414
     str     r0, [r5, #0x248]
     ldr     r0, =0x000a1401
     str     r0, [r5, #0x24c]
 
-    ldr     r0, =0x20099414
+    ldr     r0, =0x60099414
     str     r0, [r5, #0x250]
     ldr     r0, =0x000a1401
     str     r0, [r5, #0x254]
-    ldr     r0, =0x20099414
+    ldr     r0, =0x60099414
     str     r0, [r5, #0x258]
     ldr     r0, =0x000a1401
     str     r0, [r5, #0x25c]
