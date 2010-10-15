@@ -1217,6 +1217,7 @@ static void __init mxc_board_init(void)
 	mxc_register_device(&mxcsdhc2_device, &mmc2_data);
 	mxc_register_device(&mxc_ssi1_device, NULL);
 	mxc_register_device(&mxc_ssi2_device, NULL);
+	mxc_register_device(&mxc_ssi3_device, NULL);
 	mxc_register_device(&mxc_alsa_spdif_device, &mxc_spdif_data);
 	mxc_register_device(&mxc_fec_device, NULL);
 	mxc_register_device(&mxc_v4l2_device, NULL);

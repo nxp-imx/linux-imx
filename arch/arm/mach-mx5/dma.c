@@ -18,7 +18,7 @@
 #include <mach/mxc_uart.h>
 
 #include "serial.h"
-#include "sdma_script_code.h"
+#include "sdma_script_code_mx51.h"
 #include "sdma_script_code_mx53.h"
 #include "sdma_script_code_mx50.h"
 
@@ -29,8 +29,13 @@
 #define MXC_SSI_TX1_REG           0x4
 #define MXC_SSI_RX0_REG           0x8
 #define MXC_SSI_RX1_REG           0xC
+#ifdef CONFIG_MXC_SSI_DUAL_FIFO
+#define MXC_SSI_TXFIFO_WML        0x8
+#define MXC_SSI_RXFIFO_WML        0xC
+#else
 #define MXC_SSI_TXFIFO_WML        0x4
 #define MXC_SSI_RXFIFO_WML        0x6
+#endif
 #define MXC_SPDIF_TXFIFO_WML      0x8
 #define MXC_SPDIF_RXFIFO_WML      0x8
 #define MXC_SPDIF_TX_REG          0x2C
@@ -281,7 +286,7 @@ static mxc_sdma_channel_params_t mxc_sdma_ssi1_8bit_tx0_params = {
 
 static mxc_sdma_channel_params_t mxc_sdma_ssi1_16bit_rx0_params = {
 	.chnl_params = {
-			.watermark_level = MXC_SSI_RXFIFO_WML,
+			.watermark_level = MXC_SSI_RXFIFO_WML * (sizeof(u16)),
 			.per_address = SSI1_BASE_ADDR + MXC_SSI_RX0_REG,
 			.peripheral_type = SSI,
 			.transfer_type = per_2_emi,
@@ -295,7 +300,7 @@ static mxc_sdma_channel_params_t mxc_sdma_ssi1_16bit_rx0_params = {
 
 static mxc_sdma_channel_params_t mxc_sdma_ssi1_16bit_tx0_params = {
 	.chnl_params = {
-			.watermark_level = MXC_SSI_TXFIFO_WML,
+			.watermark_level = MXC_SSI_TXFIFO_WML * (sizeof(u16)),
 			.per_address = SSI1_BASE_ADDR + MXC_SSI_TX0_REG,
 			.peripheral_type = SSI,
 			.transfer_type = emi_2_per,
@@ -309,7 +314,7 @@ static mxc_sdma_channel_params_t mxc_sdma_ssi1_16bit_tx0_params = {
 
 static mxc_sdma_channel_params_t mxc_sdma_ssi1_24bit_rx0_params = {
 	.chnl_params = {
-			.watermark_level = MXC_SSI_RXFIFO_WML,
+			.watermark_level = MXC_SSI_RXFIFO_WML * (sizeof(u32)),
 			.per_address = SSI1_BASE_ADDR + MXC_SSI_RX0_REG,
 			.peripheral_type = SSI,
 			.transfer_type = per_2_emi,
@@ -323,7 +328,7 @@ static mxc_sdma_channel_params_t mxc_sdma_ssi1_24bit_rx0_params = {
 
 static mxc_sdma_channel_params_t mxc_sdma_ssi1_24bit_tx0_params = {
 	.chnl_params = {
-			.watermark_level = MXC_SSI_TXFIFO_WML,
+			.watermark_level = MXC_SSI_TXFIFO_WML * (sizeof(u32)),
 			.per_address = SSI1_BASE_ADDR + MXC_SSI_TX0_REG,
 			.peripheral_type = SSI,
 			.transfer_type = emi_2_per,
@@ -365,7 +370,7 @@ static mxc_sdma_channel_params_t mxc_sdma_ssi1_8bit_tx1_params = {
 
 static mxc_sdma_channel_params_t mxc_sdma_ssi1_16bit_rx1_params = {
 	.chnl_params = {
-			.watermark_level = MXC_SSI_RXFIFO_WML,
+			.watermark_level = MXC_SSI_RXFIFO_WML * (sizeof(u16)),
 			.per_address = SSI1_BASE_ADDR + MXC_SSI_RX1_REG,
 			.peripheral_type = SSI,
 			.transfer_type = per_2_emi,
@@ -379,7 +384,7 @@ static mxc_sdma_channel_params_t mxc_sdma_ssi1_16bit_rx1_params = {
 
 static mxc_sdma_channel_params_t mxc_sdma_ssi1_16bit_tx1_params = {
 	.chnl_params = {
-			.watermark_level = MXC_SSI_TXFIFO_WML,
+			.watermark_level = MXC_SSI_TXFIFO_WML * (sizeof(u16)),
 			.per_address = SSI1_BASE_ADDR + MXC_SSI_TX1_REG,
 			.peripheral_type = SSI,
 			.transfer_type = emi_2_per,
@@ -393,7 +398,7 @@ static mxc_sdma_channel_params_t mxc_sdma_ssi1_16bit_tx1_params = {
 
 static mxc_sdma_channel_params_t mxc_sdma_ssi1_24bit_rx1_params = {
 	.chnl_params = {
-			.watermark_level = MXC_SSI_RXFIFO_WML,
+			.watermark_level = MXC_SSI_RXFIFO_WML * (sizeof(u32)),
 			.per_address = SSI1_BASE_ADDR + MXC_SSI_RX1_REG,
 			.peripheral_type = SSI,
 			.transfer_type = per_2_emi,
@@ -407,7 +412,7 @@ static mxc_sdma_channel_params_t mxc_sdma_ssi1_24bit_rx1_params = {
 
 static mxc_sdma_channel_params_t mxc_sdma_ssi1_24bit_tx1_params = {
 	.chnl_params = {
-			.watermark_level = MXC_SSI_TXFIFO_WML,
+			.watermark_level = MXC_SSI_TXFIFO_WML * (sizeof(u32)),
 			.per_address = SSI1_BASE_ADDR + MXC_SSI_TX1_REG,
 			.peripheral_type = SSI,
 			.transfer_type = emi_2_per,
@@ -449,7 +454,7 @@ static mxc_sdma_channel_params_t mxc_sdma_ssi2_8bit_tx0_params = {
 
 static mxc_sdma_channel_params_t mxc_sdma_ssi2_16bit_rx0_params = {
 	.chnl_params = {
-			.watermark_level = MXC_SSI_RXFIFO_WML,
+			.watermark_level = MXC_SSI_RXFIFO_WML * (sizeof(u16)),
 			.per_address = SSI2_BASE_ADDR + MXC_SSI_RX0_REG,
 			.peripheral_type = SSI_SP,
 			.transfer_type = per_2_emi,
@@ -463,7 +468,7 @@ static mxc_sdma_channel_params_t mxc_sdma_ssi2_16bit_rx0_params = {
 
 static mxc_sdma_channel_params_t mxc_sdma_ssi2_16bit_tx0_params = {
 	.chnl_params = {
-			.watermark_level = MXC_SSI_TXFIFO_WML,
+			.watermark_level = MXC_SSI_TXFIFO_WML * (sizeof(u16)),
 			.per_address = SSI2_BASE_ADDR + MXC_SSI_TX0_REG,
 			.peripheral_type = SSI_SP,
 			.transfer_type = emi_2_per,
@@ -477,7 +482,7 @@ static mxc_sdma_channel_params_t mxc_sdma_ssi2_16bit_tx0_params = {
 
 static mxc_sdma_channel_params_t mxc_sdma_ssi2_24bit_rx0_params = {
 	.chnl_params = {
-			.watermark_level = MXC_SSI_RXFIFO_WML,
+			.watermark_level = MXC_SSI_RXFIFO_WML * (sizeof(u32)),
 			.per_address = SSI2_BASE_ADDR + MXC_SSI_RX0_REG,
 			.peripheral_type = SSI_SP,
 			.transfer_type = per_2_emi,
@@ -491,7 +496,7 @@ static mxc_sdma_channel_params_t mxc_sdma_ssi2_24bit_rx0_params = {
 
 static mxc_sdma_channel_params_t mxc_sdma_ssi2_24bit_tx0_params = {
 	.chnl_params = {
-			.watermark_level = MXC_SSI_TXFIFO_WML,
+			.watermark_level = MXC_SSI_TXFIFO_WML * (sizeof(u32)),
 			.per_address = SSI2_BASE_ADDR + MXC_SSI_TX0_REG,
 			.peripheral_type = SSI_SP,
 			.transfer_type = emi_2_per,
@@ -533,7 +538,7 @@ static mxc_sdma_channel_params_t mxc_sdma_ssi2_8bit_tx1_params = {
 
 static mxc_sdma_channel_params_t mxc_sdma_ssi2_16bit_rx1_params = {
 	.chnl_params = {
-			.watermark_level = MXC_SSI_RXFIFO_WML,
+			.watermark_level = MXC_SSI_RXFIFO_WML * (sizeof(u16)),
 			.per_address = SSI2_BASE_ADDR + MXC_SSI_RX1_REG,
 			.peripheral_type = SSI_SP,
 			.transfer_type = per_2_emi,
@@ -547,7 +552,7 @@ static mxc_sdma_channel_params_t mxc_sdma_ssi2_16bit_rx1_params = {
 
 static mxc_sdma_channel_params_t mxc_sdma_ssi2_16bit_tx1_params = {
 	.chnl_params = {
-			.watermark_level = MXC_SSI_TXFIFO_WML,
+			.watermark_level = MXC_SSI_TXFIFO_WML * (sizeof(u16)),
 			.per_address = SSI2_BASE_ADDR + MXC_SSI_TX1_REG,
 			.peripheral_type = SSI_SP,
 			.transfer_type = emi_2_per,
@@ -561,7 +566,7 @@ static mxc_sdma_channel_params_t mxc_sdma_ssi2_16bit_tx1_params = {
 
 static mxc_sdma_channel_params_t mxc_sdma_ssi2_24bit_rx1_params = {
 	.chnl_params = {
-			.watermark_level = MXC_SSI_RXFIFO_WML,
+			.watermark_level = MXC_SSI_RXFIFO_WML * (sizeof(u32)),
 			.per_address = SSI2_BASE_ADDR + MXC_SSI_RX1_REG,
 			.peripheral_type = SSI_SP,
 			.transfer_type = per_2_emi,
@@ -575,7 +580,7 @@ static mxc_sdma_channel_params_t mxc_sdma_ssi2_24bit_rx1_params = {
 
 static mxc_sdma_channel_params_t mxc_sdma_ssi2_24bit_tx1_params = {
 	.chnl_params = {
-			.watermark_level = MXC_SSI_TXFIFO_WML,
+			.watermark_level = MXC_SSI_TXFIFO_WML * (sizeof(u32)),
 			.per_address = SSI2_BASE_ADDR + MXC_SSI_TX1_REG,
 			.peripheral_type = SSI_SP,
 			.transfer_type = emi_2_per,
@@ -617,7 +622,7 @@ static mxc_sdma_channel_params_t mxc_sdma_ssi3_8bit_tx0_params = {
 
 static mxc_sdma_channel_params_t mxc_sdma_ssi3_16bit_rx0_params = {
 	.chnl_params = {
-			.watermark_level = MXC_SSI_RXFIFO_WML,
+			.watermark_level = MXC_SSI_RXFIFO_WML * (sizeof(u16)),
 			.per_address = SSI3_BASE_ADDR + MXC_SSI_RX0_REG,
 			.peripheral_type = SSI,
 			.transfer_type = per_2_emi,
@@ -631,7 +636,7 @@ static mxc_sdma_channel_params_t mxc_sdma_ssi3_16bit_rx0_params = {
 
 static mxc_sdma_channel_params_t mxc_sdma_ssi3_16bit_tx0_params = {
 	.chnl_params = {
-			.watermark_level = MXC_SSI_TXFIFO_WML,
+			.watermark_level = MXC_SSI_TXFIFO_WML * (sizeof(u16)),
 			.per_address = SSI3_BASE_ADDR + MXC_SSI_TX0_REG,
 			.peripheral_type = SSI,
 			.transfer_type = emi_2_per,
@@ -645,7 +650,7 @@ static mxc_sdma_channel_params_t mxc_sdma_ssi3_16bit_tx0_params = {
 
 static mxc_sdma_channel_params_t mxc_sdma_ssi3_24bit_rx0_params = {
 	.chnl_params = {
-			.watermark_level = MXC_SSI_RXFIFO_WML,
+			.watermark_level = MXC_SSI_RXFIFO_WML * (sizeof(u32)),
 			.per_address = SSI3_BASE_ADDR + MXC_SSI_RX0_REG,
 			.peripheral_type = SSI,
 			.transfer_type = per_2_emi,
@@ -659,7 +664,7 @@ static mxc_sdma_channel_params_t mxc_sdma_ssi3_24bit_rx0_params = {
 
 static mxc_sdma_channel_params_t mxc_sdma_ssi3_24bit_tx0_params = {
 	.chnl_params = {
-			.watermark_level = MXC_SSI_TXFIFO_WML,
+			.watermark_level = MXC_SSI_TXFIFO_WML * (sizeof(u32)),
 			.per_address = SSI3_BASE_ADDR + MXC_SSI_TX0_REG,
 			.peripheral_type = SSI,
 			.transfer_type = emi_2_per,
@@ -701,7 +706,7 @@ static mxc_sdma_channel_params_t mxc_sdma_ssi3_8bit_tx1_params = {
 
 static mxc_sdma_channel_params_t mxc_sdma_ssi3_16bit_rx1_params = {
 	.chnl_params = {
-			.watermark_level = MXC_SSI_RXFIFO_WML,
+			.watermark_level = MXC_SSI_RXFIFO_WML * (sizeof(u16)),
 			.per_address = SSI3_BASE_ADDR + MXC_SSI_RX1_REG,
 			.peripheral_type = SSI,
 			.transfer_type = per_2_emi,
@@ -715,7 +720,7 @@ static mxc_sdma_channel_params_t mxc_sdma_ssi3_16bit_rx1_params = {
 
 static mxc_sdma_channel_params_t mxc_sdma_ssi3_16bit_tx1_params = {
 	.chnl_params = {
-			.watermark_level = MXC_SSI_TXFIFO_WML,
+			.watermark_level = MXC_SSI_TXFIFO_WML * (sizeof(u16)),
 			.per_address = SSI3_BASE_ADDR + MXC_SSI_TX1_REG,
 			.peripheral_type = SSI,
 			.transfer_type = emi_2_per,
@@ -729,7 +734,7 @@ static mxc_sdma_channel_params_t mxc_sdma_ssi3_16bit_tx1_params = {
 
 static mxc_sdma_channel_params_t mxc_sdma_ssi3_24bit_rx1_params = {
 	.chnl_params = {
-			.watermark_level = MXC_SSI_RXFIFO_WML,
+			.watermark_level = MXC_SSI_RXFIFO_WML * (sizeof(u32)),
 			.per_address = SSI3_BASE_ADDR + MXC_SSI_RX1_REG,
 			.peripheral_type = SSI,
 			.transfer_type = per_2_emi,
@@ -743,7 +748,7 @@ static mxc_sdma_channel_params_t mxc_sdma_ssi3_24bit_rx1_params = {
 
 static mxc_sdma_channel_params_t mxc_sdma_ssi3_24bit_tx1_params = {
 	.chnl_params = {
-			.watermark_level = MXC_SSI_TXFIFO_WML,
+			.watermark_level = MXC_SSI_TXFIFO_WML * (sizeof(u32)),
 			.per_address = SSI3_BASE_ADDR + MXC_SSI_TX1_REG,
 			.peripheral_type = SSI,
 			.transfer_type = emi_2_per,
@@ -1416,7 +1421,7 @@ EXPORT_SYMBOL(mxc_get_static_channels);
 static void __init mx51_sdma_get_script_info(sdma_script_start_addrs *sdma_script_addr)
 {
 	/* AP<->BP */
-	sdma_script_addr->mxc_sdma_ap_2_ap_addr = ap_2_ap_ADDR;
+	sdma_script_addr->mxc_sdma_ap_2_ap_addr = ap_2_ap_ADDR_MX51;
 	sdma_script_addr->mxc_sdma_ap_2_bp_addr = -1;
 	sdma_script_addr->mxc_sdma_bp_2_ap_addr = -1;
 	sdma_script_addr->mxc_sdma_ap_2_ap_fixed_addr = -1;
@@ -1432,28 +1437,28 @@ static void __init mx51_sdma_get_script_info(sdma_script_start_addrs *sdma_scrip
 	sdma_script_addr->mxc_sdma_mcu_2_firi_addr = -1;
 
 	/* uart */
-	sdma_script_addr->mxc_sdma_uart_2_per_addr = uart_2_per_ADDR;
-	sdma_script_addr->mxc_sdma_uart_2_mcu_addr = uart_2_mcu_ADDR;
+	sdma_script_addr->mxc_sdma_uart_2_per_addr = uart_2_per_ADDR_MX51;
+	sdma_script_addr->mxc_sdma_uart_2_mcu_addr = uart_2_mcu_ADDR_MX51;
 
 	/* UART SH */
-	sdma_script_addr->mxc_sdma_uartsh_2_per_addr = uartsh_2_per_ADDR;
-	sdma_script_addr->mxc_sdma_uartsh_2_mcu_addr = uartsh_2_mcu_ADDR;
+	sdma_script_addr->mxc_sdma_uartsh_2_per_addr = uartsh_2_per_ADDR_MX51;
+	sdma_script_addr->mxc_sdma_uartsh_2_mcu_addr = uartsh_2_mcu_ADDR_MX51;
 
 	/* SHP */
-	sdma_script_addr->mxc_sdma_per_2_shp_addr = per_2_shp_ADDR;
-	sdma_script_addr->mxc_sdma_shp_2_per_addr = shp_2_per_ADDR;
-	sdma_script_addr->mxc_sdma_mcu_2_shp_addr = mcu_2_shp_ADDR;
-	sdma_script_addr->mxc_sdma_shp_2_mcu_addr = shp_2_mcu_ADDR;
+	sdma_script_addr->mxc_sdma_per_2_shp_addr = per_2_shp_ADDR_MX51;
+	sdma_script_addr->mxc_sdma_shp_2_per_addr = shp_2_per_ADDR_MX51;
+	sdma_script_addr->mxc_sdma_mcu_2_shp_addr = mcu_2_shp_ADDR_MX51;
+	sdma_script_addr->mxc_sdma_shp_2_mcu_addr = shp_2_mcu_ADDR_MX51;
 
 	/* ATA */
-	sdma_script_addr->mxc_sdma_mcu_2_ata_addr = mcu_2_ata_ADDR;
-	sdma_script_addr->mxc_sdma_ata_2_mcu_addr = ata_2_mcu_ADDR;
+	sdma_script_addr->mxc_sdma_mcu_2_ata_addr = mcu_2_ata_ADDR_MX51;
+	sdma_script_addr->mxc_sdma_ata_2_mcu_addr = ata_2_mcu_ADDR_MX51;
 
 	/* app */
-	sdma_script_addr->mxc_sdma_app_2_per_addr = app_2_per_ADDR;
-	sdma_script_addr->mxc_sdma_app_2_mcu_addr = app_2_mcu_ADDR;
-	sdma_script_addr->mxc_sdma_per_2_app_addr = per_2_app_ADDR;
-	sdma_script_addr->mxc_sdma_mcu_2_app_addr = mcu_2_app_ADDR;
+	sdma_script_addr->mxc_sdma_app_2_per_addr = app_2_per_ADDR_MX51;
+	sdma_script_addr->mxc_sdma_app_2_mcu_addr = app_2_mcu_ADDR_MX51;
+	sdma_script_addr->mxc_sdma_per_2_app_addr = per_2_app_ADDR_MX51;
+	sdma_script_addr->mxc_sdma_mcu_2_app_addr = mcu_2_app_ADDR_MX51;
 
 	/* MSHC */
 	sdma_script_addr->mxc_sdma_mshc_2_mcu_addr = -1;
@@ -1461,18 +1466,30 @@ static void __init mx51_sdma_get_script_info(sdma_script_start_addrs *sdma_scrip
 
 	/* spdif */
 	sdma_script_addr->mxc_sdma_spdif_2_mcu_addr = -1;
-	sdma_script_addr->mxc_sdma_mcu_2_spdif_addr = mcu_2_spdif_ADDR;
+	sdma_script_addr->mxc_sdma_mcu_2_spdif_addr = mcu_2_spdif_ADDR_MX51;
 
 	/* IPU */
-	sdma_script_addr->mxc_sdma_ext_mem_2_ipu_addr = ext_mem__ipu_ram_ADDR;
+	sdma_script_addr->mxc_sdma_ext_mem_2_ipu_addr =
+						ext_mem__ipu_ram_ADDR_MX51;
 
 	/* DVFS */
 	sdma_script_addr->mxc_sdma_dptc_dvfs_addr = -1;
 
+	/* SSI */
+#ifdef CONFIG_MXC_SSI_DUAL_FIFO
+	sdma_script_addr->mxc_sdma_mcu_2_ssiapp_addr = mcu_2_ssiapp_ADDR_MX51;
+	sdma_script_addr->mxc_sdma_ssiapp_2_mcu_addr = ssiapp_2_mcu_ADDR_MX51;
+
+	sdma_script_addr->mxc_sdma_mcu_2_ssish_addr = mcu_2_ssish_ADDR_MX51;
+	sdma_script_addr->mxc_sdma_ssish_2_mcu_addr = ssish_2_mcu_ADDR_MX51;
+#endif
+
 	/* core */
-	sdma_script_addr->mxc_sdma_start_addr = (unsigned short *)sdma_code;
-	sdma_script_addr->mxc_sdma_ram_code_start_addr = RAM_CODE_START_ADDR;
-	sdma_script_addr->mxc_sdma_ram_code_size = RAM_CODE_SIZE;
+	sdma_script_addr->mxc_sdma_start_addr =
+					(unsigned short *)sdma_code_mx51;
+	sdma_script_addr->mxc_sdma_ram_code_start_addr =
+						RAM_CODE_START_ADDR_MX51;
+	sdma_script_addr->mxc_sdma_ram_code_size = RAM_CODE_SIZE_MX51;
 }
 
 static void __init mx53_sdma_get_script_info(sdma_script_start_addrs *sdma_script_addr)
@@ -1525,13 +1542,23 @@ static void __init mx53_sdma_get_script_info(sdma_script_start_addrs *sdma_scrip
 	sdma_script_addr->mxc_sdma_spdif_2_mcu_addr = spdif_2_mcu_ADDR_MX53;
 	sdma_script_addr->mxc_sdma_mcu_2_spdif_addr = mcu_2_spdif_ADDR_MX53;
 
-	sdma_script_addr->mxc_sdma_asrc_2_mcu_addr = asrc__mcu_ADDR_MX53;
+	/* asrc script address change to use shp_2_mcu since v01.01 */
+	sdma_script_addr->mxc_sdma_asrc_2_mcu_addr = shp_2_mcu_ADDR_MX53;
 
 	/* IPU */
 	sdma_script_addr->mxc_sdma_ext_mem_2_ipu_addr = mcu_2_app_ADDR_MX53;
 
 	/* DVFS */
 	sdma_script_addr->mxc_sdma_dptc_dvfs_addr = -1;
+
+	/* SSI */
+#ifdef CONFIG_MXC_SSI_DUAL_FIFO
+	sdma_script_addr->mxc_sdma_mcu_2_ssiapp_addr = mcu_2_ssiapp_ADDR_MX53;
+	sdma_script_addr->mxc_sdma_ssiapp_2_mcu_addr = ssiapp_2_mcu_ADDR_MX53;
+
+	sdma_script_addr->mxc_sdma_mcu_2_ssish_addr = mcu_2_ssish_ADDR_MX53;
+	sdma_script_addr->mxc_sdma_ssish_2_mcu_addr = ssish_2_mcu_ADDR_MX53;
+#endif
 
 	/* core */
 	sdma_script_addr->mxc_sdma_start_addr = (unsigned short *)sdma_code_mx53;

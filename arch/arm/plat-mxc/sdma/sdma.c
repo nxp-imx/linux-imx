@@ -303,8 +303,12 @@ static unsigned short sdma_get_pc(sdma_periphT peripheral_type,
 		default:
 			res = -EINVAL;
 		}
+#ifdef CONFIG_MXC_SSI_DUAL_FIFO
+	} else if (peripheral_type == CSPI || peripheral_type == EXT) {
+#else
 	} else if (peripheral_type == CSPI || peripheral_type == EXT ||
 		   peripheral_type == SSI) {
+#endif
 		switch (transfer_type) {
 		case per_2_int:
 			res = sdma_script_addrs.mxc_sdma_app_2_per_addr;
@@ -321,9 +325,15 @@ static unsigned short sdma_get_pc(sdma_periphT peripheral_type,
 		default:
 			res = -EINVAL;
 		}
+#ifdef CONFIG_MXC_SSI_DUAL_FIFO
+	} else if (peripheral_type == MMC ||
+		   peripheral_type == SDHC || peripheral_type == CSPI_SP ||
+		   peripheral_type == ESAI || peripheral_type == MSHC_SP) {
+#else
 	} else if (peripheral_type == SSI_SP || peripheral_type == MMC ||
 		   peripheral_type == SDHC || peripheral_type == CSPI_SP ||
 		   peripheral_type == ESAI || peripheral_type == MSHC_SP) {
+#endif
 		switch (transfer_type) {
 		case per_2_int:
 			res = sdma_script_addrs.mxc_sdma_shp_2_per_addr;
@@ -392,6 +402,42 @@ static unsigned short sdma_get_pc(sdma_periphT peripheral_type,
 		} else {
 			res = -EINVAL;
 		}
+#ifdef CONFIG_MXC_SSI_DUAL_FIFO
+	} else if (peripheral_type == SSI) {
+		switch (transfer_type) {
+		case per_2_int:
+			res = sdma_script_addrs.mxc_sdma_ssiapp_2_mcu_addr;
+			break;
+		case per_2_emi:
+			res = sdma_script_addrs.mxc_sdma_ssiapp_2_mcu_addr;
+			break;
+		case int_2_per:
+			res = sdma_script_addrs.mxc_sdma_mcu_2_ssiapp_addr;
+			break;
+		case emi_2_per:
+			res = sdma_script_addrs.mxc_sdma_mcu_2_ssiapp_addr;
+			break;
+		default:
+			res = -EINVAL;
+		}
+	} else if (peripheral_type == SSI_SP) {
+		switch (transfer_type) {
+		case per_2_int:
+			res = sdma_script_addrs.mxc_sdma_ssish_2_mcu_addr;
+			break;
+		case int_2_per:
+			res = sdma_script_addrs.mxc_sdma_mcu_2_ssish_addr;
+			break;
+		case per_2_emi:
+			res = sdma_script_addrs.mxc_sdma_ssish_2_mcu_addr;
+			break;
+		case emi_2_per:
+			res = sdma_script_addrs.mxc_sdma_mcu_2_ssish_addr;
+			break;
+		default:
+			res = -EINVAL;
+		}
+#endif
 	}
 
 	if (res < 0) {

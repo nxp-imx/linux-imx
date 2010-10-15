@@ -321,10 +321,21 @@ typedef struct {
 
 	int mxc_sdma_utra_addr;
 
+	/*! address of peripheral ssi to mcu script */
+	int mxc_sdma_ssiapp_2_mcu_addr;
+	/*! address of mcu to peripheral ssi script */
+	int mxc_sdma_mcu_2_ssiapp_addr;
+
+	/*! address of shared peripheral ssi to mcu script */
+	int mxc_sdma_ssish_2_mcu_addr;
+	/*! address of mcu to shared peripheral ssi script */
+	int mxc_sdma_mcu_2_ssish_addr;
+
 	/*! address where ram code starts */
 	int mxc_sdma_ram_code_start_addr;
 	/*! size of the ram code */
 	int mxc_sdma_ram_code_size;
+
 	/*! RAM image address */
 	unsigned short *mxc_sdma_start_addr;
 } sdma_script_start_addrs;

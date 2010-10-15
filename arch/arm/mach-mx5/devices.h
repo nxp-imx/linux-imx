@@ -54,6 +54,7 @@ extern struct platform_device mxc_dvfs_core_device;
 extern struct platform_device mxc_dvfs_per_device;
 extern struct platform_device mxc_ssi1_device;
 extern struct platform_device mxc_ssi2_device;
+extern struct platform_device mxc_ssi3_device;
 extern struct platform_device mxc_esai_device;
 extern struct platform_device mxc_alsa_spdif_device;
 extern struct platform_device mx51_lpmode_device;
