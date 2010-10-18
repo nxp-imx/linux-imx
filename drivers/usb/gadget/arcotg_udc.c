@@ -1072,26 +1072,33 @@ fsl_ep_queue(struct usb_ep *_ep, struct usb_request *_req, gfp_t gfp_flags)
 	unsigned long flags;
 	int is_iso = 0;
 
-	if (!_ep || (!ep->desc && ep_index(ep))) {
+	spin_lock_irqsave(&udc->lock, flags);
+
+	if (!_ep || !ep->desc) {
 		VDBG("%s, bad ep\n", __func__);
+		spin_unlock_irqrestore(&udc->lock, flags);
 		return -EINVAL;
 	}
 	/* catch various bogus parameters */
 	if (!_req || !req->req.buf || (ep_index(ep)
 				      && !list_empty(&req->queue))) {
 		VDBG("%s, bad params\n", __func__);
+		spin_unlock_irqrestore(&udc->lock, flags);
 		return -EINVAL;
 	}
 	if (ep->desc->bmAttributes == USB_ENDPOINT_XFER_ISOC) {
-		if (req->req.length > ep->ep.maxpacket)
+		if (req->req.length > ep->ep.maxpacket) {
+			spin_unlock_irqrestore(&udc->lock, flags);
 			return -EMSGSIZE;
+		}
 		is_iso = 1;
 	}
 
 	udc = ep->udc;
-	if (!udc->driver || udc->gadget.speed == USB_SPEED_UNKNOWN)
+	if (!udc->driver || udc->gadget.speed == USB_SPEED_UNKNOWN) {
+		spin_unlock_irqrestore(&udc->lock, flags);
 		return -ESHUTDOWN;
-
+	}
 	req->ep = ep;
 
 	/* map virtual address to hardware */
@@ -1118,8 +1125,6 @@ fsl_ep_queue(struct usb_ep *_ep, struct usb_request *_req, gfp_t gfp_flags)
 		req->last_one = 0;
 		req->buffer_offset = 0;
 	}
-
-	spin_lock_irqsave(&udc->lock, flags);
 
 	/* build dtds and push them to device queue */
 	if (!fsl_req_to_dtd(req)) {
