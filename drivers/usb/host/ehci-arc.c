@@ -439,6 +439,18 @@ static int ehci_fsl_bus_resume(struct usb_hcd *hcd)
 	return ret;
 }
 
+static void ehci_fsl_shutdown(struct usb_hcd *hcd)
+{
+	if (!test_bit(HCD_FLAG_HW_ACCESSIBLE, &hcd->flags)) {
+		set_bit(HCD_FLAG_HW_ACCESSIBLE, &hcd->flags);
+		fsl_usb_clk_gate(hcd->self.controller->platform_data, true);
+	}
+	ehci_shutdown(hcd);
+	if (test_bit(HCD_FLAG_HW_ACCESSIBLE, &hcd->flags)) {
+		clear_bit(HCD_FLAG_HW_ACCESSIBLE, &hcd->flags);
+		fsl_usb_clk_gate(hcd->self.controller->platform_data, false);
+	}
+}
 
 /* called during probe() after chip reset completes */
 static int ehci_fsl_setup(struct usb_hcd *hcd)
@@ -492,7 +504,7 @@ static const struct hc_driver ehci_fsl_hc_driver = {
 	.reset = ehci_fsl_setup,
 	.start = ehci_run,
 	.stop = ehci_stop,
-	.shutdown = ehci_shutdown,
+	.shutdown = ehci_fsl_shutdown,
 
 	/*
 	 * managing i/o requests and associated device resources
