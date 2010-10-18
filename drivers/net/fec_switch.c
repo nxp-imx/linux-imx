@@ -349,13 +349,13 @@ static struct eswPortInfo *esw_portinfofifo_read(
 	unsigned long tmp;
 
 	fecp = fep->hwp;
-	if (fecp->ESW_LSR == 0) {
+	if (readl(&fecp->ESW_LSR) == 0) {
 		printk(KERN_ERR "%s: ESW_LSR = %lx\n",
-			__func__, fecp->ESW_LSR);
+			__func__, readl(&fecp->ESW_LSR));
 		return NULL;
 	}
 	/* read word from FIFO */
-	g_info.maclo = fecp->ESW_LREC0;
+	g_info.maclo = readl(&fecp->ESW_LREC0);
 	/* but verify that we actually did so
 	 * (0=no data available)
 	 */
@@ -365,7 +365,7 @@ static struct eswPortInfo *esw_portinfofifo_read(
 		return NULL;
 	}
 	/* read 2nd word from FIFO */
-	tmp = fecp->ESW_LREC1;
+	tmp = readl(&fecp->ESW_LREC1);
 	g_info.machi = tmp & 0xffff;
 	g_info.hash  = (tmp >> 16) & 0xff;
 	g_info.port  = (tmp >> 24) & 0xf;
@@ -598,7 +598,7 @@ static int esw_forced_forward(struct switch_enet_private *fep,
 		return -2;
 	}
 
-	fecp->ESW_P0FFEN = tmp;
+	writel(tmp, &fecp->ESW_P0FFEN);
 	return 0;
 }
 
@@ -609,10 +609,10 @@ static int esw_get_forced_forward(
 	struct switch_t  *fecp;
 
 	fecp = fep->hwp;
-	*ulForceForward = fecp->ESW_P0FFEN;
+	*ulForceForward = readl(&fecp->ESW_P0FFEN);
 #ifdef DEBUG_FORCED_FORWARD
 	printk(KERN_INFO "%s  ESW_P0FFEN %#lx\n",
-		__func__, fecp->ESW_P0FFEN);
+		__func__, readl(&fecp->ESW_P0FFEN));
 #endif
 	return 0;
 }
@@ -624,10 +624,10 @@ static void esw_get_port_enable(
 	struct switch_t  *fecp;
 
 	fecp = fep->hwp;
-	*ulPortEnable = fecp->ESW_PER;
+	*ulPortEnable = readl(&fecp->ESW_PER);
 #ifdef DEBUG_PORT_ENABLE
 	printk(KERN_INFO "%s  fecp->ESW_PER %#lx\n",
-		__func__, fecp->ESW_PER);
+		__func__, readl(&fecp->ESW_PER));
 #endif
 }
 /*
@@ -711,7 +711,7 @@ static int esw_port_enable_config(struct switch_enet_private *fep,
 		return -6;
 	}
 
-	fecp->ESW_PER = tmp;
+	writel(tmp, &fecp->ESW_PER);
 	return 0;
 }
 
@@ -723,10 +723,10 @@ static void esw_get_port_broadcast(
 	struct switch_t  *fecp;
 
 	fecp = fep->hwp;
-	*ulPortBroadcast = fecp->ESW_DBCR;
+	*ulPortBroadcast = readl(&fecp->ESW_DBCR);
 #ifdef DEBUG_PORT_BROADCAST
 	printk(KERN_INFO "%s  fecp->ESW_DBCR %#lx\n",
-		__func__, fecp->ESW_DBCR);
+		__func__, readl(&fecp->ESW_DBCR));
 #endif
 }
 
@@ -746,7 +746,7 @@ static int esw_port_broadcast_config(
 		return -1;
 	}
 
-	tmp = fecp->ESW_DBCR;
+	tmp = readl(&fecp->ESW_DBCR);
 	if (enable == 1) {
 		if (port == 0)
 			tmp |= MCF_ESW_DBCR_P0;
@@ -763,7 +763,7 @@ static int esw_port_broadcast_config(
 			tmp &= ~MCF_ESW_DBCR_P2;
 	}
 
-	fecp->ESW_DBCR = tmp;
+	writel(tmp, &fecp->ESW_DBCR);
 	return 0;
 }
 
@@ -775,10 +775,10 @@ static void esw_get_port_multicast(
 	struct switch_t  *fecp;
 
 	fecp = fep->hwp;
-	*ulPortMulticast = fecp->ESW_DMCR;
+	*ulPortMulticast = readl(&fecp->ESW_DMCR);
 #ifdef DEBUG_PORT_MULTICAST
 	printk(KERN_INFO "%s  fecp->ESW_DMCR %#lx\n",
-		__func__, fecp->ESW_DMCR);
+		__func__, readl(&fecp->ESW_DMCR));
 #endif
 }
 
@@ -798,7 +798,7 @@ static int esw_port_multicast_config(
 		return -1;
 	}
 
-	tmp = fecp->ESW_DMCR;
+	tmp = readl(&fecp->ESW_DMCR);
 	if (enable == 1) {
 		if (port == 0)
 			tmp |= MCF_ESW_DMCR_P0;
@@ -815,7 +815,7 @@ static int esw_port_multicast_config(
 			tmp &= ~MCF_ESW_DMCR_P2;
 	}
 
-	fecp->ESW_DMCR = tmp;
+	writel(tmp, &fecp->ESW_DMCR);
 	return 0;
 }
 
@@ -827,10 +827,10 @@ static void esw_get_port_blocking(
 	struct switch_t  *fecp;
 
 	fecp = fep->hwp;
-	*ulPortBlocking = (fecp->ESW_BKLR & 0x00ff);
+	*ulPortBlocking = (readl(&fecp->ESW_BKLR) & 0x00ff);
 #ifdef DEBUG_PORT_BLOCKING
 	printk(KERN_INFO "%s  fecp->ESW_BKLR %#lx\n",
-		__func__, fecp->ESW_BKLR);
+		__func__, readl(&fecp->ESW_BKLR));
 #endif
 }
 
@@ -850,7 +850,7 @@ static int esw_port_blocking_config(
 		return -1;
 	}
 
-	tmp = fecp->ESW_BKLR;
+	tmp = readl(&fecp->ESW_BKLR);
 	if (enable == 1) {
 		if (port == 0)
 			tmp |= MCF_ESW_BKLR_BE0;
@@ -867,7 +867,7 @@ static int esw_port_blocking_config(
 			tmp &= ~MCF_ESW_BKLR_BE2;
 	}
 
-	fecp->ESW_BKLR = tmp;
+	writel(tmp, &fecp->ESW_BKLR);
 	return 0;
 }
 
@@ -879,10 +879,10 @@ static void esw_get_port_learning(
 	struct switch_t  *fecp;
 
 	fecp = fep->hwp;
-	*ulPortLearning = (fecp->ESW_BKLR & 0xff00) >> 16;
+	*ulPortLearning = (readl(&fecp->ESW_BKLR) & 0xff00) >> 16;
 #ifdef DEBUG_PORT_LEARNING
 	printk(KERN_INFO "%s  fecp->ESW_BKLR %#lx\n",
-		__func__, fecp->ESW_BKLR);
+		__func__, readl(&fecp->ESW_BKLR));
 #endif
 }
 
@@ -902,7 +902,7 @@ static int esw_port_learning_config(
 		return -1;
 	}
 
-	tmp = fecp->ESW_BKLR;
+	tmp = readl(&fecp->ESW_BKLR);
 	if (disable == 1) {
 		fep->learning_irqhandle_enable = 0;
 		if (port == 0)
@@ -922,10 +922,10 @@ static int esw_port_learning_config(
 			tmp &= ~MCF_ESW_BKLR_LD2;
 	}
 
-	fecp->ESW_BKLR = tmp;
+	writel(tmp, &fecp->ESW_BKLR);
 #ifdef DEBUG_PORT_LEARNING
 	printk(KERN_INFO "%s  ESW_BKLR %#lx, switch_imask %#lx\n",
-		__func__, fecp->ESW_BKLR, fecp->switch_imask);
+		__func__, readl(&fecp->ESW_BKLR), readl(&fecp->switch_imask));
 #endif
 	return 0;
 }
@@ -971,10 +971,10 @@ static int esw_ip_snoop_config(struct switch_enet_private *fep,
 	}
 
 	protocol_type = ip_header_protocol;
-	fecp->ESW_IPSNP[num] =
-		tmp | MCF_ESW_IPSNP_PROTOCOL(protocol_type);
+	writel(tmp | MCF_ESW_IPSNP_PROTOCOL(protocol_type),
+		 &fecp->ESW_IPSNP[num]);
 	printk(KERN_INFO "%s : ESW_IPSNP[%d] %#lx\n",
-		__func__, num, fecp->ESW_IPSNP[num]);
+		__func__, num, readl(&fecp->ESW_IPSNP[num]));
 	return 0;
 }
 
@@ -987,11 +987,11 @@ static void esw_get_ip_snoop_config(
 
 	fecp = fep->hwp;
 	for (i = 0; i < 8; i++)
-		*(ulpESW_IPSNP + i) = fecp->ESW_IPSNP[i];
+		*(ulpESW_IPSNP + i) = readl(&fecp->ESW_IPSNP[i]);
 #ifdef DEBUG_IP_SNOOP
 	printk(KERN_INFO "%s  ", __func__);
 	for (i = 0; i < 8; i++)
-		printk(KERN_INFO " reg(%d) %#lx", fecp->ESW_IPSNP[i]);
+		printk(KERN_INFO " reg(%d) %#lx", readl(&fecp->ESW_IPSNP[i]));
 	printk(KERN_INFO "\n");
 #endif
 
@@ -1044,8 +1044,8 @@ static int esw_tcpudp_port_snoop_config(struct switch_enet_private *fep,
 		return -1;
 	}
 
-	fecp->ESW_PSNP[num] = tmp |
-		MCF_ESW_PSNP_PORT_COMPARE(compare_port);
+	writel(tmp | MCF_ESW_PSNP_PORT_COMPARE(compare_port),
+		 &fecp->ESW_PSNP[num]);
 	printk(KERN_INFO "ESW_PSNP[%d] %#lx\n",
 			num, fecp->ESW_PSNP[num]);
 	return 0;
@@ -1060,11 +1060,11 @@ static void esw_get_tcpudp_port_snoop_config(
 
 	fecp = fep->hwp;
 	for (i = 0; i < 8; i++)
-		*(ulpESW_PSNP + i) = fecp->ESW_PSNP[i];
+		*(ulpESW_PSNP + i) = readl(&fecp->ESW_PSNP[i]);
 #ifdef DEBUG_TCPUDP_PORT_SNOOP
 	 printk(KERN_INFO "%s  ", __func__);
 	 for (i = 0; i < 8; i++)
-		printk(KERN_INFO " reg(%d) %#lx", fecp->ESW_PSNP[i]);
+		printk(KERN_INFO " reg(%d) %#lx", readl(fecp->ESW_PSNP[i]));
 	 printk(KERN_INFO "\n");
 #endif
 
@@ -1077,28 +1077,36 @@ static void esw_get_port_mirroring(
 	struct switch_t  *fecp;
 
 	fecp = fep->hwp;
-	pPortMirrorStatus->ESW_MCR    = fecp->ESW_MCR;
-	pPortMirrorStatus->ESW_EGMAP  = fecp->ESW_EGMAP;
-	pPortMirrorStatus->ESW_INGMAP = fecp->ESW_INGMAP;
-	pPortMirrorStatus->ESW_INGSAL = fecp->ESW_INGSAL;
-	pPortMirrorStatus->ESW_INGSAH = fecp->ESW_INGSAH;
-	pPortMirrorStatus->ESW_INGDAL = fecp->ESW_INGDAL;
-	pPortMirrorStatus->ESW_INGDAH = fecp->ESW_INGDAH;
-	pPortMirrorStatus->ESW_ENGSAL = fecp->ESW_ENGSAL;
-	pPortMirrorStatus->ESW_ENGSAH = fecp->ESW_ENGSAH;
-	pPortMirrorStatus->ESW_ENGDAL = fecp->ESW_ENGDAL;
-	pPortMirrorStatus->ESW_ENGDAH = fecp->ESW_ENGDAH;
-	pPortMirrorStatus->ESW_MCVAL  = fecp->ESW_MCVAL;
+	pPortMirrorStatus->ESW_MCR    = readl(&fecp->ESW_MCR);
+	pPortMirrorStatus->ESW_EGMAP  = readl(&fecp->ESW_EGMAP);
+	pPortMirrorStatus->ESW_INGMAP = readl(&fecp->ESW_INGMAP);
+	pPortMirrorStatus->ESW_INGSAL = readl(&fecp->ESW_INGSAL);
+	pPortMirrorStatus->ESW_INGSAH = readl(&fecp->ESW_INGSAH);
+	pPortMirrorStatus->ESW_INGDAL = readl(&fecp->ESW_INGDAL);
+	pPortMirrorStatus->ESW_INGDAH = readl(&fecp->ESW_INGDAH);
+	pPortMirrorStatus->ESW_ENGSAL = readl(&fecp->ESW_ENGSAL);
+	pPortMirrorStatus->ESW_ENGSAH = readl(&fecp->ESW_ENGSAH);
+	pPortMirrorStatus->ESW_ENGDAL = readl(&fecp->ESW_ENGDAL);
+	pPortMirrorStatus->ESW_ENGDAH = readl(&fecp->ESW_ENGDAH);
+	pPortMirrorStatus->ESW_MCVAL  = readl(&fecp->ESW_MCVAL);
 #ifdef DEBUG_PORT_MIRROR
 	printk(KERN_INFO "%s : ESW_MCR %#lx, ESW_EGMAP %#lx\n"
 		"ESW_INGMAP %#lx, ESW_INGSAL %#lx, "
 		"ESW_INGSAH %#lx ESW_INGDAL %#lx, ESW_INGDAH %#lx\n"
 		"ESW_ENGSAL %#lx, ESW_ENGSAH%#lx, ESW_ENGDAL %#lx,"
 		"ESW_ENGDAH %#lx, ESW_MCVAL %#lx\n",
-		__func__, fecp->ESW_MCR, fecp->ESW_EGMAP, fecp->ESW_INGMAP,
-		fecp->ESW_INGSAL, fecp->ESW_INGSAH, fecp->ESW_INGDAL,
-		fecp->ESW_INGDAH, fecp->ESW_ENGSAL, fecp->ESW_ENGSAH,
-		fecp->ESW_ENGDAL, fecp->ESW_ENGDAH, fecp->ESW_MCVAL);
+		__func__, readl(&fecp->ESW_MCR),
+		readl(&fecp->ESW_EGMAP),
+		readl(&fecp->ESW_INGMAP),
+		readl(&fecp->ESW_INGSAL),
+		readl(&fecp->ESW_INGSAH),
+		readl(&fecp->ESW_INGDAL),
+		readl(&fecp->ESW_INGDAH),
+		readl(&fecp->ESW_ENGSAL),
+		readl(&fecp->ESW_ENGSAH),
+		readl(&fecp->ESW_ENGDAL),
+		readl(&fecp->ESW_ENGDAH),
+		readl(&fecp->ESW_MCVAL));
 #endif
 }
 
@@ -1228,15 +1236,21 @@ static int esw_port_mirroring_config(struct switch_enet_private *fep,
 			__func__, mirror_enable);
 
 
-	fecp->ESW_MCR = tmp;
+	writel(tmp, &fecp->ESW_MCR);
 	printk(KERN_INFO "%s : MCR %#lx, EGMAP %#lx, INGMAP %#lx;\n"
 		"ENGSAH %#lx, ENGSAL %#lx ;ENGDAH %#lx, ENGDAL %#lx;\n"
 		"INGSAH %#lx, INGSAL %#lx\n;INGDAH %#lx, INGDAL %#lx;\n",
-		__func__, fecp->ESW_MCR, fecp->ESW_EGMAP, fecp->ESW_INGMAP,
-		fecp->ESW_ENGSAH, fecp->ESW_ENGSAL,
-		fecp->ESW_ENGDAH, fecp->ESW_ENGDAL,
-		fecp->ESW_INGSAH, fecp->ESW_INGSAL,
-		fecp->ESW_INGDAH, fecp->ESW_INGDAL);
+		__func__, readl(fecp->ESW_MCR),
+		readl(&fecp->ESW_EGMAP),
+		readl(&fecp->ESW_INGMAP),
+		readl(&fecp->ESW_ENGSAH),
+		readl(&fecp->ESW_ENGSAL),
+		readl(&fecp->ESW_ENGDAH),
+		readl(&fecp->ESW_ENGDAL),
+		readl(&fecp->ESW_INGSAH),
+		readl(&fecp->ESW_INGSAL),
+		readl(&fecp->ESW_INGDAH),
+		readl(&fecp->ESW_INGDAL));
 	return 0;
 }
 
@@ -1250,7 +1264,7 @@ static void esw_get_vlan_verification(
 
 #ifdef DEBUG_VLAN_VERIFICATION_CONFIG
 	printk(KERN_INFO "%s: ESW_VLANV %#lx\n",
-		__func__, fecp->ESW_VLANV);
+		__func__, readl(&fecp->ESW_VLANV));
 #endif
 }
 
@@ -1270,18 +1284,24 @@ static int esw_set_vlan_verification(
 
 	if (vlan_domain_verify_en == 1) {
 		if (port == 0)
-			fecp->ESW_VLANV |= MCF_ESW_VLANV_VV0;
+			writel(readl(&fecp->ESW_VLANV) | MCF_ESW_VLANV_VV0,
+				&fecp->ESW_VLANV);
 		else if (port == 1)
-			fecp->ESW_VLANV |= MCF_ESW_VLANV_VV1;
+			writel(readl(&fecp->ESW_VLANV) | MCF_ESW_VLANV_VV1,
+				&fecp->ESW_VLANV);
 		else if (port == 2)
-			fecp->ESW_VLANV |= MCF_ESW_VLANV_VV2;
+			writel(readl(&fecp->ESW_VLANV) | MCF_ESW_VLANV_VV2,
+				&fecp->ESW_VLANV);
 	} else if (vlan_domain_verify_en == 0) {
 		if (port == 0)
-			fecp->ESW_VLANV &= ~MCF_ESW_VLANV_VV0;
+			writel(readl(&fecp->ESW_VLANV) & ~MCF_ESW_VLANV_VV0,
+				&fecp->ESW_VLANV);
 		else if (port == 1)
-			fecp->ESW_VLANV &= ~MCF_ESW_VLANV_VV1;
+			writel(readl(&fecp->ESW_VLANV) & ~MCF_ESW_VLANV_VV1,
+				&fecp->ESW_VLANV);
 		else if (port == 2)
-			fecp->ESW_VLANV &= ~MCF_ESW_VLANV_VV2;
+			writel(readl(&fecp->ESW_VLANV) & ~MCF_ESW_VLANV_VV2,
+				&fecp->ESW_VLANV);
 	} else {
 		printk(KERN_INFO "%s: donot support "
 			"vlan_domain_verify %x\n",
@@ -1291,18 +1311,24 @@ static int esw_set_vlan_verification(
 
 	if (vlan_discard_unknown_en == 1) {
 		if (port == 0)
-			fecp->ESW_VLANV |= MCF_ESW_VLANV_DU0;
+			writel(readl(&fecp->ESW_VLANV) | MCF_ESW_VLANV_DU0,
+				&fecp->ESW_VLANV);
 		else if (port == 1)
-			fecp->ESW_VLANV |= MCF_ESW_VLANV_DU1;
+			writel(readl(&fecp->ESW_VLANV) | MCF_ESW_VLANV_DU1,
+				&fecp->ESW_VLANV);
 		else if (port == 2)
-			fecp->ESW_VLANV |= MCF_ESW_VLANV_DU2;
+			writel(readl(&fecp->ESW_VLANV) | MCF_ESW_VLANV_DU2,
+				&fecp->ESW_VLANV);
 	} else if (vlan_discard_unknown_en == 0) {
 		if (port == 0)
-			fecp->ESW_VLANV &= ~MCF_ESW_VLANV_DU0;
+			writel(readl(&fecp->ESW_VLANV) & ~MCF_ESW_VLANV_DU0,
+				&fecp->ESW_VLANV);
 		else if (port == 1)
-			fecp->ESW_VLANV &= ~MCF_ESW_VLANV_DU1;
+			writel(readl(&fecp->ESW_VLANV) & ~MCF_ESW_VLANV_DU1,
+				&fecp->ESW_VLANV);
 		else if (port == 2)
-			fecp->ESW_VLANV &= ~MCF_ESW_VLANV_DU2;
+			writel(readl(&fecp->ESW_VLANV) & ~MCF_ESW_VLANV_DU2,
+				&fecp->ESW_VLANV);
 	} else {
 		printk(KERN_INFO "%s: donot support "
 			"vlan_discard_unknown %x\n",
@@ -1359,14 +1385,13 @@ int esw_set_vlan_resolution_table(
 		return -2;
 	}
 
-	fecp->ESW_VRES[vlan_domain_num] =
-		MCF_ESW_VRES_VLANID(port_vlanid)
-		| vlan_domain_port;
+	writel(MCF_ESW_VRES_VLANID(port_vlanid) | vlan_domain_port,
+		&fecp->ESW_VRES[vlan_domain_num]);
 
 #ifdef DEBUG_VLAN_DOMAIN_TABLE
 	printk(KERN_INFO "%s: ESW_VRES[%d] = %#lx\n",
 		__func__, vlan_domain_num,
-		fecp->ESW_VRES[vlan_domain_num]);
+		readl(&fecp->ESW_VRES[vlan_domain_num]));
 #endif
 	return 0;
 }
@@ -1380,20 +1405,24 @@ static void esw_get_vlan_input_config(
 
 	fecp = fep->hwp;
 	for (i = 0; i < 3; i++)
-		pVlanInputConfig->ESW_PID[i] = fecp->ESW_PID[i];
+		pVlanInputConfig->ESW_PID[i] = readl(&fecp->ESW_PID[i]);
 
-	pVlanInputConfig->ESW_VLANV  = fecp->ESW_VLANV;
-	pVlanInputConfig->ESW_VIMSEL = fecp->ESW_VIMSEL;
-	pVlanInputConfig->ESW_VIMEN  = fecp->ESW_VIMEN;
+	pVlanInputConfig->ESW_VLANV  = readl(&fecp->ESW_VLANV);
+	pVlanInputConfig->ESW_VIMSEL = readl(&fecp->ESW_VIMSEL);
+	pVlanInputConfig->ESW_VIMEN  = readl(&fecp->ESW_VIMEN);
 
 	for (i = 0; i < 32; i++)
-		pVlanInputConfig->ESW_VRES[i] = fecp->ESW_VRES[i];
+		pVlanInputConfig->ESW_VRES[i] = readl(&fecp->ESW_VRES[i]);
 #ifdef DEBUG_VLAN_INTPUT_CONFIG
 	printk(KERN_INFO "%s: ESW_VLANV %#lx, ESW_VIMSEL %#lx, "
 		"ESW_VIMEN %#lx, ESW_PID[0], ESW_PID[1] %#lx, "
 		"ESW_PID[2] %#lx", __func__,
-		fecp->ESW_VLANV, fecp->ESW_VIMSEL, fecp->ESW_VIMEN,
-		fecp->ESW_PID[0], fecp->ESW_PID[1], fecp->ESW_PID[2]);
+		readl(&fecp->ESW_VLANV),
+		readl(&fecp->ESW_VIMSEL),
+		readl(&fecp->ESW_VIMEN),
+		readl(&fecp->ESW_PID[0]),
+		readl(&fecp->ESW_PID[1]),
+		readl(&fecp->ESW_PID[2]);
 #endif
 }
 
@@ -1431,28 +1460,31 @@ static int esw_vlan_input_process(struct switch_enet_private *fep,
 	fecp->ESW_PID[port] = MCF_ESW_PID_VLANID(port_vlanid);
 	if (port == 0) {
 		if (vlan_verify_en == 1)
-			fecp->ESW_VRES[vlan_domain_num] =
-				MCF_ESW_VRES_VLANID(port_vlanid)
-				| MCF_ESW_VRES_P0;
+			writel(MCF_ESW_VRES_VLANID(port_vlanid) | MCF_ESW_VRES_P0,
+				&fecp->ESW_VRES[vlan_domain_num]);
 
-		fecp->ESW_VIMEN |= MCF_ESW_VIMEN_EN0;
-		fecp->ESW_VIMSEL |= MCF_ESW_VIMSEL_IM0(mode);
+		writel(readl(&fecp->ESW_VIMEN) | MCF_ESW_VIMEN_EN0,
+			&fecp->ESW_VIMEN);
+		writel(readl(&fecp->ESW_VIMSEL) | MCF_ESW_VIMSEL_IM0(mode),
+			&fecp->ESW_VIMSEL);
 	} else if (port == 1) {
 		if (vlan_verify_en == 1)
-			fecp->ESW_VRES[vlan_domain_num] =
-				MCF_ESW_VRES_VLANID(port_vlanid)
-				| MCF_ESW_VRES_P1;
+			writel(MCF_ESW_VRES_VLANID(port_vlanid)	| MCF_ESW_VRES_P1,
+				&fecp->ESW_VRES[vlan_domain_num]);
 
-		fecp->ESW_VIMEN |= MCF_ESW_VIMEN_EN1;
-		fecp->ESW_VIMSEL |= MCF_ESW_VIMSEL_IM1(mode);
+		writel(readl(&fecp->ESW_VIMEN) | MCF_ESW_VIMEN_EN1,
+			&fecp->ESW_VIMEN);
+		writel(readl(&fecp->ESW_VIMSEL) | MCF_ESW_VIMSEL_IM1(mode),
+			&fecp->ESW_VIMSEL);
 	} else if (port == 2) {
 		if (vlan_verify_en == 1)
-			fecp->ESW_VRES[vlan_domain_num] =
-				MCF_ESW_VRES_VLANID(port_vlanid)
-				| MCF_ESW_VRES_P2;
+			writel(MCF_ESW_VRES_VLANID(port_vlanid) | MCF_ESW_VRES_P2,
+				&fecp->ESW_VRES[vlan_domain_num]);
 
-		fecp->ESW_VIMEN |= MCF_ESW_VIMEN_EN2;
-		fecp->ESW_VIMSEL |= MCF_ESW_VIMSEL_IM2(mode);
+		writel(readl(&fecp->ESW_VIMEN) | MCF_ESW_VIMEN_EN2,
+			&fecp->ESW_VIMEN);
+		writel(readl(&fecp->ESW_VIMSEL) | MCF_ESW_VIMSEL_IM2(mode),
+			&fecp->ESW_VIMSEL);
 	} else {
 		printk(KERN_ERR "%s: do not support the port %d\n",
 			__func__, port);
@@ -1469,7 +1501,7 @@ static void esw_get_vlan_output_config(struct switch_enet_private *fep,
 
 	fecp = fep->hwp;
 
-	*ulVlanOutputConfig = fecp->ESW_VOMSEL;
+	*ulVlanOutputConfig = readl(&fecp->ESW_VOMSEL);
 #ifdef DEBUG_VLAN_OUTPUT_CONFIG
 	printk(KERN_INFO "%s: ESW_VOMSEL %#lx", __func__,
 			fecp->ESW_VOMSEL);
@@ -1490,11 +1522,14 @@ static int esw_vlan_output_process(struct switch_enet_private *fep,
 	}
 
 	if (port == 0) {
-		fecp->ESW_VOMSEL |= MCF_ESW_VOMSEL_OM0(mode);
+		writel(readl(&fecp->ESW_VOMSEL) | MCF_ESW_VOMSEL_OM0(mode),
+			&fecp->ESW_VOMSEL);
 	} else if (port == 1) {
-		fecp->ESW_VOMSEL |= MCF_ESW_VOMSEL_OM1(mode);
+		writel(readl(&fecp->ESW_VOMSEL) | MCF_ESW_VOMSEL_OM1(mode),
+			&fecp->ESW_VOMSEL);
 	} else if (port == 2) {
-		fecp->ESW_VOMSEL |= MCF_ESW_VOMSEL_OM2(mode);
+		writel(readl(&fecp->ESW_VOMSEL) | MCF_ESW_VOMSEL_OM2(mode),
+			&fecp->ESW_VOMSEL);;
 	} else {
 		printk(KERN_ERR "%s: do not support the port %d\n",
 			__func__, port);
@@ -1522,7 +1557,8 @@ static int esw_framecalssify_vlan_priority_lookup(
 	}
 
 	if (func_enable == 0) {
-		fecp->ESW_PRES[port] &= ~MCF_ESW_PRES_VLAN;
+		writel(readl(&fecp->ESW_PRES[port]) & ~MCF_ESW_PRES_VLAN,
+			&fecp->ESW_PRES[port]);
 		printk(KERN_ERR "%s: disable port %d VLAN priority "
 			"lookup function\n", __func__, port);
 		return 0;
@@ -1534,10 +1570,12 @@ static int esw_framecalssify_vlan_priority_lookup(
 		return -1;
 	}
 
-	fecp->ESW_PVRES[port] |= ((vlan_pri_table_value & 0x3)
-		<< (vlan_pri_table_num*3));
+	writel(readl(&fecp->ESW_PVRES[port]) | (((vlan_pri_table_value & 0x3)
+		<< (vlan_pri_table_num*3))),
+		&fecp->ESW_PVRES[port]);
 	/* enable port  VLAN priority lookup function */
-	fecp->ESW_PRES[port] |= MCF_ESW_PRES_VLAN;
+	writel(readl(&fecp->ESW_PRES[port]) | MCF_ESW_PRES_VLAN,
+		&fecp->ESW_PRES[port]);
 
 	return 0;
 }
@@ -1560,7 +1598,8 @@ static int esw_framecalssify_ip_priority_lookup(
 	}
 
 	if (func_enable == 0) {
-		fecp->ESW_PRES[port] &= ~MCF_ESW_PRES_IP;
+		writel(readl(&fecp->ESW_PRES[port]) & (~MCF_ESW_PRES_IP),
+			&fecp->ESW_PRES[port]);
 		printk(KERN_ERR "%s: disable port %d ip priority "
 			"lookup function\n", __func__, port);
 		return 0;
@@ -1597,18 +1636,19 @@ static int esw_framecalssify_ip_priority_lookup(
 		tmp |= MCF_ESW_IPRES_PRI2(ip_priority_value);
 
 	/* configure */
-	fecp->ESW_IPRES = MCF_ESW_IPRES_READ |
-		MCF_ESW_IPRES_ADDRESS(ip_priority_num);
-	tmp_prio = fecp->ESW_IPRES;
+	writel(MCF_ESW_IPRES_READ | MCF_ESW_IPRES_ADDRESS(ip_priority_num),
+		&fecp->ESW_IPRES);
+	tmp_prio = readl(&fecp->ESW_IPRES);
 
-	fecp->ESW_IPRES = tmp | tmp_prio;
+	writel(tmp | tmp_prio, &fecp->ESW_IPRES);
 
-	fecp->ESW_IPRES = MCF_ESW_IPRES_READ |
-		MCF_ESW_IPRES_ADDRESS(ip_priority_num);
-	tmp_prio = fecp->ESW_IPRES;
+	writel(MCF_ESW_IPRES_READ |
+		MCF_ESW_IPRES_ADDRESS(ip_priority_num),
+		&fecp->ESW_IPRES);
+	tmp_prio = readl(&fecp->ESW_IPRES);
 
 	/* enable port  IP priority lookup function */
-	fecp->ESW_PRES[port] |= MCF_ESW_PRES_IP;
+	writel(MCF_ESW_PRES_IP, &fecp->ESW_PRES[port]);
 
 	return 0;
 }
@@ -1626,7 +1666,8 @@ static int esw_framecalssify_mac_priority_lookup(
 	}
 
 	fecp = fep->hwp;
-	fecp->ESW_PRES[port] |= MCF_ESW_PRES_MAC;
+	writel(readl(&fecp->ESW_PRES[port]) | MCF_ESW_PRES_MAC,
+		&fecp->ESW_PRES[port]);
 
 	return 0;
 }
@@ -1645,8 +1686,9 @@ static int esw_frame_calssify_priority_init(
 		return -1;
 	}
 	/* disable all priority lookup function */
-	fecp->ESW_PRES[port] = 0;
-	fecp->ESW_PRES[port] = MCF_ESW_PRES_DFLT_PRI(priority_value & 0x7);
+	writel(0, &fecp->ESW_PRES[port]);
+	writel(MCF_ESW_PRES_DFLT_PRI(priority_value & 0x7),
+		&fecp->ESW_PRES[port]);
 
 	return 0;
 }
@@ -1658,15 +1700,18 @@ static int esw_get_statistics_status(
 	struct switch_t  *fecp;
 	fecp = fep->hwp;
 
-	pStatistics->ESW_DISCN   = fecp->ESW_DISCN;
-	pStatistics->ESW_DISCB   = fecp->ESW_DISCB;
-	pStatistics->ESW_NDISCN  = fecp->ESW_NDISCN;
-	pStatistics->ESW_NDISCB  = fecp->ESW_NDISCB;
+	pStatistics->ESW_DISCN   = readl(&fecp->ESW_DISCN);
+	pStatistics->ESW_DISCB   = readl(&fecp->ESW_DISCB);
+	pStatistics->ESW_NDISCN  = readl(&fecp->ESW_NDISCN);
+	pStatistics->ESW_NDISCB  = readl(&fecp->ESW_NDISCB);
 #ifdef DEBUG_STATISTICS
 	printk(KERN_ERR "%s:ESW_DISCN %#lx, ESW_DISCB %#lx,"
 		"ESW_NDISCN %#lx, ESW_NDISCB %#lx\n",
-		__func__, fecp->ESW_DISCN, fecp->ESW_DISCB,
-		fecp->ESW_NDISCN, fecp->ESW_NDISCB);
+		__func__,
+		readl(&fecp->ESW_DISCN),
+		readl(&fecp->ESW_DISCB),
+		readl(&fecp->ESW_NDISCN),
+		readl(&fecp->ESW_NDISCB));
 #endif
 	return 0;
 }
@@ -1687,21 +1732,21 @@ static int esw_get_port_statistics_status(
 	fecp = fep->hwp;
 
 	pPortStatistics->MCF_ESW_POQC   =
-		fecp->port_statistics_status[port].MCF_ESW_POQC;
+		readl(&fecp->port_statistics_status[port].MCF_ESW_POQC);
 	pPortStatistics->MCF_ESW_PMVID  =
-		fecp->port_statistics_status[port].MCF_ESW_PMVID;
+		readl(&fecp->port_statistics_status[port].MCF_ESW_PMVID);
 	pPortStatistics->MCF_ESW_PMVTAG =
-		fecp->port_statistics_status[port].MCF_ESW_PMVTAG;
+		readl(&fecp->port_statistics_status[port].MCF_ESW_PMVTAG);
 	pPortStatistics->MCF_ESW_PBL    =
-		fecp->port_statistics_status[port].MCF_ESW_PBL;
+		readl(&fecp->port_statistics_status[port].MCF_ESW_PBL);
 #ifdef DEBUG_PORT_STATISTICS
 	printk(KERN_ERR "%s : port[%d].MCF_ESW_POQC %#lx, MCF_ESW_PMVID %#lx,"
 		" MCF_ESW_PMVTAG %#lx, MCF_ESW_PBL %#lx\n",
 		__func__, port,
-		fecp->port_statistics_status[port].MCF_ESW_POQC,
-		fecp->port_statistics_status[port].MCF_ESW_PMVID,
-		fecp->port_statistics_status[port].MCF_ESW_PMVTAG,
-		fecp->port_statistics_status[port].MCF_ESW_PBL);
+		readl(&fecp->port_statistics_status[port].MCF_ESW_POQC),
+		readl(&fecp->port_statistics_status[port].MCF_ESW_PMVID),
+		readl(&fecp->port_statistics_status[port].MCF_ESW_PMVTAG),
+		readl(&fecp->port_statistics_status[port].MCF_ESW_PBL));
 #endif
 	return 0;
 }
@@ -1713,20 +1758,24 @@ static int esw_get_output_queue_status(
 	struct switch_t  *fecp;
 
 	fecp = fep->hwp;
-	pOutputQueue->ESW_MMSR  = fecp->ESW_MMSR;
-	pOutputQueue->ESW_LMT   = fecp->ESW_LMT;
-	pOutputQueue->ESW_LFC   = fecp->ESW_LFC;
-	pOutputQueue->ESW_IOSR  = fecp->ESW_IOSR;
-	pOutputQueue->ESW_PCSR  = fecp->ESW_PCSR;
-	pOutputQueue->ESW_QWT   = fecp->ESW_QWT;
-	pOutputQueue->ESW_P0BCT = fecp->ESW_P0BCT;
+	pOutputQueue->ESW_MMSR  = readl(&fecp->ESW_MMSR);
+	pOutputQueue->ESW_LMT   = readl(&fecp->ESW_LMT);
+	pOutputQueue->ESW_LFC   = readl(&fecp->ESW_LFC);
+	pOutputQueue->ESW_IOSR  = readl(&fecp->ESW_IOSR);
+	pOutputQueue->ESW_PCSR  = readl(&fecp->ESW_PCSR);
+	pOutputQueue->ESW_QWT   = readl(&fecp->ESW_QWT);
+	pOutputQueue->ESW_P0BCT = readl(&fecp->ESW_P0BCT);
 #ifdef DEBUG_OUTPUT_QUEUE
 	printk(KERN_ERR "%s:ESW_MMSR %#lx, ESW_LMT %#lx, ESW_LFC %#lx, "
 		"ESW_IOSR %#lx, ESW_PCSR %#lx, ESW_QWT %#lx, ESW_P0BCT %#lx\n",
-		__func__, fecp->ESW_MMSR,
-		fecp->ESW_LMT, fecp->ESW_LFC,
-		fecp->ESW_IOSR,  fecp->ESW_PCSR,
-		fecp->ESW_QWT, fecp->ESW_P0BCT);
+		__func__,
+		readl(&fecp->ESW_MMSR),
+		readl(&fecp->ESW_LMT),
+		readl(&fecp->ESW_LFC),
+		readl(&fecp->ESW_IOSR),
+		readl(&fecp->ESW_PCSR),
+		readl(&fecp->ESW_QWT),
+		readl(&fecp->ESW_P0BCT));
 #endif
 	return 0;
 }
@@ -1743,19 +1792,19 @@ static int esw_set_output_queue_memory(
 
 	if (fun_num == 1) {
 		/* memory manager status*/
-		fecp->ESW_MMSR = pOutputQueue->ESW_MMSR;
+		writel(pOutputQueue->ESW_MMSR, &fecp->ESW_MMSR);
 	} else if (fun_num == 2) {
 		/*low memory threshold*/
-		fecp->ESW_LMT = pOutputQueue->ESW_LMT;
+		writel(pOutputQueue->ESW_LMT, &fecp->ESW_LMT);
 	} else if (fun_num == 3) {
 		/*lowest number of free cells*/
-		fecp->ESW_LFC = pOutputQueue->ESW_LFC;
+		writel(pOutputQueue->ESW_LFC, &fecp->ESW_LFC);
 	} else if (fun_num == 4) {
 		/*queue weights*/
-		fecp->ESW_QWT = pOutputQueue->ESW_QWT;
+		writel(pOutputQueue->ESW_QWT, &fecp->ESW_QWT);
 	} else if (fun_num == 5) {
 		/*port 0 backpressure congenstion thresled*/
-		fecp->ESW_P0BCT = pOutputQueue->ESW_P0BCT;
+		writel(pOutputQueue->ESW_P0BCT, &fecp->ESW_P0BCT);
 	} else {
 		printk(KERN_INFO "%s: do not support the cmd %x\n",
 			__func__, fun_num);
@@ -1764,10 +1813,14 @@ static int esw_set_output_queue_memory(
 #ifdef DEBUG_OUTPUT_QUEUE
 	printk(KERN_ERR "%s:ESW_MMSR %#lx, ESW_LMT %#lx, ESW_LFC %#lx, "
 		"ESW_IOSR %#lx, ESW_PCSR %#lx, ESW_QWT %#lx, ESW_P0BCT %#lx\n",
-		__func__, fecp->ESW_MMSR,
-		fecp->ESW_LMT, fecp->ESW_LFC,
-		fecp->ESW_IOSR,  fecp->ESW_PCSR,
-		fecp->ESW_QWT, fecp->ESW_P0BCT);
+		__func__,
+		readl(&fecp->ESW_MMSR),
+		readl(&fecp->ESW_LMT),
+		readl(&fecp->ESW_LFC),
+		readl(&fecp->ESW_IOSR),
+		readl(&fecp->ESW_PCSR),
+		readl(&fecp->ESW_QWT),
+		readl(&fecp->ESW_P0BCT));
 #endif
 	return 0;
 }
@@ -1782,13 +1835,16 @@ int esw_set_irq_mask(
 #ifdef DEBUG_IRQ
 	printk(KERN_INFO "%s: irq event %#lx, irq mask %#lx "
 		" mask %x, enable %x\n",
-		__func__, fecp->switch_ievent,
-		fecp->switch_imask, mask, enable);
+		__func__,
+		readl(&fecp->switch_ievent),
+		readl(&fecp->switch_imask), mask, enable);
 #endif
 	if (enable == 1)
-		fecp->switch_imask |= mask;
+		writel(readl(&fecp->switch_imask) | mask,
+			&fecp->switch_imask);
 	else if (enable == 1)
-		fecp->switch_imask &= (~mask);
+		writel(readl(&fecp->switch_imask) & (~mask),
+			&fecp->switch_imask);
 	else {
 		printk(KERN_INFO "%s: enable %x is error value\n",
 			__func__, enable);
@@ -1799,10 +1855,14 @@ int esw_set_irq_mask(
 		"rx_des_start %#lx, tx_des_start %#lx, "
 		"rx_buff_size %#lx, rx_des_active %#lx, "
 		"tx_des_active %#lx\n",
-		__func__, fecp->switch_ievent, fecp->switch_imask,
-		fecp->fec_r_des_start, fecp->fec_x_des_start,
-		fecp->fec_r_buff_size, fecp->fec_r_des_active,
-		fecp->fec_x_des_active);
+		__func__,
+		readl(&fecp->switch_ievent),
+		readl(&fecp->switch_imask),
+		readl(&fecp->fec_r_des_start),
+		readl(&fecp->fec_x_des_start),
+		readl(&fecp->fec_r_buff_size),
+		readl(&fecp->fec_r_des_active),
+		readl(&fecp->fec_x_des_active));
 #endif
 	return 0;
 }
@@ -1814,10 +1874,10 @@ static void esw_get_switch_mode(
 	struct switch_t  *fecp;
 
 	fecp = fep->hwp;
-	*ulModeConfig = fecp->ESW_MODE;
+	*ulModeConfig = readl(&fecp->ESW_MODE);
 #ifdef DEBUG_SWITCH_MODE
 	printk(KERN_INFO "%s: mode %#lx \n",
-		__func__, fecp->ESW_MODE);
+		__func__, readl(&fecp->ESW_MODE));
 #endif
 }
 
@@ -1828,10 +1888,10 @@ static void esw_switch_mode_configure(
 	struct switch_t  *fecp;
 
 	fecp = fep->hwp;
-	fecp->ESW_MODE |= configure;
+	writel(readl(&fecp->ESW_MODE) | configure, &fecp->ESW_MODE);
 #ifdef DEBUG_SWITCH_MODE
 	printk(KERN_INFO "%s: mode %#lx \n",
-		__func__, fecp->ESW_MODE);
+		__func__, reald(&fecp->ESW_MODE));
 #endif
 }
 
@@ -1843,10 +1903,10 @@ static void esw_get_bridge_port(
 	struct switch_t  *fecp;
 
 	fecp = fep->hwp;
-	*ulBMPConfig = fecp->ESW_BMPC;
+	*ulBMPConfig = readl(&fecp->ESW_BMPC);
 #ifdef DEBUG_BRIDGE_PORT
 	printk(KERN_INFO "%s: bridge management port %#lx \n",
-		__func__, fecp->ESW_BMPC);
+		__func__, readl(&fecp->ESW_BMPC));
 #endif
 }
 
@@ -1857,7 +1917,8 @@ static void  esw_bridge_port_configure(
 	struct switch_t  *fecp;
 
 	fecp = fep->hwp;
-	fecp->ESW_BMPC |= configure;
+	writel(readl(&fecp->ESW_BMPC) | configure,
+		&fecp->ESW_BMPC);
 #ifdef DEBUG_BRIDGE_PORT
 	printk(KERN_INFO "%s: bridge management port %#lx \n",
 		__func__, fecp->ESW_BMPC);
@@ -1886,15 +1947,17 @@ void esw_check_rxb_txb_interrupt(struct switch_enet_private *fep)
 	fecp = fep->hwp;
 
 	/*Enable Forced forwarding for port 1*/
-	fecp->ESW_P0FFEN = MCF_ESW_P0FFEN_FEN |
-		MCF_ESW_P0FFEN_FD(1);
+	writel(MCF_ESW_P0FFEN_FEN | MCF_ESW_P0FFEN_FD(1),
+		&fecp->ESW_P0FFEN);
 	/*Disable learning for all ports*/
 
-	fecp->switch_imask = MCF_ESW_IMR_TXB | MCF_ESW_IMR_TXF |
-		MCF_ESW_IMR_LRN | MCF_ESW_IMR_RXB | MCF_ESW_IMR_RXF;
+	writel(MCF_ESW_IMR_TXB | MCF_ESW_IMR_TXF |
+		MCF_ESW_IMR_LRN | MCF_ESW_IMR_RXB | MCF_ESW_IMR_RXF,
+		&fecp->switch_imask);
 	printk(KERN_ERR "%s: fecp->ESW_DBCR %#lx, fecp->ESW_P0FFEN %#lx"
 		" fecp->ESW_BKLR %#lx\n", __func__, fecp->ESW_DBCR,
-		fecp->ESW_P0FFEN, fecp->ESW_BKLR);
+		readl(&fecp->ESW_P0FFEN),
+		readl(&fecp->ESW_BKLR));
 }
 
 static int esw_mac_addr_static(struct switch_enet_private *fep)
@@ -1902,7 +1965,7 @@ static int esw_mac_addr_static(struct switch_enet_private *fep)
 	struct switch_t  *fecp;
 
 	fecp = fep->hwp;
-	fecp->ESW_DBCR = MCF_ESW_DBCR_P1;
+	writel(MCF_ESW_DBCR_P1, &fecp->ESW_DBCR);
 
 	if (is_valid_ether_addr(fep->netdev->dev_addr))
 		esw_update_atable_static(fep->netdev->dev_addr, 7, 7, fep);
@@ -1921,11 +1984,12 @@ static void esw_main(struct switch_enet_private *fep)
 	fecp = fep->hwp;
 
 	esw_mac_addr_static(fep);
-	fecp->ESW_BKLR = 0;
-	fecp->switch_imask = MCF_ESW_IMR_TXB | MCF_ESW_IMR_TXF |
-		MCF_ESW_IMR_LRN | MCF_ESW_IMR_RXB | MCF_ESW_IMR_RXF;
-	fecp->ESW_PER = 0x70007;
-	fecp->ESW_DBCR = MCF_ESW_DBCR_P1 | MCF_ESW_DBCR_P2;
+	writel(0, &fecp->ESW_BKLR);
+	writel(MCF_ESW_IMR_TXB | MCF_ESW_IMR_TXF |
+		MCF_ESW_IMR_LRN | MCF_ESW_IMR_RXB | MCF_ESW_IMR_RXF,
+		&fecp->switch_imask);
+	writel(0x70007, &fecp->ESW_PER);
+	writel(MCF_ESW_DBCR_P1 | MCF_ESW_DBCR_P2, &fecp->ESW_DBCR);
 }
 
 static int switch_enet_ioctl(
@@ -2682,7 +2746,7 @@ switch_enet_start_xmit(struct sk_buff *skb, struct net_device *dev)
 	dev->trans_start = jiffies;
 
 	/* Trigger transmission start */
-	fecp->fec_x_des_active = MCF_ESW_TDAR_X_DES_ACTIVE;
+	writel(MCF_ESW_TDAR_X_DES_ACTIVE, &fecp->fec_x_des_active);
 
 	/* If this was the last BD in the ring,
 	 * start at the beginning again.
@@ -2766,8 +2830,8 @@ switch_enet_interrupt(int irq, void *dev_id)
 
 	/* Get the interrupt events that caused us to be here */
 	do {
-		int_events = fecp->switch_ievent;
-		fecp->switch_ievent = int_events;
+		int_events = readl(&fecp->switch_ievent);
+		writel(int_events, &fecp->switch_ievent);
 		/* Handle receive event in its own function. */
 
 		/* Transmit OK, or non-fatal error. Update the buffer
@@ -2775,7 +2839,7 @@ switch_enet_interrupt(int irq, void *dev_id)
 		 *  them as part of the transmit process.
 		 */
 		if (int_events & MCF_ESW_ISR_LRN) {
-			if (fep->learning_irqhandle_enable)
+			if (readl(&fep->learning_irqhandle_enable))
 				esw_atable_dynamicms_learn_migration(
 					fep, fep->currTime);
 			ret = IRQ_HANDLED;
@@ -3018,9 +3082,9 @@ rx_processing_done:
 	 * incoming frames.  On a heavily loaded network, we should be
 	 * able to keep up at the expense of system resources.
 	 */
-	fecp->fec_r_des_active = MCF_ESW_RDAR_R_DES_ACTIVE;
+	writel(MCF_ESW_RDAR_R_DES_ACTIVE, &fecp->fec_r_des_active);
    } /* while (!((status = bdp->cbd_sc) & BD_ENET_RX_EMPTY)) */
-	fep->cur_rx = bdp;
+	writel(bdp, &fep->cur_rx);
 
 	spin_unlock(&fep->hw_lock);
 }
@@ -3505,8 +3569,7 @@ static void set_multicast_list(struct net_device *dev)
 {
 	struct switch_enet_private *fep;
 	struct switch_t *ep;
-	struct dev_mc_list *dmi;
-	unsigned int i, j, bit, data, crc;
+	unsigned int i, bit, data, crc;
 
 	fep = netdev_priv(dev);
 	ep = fep->hwp;
@@ -3533,20 +3596,19 @@ static void set_multicast_list(struct net_device *dev)
 			 * ep->fec_grp_hash_table_high = 0;
 			 * ep->fec_grp_hash_table_low = 0;
 			 */
-
-			dmi = dev->mc_list;
-
-			for (j = 0; j < dev->mc_count;
-				j++, dmi = dmi->next) {
+			struct netdev_hw_addr *ha;
+			u_char *addrs;
+			netdev_for_each_mc_addr(ha, dev) {
+				addrs = ha->addr;
 				/* Only support group multicast for now */
-				if (!(dmi->dmi_addr[0] & 1))
+				if (!(*addrs & 1))
 					continue;
 
 				/* calculate crc32 value of mac address	*/
 				crc = 0xffffffff;
 
-				for (i = 0; i < dmi->dmi_addrlen; i++) {
-					data = dmi->dmi_addr[i];
+				for (i = 0; i < 6; i++) {
+					data = addrs[i];
 					for (bit = 0; bit < 8; bit++,
 						data >>= 1) {
 						crc = (crc >> 1) ^
@@ -3572,7 +3634,7 @@ switch_set_mac_address(struct net_device *dev, void *p)
 		return -EADDRNOTAVAIL;
 
 	fecp = fep->hwp;
-	fecp->ESW_DBCR = MCF_ESW_DBCR_P1;
+	writel(MCF_ESW_DBCR_P1, &fecp->ESW_DBCR);
 
 	memcpy(dev->dev_addr, addr->sa_data, dev->addr_len);
 
@@ -3591,7 +3653,7 @@ switch_set_mac_address(struct net_device *dev, void *p)
 		fep->enet_addr + MCF_FEC_PAUR1);
 
 	esw_update_atable_static(dev->dev_addr, 7, 7, fep);
-	fecp->ESW_DBCR = MCF_ESW_DBCR_P1 | MCF_ESW_DBCR_P2;
+	writel(MCF_ESW_DBCR_P1 | MCF_ESW_DBCR_P2, &fecp->ESW_DBCR);
 
 	return 0;
 }
@@ -3723,23 +3785,23 @@ static int __init switch_enet_init(struct net_device *dev,
 	/*
 	 * SWITCH CONFIGURATION
 	 */
-	fecp->ESW_MODE = MCF_ESW_MODE_SW_RST;
+	writel(MCF_ESW_MODE_SW_RST, &fecp->ESW_MODE);
 	udelay(10);
 
 	/* enable switch*/
-	fecp->ESW_MODE = MCF_ESW_MODE_STATRST;
-	fecp->ESW_MODE = MCF_ESW_MODE_SW_EN;
+	writel(MCF_ESW_MODE_STATRST, &fecp->ESW_MODE);
+	writel(MCF_ESW_MODE_SW_EN, &fecp->ESW_MODE);
 
 	/* Enable transmit/receive on all ports */
-	fecp->ESW_PER = 0xffffffff;
+	writel(0xffffffff, &fecp->ESW_PER);
 	/* Management port configuration,
 	 * make port 0 as management port
 	 */
-	fecp->ESW_BMPC = 0;
+	writel(0, &fecp->ESW_BMPC);
 
 	/* clear all switch irq */
-	fecp->switch_ievent = 0xffffffff;
-	fecp->switch_imask  = 0;
+	writel(0xffffffff, &fecp->switch_ievent);
+	writel(0, &fecp->switch_imask);
 	udelay(10);
 
 	plat->request_intrs = switch_request_intrs;
@@ -3949,21 +4011,21 @@ switch_restart(struct net_device *dev, int duplex)
 	 * Whack a reset.  We should wait for this.
 	 */
 	/* fecp->fec_ecntrl = 1; */
-	fecp->ESW_MODE = MCF_ESW_MODE_SW_RST;
+	writel(MCF_ESW_MODE_SW_RST, &fecp->ESW_MODE);
 	udelay(10);
-	fecp->ESW_MODE = MCF_ESW_MODE_STATRST;
-	fecp->ESW_MODE = MCF_ESW_MODE_SW_EN;
+	writel(MCF_ESW_MODE_STATRST, &fecp->ESW_MODE);
+	writel(MCF_ESW_MODE_SW_EN, &fecp->ESW_MODE);
 
 	/* Enable transmit/receive on all ports */
-	fecp->ESW_PER = 0xffffffff;
+	writel(0xffffffff, &fecp->ESW_PER);
 	/*
 	 * Management port configuration,
 	 * make port 0 as management port
 	 */
-	fecp->ESW_BMPC = 0;
+	writel(0, &fecp->ESW_BMPC);
 
 	/* Clear any outstanding interrupt */
-	fecp->switch_ievent = 0xffffffff;
+	writel(0xffffffff, &fecp->switch_ievent);
 	/*if (plat && plat->enable_phy_intr)
 	 *	plat->enable_phy_intr();
 	 */
@@ -3975,15 +4037,16 @@ switch_restart(struct net_device *dev, int duplex)
 	 */
 
 	/* Set maximum receive buffer size */
-	fecp->fec_r_buff_size = PKT_MAXBLR_SIZE;
+	writel(PKT_MAXBLR_SIZE, &fecp->fec_r_buff_size);
 
 	if (plat && plat->localhw_setup)
 		plat->localhw_setup();
 
 	/* Set receive and transmit descriptor base */
-	fecp->fec_r_des_start = fep->bd_dma;
-	fecp->fec_x_des_start = (unsigned long)fep->bd_dma
-		+ sizeof(struct cbd_t) * RX_RING_SIZE;
+	writel(fep->bd_dma, &fecp->fec_r_des_start);
+	writel((unsigned long)fep->bd_dma
+		+ sizeof(struct cbd_t) * RX_RING_SIZE,
+		&fecp->fec_x_des_start);
 
 	fep->dirty_tx = fep->cur_tx = fep->tx_bd_base;
 	fep->cur_rx = fep->rx_bd_base;
@@ -4001,49 +4064,57 @@ switch_restart(struct net_device *dev, int duplex)
 	esw_clear_atable(fep);
 
 	/* And last, enable the transmit and receive processing */
-	fecp->fec_r_des_active = MCF_ESW_RDAR_R_DES_ACTIVE;
+	writel(MCF_ESW_RDAR_R_DES_ACTIVE, &fecp->fec_r_des_active);
 
 	/* Enable interrupts we wish to service */
-	fecp->switch_ievent = 0xffffffff;
-	fecp->switch_imask  = MCF_ESW_IMR_RXF | MCF_ESW_IMR_TXF |
-		MCF_ESW_IMR_RXB | MCF_ESW_IMR_TXB;
+	writel(0xffffffff, &fecp->switch_ievent);
+	writel(MCF_ESW_IMR_RXF | MCF_ESW_IMR_TXF |
+		MCF_ESW_IMR_RXB | MCF_ESW_IMR_TXB,
+		&fecp->switch_imask);
 
 #ifdef SWITCH_DEBUG
 	printk(KERN_INFO "%s: switch hw init over."
 		"isr %x mask %x rx_addr %x %x tx_addr %x %x."
 		"fec_r_buff_size %x\n", __func__,
-		fecp->switch_ievent, fecp->switch_imask, fecp->fec_r_des_start,
-		&fecp->fec_r_des_start, fecp->fec_x_des_start,
-		&fecp->fec_x_des_start, fecp->fec_r_buff_size);
+		readl(&fecp->switch_ievent),
+		readl(&fecp->switch_imask),
+		readl(&fecp->fec_r_des_start),
+		&fecp->fec_r_des_start,
+		readl(&fecp->fec_x_des_start),
+		&fecp->fec_x_des_start,
+		readl(&fecp->fec_r_buff_size));
 	printk(KERN_INFO "%s: fecp->ESW_DBCR %x, fecp->ESW_P0FFEN %x fecp->ESW_BKLR %x\n",
-		__func__, fecp->ESW_DBCR, fecp->ESW_P0FFEN, fecp->ESW_BKLR);
+		__func__,
+		readl(&fecp->ESW_DBCR),
+		readl(&fecp->ESW_P0FFEN),
+		readl(&fecp->ESW_BKLR));
 
 	printk(KERN_INFO "fecp->portstats[0].MCF_ESW_POQC %x,"
 		"fecp->portstats[0].MCF_ESW_PMVID %x,"
 		"fecp->portstats[0].MCF_ESW_PMVTAG %x,"
 		"fecp->portstats[0].MCF_ESW_PBL %x\n",
-		fecp->port_statistics_status[0].MCF_ESW_POQC,
-		fecp->port_statistics_status[0].MCF_ESW_PMVID,
-		fecp->port_statistics_status[0].MCF_ESW_PMVTAG,
-		fecp->port_statistics_status[0].MCF_ESW_PBL);
+		readl(&fecp->port_statistics_status[0].MCF_ESW_POQC),
+		readl(&fecp->port_statistics_status[0].MCF_ESW_PMVID),
+		readl(&fecp->port_statistics_status[0].MCF_ESW_PMVTAG),
+		readl(&fecp->port_statistics_status[0].MCF_ESW_PBL));
 
 	printk(KERN_INFO "fecp->portstats[1].MCF_ESW_POQC %x,"
 		"fecp->portstats[1].MCF_ESW_PMVID %x,"
 		"fecp->portstats[1].MCF_ESW_PMVTAG %x,"
 		"fecp->portstats[1].MCF_ESW_PBL %x\n",
-		fecp->port_statistics_status[1].MCF_ESW_POQC,
-		fecp->port_statistics_status[1].MCF_ESW_PMVID,
-		fecp->port_statistics_status[1].MCF_ESW_PMVTAG,
-		fecp->port_statistics_status[1].MCF_ESW_PBL);
+		readl(&fecp->port_statistics_status[1].MCF_ESW_POQC),
+		readl(&fecp->port_statistics_status[1].MCF_ESW_PMVID),
+		readl(&fecp->port_statistics_status[1].MCF_ESW_PMVTAG),
+		readl(&fecp->port_statistics_status[1].MCF_ESW_PBL));
 
 	printk(KERN_INFO "fecp->portstats[2].MCF_ESW_POQC %x,"
 		"fecp->portstats[2].MCF_ESW_PMVID %x,"
 		"fecp->portstats[2].MCF_ESW_PMVTAG %x,"
 		"fecp->portstats[2].MCF_ESW_PBL %x\n",
-		fecp->port_statistics_status[2].MCF_ESW_POQC,
-		fecp->port_statistics_status[2].MCF_ESW_PMVID,
-		fecp->port_statistics_status[2].MCF_ESW_PMVTAG,
-		fecp->port_statistics_status[2].MCF_ESW_PBL);
+		readl(&fecp->port_statistics_status[2].MCF_ESW_POQC),
+		readl(&fecp->port_statistics_status[2].MCF_ESW_PMVID),
+		readl(&fecp->port_statistics_status[2].MCF_ESW_PMVTAG),
+		readl(&fecp->port_statistics_status[2].MCF_ESW_PBL));
 #endif
 }
 
