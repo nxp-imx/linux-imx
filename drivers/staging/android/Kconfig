@@ -1,0 +1,27 @@
+menu "Android"
+
+config ANDROID
+	bool "Android Drivers"
+	default n
+	---help---
+	  Enable support for various drivers needed on the Android platform
+
+if ANDROID
+
+config ANDROID_BINDER_IPC
+	bool "Android Binder IPC Driver"
+	default y
+
+config ANDROID_LOGGER
+	tristate "Android log driver"
+	default y
+
+config ANDROID_LOW_MEMORY_KILLER
+	bool "Android Low Memory Killer"
+	default y
+	---help---
+	  Register processes to be killed when memory is low
+
+endif # if ANDROID
+
+endmenu
