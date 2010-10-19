@@ -828,17 +828,25 @@ static int ldb_probe(struct platform_device *pdev)
 			}
 			/*
 			 * Default ldb mode:
-			 * 1080p: DI0 split, SPWG
+			 * 1080p: DI0 split, SPWG or DI1 split, SPWG
 			 * others: single, SPWG
 			 */
 			if (g_boot_cmd == false) {
-				ldb.chan_bit_map[0] = LDB_BIT_MAP_SPWG;
 				if (fb_mode_is_equal(mode, &mxcfb_ldb_modedb[0])) {
-					ldb.chan_mode_opt = LDB_SPL_DI0;
+					if (strcmp(ldb.fbi[i]->fix.id,
+					    "DISP3 BG") == 0) {
+						ldb.chan_mode_opt = LDB_SPL_DI0;
+						dev_warn(g_ldb_dev,
+							"default di0 split mode\n");
+					} else if (strcmp(ldb.fbi[i]->fix.id,
+						   "DISP3 BG - DI1") == 0) {
+						ldb.chan_mode_opt = LDB_SPL_DI1;
+						dev_warn(g_ldb_dev,
+							"default di1 split mode\n");
+					}
 					ldb.chan_bit_map[0] = LDB_BIT_MAP_SPWG;
 					ldb.chan_bit_map[1] = LDB_BIT_MAP_SPWG;
 					find_1080p = true;
-					dev_warn(g_ldb_dev, "default split mode\n");
 				} else if (!find_1080p) {
 					if (strcmp(ldb.fbi[i]->fix.id,
 					    "DISP3 BG") == 0) {
@@ -1362,9 +1370,9 @@ static struct platform_driver mxcldb_driver = {
 };
 
 /*
- * Parse user specified options (`lvds=')
+ * Parse user specified options (`ldb=')
  * example:
- * lvds=single(separate, dual or split),(di=0 or di=1),
+ * ldb=single(separate, dual or split),(di=0 or di=1),
  *	ch0_map=SPWG or JEIDA,ch1_map=SPWG or JEIDA
  *
  */
