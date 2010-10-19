@@ -304,6 +304,7 @@ static ssize_t mtd_write(struct file *file, const char __user *buf, size_t count
 		case MTD_MODE_RAW:
 		{
 			struct mtd_oob_ops ops;
+			memset(&ops, 0, sizeof(struct mtd_oob_ops));
 
 			ops.mode = MTD_OOB_RAW;
 			ops.datbuf = kbuf;
