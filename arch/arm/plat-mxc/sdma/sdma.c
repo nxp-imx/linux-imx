@@ -304,7 +304,9 @@ static unsigned short sdma_get_pc(sdma_periphT peripheral_type,
 			res = -EINVAL;
 		}
 #ifdef CONFIG_MXC_SSI_DUAL_FIFO
-	} else if (peripheral_type == CSPI || peripheral_type == EXT) {
+	} else if (peripheral_type == CSPI || peripheral_type == EXT ||
+		   (peripheral_type == SSI &&
+		   !(cpu_is_mx51() || cpu_is_mx53()))) {
 #else
 	} else if (peripheral_type == CSPI || peripheral_type == EXT ||
 		   peripheral_type == SSI) {
@@ -326,9 +328,11 @@ static unsigned short sdma_get_pc(sdma_periphT peripheral_type,
 			res = -EINVAL;
 		}
 #ifdef CONFIG_MXC_SSI_DUAL_FIFO
-	} else if (peripheral_type == MMC ||
-		   peripheral_type == SDHC || peripheral_type == CSPI_SP ||
-		   peripheral_type == ESAI || peripheral_type == MSHC_SP) {
+	} else if (peripheral_type == MMC || peripheral_type == SDHC ||
+		   peripheral_type == CSPI_SP || peripheral_type == ESAI ||
+		   peripheral_type == MSHC_SP ||
+		   (peripheral_type == SSI_SP &&
+		   !(cpu_is_mx51() || cpu_is_mx53()))) {
 #else
 	} else if (peripheral_type == SSI_SP || peripheral_type == MMC ||
 		   peripheral_type == SDHC || peripheral_type == CSPI_SP ||

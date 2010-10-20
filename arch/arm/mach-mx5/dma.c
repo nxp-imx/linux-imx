@@ -1371,13 +1371,95 @@ static int __init dma_fixups(void)
 	mxc_sdma_spdif_16bit_tx_params.chnl_params.event_id = DMA_REQ_SPDIF_TX;
 	mxc_sdma_spdif_32bit_tx_params.chnl_params.event_id = DMA_REQ_SPDIF_TX;
 
-	mxc_sdma_ssi3_8bit_tx1_params.chnl_params.event_id =
-						DMA_REQ_SSI3_TX2_MX53;
-	mxc_sdma_ssi3_16bit_tx1_params.chnl_params.event_id =
-						DMA_REQ_SSI3_TX2_MX53;
-	mxc_sdma_ssi3_24bit_tx1_params.chnl_params.event_id =
-						DMA_REQ_SSI3_TX2_MX53;
-
+	if (cpu_is_mx53()) {
+		mxc_sdma_ssi3_8bit_tx1_params.chnl_params.event_id =
+							DMA_REQ_SSI3_TX2_MX53;
+		mxc_sdma_ssi3_16bit_tx1_params.chnl_params.event_id =
+							DMA_REQ_SSI3_TX2_MX53;
+		mxc_sdma_ssi3_24bit_tx1_params.chnl_params.event_id =
+							DMA_REQ_SSI3_TX2_MX53;
+	} else if (cpu_is_mx50()) {
+		/* mx50 not support double fifo */
+#ifdef CONFIG_MXC_SSI_DUAL_FIFO
+		u32 tx_wm = MXC_SSI_TXFIFO_WML/2;
+		u32 rx_wm = MXC_SSI_RXFIFO_WML/2;
+#else
+		u32 tx_wm = MXC_SSI_TXFIFO_WML;
+		u32 rx_wm = MXC_SSI_RXFIFO_WML;
+#endif
+		mxc_sdma_ssi1_8bit_tx0_params.chnl_params.watermark_level =
+						tx_wm;
+		mxc_sdma_ssi1_8bit_rx0_params.chnl_params.watermark_level =
+						rx_wm;
+		mxc_sdma_ssi1_16bit_tx0_params.chnl_params.watermark_level =
+						tx_wm;
+		mxc_sdma_ssi1_16bit_rx0_params.chnl_params.watermark_level =
+						rx_wm;
+		mxc_sdma_ssi1_24bit_tx0_params.chnl_params.watermark_level =
+						tx_wm;
+		mxc_sdma_ssi1_24bit_rx0_params.chnl_params.watermark_level =
+						rx_wm;
+		mxc_sdma_ssi1_8bit_tx1_params.chnl_params.watermark_level =
+						tx_wm;
+		mxc_sdma_ssi1_8bit_rx1_params.chnl_params.watermark_level =
+						rx_wm;
+		mxc_sdma_ssi1_16bit_tx1_params.chnl_params.watermark_level =
+						tx_wm;
+		mxc_sdma_ssi1_16bit_rx1_params.chnl_params.watermark_level =
+						rx_wm;
+		mxc_sdma_ssi1_24bit_tx1_params.chnl_params.watermark_level =
+						tx_wm;
+		mxc_sdma_ssi1_24bit_rx1_params.chnl_params.watermark_level =
+						rx_wm;
+		mxc_sdma_ssi2_8bit_tx0_params.chnl_params.watermark_level =
+						tx_wm;
+		mxc_sdma_ssi2_8bit_rx0_params.chnl_params.watermark_level =
+						rx_wm;
+		mxc_sdma_ssi2_16bit_tx0_params.chnl_params.watermark_level =
+						tx_wm;
+		mxc_sdma_ssi2_16bit_rx0_params.chnl_params.watermark_level =
+						rx_wm;
+		mxc_sdma_ssi2_24bit_tx0_params.chnl_params.watermark_level =
+						tx_wm;
+		mxc_sdma_ssi2_24bit_rx0_params.chnl_params.watermark_level =
+						rx_wm;
+		mxc_sdma_ssi2_8bit_tx1_params.chnl_params.watermark_level =
+						tx_wm;
+		mxc_sdma_ssi2_8bit_rx1_params.chnl_params.watermark_level =
+						rx_wm;
+		mxc_sdma_ssi2_16bit_tx1_params.chnl_params.watermark_level =
+						tx_wm;
+		mxc_sdma_ssi2_16bit_rx1_params.chnl_params.watermark_level =
+						rx_wm;
+		mxc_sdma_ssi2_24bit_tx1_params.chnl_params.watermark_level =
+						tx_wm;
+		mxc_sdma_ssi2_24bit_rx1_params.chnl_params.watermark_level =
+						rx_wm;
+		mxc_sdma_ssi3_8bit_tx0_params.chnl_params.watermark_level =
+						tx_wm;
+		mxc_sdma_ssi3_8bit_rx0_params.chnl_params.watermark_level =
+						rx_wm;
+		mxc_sdma_ssi3_16bit_tx0_params.chnl_params.watermark_level =
+						tx_wm;
+		mxc_sdma_ssi3_16bit_rx0_params.chnl_params.watermark_level =
+						rx_wm;
+		mxc_sdma_ssi3_24bit_tx0_params.chnl_params.watermark_level =
+						tx_wm;
+		mxc_sdma_ssi3_24bit_rx0_params.chnl_params.watermark_level =
+						rx_wm;
+		mxc_sdma_ssi3_8bit_tx1_params.chnl_params.watermark_level =
+						tx_wm;
+		mxc_sdma_ssi3_8bit_rx1_params.chnl_params.watermark_level =
+						rx_wm;
+		mxc_sdma_ssi3_16bit_tx1_params.chnl_params.watermark_level =
+						tx_wm;
+		mxc_sdma_ssi3_16bit_rx1_params.chnl_params.watermark_level =
+						rx_wm;
+		mxc_sdma_ssi3_24bit_tx1_params.chnl_params.watermark_level =
+						tx_wm;
+		mxc_sdma_ssi3_24bit_rx1_params.chnl_params.watermark_level =
+						rx_wm;
+	}
 	return 0;
 }
 arch_initcall(dma_fixups);
