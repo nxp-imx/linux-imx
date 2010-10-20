@@ -333,13 +333,14 @@ static int brd_make_request(struct request_queue *q, struct bio *bio)
 	struct bio_vec *bvec;
 	sector_t sector;
 	int i;
-	int err = -EIO;
+	int err = 0;
 
 	sector = bio->bi_sector;
 	if (sector + (bio->bi_size >> SECTOR_SHIFT) >
-						get_capacity(bdev->bd_disk))
+						get_capacity(bdev->bd_disk)) {
+		err = -EIO;
 		goto out;
-
+	}
 	if (unlikely(bio_rw_flagged(bio, BIO_RW_DISCARD))) {
 		err = 0;
 		discard_from_brd(brd, sector, bio->bi_size);
