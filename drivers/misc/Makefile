@@ -33,3 +33,4 @@ obj-$(CONFIG_MXS_PERFMON)	+= mxs-perfmon.o
 obj-y				+= eeprom/
 obj-y				+= cb710/
 obj-$(CONFIG_VMWARE_BALLOON)	+= vmware_balloon.o
+obj-$(CONFIG_ANDROID_PMEM)	+= pmem.o
