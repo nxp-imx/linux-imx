@@ -985,8 +985,11 @@ static int mxc_epdc_fb_set_par(struct fb_info *info)
 	struct pxp_config_data *pxp_conf = &fb_data->pxp_conf;
 	struct pxp_proc_data *proc_data = &pxp_conf->proc_data;
 	struct fb_var_screeninfo *screeninfo = &fb_data->info.var;
+	struct mxc_epdc_fb_mode *epdc_modes = fb_data->pdata->epdc_mode;
 	int i;
 	int ret;
+
+	mutex_lock(&fb_data->pxp_mutex);
 
 	/*
 	 * Update PxP config data (used to process FB regions for updates)
@@ -1010,11 +1013,9 @@ static int mxc_epdc_fb_set_par(struct fb_info *info)
 	 * configure S0 channel parameters
 	 * Parameters should match FB format/width/height
 	 */
-	if (screeninfo->grayscale) {
+	if (screeninfo->grayscale)
 		pxp_conf->s0_param.pixel_fmt = PXP_PIX_FMT_GREY;
-		if (screeninfo->grayscale == GRAYSCALE_8BIT_INVERTED)
-			proc_data->lut_transform = PXP_LUT_INVERT;
-	} else {
+	else {
 		switch (screeninfo->bits_per_pixel) {
 		case 16:
 			pxp_conf->s0_param.pixel_fmt = PXP_PIX_FMT_RGB565;
@@ -1044,39 +1045,40 @@ static int mxc_epdc_fb_set_par(struct fb_info *info)
 	pxp_conf->out_param.height = screeninfo->yres;
 	pxp_conf->out_param.pixel_fmt = PXP_PIX_FMT_GREY;
 
+	mutex_unlock(&fb_data->pxp_mutex);
+
 	/*
 	 * If HW not yet initialized, check to see if we are being sent
 	 * an initialization request.
 	 */
 	if (!fb_data->hw_ready) {
+		struct fb_videomode mode;
+
+		fb_var_to_videomode(&mode, screeninfo);
+
+		/* Match videomode against epdc modes */
 		for (i = 0; i < fb_data->pdata->num_modes; i++) {
-			struct fb_videomode *vmode =
-				fb_data->pdata->epdc_mode[i].vmode;
-			/* Check resolution for a match
-			   with supported panel types */
-			if ((screeninfo->xres != vmode->xres) ||
-				(screeninfo->yres != vmode->yres))
+			if (!fb_mode_is_equal(epdc_modes[i].vmode, &mode))
 				continue;
-
-			fb_data->cur_mode = &fb_data->pdata->epdc_mode[i];
-
-			/* Found a match - Grab timing params */
-			screeninfo->left_margin = vmode->left_margin;
-			screeninfo->right_margin = vmode->right_margin;
-			screeninfo->upper_margin = vmode->upper_margin;
-			screeninfo->lower_margin = vmode->lower_margin;
-			screeninfo->hsync_len = vmode->hsync_len;
-			screeninfo->vsync_len = vmode->vsync_len;
-
-			/* Initialize EPDC settings and init panel */
-			ret =
-			    mxc_epdc_fb_init_hw((struct fb_info *)fb_data);
-			if (ret) {
-				dev_err(fb_data->dev, "Failed to load panel waveform data\n");
-				return ret;
-			}
-
+			fb_data->cur_mode = &epdc_modes[i];
 			break;
+		}
+
+		/* Found a match - Grab timing params */
+		screeninfo->left_margin = mode.left_margin;
+		screeninfo->right_margin = mode.right_margin;
+		screeninfo->upper_margin = mode.upper_margin;
+		screeninfo->lower_margin = mode.lower_margin;
+		screeninfo->hsync_len = mode.hsync_len;
+		screeninfo->vsync_len = mode.vsync_len;
+
+		/* Initialize EPDC settings and init panel */
+		ret =
+		    mxc_epdc_fb_init_hw((struct fb_info *)fb_data);
+		if (ret) {
+			dev_err(fb_data->dev,
+				"Failed to load panel waveform data\n");
+			return ret;
 		}
 	}
 
@@ -1333,7 +1335,7 @@ static int mxc_epdc_fb_send_update(struct mxcfb_update_data *upd_data,
 			"Update region is outside bounds of framebuffer.  Aborting update.\n");
 		return -EINVAL;
 	}
-	if (upd_data->use_alt_buffer &&
+	if ((upd_data->flags & EPDC_FLAG_USE_ALT_BUFFER) &&
 		((upd_data->update_region.width != upd_data->alt_buffer_data.alt_update_region.width) ||
 		(upd_data->update_region.height != upd_data->alt_buffer_data.alt_update_region.height))) {
 		dev_err(fb_data->dev,
@@ -1397,7 +1399,7 @@ static int mxc_epdc_fb_send_update(struct mxcfb_update_data *upd_data,
 	 * Are we using FB or an alternate (overlay)
 	 * buffer for source of update?
 	 */
-	if (upd_data->use_alt_buffer) {
+	if (upd_data->flags & EPDC_FLAG_USE_ALT_BUFFER) {
 		src_width = upd_data->alt_buffer_data.width;
 		src_height = upd_data->alt_buffer_data.height;
 		src_upd_region = &upd_data->alt_buffer_data.alt_update_region;
@@ -1481,7 +1483,7 @@ static int mxc_epdc_fb_send_update(struct mxcfb_update_data *upd_data,
 
 	/* Source address either comes from alternate buffer
 	   provided in update data, or from the framebuffer. */
-	if (upd_data->use_alt_buffer)
+	if (upd_data->flags & EPDC_FLAG_USE_ALT_BUFFER)
 		sg_dma_address(&fb_data->sg[0]) =
 			upd_data->alt_buffer_data.phys_addr + pxp_input_offs;
 	else {
@@ -1501,6 +1503,23 @@ static int mxc_epdc_fb_send_update(struct mxcfb_update_data *upd_data,
 		    offset_in_page(upd_data_list->virt_addr));
 
 	mutex_lock(&fb_data->pxp_mutex);
+
+	/*
+	 * Set PxP LUT transform type based on update flags.
+	 */
+	fb_data->pxp_conf.proc_data.lut_transform = 0;
+	if (upd_data->flags & EPDC_FLAG_ENABLE_INVERSION)
+		fb_data->pxp_conf.proc_data.lut_transform |= PXP_LUT_INVERT;
+	if (upd_data->flags & EPDC_FLAG_FORCE_MONOCHROME)
+		fb_data->pxp_conf.proc_data.lut_transform |=
+			PXP_LUT_BLACK_WHITE;
+
+	/*
+	 * Toggle inversion processing if 8-bit
+	 * inverted is the current pixel format.
+	 */
+	if (fb_data->info.var.grayscale == GRAYSCALE_8BIT_INVERTED)
+		fb_data->pxp_conf.proc_data.lut_transform ^= PXP_LUT_INVERT;
 
 	/* This is a blocking call, so upon return PxP tx should be done */
 	ret = pxp_process_update(fb_data, src_width, src_height,
@@ -1774,7 +1793,7 @@ static void mxc_epdc_fb_update_pages(struct mxc_epdc_fb_data *fb_data,
 	update.update_mode = UPDATE_MODE_FULL;
 	update.update_marker = 0;
 	update.temp = TEMP_USE_AMBIENT;
-	update.use_alt_buffer = false;
+	update.flags = 0;
 
 	mxc_epdc_fb_send_update(&update, &fb_data->info);
 }
@@ -2338,7 +2357,7 @@ static int mxc_epdc_fb_init_hw(struct fb_info *info)
 	update.waveform_mode = WAVEFORM_MODE_AUTO;
 	update.update_marker = INIT_UPDATE_MARKER;
 	update.temp = TEMP_USE_AMBIENT;
-	update.use_alt_buffer = false;
+	update.flags = 0;
 
 	mxc_epdc_fb_send_update(&update, info);
 
@@ -2374,7 +2393,7 @@ static ssize_t store_update(struct device *device,
 	update.update_mode = UPDATE_MODE_FULL;
 	update.temp = TEMP_USE_AMBIENT;
 	update.update_marker = 0;
-	update.use_alt_buffer = false;
+	update.flags = 0;
 
 	mxc_epdc_fb_send_update(&update, info);
 
@@ -2472,8 +2491,7 @@ int __devinit mxc_epdc_fb_probe(struct platform_device *pdev)
 		goto out_fbdata;
 
 	dev_dbg(&pdev->dev, "resolution %dx%d, bpp %d\n",
-		fb_data->cur_mode->vmode->xres,
-		fb_data->cur_mode->vmode->yres, fb_data->default_bpp);
+		vmode->xres, vmode->yres, fb_data->default_bpp);
 
 	/*
 	 * GPU alignment restrictions dictate framebuffer parameters:
@@ -2878,7 +2896,7 @@ int __devinit mxc_epdc_fb_probe(struct platform_device *pdev)
 	update.waveform_mode = WAVEFORM_MODE_AUTO;
 	update.update_marker = INIT_UPDATE_MARKER;
 	update.temp = TEMP_USE_AMBIENT;
-	update.use_alt_buffer = false;
+	update.flags = 0;
 
 	mxc_epdc_fb_send_update(&update, info);
 

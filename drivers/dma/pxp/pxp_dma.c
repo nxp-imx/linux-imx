@@ -56,6 +56,7 @@ struct pxps {
 #define	CLK_STAT_OFF		0
 #define	CLK_STAT_ON		1
 	int pxp_ongoing;
+	int lut_state;
 
 	struct device *dev;
 	struct pxp_dma pxp_dma;
@@ -421,13 +422,34 @@ static void pxp_set_bg(struct pxps *pxp)
 static void pxp_set_lut(struct pxps *pxp)
 {
 	struct pxp_config_data *pxp_conf = &pxp->pxp_conf_state;
+	int lut_op = pxp_conf->proc_data.lut_transform;
 	u32 reg_val;
 	int i;
 
-	if (pxp_conf->proc_data.lut_transform == PXP_LUT_NONE) {
+	/* If LUT already configured as needed, return */
+	if (pxp->lut_state == lut_op)
+		return;
+
+	if (lut_op == PXP_LUT_NONE) {
 		__raw_writel(BM_PXP_LUT_CTRL_BYPASS,
 			     pxp->base + HW_PXP_LUT_CTRL);
-	} else if (pxp_conf->proc_data.lut_transform == PXP_LUT_INVERT) {
+	} else if (((lut_op & PXP_LUT_INVERT) != 0)
+		&& ((lut_op & PXP_LUT_BLACK_WHITE) != 0)) {
+		/* Fill out LUT table with inverted monochromized values */
+
+		/* Initialize LUT address to 0 and clear bypass bit */
+		__raw_writel(0, pxp->base + HW_PXP_LUT_CTRL);
+
+		/* LUT address pointer auto-increments after each data write */
+		for (i = 0; i < 256; i++) {
+			reg_val =
+			    __raw_readl(pxp->base +
+					HW_PXP_LUT_CTRL) & BM_PXP_LUT_CTRL_ADDR;
+			reg_val = (reg_val < 0x80) ? 0x00 : 0xFF;
+			reg_val = ~reg_val & BM_PXP_LUT_DATA;
+			__raw_writel(reg_val, pxp->base + HW_PXP_LUT);
+		}
+	} else if (lut_op == PXP_LUT_INVERT) {
 		/* Fill out LUT table with 8-bit inverted values */
 
 		/* Initialize LUT address to 0 and clear bypass bit */
@@ -441,7 +463,24 @@ static void pxp_set_lut(struct pxps *pxp)
 			reg_val = ~reg_val & BM_PXP_LUT_DATA;
 			__raw_writel(reg_val, pxp->base + HW_PXP_LUT);
 		}
+	} else if (lut_op == PXP_LUT_BLACK_WHITE) {
+		/* Fill out LUT table with 8-bit monochromized values */
+
+		/* Initialize LUT address to 0 and clear bypass bit */
+		__raw_writel(0, pxp->base + HW_PXP_LUT_CTRL);
+
+		/* LUT address pointer auto-increments after each data write */
+		for (i = 0; i < 256; i++) {
+			reg_val =
+			    __raw_readl(pxp->base +
+					HW_PXP_LUT_CTRL) & BM_PXP_LUT_CTRL_ADDR;
+			reg_val = (reg_val < 0x80) ? 0xFF : 0x00;
+			reg_val = ~reg_val & BM_PXP_LUT_DATA;
+			__raw_writel(reg_val, pxp->base + HW_PXP_LUT);
+		}
 	}
+
+	pxp->lut_state = lut_op;
 }
 
 static void pxp_set_csc(struct pxps *pxp)
@@ -1323,6 +1362,7 @@ static int pxp_probe(struct platform_device *pdev)
 	pxp->irq = irq;
 
 	pxp->pxp_ongoing = 0;
+	pxp->lut_state = 0;
 
 	spin_lock_init(&pxp->lock);
 

@@ -78,6 +78,10 @@ struct mxcfb_rect {
 
 #define TEMP_USE_AMBIENT			0x1000
 
+#define EPDC_FLAG_ENABLE_INVERSION		0x01
+#define EPDC_FLAG_FORCE_MONOCHROME		0x02
+#define EPDC_FLAG_USE_ALT_BUFFER		0x100
+
 #define FB_POWERDOWN_DISABLE			-1
 
 struct mxcfb_alt_buffer_data {
@@ -93,7 +97,7 @@ struct mxcfb_update_data {
 	__u32 update_mode;
 	__u32 update_marker;
 	int temp;
-	int use_alt_buffer;
+	uint flags;
 	struct mxcfb_alt_buffer_data alt_buffer_data;
 };
 
