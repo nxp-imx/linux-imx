@@ -1025,6 +1025,7 @@ static void sdhci_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
 
 	sdhci_set_clock(host, ios->clock);
 
+	spin_unlock_irqrestore(&host->lock, flags);
 	if (ios->power_mode == MMC_POWER_OFF)
 		sdhci_set_power(host, -1);
 	else {
@@ -1039,6 +1040,7 @@ static void sdhci_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
 		}
 	}
 
+	spin_lock_irqsave(&host->lock, flags);
 	tmp = readl(host->ioaddr + SDHCI_HOST_CONTROL);
 
 	if ((ios->bus_width & ~MMC_BUS_WIDTH_DDR) == MMC_BUS_WIDTH_4) {
