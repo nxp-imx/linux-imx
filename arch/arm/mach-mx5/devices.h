@@ -90,3 +90,4 @@ extern struct platform_device gpmi_nfc_device;
 extern struct platform_device mxc_rngb_device;
 extern struct platform_device dcp_device;
 extern struct platform_device pm_device;
+extern struct platform_device fixed_volt_reg_device;

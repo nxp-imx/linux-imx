@@ -38,6 +38,7 @@
 #include <linux/mtd/partitions.h>
 #include <linux/regulator/consumer.h>
 #include <linux/regulator/machine.h>
+#include <linux/regulator/fixed.h>
 #include <linux/mfd/max17135.h>
 #include <linux/pmic_external.h>
 #include <linux/pmic_status.h>
@@ -582,6 +583,30 @@ static struct regulator_init_data max17135_init_data[] __initdata = {
 			.max_uV = V_to_uV(15),
 		},
 	},
+};
+
+/* Fixed voltage regulator DCDC_3V15 */
+static struct regulator_consumer_supply fixed_volt_reg_consumers[] = {
+	{
+		/* sgtl5000 */
+		.supply = "VDDIO",
+		.dev_name = "1-000a",
+	},
+};
+
+static struct regulator_init_data fixed_volt_reg_init_data = {
+	.constraints = {
+		.always_on = 1,
+	},
+	.num_consumer_supplies = ARRAY_SIZE(fixed_volt_reg_consumers),
+	.consumer_supplies = fixed_volt_reg_consumers,
+};
+
+static struct fixed_voltage_config fixed_volt_reg_pdata = {
+	.supply_name = "DCDC_3V15",
+	.microvolts = 3150000,
+	.init_data = &fixed_volt_reg_init_data,
+	.gpio = -EINVAL,
 };
 
 static void epdc_get_pins(void)
@@ -1328,6 +1353,7 @@ static void __init mxc_board_init(void)
 	mxc_register_device(&mxc_rngb_device, NULL);
 	mxc_register_device(&dcp_device, NULL);
 	mxc_register_device(&mxc_powerkey_device, &pwrkey_data);
+	mxc_register_device(&fixed_volt_reg_device, &fixed_volt_reg_pdata);
 	mx50_rdp_init_mc13892();
 /*
 	pm_power_off = mxc_power_off;

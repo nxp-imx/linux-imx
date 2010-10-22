@@ -463,6 +463,11 @@ struct platform_device mxcvpu_device = {
 	.resource = vpu_resources,
 };
 
+struct platform_device fixed_volt_reg_device = {
+	.name          = "reg-fixed-voltage",
+	.id            = -1,
+};
+
 static struct resource scc_resources[] = {
 	{
 		.start = SCC_BASE_ADDR,
