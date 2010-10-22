@@ -607,10 +607,33 @@ static int ehci_fsl_drv_suspend(struct platform_device *pdev,
 		}
 		return 0;
 	}
+
+	if (!test_bit(HCD_FLAG_HW_ACCESSIBLE, &hcd->flags)) {
+		fsl_usb_clk_gate(hcd->self.controller->platform_data, true);
+		set_bit(HCD_FLAG_HW_ACCESSIBLE, &hcd->flags);
+	}
 	/* only the otg host can go here */
 	/* wait for all usb device on the hcd dettached */
-	while (roothub->children[0] != NULL)
-		msleep(1);
+	usb_lock_device(roothub);
+	if (roothub->children[0] != NULL) {
+		int old = hcd->self.is_b_host;
+		printk(KERN_DEBUG "will resume roothub and its children\n");
+		hcd->self.is_b_host = 0;
+		/* resume the roothub, so that it can test the children is disconnected */
+		if (roothub->state == USB_STATE_SUSPENDED)
+			usb_resume(&roothub->dev, PMSG_USER_SUSPEND);
+		/* we must do unlock here, the hubd thread will hold the same lock
+		 * here release the lock, so that the hubd thread can process the usb
+		 * disconnect event and set the children[0] be NULL, or there will be
+		 * a deadlock */
+		usb_unlock_device(roothub);
+		while (roothub->children[0] != NULL)
+			msleep(1);
+		usb_lock_device(roothub);
+		hcd->self.is_b_host = old;
+	}
+	usb_unlock_device(roothub);
+
 	if ((pdata->operating_mode != FSL_USB2_MPH_HOST) && (!(hcd->state & HC_STATE_SUSPENDED))) {
 		printk(KERN_DEBUG "will suspend roothub and its children\n");
 		usb_lock_device(roothub);
@@ -618,23 +641,7 @@ static int ehci_fsl_drv_suspend(struct platform_device *pdev,
 		usb_unlock_device(roothub);
 	}
 
-	if (!test_bit(HCD_FLAG_HW_ACCESSIBLE, &hcd->flags)) {
-		fsl_usb_clk_gate(hcd->self.controller->platform_data, true);
-		set_bit(HCD_FLAG_HW_ACCESSIBLE, &hcd->flags);
-	}
-
-#ifdef DEBUG
-	u32 mode = ehci_readl(ehci, hcd->regs + FSL_SOC_USB_USBMODE);
-	mode &= USBMODE_CM_MASK;
-	tmp = ehci_readl(ehci, hcd->regs + 0x140);	/* usbcmd */
-
-	printk(KERN_DEBUG "%s('%s'): suspend=%d already_suspended=%d "
-	       "mode=%d  usbcmd %08x\n", __func__, pdata->name,
-	       pdata->suspended, pdata->already_suspended, mode, tmp);
-#endif
-
 	pr_debug("%s: suspending...\n", __func__);
-
 
 	port_status = ehci_readl(ehci, &ehci->regs->port_status[0]);
 	/* save EHCI registers */
