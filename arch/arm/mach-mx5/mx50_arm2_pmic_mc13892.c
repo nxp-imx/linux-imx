@@ -177,6 +177,7 @@ static struct regulator_init_data sw4_init = {
 static struct regulator_init_data viohi_init = {
 	.constraints = {
 		.name = "VIOHI",
+		.valid_ops_mask = REGULATOR_CHANGE_STATUS,
 		.always_on = 1,
 		.boot_on = 1,
 	}
@@ -185,6 +186,7 @@ static struct regulator_init_data viohi_init = {
 static struct regulator_init_data vusb_init = {
 	.constraints = {
 		.name = "VUSB",
+		.valid_ops_mask = REGULATOR_CHANGE_STATUS,
 		.boot_on = 1,
 		.always_on = 1,
 	}
@@ -201,7 +203,8 @@ static struct regulator_init_data vdig_init = {
 		.name = "VDIG",
 		.min_uV = mV_to_uV(1200),
 		.max_uV = mV_to_uV(1200),
-		.valid_ops_mask = REGULATOR_CHANGE_VOLTAGE,
+		.valid_ops_mask = REGULATOR_CHANGE_VOLTAGE |
+			REGULATOR_CHANGE_STATUS,
 		.boot_on = 1,
 		.always_on = 1,
 	},
@@ -212,7 +215,8 @@ static struct regulator_init_data vpll_init = {
 		.name = "VPLL",
 		.min_uV = mV_to_uV(1050),
 		.max_uV = mV_to_uV(1800),
-		.valid_ops_mask = REGULATOR_CHANGE_VOLTAGE,
+		.valid_ops_mask = REGULATOR_CHANGE_VOLTAGE |
+			REGULATOR_CHANGE_STATUS,
 		.boot_on = 1,
 		.always_on = 1,
 	}
@@ -223,7 +227,8 @@ static struct regulator_init_data vusb2_init = {
 		.name = "VUSB2",
 		.min_uV = mV_to_uV(2400),
 		.max_uV = mV_to_uV(2775),
-		.valid_ops_mask = REGULATOR_CHANGE_VOLTAGE,
+		.valid_ops_mask = REGULATOR_CHANGE_VOLTAGE |
+			REGULATOR_CHANGE_STATUS,
 		.boot_on = 1,
 		.always_on = 1,
 	}
@@ -255,7 +260,8 @@ static struct regulator_init_data vsd_init = {
 		.name = "VSD",
 		.min_uV = mV_to_uV(1800),
 		.max_uV = mV_to_uV(3150),
-		.valid_ops_mask = REGULATOR_CHANGE_VOLTAGE,
+		.valid_ops_mask = REGULATOR_CHANGE_VOLTAGE |
+			REGULATOR_CHANGE_STATUS,
 		.always_on = 1,
 	}
 };
@@ -278,7 +284,8 @@ static struct regulator_init_data vgen1_init = {
 		.name = "VGEN1",
 		.min_uV = mV_to_uV(3000),
 		.max_uV = mV_to_uV(3000),
-		.valid_ops_mask = REGULATOR_CHANGE_VOLTAGE,
+		.valid_ops_mask = REGULATOR_CHANGE_VOLTAGE |
+			REGULATOR_CHANGE_STATUS,
 		.always_on = 1,
 	},
 	.num_consumer_supplies = ARRAY_SIZE(vgen1_consumers),
@@ -290,7 +297,8 @@ static struct regulator_init_data vgen2_init = {
 		.name = "VGEN2",
 		.min_uV = mV_to_uV(1200),
 		.max_uV = mV_to_uV(3150),
-		.valid_ops_mask = REGULATOR_CHANGE_VOLTAGE,
+		.valid_ops_mask = REGULATOR_CHANGE_VOLTAGE |
+			REGULATOR_CHANGE_STATUS,
 		.always_on = 1,
 	}
 };
@@ -300,7 +308,8 @@ static struct regulator_init_data vgen3_init = {
 		.name = "VGEN3",
 		.min_uV = mV_to_uV(1800),
 		.max_uV = mV_to_uV(2900),
-		.valid_ops_mask = REGULATOR_CHANGE_VOLTAGE,
+		.valid_ops_mask = REGULATOR_CHANGE_VOLTAGE |
+			REGULATOR_CHANGE_STATUS,
 		.always_on = 1,
 	}
 };
@@ -308,24 +317,28 @@ static struct regulator_init_data vgen3_init = {
 static struct regulator_init_data gpo1_init = {
 	.constraints = {
 		.name = "GPO1",
+		.valid_ops_mask = REGULATOR_CHANGE_STATUS,
 	}
 };
 
 static struct regulator_init_data gpo2_init = {
 	.constraints = {
 		.name = "GPO2",
+		.valid_ops_mask = REGULATOR_CHANGE_STATUS,
 	}
 };
 
 static struct regulator_init_data gpo3_init = {
 	.constraints = {
 		.name = "GPO3",
+		.valid_ops_mask = REGULATOR_CHANGE_STATUS,
 	}
 };
 
 static struct regulator_init_data gpo4_init = {
 	.constraints = {
 		.name = "GPO4",
+		.valid_ops_mask = REGULATOR_CHANGE_STATUS,
 	}
 };
 
