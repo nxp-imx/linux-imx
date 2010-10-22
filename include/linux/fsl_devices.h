@@ -326,6 +326,11 @@ struct mxc_epdc_fb_platform_data {
 	void (*disable_pins) (void);
 };
 
+struct mxc_pm_platform_data {
+	void (*suspend_enter) (void);
+	void (*suspend_exit) (void);
+};
+
 /*! Platform data for the IDE drive structure. */
 struct mxc_ide_platform_data {
 	char *power_drive;	/*!< The power pointer */
