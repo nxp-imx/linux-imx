@@ -951,6 +951,11 @@ struct platform_device busfreq_device = {
 	.id = 0,
 };
 
+struct platform_device pm_device = {
+	.name = "mx5_pm",
+	.id = 0,
+};
+
 static struct resource mxc_m4if_resources[] = {
 	{
 		.start = M4IF_BASE_ADDR,

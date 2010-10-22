@@ -21,6 +21,7 @@
 #include <linux/proc_fs.h>
 #include <linux/cpufreq.h>
 #include <linux/iram_alloc.h>
+#include <linux/fsl_devices.h>
 #include <asm/cacheflush.h>
 #include <asm/tlb.h>
 #include <asm/mach/map.h>
@@ -39,6 +40,7 @@
 
 static struct cpu_wp *cpu_wp_tbl;
 static struct clk *cpu_clk;
+static struct mxc_pm_platform_data *pm_data;
 
 #if defined(CONFIG_CPU_FREQ)
 static int org_freq;
@@ -94,23 +96,13 @@ static int mx5_suspend_enter(suspend_state_t state)
 			__raw_writel(0, MXC_SRPG_EMPGC1_SRPGCR);
 		} else {
 			/* Setup GPIO/IOMUX settings to lower power. */
-			struct pad_desc cspi_keeper1 =
-					MX50_PAD_I2C3_SDA__GPIO_6_23;
-			/* Disable the Pull/keeper */
-			cspi_keeper1.pad_ctrl = 0xE;
-			mxc_iomux_v3_setup_pad(&cspi_keeper1);
-
-			gpio_request(FEC_EN, "fec-en");
-			gpio_direction_input(FEC_EN);
-
+			if (pm_data->suspend_enter)
+				pm_data->suspend_enter();
 			/* Suspend now. */
 			suspend_in_iram(databahn_base);
 
-			/* Enable the Pull/keeper */
-			cspi_keeper1.pad_ctrl = 0x8e;
-			mxc_iomux_v3_setup_pad(&cspi_keeper1);
-
-			gpio_direction_output(FEC_EN, 0);
+			if (pm_data->suspend_exit)
+				pm_data->suspend_exit();
 		}
 	} else {
 			cpu_do_idle();
@@ -186,10 +178,11 @@ struct platform_suspend_ops mx5_suspend_ops = {
 	.end = mx5_suspend_end,
 };
 
-
 static int __devinit mx5_pm_probe(struct platform_device *pdev)
 {
 	pm_dev = &pdev->dev;
+	pm_data = pdev->dev.platform_data;
+
 	return 0;
 }
 

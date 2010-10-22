@@ -265,7 +265,6 @@ static struct pad_desc  mx50_rdp[] = {
 
 	/* SGTL500_OSC_EN */
 	MX50_PAD_UART1_CTS__GPIO_6_8,
-
 	/* Keypad */
 	MX50_PAD_KEY_COL0__KEY_COL0,
 	MX50_PAD_KEY_ROW0__KEY_ROW0,
@@ -283,15 +282,7 @@ static struct pad_desc  mx50_rdp[] = {
 	MX50_PAD_EIM_DA5__KEY_ROW6,
 	MX50_PAD_EIM_DA6__KEY_COL7,
 	MX50_PAD_EIM_DA7__KEY_ROW7,
-
 	/*EIM pads */
-	MX50_PAD_EIM_DA0__GPIO_1_0,
-	MX50_PAD_EIM_DA1__GPIO_1_1,
-	MX50_PAD_EIM_DA2__GPIO_1_2,
-	MX50_PAD_EIM_DA3__GPIO_1_3,
-	MX50_PAD_EIM_DA4__GPIO_1_4,
-	MX50_PAD_EIM_DA5__GPIO_1_5,
-	MX50_PAD_EIM_DA7__GPIO_1_7,
 	MX50_PAD_EIM_DA8__GPIO_1_8,
 	MX50_PAD_EIM_DA9__GPIO_1_9,
 	MX50_PAD_EIM_DA10__GPIO_1_10,
@@ -331,6 +322,26 @@ static struct pad_desc  mx50_gpmi_nand[] = {
 	MX50_PIN_SD3_CLK__NANDF_RDN,
 	MX50_PIN_SD3_CMD__NANDF_WRN,
 	MX50_PIN_SD3_WP__NANDF_RESETN,
+};
+
+static struct pad_desc  suspend_enter_pads[] = {
+	MX50_PAD_EIM_DA0__GPIO_1_0,
+	MX50_PAD_EIM_DA1__GPIO_1_1,
+	MX50_PAD_EIM_DA2__GPIO_1_2,
+	MX50_PAD_EIM_DA3__GPIO_1_3,
+	MX50_PAD_EIM_DA4__GPIO_1_4,
+	MX50_PAD_EIM_DA5__GPIO_1_5,
+	MX50_PAD_EIM_DA7__GPIO_1_7,
+};
+
+static struct pad_desc  suspend_exit_pads[] = {
+	MX50_PAD_EIM_DA0__KEY_COL4,
+	MX50_PAD_EIM_DA1__KEY_ROW4,
+	MX50_PAD_EIM_DA2__KEY_COL5,
+	MX50_PAD_EIM_DA3__KEY_ROW5,
+	MX50_PAD_EIM_DA4__KEY_COL6,
+	MX50_PAD_EIM_DA5__KEY_ROW6,
+	MX50_PAD_EIM_DA7__KEY_ROW7,
 };
 
 static struct mxc_dvfs_platform_data dvfs_core_data = {
@@ -1137,6 +1148,40 @@ static struct gpmi_nfc_platform_data  gpmi_nfc_platform_data = {
 	.partition_count         = 0,
 };
 
+static void mx50_suspend_enter()
+{
+	struct pad_desc iomux_setting =
+			MX50_PAD_I2C3_SDA__GPIO_6_23;
+
+	/* Disable the Pull/keeper */
+	iomux_setting.pad_ctrl = 0xE;
+	mxc_iomux_v3_setup_pad(&iomux_setting);
+
+	mxc_iomux_v3_setup_multiple_pads(
+			suspend_enter_pads,
+			ARRAY_SIZE(suspend_enter_pads));
+}
+
+static void mx50_suspend_exit()
+{
+	struct pad_desc iomux_setting =
+			MX50_PAD_I2C3_SDA__GPIO_6_23;
+
+	mxc_iomux_v3_setup_multiple_pads(
+			suspend_exit_pads,
+			ARRAY_SIZE(suspend_exit_pads));
+
+	/* Enable the Pull/keeper */
+	iomux_setting.pad_ctrl = 0x8e;
+	mxc_iomux_v3_setup_pad(&iomux_setting);
+}
+
+static struct mxc_pm_platform_data mx50_pm_data = {
+	.suspend_enter = mx50_suspend_enter,
+	.suspend_exit = mx50_suspend_exit,
+};
+
+
 /*!
  * Board specific fixup function. It is called by \b setup_arch() in
  * setup.c file very early on during kernel starts. It allows the user to
@@ -1256,6 +1301,7 @@ static void __init mxc_board_init(void)
 	mxc_register_device(&mxc_pxp_client_device, NULL);
 	mxc_register_device(&mxc_pxp_v4l2, NULL);
 	mxc_register_device(&busfreq_device, NULL);
+	mxc_register_device(&pm_device, &mx50_pm_data);
 	mxc_register_device(&mxc_dvfs_core_device, &dvfs_core_data);
 
 	if (enable_keypad)
