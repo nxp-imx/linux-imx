@@ -244,13 +244,10 @@ struct sdhci_host {
 #define SDHCI_WP_ENABLED	(1<<9)	/* Write protect */
 #define SDHCI_CD_TIMEOUT 	(1<<10)	/* cd timer is expired */
 
-	unsigned int lp_mode;	/* Low power mode */
-
 	unsigned int max_clk;	/* Max possible freq (MHz) */
 	unsigned int min_clk;	/* Min possible freq (MHz) */
 	unsigned int timeout_clk;	/* Timeout freq (KHz) */
 
-	unsigned int req_clock;	/* Current request clock (MHz) */
 	unsigned int clock;	/* Current clock (MHz) */
 	unsigned short power;	/* Current voltage */
 	struct regulator *regulator_mmc;	/*! Regulator */
