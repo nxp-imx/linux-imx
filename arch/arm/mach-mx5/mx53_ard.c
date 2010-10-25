@@ -92,6 +92,8 @@
 #define ARD_FPGA_INT_B			(3*32 + 5)	/* GPIO_4_5 */
 #define ARD_USBH2_PHYRST_B	(3*32 + 14)	/* GPIO_4_14 */
 #define ARD_CAN_STBY		(3*32 + 15)	/* GPIO_4_15 */
+#define ARD_PWM1_OFF		(3*32 + 29)	/* GPIO_4_29 */
+#define ARD_PWM2_OFF		(3*32 + 30)	/* GPIO_4_30 */
 
 #define ARD_USBOTG_PWR		(4*32 + 2)	/* GPIO_5_2 */
 #define ARD_USBOTG_OC			(4*32 + 4)	/* GPIO_5_4 */
@@ -465,8 +467,31 @@ void mx53_ard_set_num_cpu_wp(int num)
 	return;
 }
 
+static struct pad_desc mx53_ard_pwm_pads[] = {
+	MX53_PAD_DISP0_DAT8__PWM1,
+	MX53_PAD_DISP0_DAT9__PWM2,
+	MX53_PAD_DISP0_DAT8__GPIO_4_29,
+	MX53_PAD_DISP0_DAT9__GPIO_4_30,
+};
+
+static void enable_pwm1_pad(void)
+{
+	mxc_iomux_v3_setup_pad(&mx53_ard_pwm_pads[0]);
+}
+
+static void disable_pwm1_pad(void)
+{
+	mxc_iomux_v3_setup_pad(&mx53_ard_pwm_pads[2]);
+
+	gpio_request(ARD_PWM2_OFF, "pwm2-off");
+	gpio_direction_output(ARD_PWM2_OFF, 1);
+	gpio_free(ARD_PWM2_OFF);
+}
+
 static struct mxc_pwm_platform_data mxc_pwm1_platform_data = {
 	.pwmo_invert = 1,
+	.enable_pwm_pad = enable_pwm1_pad,
+	.disable_pwm_pad = disable_pwm1_pad,
 };
 
 static struct platform_pwm_backlight_data mxc_pwm1_backlight_data = {
@@ -476,8 +501,24 @@ static struct platform_pwm_backlight_data mxc_pwm1_backlight_data = {
 	.pwm_period_ns = 5000000,
 };
 
+static void enable_pwm2_pad(void)
+{
+	mxc_iomux_v3_setup_pad(&mx53_ard_pwm_pads[1]);
+}
+
+static void disable_pwm2_pad(void)
+{
+	mxc_iomux_v3_setup_pad(&mx53_ard_pwm_pads[3]);
+
+	gpio_request(ARD_PWM2_OFF, "pwm2-off");
+	gpio_direction_output(ARD_PWM2_OFF, 1);
+	gpio_free(ARD_PWM2_OFF);
+}
+
 static struct mxc_pwm_platform_data mxc_pwm2_platform_data = {
 	.pwmo_invert = 1,
+	.enable_pwm_pad = enable_pwm2_pad,
+	.disable_pwm_pad = disable_pwm2_pad,
 };
 
 static struct platform_pwm_backlight_data mxc_pwm2_backlight_data = {
