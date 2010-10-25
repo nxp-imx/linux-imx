@@ -1374,6 +1374,12 @@ static int mxc_v4l_open(struct file *file)
 		return -EBADF;
 	}
 
+	if (cam->sensor == NULL ||
+	    cam->sensor->type != v4l2_int_type_slave) {
+		pr_err("ERROR: v4l2 capture: slave not found!\n");
+		return -EAGAIN;
+	}
+
 	down(&cam->busy_lock);
 	err = 0;
 	if (signal_pending(current))
