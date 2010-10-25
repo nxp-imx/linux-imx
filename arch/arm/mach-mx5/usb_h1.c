@@ -24,6 +24,10 @@
 #include "usb.h"
 #include "iomux.h"
 #include "mx51_pins.h"
+static struct clk *usb_phy2_clk;
+static struct clk *usb_oh3_clk;
+static struct clk *usb_ahb_clk;
+extern int clk_get_usecount(struct clk *clk);
 /*
  * USB Host1 HS port
  */
@@ -67,7 +71,7 @@ static void gpio_usbh1_inactive(void)
 
 static void _wake_up_enable(struct fsl_usb2_platform_data *pdata, bool enable)
 {
-	printk(KERN_DEBUG "host1, %s, enable is %d\n", __func__, enable);
+	pr_debug("host1, %s, enable is %d\n", __func__, enable);
 	if (enable)
 		USBCTRL |= UCTRL_H1WIE;
 	else {
@@ -88,34 +92,17 @@ static void _phy_lowpower_suspend(bool enable)
 	}
 }
 
-static void usbotg_clock_gate(bool on)
+static void usbh1_clock_gate(bool on)
 {
-	struct clk *usb_clk;
-
+	pr_debug("%s: on is %d\n", __func__, on);
 	if (on) {
-		usb_clk = clk_get(NULL, "usb_ahb_clk");
-		clk_enable(usb_clk);
-		clk_put(usb_clk);
-
-		usb_clk = clk_get(NULL, "usboh3_clk");
-		clk_disable(usb_clk);
-		clk_put(usb_clk);
-
-		usb_clk = clk_get(NULL, "usb_phy2_clk");
-		clk_enable(usb_clk);
-		clk_put(usb_clk);
+		clk_enable(usb_ahb_clk);
+		clk_enable(usb_oh3_clk);
+		clk_enable(usb_phy2_clk);
 	} else {
-		usb_clk = clk_get(NULL, "usb_phy2_clk");
-		clk_disable(usb_clk);
-		clk_put(usb_clk);
-
-		usb_clk = clk_get(NULL, "usboh3_clk");
-		clk_disable(usb_clk);
-		clk_put(usb_clk);
-
-		usb_clk = clk_get(NULL, "usb_ahb_clk");
-		clk_disable(usb_clk);
-		clk_put(usb_clk);
+		clk_disable(usb_phy2_clk);
+		clk_disable(usb_oh3_clk);
+		clk_disable(usb_ahb_clk);
 	}
 }
 
@@ -124,23 +111,21 @@ static int fsl_usb_host_init_ext(struct platform_device *pdev)
 	int ret;
 	struct clk *usb_clk;
 
+	/* the usb_ahb_clk will be enabled in usb_otg_init */
+	usb_ahb_clk = clk_get(NULL, "usb_ahb_clk");
+
 	if (cpu_is_mx53()) {
 		usb_clk = clk_get(NULL, "usboh3_clk");
 		clk_enable(usb_clk);
-		clk_put(usb_clk);
+		usb_oh3_clk = usb_clk;
 
 		usb_clk = clk_get(NULL, "usb_phy2_clk");
 		clk_enable(usb_clk);
-		clk_put(usb_clk);
-
-		/*derive clock from oscillator */
-		usb_clk = clk_get(NULL, "usb_utmi_clk");
-		clk_disable(usb_clk);
-		clk_put(usb_clk);
+		usb_phy2_clk = usb_clk;
 	} else if (cpu_is_mx50()) {
 		usb_clk = clk_get(NULL, "usb_phy2_clk");
 		clk_enable(usb_clk);
-		clk_put(usb_clk);
+		usb_phy2_clk = usb_clk;
 	}
 
 	ret = fsl_usb_host_init(pdev);
@@ -165,23 +150,20 @@ static int fsl_usb_host_init_ext(struct platform_device *pdev)
 
 static void fsl_usb_host_uninit_ext(struct fsl_usb2_platform_data *pdata)
 {
-	struct clk *usb_clk;
-
 	if (cpu_is_mx53()) {
-		usb_clk = clk_get(NULL, "usboh3_clk");
-		clk_disable(usb_clk);
-		clk_put(usb_clk);
+		clk_disable(usb_oh3_clk);
+		clk_put(usb_oh3_clk);
 
-		usb_clk = clk_get(NULL, "usb_phy2_clk");
-		clk_disable(usb_clk);
-		clk_put(usb_clk);
+		clk_disable(usb_phy2_clk);
+		clk_put(usb_phy2_clk);
 	} else if (cpu_is_mx50()) {
-		usb_clk = clk_get(NULL, "usb_phy2_clk");
-		clk_disable(usb_clk);
-		clk_put(usb_clk);
+		clk_disable(usb_phy2_clk);
+		clk_put(usb_phy2_clk);
 	}
 
 	fsl_usb_host_uninit(pdata);
+	/* usb_ahb_clk will be disabled at usb_common.c */
+	clk_put(usb_ahb_clk);
 }
 
 static struct fsl_usb2_platform_data usbh1_config = {
@@ -192,7 +174,7 @@ static struct fsl_usb2_platform_data usbh1_config = {
 	.phy_mode = FSL_USB2_PHY_UTMI_WIDE,
 	.power_budget = 500,	/* 500 mA max power */
 	.wake_up_enable = _wake_up_enable,
-	.usb_clock_for_pm  = usbotg_clock_gate,
+	.usb_clock_for_pm  = usbh1_clock_gate,
 	.phy_lowpower_suspend = _phy_lowpower_suspend,
 	.transceiver = "utmi",
 };

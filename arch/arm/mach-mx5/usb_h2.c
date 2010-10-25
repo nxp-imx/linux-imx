@@ -98,11 +98,6 @@ static int fsl_usb_host_init_ext(struct platform_device *pdev)
 	clk_enable(usb_clk);
 	clk_put(usb_clk);
 
-	/*derive clock from oscillator */
-	usb_clk = clk_get(NULL, "usb_utmi_clk");
-	clk_disable(usb_clk);
-	clk_put(usb_clk);
-
 	/* on mx53, there is a hardware limitation that when switch the host2's clk mode
 	 * ,usb phy1 clk must be on, after finish switching this clk can be off */
 	if (cpu_is_mx53()) {

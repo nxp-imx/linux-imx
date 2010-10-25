@@ -24,6 +24,10 @@ static int usbotg_init_ext(struct platform_device *pdev);
 static void usbotg_uninit_ext(struct fsl_usb2_platform_data *pdata);
 static void usbotg_clock_gate(bool on);
 
+static struct clk *usb_phy1_clk;
+static struct clk *usb_oh3_clk;
+static struct clk *usb_ahb_clk;
+extern int clk_get_usecount(struct clk *clk);
 /*
  * platform data structs
  * 	- Which one to use is determined by CONFIG options in usb.h
@@ -46,35 +50,31 @@ static int usbotg_init_ext(struct platform_device *pdev)
 {
 	struct clk *usb_clk;
 
+	/* the usb_ahb_clk will be enabled in usb_otg_init */
+	usb_ahb_clk = clk_get(NULL, "usb_ahb_clk");
+
 	usb_clk = clk_get(NULL, "usboh3_clk");
 	clk_enable(usb_clk);
-	clk_put(usb_clk);
+	usb_oh3_clk = usb_clk;
 
-	usb_clk = clk_get(&pdev->dev, "usb_phy1_clk");
+	usb_clk = clk_get(NULL, "usb_phy1_clk");
 	clk_enable(usb_clk);
-	clk_put(usb_clk);
-
-	/*derive clock from oscillator */
-	usb_clk = clk_get(NULL, "usb_utmi_clk");
-	clk_disable(usb_clk);
-	clk_put(usb_clk);
+	usb_phy1_clk = usb_clk;
 
 	return usbotg_init(pdev);
 }
 
 static void usbotg_uninit_ext(struct fsl_usb2_platform_data *pdata)
 {
-	struct clk *usb_clk;
+	clk_disable(usb_phy1_clk);
+	clk_put(usb_phy1_clk);
 
-	usb_clk = clk_get(NULL, "usboh3_clk");
-	clk_disable(usb_clk);
-	clk_put(usb_clk);
+	clk_disable(usb_oh3_clk);
+	clk_put(usb_oh3_clk);
 
-	usb_clk = clk_get(&pdata->pdev->dev, "usb_phy1_clk");
-	clk_disable(usb_clk);
-	clk_put(usb_clk);
-
+	/* usb_ahb_clk will be disabled at usb_common.c */
 	usbotg_uninit(pdata);
+	clk_put(usb_ahb_clk);
 }
 
 /* Below two macros are used at otg mode to indicate usb mode*/
@@ -172,37 +172,15 @@ static void _device_phy_lowpower_suspend(bool enable)
 
 static void usbotg_clock_gate(bool on)
 {
-	struct clk *usb_clk;
-
+	pr_debug("%s: on is %d\n", __func__, on);
 	if (on) {
-		usb_clk = clk_get(NULL, "usb_ahb_clk");
-		clk_enable(usb_clk);
-		clk_put(usb_clk);
-
-		usb_clk = clk_get(NULL, "usboh3_clk");
-		clk_enable(usb_clk);
-		clk_put(usb_clk);
-
-		usb_clk = clk_get(NULL, "usb_phy1_clk");
-		clk_enable(usb_clk);
-		clk_put(usb_clk);
-
-		/*derive clock from oscillator */
-		usb_clk = clk_get(NULL, "usb_utmi_clk");
-		clk_disable(usb_clk);
-		clk_put(usb_clk);
+		clk_enable(usb_ahb_clk);
+		clk_enable(usb_oh3_clk);
+		clk_enable(usb_phy1_clk);
 	} else {
-		usb_clk = clk_get(NULL, "usb_phy1_clk");
-		clk_disable(usb_clk);
-		clk_put(usb_clk);
-
-		usb_clk = clk_get(NULL, "usboh3_clk");
-		clk_disable(usb_clk);
-		clk_put(usb_clk);
-
-		usb_clk = clk_get(NULL, "usb_ahb_clk");
-		clk_disable(usb_clk);
-		clk_put(usb_clk);
+		clk_disable(usb_phy1_clk);
+		clk_disable(usb_oh3_clk);
+		clk_disable(usb_ahb_clk);
 	}
 }
 
