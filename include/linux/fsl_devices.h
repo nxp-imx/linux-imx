@@ -481,6 +481,8 @@ struct mxc_esai_platform_data {
 
 struct mxc_pwm_platform_data {
 	int pwmo_invert;
+	void (*enable_pwm_pad) (void);
+	void (*disable_pwm_pad) (void);
 };
 
 /* The name that links the i.MX NAND Flash Controller driver to its devices. */
