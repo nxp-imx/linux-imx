@@ -58,6 +58,8 @@ struct pwm_device {
 	unsigned int	use_count;
 	unsigned int	pwm_id;
 	int		pwmo_invert;
+	void (*enable_pwm_pad)(void);
+	void (*disable_pwm_pad)(void);
 };
 
 int pwm_config(struct pwm_device *pwm, int duty_ns, int period_ns)
@@ -142,12 +144,19 @@ int pwm_enable(struct pwm_device *pwm)
 	reg = readl(pwm->mmio_base + MX3_PWMCR);
 	reg |= MX3_PWMCR_EN;
 	writel(reg, pwm->mmio_base + MX3_PWMCR);
+
+	if (pwm->enable_pwm_pad)
+		pwm->enable_pwm_pad();
+
 	return rc;
 }
 EXPORT_SYMBOL(pwm_enable);
 
 void pwm_disable(struct pwm_device *pwm)
 {
+	if (pwm->disable_pwm_pad)
+		pwm->disable_pwm_pad();
+
 	writel(0, pwm->mmio_base + MX3_PWMCR);
 
 	if (pwm->clk_enabled) {
@@ -227,8 +236,11 @@ static int __devinit mxc_pwm_probe(struct platform_device *pdev)
 	pwm->use_count = 0;
 	pwm->pwm_id = pdev->id;
 	pwm->pdev = pdev;
-	if (plat_data != NULL)
+	if (plat_data != NULL) {
 		pwm->pwmo_invert = plat_data->pwmo_invert;
+		pwm->enable_pwm_pad = plat_data->enable_pwm_pad;
+		pwm->disable_pwm_pad = plat_data->disable_pwm_pad;
+	}
 
 	r = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	if (r == NULL) {
