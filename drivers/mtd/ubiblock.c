@@ -31,7 +31,7 @@
 #include <linux/mtd/ubi.h>
 #include <linux/mutex.h>
 #include <linux/workqueue.h>
-
+#include "ubi/ubi.h"
 #include "mtdcore.h"
 
 static LIST_HEAD(ubiblk_devices);
@@ -467,22 +467,23 @@ static void *ubiblk_add_locked(int ubi_num, int ubi_vol_id)
 	}
 
 	ubi = ubi_open_volume(ubi_num, ubi_vol_id, UBI_READONLY);
-	if (IS_ERR(u->ubi)) {
+	if (IS_ERR(ubi)) {
 		pr_err("cannot open the volume\n");
-		u = (void *)u->ubi;
+		u = (void *)ubi;
 		goto out;
 	}
 
 	ubi_get_volume_info(ubi, &uvi);
-	ubi_close_volume(ubi);
 
 	pr_debug("adding volume of size %d (used_size %lld), LEB size %d\n",
 		uvi.size, uvi.used_bytes, uvi.usable_leb_size);
 
-	u->m.mtd = NULL;
+	u->m.mtd = ubi->vol->ubi->mtd;
 	u->m.devnum = -1;
 	u->m.size = uvi.used_bytes >> 9;
 	u->m.tr = &ubiblock_tr;
+
+	ubi_close_volume(ubi);
 
 	u->ubi_num = ubi_num;
 	u->ubi_vol = ubi_vol_id;
@@ -496,7 +497,7 @@ static void *ubiblk_add_locked(int ubi_num, int ubi_vol_id)
 
 	list_add_tail(&u->list, &ubiblk_devices);
 	add_mtd_blktrans_dev(&u->m);
-	ubiblk_sysfs(u->m.priv, true);
+	ubiblk_sysfs(u->m.disk, true);
 out:
 	return u;
 }
@@ -514,7 +515,7 @@ static int ubiblk_del_locked(struct ubiblk_dev *u)
 {
 	if (u->usecount != 0)
 		return -EBUSY;
-	ubiblk_sysfs(u->m.priv, false);
+	ubiblk_sysfs(u->m.disk, false);
 	del_mtd_blktrans_dev(&u->m);
 	list_del(&u->list);
 	BUG_ON(u->cache_data != NULL); /* who did not free the cache ?! */
