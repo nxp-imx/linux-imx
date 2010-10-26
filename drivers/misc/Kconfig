@@ -362,6 +362,10 @@ config ANDROID_PMEM
 	bool "Android pmem allocator"
 	default n
 
+config UID_STAT
+	bool "UID based statistics tracking exported to /proc/uid_stat"
+	default n
+
 source "drivers/misc/c2port/Kconfig"
 source "drivers/misc/eeprom/Kconfig"
 source "drivers/misc/cb710/Kconfig"

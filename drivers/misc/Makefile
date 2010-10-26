@@ -33,3 +33,4 @@ obj-y				+= eeprom/
 obj-y				+= cb710/
 obj-$(CONFIG_VMWARE_BALLOON)	+= vmware_balloon.o
 obj-$(CONFIG_ANDROID_PMEM)	+= pmem.o
+obj-$(CONFIG_UID_STAT)		+= uid_stat.o
