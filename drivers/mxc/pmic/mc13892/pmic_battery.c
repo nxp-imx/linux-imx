@@ -14,6 +14,7 @@
 /*
  * Includes
  */
+#include <linux/workqueue.h>
 #include <linux/platform_device.h>
 #include <linux/power_supply.h>
 #include <linux/delay.h>
@@ -103,6 +104,14 @@ enum chg_setting {
        CYCLING_DIS,
        VI_PROGRAM_EN
 };
+
+/* Flag used to indicate if Charger workaround is active. */
+int chg_wa_is_active;
+/* Flag used to indicate if Charger workaround timer is on. */
+int chg_wa_timer;
+int disable_chg_timer;
+struct workqueue_struct *chg_wq;
+struct delayed_work chg_work;
 
 static int pmic_set_chg_current(unsigned short curr)
 {
@@ -291,6 +300,7 @@ static int pmic_restart_charging(void)
 	pmic_set_chg_misc(VI_PROGRAM_EN, 1);
 	pmic_set_chg_current(0x8);
 	pmic_set_chg_misc(RESTART_CHG_STAT, 1);
+	pmic_set_chg_misc(PLIM_DIS, 3);
 	return 0;
 }
 
@@ -329,6 +339,88 @@ static enum power_supply_property mc13892_charger_props[] = {
 	POWER_SUPPLY_PROP_ONLINE,
 };
 
+static int pmic_get_chg_value(unsigned int *value)
+{
+	t_channel channel;
+	unsigned short result[8], max1 = 0, min1 = 0, max2 = 0, min2 = 0, i;
+	unsigned int average = 0, average1 = 0, average2 = 0;
+
+	channel = CHARGE_CURRENT;
+	CHECK_ERROR(pmic_adc_convert(channel, result));
+
+
+	for (i = 0; i < 8; i++) {
+		if ((result[i] & 0x200) != 0) {
+			result[i] = 0x400 - result[i];
+			average2 += result[i];
+			if ((max2 == 0) || (max2 < result[i]))
+				max2 = result[i];
+			if ((min2 == 0) || (min2 > result[i]))
+				min2 = result[i];
+		} else {
+			average1 += result[i];
+			if ((max1 == 0) || (max1 < result[i]))
+				max1 = result[i];
+			if ((min1 == 0) || (min1 > result[i]))
+				min1 = result[i];
+		}
+	}
+
+	if (max1 != 0) {
+		average1 -= max1;
+		if (max2 != 0)
+			average2 -= max2;
+		else
+			average1 -= min1;
+	} else
+		average2 -= max2 + min2;
+
+	if (average1 >= average2) {
+		average = (average1 - average2) / 6;
+		*value = average;
+	} else {
+		average = (average2 - average1) / 6;
+		*value = ((~average) + 1) & 0x3FF;
+	}
+
+	return 0;
+}
+
+static void chg_thread(struct work_struct *work)
+{
+	int ret;
+	unsigned int value = 0;
+	int dets;
+
+	if (disable_chg_timer) {
+		disable_chg_timer = 0;
+		pmic_set_chg_current(0x8);
+		queue_delayed_work(chg_wq, &chg_work, 100);
+		chg_wa_timer = 1;
+		return;
+	}
+
+	ret = pmic_read_reg(REG_INT_SENSE0, &value, BITFMASK(BIT_CHG_DETS));
+
+	if (ret == 0) {
+		dets = BITFEXT(value, BIT_CHG_DETS);
+		pr_debug("dets=%d\n", dets);
+
+		if (dets == 1) {
+			pmic_get_chg_value(&value);
+			pr_debug("average value=%d\n", value);
+			if ((value <= 3) | ((value & 0x200) != 0)) {
+				pr_debug("%s: Disable the charger\n", __func__);
+				pmic_set_chg_current(0);
+				disable_chg_timer = 1;
+			}
+
+			queue_delayed_work(chg_wq, &chg_work, 100);
+			chg_wa_timer = 1;
+		}
+	}
+}
+
 static int mc13892_charger_update_status(struct mc13892_dev_info *di)
 {
 	int ret;
@@ -351,9 +443,14 @@ static int mc13892_charger_update_status(struct mc13892_dev_info *di)
 			if (online) {
 				pmic_start_coulomb_counter();
 				pmic_restart_charging();
-			} else
+				queue_delayed_work(chg_wq, &chg_work, 100);
+				chg_wa_timer = 1;
+			} else {
+				cancel_delayed_work(&chg_work);
+				chg_wa_timer = 0;
 				pmic_stop_coulomb_counter();
 		}
+	}
 	}
 
 	return ret;
@@ -504,6 +601,46 @@ static int mc13892_battery_get_property(struct power_supply *psy,
 	return 0;
 }
 
+static ssize_t chg_wa_enable_show(struct device *dev,
+				struct device_attribute *attr, char *buf)
+{
+	if (chg_wa_is_active & chg_wa_timer)
+		return sprintf(buf, "Charger LED workaround timer is on\n");
+	else
+		return sprintf(buf, "Charger LED workaround timer is off\n");
+}
+
+static ssize_t chg_wa_enable_store(struct device *dev,
+				 struct device_attribute *attr,
+				 const char *buf, size_t size)
+{
+	if (strstr(buf, "1") != NULL) {
+		if (chg_wa_is_active) {
+			if (chg_wa_timer)
+				printk(KERN_INFO "Charger timer is already on\n");
+			else {
+				queue_delayed_work(chg_wq, &chg_work, 100);
+				chg_wa_timer = 1;
+				printk(KERN_INFO "Turned on the timer\n");
+			}
+		}
+	} else if (strstr(buf, "0") != NULL) {
+		if (chg_wa_is_active) {
+			if (chg_wa_timer) {
+				cancel_delayed_work(&chg_work);
+				chg_wa_timer = 0;
+				printk(KERN_INFO "Turned off charger timer\n");
+			 } else {
+				printk(KERN_INFO "The Charger workaround timer is off\n");
+			}
+		}
+	}
+
+	return size;
+}
+
+static DEVICE_ATTR(enable, 0644, chg_wa_enable_show, chg_wa_enable_store);
+
 static int pmic_battery_remove(struct platform_device *pdev)
 {
 	pmic_event_callback_t bat_event_callback;
@@ -515,7 +652,13 @@ static int pmic_battery_remove(struct platform_device *pdev)
 
 	cancel_rearming_delayed_workqueue(di->monitor_wqueue,
 					  &di->monitor_work);
+	cancel_rearming_delayed_workqueue(chg_wq,
+					  &chg_work);
 	destroy_workqueue(di->monitor_wqueue);
+	destroy_workqueue(chg_wq);
+	chg_wa_timer = 0;
+	chg_wa_is_active = 0;
+	disable_chg_timer = 0;
 	power_supply_unregister(&di->bat);
 	power_supply_unregister(&di->charger);
 
@@ -560,6 +703,14 @@ static int pmic_battery_probe(struct platform_device *pdev)
 		dev_err(di->dev, "failed to register charger\n");
 		goto charger_failed;
 	}
+
+	INIT_DELAYED_WORK(&chg_work, chg_thread);
+	chg_wq = create_singlethread_workqueue("mxc_chg");
+	if (!chg_wq) {
+		retval = -ESRCH;
+		goto workqueue_failed;
+	}
+
 	INIT_DELAYED_WORK(&di->monitor_work, mc13892_battery_work);
 	di->monitor_wqueue = create_singlethread_workqueue(dev_name(&pdev->dev));
 	if (!di->monitor_wqueue) {
@@ -587,6 +738,16 @@ static int pmic_battery_probe(struct platform_device *pdev)
 	bat_event_callback.func = charger_online_event_callback;
 	bat_event_callback.param = (void *) di;
 	pmic_event_subscribe(EVENT_CHGDETI, bat_event_callback);
+	retval = sysfs_create_file(&pdev->dev.kobj, &dev_attr_enable.attr);
+
+	if (retval) {
+		printk(KERN_ERR
+		       "Battery: Unable to register sysdev entry for Battery");
+		goto workqueue_failed;
+	}
+	chg_wa_is_active = 1;
+	chg_wa_timer = 0;
+	disable_chg_timer = 0;
 
 	pmic_stop_coulomb_counter();
 	pmic_calibrate_coulomb_counter();

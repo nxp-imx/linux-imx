@@ -43,6 +43,7 @@
 /*
  * ADC 0
  */
+#define ADC_CHRGICON		0x000002
 #define ADC_WAIT_TSI_0		0x001400
 
 #define ADC_INC                 0x030000
@@ -55,7 +56,9 @@
 
 #define ADC_EN                  0x000001
 #define ADC_SGL_CH              0x000002
+#define ADC_ADCCAL		0x000004
 #define ADC_ADSEL               0x000008
+#define ADC_TRIGMASK		0x000010
 #define ADC_CH_0_POS            5
 #define ADC_CH_0_MASK           0x0000E0
 #define ADC_CH_1_POS            8
@@ -400,8 +403,7 @@ int mc13892_adc_init_param(t_adc_param *adc_param)
 PMIC_STATUS mc13892_adc_convert(t_adc_param *adc_param)
 {
 	bool use_bis = false;
-	unsigned int adc_0_reg = 0, adc_1_reg = 0, reg_1 = 0, result_reg =
-	    0, i = 0;
+	unsigned int adc_0_reg = 0, adc_1_reg = 0, result_reg = 0, i = 0;
 	unsigned int result = 0, temp = 0;
 	pmic_version_t mc13892_ver;
 	pr_debug("mc13892 ADC - mc13892_adc_convert ....\n");
@@ -465,11 +467,15 @@ PMIC_STATUS mc13892_adc_convert(t_adc_param *adc_param)
 	} else {
 		adc_0_reg = 0x002400 | (ADC_BIS * use_bis) | ADC_INC;
 	}
-	pr_debug("Write Reg %i = %x\n", REG_ADC0, adc_0_reg);
+
+	if (adc_param->channel_0 == channel_num[CHARGE_CURRENT])
+		adc_0_reg |= ADC_CHRGICON;
+
 	/*Change has been made here */
 	CHECK_ERROR(pmic_write_reg(REG_ADC0, adc_0_reg,
 				   ADC_INC | ADC_BIS | ADC_CHRGRAW_D5 |
 				   0xfff00ff));
+
 	/* CONFIGURE ADC REG 1 */
 	if (adc_param->read_ts == false) {
 		adc_1_reg |= ADC_NO_ADTRIG;
@@ -485,7 +491,47 @@ PMIC_STATUS mc13892_adc_convert(t_adc_param *adc_param)
 		/* set ATOx = 5, it could be better for ts ADC */
 		adc_1_reg |= 0x002800;
 	}
-	reg_1 = adc_1_reg;
+
+	if (adc_param->channel_0 == channel_num[CHARGE_CURRENT]) {
+		adc_param->channel_1 = channel_num[CHARGE_CURRENT];
+		adc_1_reg &= ~(ADC_CH_0_MASK | ADC_CH_1_MASK | ADC_NO_ADTRIG |
+			       ADC_TRIGMASK | ADC_EN | ADC_SGL_CH | ADC_ADCCAL);
+		adc_1_reg |= ((adc_param->channel_0 << ADC_CH_0_POS) |
+			      (adc_param->channel_1 << ADC_CH_1_POS));
+		adc_1_reg |= (ADC_EN | ADC_SGL_CH | ADC_ADCCAL);
+
+		if (use_bis == 0) {
+			CHECK_ERROR(pmic_write_reg(REG_ADC1, adc_1_reg,
+						   0xFFFFFF));
+		} else {
+			CHECK_ERROR(pmic_write_reg(REG_ADC1, adc_1_reg,
+						   0xFFFFFF));
+			temp = 0x800000;
+			CHECK_ERROR(pmic_write_reg(REG_ADC3, temp, 0xFFFFFF));
+		}
+
+		adc_1_reg &= ~(ADC_NO_ADTRIG | ASC_ADC | ADC_ADCCAL);
+		adc_1_reg |= (ADC_NO_ADTRIG | ASC_ADC);
+		if (use_bis == 0) {
+			data_ready_adc_1 = true;
+			INIT_COMPLETION(adcdone_it);
+			CHECK_ERROR(pmic_write_reg(REG_ADC1, adc_1_reg,
+						   0xFFFFFF));
+			pr_debug("wait adc done\n");
+			wait_for_completion_interruptible(&adcdone_it);
+			data_ready_adc_1 = false;
+		} else {
+			data_ready_adc_2 = true;
+			INIT_COMPLETION(adcbisdone_it);
+			CHECK_ERROR(pmic_write_reg(REG_ADC1, adc_1_reg,
+						   0xFFFFFF));
+			temp = 0x800000;
+			CHECK_ERROR(pmic_write_reg(REG_ADC3, temp, 0xFFFFFF));
+			pr_debug("wait adc done bis\n");
+			wait_for_completion_interruptible(&adcbisdone_it);
+			data_ready_adc_2 = false;
+		}
+	} else {
 	if (use_bis == 0) {
 		data_ready_adc_1 = false;
 		adc_1_reg |= ASC_ADC;
@@ -493,11 +539,13 @@ PMIC_STATUS mc13892_adc_convert(t_adc_param *adc_param)
 		pr_debug("Write Reg %i = %x\n", REG_ADC1, adc_1_reg);
 		INIT_COMPLETION(adcdone_it);
 		CHECK_ERROR(pmic_write_reg(REG_ADC1, adc_1_reg,
-					   ADC_SGL_CH | ADC_ATO | ADC_ADSEL
-					   | ADC_CH_0_MASK | ADC_CH_1_MASK |
+						   ADC_SGL_CH | ADC_ATO |
+						   ADC_ADSEL | ADC_CH_0_MASK |
+						   ADC_CH_1_MASK |
 					   ADC_NO_ADTRIG | ADC_EN |
-					   ADC_DELAY_MASK | ASC_ADC | ADC_BIS));
-		pr_debug("wait adc done \n");
+						   ADC_DELAY_MASK | ASC_ADC |
+						   ADC_BIS));
+		pr_debug("wait adc done\n");
 		wait_for_completion_interruptible(&adcdone_it);
 		data_ready_adc_1 = false;
 	} else {
@@ -505,13 +553,17 @@ PMIC_STATUS mc13892_adc_convert(t_adc_param *adc_param)
 		adc_1_reg |= ASC_ADC;
 		data_ready_adc_2 = true;
 		INIT_COMPLETION(adcbisdone_it);
-		CHECK_ERROR(pmic_write_reg(REG_ADC1, adc_1_reg, 0xFFFFFF));
+			CHECK_ERROR(pmic_write_reg(REG_ADC1, adc_1_reg,
+						   0xFFFFFF));
+
 		temp = 0x800000;
 		CHECK_ERROR(pmic_write_reg(REG_ADC3, temp, 0xFFFFFF));
 		pr_debug("wait adc done bis\n");
 		wait_for_completion_interruptible(&adcbisdone_it);
 		data_ready_adc_2 = false;
 	}
+	}
+
 	/* read result and store in adc_param */
 	result = 0;
 	if (use_bis == 0)
@@ -575,6 +627,7 @@ PMIC_STATUS pmic_adc_convert(t_channel channel, unsigned short *result)
 {
 	t_adc_param adc_param;
 	PMIC_STATUS ret;
+	unsigned int i;
 
 	if (suspend_flag == 1)
 		return -EBUSY;
@@ -597,7 +650,9 @@ PMIC_STATUS pmic_adc_convert(t_channel channel, unsigned short *result)
 		return PMIC_PARAMETER_ERROR;
 
 	ret = mc13892_adc_convert(&adc_param);
-	*result = adc_param.value[0];
+	for (i = 0; i <= 7; i++)
+		result[i] = adc_param.value[i];
+
 	return ret;
 }
 
@@ -941,7 +996,7 @@ static int pmic_adc_module_probe(struct platform_device *pdev)
 	pr_debug("PMIC ADC successfully probed\n");
 	return 0;
 
-      rm_dev_file:
+rm_dev_file:
 	device_remove_file(&(pdev->dev), &dev_attr_adc);
 	return ret;
 }
