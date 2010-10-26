@@ -540,7 +540,7 @@ static int vpu_map_mem(struct file *fp, struct vm_area_struct *vm)
 		 request_size);
 
 	vm->vm_flags |= VM_IO | VM_RESERVED;
-	vm->vm_page_prot = pgprot_noncached(vm->vm_page_prot);
+	vm->vm_page_prot = pgprot_writecombine(vm->vm_page_prot);
 
 	return remap_pfn_range(vm, vm->vm_start, vm->vm_pgoff,
 			       request_size, vm->vm_page_prot) ? -EAGAIN : 0;
