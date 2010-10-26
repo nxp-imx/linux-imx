@@ -45,7 +45,7 @@
  *
  */
 
-struct pad_desc {
+typedef struct deprecated_pad_desc {
 	unsigned mux_ctrl_ofs:12; /* IOMUXC_SW_MUX_CTL_PAD offset */
 	unsigned mux_mode:8;
 	unsigned pad_ctrl_ofs:12; /* IOMUXC_SW_PAD_CTRL offset */
@@ -53,7 +53,37 @@ struct pad_desc {
 	unsigned pad_ctrl:17;
 	unsigned select_input_ofs:12; /* IOMUXC_SELECT_INPUT offset */
 	unsigned select_input:3;
-};
+} iomux_v3_cfg_t;
+
+static inline unsigned int MUX_CTRL_OFS(iomux_v3_cfg_t *pad)
+{
+	return pad->mux_ctrl_ofs;
+}
+
+static inline unsigned int MUX_MODE(iomux_v3_cfg_t *pad)
+{
+	return pad->mux_mode;
+}
+
+static inline unsigned int MUX_SELECT_INPUT_OFS(iomux_v3_cfg_t *pad)
+{
+	return pad->select_input_ofs;
+}
+
+static inline unsigned int MUX_SELECT_INPUT(iomux_v3_cfg_t *pad)
+{
+	return pad->select_input;
+}
+
+static inline unsigned int MUX_PAD_CTRL_OFS(iomux_v3_cfg_t *pad)
+{
+	return pad->pad_ctrl_ofs;
+}
+
+static inline unsigned int MUX_PAD_CTRL(iomux_v3_cfg_t *pad)
+{
+	return pad->pad_ctrl;
+}
 
 struct pad_cfg {
 	struct pad_desc pd;
@@ -100,18 +130,15 @@ struct pad_cfg {
 /*
  * read/write a single pad in the iomuxer
  */
-int mxc_iomux_v3_get_pad(struct pad_desc *pad);
-int mxc_iomux_v3_setup_pad(struct pad_desc *pad);
-int mxc_iomux_v3_setup_pad_ext(struct pad_cfg *pad);
+int mxc_iomux_v3_get_pad(iomux_v3_cfg_t *pad);
+int mxc_iomux_v3_setup_pad(iomux_v3_cfg_t *pad);
 
 /*
  * read/write mutliple pads
  * convenient way to call the above function with tables
  */
-int mxc_iomux_v3_get_multiple_pads(struct pad_desc *pad_list, unsigned count);
-int mxc_iomux_v3_setup_multiple_pads(struct pad_desc *pad_list, unsigned count);
-int mxc_iomux_v3_setup_multiple_pads_ext(struct pad_cfg *pad_list,
-								unsigned count);
+int mxc_iomux_v3_get_multiple_pads(iomux_v3_cfg_t *pad_list, unsigned count);
+int mxc_iomux_v3_setup_multiple_pads(iomux_v3_cfg_t *pad_list, unsigned count);
 
 /*
  * Initialise the iomux controller

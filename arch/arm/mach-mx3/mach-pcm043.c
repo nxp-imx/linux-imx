@@ -153,7 +153,7 @@ static struct platform_device *devices[] __initdata = {
 	&imx_wdt_device0,
 };
 
-static struct pad_desc pcm043_pads[] = {
+static iomux_v3_cfg_t pcm043_pads[] = {
 	/* UART1 */
 	MX35_PAD_CTS1__UART1_CTS,
 	MX35_PAD_RTS1__UART1_RTS,
@@ -230,8 +230,8 @@ static struct pad_desc pcm043_pads[] = {
 
 static void pcm043_ac97_warm_reset(struct snd_ac97 *ac97)
 {
-	struct pad_desc txfs_gpio = MX35_PAD_STXFS4__GPIO2_31;
-	struct pad_desc txfs = MX35_PAD_STXFS4__AUDMUX_AUD4_TXFS;
+	iomux_v3_cfg_t txfs_gpio = MX35_PAD_STXFS4__GPIO2_31;
+	iomux_v3_cfg_t txfs = MX35_PAD_STXFS4__AUDMUX_AUD4_TXFS;
 	int ret;
 
 	ret = gpio_request(AC97_GPIO_TXFS, "SSI");
@@ -253,11 +253,11 @@ static void pcm043_ac97_warm_reset(struct snd_ac97 *ac97)
 
 static void pcm043_ac97_cold_reset(struct snd_ac97 *ac97)
 {
-	struct pad_desc txfs_gpio = MX35_PAD_STXFS4__GPIO2_31;
-	struct pad_desc txfs = MX35_PAD_STXFS4__AUDMUX_AUD4_TXFS;
-	struct pad_desc txd_gpio = MX35_PAD_STXD4__GPIO2_28;
-	struct pad_desc txd = MX35_PAD_STXD4__AUDMUX_AUD4_TXD;
-	struct pad_desc reset_gpio = MX35_PAD_SD2_CMD__GPIO2_0;
+	iomux_v3_cfg_t txfs_gpio = MX35_PAD_STXFS4__GPIO2_31;
+	iomux_v3_cfg_t txfs = MX35_PAD_STXFS4__AUDMUX_AUD4_TXFS;
+	iomux_v3_cfg_t txd_gpio = MX35_PAD_STXD4__GPIO2_28;
+	iomux_v3_cfg_t txd = MX35_PAD_STXD4__AUDMUX_AUD4_TXD;
+	iomux_v3_cfg_t reset_gpio = MX35_PAD_SD2_CMD__GPIO2_0;
 	int ret;
 
 	ret = gpio_request(AC97_GPIO_TXFS, "SSI");
