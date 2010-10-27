@@ -120,7 +120,12 @@ obj-$(CONFIG_PCMCIA_PCNET) += 8390.o
 obj-$(CONFIG_HP100) += hp100.o
 obj-$(CONFIG_SMC9194) += smc9194.o
 obj-$(CONFIG_FEC) += fec.o
-obj-$(CONFIG_FEC_1588) += imx_ptp.o
+ifeq ($(CONFIG_ARCH_MX53),y)
+	obj-$(CONFIG_FEC_1588) += imx_ptp.o
+endif
+ifeq ($(CONFIG_ARCH_MX28),y)
+	obj-$(CONFIG_FEC_1588) += fec_1588.o
+endif
 obj-$(CONFIG_FEC_L2SWITCH) += fec_switch.o
 obj-$(CONFIG_FEC_MPC52xx) += fec_mpc52xx.o
 ifeq ($(CONFIG_FEC_MPC52xx_MDIO),y)

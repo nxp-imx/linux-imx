@@ -115,8 +115,15 @@
 #define FEC_ENET_RXB	((uint)0x01000000)	/* A buffer was received */
 #define FEC_ENET_MII	((uint)0x00800000)	/* MII interrupt */
 #define FEC_ENET_EBERR	((uint)0x00400000)	/* SDMA bus error */
+#define FEC_ENET_TS_AVAIL	((uint)0x00010000)
+#define FEC_ENET_TS_TIMER	((uint)0x00008000)
 
+#if defined(CONFIG_FEC_1588) && defined(CONFIG_ARCH_MX28)
+#define FEC_DEFAULT_IMASK (FEC_ENET_TXF | FEC_ENET_RXF | FEC_ENET_MII | \
+				FEC_ENET_TS_AVAIL | FEC_ENET_TS_TIMER)
+#else
 #define FEC_DEFAULT_IMASK (FEC_ENET_TXF | FEC_ENET_RXF | FEC_ENET_MII)
+#endif
 
 /* The FEC stores dest/src/type, data, and checksum for receive packets.
  */
@@ -241,6 +248,7 @@ fec_enet_start_xmit(struct sk_buff *skb, struct net_device *dev)
 	struct bufdesc *bdp;
 	void *bufaddr;
 	unsigned short	status;
+	unsigned long	estatus;
 	unsigned long flags;
 
 	if (!fep->link) {
@@ -283,8 +291,15 @@ fec_enet_start_xmit(struct sk_buff *skb, struct net_device *dev)
 	}
 
 	if (fep->ptimer_present) {
-		if (fec_ptp_do_txstamp(skb))
+		if (fec_ptp_do_txstamp(skb)) {
+			estatus = BD_ENET_TX_TS;
 			status |= BD_ENET_TX_PTP;
+		} else
+			estatus = 0;
+#ifdef CONFIG_ENHANCED_BD
+		bdp->cbd_esc = (estatus | BD_ENET_TX_INT);
+		bdp->cbd_bdu = 0;
+#endif
 	}
 
 #ifdef CONFIG_ARCH_MXS
@@ -346,6 +361,7 @@ fec_enet_interrupt(int irq, void * dev_id)
 {
 	struct	net_device *dev = dev_id;
 	struct fec_enet_private *fep = netdev_priv(dev);
+	struct fec_ptp_private *fpp = fep->ptp_priv;
 	uint	int_events;
 	irqreturn_t ret = IRQ_NONE;
 
@@ -365,6 +381,17 @@ fec_enet_interrupt(int irq, void * dev_id)
 		if (int_events & FEC_ENET_TXF) {
 			ret = IRQ_HANDLED;
 			fec_enet_tx(dev);
+		}
+
+		if (int_events & FEC_ENET_TS_AVAIL) {
+			ret = IRQ_HANDLED;
+			fec_ptp_store_txstamp(fep->ptp_priv);
+		}
+
+		if (int_events & FEC_ENET_TS_TIMER) {
+			ret = IRQ_HANDLED;
+			if (fep->ptimer_present && fpp)
+				fpp->prtc++;
 		}
 
 		if (int_events & FEC_ENET_MII) {
@@ -555,6 +582,11 @@ rx_processing_done:
 		/* Mark the buffer empty */
 		status |= BD_ENET_RX_EMPTY;
 		bdp->cbd_sc = status;
+#ifdef CONFIG_ENHANCED_BD
+		bdp->cbd_esc = BD_ENET_RX_INT;
+		bdp->cbd_prot = 0;
+		bdp->cbd_bdu = 0;
+#endif
 
 		/* Update BD pointer to next entry */
 		if (status & BD_ENET_RX_WRAP)
@@ -928,6 +960,9 @@ static int fec_enet_alloc_buffers(struct net_device *dev)
 		bdp->cbd_bufaddr = dma_map_single(&dev->dev, skb->data,
 				FEC_ENET_RX_FRSIZE, DMA_FROM_DEVICE);
 		bdp->cbd_sc = BD_ENET_RX_EMPTY;
+#ifdef CONFIG_ENHANCED_BD
+		bdp->cbd_esc = BD_ENET_RX_INT;
+#endif
 		bdp++;
 	}
 
@@ -941,6 +976,9 @@ static int fec_enet_alloc_buffers(struct net_device *dev)
 
 		bdp->cbd_sc = 0;
 		bdp->cbd_bufaddr = 0;
+#ifdef CONFIG_ENHANCED_BD
+		bdp->cbd_esc = BD_ENET_TX_INT;
+#endif
 		bdp++;
 	}
 
@@ -1298,9 +1336,17 @@ fec_restart(struct net_device *dev, int duplex)
 	if (fep->ptimer_present) {
 		/* Set Timer count */
 		ret = fec_ptp_start(fep->ptp_priv);
-		if (ret)
+		if (ret) {
 			fep->ptimer_present = 0;
-	}
+			reg = 0x0;
+		} else
+#ifdef CONFIG_ARCH_MX28
+			reg = 0x00000010;
+#else
+			reg = 0x0;
+#endif
+	} else
+		reg = 0x0;
 
 #ifdef FEC_MIIGSK_ENR
 	if (fep->phy_interface == PHY_INTERFACE_MODE_RMII) {
@@ -1321,7 +1367,8 @@ fec_restart(struct net_device *dev, int duplex)
 #endif
 
 	/* And last, enable the transmit and receive processing */
-	writel(2, fep->hwp + FEC_ECNTRL);
+	reg |= 0x00000002;
+	writel(reg, fep->hwp + FEC_ECNTRL);
 	writel(0, fep->hwp + FEC_R_DES_ACTIVE);
 
 	/* Enable interrupts we wish to service */
