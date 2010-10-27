@@ -112,6 +112,7 @@
 #define CSPI_CS1	(3*32 + 13)	/*GPIO_4_13 */
 #define CSPI_CS2	(3*32 + 11) /*GPIO_4_11*/
 #define SGTL_OSCEN (5*32 + 8) /*GPIO_6_8*/
+#define SGTL_AMP_SHDN		(5*32 + 15) /*GPIO_6_15*/
 #define FEC_EN (5*32 + 23) /*GPIO_6_23*/
 #define FEC_RESET_B (3*32 + 12) /*GPIO_4_12*/
 #define USB_OTG_PWR	(5*32 + 25) /*GPIO_6_25*/
@@ -266,6 +267,10 @@ static struct pad_desc  mx50_rdp[] = {
 
 	/* SGTL500_OSC_EN */
 	MX50_PAD_UART1_CTS__GPIO_6_8,
+
+	/* SGTL_AMP_SHDN */
+	MX50_PAD_UART3_RXD__GPIO_6_15,
+
 	/* Keypad */
 	MX50_PAD_KEY_COL0__KEY_COL0,
 	MX50_PAD_KEY_ROW0__KEY_ROW0,
@@ -999,7 +1004,7 @@ static struct mxc_mmc_platform_data mmc3_data = {
 
 static int mxc_sgtl5000_amp_enable(int enable)
 {
-/* TO DO */
+	gpio_set_value(SGTL_AMP_SHDN, !enable);
 	return 0;
 }
 
@@ -1278,6 +1283,9 @@ static void __init mx50_rdp_io_init(void)
 	/* SGTL5000_OSC_EN */
 	gpio_request(SGTL_OSCEN, "sgtl5000-osc-en");
 	gpio_direction_output(SGTL_OSCEN, 1);
+
+	gpio_request(SGTL_AMP_SHDN, "sgtl5000-amp-shdn");
+	gpio_direction_output(SGTL_AMP_SHDN, 1);
 
 	gpio_request(FEC_EN, "fec-en");
 	gpio_direction_output(FEC_EN, 0);
