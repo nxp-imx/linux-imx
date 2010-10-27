@@ -498,6 +498,12 @@ static int verify_preview(cam_data *cam, struct v4l2_window *win)
 		height = &win->w.height;
 	}
 
+	if (*width == 0 || *height == 0) {
+		pr_err("ERROR: v4l2 capture: width or height"
+			" too small.\n");
+		return -EINVAL;
+	}
+
 	if ((cam->crop_bounds.width / *width > 8) ||
 	    ((cam->crop_bounds.width / *width == 8) &&
 	     (cam->crop_bounds.width % *width))) {
@@ -726,6 +732,12 @@ static int mxc_v4l2_s_fmt(cam_data *cam, struct v4l2_format *f)
 		/* stride line limitation */
 		*width -= *width % 8;
 		*height -= *height % 8;
+
+		if (*width == 0 || *height == 0) {
+			pr_err("ERROR: v4l2 capture: width or height"
+				" too small.\n");
+			return -EINVAL;
+		}
 
 		if ((cam->crop_current.width / *width > 8) ||
 		    ((cam->crop_current.width / *width == 8) &&
