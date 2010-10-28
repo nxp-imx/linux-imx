@@ -968,4 +968,12 @@ config USB_G_WEBCAM
 
 endchoice
 
+config USB_ANDROID
+	boolean "Android Gadget"
+	default n
+	help
+	  The Android gadget driver supports multiple USB functions.
+	  The functions can be configured via a board file and may be
+	  enabled and disabled dynamically.
+
 endif # USB_GADGET
