@@ -33,7 +33,7 @@ static int __init system_rev_setup(char *p)
 	system_rev = simple_strtoul(p, NULL, 16);
 	return 0;
 }
-early_param("system_rev=", system_rev_setup);
+early_param("system_rev", system_rev_setup);
 
 int mxc_jtag_enabled;		/* OFF: 0 (default), ON: 1 */
 int uart_at_24; 			/* OFF: 0 (default); ON: 1 */
@@ -56,7 +56,7 @@ static int __init jtag_wfi_setup(char *p)
 	}
 	return 0;
 }
-early_param("jtag=", jtag_wfi_setup);
+early_param("jtag", jtag_wfi_setup);
 
 static int __init uart_parent_setup(char *p)
 {
@@ -70,7 +70,7 @@ static int __init uart_parent_setup(char *p)
 	}
 	return 0;
 }
-early_param("debug_uart=", uart_parent_setup);
+early_param("debug_uart", uart_parent_setup);
 
 void __init mxc_cpu_common_init(void)
 {
