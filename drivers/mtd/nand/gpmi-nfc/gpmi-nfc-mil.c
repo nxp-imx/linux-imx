@@ -374,7 +374,6 @@ static void mil_select_chip(struct mtd_info *mtd, int chip)
 	struct gpmi_nfc_data  *this  = nand->priv;
 	struct mil            *mil   = &this->mil;
 	struct nfc_hal        *nfc   =  this->nfc;
-	struct clk            *clock =  this->resources.clock;
 
 	DEBUG(MTD_DEBUG_LEVEL2, "[gpmi_nfc select_chip] chip: %d\n", chip);
 
@@ -382,13 +381,11 @@ static void mil_select_chip(struct mtd_info *mtd, int chip)
 
 	if ((mil->current_chip < 0) && (chip >= 0)) {
 		gpmi_nfc_start_event_trace("> mil_select_chip");
-		clk_enable(clock);
 		nfc->begin(this);
 		gpmi_nfc_add_event("< mil_select_chip", -1);
 	} else if ((mil->current_chip >= 0) && (chip < 0)) {
 		gpmi_nfc_add_event("> mil_select_chip", 1);
 		gpmi_nfc_add_event("> not disable clk", 1);
-		clk_disable(clock);
 		nfc->end(this);
 		gpmi_nfc_stop_event_trace("< mil_select_chip");
 	} else {
