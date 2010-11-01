@@ -200,6 +200,10 @@ struct mmc_host {
 
 	const struct mmc_bus_ops *bus_ops;	/* current bus driver */
 	unsigned int		bus_refs;	/* reference counter */
+#ifdef CONFIG_MMC_BLOCK_DEFERRED_RESUME
+	unsigned int		need_resume:1;
+	unsigned int		deferred_resume:1;
+#endif
 
 	unsigned int		sdio_irqs;
 	struct task_struct	*sdio_irq_thread;
@@ -231,6 +235,10 @@ static inline void *mmc_priv(struct mmc_host *host)
 #define mmc_dev(x)	((x)->parent)
 #define mmc_classdev(x)	(&(x)->class_dev)
 #define mmc_hostname(x)	(dev_name(&(x)->class_dev))
+
+#ifdef CONFIG_MMC_BLOCK_DEFERRED_RESUME
+extern int mmc_resume_bus(struct mmc_host *host);
+#endif
 
 extern int mmc_suspend_host(struct mmc_host *);
 extern int mmc_resume_host(struct mmc_host *);
