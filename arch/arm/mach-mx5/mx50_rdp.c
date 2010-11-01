@@ -766,14 +766,14 @@ static void epdc_disable_pins(void)
 	gpio_direction_output(EPDC_SDCE2, 0);
 }
 
-static struct fb_videomode e60_mode = {
-	.name = "E60",
+static struct fb_videomode e60_v110_mode = {
+	.name = "E60_V110",
 	.refresh = 50,
 	.xres = 800,
 	.yres = 600,
-	.pixclock = 20000000,
-	.left_margin = 10,
-	.right_margin = 217,
+	.pixclock = 18604700,
+	.left_margin = 8,
+	.right_margin = 178,
 	.upper_margin = 4,
 	.lower_margin = 10,
 	.hsync_len = 20,
@@ -783,16 +783,33 @@ static struct fb_videomode e60_mode = {
 	.flag = 0,
 };
 
-static struct fb_videomode e97_mode = {
-	.name = "E97",
+static struct fb_videomode e60_v220_mode = {
+	.name = "E60_V220",
+	.refresh = 85,
+	.xres = 800,
+	.yres = 600,
+	.pixclock = 32000000,
+	.left_margin = 8,
+	.right_margin = 166,
+	.upper_margin = 4,
+	.lower_margin = 26,
+	.hsync_len = 20,
+	.vsync_len = 4,
+	.sync = 0,
+	.vmode = FB_VMODE_NONINTERLACED,
+	.flag = 0,
+};
+
+static struct fb_videomode e97_v110_mode = {
+	.name = "E97_V110",
 	.refresh = 50,
 	.xres = 1200,
 	.yres = 825,
 	.pixclock = 32000000,
-	.left_margin = 8,
-	.right_margin = 125,
+	.left_margin = 12,
+	.right_margin = 128,
 	.upper_margin = 4,
-	.lower_margin = 17,
+	.lower_margin = 10,
 	.hsync_len = 20,
 	.vsync_len = 4,
 	.sync = 0,
@@ -802,13 +819,44 @@ static struct fb_videomode e97_mode = {
 
 static struct mxc_epdc_fb_mode panel_modes[] = {
 	{
-		&e60_mode,
-		4, 10, 20, 10, 20, 480, 20, 0, 1, 1,
+		&e60_v110_mode,
+		4,	/* vscan_holdoff */
+		10,	/* sdoed_width */
+		20,	/* sdoed_delay */
+		10,	/* sdoez_width */
+		20,	/* sdoez_delay */
+		428,	/* gdclk_hp_offs */
+		20,	/* gdsp_offs */
+		0,	/* gdoe_offs */
+		1,	/* gdclk_offs */
+		1,	/* num_ce */
 	},
 	{
-		&e97_mode,
-		8, 10, 20, 10, 20, 580, 20, 0, 1, 3,
+		&e60_v220_mode,
+		4,	/* vscan_holdoff */
+		10,	/* sdoed_width */
+		20,	/* sdoed_delay */
+		10,	/* sdoez_width */
+		20,	/* sdoez_delay */
+		428,	/* gdclk_hp_offs */
+		20,	/* gdsp_offs */
+		0,	/* gdoe_offs */
+		1,	/* gdclk_offs */
+		1,	/* num_ce */
 	},
+	{
+		&e97_v110_mode,
+		8,	/* vscan_holdoff */
+		10,	/* sdoed_width */
+		20,	/* sdoed_delay */
+		10,	/* sdoez_width */
+		20,	/* sdoez_delay */
+		632,	/* gdclk_hp_offs */
+		20,	/* gdsp_offs */
+		0,	/* gdoe_offs */
+		1,	/* gdclk_offs */
+		3,	/* num_ce */
+	}
 };
 
 static struct mxc_epdc_fb_platform_data epdc_data = {
