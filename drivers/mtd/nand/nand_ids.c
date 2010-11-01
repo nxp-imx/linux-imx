@@ -129,6 +129,7 @@ struct nand_flash_dev nand_flash_ids[] = {
 	 BBT_AUTO_REFRESH
 	},
 
+	{"ONFI NAND 3,3V 8-bit", 0x88, 8192, 2048, 0, 0 /*LP_OPTIONS*/ },
 	{NULL,}
 };
 
