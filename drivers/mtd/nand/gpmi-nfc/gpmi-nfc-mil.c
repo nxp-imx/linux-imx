@@ -1726,6 +1726,9 @@ static int mil_scan_bbt(struct mtd_info *mtd)
 
 	/* We use the reference implementation for bad block management. */
 
+	if (nfc->extra_init)
+		nfc->extra_init(this);
+
 	error = nand_default_bbt(mtd);
 
 	if (error)

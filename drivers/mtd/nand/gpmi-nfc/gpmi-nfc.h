@@ -535,6 +535,7 @@ struct nfc_hal {
 	/* Configuration functions. */
 
 	int   (*init)        (struct gpmi_nfc_data *);
+	int   (*extra_init)  (struct gpmi_nfc_data *);
 	int   (*set_geometry)(struct gpmi_nfc_data *);
 	int   (*set_timing)  (struct gpmi_nfc_data *,
 					const struct gpmi_nfc_timing *);
