@@ -177,6 +177,9 @@ int gpmi_nfc_set_geometry(struct gpmi_nfc_data *this)
 	 */
 
 	geometry->ecc_chunk_size_in_bytes = 512;
+	/* Only ONFI nand uses 1k chunk now */
+	if (is_onfi_nand(&this->device_info))
+		geometry->ecc_chunk_size_in_bytes = 1024;
 
 	/* Compute the page size based on the physical geometry. */
 
@@ -217,6 +220,17 @@ int gpmi_nfc_set_geometry(struct gpmi_nfc_data *this)
 			geometry->ecc_strength = 16;
 			break;
 		}
+		break;
+	case 8192:
+		geometry->ecc_strength = 24;
+
+		/* ONFI nand needs GF14, so re-culculate DMA page size */
+		if (is_onfi_nand(&this->device_info))
+			geometry->page_size_in_bytes =
+				physical->page_data_size_in_bytes +
+				geometry->metadata_size_in_bytes +
+				(geometry->ecc_strength * 14 * 8 /
+					geometry->ecc_chunk_count);
 		break;
 	}
 
