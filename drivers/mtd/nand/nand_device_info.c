@@ -1647,6 +1647,33 @@ static struct nand_device_info nand_device_info_table_bch_ecc12[] __initdata = {
 };
 
 /*
+ * BCH ECC24
+ */
+static struct nand_device_info nand_device_info_table_bch_ecc24[] __initdata = {
+	{
+	.end_of_table             = false,
+	.manufacturer_code        = 0x2c,
+	.device_code              = 0x88,
+	.is_onfi_nand             = true,
+	.cell_technology          = NAND_DEVICE_CELL_TECH_MLC,
+	.chip_size_in_bytes       = 8LL * SZ_1G,
+	.block_size_in_pages      = 256,
+	.page_total_size_in_bytes = 8 * SZ_1K + 448,
+	.ecc_strength_in_bits     = 24,
+	.ecc_size_in_bytes        = 1024,
+	.data_setup_in_ns         = 15,
+	.data_hold_in_ns          = 10,
+	.address_setup_in_ns      = 20,
+	.gpmi_sample_delay_in_ns  = 6,
+	.tREA_in_ns               = 20,
+	.tRLOH_in_ns              = 5,
+	.tRHOH_in_ns              = 15,
+	"MT29F64G08CBAAA(8GB, 2CE) ",
+	},
+	{true}
+};
+
+/*
  * The following macros make it convenient to extract information from an ID
  * byte array. All these macros begin with the prefix "ID_".
  *
@@ -1703,6 +1730,7 @@ static struct nand_device_info nand_device_info_table_bch_ecc12[] __initdata = {
     #define ID_MICRON_DEVICE_CODE_ECC12_2GB_PER_CE  (0x48) /* L63B  2GB/CE */
     #define ID_MICRON_DEVICE_CODE_ECC12_4GB_PER_CE  (0x68) /* L63B  4GB/CE */
     #define ID_MICRON_DEVICE_CODE_ECC12_8GB_PER_CE  (0x88) /* L63B  8GB/CE */
+    #define ID_MICRON_DEVICE_CODE_ECC24_8GB_PER_CE  (0x88) /* L63B  8GB/CE */
 
 /* Byte 3 ------------------------------------------------------------------- */
 
@@ -1719,6 +1747,7 @@ static struct nand_device_info nand_device_info_table_bch_ecc12[] __initdata = {
 
 #define ID_GET_CACHE_PROGRAM(id)        ((ID_GET_BYTE_3(id) >> 7) & 0x1)
 
+#define ID_ONFI_NAND_BYTE3		(0x04)
 /* Byte 4 ------------------------------------------------------------------- */
 
 #define ID_GET_BYTE_4(id)                       ((id)[3])
@@ -2077,6 +2106,11 @@ static struct nand_device_info * __init nand_device_info_fn_micron(const uint8_t
 
 	}
 
+	if (ID_GET_DEVICE_CODE(id) == ID_MICRON_DEVICE_CODE_ECC24_8GB_PER_CE
+		&& ID_GET_BYTE_3(id) == ID_ONFI_NAND_BYTE3) {
+		/* BCH ECC 24 */
+		table = nand_device_info_table_bch_ecc24;
+	} else
 	/*
 	 * We look at the 5th ID byte to distinguish some Micron ECC12 NANDs
 	 * from the similar ECC8 part.
@@ -2178,6 +2212,7 @@ static struct nand_device_type_info  nand_device_type_directory[] __initdata = {
 	{nand_device_info_table_type_11,   "Type 11"  },
 	{nand_device_info_table_type_15,   "Type 15"  },
 	{nand_device_info_table_bch_ecc12, "BCH ECC12"},
+	{nand_device_info_table_bch_ecc24, "BCH ECC24"},
 	{0, 0},
 };
 
