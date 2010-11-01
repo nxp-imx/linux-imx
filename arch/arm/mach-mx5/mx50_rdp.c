@@ -44,6 +44,7 @@
 #include <linux/pmic_status.h>
 #include <linux/videodev2.h>
 #include <linux/mxcfb.h>
+#include <linux/pwm_backlight.h>
 #include <linux/fec.h>
 #include <linux/gpmi-nfc.h>
 #include <linux/powerkey.h>
@@ -99,7 +100,6 @@
 #define EPDC_PMIC_INT		(5*32 + 17)	/*GPIO_6_17 */
 #define EPDC_VCOM	(3*32 + 21)	/*GPIO_4_21 */
 #define EPDC_PWRSTAT	(2*32 + 28)	/*GPIO_3_28 */
-#define ELCDIF_BACKLIGHT	(5*32 + 24)	/*GPIO_6_24 */
 #define ELCDIF_PWR_ON	(1*32 + 21)	/*GPIO_2_21 */
 #define ELCDIF_DAT0_DUMMY	(0*32 + 0)	/*GPIO_1_0 */
 #define ELCDIF_DAT1_DUMMY	(0*32 + 1)	/*GPIO_1_1 */
@@ -222,7 +222,7 @@ static struct pad_desc  mx50_rdp[] = {
 	MX50_PAD_DISP_RS__ELCDIF_VSYNC,
 
 	/* ELCDIF contrast */
-	MX50_PAD_PWM1__GPIO_6_24,
+	MX50_PAD_PWM1__PWMO,
 
 	/* ELCDIF power on */
 	MX50_PAD_DISP_CS__GPIO_2_21,
@@ -1107,6 +1107,13 @@ static struct mxc_fb_platform_data fb_data[] = {
 	 },
 };
 
+static struct platform_pwm_backlight_data mxc_pwm_backlight_data = {
+	.pwm_id = 0,
+	.max_brightness = 255,
+	.dft_brightness = 128,
+	.pwm_period_ns = 2000000,
+};
+
 static void mx50_arm2_usb_set_vbus(bool enable)
 {
 	gpio_set_value(USB_OTG_PWR, enable);
@@ -1269,9 +1276,6 @@ static void __init mx50_rdp_io_init(void)
 	gpio_request(EPDC_PWRSTAT, "epdc-pwrstat");
 	gpio_direction_input(EPDC_PWRSTAT);
 
-	gpio_request(ELCDIF_BACKLIGHT, "elcdif-backlight");
-	gpio_direction_output(ELCDIF_BACKLIGHT, 1);
-
 	gpio_request(ELCDIF_PWR_ON, "elcdif-power-on");
 	gpio_direction_output(ELCDIF_PWR_ON, 1);
 
@@ -1357,6 +1361,9 @@ static void __init mxc_board_init(void)
 	mxc_register_device(&epdc_device, &epdc_data);
 	mxc_register_device(&lcd_wvga_device, &lcd_wvga_data);
 	mxc_register_device(&elcdif_device, &fb_data[0]);
+	mxc_register_device(&mxc_pwm1_device, NULL);
+	mxc_register_device(&mxc_pwm1_backlight_device,
+		&mxc_pwm_backlight_data);
 	mxc_register_device(&mxs_viim, NULL);
 	mxc_register_device(&mxc_rngb_device, NULL);
 	mxc_register_device(&dcp_device, NULL);
