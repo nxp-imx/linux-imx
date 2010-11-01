@@ -599,8 +599,8 @@ static void mil_handle_block_mark_swapping(struct gpmi_nfc_data *this,
  * @nand:  A pointer to the owning NAND Flash MTD.
  * @buf:   A pointer to the destination buffer.
  */
-static int mil_ecc_read_page(struct mtd_info *mtd,
-					struct nand_chip *nand, uint8_t *buf)
+static int mil_ecc_read_page(struct mtd_info *mtd, struct nand_chip *nand,
+				uint8_t *buf, int page)
 {
 	struct gpmi_nfc_data    *this    = nand->priv;
 	struct device           *dev     =  this->dev;
@@ -1898,7 +1898,7 @@ static int mil_boot_areas_init(struct gpmi_nfc_data *this)
 		/* Find the general use MTD. */
 
 		i = 0;
-		while (search_mtd = get_mtd_device(0, i)) {
+		while ((search_mtd = get_mtd_device(0, i))) {
 
 			/* Check if we got nonsense. */
 
@@ -1994,7 +1994,7 @@ static int mil_boot_areas_init(struct gpmi_nfc_data *this)
 
 		/* Find the remainder partitions. */
 		i = 0;
-		while (search_mtd = get_mtd_device(0, i)) {
+		while ((search_mtd = get_mtd_device(0, i))) {
 
 			/* Check if we got nonsense. */
 
