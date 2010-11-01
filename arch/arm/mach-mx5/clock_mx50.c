@@ -2448,16 +2448,56 @@ static void bch_clk_disable(struct clk *clk)
 	_clk_disable(clk);
 }
 
+static int gpmi_set_parent(struct clk *clk, struct clk *parent)
+{
+	/* Setting for ONFI nand which need PLL1(800MHZ) */
+	if (parent == &pll1_main_clk) {
+		u32 reg = __raw_readl(MXC_CCM_CLKSEQ_BYPASS);
+
+		reg = (reg & ~MXC_CCM_CLKSEQ_BYPASS_BYPASS_GPMI_CLK_SEL_MASK) |
+		   (0x2 << MXC_CCM_CLKSEQ_BYPASS_BYPASS_GPMI_CLK_SEL_OFFSET);
+
+		__raw_writel(reg, MXC_CCM_CLKSEQ_BYPASS);
+
+		/* change to the new Parent */
+		clk->parent = parent;
+	} else
+		printk(KERN_WARNING "You should not call the %s\n", __func__);
+	return 0;
+}
+
+static int gpmi_set_rate(struct clk *clk, unsigned long rate)
+{
+	/* Setting for ONFI nand which in different mode */
+	if (clk->parent == &pll1_main_clk) {
+		u32 value;
+		u32 reg;
+
+		value = clk_get_rate(clk->parent);
+		value /= rate;
+		value /= 2; /* HW_GPMI_CTRL1's GPMI_CLK_DIV2_EN will be set */
+
+		reg = __raw_readl(MXC_CCM_GPMI);
+		reg = (reg & ~MXC_CCM_GPMI_CLK_DIV_MASK) | value;
+
+		__raw_writel(reg, MXC_CCM_GPMI);
+	} else
+		printk(KERN_WARNING "You should not call the %s\n", __func__);
+	return 0;
+}
+
 static struct clk gpmi_nfc_clk[] = {
-	{
+	{	/* gpmi_io_clk */
 	.parent = &osc_clk,
 	.secondary = &gpmi_nfc_clk[1],
+	.set_parent = gpmi_set_parent,
+	.set_rate   = gpmi_set_rate,
 	.enable = gpmi_clk_enable,
 	.enable_reg = MXC_CCM_CCGR7,
 	.enable_shift = MXC_CCM_CCGRx_CG9_OFFSET,
 	.disable = gpmi_clk_disable,
 	},
-	{
+	{	/* gpmi_apb_clk */
 	.parent = &ahb_clk,
 	.secondary = &gpmi_nfc_clk[2],
 	.enable = _clk_enable,
@@ -2465,7 +2505,7 @@ static struct clk gpmi_nfc_clk[] = {
 	.enable_shift = MXC_CCM_CCGRx_CG8_OFFSET,
 	.disable = _clk_disable,
 	},
-	{
+	{	/* bch_clk */
 	.parent = &osc_clk,
 	.secondary = &gpmi_nfc_clk[3],
 	.enable = bch_clk_enable,
@@ -2473,7 +2513,7 @@ static struct clk gpmi_nfc_clk[] = {
 	.enable_shift = MXC_CCM_CCGRx_CG0_OFFSET,
 	.disable = bch_clk_disable,
 	},
-	{
+	{	/* bch_apb_clk */
 	.parent = &ahb_clk,
 	.enable = _clk_enable,
 	.enable_reg = MXC_CCM_CCGR7,
