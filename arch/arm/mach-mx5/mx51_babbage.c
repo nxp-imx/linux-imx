@@ -27,6 +27,8 @@
 #include <linux/mtd/map.h>
 #include <linux/mtd/partitions.h>
 #include <linux/regulator/consumer.h>
+#include <linux/android_pmem.h>
+#include <linux/usb/android_composite.h>
 #include <linux/pmic_external.h>
 #include <linux/pmic_status.h>
 #include <linux/ipu.h>
@@ -942,6 +944,88 @@ static struct platform_device mxc_sgtl5000_device = {
 	.name = "imx-3stack-sgtl5000",
 };
 
+static struct android_pmem_platform_data android_pmem_data = {
+	.name = "pmem_adsp",
+	.size = SZ_32M,
+};
+
+static struct android_pmem_platform_data android_pmem_gpu_data = {
+	.name = "pmem_gpu",
+	.size = SZ_32M,
+	.cached = 1,
+};
+
+static char *usb_functions_ums[] = {
+	"usb_mass_storage",
+};
+
+static char *usb_functions_ums_adb[] = {
+	"usb_mass_storage",
+	"adb",
+};
+
+static char *usb_functions_rndis[] = {
+	"rndis",
+};
+
+static char *usb_functions_rndis_adb[] = {
+	"rndis",
+	"adb",
+};
+
+static char *usb_functions_all[] = {
+	"rndis",
+	"usb_mass_storage",
+	"adb"
+};
+
+static struct android_usb_product usb_products[] = {
+	{
+		.product_id	= 0x0c01,
+		.num_functions	= ARRAY_SIZE(usb_functions_ums),
+		.functions	= usb_functions_ums,
+	},
+	{
+		.product_id	= 0x0c02,
+		.num_functions	= ARRAY_SIZE(usb_functions_ums_adb),
+		.functions	= usb_functions_ums_adb,
+	},
+	{
+		.product_id	= 0x0c03,
+		.num_functions	= ARRAY_SIZE(usb_functions_rndis),
+		.functions	= usb_functions_rndis,
+	},
+	{
+		.product_id	= 0x0c04,
+		.num_functions	= ARRAY_SIZE(usb_functions_rndis_adb),
+		.functions	= usb_functions_rndis_adb,
+	},
+};
+
+static struct usb_mass_storage_platform_data mass_storage_data = {
+	.nluns		= 3,
+	.vendor		= "Freescale",
+	.product	= "Android Phone",
+	.release	= 0x0100,
+};
+
+static struct usb_ether_platform_data rndis_data = {
+	.vendorID	= 0x0bb4,
+	.vendorDescr	= "Freescale",
+};
+
+static struct android_usb_platform_data android_usb_data = {
+	.vendor_id      = 0x0bb4,
+	.product_id     = 0x0c01,
+	.version        = 0x0100,
+	.product_name   = "Android Phone",
+	.manufacturer_name = "Freescale",
+	.num_products = ARRAY_SIZE(usb_products),
+	.products = usb_products,
+	.num_functions = ARRAY_SIZE(usb_functions_all),
+	.functions = usb_functions_all,
+};
+
 static int __initdata enable_w1 = { 0 };
 static int __init w1_setup(char *__unused)
 {
@@ -1256,6 +1340,12 @@ static void __init mxc_board_init(void)
 	mxc_register_device(&mxc_ssi2_device, NULL);
 	mxc_register_device(&mxc_ssi3_device, NULL);
 	mxc_register_device(&mxc_alsa_spdif_device, &mxc_spdif_data);
+	mxc_register_device(&mxc_android_pmem_device, &android_pmem_data);
+	mxc_register_device(&mxc_android_pmem_gpu_device,
+					&android_pmem_gpu_data);
+	mxc_register_device(&usb_mass_storage_device, &mass_storage_data);
+	mxc_register_device(&usb_rndis_device, &rndis_data);
+	mxc_register_device(&android_usb_device, &android_usb_data);
 	mxc_register_device(&mxc_fec_device, NULL);
 	mxc_register_device(&mxc_v4l2_device, NULL);
 	mxc_register_device(&mxc_v4l2out_device, NULL);
@@ -1319,6 +1409,73 @@ static struct sys_timer mxc_timer = {
 	.init	= mx51_babbage_timer_init,
 };
 
+static void __init fixup_android_board(struct machine_desc *desc, struct tag *tags,
+				   char **cmdline, struct meminfo *mi)
+{
+	char *str;
+	struct tag *t;
+	struct tag *mem_tag = 0;
+	int total_mem = SZ_512M;
+	int left_mem = 0, avali_mem = 0;
+	int gpu_mem = SZ_16M;
+	int pmem_gpu_size = android_pmem_gpu_data.size;
+	int pmem_adsp_size = android_pmem_data.size;
+
+	mxc_set_cpu_type(MXC_CPU_MX51);
+
+	get_cpu_wp = mx51_babbage_get_cpu_wp;
+	set_num_cpu_wp = mx51_babbage_set_num_cpu_wp;
+	get_dvfs_core_wp = mx51_babbage_get_dvfs_core_table;
+	num_cpu_wp = ARRAY_SIZE(cpu_wp_auto);
+
+	/* get mem= and gpu_memory= from cmdline */
+	for_each_tag(t, tags) {
+		if (t->hdr.tag == ATAG_CMDLINE) {
+			str = t->u.cmdline.cmdline;
+			str = strstr(str, "mem=");
+			if (str != NULL) {
+				str += 4;
+				avali_mem = memparse(str, &str);
+			}
+
+			str = t->u.cmdline.cmdline;
+			str = strstr(str, "gpu_memory=");
+			if (str != NULL) {
+				str += 11;
+				gpu_mem = memparse(str, &str);
+			}
+			break;
+		}
+	}
+
+	/* get total memory from TAGS */
+	for_each_tag(mem_tag, tags) {
+		if (mem_tag->hdr.tag == ATAG_MEM) {
+			total_mem = mem_tag->u.mem.size;
+			left_mem = total_mem - gpu_mem
+				- pmem_gpu_size - pmem_adsp_size;
+			break;
+		}
+	}
+
+	if (avali_mem > 0 && avali_mem < left_mem)
+		left_mem = avali_mem;
+
+	if (mem_tag) {
+		android_pmem_data.start = mem_tag->u.mem.start
+				+ left_mem + gpu_mem + pmem_gpu_size;
+		android_pmem_gpu_data.start = mem_tag->u.mem.start
+				+ left_mem + gpu_mem;
+		mem_tag->u.mem.size = left_mem;
+
+		/*reserve memory for gpu*/
+		gpu_device.resource[5].start =
+				mem_tag->u.mem.start + left_mem;
+		gpu_device.resource[5].end =
+				gpu_device.resource[5].start + gpu_mem - 1;
+	}
+}
+
 /*
  * The following uses standard kernel macros define in arch.h in order to
  * initialize __mach_desc_MX51_BABBAGE data structure.
@@ -1328,7 +1485,11 @@ MACHINE_START(MX51_BABBAGE, "Freescale MX51 Babbage Board")
 	/* Maintainer: Freescale Semiconductor, Inc. */
 	.phys_io	= AIPS1_BASE_ADDR,
 	.io_pg_offst	= ((AIPS1_BASE_ADDR_VIRT) >> 18) & 0xfffc,
+#ifdef CONFIG_ANDROID_PMEM
+	.fixup = fixup_android_board,
+#else
 	.fixup = fixup_mxc_board,
+#endif
 	.map_io = mx5_map_io,
 	.init_irq = mx5_init_irq,
 	.init_machine = mxc_board_init,

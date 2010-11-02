@@ -31,6 +31,8 @@
 #include <linux/platform_device.h>
 #include <linux/fsl_devices.h>
 #include <linux/spi/spi.h>
+#include <linux/android_pmem.h>
+#include <linux/usb/android_composite.h>
 #include <linux/i2c.h>
 #include <linux/ata.h>
 #include <linux/mtd/mtd.h>
@@ -1311,6 +1313,87 @@ static int __init w1_setup(char *__unused)
 
 __setup("w1", w1_setup);
 
+static struct android_pmem_platform_data android_pmem_data = {
+	.name = "pmem_adsp",
+	.size = SZ_8M,
+};
+
+static struct android_pmem_platform_data android_pmem_gpu_data = {
+	.name = "pmem_gpu",
+	.size = SZ_32M,
+};
+
+static char *usb_functions_ums[] = {
+	"usb_mass_storage",
+};
+
+static char *usb_functions_ums_adb[] = {
+	"usb_mass_storage",
+	"adb",
+};
+
+static char *usb_functions_rndis[] = {
+	"rndis",
+};
+
+static char *usb_functions_rndis_adb[] = {
+	"rndis",
+	"adb",
+};
+
+static char *usb_functions_all[] = {
+	"rndis",
+	"usb_mass_storage",
+	"adb"
+};
+
+static struct android_usb_product usb_products[] = {
+	{
+		.product_id	= 0x0c01,
+		.num_functions	= ARRAY_SIZE(usb_functions_ums),
+		.functions	= usb_functions_ums,
+	},
+	{
+		.product_id	= 0x0c02,
+		.num_functions	= ARRAY_SIZE(usb_functions_ums_adb),
+		.functions	= usb_functions_ums_adb,
+	},
+	{
+		.product_id	= 0x0c03,
+		.num_functions	= ARRAY_SIZE(usb_functions_rndis),
+		.functions	= usb_functions_rndis,
+	},
+	{
+		.product_id	= 0x0c04,
+		.num_functions	= ARRAY_SIZE(usb_functions_rndis_adb),
+		.functions	= usb_functions_rndis_adb,
+	},
+};
+
+static struct usb_mass_storage_platform_data mass_storage_data = {
+	.nluns		= 3,
+	.vendor		= "Freescale",
+	.product	= "Android Phone",
+	.release	= 0x0100,
+};
+
+static struct usb_ether_platform_data rndis_data = {
+	.vendorID	= 0x0bb4,
+	.vendorDescr	= "Freescale",
+};
+
+static struct android_usb_platform_data android_usb_data = {
+	.vendor_id      = 0x0bb4,
+	.product_id     = 0x0c01,
+	.version        = 0x0100,
+	.product_name   = "Android Phone",
+	.manufacturer_name = "Freescale",
+	.num_products = ARRAY_SIZE(usb_products),
+	.products = usb_products,
+	.num_functions = ARRAY_SIZE(usb_functions_all),
+	.functions = usb_functions_all,
+};
+
 static int __initdata enable_keypad = {0};
 static int __init keypad_setup(char *__unused)
 {
@@ -1556,6 +1639,12 @@ static void __init mxc_board_init(void)
 	i2c_register_board_info(1, mxc_i2c1_board_info,
 				ARRAY_SIZE(mxc_i2c1_board_info));
 
+	mxc_register_device(&mxc_android_pmem_device, &android_pmem_data);
+	mxc_register_device(&mxc_android_pmem_gpu_device,
+					&android_pmem_gpu_data);
+	mxc_register_device(&usb_mass_storage_device, &mass_storage_data);
+	mxc_register_device(&usb_rndis_device, &rndis_data);
+	mxc_register_device(&android_usb_device, &android_usb_data);
 	mxc_register_device(&max17135_sensor_device, NULL);
 	mxc_register_device(&epdc_device, &epdc_data);
 	mxc_register_device(&lcd_wvga_device, &lcd_wvga_data);
@@ -1596,13 +1685,52 @@ static struct sys_timer mxc_timer = {
 	.init	= mx50_rdp_timer_init,
 };
 
+static void __init fixup_android_board(struct machine_desc *desc, struct tag *tags,
+				   char **cmdline, struct meminfo *mi)
+{
+	int pmem_size = android_pmem_data.size;
+	int pmem_gpu_size = android_pmem_gpu_data.size;
+	struct tag *mem_tag = 0;
+	int total_mem = 0;
+
+	mxc_set_cpu_type(MXC_CPU_MX50);
+
+	get_cpu_wp = mx50_rdp_get_cpu_wp;
+	set_num_cpu_wp = mx50_rdp_set_num_cpu_wp;
+	get_dvfs_core_wp = mx50_rdp_get_dvfs_core_table;
+	num_cpu_wp = ARRAY_SIZE(cpu_wp_auto);
+
+	for_each_tag(mem_tag, tags) {
+		if (mem_tag->hdr.tag == ATAG_MEM) {
+			total_mem = mem_tag->u.mem.size;
+			break;
+		}
+	}
+
+	if (mem_tag) {
+
+		android_pmem_data.start = mem_tag->u.mem.start
+			+ total_mem - pmem_gpu_size - pmem_size;
+		android_pmem_gpu_data.start = android_pmem_data.start
+			+ pmem_size;
+
+		mem_tag->u.mem.size =
+			android_pmem_data.start - mem_tag->u.mem.start;
+
+	}
+}
+
 /*
  * The following uses standard kernel macros define in arch.h in order to
  * initialize __mach_desc_MX50_RDP data structure.
  */
 MACHINE_START(MX50_RDP, "Freescale MX50 Reference Design Platform")
 	/* Maintainer: Freescale Semiconductor, Inc. */
+#ifdef CONFIG_ANDROID_PMEM
+	.fixup = fixup_android_board,
+#else
 	.fixup = fixup_mxc_board,
+#endif
 	.map_io = mx5_map_io,
 	.init_irq = mx5_init_irq,
 	.init_machine = mxc_board_init,
