@@ -48,6 +48,20 @@
 #define DIGCTRL_BASE_ADDR IO_ADDRESS(DIGCTL_PHYS_ADDR)
 #define BF(value, field) (((value) << BP_##field) & BM_##field)
 
+#ifdef CONFIG_MEM_mDDR
+struct profile profiles[] = {
+	{ 454736, 151570, 205710, 0, 1550000,
+	1450000, 355000, 3300000, 1750000, 24000, 0 },
+	{ 360000, 120000, 130910, 0, 1350000,
+	1250000, 200000, 3300000, 1750000, 24000, 0 },
+	{ 261818, 130910, 130910, 0, 1350000,
+	1250000, 173000, 3300000, 1750000, 24000, 0 },
+	{  64000,  64000, 240000, 3, 1350000,
+	1250000, 150000, 3300000, 1750000, 24000, 0 },
+	{  0,  0,  0, 0, 0,
+	0, 0, 0, 0, 0, 0 },
+};
+#else
 struct profile profiles[] = {
 	{ 454736, 151570, 205710, 0, 1550000,
 	1450000, 355000, 3300000, 1750000, 24000, 0 },
@@ -60,7 +74,7 @@ struct profile profiles[] = {
 	{  0,  0,  0, 0, 0,
 	0, 0, 0, 0, 0, 0 },
 };
-
+#endif
 static struct device *busfreq_dev;
 static struct clk *usb_clk0;
 static struct clk *usb_clk1;

@@ -897,7 +897,24 @@ static int emi_set_rate(struct clk *clk, unsigned long rate)
 	memcpy(f, mxs_ram_freq_scale,
 	       (unsigned int)mxs_ram_freq_scale_end -
 	       (unsigned int)mxs_ram_freq_scale);
-
+#ifdef CONFIG_MEM_mDDR
+	if (rate <= 24000000) {
+		emi.emi_div = 20;
+		emi.frac_div = 18;
+		emi.new_freq = 24;
+		mDDREmiController_24MHz();
+	} else if (rate <= 133000000) {
+		emi.emi_div = 3;
+		emi.frac_div = 22;
+		emi.new_freq = 133;
+		mDDREmiController_133MHz();
+	} else {
+		emi.emi_div = 2;
+		emi.frac_div = 22;
+		emi.new_freq = 200;
+		mDDREmiController_200MHz();
+		}
+#else
 	if (rate <= 133000000) {
 		emi.emi_div = 3;
 		emi.frac_div = 22;
@@ -914,6 +931,7 @@ static int emi_set_rate(struct clk *clk, unsigned long rate)
 		emi.new_freq = 200;
 		DDR2EmiController_EDE1116_200MHz();
 		}
+#endif
 
 	local_irq_disable();
 	local_fiq_disable();

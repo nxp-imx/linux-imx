@@ -18,3 +18,8 @@ config MXS_TIMER_WITH_MACH
 	bool "System Timer support Compare Match interrupt"
 	default y
 
+config MEM_mDDR
+	bool "Memory type is mDDR"
+	depends on ARCH_MX28
+	help
+	  Say Y to select mDDR memory
