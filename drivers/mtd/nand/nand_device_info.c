@@ -2347,3 +2347,9 @@ struct nand_device_info * __init nand_device_get_info(const uint8_t id[])
 	return fn(id);
 
 }
+
+
+bool is_onfi_nand(struct nand_device_info *info)
+{
+	return info->is_onfi_nand;
+}
