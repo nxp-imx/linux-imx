@@ -1,6 +1,7 @@
 /* drivers/android/pmem.c
  *
  * Copyright (C) 2007 Google, Inc.
+ * Copyright (C) 2011 Freescale Semiconductor, Inc.
  *
  * This software is licensed under the terms of the GNU General Public
  * License version 2, as published by the Free Software Foundation, and
@@ -441,9 +442,9 @@ static int pmem_allocate(int id, unsigned long len)
 static pgprot_t phys_mem_access_prot(struct file *file, pgprot_t vma_prot)
 {
 	int id = get_id(file);
-#ifdef pgprot_noncached
+#ifdef pgprot_writecombine
 	if (pmem[id].cached == 0 || file->f_flags & O_SYNC)
-		return pgprot_noncached(vma_prot);
+		return pgprot_writecombine(vma_prot);
 #endif
 #ifdef pgprot_ext_buffered
 	else if (pmem[id].buffered)
