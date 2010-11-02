@@ -99,6 +99,14 @@ extern int nand_unlock(struct mtd_info *mtd, loff_t ofs, uint64_t len);
 #define NAND_CMD_RNDOUTSTART	0xE0
 #define NAND_CMD_CACHEDPROG	0x15
 
+/* Extended commands for ONFI nand */
+#define NAND_CMD_READ_PARAMETER_PAGE	0xec
+#define NAND_CMD_READ_UNIQUE_ID		0xed
+#define NAND_CMD_GET_FEATURE		0xee
+#define NAND_CMD_SET_FEATURE		0xef
+#define NAND_CMD_RESET_LUN		0xfa
+#define NAND_CMD_SYNC_RESET		0xfc
+
 /* Extended commands for AG-AND device */
 /*
  * Note: the command for NAND_CMD_DEPLETE1 is really 0x00 but
