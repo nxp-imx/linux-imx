@@ -32,6 +32,13 @@
  */
 static int onfi_ddr_mode;
 
+/*
+ * In low-power mode, the system will shutdown the ddr_clk which is needed
+ * by the DMA.
+ */
+static struct clk *ddr_clk;
+
+
 static void setup_ddr_timing(struct gpmi_nfc_data *this)
 {
 	uint32_t value;
@@ -193,6 +200,13 @@ static int enable_micron_ddr(struct gpmi_nfc_data *this)
 /* To check if we need to initialize something else*/
 static int extra_init(struct gpmi_nfc_data *this)
 {
+	ddr_clk = clk_get(NULL, "ddr_clk");
+	if (IS_ERR(ddr_clk)) {
+		printk(KERN_ERR "The ddr clock is gone!");
+		ddr_clk = NULL;
+		return -ENOENT;
+	}
+
 	if (is_onfi_nand(&this->device_info))
 		return enable_micron_ddr(this);
 	return 0;
@@ -439,6 +453,8 @@ static void begin(struct gpmi_nfc_data *this)
 
 	/* Enable the clock. */
 
+	if (ddr_clk)
+		clk_enable(ddr_clk);
 	clk_enable(resources->clock);
 
 	/* Get the timing information we need. */
@@ -464,6 +480,8 @@ static void end(struct gpmi_nfc_data *this)
 	/* Disable the clock. */
 
 	clk_disable(resources->clock);
+	if (ddr_clk)
+		clk_disable(ddr_clk);
 
 }
 
