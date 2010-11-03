@@ -185,7 +185,10 @@ void _ipu_vdi_init(ipu_channel_t channel, ipu_channel_params_t *params)
 	}
 	__raw_writel(reg, VDI_C);
 
-	_ipu_vdi_set_top_field_man(false);
+	if (params->mem_prp_vf_mem.field_fmt == V4L2_FIELD_INTERLACED_TB)
+		_ipu_vdi_set_top_field_man(false);
+	else if (params->mem_prp_vf_mem.field_fmt == V4L2_FIELD_INTERLACED_BT)
+		_ipu_vdi_set_top_field_man(true);
 
 	_ipu_vdi_set_motion(params->mem_prp_vf_mem.motion_sel);
 
