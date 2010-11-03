@@ -1808,14 +1808,13 @@ static int mxc_v4l2out_s_fmt(vout_data *vout, struct v4l2_format *f)
 			"V4L2_FIELD_ALTERNATE field format not supported yet!\n");
 		break;
 	case V4L2_FIELD_INTERLACED_TB:
+	case V4L2_FIELD_INTERLACED_BT:
 		if (cpu_is_mx51() || cpu_is_mx53())
 			break;
 		dev_err(&vout->video_dev->dev,
 			"De-interlacing not supported in this device!\n");
 		vout->field_fmt = V4L2_FIELD_NONE;
-	case V4L2_FIELD_INTERLACED_BT:
-		dev_err(&vout->video_dev->dev,
-			"V4L2_FIELD_INTERLACED_BT field format not supported yet!\n");
+		break;
 	default:
 		vout->field_fmt = V4L2_FIELD_NONE;
 		break;
