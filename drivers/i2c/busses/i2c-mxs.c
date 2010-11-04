@@ -147,7 +147,7 @@ static void hw_i2c_pioq_setup_read(struct mxs_i2c_dev *dev,
 	__raw_writel(queuecmd, dev->regbase + HW_I2C_QUEUECMD);
 
 	/* fill data (slave addr) */
-	queuedata = addr | I2C_READ;
+	queuedata = (addr << 1) | I2C_READ;
 	__raw_writel(queuedata, dev->regbase + HW_I2C_DATA);
 
 	/* fill queue cmd */
@@ -174,7 +174,7 @@ static void hw_i2c_dma_setup_read(u8 addr, void *buff, int len, int flags)
 	desc[0]->cmd.cmd.bits.command = DMA_READ;
 	desc[0]->cmd.address = i2c_buf_phys;
 	desc[0]->cmd.pio_words[0] = CMD_I2C_SELECT;
-	i2c_buf_virt[0] = addr | I2C_READ;
+	i2c_buf_virt[0] = (addr << 1) | I2C_READ;
 
 	desc[1]->cmd.cmd.bits.bytes = len;
 	desc[1]->cmd.cmd.bits.pio_words = 1;
@@ -209,7 +209,7 @@ static void hw_i2c_pioq_setup_write(struct mxs_i2c_dev *dev,
 	__raw_writel(queuecmd, dev->regbase + HW_I2C_QUEUECMD);
 
 	/* fill data (slave addr) */
-	slaveaddr = addr | I2C_WRITE;
+	slaveaddr = (addr << 1) | I2C_WRITE;
 	memcpy(buf1, &slaveaddr, 1);
 
 	memcpy(&buf1[1], buff, len);
@@ -234,7 +234,7 @@ static void hw_i2c_dma_setup_write(u8 addr, void *buff, int len, int flags)
 	desc[2]->cmd.pio_words[0] |= BM_I2C_CTRL0_POST_SEND_STOP;
 	desc[2]->cmd.pio_words[0] |= BF_I2C_CTRL0_XFER_COUNT(len + 1) | flags;
 
-	i2c_buf_virt[0] = addr | I2C_WRITE;
+	i2c_buf_virt[0] = (addr << 1) | I2C_WRITE;
 	memcpy(&i2c_buf_virt[1], buff, len);
 }
 
