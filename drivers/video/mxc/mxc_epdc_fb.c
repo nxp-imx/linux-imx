@@ -59,16 +59,19 @@
 #define EPDC_NUM_LUTS 16
 #define EPDC_MAX_NUM_UPDATES 20
 #define INVALID_LUT -1
-#define TEMP_USE_DEFAULT 8
-#define INIT_UPDATE_MARKER 0x12345678
-#define PAN_UPDATE_MARKER 0x12345679
+
+#define DEFAULT_TEMP_INDEX	8
+#define DEFAULT_TEMP		20 /* room temp in deg Celsius */
+
+#define INIT_UPDATE_MARKER	0x12345678
+#define PAN_UPDATE_MARKER	0x12345679
 
 #define LUT_UPDATE_NONE	0
-#define LUT_UPDATE_NEW	1
+#define LUT_UPDATE_NEW		1
 #define LUT_UPDATE_COLLISION	2
 
 #define POWER_STATE_OFF	0
-#define POWER_STATE_ON	1
+#define POWER_STATE_ON		1
 
 static unsigned long default_bpp = 16;
 
@@ -132,6 +135,7 @@ struct mxc_epdc_fb_data {
 	struct update_data_list *cur_update;
 	spinlock_t queue_lock;
 	int trt_entries;
+	int temp_index;
 	u8 *temp_range_bounds;
 	struct mxcfb_waveform_modes wv_modes;
 	u32 *waveform_buffer_virt;
@@ -1234,7 +1238,7 @@ static int mxc_epdc_fb_get_temp_index(struct mxc_epdc_fb_data *fb_data, int temp
 	if (fb_data->trt_entries == 0) {
 		dev_err(fb_data->dev,
 			"No TRT exists...using default temp index\n");
-		return TEMP_USE_DEFAULT;
+		return DEFAULT_TEMP_INDEX;
 	}
 
 	/* Search temperature ranges for a match */
@@ -1249,7 +1253,7 @@ static int mxc_epdc_fb_get_temp_index(struct mxc_epdc_fb_data *fb_data, int temp
 	if (index < 0) {
 		dev_err(fb_data->dev,
 			"No TRT index match...using default temp index\n");
-		return TEMP_USE_DEFAULT;
+		return DEFAULT_TEMP_INDEX;
 	}
 
 	dev_dbg(fb_data->dev, "Using temperature index %d\n", index);
@@ -1261,11 +1265,12 @@ static int mxc_epdc_fb_set_temperature(int temperature, struct fb_info *info)
 {
 	struct mxc_epdc_fb_data *fb_data = (struct mxc_epdc_fb_data *)info;
 	int temp_index;
+	unsigned long flags;
 
-	if (temperature != TEMP_USE_AMBIENT) {
-		temp_index = mxc_epdc_fb_get_temp_index(fb_data, temperature);
-		epdc_set_temp(temp_index);
-	}
+	/* Store temp index. Used later when configuring updates. */
+	spin_lock_irqsave(&fb_data->queue_lock, flags);
+	fb_data->temp_index = mxc_epdc_fb_get_temp_index(fb_data, temperature);
+	spin_unlock_irqrestore(&fb_data->queue_lock, flags);
 
 	return 0;
 }
@@ -1641,7 +1646,9 @@ static int mxc_epdc_fb_send_update(struct mxcfb_update_data *upd_data,
 	if (upd_data_list->upd_data.temp != TEMP_USE_AMBIENT) {
 		temp_index = mxc_epdc_fb_get_temp_index(fb_data, upd_data_list->upd_data.temp);
 		epdc_set_temp(temp_index);
-	}
+	} else
+		epdc_set_temp(fb_data->temp_index);
+
 	epdc_submit_update(upd_data_list->lut_num,
 			   upd_data_list->upd_data.waveform_mode,
 			   upd_data_list->upd_data.update_mode, false, 0);
@@ -2226,7 +2233,8 @@ static irqreturn_t mxc_epdc_irq_handler(int irq, void *dev_id)
 	if (fb_data->cur_update->upd_data.temp != TEMP_USE_AMBIENT) {
 		temp_index = mxc_epdc_fb_get_temp_index(fb_data, fb_data->cur_update->upd_data.temp);
 		epdc_set_temp(temp_index);
-	}
+	} else
+		epdc_set_temp(fb_data->temp_index);
 	epdc_set_update_addr(fb_data->cur_update->phys_addr + fb_data->cur_update->epdc_offs);
 	epdc_set_update_coord(next_upd_region->left, next_upd_region->top);
 	epdc_set_update_dimensions(next_upd_region->width,
@@ -2314,6 +2322,9 @@ static int mxc_epdc_fb_init_hw(struct fb_info *info)
 
 	/* Copy TRT data */
 	memcpy(fb_data->temp_range_bounds, &wv_file->data, fb_data->trt_entries);
+
+	/* Set default temperature index using TRT and room temp */
+	fb_data->temp_index = mxc_epdc_fb_get_temp_index(fb_data, DEFAULT_TEMP);
 
 	/* Get offset and size for waveform data */
 	wv_data_offs = sizeof(wv_file->wdh) + fb_data->trt_entries + 1;
