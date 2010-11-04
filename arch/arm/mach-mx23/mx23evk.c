@@ -49,7 +49,7 @@ static struct mxs_mma7450_platform_data mma7450_platdata = {
 };
 
 static struct i2c_board_info __initdata mma7450_i2c_device = {
-	I2C_BOARD_INFO("mma7450", 0x3A),
+	I2C_BOARD_INFO("mma7450", 0x1d),
 	.platform_data = (void *)&mma7450_platdata,
 };
 

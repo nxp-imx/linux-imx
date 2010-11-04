@@ -42,7 +42,7 @@
 #include "mx28evk.h"
 
 static struct i2c_board_info __initdata mxs_i2c_device[] = {
-	{ I2C_BOARD_INFO("sgtl5000-i2c", 0x14), .flags = I2C_M_TEN }
+	{ I2C_BOARD_INFO("sgtl5000-i2c", 0xa), .flags = I2C_M_TEN }
 };
 
 static void __init i2c_device_init(void)
