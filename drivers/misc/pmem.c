@@ -337,8 +337,10 @@ static int pmem_open(struct inode *inode, struct file *file)
 	DLOG("current %u file %p(%d)\n", current->pid, file, file_count(file));
 	/* setup file->private_data to indicate its unmapped */
 	/*  you can only open a pmem device one time */
-	if (file->private_data != NULL)
+	if (file->private_data != &pmem[id].dev &&
+		file->private_data != NULL) {
 		return -1;
+	}
 	data = kmalloc(sizeof(struct pmem_data), GFP_KERNEL);
 	if (!data) {
 		printk("pmem: unable to allocate memory for pmem metadata.");
@@ -442,10 +444,12 @@ static int pmem_allocate(int id, unsigned long len)
 static pgprot_t phys_mem_access_prot(struct file *file, pgprot_t vma_prot)
 {
 	int id = get_id(file);
+
 #ifdef pgprot_writecombine
 	if (pmem[id].cached == 0 || file->f_flags & O_SYNC)
 		return pgprot_writecombine(vma_prot);
 #endif
+
 #ifdef pgprot_ext_buffered
 	else if (pmem[id].buffered)
 		return pgprot_ext_buffered(vma_prot);
@@ -1213,13 +1217,6 @@ static ssize_t debug_read(struct file *file, char __user *buf, size_t count,
 static struct file_operations debug_fops = {
 	.read = debug_read,
 	.open = debug_open,
-};
-#endif
-
-#if 0
-static struct miscdevice pmem_dev = {
-	.name = "pmem",
-	.fops = &pmem_fops,
 };
 #endif
 
