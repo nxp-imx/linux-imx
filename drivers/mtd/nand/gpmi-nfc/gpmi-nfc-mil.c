@@ -677,10 +677,14 @@ static int mil_ecc_read_page(struct mtd_info *mtd, struct nand_chip *nand,
 
 	}
 
-	/* Propagate ECC status to the owning MTD. */
-
-	mtd->ecc_stats.failed    += failed;
-	mtd->ecc_stats.corrected += corrected;
+	/*
+	 * Propagate ECC status to the owning MTD only when failed or
+	 * corrected times nearly reaches our ECC correction threshold.
+	 */
+	if (failed || corrected >= (nfc_geo->ecc_strength - 1)) {
+		mtd->ecc_stats.failed    += failed;
+		mtd->ecc_stats.corrected += corrected;
+	}
 
 	/*
 	 * It's time to deliver the OOB bytes. See mil_ecc_read_oob() for
