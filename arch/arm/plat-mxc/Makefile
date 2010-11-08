@@ -49,4 +49,7 @@ obj-$(CONFIG_MC13783_MXC) += mc13783_xc.o
 obj-$(CONFIG_UTMI_MXC) += utmixc.o
 obj-$(CONFIG_USB) += serialxc.o
 
+# ZQ calibration
+obj-$(CONFIG_MXC_ZQ_CALIBRATION) += zq_calib.o
+
 obj-y += devices/
