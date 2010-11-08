@@ -141,6 +141,8 @@ static inline void do_standby(void)
 	saved_sleep_state = 0;  /* waking from standby */
 	__raw_writel(BM_POWER_CTRL_PSWITCH_IRQ,
 		REGS_POWER_BASE + HW_POWER_CTRL_CLR);
+	__raw_writel(BM_POWER_CTRL_ENIRQ_PSWITCH,
+		REGS_POWER_BASE + HW_POWER_CTRL_SET);
 
 	local_fiq_enable();
 
@@ -292,8 +294,6 @@ static void pswitch_check_work(struct work_struct *work)
 	}
 	__raw_writel(BM_POWER_CTRL_PSWITCH_IRQ,
 		REGS_POWER_BASE + HW_POWER_CTRL_CLR);
-	__raw_writel(BM_POWER_CTRL_ENIRQ_PSWITCH,
-		REGS_POWER_BASE + HW_POWER_CTRL_SET);
 	__raw_writel(BM_POWER_CTRL_PSWITCH_IRQ,
 		REGS_POWER_BASE + HW_POWER_CTRL_CLR);
 }
