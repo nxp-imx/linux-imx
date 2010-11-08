@@ -44,7 +44,10 @@ static struct fsl_usb2_platform_data dr_utmi_config = {
 	.usb_clock_for_pm  = usbotg_clock_gate,
 	.transceiver       = "utmi",
 };
-
+static struct fsl_usb2_wakeup_platform_data dr_wakeup_config = {
+	.name = "DR wakeup",
+	.usb_clock_for_pm  = usbotg_clock_gate,
+};
 /* Notes: configure USB clock*/
 static int usbotg_init_ext(struct platform_device *pdev)
 {
@@ -170,6 +173,35 @@ static void _device_phy_lowpower_suspend(bool enable)
 	__phy_lowpower_suspend(enable, ENABLED_BY_DEVICE);
 }
 
+static bool _is_host_wakeup(void)
+{
+	int wakeup_req = USBCTRL & UCTRL_OWIR;
+	int otgsc = UOG_OTGSC;
+	/* if ID change sts, it is a host wakeup event */
+	if (wakeup_req && (otgsc & OTGSC_IS_USB_ID)) {
+		printk(KERN_INFO "otg host ID wakeup\n");
+		/* if host ID wakeup, we must clear the b session change sts */
+		UOG_OTGSC = otgsc & (~OTGSC_IS_USB_ID);
+		return true;
+	}
+	if (wakeup_req && /*(UOG_USBSTS & (1<<2)) && */(!((otgsc & OTGSC_IS_B_SESSION_VALID)))) {
+		printk(KERN_INFO "otg host Remote wakeup\n");
+		return true;
+	}
+	return false;
+}
+static bool _is_device_wakeup(void)
+{
+	int wakeup_req = USBCTRL & UCTRL_OWIR;
+
+	/* if not ID change sts, it is a device wakeup event */
+	if (wakeup_req && !(UOG_OTGSC & OTGSC_IS_USB_ID) && (UOG_OTGSC & OTGSC_IS_B_SESSION_VALID)) {
+		printk(KERN_INFO "otg udc wakeup\n");
+		return true;
+	}
+	return false;
+
+}
 static void usbotg_clock_gate(bool on)
 {
 	pr_debug("%s: on is %d\n", __func__, on);
@@ -197,19 +229,25 @@ void __init mx5_usb_dr_init(void)
 	dr_utmi_config.operating_mode = FSL_USB2_DR_OTG;
 	platform_device_add_data(&mxc_usbdr_otg_device, &dr_utmi_config, sizeof(dr_utmi_config));
 	platform_device_register(&mxc_usbdr_otg_device);
+	dr_wakeup_config.usb_pdata[0] = mxc_usbdr_otg_device.dev.platform_data;
 #endif
 #ifdef CONFIG_USB_EHCI_ARC_OTG
 	dr_utmi_config.operating_mode = DR_HOST_MODE;
 	dr_utmi_config.wake_up_enable = _host_wakeup_enable;
 	dr_utmi_config.phy_lowpower_suspend = _host_phy_lowpower_suspend;
+	dr_utmi_config.is_wakeup_event = _is_host_wakeup;
 	platform_device_add_data(&mxc_usbdr_host_device, &dr_utmi_config, sizeof(dr_utmi_config));
 	platform_device_register(&mxc_usbdr_host_device);
+	dr_wakeup_config.usb_pdata[1] = mxc_usbdr_host_device.dev.platform_data;
 #endif
 #ifdef CONFIG_USB_GADGET_ARC
 	dr_utmi_config.operating_mode = DR_UDC_MODE;
 	dr_utmi_config.wake_up_enable = _device_wakeup_enable;
 	dr_utmi_config.phy_lowpower_suspend = _device_phy_lowpower_suspend;
+	dr_utmi_config.is_wakeup_event = _is_device_wakeup;
 	platform_device_add_data(&mxc_usbdr_udc_device, &dr_utmi_config, sizeof(dr_utmi_config));
 	platform_device_register(&mxc_usbdr_udc_device);
+	dr_wakeup_config.usb_pdata[2] = mxc_usbdr_udc_device.dev.platform_data;
 #endif
+	mxc_register_device(&mxc_usbdr_wakeup_device, &dr_wakeup_config);
 }

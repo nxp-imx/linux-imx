@@ -3,7 +3,7 @@
 #
 
 # Common support
-obj-y :=cpu.o cpu_common.o system.o gpio.o clock.o snoop.o io.o time.o devices.o usb_common.o
+obj-y :=cpu.o cpu_common.o system.o gpio.o clock.o snoop.o io.o time.o devices.o usb_common.o usb_wakeup.o
 
 obj-$(CONFIG_IRAM_ALLOC) += iram.o
 

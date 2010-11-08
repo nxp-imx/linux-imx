@@ -89,6 +89,16 @@ static void fsl_usbh2_clock_gate(bool on)
 	}
 }
 
+static bool _is_usbh2_wakeup(void)
+{
+	int wakeup_req = USBCTRL & UCTRL_H2WIR;
+
+	if (wakeup_req)
+		return true;
+
+	return false;
+}
+
 static int fsl_usb_host_init_ext(struct platform_device *pdev)
 {
 	int ret = 0;
@@ -143,10 +153,16 @@ static struct fsl_usb2_platform_data usbh2_config = {
 	.phy_lowpower_suspend = _phy_lowpower_suspend,
 	.gpio_usb_active = gpio_usbh2_active,
 	.gpio_usb_inactive = gpio_usbh2_inactive,
+	.is_wakeup_event = _is_usbh2_wakeup,
 	.transceiver = "isp1504",
 };
-
+static struct fsl_usb2_wakeup_platform_data usbh2_wakeup_config = {
+	.name = "USBH2 wakeup",
+	.usb_clock_for_pm  = fsl_usbh2_clock_gate,
+	.usb_pdata = {&usbh2_config, NULL, NULL},
+};
 void __init mx5_usbh2_init(void)
 {
 	mxc_register_device(&mxc_usbh2_device, &usbh2_config);
+	mxc_register_device(&mxc_usbh2_wakeup_device, &usbh2_wakeup_config);
 }

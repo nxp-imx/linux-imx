@@ -1183,6 +1183,17 @@ static struct resource usbotg_xcvr_resources[] = {
 	},
 };
 
+static struct resource usbotg_wakeup_resources[] = {
+	{
+		.start = MXC_INT_USB_OTG,/* wakeup irq */
+		.flags = IORESOURCE_IRQ,
+	},
+	{
+		.start = MXC_INT_USB_OTG,/* usb core irq , may be equel to wakeup irq for some imx chips */
+		.flags = IORESOURCE_IRQ,
+	},
+};
+
 struct platform_device mxc_usbdr_udc_device = {
 	.name		= "fsl-usb2-udc",
 	.id		= -1,
@@ -1216,6 +1227,13 @@ struct platform_device mxc_usbdr_host_device = {
 	},
 };
 
+struct platform_device mxc_usbdr_wakeup_device = {
+	.name = "usb_wakeup",
+	.id   = 0,
+	.num_resources = ARRAY_SIZE(usbotg_wakeup_resources),
+	.resource = usbotg_wakeup_resources,
+};
+
 static struct resource usbh1_resources[] = {
 	{
 		.start = OTG_BASE_ADDR + 0x200,
@@ -1225,6 +1243,17 @@ static struct resource usbh1_resources[] = {
 	{
 		.start = MXC_INT_USB_H1,
 		.flags = IORESOURCE_IRQ,
+	},
+};
+
+static struct resource usbh1_wakeup_resources[] = {
+	{
+		.start = MXC_INT_USB_H1, /*wakeup irq*/
+		.flags = IORESOURCE_IRQ,
+	},
+	{
+		.start = MXC_INT_USB_H1,
+		.flags = IORESOURCE_IRQ,/* usb core irq */
 	},
 };
 
@@ -1239,6 +1268,13 @@ struct platform_device mxc_usbh1_device = {
 	},
 };
 
+struct platform_device mxc_usbh1_wakeup_device = {
+	.name = "usb_wakeup",
+	.id   = 1,
+	.num_resources = ARRAY_SIZE(usbh1_wakeup_resources),
+	.resource = usbh1_wakeup_resources,
+};
+
 static struct resource usbh2_resources[] = {
 	{
 		.start = OTG_BASE_ADDR + 0x400,
@@ -1251,6 +1287,16 @@ static struct resource usbh2_resources[] = {
 	},
 };
 
+static struct resource usbh2_wakeup_resources[] = {
+	{
+		.start = MXC_INT_USB_H2,
+		.flags = IORESOURCE_IRQ,/* wakeup irq */
+	},
+	{
+		.start = MXC_INT_USB_H2,
+		.flags = IORESOURCE_IRQ,/* usb core irq */
+	},
+};
 struct platform_device mxc_usbh2_device = {
 	.name = "fsl-ehci",
 	.id = 2,
@@ -1260,6 +1306,13 @@ struct platform_device mxc_usbh2_device = {
 		.dma_mask = &usb_dma_mask,
 		.coherent_dma_mask = DMA_BIT_MASK(32),
 	},
+};
+
+struct platform_device mxc_usbh2_wakeup_device = {
+	.name = "usb_wakeup",
+	.id   = 2,
+	.num_resources = ARRAY_SIZE(usbh2_wakeup_resources),
+	.resource = usbh2_wakeup_resources,
 };
 
 static struct resource mxc_gpu_resources[] = {

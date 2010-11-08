@@ -106,6 +106,16 @@ static void usbh1_clock_gate(bool on)
 	}
 }
 
+static bool _is_usbh1_wakeup(void)
+{
+	int wakeup_req = USBCTRL & UCTRL_H1WIR;
+
+	if (wakeup_req)
+		return true;
+
+	return false;
+}
+
 static int fsl_usb_host_init_ext(struct platform_device *pdev)
 {
 	int ret;
@@ -176,9 +186,14 @@ static struct fsl_usb2_platform_data usbh1_config = {
 	.wake_up_enable = _wake_up_enable,
 	.usb_clock_for_pm  = usbh1_clock_gate,
 	.phy_lowpower_suspend = _phy_lowpower_suspend,
+	.is_wakeup_event = _is_usbh1_wakeup,
 	.transceiver = "utmi",
 };
-
+static struct fsl_usb2_wakeup_platform_data usbh1_wakeup_config = {
+		.name = "USBH1 wakeup",
+		.usb_clock_for_pm  = usbh1_clock_gate,
+		.usb_pdata = {&usbh1_config, NULL, NULL},
+};
 void mx5_set_host1_vbus_func(driver_vbus_func driver_vbus)
 {
 	usbh1_config.platform_driver_vbus = driver_vbus;
@@ -192,5 +207,6 @@ void __init mx5_usbh1_init(void)
 		usbh1_config.gpio_usb_inactive = gpio_usbh1_inactive;
 	}
 	mxc_register_device(&mxc_usbh1_device, &usbh1_config);
+	mxc_register_device(&mxc_usbh1_wakeup_device, &usbh1_wakeup_config);
 }
 
