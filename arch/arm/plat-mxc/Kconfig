@@ -207,4 +207,10 @@ config MXC_DVFS_PER
 	help
 	   Select this if you want to enable HW supported peripheral frequency scaling.
 
+config MXC_ZQ_CALIBRATION
+	bool "Enable mDDR/LPDDR2/DDR2 ZQ calibration"
+	depends on ARCH_MX50
+	help
+	   Select this if you're sure it's needed.
+
 endif
