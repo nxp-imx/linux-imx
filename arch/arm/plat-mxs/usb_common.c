@@ -275,12 +275,11 @@ int usbotg_init(struct platform_device *pdev)
 	tmp &= ~PORTSC_PHCD;
 	__raw_writel(tmp, pdata->regs + UOG_PORTSC1);
 
-	if (pdata->operating_mode == FSL_USB2_DR_HOST) {
+	if ((pdata->operating_mode == FSL_USB2_DR_HOST) ||
+			(pdata->operating_mode == FSL_USB2_DR_OTG)) {
 		/* enable FS/LS device */
-		tmp = __raw_readl(IO_ADDRESS(pdata->phy_regs) + HW_USBPHY_CTRL);
-		tmp |= (BM_USBPHY_CTRL_ENUTMILEVEL2 |
-			BM_USBPHY_CTRL_ENUTMILEVEL3);
-		__raw_writel(tmp, IO_ADDRESS(pdata->phy_regs) + HW_USBPHY_CTRL);
+		__raw_writel(BM_USBPHY_CTRL_ENUTMILEVEL2 | BM_USBPHY_CTRL_ENUTMILEVEL3
+				, IO_ADDRESS(pdata->phy_regs) + HW_USBPHY_CTRL_SET);
 	}
 
 	otg_used++;
