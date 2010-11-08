@@ -73,7 +73,6 @@ struct fsl_usb2_platform_data {
 	enum fsl_usb2_operating_modes	operating_mode;
 	enum fsl_usb2_phy_modes		phy_mode;
 	unsigned int			port_enables;
-
 	char *name;		/* pretty print */
 	int (*platform_init) (struct platform_device *);
 	void (*platform_uninit) (struct fsl_usb2_platform_data *);
@@ -93,6 +92,7 @@ struct fsl_usb2_platform_data {
 	void (*wake_up_enable)(struct fsl_usb2_platform_data *pdata, bool on);
 	void (*phy_lowpower_suspend)(bool);
 	void (*platform_driver_vbus)(bool on); /* platform special function for vbus shutdown/open */
+	bool (*is_wakeup_event)(void);
 	unsigned			big_endian_mmio:1;
 	unsigned			big_endian_desc:1;
 	unsigned			es:1;	/* need USBMODE:ES */
@@ -102,6 +102,9 @@ struct fsl_usb2_platform_data {
 	unsigned ahb_burst_mode:3;
 	unsigned			suspended:1;
 	unsigned			already_suspended:1;
+	unsigned            lowpower:1;
+	unsigned            irq_delay:1;
+	unsigned            wakeup_event:1;
 
 	u32				id_gpio;
 	/* register save area for suspend/resume */
@@ -119,6 +122,13 @@ struct fsl_usb2_platform_data {
 /* Flags in fsl_usb2_mph_platform_data */
 #define FSL_USB2_PORT0_ENABLED	0x00000001
 #define FSL_USB2_PORT1_ENABLED	0x00000002
+
+struct fsl_usb2_wakeup_platform_data {
+	char *name;
+	void (*usb_clock_for_pm) (bool);
+	struct fsl_usb2_platform_data *usb_pdata[3];
+};
+
 
 struct spi_device;
 

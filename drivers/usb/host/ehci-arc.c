@@ -40,6 +40,7 @@ static void fsl_usb_lowpower_mode(struct fsl_usb2_platform_data *pdata, bool ena
 		if (pdata->phy_lowpower_suspend)
 			pdata->phy_lowpower_suspend(false);
 	}
+	pdata->lowpower = enable;
 }
 
 static void fsl_usb_clk_gate(struct fsl_usb2_platform_data *pdata, bool enable)
@@ -124,17 +125,13 @@ static irqreturn_t ehci_fsl_pre_irq(int irq, void *dev)
 	pdata = hcd->self.controller->platform_data;
 
 	if (!test_bit(HCD_FLAG_HW_ACCESSIBLE, &hcd->flags)) {
-		/* Need to open clk for accessing the register */
-		fsl_usb_clk_gate(hcd->self.controller->platform_data, true);
-		/* if receive a remote wakeup interrrupt after suspend */
-		if (usb_host_wakeup_irq(hcd->self.controller)) {
-			pr_debug("host wakeup happens\n");
-			/* disable remote wake up irq */
+		if (pdata->irq_delay)
+			return IRQ_NONE;
+		if (pdata->wakeup_event) {
 			usb_host_set_wakeup(hcd->self.controller, false);
 			fsl_usb_lowpower_mode(pdata, false);
 			set_bit(HCD_FLAG_HW_ACCESSIBLE, &hcd->flags);
-		} else {
-			fsl_usb_clk_gate(hcd->self.controller->platform_data, false);
+			pdata->wakeup_event = 0;
 		}
 	}
 	return IRQ_NONE;

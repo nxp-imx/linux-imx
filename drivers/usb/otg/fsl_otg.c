@@ -766,7 +766,6 @@ irqreturn_t fsl_otg_isr_gpio(int irq, void *dev_id)
 	f_otg = container_of(otg_trans, struct fsl_otg, otg);
 	fsm = &f_otg->fsm;
 
-	fsl_otg_clk_ctl();
 	if (pdata->id_gpio == 0)
 		return IRQ_NONE;
 
@@ -808,13 +807,12 @@ irqreturn_t fsl_otg_isr(int irq, void *dev_id)
 	struct otg_transceiver *otg = &fotg->otg;
 	u32 otg_int_src, otg_sc;
 	irqreturn_t ret = IRQ_NONE;
-
-	fsl_otg_clk_ctl();
-	/* if this is an wakeup event, we should debounce ID pin
-	 * so we can get the correct ID value(ID status) here */
-	if (usb_event_is_otg_wakeup())
-		usb_debounce_id_pin();
-
+	struct fsl_usb2_platform_data *pdata;
+	if (fotg && fotg->otg.dev) {
+		pdata = fotg->otg.dev->platform_data;
+		if (pdata->irq_delay)
+			return ret;
+	}
 	otg_sc = le32_to_cpu(usb_dr_regs->otgsc);
 	otg_int_src = otg_sc & OTGSC_INTSTS_MASK & (otg_sc >> 8);
 
@@ -1323,10 +1321,8 @@ static int __init fsl_otg_probe(struct platform_device *pdev)
 	}
 
 	last_busy  = jiffies;
-	setup_timer(&monitor_timer, fsl_otg_loading_monitor, (unsigned long)pdev);
-	mod_timer(&monitor_timer, jiffies + msecs_to_jiffies(TIMER_FREQ));
-
 	create_proc_file();
+	fsl_otg_clk_gate(false);
 	return status;
 }
 
