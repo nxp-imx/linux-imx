@@ -31,6 +31,7 @@
 #include <linux/usb/ch9.h>
 #include <linux/usb/composite.h>
 #include <linux/usb/gadget.h>
+#include <linux/wakelock.h>
 
 #include "gadget_chips.h"
 
@@ -57,6 +58,7 @@ struct android_dev {
 	char **functions;
 	int product_id;
 	int version;
+	struct wake_lock wake_lock;
 };
 
 static struct android_dev *_android_dev;
@@ -294,12 +296,24 @@ void android_enable_function(struct usb_function *f, int enable)
 	}
 }
 
+static void android_suspend(struct usb_composite_dev *dev)
+{
+	wake_unlock(&_android_dev->wake_lock);
+}
+
+static void android_resume(struct usb_composite_dev *dev)
+{
+	wake_lock(&_android_dev->wake_lock);
+}
+
 static struct usb_composite_driver android_usb_driver = {
 	.name		= "android_usb",
 	.dev		= &device_desc,
 	.strings	= dev_strings,
 	.bind		= android_bind,
 	.enable_function = android_enable_function,
+	.suspend	= android_suspend,
+	.resume		= android_resume,
 };
 
 static int android_probe(struct platform_device *pdev)
@@ -335,12 +349,15 @@ static int android_probe(struct platform_device *pdev)
 		return -ENODEV;
 	}
 
+	wake_lock_init(&dev->wake_lock, WAKE_LOCK_SUSPEND,
+			"android_usb");
 	return usb_composite_register(&android_usb_driver);
 }
 
 static int android_remove(struct platform_device *pdev)
 {
 	usb_composite_unregister(&android_usb_driver);
+	wake_lock_destroy(&_android_dev->wake_lock);
 	return 0;
 }
 
