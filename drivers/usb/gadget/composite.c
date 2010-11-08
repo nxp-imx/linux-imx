@@ -553,6 +553,7 @@ static int set_config(struct usb_composite_dev *cdev,
 done:
 	usb_gadget_vbus_draw(gadget, power);
 
+	cdev->online = 1;
 	return result;
 }
 
@@ -1247,6 +1248,9 @@ composite_uevent(struct device *dev, struct kobj_uevent_env *env)
 	if (add_uevent_var(env, "FUNCTION=%s", f->name))
 		return -ENOMEM;
 	if (add_uevent_var(env, "ENABLED=%d", !f->disabled))
+		return -ENOMEM;
+	if (add_uevent_var(env, "STATE=%s",
+			f->config->cdev->online ? "online" : "offline"))
 		return -ENOMEM;
 	return 0;
 }

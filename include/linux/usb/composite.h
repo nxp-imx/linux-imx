@@ -345,6 +345,7 @@ struct usb_composite_dev {
 
 	/* protects at least deactivation count */
 	spinlock_t			lock;
+	int				online;
 };
 
 extern int usb_string_id(struct usb_composite_dev *c);

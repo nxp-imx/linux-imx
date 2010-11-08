@@ -2314,8 +2314,9 @@ static int alloc_request(struct fsg_common *common, struct usb_ep *ep,
 static int do_set_interface(struct fsg_common *common, struct fsg_dev *new_fsg)
 {
 	const struct usb_endpoint_descriptor *d;
-	struct fsg_dev *fsg;
+	struct fsg_dev *fsg = NULL;
 	int i, rc = 0;
+	int online = 1;
 
 	if (common->running)
 		DBG(common, "reset interface\n");
@@ -2353,8 +2354,10 @@ reset:
 	}
 
 	common->running = 0;
-	if (!new_fsg || rc)
-		return rc;
+	if (!new_fsg || rc) {
+		online = 0;
+		goto out;
+	}
 
 	common->fsg = new_fsg;
 	fsg = common->fsg;
@@ -2395,6 +2398,12 @@ reset:
 	common->running = 1;
 	for (i = 0; i < common->nluns; ++i)
 		common->luns[i].unit_attention_data = SS_RESET_OCCURRED;
+out:
+	if (fsg) {
+		fsg->function.config->cdev->online = online;
+		kobject_uevent(&fsg->function.dev->kobj, KOBJ_CHANGE);
+	}
+
 	return rc;
 }
 
@@ -2415,6 +2424,12 @@ static void fsg_disable(struct usb_function *f)
 	struct fsg_dev *fsg = fsg_from_func(f);
 	fsg->common->new_fsg = NULL;
 	raise_exception(fsg->common, FSG_STATE_CONFIG_CHANGE);
+}
+
+static void fsg_suspend(struct usb_function *f)
+{
+	if (!f->disabled)
+		fsg_disable(f);
 }
 
 
@@ -3022,6 +3037,7 @@ static int fsg_add(struct usb_composite_dev *cdev,
 	fsg->function.setup       = fsg_setup;
 	fsg->function.set_alt     = fsg_set_alt;
 	fsg->function.disable     = fsg_disable;
+	fsg->function.suspend     = fsg_suspend;
 
 	fsg->common               = common;
 	/* Our caller holds a reference to common structure so we
