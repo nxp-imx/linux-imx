@@ -419,7 +419,6 @@ static int ehci_fsl_bus_resume(struct usb_hcd *hcd)
 		return -ESHUTDOWN;
 	}
 
-	/* if it is a remote wakeup, it will open clock and clear PHCD automatically */
 	if (!test_bit(HCD_FLAG_HW_ACCESSIBLE, &hcd->flags)) {
 		set_bit(HCD_FLAG_HW_ACCESSIBLE, &hcd->flags);
 		fsl_usb_clk_gate(hcd->self.controller->platform_data, true);
@@ -631,7 +630,7 @@ static int ehci_fsl_drv_suspend(struct platform_device *pdev,
 	}
 	usb_unlock_device(roothub);
 
-	if ((pdata->operating_mode != FSL_USB2_MPH_HOST) && (!(hcd->state & HC_STATE_SUSPENDED))) {
+	if (!(hcd->state & HC_STATE_SUSPENDED)) {
 		printk(KERN_DEBUG "will suspend roothub and its children\n");
 		usb_lock_device(roothub);
 		usb_suspend(&roothub->dev, PMSG_USER_SUSPEND);
@@ -659,6 +658,10 @@ static int ehci_fsl_drv_suspend(struct platform_device *pdev,
 
 	/* clear PHCD bit */
 	pdata->pm_portsc &= ~PORT_PTS_PHCD;
+
+	usb_host_set_wakeup(hcd->self.controller, true);
+	fsl_usb_lowpower_mode(pdata, true);
+
 	if (test_bit(HCD_FLAG_HW_ACCESSIBLE, &hcd->flags)) {
 		clear_bit(HCD_FLAG_HW_ACCESSIBLE, &hcd->flags);
 		fsl_usb_clk_gate(hcd->self.controller->platform_data, false);
