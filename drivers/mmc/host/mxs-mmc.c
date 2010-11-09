@@ -569,11 +569,19 @@ static void mxs_mmc_adtc(struct mxs_mmc_host *host)
 			val = BF(log2_block_size, SSP_BLOCK_SIZE_BLOCK_SIZE) |
 			BF(cmd->data->blocks - 1, SSP_BLOCK_SIZE_BLOCK_COUNT);
 			__raw_writel(val, host->ssp_base + HW_SSP_BLOCK_SIZE);
-			if (host->mmc->ios.bus_width & MMC_BUS_WIDTH_DDR)
-				/* Enable the DDR mode */
+			if (host->mmc->ios.bus_width & MMC_BUS_WIDTH_DDR) {
+				/*
+				 * Enable the DDR mode
+				 * Make sure the POLARITY bit is cleared
+				 */
+				__raw_writel(BM_SSP_CTRL1_POLARITY, \
+					host->ssp_base + HW_SSP_CTRL1_CLR);
 				ssp_cmd0 |= BM_SSP_CMD0_DBL_DATA_RATE_EN;
-			else
+			} else {
+				__raw_writel(BM_SSP_CTRL1_POLARITY, \
+					host->ssp_base + HW_SSP_CTRL1_SET);
 				ssp_cmd0 &= ~BM_SSP_CMD0_DBL_DATA_RATE_EN;
+			}
 
 		}
 	} else {
