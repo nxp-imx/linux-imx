@@ -84,7 +84,7 @@
 
 #endif /* CONFIG_M5272 */
 
-#ifdef CONFIG_ARCH_MX28
+#if defined(CONFIG_ARCH_MX28) && defined(CONFIG_FEC_1588)
 #define CONFIG_ENHANCED_BD
 #endif
 
