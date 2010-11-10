@@ -112,14 +112,39 @@ ipu_csi_init_interface(uint16_t width, uint16_t height, uint32_t pixel_fmt,
 		__raw_writel(0x40030, CSI_CCIR_CODE_1(csi));
 		__raw_writel(0xFF0000, CSI_CCIR_CODE_3(csi));
 	} else if (cfg_param.clk_mode == IPU_CSI_CLK_MODE_CCIR656_INTERLACED) {
+		if (width == 720 && height == 625) {
+			/* PAL case */
+			/*
+			 * Field0BlankEnd = 0x6, Field0BlankStart = 0x2,
+			 * Field0ActiveEnd = 0x4, Field0ActiveStart = 0
+			 */
+			__raw_writel(0x40596, CSI_CCIR_CODE_1(csi));
+			/*
+			 * Field1BlankEnd = 0x7, Field1BlankStart = 0x3,
+			 * Field1ActiveEnd = 0x5, Field1ActiveStart = 0x1
+			 */
+			__raw_writel(0xD07DF, CSI_CCIR_CODE_2(csi));
+			__raw_writel(0xFF0000, CSI_CCIR_CODE_3(csi));
+		} else if (width == 720 && height == 525) {
+			/* NTSC case */
+			/*
+			 * Field0BlankEnd = 0x7, Field0BlankStart = 0x3,
+			 * Field0ActiveEnd = 0x5, Field0ActiveStart = 0x1
+			 */
+			__raw_writel(0xD07DF, CSI_CCIR_CODE_1(csi));
+			/*
+			 * Field1BlankEnd = 0x6, Field1BlankStart = 0x2,
+			 * Field1ActiveEnd = 0x4, Field1ActiveStart = 0
+			 */
+			__raw_writel(0x40596, CSI_CCIR_CODE_2(csi));
+			__raw_writel(0xFF0000, CSI_CCIR_CODE_3(csi));
+		} else {
+			spin_unlock_irqrestore(&ipu_lock, lock_flags);
+			dev_err(g_ipu_dev, "Unsupported CCIR656 interlaced "
+					"video mode\n");
+			return -EINVAL;
+		}
 		_ipu_csi_ccir_err_detection_enable(csi);
-		/* Field0BlankEnd = 0x7, Field0BlankStart = 0x3,
-		   Field0ActiveEnd = 0x5, Field0ActiveStart = 0x1 */
-		__raw_writel(0xD07DF, CSI_CCIR_CODE_1(csi));
-		/* Field1BlankEnd = 0x6, Field1BlankStart = 0x2,
-		   Field1ActiveEnd = 0x4, Field1ActiveStart = 0 */
-		__raw_writel(0x40596, CSI_CCIR_CODE_2(csi));
-		__raw_writel(0xFF0000, CSI_CCIR_CODE_3(csi));
 	} else if ((cfg_param.clk_mode ==
 			IPU_CSI_CLK_MODE_CCIR1120_PROGRESSIVE_DDR) ||
 		(cfg_param.clk_mode ==
@@ -128,9 +153,9 @@ ipu_csi_init_interface(uint16_t width, uint16_t height, uint32_t pixel_fmt,
 			IPU_CSI_CLK_MODE_CCIR1120_INTERLACED_DDR) ||
 		(cfg_param.clk_mode ==
 			IPU_CSI_CLK_MODE_CCIR1120_INTERLACED_SDR)) {
-		_ipu_csi_ccir_err_detection_enable(csi);
 		__raw_writel(0x40030, CSI_CCIR_CODE_1(csi));
 		__raw_writel(0xFF0000, CSI_CCIR_CODE_3(csi));
+		_ipu_csi_ccir_err_detection_enable(csi);
 	} else if ((cfg_param.clk_mode == IPU_CSI_CLK_MODE_GATED_CLK) ||
 		   (cfg_param.clk_mode == IPU_CSI_CLK_MODE_NONGATED_CLK)) {
 		_ipu_csi_ccir_err_detection_disable(csi);
@@ -147,7 +172,23 @@ ipu_csi_init_interface(uint16_t width, uint16_t height, uint32_t pixel_fmt,
 }
 EXPORT_SYMBOL(ipu_csi_init_interface);
 
-/*! _ipu_csi_mclk_set
+/*!
+ * ipu_csi_get_sensor_protocol
+ *
+ * @param	csi         csi 0 or csi 1
+ *
+ * @return	Returns sensor protocol
+ */
+int32_t ipu_csi_get_sensor_protocol(uint32_t csi)
+{
+	return (__raw_readl(CSI_SENS_CONF(csi)) &
+		CSI_SENS_CONF_SENS_PRTCL_MASK) >>
+		CSI_SENS_CONF_SENS_PRTCL_SHIFT;
+}
+EXPORT_SYMBOL(ipu_csi_get_sensor_protocol);
+
+/*!
+ * _ipu_csi_mclk_set
  *
  * @param	pixel_clk   desired pixel clock frequency in Hz
  * @param	csi         csi 0 or csi 1

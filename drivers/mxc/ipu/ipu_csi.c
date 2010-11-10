@@ -215,6 +215,19 @@ void ipu_csi_set_window_pos(uint32_t left, uint32_t top, uint32_t dummy)
 	__raw_writel(temp, CSI_OUT_FRM_CTRL);
 }
 
+/*!
+ * ipu_csi_get_sensor_protocol
+ *
+ * @param	csi         csi 0 or csi 1
+ *
+ * @return	Returns sensor protocol
+ */
+int32_t ipu_csi_get_sensor_protocol(uint32_t csi)
+{
+	/* TODO */
+}
+EXPORT_SYMBOL(ipu_csi_get_sensor_protocol);
+
 /* Exported symbols for modules. */
 EXPORT_SYMBOL(ipu_csi_set_window_pos);
 EXPORT_SYMBOL(ipu_csi_set_window_size);
