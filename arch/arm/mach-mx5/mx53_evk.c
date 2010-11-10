@@ -796,11 +796,11 @@ static void mx53_gpio_host1_driver_vbus(bool on)
 static void adv7180_pwdn(int pwdn)
 {
 	gpio_request(MX53_TVIN_PWR, "tvin-pwr");
-	gpio_direction_output(MX53_TVIN_PWR, 0);
 	if (pwdn)
 		gpio_set_value(MX53_TVIN_PWR, 0);
 	else
 		gpio_set_value(MX53_TVIN_PWR, 1);
+	gpio_free(MX53_TVIN_PWR);
 }
 
 static struct mxc_tvin_platform_data adv7180_data = {
@@ -872,8 +872,8 @@ device_initcall(mxc_init_fb);
 static void camera_pwdn(int pwdn)
 {
 	gpio_request(MX53_TVIN_PWR, "tvin-pwr");
-	gpio_direction_output(MX53_TVIN_PWR, 0);
 	gpio_set_value(MX53_TVIN_PWR, pwdn);
+	gpio_free(MX53_TVIN_PWR);
 }
 
 static struct mxc_camera_platform_data camera_data = {
@@ -1571,6 +1571,10 @@ static void __init mx53_evk_io_init(void)
 	gpio_direction_output(MX53_TVIN_RESET, 0);
 	msleep(5);
 	gpio_set_value(MX53_TVIN_RESET, 1);
+
+	/* TVin power down */
+	gpio_request(MX53_TVIN_PWR, "tvin-pwr");
+	gpio_direction_output(MX53_TVIN_PWR, 0);
 
 	/* CAN1 enable GPIO*/
 	gpio_request(MX53_CAN1_EN1, "can1-en1");
