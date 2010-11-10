@@ -28,8 +28,8 @@
 
 #include <mach/hardware.h>
 
-/* 5 mins */
-#define ZQ_INTERVAL	(5 * 60 * 1000)
+/* 10 secs, shall support changing this value in use-space later  */
+#define ZQ_INTERVAL	(10 * 1000)
 
 static void mxc_zq_main(void);
 
@@ -251,6 +251,7 @@ static void mxc_zq_main(void)
 	pu = mxc_zq_pu_calib(0);
 	/* Search pd value start from 0 */
 	pd = mxc_zq_pd_calib(0, pu);
+	printk("pu = %d, pd = %d\n", pu, pd);
 	mxc_zq_hw_load(pu, pd);
 	/* or do software load alternatively */
 	/* zq_sw_load(pu, pd); */
