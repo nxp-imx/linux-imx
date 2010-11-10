@@ -55,6 +55,7 @@ int g_ipu_irq[2];
 int g_ipu_hw_rev;
 bool g_sec_chan_en[24];
 bool g_thrd_chan_en[24];
+bool g_chan_is_interlaced[52];
 uint32_t g_channel_init_mask;
 uint32_t g_channel_enable_mask;
 DEFINE_SPINLOCK(ipu_lock);
@@ -496,6 +497,13 @@ int32_t ipu_init_channel(ipu_channel_t channel, ipu_channel_params_t *params)
 			ret = -EINVAL;
 			goto err;
 		}
+
+		if (params->csi_mem.interlaced)
+			g_chan_is_interlaced[channel_2_dma(channel,
+				IPU_OUTPUT_BUFFER)] = true;
+		else
+			g_chan_is_interlaced[channel_2_dma(channel,
+				IPU_OUTPUT_BUFFER)] = false;
 
 		ipu_smfc_use_count++;
 		g_ipu_csi_channel[params->csi_mem.csi] = channel;
@@ -1084,9 +1092,9 @@ int32_t ipu_init_channel_buffer(ipu_channel_t channel, ipu_buffer_t type,
 		spin_unlock_irqrestore(&ipu_lock, lock_flags);
 	}
 
-	if (_ipu_chan_is_interlaced(channel)) {
+	if (_ipu_disp_chan_is_interlaced(channel) ||
+		g_chan_is_interlaced[dma_chan])
 		_ipu_ch_param_set_interlaced_scan(dma_chan);
-	}
 
 	if (_ipu_is_ic_chan(dma_chan) || _ipu_is_irt_chan(dma_chan)) {
 		burst_size = _ipu_ch_param_get_burst_size(dma_chan);

@@ -645,7 +645,7 @@ void _ipu_dc_uninit(int dc_chan)
 	}
 }
 
-int _ipu_chan_is_interlaced(ipu_channel_t channel)
+int _ipu_disp_chan_is_interlaced(ipu_channel_t channel)
 {
 	if (channel == MEM_DC_SYNC)
 		return !!(__raw_readl(DC_WR_CH_CONF_1) &

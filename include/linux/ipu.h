@@ -304,8 +304,9 @@ typedef enum {
 typedef union {
 	struct {
 		uint32_t csi;
-		bool mipi_en;
 		uint32_t mipi_id;
+		bool mipi_en;
+		bool interlaced;
 	} csi_mem;
 	struct {
 		uint32_t in_width;
@@ -1002,6 +1003,8 @@ int32_t ipu_adc_init_ifc_timing(display_port_t disp, bool read,
 /* CMOS Sensor Interface API */
 int32_t ipu_csi_init_interface(uint16_t width, uint16_t height,
 			       uint32_t pixel_fmt, ipu_csi_signal_cfg_t sig);
+
+int32_t ipu_csi_get_sensor_protocol(uint32_t csi);
 
 int32_t ipu_csi_enable_mclk(int src, bool flag, bool wait);
 
