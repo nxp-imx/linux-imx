@@ -1536,7 +1536,7 @@ static inline void hci_sched_acl(struct hci_dev *hdev)
 		while (quote-- && (skb = skb_dequeue(&conn->data_q))) {
 			BT_DBG("skb %p len %d", skb, skb->len);
 
-			hci_conn_enter_active_mode(conn);
+			hci_conn_enter_active_mode(conn, bt_cb(skb)->force_active);
 
 			hci_send_frame(skb);
 			hdev->acl_last_tx = jiffies;
@@ -1638,7 +1638,7 @@ static inline void hci_acldata_packet(struct hci_dev *hdev, struct sk_buff *skb)
 	if (conn) {
 		register struct hci_proto *hp;
 
-		hci_conn_enter_active_mode(conn);
+		hci_conn_enter_active_mode(conn, 1);
 
 		/* Send to upper protocol */
 		hp = hci_proto[HCI_PROTO_L2CAP];
