@@ -131,8 +131,8 @@ static video_fmt_t video_fmts[] = {
 	 .raw_width = 720,		/* SENS_FRM_WIDTH */
 	 .raw_height = 525,		/* SENS_FRM_HEIGHT */
 	 .active_width = 720,		/* ACT_FRM_WIDTH */
-	 .active_height = 240,		/* ACT_FRM_HEIGHT */
-	 .active_top = 0,
+	 .active_height = 480,		/* ACT_FRM_HEIGHT */
+	 .active_top = 13,
 	 .active_left = 0,
 	 },
 	{			/*! (B, G, H, I, N) PAL */
@@ -141,7 +141,7 @@ static video_fmt_t video_fmts[] = {
 	 .raw_width = 720,
 	 .raw_height = 625,
 	 .active_width = 720,
-	 .active_height = 288,
+	 .active_height = 576,
 	 .active_top = 0,
 	 .active_left = 0,
 	 },
@@ -151,7 +151,7 @@ static video_fmt_t video_fmts[] = {
 	 .raw_width = 720,
 	 .raw_height = 625,
 	 .active_width = 720,
-	 .active_height = 288,
+	 .active_height = 576,
 	 .active_top = 0,
 	 .active_left = 0,
 	 },
@@ -1224,29 +1224,20 @@ exit:
  */
 static int mxc_v4l2_s_std(cam_data *cam, v4l2_std_id e)
 {
-	bool change = false;
-
-	if (e != cam->standard.id) {
-		change = true;
-	}
-
 	pr_debug("In mxc_v4l2_s_std %Lx\n", e);
 	if (e == V4L2_STD_PAL) {
 		pr_debug("   Setting standard to PAL %Lx\n", V4L2_STD_PAL);
 		cam->standard.id = V4L2_STD_PAL;
 		video_index = TV_PAL;
-		cam->crop_current.top = 0;
 	} else if (e == V4L2_STD_NTSC) {
 		pr_debug("   Setting standard to NTSC %Lx\n",
 				V4L2_STD_NTSC);
 		/* Get rid of the white dot line in NTSC signal input */
 		cam->standard.id = V4L2_STD_NTSC;
 		video_index = TV_NTSC;
-		cam->crop_current.top = 12;
 	} else {
 		cam->standard.id = V4L2_STD_ALL;
 		video_index = TV_NOT_LOCKED;
-		cam->crop_current.top = 0;
 		pr_err("ERROR: unrecognized std! %Lx (PAL=%Lx, NTSC=%Lx\n",
 			e, V4L2_STD_PAL, V4L2_STD_NTSC);
 	}
@@ -1257,7 +1248,8 @@ static int mxc_v4l2_s_std(cam_data *cam, v4l2_std_id e)
 	cam->crop_bounds.height = video_fmts[video_index].raw_height;
 	cam->crop_current.width = video_fmts[video_index].active_width;
 	cam->crop_current.height = video_fmts[video_index].active_height;
-	cam->crop_current.left = 0;
+	cam->crop_current.top = video_fmts[video_index].active_top;
+	cam->crop_current.left = video_fmts[video_index].active_left;
 
 	return 0;
 }
