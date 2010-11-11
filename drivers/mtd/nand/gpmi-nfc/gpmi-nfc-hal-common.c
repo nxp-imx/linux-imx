@@ -292,7 +292,12 @@ int gpmi_nfc_set_geometry(struct gpmi_nfc_data *this)
 	/* Compute some important facts about chunk geometry. */
 
 	chunk_data_size_in_bits = geometry->ecc_chunk_size_in_bytes * 8;
-	chunk_ecc_size_in_bits  = geometry->ecc_strength * 13;
+
+	/* ONFI nand needs GF14 */
+	if (is_onfi_nand(&this->device_info))
+		chunk_ecc_size_in_bits  = geometry->ecc_strength * 14;
+	else
+		chunk_ecc_size_in_bits  = geometry->ecc_strength * 13;
 
 	chunk_total_size_in_bits =
 			chunk_data_size_in_bits + chunk_ecc_size_in_bits;
