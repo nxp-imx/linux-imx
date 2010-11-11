@@ -1357,6 +1357,9 @@ static void mxcuart_set_termios(struct uart_port *port,
 		umxc->port.ignore_status_mask |= UART_CREAD_BIT;
 	}
 
+	/* Hardware flow control should controled by userspace */
+	umxc->hardware_flow = (termios->c_cflag & CRTSCTS) ? 1 : 0;
+
 	cr4 = readl(umxc->port.membase + MXC_UARTUCR4);
 	if (UART_ENABLE_MS(port, termios->c_cflag)) {
 		mxcuart_enable_ms(port);
