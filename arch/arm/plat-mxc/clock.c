@@ -39,7 +39,7 @@
 #include <linux/seq_file.h>
 #include <linux/semaphore.h>
 #include <linux/string.h>
-
+#include <linux/hardirq.h>
 #include <mach/clock.h>
 #include <mach/hardware.h>
 
@@ -171,6 +171,12 @@ int clk_enable(struct clk *clk)
 	unsigned long flags;
 	int ret = 0;
 
+	if (in_interrupt()) {
+		printk(KERN_ERR " clk_enable cannot be called in an interrupt context\n");
+		dump_stack();
+		BUG();
+	}
+
 	if (clk == NULL || IS_ERR(clk))
 		return -EINVAL;
 
@@ -214,6 +220,12 @@ EXPORT_SYMBOL(clk_enable);
 void clk_disable(struct clk *clk)
 {
 	unsigned long flags;
+
+	if (in_interrupt()) {
+		printk(KERN_ERR " clk_disable cannot be called in an interrupt context\n");
+		dump_stack();
+		BUG();
+	}
 
 	if (clk == NULL || IS_ERR(clk))
 		return;
