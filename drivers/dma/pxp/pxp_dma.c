@@ -34,6 +34,7 @@
 #include <linux/pxp_dma.h>
 #include <linux/timer.h>
 #include <linux/clk.h>
+#include <linux/workqueue.h>
 
 #include "regs-pxp.h"
 
@@ -62,6 +63,7 @@ struct pxps {
 	struct pxp_dma pxp_dma;
 	struct pxp_channel channel[NR_PXP_VIRT_CHANNEL];
 	wait_queue_head_t done;
+	struct work_struct work;
 
 	/* describes most recent processing configuration */
 	struct pxp_config_data pxp_conf_state;
@@ -665,12 +667,19 @@ static void pxp_clk_disable(struct pxps *pxp)
 	spin_unlock_irqrestore(&pxp->lock, flags);
 }
 
+static inline void clkoff_callback(struct work_struct *w)
+{
+	struct pxps *pxp = container_of(w, struct pxps, work);
+
+	pxp_clk_disable(pxp);
+}
+
 static void pxp_clkoff_timer(unsigned long arg)
 {
 	struct pxps *pxp = (struct pxps *)arg;
 
 	if ((pxp->pxp_ongoing == 0) && list_empty(&head))
-		pxp_clk_disable(pxp);
+		schedule_work(&pxp->work);
 	else
 		mod_timer(&pxp->clk_timer, jiffies + msecs_to_jiffies(4000));
 }
@@ -1392,6 +1401,7 @@ static int pxp_probe(struct platform_device *pdev)
 	if (err < 0)
 		goto err_dma_init;
 
+	INIT_WORK(&pxp->work, clkoff_callback);
 	init_waitqueue_head(&pxp->done);
 	init_timer(&pxp->clk_timer);
 	pxp->clk_timer.function = pxp_clkoff_timer;
@@ -1412,6 +1422,7 @@ static int __devexit pxp_remove(struct platform_device *pdev)
 {
 	struct pxps *pxp = platform_get_drvdata(pdev);
 
+	cancel_work_sync(&pxp->work);
 	del_timer_sync(&pxp->clk_timer);
 	free_irq(pxp->irq, pxp);
 	clk_disable(pxp->clk);
