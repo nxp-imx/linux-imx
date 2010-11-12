@@ -650,7 +650,7 @@ static void sdhci_finish_data(struct sdhci_host *host)
 		blocks = readl(host->ioaddr + SDHCI_BLOCK_COUNT) >> 16;
 	data->bytes_xfered = data->blksz * data->blocks;
 
-	tasklet_schedule(&host->finish_tasklet);
+	queue_work(host->workqueue, &host->finish_wq);
 }
 
 static void sdhci_send_command(struct sdhci_host *host, struct mmc_command *cmd)
@@ -681,7 +681,7 @@ static void sdhci_send_command(struct sdhci_host *host, struct mmc_command *cmd)
 			       "inhibit bit(s).\n", mmc_hostname(host->mmc));
 			sdhci_dumpregs(host);
 			cmd->error = -EIO;
-			tasklet_schedule(&host->finish_tasklet);
+			queue_work(host->workqueue, &host->finish_wq);
 			return;
 		}
 		timeout--;
@@ -726,7 +726,7 @@ static void sdhci_send_command(struct sdhci_host *host, struct mmc_command *cmd)
 		printk(KERN_ERR "%s: Unsupported response type!\n",
 		       mmc_hostname(host->mmc));
 		cmd->error = -EINVAL;
-		tasklet_schedule(&host->finish_tasklet);
+		queue_work(host->workqueue, &host->finish_wq);
 		return;
 	}
 
@@ -788,7 +788,7 @@ static void sdhci_finish_command(struct sdhci_host *host)
 		sdhci_finish_data(host);
 
 	if (!host->cmd->data)
-		tasklet_schedule(&host->finish_tasklet);
+		queue_work(host->workqueue, &host->finish_wq);
 
 	host->cmd = NULL;
 }
@@ -957,7 +957,7 @@ static void sdhci_request(struct mmc_host *mmc, struct mmc_request *mrq)
 	host->mrq = mrq;
 	if (!(host->flags & SDHCI_CD_PRESENT)) {
 		host->mrq->cmd->error = -ENOMEDIUM;
-		tasklet_schedule(&host->finish_tasklet);
+		queue_work(host->workqueue, &host->finish_wq);
 	} else
 		sdhci_send_command(host, mrq->cmd);
 
@@ -1185,7 +1185,7 @@ static void sdhci_tasklet_card(unsigned long param)
 			sdhci_reset(host, SDHCI_RESET_DATA);
 
 			host->mrq->cmd->error = -ENOMEDIUM;
-			tasklet_schedule(&host->finish_tasklet);
+			queue_work(host->workqueue, &host->finish_wq);
 		}
 	}
 
@@ -1194,14 +1194,13 @@ static void sdhci_tasklet_card(unsigned long param)
 	mmc_detect_change(host->mmc, msecs_to_jiffies(200));
 }
 
-static void sdhci_tasklet_finish(unsigned long param)
+static void sdhci_finish_worker(struct work_struct *work)
 {
-	struct sdhci_host *host;
+	struct sdhci_host *host = container_of(work, struct sdhci_host,
+			finish_wq);
 	unsigned long flags;
 	int req_done;
 	struct mmc_request *mrq;
-
-	host = (struct sdhci_host *)param;
 
 	spin_lock_irqsave(&host->lock, flags);
 
@@ -1279,7 +1278,7 @@ static void sdhci_timeout_timer(unsigned long data)
 			else
 				host->mrq->cmd->error = -ETIMEDOUT;
 
-			tasklet_schedule(&host->finish_tasklet);
+			queue_work(host->workqueue, &host->finish_wq);
 		}
 
 		if (!readl(host->ioaddr + SDHCI_SIGNAL_ENABLE)) {
@@ -1343,7 +1342,7 @@ static void sdhci_cmd_irq(struct sdhci_host *host, u32 intmask)
 	}
 
 	if (host->cmd->error)
-		tasklet_schedule(&host->finish_tasklet);
+		queue_work(host->workqueue, &host->finish_wq);
 	else if (intmask & SDHCI_INT_RESPONSE)
 		sdhci_finish_command(host);
 }
@@ -1548,7 +1547,7 @@ static void esdhc_cd_callback(struct work_struct *work)
 			sdhci_reset(host, SDHCI_RESET_DATA);
 
 			host->mrq->cmd->error = -ENOMEDIUM;
-			tasklet_schedule(&host->finish_tasklet);
+			queue_work(host->workqueue, &host->finish_wq);
 		}
 
 		if (host->init_flag > 0)
@@ -1992,11 +1991,11 @@ static int __devinit sdhci_probe_slot(struct platform_device
 	 */
 	tasklet_init(&host->card_tasklet,
 		     sdhci_tasklet_card, (unsigned long)host);
-	tasklet_init(&host->finish_tasklet,
-		     sdhci_tasklet_finish, (unsigned long)host);
 
 	/* initialize the work queue */
+	host->workqueue = create_workqueue("esdhc_wq");
 	INIT_WORK(&host->cd_wq, esdhc_cd_callback);
+	INIT_WORK(&host->finish_wq, sdhci_finish_worker);
 
 	setup_timer(&host->timer, sdhci_timeout_timer, (unsigned long)host);
 	setup_timer(&host->cd_timer, sdhci_cd_timer, (unsigned long)host);
@@ -2056,7 +2055,7 @@ static int __devinit sdhci_probe_slot(struct platform_device
 	del_timer_sync(&host->timer);
 	del_timer_sync(&host->cd_timer);
 	tasklet_kill(&host->card_tasklet);
-	tasklet_kill(&host->finish_tasklet);
+	destroy_workqueue(host->workqueue);
       out3:
 	if (host->flags & SDHCI_USE_DMA)
 		kfree(adma_des_table);
@@ -2104,7 +2103,8 @@ static void sdhci_remove_slot(struct platform_device *pdev, int slot)
 	del_timer_sync(&host->timer);
 
 	tasklet_kill(&host->card_tasklet);
-	tasklet_kill(&host->finish_tasklet);
+	flush_workqueue(host->workqueue);
+	destroy_workqueue(host->workqueue);
 
 	if (host->flags & SDHCI_USE_DMA)
 		kfree(adma_des_table);

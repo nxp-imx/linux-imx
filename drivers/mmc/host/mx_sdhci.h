@@ -279,7 +279,8 @@ struct sdhci_host {
 	void __iomem *ioaddr;	/* Mapped address */
 
 	struct tasklet_struct card_tasklet;	/* Tasklet structures */
-	struct tasklet_struct finish_tasklet;
+	struct workqueue_struct	*workqueue;
+	struct work_struct finish_wq;
 	struct work_struct cd_wq;	/* card detection work queue */
 	/* Platform specific data */
 	struct mxc_mmc_platform_data *plat_data;
