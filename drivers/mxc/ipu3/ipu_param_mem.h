@@ -224,12 +224,20 @@ static inline void _ipu_ch_param_init(int ch,
 	case IPU_PIX_FMT_UYVY:
 		ipu_ch_param_set_field(&params, 0, 107, 3, 3);	/* bits/pixel */
 		ipu_ch_param_set_field(&params, 1, 85, 4, 0xA);	/* pix format */
-		ipu_ch_param_set_field(&params, 1, 78, 7, 31);	/* burst size */
+		if ((ch == 8) || (ch == 9) || (ch == 10)) {
+			ipu_ch_param_set_field(&params, 1, 78, 7, 15);  /* burst size */
+		} else {
+			ipu_ch_param_set_field(&params, 1, 78, 7, 31);	/* burst size */
+		}
 		break;
 	case IPU_PIX_FMT_YUYV:
 		ipu_ch_param_set_field(&params, 0, 107, 3, 3);	/* bits/pixel */
 		ipu_ch_param_set_field(&params, 1, 85, 4, 0x8);	/* pix format */
-		ipu_ch_param_set_field(&params, 1, 78, 7, 31);	/* burst size */
+		if ((ch == 8) || (ch == 9) || (ch == 10)) {
+			ipu_ch_param_set_field(&params, 1, 78, 7, 15);  /* burst size */
+		} else {
+			ipu_ch_param_set_field(&params, 1, 78, 7, 31);	/* burst size */
+		}
 		break;
 	case IPU_PIX_FMT_YUV420P2:
 	case IPU_PIX_FMT_YUV420P:
