@@ -75,7 +75,7 @@
 #define FEC_PTP_IP_OFFS			0xE
 #define FEC_PTP_UDP_OFFS		0x22
 #define FEC_PTP_MSG_TYPE_OFFS		0x2A
-#define FEC_PTP_SPORT_ID_OFFS		0x46
+#define FEC_PTP_SPORT_ID_OFFS		0x3E
 #define FEC_PTP_SEQ_ID_OFFS		0x48
 #define FEC_PTP_CTRL_OFFS		0x4A
 #define FEC_PACKET_TYPE_UDP		0x11
@@ -90,6 +90,7 @@ struct ptp_time{
 
 /* Structure for PTP Time Stamp */
 struct fec_ptp_data_t {
+	u8		spid[10];
 	int		key;
 	struct ptp_time	ts_time;
 };
