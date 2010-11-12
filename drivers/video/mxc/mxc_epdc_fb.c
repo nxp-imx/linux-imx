@@ -43,6 +43,7 @@
 #include <linux/dmaengine.h>
 #include <linux/pxp_dma.h>
 #include <linux/mxcfb.h>
+#include <linux/mxcfb_epdc_kernel.h>
 #include <linux/gpio.h>
 #include <linux/regulator/driver.h>
 #include <linux/fsl_devices.h>
@@ -63,15 +64,15 @@
 #define DEFAULT_TEMP_INDEX	8
 #define DEFAULT_TEMP		20 /* room temp in deg Celsius */
 
-#define INIT_UPDATE_MARKER	0x12345678
-#define PAN_UPDATE_MARKER	0x12345679
+#define INIT_UPDATE_MARKER 0x12345678
+#define PAN_UPDATE_MARKER 0x12345679
 
 #define LUT_UPDATE_NONE	0
-#define LUT_UPDATE_NEW		1
+#define LUT_UPDATE_NEW	1
 #define LUT_UPDATE_COLLISION	2
 
 #define POWER_STATE_OFF	0
-#define POWER_STATE_ON		1
+#define POWER_STATE_ON	1
 
 static unsigned long default_bpp = 16;
 
@@ -194,6 +195,8 @@ struct mxcfb_waveform_data_file {
 };
 
 void __iomem *epdc_base;
+
+struct mxc_epdc_fb_data *g_fb_data;
 
 /* forward declaration */
 static int mxc_epdc_fb_blank(int blank, struct fb_info *info);
@@ -1230,6 +1233,17 @@ static int mxc_epdc_fb_check_var(struct fb_var_screeninfo *var,
 	return 0;
 }
 
+void mxc_epdc_fb_set_waveform_modes(struct mxcfb_waveform_modes *modes,
+	struct fb_info *info)
+{
+	struct mxc_epdc_fb_data *fb_data = info ?
+		(struct mxc_epdc_fb_data *)info:g_fb_data;
+
+	memcpy(&fb_data->wv_modes, &modes,
+		sizeof(modes));
+}
+EXPORT_SYMBOL(mxc_epdc_fb_set_waveform_modes);
+
 static int mxc_epdc_fb_get_temp_index(struct mxc_epdc_fb_data *fb_data, int temp)
 {
 	int i;
@@ -1261,9 +1275,10 @@ static int mxc_epdc_fb_get_temp_index(struct mxc_epdc_fb_data *fb_data, int temp
 	return index;
 }
 
-static int mxc_epdc_fb_set_temperature(int temperature, struct fb_info *info)
+int mxc_epdc_fb_set_temperature(int temperature, struct fb_info *info)
 {
-	struct mxc_epdc_fb_data *fb_data = (struct mxc_epdc_fb_data *)info;
+	struct mxc_epdc_fb_data *fb_data = info ?
+		(struct mxc_epdc_fb_data *)info:g_fb_data;
 	int temp_index;
 	unsigned long flags;
 
@@ -1274,10 +1289,12 @@ static int mxc_epdc_fb_set_temperature(int temperature, struct fb_info *info)
 
 	return 0;
 }
+EXPORT_SYMBOL(mxc_epdc_fb_set_temperature);
 
-static int mxc_epdc_fb_set_auto_update(u32 auto_mode, struct fb_info *info)
+int mxc_epdc_fb_set_auto_update(u32 auto_mode, struct fb_info *info)
 {
-	struct mxc_epdc_fb_data *fb_data = (struct mxc_epdc_fb_data *)info;
+	struct mxc_epdc_fb_data *fb_data = info ?
+		(struct mxc_epdc_fb_data *)info:g_fb_data;
 
 	dev_dbg(fb_data->dev, "Setting auto update mode to %d\n", auto_mode);
 
@@ -1291,11 +1308,13 @@ static int mxc_epdc_fb_set_auto_update(u32 auto_mode, struct fb_info *info)
 
 	return 0;
 }
+EXPORT_SYMBOL(mxc_epdc_fb_set_auto_update);
 
-static int mxc_epdc_fb_send_update(struct mxcfb_update_data *upd_data,
+int mxc_epdc_fb_send_update(struct mxcfb_update_data *upd_data,
 				   struct fb_info *info)
 {
-	struct mxc_epdc_fb_data *fb_data = (struct mxc_epdc_fb_data *)info;
+	struct mxc_epdc_fb_data *fb_data = info ?
+		(struct mxc_epdc_fb_data *)info:g_fb_data;
 	struct update_data_list *upd_data_list = NULL;
 	struct mxcfb_rect *screen_upd_region; /* Region on screen to update */
 	struct mxcfb_rect *src_upd_region; /* Region of src buffer for update */
@@ -1657,11 +1676,12 @@ static int mxc_epdc_fb_send_update(struct mxcfb_update_data *upd_data,
 
 	return 0;
 }
+EXPORT_SYMBOL(mxc_epdc_fb_send_update);
 
-static int mxc_epdc_fb_wait_update_complete(u32 update_marker,
-					    struct fb_info *info)
+int mxc_epdc_fb_wait_update_complete(u32 update_marker, struct fb_info *info)
 {
-	struct mxc_epdc_fb_data *fb_data = (struct mxc_epdc_fb_data *)info;
+	struct mxc_epdc_fb_data *fb_data = info ?
+		(struct mxc_epdc_fb_data *)info:g_fb_data;
 	int ret;
 	int i;
 
@@ -1688,16 +1708,28 @@ static int mxc_epdc_fb_wait_update_complete(u32 update_marker,
 
 	return 0;
 }
+EXPORT_SYMBOL(mxc_epdc_fb_wait_update_complete);
 
-static int mxc_epdc_fb_set_pwrdown_delay(u32 pwrdown_delay,
+int mxc_epdc_fb_set_pwrdown_delay(u32 pwrdown_delay,
 					    struct fb_info *info)
 {
-	struct mxc_epdc_fb_data *fb_data = (struct mxc_epdc_fb_data *)info;
+	struct mxc_epdc_fb_data *fb_data = info ?
+		(struct mxc_epdc_fb_data *)info:g_fb_data;
 
 	fb_data->pwrdown_delay = pwrdown_delay;
 
 	return 0;
 }
+EXPORT_SYMBOL(mxc_epdc_fb_set_pwrdown_delay);
+
+int mxc_epdc_get_pwrdown_delay(struct fb_info *info)
+{
+	struct mxc_epdc_fb_data *fb_data = info ?
+		(struct mxc_epdc_fb_data *)info:g_fb_data;
+
+	return fb_data->pwrdown_delay;
+}
+EXPORT_SYMBOL(mxc_epdc_get_pwrdown_delay);
 
 static int mxc_epdc_fb_ioctl(struct fb_info *info, unsigned int cmd,
 			     unsigned long arg)
@@ -1709,11 +1741,8 @@ static int mxc_epdc_fb_ioctl(struct fb_info *info, unsigned int cmd,
 	case MXCFB_SET_WAVEFORM_MODES:
 		{
 			struct mxcfb_waveform_modes modes;
-			struct mxc_epdc_fb_data *fb_data =
-				(struct mxc_epdc_fb_data *)info;
 			if (!copy_from_user(&modes, argp, sizeof(modes))) {
-				memcpy(&fb_data->wv_modes, &modes,
-					sizeof(modes));
+				mxc_epdc_fb_set_waveform_modes(&modes, info);
 				ret = 0;
 			}
 			break;
@@ -1772,9 +1801,8 @@ static int mxc_epdc_fb_ioctl(struct fb_info *info, unsigned int cmd,
 
 	case MXCFB_GET_PWRDOWN_DELAY:
 		{
-			struct mxc_epdc_fb_data *fb_data =
-				(struct mxc_epdc_fb_data *)info;
-			if (put_user(fb_data->pwrdown_delay,
+			int pwrdown_delay = mxc_epdc_get_pwrdown_delay(info);
+			if (put_user(pwrdown_delay,
 				(int __user *)argp))
 				ret = -EFAULT;
 			ret = 0;
@@ -2889,6 +2917,8 @@ int __devinit mxc_epdc_fb_probe(struct platform_device *pdev)
 			"register_framebuffer failed with error %d\n", ret);
 		goto out_dmaengine;
 	}
+
+	g_fb_data = fb_data;
 
 #ifdef DEFAULT_PANEL_HW_INIT
 	ret = mxc_epdc_fb_init_hw((struct fb_info *)fb_data);
