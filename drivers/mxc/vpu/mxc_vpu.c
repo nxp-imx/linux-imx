@@ -582,7 +582,8 @@ static int vpu_dev_probe(struct platform_device *pdev)
 
 	vpu_plat = pdev->dev.platform_data;
 
-	iram_alloc(VPU_IRAM_SIZE, &addr);
+	if (VPU_IRAM_SIZE)
+		iram_alloc(VPU_IRAM_SIZE, &addr);
 	if (addr == 0)
 		iram.start = iram.end = 0;
 	else {
@@ -664,7 +665,8 @@ static int vpu_dev_remove(struct platform_device *pdev)
 {
 	free_irq(vpu_irq, &vpu_data);
 	iounmap(vpu_base);
-	iram_free(iram.start, VPU_IRAM_SIZE);
+	if (VPU_IRAM_SIZE)
+		iram_free(iram.start, VPU_IRAM_SIZE);
 
 	return 0;
 }
