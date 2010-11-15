@@ -63,9 +63,13 @@ static int pmic_event_thread_func(void *v)
 				active_events);
 		pr_debug("active events number %d\n", count);
 
+	do {
 		for (loop = 0; loop < count; loop++)
-			pmic_event_callback(
-				active_events[loop]);
+			pmic_event_callback(active_events[loop]);
+
+		count = pmic_get_active_events(active_events);
+
+	} while (count != 0);
 		enable_irq(irq);
 	}
 
