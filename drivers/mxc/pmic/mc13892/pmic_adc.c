@@ -406,6 +406,8 @@ PMIC_STATUS mc13892_adc_convert(t_adc_param *adc_param)
 	unsigned int adc_0_reg = 0, adc_1_reg = 0, result_reg = 0, i = 0;
 	unsigned int result = 0, temp = 0;
 	pmic_version_t mc13892_ver;
+	int ret;
+
 	pr_debug("mc13892 ADC - mc13892_adc_convert ....\n");
 	if (suspend_flag == 1)
 		return -EBUSY;
@@ -432,7 +434,8 @@ PMIC_STATUS mc13892_adc_convert(t_adc_param *adc_param)
 	use_bis = mc13892_adc_request(adc_param->read_ts);
 	if (use_bis < 0) {
 		pr_debug("process has received a signal and got interrupted\n");
-		return -EINTR;
+		ret = -EINTR;
+		goto out_up_convert_mutex;
 	}
 
 	/* CONFIGURE ADC REG 0 */
@@ -472,9 +475,12 @@ PMIC_STATUS mc13892_adc_convert(t_adc_param *adc_param)
 		adc_0_reg |= ADC_CHRGICON;
 
 	/*Change has been made here */
-	CHECK_ERROR(pmic_write_reg(REG_ADC0, adc_0_reg,
-				   ADC_INC | ADC_BIS | ADC_CHRGRAW_D5 |
-				   0xfff00ff));
+	ret = pmic_write_reg(REG_ADC0, adc_0_reg,
+		ADC_INC | ADC_BIS | ADC_CHRGRAW_D5 | 0xfff00ff);
+	if (ret != PMIC_SUCCESS) {
+		pr_debug("pmic_write_reg");
+		goto out_mc13892_adc_release;
+	}
 
 	/* CONFIGURE ADC REG 1 */
 	if (adc_param->read_ts == false) {
@@ -538,13 +544,18 @@ PMIC_STATUS mc13892_adc_convert(t_adc_param *adc_param)
 		data_ready_adc_1 = true;
 		pr_debug("Write Reg %i = %x\n", REG_ADC1, adc_1_reg);
 		INIT_COMPLETION(adcdone_it);
-		CHECK_ERROR(pmic_write_reg(REG_ADC1, adc_1_reg,
+		ret = pmic_write_reg(REG_ADC1, adc_1_reg,
 						   ADC_SGL_CH | ADC_ATO |
 						   ADC_ADSEL | ADC_CH_0_MASK |
 						   ADC_CH_1_MASK |
 					   ADC_NO_ADTRIG | ADC_EN |
 						   ADC_DELAY_MASK | ASC_ADC |
-						   ADC_BIS));
+						   ADC_BIS);
+		if (ret != PMIC_SUCCESS) {
+			pr_debug("pmic_write_reg");
+			goto out_mc13892_adc_release;
+		}
+
 		pr_debug("wait adc done\n");
 		wait_for_completion_interruptible(&adcdone_it);
 		data_ready_adc_1 = false;
@@ -553,11 +564,19 @@ PMIC_STATUS mc13892_adc_convert(t_adc_param *adc_param)
 		adc_1_reg |= ASC_ADC;
 		data_ready_adc_2 = true;
 		INIT_COMPLETION(adcbisdone_it);
-			CHECK_ERROR(pmic_write_reg(REG_ADC1, adc_1_reg,
-						   0xFFFFFF));
+		ret = pmic_write_reg(REG_ADC1, adc_1_reg, 0xFFFFFF);
+		if (ret != PMIC_SUCCESS) {
+			pr_debug("pmic_write_reg");
+			goto out_mc13892_adc_release;
+		}
 
 		temp = 0x800000;
-		CHECK_ERROR(pmic_write_reg(REG_ADC3, temp, 0xFFFFFF));
+		ret = pmic_write_reg(REG_ADC3, temp, 0xFFFFFF);
+		if (ret != PMIC_SUCCESS) {
+			pr_info("pmic_write_reg");
+			goto out_mc13892_adc_release;
+		}
+
 		pr_debug("wait adc done bis\n");
 		wait_for_completion_interruptible(&adcbisdone_it);
 		data_ready_adc_2 = false;
@@ -571,11 +590,20 @@ PMIC_STATUS mc13892_adc_convert(t_adc_param *adc_param)
 	else
 		result_reg = REG_ADC4;
 
-	CHECK_ERROR(pmic_write_reg(REG_ADC1, 4 << ADC_CH_1_POS,
-				   ADC_CH_0_MASK | ADC_CH_1_MASK));
+	ret = pmic_write_reg(REG_ADC1, 4 << ADC_CH_1_POS,
+		ADC_CH_0_MASK | ADC_CH_1_MASK);
+	if (ret != PMIC_SUCCESS) {
+		pr_debug("pmic_write_reg");
+		goto out_mc13892_adc_release;
+	}
 
 	for (i = 0; i <= 3; i++) {
-		CHECK_ERROR(pmic_read_reg(result_reg, &result, PMIC_ALL_BITS));
+		ret = pmic_read_reg(result_reg, &result, PMIC_ALL_BITS);
+		if (ret != PMIC_SUCCESS) {
+			pr_debug("pmic_write_reg");
+			goto out_mc13892_adc_release;
+		}
+
 		adc_param->value[i] = ((result & ADD1_RESULT_MASK) >> 2);
 		adc_param->value[i + 4] = ((result & ADD2_RESULT_MASK) >> 14);
 		pr_debug("value[%d] = %d, value[%d] = %d\n",
@@ -590,8 +618,11 @@ PMIC_STATUS mc13892_adc_convert(t_adc_param *adc_param)
 		adc_param->ts_value.y_position1 = adc_param->value[3];
 		adc_param->ts_value.y_position2 = adc_param->value[4];
 		adc_param->ts_value.contact_resistance = adc_param->value[6];
-		CHECK_ERROR(pmic_write_reg(REG_ADC0, 0x0,
-				   ADC_TSMODE_MASK));
+		ret = pmic_write_reg(REG_ADC0, 0x0, ADC_TSMODE_MASK);
+		if (ret != PMIC_SUCCESS) {
+			pr_debug("pmic_write_reg");
+			goto out_mc13892_adc_release;
+		}
 	}
 
 	/*if (adc_param->read_ts) {
@@ -599,10 +630,13 @@ PMIC_STATUS mc13892_adc_convert(t_adc_param *adc_param)
 	   adc_param->ts_value.y_position = adc_param->value[5];
 	   adc_param->ts_value.contact_resistance = adc_param->value[6];
 	   } */
+	ret = PMIC_SUCCESS;
+out_mc13892_adc_release:
 	mc13892_adc_release(use_bis);
+out_up_convert_mutex:
 	up(&convert_mutex);
 
-	return PMIC_SUCCESS;
+	return ret;
 }
 
 t_reading_mode mc13892_set_read_mode(t_channel channel)
