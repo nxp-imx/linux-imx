@@ -130,6 +130,21 @@ struct dvfs_wp dvfs_core_setpoint[] = {
 
 static DEFINE_SPINLOCK(voltage_lock);
 
+static void voltage_work_handler(struct work_struct *work)
+{
+	if (lp_regulator != NULL) {
+		u32 ret = 0;
+		ret = regulator_set_voltage(lp_regulator,
+					lp_voltage, lp_voltage);
+		udelay(400);
+		if (ret < 0) {
+			printk(KERN_ERR "COULD NOT SET LP VOLTAGE!!!!!!\n");
+			return;
+		}
+	}
+	complete_all(&voltage_change_cmpl);
+}
+
 int set_low_bus_freq(void)
 {
 	u32 reg;
@@ -283,6 +298,12 @@ void enter_lpapm_mode_mx50()
 		udelay(10);
 
 	spin_unlock_irqrestore(&ddr_freq_lock, flags);
+
+	spin_lock_irqsave(&voltage_lock, flags);
+	lp_voltage = LP_LOW_VOLTAGE;
+	INIT_COMPLETION(voltage_change_cmpl);
+	queue_work(voltage_wq, &voltage_change_handler);
+	spin_unlock_irqrestore(&voltage_lock, flags);
 
 	udelay(100);
 }
@@ -440,6 +461,22 @@ void exit_lpapm_mode_mx50()
 {
 	u32 reg;
 	unsigned long flags;
+
+	if (!completion_done(&voltage_change_cmpl))
+		wait_for_completion_interruptible(&voltage_change_cmpl);
+	spin_lock_irqsave(&voltage_lock, flags);
+	if (lp_voltage != LP_NORMAL_VOLTAGE) {
+		INIT_COMPLETION(voltage_change_cmpl);
+		lp_voltage = LP_NORMAL_VOLTAGE;
+		if (!queue_work(voltage_wq, &voltage_change_handler))
+			printk(KERN_ERR "WORK_NOT_ADDED\n");
+		spin_unlock_irqrestore(&voltage_lock, flags);
+		wait_for_completion_interruptible(&voltage_change_cmpl);
+	} else {
+		spin_unlock_irqrestore(&voltage_lock, flags);
+		if (!completion_done(&voltage_change_cmpl))
+			wait_for_completion_interruptible(&voltage_change_cmpl);
+	}
 
 	spin_lock_irqsave(&ddr_freq_lock, flags);
 	if (!low_bus_freq_mode) {
@@ -830,6 +867,11 @@ static int __devinit busfreq_probe(struct platform_device *pdev)
 		reg = __raw_readl(qosc_base);
 		reg &= ~0xC0000000;
 		__raw_writel(reg, qosc_base);
+
+		voltage_wq = create_rt_workqueue("voltage_change");
+		INIT_WORK(&voltage_change_handler, voltage_work_handler);
+
+		init_completion(&voltage_change_cmpl);
 	}
 	cpu_wp_tbl = get_cpu_wp(&cpu_wp_nr);
 	low_bus_freq_mode = 0;
