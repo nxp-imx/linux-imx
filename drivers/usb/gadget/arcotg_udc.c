@@ -319,7 +319,7 @@ static void dr_phy_low_power_mode(struct fsl_udc *udc, bool enable)
 	u32 portsc;
 
 	if (pdata && pdata->phy_lowpower_suspend) {
-		pdata->phy_lowpower_suspend(enable);
+		pdata->phy_lowpower_suspend(pdata, enable);
 	} else {
 		if (enable) {
 			portsc = fsl_readl(&dr_regs->portsc1);

@@ -90,9 +90,9 @@ struct fsl_usb2_platform_data {
 	void (*platform_suspend)(struct fsl_usb2_platform_data *);
 	void (*platform_resume)(struct fsl_usb2_platform_data *);
 	void (*wake_up_enable)(struct fsl_usb2_platform_data *pdata, bool on);
-	void (*phy_lowpower_suspend)(bool);
+	void (*phy_lowpower_suspend)(struct fsl_usb2_platform_data *pdata, bool on);
 	void (*platform_driver_vbus)(bool on); /* platform special function for vbus shutdown/open */
-	bool (*is_wakeup_event)(void);
+	bool (*is_wakeup_event)(struct fsl_usb2_platform_data *pdata);
 	unsigned			big_endian_mmio:1;
 	unsigned			big_endian_desc:1;
 	unsigned			es:1;	/* need USBMODE:ES */
