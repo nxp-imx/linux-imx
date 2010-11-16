@@ -36,6 +36,7 @@
 #include <linux/uaccess.h>
 #include <linux/io.h>
 #include <linux/slab.h>
+#include <linux/workqueue.h>
 
 #include <asm/sizes.h>
 #include <mach/clock.h>
@@ -45,6 +46,8 @@
 
 struct vpu_priv {
 	struct fasync_struct *async_queue;
+	struct work_struct work;
+	struct workqueue_struct *workqueue;
 };
 
 /* To track the allocated memory buffer */
@@ -190,6 +193,24 @@ static int vpu_free_buffers(void)
 	return 0;
 }
 
+static inline void vpu_worker_callback(struct work_struct *w)
+{
+	struct vpu_priv *dev = container_of(w, struct vpu_priv,
+				work);
+
+	if (dev->async_queue)
+		kill_fasync(&dev->async_queue, SIGIO, POLL_IN);
+
+	codec_done = 1;
+	wake_up_interruptible(&vpu_queue);
+
+	/*
+	 * Clock is gated on when dec/enc started, gate it off when
+	 * interrupt is received.
+	 */
+	clk_disable(vpu_clk);
+}
+
 /*!
  * @brief vpu interrupt handler
  */
@@ -200,17 +221,7 @@ static irqreturn_t vpu_irq_handler(int irq, void *dev_id)
 	READ_REG(BIT_INT_STATUS);
 	WRITE_REG(0x1, BIT_INT_CLEAR);
 
-	if (dev->async_queue)
-		kill_fasync(&dev->async_queue, SIGIO, POLL_IN);
-
-	/*
-	 * Clock is gated on when dec/enc started, gate it off when
-	 * interrupt is received.
-	 */
-	clk_disable(vpu_clk);
-
-	codec_done = 1;
-	wake_up_interruptible(&vpu_queue);
+	queue_work(dev->workqueue, &dev->work);
 
 	return IRQ_HANDLED;
 }
@@ -644,6 +655,8 @@ static int vpu_dev_probe(struct platform_device *pdev)
 	if (err)
 		goto err_out_class;
 
+	vpu_data.workqueue = create_workqueue("vpu_wq");
+	INIT_WORK(&vpu_data.work, vpu_worker_callback);
 	printk(KERN_INFO "VPU initialized\n");
 	goto out;
 
@@ -664,6 +677,10 @@ static int vpu_dev_probe(struct platform_device *pdev)
 static int vpu_dev_remove(struct platform_device *pdev)
 {
 	free_irq(vpu_irq, &vpu_data);
+	cancel_work_sync(&vpu_data.work);
+	flush_workqueue(vpu_data.workqueue);
+	destroy_workqueue(vpu_data.workqueue);
+
 	iounmap(vpu_base);
 	if (VPU_IRAM_SIZE)
 		iram_free(iram.start, VPU_IRAM_SIZE);
