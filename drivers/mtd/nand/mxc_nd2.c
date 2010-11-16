@@ -1326,16 +1326,6 @@ int nand_scan_mid(struct mtd_info *mtd)
 	mtd->oobsize = dev_info->page_total_size_in_bytes & 0x3ff;
 	mtd->erasesize = dev_info->block_size_in_pages * mtd->writesize;
 
-	/* limit to 2G size due to Kernel
-	 * larger 4G space support,need fix
-	 * it later
-	 */
-	if ((u32)mtd->size == 0) {
-		mtd->size = (u32)(1 << 31);
-		this->numchips = 1;
-		this->chipsize = mtd->size;
-	}
-
 	/* Calculate the address shift from the page size */
 	this->page_shift = ffs(mtd->writesize) - 1;
 	/* Convert chipsize to number of pages per chip -1. */
