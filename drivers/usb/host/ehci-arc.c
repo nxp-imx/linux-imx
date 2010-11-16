@@ -35,10 +35,10 @@ static void fsl_usb_lowpower_mode(struct fsl_usb2_platform_data *pdata, bool ena
 {
 	if (enable) {
 		if (pdata->phy_lowpower_suspend)
-			pdata->phy_lowpower_suspend(true);
+			pdata->phy_lowpower_suspend(pdata, true);
 	} else {
 		if (pdata->phy_lowpower_suspend)
-			pdata->phy_lowpower_suspend(false);
+			pdata->phy_lowpower_suspend(pdata, false);
 	}
 	pdata->lowpower = enable;
 }
@@ -128,6 +128,7 @@ static irqreturn_t ehci_fsl_pre_irq(int irq, void *dev)
 		if (pdata->irq_delay)
 			return IRQ_NONE;
 		if (pdata->wakeup_event) {
+			pr_debug("%s\n", __func__);
 			usb_host_set_wakeup(hcd->self.controller, false);
 			fsl_usb_lowpower_mode(pdata, false);
 			set_bit(HCD_FLAG_HW_ACCESSIBLE, &hcd->flags);
@@ -388,8 +389,6 @@ static int ehci_fsl_bus_suspend(struct usb_hcd *hcd)
 		return 0;
 	}
 
-	pr_debug("%s, it is the host mode, %s\n", __func__, pdata->name);
-
 	ehci_bus_suspend(hcd);
 
 	if (pdata->platform_suspend)
@@ -421,7 +420,12 @@ static int ehci_fsl_bus_resume(struct usb_hcd *hcd)
 
 	if (!test_bit(HCD_FLAG_HW_ACCESSIBLE, &hcd->flags)) {
 		set_bit(HCD_FLAG_HW_ACCESSIBLE, &hcd->flags);
-		fsl_usb_clk_gate(hcd->self.controller->platform_data, true);
+		if (!pdata->wakeup_event) {
+			/* The usb interrupt is still not occurred,
+			   but the clock opens at wakeup routine
+			 */
+			fsl_usb_clk_gate(hcd->self.controller->platform_data, true);
+		}
 		usb_host_set_wakeup(hcd->self.controller, false);
 		fsl_usb_lowpower_mode(pdata, false);
 	}
