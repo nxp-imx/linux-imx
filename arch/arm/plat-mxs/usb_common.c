@@ -46,8 +46,6 @@
 #include <mach/arc_otg.h>
 #include <mach/hardware.h>
 #include <linux/io.h>
-#include "regs-usbphy.h"
-
 #define MXC_NUMBER_USB_TRANSCEIVER 6
 struct fsl_xcvr_ops *g_xc_ops[MXC_NUMBER_USB_TRANSCEIVER] = { NULL };
 
@@ -123,6 +121,37 @@ int otg_set_resources(struct resource *resources)
 }
 EXPORT_SYMBOL(otg_set_resources);
 #endif
+
+/*!
+ * Register remote wakeup by this usb controller
+ *
+ * @param pdev: platform_device for this usb controller
+ *
+ * @return 0 or negative error code in case not supportted.
+ */
+static int usb_register_remote_wakeup(struct platform_device *pdev)
+{
+	struct fsl_usb2_platform_data *pdata = pdev->dev.platform_data;
+	struct resource *res;
+	int irq;
+
+	pr_debug("%s: pdev=0x%p \n", __func__, pdev);
+	if (!(pdata->wake_up_enable))
+		return -ECANCELED;
+
+	res = platform_get_resource(pdev, IORESOURCE_IRQ, 0);
+	if (!res) {
+		dev_err(&pdev->dev,
+		"Found HC with no IRQ. Check %s setup!\n",
+		dev_name(&pdev->dev));
+		return -ENODEV;
+	}
+	irq = res->start;
+	pdev->dev.power.can_wakeup = 1;
+	enable_irq_wake(irq);
+
+	return 0;
+}
 
 static struct fsl_xcvr_ops *fsl_usb_get_xcvr(char *name)
 {
@@ -337,6 +366,9 @@ int fsl_usb_host_init(struct platform_device *pdev)
 	tmp |= (BM_USBPHY_CTRL_ENUTMILEVEL2 | BM_USBPHY_CTRL_ENUTMILEVEL3);
 	__raw_writel(tmp, phy_reg + HW_USBPHY_CTRL);
 
+	if (usb_register_remote_wakeup(pdev))
+		pr_debug("%s port is not a wakeup source.\n", pdata->name);
+
 	pr_debug("%s: %s success\n", __func__, pdata->name);
 	return 0;
 }
@@ -349,10 +381,6 @@ void fsl_usb_host_uninit(struct fsl_usb2_platform_data *pdata)
 
 	if (pdata->xcvr_ops && pdata->xcvr_ops->uninit)
 		pdata->xcvr_ops->uninit(pdata->xcvr_ops);
-
-	usb_clk = clk_get(NULL, "usb_clk1");
-	clk_disable(usb_clk);
-	clk_put(usb_clk);
 
 	pdata->regs = NULL;
 }
@@ -380,6 +408,9 @@ EXPORT_SYMBOL(usb_host_wakeup_irq);
 
 void usb_host_set_wakeup(struct device *wkup_dev, bool para)
 {
+	struct fsl_usb2_platform_data *pdata = wkup_dev->platform_data;
+	if (pdata->wake_up_enable)
+		pdata->wake_up_enable(pdata, para);
 }
 EXPORT_SYMBOL(usb_host_set_wakeup);
 

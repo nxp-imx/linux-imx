@@ -2,7 +2,7 @@
 # Makefile for the linux kernel.
 #
 # Object file lists.
-obj-y += core.o clock.o pinctrl.o device.o timer-nomatch.o usb_common.o
+obj-y += core.o clock.o pinctrl.o device.o timer-nomatch.o usb_common.o usb_wakeup.o
 
 obj-$(CONFIG_MXS_TIMER_WITH_MACH) += timer-match.o
 obj-$(CONFIG_IRAM_ALLOC) += iram.o

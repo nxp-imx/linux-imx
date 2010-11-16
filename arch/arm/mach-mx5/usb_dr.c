@@ -163,17 +163,17 @@ static void __phy_lowpower_suspend(bool enable, int source)
 	}
 }
 
-static void _host_phy_lowpower_suspend(bool enable)
+static void _host_phy_lowpower_suspend(struct fsl_usb2_platform_data *pdata, bool enable)
 {
 	__phy_lowpower_suspend(enable, ENABLED_BY_HOST);
 }
 
-static void _device_phy_lowpower_suspend(bool enable)
+static void _device_phy_lowpower_suspend(struct fsl_usb2_platform_data *pdata, bool enable)
 {
 	__phy_lowpower_suspend(enable, ENABLED_BY_DEVICE);
 }
 
-static bool _is_host_wakeup(void)
+static bool _is_host_wakeup(struct fsl_usb2_platform_data *pdata)
 {
 	int wakeup_req = USBCTRL & UCTRL_OWIR;
 	int otgsc = UOG_OTGSC;
@@ -190,7 +190,7 @@ static bool _is_host_wakeup(void)
 	}
 	return false;
 }
-static bool _is_device_wakeup(void)
+static bool _is_device_wakeup(struct fsl_usb2_platform_data *pdata)
 {
 	int wakeup_req = USBCTRL & UCTRL_OWIR;
 
