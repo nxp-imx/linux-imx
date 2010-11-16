@@ -984,69 +984,30 @@ static int mil_ecc_read_oob(struct mtd_info *mtd, struct nand_chip *nand,
 {
 	struct gpmi_nfc_data      *this     = nand->priv;
 	struct physical_geometry  *physical = &this->physical_geometry;
-	struct mil                *mil      = &this->mil;
 	struct boot_rom_helper    *rom      =  this->rom;
-	int                       block_mark_column;
 
 	DEBUG(MTD_DEBUG_LEVEL2, "[gpmi_nfc ecc_read_oob] "
 		"page: 0x%06x, sndcmd: %s\n", page, sndcmd ? "Yes" : "No");
 
 	gpmi_nfc_add_event("> mil_ecc_read_oob", 1);
 
-	/*
-	 * First, fill in the OOB buffer. If we're doing a raw read, we need to
-	 * get the bytes from the physical page. If we're not doing a raw read,
-	 * we need to fill the buffer with set bits.
-	 */
+	/* clear the OOB buffer */
+	memset(nand->oob_poi, ~0, mtd->oobsize);
 
-	if (mil->raw_oob_mode) {
-
-		/*
-		 * If control arrives here, we're doing a "raw" read. Send the
-		 * command to read the conventional OOB.
-		 */
-
-		nand->cmdfunc(mtd, NAND_CMD_READ0,
-				physical->page_data_size_in_bytes, page);
-
-		/* Read out the conventional OOB. */
-
-		nand->read_buf(mtd, nand->oob_poi, mtd->oobsize);
-
-	} else {
-
-		/*
-		 * If control arrives here, we're not doing a "raw" read. Fill
-		 * the OOB buffer with set bits.
-		 */
-
-		memset(nand->oob_poi, ~0, mtd->oobsize);
-
-	}
+	/* Read out the conventional OOB. */
+	nand->cmdfunc(mtd, NAND_CMD_READ0,
+			physical->page_data_size_in_bytes, page);
+	nand->read_buf(mtd, nand->oob_poi, mtd->oobsize);
 
 	/*
 	 * Now, we want to make sure the block mark is correct. In the
 	 * Swapping/Raw case, we already have it. Otherwise, we need to
 	 * explicitly read it.
 	 */
-
-	if (!(rom->swap_block_mark && mil->raw_oob_mode)) {
-
-		/* First, figure out where the block mark is. */
-
-		if (rom->swap_block_mark)
-			block_mark_column = physical->page_data_size_in_bytes;
-		else
-			block_mark_column = 0;
-
-		/* Send the command to read the block mark. */
-
-		nand->cmdfunc(mtd, NAND_CMD_READ0, block_mark_column, page);
-
+	if (!rom->swap_block_mark) {
 		/* Read the block mark into the first byte of the OOB buffer. */
-
+		nand->cmdfunc(mtd, NAND_CMD_READ0, 0, page);
 		nand->oob_poi[0] = nand->read_byte(mtd);
-
 	}
 
 	/*
