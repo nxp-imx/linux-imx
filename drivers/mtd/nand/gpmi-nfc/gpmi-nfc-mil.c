@@ -40,6 +40,15 @@ module_param(register_main_mtd, int, 0400);
 static int map_io_buffers = true;
 module_param(map_io_buffers, int, 0600);
 
+/* add our owner bbt descriptor */
+static uint8_t scan_ff_pattern[] = { 0xff };
+static struct nand_bbt_descr gpmi_bbt_descr = {
+	.options	= 0,
+	.offs		= 0,
+	.len		= 1,
+	.pattern	= scan_ff_pattern
+};
+
 /**
  * mil_outgoing_buffer_dma_begin() - Begins DMA on an outgoing buffer.
  *
@@ -2413,6 +2422,7 @@ int gpmi_nfc_mil_init(struct gpmi_nfc_data *this)
 
 	nand->block_bad = mil_block_bad;
 	nand->scan_bbt  = mil_scan_bbt;
+	nand->badblock_pattern = &gpmi_bbt_descr;
 
 	/*
 	 * Error Recovery Functions
