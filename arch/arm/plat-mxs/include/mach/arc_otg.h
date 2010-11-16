@@ -20,7 +20,7 @@
 #ifndef __ASM_ARCH_MXC_ARC_OTG_H__
 #define __ASM_ARCH_MXC_ARC_OTG_H__
 
-
+#include "../../regs-usbphy.h"
 #if defined(CONFIG_USB_STATIC_IRAM) \
     || defined(CONFIG_USB_STATIC_IRAM_PPH)
 #define USB_IRAM_SIZE   SZ_8K

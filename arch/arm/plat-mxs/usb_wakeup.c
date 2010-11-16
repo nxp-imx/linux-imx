@@ -75,7 +75,7 @@ static irqreturn_t usb_wakeup_handler(int irq, void *_dev)
 	struct wakeup_ctrl *ctrl = (struct wakeup_ctrl *)_dev;
 	irqreturn_t ret = IRQ_NONE;
 	if (usb2_is_in_lowpower(ctrl)) {
-		printk(KERN_INFO "usb wakeup is here\n");
+		pr_debug("usb wakeup is here\n");
 		delay_process_wakeup(ctrl);
 		ret = IRQ_HANDLED;
 	}
@@ -88,6 +88,7 @@ static bool is_wakeup(struct fsl_usb2_platform_data *pdata)
 		return pdata->is_wakeup_event(pdata);
 	return false;
 }
+
 static void wakeup_event_handler(struct wakeup_ctrl *ctrl)
 {
 	struct fsl_usb2_wakeup_platform_data *pdata = ctrl->pdata;
@@ -105,6 +106,7 @@ static void wakeup_event_handler(struct wakeup_ctrl *ctrl)
 		if (usb_pdata) {
 			usb_pdata->irq_delay = 0;
 			if (is_wakeup(usb_pdata)) {
+				pr_debug("%s:%d\n", __func__, __LINE__);
 				usb_pdata->wakeup_event = 1;
 				if (usb_pdata->usb_clock_for_pm)
 					usb_pdata->usb_clock_for_pm(true);
@@ -133,11 +135,12 @@ static int wakeup_event_thread(void *param)
 	return 0;
 }
 
-static int  wakeup_dev_probe(struct platform_device *pdev)
+static int wakeup_dev_probe(struct platform_device *pdev)
 {
 	struct fsl_usb2_wakeup_platform_data *pdata;
 	struct wakeup_ctrl *ctrl = NULL;
 	int status;
+	unsigned long interrupt_flag;
 
 	printk(KERN_INFO "IMX usb wakeup probe\n");
 
@@ -150,10 +153,14 @@ static int  wakeup_dev_probe(struct platform_device *pdev)
 	ctrl->pdata = pdata;
 	init_completion(&ctrl->event);
 	ctrl->wakeup_irq = platform_get_irq(pdev, 0);
-	status = request_irq(ctrl->wakeup_irq, usb_wakeup_handler, IRQF_SHARED, "usb_wakeup", (void *)ctrl);
+	ctrl->usb_irq = platform_get_irq(pdev, 1);
+	if (ctrl->wakeup_irq != ctrl->wakeup_irq)
+		interrupt_flag = IRQF_DISABLED;
+	else
+		interrupt_flag = IRQF_SHARED;
+	status = request_irq(ctrl->wakeup_irq, usb_wakeup_handler, interrupt_flag, "usb_wakeup", (void *)ctrl);
 	if (status)
 		goto error1;
-	ctrl->usb_irq = platform_get_irq(pdev, 1);
 
 	ctrl->thread = kthread_run(wakeup_event_thread, (void *)ctrl, "usb_wakeup thread");
 	status = IS_ERR(ctrl->thread) ? -1 : 0;

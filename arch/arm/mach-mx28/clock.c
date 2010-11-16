@@ -238,8 +238,7 @@ static int pll_enable(struct clk *clk)
 	unsigned long reg;
 	switch (clk - pll_clk) {
 	case 0:
-		__raw_writel(BM_CLKCTRL_PLL0CTRL0_POWER |
-			     BM_CLKCTRL_PLL0CTRL0_EN_USB_CLKS,
+		__raw_writel(BM_CLKCTRL_PLL0CTRL0_POWER,
 			     CLKCTRL_BASE_ADDR + HW_CLKCTRL_PLL0CTRL0_SET);
 		do {
 			udelay(10);
@@ -251,8 +250,7 @@ static int pll_enable(struct clk *clk)
 			return -EFAULT;
 		return 0;
 	case 1:
-		__raw_writel(BM_CLKCTRL_PLL1CTRL0_POWER |
-			     BM_CLKCTRL_PLL1CTRL0_EN_USB_CLKS,
+		__raw_writel(BM_CLKCTRL_PLL1CTRL0_POWER,
 			     CLKCTRL_BASE_ADDR + HW_CLKCTRL_PLL1CTRL0_SET);
 		do {
 			udelay(10);
@@ -278,13 +276,11 @@ static void pll_disable(struct clk *clk)
 {
 	switch (clk - pll_clk) {
 	case 0:
-		__raw_writel(BM_CLKCTRL_PLL0CTRL0_POWER |
-			     BM_CLKCTRL_PLL0CTRL0_EN_USB_CLKS,
+		__raw_writel(BM_CLKCTRL_PLL0CTRL0_POWER,
 			     CLKCTRL_BASE_ADDR + HW_CLKCTRL_PLL0CTRL0_CLR);
 		return;
 	case 1:
-		__raw_writel(BM_CLKCTRL_PLL1CTRL0_POWER |
-			     BM_CLKCTRL_PLL1CTRL0_EN_USB_CLKS,
+		__raw_writel(BM_CLKCTRL_PLL1CTRL0_POWER,
 			     CLKCTRL_BASE_ADDR + HW_CLKCTRL_PLL1CTRL0_CLR);
 		return;
 	case 2:
@@ -1545,6 +1541,26 @@ static struct clk usb_clk1 = {
 	.flags = CPU_FREQ_TRIG_UPDATE,
 };
 
+/* usb phy clock for usb0 */
+static struct clk usb_phy_clk0 = {
+	.parent = &pll_clk[0],
+	.enable = mx28_raw_disable, /* EN_USB_CLKS = 1 means ON */
+	.disable = mx28_raw_enable,
+	.enable_reg = CLKCTRL_BASE_ADDR + HW_CLKCTRL_PLL0CTRL0_SET,
+	.enable_bits = BM_CLKCTRL_PLL0CTRL0_EN_USB_CLKS,
+	.flags = CPU_FREQ_TRIG_UPDATE,
+};
+
+/* usb phy clock for usb1 */
+static struct clk usb_phy_clk1 = {
+	.parent = &pll_clk[1],
+	.enable = mx28_raw_disable,
+	.disable = mx28_raw_enable,
+	.enable_reg = CLKCTRL_BASE_ADDR + HW_CLKCTRL_PLL1CTRL0_SET,
+	.enable_bits = BM_CLKCTRL_PLL0CTRL0_EN_USB_CLKS,
+	.flags = CPU_FREQ_TRIG_UPDATE,
+};
+
 static struct clk enet_out_clk = {
 	.parent = &pll_clk[2],
 	.enable = mx28_raw_enable,
@@ -1711,6 +1727,14 @@ static struct clk_lookup onchip_clocks[] = {
 	{
 	.con_id = "usb_clk1",
 	.clk = &usb_clk1,
+	},
+	{
+	.con_id = "usb_phy_clk0",
+	.clk = &usb_phy_clk0,
+	},
+	{
+	.con_id = "usb_phy_clk1",
+	.clk = &usb_phy_clk1,
 	},
 	{
 	.con_id = "fec_clk",

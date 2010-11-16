@@ -57,7 +57,7 @@ static void _wake_up_enable(struct fsl_usb2_platform_data *pdata, bool enable)
 	}
 }
 
-static void _phy_lowpower_suspend(bool enable)
+static void _phy_lowpower_suspend(struct fsl_usb2_platform_data *pdata, bool enable)
 {
 	printk(KERN_DEBUG "host2, %s, enable is %d\n", __func__, enable);
 	if (enable) {
@@ -89,7 +89,7 @@ static void fsl_usbh2_clock_gate(bool on)
 	}
 }
 
-static bool _is_usbh2_wakeup(void)
+static bool _is_usbh2_wakeup(struct fsl_usb2_platform_data *pdata)
 {
 	int wakeup_req = USBCTRL & UCTRL_H2WIR;
 
