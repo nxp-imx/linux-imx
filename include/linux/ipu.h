@@ -111,6 +111,7 @@ typedef enum {
 #define IPU_PIX_FMT_BGR666  fourcc('B', 'G', 'R', '6')	/*!< 18  BGR-6-6-6    */
 #define IPU_PIX_FMT_BGR24   fourcc('B', 'G', 'R', '3')	/*!< 24  BGR-8-8-8    */
 #define IPU_PIX_FMT_RGB24   fourcc('R', 'G', 'B', '3')	/*!< 24  RGB-8-8-8    */
+#define IPU_PIX_FMT_GBR24   fourcc('G', 'B', 'R', '3')	/*!< 24  GBR-8-8-8    */
 #define IPU_PIX_FMT_BGR32   fourcc('B', 'G', 'R', '4')	/*!< 32  BGR-8-8-8-8  */
 #define IPU_PIX_FMT_BGRA32  fourcc('B', 'G', 'R', 'A')	/*!< 32  BGR-8-8-8-8  */
 #define IPU_PIX_FMT_RGB32   fourcc('R', 'G', 'B', '4')	/*!< 32  RGB-8-8-8-8  */
@@ -970,6 +971,13 @@ int ipu_init_async_panel(int disp, int type, uint32_t cycle_time,
 			 uint32_t pixel_fmt, ipu_adc_sig_cfg_t sig);
 void ipu_disp_direct_write(ipu_channel_t channel, u32 value, u32 offset);
 void ipu_reset_disp_panel(void);
+
+void ipu_set_vga_delayed_hsync_vsync(uint32_t width, uint32_t height,
+		uint32_t h_start_width, uint32_t h_sync_width,
+		uint32_t h_end_width, uint32_t v_start_width,
+		uint32_t v_sync_width, uint32_t v_end_width,
+		uint32_t hsync_delay, uint32_t vsync_delay,
+		uint32_t hsync_polarity, uint32_t vsync_polarity);
 
 /* ADC API */
 int32_t ipu_adc_write_template(display_port_t disp, uint32_t *pCmd,

@@ -2459,6 +2459,7 @@ ipu_color_space_t format_to_colorspace(uint32_t fmt)
 	case IPU_PIX_FMT_RGB565:
 	case IPU_PIX_FMT_BGR24:
 	case IPU_PIX_FMT_RGB24:
+	case IPU_PIX_FMT_GBR24:
 	case IPU_PIX_FMT_BGR32:
 	case IPU_PIX_FMT_BGRA32:
 	case IPU_PIX_FMT_RGB32:
