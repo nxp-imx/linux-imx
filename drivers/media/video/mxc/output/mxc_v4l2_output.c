@@ -214,6 +214,7 @@ static bool format_is_yuv(u32 pixelformat)
 	case V4L2_PIX_FMT_YUYV:
 	case V4L2_PIX_FMT_YUV422P:
 	case V4L2_PIX_FMT_YVU420:
+	case V4L2_PIX_FMT_YUV444:
 	case V4L2_PIX_FMT_NV12:
 		return true;
 		break;
@@ -1330,8 +1331,21 @@ static int mxc_v4l2out_streamon(vout_data *vout)
 	vout->yres = fbvar.yres;
 
 	if (vout->cur_disp_output == 3 || vout->cur_disp_output == 5) {
+		unsigned int fb_fmt = vout->v2f.fmt.pix.pixelformat;
+
+		/* DC channel can not use CSC */
+		if (vout->cur_disp_output == 5) {
+			if (fbi->fbops->fb_ioctl) {
+				old_fs = get_fs();
+				set_fs(KERNEL_DS);
+				fbi->fbops->fb_ioctl(fbi, MXCFB_GET_DIFMT,
+						(unsigned long)&fb_fmt);
+				set_fs(old_fs);
+			}
+		}
+
 		fbvar.bits_per_pixel = 16;
-		if (format_is_yuv(vout->v2f.fmt.pix.pixelformat))
+		if (format_is_yuv(fb_fmt))
 			fbvar.nonstd = IPU_PIX_FMT_UYVY;
 		else
 			fbvar.nonstd = 0;
@@ -1363,6 +1377,11 @@ static int mxc_v4l2out_streamon(vout_data *vout)
 	/* IPUv1 needs IC to do CSC */
 	if (format_is_yuv(vout->v2f.fmt.pix.pixelformat) !=
 	    format_is_yuv(bpp_to_fmt(fbi)))
+#else
+	/* DC channel needs IC to do CSC */
+	if ((format_is_yuv(vout->v2f.fmt.pix.pixelformat) !=
+	    format_is_yuv(bpp_to_fmt(fbi))) &&
+		(vout->cur_disp_output == 5))
 		vout->ic_bypass = 0;
 #endif
 
@@ -1402,7 +1421,11 @@ static int mxc_v4l2out_streamon(vout_data *vout)
 
 	/* Init display channel through fb API */
 	fbvar.activate |= FB_ACTIVATE_FORCE;
+	acquire_console_sem();
+	fbi->flags |= FBINFO_MISC_USEREVENT;
 	fb_set_var(fbi, &fbvar);
+	fbi->flags &= ~FBINFO_MISC_USEREVENT;
+	release_console_sem();
 
 	if (fbi->fbops->fb_ioctl && vout->display_ch == MEM_FG_SYNC) {
 		fb_pos.x = vout->crop_current.left;
@@ -1627,7 +1650,11 @@ static int mxc_v4l2out_streamoff(vout_data *vout)
 
 	if (vout->ic_bypass) {
 		fbi->var.activate |= FB_ACTIVATE_FORCE;
+		acquire_console_sem();
+		fbi->flags |= FBINFO_MISC_USEREVENT;
 		fb_set_var(fbi, &fbi->var);
+		fbi->flags &= ~FBINFO_MISC_USEREVENT;
+		release_console_sem();
 
 		if (vout->display_ch == MEM_FG_SYNC) {
 			acquire_console_sem();
@@ -1653,7 +1680,11 @@ static int mxc_v4l2out_streamoff(vout_data *vout)
 		ipu_disable_channel(MEM_PP_MEM, true);
 
 		fbi->var.activate |= FB_ACTIVATE_FORCE;
+		acquire_console_sem();
+		fbi->flags |= FBINFO_MISC_USEREVENT;
 		fb_set_var(fbi, &fbi->var);
+		fbi->flags &= ~FBINFO_MISC_USEREVENT;
+		release_console_sem();
 
 		if (vout->display_ch == MEM_FG_SYNC) {
 			acquire_console_sem();
@@ -1688,7 +1719,11 @@ static int mxc_v4l2out_streamoff(vout_data *vout)
 		}
 
 		fbi->var.activate |= FB_ACTIVATE_FORCE;
+		acquire_console_sem();
+		fbi->flags |= FBINFO_MISC_USEREVENT;
 		fb_set_var(fbi, &fbi->var);
+		fbi->flags &= ~FBINFO_MISC_USEREVENT;
+		release_console_sem();
 
 		if (vout->display_ch == MEM_FG_SYNC) {
 			acquire_console_sem();
@@ -1740,6 +1775,7 @@ static inline int valid_mode(u32 palette)
 		(palette == V4L2_PIX_FMT_UYVY) ||
 		(palette == V4L2_PIX_FMT_YUYV) ||
 		(palette == V4L2_PIX_FMT_YUV422P) ||
+		(palette == V4L2_PIX_FMT_YUV444) ||
 		(palette == V4L2_PIX_FMT_YUV420));
 }
 
