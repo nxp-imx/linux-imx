@@ -679,11 +679,11 @@ static void mx53_ard_host1_driver_vbus(bool on)
 static void adv7180_pwdn(int pwdn)
 {
 	gpio_request(ARD_VIDEOIN_PWR, "tvin-pwr");
-	gpio_direction_output(ARD_VIDEOIN_PWR, 0);
 	if (pwdn)
 		gpio_set_value(ARD_VIDEOIN_PWR, 0);
 	else
 		gpio_set_value(ARD_VIDEOIN_PWR, 1);
+	gpio_free(ARD_VIDEOIN_PWR);
 }
 
 static struct mxc_tvin_platform_data adv7180_data = {
@@ -693,6 +693,7 @@ static struct mxc_tvin_platform_data adv7180_data = {
 	.pvdd_reg = NULL,
 	.pwdn = adv7180_pwdn,
 	.reset = NULL,
+	.cvbs = true,
 };
 
 static struct resource mxcfb_resources[] = {
@@ -1439,6 +1440,7 @@ static void __init mxc_board_init(void)
 			&mxc_surround_audio_data);
 
 	mxc_register_device(&mxc_v4l2out_device, NULL);
+	mxc_register_device(&mxc_v4l2_device, NULL);
 }
 
 static void __init mx53_ard_timer_init(void)
