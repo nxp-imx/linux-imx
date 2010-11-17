@@ -1518,6 +1518,7 @@ static int _clk_ipu_di_set_parent(struct clk *clk, struct clk *parent)
 	return 0;
 }
 
+static int priv_div;
 static unsigned long _clk_ipu_di_get_rate(struct clk *clk)
 {
 	u32 reg, mux;
@@ -1531,7 +1532,8 @@ static unsigned long _clk_ipu_di_get_rate(struct clk *clk)
 		    MXC_CCM_CDCDR_DI1_CLK_PRED_MASK;
 		div = (reg >> MXC_CCM_CDCDR_DI1_CLK_PRED_OFFSET) + 1;
 	} else if ((mux == 3) && (clk->id == 1)) {
-		div = 8;
+		if (priv_div)
+			div = priv_div;
 	} else if ((mux == 3) && (clk->id == 0)) {
 		reg = __raw_readl(MXC_CCM_CDCDR) &
 			MXC_CCM_CDCDR_DI_PLL4_PODF_MASK;
@@ -1563,6 +1565,7 @@ static int _clk_ipu_di_set_rate(struct clk *clk, unsigned long rate)
 		__raw_writel(reg, MXC_CCM_CDCDR);
 	} else if (((clk->parent == &tve_clk) && (clk->id == 1)) ||
 		((clk->parent == &ldb_di_clk[clk->id]) && cpu_is_mx53())) {
+		priv_div = div;
 		return 0;
 	} else
 		return -EINVAL;
@@ -1579,7 +1582,7 @@ static unsigned long _clk_ipu_di_round_rate(struct clk *clk,
 	if ((clk->parent == &ldb_di_clk[clk->id]) && cpu_is_mx53())
 		return parent_rate;
 	else {
-		div = parent_rate / rate;
+		div = (parent_rate + rate/2) / rate;
 		if (div > 8)
 			div = 8;
 		else if (div == 0)
@@ -1999,7 +2002,7 @@ static unsigned long _clk_tve_round_rate(struct clk *clk,
 	if (cpu_is_mx53() && (reg & MXC_CCM_CSCMR1_TVE_EXT_CLK_SEL))
 		return -EINVAL;
 
-	div = parent_rate / rate;
+	div = (parent_rate + rate/2) / rate;
 	if (div > 8)
 		div = 8;
 	else if (div == 0)
@@ -2031,27 +2034,6 @@ static int _clk_tve_set_rate(struct clk *clk, unsigned long rate)
 	return 0;
 }
 
-static int _clk_tve_enable(struct clk *clk)
-{
-	_clk_enable(clk);
-	if (clk_get_parent(&ipu_di_clk[1]) != clk) {
-		clk_enable(&ipu_di_clk[1]);
-		ipu_di_clk[1].set_parent(&ipu_di_clk[1], clk);
-		ipu_di_clk[1].parent = clk;
-	}
-	return 0;
-}
-
-static void _clk_tve_disable(struct clk *clk)
-{
-	_clk_disable(clk);
-	if (clk_get_parent(&ipu_di_clk[1]) == clk) {
-		ipu_di_clk[1].set_parent(&ipu_di_clk[1], &pll3_sw_clk);
-		ipu_di_clk[1].parent = &pll3_sw_clk;
-		clk_disable(&ipu_di_clk[1]);
-	}
-}
-
 static struct clk tve_clk = {
 	.parent = &pll3_sw_clk,
 	.set_parent = _clk_tve_set_parent,
@@ -2060,8 +2042,8 @@ static struct clk tve_clk = {
 	.get_rate = _clk_tve_get_rate,
 	.round_rate = _clk_tve_round_rate,
 	.set_rate = _clk_tve_set_rate,
-	.enable = _clk_tve_enable,
-	.disable = _clk_tve_disable,
+	.enable = _clk_enable,
+	.disable = _clk_disable,
 	.flags = AHB_HIGH_SET_POINT | CPU_FREQ_TRIG_UPDATE,
 };
 
@@ -4249,7 +4231,7 @@ static struct clk_lookup lookups[] = {
 	_REGISTER_CLOCK(NULL, "ipu_di1_clk", ipu_di_clk[1]),
 	_REGISTER_CLOCK(NULL, "csi_mclk1", csi0_clk),
 	_REGISTER_CLOCK(NULL, "csi_mclk2", csi1_clk),
-	_REGISTER_CLOCK("tve.0", NULL, tve_clk),
+	_REGISTER_CLOCK(NULL, "tve_clk", tve_clk),
 	_REGISTER_CLOCK("mxcintuart.0", NULL, uart1_clk[0]),
 	_REGISTER_CLOCK("mxcintuart.1", NULL, uart2_clk[0]),
 	_REGISTER_CLOCK("mxcintuart.2", NULL, uart3_clk[0]),
