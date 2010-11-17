@@ -48,6 +48,8 @@
 #include <linux/regulator/driver.h>
 #include <linux/fsl_devices.h>
 
+#include <linux/time.h>
+
 #include "epdc_regs.h"
 
 /*
@@ -61,7 +63,7 @@
 #define EPDC_MAX_NUM_UPDATES 20
 #define INVALID_LUT -1
 
-#define DEFAULT_TEMP_INDEX	8
+#define DEFAULT_TEMP_INDEX	0
 #define DEFAULT_TEMP		20 /* room temp in deg Celsius */
 
 #define INIT_UPDATE_MARKER 0x12345678
@@ -102,7 +104,7 @@ struct update_data_list {
 struct mxc_epdc_fb_data {
 	struct fb_info info;
 	u32 pseudo_palette[16];
-	char *fb_panel_str;
+	char fw_str[24];
 	struct list_head list;
 	struct mxc_epdc_fb_mode *cur_mode;
 	struct mxc_epdc_fb_platform_data *pdata;
@@ -116,14 +118,12 @@ struct mxc_epdc_fb_data {
 	int num_screens;
 	int epdc_irq;
 	struct device *dev;
-	wait_queue_head_t vsync_wait_q;
-	u32 vsync_count;
-	void *par;
 	int power_state;
 	struct clk *epdc_clk_axi;
 	struct clk *epdc_clk_pix;
 	struct regulator *display_regulator;
 	struct regulator *vcom_regulator;
+	bool fw_default_load;
 
 	/* FB elements related to EPDC updates */
 	bool in_init;
@@ -628,8 +628,8 @@ void epdc_init_settings(struct mxc_epdc_fb_data *fb_data)
 	       EPDC_FIFOCTRL_FIFO_L_LEVEL_MASK);
 	__raw_writel(reg_val, EPDC_FIFOCTRL);
 
-	/* EPDC_TEMP - 8 for room temperature */
-	epdc_set_temp(8);
+	/* EPDC_TEMP - Use default temp index */
+	epdc_set_temp(fb_data->temp_index);
 
 	/* EPDC_RES */
 	epdc_set_screen_res(epdc_mode->vmode->xres, epdc_mode->vmode->yres);
@@ -781,14 +781,14 @@ static void epdc_powerup(struct mxc_epdc_fb_data *fb_data)
 
 	/* Enable power to the EPD panel */
 	ret = regulator_enable(fb_data->display_regulator);
-	if (IS_ERR(ret)) {
+	if (IS_ERR((void *)ret)) {
 		dev_err(fb_data->dev, "Unable to enable DISPLAY regulator."
 			"err = 0x%x\n", ret);
 		mutex_unlock(&fb_data->power_mutex);
 		return;
 	}
 	ret = regulator_enable(fb_data->vcom_regulator);
-	if (IS_ERR(ret)) {
+	if (IS_ERR((void *)ret)) {
 		dev_err(fb_data->dev, "Unable to enable VCOM regulator."
 			"err = 0x%x\n", ret);
 		mutex_unlock(&fb_data->power_mutex);
@@ -1279,7 +1279,6 @@ int mxc_epdc_fb_set_temperature(int temperature, struct fb_info *info)
 {
 	struct mxc_epdc_fb_data *fb_data = info ?
 		(struct mxc_epdc_fb_data *)info:g_fb_data;
-	int temp_index;
 	unsigned long flags;
 
 	/* Store temp index. Used later when configuring updates. */
@@ -2312,31 +2311,34 @@ static void draw_mode0(struct mxc_epdc_fb_data *fb_data)
 	return;
 }
 
-static int mxc_epdc_fb_init_hw(struct fb_info *info)
+
+static void mxc_epdc_fb_fw_handler(const struct firmware *fw,
+						     void *context)
 {
-	struct mxc_epdc_fb_data *fb_data = (struct mxc_epdc_fb_data *)info;
-	const struct firmware *fw;
-	char fw_str[24] = "imx/epdc_";
-	struct mxcfb_update_data update;
+	struct mxc_epdc_fb_data *fb_data = context;
+	int ret;
 	struct mxcfb_waveform_data_file *wv_file;
 	int wv_data_offs;
-	int ret;
 	int i;
+	struct mxcfb_update_data update;
 
-	/*
-	 * Create fw search string based on ID string in selected videomode.
-	 * Format is "imx/epdc_[panel string].fw"
-	 */
-	if (fb_data->cur_mode) {
-		strcat(fw_str, fb_data->cur_mode->vmode->name);
-		strcat(fw_str, ".fw");
-	}
+	if (fw == NULL) {
+		/* If default FW file load failed, we give up */
+		if (fb_data->fw_default_load)
+			return;
 
-	ret = request_firmware(&fw, fw_str, fb_data->dev);
-	if (ret) {
-		printk(KERN_ERR "Failed to load image imx/epdc.ihex err %d\n",
-		       ret);
-		return ret;
+		/* Try to load default waveform */
+		dev_dbg(fb_data->dev,
+			"Can't find firmware. Trying fallback fw\n");
+		fb_data->fw_default_load = true;
+		ret = request_firmware_nowait(THIS_MODULE, FW_ACTION_HOTPLUG,
+			"imx/epdc.fw", fb_data->dev, GFP_KERNEL, fb_data,
+			mxc_epdc_fb_fw_handler);
+		if (ret)
+			dev_err(fb_data->dev,
+				"Failed request_firmware_nowait err %d\n", ret);
+
+		return;
 	}
 
 	wv_file = (struct mxcfb_waveform_data_file *)fw->data;
@@ -2365,7 +2367,7 @@ static int mxc_epdc_fb_init_hw(struct fb_info *info)
 						GFP_DMA);
 	if (fb_data->waveform_buffer_virt == NULL) {
 		dev_err(fb_data->dev, "Can't allocate mem for waveform!\n");
-		ret = -ENOMEM;
+		return;
 	}
 
 	memcpy(fb_data->waveform_buffer_virt, (u8 *)(fw->data) + wv_data_offs,
@@ -2389,24 +2391,50 @@ static int mxc_epdc_fb_init_hw(struct fb_info *info)
 	fb_data->hw_ready = true;
 
 	update.update_region.left = 0;
-	update.update_region.width = info->var.xres;
+	update.update_region.width = fb_data->info.var.xres;
 	update.update_region.top = 0;
-	update.update_region.height = info->var.yres;
+	update.update_region.height = fb_data->info.var.yres;
 	update.update_mode = UPDATE_MODE_FULL;
 	update.waveform_mode = WAVEFORM_MODE_AUTO;
 	update.update_marker = INIT_UPDATE_MARKER;
 	update.temp = TEMP_USE_AMBIENT;
 	update.flags = 0;
 
-	mxc_epdc_fb_send_update(&update, info);
+	mxc_epdc_fb_send_update(&update, &fb_data->info);
 
 	/* Block on initial update */
-	ret = mxc_epdc_fb_wait_update_complete(update.update_marker, info);
+	ret = mxc_epdc_fb_wait_update_complete(update.update_marker,
+		&fb_data->info);
 	if (ret < 0)
 		dev_err(fb_data->dev,
 			"Wait for update complete failed.  Error = 0x%x", ret);
+}
 
-	return 0;
+static int mxc_epdc_fb_init_hw(struct fb_info *info)
+{
+	struct mxc_epdc_fb_data *fb_data = (struct mxc_epdc_fb_data *)info;
+	int ret;
+
+	/*
+	 * Create fw search string based on ID string in selected videomode.
+	 * Format is "imx/epdc_[panel string].fw"
+	 */
+	if (fb_data->cur_mode) {
+		strcat(fb_data->fw_str, "imx/epdc_");
+		strcat(fb_data->fw_str, fb_data->cur_mode->vmode->name);
+		strcat(fb_data->fw_str, ".fw");
+	}
+
+	fb_data->fw_default_load = false;
+
+	ret = request_firmware_nowait(THIS_MODULE, FW_ACTION_HOTPLUG,
+				fb_data->fw_str, fb_data->dev, GFP_KERNEL,
+				fb_data, mxc_epdc_fb_fw_handler);
+	if (ret)
+		dev_dbg(fb_data->dev,
+			"Failed request_firmware_nowait err %d\n", ret);
+
+	return ret;
 }
 
 static ssize_t store_update(struct device *device,
@@ -2645,15 +2673,11 @@ int __devinit mxc_epdc_fb_probe(struct platform_device *pdev)
 	info->var.activate = FB_ACTIVATE_NOW;
 	info->pseudo_palette = fb_data->pseudo_palette;
 	info->screen_size = info->fix.smem_len;
-	fb_data->par = NULL;
 	info->flags = FBINFO_FLAG_DEFAULT;
 
 	mxc_epdc_fb_set_fix(info);
 
 	fb_data->auto_mode = AUTO_UPDATE_MODE_REGION_MODE;
-
-	init_waitqueue_head(&fb_data->vsync_wait_q);
-	fb_data->vsync_count = 0;
 
 	fb_data->fb_offset = 0;
 
