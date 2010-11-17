@@ -131,12 +131,6 @@ struct resources {
  * @saved_bbt:               A saved pointer to the in-memory NAND Flash MTD bad
  *                           block table. See show_device_ignorebad() for more
  *                           details.
- * @raw_oob_mode:            Indicates the OOB is to be read/written in "raw"
- *                           mode. See mil_ecc_read_oob() for details.
- * @hooked_read_oob:         A pointer to the ecc.read_oob() function we
- *                           "hooked." See mil_ecc_read_oob() for details.
- * @hooked_write_oob:        A pointer to the ecc.write_oob() function pointer
- *                           we "hooked." See mil_ecc_read_oob() for details.
  * @marking_a_bad_block:     Indicates the caller is marking a bad block. See
  *                           mil_ecc_write_oob() for details.
  * @hooked_block_markbad:    A pointer to the block_markbad() function we
@@ -191,13 +185,6 @@ struct mil {
 	void                   *saved_bbt;
 
 	/* MTD Function Pointer Hooks */
-
-	int                    raw_oob_mode;
-	int                    (*hooked_read_oob)(struct mtd_info *mtd,
-					loff_t from, struct mtd_oob_ops *ops);
-	int                    (*hooked_write_oob)(struct mtd_info *mtd,
-					loff_t to, struct mtd_oob_ops *ops);
-
 	int                    marking_a_bad_block;
 	int                    (*hooked_block_markbad)(struct mtd_info *mtd,
 					loff_t ofs);
