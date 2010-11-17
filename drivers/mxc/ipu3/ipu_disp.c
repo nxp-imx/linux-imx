@@ -880,6 +880,10 @@ void _ipu_init_dc_mappings(void)
 	_ipu_dc_map_link(11, 5, 1, 5, 2, 5, 0);
 	_ipu_dc_map_clear(12);
 	_ipu_dc_map_link(12, 5, 2, 5, 1, 5, 0);
+
+	/* IPU_PIX_FMT_GBR24 */
+	_ipu_dc_map_clear(13);
+	_ipu_dc_map_link(13, 0, 2, 0, 0, 0, 1);
 }
 
 int _ipu_pixfmt_to_map(uint32_t fmt)
@@ -904,6 +908,8 @@ int _ipu_pixfmt_to_map(uint32_t fmt)
 		return 10;
 	case IPU_PIX_FMT_YVYU:
 		return 12;
+	case IPU_PIX_FMT_GBR24:
+		return 13;
 	}
 
 	return -1;
@@ -960,6 +966,48 @@ void adapt_panel_to_ipu_restricitions(uint32_t *pixel_clk,
 		dev_err(g_ipu_dev, "WARNING: adapt panel end blank lines\n");
 	}
 }
+
+/*!
+ * This function is called to set delayed hsync/vsync for TVE-VGA mode.
+ *
+ */
+void ipu_set_vga_delayed_hsync_vsync(uint32_t width, uint32_t height,
+		uint32_t h_start_width, uint32_t h_sync_width,
+		uint32_t h_end_width, uint32_t v_start_width,
+		uint32_t v_sync_width, uint32_t v_end_width,
+		uint32_t hsync_delay, uint32_t vsync_delay,
+		uint32_t hsync_polarity, uint32_t vsync_polarity)
+{
+	int h_total, v_total;
+	uint32_t di_gen, disp = 1;
+
+	h_total = width + h_start_width + h_sync_width + h_end_width;
+	v_total = height + v_start_width + v_sync_width + v_end_width;
+
+	/* couter 7 for delay HSYNC */
+	_ipu_di_sync_config(disp, 7, h_total - 1,
+			DI_SYNC_CLK, hsync_delay, DI_SYNC_CLK,
+			0, DI_SYNC_NONE, 1, DI_SYNC_NONE,
+			DI_SYNC_CLK, 0, h_sync_width * 2);
+
+	/* couter 8 for delay VSYNC */
+	_ipu_di_sync_config(disp, 8, v_total - 1,
+			DI_SYNC_INT_HSYNC, vsync_delay, DI_SYNC_INT_HSYNC, 0,
+			DI_SYNC_NONE, 1, DI_SYNC_NONE,
+			DI_SYNC_INT_HSYNC, 0, v_sync_width * 2);
+
+	di_gen = __raw_readl(DI_GENERAL(disp));
+	di_gen &= ~DI_GEN_POLARITY_2;
+	di_gen &= ~DI_GEN_POLARITY_3;
+	di_gen &= ~DI_GEN_POLARITY_7;
+	di_gen &= ~DI_GEN_POLARITY_8;
+	if (hsync_polarity)
+		di_gen |= DI_GEN_POLARITY_7;
+	if (vsync_polarity)
+		di_gen |= DI_GEN_POLARITY_8;
+	__raw_writel(di_gen, DI_GENERAL(disp));
+}
+EXPORT_SYMBOL(ipu_set_vga_delayed_hsync_vsync);
 
 /*!
  * This function is called to initialize a synchronous LCD panel.
@@ -1030,6 +1078,9 @@ int32_t ipu_init_sync_panel(int disp, uint32_t pixel_clk,
 	/* Init clocking */
 	dev_dbg(g_ipu_dev, "pixel clk = %d\n", pixel_clk);
 
+	/*clear DI*/
+	__raw_writel((1 << 21), DI_GENERAL(disp));
+
 	if (sig.ext_clk) {
 		/*
 		 * Set the  PLL to be an even multiple of the pixel clock.
@@ -1046,7 +1097,9 @@ int32_t ipu_init_sync_panel(int disp, uint32_t pixel_clk,
 				while (rounded_pixel_clk < 150000000)
 					rounded_pixel_clk += pixel_clk * 2;
 				clk_set_rate(di_parent, rounded_pixel_clk);
-				clk_set_rate(g_di_clk[disp], pixel_clk);
+				rounded_pixel_clk =
+					clk_round_rate(g_di_clk[disp], pixel_clk);
+				clk_set_rate(g_di_clk[disp], rounded_pixel_clk);
 			}
 		}
 		clk_set_parent(g_pixel_clk[disp], g_di_clk[disp]);
@@ -1431,6 +1484,9 @@ int32_t ipu_init_sync_panel(int disp, uint32_t pixel_clk,
 		(pixel_fmt == IPU_PIX_FMT_YVYU) ||
 		(pixel_fmt == IPU_PIX_FMT_VYUY))
 			di_gen |= 0x00020000;
+
+	if (!sig.clk_pol)
+		di_gen |= DI_GEN_POLARITY_DISP_CLK;
 
 	__raw_writel(di_gen, DI_GENERAL(disp));
 

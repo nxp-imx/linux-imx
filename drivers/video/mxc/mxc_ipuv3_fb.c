@@ -1109,6 +1109,16 @@ static int mxcfb_ioctl(struct fb_info *fbi, unsigned int cmd, unsigned long arg)
 				return -EFAULT;
 			break;
 		}
+	case MXCFB_SET_DIFMT:
+		{
+			struct mxcfb_info *mxc_fbi =
+				(struct mxcfb_info *)fbi->par;
+
+			if (get_user(mxc_fbi->ipu_di_pix_fmt, argp))
+				return -EFAULT;
+
+			break;
+		}
 	default:
 		retval = -EINVAL;
 	}
@@ -1802,6 +1812,10 @@ static int mxcfb_option_setup(struct fb_info *info, char *options)
 		}
 		if (!strncmp(opt, "BGR24", 5)) {
 			mxcfbi->ipu_di_pix_fmt = IPU_PIX_FMT_BGR24;
+			continue;
+		}
+		if (!strncmp(opt, "GBR24", 5)) {
+			mxcfbi->ipu_di_pix_fmt = IPU_PIX_FMT_GBR24;
 			continue;
 		}
 		if (!strncmp(opt, "RGB565", 6)) {
