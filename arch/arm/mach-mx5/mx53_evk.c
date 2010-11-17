@@ -449,6 +449,59 @@ static struct fb_videomode video_modes[] = {
 	 FB_VMODE_INTERLACED | FB_VMODE_ODD_FLD_FIRST,
 	 0,},
 	{
+	 /* 1080i50 TV output */
+	 "1080I50", 50, 1920, 1080, 13468,
+	 148, 528,
+	 36, 4,
+	 44, 5,
+	 FB_SYNC_HOR_HIGH_ACT | FB_SYNC_VERT_HIGH_ACT |
+			FB_SYNC_EXT,
+	 FB_VMODE_INTERLACED,
+	 0,},
+	{
+	 /* 1080i60 TV output */
+	 "1080I60", 60, 1920, 1080, 13468,
+	 148, 88,
+	 36, 4,
+	 44, 5,
+	 FB_SYNC_HOR_HIGH_ACT | FB_SYNC_VERT_HIGH_ACT |
+			FB_SYNC_EXT,
+	 FB_VMODE_INTERLACED,
+	 0,},
+	{
+	 /* 800x480 @ 57 Hz , pixel clk @ 27MHz */
+	 "CLAA-WVGA", 57, 800, 480, 37037, 40, 60, 10, 10, 20, 10,
+	 FB_SYNC_CLK_LAT_FALL,
+	 FB_VMODE_NONINTERLACED,
+	 0,},
+	{
+	/* VGA 1024x768 65M pixel clk output */
+	"VGA-XGA", 60, 1024, 768, 15384,
+	24, 160,
+	3, 29,
+	136, 6,
+	FB_SYNC_EXT,
+	FB_VMODE_NONINTERLACED,
+	0,},
+	{
+	 "XGA", 60, 1024, 768, 15385,
+	 220, 40,
+	 21, 7,
+	 60, 10,
+	 FB_SYNC_EXT,
+	 FB_VMODE_NONINTERLACED,
+	 0,},
+	{
+	 /* 720p30 TV output */
+	 "720P30", 30, 1280, 720, 13468,
+	 256, 1760,
+	 20, 5,
+	 4, 5,
+	 FB_SYNC_HOR_HIGH_ACT | FB_SYNC_VERT_HIGH_ACT |
+	 FB_SYNC_EXT,
+	 FB_VMODE_NONINTERLACED,
+	 0,},
+	{
 	 "720P60", 60, 1280, 720, 13468,
 	 260, 109,
 	 25, 4,
@@ -458,11 +511,14 @@ static struct fb_videomode video_modes[] = {
 	 FB_VMODE_NONINTERLACED,
 	 0,},
 	{
-	 /* 800x480 @ 57 Hz , pixel clk @ 27MHz */
-	 "CLAA-WVGA", 57, 800, 480, 37037, 40, 60, 10, 10, 20, 10,
-	 FB_SYNC_CLK_LAT_FALL,
-	 FB_VMODE_NONINTERLACED,
-	 0,},
+	/* VGA 1280x1024 108M pixel clk output */
+	"SXGA", 60, 1280, 1024, 9259,
+	48, 248,
+	1, 38,
+	112, 3,
+	FB_SYNC_EXT,
+	FB_VMODE_NONINTERLACED,
+	0,},
 	{
 	/* 1600x1200 @ 60 Hz 162M pixel clk*/
 	"UXGA", 60, 1600, 1200, 6172,
@@ -474,18 +530,40 @@ static struct fb_videomode video_modes[] = {
 	FB_VMODE_NONINTERLACED,
 	0,},
 	{
-	 "1080P60", 60, 1920, 1080, 7692,
-	 100, 40,
-	 30, 3,
-	 10, 2,
+	 /* 1080p24 TV output */
+	 "1080P24", 24, 1920, 1080, 13468,
+	 148, 638,
+	 36, 4,
+	 44, 5,
+	 FB_SYNC_HOR_HIGH_ACT | FB_SYNC_VERT_HIGH_ACT |
 	 FB_SYNC_EXT,
 	 FB_VMODE_NONINTERLACED,
 	 0,},
 	{
-	 "XGA", 60, 1024, 768, 15385,
-	 220, 40,
-	 21, 7,
-	 60, 10,
+	 /* 1080p25 TV output */
+	 "1080P25", 25, 1920, 1080, 13468,
+	 148, 528,
+	 36, 4,
+	 44, 5,
+	 FB_SYNC_HOR_HIGH_ACT | FB_SYNC_VERT_HIGH_ACT |
+	 FB_SYNC_EXT,
+	 FB_VMODE_NONINTERLACED,
+	 0,},
+	{
+	 /* 1080p30 TV output */
+	 "1080P30", 30, 1920, 1080, 13468,
+	 148, 88,
+	 36, 4,
+	 44, 5,
+	 FB_SYNC_HOR_HIGH_ACT | FB_SYNC_VERT_HIGH_ACT |
+	 FB_SYNC_EXT,
+	 FB_VMODE_NONINTERLACED,
+	 0,},
+	{
+	 "1080P60", 60, 1920, 1080, 7692,
+	 100, 40,
+	 30, 3,
+	 10, 2,
 	 FB_SYNC_EXT,
 	 FB_VMODE_NONINTERLACED,
 	 0,},
@@ -826,7 +904,7 @@ static struct mxc_fb_platform_data fb_data[] = {
 	 .num_modes = ARRAY_SIZE(video_modes),
 	 },
 	{
-	 .interface_pix_fmt = IPU_PIX_FMT_BGR24,
+	 .interface_pix_fmt = IPU_PIX_FMT_GBR24,
 	 .mode_str = "1024x768M-16@60",
 	 .mode = video_modes,
 	 .num_modes = ARRAY_SIZE(video_modes),
