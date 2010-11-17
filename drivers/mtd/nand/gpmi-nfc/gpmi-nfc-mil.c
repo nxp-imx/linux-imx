@@ -835,56 +835,6 @@ exit_payload:
 }
 
 /**
- * mil_hook_read_oob() - Hooked MTD Interface read_oob().
- *
- * This function is a veneer that replaces the function originally installed by
- * the NAND Flash MTD code. See the description of the raw_oob_mode field in
- * struct mil for more information about this.
- *
- * @mtd:   A pointer to the MTD.
- * @from:  The starting address to read.
- * @ops:   Describes the operation.
- */
-static int mil_hook_read_oob(struct mtd_info *mtd,
-					loff_t from, struct mtd_oob_ops *ops)
-{
-	register struct nand_chip  *chip = mtd->priv;
-	struct gpmi_nfc_data       *this = chip->priv;
-	struct mil                 *mil  = &this->mil;
-	int                        ret;
-
-	mil->raw_oob_mode = ops->mode == MTD_OOB_RAW;
-	ret = mil->hooked_read_oob(mtd, from, ops);
-	mil->raw_oob_mode = false;
-	return ret;
-}
-
-/**
- * mil_hook_write_oob() - Hooked MTD Interface write_oob().
- *
- * This function is a veneer that replaces the function originally installed by
- * the NAND Flash MTD code. See the description of the raw_oob_mode field in
- * struct mil for more information about this.
- *
- * @mtd:   A pointer to the MTD.
- * @to:    The starting address to write.
- * @ops:   Describes the operation.
- */
-static int mil_hook_write_oob(struct mtd_info *mtd,
-					loff_t to, struct mtd_oob_ops *ops)
-{
-	register struct nand_chip  *chip = mtd->priv;
-	struct gpmi_nfc_data       *this = chip->priv;
-	struct mil                 *mil  = &this->mil;
-	int                        ret;
-
-	mil->raw_oob_mode = ops->mode == MTD_OOB_RAW;
-	ret = mil->hooked_write_oob(mtd, to, ops);
-	mil->raw_oob_mode = false;
-	return ret;
-}
-
-/**
  * mil_hook_block_markbad() - Hooked MTD Interface block_markbad().
  *
  * This function is a veneer that replaces the function originally installed by
@@ -974,12 +924,6 @@ static int mil_hook_block_markbad(struct mtd_info *mtd, loff_t ofs)
  * ECC-based/raw functions for reading or or writing the OOB. The fact that the
  * caller wants an ECC-based or raw view of the page is not propagated down to
  * this driver.
- *
- * Since our OOB *is* covered by ECC, we need this information. So, we hook the
- * ecc.read_oob and ecc.write_oob function pointers in the owning
- * struct mtd_info with our own functions. These hook functions set the
- * raw_oob_mode field so that, when control finally arrives here, we'll know
- * what to do.
  *
  * @mtd:     A pointer to the owning MTD.
  * @nand:    A pointer to the owning NAND Flash MTD.
@@ -2520,13 +2464,6 @@ int gpmi_nfc_mil_init(struct gpmi_nfc_data *this)
 	 * Hook some operations at the MTD level. See the descriptions of the
 	 * saved function pointer fields for details about why we hook these.
 	 */
-
-	mil->hooked_read_oob      = mtd->read_oob;
-	mtd->read_oob             = mil_hook_read_oob;
-
-	mil->hooked_write_oob     = mtd->write_oob;
-	mtd->write_oob            = mil_hook_write_oob;
-
 	mil->hooked_block_markbad = mtd->block_markbad;
 	mtd->block_markbad        = mil_hook_block_markbad;
 
