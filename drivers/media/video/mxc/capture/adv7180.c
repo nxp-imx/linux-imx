@@ -780,22 +780,23 @@ static struct v4l2_int_device adv7180_int_device = {
  *
  *  @return		None.
  */
-static void adv7180_hard_reset(void)
+static void adv7180_hard_reset(bool cvbs)
 {
 	dev_dbg(&adv7180_data.i2c_client->dev,
 		"In adv7180:adv7180_hard_reset\n");
 
-	/*! Driver works fine without explicit register
-	 * initialization. Furthermore, initializations takes about 2 seconds
-	 * at startup...
-	 */
+	if (cvbs) {
+		/* Set CVBS input on AIN1 */
+		adv7180_write_reg(ADV7180_INPUT_CTL, 0x00);
+	} else {
+		/*
+		 * Set YPbPr input on AIN1,4,5 and normal
+		 * operations(autodection of all stds).
+		 */
+		adv7180_write_reg(ADV7180_INPUT_CTL, 0x09);
+	}
 
-	/*! Set YPbPr input on AIN1,4,5 and normal
-	 * operations(autodection of all stds).
-	 */
-	adv7180_write_reg(ADV7180_INPUT_CTL, 0x09);
-
-	/*! Datasheet recommends: */
+	/* Datasheet recommends */
 	adv7180_write_reg(ADV7180_VSYNC_FIELD_CTL_1, 0x02);
 	adv7180_write_reg(ADV7180_MANUAL_WIN_CTL, 0xa2);
 }
@@ -900,7 +901,7 @@ static int adv7180_probe(struct i2c_client *client,
 		rev_id);
 
 	/*! ADV7180 initialization. */
-	adv7180_hard_reset();
+	adv7180_hard_reset(tvin_plat->cvbs);
 
 	pr_debug("   type is %d (expect %d)\n",
 		 adv7180_int_device.type, v4l2_int_type_slave);
