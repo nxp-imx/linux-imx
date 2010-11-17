@@ -311,6 +311,7 @@ struct mxc_tvin_platform_data {
 	char *pvdd_reg;
 	void (*pwdn) (int pwdn);
 	void (*reset) (void);
+	bool cvbs;
 };
 
 struct mxc_epdc_fb_mode {
