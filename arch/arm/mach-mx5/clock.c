@@ -4660,17 +4660,14 @@ int __init mx51_clocks_init(unsigned long ckil, unsigned long osc, unsigned long
 		    (0 << MXC_CCM_CSCDR1_UART_CLK_PODF_OFFSET);
 		__raw_writel(reg, MXC_CCM_CSCDR1);
 	} else {
-		/* Move UART to run from PLL3 */
-		clk_set_parent(&uart_main_clk, &pll3_sw_clk);
+		clk_set_parent(&uart_main_clk, &pll2_sw_clk);
 
-		/* Set the UART dividers to divide,
-		 * so the UART_CLK is 66.5MHz.
-		 */
+		/* Set the UART dividers to divide, so the UART_CLK is 66.5MHz. */
 		reg = __raw_readl(MXC_CCM_CSCDR1);
 		reg &= ~MXC_CCM_CSCDR1_UART_CLK_PODF_MASK;
 		reg &= ~MXC_CCM_CSCDR1_UART_CLK_PRED_MASK;
-		reg |= (3 << MXC_CCM_CSCDR1_UART_CLK_PRED_OFFSET) |
-		    (0 << MXC_CCM_CSCDR1_UART_CLK_PODF_OFFSET);
+		reg |= (4 << MXC_CCM_CSCDR1_UART_CLK_PRED_OFFSET) |
+		    (1 << MXC_CCM_CSCDR1_UART_CLK_PODF_OFFSET);
 		__raw_writel(reg, MXC_CCM_CSCDR1);
 	}
 
