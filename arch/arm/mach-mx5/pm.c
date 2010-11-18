@@ -22,6 +22,7 @@
 #include <linux/cpufreq.h>
 #include <linux/iram_alloc.h>
 #include <linux/fsl_devices.h>
+#include <asm/mach-types.h>
 #include <asm/cacheflush.h>
 #include <asm/tlb.h>
 #include <asm/mach/map.h>
@@ -61,8 +62,6 @@ void *suspend_iram_base;
 void (*suspend_in_iram)(void *sdclk_iomux_addr) = NULL;
 void __iomem *suspend_param1;
 
-#define FEC_EN (5*32 + 23) /*GPIO_6_23*/
-
 static int mx5_suspend_enter(suspend_state_t state)
 {
 	if (gpc_dvfs_clk == NULL)
@@ -95,13 +94,11 @@ static int mx5_suspend_enter(suspend_state_t state)
 			__raw_writel(0, MXC_SRPG_EMPGC0_SRPGCR);
 			__raw_writel(0, MXC_SRPG_EMPGC1_SRPGCR);
 		} else {
-			/* Setup GPIO/IOMUX settings to lower power. */
-			if (pm_data->suspend_enter)
+			if (machine_is_mx50_rdp() && pm_data->suspend_enter)
 				pm_data->suspend_enter();
 			/* Suspend now. */
 			suspend_in_iram(databahn_base);
-
-			if (pm_data->suspend_exit)
+			if (machine_is_mx50_rdp() && pm_data->suspend_exit)
 				pm_data->suspend_exit();
 		}
 	} else {

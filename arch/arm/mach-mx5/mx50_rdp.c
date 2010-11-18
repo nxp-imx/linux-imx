@@ -1232,7 +1232,23 @@ static struct gpmi_nfc_platform_data  gpmi_nfc_platform_data = {
 	.partition_count         = 0,
 };
 
-static void mx50_suspend_enter()
+static void fec_gpio_iomux_init()
+{
+	struct pad_desc iomux_setting =
+			MX50_PAD_I2C3_SDA__GPIO_6_23;
+
+	/* Enable the Pull/keeper */
+	iomux_setting.pad_ctrl = 0x8e;
+	mxc_iomux_v3_setup_pad(&iomux_setting);
+	gpio_request(FEC_EN, "fec-en");
+	gpio_direction_output(FEC_EN, 0);
+	gpio_request(FEC_RESET_B, "fec-reset_b");
+	gpio_direction_output(FEC_RESET_B, 0);
+	udelay(500);
+	gpio_set_value(FEC_RESET_B, 1);
+}
+
+static void fec_gpio_iomux_deinit()
 {
 	struct pad_desc iomux_setting =
 			MX50_PAD_I2C3_SDA__GPIO_6_23;
@@ -1240,24 +1256,26 @@ static void mx50_suspend_enter()
 	/* Disable the Pull/keeper */
 	iomux_setting.pad_ctrl = 0xE;
 	mxc_iomux_v3_setup_pad(&iomux_setting);
+	gpio_request(FEC_EN, "fec-en");
+	gpio_direction_input(FEC_EN);
+	gpio_request(FEC_RESET_B, "fec-reset_b");
+	gpio_direction_input(FEC_RESET_B);
+}
 
+static void mx50_suspend_enter()
+{
 	mxc_iomux_v3_setup_multiple_pads(
 			suspend_enter_pads,
 			ARRAY_SIZE(suspend_enter_pads));
+	fec_gpio_iomux_deinit();
 }
 
 static void mx50_suspend_exit()
 {
-	struct pad_desc iomux_setting =
-			MX50_PAD_I2C3_SDA__GPIO_6_23;
-
 	mxc_iomux_v3_setup_multiple_pads(
 			suspend_exit_pads,
 			ARRAY_SIZE(suspend_exit_pads));
-
-	/* Enable the Pull/keeper */
-	iomux_setting.pad_ctrl = 0x8e;
-	mxc_iomux_v3_setup_pad(&iomux_setting);
+	fec_gpio_iomux_init();
 }
 
 static struct mxc_pm_platform_data mx50_pm_data = {
@@ -1338,13 +1356,7 @@ static void __init mx50_rdp_io_init(void)
 	gpio_request(SGTL_AMP_SHDN, "sgtl5000-amp-shdn");
 	gpio_direction_output(SGTL_AMP_SHDN, 1);
 
-	gpio_request(FEC_EN, "fec-en");
-	gpio_direction_output(FEC_EN, 0);
-
-	gpio_request(FEC_RESET_B, "fec-reset_b");
-	gpio_direction_output(FEC_RESET_B, 0);
-	udelay(500);
-	gpio_set_value(FEC_RESET_B, 1);
+	fec_gpio_iomux_init();
 
 	/* USB OTG PWR */
 	gpio_request(USB_OTG_PWR, "usb otg power");
