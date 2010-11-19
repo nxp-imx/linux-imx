@@ -21,6 +21,8 @@
 #include <linux/mutex.h>
 #include <linux/fsl_devices.h>
 #include <linux/suspend.h>
+#include <linux/io.h>
+#include <mach/arc_otg.h>
 
 struct wakeup_ctrl {
 	int wakeup_irq;
@@ -51,22 +53,16 @@ static bool usb2_is_in_lowpower(struct wakeup_ctrl *ctrl)
 				return false;
 		}
 	}
+
 	return true;
 }
 
 static void delay_process_wakeup(struct wakeup_ctrl *ctrl)
 {
-	int i;
-	struct fsl_usb2_wakeup_platform_data *pdata = ctrl->pdata;
 	disable_irq_nosync(ctrl->wakeup_irq);
 	if ((ctrl->usb_irq > 0) && (ctrl->wakeup_irq != ctrl->usb_irq))
 		disable_irq_nosync(ctrl->usb_irq);
 
-	for (i = 0; i < 3; i++) {
-		if (pdata->usb_pdata[i]) {
-			pdata->usb_pdata[i]->irq_delay = 1;
-		}
-	}
 	complete(&ctrl->event);
 }
 
@@ -86,6 +82,7 @@ static bool is_wakeup(struct fsl_usb2_platform_data *pdata)
 {
 	if (pdata->is_wakeup_event)
 		return pdata->is_wakeup_event(pdata);
+
 	return false;
 }
 
@@ -104,12 +101,11 @@ static void wakeup_event_handler(struct wakeup_ctrl *ctrl)
 	for (i = 0; i < 3; i++) {
 		struct fsl_usb2_platform_data *usb_pdata = pdata->usb_pdata[i];
 		if (usb_pdata) {
-			usb_pdata->irq_delay = 0;
 			if (is_wakeup(usb_pdata)) {
-				pr_debug("%s:%d\n", __func__, __LINE__);
 				usb_pdata->wakeup_event = 1;
-				if (usb_pdata->usb_clock_for_pm)
-					usb_pdata->usb_clock_for_pm(true);
+				if (usb2_is_in_lowpower(ctrl))
+					if (usb_pdata->usb_clock_for_pm)
+						usb_pdata->usb_clock_for_pm(true);
 				usb_pdata->lowpower = 0;
 			}
 		}

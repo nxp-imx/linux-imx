@@ -30,14 +30,37 @@
 #include "usb.h"
 
 extern int clk_get_usecount(struct clk *clk);
-struct clk *usb_clk;
-struct clk *usb_phy_clk;
+static struct clk *usb_clk;
+static struct clk *usb_phy_clk;
 
 static void usb_host_phy_resume(struct fsl_usb2_platform_data *plat)
 {
 	fsl_platform_set_usb_phy_dis(plat, 0);
 }
 
+static int internal_phy_clk_already_on;
+static void usbh1_internal_phy_clock_gate(bool on)
+{
+	u32 tmp;
+	void __iomem *phy_reg = IO_ADDRESS(USBPHY1_PHYS_ADDR);
+	if (on) {
+		internal_phy_clk_already_on += 1;
+		if (internal_phy_clk_already_on == 1) {
+			pr_debug ("%s, Clock on UTMI \n", __func__);
+			tmp = BM_USBPHY_CTRL_SFTRST | BM_USBPHY_CTRL_CLKGATE;
+			__raw_writel(tmp, phy_reg + HW_USBPHY_CTRL_CLR);
+		}
+	} else {
+		internal_phy_clk_already_on -= 1;
+		if (internal_phy_clk_already_on == 0) {
+			pr_debug ("%s, Clock off UTMI \n", __func__);
+			tmp = BM_USBPHY_CTRL_CLKGATE;
+			__raw_writel(tmp, phy_reg + HW_USBPHY_CTRL_SET);
+		}
+	}
+	if (internal_phy_clk_already_on < 0)
+		printk(KERN_ERR "please check internal phy clock ON/OFF sequence \n");
+}
 static int fsl_usb_host_init_ext(struct platform_device *pdev)
 {
 	usb_clk = clk_get(NULL, "usb_clk1");
@@ -48,12 +71,14 @@ static int fsl_usb_host_init_ext(struct platform_device *pdev)
 	clk_enable(usb_phy_clk);
 	clk_put(usb_phy_clk);
 
+	usbh1_internal_phy_clock_gate(true);
 	return fsl_usb_host_init(pdev);
 }
 
 static void fsl_usb_host_uninit_ext(struct fsl_usb2_platform_data *pdata)
 {
 	fsl_usb_host_uninit(pdata);
+	usbh1_internal_phy_clock_gate(false);
 	clk_disable(usb_phy_clk);
 	clk_disable(usb_clk);
 }
@@ -68,23 +93,20 @@ static void usbh1_clock_gate(bool on)
 		clk_disable(usb_phy_clk);
 		clk_disable(usb_clk);
 	}
-	pr_debug("usb_clk_ref_count:%d, usb_phy_clk_ref_count:%d\n", clk_get_usecount(usb_clk), clk_get_usecount(usb_phy_clk));
+	pr_debug("usb_clk1_ref_count:%d, usb_phy_clk1_ref_count:%d\n", clk_get_usecount(usb_clk), clk_get_usecount(usb_phy_clk));
 }
 
 static void _wake_up_enable(struct fsl_usb2_platform_data *pdata, bool enable)
 {
-	pr_debug("host1, %s, enable is %d\n", __func__, enable);
-	void __iomem *phy_reg = IO_ADDRESS(pdata->phy_regs);
-	void __iomem *usb_reg = pdata->regs;
 	u32 tmp;
+	void __iomem *phy_reg = IO_ADDRESS(pdata->phy_regs);
+
+	pr_debug("host1, %s, enable is %d\n", __func__, enable);
 	if (enable) {
 		tmp = BM_USBPHY_CTRL_RESUME_IRQ | BM_USBPHY_CTRL_WAKEUP_IRQ;
 		__raw_writel(tmp, phy_reg + HW_USBPHY_CTRL_CLR);
 
 		tmp = (BM_USBPHY_CTRL_ENIRQWAKEUP
-			| BM_USBPHY_CTRL_ENAUTOCLR_CLKGATE
-			| BM_USBPHY_CTRL_ENAUTOCLR_PHY_PWD
-			| BM_USBPHY_CTRL_ENAUTOCLR_USBCLKGATE
 			| BM_USBPHY_CTRL_ENIDCHG_WKUP
 			| BM_USBPHY_CTRL_ENDPDMCHG_WKUP);
 		__raw_writel(tmp, phy_reg + HW_USBPHY_CTRL_SET);
@@ -93,9 +115,6 @@ static void _wake_up_enable(struct fsl_usb2_platform_data *pdata, bool enable)
 		__raw_writel(tmp, phy_reg + HW_USBPHY_CTRL_CLR);
 
 		tmp = (BM_USBPHY_CTRL_ENIRQWAKEUP
-			| BM_USBPHY_CTRL_ENAUTOCLR_CLKGATE
-			| BM_USBPHY_CTRL_ENAUTOCLR_PHY_PWD
-			| BM_USBPHY_CTRL_ENAUTOCLR_USBCLKGATE
 			| BM_USBPHY_CTRL_ENIDCHG_WKUP
 			| BM_USBPHY_CTRL_ENDPDMCHG_WKUP);
 
@@ -131,16 +150,7 @@ static void _phy_lowpower_suspend(struct fsl_usb2_platform_data *pdata, bool ena
 		pr_debug ("%s, Polling UTMI enter suspend \n", __func__);
 		while (tmp & BM_USBPHY_CTRL_UTMI_SUSPENDM)
 			tmp = __raw_readl(phy_reg + HW_USBPHY_CTRL);
-
-		pr_debug ("%s, Clock off UTMI \n", __func__);
-		tmp = BM_USBPHY_CTRL_CLKGATE;
-		__raw_writel(tmp, phy_reg + HW_USBPHY_CTRL_SET);
-
 	} else {
-		pr_debug ("%s, Enable USB phy\n", __func__);
-		tmp = BM_USBPHY_CTRL_SFTRST | BM_USBPHY_CTRL_CLKGATE;
-		__raw_writel(tmp, phy_reg + HW_USBPHY_CTRL_CLR);
-
 		tmp = (BM_USBPHY_PWD_TXPWDFS
 			| BM_USBPHY_PWD_TXPWDIBIAS
 			| BM_USBPHY_PWD_TXPWDV2I
@@ -158,9 +168,10 @@ static void _phy_lowpower_suspend(struct fsl_usb2_platform_data *pdata, bool ena
 
 static bool _is_usbh1_wakeup(struct fsl_usb2_platform_data *pdata)
 {
-	pr_debug("host1, %s\n", __func__);
 	void __iomem *phy_reg = IO_ADDRESS(pdata->phy_regs);
 	u32 tmp;
+
+	pr_debug("host1, %s\n", __func__);
 	tmp = BM_USBPHY_CTRL_RESUME_IRQ | BM_USBPHY_CTRL_WAKEUP_IRQ;
 	if (__raw_readl(phy_reg + HW_USBPHY_CTRL) && tmp) {
 		__raw_writel(tmp, phy_reg + HW_USBPHY_CTRL_CLR);
@@ -217,17 +228,17 @@ static struct resource usbh1_wakeup_resources[] = {
 
 struct platform_device mxs_usbh1_wakeup_device = {
 	.name = "usb_wakeup",
-	.id   = 1,
+	.id   = 2,
 	.num_resources = ARRAY_SIZE(usbh1_wakeup_resources),
 	.resource = usbh1_wakeup_resources,
 };
 
 static int __init usbh1_init(void)
 {
-	pr_debug("%s: \n", __func__);
-
 	struct platform_device *pdev = host_pdev_register(usbh1_resources,
 			ARRAY_SIZE(usbh1_resources), &usbh1_config);
+
+	pr_debug("%s: \n", __func__);
 
 	/* the platform device(usb h1)'s pdata address has changed */
 	usbh1_wakeup_config.usb_pdata[0] = pdev->dev.platform_data;
