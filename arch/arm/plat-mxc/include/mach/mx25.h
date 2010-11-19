@@ -299,4 +299,10 @@
 #define MXC_INT_RNG				MX25_INT_RNG
 #define MXC_INT_USB_OTG			MX25_INT_USB_OTG
 
+/*!
+ * IIM Bank info
+ **/
+#define MXC_IIM_BANK_START_ADDR 0x0000
+#define MXC_IIM_BANK_END_ADDR   0x007c
+
 #endif /* ifndef __MACH_MX25_H__ */

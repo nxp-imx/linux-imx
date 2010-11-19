@@ -29,6 +29,7 @@
 #include <mach/mx3_camera.h>
 #include <mach/sdma.h>
 #include <mach/mxc_dptc.h>
+#include <mach/mxc_iim.h>
 
 #include "devices.h"
 
@@ -750,17 +751,30 @@ static struct platform_device mxc_dptc_device = {
 static struct resource mxc_iim_resources[] = {
 	{
 	 .start = MX31_IIM_BASE_ADDR,
-	 .end = MX31_IIM_BASE_ADDR + SZ_4K - 1,
+	 .end = MX31_IIM_BASE_ADDR + SZ_16K - 1,
 	 .flags = IORESOURCE_MEM,
 	 },
+};
+
+static struct mxc_iim_data iim_data = {
+	.bank_start = MXC_IIM_BANK_START_ADDR,
+	.bank_end   = MXC_IIM_BANK_END_ADDR,
 };
 
 static struct platform_device mxc_iim_device = {
 	.name = "mxc_iim",
 	.id = 0,
 	.num_resources = ARRAY_SIZE(mxc_iim_resources),
-	.resource = mxc_iim_resources
+	.resource = mxc_iim_resources,
+	.dev.platform_data = &iim_data,
 };
+
+static inline void mxc_init_iim(void)
+{
+	if (platform_device_register(&mxc_iim_device) < 0)
+		dev_err(&mxc_iim_device.dev,
+			"Unable to register mxc iim device\n");
+}
 
 static struct resource pata_fsl_resources[] = {
 	{
