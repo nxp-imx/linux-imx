@@ -46,6 +46,7 @@
 #include <mach/mxc_edid.h>
 #include <mach/iomux-mx51.h>
 #include <mach/i2c.h>
+#include <mach/mxc_iim.h>
 
 #include "devices.h"
 #include "crm_regs.h"
@@ -515,6 +516,38 @@ static struct mxc_fb_platform_data fb_data[] = {
 	 .mode = video_modes,
 	 .num_modes = ARRAY_SIZE(video_modes),
 	 },
+};
+
+static void mxc_iim_enable_fuse(void)
+{
+	u32 reg;
+
+	if (!ccm_base)
+		return;
+	/* Enable fuse blown */
+	reg = readl(ccm_base + 0x64);
+	reg |= 0x10;
+	writel(reg, ccm_base + 0x64);
+}
+
+static void mxc_iim_disable_fuse(void)
+{
+	u32 reg;
+
+	/* Disable fuse blown */
+	if (!ccm_base)
+		return;
+
+	reg = readl(ccm_base + 0x64);
+	reg &= ~0x10;
+	writel(reg, ccm_base + 0x64);
+}
+
+static struct mxc_iim_data iim_data = {
+	.bank_start = MXC_IIM_MX51_BANK_START_ADDR,
+	.bank_end   = MXC_IIM_MX51_BANK_END_ADDR,
+	.enable_fuse = mxc_iim_enable_fuse,
+	.disable_fuse = mxc_iim_disable_fuse,
 };
 
 extern int primary_di;
@@ -1207,7 +1240,7 @@ static void __init mxc_board_init(void)
 	mxc_register_device(&sdram_autogating_device, NULL);
 	mxc_register_device(&mxc_dvfs_core_device, &dvfs_core_data);
 	mxc_register_device(&mxc_dvfs_per_device, &dvfs_per_data);
-	mxc_register_device(&mxc_iim_device, NULL);
+	mxc_register_device(&mxc_iim_device, &iim_data);
 	mxc_register_device(&mxc_pwm1_device, NULL);
 	mxc_register_device(&mxc_pwm1_backlight_device,
 		&mxc_pwm_backlight_data);

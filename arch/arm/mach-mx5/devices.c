@@ -979,8 +979,13 @@ struct platform_device sdram_autogating_device = {
 static struct resource mxc_iim_resources[] = {
 	{
 		.start = IIM_BASE_ADDR,
-		.end = IIM_BASE_ADDR + SZ_4K - 1,
+		.end = IIM_BASE_ADDR + SZ_16K - 1,
 		.flags = IORESOURCE_MEM,
+	},
+	{
+		.start = MXC_INT_IIM,
+		.end = MXC_INT_IIM,
+		.flags = IORESOURCE_IRQ,
 	},
 };
 

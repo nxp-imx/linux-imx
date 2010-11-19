@@ -261,4 +261,10 @@
 #define MXC_INT_FEC MX35_INT_FEC
 #endif
 
+/*!
+ * IIM bank info
+ */
+#define MXC_IIM_BANK_START_ADDR 0x0000
+#define MXC_IIM_BANK_END_ADDR   0x007c
+
 #endif /* ifndef __MACH_MX35_H__ */

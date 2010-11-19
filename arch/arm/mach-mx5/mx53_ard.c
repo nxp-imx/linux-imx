@@ -61,6 +61,7 @@
 #include <mach/mxc_dvfs.h>
 #include <mach/iomux-mx53.h>
 #include <mach/i2c.h>
+#include <mach/mxc_iim.h>
 
 #include "crm_regs.h"
 #include "devices.h"
@@ -627,6 +628,38 @@ static struct mxc_dvfs_platform_data dvfs_core_data = {
 
 static struct ldb_platform_data ldb_data = {
 	.ext_ref = 1,
+};
+
+static void mxc_iim_enable_fuse(void)
+{
+	u32 reg;
+
+	if (!ccm_base)
+		return;
+
+	/* enable fuse blown */
+	reg = readl(ccm_base + 0x64);
+	reg |= 0x10;
+	writel(reg, ccm_base + 0x64);
+}
+
+static void mxc_iim_disable_fuse(void)
+{
+	u32 reg;
+
+	if (!ccm_base)
+		return;
+	/* enable fuse blown */
+	reg = readl(ccm_base + 0x64);
+	reg &= ~0x10;
+	writel(reg, ccm_base + 0x64);
+}
+
+static struct mxc_iim_data iim_data = {
+	.bank_start = MXC_IIM_MX53_BANK_START_ADDR,
+	.bank_end   = MXC_IIM_MX53_BANK_END_ADDR,
+	.enable_fuse = mxc_iim_enable_fuse,
+	.disable_fuse = mxc_iim_disable_fuse,
 };
 
 static struct pad_desc mx53_ard_esai_pads[] = {
@@ -1399,7 +1432,7 @@ static void __init mxc_board_init(void)
 	mxc_register_device(&mxc_dvfs_core_device, &dvfs_core_data);
 	mxc_register_device(&busfreq_device, NULL);
 
-	mxc_register_device(&mxc_iim_device, NULL);
+	mxc_register_device(&mxc_iim_device, &iim_data);
 
 	mxc_register_device(&mxc_pwm1_device, &mxc_pwm1_platform_data);
 	mxc_register_device(&mxc_pwm1_backlight_device,
