@@ -803,12 +803,8 @@ static void sdhci_set_clock(struct sdhci_host *host, unsigned int clock)
 	struct mmc_ios ios = host->mmc->ios;
 
 	if (clock == 0) {
-		goto out;
-	} else {
-		if (!host->plat_data->clk_flg) {
-			clk_enable(host->clk);
-			host->plat_data->clk_flg = 1;
-		}
+		host->clock = 0;
+		return;
 	}
 
 	if (clock == host->clock && !(ios.bus_width & MMC_BUS_WIDTH_DDR))
@@ -877,7 +873,6 @@ static void sdhci_set_clock(struct sdhci_host *host, unsigned int clock)
 		udelay(20);
 	}
 
-      out:
 	if (prescaler != 0)
 		 host->clock = (clk_rate / (div + 1)) / (prescaler * 2);
 	 else
@@ -978,6 +973,11 @@ static void sdhci_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
 	    ios->clock, ios->bus_width, ios->power_mode, ios->vdd);
 
 	host = mmc_priv(mmc);
+
+	if (ios->clock && !host->plat_data->clk_flg) {
+		clk_enable(host->clk);
+		host->plat_data->clk_flg = 1;
+	}
 
 	/* Configure the External DMA mode */
 	if (host->flags & SDHCI_USE_EXTERNAL_DMA) {
@@ -1091,6 +1091,12 @@ static void sdhci_enable_sdio_irq(struct mmc_host *mmc, int enable)
 
 	host = mmc_priv(mmc);
 
+	/* Enable the clock */
+	if (!host->plat_data->clk_flg) {
+		clk_enable(host->clk);
+		host->plat_data->clk_flg = 1;
+	}
+
 	spin_lock_irqsave(&host->lock, flags);
 
 	if (enable) {
@@ -1101,11 +1107,6 @@ static void sdhci_enable_sdio_irq(struct mmc_host *mmc, int enable)
 			goto exit_unlock;
 	}
 
-	/* Enable the clock */
-	if (!host->plat_data->clk_flg) {
-		clk_enable(host->clk);
-		host->plat_data->clk_flg = 1;
-	}
 	ier = readl(host->ioaddr + SDHCI_INT_ENABLE);
 	prot = readl(host->ioaddr + SDHCI_HOST_CONTROL);
 
