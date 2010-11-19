@@ -35,6 +35,7 @@ endif
 
 obj-$(CONFIG_ARCH_MX37) += dptc.o dvfs_core.o
 obj-$(CONFIG_ARCH_MX5) += dvfs_core.o
+obj-$(CONFIG_ARCH_MX5) += ahci_sata.o
 
 # CPU FREQ support
 obj-$(CONFIG_CPU_FREQ_IMX)    += cpufreq.o
