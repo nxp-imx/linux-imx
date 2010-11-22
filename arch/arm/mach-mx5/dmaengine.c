@@ -165,6 +165,10 @@ int mxs_dma_get_info(int channel, struct mxs_dma_info *info)
 {
 	struct mxs_dma_chan *pchan;
 	struct mxs_dma_device *pdma;
+#ifdef DUMPING_DMA_ALL
+	struct list_head *pos;
+	int value, i, offset;
+#endif
 
 	if (!info)
 		return -EINVAL;
@@ -176,6 +180,48 @@ int mxs_dma_get_info(int channel, struct mxs_dma_info *info)
 	pdma = pchan->dma;
 	if (pdma->info)
 		pdma->info(pdma, channel - pdma->chan_base, info);
+
+#ifdef DUMPING_DMA_ALL
+	printk(KERN_INFO "\n[ %s ] channel : %d ,active : %d, pending : %d\n",
+		__func__, channel, pchan->active_num, pchan->pending_num);
+
+	for (i = 0; i < 6; i++) {
+		offset = i * 0x10 + channel * 0x70;
+		value = __raw_readl(pdma->base + offset);
+		printk(KERN_INFO "[ %s ] offset : 0x%.3x --  0x%.8x\n",
+				__func__, offset, value);
+	}
+	for (i = 0; i < 7; i++) {
+		offset = 0x100 + i * 0x10 + channel * 0x70;
+		value = __raw_readl(pdma->base + offset);
+		printk(KERN_INFO "[ %s ] offset : 0x%.3x --  0x%.8x\n",
+				__func__, offset, value);
+	}
+
+	offset = 0;
+	list_for_each(pos, &pchan->active) {
+		struct mxs_dma_desc *pdesc;
+
+		pdesc = list_entry(pos, struct mxs_dma_desc, node);
+		printk(KERN_INFO "========================================\n");
+		printk(KERN_INFO "The whole chain of CMD %d is :\n"
+				"\tNEXT_COMMAND_ADDRESS	: 0x%.8lx\n"
+				"\tCMD			: 0x%.8lx\n"
+				"\tDMA Buffer		: 0x%.8x\n"
+				"\taddress		: 0x%.8x\n",
+				offset++,
+				pdesc->cmd.next,
+				pdesc->cmd.cmd.data,
+				(int)pdesc->cmd.address,
+				(int)pdesc->address);
+
+		for (i = 0; i < pdesc->cmd.cmd.bits.pio_words; i++) {
+			printk(KERN_INFO "PIO WORD [ %d ] --> 0x%.8lx\n",
+				i, pdesc->cmd.pio_words[i]);
+		}
+		printk(KERN_INFO "==================================\n");
+	}
+#endif
 	return 0;
 }
 EXPORT_SYMBOL(mxs_dma_get_info);
@@ -431,7 +477,6 @@ int mxs_dma_desc_append(int channel, struct mxs_dma_desc *pdesc)
 	if (pdesc->flags & MXS_DMA_DESC_FIRST)
 		pchan->pending_num++;
 	list_add_tail(&pdesc->node, &pchan->active);
-out:
 	spin_unlock_irqrestore(&pchan->lock, flags);
 	return ret;
 }
