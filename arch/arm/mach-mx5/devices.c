@@ -1472,6 +1472,11 @@ struct platform_device mxs_dma_apbh_device = {
 	.resource = dma_apbh_resources,
 };
 
+struct platform_device mxc_zq_calib_device = {
+	.name = "mxc_zq_calib",
+	.id = -1,
+};
+
 void __init mx5_init_irq(void)
 {
 	unsigned long tzic_addr;

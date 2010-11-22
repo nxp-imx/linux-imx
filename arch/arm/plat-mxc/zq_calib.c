@@ -25,13 +25,16 @@
 #include <linux/io.h>
 #include <linux/delay.h>
 #include <linux/workqueue.h>
+#include <linux/platform_device.h>
 
 #include <mach/hardware.h>
 
 /* 10 secs, shall support changing this value in use-space later  */
 #define ZQ_INTERVAL	(10 * 1000)
 
-static void mxc_zq_main(void);
+static struct device *zq_calib_dev;
+
+static void mxc_zq_main(struct work_struct *dummy);
 
 /* Use workqueue */
 static struct workqueue_struct *zq_queue;
@@ -224,25 +227,36 @@ static void mxc_zq_sw_load(u32 pu, u32 pd)
 	 * The PU/PD values stored in register
 	 * DATABAHN_REG_ZQ_SW_CFG1/2 would be loaded.
 	 * */
-	data = (pd << 24) | (pu << 16);
+	data = ((pd + 1) << 24) | ((pu + 1) << 16);
 	__raw_writel(data, databahn_base + DATABAHN_REG_ZQ_SW_CFG1);
-	data = ((pd + 1) << 8) | (pu + 1);
+	data = (pd << 8) | pu;
 	__raw_writel(data, databahn_base + DATABAHN_REG_ZQ_SW_CFG2);
+
+	/* Loading PU value, set pu_pd_sel=0 */
+	__raw_writel((0x3 << 20) | (1 << 16),
+			databahn_base + DATABAHN_REG_ZQ_HW_CFG);
+	__raw_writel(0x1 << 21,
+			databahn_base + DATABAHN_REG_ZQ_HW_CFG);
+
+	/* Loading PD value, set pu_pd_sel=1 */
+	data = ((pd + 1) << 24) | ((pu + 1) << 16) | (1 << 4);
+	__raw_writel(data, databahn_base + DATABAHN_REG_ZQ_SW_CFG1);
 
 	/*
 	 * bit[21]: select software load
 	 * bit[20]: enable software load
 	 */
-	__raw_writel(0x3 << 20, databahn_base + DATABAHN_REG_ZQ_HW_CFG);
+	__raw_writel((0x3 << 20) | (1 << 16),
+			databahn_base + DATABAHN_REG_ZQ_HW_CFG);
 	/* clear for next load */
-	__raw_writel(0x0, databahn_base + DATABAHN_REG_ZQ_HW_CFG);
+	__raw_writel(0x1 << 21, databahn_base + DATABAHN_REG_ZQ_HW_CFG);
 }
 
 /*!
  * MXC ZQ interface - PU/PD calib function
  * This function Do a complete PU/PD calib and loading process.
  */
-static void mxc_zq_main(void)
+static void mxc_zq_main(struct work_struct *dummy)
 {
 	u32 pu, pd;
 
@@ -251,7 +265,7 @@ static void mxc_zq_main(void)
 	pu = mxc_zq_pu_calib(0);
 	/* Search pd value start from 0 */
 	pd = mxc_zq_pd_calib(0, pu);
-	printk("pu = %d, pd = %d\n", pu, pd);
+	dev_dbg(zq_calib_dev, "za_calib: pu = %d, pd = %d\n", pu, pd);
 	mxc_zq_hw_load(pu, pd);
 	/* or do software load alternatively */
 	/* zq_sw_load(pu, pd); */
@@ -260,22 +274,43 @@ static void mxc_zq_main(void)
 	queue_delayed_work(zq_queue, &zq_work, msecs_to_jiffies(ZQ_INTERVAL));
 }
 
-static int __init mxc_zq_calib_init(void)
+static int __devinit mxc_zq_calib_probe(struct platform_device *pdev)
 {
+	zq_calib_dev = &pdev->dev;
 	zq_queue = create_singlethread_workqueue("zq_calib");;
 	if (!zq_queue)
 		return -ENOMEM;
 
-	mxc_zq_main();
+	mxc_zq_main(NULL);
 
 	return 0;
 }
 
-static void __exit mxc_zq_calib_exit(void)
+static int __devexit mxc_zq_calib_remove(struct platform_device *pdev)
 {
 	cancel_delayed_work(&zq_work);
 	flush_workqueue(zq_queue);
 	destroy_workqueue(zq_queue);
+	return 0;
+}
+
+static struct platform_driver mxc_zq_calib_driver = {
+	.driver = {
+		.owner = THIS_MODULE,
+		.name = "mxc_zq_calib",
+	},
+	.probe = mxc_zq_calib_probe,
+	.remove =  __exit_p(mxc_zq_calib_remove),
+};
+
+static int __init mxc_zq_calib_init(void)
+{
+	return platform_driver_register(&mxc_zq_calib_driver);
+}
+
+static void __exit mxc_zq_calib_exit(void)
+{
+	platform_driver_unregister(&mxc_zq_calib_driver);
 }
 
 module_init(mxc_zq_calib_init);
