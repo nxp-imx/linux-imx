@@ -1228,6 +1228,8 @@ static void __init mxc_board_init(void)
 	mxc_register_device(&mxc_rngb_device, NULL);
 	mxc_register_device(&dcp_device, NULL);
 	mxc_register_device(&fsl_otp_device, &otp_data);
+	if (cpu_is_mx50_rev(CHIP_REV_1_1) >= 1)
+		mxc_register_device(&mxc_zq_calib_device, NULL);
 }
 
 static void __init mx50_arm2_timer_init(void)
