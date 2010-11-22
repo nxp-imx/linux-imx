@@ -106,7 +106,7 @@ static int gpio_usbh1_active(void)
 	int ret;
 
 	/* Set USBH1_STP to GPIO and toggle it */
-	mxc_iomux_v3_setup_pad(&usbh1stp_gpio);
+	mxc_iomux_v3_setup_pad(usbh1stp_gpio);
 	ret = gpio_request(BABBAGE_USBH1_STP, "usbh1_stp");
 
 	if (ret) {
@@ -119,7 +119,7 @@ static int gpio_usbh1_active(void)
 	gpio_free(BABBAGE_USBH1_STP);
 
 	/* De-assert USB PHY RESETB */
-	mxc_iomux_v3_setup_pad(&phyreset_gpio);
+	mxc_iomux_v3_setup_pad(phyreset_gpio);
 	ret = gpio_request(BABBAGE_PHY_RESET, "phy_reset");
 
 	if (ret) {
@@ -224,12 +224,22 @@ __setup("otg_mode=", babbage_otg_mode);
 static void __init mxc_board_init(void)
 {
 	iomux_v3_cfg_t usbh1stp = MX51_PAD_USBH1_STP__USBH1_STP;
-	iomux_v3_cfg_t power_key = MX51_PAD_EIM_A27__GPIO_2_21;
+	iomux_v3_cfg_t power_key = (MX51_PAD_EIM_A27__GPIO_2_21 &
+				~MUX_PAD_CTRL_MASK) | MX51_GPIO_PAD_CTRL_2;
 
 	mxc_iomux_v3_setup_multiple_pads(mx51babbage_pads,
 					ARRAY_SIZE(mx51babbage_pads));
 	mxc_init_imx_uart();
-	platform_add_devices(devices, ARRAY_SIZE(devices));
+	babbage_fec_reset();
+	imx51_add_fec(NULL);
+
+	/* Set the PAD settings for the pwr key. */
+	mxc_iomux_v3_setup_pad(power_key);
+	imx51_add_gpio_keys(&imx_button_data);
+
+	imx51_add_imx_i2c(0, &babbage_i2c_data);
+	imx51_add_imx_i2c(1, &babbage_i2c_data);
+	mxc_register_device(&mxc_hsi2c_device, &babbage_hsi2c_data);
 
 	if (otg_mode_host)
 		mxc_register_device(&mxc_usbdr_host_device, &dr_utmi_config);
@@ -241,7 +251,7 @@ static void __init mxc_board_init(void)
 	gpio_usbh1_active();
 	mxc_register_device(&mxc_usbh1_device, &usbh1_config);
 	/* setback USBH1_STP to be function */
-	mxc_iomux_v3_setup_pad(&usbh1stp);
+	mxc_iomux_v3_setup_pad(usbh1stp);
 	babbage_usbhub_reset();
 }
 
