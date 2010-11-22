@@ -124,7 +124,7 @@ LoopCKE0:
      /* Change the freq now */
      /* If the freq req is below 24MHz, set DDR to synchronous mode.
       * else set to async mode. */
-    ldr     r0, =200000000
+    ldr     r0, =24000000
     cmp   r4, r0
     bgt    Async_Mode
 
@@ -177,6 +177,15 @@ Div_Found:
     b       Ddr_not_24
 
 databahn_ddr_24:
+
+    /* Check for mDDR v LPDDR2 memory type */
+    ldr    r0, [r5]
+    ldr    r2, =0x100
+    and   r0, r0, #0xF00
+    cmp   r0, r2
+    beq    mddr_24
+
+    /* LPDDR2 settings */
     ldr    r0, =0x00000003
     str    r0, [r5, #0x08]
     ldr    r0, =0x000012c0
@@ -302,6 +311,112 @@ databahn_ddr_24:
     ldr    r0, =0x00219fc1
     str    r0, [r5, #0x25c]
 
+    b clocking
+
+/* mDDR settings */
+mddr_24:
+    ldr    r0, =0x000012c0
+    str    r0, [r5, #0x08]
+    ldr    r0, =0x02000000
+    str    r0, [r5, #0x14]
+    ldr    r0, =0x01010506
+    str    r0, [r5, #0x18]
+    ldr    r0, =0x01020101
+    str    r0, [r5, #0x1c]
+
+    ldr    r0, =0x02000103
+    str    r0, [r5, #0x20]
+    ldr    r0, =0x01069002
+    str    r0, [r5, #0x24]
+    ldr    r0, =0x01000101
+    str    r0, [r5, #0x28]
+    ldr    r0, =0x02010101
+    str    r0, [r5, #0x2c]
+
+    ldr    r0, =0x00000602
+    str    r0, [r5, #0x34]
+    ldr    r0, =0x00000001
+    str    r0, [r5, #0x38]
+    ldr    r0, =0x00000301
+    str    r0, [r5, #0x3c]
+
+    /* Set TREF. */
+    ldr    r0, =0x000500b0
+    str    r0, [r5, #0x40]
+    ldr    r0, =0x00030003
+    str    r0, [r5, #0x48]
+
+    ldr    r0, =0x00000000
+    str    r0, [r5, #0x6c]
+
+    ldr    r0, =0x00000200
+    str    r0, [r5, #0xd4]
+
+    ldr    r0, =0x00b30000
+    str    r0, [r5, #0x108]
+    ldr    r0, =0x00b300b3
+    str    r0, [r5, #0x10c]
+
+    ldr    r0, =0x00b300b3
+    str    r0, [r5, #0x110]
+    ldr    r0, =0x010300b3
+    str    r0, [r5, #0x114]
+
+    /* Set the Databahn DLL in bypass mode */
+    /* PHY Register settings. */
+    ldr    r0, =0x00000100
+    str    r0, [r5, #0x200]
+    ldr    r0, =0x0
+    str    r0, [r5, #0x204]
+    ldr    r0, =0xf4003a27
+    str    r0, [r5, #0x208]
+    ldr    r0, =0x074002c0
+    str    r0, [r5, #0x20c]
+
+    ldr    r0, =0xf4003a27
+    str    r0, [r5, #0x210]
+    ldr    r0, =0x074002c0
+    str    r0, [r5, #0x214]
+    ldr    r0, =0xf4003a27
+    str    r0, [r5, #0x218]
+    ldr    r0, =0x074002c0
+    str    r0, [r5, #0x21c]
+
+    ldr    r0, =0xf4003a27
+    str    r0, [r5, #0x220]
+    ldr    r0, =0x074002c0
+    str    r0, [r5, #0x224]
+    ldr    r0, =0xf4003a27
+    str    r0, [r5, #0x228]
+    ldr    r0, =0x074002c0
+    str    r0, [r5, #0x22c]
+
+    ldr    r0, =0x00800005
+    str    r0, [r5, #0x234]
+    ldr     r0, =0x30319f14
+    str    r0, [r5, #0x238]
+    ldr    r0, =0x00319f01
+    str    r0, [r5, #0x23c]
+
+    ldr     r0, =0x30319f14
+    str    r0, [r5, #0x240]
+    ldr    r0, =0x00319f01
+    str    r0, [r5, #0x244]
+    ldr     r0, =0x30319f14
+    str    r0, [r5, #0x248]
+    ldr    r0, =0x00319f01
+    str    r0, [r5, #0x24c]
+
+    ldr     r0, =0x30319f14
+    str    r0, [r5, #0x250]
+    ldr    r0, =0x00319f01
+    str    r0, [r5, #0x254]
+    ldr     r0, =0x30319f14
+    str    r0, [r5, #0x258]
+    ldr    r0, =0x00319f01
+    str    r0, [r5, #0x25c]
+
+clocking:
     /* Set SYS_CLK to be sourced from 24MHz. */
     /* Set the SYS_XTAL_DIV */
     ldr    r0, [r6, #0x94]
@@ -402,6 +517,14 @@ Div_Found1:
     beq    databahn_ddr_24
 
 Ddr_not_24:
+
+    /* Check for mDDR v LPDDR2 memory type */
+    ldr    r0, [r5]
+    ldr    r2, =0x100
+    and    r0, r0, #0xF00
+    cmp   r0, r2
+    beq    mddr_not_24
+
     ldr     r0, =0x0000001b
     str     r0, [r5, #0x8]
     ldr     r0, =0x0000d056
@@ -529,6 +652,109 @@ Ddr_not_24:
 
     b       Setup_Done
 
+mddr_not_24:
+    /* mDDR settings */
+    ldr     r0, =0x00009c40
+    str     r0, [r5, #0x8]
+
+    ldr     r0, =0x02000000
+    str     r0, [r5, #0x14]
+    ldr     r0, =0x01010706
+    str     r0, [r5, #0x18]
+    ldr     r0, =0x080b0201
+    str     r0, [r5, #0x1c]
+
+    ldr     r0, =0x02000303
+    str     r0, [r5, #0x20]
+    ldr     r0, =0x0136b002
+    str     r0, [r5, #0x24]
+    ldr     r0, =0x01000101
+    str     r0, [r5, #0x28]
+    ldr     r0, =0x06030301
+    str     r0, [r5, #0x2c]
+
+    ldr     r0, =0x00000a02
+    str     r0, [r5, #0x34]
+    ldr     r0, =0x00000003
+    str     r0, [r5, #0x38]
+    ldr     r0, =0x00001401
+    str     r0, [r5, #0x3c]
+
+    ldr     r0, =0x0005030f
+    str     r0, [r5, #0x40]
+
+    ldr     r0, =0x00180018
+    str     r0, [r5, #0x48]
+
+    ldr     r0, =0x00800000
+    str     r0, [r5, #0x6c]
+
+    ldr     r0, =0x02030302
+    str     r0, [r5, #0xd4]
+
+    ldr     r0, =0x06120000
+    str     r0, [r5, #0x108]
+    ldr     r0, =0x06120612
+    str     r0, [r5, #0x10c]
+
+    ldr     r0, =0x06120612
+    str     r0, [r5, #0x110]
+    ldr     r0, =0x01030612
+    str     r0, [r5, #0x114]
+
+    /* PHY setting for 200 MHz */
+    ldr     r0, =0x00000000
+    str     r0, [r5, #0x200]
+    ldr     r0, =0x00000000
+    str     r0, [r5, #0x204]
+    ldr     r0, =0xf5002725
+    str     r0, [r5, #0x208]
+
+    ldr     r0, =0xf5002725
+    str     r0, [r5, #0x210]
+    ldr     r0, =0xf5002725
+    str     r0, [r5, #0x218]
+
+    ldr     r0, =0xf5002725
+    str     r0, [r5, #0x220]
+    ldr     r0, =0xf5002725
+    str     r0, [r5, #0x228]
+
+    ldr     r0, =0x070002d0
+    str     r0, [r5, #0x20c]
+    ldr     r0, =0x074002d0
+    str     r0, [r5, #0x214]
+    ldr     r0, =0x074002d0
+    str     r0, [r5, #0x21c]
+    ldr     r0, =0x074002d0
+    str     r0, [r5, #0x224]
+    ldr     r0, =0x074002d0
+    str     r0, [r5, #0x22c]
+
+    ldr     r0, =0x00800006
+    str     r0, [r5, #0x234]
+    ldr     r0, =0x200e1014
+    str     r0, [r5, #0x238]
+    ldr     r0, =0x000d9f01
+    str     r0, [r5, #0x23c]
+
+    ldr     r0, =0x200e1014
+    str     r0, [r5, #0x240]
+    ldr     r0, =0x000d9f01
+    str     r0, [r5, #0x244]
+    ldr     r0, =0x200e1014
+    str     r0, [r5, #0x248]
+    ldr     r0, =0x000d9f01
+    str     r0, [r5, #0x24c]
+
+    ldr     r0, =0x200e1014
+    str     r0, [r5, #0x250]
+    ldr     r0, =0x000d9f01
+    str     r0, [r5, #0x254]
+    ldr     r0, =0x200e1014
+    str     r0, [r5, #0x258]
+    ldr     r0, =0x000d9f01
+    str     r0, [r5, #0x25c]
 
 Setup_Done:
     /* Start controller */
