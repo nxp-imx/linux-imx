@@ -123,6 +123,20 @@ config PM_TEST_SUSPEND
 	You probably want to have your system's RTC driver statically
 	linked, ensuring that it's available when this test runs.
 
+config SUSPEND_DEVICE_TIME_DEBUG
+        bool "Warnning device suspend/resume takes too much time"
+	depends on SUSPEND && PM_DEBUG
+	default n
+	---help---
+	This option will enable a timing function to check device
+        suspend time consumption, If the device takes more time that
+        the threshold(default 0.5 ms), it will print the device and
+        bus name on the console.  You can change the threshold
+        on-the-fly by modify /sys/power/time_threshold the time unit
+        is in microsecond.
+
+	This options only for debug proprose, If in doubt, say N.
+
 config SUSPEND_FREEZER
 	bool "Enable freezer for suspend to RAM/standby" \
 		if ARCH_WANTS_FREEZER_CONTROL || BROKEN

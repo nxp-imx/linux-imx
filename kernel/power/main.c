@@ -229,10 +229,42 @@ pm_trace_store(struct kobject *kobj, struct kobj_attribute *attr,
 power_attr(pm_trace);
 #endif /* CONFIG_PM_TRACE */
 
+#ifdef CONFIG_SUSPEND_DEVICE_TIME_DEBUG
+/*
+ * threshold of device suspend time consumption in microsecond(0.5ms), the
+ * driver suspend/resume time longer than this threshold will be
+ * print to console, 0 to disable */
+int device_suspend_time_threshold = 500;
+
+static ssize_t
+device_suspend_time_threshold_show(struct kobject *kobj,
+				   struct kobj_attribute *attr, char *buf)
+{
+	return sprintf(buf, "%d\n", device_suspend_time_threshold);
+}
+
+static ssize_t
+device_suspend_time_threshold_store(struct kobject *kobj,
+				    struct kobj_attribute *attr,
+				    const char *buf, size_t n)
+{
+	int val;
+	if (sscanf(buf, "%d", &val) > 0) {
+		device_suspend_time_threshold = val;
+		return n;
+	}
+	return -EINVAL;
+}
+power_attr(device_suspend_time_threshold);
+#endif
+
 static struct attribute * g[] = {
 	&state_attr.attr,
 #ifdef CONFIG_PM_TRACE
 	&pm_trace_attr.attr,
+#endif
+#ifdef CONFIG_SUSPEND_DEVICE_TIME_DEBUG
+	&device_suspend_time_threshold_attr.attr,
 #endif
 #ifdef CONFIG_PM_SLEEP
 	&pm_async_attr.attr,

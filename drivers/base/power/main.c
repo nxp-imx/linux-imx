@@ -190,6 +190,39 @@ static void initcall_debug_report(struct device *dev, ktime_t calltime,
 			error, (unsigned long long)ktime_to_ns(delta) >> 10);
 	}
 }
+#ifdef CONFIG_SUSPEND_DEVICE_TIME_DEBUG
+static void suspend_time_debug_start(ktime_t *start)
+{
+	*start = ktime_get();
+}
+
+static void suspend_time_debug_report(const char *name, struct device *dev,
+				      ktime_t starttime)
+{
+	ktime_t rettime;
+	s64 usecs64;
+	int usecs;
+
+	if (!dev->driver)
+		return;
+
+	rettime = ktime_get();
+	usecs64 = ktime_to_us(ktime_sub(rettime, starttime));
+	usecs = usecs64;
+	if (usecs == 0)
+		usecs = 1;
+
+	if (device_suspend_time_threshold
+	    && usecs > device_suspend_time_threshold)
+		pr_info("PM: device %s:%s %s too slow, it takes \t %ld.%03ld msecs\n",
+			dev->bus->name, dev_name(dev), name,
+			usecs / USEC_PER_MSEC, usecs % USEC_PER_MSEC);
+}
+#else
+static void suspend_time_debug_start(ktime_t *start) {}
+static void suspend_time_debug_report(const char *name, struct device *dev,
+				      ktime_t starttime) {}
+#endif /* CONFIG_SUSPEND_DEVICE_TIME_DEBUG */
 
 /**
  * dpm_wait - Wait for a PM operation to complete.
@@ -227,7 +260,7 @@ static int pm_op(struct device *dev,
 		 pm_message_t state)
 {
 	int error = 0;
-	ktime_t calltime;
+	ktime_t calltime, starttime;
 
 	calltime = initcall_debug_start(dev);
 
@@ -235,13 +268,17 @@ static int pm_op(struct device *dev,
 #ifdef CONFIG_SUSPEND
 	case PM_EVENT_SUSPEND:
 		if (ops->suspend) {
+			suspend_time_debug_start(&starttime);
 			error = ops->suspend(dev);
+			suspend_time_debug_report("suspend", dev, starttime);
 			suspend_report_result(ops->suspend, error);
 		}
 		break;
 	case PM_EVENT_RESUME:
 		if (ops->resume) {
+			suspend_time_debug_start(&starttime);
 			error = ops->resume(dev);
+			suspend_time_debug_report("resume", dev, starttime);
 			suspend_report_result(ops->resume, error);
 		}
 		break;
