@@ -365,113 +365,6 @@ int gpmi_nfc_set_geometry(struct gpmi_nfc_data *this)
 
 }
 
-/*
- * This code is useful for debugging.
- */
-
-/*#define DUMP_DMA_CONTEXT*/
-
-#if (defined DUMP_DMA_CONTEXT)
-
-int dump_dma_context_flag;
-
-void dump_dma_context(struct gpmi_nfc_data *this, char *title)
-{
-
-	struct resources     *resources = &this->resources;
-	struct nfc_hal       *nfc       =  this->nfc;
-	struct mxs_dma_desc  **d        = nfc->dma_descriptors;
-	void                 *q;
-	uint32_t             *p;
-	unsigned int         i;
-	unsigned int         j;
-
-	if (!dump_dma_context_flag)
-		return;
-
-	pr_info("%s\n", title);
-	pr_info("======\n");
-	pr_info("\n");
-
-	/*--------------------------------------------------------------------*/
-
-	pr_info("  Descriptors\n");
-	pr_info("  -----------\n");
-	{
-
-	for (i = 0; i < NFC_DMA_DESCRIPTOR_COUNT; i++, d++) {
-		pr_info("    #%u\n", i);
-		pr_info("    --\n");
-		pr_info("    Physical Address: 0x%08x\n" , (*d)->address);
-		pr_info("    Next            : 0x%08lx\n", (*d)->cmd.next);
-		pr_info("    Command         : 0x%08lx\n", (*d)->cmd.cmd.data);
-		pr_info("    Buffer          : 0x%08x\n" , (*d)->cmd.address);
-		for (j = 0; j < 6; j++)
-			pr_info("    PIO[%u]          : 0x%08lx\n",
-						j, (*d)->cmd.pio_words[j]);
-	}
-
-	}
-	pr_info("\n");
-
-	/*--------------------------------------------------------------------*/
-
-	pr_info("  DMA\n");
-	pr_info("  ---\n");
-	{
-	void  *DMA = IO_ADDRESS(APBH_DMA_PHYS_ADDR);
-
-	p = q = DMA + 0x200;
-
-	for (i = 0; i < 7; i++) {
-		pr_info("    [0x%03x] 0x%08x\n", q - DMA, *p);
-		q += 0x10;
-		p = q;
-	}
-
-	}
-	pr_info("\n");
-
-	/*--------------------------------------------------------------------*/
-
-	pr_info("  GPMI\n");
-	pr_info("  ----\n");
-	{
-	void  *GPMI = resources->gpmi_regs;
-
-	p = q = GPMI;
-
-	for (i = 0; i < 33; i++) {
-		pr_info("    [0x%03x] 0x%08x\n", q - GPMI, *p);
-		q += 0x10;
-		p = q;
-	}
-
-	}
-	pr_info("\n");
-
-	/*--------------------------------------------------------------------*/
-
-	pr_info("  BCH\n");
-	pr_info("  ---\n");
-	{
-	void  *BCH = resources->bch_regs;
-
-	p = q = BCH;
-
-	for (i = 0; i < 22; i++) {
-		pr_info("    [0x%03x] 0x%08x\n", q - BCH, *p);
-		q += 0x10;
-		p = q;
-	}
-
-	}
-	pr_info("\n");
-
-}
-
-#endif
-
 /**
  * gpmi_nfc_dma_go - Run a DMA channel.
  *
@@ -496,25 +389,17 @@ int gpmi_nfc_dma_go(struct gpmi_nfc_data *this, int  dma_channel)
 	mxs_dma_enable_irq(dma_channel, 1);
 
 	/* Go! */
-
-	#if defined(DUMP_DMA_CONTEXT)
-		dump_dma_context(this, "BEFORE");
-	#endif
-
 	mxs_dma_enable(dma_channel);
 
 	/* Wait for it to finish. */
-
 	timeout = wait_for_completion_timeout(&nfc->dma_done,
 							msecs_to_jiffies(1000));
-
-	#if defined(DUMP_DMA_CONTEXT)
-		dump_dma_context(this, "AFTER");
-	#endif
-
 	error = (!timeout) ? -ETIMEDOUT : 0;
 
 	if (error) {
+		struct mxs_dma_info info;
+
+		mxs_dma_get_info(dma_channel, &info);
 		dev_err(dev, "[%s] Chip: %u, DMA Channel: %d, Error %d\n",
 			__func__, dma_channel - resources->dma_low_channel,
 			dma_channel, error);
