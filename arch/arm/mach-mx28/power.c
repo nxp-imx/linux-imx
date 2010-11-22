@@ -24,10 +24,15 @@
 #include <linux/regulator/machine.h>
 #include <linux/io.h>
 #include <linux/slab.h>
+#include <linux/gpio.h>
 
+#include "mx28_pins.h"
 #include <mach/power.h>
 #include <mach/regulator.h>
 #include <mach/regs-power.h>
+
+#define USB_POWER_ENABLE MXS_PIN_TO_GPIO(PINID_AUART2_TX)
+#define MX28EVK_VBUS5v 5
 
 static int get_voltage(struct mxs_regulator *sreg)
 {
@@ -308,6 +313,39 @@ static struct regulator_init_data vddio_init = {
 	}
 };
 
+static int vbus5v_enable(struct mxs_regulator *sreg)
+{
+	gpio_set_value(USB_POWER_ENABLE, 1);
+	return 0;
+}
+
+static int vbus5v_disable(struct mxs_regulator *sreg)
+{
+	gpio_set_value(USB_POWER_ENABLE, 0);
+	return 0;
+}
+
+static int vbus5v_is_enabled(struct mxs_regulator *sreg)
+{
+	return gpio_get_value(USB_POWER_ENABLE);
+}
+
+
+static struct mxs_platform_regulator_data vbus5v_data = {
+	.name		= "vbus5v",
+	.enable		= vbus5v_enable,
+	.disable	= vbus5v_disable,
+	.is_enabled	= vbus5v_is_enabled,
+};
+
+static struct regulator_init_data vbus5v_init = {
+	.constraints = {
+		.name			= "vbus5v",
+		.valid_ops_mask		= REGULATOR_CHANGE_STATUS,
+	}
+};
+
+
 /* now the current regulators */
 /* Restriction: .... no set_current call on root regulator */
 static int main_add_current(struct mxs_regulator *sreg,
@@ -508,6 +546,9 @@ static struct mxs_regulator overall_cur_reg = {
 		.rdata = &overall_cur_data,
 };
 
+static struct mxs_regulator vbus5v_reg = {
+		.rdata = &vbus5v_data,
+};
 
 static int __init regulators_init(void)
 {
@@ -524,6 +565,8 @@ static int __init regulators_init(void)
 	mxs_register_regulator(&overall_cur_reg,
 		MXS_OVERALL_CUR, &overall_cur_init);
 
+	mxs_register_regulator(&vbus5v_reg, MX28EVK_VBUS5v, &vbus5v_init);
+
 	for (i = 0; i < ARRAY_SIZE(device_names); i++) {
 		retval = mxs_platform_add_regulator(device_names[i], 1);
 		if (retval)
@@ -533,6 +576,7 @@ static int __init regulators_init(void)
 	mxs_platform_add_regulator("charger", 1);
 	mxs_platform_add_regulator("power-test", 1);
 	mxs_platform_add_regulator("cpufreq", 1);
+	gpio_direction_output(USB_POWER_ENABLE, 0);
 	return 0;
 }
 postcore_initcall(regulators_init);
