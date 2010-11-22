@@ -764,7 +764,8 @@ static void mil_ecc_write_page(struct mtd_info *mtd,
 		payload_virt = mil->payload_virt;
 		payload_phys = mil->payload_phys;
 
-		memcpy(mil->auxiliary_virt, nand->oob_poi, mtd->oobsize);
+		memcpy(mil->auxiliary_virt, nand->oob_poi,
+				nfc_geo->auxiliary_size_in_bytes);
 		auxiliary_virt = mil->auxiliary_virt;
 		auxiliary_phys = mil->auxiliary_phys;
 
