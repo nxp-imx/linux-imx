@@ -54,7 +54,7 @@ static struct regulator_init_data sw1_init = {
 		.boot_on = 1,
 		.initial_state = PM_SUSPEND_MEM,
 		.state_mem = {
-			.uV = 950000,
+			.uV = 1050000,
 			.mode = REGULATOR_MODE_NORMAL,
 			.enabled = 1,
 		},
@@ -73,7 +73,7 @@ static struct regulator_init_data sw2_init = {
 		.boot_on = 1,
 		.initial_state = PM_SUSPEND_MEM,
 		.state_mem = {
-			.uV = 950000,
+			.uV = 1025000,
 			.mode = REGULATOR_MODE_NORMAL,
 			.enabled = 1,
 		},
