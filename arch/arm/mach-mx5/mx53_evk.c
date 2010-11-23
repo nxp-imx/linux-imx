@@ -436,7 +436,7 @@ static struct fb_videomode video_modes[] = {
 	 122, 15,
 	 18, 26,
 	 1, 1,
-	 FB_SYNC_HOR_HIGH_ACT | FB_SYNC_VERT_HIGH_ACT | FB_SYNC_EXT,
+	 FB_SYNC_HOR_HIGH_ACT | FB_SYNC_VERT_HIGH_ACT,
 	 FB_VMODE_INTERLACED,
 	 0,},
 	{
@@ -445,7 +445,7 @@ static struct fb_videomode video_modes[] = {
 	 132, 11,
 	 22, 26,
 	 1, 1,
-	 FB_SYNC_HOR_HIGH_ACT | FB_SYNC_VERT_HIGH_ACT | FB_SYNC_EXT,
+	 FB_SYNC_HOR_HIGH_ACT | FB_SYNC_VERT_HIGH_ACT,
 	 FB_VMODE_INTERLACED | FB_VMODE_ODD_FLD_FIRST,
 	 0,},
 	{
@@ -454,8 +454,7 @@ static struct fb_videomode video_modes[] = {
 	 148, 528,
 	 36, 4,
 	 44, 5,
-	 FB_SYNC_HOR_HIGH_ACT | FB_SYNC_VERT_HIGH_ACT |
-			FB_SYNC_EXT,
+	 FB_SYNC_HOR_HIGH_ACT | FB_SYNC_VERT_HIGH_ACT,
 	 FB_VMODE_INTERLACED,
 	 0,},
 	{
@@ -464,8 +463,7 @@ static struct fb_videomode video_modes[] = {
 	 148, 88,
 	 36, 4,
 	 44, 5,
-	 FB_SYNC_HOR_HIGH_ACT | FB_SYNC_VERT_HIGH_ACT |
-			FB_SYNC_EXT,
+	 FB_SYNC_HOR_HIGH_ACT | FB_SYNC_VERT_HIGH_ACT,
 	 FB_VMODE_INTERLACED,
 	 0,},
 	{
@@ -475,20 +473,11 @@ static struct fb_videomode video_modes[] = {
 	 FB_VMODE_NONINTERLACED,
 	 0,},
 	{
-	/* VGA 1024x768 65M pixel clk output */
-	"VGA-XGA", 60, 1024, 768, 15384,
-	24, 160,
-	3, 29,
-	136, 6,
-	FB_SYNC_EXT,
-	FB_VMODE_NONINTERLACED,
-	0,},
-	{
 	 "XGA", 60, 1024, 768, 15385,
 	 220, 40,
 	 21, 7,
 	 60, 10,
-	 FB_SYNC_EXT,
+	 0,
 	 FB_VMODE_NONINTERLACED,
 	 0,},
 	{
@@ -497,8 +486,7 @@ static struct fb_videomode video_modes[] = {
 	 256, 1760,
 	 20, 5,
 	 4, 5,
-	 FB_SYNC_HOR_HIGH_ACT | FB_SYNC_VERT_HIGH_ACT |
-	 FB_SYNC_EXT,
+	 FB_SYNC_HOR_HIGH_ACT | FB_SYNC_VERT_HIGH_ACT,
 	 FB_VMODE_NONINTERLACED,
 	 0,},
 	{
@@ -506,8 +494,7 @@ static struct fb_videomode video_modes[] = {
 	 260, 109,
 	 25, 4,
 	 1, 1,
-	 FB_SYNC_HOR_HIGH_ACT | FB_SYNC_VERT_HIGH_ACT |
-			FB_SYNC_EXT,
+	 FB_SYNC_HOR_HIGH_ACT | FB_SYNC_VERT_HIGH_ACT,
 	 FB_VMODE_NONINTERLACED,
 	 0,},
 	{
@@ -516,7 +503,7 @@ static struct fb_videomode video_modes[] = {
 	48, 248,
 	1, 38,
 	112, 3,
-	FB_SYNC_EXT,
+	0,
 	FB_VMODE_NONINTERLACED,
 	0,},
 	{
@@ -525,8 +512,7 @@ static struct fb_videomode video_modes[] = {
 	304, 64,
 	1, 46,
 	192, 3,
-	FB_SYNC_HOR_HIGH_ACT|FB_SYNC_VERT_HIGH_ACT |
-	FB_SYNC_EXT,
+	FB_SYNC_HOR_HIGH_ACT|FB_SYNC_VERT_HIGH_ACT,
 	FB_VMODE_NONINTERLACED,
 	0,},
 	{
@@ -535,8 +521,7 @@ static struct fb_videomode video_modes[] = {
 	 148, 638,
 	 36, 4,
 	 44, 5,
-	 FB_SYNC_HOR_HIGH_ACT | FB_SYNC_VERT_HIGH_ACT |
-	 FB_SYNC_EXT,
+	 FB_SYNC_HOR_HIGH_ACT | FB_SYNC_VERT_HIGH_ACT,
 	 FB_VMODE_NONINTERLACED,
 	 0,},
 	{
@@ -545,8 +530,7 @@ static struct fb_videomode video_modes[] = {
 	 148, 528,
 	 36, 4,
 	 44, 5,
-	 FB_SYNC_HOR_HIGH_ACT | FB_SYNC_VERT_HIGH_ACT |
-	 FB_SYNC_EXT,
+	 FB_SYNC_HOR_HIGH_ACT | FB_SYNC_VERT_HIGH_ACT,
 	 FB_VMODE_NONINTERLACED,
 	 0,},
 	{
@@ -555,8 +539,7 @@ static struct fb_videomode video_modes[] = {
 	 148, 88,
 	 36, 4,
 	 44, 5,
-	 FB_SYNC_HOR_HIGH_ACT | FB_SYNC_VERT_HIGH_ACT |
-	 FB_SYNC_EXT,
+	 FB_SYNC_HOR_HIGH_ACT | FB_SYNC_VERT_HIGH_ACT,
 	 FB_VMODE_NONINTERLACED,
 	 0,},
 	{
@@ -564,7 +547,7 @@ static struct fb_videomode video_modes[] = {
 	 100, 40,
 	 30, 3,
 	 10, 2,
-	 FB_SYNC_EXT,
+	 0,
 	 FB_VMODE_NONINTERLACED,
 	 0,},
 };
