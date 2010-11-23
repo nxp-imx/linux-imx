@@ -166,7 +166,7 @@ static int __devinit dma_apbh_probe(struct platform_device *pdev)
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	if (!res)
 		return -ENOMEM;
-	mxs_dma_apbh.base = ioremap(res->start, res->end);
+	mxs_dma_apbh.base = ioremap(res->start, resource_size(res));
 	__raw_writel(BM_APBH_CTRL0_SFTRST,
 		     mxs_dma_apbh.base + HW_APBH_CTRL0_CLR);
 	for (i = 0; i < 10000; i++) {
