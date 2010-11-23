@@ -52,6 +52,7 @@
 						 *number 232~239 is unassigned*/
 
 #define DEFAULT_PTP_RX_BUF_SZ		2048
+#define DEFAULT_PTP_TX_BUF_SZ		16
 #define PTP_MSG_SYNC			0x0
 #define PTP_MSG_DEL_REQ			0x1
 #define PTP_MSG_P_DEL_REQ		0x2
@@ -154,6 +155,10 @@ struct fec_ptp_private {
 	struct	circ_buf rx_time_del_req;
 	struct	circ_buf rx_time_pdel_req;
 	struct	circ_buf rx_time_pdel_resp;
+	struct	circ_buf tx_time_sync;
+	struct	circ_buf tx_time_del_req;
+	struct	circ_buf tx_time_pdel_req;
+	struct	circ_buf tx_time_pdel_resp;
 	spinlock_t ptp_lock;
 	spinlock_t cnt_lock;
 
@@ -172,7 +177,9 @@ extern void fec_ptp_cleanup(struct fec_ptp_private *priv);
 extern int fec_ptp_start(struct fec_ptp_private *priv);
 extern void fec_ptp_stop(struct fec_ptp_private *priv);
 extern int fec_ptp_do_txstamp(struct sk_buff *skb);
-extern void fec_ptp_store_txstamp(struct fec_ptp_private *priv);
+extern void fec_ptp_store_txstamp(struct fec_ptp_private *priv,
+				  struct sk_buff *skb,
+				  struct bufdesc *bdp);
 extern void fec_ptp_store_rxstamp(struct fec_ptp_private *priv,
 				  struct sk_buff *skb,
 				  struct bufdesc *bdp);
@@ -195,7 +202,9 @@ static inline int fec_ptp_do_txstamp(struct sk_buff *skb)
 {
 	return 0;
 }
-static inline void fec_ptp_store_txstamp(struct fec_ptp_private *priv) {}
+static inline void fec_ptp_store_txstamp(struct fec_ptp_private *priv,
+					 struct sk_buff *skb,
+					 struct bufdesc *bdp) {}
 static inline void fec_ptp_store_rxstamp(struct fec_ptp_private *priv,
 					 struct sk_buff *skb,
 					 struct bufdesc *bdp) {}
