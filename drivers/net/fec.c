@@ -383,11 +383,6 @@ fec_enet_interrupt(int irq, void * dev_id)
 			fec_enet_tx(dev);
 		}
 
-		if (int_events & FEC_ENET_TS_AVAIL) {
-			ret = IRQ_HANDLED;
-			fec_ptp_store_txstamp(fep->ptp_priv);
-		}
-
 		if (int_events & FEC_ENET_TS_TIMER) {
 			ret = IRQ_HANDLED;
 			if (fep->ptimer_present && fpp)
@@ -408,11 +403,14 @@ static void
 fec_enet_tx(struct net_device *dev)
 {
 	struct	fec_enet_private *fep;
+	struct  fec_ptp_private *fpp;
 	struct bufdesc *bdp;
 	unsigned short status;
+	unsigned long estatus;
 	struct	sk_buff	*skb;
 
 	fep = netdev_priv(dev);
+	fpp = fep->ptp_priv;
 	spin_lock(&fep->hw_lock);
 	bdp = fep->dirty_tx;
 
@@ -451,6 +449,14 @@ fec_enet_tx(struct net_device *dev)
 		 */
 		if (status & BD_ENET_TX_DEF)
 			dev->stats.collisions++;
+
+#ifdef CONFIG_ENHANCED_BD
+		if (fep->ptimer_present) {
+			estatus = bdp->cbd_esc;
+			if (estatus & BD_ENET_TX_TS)
+				fec_ptp_store_txstamp(fpp, skb, bdp);
+		}
+#endif
 
 		/* Free the sk buffer associated with this last transmit */
 		dev_kfree_skb_any(skb);
