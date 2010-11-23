@@ -43,6 +43,7 @@ enum application_5v_status{
 struct mxs_info {
 	struct device *dev;
 	struct regulator *regulator;
+	struct regulator *onboard_vbus5v;
 
 	struct power_supply bat;
 	struct power_supply ac;
@@ -74,6 +75,7 @@ struct mxs_info {
 #define USB_SHUTDOWN    0x08
 #define USB_N_SEND      0x10
 	int is_usb_online;
+	int onboard_vbus5v_online;
 };
 
 #define to_mxs_info(x) container_of((x), struct mxs_info, bat)
@@ -229,6 +231,16 @@ static void check_and_handle_5v_connection(struct mxs_info *info)
 					_5v_connected_verified;
 				dev_dbg(info->dev,
 					"5v connection verified\n");
+			if (info->onboard_vbus5v) {
+				if (regulator_is_enabled(
+					info->onboard_vbus5v) > 0) {
+					info->onboard_vbus5v_online = 1;
+					pr_debug("When supply from \
+					onboard vbus 5v ,\
+					DO NOT switch to 4p2 \n");
+					break;
+			}
+		}
 #ifdef CONFIG_MXS_VBUS_CURRENT_DRAW
 	#ifdef CONFIG_USB_GADGET
 		/* if there is USB 2.0 current limitation requirement,
@@ -265,6 +277,7 @@ static void check_and_handle_5v_connection(struct mxs_info *info)
 			regulator_set_current_limit(info->regulator, 0, 0);
 		info->is_usb_online = 0;
 		info->is_ac_online = 0;
+		info->onboard_vbus5v_online = 0;
 
 		info->sm_5v_connection_status = _5v_disconnected_unverified;
 
@@ -351,14 +364,20 @@ static int mxs_power_get_property(struct power_supply *psy,
 				     enum power_supply_property psp,
 				     union power_supply_propval *val)
 {
+	struct mxs_info *info;
 	switch (psp) {
 	case POWER_SUPPLY_PROP_ONLINE:
-		if (psy->type == POWER_SUPPLY_TYPE_MAINS)
+		if (psy->type == POWER_SUPPLY_TYPE_MAINS) {
 			/* ac online */
-			val->intval = is_ac_online();
-		else
+			info = container_of(psy, struct mxs_info, ac);
+			val->intval = info->onboard_vbus5v_online ?
+				0 : is_ac_online();
+		} else {
 			/* usb online */
-			val->intval = is_usb_online();
+			info = container_of(psy, struct mxs_info, usb);
+			val->intval = info->onboard_vbus5v_online ?
+				0 : is_usb_online();
+		}
 		break;
 	default:
 		return -EINVAL;
@@ -399,7 +418,8 @@ static int mxs_bat_get_property(struct power_supply *psy,
 			val->intval = POWER_SUPPLY_STATUS_CHARGING;
 			break;
 		case DDI_BC_STATE_DISABLED:
-			val->intval = ddi_power_Get5vPresentFlag() ?
+			val->intval = (ddi_power_Get5vPresentFlag()
+				&& !info->onboard_vbus5v_online) ?
 				POWER_SUPPLY_STATUS_NOT_CHARGING :
 			POWER_SUPPLY_STATUS_DISCHARGING;
 			break;
@@ -517,9 +537,8 @@ static void state_machine_work(struct work_struct *work)
 
 	/* if we made it here, we have a verified 5v connection */
 #ifndef CONFIG_MXS_VBUS_CURRENT_DRAW
-		if (info->is_ac_online)
+		if (info->is_ac_online || info->onboard_vbus5v_online)
 			goto done;
-
 		/* ac supply connected */
 		dev_dbg(info->dev, "changed power connection to ac/5v.\n)");
 		dev_dbg(info->dev, "5v current limit set to %u.\n",
@@ -527,6 +546,7 @@ static void state_machine_work(struct work_struct *work)
 
 		info->is_ac_online = 1;
 		info->is_usb_online = 0;
+
 		ddi_power_set_4p2_ilimit(
 				NON_USB_5V_SUPPLY_CURRENT_LIMIT_MA);
 		ddi_bc_SetCurrentLimit(
@@ -566,8 +586,13 @@ static void state_machine_work(struct work_struct *work)
 		dev_err(info->dev, "reg_set_current(%duA) failed\n",
 				POWERED_USB_5V_CURRENT_LIMIT_MA*1000);
 	} else {
-		ddi_bc_SetCurrentLimit(POWERED_USB_5V_CURRENT_LIMIT_MA/*mA*/);
-		ddi_bc_SetEnable();
+
+		if (info->onboard_vbus5v_online == 0) {
+			ddi_bc_SetCurrentLimit(
+				POWERED_USB_5V_CURRENT_LIMIT_MA/*mA*/);
+			ddi_bc_SetEnable();
+		} else
+			pr_debug("DO NOT charge from onboard 5v");
 	}
 
 	if (info->is_usb_online & USB_SM_RESTART) {
@@ -944,6 +969,12 @@ static int mxs_bat_probe(struct platform_device *pdev)
 	init_protection(info);
 
 
+	info->onboard_vbus5v = regulator_get(NULL, "vbus5v");
+	if (IS_ERR(info->regulator)) {
+
+		pr_debug("No onboard vbus 5v reg provided\n");
+		info->onboard_vbus5v = NULL;
+	}
 	return 0;
 
 unregister_ac:
