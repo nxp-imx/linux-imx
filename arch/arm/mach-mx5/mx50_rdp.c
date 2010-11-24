@@ -1381,7 +1381,7 @@ static void __init mxc_board_init(void)
 
 	mxc_register_device(&mxc_rtc_device, &srtc_data);
 	mxc_register_device(&mxc_w1_master_device, &mxc_w1_data);
-	mxc_register_device(&gpu_device, NULL);
+	mxc_register_device(&gpu_device, &z160_revision);
 	mxc_register_device(&mxc_pxp_device, NULL);
 	mxc_register_device(&mxc_pxp_client_device, NULL);
 	mxc_register_device(&mxc_pxp_v4l2, NULL);

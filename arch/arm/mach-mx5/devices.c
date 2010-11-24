@@ -1361,6 +1361,8 @@ struct platform_device gpu_device = {
 	.resource = mxc_gpu_resources,
 };
 
+int z160_revision;
+
 static struct resource mxc_gpu2d_resources[] = {
 	{
 		.start = MX51_GPU2D_BASE_ADDR,
@@ -1794,6 +1796,11 @@ int __init mxc_init_devices(void)
 			mxc_gpu_resources[4].start = MX53_GPU_GMEM_BASE_ADDR;
 			mxc_gpu_resources[4].end = MX53_GPU_GMEM_BASE_ADDR
 						+ SZ_256K - 1;
+			if (cpu_is_mx53_rev(CHIP_REV_2_0) >= 1) {
+				z160_revision = 1;
+			} else {
+				z160_revision = 0;
+			}
 		} else {
 			mxc_gpu_resources[1].start = 0;
 			mxc_gpu_resources[1].end = 0;
@@ -1801,6 +1808,7 @@ int __init mxc_init_devices(void)
 			mxc_gpu_resources[3].end = 0;
 			mxc_gpu_resources[4].start = 0;
 			mxc_gpu_resources[4].end = 0;
+			z160_revision = 1;
 		}
 		ipu_resources[0].start = MX53_IPU_CTRL_BASE_ADDR;
 		ipu_resources[0].end = MX53_IPU_CTRL_BASE_ADDR + SZ_128M - 1;
