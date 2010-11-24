@@ -1722,7 +1722,7 @@ static void __init mxc_board_init(void)
 	mxc_register_device(&mxc_ldb_device, &ldb_data);
 	mxc_register_device(&mxc_tve_device, &tve_data);
 	mxc_register_device(&mxcvpu_device, &mxc_vpu_data);
-	mxc_register_device(&gpu_device, NULL);
+	mxc_register_device(&gpu_device, &z160_revision);
 	mxc_register_device(&mxcscc_device, NULL);
 	/*
 	mxc_register_device(&mx53_lpmode_device, NULL);
