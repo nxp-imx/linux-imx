@@ -668,7 +668,7 @@ enum ipu_irq_line {
  */
 typedef struct {
 	unsigned datamask_en:1;
-	unsigned ext_clk:1;
+	unsigned int_clk:1;
 	unsigned interlaced:1;
 	unsigned odd_field_first:1;
 	unsigned clksel_en:1;

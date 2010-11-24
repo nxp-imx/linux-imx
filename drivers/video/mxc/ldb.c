@@ -116,7 +116,7 @@ struct fb_videomode mxcfb_ldb_modedb[] = {
 	 100, 40,
 	 30, 3,
 	 10, 2,
-	 FB_SYNC_EXT,
+	 0,
 	 FB_VMODE_NONINTERLACED,
 	 0,},
 	{
@@ -124,7 +124,7 @@ struct fb_videomode mxcfb_ldb_modedb[] = {
 	 220, 40,
 	 21, 7,
 	 60, 10,
-	 FB_SYNC_EXT,
+	 0,
 	 FB_VMODE_NONINTERLACED,
 	 0,},
 };
@@ -813,8 +813,7 @@ static int ldb_probe(struct platform_device *pdev)
 		fb_add_videomode(&mxcfb_ldb_modedb[i], &ldb.modelist);
 
 	for (i = 0; i < num_registered_fb; i++) {
-		if ((registered_fb[i]->var.sync & FB_SYNC_EXT) &&
-		    (registered_fb[i]->var.vmode == FB_VMODE_NONINTERLACED)) {
+		if (registered_fb[i]->var.vmode == FB_VMODE_NONINTERLACED) {
 			ldb.fbi[i] = registered_fb[i];
 
 			mode = fb_match_mode(&ldb.fbi[i]->var, &ldb.modelist);
