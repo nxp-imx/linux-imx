@@ -1081,31 +1081,35 @@ int32_t ipu_init_sync_panel(int disp, uint32_t pixel_clk,
 	/*clear DI*/
 	__raw_writel((1 << 21), DI_GENERAL(disp));
 
-	if (sig.ext_clk) {
-		/*
-		 * Set the  PLL to be an even multiple of the pixel clock.
-		 * Not round div for tvout and ldb.
-		 * Did not consider both DI come from the same ext clk, if
-		 * meet such case, ext clk rate should be set specially.
-		 */
-		if (clk_get_usecount(g_pixel_clk[disp]) == 0) {
-			di_parent = clk_get_parent(g_di_clk[disp]);
-			if (clk_get(NULL, "tve_clk") != di_parent &&
-			    clk_get(NULL, "ldb_di0_clk") != di_parent &&
-			    clk_get(NULL, "ldb_di1_clk") != di_parent)  {
-				rounded_pixel_clk = pixel_clk * 2;
-				while (rounded_pixel_clk < 150000000)
-					rounded_pixel_clk += pixel_clk * 2;
-				clk_set_rate(di_parent, rounded_pixel_clk);
-				rounded_pixel_clk =
-					clk_round_rate(g_di_clk[disp], pixel_clk);
-				clk_set_rate(g_di_clk[disp], rounded_pixel_clk);
-			}
-		}
+	di_parent = clk_get_parent(g_di_clk[disp]);
+	if (clk_get(NULL, "tve_clk") == di_parent ||
+		clk_get(NULL, "ldb_di0_clk") == di_parent ||
+		clk_get(NULL, "ldb_di1_clk") == di_parent) {
+		/* if di clk parent is tve/ldb, then keep it;*/
+		dev_dbg(g_ipu_dev, "use special clk parent\n");
 		clk_set_parent(g_pixel_clk[disp], g_di_clk[disp]);
 	} else {
-		if (clk_get_usecount(g_pixel_clk[disp]) != 0)
-			clk_set_parent(g_pixel_clk[disp], g_ipu_clk);
+		/* try ipu clk first*/
+		dev_dbg(g_ipu_dev, "try ipu internal clk\n");
+		clk_set_parent(g_pixel_clk[disp], g_ipu_clk);
+		rounded_pixel_clk = clk_round_rate(g_pixel_clk[disp], pixel_clk);
+		/*
+		 * we will only use 1/2 fraction for ipu clk,
+		 * so if the clk rate is not fit, try ext clk.
+		 */
+		if (!sig.int_clk &&
+			((rounded_pixel_clk >= pixel_clk + pixel_clk/16) ||
+			(rounded_pixel_clk <= pixel_clk - pixel_clk/16))) {
+			dev_dbg(g_ipu_dev, "try ipu ext di clk\n");
+			rounded_pixel_clk = pixel_clk * 2;
+			while (rounded_pixel_clk < 150000000)
+				rounded_pixel_clk += pixel_clk * 2;
+			clk_set_rate(di_parent, rounded_pixel_clk);
+			rounded_pixel_clk =
+				clk_round_rate(g_di_clk[disp], pixel_clk);
+			clk_set_rate(g_di_clk[disp], rounded_pixel_clk);
+			clk_set_parent(g_pixel_clk[disp], g_di_clk[disp]);
+		}
 	}
 	rounded_pixel_clk = clk_round_rate(g_pixel_clk[disp], pixel_clk);
 	clk_set_rate(g_pixel_clk[disp], rounded_pixel_clk);
