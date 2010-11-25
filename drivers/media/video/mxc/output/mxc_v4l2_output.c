@@ -1243,6 +1243,7 @@ static int mxc_v4l2out_streamon(vout_data *vout)
 	u16 out_height;
 	mm_segment_t old_fs;
 	unsigned int ipu_ch = CHAN_NONE;
+	unsigned int fb_fmt;
 	int rc = 0;
 
 	dev_dbg(dev, "mxc_v4l2out_streamon: field format=%d\n",
@@ -1331,7 +1332,7 @@ static int mxc_v4l2out_streamon(vout_data *vout)
 	vout->yres = fbvar.yres;
 
 	if (vout->cur_disp_output == 3 || vout->cur_disp_output == 5) {
-		unsigned int fb_fmt = vout->v2f.fmt.pix.pixelformat;
+		fb_fmt = vout->v2f.fmt.pix.pixelformat;
 
 		/* DC channel can not use CSC */
 		if (vout->cur_disp_output == 5) {
@@ -1380,7 +1381,7 @@ static int mxc_v4l2out_streamon(vout_data *vout)
 #else
 	/* DC channel needs IC to do CSC */
 	if ((format_is_yuv(vout->v2f.fmt.pix.pixelformat) !=
-	    format_is_yuv(bpp_to_fmt(fbi))) &&
+	    format_is_yuv(fb_fmt)) &&
 		(vout->cur_disp_output == 5))
 		vout->ic_bypass = 0;
 #endif
