@@ -1175,7 +1175,7 @@ int32_t ipu_init_sync_panel(int disp, uint32_t pixel_clk,
 					DI_SYNC_NONE, 	/* CNT_POLARITY_CLR_SEL */
 					DI_SYNC_NONE, 	/* CNT_POLARITY_TRIGGER_SEL */
 					0, 				/* COUNT UP */
-					4				/* COUNT DOWN */
+					2*div			/* COUNT DOWN */
 					);
 
 			/* Setup internal HSYNC waveform */
@@ -1192,7 +1192,7 @@ int32_t ipu_init_sync_panel(int disp, uint32_t pixel_clk,
 					DI_SYNC_NONE, 	/* CNT_POLARITY_CLR_SEL */
 					DI_SYNC_NONE, 	/* CNT_POLARITY_TRIGGER_SEL */
 					0, 				/* COUNT UP */
-					4				/* COUNT DOWN */
+					2*div			/* COUNT DOWN */
 					);
 
 			/* Active Field ? */
@@ -1281,7 +1281,7 @@ int32_t ipu_init_sync_panel(int disp, uint32_t pixel_clk,
 					0				/* COUNT DOWN */
 					);
 
-			/* ??? */
+			/* Second VSYNC */
 			_ipu_di_sync_config(
 					disp, 			/* display */
 					9, 				/* counter */
@@ -1295,7 +1295,7 @@ int32_t ipu_init_sync_panel(int disp, uint32_t pixel_clk,
 					DI_SYNC_NONE, 	/* CNT_POLARITY_CLR_SEL  */
 					DI_SYNC_NONE, 	/* CNT_POLARITY_TRIGGER_SEL */
 					0, 				/* COUNT UP */
-					4				/* COUNT DOWN */
+					2*div			/* COUNT DOWN */
 					);
 
 			/* set gentime select and tag sel */
