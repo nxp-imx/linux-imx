@@ -86,8 +86,8 @@ kgsl_cp_intrcallback(gsl_intrid_t id, void *cookie)
         case GSL_INTR_YDX_CP_PROTECTED_MODE_ERROR:
         case GSL_INTR_YDX_CP_RESERVED_BIT_ERROR:
         case GSL_INTR_YDX_CP_IB_ERROR:
-
-            rb->device->ftbl.device_destroy(rb->device);
+	    printk(KERN_ERR "GPU: CP Error\n");
+	    schedule_work(&rb->device->irq_err_work);
             break;
 
         // non-error condition interrupt

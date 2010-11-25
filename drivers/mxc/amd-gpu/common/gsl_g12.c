@@ -138,8 +138,9 @@ kgsl_g12_intrcallback(gsl_intrid_t id, void *cookie)
 
         // error condition interrupt
         case GSL_INTR_G12_FIFO:
-            device->ftbl.device_destroy(device);
-            break;
+		printk(KERN_ERR "GPU: Z160 FIFO Error\n");
+		schedule_work(&device->irq_err_work);
+		break;
 
         case GSL_INTR_G12_MH:
             // don't do anything. this is handled by the MMU manager
@@ -252,6 +253,12 @@ static void kgsl_g12_irqtask(struct work_struct *work)
 	kgsl_g12_updatetimestamp(device);
 	wake_up_interruptible_all(&device->timestamp_waitq);
 }
+
+static void kgsl_g12_irqerr(struct work_struct *work)
+{
+	gsl_device_t *device = &gsl_driver.device[GSL_DEVICE_G12-1];
+	device->ftbl.device_destroy(device);
+}
 #endif
 
 //----------------------------------------------------------------------------
@@ -315,6 +322,7 @@ kgsl_g12_init(gsl_device_t *device)
 #elif defined(_LINUX)
 	device->irq_workq = create_singlethread_workqueue("z1xx_workq");
 	INIT_WORK(&device->irq_work, kgsl_g12_irqtask);
+	INIT_WORK(&device->irq_err_work, kgsl_g12_irqerr);
 #else
     #pragma warning(disable:4152)
     device->irq_thread_handle = kos_thread_create( (oshandle_t)irq_thread, &(device->irq_thread) );
