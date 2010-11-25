@@ -21,6 +21,7 @@
 #include <linux/errno.h>
 #include <linux/delay.h>
 #include <linux/sched.h>
+#include <linux/workqueue.h>
 #include <linux/slab.h>
 #include <linux/init.h>
 #include <linux/timer.h>
@@ -78,6 +79,7 @@ volatile static struct usb_sys_interface *usb_sys_regs;
 
 /* it is initialized in probe()  */
 static struct fsl_udc *udc_controller;
+static struct workqueue_struct *usb_gadget_queue;
 
 #ifdef POSTPONE_FREE_LAST_DTD
 static struct ep_td_struct *last_free_td;
@@ -109,7 +111,7 @@ extern struct resource *otg_get_resources(void);
 extern void fsl_platform_set_test_mode(struct fsl_usb2_platform_data *pdata, enum usb_test_mode mode);
 
 #ifdef CONFIG_WORKAROUND_ARCUSB_REG_RW
-static void safe_writel(u32 val32, void *addr)
+static void safe_writel(u32 val32, volatile u32 *addr)
 {
 	__asm__ ("swp %0, %0, [%1]" : : "r"(val32), "r"(addr));
 }
@@ -489,6 +491,8 @@ static void dr_controller_run(struct fsl_udc *udc)
 
 	/* enable BSV irq */
 	temp = fsl_readl(&dr_regs->otgsc);
+	/* do not clear otgsc interrupt status */
+	temp &= (~(OTGSC_ID_CHANGE_IRQ_STS | OTGSC_B_SESSION_VALID_IRQ_STS));
 	temp |= OTGSC_B_SESSION_VALID_IRQ_EN;
 	fsl_writel(temp, &dr_regs->otgsc);
 
@@ -496,10 +500,10 @@ static void dr_controller_run(struct fsl_udc *udc)
 	if (!(temp & OTGSC_B_SESSION_VALID)) {
 		/* Set stopped before low power mode */
 		udc->stopped = 1;
-		/* enter lower power mode */
-		dr_phy_low_power_mode(udc, true);
 		/* enable wake up */
 		dr_wake_up_enable(udc, true);
+		/* enter lower power mode */
+		dr_phy_low_power_mode(udc, true);
 		printk(KERN_DEBUG "%s: udc enter low power mode \n", __func__);
 	} else {
 #ifdef CONFIG_ARCH_MX37
@@ -2105,6 +2109,11 @@ static void reset_irq(struct fsl_udc *udc)
 	udc->usb_state = USB_STATE_DEFAULT;
 }
 
+static void fsl_gadget_clk_off_event(struct work_struct *work)
+{
+	dr_clk_gate(false);
+}
+
 /* if wakup udc, return true; else return false*/
 bool try_wake_up_udc(struct fsl_udc *udc)
 {
@@ -2126,6 +2135,10 @@ bool try_wake_up_udc(struct fsl_udc *udc)
 	if (irq_src & OTGSC_B_SESSION_VALID_IRQ_STS) {
 		u32 tmp;
 		fsl_writel(irq_src, &dr_regs->otgsc);
+		/* only handle device interrupt event */
+		if (!(fsl_readl(&dr_regs->otgsc) & OTGSC_STS_USB_ID)) {
+			return false;
+		}
 		tmp = fsl_readl(&dr_regs->usbcmd);
 		/* check BSV bit to see if fall or rise */
 		if (irq_src & OTGSC_B_SESSION_VALID) {
@@ -2143,7 +2156,7 @@ bool try_wake_up_udc(struct fsl_udc *udc)
 			dr_wake_up_enable(udc, true);
 			/* close USB PHY clock */
 			dr_phy_low_power_mode(udc, true);
-			dr_clk_gate(false);
+			queue_work(usb_gadget_queue, &udc->usb_gadget_work);
 			printk(KERN_DEBUG "%s: udc enter low power mode \n", __func__);
 			return false;
 		}
@@ -2931,6 +2944,13 @@ static int __init fsl_udc_probe(struct platform_device *pdev)
 				g_iram_addr + i * g_iram_size;
 		}
 	}
+
+	usb_gadget_queue = create_workqueue("usb_gadget_workqueue");
+	if (usb_gadget_queue == NULL) {
+		printk(KERN_ERR "Coulndn't create usb gadget work queue\n");
+		return -ENOMEM;
+	}
+	INIT_WORK(&udc_controller->usb_gadget_work, fsl_gadget_clk_off_event);
 #ifdef POSTPONE_FREE_LAST_DTD
 	last_free_td = NULL;
 #endif
