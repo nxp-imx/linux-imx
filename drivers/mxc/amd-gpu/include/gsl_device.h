@@ -123,6 +123,7 @@ struct _gsl_device_t {
 	wait_queue_head_t timestamp_waitq;
 	struct workqueue_struct	*irq_workq;
 	struct work_struct irq_work;	
+	struct work_struct irq_err_work;
 #endif
     void              *autogate;
 };

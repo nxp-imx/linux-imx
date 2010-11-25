@@ -156,7 +156,8 @@ kgsl_mh_intrcallback(gsl_intrid_t id, void *cookie)
         id == gsl_cfg_mh_intr[devindex].AXI_WRITE_ERROR ||
         id == gsl_cfg_mh_intr[devindex].MMU_PAGE_FAULT)
     {
-        mmu->device->ftbl.device_destroy(mmu->device);
+	printk(KERN_ERR "GPU: AXI Read/Write Error or MMU page fault\n");
+	schedule_work(&mmu->device->irq_err_work);
     }
 
     kgsl_log_write( KGSL_LOG_GROUP_MEMORY | KGSL_LOG_LEVEL_TRACE, "<-- kgsl_mh_intrcallback.\n" );

@@ -78,8 +78,8 @@ kgsl_yamato_rbbmintrcallback(gsl_intrid_t id, void *cookie)
     {
         // error condition interrupt
         case GSL_INTR_YDX_RBBM_READ_ERROR:
-
-            device->ftbl.device_destroy(device);
+	    printk(KERN_ERR "GPU: Z430 RBBM Read Error\n");
+	    schedule_work(&device->irq_err_work);
             break;
 
         // non-error condition interrupt
@@ -316,6 +316,12 @@ kgsl_yamato_setpagetable(gsl_device_t *device, unsigned int reg_ptbase, gpuaddr_
 
 //----------------------------------------------------------------------------
 
+static void kgsl_yamato_irqerr(struct work_struct *work)
+{
+	gsl_device_t *device = &gsl_driver.device[GSL_DEVICE_YAMATO-1];
+	device->ftbl.device_destroy(device);
+}
+
 int
 kgsl_yamato_init(gsl_device_t *device)
 {
@@ -361,6 +367,9 @@ kgsl_yamato_init(gsl_device_t *device)
         device->ftbl.device_stop(device);
         return (status);
     }
+
+    /* handle error condition */
+    INIT_WORK(&device->irq_err_work, kgsl_yamato_irqerr);
 
     return(status);
 }
