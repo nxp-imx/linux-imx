@@ -234,13 +234,17 @@ power_attr(pm_trace);
  * threshold of device suspend time consumption in microsecond(0.5ms), the
  * driver suspend/resume time longer than this threshold will be
  * print to console, 0 to disable */
-int device_suspend_time_threshold = 500;
+int device_suspend_time_threshold;
 
 static ssize_t
 device_suspend_time_threshold_show(struct kobject *kobj,
 				   struct kobj_attribute *attr, char *buf)
 {
-	return sprintf(buf, "%d\n", device_suspend_time_threshold);
+	if (device_suspend_time_threshold == 0)
+		return sprintf(buf, "off\n");
+	else
+		return sprintf(buf, "%d usecs\n",
+			       device_suspend_time_threshold);
 }
 
 static ssize_t
