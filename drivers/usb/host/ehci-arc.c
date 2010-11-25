@@ -425,7 +425,8 @@ static int ehci_fsl_bus_resume(struct usb_hcd *hcd)
 			   but the clock opens at wakeup routine
 			 */
 			fsl_usb_clk_gate(hcd->self.controller->platform_data, true);
-		}
+		} else
+			pdata->wakeup_event = 0;
 		usb_host_set_wakeup(hcd->self.controller, false);
 		fsl_usb_lowpower_mode(pdata, false);
 	}

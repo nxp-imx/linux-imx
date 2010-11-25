@@ -446,12 +446,11 @@ static void fsl_otg_loading_monitor(unsigned long data)
 static void b_session_irq_enable(bool enable)
 {
 	int osc = le32_to_cpu(usb_dr_regs->otgsc);
-	printk(KERN_DEBUG "%s:enable is %d\n", __func__, enable);
+	pr_debug("%s:enable=%d", __func__, enable);
 	/* The other interrupts' status should not be cleared */
 	osc &= ~(OTGSC_INTSTS_USB_ID | OTGSC_INTSTS_A_VBUS_VALID
 		| OTGSC_INTSTS_A_SESSION_VALID | OTGSC_INTSTS_B_SESSION_VALID);
 	osc |= OTGSC_INTSTS_B_SESSION_VALID;
-
 	if (enable)
 		osc |= OTGSC_INTR_B_SESSION_VALID_EN;
 	else
@@ -667,6 +666,14 @@ static int fsl_otg_set_peripheral(struct otg_transceiver *otg_p,
 	if (otg_dev->fsm.id == 1) {
 		fsl_otg_start_host(&otg_dev->fsm, 0);
 		otg_drv_vbus(&otg_dev->fsm, 0);
+		/* Clear OTGSC_INTSTS_B_SESSION_VALID
+		 * When the host driver loads, the vbus may change to 5v for some
+		 * SoC's. But when there is no usb device at host port, the vbus
+		 * will be off, in that case, vbus changes status will be set.
+		 */
+		fsl_otg_clk_gate(true);
+		b_session_irq_enable(false);
+		fsl_otg_clk_gate(false);
 		fsl_otg_start_gadget(&otg_dev->fsm, 1);
 	}
 
