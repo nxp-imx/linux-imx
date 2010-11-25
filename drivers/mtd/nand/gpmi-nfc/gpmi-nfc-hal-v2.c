@@ -33,11 +33,19 @@
 static int onfi_ddr_mode;
 
 /*
- * In low-power mode, the system will shutdown the ddr_clk which is needed
- * by the DMA.
+ * How many clocks do we need in low power mode?
+ * We try to list them :
+ *	GMPI		: gpmi_apb_clk, gpmi_io_clk
+ *	BCH		: bch_clk, bch_apb_clk
+ *	DMA(RAM)	: apbh_dma_clk, ddr_clk(RAM), ahb_max_clk(RAM)
+ *			  (APBHDMA fetches DMA descriptors from DDR
+ *			   through AHB-MAX/PL301)
+ *	NAND		:
+ *	ONFI NAND	: pll1_main_clk
  */
 static struct clk *ddr_clk;
-
+static struct clk *apbh_dma_clk;
+static struct clk *ahb_max_clk;
 
 static void setup_ddr_timing(struct gpmi_nfc_data *this)
 {
@@ -206,9 +214,22 @@ static int extra_init(struct gpmi_nfc_data *this)
 		ddr_clk = NULL;
 		return -ENOENT;
 	}
+	apbh_dma_clk = clk_get(NULL, "apbh_dma_clk");
+	if (IS_ERR(apbh_dma_clk)) {
+		printk(KERN_ERR "The APBH_DMA clock is gone!");
+		apbh_dma_clk = NULL;
+		return -ENOENT;
+	}
+	ahb_max_clk = clk_get(NULL, "ahb_max_clk");
+	if (IS_ERR(ahb_max_clk)) {
+		printk(KERN_ERR "The APBH_DMA clock is gone!");
+		ahb_max_clk = NULL;
+		return -ENOENT;
+	}
 
 	if (is_onfi_nand(&this->device_info))
 		return enable_micron_ddr(this);
+
 	return 0;
 }
 
@@ -455,6 +476,10 @@ static void begin(struct gpmi_nfc_data *this)
 
 	if (ddr_clk)
 		clk_enable(ddr_clk);
+	if (apbh_dma_clk)
+		clk_enable(apbh_dma_clk);
+	if (ahb_max_clk)
+		clk_enable(ahb_max_clk);
 	clk_enable(resources->clock);
 
 	/* Get the timing information we need. */
@@ -477,12 +502,13 @@ static void end(struct gpmi_nfc_data *this)
 {
 	struct resources  *resources = &this->resources;
 
-	/* Disable the clock. */
-
 	clk_disable(resources->clock);
+	if (ahb_max_clk)
+		clk_disable(ahb_max_clk);
+	if (apbh_dma_clk)
+		clk_disable(apbh_dma_clk);
 	if (ddr_clk)
 		clk_disable(ddr_clk);
-
 }
 
 /**
