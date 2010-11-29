@@ -1085,7 +1085,6 @@ int32_t ipu_init_channel_buffer(ipu_channel_t channel, ipu_buffer_t type,
 				dmfc_wr_chan |= 0x80;
 				__raw_writel(dmfc_wr_chan, DMFC_WR_CHAN);
 			}
-			_ipu_ch_param_set_burst_size(dma_chan, 32);
 		}
 		spin_lock_irqsave(&ipu_lock, lock_flags);
 		_ipu_dmfc_set_wait4eot(dma_chan, width);
