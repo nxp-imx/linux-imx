@@ -269,6 +269,7 @@ static struct regulator_init_data vsd_init = {
 		.max_uV = mV_to_uV(3150),
 		.valid_ops_mask = REGULATOR_CHANGE_VOLTAGE |
 			REGULATOR_CHANGE_STATUS,
+		.always_on = 1,
 	}
 };
 
