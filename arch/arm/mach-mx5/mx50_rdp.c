@@ -1360,8 +1360,7 @@ static void __init mx50_rdp_io_init(void)
 
 	/* USB OTG PWR */
 	gpio_request(USB_OTG_PWR, "usb otg power");
-	gpio_direction_output(USB_OTG_PWR, 1);
-	gpio_set_value(USB_OTG_PWR, 0);
+	gpio_direction_output(USB_OTG_PWR, 0);
 
 	cspi_keeper.pad_ctrl = 0x0; /* Disable all keepers */
 	mxc_iomux_v3_setup_pad(&cspi_keeper);

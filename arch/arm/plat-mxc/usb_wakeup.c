@@ -67,6 +67,7 @@ static void delay_process_wakeup(struct wakeup_ctrl *ctrl)
 			pdata->usb_pdata[i]->irq_delay = 1;
 		}
 	}
+	pdata->usb_wakeup_is_pending = true;
 	complete(&ctrl->event);
 }
 
@@ -113,6 +114,8 @@ static void wakeup_event_handler(struct wakeup_ctrl *ctrl)
 		}
 	}
 	wakeup_clk_gate(ctrl->pdata, false);
+	pdata->usb_wakeup_is_pending = false;
+	wake_up(&pdata->wq);
 }
 
 static int wakeup_event_thread(void *param)
@@ -133,7 +136,7 @@ static int wakeup_event_thread(void *param)
 	return 0;
 }
 
-static int  wakeup_dev_probe(struct platform_device *pdev)
+static int wakeup_dev_probe(struct platform_device *pdev)
 {
 	struct fsl_usb2_wakeup_platform_data *pdata;
 	struct wakeup_ctrl *ctrl = NULL;
@@ -147,6 +150,9 @@ static int  wakeup_dev_probe(struct platform_device *pdev)
 	if (!ctrl)
 		return -ENOMEM;
 	pdata = pdev->dev.platform_data;
+	init_waitqueue_head(&pdata->wq);
+	pdata->usb_wakeup_is_pending = false;
+
 	ctrl->pdata = pdata;
 	init_completion(&ctrl->event);
 	ctrl->wakeup_irq = platform_get_irq(pdev, 0);
@@ -160,6 +166,7 @@ static int  wakeup_dev_probe(struct platform_device *pdev)
 	if (status)
 		goto error2;
 	g_ctrl = ctrl;
+	printk(KERN_DEBUG "the wakeup pdata is 0x%p\n", pdata);
 
 	return 0;
 error2:
