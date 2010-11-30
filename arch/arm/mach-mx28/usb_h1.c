@@ -235,7 +235,10 @@ struct platform_device mxs_usbh1_wakeup_device = {
 
 static int __init usbh1_init(void)
 {
-	struct platform_device *pdev = host_pdev_register(usbh1_resources,
+	struct platform_device *pdev;
+
+	usbh1_config.wakeup_pdata = &usbh1_wakeup_config;
+	pdev = host_pdev_register(usbh1_resources,
 			ARRAY_SIZE(usbh1_resources), &usbh1_config);
 
 	pr_debug("%s: \n", __func__);
