@@ -29,8 +29,8 @@
 #include <mach/arc_otg.h>
 #include "usb.h"
 #include "mx28_pins.h"
-
 #define USB_POWER_ENABLE MXS_PIN_TO_GPIO(PINID_AUART2_TX)
+
 extern int clk_get_usecount(struct clk *clk);
 static struct clk *usb_clk;
 static struct clk *usb_phy_clk;
@@ -464,6 +464,7 @@ static int __init usb_dr_init(void)
 	/* wake_up_enalbe is useless, just for usb_register_remote_wakeup execution*/
 	dr_utmi_config.wake_up_enable = _device_wakeup_enable;
 	dr_utmi_config.irq_delay = 0;
+	dr_utmi_config.wakeup_pdata = &usbdr_wakeup_config;
 
 	if (platform_device_register(&dr_otg_device))
 		printk(KERN_ERR "usb DR: can't register otg device\n");
@@ -479,6 +480,7 @@ static int __init usb_dr_init(void)
 	dr_utmi_config.phy_lowpower_suspend = _host_phy_lowpower_suspend;
 	dr_utmi_config.is_wakeup_event = _is_host_wakeup;
 	dr_utmi_config.irq_delay = 0;
+	dr_utmi_config.wakeup_pdata = &usbdr_wakeup_config;
 	pdev = host_pdev_register(otg_resources,
 			ARRAY_SIZE(otg_resources), &dr_utmi_config);
 	if (pdev)
@@ -493,6 +495,7 @@ static int __init usb_dr_init(void)
 	dr_utmi_config.phy_lowpower_suspend = _device_phy_lowpower_suspend;
 	dr_utmi_config.is_wakeup_event = _is_device_wakeup;
 	dr_utmi_config.irq_delay = 0;
+	dr_utmi_config.wakeup_pdata = &usbdr_wakeup_config;
 
 	if (platform_device_register(&dr_udc_device))
 		printk(KERN_ERR "usb DR: can't register udc device\n");

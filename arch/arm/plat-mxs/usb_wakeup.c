@@ -59,10 +59,12 @@ static bool usb2_is_in_lowpower(struct wakeup_ctrl *ctrl)
 
 static void delay_process_wakeup(struct wakeup_ctrl *ctrl)
 {
+	struct fsl_usb2_wakeup_platform_data *pdata = ctrl->pdata;
 	disable_irq_nosync(ctrl->wakeup_irq);
 	if ((ctrl->usb_irq > 0) && (ctrl->wakeup_irq != ctrl->usb_irq))
 		disable_irq_nosync(ctrl->usb_irq);
 
+	pdata->usb_wakeup_is_pending = true;
 	complete(&ctrl->event);
 }
 
@@ -111,6 +113,8 @@ static void wakeup_event_handler(struct wakeup_ctrl *ctrl)
 		}
 	}
 	wakeup_clk_gate(ctrl->pdata, false);
+	pdata->usb_wakeup_is_pending = false;
+	wake_up(&pdata->wq);
 }
 
 static int wakeup_event_thread(void *param)
@@ -147,6 +151,9 @@ static int wakeup_dev_probe(struct platform_device *pdev)
 		return -ENOMEM;
 	pdata = pdev->dev.platform_data;
 	ctrl->pdata = pdata;
+	init_waitqueue_head(&pdata->wq);
+	pdata->usb_wakeup_is_pending = false;
+
 	init_completion(&ctrl->event);
 	ctrl->wakeup_irq = platform_get_irq(pdev, 0);
 	ctrl->usb_irq = platform_get_irq(pdev, 1);
@@ -164,6 +171,7 @@ static int wakeup_dev_probe(struct platform_device *pdev)
 		goto error2;
 	g_ctrl = ctrl;
 
+	printk(KERN_DEBUG "the wakeup pdata is 0x%p\n", pdata);
 	return 0;
 error2:
 	free_irq(ctrl->wakeup_irq, (void *)ctrl);
