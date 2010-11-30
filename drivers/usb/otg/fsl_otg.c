@@ -445,8 +445,16 @@ static void fsl_otg_loading_monitor(unsigned long data)
  */
 static void b_session_irq_enable(bool enable)
 {
-	int osc = le32_to_cpu(usb_dr_regs->otgsc);
-	pr_debug("%s:enable=%d", __func__, enable);
+	u32 osc;
+	fsl_otg_clk_gate(true);
+	if (le32_to_cpu(usb_dr_regs->portsc) & PORTSC_PHY_LOW_POWER_SPD) {
+		pr_debug("%s: the usb is in low power mode, vbus should not changed \n", __func__);
+		fsl_otg_clk_gate(false);
+		return;
+	}
+
+	osc = le32_to_cpu(usb_dr_regs->otgsc);
+	pr_debug("%s:otgsc=0x%x", __func__, osc);
 	/* The other interrupts' status should not be cleared */
 	osc &= ~(OTGSC_INTSTS_USB_ID | OTGSC_INTSTS_A_VBUS_VALID
 		| OTGSC_INTSTS_A_SESSION_VALID | OTGSC_INTSTS_B_SESSION_VALID);
@@ -456,6 +464,7 @@ static void b_session_irq_enable(bool enable)
 	else
 		osc &= ~OTGSC_INTR_B_SESSION_VALID_EN;
 	usb_dr_regs->otgsc = cpu_to_le32(osc);
+	fsl_otg_clk_gate(false);
 }
 
 /* Reset controller, not reset the bus */
@@ -489,8 +498,11 @@ int fsl_otg_start_host(struct otg_fsm *fsm, int on)
 	/* Update a_vbus_vld state as a_vbus_vld int is disabled
 	 * in device mode
 	 */
+	fsl_otg_clk_gate(true);
 	fsm->a_vbus_vld =
 	    (le32_to_cpu(usb_dr_regs->otgsc) & OTGSC_STS_A_VBUS_VALID) ? 1 : 0;
+	fsl_otg_clk_gate(false);
+
 	if (on) {
 		/* start fsl usb host controller */
 		if (otg_dev->host_working)
@@ -666,14 +678,6 @@ static int fsl_otg_set_peripheral(struct otg_transceiver *otg_p,
 	if (otg_dev->fsm.id == 1) {
 		fsl_otg_start_host(&otg_dev->fsm, 0);
 		otg_drv_vbus(&otg_dev->fsm, 0);
-		/* Clear OTGSC_INTSTS_B_SESSION_VALID
-		 * When the host driver loads, the vbus may change to 5v for some
-		 * SoC's. But when there is no usb device at host port, the vbus
-		 * will be off, in that case, vbus changes status will be set.
-		 */
-		fsl_otg_clk_gate(true);
-		b_session_irq_enable(false);
-		fsl_otg_clk_gate(false);
 		fsl_otg_start_gadget(&otg_dev->fsm, 1);
 	}
 
@@ -707,6 +711,7 @@ static void fsl_otg_event(struct work_struct *work)
 	struct otg_transceiver *otg = &og->otg;
 
 	mutex_lock(&pm_mutex);
+	b_session_irq_enable(false);
 	otg->default_a = (fsm->id == 0);
 	/* clear conn information */
 	if (fsm->id)
@@ -722,10 +727,12 @@ static void fsl_otg_event(struct work_struct *work)
 	if (fsm->id) {		/* switch to gadget */
 		fsl_otg_start_host(fsm, 0);
 		otg_drv_vbus(fsm, 0);
+		b_session_irq_enable(false);
 		fsl_otg_start_gadget(fsm, 1);
 	} else {			/* switch to host */
 		fsl_otg_start_gadget(fsm, 0);
 		otg_drv_vbus(fsm, 1);
+		b_session_irq_enable(false);
 		fsl_otg_start_host(fsm, 1);
 	}
 	mutex_unlock(&pm_mutex);
@@ -791,12 +798,6 @@ irqreturn_t fsl_otg_isr_gpio(int irq, void *dev_id)
 
 	cancel_delayed_work(&f_otg->otg_event);
 	schedule_otg_work(&f_otg->otg_event, msecs_to_jiffies(10));
-	/* if host mode, we should clear B_SESSION_VLD event and disable
-	 * B_SESSION_VLD irq
-	 */
-	if (!f_otg->fsm.id) {
-		b_session_irq_enable(false);
-	}
 
 	return IRQ_HANDLED;
 }
@@ -841,12 +842,6 @@ irqreturn_t fsl_otg_isr(int irq, void *dev_id)
 
 			cancel_delayed_work(&fotg->otg_event);
 			schedule_otg_work(&fotg->otg_event, msecs_to_jiffies(10));
-			/* if host mode, we should clear B_SESSION_VLD event and disable
-			 * B_SESSION_VLD irq
-			 */
-			if (!fotg->fsm.id) {
-				b_session_irq_enable(false);
-			}
 			ret = IRQ_HANDLED;
 		}
 	}

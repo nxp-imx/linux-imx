@@ -67,6 +67,7 @@ enum fsl_usb2_phy_modes {
 	FSL_USB2_PHY_SERIAL,
 };
 
+struct fsl_usb2_wakeup_platform_data;
 struct platform_device;
 struct fsl_usb2_platform_data {
 	/* board specific information */
@@ -105,6 +106,7 @@ struct fsl_usb2_platform_data {
 	unsigned            lowpower:1;
 	unsigned            irq_delay:1;
 	unsigned            wakeup_event:1;
+	struct fsl_usb2_wakeup_platform_data *wakeup_pdata;
 
 	u32				id_gpio;
 	/* register save area for suspend/resume */
@@ -127,6 +129,15 @@ struct fsl_usb2_wakeup_platform_data {
 	char *name;
 	void (*usb_clock_for_pm) (bool);
 	struct fsl_usb2_platform_data *usb_pdata[3];
+	/* This waitqueue is used to wait "usb_wakeup thread" to finish
+	 * during system resume routine. "usb_wakeup theard" should be finished
+	 * prior to usb resume routine.
+	 */
+	wait_queue_head_t wq;
+	/* This flag is used to indicate the "usb_wakeup thread" is finished during
+	 * usb wakeup routine.
+	 */
+	bool usb_wakeup_is_pending;
 };
 
 
