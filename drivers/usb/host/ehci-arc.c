@@ -240,8 +240,9 @@ int usb_hcd_fsl_probe(const struct hc_driver *driver,
 	if (retval != 0)
 		goto err5;
 
+#if (!defined CONFIG_USB_OTG)
 	fsl_platform_set_vbus_power(pdata, 1);
-
+#endif
 	if (pdata->operating_mode == FSL_USB2_DR_OTG) {
 		struct ehci_hcd *ehci = hcd_to_ehci(hcd);
 
@@ -609,10 +610,6 @@ static int ehci_fsl_drv_suspend(struct platform_device *pdev,
 		return 0;
 	}
 
-	if (!test_bit(HCD_FLAG_HW_ACCESSIBLE, &hcd->flags)) {
-		fsl_usb_clk_gate(hcd->self.controller->platform_data, true);
-		set_bit(HCD_FLAG_HW_ACCESSIBLE, &hcd->flags);
-	}
 	/* only the otg host can go here */
 	/* wait for all usb device on the hcd dettached */
 	usb_lock_device(roothub);
@@ -642,7 +639,10 @@ static int ehci_fsl_drv_suspend(struct platform_device *pdev,
 		usb_unlock_device(roothub);
 	}
 
-	pr_debug("%s: suspending...\n", __func__);
+	if (!test_bit(HCD_FLAG_HW_ACCESSIBLE, &hcd->flags)) {
+		fsl_usb_clk_gate(hcd->self.controller->platform_data, true);
+		set_bit(HCD_FLAG_HW_ACCESSIBLE, &hcd->flags);
+	}
 
 	port_status = ehci_readl(ehci, &ehci->regs->port_status[0]);
 	/* save EHCI registers */
@@ -682,10 +682,12 @@ static int ehci_fsl_drv_resume(struct platform_device *pdev)
 	struct usb_device *roothub = hcd->self.root_hub;
 	u32 tmp;
 	struct fsl_usb2_platform_data *pdata = pdev->dev.platform_data;
+	struct fsl_usb2_wakeup_platform_data *wake_up_pdata = pdata->wakeup_pdata;
 	/* Only handles OTG mode switch event */
 	printk(KERN_DEBUG "ehci fsl drv resume begins: %s\n", pdata->name);
 	if (pdev->dev.power.status == DPM_RESUMING) {
-		printk(KERN_DEBUG "%s, pm event \n", __func__);
+		printk(KERN_DEBUG "%s,pm event, wait for wakeup irq if needed\n", __func__);
+		wait_event_interruptible(wake_up_pdata->wq, !wake_up_pdata->usb_wakeup_is_pending);
 		if (!host_can_wakeup_system(pdev)) {
 			if (!test_bit(HCD_FLAG_HW_ACCESSIBLE, &hcd->flags)) {
 				fsl_usb_clk_gate(hcd->self.controller->platform_data, true);

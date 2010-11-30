@@ -491,8 +491,6 @@ static void dr_controller_run(struct fsl_udc *udc)
 
 	/* enable BSV irq */
 	temp = fsl_readl(&dr_regs->otgsc);
-	/* do not clear otgsc interrupt status */
-	temp &= (~(OTGSC_ID_CHANGE_IRQ_STS | OTGSC_B_SESSION_VALID_IRQ_STS));
 	temp |= OTGSC_B_SESSION_VALID_IRQ_EN;
 	fsl_writel(temp, &dr_regs->otgsc);
 
@@ -3160,7 +3158,14 @@ static int fsl_udc_suspend(struct platform_device *pdev, pm_message_t state)
  *-----------------------------------------------------------------*/
 static int fsl_udc_resume(struct platform_device *pdev)
 {
+	struct fsl_usb2_platform_data *pdata = udc_controller->pdata;
+	struct fsl_usb2_wakeup_platform_data *wake_up_pdata = pdata->wakeup_pdata;
 	printk(KERN_DEBUG "USB Gadget resume begins\n");
+
+	if (pdev->dev.power.status == DPM_RESUMING) {
+		printk(KERN_DEBUG "%s, Wait for wakeup thread finishes\n", __func__);
+		wait_event_interruptible(wake_up_pdata->wq, !wake_up_pdata->usb_wakeup_is_pending);
+	}
 
 	pr_debug("%s(): stopped %d  suspended %d\n", __func__,
 		 udc_controller->stopped, udc_controller->suspended);
@@ -3183,7 +3188,9 @@ static int fsl_udc_resume(struct platform_device *pdev)
 
 	/* Enable DR irq reg and set controller Run */
 	if (udc_controller->stopped) {
-		dr_clk_gate(true);
+		/* the clock is already on at usb wakeup routine */
+		if (pdata->lowpower)
+			dr_clk_gate(true);
 		dr_wake_up_enable(udc_controller, false);
 		dr_phy_low_power_mode(udc_controller, false);
 		mdelay(3);/* IC have the debounce for ID\vbus status in otgsc */
