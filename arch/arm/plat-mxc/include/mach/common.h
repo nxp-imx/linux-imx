@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2004-2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2004-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -59,4 +59,13 @@ extern void mxc91231_power_off(void);
 extern void mxc91231_arch_reset(int, const char *);
 extern void mxc91231_prepare_idle(void);
 
+#ifdef CONFIG_ARCH_MX5
+extern int mx50_revision(void);
+extern int mx51_revision(void);
+extern int mx53_revision(void);
+#else
+static inline int mx50_revision(void) {return 0; }
+static inline int mx51_revision(void) {return 0; }
+static inline int mx53_revision(void) {return 0; }
+#endif
 #endif

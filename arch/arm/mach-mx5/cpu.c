@@ -41,37 +41,19 @@ extern void init_ddr_settings(void);
 
 static int cpu_silicon_rev = -1;
 
-#define SI_REV 0x48
+#define IIM_SREV 0x24
+#define MX50_HW_ADADIG_DIGPROG	0xB0
 
-static void query_silicon_parameter(void)
+static int get_mx51_srev(void)
 {
-	void __iomem *rom = ioremap(IROM_BASE_ADDR, IROM_SIZE);
-	u32 rev;
+	void __iomem *iim_base = IO_ADDRESS(IIM_BASE_ADDR);
+	u32 rev = readl(iim_base + IIM_SREV) & 0xff;
 
-	if (!rom) {
-		cpu_silicon_rev = -EINVAL;
-		return;
-	}
-
-	rev = readl(rom + SI_REV);
-	switch (rev) {
-	case 0x1:
-		cpu_silicon_rev = CHIP_REV_1_0;
-		break;
-	case 0x2:
-		cpu_silicon_rev = CHIP_REV_1_1;
-		break;
-	case 0x10:
-		cpu_silicon_rev = CHIP_REV_2_0;
-		break;
-	case 0x20:
-		cpu_silicon_rev = CHIP_REV_3_0;
-		break;
-	default:
-		cpu_silicon_rev = 0;
-	}
-
-	iounmap(rom);
+	if (rev == 0x0)
+		return IMX_CHIP_REVISION_2_0;
+	else if (rev == 0x10)
+		return IMX_CHIP_REVISION_3_0;
+	return 0;
 }
 
 /*
@@ -85,11 +67,83 @@ int mx51_revision(void)
 		return -EINVAL;
 
 	if (cpu_silicon_rev == -1)
-		query_silicon_parameter();
+		cpu_silicon_rev = get_mx51_srev();
 
 	return cpu_silicon_rev;
 }
 EXPORT_SYMBOL(mx51_revision);
+
+static int get_mx53_srev(void)
+{
+	void __iomem *iim_base = IO_ADDRESS(IIM_BASE_ADDR);
+	u32 rev = readl(iim_base + IIM_SREV) & 0xff;
+
+	switch (rev) {
+	case 0x0:
+		return IMX_CHIP_REVISION_1_0;
+	case 0x2:
+		return IMX_CHIP_REVISION_2_0;
+	case 0x3:
+		return IMX_CHIP_REVISION_2_1;
+	default:
+		return IMX_CHIP_REVISION_UNKNOWN;
+	}
+}
+
+/*
+ * Returns:
+ *	the silicon revision of the cpu
+ *	-EINVAL - not a mx53
+ */
+int mx53_revision(void)
+{
+	if (!cpu_is_mx53())
+		return -EINVAL;
+
+	if (cpu_silicon_rev == -1)
+		cpu_silicon_rev = get_mx53_srev();
+
+	return cpu_silicon_rev;
+}
+EXPORT_SYMBOL(mx53_revision);
+
+static int get_mx50_srev(void)
+{
+	void __iomem *anatop = ioremap(ANATOP_BASE_ADDR, SZ_8K);
+	u32 rev;
+
+	if (!anatop) {
+		cpu_silicon_rev = -EINVAL;
+		return 0;
+	}
+
+	rev = readl(anatop + MX50_HW_ADADIG_DIGPROG);
+	rev &= 0xff;
+
+	iounmap(anatop);
+	if (rev == 0x0)
+		return IMX_CHIP_REVISION_1_0;
+	else if (rev == 0x1)
+		return IMX_CHIP_REVISION_1_1;
+	return 0;
+}
+
+/*
+ * Returns:
+ *	the silicon revision of the cpu
+ *	-EINVAL - not a mx50
+ */
+int mx50_revision(void)
+{
+	if (!cpu_is_mx50())
+		return -EINVAL;
+
+	if (cpu_silicon_rev == -1)
+		cpu_silicon_rev = get_mx50_srev();
+
+	return cpu_silicon_rev;
+}
+EXPORT_SYMBOL(mx50_revision);
 
 struct cpu_wp *(*get_cpu_wp)(int *wp);
 void (*set_num_cpu_wp)(int num);
