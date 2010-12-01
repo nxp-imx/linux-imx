@@ -540,7 +540,7 @@ static void mxc_v4l2out_timer_handler(unsigned long arg)
 		ret += ipu_update_channel_buffer(MEM_VDI_PRP_VF_MEM_N,
 				IPU_INPUT_BUFFER,
 				vout->next_rdy_ipu_buf,
-				vout->v4l2_bufs[index_n].m.offset) + vout->bytesperline;
+				vout->v4l2_bufs[index_n].m.offset + vout->bytesperline);
 		last_index_n = index;
 	} else {
 		vout->ipu_buf[vout->next_rdy_ipu_buf] = index;
