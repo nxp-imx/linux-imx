@@ -54,6 +54,28 @@ struct mxs_dma_cmd_bits {
 	unsigned int bytes:16;
 };
 
+/* fill the word 1 of the DMA channel command structure */
+#define fill_dma_word1(cmdp, _cmd, _chain, _irq, _lock, _wait_ready, _dec_sem,\
+		_wait4end, _halt_on_term, _term_flush, _pio_words, _bytes)\
+	do {							\
+		struct mxs_dma_cmd_bits *bits = &(cmdp)->bits;	\
+								\
+		/* reset all the fields first */		\
+		(cmdp)->data		= 0;			\
+								\
+		bits->command		= _cmd;			\
+		bits->chain		= _chain;		\
+		bits->irq		= _irq;			\
+		bits->nand_lock		= _lock;		\
+		bits->nand_wait_4_ready	= _wait_ready;		\
+		bits->dec_sem		= _dec_sem;		\
+		bits->wait4end		= _wait4end;		\
+		bits->halt_on_terminate	= _halt_on_term;	\
+		bits->terminate_flush	= _term_flush;		\
+		bits->pio_words		= _pio_words;		\
+		bits->bytes		= _bytes;		\
+	} while (0)
+
 /**
  * struct mxs_dma_cmd - MXS DMA hardware command.
  *
