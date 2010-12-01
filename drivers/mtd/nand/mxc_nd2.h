@@ -381,6 +381,10 @@ do { \
 	(NFC_FIELD_RESET(NFC_ACTIVE_CS_WIDTH, NFC_ACTIVE_CS_SHIFT))) | \
 	((val) << NFC_ACTIVE_CS_SHIFT), NFC_CONFIG1);
 
+#define NFC_GET_NFC_ACTIVE_CS() \
+	((raw_read(NFC_CONFIG1) >> NFC_ACTIVE_CS_SHIFT) & \
+	((1 << NFC_ACTIVE_CS_WIDTH) - 1))
+
 #define NFC_GET_MAXCHIP_SP() 		8
 
 #else
@@ -389,6 +393,7 @@ do { \
 	(end_addr << NFC_UNLOCK_END_ADDR_SHIFT), REG_UNLOCK_BLK_ADD0);
 
 #define NFC_SET_NFC_ACTIVE_CS(val)
+#define NFC_GET_NFC_ACTIVE_CS()
 #define NFC_GET_MAXCHIP_SP() 		1
 #endif
 
@@ -680,6 +685,7 @@ do { \
 }
 
 #define NFC_SET_NFC_ACTIVE_CS(val)
+#define NFC_GET_NFC_ACTIVE_CS()
 #define NFC_GET_MAXCHIP_SP() 		1
 #define NFC_SET_WPC(val)                val
 

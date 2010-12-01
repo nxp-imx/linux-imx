@@ -291,7 +291,7 @@ static void auto_cmd_interleave(struct mtd_info *mtd, u16 cmd)
 	else
 		page_addr = addr_low >> 16 | addr_high << 16;
 
-	ncs = page_addr >> (this->chip_shift - this->page_shift);
+	ncs = NFC_GET_NFC_ACTIVE_CS();
 
 	if (j > 1) {
 		page_addr *= j;
@@ -529,6 +529,8 @@ static u16 get_dev_status(void)
 #ifdef NFC_AUTO_MODE_ENABLE
 	int i;
 	u16 status = 0;
+	int cs = NFC_GET_NFC_ACTIVE_CS();
+
 	for (i = 0; i < num_of_interleave; i++) {
 
 		/* set ative cs */
@@ -543,6 +545,9 @@ static u16 get_dev_status(void)
 		if (status & NAND_STATUS_FAIL)
 			break;
 	}
+
+	/* Restore active CS */
+	NFC_SET_NFC_ACTIVE_CS(cs);
 
 	return status;
 #else
