@@ -50,7 +50,7 @@ static int mxs_set_next_event(unsigned long delta,
 {
 	unsigned int match;
 	match = __raw_readl(online_timer->base +
-			    HW_TIMROT_MATCH_COUNTn(online_timer->id)) - delta;
+			    HW_TIMROT_RUNNING_COUNTn(online_timer->id)) - delta;
 	__raw_writel(match, online_timer->base +
 		     HW_TIMROT_MATCH_COUNTn(online_timer->id));
 	return (int)(match -
