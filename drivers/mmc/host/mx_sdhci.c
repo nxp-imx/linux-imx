@@ -234,12 +234,16 @@ static void sdhci_init(struct sdhci_host *host)
 
 	sdhci_reset(host, SDHCI_RESET_ALL);
 
-	intmask = SDHCI_INT_ADMA_ERROR | SDHCI_INT_ACMD12ERR |
+	intmask = SDHCI_INT_ADMA_ERROR |
 	    SDHCI_INT_DATA_END_BIT | SDHCI_INT_DATA_CRC |
 	    SDHCI_INT_DATA_TIMEOUT | SDHCI_INT_INDEX |
 	    SDHCI_INT_END_BIT | SDHCI_INT_CRC | SDHCI_INT_TIMEOUT |
 	    SDHCI_INT_DATA_AVAIL | SDHCI_INT_SPACE_AVAIL |
 	    SDHCI_INT_DMA_END | SDHCI_INT_DATA_END | SDHCI_INT_RESPONSE;
+
+	if (cpu_is_mx50_rev(CHIP_REV_1_1) < 0
+			|| cpu_is_mx53_rev(CHIP_REV_2_0) < 0)
+		intmask |= SDHCI_INT_ACMD12ERR;
 
 	if (host->flags & SDHCI_USE_DMA)
 		intmask &= ~(SDHCI_INT_DATA_AVAIL | SDHCI_INT_SPACE_AVAIL);
@@ -646,18 +650,38 @@ static void sdhci_finish_data(struct sdhci_host *host)
 	 */
 	if (data->blocks == 1)
 		blocks = (data->error == 0) ? 0 : 1;
-	else
+	else {
 		blocks = readl(host->ioaddr + SDHCI_BLOCK_COUNT) >> 16;
+		if (cpu_is_mx50_rev(CHIP_REV_1_1) >= 1
+				|| cpu_is_mx53_rev(CHIP_REV_2_0) >= 1) {
+			if (readl(host->ioaddr + SDHCI_VENDOR_SPEC) & 0x2)
+				writel(readl(host->ioaddr + SDHCI_VENDOR_SPEC)
+						& ~0x2,
+					host->ioaddr + SDHCI_VENDOR_SPEC);
+		}
+	}
 	data->bytes_xfered = data->blksz * data->blocks;
 
-	queue_work(host->workqueue, &host->finish_wq);
+	if ((data->stop) && !(cpu_is_mx50_rev(CHIP_REV_1_1) < 0
+				|| cpu_is_mx53_rev(CHIP_REV_2_0) < 0)) {
+		/*
+		 * The controller needs a reset of internal state machines
+		 * upon error conditions.
+		 */
+		if (data->error) {
+			sdhci_reset(host, SDHCI_RESET_CMD);
+			sdhci_reset(host, SDHCI_RESET_DATA);
+		}
+
+		sdhci_send_command(host, data->stop);
+	} else
+		queue_work(host->workqueue, &host->finish_wq);
 }
 
 static void sdhci_send_command(struct sdhci_host *host, struct mmc_command *cmd)
 {
-	int flags, tmp;
-	u32 mask;
-	u32 mode = 0;
+	int flags;
+	u32 tmp, mask, mode = 0;
 	unsigned long timeout;
 
 	DBG("sdhci_send_command 0x%x is starting...\n", cmd->opcode);
@@ -700,15 +724,38 @@ static void sdhci_send_command(struct sdhci_host *host, struct mmc_command *cmd)
 	if (cmd->data != NULL) {
 		mode = SDHCI_TRNS_BLK_CNT_EN | SDHCI_TRNS_DPSEL;
 		if (cmd->data->blocks > 1) {
-			mode |= SDHCI_TRNS_MULTI | SDHCI_TRNS_ACMD12;
-			if (cmd->opcode == 0x35) {
-				tmp = readl(host->ioaddr + SDHCI_INT_ENABLE);
-				tmp &= ~SDHCI_INT_ACMD12ERR;
-				writel(tmp, host->ioaddr + SDHCI_INT_ENABLE);
-			} else {
-				tmp = readl(host->ioaddr + SDHCI_INT_ENABLE);
-				tmp |= SDHCI_INT_ACMD12ERR;
-				writel(tmp, host->ioaddr + SDHCI_INT_ENABLE);
+			mode |= SDHCI_TRNS_MULTI;
+			if (cpu_is_mx50_rev(CHIP_REV_1_1) < 0
+					|| cpu_is_mx53_rev(CHIP_REV_2_0) < 0) {
+				/* Fix multi-blk operations no INT bug
+				 * by SW workaround.
+				 */
+				mode |= SDHCI_TRNS_ACMD12;
+				if (cmd->opcode == 0x35) {
+					tmp = readl(host->ioaddr
+							+ SDHCI_INT_ENABLE);
+					tmp &= ~SDHCI_INT_ACMD12ERR;
+					writel(tmp, host->ioaddr
+							+ SDHCI_INT_ENABLE);
+				} else {
+					tmp = readl(host->ioaddr
+							+ SDHCI_INT_ENABLE);
+					tmp |= SDHCI_INT_ACMD12ERR;
+					writel(tmp, host->ioaddr
+							+ SDHCI_INT_ENABLE);
+				}
+			} else if (cpu_is_mx50_rev(CHIP_REV_1_1) >= 1
+					|| cpu_is_mx53_rev(CHIP_REV_2_0) >= 1) {
+				/* Fix SDIO read no INT bug
+				 * set bit1 of Vendor Spec Registor
+				 */
+				if (cmd->opcode == 0x35 && (cmd->data->flags
+							& MMC_DATA_READ))
+					timeout = readl(host->ioaddr
+							+ SDHCI_VENDOR_SPEC);
+					timeout |= 0x2;
+					writel(timeout, host->ioaddr
+							+ SDHCI_VENDOR_SPEC);
 			}
 		}
 		if (cmd->data->flags & MMC_DATA_READ)
@@ -752,6 +799,9 @@ static void sdhci_send_command(struct sdhci_host *host, struct mmc_command *cmd)
 		mode |= SDHCI_TRNS_DDR_EN;
 	} else
 		mode &= ~SDHCI_TRNS_DDR_EN;
+	/* Configure the cmd type for cmd12 */
+	if (cmd->opcode == 12)
+		mode |= SDHCI_TRNS_ABORTCMD;
 	DBG("Complete sending cmd, transfer mode would be 0x%x.\n", mode);
 	writel(mode, host->ioaddr + SDHCI_TRANSFER_MODE);
 }
@@ -1332,14 +1382,17 @@ static void sdhci_cmd_irq(struct sdhci_host *host, u32 intmask)
 			    SDHCI_INT_INDEX))
 		host->cmd->error = -EILSEQ;
 
-	if (intmask & SDHCI_INT_ACMD12ERR) {
-		int tmp = 0;
-		tmp = readl(host->ioaddr + SDHCI_ACMD12_ERR);
-		if (tmp & (SDHCI_ACMD12_ERR_CE | SDHCI_ACMD12_ERR_IE |
-			   SDHCI_ACMD12_ERR_EBE))
-			host->cmd->error = -EILSEQ;
-		else if (tmp & SDHCI_ACMD12_ERR_TOE)
-			host->cmd->error = -ETIMEDOUT;
+	if (cpu_is_mx50_rev(CHIP_REV_1_1) < 0
+			|| cpu_is_mx53_rev(CHIP_REV_2_0) < 0) {
+		if (intmask & SDHCI_INT_ACMD12ERR) {
+			int tmp = 0;
+			tmp = readl(host->ioaddr + SDHCI_ACMD12_ERR);
+			if (tmp & (SDHCI_ACMD12_ERR_CE | SDHCI_ACMD12_ERR_IE |
+				   SDHCI_ACMD12_ERR_EBE))
+				host->cmd->error = -EILSEQ;
+			else if (tmp & SDHCI_ACMD12_ERR_TOE)
+				host->cmd->error = -ETIMEDOUT;
+		}
 	}
 
 	if (host->cmd->error)
