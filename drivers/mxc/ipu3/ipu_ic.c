@@ -164,9 +164,13 @@ void _ipu_vdi_init(ipu_channel_t channel, ipu_channel_params_t *params)
 
 	/* Full motion, only vertical filter is used
 	   Burst size is 4 accesses */
-	pixel_fmt =
-	    (params->mem_prp_vf_mem.in_pixel_fmt ==
-	     V4L2_PIX_FMT_YUV422P) ? VDI_C_CH_422 : VDI_C_CH_420;
+	if (params->mem_prp_vf_mem.in_pixel_fmt ==
+	     IPU_PIX_FMT_UYVY ||
+	     params->mem_prp_vf_mem.in_pixel_fmt ==
+	     IPU_PIX_FMT_YUYV)
+		pixel_fmt = VDI_C_CH_422;
+	else
+		pixel_fmt = VDI_C_CH_420;
 
 	reg = __raw_readl(VDI_C);
 	reg |= pixel_fmt;
