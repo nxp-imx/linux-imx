@@ -576,21 +576,8 @@ static int send_command(struct gpmi_nfc_data *this, unsigned chip,
 	command_mode = BV_GPMI_CTRL0_COMMAND_MODE__WRITE;
 	address      = BV_GPMI_CTRL0_ADDRESS__NAND_CLE;
 
-	/* reset the cmd bits fieled */
-	(*d)->cmd.cmd.data                   = 0;
-
-	(*d)->cmd.cmd.bits.command           = DMA_READ;
-	(*d)->cmd.cmd.bits.chain             = 0;
-	(*d)->cmd.cmd.bits.irq               = 1;
-	(*d)->cmd.cmd.bits.nand_lock         = 0;
-	(*d)->cmd.cmd.bits.nand_wait_4_ready = 0;
-	(*d)->cmd.cmd.bits.dec_sem           = 1;
-	(*d)->cmd.cmd.bits.wait4end          = 1;
-	(*d)->cmd.cmd.bits.halt_on_terminate = 1;
-	(*d)->cmd.cmd.bits.terminate_flush   = 0;
-	(*d)->cmd.cmd.bits.pio_words         = 3;
-	(*d)->cmd.cmd.bits.bytes             = length;
-
+	fill_dma_word1(&(*d)->cmd.cmd,
+			DMA_READ, 0, 1, 0, 0, 1, 1, 1, 0, 3, length);
 	(*d)->cmd.address = buffer;
 
 	(*d)->cmd.pio_words[0] =
@@ -649,19 +636,8 @@ static int send_data(struct gpmi_nfc_data *this, unsigned chip,
 	command_mode = BV_GPMI_CTRL0_COMMAND_MODE__WRITE;
 	address      = BV_GPMI_CTRL0_ADDRESS__NAND_DATA;
 
-	(*d)->cmd.cmd.data                   = 0;
-	(*d)->cmd.cmd.bits.command           = DMA_READ;
-	(*d)->cmd.cmd.bits.chain             = 0;
-	(*d)->cmd.cmd.bits.irq               = 1;
-	(*d)->cmd.cmd.bits.nand_lock         = 0;
-	(*d)->cmd.cmd.bits.nand_wait_4_ready = 0;
-	(*d)->cmd.cmd.bits.dec_sem           = 1;
-	(*d)->cmd.cmd.bits.wait4end          = 1;
-	(*d)->cmd.cmd.bits.halt_on_terminate = 0;
-	(*d)->cmd.cmd.bits.terminate_flush   = 0;
-	(*d)->cmd.cmd.bits.pio_words         = 4;
-	(*d)->cmd.cmd.bits.bytes             = length;
-
+	fill_dma_word1(&(*d)->cmd.cmd,
+			DMA_READ, 0, 1, 0, 0, 1, 1, 0, 0, 4, length);
 	(*d)->cmd.address = buffer;
 
 	(*d)->cmd.pio_words[0] =
@@ -719,19 +695,8 @@ static int read_data(struct gpmi_nfc_data *this, unsigned chip,
 	command_mode = BV_GPMI_CTRL0_COMMAND_MODE__READ;
 	address      = BV_GPMI_CTRL0_ADDRESS__NAND_DATA;
 
-	(*d)->cmd.cmd.data                   = 0;
-	(*d)->cmd.cmd.bits.command           = DMA_WRITE;
-	(*d)->cmd.cmd.bits.chain             = 0;
-	(*d)->cmd.cmd.bits.irq               = 1;
-	(*d)->cmd.cmd.bits.nand_lock         = 0;
-	(*d)->cmd.cmd.bits.nand_wait_4_ready = 0;
-	(*d)->cmd.cmd.bits.dec_sem           = 1;
-	(*d)->cmd.cmd.bits.wait4end          = 1;
-	(*d)->cmd.cmd.bits.halt_on_terminate = 1;
-	(*d)->cmd.cmd.bits.terminate_flush   = 0;
-	(*d)->cmd.cmd.bits.pio_words         = 1;
-	(*d)->cmd.cmd.bits.bytes             = length;
-
+	fill_dma_word1(&(*d)->cmd.cmd,
+			DMA_WRITE, 0, 1, 0, 0, 1, 1, 1, 0, 1, length);
 	(*d)->cmd.address = buffer;
 
 	(*d)->cmd.pio_words[0] =
@@ -792,19 +757,8 @@ static int send_page(struct gpmi_nfc_data *this, unsigned chip,
 	buffer_mask  = BV_GPMI_ECCCTRL_BUFFER_MASK__BCH_PAGE |
 				BV_GPMI_ECCCTRL_BUFFER_MASK__BCH_AUXONLY;
 
-	(*d)->cmd.cmd.data                   = 0;
-	(*d)->cmd.cmd.bits.command           = NO_DMA_XFER;
-	(*d)->cmd.cmd.bits.chain             = 0;
-	(*d)->cmd.cmd.bits.irq               = 1;
-	(*d)->cmd.cmd.bits.nand_lock         = 0;
-	(*d)->cmd.cmd.bits.nand_wait_4_ready = 0;
-	(*d)->cmd.cmd.bits.dec_sem           = 1;
-	(*d)->cmd.cmd.bits.wait4end          = 1;
-	(*d)->cmd.cmd.bits.halt_on_terminate = 0;
-	(*d)->cmd.cmd.bits.terminate_flush   = 0;
-	(*d)->cmd.cmd.bits.pio_words         = 6;
-	(*d)->cmd.cmd.bits.bytes             = 0;
-
+	fill_dma_word1(&(*d)->cmd.cmd,
+			NO_DMA_XFER, 0, 1, 0, 0, 1, 1, 0, 0, 6, 0);
 	(*d)->cmd.address = 0;
 
 	value = BF_GPMI_CTRL0_COMMAND_MODE(command_mode) |
@@ -895,19 +849,8 @@ static int read_page(struct gpmi_nfc_data *this, unsigned chip,
 	command_mode = BV_GPMI_CTRL0_COMMAND_MODE__WAIT_FOR_READY;
 	address      = BV_GPMI_CTRL0_ADDRESS__NAND_DATA;
 
-	(*d)->cmd.cmd.data                   = 0;
-	(*d)->cmd.cmd.bits.command           = NO_DMA_XFER;
-	(*d)->cmd.cmd.bits.chain             = 1;
-	(*d)->cmd.cmd.bits.irq               = 0;
-	(*d)->cmd.cmd.bits.nand_lock         = 0;
-	(*d)->cmd.cmd.bits.nand_wait_4_ready = 1;
-	(*d)->cmd.cmd.bits.dec_sem           = 0;
-	(*d)->cmd.cmd.bits.wait4end          = 1;
-	(*d)->cmd.cmd.bits.halt_on_terminate = 0;
-	(*d)->cmd.cmd.bits.terminate_flush   = 0;
-	(*d)->cmd.cmd.bits.pio_words         = 1;
-	(*d)->cmd.cmd.bits.bytes             = 0;
-
+	fill_dma_word1(&(*d)->cmd.cmd,
+			NO_DMA_XFER, 1, 0, 0, 1, 0, 1, 0, 0, 1, 0);
 	(*d)->cmd.address = 0;
 
 	value = BF_GPMI_CTRL0_COMMAND_MODE(command_mode) |
@@ -931,19 +874,8 @@ static int read_page(struct gpmi_nfc_data *this, unsigned chip,
 	buffer_mask  = BV_GPMI_ECCCTRL_BUFFER_MASK__BCH_PAGE |
 				BV_GPMI_ECCCTRL_BUFFER_MASK__BCH_AUXONLY;
 
-	(*d)->cmd.cmd.data                   = 0;
-	(*d)->cmd.cmd.bits.command           = NO_DMA_XFER;
-	(*d)->cmd.cmd.bits.chain             = 1;
-	(*d)->cmd.cmd.bits.irq               = 0;
-	(*d)->cmd.cmd.bits.nand_lock         = 0;
-	(*d)->cmd.cmd.bits.nand_wait_4_ready = 0;
-	(*d)->cmd.cmd.bits.dec_sem           = 0;
-	(*d)->cmd.cmd.bits.wait4end          = 1;
-	(*d)->cmd.cmd.bits.halt_on_terminate = 0;
-	(*d)->cmd.cmd.bits.terminate_flush   = 0;
-	(*d)->cmd.cmd.bits.pio_words         = 6;
-	(*d)->cmd.cmd.bits.bytes             = 0;
-
+	fill_dma_word1(&(*d)->cmd.cmd,
+			NO_DMA_XFER, 1, 0, 0, 0, 0, 1, 0, 0, 6, 0);
 	(*d)->cmd.address = 0;
 
 	if (onfi_ddr_mode)
@@ -983,19 +915,8 @@ static int read_page(struct gpmi_nfc_data *this, unsigned chip,
 	command_mode = BV_GPMI_CTRL0_COMMAND_MODE__WAIT_FOR_READY;
 	address      = BV_GPMI_CTRL0_ADDRESS__NAND_DATA;
 
-	(*d)->cmd.cmd.data                   = 0;
-	(*d)->cmd.cmd.bits.command           = NO_DMA_XFER;
-	(*d)->cmd.cmd.bits.chain             = 1;
-	(*d)->cmd.cmd.bits.irq               = 0;
-	(*d)->cmd.cmd.bits.nand_lock         = 0;
-	(*d)->cmd.cmd.bits.nand_wait_4_ready = 1;
-	(*d)->cmd.cmd.bits.dec_sem           = 0;
-	(*d)->cmd.cmd.bits.wait4end          = 1;
-	(*d)->cmd.cmd.bits.halt_on_terminate = 0;
-	(*d)->cmd.cmd.bits.terminate_flush   = 0;
-	(*d)->cmd.cmd.bits.pio_words         = 3;
-	(*d)->cmd.cmd.bits.bytes             = 0;
-
+	fill_dma_word1(&(*d)->cmd.cmd,
+			NO_DMA_XFER, 1, 0, 0, 1, 0, 1, 0, 0, 3, 0);
 	(*d)->cmd.address = 0;
 
 	value = BF_GPMI_CTRL0_COMMAND_MODE(command_mode)              |
@@ -1006,7 +927,6 @@ static int read_page(struct gpmi_nfc_data *this, unsigned chip,
 		value |= BM_GPMI_CTRL0_WORD_LENGTH;
 
 	(*d)->cmd.pio_words[0] = value;
-
 	(*d)->cmd.pio_words[1] = 0;
 	(*d)->cmd.pio_words[2] = 0;
 
@@ -1014,20 +934,8 @@ static int read_page(struct gpmi_nfc_data *this, unsigned chip,
 	d++;
 
 	/* Deassert the NAND lock and interrupt. */
-
-	(*d)->cmd.cmd.data                   = 0;
-	(*d)->cmd.cmd.bits.command           = NO_DMA_XFER;
-	(*d)->cmd.cmd.bits.chain             = 0;
-	(*d)->cmd.cmd.bits.irq               = 1;
-	(*d)->cmd.cmd.bits.nand_lock         = 0;
-	(*d)->cmd.cmd.bits.nand_wait_4_ready = 0;
-	(*d)->cmd.cmd.bits.dec_sem           = 1;
-	(*d)->cmd.cmd.bits.wait4end          = 0;
-	(*d)->cmd.cmd.bits.halt_on_terminate = 0;
-	(*d)->cmd.cmd.bits.terminate_flush   = 0;
-	(*d)->cmd.cmd.bits.pio_words         = 0;
-	(*d)->cmd.cmd.bits.bytes             = 0;
-
+	fill_dma_word1(&(*d)->cmd.cmd,
+			NO_DMA_XFER, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0);
 	(*d)->cmd.address = 0;
 
 	mxs_dma_desc_append(dma_channel, (*d));
