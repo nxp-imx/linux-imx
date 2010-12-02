@@ -905,6 +905,7 @@ static int esw_port_learning_config(
 	tmp = readl(&fecp->ESW_BKLR);
 	if (disable == 1) {
 		fep->learning_irqhandle_enable = 0;
+		fecp->switch_imask &= ~MCF_ESW_IMR_LRN;
 		if (port == 0)
 			tmp |= MCF_ESW_BKLR_LD0;
 		else if (port == 1)
@@ -3521,7 +3522,7 @@ switch_enet_open(struct net_device *dev)
 		fep->sequence_done = 0;
 
 	fep->currTime = 0;
-	fep->learning_irqhandle_enable = 0;
+	fep->learning_irqhandle_enable = 1;
 
 	esw_main(fep);
 
