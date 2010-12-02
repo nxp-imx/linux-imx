@@ -4755,9 +4755,6 @@ int __init mx53_clocks_init(unsigned long ckil, unsigned long osc, unsigned long
 	esdhc3_clk[0].get_rate = _clk_esdhc3_get_rate;
 	esdhc3_clk[0].set_rate = _clk_sdhc3_set_rate;
 
-#ifdef CONFIG_MXC_VPU_IRAM
-	 vpu_clk[2].secondary = &emi_intr_clk[1];
-#endif
 #if defined(CONFIG_USB_STATIC_IRAM) \
     || defined(CONFIG_USB_STATIC_IRAM_PPH)
 	usboh3_clk[1].secondary = &emi_intr_clk[1];
