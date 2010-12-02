@@ -163,10 +163,10 @@ static void switch_set_mii(struct net_device *dev)
 	fecp = (struct switch_t *)fep->hwp;
 
 	writel(MCF_FEC_RCR_PROM | MCF_FEC_RCR_RMII_MODE |
-			MCF_FEC_RCR_MAX_FL(1522),
+			MCF_FEC_RCR_MAX_FL(1522) | MCF_FEC_RCR_CRC_FWD,
 			fep->enet_addr + MCF_FEC_RCR0);
 	writel(MCF_FEC_RCR_PROM | MCF_FEC_RCR_RMII_MODE |
-			MCF_FEC_RCR_MAX_FL(1522),
+			MCF_FEC_RCR_MAX_FL(1522) | MCF_FEC_RCR_CRC_FWD,
 			fep->enet_addr + MCF_FEC_RCR1);
 	/* TCR */
 	writel(MCF_FEC_TCR_FDEN, fep->enet_addr + MCF_FEC_TCR0);
@@ -3047,15 +3047,15 @@ while (!((status = bdp->cbd_sc) & BD_ENET_RX_EMPTY)) {
 	 * include that when passing upstream as it messes up
 	 * bridging applications.
 	 */
-	skb = dev_alloc_skb(pkt_len - 4 + NET_IP_ALIGN);
+	skb = dev_alloc_skb(pkt_len + NET_IP_ALIGN);
 	if (unlikely(!skb)) {
 		printk("%s: Memory squeeze, dropping packet.\n",
 			dev->name);
 		dev->stats.rx_dropped++;
 	} else {
 		skb_reserve(skb, NET_IP_ALIGN);
-		skb_put(skb, pkt_len - 4);      /* Make room */
-		skb_copy_to_linear_data(skb, data, pkt_len - 4);
+		skb_put(skb, pkt_len);      /* Make room */
+		skb_copy_to_linear_data(skb, data, pkt_len);
 		skb->protocol = eth_type_trans(skb, dev);
 		netif_rx(skb);
 	}
