@@ -26,7 +26,7 @@
  *  IRQs are already disabled.
  */
 ENTRY(mx50_ddr_freq_change)
-    stmfd   sp!, {r3,r4,r5,r6}      @ Save registers
+    stmfd   sp!, {r3,r4,r5,r6, r7}      @ Save registers
 
     mov    r6, r0                       @save CCM address
     mov    r5, r1                       @save DataBahn address
@@ -443,11 +443,14 @@ clocking:
 Async_Mode:
     /* If SYS_CLK is running at 24MHz, increase
       * it to 200MHz.
-      */
+     */
+    /* r7 indicates that we are moving from 133Mhz<-> 266MHz */
+    ldr     r7, =1
     ldr     r0, [r6, #0x90]
     and    r0, r0, #0x1
     cmp   r0, #0
     bne    Sys_Clk_Not_24
+    ldr     r7, =0
 
    /* Disable SYS_PLL_CLKGATE. */
     ldr     r0, [r6, #0x94]
@@ -517,13 +520,15 @@ Div_Found1:
     beq    databahn_ddr_24
 
 Ddr_not_24:
-
     /* Check for mDDR v LPDDR2 memory type */
     ldr    r0, [r5]
     ldr    r2, =0x100
     and    r0, r0, #0xF00
     cmp   r0, r2
     beq    mddr_not_24
+
+    cmp    r7, #1
+    beq    just_set_tref
 
     ldr     r0, =0x0000001b
     str     r0, [r5, #0x8]
@@ -555,8 +560,19 @@ Ddr_not_24:
     ldr     r0, =0x00002301
     str     r0, [r5, #0x3c]
 
+just_set_tref:
+    ldr     r0, =133333333
+    cmp   r4, r0
+    bgt    ddr_266
+    ldr     r0, =0x00050180
+    b       tref_done
+ddr_266:
     ldr     r0, =0x00050300
+tref_done:
     str     r0, [r5, #0x40]
+
+    cmp    r7, #1
+    beq    Setup_Done
 
     ldr     r0, =0x00260026
     str     r0, [r5, #0x48]
@@ -654,6 +670,9 @@ Ddr_not_24:
 
 mddr_not_24:
     /* mDDR settings */
+    cmp    r7, #1
+    beq    just_set_tref_mddr
+
     ldr     r0, =0x00009c40
     str     r0, [r5, #0x8]
 
@@ -680,8 +699,19 @@ mddr_not_24:
     ldr     r0, =0x00001401
     str     r0, [r5, #0x3c]
 
+just_set_tref_mddr:
+    ldr     r0, =133333333
+    cmp   r4, r0
+    bgt    mddr_200
+    ldr     r0, =0x00050208
+    b       tref_done1
+mddr_200:
     ldr     r0, =0x0005030f
+tref_done1:
     str     r0, [r5, #0x40]
+
+    cmp    r7, #1
+    beq    Setup_Done
 
     ldr     r0, =0x00180018
     str     r0, [r5, #0x48]
@@ -767,6 +797,7 @@ Setup_Done:
     ldr     r0, =24000000
     cmp   r4, r0
     beq    Exit_Self_Refresh
+
 DllLock:
     ldr     r0, [r5, #0xa8]
     and    r0, r0, #0x100
@@ -792,7 +823,7 @@ LoopCKE1:
     str     r1,[r5, #0x50]
 
     /* Restore registers */
-    ldmfd sp!, {r3,r4,r5,r6}
+    ldmfd sp!, {r3,r4,r5,r6, r7}
     mov     pc, lr
 
     .type   mx50_do_ddr_freq_change, #object

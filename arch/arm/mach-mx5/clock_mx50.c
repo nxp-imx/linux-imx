@@ -95,13 +95,14 @@ void __iomem *databahn;
 
 #define MAX_AXI_A_CLK_MX50 	400000000
 #define MAX_AXI_B_CLK_MX50 	200000000
-#define MAX_AHB_CLK		133000000
+#define MAX_AHB_CLK		133333333
 #define MAX_EMI_SLOW_CLK	133000000
 
 extern int mxc_jtag_enabled;
 extern int uart_at_24;
 extern int cpufreq_trig_needed;
 extern int low_bus_freq_mode;
+extern int med_bus_freq_mode;
 
 static int cpu_clk_set_wp(int wp);
 extern struct cpu_wp *(*get_cpu_wp)(int *wp);
@@ -827,7 +828,7 @@ static unsigned long _clk_main_bus_get_rate(struct clk *clk)
 {
 	u32 div = 0;
 
-	if (dvfs_per_divider_active() || low_bus_freq_mode)
+	if (med_bus_freq_mode)
 		div  = (__raw_readl(MXC_CCM_CDCR) & 0x3);
 	return clk_get_rate(clk->parent) / (div + 1);
 }
@@ -2090,7 +2091,7 @@ static struct clk esdhc1_clk[] = {
 	 .enable_shift = MXC_CCM_CCGRx_CG1_OFFSET,
 	 .disable = _clk_disable,
 	 .secondary = &esdhc1_clk[1],
-	.flags = AHB_HIGH_SET_POINT | CPU_FREQ_TRIG_UPDATE,
+	.flags = AHB_MED_SET_POINT | CPU_FREQ_TRIG_UPDATE,
 	 },
 	{
 	 .id = 0,
@@ -2134,7 +2135,7 @@ static struct clk esdhc2_clk[] = {
 	 .enable_shift = MXC_CCM_CCGRx_CG3_OFFSET,
 	 .disable = _clk_disable,
 	 .secondary = &esdhc2_clk[1],
-	.flags = AHB_HIGH_SET_POINT | CPU_FREQ_TRIG_UPDATE,
+	.flags = AHB_MED_SET_POINT | CPU_FREQ_TRIG_UPDATE,
 	 },
 	{
 	 .id = 1,
@@ -2218,7 +2219,7 @@ static struct clk esdhc3_clk[] = {
 	 .enable_shift = MXC_CCM_CCGRx_CG5_OFFSET,
 	 .disable = _clk_disable,
 	 .secondary = &esdhc3_clk[1],
-	.flags = AHB_HIGH_SET_POINT | CPU_FREQ_TRIG_UPDATE,
+	.flags = AHB_MED_SET_POINT | CPU_FREQ_TRIG_UPDATE,
 	 },
 	{
 	 .id = 2,
@@ -2262,7 +2263,7 @@ static struct clk esdhc4_clk[] = {
 	 .enable_shift = MXC_CCM_CCGRx_CG7_OFFSET,
 	 .disable = _clk_disable,
 	 .secondary = &esdhc4_clk[1],
-	.flags = AHB_HIGH_SET_POINT | CPU_FREQ_TRIG_UPDATE,
+	.flags = AHB_MED_SET_POINT | CPU_FREQ_TRIG_UPDATE,
 	 },
 	{
 	 .id = 3,
@@ -2638,11 +2639,39 @@ static struct clk display_axi_clk = {
 	.flags = RATE_PROPAGATES | AHB_MED_SET_POINT | CPU_FREQ_TRIG_UPDATE,
 };
 
+static int _clk_pxp_axi_enable(struct clk *clk)
+{
+	u32 reg;
+
+	_clk_enable(clk);
+
+	/* Set the auto-slow bits */
+	reg = __raw_readl(MXC_CCM_DISPLAY_AXI);
+	reg |= (MXC_CCM_DISPLAY_AXI_PXP_ASM_EN);
+	reg |= (5 << MXC_CCM_DISPLAY_AXI_PXP_ASM_DIV_OFFSET);
+	__raw_writel(reg, MXC_CCM_DISPLAY_AXI);
+
+	return 0;
+}
+
+static void _clk_pxp_axi_disable(struct clk *clk)
+{
+	u32 reg;
+
+	/* clear the auto-slow bits */
+	reg = __raw_readl(MXC_CCM_DISPLAY_AXI);
+	reg &= ~MXC_CCM_DISPLAY_AXI_PXP_ASM_EN;
+	__raw_writel(reg, MXC_CCM_DISPLAY_AXI);
+
+	_clk_disable(clk);
+}
+
+
 /* TODO: check Auto-Slow Mode */
 static struct clk pxp_axi_clk = {
 	.parent = &display_axi_clk,
-	.enable = _clk_enable,
-	.disable = _clk_disable,
+	.enable = _clk_pxp_axi_enable,
+	.disable = _clk_pxp_axi_disable,
 	.enable_reg = MXC_CCM_CCGR6,
 	.enable_shift = MXC_CCM_CCGRx_CG9_OFFSET,
 	.flags = AHB_MED_SET_POINT | CPU_FREQ_TRIG_UPDATE,
@@ -2821,12 +2850,23 @@ static int _clk_epdc_axi_enable(struct clk *clk)
 	reg |= MXC_CCM_EPDC_AXI_CLKGATE_MASK;
 	__raw_writel(reg, MXC_CCM_EPDC_AXI);
 
+	/* Set the auto-slow bits */
+	reg = __raw_readl(MXC_CCM_EPDC_AXI);
+	reg |= (MXC_CCM_EPDC_AXI_ASM_EN);
+	reg |= (5 << MXC_CCM_EPDC_AXI_ASM_DIV_OFFSET);
+	__raw_writel(reg, MXC_CCM_EPDC_AXI);
+
 	return 0;
 }
 
 static void _clk_epdc_axi_disable(struct clk *clk)
 {
 	u32 reg;
+
+	/* clear the auto-slow bits */
+	reg = __raw_readl(MXC_CCM_EPDC_AXI);
+	reg &= ~MXC_CCM_EPDC_AXI_ASM_EN;
+	__raw_writel(reg, MXC_CCM_EPDC_AXI);
 
 	reg = __raw_readl(MXC_CCM_EPDC_AXI);
 	reg &= ~MXC_CCM_EPDC_AXI_CLKGATE_MASK;
