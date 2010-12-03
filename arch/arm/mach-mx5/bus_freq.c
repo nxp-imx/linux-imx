@@ -52,12 +52,14 @@
 #define SPIN_DELAY	1000000 /* in nanoseconds */
 #define HW_QOS_DISABLE		0x70
 #define HW_QOS_DISABLE_SET		0x74
+#define HW_QOS_DISABLE_CLR		0x78
 
 DEFINE_SPINLOCK(ddr_freq_lock);
 
 static unsigned long lp_normal_rate;
 static unsigned long lp_med_rate;
 static unsigned long ddr_normal_rate;
+static unsigned long ddr_med_rate;
 static unsigned long ddr_low_rate;
 
 static struct clk *ddr_clk;
@@ -75,7 +77,6 @@ static struct clk *ahb_clk;
 static struct clk *ddr_clk;
 static struct clk *periph_apm_clk;
 static struct clk *lp_apm;
-static struct clk *osc;
 static struct clk *gpc_dvfs_clk;
 static struct clk *emi_garb_clk;
 static void __iomem *pll1_base;
@@ -88,6 +89,8 @@ struct regulator *pll_regulator;
 struct regulator *lp_regulator;
 int low_bus_freq_mode;
 int high_bus_freq_mode;
+int med_bus_freq_mode;
+
 int bus_freq_scaling_initialized;
 char *gp_reg_id = "SW1";
 char *lp_reg_id = "SW2";
@@ -110,8 +113,10 @@ struct completion voltage_change_cmpl;
 
 void enter_lpapm_mode_mx50(void);
 void enter_lpapm_mode_mx51(void);
-void exit_lpapm_mode_mx50(void);
+void exit_lpapm_mode_mx50(int high_bus_freq);
 void exit_lpapm_mode_mx51(void);
+int low_freq_bus_used(void);
+void set_ddr_freq(int ddr_freq);
 void *ddr_freq_change_iram_base;
 void (*change_ddr_freq)(void *ccm_addr, void *databahn_addr, u32 freq) = NULL;
 
@@ -129,6 +134,7 @@ struct dvfs_wp dvfs_core_setpoint[] = {
 						{29, 0, 33, 20, 10, 0x08},};
 
 static DEFINE_SPINLOCK(voltage_lock);
+struct mutex bus_freq_mutex;
 
 static void voltage_work_handler(struct work_struct *work)
 {
@@ -155,22 +161,19 @@ int set_low_bus_freq(void)
 		return 0;
 
 	if (bus_freq_scaling_initialized) {
-		/* can not enter low bus freq, when cpu is in highest freq */
-		if (clk_get_rate(cpu_clk) >
-				cpu_wp_tbl[cpu_wp_nr - 1].cpu_rate) {
-			return 0;
-		}
+		mutex_lock(&bus_freq_mutex);
 
 		stop_dvfs_per();
 
 		stop_sdram_autogating();
 		if (!cpu_is_mx53()) {
-			if (cpu_is_mx50())
+			if (cpu_is_mx50()) {
 				enter_lpapm_mode_mx50();
+			}
 			else
 				enter_lpapm_mode_mx51();
 
-		} else if (cpu_is_mx53()) {
+		} else {
 			/*Change the DDR freq to 133Mhz. */
 			clk_set_rate(ddr_hf_clk,
 			     clk_round_rate(ddr_hf_clk, ddr_low_rate));
@@ -209,6 +212,7 @@ int set_low_bus_freq(void)
 			/* keep this infront of propagating */
 			low_bus_freq_mode = 1;
 			high_bus_freq_mode = 0;
+			med_bus_freq_mode = 0;
 
 			if (clk_get_usecount(pll1) == 0) {
 				reg = __raw_readl(pll1_base + MXC_PLL_DP_CTL);
@@ -221,6 +225,7 @@ int set_low_bus_freq(void)
 				__raw_writel(reg, pll4_base + MXC_PLL_DP_CTL);
 			}
 		}
+	mutex_unlock(&bus_freq_mutex);
 	}
 	return 0;
 }
@@ -229,31 +234,14 @@ void enter_lpapm_mode_mx50()
 {
 	u32 reg;
 	unsigned long flags;
-
 	spin_lock_irqsave(&ddr_freq_lock, flags);
-
-	local_flush_tlb_all();
-	flush_cache_all();
-
-	/* Disable all masters from accessing the DDR. */
-	reg = __raw_readl(qosc_base + HW_QOS_DISABLE);
-	reg |= 0xFFE;
-	__raw_writel(reg, qosc_base + HW_QOS_DISABLE_SET);
-	udelay(10);
-
-	/* Set the DDR to run from 24MHz.
-	 * Need to source the DDR from the SYS_CLK after
-	 * setting it into self-refresh mode. This code needs to run from iRAM.
-	 */
-	change_ddr_freq(ccm_base, databahn_base, LP_APM_CLK);
-
-	/* Enable all masters to access the DDR. */
-	reg = __raw_readl(qosc_base + HW_QOS_DISABLE);
-	reg = 0x0;
-	__raw_writel(reg, qosc_base + HW_QOS_DISABLE);
-
-	udelay(100);
-
+	/* can not enter low bus freq, when cpu is in highest freq */
+	if (clk_get_rate(cpu_clk) !=
+			cpu_wp_tbl[cpu_wp_nr - 1].cpu_rate) {
+		spin_unlock_irqrestore(&ddr_freq_lock, flags);
+		return;
+	}
+	set_ddr_freq(LP_APM_CLK);
 	/* Set the parent of main_bus_clk to be PLL3 */
 	clk_set_parent(main_bus_clk, pll3);
 
@@ -276,6 +264,7 @@ void enter_lpapm_mode_mx50()
 
 	low_bus_freq_mode = 1;
 	high_bus_freq_mode = 0;
+	med_bus_freq_mode = 0;
 
 	/* Set the source of main_bus_clk to be lp-apm. */
 	clk_set_parent(main_bus_clk, lp_apm);
@@ -322,6 +311,12 @@ void enter_lpapm_mode_mx50()
 void enter_lpapm_mode_mx51()
 {
 	u32 reg;
+
+	/* can not enter low bus freq, when cpu is in highest freq */
+	if (clk_get_rate(cpu_clk) !=
+			cpu_wp_tbl[cpu_wp_nr - 1].cpu_rate) {
+		return;
+	}
 
 	/* Set PLL3 to 133Mhz if no-one is using it. */
 	if (clk_get_usecount(pll3) == 0) {
@@ -376,6 +371,15 @@ int set_high_bus_freq(int high_bus_freq)
 	struct timespec curtime;
 
 	if (bus_freq_scaling_initialized) {
+		mutex_lock(&bus_freq_mutex);
+		/*
+		 * If the CPU freq is 800MHz, set the bus to the high
+		 * setpoint (133MHz) and DDR to 200MHz.
+		 */
+		if ((clk_get_rate(cpu_clk) !=
+				cpu_wp_tbl[cpu_wp_nr - 1].cpu_rate)
+				|| lp_high_freq)
+			high_bus_freq = 1;
 
 		stop_sdram_autogating();
 
@@ -383,7 +387,7 @@ int set_high_bus_freq(int high_bus_freq)
 			/* Relock PLL3 to 133MHz */
 			if (!cpu_is_mx53()) {
 				if (cpu_is_mx50())
-					exit_lpapm_mode_mx50();
+					exit_lpapm_mode_mx50(high_bus_freq);
 				else
 					exit_lpapm_mode_mx51();
 			} else {
@@ -421,8 +425,9 @@ int set_high_bus_freq(int high_bus_freq)
 				}
 
 				/* keep this infront of propagating */
-				low_bus_freq_mode = 1;
-				high_bus_freq_mode = 0;
+				low_bus_freq_mode = 0;
+				high_bus_freq_mode = 1;
+				med_bus_freq_mode = 0;
 
 				/*Change the DDR freq to mormal_rate*/
 				clk_set_rate(ddr_hf_clk,
@@ -431,44 +436,72 @@ int set_high_bus_freq(int high_bus_freq)
 			start_dvfs_per();
 		}
 		if (bus_freq_scaling_is_active) {
-			/*
-			 * If the CPU freq is 800MHz, set the bus to the high
-			 * setpoint (133MHz) and DDR to 200MHz.
-			 */
-			if (clk_get_rate(cpu_clk) !=
-					cpu_wp_tbl[cpu_wp_nr - 1].cpu_rate)
-				high_bus_freq = 1;
+			if (!high_bus_freq_mode && high_bus_freq) {
+				if (cpu_is_mx50()) {
+					if (med_bus_freq_mode) {
+						/* Set the dividers to the default dividers */
+						reg = __raw_readl(MXC_CCM_CBCDR);
+						reg &= ~(MXC_CCM_CBCDR_AXI_A_PODF_MASK
+							| MXC_CCM_CBCDR_AXI_B_PODF_MASK
+							| MXC_CCM_CBCDR_AHB_PODF_MASK
+							| MX50_CCM_CBCDR_WEIM_PODF_MASK);
+						reg |= (0 << MXC_CCM_CBCDR_AXI_A_PODF_OFFSET
+							|1 << MXC_CCM_CBCDR_AXI_B_PODF_OFFSET
+							|2 << MXC_CCM_CBCDR_AHB_PODF_OFFSET
+							|0 << MX50_CCM_CBCDR_WEIM_PODF_OFFSET);
+						__raw_writel(reg, MXC_CCM_CBCDR);
 
-			if (((clk_get_rate(ahb_clk) == lp_med_rate)
-					&& lp_high_freq) || high_bus_freq) {
+						while (__raw_readl(MXC_CCM_CDHIPR) & 0xF)
+							udelay(10);
+					}
+				} else {
+					clk_set_rate(ahb_clk,
+						clk_round_rate(ahb_clk,
+							lp_normal_rate));
+					clk_set_rate(ddr_hf_clk,
+						clk_round_rate(ddr_hf_clk,
+							ddr_normal_rate));
+				}
 				/* Set to the high setpoint. */
 				high_bus_freq_mode = 1;
+				low_bus_freq_mode = 0;
+				med_bus_freq_mode = 0;
+			} else if (!med_bus_freq_mode && !high_bus_freq) {
+				if (cpu_is_mx50()) {
+					/* Set the dividers to the medium setpoint dividers */
+					reg = __raw_readl(MXC_CCM_CBCDR);
+					reg &= ~(MXC_CCM_CBCDR_AXI_A_PODF_MASK
+						| MXC_CCM_CBCDR_AXI_B_PODF_MASK
+						| MXC_CCM_CBCDR_AHB_PODF_MASK
+						| MX50_CCM_CBCDR_WEIM_PODF_MASK);
+					reg |= (1 << MXC_CCM_CBCDR_AXI_A_PODF_OFFSET
+						|3 << MXC_CCM_CBCDR_AXI_B_PODF_OFFSET
+						|5 << MXC_CCM_CBCDR_AHB_PODF_OFFSET
+						|0 << MX50_CCM_CBCDR_WEIM_PODF_OFFSET);
+					__raw_writel(reg, MXC_CCM_CBCDR);
 
-				clk_set_rate(ahb_clk,
-				clk_round_rate(ahb_clk, lp_normal_rate));
-
-				clk_set_rate(ddr_hf_clk,
-				clk_round_rate(ddr_hf_clk, ddr_normal_rate));
-			}
-
-			if (!lp_high_freq && !high_bus_freq) {
+					while (__raw_readl(MXC_CCM_CDHIPR) & 0xF)
+						udelay(10);
+				} else {
+					clk_set_rate(ddr_hf_clk,
+						clk_round_rate(ddr_hf_clk,
+						ddr_low_rate));
+					clk_set_rate(ahb_clk,
+					  clk_round_rate(ahb_clk, lp_med_rate));
+				}
 				/* Set to the medium setpoint. */
 				high_bus_freq_mode = 0;
 				low_bus_freq_mode = 0;
-
-				clk_set_rate(ddr_hf_clk,
-				clk_round_rate(ddr_hf_clk, ddr_low_rate));
-
-				clk_set_rate(ahb_clk,
-					clk_round_rate(ahb_clk, lp_med_rate));
+				med_bus_freq_mode = 1;
 			}
 		}
 		start_sdram_autogating();
+		mutex_unlock(&bus_freq_mutex);
 	}
 	return 0;
 }
 
-void exit_lpapm_mode_mx50()
+void exit_lpapm_mode_mx50(int high_bus_freq)
 {
 	u32 reg;
 	unsigned long flags;
@@ -526,44 +559,54 @@ void exit_lpapm_mode_mx50()
 
 	clk_set_parent(main_bus_clk, pll3);
 
-	/* Set the dividers to the default dividers */
-	reg = __raw_readl(MXC_CCM_CBCDR);
-	reg &= ~(MXC_CCM_CBCDR_AXI_A_PODF_MASK
-		| MXC_CCM_CBCDR_AXI_B_PODF_MASK
-		| MXC_CCM_CBCDR_AHB_PODF_MASK
-		| MX50_CCM_CBCDR_WEIM_PODF_MASK);
-	reg |= (0 << MXC_CCM_CBCDR_AXI_A_PODF_OFFSET
-		|1 << MXC_CCM_CBCDR_AXI_B_PODF_OFFSET
-		|2 << MXC_CCM_CBCDR_AHB_PODF_OFFSET
-		|0 << MX50_CCM_CBCDR_WEIM_PODF_OFFSET);
-	__raw_writel(reg, MXC_CCM_CBCDR);
+	if (bus_freq_scaling_is_active && !high_bus_freq) {
+		/* Set the dividers to the medium setpoint dividers */
+		reg = __raw_readl(MXC_CCM_CBCDR);
+		reg &= ~(MXC_CCM_CBCDR_AXI_A_PODF_MASK
+			| MXC_CCM_CBCDR_AXI_B_PODF_MASK
+			| MXC_CCM_CBCDR_AHB_PODF_MASK
+			| MX50_CCM_CBCDR_WEIM_PODF_MASK);
+		reg |= (1 << MXC_CCM_CBCDR_AXI_A_PODF_OFFSET
+			|3 << MXC_CCM_CBCDR_AXI_B_PODF_OFFSET
+			|5 << MXC_CCM_CBCDR_AHB_PODF_OFFSET
+			|0 << MX50_CCM_CBCDR_WEIM_PODF_OFFSET);
+		__raw_writel(reg, MXC_CCM_CBCDR);
 
-	while (__raw_readl(MXC_CCM_CDHIPR) & 0xF)
-		udelay(10);
+		while (__raw_readl(MXC_CCM_CDHIPR) & 0xF)
+			udelay(10);
 
-	low_bus_freq_mode = 0;
-	high_bus_freq_mode = 1;
+		/*Set the main_bus_clk parent to be PLL2. */
+		clk_set_parent(main_bus_clk, pll2);
 
-	/*Set the main_bus_clk parent to be PLL2. */
-	clk_set_parent(main_bus_clk, pll2);
+		/* Set to the medium setpoint. */
+		high_bus_freq_mode = 0;
+		low_bus_freq_mode = 0;
+		med_bus_freq_mode = 1;
+	} else {
+		/* Set the dividers to the default dividers */
+		reg = __raw_readl(MXC_CCM_CBCDR);
+		reg &= ~(MXC_CCM_CBCDR_AXI_A_PODF_MASK
+			| MXC_CCM_CBCDR_AXI_B_PODF_MASK
+			| MXC_CCM_CBCDR_AHB_PODF_MASK
+			| MX50_CCM_CBCDR_WEIM_PODF_MASK);
+		reg |= (0 << MXC_CCM_CBCDR_AXI_A_PODF_OFFSET
+			|1 << MXC_CCM_CBCDR_AXI_B_PODF_OFFSET
+			|2 << MXC_CCM_CBCDR_AHB_PODF_OFFSET
+			|0 << MX50_CCM_CBCDR_WEIM_PODF_OFFSET);
+		__raw_writel(reg, MXC_CCM_CBCDR);
 
-	/* Disable all masters from accessing the DDR. */
-	reg = __raw_readl(qosc_base + HW_QOS_DISABLE);
-	reg |= 0xFFE;
-	__raw_writel(reg, qosc_base + HW_QOS_DISABLE_SET);
-		udelay(10);
+		while (__raw_readl(MXC_CCM_CDHIPR) & 0xF)
+			udelay(10);
 
-	local_flush_tlb_all();
-	flush_cache_all();
+		/*Set the main_bus_clk parent to be PLL2. */
+		clk_set_parent(main_bus_clk, pll2);
 
-	/* Set the DDR to default freq.
-	 */
-	change_ddr_freq(ccm_base, databahn_base, ddr_normal_rate);
-
-	/* Enable all masters to access the DDR. */
-	reg = __raw_readl(qosc_base + HW_QOS_DISABLE);
-	reg = 0x0;
-	__raw_writel(reg, qosc_base + HW_QOS_DISABLE);
+		/* Set to the high setpoint. */
+		high_bus_freq_mode = 1;
+		low_bus_freq_mode = 0;
+		med_bus_freq_mode = 0;
+	}
+	set_ddr_freq(ddr_normal_rate);
 
 	spin_unlock_irqrestore(&ddr_freq_lock, flags);
 
@@ -573,7 +616,6 @@ void exit_lpapm_mode_mx50()
 void exit_lpapm_mode_mx51()
 {
 	u32 reg;
-
 
 	/* Temporarily Set the dividers  is PLL3.
 	 * No clock rate is above 133MHz.
@@ -628,6 +670,32 @@ void exit_lpapm_mode_mx51()
 	    clk_round_rate(ddr_hf_clk, ddr_normal_rate));
 }
 
+void set_ddr_freq(int ddr_rate)
+{
+	u32 reg;
+	unsigned long flags;
+
+	spin_lock_irqsave(&ddr_freq_lock, flags);
+	local_flush_tlb_all();
+	flush_cache_all();
+
+	/* Disable all masters from accessing the DDR. */
+	reg = __raw_readl(qosc_base + HW_QOS_DISABLE);
+	reg |= 0xFFE;
+	__raw_writel(reg, qosc_base + HW_QOS_DISABLE_SET);
+	udelay(100);
+
+	/* Set the DDR to default freq.
+	 */
+	change_ddr_freq(ccm_base, databahn_base, ddr_rate);
+
+	/* Enable all masters to access the DDR. */
+	__raw_writel(reg, qosc_base + HW_QOS_DISABLE_CLR);
+
+	spin_unlock_irqrestore(&ddr_freq_lock, flags);
+	udelay(100);
+}
+
 int low_freq_bus_used(void)
 {
 	if ((lp_high_freq == 0)
@@ -662,13 +730,13 @@ static ssize_t bus_freq_scaling_enable_store(struct device *dev,
 				 enabled when DVFS-PER is active\n");
 			return size;
 		}
-
-		/* Initialize DVFS-PODF to 0. */
-		reg = __raw_readl(MXC_CCM_CDCR);
-		reg &= ~MXC_CCM_CDCR_PERIPH_CLK_DVFS_PODF_MASK;
-		__raw_writel(reg, MXC_CCM_CDCR);
-		clk_set_parent(main_bus_clk, pll2);
-
+		if (!cpu_is_mx50()) {
+			/* Initialize DVFS-PODF to 0. */
+			reg = __raw_readl(MXC_CCM_CDCR);
+			reg &= ~MXC_CCM_CDCR_PERIPH_CLK_DVFS_PODF_MASK;
+			__raw_writel(reg, MXC_CCM_CDCR);
+			clk_set_parent(main_bus_clk, pll2);
+		}
 		bus_freq_scaling_is_active = 1;
 		set_high_bus_freq(0);
 	} else if (strncmp(buf, "0", 1) == 0) {
@@ -864,7 +932,9 @@ static int __devinit busfreq_probe(struct platform_device *pdev)
 			ddr_low_rate = pll2_rate / 3;
 		} else if (cpu_is_mx50()) {
 			ddr_normal_rate = clk_get_rate(ddr_clk);
+			lp_med_rate = pll2_rate / 6;
 			ddr_low_rate = LP_APM_CLK;
+			ddr_med_rate = pll2_rate / 3;
 		}
 	}
 
@@ -900,9 +970,11 @@ static int __devinit busfreq_probe(struct platform_device *pdev)
 	cpu_wp_tbl = get_cpu_wp(&cpu_wp_nr);
 	low_bus_freq_mode = 0;
 	high_bus_freq_mode = 1;
+	med_bus_freq_mode = 0;
 	bus_freq_scaling_is_active = 0;
 	bus_freq_scaling_initialized = 1;
 
+	mutex_init(&bus_freq_mutex);
 	return 0;
 }
 

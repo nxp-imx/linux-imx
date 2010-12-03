@@ -371,7 +371,7 @@ static struct mxc_dvfs_platform_data dvfs_core_data = {
 	.pncthr_val = 33,
 	.upcnt_val = 10,
 	.dncnt_val = 10,
-	.delay_time = 30,
+	.delay_time = 80,
 	.num_wp = 2,
 };
 
