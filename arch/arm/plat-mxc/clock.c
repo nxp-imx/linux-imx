@@ -49,6 +49,7 @@ extern int lp_high_freq;
 extern int lp_med_freq;
 extern int low_bus_freq_mode;
 extern int high_bus_freq_mode;
+extern int med_bus_freq_mode;
 extern int set_high_bus_freq(int high_freq);
 extern int set_low_bus_freq(void);
 extern int low_freq_bus_used(void);
@@ -188,16 +189,16 @@ int clk_enable(struct clk *clk)
 				(AHB_HIGH_SET_POINT | AHB_MED_SET_POINT)))
 				set_low_bus_freq();
 		} else {
-			if (!high_bus_freq_mode)
-				/* Currently at ow or medium set point,
+			if ((clk->flags & AHB_MED_SET_POINT)
+				&& !med_bus_freq_mode)
+				/* Set to Medium setpoint */
+				set_high_bus_freq(0);
+			else if ((clk->flags & AHB_HIGH_SET_POINT)
+				&& !high_bus_freq_mode)
+				/* Currently at low or medium set point,
 				  * need to set to high setpoint
 				  */
-				set_high_bus_freq(0);
-			else if (high_bus_freq_mode || low_bus_freq_mode)
-				/* Currently at low or high set point,
-				  * need to set to medium setpoint
-				  */
-				set_high_bus_freq(0);
+				set_high_bus_freq(1);
 		}
 #endif
 	}
@@ -241,8 +242,17 @@ void clk_disable(struct clk *clk)
 #if (defined(CONFIG_ARCH_MX5) || defined(CONFIG_ARCH_MX37))
 		if (low_freq_bus_used() && !low_bus_freq_mode)
 			set_low_bus_freq();
-		else if (!high_bus_freq_mode)
+		else if ((clk->flags & AHB_MED_SET_POINT)
+			&& !med_bus_freq_mode)
+			/* Currently at low need to set to medium setpoint
+			  */
 			set_high_bus_freq(0);
+		else if ((clk->flags & AHB_HIGH_SET_POINT)
+			&& !high_bus_freq_mode)
+			/* Currently at low or medium set point,
+			  * need to set to high setpoint
+			  */
+			set_high_bus_freq(1);
 #endif
 	}
 }
