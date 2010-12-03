@@ -814,12 +814,14 @@ static int ldb_probe(struct platform_device *pdev)
 
 	for (i = 0; i < num_registered_fb; i++) {
 		if (registered_fb[i]->var.vmode == FB_VMODE_NONINTERLACED) {
-			ldb.fbi[i] = registered_fb[i];
-
-			mode = fb_match_mode(&ldb.fbi[i]->var, &ldb.modelist);
+			mode = fb_match_mode(&registered_fb[i]->var,
+						&ldb.modelist);
 			if (mode) {
 				dev_dbg(g_ldb_dev, "fb mode found\n");
+				ldb.fbi[i] = registered_fb[i];
 				fb_videomode_to_var(&ldb.fbi[i]->var, mode);
+			} else if (i == 0 && ldb.chan_mode_opt != LDB_SEP) {
+				continue;
 			} else {
 				dev_warn(g_ldb_dev,
 						"can't find video mode\n");
@@ -870,7 +872,7 @@ static int ldb_probe(struct platform_device *pdev)
 			if (i == 0)
 				primary = true;
 
-			if (ldb.fbi[1] != NULL)
+			if (ldb.fbi[1] != NULL || ldb.chan_mode_opt != LDB_SEP)
 				break;
 		}
 	}
