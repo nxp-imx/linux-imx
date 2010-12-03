@@ -269,6 +269,7 @@ static int set_cpu_freq(int wp)
 		/* Set ARM_PODF */
 		reg &= 0xFFFFFFF8;
 		reg |= arm_podf;
+		spin_lock_irqsave(&mxc_dvfs_core_lock, flags);
 
 		reg1 = __raw_readl(ccm_base + dvfs_data->ccm_cdhipr_offset);
 		if ((reg1 & 0x00010000) == 0)
@@ -278,13 +279,6 @@ static int set_cpu_freq(int wp)
 			printk(KERN_DEBUG "ARM_PODF still in busy!!!!\n");
 			return 0;
 		}
-
-		/* START the GPC main control FSM */
-		reg = __raw_readl(gpc_base + dvfs_data->gpc_cntr_offset);
-		reg |= MXC_GPCCNTR_FUPD;
-		/* ADU=1, select ARM domain */
-		reg |= MXC_GPCCNTR_ADU;
-		__raw_writel(reg, gpc_base + dvfs_data->gpc_cntr_offset);
 		/* set VINC */
 		reg = __raw_readl(gpc_base + dvfs_data->gpc_vcr_offset);
 		reg &=
@@ -296,8 +290,14 @@ static int set_cpu_freq(int wp)
 		__raw_writel(reg, gpc_base + dvfs_data->gpc_vcr_offset);
 
 		reg = __raw_readl(gpc_base + dvfs_data->gpc_cntr_offset);
-		reg &= (~(MXC_GPCCNTR_ADU | MXC_GPCCNTR_FUPD));
-		reg |= MXC_GPCCNTR_ADU | MXC_GPCCNTR_FUPD | MXC_GPCCNTR_STRT;
+		reg &= (~(MXC_GPCCNTR_ADU | MXC_GPCCNTR_FUPD
+				| MXC_GPCCNTR_STRT));
+		__raw_writel(reg, gpc_base + dvfs_data->gpc_cntr_offset);
+		reg = __raw_readl(gpc_base + dvfs_data->gpc_cntr_offset);
+		reg |= MXC_GPCCNTR_ADU | MXC_GPCCNTR_FUPD;
+		__raw_writel(reg, gpc_base + dvfs_data->gpc_cntr_offset);
+		reg = __raw_readl(gpc_base + dvfs_data->gpc_cntr_offset);
+		reg |= MXC_GPCCNTR_STRT;
 		__raw_writel(reg, gpc_base + dvfs_data->gpc_cntr_offset);
 
 		/* Wait for arm podf Enable */
@@ -306,6 +306,7 @@ static int set_cpu_freq(int wp)
 			printk(KERN_DEBUG "Waiting arm_podf enabled!\n");
 			udelay(10);
 		}
+		spin_unlock_irqrestore(&mxc_dvfs_core_lock, flags);
 
 		if (vinc == 0) {
 			ret = regulator_set_voltage(core_regulator,
@@ -327,7 +328,6 @@ static int set_cpu_freq(int wp)
 		cpufreq_trig_needed = 1;
 #endif
 	old_wp = wp;
-
 	return ret;
 }
 
@@ -458,7 +458,6 @@ static void dvfs_core_work_handler(struct work_struct *work)
 		goto END;
 	}
 	curr_cpu = clk_get_rate(cpu_clk);
-
 	/* If FSVAI indicate freq down,
 	   check arm-clk is not in lowest frequency 200 MHz */
 	if (fsvai == FSVAI_FREQ_DECREASE) {
@@ -486,7 +485,7 @@ static void dvfs_core_work_handler(struct work_struct *work)
 			maxf = 1;
 			goto END;
 		} else {
-			if (low_bus_freq_mode) {
+			if (!high_bus_freq_mode && !cpu_is_mx50()) {
 				/* bump up LP freq first. */
 				bus_incr = 1;
 				dvfs_load_config(2);
@@ -512,9 +511,8 @@ static void dvfs_core_work_handler(struct work_struct *work)
 			cpu_dcr = 0;
 		}
 	} else {
-		if (low_bus_freq_mode)
-			set_high_bus_freq(0);
-
+		if (!high_bus_freq_mode)
+			set_high_bus_freq(1);
 		if (!bus_incr)
 			ret = set_cpu_freq(curr_wp);
 		bus_incr = 0;
