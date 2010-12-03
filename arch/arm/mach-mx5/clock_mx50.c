@@ -643,6 +643,7 @@ static void _clk_pll_disable(struct clk *clk)
 static struct clk pll1_main_clk = {
 	.parent = &osc_clk,
 	.get_rate = _clk_pll_get_rate,
+	.set_rate = _clk_pll_set_rate,
 	.enable = _clk_pll_enable,
 	.disable = _clk_pll_disable,
 	.flags = RATE_PROPAGATES,

@@ -156,7 +156,7 @@ int set_low_bus_freq(void)
 
 	if (bus_freq_scaling_initialized) {
 		/* can not enter low bus freq, when cpu is in highest freq */
-		if (clk_get_rate(cpu_clk) !=
+		if (clk_get_rate(cpu_clk) >
 				cpu_wp_tbl[cpu_wp_nr - 1].cpu_rate) {
 			return 0;
 		}
@@ -305,6 +305,17 @@ void enter_lpapm_mode_mx50()
 	queue_work(voltage_wq, &voltage_change_handler);
 	spin_unlock_irqrestore(&voltage_lock, flags);
 
+	if (clk_get_usecount(pll1_sw_clk) == 1) {
+		/* Relock PLL1 to 160MHz. */
+		clk_set_parent(pll1_sw_clk, pll2);
+		/* Set the divider to ARM_PODF to 3. */
+		__raw_writel(0x02, MXC_CCM_CACRR);
+
+		clk_set_rate(pll1, 160000000);
+		clk_set_parent(pll1_sw_clk, pll1);
+		/* Set the divider to ARM_PODF to 1. */
+		__raw_writel(0x0, MXC_CCM_CACRR);
+	}
 	udelay(100);
 }
 
@@ -462,6 +473,18 @@ void exit_lpapm_mode_mx50()
 	u32 reg;
 	unsigned long flags;
 
+	if (clk_get_usecount(pll1_sw_clk) == 1) {
+		/* Relock PLL1 to 800MHz. */
+		clk_set_parent(pll1_sw_clk, pll2);
+		/* Set the divider to ARM_PODF to 3, cpu is at 160MHz. */
+		__raw_writel(0x02, MXC_CCM_CACRR);
+
+		clk_set_rate(pll1, 800000000);
+		clk_set_parent(pll1_sw_clk, pll1);
+		/* Set the divider to ARM_PODF to 5. */
+		__raw_writel(0x4, MXC_CCM_CACRR);
+	}
+
 	if (!completion_done(&voltage_change_cmpl))
 		wait_for_completion_interruptible(&voltage_change_cmpl);
 	spin_lock_irqsave(&voltage_lock, flags);
@@ -543,6 +566,7 @@ void exit_lpapm_mode_mx50()
 	__raw_writel(reg, qosc_base + HW_QOS_DISABLE);
 
 	spin_unlock_irqrestore(&ddr_freq_lock, flags);
+
 	udelay(100);
 }
 
