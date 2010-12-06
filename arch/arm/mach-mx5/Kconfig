@@ -228,4 +228,9 @@ config MACH_MX50_RDP
 	  Include support for MX50 reference design platform (RDP) board. This
 	  includes specific configurations for the board and its peripherals.
 
+config MACH_IMX_BLUETOOTH_RFKILL
+       tristate "i.MX Bluetooth rfkill interface support"
+       depends on RFKILL
+       ---help---
+	Say Y to get the standard rfkill interface of Bluetooth
 endif

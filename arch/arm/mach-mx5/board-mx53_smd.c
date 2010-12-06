@@ -27,12 +27,14 @@
 #include <linux/i2c/mpr.h>
 #include <linux/fsl_devices.h>
 #include <linux/ahci_platform.h>
+#include <linux/regulator/consumer.h>
 
 #include <mach/common.h>
 #include <mach/hardware.h>
 #include <mach/imx-uart.h>
 #include <mach/iomux-mx53.h>
 #include <mach/ahci_sata.h>
+#include <mach/imx_rfkill.h>
 
 #include <asm/mach-types.h>
 #include <asm/mach/arch.h>
@@ -61,6 +63,7 @@
 #define MX53_SMD_DCDC1V8_EN	IMX_GPIO_NR(3, 1)
 #define MX53_SMD_DCDC5V_BB_EN	IMX_GPIO_NR(4, 14)
 #define MX53_SMD_ALS_INT 	IMX_GPIO_NR(3, 22)
+#define MX53_SMD_BT_RESET	IMX_GPIO_NR(3, 28)
 
 extern int mx53_smd_init_da9052(void);
 
@@ -511,6 +514,44 @@ static void __init mx53_smd_init_usb(void)
 	mx5_usbh1_init();
 }
 
+static void mx53_smd_bt_reset(void)
+{
+	gpio_request(MX53_SMD_BT_RESET, "bt-reset");
+	gpio_direction_output(MX53_SMD_BT_RESET, 0);
+	/* pull down reset pin at least >5ms */
+	mdelay(6);
+	/* pull up after power supply BT */
+	gpio_set_value(MX53_SMD_BT_RESET, 1);
+	gpio_free(MX53_SMD_BT_RESET);
+}
+
+static int mx53_smd_bt_power_change(int status)
+{
+	struct regulator *wifi_bt_pwren;
+
+	wifi_bt_pwren = regulator_get(NULL, "wifi_bt");
+	if (IS_ERR(wifi_bt_pwren)) {
+		printk(KERN_ERR "%s: regulator_get error\n", __func__);
+		return -1;
+	}
+
+	if (status) {
+		regulator_enable(wifi_bt_pwren);
+		mx53_smd_bt_reset();
+	} else
+		regulator_disable(wifi_bt_pwren);
+
+	return 0;
+}
+
+static struct platform_device imx_bt_rfkill = {
+	.name = "imx_bt_rfkill",
+};
+
+static struct imx_bt_rfkill_platform_data imx_bt_rfkill_data = {
+	.power_change = mx53_smd_bt_power_change,
+};
+
 static struct mxc_audio_platform_data smd_audio_data;
 
 static int smd_sgtl5000_init(void)
@@ -581,6 +622,7 @@ static void __init mx53_smd_board_init(void)
 	gpio_direction_input(MX53_SMD_ALS_INT);
 
 	mxc_register_device(&smd_audio_device, &smd_audio_data);
+	mxc_register_device(&imx_bt_rfkill, &imx_bt_rfkill_data);
 	imx53_add_imx_ssi(1, &smd_ssi_pdata);
 }
 
