@@ -207,4 +207,15 @@ config BT_ATH3K
 	  Say Y here to compile support for "Atheros firmware download driver"
 	  into the kernel or say M to compile it as module (ath3k).
 
+config BT_HCIUART_ATH
+        bool "Atheros AR300x Board support"
+        depends on BT_HCIUART
+        help
+          HCIATH (HCI Atheros) is a serial protocol for communication
+          between Bluetooth device and host with support for Atheros AR300x
+          power management feature. This protocol is required for
+          serial Bluetooth devices that are based on Atheros AR300x chips.
+
+          Say Y here to compile support for HCIATH protocol.
 endmenu
+
