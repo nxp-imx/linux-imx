@@ -161,6 +161,12 @@ int set_low_bus_freq(void)
 		return 0;
 
 	if (bus_freq_scaling_initialized) {
+		/* can not enter low bus freq, when cpu is in highest freq */
+		if (clk_get_rate(cpu_clk) >
+				cpu_wp_tbl[cpu_wp_nr - 1].cpu_rate) {
+			return 0;
+		}
+
 		mutex_lock(&bus_freq_mutex);
 
 		stop_dvfs_per();
@@ -235,12 +241,7 @@ void enter_lpapm_mode_mx50()
 	u32 reg;
 	unsigned long flags;
 	spin_lock_irqsave(&ddr_freq_lock, flags);
-	/* can not enter low bus freq, when cpu is in highest freq */
-	if (clk_get_rate(cpu_clk) !=
-			cpu_wp_tbl[cpu_wp_nr - 1].cpu_rate) {
-		spin_unlock_irqrestore(&ddr_freq_lock, flags);
-		return;
-	}
+
 	set_ddr_freq(LP_APM_CLK);
 	/* Set the parent of main_bus_clk to be PLL3 */
 	clk_set_parent(main_bus_clk, pll3);
@@ -312,12 +313,6 @@ void enter_lpapm_mode_mx51()
 {
 	u32 reg;
 
-	/* can not enter low bus freq, when cpu is in highest freq */
-	if (clk_get_rate(cpu_clk) !=
-			cpu_wp_tbl[cpu_wp_nr - 1].cpu_rate) {
-		return;
-	}
-
 	/* Set PLL3 to 133Mhz if no-one is using it. */
 	if (clk_get_usecount(pll3) == 0) {
 		u32 pll3_rate = clk_get_rate(pll3);
@@ -376,7 +371,7 @@ int set_high_bus_freq(int high_bus_freq)
 		 * If the CPU freq is 800MHz, set the bus to the high
 		 * setpoint (133MHz) and DDR to 200MHz.
 		 */
-		if ((clk_get_rate(cpu_clk) !=
+		if ((clk_get_rate(cpu_clk) >
 				cpu_wp_tbl[cpu_wp_nr - 1].cpu_rate)
 				|| lp_high_freq)
 			high_bus_freq = 1;
