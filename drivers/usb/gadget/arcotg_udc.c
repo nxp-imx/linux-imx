@@ -70,6 +70,7 @@
 #endif
 
 #define	DMA_ADDR_INVALID	(~(dma_addr_t)0)
+DEFINE_MUTEX(udc_resume_mutex);
 extern void usb_debounce_id_pin(void);
 static const char driver_name[] = "fsl-usb2-udc";
 static const char driver_desc[] = DRIVER_DESC;
@@ -3162,6 +3163,7 @@ static int fsl_udc_resume(struct platform_device *pdev)
 	struct fsl_usb2_wakeup_platform_data *wake_up_pdata = pdata->wakeup_pdata;
 	printk(KERN_DEBUG "USB Gadget resume begins\n");
 
+	mutex_lock(&udc_resume_mutex);
 	if (pdev->dev.power.status == DPM_RESUMING) {
 		printk(KERN_DEBUG "%s, Wait for wakeup thread finishes\n", __func__);
 		wait_event_interruptible(wake_up_pdata->wq, !wake_up_pdata->usb_wakeup_is_pending);
@@ -3170,9 +3172,17 @@ static int fsl_udc_resume(struct platform_device *pdev)
 	pr_debug("%s(): stopped %d  suspended %d\n", __func__,
 		 udc_controller->stopped, udc_controller->suspended);
 #ifdef CONFIG_USB_OTG
-	if (udc_controller->transceiver->gadget == NULL)
+	if (udc_controller->transceiver->gadget == NULL) {
+		mutex_unlock(&udc_resume_mutex);
 		return 0;
+	}
 #endif
+	/* Do noop if the udc is already at resume state */
+	if (udc_controller->suspended == 0) {
+		mutex_unlock(&udc_resume_mutex);
+		return 0;
+	}
+
 	/*
 	 * If the controller was stopped at suspend time, then
 	 * don't resume it now.
@@ -3225,6 +3235,7 @@ end:
 		dr_clk_gate(false);
 	}
 	--udc_controller->suspended;
+	mutex_unlock(&udc_resume_mutex);
 	printk(KERN_DEBUG "USB Gadget resume ends\n");
 	return 0;
 }
