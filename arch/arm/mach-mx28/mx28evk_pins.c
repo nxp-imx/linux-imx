@@ -1120,7 +1120,13 @@ int mx28evk_enet_gpio_init(void)
 	/* reset phy */
 	gpio_request(MXS_PIN_TO_GPIO(PINID_ENET0_RX_CLK), "PHY_RESET");
 	gpio_direction_output(MXS_PIN_TO_GPIO(PINID_ENET0_RX_CLK), 0);
-	mdelay(10);
+
+	/*
+	 * Before timer bug fix(set wrong match value of timer),
+	 * mdelay(10) delay 50ms actually.
+	 * So change delay to 50ms after timer issue fix.
+	 */
+	mdelay(50);
 	gpio_direction_output(MXS_PIN_TO_GPIO(PINID_ENET0_RX_CLK), 1);
 
 	return 0;
