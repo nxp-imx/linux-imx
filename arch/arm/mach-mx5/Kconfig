@@ -115,4 +115,9 @@ config SDMA_IRAM
 	help
 	  Support Internal RAM as SDMA buffer or control structures
 
+config MXC_BLUETOOTH_RFKILL
+       tristate "MXC Bluetooth rfkill interface support"
+       depends on RFKILL
+       ---help---
+	Say Y to get the standard rfkill interface of Bluetooth
 endif

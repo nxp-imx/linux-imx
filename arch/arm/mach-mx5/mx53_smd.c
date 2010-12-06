@@ -61,6 +61,7 @@
 #include <mach/iomux-mx53.h>
 #include <mach/i2c.h>
 #include <mach/mxc_iim.h>
+#include <mach/mxc_rfkill.h>
 
 #include "crm_regs.h"
 #include "devices.h"
@@ -952,6 +953,44 @@ static struct mxc_spdif_platform_data mxc_spdif_data = {
 	.spdif_clk = NULL,	/* spdif bus clk */
 };
 
+static void mx53_smd_bt_reset(void)
+{
+	gpio_request(MX53_SMD_BT_RESET, "bt-reset");
+	gpio_direction_output(MX53_SMD_BT_RESET, 0);
+	/* pull down reset pin at least >5ms */
+	mdelay(6);
+	/* pull up after power supply BT */
+	gpio_set_value(MX53_SMD_BT_RESET, 1);
+	gpio_free(MX53_SMD_BT_RESET);
+}
+
+static int mx53_smd_bt_power_change(int status)
+{
+	struct regulator *wifi_bt_pwren;
+
+	wifi_bt_pwren = regulator_get(NULL, "wifi_bt");
+	if (IS_ERR(wifi_bt_pwren)) {
+		printk(KERN_ERR "%s: regulator_get error\n", __func__);
+		return -1;
+	}
+
+	if (status) {
+		regulator_enable(wifi_bt_pwren);
+		mx53_smd_bt_reset();
+	} else
+		regulator_disable(wifi_bt_pwren);
+
+	return 0;
+}
+
+static struct platform_device mxc_bt_rfkill = {
+	.name = "mxc_bt_rfkill",
+};
+
+static struct mxc_bt_rfkill_platform_data mxc_bt_rfkill_data = {
+	.power_change = mx53_smd_bt_power_change,
+};
+
 /*!
  * Board specific fixup function. It is called by \b setup_arch() in
  * setup.c file very early on during kernel starts. It allows the user to
@@ -1156,6 +1195,7 @@ static void __init mxc_board_init(void)
 	mx5_usbh1_init();
 	mxc_register_device(&mxc_v4l2_device, NULL);
 	mxc_register_device(&mxc_v4l2out_device, NULL);
+	mxc_register_device(&mxc_bt_rfkill, &mxc_bt_rfkill_data);
 	smd_add_device_buttons();
 }
 
