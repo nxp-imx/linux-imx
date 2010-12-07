@@ -41,6 +41,7 @@
 #define	PXP_DOWNSCALE_THRESHOLD		0x4000
 
 static LIST_HEAD(head);
+static int timeout_in_ms = 600;
 
 struct pxp_dma {
 	struct dma_device dma;
@@ -680,7 +681,8 @@ static void pxp_clkoff_timer(unsigned long arg)
 	if ((pxp->pxp_ongoing == 0) && list_empty(&head))
 		schedule_work(&pxp->work);
 	else
-		mod_timer(&pxp->clk_timer, jiffies + msecs_to_jiffies(4000));
+		mod_timer(&pxp->clk_timer,
+			  jiffies + msecs_to_jiffies(timeout_in_ms));
 }
 
 static struct pxp_tx_desc *pxpdma_first_active(struct pxp_channel *pxp_chan)
@@ -765,7 +767,7 @@ static void pxpdma_dostart_work(struct pxps *pxp)
 
 	pxp_start(pxp);
 
-	mod_timer(&pxp->clk_timer, jiffies + msecs_to_jiffies(4000));
+	mod_timer(&pxp->clk_timer, jiffies + msecs_to_jiffies(timeout_in_ms));
 
 	spin_unlock_irqrestore(&pxp->lock, flags);
 }
@@ -1343,6 +1345,27 @@ static int pxp_dma_init(struct pxps *pxp)
 	return dma_async_device_register(&pxp_dma->dma);
 }
 
+static ssize_t clk_off_timeout_show(struct device *dev,
+				    struct device_attribute *attr, char *buf)
+{
+	return sprintf(buf, "%d\n", timeout_in_ms);
+}
+
+static ssize_t clk_off_timeout_store(struct device *dev,
+				     struct device_attribute *attr,
+				     const char *buf, size_t count)
+{
+	int val;
+	if (sscanf(buf, "%d", &val) > 0) {
+		timeout_in_ms = val;
+		return count;
+	}
+	return -EINVAL;
+}
+
+static DEVICE_ATTR(clk_off_timeout, 0644, clk_off_timeout_show,
+		   clk_off_timeout_store);
+
 static int pxp_probe(struct platform_device *pdev)
 {
 	struct pxps *pxp;
@@ -1401,6 +1424,12 @@ static int pxp_probe(struct platform_device *pdev)
 	if (err < 0)
 		goto err_dma_init;
 
+	if (device_create_file(&pdev->dev, &dev_attr_clk_off_timeout)) {
+		dev_err(&pdev->dev,
+			"Unable to create file from clk_off_timeout\n");
+		goto err_dma_init;
+	}
+
 	INIT_WORK(&pxp->work, clkoff_callback);
 	init_waitqueue_head(&pxp->done);
 	init_timer(&pxp->clk_timer);
@@ -1428,6 +1457,7 @@ static int __devexit pxp_remove(struct platform_device *pdev)
 	clk_disable(pxp->clk);
 	clk_put(pxp->clk);
 	iounmap(pxp->base);
+	device_remove_file(&pdev->dev, &dev_attr_clk_off_timeout);
 
 	kfree(pxp);
 
