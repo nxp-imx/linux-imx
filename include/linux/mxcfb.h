@@ -66,10 +66,14 @@ struct mxcfb_rect {
 };
 
 #define GRAYSCALE_8BIT				0x1
-#define GRAYSCALE_8BIT_INVERTED		0x2
+#define GRAYSCALE_8BIT_INVERTED			0x2
 
 #define AUTO_UPDATE_MODE_REGION_MODE		0
-#define AUTO_UPDATE_MODE_AUTOMATIC_MODE	1
+#define AUTO_UPDATE_MODE_AUTOMATIC_MODE		1
+
+#define UPDATE_SCHEME_SNAPSHOT			0
+#define UPDATE_SCHEME_QUEUE			1
+#define UPDATE_SCHEME_QUEUE_AND_MERGE		2
 
 #define UPDATE_MODE_PARTIAL			0x0
 #define UPDATE_MODE_FULL			0x1
@@ -131,10 +135,11 @@ struct mxcfb_waveform_modes {
 #define MXCFB_SET_WAVEFORM_MODES	_IOW('F', 0x2B, struct mxcfb_waveform_modes)
 #define MXCFB_SET_TEMPERATURE		_IOW('F', 0x2C, int32_t)
 #define MXCFB_SET_AUTO_UPDATE_MODE	_IOW('F', 0x2D, __u32)
-#define MXCFB_SEND_UPDATE			_IOW('F', 0x2E, struct mxcfb_update_data)
+#define MXCFB_SEND_UPDATE		_IOW('F', 0x2E, struct mxcfb_update_data)
 #define MXCFB_WAIT_FOR_UPDATE_COMPLETE	_IOW('F', 0x2F, __u32)
 #define MXCFB_SET_PWRDOWN_DELAY		_IOW('F', 0x30, int32_t)
 #define MXCFB_GET_PWRDOWN_DELAY		_IOR('F', 0x31, int32_t)
+#define MXCFB_SET_UPDATE_SCHEME		_IOW('F', 0x32, __u32)
 
 #ifdef __KERNEL__
 
