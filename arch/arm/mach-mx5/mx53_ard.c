@@ -390,7 +390,7 @@ static struct cpu_wp cpu_wp_auto[] = {
 	 .mfd = 2,
 	 .mfn = 1,
 	 .cpu_podf = 4,
-	 .cpu_voltage = 850000,},
+	 .cpu_voltage = 1000000,},
 };
 
 static struct fb_videomode video_modes[] = {
