@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2008-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -51,7 +51,7 @@
 #define UART2_UFCR_TXTL         16
 /* UART 3 configuration */
 #define UART3_UCR4_CTSTL        16
-#define UART3_DMA_ENABLE	1
+#define UART3_DMA_ENABLE	0
 #define UART3_DMA_RXBUFSIZE     1024
 #define UART3_UFCR_RXTL         16
 #define UART3_UFCR_TXTL         16
