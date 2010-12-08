@@ -767,8 +767,6 @@ static void pxpdma_dostart_work(struct pxps *pxp)
 
 	pxp_start(pxp);
 
-	mod_timer(&pxp->clk_timer, jiffies + msecs_to_jiffies(timeout_in_ms));
-
 	spin_unlock_irqrestore(&pxp->lock, flags);
 }
 
@@ -956,6 +954,7 @@ static irqreturn_t pxp_irq(int irq, void *dev_id)
 
 	wake_up(&pxp->done);
 	pxp->pxp_ongoing = 0;
+	mod_timer(&pxp->clk_timer, jiffies + msecs_to_jiffies(timeout_in_ms));
 
 	spin_unlock_irqrestore(&pxp->lock, flags);
 
