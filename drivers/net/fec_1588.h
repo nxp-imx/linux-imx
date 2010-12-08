@@ -163,7 +163,7 @@ struct fec_ptp_private {
 	spinlock_t cnt_lock;
 
 	u64	prtc;
-	struct ptp_time	txstamp;
+	struct circ_buf	txstamp;
 };
 
 #ifdef CONFIG_FEC_1588
