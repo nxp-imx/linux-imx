@@ -1173,6 +1173,7 @@ static void mxc_register_powerkey(key_press_call_back kp_cb, void *param)
 	power_key_event.param = param;
 	power_key_event.func = (void *)kp_cb;
 	pmic_event_subscribe(EVENT_PWRONI, power_key_event);
+	pmic_event_subscribe(EVENT_PWRON3I, power_key_event);
 }
 
 static struct power_key_platform_data pwrkey_data = {
