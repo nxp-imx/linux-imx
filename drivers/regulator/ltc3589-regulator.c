@@ -35,6 +35,7 @@
 #include <linux/i2c.h>
 #include <linux/delay.h>
 #include <linux/mfd/ltc3589/core.h>
+#include <mach/hardware.h>
 
 /* Register definitions */
 #define	LTC3589_REG_IRSTAT		0x02
@@ -102,11 +103,13 @@
 #define LTC3589_LDO_4			7
 /* Resistorss */
 #define LTC3589_LDO2_R1			180
-#define LTC3589_LDO2_R2			232
+#define LTC3589_LDO2_R2_TO1		232
+#define LTC3589_LDO2_R2_TO2		191
 #define LTC3589_SW1_R1			100
 #define LTC3589_SW1_R2			180
 #define LTC3589_SW2_R1			180
-#define LTC3589_SW2_R2			232
+#define LTC3589_SW2_R2_TO1		232
+#define LTC3589_SW2_R2_TO2		191
 #define LTC3589_SW3_R1			270
 #define LTC3589_SW3_R2			100
 
@@ -137,6 +140,9 @@ struct ltc_pmic {
 	const struct ltc_info *info[LTC3589_NUM_REGULATOR];
 	struct mutex io_lock;
 };
+
+static int ltc3589_ldo2_r2;
+static int ltc3589_sw2_r2;
 
 /*
  * LTC3589 Device IO
@@ -454,7 +460,7 @@ static int ltc3589_dcdc_get_voltage(struct regulator_dev *dev)
 		break;
 	case LTC3589_DCDC_2:
 		r1 = LTC3589_SW2_R1;
-		r2 = LTC3589_SW2_R2;
+		r2 = ltc3589_sw2_r2;
 		shift = LTC3589_B2DTV2_REG2_REF_INPUT_V2_SHIFT;
 		mask = LTC3589_B2DTV2_REG2_REF_INPUT_V2_MASK;
 		if (data & LTC3589_VCCR_REG2_REF_SELECT)
@@ -514,7 +520,7 @@ static int ltc3589_dcdc_set_voltage(struct regulator_dev *dev,
 		break;
 	case LTC3589_DCDC_2:
 		r1 = LTC3589_SW2_R1;
-		r2 = LTC3589_SW2_R2;
+		r2 = ltc3589_sw2_r2;
 		volt_reg1 = 0;
 		volt_reg2 = LTC3589_REG_B2DTV1;
 		slew_val = 1;
@@ -619,7 +625,7 @@ static int ltc3589_set_suspend_voltage(struct regulator_dev *dev,
 		break;
 	case LTC3589_DCDC_2:
 		r1 = LTC3589_SW2_R1;
-		r2 = LTC3589_SW2_R2;
+		r2 = ltc3589_sw2_r2;
 		volt_reg1 = LTC3589_REG_B2DTV2;
 		shift = LTC3589_B2DTV2_REG2_REF_INPUT_V2_SHIFT;
 		mask = LTC3589_B2DTV2_REG2_REF_INPUT_V2_MASK;
@@ -705,8 +711,8 @@ static int ltc3589_ldo_get_voltage(struct regulator_dev *dev)
 
 		data >>= LTC3589_L2DTV2_LDO2_REF_INPUT_V2_SHIFT;
 		data &= LTC3589_L2DTV2_LDO2_REF_INPUT_V2_MASK;
-		uV = (((LTC3589_LDO2_R1 + LTC3589_LDO2_R2)
-			* (362500 + data * 12500)) / LTC3589_LDO2_R2);
+		uV = (((LTC3589_LDO2_R1 + ltc3589_ldo2_r2)
+			* (362500 + data * 12500)) / ltc3589_ldo2_r2);
 		return uV;
 	}
 
@@ -771,9 +777,9 @@ static int ltc3589_ldo_set_voltage(struct regulator_dev *dev,
 	} else {
 		int dac_vol;
 
-		dac_vol = ((min_uV * LTC3589_LDO2_R2 -
-			    362500 * (LTC3589_LDO2_R1 + LTC3589_LDO2_R2))
-			    / (12500 * (LTC3589_LDO2_R1 + LTC3589_LDO2_R2)));
+		dac_vol = ((min_uV * ltc3589_ldo2_r2 -
+			    362500 * (LTC3589_LDO2_R1 + ltc3589_ldo2_r2))
+			    / (12500 * (LTC3589_LDO2_R1 + ltc3589_ldo2_r2)));
 		if ((dac_vol > 0x1F) || (dac_vol < 0))
 			return -EINVAL;
 
@@ -953,6 +959,14 @@ static int ltc3589_regulator_probe(struct platform_device *pdev)
 
 	if (pdev->id < LTC3589_DCDC_1 || pdev->id > LTC3589_LDO4)
 		return -ENODEV;
+
+	if (cpu_is_mx53_rev(CHIP_REV_2_0) >= 1) {
+		ltc3589_ldo2_r2 = LTC3589_LDO2_R2_TO2;
+		ltc3589_sw2_r2 = LTC3589_SW2_R2_TO2;
+	} else {
+		ltc3589_ldo2_r2 = LTC3589_LDO2_R2_TO1;
+		ltc3589_sw2_r2 = LTC3589_SW2_R2_TO1;
+	}
 
 	/* register regulator */
 	rdev = regulator_register(&ltc3589_reg[pdev->id], &pdev->dev,
