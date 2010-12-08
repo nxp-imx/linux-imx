@@ -61,7 +61,9 @@
 #endif
 
 static DECLARE_WAIT_QUEUE_HEAD(ptp_rx_ts_wait);
+static DECLARE_WAIT_QUEUE_HEAD(ptp_tx_ts_wait);
 #define PTP_GET_RX_TIMEOUT	(HZ/10)
+#define PTP_GET_TX_TIMEOUT      (HZ/100)
 
 static struct fec_ptp_private *ptp_private;
 static void ptp_rtc_get_current_time(struct ptp *p_ptp,
@@ -69,10 +71,9 @@ static void ptp_rtc_get_current_time(struct ptp *p_ptp,
 static struct ptp *ptp_dev;
 
 /* The ring resource create and manage */
-static int fec_ptp_init_circ(struct circ_buf *ptp_buf)
+static int fec_ptp_init_circ(struct circ_buf *ptp_buf, int size)
 {
-	ptp_buf->buf = vmalloc(DEFAULT_PTP_RX_BUF_SZ *
-					sizeof(struct fec_ptp_data_t));
+	ptp_buf->buf = vmalloc(size * sizeof(struct fec_ptp_data_t));
 
 	if (!ptp_buf->buf)
 		return 1;
@@ -92,11 +93,10 @@ static int fec_ptp_is_empty(struct circ_buf *buf)
 	return (buf->head == buf->tail);
 }
 
-static int fec_ptp_nelems(struct circ_buf *buf)
+static int fec_ptp_nelems(struct circ_buf *buf, int size)
 {
 	const int front = buf->head;
 	const int end = buf->tail;
-	const int size = DEFAULT_PTP_RX_BUF_SZ;
 	int n_items;
 
 	if (end > front)
@@ -109,10 +109,9 @@ static int fec_ptp_nelems(struct circ_buf *buf)
 	return n_items;
 }
 
-static int fec_ptp_is_full(struct circ_buf *buf)
+static int fec_ptp_is_full(struct circ_buf *buf, int size)
 {
-	if (fec_ptp_nelems(buf) ==
-				(DEFAULT_PTP_RX_BUF_SZ - 1))
+	if (fec_ptp_nelems(buf, size) == (size - 1))
 		return 1;
 	else
 		return 0;
@@ -120,34 +119,34 @@ static int fec_ptp_is_full(struct circ_buf *buf)
 
 static int fec_ptp_insert(struct circ_buf *ptp_buf,
 			  struct fec_ptp_data_t *data,
-			  struct fec_ptp_private *priv)
+			  struct fec_ptp_private *priv,
+			  int size)
 {
 	struct fec_ptp_data_t *tmp;
 
-	if (fec_ptp_is_full(ptp_buf))
+	if (fec_ptp_is_full(ptp_buf, size))
 		return 1;
 
 	spin_lock(&priv->ptp_lock);
 	tmp = (struct fec_ptp_data_t *)(ptp_buf->buf) + ptp_buf->tail;
 
 	tmp->key = data->key;
+	memcpy(tmp->spid, data->spid, 10);
 	tmp->ts_time.sec = data->ts_time.sec;
 	tmp->ts_time.nsec = data->ts_time.nsec;
 
-	ptp_buf->tail = fec_ptp_calc_index(DEFAULT_PTP_RX_BUF_SZ,
-					ptp_buf->tail, 1);
+	ptp_buf->tail = fec_ptp_calc_index(size, ptp_buf->tail, 1);
 	spin_unlock(&priv->ptp_lock);
 
 	return 0;
 }
 
 static int fec_ptp_find_and_remove(struct circ_buf *ptp_buf,
-				   int key,
 				   struct fec_ptp_data_t *data,
-				   struct fec_ptp_private *priv)
+				   struct fec_ptp_private *priv,
+				   int size)
 {
 	int i;
-	int size = DEFAULT_PTP_RX_BUF_SZ;
 	int end = ptp_buf->tail;
 	unsigned long flags;
 	struct fec_ptp_data_t *tmp;
@@ -159,7 +158,8 @@ static int fec_ptp_find_and_remove(struct circ_buf *ptp_buf,
 	tmp = (struct fec_ptp_data_t *)(ptp_buf->buf) + i;
 	while (i != end) {
 		tmp = (struct fec_ptp_data_t *)(ptp_buf->buf) + i;
-		if (tmp->key == key)
+		if (tmp->key == data->key &&
+				!memcmp(tmp->spid, data->spid, 10))
 			break;
 		i = fec_ptp_calc_index(size, i, 1);
 	}
@@ -530,15 +530,108 @@ static void init_ptp_parser(struct ptp *p_ptp)
 }
 
 /* compatible with MXS 1588 */
-void fec_ptp_store_txstamp(struct fec_ptp_private *priv)
+#ifdef CONFIG_IN_BAND
+void fec_ptp_store_txstamp(struct fec_ptp_private *priv,
+			   struct sk_buff *skb,
+			   struct bufdesc *bdp)
+{
+	int msg_type, seq_id, control;
+	struct fec_ptp_data_t tmp_tx_time, tmp;
+	struct fec_ptp_private *fpp = priv;
+	struct ptp *p_ptp = ptp_dev;
+	int flag;
+	unsigned char *sp_id;
+	unsigned short portnum;
+	u64 timestamp;
+
+	/* Check for PTP Event */
+	if ((bdp->cbd_sc & BD_ENET_TX_PTP) == 0)
+		return;
+
+	/* Get ts from tx ts queue */
+	memset(&tmp, 0, sizeof(struct fec_ptp_data_t));
+	tmp.key = SEQ_ID_OUT_OF_BAND;
+	flag = fec_ptp_find_and_remove(&(priv->txstamp), &tmp,
+				priv, DEFAULT_PTP_TX_BUF_SZ);
+	if (!flag) {
+		tmp_tx_time.ts_time.sec = tmp.ts_time.sec;
+		tmp_tx_time.ts_time.nsec = tmp.ts_time.nsec;
+	} else {
+		/*read timestamp from register*/
+		timestamp = ((u64)readl(p_ptp->mem_map + PTP_TMR_TXTS_H)
+				<< 32) |
+			(readl(p_ptp->mem_map + PTP_TMR_TXTS_L));
+		convert_rtc_time(&timestamp, &(tmp_tx_time.ts_time));
+	}
+
+	seq_id = *((u16 *)(skb->data + FEC_PTP_SEQ_ID_OFFS));
+	control = *((u8 *)(skb->data + FEC_PTP_CTRL_OFFS));
+	sp_id = skb->data + FEC_PTP_SPORT_ID_OFFS;
+	portnum = ntohs(*((unsigned short *)(sp_id + 8)));
+
+	tmp_tx_time.key = ntohs(seq_id);
+	memcpy(tmp_tx_time.spid, sp_id, 8);
+	memcpy(tmp_tx_time.spid + 8, (unsigned char *)&portnum, 2);
+
+	switch (control) {
+
+	case PTP_MSG_SYNC:
+		fec_ptp_insert(&(priv->tx_time_sync), &tmp_tx_time, priv,
+				DEFAULT_PTP_TX_BUF_SZ);
+		break;
+
+	case PTP_MSG_DEL_REQ:
+		fec_ptp_insert(&(priv->tx_time_del_req), &tmp_tx_time, priv,
+				DEFAULT_PTP_TX_BUF_SZ);
+		break;
+
+	/* clear transportSpecific field*/
+	case PTP_MSG_ALL_OTHER:
+		msg_type = (*((u8 *)(skb->data +
+				FEC_PTP_MSG_TYPE_OFFS))) & 0x0F;
+		switch (msg_type) {
+		case PTP_MSG_P_DEL_REQ:
+			fec_ptp_insert(&(priv->tx_time_pdel_req), &tmp_tx_time,
+					priv, DEFAULT_PTP_TX_BUF_SZ);
+			break;
+		case PTP_MSG_P_DEL_RESP:
+			fec_ptp_insert(&(priv->tx_time_pdel_resp), &tmp_tx_time,
+					priv, DEFAULT_PTP_TX_BUF_SZ);
+			break;
+		default:
+			break;
+		}
+		break;
+	default:
+		break;
+	}
+
+	wake_up_interruptible(&ptp_tx_ts_wait);
+}
+#else
+void fec_ptp_store_txstamp(struct fec_ptp_private *priv,
+			   struct sk_buff *skb,
+			   struct bufdesc *bdp)
 {
 }
+#endif
 
 static void ptp_store_txstamp(struct fec_ptp_private *priv,
-				struct ptp_time *pts)
+				struct ptp *p_ptp,
+				struct ptp_time *pts,
+				u32 events)
 {
-	priv->txstamp.nsec = pts->nsec;
-	priv->txstamp.sec = pts->sec;
+	struct fec_ptp_data_t tmp_tx_time;
+	u16 seq_id;
+
+	seq_id = SEQ_ID_OUT_OF_BAND;
+
+	memset(&tmp_tx_time, 0, sizeof(struct fec_ptp_data_t));
+	tmp_tx_time.key = ntohs(seq_id);
+	tmp_tx_time.ts_time.sec = pts->sec;
+	tmp_tx_time.ts_time.nsec = pts->nsec;
+	fec_ptp_insert(&(priv->txstamp), &tmp_tx_time,
+			priv, DEFAULT_PTP_TX_BUF_SZ);
 }
 
 /* out-of-band rx ts store */
@@ -554,6 +647,7 @@ static void ptp_store_rxstamp(struct fec_ptp_private *priv,
 	/* out-of-band mode can't get seq_id */
 	seq_id = SEQ_ID_OUT_OF_BAND;
 
+	memset(&tmp_rx_time, 0, sizeof(struct fec_ptp_data_t));
 	tmp_rx_time.key = ntohs(seq_id);
 	tmp_rx_time.ts_time.sec = pts->sec;
 	tmp_rx_time.ts_time.nsec = pts->nsec;
@@ -568,19 +662,23 @@ static void ptp_store_rxstamp(struct fec_ptp_private *priv,
 
 	switch (control) {
 	case PTP_MSG_SYNC:
-		fec_ptp_insert(&(priv->rx_time_sync), &tmp_rx_time, priv);
+		fec_ptp_insert(&(priv->rx_time_sync), &tmp_rx_time,
+				priv, DEFAULT_PTP_RX_BUF_SZ);
 		break;
 
 	case PTP_MSG_DEL_REQ:
-		fec_ptp_insert(&(priv->rx_time_del_req), &tmp_rx_time, priv);
+		fec_ptp_insert(&(priv->rx_time_del_req), &tmp_rx_time,
+				priv, DEFAULT_PTP_RX_BUF_SZ);
 		break;
 
 	case PTP_MSG_P_DEL_REQ:
-		fec_ptp_insert(&(priv->rx_time_pdel_req), &tmp_rx_time, priv);
+		fec_ptp_insert(&(priv->rx_time_pdel_req), &tmp_rx_time,
+				priv, DEFAULT_PTP_RX_BUF_SZ);
 		break;
 
 	case PTP_MSG_P_DEL_RESP:
-		fec_ptp_insert(&(priv->rx_time_pdel_resp), &tmp_rx_time, priv);
+		fec_ptp_insert(&(priv->rx_time_pdel_resp), &tmp_rx_time,
+				priv, DEFAULT_PTP_RX_BUF_SZ);
 		break;
 
 	default:
@@ -601,9 +699,11 @@ void fec_ptp_store_rxstamp(struct fec_ptp_private *priv,
 	struct fec_ptp_data_t tmp_rx_time;
 	struct fec_ptp_private *fpp = priv;
 	u64 timestamp;
+	unsigned char *sp_id;
+	unsigned short portnum;
 
 	/* Check for PTP Event */
-	if ((bdp->cbd_sc & BD_ENET_TX_PTP) == 0) {
+	if ((bdp->cbd_sc & BD_ENET_RX_PTP) == 0) {
 		skb_pull(skb, 8);
 		return;
 	}
@@ -615,17 +715,23 @@ void fec_ptp_store_rxstamp(struct fec_ptp_private *priv,
 
 	seq_id = *((u16 *)(skb->data + FEC_PTP_SEQ_ID_OFFS));
 	control = *((u8 *)(skb->data + FEC_PTP_CTRL_OFFS));
+	sp_id = skb->data + FEC_PTP_SPORT_ID_OFFS;
+	portnum = ntohs(*((unsigned short *)(sp_id + 8)));
 
 	tmp_rx_time.key = ntohs(seq_id);
+	memcpy(tmp_rx_time.spid, sp_id, 8);
+	memcpy(tmp_rx_time.spid + 8, (unsigned char *)&portnum, 2);
 
 	switch (control) {
 
 	case PTP_MSG_SYNC:
-		fec_ptp_insert(&(priv->rx_time_sync), &tmp_rx_time, priv);
+		fec_ptp_insert(&(priv->rx_time_sync), &tmp_rx_time, priv,
+				DEFAULT_PTP_RX_BUF_SZ);
 		break;
 
 	case PTP_MSG_DEL_REQ:
-		fec_ptp_insert(&(priv->rx_time_del_req), &tmp_rx_time, priv);
+		fec_ptp_insert(&(priv->rx_time_del_req), &tmp_rx_time, priv,
+				DEFAULT_PTP_RX_BUF_SZ);
 		break;
 
 	/* clear transportSpecific field*/
@@ -634,12 +740,12 @@ void fec_ptp_store_rxstamp(struct fec_ptp_private *priv,
 				FEC_PTP_MSG_TYPE_OFFS))) & 0x0F;
 		switch (msg_type) {
 		case PTP_MSG_P_DEL_REQ:
-			fec_ptp_insert(&(priv->rx_time_pdel_req),
-						&tmp_rx_time, priv);
+			fec_ptp_insert(&(priv->rx_time_pdel_req), &tmp_rx_time,
+					priv, DEFAULT_PTP_RX_BUF_SZ);
 			break;
 		case PTP_MSG_P_DEL_RESP:
-			fec_ptp_insert(&(priv->rx_time_pdel_resp),
-					&tmp_rx_time, priv);
+			fec_ptp_insert(&(priv->rx_time_pdel_resp), &tmp_rx_time,
+					priv, DEFAULT_PTP_RX_BUF_SZ);
 			break;
 		default:
 			break;
@@ -693,7 +799,8 @@ static irqreturn_t ptp_interrupt(int irq, void *dev_id)
 			} else {
 				/*insert the Tx timestamps into the queue*/
 				convert_rtc_time(&timestamp, &ps);
-				ptp_store_txstamp(ptp_private, &ps);
+				ptp_store_txstamp(ptp_private, p_ptp,
+						&ps, orig_events);
 
 				/*this event is never really masked,
 				 *but it should be reported only
@@ -766,8 +873,7 @@ static void init_ptp_tsu(struct ptp *p_ptp)
 	mem_map = p_ptp->mem_map;
 
 	/*Tx timestamp events are required in all modes*/
-	events_mask = (p_ptp->events_mask | PTP_TS_TX_FRAME1 |
-				PTP_TS_TX_OVR1);
+	events_mask = PTP_TS_TX_FRAME1 | PTP_TS_TX_OVR1;
 
 	/*read current values of TSU registers*/
 	tsmr = readl(mem_map + PTP_TSMR);
@@ -779,7 +885,7 @@ static void init_ptp_tsu(struct ptp *p_ptp)
 	} else
 		/*rx timestamp events are required for out of band mode*/
 		events_mask |= (PTP_TS_RX_SYNC1 | PTP_TS_RX_DELAY_REQ1 |
-				PTP_TS_TX_OVR1);
+				PTP_TS_RX_OVR1);
 
 	pemask |= events_mask;
 
@@ -1029,18 +1135,100 @@ int fec_ptp_do_txstamp(struct sk_buff *skb)
 			return 0;
 
 		udph = udp_hdr(skb);
-		if (udph != NULL && ntohs(udph->source) == 319)
+		if (udph != NULL && ntohs(udph->dest) == 319)
 			return 1;
 	}
 
 	return 0;
 }
 
-static void fec_get_tx_timestamp(struct fec_ptp_private *priv,
+static int fec_get_tx_timestamp(struct fec_ptp_private *priv,
+				 struct ptp_ts_data *pts,
 				 struct ptp_time *tx_time)
 {
-	tx_time->sec = priv->txstamp.sec;
-	tx_time->nsec = priv->txstamp.nsec;
+	struct fec_ptp_data_t tmp;
+	int flag;
+
+#ifdef CONFIG_IN_BAND
+	u8 mode;
+	tmp.key = pts->seq_id;
+	memcpy(tmp.spid, pts->spid, 10);
+	mode = pts->message_type;
+
+	switch (mode) {
+	case PTP_MSG_SYNC:
+		flag = fec_ptp_find_and_remove(&(priv->tx_time_sync), &tmp,
+				priv, DEFAULT_PTP_TX_BUF_SZ);
+		break;
+	case PTP_MSG_DEL_REQ:
+		flag = fec_ptp_find_and_remove(&(priv->tx_time_del_req), &tmp,
+				priv, DEFAULT_PTP_TX_BUF_SZ);
+		break;
+
+	case PTP_MSG_P_DEL_REQ:
+		flag = fec_ptp_find_and_remove(&(priv->tx_time_pdel_req), &tmp,
+				priv, DEFAULT_PTP_TX_BUF_SZ);
+		break;
+	case PTP_MSG_P_DEL_RESP:
+		flag = fec_ptp_find_and_remove(&(priv->tx_time_pdel_resp),
+				&tmp, priv, DEFAULT_PTP_TX_BUF_SZ);
+		break;
+
+	default:
+		flag = 1;
+		printk(KERN_ERR "ERROR\n");
+		break;
+	}
+
+	if (!flag) {
+		tx_time->sec = tmp.ts_time.sec;
+		tx_time->nsec = tmp.ts_time.nsec;
+		return 0;
+	} else {
+		wait_event_interruptible_timeout(ptp_tx_ts_wait, 0,
+					PTP_GET_TX_TIMEOUT);
+
+		switch (mode) {
+		case PTP_MSG_SYNC:
+			flag = fec_ptp_find_and_remove(&(priv->tx_time_sync),
+				&tmp, priv, DEFAULT_PTP_TX_BUF_SZ);
+			break;
+		case PTP_MSG_DEL_REQ:
+			flag = fec_ptp_find_and_remove(
+				&(priv->tx_time_del_req), &tmp,
+				priv, DEFAULT_PTP_TX_BUF_SZ);
+			break;
+		case PTP_MSG_P_DEL_REQ:
+			flag = fec_ptp_find_and_remove(
+				&(priv->tx_time_pdel_req), &tmp,
+				priv, DEFAULT_PTP_TX_BUF_SZ);
+			break;
+		case PTP_MSG_P_DEL_RESP:
+			flag = fec_ptp_find_and_remove(
+				&(priv->tx_time_pdel_resp), &tmp,
+				priv, DEFAULT_PTP_TX_BUF_SZ);
+			break;
+		}
+
+		if (flag == 0) {
+			tx_time->sec = tmp.ts_time.sec;
+			tx_time->nsec = tmp.ts_time.nsec;
+			return 0;
+		}
+
+		return -1;
+	}
+
+#else
+	memset(tmp.spid, 0, 10);
+	tmp.key = SEQ_ID_OUT_OF_BAND;
+
+	flag = fec_ptp_find_and_remove(&(priv->txstamp), &tmp,
+			priv, DEFAULT_PTP_TX_BUF_SZ);
+	tx_time->sec = tmp.ts_time.sec;
+	tx_time->nsec = tmp.ts_time.nsec;
+	return 0;
+#endif
 }
 
 static uint8_t fec_get_rx_timestamp(struct fec_ptp_private *priv,
@@ -1048,32 +1236,34 @@ static uint8_t fec_get_rx_timestamp(struct fec_ptp_private *priv,
 				    struct ptp_time *rx_time)
 {
 	struct fec_ptp_data_t tmp;
-	int key, flag;
+	int flag;
 	u8 mode;
 
 #ifdef CONFIG_IN_BAND
-	key = pts->seq_id;
+	tmp.key = pts->seq_id;
+	memcpy(tmp.spid, pts->spid, 10);
 #else
-	key = SEQ_ID_OUT_OF_BAND;
+	memset(tmp.spid, 0, 10);
+	tmp.key = SEQ_ID_OUT_OF_BAND;
 #endif
 	mode = pts->message_type;
 	switch (mode) {
 	case PTP_MSG_SYNC:
-		flag = fec_ptp_find_and_remove(&(priv->rx_time_sync),
-						key, &tmp, priv);
+		flag = fec_ptp_find_and_remove(&(priv->rx_time_sync), &tmp,
+				priv, DEFAULT_PTP_RX_BUF_SZ);
 		break;
 	case PTP_MSG_DEL_REQ:
-		flag = fec_ptp_find_and_remove(&(priv->rx_time_del_req),
-						key, &tmp, priv);
+		flag = fec_ptp_find_and_remove(&(priv->rx_time_del_req), &tmp,
+				priv, DEFAULT_PTP_RX_BUF_SZ);
 		break;
 
 	case PTP_MSG_P_DEL_REQ:
-		flag = fec_ptp_find_and_remove(&(priv->rx_time_pdel_req),
-						key, &tmp, priv);
+		flag = fec_ptp_find_and_remove(&(priv->rx_time_pdel_req), &tmp,
+				priv, DEFAULT_PTP_RX_BUF_SZ);
 		break;
 	case PTP_MSG_P_DEL_RESP:
 		flag = fec_ptp_find_and_remove(&(priv->rx_time_pdel_resp),
-						key, &tmp, priv);
+				&tmp, priv, DEFAULT_PTP_RX_BUF_SZ);
 		break;
 
 	default:
@@ -1093,19 +1283,22 @@ static uint8_t fec_get_rx_timestamp(struct fec_ptp_private *priv,
 		switch (mode) {
 		case PTP_MSG_SYNC:
 			flag = fec_ptp_find_and_remove(&(priv->rx_time_sync),
-				key, &tmp, priv);
+				&tmp, priv, DEFAULT_PTP_RX_BUF_SZ);
 			break;
 		case PTP_MSG_DEL_REQ:
 			flag = fec_ptp_find_and_remove(
-				&(priv->rx_time_del_req), key, &tmp, priv);
+				&(priv->rx_time_del_req), &tmp,
+				priv, DEFAULT_PTP_RX_BUF_SZ);
 			break;
 		case PTP_MSG_P_DEL_REQ:
 			flag = fec_ptp_find_and_remove(
-				&(priv->rx_time_pdel_req), key, &tmp, priv);
+				&(priv->rx_time_pdel_req), &tmp,
+				priv, DEFAULT_PTP_RX_BUF_SZ);
 			break;
 		case PTP_MSG_P_DEL_RESP:
 			flag = fec_ptp_find_and_remove(
-				&(priv->rx_time_pdel_resp), key, &tmp, priv);
+				&(priv->rx_time_pdel_resp), &tmp,
+				priv, DEFAULT_PTP_RX_BUF_SZ);
 			break;
 		}
 
@@ -1186,7 +1379,7 @@ static int ptp_ioctl(
 		break;
 	case PTP_GET_TX_TIMESTAMP:
 		p_ts = (struct ptp_ts_data *)arg;
-		fec_get_tx_timestamp(priv, &tx_time);
+		fec_get_tx_timestamp(priv, p_ts, &tx_time);
 		retval = copy_to_user((void __user *)(&(p_ts->ts)),
 				&tx_time, sizeof(tx_time));
 		break;
@@ -1212,6 +1405,20 @@ static int ptp_ioctl(
 		/* reset pdelay_resp buffer */
 		priv->rx_time_pdel_resp.head = 0;
 		priv->rx_time_pdel_resp.tail = 0;
+		/* reset sync buffer */
+		priv->tx_time_sync.head = 0;
+		priv->tx_time_sync.tail = 0;
+		/* reset delay_req buffer */
+		priv->tx_time_del_req.head = 0;
+		priv->tx_time_del_req.tail = 0;
+		/* reset pdelay_req buffer */
+		priv->tx_time_pdel_req.head = 0;
+		priv->tx_time_pdel_req.tail = 0;
+		/* reset pdelay_resp buffer */
+		priv->tx_time_pdel_resp.head = 0;
+		priv->tx_time_pdel_resp.tail = 0;
+		priv->txstamp.head = 0;
+		priv->txstamp.tail = 0;
 		break;
 	case PTP_SET_COMPENSATION:
 		p_comp = (struct ptp_set_comp *)arg;
@@ -1332,10 +1539,16 @@ static void ptp_free(void)
  */
 int fec_ptp_init(struct fec_ptp_private *priv, int id)
 {
-	fec_ptp_init_circ(&(priv->rx_time_sync));
-	fec_ptp_init_circ(&(priv->rx_time_del_req));
-	fec_ptp_init_circ(&(priv->rx_time_pdel_req));
-	fec_ptp_init_circ(&(priv->rx_time_pdel_resp));
+	fec_ptp_init_circ(&(priv->rx_time_sync), DEFAULT_PTP_RX_BUF_SZ);
+	fec_ptp_init_circ(&(priv->rx_time_del_req), DEFAULT_PTP_RX_BUF_SZ);
+	fec_ptp_init_circ(&(priv->rx_time_pdel_req), DEFAULT_PTP_RX_BUF_SZ);
+	fec_ptp_init_circ(&(priv->rx_time_pdel_resp), DEFAULT_PTP_RX_BUF_SZ);
+	fec_ptp_init_circ(&(priv->tx_time_sync), DEFAULT_PTP_TX_BUF_SZ);
+	fec_ptp_init_circ(&(priv->tx_time_del_req), DEFAULT_PTP_TX_BUF_SZ);
+	fec_ptp_init_circ(&(priv->tx_time_pdel_req), DEFAULT_PTP_TX_BUF_SZ);
+	fec_ptp_init_circ(&(priv->tx_time_pdel_resp), DEFAULT_PTP_TX_BUF_SZ);
+
+	fec_ptp_init_circ(&(priv->txstamp), DEFAULT_PTP_TX_BUF_SZ);
 
 	spin_lock_init(&priv->ptp_lock);
 	spin_lock_init(&priv->cnt_lock);
@@ -1355,6 +1568,16 @@ void fec_ptp_cleanup(struct fec_ptp_private *priv)
 		vfree(priv->rx_time_pdel_req.buf);
 	if (priv->rx_time_pdel_resp.buf)
 		vfree(priv->rx_time_pdel_resp.buf);
+	if (priv->tx_time_sync.buf)
+		vfree(priv->tx_time_sync.buf);
+	if (priv->tx_time_del_req.buf)
+		vfree(priv->tx_time_del_req.buf);
+	if (priv->tx_time_pdel_req.buf)
+		vfree(priv->tx_time_pdel_req.buf);
+	if (priv->tx_time_pdel_resp.buf)
+		vfree(priv->tx_time_pdel_resp.buf);
+	if (priv->txstamp.buf)
+		vfree(priv->txstamp.buf);
 
 	ptp_free();
 }

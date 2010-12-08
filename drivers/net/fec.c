@@ -450,10 +450,15 @@ fec_enet_tx(struct net_device *dev)
 		if (status & BD_ENET_TX_DEF)
 			dev->stats.collisions++;
 
-#ifdef CONFIG_ENHANCED_BD
+#if defined(CONFIG_ENHANCED_BD)
 		if (fep->ptimer_present) {
 			estatus = bdp->cbd_esc;
 			if (estatus & BD_ENET_TX_TS)
+				fec_ptp_store_txstamp(fpp, skb, bdp);
+		}
+#elif defined(CONFIG_IN_BAND)
+		if (fep->ptimer_present) {
+			if (status & BD_ENET_TX_PTP)
 				fec_ptp_store_txstamp(fpp, skb, bdp);
 		}
 #endif
