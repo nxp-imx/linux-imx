@@ -229,7 +229,7 @@ unsigned int pmic_get_active_events(unsigned int *active_events)
 }
 
 #define EVENT_MASK_0			0x387fff
-#define EVENT_MASK_1			0x1177eb
+#define EVENT_MASK_1			0x1177ef
 
 int pmic_event_unmask(type_event event)
 {
