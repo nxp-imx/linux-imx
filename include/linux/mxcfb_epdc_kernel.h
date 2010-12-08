@@ -29,5 +29,6 @@ int mxc_epdc_fb_wait_update_complete(u32 update_marker, struct fb_info *info);
 int mxc_epdc_fb_set_pwrdown_delay(u32 pwrdown_delay,
 					    struct fb_info *info);
 int mxc_epdc_get_pwrdown_delay(struct fb_info *info);
+int mxc_epdc_fb_set_upd_scheme(u32 upd_scheme, struct fb_info *info);
 
 #endif
