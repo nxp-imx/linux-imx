@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2004-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -48,6 +48,7 @@
 #include <linux/kbd_kern.h>
 #include <linux/ioctl.h>
 #include <linux/poll.h>
+#include <linux/earlysuspend.h>
 #include <linux/interrupt.h>
 #include <linux/timer.h>
 #include <linux/input.h>
@@ -57,6 +58,7 @@
 #include <linux/clk.h>
 #include <linux/fsl_devices.h>
 #include <linux/slab.h>
+#include <mach/hardware.h>
 #include <asm/mach/keypad.h>
 
 /*!
@@ -224,6 +226,8 @@ struct keypad_priv {
  * This structure holds the keypad private data structure.
  */
 static struct keypad_priv kpp_dev;
+
+static struct device *key_dev;
 
 /*! Indicates if the key pad device is enabled. */
 static unsigned int key_pad_enabled;
@@ -816,6 +820,27 @@ static void mxc_kpp_close(struct input_dev *dev)
 {
 }
 
+#ifdef CONFIG_HAS_EARLYSUSPEND
+static void mxc_keypad_early_suspend(struct early_suspend *h)
+{
+	if (h->pm_mode == EARLY_SUSPEND_MODE_NORMAL && key_dev)
+		device_set_wakeup_enable(key_dev, 0);
+	else
+		device_set_wakeup_enable(key_dev, 1);
+}
+
+static void mxc_keypad_late_resume(struct early_suspend *h)
+{
+	device_set_wakeup_enable(key_dev, 1);
+}
+
+static struct early_suspend mxc_keypad_earlysuspend = {
+	.level = EARLY_SUSPEND_LEVEL_STOP_DRAWING,
+	.suspend = mxc_keypad_early_suspend,
+	.resume = mxc_keypad_late_resume,
+};
+#endif
+
 #ifdef CONFIG_PM
 /*!
  * This function puts the Keypad controller in low-power mode/state.
@@ -1085,7 +1110,10 @@ static int mxc_kpp_probe(struct platform_device *pdev)
 	/* By default, devices should wakeup if they can */
 	/* So keypad is set as "should wakeup" as it can */
 	device_init_wakeup(&pdev->dev, 1);
+	key_dev = &pdev->dev;
 
+	if (cpu_is_mx50())
+		register_early_suspend(&mxc_keypad_earlysuspend);
 	return 0;
 
       err3:
@@ -1111,6 +1139,8 @@ static int mxc_kpp_remove(struct platform_device *pdev)
 {
 	unsigned short reg_val;
 
+	if (cpu_is_mx50())
+		unregister_early_suspend(&mxc_keypad_earlysuspend);
 	/*
 	 * Clear the KPKD status flag (write 1 to it) and synchronizer chain.
 	 * Set KDIE control bit, clear KRIE control bit (avoid false release
@@ -1127,6 +1157,7 @@ static int mxc_kpp_remove(struct platform_device *pdev)
 	reg_val &= ~KBD_STAT_KRIE;
 	__raw_writew(reg_val, kpp_dev.base + KPSR);
 
+	key_dev = NULL;
 	gpio_keypad_inactive();
 	clk_disable(kpp_clk);
 	clk_put(kpp_clk);
