@@ -423,7 +423,7 @@ invald_arg_out:
 
 /*!
  * MXC IIM interface - memory map function
- * This function maps 4KB IIM registers from IIM base address.
+ * This function maps IIM registers from IIM base address.
  *
  * @param file	     struct file *
  * @param vma	     structure vm_area_struct *
@@ -440,7 +440,7 @@ static int mxc_iim_mmap(struct file *file, struct vm_area_struct *vma)
 	if (remap_pfn_range(vma,
 			    vma->vm_start,
 			    iim_data->reg_base >> PAGE_SHIFT,
-			    iim_data->reg_size,
+			    vma->vm_end - vma->vm_start,
 			    vma->vm_page_prot))
 		return -EAGAIN;
 
