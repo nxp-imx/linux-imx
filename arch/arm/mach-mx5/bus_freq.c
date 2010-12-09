@@ -61,6 +61,7 @@ static unsigned long lp_med_rate;
 static unsigned long ddr_normal_rate;
 static unsigned long ddr_med_rate;
 static unsigned long ddr_low_rate;
+static int cur_ddr_rate;
 
 static struct clk *ddr_clk;
 static struct clk *pll1_sw_clk;
@@ -79,6 +80,8 @@ static struct clk *periph_apm_clk;
 static struct clk *lp_apm;
 static struct clk *gpc_dvfs_clk;
 static struct clk *emi_garb_clk;
+static struct clk *epdc_clk;
+
 static void __iomem *pll1_base;
 static void __iomem *pll4_base;
 
@@ -135,6 +138,9 @@ struct dvfs_wp dvfs_core_setpoint[] = {
 
 static DEFINE_SPINLOCK(voltage_lock);
 struct mutex bus_freq_mutex;
+
+struct timeval start_time;
+struct timeval end_time;
 
 static void voltage_work_handler(struct work_struct *work)
 {
@@ -306,6 +312,7 @@ void enter_lpapm_mode_mx50()
 		/* Set the divider to ARM_PODF to 1. */
 		__raw_writel(0x0, MXC_CCM_CACRR);
 	}
+
 	udelay(100);
 }
 
@@ -434,6 +441,12 @@ int set_high_bus_freq(int high_bus_freq)
 			if (!high_bus_freq_mode && high_bus_freq) {
 				if (cpu_is_mx50()) {
 					if (med_bus_freq_mode) {
+						/* Increase SYS_CLK */
+						reg = __raw_readl(MXC_CCM_CLK_SYS);
+						reg &= ~MXC_CCM_CLK_SYS_DIV_PLL_MASK;
+						reg |= 4 << MXC_CCM_CLK_SYS_DIV_PLL_OFFSET;
+						__raw_writel(reg, MXC_CCM_CLK_SYS);
+
 						/* Set the dividers to the default dividers */
 						reg = __raw_readl(MXC_CCM_CBCDR);
 						reg &= ~(MXC_CCM_CBCDR_AXI_A_PODF_MASK
@@ -477,6 +490,11 @@ int set_high_bus_freq(int high_bus_freq)
 
 					while (__raw_readl(MXC_CCM_CDHIPR) & 0xF)
 						udelay(10);
+					/* Reduce SYS_CLK */
+					reg = __raw_readl(MXC_CCM_CLK_SYS);
+					reg &= ~MXC_CCM_CLK_SYS_DIV_PLL_MASK;
+					reg |= 8 << MXC_CCM_CLK_SYS_DIV_PLL_OFFSET;
+					__raw_writel(reg, MXC_CCM_CLK_SYS);
 				} else {
 					clk_set_rate(ddr_hf_clk,
 						clk_round_rate(ddr_hf_clk,
@@ -488,6 +506,14 @@ int set_high_bus_freq(int high_bus_freq)
 				high_bus_freq_mode = 0;
 				low_bus_freq_mode = 0;
 				med_bus_freq_mode = 1;
+			}
+			if (cpu_is_mx50()) {
+				if (med_bus_freq_mode &&
+					(cur_ddr_rate != ddr_med_rate))
+					set_ddr_freq(ddr_med_rate);
+				if (high_bus_freq_mode &&
+					(cur_ddr_rate != ddr_normal_rate))
+					set_ddr_freq(ddr_normal_rate);
 			}
 		}
 		start_sdram_autogating();
@@ -577,6 +603,7 @@ void exit_lpapm_mode_mx50(int high_bus_freq)
 		high_bus_freq_mode = 0;
 		low_bus_freq_mode = 0;
 		med_bus_freq_mode = 1;
+		set_ddr_freq(ddr_med_rate);
 	} else {
 		/* Set the dividers to the default dividers */
 		reg = __raw_readl(MXC_CCM_CBCDR);
@@ -600,8 +627,8 @@ void exit_lpapm_mode_mx50(int high_bus_freq)
 		high_bus_freq_mode = 1;
 		low_bus_freq_mode = 0;
 		med_bus_freq_mode = 0;
+		set_ddr_freq(ddr_normal_rate);
 	}
-	set_ddr_freq(ddr_normal_rate);
 
 	spin_unlock_irqrestore(&ddr_freq_lock, flags);
 
@@ -665,10 +692,20 @@ void exit_lpapm_mode_mx51()
 	    clk_round_rate(ddr_hf_clk, ddr_normal_rate));
 }
 
+int can_change_ddr_freq()
+{
+	if (clk_get_usecount(epdc_clk) == 0)
+		return 1;
+	return 0;
+}
+
 void set_ddr_freq(int ddr_rate)
 {
 	u32 reg;
 	unsigned long flags;
+
+	if (!can_change_ddr_freq())
+		return;
 
 	spin_lock_irqsave(&ddr_freq_lock, flags);
 	local_flush_tlb_all();
@@ -688,6 +725,7 @@ void set_ddr_freq(int ddr_rate)
 	__raw_writel(reg, qosc_base + HW_QOS_DISABLE_CLR);
 
 	spin_unlock_irqrestore(&ddr_freq_lock, flags);
+	cur_ddr_rate = ddr_rate;
 	udelay(100);
 }
 
@@ -943,6 +981,7 @@ static int __devinit busfreq_probe(struct platform_device *pdev)
 							SZ_8K, MT_HIGH_VECTORS);
 		memcpy(ddr_freq_change_iram_base, mx50_ddr_freq_change, SZ_8K);
 		change_ddr_freq = (void *)ddr_freq_change_iram_base;
+		cur_ddr_rate = ddr_normal_rate;
 
 		lp_regulator = regulator_get(NULL, "SW2");
 		if (IS_ERR(lp_regulator)) {
@@ -961,6 +1000,13 @@ static int __devinit busfreq_probe(struct platform_device *pdev)
 		INIT_WORK(&voltage_change_handler, voltage_work_handler);
 
 		init_completion(&voltage_change_cmpl);
+
+		epdc_clk = clk_get(NULL, "epdc_axi");
+		if (IS_ERR(epdc_clk)) {
+			printk(KERN_DEBUG "%s: failed to get epdc_axi_clk\n",
+				__func__);
+			return PTR_ERR(epdc_clk);
+		}
 	}
 	cpu_wp_tbl = get_cpu_wp(&cpu_wp_nr);
 	low_bus_freq_mode = 0;
