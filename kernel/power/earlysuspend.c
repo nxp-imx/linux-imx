@@ -43,6 +43,8 @@ enum {
 	SUSPEND_REQUESTED_AND_SUSPENDED = SUSPEND_REQUESTED | SUSPENDED,
 };
 static int state;
+static int mode = EARLY_SUSPEND_MODE_NORMAL;
+static int last_mode = -1;
 
 void register_early_suspend(struct early_suspend *handler)
 {
@@ -75,9 +77,12 @@ static void early_suspend(struct work_struct *work)
 	struct early_suspend *pos;
 	unsigned long irqflags;
 	int abort = 0;
+	int pwr_mode;
 
 	mutex_lock(&early_suspend_lock);
 	spin_lock_irqsave(&state_lock, irqflags);
+
+	pwr_mode = mode;
 	if (state == SUSPEND_REQUESTED)
 		state |= SUSPENDED;
 	else
@@ -94,8 +99,10 @@ static void early_suspend(struct work_struct *work)
 	if (debug_mask & DEBUG_SUSPEND)
 		pr_info("early_suspend: call handlers\n");
 	list_for_each_entry(pos, &early_suspend_handlers, link) {
-		if (pos->suspend != NULL)
+		if (pos->suspend != NULL) {
+			pos->pm_mode = pwr_mode;
 			pos->suspend(pos);
+		}
 	}
 	mutex_unlock(&early_suspend_lock);
 
@@ -134,6 +141,7 @@ static void late_resume(struct work_struct *work)
 	list_for_each_entry_reverse(pos, &early_suspend_handlers, link)
 		if (pos->resume != NULL)
 			pos->resume(pos);
+
 	if (debug_mask & DEBUG_SUSPEND)
 		pr_info("late_resume: done\n");
 abort:
@@ -154,13 +162,26 @@ void request_suspend_state(suspend_state_t new_state)
 		rtc_time_to_tm(ts.tv_sec, &tm);
 		pr_info("request_suspend_state: %s (%d->%d) at %lld "
 			"(%d-%02d-%02d %02d:%02d:%02d.%09lu UTC)\n",
-			new_state != PM_SUSPEND_ON ? "sleep" : "wakeup",
+			pm_states[new_state],
 			requested_suspend_state, new_state,
 			ktime_to_ns(ktime_get()),
 			tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,
 			tm.tm_hour, tm.tm_min, tm.tm_sec, ts.tv_nsec);
 	}
+
+	if (new_state == PM_SUSPEND_STANDBY) {
+		mode = EARLY_SUSPEND_MODE_EINK;
+		new_state = PM_SUSPEND_MEM;
+	} else
+		mode = EARLY_SUSPEND_MODE_NORMAL;
+
 	if (!old_sleep && new_state != PM_SUSPEND_ON) {
+		if ((state & SUSPENDED) && (last_mode != mode)) {
+			/* flush the workqueue */
+			spin_unlock_irqrestore(&state_lock, irqflags);
+			flush_workqueue(suspend_work_queue);
+			spin_lock_irqsave(&state_lock, irqflags);
+		}
 		state |= SUSPEND_REQUESTED;
 		queue_work(suspend_work_queue, &early_suspend_work);
 	} else if (old_sleep && new_state == PM_SUSPEND_ON) {
@@ -168,6 +189,10 @@ void request_suspend_state(suspend_state_t new_state)
 		wake_lock(&main_wake_lock);
 		queue_work(suspend_work_queue, &late_resume_work);
 	}
+
+	if (new_state != PM_SUSPEND_ON)
+		last_mode = mode;
+
 	requested_suspend_state = new_state;
 	spin_unlock_irqrestore(&state_lock, irqflags);
 }
