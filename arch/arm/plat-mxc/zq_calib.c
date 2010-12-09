@@ -48,6 +48,15 @@ extern void __iomem *databahn_base;
 #define DATABAHN_REG_ZQ_SW_CFG2		DATABAHN_CTL_REG75
 #define DATABAHN_REG_ZQ_STATUS		DATABAHN_CTL_REG83
 
+#define DDR_TYPE_LPDDR2			(0x5 << 8)
+static inline bool is_lpddr2(void)
+{
+	u32 v;
+	v = __raw_readl(databahn_base);
+
+	return (v & DDR_TYPE_LPDDR2) == DDR_TYPE_LPDDR2;
+}
+
 /*!
  * MXC ZQ interface - Compare PU vs the External Resistor (240/300 ohm)
  *
@@ -189,17 +198,25 @@ static s32 mxc_zq_pd_calib(u32 start, u32 pu)
  * @param pu	u32
  * @param pd	u32
  */
-static void mxc_zq_hw_load(u32 pu, u32 pd)
+static void mxc_zq_hw_load(u32 pu, u32 pd, u32 pu_pd_sel)
 {
 	u32 data;
+	u32 pu_plus_1, pd_plus_1;
+
+	pu_plus_1 = (pu == 0x1F) ? 0x1F : pu + 1;
+	pd_plus_1 = (pd == 0x0F) ? 0x0F : pd + 1;
+
 	/*
 	 * The PU/PD values stored in register
 	 * DATABAHN_REG_ZQ_SW_CFG1/2 would be loaded
 	 */
-	data = (pd << 24) | (pu << 16);
-	__raw_writel(data, databahn_base + DATABAHN_REG_ZQ_SW_CFG1);
-	data = ((pd + 1) << 8) | (pu + 1);
+	data = (pd << 8) | pu;
 	__raw_writel(data, databahn_base + DATABAHN_REG_ZQ_SW_CFG2);
+
+	data = (pd_plus_1 << 24) | (pu_plus_1 << 16);  /* load PD */
+	if (pu_pd_sel)
+		data |= (1 << 4);  /* load PU */
+	__raw_writel(data, databahn_base + DATABAHN_REG_ZQ_SW_CFG1);
 
 	/*
 	 * bit[0]: enable hardware load
@@ -207,9 +224,10 @@ static void mxc_zq_hw_load(u32 pu, u32 pd)
 	 *
 	 * When the posedge of bit[4] detected, hardware trigger a load.
 	 */
-	__raw_writel(0x11, databahn_base + DATABAHN_REG_ZQ_HW_CFG);
-	/* clear bit[4] for next load */
-	__raw_writel(0x01, databahn_base + DATABAHN_REG_ZQ_HW_CFG);
+	__raw_writel(0x10011, databahn_base + DATABAHN_REG_ZQ_HW_CFG);
+	__raw_writel(0x10001, databahn_base + DATABAHN_REG_ZQ_HW_CFG);
+	ndelay(300);
+	__raw_writel(0x1, databahn_base + DATABAHN_REG_ZQ_HW_CFG);
 }
 
 /*!
@@ -252,6 +270,33 @@ static void mxc_zq_sw_load(u32 pu, u32 pd)
 	__raw_writel(0x1 << 21, databahn_base + DATABAHN_REG_ZQ_HW_CFG);
 }
 
+/*
+ * This function is for ZQ pu calibration
+ */
+static u32 pu_calib_based_on_pd(u32 start, u32 pd)
+{
+	u32 i;
+	u32 data;
+	u32 zq_pu_val = 0;
+
+	/*
+	 * compare PU from 0 to 0x1F
+	 * data is the result of the comparator
+	 * the result sequence looks like:
+	 * 0 0 0 0 0 0 0 0 0 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1
+	 * Pleae take the First "1" in the sequence for PU
+	 */
+	for (i = start; i < 32; i++) {
+		data = mxc_zq_pd_compare(i, pd);
+		if (data) {
+		    zq_pu_val = i;
+		    break;
+		}
+	}
+
+	return zq_pu_val;
+}
+
 /*!
  * MXC ZQ interface - PU/PD calib function
  * This function Do a complete PU/PD calib and loading process.
@@ -264,9 +309,14 @@ static void mxc_zq_main(struct work_struct *dummy)
 	/* Search pu value start from 0 */
 	pu = mxc_zq_pu_calib(0);
 	/* Search pd value start from 0 */
-	pd = mxc_zq_pd_calib(0, pu);
+	if (is_lpddr2()) {
+		pd = mxc_zq_pd_calib(0, pu) + 3;
+		pu = pu_calib_based_on_pd(0, pd);
+	} else
+		pd = mxc_zq_pd_calib(0, pu);
 	dev_dbg(zq_calib_dev, "za_calib: pu = %d, pd = %d\n", pu, pd);
-	mxc_zq_hw_load(pu, pd);
+	mxc_zq_hw_load(pu, pd, 1);	/* Load Pu */
+	mxc_zq_hw_load(pu, pd, 0);	/* Load Pd */
 	/* or do software load alternatively */
 	/* zq_sw_load(pu, pd); */
 	spin_unlock(&zq_lock);
