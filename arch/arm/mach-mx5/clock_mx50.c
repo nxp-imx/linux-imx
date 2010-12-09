@@ -3198,8 +3198,8 @@ static struct clk_lookup lookups[] = {
 	_REGISTER_CLOCK(NULL, "display_axi", display_axi_clk),
 	_REGISTER_CLOCK(NULL, "elcdif_axi", elcdif_axi_clk),
 	_REGISTER_CLOCK(NULL, "pxp_axi", pxp_axi_clk),
-	_REGISTER_CLOCK("mxc_epdc_fb", "epdc_axi", epdc_axi_clk),
-	_REGISTER_CLOCK("mxc_epdc_fb", "epdc_pix", epdc_pix_clk),
+	_REGISTER_CLOCK(NULL, "epdc_axi", epdc_axi_clk),
+	_REGISTER_CLOCK(NULL, "epdc_pix", epdc_pix_clk),
 };
 
 static struct mxc_clk mxc_clks[ARRAY_SIZE(lookups)];
