@@ -1239,7 +1239,7 @@ static void fec_gpio_iomux_init()
 			MX50_PAD_I2C3_SDA__GPIO_6_23;
 
 	/* Enable the Pull/keeper */
-	iomux_setting.pad_ctrl = 0x8e;
+	iomux_setting.pad_ctrl = 0x84;
 	mxc_iomux_v3_setup_pad(&iomux_setting);
 	gpio_request(FEC_EN, "fec-en");
 	gpio_direction_output(FEC_EN, 0);
@@ -1255,7 +1255,7 @@ static void fec_gpio_iomux_deinit()
 			MX50_PAD_I2C3_SDA__GPIO_6_23;
 
 	/* Disable the Pull/keeper */
-	iomux_setting.pad_ctrl = 0xE;
+	iomux_setting.pad_ctrl = 0x4;
 	mxc_iomux_v3_setup_pad(&iomux_setting);
 	gpio_request(FEC_EN, "fec-en");
 	gpio_direction_input(FEC_EN);
