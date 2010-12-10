@@ -1245,6 +1245,31 @@ static void weim_cs_config(void)
 	iounmap(weim_base);
 }
 
+static int mxc_read_mac_iim(void)
+{
+	struct clk *iim_clk;
+	void __iomem *iim_base = IO_ADDRESS(IIM_BASE_ADDR);
+	void __iomem *iim_mac_base = iim_base + \
+		MXC_IIM_MX53_BANK_AREA_1_OFFSET + \
+		MXC_IIM_MX53_MAC_ADDR_OFFSET;
+	int i;
+
+	iim_clk = clk_get(NULL, "iim_clk");
+
+	if (!iim_clk) {
+		printk(KERN_ERR "Could not get IIM clk to read MAC fuses!\n");
+		return ~EINVAL;
+	}
+
+	clk_enable(iim_clk);
+
+	for (i = 0; i < 6; i++)
+		ard_smsc911x_config.mac[i] = readl(iim_mac_base + (i*4));
+
+	clk_disable(iim_clk);
+	return 0;
+}
+
 /*!
  * Board specific initialization.
  */
@@ -1265,6 +1290,7 @@ static void __init mxc_board_init(void)
 
 	mx53_ard_io_init();
 	weim_cs_config();
+	mxc_read_mac_iim();
 	mxc_register_device(&ard_smsc_lan9220_device, &ard_smsc911x_config);
 
 	mxc_register_device(&mxc_dma_device, NULL);
