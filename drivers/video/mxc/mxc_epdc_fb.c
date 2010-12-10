@@ -99,6 +99,8 @@ struct update_data_list {
 
 struct mxc_epdc_fb_data {
 	struct fb_info info;
+	u32 xoffset;
+	u32 yoffset;
 	u32 pseudo_palette[16];
 	char fw_str[24];
 	struct list_head list;
@@ -2280,8 +2282,8 @@ static int mxc_epdc_fb_pan_display(struct fb_var_screeninfo *var,
 		return -EINVAL;
 	}
 
-	if ((info->var.xoffset == var->xoffset) &&
-	    (info->var.yoffset == var->yoffset))
+	if ((fb_data->xoffset == var->xoffset) &&
+		(fb_data->yoffset == var->yoffset))
 		return 0;	/* No change, do nothing */
 
 	y_bottom = var->yoffset;
@@ -2295,8 +2297,8 @@ static int mxc_epdc_fb_pan_display(struct fb_var_screeninfo *var,
 	fb_data->fb_offset = (var->yoffset * var->xres_virtual + var->xoffset)
 		* (var->bits_per_pixel) / 8;
 
-	info->var.xoffset = var->xoffset;
-	info->var.yoffset = var->yoffset;
+	fb_data->xoffset = info->var.xoffset = var->xoffset;
+	fb_data->yoffset = info->var.yoffset = var->yoffset;
 
 	if (var->vmode & FB_VMODE_YWRAP)
 		info->var.vmode |= FB_VMODE_YWRAP;
@@ -3079,6 +3081,8 @@ int __devinit mxc_epdc_fb_probe(struct platform_device *pdev)
 	fb_data->upd_scheme = UPDATE_SCHEME_QUEUE;
 
 	fb_data->fb_offset = 0;
+	fb_data->xoffset = 0;
+	fb_data->yoffset = 0;
 
 	/* Allocate head objects for our lists */
 	fb_data->upd_buf_queue =
