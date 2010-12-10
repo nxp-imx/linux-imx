@@ -645,25 +645,25 @@ tref_done:
     str     r0, [r5, #0x234]
     ldr     r0, =0x60099414
     str     r0, [r5, #0x238]
-    ldr     r0, =0x000a1401
+    ldr     r0, =0x000a0b01
     str     r0, [r5, #0x23c]
 
     ldr     r0, =0x60099414
     str     r0, [r5, #0x240]
-    ldr     r0, =0x000a1401
+    ldr     r0, =0x000a0b01
     str     r0, [r5, #0x244]
     ldr     r0, =0x60099414
     str     r0, [r5, #0x248]
-    ldr     r0, =0x000a1401
+    ldr     r0, =0x000a0b01
     str     r0, [r5, #0x24c]
 
     ldr     r0, =0x60099414
     str     r0, [r5, #0x250]
-    ldr     r0, =0x000a1401
+    ldr     r0, =0x000a0b01
     str     r0, [r5, #0x254]
     ldr     r0, =0x60099414
     str     r0, [r5, #0x258]
-    ldr     r0, =0x000a1401
+    ldr     r0, =0x000a0b01
     str     r0, [r5, #0x25c]
 
     b       Setup_Done
