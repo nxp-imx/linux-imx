@@ -999,6 +999,11 @@ static struct resource mx28_kbd_res[] = {
 	 .start = IRQ_LRADC_CH1,
 	 .end   = IRQ_LRADC_CH1,
 	 },
+	{
+	.flags = IORESOURCE_IRQ,
+	.start = IRQ_LRADC_BUTTON1,
+	.end = IRQ_LRADC_BUTTON1,
+	}
 };
 
 static void __init mx28_init_kbd(void)
