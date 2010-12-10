@@ -69,14 +69,15 @@ static u32 mxc_zq_pu_compare(u32 pu, u32 pd)
 {
 	u32 data;
 
-	/* set PU & PD value */
-	data = (pd << 24) | (pu << 16);
-	__raw_writel(data, databahn_base + DATABAHN_REG_ZQ_SW_CFG1);
-	/*
-	 * set PU+1 & PD+1 value
+	/* set PU+1 & PD+1 value
 	 * when pu=0x1F, set (pu+1) = 0x1F
 	 */
-	data = ((pd + 1) << 8) | (pu + 1);
+	data = ((pd + 1) << 24) | ((pu + 1) << 16);
+	__raw_writel(data, databahn_base + DATABAHN_REG_ZQ_SW_CFG1);
+	/*
+	 * set PU & PD value
+	 */
+	data = (pd << 8) | pu;
 	__raw_writel(data, databahn_base + DATABAHN_REG_ZQ_SW_CFG2);
 	/*
 	 * Enable the ZQ comparator,
@@ -106,11 +107,11 @@ static u32 mxc_zq_pd_compare(u32 pu, u32 pd)
 	u32 data;
 
 	/* set bit[4]=1, select PU/PD comparison */
-	/* PD range: 0~0xE  (0xF has problem, drop it) */
-	data = (pd << 24) | (pu << 16) | (1 << 4);
+	/* PD range: 0~0xF */
+	/* when pd=0x0F, set (pd+1) = 0x0F */
+	data = ((pd + 1) << 24) | ((pu + 1) << 16) | (1 << 4);
 	__raw_writel(data, databahn_base + DATABAHN_REG_ZQ_SW_CFG1);
-	/* when pu=0x1F, set (pu+1) = 0x1F */
-	data = ((pd + 1) << 8) | (pu + 1);
+	data = (pd << 8) | pu;
 	__raw_writel(data, databahn_base + DATABAHN_REG_ZQ_SW_CFG2);
 	/*
 	 * Enable the ZQ comparator,
@@ -175,7 +176,7 @@ static s32 mxc_zq_pd_calib(u32 start, u32 pu)
 	u32 zq_pd_val = 0;
 
 	/*
-	 * Compare PD from 0 to 0x0E  (please ignore 0x0F)
+	 * Compare PD from 0 to 0x0F
 	 * data is the result of the comparator
 	 * the result sequence looks like:
 	 * 1 1 1 1 1 1 1 1 1 1 0 0 0 0 0
@@ -225,8 +226,18 @@ static void mxc_zq_hw_load(u32 pu, u32 pd, u32 pu_pd_sel)
 	 * When the posedge of bit[4] detected, hardware trigger a load.
 	 */
 	__raw_writel(0x10011, databahn_base + DATABAHN_REG_ZQ_HW_CFG);
+	/*
+	 * Clear the zq_hw_load bit for next loading
+	 */
 	__raw_writel(0x10001, databahn_base + DATABAHN_REG_ZQ_HW_CFG);
-	ndelay(300);
+	/*
+	 * Delay at least 10us waiting an ddr auto-refresh occurs
+	 * PU PD value are loaded on auto-refresh event
+	 */
+	udelay(10);
+	/*
+	 * Clear the calibration_en (bit[16]) to save power consumption
+	 */
 	__raw_writel(0x1, databahn_base + DATABAHN_REG_ZQ_HW_CFG);
 }
 
