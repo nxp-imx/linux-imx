@@ -115,7 +115,8 @@ static inline void do_standby(void)
 		clk_set_parent(cpu_clk, osc_clk);
 	} else
 		pr_err("fail to get cpu clk\n");
-
+	if (cpu_rate == 261818000)
+		clk_set_rate(hbus_clk, 8727267);
 	local_fiq_disable();
 
 	__raw_writel(BM_POWER_CTRL_ENIRQ_PSWITCH,

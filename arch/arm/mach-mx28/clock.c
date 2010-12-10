@@ -772,7 +772,7 @@ static unsigned long h_round_rate(struct clk *clk, unsigned long rate)
 	div = root_rate / rate;
 	if ((div == 0) || (div >= 0x20))
 		return root_rate;
-	if (frac_rate == 0)
+	if (frac_rate < (rate / 2))
 		return rate;
 	else
 		return root_rate / (div + 1);
