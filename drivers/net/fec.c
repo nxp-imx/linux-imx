@@ -253,6 +253,7 @@ fec_enet_start_xmit(struct sk_buff *skb, struct net_device *dev)
 
 	if (!fep->link) {
 		/* Link is down or autonegotiation is in progress. */
+		netif_stop_queue(dev);
 		return NETDEV_TX_BUSY;
 	}
 
@@ -681,6 +682,7 @@ static void fec_enet_adjust_link(struct net_device *dev)
 	if (phy_dev->link) {
 		if (fep->full_duplex != phy_dev->duplex) {
 			fec_restart(dev, phy_dev->duplex);
+			netif_wake_queue(dev);
 			status_change = 1;
 		}
 	}
@@ -1418,6 +1420,8 @@ fec_stop(struct net_device *dev)
 	if (fep->ptimer_present)
 		fec_ptp_stop(fep->ptp_priv);
 	writel(FEC_DEFAULT_IMASK, fep->hwp + FEC_IMASK);
+
+	fep->link = 0;
 }
 
 static int __devinit
