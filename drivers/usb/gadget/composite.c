@@ -119,6 +119,7 @@ void usb_composite_force_reset(struct usb_composite_dev *cdev)
 		usb_gadget_disconnect(cdev->gadget);
 		msleep(10);
 		usb_gadget_connect(cdev->gadget);
+		usb_gadget_vbus_connect(cdev->gadget);
 	} else {
 		spin_unlock_irqrestore(&cdev->lock, flags);
 	}
