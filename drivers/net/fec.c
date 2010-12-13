@@ -682,7 +682,6 @@ static void fec_enet_adjust_link(struct net_device *dev)
 	if (phy_dev->link) {
 		if (fep->full_duplex != phy_dev->duplex) {
 			fec_restart(dev, phy_dev->duplex);
-			netif_wake_queue(dev);
 			status_change = 1;
 		}
 	}
@@ -690,8 +689,15 @@ static void fec_enet_adjust_link(struct net_device *dev)
 	/* Link on or off change */
 	if (phy_dev->link != fep->link) {
 		fep->link = phy_dev->link;
-		if (phy_dev->link)
+		if (phy_dev->link) {
 			fec_restart(dev, phy_dev->duplex);
+
+			/* if link becomes up and tx be stopped, start it */
+			if (netif_queue_stopped(dev)) {
+				netif_start_queue(dev);
+				netif_wake_queue(dev);
+			}
+		}
 		else
 			fec_stop(dev);
 		status_change = 1;
@@ -1024,7 +1030,6 @@ fec_enet_open(struct net_device *dev)
 	}
 	phy_start(fep->phy_dev);
 	fec_restart(dev, fep->phy_dev->duplex);
-	netif_start_queue(dev);
 	fep->opened = 1;
 	return 0;
 }
@@ -1036,7 +1041,6 @@ fec_enet_close(struct net_device *dev)
 
 	/* Don't know what to do yet. */
 	fep->opened = 0;
-	netif_stop_queue(dev);
 	fec_stop(dev);
 
 	if (fep->phy_dev) {
@@ -1421,6 +1425,7 @@ fec_stop(struct net_device *dev)
 		fec_ptp_stop(fep->ptp_priv);
 	writel(FEC_DEFAULT_IMASK, fep->hwp + FEC_IMASK);
 
+	netif_stop_queue(dev);
 	fep->link = 0;
 }
 
