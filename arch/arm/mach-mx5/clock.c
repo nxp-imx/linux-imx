@@ -1666,7 +1666,7 @@ static unsigned long _clk_ldb_di_round_rate(struct clk *clk,
 {
 	u32 parent_rate = clk_get_rate(clk->parent);
 
-	if (rate * 7 <= parent_rate)
+	if (rate * 7 <= parent_rate + parent_rate/20)
 		return parent_rate / 7;
 	else
 		return 2 * parent_rate / 7;
@@ -1677,7 +1677,7 @@ static int _clk_ldb_di_set_rate(struct clk *clk, unsigned long rate)
 	u32 reg, div = 0;
 	u32 parent_rate = clk_get_rate(clk->parent);
 
-	if (rate * 7 <= parent_rate) {
+	if (rate * 7 <= parent_rate + parent_rate/20) {
 		div = 7;
 		rate = parent_rate / 7;
 	} else
