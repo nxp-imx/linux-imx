@@ -1608,7 +1608,8 @@ fec_suspend(struct platform_device *dev, pm_message_t state)
 		if (netif_running(ndev)) {
 			netif_device_detach(ndev);
 			fec_stop(ndev);
-		clk_disable(fep->clk);
+			netif_carrier_off(ndev);
+			clk_disable(fep->clk);
 		}
 	}
 	return 0;
