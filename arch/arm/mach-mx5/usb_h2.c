@@ -163,6 +163,7 @@ static struct fsl_usb2_wakeup_platform_data usbh2_wakeup_config = {
 };
 void __init mx5_usbh2_init(void)
 {
+	usbh2_config.wakeup_pdata = &usbh2_wakeup_config;
 	mxc_register_device(&mxc_usbh2_device, &usbh2_config);
 	mxc_register_device(&mxc_usbh2_wakeup_device, &usbh2_wakeup_config);
 }
