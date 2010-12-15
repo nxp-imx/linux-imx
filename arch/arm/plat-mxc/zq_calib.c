@@ -355,6 +355,25 @@ static int __devexit mxc_zq_calib_remove(struct platform_device *pdev)
 	return 0;
 }
 
+#ifdef CONFIG_PM
+static int zq_calib_suspend(struct platform_device *pdev, pm_message_t state)
+{
+	flush_delayed_work(&zq_work);
+
+	return 0;
+}
+
+static int zq_calib_resume(struct platform_device *pdev)
+{
+	mxc_zq_main(NULL);
+
+	return 0;
+}
+#else
+#define	zq_calib_suspend	NULL
+#define	zq_calib_resume		NULL
+#endif
+
 static struct platform_driver mxc_zq_calib_driver = {
 	.driver = {
 		.owner = THIS_MODULE,
@@ -362,6 +381,8 @@ static struct platform_driver mxc_zq_calib_driver = {
 	},
 	.probe = mxc_zq_calib_probe,
 	.remove =  __exit_p(mxc_zq_calib_remove),
+	.suspend = zq_calib_suspend,
+	.resume = zq_calib_resume,
 };
 
 static int __init mxc_zq_calib_init(void)
