@@ -1199,6 +1199,7 @@ static int spi_bitbang_suspend(struct spi_bitbang *bitbang)
 	}
 	if (!list_empty(&bitbang->queue)) {
 		dev_err(&bitbang->master->dev, "queue didn't empty\n");
+		spin_unlock_irqrestore(&bitbang->lock, flags);
 		return -EBUSY;
 	}
 	spin_unlock_irqrestore(&bitbang->lock, flags);
@@ -1256,9 +1257,11 @@ static int mxc_spi_resume(struct platform_device *pdev)
 
 	spi_bitbang_resume(&master_drv_data->mxc_bitbang);
 	clk_enable(master_drv_data->clk);
-	__raw_writel(master_drv_data->spi_ver_def->spi_enable,
-		     master_drv_data->base + MXC_CSPICTRL);
+	__raw_writel((master_drv_data->spi_ver_def->spi_enable +
+				master_drv_data->spi_ver_def->master_enable),
+				master_drv_data->base + MXC_CSPICTRL);
 	clk_disable(master_drv_data->clk);
+
 	return 0;
 }
 #else
