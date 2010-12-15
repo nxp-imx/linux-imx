@@ -29,8 +29,8 @@
 
 #include <mach/hardware.h>
 
-/* 10 secs, shall support changing this value in use-space later  */
-#define ZQ_INTERVAL	(10 * 1000)
+/* 10 secs by default, users can change it via sys */
+static int interval = 10;
 
 static struct device *zq_calib_dev;
 
@@ -332,15 +332,47 @@ static void mxc_zq_main(struct work_struct *dummy)
 	/* zq_sw_load(pu, pd); */
 	spin_unlock(&zq_lock);
 
-	queue_delayed_work(zq_queue, &zq_work, msecs_to_jiffies(ZQ_INTERVAL));
+	queue_delayed_work(zq_queue, &zq_work,
+			msecs_to_jiffies(interval * 1000));
 }
+
+static ssize_t interval_show(struct device *dev,
+				    struct device_attribute *attr, char *buf)
+{
+	return sprintf(buf, "%d\n", interval);
+}
+
+static ssize_t interval_store(struct device *dev,
+				     struct device_attribute *attr,
+				     const char *buf, size_t count)
+{
+	int val;
+	if (sscanf(buf, "%d", &val) > 0) {
+		interval = val;
+		return count;
+	}
+	return -EINVAL;
+}
+
+static DEVICE_ATTR(interval, 0644, interval_show,
+		   interval_store);
 
 static int __devinit mxc_zq_calib_probe(struct platform_device *pdev)
 {
+	int err = 0;
+
 	zq_calib_dev = &pdev->dev;
 	zq_queue = create_singlethread_workqueue("zq_calib");;
 	if (!zq_queue)
 		return -ENOMEM;
+
+	err = device_create_file(&pdev->dev, &dev_attr_interval);
+	if (err) {
+		dev_err(&pdev->dev,
+			"Unable to create file from interval\n");
+		destroy_workqueue(zq_queue);
+		return err;
+	}
 
 	mxc_zq_main(NULL);
 
@@ -352,6 +384,7 @@ static int __devexit mxc_zq_calib_remove(struct platform_device *pdev)
 	cancel_delayed_work(&zq_work);
 	flush_workqueue(zq_queue);
 	destroy_workqueue(zq_queue);
+	device_remove_file(&pdev->dev, &dev_attr_interval);
 	return 0;
 }
 
