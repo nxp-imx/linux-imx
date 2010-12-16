@@ -438,7 +438,7 @@ static struct mxc_srtc_platform_data srtc_data = {
 };
 
 static struct mxc_dvfs_platform_data dvfs_core_data = {
-	.reg_id = "SW1",
+	.reg_id = "DA9052_BUCK_CORE",
 	.clk1_id = "cpu_clk",
 	.clk2_id = "gpc_dvfs_clk",
 	.gpc_cntr_offset = MXC_GPC_CNTR_OFFSET,
@@ -462,8 +462,13 @@ static struct mxc_dvfs_platform_data dvfs_core_data = {
 	.num_wp = 3,
 };
 
+static struct mxc_bus_freq_platform_data bus_freq_data = {
+	.gp_reg_id = "DA9052_BUCK_CORE",
+	.lp_reg_id = "DA9052_BUCK_PRO",
+};
+
 static struct tve_platform_data tve_data = {
-	.dac_reg = "VVIDEO",
+	.dac_reg = "DA9052_LDO7",
 };
 
 static struct ldb_platform_data ldb_data = {
@@ -855,7 +860,7 @@ static void __init mxc_board_init(void)
 	mxc_register_device(&gpu_device, &z160_revision);
 	mxc_register_device(&mxcscc_device, NULL);
 	mxc_register_device(&mxc_dvfs_core_device, &dvfs_core_data);
-	mxc_register_device(&busfreq_device, NULL);
+	mxc_register_device(&busfreq_device, &bus_freq_data);
 	mxc_register_device(&mxc_iim_device, &iim_data);
 	mxc_register_device(&mxc_pwm2_device, NULL);
 	mxc_register_device(&mxc_pwm1_backlight_device, &mxc_pwm_backlight_data);

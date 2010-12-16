@@ -1,5 +1,5 @@
 /*
- * Copyright 2009-2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2009-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -95,8 +95,8 @@ int high_bus_freq_mode;
 int med_bus_freq_mode;
 
 int bus_freq_scaling_initialized;
-char *gp_reg_id = "SW1";
-char *lp_reg_id = "SW2";
+char *gp_reg_id;
+char *lp_reg_id;
 
 static struct cpu_wp *cpu_wp_tbl;
 static struct device *busfreq_dev;
@@ -811,6 +811,11 @@ static int __devinit busfreq_probe(struct platform_device *pdev)
 	int err = 0;
 	unsigned long pll2_rate, pll1_rate;
 	unsigned long iram_paddr;
+	struct mxc_bus_freq_platform_data *p_bus_freq_data;
+
+	p_bus_freq_data = pdev->dev.platform_data;
+	gp_reg_id = p_bus_freq_data->gp_reg_id;
+	lp_reg_id = p_bus_freq_data->lp_reg_id;
 
 	pll1_base = ioremap(MX53_BASE_ADDR(PLL1_BASE_ADDR), SZ_4K);
 	if (cpu_is_mx53())
@@ -983,7 +988,7 @@ static int __devinit busfreq_probe(struct platform_device *pdev)
 		change_ddr_freq = (void *)ddr_freq_change_iram_base;
 		cur_ddr_rate = ddr_normal_rate;
 
-		lp_regulator = regulator_get(NULL, "SW2");
+		lp_regulator = regulator_get(NULL, lp_reg_id);
 		if (IS_ERR(lp_regulator)) {
 			printk(KERN_DEBUG
 			"%s: failed to get lp regulator\n", __func__);

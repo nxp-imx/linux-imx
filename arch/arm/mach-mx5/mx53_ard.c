@@ -625,6 +625,11 @@ static struct mxc_dvfs_platform_data dvfs_core_data = {
 	.num_wp = 3,
 };
 
+static struct mxc_bus_freq_platform_data bus_freq_data = {
+	.gp_reg_id = "SW1",
+	.lp_reg_id = "SW2",
+};
+
 static struct ldb_platform_data ldb_data = {
 	.ext_ref = 1,
 };
@@ -1312,7 +1317,7 @@ static void __init mxc_board_init(void)
 	mxc_register_device(&mxcscc_device, NULL);
 
 	mxc_register_device(&mxc_dvfs_core_device, &dvfs_core_data);
-	mxc_register_device(&busfreq_device, NULL);
+	mxc_register_device(&busfreq_device, &bus_freq_data);
 
 	mxc_register_device(&mxc_iim_device, &iim_data);
 

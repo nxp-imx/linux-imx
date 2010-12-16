@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2009-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -226,6 +226,17 @@ struct mxc_dvfsper_data {
 	u32 lp_low;
 };
 
+/*!
+ * This structure is used to define the platform data of bus freq
+ * driver. It includes the regulator name strings.
+ */
+
+struct mxc_bus_freq_platform_data {
+	/* VDDGP regulator name */
+	char *gp_reg_id;
+	/* VCC regulator name */
+	char *lp_reg_id;
+};
 
 #if defined(CONFIG_MXC_DVFS_PER)
 extern int start_dvfs_per(void);

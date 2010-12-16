@@ -1,5 +1,5 @@
 /*
- * Copyright 2009-2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2009-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -469,6 +469,11 @@ static struct mxc_dvfs_platform_data dvfs_core_data = {
 	.dncnt_val = 10,
 	.delay_time = 30,
 	.num_wp = 3,
+};
+
+static struct mxc_bus_freq_platform_data bus_freq_data = {
+	.gp_reg_id = "SW1",
+	.lp_reg_id = "SW2",
 };
 
 static struct mxc_dvfsper_data dvfs_per_data = {
@@ -1236,7 +1241,7 @@ static void __init mxc_board_init(void)
 	mxc_register_device(&gpu_device, NULL);
 	mxc_register_device(&mxcscc_device, NULL);
 	mxc_register_device(&mx51_lpmode_device, NULL);
-	mxc_register_device(&busfreq_device, NULL);
+	mxc_register_device(&busfreq_device, &bus_freq_data);
 	mxc_register_device(&sdram_autogating_device, NULL);
 	mxc_register_device(&mxc_dvfs_core_device, &dvfs_core_data);
 	mxc_register_device(&mxc_dvfs_per_device, &dvfs_per_data);

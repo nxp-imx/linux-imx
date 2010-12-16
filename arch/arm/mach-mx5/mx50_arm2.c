@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2010-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -299,6 +299,11 @@ static struct mxc_dvfs_platform_data dvfs_core_data = {
 	.dncnt_val = 10,
 	.delay_time = 30,
 	.num_wp = 2,
+};
+
+static struct mxc_bus_freq_platform_data bus_freq_data = {
+	.gp_reg_id = "SW1",
+	.lp_reg_id = "SW2",
 };
 
 /* working point(wp): 0 - 800MHz; 1 - 166.25MHz; */
@@ -1184,7 +1189,7 @@ static void __init mxc_board_init(void)
 	mxc_register_device(&mxc_pxp_client_device, NULL);
 	mxc_register_device(&mxc_pxp_v4l2, NULL);
 	mxc_register_device(&mxc_dvfs_core_device, &dvfs_core_data);
-	mxc_register_device(&busfreq_device, NULL);
+	mxc_register_device(&busfreq_device, &bus_freq_data);
 
 	/*
 	mxc_register_device(&mx53_lpmode_device, NULL);
