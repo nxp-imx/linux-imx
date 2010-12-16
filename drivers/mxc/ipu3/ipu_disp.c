@@ -1802,14 +1802,18 @@ int32_t ipu_disp_set_window_pos(ipu_channel_t channel, int16_t x_pos,
 	u32 reg;
 	unsigned long lock_flags;
 	uint32_t flow = 0;
+	uint32_t dp_srm_shift;
 
-	if (channel == MEM_FG_SYNC)
+	if (channel == MEM_FG_SYNC) {
 		flow = DP_SYNC;
-	else if (channel == MEM_FG_ASYNC0)
+		dp_srm_shift = 3;
+	} else if (channel == MEM_FG_ASYNC0) {
 		flow = DP_ASYNC0;
-	else if (channel == MEM_FG_ASYNC1)
+		dp_srm_shift = 5;
+	} else if (channel == MEM_FG_ASYNC1) {
 		flow = DP_ASYNC1;
-	else
+		dp_srm_shift = 7;
+	} else
 		return -EINVAL;
 
 	if (!g_ipu_clk_enabled)
@@ -1819,8 +1823,17 @@ int32_t ipu_disp_set_window_pos(ipu_channel_t channel, int16_t x_pos,
 
 	__raw_writel((x_pos << 16) | y_pos, DP_FG_POS(flow));
 
-	reg = __raw_readl(IPU_SRM_PRI2) | 0x8;
-	__raw_writel(reg, IPU_SRM_PRI2);
+	if (ipu_is_channel_busy(channel)) {
+		/* controled by FSU if channel enabled */
+		reg = __raw_readl(IPU_SRM_PRI2) & (~(0x3 << dp_srm_shift));
+		reg |= (0x1 << dp_srm_shift);
+		__raw_writel(reg, IPU_SRM_PRI2);
+	} else {
+		/* controled by MCU if channel disabled */
+		reg = __raw_readl(IPU_SRM_PRI2) & (~(0x3 << dp_srm_shift));
+		reg |= (0x3 << dp_srm_shift);
+		__raw_writel(reg, IPU_SRM_PRI2);
+	}
 
 	spin_unlock_irqrestore(&ipu_lock, lock_flags);
 	if (!g_ipu_clk_enabled)
