@@ -950,8 +950,6 @@ static irqreturn_t pxp_irq(int irq, void *dev_id)
 	list_splice_init(&desc->tx_list, &pxp_chan->free_list);
 	list_move(&desc->list, &pxp_chan->free_list);
 
-	list_del(&pxp_chan->list);
-
 	wake_up(&pxp->done);
 	pxp->pxp_ongoing = 0;
 	mod_timer(&pxp->clk_timer, jiffies + msecs_to_jiffies(timeout_in_ms));
