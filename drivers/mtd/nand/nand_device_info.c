@@ -1483,6 +1483,29 @@ static struct nand_device_info nand_device_info_table_type_15[] __initdata = {
 	{true}
 };
 
+static struct nand_device_info nand_device_info_table_type_16[] __initdata = {
+	{
+	.end_of_table             = false,
+	.manufacturer_code        = 0xec,
+	.device_code              = 0xd7,
+	.is_ddr_ok		  = true,
+	.cell_technology          = NAND_DEVICE_CELL_TECH_MLC,
+	.chip_size_in_bytes       = 4LL*SZ_1G,
+	.block_size_in_pages      = 128,
+	.page_total_size_in_bytes = 8*SZ_1K + 512,
+	.ecc_strength_in_bits     = 24,
+	.ecc_size_in_bytes        = 1024,
+	.data_setup_in_ns         = 20,
+	.data_hold_in_ns          = 10,
+	.address_setup_in_ns      = 25,
+	.gpmi_sample_delay_in_ns  = 6,
+	.tREA_in_ns               = 25,
+	.tRLOH_in_ns              = 5,
+	.tRHOH_in_ns              = 15,
+	"K9LCGD88X1M(8GB, 1CE); K9HDGD8X5M(8GB, 2CE); K9PFGD8X7M(16GB, 4CE)",
+	},
+	{true}
+};
 /*
  * BCH ECC12
  */
@@ -1654,7 +1677,7 @@ static struct nand_device_info nand_device_info_table_bch_ecc24[] __initdata = {
 	.end_of_table             = false,
 	.manufacturer_code        = 0x2c,
 	.device_code              = 0x88,
-	.is_onfi_nand             = true,
+	.is_ddr_ok		  = true,
 	.cell_technology          = NAND_DEVICE_CELL_TECH_MLC,
 	.chip_size_in_bytes       = 8LL * SZ_1G,
 	.block_size_in_pages      = 256,
@@ -1783,6 +1806,8 @@ static struct nand_device_info nand_device_info_table_bch_ecc24[] __initdata = {
 
 #define ID_GET_SAMSUNG_DEVICE_VERSION_CODE(id)   ((ID_GET_BYTE_6(id)>>0) & 0x7)
     #define ID_SAMSUNG_DEVICE_VERSION_CODE_40NM  (0x01)
+
+#define ID_GET_TOGGLE_NAND(id)		((ID_GET_BYTE_6(id) >> 7) & 0x1)
 
 /* -------------------------------------------------------------------------- */
 
@@ -1961,8 +1986,11 @@ static struct nand_device_info * __init nand_device_info_fn_samsung(const uint8_
 					ID_SAMSUNG_ECC_LEVEL_CODE_24) &&
 		    (ID_GET_PAGE_SIZE_CODE(id) ==
 					ID_SAMSUNG_6_BYTE_PAGE_SIZE_CODE_8K)) {
-			/* Type 15 */
-			table = nand_device_info_table_type_15;
+			if (ID_GET_TOGGLE_NAND(id))
+				table = nand_device_info_table_type_16;
+			else
+				/* Type 15 */
+				table = nand_device_info_table_type_15;
 		}
 		/* Is this a Samsung 42nm ECC8 device with a 6 byte ID? */
 		else if ((ID_GET_SAMSUNG_ECC_LEVEL_CODE(id) ==
@@ -2211,6 +2239,7 @@ static struct nand_device_type_info  nand_device_type_directory[] __initdata = {
 	{nand_device_info_table_type_10,   "Type 10"  },
 	{nand_device_info_table_type_11,   "Type 11"  },
 	{nand_device_info_table_type_15,   "Type 15"  },
+	{nand_device_info_table_type_16,   "Type 16"  },
 	{nand_device_info_table_bch_ecc12, "BCH ECC12"},
 	{nand_device_info_table_bch_ecc24, "BCH ECC24"},
 	{0, 0},
@@ -2381,10 +2410,4 @@ struct nand_device_info * __init nand_device_get_info(const uint8_t id[])
 
 	return fn(id);
 
-}
-
-
-bool is_onfi_nand(struct nand_device_info *info)
-{
-	return info->is_onfi_nand;
 }
