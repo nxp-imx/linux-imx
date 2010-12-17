@@ -2458,6 +2458,8 @@ static int gpmi_set_parent(struct clk *clk, struct clk *parent)
 
 		reg = (reg & ~MXC_CCM_CLKSEQ_BYPASS_BYPASS_GPMI_CLK_SEL_MASK) |
 		   (0x2 << MXC_CCM_CLKSEQ_BYPASS_BYPASS_GPMI_CLK_SEL_OFFSET);
+		reg = (reg & ~MXC_CCM_CLKSEQ_BYPASS_BYPASS_BCH_CLK_SEL_MASK) |
+		   (0x2 << MXC_CCM_CLKSEQ_BYPASS_BYPASS_BCH_CLK_SEL_OFFSET);
 
 		__raw_writel(reg, MXC_CCM_CLKSEQ_BYPASS);
 
@@ -2479,10 +2481,15 @@ static int gpmi_set_rate(struct clk *clk, unsigned long rate)
 		value /= rate;
 		value /= 2; /* HW_GPMI_CTRL1's GPMI_CLK_DIV2_EN will be set */
 
+		/* set GPMI clock */
 		reg = __raw_readl(MXC_CCM_GPMI);
 		reg = (reg & ~MXC_CCM_GPMI_CLK_DIV_MASK) | value;
-
 		__raw_writel(reg, MXC_CCM_GPMI);
+
+		/* set BCH clock */
+		reg = __raw_readl(MXC_CCM_BCH);
+		reg = (reg & ~MXC_CCM_BCH_CLK_DIV_MASK) | value;
+		__raw_writel(reg, MXC_CCM_BCH);
 	} else
 		printk(KERN_WARNING "You should not call the %s\n", __func__);
 	return 0;
