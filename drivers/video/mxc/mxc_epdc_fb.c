@@ -85,16 +85,17 @@ struct update_marker_data {
  * update processing task, and the update description (mode, region, etc.) */
 struct update_data_list {
 	struct list_head list;
-	struct mxcfb_update_data upd_data;	/* Update parameters */
-	dma_addr_t phys_addr;			/* Pointer to phys address of processed Y buf */
+	struct mxcfb_update_data upd_data;/* Update parameters */
+	dma_addr_t phys_addr;		/* Pointer to phys address of processed Y buf */
 	void *virt_addr;
-	u32 epdc_offs;				/* Add to buffer pointer to resolve alignment */
+	u32 epdc_offs;			/* Add to buffer pointer to resolve alignment */
 	u32 size;
-	int lut_num;				/* Assigned before update is processed into working buffer */
-	int collision_mask;			/* Set when update results in collision */
-						/* Represents other LUTs that we collide with */
+	int lut_num;			/* Assigned before update is processed into working buffer */
+	int collision_mask;		/* Set when update results in collision */
+					/* Represents other LUTs that we collide with */
 	struct update_marker_data *upd_marker_data;
-	u32 update_order;
+	u32 update_order;		/* Numeric ordering value for update */
+	u32 fb_offset;			/* FB offset associated with update */
 };
 
 struct mxc_epdc_fb_data {
@@ -204,7 +205,7 @@ void __iomem *epdc_base;
 struct mxc_epdc_fb_data *g_fb_data;
 
 /* forward declaration */
-static void mxc_epdc_fb_disable(struct mxc_epdc_fb_data *fb_data);
+static void mxc_epdc_fb_flush_updates(struct mxc_epdc_fb_data *fb_data);
 static int mxc_epdc_fb_blank(int blank, struct fb_info *info);
 static int mxc_epdc_fb_init_hw(struct fb_info *info);
 static int pxp_process_update(struct mxc_epdc_fb_data *fb_data,
@@ -1362,10 +1363,10 @@ int mxc_epdc_fb_set_upd_scheme(u32 upd_scheme, struct fb_info *info)
 	dev_dbg(fb_data->dev, "Setting optimization level to %d\n", upd_scheme);
 
 	/*
-	 * Can't change the scheme while until current updates have completed.
+	 * Can't change the scheme until current updates have completed.
 	 * This function returns when all active updates are done.
 	 */
-	mxc_epdc_fb_disable(fb_data);
+	mxc_epdc_fb_flush_updates(fb_data);
 
 	if ((upd_scheme == UPDATE_SCHEME_SNAPSHOT)
 		|| (upd_scheme == UPDATE_SCHEME_QUEUE)
@@ -1495,7 +1496,7 @@ static int epdc_process_update(struct update_data_list *upd_data_list,
 				+ pxp_input_offs;
 	else {
 		sg_dma_address(&fb_data->sg[0]) =
-			fb_data->info.fix.smem_start + fb_data->fb_offset
+			fb_data->info.fix.smem_start + upd_data_list->fb_offset
 			+ pxp_input_offs;
 		sg_set_page(&fb_data->sg[0],
 			virt_to_page(fb_data->info.screen_base),
@@ -1602,6 +1603,7 @@ static bool epdc_submit_merge(struct update_data_list *upd_data_list,
 		brect->left > (arect->left + arect->width) ||
 		arect->top > (brect->top + brect->height) ||
 		brect->top > (arect->top + arect->height) ||
+		(upd_data_list->fb_offset != update_to_merge->fb_offset) ||
 		(b->update_marker != 0 && a->update_marker != 0))
 		return false;
 
@@ -1669,8 +1671,7 @@ static void epdc_submit_work_func(struct work_struct *work)
 		if (!upd_data_list) {
 			upd_data_list = next_update;
 			list_del_init(&next_update->list);
-			if (fb_data->upd_scheme ==
-				UPDATE_SCHEME_QUEUE_AND_MERGE)
+			if (fb_data->upd_scheme == UPDATE_SCHEME_QUEUE)
 				/* If not merging, we have our update */
 				break;
 		} else if (epdc_submit_merge(upd_data_list, next_update)) {
@@ -1682,7 +1683,7 @@ static void epdc_submit_work_func(struct work_struct *work)
 				 &fb_data->upd_buf_free_list->list);
 		} else
 			dev_dbg(fb_data->dev,
-				"Update merged [work queue]\n");
+				"Update not merged [work queue]\n");
 	}
 
 	/*
@@ -1703,8 +1704,7 @@ static void epdc_submit_work_func(struct work_struct *work)
 			if (!upd_data_list) {
 				upd_data_list = next_update;
 				list_del_init(&next_update->list);
-				if (fb_data->upd_scheme ==
-					UPDATE_SCHEME_QUEUE_AND_MERGE)
+				if (fb_data->upd_scheme == UPDATE_SCHEME_QUEUE)
 					/* If not merging, we have an update */
 					break;
 			} else if (epdc_submit_merge(upd_data_list,
@@ -1717,7 +1717,7 @@ static void epdc_submit_work_func(struct work_struct *work)
 					 &fb_data->upd_buf_free_list->list);
 			} else
 				dev_dbg(fb_data->dev,
-					"Update merged [work queue]\n");
+					"Update not merged [work queue]\n");
 		}
 	}
 
@@ -1913,6 +1913,7 @@ int mxc_epdc_fb_send_update(struct mxcfb_update_data *upd_data,
 	memcpy(&upd_data_list->upd_data.update_region, &upd_data->update_region,
 	       sizeof(struct mxcfb_rect));
 
+	upd_data_list->fb_offset = fb_data->fb_offset;
 	/* If marker specified, associate it with a completion */
 	if (upd_data->update_marker != 0) {
 		/* Find available update marker and set it up */
@@ -2220,7 +2221,7 @@ static void mxc_epdc_fb_deferred_io(struct fb_info *info,
 	mxc_epdc_fb_update_pages(fb_data, miny, maxy);
 }
 
-void mxc_epdc_fb_disable(struct mxc_epdc_fb_data *fb_data)
+void mxc_epdc_fb_flush_updates(struct mxc_epdc_fb_data *fb_data)
 {
 	unsigned long flags;
 	/* Grab queue lock to prevent any new updates from being submitted */
@@ -2261,7 +2262,7 @@ static int mxc_epdc_fb_blank(int blank, struct fb_info *info)
 	case FB_BLANK_VSYNC_SUSPEND:
 	case FB_BLANK_HSYNC_SUSPEND:
 	case FB_BLANK_NORMAL:
-		mxc_epdc_fb_disable(fb_data);
+		mxc_epdc_fb_flush_updates(fb_data);
 		break;
 	}
 	return 0;
@@ -2272,6 +2273,7 @@ static int mxc_epdc_fb_pan_display(struct fb_var_screeninfo *var,
 {
 	struct mxc_epdc_fb_data *fb_data = (struct mxc_epdc_fb_data *)info;
 	u_int y_bottom;
+	unsigned long flags;
 
 	dev_dbg(info->device, "%s: var->xoffset %d, info->var.xoffset %d\n",
 		 __func__, var->xoffset, info->var.xoffset);
@@ -2286,13 +2288,17 @@ static int mxc_epdc_fb_pan_display(struct fb_var_screeninfo *var,
 		(fb_data->yoffset == var->yoffset))
 		return 0;	/* No change, do nothing */
 
+	spin_lock_irqsave(&fb_data->queue_lock, flags);
+
 	y_bottom = var->yoffset;
 
 	if (!(var->vmode & FB_VMODE_YWRAP))
 		y_bottom += var->yres;
 
-	if (y_bottom > info->var.yres_virtual)
+	if (y_bottom > info->var.yres_virtual) {
+		spin_unlock_irqrestore(&fb_data->queue_lock, flags);
 		return -EINVAL;
+	}
 
 	fb_data->fb_offset = (var->yoffset * var->xres_virtual + var->xoffset)
 		* (var->bits_per_pixel) / 8;
@@ -2304,6 +2310,8 @@ static int mxc_epdc_fb_pan_display(struct fb_var_screeninfo *var,
 		info->var.vmode |= FB_VMODE_YWRAP;
 	else
 		info->var.vmode &= ~FB_VMODE_YWRAP;
+
+	spin_unlock_irqrestore(&fb_data->queue_lock, flags);
 
 	return 0;
 }
@@ -3078,7 +3086,7 @@ int __devinit mxc_epdc_fb_probe(struct platform_device *pdev)
 	mxc_epdc_fb_set_fix(info);
 
 	fb_data->auto_mode = AUTO_UPDATE_MODE_REGION_MODE;
-	fb_data->upd_scheme = UPDATE_SCHEME_QUEUE;
+	fb_data->upd_scheme = UPDATE_SCHEME_SNAPSHOT;
 
 	fb_data->fb_offset = 0;
 	fb_data->xoffset = 0;
