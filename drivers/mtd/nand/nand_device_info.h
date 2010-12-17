@@ -43,7 +43,7 @@ enum nand_device_cell_technology {
  *                             the device.
  * @device_code:               The device code (2nd ID byte) reported by the
  *                             device.
- * @is_onfi_nand:              Is this nand an ONFI nand ?
+ * @is_ddr_ok:                 Is this nand an ONFI nand or TOGGLE nand ?
  * @cell_technology:           The storage cell technology.
  * @chip_size_in_bytes:        The total size of the storage behind a single
  *                             chip select, in bytes. Notice that this is *not*
@@ -90,8 +90,8 @@ struct nand_device_info {
 	uint8_t   manufacturer_code;
 	uint8_t   device_code;
 
-	/* ONFI nand */
-	bool	  is_onfi_nand;
+	/* Does the nand support DDR? (ONFI or TOGGLE) */
+	bool	  is_ddr_ok;
 
 	/* Technology */
 
@@ -142,8 +142,11 @@ struct nand_device_info *nand_device_get_info(const uint8_t id_bytes[]);
 void nand_device_print_info(struct nand_device_info *info);
 
 /*
- * Check the NAND whether it is an ONFI nand.
+ * Check the NAND whether it supports the DDR mode.
+ * Only the ONFI nand and TOGGLE nand support the DDR now.
  */
-bool is_onfi_nand(struct nand_device_info *info);
-
+static inline bool is_ddr_nand(struct nand_device_info *info)
+{
+	return info->is_ddr_ok;
+}
 #endif
