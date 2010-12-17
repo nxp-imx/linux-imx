@@ -2586,6 +2586,12 @@ int nand_erase_nand(struct mtd_info *mtd, struct erase_info *instr,
 			instr->state = MTD_ERASE_FAILED;
 			instr->fail_addr =
 				((loff_t)page << chip->page_shift);
+
+			if (chip->bbt) {
+				int i = (page / pages_per_block) << 1;
+				chip->bbt[i >> 3] |= 0x03 << (i & 0x6);
+				mtd->ecc_stats.badblocks++;
+			}
 			goto erase_exit;
 		}
 
