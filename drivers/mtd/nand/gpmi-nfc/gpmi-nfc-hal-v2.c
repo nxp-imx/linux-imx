@@ -47,7 +47,7 @@ static struct clk *ddr_clk;
 static struct clk *apbh_dma_clk;
 static struct clk *ahb_max_clk;
 
-static void setup_ddr_timing(struct gpmi_nfc_data *this)
+static void setup_ddr_timing_onfi(struct gpmi_nfc_data *this)
 {
 	uint32_t value;
 	struct resources  *resources = &this->resources;
@@ -77,7 +77,7 @@ static void setup_ddr_timing(struct gpmi_nfc_data *this)
 	__raw_writel(value, resources->gpmi_regs + HW_GPMI_CTRL1_SET);
 }
 
-static int enable_micron_ddr(struct gpmi_nfc_data *this)
+static int enable_ddr_onfi(struct gpmi_nfc_data *this)
 {
 	uint32_t value;
 	struct resources  *resources = &this->resources;
@@ -124,7 +124,7 @@ static int enable_micron_ddr(struct gpmi_nfc_data *this)
 	nand->select_chip(mtd, 0);
 
 	/* [4] setup timing */
-	setup_ddr_timing(this);
+	setup_ddr_timing_onfi(this);
 
 	/* [5] set to SYNC mode */
 	__raw_writel(BM_GPMI_CTRL1_TOGGLE_MODE,
@@ -205,6 +205,157 @@ static int enable_micron_ddr(struct gpmi_nfc_data *this)
 	return 0;
 }
 
+static void setup_ddr_timing_toggle(struct gpmi_nfc_data *this)
+{
+	uint32_t value;
+	struct resources  *resources = &this->resources;
+
+	/* set timing 2 register */
+	value = BF_GPMI_TIMING2_DATA_PAUSE(0x6)
+		| BF_GPMI_TIMING2_CMDADD_PAUSE(0x4)
+		| BF_GPMI_TIMING2_POSTAMBLE_DELAY(0x3)
+		| BF_GPMI_TIMING2_PREAMBLE_DELAY(0x2)
+		| BF_GPMI_TIMING2_CE_DELAY(0x2)
+		| BF_GPMI_TIMING2_READ_LATENCY(0x2);
+
+	__raw_writel(value, resources->gpmi_regs + HW_GPMI_TIMING2);
+
+	/* set timing 1 register */
+	__raw_writel(BF_GPMI_TIMING1_DEVICE_BUSY_TIMEOUT(0x500),
+			resources->gpmi_regs + HW_GPMI_TIMING1);
+
+	/* Put GPMI in NAND mode, disable device reset, and make certain
+	   IRQRDY polarity is active high. */
+	value = BV_GPMI_CTRL1_GPMI_MODE__NAND
+		| BM_GPMI_CTRL1_GANGED_RDYBUSY
+		| (BV_GPMI_CTRL1_DEV_RESET__DISABLED << 3)
+		| (BV_GPMI_CTRL1_ATA_IRQRDY_POLARITY__ACTIVEHIGH << 2);
+
+	__raw_writel(value, resources->gpmi_regs + HW_GPMI_CTRL1_SET);
+}
+
+static int enable_ddr_toggle(struct gpmi_nfc_data *this)
+{
+	struct resources  *resources = &this->resources;
+	struct mil *mil	= &this->mil;
+	struct nand_chip *nand = &this->mil.nand;
+	struct mtd_info	 *mtd = &mil->mtd;
+	int saved_chip_number = mil->current_chip;
+	uint32_t value;
+
+	nand->select_chip(mtd, 0);
+
+	/* [0] set proper timing */
+	__raw_writel(BF_GPMI_TIMING0_ADDRESS_SETUP(0x5)
+			| BF_GPMI_TIMING0_DATA_HOLD(0xa)
+			| BF_GPMI_TIMING0_DATA_SETUP(0xa),
+			resources->gpmi_regs + HW_GPMI_TIMING0);
+
+	/* [2] set clk divider */
+	__raw_writel(BM_GPMI_CTRL1_GPMI_CLK_DIV2_EN,
+			resources->gpmi_regs + HW_GPMI_CTRL1_SET);
+
+	/* [3] about the clock, pay attention! */
+	nand->select_chip(mtd, saved_chip_number);
+	{
+		struct clk *pll1;
+		unsigned long rate;
+
+		pll1 = clk_get(NULL, "pll1_main_clk");
+		if (IS_ERR(pll1)) {
+			printk(KERN_INFO "No PLL1 clock\n");
+			return -EINVAL;
+		}
+
+		/* toggle nand : 133/66 MHz */
+		rate = 33000000;
+		clk_set_parent(resources->clock, pll1);
+		clk_set_rate(resources->clock, rate);
+	}
+	nand->select_chip(mtd, 0);
+
+	/* [4] setup timing */
+	setup_ddr_timing_toggle(this);
+
+	/* [5] set to TOGGLE mode */
+	__raw_writel(BM_GPMI_CTRL1_SSYNCMODE,
+			    resources->gpmi_regs + HW_GPMI_CTRL1_CLR);
+	__raw_writel(BM_GPMI_CTRL1_TOGGLE_MODE | BM_GPMI_CTRL1_GANGED_RDYBUSY,
+			    resources->gpmi_regs + HW_GPMI_CTRL1_SET);
+
+	/* [6] enable both write & read DDR DLLs */
+	value = BM_GPMI_READ_DDR_DLL_CTRL_REFCLK_ON |
+		BM_GPMI_READ_DDR_DLL_CTRL_ENABLE |
+		BF_GPMI_READ_DDR_DLL_CTRL_SLV_UPDATE_INT(0x2) |
+		BF_GPMI_READ_DDR_DLL_CTRL_SLV_DLY_TARGET(0x7);
+
+	__raw_writel(value, resources->gpmi_regs + HW_GPMI_READ_DDR_DLL_CTRL);
+
+	/* [7] reset read */
+	__raw_writel(value | BM_GPMI_READ_DDR_DLL_CTRL_RESET,
+			resources->gpmi_regs + HW_GPMI_READ_DDR_DLL_CTRL);
+	value = value & ~BM_GPMI_READ_DDR_DLL_CTRL_RESET;
+	__raw_writel(value, resources->gpmi_regs + HW_GPMI_READ_DDR_DLL_CTRL);
+
+	value = BM_GPMI_WRITE_DDR_DLL_CTRL_REFCLK_ON |
+		BM_GPMI_WRITE_DDR_DLL_CTRL_ENABLE    |
+		BF_GPMI_WRITE_DDR_DLL_CTRL_SLV_UPDATE_INT(0x2) |
+		BF_GPMI_WRITE_DDR_DLL_CTRL_SLV_DLY_TARGET(0x7) ,
+
+	__raw_writel(value, resources->gpmi_regs + HW_GPMI_WRITE_DDR_DLL_CTRL);
+
+	/* [8] reset write */
+	__raw_writel(value | BM_GPMI_WRITE_DDR_DLL_CTRL_RESET,
+			resources->gpmi_regs + HW_GPMI_WRITE_DDR_DLL_CTRL);
+	__raw_writel(value, resources->gpmi_regs + HW_GPMI_WRITE_DDR_DLL_CTRL);
+
+	/* [9] wait for locks for read and write  */
+	do {
+		uint32_t read_status, write_status;
+		uint32_t r_mask, w_mask;
+
+		read_status = __raw_readl(resources->gpmi_regs
+					+ HW_GPMI_READ_DDR_DLL_STS);
+		write_status = __raw_readl(resources->gpmi_regs
+					+ HW_GPMI_WRITE_DDR_DLL_STS);
+
+		r_mask = (BM_GPMI_READ_DDR_DLL_STS_REF_LOCK |
+				BM_GPMI_READ_DDR_DLL_STS_SLV_LOCK);
+		w_mask = (BM_GPMI_WRITE_DDR_DLL_STS_REF_LOCK |
+				BM_GPMI_WRITE_DDR_DLL_STS_SLV_LOCK);
+
+		if (((read_status & r_mask) == r_mask)
+			&& ((write_status & w_mask) == w_mask))
+				break;
+	} while (1);
+
+	/* [10] force update of read/write */
+	value = __raw_readl(resources->gpmi_regs + HW_GPMI_READ_DDR_DLL_CTRL);
+	__raw_writel(value | BM_GPMI_READ_DDR_DLL_CTRL_SLV_FORCE_UPD,
+			resources->gpmi_regs + HW_GPMI_READ_DDR_DLL_CTRL);
+	__raw_writel(value, resources->gpmi_regs + HW_GPMI_READ_DDR_DLL_CTRL);
+
+	value = __raw_readl(resources->gpmi_regs + HW_GPMI_WRITE_DDR_DLL_CTRL);
+	__raw_writel(value | BM_GPMI_WRITE_DDR_DLL_CTRL_SLV_FORCE_UPD,
+			resources->gpmi_regs + HW_GPMI_WRITE_DDR_DLL_CTRL);
+	__raw_writel(value, resources->gpmi_regs + HW_GPMI_WRITE_DDR_DLL_CTRL);
+
+	/* [11] set gate update */
+	value = __raw_readl(resources->gpmi_regs + HW_GPMI_READ_DDR_DLL_CTRL);
+	value |= BM_GPMI_READ_DDR_DLL_CTRL_GATE_UPDATE;
+	__raw_writel(value, resources->gpmi_regs + HW_GPMI_READ_DDR_DLL_CTRL);
+
+	value = __raw_readl(resources->gpmi_regs + HW_GPMI_WRITE_DDR_DLL_CTRL);
+	value |= BM_GPMI_WRITE_DDR_DLL_CTRL_GATE_UPDATE;
+	__raw_writel(value, resources->gpmi_regs + HW_GPMI_WRITE_DDR_DLL_CTRL);
+
+	onfi_ddr_mode = 1;
+	nand->select_chip(mtd, saved_chip_number);
+
+	printk(KERN_INFO "-- Sumsung TOGGLE NAND is enabled now. --\n");
+	return 0;
+}
+
 /* To check if we need to initialize something else*/
 static int extra_init(struct gpmi_nfc_data *this)
 {
@@ -227,9 +378,17 @@ static int extra_init(struct gpmi_nfc_data *this)
 		return -ENOENT;
 	}
 
-	if (is_onfi_nand(&this->device_info))
-		return enable_micron_ddr(this);
-
+	if (is_ddr_nand(&this->device_info)) {
+		switch (this->device_info.manufacturer_code) {
+		case NAND_MFR_MICRON:
+			return enable_ddr_onfi(this);
+		case NAND_MFR_SAMSUNG:
+			return enable_ddr_toggle(this);
+		default:
+			printk(KERN_ERR "You should not reach here.\n");
+			BUG();
+		}
+	}
 	return 0;
 }
 
@@ -334,7 +493,7 @@ static int set_geometry(struct gpmi_nfc_data *this)
 		BF_BCH_FLASH0LAYOUT0_META_SIZE(metadata_size) |
 		BF_BCH_FLASH0LAYOUT0_ECC0(ecc_strength)       |
 		BF_BCH_FLASH0LAYOUT0_DATA0_SIZE(block_size);
-	if (is_onfi_nand(&this->device_info))
+	if (is_ddr_nand(&this->device_info))
 		value |= BM_BCH_FLASH0LAYOUT0_GF13_0_GF14_1;
 
 	__raw_writel(value, resources->bch_regs + HW_BCH_FLASH0LAYOUT0);
@@ -342,7 +501,7 @@ static int set_geometry(struct gpmi_nfc_data *this)
 	value = BF_BCH_FLASH0LAYOUT1_PAGE_SIZE(page_size)   |
 		BF_BCH_FLASH0LAYOUT1_ECCN(ecc_strength)     |
 		BF_BCH_FLASH0LAYOUT1_DATAN_SIZE(block_size);
-	if (is_onfi_nand(&this->device_info))
+	if (is_ddr_nand(&this->device_info))
 		value |= BM_BCH_FLASH0LAYOUT1_GF13_0_GF14_1;
 
 	__raw_writel(value, resources->bch_regs + HW_BCH_FLASH0LAYOUT1);
@@ -577,19 +736,20 @@ static int send_command(struct gpmi_nfc_data *this, unsigned chip,
 	address      = BV_GPMI_CTRL0_ADDRESS__NAND_CLE;
 
 	fill_dma_word1(&(*d)->cmd.cmd,
-			DMA_READ, 0, 1, 0, 0, 1, 1, 1, 0, 3, length);
+			DMA_READ, 0, 1, 1, 0, 1, 1, 1, 0, 3, length);
 	(*d)->cmd.address = buffer;
 
 	(*d)->cmd.pio_words[0] =
 		BF_GPMI_CTRL0_COMMAND_MODE(command_mode) |
 		BM_GPMI_CTRL0_WORD_LENGTH                |
+		BM_GPMI_CTRL0_LOCK_CS			|
 		BF_GPMI_CTRL0_CS(chip)                   |
 		BF_GPMI_CTRL0_ADDRESS(address)           |
 		BM_GPMI_CTRL0_ADDRESS_INCREMENT          |
 		BF_GPMI_CTRL0_XFER_COUNT(length)         ;
 
 	(*d)->cmd.pio_words[1] = 0;
-	(*d)->cmd.pio_words[2] = 0;
+	(*d)->cmd.pio_words[2] = BV_GPMI_ECCCTRL_ENABLE_ECC__DISABLE;
 
 	mxs_dma_desc_append(dma_channel, (*d));
 	d++;
