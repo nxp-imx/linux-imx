@@ -240,9 +240,6 @@ int usb_hcd_fsl_probe(const struct hc_driver *driver,
 	if (retval != 0)
 		goto err5;
 
-#if (!defined CONFIG_USB_OTG)
-	fsl_platform_set_vbus_power(pdata, 1);
-#endif
 	if (pdata->operating_mode == FSL_USB2_DR_OTG) {
 		struct ehci_hcd *ehci = hcd_to_ehci(hcd);
 
@@ -260,7 +257,8 @@ int usb_hcd_fsl_probe(const struct hc_driver *driver,
 		retval = otg_set_host(ehci->transceiver, &ehci_to_hcd(ehci)->self);
 		if (retval)
 			otg_put_transceiver(ehci->transceiver);
-	}
+	} else if (pdata->operating_mode == FSL_USB2_MPH_HOST)
+		fsl_platform_set_vbus_power(pdata, 1);
 
 	if (pdata->suspended) {
 		pdata->suspended = 0;
