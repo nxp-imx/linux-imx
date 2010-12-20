@@ -1829,9 +1829,8 @@ int32_t ipu_disp_set_window_pos(ipu_channel_t channel, int16_t x_pos,
 		reg |= (0x1 << dp_srm_shift);
 		__raw_writel(reg, IPU_SRM_PRI2);
 	} else {
-		/* controled by MCU if channel disabled */
+		/* disable auto swap, controled by MCU if channel disabled */
 		reg = __raw_readl(IPU_SRM_PRI2) & (~(0x3 << dp_srm_shift));
-		reg |= (0x3 << dp_srm_shift);
 		__raw_writel(reg, IPU_SRM_PRI2);
 	}
 
