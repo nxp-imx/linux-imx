@@ -648,25 +648,6 @@ static int fsl_otg_set_peripheral(struct otg_transceiver *otg_p,
 		otg_statemachine(&otg_dev->fsm);
 		return 0;
 	}
-#ifdef DEBUG
-	/*
-	 * debug the initial state of the ID pin when only
-	 * the gadget driver is loaded and no cable is connected.
-	 * sometimes, we get an ID irq right
-	 * after the udc driver's otg_get_transceiver() call
-	 * that indicates that IDpin=0, which means a Mini-A
-	 * connector is attached.  not good.
-	 */
-	DBG("before: fsm.id ID pin=%d", otg_dev->fsm.id);
-	otg_dev->fsm.id = (otg_dev->dr_mem_map->otgsc & OTGSC_STS_USB_ID) ?
-	    1 : 0;
-	DBG("after:  fsm.id ID pin=%d", otg_dev->fsm.id);
-	/*if (!otg_dev->fsm.id) {
-	   printk("OTG Control = 0x%x\n",
-	   isp1504_read(ISP1504_OTGCTL,
-	   &otg_dev->dr_mem_map->ulpiview));
-	   } */
-#endif
 
 	otg_p->gadget = gadget;
 	otg_p->gadget->is_a_peripheral = !otg_dev->fsm.id;
