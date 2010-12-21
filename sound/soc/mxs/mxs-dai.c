@@ -238,7 +238,7 @@ static int mxs_saif_set_dai_clkdiv(struct snd_soc_dai *cpu_dai,
 	u32 scr;
 	struct mxs_saif *saif_select = (struct mxs_saif *)cpu_dai->private_data;
 
-	if (saif_select->saif_en == SAIF0)
+	if (saif_select->saif_clk == SAIF0)
 		scr = __raw_readl(SAIF0_CTRL);
 	else
 		scr = __raw_readl(SAIF1_CTRL);
@@ -293,7 +293,7 @@ static int mxs_saif_set_dai_clkdiv(struct snd_soc_dai *cpu_dai,
 		return -EINVAL;
 	}
 
-	if (saif_select->saif_en == SAIF0)
+	if (saif_select->saif_clk == SAIF0)
 		__raw_writel(scr, SAIF0_CTRL);
 	else
 		__raw_writel(scr, SAIF1_CTRL);
@@ -310,17 +310,20 @@ static int mxs_saif_set_dai_clkdiv(struct snd_soc_dai *cpu_dai,
 static int mxs_saif_set_dai_fmt(struct snd_soc_dai *cpu_dai, unsigned int fmt)
 {
 	u32 scr, stat;
+	u32 scr0, scr1;
 	struct mxs_saif *saif_select = (struct mxs_saif *)cpu_dai->private_data;
-	if (saif_select->saif_en == SAIF0) {
-		scr = __raw_readl(SAIF0_CTRL);
-		stat = __raw_readl(SAIF0_STAT);
-	} else {
-		scr = __raw_readl(SAIF1_CTRL);
-		stat = __raw_readl(SAIF1_STAT);
-	}
 
+	stat = (__raw_readl(SAIF0_STAT)) | (__raw_readl(SAIF1_STAT));
 	if (stat & BM_SAIF_STAT_BUSY)
 		return 0;
+
+	scr0 = __raw_readl(SAIF0_CTRL);
+	scr1 = __raw_readl(SAIF1_CTRL);
+	scr0 = scr0 & ~BM_SAIF_CTRL_BITCLK_EDGE & ~BM_SAIF_CTRL_LRCLK_POLARITY \
+		& ~BM_SAIF_CTRL_JUSTIFY & ~BM_SAIF_CTRL_DELAY;
+	scr1 = scr1 & ~BM_SAIF_CTRL_BITCLK_EDGE & ~BM_SAIF_CTRL_LRCLK_POLARITY \
+		& ~BM_SAIF_CTRL_JUSTIFY & ~BM_SAIF_CTRL_DELAY;
+	scr = 0;
 
 	/* DAI mode */
 	switch (fmt & SND_SOC_DAIFMT_FORMAT_MASK) {
@@ -360,20 +363,25 @@ static int mxs_saif_set_dai_fmt(struct snd_soc_dai *cpu_dai, unsigned int fmt)
 	/* DAI clock master masks */
 	switch (fmt & SND_SOC_DAIFMT_MASTER_MASK) {
 	case SND_SOC_DAIFMT_CBS_CFS:
-		scr &= ~BM_SAIF_CTRL_SLAVE_MODE;
 		break;
 	case SND_SOC_DAIFMT_CBM_CFS:
 		break;
 	case SND_SOC_DAIFMT_CBS_CFM:
 		break;
 	case SND_SOC_DAIFMT_CBM_CFM:
-		scr |= BM_SAIF_CTRL_SLAVE_MODE;
+		if (saif_select->saif_clk == SAIF0) {
+			scr &= ~BM_SAIF_CTRL_SLAVE_MODE;
+			__raw_writel(scr | scr0, SAIF0_CTRL);
+			scr |= BM_SAIF_CTRL_SLAVE_MODE;
+			__raw_writel(scr | scr1, SAIF1_CTRL);
+		} else {
+			scr &= ~BM_SAIF_CTRL_SLAVE_MODE;
+			__raw_writel(scr | scr1, SAIF1_CTRL);
+			scr |= BM_SAIF_CTRL_SLAVE_MODE;
+			__raw_writel(scr | scr0, SAIF0_CTRL);
+		}
 		break;
 	}
-	if (saif_select->saif_en == SAIF0)
-		__raw_writel(scr, SAIF0_CTRL);
-	else
-		__raw_writel(scr, SAIF1_CTRL);
 
 	SAIF_DUMP();
 	return 0;
@@ -396,10 +404,16 @@ static int mxs_saif_startup(struct snd_pcm_substream *substream,
 	if (cpu_dai->playback.active && cpu_dai->capture.active)
 		return 0;
 
-	if (saif_select->saif_en == SAIF0)
+	if (((saif_select->stream_mapping == PLAYBACK_SAIF0_CAPTURE_SAIF1) && \
+		(substream->stream == SNDRV_PCM_STREAM_PLAYBACK)) || \
+		((saif_select->stream_mapping == PLAYBACK_SAIF1_CAPTURE_SAIF0) \
+		&& (substream->stream == SNDRV_PCM_STREAM_CAPTURE)))
 		if (saif_active[SAIF0_PORT]++)
 			return 0;
-	if (saif_select->saif_en == SAIF1)
+	if (((saif_select->stream_mapping == PLAYBACK_SAIF0_CAPTURE_SAIF1) && \
+		(substream->stream == SNDRV_PCM_STREAM_CAPTURE)) || \
+		((saif_select->stream_mapping == PLAYBACK_SAIF1_CAPTURE_SAIF0) \
+		&& (substream->stream == SNDRV_PCM_STREAM_PLAYBACK)))
 		if (saif_active[SAIF1_PORT]++)
 			return 0;
 	SAIF_DUMP();
@@ -416,7 +430,10 @@ static int mxs_saif_hw_params(struct snd_pcm_substream *substream,
 {
 	u32 scr, stat;
 	struct mxs_saif *saif_select = (struct mxs_saif *)cpu_dai->private_data;
-	if (saif_select->saif_en == SAIF0) {
+	if (((saif_select->stream_mapping == PLAYBACK_SAIF0_CAPTURE_SAIF1) && \
+		(substream->stream == SNDRV_PCM_STREAM_PLAYBACK)) || \
+		((saif_select->stream_mapping == PLAYBACK_SAIF1_CAPTURE_SAIF0) \
+		&& (substream->stream == SNDRV_PCM_STREAM_CAPTURE))) {
 		scr = __raw_readl(SAIF0_CTRL);
 		stat = __raw_readl(SAIF0_STAT);
 	} else {
@@ -449,7 +466,10 @@ static int mxs_saif_hw_params(struct snd_pcm_substream *substream,
 		scr |= BM_SAIF_CTRL_READ_MODE;
 	}
 
-	if (saif_select->saif_en == SAIF0)
+	if (((saif_select->stream_mapping == PLAYBACK_SAIF0_CAPTURE_SAIF1) && \
+		(substream->stream == SNDRV_PCM_STREAM_PLAYBACK)) || \
+		((saif_select->stream_mapping == PLAYBACK_SAIF1_CAPTURE_SAIF0) \
+		&& (substream->stream == SNDRV_PCM_STREAM_CAPTURE)))
 		__raw_writel(scr, SAIF0_CTRL);
 	else
 		__raw_writel(scr, SAIF1_CTRL);
@@ -460,7 +480,10 @@ static int mxs_saif_prepare(struct snd_pcm_substream *substream,
 			   struct snd_soc_dai *cpu_dai)
 {
 	struct mxs_saif *saif_select = (struct mxs_saif *)cpu_dai->private_data;
-	if (saif_select->saif_en == SAIF0)
+	if (((saif_select->stream_mapping == PLAYBACK_SAIF0_CAPTURE_SAIF1) && \
+		(substream->stream == SNDRV_PCM_STREAM_PLAYBACK)) || \
+		((saif_select->stream_mapping == PLAYBACK_SAIF1_CAPTURE_SAIF0) \
+		&& (substream->stream == SNDRV_PCM_STREAM_CAPTURE)))
 		__raw_writel(BM_SAIF_CTRL_CLKGATE, SAIF0_CTRL_CLR);
 	else
 		__raw_writel(BM_SAIF_CTRL_CLKGATE, SAIF1_CTRL_CLR);
@@ -478,7 +501,10 @@ static int mxs_saif_trigger(struct snd_pcm_substream *substream, int cmd,
 	case SNDRV_PCM_TRIGGER_RESUME:
 	case SNDRV_PCM_TRIGGER_PAUSE_RELEASE:
 
-		if (saif_select->saif_en == SAIF0)
+	 if (((saif_select->stream_mapping == PLAYBACK_SAIF0_CAPTURE_SAIF1) && \
+		(substream->stream == SNDRV_PCM_STREAM_PLAYBACK)) || \
+		((saif_select->stream_mapping == PLAYBACK_SAIF1_CAPTURE_SAIF0) \
+		&& (substream->stream == SNDRV_PCM_STREAM_CAPTURE)))
 			reg = (void __iomem *)SAIF0_DATA;
 		else
 			reg = (void __iomem *)SAIF1_DATA;
@@ -511,14 +537,19 @@ static void mxs_saif_shutdown(struct snd_pcm_substream *substream,
 	if (cpu_dai->playback.active || cpu_dai->capture.active)
 		return;
 
-	if (saif_select->saif_en == SAIF0) {
+	if (((saif_select->stream_mapping == PLAYBACK_SAIF0_CAPTURE_SAIF1) && \
+		(substream->stream == SNDRV_PCM_STREAM_PLAYBACK)) || \
+		((saif_select->stream_mapping == PLAYBACK_SAIF1_CAPTURE_SAIF0) \
+		&& (substream->stream == SNDRV_PCM_STREAM_CAPTURE)))
 		if (--saif_active[SAIF0_PORT] > 1)
 			return;
-	}
-	if (saif_select->saif_en == SAIF1) {
+
+	if (((saif_select->stream_mapping == PLAYBACK_SAIF0_CAPTURE_SAIF1) && \
+		(substream->stream == SNDRV_PCM_STREAM_CAPTURE)) || \
+		((saif_select->stream_mapping == PLAYBACK_SAIF1_CAPTURE_SAIF0) \
+		&& (substream->stream == SNDRV_PCM_STREAM_PLAYBACK)))
 		if (--saif_active[SAIF1_PORT])
 			return;
-	}
 }
 
 #ifdef CONFIG_PM

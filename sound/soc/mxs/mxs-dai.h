@@ -30,7 +30,7 @@
 
 /*private info*/
 struct mxs_saif {
-	u8 saif_en;
+	u8 saif_clk;
 #define PLAYBACK_SAIF0_CAPTURE_SAIF1 0
 #define PLAYBACK_SAIF1_CAPTURE_SAIF0 1
 	u16 stream_mapping;
