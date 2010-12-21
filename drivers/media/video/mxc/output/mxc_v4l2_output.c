@@ -2630,6 +2630,22 @@ static struct video_device mxc_v4l2out_template = {
 	.release = video_device_release,
 };
 
+static ssize_t show_streaming(struct device *dev,
+			struct device_attribute *attr, char *buf)
+{
+	struct video_device *video_dev = container_of(dev,
+						struct video_device, dev);
+	vout_data *vout = video_get_drvdata(video_dev);
+
+	if (vout->state == STATE_STREAM_OFF)
+		return sprintf(buf, "stream off\n");
+	else if (vout->state == STATE_STREAM_PAUSED)
+		return sprintf(buf, "stream paused\n");
+	else
+		return sprintf(buf, "stream on\n");
+}
+static DEVICE_ATTR(fsl_v4l2_output_property, S_IRUGO, show_streaming, NULL);
+
 /*!
  * Probe routine for the framebuffer driver. It is called during the
  * driver binding process.      The following functions are performed in
@@ -2705,6 +2721,10 @@ static int mxc_v4l2out_probe(struct platform_device *pdev)
 
 	platform_set_drvdata(pdev, vout);
 
+	if (device_create_file(&vout->video_dev->dev,
+			&dev_attr_fsl_v4l2_output_property))
+		dev_err(&pdev->dev, "Error on creating file\n");
+
 	return 0;
 }
 
@@ -2713,6 +2733,8 @@ static int mxc_v4l2out_remove(struct platform_device *pdev)
 	vout_data *vout = platform_get_drvdata(pdev);
 
 	if (vout->video_dev) {
+		device_remove_file(&vout->video_dev->dev,
+			&dev_attr_fsl_v4l2_output_property);
 		video_unregister_device(vout->video_dev);
 		vout->video_dev = NULL;
 	}

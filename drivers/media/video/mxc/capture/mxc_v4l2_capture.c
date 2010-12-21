@@ -2483,6 +2483,34 @@ static u8 camera_power(cam_data *cam, bool cameraOn)
 	return 0;
 }
 
+static ssize_t show_streaming(struct device *dev,
+			struct device_attribute *attr, char *buf)
+{
+	struct video_device *video_dev = container_of(dev,
+						struct video_device, dev);
+	cam_data *g_cam = video_get_drvdata(video_dev);
+
+	if (g_cam->capture_on)
+		return sprintf(buf, "stream on\n");
+	else
+		return sprintf(buf, "stream off\n");
+}
+static DEVICE_ATTR(fsl_v4l2_capture_property, S_IRUGO, show_streaming, NULL);
+
+static ssize_t show_overlay(struct device *dev,
+			struct device_attribute *attr, char *buf)
+{
+	struct video_device *video_dev = container_of(dev,
+						struct video_device, dev);
+	cam_data *g_cam = video_get_drvdata(video_dev);
+
+	if (g_cam->overlay_on)
+		return sprintf(buf, "overlay on\n");
+	else
+		return sprintf(buf, "overlay off\n");
+}
+static DEVICE_ATTR(fsl_v4l2_overlay_property, S_IRUGO, show_overlay, NULL);
+
 /*!
  * This function is called to probe the devices if registered.
  *
@@ -2518,6 +2546,16 @@ static int mxc_v4l2_probe(struct platform_device *pdev)
 	pr_debug("   Video device registered: %s #%d\n",
 		 g_cam->video_dev->name, g_cam->video_dev->minor);
 
+	if (device_create_file(&g_cam->video_dev->dev,
+			&dev_attr_fsl_v4l2_capture_property))
+		dev_err(&pdev->dev, "Error on creating sysfs file"
+			" for capture\n");
+
+	if (device_create_file(&g_cam->video_dev->dev,
+			&dev_attr_fsl_v4l2_overlay_property))
+		dev_err(&pdev->dev, "Error on creating sysfs file"
+			" for overlay\n");
+
 	return 0;
 }
 
@@ -2537,6 +2575,11 @@ static int mxc_v4l2_remove(struct platform_device *pdev)
 			"-- setting ops to NULL\n");
 		return -EBUSY;
 	} else {
+		device_remove_file(&g_cam->video_dev->dev,
+			&dev_attr_fsl_v4l2_capture_property);
+		device_remove_file(&g_cam->video_dev->dev,
+			&dev_attr_fsl_v4l2_overlay_property);
+
 		pr_info("V4L2 freeing image input device\n");
 		v4l2_int_device_unregister(&mxc_v4l2_int_device);
 		video_unregister_device(g_cam->video_dev);
