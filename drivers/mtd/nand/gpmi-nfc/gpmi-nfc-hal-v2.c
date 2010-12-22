@@ -20,17 +20,10 @@
  */
 
 #include "gpmi-nfc.h"
-
 #include "gpmi-nfc-gpmi-regs-v2.h"
 #include "gpmi-nfc-bch-regs-v2.h"
 
 #define FEATURE_SIZE		(4)	/* p1, p2, p3, p4 */
-
-/*
- * In DDR mode of ONFI NAND, the data READ/WRITE will become 16-bit,
- * although the ALE/CLE are still use the 8-bit.
- */
-static int onfi_ddr_mode;
 
 /*
  * How many clocks do we need in low power mode?
@@ -151,7 +144,6 @@ static void common_ddr_init(struct resources *resources)
 
 static int enable_ddr_onfi(struct gpmi_nfc_data *this)
 {
-	uint32_t value;
 	struct resources  *resources = &this->resources;
 	struct mil *mil	= &this->mil;
 	struct nand_chip *nand = &this->mil.nand;
@@ -207,7 +199,6 @@ static int enable_ddr_onfi(struct gpmi_nfc_data *this)
 	/* common DDR initialization */
 	common_ddr_init(resources);
 
-	onfi_ddr_mode = 1;
 	nand->select_chip(mtd, saved_chip_number);
 
 	printk(KERN_INFO "Micron ONFI NAND enters synchronous mode %d\n", mode);
@@ -250,7 +241,6 @@ static int enable_ddr_toggle(struct gpmi_nfc_data *this)
 	struct nand_chip *nand = &this->mil.nand;
 	struct mtd_info	 *mtd = &mil->mtd;
 	int saved_chip_number = mil->current_chip;
-	uint32_t value;
 
 	nand->select_chip(mtd, 0);
 
@@ -295,7 +285,6 @@ static int enable_ddr_toggle(struct gpmi_nfc_data *this)
 	/* common DDR initialization */
 	common_ddr_init(resources);
 
-	onfi_ddr_mode = 1;
 	nand->select_chip(mtd, saved_chip_number);
 
 	printk(KERN_INFO "-- Sumsung TOGGLE NAND is enabled now. --\n");
@@ -667,17 +656,12 @@ static int send_command(struct gpmi_nfc_data *this, unsigned chip,
 	struct resources     *resources = &this->resources;
 	struct nfc_hal       *nfc       =  this->nfc;
 	struct mxs_dma_desc  **d        = nfc->dma_descriptors;
-	int                  dma_channel;
+	int    dma_channel		= resources->dma_low_channel + chip;
 	int                  error;
 	uint32_t             command_mode;
 	uint32_t             address;
 
-	/* Compute the DMA channel. */
-
-	dma_channel = resources->dma_low_channel + chip;
-
 	/* A DMA descriptor that sends out the command. */
-
 	command_mode = BV_GPMI_CTRL0_COMMAND_MODE__WRITE;
 	address      = BV_GPMI_CTRL0_ADDRESS__NAND_CLE;
 
@@ -698,19 +682,12 @@ static int send_command(struct gpmi_nfc_data *this, unsigned chip,
 	(*d)->cmd.pio_words[2] = BV_GPMI_ECCCTRL_ENABLE_ECC__DISABLE;
 
 	mxs_dma_desc_append(dma_channel, (*d));
-	d++;
 
 	/* Go! */
-
 	error = gpmi_nfc_dma_go(this, dma_channel);
-
 	if (error)
 		dev_err(dev, "[%s] DMA error\n", __func__);
-
-	/* Return success. */
-
 	return error;
-
 }
 
 /**
@@ -728,17 +705,12 @@ static int send_data(struct gpmi_nfc_data *this, unsigned chip,
 	struct resources     *resources = &this->resources;
 	struct nfc_hal       *nfc       =  this->nfc;
 	struct mxs_dma_desc  **d        = nfc->dma_descriptors;
-	int                  dma_channel;
+	int    dma_channel		= resources->dma_low_channel + chip;
 	int                  error = 0;
 	uint32_t             command_mode;
 	uint32_t             address;
 
-	/* Compute the DMA channel. */
-
-	dma_channel = resources->dma_low_channel + chip;
-
 	/* A DMA descriptor that writes a buffer out. */
-
 	command_mode = BV_GPMI_CTRL0_COMMAND_MODE__WRITE;
 	address      = BV_GPMI_CTRL0_ADDRESS__NAND_DATA;
 
@@ -757,19 +729,12 @@ static int send_data(struct gpmi_nfc_data *this, unsigned chip,
 	(*d)->cmd.pio_words[3] = 0;
 
 	mxs_dma_desc_append(dma_channel, (*d));
-	d++;
 
 	/* Go! */
-
 	error = gpmi_nfc_dma_go(this, dma_channel);
-
 	if (error)
 		dev_err(dev, "[%s] DMA error\n", __func__);
-
-	/* Return success. */
-
 	return error;
-
 }
 
 /**
@@ -787,17 +752,12 @@ static int read_data(struct gpmi_nfc_data *this, unsigned chip,
 	struct resources     *resources = &this->resources;
 	struct nfc_hal       *nfc       =  this->nfc;
 	struct mxs_dma_desc  **d        = nfc->dma_descriptors;
-	int                  dma_channel;
+	int    dma_channel		= resources->dma_low_channel + chip;
 	int                  error = 0;
 	uint32_t             command_mode;
 	uint32_t             address;
 
-	/* Compute the DMA channel. */
-
-	dma_channel = resources->dma_low_channel + chip;
-
 	/* A DMA descriptor that reads the data. */
-
 	command_mode = BV_GPMI_CTRL0_COMMAND_MODE__READ;
 	address      = BV_GPMI_CTRL0_ADDRESS__NAND_DATA;
 
@@ -813,18 +773,12 @@ static int read_data(struct gpmi_nfc_data *this, unsigned chip,
 		BF_GPMI_CTRL0_XFER_COUNT(length)         ;
 
 	mxs_dma_desc_append(dma_channel, (*d));
-	d++;
 
 	/* Go! */
-
 	error = gpmi_nfc_dma_go(this, dma_channel);
-
 	if (error)
 		dev_err(dev, "[%s] DMA error\n", __func__);
-	/* Return success. */
-
 	return error;
-
 }
 
 /**
@@ -843,20 +797,26 @@ static int send_page(struct gpmi_nfc_data *this, unsigned chip,
 	struct nfc_hal       *nfc       =  this->nfc;
 	struct nfc_geometry  *nfc_geo   = &this->nfc_geometry;
 	struct mxs_dma_desc  **d        = nfc->dma_descriptors;
-	int                  dma_channel;
+	struct nand_device_info  *info	= &this->device_info;
+	int    dma_channel		= resources->dma_low_channel + chip;
 	int                  error = 0;
 	uint32_t             command_mode;
 	uint32_t             address;
 	uint32_t             ecc_command;
 	uint32_t             buffer_mask;
-	uint32_t             value;
+	uint32_t		page_size;
+	uint32_t		busw;
 
-	/* Compute the DMA channel. */
-
-	dma_channel = resources->dma_low_channel + chip;
+	/* DDR use the 16-bit for DATA transmission! */
+	if (is_ddr_nand(info)) {
+		busw		= BV_GPMI_CTRL0_WORD_LENGTH__16_BIT;
+		page_size	= nfc_geo->page_size_in_bytes >> 1;
+	} else {
+		busw		= BM_GPMI_CTRL0_WORD_LENGTH;
+		page_size	= nfc_geo->page_size_in_bytes;
+	}
 
 	/* A DMA descriptor that does an ECC page read. */
-
 	command_mode = BV_GPMI_CTRL0_COMMAND_MODE__WRITE;
 	address      = BV_GPMI_CTRL0_ADDRESS__NAND_DATA;
 	ecc_command  = BV_GPMI_ECCCTRL_ECC_CMD__ENCODE;
@@ -864,62 +824,38 @@ static int send_page(struct gpmi_nfc_data *this, unsigned chip,
 				BV_GPMI_ECCCTRL_BUFFER_MASK__BCH_AUXONLY;
 
 	fill_dma_word1(&(*d)->cmd.cmd,
-			NO_DMA_XFER, 0, 1, 0, 0, 1, 1, 0, 0, 6, 0);
+				NO_DMA_XFER, 0, 1, 0, 0, 1, 1, 0, 0, 6, 0);
 	(*d)->cmd.address = 0;
-
-	value = BF_GPMI_CTRL0_COMMAND_MODE(command_mode) |
-		BF_GPMI_CTRL0_CS(chip)                   |
-		BF_GPMI_CTRL0_ADDRESS(address)           |
-		BF_GPMI_CTRL0_XFER_COUNT(0)              ;
-	if (onfi_ddr_mode == 0)
-		value |= BM_GPMI_CTRL0_WORD_LENGTH;
-
-	(*d)->cmd.pio_words[0] = value;
-
+	(*d)->cmd.pio_words[0] = BF_GPMI_CTRL0_COMMAND_MODE(command_mode)
+				| BF_GPMI_CTRL0_CS(chip)
+				| BF_GPMI_CTRL0_ADDRESS(address)
+				| BF_GPMI_CTRL0_XFER_COUNT(0)
+				| busw;
 	(*d)->cmd.pio_words[1] = 0;
-
-	(*d)->cmd.pio_words[2] =
-		BM_GPMI_ECCCTRL_ENABLE_ECC               |
-		BF_GPMI_ECCCTRL_ECC_CMD(ecc_command)     |
-		BF_GPMI_ECCCTRL_BUFFER_MASK(buffer_mask) ;
-
-	if (onfi_ddr_mode)
-		value = nfc_geo->page_size_in_bytes >> 1;
-	else
-		value = nfc_geo->page_size_in_bytes;
-
-	(*d)->cmd.pio_words[3] = value;
+	(*d)->cmd.pio_words[2] = BM_GPMI_ECCCTRL_ENABLE_ECC
+				| BF_GPMI_ECCCTRL_ECC_CMD(ecc_command)
+				| BF_GPMI_ECCCTRL_BUFFER_MASK(buffer_mask) ;
+	(*d)->cmd.pio_words[3] = page_size;
 	(*d)->cmd.pio_words[4] = payload;
 	(*d)->cmd.pio_words[5] = auxiliary;
 
 	mxs_dma_desc_append(dma_channel, (*d));
-	d++;
 
 	/* Prepare to receive an interrupt from the BCH block. */
-
 	init_completion(&nfc->bch_done);
 
 	/* Go! */
-
 	error = gpmi_nfc_dma_go(this, dma_channel);
-
 	if (error)
 		dev_err(dev, "[%s] DMA error\n", __func__);
 
 	/* Wait for the interrupt from the BCH block. */
-
 	error = wait_for_completion_timeout(&nfc->bch_done,
-							msecs_to_jiffies(1000));
-
+						msecs_to_jiffies(1000));
 	error = (!error) ? -ETIMEDOUT : 0;
-
 	if (error)
-		dev_err(dev, "[%s] bch timeout!!! \n", __func__);
-
-	/* Return success. */
-
+		dev_err(dev, "[%s] bch timeout!!!\n", __func__);
 	return error;
-
 }
 
 /**
@@ -937,43 +873,43 @@ static int read_page(struct gpmi_nfc_data *this, unsigned chip,
 	struct resources     *resources = &this->resources;
 	struct nfc_hal       *nfc       =  this->nfc;
 	struct nfc_geometry  *nfc_geo   = &this->nfc_geometry;
+	struct nand_device_info  *info	= &this->device_info;
 	struct mxs_dma_desc  **d        = nfc->dma_descriptors;
-	int                  dma_channel;
+	int    dma_channel		= resources->dma_low_channel + chip;
 	int                  error = 0;
 	uint32_t             command_mode;
 	uint32_t             address;
 	uint32_t             ecc_command;
 	uint32_t             buffer_mask;
-	uint32_t             value;
+	uint32_t		page_size;
+	uint32_t		busw;
 
-	/* Compute the DMA channel. */
-
-	dma_channel = resources->dma_low_channel + chip;
+	/* DDR use the 16-bit for DATA transmission! */
+	if (is_ddr_nand(info)) {
+		busw		= BV_GPMI_CTRL0_WORD_LENGTH__16_BIT;
+		page_size	= nfc_geo->page_size_in_bytes >> 1;
+	} else {
+		busw		= BM_GPMI_CTRL0_WORD_LENGTH;
+		page_size	= nfc_geo->page_size_in_bytes;
+	}
 
 	/* Wait for the chip to report ready. */
-
 	command_mode = BV_GPMI_CTRL0_COMMAND_MODE__WAIT_FOR_READY;
 	address      = BV_GPMI_CTRL0_ADDRESS__NAND_DATA;
 
 	fill_dma_word1(&(*d)->cmd.cmd,
-			NO_DMA_XFER, 1, 0, 0, 1, 0, 1, 0, 0, 1, 0);
+				NO_DMA_XFER, 1, 0, 0, 1, 0, 1, 0, 0, 1, 0);
 	(*d)->cmd.address = 0;
-
-	value = BF_GPMI_CTRL0_COMMAND_MODE(command_mode) |
-		BF_GPMI_CTRL0_CS(chip)                   |
-		BF_GPMI_CTRL0_ADDRESS(address)           |
-		BF_GPMI_CTRL0_XFER_COUNT(0)              ;
-	if (onfi_ddr_mode == 0)
-		value |= BM_GPMI_CTRL0_WORD_LENGTH;
-
-	(*d)->cmd.pio_words[0] = value;
-
+	(*d)->cmd.pio_words[0] = BF_GPMI_CTRL0_COMMAND_MODE(command_mode)
+				| BF_GPMI_CTRL0_CS(chip)
+				| BF_GPMI_CTRL0_ADDRESS(address)
+				| BF_GPMI_CTRL0_XFER_COUNT(0)
+				| busw;
 
 	mxs_dma_desc_append(dma_channel, (*d));
 	d++;
 
 	/* Enable the BCH block and read. */
-
 	command_mode = BV_GPMI_CTRL0_COMMAND_MODE__READ;
 	address      = BV_GPMI_CTRL0_ADDRESS__NAND_DATA;
 	ecc_command  = BV_GPMI_ECCCTRL_ECC_CMD__DECODE;
@@ -981,35 +917,18 @@ static int read_page(struct gpmi_nfc_data *this, unsigned chip,
 				BV_GPMI_ECCCTRL_BUFFER_MASK__BCH_AUXONLY;
 
 	fill_dma_word1(&(*d)->cmd.cmd,
-			NO_DMA_XFER, 1, 0, 0, 0, 0, 1, 0, 0, 6, 0);
+				NO_DMA_XFER, 1, 0, 0, 0, 0, 1, 0, 0, 6, 0);
 	(*d)->cmd.address = 0;
-
-	if (onfi_ddr_mode)
-		value = BF_GPMI_CTRL0_COMMAND_MODE(command_mode) |
-			BF_GPMI_CTRL0_CS(chip)                   |
-			BF_GPMI_CTRL0_ADDRESS(address)           |
-		BF_GPMI_CTRL0_XFER_COUNT(nfc_geo->page_size_in_bytes >> 1) ;
-	else
-		value = BF_GPMI_CTRL0_COMMAND_MODE(command_mode)     |
-			BM_GPMI_CTRL0_WORD_LENGTH                    |
-			BF_GPMI_CTRL0_CS(chip)                       |
-			BF_GPMI_CTRL0_ADDRESS(address)               |
-		BF_GPMI_CTRL0_XFER_COUNT(nfc_geo->page_size_in_bytes);
-
-	(*d)->cmd.pio_words[0] = value;
-
+	(*d)->cmd.pio_words[0] = BF_GPMI_CTRL0_COMMAND_MODE(command_mode)
+				| BF_GPMI_CTRL0_CS(chip)
+				| BF_GPMI_CTRL0_ADDRESS(address)
+				| BF_GPMI_CTRL0_XFER_COUNT(page_size)
+				| busw;
 	(*d)->cmd.pio_words[1] = 0;
-	(*d)->cmd.pio_words[2] =
-		BM_GPMI_ECCCTRL_ENABLE_ECC 	         |
-		BF_GPMI_ECCCTRL_ECC_CMD(ecc_command)     |
-		BF_GPMI_ECCCTRL_BUFFER_MASK(buffer_mask) ;
-
-	if (onfi_ddr_mode)
-		value = nfc_geo->page_size_in_bytes >> 1;
-	else
-		value = nfc_geo->page_size_in_bytes;
-	(*d)->cmd.pio_words[3] = value;
-
+	(*d)->cmd.pio_words[2] = BM_GPMI_ECCCTRL_ENABLE_ECC
+				| BF_GPMI_ECCCTRL_ECC_CMD(ecc_command)
+				| BF_GPMI_ECCCTRL_BUFFER_MASK(buffer_mask);
+	(*d)->cmd.pio_words[3] = page_size;
 	(*d)->cmd.pio_words[4] = payload;
 	(*d)->cmd.pio_words[5] = auxiliary;
 
@@ -1017,22 +936,17 @@ static int read_page(struct gpmi_nfc_data *this, unsigned chip,
 	d++;
 
 	/* Disable the BCH block */
-
 	command_mode = BV_GPMI_CTRL0_COMMAND_MODE__WAIT_FOR_READY;
 	address      = BV_GPMI_CTRL0_ADDRESS__NAND_DATA;
 
 	fill_dma_word1(&(*d)->cmd.cmd,
-			NO_DMA_XFER, 1, 0, 0, 1, 0, 1, 0, 0, 3, 0);
+				NO_DMA_XFER, 1, 0, 0, 1, 0, 1, 0, 0, 3, 0);
 	(*d)->cmd.address = 0;
-
-	value = BF_GPMI_CTRL0_COMMAND_MODE(command_mode)              |
-		BF_GPMI_CTRL0_CS(chip)                                |
-		BF_GPMI_CTRL0_ADDRESS(address)                        |
-		BF_GPMI_CTRL0_XFER_COUNT(value) ;
-	if (onfi_ddr_mode == 0)
-		value |= BM_GPMI_CTRL0_WORD_LENGTH;
-
-	(*d)->cmd.pio_words[0] = value;
+	(*d)->cmd.pio_words[0] = BF_GPMI_CTRL0_COMMAND_MODE(command_mode)
+				| BF_GPMI_CTRL0_CS(chip)
+				| BF_GPMI_CTRL0_ADDRESS(address)
+				| BF_GPMI_CTRL0_XFER_COUNT(page_size)
+				| busw;
 	(*d)->cmd.pio_words[1] = 0;
 	(*d)->cmd.pio_words[2] = 0;
 
@@ -1048,30 +962,20 @@ static int read_page(struct gpmi_nfc_data *this, unsigned chip,
 	d++;
 
 	/* Prepare to receive an interrupt from the BCH block. */
-
 	init_completion(&nfc->bch_done);
 
 	/* Go! */
-
 	error = gpmi_nfc_dma_go(this, dma_channel);
-
 	if (error)
 		dev_err(dev, "[%s] DMA error\n", __func__);
 
 	/* Wait for the interrupt from the BCH block. */
-
 	error = wait_for_completion_timeout(&nfc->bch_done,
-							msecs_to_jiffies(1000));
-
+						msecs_to_jiffies(1000));
 	error = (!error) ? -ETIMEDOUT : 0;
-
 	if (error)
-		dev_err(dev, "[%s] bch timeout!!! \n", __func__);
-
-	/* Return success. */
-
+		dev_err(dev, "[%s] bch timeout!!!\n", __func__);
 	return error;
-
 }
 
 /* This structure represents the NFC HAL for this version of the hardware. */
