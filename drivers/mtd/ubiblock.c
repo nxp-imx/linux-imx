@@ -35,6 +35,7 @@
 #include "mtdcore.h"
 
 static LIST_HEAD(ubiblk_devices);
+static struct mutex ubiblk_devices_lock;
 
 /**
  * ubiblk_dev - the structure representing translation layer
@@ -50,7 +51,7 @@ static LIST_HEAD(ubiblk_devices);
  * @cache_size: cache size in bytes, usually equal to LEB size
  */
 struct ubiblk_dev {
-	struct mtd_blktrans_dev m;
+	struct mtd_blktrans_dev *m;
 
 	int 			ubi_num;
 	int			ubi_vol;
@@ -293,6 +294,21 @@ out:
 	return err;
 }
 
+static struct ubiblk_dev *ubiblk_find_by_ptr(struct mtd_blktrans_dev *m)
+{
+	struct ubiblk_dev *pos;
+
+	mutex_lock(&ubiblk_devices_lock);
+	list_for_each_entry(pos, &ubiblk_devices, list)
+		if (pos->m == m) {
+			mutex_unlock(&ubiblk_devices_lock);
+			return pos;
+		}
+	mutex_unlock(&ubiblk_devices_lock);
+	BUG();
+	return NULL;
+}
+
 /**
  * ubiblock_writesect - write the sector
  *
@@ -302,7 +318,7 @@ out:
 static int ubiblock_writesect(struct mtd_blktrans_dev *mbd,
 			      unsigned long block, char *buf)
 {
-	struct ubiblk_dev *u = container_of(mbd, struct ubiblk_dev, m);
+	struct ubiblk_dev *u = ubiblk_find_by_ptr(mbd);
 
 	if (unlikely(!u->cache_data)) {
 		u->cache_data = vmalloc(u->cache_size);
@@ -321,7 +337,7 @@ static int ubiblock_writesect(struct mtd_blktrans_dev *mbd,
 static int ubiblock_readsect(struct mtd_blktrans_dev *mbd,
 			      unsigned long block, char *buf)
 {
-	struct ubiblk_dev *u = container_of(mbd, struct ubiblk_dev, m);
+	struct ubiblk_dev *u = ubiblk_find_by_ptr(mbd);
 
 	if (unlikely(!u->cache_data)) {
 		u->cache_data = vmalloc(u->cache_size);
@@ -340,7 +356,7 @@ static int ubiblk_flush_locked(struct ubiblk_dev *u)
 
 static int ubiblock_flush(struct mtd_blktrans_dev *mbd)
 {
-	struct ubiblk_dev *u = container_of(mbd, struct ubiblk_dev, m);
+	struct ubiblk_dev *u = ubiblk_find_by_ptr(mbd);
 
 	mutex_lock(&u->cache_mutex);
 	ubiblk_flush_locked(u);
@@ -351,7 +367,7 @@ static int ubiblock_flush(struct mtd_blktrans_dev *mbd)
 
 static int ubiblock_open(struct mtd_blktrans_dev *mbd)
 {
-	struct ubiblk_dev *u = container_of(mbd, struct ubiblk_dev, m);
+	struct ubiblk_dev *u = ubiblk_find_by_ptr(mbd);
 
 	if (u->usecount == 0) {
 		u->ubi = ubi_open_volume(u->ubi_num, u->ubi_vol,
@@ -365,7 +381,7 @@ static int ubiblock_open(struct mtd_blktrans_dev *mbd)
 
 static int ubiblock_release(struct mtd_blktrans_dev *mbd)
 {
-	struct ubiblk_dev *u = container_of(mbd, struct ubiblk_dev, m);
+	struct ubiblk_dev *u = ubiblk_find_by_ptr(mbd);
 
 	if (--u->usecount == 0) {
 		mutex_lock(&u->cache_mutex);
@@ -378,6 +394,7 @@ static int ubiblock_release(struct mtd_blktrans_dev *mbd)
 	}
 	return 0;
 }
+
 
 /*
  * sysfs routines. The ubiblk creates two entries under /sys/block/ubiblkX:
@@ -393,7 +410,7 @@ ssize_t volume_show(struct device *dev,
 {
 	struct gendisk *gd = dev_to_disk(dev);
 	struct mtd_blktrans_dev *m = gd->private_data;
-	struct ubiblk_dev *u = container_of(m, struct ubiblk_dev, m);
+	struct ubiblk_dev *u = ubiblk_find_by_ptr(m);
 
 	return sprintf(buf, "%d:%d\n", u->ubi_num, u->ubi_vol);
 }
@@ -410,7 +427,7 @@ ssize_t unbind_store(struct device *dev, struct device_attribute *attr,
 {
 	struct gendisk *gd = dev_to_disk(dev);
 	struct mtd_blktrans_dev *m = gd->private_data;
-	struct ubiblk_dev *u = container_of(m, struct ubiblk_dev, m);
+	struct ubiblk_dev *u = ubiblk_find_by_ptr(m);
 
 	INIT_WORK(&u->unbind, ubiblk_unbind);
 	schedule_work(&u->unbind);
@@ -465,10 +482,18 @@ static void *ubiblk_add_locked(int ubi_num, int ubi_vol_id)
 		u = ERR_PTR(-ENOMEM);
 		goto out;
 	}
+	u->m = kzalloc(sizeof(struct mtd_blktrans_dev), GFP_KERNEL);
+	if (!u->m) {
+		kfree(u);
+		u = ERR_PTR(-ENOMEM);
+		goto out;
+	}
 
 	ubi = ubi_open_volume(ubi_num, ubi_vol_id, UBI_READONLY);
 	if (IS_ERR(ubi)) {
 		pr_err("cannot open the volume\n");
+		kfree(u->m);
+		kfree(u);
 		u = (void *)ubi;
 		goto out;
 	}
@@ -478,10 +503,10 @@ static void *ubiblk_add_locked(int ubi_num, int ubi_vol_id)
 	pr_debug("adding volume of size %d (used_size %lld), LEB size %d\n",
 		uvi.size, uvi.used_bytes, uvi.usable_leb_size);
 
-	u->m.mtd = ubi->vol->ubi->mtd;
-	u->m.devnum = -1;
-	u->m.size = uvi.used_bytes >> 9;
-	u->m.tr = &ubiblock_tr;
+	u->m->mtd = ubi->vol->ubi->mtd;
+	u->m->devnum = -1;
+	u->m->size = uvi.used_bytes >> 9;
+	u->m->tr = &ubiblock_tr;
 
 	ubi_close_volume(ubi);
 
@@ -495,9 +520,11 @@ static void *ubiblk_add_locked(int ubi_num, int ubi_vol_id)
 	u->usecount = 0;
 	INIT_LIST_HEAD(&u->list);
 
+	mutex_lock(&ubiblk_devices_lock);
 	list_add_tail(&u->list, &ubiblk_devices);
-	add_mtd_blktrans_dev(&u->m);
-	ubiblk_sysfs(u->m.disk, true);
+	mutex_unlock(&ubiblk_devices_lock);
+	add_mtd_blktrans_dev(u->m);
+	ubiblk_sysfs(u->m->disk, true);
 out:
 	return u;
 }
@@ -515,9 +542,13 @@ static int ubiblk_del_locked(struct ubiblk_dev *u)
 {
 	if (u->usecount != 0)
 		return -EBUSY;
-	ubiblk_sysfs(u->m.disk, false);
-	del_mtd_blktrans_dev(&u->m);
+	ubiblk_sysfs(u->m->disk, false);
+	del_mtd_blktrans_dev(u->m);
+
+	mutex_lock(&ubiblk_devices_lock);
 	list_del(&u->list);
+	mutex_unlock(&ubiblk_devices_lock);
+
 	BUG_ON(u->cache_data != NULL); /* who did not free the cache ?! */
 	kfree(u);
 	return 0;
@@ -527,9 +558,13 @@ static struct ubiblk_dev *ubiblk_find(int num, int vol)
 {
 	struct ubiblk_dev *pos;
 
+	mutex_lock(&ubiblk_devices_lock);
 	list_for_each_entry(pos, &ubiblk_devices, list)
-		if (pos->ubi_num == num && pos->ubi_vol == vol)
+		if (pos->ubi_num == num && pos->ubi_vol == vol) {
+			mutex_unlock(&ubiblk_devices_lock);
 			return pos;
+		}
+	mutex_unlock(&ubiblk_devices_lock);
 	return NULL;
 }
 
@@ -563,6 +598,7 @@ static int __init ubiblock_init(void)
 {
 	int r;
 
+	mutex_init(&ubiblk_devices_lock);
 	r = register_mtd_blktrans(&ubiblock_tr);
 	if (r)
 		goto out;
