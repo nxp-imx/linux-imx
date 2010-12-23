@@ -1,7 +1,7 @@
 /*
  * imx-3stack-sgtl5000.c  --  i.MX 3Stack Driver for Freescale SGTL5000 Codec
  *
- * Copyright (C) 2008-2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2008-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  *  This program is free software; you can redistribute  it and/or modify it
  *  under  the terms of  the GNU General  Public License as published by the
@@ -301,9 +301,23 @@ static void headphone_detect_handler(struct work_struct *work)
 	struct platform_device *pdev = priv->pdev;
 	struct mxc_audio_platform_data *plat = pdev->dev.platform_data;
 	int hp_status;
+	char *envp[3];
+	char *buf;
 
 	sysfs_notify(&pdev->dev.kobj, NULL, "headphone");
 	hp_status = plat->hp_status();
+
+	/* setup a message for userspace headphone in */
+	buf = kmalloc(32, GFP_ATOMIC);
+	if (!buf)
+		return -ENOMEM;
+	envp[0] = "NAME=headphone";
+	snprintf(buf, 32, "STATE=%d", hp_status);
+	envp[1] = buf;
+	envp[2] = NULL;
+	kobject_uevent_env(&pdev->dev.kobj, KOBJ_CHANGE, envp);
+	kfree(buf);
+
 	if (hp_status)
 		set_irq_type(plat->hp_irq, IRQ_TYPE_EDGE_FALLING);
 	else
