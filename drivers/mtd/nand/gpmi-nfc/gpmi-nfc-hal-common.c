@@ -460,6 +460,18 @@ int start_dma_with_bch_irq(struct gpmi_nfc_data *this, int dma_channel)
 	return error;
 }
 
+/* This function is called in non-BCH DMA operations */
+int start_dma_without_bch_irq(struct gpmi_nfc_data *this, int dma_channel)
+{
+	int error = 0;
+
+	/* Go! */
+	error = gpmi_nfc_dma_go(this, dma_channel);
+	if (error)
+		printk(KERN_ERR "[ %s ] DMA error\n", __func__);
+	return error;
+}
+
 /**
  * ns_to_cycles - Converts time in nanoseconds to cycles.
  *

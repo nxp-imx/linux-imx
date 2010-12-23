@@ -610,6 +610,8 @@ extern int gpmi_nfc_dma_go(struct gpmi_nfc_data *this, int  dma_channel);
 extern int gpmi_nfc_compute_hardware_timing(struct gpmi_nfc_data *this,
 					struct gpmi_nfc_hardware_timing *hw);
 extern int start_dma_with_bch_irq(struct gpmi_nfc_data *this, int dma_channel);
+extern int start_dma_without_bch_irq(struct gpmi_nfc_data *this,
+					int dma_channel);
 
 /* NFC HAL Structures */
 
