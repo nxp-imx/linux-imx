@@ -428,6 +428,38 @@ int gpmi_nfc_dma_go(struct gpmi_nfc_data *this, int  dma_channel)
 
 }
 
+/*
+ * This function is used in BCH reading or BCH writing.
+ * It will wait for the BCH interrupt as long as one second.
+ * Actually, we will wait for two interrupts, the DMA interrupt and
+ * BCH interrupt.
+ *
+ * @this:        Per-device data structure.
+ * @dma_channel: DMA channel
+ *
+ */
+int start_dma_with_bch_irq(struct gpmi_nfc_data *this, int dma_channel)
+{
+	struct nfc_hal *nfc = this->nfc;
+	int error = 0;
+
+	/* Prepare to receive an interrupt from the BCH block. */
+	init_completion(&nfc->bch_done);
+
+	/* Go! */
+	error = gpmi_nfc_dma_go(this, dma_channel);
+	if (error)
+		printk(KERN_ERR "[ %s ] DMA error\n", __func__);
+
+	/* Wait for the interrupt from the BCH block. */
+	error = wait_for_completion_timeout(&nfc->bch_done,
+						msecs_to_jiffies(1000));
+	error = (!error) ? -ETIMEDOUT : 0;
+	if (error)
+		printk(KERN_ERR "[ %s ] bch timeout!!!\n", __func__);
+	return error;
+}
+
 /**
  * ns_to_cycles - Converts time in nanoseconds to cycles.
  *
