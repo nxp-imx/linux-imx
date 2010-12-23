@@ -799,7 +799,6 @@ static int send_page(struct gpmi_nfc_data *this, unsigned chip,
 	struct mxs_dma_desc  **d        = nfc->dma_descriptors;
 	struct nand_device_info  *info	= &this->device_info;
 	int    dma_channel		= resources->dma_low_channel + chip;
-	int                  error = 0;
 	uint32_t             command_mode;
 	uint32_t             address;
 	uint32_t             ecc_command;
@@ -841,21 +840,7 @@ static int send_page(struct gpmi_nfc_data *this, unsigned chip,
 
 	mxs_dma_desc_append(dma_channel, (*d));
 
-	/* Prepare to receive an interrupt from the BCH block. */
-	init_completion(&nfc->bch_done);
-
-	/* Go! */
-	error = gpmi_nfc_dma_go(this, dma_channel);
-	if (error)
-		dev_err(dev, "[%s] DMA error\n", __func__);
-
-	/* Wait for the interrupt from the BCH block. */
-	error = wait_for_completion_timeout(&nfc->bch_done,
-						msecs_to_jiffies(1000));
-	error = (!error) ? -ETIMEDOUT : 0;
-	if (error)
-		dev_err(dev, "[%s] bch timeout!!!\n", __func__);
-	return error;
+	return start_dma_with_bch_irq(this, dma_channel);
 }
 
 /**
@@ -876,7 +861,6 @@ static int read_page(struct gpmi_nfc_data *this, unsigned chip,
 	struct nand_device_info  *info	= &this->device_info;
 	struct mxs_dma_desc  **d        = nfc->dma_descriptors;
 	int    dma_channel		= resources->dma_low_channel + chip;
-	int                  error = 0;
 	uint32_t             command_mode;
 	uint32_t             address;
 	uint32_t             ecc_command;
@@ -959,23 +943,8 @@ static int read_page(struct gpmi_nfc_data *this, unsigned chip,
 	(*d)->cmd.address = 0;
 
 	mxs_dma_desc_append(dma_channel, (*d));
-	d++;
 
-	/* Prepare to receive an interrupt from the BCH block. */
-	init_completion(&nfc->bch_done);
-
-	/* Go! */
-	error = gpmi_nfc_dma_go(this, dma_channel);
-	if (error)
-		dev_err(dev, "[%s] DMA error\n", __func__);
-
-	/* Wait for the interrupt from the BCH block. */
-	error = wait_for_completion_timeout(&nfc->bch_done,
-						msecs_to_jiffies(1000));
-	error = (!error) ? -ETIMEDOUT : 0;
-	if (error)
-		dev_err(dev, "[%s] bch timeout!!!\n", __func__);
-	return error;
+	return start_dma_with_bch_irq(this, dma_channel);
 }
 
 /* This structure represents the NFC HAL for this version of the hardware. */

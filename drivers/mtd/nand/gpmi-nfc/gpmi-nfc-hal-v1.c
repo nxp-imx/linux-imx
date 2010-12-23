@@ -544,7 +544,6 @@ static int send_page(struct gpmi_nfc_data *this, unsigned chip,
 	struct nfc_geometry  *nfc_geo   = &this->nfc_geometry;
 	struct mxs_dma_desc  **d        = nfc->dma_descriptors;
 	int                  dma_channel;
-	int                  error = 0;
 	uint32_t             command_mode;
 	uint32_t             address;
 	uint32_t             ecc_command;
@@ -585,27 +584,8 @@ static int send_page(struct gpmi_nfc_data *this, unsigned chip,
 	(*d)->cmd.pio_words[5] = auxiliary;
 
 	mxs_dma_desc_append(dma_channel, (*d));
-	d++;
 
-	/* Prepare to receive an interrupt from the BCH block. */
-
-	init_completion(&nfc->bch_done);
-
-	/* Go! */
-
-	error = gpmi_nfc_dma_go(this, dma_channel);
-
-	if (error)
-		dev_err(dev, "[%s] DMA error\n", __func__);
-
-	/* Wait for the interrupt from the BCH block. */
-
-	wait_for_completion(&nfc->bch_done);
-
-	/* Return success. */
-
-	return error;
-
+	return start_dma_with_bch_irq(this, dma_channel);
 }
 
 /**
@@ -624,19 +604,13 @@ static int read_page(struct gpmi_nfc_data *this, unsigned chip,
 	struct nfc_hal       *nfc       =  this->nfc;
 	struct nfc_geometry  *nfc_geo   = &this->nfc_geometry;
 	struct mxs_dma_desc  **d        = nfc->dma_descriptors;
-	int                  dma_channel;
-	int                  error = 0;
+	int    dma_channel		= resources->dma_low_channel + chip;
 	uint32_t             command_mode;
 	uint32_t             address;
 	uint32_t             ecc_command;
 	uint32_t             buffer_mask;
 
-	/* Compute the DMA channel. */
-
-	dma_channel = resources->dma_low_channel + chip;
-
 	/* Wait for the chip to report ready. */
-
 	command_mode = BV_GPMI_CTRL0_COMMAND_MODE__WAIT_FOR_READY;
 	address      = BV_GPMI_CTRL0_ADDRESS__NAND_DATA;
 
@@ -655,7 +629,6 @@ static int read_page(struct gpmi_nfc_data *this, unsigned chip,
 	d++;
 
 	/* Enable the BCH block and read. */
-
 	command_mode = BV_GPMI_CTRL0_COMMAND_MODE__READ;
 	address      = BV_GPMI_CTRL0_ADDRESS__NAND_DATA;
 	ecc_command  = BV_GPMI_ECCCTRL_ECC_CMD__DECODE;
@@ -672,7 +645,6 @@ static int read_page(struct gpmi_nfc_data *this, unsigned chip,
 		BF_GPMI_CTRL0_CS(chip)                                |
 		BF_GPMI_CTRL0_ADDRESS(address)                        |
 		BF_GPMI_CTRL0_XFER_COUNT(nfc_geo->page_size_in_bytes) ;
-
 	(*d)->cmd.pio_words[1] = 0;
 	(*d)->cmd.pio_words[2] =
 		BM_GPMI_ECCCTRL_ENABLE_ECC 	         |
@@ -686,7 +658,6 @@ static int read_page(struct gpmi_nfc_data *this, unsigned chip,
 	d++;
 
 	/* Disable the BCH block */
-
 	command_mode = BV_GPMI_CTRL0_COMMAND_MODE__WAIT_FOR_READY;
 	address      = BV_GPMI_CTRL0_ADDRESS__NAND_DATA;
 
@@ -700,7 +671,6 @@ static int read_page(struct gpmi_nfc_data *this, unsigned chip,
 		BF_GPMI_CTRL0_CS(chip)                                |
 		BF_GPMI_CTRL0_ADDRESS(address)                        |
 		BF_GPMI_CTRL0_XFER_COUNT(nfc_geo->page_size_in_bytes) ;
-
 	(*d)->cmd.pio_words[1] = 0;
 	(*d)->cmd.pio_words[2] = 0;
 
@@ -713,27 +683,8 @@ static int read_page(struct gpmi_nfc_data *this, unsigned chip,
 	(*d)->cmd.address = 0;
 
 	mxs_dma_desc_append(dma_channel, (*d));
-	d++;
 
-	/* Prepare to receive an interrupt from the BCH block. */
-
-	init_completion(&nfc->bch_done);
-
-	/* Go! */
-
-	error = gpmi_nfc_dma_go(this, dma_channel);
-
-	if (error)
-		dev_err(dev, "[%s] DMA error\n", __func__);
-
-	/* Wait for the interrupt from the BCH block. */
-
-	wait_for_completion(&nfc->bch_done);
-
-	/* Return success. */
-
-	return error;
-
+	return start_dma_with_bch_irq(this, dma_channel);
 }
 
 /* This structure represents the NFC HAL for this version of the hardware. */
