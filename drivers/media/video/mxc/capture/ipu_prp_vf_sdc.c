@@ -90,6 +90,7 @@ static int prpvf_start(void *private)
 	fbvar.xres = fbvar.xres_virtual = cam->win.w.width;
 	fbvar.yres = cam->win.w.height;
 	fbvar.yres_virtual = cam->win.w.height * 2;
+	fbvar.yoffset = 0;
 	fbvar.activate |= FB_ACTIVATE_FORCE;
 	fb_set_var(fbi, &fbvar);
 
@@ -99,6 +100,13 @@ static int prpvf_start(void *private)
 	acquire_console_sem();
 	fb_blank(fbi, FB_BLANK_UNBLANK);
 	release_console_sem();
+
+	/* correct display ch buffer address */
+	ipu_update_channel_buffer(MEM_FG_SYNC, IPU_INPUT_BUFFER,
+				0, fbi->fix.smem_start +
+				(fbi->fix.line_length * fbvar.yres));
+	ipu_update_channel_buffer(MEM_FG_SYNC, IPU_INPUT_BUFFER,
+					1, fbi->fix.smem_start);
 
 	memset(&vf, 0, sizeof(ipu_channel_params_t));
 	ipu_csi_get_window_size(&vf.csi_prp_vf_mem.in_width,

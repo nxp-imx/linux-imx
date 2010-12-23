@@ -215,6 +215,7 @@ static int _setup_disp_channel2(struct fb_info *fbi)
 	int retval = 0;
 	struct mxcfb_info *mxc_fbi = (struct mxcfb_info *)fbi->par;
 	int fb_stride;
+	unsigned long base;
 
 	switch (bpp_to_pixfmt(fbi)) {
 	case IPU_PIX_FMT_YUV420P2:
@@ -235,16 +236,19 @@ static int _setup_disp_channel2(struct fb_info *fbi)
 		mxc_fbi->cur_ipu_alpha_buf = 1;
 		sema_init(&mxc_fbi->alpha_flip_sem, 1);
 	}
-	fbi->var.xoffset = fbi->var.yoffset = 0;
+	fbi->var.xoffset = 0;
+
+	base = (fbi->var.yoffset * fbi->var.xres_virtual + fbi->var.xoffset);
+	base = (fbi->var.bits_per_pixel) * base / 8;
+	base += fbi->fix.smem_start;
 
 	retval = ipu_init_channel_buffer(mxc_fbi->ipu_ch, IPU_INPUT_BUFFER,
 					 bpp_to_pixfmt(fbi),
 					 fbi->var.xres, fbi->var.yres,
 					 fb_stride,
 					 IPU_ROTATE_NONE,
-					 fbi->fix.smem_start +
-					 (fbi->fix.line_length * fbi->var.yres),
-					 fbi->fix.smem_start,
+					 base,
+					 base,
 					 0, 0);
 	if (retval) {
 		dev_err(fbi->device,

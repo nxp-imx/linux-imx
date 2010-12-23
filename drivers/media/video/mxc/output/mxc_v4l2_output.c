@@ -1421,6 +1421,7 @@ static int mxc_v4l2out_streamon(vout_data *vout)
 	}
 
 	/* Init display channel through fb API */
+	fbvar.yoffset = 0;
 	fbvar.activate |= FB_ACTIVATE_FORCE;
 	acquire_console_sem();
 	fbi->flags |= FBINFO_MISC_USEREVENT;
@@ -1552,6 +1553,13 @@ static int mxc_v4l2out_streamon(vout_data *vout)
 	} else {
 		ipu_enable_channel(vout->display_ch);
 	}
+
+	/* correct display ch buffer address */
+	ipu_update_channel_buffer(vout->display_ch, IPU_INPUT_BUFFER,
+					0, vout->display_bufs[0]);
+	ipu_update_channel_buffer(vout->display_ch, IPU_INPUT_BUFFER,
+					1, vout->display_bufs[1]);
+
 	if (!vout->ic_bypass) {
 #ifndef CONFIG_MXC_IPU_V1
 		ipu_enable_channel(vout->post_proc_ch);
