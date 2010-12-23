@@ -652,12 +652,10 @@ static int is_ready(struct gpmi_nfc_data *this, unsigned chip)
 static int send_command(struct gpmi_nfc_data *this, unsigned chip,
 					dma_addr_t buffer, unsigned int length)
 {
-	struct device        *dev       =  this->dev;
 	struct resources     *resources = &this->resources;
 	struct nfc_hal       *nfc       =  this->nfc;
 	struct mxs_dma_desc  **d        = nfc->dma_descriptors;
 	int    dma_channel		= resources->dma_low_channel + chip;
-	int                  error;
 	uint32_t             command_mode;
 	uint32_t             address;
 
@@ -683,11 +681,7 @@ static int send_command(struct gpmi_nfc_data *this, unsigned chip,
 
 	mxs_dma_desc_append(dma_channel, (*d));
 
-	/* Go! */
-	error = gpmi_nfc_dma_go(this, dma_channel);
-	if (error)
-		dev_err(dev, "[%s] DMA error\n", __func__);
-	return error;
+	return start_dma_without_bch_irq(this, dma_channel);
 }
 
 /**
@@ -701,12 +695,10 @@ static int send_command(struct gpmi_nfc_data *this, unsigned chip,
 static int send_data(struct gpmi_nfc_data *this, unsigned chip,
 					dma_addr_t buffer, unsigned int length)
 {
-	struct device        *dev       =  this->dev;
 	struct resources     *resources = &this->resources;
 	struct nfc_hal       *nfc       =  this->nfc;
 	struct mxs_dma_desc  **d        = nfc->dma_descriptors;
 	int    dma_channel		= resources->dma_low_channel + chip;
-	int                  error = 0;
 	uint32_t             command_mode;
 	uint32_t             address;
 
@@ -730,11 +722,7 @@ static int send_data(struct gpmi_nfc_data *this, unsigned chip,
 
 	mxs_dma_desc_append(dma_channel, (*d));
 
-	/* Go! */
-	error = gpmi_nfc_dma_go(this, dma_channel);
-	if (error)
-		dev_err(dev, "[%s] DMA error\n", __func__);
-	return error;
+	return start_dma_without_bch_irq(this, dma_channel);
 }
 
 /**
@@ -748,12 +736,10 @@ static int send_data(struct gpmi_nfc_data *this, unsigned chip,
 static int read_data(struct gpmi_nfc_data *this, unsigned chip,
 					dma_addr_t buffer, unsigned int length)
 {
-	struct device        *dev       =  this->dev;
 	struct resources     *resources = &this->resources;
 	struct nfc_hal       *nfc       =  this->nfc;
 	struct mxs_dma_desc  **d        = nfc->dma_descriptors;
 	int    dma_channel		= resources->dma_low_channel + chip;
-	int                  error = 0;
 	uint32_t             command_mode;
 	uint32_t             address;
 
@@ -774,11 +760,7 @@ static int read_data(struct gpmi_nfc_data *this, unsigned chip,
 
 	mxs_dma_desc_append(dma_channel, (*d));
 
-	/* Go! */
-	error = gpmi_nfc_dma_go(this, dma_channel);
-	if (error)
-		dev_err(dev, "[%s] DMA error\n", __func__);
-	return error;
+	return start_dma_without_bch_irq(this, dma_channel);
 }
 
 /**
@@ -792,7 +774,6 @@ static int read_data(struct gpmi_nfc_data *this, unsigned chip,
 static int send_page(struct gpmi_nfc_data *this, unsigned chip,
 				dma_addr_t payload, dma_addr_t auxiliary)
 {
-	struct device        *dev       =  this->dev;
 	struct resources     *resources = &this->resources;
 	struct nfc_hal       *nfc       =  this->nfc;
 	struct nfc_geometry  *nfc_geo   = &this->nfc_geometry;
@@ -854,7 +835,6 @@ static int send_page(struct gpmi_nfc_data *this, unsigned chip,
 static int read_page(struct gpmi_nfc_data *this, unsigned chip,
 				dma_addr_t payload, dma_addr_t auxiliary)
 {
-	struct device        *dev       =  this->dev;
 	struct resources     *resources = &this->resources;
 	struct nfc_hal       *nfc       =  this->nfc;
 	struct nfc_geometry  *nfc_geo   = &this->nfc_geometry;
