@@ -27,6 +27,7 @@ static void usbotg_clock_gate(bool on);
 static struct clk *usb_phy1_clk;
 static struct clk *usb_oh3_clk;
 static struct clk *usb_ahb_clk;
+static void usbotg_wakeup_event_clear(void);
 extern int clk_get_usecount(struct clk *clk);
 
 /* Beginning of Common operation for DR port */
@@ -52,6 +53,7 @@ static struct fsl_usb2_platform_data dr_utmi_config = {
 static struct fsl_usb2_wakeup_platform_data dr_wakeup_config = {
 	.name = "DR wakeup",
 	.usb_clock_for_pm  = usbotg_clock_gate,
+	.usb_wakeup_exhandle = usbotg_wakeup_event_clear,
 };
 /* Notes: configure USB clock*/
 static int usbotg_init_ext(struct platform_device *pdev)
@@ -174,7 +176,6 @@ static void usbotg_wakeup_event_clear(void)
 }
 /* End of Common operation for DR port */
 
-
 #ifdef CONFIG_USB_EHCI_ARC_OTG
 extern void fsl_usb_recover_hcd(struct platform_device *pdev);
 /* Beginning of host related operation for DR port */
@@ -228,7 +229,6 @@ static void host_wakeup_handler(struct fsl_usb2_platform_data *pdata)
 /* End of host related operation for DR port */
 #endif /* CONFIG_USB_EHCI_ARC_OTG */
 
-
 #ifdef CONFIG_USB_GADGET_ARC
 /* Beginning of device related operation for DR port */
 static void _device_wakeup_enable(struct fsl_usb2_platform_data *pdata, bool enable)
@@ -247,6 +247,7 @@ static void _device_wakeup_enable(struct fsl_usb2_platform_data *pdata, bool ena
 		USBCTRL_HOST2 &= ~UCTRL_H2OVBWK_EN;
 	}
 }
+
 static void _device_phy_lowpower_suspend(struct fsl_usb2_platform_data *pdata, bool enable)
 {
 	__phy_lowpower_suspend(enable, ENABLED_BY_DEVICE);

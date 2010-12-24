@@ -121,6 +121,10 @@ static void wakeup_event_handler(struct wakeup_ctrl *ctrl)
 			}
 		}
 	}
+	/* If nothing to wakeup, clear wakeup event */
+	if ((already_waked == 0) && pdata->usb_wakeup_exhandle)
+		pdata->usb_wakeup_exhandle();
+
 	wakeup_clk_gate(ctrl->pdata, false);
 	pdata->usb_wakeup_is_pending = false;
 	wake_up(&pdata->wq);
