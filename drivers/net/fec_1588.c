@@ -154,13 +154,41 @@ int fec_ptp_start(struct fec_ptp_private *priv)
 {
 	struct fec_ptp_private *fpp = priv;
 
-	/* Select 1588 Timer source and enable module for starting Tmr Clock */
-	writel(FEC_T_CTRL_RESTART, fpp->hwp + FEC_ATIME_CTRL);
-	writel(FEC_T_INC_40MHZ << FEC_T_INC_OFFSET, fpp->hwp + FEC_ATIME_INC);
-	writel(FEC_T_PERIOD_ONE_SEC, fpp->hwp + FEC_ATIME_EVT_PERIOD);
-	/* start counter */
-	writel(FEC_T_CTRL_PERIOD_RST | FEC_T_CTRL_ENABLE,
-			fpp->hwp + FEC_ATIME_CTRL);
+	/* Select 1588 Timer source and enable module for starting Tmr Clock *
+	 * When enable both FEC0 and FEC1 1588 Timer in the same time,       *
+	 * enable FEC1 timer's slave mode. */
+	if ((fpp == ptp_private[0]) || !(ptp_private[0]->ptp_active)) {
+		writel(FEC_T_CTRL_RESTART, fpp->hwp + FEC_ATIME_CTRL);
+		writel(FEC_T_INC_40MHZ << FEC_T_INC_OFFSET,
+				fpp->hwp + FEC_ATIME_INC);
+		writel(FEC_T_PERIOD_ONE_SEC, fpp->hwp + FEC_ATIME_EVT_PERIOD);
+		/* start counter */
+		writel(FEC_T_CTRL_PERIOD_RST | FEC_T_CTRL_ENABLE,
+				fpp->hwp + FEC_ATIME_CTRL);
+		fpp->ptp_slave = 0;
+		fpp->ptp_active = 1;
+		/* if the FEC1 timer was enabled, set it to slave mode */
+		if ((fpp == ptp_private[0]) && (ptp_private[1]->ptp_active)) {
+			writel(0, ptp_private[1]->hwp + FEC_ATIME_CTRL);
+			fpp->prtc = ptp_private[1]->prtc;
+			writel(FEC_T_CTRL_RESTART,
+					ptp_private[1]->hwp + FEC_ATIME_CTRL);
+			writel(FEC_T_INC_40MHZ << FEC_T_INC_OFFSET,
+					ptp_private[1]->hwp + FEC_ATIME_INC);
+			/* Set the timer as slave mode */
+			writel(FEC_T_CTRL_SLAVE,
+					ptp_private[1]->hwp + FEC_ATIME_CTRL);
+			ptp_private[1]->ptp_slave = 1;
+			ptp_private[1]->ptp_active = 1;
+		}
+	} else {
+		writel(FEC_T_INC_40MHZ << FEC_T_INC_OFFSET,
+				fpp->hwp + FEC_ATIME_INC);
+		/* Set the timer as slave mode */
+		writel(FEC_T_CTRL_SLAVE, fpp->hwp + FEC_ATIME_CTRL);
+		fpp->ptp_slave = 1;
+		fpp->ptp_active = 1;
+	}
 
 	return 0;
 }
@@ -173,6 +201,8 @@ void fec_ptp_stop(struct fec_ptp_private *priv)
 
 	writel(0, fpp->hwp + FEC_ATIME_CTRL);
 	writel(FEC_T_CTRL_RESTART, fpp->hwp + FEC_ATIME_CTRL);
+	priv->ptp_active = 0;
+	priv->ptp_slave = 0;
 
 }
 
@@ -180,17 +210,23 @@ static void fec_get_curr_cnt(struct fec_ptp_private *priv,
 			struct ptp_rtc_time *curr_time)
 {
 	u32 tempval;
+	struct fec_ptp_private *tmp_priv;
+
+	if (!priv->ptp_slave)
+		tmp_priv = priv;
+	else
+		tmp_priv = ptp_private[0];
 
 	writel(FEC_T_CTRL_CAPTURE, priv->hwp + FEC_ATIME_CTRL);
 	writel(FEC_T_CTRL_CAPTURE, priv->hwp + FEC_ATIME_CTRL);
 	curr_time->rtc_time.nsec = readl(priv->hwp + FEC_ATIME);
-	curr_time->rtc_time.sec = priv->prtc;
+	curr_time->rtc_time.sec = tmp_priv->prtc;
 
 	writel(FEC_T_CTRL_CAPTURE, priv->hwp + FEC_ATIME_CTRL);
 	tempval = readl(priv->hwp + FEC_ATIME);
 	if (tempval < curr_time->rtc_time.nsec) {
 		curr_time->rtc_time.nsec = tempval;
-		curr_time->rtc_time.sec = priv->prtc;
+		curr_time->rtc_time.sec = tmp_priv->prtc;
 	}
 }
 
@@ -200,12 +236,18 @@ static void fec_set_1588cnt(struct fec_ptp_private *priv,
 {
 	u32 tempval;
 	unsigned long flags;
+	struct fec_ptp_private *tmp_priv;
+
+	if (!priv->ptp_slave)
+		tmp_priv = priv;
+	else
+		tmp_priv = ptp_private[0];
 
 	spin_lock_irqsave(&priv->cnt_lock, flags);
-	priv->prtc = fec_time->rtc_time.sec;
+	tmp_priv->prtc = fec_time->rtc_time.sec;
 
 	tempval = fec_time->rtc_time.nsec;
-	writel(tempval, priv->hwp + FEC_ATIME);
+	writel(tempval, tmp_priv->hwp + FEC_ATIME);
 	spin_unlock_irqrestore(&priv->cnt_lock, flags);
 }
 
@@ -235,9 +277,14 @@ void fec_ptp_store_txstamp(struct fec_ptp_private *priv,
 {
 	int msg_type, seq_id, control;
 	struct fec_ptp_data_t tmp_tx_time;
-	struct fec_ptp_private *fpp = priv;
+	struct fec_ptp_private *fpp;
 	unsigned char *sp_id;
 	unsigned short portnum;
+
+	if (!priv->ptp_slave)
+		fpp = priv;
+	else
+		fpp = ptp_private[0];
 
 	seq_id = *((u16 *)(skb->data + FEC_PTP_SEQ_ID_OFFS));
 	control = *((u8 *)(skb->data + FEC_PTP_CTRL_OFFS));
@@ -292,11 +339,16 @@ void fec_ptp_store_rxstamp(struct fec_ptp_private *priv,
 {
 	int msg_type, seq_id, control;
 	struct fec_ptp_data_t tmp_rx_time;
-	struct fec_ptp_private *fpp = priv;
+	struct fec_ptp_private *fpp;
 	struct iphdr *iph;
 	struct udphdr *udph;
 	unsigned char *sp_id;
 	unsigned short portnum;
+
+	if (!priv->ptp_slave)
+		fpp = priv;
+	else
+		fpp = ptp_private[0];
 
 	/* Check for UDP, and Check if port is 319 for PTP Event */
 	iph = (struct iphdr *)(skb->data + FEC_PTP_IP_OFFS);
@@ -562,7 +614,7 @@ static void fec_set_drift(struct fec_ptp_private *priv,
 			  struct ptp_set_comp *comp)
 {
 	struct ptp_time_correct	tc;
-	struct fec_ptp_private *fpp = priv;
+	struct fec_ptp_private *fpp;
 	u32 tmp, corr_ns;
 
 	memset(&tc, 0, sizeof(struct ptp_time_correct));
@@ -575,6 +627,10 @@ static void fec_set_drift(struct fec_ptp_private *priv,
 	else
 		corr_ns = FEC_T_INC_40MHZ - tc.corr_inc;
 
+	if (!priv->ptp_slave)
+		fpp = priv;
+	else
+		fpp = ptp_private[0];
 	tmp = readl(fpp->hwp + FEC_ATIME_INC) & FEC_T_INC_MASK;
 	tmp |= corr_ns << FEC_T_INC_CORR_OFFSET;
 	writel(tmp, fpp->hwp + FEC_ATIME_INC);
@@ -678,7 +734,9 @@ static const struct file_operations ptp_fops = {
 static int init_ptp(void)
 {
 	if (register_chrdev(PTP_MAJOR, "ptp", &ptp_fops))
-		printk(KERN_ERR "Unable to register PTP deivce as char\n");
+		printk(KERN_ERR "Unable to register PTP device as char\n");
+	else
+		printk(KERN_INFO "Register PTP device as char /dev/ptp\n");
 
 	return 0;
 }
@@ -706,6 +764,7 @@ int fec_ptp_init(struct fec_ptp_private *priv, int id)
 	spin_lock_init(&priv->ptp_lock);
 	spin_lock_init(&priv->cnt_lock);
 	ptp_private[id] = priv;
+	priv->dev_id = id;
 	if (id == 0)
 		init_ptp();
 	return 0;
