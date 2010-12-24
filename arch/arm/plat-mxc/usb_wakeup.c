@@ -92,6 +92,7 @@ static bool is_wakeup(struct fsl_usb2_platform_data *pdata)
 static void wakeup_event_handler(struct wakeup_ctrl *ctrl)
 {
 	struct fsl_usb2_wakeup_platform_data *pdata = ctrl->pdata;
+	int already_waked = 0;
 	int i;
 
 	wakeup_clk_gate(ctrl->pdata, true);
@@ -110,9 +111,14 @@ static void wakeup_event_handler(struct wakeup_ctrl *ctrl)
 				if (usb_pdata->usb_clock_for_pm)
 					usb_pdata->usb_clock_for_pm(true);
 				usb_pdata->lowpower = 0;
+				already_waked = 1;
 			}
 		}
 	}
+	/* If nothing to wakeup, clear wakeup event */
+	if ((already_waked == 0) && pdata->usb_wakeup_exhandle)
+		pdata->usb_wakeup_exhandle();
+
 	wakeup_clk_gate(ctrl->pdata, false);
 	pdata->usb_wakeup_is_pending = false;
 	wake_up(&pdata->wq);

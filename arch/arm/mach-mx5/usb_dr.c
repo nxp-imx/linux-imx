@@ -27,6 +27,7 @@ static void usbotg_clock_gate(bool on);
 static struct clk *usb_phy1_clk;
 static struct clk *usb_oh3_clk;
 static struct clk *usb_ahb_clk;
+static void usbotg_wakeup_event_clear(void);
 extern int clk_get_usecount(struct clk *clk);
 /*
  * platform data structs
@@ -47,6 +48,7 @@ static struct fsl_usb2_platform_data dr_utmi_config = {
 static struct fsl_usb2_wakeup_platform_data dr_wakeup_config = {
 	.name = "DR wakeup",
 	.usb_clock_for_pm  = usbotg_clock_gate,
+	.usb_wakeup_exhandle = usbotg_wakeup_event_clear,
 };
 /* Notes: configure USB clock*/
 static int usbotg_init_ext(struct platform_device *pdev)
@@ -203,6 +205,22 @@ static bool _is_device_wakeup(struct fsl_usb2_platform_data *pdata)
 	return false;
 
 }
+
+static void usbotg_wakeup_event_clear(void)
+{
+	int wakeup_req = USBCTRL & UCTRL_OWIR;
+
+	if (wakeup_req != 0) {
+		printk(KERN_INFO "Unknown wakeup.(OTGSC 0x%x)\n", UOG_OTGSC);
+		/* Disable OWIE to clear OWIR, wait 3 clock
+		 * cycles of standly clock(32KHz)
+		 */
+		USBCTRL &= ~UCTRL_OWIE;
+		udelay(100);
+		USBCTRL |= UCTRL_OWIE;
+	}
+}
+
 static void usbotg_clock_gate(bool on)
 {
 	pr_debug("%s: on is %d\n", __func__, on);
