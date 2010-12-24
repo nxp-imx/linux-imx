@@ -128,6 +128,7 @@ struct fsl_usb2_platform_data {
 struct fsl_usb2_wakeup_platform_data {
 	char *name;
 	void (*usb_clock_for_pm) (bool);
+	void (*usb_wakeup_exhandle) (void);
 	struct fsl_usb2_platform_data *usb_pdata[3];
 	/* This waitqueue is used to wait "usb_wakeup thread" to finish
 	 * during system resume routine. "usb_wakeup theard" should be finished

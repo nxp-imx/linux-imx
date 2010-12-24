@@ -445,6 +445,9 @@ static void ehci_fsl_shutdown(struct usb_hcd *hcd)
 		set_bit(HCD_FLAG_HW_ACCESSIBLE, &hcd->flags);
 		fsl_usb_clk_gate(hcd->self.controller->platform_data, true);
 	}
+	/* Disable wakeup event first */
+	usb_host_set_wakeup(hcd->self.controller, false);
+
 	ehci_shutdown(hcd);
 	if (test_bit(HCD_FLAG_HW_ACCESSIBLE, &hcd->flags)) {
 		clear_bit(HCD_FLAG_HW_ACCESSIBLE, &hcd->flags);
