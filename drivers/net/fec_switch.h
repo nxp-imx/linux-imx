@@ -64,6 +64,7 @@
 #if (((RX_RING_SIZE + TX_RING_SIZE) * 8) > PAGE_SIZE)
 #error "L2SWITCH: descriptor ring size constants too large"
 #endif
+
 /*-----------------------------------------------------------------------*/
 struct esw_output_queue_status {
 	unsigned long ESW_MMSR;
@@ -639,12 +640,16 @@ struct switch_enet_private {
 	int learning_irqhandle_enable;
 	/* Phylib and MDIO interface */
 	struct  mii_bus *mii_bus;
-	struct  phy_device *phy_dev;
+	struct  phy_device *phy_dev[2];
 	int     mii_timeout;
 	uint    phy_speed;
 	int     index;
-	int     link;
+	int     link[2];
 	int     full_duplex;
+	struct  completion mdio_done;
+
+	int	mac0_irq;
+	int	mac1_irq;
 };
 
 struct switch_platform_private {
