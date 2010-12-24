@@ -869,6 +869,16 @@ static struct resource l2switch_resources[] = {
 		.end    = IRQ_ENET_SWI,
 		.flags  = IORESOURCE_IRQ
 	},
+	{
+		.start  = IRQ_ENET_MAC0,
+		.end    = IRQ_ENET_MAC0,
+		.flags  = IORESOURCE_IRQ
+	},
+	{
+		.start  = IRQ_ENET_MAC1,
+		.end    = IRQ_ENET_MAC1,
+		.flags  = IORESOURCE_IRQ
+	},
 };
 
 /* Define the fixed address of the L2 Switch hardware. */
