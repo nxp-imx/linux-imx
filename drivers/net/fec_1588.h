@@ -30,6 +30,7 @@
 #define TRUE			1
 
 /* FEC 1588 register bits */
+#define FEC_T_CTRL_SLAVE		0x00002000
 #define FEC_T_CTRL_CAPTURE		0x00000800
 #define FEC_T_CTRL_RESTART		0x00000200
 #define FEC_T_CTRL_PERIOD_RST		0x00000030
@@ -150,6 +151,7 @@ struct ptp_time_correct {
 
 struct fec_ptp_private {
 	void __iomem *hwp;
+	int	dev_id;
 
 	struct	circ_buf rx_time_sync;
 	struct	circ_buf rx_time_del_req;
@@ -163,6 +165,8 @@ struct fec_ptp_private {
 	spinlock_t cnt_lock;
 
 	u64	prtc;
+	u8	ptp_active;
+	u8	ptp_slave;
 	struct circ_buf	txstamp;
 };
 
