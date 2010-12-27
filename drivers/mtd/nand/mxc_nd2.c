@@ -1180,6 +1180,8 @@ static int mxc_nand_scan_bbt(struct mtd_info *mtd)
 	if (cpu_is_mx53()) {
 		bbt_mirror_descr.offs = BAD_BLK_MARKER_OOB_OFFS + 2;
 		bbt_main_descr.offs = BAD_BLK_MARKER_OOB_OFFS + 2;
+		bbt_mirror_descr.veroffs = bbt_mirror_descr.offs + 4;
+		bbt_main_descr.veroffs = bbt_main_descr.offs + 4;
 	}
 
 	/* use flash based bbt */
