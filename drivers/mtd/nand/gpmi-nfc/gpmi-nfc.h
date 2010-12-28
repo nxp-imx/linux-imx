@@ -60,10 +60,6 @@
 
 #define DETAILED_INFO
 
-/* Define this macro to enable event reporting. */
-
-/*#define EVENT_REPORTING*/
-
 /*
  *------------------------------------------------------------------------------
  * Fundamental Data Structures
@@ -584,20 +580,6 @@ struct boot_rom_helper {
  * External Symbols
  *------------------------------------------------------------------------------
  */
-
-/* Event Reporting */
-
-#if defined(EVENT_REPORTING)
-	extern void gpmi_nfc_start_event_trace(char *description);
-	extern void gpmi_nfc_add_event(char *description, int delta);
-	extern void gpmi_nfc_stop_event_trace(char *description);
-	extern void gpmi_nfc_dump_event_trace(void);
-#else
-	#define gpmi_nfc_start_event_trace(description)  do {} while (0)
-	#define gpmi_nfc_add_event(description, delta)   do {} while (0)
-	#define gpmi_nfc_stop_event_trace(description)   do {} while (0)
-	#define gpmi_nfc_dump_event_trace()              do {} while (0)
-#endif
 
 /* NFC HAL Common Services */
 

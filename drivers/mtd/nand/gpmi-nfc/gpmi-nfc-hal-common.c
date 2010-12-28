@@ -33,7 +33,6 @@ irqreturn_t gpmi_nfc_bch_isr(int irq, void *cookie)
 	struct gpmi_nfc_data  *this      = cookie;
 	struct nfc_hal        *nfc       =  this->nfc;
 
-	gpmi_nfc_add_event("> gpmi_nfc_bch_isr", 1);
 
 	/* Clear the interrupt. */
 
@@ -45,7 +44,6 @@ irqreturn_t gpmi_nfc_bch_isr(int irq, void *cookie)
 
 	/* Return success. */
 
-	gpmi_nfc_add_event("< gpmi_nfc_bch_isr", -1);
 
 	return IRQ_HANDLED;
 
@@ -63,7 +61,6 @@ irqreturn_t gpmi_nfc_dma_isr(int irq, void *cookie)
 	struct gpmi_nfc_data  *this = cookie;
 	struct nfc_hal        *nfc  =  this->nfc;
 
-	gpmi_nfc_add_event("> gpmi_nfc_dma_isr", 1);
 
 	/* Acknowledge the DMA channel's interrupt. */
 
@@ -75,7 +72,6 @@ irqreturn_t gpmi_nfc_dma_isr(int irq, void *cookie)
 
 	/* Return success. */
 
-	gpmi_nfc_add_event("< gpmi_nfc_dma_isr", -1);
 
 	return IRQ_HANDLED;
 
@@ -383,7 +379,6 @@ int gpmi_nfc_dma_go(struct gpmi_nfc_data *this, int  dma_channel)
 	int               error;
 	LIST_HEAD(tmp_desc_list);
 
-	gpmi_nfc_add_event("> gpmi_nfc_dma_go", 1);
 
 	/* Get ready... */
 
@@ -406,9 +401,7 @@ int gpmi_nfc_dma_go(struct gpmi_nfc_data *this, int  dma_channel)
 		dev_err(dev, "[%s] Chip: %u, DMA Channel: %d, Error %d\n",
 			__func__, dma_channel - resources->dma_low_channel,
 			dma_channel, error);
-		gpmi_nfc_add_event("...DMA timed out", 0);
 	} else
-		gpmi_nfc_add_event("...Finished DMA successfully", 0);
 
 	/* Clear out the descriptors we just ran. */
 
@@ -422,7 +415,6 @@ int gpmi_nfc_dma_go(struct gpmi_nfc_data *this, int  dma_channel)
 
 	/* Return. */
 
-	gpmi_nfc_add_event("< gpmi_nfc_dma_go", -1);
 
 	return error;
 

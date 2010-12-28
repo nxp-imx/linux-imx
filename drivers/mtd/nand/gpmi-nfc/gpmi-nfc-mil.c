@@ -316,7 +316,6 @@ static void mil_cmd_ctrl(struct mtd_info *mtd, int data, unsigned int ctrl)
 
 	/* Hand the command over to the NFC. */
 
-	gpmi_nfc_add_event("mil_cmd_ctrl sending command...", 1);
 
 #if defined(CONFIG_MTD_DEBUG)
 	display[0] = 0;
@@ -337,7 +336,6 @@ static void mil_cmd_ctrl(struct mtd_info *mtd, int data, unsigned int ctrl)
 					mil->cmd_virt, mil->command_length, 0);
 	}
 
-	gpmi_nfc_add_event("...Finished", -1);
 
 	/* Reset. */
 
@@ -359,13 +357,10 @@ static int mil_dev_ready(struct mtd_info *mtd)
 
 	DEBUG(MTD_DEBUG_LEVEL2, "[gpmi_nfc dev_ready]\n");
 
-	gpmi_nfc_add_event("> mil_dev_ready", 1);
 
 	if (nfc->is_ready(this, mil->current_chip)) {
-		gpmi_nfc_add_event("< mil_dev_ready - Returning ready", -1);
 		return !0;
 	} else {
-		gpmi_nfc_add_event("< mil_dev_ready - Returning busy", -1);
 		return 0;
 	}
 
@@ -387,23 +382,14 @@ static void mil_select_chip(struct mtd_info *mtd, int chip)
 	DEBUG(MTD_DEBUG_LEVEL2, "[gpmi_nfc select_chip] chip: %d\n", chip);
 
 	/* Figure out what kind of transition this is. */
-
 	if ((mil->current_chip < 0) && (chip >= 0)) {
-		gpmi_nfc_start_event_trace("> mil_select_chip");
 		nfc->begin(this);
-		gpmi_nfc_add_event("< mil_select_chip", -1);
 	} else if ((mil->current_chip >= 0) && (chip < 0)) {
-		gpmi_nfc_add_event("> mil_select_chip", 1);
-		gpmi_nfc_add_event("> not disable clk", 1);
 		nfc->end(this);
-		gpmi_nfc_stop_event_trace("< mil_select_chip");
 	} else {
-		gpmi_nfc_add_event("> mil_select_chip", 1);
-		gpmi_nfc_add_event("< mil_select_chip", -1);
 	}
 
 	mil->current_chip = chip;
-
 }
 
 /**
@@ -427,36 +413,24 @@ static void mil_read_buf(struct mtd_info *mtd, uint8_t *buf, int len)
 
 	DEBUG(MTD_DEBUG_LEVEL2, "[gpmi_nfc readbuf] len: %d\n", len);
 
-	gpmi_nfc_add_event("> mil_read_buf", 1);
-
 	/* Set up DMA. */
 	error = mil_incoming_buffer_dma_begin(this, buf, len,
 					mil->payload_virt, mil->payload_phys,
 					nfc_geo->payload_size_in_bytes,
 					&use_virt, &use_phys);
-
 	if (error) {
 		dev_err(dev, "[%s] Inadequate DMA buffer\n", __func__);
-		goto exit;
+		return;
 	}
 
 	/* Ask the NFC. */
-
 	nfc->read_data(this, mil->current_chip, use_phys, len);
 
 	/* Finish with DMA. */
-
 	mil_incoming_buffer_dma_end(this, buf, len,
 					mil->payload_virt, mil->payload_phys,
 					nfc_geo->payload_size_in_bytes,
 					use_virt, use_phys);
-
-	/* Return. */
-
-exit:
-
-	gpmi_nfc_add_event("< mil_read_buf", -1);
-
 }
 
 /**
@@ -479,38 +453,24 @@ static void mil_write_buf(struct mtd_info *mtd, const uint8_t *buf, int len)
 	int                   error;
 
 	DEBUG(MTD_DEBUG_LEVEL2, "[gpmi_nfc writebuf] len: %d\n", len);
-
-	gpmi_nfc_add_event("> mil_write_buf", 1);
-
 	/* Set up DMA. */
-
 	error = mil_outgoing_buffer_dma_begin(this, buf, len,
 					mil->payload_virt, mil->payload_phys,
 					nfc_geo->payload_size_in_bytes,
 					&use_virt, &use_phys);
-
 	if (error) {
 		dev_err(dev, "[%s] Inadequate DMA buffer\n", __func__);
-		goto exit;
+		return;
 	}
 
 	/* Ask the NFC. */
-
 	nfc->send_data(this, mil->current_chip, use_phys, len);
 
 	/* Finish with DMA. */
-
 	mil_outgoing_buffer_dma_end(this, buf, len,
 					mil->payload_virt, mil->payload_phys,
 					nfc_geo->payload_size_in_bytes,
 					use_virt, use_phys);
-
-	/* Return. */
-
-exit:
-
-	gpmi_nfc_add_event("< mil_write_buf", -1);
-
 }
 
 /**
@@ -524,11 +484,9 @@ static uint8_t mil_read_byte(struct mtd_info *mtd)
 
 	DEBUG(MTD_DEBUG_LEVEL2, "[gpmi_nfc read_byte]\n");
 
-	gpmi_nfc_add_event("> mil_read_byte", 1);
 
 	mil_read_buf(mtd, (uint8_t *) &byte, 1);
 
-	gpmi_nfc_add_event("< mil_read_byte", -1);
 
 	DEBUG(MTD_DEBUG_LEVEL2, "[gpmi_nfc read_byte]: 0x%02x\n", byte);
 
@@ -625,7 +583,6 @@ static int mil_ecc_read_page(struct mtd_info *mtd, struct nand_chip *nand,
 
 	DEBUG(MTD_DEBUG_LEVEL2, "[gpmi_nfc ecc_read_page]\n");
 
-	gpmi_nfc_add_event("> mil_ecc_read_page", 1);
 
 	/*
 	 * Set up DMA.
@@ -718,7 +675,6 @@ exit_nfc:
 					payload_virt, payload_phys);
 exit_payload:
 
-	gpmi_nfc_add_event("< mil_ecc_read_page", -1);
 
 	return error;
 
@@ -748,18 +704,13 @@ static void mil_ecc_write_page(struct mtd_info *mtd,
 
 	DEBUG(MTD_DEBUG_LEVEL2, "[gpmi_nfc ecc_write_page]\n");
 
-	gpmi_nfc_add_event("> mil_ecc_write_page", 1);
-
 	/* Set up DMA. */
-
 	if (rom->swap_block_mark) {
-
 		/*
 		 * If control arrives here, we're doing block mark swapping.
 		 * Since we can't modify the caller's buffers, we must copy them
 		 * into our own.
 		 */
-
 		memcpy(mil->payload_virt, buf, mtd->writesize);
 		payload_virt = mil->payload_virt;
 		payload_phys = mil->payload_phys;
@@ -770,27 +721,22 @@ static void mil_ecc_write_page(struct mtd_info *mtd,
 		auxiliary_phys = mil->auxiliary_phys;
 
 		/* Handle block mark swapping. */
-
 		mil_handle_block_mark_swapping(this,
 				(void *) payload_virt, (void *) auxiliary_virt);
-
 	} else {
-
 		/*
 		 * If control arrives here, we're not doing block mark swapping,
 		 * so we can to try and use the caller's buffers.
 		 */
-
 		error = mil_outgoing_buffer_dma_begin(this,
 				buf, mtd->writesize,
 				mil->payload_virt, mil->payload_phys,
 				nfc_geo->payload_size_in_bytes,
 				&payload_virt, &payload_phys);
-
 		if (error) {
 			dev_err(dev, "[%s] Inadequate payload DMA buffer\n",
 								__func__);
-			goto exit_payload;
+			return;
 		}
 
 		error = mil_outgoing_buffer_dma_begin(this,
@@ -798,26 +744,21 @@ static void mil_ecc_write_page(struct mtd_info *mtd,
 				mil->auxiliary_virt, mil->auxiliary_phys,
 				nfc_geo->auxiliary_size_in_bytes,
 				&auxiliary_virt, &auxiliary_phys);
-
 		if (error) {
 			dev_err(dev, "[%s] Inadequate auxiliary DMA buffer\n",
 								__func__);
 			goto exit_auxiliary;
 		}
-
 	}
 
 	/* Ask the NFC. */
-
 	error = nfc->send_page(this, mil->current_chip,
 						payload_phys, auxiliary_phys);
-
 	if (error)
 		dev_err(dev, "[%s] Error in ECC-based write: %d\n",
 							__func__, error);
 
 	/* Return. */
-
 	if (!rom->swap_block_mark)
 		mil_outgoing_buffer_dma_end(this, nand->oob_poi, mtd->oobsize,
 				mil->auxiliary_virt, mil->auxiliary_phys,
@@ -829,10 +770,6 @@ exit_auxiliary:
 				mil->payload_virt, mil->payload_phys,
 				nfc_geo->payload_size_in_bytes,
 				payload_virt, payload_phys);
-exit_payload:
-
-	gpmi_nfc_add_event("< mil_ecc_write_page", -1);
-
 }
 
 /**
@@ -943,7 +880,6 @@ static int mil_ecc_read_oob(struct mtd_info *mtd, struct nand_chip *nand,
 	DEBUG(MTD_DEBUG_LEVEL2, "[gpmi_nfc ecc_read_oob] "
 		"page: 0x%06x, sndcmd: %s\n", page, sndcmd ? "Yes" : "No");
 
-	gpmi_nfc_add_event("> mil_ecc_read_oob", 1);
 
 	/* clear the OOB buffer */
 	memset(nand->oob_poi, ~0, mtd->oobsize);
@@ -969,7 +905,6 @@ static int mil_ecc_read_oob(struct mtd_info *mtd, struct nand_chip *nand,
 	 * a command.
 	 */
 
-	gpmi_nfc_add_event("< mil_ecc_read_oob", -1);
 
 	return true;
 
@@ -998,7 +933,6 @@ static int mil_ecc_write_oob(struct mtd_info *mtd,
 	DEBUG(MTD_DEBUG_LEVEL2,
 			"[gpmi_nfc ecc_write_oob] page: 0x%06x\n", page);
 
-	gpmi_nfc_add_event("> mil_ecc_write_oob", -1);
 
 	/*
 	 * There are fundamental incompatibilities between the i.MX GPMI NFC and
@@ -1047,7 +981,6 @@ static int mil_ecc_write_oob(struct mtd_info *mtd,
 
 exit:
 
-	gpmi_nfc_add_event("< mil_ecc_write_oob", -1);
 
 	return error;
 

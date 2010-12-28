@@ -1,6 +1,5 @@
 obj-$(CONFIG_MTD_NAND_GPMI_NFC) += gpmi-nfc.o
 gpmi-nfc-objs += gpmi-nfc-main.o
-gpmi-nfc-objs += gpmi-nfc-event-reporting.o
 gpmi-nfc-objs += gpmi-nfc-hal-common.o
 gpmi-nfc-objs += gpmi-nfc-hal-v0.o
 gpmi-nfc-objs += gpmi-nfc-hal-v1.o
