@@ -1,7 +1,7 @@
 /*
  *  L2 switch Controller (Etheren switch) driver for Mx28.
  *
- *  Copyright (C) 2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ *  Copyright (C) 2010-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  *    Shrek Wu (B16972@freescale.com)
  *
  *  This program is free software; you can redistribute  it and/or modify it
@@ -875,7 +875,7 @@ static void esw_get_port_learning(
 	struct switch_t  *fecp;
 
 	fecp = fep->hwp;
-	*ulPortLearning = (readl(&fecp->ESW_BKLR) & 0xff00) >> 16;
+	*ulPortLearning = (readl(&fecp->ESW_BKLR) & 0xff0000) >> 16;
 #ifdef DEBUG_PORT_LEARNING
 	printk(KERN_INFO "%s  fecp->ESW_BKLR %#lx\n",
 		__func__, readl(&fecp->ESW_BKLR));
