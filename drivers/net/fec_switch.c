@@ -875,7 +875,7 @@ static void esw_get_port_learning(
 	struct switch_t  *fecp;
 
 	fecp = fep->hwp;
-	*ulPortLearning = (readl(&fecp->ESW_BKLR) & 0xff00) >> 16;
+	*ulPortLearning = (readl(&fecp->ESW_BKLR) & 0xff0000) >> 16;
 #ifdef DEBUG_PORT_LEARNING
 	printk(KERN_INFO "%s  fecp->ESW_BKLR %#lx\n",
 		__func__, readl(&fecp->ESW_BKLR));
