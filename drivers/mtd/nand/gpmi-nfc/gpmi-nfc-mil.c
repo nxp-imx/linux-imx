@@ -1298,35 +1298,13 @@ static int mil_pre_bbt_scan(struct gpmi_nfc_data  *this)
  *
  * The HIL calls this function once, when it initializes the NAND Flash MTD.
  *
- * Nominally, the purpose of this function is to look for or create the bad
- * block table. In fact, since the HIL calls this function at the very end of
- * the initialization process started by nand_scan(), and the HIL doesn't have a
- * more formal mechanism, everyone "hooks" this function to continue the
- * initialization process.
- *
- * At this point, the physical NAND Flash chips have been identified and
- * counted, so we know the physical geometry. This enables us to make some
- * important configuration decisions.
- *
- * The return value of this function propogates directly back to this driver's
- * call to nand_scan(). Anything other than zero will cause this driver to
- * tear everything down and declare failure.
- *
  * @mtd:  A pointer to the owning MTD.
  */
 static int mil_scan_bbt(struct mtd_info *mtd)
 {
 	struct nand_chip         *nand = mtd->priv;
 	struct gpmi_nfc_data     *this = nand->priv;
-	struct nfc_hal           *nfc  =  this->nfc;
-	struct mil               *mil  = &this->mil;
-	int                      saved_chip_number;
-	uint8_t                  id_bytes[NAND_DEVICE_ID_BYTE_COUNT];
-	struct nand_device_info  *info;
-	struct gpmi_nfc_timing   timing;
 	int                      error;
-
-	DEBUG(MTD_DEBUG_LEVEL2, "[gpmi_nfc scan_bbt] \n");
 
 	/*
 	 * Tell MTD users that the out-of-band area can't be written.
@@ -1351,74 +1329,13 @@ static int mil_scan_bbt(struct mtd_info *mtd)
 	 */
 	mtd->flags &= ~MTD_OOB_WRITEABLE;
 
-	/*
-	 * MTD identified the attached NAND Flash devices, but we have a much
-	 * better database that we want to consult. First, we need to gather all
-	 * the ID bytes from the first chip (MTD only read the first two).
-	 */
-	saved_chip_number = mil->current_chip;
-	nand->select_chip(mtd, 0);
-
-	nand->cmdfunc(mtd, NAND_CMD_READID, 0, -1);
-	nand->read_buf(mtd, id_bytes, NAND_DEVICE_ID_BYTE_COUNT);
-
-	nand->select_chip(mtd, saved_chip_number);
-
-	/* Look up this device in our database. */
-	info = nand_device_get_info(id_bytes);
-
-	/* Check if we understand this device. */
-	if (!info) {
-		pr_err("Unrecognized NAND Flash device.\n");
-		return !0;
-	}
-
-	/* Display the information we discovered. */
-	#if defined(DETAILED_INFO)
-	pr_info("-----------------------------\n");
-	pr_info("NAND Flash Device Information\n");
-	pr_info("-----------------------------\n");
-	nand_device_print_info(info);
-	#endif
-
-	/*
-	 * Copy the device info into the per-device data. We can't just keep
-	 * the pointer because that storage is reclaimed after initialization.
-	 */
-	this->device_info = *info;
-	this->device_info.description = kstrdup(info->description, GFP_KERNEL);
-
-	/* Set up geometry. */
-	error = mil_set_geometry(this);
-	if (error)
-		return error;
-
-	/* Set up timing. */
-	timing.data_setup_in_ns        = info->data_setup_in_ns;
-	timing.data_hold_in_ns         = info->data_hold_in_ns;
-	timing.address_setup_in_ns     = info->address_setup_in_ns;
-	timing.gpmi_sample_delay_in_ns = info->gpmi_sample_delay_in_ns;
-	timing.tREA_in_ns              = info->tREA_in_ns;
-	timing.tRLOH_in_ns             = info->tRLOH_in_ns;
-	timing.tRHOH_in_ns             = info->tRHOH_in_ns;
-
-	error = nfc->set_timing(this, &timing);
-	if (error)
-		return error;
-
 	/* Prepare for the BBT scan. */
 	error = mil_pre_bbt_scan(this);
 	if (error)
 		return error;
 
-	/* We use the reference implementation for bad block management. */
-	if (nfc->extra_init)
-		nfc->extra_init(this);
-
-	error = nand_default_bbt(mtd);
-	if (error)
-		return error;
-	return 0;
+	/* use the default BBT implementation */
+	return nand_default_bbt(mtd);
 }
 
 /**
@@ -1949,6 +1866,87 @@ static void mil_partitions_exit(struct gpmi_nfc_data *this)
 	mil_boot_areas_exit(this);
 }
 
+/*
+ * This function is used to set the mtd->pagesize, mtd->oobsize,
+ * mtd->erasesize. Yes, we also do some initialization.
+ *
+ * Return with the bus width. 0 for 8-bit, -1 for error.
+ */
+static int gpmi_init_size(struct mtd_info *mtd, struct nand_chip *nand,
+				u8 *id_bytes)
+{
+	struct gpmi_nfc_data *this	= nand->priv;
+	struct nfc_hal       *nfc	= this->nfc;
+	struct mil           *mil	= &this->mil;
+	struct nand_ecclayout *layout	= &mil->oob_layout;
+	struct nand_device_info  *info;
+	struct gpmi_nfc_timing   timing;
+	int error;
+
+	/* Look up this device in our database. */
+	info = nand_device_get_info(id_bytes);
+	if (!info) {
+		pr_err("Unrecognized NAND Flash device.\n");
+		return -1;
+	}
+
+	/* Display the information we discovered. */
+	#if defined(DETAILED_INFO)
+	pr_info("-----------------------------\n");
+	pr_info("NAND Flash Device Information\n");
+	pr_info("-----------------------------\n");
+	nand_device_print_info(info);
+	#endif
+
+	/* initialize the right NAND parameters */
+	mtd->writesize	= 1 << (fls(info->page_total_size_in_bytes) - 1);
+	mtd->erasesize	= mtd->writesize * info->block_size_in_pages;
+	mtd->oobsize	= info->page_total_size_in_bytes - mtd->writesize;
+	nand->chipsize	= info->chip_size_in_bytes;
+
+	/* Configure the struct nand_ecclayout. */
+	layout->eccbytes          = 0;
+	layout->oobavail          = mtd->oobsize;
+	layout->oobfree[0].offset = 0;
+	layout->oobfree[0].length = mtd->oobsize;
+
+	nand->ecc.layout = layout;
+
+	/*
+	 * Copy the device info into the per-device data. We can't just keep
+	 * the pointer because that storage is reclaimed after initialization.
+	 */
+	this->device_info = *info;
+	this->device_info.description = kstrdup(info->description, GFP_KERNEL);
+
+	/* Set up geometry. */
+	error = mil_set_geometry(this);
+	if (error)
+		return -1;
+
+	/* Set up timing. */
+	timing.data_setup_in_ns        = info->data_setup_in_ns;
+	timing.data_hold_in_ns         = info->data_hold_in_ns;
+	timing.address_setup_in_ns     = info->address_setup_in_ns;
+	timing.gpmi_sample_delay_in_ns = info->gpmi_sample_delay_in_ns;
+	timing.tREA_in_ns              = info->tREA_in_ns;
+	timing.tRLOH_in_ns             = info->tRLOH_in_ns;
+	timing.tRHOH_in_ns             = info->tRHOH_in_ns;
+
+	error = nfc->set_timing(this, &timing);
+	if (error)
+		return -1;
+
+	if (nfc->extra_init) {
+		error = nfc->extra_init(this);
+		if (error != 0)
+			return -1;
+	}
+
+	/* We only use 8-bit bus now, not 16-bit. */
+	return 0;
+}
+
 /**
  * gpmi_nfc_mil_init() - Initializes the MTD Interface Layer.
  *
@@ -2043,6 +2041,7 @@ int gpmi_nfc_mil_init(struct gpmi_nfc_data *this)
 	 */
 	nand->block_bad = mil_block_bad;
 	nand->scan_bbt  = mil_scan_bbt;
+	nand->init_size = gpmi_init_size;
 	nand->badblock_pattern = &gpmi_bbt_descr;
 
 	/*
