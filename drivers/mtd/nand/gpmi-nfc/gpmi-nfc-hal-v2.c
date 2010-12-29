@@ -18,7 +18,6 @@
  * with this program; if not, write to the Free Software Foundation, Inc.,
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
-
 #include "gpmi-nfc.h"
 #include "gpmi-nfc-gpmi-regs-v2.h"
 #include "gpmi-nfc-bch-regs-v2.h"
@@ -338,18 +337,14 @@ static int init(struct gpmi_nfc_data *this)
 	int               error;
 
 	/* Initialize DMA. */
-
 	error = gpmi_nfc_dma_init(this);
-
 	if (error)
 		return error;
 
 	/* Enable the clock. */
-
 	clk_enable(resources->clock);
 
 	/* Reset the GPMI block. */
-
 	mxs_reset_block(resources->gpmi_regs + HW_GPMI_CTRL0, true);
 
 	/* Choose NAND mode. */
@@ -369,13 +364,9 @@ static int init(struct gpmi_nfc_data *this)
 				resources->gpmi_regs + HW_GPMI_CTRL1_SET);
 
 	/* Disable the clock. */
-
 	clk_disable(resources->clock);
 
-	/* If control arrives here, all is well. */
-
 	return 0;
-
 }
 
 /**
@@ -395,12 +386,10 @@ static int set_geometry(struct gpmi_nfc_data *this)
 	uint32_t		value;
 
 	/* We make the abstract choices in a common function. */
-
 	if (gpmi_nfc_set_geometry(this))
 		return !0;
 
 	/* Translate the abstract choices into register fields. */
-
 	block_count   = nfc->ecc_chunk_count - 1;
 	block_size    = nfc->ecc_chunk_size_in_bytes >> 2;
 	metadata_size = nfc->metadata_size_in_bytes;
@@ -408,7 +397,6 @@ static int set_geometry(struct gpmi_nfc_data *this)
 	page_size     = nfc->page_size_in_bytes;
 
 	/* Enable the clock. */
-
 	clk_enable(resources->clock);
 
 	/*
@@ -419,11 +407,9 @@ static int set_geometry(struct gpmi_nfc_data *this)
 	 * try to soft reset a version 0 BCH block, it becomes unusable until
 	 * the next hard reset.
 	 */
-
 	mxs_reset_block(resources->bch_regs, false);
 
 	/* Configure layout 0. */
-
 	value = BF_BCH_FLASH0LAYOUT0_NBLOCKS(block_count)     |
 		BF_BCH_FLASH0LAYOUT0_META_SIZE(metadata_size) |
 		BF_BCH_FLASH0LAYOUT0_ECC0(ecc_strength)       |
@@ -442,22 +428,16 @@ static int set_geometry(struct gpmi_nfc_data *this)
 	__raw_writel(value, resources->bch_regs + HW_BCH_FLASH0LAYOUT1);
 
 	/* Set *all* chip selects to use layout 0. */
-
 	__raw_writel(0, resources->bch_regs + HW_BCH_LAYOUTSELECT);
 
 	/* Enable interrupts. */
-
 	__raw_writel(BM_BCH_CTRL_COMPLETE_IRQ_EN,
 				resources->bch_regs + HW_BCH_CTRL_SET);
 
 	/* Disable the clock. */
-
 	clk_disable(resources->clock);
 
-	/* Return success. */
-
 	return 0;
-
 }
 
 /**
@@ -472,13 +452,8 @@ static int set_timing(struct gpmi_nfc_data *this,
 	struct nfc_hal  *nfc = this->nfc;
 
 	/* Accept the new timing. */
-
 	nfc->timing = *timing;
-
-	/* Return success. */
-
 	return 0;
-
 }
 
 /**
@@ -505,15 +480,12 @@ static void get_timing(struct gpmi_nfc_data *this,
 	uint32_t                         register_image;
 
 	/* Return the clock frequency. */
-
 	*clock_frequency_in_hz = nfc->clock_frequency_in_hz;
 
 	/* We'll be reading the hardware, so let's enable the clock. */
-
 	clk_enable(resources->clock);
 
 	/* Retrieve the hardware timing. */
-
 	register_image = __raw_readl(gpmi_regs + HW_GPMI_TIMING0);
 
 	hardware_timing->data_setup_in_cycles =
@@ -539,9 +511,7 @@ static void get_timing(struct gpmi_nfc_data *this,
 						BP_GPMI_CTRL1_RDN_DELAY;
 
 	/* We're done reading the hardware, so disable the clock. */
-
 	clk_disable(resources->clock);
-
 }
 
 /**
@@ -553,7 +523,6 @@ static void exit(struct gpmi_nfc_data *this)
 {
 	gpmi_nfc_dma_exit(this);
 }
-
 
 /**
  * begin() - Begin NFC I/O.
@@ -567,7 +536,6 @@ static void begin(struct gpmi_nfc_data *this)
 	struct gpmi_nfc_hardware_timing  hw;
 
 	/* Enable the clock. */
-
 	if (ddr_clk)
 		clk_enable(ddr_clk);
 	if (apbh_dma_clk)
@@ -577,7 +545,6 @@ static void begin(struct gpmi_nfc_data *this)
 	clk_enable(resources->clock);
 
 	/* Get the timing information we need. */
-
 	nfc->clock_frequency_in_hz = clk_get_rate(resources->clock);
 	gpmi_nfc_compute_hardware_timing(this, &hw);
 
@@ -613,10 +580,8 @@ static void end(struct gpmi_nfc_data *this)
 static void clear_bch(struct gpmi_nfc_data *this)
 {
 	struct resources  *resources = &this->resources;
-
 	__raw_writel(BM_BCH_CTRL_COMPLETE_IRQ,
 				resources->bch_regs + HW_BCH_CTRL_CLR);
-
 }
 
 /**
@@ -632,13 +597,9 @@ static int is_ready(struct gpmi_nfc_data *this, unsigned chip)
 	uint32_t          register_image;
 
 	/* Extract and return the status. */
-
 	mask = BF_GPMI_STAT_READY_BUSY(1 << 0);
-
 	register_image = __raw_readl(resources->gpmi_regs + HW_GPMI_STAT);
-
 	return !!(register_image & mask);
-
 }
 
 /**
@@ -928,7 +889,6 @@ static int read_page(struct gpmi_nfc_data *this, unsigned chip,
 }
 
 /* This structure represents the NFC HAL for this version of the hardware. */
-
 struct nfc_hal  gpmi_nfc_hal_v2 = {
 	.version                     = 2,
 	.description                 = "8-chip GPMI and BCH",

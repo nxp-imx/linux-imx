@@ -33,20 +33,13 @@ irqreturn_t gpmi_nfc_bch_isr(int irq, void *cookie)
 	struct gpmi_nfc_data  *this      = cookie;
 	struct nfc_hal        *nfc       =  this->nfc;
 
-
 	/* Clear the interrupt. */
-
 	nfc->clear_bch(this);
 
 	/* Release the base level. */
-
 	complete(&(nfc->bch_done));
 
-	/* Return success. */
-
-
 	return IRQ_HANDLED;
-
 }
 
 /**
@@ -61,20 +54,13 @@ irqreturn_t gpmi_nfc_dma_isr(int irq, void *cookie)
 	struct gpmi_nfc_data  *this = cookie;
 	struct nfc_hal        *nfc  =  this->nfc;
 
-
 	/* Acknowledge the DMA channel's interrupt. */
-
 	mxs_dma_ack_irq(nfc->isr_dma_channel);
 
 	/* Release the base level. */
-
 	complete(&(nfc->dma_done));
 
-	/* Return success. */
-
-
 	return IRQ_HANDLED;
-
 }
 
 /**
@@ -90,7 +76,6 @@ int gpmi_nfc_dma_init(struct gpmi_nfc_data *this)
 	int             error;
 
 	/* Allocate the DMA descriptors. */
-
 	for (i = 0; i < NFC_DMA_DESCRIPTOR_COUNT; i++) {
 		nfc->dma_descriptors[i] = mxs_dma_alloc_desc();
 		if (!nfc->dma_descriptors[i]) {
@@ -99,19 +84,12 @@ int gpmi_nfc_dma_init(struct gpmi_nfc_data *this)
 			goto exit_descriptor_allocation;
 		}
 	}
-
-	/* If control arrives here, all is well. */
-
 	return 0;
-
-	/* Control arrives here when something has gone wrong. */
 
 exit_descriptor_allocation:
 	while (--i >= 0)
 		mxs_dma_free_desc(this->nfc->dma_descriptors[i]);
-
 	return error;
-
 }
 
 /**
@@ -125,10 +103,8 @@ void gpmi_nfc_dma_exit(struct gpmi_nfc_data *this)
 	int             i;
 
 	/* Free the DMA descriptors. */
-
 	for (i = 0; i < NFC_DMA_DESCRIPTOR_COUNT; i++)
 		mxs_dma_free_desc(nfc->dma_descriptors[i]);
-
 }
 
 /**
@@ -156,29 +132,20 @@ int gpmi_nfc_set_geometry(struct gpmi_nfc_data *this)
 	unsigned int              block_mark_bit_offset;
 
 	/* At this writing, we support only BCH. */
-
 	geometry->ecc_algorithm = "BCH";
 
 	/*
 	 * We always choose a metadata size of 10. Don't try to make sense of
 	 * it -- this is really only for historical compatibility.
 	 */
-
 	geometry->metadata_size_in_bytes = 10;
 
-	/*
-	 * At this writing, we always use 512-byte ECC chunks. Later hardware
-	 * will be able to support larger chunks, which will cause this
-	 * decision to move into version-specific code.
-	 */
-
+	/* ECC chunks */
 	geometry->ecc_chunk_size_in_bytes = 512;
-	/* Only ONFI nand uses 1k chunk now */
 	if (is_ddr_nand(&this->device_info))
 		geometry->ecc_chunk_size_in_bytes = 1024;
 
 	/* Compute the page size based on the physical geometry. */
-
 	geometry->page_size_in_bytes =
 			physical->page_data_size_in_bytes +
 			physical->page_oob_size_in_bytes  ;
@@ -188,11 +155,8 @@ int gpmi_nfc_set_geometry(struct gpmi_nfc_data *this)
 	 * slightly larger chunk at the beginning of the page, which contains
 	 * both data and metadata.
 	 */
-
-	geometry->ecc_chunk_count =
-			  physical->page_data_size_in_bytes /
-			/*---------------------------------*/
-			  geometry->ecc_chunk_size_in_bytes;
+	geometry->ecc_chunk_count = physical->page_data_size_in_bytes /
+					  geometry->ecc_chunk_size_in_bytes;
 
 	/*
 	 * We use the same ECC strength for all chunks, including the first one.
@@ -200,7 +164,6 @@ int gpmi_nfc_set_geometry(struct gpmi_nfc_data *this)
 	 * the physical page geometry. In the future, this should be changed to
 	 * pay attention to the detailed device information we gathered earlier.
 	 */
-
 	geometry->ecc_strength = 0;
 
 	switch (physical->page_data_size_in_bytes) {
@@ -233,8 +196,6 @@ int gpmi_nfc_set_geometry(struct gpmi_nfc_data *this)
 		break;
 	}
 
-	/* Check if we were able to figure out the ECC strength. */
-
 	if (!geometry->ecc_strength) {
 		dev_err(dev, "Unsupported page geometry: %u:%u\n",
 			physical->page_data_size_in_bytes,
@@ -246,7 +207,6 @@ int gpmi_nfc_set_geometry(struct gpmi_nfc_data *this)
 	 * The payload buffer contains the data area of a page. The ECC engine
 	 * only needs what's required to hold the data.
 	 */
-
 	geometry->payload_size_in_bytes = physical->page_data_size_in_bytes;
 
 	/*
@@ -259,7 +219,6 @@ int gpmi_nfc_set_geometry(struct gpmi_nfc_data *this)
 	 * contains one byte for every ECC chunk, and is also padded to the
 	 * nearest 32-bit boundary.
 	 */
-
 	metadata_size = (geometry->metadata_size_in_bytes + 0x3) & ~0x3;
 	status_size   = (geometry->ecc_chunk_count        + 0x3) & ~0x3;
 
@@ -267,7 +226,6 @@ int gpmi_nfc_set_geometry(struct gpmi_nfc_data *this)
 	geometry->auxiliary_status_offset = metadata_size;
 
 	/* Check if we're going to do block mark swapping. */
-
 	if (!rom->swap_block_mark)
 		return 0;
 
@@ -289,7 +247,6 @@ int gpmi_nfc_set_geometry(struct gpmi_nfc_data *this)
 	 */
 
 	/* Compute some important facts about chunk geometry. */
-
 	chunk_data_size_in_bits = geometry->ecc_chunk_size_in_bytes * 8;
 
 	/* ONFI nand needs GF14 */
@@ -302,18 +259,15 @@ int gpmi_nfc_set_geometry(struct gpmi_nfc_data *this)
 			chunk_data_size_in_bits + chunk_ecc_size_in_bits;
 
 	/* Compute the bit offset of the block mark within the physical page. */
-
 	block_mark_bit_offset = physical->page_data_size_in_bytes * 8;
 
 	/* Subtract the metadata bits. */
-
 	block_mark_bit_offset -= geometry->metadata_size_in_bytes * 8;
 
 	/*
 	 * Compute the chunk number (starting at zero) in which the block mark
 	 * appears.
 	 */
-
 	block_mark_chunk_number =
 			block_mark_bit_offset / chunk_total_size_in_bits;
 
@@ -321,31 +275,26 @@ int gpmi_nfc_set_geometry(struct gpmi_nfc_data *this)
 	 * Compute the bit offset of the block mark within its chunk, and
 	 * validate it.
 	 */
-
 	block_mark_chunk_bit_offset =
 		block_mark_bit_offset -
 			(block_mark_chunk_number * chunk_total_size_in_bits);
 
 	if (block_mark_chunk_bit_offset > chunk_data_size_in_bits) {
-
 		/*
 		 * If control arrives here, the block mark actually appears in
 		 * the ECC bits of this chunk. This wont' work.
 		 */
-
 		dev_err(dev, "Unsupported page geometry "
 					"(block mark in ECC): %u:%u\n",
 					physical->page_data_size_in_bytes,
 					physical->page_oob_size_in_bytes);
 		return !0;
-
 	}
 
 	/*
 	 * Now that we know the chunk number in which the block mark appears,
 	 * we can subtract all the ECC bits that appear before it.
 	 */
-
 	block_mark_bit_offset -=
 			block_mark_chunk_number * chunk_ecc_size_in_bits;
 
@@ -354,14 +303,10 @@ int gpmi_nfc_set_geometry(struct gpmi_nfc_data *this)
 	 * ECC-based data. We can now compute the byte offset and the bit
 	 * offset within the byte.
 	 */
-
 	geometry->block_mark_byte_offset = block_mark_bit_offset / 8;
 	geometry->block_mark_bit_offset  = block_mark_bit_offset % 8;
 
-	/* Return success. */
-
 	return 0;
-
 }
 
 /**
@@ -379,9 +324,7 @@ int gpmi_nfc_dma_go(struct gpmi_nfc_data *this, int  dma_channel)
 	int               error;
 	LIST_HEAD(tmp_desc_list);
 
-
 	/* Get ready... */
-
 	nfc->isr_dma_channel = dma_channel;
 	init_completion(&nfc->dma_done);
 	mxs_dma_enable_irq(dma_channel, 1);
@@ -391,9 +334,8 @@ int gpmi_nfc_dma_go(struct gpmi_nfc_data *this, int  dma_channel)
 
 	/* Wait for it to finish. */
 	timeout = wait_for_completion_timeout(&nfc->dma_done,
-							msecs_to_jiffies(1000));
+						msecs_to_jiffies(1000));
 	error = (!timeout) ? -ETIMEDOUT : 0;
-
 	if (error) {
 		struct mxs_dma_info info;
 
@@ -401,23 +343,16 @@ int gpmi_nfc_dma_go(struct gpmi_nfc_data *this, int  dma_channel)
 		dev_err(dev, "[%s] Chip: %u, DMA Channel: %d, Error %d\n",
 			__func__, dma_channel - resources->dma_low_channel,
 			dma_channel, error);
-	} else
-
-	/* Clear out the descriptors we just ran. */
-
-	mxs_dma_cooked(dma_channel, &tmp_desc_list);
+	} else {
+		/* Clear out the descriptors we just ran. */
+		mxs_dma_cooked(dma_channel, &tmp_desc_list);
+	}
 
 	/* Shut the DMA channel down. */
-
 	mxs_dma_reset(dma_channel);
 	mxs_dma_enable_irq(dma_channel, 0);
 	mxs_dma_disable(dma_channel);
-
-	/* Return. */
-
-
 	return error;
-
 }
 
 /*
@@ -480,11 +415,8 @@ static unsigned int ns_to_cycles(unsigned int time,
 	 * Compute the minimum number of cycles that entirely contain the
 	 * given time.
 	 */
-
 	k = (time + period - 1) / period;
-
 	return max(k, min);
-
 }
 
 /**
@@ -521,7 +453,6 @@ int gpmi_nfc_compute_hardware_timing(struct gpmi_nfc_data *this,
 	 * If there are multiple chips, we need to relax the timings to allow
 	 * for signal distortion due to higher capacitance.
 	 */
-
 	if (physical->chip_count > 2) {
 		target.data_setup_in_ns    += 10;
 		target.data_hold_in_ns     += 10;
@@ -533,14 +464,12 @@ int gpmi_nfc_compute_hardware_timing(struct gpmi_nfc_data *this,
 	}
 
 	/* Check if improved timing information is available. */
-
 	improved_timing_is_available =
 		(target.tREA_in_ns  >= 0) &&
 		(target.tRLOH_in_ns >= 0) &&
 		(target.tRHOH_in_ns >= 0) ;
 
 	/* Inspect the clock. */
-
 	clock_frequency_in_hz = nfc->clock_frequency_in_hz;
 	clock_period_in_ns    = 1000000000 / clock_frequency_in_hz;
 
@@ -554,7 +483,6 @@ int gpmi_nfc_compute_hardware_timing(struct gpmi_nfc_data *this,
 	 * as the largest possible delay. This is not what's intended by a zero
 	 * in the input parameter, so we impose a minimum of one cycle.
 	 */
-
 	data_setup_in_cycles    = ns_to_cycles(target.data_setup_in_ns,
 							clock_period_in_ns, 1);
 	data_hold_in_cycles     = ns_to_cycles(target.data_hold_in_ns,
@@ -620,7 +548,6 @@ int gpmi_nfc_compute_hardware_timing(struct gpmi_nfc_data *this,
 	 *
 	 *     DDS  is the DLL Delay Shift, the logarithm to base 2 of the DDF.
 	 */
-
 	if (clock_period_in_ns > (nfc->max_dll_clock_period_in_ns >> 1)) {
 		dll_use_half_periods = true;
 		dll_delay_shift      = 3 + 1;
@@ -634,7 +561,6 @@ int gpmi_nfc_compute_hardware_timing(struct gpmi_nfc_data *this,
 	 * conditions. If the clock is running too slowly, no sample delay is
 	 * possible.
 	 */
-
 	if (clock_period_in_ns > nfc->max_dll_clock_period_in_ns)
 		max_sample_delay_in_ns = 0;
 	else {
@@ -966,7 +892,6 @@ int gpmi_nfc_compute_hardware_timing(struct gpmi_nfc_data *this,
 	/* Control arrives here when we're ready to return our results. */
 
 return_results:
-
 	hw->data_setup_in_cycles    = data_setup_in_cycles;
 	hw->data_hold_in_cycles     = data_hold_in_cycles;
 	hw->address_setup_in_cycles = address_setup_in_cycles;
@@ -974,7 +899,5 @@ return_results:
 	hw->sample_delay_factor     = sample_delay_factor;
 
 	/* Return success. */
-
 	return 0;
-
 }

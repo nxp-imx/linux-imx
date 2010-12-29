@@ -35,18 +35,14 @@ static int init(struct gpmi_nfc_data *this)
 	int               error;
 
 	/* Initialize DMA. */
-
 	error = gpmi_nfc_dma_init(this);
-
 	if (error)
 		return error;
 
 	/* Enable the clock. It will stay on until the end of set_geometry(). */
-
 	clk_enable(resources->clock);
 
 	/* Reset the GPMI block. */
-
 	mxs_reset_block(resources->gpmi_regs + HW_GPMI_CTRL0, true);
 
 	/* Choose NAND mode. */
@@ -66,13 +62,9 @@ static int init(struct gpmi_nfc_data *this)
 				resources->gpmi_regs + HW_GPMI_CTRL1_SET);
 
 	/* Disable the clock. */
-
 	clk_disable(resources->clock);
 
-	/* If control arrives here, all is well. */
-
 	return 0;
-
 }
 
 /**
@@ -91,12 +83,10 @@ static int set_geometry(struct gpmi_nfc_data *this)
 	unsigned int         page_size;
 
 	/* We make the abstract choices in a common function. */
-
 	if (gpmi_nfc_set_geometry(this))
 		return !0;
 
 	/* Translate the abstract choices into register fields. */
-
 	block_count   = nfc->ecc_chunk_count - 1;
 	block_size    = nfc->ecc_chunk_size_in_bytes;
 	metadata_size = nfc->metadata_size_in_bytes;
@@ -104,7 +94,6 @@ static int set_geometry(struct gpmi_nfc_data *this)
 	page_size     = nfc->page_size_in_bytes;
 
 	/* Enable the clock. */
-
 	clk_enable(resources->clock);
 
 	/*
@@ -113,11 +102,9 @@ static int set_geometry(struct gpmi_nfc_data *this)
 	 * doesn't work. If you try to soft reset the BCH block, it becomes
 	 * unusable until the next hard reset.
 	 */
-
 	mxs_reset_block(resources->bch_regs, true);
 
 	/* Configure layout 0. */
-
 	__raw_writel(
 		BF_BCH_FLASH0LAYOUT0_NBLOCKS(block_count)     |
 		BF_BCH_FLASH0LAYOUT0_META_SIZE(metadata_size) |
@@ -132,22 +119,16 @@ static int set_geometry(struct gpmi_nfc_data *this)
 		resources->bch_regs + HW_BCH_FLASH0LAYOUT1);
 
 	/* Set *all* chip selects to use layout 0. */
-
 	__raw_writel(0, resources->bch_regs + HW_BCH_LAYOUTSELECT);
 
 	/* Enable interrupts. */
-
 	__raw_writel(BM_BCH_CTRL_COMPLETE_IRQ_EN,
 				resources->bch_regs + HW_BCH_CTRL_SET);
 
 	/* Disable the clock. */
-
 	clk_disable(resources->clock);
 
-	/* Return success. */
-
 	return 0;
-
 }
 
 /**
@@ -162,13 +143,8 @@ static int set_timing(struct gpmi_nfc_data *this,
 	struct nfc_hal  *nfc = this->nfc;
 
 	/* Accept the new timing. */
-
 	nfc->timing = *timing;
-
-	/* Return success. */
-
 	return 0;
-
 }
 
 /**
@@ -195,15 +171,12 @@ static void get_timing(struct gpmi_nfc_data *this,
 	uint32_t                         register_image;
 
 	/* Return the clock frequency. */
-
 	*clock_frequency_in_hz = nfc->clock_frequency_in_hz;
 
 	/* We'll be reading the hardware, so let's enable the clock. */
-
 	clk_enable(resources->clock);
 
 	/* Retrieve the hardware timing. */
-
 	register_image = __raw_readl(gpmi_regs + HW_GPMI_TIMING0);
 
 	hardware_timing->data_setup_in_cycles =
@@ -229,9 +202,7 @@ static void get_timing(struct gpmi_nfc_data *this,
 						BP_GPMI_CTRL1_RDN_DELAY;
 
 	/* We're done reading the hardware, so disable the clock. */
-
 	clk_disable(resources->clock);
-
 }
 
 /**
@@ -260,18 +231,15 @@ static void begin(struct gpmi_nfc_data *this)
 	unsigned int                     dll_wait_time_in_us;
 
 	/* Enable the clock. */
-
 	clk_enable(resources->clock);
 
 	/* Get the timing information we need. */
-
 	nfc->clock_frequency_in_hz = clk_get_rate(resources->clock);
 	clock_period_in_ns = 1000000000 / nfc->clock_frequency_in_hz;
 
 	gpmi_nfc_compute_hardware_timing(this, &hw);
 
 	/* Set up all the simple timing parameters. */
-
 	register_image =
 		BF_GPMI_TIMING0_ADDRESS_SETUP(hw.address_setup_in_cycles) |
 		BF_GPMI_TIMING0_DATA_HOLD(hw.data_hold_in_cycles)         |
@@ -284,16 +252,13 @@ static void begin(struct gpmi_nfc_data *this)
 	 *
 	 * DLL_ENABLE must be set to zero when setting RDN_DELAY or HALF_PERIOD.
 	 */
-
 	__raw_writel(BM_GPMI_CTRL1_DLL_ENABLE, gpmi_regs + HW_GPMI_CTRL1_CLR);
 
 	/* Clear out the DLL control fields. */
-
 	__raw_writel(BM_GPMI_CTRL1_RDN_DELAY,   gpmi_regs + HW_GPMI_CTRL1_CLR);
 	__raw_writel(BM_GPMI_CTRL1_HALF_PERIOD, gpmi_regs + HW_GPMI_CTRL1_CLR);
 
 	/* If no sample delay is called for, return immediately. */
-
 	if (!hw.sample_delay_factor)
 		return;
 
@@ -304,12 +269,10 @@ static void begin(struct gpmi_nfc_data *this)
 						gpmi_regs + HW_GPMI_CTRL1_SET);
 
 	/* Set the delay factor. */
-
 	__raw_writel(BF_GPMI_CTRL1_RDN_DELAY(hw.sample_delay_factor),
 						gpmi_regs + HW_GPMI_CTRL1_SET);
 
 	/* Enable the DLL. */
-
 	__raw_writel(BM_GPMI_CTRL1_DLL_ENABLE, gpmi_regs + HW_GPMI_CTRL1_SET);
 
 	/*
@@ -318,16 +281,13 @@ static void begin(struct gpmi_nfc_data *this)
 	 *
 	 * Calculate the amount of time we need to wait, in microseconds.
 	 */
-
 	dll_wait_time_in_us = (clock_period_in_ns * 64) / 1000;
 
 	if (!dll_wait_time_in_us)
 		dll_wait_time_in_us = 1;
 
 	/* Wait for the DLL to settle. */
-
 	udelay(dll_wait_time_in_us);
-
 }
 
 /**
@@ -340,9 +300,7 @@ static void end(struct gpmi_nfc_data *this)
 	struct resources  *resources = &this->resources;
 
 	/* Disable the clock. */
-
 	clk_disable(resources->clock);
-
 }
 
 /**
@@ -356,7 +314,6 @@ static void clear_bch(struct gpmi_nfc_data *this)
 
 	__raw_writel(BM_BCH_CTRL_COMPLETE_IRQ,
 				resources->bch_regs + HW_BCH_CTRL_CLR);
-
 }
 
 /**
@@ -504,7 +461,6 @@ static int read_data(struct gpmi_nfc_data *this, unsigned chip,
 	 * ready because, after all, we don't care. I think the original code
 	 * did that and no one has re-thought it yet.
 	 */
-
 	command_mode = BV_GPMI_CTRL0_COMMAND_MODE__WAIT_FOR_READY;
 	address      = BV_GPMI_CTRL0_ADDRESS__NAND_DATA;
 

@@ -18,9 +18,7 @@
  * with this program; if not, write to the Free Software Foundation, Inc.,
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
-
 #include "gpmi-nfc.h"
-
 #include "gpmi-nfc-gpmi-regs-v1.h"
 #include "gpmi-nfc-bch-regs-v1.h"
 
@@ -35,18 +33,14 @@ static int init(struct gpmi_nfc_data *this)
 	int               error;
 
 	/* Initialize DMA. */
-
 	error = gpmi_nfc_dma_init(this);
-
 	if (error)
 		return error;
 
 	/* Enable the clock. */
-
 	clk_enable(resources->clock);
 
 	/* Reset the GPMI block. */
-
 	mxs_reset_block(resources->gpmi_regs + HW_GPMI_CTRL0, true);
 
 	/* Choose NAND mode. */
@@ -66,13 +60,9 @@ static int init(struct gpmi_nfc_data *this)
 				resources->gpmi_regs + HW_GPMI_CTRL1_SET);
 
 	/* Disable the clock. */
-
 	clk_disable(resources->clock);
 
-	/* If control arrives here, all is well. */
-
 	return 0;
-
 }
 
 /**
@@ -91,12 +81,10 @@ static int set_geometry(struct gpmi_nfc_data *this)
 	unsigned int         page_size;
 
 	/* We make the abstract choices in a common function. */
-
 	if (gpmi_nfc_set_geometry(this))
 		return !0;
 
 	/* Translate the abstract choices into register fields. */
-
 	block_count   = nfc->ecc_chunk_count - 1;
 	block_size    = nfc->ecc_chunk_size_in_bytes;
 	metadata_size = nfc->metadata_size_in_bytes;
@@ -104,7 +92,6 @@ static int set_geometry(struct gpmi_nfc_data *this)
 	page_size     = nfc->page_size_in_bytes;
 
 	/* Enable the clock. */
-
 	clk_enable(resources->clock);
 
 	/*
@@ -115,11 +102,9 @@ static int set_geometry(struct gpmi_nfc_data *this)
 	 * try to soft reset a version 0 BCH block, it becomes unusable until
 	 * the next hard reset.
 	 */
-
 	mxs_reset_block(resources->bch_regs, true);
 
 	/* Configure layout 0. */
-
 	__raw_writel(
 		BF_BCH_FLASH0LAYOUT0_NBLOCKS(block_count)     |
 		BF_BCH_FLASH0LAYOUT0_META_SIZE(metadata_size) |
@@ -134,22 +119,16 @@ static int set_geometry(struct gpmi_nfc_data *this)
 		resources->bch_regs + HW_BCH_FLASH0LAYOUT1);
 
 	/* Set *all* chip selects to use layout 0. */
-
 	__raw_writel(0, resources->bch_regs + HW_BCH_LAYOUTSELECT);
 
 	/* Enable interrupts. */
-
 	__raw_writel(BM_BCH_CTRL_COMPLETE_IRQ_EN,
 				resources->bch_regs + HW_BCH_CTRL_SET);
 
 	/* Disable the clock. */
-
 	clk_disable(resources->clock);
 
-	/* Return success. */
-
 	return 0;
-
 }
 
 /**
@@ -164,13 +143,8 @@ static int set_timing(struct gpmi_nfc_data *this,
 	struct nfc_hal  *nfc = this->nfc;
 
 	/* Accept the new timing. */
-
 	nfc->timing = *timing;
-
-	/* Return success. */
-
 	return 0;
-
 }
 
 /**
@@ -258,18 +232,15 @@ static void begin(struct gpmi_nfc_data *this)
 	struct gpmi_nfc_hardware_timing  hw;
 
 	/* Enable the clock. */
-
 	clk_enable(resources->clock);
 
 	/* Get the timing information we need. */
-
 	nfc->clock_frequency_in_hz = clk_get_rate(resources->clock);
 	gpmi_nfc_compute_hardware_timing(this, &hw);
 
 	/* Apply the hardware timing. */
 
 	/* Coming soon - the clock handling code isn't ready yet. */
-
 }
 
 /**
@@ -282,9 +253,7 @@ static void end(struct gpmi_nfc_data *this)
 	struct resources  *resources = &this->resources;
 
 	/* Disable the clock. */
-
 	clk_disable(resources->clock);
-
 }
 
 /**
@@ -298,7 +267,6 @@ static void clear_bch(struct gpmi_nfc_data *this)
 
 	__raw_writel(BM_BCH_CTRL_COMPLETE_IRQ,
 				resources->bch_regs + HW_BCH_CTRL_CLR);
-
 }
 
 /**

@@ -77,19 +77,16 @@ static int mil_outgoing_buffer_dma_begin(struct gpmi_nfc_data *this,
 	 * If we can, we want to use the caller's buffer directly for DMA. Check
 	 * if the system will let us map them.
 	 */
-
 	if (map_io_buffers && virt_addr_valid(source))
 		source_phys =
 			dma_map_single(dev,
 				(void *) source, length, DMA_TO_DEVICE);
 
 	if (dma_mapping_error(dev, source_phys)) {
-
 		/*
 		 * If control arrives here, we're not mapping the source buffer.
 		 * Make sure the alternate is large enough.
 		 */
-
 		if (alt_size < length) {
 			dev_err(dev, "Alternate buffer is too small "
 							"for outgoing I/O\n");
@@ -100,28 +97,19 @@ static int mil_outgoing_buffer_dma_begin(struct gpmi_nfc_data *this,
 		 * Copy the contents of the source buffer into the alternate
 		 * buffer and set up the return values accordingly.
 		 */
-
 		memcpy(alt_virt, source, length);
 
 		*use_virt = alt_virt;
 		*use_phys = alt_phys;
-
 	} else {
-
 		/*
 		 * If control arrives here, we're mapping the source buffer. Set
 		 * up the return values accordingly.
 		 */
-
 		*use_virt = source;
 		*use_phys = source_phys;
-
 	}
-
-	/* If control arrives here, all is well. */
-
 	return 0;
-
 }
 
 /**
@@ -149,10 +137,8 @@ static void mil_outgoing_buffer_dma_end(struct gpmi_nfc_data *this,
 	 * Check if we used the source buffer, and it's not one of our own DMA
 	 * buffers. If so, we need to unmap it.
 	 */
-
 	if (used_virt == source)
 		dma_unmap_single(dev, used_phys, length, DMA_TO_DEVICE);
-
 }
 
 /**
@@ -190,12 +176,10 @@ static int mil_incoming_buffer_dma_begin(struct gpmi_nfc_data *this,
 				(void *) destination, length, DMA_FROM_DEVICE);
 
 	if (dma_mapping_error(dev, destination_phys)) {
-
 		/*
 		 * If control arrives here, we're not mapping the destination
 		 * buffer. Make sure the alternate is large enough.
 		 */
-
 		if (alt_size < length) {
 			dev_err(dev, "Alternate buffer is too small "
 							"for incoming I/O\n");
@@ -203,26 +187,17 @@ static int mil_incoming_buffer_dma_begin(struct gpmi_nfc_data *this,
 		}
 
 		/* Set up the return values to use the alternate. */
-
 		*use_virt = alt_virt;
 		*use_phys = alt_phys;
-
 	} else {
-
 		/*
 		 * If control arrives here, we're mapping the destination
 		 * buffer. Set up the return values accordingly.
 		 */
-
 		*use_virt = destination;
 		*use_phys = destination_phys;
-
 	}
-
-	/* If control arrives here, all is well. */
-
 	return 0;
-
 }
 
 /**
@@ -250,12 +225,10 @@ static void mil_incoming_buffer_dma_end(struct gpmi_nfc_data *this,
 	 * Check if we used the destination buffer, and it's not one of our own
 	 * DMA buffers. If so, we need to unmap it.
 	 */
-
 	if (used_virt == destination)
 		dma_unmap_single(dev, used_phys, length, DMA_FROM_DEVICE);
 	else
 		memcpy(destination, alt_virt, length);
-
 }
 
 /**
@@ -298,7 +271,6 @@ static void mil_cmd_ctrl(struct mtd_info *mtd, int data, unsigned int ctrl)
 	 * queue them up and run a single DMA operation for the entire series
 	 * of command and data bytes.
 	 */
-
 	if ((ctrl & (NAND_ALE | NAND_CLE))) {
 		if (data != NAND_CMD_NONE)
 			mil->cmd_virt[mil->command_length++] = data;
@@ -310,13 +282,10 @@ static void mil_cmd_ctrl(struct mtd_info *mtd, int data, unsigned int ctrl)
 	 * which means it's ready to run an operation. Check if we have any
 	 * bytes to send.
 	 */
-
 	if (!mil->command_length)
 		return;
 
 	/* Hand the command over to the NFC. */
-
-
 #if defined(CONFIG_MTD_DEBUG)
 	display[0] = 0;
 	for (i = 0; i < mil->command_length; i++)
@@ -327,7 +296,6 @@ static void mil_cmd_ctrl(struct mtd_info *mtd, int data, unsigned int ctrl)
 
 	error = nfc->send_command(this,
 			mil->current_chip, mil->cmd_phys, mil->command_length);
-
 	if (error) {
 		dev_err(dev, "[%s] Chip: %u, Error %d\n",
 					__func__, mil->current_chip, error);
@@ -336,11 +304,8 @@ static void mil_cmd_ctrl(struct mtd_info *mtd, int data, unsigned int ctrl)
 					mil->cmd_virt, mil->command_length, 0);
 	}
 
-
 	/* Reset. */
-
 	mil->command_length = 0;
-
 }
 
 /**
@@ -357,13 +322,7 @@ static int mil_dev_ready(struct mtd_info *mtd)
 
 	DEBUG(MTD_DEBUG_LEVEL2, "[gpmi_nfc dev_ready]\n");
 
-
-	if (nfc->is_ready(this, mil->current_chip)) {
-		return !0;
-	} else {
-		return 0;
-	}
-
+	return nfc->is_ready(this, mil->current_chip);
 }
 
 /**
@@ -482,16 +441,8 @@ static uint8_t mil_read_byte(struct mtd_info *mtd)
 {
 	uint8_t  byte;
 
-	DEBUG(MTD_DEBUG_LEVEL2, "[gpmi_nfc read_byte]\n");
-
-
-	mil_read_buf(mtd, (uint8_t *) &byte, 1);
-
-
-	DEBUG(MTD_DEBUG_LEVEL2, "[gpmi_nfc read_byte]: 0x%02x\n", byte);
-
+	mil_read_buf(mtd, (uint8_t *)&byte, 1);
 	return byte;
-
 }
 
 /**
@@ -518,7 +469,6 @@ static void mil_handle_block_mark_swapping(struct gpmi_nfc_data *this,
 	unsigned char           from_oob;
 
 	/* Check if we're doing block mark swapping. */
-
 	if (!rom->swap_block_mark)
 		return;
 
@@ -526,7 +476,6 @@ static void mil_handle_block_mark_swapping(struct gpmi_nfc_data *this,
 	 * If control arrives here, we're swapping. Make some convenience
 	 * variables.
 	 */
-
 	bit = nfc_geo->block_mark_bit_offset;
 	p   = ((unsigned char *) payload) + nfc_geo->block_mark_byte_offset;
 	a   = auxiliary;
@@ -537,15 +486,12 @@ static void mil_handle_block_mark_swapping(struct gpmi_nfc_data *this,
 	 * physical block mark won't (in general) appear on a byte boundary in
 	 * the data.
 	 */
-
 	from_data = (p[0] >> bit) | (p[1] << (8 - bit));
 
 	/* Get the byte from the OOB. */
-
 	from_oob = a[0];
 
 	/* Swap them. */
-
 	a[0] = from_data;
 
 	mask = (0x1 << bit) - 1;
@@ -553,7 +499,6 @@ static void mil_handle_block_mark_swapping(struct gpmi_nfc_data *this,
 
 	mask = ~0 << bit;
 	p[1] = (p[1] & mask) | (from_oob >> (8 - bit));
-
 }
 
 /**
@@ -583,7 +528,6 @@ static int mil_ecc_read_page(struct mtd_info *mtd, struct nand_chip *nand,
 
 	DEBUG(MTD_DEBUG_LEVEL2, "[gpmi_nfc ecc_read_page]\n");
 
-
 	/*
 	 * Set up DMA.
 	 *
@@ -591,26 +535,21 @@ static int mil_ecc_read_page(struct mtd_info *mtd, struct nand_chip *nand,
 	 * We need to do a lot of fiddling to deliver the OOB, so there's no
 	 * point.
 	 */
-
 	error = mil_incoming_buffer_dma_begin(this, buf, mtd->writesize,
 					mil->payload_virt, mil->payload_phys,
 					nfc_geo->payload_size_in_bytes,
 					&payload_virt, &payload_phys);
-
 	if (error) {
 		dev_err(dev, "[%s] Inadequate DMA buffer\n", __func__);
 		error = -ENOMEM;
 		goto exit_payload;
 	}
-
 	auxiliary_virt = mil->auxiliary_virt;
 	auxiliary_phys = mil->auxiliary_phys;
 
 	/* Ask the NFC. */
-
 	error = nfc->read_page(this, mil->current_chip,
 						payload_phys, auxiliary_phys);
-
 	if (error) {
 		dev_err(dev, "[%s] Error in ECC-based read: %d\n",
 							__func__, error);
@@ -618,19 +557,15 @@ static int mil_ecc_read_page(struct mtd_info *mtd, struct nand_chip *nand,
 	}
 
 	/* Handle block mark swapping. */
-
 	mil_handle_block_mark_swapping(this, payload_virt, auxiliary_virt);
 
 	/* Loop over status bytes, accumulating ECC status. */
-
-	failed    = 0;
-	corrected = 0;
-
-	status = ((unsigned char *) auxiliary_virt) +
+	failed		= 0;
+	corrected	= 0;
+	status		= ((unsigned char *) auxiliary_virt) +
 					nfc_geo->auxiliary_status_offset;
 
 	for (i = 0; i < nfc_geo->ecc_chunk_count; i++, status++) {
-
 		if ((*status == 0x00) || (*status == 0xff))
 			continue;
 
@@ -638,9 +573,7 @@ static int mil_ecc_read_page(struct mtd_info *mtd, struct nand_chip *nand,
 			failed++;
 			continue;
 		}
-
 		corrected += *status;
-
 	}
 
 	/*
@@ -661,12 +594,8 @@ static int mil_ecc_read_page(struct mtd_info *mtd, struct nand_chip *nand,
 	 * necessary, it has already been done, so we can rely on the first
 	 * byte of the auxiliary buffer to contain the block mark.
 	 */
-
 	memset(nand->oob_poi, ~0, mtd->oobsize);
-
 	nand->oob_poi[0] = ((uint8_t *) auxiliary_virt)[0];
-
-	/* Return. */
 
 exit_nfc:
 	mil_incoming_buffer_dma_end(this, buf, mtd->writesize,
@@ -674,10 +603,7 @@ exit_nfc:
 					nfc_geo->payload_size_in_bytes,
 					payload_virt, payload_phys);
 exit_payload:
-
-
 	return error;
-
 }
 
 /**
@@ -880,7 +806,6 @@ static int mil_ecc_read_oob(struct mtd_info *mtd, struct nand_chip *nand,
 	DEBUG(MTD_DEBUG_LEVEL2, "[gpmi_nfc ecc_read_oob] "
 		"page: 0x%06x, sndcmd: %s\n", page, sndcmd ? "Yes" : "No");
 
-
 	/* clear the OOB buffer */
 	memset(nand->oob_poi, ~0, mtd->oobsize);
 
@@ -904,10 +829,7 @@ static int mil_ecc_read_oob(struct mtd_info *mtd, struct nand_chip *nand,
 	 * Return true, indicating that the next call to this function must send
 	 * a command.
 	 */
-
-
 	return true;
-
 }
 
 /**
@@ -932,8 +854,6 @@ static int mil_ecc_write_oob(struct mtd_info *mtd,
 
 	DEBUG(MTD_DEBUG_LEVEL2,
 			"[gpmi_nfc ecc_write_oob] page: 0x%06x\n", page);
-
-
 	/*
 	 * There are fundamental incompatibilities between the i.MX GPMI NFC and
 	 * the NAND Flash MTD model that make it essentially impossible to write
@@ -942,7 +862,6 @@ static int mil_ecc_write_oob(struct mtd_info *mtd,
 	 * We permit *ONE* exception. If the *intent* of writing the OOB is to
 	 * mark a block bad, we can do that.
 	 */
-
 	if (!mil->marking_a_bad_block) {
 		dev_emerg(dev, "This driver doesn't support writing the OOB\n");
 		WARN_ON(1);
@@ -958,14 +877,12 @@ static int mil_ecc_write_oob(struct mtd_info *mtd,
 	 * location. Otherwise, we're using transcription, and the block mark
 	 * appears in the first byte of the page.
 	 */
-
 	if (rom->swap_block_mark)
 		block_mark_column = physical->page_data_size_in_bytes;
 	else
 		block_mark_column = 0;
 
 	/* Write the block mark. */
-
 	nand->cmdfunc(mtd, NAND_CMD_SEQIN, block_mark_column, page);
 	nand->write_buf(mtd, &block_mark, 1);
 	nand->cmdfunc(mtd, NAND_CMD_PAGEPROG, -1, -1);
@@ -973,17 +890,10 @@ static int mil_ecc_write_oob(struct mtd_info *mtd,
 	status = nand->waitfunc(mtd, nand);
 
 	/* Check if it worked. */
-
 	if (status & NAND_STATUS_FAIL)
 		error = -EIO;
-
-	/* Return. */
-
 exit:
-
-
 	return error;
-
 }
 
 /**
@@ -1033,7 +943,6 @@ static int mil_set_physical_geometry(struct gpmi_nfc_data  *this)
 	/*
 	 * Record the number of physical chips that MTD found.
 	 */
-
 	physical->chip_count = nand->numchips;
 
 	/*
@@ -1042,7 +951,6 @@ static int mil_set_physical_geometry(struct gpmi_nfc_data  *this)
 	 * that will fit in the given page size. The OOB size is what's left
 	 * over.
 	 */
-
 	physical->page_data_size_in_bytes =
 				1 << (fls(info->page_total_size_in_bytes) - 1);
 
@@ -1054,16 +962,13 @@ static int mil_set_physical_geometry(struct gpmi_nfc_data  *this)
 	 * Now that we know the page data size, we can multiply this by the
 	 * number of pages in a block to compute the block size.
 	 */
-
 	physical->block_size_in_bytes =
 		physical->page_data_size_in_bytes * info->block_size_in_pages;
 
 	/* Get the chip size. */
-
 	physical->chip_size_in_bytes = info->chip_size_in_bytes;
 
 	/* Compute some interesting facts. */
-
 	block_size_in_pages  =
 			physical->block_size_in_bytes >>
 				(fls(physical->page_data_size_in_bytes) - 1);
@@ -1076,10 +981,7 @@ static int mil_set_physical_geometry(struct gpmi_nfc_data  *this)
 	medium_size_in_bytes =
 			physical->chip_size_in_bytes * physical->chip_count;
 
-	/* Report. */
-
 	#if defined(DETAILED_INFO)
-
 	pr_info("-----------------\n");
 	pr_info("Physical Geometry\n");
 	pr_info("-----------------\n");
@@ -1104,13 +1006,9 @@ static int mil_set_physical_geometry(struct gpmi_nfc_data  *this)
 			chip_size_in_blocks, chip_size_in_blocks);
 	pr_info("Medium Size in Bytes   : %llu (0x%llx)\n",
 			medium_size_in_bytes, medium_size_in_bytes);
-
 	#endif
 
-	/* Return success. */
-
 	return 0;
-
 }
 
 /**
@@ -1128,14 +1026,10 @@ static int mil_set_nfc_geometry(struct gpmi_nfc_data  *this)
 	struct nfc_geometry  *geo = &this->nfc_geometry;
 #endif
 	/* Set the NFC geometry. */
-
 	if (nfc->set_geometry(this))
 		return !0;
 
-	/* Report. */
-
 	#if defined(DETAILED_INFO)
-
 	pr_info("------------\n");
 	pr_info("NFC Geometry\n");
 	pr_info("------------\n");
@@ -1150,13 +1044,9 @@ static int mil_set_nfc_geometry(struct gpmi_nfc_data  *this)
 	pr_info("Auxiliary Status Offset: %u\n", geo->auxiliary_status_offset);
 	pr_info("Block Mark Byte Offset : %u\n", geo->block_mark_byte_offset);
 	pr_info("Block Mark Bit Offset  : %u\n", geo->block_mark_bit_offset);
-
 	#endif
 
-	/* Return success. */
-
 	return 0;
-
 }
 
 /**
@@ -1172,14 +1062,10 @@ static int mil_set_boot_rom_helper_geometry(struct gpmi_nfc_data  *this)
 #endif
 
 	/* Set the Boot ROM Helper geometry. */
-
 	if (rom->set_geometry(this))
 		return !0;
 
-	/* Report. */
-
 	#if defined(DETAILED_INFO)
-
 	pr_info("-----------------\n");
 	pr_info("Boot ROM Geometry\n");
 	pr_info("-----------------\n");
@@ -1189,13 +1075,8 @@ static int mil_set_boot_rom_helper_geometry(struct gpmi_nfc_data  *this)
 	pr_info("Stride Size in Pages       : %u\n", geo->stride_size_in_pages);
 	pr_info("Search Area Stride Exponent: %u\n",
 					geo->search_area_stride_exponent);
-
 	#endif
-
-	/* Return success. */
-
 	return 0;
-
 }
 
 /**
@@ -1215,14 +1096,12 @@ static int mil_set_mtd_geometry(struct gpmi_nfc_data *this)
 	struct mtd_info           *mtd      = &mil->mtd;
 
 	/* Configure the struct nand_ecclayout. */
-
 	layout->eccbytes          = 0;
 	layout->oobavail          = physical->page_oob_size_in_bytes;
 	layout->oobfree[0].offset = 0;
 	layout->oobfree[0].length = physical->page_oob_size_in_bytes;
 
 	/* Configure the struct mtd_info. */
-
 	mtd->size        = nand->numchips * physical->chip_size_in_bytes;
 	mtd->erasesize   = physical->block_size_in_bytes;
 	mtd->writesize   = physical->page_data_size_in_bytes;
@@ -1232,7 +1111,6 @@ static int mil_set_mtd_geometry(struct gpmi_nfc_data *this)
 	mtd->subpage_sft = 0; /* We don't support sub-page writing. */
 
 	/* Configure the struct nand_chip. */
-
 	nand->chipsize         = physical->chip_size_in_bytes;
 	nand->page_shift       = ffs(mtd->writesize) - 1;
 	nand->pagemask         = (nand->chipsize >> nand->page_shift) - 1;
@@ -1247,10 +1125,7 @@ static int mil_set_mtd_geometry(struct gpmi_nfc_data *this)
 		nand->chip_shift =
 				ffs((unsigned) (nand->chipsize >> 32)) + 32 - 1;
 
-	/* Return success. */
-
 	return 0;
-
 }
 
 /**
@@ -1264,14 +1139,12 @@ static int mil_set_geometry(struct gpmi_nfc_data  *this)
 	struct nfc_geometry  *nfc_geo  = &this->nfc_geometry;
 	struct mil           *mil      = &this->mil;
 
-
 	/* Free the memory for read ID case */
 	if (mil->page_buffer_virt && virt_addr_valid(mil->page_buffer_virt))
 		dma_free_coherent(dev, nfc_geo->payload_size_in_bytes,
 				mil->page_buffer_virt, mil->page_buffer_phys);
 
 	/* Set up the various layers of geometry, in this specific order. */
-
 	if (mil_set_physical_geometry(this))
 		return -ENXIO;
 
@@ -1292,7 +1165,6 @@ static int mil_set_geometry(struct gpmi_nfc_data  *this)
 	 * power of two and is much larger than four, which guarantees the
 	 * auxiliary buffer will appear on a 32-bit boundary.
 	 */
-
 	mil->page_buffer_size = nfc_geo->payload_size_in_bytes +
 					nfc_geo->auxiliary_size_in_bytes;
 
@@ -1304,7 +1176,6 @@ static int mil_set_geometry(struct gpmi_nfc_data  *this)
 		return -ENOMEM;
 
 	/* Slice up the page buffer. */
-
 	mil->payload_virt = mil->page_buffer_virt;
 	mil->payload_phys = mil->page_buffer_phys;
 
@@ -1312,11 +1183,7 @@ static int mil_set_geometry(struct gpmi_nfc_data  *this)
 						nfc_geo->payload_size_in_bytes;
 	mil->auxiliary_phys = mil->payload_phys +
 						nfc_geo->payload_size_in_bytes;
-
-	/* Return success. */
-
 	return 0;
-
 }
 
 /**
@@ -1345,7 +1212,6 @@ static int mil_pre_bbt_scan(struct gpmi_nfc_data  *this)
 	 * the block marks where they are. If so, we don't need to do anything
 	 * at all.
 	 */
-
 	if (rom->swap_block_mark)
 		return 0;
 
@@ -1355,7 +1221,6 @@ static int mil_pre_bbt_scan(struct gpmi_nfc_data  *this)
 	 * transcription stamp. If we find it, then we don't have to do
 	 * anything -- the block marks are already transcribed.
 	 */
-
 	if (rom->check_transcription_stamp(this))
 		return 0;
 
@@ -1363,11 +1228,9 @@ static int mil_pre_bbt_scan(struct gpmi_nfc_data  *this)
 	 * If control arrives here, we couldn't find a transcription stamp, so
 	 * so we presume the block marks are in the conventional location.
 	 */
-
 	pr_info("Transcribing bad block marks...\n");
 
 	/* Compute the number of blocks in the entire medium. */
-
 	block_count =
 		physical->chip_size_in_bytes >> nand->phys_erase_shift;
 
@@ -1375,29 +1238,23 @@ static int mil_pre_bbt_scan(struct gpmi_nfc_data  *this)
 	 * Loop over all the blocks in the medium, transcribing block marks as
 	 * we go.
 	 */
-
 	for (block = 0; block < block_count; block++) {
-
 		/*
 		 * Compute the chip, page and byte addresses for this block's
 		 * conventional mark.
 		 */
-
 		chip = block >> (nand->chip_shift - nand->phys_erase_shift);
 		page = block << (nand->phys_erase_shift - nand->page_shift);
 		byte = block <<  nand->phys_erase_shift;
 
 		/* Select the chip. */
-
 		nand->select_chip(mtd, chip);
 
 		/* Send the command to read the conventional block mark. */
-
 		nand->cmdfunc(mtd, NAND_CMD_READ0,
 				physical->page_data_size_in_bytes, page);
 
 		/* Read the conventional block mark. */
-
 		block_mark = nand->read_byte(mtd);
 
 		/*
@@ -1416,7 +1273,6 @@ static int mil_pre_bbt_scan(struct gpmi_nfc_data  *this)
 		 * So, we have to call at a lower level and handle some details
 		 * ourselves.
 		 */
-
 		if (block_mark != 0xff) {
 			pr_info("Transcribing mark in block %u\n", block);
 			mil->marking_a_bad_block = true;
@@ -1428,19 +1284,13 @@ static int mil_pre_bbt_scan(struct gpmi_nfc_data  *this)
 		}
 
 		/* Deselect the chip. */
-
 		nand->select_chip(mtd, -1);
-
 	}
 
 	/* Write the stamp that indicates we've transcribed the block marks. */
-
 	rom->write_transcription_stamp(this);
 
-	/* Return success. */
-
 	return 0;
-
 }
 
 /**
@@ -1499,7 +1349,6 @@ static int mil_scan_bbt(struct mtd_info *mtd)
 	 *         bytes together, it would *still* be a bad idea to do
 	 *         otherwise.
 	 */
-
 	mtd->flags &= ~MTD_OOB_WRITEABLE;
 
 	/*
@@ -1507,7 +1356,6 @@ static int mil_scan_bbt(struct mtd_info *mtd)
 	 * better database that we want to consult. First, we need to gather all
 	 * the ID bytes from the first chip (MTD only read the first two).
 	 */
-
 	saved_chip_number = mil->current_chip;
 	nand->select_chip(mtd, 0);
 
@@ -1517,18 +1365,15 @@ static int mil_scan_bbt(struct mtd_info *mtd)
 	nand->select_chip(mtd, saved_chip_number);
 
 	/* Look up this device in our database. */
-
 	info = nand_device_get_info(id_bytes);
 
 	/* Check if we understand this device. */
-
 	if (!info) {
 		pr_err("Unrecognized NAND Flash device.\n");
 		return !0;
 	}
 
 	/* Display the information we discovered. */
-
 	#if defined(DETAILED_INFO)
 	pr_info("-----------------------------\n");
 	pr_info("NAND Flash Device Information\n");
@@ -1540,19 +1385,15 @@ static int mil_scan_bbt(struct mtd_info *mtd)
 	 * Copy the device info into the per-device data. We can't just keep
 	 * the pointer because that storage is reclaimed after initialization.
 	 */
-
 	this->device_info = *info;
 	this->device_info.description = kstrdup(info->description, GFP_KERNEL);
 
 	/* Set up geometry. */
-
 	error = mil_set_geometry(this);
-
 	if (error)
 		return error;
 
 	/* Set up timing. */
-
 	timing.data_setup_in_ns        = info->data_setup_in_ns;
 	timing.data_hold_in_ns         = info->data_hold_in_ns;
 	timing.address_setup_in_ns     = info->address_setup_in_ns;
@@ -1562,31 +1403,22 @@ static int mil_scan_bbt(struct mtd_info *mtd)
 	timing.tRHOH_in_ns             = info->tRHOH_in_ns;
 
 	error = nfc->set_timing(this, &timing);
-
 	if (error)
 		return error;
 
 	/* Prepare for the BBT scan. */
-
 	error = mil_pre_bbt_scan(this);
-
 	if (error)
 		return error;
 
 	/* We use the reference implementation for bad block management. */
-
 	if (nfc->extra_init)
 		nfc->extra_init(this);
 
 	error = nand_default_bbt(mtd);
-
 	if (error)
 		return error;
-
-	/* Return success. */
-
 	return 0;
-
 }
 
 /**
@@ -1627,66 +1459,52 @@ static int mil_boot_areas_init(struct gpmi_nfc_data *this)
 	static char  *general_use_name      = "gpmi-nfc-general-use";
 
 	/* Check if we're protecting the boot areas.*/
-
 	if (!rom->boot_area_count) {
-
 		/*
 		 * If control arrives here, we're not protecting the boot areas.
 		 * In this case, there are not boot area partitons, and the main
 		 * MTD is the general use MTD.
 		 */
-
 		mil->general_use_mtd = &mil->mtd;
 
 		return 0;
-
 	}
 
 	/*
 	 * If control arrives here, we're protecting the boot areas. Check if we
 	 * have the MTD support we need.
 	 */
-
 	pr_info("Boot area protection is enabled.\n");
 
 	if (rom->boot_area_count > 1) {
-
 		/*
 		 * If the Boot ROM wants more than one boot area, then we'll
 		 * need to create partitions *and* concatenate them.
 		 */
-
 		#if defined(CONFIG_MTD_PARTITIONS) && defined(CONFIG_MTD_CONCAT)
 			mtd_support_is_adequate = true;
 		#else
 			mtd_support_is_adequate = false;
 		#endif
-
 	} else if (rom->boot_area_count == 1) {
-
 		/*
 		 * If the Boot ROM wants only one boot area, then we only need
 		 * to create partitions -- we don't need to concatenate them.
 		 */
-
 		#if defined(CONFIG_MTD_PARTITIONS)
 			mtd_support_is_adequate = true;
 		#else
 			mtd_support_is_adequate = false;
 		#endif
-
 	} else {
-
 		/*
 		 * If control arrives here, we're protecting the boot area, but
 		 * somehow the boot area count was set to zero. This doesn't
 		 * make any sense.
 		 */
-
 		dev_err(dev, "Internal error: boot area count is "
 						"incorrectly set to zero.");
 		return -ENXIO;
-
 	}
 
 	if (!mtd_support_is_adequate) {
@@ -1708,16 +1526,13 @@ static int mil_boot_areas_init(struct gpmi_nfc_data *this)
 	 */
 
 	/* Check if a boot area is larger than a single chip. */
-
 	if (rom->boot_area_size_in_bytes > physical->chip_size_in_bytes) {
 		dev_emerg(dev, "Boot area size is larger than a chip");
 		return -ENXIO;
 	}
 
 	if (rom->boot_area_count == 1) {
-
 #if defined(CONFIG_MTD_PARTITIONS)
-
 		/*
 		 * We partition the medium like so:
 		 *
@@ -1727,40 +1542,32 @@ static int mil_boot_areas_init(struct gpmi_nfc_data *this)
 		 */
 
 		/* Chip 0 Boot */
-
 		partitions[0].name       = chip_0_boot_name;
 		partitions[0].offset     = 0;
 		partitions[0].size       = rom->boot_area_size_in_bytes;
 		partitions[0].mask_flags = 0;
 
 		/* General Use */
-
 		partitions[1].name       = general_use_name;
 		partitions[1].offset     = rom->boot_area_size_in_bytes;
 		partitions[1].size       = MTDPART_SIZ_FULL;
 		partitions[1].mask_flags = 0;
 
 		/* Construct and register the partitions. */
-
 		add_mtd_partitions(mtd, partitions, 2);
 
 		/* Find the general use MTD. */
-
 		i = 0;
 		while ((search_mtd = get_mtd_device(0, i))) {
-
 			/* Check if we got nonsense. */
-
 			if ((!search_mtd) || (search_mtd == ERR_PTR(-ENODEV)))
 				break;
 
 			/* Check if the current MTD is one of our remainders. */
-
 			if (search_mtd->name == general_use_name)
 				mil->general_use_mtd = search_mtd;
 
 			/* Put the MTD back. We only wanted a quick look. */
-
 			put_mtd_device(search_mtd);
 
 			i++;
@@ -1770,13 +1577,9 @@ static int mil_boot_areas_init(struct gpmi_nfc_data *this)
 			dev_emerg(dev, "Can't find general use MTD");
 			BUG();
 		}
-
 #endif
-
 	} else if (rom->boot_area_count == 2) {
-
 #if defined(CONFIG_MTD_PARTITIONS) && defined(CONFIG_MTD_CONCAT)
-
 		/*
 		 * If control arrives here, there is more than one boot area.
 		 * We partition the medium and concatenate the remainders like
@@ -1808,21 +1611,18 @@ static int mil_boot_areas_init(struct gpmi_nfc_data *this)
 		 */
 
 		/* Chip 0 Boot */
-
 		partitions[0].name       = chip_0_boot_name;
 		partitions[0].offset     = 0;
 		partitions[0].size       = rom->boot_area_size_in_bytes;
 		partitions[0].mask_flags = 0;
 
 		/* Chip 1 Boot */
-
 		partitions[1].name       = chip_1_boot_name;
 		partitions[1].offset     = nand->chipsize;
 		partitions[1].size       = rom->boot_area_size_in_bytes;
 		partitions[1].mask_flags = 0;
 
 		/* Chip 0 Remainder */
-
 		partitions[2].name       = chip_0_remainder_name;
 		partitions[2].offset     = rom->boot_area_size_in_bytes;
 		partitions[2].size       = nand->chipsize -
@@ -1830,7 +1630,6 @@ static int mil_boot_areas_init(struct gpmi_nfc_data *this)
 		partitions[2].mask_flags = 0;
 
 		/* Medium Remainder */
-
 		partitions[3].name       = medium_remainder_name;
 		partitions[3].offset     = nand->chipsize +
 						rom->boot_area_size_in_bytes;
@@ -1838,20 +1637,16 @@ static int mil_boot_areas_init(struct gpmi_nfc_data *this)
 		partitions[3].mask_flags = 0;
 
 		/* Construct and register the partitions. */
-
 		add_mtd_partitions(mtd, partitions, 4);
 
 		/* Find the remainder partitions. */
 		i = 0;
 		while ((search_mtd = get_mtd_device(0, i))) {
-
 			/* Check if we got nonsense. */
-
 			if ((!search_mtd) || (search_mtd == ERR_PTR(-ENODEV)))
 				break;
 
 			/* Check if the current MTD is one of our remainders. */
-
 			if (search_mtd->name == chip_0_remainder_name)
 				chip_0_remainder_mtd = search_mtd;
 
@@ -1859,7 +1654,6 @@ static int mil_boot_areas_init(struct gpmi_nfc_data *this)
 				medium_remainder_mtd = search_mtd;
 
 			/* Put the MTD back. We only wanted a quick look. */
-
 			put_mtd_device(search_mtd);
 
 			i++;
@@ -1876,12 +1670,10 @@ static int mil_boot_areas_init(struct gpmi_nfc_data *this)
 		 * globally-visible list. There's no need for anyone to see
 		 * these.
 		 */
-
 		del_mtd_device(chip_0_remainder_mtd);
 		del_mtd_device(medium_remainder_mtd);
 
 		/* Concatenate the remainders and register the result. */
-
 		concatenate[0] = chip_0_remainder_mtd;
 		concatenate[1] = medium_remainder_mtd;
 
@@ -1889,7 +1681,6 @@ static int mil_boot_areas_init(struct gpmi_nfc_data *this)
 							2, general_use_name);
 
 		add_mtd_device(mil->general_use_mtd);
-
 #endif
 
 	} else {
@@ -1898,10 +1689,7 @@ static int mil_boot_areas_init(struct gpmi_nfc_data *this)
 		return -ENXIO;
 	}
 
-	/* Return success. */
-
 	return 0;
-
 }
 
 /**
@@ -1916,19 +1704,15 @@ static void mil_boot_areas_exit(struct gpmi_nfc_data *this)
 	struct mtd_info           *mtd = &mil->mtd;
 
 	/* Check if we're protecting the boot areas.*/
-
 	if (!rom->boot_area_count) {
-
 		/*
 		 * If control arrives here, we're not protecting the boot areas.
 		 * That means we never created any boot area partitions, and the
 		 * general use MTD is just the main MTD.
 		 */
-
 		mil->general_use_mtd = 0;
 
 		return;
-
 	}
 
 	/*
@@ -1939,7 +1723,6 @@ static void mil_boot_areas_exit(struct gpmi_nfc_data *this)
 	 * partitions to form the general use MTD. The first step is to get rid
 	 * of the concatenation.
 	 */
-
 	#if defined(CONFIG_MTD_PARTITIONS) && defined(CONFIG_MTD_CONCAT)
 		if (rom->boot_area_count > 1) {
 				del_mtd_device(mil->general_use_mtd);
@@ -1951,15 +1734,12 @@ static void mil_boot_areas_exit(struct gpmi_nfc_data *this)
 	 * At this point, we're left only with the partitions of the main MTD.
 	 * Delete them.
 	 */
-
 	#if defined(CONFIG_MTD_PARTITIONS)
 		del_mtd_partitions(mtd);
 	#endif
 
 	/* The general use MTD no longer exists. */
-
 	mil->general_use_mtd = 0;
-
 }
 
 /**
@@ -1990,7 +1770,6 @@ static void mil_construct_ubi_partitions(struct gpmi_nfc_data *this)
 	/*
 	 * If the general use MTD isn't larger than 2GiB, we have nothing to do.
 	 */
-
 	if (mil->general_use_mtd->size <= SZ_2G)
 		return;
 
@@ -1999,14 +1778,12 @@ static void mil_construct_ubi_partitions(struct gpmi_nfc_data *this)
 	 * need to split it up into some number of partitions. Find out how many
 	 * 2GiB partitions we'll be creating.
 	 */
-
 	partition_count = mil->general_use_mtd->size >> 31;
 
 	/*
 	 * If the MTD size doesn't evenly divide by 2GiB, we'll need another
 	 * partition to hold the extra.
 	 */
-
 	if (mil->general_use_mtd->size & ((1 << 30) - 1))
 		partition_count++;
 
@@ -2014,7 +1791,6 @@ static void mil_construct_ubi_partitions(struct gpmi_nfc_data *this)
 	 * We're going to allocate a single memory block to contain all the
 	 * partition structures and their names. Calculate how large it must be.
 	 */
-
 	name_size = strlen(name_prefix) + 4;
 
 	memory_block_size = (sizeof(*partitions) + name_size) * partition_count;
@@ -2022,9 +1798,7 @@ static void mil_construct_ubi_partitions(struct gpmi_nfc_data *this)
 	/*
 	 * Attempt to allocate the block.
 	 */
-
 	partitions = kzalloc(memory_block_size, GFP_KERNEL);
-
 	if (!partitions) {
 		dev_err(dev, "Could not allocate memory for UBI partitions.\n");
 		return;
@@ -2033,28 +1807,22 @@ static void mil_construct_ubi_partitions(struct gpmi_nfc_data *this)
 	names = (char *)(partitions + partition_count);
 
 	/* Loop over partitions, filling in the details. */
-
 	for (i = 0; i < partition_count; i++) {
-
 		partitions[i].name   = names;
 		partitions[i].size   = SZ_2G;
 		partitions[i].offset = MTDPART_OFS_NXTBLK;
 
 		sprintf(names, "%s%u", name_prefix, i);
 		names += name_size;
-
 	}
 
 	/* Adjust the last partition to take up the remainder. */
-
 	partitions[i - 1].size = MTDPART_SIZ_FULL;
 
 	/* Record everything in the device data structure.  */
-
 	mil->partitions           = partitions;
 	mil->partition_count      = partition_count;
 	mil->ubi_partition_memory = partitions;
-
 #endif
 }
 
@@ -2076,9 +1844,7 @@ static int mil_partitions_init(struct gpmi_nfc_data *this)
 	 * and registered. Also, the general_use_mtd field will point to an MTD
 	 * we can use.
 	 */
-
 	error = mil_boot_areas_init(this);
-
 	if (error)
 		return error;
 
@@ -2091,14 +1857,12 @@ static int mil_partitions_init(struct gpmi_nfc_data *this)
 	 * We do this *after* setting up the boot areas because, for historical
 	 * reasons, we like the lowest-numbered MTDs to be the boot areas.
 	 */
-
 	if (register_main_mtd) {
 		pr_info("Registering the main MTD.\n");
 		add_mtd_device(mtd);
 	}
 
 #if defined(CONFIG_MTD_PARTITIONS)
-
 	/*
 	 * If control arrives here, partitioning is available.
 	 *
@@ -2121,7 +1885,6 @@ static int mil_partitions_init(struct gpmi_nfc_data *this)
 	 * First, try to get partition information from the sources defined by
 	 * the platform.
 	 */
-
 	if (pdata->partition_source_types)
 		mil->partition_count =
 			parse_mtd_partitions(mil->general_use_mtd,
@@ -2132,7 +1895,6 @@ static int mil_partitions_init(struct gpmi_nfc_data *this)
 	 * Check if we got anything. If not, then accept whatever partitions are
 	 * attached to the platform data.
 	 */
-
 	if ((mil->partition_count <= 0) && (pdata->partitions)) {
 		mil->partition_count = mil->partition_count;
 		mil->partitions      = mil->partitions;
@@ -2142,23 +1904,16 @@ static int mil_partitions_init(struct gpmi_nfc_data *this)
 	 * If we still don't have any partitions to apply, then we might want to
 	 * apply some of our own, to account for UBI's limitations.
 	 */
-
 	if (!mil->partition_count)
 		mil_construct_ubi_partitions(this);
 
 	/* If we came up with any partitions, apply them. */
-
 	if (mil->partition_count)
 		add_mtd_partitions(mil->general_use_mtd,
 					mil->partitions,
 					mil->partition_count);
-
 #endif
-
-	/* Return success. */
-
 	return 0;
-
 }
 
 /**
@@ -2172,7 +1927,6 @@ static void mil_partitions_exit(struct gpmi_nfc_data *this)
 	struct mtd_info  *mtd   = &mil->mtd;
 
 	/* Check if we applied any partitions to the general use MTD. */
-
 	#if defined(CONFIG_MTD_PARTITIONS)
 
 		if (mil->partition_count)
@@ -2188,14 +1942,11 @@ static void mil_partitions_exit(struct gpmi_nfc_data *this)
 	 * MTD - it merely unregisters it. That's important because all our
 	 * other MTDs depend on this one.
 	 */
-
 	if (register_main_mtd)
 		del_mtd_device(mtd);
 
 	/* Tear down the boot areas. */
-
 	mil_boot_areas_exit(this);
-
 }
 
 /**
@@ -2214,7 +1965,6 @@ int gpmi_nfc_mil_init(struct gpmi_nfc_data *this)
 	int                            error = 0;
 
 	/* Initialize MIL data. */
-
 	mil->current_chip   = -1;
 	mil->command_length =  0;
 
@@ -2223,7 +1973,6 @@ int gpmi_nfc_mil_init(struct gpmi_nfc_data *this)
 	mil->page_buffer_size =  0;
 
 	/* Initialize the MTD data structures. */
-
 	mtd->priv  = nand;
 	mtd->name  = "gpmi-nfc-main";
 	mtd->owner = THIS_MODULE;
@@ -2232,7 +1981,6 @@ int gpmi_nfc_mil_init(struct gpmi_nfc_data *this)
 	/*
 	 * Signal Control
 	 */
-
 	nand->cmd_ctrl = mil_cmd_ctrl;
 
 	/*
@@ -2242,7 +1990,6 @@ int gpmi_nfc_mil_init(struct gpmi_nfc_data *this)
 	 *     - cmdfunc
 	 *     - waitfunc
 	 */
-
 	nand->dev_ready   = mil_dev_ready;
 	nand->select_chip = mil_select_chip;
 
@@ -2254,7 +2001,6 @@ int gpmi_nfc_mil_init(struct gpmi_nfc_data *this)
 	 *
 	 * We rely on the reference implentation of verify_buf.
 	 */
-
 	nand->read_byte = mil_read_byte;
 	nand->read_buf  = mil_read_buf;
 	nand->write_buf = mil_write_buf;
@@ -2275,7 +2021,6 @@ int gpmi_nfc_mil_init(struct gpmi_nfc_data *this)
 	 *     - ecc.read_page_raw
 	 *     - ecc.write_page_raw
 	 */
-
 	nand->ecc.read_page  = mil_ecc_read_page;
 	nand->ecc.write_page = mil_ecc_write_page;
 
@@ -2286,7 +2031,6 @@ int gpmi_nfc_mil_init(struct gpmi_nfc_data *this)
 	 *     - write_page
 	 *     - erase_cmd
 	 */
-
 	nand->ecc.read_oob  = mil_ecc_read_oob;
 	nand->ecc.write_oob = mil_ecc_write_oob;
 
@@ -2297,7 +2041,6 @@ int gpmi_nfc_mil_init(struct gpmi_nfc_data *this)
 	 *     - block_bad
 	 *     - block_markbad
 	 */
-
 	nand->block_bad = mil_block_bad;
 	nand->scan_bbt  = mil_scan_bbt;
 	nand->badblock_pattern = &gpmi_bbt_descr;
@@ -2314,7 +2057,6 @@ int gpmi_nfc_mil_init(struct gpmi_nfc_data *this)
 	 *
 	 *     - Disallow partial page writes.
 	 */
-
 	nand->options |= NAND_NO_SUBPAGE_WRITE;
 
 	/*
@@ -2323,7 +2065,6 @@ int gpmi_nfc_mil_init(struct gpmi_nfc_data *this)
 	 * because the MTD code will divide by it -- even though it doesn't
 	 * actually care.
 	 */
-
 	nand->ecc.mode = NAND_ECC_HW;
 	nand->ecc.size = 1;
 
@@ -2344,22 +2085,17 @@ int gpmi_nfc_mil_init(struct gpmi_nfc_data *this)
 	 * an I/O operation that depends on the ECC layout being sensible. This
 	 * is in fact the case.
 	 */
-
 	memset(&fake_ecc_layout, 0, sizeof(fake_ecc_layout));
-
 	nand->ecc.layout = &fake_ecc_layout;
 
 	/* Allocate a command buffer. */
-
 	mil->cmd_virt =
 		dma_alloc_coherent(dev,
 			MIL_COMMAND_BUFFER_SIZE, &mil->cmd_phys, GFP_DMA);
-
 	if (!mil->cmd_virt) {
 		error = -ENOMEM;
 		goto exit_cmd_allocation;
 	}
-
 
 	/* Allocate buf  read ID case */
 	this->nfc_geometry.payload_size_in_bytes = 1024;
@@ -2367,7 +2103,6 @@ int gpmi_nfc_mil_init(struct gpmi_nfc_data *this)
 		dma_alloc_coherent(dev,
 				this->nfc_geometry.payload_size_in_bytes,
 				&mil->page_buffer_phys, GFP_DMA);
-
 	if (!mil->page_buffer_virt) {
 		error = -ENOMEM;
 		goto exit_buf_allocation;
@@ -2384,11 +2119,8 @@ int gpmi_nfc_mil_init(struct gpmi_nfc_data *this)
 	 * the MTD structures that we didn't set, and will make the medium fully
 	 * usable.
 	 */
-
 	pr_info("Scanning for NAND Flash chips...\n");
-
 	error = nand_scan(mtd, pdata->max_chip_count);
-
 	if (error) {
 		dev_err(dev, "Chip scan failed\n");
 		goto exit_nand_scan;
@@ -2402,17 +2134,11 @@ int gpmi_nfc_mil_init(struct gpmi_nfc_data *this)
 	mtd->block_markbad        = mil_hook_block_markbad;
 
 	/* Construct partitions as necessary. */
-
 	error = mil_partitions_init(this);
-
 	if (error)
 		goto exit_partitions;
 
-	/* Return success. */
-
 	return 0;
-
-	/* Control arrives here if something went wrong. */
 
 exit_partitions:
 	nand_release(&mil->mtd);
@@ -2430,7 +2156,6 @@ exit_buf_allocation:
 exit_cmd_allocation:
 
 	return error;
-
 }
 
 /**
@@ -2444,30 +2169,23 @@ void gpmi_nfc_mil_exit(struct gpmi_nfc_data *this)
 	struct mil     *mil = &this->mil;
 
 	/* Shut down partitions as necessary. */
-
 	mil_partitions_exit(this);
 
 	/* Get MTD to let go of our MTD. */
-
 	nand_release(&mil->mtd);
 
 	/* Free the page buffer, if it's been allocated. */
-
 	if (mil->page_buffer_virt)
 		dma_free_coherent(dev, mil->page_buffer_size,
 				mil->page_buffer_virt, mil->page_buffer_phys);
-
 	mil->page_buffer_size =  0;
 	mil->page_buffer_virt =  0;
 	mil->page_buffer_phys = ~0;
 
 	/* Free the command buffer, if it's been allocated. */
-
 	if (mil->cmd_virt)
 		dma_free_coherent(dev, MIL_COMMAND_BUFFER_SIZE,
 						mil->cmd_virt, mil->cmd_phys);
-
 	mil->cmd_virt =  0;
 	mil->cmd_phys = ~0;
-
 }
