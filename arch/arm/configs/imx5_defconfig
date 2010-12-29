@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # Linux kernel version: 2.6.35.3
-# Mon Dec 20 18:23:05 2010
+# Wed Dec 29 20:42:09 2010
 #
 CONFIG_ARM=y
 CONFIG_HAVE_PWM=y
@@ -255,6 +255,7 @@ CONFIG_MACH_MX51_3DS=y
 CONFIG_MACH_MX51_BABBAGE=y
 CONFIG_MACH_MX53_EVK=y
 CONFIG_MACH_MX53_ARD=y
+CONFIG_MACH_MX53_SMD=y
 CONFIG_MACH_MX50_ARM2=y
 CONFIG_MACH_MX50_RDP=y
 
@@ -2104,7 +2105,7 @@ CONFIG_MXC_MLB=m
 #
 # MXC GPU support
 #
-CONFIG_MXC_AMD_GPU=m
+CONFIG_MXC_AMD_GPU=y
 
 #
 # File systems

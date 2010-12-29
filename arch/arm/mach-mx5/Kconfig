@@ -56,6 +56,13 @@ config MACH_MX53_ARD
 	  Include support for MX53 ARD platform. This includes specific
 	  configurations for the board and its peripherals.
 
+config MACH_MX53_SMD
+	bool "Support MX53 SMD platform"
+	select ARCH_MX53
+	help
+	  Include support for MX53 SMD platform. This includes specific
+	  configurations for the board and its peripherals.
+
 config MACH_MX50_ARM2
 	bool "Support MX50 Armadillo2 platform"
 	select ARCH_MX50
