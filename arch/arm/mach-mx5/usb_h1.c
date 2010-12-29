@@ -136,6 +136,10 @@ static int fsl_usb_host_init_ext(struct platform_device *pdev)
 		usb_clk = clk_get(NULL, "usb_phy2_clk");
 		clk_enable(usb_clk);
 		usb_phy2_clk = usb_clk;
+	} else if (cpu_is_mx51()) {
+		usb_clk = clk_get(NULL, "usboh3_clk");
+		clk_enable(usb_clk);
+		usb_oh3_clk = usb_clk;
 	}
 
 	ret = fsl_usb_host_init(pdev);
@@ -169,6 +173,9 @@ static void fsl_usb_host_uninit_ext(struct fsl_usb2_platform_data *pdata)
 	} else if (cpu_is_mx50()) {
 		clk_disable(usb_phy2_clk);
 		clk_put(usb_phy2_clk);
+	} else if (cpu_is_mx51()) {
+		clk_disable(usb_oh3_clk);
+		clk_put(usb_oh3_clk);
 	}
 
 	fsl_usb_host_uninit(pdata);

@@ -486,12 +486,6 @@ int fsl_usb_host_init(struct platform_device *pdev)
 		return -EINVAL;
 	}
 
-	if (cpu_is_mx51()) {
-		struct clk *usboh3_clk = clk_get(NULL, "usboh3_clk");
-		clk_enable(usboh3_clk);
-		clk_put(usboh3_clk);
-	}
-
 	if (cpu_is_mx50())
 		/* Turn on AHB CLK for H1*/
 		USB_CLKONOFF_CTRL &= ~H1_AHBCLK_OFF;
@@ -564,11 +558,6 @@ void fsl_usb_host_uninit(struct fsl_usb2_platform_data *pdata)
 			regulator_disable(pdata->xcvr_pwr->regu2);
 	}
 
-	if (cpu_is_mx51()) {
-		usb_clk = clk_get(NULL, "usboh3_clk");
-		clk_disable(usb_clk);
-		clk_put(usb_clk);
-	}
 	clk_disable(usb_ahb_clk);
 }
 EXPORT_SYMBOL(fsl_usb_host_uninit);
