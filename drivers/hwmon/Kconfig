@@ -1185,4 +1185,9 @@ config SENSORS_ISL29003
 	depends on MACH_MX37_3DS || MACH_MX51_3DS
 	default y
 
+config MXC_MMA8451
+	tristate "MMA8451 device driver"
+	depends on I2C
+	default y
+
 endif # HWMON
