@@ -1080,55 +1080,6 @@ static int mil_set_boot_rom_helper_geometry(struct gpmi_nfc_data  *this)
 }
 
 /**
- * mil_set_mtd_geometry() - Set up the MTD geometry.
- *
- * This function adjusts the owning MTD data structures to match the logical
- * geometry we've chosen.
- *
- * @this:  Per-device data.
- */
-static int mil_set_mtd_geometry(struct gpmi_nfc_data *this)
-{
-	struct physical_geometry  *physical = &this->physical_geometry;
-	struct mil                *mil      = &this->mil;
-	struct nand_ecclayout     *layout   = &mil->oob_layout;
-	struct nand_chip          *nand     = &mil->nand;
-	struct mtd_info           *mtd      = &mil->mtd;
-
-	/* Configure the struct nand_ecclayout. */
-	layout->eccbytes          = 0;
-	layout->oobavail          = physical->page_oob_size_in_bytes;
-	layout->oobfree[0].offset = 0;
-	layout->oobfree[0].length = physical->page_oob_size_in_bytes;
-
-	/* Configure the struct mtd_info. */
-	mtd->size        = nand->numchips * physical->chip_size_in_bytes;
-	mtd->erasesize   = physical->block_size_in_bytes;
-	mtd->writesize   = physical->page_data_size_in_bytes;
-	mtd->ecclayout   = layout;
-	mtd->oobavail    = mtd->ecclayout->oobavail;
-	mtd->oobsize     = mtd->ecclayout->oobavail + mtd->ecclayout->eccbytes;
-	mtd->subpage_sft = 0; /* We don't support sub-page writing. */
-
-	/* Configure the struct nand_chip. */
-	nand->chipsize         = physical->chip_size_in_bytes;
-	nand->page_shift       = ffs(mtd->writesize) - 1;
-	nand->pagemask         = (nand->chipsize >> nand->page_shift) - 1;
-	nand->subpagesize      = mtd->writesize >> mtd->subpage_sft;
-	nand->phys_erase_shift = ffs(mtd->erasesize) - 1;
-	nand->bbt_erase_shift  = nand->phys_erase_shift;
-	nand->oob_poi          = nand->buffers->databuf + mtd->writesize;
-	nand->ecc.layout       = layout;
-	if (nand->chipsize & 0xffffffff)
-		nand->chip_shift = ffs((unsigned) nand->chipsize) - 1;
-	else
-		nand->chip_shift =
-				ffs((unsigned) (nand->chipsize >> 32)) + 32 - 1;
-
-	return 0;
-}
-
-/**
  * mil_set_geometry() - Set up the medium geometry.
  *
  * @this:  Per-device data.
@@ -1152,9 +1103,6 @@ static int mil_set_geometry(struct gpmi_nfc_data  *this)
 		return -ENXIO;
 
 	if (mil_set_boot_rom_helper_geometry(this))
-		return -ENXIO;
-
-	if (mil_set_mtd_geometry(this))
 		return -ENXIO;
 
 	/*
