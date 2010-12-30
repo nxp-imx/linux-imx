@@ -756,7 +756,7 @@ static struct imxi2c_platform_data mxci2c_data = {
 
 static struct i2c_board_info mxc_i2c0_board_info[] __initdata = {
 	{
-	.type = "mma8450",
+	.type = "mma8451",
 	.addr = 0x1C,
 	 },
 };
