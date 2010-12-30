@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010 Freescale Semiconductor, Inc.
+ * Copyright (C) 2010-2011 Freescale Semiconductor, Inc.
  * Copyright 2008 Embedded Alley Solutions, Inc All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
@@ -194,6 +194,19 @@ static int mx28_pm_begin(suspend_state_t state)
 	return 0;
 }
 
+static void mx28_pm_recover(void)
+{
+	/*
+	 * The PSWITCH interrupt is enabled at do_standby, if the deivce
+	 * suspend failed, the enable operation will not be executed, in that
+	 * case, the POWER key will not be active again.
+	 */
+	__raw_writel(BM_POWER_CTRL_PSWITCH_IRQ,
+		REGS_POWER_BASE + HW_POWER_CTRL_CLR);
+	__raw_writel(BM_POWER_CTRL_ENIRQ_PSWITCH,
+		REGS_POWER_BASE + HW_POWER_CTRL_SET);
+}
+
 static void mx28_pm_end(void)
 {
 	/*XXX: Nothing to do */
@@ -221,6 +234,7 @@ static struct platform_suspend_ops mx28_suspend_ops = {
 	.valid	= mx28_pm_valid,
 	.begin	= mx28_pm_begin,
 	.end	= mx28_pm_end,
+	.recover = mx28_pm_recover,
 };
 
 void mx28_pm_idle(void)
