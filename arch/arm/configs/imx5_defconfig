@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # Linux kernel version: 2.6.35.3
-# Fri Dec 31 01:04:45 2010
+# Thu Dec 30 19:50:11 2010
 #
 CONFIG_ARM=y
 CONFIG_HAVE_PWM=y
@@ -256,6 +256,7 @@ CONFIG_MACH_MX51_BABBAGE=y
 CONFIG_MACH_MX53_EVK=y
 CONFIG_MACH_MX53_ARD=y
 CONFIG_MACH_MX53_SMD=y
+CONFIG_MACH_MX53_LOCO=y
 CONFIG_MACH_MX50_ARM2=y
 CONFIG_MACH_MX50_RDP=y
 
