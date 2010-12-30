@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2010-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -23,6 +23,8 @@
 #include <linux/clk.h>
 #include <linux/delay.h>
 #include <linux/ahci_platform.h>
+#include <linux/regulator/consumer.h>
+#include <asm/mach-types.h>
 #include <mach/common.h>
 #include <mach/hardware.h>
 
@@ -345,6 +347,29 @@ static int sata_init(struct device *dev)
 	struct clk *clk;
 	int ret, rc = 0;
 	u32 tmpdata;
+	struct regulator *reg_2v5, *reg_1v3;
+
+	/* AHCI SATA PWR EN */
+	if (machine_is_mx53_smd() || machine_is_mx53_loco()) {
+		/* PWR(VBUCKPERI and VLDO5) on SATA AHCI */
+		reg_2v5 = regulator_get(dev, "DA9052_BUCK_PERI");
+		if (IS_ERR(reg_2v5)) {
+			printk(KERN_ERR "AHCI can't get 2v5 pwr.\n");
+			return -1;
+		}
+		if (regulator_enable(reg_2v5))
+			printk(KERN_ERR "AHCI: enable 2v5 regulator error.\n");
+		msleep(25);
+
+		reg_1v3 = regulator_get(dev, "DA9052_LDO5");
+		if (IS_ERR(reg_1v3)) {
+			printk(KERN_ERR "AHCI can't get 1v3 pwr.\n");
+			return -1;
+		}
+		if (regulator_enable(reg_1v3))
+			printk(KERN_ERR "AHCI: enable 1v3 regulator error.\n");
+		msleep(25);
+	}
 
 	clk = clk_get(dev, "imx_sata_clk");
 	if (IS_ERR(clk))
@@ -374,68 +399,96 @@ static int sata_init(struct device *dev)
 	tmpdata = clk_get_rate(clk) / 1000;
 	writel(tmpdata, mmio + HOST_TIMER1MS);
 
-	/* write addr */
-	tmpdata = PHY_CR_CLOCK_FREQ_OVRD;
-	writel(tmpdata, mmio + PORT_PHY_CTL);
-	/* capture addr */
-	tmpdata |= PORT_PHY_CTL_CAP_ADR_LOC;
-	/* Wait for ack */
-	if (write_phy_ctl_ack_polling(tmpdata, mmio, 100, 1)) {
-		rc = 1;
-		goto err0;
-	}
+	if (machine_is_mx53_smd() || machine_is_mx53_loco()) {
+		/* Internal CLK input is used for AHCI */
+		iounmap(mmio);
+		/* Eanble the IIM CLK */
+		clk = clk_get(dev, "iim_clk");
+		if (IS_ERR(clk)) {
+			printk(KERN_ERR "AHCI can't get iim clk.\n");
+			return -1;
+		}
+		clk_enable(clk);
+		/* SMD or loco boards use the IC internal clk */
+		mmio = ioremap(0x63F98000 + 0x180C, SZ_16);
+		/* USB_PHY1 clk, fuse bank4 row3 bit2 */
+		writel((readl(mmio) & (~0x7)) | 0x4, mmio);
+		iounmap(mmio);
+		/* release IIM clk */
+		clk_disable(clk);
+		clk_put(clk);
+		clk = clk_get(dev, "usb_phy1_clk");
+		if (IS_ERR(clk)) {
+			printk(KERN_ERR "AHCI can't get usb phy1 clk.\n");
+			return -1;
+		}
+		clk_enable(clk);
+	} else {
+		/* External CLK input is used for AHCI */
+		/* write addr */
+		tmpdata = PHY_CR_CLOCK_FREQ_OVRD;
+		writel(tmpdata, mmio + PORT_PHY_CTL);
+		/* capture addr */
+		tmpdata |= PORT_PHY_CTL_CAP_ADR_LOC;
+		/* Wait for ack */
+		if (write_phy_ctl_ack_polling(tmpdata, mmio, 100, 1)) {
+			rc = 1;
+			goto err0;
+		}
 
-	/* deassert cap data */
-	tmpdata &= 0xFFFF;
-	/* wait for ack de-assertion */
-	if (write_phy_ctl_ack_polling(tmpdata, mmio, 100, 0)) {
-		rc = 1;
-		goto err0;
-	}
+		/* deassert cap data */
+		tmpdata &= 0xFFFF;
+		/* wait for ack de-assertion */
+		if (write_phy_ctl_ack_polling(tmpdata, mmio, 100, 0)) {
+			rc = 1;
+			goto err0;
+		}
 
-	/* write data */
-	/* Configure the PHY CLK input refer to different OSC
-	 * For 25MHz, pre[13,14]:01, ncy[12,8]:06,
-	 * ncy5[7,6]:02, int_ctl[5,3]:0, prop_ctl[2,0]:7.
-	 * For 50MHz, pre:00, ncy:06, ncy5:02, int_ctl:0, prop_ctl:7.
-	 */
-	/* EVK revA */
-	if (board_is_mx53_evk_a())
-		tmpdata = (0x1 << 15) | (0x1 << 13) | (0x6 << 8)
-			| (0x2 << 6) | 0x7;
-	/* Others are 50MHz */
-	else
-		tmpdata = (0x1 << 15) | (0x0 << 13) | (0x6 << 8)
-			| (0x2 << 6) | 0x7;
+		/* write data */
+		/* Configure the PHY CLK input refer to different OSC
+		 * For 25MHz, pre[13,14]:01, ncy[12,8]:06,
+		 * ncy5[7,6]:02, int_ctl[5,3]:0, prop_ctl[2,0]:7.
+		 * For 50MHz, pre:00, ncy:06, ncy5:02, int_ctl:0, prop_ctl:7.
+		 */
+		/* EVK revA */
+		if (board_is_mx53_evk_a())
+			tmpdata = (0x1 << 15) | (0x1 << 13) | (0x6 << 8)
+				| (0x2 << 6) | 0x7;
+		/* Others are 50MHz */
+		else
+			tmpdata = (0x1 << 15) | (0x0 << 13) | (0x6 << 8)
+				| (0x2 << 6) | 0x7;
 
-	writel(tmpdata, mmio + PORT_PHY_CTL);
-	/* capture data */
-	tmpdata |= PORT_PHY_CTL_CAP_DAT_LOC;
-	/* wait for ack */
-	if (write_phy_ctl_ack_polling(tmpdata, mmio, 100, 1)) {
-		rc = 1;
-		goto err0;
-	}
+		writel(tmpdata, mmio + PORT_PHY_CTL);
+		/* capture data */
+		tmpdata |= PORT_PHY_CTL_CAP_DAT_LOC;
+		/* wait for ack */
+		if (write_phy_ctl_ack_polling(tmpdata, mmio, 100, 1)) {
+			rc = 1;
+			goto err0;
+		}
 
-	/* deassert cap data */
-	tmpdata &= 0xFFFF;
-	/* wait for ack de-assertion */
-	if (write_phy_ctl_ack_polling(tmpdata, mmio, 100, 0)) {
-		rc = 1;
-		goto err0;
-	}
+		/* deassert cap data */
+		tmpdata &= 0xFFFF;
+		/* wait for ack de-assertion */
+		if (write_phy_ctl_ack_polling(tmpdata, mmio, 100, 0)) {
+			rc = 1;
+			goto err0;
+		}
 
-	/* assert wr signal and wait for ack */
-	if (write_phy_ctl_ack_polling(PORT_PHY_CTL_WRITE_LOC, mmio, 100, 1)) {
-		rc = 1;
-		goto err0;
+		/* assert wr signal and wait for ack */
+		if (write_phy_ctl_ack_polling(PORT_PHY_CTL_WRITE_LOC, mmio,
+					100, 1)) {
+			rc = 1;
+			goto err0;
+		}
+		/* deassert rd _signal and wait for ack de-assertion */
+		if (write_phy_ctl_ack_polling(0, mmio, 100, 0)) {
+			rc = 1;
+			goto err0;
+		}
+		iounmap(mmio);
 	}
-	/* deassert rd _signal and wait for ack de-assertion */
-	if (write_phy_ctl_ack_polling(0, mmio, 100, 0)) {
-		rc = 1;
-		goto err0;
-	}
-
 	msleep(10);
 
 	/* Add the temperature monitor */
@@ -444,20 +497,37 @@ static int sata_init(struct device *dev)
 		sysfs_remove_group(&dev->kobj, &fsl_sata_ahci_group);
 
 err0:
-	iounmap(mmio);
 	return rc;
 }
 
 static void sata_exit(struct device *dev)
 {
 	struct clk *clk;
+	struct regulator *reg_2v5, *reg_1v3;
 
 	sysfs_remove_group(&dev->kobj, &fsl_sata_ahci_group);
+	clk = clk_get(dev, "usb_phy1_clk");
+	if (IS_ERR(clk))
+		printk(KERN_ERR "IMX SATA can't get internal clock.\n");
+	clk_disable(clk);
+	clk_put(clk);
+
 	clk = clk_get(dev, "imx_sata_clk");
 	if (IS_ERR(clk))
 		printk(KERN_ERR "IMX SATA can't get clock.\n");
 	clk_disable(clk);
 	clk_put(clk);
+
+	/* AHCI SATA PWR disable */
+	if (machine_is_mx53_smd() || machine_is_mx53_loco()) {
+		reg_2v5 = regulator_get(dev, "DA9052_BUCK_PERI");
+		regulator_disable(reg_2v5);
+		regulator_put(reg_2v5);
+
+		reg_1v3 = regulator_get(dev, "DA9052_LDO5");
+		regulator_disable(reg_1v3);
+		regulator_put(reg_1v3);
+	}
 }
 
 struct ahci_platform_data sata_data = {

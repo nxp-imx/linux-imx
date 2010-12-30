@@ -1122,6 +1122,10 @@ static void __init mxc_board_init(void)
 	mxc_register_device(&mxc_ssi2_device, NULL);
 	mxc_register_device(&mxc_alsa_spdif_device, &mxc_spdif_data);
 	mxc_register_device(&ahci_fsl_device, &sata_data);
+	/* AHCI SATA PWR EN(DCDC_5V, DCDC_3V3_BB) on SATA bus */
+	gpio_request(MX53_SMD_SATA_PWR_EN, "sata-pwr-en");
+	gpio_direction_output(MX53_SMD_SATA_PWR_EN, 1);
+
 	mxc_register_device(&mxc_fec_device, &fec_data);
 
 	i2c_register_board_info(0, mxc_i2c0_board_info,
