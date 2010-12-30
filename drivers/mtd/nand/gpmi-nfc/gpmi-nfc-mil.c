@@ -1907,7 +1907,6 @@ int gpmi_nfc_mil_init(struct gpmi_nfc_data *this)
 	struct mil                     *mil   = &this->mil;
 	struct mtd_info                *mtd   = &mil->mtd;
 	struct nand_chip               *nand  = &mil->nand;
-	static struct nand_ecclayout   fake_ecc_layout;
 	int                            error = 0;
 
 	/* Initialize MIL data. */
@@ -2014,26 +2013,6 @@ int gpmi_nfc_mil_init(struct gpmi_nfc_data *this)
 	 */
 	nand->ecc.mode = NAND_ECC_HW;
 	nand->ecc.size = 1;
-
-	/*
-	 * Install a "fake" ECC layout.
-	 *
-	 * We'll be calling nand_scan() to do the final MTD setup. If we haven't
-	 * already chosen an ECC layout, then nand_scan() will choose one based
-	 * on the part geometry it discovers. Unfortunately, it doesn't make
-	 * good choices. It would be best if we could install the correct ECC
-	 * layout now, before we call nand_scan(). We can't do that because we
-	 * don't know the medium geometry yet. Here, we install a "fake" ECC
-	 * layout just to stop nand_scan() from trying to pick one for itself.
-	 * Later, when we know the medium geometry, we'll install the correct
-	 * one.
-	 *
-	 * Of course, this tactic depends critically on the MTD code not doing
-	 * an I/O operation that depends on the ECC layout being sensible. This
-	 * is in fact the case.
-	 */
-	memset(&fake_ecc_layout, 0, sizeof(fake_ecc_layout));
-	nand->ecc.layout = &fake_ecc_layout;
 
 	/* Allocate a command buffer. */
 	mil->cmd_virt =
