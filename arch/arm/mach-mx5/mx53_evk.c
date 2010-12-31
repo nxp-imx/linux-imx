@@ -1038,6 +1038,7 @@ static struct i2c_board_info mxc_i2c1_board_info[] __initdata = {
 	{
 	.type = "sii9022",
 	.addr = 0x39,
+	.irq = IOMUX_TO_IRQ_V3(MX53_DVI_DETECT),
 	.platform_data = &sii9022_hdmi_data,
 	},
 };
