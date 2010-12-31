@@ -27,7 +27,6 @@
 #define MXC_EDID_H
 
 int read_edid(struct i2c_adapter *adp,
-	       struct fb_var_screeninfo *einfo,
-	       int *dvi);
+	       unsigned char *edid);
 
 #endif
