@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2004-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -50,6 +50,7 @@ struct mxc_v4l_frame {
 	struct v4l2_buffer buffer;
 	struct list_head queue;
 	int index;
+	int ipu_buf_num;
 };
 
 /* Only for old version.  Will go away soon. */

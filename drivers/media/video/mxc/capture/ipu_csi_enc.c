@@ -1,5 +1,5 @@
 /*
- * Copyright 2009-2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2009-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -166,8 +166,14 @@ static int csi_enc_eba_update(dma_addr_t eba, int *buffer_num)
 	if (err != 0) {
 		ipu_clear_buffer_ready(CSI_MEM, IPU_OUTPUT_BUFFER,
 				       *buffer_num);
-		printk(KERN_ERR "err %d buffer_num %d\n", err, *buffer_num);
-		return err;
+
+		err = ipu_update_channel_buffer(CSI_MEM, IPU_OUTPUT_BUFFER,
+						*buffer_num, eba);
+		if (err != 0) {
+			pr_err("ERROR: v4l2 capture: fail to update "
+			       "buf%d\n", *buffer_num);
+			return err;
+		}
 	}
 
 	ipu_select_buffer(CSI_MEM, IPU_OUTPUT_BUFFER, *buffer_num);

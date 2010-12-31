@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2004-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -38,7 +38,7 @@
 #include "mxc_v4l2_capture.h"
 #include "ipu_prp_sw.h"
 
-static int video_nr = -1;
+static int video_nr = -1, local_buf_num;
 static cam_data *g_cam;
 
 /*! This data is used for the output to the display. */
@@ -268,7 +268,6 @@ static void mxc_free_frames(cam_data *cam)
 	}
 
 	cam->enc_counter = 0;
-	cam->skip_frame = 0;
 	INIT_LIST_HEAD(&cam->ready_q);
 	INIT_LIST_HEAD(&cam->working_q);
 	INIT_LIST_HEAD(&cam->done_q);
@@ -365,11 +364,13 @@ static int mxc_streamon(cam_data *cam)
 	}
 
 	cam->ping_pong_csi = 0;
+	local_buf_num = 0;
 	if (cam->enc_update_eba) {
 		frame =
 		    list_entry(cam->ready_q.next, struct mxc_v4l_frame, queue);
 		list_del(cam->ready_q.next);
 		list_add_tail(&frame->queue, &cam->working_q);
+		frame->ipu_buf_num = cam->ping_pong_csi;
 		err = cam->enc_update_eba(frame->buffer.m.offset,
 					  &cam->ping_pong_csi);
 
@@ -377,6 +378,7 @@ static int mxc_streamon(cam_data *cam)
 		    list_entry(cam->ready_q.next, struct mxc_v4l_frame, queue);
 		list_del(cam->ready_q.next);
 		list_add_tail(&frame->queue, &cam->working_q);
+		frame->ipu_buf_num = cam->ping_pong_csi;
 		err |= cam->enc_update_eba(frame->buffer.m.offset,
 					   &cam->ping_pong_csi);
 	} else {
@@ -1406,7 +1408,6 @@ static int mxc_v4l_open(struct file *file)
 		}
 
 		cam->enc_counter = 0;
-		cam->skip_frame = 0;
 		INIT_LIST_HEAD(&cam->ready_q);
 		INIT_LIST_HEAD(&cam->working_q);
 		INIT_LIST_HEAD(&cam->done_q);
@@ -1744,7 +1745,6 @@ static long mxc_v4l_do_ioctl(struct file *file,
 		mxc_streamoff(cam);
 		mxc_free_frame_buf(cam);
 		cam->enc_counter = 0;
-		cam->skip_frame = 0;
 		INIT_LIST_HEAD(&cam->ready_q);
 		INIT_LIST_HEAD(&cam->working_q);
 		INIT_LIST_HEAD(&cam->done_q);
@@ -1787,34 +1787,12 @@ static long mxc_v4l_do_ioctl(struct file *file,
 		pr_debug("   case VIDIOC_QBUF\n");
 
 		spin_lock_irqsave(&cam->queue_int_lock, lock_flags);
-		cam->frame[index].buffer.m.offset = buf->m.offset;
 		if ((cam->frame[index].buffer.flags & 0x7) ==
 		    V4L2_BUF_FLAG_MAPPED) {
 			cam->frame[index].buffer.flags |=
 			    V4L2_BUF_FLAG_QUEUED;
-			if (strcmp(mxc_capture_inputs[cam->current_input].name,
-				"CSI IC MEM") == 0) {
-				if (cam->skip_frame > 0) {
-					list_add_tail(&cam->frame[index].queue,
-						      &cam->working_q);
-
-					retval =
-					   cam->enc_update_eba(cam->
-							       frame[index].
-							       buffer.m.offset,
-							       &cam->
-							       ping_pong_csi);
-
-					cam->skip_frame = 0;
-				} else
-					list_add_tail(&cam->frame[index].queue,
-						      &cam->ready_q);
-			} else if (strcmp(
-					mxc_capture_inputs[cam->current_input].
-					name, "CSI MEM") == 0) {
-				list_add_tail(&cam->frame[index].queue,
-					      &cam->ready_q);
-			}
+			list_add_tail(&cam->frame[index].queue,
+				      &cam->ready_q);
 		} else if (cam->frame[index].buffer.
 			   flags & V4L2_BUF_FLAG_QUEUED) {
 			pr_err("ERROR: v4l2 capture: VIDIOC_QBUF: "
@@ -2278,24 +2256,23 @@ static void camera_callback(u32 mask, void *dev)
 
 	pr_debug("In MVC:camera_callback\n");
 
-	if (strcmp(mxc_capture_inputs[cam->current_input].name, "CSI IC MEM")
-	    == 0) {
-		if (list_empty(&cam->working_q)) {
-			pr_err("ERROR: v4l2 capture: camera_callback: "
-				"working queue empty\n");
-			return;
-		}
+	if (!list_empty(&cam->working_q)) {
 		do_gettimeofday(&cur_time);
 
 		done_frame = list_entry(cam->working_q.next,
 					struct mxc_v4l_frame,
 					queue);
 
+		if (done_frame->ipu_buf_num != local_buf_num)
+			goto next;
+
 		/*
-		 * Set the current time to done frame buffer's timestamp.
-		 * Users can use this information to judge the frame's usage.
+		 * Set the current time to done frame buffer's
+		 * timestamp. Users can use this information to judge
+		 * the frame's usage.
 		 */
 		done_frame->buffer.timestamp = cur_time;
+
 		if (done_frame->buffer.flags & V4L2_BUF_FLAG_QUEUED) {
 			done_frame->buffer.flags |= V4L2_BUF_FLAG_DONE;
 			done_frame->buffer.flags &= ~V4L2_BUF_FLAG_QUEUED;
@@ -2307,80 +2284,32 @@ static void camera_callback(u32 mask, void *dev)
 			/* Wake up the queue */
 			cam->enc_counter++;
 			wake_up_interruptible(&cam->enc_queue);
-
-			if (list_empty(&cam->ready_q)) {
-				cam->skip_frame++;
-			} else {
-				ready_frame = list_entry(cam->ready_q.next,
-							 struct mxc_v4l_frame,
-							 queue);
-
-				if (cam->enc_update_eba(
-						ready_frame->buffer.m.offset,
-						&cam->ping_pong_csi) == 0) {
-					list_del(cam->ready_q.next);
-					list_add_tail(&ready_frame->queue,
-						      &cam->working_q);
-				} else
-					return;
-			}
-		} else {
+		} else
 			pr_err("ERROR: v4l2 capture: camera_callback: "
 				"buffer not queued\n");
-		}
-	} else if (strcmp(mxc_capture_inputs[cam->current_input].name,
-		   "CSI MEM") == 0) {
-		if (!list_empty(&cam->working_q)) {
-			do_gettimeofday(&cur_time);
+	}
 
-			done_frame = list_entry(cam->working_q.next,
-						struct mxc_v4l_frame,
-						queue);
-
-			/*
-			 * Set the current time to done frame buffer's
-			 * timestamp. Users can use this information to judge
-			 * the frame's usage.
-			 */
-			done_frame->buffer.timestamp = cur_time;
-
-			if (done_frame->buffer.flags & V4L2_BUF_FLAG_QUEUED) {
-				done_frame->buffer.flags |=
-							V4L2_BUF_FLAG_DONE;
-				done_frame->buffer.flags &=
-							~V4L2_BUF_FLAG_QUEUED;
-
-				/* Added to the done queue */
-				list_del(cam->working_q.next);
-				list_add_tail(&done_frame->queue, &cam->done_q);
-
-				/* Wake up the queue */
-				cam->enc_counter++;
-				wake_up_interruptible(&cam->enc_queue);
-			} else {
-				pr_err("ERROR: v4l2 capture: camera_callback: "
-					"buffer not queued\n");
-			}
-		}
-
-		if (!list_empty(&cam->ready_q)) {
-			ready_frame = list_entry(cam->ready_q.next,
-						 struct mxc_v4l_frame,
-						 queue);
+next:
+	if (!list_empty(&cam->ready_q)) {
+		ready_frame = list_entry(cam->ready_q.next,
+					 struct mxc_v4l_frame,
+					 queue);
+		if (cam->enc_update_eba)
 			if (cam->enc_update_eba(ready_frame->buffer.m.offset,
 						&cam->ping_pong_csi) == 0) {
 				list_del(cam->ready_q.next);
 				list_add_tail(&ready_frame->queue,
 					      &cam->working_q);
-			} else
-				return;
-		} else {
-			if (cam->enc_update_eba(
+				ready_frame->ipu_buf_num = local_buf_num;
+			}
+	} else {
+		if (cam->enc_update_eba)
+			cam->enc_update_eba(
 				cam->dummy_frame.buffer.m.offset,
-				&cam->ping_pong_csi) == -EACCES)
-				return;
-		}
+				&cam->ping_pong_csi);
 	}
+
+	local_buf_num = (local_buf_num == 0) ? 1 : 0;
 
 	return;
 }
@@ -2438,7 +2367,6 @@ static void init_camera_struct(cam_data *cam, struct platform_device *pdev)
 	cam->streamparm.parm.capture.capability = V4L2_CAP_TIMEPERFRAME;
 	cam->overlay_on = false;
 	cam->capture_on = false;
-	cam->skip_frame = 0;
 	cam->v4l2_fb.flags = V4L2_FBUF_FLAG_OVERLAY;
 
 	cam->v2f.fmt.pix.sizeimage = 352 * 288 * 3 / 2;

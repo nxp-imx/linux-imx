@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2004-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -287,8 +287,29 @@ static int prp_enc_eba_update(dma_addr_t eba, int *buffer_num)
 						eba);
 	}
 	if (err != 0) {
-		printk(KERN_ERR "err %d buffer_num %d\n", err, *buffer_num);
-		return err;
+		if (grotation >= IPU_ROTATE_90_RIGHT) {
+			ipu_clear_buffer_ready(MEM_ROT_ENC_MEM,
+					       IPU_OUTPUT_BUFFER,
+					       *buffer_num);
+			err = ipu_update_channel_buffer(MEM_ROT_ENC_MEM,
+							IPU_OUTPUT_BUFFER,
+							*buffer_num,
+							eba);
+		} else {
+			ipu_clear_buffer_ready(CSI_PRP_ENC_MEM,
+					       IPU_OUTPUT_BUFFER,
+					       *buffer_num);
+			err = ipu_update_channel_buffer(CSI_PRP_ENC_MEM,
+							IPU_OUTPUT_BUFFER,
+							*buffer_num,
+							eba);
+		}
+
+		if (err != 0) {
+			pr_err("ERROR: v4l2 capture: fail to update "
+			       "buf%d\n", *buffer_num);
+			return err;
+		}
 	}
 
 	if (grotation >= IPU_ROTATE_90_RIGHT) {
@@ -314,6 +335,20 @@ static int prp_enc_enabling_tasks(void *private)
 	cam_data *cam = (cam_data *) private;
 	int err = 0;
 	CAMERA_TRACE("IPU:In prp_enc_enabling_tasks\n");
+
+	cam->dummy_frame.vaddress = dma_alloc_coherent(0,
+			       PAGE_ALIGN(cam->v2f.fmt.pix.sizeimage),
+			       &cam->dummy_frame.paddress,
+			       GFP_DMA | GFP_KERNEL);
+	if (cam->dummy_frame.vaddress == 0) {
+		pr_err("ERROR: v4l2 capture: Allocate dummy frame "
+		       "failed.\n");
+		return -ENOBUFS;
+	}
+	cam->dummy_frame.buffer.type = V4L2_BUF_TYPE_PRIVATE;
+	cam->dummy_frame.buffer.length =
+	    PAGE_ALIGN(cam->v2f.fmt.pix.sizeimage);
+	cam->dummy_frame.buffer.m.offset = cam->dummy_frame.paddress;
 
 	if (cam->rotation >= IPU_ROTATE_90_RIGHT) {
 		err = ipu_request_irq(IPU_IRQ_PRP_ENC_ROT_OUT_EOF,
@@ -367,6 +402,12 @@ static int prp_enc_disabling_tasks(void *private)
 		ipu_uninit_channel(MEM_ROT_ENC_MEM);
 	}
 
+	if (cam->dummy_frame.vaddress != 0) {
+		dma_free_coherent(0, cam->dummy_frame.buffer.length,
+				  cam->dummy_frame.vaddress,
+				  cam->dummy_frame.paddress);
+		cam->dummy_frame.vaddress = 0;
+	}
 	ipu_csi_enable_mclk_if(CSI_MCLK_ENC, cam->csi, false, false);
 
 	return err;
