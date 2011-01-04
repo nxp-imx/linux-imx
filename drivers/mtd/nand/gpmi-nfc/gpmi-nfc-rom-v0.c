@@ -288,7 +288,6 @@ static int imx23_rom_extra_init(struct gpmi_nfc_data  *this)
 {
 	struct device             *dev      =  this->dev;
 	struct physical_geometry  *physical = &this->physical_geometry;
-	struct boot_rom_helper    *rom      =  this->rom;
 	struct mil                *mil      = &this->mil;
 	struct nand_chip          *nand     = &mil->nand;
 	struct mtd_info           *mtd      = &mil->mtd;
@@ -306,7 +305,7 @@ static int imx23_rom_extra_init(struct gpmi_nfc_data  *this)
 	 * transcription stamp. If we find it, then we don't have to do
 	 * anything -- the block marks are already transcribed.
 	 */
-	if (rom->check_transcription_stamp(this))
+	if (check_transcription_stamp(this))
 		return 0;
 
 	/*
@@ -373,12 +372,11 @@ static int imx23_rom_extra_init(struct gpmi_nfc_data  *this)
 	}
 
 	/* Write the stamp that indicates we've transcribed the block marks. */
-	rom->write_transcription_stamp(this);
+	write_transcription_stamp(this);
 	return 0;
 }
 
 /* This structure represents the Boot ROM Helper for this version. */
-
 struct boot_rom_helper  gpmi_nfc_boot_rom_helper_v0 = {
 	.version                   = 0,
 	.description               = "Single/dual-chip boot area, "
@@ -386,6 +384,4 @@ struct boot_rom_helper  gpmi_nfc_boot_rom_helper_v0 = {
 	.swap_block_mark           = false,
 	.set_geometry              = set_geometry,
 	.rom_extra_init		   = imx23_rom_extra_init,
-	.check_transcription_stamp = check_transcription_stamp,
-	.write_transcription_stamp = write_transcription_stamp,
 };

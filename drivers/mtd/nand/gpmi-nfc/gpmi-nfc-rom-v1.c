@@ -1,7 +1,7 @@
 /*
  * Freescale GPMI NFC NAND Flash Driver
  *
- * Copyright (C) 2010 Freescale Semiconductor, Inc.
+ * Copyright (C) 2010-2011 Freescale Semiconductor, Inc.
  * Copyright (C) 2008 Embedded Alley Solutions, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
@@ -77,6 +77,4 @@ struct boot_rom_helper  gpmi_nfc_boot_rom_helper_v1 = {
 						"block mark swapping supported",
 	.swap_block_mark           = true,
 	.set_geometry              = set_geometry,
-	.check_transcription_stamp = 0,
-	.write_transcription_stamp = 0,
 };

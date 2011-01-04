@@ -561,10 +561,6 @@ struct nfc_hal {
  *                              mark with the first byte of the OOB.
  * @set_geometry:               Configures the Boot ROM geometry.
  * @rom_extra_init:             Arch-specific init.
- * @check_transcription_stamp:  Checks for a transcription stamp. This pointer
- *                              is ignored if swap_block_mark is set.
- * @write_transcription_stamp:  Writes a transcription stamp. This pointer
- *                              is ignored if swap_block_mark is set.
  */
 
 struct boot_rom_helper {
@@ -573,8 +569,6 @@ struct boot_rom_helper {
 	const int           swap_block_mark;
 	int  (*set_geometry)             (struct gpmi_nfc_data *);
 	int  (*rom_extra_init)           (struct gpmi_nfc_data *);
-	int  (*check_transcription_stamp)(struct gpmi_nfc_data *);
-	int  (*write_transcription_stamp)(struct gpmi_nfc_data *);
 };
 
 /*
