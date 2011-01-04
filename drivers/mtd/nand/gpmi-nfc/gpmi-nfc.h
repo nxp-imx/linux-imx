@@ -1,7 +1,7 @@
 /*
  * Freescale GPMI NFC NAND Flash Driver
  *
- * Copyright (C) 2010 Freescale Semiconductor, Inc.
+ * Copyright (C) 2010-2011 Freescale Semiconductor, Inc.
  * Copyright (C) 2008 Embedded Alley Solutions, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
@@ -560,6 +560,7 @@ struct nfc_hal {
  * @swap_block_mark:            Indicates that the Boot ROM will swap the block
  *                              mark with the first byte of the OOB.
  * @set_geometry:               Configures the Boot ROM geometry.
+ * @rom_extra_init:             Arch-specific init.
  * @check_transcription_stamp:  Checks for a transcription stamp. This pointer
  *                              is ignored if swap_block_mark is set.
  * @write_transcription_stamp:  Writes a transcription stamp. This pointer
@@ -571,6 +572,7 @@ struct boot_rom_helper {
 	const char          *description;
 	const int           swap_block_mark;
 	int  (*set_geometry)             (struct gpmi_nfc_data *);
+	int  (*rom_extra_init)           (struct gpmi_nfc_data *);
 	int  (*check_transcription_stamp)(struct gpmi_nfc_data *);
 	int  (*write_transcription_stamp)(struct gpmi_nfc_data *);
 };
