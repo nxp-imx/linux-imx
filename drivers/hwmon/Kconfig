@@ -1240,6 +1240,11 @@ config SENSORS_LIS3LV02D
 
 endif # ACPI
 
+config MXC_MMA8450
+	tristate "MMA8450 device driver"
+	depends on I2C
+	default y
+
 config MXC_MMA8451
 	tristate "MMA8451 device driver"
 	depends on I2C
