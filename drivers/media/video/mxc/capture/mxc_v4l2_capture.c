@@ -55,7 +55,7 @@ static struct v4l2_output mxc_capture_outputs[MXC_V4L2_CAPTURE_NUM_OUTPUTS] = {
 	 },
 	{
 	 .index = 1,
-	 .name = "DISP0",
+	 .name = "DISP3 BG - DI1",
 	 .type = V4L2_OUTPUT_TYPE_ANALOG,
 	 .audioset = 0,
 	 .modulator = 0,
@@ -441,23 +441,42 @@ static int verify_preview(cam_data *cam, struct v4l2_window *win)
 {
 	int i = 0, width_bound = 0, height_bound = 0;
 	int *width, *height;
-	struct fb_info *bg_fbi = NULL;
+	unsigned int ipu_ch = CHAN_NONE;
+	struct fb_info *bg_fbi = NULL, *fbi = NULL;
 	bool foregound_fb;
+	mm_segment_t old_fs;
 
 	pr_debug("In MVC: verify_preview\n");
 
 	do {
-		cam->overlay_fb = (struct fb_info *)registered_fb[i];
-		if (cam->overlay_fb == NULL) {
+		fbi = (struct fb_info *)registered_fb[i];
+		if (fbi == NULL) {
 			pr_err("ERROR: verify_preview frame buffer NULL.\n");
 			return -1;
 		}
-		if (strcmp(cam->overlay_fb->fix.id, "DISP3 BG") == 0)
-			bg_fbi = cam->overlay_fb;
-		if (strcmp(cam->overlay_fb->fix.id,
+
+		/* Which DI supports 2 layers? */
+		if (strncmp(fbi->fix.id, "DISP3 BG", 8) == 0) {
+			if (fbi->fbops->fb_ioctl) {
+				old_fs = get_fs();
+				set_fs(KERNEL_DS);
+				fbi->fbops->fb_ioctl(fbi, MXCFB_GET_FB_IPU_CHAN,
+						(unsigned long)&ipu_ch);
+				set_fs(old_fs);
+			}
+			if (ipu_ch == MEM_BG_SYNC) {
+				bg_fbi = fbi;
+				pr_debug("Found background frame buffer.\n");
+			}
+		}
+
+		/* Found the frame buffer to preview on. */
+		if (strcmp(fbi->fix.id,
 			    mxc_capture_outputs[cam->output].name) == 0) {
-			if (strcmp(cam->overlay_fb->fix.id, "DISP3 FG") == 0)
+			if (strcmp(fbi->fix.id, "DISP3 FG") == 0)
 				foregound_fb = true;
+
+			cam->overlay_fb = fbi;
 			break;
 		}
 	} while (++i < FB_MAX);
@@ -554,35 +573,19 @@ static int start_preview(cam_data *cam)
 
 	pr_debug("MVC: start_preview\n");
 
-#if defined(CONFIG_MXC_IPU_PRP_VF_SDC) || defined(CONFIG_MXC_IPU_PRP_VF_SDC_MODULE)
-	pr_debug("   This is an SDC display\n");
-	if (cam->output == 0 || cam->output == 2) {
-		if (cam->v4l2_fb.flags == V4L2_FBUF_FLAG_OVERLAY)
-			err = prp_vf_sdc_select(cam);
-		else if (cam->v4l2_fb.flags == V4L2_FBUF_FLAG_PRIMARY)
-			err = prp_vf_sdc_select_bg(cam);
-		if (err != 0)
-			return err;
+	if (cam->v4l2_fb.flags == V4L2_FBUF_FLAG_OVERLAY)
+		err = prp_vf_sdc_select(cam);
+	else if (cam->v4l2_fb.flags == V4L2_FBUF_FLAG_PRIMARY)
+		err = prp_vf_sdc_select_bg(cam);
+	if (err != 0)
+		return err;
 
-		err = cam->vf_start_sdc(cam);
-		if (err != 0)
-			return err;
+	err = cam->vf_start_sdc(cam);
+	if (err != 0)
+		return err;
 
-		if (cam->vf_enable_csi)
-			err = cam->vf_enable_csi(cam);
-	}
-#endif
-
-#if defined(CONFIG_MXC_IPU_PRP_VF_ADC) || defined(CONFIG_MXC_IPU_PRP_VF_ADC_MODULE)
-	pr_debug("   This is an ADC display\n");
-	if (cam->output == 1) {
-		err = prp_vf_adc_select(cam);
-		if (err != 0)
-			return err;
-
-		err = cam->vf_start_adc(cam);
-	}
-#endif
+	if (cam->vf_enable_csi)
+		err = cam->vf_enable_csi(cam);
 
 	pr_debug("End of %s: v2f pix widthxheight %d x %d\n",
 		 __func__,
@@ -613,26 +616,16 @@ static int stop_preview(cam_data *cam)
 
 	pr_debug("MVC: stop preview\n");
 
-#if defined(CONFIG_MXC_IPU_PRP_VF_ADC) || defined(CONFIG_MXC_IPU_PRP_VF_ADC_MODULE)
-	if (cam->output == 1) {
-		err = prp_vf_adc_deselect(cam);
-	}
-#endif
-
-#if defined(CONFIG_MXC_IPU_PRP_VF_SDC) || defined(CONFIG_MXC_IPU_PRP_VF_SDC_MODULE)
 	if (cam->vf_disable_csi) {
 		err = cam->vf_disable_csi(cam);
 		if (err != 0)
 			return err;
 	}
 
-	if (cam->output == 0 || cam->output == 2) {
-		if (cam->v4l2_fb.flags == V4L2_FBUF_FLAG_OVERLAY)
-			err = prp_vf_sdc_deselect(cam);
-		else if (cam->v4l2_fb.flags == V4L2_FBUF_FLAG_PRIMARY)
-			err = prp_vf_sdc_deselect_bg(cam);
-	}
-#endif
+	if (cam->v4l2_fb.flags == V4L2_FBUF_FLAG_OVERLAY)
+		err = prp_vf_sdc_deselect(cam);
+	else if (cam->v4l2_fb.flags == V4L2_FBUF_FLAG_PRIMARY)
+		err = prp_vf_sdc_deselect_bg(cam);
 
 	return err;
 }

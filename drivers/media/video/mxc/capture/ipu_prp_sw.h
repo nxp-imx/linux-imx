@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2004-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -26,10 +26,8 @@ int csi_enc_select(void *private);
 int csi_enc_deselect(void *private);
 int prp_enc_select(void *private);
 int prp_enc_deselect(void *private);
-int prp_vf_adc_select(void *private);
 int prp_vf_sdc_select(void *private);
 int prp_vf_sdc_select_bg(void *private);
-int prp_vf_adc_deselect(void *private);
 int prp_vf_sdc_deselect(void *private);
 int prp_vf_sdc_deselect_bg(void *private);
 int prp_still_select(void *private);

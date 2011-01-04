@@ -91,16 +91,6 @@ config MXC_IPU_PRP_VF_SDC
 		MEM -> IC (ROT) -> MEM
 		MEM -> SDC (FG/BG)
 
-config MXC_IPU_PRP_VF_ADC
-	tristate "Pre-Processor VF ADC library"
-	depends on VIDEO_MXC_IPU_CAMERA && FB_MXC_ASYNC_PANEL
-	default y
-	---help---
-	  Use case PRP_VF_ADC:
-		Preprocessing image from smart sensor for viewfinder and
-		displaying it on asynchronous display.
-		CSI -> IC (PRP VF) -> ADC2
-
 config MXC_IPU_PRP_ENC
 	tristate "Pre-processor Encoder library"
 	depends on VIDEO_MXC_IPU_CAMERA
