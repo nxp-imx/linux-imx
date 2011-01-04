@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010 Freescale Semiconductor, Inc.
+ * Copyright (C) 2010-2011 Freescale Semiconductor, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -2523,9 +2523,9 @@ static irqreturn_t mxc_epdc_irq_handler(int irq, void *dev_id)
 				if (!(temp_mask & 0x1))
 					continue;
 
-				if (fb_data->lut_update_order[lut] >
+				if (fb_data->lut_update_order[lut] >=
 					fb_data->cur_update->update_order) {
-					dev_dbg(fb_data->dev, "Ignoring collision with new update.\n");
+					dev_dbg(fb_data->dev, "Ignoring collision with newer update.\n");
 					ignore_collision = true;
 					break;
 				}
