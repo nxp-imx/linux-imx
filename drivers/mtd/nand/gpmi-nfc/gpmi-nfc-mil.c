@@ -1,7 +1,7 @@
 /*
  * Freescale GPMI NFC NAND Flash Driver
  *
- * Copyright (C) 2010 Freescale Semiconductor, Inc.
+ * Copyright (C) 2010-2011 Freescale Semiconductor, Inc.
  * Copyright (C) 2008 Embedded Alley Solutions, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
@@ -998,19 +998,11 @@ static int mil_block_bad(struct mtd_info *mtd, loff_t ofs, int getchip)
  */
 static int mil_set_physical_geometry(struct gpmi_nfc_data  *this)
 {
-	struct mil                *mil      = &this->mil;
 	struct physical_geometry  *physical = &this->physical_geometry;
-	struct nand_chip          *nand     = &mil->nand;
 	struct nand_device_info   *info     = &this->device_info;
 	unsigned int              block_size_in_pages;
 	unsigned int              chip_size_in_blocks;
 	unsigned int              chip_size_in_pages;
-	uint64_t                  medium_size_in_bytes;
-
-	/*
-	 * Record the number of physical chips that MTD found.
-	 */
-	physical->chip_count = nand->numchips;
 
 	/*
 	 * We know the total size of a page. We need to break that down into the
@@ -1045,14 +1037,11 @@ static int mil_set_physical_geometry(struct gpmi_nfc_data  *this)
 	chip_size_in_blocks  =
 			physical->chip_size_in_bytes >>
 				(fls(physical->block_size_in_bytes) - 1);
-	medium_size_in_bytes =
-			physical->chip_size_in_bytes * physical->chip_count;
 
 	#if defined(DETAILED_INFO)
 	pr_info("-----------------\n");
 	pr_info("Physical Geometry\n");
 	pr_info("-----------------\n");
-	pr_info("Chip Count             : %d\n", physical->chip_count);
 	pr_info("Page Data Size in Bytes: %u (0x%x)\n",
 			physical->page_data_size_in_bytes,
 			physical->page_data_size_in_bytes);
@@ -1071,8 +1060,6 @@ static int mil_set_physical_geometry(struct gpmi_nfc_data  *this)
 			chip_size_in_pages, chip_size_in_pages);
 	pr_info("Chip Size in Blocks    : %u (0x%x)\n",
 			chip_size_in_blocks, chip_size_in_blocks);
-	pr_info("Medium Size in Bytes   : %llu (0x%llx)\n",
-			medium_size_in_bytes, medium_size_in_bytes);
 	#endif
 
 	return 0;
@@ -1163,9 +1150,6 @@ static int mil_set_geometry(struct gpmi_nfc_data  *this)
 	if (mil_set_nfc_geometry(this))
 		return -ENXIO;
 
-	if (mil_set_boot_rom_helper_geometry(this))
-		return -ENXIO;
-
 	/* Alloc the new DMA buffers according to the pagesize and oobsize */
 	return mil_alloc_dma_buffer(this);
 }
@@ -1190,6 +1174,12 @@ static int mil_pre_bbt_scan(struct gpmi_nfc_data  *this)
 	loff_t                    byte;
 	uint8_t                   block_mark;
 	int                       error;
+
+	/* Record the number of physical chips that MTD found. */
+	physical->chip_count = nand->numchips;
+
+	if (mil_set_boot_rom_helper_geometry(this))
+		return -ENXIO;
 
 	/*
 	 * Check if we can use block mark swapping, which enables us to leave
