@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2004-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -323,8 +323,6 @@ static int prpvf_stop(void *private)
 		printk(KERN_ERR "DISP3 FG fb not found\n");
 		return -EPERM;
 	}
-
-	ipu_disp_set_window_pos(MEM_FG_SYNC, 0, 0);
 
 	if (cam->vf_rotation >= IPU_ROTATE_VERT_FLIP) {
 		ipu_unlink_channels(CSI_PRP_VF_MEM, MEM_ROT_VF_MEM);
