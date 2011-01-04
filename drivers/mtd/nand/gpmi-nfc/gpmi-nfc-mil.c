@@ -1161,19 +1161,10 @@ static int mil_set_geometry(struct gpmi_nfc_data  *this)
  */
 static int mil_pre_bbt_scan(struct gpmi_nfc_data  *this)
 {
-	struct device             *dev      =  this->dev;
 	struct physical_geometry  *physical = &this->physical_geometry;
 	struct boot_rom_helper    *rom      =  this->rom;
-	struct mil                *mil      = &this->mil;
-	struct nand_chip          *nand     = &mil->nand;
-	struct mtd_info           *mtd      = &mil->mtd;
-	unsigned int              block_count;
-	unsigned int              block;
-	int                       chip;
-	int                       page;
-	loff_t                    byte;
-	uint8_t                   block_mark;
-	int                       error;
+	struct nand_chip	  *nand     = &this->mil.nand;
+	int                       error = 0;
 
 	/* Record the number of physical chips that MTD found. */
 	physical->chip_count = nand->numchips;
@@ -1181,90 +1172,10 @@ static int mil_pre_bbt_scan(struct gpmi_nfc_data  *this)
 	if (mil_set_boot_rom_helper_geometry(this))
 		return -ENXIO;
 
-	/*
-	 * Check if we can use block mark swapping, which enables us to leave
-	 * the block marks where they are. If so, we don't need to do anything
-	 * at all.
-	 */
-	if (rom->swap_block_mark)
-		return 0;
-
-	/*
-	 * If control arrives here, we can't use block mark swapping, which
-	 * means we're forced to use transcription. First, scan for the
-	 * transcription stamp. If we find it, then we don't have to do
-	 * anything -- the block marks are already transcribed.
-	 */
-	if (rom->check_transcription_stamp(this))
-		return 0;
-
-	/*
-	 * If control arrives here, we couldn't find a transcription stamp, so
-	 * so we presume the block marks are in the conventional location.
-	 */
-	pr_info("Transcribing bad block marks...\n");
-
-	/* Compute the number of blocks in the entire medium. */
-	block_count =
-		physical->chip_size_in_bytes >> nand->phys_erase_shift;
-
-	/*
-	 * Loop over all the blocks in the medium, transcribing block marks as
-	 * we go.
-	 */
-	for (block = 0; block < block_count; block++) {
-		/*
-		 * Compute the chip, page and byte addresses for this block's
-		 * conventional mark.
-		 */
-		chip = block >> (nand->chip_shift - nand->phys_erase_shift);
-		page = block << (nand->phys_erase_shift - nand->page_shift);
-		byte = block <<  nand->phys_erase_shift;
-
-		/* Select the chip. */
-		nand->select_chip(mtd, chip);
-
-		/* Send the command to read the conventional block mark. */
-		nand->cmdfunc(mtd, NAND_CMD_READ0,
-				physical->page_data_size_in_bytes, page);
-
-		/* Read the conventional block mark. */
-		block_mark = nand->read_byte(mtd);
-
-		/*
-		 * Check if the block is marked bad. If so, we need to mark it
-		 * again, but this time the result will be a mark in the
-		 * location where we transcribe block marks.
-		 *
-		 * Notice that we have to explicitly set the marking_a_bad_block
-		 * member before we call through the block_markbad function
-		 * pointer in the owning struct nand_chip. If we could call
-		 * though the block_markbad function pointer in the owning
-		 * struct mtd_info, which we have hooked, then this would be
-		 * taken care of for us. Unfortunately, we can't because that
-		 * higher-level code path will do things like consulting the
-		 * in-memory bad block table -- which doesn't even exist yet!
-		 * So, we have to call at a lower level and handle some details
-		 * ourselves.
-		 */
-		if (block_mark != 0xff) {
-			pr_info("Transcribing mark in block %u\n", block);
-			mil->marking_a_bad_block = true;
-			error = nand->block_markbad(mtd, byte);
-			mil->marking_a_bad_block = false;
-			if (error)
-				dev_err(dev, "Failed to mark block bad with "
-							"error %d\n", error);
-		}
-
-		/* Deselect the chip. */
-		nand->select_chip(mtd, -1);
-	}
-
-	/* Write the stamp that indicates we've transcribed the block marks. */
-	rom->write_transcription_stamp(this);
-
-	return 0;
+	/* This is ROM arch-specific initilization before the BBT scanning. */
+	if (rom->rom_extra_init)
+		error = rom->rom_extra_init(this);
+	return error;
 }
 
 /**
