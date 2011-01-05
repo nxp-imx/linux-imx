@@ -867,7 +867,6 @@ static int mil_ecc_read_oob(struct mtd_info *mtd, struct nand_chip *nand,
 							int page, int sndcmd)
 {
 	struct gpmi_nfc_data      *this     = nand->priv;
-	struct physical_geometry  *physical = &this->physical_geometry;
 	struct boot_rom_helper    *rom      =  this->rom;
 
 	DEBUG(MTD_DEBUG_LEVEL2, "[gpmi_nfc ecc_read_oob] "
@@ -877,8 +876,7 @@ static int mil_ecc_read_oob(struct mtd_info *mtd, struct nand_chip *nand,
 	memset(nand->oob_poi, ~0, mtd->oobsize);
 
 	/* Read out the conventional OOB. */
-	nand->cmdfunc(mtd, NAND_CMD_READ0,
-			physical->page_data_size_in_bytes, page);
+	nand->cmdfunc(mtd, NAND_CMD_READ0, mtd->writesize, page);
 	nand->read_buf(mtd, nand->oob_poi, mtd->oobsize);
 
 	/*
@@ -911,7 +909,6 @@ static int mil_ecc_write_oob(struct mtd_info *mtd,
 {
 	struct gpmi_nfc_data      *this     = nand->priv;
 	struct device             *dev      =  this->dev;
-	struct physical_geometry  *physical = &this->physical_geometry;
 	struct mil                *mil      = &this->mil;
 	struct boot_rom_helper    *rom      =  this->rom;
 	uint8_t                   block_mark = 0;
@@ -945,7 +942,7 @@ static int mil_ecc_write_oob(struct mtd_info *mtd,
 	 * appears in the first byte of the page.
 	 */
 	if (rom->swap_block_mark)
-		block_mark_column = physical->page_data_size_in_bytes;
+		block_mark_column = mtd->writesize;
 	else
 		block_mark_column = 0;
 
@@ -988,82 +985,6 @@ static int mil_block_bad(struct mtd_info *mtd, loff_t ofs, int getchip)
 	return 0;
 }
 
-/**
- * mil_set_physical_geometry() - Set up the physical medium geometry.
- *
- * This function retrieves the physical geometry information discovered by
- * nand_scan(), corrects it, and records it in the per-device data structure.
- *
- * @this:  Per-device data.
- */
-static int mil_set_physical_geometry(struct gpmi_nfc_data  *this)
-{
-	struct physical_geometry  *physical = &this->physical_geometry;
-	struct nand_device_info   *info     = &this->device_info;
-	unsigned int              block_size_in_pages;
-	unsigned int              chip_size_in_blocks;
-	unsigned int              chip_size_in_pages;
-
-	/*
-	 * We know the total size of a page. We need to break that down into the
-	 * data size and OOB size. The data size is the largest power of two
-	 * that will fit in the given page size. The OOB size is what's left
-	 * over.
-	 */
-	physical->page_data_size_in_bytes =
-				1 << (fls(info->page_total_size_in_bytes) - 1);
-
-	physical->page_oob_size_in_bytes =
-				info->page_total_size_in_bytes -
-					physical->page_data_size_in_bytes;
-
-	/*
-	 * Now that we know the page data size, we can multiply this by the
-	 * number of pages in a block to compute the block size.
-	 */
-	physical->block_size_in_bytes =
-		physical->page_data_size_in_bytes * info->block_size_in_pages;
-
-	/* Get the chip size. */
-	physical->chip_size_in_bytes = info->chip_size_in_bytes;
-
-	/* Compute some interesting facts. */
-	block_size_in_pages  =
-			physical->block_size_in_bytes >>
-				(fls(physical->page_data_size_in_bytes) - 1);
-	chip_size_in_pages   =
-			physical->chip_size_in_bytes >>
-				(fls(physical->page_data_size_in_bytes) - 1);
-	chip_size_in_blocks  =
-			physical->chip_size_in_bytes >>
-				(fls(physical->block_size_in_bytes) - 1);
-
-	#if defined(DETAILED_INFO)
-	pr_info("-----------------\n");
-	pr_info("Physical Geometry\n");
-	pr_info("-----------------\n");
-	pr_info("Page Data Size in Bytes: %u (0x%x)\n",
-			physical->page_data_size_in_bytes,
-			physical->page_data_size_in_bytes);
-	pr_info("Page OOB Size in Bytes : %u\n",
-			physical->page_oob_size_in_bytes);
-	pr_info("Block Size in Bytes    : %u (0x%x)\n",
-			physical->block_size_in_bytes,
-			physical->block_size_in_bytes);
-	pr_info("Block Size in Pages    : %u (0x%x)\n",
-			block_size_in_pages,
-			block_size_in_pages);
-	pr_info("Chip Size in Bytes     : %llu (0x%llx)\n",
-			physical->chip_size_in_bytes,
-			physical->chip_size_in_bytes);
-	pr_info("Chip Size in Pages     : %u (0x%x)\n",
-			chip_size_in_pages, chip_size_in_pages);
-	pr_info("Chip Size in Blocks    : %u (0x%x)\n",
-			chip_size_in_blocks, chip_size_in_blocks);
-	#endif
-
-	return 0;
-}
 
 /**
  * mil_set_nfc_geometry() - Set up the NFC geometry.
@@ -1143,10 +1064,7 @@ static int mil_set_geometry(struct gpmi_nfc_data  *this)
 	/* Free the temporary DMA memory for read ID case */
 	mil_free_dma_buffer(this);
 
-	/* Set up the various layers of geometry, in this specific order. */
-	if (mil_set_physical_geometry(this))
-		return -ENXIO;
-
+	/* Set up the NFC geometry. */
 	if (mil_set_nfc_geometry(this))
 		return -ENXIO;
 
@@ -1161,13 +1079,8 @@ static int mil_set_geometry(struct gpmi_nfc_data  *this)
  */
 static int mil_pre_bbt_scan(struct gpmi_nfc_data  *this)
 {
-	struct physical_geometry  *physical = &this->physical_geometry;
-	struct boot_rom_helper    *rom      =  this->rom;
-	struct nand_chip	  *nand     = &this->mil.nand;
-	int                       error = 0;
-
-	/* Record the number of physical chips that MTD found. */
-	physical->chip_count = nand->numchips;
+	struct boot_rom_helper	*rom	= this->rom;
+	int			error	= 0;
 
 	if (mil_set_boot_rom_helper_geometry(this))
 		return -ENXIO;
@@ -1231,11 +1144,11 @@ static int mil_scan_bbt(struct mtd_info *mtd)
 static int mil_boot_areas_init(struct gpmi_nfc_data *this)
 {
 	struct device                  *dev      =  this->dev;
-	struct physical_geometry       *physical = &this->physical_geometry;
 	struct boot_rom_geometry       *rom      = &this->rom_geometry;
 	struct mil                     *mil      = &this->mil;
 	struct mtd_info                *mtd      = &mil->mtd;
 	struct nand_chip               *nand     = &mil->nand;
+	struct nand_device_info		*info	 = &this->device_info;
 	int                            mtd_support_is_adequate;
 	unsigned int                   i;
 	struct mtd_partition           partitions[4];
@@ -1253,7 +1166,6 @@ static int mil_boot_areas_init(struct gpmi_nfc_data *this)
 	 * static strings, we can simply search the master table for an MTD with
 	 * a name field pointing to a known address.
 	 */
-
 	static char  *chip_0_boot_name      = "gpmi-nfc-0-boot";
 	static char  *chip_0_remainder_name = "gpmi-nfc-0-remainder";
 	static char  *chip_1_boot_name      = "gpmi-nfc-1-boot";
@@ -1328,7 +1240,7 @@ static int mil_boot_areas_init(struct gpmi_nfc_data *this)
 	 */
 
 	/* Check if a boot area is larger than a single chip. */
-	if (rom->boot_area_size_in_bytes > physical->chip_size_in_bytes) {
+	if (rom->boot_area_size_in_bytes > info->chip_size_in_bytes) {
 		dev_emerg(dev, "Boot area size is larger than a chip");
 		return -ENXIO;
 	}
@@ -1783,7 +1695,10 @@ static int gpmi_init_size(struct mtd_info *mtd, struct nand_chip *nand,
 	nand_device_print_info(info);
 	#endif
 
-	/* initialize the right NAND parameters */
+	/*
+	 *  Init the right NAND/MTD parameters which will be used
+	 *  in the following mil_set_geometry().
+	 */
 	mtd->writesize	= 1 << (fls(info->page_total_size_in_bytes) - 1);
 	mtd->erasesize	= mtd->writesize * info->block_size_in_pages;
 	mtd->oobsize	= info->page_total_size_in_bytes - mtd->writesize;

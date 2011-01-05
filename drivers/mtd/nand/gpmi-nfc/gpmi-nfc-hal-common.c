@@ -1,7 +1,7 @@
 /*
  * Freescale GPMI NFC NAND Flash Driver
  *
- * Copyright (C) 2010 Freescale Semiconductor, Inc.
+ * Copyright (C) 2010-2011 Freescale Semiconductor, Inc.
  * Copyright (C) 2008 Embedded Alley Solutions, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
@@ -119,9 +119,9 @@ void gpmi_nfc_dma_exit(struct gpmi_nfc_data *this)
 int gpmi_nfc_set_geometry(struct gpmi_nfc_data *this)
 {
 	struct device             *dev      = this->dev;
-	struct physical_geometry  *physical = &this->physical_geometry;
 	struct nfc_geometry       *geometry = &this->nfc_geometry;
 	struct boot_rom_helper    *rom      =  this->rom;
+	struct mtd_info		  *mtd	    = &this->mil.mtd;
 	unsigned int              metadata_size;
 	unsigned int              status_size;
 	unsigned int              chunk_data_size_in_bits;
@@ -145,17 +145,15 @@ int gpmi_nfc_set_geometry(struct gpmi_nfc_data *this)
 	if (is_ddr_nand(&this->device_info))
 		geometry->ecc_chunk_size_in_bytes = 1024;
 
-	/* Compute the page size based on the physical geometry. */
-	geometry->page_size_in_bytes =
-			physical->page_data_size_in_bytes +
-			physical->page_oob_size_in_bytes  ;
+	/* Compute the page size, include page and oob. */
+	geometry->page_size_in_bytes = mtd->writesize + mtd->oobsize;
 
 	/*
 	 * Compute the total number of ECC chunks in a page. This includes the
 	 * slightly larger chunk at the beginning of the page, which contains
 	 * both data and metadata.
 	 */
-	geometry->ecc_chunk_count = physical->page_data_size_in_bytes /
+	geometry->ecc_chunk_count = mtd->writesize /
 					  geometry->ecc_chunk_size_in_bytes;
 
 	/*
@@ -166,12 +164,12 @@ int gpmi_nfc_set_geometry(struct gpmi_nfc_data *this)
 	 */
 	geometry->ecc_strength = 0;
 
-	switch (physical->page_data_size_in_bytes) {
+	switch (mtd->writesize) {
 	case 2048:
 		geometry->ecc_strength = 8;
 		break;
 	case 4096:
-		switch (physical->page_oob_size_in_bytes) {
+		switch (mtd->oobsize) {
 		case 128:
 			geometry->ecc_strength = 8;
 			break;
@@ -189,17 +187,15 @@ int gpmi_nfc_set_geometry(struct gpmi_nfc_data *this)
 		 */
 		if (is_ddr_nand(&this->device_info))
 			geometry->page_size_in_bytes =
-				physical->page_data_size_in_bytes +
-				geometry->metadata_size_in_bytes +
+				mtd->writesize
+				+ geometry->metadata_size_in_bytes +
 				(geometry->ecc_strength * 14 * 8 /
 					geometry->ecc_chunk_count);
 		break;
 	}
 
 	if (!geometry->ecc_strength) {
-		dev_err(dev, "Unsupported page geometry: %u:%u\n",
-			physical->page_data_size_in_bytes,
-			physical->page_oob_size_in_bytes);
+		dev_err(dev, "Unsupported page geometry.\n");
 		return !0;
 	}
 
@@ -207,7 +203,7 @@ int gpmi_nfc_set_geometry(struct gpmi_nfc_data *this)
 	 * The payload buffer contains the data area of a page. The ECC engine
 	 * only needs what's required to hold the data.
 	 */
-	geometry->payload_size_in_bytes = physical->page_data_size_in_bytes;
+	geometry->payload_size_in_bytes = mtd->writesize;
 
 	/*
 	 * In principle, computing the auxiliary buffer geometry is NFC
@@ -259,7 +255,7 @@ int gpmi_nfc_set_geometry(struct gpmi_nfc_data *this)
 			chunk_data_size_in_bits + chunk_ecc_size_in_bits;
 
 	/* Compute the bit offset of the block mark within the physical page. */
-	block_mark_bit_offset = physical->page_data_size_in_bytes * 8;
+	block_mark_bit_offset = mtd->writesize * 8;
 
 	/* Subtract the metadata bits. */
 	block_mark_bit_offset -= geometry->metadata_size_in_bytes * 8;
@@ -286,8 +282,7 @@ int gpmi_nfc_set_geometry(struct gpmi_nfc_data *this)
 		 */
 		dev_err(dev, "Unsupported page geometry "
 					"(block mark in ECC): %u:%u\n",
-					physical->page_data_size_in_bytes,
-					physical->page_oob_size_in_bytes);
+					mtd->writesize, mtd->oobsize);
 		return !0;
 	}
 
@@ -430,8 +425,8 @@ int gpmi_nfc_compute_hardware_timing(struct gpmi_nfc_data *this,
 					struct gpmi_nfc_hardware_timing *hw)
 {
 	struct gpmi_nfc_platform_data  *pdata    =  this->pdata;
-	struct physical_geometry       *physical = &this->physical_geometry;
 	struct nfc_hal                 *nfc      =  this->nfc;
+	struct nand_chip		*nand	= &this->mil.nand;
 	struct gpmi_nfc_timing         target    = nfc->timing;
 	bool           improved_timing_is_available;
 	unsigned long  clock_frequency_in_hz;
@@ -453,11 +448,11 @@ int gpmi_nfc_compute_hardware_timing(struct gpmi_nfc_data *this,
 	 * If there are multiple chips, we need to relax the timings to allow
 	 * for signal distortion due to higher capacitance.
 	 */
-	if (physical->chip_count > 2) {
+	if (nand->numchips > 2) {
 		target.data_setup_in_ns    += 10;
 		target.data_hold_in_ns     += 10;
 		target.address_setup_in_ns += 10;
-	} else if (physical->chip_count > 1) {
+	} else if (nand->numchips > 1) {
 		target.data_setup_in_ns    += 5;
 		target.data_hold_in_ns     += 5;
 		target.address_setup_in_ns += 5;
