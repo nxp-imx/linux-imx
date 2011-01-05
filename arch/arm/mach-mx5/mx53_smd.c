@@ -888,7 +888,7 @@ static struct mxc_mmc_platform_data mmc2_data = {
 static struct mxc_mmc_platform_data mmc3_data = {
 	.ocr_mask = MMC_VDD_27_28 | MMC_VDD_28_29 | MMC_VDD_29_30
 		| MMC_VDD_31_32,
-	.caps = MMC_CAP_4_BIT_DATA | MMC_CAP_8_BIT_DATA,
+	.caps = MMC_CAP_4_BIT_DATA | MMC_CAP_8_BIT_DATA | MMC_CAP_DATA_DDR,
 	.min_clk = 400000,
 	.max_clk = 50000000,
 	.card_inserted_state = 1,
