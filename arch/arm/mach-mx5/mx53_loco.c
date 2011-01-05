@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2010-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -103,6 +103,7 @@
 extern struct cpu_wp *(*get_cpu_wp)(int *wp);
 extern void (*set_num_cpu_wp)(int num);
 static int num_cpu_wp = 3;
+extern int __init mx53_loco_init_da9052(void);
 
 static struct pad_desc mx53_loco_pads[] = {
 	/* FEC */
@@ -838,6 +839,8 @@ static void __init mxc_board_init(void)
 	mxc_register_device(&mxc_wdt_device, NULL);
 	mxc_register_device(&mxci2c_devices[0], &mxci2c_data);
 	mxc_register_device(&mxci2c_devices[1], &mxci2c_data);
+
+	mx53_loco_init_da9052();
 
 	mxc_register_device(&mxc_rtc_device, &srtc_data);
 	mxc_register_device(&mxc_ipu_device, &mxc_ipu_data);

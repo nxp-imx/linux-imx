@@ -14,8 +14,8 @@ obj-$(CONFIG_MACH_MX51_3DS) += mx51_3stack.o mx51_3stack_gpio.o mx51_3stack_pmic
 obj-$(CONFIG_MACH_MX51_BABBAGE) += mx51_babbage.o mx51_babbage_pmic_mc13892.o
 obj-$(CONFIG_MACH_MX53_EVK) += mx53_evk.o mx53_evk_pmic_mc13892.o
 obj-$(CONFIG_MACH_MX53_ARD) += mx53_ard.o mx53_ard_pmic_ltc3589.o
-obj-$(CONFIG_MACH_MX53_SMD) += mx53_smd.o
-obj-$(CONFIG_MACH_MX53_LOCO) += mx53_loco.o
+obj-$(CONFIG_MACH_MX53_SMD) += mx53_smd.o mx53_smd_pmic_da9053.o
+obj-$(CONFIG_MACH_MX53_LOCO) += mx53_loco.o mx53_loco_pmic_da9053.o
 obj-$(CONFIG_MACH_MX50_ARM2) += mx50_arm2.o mx50_arm2_pmic_mc13892.o
 obj-$(CONFIG_MACH_MX50_RDP) += mx50_rdp.o mx50_rdp_pmic_mc13892.o
 
