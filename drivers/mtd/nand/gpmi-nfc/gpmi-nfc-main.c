@@ -1,7 +1,7 @@
 /*
  * Freescale GPMI NFC NAND Flash Driver
  *
- * Copyright (C) 2010 Freescale Semiconductor, Inc.
+ * Copyright (C) 2010-2011 Freescale Semiconductor, Inc.
  * Copyright (C) 2008 Embedded Alley Solutions, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
@@ -127,42 +127,9 @@ static ssize_t show_device_numchips(struct device *dev,
 				struct device_attribute *attr, char *buf)
 {
 	struct gpmi_nfc_data      *this     = dev_get_drvdata(dev);
-	struct physical_geometry  *physical = &this->physical_geometry;
+	struct nand_chip	*nand = &this->mil.nand;
 
-	return sprintf(buf, "%d\n", physical->chip_count);
-
-}
-
-/**
- * show_device_physical_geometry() - Shows the physical Flash device geometry.
- *
- * @dev:   The device of interest.
- * @attr:  The attribute of interest.
- * @buf:   A buffer that will receive a representation of the attribute.
- */
-static ssize_t show_device_physical_geometry(struct device *dev,
-				struct device_attribute *attr, char *buf)
-{
-	struct gpmi_nfc_data      *this     = dev_get_drvdata(dev);
-	struct nand_device_info   *info     = &this->device_info;
-	struct physical_geometry  *physical = &this->physical_geometry;
-
-	return sprintf(buf,
-		"Description            : %s\n"
-		"Chip Count             : %u\n"
-		"Chip Size in Bytes     : %llu\n"
-		"Block Size in Bytes    : %u\n"
-		"Page Data Size in Bytes: %u\n"
-		"Page OOB Size in Bytes : %u\n"
-		,
-		info->description,
-		physical->chip_count,
-		physical->chip_size_in_bytes,
-		physical->block_size_in_bytes,
-		physical->page_data_size_in_bytes,
-		physical->page_oob_size_in_bytes
-	);
-
+	return sprintf(buf, "%d\n", nand->numchips);
 }
 
 /**
@@ -1124,7 +1091,6 @@ static ssize_t store_device_timing(struct device *dev,
 
 static DEVICE_ATTR(report           , 0555, show_device_report           , 0);
 static DEVICE_ATTR(numchips         , 0444, show_device_numchips         , 0);
-static DEVICE_ATTR(physical_geometry, 0444, show_device_physical_geometry, 0);
 static DEVICE_ATTR(nfc_info         , 0444, show_device_nfc_info         , 0);
 static DEVICE_ATTR(nfc_geometry     , 0444, show_device_nfc_geometry     , 0);
 static DEVICE_ATTR(rom_geometry     , 0444, show_device_rom_geometry     , 0);
@@ -1151,7 +1117,6 @@ static DEVICE_ATTR(timing, 0644,
 static struct device_attribute *device_attributes[] = {
 	&dev_attr_report,
 	&dev_attr_numchips,
-	&dev_attr_physical_geometry,
 	&dev_attr_nfc_info,
 	&dev_attr_nfc_geometry,
 	&dev_attr_rom_geometry,
