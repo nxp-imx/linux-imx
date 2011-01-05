@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2008-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -4195,6 +4195,80 @@ static struct clk cko1_clk = {
 	.round_rate = cko1_round_rate,
 	.set_parent = cko1_set_parent,
 };
+static int _clk_asrc_set_parent(struct clk *clk, struct clk *parent)
+{
+	u32 reg;
+
+	reg = __raw_readl(MXC_CCM_CSCMR2);
+	if (parent == &pll4_sw_clk)
+		reg |= MXC_CCM_CSCMR2_ASRC_CLK_SEL;
+	else
+		reg &= ~MXC_CCM_CSCMR2_ASRC_CLK_SEL;
+	 __raw_writel(reg, MXC_CCM_CSCMR2);
+
+	return 0;
+}
+
+static unsigned long _clk_asrc_get_rate(struct clk *clk)
+{
+	u32 reg, prediv, podf;
+
+	reg = __raw_readl(MXC_CCM_CSCDR2);
+	prediv = ((reg & MXC_CCM_CSCDR2_ASRC_CLK_PRED_MASK) >>
+		MXC_CCM_CSCDR2_ASRC_CLK_PRED_OFFSET) + 1;
+	if (prediv == 1)
+		BUG();
+	podf = ((reg & MXC_CCM_CSCDR2_ASRC_CLK_PODF_MASK) >>
+		MXC_CCM_CSCDR2_ASRC_CLK_PODF_OFFSET) + 1;
+
+	return clk_get_rate(clk->parent) / (prediv * podf);
+}
+
+static int _clk_asrc_set_rate(struct clk *clk, unsigned long rate)
+{
+	u32 reg;
+	u32 div;
+	u32 pre, post;
+	u32 parent_rate = clk_get_rate(clk->parent);
+
+	div = parent_rate / rate;
+
+	if ((parent_rate / div) != rate)
+		return -EINVAL;
+
+	__calc_pre_post_dividers(div, &pre, &post);
+
+	reg = __raw_readl(MXC_CCM_CSCDR2) &
+		~(MXC_CCM_CSCDR2_ASRC_CLK_PRED_MASK |
+		MXC_CCM_CSCDR2_ASRC_CLK_PODF_MASK);
+	reg |= (post - 1) << MXC_CCM_CSCDR2_ASRC_CLK_PODF_OFFSET;
+	reg |= (pre - 1) << MXC_CCM_CSCDR2_ASRC_CLK_PRED_OFFSET;
+	__raw_writel(reg, MXC_CCM_CSCDR2);
+
+	return 0;
+}
+
+static struct clk asrc_clk[] = {
+	{
+	.id = 0,
+	.parent = &pll4_sw_clk,
+	.set_parent = _clk_asrc_set_parent,
+	.get_rate = _clk_asrc_get_rate,
+	.set_rate = _clk_asrc_set_rate,
+	.enable_reg = MXC_CCM_CCGR7,
+	.enable_shift = MXC_CCM_CCGRx_CG1_OFFSET,
+	.enable = _clk_enable,
+	.disable = _clk_disable,
+	},
+	{
+	.id = 0,
+	.parent = &ipg_clk,
+	.enable_reg = MXC_CCM_CCGR7,
+	.enable_shift = MXC_CCM_CCGRx_CG0_OFFSET,
+	.enable = _clk_enable,
+	.disable = _clk_disable,
+	},
+};
 
 #define _REGISTER_CLOCK(d, n, c) \
 	{ \
@@ -4307,6 +4381,8 @@ static struct clk_lookup mx53_lookups[] = {
 	_REGISTER_CLOCK(NULL, "ldb_di1_clk", ldb_di_clk[1]),
 	_REGISTER_CLOCK(NULL, "esai_clk", esai_clk[0]),
 	_REGISTER_CLOCK(NULL, "esai_ipg_clk", esai_clk[1]),
+	_REGISTER_CLOCK(NULL, "asrc_clk", asrc_clk[1]),
+	_REGISTER_CLOCK(NULL, "asrc_serial_clk", asrc_clk[0]),
 };
 
 static struct mxc_clk mx51_clks[ARRAY_SIZE(lookups) + ARRAY_SIZE(mx51_lookups)];

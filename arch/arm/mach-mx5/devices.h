@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2010-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -93,4 +93,5 @@ extern struct platform_device dcp_device;
 extern struct platform_device pm_device;
 extern struct platform_device fixed_volt_reg_device;
 extern struct platform_device mxc_zq_calib_device;
+extern struct platform_device mxc_asrc_device;
 extern int z160_revision;

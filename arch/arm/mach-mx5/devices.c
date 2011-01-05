@@ -1,5 +1,5 @@
 /*
- * Copyright 2008-2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2008-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -863,6 +863,26 @@ struct platform_device mxc_dvfs_per_device = {
 	 .id = 0,
 	 .num_resources = ARRAY_SIZE(dvfs_per_resources),
 	 .resource = dvfs_per_resources,
+};
+
+static struct resource asrc_resources[] = {
+	{
+	 .start = ASRC_BASE_ADDR,
+	 .end = ASRC_BASE_ADDR + SZ_4K - 1,
+	 .flags = IORESOURCE_MEM,
+	 },
+	{
+	 .start = MXC_INT_ASRC,
+	 .end = MXC_INT_ASRC,
+	 .flags = IORESOURCE_IRQ,
+	},
+};
+
+struct platform_device mxc_asrc_device = {
+	.name = "mxc_asrc",
+	.id = 0,
+	.num_resources = ARRAY_SIZE(asrc_resources),
+	.resource = asrc_resources,
 };
 
 struct mxc_gpio_port mxc_gpio_ports[] = {
@@ -1771,6 +1791,8 @@ int __init mxc_init_devices(void)
 		spdif_resources[0].end -= MX53_OFFSET;
 		spdif_resources[1].start = MXC_INT_SPDIF_MX53;
 		spdif_resources[1].end = MXC_INT_SPDIF_MX53;
+		asrc_resources[0].start -= MX53_OFFSET;
+		asrc_resources[0].end -= MX53_OFFSET;
 		mxc_m4if_resources[0].start -= MX53_OFFSET;
 		mxc_m4if_resources[0].end -= MX53_OFFSET;
 		mxc_iim_resources[0].start -= MX53_OFFSET;

@@ -934,6 +934,11 @@ static struct platform_device mxc_sgtl5000_device = {
 	.name = "imx-3stack-sgtl5000",
 };
 
+static struct mxc_asrc_platform_data mxc_asrc_data = {
+	.channel_bits = 4,
+	.clk_map_ver = 2,
+};
+
 static struct mxc_spdif_platform_data mxc_spdif_data = {
 	.spdif_tx = 1,
 	.spdif_rx = 0,
@@ -1127,6 +1132,15 @@ static void __init mxc_board_init(void)
 	gpio_direction_output(MX53_SMD_SATA_PWR_EN, 1);
 
 	mxc_register_device(&mxc_fec_device, &fec_data);
+	/* ASRC is only available for MX53 TO2.0 */
+	if (cpu_is_mx53_rev(CHIP_REV_2_0) >= 1) {
+		mxc_asrc_data.asrc_core_clk = clk_get(NULL, "asrc_clk");
+		clk_put(mxc_asrc_data.asrc_core_clk);
+		mxc_asrc_data.asrc_audio_clk = clk_get(NULL, "asrc_serial_clk");
+		clk_set_rate(mxc_asrc_data.asrc_audio_clk, 1190000);
+		clk_put(mxc_asrc_data.asrc_audio_clk);
+		mxc_register_device(&mxc_asrc_device, &mxc_asrc_data);
+	}
 
 	i2c_register_board_info(0, mxc_i2c0_board_info,
 				ARRAY_SIZE(mxc_i2c0_board_info));

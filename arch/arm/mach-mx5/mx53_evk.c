@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2010-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -1270,6 +1270,11 @@ static struct flash_platform_data mxc_nand_data = {
 	.init = nand_init,
 };
 
+static struct mxc_asrc_platform_data mxc_asrc_data = {
+	.channel_bits = 4,
+	.clk_map_ver = 2,
+};
+
 static struct mxc_spdif_platform_data mxc_spdif_data = {
 	.spdif_tx = 1,
 	.spdif_rx = 0,
@@ -1611,6 +1616,17 @@ static void __init mxc_board_init(void)
 	mxc_register_device(&mxc_ssi1_device, NULL);
 	mxc_register_device(&mxc_ssi2_device, NULL);
 	mxc_register_device(&ahci_fsl_device, &sata_data);
+
+	/* ASRC is only available for MX53 TO2.0 */
+	if (cpu_is_mx53_rev(CHIP_REV_2_0) >= 1) {
+		mxc_asrc_data.asrc_core_clk = clk_get(NULL, "asrc_clk");
+		clk_put(mxc_asrc_data.asrc_core_clk);
+		mxc_asrc_data.asrc_audio_clk = clk_get(NULL, "asrc_serial_clk");
+		clk_set_rate(mxc_asrc_data.asrc_audio_clk, 1190000);
+		clk_put(mxc_asrc_data.asrc_audio_clk);
+		mxc_register_device(&mxc_asrc_device, &mxc_asrc_data);
+	}
+
 	mxc_register_device(&mxc_alsa_spdif_device, &mxc_spdif_data);
 	if (!mxc_apc_on) {
 		mxc_register_device(&mxc_fec_device, &fec_data);
