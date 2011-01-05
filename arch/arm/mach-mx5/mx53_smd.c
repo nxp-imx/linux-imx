@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2010-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -769,6 +769,45 @@ static struct i2c_board_info mxc_i2c1_board_info[] __initdata = {
 
 };
 
+#if defined(CONFIG_KEYBOARD_GPIO) || defined(CONFIG_KEYBOARD_GPIO_MODULE)
+#define GPIO_BUTTON(gpio_num, ev_code, act_low, descr, wake, debounce) \
+{								\
+	.gpio		= gpio_num,				\
+	.type		= EV_KEY,				\
+	.code		= ev_code,				\
+	.active_low	= act_low,				\
+	.desc		= "btn " descr,				\
+	.wakeup		= wake,					\
+	.debounce_interval = debounce,				\
+}
+
+static struct gpio_keys_button smd_buttons[] = {
+	GPIO_BUTTON(MX53_SMD_KEY_VOL_UP, KEY_VOLUMEUP, 1, "volume-up", 0, 0),
+	GPIO_BUTTON(MX53_SMD_KEY_VOL_DOWN, KEY_VOLUMEDOWN, 1, "volume-down", 0, 0),
+};
+
+static struct gpio_keys_platform_data smd_button_data = {
+	.buttons	= smd_buttons,
+	.nbuttons	= ARRAY_SIZE(smd_buttons),
+};
+
+static struct platform_device smd_button_device = {
+	.name		= "gpio-keys",
+	.id		= -1,
+	.num_resources  = 0,
+	.dev		= {
+		.platform_data = &smd_button_data,
+	}
+};
+
+static void __init smd_add_device_buttons(void)
+{
+	platform_device_register(&smd_button_device);
+}
+#else
+static void __init smd_add_device_buttons(void) {}
+#endif
+
 static struct i2c_board_info mxc_i2c2_board_info[] __initdata = {
 	{
 	.type = "sii9022",
@@ -1075,6 +1114,7 @@ static void __init mxc_board_init(void)
 	mx5_usbh1_init();
 	mxc_register_device(&mxc_v4l2_device, NULL);
 	mxc_register_device(&mxc_v4l2out_device, NULL);
+	smd_add_device_buttons();
 }
 
 static void __init mx53_smd_timer_init(void)
