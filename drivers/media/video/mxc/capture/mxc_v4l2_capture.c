@@ -162,7 +162,6 @@ static video_fmt_idx video_index = TV_NOT_LOCKED;
 
 static int mxc_v4l2_master_attach(struct v4l2_int_device *slave);
 static void mxc_v4l2_master_detach(struct v4l2_int_device *slave);
-static u8 camera_power(cam_data *cam, bool cameraOn);
 static int start_preview(cam_data *cam);
 static int stop_preview(cam_data *cam);
 
@@ -2381,29 +2380,6 @@ static void init_camera_struct(cam_data *cam, struct platform_device *pdev)
 	spin_lock_init(&cam->dqueue_int_lock);
 }
 
-/*!
- * camera_power function
- *    Turns Sensor power On/Off
- *
- * @param       cam           cam data struct
- * @param       cameraOn      true to turn camera on, false to turn off power.
- *
- * @return status
- */
-static u8 camera_power(cam_data *cam, bool cameraOn)
-{
-	pr_debug("In MVC:camera_power on=%d\n", cameraOn);
-
-	if (cameraOn == true) {
-		ipu_csi_enable_mclk_if(CSI_MCLK_I2C, cam->csi, true, true);
-		vidioc_int_s_power(cam->sensor, 1);
-	} else {
-		ipu_csi_enable_mclk_if(CSI_MCLK_I2C, cam->csi, false, false);
-		vidioc_int_s_power(cam->sensor, 0);
-	}
-	return 0;
-}
-
 static ssize_t show_streaming(struct device *dev,
 			struct device_attribute *attr, char *buf)
 {
@@ -2542,7 +2518,7 @@ static int mxc_v4l2_suspend(struct platform_device *pdev, pm_message_t state)
 	if ((cam->capture_on == true) && cam->enc_disable) {
 		cam->enc_disable(cam);
 	}
-	camera_power(cam, false);
+	vidioc_int_s_power(cam->sensor, 0);
 
 	return 0;
 }
@@ -2568,7 +2544,7 @@ static int mxc_v4l2_resume(struct platform_device *pdev)
 
 	cam->low_power = false;
 	wake_up_interruptible(&cam->power_queue);
-	camera_power(cam, true);
+	vidioc_int_s_power(cam->sensor, 1);
 
 	if (cam->overlay_on == true)
 		start_preview(cam);
