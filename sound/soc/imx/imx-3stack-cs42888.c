@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010 Freescale  Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2010-2011 Freescale  Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -102,6 +102,7 @@ static void imx_3stack_shutdown(struct snd_pcm_substream *substream)
 
 	if (asrc_esai_data.output_sample_rate >= 32000) {
 		struct snd_soc_dai *cpu_dai = pcm_link->cpu_dai;
+		struct snd_soc_dai *codec_dai = pcm_link->codec_dai;
 		codec_dai->playback.rates = asrc_esai_data.codec_dai_rates;
 		cpu_dai->playback.rates = asrc_esai_data.cpu_dai_rates;
 		asrc_release_pair(asrc_esai_data.asrc_index);

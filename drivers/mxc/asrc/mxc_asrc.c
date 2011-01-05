@@ -1,5 +1,5 @@
 /*
- * Copyright 2008-2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2008-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -35,6 +35,7 @@
 #include <linux/proc_fs.h>
 #include <linux/dma-mapping.h>
 #include <linux/mxc_asrc.h>
+#include <linux/fsl_devices.h>
 #include <asm/irq.h>
 #include <asm/memory.h>
 #include <mach/dma.h>
@@ -137,6 +138,27 @@ static struct asrc_data *g_asrc_data;
 static struct proc_dir_entry *proc_asrc;
 static unsigned long asrc_vrt_base_addr;
 static struct mxc_asrc_platform_data *mxc_asrc_data;
+
+/* The following tables map the relationship between asrc_inclk/asrc_outclk in
+ * mxc_asrc.h and the registers of ASRCSR
+ */
+static unsigned char input_clk_map_v1[] = {
+	0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0xa, 0xb, 0xc, 0xd, 0xe, 0xf,
+};
+
+static unsigned char output_clk_map_v1[] = {
+	0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0xa, 0xb, 0xc, 0xd, 0xe, 0xf,
+};
+
+static unsigned char input_clk_map_v2[] = {
+	0, 1, 2, 3, 4, 5, 0xf, 0xf, 0xf, 8, 9, 0xa, 0xb, 0xc, 0xf, 0xd,
+};
+
+static unsigned char output_clk_map_v2[] = {
+	8, 9, 0xa, 0, 0xc, 0x5, 0xf, 0xf, 0, 1, 2, 0xf, 0xf, 4, 0xf, 0xd,
+};
+
+static unsigned char *input_clk_map, *output_clk_map;
 
 static int asrc_set_clock_ratio(enum asrc_pair_index index,
 				int input_sample_rate, int output_sample_rate)
@@ -395,8 +417,8 @@ int asrc_config_pair(struct asrc_config *config)
 	tmp = ~(0x0f << (12 + (config->pair << 2)));
 	reg &= tmp;
 	reg |=
-	    ((config->inclk << (config->pair << 2)) | (config->
-						       outclk << (12 +
+	    ((input_clk_map[config->inclk] << (config->pair << 2)) | (output_clk_map[config->
+						       outclk] << (12 +
 								  (config->
 								   pair <<
 								   2))));
@@ -768,13 +790,10 @@ static int mxc_init_asrc(void)
 	__raw_writel(0x001f00, asrc_vrt_base_addr + ASRC_ASRTFR1);
 
 	/* Set the processing clock for 76KHz, 133M  */
-	__raw_writel(0x06D6, asrc_vrt_base_addr + ASRC_ASR76K_REG);
+	__raw_writel(0x30E, asrc_vrt_base_addr + ASRC_ASR76K_REG);
 
 	/* Set the processing clock for 56KHz, 133M */
-	__raw_writel(0x0947, asrc_vrt_base_addr + ASRC_ASR56K_REG);
-
-	if (request_irq(MXC_INT_ASRC, asrc_isr, 0, "asrc", NULL))
-		return -1;
+	__raw_writel(0x0426, asrc_vrt_base_addr + ASRC_ASR56K_REG);
 
 	return 0;
 }
@@ -1454,7 +1473,7 @@ static int mxc_asrc_mmap(struct file *file, struct vm_area_struct *vma)
 	unsigned long size;
 	int res = 0;
 	size = vma->vm_end - vma->vm_start;
-	vma->vm_page_prot = pgprot_noncached(vma->vm_page_prot);
+	vma->vm_page_prot = pgprot_writecombine(vma->vm_page_prot);
 	if (remap_pfn_range(vma, vma->vm_start,
 			    vma->vm_pgoff, size, vma->vm_page_prot))
 		return -ENOBUFS;
@@ -1568,6 +1587,7 @@ static int mxc_asrc_probe(struct platform_device *pdev)
 	int err = 0;
 	struct resource *res;
 	struct device *temp_class;
+	int irq;
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	if (!res)
 		return -ENOENT;
@@ -1613,6 +1633,21 @@ static int mxc_asrc_probe(struct platform_device *pdev)
 	    (struct mxc_asrc_platform_data *)pdev->dev.platform_data;
 	clk_enable(mxc_asrc_data->asrc_core_clk);
 
+	switch (mxc_asrc_data->clk_map_ver) {
+	case 1:
+		input_clk_map = &input_clk_map_v1[0];
+		output_clk_map = &output_clk_map_v1[0];
+		break;
+	case 2:
+	default:
+		input_clk_map = &input_clk_map_v2[0];
+		output_clk_map = &output_clk_map_v2[0];
+		break;
+	}
+	irq = platform_get_irq(pdev, 0);
+	if (request_irq(irq, asrc_isr, 0, "asrc", NULL))
+		return -1;
+
 	asrc_proc_create();
 	err = mxc_init_asrc();
 	if (err < 0)
@@ -1641,7 +1676,8 @@ static int mxc_asrc_probe(struct platform_device *pdev)
  */
 static int mxc_asrc_remove(struct platform_device *pdev)
 {
-	free_irq(MXC_INT_ASRC, NULL);
+	int irq = platform_get_irq(pdev, 0);
+	free_irq(irq, NULL);
 	kfree(g_asrc_data);
 	clk_disable(mxc_asrc_data->asrc_core_clk);
 	mxc_asrc_data = NULL;

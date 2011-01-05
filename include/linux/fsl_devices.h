@@ -6,7 +6,7 @@
  *
  * Maintainer: Kumar Gala <galak@kernel.crashing.org>
  *
- * Copyright 2004-2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2004-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute  it and/or modify it
  * under  the terms of  the GNU General  Public License as published by the
@@ -265,6 +265,7 @@ struct mxc_asrc_platform_data {
 	struct clk *asrc_core_clk;
 	struct clk *asrc_audio_clk;
 	unsigned int channel_bits;
+	int clk_map_ver;
 };
 
 struct mxc_bt_platform_data {
