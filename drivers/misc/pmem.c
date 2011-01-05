@@ -450,6 +450,10 @@ static pgprot_t phys_mem_access_prot(struct file *file, pgprot_t vma_prot)
 		return pgprot_writecombine(vma_prot);
 #endif
 
+#ifdef pgprot_writethru
+	return pgprot_writethru(vma_prot);
+#endif
+
 #ifdef pgprot_ext_buffered
 	else if (pmem[id].buffered)
 		return pgprot_ext_buffered(vma_prot);
