@@ -232,5 +232,11 @@ config REGULATOR_MAX17135
 	depends on MFD_MAX17135
 	default n
 
+config REGULATOR_DA9052
+	tristate "Dialog DA9052 regulators"
+	depends on PMIC_DA9052
+	help
+	  Say y here to support the BUCKs and LDOs regulators found on
+	  Dialog Semiconductor DA9052 PMIC.
 endif
 

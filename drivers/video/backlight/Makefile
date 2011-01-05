@@ -2,6 +2,7 @@
 
 obj-$(CONFIG_LCD_CLASS_DEVICE)     += lcd.o
 obj-$(CONFIG_LCD_CORGI)		   += corgi_lcd.o
+obj-$(CONFIG_BACKLIGHT_DA9052)	+= da9052_bl.o
 obj-$(CONFIG_LCD_HP700)		   += jornada720_lcd.o
 obj-$(CONFIG_LCD_L4F00242T03)	   += l4f00242t03.o
 obj-$(CONFIG_LCD_LMS283GF05)	   += lms283gf05.o

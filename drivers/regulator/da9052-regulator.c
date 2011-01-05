@@ -415,7 +415,8 @@ static int __devinit da9052_regulator_probe(struct platform_device *pdev)
 		pdev->dev.platform_data = init_data;
 		priv->regulators[i] = regulator_register(
 				&da9052_regulators[i].reg_desc,
-				&pdev->dev, priv);
+				&pdev->dev, init_data,
+				priv);
 		if (IS_ERR(priv->regulators[i])) {
 			ret = PTR_ERR(priv->regulators[i]);
 			goto err;

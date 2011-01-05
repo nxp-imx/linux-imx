@@ -99,3 +99,5 @@ obj-$(CONFIG_RTC_DRV_MXC_V2)	+= rtc-mxc_v2.o
 obj-$(CONFIG_RTC_DRV_IMXDI)	+= rtc-imxdi.o
 obj-$(CONFIG_RTC_MC13892)		+= rtc-mc13892.o
 obj-$(CONFIG_RTC_DRV_MXS)	+= rtc-mxs.o
+obj-$(CONFIG_RTC_DRV_DA9052)  += rtc-da9052.o
+

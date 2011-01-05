@@ -343,4 +343,10 @@ config GPIO_JANZ_TTL
 	  This driver provides support for driving the pins in output
 	  mode only. Input mode is not supported.
 
+config DA9052_GPIO_ENABLE
+	bool "Dialog DA9052 GPIO"
+	depends on PMIC_DA9052
+	help
+	  Say Y  to enable the GPIO driver for the DA9052 chip
+
 endif

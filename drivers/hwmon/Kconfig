@@ -300,6 +300,16 @@ config SENSORS_ATXP1
 	  This driver can also be built as a module.  If so, the module
 	  will be called atxp1.
 
+config SENSORS_DA9052
+        tristate "Dialog DA9052 HWMon"
+        depends on PMIC_DA9052
+        help
+          Say y here to support the ADC found on
+          Dialog Semiconductor DA9052 PMIC.
+
+	  This driver can also be built as a module. If so, the module
+	  will be called da9052_hwmon.
+
 config SENSORS_DS1621
 	tristate "Dallas Semiconductor DS1621 and DS1625"
 	depends on I2C

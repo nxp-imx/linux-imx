@@ -31,6 +31,8 @@ obj-$(CONFIG_REGULATOR_TPS65023) += tps65023-regulator.o
 obj-$(CONFIG_REGULATOR_TPS6507X) += tps6507x-regulator.o
 obj-$(CONFIG_REGULATOR_88PM8607) += 88pm8607.o
 
+obj-$(CONFIG_REGULATOR_DA9052)  += da9052-regulator.o
+
 obj-$(CONFIG_REGULATOR_MAX17135) += max17135-regulator.o
 
 obj-$(CONFIG_REGULATOR_MC13892) += reg-mc13892.o

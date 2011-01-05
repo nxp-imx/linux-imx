@@ -229,9 +229,7 @@ static int da9052_backlight_probe1(struct platform_device *pdev)
 {
 	struct da9052_backlight_data *data;
 	struct backlight_device *bl;
-#if 0 /* Commented to be integrated with 2.6.34 kernel */
 	struct backlight_properties props;
-#endif
 	struct da9052 *da9052 = dev_get_drvdata(pdev->dev.parent);
 
 	data = kzalloc(sizeof(*data), GFP_KERNEL);
@@ -243,12 +241,12 @@ static int da9052_backlight_probe1(struct platform_device *pdev)
 
 	data->is_led1_present = DA9052_LED1_PRESENT;
 
-#if 0 /* Commented to be integrated with 2.6.34 kernel */
 	bl = backlight_device_register(pdev->name, data->da9052_dev,
 			data, &da9052_backlight_ops, &props);
-#endif
+#if 0 /* Commented to be integrated with 2.6.28 kernel */
 	bl = backlight_device_register(pdev->name, data->da9052_dev,
 			data, &da9052_backlight_ops);
+#endif
 	if (IS_ERR(bl)) {
 		dev_err(&pdev->dev, "failed to register backlight\n");
 		kfree(data);
@@ -257,6 +255,8 @@ static int da9052_backlight_probe1(struct platform_device *pdev)
 
 	bl->props.max_brightness = DA9052_MAX_BRIGHTNESS;
 	bl->props.brightness = 0;
+	bl->props.power = FB_BLANK_UNBLANK;
+	bl->props.fb_blank = FB_BLANK_UNBLANK;
 	platform_set_drvdata(pdev, bl);
 
 	backlight_update_status(bl);
@@ -274,9 +274,7 @@ static int da9052_backlight_probe2(struct platform_device *pdev)
 {
 	struct da9052_backlight_data *data;
 	struct backlight_device *bl;
-#if 0 /* Commented to be integrated with 2.6.34 kernel */
 	struct backlight_properties props;
-#endif
 	struct da9052 *da9052 = dev_get_drvdata(pdev->dev.parent);
 
 	data = kzalloc(sizeof(*data), GFP_KERNEL);
@@ -287,12 +285,8 @@ static int da9052_backlight_probe2(struct platform_device *pdev)
 	data->current_brightness = 0;
 
 	data->is_led2_present = DA9052_LED2_PRESENT;
-#if 0 /* Commented to be integrated with 2.6.34 kernel */
 	bl = backlight_device_register(pdev->name, data->da9052_dev,
 			data, &da9052_backlight_ops, &props);
-#endif
-	bl = backlight_device_register(pdev->name, data->da9052_dev,
-			data, &da9052_backlight_ops);
 	if (IS_ERR(bl)) {
 		dev_err(&pdev->dev, "failed to register backlight\n");
 		kfree(data);
@@ -301,6 +295,8 @@ static int da9052_backlight_probe2(struct platform_device *pdev)
 
 	bl->props.max_brightness = DA9052_MAX_BRIGHTNESS;
 	bl->props.brightness = 0;
+	bl->props.power = FB_BLANK_UNBLANK;
+	bl->props.fb_blank = FB_BLANK_UNBLANK;
 	platform_set_drvdata(pdev, bl);
 
 	backlight_update_status(bl);
@@ -318,9 +314,7 @@ static int da9052_backlight_probe3(struct platform_device *pdev)
 {
 	struct da9052_backlight_data *data;
 	struct backlight_device *bl;
-#if 0 /* Commented to be integrated with 2.6.34 kernel */
 	struct backlight_properties props;
-#endif
 
 	struct da9052 *da9052 = dev_get_drvdata(pdev->dev.parent);
 
@@ -332,12 +326,8 @@ static int da9052_backlight_probe3(struct platform_device *pdev)
 	data->current_brightness = 0;
 
 	data->is_led3_present = DA9052_LED3_PRESENT;
-#if 0 /* Commented to be integrated with 2.6.34 kernel */
 	bl = backlight_device_register(pdev->name, data->da9052_dev,
 			data, &da9052_backlight_ops, &props);
-#endif
-	bl = backlight_device_register(pdev->name, data->da9052_dev,
-			data, &da9052_backlight_ops);
 	if (IS_ERR(bl)) {
 		dev_err(&pdev->dev, "failed to register backlight\n");
 		kfree(data);
@@ -346,6 +336,8 @@ static int da9052_backlight_probe3(struct platform_device *pdev)
 
 	bl->props.max_brightness = DA9052_MAX_BRIGHTNESS;
 	bl->props.brightness = 0;
+	bl->props.power = FB_BLANK_UNBLANK;
+	bl->props.fb_blank = FB_BLANK_UNBLANK;
 	platform_set_drvdata(pdev, bl);
 
 	backlight_update_status(bl);

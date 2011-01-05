@@ -66,7 +66,7 @@ static ssize_t da9052_tsi_reg_proc_thread(void *ptr);
 static ssize_t da9052_tsi_resume(struct platform_device *dev);
 static ssize_t da9052_tsi_suspend(struct platform_device *dev,
 					pm_message_t state);
-//void tsi_reg_proc_work(struct work_struct *work);
+/* void tsi_reg_proc_work(struct work_struct *work); */
 
 struct da9052_tsi tsi_reg;
 struct da9052_tsi_info gda9052_tsi_info;
@@ -80,8 +80,8 @@ static ssize_t write_da9052_reg(struct da9052 *da9052, u8 reg_addr, u8 data)
 	ssc_msg.data =  data;
 	ret = da9052->write(da9052, &ssc_msg);
 	if (ret) {
-		DA9052_DEBUG("%s: ",__FUNCTION__);
-		DA9052_DEBUG("da9052_ssc_write Failed %d\n",ret );
+		DA9052_DEBUG("%s: ", __func__);
+		DA9052_DEBUG("da9052_ssc_write Failed %d\n", ret);
 	}
 
 	return ret;

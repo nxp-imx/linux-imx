@@ -63,6 +63,7 @@ static int __devinit da9052_i2c_probe(struct i2c_client *client,
 
 	/* Store handle to i2c client */
 	da9052_i2c->i2c_client = client;
+	da9052_i2c->irq = client->irq;
 
 	da9052_i2c->dev = &client->dev;
 
@@ -362,7 +363,7 @@ static int __init da9052_i2c_init(void)
         }
         return 0;
 }
-module_init(da9052_i2c_init);
+subsys_initcall(da9052_i2c_init);
 
 static void  __exit da9052_i2c_exit(void)
 {

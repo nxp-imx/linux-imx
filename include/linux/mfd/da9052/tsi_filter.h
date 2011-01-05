@@ -23,6 +23,7 @@
 #define __LINUX_MFD_DA9052_TSI_FILTER_H
 
 #include <linux/mfd/da9052/tsi_cfg.h>
+#include <linux/semaphore.h>
 
 struct da9052_tsi_data {
  	s16	x;

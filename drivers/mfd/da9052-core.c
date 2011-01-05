@@ -22,6 +22,7 @@
 #include <linux/mfd/core.h>
 #include <linux/spi/spi.h>
 #include <linux/i2c.h>
+#include <linux/semaphore.h>
 
 #include <linux/mfd/da9052/da9052.h>
 #include <linux/mfd/da9052/adc.h>
@@ -171,7 +172,7 @@ static irqreturn_t da9052_eh_isr(int irq, void *dev_id)
 	/* Schedule work to be done */
 	schedule_work(&da9052->eh_isr_work);
 	/* Disable IRQ */
-	disable_irq_nosync(DA9052_IRQ);
+	disable_irq_nosync(da9052->irq);
 	return IRQ_HANDLED;
 }
 
@@ -302,7 +303,7 @@ void eh_workqueue_isr(struct work_struct *work)
 
 	ret = da9052_ssc_read_many(da9052, eve_data, 4);
 	if (ret) {
-		enable_irq(DA9052_IRQ);
+		enable_irq(da9052->irq);
 		da9052_unlock(da9052);
 		return;
 	}
@@ -313,7 +314,7 @@ void eh_workqueue_isr(struct work_struct *work)
 
 	/* Check if we really got any event */
 	if (events_sts == 0) {
-		enable_irq(DA9052_IRQ);
+		enable_irq(da9052->irq);
 		da9052_unlock(da9052);
 		return;
 	}
@@ -328,7 +329,7 @@ void eh_workqueue_isr(struct work_struct *work)
 		if (eve_data[cnt].data) {
 			ret = da9052_ssc_write(da9052, &eve_data[cnt]);
 			if (ret) {
-				enable_irq(DA9052_IRQ);
+				enable_irq(da9052->irq);
 				da9052_unlock(da9052);
 				return;
 			}
@@ -342,13 +343,13 @@ void eh_workqueue_isr(struct work_struct *work)
 	 */
 	udelay(50);
 	/* Enable HOST interrupt */
-	enable_irq(DA9052_IRQ);
+	enable_irq(da9052->irq);
 }
 
-static void da9052_eh_restore_irq(void)
+static void da9052_eh_restore_irq(struct da9052 *da9052)
 {
 	/* Put your platform and board specific code here */
-	free_irq(DA9052_IRQ, NULL);
+	free_irq(da9052->irq, NULL);
 }
 
 static int da9052_add_subdevice_pdata(struct da9052 *da9052,
@@ -387,8 +388,7 @@ static int add_da9052_devices(struct da9052 *da9052)
 		if (ret != 0)
 			return ret;
 	} else
-		printk(KERN_CRIT "No platform initialisation supplied \n");
-
+		pr_err("No platform initialisation supplied\n");
 	ret = da9052_add_subdevice(da9052, "da9052-rtc");
 	if (ret)
 		return ret;
@@ -413,11 +413,6 @@ static int add_da9052_devices(struct da9052 *da9052)
 		return ret;
 
 	ret = da9052_add_subdevice(da9052, "da9052-wdt");
-	if (ret)
-		return ret;
-
-	ret = da9052_add_subdevice_pdata(da9052, "da9052-gpio",
-				pdata, sizeof(*pdata));
 	if (ret)
 		return ret;
 
@@ -493,9 +488,9 @@ int da9052_ssc_init(struct da9052 *da9052)
 
 	INIT_WORK(&da9052->eh_isr_work, eh_workqueue_isr);
 
-	if (request_irq(DA9052_IRQ, da9052_eh_isr, IRQ_TYPE_LEVEL_LOW,
+	if (request_irq(da9052->irq, da9052_eh_isr, IRQ_TYPE_LEVEL_LOW,
 		DA9052_EH_DEVICE_NAME, da9052))
-	return -EIO;
+		return -EIO;
 
 	return 0;
 }
@@ -505,8 +500,8 @@ void da9052_ssc_exit(struct da9052 *da9052)
 	printk(KERN_INFO "DA9052: Unregistering SSC device.\n");
 	mutex_destroy(&manconv_lock);
 	/* Restore IRQ line */
-	da9052_eh_restore_irq();
-	free_irq(DA9052_IRQ, NULL);
+	da9052_eh_restore_irq(da9052);
+	free_irq(da9052->irq, NULL);
 	mutex_destroy(&da9052->ssc_lock);
 	mutex_destroy(&da9052->eve_nb_lock);
 	return;

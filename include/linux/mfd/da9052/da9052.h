@@ -95,6 +95,7 @@ struct da9052_eh_nb{
 
 struct da9052_regulator_init_data {
 	struct regulator_init_data *init_data;
+	int id;
 };
 
 struct da9052_regulator_platform_data {
@@ -150,6 +151,7 @@ struct da9052 {
 		struct da9052_eh_nb *nb);
 	int num_regulators;
 	int connecting_device;
+	int irq;
 	struct		spi_device *spi_dev;
 	unsigned int	spi_active_page;
 	unsigned char	rw_pol;
