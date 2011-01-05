@@ -453,4 +453,14 @@ config KEYBOARD_MPR084
 	  This is the Keypad driver for the Freescale Proximity Capacitive
 	  Touch Sensor controller chip.
 
+config KEYBOARD_MPR121
+	tristate "Freescale MPR121 Touch Keypad Driver"
+	depends on I2C
+	help
+	  Say Y here if you have the  touchkey Freescale Proximity Capacitive
+	  Touch Sensor controller chip in your system.
+
+	  If unsure, say N.
+
+	  To compile this driver as a module, choose M here
 endif
