@@ -1,5 +1,5 @@
 /*
- * Copyright 2008-2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2008-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -830,6 +830,86 @@ static inline void tve_set_di_fmt(struct fb_info *fbi, unsigned int fmt)
 	}
 }
 
+/*!
+ * FB suspend/resume routing
+ */
+static int tve_suspend(void)
+{
+	if (enabled) {
+		__raw_writel(0, tve.base + tve_regs->tve_int_cont_reg);
+		__raw_writel(0, tve.base + tve_regs->tve_cd_cont_reg);
+		__raw_writel(0, tve.base + tve_regs->tve_com_conf_reg);
+		clk_disable(tve.clk);
+	}
+	return 0;
+}
+
+static int tve_resume(struct fb_info *fbi)
+{
+	if (enabled) {
+		clk_enable(tve.clk);
+
+		/* Setup cable detect */
+		if (tve.revision == 1)
+			__raw_writel(0x01067701,
+				tve.base + tve_regs->tve_cd_cont_reg);
+		else
+			__raw_writel(0x00770601,
+				tve.base + tve_regs->tve_cd_cont_reg);
+
+		if (tve.cur_mode == TVOUT_FMT_NTSC) {
+			tve_disable();
+			tve.cur_mode = TVOUT_FMT_OFF;
+			tve_setup(TVOUT_FMT_NTSC);
+		} else if (tve.cur_mode == TVOUT_FMT_PAL) {
+			tve_disable();
+			tve.cur_mode = TVOUT_FMT_OFF;
+			tve_setup(TVOUT_FMT_PAL);
+		} else if (tve.cur_mode == TVOUT_FMT_720P60) {
+			tve_disable();
+			tve.cur_mode = TVOUT_FMT_OFF;
+			tve_setup(TVOUT_FMT_720P60);
+		} else if (tve.cur_mode == TVOUT_FMT_720P30) {
+			tve_disable();
+			tve.cur_mode = TVOUT_FMT_OFF;
+			tve_setup(TVOUT_FMT_720P30);
+		} else if (tve.cur_mode == TVOUT_FMT_1080I60) {
+			tve_disable();
+			tve.cur_mode = TVOUT_FMT_OFF;
+			tve_setup(TVOUT_FMT_1080I60);
+		} else if (tve.cur_mode == TVOUT_FMT_1080I50) {
+			tve_disable();
+			tve.cur_mode = TVOUT_FMT_OFF;
+			tve_setup(TVOUT_FMT_1080I50);
+		} else if (tve.cur_mode == TVOUT_FMT_1080P30) {
+			tve_disable();
+			tve.cur_mode = TVOUT_FMT_OFF;
+			tve_setup(TVOUT_FMT_1080P30);
+		} else if (tve.cur_mode == TVOUT_FMT_1080P25) {
+			tve_disable();
+			tve.cur_mode = TVOUT_FMT_OFF;
+			tve_setup(TVOUT_FMT_1080P25);
+		} else if (tve.cur_mode == TVOUT_FMT_1080P24) {
+			tve_disable();
+			tve.cur_mode = TVOUT_FMT_OFF;
+			tve_setup(TVOUT_FMT_1080P24);
+		} else if (tve.cur_mode == TVOUT_FMT_VGA_XGA) {
+			tve_disable();
+			tve.cur_mode = TVOUT_FMT_OFF;
+			tve_setup(TVOUT_FMT_VGA_XGA);
+			ipu_set_vga_delay(fbi, 1421, 803);
+		} else if (tve.cur_mode == TVOUT_FMT_VGA_SXGA) {
+			tve_disable();
+			tve.cur_mode = TVOUT_FMT_OFF;
+			tve_setup(TVOUT_FMT_VGA_SXGA);
+			ipu_set_vga_delay(fbi, 1504, 1030);
+		}
+		tve_enable();
+	}
+
+	return 0;
+}
+
 int tve_fb_event(struct notifier_block *nb, unsigned long val, void *v)
 {
 	struct fb_event *event = v;
@@ -1049,6 +1129,12 @@ int tve_fb_event(struct notifier_block *nb, unsigned long val, void *v)
 			tve_disable();
 			tve.blank = FB_BLANK_POWERDOWN;
 		}
+		break;
+	case FB_EVENT_SUSPEND:
+		tve_suspend();
+		break;
+	case FB_EVENT_RESUME:
+		tve_resume(fbi);
 		break;
 	}
 	return 0;
@@ -1291,92 +1377,12 @@ static int tve_remove(struct platform_device *pdev)
 	return 0;
 }
 
-/*!
- * PM suspend/resume routing
- */
-static int tve_suspend(struct platform_device *pdev, pm_message_t state)
-{
-	if (enabled) {
-		__raw_writel(0, tve.base + tve_regs->tve_int_cont_reg);
-		__raw_writel(0, tve.base + tve_regs->tve_cd_cont_reg);
-		__raw_writel(0, tve.base + tve_regs->tve_com_conf_reg);
-		clk_disable(tve.clk);
-	}
-	return 0;
-}
-
-static int tve_resume(struct platform_device *pdev)
-{
-	if (enabled) {
-		clk_enable(tve.clk);
-
-		/* Setup cable detect */
-		if (tve.revision == 1)
-			__raw_writel(0x01067701,
-				tve.base + tve_regs->tve_cd_cont_reg);
-		else
-			__raw_writel(0x00770601,
-				tve.base + tve_regs->tve_cd_cont_reg);
-
-		if (tve.cur_mode == TVOUT_FMT_NTSC) {
-			tve_disable();
-			tve.cur_mode = TVOUT_FMT_OFF;
-			tve_setup(TVOUT_FMT_NTSC);
-		} else if (tve.cur_mode == TVOUT_FMT_PAL) {
-			tve_disable();
-			tve.cur_mode = TVOUT_FMT_OFF;
-			tve_setup(TVOUT_FMT_PAL);
-		} else if (tve.cur_mode == TVOUT_FMT_720P60) {
-			tve_disable();
-			tve.cur_mode = TVOUT_FMT_OFF;
-			tve_setup(TVOUT_FMT_720P60);
-		} else if (tve.cur_mode == TVOUT_FMT_720P30) {
-			tve_disable();
-			tve.cur_mode = TVOUT_FMT_OFF;
-			tve_setup(TVOUT_FMT_720P30);
-		} else if (tve.cur_mode == TVOUT_FMT_1080I60) {
-			tve_disable();
-			tve.cur_mode = TVOUT_FMT_OFF;
-			tve_setup(TVOUT_FMT_1080I60);
-		} else if (tve.cur_mode == TVOUT_FMT_1080I50) {
-			tve_disable();
-			tve.cur_mode = TVOUT_FMT_OFF;
-			tve_setup(TVOUT_FMT_1080I50);
-		} else if (tve.cur_mode == TVOUT_FMT_1080P30) {
-			tve_disable();
-			tve.cur_mode = TVOUT_FMT_OFF;
-			tve_setup(TVOUT_FMT_1080P30);
-		} else if (tve.cur_mode == TVOUT_FMT_1080P25) {
-			tve_disable();
-			tve.cur_mode = TVOUT_FMT_OFF;
-			tve_setup(TVOUT_FMT_1080P25);
-		} else if (tve.cur_mode == TVOUT_FMT_1080P24) {
-			tve_disable();
-			tve.cur_mode = TVOUT_FMT_OFF;
-			tve_setup(TVOUT_FMT_1080P24);
-		} else if (tve.cur_mode == TVOUT_FMT_VGA_XGA) {
-			tve_disable();
-			tve.cur_mode = TVOUT_FMT_OFF;
-			tve_setup(TVOUT_FMT_VGA_XGA);
-		} else if (tve.cur_mode == TVOUT_FMT_VGA_SXGA) {
-			tve_disable();
-			tve.cur_mode = TVOUT_FMT_OFF;
-			tve_setup(TVOUT_FMT_VGA_SXGA);
-		}
-		tve_enable();
-	}
-
-	return 0;
-}
-
 static struct platform_driver tve_driver = {
 	.driver = {
 		   .name = "tve",
 		   },
 	.probe = tve_probe,
 	.remove = tve_remove,
-	.suspend = tve_suspend,
-	.resume = tve_resume,
 };
 
 static int __init enable_tve_setup(char *options)
