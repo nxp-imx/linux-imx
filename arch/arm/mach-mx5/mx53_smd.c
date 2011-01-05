@@ -32,6 +32,7 @@
 #include <linux/fsl_devices.h>
 #include <linux/spi/spi.h>
 #include <linux/i2c.h>
+#include <linux/i2c/mpr.h>
 #include <linux/ata.h>
 #include <linux/mtd/mtd.h>
 #include <linux/mtd/map.h>
@@ -761,12 +762,27 @@ static struct i2c_board_info mxc_i2c0_board_info[] __initdata = {
 	 },
 };
 
+static u16 smd_touchkey_martix[4] = {
+	KEY_SEARCH, KEY_BACK, KEY_HOME, KEY_MENU
+};
+
+static struct mpr121_platform_data mpr121_keyboard_platdata = {
+	.keycount = ARRAY_SIZE(smd_touchkey_martix),
+	.vdd_uv = 3300000,
+	.matrix = smd_touchkey_martix,
+};
+
 static struct i2c_board_info mxc_i2c1_board_info[] __initdata = {
 	{
 	 .type = "sgtl5000-i2c",
 	 .addr = 0x0a,
 	 },
-
+	{
+	.type = "mpr121_touchkey",
+	.addr = 0x5a,
+	.irq = IOMUX_TO_IRQ_V3(MX53_SMD_KEY_INT),
+	.platform_data = &mpr121_keyboard_platdata,
+	},
 };
 
 #if defined(CONFIG_KEYBOARD_GPIO) || defined(CONFIG_KEYBOARD_GPIO_MODULE)
@@ -1054,6 +1070,11 @@ static void __init mx53_smd_io_init(void)
 	/* Sii9022 HDMI controller */
 	gpio_request(MX53_SMD_HDMI_RESET_B, "disp0-pwr-en");
 	gpio_direction_output(MX53_SMD_HDMI_RESET_B, 0);
+
+	/* MPR121 capacitive button */
+	gpio_request(MX53_SMD_KEY_INT, "cap-button-irq");
+	gpio_direction_input(MX53_SMD_KEY_INT);
+	gpio_free(MX53_SMD_KEY_INT);
 }
 
 /*!
