@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2004-2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2004-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -357,10 +357,10 @@ static unsigned short sdma_get_pc(sdma_periphT peripheral_type,
 	} else if (peripheral_type == ASRC) {
 		switch (transfer_type) {
 		case per_2_emi:
-			res = sdma_script_addrs.mxc_sdma_asrc_2_mcu_addr;
+			res = sdma_script_addrs.mxc_sdma_shp_2_mcu_addr;
 			break;
 		case emi_2_per:
-			res = sdma_script_addrs.mxc_sdma_asrc_2_mcu_addr;
+			res = sdma_script_addrs.mxc_sdma_mcu_2_shp_addr;
 			break;
 		case per_2_per:
 			res = sdma_script_addrs.mxc_sdma_per_2_per_addr;
@@ -583,15 +583,8 @@ static int sdma_load_context(int channel, dma_channel_params *p)
 			if (p->ext)
 				context.wml = ep->info_bits;
 			/* Watermark Level */
-			if (p->peripheral_type == ASRC) {
-				context.wml |= sdma_asrc_set_info(p,
-								  &context,
-								  event2_greater_than_32
-								  |
-								  event1_greater_than_32);
-			} else
-				context.wml |= event2_greater_than_32 |
-				    event1_greater_than_32 | p->watermark_level;
+			context.wml |= event2_greater_than_32 |
+				event1_greater_than_32 | p->watermark_level;
 
 			/* Address */
 			context.shp_addr = (unsigned long)(p->per_address);

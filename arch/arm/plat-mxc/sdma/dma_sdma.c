@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2004-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -345,10 +345,7 @@ int mxc_dma_config(int channel_num, mxc_dma_requestbuf_t *dma_buf,
 		}
 		request_t.destAddr = (__u8 *) dma_buf->dst_addr;
 		request_t.sourceAddr = (__u8 *) dma_buf->src_addr;
-		if (chnl_param.peripheral_type == ASRC)
-			request_t.count = dma_buf->num_of_bytes / 4;
-		else
-			request_t.count = dma_buf->num_of_bytes;
+		request_t.count = dma_buf->num_of_bytes;
 		request_t.bd_cont = 1;
 		ret = mxc_dma_set_config(channel_num, &request_t,
 					 chnl_info->curr_buf);
