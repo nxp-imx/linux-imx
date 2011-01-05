@@ -205,6 +205,8 @@ void __iomem *epdc_base;
 struct mxc_epdc_fb_data *g_fb_data;
 
 /* forward declaration */
+static int mxc_epdc_fb_get_temp_index(struct mxc_epdc_fb_data *fb_data,
+						int temp);
 static void mxc_epdc_fb_flush_updates(struct mxc_epdc_fb_data *fb_data);
 static int mxc_epdc_fb_blank(int blank, struct fb_info *info);
 static int mxc_epdc_fb_init_hw(struct fb_info *info);
@@ -635,8 +637,8 @@ void epdc_init_settings(struct mxc_epdc_fb_data *fb_data)
 	       EPDC_FIFOCTRL_FIFO_L_LEVEL_MASK);
 	__raw_writel(reg_val, EPDC_FIFOCTRL);
 
-	/* EPDC_TEMP - Use default temp index */
-	epdc_set_temp(fb_data->temp_index);
+	/* EPDC_TEMP - Use default temp to get index */
+	epdc_set_temp(mxc_epdc_fb_get_temp_index(fb_data, DEFAULT_TEMP));
 
 	/* EPDC_RES */
 	epdc_set_screen_res(epdc_mode->vmode->xres, epdc_mode->vmode->yres);
