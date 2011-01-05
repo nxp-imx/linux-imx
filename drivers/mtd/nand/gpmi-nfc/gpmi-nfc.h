@@ -203,30 +203,6 @@ struct mil {
 };
 
 /**
- * struct physical_geometry - Physical geometry description.
- *
- * This structure describes the physical geometry of the medium.
- *
- * @chip_count:                    The number of chips in the medium.
- * @chip_size_in_bytes:            The size, in bytes, of a single chip
- *                                 (excluding the out-of-band bytes).
- * @block_size_in_bytes:           The size, in bytes, of a single block
- *                                 (excluding the out-of-band bytes).
- * @page_data_size_in_bytes:       The size, in bytes, of the data area in a
- *                                 page (excluding the out-of-band bytes).
- * @page_oob_size_in_bytes:        The size, in bytes, of the out-of-band area
- *                                 in a page.
- */
-
-struct physical_geometry {
-	unsigned int  chip_count;
-	uint64_t      chip_size_in_bytes;
-	unsigned int  block_size_in_bytes;
-	unsigned int  page_data_size_in_bytes;
-	unsigned int  page_oob_size_in_bytes;
-};
-
-/**
  * struct nfc_geometry - NFC geometry description.
  *
  * This structure describes the NFC's view of the medium geometry.
@@ -301,7 +277,6 @@ struct boot_rom_geometry {
  * @resources:           Information about system resources used by this driver.
  * @device_info:         A structure that contains detailed information about
  *                       the NAND Flash device.
- * @physical_geometry:   A description of the medium's physical geometry.
  * @nfc:                 A pointer to a structure that represents the underlying
  *                       NFC hardware.
  * @nfc_geometry:        A description of the medium geometry as viewed by the
@@ -326,7 +301,6 @@ struct gpmi_nfc_data {
 
 	/* Flash Hardware */
 	struct nand_device_info        device_info;
-	struct physical_geometry       physical_geometry;
 
 	/* NFC HAL */
 	struct nfc_hal                 *nfc;
