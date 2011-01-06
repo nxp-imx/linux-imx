@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2005 MontaVista Software
- * Copyright (C) 2010 Freescale Semiconductor
+ * Copyright (C) 2011 Freescale Semiconductor
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -121,19 +121,32 @@ static irqreturn_t ehci_fsl_pre_irq(int irq, void *dev)
 	struct platform_device *pdev = (struct platform_device *)dev;
 	struct usb_hcd *hcd = platform_get_drvdata(pdev);
 	struct fsl_usb2_platform_data *pdata;
+	struct ehci_hcd *ehci = hcd_to_ehci(hcd);
+	u32 cmd = 0;
 
 	pdata = hcd->self.controller->platform_data;
 
 	if (!test_bit(HCD_FLAG_HW_ACCESSIBLE, &hcd->flags)) {
-		if (pdata->irq_delay)
+		if (pdata->irq_delay || !pdata->wakeup_event)
 			return IRQ_NONE;
-		if (pdata->wakeup_event) {
-			pr_debug("%s\n", __func__);
-			usb_host_set_wakeup(hcd->self.controller, false);
-			fsl_usb_lowpower_mode(pdata, false);
-			set_bit(HCD_FLAG_HW_ACCESSIBLE, &hcd->flags);
-			pdata->wakeup_event = 0;
+
+		pr_debug("%s\n", __func__);
+		usb_host_set_wakeup(hcd->self.controller, false);
+		fsl_usb_lowpower_mode(pdata, false);
+		set_bit(HCD_FLAG_HW_ACCESSIBLE, &hcd->flags);
+		pdata->wakeup_event = 0;
+
+		/* After receive remote wakeup signaling. Must restore
+		 * CMDRUN bit in 20ms to keep port status.
+		 */
+		cmd = ehci_readl(ehci, &ehci->regs->command);
+		if (!(cmd & CMD_RUN)) {
+			ehci_writel(ehci, ehci->command, &ehci->regs->command);
+			/* Resume root hub here? */
+			usb_hcd_resume_root_hub(hcd);
 		}
+
+		return IRQ_HANDLED;
 	}
 	return IRQ_NONE;
 }
@@ -379,16 +392,18 @@ static int ehci_fsl_bus_suspend(struct usb_hcd *hcd)
 {
 	int ret = 0;
 	struct fsl_usb2_platform_data *pdata;
+
 	pdata = hcd->self.controller->platform_data;
 	printk(KERN_DEBUG "%s, %s\n", __func__, pdata->name);
-
 
 	/* the host is already at low power mode */
 	if (!test_bit(HCD_FLAG_HW_ACCESSIBLE, &hcd->flags)) {
 		return 0;
 	}
 
-	ehci_bus_suspend(hcd);
+	ret = ehci_bus_suspend(hcd);
+	if (ret != 0)
+		return ret;
 
 	if (pdata->platform_suspend)
 		pdata->platform_suspend(pdata);
@@ -432,6 +447,7 @@ static int ehci_fsl_bus_resume(struct usb_hcd *hcd)
 
 	if (pdata->platform_resume)
 		pdata->platform_resume(pdata);
+
 	ret = ehci_bus_resume(hcd);
 	if (ret)
 		return ret;
