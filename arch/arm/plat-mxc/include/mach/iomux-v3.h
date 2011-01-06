@@ -108,6 +108,8 @@ typedef u64 iomux_v3_cfg_t;
 #define PAD_CTL_SRE_FAST		(1 << 0)
 #define PAD_CTL_SRE_SLOW		(0 << 0)
 
+#define IOMUX_CONFIG_SION		(0x1 << 4)
+
 /*
  * read/write a single pad in the iomuxer
  */
