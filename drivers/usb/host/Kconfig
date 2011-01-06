@@ -62,7 +62,6 @@ config USB_EHCI_HCD
 config USB_EHCI_ARC
 	bool "Support for Freescale controller"
 	depends on USB_EHCI_HCD && (ARCH_MXC || ARCH_STMP3XXX || ARCH_MXS)
-	select USB_OTG_UTILS
 	---help---
 	   Some Freescale processors have an integrated High Speed
 	   USBOTG controller, which supports EHCI host mode.

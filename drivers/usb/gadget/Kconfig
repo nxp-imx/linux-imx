@@ -477,7 +477,6 @@ config USB_GADGET_ARC
 	boolean "Freescale USB Device Controller"
 	depends on ARCH_MXC || ARCH_STMP3XXX || ARCH_MXS
 	select USB_GADGET_DUALSPEED
-	select USB_OTG_UTILS
 	select USB_GADGET_DUALSPEED if USB_GADGET_FSL_1504 || USB_GADGET_FSL_UTMI
 	help
 	   Some Freescale processors have a USBOTG controller,
@@ -578,7 +577,7 @@ config USB_GADGET_DUALSPEED
 config USB_OTG
 	boolean "OTG Support"
 	depends on (USB_GADGET_OMAP && ARCH_OMAP_OTG && USB_OHCI_HCD) || \
-		   (USB_GADGET_ARC && (ARCH_MXC || ARCH_STMP3XXX || ARCH_MXS) && USB_EHCI_HCD)
+		   (USB_GADGET_ARC && (ARCH_MXC || ARCH_STMP3XXX || ARCH_MXS) && USB_EHCI_HCD && MXC_OTG)
 	help
 	   The most notable feature of USB OTG is support for a
 	   "Dual-Role" device, which can act as either a device

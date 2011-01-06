@@ -72,6 +72,7 @@ config NOP_USB_XCEIV
 config MXC_OTG
 	tristate "USB OTG pin detect support"
 	select USB_OTG
+	select USB_OTG_UTILS
 	depends on USB_GADGET_ARC && USB_EHCI_HCD
 	help
 	  Support for USB OTG PIN detect on MXC platforms.
