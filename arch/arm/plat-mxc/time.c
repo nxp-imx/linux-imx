@@ -127,14 +127,11 @@ static struct clocksource clocksource_mxc = {
 
 unsigned long long sched_clock(void)
 {
-	unsigned long long ret;
-
 	if (!timer_base)
 		return 0;
 
-	ret = (unsigned long long)clocksource_mxc.read(&clocksource_mxc);
-	ret = (ret * clocksource_mxc.mult) >> clocksource_mxc.shift;
-	return ret;
+	return clocksource_cyc2ns(clocksource_mxc.read(&clocksource_mxc),
+			clocksource_mxc.mult, clocksource_mxc.shift);
 }
 
 static int __init mxc_clocksource_init(struct clk *timer_clk)

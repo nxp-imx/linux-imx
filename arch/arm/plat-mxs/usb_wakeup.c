@@ -1,5 +1,5 @@
 /*
- * Copyright 2009-2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2009-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -124,7 +124,7 @@ static int wakeup_event_thread(void *param)
 
 	sched_setscheduler(current, SCHED_RR, &sch_param);
 	while (1) {
-		wait_for_completion(&ctrl->event);
+		wait_for_completion_interruptible(&ctrl->event);
 		if (kthread_should_stop())
 			break;
 		wakeup_event_handler(ctrl);

@@ -1,5 +1,5 @@
 /*
- * Copyright 2009-2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2009-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -75,6 +75,7 @@ static irqreturn_t usb_wakeup_handler(int irq, void *_dev)
 {
 	struct wakeup_ctrl *ctrl = (struct wakeup_ctrl *)_dev;
 	irqreturn_t ret = IRQ_NONE;
+
 	if (usb2_is_in_lowpower(ctrl)) {
 		printk(KERN_INFO "usb wakeup is here\n");
 		delay_process_wakeup(ctrl);
@@ -131,7 +132,7 @@ static int wakeup_event_thread(void *param)
 
 	sched_setscheduler(current, SCHED_RR, &sch_param);
 	while (1) {
-		wait_for_completion(&ctrl->event);
+		wait_for_completion_interruptible(&ctrl->event);
 		if (kthread_should_stop())
 			break;
 		wakeup_event_handler(ctrl);
