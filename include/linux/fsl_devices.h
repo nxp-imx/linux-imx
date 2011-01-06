@@ -480,10 +480,6 @@ struct flexcan_platform_data {
 	unsigned int std_msg:1;
 };
 
-struct mxc_srtc_platform_data {
-	u32 srtc_sec_mode_addr;
-};
-
 struct tve_platform_data {
 	char *dac_reg;
 	char *dig_reg;

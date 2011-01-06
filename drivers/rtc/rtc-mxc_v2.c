@@ -554,9 +554,7 @@ static int mxc_rtc_probe(struct platform_device *pdev)
 	struct resource *res;
 	struct rtc_device *rtc;
 	struct rtc_drv_data *pdata = NULL;
-	struct mxc_srtc_platform_data *plat_data = NULL;
 	void __iomem *ioaddr;
-	void __iomem *srtc_secmode_addr;
 	int ret = 0;
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
@@ -602,8 +600,6 @@ static int mxc_rtc_probe(struct platform_device *pdev)
 	/* clear lp interrupt status */
 	__raw_writel(0xFFFFFFFF, ioaddr + SRTC_LPSR);
 	udelay(100);
-
-	plat_data = (struct mxc_srtc_platform_data *)pdev->dev.platform_data;
 
 	/* move out of init state */
 	__raw_writel((SRTC_LPCR_IE | SRTC_LPCR_NSA),
