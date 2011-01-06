@@ -267,10 +267,6 @@ static struct mxc_i2c_platform_data mxci2c_hs_data = {
 	.i2c_clk = 400000,
 };
 
-static struct mxc_srtc_platform_data srtc_data = {
-	.srtc_sec_mode_addr = 0x83F98840,
-};
-
 static struct tve_platform_data tve_data = {
 	.dac_reg = "VVIDEO",
 	.dig_reg = "VDIG",
@@ -972,7 +968,7 @@ static void __init mxc_board_init(void)
 	mxc_register_device(&mxci2c_devices[0], &mxci2c_data);
 	mxc_register_device(&mxci2c_devices[1], &mxci2c_data);
 	mxc_register_device(&mxci2c_hs_device, &mxci2c_hs_data);
-	mxc_register_device(&mxc_rtc_device, &srtc_data);
+	mxc_register_device(&mxc_rtc_device, NULL);
 	mxc_register_device(&mxc_w1_master_device, &mxc_w1_data);
 	mxc_register_device(&mxc_ipu_device, &mxc_ipu_data);
 	mxc_register_device(&mxc_tve_device, &tve_data);

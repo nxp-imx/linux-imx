@@ -614,10 +614,6 @@ static struct mxc_spi_master mxcspi1_data = {
 	.chipselect_inactive = NULL,
 };
 
-static struct mxc_srtc_platform_data srtc_data = {
-	.srtc_sec_mode_addr = 0x83F98840,
-};
-
 static struct mxc_dvfs_platform_data dvfs_core_data = {
 	.reg_id = "DA9052_BUCK_CORE",
 	.clk1_id = "cpu_clk",
@@ -1113,7 +1109,7 @@ static void __init mxc_board_init(void)
 	mxc_register_device(&mxci2c_devices[2], &mxci2c_data);
 	mx53_smd_init_da9052();
 
-	mxc_register_device(&mxc_rtc_device, &srtc_data);
+	mxc_register_device(&mxc_rtc_device, NULL);
 	mxc_register_device(&mxc_ipu_device, &mxc_ipu_data);
 	mxc_register_device(&mxc_ldb_device, &ldb_data);
 	mxc_register_device(&mxc_tve_device, &tve_data);

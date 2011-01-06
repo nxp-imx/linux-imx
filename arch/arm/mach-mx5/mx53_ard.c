@@ -596,10 +596,6 @@ static struct imxi2c_platform_data mxci2c2_data = {
 	.bitrate = 400000,
 };
 
-static struct mxc_srtc_platform_data srtc_data = {
-	.srtc_sec_mode_addr = 0x83F98840,
-};
-
 static struct mxc_dvfs_platform_data dvfs_core_data = {
 	.reg_id = "SW1",
 	.clk1_id = "cpu_clk",
@@ -1309,7 +1305,7 @@ static void __init mxc_board_init(void)
 	mxc_register_device(&mxci2c_devices[1], &mxci2c1_data);
 	mxc_register_device(&mxci2c_devices[2], &mxci2c2_data);
 
-	mxc_register_device(&mxc_rtc_device, &srtc_data);
+	mxc_register_device(&mxc_rtc_device, NULL);
 	mxc_register_device(&mxc_ipu_device, &mxc_ipu_data);
 	mxc_register_device(&mxc_ldb_device, &ldb_data);
 	mxc_register_device(&mxcvpu_device, &mxc_vpu_data);

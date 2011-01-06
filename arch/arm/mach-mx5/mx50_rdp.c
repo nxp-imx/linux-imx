@@ -533,10 +533,6 @@ static struct mxc_spi_master mxcspi3_data = {
 	.chipselect_inactive = mx50_rdp_gpio_spi_chipselect_inactive,
 };
 
-static struct mxc_srtc_platform_data srtc_data = {
-	.srtc_sec_mode_addr = OCOTP_CTRL_BASE_ADDR + 0x80,
-};
-
 #define mV_to_uV(mV) (mV * 1000)
 #define uV_to_mV(uV) (uV / 1000)
 #define V_to_uV(V) (mV_to_uV(V * 1000))
@@ -1396,7 +1392,7 @@ static void __init mxc_board_init(void)
 	mxc_register_device(&mxci2c_devices[1], &mxci2c_data);
 	mxc_register_device(&mxci2c_devices[2], &mxci2c_data);
 
-	mxc_register_device(&mxc_rtc_device, &srtc_data);
+	mxc_register_device(&mxc_rtc_device, NULL);
 	mxc_register_device(&mxc_w1_master_device, &mxc_w1_data);
 	mxc_register_device(&gpu_device, &z160_revision);
 	mxc_register_device(&mxc_pxp_device, NULL);
