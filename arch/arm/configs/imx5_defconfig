@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # Linux kernel version: 2.6.35.3
-# Wed Jan  5 19:25:13 2011
+# Thu Jan  6 18:20:36 2011
 #
 CONFIG_ARM=y
 CONFIG_HAVE_PWM=y
@@ -2001,7 +2001,7 @@ CONFIG_RTC_INTF_DEV_UIE_EMUL=y
 #
 # on-CPU RTC drivers
 #
-# CONFIG_RTC_DRV_MXC_V2 is not set
+CONFIG_RTC_DRV_MXC_V2=y
 # CONFIG_RTC_DRV_IMXDI is not set
 CONFIG_RTC_MC13892=y
 CONFIG_DMADEVICES=y
