@@ -264,7 +264,7 @@ int usb_hcd_fsl_probe(const struct hc_driver *driver,
 		if (!ehci->transceiver) {
 			printk(KERN_ERR "can't find transceiver\n");
 			retval = -ENODEV;
-			goto err5;
+			goto err6;
 		}
 
 		retval = otg_set_host(ehci->transceiver, &ehci_to_hcd(ehci)->self);
@@ -282,6 +282,8 @@ int usb_hcd_fsl_probe(const struct hc_driver *driver,
 	fsl_platform_set_ahb_burst(hcd);
 	ehci_testmode_init(hcd_to_ehci(hcd));
 	return retval;
+err6:
+	usb_remove_hcd(hcd);
 err5:
 	free_irq(irq, (void *)pdev);
 err4:
