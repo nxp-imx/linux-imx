@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2004-2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2004-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -248,7 +248,6 @@ static irqreturn_t mxc_rtc_interrupt(int irq, void *dev_id)
 	u32 lp_status, lp_cr;
 	u32 events = 0;
 
-	clk_enable(pdata->clk);
 	lp_status = __raw_readl(ioaddr + SRTC_LPSR);
 	lp_cr = __raw_readl(ioaddr + SRTC_LPCR);
 
@@ -272,7 +271,6 @@ static irqreturn_t mxc_rtc_interrupt(int irq, void *dev_id)
 
 	/* clear interrupt status */
 	__raw_writel(lp_status, ioaddr + SRTC_LPSR);
-	clk_disable(pdata->clk);
 
 	rtc_update_irq(pdata->rtc, 1, events);
 	return IRQ_HANDLED;
@@ -285,9 +283,6 @@ static irqreturn_t mxc_rtc_interrupt(int irq, void *dev_id)
  */
 static int mxc_rtc_open(struct device *dev)
 {
-	struct rtc_drv_data *pdata = dev_get_drvdata(dev);
-	clk_enable(pdata->clk);
-
 	if (test_and_set_bit(1, &rtc_status))
 		return -EBUSY;
 	return 0;
@@ -298,10 +293,6 @@ static int mxc_rtc_open(struct device *dev)
  */
 static void mxc_rtc_release(struct device *dev)
 {
-	struct rtc_drv_data *pdata = dev_get_drvdata(dev);
-
-	clk_disable(pdata->clk);
-
 	rtc_status = 0;
 }
 
@@ -534,11 +525,9 @@ static int mxc_rtc_proc(struct device *dev, struct seq_file *seq)
 	struct rtc_drv_data *pdata = dev_get_drvdata(dev);
 	void __iomem *ioaddr = pdata->ioaddr;
 
-	clk_enable(pdata->clk);
 	seq_printf(seq, "alarm_IRQ\t: %s\n",
 		   (((__raw_readl(ioaddr + SRTC_LPCR)) & SRTC_LPCR_ALP) !=
 		    0) ? "yes" : "no");
-	clk_disable(pdata->clk);
 
 	return 0;
 }
@@ -653,8 +642,6 @@ static int mxc_rtc_probe(struct platform_device *pdev)
 	/* By default, devices should wakeup if they can */
 	/* So srtc is set as "should wakeup" as it can */
 	device_init_wakeup(&pdev->dev, 1);
-
-	clk_disable(pdata->clk);
 
 	return ret;
 
