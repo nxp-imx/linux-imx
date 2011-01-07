@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2009-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -146,6 +146,9 @@ static void __init mx28evk_init_machine(void)
 	mx28evk_pins_init();
 	mx28_device_init();
 	mx28evk_device_init();
+
+	/* init the system revesion */
+	system_rev = 0x28011;
 }
 
 MACHINE_START(MX28EVK, "Freescale MX28EVK board")
