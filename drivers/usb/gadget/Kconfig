@@ -477,7 +477,7 @@ config USB_GADGET_ARC
 	boolean "Freescale USB Device Controller"
 	depends on ARCH_MXC || ARCH_STMP3XXX || ARCH_MXS
 	select USB_GADGET_DUALSPEED
-	select USB_GADGET_DUALSPEED if USB_GADGET_FSL_1504 || USB_GADGET_FSL_UTMI
+	select USB_OTG_UTILS
 	help
 	   Some Freescale processors have a USBOTG controller,
 	   which supports device mode.
