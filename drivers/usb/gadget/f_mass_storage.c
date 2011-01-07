@@ -613,6 +613,11 @@ static int fsg_setup(struct usb_function *f,
 			break;
 		if (w_index != fsg->interface_number || w_value != 0)
 			return -EDOM;
+		/* Init respond data/status */
+		req->length = 0;
+		fsg->common->ep0req->context = NULL;
+		fsg->common->ep0req_name =
+			ctrl->bRequestType & USB_DIR_IN ? "ep0-in" : "ep0-out";
 
 		/* Raise an exception to stop the current operation
 		 * and reinitialize our state. */

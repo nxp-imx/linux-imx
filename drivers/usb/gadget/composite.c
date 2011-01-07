@@ -39,6 +39,9 @@
 
 /* big enough to hold our biggest descriptor */
 #define USB_BUFSIZ	1024
+/* Keep consistent with storage_common.c */
+#define EP0_BUFSIZE	256
+#define DELAYED_STATUS	(EP0_BUFSIZE + 999)	/* An impossibly large value */
 
 static struct usb_composite_driver *composite;
 
@@ -995,7 +998,7 @@ unknown:
 	}
 
 	/* respond with data transfer before status phase? */
-	if (value >= 0) {
+	if (value >= 0 && value != DELAYED_STATUS) {
 		req->length = value;
 		req->zero = value < w_length;
 		value = usb_ep_queue(gadget->ep0, req, GFP_ATOMIC);
