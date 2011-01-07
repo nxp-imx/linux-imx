@@ -48,6 +48,7 @@ static int prpvf_start(void *private)
 	u32 vf_out_format = 0;
 	u32 size = 2, temp = 0;
 	int err = 0, i = 0;
+	short *tmp, color;
 
 	if (!cam) {
 		printk(KERN_ERR "private is NULL\n");
@@ -81,9 +82,11 @@ static int prpvf_start(void *private)
 		/* Use DP to do CSC so that we can get better performance */
 		vf_out_format = IPU_PIX_FMT_UYVY;
 		fbvar.nonstd = vf_out_format;
+		color = 0x80;
 	} else {
 		vf_out_format = IPU_PIX_FMT_RGB565;
 		fbvar.nonstd = 0;
+		color = 0x0;
 	}
 
 	fbvar.bits_per_pixel = 16;
@@ -96,6 +99,12 @@ static int prpvf_start(void *private)
 
 	ipu_disp_set_window_pos(MEM_FG_SYNC, cam->win.w.left,
 			cam->win.w.top);
+
+	/* Fill black color for framebuffer */
+	tmp = (short *) fbi->screen_base;
+	for (i = 0; i < (fbi->fix.line_length * fbi->var.yres)/2;
+			i++, tmp++)
+		*tmp = color;
 
 	acquire_console_sem();
 	fb_blank(fbi, FB_BLANK_UNBLANK);
