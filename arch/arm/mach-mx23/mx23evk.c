@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2009-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -137,6 +137,9 @@ static void __init mx23evk_init_machine(void)
 	mx23evk_mma7450_pin_init();
 	mx23_device_init();
 	mx23evk_device_init();
+
+	/* init the system revesion */
+	system_rev = 0x23004;
 }
 
 MACHINE_START(MX23EVK, "Freescale MX23EVK board")
