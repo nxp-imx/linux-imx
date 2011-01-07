@@ -85,6 +85,7 @@
 #define SD3_CD				(2*32 + 11)	/* GPIO_3_11 */
 #define SD3_WP				(2*32 + 12)	/* GPIO_3_12 */
 #define DISP0_POWER_EN		(2*32 + 24)	/* GPIO_3_24 */
+#define DISP0_DET_INT		(2*32 + 31)	/* GPIO_3_31 */
 
 #define DISP0_RESET			(4*32 + 0)	/* GPIO_5_0 */
 
@@ -161,6 +162,8 @@ static struct pad_desc mx53_loco_pads[] = {
 	MX53_PAD_EIM_D23__DI0_D0_CS,
 	/* DISP0_POWER_EN */
 	MX53_PAD_EIM_D24__GPIO_3_24,
+	/* DISP0 DET INT */
+	MX53_PAD_EIM_D31__GPIO_3_31,
 
 	/* LVDS */
 	MX53_PAD_LVDS0_TX3_P__LVDS0_TX3,
@@ -591,6 +594,7 @@ static struct i2c_board_info mxc_i2c1_board_info[] __initdata = {
 	{
 	 .type = "sii9022",
 	 .addr = 0x39,
+	 .irq = IOMUX_TO_IRQ_V3(DISP0_DET_INT),
 	 .platform_data = &sii9022_hdmi_data,
 	},
 };
@@ -822,6 +826,8 @@ static void __init mx53_loco_io_init(void)
 	/* Sii9022 HDMI controller */
 	gpio_request(DISP0_RESET, "disp0-reset");
 	gpio_direction_output(DISP0_RESET, 0);
+	gpio_request(DISP0_DET_INT, "disp0-detect");
+	gpio_direction_input(DISP0_DET_INT);
 }
 
 /*!

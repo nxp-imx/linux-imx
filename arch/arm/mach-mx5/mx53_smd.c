@@ -831,6 +831,7 @@ static struct i2c_board_info mxc_i2c2_board_info[] __initdata = {
 	{
 	.type = "sii9022",
 	.addr = 0x39,
+	.irq = IOMUX_TO_IRQ_V3(MX53_SMD_HDMI_INT),
 	.platform_data = &sii9022_hdmi_data,
 	},
 };
@@ -1116,6 +1117,8 @@ static void __init mx53_smd_io_init(void)
 	/* Sii9022 HDMI controller */
 	gpio_request(MX53_SMD_HDMI_RESET_B, "disp0-pwr-en");
 	gpio_direction_output(MX53_SMD_HDMI_RESET_B, 0);
+	gpio_request(MX53_SMD_HDMI_INT, "disp0-det-int");
+	gpio_direction_input(MX53_SMD_HDMI_INT);
 
 	/* MPR121 capacitive button */
 	gpio_request(MX53_SMD_KEY_INT, "cap-button-irq");
