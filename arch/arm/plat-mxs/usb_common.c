@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2009-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -370,15 +370,16 @@ void fsl_usb_host_uninit(struct fsl_usb2_platform_data *pdata)
 }
 EXPORT_SYMBOL(fsl_usb_host_uninit);
 
-void usb_debounce_id_pin(void)
+/*
+ * This function is used to debounce the reading value for id/vbus at
+ * the register of otgsc
+ */
+void usb_debounce_id_vbus(void)
 {
-
-	/* Because the IC design needs to remove the glitch on ID so the otgsc bit 8 will
-	 * be delayed max 2 ms to show the real ID pin value
-	 */
 	mdelay(3);
 }
-EXPORT_SYMBOL(usb_debounce_id_pin);
+EXPORT_SYMBOL(usb_debounce_id_vbus);
+
 int usb_host_wakeup_irq(struct device *wkup_dev)
 {
 	return 0;

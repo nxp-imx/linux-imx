@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2004-2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2004-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -872,18 +872,16 @@ void usbotg_uninit(struct fsl_usb2_platform_data *pdata)
 }
 EXPORT_SYMBOL(usbotg_uninit);
 
-/* the debounce function is only used when OTG is enabled,
- * if otg disabled, the ID pin is not used */
-void usb_debounce_id_pin(void)
+/*
+ * This function is used to debounce the reading value for id/vbus at
+ * the register of otgsc
+ */
+void usb_debounce_id_vbus(void)
 {
-#ifdef CONFIG_USB_OTG
-	/* Because the IC design needs to remove the glitch on ID so the otgsc bit 8 will
-	 * be delayed max 2 ms to show the real ID pin value
-	 */
 	mdelay(3);
-#endif
 }
-EXPORT_SYMBOL(usb_debounce_id_pin);
+EXPORT_SYMBOL(usb_debounce_id_vbus);
+
 int usb_host_wakeup_irq(struct device *wkup_dev)
 {
 	int wakeup_req = 0;

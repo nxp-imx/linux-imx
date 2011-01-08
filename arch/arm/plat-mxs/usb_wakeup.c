@@ -34,7 +34,7 @@ struct wakeup_ctrl {
 static struct wakeup_ctrl *g_ctrl;
 
 extern int usb_event_is_otg_wakeup(void);
-extern void usb_debounce_id_pin(void);
+extern void usb_debounce_id_vbus(void);
 
 static void wakeup_clk_gate(struct fsl_usb2_wakeup_platform_data *pdata, bool on)
 {
@@ -94,11 +94,10 @@ static void wakeup_event_handler(struct wakeup_ctrl *ctrl)
 	int i;
 
 	wakeup_clk_gate(ctrl->pdata, true);
-	/* if this is an wakeup event, we should debounce ID pin
-	 * so we can get the correct ID value(ID status) here
-	 * */
+
+	/* In order to get the real id/vbus value */
 	if (usb_event_is_otg_wakeup())
-		usb_debounce_id_pin();
+		usb_debounce_id_vbus();
 
 	for (i = 0; i < 3; i++) {
 		struct fsl_usb2_platform_data *usb_pdata = pdata->usb_pdata[i];
