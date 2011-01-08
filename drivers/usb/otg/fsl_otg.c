@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2005-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * Author: Li Yang <LeoLi@freescale.com>
  *         Jerry Huang <Chang-Ming.Huang@freescale.com>
@@ -789,7 +789,6 @@ irqreturn_t fsl_otg_isr_gpio(int irq, void *dev_id)
  * such as port change.
  */
 extern int usb_event_is_otg_wakeup(void);
-extern void usb_debounce_id_pin(void);
 irqreturn_t fsl_otg_isr(int irq, void *dev_id)
 {
 	struct fsl_otg *fotg = (struct fsl_otg *)dev_id;
