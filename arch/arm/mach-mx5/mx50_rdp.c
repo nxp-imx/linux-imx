@@ -941,7 +941,7 @@ static struct i2c_board_info mxc_i2c0_board_info[] __initdata = {
 	 .platform_data = &max17135_pdata,
 	 },
 	 {
-	 .type = "accelerometer",
+	 .type = "mma8450",
 	 .addr = 0x1c,
 	 },
 	 {
