@@ -33,6 +33,7 @@
 #include <linux/fb.h>
 #include <linux/dma-mapping.h>
 #include <linux/mxcfb.h>
+#include <media/v4l2-chip-ident.h>
 #include <media/v4l2-ioctl.h>
 #include <media/v4l2-int-device.h>
 #include "mxc_v4l2_capture.h"
@@ -2100,8 +2101,23 @@ static long mxc_v4l_do_ioctl(struct file *file,
 		cam->current_input = *index;
 		break;
 	}
-
-	case VIDIOC_ENUM_FMT:
+	case VIDIOC_ENUM_FMT: {
+		struct v4l2_fmtdesc *f = arg;
+		retval = vidioc_int_enum_fmt_cap(cam->sensor, f);
+		break;
+	}
+	case VIDIOC_ENUM_FRAMESIZES: {
+		struct v4l2_frmsizeenum *fsize = arg;
+		retval = vidioc_int_enum_framesizes(cam->sensor, fsize);
+		break;
+	}
+	case VIDIOC_DBG_G_CHIP_IDENT: {
+		struct v4l2_dbg_chip_ident *p = arg;
+		p->ident = V4L2_IDENT_NONE;
+		p->revision = 0;
+		retval = vidioc_int_g_chip_ident(cam->sensor, (int *)p);
+		break;
+	}
 	case VIDIOC_TRY_FMT:
 	case VIDIOC_QUERYCTRL:
 	case VIDIOC_G_TUNER:
