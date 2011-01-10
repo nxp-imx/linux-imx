@@ -28,6 +28,7 @@
 #include <linux/i2c.h>
 #include <linux/regulator/consumer.h>
 #include <linux/fsl_devices.h>
+#include <media/v4l2-chip-ident.h>
 #include <media/v4l2-int-device.h>
 #include "mxc_v4l2_capture.h"
 
@@ -35,7 +36,6 @@
 #define OV5642_VOLTAGE_DIGITAL_CORE         1500000
 #define OV5642_VOLTAGE_DIGITAL_IO           1800000
 
-/* Check these values! */
 #define MIN_FPS 15
 #define MAX_FPS 30
 #define DEFAULT_FPS 30
@@ -1421,6 +1421,10 @@ static int ov5642_init_mode(enum ov5642_frame_rate frame_rate,
 	ov5642_data.pix.width = ov5642_mode_info_data[frame_rate][mode].width;
 	ov5642_data.pix.height = ov5642_mode_info_data[frame_rate][mode].height;
 
+	if (ov5642_data.pix.width == 0 || ov5642_data.pix.height == 0 ||
+	    pModeSetting == NULL || iModeSettingArySize == 0)
+		return -EINVAL;
+
 	for (i = 0; i < iModeSettingArySize; ++i, ++pModeSetting) {
 		Delay_ms = pModeSetting->u32Delay_ms;
 		RegAddr = pModeSetting->u16RegAddr;
@@ -1757,11 +1761,70 @@ static int ioctl_s_ctrl(struct v4l2_int_device *s, struct v4l2_control *vc)
 }
 
 /*!
+ * ioctl_enum_framesizes - V4L2 sensor interface handler for
+ *			   VIDIOC_ENUM_FRAMESIZES ioctl
+ * @s: pointer to standard V4L2 device structure
+ * @fsize: standard V4L2 VIDIOC_ENUM_FRAMESIZES ioctl structure
+ *
+ * Return 0 if successful, otherwise -EINVAL.
+ */
+static int ioctl_enum_framesizes(struct v4l2_int_device *s,
+				 struct v4l2_frmsizeenum *fsize)
+{
+	if (fsize->index > ov5642_mode_MAX)
+		return -EINVAL;
+
+	fsize->pixel_format = ov5642_data.pix.pixelformat;
+	fsize->discrete.width =
+			max(ov5642_mode_info_data[0][fsize->index].width,
+			    ov5642_mode_info_data[1][fsize->index].width);
+	fsize->discrete.height =
+			max(ov5642_mode_info_data[0][fsize->index].height,
+			    ov5642_mode_info_data[1][fsize->index].height);
+	return 0;
+}
+
+/*!
+ * ioctl_g_chip_ident - V4L2 sensor interface handler for
+ *			VIDIOC_DBG_G_CHIP_IDENT ioctl
+ * @s: pointer to standard V4L2 device structure
+ * @id: pointer to int
+ *
+ * Return 0.
+ */
+static int ioctl_g_chip_ident(struct v4l2_int_device *s, int *id)
+{
+	((struct v4l2_dbg_chip_ident *)id)->match.type =
+					V4L2_CHIP_MATCH_I2C_DRIVER;
+	strcpy(((struct v4l2_dbg_chip_ident *)id)->match.name, "ov5642_camera");
+
+	return 0;
+}
+
+/*!
  * ioctl_init - V4L2 sensor interface handler for VIDIOC_INT_INIT
  * @s: pointer to standard V4L2 device structure
  */
 static int ioctl_init(struct v4l2_int_device *s)
 {
+
+	return 0;
+}
+
+/*!
+ * ioctl_enum_fmt_cap - V4L2 sensor interface handler for VIDIOC_ENUM_FMT
+ * @s: pointer to standard V4L2 device structure
+ * @fmt: pointer to standard V4L2 fmt description structure
+ *
+ * Return 0.
+ */
+static int ioctl_enum_fmt_cap(struct v4l2_int_device *s,
+			      struct v4l2_fmtdesc *fmt)
+{
+	if (fmt->index > ov5642_mode_MAX)
+		return -EINVAL;
+
+	fmt->pixelformat = ov5642_data.pix.pixelformat;
 
 	return 0;
 }
@@ -1832,8 +1895,8 @@ static struct v4l2_int_ioctl_desc ov5642_ioctl_desc[] = {
 				(v4l2_int_ioctl_func *)ioctl_g_needs_reset}, */
 /*	{vidioc_int_reset_num, (v4l2_int_ioctl_func *)ioctl_reset}, */
 	{vidioc_int_init_num, (v4l2_int_ioctl_func*)ioctl_init},
-/*	{vidioc_int_enum_fmt_cap_num,
-				(v4l2_int_ioctl_func *)ioctl_enum_fmt_cap}, */
+	{vidioc_int_enum_fmt_cap_num,
+				(v4l2_int_ioctl_func *)ioctl_enum_fmt_cap},
 /*	{vidioc_int_try_fmt_cap_num,
 				(v4l2_int_ioctl_func *)ioctl_try_fmt_cap}, */
 	{vidioc_int_g_fmt_cap_num, (v4l2_int_ioctl_func*)ioctl_g_fmt_cap},
@@ -1843,6 +1906,10 @@ static struct v4l2_int_ioctl_desc ov5642_ioctl_desc[] = {
 /*	{vidioc_int_queryctrl_num, (v4l2_int_ioctl_func *)ioctl_queryctrl}, */
 	{vidioc_int_g_ctrl_num, (v4l2_int_ioctl_func*)ioctl_g_ctrl},
 	{vidioc_int_s_ctrl_num, (v4l2_int_ioctl_func*)ioctl_s_ctrl},
+	{vidioc_int_enum_framesizes_num,
+				(v4l2_int_ioctl_func *)ioctl_enum_framesizes},
+	{vidioc_int_g_chip_ident_num,
+				(v4l2_int_ioctl_func *)ioctl_g_chip_ident},
 };
 
 static struct v4l2_int_slave ov5642_slave = {
