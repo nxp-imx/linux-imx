@@ -358,6 +358,11 @@ config MXS_PERSISTENT
 	depends on ARCH_MXS
 	default y
 
+config MXS_PERFMON
+	tristate "i.MX Performance Monitor"
+	depends on ARCH_MX28 || ARCH_MX50
+	default y
+
 config ANDROID_PMEM
 	bool "Android pmem allocator"
 	default n

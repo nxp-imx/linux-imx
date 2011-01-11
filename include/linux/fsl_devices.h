@@ -6,7 +6,7 @@
  *
  * Maintainer: Kumar Gala <galak@kernel.crashing.org>
  *
- * Copyright 2004-2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2004-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute  it and/or modify it
  * under  the terms of  the GNU General  Public License as published by the
@@ -624,5 +624,16 @@ int fsl_deep_sleep(void);
 #else
 static inline int fsl_deep_sleep(void) { return 0; }
 #endif
+
+struct mxs_perfmon_bit_config {
+	int reg;
+	int field;
+	const char *name;
+};
+
+struct mxs_platform_perfmon_data {
+	struct mxs_perfmon_bit_config *bit_config_tab;
+	int bit_config_cnt;
+};
 
 #endif /* _FSL_DEVICE_H_ */
