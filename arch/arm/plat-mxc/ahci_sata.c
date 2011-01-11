@@ -345,7 +345,7 @@ static int sata_init(struct device *dev)
 {
 	void __iomem *mmio;
 	struct clk *clk;
-	int ret, rc = 0;
+	int ret = 0;
 	u32 tmpdata;
 	struct regulator *reg_2v5, *reg_1v3;
 
@@ -353,33 +353,56 @@ static int sata_init(struct device *dev)
 	if (machine_is_mx53_smd() || machine_is_mx53_loco()) {
 		/* PWR(VBUCKPERI and VLDO5) on SATA AHCI */
 		reg_2v5 = regulator_get(dev, "DA9052_BUCK_PERI");
-		if (IS_ERR(reg_2v5)) {
-			printk(KERN_ERR "AHCI can't get 2v5 pwr.\n");
-			return -1;
+		ret = IS_ERR(reg_2v5);
+		if (ret) {
+			printk(KERN_ERR "AHCI can't get 2v5 PWR.\n");
+			goto err0;
 		}
-		if (regulator_enable(reg_2v5))
+		ret = regulator_enable(reg_2v5);
+		if (ret) {
 			printk(KERN_ERR "AHCI: enable 2v5 regulator error.\n");
+			goto err0;
+		}
 		msleep(25);
 
 		reg_1v3 = regulator_get(dev, "DA9052_LDO5");
-		if (IS_ERR(reg_1v3)) {
-			printk(KERN_ERR "AHCI can't get 1v3 pwr.\n");
-			return -1;
+		ret = IS_ERR(reg_1v3);
+		if (ret) {
+			printk(KERN_ERR "AHCI can't get 1v3 PWR.\n");
+			goto err0;
 		}
-		if (regulator_enable(reg_1v3))
+		ret = regulator_enable(reg_1v3);
+		if (ret) {
 			printk(KERN_ERR "AHCI: enable 1v3 regulator error.\n");
+			goto err0;
+		}
 		msleep(25);
 	}
 
 	clk = clk_get(dev, "imx_sata_clk");
-	if (IS_ERR(clk))
-		printk(KERN_ERR "IMX SATA can't get clock.\n");
-	clk_enable(clk);
+	ret = IS_ERR(clk);
+	if (ret) {
+		printk(KERN_ERR "AHCI can't get clock.\n");
+		goto err0;
+	}
+	ret = clk_enable(clk);
+	if (ret) {
+		printk(KERN_ERR "AHCI can't enable clock.\n");
+		goto err0;
+	}
+
+	/* Get the AHB clock rate, and configure the TIMER1MS reg later */
+	clk = clk_get(NULL, "ahb_clk");
+	ret = IS_ERR(clk);
+	if (ret) {
+		printk(KERN_ERR "AHCI can't get AHB clock.\n");
+		goto err0;
+	}
 
 	mmio = ioremap(MX53_SATA_BASE_ADDR, SZ_2K);
 	if (mmio == NULL) {
 		printk(KERN_ERR "Failed to map SATA REGS\n");
-		return 1;
+		goto err0;
 	}
 
 	tmpdata = readl(mmio + HOST_CAP);
@@ -392,10 +415,6 @@ static int sata_init(struct device *dev)
 		writel((readl(mmio + HOST_PORTS_IMPL) | 0x1),
 			mmio + HOST_PORTS_IMPL);
 
-	/* Get the AHB clock rate, and configure the TIMER1MS reg */
-	clk = clk_get(NULL, "ahb_clk");
-	if (IS_ERR(clk))
-		printk(KERN_ERR "IMX SATA can't get AHB clock.\n");
 	tmpdata = clk_get_rate(clk) / 1000;
 	writel(tmpdata, mmio + HOST_TIMER1MS);
 
@@ -404,13 +423,22 @@ static int sata_init(struct device *dev)
 		iounmap(mmio);
 		/* Eanble the IIM CLK */
 		clk = clk_get(dev, "iim_clk");
-		if (IS_ERR(clk)) {
-			printk(KERN_ERR "AHCI can't get iim clk.\n");
-			return -1;
+		ret = IS_ERR(clk);
+		if (ret) {
+			printk(KERN_ERR "AHCI can't get IIM CLK.\n");
+			goto err0;
 		}
-		clk_enable(clk);
+		ret = clk_enable(clk);
+		if (ret) {
+			printk(KERN_ERR "AHCI can't enable IIM clock.\n");
+			goto err0;
+		}
 		/* SMD or loco boards use the IC internal clk */
 		mmio = ioremap(0x63F98000 + 0x180C, SZ_16);
+		if (mmio == NULL) {
+			printk(KERN_ERR "Failed to map IIM interface.\n");
+			goto err0;
+		}
 		/* USB_PHY1 clk, fuse bank4 row3 bit2 */
 		writel((readl(mmio) & (~0x7)) | 0x4, mmio);
 		iounmap(mmio);
@@ -418,11 +446,16 @@ static int sata_init(struct device *dev)
 		clk_disable(clk);
 		clk_put(clk);
 		clk = clk_get(dev, "usb_phy1_clk");
-		if (IS_ERR(clk)) {
-			printk(KERN_ERR "AHCI can't get usb phy1 clk.\n");
-			return -1;
+		ret = IS_ERR(clk);
+		if (ret) {
+			printk(KERN_ERR "AHCI can't get USB PHY1 CLK.\n");
+			goto err0;
 		}
-		clk_enable(clk);
+		ret = clk_enable(clk);
+		if (ret) {
+			printk(KERN_ERR "AHCI Can't enable USB PHY1 clock.\n");
+			goto err0;
+		}
 	} else {
 		/* External CLK input is used for AHCI */
 		/* write addr */
@@ -432,7 +465,7 @@ static int sata_init(struct device *dev)
 		tmpdata |= PORT_PHY_CTL_CAP_ADR_LOC;
 		/* Wait for ack */
 		if (write_phy_ctl_ack_polling(tmpdata, mmio, 100, 1)) {
-			rc = 1;
+			ret = -EIO;
 			goto err0;
 		}
 
@@ -440,7 +473,7 @@ static int sata_init(struct device *dev)
 		tmpdata &= 0xFFFF;
 		/* wait for ack de-assertion */
 		if (write_phy_ctl_ack_polling(tmpdata, mmio, 100, 0)) {
-			rc = 1;
+			ret = -EIO;
 			goto err0;
 		}
 
@@ -464,7 +497,7 @@ static int sata_init(struct device *dev)
 		tmpdata |= PORT_PHY_CTL_CAP_DAT_LOC;
 		/* wait for ack */
 		if (write_phy_ctl_ack_polling(tmpdata, mmio, 100, 1)) {
-			rc = 1;
+			ret = -EIO;
 			goto err0;
 		}
 
@@ -472,19 +505,19 @@ static int sata_init(struct device *dev)
 		tmpdata &= 0xFFFF;
 		/* wait for ack de-assertion */
 		if (write_phy_ctl_ack_polling(tmpdata, mmio, 100, 0)) {
-			rc = 1;
+			ret = -EIO;
 			goto err0;
 		}
 
 		/* assert wr signal and wait for ack */
 		if (write_phy_ctl_ack_polling(PORT_PHY_CTL_WRITE_LOC, mmio,
 					100, 1)) {
-			rc = 1;
+			ret = -EIO;
 			goto err0;
 		}
 		/* deassert rd _signal and wait for ack de-assertion */
 		if (write_phy_ctl_ack_polling(0, mmio, 100, 0)) {
-			rc = 1;
+			ret = -EIO;
 			goto err0;
 		}
 		iounmap(mmio);
@@ -497,7 +530,10 @@ static int sata_init(struct device *dev)
 		sysfs_remove_group(&dev->kobj, &fsl_sata_ahci_group);
 
 err0:
-	return rc;
+	reg_1v3 = NULL;
+	reg_2v5 = NULL;
+	clk = NULL;
+	return ret;
 }
 
 static void sata_exit(struct device *dev)
@@ -507,26 +543,42 @@ static void sata_exit(struct device *dev)
 
 	sysfs_remove_group(&dev->kobj, &fsl_sata_ahci_group);
 	clk = clk_get(dev, "usb_phy1_clk");
-	if (IS_ERR(clk))
-		printk(KERN_ERR "IMX SATA can't get internal clock.\n");
-	clk_disable(clk);
-	clk_put(clk);
+	if (IS_ERR(clk)) {
+		clk = NULL;
+		printk(KERN_ERR "AHCI can't get USB PHY1 CLK.\n");
+	} else {
+		clk_disable(clk);
+		clk_put(clk);
+	}
 
 	clk = clk_get(dev, "imx_sata_clk");
-	if (IS_ERR(clk))
+	if (IS_ERR(clk)) {
+		clk = NULL;
 		printk(KERN_ERR "IMX SATA can't get clock.\n");
-	clk_disable(clk);
-	clk_put(clk);
+	} else {
+		clk_disable(clk);
+		clk_put(clk);
+	}
 
 	/* AHCI SATA PWR disable */
 	if (machine_is_mx53_smd() || machine_is_mx53_loco()) {
 		reg_2v5 = regulator_get(dev, "DA9052_BUCK_PERI");
-		regulator_disable(reg_2v5);
-		regulator_put(reg_2v5);
+		if (IS_ERR(reg_2v5)) {
+			printk(KERN_ERR "AHCI: get 2v5 regulator error.\n");
+			reg_2v5 = NULL;
+		} else {
+			regulator_disable(reg_2v5);
+			regulator_put(reg_2v5);
+		}
 
 		reg_1v3 = regulator_get(dev, "DA9052_LDO5");
-		regulator_disable(reg_1v3);
-		regulator_put(reg_1v3);
+		if (IS_ERR(reg_1v3)) {
+			printk(KERN_ERR "AHCI: get 2v5 regulator error.\n");
+			reg_1v3 = NULL;
+		} else {
+			regulator_disable(reg_1v3);
+			regulator_put(reg_1v3);
+		}
 	}
 }
 
