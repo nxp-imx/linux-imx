@@ -1485,6 +1485,42 @@ struct platform_device mxs_viim = {
 	.resource = viim_resources,
 };
 
+static struct resource mx5_perfmon_res[] = {
+	{
+	 .flags = IORESOURCE_MEM,
+	 .start = PERFMON_BASE_ADDR,
+	 .end   = PERFMON_BASE_ADDR + 0x1000 - 1,
+    },
+};
+
+struct platform_device mxc_perfmon = {
+	.name			= "mxs-perfmon",
+	.resource		= mx5_perfmon_res,
+	.num_resources	= ARRAY_SIZE(mx5_perfmon_res),
+	.id			= 0
+};
+
+static struct mxs_perfmon_bit_config
+mx50_perfmon_bit_config[] = {
+	{.field = (1 << 0),	.name = "MID0-CORE" },
+	{.field = (1 << 1),	.name = "MID1-DCP" },
+	{.field = (1 << 2),	.name = "MID2-PXP" },
+	{.field = (1 << 3),	.name = "MID3-USB" },
+	{.field = (1 << 4),	.name = "MID4-GPU2D" },
+	{.field = (1 << 5),	.name = "MID5-BCH" },
+	{.field = (1 << 6),	.name = "MID6-AHB" },
+	{.field = (1 << 7),	.name = "MID7-EPDC" },
+	{.field = (1 << 8),	.name = "MID8-LCDIF" },
+	{.field = (1 << 9),	.name = "MID9-SDMA" },
+	{.field = (1 << 10),	.name = "MID10-FEC" },
+	{.field = (1 << 11),	.name = "MID11-MSHC" }
+};
+
+struct mxs_platform_perfmon_data mxc_perfmon_data = {
+	.bit_config_tab = mx50_perfmon_bit_config,
+	.bit_config_cnt = ARRAY_SIZE(mx50_perfmon_bit_config),
+};
+
 static struct resource dma_apbh_resources[] = {
 	{
 		.start = APBHDMA_BASE_ADDR,

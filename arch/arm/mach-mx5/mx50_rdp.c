@@ -1398,7 +1398,6 @@ static struct mxc_pm_platform_data mx50_pm_data = {
 	.suspend_exit = mx50_suspend_exit,
 };
 
-
 /*!
  * Board specific fixup function. It is called by \b setup_arch() in
  * setup.c file very early on during kernel starts. It allows the user to
@@ -1565,6 +1564,7 @@ static void __init mxc_board_init(void)
 	mxc_register_device(&gpmi_nfc_device, &gpmi_nfc_platform_data);
 	mx5_usb_dr_init();
 	mx5_usbh1_init();
+	mxc_register_device(&mxc_perfmon, &mxc_perfmon_data);
 }
 
 static void __init mx50_rdp_timer_init(void)
