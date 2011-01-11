@@ -37,6 +37,7 @@
 
 #include "devices-imx50.h"
 #include "cpu_op-mx50.h"
+#include "devices.h"
 
 #define FEC_EN		IMX_GPIO_NR(6, 23)
 #define FEC_RESET_B	IMX_GPIO_NR(4, 12)
@@ -219,6 +220,7 @@ static void __init mx50_rdp_board_init(void)
 	imx50_add_otp();
 	imx50_add_dcp();
 	imx50_add_rngb();
+	imx50_add_perfmon();
 }
 
 static void __init mx50_rdp_timer_init(void)

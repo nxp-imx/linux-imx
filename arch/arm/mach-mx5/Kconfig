@@ -224,6 +224,7 @@ config MACH_MX50_RDP
 	select IMX_HAVE_PLATFORM_IMX_OCOTP
 	select IMX_HAVE_PLATFORM_IMX_DCP
 	select IMX_HAVE_PLATFORM_RANDOM_RNGC
+	select IMX_HAVE_PLATFORM_PERFMON
 	help
 	  Include support for MX50 reference design platform (RDP) board. This
 	  includes specific configurations for the board and its peripherals.

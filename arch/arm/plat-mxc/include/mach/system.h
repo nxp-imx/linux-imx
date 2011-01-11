@@ -25,5 +25,5 @@ extern void mx5_cpu_lp_set(enum mxc_cpu_pwr_mode mode);
 void arch_idle(void);
 
 void arch_reset(char mode, const char *cmd);
-
+int mxs_reset_block(void __iomem *hwreg, int just_enable);
 #endif /* __ASM_ARCH_MXC_SYSTEM_H__ */

@@ -371,3 +371,10 @@ struct imx_rngb_data {
 struct platform_device *__init imx_add_rngb(
 		const struct imx_rngb_data *data);
 
+struct imx_perfmon_data {
+	resource_size_t iobase;
+	struct mxs_platform_perfmon_data *pdata;
+};
+
+struct platform_device *__init imx_add_perfmon(
+		const struct imx_perfmon_data *data);

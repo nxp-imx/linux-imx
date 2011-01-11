@@ -53,3 +53,6 @@ extern const struct imx_rngb_data imx50_rngb_data __initconst;
 #define imx50_add_rngb() \
 	imx_add_rngb(&imx50_rngb_data);
 
+extern const struct imx_perfmon_data imx50_perfmon_data __initconst;
+#define imx50_add_perfmon() \
+	imx_add_perfmon(&imx50_perfmon_data);
