@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010 Freescale Semiconductor, Inc.
+ * Copyright (C) 2010-2011 Freescale Semiconductor, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -959,8 +959,8 @@ static irqreturn_t pxp_irq(int irq, void *dev_id)
 	return IRQ_HANDLED;
 }
 
-/* called with pxp_chan->lock hold */
-static struct pxp_tx_desc *pxp_desc_get(struct pxp_channel *pxp_chan)
+/* called with pxp_chan->lock held */
+static struct pxp_tx_desc *pxpdma_desc_get(struct pxp_channel *pxp_chan)
 {
 	struct pxp_tx_desc *desc, *_desc;
 	struct pxp_tx_desc *ret = NULL;
@@ -974,6 +974,7 @@ static struct pxp_tx_desc *pxp_desc_get(struct pxp_channel *pxp_chan)
 	return ret;
 }
 
+/* called with pxp_chan->lock held */
 static void pxpdma_desc_put(struct pxp_channel *pxp_chan,
 			    struct pxp_tx_desc *desc)
 {
@@ -982,13 +983,11 @@ static void pxpdma_desc_put(struct pxp_channel *pxp_chan,
 		struct pxp_tx_desc *child;
 		unsigned long flags;
 
-		spin_lock_irqsave(&pxp_chan->lock, flags);
 		list_for_each_entry(child, &desc->tx_list, list)
 		    dev_info(dev, "moving child desc %p to freelist\n", child);
 		list_splice_init(&desc->tx_list, &pxp_chan->free_list);
 		dev_info(dev, "moving desc %p to freelist\n", desc);
 		list_add(&desc->list, &pxp_chan->free_list);
-		spin_unlock_irqrestore(&pxp_chan->lock, flags);
 	}
 }
 
@@ -1022,7 +1021,7 @@ static struct dma_async_tx_descriptor *pxp_prep_slave_sg(struct dma_chan *chan,
 
 	spin_lock_irqsave(&pxp_chan->lock, flags);
 	for_each_sg(sgl, sg, sg_len, i) {
-		desc = pxp_desc_get(pxp_chan);
+		desc = pxpdma_desc_get(pxp_chan);
 		if (!desc) {
 			pxpdma_desc_put(pxp_chan, first);
 			dev_err(chan->device->dev, "Can't get DMA desc.\n");
