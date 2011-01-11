@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2009-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -1518,6 +1518,51 @@ static void mx28_init_persistent()
 }
 #endif
 
+#if defined(CONFIG_MXS_PERFMON)
+
+static struct mxs_perfmon_bit_config
+mx28_perfmon_bit_config[] = {
+	{.field = (1 << 0),	.name = "MID0-PXP" },
+	{.field = (1 << 1),	.name = "MID1-LCDIF" },
+	{.field = (1 << 2),	.name = "MID2-BCH" },
+	{.field = (1 << 3),	.name = "MID3-DCP" }
+};
+
+static struct mxs_platform_perfmon_data mx28_perfmon_data = {
+	.bit_config_tab = mx28_perfmon_bit_config,
+	.bit_config_cnt = ARRAY_SIZE(mx28_perfmon_bit_config),
+};
+
+static struct resource mx28_perfmon_res[] = {
+	{
+	 .flags = IORESOURCE_MEM,
+	 .start = PERFMON_PHYS_ADDR,
+	 .end   = PERFMON_PHYS_ADDR + 0x1000 - 1,
+    },
+};
+
+static void mx28_init_perfmon(void)
+{
+	struct platform_device *pdev;
+
+	pdev = mxs_get_device("mxs-perfmon", 0);
+	if (pdev == NULL || IS_ERR(pdev))
+		return;
+	pdev->dev.platform_data = &mx28_perfmon_data;
+	pdev->resource = mx28_perfmon_res,
+	pdev->num_resources = ARRAY_SIZE(mx28_perfmon_res),
+	mxs_add_device(pdev, 3);
+}
+
+#else
+
+static void mx28_init_perfmon()
+{
+}
+
+#endif
+
+
 #if defined(CONFIG_FSL_OTP)
 /* Building up eight registers's names of a bank */
 #define BANK(a, b, c, d, e, f, g, h)	\
@@ -1587,6 +1632,7 @@ int __init mx28_device_init(void)
 	mx28_init_dcp();
 	mx28_init_battery();
 	mx28_init_persistent();
+	mx28_init_perfmon();
 	mx28_init_otp();
 	return 0;
 }
