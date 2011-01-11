@@ -630,4 +630,15 @@ int fsl_deep_sleep(void);
 static inline int fsl_deep_sleep(void) { return 0; }
 #endif
 
+struct mxs_perfmon_bit_config {
+	int reg;
+	int field;
+	const char *name;
+};
+
+struct mxs_platform_perfmon_data {
+	struct mxs_perfmon_bit_config *bit_config_tab;
+	int bit_config_cnt;
+};
+
 #endif /* _FSL_DEVICE_H_ */
