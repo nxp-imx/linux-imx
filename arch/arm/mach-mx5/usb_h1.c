@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2005-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -28,6 +28,7 @@ static struct clk *usb_phy2_clk;
 static struct clk *usb_oh3_clk;
 static struct clk *usb_ahb_clk;
 extern int clk_get_usecount(struct clk *clk);
+extern void fsl_usb_recover_hcd(struct platform_device *pdev);
 /*
  * USB Host1 HS port
  */
@@ -106,16 +107,37 @@ static void usbh1_clock_gate(bool on)
 	}
 }
 
-static bool _is_usbh1_wakeup(struct fsl_usb2_platform_data *pdata)
+static enum usb_wakeup_event _is_usbh1_wakeup(struct fsl_usb2_platform_data *pdata)
 {
 	int wakeup_req = USBCTRL & UCTRL_H1WIR;
 
 	if (wakeup_req)
-		return true;
+		return !WAKEUP_EVENT_INVALID;
 
-	return false;
+	return WAKEUP_EVENT_INVALID;
 }
 
+static void h1_wakeup_handler(struct fsl_usb2_platform_data *pdata)
+{
+	_wake_up_enable(pdata, false);
+	_phy_lowpower_suspend(pdata, false);
+	fsl_usb_recover_hcd(&mxc_usbh1_device);
+}
+
+static void usbh1_wakeup_event_clear(void)
+{
+	int wakeup_req = USBCTRL & UCTRL_H1WIR;
+
+	if (wakeup_req != 0) {
+		printk(KERN_INFO "Unknown wakeup.(OTGSC 0x%x)\n", UOG_OTGSC);
+		/* Disable H1WIE to clear H1WIR, wait 3 clock
+		 * cycles of standly clock(32KHz)
+		 */
+		USBCTRL &= ~UCTRL_H1WIE;
+		udelay(100);
+		USBCTRL |= UCTRL_H1WIE;
+	}
+}
 static int fsl_usb_host_init_ext(struct platform_device *pdev)
 {
 	int ret;
@@ -194,17 +216,21 @@ static struct fsl_usb2_platform_data usbh1_config = {
 	.usb_clock_for_pm  = usbh1_clock_gate,
 	.phy_lowpower_suspend = _phy_lowpower_suspend,
 	.is_wakeup_event = _is_usbh1_wakeup,
+	.wakeup_handler = h1_wakeup_handler,
 	.transceiver = "utmi",
 };
 static struct fsl_usb2_wakeup_platform_data usbh1_wakeup_config = {
 		.name = "USBH1 wakeup",
 		.usb_clock_for_pm  = usbh1_clock_gate,
 		.usb_pdata = {&usbh1_config, NULL, NULL},
+		.usb_wakeup_exhandle = usbh1_wakeup_event_clear,
 };
+
 void mx5_set_host1_vbus_func(driver_vbus_func driver_vbus)
 {
 	usbh1_config.platform_driver_vbus = driver_vbus;
 }
+
 void __init mx5_usbh1_init(void)
 {
 	if (cpu_is_mx51()) {

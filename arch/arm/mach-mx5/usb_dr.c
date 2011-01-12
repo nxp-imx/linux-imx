@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2005-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -29,6 +29,7 @@ static struct clk *usb_oh3_clk;
 static struct clk *usb_ahb_clk;
 static void usbotg_wakeup_event_clear(void);
 extern int clk_get_usecount(struct clk *clk);
+extern void fsl_usb_recover_hcd(struct platform_device *pdev);
 /*
  * platform data structs
  * 	- Which one to use is determined by CONFIG options in usb.h
@@ -175,7 +176,7 @@ static void _device_phy_lowpower_suspend(struct fsl_usb2_platform_data *pdata, b
 	__phy_lowpower_suspend(enable, ENABLED_BY_DEVICE);
 }
 
-static bool _is_host_wakeup(struct fsl_usb2_platform_data *pdata)
+static enum usb_wakeup_event _is_host_wakeup(struct fsl_usb2_platform_data *pdata)
 {
 	int wakeup_req = USBCTRL & UCTRL_OWIR;
 	int otgsc = UOG_OTGSC;
@@ -185,25 +186,39 @@ static bool _is_host_wakeup(struct fsl_usb2_platform_data *pdata)
 		printk(KERN_INFO "otg host ID wakeup\n");
 		/* if host ID wakeup, we must clear the b session change sts */
 		UOG_OTGSC = otgsc & (~OTGSC_IS_USB_ID);
-		return true;
+		return WAKEUP_EVENT_ID;
 	}
 	if (wakeup_req && (!(otgsc & OTGSC_STS_USB_ID))) {
 		printk(KERN_INFO "otg host Remote wakeup\n");
-		return true;
+		return WAKEUP_EVENT_DPDM;
 	}
-	return false;
+
+	return WAKEUP_EVENT_INVALID;
 }
-static bool _is_device_wakeup(struct fsl_usb2_platform_data *pdata)
+
+static enum usb_wakeup_event _is_device_wakeup(struct fsl_usb2_platform_data *pdata)
 {
 	int wakeup_req = USBCTRL & UCTRL_OWIR;
 
-	/* if not ID change sts, it is a device wakeup event */
-	if (wakeup_req && !(UOG_OTGSC & OTGSC_IS_USB_ID) && (UOG_OTGSC & OTGSC_IS_B_SESSION_VALID)) {
+	if (wakeup_req && (UOG_OTGSC & OTGSC_STS_USB_ID) && (UOG_OTGSC & OTGSC_IS_B_SESSION_VALID)) {
 		printk(KERN_INFO "otg udc wakeup\n");
-		return true;
+		return WAKEUP_EVENT_VBUS;
 	}
-	return false;
+	return WAKEUP_EVENT_INVALID;
 
+}
+
+static void host_wakeup_handler(struct fsl_usb2_platform_data *pdata)
+{
+	_host_wakeup_enable(pdata, false);
+	_host_phy_lowpower_suspend(pdata, false);
+	fsl_usb_recover_hcd(&mxc_usbdr_host_device);
+}
+
+static void device_wakeup_handler(struct fsl_usb2_platform_data *pdata)
+{
+	_device_wakeup_enable(pdata, false);
+	_device_phy_lowpower_suspend(pdata, false);
 }
 
 static void usbotg_wakeup_event_clear(void)
@@ -258,6 +273,7 @@ void __init mx5_usb_dr_init(void)
 	dr_utmi_config.phy_lowpower_suspend = _host_phy_lowpower_suspend;
 	dr_utmi_config.is_wakeup_event = _is_host_wakeup;
 	dr_utmi_config.wakeup_pdata = &dr_wakeup_config;
+	dr_utmi_config.wakeup_handler = host_wakeup_handler;
 	platform_device_add_data(&mxc_usbdr_host_device, &dr_utmi_config, sizeof(dr_utmi_config));
 	platform_device_register(&mxc_usbdr_host_device);
 	dr_wakeup_config.usb_pdata[1] = mxc_usbdr_host_device.dev.platform_data;
@@ -268,6 +284,7 @@ void __init mx5_usb_dr_init(void)
 	dr_utmi_config.phy_lowpower_suspend = _device_phy_lowpower_suspend;
 	dr_utmi_config.is_wakeup_event = _is_device_wakeup;
 	dr_utmi_config.wakeup_pdata = &dr_wakeup_config;
+	dr_utmi_config.wakeup_handler = device_wakeup_handler;
 	platform_device_add_data(&mxc_usbdr_udc_device, &dr_utmi_config, sizeof(dr_utmi_config));
 	platform_device_register(&mxc_usbdr_udc_device);
 	dr_wakeup_config.usb_pdata[2] = mxc_usbdr_udc_device.dev.platform_data;
