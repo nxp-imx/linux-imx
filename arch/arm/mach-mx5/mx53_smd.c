@@ -686,12 +686,27 @@ static void __init smd_add_device_buttons(void)
 static void __init smd_add_device_buttons(void) {}
 #endif
 
+static int p1003_ts_hw_status(void)
+{
+	return gpio_get_value(MX53_SMD_CAP_TCH_INT1);
+}
+
+static struct p1003_ts_platform_data p1003_ts_data = {
+	.hw_status = p1003_ts_hw_status,
+};
+
 static struct i2c_board_info mxc_i2c2_board_info[] __initdata = {
 	{
 	.type = "sii902x",
 	.addr = 0x39,
 	.irq = IOMUX_TO_IRQ_V3(MX53_SMD_HDMI_INT),
 	.platform_data = &sii902x_hdmi_data,
+	},
+	{
+	.type = "p1003_fwv33",
+	.addr = 0x41,
+	.irq  = IOMUX_TO_IRQ_V3(MX53_SMD_CAP_TCH_INT1),
+	.platform_data = &p1003_ts_data,
 	},
 };
 
