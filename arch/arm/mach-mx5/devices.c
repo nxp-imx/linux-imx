@@ -1402,6 +1402,31 @@ static struct resource mxc_gpu2d_resources[] = {
 	},
 };
 
+struct platform_device mxc_android_pmem_device = {
+	.name = "android_pmem",
+	.id = 0,
+};
+
+struct platform_device mxc_android_pmem_gpu_device = {
+	.name = "android_pmem",
+	.id = 1,
+};
+
+struct platform_device android_usb_device = {
+	.name = "android_usb",
+	.id = -1,
+};
+
+struct platform_device usb_mass_storage_device = {
+	.name	= "usb_mass_storage",
+	.id	= -1,
+};
+
+struct platform_device usb_rndis_device = {
+	.name	= "rndis",
+	.id	= -1,
+};
+
 static struct resource mlb_resources[] = {
 	[0] = {
 	       .start = MLB_BASE_ADDR,
