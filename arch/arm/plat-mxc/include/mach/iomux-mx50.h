@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2010-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -47,7 +47,7 @@ typedef enum iomux_config {
 
 #define MX50_WVGA_PAD_CTRL	(PAD_CTL_PKE | PAD_CTL_DSE_HIGH)
 
-#define MX50_SD_PAD_CTRL		(PAD_CTL_DSE_HIGH | \
+#define MX50_SD_PAD_CTRL		(PAD_CTL_PKE | PAD_CTL_DSE_HIGH | \
 					PAD_CTL_PUS_47K_UP | PAD_CTL_SRE_FAST)
 
 #define MX50_SD3_PAD_DAT	(PAD_CTL_HYS | PAD_CTL_PKE | PAD_CTL_PUE | \
@@ -86,6 +86,7 @@ typedef enum iomux_config {
 #define MX50_PAD_I2C3_SCL__GPIO_6_22	IOMUX_PAD(0x2FC, 0x50, 1, 0x0, 0, NO_PAD_CTRL)
 #define MX50_PAD_I2C3_SDA__GPIO_6_23	IOMUX_PAD(0x300, 0x54, 1, 0x0, 0, NO_PAD_CTRL)
 #define MX50_PAD_PWM1__PWMO		IOMUX_PAD(0x304, 0x58, 0, 0x0, 0, NO_PAD_CTRL)
+#define MX50_PAD_PWM1__GPIO_6_24	IOMUX_PAD(0x304, 0x58, 1, 0x0, 0, NO_PAD_CTRL)
 #define MX50_PAD_PWM2__GPIO_6_25	IOMUX_PAD(0x308, 0x5C, 1, 0x0, 0, NO_PAD_CTRL)
 #define MX50_PAD_OWIRE__GPIO_6_26	IOMUX_PAD(0x30C, 0x60, 1, 0x0, 0, NO_PAD_CTRL)
 #define MX50_PAD_EPITO__GPIO_6_27	IOMUX_PAD(0x310, 0x64, 1, 0x0, 0, NO_PAD_CTRL)
@@ -118,11 +119,11 @@ typedef enum iomux_config {
 
 /* HP detect */
 #define MX50_PAD_ECSPI1_SS0__GPIO_4_15	IOMUX_PAD(0x37C, 0xD0, 1, 0x0, 0, \
-							PAD_CTL_PUS_100K_UP)
+							PAD_CTL_PKE | PAD_CTL_PUS_100K_UP)
 #define MX50_PAD_ECSPI2_SCLK__GPIO_4_16	IOMUX_PAD(0x380, 0xD4, 1, 0x0, 0, NO_PAD_CTRL)
 #define MX50_PAD_ECSPI2_MOSI__GPIO_4_17	IOMUX_PAD(0x384, 0xD8, 1, 0x0, 0, NO_PAD_CTRL)
 #define MX50_PAD_ECSPI2_MISO__GPIO_4_18	IOMUX_PAD(0x388, 0xDC, 1, 0x0, 0, \
-							PAD_CTL_PUS_100K_UP)
+							PAD_CTL_PKE | PAD_CTL_PUS_100K_UP)
 #define MX50_PAD_ECSPI2_SS0__GPIO_4_19	IOMUX_PAD(0x38C, 0xE0, 1, 0x0, 0, MX50_SD_PAD_CTRL)
 #define MX50_PAD_SD1_CLK__GPIO_5_0	IOMUX_PAD(0x390, 0xE4, 1, 0x0, 0, NO_PAD_CTRL)
 #define MX50_PAD_SD1_CMD__GPIO_5_1	IOMUX_PAD(0x394, 0xE8, 1, 0x0, 0, NO_PAD_CTRL)
@@ -223,7 +224,7 @@ typedef enum iomux_config {
 #define MX50_PAD_EPDC_SDCLKN__GPIO_3_25	IOMUX_PAD(0x5B0, 0x214, 1, 0x0, 0, NO_PAD_CTRL)
 #define MX50_PAD_EPDC_SDSHR__GPIO_3_26	IOMUX_PAD(0x5B4, 0x218, 1, 0x0, 0, NO_PAD_CTRL)
 #define MX50_PAD_EPDC_PWRCOM__GPIO_3_27	IOMUX_PAD(0x5B8, 0x21C, 1, 0x0, 0, NO_PAD_CTRL)
-#define MX50_PAD_EPDC_PWRSTAT__GPIO_3_28	IOMUX_PAD(0x5BC, 0x220, 1, 0x0, 0, NO_PAD_CTRL)
+#define MX50_PAD_EPDC_PWRSTAT__GPIO_3_28	IOMUX_PAD(0x5BC, 0x220, 1, 0x0, 0, PAD_CTL_PKE)
 #define MX50_PAD_EPDC_PWRCTRL0__GPIO_3_29	IOMUX_PAD(0x5C0, 0x224, 1, 0x0, 0, NO_PAD_CTRL)
 #define MX50_PAD_EPDC_PWRCTRL1__GPIO_3_30	IOMUX_PAD(0x5C4, 0x228, 1, 0x0, 0, NO_PAD_CTRL)
 #define MX50_PAD_EPDC_PWRCTRL2__GPIO_3_31	IOMUX_PAD(0x5C8, 0x22C, 1, 0x0, 0, NO_PAD_CTRL)

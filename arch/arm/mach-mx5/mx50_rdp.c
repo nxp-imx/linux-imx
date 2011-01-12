@@ -306,6 +306,8 @@ static struct pad_desc  mx50_rdp[] = {
 	MX50_PAD_EIM_BCLK__GPIO_1_22,
 	MX50_PAD_EIM_RDY__GPIO_1_23,
 	MX50_PAD_EIM_OE__GPIO_1_24,
+	MX50_PAD_EIM_RW__GPIO_1_25,
+	MX50_PAD_EIM_LBA__GPIO_1_26,
 };
 
 static struct pad_desc  mx50_gpmi_nand[] = {
@@ -337,18 +339,94 @@ static struct pad_desc  suspend_enter_pads[] = {
 	MX50_PAD_EIM_DA3__GPIO_1_3,
 	MX50_PAD_EIM_DA4__GPIO_1_4,
 	MX50_PAD_EIM_DA5__GPIO_1_5,
+	MX50_PAD_EIM_DA6__GPIO_1_6,
 	MX50_PAD_EIM_DA7__GPIO_1_7,
+
+	MX50_PAD_EIM_DA8__GPIO_1_8,
+	MX50_PAD_EIM_DA9__GPIO_1_9,
+	MX50_PAD_EIM_DA10__GPIO_1_10,
+	MX50_PAD_EIM_DA11__GPIO_1_11,
+	MX50_PAD_EIM_DA12__GPIO_1_12,
+	MX50_PAD_EIM_DA13__GPIO_1_13,
+	MX50_PAD_EIM_DA14__GPIO_1_14,
+	MX50_PAD_EIM_DA15__GPIO_1_15,
+	MX50_PAD_EIM_CS2__GPIO_1_16,
+	MX50_PAD_EIM_CS1__GPIO_1_17,
+	MX50_PAD_EIM_CS0__GPIO_1_18,
+	MX50_PAD_EIM_EB0__GPIO_1_19,
+	MX50_PAD_EIM_EB1__GPIO_1_20,
+	MX50_PAD_EIM_WAIT__GPIO_1_21,
+	MX50_PAD_EIM_BCLK__GPIO_1_22,
+	MX50_PAD_EIM_RDY__GPIO_1_23,
+	MX50_PAD_EIM_OE__GPIO_1_24,
+	MX50_PAD_EIM_RW__GPIO_1_25,
+	MX50_PAD_EIM_LBA__GPIO_1_26,
+	MX50_PAD_EIM_CRE__GPIO_1_27,
+
+	/* NVCC_NANDF pads */
+	MX50_PAD_DISP_D8__GPIO_2_8,
+	MX50_PAD_DISP_D9__GPIO_2_9,
+	MX50_PAD_DISP_D10__GPIO_2_10,
+	MX50_PAD_DISP_D11__GPIO_2_11,
+	MX50_PAD_DISP_D12__GPIO_2_12,
+	MX50_PAD_DISP_D13__GPIO_2_13,
+	MX50_PAD_DISP_D14__GPIO_2_14,
+	MX50_PAD_DISP_D15__GPIO_2_15,
+	MX50_PAD_SD3_CMD__GPIO_5_18,
+	MX50_PAD_SD3_CLK__GPIO_5_19,
+	MX50_PAD_SD3_D0__GPIO_5_20,
+	MX50_PAD_SD3_D1__GPIO_5_21,
+	MX50_PAD_SD3_D2__GPIO_5_22,
+	MX50_PAD_SD3_D3__GPIO_5_23,
+	MX50_PAD_SD3_D4__GPIO_5_24,
+	MX50_PAD_SD3_D5__GPIO_5_25,
+	MX50_PAD_SD3_D6__GPIO_5_26,
+	MX50_PAD_SD3_D7__GPIO_5_27,
+	MX50_PAD_SD3_WP__GPIO_5_28,
+
+	/* NVCC_LCD pads */
+	MX50_PAD_DISP_D0__GPIO_2_0,
+	MX50_PAD_DISP_D1__GPIO_2_1,
+	MX50_PAD_DISP_D2__GPIO_2_2,
+	MX50_PAD_DISP_D3__GPIO_2_3,
+	MX50_PAD_DISP_D4__GPIO_2_4,
+	MX50_PAD_DISP_D5__GPIO_2_5,
+	MX50_PAD_DISP_D6__GPIO_2_6,
+	MX50_PAD_DISP_D7__GPIO_2_7,
+	MX50_PAD_DISP_WR__GPIO_2_16,
+	MX50_PAD_DISP_RS__GPIO_2_17,
+	MX50_PAD_DISP_BUSY__GPIO_2_18,
+	MX50_PAD_DISP_RD__GPIO_2_19,
+	MX50_PAD_DISP_RESET__GPIO_2_20,
+	MX50_PAD_DISP_CS__GPIO_2_21,
+
+	/* CSPI pads */
+	MX50_PAD_CSPI_SCLK__GPIO_4_8,
+	MX50_PAD_CSPI_MOSI__GPIO_4_9,
+	MX50_PAD_CSPI_MISO__GPIO_4_10,
+	MX50_PAD_CSPI_SS0__GPIO_4_11,
+
+	/*NVCC_MISC pins as GPIO */
+	MX50_PAD_I2C1_SCL__GPIO_6_18,
+	MX50_PAD_I2C1_SDA__GPIO_6_19,
+	MX50_PAD_I2C2_SCL__GPIO_6_20,
+	MX50_PAD_I2C2_SDA__GPIO_6_21,
+	MX50_PAD_I2C3_SCL__GPIO_6_22,
+	MX50_PAD_I2C3_SDA__GPIO_6_23,
+
+	/* NVCC_MISC_PWM_USB_OTG pins */
+	MX50_PAD_PWM1__GPIO_6_24,
+	MX50_PAD_PWM2__GPIO_6_25,
+	MX50_PAD_EPITO__GPIO_6_27,
+	MX50_PAD_WDOG__GPIO_6_28,
+
+	/* FEC related. */
+	MX50_PAD_EPDC_D10__GPIO_3_10,
+	MX50_PAD_SSI_RXC__GPIO_6_5,
+	MX50_PAD_SSI_RXFS__GPIO_6_4,
 };
 
-static struct pad_desc  suspend_exit_pads[] = {
-	MX50_PAD_EIM_DA0__KEY_COL4,
-	MX50_PAD_EIM_DA1__KEY_ROW4,
-	MX50_PAD_EIM_DA2__KEY_COL5,
-	MX50_PAD_EIM_DA3__KEY_ROW5,
-	MX50_PAD_EIM_DA4__KEY_COL6,
-	MX50_PAD_EIM_DA5__KEY_ROW6,
-	MX50_PAD_EIM_DA7__KEY_ROW7,
-};
+static struct pad_desc  suspend_exit_pads[ARRAY_SIZE(suspend_enter_pads)];
 
 static struct mxc_dvfs_platform_data dvfs_core_data = {
 	.reg_id = "SW1",
@@ -1257,7 +1335,7 @@ static void fec_gpio_iomux_deinit()
 			MX50_PAD_I2C3_SDA__GPIO_6_23;
 
 	/* Disable the Pull/keeper */
-	iomux_setting.pad_ctrl = 0x4;
+	iomux_setting.pad_ctrl = 0xE4;
 	mxc_iomux_v3_setup_pad(&iomux_setting);
 	gpio_request(FEC_EN, "fec-en");
 	gpio_direction_input(FEC_EN);
@@ -1267,9 +1345,20 @@ static void fec_gpio_iomux_deinit()
 
 static void mx50_suspend_enter()
 {
+	struct pad_desc *p = suspend_enter_pads;
+	int i;
+	/* Set PADCTRL to 0 for all IOMUX. */
+	for (i = 0; i < ARRAY_SIZE(suspend_enter_pads); i++) {
+		suspend_exit_pads[i] = *p;
+		p->pad_ctrl = 0;
+		p++;
+	}
+	mxc_iomux_v3_get_multiple_pads(suspend_exit_pads,
+			ARRAY_SIZE(suspend_exit_pads));
 	mxc_iomux_v3_setup_multiple_pads(
 			suspend_enter_pads,
 			ARRAY_SIZE(suspend_enter_pads));
+
 	fec_gpio_iomux_deinit();
 }
 
@@ -1310,6 +1399,17 @@ static void __init fixup_mxc_board(struct machine_desc *desc, struct tag *tags,
 static void __init mx50_rdp_io_init(void)
 {
 	struct pad_desc cspi_keeper = MX50_PAD_ECSPI1_SCLK__GPIO_4_12;
+	struct pad_desc *p = mx50_rdp;
+	int i;
+
+	/* Set PADCTRL to 0 for all IOMUX. */
+	for (i = 0; i < ARRAY_SIZE(mx50_rdp); i++) {
+		int pad_ctl = p->pad_ctrl;
+		p->pad_ctrl = 0;
+		mxc_iomux_v3_setup_pad(p);
+		p->pad_ctrl = pad_ctl;
+		p++;
+	}
 
 	mxc_iomux_v3_setup_multiple_pads(mx50_rdp, \
 			ARRAY_SIZE(mx50_rdp));
