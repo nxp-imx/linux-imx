@@ -1108,15 +1108,33 @@ static int mxc_epdc_fb_set_par(struct fb_info *info)
 	 */
 	if (!fb_data->hw_ready) {
 		struct fb_videomode mode;
+		bool found_match = false;
+		u32 xres_temp;
 
 		fb_var_to_videomode(&mode, screeninfo);
+
+		/* When comparing requested fb mode,
+		   we need to use unrotated dimensions */
+		if ((screeninfo->rotate == FB_ROTATE_CW) ||
+			(screeninfo->rotate == FB_ROTATE_CCW)) {
+			xres_temp = mode.xres;
+			mode.xres = mode.yres;
+			mode.yres = xres_temp;
+		}
 
 		/* Match videomode against epdc modes */
 		for (i = 0; i < fb_data->pdata->num_modes; i++) {
 			if (!fb_mode_is_equal(epdc_modes[i].vmode, &mode))
 				continue;
 			fb_data->cur_mode = &epdc_modes[i];
+			found_match = true;
 			break;
+		}
+
+		if (!found_match) {
+			dev_err(fb_data->dev,
+				"Failed to match requested video mode\n");
+			return EINVAL;
 		}
 
 		/* Found a match - Grab timing params */
@@ -1287,8 +1305,7 @@ void mxc_epdc_fb_set_waveform_modes(struct mxcfb_waveform_modes *modes,
 	struct mxc_epdc_fb_data *fb_data = info ?
 		(struct mxc_epdc_fb_data *)info:g_fb_data;
 
-	memcpy(&fb_data->wv_modes, &modes,
-		sizeof(modes));
+	memcpy(&fb_data->wv_modes, modes, sizeof(modes));
 }
 EXPORT_SYMBOL(mxc_epdc_fb_set_waveform_modes);
 
@@ -2672,6 +2689,8 @@ static void draw_mode0(struct mxc_epdc_fb_data *fb_data)
 {
 	u32 *upd_buf_ptr;
 	int i;
+	struct fb_var_screeninfo *screeninfo = &fb_data->info.var;
+	u32 xres, yres;
 
 	upd_buf_ptr = (u32 *)fb_data->info.screen_base;
 
@@ -2679,11 +2698,20 @@ static void draw_mode0(struct mxc_epdc_fb_data *fb_data)
 	epdc_lut_complete_intr(0, true);
 	fb_data->in_init = true;
 
+	/* Use unrotated (native) width/height */
+	if ((screeninfo->rotate == FB_ROTATE_CW) ||
+		(screeninfo->rotate == FB_ROTATE_CCW)) {
+		xres = fb_data->info.var.yres;
+		yres = fb_data->info.var.xres;
+	} else {
+		xres = fb_data->info.var.xres;
+		yres = fb_data->info.var.yres;
+	}
+
 	/* Program EPDC update to process buffer */
 	epdc_set_update_addr(fb_data->phys_start);
 	epdc_set_update_coord(0, 0);
-	epdc_set_update_dimensions(fb_data->info.var.xres,
-				   fb_data->info.var.yres);
+	epdc_set_update_dimensions(xres, yres);
 	epdc_submit_update(0, fb_data->wv_modes.mode_init, UPDATE_MODE_FULL, true, 0xFF);
 
 	dev_dbg(fb_data->dev, "Mode0 update - Waiting for LUT to complete...\n");
@@ -2713,6 +2741,8 @@ static void mxc_epdc_fb_fw_handler(const struct firmware *fw,
 	int wv_data_offs;
 	int i;
 	struct mxcfb_update_data update;
+	struct fb_var_screeninfo *screeninfo = &fb_data->info.var;
+	u32 xres, yres;
 
 	if (fw == NULL) {
 		/* If default FW file load failed, we give up */
@@ -2782,10 +2812,20 @@ static void mxc_epdc_fb_fw_handler(const struct firmware *fw,
 
 	fb_data->hw_ready = true;
 
+	/* Use unrotated (native) width/height */
+	if ((screeninfo->rotate == FB_ROTATE_CW) ||
+		(screeninfo->rotate == FB_ROTATE_CCW)) {
+		xres = fb_data->info.var.yres;
+		yres = fb_data->info.var.xres;
+	} else {
+		xres = fb_data->info.var.xres;
+		yres = fb_data->info.var.yres;
+	}
+
 	update.update_region.left = 0;
-	update.update_region.width = fb_data->info.var.xres;
+	update.update_region.width = xres;
 	update.update_region.top = 0;
-	update.update_region.height = fb_data->info.var.yres;
+	update.update_region.height = yres;
 	update.update_mode = UPDATE_MODE_FULL;
 	update.waveform_mode = WAVEFORM_MODE_AUTO;
 	update.update_marker = INIT_UPDATE_MARKER;
@@ -2874,6 +2914,7 @@ int __devinit mxc_epdc_fb_probe(struct platform_device *pdev)
 	char name[] = "mxcepdcfb";
 	struct fb_videomode *vmode;
 	int xres_virt, yres_virt, buf_size;
+	int xres_virt_rot, yres_virt_rot, buf_size_rot;
 	struct fb_var_screeninfo *var_info;
 	struct fb_fix_screeninfo *fix_info;
 	struct pxp_config_data *pxp_conf;
@@ -2961,6 +3002,16 @@ int __devinit mxc_epdc_fb_probe(struct platform_device *pdev)
 	xres_virt = ALIGN(vmode->xres, 32);
 	yres_virt = ALIGN(vmode->yres, 128);
 	buf_size = PAGE_ALIGN(xres_virt * yres_virt * fb_data->default_bpp/8);
+
+	/*
+	 * Have to check to see if aligned buffer size when rotated
+	 * is bigger than when not rotated, and use the max
+	 */
+	xres_virt_rot = ALIGN(vmode->yres, 32);
+	yres_virt_rot = ALIGN(vmode->xres, 128);
+	buf_size_rot = PAGE_ALIGN(xres_virt_rot * yres_virt_rot
+						* fb_data->default_bpp/8);
+	buf_size = (buf_size > buf_size_rot) ? buf_size : buf_size_rot;
 
 	/* Compute the number of screens needed based on X memory requested */
 	if (x_mem_size > 0) {
