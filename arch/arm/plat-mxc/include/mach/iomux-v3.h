@@ -1,4 +1,5 @@
 /*
+ * Copyright (C) 2011 Freescale Semiconductor, Inc.
  * Copyright (C) 2009 by Jan Weitzel Phytec Messtechnik GmbH,
  *			<armlinux@phytec.de>
  *
@@ -97,15 +98,17 @@ struct pad_cfg {
 #define PAD_CTL_SRE_SLOW		(0 << 0)
 
 /*
- * setups a single pad in the iomuxer
+ * read/write a single pad in the iomuxer
  */
+int mxc_iomux_v3_get_pad(struct pad_desc *pad);
 int mxc_iomux_v3_setup_pad(struct pad_desc *pad);
 int mxc_iomux_v3_setup_pad_ext(struct pad_cfg *pad);
 
 /*
- * setups mutliple pads
+ * read/write mutliple pads
  * convenient way to call the above function with tables
  */
+int mxc_iomux_v3_get_multiple_pads(struct pad_desc *pad_list, unsigned count);
 int mxc_iomux_v3_setup_multiple_pads(struct pad_desc *pad_list, unsigned count);
 int mxc_iomux_v3_setup_multiple_pads_ext(struct pad_cfg *pad_list,
 								unsigned count);

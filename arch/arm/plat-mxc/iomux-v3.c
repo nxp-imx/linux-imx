@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2010 Freescale Semiconductor, Inc.
+ * Copyright 2004-2011 Freescale Semiconductor, Inc.
  * Copyright (C) 2008 by Sascha Hauer <kernel@pengutronix.de>
  * Copyright (C) 2009 by Jan Weitzel Phytec Messtechnik GmbH,
  *                       <armlinux@phytec.de>
@@ -31,6 +31,35 @@
 
 static void __iomem *base;
 
+/*
+ * Read a single pad in the iomuxer
+ */
+int mxc_iomux_v3_get_pad(struct pad_desc *pad)
+{
+	pad->mux_mode = __raw_readl(base + pad->mux_ctrl_ofs) & 0xFF;
+	pad->pad_ctrl = __raw_readl(base + pad->pad_ctrl_ofs) & 0x1FFFF;
+	pad->select_input = __raw_readl(base + pad->select_input_ofs) & 0x7;
+
+	return 0;
+}
+EXPORT_SYMBOL(mxc_iomux_v3_get_pad);
+
+/*
+ * Read multiple pads in the iomuxer
+ */
+int mxc_iomux_v3_get_multiple_pads(struct pad_desc *pad_list, unsigned count)
+{
+	struct pad_desc *p = pad_list;
+	int i;
+	int ret;
+
+	for (i = 0; i < count; i++) {
+		mxc_iomux_v3_get_pad(p);
+		p++;
+	}
+	return 0;
+}
+EXPORT_SYMBOL(mxc_iomux_v3_get_multiple_pads);
 /*
  * setups a single pad in the iomuxer
  */
