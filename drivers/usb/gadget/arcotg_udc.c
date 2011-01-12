@@ -2021,31 +2021,6 @@ static void suspend_irq(struct fsl_udc *udc)
 		udc->driver->suspend(&udc->gadget);
 }
 
-/* Process Wake up interrupt
- * Be careful that some boards will use ID pin to control the VBUS on/off
- * in these case, after the device enter the lowpower mode(clk off,
- * phy lowpower mode, wakeup enable), then an udisk is attaced to the otg port,
- * there will be an Vbus wakeup event and then an ID change wakeup, But the Vbus
- * event is not expected, so there is an workaround that will detect the ID, if ID=0
- * we just need the ID event so we can not disable the wakeup
- *
- * false: host wakeup event
- * true: device wakeup event
- */
-static void wake_up_irq(struct fsl_udc *udc)
-{
-	pr_debug("udc wakeup event\n");
-	dr_wake_up_enable(udc_controller, false);
-#ifdef CONFIG_USB_OTG
-	/* if no gadget register in this driver, we need clear the wakeup event */
-	if (udc->transceiver->gadget == NULL)
-		dr_wake_up_enable(udc_controller, true);
-	else
-#endif
-		dr_phy_low_power_mode(udc, false);
-	pr_debug("at %s: device wake up event\n", __func__);
-}
-
 static void bus_resume(struct fsl_udc *udc)
 {
 	udc->usb_state = udc->resume_state;
@@ -2120,14 +2095,6 @@ bool try_wake_up_udc(struct fsl_udc *udc)
 	u32 irq_src;
 
 	pdata = udc->pdata;
-	/* when udc is stopped, only handle wake up irq */
-	if (udc->stopped) {
-		/* check to see if wake up irq */
-		if (pdata->wakeup_event) {
-			wake_up_irq(udc);
-			pdata->wakeup_event = 0;
-		}
-	}
 
 	/* check if Vbus change irq */
 	irq_src = fsl_readl(&dr_regs->otgsc) & (~OTGSC_ID_CHANGE_IRQ_STS);
@@ -2298,6 +2265,7 @@ int usb_gadget_register_driver(struct usb_gadget_driver *driver)
 		VDBG("bind to %s --> %d", driver->driver.name, retval);
 		udc_controller->gadget.dev.driver = 0;
 		udc_controller->driver = 0;
+		dr_clk_gate(false);
 		goto out;
 	}
 
@@ -3141,24 +3109,20 @@ out:
 static int fsl_udc_suspend(struct platform_device *pdev, pm_message_t state)
 {
 	int ret;
-	unsigned long flags;
 #ifdef CONFIG_USB_OTG
 	if (udc_controller->transceiver->gadget == NULL)
 		return 0;
 #endif
-	spin_lock_irqsave(&udc_controller->lock, flags);
 	if (udc_controller->stopped)
 		dr_clk_gate(true);
 	if (((!(udc_controller->gadget.is_otg)) ||
 		(fsl_readl(&dr_regs->otgsc) & OTGSC_STS_USB_ID)) &&
 			(udc_controller->usb_state > USB_STATE_POWERED) &&
 			(udc_controller->usb_state < USB_STATE_SUSPENDED)) {
-		spin_unlock_irqrestore(&udc_controller->lock, flags);
 		return -EBUSY;/* keep the clk on */
 	} else
 		ret = udc_suspend(udc_controller);
 	dr_clk_gate(false);
-	spin_unlock_irqrestore(&udc_controller->lock, flags);
 
 	return ret;
 }
@@ -3171,7 +3135,6 @@ static int fsl_udc_resume(struct platform_device *pdev)
 {
 	struct fsl_usb2_platform_data *pdata = udc_controller->pdata;
 	struct fsl_usb2_wakeup_platform_data *wake_up_pdata = pdata->wakeup_pdata;
-	unsigned long flags;
 	printk(KERN_DEBUG "USB Gadget resume begins\n");
 
 	if (pdev->dev.power.status == DPM_RESUMING) {
@@ -3184,13 +3147,13 @@ static int fsl_udc_resume(struct platform_device *pdev)
 		return 0;
 	}
 #endif
-	spin_lock_irqsave(&udc_controller->lock, flags);
+	mutex_lock(&udc_resume_mutex);
 
 	pr_debug("%s(): stopped %d  suspended %d\n", __func__,
 		 udc_controller->stopped, udc_controller->suspended);
 	/* Do noop if the udc is already at resume state */
 	if (udc_controller->suspended == 0) {
-		spin_unlock_irqrestore(&udc_controller->lock, flags);
+		mutex_unlock(&udc_resume_mutex);
 		return 0;
 	}
 
@@ -3246,7 +3209,7 @@ end:
 		dr_clk_gate(false);
 	}
 	--udc_controller->suspended;
-	spin_unlock_irqrestore(&udc_controller->lock, flags);
+	mutex_unlock(&udc_resume_mutex);
 	printk(KERN_DEBUG "USB Gadget resume ends\n");
 	return 0;
 }

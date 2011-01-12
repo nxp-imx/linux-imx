@@ -111,44 +111,25 @@ static int ehci_testmode_init(struct ehci_hcd *ehci)
 }
 #endif	/* /proc PORTSC:PTC support */
 
-
 /**
- * This irq is used to open the hw access and let usb_hcd_irq process the usb event
- * ehci_fsl_pre_irq will be called before usb_hcd_irq
+ * The hcd operation need to be done during the wakeup irq
  */
-static irqreturn_t ehci_fsl_pre_irq(int irq, void *dev)
+void fsl_usb_recover_hcd(struct platform_device *pdev)
 {
-	struct platform_device *pdev = (struct platform_device *)dev;
 	struct usb_hcd *hcd = platform_get_drvdata(pdev);
-	struct fsl_usb2_platform_data *pdata;
 	struct ehci_hcd *ehci = hcd_to_ehci(hcd);
 	u32 cmd = 0;
 
-	pdata = hcd->self.controller->platform_data;
-
-	if (!test_bit(HCD_FLAG_HW_ACCESSIBLE, &hcd->flags)) {
-		if (pdata->irq_delay || !pdata->wakeup_event)
-			return IRQ_NONE;
-
-		pr_debug("%s\n", __func__);
-		usb_host_set_wakeup(hcd->self.controller, false);
-		fsl_usb_lowpower_mode(pdata, false);
-		set_bit(HCD_FLAG_HW_ACCESSIBLE, &hcd->flags);
-		pdata->wakeup_event = 0;
-
-		/* After receive remote wakeup signaling. Must restore
-		 * CMDRUN bit in 20ms to keep port status.
-		 */
-		cmd = ehci_readl(ehci, &ehci->regs->command);
-		if (!(cmd & CMD_RUN)) {
-			ehci_writel(ehci, ehci->command, &ehci->regs->command);
-			/* Resume root hub here? */
-			usb_hcd_resume_root_hub(hcd);
-		}
-
-		return IRQ_HANDLED;
+	set_bit(HCD_FLAG_HW_ACCESSIBLE, &hcd->flags);
+	/* After receive remote wakeup signaling. Must restore
+	 * CMDRUN bit in 20ms to keep port status.
+	 */
+	cmd = ehci_readl(ehci, &ehci->regs->command);
+	if (!(cmd & CMD_RUN)) {
+		ehci_writel(ehci, ehci->command, &ehci->regs->command);
+		/* Resume root hub here? */
+		usb_hcd_resume_root_hub(hcd);
 	}
-	return IRQ_NONE;
 }
 
 /**
@@ -240,18 +221,9 @@ int usb_hcd_fsl_probe(const struct hc_driver *driver,
 	fsl_platform_set_host_mode(hcd);
 	hcd->power_budget = pdata->power_budget;
 
-	/*
-	 * The ehci_fsl_pre_irq must be registered before usb_hcd_irq, in that case
-	 * it can be called before usb_hcd_irq when irq occurs
-	 */
-	retval = request_irq(irq, ehci_fsl_pre_irq, IRQF_SHARED,
-			"fsl ehci pre interrupt", (void *)pdev);
-	if (retval != 0)
-		goto err4;
-
 	retval = usb_add_hcd(hcd, irq, IRQF_DISABLED | IRQF_SHARED);
 	if (retval != 0)
-		goto err5;
+		goto err4;
 
 	if (pdata->operating_mode == FSL_USB2_DR_OTG) {
 		struct ehci_hcd *ehci = hcd_to_ehci(hcd);
@@ -264,7 +236,7 @@ int usb_hcd_fsl_probe(const struct hc_driver *driver,
 		if (!ehci->transceiver) {
 			printk(KERN_ERR "can't find transceiver\n");
 			retval = -ENODEV;
-			goto err6;
+			goto err5;
 		}
 
 		retval = otg_set_host(ehci->transceiver, &ehci_to_hcd(ehci)->self);
@@ -282,10 +254,8 @@ int usb_hcd_fsl_probe(const struct hc_driver *driver,
 	fsl_platform_set_ahb_burst(hcd);
 	ehci_testmode_init(hcd_to_ehci(hcd));
 	return retval;
-err6:
-	usb_remove_hcd(hcd);
 err5:
-	free_irq(irq, (void *)pdev);
+	usb_remove_hcd(hcd);
 err4:
 	iounmap(hcd->regs);
 err3:
@@ -436,13 +406,7 @@ static int ehci_fsl_bus_resume(struct usb_hcd *hcd)
 
 	if (!test_bit(HCD_FLAG_HW_ACCESSIBLE, &hcd->flags)) {
 		set_bit(HCD_FLAG_HW_ACCESSIBLE, &hcd->flags);
-		if (!pdata->wakeup_event) {
-			/* The usb interrupt is still not occurred,
-			   but the clock opens at wakeup routine
-			 */
-			fsl_usb_clk_gate(hcd->self.controller->platform_data, true);
-		} else
-			pdata->wakeup_event = 0;
+		fsl_usb_clk_gate(hcd->self.controller->platform_data, true);
 		usb_host_set_wakeup(hcd->self.controller, false);
 		fsl_usb_lowpower_mode(pdata, false);
 	}
