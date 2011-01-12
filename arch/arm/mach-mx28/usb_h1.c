@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2009-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -30,8 +30,10 @@
 #include "usb.h"
 
 extern int clk_get_usecount(struct clk *clk);
+extern void fsl_usb_recover_hcd(struct platform_device *pdev);
 static struct clk *usb_clk;
 static struct clk *usb_phy_clk;
+static struct platform_device *h1_pdev;
 
 static void usb_host_phy_resume(struct fsl_usb2_platform_data *plat)
 {
@@ -166,7 +168,7 @@ static void _phy_lowpower_suspend(struct fsl_usb2_platform_data *pdata, bool ena
 	}
 }
 
-static bool _is_usbh1_wakeup(struct fsl_usb2_platform_data *pdata)
+static enum usb_wakeup_event _is_usbh1_wakeup(struct fsl_usb2_platform_data *pdata)
 {
 	void __iomem *phy_reg = IO_ADDRESS(pdata->phy_regs);
 	u32 tmp;
@@ -175,11 +177,29 @@ static bool _is_usbh1_wakeup(struct fsl_usb2_platform_data *pdata)
 	tmp = BM_USBPHY_CTRL_RESUME_IRQ | BM_USBPHY_CTRL_WAKEUP_IRQ;
 	if (__raw_readl(phy_reg + HW_USBPHY_CTRL) && tmp) {
 		__raw_writel(tmp, phy_reg + HW_USBPHY_CTRL_CLR);
-		return true;
+		return !WAKEUP_EVENT_INVALID;
 	} else
-		return false;
+		return WAKEUP_EVENT_INVALID;
 }
 
+static void h1_wakeup_handler(struct fsl_usb2_platform_data *pdata)
+{
+	_wake_up_enable(pdata, false);
+	_phy_lowpower_suspend(pdata, false);
+	fsl_usb_recover_hcd(h1_pdev);
+}
+
+static void usbh1_wakeup_event_clear(void)
+{
+	void __iomem *phy_reg = IO_ADDRESS(USBPHY1_PHYS_ADDR);
+	u32 wakeup_irq_bits;
+
+	wakeup_irq_bits = BM_USBPHY_CTRL_RESUME_IRQ | BM_USBPHY_CTRL_WAKEUP_IRQ;
+	if (__raw_readl(phy_reg + HW_USBPHY_CTRL) && wakeup_irq_bits) {
+		/* clear the wakeup interrupt status */
+		__raw_writel(wakeup_irq_bits, phy_reg + HW_USBPHY_CTRL_CLR);
+	}
+}
 static struct fsl_usb2_platform_data usbh1_config = {
 	.name = "Host 1",
 	.platform_init = fsl_usb_host_init_ext,
@@ -193,6 +213,7 @@ static struct fsl_usb2_platform_data usbh1_config = {
 	.wake_up_enable = _wake_up_enable,
 	.phy_lowpower_suspend = _phy_lowpower_suspend,
 	.is_wakeup_event = _is_usbh1_wakeup,
+	.wakeup_handler = h1_wakeup_handler,
 	.phy_regs = USBPHY1_PHYS_ADDR,
 };
 
@@ -200,6 +221,7 @@ static struct fsl_usb2_wakeup_platform_data usbh1_wakeup_config = {
 	.name = "USBH1 wakeup",
 	.usb_clock_for_pm  = usbh1_clock_gate,
 	.usb_pdata = {&usbh1_config, NULL, NULL},
+	.usb_wakeup_exhandle = usbh1_wakeup_event_clear,
 };
 
 /* The resources for kinds of usb devices */
@@ -241,6 +263,7 @@ static int __init usbh1_init(void)
 	pdev = host_pdev_register(usbh1_resources,
 			ARRAY_SIZE(usbh1_resources), &usbh1_config);
 
+	h1_pdev = pdev;
 	pr_debug("%s: \n", __func__);
 
 	/* the platform device(usb h1)'s pdata address has changed */

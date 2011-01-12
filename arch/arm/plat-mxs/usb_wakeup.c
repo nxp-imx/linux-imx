@@ -80,17 +80,19 @@ static irqreturn_t usb_wakeup_handler(int irq, void *_dev)
 	return ret;
 }
 
-static bool is_wakeup(struct fsl_usb2_platform_data *pdata)
+static enum usb_wakeup_event is_wakeup(struct fsl_usb2_platform_data *pdata)
 {
 	if (pdata->is_wakeup_event)
 		return pdata->is_wakeup_event(pdata);
-
-	return false;
+	else
+		return WAKEUP_EVENT_INVALID;
 }
 
 static void wakeup_event_handler(struct wakeup_ctrl *ctrl)
 {
 	struct fsl_usb2_wakeup_platform_data *pdata = ctrl->pdata;
+	int already_waked = 0;
+	enum usb_wakeup_event wakeup_evt;
 	int i;
 
 	wakeup_clk_gate(ctrl->pdata, true);
@@ -102,15 +104,24 @@ static void wakeup_event_handler(struct wakeup_ctrl *ctrl)
 	for (i = 0; i < 3; i++) {
 		struct fsl_usb2_platform_data *usb_pdata = pdata->usb_pdata[i];
 		if (usb_pdata) {
-			if (is_wakeup(usb_pdata)) {
-				usb_pdata->wakeup_event = 1;
+			wakeup_evt = is_wakeup(usb_pdata);
+			if (wakeup_evt != WAKEUP_EVENT_INVALID) {
 				if (usb2_is_in_lowpower(ctrl))
 					if (usb_pdata->usb_clock_for_pm)
 						usb_pdata->usb_clock_for_pm(true);
 				usb_pdata->lowpower = 0;
+				already_waked = 1;
+				if (usb_pdata->wakeup_handler) {
+					usb_pdata->wakeup_handler(usb_pdata);
+				}
 			}
 		}
 	}
+
+	/* If nothing to wakeup, clear wakeup event */
+	if ((already_waked == 0) && pdata->usb_wakeup_exhandle)
+		pdata->usb_wakeup_exhandle();
+
 	wakeup_clk_gate(ctrl->pdata, false);
 	pdata->usb_wakeup_is_pending = false;
 	wake_up(&pdata->wq);

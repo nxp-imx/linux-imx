@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2009-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -34,7 +34,8 @@
 extern int clk_get_usecount(struct clk *clk);
 static struct clk *usb_clk;
 static struct clk *usb_phy_clk;
-
+extern void fsl_usb_recover_hcd(struct platform_device *pdev);
+static struct platform_device *otg_host_pdev;
 void fsl_phy_usb_utmi_init(struct fsl_xcvr_ops *this)
 {
 }
@@ -289,7 +290,7 @@ static void _device_wakeup_enable(struct fsl_usb2_platform_data *pdata, bool ena
 	}
 }
 
-static bool _is_host_wakeup(struct fsl_usb2_platform_data *pdata)
+static enum usb_wakeup_event _is_host_wakeup(struct fsl_usb2_platform_data *pdata)
 {
 	void __iomem *phy_reg = IO_ADDRESS(pdata->phy_regs);
 	void __iomem *usb_reg = pdata->regs;
@@ -308,17 +309,17 @@ static bool _is_host_wakeup(struct fsl_usb2_platform_data *pdata)
 		/* if host ID wakeup, we must clear the b session change sts */
 		__raw_writel(wakeup_irq_bits, phy_reg + HW_USBPHY_CTRL_CLR);
 		__raw_writel(otgsc & (~OTGSC_IS_USB_ID), usb_reg + UOG_OTGSC);
-		return true;
+		return WAKEUP_EVENT_ID;
 	}
-	if (wakeup_req /*&& (!((otgsc & OTGSC_IS_B_SESSION_VALID)))*/ && (!((otgsc & OTGSC_STS_USB_ID)))) {
+	if (wakeup_req  && (!(otgsc & OTGSC_STS_USB_ID))) {
 		__raw_writel(wakeup_irq_bits, phy_reg + HW_USBPHY_CTRL_CLR);
 		pr_debug("otg host Remote wakeup\n");
-		return true;
+		return WAKEUP_EVENT_DPDM;
 	}
-	return false;
+	return WAKEUP_EVENT_INVALID;
 }
 
-static bool _is_device_wakeup(struct fsl_usb2_platform_data *pdata)
+static enum usb_wakeup_event _is_device_wakeup(struct fsl_usb2_platform_data *pdata)
 {
 	void __iomem *phy_reg = IO_ADDRESS(pdata->phy_regs);
 	void __iomem *usb_reg = pdata->regs;
@@ -332,14 +333,39 @@ static bool _is_device_wakeup(struct fsl_usb2_platform_data *pdata)
 	}
 
 	/* if ID change sts, it is a host wakeup event */
-	if (wakeup_req && !(otgsc & OTGSC_IS_USB_ID) && (otgsc & OTGSC_IS_B_SESSION_VALID)) {
+	if (wakeup_req && (otgsc & OTGSC_STS_USB_ID) && (otgsc & OTGSC_IS_B_SESSION_VALID)) {
 		pr_debug("otg device wakeup\n");
 		/* if host ID wakeup, we must clear the b session change sts */
 		__raw_writel(wakeup_irq_bits, phy_reg + HW_USBPHY_CTRL_CLR);
-		return true;
+		return WAKEUP_EVENT_VBUS;
 	}
 
-	return false;
+	return WAKEUP_EVENT_INVALID;
+}
+
+static void host_wakeup_handler(struct fsl_usb2_platform_data *pdata)
+{
+	_host_wakeup_enable(pdata, false);
+	_host_phy_lowpower_suspend(pdata, false);
+	fsl_usb_recover_hcd(otg_host_pdev);
+}
+
+static void device_wakeup_handler(struct fsl_usb2_platform_data *pdata)
+{
+	_device_wakeup_enable(pdata, false);
+	_device_phy_lowpower_suspend(pdata, false);
+}
+
+static void usbotg_wakeup_event_clear(void)
+{
+	void __iomem *phy_reg = IO_ADDRESS(USBPHY0_PHYS_ADDR);
+	u32 wakeup_irq_bits;
+
+	wakeup_irq_bits = BM_USBPHY_CTRL_RESUME_IRQ | BM_USBPHY_CTRL_WAKEUP_IRQ;
+	if (__raw_readl(phy_reg + HW_USBPHY_CTRL) && wakeup_irq_bits) {
+		/* clear the wakeup interrupt status */
+		__raw_writel(wakeup_irq_bits, phy_reg + HW_USBPHY_CTRL_CLR);
+	}
 }
 
 /*
@@ -449,6 +475,7 @@ struct platform_device mxs_usbotg_wakeup_device = {
 static struct fsl_usb2_wakeup_platform_data usbdr_wakeup_config = {
 	.name = "DR wakeup",
 	.usb_clock_for_pm  = usbotg_clock_gate,
+	.usb_wakeup_exhandle = usbotg_wakeup_event_clear,
 };
 
 static int __init usb_dr_init(void)
@@ -478,14 +505,16 @@ static int __init usb_dr_init(void)
 	dr_utmi_config.operating_mode = DR_HOST_MODE;
 	dr_utmi_config.wake_up_enable = _host_wakeup_enable;
 	dr_utmi_config.phy_lowpower_suspend = _host_phy_lowpower_suspend;
+	dr_utmi_config.wakeup_handler = host_wakeup_handler;
 	dr_utmi_config.is_wakeup_event = _is_host_wakeup;
 	dr_utmi_config.irq_delay = 0;
 	dr_utmi_config.wakeup_pdata = &usbdr_wakeup_config;
 	pdev = host_pdev_register(otg_resources,
 			ARRAY_SIZE(otg_resources), &dr_utmi_config);
-	if (pdev)
+	if (pdev) {
 		usbdr_wakeup_config.usb_pdata[1] = pdev->dev.platform_data;
-	else
+		otg_host_pdev = pdev;
+	} else
 		printk(KERN_ERR "usb DR: can't alloc platform device for host\n");
 #endif
 
@@ -494,6 +523,7 @@ static int __init usb_dr_init(void)
 	dr_utmi_config.wake_up_enable = _device_wakeup_enable;
 	dr_utmi_config.phy_lowpower_suspend = _device_phy_lowpower_suspend;
 	dr_utmi_config.is_wakeup_event = _is_device_wakeup;
+	dr_utmi_config.wakeup_handler = device_wakeup_handler;
 	dr_utmi_config.irq_delay = 0;
 	dr_utmi_config.wakeup_pdata = &usbdr_wakeup_config;
 
