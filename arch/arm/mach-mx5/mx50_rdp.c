@@ -1036,6 +1036,7 @@ static struct mxc_mmc_platform_data mmc2_data = {
 	.status = sdhc_get_card_det_status,
 	.wp_status = sdhc_write_protect,
 	.clock_mmc = "esdhc_clk",
+	.power_mmc = "VSD"
 };
 
 static struct mxc_mmc_platform_data mmc3_data = {
