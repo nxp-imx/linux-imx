@@ -45,6 +45,7 @@
 #include <linux/pwm_backlight.h>
 #include <linux/fec.h>
 #include <linux/ahci_platform.h>
+#include <linux/gpio_keys.h>
 #include <mach/common.h>
 #include <mach/hardware.h>
 #include <asm/irq.h>
@@ -801,7 +802,7 @@ static struct i2c_board_info mxc_i2c1_board_info[] __initdata = {
 };
 
 #if defined(CONFIG_KEYBOARD_GPIO) || defined(CONFIG_KEYBOARD_GPIO_MODULE)
-#define GPIO_BUTTON(gpio_num, ev_code, act_low, descr, wake, debounce) \
+#define GPIO_BUTTON(gpio_num, ev_code, act_low, descr, wake)	\
 {								\
 	.gpio		= gpio_num,				\
 	.type		= EV_KEY,				\
@@ -809,12 +810,12 @@ static struct i2c_board_info mxc_i2c1_board_info[] __initdata = {
 	.active_low	= act_low,				\
 	.desc		= "btn " descr,				\
 	.wakeup		= wake,					\
-	.debounce_interval = debounce,				\
 }
 
 static struct gpio_keys_button smd_buttons[] = {
-	GPIO_BUTTON(MX53_SMD_KEY_VOL_UP, KEY_VOLUMEUP, 1, "volume-up", 0, 0),
-	GPIO_BUTTON(MX53_SMD_KEY_VOL_DOWN, KEY_VOLUMEDOWN, 1, "volume-down", 0, 0),
+	GPIO_BUTTON(MX53_SMD_PMIC_ON_OFF_REQ, KEY_POWER, 0, "power", 1),
+	GPIO_BUTTON(MX53_SMD_KEY_VOL_UP, KEY_VOLUMEUP, 1, "volume-up", 0),
+	GPIO_BUTTON(MX53_SMD_KEY_VOL_DOWN, KEY_VOLUMEDOWN, 1, "volume-down", 0),
 };
 
 static struct gpio_keys_platform_data smd_button_data = {

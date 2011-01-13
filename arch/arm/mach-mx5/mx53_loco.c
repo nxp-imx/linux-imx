@@ -44,6 +44,7 @@
 #include <linux/pwm_backlight.h>
 #include <linux/fec.h>
 #include <linux/ahci_platform.h>
+#include <linux/gpio_keys.h>
 #include <mach/common.h>
 #include <mach/hardware.h>
 #include <asm/irq.h>
@@ -81,6 +82,7 @@
 #define MIC_DEC_B			(1*32 + 6)	/* GPIO_2_6 */
 #define USER_UI1			(1*32 + 14)	/* GPIO_2_14 */
 #define USER_UI2			(1*32 + 15)	/* GPIO_2_15 */
+#define MX53_nONKEY			(0*32 + 8)	/* GPIO_1_8 */
 
 #define SD3_CD				(2*32 + 11)	/* GPIO_3_11 */
 #define SD3_WP				(2*32 + 12)	/* GPIO_3_12 */
@@ -246,6 +248,7 @@ static struct pad_desc mx53_loco_pads[] = {
 	MX53_PAD_NANDF_CS3__GPIO_6_16,
 	MX53_PAD_GPIO_5__GPIO_1_5,
 	MX53_PAD_GPIO_16__GPIO_7_11,
+	MX53_PAD_GPIO_8__GPIO_1_8,
 };
 
 /* working point(wp)*/
@@ -712,6 +715,46 @@ static void mx53_loco_usbh1_vbus(bool on)
 		gpio_set_value(USB_PWREN, 0);
 }
 
+#if defined(CONFIG_KEYBOARD_GPIO) || defined(CONFIG_KEYBOARD_GPIO_MODULE)
+#define GPIO_BUTTON(gpio_num, ev_code, act_low, descr, wake)	\
+{								\
+	.gpio		= gpio_num,				\
+	.type		= EV_KEY,				\
+	.code		= ev_code,				\
+	.active_low	= act_low,				\
+	.desc		= "btn " descr,				\
+	.wakeup		= wake,					\
+}
+
+static struct gpio_keys_button loco_buttons[] = {
+	GPIO_BUTTON(MX53_nONKEY, KEY_POWER, 1, "power", 1),
+	GPIO_BUTTON(USER_UI1, KEY_VOLUMEUP, 1, "volume-up", 0),
+	GPIO_BUTTON(USER_UI2, KEY_VOLUMEDOWN, 1, "volume-down", 0),
+};
+
+static struct gpio_keys_platform_data loco_button_data = {
+	.buttons	= loco_buttons,
+	.nbuttons	= ARRAY_SIZE(loco_buttons),
+};
+
+static struct platform_device loco_button_device = {
+	.name		= "gpio-keys",
+	.id		= -1,
+	.num_resources  = 0,
+	.dev		= {
+		.platform_data = &loco_button_data,
+	}
+};
+
+static void __init loco_add_device_buttons(void)
+{
+	platform_device_register(&loco_button_device);
+}
+#else
+static void __init loco_add_device_buttons(void) {}
+#endif
+
+
 /*!
  * Board specific fixup function. It is called by \b setup_arch() in
  * setup.c file very early on during kernel starts. It allows the user to
@@ -894,6 +937,7 @@ static void __init mxc_board_init(void)
 	mx5_usbh1_init();
 	mxc_register_device(&mxc_v4l2_device, NULL);
 	mxc_register_device(&mxc_v4l2out_device, NULL);
+	loco_add_device_buttons();
 }
 
 static void __init mx53_loco_timer_init(void)
