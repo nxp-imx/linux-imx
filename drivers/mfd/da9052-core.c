@@ -443,6 +443,7 @@ int da9052_ssc_init(struct da9052 *da9052)
 {
 	int cnt;
 	struct da9052_platform_data *pdata;
+	struct da9052_ssc_msg ssc_msg;
 
 	/* Initialize eve_nb_array */
 	for (cnt = 0; cnt < EVE_CNT; cnt++)
@@ -488,9 +489,16 @@ int da9052_ssc_init(struct da9052 *da9052)
 
 	INIT_WORK(&da9052->eh_isr_work, eh_workqueue_isr);
 
+	ssc_msg.addr = DA9052_IRQMASKA_REG;
+	ssc_msg.data = 0xff;
+	da9052->write(da9052, &ssc_msg);
+	ssc_msg.addr = DA9052_IRQMASKC_REG;
+	ssc_msg.data = 0xff;
+	da9052->write(da9052, &ssc_msg);
 	if (request_irq(da9052->irq, da9052_eh_isr, IRQ_TYPE_LEVEL_LOW,
 		DA9052_EH_DEVICE_NAME, da9052))
 		return -EIO;
+	enable_irq_wake(da9052->irq);
 
 	return 0;
 }

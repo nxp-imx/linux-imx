@@ -385,6 +385,78 @@ int da9052_ldo_buck_get_voltage(struct regulator_dev *rdev)
 EXPORT_SYMBOL_GPL(da9052_ldo_buck_get_voltage);
 /* Code added by KPIT to support additional attributes in sysfs - setvoltage */
 
+static int da9052_set_suspend_voltage(struct regulator_dev *rdev, int uV)
+{
+	struct da9052_regulator_priv *priv = rdev_get_drvdata(rdev);
+	struct da9052_ssc_msg ssc_msg;
+	int id = rdev_get_id(rdev);
+	int ret;
+	int ldo_volt = 0;
+
+
+	/* Check Minimum/ Maximum voltage range */
+	if (uV < da9052_regulators[id].reg_const.min_uV ||
+		uV > da9052_regulators[id].reg_const.max_uV)
+		return -EINVAL;
+
+	/* Get the ldo register value */
+	/* Varying step size for BUCK PERI */
+	if ((da9052_regulators[id].reg_desc.id == DA9052_BUCK_PERI) &&
+			(uV >= DA9052_BUCK_PERI_VALUES_3000)) {
+		ldo_volt = (DA9052_BUCK_PERI_VALUES_3000 -
+			da9052_regulators[id].reg_const.min_uV)/
+			(da9052_regulators[id].step_uV);
+		ldo_volt += (uV - DA9052_BUCK_PERI_VALUES_3000)/
+			(DA9052_BUCK_PERI_STEP_ABOVE_3000);
+	} else{
+		ldo_volt = (uV - da9052_regulators[id].reg_const.min_uV)/
+			(da9052_regulators[id].step_uV);
+	}
+	ldo_volt |= 0x80;
+	dev_info(&rdev->dev, "preset to %d %x\n", uV, ldo_volt);
+
+	/* Configure LDO Voltage, CONF bits */
+	ssc_msg.addr = da9052_regulators[id].reg_add;
+	ssc_msg.data = 0;
+
+	/* Read register */
+	da9052_lock(priv->da9052);
+	ret = priv->da9052->read(priv->da9052, &ssc_msg);
+	if (ret) {
+		da9052_unlock(priv->da9052);
+		return -EIO;
+	}
+
+	ssc_msg.data = (ssc_msg.data & ~(da9052_regulators[id].mask_bits));
+	ssc_msg.data |= ldo_volt;
+
+	ret = priv->da9052->write(priv->da9052, &ssc_msg);
+	if (ret) {
+		da9052_unlock(priv->da9052);
+		return -EIO;
+	}
+
+	da9052_unlock(priv->da9052);
+
+	return 0;
+}
+
+static int da9052_ldo_buck_stby_enable(struct regulator_dev *reg)
+{
+	return 0;
+}
+
+static int da9052_ldo_buck_stby_disable(struct regulator_dev *reg)
+{
+	return 0;
+}
+
+static int da9052_ldo_buck_stby_set_mode(struct regulator_dev *reg,
+					unsigned int mode)
+{
+	return 0;
+}
+
 
 static struct regulator_ops da9052_ldo_buck_ops = {
 	.is_enabled = da9052_ldo_buck_is_enabled,
@@ -392,7 +464,12 @@ static struct regulator_ops da9052_ldo_buck_ops = {
 	.disable = da9052_ldo_buck_disable,
 	.get_voltage = da9052_ldo_buck_get_voltage,
 	.set_voltage = da9052_ldo_buck_set_voltage,
+	.set_suspend_voltage = da9052_set_suspend_voltage,
+	.set_suspend_enable = da9052_ldo_buck_stby_enable,
+	.set_suspend_disable = da9052_ldo_buck_stby_disable,
+	.set_suspend_mode = da9052_ldo_buck_stby_set_mode,
 };
+
 
 static int __devinit da9052_regulator_probe(struct platform_device *pdev)
 {
