@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2008-2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ *  Copyright (C) 2008-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -15,9 +15,11 @@
 #include <linux/io.h>
 #include <linux/kernel.h>
 #include <linux/clk.h>
+#include <linux/i2c.h>
 #include <linux/platform_device.h>
 #include <linux/regulator/consumer.h>
 #include <linux/suspend.h>
+#include <linux/regulator/machine.h>
 #include <linux/proc_fs.h>
 #include <linux/cpufreq.h>
 #include <linux/iram_alloc.h>
@@ -25,6 +27,7 @@
 #include <asm/mach-types.h>
 #include <asm/cacheflush.h>
 #include <asm/tlb.h>
+#include <asm/delay.h>
 #include <asm/mach/map.h>
 #include <mach/hardware.h>
 #include <mach/gpio.h>
@@ -38,8 +41,10 @@
 #define DATABAHN_CTL_REG19	0x4c
 #define DATABAHN_CTL_REG79	0x13c
 #define DATABAHN_PHY_REG25	0x264
+#define MX53_OFFSET 0x20000000
 
 static struct cpu_wp *cpu_wp_tbl;
+static int cpu_wp_nr;
 static struct clk *cpu_clk;
 static struct mxc_pm_platform_data *pm_data;
 
@@ -56,6 +61,8 @@ extern void cpu_do_suspend_workaround(u32 sdclk_iomux_addr);
 extern void mx50_suspend(u32 databahn_addr);
 extern struct cpu_wp *(*get_cpu_wp)(int *wp);
 extern void __iomem *databahn_base;
+extern void da9053_suspend_cmd(void);
+extern void pm_da9053_i2c_init(u32 base_addr);
 
 extern int iram_ready;
 void *suspend_iram_base;
@@ -87,6 +94,9 @@ static int mx5_suspend_enter(suspend_state_t state)
 		flush_cache_all();
 
 		if (cpu_is_mx51() || cpu_is_mx53()) {
+			if (machine_is_mx53_smd() ||
+				machine_is_mx53_loco())
+				da9053_suspend_cmd();
 			/* Run the suspend code from iRAM. */
 			suspend_in_iram(suspend_param1);
 
@@ -115,20 +125,32 @@ static int mx5_suspend_enter(suspend_state_t state)
 static int mx5_suspend_prepare(void)
 {
 #if defined(CONFIG_CPU_FREQ)
+#define MX53_SUSPEND_CPU_WP 400000000
 	struct cpufreq_freqs freqs;
+	u32 suspend_wp = 0;
 	org_freq = clk_get_rate(cpu_clk);
+	/* workaround for mx53 to suspend on 400MHZ wp */
+	if (cpu_is_mx53())
+		for (suspend_wp = 0; suspend_wp < cpu_wp_nr; suspend_wp++)
+			if (cpu_wp_tbl[suspend_wp].cpu_rate
+				== MX53_SUSPEND_CPU_WP)
+				break;
+	if (suspend_wp == cpu_wp_nr)
+		suspend_wp = 0;
+	pr_info("suspend wp cpu=%d\n", cpu_wp_tbl[suspend_wp].cpu_rate);
 	freqs.old = org_freq / 1000;
-	freqs.new = cpu_wp_tbl[0].cpu_rate / 1000;
+	freqs.new = cpu_wp_tbl[suspend_wp].cpu_rate / 1000;
 	freqs.cpu = 0;
 	freqs.flags = 0;
 
 	cpufreq_suspended = 1;
-	if (clk_get_rate(cpu_clk) != cpu_wp_tbl[0].cpu_rate) {
-		set_cpu_freq(cpu_wp_tbl[0].cpu_rate);
+	if (clk_get_rate(cpu_clk) != cpu_wp_tbl[suspend_wp].cpu_rate) {
+		set_cpu_freq(cpu_wp_tbl[suspend_wp].cpu_rate);
 		cpufreq_notify_transition(&freqs, CPUFREQ_PRECHANGE);
 		cpufreq_notify_transition(&freqs, CPUFREQ_POSTCHANGE);
 	}
 #endif
+	regulator_suspend_prepare(PM_SUSPEND_MEM);
 	return 0;
 }
 
@@ -192,7 +214,6 @@ static struct platform_driver mx5_pm_driver = {
 
 static int __init pm_init(void)
 {
-	int cpu_wp_nr;
 	unsigned long iram_paddr;
 
 	pr_info("Static Power Management for Freescale i.MX5\n");
@@ -231,6 +252,10 @@ static int __init pm_init(void)
 		return PTR_ERR(cpu_clk);
 	}
 	printk(KERN_INFO "PM driver module loaded\n");
+
+	if (machine_is_mx53_smd() ||
+		machine_is_mx53_loco())
+		pm_da9053_i2c_init(I2C1_BASE_ADDR - MX53_OFFSET);
 
 	return 0;
 }

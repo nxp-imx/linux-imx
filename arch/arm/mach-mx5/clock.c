@@ -4310,7 +4310,7 @@ static struct clk_lookup lookups[] = {
 	_REGISTER_CLOCK("mxcintuart.0", NULL, uart1_clk[0]),
 	_REGISTER_CLOCK("mxcintuart.1", NULL, uart2_clk[0]),
 	_REGISTER_CLOCK("mxcintuart.2", NULL, uart3_clk[0]),
-	_REGISTER_CLOCK("imx-i2c.0", NULL, i2c_clk[0]),
+	_REGISTER_CLOCK(NULL, "i2c_clk", i2c_clk[0]),
 	_REGISTER_CLOCK("imx-i2c.1", NULL, i2c_clk[1]),
 	_REGISTER_CLOCK("mxc_pwm.0", NULL, pwm1_clk[0]),
 	_REGISTER_CLOCK("mxc_pwm.1", NULL, pwm2_clk[0]),

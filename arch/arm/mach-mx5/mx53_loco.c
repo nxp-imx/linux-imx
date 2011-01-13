@@ -680,7 +680,7 @@ static void mx53_loco_usbh1_vbus(bool on)
 }
 
 static struct gpio_keys_button loco_buttons[] = {
-	GPIO_BUTTON(MX53_nONKEY, KEY_POWER, 1, "power", 1),
+	GPIO_BUTTON(MX53_nONKEY, KEY_POWER, 1, "power", 0),
 	GPIO_BUTTON(USER_UI1, KEY_VOLUMEUP, 1, "volume-up", 0),
 	GPIO_BUTTON(USER_UI2, KEY_VOLUMEDOWN, 1, "volume-down", 0),
 };
