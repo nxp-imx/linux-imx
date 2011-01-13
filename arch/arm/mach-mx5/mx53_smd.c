@@ -1005,6 +1005,11 @@ static struct mxc_bt_rfkill_platform_data mxc_bt_rfkill_data = {
 	.power_change = mx53_smd_bt_power_change,
 };
 
+static void mx53_smd_power_off(void)
+{
+	gpio_request(MX53_SMD_SYS_ON_OFF_CTL, "power-off");
+	gpio_set_value(MX53_SMD_SYS_ON_OFF_CTL, 0);
+}
 /*!
  * Board specific fixup function. It is called by \b setup_arch() in
  * setup.c file very early on during kernel starts. It allows the user to
@@ -1166,6 +1171,7 @@ static void __init mxc_board_init(void)
 	mxc_cpu_common_init();
 	mx53_smd_io_init();
 
+	pm_power_off = mx53_smd_power_off;
 	mxc_register_device(&mxc_dma_device, NULL);
 	mxc_register_device(&mxc_wdt_device, NULL);
 	mxc_register_device(&mxcspi1_device, &mxcspi1_data);
