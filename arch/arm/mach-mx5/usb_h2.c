@@ -22,7 +22,12 @@
 #include "iomux.h"
 #include "mx51_pins.h"
 
+#ifdef CONFIG_USB_EHCI_ARC
 extern void fsl_usb_recover_hcd(struct platform_device *pdev);
+#else
+static void fsl_usb_recover_hcd(struct platform_device *pdev)
+{; }
+#endif
 /*
  * USB Host2 HS port
  */

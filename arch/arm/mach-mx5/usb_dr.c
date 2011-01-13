@@ -28,7 +28,9 @@ static struct clk *usb_phy1_clk;
 static struct clk *usb_oh3_clk;
 static struct clk *usb_ahb_clk;
 extern int clk_get_usecount(struct clk *clk);
-extern void fsl_usb_recover_hcd(struct platform_device *pdev);
+
+/* Beginning of Common operation for DR port */
+
 /*
  * platform data structs
  * 	- Which one to use is determined by CONFIG options in usb.h
@@ -45,6 +47,8 @@ static struct fsl_usb2_platform_data dr_utmi_config = {
 	.usb_clock_for_pm  = usbotg_clock_gate,
 	.transceiver       = "utmi",
 };
+
+/* Platform data for wakeup operation */
 static struct fsl_usb2_wakeup_platform_data dr_wakeup_config = {
 	.name = "DR wakeup",
 	.usb_clock_for_pm  = usbotg_clock_gate,
@@ -111,39 +115,6 @@ static void __wakeup_irq_enable(bool on, int source)
 	}
 }
 
-static void _host_wakeup_enable(struct fsl_usb2_platform_data *pdata, bool enable)
-{
-	__wakeup_irq_enable(enable, ENABLED_BY_HOST);
-	/* host only care the ID change wakeup event */
-	if (enable) {
-		pr_debug("host wakeup enable\n");
-		USBCTRL_HOST2 |= UCTRL_H2OIDWK_EN;
-	} else {
-		pr_debug("host wakeup disable\n");
-		USBCTRL_HOST2 &= ~UCTRL_H2OIDWK_EN;
-		/* The interrupt must be disabled for at least 3 clock
-		 * cycles of the standby clock(32k Hz) , that is 0.094 ms*/
-		udelay(100);
-	}
-}
-
-static void _device_wakeup_enable(struct fsl_usb2_platform_data *pdata, bool enable)
-{
-	__wakeup_irq_enable(enable, ENABLED_BY_DEVICE);
-	/* if udc is not used by any gadget, we can not enable the vbus wakeup */
-	if (!pdata->port_enables) {
-		USBCTRL_HOST2 &= ~UCTRL_H2OVBWK_EN;
-		return;
-	}
-	if (enable) {
-		pr_debug("device wakeup enable\n");
-		USBCTRL_HOST2 |= UCTRL_H2OVBWK_EN;
-	} else {
-		pr_debug("device wakeup disable\n");
-		USBCTRL_HOST2 &= ~UCTRL_H2OVBWK_EN;
-	}
-}
-
 static u32 low_power_enable_src; /* only useful at otg mode */
 static void __phy_lowpower_suspend(bool enable, int source)
 {
@@ -164,14 +135,68 @@ static void __phy_lowpower_suspend(bool enable, int source)
 	}
 }
 
+static void usbotg_clock_gate(bool on)
+{
+	pr_debug("%s: on is %d\n", __func__, on);
+	if (on) {
+		clk_enable(usb_ahb_clk);
+		clk_enable(usb_oh3_clk);
+		clk_enable(usb_phy1_clk);
+	} else {
+		clk_disable(usb_phy1_clk);
+		clk_disable(usb_oh3_clk);
+		clk_disable(usb_ahb_clk);
+	}
+	pr_debug("usb_ahb_ref_count:%d, usb_phy_clk1_ref_count:%d\n", clk_get_usecount(usb_ahb_clk), clk_get_usecount(usb_phy1_clk));
+}
+
+void mx5_set_otghost_vbus_func(driver_vbus_func driver_vbus)
+{
+	dr_utmi_config.platform_driver_vbus = driver_vbus;
+}
+
+/* The wakeup operation for DR port, it will clear the wakeup irq status
+ * and re-enable the wakeup
+ */
+static void usbotg_wakeup_event_clear(void)
+{
+	int wakeup_req = USBCTRL & UCTRL_OWIR;
+
+	if (wakeup_req != 0) {
+		printk(KERN_INFO "Unknown wakeup.(OTGSC 0x%x)\n", UOG_OTGSC);
+		/* Disable OWIE to clear OWIR, wait 3 clock
+		 * cycles of standly clock(32KHz)
+		 */
+		USBCTRL &= ~UCTRL_OWIE;
+		udelay(100);
+		USBCTRL |= UCTRL_OWIE;
+	}
+}
+/* End of Common operation for DR port */
+
+
+#ifdef CONFIG_USB_EHCI_ARC_OTG
+extern void fsl_usb_recover_hcd(struct platform_device *pdev);
+/* Beginning of host related operation for DR port */
+static void _host_wakeup_enable(struct fsl_usb2_platform_data *pdata, bool enable)
+{
+	__wakeup_irq_enable(enable, ENABLED_BY_HOST);
+	/* host only care the ID change wakeup event */
+	if (enable) {
+		pr_debug("host wakeup enable\n");
+		USBCTRL_HOST2 |= UCTRL_H2OIDWK_EN;
+	} else {
+		pr_debug("host wakeup disable\n");
+		USBCTRL_HOST2 &= ~UCTRL_H2OIDWK_EN;
+		/* The interrupt must be disabled for at least 3 clock
+		 * cycles of the standby clock(32k Hz) , that is 0.094 ms*/
+		udelay(100);
+	}
+}
+
 static void _host_phy_lowpower_suspend(struct fsl_usb2_platform_data *pdata, bool enable)
 {
 	__phy_lowpower_suspend(enable, ENABLED_BY_HOST);
-}
-
-static void _device_phy_lowpower_suspend(struct fsl_usb2_platform_data *pdata, bool enable)
-{
-	__phy_lowpower_suspend(enable, ENABLED_BY_DEVICE);
 }
 
 static enum usb_wakeup_event _is_host_wakeup(struct fsl_usb2_platform_data *pdata)
@@ -194,6 +219,39 @@ static enum usb_wakeup_event _is_host_wakeup(struct fsl_usb2_platform_data *pdat
 	return WAKEUP_EVENT_INVALID;
 }
 
+static void host_wakeup_handler(struct fsl_usb2_platform_data *pdata)
+{
+	_host_wakeup_enable(pdata, false);
+	_host_phy_lowpower_suspend(pdata, false);
+	fsl_usb_recover_hcd(&mxc_usbdr_host_device);
+}
+/* End of host related operation for DR port */
+#endif /* CONFIG_USB_EHCI_ARC_OTG */
+
+
+#ifdef CONFIG_USB_GADGET_ARC
+/* Beginning of device related operation for DR port */
+static void _device_wakeup_enable(struct fsl_usb2_platform_data *pdata, bool enable)
+{
+	__wakeup_irq_enable(enable, ENABLED_BY_DEVICE);
+	/* if udc is not used by any gadget, we can not enable the vbus wakeup */
+	if (!pdata->port_enables) {
+		USBCTRL_HOST2 &= ~UCTRL_H2OVBWK_EN;
+		return;
+	}
+	if (enable) {
+		pr_debug("device wakeup enable\n");
+		USBCTRL_HOST2 |= UCTRL_H2OVBWK_EN;
+	} else {
+		pr_debug("device wakeup disable\n");
+		USBCTRL_HOST2 &= ~UCTRL_H2OVBWK_EN;
+	}
+}
+static void _device_phy_lowpower_suspend(struct fsl_usb2_platform_data *pdata, bool enable)
+{
+	__phy_lowpower_suspend(enable, ENABLED_BY_DEVICE);
+}
+
 static enum usb_wakeup_event _is_device_wakeup(struct fsl_usb2_platform_data *pdata)
 {
 	int wakeup_req = USBCTRL & UCTRL_OWIR;
@@ -206,37 +264,15 @@ static enum usb_wakeup_event _is_device_wakeup(struct fsl_usb2_platform_data *pd
 
 }
 
-static void host_wakeup_handler(struct fsl_usb2_platform_data *pdata)
-{
-	_host_wakeup_enable(pdata, false);
-	_host_phy_lowpower_suspend(pdata, false);
-	fsl_usb_recover_hcd(&mxc_usbdr_host_device);
-}
-
 static void device_wakeup_handler(struct fsl_usb2_platform_data *pdata)
 {
 	_device_wakeup_enable(pdata, false);
 	_device_phy_lowpower_suspend(pdata, false);
 }
-static void usbotg_clock_gate(bool on)
-{
-	pr_debug("%s: on is %d\n", __func__, on);
-	if (on) {
-		clk_enable(usb_ahb_clk);
-		clk_enable(usb_oh3_clk);
-		clk_enable(usb_phy1_clk);
-	} else {
-		clk_disable(usb_phy1_clk);
-		clk_disable(usb_oh3_clk);
-		clk_disable(usb_ahb_clk);
-	}
-	pr_debug("usb_ahb_ref_count:%d, usb_phy_clk1_ref_count:%d\n", clk_get_usecount(usb_ahb_clk), clk_get_usecount(usb_phy1_clk));
-}
 
-void mx5_set_otghost_vbus_func(driver_vbus_func driver_vbus)
-{
-	dr_utmi_config.platform_driver_vbus = driver_vbus;
-}
+/* end of device related operation for DR port */
+#endif /* CONFIG_USB_GADGET_ARC */
+
 
 void __init mx5_usb_dr_init(void)
 {

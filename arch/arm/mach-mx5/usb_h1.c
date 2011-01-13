@@ -28,7 +28,13 @@ static struct clk *usb_phy2_clk;
 static struct clk *usb_oh3_clk;
 static struct clk *usb_ahb_clk;
 extern int clk_get_usecount(struct clk *clk);
+
+#ifdef CONFIG_USB_EHCI_ARC
 extern void fsl_usb_recover_hcd(struct platform_device *pdev);
+#else
+static void fsl_usb_recover_hcd(struct platform_device *pdev)
+{; }
+#endif
 /*
  * USB Host1 HS port
  */
