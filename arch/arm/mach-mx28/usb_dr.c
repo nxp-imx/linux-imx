@@ -34,8 +34,9 @@
 extern int clk_get_usecount(struct clk *clk);
 static struct clk *usb_clk;
 static struct clk *usb_phy_clk;
-extern void fsl_usb_recover_hcd(struct platform_device *pdev);
 static struct platform_device *otg_host_pdev;
+
+/* Beginning of Common operation for DR port */
 void fsl_phy_usb_utmi_init(struct fsl_xcvr_ops *this)
 {
 }
@@ -194,16 +195,6 @@ static void __phy_lowpower_suspend(struct fsl_usb2_platform_data *pdata, bool en
 	}
 }
 
-static void _host_phy_lowpower_suspend(struct fsl_usb2_platform_data *pdata, bool enable)
-{
-	__phy_lowpower_suspend(pdata, enable, ENABLED_BY_HOST);
-}
-
-static void _device_phy_lowpower_suspend(struct fsl_usb2_platform_data *pdata, bool enable)
-{
-	__phy_lowpower_suspend(pdata, enable, ENABLED_BY_DEVICE);
-}
-
 static void otg_wake_up_enable(struct fsl_usb2_platform_data *pdata, bool enable)
 {
 	u32 tmp;
@@ -225,6 +216,7 @@ static void otg_wake_up_enable(struct fsl_usb2_platform_data *pdata, bool enable
 		udelay(100);
 	}
 }
+
 static u32 wakeup_irq_enable_src; /* only useful at otg mode */
 static void __wakeup_irq_enable(struct fsl_usb2_platform_data *pdata, bool on, int source)
  {
@@ -249,6 +241,32 @@ static void __wakeup_irq_enable(struct fsl_usb2_platform_data *pdata, bool on, i
 	}
 }
 
+/* The wakeup operation for DR port, it will clear the wakeup irq status
+ * and re-enable the wakeup
+ */
+static void usbotg_wakeup_event_clear(void)
+{
+	void __iomem *phy_reg = IO_ADDRESS(USBPHY0_PHYS_ADDR);
+	u32 wakeup_irq_bits;
+
+	wakeup_irq_bits = BM_USBPHY_CTRL_RESUME_IRQ | BM_USBPHY_CTRL_WAKEUP_IRQ;
+	if (__raw_readl(phy_reg + HW_USBPHY_CTRL) && wakeup_irq_bits) {
+		/* clear the wakeup interrupt status */
+		__raw_writel(wakeup_irq_bits, phy_reg + HW_USBPHY_CTRL_CLR);
+	}
+}
+
+/* End of Common operation for DR port */
+
+
+#ifdef CONFIG_USB_EHCI_ARC_OTG
+extern void fsl_usb_recover_hcd(struct platform_device *pdev);
+/* Beginning of host related operation for DR port */
+static void _host_phy_lowpower_suspend(struct fsl_usb2_platform_data *pdata, bool enable)
+{
+	__phy_lowpower_suspend(pdata, enable, ENABLED_BY_HOST);
+}
+
 static void _host_wakeup_enable(struct fsl_usb2_platform_data *pdata, bool enable)
 {
 	void __iomem *phy_reg = IO_ADDRESS(pdata->phy_regs);
@@ -266,27 +284,6 @@ static void _host_wakeup_enable(struct fsl_usb2_platform_data *pdata, bool enabl
 		/* The interrupt must be disabled for at least 3 clock
 		 * cycles of the standby clock(32k Hz) , that is 0.094 ms*/
 		udelay(100);
-	}
-}
-
-static void _device_wakeup_enable(struct fsl_usb2_platform_data *pdata, bool enable)
-{
-	void __iomem *phy_reg = IO_ADDRESS(pdata->phy_regs);
-	u32 tmp;
-
-	tmp = BM_USBPHY_CTRL_ENVBUSCHG_WKUP | BM_USBPHY_CTRL_ENDPDMCHG_WKUP;
-	__wakeup_irq_enable(pdata, enable, ENABLED_BY_DEVICE);
-	/* if udc is not used by any gadget, we can not enable the vbus wakeup */
-	if (!pdata->port_enables) {
-		__raw_writel(BM_USBPHY_CTRL_ENVBUSCHG_WKUP, phy_reg + HW_USBPHY_CTRL_CLR);
-		return;
-	}
-	if (enable) {
-		pr_debug("device wakeup enable\n");
-		__raw_writel(tmp, phy_reg + HW_USBPHY_CTRL_SET);
-	} else {
-		pr_debug("device wakeup disable\n");
-		__raw_writel(tmp, phy_reg + HW_USBPHY_CTRL_CLR);
 	}
 }
 
@@ -319,6 +316,44 @@ static enum usb_wakeup_event _is_host_wakeup(struct fsl_usb2_platform_data *pdat
 	return WAKEUP_EVENT_INVALID;
 }
 
+static void host_wakeup_handler(struct fsl_usb2_platform_data *pdata)
+{
+	_host_wakeup_enable(pdata, false);
+	_host_phy_lowpower_suspend(pdata, false);
+	fsl_usb_recover_hcd(otg_host_pdev);
+}
+/* End of host related operation for DR port */
+#endif /* CONFIG_USB_EHCI_ARC_OTG */
+
+
+#ifdef CONFIG_USB_GADGET_ARC
+/* Beginning of device related operation for DR port */
+static void _device_phy_lowpower_suspend(struct fsl_usb2_platform_data *pdata, bool enable)
+{
+	__phy_lowpower_suspend(pdata, enable, ENABLED_BY_DEVICE);
+}
+
+static void _device_wakeup_enable(struct fsl_usb2_platform_data *pdata, bool enable)
+{
+	void __iomem *phy_reg = IO_ADDRESS(pdata->phy_regs);
+	u32 tmp;
+
+	tmp = BM_USBPHY_CTRL_ENVBUSCHG_WKUP | BM_USBPHY_CTRL_ENDPDMCHG_WKUP;
+	__wakeup_irq_enable(pdata, enable, ENABLED_BY_DEVICE);
+	/* if udc is not used by any gadget, we can not enable the vbus wakeup */
+	if (!pdata->port_enables) {
+		__raw_writel(BM_USBPHY_CTRL_ENVBUSCHG_WKUP, phy_reg + HW_USBPHY_CTRL_CLR);
+		return;
+	}
+	if (enable) {
+		pr_debug("device wakeup enable\n");
+		__raw_writel(tmp, phy_reg + HW_USBPHY_CTRL_SET);
+	} else {
+		pr_debug("device wakeup disable\n");
+		__raw_writel(tmp, phy_reg + HW_USBPHY_CTRL_CLR);
+	}
+}
+
 static enum usb_wakeup_event _is_device_wakeup(struct fsl_usb2_platform_data *pdata)
 {
 	void __iomem *phy_reg = IO_ADDRESS(pdata->phy_regs);
@@ -343,30 +378,14 @@ static enum usb_wakeup_event _is_device_wakeup(struct fsl_usb2_platform_data *pd
 	return WAKEUP_EVENT_INVALID;
 }
 
-static void host_wakeup_handler(struct fsl_usb2_platform_data *pdata)
-{
-	_host_wakeup_enable(pdata, false);
-	_host_phy_lowpower_suspend(pdata, false);
-	fsl_usb_recover_hcd(otg_host_pdev);
-}
-
 static void device_wakeup_handler(struct fsl_usb2_platform_data *pdata)
 {
 	_device_wakeup_enable(pdata, false);
 	_device_phy_lowpower_suspend(pdata, false);
 }
 
-static void usbotg_wakeup_event_clear(void)
-{
-	void __iomem *phy_reg = IO_ADDRESS(USBPHY0_PHYS_ADDR);
-	u32 wakeup_irq_bits;
-
-	wakeup_irq_bits = BM_USBPHY_CTRL_RESUME_IRQ | BM_USBPHY_CTRL_WAKEUP_IRQ;
-	if (__raw_readl(phy_reg + HW_USBPHY_CTRL) && wakeup_irq_bits) {
-		/* clear the wakeup interrupt status */
-		__raw_writel(wakeup_irq_bits, phy_reg + HW_USBPHY_CTRL_CLR);
-	}
-}
+/* end of device related operation for DR port */
+#endif /* CONFIG_USB_GADGET_ARC */
 
 /*
  * platform data structs
