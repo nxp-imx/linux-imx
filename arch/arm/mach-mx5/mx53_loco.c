@@ -292,6 +292,12 @@ static struct fb_videomode video_modes[] = {
 	 FB_VMODE_NONINTERLACED,
 	 0,},
 	{
+	 /* 800x480 @ 60 Hz , pixel clk @ 32MHz */
+	 "SEIKO-WVGA", 60, 800, 480, 29850, 89, 164, 23, 10, 10, 10,
+	 FB_SYNC_CLK_LAT_FALL,
+	 FB_VMODE_NONINTERLACED,
+	 0,},
+	{
 	 "XGA", 60, 1024, 768, 15385,
 	 220, 40,
 	 21, 7,
@@ -821,6 +827,10 @@ static void __init mx53_loco_io_init(void)
 	gpio_direction_output(DISP0_RESET, 0);
 	gpio_request(DISP0_DET_INT, "disp0-detect");
 	gpio_direction_input(DISP0_DET_INT);
+
+	/* LCD panel power enable */
+	gpio_request(DISP0_POWER_EN, "disp0-power-en");
+	gpio_direction_output(DISP0_POWER_EN, 1);
 }
 
 /*!
