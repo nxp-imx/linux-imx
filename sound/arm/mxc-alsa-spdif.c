@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2007-2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2007-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -445,34 +445,50 @@ static int spdif_get_rxclk_rate(struct clk *bus_clk, enum spdif_gainsel gainsel)
 static int spdif_set_sample_rate(int src_44100, int src_48000, int sample_rate)
 {
 	unsigned long cstatus, stc;
+	int ret = 0;
 
 	cstatus = __raw_readl(SPDIF_REG_STCSCL + spdif_base_addr) & 0xfffff0;
 	stc = __raw_readl(SPDIF_REG_STC + spdif_base_addr) & ~0x7FF;
 
 	switch (sample_rate) {
 	case 44100:
-		__raw_writel(cstatus, SPDIF_REG_STCSCL + spdif_base_addr);
-		stc |= (src_44100 << 8) | 0x07;
-		__raw_writel(stc, SPDIF_REG_STC + spdif_base_addr);
-		pr_debug("set sample rate to 44100\n");
+		if (src_44100 < 0) {
+			pr_info("spdif_set_sample_rate: no defined 44100 clk src\n");
+			ret = -1;
+		} else {
+			__raw_writel(cstatus, SPDIF_REG_STCSCL + spdif_base_addr);
+			stc |= (src_44100 << 8) | 0x07;
+			__raw_writel(stc, SPDIF_REG_STC + spdif_base_addr);
+			pr_debug("set sample rate to 44100\n");
+		}
 		break;
 	case 48000:
-		cstatus |= 0x04;
-		__raw_writel(cstatus, SPDIF_REG_STCSCL + spdif_base_addr);
-		stc |= (src_48000 << 8) | 0x07;
-		__raw_writel(stc, SPDIF_REG_STC + spdif_base_addr);
-		pr_debug("set sample rate to 48000\n");
+		if (src_48000 < 0) {
+			pr_info("spdif_set_sample_rate: no defined 48000 clk src\n");
+			ret = -1;
+		} else {
+			cstatus |= 0x04;
+			__raw_writel(cstatus, SPDIF_REG_STCSCL + spdif_base_addr);
+			stc |= (src_48000 << 8) | 0x07;
+			__raw_writel(stc, SPDIF_REG_STC + spdif_base_addr);
+			pr_debug("set sample rate to 48000\n");
+		}
 		break;
 	case 32000:
-		cstatus |= 0x0c;
-		__raw_writel(cstatus, SPDIF_REG_STCSCL + spdif_base_addr);
-		stc |= (src_48000 << 8) | 0x0b;
-		__raw_writel(stc, SPDIF_REG_STC + spdif_base_addr);
-		pr_debug("set sample rate to 32000\n");
+		if (src_48000 < 0) {
+			pr_info("spdif_set_sample_rate: no defined 48000 clk src\n");
+			ret = -1;
+		} else {
+			cstatus |= 0x0c;
+			__raw_writel(cstatus, SPDIF_REG_STCSCL + spdif_base_addr);
+			stc |= (src_48000 << 8) | 0x0b;
+			__raw_writel(stc, SPDIF_REG_STC + spdif_base_addr);
+			pr_debug("set sample rate to 32000\n");
+		}
 		break;
 	}
 
-	return 0;
+	return ret;
 }
 
 /*!
@@ -1143,8 +1159,12 @@ static int snd_mxc_spdif_playback_prepare(struct snd_pcm_substream *substream)
 	ch_status = mxc_spdif_control.ch_status[3];
 	spdif_set_channel_status(ch_status, SPDIF_REG_STCSCL);
 	spdif_intr_enable(INT_TXFIFO_RESYNC, 1);
-	spdif_set_sample_rate(chip->spdif_txclk_44100, chip->spdif_txclk_48000,
+	err = spdif_set_sample_rate(chip->spdif_txclk_44100, chip->spdif_txclk_48000,
 			      runtime->rate);
+	if (err < 0) {
+		pr_info("snd_mxc_spdif_playback_prepare - err < 0\n");
+		return err;
+	}
 	spdif_set_clk_accuracy(SPDIF_CLK_ACCURACY_LEV2);
 	/* setup DMA controller for spdif tx */
 	err = spdif_configure_dma_channel(&chip->
@@ -2099,6 +2119,13 @@ static int mxc_alsa_spdif_probe(struct platform_device
 	chip->mxc_spdif_rx = plat_data->spdif_rx;
 	chip->spdif_txclk_44100 = plat_data->spdif_clk_44100;
 	chip->spdif_txclk_48000 = plat_data->spdif_clk_48000;
+	if ((chip->spdif_txclk_44100 == 1) ||
+		(chip->spdif_txclk_48000 == 1)) {
+		/*spdif0_clk used as clk src*/
+		struct clk *spdif_clk;
+		spdif_clk = clk_get(&pdev->dev, NULL);
+		clk_enable(spdif_clk);
+	}
 	atomic_set(&chip->dpll_locked, 0);
 
 	err = snd_card_mxc_spdif_pcm(chip);
