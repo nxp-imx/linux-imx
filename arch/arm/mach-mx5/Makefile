@@ -7,7 +7,7 @@ obj-y   := system.o iomux.o cpu.o mm.o devices.o serial.o dma.o lpmodes.o pm.o \
 sdram_autogating.o bus_freq.o usb_dr.o usb_h1.o usb_h2.o dummy_gpio.o  early_setup.o
 
 obj-$(CONFIG_ARCH_MX51) += clock.o suspend.o
-obj-$(CONFIG_ARCH_MX53) += clock.o suspend.o
+obj-$(CONFIG_ARCH_MX53) += clock.o suspend.o mx53_wp.o
 obj-$(CONFIG_ARCH_MX50) += clock_mx50.o dmaengine.o dma-apbh.o mx50_suspend.o mx50_ddr_freq.o mx50_wfi.o
 
 obj-$(CONFIG_MACH_MX51_3DS) += mx51_3stack.o mx51_3stack_gpio.o mx51_3stack_pmic_mc13892.o

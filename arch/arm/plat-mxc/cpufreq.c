@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2010-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -47,7 +47,7 @@ int cpufreq_trig_needed;
 static struct clk *cpu_clk;
 static struct regulator *gp_regulator;
 static struct cpu_wp *cpu_wp_tbl;
-static struct cpufreq_frequency_table imx_freq_table[4];
+static struct cpufreq_frequency_table imx_freq_table[6];
 extern int low_bus_freq_mode;
 extern int high_bus_freq_mode;
 extern int dvfs_core_is_active;

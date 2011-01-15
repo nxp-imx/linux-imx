@@ -31,6 +31,7 @@
 
 #include "crm_regs.h"
 #include "serial.h"
+#include "mx53_wp.h"
 
 /* External clock values passed-in by the board code */
 static unsigned long external_high_reference, external_low_reference;
@@ -4764,7 +4765,6 @@ int __init mx53_clocks_init(unsigned long ckil, unsigned long osc, unsigned long
 	__iomem void *base;
 	struct clk *tclk;
 	int i = 0, j = 0, reg;
-	int wp_cnt = 0;
 	u32 pll1_rate;
 
 	pll1_base = ioremap(MX53_BASE_ADDR(PLL1_BASE_ADDR), SZ_4K);
@@ -4979,62 +4979,22 @@ int __init mx53_clocks_init(unsigned long ckil, unsigned long osc, unsigned long
 	clk_set_parent(&ieee_rtc_clk, &pll3_sw_clk);
 	clk_set_rate(&ieee_rtc_clk, 108000000);
 
-	/* Set the current working point. */
-	cpu_wp_tbl = get_cpu_wp(&cpu_wp_nr);
-	/* Update the cpu working point table based on the PLL1 freq
+	/* The CPU working point should be set according to part number
+	 * information. But part number information is not clear now.
+	 * So update the cpu working point table based on the PLL1 freq
 	 * at boot time
 	 */
 	pll1_rate = clk_get_rate(&pll1_main_clk);
-	if (pll1_rate <= cpu_wp_tbl[cpu_wp_nr - 1].cpu_rate)
-		wp_cnt = 1;
-	else if (pll1_rate <= cpu_wp_tbl[1].cpu_rate &&
-				pll1_rate > cpu_wp_tbl[2].cpu_rate)
-		wp_cnt = cpu_wp_nr - 1;
+
+	if (pll1_rate > 1000000000)
+		mx53_set_cpu_part_number(IMX53_CEC_1_2G);
+	else if (pll1_rate > 800000000)
+		mx53_set_cpu_part_number(IMX53_CEC);
 	else
-		wp_cnt = cpu_wp_nr;
+		mx53_set_cpu_part_number(IMX53_AEC);
 
-	cpu_wp_tbl[0].cpu_rate = pll1_rate;
-
-	if (wp_cnt == 1) {
-		cpu_wp_tbl[0] = cpu_wp_tbl[cpu_wp_nr - 1];
-		memset(&cpu_wp_tbl[cpu_wp_nr - 1], 0, sizeof(struct cpu_wp));
-		memset(&cpu_wp_tbl[cpu_wp_nr - 2], 0, sizeof(struct cpu_wp));
-	} else if (wp_cnt < cpu_wp_nr) {
-		for (i = 0; i < wp_cnt; i++)
-			cpu_wp_tbl[i] = cpu_wp_tbl[i+1];
-		memset(&cpu_wp_tbl[i], 0, sizeof(struct cpu_wp));
-	}
-
-	if (wp_cnt < cpu_wp_nr) {
-		set_num_cpu_wp(wp_cnt);
-		cpu_wp_tbl = get_cpu_wp(&cpu_wp_nr);
-	}
-
-	pll1_rate = clk_get_rate(&pll1_main_clk);
-	for (j = 0; j < cpu_wp_nr; j++) {
-		if ((ddr_clk.parent == &ddr_hf_clk)) {
-			/* Change the CPU podf divider based on the boot up
-			 * pll1 rate.
-			 */
-			cpu_wp_tbl[j].cpu_podf =
-				(pll1_rate / cpu_wp_tbl[j].cpu_rate)
-				- 1;
-			if (pll1_rate / (cpu_wp_tbl[j].cpu_podf + 1) >
-					cpu_wp_tbl[j].cpu_rate) {
-				cpu_wp_tbl[j].cpu_podf++;
-				cpu_wp_tbl[j].cpu_rate =
-					 pll1_rate /
-					 (1000 * (cpu_wp_tbl[j].cpu_podf + 1));
-				cpu_wp_tbl[j].cpu_rate *= 1000;
-			}
-			if (pll1_rate / (cpu_wp_tbl[j].cpu_podf + 1) <
-						cpu_wp_tbl[j].cpu_rate) {
-				cpu_wp_tbl[j].cpu_rate = pll1_rate;
-			}
-		}
-	cpu_wp_tbl[j].pll_rate = pll1_rate;
-	}
 	/* Set the current working point. */
+	cpu_wp_tbl = get_cpu_wp(&cpu_wp_nr);
 	for (i = 0; i < cpu_wp_nr; i++) {
 		if (clk_get_rate(&cpu_clk) == cpu_wp_tbl[i].cpu_rate) {
 			cpu_curr_wp = i;

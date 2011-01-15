@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2010-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -123,9 +123,6 @@
  *
  * @ingroup MSL_MX53
  */
-extern struct cpu_wp *(*get_cpu_wp)(int *wp);
-extern void (*set_num_cpu_wp)(int num);
-static int num_cpu_wp = 3;
 
 static struct pad_desc mx53ard_pads[] = {
 	/* UART1 */
@@ -361,38 +358,6 @@ static struct pad_desc mx53ard_pads[] = {
 	/* EIM_WAIT, EIM_OE ... */
 };
 
-
-/* working point(wp): 0 - 800MHz; 1 - 166.25MHz; */
-static struct cpu_wp cpu_wp_auto[] = {
-	{
-	 .pll_rate = 1000000000,
-	 .cpu_rate = 1000000000,
-	 .pdf = 0,
-	 .mfi = 10,
-	 .mfd = 11,
-	 .mfn = 5,
-	 .cpu_podf = 0,
-	 .cpu_voltage = 1150000,},
-	{
-	 .pll_rate = 800000000,
-	 .cpu_rate = 800000000,
-	 .pdf = 0,
-	 .mfi = 8,
-	 .mfd = 2,
-	 .mfn = 1,
-	 .cpu_podf = 0,
-	 .cpu_voltage = 1050000,},
-	{
-	 .pll_rate = 800000000,
-	 .cpu_rate = 160000000,
-	 .pdf = 4,
-	 .mfi = 8,
-	 .mfd = 2,
-	 .mfn = 1,
-	 .cpu_podf = 4,
-	 .cpu_voltage = 1000000,},
-};
-
 static struct fb_videomode video_modes[] = {
 	{
 	 /* NTSC TV output */
@@ -452,18 +417,6 @@ static struct fb_videomode video_modes[] = {
 	 FB_VMODE_NONINTERLACED,
 	 0,},
 };
-
-struct cpu_wp *mx53_ard_get_cpu_wp(int *wp)
-{
-	*wp = num_cpu_wp;
-	return cpu_wp_auto;
-}
-
-void mx53_ard_set_num_cpu_wp(int num)
-{
-	num_cpu_wp = num;
-	return;
-}
 
 static struct pad_desc mx53_ard_pwm_pads[] = {
 	MX53_PAD_DISP0_DAT8__PWM1,
@@ -618,7 +571,6 @@ static struct mxc_dvfs_platform_data dvfs_core_data = {
 	.upcnt_val = 10,
 	.dncnt_val = 10,
 	.delay_time = 30,
-	.num_wp = 3,
 };
 
 static struct mxc_bus_freq_platform_data bus_freq_data = {
@@ -1077,9 +1029,6 @@ static void __init fixup_mxc_board(struct machine_desc *desc, struct tag *tags,
 	char *str;
 
 	mxc_set_cpu_type(MXC_CPU_MX53);
-
-	get_cpu_wp = mx53_ard_get_cpu_wp;
-	set_num_cpu_wp = mx53_ard_set_num_cpu_wp;
 
 	for_each_tag(mem_tag, tags) {
 		if (mem_tag->hdr.tag == ATAG_MEM) {
