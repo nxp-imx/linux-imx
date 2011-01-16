@@ -72,7 +72,7 @@ static int max_axi_a_clk;
 static int max_axi_b_clk;
 static int max_ahb_clk;
 static int max_emi_slow_clk;
-
+extern int dvfs_core_is_active;
 
 #define SPIN_DELAY	1000000 /* in nanoseconds */
 #define MAX_AXI_A_CLK_MX51 	166250000
@@ -5029,7 +5029,7 @@ int __init mx53_clocks_init(unsigned long ckil, unsigned long osc, unsigned long
 static int cpu_clk_set_wp(int wp)
 {
 	struct cpu_wp *p;
-	u32 reg;
+	u32 reg, pll_hfsm;
 	u32 stat;
 
 	if (wp == cpu_curr_wp)
@@ -5067,15 +5067,27 @@ static int cpu_clk_set_wp(int wp)
 		reg &= ~MXC_PLL_DP_CTL_UPEN;
 		__raw_writel(reg, pll1_base + MXC_PLL_DP_CTL);
 
+		/* if DVFS core is enabled, need to check ARM PODF */
+		if (dvfs_core_is_active) {
+			reg = __raw_readl(MXC_CCM_CACRR);
+			reg = (reg & ~MXC_CCM_CACRR_ARM_PODF_MASK)
+				| p->cpu_podf;
+			__raw_writel(reg, MXC_CCM_CACRR);
+		}
+
+		reg = __raw_readl(pll1_base + MXC_PLL_DP_CTL);
+		pll_hfsm = reg & MXC_PLL_DP_CTL_HFSM;
 		/* PDF and MFI */
 		reg = p->pdf | p->mfi << MXC_PLL_DP_OP_MFI_OFFSET;
-		__raw_writel(reg, pll1_base + MXC_PLL_DP_OP);
-
-		/* MFD */
-		__raw_writel(p->mfd, pll1_base + MXC_PLL_DP_MFD);
-
-		/* MFI */
-		__raw_writel(p->mfn, pll1_base + MXC_PLL_DP_MFN);
+		if (pll_hfsm == 0) {
+			__raw_writel(reg, pll1_base + MXC_PLL_DP_OP);
+			__raw_writel(p->mfd, pll1_base + MXC_PLL_DP_MFD);
+			__raw_writel(p->mfn, pll1_base + MXC_PLL_DP_MFN);
+		} else {
+			__raw_writel(reg, pll1_base + MXC_PLL_DP_HFS_OP);
+			__raw_writel(p->mfd, pll1_base + MXC_PLL_DP_HFS_MFD);
+			__raw_writel(p->mfn, pll1_base + MXC_PLL_DP_HFS_MFN);
+		}
 
 		reg = __raw_readl(pll1_base + MXC_PLL_DP_CTL);
 		reg |= MXC_PLL_DP_CTL_UPEN;

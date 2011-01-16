@@ -120,7 +120,7 @@ enum {
  */
 #define DVFS_LTBRSR		(2 << MXC_DVFSCNTR_LTBRSR_OFFSET)
 
-extern struct dvfs_wp dvfs_core_setpoint[2];
+extern struct dvfs_wp dvfs_core_setpoint[4];
 extern int low_bus_freq_mode;
 extern int high_bus_freq_mode;
 extern int set_low_bus_freq(void);
@@ -193,6 +193,12 @@ static int set_cpu_freq(int wp)
 		spin_lock_irqsave(&mxc_dvfs_core_lock, flags);
 		/* PLL_RELOCK, set ARM_FREQ_SHIFT_DIVIDER */
 		reg = __raw_readl(ccm_base + dvfs_data->ccm_cdcr_offset);
+		/* Check if software_dvfs_en bit set */
+		if ((reg & CCM_CDCR_SW_DVFS_EN) != 0)
+			en_sw_dvfs = CCM_CDCR_SW_DVFS_EN;
+		else
+			en_sw_dvfs = 0x0;
+		reg &= ~(CCM_CDCR_SW_DVFS_EN);
 		reg &= 0xFFFFFFFB;
 		__raw_writel(reg, ccm_base + dvfs_data->ccm_cdcr_offset);
 
@@ -233,6 +239,10 @@ static int set_cpu_freq(int wp)
 			}
 			udelay(dvfs_data->delay_time);
 		}
+		/* set software_dvfs_en bit back to original setting*/
+		reg = __raw_readl(ccm_base + dvfs_data->ccm_cdcr_offset);
+		reg &= ~(CCM_CDCR_SW_DVFS_EN);
+		reg |= en_sw_dvfs;
 		clk_set_rate(cpu_clk, rate);
 	} else {
 		podf = cpu_wp_tbl[wp].cpu_podf;
@@ -346,7 +356,7 @@ static int set_cpu_freq(int wp)
 
 static int start_dvfs(void)
 {
-	u32 reg;
+	u32 reg, cpu_rate;
 	unsigned long flags;
 
 	if (dvfs_core_is_active)
@@ -358,6 +368,12 @@ static int start_dvfs(void)
 
 	dvfs_load_config(0);
 
+	/* get current working point */
+	cpu_rate = clk_get_rate(cpu_clk);
+	for (curr_wp = 0; curr_wp < cpu_wp_nr; curr_wp++)
+		if (cpu_rate == cpu_wp_tbl[curr_wp].cpu_rate)
+			break;
+	old_wp = curr_wp;
 	/* config reg GPC_CNTR */
 	reg = __raw_readl(gpc_base + dvfs_data->gpc_cntr_offset);
 
