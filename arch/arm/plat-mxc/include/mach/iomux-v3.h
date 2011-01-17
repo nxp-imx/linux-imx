@@ -112,7 +112,7 @@ typedef u64 iomux_v3_cfg_t;
  * read/write a single pad in the iomuxer
  */
 int mxc_iomux_v3_get_pad(iomux_v3_cfg_t *pad);
-int mxc_iomux_v3_setup_pad(iomux_v3_cfg_t *pad);
+int mxc_iomux_v3_setup_pad(iomux_v3_cfg_t pad);
 
 /*
  * read/write mutliple pads
