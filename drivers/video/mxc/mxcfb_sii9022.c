@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2010-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -56,6 +56,7 @@ struct sii9022_data {
 	struct i2c_client *client;
 	struct delayed_work det_work;
 	struct fb_info *fbi;
+	struct mxc_edid_cfg edid_cfg;
 	u8 cable_plugin;
 	u8 edid[256];
 } sii9022;
@@ -127,27 +128,41 @@ static void sii9022_setup(struct fb_info *fbi)
 
 static int sii9022_read_edid(void)
 {
-	int dat, ret;
+	int old, dat, ret, cnt = 100;
 
-	dat = i2c_smbus_read_byte_data(sii9022.client, 0x1A);
+	old = i2c_smbus_read_byte_data(sii9022.client, 0x1A);
 
-	i2c_smbus_write_byte_data(sii9022.client, 0x1A, dat | 0x4);
+	i2c_smbus_write_byte_data(sii9022.client, 0x1A, old | 0x4);
 	do {
+		cnt--;
 		msleep(10);
 		dat = i2c_smbus_read_byte_data(sii9022.client, 0x1A);
-	} while (!(dat & 0x2));
+	} while ((!(dat & 0x2)) && cnt);
 
-	i2c_smbus_write_byte_data(sii9022.client, 0x1A, 0x06);
+	if (!cnt) {
+		ret = -1;
+		goto done;
+	}
+
+	i2c_smbus_write_byte_data(sii9022.client, 0x1A, old | 0x06);
 
 	/* edid reading */
-	ret = read_edid(sii9022.client->adapter, sii9022.edid);
+	ret = mxc_edid_read(sii9022.client->adapter, sii9022.edid,
+				&sii9022.edid_cfg, sii9022.fbi);
 
+	cnt = 100;
 	do {
-		i2c_smbus_write_byte_data(sii9022.client, 0x1A, 0x00);
+		cnt--;
+		i2c_smbus_write_byte_data(sii9022.client, 0x1A, old & ~0x6);
 		msleep(10);
 		dat = i2c_smbus_read_byte_data(sii9022.client, 0x1A);
-	} while (dat & 0x6);
+	} while ((dat & 0x6) && cnt);
 
+	if (!cnt)
+		ret = -1;
+
+done:
+	i2c_smbus_write_byte_data(sii9022.client, 0x1A, old);
 	return ret;
 }
 
@@ -167,9 +182,6 @@ static void det_worker(struct work_struct *work)
 				dev_err(&sii9022.client->dev,
 					"SII9022: read edid fail\n");
 			else {
-				/* change fbi modedb */
-				memset(&sii9022.fbi->monspecs, 0, sizeof(sii9022.fbi->monspecs));
-				fb_edid_to_monspecs(sii9022.edid, &(sii9022.fbi->monspecs));
 				if (sii9022.fbi->monspecs.modedb_len > 0) {
 					int i;
 
@@ -177,6 +189,7 @@ static void det_worker(struct work_struct *work)
 						fb_add_videomode(&sii9022.fbi->monspecs.modedb[i],
 								&sii9022.fbi->modelist);
 				}
+				sii9022_poweron();
 			}
 		} else {
 			sii9022.cable_plugin = 0;
@@ -331,14 +344,20 @@ static int sii9022_resume(struct i2c_client *client)
 static void sii9022_poweron(void)
 {
 	/* Turn on DVI or HDMI */
-	i2c_smbus_write_byte_data(sii9022.client, 0x1A, 0x01);
+	if (sii9022.edid_cfg.hdmi_cap)
+		i2c_smbus_write_byte_data(sii9022.client, 0x1A, 0x01);
+	else
+		i2c_smbus_write_byte_data(sii9022.client, 0x1A, 0x00);
 	return;
 }
 
 static void sii9022_poweroff(void)
 {
 	/* disable tmds before changing resolution */
-	i2c_smbus_write_byte_data(sii9022.client, 0x1A, 0x11);
+	if (sii9022.edid_cfg.hdmi_cap)
+		i2c_smbus_write_byte_data(sii9022.client, 0x1A, 0x11);
+	else
+		i2c_smbus_write_byte_data(sii9022.client, 0x1A, 0x10);
 
 	return;
 }
