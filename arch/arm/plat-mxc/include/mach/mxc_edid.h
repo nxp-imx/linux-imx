@@ -1,5 +1,5 @@
 /*
- * Copyright 2009-2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2009-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -26,7 +26,15 @@
 #ifndef MXC_EDID_H
 #define MXC_EDID_H
 
-int read_edid(struct i2c_adapter *adp,
-	       unsigned char *edid);
+struct mxc_edid_cfg {
+	bool cea_underscan;
+	bool cea_basicaudio;
+	bool cea_ycbcr444;
+	bool cea_ycbcr422;
+	bool hdmi_cap;
+};
+
+int mxc_edid_read(struct i2c_adapter *adp, unsigned char *edid,
+	struct mxc_edid_cfg *cfg, struct fb_info *fbi);
 
 #endif
