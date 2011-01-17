@@ -1585,7 +1585,6 @@ static void __init mxc_board_init(void)
 		mxc_asrc_data.asrc_core_clk = clk_get(NULL, "asrc_clk");
 		clk_put(mxc_asrc_data.asrc_core_clk);
 		mxc_asrc_data.asrc_audio_clk = clk_get(NULL, "asrc_serial_clk");
-		clk_set_rate(mxc_asrc_data.asrc_audio_clk, 1190000);
 		clk_put(mxc_asrc_data.asrc_audio_clk);
 		mxc_register_device(&mxc_asrc_device, &mxc_asrc_data);
 	}

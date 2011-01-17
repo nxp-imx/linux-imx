@@ -4249,6 +4249,21 @@ static int _clk_asrc_set_rate(struct clk *clk, unsigned long rate)
 	return 0;
 }
 
+static unsigned long _clk_asrc_round_rate(struct clk *clk,
+			unsigned long rate)
+{
+	u32 pre, post;
+	u32 parent_rate = clk_get_rate(clk->parent);
+	u32 div = parent_rate / rate;
+
+	if (parent_rate % rate)
+		div++;
+
+	__calc_pre_post_dividers(div, &pre, &post);
+
+	return parent_rate / (pre * post);
+}
+
 static struct clk asrc_clk[] = {
 	{
 	.id = 0,
@@ -4256,6 +4271,7 @@ static struct clk asrc_clk[] = {
 	.set_parent = _clk_asrc_set_parent,
 	.get_rate = _clk_asrc_get_rate,
 	.set_rate = _clk_asrc_set_rate,
+	.round_rate = _clk_asrc_round_rate,
 	.enable_reg = MXC_CCM_CCGR7,
 	.enable_shift = MXC_CCM_CCGRx_CG1_OFFSET,
 	.enable = _clk_enable,
@@ -5016,6 +5032,9 @@ int __init mx53_clocks_init(unsigned long ckil, unsigned long osc, unsigned long
 	clk_set_rate(&emi_enfc_clk, clk_round_rate(&emi_enfc_clk,
 			MAX_NFC_CLK));
 
+	/* set the freq of asrc_serial_clk */
+	clk_set_rate(&asrc_clk[0], clk_round_rate(&asrc_clk[0],
+			1190000));
 	base = ioremap(MX53_BASE_ADDR(GPT1_BASE_ADDR), SZ_4K);
 	mxc_timer_init(&gpt_clk[0], base, MXC_INT_GPT);
 	return 0;
