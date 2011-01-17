@@ -111,7 +111,7 @@ extern void (*set_num_cpu_wp)(int num);
 static int max17135_regulator_init(struct max17135 *max17135);
 static int num_cpu_wp = 2;
 
-static struct pad_desc  mx50_armadillo2[] = {
+static iomux_v3_cfg_t  mx50_armadillo2[] = {
 	/* SD1 */
 	MX50_PAD_ECSPI2_SS0__GPIO_4_19,
 	MX50_PAD_EIM_CRE__GPIO_1_27,
@@ -254,7 +254,7 @@ static struct pad_desc  mx50_armadillo2[] = {
 	MX50_PAD_CSPI_MISO__CSPI_MISO,
 };
 
-static struct pad_desc  mx50_gpmi_nand[] = {
+static iomux_v3_cfg_t mx50_gpmi_nand[] = {
 	MX50_PIN_EIM_DA8__NANDF_CLE,
 	MX50_PIN_EIM_DA9__NANDF_ALE,
 	MX50_PIN_EIM_DA10__NANDF_CE0,
@@ -361,12 +361,12 @@ static void mx50_arm2_gpio_spi_chipselect_active(int cspi_mode, int status,
 		switch (chipselect) {
 		case 0x1:
 			{
-			struct pad_desc cspi_ss0 = MX50_PAD_CSPI_SS0__CSPI_SS0;
-			struct pad_desc cspi_cs1 = MX50_PAD_ECSPI1_MOSI__GPIO_4_13;
+			iomux_v3_cfg_t cspi_ss0 = MX50_PAD_CSPI_SS0__CSPI_SS0;
+			iomux_v3_cfg_t cspi_cs1 = MX50_PAD_ECSPI1_MOSI__GPIO_4_13;
 
 			/* pull up/down deassert it */
-			mxc_iomux_v3_setup_pad(&cspi_ss0);
-			mxc_iomux_v3_setup_pad(&cspi_cs1);
+			mxc_iomux_v3_setup_pad(cspi_ss0);
+			mxc_iomux_v3_setup_pad(cspi_cs1);
 
 			gpio_request(CSPI_CS1, "cspi-cs1");
 			gpio_direction_input(CSPI_CS1);
@@ -374,12 +374,12 @@ static void mx50_arm2_gpio_spi_chipselect_active(int cspi_mode, int status,
 			break;
 		case 0x2:
 			{
-			struct pad_desc cspi_ss1 = MX50_PAD_ECSPI1_MOSI__CSPI_SS1;
-			struct pad_desc cspi_ss0 = MX50_PAD_CSPI_SS0__GPIO_4_11;
+			iomux_v3_cfg_t cspi_ss1 = MX50_PAD_ECSPI1_MOSI__CSPI_SS1;
+			iomux_v3_cfg_t cspi_ss0 = MX50_PAD_CSPI_SS0__GPIO_4_11;
 
 			/*disable other ss */
-			mxc_iomux_v3_setup_pad(&cspi_ss1);
-			mxc_iomux_v3_setup_pad(&cspi_ss0);
+			mxc_iomux_v3_setup_pad(cspi_ss1);
+			mxc_iomux_v3_setup_pad(cspi_ss0);
 
 			/* pull up/down deassert it */
 			gpio_request(CSPI_CS2, "cspi-cs2");
@@ -547,7 +547,7 @@ static void epdc_put_pins(void)
 	gpio_free(EPDC_SDCE2);
 }
 
-static struct pad_desc  mx50_epdc_pads_enabled[] = {
+static iomux_v3_cfg_t mx50_epdc_pads_enabled[] = {
 	MX50_PAD_EPDC_D0__EPDC_D0,
 	MX50_PAD_EPDC_D1__EPDC_D1,
 	MX50_PAD_EPDC_D2__EPDC_D2,
@@ -570,7 +570,7 @@ static struct pad_desc  mx50_epdc_pads_enabled[] = {
 	MX50_PAD_EPDC_SDCE2__EPDC_SDCE2,
 };
 
-static struct pad_desc  mx50_epdc_pads_disabled[] = {
+static iomux_v3_cfg_t mx50_epdc_pads_disabled[] = {
 	MX50_PAD_EPDC_D0__GPIO_3_0,
 	MX50_PAD_EPDC_D1__GPIO_3_1,
 	MX50_PAD_EPDC_D2__GPIO_3_2,
@@ -962,7 +962,7 @@ static struct platform_device mxc_sgtl5000_device = {
 	.name = "imx-3stack-sgtl5000",
 };
 
-static struct pad_desc armadillo2_wvga_pads[] = {
+static iomux_v3_cfg_t armadillo2_wvga_pads[] = {
 	MX50_PAD_DISP_D0__DISP_D0,
 	MX50_PAD_DISP_D1__DISP_D1,
 	MX50_PAD_DISP_D2__DISP_D2,
@@ -1143,8 +1143,8 @@ static void __init mx50_arm2_io_init(void)
 	gpio_direction_output(EPDC_ELCDIF_BACKLIGHT, 1);
 
 	if (enable_w1) {
-		struct pad_desc one_wire = MX50_PAD_OWIRE__OWIRE;
-		mxc_iomux_v3_setup_pad(&one_wire);
+		iomux_v3_cfg_t one_wire = MX50_PAD_OWIRE__OWIRE;
+		mxc_iomux_v3_setup_pad(one_wire);
 	}
 
 	/* USB OTG PWR */

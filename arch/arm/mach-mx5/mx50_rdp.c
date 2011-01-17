@@ -123,7 +123,7 @@ extern void (*set_num_cpu_wp)(int num);
 static int max17135_regulator_init(struct max17135 *max17135);
 static int num_cpu_wp = 2;
 
-static struct pad_desc  mx50_rdp[] = {
+static iomux_v3_cfg_t mx50_rdp[] = {
 	/* SD1 */
 	MX50_PAD_ECSPI2_SS0__GPIO_4_19,
 	MX50_PAD_EIM_CRE__GPIO_1_27,
@@ -310,7 +310,7 @@ static struct pad_desc  mx50_rdp[] = {
 	MX50_PAD_EIM_LBA__GPIO_1_26,
 };
 
-static struct pad_desc  mx50_gpmi_nand[] = {
+static iomux_v3_cfg_t mx50_gpmi_nand[] = {
 	MX50_PIN_EIM_DA8__NANDF_CLE,
 	MX50_PIN_EIM_DA9__NANDF_ALE,
 	MX50_PIN_EIM_DA10__NANDF_CE0,
@@ -332,7 +332,7 @@ static struct pad_desc  mx50_gpmi_nand[] = {
 	MX50_PIN_SD3_WP__NANDF_RESETN,
 };
 
-static struct pad_desc  suspend_enter_pads[] = {
+static iomux_v3_cfg_t suspend_enter_pads[] = {
 	MX50_PAD_EIM_DA0__GPIO_1_0,
 	MX50_PAD_EIM_DA1__GPIO_1_1,
 	MX50_PAD_EIM_DA2__GPIO_1_2,
@@ -426,7 +426,7 @@ static struct pad_desc  suspend_enter_pads[] = {
 	MX50_PAD_SSI_RXFS__GPIO_6_4,
 };
 
-static struct pad_desc  suspend_exit_pads[ARRAY_SIZE(suspend_enter_pads)];
+static iomux_v3_cfg_t suspend_exit_pads[ARRAY_SIZE(suspend_enter_pads)];
 
 static struct mxc_dvfs_platform_data dvfs_core_data = {
 	.reg_id = "SW1",
@@ -534,13 +534,12 @@ static void mx50_rdp_gpio_spi_chipselect_active(int cspi_mode, int status,
 		switch (chipselect) {
 		case 0x1:
 			{
-			struct pad_desc cspi_ss0 = MX50_PAD_CSPI_SS0__CSPI_SS0;
-			struct pad_desc cspi_cs1 =
-				MX50_PAD_ECSPI1_MOSI__GPIO_4_13;
+			iomux_v3_cfg_t cspi_ss0 = MX50_PAD_CSPI_SS0__CSPI_SS0;
+			iomux_v3_cfg_t cspi_cs1 = MX50_PAD_ECSPI1_MOSI__GPIO_4_13;
 
 			/* pull up/down deassert it */
-			mxc_iomux_v3_setup_pad(&cspi_ss0);
-			mxc_iomux_v3_setup_pad(&cspi_cs1);
+			mxc_iomux_v3_setup_pad(cspi_ss0);
+			mxc_iomux_v3_setup_pad(cspi_cs1);
 
 			gpio_request(CSPI_CS1, "cspi-cs1");
 			gpio_direction_input(CSPI_CS1);
@@ -548,13 +547,12 @@ static void mx50_rdp_gpio_spi_chipselect_active(int cspi_mode, int status,
 			break;
 		case 0x2:
 			{
-			struct pad_desc cspi_ss1 =
-				MX50_PAD_ECSPI1_MOSI__CSPI_SS1;
-			struct pad_desc cspi_ss0 = MX50_PAD_CSPI_SS0__GPIO_4_11;
+			iomux_v3_cfg_t cspi_ss1 = MX50_PAD_ECSPI1_MOSI__CSPI_SS1;
+			iomux_v3_cfg_t cspi_ss0 = MX50_PAD_CSPI_SS0__GPIO_4_11;
 
 			/*disable other ss */
-			mxc_iomux_v3_setup_pad(&cspi_ss1);
-			mxc_iomux_v3_setup_pad(&cspi_ss0);
+			mxc_iomux_v3_setup_pad(cspi_ss1);
+			mxc_iomux_v3_setup_pad(cspi_ss0);
 
 			/* pull up/down deassert it */
 			gpio_request(CSPI_CS2, "cspi-cs2");
@@ -742,7 +740,7 @@ static void epdc_put_pins(void)
 	gpio_free(EPDC_SDCE2);
 }
 
-static struct pad_desc  mx50_epdc_pads_enabled[] = {
+static iomux_v3_cfg_t mx50_epdc_pads_enabled[] = {
 	MX50_PAD_EPDC_D0__EPDC_D0,
 	MX50_PAD_EPDC_D1__EPDC_D1,
 	MX50_PAD_EPDC_D2__EPDC_D2,
@@ -765,7 +763,7 @@ static struct pad_desc  mx50_epdc_pads_enabled[] = {
 	MX50_PAD_EPDC_SDCE2__EPDC_SDCE2,
 };
 
-static struct pad_desc  mx50_epdc_pads_disabled[] = {
+static iomux_v3_cfg_t mx50_epdc_pads_disabled[] = {
 	MX50_PAD_EPDC_D0__GPIO_3_0,
 	MX50_PAD_EPDC_D1__GPIO_3_1,
 	MX50_PAD_EPDC_D2__GPIO_3_2,
@@ -1161,7 +1159,7 @@ static struct platform_device mxc_sgtl5000_device = {
 	.name = "imx-3stack-sgtl5000",
 };
 
-static struct pad_desc rdp_wvga_pads[] = {
+static iomux_v3_cfg_t rdp_wvga_pads[] = {
 	MX50_PAD_DISP_D0__DISP_D0,
 	MX50_PAD_DISP_D1__DISP_D1,
 	MX50_PAD_DISP_D2__DISP_D2,
@@ -1338,12 +1336,12 @@ static struct gpmi_nfc_platform_data  gpmi_nfc_platform_data = {
 
 static void fec_gpio_iomux_init()
 {
-	struct pad_desc iomux_setting =
-			MX50_PAD_I2C3_SDA__GPIO_6_23;
+	iomux_v3_cfg_t iomux_setting = (MX50_PAD_I2C3_SDA__GPIO_6_23 & \
+				~MUX_PAD_CTRL_MASK) | \
+				MUX_PAD_CTRL(PAD_CTL_PKE | PAD_CTL_DSE_HIGH);
 
 	/* Enable the Pull/keeper */
-	iomux_setting.pad_ctrl = 0x84;
-	mxc_iomux_v3_setup_pad(&iomux_setting);
+	mxc_iomux_v3_setup_pad(iomux_setting);
 	gpio_request(FEC_EN, "fec-en");
 	gpio_direction_output(FEC_EN, 0);
 	gpio_request(FEC_RESET_B, "fec-reset_b");
@@ -1354,12 +1352,10 @@ static void fec_gpio_iomux_init()
 
 static void fec_gpio_iomux_deinit()
 {
-	struct pad_desc iomux_setting =
-			MX50_PAD_I2C3_SDA__GPIO_6_23;
+	iomux_v3_cfg_t iomux_setting = (MX50_PAD_I2C3_SDA__GPIO_6_23 & \
+					~MUX_PAD_CTRL_MASK) | MUX_PAD_CTRL(0x4);
 
-	/* Disable the Pull/keeper */
-	iomux_setting.pad_ctrl = 0xE4;
-	mxc_iomux_v3_setup_pad(&iomux_setting);
+	mxc_iomux_v3_setup_pad(iomux_setting);
 	gpio_request(FEC_EN, "fec-en");
 	gpio_direction_input(FEC_EN);
 	gpio_request(FEC_RESET_B, "fec-reset_b");
@@ -1368,18 +1364,17 @@ static void fec_gpio_iomux_deinit()
 
 static void mx50_suspend_enter()
 {
-	struct pad_desc *p = suspend_enter_pads;
+	iomux_v3_cfg_t *p = suspend_enter_pads;
 	int i;
 	/* Set PADCTRL to 0 for all IOMUX. */
 	for (i = 0; i < ARRAY_SIZE(suspend_enter_pads); i++) {
 		suspend_exit_pads[i] = *p;
-		p->pad_ctrl = 0;
+		*p &= ~MUX_PAD_CTRL_MASK;
 		p++;
 	}
 	mxc_iomux_v3_get_multiple_pads(suspend_exit_pads,
 			ARRAY_SIZE(suspend_exit_pads));
-	mxc_iomux_v3_setup_multiple_pads(
-			suspend_enter_pads,
+	mxc_iomux_v3_setup_multiple_pads(suspend_enter_pads,
 			ARRAY_SIZE(suspend_enter_pads));
 
 	fec_gpio_iomux_deinit();
@@ -1387,8 +1382,7 @@ static void mx50_suspend_enter()
 
 static void mx50_suspend_exit()
 {
-	mxc_iomux_v3_setup_multiple_pads(
-			suspend_exit_pads,
+	mxc_iomux_v3_setup_multiple_pads(suspend_exit_pads,
 			ARRAY_SIZE(suspend_exit_pads));
 	fec_gpio_iomux_init();
 }
@@ -1420,16 +1414,16 @@ static void __init fixup_mxc_board(struct machine_desc *desc, struct tag *tags,
 
 static void __init mx50_rdp_io_init(void)
 {
-	struct pad_desc cspi_keeper = MX50_PAD_ECSPI1_SCLK__GPIO_4_12;
-	struct pad_desc *p = mx50_rdp;
+	iomux_v3_cfg_t cspi_keeper = (MX50_PAD_ECSPI1_SCLK__GPIO_4_12 & ~MUX_PAD_CTRL_MASK);
+
+	iomux_v3_cfg_t *p = mx50_rdp;
 	int i;
 
 	/* Set PADCTRL to 0 for all IOMUX. */
 	for (i = 0; i < ARRAY_SIZE(mx50_rdp); i++) {
-		int pad_ctl = p->pad_ctrl;
-		p->pad_ctrl = 0;
-		mxc_iomux_v3_setup_pad(p);
-		p->pad_ctrl = pad_ctl;
+		iomux_v3_cfg_t pad_ctl = *p;
+		pad_ctl &= ~MUX_PAD_CTRL_MASK;
+		mxc_iomux_v3_setup_pad(pad_ctl);
 		p++;
 	}
 
@@ -1470,8 +1464,8 @@ static void __init mx50_rdp_io_init(void)
 	gpio_direction_output(ELCDIF_PWR_ON, 1);
 
 	if (enable_w1) {
-		struct pad_desc one_wire = MX50_PAD_OWIRE__OWIRE;
-		mxc_iomux_v3_setup_pad(&one_wire);
+		iomux_v3_cfg_t one_wire = MX50_PAD_OWIRE__OWIRE;
+		mxc_iomux_v3_setup_pad(one_wire);
 	}
 
 	/* SGTL5000_OSC_EN */
@@ -1487,8 +1481,8 @@ static void __init mx50_rdp_io_init(void)
 	gpio_request(USB_OTG_PWR, "usb otg power");
 	gpio_direction_output(USB_OTG_PWR, 0);
 
-	cspi_keeper.pad_ctrl = 0x0; /* Disable all keepers */
-	mxc_iomux_v3_setup_pad(&cspi_keeper);
+	/* Disable all keepers */
+	mxc_iomux_v3_setup_pad(cspi_keeper);
 }
 
 /*!
