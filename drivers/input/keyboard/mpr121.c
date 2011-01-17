@@ -30,7 +30,6 @@
 #include <linux/delay.h>
 #include <linux/bitops.h>
 
-
 struct mpr121_touchkey_data {
 	struct i2c_client	*client;
 	struct input_dev	*input_dev;
@@ -88,7 +87,6 @@ static irqreturn_t mpr_touchkey_interrupt(int irq, void *dev_id)
 	data->statusbits = reg;
 	data->key_val = data->keycodes[key_num];
 
-	input_event(input, EV_MSC, MSC_SCAN, data->key_val);
 	input_report_key(input, data->key_val, pressed);
 	input_sync(input);
 
@@ -205,9 +203,8 @@ static int __devinit mpr_touchkey_probe(struct i2c_client *client,
 	for (i = 0; i < input_dev->keycodemax; i++) {
 		__set_bit(pdata->matrix[i], input_dev->keybit);
 		data->keycodes[i] = pdata->matrix[i];
+		input_set_capability(input_dev, EV_KEY, pdata->matrix[i]);
 	}
-
-	input_set_capability(input_dev, EV_MSC, MSC_SCAN);
 	input_set_drvdata(input_dev, data);
 
 	error = request_threaded_irq(client->irq, NULL,
