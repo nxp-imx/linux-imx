@@ -932,19 +932,8 @@ static void mx53_smd_bt_reset(void)
 
 static int mx53_smd_bt_power_change(int status)
 {
-	struct regulator *wifi_bt_pwren;
-
-	wifi_bt_pwren = regulator_get(NULL, "wifi_bt");
-	if (IS_ERR(wifi_bt_pwren)) {
-		printk(KERN_ERR "%s: regulator_get error\n", __func__);
-		return -1;
-	}
-
-	if (status) {
-		regulator_enable(wifi_bt_pwren);
+	if (status)
 		mx53_smd_bt_reset();
-	} else
-		regulator_disable(wifi_bt_pwren);
 
 	return 0;
 }
@@ -1101,6 +1090,19 @@ static void __init mx53_smd_io_init(void)
 	gpio_direction_output(MX53_SMD_CSI0_PWN, 1);
 	msleep(1);
 	gpio_set_value(MX53_SMD_CSI0_PWN, 0);
+
+	/* Enable WiFi/BT Power*/
+	gpio_request(MX53_SMD_WiFi_BT_PWR_EN, "bt-wifi-pwren");
+	gpio_direction_output(MX53_SMD_WiFi_BT_PWR_EN, 1);
+
+	/* WiFi Power up sequence */
+	gpio_request(MX53_SMD_WLAN_PD, "wifi-pd");
+	gpio_direction_output(MX53_SMD_WLAN_PD, 1);
+	mdelay(1);
+	gpio_set_value(MX53_SMD_WLAN_PD, 0);
+	mdelay(5);
+	gpio_set_value(MX53_SMD_WLAN_PD, 1);
+	gpio_free(MX53_SMD_WLAN_PD);
 }
 
 /*!
