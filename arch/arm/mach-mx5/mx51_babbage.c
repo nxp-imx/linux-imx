@@ -32,6 +32,7 @@
 #include <linux/ipu.h>
 #include <linux/mxcfb.h>
 #include <linux/pwm_backlight.h>
+#include <linux/powerkey.h>
 #include <mach/common.h>
 #include <mach/hardware.h>
 #include <asm/setup.h>
@@ -1073,27 +1074,46 @@ static void mxc_power_off(void)
  */
 static irqreturn_t power_key_int(int irq, void *dev_id)
 {
-	pr_info(KERN_INFO "PWR key pressed\n");
+	pwrkey_callback cb = (pwrkey_callback)dev_id;
+
+	cb((void *)1);
+
+	if (gpio_get_value(BABBAGE_POWER_KEY))
+		set_irq_type(irq, IRQF_TRIGGER_FALLING);
+	else
+		set_irq_type(irq, IRQF_TRIGGER_RISING);
+
 	return 0;
 }
 
-/*!
- * Power Key initialization.
- */
-static int __init mxc_init_power_key(void)
+static void mxc_register_powerkey(pwrkey_callback pk_cb)
 {
 	/* Set power key as wakeup resource */
 	int irq, ret;
 	irq = IOMUX_TO_IRQ_V3(BABBAGE_POWER_KEY);
-	set_irq_type(irq, IRQF_TRIGGER_RISING);
-	ret = request_irq(irq, power_key_int, 0, "power_key", 0);
+
+	if (gpio_get_value(BABBAGE_POWER_KEY))
+		set_irq_type(irq, IRQF_TRIGGER_FALLING);
+	else
+		set_irq_type(irq, IRQF_TRIGGER_RISING);
+
+	ret = request_irq(irq, power_key_int, 0, "power_key", pk_cb);
 	if (ret)
 		pr_info("register on-off key interrupt failed\n");
 	else
 		enable_irq_wake(irq);
-	return ret;
 }
-late_initcall(mxc_init_power_key);
+
+static int mxc_pwrkey_getstatus(int id)
+{
+	return gpio_get_value(BABBAGE_POWER_KEY);
+}
+
+static struct power_key_platform_data pwrkey_data = {
+	.key_value = KEY_F4,
+	.register_pwrkey = mxc_register_powerkey,
+	.get_key_status = mxc_pwrkey_getstatus,
+};
 
 static void __init mx51_babbage_io_init(void)
 {
@@ -1255,6 +1275,7 @@ static void __init mxc_board_init(void)
 	mxc_register_device(&mxc_fec_device, NULL);
 	mxc_register_device(&mxc_v4l2_device, NULL);
 	mxc_register_device(&mxc_v4l2out_device, NULL);
+	mxc_register_device(&mxc_powerkey_device, &pwrkey_data);
 
 	mx51_babbage_init_mc13892();
 

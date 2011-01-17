@@ -1145,17 +1145,30 @@ static struct mxc_mlb_platform_data mlb_data = {
 	.mlb_clk = "mlb_clk",
 };
 
-static void mxc_register_powerkey(key_press_call_back kp_cb, void *param)
+static void mxc_register_powerkey(pwrkey_callback pk_cb)
 {
 	pmic_event_callback_t power_key_event;
 
-	power_key_event.param = param;
-	power_key_event.func = (void *)kp_cb;
+	power_key_event.param = (void *)1;
+	power_key_event.func = (void *)pk_cb;
 	pmic_event_subscribe(EVENT_PWRONI, power_key_event);
 }
 
+static int mxc_pwrkey_getstatus(int id)
+{
+	int sense;
+
+	pmic_read_reg(REG_INT_SENSE1, &sense, 0xffffffff);
+	if (sense & (1 << 3))
+		return 0;
+
+	return 1;
+}
+
 static struct power_key_platform_data pwrkey_data = {
-	.register_key_press_handler = mxc_register_powerkey,
+	.key_value = KEY_F4,
+	.register_pwrkey = mxc_register_powerkey,
+	.get_key_status = mxc_pwrkey_getstatus,
 };
 
 /* NAND Flash Partitions */

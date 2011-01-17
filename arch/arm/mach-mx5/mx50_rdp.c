@@ -1246,18 +1246,41 @@ static void mx50_arm2_usb_set_vbus(bool enable)
 	gpio_set_value(USB_OTG_PWR, enable);
 }
 
-static void mxc_register_powerkey(key_press_call_back kp_cb, void *param)
+static void mxc_register_powerkey(pwrkey_callback pk_cb)
 {
 	pmic_event_callback_t power_key_event;
 
-	power_key_event.param = param;
-	power_key_event.func = (void *)kp_cb;
+	power_key_event.param = (void *)1;
+	power_key_event.func = (void *)pk_cb;
 	pmic_event_subscribe(EVENT_PWRONI, power_key_event);
+	power_key_event.param = (void *)3;
 	pmic_event_subscribe(EVENT_PWRON3I, power_key_event);
 }
 
+static int mxc_pwrkey_getstatus(int id)
+{
+	int sense, off = 3;
+
+	pmic_read_reg(REG_INT_SENSE1, &sense, 0xffffffff);
+	switch (id) {
+	case 2:
+		off = 4;
+		break;
+	case 3:
+		off = 2;
+		break;
+	}
+
+	if (sense & (1 << off))
+		return 0;
+
+	return 1;
+}
+
 static struct power_key_platform_data pwrkey_data = {
-	.register_key_press_handler = mxc_register_powerkey,
+	.key_value = KEY_F4,
+	.register_pwrkey = mxc_register_powerkey,
+	.get_key_status = mxc_pwrkey_getstatus,
 };
 
 
