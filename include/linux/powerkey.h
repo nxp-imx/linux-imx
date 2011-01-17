@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2010-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -19,12 +19,12 @@
 #ifndef POWER_KEY_H
 #define POWER_KEY_H
 
-typedef void (*key_press_call_back)(void *);
-typedef void (*register_key_press_call_back)(key_press_call_back, void *);
+typedef void (*pwrkey_callback)(void *);
 
 struct power_key_platform_data {
-	register_key_press_call_back register_key_press_handler;
-	void *param; /* param of the handler */
+	int key_value;
+	void (*register_pwrkey) (pwrkey_callback);
+	int (*get_key_status) (int);
 };
 
 #endif /* POWER_KEY_H */
