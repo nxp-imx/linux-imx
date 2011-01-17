@@ -731,7 +731,7 @@ static struct i2c_board_info mxc_i2c0_board_info[] __initdata = {
 };
 
 static u16 smd_touchkey_martix[4] = {
-	KEY_SEARCH, KEY_BACK, KEY_HOME, KEY_MENU
+	KEY_BACK, KEY_HOME, KEY_MENU, KEY_SEARCH,
 };
 
 static struct mpr121_platform_data mpr121_keyboard_platdata = {
