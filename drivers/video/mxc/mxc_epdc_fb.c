@@ -100,8 +100,8 @@ struct update_data_list {
 
 struct mxc_epdc_fb_data {
 	struct fb_info info;
-	u32 xoffset;
-	u32 yoffset;
+	struct fb_var_screeninfo epdc_fb_var; /* Internal copy of screeninfo
+						so we can sync changes to it */
 	u32 pseudo_palette[16];
 	char fw_str[24];
 	struct list_head list;
@@ -217,6 +217,8 @@ static int pxp_process_update(struct mxc_epdc_fb_data *fb_data,
 static int pxp_complete_update(struct mxc_epdc_fb_data *fb_data, u32 *hist_stat);
 
 static void draw_mode0(struct mxc_epdc_fb_data *fb_data);
+static bool is_free_list_full(struct mxc_epdc_fb_data *fb_data);
+
 
 #ifdef DEBUG
 static void dump_pxp_config(struct mxc_epdc_fb_data *fb_data,
@@ -597,7 +599,7 @@ static void epdc_set_vertical_timing(u32 vert_start, u32 vert_end,
 void epdc_init_settings(struct mxc_epdc_fb_data *fb_data)
 {
 	struct mxc_epdc_fb_mode *epdc_mode = fb_data->cur_mode;
-	struct fb_var_screeninfo *screeninfo = &fb_data->info.var;
+	struct fb_var_screeninfo *screeninfo = &fb_data->epdc_fb_var;
 	u32 reg_val;
 	int num_ce;
 
@@ -935,8 +937,8 @@ static int mxc_epdc_fb_setcolreg(u_int regno, u_int red, u_int green,
 static void adjust_coordinates(struct mxc_epdc_fb_data *fb_data,
 	struct mxcfb_rect *update_region, struct mxcfb_rect *adj_update_region)
 {
-	struct fb_var_screeninfo *screeninfo = &fb_data->info.var;
-	u32 rotation = fb_data->info.var.rotate;
+	struct fb_var_screeninfo *screeninfo = &fb_data->epdc_fb_var;
+	u32 rotation = fb_data->epdc_fb_var.rotate;
 	u32 temp;
 
 	/* If adj_update_region == NULL, pass result back in update_region */
@@ -1043,6 +1045,17 @@ static int mxc_epdc_fb_set_par(struct fb_info *info)
 	struct mxc_epdc_fb_mode *epdc_modes = fb_data->pdata->epdc_mode;
 	int i;
 	int ret;
+	unsigned long flags;
+
+	/*
+	 * Can't change the FB parameters until current updates have completed.
+	 * This function returns when all active updates are done.
+	 */
+	mxc_epdc_fb_flush_updates(fb_data);
+
+	spin_lock_irqsave(&fb_data->queue_lock, flags);
+	fb_data->epdc_fb_var = *screeninfo;
+	spin_unlock_irqrestore(&fb_data->queue_lock, flags);
 
 	mutex_lock(&fb_data->pxp_mutex);
 
@@ -1428,8 +1441,8 @@ static int epdc_process_update(struct update_data_list *upd_data_list,
 		src_height = upd_data_list->upd_data.alt_buffer_data.height;
 		src_upd_region = &upd_data_list->upd_data.alt_buffer_data.alt_update_region;
 	} else {
-		src_width = fb_data->info.var.xres_virtual;
-		src_height = fb_data->info.var.yres;
+		src_width = fb_data->epdc_fb_var.xres_virtual;
+		src_height = fb_data->epdc_fb_var.yres;
 		src_upd_region = &upd_data_list->upd_data.update_region;
 	}
 
@@ -1438,8 +1451,8 @@ static int epdc_process_update(struct update_data_list *upd_data_list,
 	 * PxP limitation (must read 8x8 pixel blocks)
 	 */
 	offset_from_8 = src_upd_region->left & 0x7;
-	bytes_per_pixel = fb_data->info.var.bits_per_pixel/8;
-	if ((offset_from_8 * fb_data->info.var.bits_per_pixel/8 % 4) != 0) {
+	bytes_per_pixel = fb_data->epdc_fb_var.bits_per_pixel/8;
+	if ((offset_from_8 * fb_data->epdc_fb_var.bits_per_pixel/8 % 4) != 0) {
 		/* Leave a gap between PxP input addr and update region pixels */
 		pxp_input_offs =
 			(src_upd_region->top * src_width + src_upd_region->left)
@@ -1474,7 +1487,7 @@ static int epdc_process_update(struct update_data_list *upd_data_list,
 	pxp_upd_region.top &= ~0x7;
 	pxp_upd_region.left &= ~0x7;
 
-	switch (fb_data->info.var.rotate) {
+	switch (fb_data->epdc_fb_var.rotate) {
 	case FB_ROTATE_UR:
 	default:
 		post_rotation_xcoord = pxp_upd_region.left;
@@ -1543,7 +1556,7 @@ static int epdc_process_update(struct update_data_list *upd_data_list,
 	 * Toggle inversion processing if 8-bit
 	 * inverted is the current pixel format.
 	 */
-	if (fb_data->info.var.grayscale == GRAYSCALE_8BIT_INVERTED)
+	if (fb_data->epdc_fb_var.grayscale == GRAYSCALE_8BIT_INVERTED)
 		fb_data->pxp_conf.proc_data.lut_transform ^= PXP_LUT_INVERT;
 
 	/* This is a blocking call, so upon return PxP tx should be done */
@@ -1879,8 +1892,8 @@ int mxc_epdc_fb_send_update(struct mxcfb_update_data *upd_data,
 			upd_data->waveform_mode);
 		return -EINVAL;
 	}
-	if ((upd_data->update_region.left + upd_data->update_region.width > fb_data->info.var.xres) ||
-		(upd_data->update_region.top + upd_data->update_region.height > fb_data->info.var.yres)) {
+	if ((upd_data->update_region.left + upd_data->update_region.width > fb_data->epdc_fb_var.xres) ||
+		(upd_data->update_region.top + upd_data->update_region.height > fb_data->epdc_fb_var.yres)) {
 		dev_err(fb_data->dev,
 			"Update region is outside bounds of framebuffer."
 			"Aborting update.\n");
@@ -2004,7 +2017,7 @@ int mxc_epdc_fb_send_update(struct mxcfb_update_data *upd_data,
 		list_add_tail(&upd_data_list->list,
 			      &fb_data->upd_buf_queue->list);
 
-		/* Return and allow the udpate to be submitted by the ISR. */
+		/* Return and allow the update to be submitted by the ISR. */
 		spin_unlock_irqrestore(&fb_data->queue_lock, flags);
 		return 0;
 	}
@@ -2198,7 +2211,7 @@ static void mxc_epdc_fb_update_pages(struct mxc_epdc_fb_data *fb_data,
 
 	/* Do partial screen update, Update full horizontal lines */
 	update.update_region.left = 0;
-	update.update_region.width = fb_data->info.var.xres;
+	update.update_region.width = fb_data->epdc_fb_var.xres;
 	update.update_region.top = y1;
 	update.update_region.height = y2 - y1;
 	update.waveform_mode = WAVEFORM_MODE_AUTO;
@@ -2229,8 +2242,8 @@ static void mxc_epdc_fb_deferred_io(struct fb_info *info,
 		end = beg + PAGE_SIZE - 1;
 		y1 = beg / info->fix.line_length;
 		y2 = end / info->fix.line_length;
-		if (y2 >= info->var.yres)
-			y2 = info->var.yres - 1;
+		if (y2 >= fb_data->epdc_fb_var.yres)
+			y2 = fb_data->epdc_fb_var.yres - 1;
 		if (miny > y1)
 			miny = y1;
 		if (maxy < y2)
@@ -2244,13 +2257,9 @@ void mxc_epdc_fb_flush_updates(struct mxc_epdc_fb_data *fb_data)
 {
 	unsigned long flags;
 	/* Grab queue lock to prevent any new updates from being submitted */
-
 	spin_lock_irqsave(&fb_data->queue_lock, flags);
 
-	/* If any updates in flight, we must wait for them to complete */
-	if (!(list_empty(&fb_data->upd_buf_collision_list->list) &&
-		list_empty(&fb_data->upd_buf_queue->list) &&
-		(fb_data->cur_update == NULL))) {
+	if (!is_free_list_full(fb_data)) {
 		/* Initialize event signalling updates are done */
 		init_completion(&fb_data->updates_done);
 		fb_data->waiting_for_idle = true;
@@ -2303,8 +2312,8 @@ static int mxc_epdc_fb_pan_display(struct fb_var_screeninfo *var,
 		return -EINVAL;
 	}
 
-	if ((fb_data->xoffset == var->xoffset) &&
-		(fb_data->yoffset == var->yoffset))
+	if ((fb_data->epdc_fb_var.xoffset == var->xoffset) &&
+		(fb_data->epdc_fb_var.yoffset == var->yoffset))
 		return 0;	/* No change, do nothing */
 
 	spin_lock_irqsave(&fb_data->queue_lock, flags);
@@ -2322,8 +2331,8 @@ static int mxc_epdc_fb_pan_display(struct fb_var_screeninfo *var,
 	fb_data->fb_offset = (var->yoffset * var->xres_virtual + var->xoffset)
 		* (var->bits_per_pixel) / 8;
 
-	fb_data->xoffset = info->var.xoffset = var->xoffset;
-	fb_data->yoffset = info->var.yoffset = var->yoffset;
+	fb_data->epdc_fb_var.xoffset = var->xoffset;
+	fb_data->epdc_fb_var.yoffset = var->yoffset;
 
 	if (var->vmode & FB_VMODE_YWRAP)
 		info->var.vmode |= FB_VMODE_YWRAP;
@@ -2689,7 +2698,7 @@ static void draw_mode0(struct mxc_epdc_fb_data *fb_data)
 {
 	u32 *upd_buf_ptr;
 	int i;
-	struct fb_var_screeninfo *screeninfo = &fb_data->info.var;
+	struct fb_var_screeninfo *screeninfo = &fb_data->epdc_fb_var;
 	u32 xres, yres;
 
 	upd_buf_ptr = (u32 *)fb_data->info.screen_base;
@@ -2701,11 +2710,11 @@ static void draw_mode0(struct mxc_epdc_fb_data *fb_data)
 	/* Use unrotated (native) width/height */
 	if ((screeninfo->rotate == FB_ROTATE_CW) ||
 		(screeninfo->rotate == FB_ROTATE_CCW)) {
-		xres = fb_data->info.var.yres;
-		yres = fb_data->info.var.xres;
+		xres = screeninfo->yres;
+		yres = screeninfo->xres;
 	} else {
-		xres = fb_data->info.var.xres;
-		yres = fb_data->info.var.yres;
+		xres = screeninfo->xres;
+		yres = screeninfo->yres;
 	}
 
 	/* Program EPDC update to process buffer */
@@ -2741,7 +2750,7 @@ static void mxc_epdc_fb_fw_handler(const struct firmware *fw,
 	int wv_data_offs;
 	int i;
 	struct mxcfb_update_data update;
-	struct fb_var_screeninfo *screeninfo = &fb_data->info.var;
+	struct fb_var_screeninfo *screeninfo = &fb_data->epdc_fb_var;
 	u32 xres, yres;
 
 	if (fw == NULL) {
@@ -2815,11 +2824,11 @@ static void mxc_epdc_fb_fw_handler(const struct firmware *fw,
 	/* Use unrotated (native) width/height */
 	if ((screeninfo->rotate == FB_ROTATE_CW) ||
 		(screeninfo->rotate == FB_ROTATE_CCW)) {
-		xres = fb_data->info.var.yres;
-		yres = fb_data->info.var.xres;
+		xres = screeninfo->yres;
+		yres = screeninfo->xres;
 	} else {
-		xres = fb_data->info.var.xres;
-		yres = fb_data->info.var.yres;
+		xres = screeninfo->xres;
+		yres = screeninfo->yres;
 	}
 
 	update.update_region.left = 0;
@@ -2886,9 +2895,9 @@ static ssize_t store_update(struct device *device,
 
 	/* Now, request full screen update */
 	update.update_region.left = 0;
-	update.update_region.width = info->var.xres;
+	update.update_region.width = fb_data->epdc_fb_var.xres;
 	update.update_region.top = 0;
-	update.update_region.height = info->var.yres;
+	update.update_region.height = fb_data->epdc_fb_var.yres;
 	update.update_mode = UPDATE_MODE_FULL;
 	update.temp = TEMP_USE_AMBIENT;
 	update.update_marker = 0;
@@ -3141,9 +3150,9 @@ int __devinit mxc_epdc_fb_probe(struct platform_device *pdev)
 	fb_data->auto_mode = AUTO_UPDATE_MODE_REGION_MODE;
 	fb_data->upd_scheme = UPDATE_SCHEME_SNAPSHOT;
 
+	/* Initialize our internal copy of the screeninfo */
+	fb_data->epdc_fb_var = *var_info;
 	fb_data->fb_offset = 0;
-	fb_data->xoffset = 0;
-	fb_data->yoffset = 0;
 
 	/* Allocate head objects for our lists */
 	fb_data->upd_buf_queue =
@@ -3690,7 +3699,7 @@ static int pxp_process_update(struct mxc_epdc_fb_data *fb_data,
 	proc_data->drect.height = proc_data->srect.height;
 
 	/* PXP expects rotation in terms of degrees */
-	proc_data->rotate = fb_data->info.var.rotate * 90;
+	proc_data->rotate = fb_data->epdc_fb_var.rotate * 90;
 	if (proc_data->rotate > 270)
 		proc_data->rotate = 0;
 
