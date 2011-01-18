@@ -19,6 +19,7 @@
 #include "gsl.h"
 #include "gsl_hal.h"
 #ifdef _LINUX
+#include <linux/delay.h>
 #include <linux/sched.h>
 #endif
 
@@ -846,6 +847,22 @@ kgsl_yamato_waitirq(gsl_device_t *device, gsl_intrid_t intr_id, unsigned int *co
     return (status);
 }
 
+int kgsl_yamato_check_timestamp(gsl_deviceid_t device_id, gsl_timestamp_t timestamp)
+{
+	int i;
+	/* Reason to use a wait loop:
+	 * When bus is busy, for example vpu is working too, the timestamp is
+	 * possiblly not yet refreshed to memory by yamato. For most cases, it
+	 * will hit on first loop cycle. So it don't effect performance.
+	 */
+	for (i = 0; i < 10; i++) {
+		if (kgsl_cmdstream_check_timestamp(device_id, timestamp))
+			return 1;
+		udelay(10);
+	}
+	return 0;
+}
+
 int
 kgsl_yamato_waittimestamp(gsl_device_t *device, gsl_timestamp_t timestamp, unsigned int timeout)
 {
@@ -854,8 +871,8 @@ kgsl_yamato_waittimestamp(gsl_device_t *device, gsl_timestamp_t timestamp, unsig
 	return kos_event_wait( device->timestamp_event, timeout );
 #else
 	int status = wait_event_interruptible_timeout(device->timestamp_waitq,
-	                                              kgsl_cmdstream_check_timestamp(device->id, timestamp),
-												  msecs_to_jiffies(timeout));
+							kgsl_yamato_check_timestamp(device->id, timestamp),
+							msecs_to_jiffies(timeout));
 	if (status > 0)
 		return GSL_SUCCESS;
 	else
