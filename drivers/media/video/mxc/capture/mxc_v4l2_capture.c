@@ -879,42 +879,77 @@ static int mxc_v4l2_g_ctrl(cam_data *cam, struct v4l2_control *c)
 		c->value = cam->rotation;
 		break;
 	case V4L2_CID_BRIGHTNESS:
-		c->value = cam->bright;
-		status = vidioc_int_g_ctrl(cam->sensor, c);
-		cam->bright = c->value;
+		if (cam->sensor) {
+			c->value = cam->bright;
+			status = vidioc_int_g_ctrl(cam->sensor, c);
+			cam->bright = c->value;
+		} else {
+			pr_err("ERROR: v4l2 capture: slave not found!\n");
+			status = -ENODEV;
+		}
 		break;
 	case V4L2_CID_HUE:
-		c->value = cam->hue;
-		status = vidioc_int_g_ctrl(cam->sensor, c);
-		cam->hue = c->value;
+		if (cam->sensor) {
+			c->value = cam->hue;
+			status = vidioc_int_g_ctrl(cam->sensor, c);
+			cam->hue = c->value;
+		} else {
+			pr_err("ERROR: v4l2 capture: slave not found!\n");
+			status = -ENODEV;
+		}
 		break;
 	case V4L2_CID_CONTRAST:
-		c->value = cam->contrast;
-		status = vidioc_int_g_ctrl(cam->sensor, c);
-		cam->contrast = c->value;
+		if (cam->sensor) {
+			c->value = cam->contrast;
+			status = vidioc_int_g_ctrl(cam->sensor, c);
+			cam->contrast = c->value;
+		} else {
+			pr_err("ERROR: v4l2 capture: slave not found!\n");
+			status = -ENODEV;
+		}
 		break;
 	case V4L2_CID_SATURATION:
-		c->value = cam->saturation;
-		status = vidioc_int_g_ctrl(cam->sensor, c);
-		cam->saturation = c->value;
+		if (cam->sensor) {
+			c->value = cam->saturation;
+			status = vidioc_int_g_ctrl(cam->sensor, c);
+			cam->saturation = c->value;
+		} else {
+			pr_err("ERROR: v4l2 capture: slave not found!\n");
+			status = -ENODEV;
+		}
 		break;
 	case V4L2_CID_RED_BALANCE:
-		c->value = cam->red;
-		status = vidioc_int_g_ctrl(cam->sensor, c);
-		cam->red = c->value;
+		if (cam->sensor) {
+			c->value = cam->red;
+			status = vidioc_int_g_ctrl(cam->sensor, c);
+			cam->red = c->value;
+		} else {
+			pr_err("ERROR: v4l2 capture: slave not found!\n");
+			status = -ENODEV;
+		}
 		break;
 	case V4L2_CID_BLUE_BALANCE:
-		c->value = cam->blue;
-		status = vidioc_int_g_ctrl(cam->sensor, c);
-		cam->blue = c->value;
+		if (cam->sensor) {
+			c->value = cam->blue;
+			status = vidioc_int_g_ctrl(cam->sensor, c);
+			cam->blue = c->value;
+		} else {
+			pr_err("ERROR: v4l2 capture: slave not found!\n");
+			status = -ENODEV;
+		}
 		break;
 	case V4L2_CID_BLACK_LEVEL:
-		c->value = cam->ae_mode;
-		status = vidioc_int_g_ctrl(cam->sensor, c);
-		cam->ae_mode = c->value;
+		if (cam->sensor) {
+			c->value = cam->ae_mode;
+			status = vidioc_int_g_ctrl(cam->sensor, c);
+			cam->ae_mode = c->value;
+		} else {
+			pr_err("ERROR: v4l2 capture: slave not found!\n");
+			status = -ENODEV;
+		}
 		break;
 	default:
-		status = vidioc_int_g_ctrl(cam->sensor, c);
+		pr_err("ERROR: v4l2 capture: unsupported ioctrl!\n");
 	}
 
 	return status;
@@ -1011,46 +1046,95 @@ static int mxc_v4l2_s_ctrl(cam_data *cam, struct v4l2_control *c)
 
 		break;
 	case V4L2_CID_HUE:
-		cam->hue = c->value;
-		ipu_csi_enable_mclk_if(CSI_MCLK_I2C, cam->csi, true, true);
-		ret = vidioc_int_s_ctrl(cam->sensor, c);
-		ipu_csi_enable_mclk_if(CSI_MCLK_I2C, cam->csi, false, false);
+		if (cam->sensor) {
+			cam->hue = c->value;
+			ipu_csi_enable_mclk_if(CSI_MCLK_I2C, cam->csi,
+					       true, true);
+			ret = vidioc_int_s_ctrl(cam->sensor, c);
+			ipu_csi_enable_mclk_if(CSI_MCLK_I2C, cam->csi,
+					       false, false);
+		} else {
+			pr_err("ERROR: v4l2 capture: slave not found!\n");
+			ret = -ENODEV;
+		}
 		break;
 	case V4L2_CID_CONTRAST:
-		cam->contrast = c->value;
-		ipu_csi_enable_mclk_if(CSI_MCLK_I2C, cam->csi, true, true);
-		ret = vidioc_int_s_ctrl(cam->sensor, c);
-		ipu_csi_enable_mclk_if(CSI_MCLK_I2C, cam->csi, false, false);
+		if (cam->sensor) {
+			cam->contrast = c->value;
+			ipu_csi_enable_mclk_if(CSI_MCLK_I2C, cam->csi,
+					       true, true);
+			ret = vidioc_int_s_ctrl(cam->sensor, c);
+			ipu_csi_enable_mclk_if(CSI_MCLK_I2C, cam->csi,
+					       false, false);
+		} else {
+			pr_err("ERROR: v4l2 capture: slave not found!\n");
+			ret = -ENODEV;
+		}
 		break;
 	case V4L2_CID_BRIGHTNESS:
-		cam->bright = c->value;
-		ipu_csi_enable_mclk_if(CSI_MCLK_I2C, cam->csi, true, true);
-		ret = vidioc_int_s_ctrl(cam->sensor, c);
-		ipu_csi_enable_mclk_if(CSI_MCLK_I2C, cam->csi, false, false);
+		if (cam->sensor) {
+			cam->bright = c->value;
+			ipu_csi_enable_mclk_if(CSI_MCLK_I2C, cam->csi,
+					       true, true);
+			ret = vidioc_int_s_ctrl(cam->sensor, c);
+			ipu_csi_enable_mclk_if(CSI_MCLK_I2C, cam->csi,
+					       false, false);
+		} else {
+			pr_err("ERROR: v4l2 capture: slave not found!\n");
+			ret = -ENODEV;
+		}
 		break;
 	case V4L2_CID_SATURATION:
-		cam->saturation = c->value;
-		ipu_csi_enable_mclk_if(CSI_MCLK_I2C, cam->csi, true, true);
-		ret = vidioc_int_s_ctrl(cam->sensor, c);
-		ipu_csi_enable_mclk_if(CSI_MCLK_I2C, cam->csi, false, false);
+		if (cam->sensor) {
+			cam->saturation = c->value;
+			ipu_csi_enable_mclk_if(CSI_MCLK_I2C, cam->csi,
+					       true, true);
+			ret = vidioc_int_s_ctrl(cam->sensor, c);
+			ipu_csi_enable_mclk_if(CSI_MCLK_I2C, cam->csi,
+					       false, false);
+		} else {
+			pr_err("ERROR: v4l2 capture: slave not found!\n");
+			ret = -ENODEV;
+		}
 		break;
 	case V4L2_CID_RED_BALANCE:
-		cam->red = c->value;
-		ipu_csi_enable_mclk_if(CSI_MCLK_I2C, cam->csi, true, true);
-		ret = vidioc_int_s_ctrl(cam->sensor, c);
-		ipu_csi_enable_mclk_if(CSI_MCLK_I2C, cam->csi, false, false);
+		if (cam->sensor) {
+			cam->red = c->value;
+			ipu_csi_enable_mclk_if(CSI_MCLK_I2C, cam->csi,
+					       true, true);
+			ret = vidioc_int_s_ctrl(cam->sensor, c);
+			ipu_csi_enable_mclk_if(CSI_MCLK_I2C, cam->csi,
+					       false, false);
+		} else {
+			pr_err("ERROR: v4l2 capture: slave not found!\n");
+			ret = -ENODEV;
+		}
 		break;
 	case V4L2_CID_BLUE_BALANCE:
-		cam->blue = c->value;
-		ipu_csi_enable_mclk_if(CSI_MCLK_I2C, cam->csi, true, true);
-		ret = vidioc_int_s_ctrl(cam->sensor, c);
-		ipu_csi_enable_mclk_if(CSI_MCLK_I2C, cam->csi, false, false);
+		if (cam->sensor) {
+			cam->blue = c->value;
+			ipu_csi_enable_mclk_if(CSI_MCLK_I2C, cam->csi,
+					       true, true);
+			ret = vidioc_int_s_ctrl(cam->sensor, c);
+			ipu_csi_enable_mclk_if(CSI_MCLK_I2C, cam->csi,
+					       false, false);
+		} else {
+			pr_err("ERROR: v4l2 capture: slave not found!\n");
+			ret = -ENODEV;
+		}
 		break;
 	case V4L2_CID_EXPOSURE:
-		cam->ae_mode = c->value;
-		ipu_csi_enable_mclk_if(CSI_MCLK_I2C, cam->csi, true, true);
-		ret = vidioc_int_s_ctrl(cam->sensor, c);
-		ipu_csi_enable_mclk_if(CSI_MCLK_I2C, cam->csi, false, false);
+		if (cam->sensor) {
+			cam->ae_mode = c->value;
+			ipu_csi_enable_mclk_if(CSI_MCLK_I2C, cam->csi,
+					       true, true);
+			ret = vidioc_int_s_ctrl(cam->sensor, c);
+			ipu_csi_enable_mclk_if(CSI_MCLK_I2C, cam->csi,
+					       false, false);
+		} else {
+			pr_err("ERROR: v4l2 capture: slave not found!\n");
+			ret = -ENODEV;
+		}
 		break;
 	case V4L2_CID_MXC_FLASH:
 #ifdef CONFIG_MXC_IPU_V1
@@ -1981,14 +2065,24 @@ static long mxc_v4l_do_ioctl(struct file *file,
 	case VIDIOC_G_PARM: {
 		struct v4l2_streamparm *parm = arg;
 		pr_debug("   case VIDIOC_G_PARM\n");
-		vidioc_int_g_parm(cam->sensor, parm);
+		if (cam->sensor)
+			retval = vidioc_int_g_parm(cam->sensor, parm);
+		else {
+			pr_err("ERROR: v4l2 capture: slave not found!\n");
+			retval = -ENODEV;
+		}
 		break;
 	}
 
 	case VIDIOC_S_PARM:  {
 		struct v4l2_streamparm *parm = arg;
 		pr_debug("   case VIDIOC_S_PARM\n");
-		retval = mxc_v4l2_s_param(cam, parm);
+		if (cam->sensor)
+			retval = mxc_v4l2_s_param(cam, parm);
+		else {
+			pr_err("ERROR: v4l2 capture: slave not found!\n");
+			retval = -ENODEV;
+		}
 		break;
 	}
 
@@ -2003,7 +2097,12 @@ static long mxc_v4l_do_ioctl(struct file *file,
 	case VIDIOC_G_STD: {
 		v4l2_std_id *e = arg;
 		pr_debug("   case VIDIOC_G_STD\n");
-		retval = mxc_v4l2_g_std(cam, e);
+		if (cam->sensor)
+			retval = mxc_v4l2_g_std(cam, e);
+		else {
+			pr_err("ERROR: v4l2 capture: slave not found!\n");
+			retval = -ENODEV;
+		}
 		break;
 	}
 
@@ -2103,19 +2202,34 @@ static long mxc_v4l_do_ioctl(struct file *file,
 	}
 	case VIDIOC_ENUM_FMT: {
 		struct v4l2_fmtdesc *f = arg;
-		retval = vidioc_int_enum_fmt_cap(cam->sensor, f);
+		if (cam->sensor)
+			retval = vidioc_int_enum_fmt_cap(cam->sensor, f);
+		else {
+			pr_err("ERROR: v4l2 capture: slave not found!\n");
+			retval = -ENODEV;
+		}
 		break;
 	}
 	case VIDIOC_ENUM_FRAMESIZES: {
 		struct v4l2_frmsizeenum *fsize = arg;
-		retval = vidioc_int_enum_framesizes(cam->sensor, fsize);
+		if (cam->sensor)
+			retval = vidioc_int_enum_framesizes(cam->sensor, fsize);
+		else {
+			pr_err("ERROR: v4l2 capture: slave not found!\n");
+			retval = -ENODEV;
+		}
 		break;
 	}
 	case VIDIOC_DBG_G_CHIP_IDENT: {
 		struct v4l2_dbg_chip_ident *p = arg;
 		p->ident = V4L2_IDENT_NONE;
 		p->revision = 0;
-		retval = vidioc_int_g_chip_ident(cam->sensor, (int *)p);
+		if (cam->sensor)
+			retval = vidioc_int_g_chip_ident(cam->sensor, (int *)p);
+		else {
+			pr_err("ERROR: v4l2 capture: slave not found!\n");
+			retval = -ENODEV;
+		}
 		break;
 	}
 	case VIDIOC_TRY_FMT:
@@ -2534,7 +2648,9 @@ static int mxc_v4l2_suspend(struct platform_device *pdev, pm_message_t state)
 	if ((cam->capture_on == true) && cam->enc_disable) {
 		cam->enc_disable(cam);
 	}
-	vidioc_int_s_power(cam->sensor, 0);
+
+	if (cam->sensor)
+		vidioc_int_s_power(cam->sensor, 0);
 
 	return 0;
 }
@@ -2560,7 +2676,9 @@ static int mxc_v4l2_resume(struct platform_device *pdev)
 
 	cam->low_power = false;
 	wake_up_interruptible(&cam->power_queue);
-	vidioc_int_s_power(cam->sensor, 1);
+
+	if (cam->sensor)
+		vidioc_int_s_power(cam->sensor, 1);
 
 	if (cam->overlay_on == true)
 		start_preview(cam);
