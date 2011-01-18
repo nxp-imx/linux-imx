@@ -650,4 +650,16 @@ config TOUCHSCREEN_DA9052
           Say y here to support the touchscreen found on
           Dialog Semiconductor DA9052 PMIC
 
+config TOUCHSCREEN_MAX11801
+       tristate "MAXIM MAX11801 touchscreen"
+       depends on I2C
+       help
+        Say Y here if you have a MAX11801 touchscreen
+        controller
+
+        If unsure, say N.
+
+        To compile this driver as a module, choose M here: the
+	  module will be called max11801_ts
+
 endif
