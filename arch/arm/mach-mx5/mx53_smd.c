@@ -599,7 +599,7 @@ static struct mxc_bus_freq_platform_data bus_freq_data = {
 };
 
 static struct tve_platform_data tve_data = {
-	.dac_reg = "",
+	.dac_reg = "DA9052_LDO7",
 };
 
 static struct ldb_platform_data ldb_data = {
