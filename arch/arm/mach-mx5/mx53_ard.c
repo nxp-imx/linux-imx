@@ -1170,6 +1170,10 @@ static void __init mx53_ard_io_init(void)
 
 	gpio_request(ARD_FPGA_INT_B, "fpga-int");
 	gpio_direction_input(ARD_FPGA_INT_B);
+
+	gpio_request(ARD_TS_INT, "ts-int");
+	gpio_direction_input(ARD_TS_INT);
+	gpio_free(ARD_TS_INT);
 }
 
 /* Config CS1 settings for ethernet controller */
@@ -1299,7 +1303,6 @@ static void __init mxc_board_init(void)
 				ARRAY_SIZE(mxc_i2c1_board_info));
 	i2c_register_board_info(2, mxc_i2c2_board_info,
 				ARRAY_SIZE(mxc_i2c2_board_info));
-
 
 	mxc_register_device(&mxc_mlb_device, &mlb_data);
 	mx5_set_otghost_vbus_func(mx53_ard_usbotg_driver_vbus);
