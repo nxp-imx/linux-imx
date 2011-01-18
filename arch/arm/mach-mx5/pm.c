@@ -69,6 +69,29 @@ void *suspend_iram_base;
 void (*suspend_in_iram)(void *sdclk_iomux_addr) = NULL;
 void __iomem *suspend_param1;
 
+#define TZIC_WAKEUP0_OFFSET            0x0E00
+#define TZIC_WAKEUP1_OFFSET            0x0E04
+#define TZIC_WAKEUP2_OFFSET            0x0E08
+#define TZIC_WAKEUP3_OFFSET            0x0E0C
+#define GPIO7_0_11_IRQ_BIT		(0x1<<11)
+
+static void mx53_smd_loco_irq_wake_fixup(void)
+{
+	void __iomem *tzic_base;
+	tzic_base = ioremap(MX53_TZIC_BASE_ADDR, SZ_4K);
+	if (NULL == tzic_base) {
+		pr_err("fail to map MX53_TZIC_BASE_ADDR\n");
+		return;
+	}
+	__raw_writel(0, tzic_base + TZIC_WAKEUP0_OFFSET);
+	__raw_writel(0, tzic_base + TZIC_WAKEUP1_OFFSET);
+	__raw_writel(0, tzic_base + TZIC_WAKEUP2_OFFSET);
+	/* only enable irq wakeup for da9053 */
+	__raw_writel(GPIO7_0_11_IRQ_BIT, tzic_base + TZIC_WAKEUP3_OFFSET);
+	iounmap(tzic_base);
+	pr_debug("only da9053 irq is wakeup-enabled\n");
+}
+
 static int mx5_suspend_enter(suspend_state_t state)
 {
 	if (gpc_dvfs_clk == NULL)
@@ -95,8 +118,10 @@ static int mx5_suspend_enter(suspend_state_t state)
 
 		if (cpu_is_mx51() || cpu_is_mx53()) {
 			if (machine_is_mx53_smd() ||
-				machine_is_mx53_loco())
+				machine_is_mx53_loco()) {
+				mx53_smd_loco_irq_wake_fixup();
 				da9053_suspend_cmd();
+			}
 			/* Run the suspend code from iRAM. */
 			suspend_in_iram(suspend_param1);
 
