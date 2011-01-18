@@ -1240,7 +1240,7 @@ static int tve_probe(struct platform_device *pdev)
 
 	tve.dac_reg = regulator_get(&pdev->dev, plat_data->dac_reg);
 	if (!IS_ERR(tve.dac_reg)) {
-		regulator_set_voltage(tve.dac_reg, 2500000, 2500000);
+		regulator_set_voltage(tve.dac_reg, 2750000, 2750000);
 		regulator_enable(tve.dac_reg);
 	}
 
