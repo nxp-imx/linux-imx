@@ -167,9 +167,11 @@ int set_low_bus_freq(void)
 		return 0;
 
 	if (bus_freq_scaling_initialized) {
-		/* can not enter low bus freq, when cpu is in highest freq */
-		if (clk_get_rate(cpu_clk) >
-				cpu_wp_tbl[cpu_wp_nr - 1].cpu_rate) {
+		/* can not enter low bus freq, when cpu is in higher freq
+		 * or only have one working point */
+		if ((clk_get_rate(cpu_clk) >
+				cpu_wp_tbl[cpu_wp_nr - 1].cpu_rate)
+			|| (cpu_wp_nr == 1)) {
 			return 0;
 		}
 
