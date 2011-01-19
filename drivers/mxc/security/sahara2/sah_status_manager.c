@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2004-2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2004-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -327,30 +327,6 @@ unsigned long sah_Handle_Interrupt(sah_Execute_Status hw_status)
 
 		/* Keep going while further status is available. */
 	} while (state == SAH_EXEC_ERROR1);
-
-    /* Disabling Sahara Clock only if the hardware is in idle state and
-	    the DAR queue is empty.*/
-	os_lock_save_context(desc_queue_lock, lock_flags);
-	current_entry = sah_Find_With_State(SAH_STATE_ON_SAHARA);
-	os_unlock_restore_context(desc_queue_lock, lock_flags);
-
-	if ((current_entry == NULL) && (state == SAH_EXEC_IDLE)) {
-
-#ifdef DIAG_DRV_IF
-		LOG_KDIAG("SAHARA : Disabling the clocks\n")
-#endif				/* DIAG_DRV_IF */
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 18))
-		mxc_clks_disable(SAHARA2_CLK);
-#else
-		{
-			struct clk *clk = clk_get(NULL, "sahara_clk");
-			if (clk != ERR_PTR(ENOENT))
-				clk_disable(clk);
-			clk_put(clk);
-		}
-#endif
-
-	}
 
 	return reset_flag;
 }
