@@ -5059,9 +5059,11 @@ static int cpu_clk_set_wp(int wp)
 	/*
 	 * If DDR clock is sourced from PLL1, we cannot drop PLL1 freq.
 	 * Use the ARM_PODF to change the freq of the core, leave the PLL1
-	 * freq unchanged.
+	 * freq unchanged. Meanwhile, if pll_rate is same, use the ARM_PODF
+	 * to change the freq of core
 	 */
-	if (ddr_clk.parent == &ddr_hf_clk) {
+	if ((ddr_clk.parent == &ddr_hf_clk) ||
+		(p->pll_rate == cpu_wp_tbl[cpu_curr_wp].pll_rate)) {
 		reg = __raw_readl(MXC_CCM_CACRR);
 		reg &= ~MXC_CCM_CACRR_ARM_PODF_MASK;
 		reg |= cpu_wp_tbl[wp].cpu_podf << MXC_CCM_CACRR_ARM_PODF_OFFSET;
@@ -5086,13 +5088,10 @@ static int cpu_clk_set_wp(int wp)
 		reg &= ~MXC_PLL_DP_CTL_UPEN;
 		__raw_writel(reg, pll1_base + MXC_PLL_DP_CTL);
 
-		/* if DVFS core is enabled, need to check ARM PODF */
-		if (dvfs_core_is_active) {
-			reg = __raw_readl(MXC_CCM_CACRR);
-			reg = (reg & ~MXC_CCM_CACRR_ARM_PODF_MASK)
-				| p->cpu_podf;
-			__raw_writel(reg, MXC_CCM_CACRR);
-		}
+		reg = __raw_readl(MXC_CCM_CACRR);
+		reg = (reg & ~MXC_CCM_CACRR_ARM_PODF_MASK)
+			| p->cpu_podf;
+		__raw_writel(reg, MXC_CCM_CACRR);
 
 		reg = __raw_readl(pll1_base + MXC_PLL_DP_CTL);
 		pll_hfsm = reg & MXC_PLL_DP_CTL_HFSM;

@@ -71,19 +71,11 @@ static struct cpu_wp cpu_wp_ces[] = {
 	 {
 	  .pll_rate = 800000000,
 	  .cpu_rate = 400000000,
-	  .pdf = 1,
-	  .mfi = 8,
-	  .mfd = 2,
-	  .mfn = 1,
 	  .cpu_podf = 1,
 	  .cpu_voltage = 950000,},
 	{
 	 .pll_rate = 800000000,
 	 .cpu_rate = 160000000,
-	 .pdf = 4,
-	 .mfi = 8,
-	 .mfd = 2,
-	 .mfn = 1,
 	 .cpu_podf = 4,
 	 .cpu_voltage = 900000,},
 };
@@ -120,19 +112,11 @@ static struct cpu_wp cpu_wp_ces_1_2g[] = {
 	 {
 	  .pll_rate = 800000000,
 	  .cpu_rate = 400000000,
-	  .pdf = 1,
-	  .mfi = 8,
-	  .mfd = 2,
-	  .mfn = 1,
 	  .cpu_podf = 1,
 	  .cpu_voltage = 950000,},
 	{
 	 .pll_rate = 800000000,
 	 .cpu_rate = 160000000,
-	 .pdf = 4,
-	 .mfi = 8,
-	 .mfd = 2,
-	 .mfn = 1,
 	 .cpu_podf = 4,
 	 .cpu_voltage = 900000,},
 };
