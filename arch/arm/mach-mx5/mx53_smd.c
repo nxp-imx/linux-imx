@@ -927,6 +927,8 @@ static void mx53_smd_bt_reset(void)
 	/* pull up after power supply BT */
 	gpio_set_value(MX53_SMD_BT_RESET, 1);
 	gpio_free(MX53_SMD_BT_RESET);
+	msleep(100);
+	/* Bluetooth need some time to reset */
 }
 
 static int mx53_smd_bt_power_change(int status)
