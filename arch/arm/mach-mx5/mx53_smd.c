@@ -765,7 +765,6 @@ static struct i2c_board_info mxc_i2c1_board_info[] __initdata = {
 }
 
 static struct gpio_keys_button smd_buttons[] = {
-	GPIO_BUTTON(MX53_SMD_PMIC_ON_OFF_REQ, KEY_POWER, 0, "power", 0),
 	GPIO_BUTTON(MX53_SMD_KEY_VOL_UP, KEY_VOLUMEUP, 1, "volume-up", 0),
 	GPIO_BUTTON(MX53_SMD_KEY_VOL_DOWN, KEY_VOLUMEDOWN, 1, "volume-down", 0),
 };
