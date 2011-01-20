@@ -1,5 +1,5 @@
 /*
- * Copyright 2005-2010 Freescale Semiconductor, Inc.
+ * Copyright 2005-2011 Freescale Semiconductor, Inc.
  */
 
 /*
@@ -907,7 +907,7 @@ int32_t ipu_link_channels(ipu_channel_t src_ch, ipu_channel_t dest_ch);
 int32_t ipu_unlink_channels(ipu_channel_t src_ch, ipu_channel_t dest_ch);
 
 int32_t ipu_is_channel_busy(ipu_channel_t channel);
-int32_t ipu_check_buffer_busy(ipu_channel_t channel, ipu_buffer_t type,
+int32_t ipu_check_buffer_ready(ipu_channel_t channel, ipu_buffer_t type,
 		uint32_t bufNum);
 void ipu_clear_buffer_ready(ipu_channel_t channel, ipu_buffer_t type,
 		uint32_t bufNum);
