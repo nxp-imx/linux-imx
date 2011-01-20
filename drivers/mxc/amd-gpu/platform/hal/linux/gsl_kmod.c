@@ -830,7 +830,6 @@ static int gpu_probe(struct platform_device *pdev)
 	    printk(KERN_ERR "DO NOT use uio_pdrv_genirq kernel module for X acceleration!\n");
 	    gpu_2d_irq = 0;
 	}
-        printk(KERN_ERR "Do NOT run OpenVG apps while also running imx-drv X device driver!\n");
     }
 
     if (kgsl_driver_init() != GSL_SUCCESS) {
