@@ -50,9 +50,7 @@
 #include <mach/mxc_edid.h>
 
 struct sii9022_data {
-	int major;
-	struct class *class;
-	struct device *dev;
+	struct platform_device *pdev;
 	struct i2c_client *client;
 	struct delayed_work det_work;
 	struct fb_info *fbi;
@@ -196,7 +194,7 @@ static void det_worker(struct work_struct *work)
 			sprintf(event_string, "EVENT=plugout");
 			sii9022_poweroff();
 		}
-		kobject_uevent_env(&sii9022.dev->kobj, KOBJ_CHANGE, envp);
+		kobject_uevent_env(&sii9022.pdev->dev.kobj, KOBJ_CHANGE, envp);
 	}
 	i2c_smbus_write_byte_data(sii9022.client, 0x3D, dat);
 }
@@ -289,7 +287,7 @@ static int __devinit sii9022_probe(struct i2c_client *client,
 			i2c_smbus_write_byte_data(sii9022.client, 0x3c, 0x01);
 			INIT_DELAYED_WORK(&(sii9022.det_work), det_worker);
 		}
-		ret = device_create_file(sii9022.dev, &dev_attr_cable_state);
+		ret = device_create_file(&sii9022.pdev->dev, &dev_attr_cable_state);
 		if (ret < 0)
 			dev_warn(&sii9022.client->dev,
 				"SII9022: cound not crate sys node\n");
@@ -379,53 +377,29 @@ static struct i2c_driver sii9022_i2c_driver = {
 	.id_table = sii9022_id,
 };
 
-static struct file_operations sii9022_fops = {
-	.owner = THIS_MODULE,
-};
-
 static int __init sii9022_init(void)
 {
 	int ret;
 
 	memset(&sii9022, 0, sizeof(sii9022));
 
-	sii9022.major = register_chrdev(0, "sii9022", &sii9022_fops);
-	if (sii9022.major < 0) {
+	sii9022.pdev = platform_device_register_simple("sii9022", 0, NULL, 0);
+	if (IS_ERR(sii9022.pdev)) {
 		printk(KERN_ERR
-			"Unable to register Sii9022 as a char device\n");
-		return sii9022.major;
-	}
-
-	sii9022.class = class_create(THIS_MODULE, "sii9022");
-	if (IS_ERR(sii9022.class)) {
-		printk(KERN_ERR "Unable to create class for Sii9022\n");
-		ret = PTR_ERR(sii9022.class);
-		goto err1;
-	}
-
-	sii9022.dev = device_create(sii9022.class, NULL,
-			MKDEV(sii9022.major, 0), NULL, "sii9022");
-
-	if (IS_ERR(sii9022.dev)) {
-		printk(KERN_ERR "Unable to create class device for sii9022\n");
-		ret = PTR_ERR(sii9022.dev);
-		goto err2;
+				"Unable to register Sii9022 as a platform device\n");
+		ret = PTR_ERR(sii9022.pdev);
+		goto err;
 	}
 
 	return i2c_add_driver(&sii9022_i2c_driver);
-err2:
-	class_destroy(sii9022.class);
-err1:
-	unregister_chrdev(sii9022.major, "sii9022");
+err:
 	return ret;
 }
 
 static void __exit sii9022_exit(void)
 {
 	i2c_del_driver(&sii9022_i2c_driver);
-	device_destroy(sii9022.class, MKDEV(sii9022.major, 0));
-	class_destroy(sii9022.class);
-	unregister_chrdev(sii9022.major, "sii9022");
+	platform_device_unregister(sii9022.pdev);
 }
 
 module_init(sii9022_init);
