@@ -1,5 +1,5 @@
 /*
- * Copyright 2005-2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2005-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -717,7 +717,7 @@ int32_t ipu_select_buffer(ipu_channel_t channel, ipu_buffer_t type,
  * 				ready state.
  *
  */
-int32_t ipu_check_buffer_busy(ipu_channel_t channel, ipu_buffer_t type,
+int32_t ipu_check_buffer_ready(ipu_channel_t channel, ipu_buffer_t type,
 		uint32_t bufNum)
 {
 	uint32_t dma_chan = channel_2_dma(channel, type);
@@ -736,7 +736,7 @@ int32_t ipu_check_buffer_busy(ipu_channel_t channel, ipu_buffer_t type,
 	else
 		return 0;
 }
-EXPORT_SYMBOL(ipu_check_buffer_busy);
+EXPORT_SYMBOL(ipu_check_buffer_ready);
 
 /*!
  * This function links 2 channels together for automatic frame

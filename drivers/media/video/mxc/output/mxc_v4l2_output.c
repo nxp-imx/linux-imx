@@ -1,5 +1,5 @@
 /*
- * Copyright 2005-2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2005-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -292,7 +292,7 @@ static int finish_previous_frame(vout_data *vout)
 	int ret = 0, try = 0;
 
 	/* make sure buf[vout->disp_buf_num] in showing */
-	while (ipu_check_buffer_busy(vout->display_ch,
+	while (ipu_check_buffer_ready(vout->display_ch,
 			IPU_INPUT_BUFFER, vout->disp_buf_num)) {
 		if (fbi->fbops->fb_ioctl) {
 			old_fs = get_fs();

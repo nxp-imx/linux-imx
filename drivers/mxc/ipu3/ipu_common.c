@@ -1,5 +1,5 @@
 /*
- * Copyright 2005-2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2005-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -1798,7 +1798,7 @@ EXPORT_SYMBOL(ipu_enable_channel);
  * 				ready state.
  *
  */
-int32_t ipu_check_buffer_busy(ipu_channel_t channel, ipu_buffer_t type,
+int32_t ipu_check_buffer_ready(ipu_channel_t channel, ipu_buffer_t type,
 		uint32_t bufNum)
 {
 	uint32_t dma_chan = channel_2_dma(channel, type);
@@ -1817,7 +1817,7 @@ int32_t ipu_check_buffer_busy(ipu_channel_t channel, ipu_buffer_t type,
 	else
 		return 0;
 }
-EXPORT_SYMBOL(ipu_check_buffer_busy);
+EXPORT_SYMBOL(ipu_check_buffer_ready);
 
 /*!
  * This function clear buffer ready for a logical channel.
