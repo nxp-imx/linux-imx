@@ -336,7 +336,7 @@ static void dump_update_data(struct device *dev,
 			     struct update_data_list *upd_data_list)
 {
 	dev_err(dev,
-		"X = %d, Y = %d, Width = %d, Height = %d, WaveMode = %d, LUT = %d, Coll Mask = %d\n",
+		"X = %d, Y = %d, Width = %d, Height = %d, WaveMode = %d, LUT = %d, Coll Mask = 0x%x\n",
 		upd_data_list->upd_data.update_region.left,
 		upd_data_list->upd_data.update_region.top,
 		upd_data_list->upd_data.update_region.width,
@@ -1413,6 +1413,63 @@ int mxc_epdc_fb_set_upd_scheme(u32 upd_scheme, struct fb_info *info)
 }
 EXPORT_SYMBOL(mxc_epdc_fb_set_upd_scheme);
 
+static int copy_before_process(struct mxc_epdc_fb_data *fb_data,
+	struct update_data_list *upd_data_list, void *temp_buf_virt)
+{
+	int i, j;
+	unsigned char *temp_buf_ptr = temp_buf_virt;
+	unsigned char *src_ptr;
+	struct mxcfb_rect *src_upd_region;
+	int temp_buf_stride;
+	int src_stride;
+	int bpp = fb_data->epdc_fb_var.bits_per_pixel;
+	int left_offs, right_offs;
+	int x_trailing_bytes, y_trailing_bytes;
+
+	/* Set source buf pointer based on input source, panning, etc. */
+	if (upd_data_list->upd_data.flags & EPDC_FLAG_USE_ALT_BUFFER) {
+		src_upd_region = &upd_data_list->upd_data.alt_buffer_data.alt_update_region;
+		src_stride =
+			upd_data_list->upd_data.alt_buffer_data.width * bpp/8;
+		src_ptr = upd_data_list->upd_data.alt_buffer_data.virt_addr
+			+ src_upd_region->top * src_stride;
+	} else {
+		src_upd_region = &upd_data_list->upd_data.update_region;
+		src_stride = fb_data->epdc_fb_var.xres_virtual * bpp/8;
+		src_ptr = fb_data->info.screen_base + upd_data_list->fb_offset
+			+ src_upd_region->top * src_stride;
+	}
+
+	temp_buf_stride = ALIGN(src_upd_region->width, 8) * bpp/8;
+	left_offs = src_upd_region->left * bpp/8;
+	right_offs = src_upd_region->width * bpp/8;
+	x_trailing_bytes = (ALIGN(src_upd_region->width, 8)
+		- src_upd_region->width) * bpp/8;
+
+	for (i = 0; i < src_upd_region->height; i++) {
+		/* Copy the full line */
+		memcpy(temp_buf_ptr, src_ptr + left_offs,
+			src_upd_region->width * bpp/8);
+
+		/* Clear any unwanted pixels at the end of each line */
+		if (src_upd_region->width & 0x7) {
+			memset(temp_buf_ptr + right_offs, 0x0,
+				x_trailing_bytes);
+		}
+
+		temp_buf_ptr += temp_buf_stride;
+		src_ptr += src_stride;
+	}
+
+	/* Clear any unwanted pixels at the bottom of the end of each line */
+	if (src_upd_region->height & 0x7) {
+		y_trailing_bytes = (ALIGN(src_upd_region->height, 8)
+			- src_upd_region->height) *
+			ALIGN(src_upd_region->width, 8) * bpp/8;
+		memset(temp_buf_ptr, 0x0, y_trailing_bytes);
+	}
+}
+
 static int epdc_process_update(struct update_data_list *upd_data_list,
 				   struct mxc_epdc_fb_data *fb_data)
 {
@@ -1424,6 +1481,12 @@ static int epdc_process_update(struct update_data_list *upd_data_list,
 	u32 pxp_input_offs, pxp_output_offs, pxp_output_shift;
 	int x_start_offs = 0;
 	u32 hist_stat = 0;
+	int width_unaligned, height_unaligned;
+	bool use_temp_buf = false;
+	size_t temp_buf_size;
+	void *temp_buf_virt;
+	dma_addr_t temp_buf_phys;
+	struct mxcfb_rect temp_buf_upd_region;
 
 	int ret;
 
@@ -1446,13 +1509,63 @@ static int epdc_process_update(struct update_data_list *upd_data_list,
 		src_upd_region = &upd_data_list->upd_data.update_region;
 	}
 
+	bytes_per_pixel = fb_data->epdc_fb_var.bits_per_pixel/8;
+
+	/*
+	 * SW workaround for PxP limitation
+	 *
+	 * PxP must process 8x8 pixel blocks, and all pixels in each block
+	 * are considered for auto-waveform mode selection. If the
+	 * update region is not 8x8 aligned, additional unwanted pixels
+	 * will be considered in auto-waveform mode selection.
+	 *
+	 * Workaround is to copy from source buffer into a temporary
+	 * buffer, which we pad with zeros to match the 8x8 alignment
+	 * requirement. This temp buffer becomes the input to the PxP.
+	 */
+	width_unaligned = src_upd_region->width & 0x7;
+	height_unaligned = src_upd_region->height & 0x7;
+
+	if ((width_unaligned || height_unaligned) &&
+		(upd_data_list->upd_data.waveform_mode == WAVEFORM_MODE_AUTO)) {
+
+		dev_dbg(fb_data->dev, "Copying update before processing.\n");
+
+		/* Update to reflect what the new source buffer will be */
+		src_width = ALIGN(src_upd_region->width, 8);
+		src_height = ALIGN(src_upd_region->height, 8);
+
+		/* compute size needed for buffer */
+		temp_buf_size = src_width * src_height * bytes_per_pixel;
+
+		/* allocate temporary buffer */
+		temp_buf_virt =
+		    dma_alloc_coherent(fb_data->dev, temp_buf_size,
+				       &temp_buf_phys, GFP_DMA);
+		if (temp_buf_virt == NULL)
+			ret = -ENOMEM;
+
+		copy_before_process(fb_data, upd_data_list, temp_buf_virt);
+
+		/*
+		 * src_upd_region should now describe
+		 * the new update buffer attributes.
+		 */
+		temp_buf_upd_region.left = 0;
+		temp_buf_upd_region.top = 0;
+		temp_buf_upd_region.width = src_upd_region->width;
+		temp_buf_upd_region.height = src_upd_region->height;
+		src_upd_region = &temp_buf_upd_region;
+
+		use_temp_buf = true;
+	}
+
 	/*
 	 * Compute buffer offset to account for
 	 * PxP limitation (must read 8x8 pixel blocks)
 	 */
 	offset_from_8 = src_upd_region->left & 0x7;
-	bytes_per_pixel = fb_data->epdc_fb_var.bits_per_pixel/8;
-	if ((offset_from_8 * fb_data->epdc_fb_var.bits_per_pixel/8 % 4) != 0) {
+	if ((offset_from_8 * bytes_per_pixel % 4) != 0) {
 		/* Leave a gap between PxP input addr and update region pixels */
 		pxp_input_offs =
 			(src_upd_region->top * src_width + src_upd_region->left)
@@ -1514,15 +1627,17 @@ static int epdc_process_update(struct update_data_list *upd_data_list,
 	pxp_output_offs = post_rotation_ycoord * width_pxp_blocks
 		+ post_rotation_xcoord;
 
-	pxp_output_shift = ALIGN(pxp_output_offs, 8) - pxp_output_offs;
+	pxp_output_shift = pxp_output_offs & 0x7;
 
-	upd_data_list->epdc_offs = pxp_output_offs + pxp_output_shift;
+	upd_data_list->epdc_offs = pxp_output_offs + ALIGN(pxp_output_shift, 8);
 
 	mutex_lock(&fb_data->pxp_mutex);
 
 	/* Source address either comes from alternate buffer
 	   provided in update data, or from the framebuffer. */
-	if (upd_data_list->upd_data.flags & EPDC_FLAG_USE_ALT_BUFFER)
+	if (use_temp_buf)
+		sg_dma_address(&fb_data->sg[0]) = temp_buf_phys;
+	else if (upd_data_list->upd_data.flags & EPDC_FLAG_USE_ALT_BUFFER)
 		sg_dma_address(&fb_data->sg[0]) =
 			upd_data_list->upd_data.alt_buffer_data.phys_addr
 				+ pxp_input_offs;
@@ -1537,7 +1652,8 @@ static int epdc_process_update(struct update_data_list *upd_data_list,
 	}
 
 	/* Update sg[1] to point to output of PxP proc task */
-	sg_dma_address(&fb_data->sg[1]) = upd_data_list->phys_addr + pxp_output_offs;
+	sg_dma_address(&fb_data->sg[1]) = upd_data_list->phys_addr
+						+ pxp_output_shift;
 	sg_set_page(&fb_data->sg[1], virt_to_page(upd_data_list->virt_addr),
 		    upd_data_list->size,
 		    offset_in_page(upd_data_list->virt_addr));
@@ -1565,6 +1681,10 @@ static int epdc_process_update(struct update_data_list *upd_data_list,
 	if (ret) {
 		dev_err(fb_data->dev, "Unable to submit PxP update task.\n");
 		mutex_unlock(&fb_data->pxp_mutex);
+		if (use_temp_buf)
+			/* Free temporary buffer memory */
+			dma_free_writecombine(fb_data->info.device,
+				temp_buf_size, temp_buf_virt, temp_buf_phys);
 		return ret;
 	}
 
@@ -1583,10 +1703,19 @@ static int epdc_process_update(struct update_data_list *upd_data_list,
 	if (ret) {
 		dev_err(fb_data->dev, "Unable to complete PxP update task.\n");
 		mutex_unlock(&fb_data->pxp_mutex);
+		if (use_temp_buf)
+			/* Free temporary buffer memory */
+			dma_free_writecombine(fb_data->info.device,
+				temp_buf_size, temp_buf_virt, temp_buf_phys);
 		return ret;
 	}
 
 	mutex_unlock(&fb_data->pxp_mutex);
+
+	if (use_temp_buf)
+		/* Free temporary buffer memory */
+		dma_free_writecombine(fb_data->info.device, temp_buf_size,
+			temp_buf_virt, temp_buf_phys);
 
 	/* Update waveform mode from PxP histogram results */
 	if (upd_data_list->upd_data.waveform_mode == WAVEFORM_MODE_AUTO) {
@@ -2684,6 +2813,7 @@ static irqreturn_t mxc_epdc_irq_handler(int irq, void *dev_id)
 	epdc_set_update_coord(next_upd_region->left, next_upd_region->top);
 	epdc_set_update_dimensions(next_upd_region->width,
 				   next_upd_region->height);
+
 	epdc_submit_update(fb_data->cur_update->lut_num,
 			   fb_data->cur_update->upd_data.waveform_mode,
 			   fb_data->cur_update->upd_data.update_mode, false, 0);
