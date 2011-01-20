@@ -144,7 +144,8 @@ static int mxcfb_set_fix(struct fb_info *info)
 	fix->type = FB_TYPE_PACKED_PIXELS;
 	fix->accel = FB_ACCEL_NONE;
 	fix->visual = FB_VISUAL_TRUECOLOR;
-	fix->xpanstep = 1;
+	fix->xpanstep = 0;
+	fix->ywrapstep = 1;
 	fix->ypanstep = 1;
 
 	return 0;
@@ -1179,13 +1180,7 @@ mxcfb_pan_display(struct fb_var_screeninfo *var, struct fb_info *info)
 	bool loc_alpha_en = false;
 	int i = 0;
 
-	if (var->xoffset > 0) {
-		dev_dbg(info->device, "x panning not supported\n");
-		return -EINVAL;
-	}
-
-	if ((info->var.xoffset == var->xoffset) &&
-	    (info->var.yoffset == var->yoffset))
+	if (info->var.yoffset == var->yoffset)
 		return 0;	/* No change, do nothing */
 
 	/* no pan display during fb blank */
@@ -1276,13 +1271,7 @@ mxcfb_pan_display(struct fb_var_screeninfo *var, struct fb_info *info)
 
 	dev_dbg(info->device, "Update complete\n");
 
-	info->var.xoffset = var->xoffset;
 	info->var.yoffset = var->yoffset;
-
-	if (var->vmode & FB_VMODE_YWRAP)
-		info->var.vmode |= FB_VMODE_YWRAP;
-	else
-		info->var.vmode &= ~FB_VMODE_YWRAP;
 
 	return 0;
 }
@@ -1370,15 +1359,22 @@ static irqreturn_t mxcfb_irq_handler(int irq, void *dev_id)
 		ipu_disable_irq(irq);
 		mxc_fbi->wait4vsync = 0;
 	} else {
-		if (!ipu_check_buffer_busy(mxc_fbi->ipu_ch,
+		if (!ipu_check_buffer_ready(mxc_fbi->ipu_ch,
 				IPU_INPUT_BUFFER, mxc_fbi->cur_ipu_buf)
-				|| (mxc_fbi->waitcnt > 2)) {
+				|| (mxc_fbi->waitcnt > 1)) {
 			/*
-			 * This interrupt come after pan display select
-			 * cur_ipu_buf buffer, this buffer should become
-			 * idle after show. If it keep busy, clear it manually.
+			 * This code wait for EOF irq to make sure current
+			 * buffer showed.
+			 *
+			 * Buffer ready will be clear after this buffer
+			 * begin to show. If it keep 1, it represents this
+			 * irq come from previous buffer. If so, wait for
+			 * EOF irq again.
+			 *
+			 * Normally, waitcnt will not > 1, if so, something
+			 * is wrong, then clear it manually.
 			 */
-			if (mxc_fbi->waitcnt > 2)
+			if (mxc_fbi->waitcnt > 1)
 				ipu_clear_buffer_ready(mxc_fbi->ipu_ch,
 						IPU_INPUT_BUFFER,
 						mxc_fbi->cur_ipu_buf);
