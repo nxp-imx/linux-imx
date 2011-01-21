@@ -700,11 +700,6 @@ static void fsl_otg_event(struct work_struct *work)
 	else
 		fsm->a_conn = 0;
 
-	if (otg->host)
-		otg->host->is_b_host = fsm->id;
-	if (otg->gadget)
-		otg->gadget->is_a_peripheral = !fsm->id;
-
 	if (fsm->id) {		/* switch to gadget */
 		fsl_otg_start_host(fsm, 0);
 		otg_drv_vbus(fsm, 0);
@@ -812,6 +807,14 @@ irqreturn_t fsl_otg_isr(int irq, void *dev_id)
 	/*FIXME: ID change not generate when init to 0 */
 	fotg->fsm.id = (otg_sc & OTGSC_STS_USB_ID) ? 1 : 0;
 	otg->default_a = (fotg->fsm.id == 0);
+
+	/* is_b_host, is_a_peripheral may be used at host/gadget driver
+	 * so, assign them at irq, the otg event is scheduled too late
+	 */
+	if (otg->host)
+		otg->host->is_b_host = fotg->fsm.id;
+	if (otg->gadget)
+		otg->gadget->is_a_peripheral = !(fotg->fsm.id);
 
 	/* process OTG interrupts */
 	if (otg_int_src) {
@@ -951,6 +954,9 @@ int usb_otg_start(struct platform_device *pdev)
 	p_otg->dr_mem_map = (struct usb_dr_mmap *)usb_dr_regs;
 	pdata->regs = (void *)usb_dr_regs;
 
+	if (pdata->platform_init && pdata->platform_init(pdev) != 0)
+		return -EINVAL;
+
 	gpio_id = pdata->id_gpio;
 	/* request irq */
 	if (pdata->id_gpio == 0) {
@@ -969,9 +975,6 @@ int usb_otg_start(struct platform_device *pdev)
 		kfree(p_otg);
 		return status;
 	}
-
-	if (pdata->platform_init && pdata->platform_init(pdev) != 0)
-		return -EINVAL;
 
 	clk_stopped = false; /* platform_init will open the otg clk */
 
