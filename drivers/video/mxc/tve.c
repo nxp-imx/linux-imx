@@ -1328,22 +1328,22 @@ static int tve_probe(struct platform_device *pdev)
 
 	/* is primary display? */
 	if (primary) {
-		struct fb_var_screeninfo var;
 		const struct fb_videomode *mode;
 
-		memset(&var, 0, sizeof(var));
 		mode = fb_match_mode(&tve_fbi->var, &tve_modelist.list);
 		if (mode) {
 			pr_debug("TVE: fb mode found\n");
-			fb_videomode_to_var(&var, mode);
-			var.yres_virtual = var.yres * 3;
+			fb_videomode_to_var(&tve_fbi->var, mode);
+			tve_fbi->var.yres_virtual = tve_fbi->var.yres * 3;
 		} else {
 			pr_warning("TVE: can not find video mode\n");
 			goto done;
 		}
 		acquire_console_sem();
 		tve_fbi->flags |= FBINFO_MISC_USEREVENT;
-		fb_set_var(tve_fbi, &var);
+		tve_fbi->var.activate |= FB_ACTIVATE_FORCE;
+		fb_set_var(tve_fbi, &tve_fbi->var);
+		tve_fbi->var.activate &= ~FB_ACTIVATE_FORCE;
 		tve_fbi->flags &= ~FBINFO_MISC_USEREVENT;
 		release_console_sem();
 
