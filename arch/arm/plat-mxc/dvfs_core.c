@@ -373,6 +373,9 @@ static int start_dvfs(void)
 	for (curr_wp = 0; curr_wp < cpu_wp_nr; curr_wp++)
 		if (cpu_rate == cpu_wp_tbl[curr_wp].cpu_rate)
 			break;
+	/* if doesn't find it, set it as the lowest point */
+	if (curr_wp == cpu_wp_nr)
+		curr_wp--;
 	old_wp = curr_wp;
 	/* config reg GPC_CNTR */
 	reg = __raw_readl(gpc_base + dvfs_data->gpc_cntr_offset);

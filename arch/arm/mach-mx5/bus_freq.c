@@ -35,6 +35,7 @@
 #include <mach/mxc_dvfs.h>
 #include <mach/sdram_autogating.h>
 #include <asm/mach/map.h>
+#include <asm/mach-types.h>
 #include <asm/cacheflush.h>
 #include <asm/tlb.h>
 #include "crm_regs.h"
@@ -53,6 +54,8 @@
 #define HW_QOS_DISABLE		0x70
 #define HW_QOS_DISABLE_SET		0x74
 #define HW_QOS_DISABLE_CLR		0x78
+#define DDR_TYPE_DDR3		0x0
+#define DDR_TYPE_DDR2		0x1
 
 DEFINE_SPINLOCK(ddr_freq_lock);
 
@@ -62,6 +65,7 @@ static unsigned long ddr_normal_rate;
 static unsigned long ddr_med_rate;
 static unsigned long ddr_low_rate;
 static int cur_ddr_rate;
+static unsigned char mx53_ddr_type;
 
 static struct clk *ddr_clk;
 static struct clk *pll1_sw_clk;
@@ -116,8 +120,10 @@ struct completion voltage_change_cmpl;
 
 void enter_lpapm_mode_mx50(void);
 void enter_lpapm_mode_mx51(void);
+void enter_lpapm_mode_mx53(void);
 void exit_lpapm_mode_mx50(int high_bus_freq);
 void exit_lpapm_mode_mx51(void);
+void exit_lpapm_mode_mx53(void);
 int low_freq_bus_used(void);
 void set_ddr_freq(int ddr_freq);
 void *ddr_freq_change_iram_base;
@@ -159,13 +165,8 @@ static void voltage_work_handler(struct work_struct *work)
 
 int set_low_bus_freq(void)
 {
-	u32 reg;
-	struct timespec nstimeofday;
-	struct timespec curtime;
-
 	if (busfreq_suspended)
 		return 0;
-
 	if (bus_freq_scaling_initialized) {
 		/* can not enter low bus freq, when cpu is in higher freq
 		 * or only have one working point */
@@ -180,66 +181,14 @@ int set_low_bus_freq(void)
 		stop_dvfs_per();
 
 		stop_sdram_autogating();
-		if (!cpu_is_mx53()) {
-			if (cpu_is_mx50()) {
-				enter_lpapm_mode_mx50();
-			}
-			else
-				enter_lpapm_mode_mx51();
 
-		} else {
-			/*Change the DDR freq to 133Mhz. */
-			clk_set_rate(ddr_hf_clk,
-			     clk_round_rate(ddr_hf_clk, ddr_low_rate));
-
-			/* move cpu clk to pll2, 400 / 3 = 133Mhz for cpu  */
-			clk_set_parent(pll1_sw_clk, pll2);
-
-			cpu_podf = __raw_readl(MXC_CCM_CACRR);
-			reg = __raw_readl(MXC_CCM_CDHIPR);
-			if ((reg & MXC_CCM_CDHIPR_ARM_PODF_BUSY) == 0)
-				__raw_writel(0x2, MXC_CCM_CACRR);
-			else
-				printk(KERN_DEBUG "ARM_PODF still in busy!!!!\n");
-
-			/* ahb = 400/8, axi_b = 400/8, axi_a = 133*/
-			reg = __raw_readl(MXC_CCM_CBCDR);
-			reg &= ~(MXC_CCM_CBCDR_AXI_A_PODF_MASK
-				| MXC_CCM_CBCDR_AXI_B_PODF_MASK
-				| MXC_CCM_CBCDR_AHB_PODF_MASK);
-			reg |= (2 << MXC_CCM_CBCDR_AXI_A_PODF_OFFSET
-				| 7 << MXC_CCM_CBCDR_AXI_B_PODF_OFFSET
-				| 7 << MXC_CCM_CBCDR_AHB_PODF_OFFSET);
-			__raw_writel(reg, MXC_CCM_CBCDR);
-
-			getnstimeofday(&nstimeofday);
-			while (__raw_readl(MXC_CCM_CDHIPR) &
-					(MXC_CCM_CDHIPR_AXI_A_PODF_BUSY |
-					 MXC_CCM_CDHIPR_AXI_B_PODF_BUSY |
-					 MXC_CCM_CDHIPR_AHB_PODF_BUSY)) {
-					getnstimeofday(&curtime);
-				if (curtime.tv_nsec - nstimeofday.tv_nsec
-					       > SPIN_DELAY)
-					panic("low bus freq set rate error\n");
-			}
-
-			/* keep this infront of propagating */
-			low_bus_freq_mode = 1;
-			high_bus_freq_mode = 0;
-			med_bus_freq_mode = 0;
-
-			if (clk_get_usecount(pll1) == 0) {
-				reg = __raw_readl(pll1_base + MXC_PLL_DP_CTL);
-				reg &= ~MXC_PLL_DP_CTL_UPEN;
-				__raw_writel(reg, pll1_base + MXC_PLL_DP_CTL);
-			}
-			if (clk_get_usecount(pll4) == 0) {
-				reg = __raw_readl(pll4_base + MXC_PLL_DP_CTL);
-				reg &= ~MXC_PLL_DP_CTL_UPEN;
-				__raw_writel(reg, pll4_base + MXC_PLL_DP_CTL);
-			}
-		}
-	mutex_unlock(&bus_freq_mutex);
+		if (cpu_is_mx50())
+			enter_lpapm_mode_mx50();
+		else if (cpu_is_mx51())
+			enter_lpapm_mode_mx51();
+		else
+			enter_lpapm_mode_mx53();
+		mutex_unlock(&bus_freq_mutex);
 	}
 	return 0;
 }
@@ -321,7 +270,6 @@ void enter_lpapm_mode_mx50()
 void enter_lpapm_mode_mx51()
 {
 	u32 reg;
-
 	/* Set PLL3 to 133Mhz if no-one is using it. */
 	if (clk_get_usecount(pll3) == 0) {
 		u32 pll3_rate = clk_get_rate(pll3);
@@ -364,16 +312,74 @@ void enter_lpapm_mode_mx51()
 		/* Set PLL3 back to original rate. */
 		clk_set_rate(pll3, clk_round_rate(pll3, pll3_rate));
 		clk_disable(pll3);
+	}
+}
 
+void enter_lpapm_mode_mx53()
+{
+	u32 reg;
+	struct timespec nstimeofday;
+	struct timespec curtime;
+
+	/* TBD: Reduce DDR frequency for DDR2 */
+	/* if (mx53_ddr_type == DDR_TYPE_DDR2) {
+	} */
+
+	/* move cpu clk to pll2, 400 / 3 = 133Mhz for cpu  */
+    /* Change the source of pll1_sw_clk to be the step_clk */
+    reg = __raw_readl(MXC_CCM_CCSR);
+    reg |= MXC_CCM_CCSR_PLL1_SW_CLK_SEL;
+    __raw_writel(reg, MXC_CCM_CCSR);
+
+	cpu_podf = __raw_readl(MXC_CCM_CACRR);
+	reg = __raw_readl(MXC_CCM_CDHIPR);
+	if ((reg & MXC_CCM_CDHIPR_ARM_PODF_BUSY) == 0)
+		__raw_writel(0x2, MXC_CCM_CACRR);
+	else
+		printk(KERN_DEBUG "ARM_PODF still in busy!!!!\n");
+	clk_set_parent(pll1_sw_clk, pll2);
+
+	/* ahb = pll2/8, axi_b = pll2/8, axi_a = pll2/1*/
+	reg = __raw_readl(MXC_CCM_CBCDR);
+	reg &= ~(MXC_CCM_CBCDR_AXI_A_PODF_MASK
+		| MXC_CCM_CBCDR_AXI_B_PODF_MASK
+		| MXC_CCM_CBCDR_AHB_PODF_MASK);
+	reg |= (0 << MXC_CCM_CBCDR_AXI_A_PODF_OFFSET
+		| 7 << MXC_CCM_CBCDR_AXI_B_PODF_OFFSET
+		| 7 << MXC_CCM_CBCDR_AHB_PODF_OFFSET);
+	__raw_writel(reg, MXC_CCM_CBCDR);
+
+	getnstimeofday(&nstimeofday);
+	while (__raw_readl(MXC_CCM_CDHIPR) &
+			(MXC_CCM_CDHIPR_AXI_A_PODF_BUSY |
+			 MXC_CCM_CDHIPR_AXI_B_PODF_BUSY |
+			 MXC_CCM_CDHIPR_AHB_PODF_BUSY)) {
+			getnstimeofday(&curtime);
+		if (curtime.tv_nsec - nstimeofday.tv_nsec
+			       > SPIN_DELAY)
+			panic("low bus freq set rate error\n");
+	}
+
+	/* keep this infront of propagating */
+	low_bus_freq_mode = 1;
+	high_bus_freq_mode = 0;
+	med_bus_freq_mode = 0;
+
+	if (clk_get_usecount(pll1) == 0) {
+		reg = __raw_readl(pll1_base + MXC_PLL_DP_CTL);
+		reg &= ~MXC_PLL_DP_CTL_UPEN;
+		__raw_writel(reg, pll1_base + MXC_PLL_DP_CTL);
+	}
+	if (clk_get_usecount(pll4) == 0) {
+		reg = __raw_readl(pll4_base + MXC_PLL_DP_CTL);
+		reg &= ~MXC_PLL_DP_CTL_UPEN;
+		__raw_writel(reg, pll4_base + MXC_PLL_DP_CTL);
 	}
 }
 
 int set_high_bus_freq(int high_bus_freq)
 {
 	u32 reg;
-	struct timespec nstimeofday;
-	struct timespec curtime;
-
 	if (bus_freq_scaling_initialized) {
 		mutex_lock(&bus_freq_mutex);
 		/*
@@ -389,54 +395,12 @@ int set_high_bus_freq(int high_bus_freq)
 
 		if (low_bus_freq_mode) {
 			/* Relock PLL3 to 133MHz */
-			if (!cpu_is_mx53()) {
-				if (cpu_is_mx50())
-					exit_lpapm_mode_mx50(high_bus_freq);
-				else
-					exit_lpapm_mode_mx51();
-			} else {
-				/* move cpu clk to pll1 */
-				reg = __raw_readl(MXC_CCM_CDHIPR);
-				if ((reg & MXC_CCM_CDHIPR_ARM_PODF_BUSY) == 0)
-					__raw_writel(cpu_podf & 0x7,
-							MXC_CCM_CACRR);
-				else
-					printk(KERN_DEBUG
-						"ARM_PODF still in busy!!!!\n");
-
-				clk_set_parent(pll1_sw_clk, pll1);
-
-				/* ahb = 400/3, axi_b = 400/3, axi_a = 400*/
-				reg = __raw_readl(MXC_CCM_CBCDR);
-				reg &= ~(MXC_CCM_CBCDR_AXI_A_PODF_MASK
-					| MXC_CCM_CBCDR_AXI_B_PODF_MASK
-					| MXC_CCM_CBCDR_AHB_PODF_MASK);
-				reg |= (0 << MXC_CCM_CBCDR_AXI_A_PODF_OFFSET
-					| 2 << MXC_CCM_CBCDR_AXI_B_PODF_OFFSET
-					| 2 << MXC_CCM_CBCDR_AHB_PODF_OFFSET);
-				__raw_writel(reg, MXC_CCM_CBCDR);
-
-				getnstimeofday(&nstimeofday);
-				while (__raw_readl(MXC_CCM_CDHIPR) &
-					(MXC_CCM_CDHIPR_AXI_A_PODF_BUSY |
-					 MXC_CCM_CDHIPR_AXI_B_PODF_BUSY |
-					 MXC_CCM_CDHIPR_AHB_PODF_BUSY)) {
-						getnstimeofday(&curtime);
-					if (curtime.tv_nsec
-						- nstimeofday.tv_nsec
-						> SPIN_DELAY)
-						panic("bus freq error\n");
-				}
-
-				/* keep this infront of propagating */
-				low_bus_freq_mode = 0;
-				high_bus_freq_mode = 1;
-				med_bus_freq_mode = 0;
-
-				/*Change the DDR freq to mormal_rate*/
-				clk_set_rate(ddr_hf_clk,
-					clk_round_rate(ddr_hf_clk, ddr_normal_rate));
-			}
+			if (cpu_is_mx50())
+				exit_lpapm_mode_mx50(high_bus_freq);
+			else if (cpu_is_mx51())
+				exit_lpapm_mode_mx51();
+			else
+				exit_lpapm_mode_mx53();
 			start_dvfs_per();
 		}
 		if (bus_freq_scaling_is_active) {
@@ -498,11 +462,14 @@ int set_high_bus_freq(int high_bus_freq)
 					reg |= 8 << MXC_CCM_CLK_SYS_DIV_PLL_OFFSET;
 					__raw_writel(reg, MXC_CCM_CLK_SYS);
 				} else {
-					clk_set_rate(ddr_hf_clk,
-						clk_round_rate(ddr_hf_clk,
-						ddr_low_rate));
+					if (cpu_is_mx51())
+						clk_set_rate(ddr_hf_clk,
+							clk_round_rate(
+							ddr_hf_clk,
+							ddr_low_rate));
 					clk_set_rate(ahb_clk,
-					  clk_round_rate(ahb_clk, lp_med_rate));
+					clk_round_rate(
+						ahb_clk, lp_med_rate));
 				}
 				/* Set to the medium setpoint. */
 				high_bus_freq_mode = 0;
@@ -694,7 +661,58 @@ void exit_lpapm_mode_mx51()
 	    clk_round_rate(ddr_hf_clk, ddr_normal_rate));
 }
 
-int can_change_ddr_freq()
+void exit_lpapm_mode_mx53()
+{
+	u32 reg;
+	struct timespec nstimeofday;
+	struct timespec curtime;
+
+
+	/* move cpu clk to pll1 */
+	reg = __raw_readl(MXC_CCM_CDHIPR);
+	if ((reg & MXC_CCM_CDHIPR_ARM_PODF_BUSY) != 0)
+		__raw_writel(cpu_podf & 0x7,
+				MXC_CCM_CACRR);
+	else
+		printk(KERN_DEBUG
+			"ARM_PODF still in busy!!!!\n");
+
+	clk_set_parent(pll1_sw_clk, pll1);
+
+
+	/* ahb = 400/3, axi_b = 400/2, axi_a = 400*/
+	reg = __raw_readl(MXC_CCM_CBCDR);
+	reg &= ~(MXC_CCM_CBCDR_AXI_A_PODF_MASK
+		| MXC_CCM_CBCDR_AXI_B_PODF_MASK
+		| MXC_CCM_CBCDR_AHB_PODF_MASK);
+	reg |= (0 << MXC_CCM_CBCDR_AXI_A_PODF_OFFSET
+		| 1 << MXC_CCM_CBCDR_AXI_B_PODF_OFFSET
+		| 2 << MXC_CCM_CBCDR_AHB_PODF_OFFSET);
+	__raw_writel(reg, MXC_CCM_CBCDR);
+
+	getnstimeofday(&nstimeofday);
+	while (__raw_readl(MXC_CCM_CDHIPR) &
+		(MXC_CCM_CDHIPR_AXI_A_PODF_BUSY |
+		 MXC_CCM_CDHIPR_AXI_B_PODF_BUSY |
+		 MXC_CCM_CDHIPR_AHB_PODF_BUSY)) {
+			getnstimeofday(&curtime);
+		if (curtime.tv_nsec
+			- nstimeofday.tv_nsec
+			> SPIN_DELAY)
+			panic("bus freq error\n");
+	}
+
+	/* keep this infront of propagating */
+	low_bus_freq_mode = 0;
+	high_bus_freq_mode = 1;
+	med_bus_freq_mode = 0;
+
+	/* TBD: Restore DDR frequency for DDR2 */
+	/* if (mx53_ddr_type == DDR_TYPE_DDR2) {
+	} */
+}
+
+int can_change_ddr_freq(void)
 {
 	if (clk_get_usecount(epdc_clk) == 0)
 		return 1;
@@ -964,17 +982,34 @@ static int __devinit busfreq_probe(struct platform_device *pdev)
 		ddr_normal_rate = pll2_rate / 2;
 		ddr_low_rate = pll2_rate / 2;
 	} else if (pll2_rate == 400000000) {
-		/* for mx53 evk rev.B */
-		lp_normal_rate = pll2_rate / 3;
-		lp_med_rate = pll2_rate / 5;
-		if (cpu_is_mx53()) {
-			ddr_normal_rate = pll2_rate / 1;
-			ddr_low_rate = pll2_rate / 3;
-		} else if (cpu_is_mx50()) {
+		if (cpu_is_mx50()) {
+			lp_normal_rate = pll2_rate / 3;
 			ddr_normal_rate = clk_get_rate(ddr_clk);
 			lp_med_rate = pll2_rate / 6;
 			ddr_low_rate = LP_APM_CLK;
 			ddr_med_rate = pll2_rate / 3;
+		}
+	}
+
+	/* for mx53 */
+	if (cpu_is_mx53()) {
+		/* set DDR type */
+		if (machine_is_mx53_evk() || machine_is_mx53_ard())
+			mx53_ddr_type = DDR_TYPE_DDR2;
+		else
+			mx53_ddr_type = DDR_TYPE_DDR3;
+		if (mx53_ddr_type == DDR_TYPE_DDR2) {
+			/* DDR2 */
+			lp_normal_rate = pll2_rate / 3;
+			lp_med_rate = pll2_rate / 5;
+			ddr_normal_rate = pll2_rate / 1;
+			ddr_low_rate = pll2_rate / 3;
+		} else {
+			/* DDR3: DDR3 frequency can not be lower than 300MHZ */
+			lp_normal_rate = pll2_rate / 3;
+			lp_med_rate = pll2_rate / 5;
+			ddr_normal_rate = pll2_rate / 1;
+			ddr_low_rate = pll2_rate / 1;
 		}
 	}
 
