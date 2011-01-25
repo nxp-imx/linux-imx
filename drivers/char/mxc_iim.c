@@ -1,14 +1,21 @@
 /*
- * Copyright 2009-2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2009-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
- * The code contained herein is licensed under the GNU General Public
- * License. You may obtain a copy of the GNU General Public License
- * Version 2 or later at the following locations:
- *
- * http://www.opensource.org/licenses/gpl-license.html
- * http://www.gnu.org/copyleft/gpl.html
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+
+ * You should have received a copy of the GNU General Public License along
+ * with this program; if not, write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
 #include <linux/fs.h>
@@ -414,9 +421,13 @@ static ssize_t mxc_iim_write(struct file *filp, const char __user *buf,
 
 	retval = count;
 out:
+	if (tmp_buf)
+		kfree(tmp_buf);
 	dev_dbg(iim_data->dev, "<= %s\n", __func__);
 	return retval;
 invald_arg_out:
+	if (tmp_buf)
+		kfree(tmp_buf);
 	retval = -EINVAL;
 	return retval;
 }
@@ -476,10 +487,6 @@ static int mxc_iim_open(struct inode *inode, struct file *filp)
 		(u32)ioremap(iim_data->reg_base, iim_data->reg_size);
 
 	mxc_iim_disable_irq();
-	ret = request_irq(iim_data->irq, mxc_iim_irq, IRQF_DISABLED,
-				iim_data->name, iim_data);
-	if (ret)
-		return ret;
 
 	dev_dbg(iim_data->dev, "<= %s\n", __func__);
 
@@ -498,7 +505,6 @@ static int mxc_iim_release(struct inode *inode, struct file *filp)
 {
 	clk_disable(iim_data->clk);
 	clk_put(iim_data->clk);
-	free_irq(iim_data->irq, iim_data);
 	iounmap((void *)iim_data->virt_base);
 	return 0;
 }
@@ -532,11 +538,11 @@ static __devinit int mxc_iim_probe(struct platform_device *pdev)
 	struct resource *res;
 	int ret;
 
-	dev_dbg(iim_data->dev, "=> %s\n", __func__);
-
 	iim_data = pdev->dev.platform_data;
 	iim_data->dev = &pdev->dev;
 	iim_data->name = mxc_iim_miscdev.name;
+
+	dev_dbg(iim_data->dev, "=> %s\n", __func__);
 
 	dev_dbg(iim_data->dev, "iim_data addr: 0x%08x "
 		"bank_start: 0x%04x bank_end: 0x%04x "
@@ -559,6 +565,11 @@ static __devinit int mxc_iim_probe(struct platform_device *pdev)
 		return ret;
 	}
 
+	ret = request_irq(iim_data->irq, mxc_iim_irq, IRQF_DISABLED,
+			iim_data->name, iim_data);
+	if (ret)
+		return ret;
+
 	iim_data->reg_base = res->start;
 	iim_data->reg_end = res->end;
 	iim_data->reg_size =
@@ -578,6 +589,7 @@ static __devinit int mxc_iim_probe(struct platform_device *pdev)
 
 static int __devexit mxc_iim_remove(struct platform_device *pdev)
 {
+	free_irq(iim_data->irq, iim_data);
 	misc_deregister(&mxc_iim_miscdev);
 	return 0;
 }
