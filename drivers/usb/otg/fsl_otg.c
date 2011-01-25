@@ -1088,6 +1088,7 @@ static int otg_proc_read(char *page, char **start, off_t off, int count,
 	if (off != 0)
 		return 0;
 
+	fsl_otg_clk_gate(true);
 	spin_lock_irqsave(&fsm->lock, flags);
 
 	/* ------basic driver infomation ---- */
@@ -1192,8 +1193,8 @@ static int otg_proc_read(char *page, char **start, off_t off, int count,
 	size -= t;
 	next += t;
 #endif
-
 	spin_unlock_irqrestore(&fsm->lock, flags);
+	fsl_otg_clk_gate(false);
 
 	*eof = 1;
 	return count - size;

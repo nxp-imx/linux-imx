@@ -2391,6 +2391,7 @@ static int fsl_proc_read(char *page, char **start, off_t off, int count,
 	if (off != 0)
 		return 0;
 
+	dr_clk_gate(true);
 	spin_lock_irqsave(&udc->lock, flags);
 
 	/* ------basic driver infomation ---- */
@@ -2613,12 +2614,13 @@ static int fsl_proc_read(char *page, char **start, off_t off, int count,
 						req->req.length, req->req.buf);
 					size -= t;
 					next += t;
-					} /* end for each_entry of ep req */
-				}	/* end for else */
-			}	/* end for if(ep->queue) */
-		}		/* end (ep->desc) */
+				} /* end for each_entry of ep req */
+			}	/* end for else */
+		}	/* end for if(ep->queue) */
+	}		/* end (ep->desc) */
 
 	spin_unlock_irqrestore(&udc->lock, flags);
+	dr_clk_gate(false);
 
 	*eof = 1;
 	return count - size;
