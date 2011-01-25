@@ -354,7 +354,7 @@ void sah_Queue_Manager_Prime(sah_Head_Desc * entry)
 #else
 		{
 			struct clk *clk = clk_get(NULL, "sahara_clk");
-			if (clk != ERR_PTR(ENOENT))
+			if (!IS_ERR(clk))
 				clk_enable(clk);
 			clk_put(clk);
 		}
@@ -478,7 +478,7 @@ void sah_postprocess_queue(unsigned long reset_flag)
 #else
 		{
 			struct clk *clk = clk_get(NULL, "sahara_clk");
-			if (clk != ERR_PTR(ENOENT))
+			if (!IS_ERR(clk))
 				clk_disable(clk);
 			clk_put(clk);
 		}

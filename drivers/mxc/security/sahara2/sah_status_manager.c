@@ -581,6 +581,7 @@ static int sah_dpm_suspend(struct platform_device *dev, pm_message_t state)
 {
 	sah_Head_Desc *entry = NULL;
 	os_lock_context_t lock_flags;
+	int error_code = 0;
 
 #if  LINUX_VERSION_CODE < KERNEL_VERSION(2,6,11)
 	switch (level) {
@@ -628,13 +629,14 @@ static int sah_dpm_suspend(struct platform_device *dev, pm_message_t state)
 	 * any power */
 	{
 		struct clk *clk = clk_get(NULL, "sahara_clk");
-		if (clk != ERR_PTR(ENOENT)) {
+		if (IS_ERR(clk))
+			error_code = PTR_ERR(clk);
+		else
 			clk_disable(clk);
-		}
 	}
 #endif
 
-	return 0;
+	return error_code;
 }
 
 /*!
@@ -660,6 +662,7 @@ static int sah_dpm_resume(struct platform_device *dev)
 {
 	sah_Head_Desc *entry = NULL;
 	os_lock_context_t lock_flags;
+	int error_code = 0;
 
 #if  LINUX_VERSION_CODE < KERNEL_VERSION(2,6,11)
 	switch (level) {
@@ -690,9 +693,10 @@ static int sah_dpm_resume(struct platform_device *dev)
 		/* enable Sahara's clock */
 		struct clk *clk = clk_get(NULL, "sahara_clk");
 
-		if (clk != ERR_PTR(ENOENT)) {
-			clk_enable(clk);
-		}
+		if (IS_ERR(clk))
+			error_code = PTR_ERR(clk);
+		else
+			clk_disable(clk);
 	}
 	sah_dpm_flag = FALSE;
 
@@ -704,7 +708,7 @@ static int sah_dpm_resume(struct platform_device *dev)
 	}
 	os_unlock_restore_context(desc_queue_lock, lock_flags);
 #endif
-	return 0;
+	return error_code;
 }
 
 #endif				/* SAHARA_POWER_MANAGEMENT */

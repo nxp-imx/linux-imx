@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2004-2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2004-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -189,7 +189,9 @@ OS_DEV_INIT(sah_init)
 #else
 	{
 		sah_clk = clk_get(NULL, "sahara_clk");
-		if (sah_clk != ERR_PTR(ENOENT))
+		if (IS_ERR(sah_clk))
+			os_error_code = PTR_ERR(sah_clk);
+		else
 			clk_enable(sah_clk);
 	}
 #endif
@@ -379,7 +381,9 @@ OS_DEV_INIT(sah_init)
 		mxc_clks_disable(SAHARA2_CLK);
 #else
 	{
-		if (sah_clk != ERR_PTR(ENOENT))
+		if (IS_ERR(sah_clk))
+			os_error_code = PTR_ERR(sah_clk);
+		else
 			clk_disable(sah_clk);
 	}
 #endif
@@ -446,13 +450,15 @@ OS_DEV_SHUTDOWN(sah_cleanup)
 	    mxc_clks_disable(SAHARA2_CLK);
 #else
 	{
-		if (sah_clk != ERR_PTR(ENOENT))
+		if (IS_ERR(sah_clk))
+			ret_val = PTR_ERR(sah_clk);
+		else
 			clk_disable(sah_clk);
 		clk_put(sah_clk);
 	}
 #endif
 
-	os_dev_shutdown_return(OS_ERROR_OK_S);
+	os_dev_shutdown_return(ret_val);
 }
 
 /*!
