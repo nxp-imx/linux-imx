@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2010-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -77,7 +77,7 @@
 #define REG_MODE_0_ALL_MASK	(DIG_STBY_MASK | GEN1_STBY_MASK\
 					| PLL_STBY_MASK | IOHI_STBY_MASK)
 #define REG_MODE_1_ALL_MASK	(CAM_STBY_MASK | VIDEO_STBY_MASK |\
-				AUDIO_STBY_MASK | SD_STBY_MASK | GEN3_STBY_MASK)
+				AUDIO_STBY_MASK | GEN3_STBY_MASK)
 
 /* switch mode setting */
 #define	SW1MODE_LSB	0

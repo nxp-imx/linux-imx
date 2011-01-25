@@ -2,7 +2,7 @@
  * mx51-babbage-pmic-mc13892.c  --  i.MX51 Babbage Driver for Atlas MC13892 PMIC
  */
  /*
-  * Copyright (C) 2009-2010 Freescale Semiconductor, Inc. All Rights Reserved.
+  * Copyright (C) 2009-2011 Freescale Semiconductor, Inc. All Rights Reserved.
   */
 
  /*
@@ -72,7 +72,7 @@
 
 /* 0x92412 */
 #define REG_MODE_0_ALL_MASK	(GEN1_STBY_MASK |\
-				DIG_STBY_MASK | GEN2_STBY_MASK |\
+				DIG_STBY_MASK |\
 				PLL_STBY_MASK)
 /* 0x92082 */
 #define REG_MODE_1_ALL_MASK	(CAM_STBY_MASK | VIDEO_STBY_MASK |\
