@@ -306,6 +306,10 @@ void enter_lpapm_mode_mx51()
 			udelay(10);
 		clk_disable(emi_garb_clk);
 
+		low_bus_freq_mode = 1;
+		high_bus_freq_mode = 0;
+		med_bus_freq_mode = 0;
+
 		/* Set the source of Periph_APM_Clock to be lp-apm. */
 		clk_set_parent(periph_apm_clk, lp_apm);
 
