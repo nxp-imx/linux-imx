@@ -80,7 +80,6 @@ volatile static struct usb_sys_interface *usb_sys_regs;
 
 /* it is initialized in probe()  */
 static struct fsl_udc *udc_controller;
-static struct workqueue_struct *usb_gadget_queue;
 
 #ifdef POSTPONE_FREE_LAST_DTD
 static struct ep_td_struct *last_free_td;
@@ -803,6 +802,13 @@ static int fsl_ep_disable(struct usb_ep *_ep)
 		return -EINVAL;
 	}
 
+	spin_lock_irqsave(&udc->lock, flags);
+	udc = (struct fsl_udc *)ep->udc;
+	if (!udc->driver || (udc->gadget.speed == USB_SPEED_UNKNOWN)) {
+		spin_unlock_irqrestore(&udc->lock, flags);
+		return -ESHUTDOWN;
+	}
+
 	/* disable ep on controller */
 	ep_num = ep_index(ep);
 	epctrl = fsl_readl(&dr_regs->endptctrl[ep_num]);
@@ -811,9 +817,6 @@ static int fsl_ep_disable(struct usb_ep *_ep)
 	else
 		epctrl &= ~EPCTRL_RX_ENABLE;
 	fsl_writel(epctrl, &dr_regs->endptctrl[ep_num]);
-
-	udc = (struct fsl_udc *)ep->udc;
-	spin_lock_irqsave(&udc->lock, flags);
 
 	/* nuke all pending requests (does flush) */
 	nuke(ep, -ESHUTDOWN);
@@ -1145,6 +1148,7 @@ static int fsl_ep_dequeue(struct usb_ep *_ep, struct usb_request *_req)
 	struct fsl_req *req;
 	unsigned long flags;
 	int ep_num, stopped, ret = 0;
+	struct fsl_udc *udc = NULL;
 	u32 epctrl;
 
 	if (!_ep || !_req)
@@ -1152,6 +1156,11 @@ static int fsl_ep_dequeue(struct usb_ep *_ep, struct usb_request *_req)
 
 	spin_lock_irqsave(&ep->udc->lock, flags);
 	stopped = ep->stopped;
+	udc = ep->udc;
+	if (!udc->driver || udc->gadget.speed == USB_SPEED_UNKNOWN) {
+		spin_unlock_irqrestore(&ep->udc->lock, flags);
+		return -ESHUTDOWN;
+	}
 
 	/* Stop the ep before we deal with the queue */
 	ep->stopped = 1;
@@ -1236,6 +1245,10 @@ static int fsl_ep_set_halt(struct usb_ep *_ep, int value)
 	udc = ep->udc;
 	if (!_ep || !ep->desc) {
 		status = -EINVAL;
+		goto out;
+	}
+	if (!udc->driver || (udc->gadget.speed == USB_SPEED_UNKNOWN)) {
+		status = -ESHUTDOWN;
 		goto out;
 	}
 
@@ -1974,34 +1987,41 @@ static void dtd_complete_irq(struct fsl_udc *udc)
 	}
 }
 
+static void fsl_udc_speed_update(struct fsl_udc *udc)
+{
+	u32 speed = 0;
+	u32 loop = 0;
+
+	/* Wait for port reset finished */
+	while ((fsl_readl(&dr_regs->portsc1) & PORTSCX_PORT_RESET)
+		&& (loop++ < 1000))
+		;
+
+	speed = (fsl_readl(&dr_regs->portsc1) & PORTSCX_PORT_SPEED_MASK);
+	switch (speed) {
+	case PORTSCX_PORT_SPEED_HIGH:
+		udc->gadget.speed = USB_SPEED_HIGH;
+		break;
+	case PORTSCX_PORT_SPEED_FULL:
+		udc->gadget.speed = USB_SPEED_FULL;
+		break;
+	case PORTSCX_PORT_SPEED_LOW:
+		udc->gadget.speed = USB_SPEED_LOW;
+		break;
+	default:
+		udc->gadget.speed = USB_SPEED_UNKNOWN;
+		break;
+	}
+}
+
 /* Process a port change interrupt */
 static void port_change_irq(struct fsl_udc *udc)
 {
-	u32 speed;
-
 	if (udc->bus_reset)
 		udc->bus_reset = 0;
 
-	/* Bus resetting is finished */
-	if (!(fsl_readl(&dr_regs->portsc1) & PORTSCX_PORT_RESET)) {
-		/* Get the speed */
-		speed = (fsl_readl(&dr_regs->portsc1)
-				& PORTSCX_PORT_SPEED_MASK);
-		switch (speed) {
-		case PORTSCX_PORT_SPEED_HIGH:
-			udc->gadget.speed = USB_SPEED_HIGH;
-			break;
-		case PORTSCX_PORT_SPEED_FULL:
-			udc->gadget.speed = USB_SPEED_FULL;
-			break;
-		case PORTSCX_PORT_SPEED_LOW:
-			udc->gadget.speed = USB_SPEED_LOW;
-			break;
-		default:
-			udc->gadget.speed = USB_SPEED_UNKNOWN;
-			break;
-		}
-	}
+	/* Update port speed */
+	fsl_udc_speed_update(udc);
 
 	/* Update USB state */
 	if (!udc->resume_state)
@@ -2011,10 +2031,22 @@ static void port_change_irq(struct fsl_udc *udc)
 /* Process suspend interrupt */
 static void suspend_irq(struct fsl_udc *udc)
 {
+	u32 otgsc = 0;
+
 	pr_debug("%s\n", __func__);
 
 	udc->resume_state = udc->usb_state;
 	udc->usb_state = USB_STATE_SUSPENDED;
+
+	/* Set discharge vbus */
+	otgsc = fsl_readl(&dr_regs->otgsc);
+	otgsc &= ~(OTGSC_INTSTS_MASK);
+	otgsc |= OTGSC_CTRL_VBUS_DISCHARGE;
+	fsl_writel(otgsc, &dr_regs->otgsc);
+
+	/* discharge in work queue */
+	cancel_delayed_work(&udc->gadget_delay_work);
+	schedule_delayed_work(&udc->gadget_delay_work, msecs_to_jiffies(20));
 
 	/* report suspend to the driver, serial.c does not support this */
 	if (udc->driver->suspend)
@@ -2083,8 +2115,31 @@ static void reset_irq(struct fsl_udc *udc)
 	udc->usb_state = USB_STATE_DEFAULT;
 }
 
-static void fsl_gadget_clk_off_event(struct work_struct *work)
+static void fsl_gadget_event(struct work_struct *work)
 {
+	struct fsl_udc *udc = udc_controller;
+	unsigned long flags;
+
+	spin_lock_irqsave(&udc->lock, flags);
+	/* update port status */
+	fsl_udc_speed_update(udc);
+	spin_unlock_irqrestore(&udc->lock, flags);
+
+	/* close dr controller clock */
+	dr_clk_gate(false);
+}
+
+static void fsl_gadget_delay_event(struct work_struct *work)
+{
+	u32 otgsc = 0;
+
+	dr_clk_gate(true);
+	otgsc = fsl_readl(&dr_regs->otgsc);
+	/* clear vbus discharge */
+	if (otgsc & OTGSC_CTRL_VBUS_DISCHARGE) {
+		otgsc &= ~(OTGSC_INTSTS_MASK | OTGSC_CTRL_VBUS_DISCHARGE);
+		fsl_writel(otgsc, &dr_regs->otgsc);
+	}
 	dr_clk_gate(false);
 }
 
@@ -2102,9 +2157,9 @@ bool try_wake_up_udc(struct fsl_udc *udc)
 		u32 tmp;
 		fsl_writel(irq_src, &dr_regs->otgsc);
 		/* only handle device interrupt event */
-		if (!(fsl_readl(&dr_regs->otgsc) & OTGSC_STS_USB_ID)) {
+		if (!(fsl_readl(&dr_regs->otgsc) & OTGSC_STS_USB_ID))
 			return false;
-		}
+
 		tmp = fsl_readl(&dr_regs->usbcmd);
 		/* check BSV bit to see if fall or rise */
 		if (irq_src & OTGSC_B_SESSION_VALID) {
@@ -2122,8 +2177,8 @@ bool try_wake_up_udc(struct fsl_udc *udc)
 			dr_wake_up_enable(udc, true);
 			/* close USB PHY clock */
 			dr_phy_low_power_mode(udc, true);
-			queue_work(usb_gadget_queue, &udc->usb_gadget_work);
-			printk(KERN_DEBUG "%s: udc enter low power mode \n", __func__);
+			schedule_work(&udc->gadget_work);
+			printk(KERN_DEBUG "%s: udc enter low power mode\n", __func__);
 			return false;
 		}
 	}
@@ -2914,12 +2969,9 @@ static int __init fsl_udc_probe(struct platform_device *pdev)
 		}
 	}
 
-	usb_gadget_queue = create_workqueue("usb_gadget_workqueue");
-	if (usb_gadget_queue == NULL) {
-		printk(KERN_ERR "Coulndn't create usb gadget work queue\n");
-		return -ENOMEM;
-	}
-	INIT_WORK(&udc_controller->usb_gadget_work, fsl_gadget_clk_off_event);
+	INIT_WORK(&udc_controller->gadget_work, fsl_gadget_event);
+	INIT_DELAYED_WORK(&udc_controller->gadget_delay_work,
+						fsl_gadget_delay_event);
 #ifdef POSTPONE_FREE_LAST_DTD
 	last_free_td = NULL;
 #endif

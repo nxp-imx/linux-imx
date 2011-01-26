@@ -118,6 +118,7 @@ int write_ulpi(u8 addr, u8 data)
 /* prototype declaration */
 void fsl_otg_add_timer(void *timer);
 void fsl_otg_del_timer(void *timer);
+static void fsl_otg_clk_gate(bool on);
 
 /* -------------------------------------------------------------*/
 /* Operations that will be called from OTG Finite State Machine */
@@ -150,6 +151,16 @@ void fsl_otg_dischrg_vbus(int on)
 		    cpu_to_le32((le32_to_cpu(usb_dr_regs->otgsc) &
 				 ~OTGSC_INTSTS_MASK &
 				 ~OTGSC_CTRL_VBUS_DISCHARGE));
+}
+
+/* Wait for VBUS discharge after set VBUS lower */
+static void fsl_otg_wait_dischrg_vbus(void)
+{
+	fsl_otg_clk_gate(true);
+	fsl_otg_dischrg_vbus(1);
+	msleep(5);
+	fsl_otg_dischrg_vbus(0);
+	fsl_otg_clk_gate(false);
 }
 
 /* A-device driver vbus, controlled through PP bit in PORTSC */
@@ -659,6 +670,7 @@ static int fsl_otg_set_peripheral(struct otg_transceiver *otg_p,
 	if (otg_dev->fsm.id == 1) {
 		fsl_otg_start_host(&otg_dev->fsm, 0);
 		otg_drv_vbus(&otg_dev->fsm, 0);
+		fsl_otg_wait_dischrg_vbus();
 		fsl_otg_start_gadget(&otg_dev->fsm, 1);
 	}
 
@@ -703,6 +715,7 @@ static void fsl_otg_event(struct work_struct *work)
 	if (fsm->id) {		/* switch to gadget */
 		fsl_otg_start_host(fsm, 0);
 		otg_drv_vbus(fsm, 0);
+		fsl_otg_wait_dischrg_vbus();
 		b_session_irq_enable(false);
 		fsl_otg_start_gadget(fsm, 1);
 	} else {			/* switch to host */
@@ -783,7 +796,6 @@ irqreturn_t fsl_otg_isr_gpio(int irq, void *dev_id)
  * intact.  It needs to have knowledge of some USB interrupts
  * such as port change.
  */
-extern int usb_event_is_otg_wakeup(void);
 irqreturn_t fsl_otg_isr(int irq, void *dev_id)
 {
 	struct fsl_otg *fotg = (struct fsl_otg *)dev_id;
