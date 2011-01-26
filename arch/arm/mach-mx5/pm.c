@@ -144,16 +144,6 @@ static int mx5_suspend_enter(suspend_state_t state)
 	return 0;
 }
 
-static int mx5_suspend_begin(suspend_state_t state)
-{
-	if (machine_is_mx53_loco() ||
-		machine_is_mx53_smd()) {
-		if (PM_SUSPEND_MEM == state)
-			regulator_suspend_prepare(
-				PM_SUSPEND_MEM);
-	}
-	return 0;
-}
 
 /*
  * Called after processes are frozen, but before we shut down devices.
@@ -226,7 +216,6 @@ static int mx5_pm_valid(suspend_state_t state)
 
 struct platform_suspend_ops mx5_suspend_ops = {
 	.valid = mx5_pm_valid,
-	.begin = mx5_suspend_begin,
 	.prepare = mx5_suspend_prepare,
 	.enter = mx5_suspend_enter,
 	.finish = mx5_suspend_finish,

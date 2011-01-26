@@ -54,6 +54,9 @@
 	},\
 }
 
+/* currently the suspend_mv here takes no effects for DA9053
+preset-voltage have to be done in the latest stage during
+suspend*/
 static struct regulator_init_data da9052_regulators_init[] = {
 	DA9052_LDO(DA9052_LDO1_VOLT_UPPER,
 		DA9052_LDO1_VOLT_LOWER, "DA9052_LDO1", 1300),

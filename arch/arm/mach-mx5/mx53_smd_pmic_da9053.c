@@ -56,6 +56,9 @@
 	},\
 }
 
+/* currently the suspend_mv field here takes no effects for DA9053
+preset-voltage have to be done in the latest stage during
+suspend*/
 static struct regulator_init_data da9052_regulators_init[] = {
 	DA9052_LDO(DA9052_LDO1_VOLT_UPPER,
 		DA9052_LDO1_VOLT_LOWER, "DA9052_LDO1", 1300),
@@ -268,7 +271,6 @@ static int __init smd_da9052_init(struct da9052 *da9052)
 
 	da9052_init_ssc_cache(da9052);
 	ret = platform_device_register(&wifi_bt_reg_device);
-	pr_info("%s ret=%d\n", __func__);
 
 	return 0;
 }

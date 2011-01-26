@@ -290,6 +290,35 @@ void pm_da9053_write_reg(u8 reg, u8 value)
 	pm_i2c_imx_xfer(i2cmsg, 1);
 }
 
+/* have to hard-code the preset voltage here for they share the register
+as the normal setting on Da9053 */
+/* preset buck core to 850 mv */
+#define BUCKCORE_SUSPEND_PRESET 0xCE
+/* preset buck core to 950 mv */
+#define BUCKPRO_SUSPEND_PRESET 0xD2
+/* preset ldo6 to 1200 mv */
+#define LDO6_SUSPEND_PRESET 0xC0
+/* preset ldo10 to 1200 mv */
+#define iLDO10_SUSPEND_PRESET 0xC0
+#define CONF_BIT 0x80
+
+static u8 volt_settings[DA9052_LDO10_REG - DA9052_BUCKCORE_REG + 1];
+static void pm_da9053_preset_voltage(void)
+{
+	u8 reg, data;
+	for (reg = DA9052_BUCKCORE_REG;
+		reg <= DA9052_LDO10_REG; reg++) {
+		pm_da9053_read_reg(reg, &data);
+		volt_settings[reg - DA9052_BUCKCORE_REG] = data;
+		data |= CONF_BIT;
+		pm_da9053_write_reg(reg, data);
+	}
+	pm_da9053_write_reg(DA9052_BUCKCORE_REG, BUCKCORE_SUSPEND_PRESET);
+	pm_da9053_write_reg(DA9052_BUCKPRO_REG, BUCKPRO_SUSPEND_PRESET);
+	pm_da9053_write_reg(DA9052_LDO6_REG, LDO6_SUSPEND_PRESET);
+	pm_da9053_write_reg(DA9052_LDO10_REG, iLDO10_SUSPEND_PRESET);
+}
+
 #define DA9053_SLEEP_DELAY 0x1f
 int da9053_suspend_cmd(void)
 {
@@ -305,6 +334,8 @@ int da9053_suspend_cmd(void)
 	}
 	clk_enable(i2c_clk);
 
+	pm_da9053_preset_voltage();
+
 	pm_da9053_read_reg(DA9052_ID01_REG, &data);
 	data &= ~(DA9052_ID01_DEFSUPPLY | DA9052_ID01_nRESMODE);
 	pm_da9053_write_reg(DA9052_ID01_REG, data);
@@ -318,6 +349,15 @@ int da9053_suspend_cmd(void)
 	clk_disable(i2c_clk);
 	clk_put(i2c_clk);
 	return 0;
+}
+
+void da9053_restore_volt_settings(void)
+{
+	u8 reg;
+	for (reg = DA9052_BUCKCORE_REG;
+		reg <= DA9052_LDO10_REG; reg++)
+		pm_da9053_write_reg(reg,
+			volt_settings[reg - DA9052_BUCKCORE_REG]);
 }
 
 int da9053_poweroff_cmd(void)
