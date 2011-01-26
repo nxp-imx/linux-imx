@@ -96,12 +96,12 @@ static inline void fuse_op_start(void)
 	dump_reg();
 #endif
 
-	/* Generate interrupt */
-	__raw_writel(0x3, &(iim_reg_base->statm));
-	__raw_writel(0xfe, &(iim_reg_base->emask));
 	/* Clear the status bits and error bits */
 	__raw_writel(0x3, &(iim_reg_base->stat));
 	__raw_writel(0xfe, &(iim_reg_base->err));
+	/* Generate interrupt */
+	__raw_writel(0x3, &(iim_reg_base->statm));
+	__raw_writel(0xfe, &(iim_reg_base->emask));
 
 	dev_dbg(iim_data->dev, "<= %s\n", __func__);
 }
@@ -210,8 +210,9 @@ static void fuse_blow_row(s32 bank, s32 row, s32 value)
 	for (i = 0; i < 8; i++) {
 		if (((value >> i) & 0x1) == 0)
 			continue;
-	if (fuse_blow_bit(bank, row, i) != 0) {
-		dev_dbg(iim_data->dev, "fuse_blow_bit(bank: %d, row: %d, "
+		if (fuse_blow_bit(bank, row, i) != 0) {
+			dev_dbg(iim_data->dev,
+				"fuse_blow_bit(bank: %d, row: %d, "
 				"bit: %d failed\n",
 				bank, row, i);
 		}
@@ -258,6 +259,7 @@ static irqreturn_t mxc_iim_irq(int irq, void *dev_id)
 				"at addr=0x%x: 0x%x\n",
 				(u32)&(iim_reg_base->err), error);
 		}
+		__raw_writel(0x3, &(iim_reg_base->stat));
 		rtn = 0;
 		goto out;
 	}
@@ -372,24 +374,16 @@ static ssize_t mxc_iim_write(struct file *filp, const char __user *buf,
 	ulong fuse_val;
 	s8 row;
 	s8 *tmp_buf = NULL;
+	loff_t file_pos = *f_pos;
 	ssize_t retval = 0;
 
 	dev_dbg(iim_data->dev, "=> %s\n", __func__);
-	dev_dbg(iim_data->dev, "count: %d f_pos: %lld\n", count, *f_pos);
-
-	if (*f_pos & 0x3)
-		goto invald_arg_out;
-	if (*f_pos < iim_data->bank_start ||
-		*f_pos > iim_data->bank_end) {
-		dev_dbg(iim_data->dev, "bank_start: 0x%08x, bank_end: 0x%08x\n",
-			iim_data->bank_start, iim_data->bank_end);
-		goto invald_arg_out;
-	}
+	dev_dbg(iim_data->dev, "count: %d f_pos: %lld\n", count, file_pos);
 
 	tmp_buf = kmalloc(count + 1, GFP_KERNEL);
 	if (unlikely(!tmp_buf)) {
 		retval = -ENOMEM;
-		goto out;
+		 goto out;
 	}
 	memset(tmp_buf, 0, count + 1);
 	if (copy_from_user(tmp_buf, buf, count)) {
@@ -397,18 +391,54 @@ static ssize_t mxc_iim_write(struct file *filp, const char __user *buf,
 		goto out;
 	}
 
-	bank = (*f_pos - iim_data->bank_start) >> 10;
-	row  = ((*f_pos - iim_data->bank_start) & 0x3ff) >> 2;
-	if (strict_strtoul(tmp_buf, 16, &fuse_val)) {
-		dev_dbg(iim_data->dev, "Invalid value parameter: %s\n",
-				tmp_buf);
-		goto invald_arg_out;
+	if (count > 1 && 0 == file_pos) {
+		/* Check if file_pos and fuse val are in tmp_buf */
+		if (sscanf(tmp_buf, "%x %x",
+			(s32 *)&file_pos, (s32 *)&fuse_val) < 0) {
+			dev_info(iim_data->dev,
+				"Invalid input string: %s\n", tmp_buf);
+			retval = -EINVAL;
+			goto out;
+		}
+		dev_dbg(iim_data->dev,
+			"file_pos: 0x%08x, fuse_val: 0x%08x\n",
+			(s32)file_pos, (s32)fuse_val);
+	} else if (1 == count)
+		fuse_val = tmp_buf[0];
+	else {
+		dev_info(iim_data->dev,
+			"Invalid input: %s, count: %d, file pos: %d\n",
+			tmp_buf, count, (s32)file_pos);
+		retval = -EINVAL;
+		goto out;
 	}
-	if (unlikely(fuse_val > 0xff)) {
-		dev_dbg(iim_data->dev, "Invalid value for fuse: %d\n",
-				(unsigned int)fuse_val);
-		goto invald_arg_out;
+
+	if (fuse_val > 0xff) {
+		dev_info(iim_data->dev,
+			"Invalid blow value: 0x%08x\n", (s32)fuse_val);
+		retval = -EINVAL;
+		goto out;
 	}
+
+	if (file_pos & 0x3) {
+		dev_info(iim_data->dev, "file pos is not 4-byte aligned!\n");
+		retval = -EINVAL;
+		goto out;
+	}
+
+	if (file_pos < iim_data->bank_start ||
+		file_pos > iim_data->bank_end) {
+		dev_dbg(iim_data->dev,
+			"bank_start: 0x%08x, bank_end: 0x%08x\n",
+			iim_data->bank_start, iim_data->bank_end);
+		dev_info(iim_data->dev,
+			"file pos out of range: 0x%08x\n", file_pos);
+		retval = -EINVAL;
+		goto out;
+	}
+
+	bank = (file_pos - iim_data->bank_start) >> 10;
+	row  = ((file_pos - iim_data->bank_start) & 0x3ff) >> 2;
 
 	dev_dbg(iim_data->dev, "Blowing fuse at bank:%d row:%d value:%d\n",
 			bank, row, (int)fuse_val);
@@ -424,11 +454,6 @@ out:
 	if (tmp_buf)
 		kfree(tmp_buf);
 	dev_dbg(iim_data->dev, "<= %s\n", __func__);
-	return retval;
-invald_arg_out:
-	if (tmp_buf)
-		kfree(tmp_buf);
-	retval = -EINVAL;
 	return retval;
 }
 
@@ -470,8 +495,6 @@ static int mxc_iim_mmap(struct file *file, struct vm_area_struct *vma)
  */
 static int mxc_iim_open(struct inode *inode, struct file *filp)
 {
-	int ret;
-
 	dev_dbg(iim_data->dev, "=> %s\n", __func__);
 
 	dev_dbg(iim_data->dev, "iim_data addr: 0x%08x\n", (u32)iim_data);
