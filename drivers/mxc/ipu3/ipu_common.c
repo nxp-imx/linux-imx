@@ -1696,16 +1696,18 @@ int32_t ipu_enable_channel(ipu_channel_t channel)
 	uint32_t sec_dma;
 	uint32_t thrd_dma;
 
+	spin_lock_irqsave(&ipu_lock, lock_flags);
+
 	if (g_channel_enable_mask & (1L << IPU_CHAN_ID(channel))) {
 		dev_err(g_ipu_dev, "Warning: channel already enabled %d\n",
 			IPU_CHAN_ID(channel));
+		spin_unlock_irqrestore(&ipu_lock, lock_flags);
+		return -EACCES;
 	}
 
 	/* Get input and output dma channels */
 	out_dma = channel_2_dma(channel, IPU_OUTPUT_BUFFER);
 	in_dma = channel_2_dma(channel, IPU_VIDEO_IN_BUFFER);
-
-	spin_lock_irqsave(&ipu_lock, lock_flags);
 
 	ipu_conf = __raw_readl(IPU_CONF);
 	if (ipu_di_use_count[0] > 0) {
@@ -1886,11 +1888,16 @@ int32_t ipu_disable_channel(ipu_channel_t channel, bool wait_for_stop)
 	uint32_t sec_dma = NO_DMA;
 	uint32_t thrd_dma = NO_DMA;
 
+	spin_lock_irqsave(&ipu_lock, lock_flags);
+
 	if ((g_channel_enable_mask & (1L << IPU_CHAN_ID(channel))) == 0) {
 		dev_err(g_ipu_dev, "Channel already disabled %d\n",
 			IPU_CHAN_ID(channel));
-		return 0;
+		spin_unlock_irqrestore(&ipu_lock, lock_flags);
+		return -EACCES;
 	}
+
+	spin_unlock_irqrestore(&ipu_lock, lock_flags);
 
 	/* Get input and output dma channels */
 	out_dma = channel_2_dma(channel, IPU_OUTPUT_BUFFER);
@@ -2020,6 +2027,8 @@ int32_t ipu_disable_channel(ipu_channel_t channel, bool wait_for_stop)
 
 	g_channel_enable_mask &= ~(1L << IPU_CHAN_ID(channel));
 
+	spin_unlock_irqrestore(&ipu_lock, lock_flags);
+
 	/* Set channel buffers NOT to be ready */
 	if (idma_is_valid(in_dma)) {
 		ipu_clear_buffer_ready(channel, IPU_VIDEO_IN_BUFFER, 0);
@@ -2037,8 +2046,6 @@ int32_t ipu_disable_channel(ipu_channel_t channel, bool wait_for_stop)
 		ipu_clear_buffer_ready(channel, IPU_ALPHA_IN_BUFFER, 0);
 		ipu_clear_buffer_ready(channel, IPU_ALPHA_IN_BUFFER, 1);
 	}
-
-	spin_unlock_irqrestore(&ipu_lock, lock_flags);
 
 	return 0;
 }
