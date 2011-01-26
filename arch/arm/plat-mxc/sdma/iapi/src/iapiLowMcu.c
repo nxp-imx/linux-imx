@@ -1,6 +1,6 @@
 /******************************************************************************
  *
- * Copyright 2007-2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2007-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  *
  * The code contained herein is licensed under the GNU General Public
@@ -34,6 +34,7 @@
  * Include File Section
  *****************************************************************************/
 #include <string.h>
+#include <io.h>
 
 #include "epm.h"
 #include "iapiLow.h"
@@ -132,7 +133,8 @@ iapi_Channel0Command(channelDescriptor *cd_p, void *buf,
  */
 void iapi_lowStartChannel(unsigned char channel)
 {
-	SDMA_H_START |= 1 << channel;
+	/* HSTART is a 'write-ones' register */
+	writel(1UL << channel, SDMA_H_START_ADDR);
 }
 
 /* ***************************************************************************/
@@ -150,7 +152,8 @@ void iapi_lowStartChannel(unsigned char channel)
  */
 void iapi_lowStopChannel(unsigned char channel)
 {
-	SDMA_H_STATSTOP &= 1 << channel;
+	/* Another 'write-ones' register */
+	writel(1UL << channel, SDMA_H_STATSTOP_ADDR);
 }
 
 /* ***************************************************************************/

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2007-2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2007-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -19,6 +19,9 @@
 /* SDMA Reg definition */
 extern void __iomem *sdma_base;
 #define SDMA_BASE_IO_ADDR (sdma_base)
+
+#define SDMA_H_STATSTOP_ADDR    (SDMA_BASE_IO_ADDR + 0x008)
+#define SDMA_H_START_ADDR       (SDMA_BASE_IO_ADDR + 0x00C)
 
 #define SDMA_H_C0PTR            (*((volatile unsigned long *)(SDMA_BASE_IO_ADDR + 0x000)))
 #define SDMA_H_INTR             (*((volatile unsigned long *)(SDMA_BASE_IO_ADDR + 0x004)))
