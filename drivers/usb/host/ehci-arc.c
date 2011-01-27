@@ -130,6 +130,9 @@ void fsl_usb_recover_hcd(struct platform_device *pdev)
 		/* Resume root hub here? */
 		usb_hcd_resume_root_hub(hcd);
 	}
+
+	/* disable all interrupt, will re-enable in resume */
+	ehci_writel(ehci, 0, &ehci->regs->intr_enable);
 }
 
 /**

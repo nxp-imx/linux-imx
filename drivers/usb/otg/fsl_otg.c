@@ -158,7 +158,7 @@ static void fsl_otg_wait_dischrg_vbus(void)
 {
 	fsl_otg_clk_gate(true);
 	fsl_otg_dischrg_vbus(1);
-	msleep(5);
+	msleep(20);
 	fsl_otg_dischrg_vbus(0);
 	fsl_otg_clk_gate(false);
 }
