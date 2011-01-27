@@ -506,9 +506,6 @@ static int mxc_iim_open(struct inode *inode, struct file *filp)
 	}
 	clk_enable(iim_data->clk);
 
-	iim_data->virt_base =
-		(u32)ioremap(iim_data->reg_base, iim_data->reg_size);
-
 	mxc_iim_disable_irq();
 
 	dev_dbg(iim_data->dev, "<= %s\n", __func__);
@@ -528,7 +525,6 @@ static int mxc_iim_release(struct inode *inode, struct file *filp)
 {
 	clk_disable(iim_data->clk);
 	clk_put(iim_data->clk);
-	iounmap((void *)iim_data->virt_base);
 	return 0;
 }
 
@@ -597,6 +593,8 @@ static __devinit int mxc_iim_probe(struct platform_device *pdev)
 	iim_data->reg_end = res->end;
 	iim_data->reg_size =
 		iim_data->reg_end - iim_data->reg_base + 1;
+	iim_data->virt_base =
+		(u32)ioremap(iim_data->reg_base, iim_data->reg_size);
 
 	mutex_init(&(iim_data->mutex));
 	spin_lock_init(&(iim_data->lock));
@@ -613,6 +611,7 @@ static __devinit int mxc_iim_probe(struct platform_device *pdev)
 static int __devexit mxc_iim_remove(struct platform_device *pdev)
 {
 	free_irq(iim_data->irq, iim_data);
+	iounmap((void *)iim_data->virt_base);
 	misc_deregister(&mxc_iim_miscdev);
 	return 0;
 }
