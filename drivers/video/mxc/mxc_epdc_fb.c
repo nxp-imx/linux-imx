@@ -2224,19 +2224,18 @@ int mxc_epdc_fb_wait_update_complete(u32 update_marker, struct fb_info *info)
 	if (update_marker == 0)
 		return -EINVAL;
 
-	/* Wait for completion associated with update_marker requested */
+	/*
+	 * Wait for completion associated with update_marker requested.
+	 * Note: If update completed already, marker will have been
+	 * cleared and we will just return
+	 */
 	for (i = 0; i < EPDC_MAX_NUM_UPDATES; i++) {
 		if (fb_data->update_marker_array[i].update_marker == update_marker) {
 			dev_dbg(fb_data->dev, "Waiting for marker %d\n", update_marker);
 			ret = wait_for_completion_timeout(&fb_data->update_marker_array[i].update_completion, msecs_to_jiffies(5000));
 			if (!ret)
 				dev_err(fb_data->dev, "Timed out waiting for update completion\n");
-
 			dev_dbg(fb_data->dev, "marker %d signalled!\n", update_marker);
-
-			/* Reset marker so it can be reused */
-			fb_data->update_marker_array[i].update_marker = 0;
-
 			break;
 		}
 	}
@@ -2630,6 +2629,11 @@ static irqreturn_t mxc_epdc_irq_handler(int irq, void *dev_id)
 			complete(&fb_data->update_marker_array[j].update_completion);
 			/* Ensure this doesn't get signaled again inadvertently */
 			fb_data->update_marker_array[j].lut_num = INVALID_LUT;
+			/*
+			 * Setting marker to 0 is OK - any wait call will
+			 * return when marker doesn't match any in array
+			 */
+			fb_data->update_marker_array[j].update_marker = 0;
 		}
 	}
 
