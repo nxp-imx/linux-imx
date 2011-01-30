@@ -3,7 +3,7 @@
  * Copyright 2008 Juergen Beisert, kernel@pengutronix.de
  *
  * Based on code from Freescale,
- * Copyright (C) 2004-2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2004-2011 Freescale Semiconductor, Inc.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -122,10 +122,10 @@ static int gpio_set_irq_type(u32 irq, u32 type)
 	}
 
 	/* set the correct irq handler */
-	if (type & IRQ_TYPE_EDGE_BOTH)
-		set_irq_handler(irq, handle_edge_irq);
-	else if (type & (IRQ_TYPE_LEVEL_LOW | IRQ_TYPE_LEVEL_HIGH))
-		set_irq_handler(irq, handle_level_irq);
+	if (type & (IRQ_TYPE_LEVEL_LOW | IRQ_TYPE_LEVEL_HIGH))
+		__set_irq_handler_unlocked(irq, handle_level_irq);
+	else if (type & IRQ_TYPE_EDGE_BOTH)
+		__set_irq_handler_unlocked(irq, handle_edge_irq);
 
 	reg += GPIO_ICR1 + ((gpio & 0x10) >> 2); /* lower or upper register */
 	bit = gpio & 0xf;
