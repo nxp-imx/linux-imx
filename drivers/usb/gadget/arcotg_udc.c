@@ -1068,13 +1068,15 @@ fsl_ep_queue(struct usb_ep *_ep, struct usb_request *_req, gfp_t gfp_flags)
 	unsigned long flags;
 	int is_iso = 0;
 
-	spin_lock_irqsave(&udc->lock, flags);
 
 	if (!_ep || !ep->desc) {
 		VDBG("%s, bad ep\n", __func__);
-		spin_unlock_irqrestore(&udc->lock, flags);
 		return -EINVAL;
 	}
+
+	udc = ep->udc;
+	spin_lock_irqsave(&udc->lock, flags);
+
 	/* catch various bogus parameters */
 	if (!_req || !req->req.buf || (ep_index(ep)
 				      && !list_empty(&req->queue))) {
@@ -1090,7 +1092,6 @@ fsl_ep_queue(struct usb_ep *_ep, struct usb_request *_req, gfp_t gfp_flags)
 		is_iso = 1;
 	}
 
-	udc = ep->udc;
 	if (!udc->driver || udc->gadget.speed == USB_SPEED_UNKNOWN) {
 		spin_unlock_irqrestore(&udc->lock, flags);
 		return -ESHUTDOWN;
@@ -1599,8 +1600,10 @@ static void setup_received_irq(struct fsl_udc *udc,
 		if (setup->bRequestType & USB_DIR_IN) {
 			dir = EP_DIR_OUT;
 		}
+		spin_unlock(&udc->lock);
 		if (ep0_prime_status(udc, dir))
 			ep0stall(udc);
+		spin_lock(&udc->lock);
 	}
 	/* We process some stardard setup requests here */
 	switch (setup->bRequest) {
@@ -1609,7 +1612,9 @@ static void setup_received_irq(struct fsl_udc *udc,
 		if ((setup->bRequestType & (USB_DIR_IN | USB_TYPE_MASK))
 					!= (USB_DIR_IN | USB_TYPE_STANDARD))
 			break;
+		spin_unlock(&udc->lock);
 		ch9getstatus(udc, setup->bRequestType, wValue, wIndex, wLength);
+		spin_lock(&udc->lock);
 		return;
 
 	case USB_REQ_SET_ADDRESS:
@@ -1617,10 +1622,14 @@ static void setup_received_irq(struct fsl_udc *udc,
 		if (setup->bRequestType != (USB_DIR_OUT | USB_TYPE_STANDARD
 						| USB_RECIP_DEVICE))
 			break;
+		spin_unlock(&udc->lock);
 		ch9setaddress(udc, wValue, wIndex, wLength);
+		spin_lock(&udc->lock);
 		return;
 	case USB_REQ_SET_CONFIGURATION:
+		spin_unlock(&udc->lock);
 		fsl_vbus_draw(gadget, mA);
+		spin_lock(&udc->lock);
 	     break;
 	case USB_REQ_CLEAR_FEATURE:
 	case USB_REQ_SET_FEATURE:
@@ -1667,8 +1676,10 @@ static void setup_received_irq(struct fsl_udc *udc,
 			break;
 
 		if (rc == 0) {
+			spin_unlock(&udc->lock);
 			if (ep0_prime_status(udc, EP_DIR_IN))
 				ep0stall(udc);
+			spin_lock(&udc->lock);
 		}
 		if (ptc) {
 			u32 tmp;
