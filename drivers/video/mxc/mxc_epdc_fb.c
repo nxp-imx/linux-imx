@@ -212,8 +212,7 @@ static int mxc_epdc_fb_blank(int blank, struct fb_info *info);
 static int mxc_epdc_fb_init_hw(struct fb_info *info);
 static int pxp_process_update(struct mxc_epdc_fb_data *fb_data,
 			      u32 src_width, u32 src_height,
-			      struct mxcfb_rect *update_region,
-			      int x_start_offs);
+			      struct mxcfb_rect *update_region);
 static int pxp_complete_update(struct mxc_epdc_fb_data *fb_data, u32 *hist_stat);
 
 static void draw_mode0(struct mxc_epdc_fb_data *fb_data);
@@ -1476,12 +1475,14 @@ static int epdc_process_update(struct update_data_list *upd_data_list,
 	struct mxcfb_rect *src_upd_region; /* Region of src buffer for update */
 	struct mxcfb_rect pxp_upd_region;
 	u32 src_width, src_height;
-	u32 offset_from_8, bytes_per_pixel;
+	u32 offset_from_4, bytes_per_pixel;
 	u32 post_rotation_xcoord, post_rotation_ycoord, width_pxp_blocks;
 	u32 pxp_input_offs, pxp_output_offs, pxp_output_shift;
-	int x_start_offs = 0;
 	u32 hist_stat = 0;
 	int width_unaligned, height_unaligned;
+	bool input_unaligned = false;
+	bool line_overflow = false;
+	int pix_per_line_added;
 	bool use_temp_buf = false;
 	size_t temp_buf_size;
 	void *temp_buf_virt;
@@ -1514,10 +1515,25 @@ static int epdc_process_update(struct update_data_list *upd_data_list,
 	/*
 	 * SW workaround for PxP limitation
 	 *
-	 * PxP must process 8x8 pixel blocks, and all pixels in each block
+	 * There are 3 cases where we cannot process the update data
+	 * directly from the input buffer:
+	 *
+	 * 1) PxP must process 8x8 pixel blocks, and all pixels in each block
 	 * are considered for auto-waveform mode selection. If the
 	 * update region is not 8x8 aligned, additional unwanted pixels
 	 * will be considered in auto-waveform mode selection.
+	 *
+	 * 2) PxP input must be 32-bit aligned, so any update
+	 * address not 32-bit aligned must be shifted to meet the
+	 * 32-bit alignment.  The PxP will thus end up processing pixels
+	 * outside of the update region to satisfy this alignment restriction,
+	 * which can affect auto-waveform mode selection.
+	 *
+	 * 3) If input fails 32-bit alignment, and the resulting expansion
+	 * of the processed region would add at least 8 pixels more per
+	 * line than the original update line width, the EPDC would
+	 * cause screen artifacts by incorrectly handling the 8+ pixels
+	 * at the end of each line.
 	 *
 	 * Workaround is to copy from source buffer into a temporary
 	 * buffer, which we pad with zeros to match the 8x8 alignment
@@ -1526,8 +1542,20 @@ static int epdc_process_update(struct update_data_list *upd_data_list,
 	width_unaligned = src_upd_region->width & 0x7;
 	height_unaligned = src_upd_region->height & 0x7;
 
-	if ((width_unaligned || height_unaligned) &&
-		(upd_data_list->upd_data.waveform_mode == WAVEFORM_MODE_AUTO)) {
+	offset_from_4 = src_upd_region->left & 0x3;
+	input_unaligned = ((offset_from_4 * bytes_per_pixel % 4) != 0) ?
+				true : false;
+
+	pix_per_line_added = offset_from_4 / bytes_per_pixel;
+	if ((((fb_data->epdc_fb_var.rotate == FB_ROTATE_UR) ||
+		fb_data->epdc_fb_var.rotate == FB_ROTATE_UD)) &&
+		(ALIGN(src_upd_region->width, 8) <
+			ALIGN(src_upd_region->width + pix_per_line_added, 8)))
+		line_overflow = true;
+
+	if (((width_unaligned || height_unaligned || input_unaligned) &&
+		(upd_data_list->upd_data.waveform_mode == WAVEFORM_MODE_AUTO))
+		|| line_overflow) {
 
 		dev_dbg(fb_data->dev, "Copying update before processing.\n");
 
@@ -1562,17 +1590,19 @@ static int epdc_process_update(struct update_data_list *upd_data_list,
 
 	/*
 	 * Compute buffer offset to account for
-	 * PxP limitation (must read 8x8 pixel blocks)
+	 * PxP limitation (input must be 32-bit aligned)
 	 */
-	offset_from_8 = src_upd_region->left & 0x7;
-	if ((offset_from_8 * bytes_per_pixel % 4) != 0) {
+	offset_from_4 = src_upd_region->left & 0x3;
+	input_unaligned = ((offset_from_4 * bytes_per_pixel % 4) != 0) ?
+				true : false;
+	if (input_unaligned) {
 		/* Leave a gap between PxP input addr and update region pixels */
 		pxp_input_offs =
 			(src_upd_region->top * src_width + src_upd_region->left)
 			* bytes_per_pixel & 0xFFFFFFFC;
 		/* Update region should change to reflect relative position to input ptr */
 		pxp_upd_region.top = 0;
-		pxp_upd_region.left = (offset_from_8 & 0x3) % bytes_per_pixel;
+		pxp_upd_region.left = offset_from_4 / bytes_per_pixel;
 	} else {
 		pxp_input_offs =
 			(src_upd_region->top * src_width + src_upd_region->left)
@@ -1582,23 +1612,10 @@ static int epdc_process_update(struct update_data_list *upd_data_list,
 		pxp_upd_region.left = 0;
 	}
 
-	/*
-	 * We want PxP processing region to start at the first pixel
-	 * that we have to process in each row, but PxP alignment
-	 * restricts the input mem address to be 32-bit aligned
-	 *
-	 * We work around this by using x_start_offs
-	 * to offset from our starting pixel location to the
-	 * first pixel that is in the relevant update region
-	 * for each row.
-	 */
-	x_start_offs = pxp_upd_region.left & 0x7;
-
-	/* Update region to meet 8x8 pixel requirement */
-	pxp_upd_region.width = ALIGN(src_upd_region->width, 8);
+	/* Update region dimensions to meet 8x8 pixel requirement */
+	pxp_upd_region.width =
+		ALIGN(src_upd_region->width + pxp_upd_region.left, 8);
 	pxp_upd_region.height = ALIGN(src_upd_region->height, 8);
-	pxp_upd_region.top &= ~0x7;
-	pxp_upd_region.left &= ~0x7;
 
 	switch (fb_data->epdc_fb_var.rotate) {
 	case FB_ROTATE_UR:
@@ -1624,12 +1641,17 @@ static int epdc_process_update(struct update_data_list *upd_data_list,
 		break;
 	}
 
+	/* Update region start coord to force PxP to process full 8x8 regions */
+	pxp_upd_region.top &= ~0x7;
+	pxp_upd_region.left &= ~0x7;
+
+	pxp_output_shift = ALIGN(post_rotation_xcoord, 8)
+		- post_rotation_xcoord;
+
 	pxp_output_offs = post_rotation_ycoord * width_pxp_blocks
-		+ post_rotation_xcoord;
+		+ pxp_output_shift;
 
-	pxp_output_shift = pxp_output_offs & 0x7;
-
-	upd_data_list->epdc_offs = pxp_output_offs + ALIGN(pxp_output_shift, 8);
+	upd_data_list->epdc_offs = ALIGN(pxp_output_offs, 8);
 
 	mutex_lock(&fb_data->pxp_mutex);
 
@@ -1677,7 +1699,7 @@ static int epdc_process_update(struct update_data_list *upd_data_list,
 
 	/* This is a blocking call, so upon return PxP tx should be done */
 	ret = pxp_process_update(fb_data, src_width, src_height,
-		&pxp_upd_region, x_start_offs);
+		&pxp_upd_region);
 	if (ret) {
 		dev_err(fb_data->dev, "Unable to submit PxP update task.\n");
 		mutex_unlock(&fb_data->pxp_mutex);
@@ -3751,8 +3773,7 @@ static int pxp_chan_init(struct mxc_epdc_fb_data *fb_data)
  */
 static int pxp_process_update(struct mxc_epdc_fb_data *fb_data,
 			      u32 src_width, u32 src_height,
-			      struct mxcfb_rect *update_region,
-			      int x_start_offs)
+			      struct mxcfb_rect *update_region)
 {
 	dma_cookie_t cookie;
 	struct scatterlist *sg = fb_data->sg;
@@ -3815,7 +3836,7 @@ static int pxp_process_update(struct mxc_epdc_fb_data *fb_data,
 	pxp_conf->s0_param.width = src_width;
 	pxp_conf->s0_param.height = src_height;
 	proc_data->srect.top = update_region->top;
-	proc_data->srect.left = update_region->left + x_start_offs;
+	proc_data->srect.left = update_region->left;
 	proc_data->srect.width = update_region->width;
 	proc_data->srect.height = update_region->height;
 
