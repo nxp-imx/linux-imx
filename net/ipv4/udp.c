@@ -100,6 +100,7 @@
 #include <linux/skbuff.h>
 #include <linux/proc_fs.h>
 #include <linux/seq_file.h>
+#include <linux/uid_stat.h>
 #include <net/net_namespace.h>
 #include <net/icmp.h>
 #include <net/route.h>
@@ -962,8 +963,10 @@ out:
 	ip_rt_put(rt);
 	if (free)
 		kfree(ipc.opt);
-	if (!err)
+	if (!err) {
+		uid_stat_udp_snd(current_uid(), len);
 		return len;
+	}
 	/*
 	 * ENOBUFS = no kernel mem, SOCK_NOSPACE = no sndbuf space.  Reporting
 	 * ENOBUFS might not be good (it's not tunable per se), but otherwise
@@ -1196,6 +1199,8 @@ try_again:
 out_free:
 	skb_free_datagram_locked(sk, skb);
 out:
+	if (err > 0)
+		uid_stat_udp_rcv(current_uid(), err);
 	return err;
 
 csum_copy_err:

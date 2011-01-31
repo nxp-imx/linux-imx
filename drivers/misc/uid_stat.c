@@ -35,67 +35,50 @@ struct uid_stat {
 	uid_t uid;
 	atomic_t tcp_rcv;
 	atomic_t tcp_snd;
+	atomic_t tcp_rcv_pkt;
+	atomic_t tcp_snd_pkt;
+	atomic_t udp_rcv;
+	atomic_t udp_snd;
+	atomic_t udp_rcv_pkt;
+	atomic_t udp_snd_pkt;
 };
 
-static struct uid_stat *find_uid_stat(uid_t uid) {
+static int read_proc_entry(char *page, char **start, off_t off,
+			int count, int *eof, void *data)
+{
+	int len;
+	unsigned int value;
+	char *p = page;
+	atomic_t *uid_entry = (atomic_t *) data;
+	if (!data)
+		return 0;
+
+	value = (unsigned int) (atomic_read(uid_entry) + INT_MIN);
+	p += sprintf(p, "%u\n", value);
+	len = (p - page) - off;
+	*eof = (len <= count) ? 1 : 0;
+	*start = page + off;
+	return len;
+}
+
+/* Find or create a new entry for tracking the specified uid. */
+static struct uid_stat *get_uid_stat(uid_t uid) {
 	unsigned long flags;
-	struct uid_stat *entry;
+	struct uid_stat *uid_entry;
+	struct uid_stat *new_uid;
+	struct proc_dir_entry *proc_entry;
+	char uid_s[32];
 
 	spin_lock_irqsave(&uid_lock, flags);
-	list_for_each_entry(entry, &uid_list, link) {
-		if (entry->uid == uid) {
+	list_for_each_entry(uid_entry, &uid_list, link) {
+		if (uid_entry->uid == uid) {
 			spin_unlock_irqrestore(&uid_lock, flags);
-			return entry;
+			return uid_entry;
 		}
 	}
 	spin_unlock_irqrestore(&uid_lock, flags);
-	return NULL;
-}
 
-static int tcp_snd_read_proc(char *page, char **start, off_t off,
-				int count, int *eof, void *data)
-{
-	int len;
-	unsigned int bytes;
-	char *p = page;
-	struct uid_stat *uid_entry = (struct uid_stat *) data;
-	if (!data)
-		return 0;
-
-	bytes = (unsigned int) (atomic_read(&uid_entry->tcp_snd) + INT_MIN);
-	p += sprintf(p, "%u\n", bytes);
-	len = (p - page) - off;
-	*eof = (len <= count) ? 1 : 0;
-	*start = page + off;
-	return len;
-}
-
-static int tcp_rcv_read_proc(char *page, char **start, off_t off,
-				int count, int *eof, void *data)
-{
-	int len;
-	unsigned int bytes;
-	char *p = page;
-	struct uid_stat *uid_entry = (struct uid_stat *) data;
-	if (!data)
-		return 0;
-
-	bytes = (unsigned int) (atomic_read(&uid_entry->tcp_rcv) + INT_MIN);
-	p += sprintf(p, "%u\n", bytes);
-	len = (p - page) - off;
-	*eof = (len <= count) ? 1 : 0;
-	*start = page + off;
-	return len;
-}
-
-/* Create a new entry for tracking the specified uid. */
-static struct uid_stat *create_stat(uid_t uid) {
-	unsigned long flags;
-	char uid_s[32];
-	struct uid_stat *new_uid;
-	struct proc_dir_entry *entry;
-
-	/* Create the uid stat struct and append it to the list. */
+	/* Create a new entry for tracking the specified uid. */
 	if ((new_uid = kmalloc(sizeof(struct uid_stat), GFP_KERNEL)) == NULL)
 		return NULL;
 
@@ -103,20 +86,45 @@ static struct uid_stat *create_stat(uid_t uid) {
 	/* Counters start at INT_MIN, so we can track 4GB of network traffic. */
 	atomic_set(&new_uid->tcp_rcv, INT_MIN);
 	atomic_set(&new_uid->tcp_snd, INT_MIN);
+	atomic_set(&new_uid->tcp_snd_pkt, INT_MIN);
+	atomic_set(&new_uid->tcp_rcv_pkt, INT_MIN);
+	atomic_set(&new_uid->udp_rcv, INT_MIN);
+	atomic_set(&new_uid->udp_snd, INT_MIN);
+	atomic_set(&new_uid->udp_snd_pkt, INT_MIN);
+	atomic_set(&new_uid->udp_rcv_pkt, INT_MIN);
 
+	/* Append the newly created uid stat struct to the list. */
 	spin_lock_irqsave(&uid_lock, flags);
 	list_add_tail(&new_uid->link, &uid_list);
 	spin_unlock_irqrestore(&uid_lock, flags);
 
 	sprintf(uid_s, "%d", uid);
-	entry = proc_mkdir(uid_s, parent);
+	proc_entry = proc_mkdir(uid_s, parent);
 
 	/* Keep reference to uid_stat so we know what uid to read stats from. */
-	create_proc_read_entry("tcp_snd", S_IRUGO, entry , tcp_snd_read_proc,
-		(void *) new_uid);
+	create_proc_read_entry("tcp_snd", S_IRUGO, proc_entry, read_proc_entry,
+			(void *) &new_uid->tcp_snd);
 
-	create_proc_read_entry("tcp_rcv", S_IRUGO, entry, tcp_rcv_read_proc,
-		(void *) new_uid);
+	create_proc_read_entry("tcp_rcv", S_IRUGO, proc_entry, read_proc_entry,
+			(void *) &new_uid->tcp_rcv);
+
+	create_proc_read_entry("tcp_snd_pkt", S_IRUGO, proc_entry, read_proc_entry,
+			(void *) &new_uid->tcp_snd_pkt);
+
+	create_proc_read_entry("tcp_rcv_pkt", S_IRUGO, proc_entry, read_proc_entry,
+			(void *) &new_uid->tcp_rcv_pkt);
+
+	create_proc_read_entry("udp_snd", S_IRUGO, proc_entry, read_proc_entry,
+			(void *) &new_uid->udp_snd);
+
+	create_proc_read_entry("udp_rcv", S_IRUGO, proc_entry, read_proc_entry,
+			(void *) &new_uid->udp_rcv);
+
+	create_proc_read_entry("udp_snd_pkt", S_IRUGO, proc_entry, read_proc_entry,
+			(void *) &new_uid->udp_snd_pkt);
+
+	create_proc_read_entry("udp_rcv_pkt", S_IRUGO, proc_entry, read_proc_entry,
+			(void *) &new_uid->udp_rcv_pkt);
 
 	return new_uid;
 }
@@ -124,22 +132,44 @@ static struct uid_stat *create_stat(uid_t uid) {
 int uid_stat_tcp_snd(uid_t uid, int size) {
 	struct uid_stat *entry;
 	activity_stats_update();
-	if ((entry = find_uid_stat(uid)) == NULL &&
-		((entry = create_stat(uid)) == NULL)) {
-			return -1;
+	if ((entry = get_uid_stat(uid)) == NULL) {
+		return -1;
 	}
 	atomic_add(size, &entry->tcp_snd);
+	atomic_inc(&entry->tcp_snd_pkt);
 	return 0;
 }
 
 int uid_stat_tcp_rcv(uid_t uid, int size) {
 	struct uid_stat *entry;
 	activity_stats_update();
-	if ((entry = find_uid_stat(uid)) == NULL &&
-		((entry = create_stat(uid)) == NULL)) {
-			return -1;
+	if ((entry = get_uid_stat(uid)) == NULL) {
+		return -1;
 	}
 	atomic_add(size, &entry->tcp_rcv);
+	atomic_inc(&entry->tcp_rcv_pkt);
+	return 0;
+}
+
+int uid_stat_udp_snd(uid_t uid, int size) {
+	struct uid_stat *entry;
+	activity_stats_update();
+	if ((entry = get_uid_stat(uid)) == NULL) {
+		return -1;
+	}
+	atomic_add(size, &entry->udp_snd);
+	atomic_inc(&entry->udp_snd_pkt);
+	return 0;
+}
+
+int uid_stat_udp_rcv(uid_t uid, int size) {
+	struct uid_stat *entry;
+	activity_stats_update();
+	if ((entry = get_uid_stat(uid)) == NULL) {
+		return -1;
+	}
+	atomic_add(size, &entry->udp_rcv);
+	atomic_inc(&entry->udp_rcv_pkt);
 	return 0;
 }
 
