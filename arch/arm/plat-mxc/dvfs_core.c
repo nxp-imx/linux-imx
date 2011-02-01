@@ -78,15 +78,21 @@
 
 #define CCM_CDCR_SW_DVFS_EN			0x20
 #define CCM_CDCR_ARM_FREQ_SHIFT_DIVIDER		0x4
+#define CCM_CDHIPR_ARM_PODF_BUSY		0x10000
 
 extern int dvfs_core_is_active;
 extern void setup_pll(void);
 static struct mxc_dvfs_platform_data *dvfs_data;
 static struct device *dvfs_dev;
 static struct cpu_wp *cpu_wp_tbl;
-int dvfs_core_resume;
-int curr_wp;
-int old_wp;
+static int dvfs_core_resume;
+static int curr_wp;
+static int old_wp;
+static int dvfs_core_wp;
+static int dvfs_config_setpoint;
+
+static int maxf;
+static int minf;
 
 extern int cpufreq_trig_needed;
 struct timeval core_prev_intr;
@@ -107,6 +113,7 @@ extern int cpu_wp_nr;
 #ifdef CONFIG_ARCH_MX5
 extern struct cpu_wp *(*get_cpu_wp)(int *wp);
 #endif
+struct dvfs_wp *(*get_dvfs_core_wp)(int *wp);
 
 enum {
 	FSVAI_FREQ_NOCHANGE = 0x0,
@@ -120,7 +127,7 @@ enum {
  */
 #define DVFS_LTBRSR		(2 << MXC_DVFSCNTR_LTBRSR_OFFSET)
 
-extern struct dvfs_wp dvfs_core_setpoint[4];
+static struct dvfs_wp *dvfs_core_setpoint;
 extern int low_bus_freq_mode;
 extern int high_bus_freq_mode;
 extern int set_low_bus_freq(void);
@@ -152,7 +159,7 @@ static void dvfs_load_config(int set_point)
 					dvfs_data->membase
 					+ MXC_DVFSCORE_EMAC);
 
-
+	dvfs_config_setpoint = set_point;
 }
 
 static int set_cpu_freq(int wp)
@@ -293,12 +300,13 @@ static int set_cpu_freq(int wp)
 		spin_lock_irqsave(&mxc_dvfs_core_lock, flags);
 
 		reg1 = __raw_readl(ccm_base + dvfs_data->ccm_cdhipr_offset);
-		if ((reg1 & 0x00010000) == 0)
-			__raw_writel(reg,
-				ccm_base + dvfs_data->ccm_cacrr_offset);
-		else {
-			printk(KERN_DEBUG "ARM_PODF still in busy!!!!\n");
-			return 0;
+		while (1) {
+			if ((reg1 & CCM_CDHIPR_ARM_PODF_BUSY) == 0) {
+				__raw_writel(reg,
+					ccm_base + dvfs_data->ccm_cacrr_offset);
+				break;
+			} else
+				printk(KERN_DEBUG "ARM_PODF still in busy!!!!\n");
 		}
 		/* set VINC */
 		reg = __raw_readl(gpc_base + dvfs_data->gpc_vcr_offset);
@@ -366,8 +374,6 @@ static int start_dvfs(void)
 
 	clk_enable(dvfs_clk);
 
-	dvfs_load_config(0);
-
 	/* get current working point */
 	cpu_rate = clk_get_rate(cpu_clk);
 	curr_wp = cpu_wp_nr - 1;
@@ -376,6 +382,18 @@ static int start_dvfs(void)
 			break;
 	} while (--curr_wp >= 0);
 	old_wp = curr_wp;
+
+	dvfs_load_config(curr_wp);
+
+	if (curr_wp == 0)
+		maxf = 1;
+	else
+		maxf = 0;
+	if (curr_wp == (cpu_wp_nr - 1))
+		minf = 1;
+	else
+		minf = 0;
+
 	/* config reg GPC_CNTR */
 	reg = __raw_readl(gpc_base + dvfs_data->gpc_cntr_offset);
 
@@ -474,7 +492,6 @@ static void dvfs_core_work_handler(struct work_struct *work)
 	u32 reg;
 	u32 curr_cpu;
 	int ret = 0;
-	int maxf = 0, minf = 0;
 	int low_freq_bus_ready = 0;
 	int bus_incr = 0, cpu_dcr = 0;
 
@@ -488,9 +505,10 @@ static void dvfs_core_work_handler(struct work_struct *work)
 		/* Do nothing. Freq change is not required */
 		goto END;
 	}
+
 	curr_cpu = clk_get_rate(cpu_clk);
 	/* If FSVAI indicate freq down,
-	   check arm-clk is not in lowest frequency 200 MHz */
+	   check arm-clk is not in lowest frequency*/
 	if (fsvai == FSVAI_FREQ_DECREASE) {
 		if (curr_cpu == cpu_wp_tbl[cpu_wp_nr - 1].cpu_rate) {
 			minf = 1;
@@ -499,31 +517,30 @@ static void dvfs_core_work_handler(struct work_struct *work)
 		} else {
 			/* freq down */
 			curr_wp++;
+			maxf = 0;
 			if (curr_wp >= cpu_wp_nr) {
 				curr_wp = cpu_wp_nr - 1;
 				goto END;
 			}
 
-			if (curr_wp == cpu_wp_nr - 1 && !low_freq_bus_ready) {
-				minf = 1;
-				dvfs_load_config(1);
-			} else {
-				cpu_dcr = 1;
-			}
+			cpu_dcr = 1;
+			dvfs_load_config(curr_wp);
 		}
 	} else {
 		if (curr_cpu == cpu_wp_tbl[0].cpu_rate) {
 			maxf = 1;
 			goto END;
 		} else {
-			if (!high_bus_freq_mode && !cpu_is_mx50()) {
+			if (!high_bus_freq_mode &&
+				dvfs_config_setpoint == (cpu_wp_nr + 1)) {
 				/* bump up LP freq first. */
 				bus_incr = 1;
-				dvfs_load_config(2);
+				dvfs_load_config(cpu_wp_nr);
 			} else {
 				/* freq up */
 				curr_wp = 0;
 				maxf = 1;
+				minf = 0;
 				dvfs_load_config(0);
 			}
 		}
@@ -532,14 +549,14 @@ static void dvfs_core_work_handler(struct work_struct *work)
 	low_freq_bus_ready = low_freq_bus_used();
 	if ((curr_wp == cpu_wp_nr - 1) && (!low_bus_freq_mode)
 	    && (low_freq_bus_ready) && !bus_incr) {
-		if (cpu_dcr)
-			ret = set_cpu_freq(curr_wp);
-		if (!cpu_dcr) {
+		if (!minf)
+			set_cpu_freq(curr_wp);
+		/* If dvfs_core_wp is greater than cpu_wp_nr, it implies
+		 * we support LPAPM mode for this platform.
+		 */
+		if (dvfs_core_wp > cpu_wp_nr) {
 			set_low_bus_freq();
-			dvfs_load_config(3);
-		} else {
-			dvfs_load_config(2);
-			cpu_dcr = 0;
+			dvfs_load_config(cpu_wp_nr + 1);
 		}
 	} else {
 		if (!high_bus_freq_mode)
@@ -548,7 +565,6 @@ static void dvfs_core_work_handler(struct work_struct *work)
 			ret = set_cpu_freq(curr_wp);
 		bus_incr = 0;
 	}
-
 
 END:	/* Set MAXF, MINF */
 	reg = __raw_readl(dvfs_data->membase + MXC_DVFSCORE_CNTR);
@@ -602,6 +618,7 @@ void stop_dvfs(void)
 			set_high_bus_freq(1);
 
 		curr_cpu = clk_get_rate(cpu_clk);
+
 		if (curr_cpu != cpu_wp_tbl[curr_wp].cpu_rate) {
 			set_cpu_freq(curr_wp);
 #if defined(CONFIG_CPU_FREQ)
@@ -849,6 +866,12 @@ static int __devinit mxc_dvfs_core_probe(struct platform_device *pdev)
 		       "DVFS: Unable to attach to DVFS interrupt,err = %d",
 		       err);
 		goto err2;
+	}
+
+	dvfs_core_setpoint = get_dvfs_core_wp(&dvfs_core_wp);
+	if (dvfs_core_setpoint == NULL) {
+		printk(KERN_ERR "No dvfs_core working point table defined\n");
+		goto err3;
 	}
 
 	clk_enable(dvfs_clk);
