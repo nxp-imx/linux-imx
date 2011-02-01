@@ -96,6 +96,8 @@ struct update_data_list {
 	struct update_marker_data *upd_marker_data;
 	u32 update_order;		/* Numeric ordering value for update */
 	u32 fb_offset;			/* FB offset associated with update */
+	dma_addr_t phys_addr_copybuf;	/* Phys address of copied update data */
+	void *virt_addr_copybuf;	/* Used for PxP SW workaround */
 };
 
 struct mxc_epdc_fb_data {
@@ -1412,11 +1414,11 @@ int mxc_epdc_fb_set_upd_scheme(u32 upd_scheme, struct fb_info *info)
 }
 EXPORT_SYMBOL(mxc_epdc_fb_set_upd_scheme);
 
-static int copy_before_process(struct mxc_epdc_fb_data *fb_data,
-	struct update_data_list *upd_data_list, void *temp_buf_virt)
+static void copy_before_process(struct mxc_epdc_fb_data *fb_data,
+	struct update_data_list *upd_data_list)
 {
-	int i, j;
-	unsigned char *temp_buf_ptr = temp_buf_virt;
+	int i;
+	unsigned char *temp_buf_ptr = upd_data_list->virt_addr_copybuf;
 	unsigned char *src_ptr;
 	struct mxcfb_rect *src_upd_region;
 	int temp_buf_stride;
@@ -1484,9 +1486,6 @@ static int epdc_process_update(struct update_data_list *upd_data_list,
 	bool line_overflow = false;
 	int pix_per_line_added;
 	bool use_temp_buf = false;
-	size_t temp_buf_size;
-	void *temp_buf_virt;
-	dma_addr_t temp_buf_phys;
 	struct mxcfb_rect temp_buf_upd_region;
 
 	int ret;
@@ -1563,17 +1562,7 @@ static int epdc_process_update(struct update_data_list *upd_data_list,
 		src_width = ALIGN(src_upd_region->width, 8);
 		src_height = ALIGN(src_upd_region->height, 8);
 
-		/* compute size needed for buffer */
-		temp_buf_size = src_width * src_height * bytes_per_pixel;
-
-		/* allocate temporary buffer */
-		temp_buf_virt =
-		    dma_alloc_coherent(fb_data->dev, temp_buf_size,
-				       &temp_buf_phys, GFP_DMA);
-		if (temp_buf_virt == NULL)
-			ret = -ENOMEM;
-
-		copy_before_process(fb_data, upd_data_list, temp_buf_virt);
+		copy_before_process(fb_data, upd_data_list);
 
 		/*
 		 * src_upd_region should now describe
@@ -1658,7 +1647,8 @@ static int epdc_process_update(struct update_data_list *upd_data_list,
 	/* Source address either comes from alternate buffer
 	   provided in update data, or from the framebuffer. */
 	if (use_temp_buf)
-		sg_dma_address(&fb_data->sg[0]) = temp_buf_phys;
+		sg_dma_address(&fb_data->sg[0]) =
+			upd_data_list->phys_addr_copybuf;
 	else if (upd_data_list->upd_data.flags & EPDC_FLAG_USE_ALT_BUFFER)
 		sg_dma_address(&fb_data->sg[0]) =
 			upd_data_list->upd_data.alt_buffer_data.phys_addr
@@ -1703,10 +1693,6 @@ static int epdc_process_update(struct update_data_list *upd_data_list,
 	if (ret) {
 		dev_err(fb_data->dev, "Unable to submit PxP update task.\n");
 		mutex_unlock(&fb_data->pxp_mutex);
-		if (use_temp_buf)
-			/* Free temporary buffer memory */
-			dma_free_writecombine(fb_data->info.device,
-				temp_buf_size, temp_buf_virt, temp_buf_phys);
 		return ret;
 	}
 
@@ -1725,19 +1711,10 @@ static int epdc_process_update(struct update_data_list *upd_data_list,
 	if (ret) {
 		dev_err(fb_data->dev, "Unable to complete PxP update task.\n");
 		mutex_unlock(&fb_data->pxp_mutex);
-		if (use_temp_buf)
-			/* Free temporary buffer memory */
-			dma_free_writecombine(fb_data->info.device,
-				temp_buf_size, temp_buf_virt, temp_buf_phys);
 		return ret;
 	}
 
 	mutex_unlock(&fb_data->pxp_mutex);
-
-	if (use_temp_buf)
-		/* Free temporary buffer memory */
-		dma_free_writecombine(fb_data->info.device, temp_buf_size,
-			temp_buf_virt, temp_buf_phys);
 
 	/* Update waveform mode from PxP histogram results */
 	if (upd_data_list->upd_data.waveform_mode == WAVEFORM_MODE_AUTO) {
@@ -3078,8 +3055,8 @@ int __devinit mxc_epdc_fb_probe(struct platform_device *pdev)
 	char *panel_str = NULL;
 	char name[] = "mxcepdcfb";
 	struct fb_videomode *vmode;
-	int xres_virt, yres_virt, buf_size;
-	int xres_virt_rot, yres_virt_rot, buf_size_rot;
+	int xres_virt, yres_virt, max_pix_size, buf_size;
+	int xres_virt_rot, yres_virt_rot, pix_size_rot;
 	struct fb_var_screeninfo *var_info;
 	struct fb_fix_screeninfo *fix_info;
 	struct pxp_config_data *pxp_conf;
@@ -3166,7 +3143,7 @@ int __devinit mxc_epdc_fb_probe(struct platform_device *pdev)
 	 */
 	xres_virt = ALIGN(vmode->xres, 32);
 	yres_virt = ALIGN(vmode->yres, 128);
-	buf_size = PAGE_ALIGN(xres_virt * yres_virt * fb_data->default_bpp/8);
+	max_pix_size = PAGE_ALIGN(xres_virt * yres_virt);
 
 	/*
 	 * Have to check to see if aligned buffer size when rotated
@@ -3174,9 +3151,11 @@ int __devinit mxc_epdc_fb_probe(struct platform_device *pdev)
 	 */
 	xres_virt_rot = ALIGN(vmode->yres, 32);
 	yres_virt_rot = ALIGN(vmode->xres, 128);
-	buf_size_rot = PAGE_ALIGN(xres_virt_rot * yres_virt_rot
-						* fb_data->default_bpp/8);
-	buf_size = (buf_size > buf_size_rot) ? buf_size : buf_size_rot;
+	pix_size_rot = PAGE_ALIGN(xres_virt_rot * yres_virt_rot);
+	max_pix_size = (max_pix_size > pix_size_rot) ?
+				max_pix_size : pix_size_rot;
+
+	buf_size = max_pix_size * fb_data->default_bpp/8;
 
 	/* Compute the number of screens needed based on X memory requested */
 	if (x_mem_size > 0) {
@@ -3347,7 +3326,7 @@ int __devinit mxc_epdc_fb_probe(struct platform_device *pdev)
 		 * Each update buffer is 1 byte per pixel, and can
 		 * be as big as the full-screen frame buffer
 		 */
-		upd_list->size = info->var.xres * info->var.yres;
+		upd_list->size = max_pix_size;
 
 		/* Allocate memory for PxP output buffer */
 		upd_list->virt_addr =
@@ -3364,6 +3343,16 @@ int __devinit mxc_epdc_fb_probe(struct platform_device *pdev)
 
 		dev_dbg(fb_data->info.device, "allocated %d bytes @ 0x%08X\n",
 			upd_list->size, upd_list->phys_addr);
+
+		/* Allocate memory for PxP SW workaround buffers */
+		/* These buffers are used to hold copy of the update region */
+		upd_list->virt_addr_copybuf =
+		    dma_alloc_coherent(fb_data->info.device, upd_list->size*2,
+				       &upd_list->phys_addr_copybuf, GFP_DMA);
+		if (upd_list->virt_addr_copybuf == NULL) {
+			ret = -ENOMEM;
+			goto out_upd_buffers;
+		}
 	}
 
 	fb_data->working_buffer_size = vmode->yres * vmode->xres * 2;
@@ -3621,6 +3610,9 @@ out_upd_buffers:
 		list_del(&plist->list);
 		dma_free_writecombine(&pdev->dev, plist->size, plist->virt_addr,
 				      plist->phys_addr);
+		dma_free_writecombine(&pdev->dev, plist->size*2,
+				      plist->virt_addr_copybuf,
+				      plist->phys_addr_copybuf);
 		kfree(plist);
 	}
 out_dma_fb:
@@ -3664,6 +3656,9 @@ static int mxc_epdc_fb_remove(struct platform_device *pdev)
 		list_del(&plist->list);
 		dma_free_writecombine(&pdev->dev, plist->size, plist->virt_addr,
 				      plist->phys_addr);
+		dma_free_writecombine(&pdev->dev, plist->size*2,
+				      plist->virt_addr_copybuf,
+				      plist->phys_addr_copybuf);
 		kfree(plist);
 	}
 #ifdef CONFIG_FB_MXC_EINK_AUTO_UPDATE_MODE
