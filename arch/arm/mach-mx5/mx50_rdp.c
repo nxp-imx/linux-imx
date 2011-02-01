@@ -120,8 +120,15 @@
 extern int __init mx50_rdp_init_mc13892(void);
 extern struct cpu_wp *(*get_cpu_wp)(int *wp);
 extern void (*set_num_cpu_wp)(int num);
+extern struct dvfs_wp *(*get_dvfs_core_wp)(int *wp);
+
+static void mx50_suspend_enter(void);
+static void mx50_suspend_exit(void);
+static void fec_gpio_iomux_init(void);
+static void fec_gpio_iomux_deinit(void);
+
 static int max17135_regulator_init(struct max17135 *max17135);
-static int num_cpu_wp = 2;
+static int num_cpu_wp = 3;
 
 static iomux_v3_cfg_t mx50_rdp[] = {
 	/* SD1 */
@@ -450,7 +457,7 @@ static struct mxc_dvfs_platform_data dvfs_core_data = {
 	.upcnt_val = 10,
 	.dncnt_val = 10,
 	.delay_time = 80,
-	.num_wp = 2,
+	.num_wp = 3,
 };
 
 static struct mxc_bus_freq_platform_data bus_freq_data = {
@@ -458,7 +465,14 @@ static struct mxc_bus_freq_platform_data bus_freq_data = {
 	.lp_reg_id = "SW2",
 };
 
-/* working point(wp): 0 - 800MHz; 1 - 166.25MHz; */
+static struct dvfs_wp dvfs_core_setpoint[] = {
+	{33, 13, 33, 10, 10, 0x08}, /* 800MHz*/
+	{28, 8, 33, 10, 10, 0x08},   /* 400MHz */
+	{20, 0, 33, 20, 10, 0x08},   /* 160MHz*/
+	{28, 8, 33, 20, 30, 0x08},   /*160MHz, AHB 133MHz, LPAPM mode*/
+	{29, 0, 33, 20, 10, 0x08},}; /* 160MHz, AHB 24MHz */
+
+/* working point(wp): 0 - 800MHz; 1 - 400MHz, 2 - 160MHz; */
 static struct cpu_wp cpu_wp_auto[] = {
 	{
 	 .pll_rate = 800000000,
@@ -471,14 +485,21 @@ static struct cpu_wp cpu_wp_auto[] = {
 	 .cpu_voltage = 1050000,},
 	{
 	 .pll_rate = 800000000,
+	 .cpu_rate = 400000000,
+	 .cpu_podf = 1,
+	 .cpu_voltage = 1050000,},
+	{
+	 .pll_rate = 800000000,
 	 .cpu_rate = 160000000,
-	 .pdf = 4,
-	 .mfi = 8,
-	 .mfd = 2,
-	 .mfn = 1,
 	 .cpu_podf = 4,
 	 .cpu_voltage = 850000,},
 };
+
+static struct dvfs_wp *mx50_rdp_get_dvfs_core_table(int *wp)
+{
+	*wp = ARRAY_SIZE(dvfs_core_setpoint);
+	return dvfs_core_setpoint;
+}
 
 static struct cpu_wp *mx50_rdp_get_cpu_wp(int *wp)
 {
@@ -1410,6 +1431,7 @@ static void __init fixup_mxc_board(struct machine_desc *desc, struct tag *tags,
 
 	get_cpu_wp = mx50_rdp_get_cpu_wp;
 	set_num_cpu_wp = mx50_rdp_set_num_cpu_wp;
+	get_dvfs_core_wp = mx50_rdp_get_dvfs_core_table;
 }
 
 static void __init mx50_rdp_io_init(void)
@@ -1518,7 +1540,6 @@ static void __init mxc_board_init(void)
 	mxc_register_device(&busfreq_device, &bus_freq_data);
 	mxc_register_device(&pm_device, &mx50_pm_data);
 	mxc_register_device(&mxc_dvfs_core_device, &dvfs_core_data);
-
 	if (enable_keypad)
 		mxc_register_device(&mxc_keypad_device, &keypad_plat_data);
 

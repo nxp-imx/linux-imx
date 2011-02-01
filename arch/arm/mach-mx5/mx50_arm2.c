@@ -108,6 +108,7 @@
 extern int __init mx50_arm2_init_mc13892(void);
 extern struct cpu_wp *(*get_cpu_wp)(int *wp);
 extern void (*set_num_cpu_wp)(int num);
+extern struct dvfs_wp *(*get_dvfs_core_wp)(int *wp);
 static int max17135_regulator_init(struct max17135 *max17135);
 static int num_cpu_wp = 2;
 
@@ -306,7 +307,14 @@ static struct mxc_bus_freq_platform_data bus_freq_data = {
 	.lp_reg_id = "SW2",
 };
 
-/* working point(wp): 0 - 800MHz; 1 - 166.25MHz; */
+struct dvfs_wp dvfs_core_setpoint[] = {
+	{33, 13, 33, 10, 10, 0x08}, /* 800MHz*/
+	{28, 8, 33, 10, 10, 0x08},   /* 400MHz */
+	{20, 0, 33, 20, 10, 0x08},   /* 160MHz*/
+	{28, 8, 33, 20, 30, 0x08},   /*160MHz, AHB 133MHz, LPAPM mode*/
+	{29, 0, 33, 20, 10, 0x08},}; /* 160MHz, AHB 24MHz */
+
+/* working point(wp): 0 - 800MHz; 1 - 400MHz, 2 - 160MHz; */
 static struct cpu_wp cpu_wp_auto[] = {
 	{
 	 .pll_rate = 800000000,
@@ -319,14 +327,21 @@ static struct cpu_wp cpu_wp_auto[] = {
 	 .cpu_voltage = 1050000,},
 	{
 	 .pll_rate = 800000000,
+	 .cpu_rate = 400000000,
+	 .cpu_podf = 1,
+	 .cpu_voltage = 1050000,},
+	{
+	 .pll_rate = 800000000,
 	 .cpu_rate = 160000000,
-	 .pdf = 4,
-	 .mfi = 8,
-	 .mfd = 2,
-	 .mfn = 1,
 	 .cpu_podf = 4,
 	 .cpu_voltage = 850000,},
 };
+
+static struct dvfs_wp *mx50_arm2_get_dvfs_core_table(int *wp)
+{
+	*wp = ARRAY_SIZE(dvfs_core_setpoint);
+	return dvfs_core_setpoint;
+}
 
 static struct cpu_wp *mx50_arm2_get_cpu_wp(int *wp)
 {
@@ -1095,6 +1110,7 @@ static void __init fixup_mxc_board(struct machine_desc *desc, struct tag *tags,
 
 	get_cpu_wp = mx50_arm2_get_cpu_wp;
 	set_num_cpu_wp = mx50_arm2_set_num_cpu_wp;
+	get_dvfs_core_wp = mx50_arm2_get_dvfs_core_table;
 }
 
 static void __init mx50_arm2_io_init(void)

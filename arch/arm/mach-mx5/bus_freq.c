@@ -136,12 +136,6 @@ extern struct cpu_wp *(*get_cpu_wp)(int *wp);
 extern void __iomem *ccm_base;
 extern void __iomem *databahn_base;
 
-struct dvfs_wp dvfs_core_setpoint[] = {
-						{33, 8, 33, 10, 10, 0x08},
-						{26, 0, 33, 20, 10, 0x08},
-						{28, 8, 33, 20, 30, 0x08},
-						{29, 0, 33, 20, 10, 0x08},};
-
 static DEFINE_SPINLOCK(voltage_lock);
 struct mutex bus_freq_mutex;
 
@@ -201,6 +195,7 @@ void enter_lpapm_mode_mx50()
 
 	set_ddr_freq(LP_APM_CLK);
 	/* Set the parent of main_bus_clk to be PLL3 */
+
 	clk_set_parent(main_bus_clk, pll3);
 
 	/* Set the AHB dividers to be 2.
@@ -258,12 +253,11 @@ void enter_lpapm_mode_mx50()
 		/* Set the divider to ARM_PODF to 3. */
 		__raw_writel(0x02, MXC_CCM_CACRR);
 
-		clk_set_rate(pll1, 160000000);
+		clk_set_rate(pll1, cpu_wp_tbl[cpu_wp_nr - 1].cpu_rate);
 		clk_set_parent(pll1_sw_clk, pll1);
 		/* Set the divider to ARM_PODF to 1. */
 		__raw_writel(0x0, MXC_CCM_CACRR);
 	}
-
 	udelay(100);
 }
 
@@ -506,7 +500,7 @@ void exit_lpapm_mode_mx50(int high_bus_freq)
 		/* Set the divider to ARM_PODF to 3, cpu is at 160MHz. */
 		__raw_writel(0x02, MXC_CCM_CACRR);
 
-		clk_set_rate(pll1, 800000000);
+		clk_set_rate(pll1, cpu_wp_tbl[0].pll_rate);
 		clk_set_parent(pll1_sw_clk, pll1);
 		/* Set the divider to ARM_PODF to 5. */
 		__raw_writel(0x4, MXC_CCM_CACRR);
@@ -602,7 +596,6 @@ void exit_lpapm_mode_mx50(int high_bus_freq)
 		med_bus_freq_mode = 0;
 		set_ddr_freq(ddr_normal_rate);
 	}
-
 	spin_unlock_irqrestore(&ddr_freq_lock, flags);
 
 	udelay(100);

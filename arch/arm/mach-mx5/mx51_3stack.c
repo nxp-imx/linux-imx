@@ -103,8 +103,16 @@ extern int __init mx51_3stack_init_mc13892(void);
 extern void __init mx51_3stack_io_init(void);
 extern struct cpu_wp *(*get_cpu_wp)(int *wp);
 extern void (*set_num_cpu_wp)(int num);
+extern struct dvfs_wp *(*get_dvfs_core_wp)(int *wp);
+
 static int num_cpu_wp = 3;
 static bool debug_board_present;
+
+static struct dvfs_wp dvfs_core_setpoint[] = {
+						{33, 8, 33, 10, 10, 0x08},
+						{26, 0, 33, 20, 10, 0x08},
+						{28, 8, 33, 20, 30, 0x08},
+						{29, 0, 33, 20, 10, 0x08},};
 
 /* working point(wp): 0 - 800MHz; 1 - 166.25MHz; */
 static struct cpu_wp cpu_wp_auto[] = {
@@ -129,13 +137,15 @@ static struct cpu_wp cpu_wp_auto[] = {
 	{
 	 .pll_rate = 800000000,
 	 .cpu_rate = 166250000,
-	 .pdf = 4,
-	 .mfi = 8,
-	 .mfd = 2,
-	 .mfn = 1,
 	 .cpu_podf = 4,
 	 .cpu_voltage = 850000,},
 };
+
+static struct dvfs_wp *mx51_3stack_get_dvfs_core_table(int *wp)
+{
+	*wp = ARRAY_SIZE(dvfs_core_setpoint);
+	return dvfs_core_setpoint;
+}
 
 struct cpu_wp *mx51_3stack_get_cpu_wp(int *wp)
 {
@@ -917,6 +927,7 @@ static void __init fixup_mxc_board(struct machine_desc *desc, struct tag *tags,
 
 	get_cpu_wp = mx51_3stack_get_cpu_wp;
 	set_num_cpu_wp = mx51_3stack_set_num_cpu_wp;
+	get_dvfs_core_wp = mx51_3stack_get_dvfs_core_table;
 }
 
 static struct mxc_gps_platform_data gps_data = {

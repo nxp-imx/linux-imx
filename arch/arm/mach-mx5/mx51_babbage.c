@@ -98,6 +98,8 @@
 extern int __init mx51_babbage_init_mc13892(void);
 extern struct cpu_wp *(*get_cpu_wp)(int *wp);
 extern void (*set_num_cpu_wp)(int num);
+extern struct dvfs_wp *(*get_dvfs_core_wp)(int *wp);
+
 static int num_cpu_wp = 3;
 
 static iomux_v3_cfg_t mx51babbage_pads[] = {
@@ -237,6 +239,12 @@ static iomux_v3_cfg_t mx51babbage_pads[] = {
 	MX51_PAD_OWIRE_LINE__SPDIF_OUT,
 };
 
+static struct dvfs_wp dvfs_core_setpoint[] = {
+						{33, 8, 33, 10, 10, 0x08},
+						{26, 0, 33, 20, 10, 0x08},
+						{28, 8, 33, 20, 30, 0x08},
+						{29, 0, 33, 20, 10, 0x08},};
+
 /* working point(wp): 0 - 800MHz; 1 - 166.25MHz; */
 static struct cpu_wp cpu_wp_auto[] = {
 	{
@@ -260,10 +268,6 @@ static struct cpu_wp cpu_wp_auto[] = {
 	{
 	 .pll_rate = 800000000,
 	 .cpu_rate = 166250000,
-	 .pdf = 4,
-	 .mfi = 8,
-	 .mfd = 2,
-	 .mfn = 1,
 	 .cpu_podf = 4,
 	 .cpu_voltage = 850000,},
 };
@@ -312,6 +316,12 @@ static struct fb_videomode video_modes[] = {
 	 FB_VMODE_NONINTERLACED,
 	 0,},
 };
+static struct dvfs_wp *mx51_babbage_get_dvfs_core_table(int *wp)
+{
+	*wp = ARRAY_SIZE(dvfs_core_setpoint);
+	return dvfs_core_setpoint;
+}
+
 
 struct cpu_wp *mx51_babbage_get_cpu_wp(int *wp)
 {
@@ -995,6 +1005,7 @@ static void __init fixup_mxc_board(struct machine_desc *desc, struct tag *tags,
 
 	get_cpu_wp = mx51_babbage_get_cpu_wp;
 	set_num_cpu_wp = mx51_babbage_set_num_cpu_wp;
+	get_dvfs_core_wp = mx51_babbage_get_dvfs_core_table;
 
 	for_each_tag(mem_tag, tags) {
 		if (mem_tag->hdr.tag == ATAG_MEM) {
