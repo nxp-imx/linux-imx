@@ -1705,15 +1705,11 @@ static int epdc_process_update(struct update_data_list *upd_data_list,
 		return ret;
 	}
 
-	mutex_unlock(&fb_data->pxp_mutex);
-
 	/* If needed, enable EPDC HW while ePxP is processing */
 	if ((fb_data->power_state == POWER_STATE_OFF)
 		|| fb_data->powering_down) {
 		epdc_powerup(fb_data);
 	}
-
-	mutex_lock(&fb_data->pxp_mutex);
 
 	/* This is a blocking call, so upon return PxP tx should be done */
 	ret = pxp_complete_update(fb_data, &hist_stat);
