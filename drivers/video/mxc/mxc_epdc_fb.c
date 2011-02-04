@@ -1047,6 +1047,7 @@ static int mxc_epdc_fb_set_par(struct fb_info *info)
 	int i;
 	int ret;
 	unsigned long flags;
+	__u32 xoffset_old, yoffset_old;
 
 	/*
 	 * Can't change the FB parameters until current updates have completed.
@@ -1055,7 +1056,15 @@ static int mxc_epdc_fb_set_par(struct fb_info *info)
 	mxc_epdc_fb_flush_updates(fb_data);
 
 	spin_lock_irqsave(&fb_data->queue_lock, flags);
+	/*
+	 * Set all screeninfo except for xoffset/yoffset
+	 * Subsequent call to pan_display will handle those.
+	 */
+	xoffset_old = fb_data->epdc_fb_var.xoffset;
+	yoffset_old = fb_data->epdc_fb_var.yoffset;
 	fb_data->epdc_fb_var = *screeninfo;
+	fb_data->epdc_fb_var.xoffset = xoffset_old;
+	fb_data->epdc_fb_var.yoffset = yoffset_old;
 	spin_unlock_irqrestore(&fb_data->queue_lock, flags);
 
 	mutex_lock(&fb_data->pxp_mutex);
@@ -1824,6 +1833,18 @@ static void epdc_submit_work_func(struct work_struct *work)
 			continue;
 
 		dev_dbg(fb_data->dev, "A collision update is ready to go!\n");
+
+		/* If update uses an out-of-date pan offset, we delete it */
+		if (next_update->fb_offset != fb_data->fb_offset) {
+			dev_dbg(fb_data->dev,
+				"Dropping update (old pan offset)\n");
+			list_del_init(&next_update->list);
+			/* Add to free buffer list */
+			list_add_tail(&next_update->list,
+				 &fb_data->upd_buf_free_list->list);
+			continue;
+		}
+
 		/*
 		 * We have a collision cleared, so select it for resubmission.
 		 * If an update is already selected, attempt to merge.
@@ -1860,6 +1881,20 @@ static void epdc_submit_work_func(struct work_struct *work)
 					&fb_data->upd_buf_queue->list, list) {
 
 			dev_dbg(fb_data->dev, "Found a pending update!\n");
+
+			/*
+			 * Delete update if it is based on
+			 * an out-of-date pan offset.
+			 */
+			if (next_update->fb_offset != fb_data->fb_offset) {
+				dev_dbg(fb_data->dev,
+					"Dropping update (old pan offset)\n");
+				list_del_init(&next_update->list);
+				/* Add to free buffer list */
+				list_add_tail(&next_update->list,
+					 &fb_data->upd_buf_free_list->list);
+				continue;
+			}
 
 			if (!upd_data_list) {
 				upd_data_list = next_update;
@@ -2430,8 +2465,8 @@ static int mxc_epdc_fb_pan_display(struct fb_var_screeninfo *var,
 	u_int y_bottom;
 	unsigned long flags;
 
-	dev_dbg(info->device, "%s: var->xoffset %d, info->var.xoffset %d\n",
-		 __func__, var->xoffset, info->var.xoffset);
+	dev_dbg(info->device, "%s: var->yoffset %d, info->var.yoffset %d\n",
+		 __func__, var->yoffset, info->var.yoffset);
 	/* check if var is valid; also, xpan is not supported */
 	if (!var || (var->xoffset != info->var.xoffset) ||
 	    (var->yoffset + var->yres > var->yres_virtual)) {
@@ -2443,8 +2478,6 @@ static int mxc_epdc_fb_pan_display(struct fb_var_screeninfo *var,
 		(fb_data->epdc_fb_var.yoffset == var->yoffset))
 		return 0;	/* No change, do nothing */
 
-	spin_lock_irqsave(&fb_data->queue_lock, flags);
-
 	y_bottom = var->yoffset;
 
 	if (!(var->vmode & FB_VMODE_YWRAP))
@@ -2454,6 +2487,8 @@ static int mxc_epdc_fb_pan_display(struct fb_var_screeninfo *var,
 		spin_unlock_irqrestore(&fb_data->queue_lock, flags);
 		return -EINVAL;
 	}
+
+	spin_lock_irqsave(&fb_data->queue_lock, flags);
 
 	fb_data->fb_offset = (var->yoffset * var->xres_virtual + var->xoffset)
 		* (var->bits_per_pixel) / 8;
