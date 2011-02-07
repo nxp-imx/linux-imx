@@ -324,17 +324,22 @@ void enter_lpapm_mode_mx53()
 	} */
 
 	/* move cpu clk to pll2, 400 / 3 = 133Mhz for cpu  */
-    /* Change the source of pll1_sw_clk to be the step_clk */
-    reg = __raw_readl(MXC_CCM_CCSR);
-    reg |= MXC_CCM_CCSR_PLL1_SW_CLK_SEL;
-    __raw_writel(reg, MXC_CCM_CCSR);
+	/* Change the source of pll1_sw_clk to be the step_clk */
+	reg = __raw_readl(MXC_CCM_CCSR);
+	reg |= MXC_CCM_CCSR_PLL1_SW_CLK_SEL;
+	__raw_writel(reg, MXC_CCM_CCSR);
 
 	cpu_podf = __raw_readl(MXC_CCM_CACRR);
 	reg = __raw_readl(MXC_CCM_CDHIPR);
-	if ((reg & MXC_CCM_CDHIPR_ARM_PODF_BUSY) == 0)
-		__raw_writel(0x2, MXC_CCM_CACRR);
-	else
-		printk(KERN_DEBUG "ARM_PODF still in busy!!!!\n");
+	while (1) {
+		if ((reg & MXC_CCM_CDHIPR_ARM_PODF_BUSY) == 0) {
+			__raw_writel(0x2, MXC_CCM_CACRR);
+			break;
+		} else {
+			reg = __raw_readl(MXC_CCM_CDHIPR);
+			printk(KERN_DEBUG "ARM_PODF still in busy!!!!\n");
+		}
+	}
 	clk_set_parent(pll1_sw_clk, pll2);
 
 	/* ahb = pll2/8, axi_b = pll2/8, axi_a = pll2/1*/
@@ -667,13 +672,15 @@ void exit_lpapm_mode_mx53()
 
 	/* move cpu clk to pll1 */
 	reg = __raw_readl(MXC_CCM_CDHIPR);
-	if ((reg & MXC_CCM_CDHIPR_ARM_PODF_BUSY) != 0)
-		__raw_writel(cpu_podf & 0x7,
-				MXC_CCM_CACRR);
-	else
-		printk(KERN_DEBUG
-			"ARM_PODF still in busy!!!!\n");
-
+	while (1) {
+		if ((reg & MXC_CCM_CDHIPR_ARM_PODF_BUSY) == 0) {
+			__raw_writel(cpu_podf & 0x7, MXC_CCM_CACRR);
+			break;
+		} else {
+			reg = __raw_readl(MXC_CCM_CDHIPR);
+			printk(KERN_DEBUG "ARM_PODF still in busy!!!!\n");
+		}
+	}
 	clk_set_parent(pll1_sw_clk, pll1);
 
 
