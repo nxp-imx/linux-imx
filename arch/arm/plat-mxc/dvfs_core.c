@@ -305,8 +305,11 @@ static int set_cpu_freq(int wp)
 				__raw_writel(reg,
 					ccm_base + dvfs_data->ccm_cacrr_offset);
 				break;
-			} else
+			} else {
+				reg1 = __raw_readl(
+				ccm_base + dvfs_data->ccm_cdhipr_offset);
 				printk(KERN_DEBUG "ARM_PODF still in busy!!!!\n");
+			}
 		}
 		/* set VINC */
 		reg = __raw_readl(gpc_base + dvfs_data->gpc_vcr_offset);
