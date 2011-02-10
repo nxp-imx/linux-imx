@@ -110,7 +110,7 @@ extern struct cpu_wp *(*get_cpu_wp)(int *wp);
 extern void (*set_num_cpu_wp)(int num);
 extern struct dvfs_wp *(*get_dvfs_core_wp)(int *wp);
 static int max17135_regulator_init(struct max17135 *max17135);
-static int num_cpu_wp = 2;
+static int num_cpu_wp;
 
 static iomux_v3_cfg_t  mx50_armadillo2[] = {
 	/* SD1 */
@@ -299,7 +299,6 @@ static struct mxc_dvfs_platform_data dvfs_core_data = {
 	.upcnt_val = 10,
 	.dncnt_val = 10,
 	.delay_time = 30,
-	.num_wp = 2,
 };
 
 static struct mxc_bus_freq_platform_data bus_freq_data = {
@@ -1111,6 +1110,7 @@ static void __init fixup_mxc_board(struct machine_desc *desc, struct tag *tags,
 	get_cpu_wp = mx50_arm2_get_cpu_wp;
 	set_num_cpu_wp = mx50_arm2_set_num_cpu_wp;
 	get_dvfs_core_wp = mx50_arm2_get_dvfs_core_table;
+	num_cpu_wp = ARRAY_SIZE(cpu_wp_auto);
 }
 
 static void __init mx50_arm2_io_init(void)

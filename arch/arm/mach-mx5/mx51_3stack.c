@@ -105,7 +105,7 @@ extern struct cpu_wp *(*get_cpu_wp)(int *wp);
 extern void (*set_num_cpu_wp)(int num);
 extern struct dvfs_wp *(*get_dvfs_core_wp)(int *wp);
 
-static int num_cpu_wp = 3;
+static int num_cpu_wp;
 static bool debug_board_present;
 
 static struct dvfs_wp dvfs_core_setpoint[] = {
@@ -304,7 +304,6 @@ static struct mxc_dvfs_platform_data dvfs_core_data = {
 	.upcnt_val = 10,
 	.dncnt_val = 10,
 	.delay_time = 30,
-	.num_wp = 3,
 };
 
 static struct mxc_bus_freq_platform_data bus_freq_data = {
@@ -928,6 +927,7 @@ static void __init fixup_mxc_board(struct machine_desc *desc, struct tag *tags,
 	get_cpu_wp = mx51_3stack_get_cpu_wp;
 	set_num_cpu_wp = mx51_3stack_set_num_cpu_wp;
 	get_dvfs_core_wp = mx51_3stack_get_dvfs_core_table;
+	num_cpu_wp = ARRAY_SIZE(cpu_wp_auto);
 }
 
 static struct mxc_gps_platform_data gps_data = {
