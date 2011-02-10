@@ -185,8 +185,6 @@ struct mxc_dvfs_platform_data {
 	int dncnt_val;
 	/* Delay time in us */
 	int delay_time;
-	/* Number of woking points supported */
-	int num_wp;
 };
 
 /*!
