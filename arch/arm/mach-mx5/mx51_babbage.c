@@ -100,7 +100,7 @@ extern struct cpu_wp *(*get_cpu_wp)(int *wp);
 extern void (*set_num_cpu_wp)(int num);
 extern struct dvfs_wp *(*get_dvfs_core_wp)(int *wp);
 
-static int num_cpu_wp = 3;
+static int num_cpu_wp;
 
 static iomux_v3_cfg_t mx51babbage_pads[] = {
 	/* UART1 */
@@ -475,7 +475,6 @@ static struct mxc_dvfs_platform_data dvfs_core_data = {
 	.upcnt_val = 10,
 	.dncnt_val = 10,
 	.delay_time = 30,
-	.num_wp = 3,
 };
 
 static struct mxc_bus_freq_platform_data bus_freq_data = {
@@ -1006,6 +1005,7 @@ static void __init fixup_mxc_board(struct machine_desc *desc, struct tag *tags,
 	get_cpu_wp = mx51_babbage_get_cpu_wp;
 	set_num_cpu_wp = mx51_babbage_set_num_cpu_wp;
 	get_dvfs_core_wp = mx51_babbage_get_dvfs_core_table;
+	num_cpu_wp = ARRAY_SIZE(cpu_wp_auto);
 
 	for_each_tag(mem_tag, tags) {
 		if (mem_tag->hdr.tag == ATAG_MEM) {

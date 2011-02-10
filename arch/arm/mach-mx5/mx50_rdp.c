@@ -128,7 +128,7 @@ static void fec_gpio_iomux_init(void);
 static void fec_gpio_iomux_deinit(void);
 
 static int max17135_regulator_init(struct max17135 *max17135);
-static int num_cpu_wp = 3;
+static int num_cpu_wp;
 
 static iomux_v3_cfg_t mx50_rdp[] = {
 	/* SD1 */
@@ -457,7 +457,6 @@ static struct mxc_dvfs_platform_data dvfs_core_data = {
 	.upcnt_val = 10,
 	.dncnt_val = 10,
 	.delay_time = 80,
-	.num_wp = 3,
 };
 
 static struct mxc_bus_freq_platform_data bus_freq_data = {
@@ -1432,6 +1431,7 @@ static void __init fixup_mxc_board(struct machine_desc *desc, struct tag *tags,
 	get_cpu_wp = mx50_rdp_get_cpu_wp;
 	set_num_cpu_wp = mx50_rdp_set_num_cpu_wp;
 	get_dvfs_core_wp = mx50_rdp_get_dvfs_core_table;
+	num_cpu_wp = ARRAY_SIZE(cpu_wp_auto);
 }
 
 static void __init mx50_rdp_io_init(void)
