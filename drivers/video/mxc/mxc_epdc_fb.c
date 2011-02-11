@@ -95,7 +95,6 @@ struct update_data_list {
 					/* Represents other LUTs that we collide with */
 	struct update_marker_data *upd_marker_data;
 	u32 update_order;		/* Numeric ordering value for update */
-	u32 fb_offset;			/* FB offset associated with update */
 	dma_addr_t phys_addr_copybuf;	/* Phys address of copied update data */
 	void *virt_addr_copybuf;	/* Used for PxP SW workaround */
 };
@@ -1446,7 +1445,7 @@ static void copy_before_process(struct mxc_epdc_fb_data *fb_data,
 	} else {
 		src_upd_region = &upd_data_list->upd_data.update_region;
 		src_stride = fb_data->epdc_fb_var.xres_virtual * bpp/8;
-		src_ptr = fb_data->info.screen_base + upd_data_list->fb_offset
+		src_ptr = fb_data->info.screen_base + fb_data->fb_offset
 			+ src_upd_region->top * src_stride;
 	}
 
@@ -1664,7 +1663,7 @@ static int epdc_process_update(struct update_data_list *upd_data_list,
 				+ pxp_input_offs;
 	else {
 		sg_dma_address(&fb_data->sg[0]) =
-			fb_data->info.fix.smem_start + upd_data_list->fb_offset
+			fb_data->info.fix.smem_start + fb_data->fb_offset
 			+ pxp_input_offs;
 		sg_set_page(&fb_data->sg[0],
 			virt_to_page(fb_data->info.screen_base),
@@ -1768,7 +1767,6 @@ static bool epdc_submit_merge(struct update_data_list *upd_data_list,
 		brect->left > (arect->left + arect->width) ||
 		arect->top > (brect->top + brect->height) ||
 		brect->top > (arect->top + arect->height) ||
-		(upd_data_list->fb_offset != update_to_merge->fb_offset) ||
 		(b->update_marker != 0 && a->update_marker != 0))
 		return false;
 
@@ -1830,17 +1828,6 @@ static void epdc_submit_work_func(struct work_struct *work)
 
 		dev_dbg(fb_data->dev, "A collision update is ready to go!\n");
 
-		/* If update uses an out-of-date pan offset, we delete it */
-		if (next_update->fb_offset != fb_data->fb_offset) {
-			dev_dbg(fb_data->dev,
-				"Dropping update (old pan offset)\n");
-			list_del_init(&next_update->list);
-			/* Add to free buffer list */
-			list_add_tail(&next_update->list,
-				 &fb_data->upd_buf_free_list->list);
-			continue;
-		}
-
 		/*
 		 * We have a collision cleared, so select it for resubmission.
 		 * If an update is already selected, attempt to merge.
@@ -1877,20 +1864,6 @@ static void epdc_submit_work_func(struct work_struct *work)
 					&fb_data->upd_buf_queue->list, list) {
 
 			dev_dbg(fb_data->dev, "Found a pending update!\n");
-
-			/*
-			 * Delete update if it is based on
-			 * an out-of-date pan offset.
-			 */
-			if (next_update->fb_offset != fb_data->fb_offset) {
-				dev_dbg(fb_data->dev,
-					"Dropping update (old pan offset)\n");
-				list_del_init(&next_update->list);
-				/* Add to free buffer list */
-				list_add_tail(&next_update->list,
-					 &fb_data->upd_buf_free_list->list);
-				continue;
-			}
 
 			if (!upd_data_list) {
 				upd_data_list = next_update;
@@ -2104,7 +2077,6 @@ int mxc_epdc_fb_send_update(struct mxcfb_update_data *upd_data,
 	memcpy(&upd_data_list->upd_data.update_region, &upd_data->update_region,
 	       sizeof(struct mxcfb_rect));
 
-	upd_data_list->fb_offset = fb_data->fb_offset;
 	/* If marker specified, associate it with a completion */
 	if (upd_data->update_marker != 0) {
 		/* Find available update marker and set it up */
