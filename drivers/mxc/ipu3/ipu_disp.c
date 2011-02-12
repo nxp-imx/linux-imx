@@ -1,5 +1,5 @@
 /*
- * Copyright 2005-2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2005-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -968,48 +968,6 @@ void adapt_panel_to_ipu_restricitions(uint16_t *v_start_width,
 }
 
 /*!
- * This function is called to set delayed hsync/vsync for TVE-VGA mode.
- *
- */
-void ipu_set_vga_delayed_hsync_vsync(uint32_t width, uint32_t height,
-		uint32_t h_start_width, uint32_t h_sync_width,
-		uint32_t h_end_width, uint32_t v_start_width,
-		uint32_t v_sync_width, uint32_t v_end_width,
-		uint32_t hsync_delay, uint32_t vsync_delay,
-		uint32_t hsync_polarity, uint32_t vsync_polarity)
-{
-	int h_total, v_total;
-	uint32_t di_gen, disp = 1;
-
-	h_total = width + h_start_width + h_sync_width + h_end_width;
-	v_total = height + v_start_width + v_sync_width + v_end_width;
-
-	/* couter 7 for delay HSYNC */
-	_ipu_di_sync_config(disp, 7, h_total - 1,
-			DI_SYNC_CLK, hsync_delay, DI_SYNC_CLK,
-			0, DI_SYNC_NONE, 1, DI_SYNC_NONE,
-			DI_SYNC_CLK, 0, h_sync_width * 2);
-
-	/* couter 8 for delay VSYNC */
-	_ipu_di_sync_config(disp, 8, v_total - 1,
-			DI_SYNC_INT_HSYNC, vsync_delay, DI_SYNC_INT_HSYNC, 0,
-			DI_SYNC_NONE, 1, DI_SYNC_NONE,
-			DI_SYNC_INT_HSYNC, 0, v_sync_width * 2);
-
-	di_gen = __raw_readl(DI_GENERAL(disp));
-	di_gen &= ~DI_GEN_POLARITY_2;
-	di_gen &= ~DI_GEN_POLARITY_3;
-	di_gen &= ~DI_GEN_POLARITY_7;
-	di_gen &= ~DI_GEN_POLARITY_8;
-	if (hsync_polarity)
-		di_gen |= DI_GEN_POLARITY_7;
-	if (vsync_polarity)
-		di_gen |= DI_GEN_POLARITY_8;
-	__raw_writel(di_gen, DI_GENERAL(disp));
-}
-EXPORT_SYMBOL(ipu_set_vga_delayed_hsync_vsync);
-
-/*!
  * This function is called to initialize a synchronous LCD panel.
  *
  * @param       disp            The DI the panel is attached to.
@@ -1416,21 +1374,43 @@ int32_t ipu_init_sync_panel(int disp, uint32_t pixel_clk,
 				    width, 4, 0, DI_SYNC_NONE, DI_SYNC_NONE, 0,
 				    0);
 
+		/* set VGA delayed hsync/vsync no matter VGA enabled */
+		if (disp) {
+			/* couter 7 for VGA delay HSYNC */
+			_ipu_di_sync_config(disp, 7,
+					h_total - 1, DI_SYNC_CLK,
+					18, DI_SYNC_CLK,
+					0, DI_SYNC_NONE,
+					1, DI_SYNC_NONE, DI_SYNC_CLK,
+					0, h_sync_width * 2);
+
+			/* couter 8 for VGA delay VSYNC */
+			_ipu_di_sync_config(disp, 8,
+					v_total - 1, DI_SYNC_INT_HSYNC,
+					1, DI_SYNC_INT_HSYNC,
+					0, DI_SYNC_NONE,
+					1, DI_SYNC_NONE, DI_SYNC_INT_HSYNC,
+					0, v_sync_width * 2);
+		}
+
 		/* reset all unused counters */
 		__raw_writel(0, DI_SW_GEN0(disp, 6));
 		__raw_writel(0, DI_SW_GEN1(disp, 6));
-		__raw_writel(0, DI_SW_GEN0(disp, 7));
-		__raw_writel(0, DI_SW_GEN1(disp, 7));
-		__raw_writel(0, DI_SW_GEN0(disp, 8));
-		__raw_writel(0, DI_SW_GEN1(disp, 8));
+		if (!disp) {
+			__raw_writel(0, DI_SW_GEN0(disp, 7));
+			__raw_writel(0, DI_SW_GEN1(disp, 7));
+			__raw_writel(0, DI_STP_REP(disp, 7));
+			__raw_writel(0, DI_SW_GEN0(disp, 8));
+			__raw_writel(0, DI_SW_GEN1(disp, 8));
+			__raw_writel(0, DI_STP_REP(disp, 8));
+		}
 		__raw_writel(0, DI_SW_GEN0(disp, 9));
 		__raw_writel(0, DI_SW_GEN1(disp, 9));
+		__raw_writel(0, DI_STP_REP(disp, 9));
 
 		reg = __raw_readl(DI_STP_REP(disp, 6));
 		reg &= 0x0000FFFF;
 		__raw_writel(reg, DI_STP_REP(disp, 6));
-		__raw_writel(0, DI_STP_REP(disp, 7));
-		__raw_writel(0, DI_STP_REP(disp, 9));
 
 		if (ipu_freq_scaling_enabled) {
 			h_total = ((width + h_start_width +
@@ -1471,10 +1451,16 @@ int32_t ipu_init_sync_panel(int disp, uint32_t pixel_clk,
 		   _ipu_dc_write_tmpl(7, WROD(0), 0, map, SYNC_WAVE, 0, 5, 1);
 		}
 
-		if (sig.Hsync_pol)
+		if (sig.Hsync_pol) {
 			di_gen |= DI_GEN_POLARITY_2;
-		if (sig.Vsync_pol)
+			if (disp)
+				di_gen |= DI_GEN_POLARITY_7;
+		}
+		if (sig.Vsync_pol) {
 			di_gen |= DI_GEN_POLARITY_3;
+			if (disp)
+				di_gen |= DI_GEN_POLARITY_8;
+		}
 
 		if (ipu_freq_scaling_enabled)
 			/* Set the clock to stop at counter 6. */
