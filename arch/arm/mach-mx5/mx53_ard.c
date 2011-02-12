@@ -374,23 +374,6 @@ static struct fb_videomode video_modes[] = {
 	FB_SYNC_HOR_HIGH_ACT|FB_SYNC_VERT_HIGH_ACT,
 	FB_VMODE_NONINTERLACED,
 	0,},
-	/* 2 LVDS modes, had better remove from here */
-	{
-	 "1080P60", 60, 1920, 1080, 7692,
-	 100, 40,
-	 30, 3,
-	 10, 2,
-	 0,
-	 FB_VMODE_NONINTERLACED,
-	 0,},
-	{
-	 "XGA", 60, 1024, 768, 15385,
-	 220, 40,
-	 21, 7,
-	 60, 10,
-	 0,
-	 FB_VMODE_NONINTERLACED,
-	 0,},
 };
 
 static iomux_v3_cfg_t mx53_ard_pwm_pads[] = {
