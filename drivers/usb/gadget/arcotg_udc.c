@@ -802,13 +802,6 @@ static int fsl_ep_disable(struct usb_ep *_ep)
 		return -EINVAL;
 	}
 
-	spin_lock_irqsave(&udc->lock, flags);
-	udc = (struct fsl_udc *)ep->udc;
-	if (!udc->driver || (udc->gadget.speed == USB_SPEED_UNKNOWN)) {
-		spin_unlock_irqrestore(&udc->lock, flags);
-		return -ESHUTDOWN;
-	}
-
 	/* disable ep on controller */
 	ep_num = ep_index(ep);
 	epctrl = fsl_readl(&dr_regs->endptctrl[ep_num]);
@@ -818,6 +811,8 @@ static int fsl_ep_disable(struct usb_ep *_ep)
 		epctrl &= ~EPCTRL_RX_ENABLE;
 	fsl_writel(epctrl, &dr_regs->endptctrl[ep_num]);
 
+	udc = (struct fsl_udc *)ep->udc;
+	spin_lock_irqsave(&udc->lock, flags);
 	/* nuke all pending requests (does flush) */
 	nuke(ep, -ESHUTDOWN);
 
