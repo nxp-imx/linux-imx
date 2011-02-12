@@ -52,6 +52,9 @@
  * Driver name
  */
 #define MXCFB_NAME      "mxc_sdc_fb"
+
+/* Display port number */
+#define MXCFB_PORT_NUM	2
 /*!
  * Structure containing the MXC specific framebuffer information.
  */
@@ -72,6 +75,7 @@ struct mxcfb_info {
 	void *alpha_virt_addr1;
 	uint32_t alpha_mem_len;
 	uint32_t ipu_ch_irq;
+	uint32_t ipu_alp_ch_irq;
 	uint32_t cur_ipu_buf;
 	uint32_t cur_ipu_alpha_buf;
 
@@ -82,6 +86,12 @@ struct mxcfb_info {
 	struct semaphore flip_sem;
 	struct semaphore alpha_flip_sem;
 	struct completion vsync_complete;
+};
+
+struct mxcfb_mode {
+	int dev_mode;
+	int num_modes;
+	struct fb_videomode *mode;
 };
 
 struct mxcfb_alloc_list {
@@ -101,6 +111,69 @@ enum {
 static bool g_dp_in_use;
 LIST_HEAD(fb_alloc_list);
 static struct fb_info *mxcfb_info[3];
+static __initdata struct mxcfb_mode mxc_disp_mode[MXCFB_PORT_NUM];
+static __initdata int (*mxcfb_pre_setup[MXCFB_PORT_NUM])(struct fb_info *info);
+
+/*
+ * register pre-setup callback for some display
+ * driver which need prepare clk etc.
+ */
+void mxcfb_register_presetup(int disp_port,
+	int (*pre_setup)(struct fb_info *info))
+{
+	if (pre_setup)
+		mxcfb_pre_setup[disp_port] = pre_setup;
+}
+EXPORT_SYMBOL(mxcfb_register_presetup);
+
+/*
+ * mode register from each display driver before
+ * primary fb setting.
+ */
+void mxcfb_register_mode(int disp_port,
+	const struct fb_videomode *modedb,
+	int num_modes, int dev_mode)
+{
+	struct fb_videomode *mode;
+	int mode_sum;
+
+	if (disp_port > MXCFB_PORT_NUM)
+		return;
+
+	/*
+	 * if there is new DDC device, overwrite old modes.
+	 * if there is old DDC device while new device is not DDC,
+	 * just keep old DDC modes.
+	 */
+	if (dev_mode & MXC_DISP_DDC_DEV) {
+		if (mxc_disp_mode[disp_port].num_modes) {
+			kfree(mxc_disp_mode[disp_port].mode);
+			mxc_disp_mode[disp_port].num_modes = 0;
+		}
+	} else if (mxc_disp_mode[disp_port].dev_mode & MXC_DISP_DDC_DEV)
+		return;
+
+	mode_sum = mxc_disp_mode[disp_port].num_modes + num_modes;
+	mode = kzalloc(mode_sum * sizeof(struct fb_videomode), GFP_KERNEL);
+
+	if (mxc_disp_mode[disp_port].num_modes)
+		memcpy(mode, mxc_disp_mode[disp_port].mode,
+			mxc_disp_mode[disp_port].num_modes
+			* sizeof(struct fb_videomode));
+	if (modedb)
+		memcpy(mode + mxc_disp_mode[disp_port].num_modes,
+			modedb, num_modes * sizeof(struct fb_videomode));
+
+	if (mxc_disp_mode[disp_port].num_modes)
+		kfree(mxc_disp_mode[disp_port].mode);
+
+	mxc_disp_mode[disp_port].mode = mode;
+	mxc_disp_mode[disp_port].num_modes += num_modes;
+	mxc_disp_mode[disp_port].dev_mode = dev_mode;
+
+	return;
+}
+EXPORT_SYMBOL(mxcfb_register_mode);
 
 static uint32_t bpp_to_pixfmt(struct fb_info *fbi)
 {
@@ -407,6 +480,7 @@ static int mxcfb_set_par(struct fb_info *fbi)
 		fbi->mode =
 		    (struct fb_videomode *)fb_match_mode(&fbi->var,
 							 &fbi->modelist);
+
 		ipu_disp_set_window_pos(mxc_fbi->ipu_ch, 0, 0);
 	}
 
@@ -1587,6 +1661,152 @@ static ssize_t swap_disp_chan(struct device *dev,
 }
 DEVICE_ATTR(fsl_disp_property, 644, show_disp_chan, swap_disp_chan);
 
+static int mxcfb_setup(struct fb_info *fbi, struct platform_device *pdev)
+{
+	struct mxcfb_info *mxcfbi = (struct mxcfb_info *)fbi->par;
+	struct mxc_fb_platform_data *plat_data = pdev->dev.platform_data;
+	int ret = 0;
+
+	/* Need dummy values until real panel is configured */
+	fbi->var.xres = 240;
+	fbi->var.yres = 320;
+
+	if (!mxcfbi->default_bpp)
+		mxcfbi->default_bpp = 16;
+
+	if (plat_data && !mxcfbi->ipu_di_pix_fmt)
+		mxcfbi->ipu_di_pix_fmt = plat_data->interface_pix_fmt;
+
+	if (!mxcfbi->fb_mode_str && plat_data && plat_data->mode_str)
+		mxcfbi->fb_mode_str = plat_data->mode_str;
+
+	if (mxcfbi->fb_mode_str) {
+		if (mxcfbi->ipu_di >= 0) {
+			const struct fb_videomode *mode;
+			struct fb_videomode m;
+			int num, found = 0;
+
+			dev_dbg(fbi->device, "Config display port %d\n",
+					mxcfbi->ipu_di);
+
+			INIT_LIST_HEAD(&fbi->modelist);
+
+			if (mxc_disp_mode[mxcfbi->ipu_di].num_modes) {
+				mode = mxc_disp_mode[mxcfbi->ipu_di].mode;
+				num = mxc_disp_mode[mxcfbi->ipu_di].num_modes;
+				fb_videomode_to_modelist(mode, num, &fbi->modelist);
+			}
+
+			if ((mxc_disp_mode[mxcfbi->ipu_di].dev_mode
+				& MXC_DISP_DDC_DEV) &&
+				!list_empty(&fbi->modelist)) {
+				dev_dbg(fbi->device,
+					"Look for video mode %s in ddc modelist\n",
+					mxcfbi->fb_mode_str);
+				/*
+				 * For DDC mode, try to get compatible mode first.
+				 * If get one, try to find nearest mode, otherwise,
+				 * use first mode provide by DDC.
+				 */
+				ret = fb_find_mode(&fbi->var, fbi,
+						mxcfbi->fb_mode_str, NULL, 0,
+						NULL, mxcfbi->default_bpp);
+				if (ret) {
+					fb_var_to_videomode(&m, &fbi->var);
+					mode = fb_find_nearest_mode(&m,
+						&fbi->modelist);
+					fb_videomode_to_var(&fbi->var, mode);
+				} else {
+					struct list_head *pos, *head;
+					struct fb_modelist *modelist;
+
+					head = &fbi->modelist;
+					list_for_each(pos, head) {
+						modelist = list_entry(pos,
+							struct fb_modelist, list);
+						m = modelist->mode;
+						if (m.flag & FB_MODE_IS_FIRST)
+							break;
+					}
+					/* if no first mode, use last one */
+					mode = &m;
+					fb_videomode_to_var(&fbi->var, mode);
+				}
+				found = 1;
+			} else if (!list_empty(&fbi->modelist)) {
+				dev_dbg(fbi->device,
+					"Look for video mode %s in spec modelist\n",
+					mxcfbi->fb_mode_str);
+				/*
+				 * For specific mode, try to get specified mode
+				 * from fbi modelist.
+				 */
+				ret = fb_find_mode(&fbi->var, fbi,
+						mxcfbi->fb_mode_str, mode, num,
+						NULL, mxcfbi->default_bpp);
+				if (ret == 1)
+					found = 1;
+
+			}
+			/*
+			 * if no DDC mode and spec mode found,
+			 * try plat_data mode.
+			 */
+			if (!found) {
+				dev_dbg(fbi->device,
+					"Look for video mode %s in plat modelist\n",
+					mxcfbi->fb_mode_str);
+				if (plat_data && plat_data->mode
+					&& plat_data->num_modes)
+					ret = fb_find_mode(&fbi->var, fbi,
+						mxcfbi->fb_mode_str,
+						plat_data->mode,
+						plat_data->num_modes,
+						NULL,
+						mxcfbi->default_bpp);
+				else
+					ret = fb_find_mode(&fbi->var, fbi,
+						mxcfbi->fb_mode_str, NULL, 0,
+						NULL, mxcfbi->default_bpp);
+				if (ret)
+					found = 1;
+			}
+
+			if (!found) {
+				dev_err(fbi->device,
+					"Not found any valid video mode");
+				ret = -EINVAL;
+				goto done;
+			}
+
+			/*added found mode to fbi modelist*/
+			fb_var_to_videomode(&m, &fbi->var);
+			fb_add_videomode(&m, &fbi->modelist);
+		}
+	}
+
+	mxcfb_check_var(&fbi->var, fbi);
+
+	/* Default Y virtual size is 3x panel size */
+	fbi->var.yres_virtual = fbi->var.yres * 3;
+
+	mxcfb_set_fix(fbi);
+
+	/* setup display */
+	if (mxcfbi->ipu_di >= 0)
+		if (mxcfb_pre_setup[mxcfbi->ipu_di])
+			(mxcfb_pre_setup[mxcfbi->ipu_di])(fbi);
+
+	fbi->var.activate |= FB_ACTIVATE_FORCE;
+	acquire_console_sem();
+	fbi->flags |= FBINFO_MISC_USEREVENT;
+	ret = fb_set_var(fbi, &fbi->var);
+	fbi->flags &= ~FBINFO_MISC_USEREVENT;
+	release_console_sem();
+done:
+	return ret;
+}
+
 /*!
  * Probe routine for the framebuffer driver. It is called during the
  * driver binding process.      The following functions are performed in
@@ -1599,7 +1819,6 @@ static int mxcfb_probe(struct platform_device *pdev)
 {
 	struct fb_info *fbi;
 	struct mxcfb_info *mxcfbi;
-	struct mxc_fb_platform_data *plat_data = pdev->dev.platform_data;
 	struct resource *res;
 	char *options;
 	char name[] = "mxcdi0fb";
@@ -1616,8 +1835,10 @@ static int mxcfb_probe(struct platform_device *pdev)
 	mxcfbi = (struct mxcfb_info *)fbi->par;
 
 	name[5] += pdev->id;
-	if (fb_get_options(name, &options))
-		return -ENODEV;
+	if (fb_get_options(name, &options)) {
+		ret = -ENODEV;
+		goto err1;
+	}
 
 	if (options)
 		mxcfb_option_setup(fbi, options);
@@ -1633,6 +1854,7 @@ static int mxcfb_probe(struct platform_device *pdev)
 	}
 
 	mxcfbi->ipu_di = pdev->id;
+	mxcfbi->ipu_alp_ch_irq = -1;
 
 	if (pdev->id == 0) {
 		ipu_disp_set_global_alpha(mxcfbi->ipu_ch, true, 0x80);
@@ -1640,45 +1862,23 @@ static int mxcfb_probe(struct platform_device *pdev)
 		strcpy(fbi->fix.id, "DISP3 BG");
 
 		if (!g_dp_in_use)
-			if (ipu_request_irq(IPU_IRQ_BG_ALPHA_SYNC_EOF,
-					    mxcfb_alpha_irq_handler, 0,
-					    MXCFB_NAME, fbi) != 0) {
-				dev_err(&pdev->dev, "Error registering BG "
-						    "alpha irq handler.\n");
-				ret = -EBUSY;
-				goto err1;
-			}
+			mxcfbi->ipu_alp_ch_irq = IPU_IRQ_BG_ALPHA_SYNC_EOF;
 		g_dp_in_use = true;
 	} else if (pdev->id == 1) {
 		strcpy(fbi->fix.id, "DISP3 BG - DI1");
 
 		if (!g_dp_in_use)
-			if (ipu_request_irq(IPU_IRQ_BG_ALPHA_SYNC_EOF,
-					    mxcfb_alpha_irq_handler, 0,
-					    MXCFB_NAME, fbi) != 0) {
-				dev_err(&pdev->dev, "Error registering BG "
-						    "alpha irq handler.\n");
-				ret = -EBUSY;
-				goto err1;
-			}
+			mxcfbi->ipu_alp_ch_irq = IPU_IRQ_BG_ALPHA_SYNC_EOF;
 		g_dp_in_use = true;
 	} else if (pdev->id == 2) {	/* Overlay */
 		mxcfbi->ipu_ch_irq = IPU_IRQ_FG_SYNC_EOF;
+		mxcfbi->ipu_alp_ch_irq = IPU_IRQ_FG_ALPHA_SYNC_EOF;
 		mxcfbi->ipu_ch = MEM_FG_SYNC;
 		mxcfbi->ipu_di = -1;
 		mxcfbi->overlay = true;
 		mxcfbi->cur_blank = mxcfbi->next_blank = FB_BLANK_POWERDOWN;
 
 		strcpy(fbi->fix.id, "DISP3 FG");
-
-		if (ipu_request_irq(IPU_IRQ_FG_ALPHA_SYNC_EOF,
-				    mxcfb_alpha_irq_handler, 0,
-				    MXCFB_NAME, fbi) != 0) {
-			dev_err(&pdev->dev, "Error registering FG alpha irq "
-					    "handler.\n");
-			ret = -EBUSY;
-			goto err1;
-		}
 	}
 
 	mxcfb_info[pdev->id] = fbi;
@@ -1691,6 +1891,16 @@ static int mxcfb_probe(struct platform_device *pdev)
 	}
 	ipu_disable_irq(mxcfbi->ipu_ch_irq);
 
+	if (mxcfbi->ipu_alp_ch_irq != -1)
+		if (ipu_request_irq(mxcfbi->ipu_alp_ch_irq,
+					mxcfb_alpha_irq_handler, 0,
+					MXCFB_NAME, fbi) != 0) {
+			dev_err(&pdev->dev, "Error registering alpha irq "
+					"handler.\n");
+			ret = -EBUSY;
+			goto err2;
+		}
+
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	if (res && res->end) {
 		fbi->fix.smem_len = res->end - res->start + 1;
@@ -1698,46 +1908,13 @@ static int mxcfb_probe(struct platform_device *pdev)
 		fbi->screen_base = ioremap(fbi->fix.smem_start, fbi->fix.smem_len);
 	}
 
-	/* Need dummy values until real panel is configured */
-	fbi->var.xres = 240;
-	fbi->var.yres = 320;
-
-	if (!mxcfbi->default_bpp)
-		mxcfbi->default_bpp = 16;
-
-	if (plat_data && !mxcfbi->ipu_di_pix_fmt)
-		mxcfbi->ipu_di_pix_fmt = plat_data->interface_pix_fmt;
-
-	if (plat_data && plat_data->mode && plat_data->num_modes)
-		fb_videomode_to_modelist(plat_data->mode, plat_data->num_modes,
-				&fbi->modelist);
-
-	if (!mxcfbi->fb_mode_str && plat_data && plat_data->mode_str)
-		mxcfbi->fb_mode_str = plat_data->mode_str;
-
-	if (mxcfbi->fb_mode_str) {
-		ret = fb_find_mode(&fbi->var, fbi, mxcfbi->fb_mode_str, NULL, 0, NULL,
-				mxcfbi->default_bpp);
-		if ((!ret || (ret > 2)) && plat_data && plat_data->mode && plat_data->num_modes)
-			fb_find_mode(&fbi->var, fbi, mxcfbi->fb_mode_str, plat_data->mode,
-					plat_data->num_modes, NULL, mxcfbi->default_bpp);
-	}
-
-	mxcfb_check_var(&fbi->var, fbi);
-
-	/* Default Y virtual size is 2x panel size */
-	fbi->var.yres_virtual = fbi->var.yres * 3;
-
-	mxcfb_set_fix(fbi);
-
-	/* alocate fb first */
-	if (!res || !res->end)
-		if (mxcfb_map_video_memory(fbi) < 0)
-			return -ENOMEM;
+	ret =  mxcfb_setup(fbi, pdev);
+	if (ret < 0)
+		goto err3;
 
 	ret = register_framebuffer(fbi);
 	if (ret < 0)
-		goto err2;
+		goto err3;
 
 	platform_set_drvdata(pdev, fbi);
 
@@ -1745,8 +1922,15 @@ static int mxcfb_probe(struct platform_device *pdev)
 	if (ret)
 		dev_err(&pdev->dev, "Error %d on creating file\n", ret);
 
-	return 0;
+#ifdef CONFIG_LOGO
+	fb_prepare_logo(fbi, 0);
+	fb_show_logo(fbi, 0);
+#endif
 
+	return 0;
+err3:
+	if (mxcfbi->ipu_alp_ch_irq != -1)
+		ipu_free_irq(mxcfbi->ipu_alp_ch_irq, fbi);
 err2:
 	ipu_free_irq(mxcfbi->ipu_ch_irq, fbi);
 err1:
