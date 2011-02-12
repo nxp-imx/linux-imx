@@ -972,13 +972,6 @@ int ipu_init_async_panel(int disp, int type, uint32_t cycle_time,
 void ipu_disp_direct_write(ipu_channel_t channel, u32 value, u32 offset);
 void ipu_reset_disp_panel(void);
 
-void ipu_set_vga_delayed_hsync_vsync(uint32_t width, uint32_t height,
-		uint32_t h_start_width, uint32_t h_sync_width,
-		uint32_t h_end_width, uint32_t v_start_width,
-		uint32_t v_sync_width, uint32_t v_end_width,
-		uint32_t hsync_delay, uint32_t vsync_delay,
-		uint32_t hsync_polarity, uint32_t vsync_polarity);
-
 /* ADC API */
 int32_t ipu_adc_write_template(display_port_t disp, uint32_t *pCmd,
 			       bool write);
