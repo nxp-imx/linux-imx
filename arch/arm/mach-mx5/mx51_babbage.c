@@ -274,33 +274,6 @@ static struct cpu_wp cpu_wp_auto[] = {
 
 static struct fb_videomode video_modes[] = {
 	{
-	 /* NTSC TV output */
-	 "TV-NTSC", 60, 720, 480, 74074,
-	 122, 15,
-	 18, 26,
-	 1, 1,
-	 FB_SYNC_HOR_HIGH_ACT | FB_SYNC_VERT_HIGH_ACT,
-	 FB_VMODE_INTERLACED,
-	 0,},
-	{
-	 /* PAL TV output */
-	 "TV-PAL", 50, 720, 576, 74074,
-	 132, 11,
-	 22, 26,
-	 1, 1,
-	 FB_SYNC_HOR_HIGH_ACT | FB_SYNC_VERT_HIGH_ACT,
-	 FB_VMODE_INTERLACED | FB_VMODE_ODD_FLD_FIRST,
-	 0,},
-	{
-	 /* 720p60 TV output */
-	 "720P60", 60, 1280, 720, 13468,
-	 260, 109,
-	 25, 4,
-	 1, 1,
-	 FB_SYNC_HOR_HIGH_ACT | FB_SYNC_VERT_HIGH_ACT,
-	 FB_VMODE_NONINTERLACED,
-	 0,},
-	{
 	 /*MITSUBISHI LVDS panel */
 	 "XGA", 60, 1024, 768, 15385,
 	 220, 40,
