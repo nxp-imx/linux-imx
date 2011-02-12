@@ -418,81 +418,11 @@ static iomux_v3_cfg_t mx53_smd_pads[] = {
 
 static struct fb_videomode video_modes[] = {
 	{
-	 /* NTSC TV output */
-	 "TV-NTSC", 60, 720, 480, 74074,
-	 122, 15,
-	 18, 26,
-	 1, 1,
-	 FB_SYNC_HOR_HIGH_ACT | FB_SYNC_VERT_HIGH_ACT,
-	 FB_VMODE_INTERLACED,
-	 0,},
-	{
-	 /* PAL TV output */
-	 "TV-PAL", 50, 720, 576, 74074,
-	 132, 11,
-	 22, 26,
-	 1, 1,
-	 FB_SYNC_HOR_HIGH_ACT | FB_SYNC_VERT_HIGH_ACT,
-	 FB_VMODE_INTERLACED | FB_VMODE_ODD_FLD_FIRST,
-	 0,},
-	{
-	 /* 1080i50 TV output */
-	 "1080I50", 50, 1920, 1080, 13468,
-	 192, 527,
-	 20, 24,
-	 1, 1,
-	 FB_SYNC_HOR_HIGH_ACT | FB_SYNC_VERT_HIGH_ACT,
-	 FB_VMODE_INTERLACED | FB_VMODE_ODD_FLD_FIRST,
-	 0,},
-	{
-	 /* 1080i60 TV output */
-	 "1080I60", 60, 1920, 1080, 13468,
-	 192, 87,
-	 20, 24,
-	 1, 1,
-	 FB_SYNC_HOR_HIGH_ACT | FB_SYNC_VERT_HIGH_ACT,
-	 FB_VMODE_INTERLACED | FB_VMODE_ODD_FLD_FIRST,
-	 0,},
-	{
 	 /* 800x480 @ 57 Hz , pixel clk @ 27MHz */
 	 "CLAA-WVGA", 57, 800, 480, 37037, 40, 60, 10, 10, 20, 10,
 	 FB_SYNC_CLK_LAT_FALL,
 	 FB_VMODE_NONINTERLACED,
 	 0,},
-	{
-	 "XGA", 60, 1024, 768, 15385,
-	 220, 40,
-	 21, 7,
-	 60, 10,
-	 0,
-	 FB_VMODE_NONINTERLACED,
-	 0,},
-	{
-	 /* 720p30 TV output */
-	 "720P30", 30, 1280, 720, 13468,
-	 260, 1759,
-	 25, 4,
-	 1, 1,
-	 FB_SYNC_HOR_HIGH_ACT | FB_SYNC_VERT_HIGH_ACT,
-	 FB_VMODE_NONINTERLACED,
-	 0,},
-	{
-	 "720P60", 60, 1280, 720, 13468,
-	 260, 109,
-	 25, 4,
-	 1, 1,
-	 FB_SYNC_HOR_HIGH_ACT | FB_SYNC_VERT_HIGH_ACT,
-	 FB_VMODE_NONINTERLACED,
-	 0,},
-	{
-	/* VGA 1280x1024 108M pixel clk output */
-	"SXGA", 60, 1280, 1024, 9259,
-	48, 248,
-	1, 38,
-	112, 3,
-	0,
-	FB_VMODE_NONINTERLACED,
-	0,},
 	{
 	/* 1600x1200 @ 60 Hz 162M pixel clk*/
 	"UXGA", 60, 1600, 1200, 6172,
@@ -502,38 +432,20 @@ static struct fb_videomode video_modes[] = {
 	FB_SYNC_HOR_HIGH_ACT|FB_SYNC_VERT_HIGH_ACT,
 	FB_VMODE_NONINTERLACED,
 	0,},
-	{
-	 /* 1080p24 TV output */
-	 "1080P24", 24, 1920, 1080, 13468,
-	 192, 637,
-	 38, 6,
-	 1, 1,
-	 FB_SYNC_HOR_HIGH_ACT | FB_SYNC_VERT_HIGH_ACT,
-	 FB_VMODE_NONINTERLACED,
-	 0,},
-	{
-	 /* 1080p25 TV output */
-	 "1080P25", 25, 1920, 1080, 13468,
-	 192, 527,
-	 38, 6,
-	 1, 1,
-	 FB_SYNC_HOR_HIGH_ACT | FB_SYNC_VERT_HIGH_ACT,
-	 FB_VMODE_NONINTERLACED,
-	 0,},
-	{
-	 /* 1080p30 TV output */
-	 "1080P30", 30, 1920, 1080, 13468,
-	 192, 87,
-	 38, 6,
-	 1, 1,
-	 FB_SYNC_HOR_HIGH_ACT | FB_SYNC_VERT_HIGH_ACT,
-	 FB_VMODE_NONINTERLACED,
-	 0,},
+	/* 2 LVDS modes, had better remove from here */
 	{
 	 "1080P60", 60, 1920, 1080, 7692,
 	 100, 40,
 	 30, 3,
 	 10, 2,
+	 0,
+	 FB_VMODE_NONINTERLACED,
+	 0,},
+	{
+	 "XGA", 60, 1024, 768, 15385,
+	 220, 40,
+	 21, 7,
+	 60, 10,
 	 0,
 	 FB_VMODE_NONINTERLACED,
 	 0,},
@@ -695,7 +607,7 @@ static int __init mxc_init_fb(void)
 }
 device_initcall(mxc_init_fb);
 
-static void sii9022_hdmi_reset(void)
+static void sii902x_hdmi_reset(void)
 {
 	gpio_set_value(MX53_SMD_HDMI_RESET_B, 0);
 	msleep(10);
@@ -703,8 +615,8 @@ static void sii9022_hdmi_reset(void)
 	msleep(10);
 }
 
-static struct mxc_lcd_platform_data sii9022_hdmi_data = {
-       .reset = sii9022_hdmi_reset,
+static struct mxc_lcd_platform_data sii902x_hdmi_data = {
+       .reset = sii902x_hdmi_reset,
 };
 
 static struct imxi2c_platform_data mxci2c_data = {
@@ -793,10 +705,10 @@ static void __init smd_add_device_buttons(void) {}
 
 static struct i2c_board_info mxc_i2c2_board_info[] __initdata = {
 	{
-	.type = "sii9022",
+	.type = "sii902x",
 	.addr = 0x39,
 	.irq = IOMUX_TO_IRQ_V3(MX53_SMD_HDMI_INT),
-	.platform_data = &sii9022_hdmi_data,
+	.platform_data = &sii902x_hdmi_data,
 	},
 };
 
@@ -1071,7 +983,7 @@ static void __init mx53_smd_io_init(void)
 	gpio_direction_output(MX53_SMD_OSC_CKIH1_EN, 1);
 	gpio_set_value(MX53_SMD_OSC_CKIH1_EN, 1);
 
-	/* Sii9022 HDMI controller */
+	/* Sii902x HDMI controller */
 	gpio_request(MX53_SMD_HDMI_RESET_B, "disp0-pwr-en");
 	gpio_direction_output(MX53_SMD_HDMI_RESET_B, 0);
 	gpio_request(MX53_SMD_HDMI_INT, "disp0-det-int");

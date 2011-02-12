@@ -360,32 +360,6 @@ static iomux_v3_cfg_t mx53ard_pads[] = {
 
 static struct fb_videomode video_modes[] = {
 	{
-	 /* NTSC TV output */
-	 "TV-NTSC", 60, 720, 480, 74074,
-	 122, 15,
-	 18, 26,
-	 1, 1,
-	 FB_SYNC_HOR_HIGH_ACT | FB_SYNC_VERT_HIGH_ACT,
-	 FB_VMODE_INTERLACED,
-	 0,},
-	{
-	 /* PAL TV output */
-	 "TV-PAL", 50, 720, 576, 74074,
-	 132, 11,
-	 22, 26,
-	 1, 1,
-	 FB_SYNC_HOR_HIGH_ACT | FB_SYNC_VERT_HIGH_ACT,
-	 FB_VMODE_INTERLACED | FB_VMODE_ODD_FLD_FIRST,
-	 0,},
-	{
-	 "720P60", 60, 1280, 720, 13468,
-	 260, 109,
-	 25, 4,
-	 1, 1,
-	 FB_SYNC_HOR_HIGH_ACT | FB_SYNC_VERT_HIGH_ACT,
-	 FB_VMODE_NONINTERLACED,
-	 0,},
-	{
 	 /* 800x480 @ 57 Hz , pixel clk @ 27MHz */
 	 "CLAA-WVGA", 57, 800, 480, 37037, 40, 60, 10, 10, 20, 10,
 	 FB_SYNC_CLK_LAT_FALL,
@@ -400,6 +374,7 @@ static struct fb_videomode video_modes[] = {
 	FB_SYNC_HOR_HIGH_ACT|FB_SYNC_VERT_HIGH_ACT,
 	FB_VMODE_NONINTERLACED,
 	0,},
+	/* 2 LVDS modes, had better remove from here */
 	{
 	 "1080P60", 60, 1920, 1080, 7692,
 	 100, 40,
@@ -687,13 +662,13 @@ static struct resource mxcfb_resources[] = {
 
 static struct mxc_fb_platform_data fb_data[] = {
 	{
-	 .interface_pix_fmt = IPU_PIX_FMT_RGB565,
-	 .mode_str = "CLAA-WVGA",
+	 .interface_pix_fmt = IPU_PIX_FMT_RGB24,
+	 .mode_str = "XGA",
 	 .mode = video_modes,
 	 .num_modes = ARRAY_SIZE(video_modes),
 	 },
 	{
-	 .interface_pix_fmt = IPU_PIX_FMT_BGR24,
+	 .interface_pix_fmt = IPU_PIX_FMT_GBR24,
 	 .mode_str = "1024x768M-16@60",
 	 .mode = video_modes,
 	 .num_modes = ARRAY_SIZE(video_modes),
