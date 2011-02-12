@@ -42,7 +42,7 @@ config FB_MXC_SEIKO_WVGA_SYNC_PANEL
 	depends on FB_MXC_SYNC_PANEL
 	tristate "SEIKO WVGA Panel"
 
-config FB_MXC_SII9022
+config FB_MXC_SII902X
 	depends on FB_MXC_SYNC_PANEL
 	tristate "Si Image SII9022 DVI/HDMI Interface Chip"
 
