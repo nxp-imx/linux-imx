@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2004-2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2004-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -37,13 +37,17 @@
 #include <linux/clk.h>
 #include <linux/spi/spi.h>
 #include <linux/spi/spi_bitbang.h>
+#include <linux/dma-mapping.h>
 #include <linux/fsl_devices.h>
+#include <mach/dma.h>
 
+#define SPI_BUFSIZ		(SMP_CACHE_BYTES + 1)
+#define MAX_CYCLE		100000
 #define MXC_CSPIRXDATA		0x00
 #define MXC_CSPITXDATA		0x04
 #define MXC_CSPICTRL		0x08
 #define MXC_CSPICONFIG		0x08
-#define MXC_CSPIINT			0x0C
+#define MXC_CSPIINT		0x0C
 
 #define MXC_CSPICTRL_DISABLE	0x0
 #define MXC_CSPICTRL_SLAVE	0x0
@@ -51,16 +55,16 @@
 #define MXC_CSPICTRL_SMC	(1 << 3)
 
 #define MXC_CSPIINT_TEEN_SHIFT		0
-#define MXC_CSPIINT_THEN_SHIFT	1
+#define MXC_CSPIINT_THEN_SHIFT		1
 #define MXC_CSPIINT_TFEN_SHIFT		2
 #define MXC_CSPIINT_RREN_SHIFT		3
-#define MXC_CSPIINT_RHEN_SHIFT       4
-#define MXC_CSPIINT_RFEN_SHIFT        5
-#define MXC_CSPIINT_ROEN_SHIFT        6
+#define MXC_CSPIINT_RHEN_SHIFT		4
+#define MXC_CSPIINT_RFEN_SHIFT		5
+#define MXC_CSPIINT_ROEN_SHIFT		6
 
 #define MXC_HIGHPOL	0x0
 #define MXC_NOPHA	0x0
-#define MXC_LOWSSPOL		0x0
+#define MXC_LOWSSPOL	0x0
 
 #define MXC_CSPISTAT_TE		0
 #define MXC_CSPISTAT_TH		1
@@ -96,6 +100,14 @@ struct mxc_spi_unique_def {
 	unsigned int fifo_size;
 	/* Control reg address */
 	unsigned int ctrl_reg_addr;
+	/* DMA reg address */
+	unsigned int dma_reg_addr;
+	/* Write DMA enable bit */
+	unsigned int tx_den;
+	/* Write DMA water mark level mask */
+	unsigned int tx_wml_mask;
+	/* Write DMA water mark level */
+	unsigned int tx_wml_shift;
 	/* Status reg address */
 	unsigned int stat_reg_addr;
 	/* Period reg address */
@@ -108,6 +120,8 @@ struct mxc_spi_unique_def {
 	unsigned int mode_mask;
 	/* SPI enable */
 	unsigned int spi_enable;
+	/* SMC bit */
+	unsigned int smc;
 	/* XCH bit */
 	unsigned int xch;
 	/* Spi mode shift */
@@ -165,7 +179,9 @@ struct mxc_spi_xfer {
 	/* Function to read the FIFO data to rx_buf */
 	void (*rx_get) (struct mxc_spi *, u32 val);
 	/* Function to get the data to be written to FIFO */
-	 u32(*tx_get) (struct mxc_spi *);
+	u32(*tx_get) (struct mxc_spi *);
+	/* Handle dma mapping for transfers, or use PIO */
+	int (*txrx_bufs)(struct spi_device *spi, struct spi_transfer *t);
 };
 
 /*!
@@ -196,6 +212,8 @@ struct mxc_spi {
 	struct mxc_spi_unique_def *spi_ver_def;
 	/* Control reg address */
 	void *ctrl_addr;
+	/* DMA reg address */
+	void *dma_addr;
 	/* Status reg address */
 	void *stat_addr;
 	/* Period reg address */
@@ -208,6 +226,13 @@ struct mxc_spi {
 	void (*chipselect_active) (int cspi_mode, int status, int chipselect);
 	/* Chipselect inactive function */
 	void (*chipselect_inactive) (int cspi_mode, int status, int chipselect);
+	/* DMA mode for 32-bit per word transfer */
+	struct device *dev;
+	unsigned int usedma;
+	mxc_dma_device_t dma_tx_id;
+	int dma_tx_ch;
+	struct completion dma_tx_completion;
+	u8 *tmp_buf;
 };
 
 #ifdef CONFIG_SPI_MXC_TEST_LOOPBACK
@@ -263,12 +288,17 @@ static struct mxc_spi_unique_def spi_ver_2_3 = {
 	.bc_overflow = 0,
 	.fifo_size = 64,
 	.ctrl_reg_addr = 4,
+	.dma_reg_addr = 0x14,
+	.tx_den = 0x80,
+	.tx_wml_mask = 0x3F,
+	.tx_wml_shift = 0,
 	.stat_reg_addr = 0x18,
 	.period_reg_addr = 0x1C,
 	.test_reg_addr = 0x20,
 	.reset_reg_addr = 0x8,
 	.mode_mask = 0xF,
 	.spi_enable = 0x1,
+	.smc = (1 << 3),
 	.xch = (1 << 2),
 	.mode_shift = 4,
 	.master_enable = 0,
@@ -305,6 +335,7 @@ static struct mxc_spi_unique_def spi_ver_0_7 = {
 	.reset_reg_addr = 0x0,
 	.mode_mask = 0x1,
 	.spi_enable = 0x1,
+	.smc = (1 << 3),
 	.xch = (1 << 2),
 	.mode_shift = 1,
 	.master_enable = 1 << 1,
@@ -334,6 +365,7 @@ static struct mxc_spi_unique_def spi_ver_0_5 = {
 	.bc_overflow = (1 << 7),
 	.fifo_size = 8,
 	.ctrl_reg_addr = 0,
+	.dma_reg_addr = 0x10,
 	.stat_reg_addr = 0x14,
 	.period_reg_addr = 0x18,
 	.test_reg_addr = 0x1C,
@@ -431,6 +463,8 @@ static struct mxc_spi_unique_def spi_ver_0_0 = {
 
 extern void gpio_spi_active(int cspi_mod);
 extern void gpio_spi_inactive(int cspi_mod);
+static int mxc_spi_dma_transfer(struct spi_device *spi, struct spi_transfer *t);
+static int mxc_spi_pio_transfer(struct spi_device *spi, struct spi_transfer *t);
 
 #define MXC_SPI_BUF_RX(type)	\
 void mxc_spi_buf_rx_##type(struct mxc_spi *master_drv_data, u32 val)\
@@ -637,6 +671,8 @@ void mxc_spi_chipselect(struct spi_device *spi, int is_active)
 		    (((1 << (spi->chip_select & MXC_CSPICTRL_CSMASK)) &
 		      spi_ver_def->mode_mask) << spi_ver_def->ss_ctrl_shift);
 		__raw_writel(0, master_drv_data->base + MXC_CSPICTRL);
+		if (master_drv_data->usedma)
+			ctrl_reg |= master_drv_data->spi_ver_def->smc;
 		__raw_writel(ctrl_reg, master_drv_data->base + MXC_CSPICTRL);
 		__raw_writel(config_reg,
 			     MXC_CSPICONFIG + master_drv_data->ctrl_addr);
@@ -675,12 +711,19 @@ void mxc_spi_chipselect(struct spi_device *spi, int is_active)
 	if (xfer_len <= 8) {
 		ptransfer->rx_get = mxc_spi_buf_rx_u8;
 		ptransfer->tx_get = mxc_spi_buf_tx_u8;
+		ptransfer->txrx_bufs = mxc_spi_pio_transfer;
 	} else if (xfer_len <= 16) {
 		ptransfer->rx_get = mxc_spi_buf_rx_u16;
 		ptransfer->tx_get = mxc_spi_buf_tx_u16;
+		ptransfer->txrx_bufs = mxc_spi_pio_transfer;
 	} else {
-		ptransfer->rx_get = mxc_spi_buf_rx_u32;
-		ptransfer->tx_get = mxc_spi_buf_tx_u32;
+		if (master_drv_data->usedma) {
+			ptransfer->txrx_bufs = mxc_spi_dma_transfer;
+		} else {
+			ptransfer->rx_get = mxc_spi_buf_rx_u32;
+			ptransfer->tx_get = mxc_spi_buf_tx_u32;
+			ptransfer->txrx_bufs = mxc_spi_pio_transfer;
+		}
 	}
 #ifdef CONFIG_SPI_MXC_TEST_LOOPBACK
 	{
@@ -758,99 +801,36 @@ static irqreturn_t mxc_spi_isr(int irq, void *dev_id)
 }
 
 /*!
- * This function initialize the current SPI device.
+ * This function is called by DMA Interrupt Service Routine to indicate
+ * requested DMA transfer is completed.
  *
- * @param        spi     the current SPI device.
- *
+ * @param   devid  pointer to device specific structure
+ * @param   error any DMA error
+ * @param   cnt   amount of data that was transferred
  */
-int mxc_spi_setup(struct spi_device *spi)
+static void mxc_spi_dma_tx_callback(void *devid, int error, unsigned int cnt)
 {
-	if (spi->max_speed_hz < 0) {
-		return -EINVAL;
+	struct mxc_spi *master_drv_data = devid;
+
+	mxc_dma_disable(master_drv_data->dma_tx_ch);
+
+	if (error) {
+		dev_err(master_drv_data->dev, "Error in DMA transfer\n");
+		return;
 	}
+	dev_dbg(master_drv_data->dev, "Transfered bytes:%d\n", cnt);
 
-	if (!spi->bits_per_word)
-		spi->bits_per_word = 8;
-
-	pr_debug("%s: mode %d, %u bpw, %d hz\n", __FUNCTION__,
-		 spi->mode, spi->bits_per_word, spi->max_speed_hz);
-
-	return 0;
-}
-
-static int mxc_spi_setup_transfer(struct spi_device *spi, struct spi_transfer *t)
-{
-	return 0;
+	complete(&master_drv_data->dma_tx_completion);
 }
 
 /*!
  * This function is called when the data has to transfer from/to the
- * current SPI device in poll mode
- *
- * @param        spi        the current spi device
- * @param        t          the transfer request - read/write buffer pairs
- *
- * @return       Returns 0 on success.
- */
-int mxc_spi_poll_transfer(struct spi_device *spi, struct spi_transfer *t)
-{
-	struct mxc_spi *master_drv_data = NULL;
-	int count, i;
-	volatile unsigned int status;
-	u32 rx_tmp;
-	u32 fifo_size;
-	int chipselect_status;
-
-	mxc_spi_chipselect(spi, BITBANG_CS_ACTIVE);
-
-	/* Get the master controller driver data from spi device's master */
-	master_drv_data = spi_master_get_devdata(spi->master);
-
-	chipselect_status = __raw_readl(MXC_CSPICONFIG +
-					master_drv_data->ctrl_addr);
-	chipselect_status >>= master_drv_data->spi_ver_def->ss_pol_shift &
-	    master_drv_data->spi_ver_def->mode_mask;
-	if (master_drv_data->chipselect_active)
-		master_drv_data->chipselect_active(spi->master->bus_num,
-						   chipselect_status,
-						   (spi->chip_select &
-						    MXC_CSPICTRL_CSMASK) + 1);
-
-	clk_enable(master_drv_data->clk);
-
-	/* Modify the Tx, Rx, Count */
-	master_drv_data->transfer.tx_buf = t->tx_buf;
-	master_drv_data->transfer.rx_buf = t->rx_buf;
-	master_drv_data->transfer.count = t->len;
-	fifo_size = master_drv_data->spi_ver_def->fifo_size;
-
-	count = (t->len > fifo_size) ? fifo_size : t->len;
-	spi_put_tx_data(master_drv_data->base, count, master_drv_data);
-
-	while ((((status = __raw_readl(master_drv_data->test_addr)) &
-		 master_drv_data->spi_ver_def->rx_cnt_mask) >> master_drv_data->
-		spi_ver_def->rx_cnt_off) != count)
-		;
-
-	for (i = 0; i < count; i++) {
-		rx_tmp = __raw_readl(master_drv_data->base + MXC_CSPIRXDATA);
-		master_drv_data->transfer.rx_get(master_drv_data, rx_tmp);
-	}
-
-	clk_disable(master_drv_data->clk);
-	if (master_drv_data->chipselect_inactive)
-		master_drv_data->chipselect_inactive(spi->master->bus_num,
-						     chipselect_status,
-						     (spi->chip_select &
-						      MXC_CSPICTRL_CSMASK) + 1);
-	return 0;
-}
-
-/*!
- * This function is called when the data has to transfer from/to the
- * current SPI device. It enables the Rx interrupt, initiates the transfer.
- * When Rx interrupt occurs, the completion flag is set. It then disables
- * the Rx interrupt.
+ * current SPI device. In PIO mode, it enables the Rx interrupt, initiates
+ * the transfer. When Rx interrupt occurs, the completion flag is set. It
+ * then disables the Rx interrupt. In DMA mode, DMA transfers are used for
+ * 32-bits per word in default since we can't easily change already set up
+ * the DMA chnnels' width and so on. The other bits per word transfers would
+ * be processed in PIO mode.
  *
  * @param        spi        the current spi device
  * @param        t          the transfer request - read/write buffer pairs
@@ -858,6 +838,13 @@ int mxc_spi_poll_transfer(struct spi_device *spi, struct spi_transfer *t)
  * @return       Returns 0 on success -1 on failure.
  */
 int mxc_spi_transfer(struct spi_device *spi, struct spi_transfer *t)
+{
+	struct mxc_spi *master_drv_data = spi_master_get_devdata(spi->master);
+
+	return master_drv_data->transfer.txrx_bufs(spi, t);
+}
+
+static int mxc_spi_pio_transfer(struct spi_device *spi, struct spi_transfer *t)
 {
 	struct mxc_spi *master_drv_data = NULL;
 	int count;
@@ -887,7 +874,6 @@ int mxc_spi_transfer(struct spi_device *spi, struct spi_transfer *t)
 	INIT_COMPLETION(master_drv_data->xfer_done);
 
 	/* Enable the Rx Interrupts */
-
 	spi_enable_interrupt(master_drv_data,
 			     1 << (MXC_CSPIINT_RREN_SHIFT +
 				   master_drv_data->spi_ver_def->rx_inten_dif));
@@ -898,10 +884,10 @@ int mxc_spi_transfer(struct spi_device *spi, struct spi_transfer *t)
 	spi_put_tx_data(master_drv_data->base, count, master_drv_data);
 
 	/* Wait for transfer completion */
-	wait_for_completion(&master_drv_data->xfer_done);
+	wait_for_completion_timeout(&master_drv_data->xfer_done,
+			msecs_to_jiffies(3000));
 
 	/* Disable the Rx Interrupts */
-
 	spi_disable_interrupt(master_drv_data,
 			      1 << (MXC_CSPIINT_RREN_SHIFT +
 				    master_drv_data->spi_ver_def->
@@ -914,6 +900,202 @@ int mxc_spi_transfer(struct spi_device *spi, struct spi_transfer *t)
 						     (spi->chip_select &
 						      MXC_CSPICTRL_CSMASK) + 1);
 	return t->len - master_drv_data->transfer.count;
+}
+
+static int mxc_spi_dma_transfer(struct spi_device *spi, struct spi_transfer *t)
+{
+	struct mxc_spi *master_drv_data = NULL;
+	int chipselect_status;
+	u32 rx_tmp, i, count = 0, timeout;
+
+	mxc_dma_requestbuf_t dmareq_tx;
+
+	/* Get the master controller driver data from spi device's master */
+	master_drv_data = spi_master_get_devdata(spi->master);
+
+	chipselect_status = __raw_readl(MXC_CSPICONFIG +
+					master_drv_data->ctrl_addr);
+	chipselect_status >>= master_drv_data->spi_ver_def->ss_pol_shift &
+	    master_drv_data->spi_ver_def->mode_mask;
+	if (master_drv_data->chipselect_active)
+		master_drv_data->chipselect_active(spi->master->bus_num,
+						   chipselect_status,
+						   (spi->chip_select &
+						    MXC_CSPICTRL_CSMASK) + 1);
+
+	if (t && t->bits_per_word)
+		spi->bits_per_word = t->bits_per_word;
+	clk_enable(master_drv_data->clk);
+	/* Modify the Tx, Rx, Count */
+	master_drv_data->transfer.tx_buf = t->tx_buf;
+	master_drv_data->transfer.rx_buf = t->rx_buf;
+	master_drv_data->transfer.count = t->len;
+
+	init_completion(&master_drv_data->dma_tx_completion);
+
+	if (spi->bits_per_word % 32)
+		dev_err(master_drv_data->dev, "illegal bits_per_word.\n");
+	count = t->len * 4;
+
+	if (t->tx_buf) {
+		t->tx_dma = dma_map_single(master_drv_data->dev,
+				(void *)t->tx_buf, count, DMA_TO_DEVICE);
+		if (dma_mapping_error(master_drv_data->dev, t->tx_dma)) {
+			dev_dbg(master_drv_data->dev, "Unable to DMA map a"
+				"%d bytes TX buffer\n", count);
+			return -ENOMEM;
+		}
+	} else {
+		/* We need TX clocking for RX transaction */
+		t->tx_dma = dma_map_single(master_drv_data->dev,
+				(void *)master_drv_data->tmp_buf, count,
+				DMA_TO_DEVICE);
+		if (dma_mapping_error(master_drv_data->dev, t->tx_dma)) {
+			dev_dbg(master_drv_data->dev, "Unable to DMA map a"
+				"%d bytes TX tmp buffer\n", count);
+			return -ENOMEM;
+		}
+	}
+
+	if (t->tx_buf || t->rx_buf) {
+		dmareq_tx.src_addr = t->tx_dma;
+		dmareq_tx.dst_addr = (u32)(master_drv_data->base
+				+ MXC_CSPITXDATA);
+		dmareq_tx.num_of_bytes = count;
+		mxc_dma_config(master_drv_data->dma_tx_ch,
+				&dmareq_tx, 1, MXC_DMA_MODE_WRITE);
+		mxc_dma_enable(master_drv_data->dma_tx_ch);
+		/* Configure the DMA REG */
+		__raw_writel(__raw_readl(master_drv_data->dma_addr)
+				| master_drv_data->spi_ver_def->tx_den,
+				master_drv_data->dma_addr);
+	}
+
+	if (t->tx_buf)
+		wait_for_completion_timeout(&master_drv_data->dma_tx_completion,
+				msecs_to_jiffies(3000));
+
+	if (t->rx_buf) {
+		for (i = 0; i < t->len; i++) {
+			timeout = 0;
+			do {
+				timeout++;
+				if (timeout > MAX_CYCLE) {
+					dev_err(master_drv_data->dev,
+							"Read Timeout!\n");
+					break;
+				}
+			} while (__raw_readl(master_drv_data->stat_addr) &&
+					(1 << MXC_CSPISTAT_RR) == 0);
+			rx_tmp = __raw_readl(master_drv_data->base
+					+ MXC_CSPIRXDATA);
+			mxc_spi_buf_rx_u32(master_drv_data, rx_tmp);
+		}
+	}
+
+	dma_unmap_single(NULL, t->tx_dma, count, DMA_TO_DEVICE);
+
+	clk_disable(master_drv_data->clk);
+	if (master_drv_data->chipselect_inactive)
+		master_drv_data->chipselect_inactive(spi->master->bus_num,
+						     chipselect_status,
+						     (spi->chip_select &
+						      MXC_CSPICTRL_CSMASK) + 1);
+	return t->len;
+}
+
+/*!
+ * This function initialize the current SPI device.
+ *
+ * @param        spi     the current SPI device.
+ *
+ */
+int mxc_spi_setup(struct spi_device *spi)
+{
+	if (spi->max_speed_hz < 0)
+		return -EINVAL;
+
+	if (!spi->bits_per_word)
+		spi->bits_per_word = 8;
+
+	pr_debug("%s: mode %d, %u bpw, %d hz\n", __func__,
+		 spi->mode, spi->bits_per_word, spi->max_speed_hz);
+
+	return 0;
+}
+
+static int mxc_spi_setup_transfer(struct spi_device *spi,
+		struct spi_transfer *t)
+{
+	return 0;
+}
+
+/*!
+ * This function is called when the data has to transfer from/to the
+ * current SPI device in poll mode
+ *
+ * @param        spi        the current spi device
+ * @param        t          the transfer request - read/write buffer pairs
+ *
+ * @return       Returns 0 on success.
+ */
+int mxc_spi_poll_transfer(struct spi_device *spi, struct spi_transfer *t)
+{
+	struct mxc_spi *master_drv_data = NULL;
+	int count, i;
+	volatile unsigned int status;
+	u32 rx_tmp, timeout = 0;
+	u32 fifo_size;
+	int chipselect_status;
+
+	mxc_spi_chipselect(spi, BITBANG_CS_ACTIVE);
+
+	/* Get the master controller driver data from spi device's master */
+	master_drv_data = spi_master_get_devdata(spi->master);
+
+	chipselect_status = __raw_readl(MXC_CSPICONFIG +
+					master_drv_data->ctrl_addr);
+	chipselect_status >>= master_drv_data->spi_ver_def->ss_pol_shift &
+	    master_drv_data->spi_ver_def->mode_mask;
+	if (master_drv_data->chipselect_active)
+		master_drv_data->chipselect_active(spi->master->bus_num,
+						   chipselect_status,
+						   (spi->chip_select &
+						    MXC_CSPICTRL_CSMASK) + 1);
+
+	clk_enable(master_drv_data->clk);
+
+	/* Modify the Tx, Rx, Count */
+	master_drv_data->transfer.tx_buf = t->tx_buf;
+	master_drv_data->transfer.rx_buf = t->rx_buf;
+	master_drv_data->transfer.count = t->len;
+	fifo_size = master_drv_data->spi_ver_def->fifo_size;
+
+	count = (t->len > fifo_size) ? fifo_size : t->len;
+	spi_put_tx_data(master_drv_data->base, count, master_drv_data);
+
+	do {
+		timeout++;
+		if (timeout > MAX_CYCLE) {
+			dev_err(master_drv_data->dev, "Read Timeout!\n");
+			break;
+		}
+	} while ((((status = __raw_readl(master_drv_data->test_addr)) &
+		 master_drv_data->spi_ver_def->rx_cnt_mask) >> master_drv_data->
+		spi_ver_def->rx_cnt_off) != count);
+
+	for (i = 0; i < count; i++) {
+		rx_tmp = __raw_readl(master_drv_data->base + MXC_CSPIRXDATA);
+		master_drv_data->transfer.rx_get(master_drv_data, rx_tmp);
+	}
+
+	clk_disable(master_drv_data->clk);
+	if (master_drv_data->chipselect_inactive)
+		master_drv_data->chipselect_inactive(spi->master->bus_num,
+						     chipselect_status,
+						     (spi->chip_select &
+						      MXC_CSPICTRL_CSMASK) + 1);
+	return 0;
 }
 
 /*!
@@ -943,7 +1125,8 @@ static int mxc_spi_probe(struct platform_device *pdev)
 	struct mxc_spi_master *mxc_platform_info;
 	struct spi_master *master;
 	struct mxc_spi *master_drv_data = NULL;
-	unsigned int spi_ver;
+	struct resource *res;
+	unsigned int spi_ver, wml;
 	int ret = -ENODEV;
 
 	/* Get the platform specific data for this master device */
@@ -1060,6 +1243,39 @@ static int mxc_spi_probe(struct platform_device *pdev)
 		goto err1;
 	}
 
+	master_drv_data->dev = &pdev->dev;
+	/* Setup the DMA */
+	master_drv_data->usedma = 0;
+	res = platform_get_resource(pdev, IORESOURCE_DMA, 0);
+	if (res) {
+		master_drv_data->dma_tx_id = res->start;
+			master_drv_data->dma_tx_id = res->start;
+		if (pdev->dev.dma_mask == NULL)
+			dev_warn(&pdev->dev, "no dma mask\n");
+		else
+			master_drv_data->usedma = 1;
+	}
+	if (master_drv_data->usedma) {
+		master_drv_data->dma_tx_ch =
+			mxc_dma_request(master_drv_data->dma_tx_id, "mxc_spi");
+		if (master_drv_data->dma_tx_ch < 0) {
+			dev_info(&pdev->dev, "Can't allocate RX DMA ch\n");
+			master_drv_data->usedma = 0;
+			ret = -ENXIO;
+			goto err_no_txdma;
+		}
+		mxc_dma_callback_set(master_drv_data->dma_tx_ch,
+				mxc_spi_dma_tx_callback,
+				(void *)master_drv_data);
+
+		/* Allocate tmp_buf for tx_buf */
+		master_drv_data->tmp_buf = kzalloc(SPI_BUFSIZ, GFP_KERNEL);
+		if (master_drv_data->tmp_buf == NULL) {
+			ret = -ENOMEM;
+			goto err_tmp_buf_alloc;
+		}
+	}
+
 	/* Setup any GPIO active */
 
 	gpio_spi_active(master->bus_num - 1);
@@ -1068,6 +1284,8 @@ static int mxc_spi_probe(struct platform_device *pdev)
 
 	master_drv_data->ctrl_addr =
 	    master_drv_data->base + master_drv_data->spi_ver_def->ctrl_reg_addr;
+	master_drv_data->dma_addr =
+	    master_drv_data->base + master_drv_data->spi_ver_def->dma_reg_addr;
 	master_drv_data->stat_addr =
 	    master_drv_data->base + master_drv_data->spi_ver_def->stat_reg_addr;
 	master_drv_data->period_addr =
@@ -1092,6 +1310,15 @@ static int mxc_spi_probe(struct platform_device *pdev)
 	__raw_writel(MXC_CSPIPERIOD_32KHZ, master_drv_data->period_addr);
 	__raw_writel(0, MXC_CSPIINT + master_drv_data->ctrl_addr);
 
+	if (master_drv_data->usedma) {
+		/* Set water mark level to be the half of fifo_size in DMA */
+		wml = master_drv_data->spi_ver_def->fifo_size / 2;
+		wml = wml << master_drv_data->spi_ver_def->tx_wml_shift;
+		__raw_writel((__raw_readl(master_drv_data->dma_addr)
+				& ~master_drv_data->spi_ver_def->tx_wml_mask)
+				| wml,
+				master_drv_data->dma_addr);
+	}
 	/* Start the SPI Master Controller driver */
 
 	ret = spi_bitbang_start(&master_drv_data->mxc_bitbang);
@@ -1124,6 +1351,12 @@ static int mxc_spi_probe(struct platform_device *pdev)
 	gpio_spi_inactive(master->bus_num - 1);
 	clk_disable(master_drv_data->clk);
 	clk_put(master_drv_data->clk);
+	if (master_drv_data->usedma)
+		kfree(master_drv_data->tmp_buf);
+err_tmp_buf_alloc:
+	if (master_drv_data->usedma)
+		mxc_dma_free(master_drv_data->dma_tx_ch);
+err_no_txdma:
 	free_irq(master_drv_data->irq, master_drv_data);
       err1:
 	iounmap(master_drv_data->base);
@@ -1160,6 +1393,10 @@ static int mxc_spi_remove(struct platform_device *pdev)
 		__raw_writel(MXC_CSPICTRL_DISABLE,
 			     master_drv_data->base + MXC_CSPICTRL);
 		clk_disable(master_drv_data->clk);
+		if (master_drv_data->usedma) {
+			mxc_dma_free(master_drv_data->dma_tx_ch);
+			kfree(master_drv_data->tmp_buf);
+		}
 		/* Unregister for SPI Interrupt */
 
 		free_irq(master_drv_data->irq, master_drv_data);
