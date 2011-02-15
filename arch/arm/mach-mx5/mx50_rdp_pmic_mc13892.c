@@ -29,6 +29,7 @@
 #include <mach/irqs.h>
 
 #include <mach/iomux-mx50.h>
+#include <mach/gpio.h>
 
 /*
  * Convenience conversion.
@@ -421,7 +422,7 @@ static struct mc13892_platform_data mc13892_plat = {
 
 static struct spi_board_info __initdata mc13892_spi_device = {
 	.modalias = "pmic_spi",
-	.irq = IOMUX_TO_IRQ_V3(114),
+	.irq = gpio_to_irq(114),
 	.max_speed_hz = 6000000,	/* max spi SCK clock speed in HZ */
 	.bus_num = 3,
 	.chip_select = 0,

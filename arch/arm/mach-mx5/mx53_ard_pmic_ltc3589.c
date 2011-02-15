@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2010-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -31,6 +31,7 @@
 #include <linux/mfd/ltc3589/core.h>
 #include <mach/iomux-mx53.h>
 #include <mach/irqs.h>
+#include <mach/gpio.h>
 
 #define ARD_PMIC_INT			(4*32 + 7)	/* GPIO_5_7 */
 
@@ -183,7 +184,7 @@ static struct ltc3589_platform_data __initdata ltc3589_plat = {
 
 static struct i2c_board_info __initdata ltc3589_i2c_device = {
 	I2C_BOARD_INFO("ltc3589", 0x34),
-	.irq = IOMUX_TO_IRQ_V3(ARD_PMIC_INT),
+	.irq = gpio_to_irq(ARD_PMIC_INT),
 	.platform_data = &ltc3589_plat,
 };
 

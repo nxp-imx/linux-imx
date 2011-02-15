@@ -931,7 +931,7 @@ static struct mxc_audio_platform_data sgtl5000_data = {
 	.ssi_num = 1,
 	.src_port = 2,
 	.ext_port = 3,
-	.hp_irq = IOMUX_TO_IRQ_V3(BABBAGE_HEADPHONE_DET),
+	.hp_irq = gpio_to_irq(BABBAGE_HEADPHONE_DET),
 	.hp_status = headphone_det_status,
 	.amp_enable = mxc_sgtl5000_amp_enable,
 	.clock_enable = mxc_sgtl5000_clock_enable,
@@ -1074,7 +1074,7 @@ static void mxc_register_powerkey(pwrkey_callback pk_cb)
 {
 	/* Set power key as wakeup resource */
 	int irq, ret;
-	irq = IOMUX_TO_IRQ_V3(BABBAGE_POWER_KEY);
+	irq = gpio_to_irq(BABBAGE_POWER_KEY);
 
 	if (gpio_get_value(BABBAGE_POWER_KEY))
 		set_irq_type(irq, IRQF_TRIGGER_FALLING);
@@ -1219,10 +1219,10 @@ static void __init mxc_board_init(void)
 	mxc_spdif_data.spdif_core_clk = clk_get(NULL, "spdif_xtal_clk");
 	clk_put(mxc_spdif_data.spdif_core_clk);
 	/* SD card detect irqs */
-	mxcsdhc2_device.resource[2].start = IOMUX_TO_IRQ_V3(BABBAGE_SD2_CD_2_5);
-	mxcsdhc2_device.resource[2].end = IOMUX_TO_IRQ_V3(BABBAGE_SD2_CD_2_5);
-	mxcsdhc1_device.resource[2].start = IOMUX_TO_IRQ_V3(BABBAGE_SD1_CD);
-	mxcsdhc1_device.resource[2].end = IOMUX_TO_IRQ_V3(BABBAGE_SD1_CD);
+	mxcsdhc2_device.resource[2].start = gpio_to_irq(BABBAGE_SD2_CD_2_5);
+	mxcsdhc2_device.resource[2].end = gpio_to_irq(BABBAGE_SD2_CD_2_5);
+	mxcsdhc1_device.resource[2].start = gpio_to_irq(BABBAGE_SD1_CD);
+	mxcsdhc1_device.resource[2].end = gpio_to_irq(BABBAGE_SD1_CD);
 
 	mxc_cpu_common_init();
 	mx51_babbage_io_init();

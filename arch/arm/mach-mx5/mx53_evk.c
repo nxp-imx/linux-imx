@@ -870,7 +870,7 @@ static struct i2c_board_info mxc_i2c1_board_info[] __initdata = {
 	{
 	 .type = "tsc2007",
 	 .addr = 0x48,
-	 .irq  = IOMUX_TO_IRQ_V3(EVK_TS_INT),
+	 .irq  = gpio_to_irq(EVK_TS_INT),
 	},
 	{
 	 .type = "backlight-i2c",
@@ -887,7 +887,7 @@ static struct i2c_board_info mxc_i2c1_board_info[] __initdata = {
 	{
 	.type = "sii902x",
 	.addr = 0x39,
-	.irq = IOMUX_TO_IRQ_V3(MX53_DVI_DETECT),
+	.irq = gpio_to_irq(MX53_DVI_DETECT),
 	.platform_data = &sii902x_hdmi_data,
 	},
 };
@@ -1416,17 +1416,17 @@ static void __init mxc_board_init(void)
 
 	/* SD card detect irqs */
 	if (board_is_mx53_arm2()) {
-		mxcsdhc1_device.resource[2].start = IOMUX_TO_IRQ_V3(ARM2_SD1_CD);
-		mxcsdhc1_device.resource[2].end = IOMUX_TO_IRQ_V3(ARM2_SD1_CD);
+		mxcsdhc1_device.resource[2].start = gpio_to_irq(ARM2_SD1_CD);
+		mxcsdhc1_device.resource[2].end = gpio_to_irq(ARM2_SD1_CD);
 		mmc3_data.card_inserted_state = 1;
 		mmc3_data.status = NULL;
 		mmc3_data.wp_status = NULL;
 		mmc1_data.wp_status = NULL;
 	} else {
-		mxcsdhc3_device.resource[2].start = IOMUX_TO_IRQ_V3(EVK_SD3_CD);
-		mxcsdhc3_device.resource[2].end = IOMUX_TO_IRQ_V3(EVK_SD3_CD);
-		mxcsdhc1_device.resource[2].start = IOMUX_TO_IRQ_V3(EVK_SD1_CD);
-		mxcsdhc1_device.resource[2].end = IOMUX_TO_IRQ_V3(EVK_SD1_CD);
+		mxcsdhc3_device.resource[2].start = gpio_to_irq(EVK_SD3_CD);
+		mxcsdhc3_device.resource[2].end = gpio_to_irq(EVK_SD3_CD);
+		mxcsdhc1_device.resource[2].start = gpio_to_irq(EVK_SD1_CD);
+		mxcsdhc1_device.resource[2].end = gpio_to_irq(EVK_SD1_CD);
 	}
 
 	mxc_cpu_common_init();

@@ -751,7 +751,7 @@ static struct i2c_board_info mxc_i2c2_board_info[] __initdata = {
 	{
 	 .type = "max11801",
 	 .addr = 0x49,
-	 .irq  = IOMUX_TO_IRQ_V3(ARD_TS_INT),
+	 .irq  = gpio_to_irq(ARD_TS_INT),
 	},
 	{
 	 .type = "max7310",
@@ -854,8 +854,8 @@ static struct resource ard_smsc911x_resources[] = {
 	 .flags = IORESOURCE_MEM,
 	 },
 	{
-	 .start =  IOMUX_TO_IRQ_V3(ARD_ETHERNET_INT_B),
-	 .end =  IOMUX_TO_IRQ_V3(ARD_ETHERNET_INT_B),
+	 .start =  gpio_to_irq(ARD_ETHERNET_INT_B),
+	 .end =  gpio_to_irq(ARD_ETHERNET_INT_B),
 	 .flags = IORESOURCE_IRQ,
 	 },
 };
@@ -1220,10 +1220,10 @@ static void __init mxc_board_init(void)
 	mxc_spdif_data.spdif_core_clk = clk_get(NULL, "spdif_xtal_clk");
 	clk_put(mxc_spdif_data.spdif_core_clk);
 
-	mxcsdhc2_device.resource[2].start = IOMUX_TO_IRQ_V3(ARD_SD2_CD);
-	mxcsdhc2_device.resource[2].end = IOMUX_TO_IRQ_V3(ARD_SD2_CD);
-	mxcsdhc1_device.resource[2].start = IOMUX_TO_IRQ_V3(ARD_SD1_CD);
-	mxcsdhc1_device.resource[2].end = IOMUX_TO_IRQ_V3(ARD_SD1_CD);
+	mxcsdhc2_device.resource[2].start = gpio_to_irq(ARD_SD2_CD);
+	mxcsdhc2_device.resource[2].end = gpio_to_irq(ARD_SD2_CD);
+	mxcsdhc1_device.resource[2].start = gpio_to_irq(ARD_SD1_CD);
+	mxcsdhc1_device.resource[2].end = gpio_to_irq(ARD_SD1_CD);
 
 	mxc_cpu_common_init();
 

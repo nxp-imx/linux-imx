@@ -21,26 +21,7 @@
 
 #include <mach/iomux-v3.h>
 
-/*
- * various IOMUX alternate output functions (1-7)
- */
-typedef enum iomux_config {
-	IOMUX_CONFIG_ALT0,
-	IOMUX_CONFIG_ALT1,
-	IOMUX_CONFIG_ALT2,
-	IOMUX_CONFIG_ALT3,
-	IOMUX_CONFIG_ALT4,
-	IOMUX_CONFIG_ALT5,
-	IOMUX_CONFIG_ALT6,
-	IOMUX_CONFIG_ALT7,
-	IOMUX_CONFIG_GPIO,	/* added to help user use GPIO mode */
-	IOMUX_CONFIG_SION = 0x1 << 4,	/* LOOPBACK:MUX SION bit */
-} iomux_pin_cfg_t;
-
-#define NON_MUX_I	0x3FF
-#define NON_PAD_I	0x7FF
-
-#define IOMUX_TO_IRQ_V3(pin)		(MXC_GPIO_IRQ_START + pin)
+#define NON_MUX_I	0
 
 #define MX50_ELCDIF_PAD_CTRL	(PAD_CTL_PKE | \
 					PAD_CTL_DSE_HIGH)

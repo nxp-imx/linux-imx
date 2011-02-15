@@ -451,7 +451,7 @@ static struct i2c_board_info mxc_i2c1_board_info[] __initdata = {
 	{
 	 .type = "sii902x",
 	 .addr = 0x39,
-	 .irq = IOMUX_TO_IRQ_V3(DISP0_DET_INT),
+	 .irq = gpio_to_irq(DISP0_DET_INT),
 	 .platform_data = &sii902x_hdmi_data,
 	},
 };
@@ -511,7 +511,7 @@ static struct mxc_audio_platform_data sgtl5000_data = {
 	.ssi_num = 1,
 	.src_port = 2,
 	.ext_port = 5,
-	.hp_irq = IOMUX_TO_IRQ_V3(HEADPHONE_DEC_B),
+	.hp_irq = gpio_to_irq(HEADPHONE_DEC_B),
 	.hp_status = headphone_det_status,
 	.init = mxc_sgtl5000_init,
 };
@@ -739,8 +739,8 @@ static void __init mxc_board_init(void)
 	mxc_spdif_data.spdif_core_clk = clk_get(NULL, "spdif_xtal_clk");
 	clk_put(mxc_spdif_data.spdif_core_clk);
 
-	mxcsdhc3_device.resource[2].start = IOMUX_TO_IRQ_V3(SD3_CD);
-	mxcsdhc3_device.resource[2].end = IOMUX_TO_IRQ_V3(SD3_CD);
+	mxcsdhc3_device.resource[2].start = gpio_to_irq(SD3_CD);
+	mxcsdhc3_device.resource[2].end = gpio_to_irq(SD3_CD);
 
 	mxc_cpu_common_init();
 	mx53_loco_io_init();
