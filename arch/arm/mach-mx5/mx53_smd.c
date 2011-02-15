@@ -645,7 +645,7 @@ static struct i2c_board_info mxc_i2c1_board_info[] __initdata = {
 	{
 	.type = "mpr121_touchkey",
 	.addr = 0x5a,
-	.irq = IOMUX_TO_IRQ_V3(MX53_SMD_KEY_INT),
+	.irq = gpio_to_irq(MX53_SMD_KEY_INT),
 	.platform_data = &mpr121_keyboard_platdata,
 	},
 };
@@ -701,13 +701,13 @@ static struct i2c_board_info mxc_i2c2_board_info[] __initdata = {
 	{
 	.type = "sii902x",
 	.addr = 0x39,
-	.irq = IOMUX_TO_IRQ_V3(MX53_SMD_HDMI_INT),
+	.irq = gpio_to_irq(MX53_SMD_HDMI_INT),
 	.platform_data = &sii902x_hdmi_data,
 	},
 	{
 	.type = "p1003_fwv33",
 	.addr = 0x41,
-	.irq  = IOMUX_TO_IRQ_V3(MX53_SMD_CAP_TCH_INT1),
+	.irq  = gpio_to_irq(MX53_SMD_CAP_TCH_INT1),
 	.platform_data = &p1003_ts_data,
 	},
 };
@@ -797,7 +797,7 @@ static struct mxc_audio_platform_data sgtl5000_data = {
 	.ssi_num = 1,
 	.src_port = 2,
 	.ext_port = 5,
-	.hp_irq = IOMUX_TO_IRQ_V3(MX53_SMD_HEADPHONE_DEC),
+	.hp_irq = gpio_to_irq(MX53_SMD_HEADPHONE_DEC),
 	.hp_status = headphone_det_status,
 	.amp_enable = mxc_sgtl5000_amp_enable,
 	.init = mxc_sgtl5000_init,
@@ -1111,8 +1111,8 @@ static void __init mxc_board_init(void)
 	mxc_spdif_data.spdif_core_clk = clk_get(NULL, "spdif_xtal_clk");
 	clk_put(mxc_spdif_data.spdif_core_clk);
 
-	mxcsdhc1_device.resource[2].start = IOMUX_TO_IRQ_V3(MX53_SMD_SD1_CD);
-	mxcsdhc1_device.resource[2].end = IOMUX_TO_IRQ_V3(MX53_SMD_SD1_CD);
+	mxcsdhc1_device.resource[2].start = gpio_to_irq(MX53_SMD_SD1_CD);
+	mxcsdhc1_device.resource[2].end = gpio_to_irq(MX53_SMD_SD1_CD);
 
 	mxc_cpu_common_init();
 	mx53_smd_io_init();

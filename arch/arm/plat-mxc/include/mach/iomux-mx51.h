@@ -15,8 +15,6 @@
 
 #include <mach/iomux-v3.h>
 
-#define IOMUX_TO_IRQ_V3(pin)	(MXC_GPIO_IRQ_START + pin)
-
 /* Pad control groupings */
 #define MX51_UART_PAD_CTRL	(PAD_CTL_PKE | PAD_CTL_PUE | PAD_CTL_DSE_HIGH | \
 				PAD_CTL_HYS | PAD_CTL_SRE_FAST)

@@ -37,6 +37,7 @@
 #include <linux/mfd/da9052/tsi.h>
 #include <mach/irqs.h>
 #include <mach/iomux-mx53.h>
+#include <mach/gpio.h>
 
 #define DA9052_LDO(max, min, rname, suspend_mv) \
 {\
@@ -267,7 +268,7 @@ static int __init smd_da9052_init(struct da9052 *da9052)
 	/* s3c_gpio_setpull(DA9052_IRQ_PIN, S3C_GPIO_PULL_UP);*/
 	int ret;
 	/* Set interrupt as LOW LEVEL interrupt source */
-	set_irq_type(IOMUX_TO_IRQ_V3(MX53_SMD_DA9052_IRQ), IRQF_TRIGGER_LOW);
+	set_irq_type(gpio_to_irq(MX53_SMD_DA9052_IRQ), IRQF_TRIGGER_LOW);
 
 	da9052_init_ssc_cache(da9052);
 	ret = platform_device_register(&wifi_bt_reg_device);
@@ -288,7 +289,7 @@ static struct da9052_platform_data __initdata da9052_plat = {
 
 static struct i2c_board_info __initdata da9052_i2c_device = {
 	I2C_BOARD_INFO(DA9052_SSC_I2C_DEVICE_NAME, DA9052_I2C_ADDR >> 1),
-	.irq = IOMUX_TO_IRQ_V3(MX53_SMD_DA9052_IRQ),
+	.irq = gpio_to_irq(MX53_SMD_DA9052_IRQ),
 	.platform_data = &da9052_plat,
 };
 

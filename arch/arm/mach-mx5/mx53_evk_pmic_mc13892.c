@@ -2,7 +2,7 @@
  * mx53-evk-pmic-mc13892.c  --  i.MX53 3STACK Driver for Atlas MC13892 PMIC
  */
  /*
-  * Copyright (C) 2010 Freescale Semiconductor, Inc. All Rights Reserved.
+  * Copyright (C) 2010-2011 Freescale Semiconductor, Inc. All Rights Reserved.
   */
 
  /*
@@ -25,6 +25,7 @@
 #include <mach/irqs.h>
 
 #include <mach/iomux-mx53.h>
+#include <mach/gpio.h>
 
 /*
  * Convenience conversion.
@@ -341,7 +342,7 @@ static struct mc13892_platform_data mc13892_plat = {
 
 static struct i2c_board_info __initdata mc13892_i2c_device = {
 	I2C_BOARD_INFO("mc13892", 0x08),
-	.irq = IOMUX_TO_IRQ_V3(203),
+	.irq = gpio_to_irq(203),
 	.platform_data = &mc13892_plat,
 };
 

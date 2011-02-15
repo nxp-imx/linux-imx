@@ -1170,7 +1170,7 @@ static struct mxc_audio_platform_data sgtl5000_data = {
 	.ssi_num = 1,
 	.src_port = 2,
 	.ext_port = 3,
-	.hp_irq = IOMUX_TO_IRQ_V3(HP_DETECT),
+	.hp_irq = gpio_to_irq(HP_DETECT),
 	.hp_status = headphone_det_status,
 	.amp_enable = mxc_sgtl5000_amp_enable,
 	.clock_enable = mxc_sgtl5000_clock_enable,
@@ -1596,10 +1596,10 @@ static void __init mx50_rdp_io_init(void)
 static void __init mxc_board_init(void)
 {
 	/* SD card detect irqs */
-	mxcsdhc1_device.resource[2].start = IOMUX_TO_IRQ_V3(SD1_CD);
-	mxcsdhc1_device.resource[2].end = IOMUX_TO_IRQ_V3(SD1_CD);
-	mxcsdhc2_device.resource[2].start = IOMUX_TO_IRQ_V3(SD2_CD);
-	mxcsdhc2_device.resource[2].end = IOMUX_TO_IRQ_V3(SD2_CD);
+	mxcsdhc1_device.resource[2].start = gpio_to_irq(SD1_CD);
+	mxcsdhc1_device.resource[2].end = gpio_to_irq(SD1_CD);
+	mxcsdhc2_device.resource[2].start = gpio_to_irq(SD2_CD);
+	mxcsdhc2_device.resource[2].end = gpio_to_irq(SD2_CD);
 
 	mxc_cpu_common_init();
 	mx50_rdp_io_init();
