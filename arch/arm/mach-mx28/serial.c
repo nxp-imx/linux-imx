@@ -1,5 +1,5 @@
 /*
-  * Copyright (C) 2010 Freescale Semiconductor, Inc. All Rights Reserved.
+  * Copyright (C) 2011 Freescale Semiconductor, Inc. All Rights Reserved.
   *
   * This program is distributed in the hope that it will be useful,
   * This program is free software; you can redistribute it and/or modify
@@ -216,6 +216,11 @@ static struct resource auart4_resource[] = {
 	 .flags = IORESOURCE_MEM,
 	 .start = AUART4_PHYS_ADDR,
 	 .end	= AUART4_PHYS_ADDR + 0xFFF,
+	 },
+	 {
+	 .flags = IORESOURCE_DMA,
+	 .start = MXS_DMA_CHANNEL_AHB_APBX_UART4_RX,
+	 .end = MXS_DMA_CHANNEL_AHB_APBX_UART4_RX,
 	 },
 	{
 	 .flags = IORESOURCE_DMA,
