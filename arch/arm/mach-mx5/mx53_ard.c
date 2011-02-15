@@ -540,6 +540,10 @@ static struct ldb_platform_data ldb_data = {
 	.ext_ref = 1,
 };
 
+static struct tve_platform_data tve_data = {
+	.dac_reg = "LDO4",
+};
+
 static void mxc_iim_enable_fuse(void)
 {
 	u32 reg;
@@ -1046,12 +1050,30 @@ static void __init fixup_mxc_board(struct machine_desc *desc, struct tag *tags,
 	}
 }
 
+static int __initdata enable_ard_vga = { 0 };
+static int __init ard_vga_setup(char *__unused)
+{
+	enable_ard_vga = 1;
+	printk(KERN_INFO "Enable MX53 ARD VGA\n");
+	return cpu_is_mx53();
+}
+__setup("ard-vga", ard_vga_setup);
+
 static void __init mx53_ard_io_init(void)
 {
 	/* MX53 ARD board */
 	pr_info("MX53 ARD board \n");
 	mxc_iomux_v3_setup_multiple_pads(mx53ard_pads,
 				ARRAY_SIZE(mx53ard_pads));
+
+	/* setup VGA PINs */
+	if (enable_ard_vga) {
+		iomux_v3_cfg_t vga;
+		vga = MX53_PAD_EIM_OE__IPU_DI1_PIN7;
+		mxc_iomux_v3_setup_pad(vga);
+		vga = MX53_PAD_EIM_RW__IPU_DI1_PIN8;
+		mxc_iomux_v3_setup_pad(vga);
+	}
 
 	/* USBOTG_OC */
 	gpio_request(ARD_USBOTG_OC, "otg-oc");
@@ -1219,6 +1241,7 @@ static void __init mxc_board_init(void)
 	mxc_register_device(&mxc_rtc_device, NULL);
 	mxc_register_device(&mxc_ipu_device, &mxc_ipu_data);
 	mxc_register_device(&mxc_ldb_device, &ldb_data);
+	mxc_register_device(&mxc_tve_device, &tve_data);
 	mxc_register_device(&mxcvpu_device, &mxc_vpu_data);
 	mxc_register_device(&gpu_device, &z160_revision);
 	mxc_register_device(&mxcscc_device, NULL);
