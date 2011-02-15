@@ -106,9 +106,9 @@ static inline void fuse_op_start(void)
 	dev_dbg(iim_data->dev, "<= %s\n", __func__);
 }
 
-static u32 sense_fuse(s32 bank, s32 row, s32 bit)
+static u32 sense_fuse(u32 bank, u32 row, u32 bit)
 {
-	s32 addr, addr_l, addr_h;
+	u32 addr, addr_l, addr_h;
 	s32 err = 0;
 	struct iim_regs *iim_reg_base = (struct iim_regs *)iim_data->virt_base;
 
@@ -150,7 +150,7 @@ static u32 sense_fuse(s32 bank, s32 row, s32 bit)
 
 /* Blow fuses based on the bank, row and bit positions (all 0-based)
 */
-static s32 fuse_blow_bit(s32 bank, s32 row, s32 bit)
+static s32 fuse_blow_bit(u32 bank, u32 row, u32 bit)
 {
 	int addr, addr_l, addr_h, err;
 	struct iim_regs *iim_reg_base = (struct iim_regs *)iim_data->virt_base;
@@ -197,7 +197,7 @@ static s32 fuse_blow_bit(s32 bank, s32 row, s32 bit)
 	return err;
 }
 
-static void fuse_blow_row(s32 bank, s32 row, s32 value)
+static void fuse_blow_row(u32 bank, u32 row, u32 value)
 {
 	u32 i;
 
@@ -325,8 +325,7 @@ invald_arg_out:
 static ssize_t mxc_iim_read(struct file *filp, char __user *buf,
 			size_t count, loff_t *f_pos)
 {
-	s32 bank;
-	s8 row, fuse_val;
+	u32 bank, row, fuse_val;
 	ssize_t retval = 0;
 
 	dev_dbg(iim_data->dev, "=> %s\n", __func__);
@@ -349,9 +348,9 @@ static ssize_t mxc_iim_read(struct file *filp, char __user *buf,
 	dev_dbg(iim_data->dev, "Read fuse at bank:%d row:%d\n",
 		bank, row);
 	mutex_lock(&iim_data->mutex);
-	fuse_val = (s8)sense_fuse(bank, row, 0);
+	fuse_val = sense_fuse(bank, row, 0);
 	mutex_unlock(&iim_data->mutex);
-	dev_dbg(iim_data->dev, "fuses at (bank:%d, row:%d) = 0x%x\n",
+	dev_info(iim_data->dev, "fuses at (bank:%d, row:%d) = 0x%x\n",
 		bank, row, fuse_val);
 	if (copy_to_user(buf, &fuse_val, count)) {
 		retval = -EFAULT;
@@ -370,10 +369,10 @@ invald_arg_out:
 static ssize_t mxc_iim_write(struct file *filp, const char __user *buf,
 			size_t count, loff_t *f_pos)
 {
-	s32 bank;
+	u32 bank;
 	ulong fuse_val;
-	s8 row;
-	s8 *tmp_buf = NULL;
+	u8 row;
+	u8 *tmp_buf = NULL;
 	loff_t file_pos = *f_pos;
 	ssize_t retval = 0;
 
@@ -383,7 +382,7 @@ static ssize_t mxc_iim_write(struct file *filp, const char __user *buf,
 	tmp_buf = kmalloc(count + 1, GFP_KERNEL);
 	if (unlikely(!tmp_buf)) {
 		retval = -ENOMEM;
-		 goto out;
+		goto out;
 	}
 	memset(tmp_buf, 0, count + 1);
 	if (copy_from_user(tmp_buf, buf, count)) {
@@ -432,7 +431,7 @@ static ssize_t mxc_iim_write(struct file *filp, const char __user *buf,
 			"bank_start: 0x%08x, bank_end: 0x%08x\n",
 			iim_data->bank_start, iim_data->bank_end);
 		dev_info(iim_data->dev,
-			"file pos out of range: 0x%08x\n", file_pos);
+			"file pos out of range: 0x%08x\n", (u32)file_pos);
 		retval = -EINVAL;
 		goto out;
 	}
@@ -440,13 +439,13 @@ static ssize_t mxc_iim_write(struct file *filp, const char __user *buf,
 	bank = (file_pos - iim_data->bank_start) >> 10;
 	row  = ((file_pos - iim_data->bank_start) & 0x3ff) >> 2;
 
-	dev_dbg(iim_data->dev, "Blowing fuse at bank:%d row:%d value:%d\n",
+	dev_info(iim_data->dev, "Blowing fuse at bank:%d row:%d value:%d\n",
 			bank, row, (int)fuse_val);
 	mutex_lock(&iim_data->mutex);
 	fuse_blow_row(bank, row, fuse_val);
 	fuse_val = sense_fuse(bank, row, 0);
 	mutex_unlock(&iim_data->mutex);
-	dev_dbg(iim_data->dev, "fuses at (bank:%d, row:%d) = 0x%x\n",
+	dev_info(iim_data->dev, "fuses at (bank:%d, row:%d) = 0x%x\n",
 		bank, row, (unsigned int)fuse_val);
 
 	retval = count;
