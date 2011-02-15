@@ -750,12 +750,13 @@ static void sdhci_send_command(struct sdhci_host *host, struct mmc_command *cmd)
 				 * set bit1 of Vendor Spec Registor
 				 */
 				if (cmd->opcode == 0x35 && (cmd->data->flags
-							& MMC_DATA_READ))
+							& MMC_DATA_READ)) {
 					timeout = readl(host->ioaddr
 							+ SDHCI_VENDOR_SPEC);
 					timeout |= 0x2;
 					writel(timeout, host->ioaddr
 							+ SDHCI_VENDOR_SPEC);
+				}
 			}
 		}
 		if (cmd->data->flags & MMC_DATA_READ)
