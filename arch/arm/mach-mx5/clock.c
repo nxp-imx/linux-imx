@@ -54,7 +54,7 @@ static struct clk axi_a_clk;
 static struct clk axi_b_clk;
 static struct clk ddr_hf_clk;
 static struct clk mipi_hsp_clk;
-static struct clk gpu3d_clk;
+static struct clk gpu3d_clk[];
 static struct clk gpu2d_clk;
 static struct clk vpu_clk[];
 static int cpu_curr_wp;
@@ -1194,7 +1194,6 @@ static struct clk ahbmux2_clk = {
 	.enable_shift = MXC_CCM_CCGRx_CG9_OFFSET,
 	.disable = _clk_disable_inwait,
 };
-
 
 static struct clk emi_fast_clk = {
 	.parent = &ddr_clk,
@@ -4064,15 +4063,21 @@ static struct clk garb_clk = {
 	.disable = _clk_disable,
 };
 
-static struct clk gpu3d_clk = {
-	.parent = &axi_a_clk,
-	.set_parent = _clk_gpu3d_set_parent,
-	.enable = _clk_enable,
-	.enable_reg = MXC_CCM_CCGR5,
-	.enable_shift = MXC_CCM_CCGRx_CG1_OFFSET,
-	.disable = _clk_disable,
-	.flags = AHB_HIGH_SET_POINT | CPU_FREQ_TRIG_UPDATE,
-	.secondary = &garb_clk,
+static struct clk gpu3d_clk[] = {
+	{
+	 .parent = &axi_a_clk,
+	 .set_parent = _clk_gpu3d_set_parent,
+	 .enable = _clk_enable,
+	 .enable_reg = MXC_CCM_CCGR5,
+	 .enable_shift = MXC_CCM_CCGRx_CG1_OFFSET,
+	 .disable = _clk_disable,
+	 .flags = AHB_HIGH_SET_POINT | CPU_FREQ_TRIG_UPDATE,
+	 .secondary = &gpu3d_clk[1],
+	},
+	{
+	 .parent = &emi_fast_clk,
+	 .secondary = &garb_clk,
+	}
 };
 
 static int _clk_gpu2d_set_parent(struct clk *clk, struct clk *parent)
@@ -4091,6 +4096,7 @@ static int _clk_gpu2d_set_parent(struct clk *clk, struct clk *parent)
 static struct clk gpu2d_clk = {
 	.parent = &axi_a_clk,
 	.set_parent = _clk_gpu2d_set_parent,
+	.secondary = &emi_fast_clk,
 	.enable = _clk_enable,
 	.enable_reg = MXC_CCM_CCGR6,
 	.enable_shift = MXC_CCM_CCGRx_CG7_OFFSET,
@@ -4363,7 +4369,7 @@ static struct clk_lookup lookups[] = {
 	_REGISTER_CLOCK("pata_fsl", NULL, ata_clk),
 	_REGISTER_CLOCK("mxc_w1.0", NULL, owire_clk),
 	_REGISTER_CLOCK(NULL, "sahara_clk", sahara_clk[0]),
-	_REGISTER_CLOCK(NULL, "gpu3d_clk", gpu3d_clk),
+	_REGISTER_CLOCK(NULL, "gpu3d_clk", gpu3d_clk[0]),
 	_REGISTER_CLOCK(NULL, "garb_clk", garb_clk),
 	_REGISTER_CLOCK(NULL, "gpu2d_clk", gpu2d_clk),
 	_REGISTER_CLOCK("mxc_scc.0", NULL, scc_clk[0]),
@@ -4611,7 +4617,7 @@ int __init mx51_clocks_init(unsigned long ckil, unsigned long osc, unsigned long
 	 */
 	clk_set_parent(&vpu_clk[0], &axi_b_clk);
 	clk_set_parent(&vpu_clk[1], &axi_b_clk);
-	clk_set_parent(&gpu3d_clk, &axi_a_clk);
+	clk_set_parent(&gpu3d_clk[0], &axi_a_clk);
 	clk_set_parent(&gpu2d_clk, &axi_a_clk);
 
 	/* move cspi to 24MHz */
@@ -5023,7 +5029,7 @@ int __init mx53_clocks_init(unsigned long ckil, unsigned long osc, unsigned long
 	clk_set_parent(&arm_axi_clk, &axi_b_clk);
 	clk_set_parent(&ipu_clk[0], &axi_b_clk);
 	clk_set_parent(&uart_main_clk, &pll3_sw_clk);
-	clk_set_parent(&gpu3d_clk, &axi_b_clk);
+	clk_set_parent(&gpu3d_clk[0], &axi_b_clk);
 	clk_set_parent(&gpu2d_clk, &axi_b_clk);
 
 	clk_set_parent(&emi_slow_clk, &ahb_clk);
