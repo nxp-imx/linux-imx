@@ -72,6 +72,10 @@
 #define POWER_STATE_OFF	0
 #define POWER_STATE_ON	1
 
+#define MERGE_OK	0
+#define MERGE_FAIL	1
+#define MERGE_BLOCK	2
+
 static unsigned long default_bpp = 16;
 
 struct update_marker_data {
@@ -336,13 +340,15 @@ static void dump_update_data(struct device *dev,
 			     struct update_data_list *upd_data_list)
 {
 	dev_err(dev,
-		"X = %d, Y = %d, Width = %d, Height = %d, WaveMode = %d, LUT = %d, Coll Mask = 0x%x\n",
+		"X = %d, Y = %d, Width = %d, Height = %d, WaveMode = %d, "
+		"LUT = %d, Coll Mask = 0x%x, order = %d\n",
 		upd_data_list->upd_data.update_region.left,
 		upd_data_list->upd_data.update_region.top,
 		upd_data_list->upd_data.update_region.width,
 		upd_data_list->upd_data.update_region.height,
 		upd_data_list->upd_data.waveform_mode, upd_data_list->lut_num,
-		upd_data_list->collision_mask);
+		upd_data_list->collision_mask,
+		upd_data_list->update_order);
 }
 
 static void dump_collision_list(struct mxc_epdc_fb_data *fb_data)
@@ -1746,29 +1752,46 @@ static int epdc_process_update(struct update_data_list *upd_data_list,
 
 }
 
-static bool epdc_submit_merge(struct update_data_list *upd_data_list,
+static int epdc_submit_merge(struct update_data_list *upd_data_list,
 				struct update_data_list *update_to_merge)
 {
 	struct mxcfb_update_data *a, *b;
 	struct mxcfb_rect *arect, *brect;
 	struct mxcfb_rect combine;
+	bool use_flags = false;
 
 	a = &upd_data_list->upd_data;
 	b = &update_to_merge->upd_data;
 	arect = &upd_data_list->upd_data.update_region;
 	brect = &update_to_merge->upd_data.update_region;
 
+	/*
+	 * Updates with different flags must be executed sequentially.
+	 * Halt the merge process to ensure this.
+	 */
+	if (a->flags != b->flags) {
+		/*
+		 * Special exception: if update regions are identical,
+		 * we may be able to merge them.
+		 */
+		if ((arect->left != brect->left) ||
+			(arect->top != brect->top) ||
+			(arect->width != brect->width) ||
+			(arect->height != brect->height))
+			return MERGE_BLOCK;
+
+		use_flags = true;
+	}
+
 	if ((a->waveform_mode != b->waveform_mode
 		&& a->waveform_mode != WAVEFORM_MODE_AUTO) ||
 		a->update_mode != b->update_mode ||
-		(a->flags & EPDC_FLAG_USE_ALT_BUFFER) ||
-		(b->flags & EPDC_FLAG_USE_ALT_BUFFER) ||
 		arect->left > (brect->left + brect->width) ||
 		brect->left > (arect->left + arect->width) ||
 		arect->top > (brect->top + brect->height) ||
 		brect->top > (arect->top + arect->height) ||
 		(b->update_marker != 0 && a->update_marker != 0))
-		return false;
+		return MERGE_FAIL;
 
 	combine.left = arect->left < brect->left ? arect->left : brect->left;
 	combine.top = arect->top < brect->top ? arect->top : brect->top;
@@ -1781,10 +1804,11 @@ static bool epdc_submit_merge(struct update_data_list *upd_data_list,
 			(arect->top + arect->height - combine.top) :
 			(brect->top + brect->height - combine.top);
 
-	arect->left = combine.left;
-	arect->top = combine.top;
-	arect->width = combine.width;
-	arect->height = combine.height;
+	*arect = combine;
+
+	/* Use flags of the later update */
+	if (use_flags)
+		a->flags = b->flags;
 
 	/* Preserve marker value for merged update */
 	if (b->update_marker != 0) {
@@ -1798,7 +1822,7 @@ static bool epdc_submit_merge(struct update_data_list *upd_data_list,
 		(upd_data_list->update_order > update_to_merge->update_order) ?
 		upd_data_list->update_order : update_to_merge->update_order;
 
-	return true;
+	return MERGE_OK;
 }
 
 static void epdc_submit_work_func(struct work_struct *work)
@@ -1811,6 +1835,7 @@ static void epdc_submit_work_func(struct work_struct *work)
 		container_of(work, struct mxc_epdc_fb_data, epdc_submit_work);
 	struct update_data_list *upd_data_list = NULL;
 	struct mxcfb_rect adj_update_region;
+	bool end_merge = false;
 
 	/* Protect access to buffer queues and to update HW */
 	spin_lock_irqsave(&fb_data->queue_lock, flags);
@@ -1838,16 +1863,33 @@ static void epdc_submit_work_func(struct work_struct *work)
 			if (fb_data->upd_scheme == UPDATE_SCHEME_QUEUE)
 				/* If not merging, we have our update */
 				break;
-		} else if (epdc_submit_merge(upd_data_list, next_update)) {
-			dev_dbg(fb_data->dev,
-				"Update merged [work queue]\n");
-			list_del_init(&next_update->list);
-			/* Add to free buffer list */
-			list_add_tail(&next_update->list,
-				 &fb_data->upd_buf_free_list->list);
-		} else
-			dev_dbg(fb_data->dev,
-				"Update not merged [work queue]\n");
+		} else {
+			switch (epdc_submit_merge(upd_data_list,
+							next_update)) {
+			case MERGE_OK:
+				dev_dbg(fb_data->dev,
+					"Update merged [collision]\n");
+				list_del_init(&next_update->list);
+				/* Add to free buffer list */
+				list_add_tail(&next_update->list,
+					 &fb_data->upd_buf_free_list->list);
+				break;
+			case MERGE_FAIL:
+				dev_dbg(fb_data->dev,
+					"Update not merged [collision]\n");
+				break;
+			case MERGE_BLOCK:
+				dev_dbg(fb_data->dev,
+					"Merge blocked [collision]\n");
+				end_merge = true;
+				break;
+			}
+
+			if (end_merge) {
+				end_merge = false;
+				break;
+			}
+		}
 	}
 
 	/*
@@ -1871,17 +1913,31 @@ static void epdc_submit_work_func(struct work_struct *work)
 				if (fb_data->upd_scheme == UPDATE_SCHEME_QUEUE)
 					/* If not merging, we have an update */
 					break;
-			} else if (epdc_submit_merge(upd_data_list,
-					next_update)) {
-				dev_dbg(fb_data->dev,
-					"Update merged [work queue]\n");
-				list_del_init(&next_update->list);
-				/* Add to free buffer list */
-				list_add_tail(&next_update->list,
-					 &fb_data->upd_buf_free_list->list);
-			} else
-				dev_dbg(fb_data->dev,
-					"Update not merged [work queue]\n");
+			} else {
+				switch (epdc_submit_merge(upd_data_list,
+								next_update)) {
+				case MERGE_OK:
+					dev_dbg(fb_data->dev,
+						"Update merged [queue]\n");
+					list_del_init(&next_update->list);
+					/* Add to free buffer list */
+					list_add_tail(&next_update->list,
+						 &fb_data->upd_buf_free_list->list);
+					break;
+				case MERGE_FAIL:
+					dev_dbg(fb_data->dev,
+						"Update not merged [queue]\n");
+					break;
+				case MERGE_BLOCK:
+					dev_dbg(fb_data->dev,
+						"Merge blocked [collision]\n");
+					end_merge = true;
+					break;
+				}
+
+				if (end_merge)
+					break;
+			}
 		}
 	}
 
@@ -2452,7 +2508,6 @@ static int mxc_epdc_fb_pan_display(struct fb_var_screeninfo *var,
 		y_bottom += var->yres;
 
 	if (y_bottom > info->var.yres_virtual) {
-		spin_unlock_irqrestore(&fb_data->queue_lock, flags);
 		return -EINVAL;
 	}
 
@@ -2517,6 +2572,25 @@ static bool is_free_list_full(struct mxc_epdc_fb_data *fb_data)
 		return false;
 }
 
+static bool do_updates_overlap(struct update_data_list *update1,
+					struct update_data_list *update2)
+{
+	struct mxcfb_rect *rect1 = &update1->upd_data.update_region;
+	struct mxcfb_rect *rect2 = &update2->upd_data.update_region;
+	__u32 bottom1, bottom2, right1, right2;
+	bottom1 = rect1->top + rect1->height;
+	bottom2 = rect2->top + rect2->height;
+	right1 = rect1->left + rect1->width;
+	right2 = rect2->left + rect2->width;
+
+	if ((rect1->top < bottom2) &&
+		(bottom1 > rect2->top) &&
+		(rect1->left < right2) &&
+		(right1 > rect2->left)) {
+		return true;
+	} else
+		return false;
+}
 static irqreturn_t mxc_epdc_irq_handler(int irq, void *dev_id)
 {
 	struct mxc_epdc_fb_data *fb_data = dev_id;
@@ -2526,6 +2600,7 @@ static irqreturn_t mxc_epdc_irq_handler(int irq, void *dev_id)
 	int temp_index;
 	u32 luts_completed_mask;
 	u32 temp_mask;
+	u32 missed_coll_mask = 0;
 	u32 lut;
 	bool ignore_collision = false;
 	int i, j;
@@ -2661,17 +2736,39 @@ static irqreturn_t mxc_epdc_irq_handler(int irq, void *dev_id)
 			fb_data->waiting_for_lut = false;
 		}
 
+		/*
+		 * Check for "missed collision" conditions:
+		 *  - Current update overlaps one or more updates
+		 *    in collision list
+		 *  - No collision reported with current active updates
+		 */
+		list_for_each_entry(collision_update,
+				    &fb_data->upd_buf_collision_list->list,
+				    list)
+			if (do_updates_overlap(collision_update,
+				fb_data->cur_update))
+				missed_coll_mask |=
+					collision_update->collision_mask;
+
 		/* Was there a collision? */
-		if (epdc_is_collision()) {
+		if (epdc_is_collision() || missed_coll_mask) {
 			/* Check list of colliding LUTs, and add to our collision mask */
 			fb_data->cur_update->collision_mask =
 			    epdc_get_colliding_luts();
+
+			if (!fb_data->cur_update->collision_mask) {
+				fb_data->cur_update->collision_mask =
+					missed_coll_mask;
+				dev_dbg(fb_data->dev, "Missed collision "
+					"possible. Mask = 0x%x\n",
+					missed_coll_mask);
+			}
 
 			/* Clear collisions that just completed */
 			fb_data->cur_update->collision_mask &= ~luts_completed_mask;
 
 			dev_dbg(fb_data->dev, "\nCollision mask = 0x%x\n",
-			       epdc_get_colliding_luts());
+			       fb_data->cur_update->collision_mask);
 
 			/*
 			 * If we collide with newer updates, then
