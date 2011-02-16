@@ -1,5 +1,5 @@
 /*
- * Copyright 2009-2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2009-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -51,21 +51,22 @@
 #define EMI_SLOW_CLK_NORMAL_DIV		AXI_B_CLK_NORMAL_DIV
 #define NFC_CLK_NORMAL_DIV      	4
 #define SPIN_DELAY	1000000 /* in nanoseconds */
-#define HW_QOS_DISABLE		0x70
-#define HW_QOS_DISABLE_SET		0x74
-#define HW_QOS_DISABLE_CLR		0x78
 #define DDR_TYPE_DDR3		0x0
 #define DDR_TYPE_DDR2		0x1
 
 DEFINE_SPINLOCK(ddr_freq_lock);
 
-static unsigned long lp_normal_rate;
-static unsigned long lp_med_rate;
-static unsigned long ddr_normal_rate;
-static unsigned long ddr_med_rate;
-static unsigned long ddr_low_rate;
+unsigned long lp_normal_rate;
+unsigned long lp_med_rate;
+unsigned long ddr_normal_rate;
+unsigned long ddr_med_rate;
+unsigned long ddr_low_rate;
 static int cur_ddr_rate;
 static unsigned char mx53_ddr_type;
+static struct cpu_wp *cpu_wp_tbl;
+static struct device *busfreq_dev;
+static int busfreq_suspended;
+static int cpu_podf;
 
 static struct clk *ddr_clk;
 static struct clk *pll1_sw_clk;
@@ -84,12 +85,8 @@ static struct clk *periph_apm_clk;
 static struct clk *lp_apm;
 static struct clk *gpc_dvfs_clk;
 static struct clk *emi_garb_clk;
-static struct clk *epdc_clk;
-
 static void __iomem *pll1_base;
 static void __iomem *pll4_base;
-
-static void __iomem *qosc_base;
 
 struct regulator *pll_regulator;
 
@@ -102,10 +99,6 @@ int bus_freq_scaling_initialized;
 char *gp_reg_id;
 char *lp_reg_id;
 
-static struct cpu_wp *cpu_wp_tbl;
-static struct device *busfreq_dev;
-static int busfreq_suspended;
-static int cpu_podf;
 /* True if bus_frequency is scaled not using DVFS-PER */
 int bus_freq_scaling_is_active;
 
@@ -126,15 +119,13 @@ void exit_lpapm_mode_mx51(void);
 void exit_lpapm_mode_mx53(void);
 int low_freq_bus_used(void);
 void set_ddr_freq(int ddr_freq);
-void *ddr_freq_change_iram_base;
-void (*change_ddr_freq)(void *ccm_addr, void *databahn_addr, u32 freq) = NULL;
 
-extern void mx50_ddr_freq_change(u32 ccm_base,
-					u32 databahn_addr, u32 freq);
 extern int dvfs_core_is_active;
 extern struct cpu_wp *(*get_cpu_wp)(int *wp);
 extern void __iomem *ccm_base;
 extern void __iomem *databahn_base;
+extern int update_ddr_freq(int ddr_rate);
+extern unsigned int mx50_ddr_type;
 
 static DEFINE_SPINLOCK(voltage_lock);
 struct mutex bus_freq_mutex;
@@ -716,40 +707,19 @@ void exit_lpapm_mode_mx53()
 	} */
 }
 
-int can_change_ddr_freq(void)
-{
-	if (clk_get_usecount(epdc_clk) == 0)
-		return 1;
-	return 0;
-}
-
 void set_ddr_freq(int ddr_rate)
 {
-	u32 reg;
 	unsigned long flags;
-
-	if (!can_change_ddr_freq())
-		return;
+	unsigned int ret = 0;
 
 	spin_lock_irqsave(&ddr_freq_lock, flags);
-	local_flush_tlb_all();
-	flush_cache_all();
 
-	/* Disable all masters from accessing the DDR. */
-	reg = __raw_readl(qosc_base + HW_QOS_DISABLE);
-	reg |= 0xFFE;
-	__raw_writel(reg, qosc_base + HW_QOS_DISABLE_SET);
-	udelay(100);
-
-	/* Set the DDR to default freq.
-	 */
-	change_ddr_freq(ccm_base, databahn_base, ddr_rate);
-
-	/* Enable all masters to access the DDR. */
-	__raw_writel(reg, qosc_base + HW_QOS_DISABLE_CLR);
+	if (cpu_is_mx50())
+		ret = update_ddr_freq(ddr_rate);
 
 	spin_unlock_irqrestore(&ddr_freq_lock, flags);
-	cur_ddr_rate = ddr_rate;
+	if (!ret)
+		cur_ddr_rate = ddr_rate;
 	udelay(100);
 }
 
@@ -834,7 +804,6 @@ static int __devinit busfreq_probe(struct platform_device *pdev)
 {
 	int err = 0;
 	unsigned long pll2_rate, pll1_rate;
-	unsigned long iram_paddr;
 	struct mxc_bus_freq_platform_data *p_bus_freq_data;
 
 	p_bus_freq_data = pdev->dev.platform_data;
@@ -991,7 +960,11 @@ static int __devinit busfreq_probe(struct platform_device *pdev)
 			ddr_normal_rate = clk_get_rate(ddr_clk);
 			lp_med_rate = pll2_rate / 6;
 			ddr_low_rate = LP_APM_CLK;
-			ddr_med_rate = pll2_rate / 3;
+			if (mx50_ddr_type == MX50_LPDDR2)
+				ddr_med_rate = pll2_rate / 3;
+			else
+				/* mDDR @ 133Mhz currently does not work */
+				ddr_med_rate = ddr_normal_rate;
 		}
 	}
 
@@ -1018,15 +991,6 @@ static int __devinit busfreq_probe(struct platform_device *pdev)
 	}
 
 	if (cpu_is_mx50()) {
-		u32 reg;
-
-		iram_alloc(SZ_8K, &iram_paddr);
-		/* Need to remap the area here since we want the memory region
-			 to be executable. */
-		ddr_freq_change_iram_base = __arm_ioremap(iram_paddr,
-							SZ_8K, MT_HIGH_VECTORS);
-		memcpy(ddr_freq_change_iram_base, mx50_ddr_freq_change, SZ_8K);
-		change_ddr_freq = (void *)ddr_freq_change_iram_base;
 		cur_ddr_rate = ddr_normal_rate;
 
 		lp_regulator = regulator_get(NULL, lp_reg_id);
@@ -1035,24 +999,10 @@ static int __devinit busfreq_probe(struct platform_device *pdev)
 			"%s: failed to get lp regulator\n", __func__);
 			return PTR_ERR(lp_regulator);
 		}
-
-		qosc_base = ioremap(QOSC_BASE_ADDR, SZ_4K);
-		/* Enable the QoSC */
-		reg = __raw_readl(qosc_base);
-		reg &= ~0xC0000000;
-		__raw_writel(reg, qosc_base);
-
 		voltage_wq = create_rt_workqueue("voltage_change");
 		INIT_WORK(&voltage_change_handler, voltage_work_handler);
 
 		init_completion(&voltage_change_cmpl);
-
-		epdc_clk = clk_get(NULL, "epdc_axi");
-		if (IS_ERR(epdc_clk)) {
-			printk(KERN_DEBUG "%s: failed to get epdc_axi_clk\n",
-				__func__);
-			return PTR_ERR(epdc_clk);
-		}
 	}
 	cpu_wp_tbl = get_cpu_wp(&cpu_wp_nr);
 	low_bus_freq_mode = 0;
