@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2010-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -165,7 +165,8 @@
 #define LOWPOWER_REFRESH_ENABLE_OFFSET	16
 #define LOWPOWER_REFRESH_HOLD_MASK		0xFFFF
 #define LOWPOWER_REFRESH_HOLD_OFFSET	0
-
+#define MX50_LPDDR2				(0x5 << 8)
+#define MX50_MDDR					(0x1 << 8)
 
 #define DEBUG_BASE_ADDR	0x40000000
 /*MX53 + 0x2000000 */
