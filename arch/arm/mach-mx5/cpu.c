@@ -1,5 +1,5 @@
 /*
- * Copyright 2008-2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2008-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * The code contained herein is licensed under the GNU General Public
  * License. You may obtain a copy of the GNU General Public License
@@ -37,11 +37,7 @@
 void __iomem *arm_plat_base;
 void __iomem *gpc_base;
 void __iomem *ccm_base;
-void __iomem *databahn_base;
-void *wait_in_iram_base;
-void (*wait_in_iram)(void *ccm_addr, void *databahn_addr);
-
-extern void mx50_wait(u32 ccm_base, u32 databahn_addr);
+extern void init_ddr_settings(void);
 
 static int cpu_silicon_rev = -1;
 
@@ -239,42 +235,9 @@ static int __init post_cpu_init(void)
 		iounmap(base);
 	}
 
-	databahn_base = ioremap(MX50_DATABAHN_BASE_ADDR, SZ_16K);
+	if (cpu_is_mx50())
+		init_ddr_settings();
 
-	if (cpu_is_mx50()) {
-		struct clk *ddr_clk = clk_get(NULL, "ddr_clk");
-		unsigned long iram_paddr;
-
-		iram_alloc(SZ_4K, &iram_paddr);
-		/* Need to remap the area here since we want the memory region
-			 to be executable. */
-		wait_in_iram_base = __arm_ioremap(iram_paddr,
-							SZ_4K, MT_HIGH_VECTORS);
-		memcpy(wait_in_iram_base, mx50_wait, SZ_4K);
-		wait_in_iram = (void *)wait_in_iram_base;
-
-		clk_enable(ddr_clk);
-
-		/* Set the DDR to enter automatic self-refresh. */
-		/* Set the DDR to automatically enter lower power mode 4. */
-		reg = __raw_readl(databahn_base + DATABAHN_CTL_REG22);
-		reg &= ~LOWPOWER_AUTOENABLE_MASK;
-		reg |= 1 << 1;
-		__raw_writel(reg, databahn_base + DATABAHN_CTL_REG22);
-
-		/* set the counter for entering mode 4. */
-		reg = __raw_readl(databahn_base + DATABAHN_CTL_REG21);
-		reg &= ~LOWPOWER_EXTERNAL_CNT_MASK;
-		reg = 128 << LOWPOWER_EXTERNAL_CNT_OFFSET;
-		__raw_writel(reg, databahn_base + DATABAHN_CTL_REG21);
-
-		/* Enable low power mode 4 */
-		reg = __raw_readl(databahn_base + DATABAHN_CTL_REG20);
-		reg &= ~LOWPOWER_CONTROL_MASK;
-		reg |= 1 << 1;
-		__raw_writel(reg, databahn_base + DATABAHN_CTL_REG20);
-		clk_disable(ddr_clk);
-	}
 	return 0;
 }
 
