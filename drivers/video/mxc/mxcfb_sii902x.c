@@ -127,9 +127,11 @@ static void sii902x_setup(struct fb_info *fbi)
 	i2c_smbus_write_byte_data(sii902x.client, 0x27, 0x00);
 }
 
+#ifdef CONFIG_FB_MODE_HELPERS
 static int sii902x_read_edid(struct fb_info *fbi)
 {
 	int old, dat, ret, cnt = 100;
+	unsigned short addr = 0x50;
 
 	old = i2c_smbus_read_byte_data(sii902x.client, 0x1A);
 
@@ -148,8 +150,8 @@ static int sii902x_read_edid(struct fb_info *fbi)
 	i2c_smbus_write_byte_data(sii902x.client, 0x1A, old | 0x06);
 
 	/* edid reading */
-	ret = mxc_edid_read(sii902x.client->adapter, sii902x.edid,
-				&sii902x.edid_cfg, fbi);
+	ret = mxc_edid_read(sii902x.client->adapter, addr,
+				sii902x.edid, &sii902x.edid_cfg, fbi);
 
 	cnt = 100;
 	do {
@@ -166,6 +168,12 @@ done:
 	i2c_smbus_write_byte_data(sii902x.client, 0x1A, old);
 	return ret;
 }
+#else
+static int sii902x_read_edid(struct fb_info *fbi)
+{
+	return -1;
+}
+#endif
 
 static void det_worker(struct work_struct *work)
 {
@@ -328,7 +336,7 @@ static int __devinit sii902x_probe(struct i2c_client *client,
 	if (sii902x.client->irq) {
 		ret = request_irq(sii902x.client->irq, sii902x_detect_handler,
 				IRQF_TRIGGER_FALLING,
-				"sII902x_det", &sii902x.client->dev);
+				"SII902x_det", &sii902x);
 		if (ret < 0)
 			dev_warn(&sii902x.client->dev,
 				"Sii902x: cound not request det irq %d\n",
