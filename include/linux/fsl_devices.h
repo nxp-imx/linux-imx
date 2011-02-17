@@ -309,6 +309,11 @@ struct mxc_lcd_platform_data {
 	void (*reset) (void);
 };
 
+struct mxc_ddc_platform_data {
+	u32 di;
+	void (*init) (void);
+	int (*update) (void);
+};
 
 struct mxc_tsc_platform_data {
 	char *vdd_reg;
