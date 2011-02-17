@@ -861,6 +861,27 @@ static struct mxc_lcd_platform_data sii902x_hdmi_data = {
 	.reset = sii902x_hdmi_reset,
 };
 
+static void ddc_dvi_init()
+{
+	/* enable DVI I2C */
+	gpio_set_value(MX53_DVI_I2C, 1);
+}
+
+static int ddc_dvi_update()
+{
+	/* DVI cable state */
+	if (gpio_get_value(MX53_DVI_DETECT) == 1)
+		return 1;
+	else
+		return 0;
+}
+
+static struct mxc_ddc_platform_data mxc_ddc_dvi_data = {
+	.di = 0,
+	.init = ddc_dvi_init,
+	.update = ddc_dvi_update,
+};
+
 /* TO DO add platform data */
 static struct i2c_board_info mxc_i2c1_board_info[] __initdata = {
 	{
@@ -877,12 +898,10 @@ static struct i2c_board_info mxc_i2c1_board_info[] __initdata = {
 	 .addr = 0x2c,
 	 },
 	{
-	 .type = "vga-ddc",
-	 .addr = 0x1f,
-	 },
-	{
-	 .type = "eeprom",
+	 .type = "mxc_ddc",
 	 .addr = 0x50,
+	 .irq = gpio_to_irq(MX53_DVI_DETECT),
+	 .platform_data = &mxc_ddc_dvi_data,
 	 },
 	{
 	.type = "sii902x",

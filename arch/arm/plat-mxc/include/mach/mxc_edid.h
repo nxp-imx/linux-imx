@@ -34,7 +34,7 @@ struct mxc_edid_cfg {
 	bool hdmi_cap;
 };
 
-int mxc_edid_read(struct i2c_adapter *adp, unsigned char *edid,
-	struct mxc_edid_cfg *cfg, struct fb_info *fbi);
+int mxc_edid_read(struct i2c_adapter *adp, unsigned short addr,
+	unsigned char *edid, struct mxc_edid_cfg *cfg, struct fb_info *fbi);
 
 #endif

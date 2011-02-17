@@ -770,6 +770,27 @@ static struct mxc_lightsensor_platform_data ls_data = {
 	.rext = 100,
 };
 
+static void ddc_dvi_init()
+{
+	/* enable DVI I2C */
+	gpio_set_value(BABBAGE_DVI_I2C_EN, 1);
+}
+
+static int ddc_dvi_update()
+{
+	/* DVI cable state */
+	if (gpio_get_value(BABBAGE_DVI_DET) == 1)
+		return 1;
+	else
+		return 0;
+}
+
+static struct mxc_ddc_platform_data mxc_ddc_dvi_data = {
+	.di = 0,
+	.init = ddc_dvi_init,
+	.update = ddc_dvi_update,
+};
+
 static struct i2c_board_info mxc_i2c1_board_info[] __initdata = {
 	{
 	 .type = "sgtl5000-i2c",
@@ -780,11 +801,17 @@ static struct i2c_board_info mxc_i2c1_board_info[] __initdata = {
 	 .addr = 0x44,
 	 .platform_data = &ls_data,
 	 },
+	{
+	 .type = "mxc_ddc",
+	 .addr = 0x50,
+	 .irq = gpio_to_irq(BABBAGE_DVI_DET),
+	 .platform_data = &mxc_ddc_dvi_data,
+	 },
 };
 
 static struct i2c_board_info mxc_i2c_hs_board_info[] __initdata = {
 	{
-	 .type = "sii9022",
+	 .type = "sii902x",
 	 .addr = 0x39,
 	 .platform_data = &dvi_data,
 	 },
