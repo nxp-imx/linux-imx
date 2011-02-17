@@ -1,5 +1,5 @@
 /*
- * Copyright 2009-2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2009-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -60,6 +60,7 @@ static unsigned int f_calc(unsigned int pfs, unsigned int bpp, unsigned int *wri
 	case IPU_PIX_FMT_YUV422P:
 	case IPU_PIX_FMT_YUV420P2:
 	case IPU_PIX_FMT_YUV420P:
+	case IPU_PIX_FMT_YVU420P:
 		f_calculated = 16;
 		break;
 

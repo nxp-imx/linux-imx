@@ -1047,6 +1047,7 @@ int32_t ipu_init_channel_buffer(ipu_channel_t channel, ipu_buffer_t type,
 		 */
 		if (((dma_chan == 23) || (dma_chan == 27) || (dma_chan == 28))
 			&& ((pixel_fmt == IPU_PIX_FMT_YUV420P) ||
+			(pixel_fmt == IPU_PIX_FMT_YVU420P) ||
 			(pixel_fmt == IPU_PIX_FMT_YUV420P2) ||
 			(pixel_fmt == IPU_PIX_FMT_YVU422P) ||
 			(pixel_fmt == IPU_PIX_FMT_YUV422P) ||
@@ -2430,6 +2431,7 @@ uint32_t bytes_per_pixel(uint32_t fmt)
 	case IPU_PIX_FMT_GENERIC:	/*generic data */
 	case IPU_PIX_FMT_RGB332:
 	case IPU_PIX_FMT_YUV420P:
+	case IPU_PIX_FMT_YVU420P:
 	case IPU_PIX_FMT_YUV422P:
 		return 1;
 		break;

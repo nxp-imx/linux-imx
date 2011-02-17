@@ -1,5 +1,5 @@
 /*
- * Copyright 2005-2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2005-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -255,6 +255,21 @@ static inline void _ipu_ch_param_init(int ch,
 			ipu_ch_param_set_field(&params, 1, 78, 7, 31);  /* burst size */
 		}
 		break;
+	case IPU_PIX_FMT_YVU420P:
+		ipu_ch_param_set_field(&params, 1, 85, 4, 2);	/* pix format */
+
+		if (uv_stride < stride / 2)
+			uv_stride = stride / 2;
+
+		v_offset = stride * height;
+		u_offset = v_offset + (uv_stride * height / 2);
+		if ((ch == 8) || (ch == 9) || (ch == 10)) {
+			ipu_ch_param_set_field(&params, 1, 78, 7, 15);  /* burst size */
+			uv_stride = uv_stride*2;
+		} else {
+			ipu_ch_param_set_field(&params, 1, 78, 7, 31);  /* burst size */
+		}
+		break;
 	case IPU_PIX_FMT_YVU422P:
 		/* BPP & pixel format */
 		ipu_ch_param_set_field(&params, 1, 85, 4, 1);	/* pix format */
@@ -471,6 +486,25 @@ static inline void _ipu_ch_offset_update(int ch,
 					(uv_stride * vertical_offset / 2) +
 					horizontal_offset / 2;
 		v_offset = u_offset + (uv_stride * height / 2);
+		u_fix = u ? (u + (uv_stride * vertical_offset / 2) +
+					(horizontal_offset / 2) -
+					(stride * vertical_offset) - (horizontal_offset)) :
+					u_offset;
+		v_fix = v ? (v + (uv_stride * vertical_offset / 2) +
+					(horizontal_offset / 2) -
+					(stride * vertical_offset) - (horizontal_offset)) :
+					v_offset;
+
+		break;
+	case IPU_PIX_FMT_YVU420P:
+		if (uv_stride < stride / 2)
+			uv_stride = stride / 2;
+
+		v_offset = stride * (height - vertical_offset - 1) +
+					(stride - horizontal_offset) +
+					(uv_stride * vertical_offset / 2) +
+					horizontal_offset / 2;
+		u_offset = v_offset + (uv_stride * height / 2);
 		u_fix = u ? (u + (uv_stride * vertical_offset / 2) +
 					(horizontal_offset / 2) -
 					(stride * vertical_offset) - (horizontal_offset)) :
