@@ -129,11 +129,11 @@ static int mx5_suspend_enter(suspend_state_t state)
 			__raw_writel(0, MXC_SRPG_EMPGC0_SRPGCR);
 			__raw_writel(0, MXC_SRPG_EMPGC1_SRPGCR);
 		} else {
-			if (machine_is_mx50_rdp() && pm_data->suspend_enter)
+			if (cpu_is_mx50() && pm_data->suspend_enter)
 				pm_data->suspend_enter();
 			/* Suspend now. */
 			suspend_in_iram(databahn_base);
-			if (machine_is_mx50_rdp() && pm_data->suspend_exit)
+			if (cpu_is_mx50() && pm_data->suspend_exit)
 				pm_data->suspend_exit();
 		}
 	} else {
