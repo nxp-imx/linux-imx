@@ -329,9 +329,11 @@ static int __devinit sii902x_probe(struct i2c_client *client,
 	/* try to read edid */
 	if (sii902x_read_edid(&edid_fbi) < 0)
 		dev_warn(&sii902x.client->dev, "Can not read edid\n");
+#if defined(CONFIG_MXC_IPU_V3) && defined(CONFIG_FB_MXC_SYNC_PANEL)
 	else
 		mxcfb_register_mode(IPU_DISP_PORT, edid_fbi.monspecs.modedb,
 				edid_fbi.monspecs.modedb_len, MXC_DISP_DDC_DEV);
+#endif
 
 	if (sii902x.client->irq) {
 		ret = request_irq(sii902x.client->irq, sii902x_detect_handler,
