@@ -55,6 +55,7 @@
 */
 
 typedef u64 iomux_v3_cfg_t;
+typedef u32 iomux_grp_cfg_t;
 
 #define MUX_CTRL_OFS_SHIFT	0
 #define MUX_CTRL_OFS_MASK	((iomux_v3_cfg_t)0xfff << MUX_CTRL_OFS_SHIFT)
@@ -81,6 +82,14 @@ typedef u64 iomux_v3_cfg_t;
 		((iomux_v3_cfg_t)(_pad_ctrl) << MUX_PAD_CTRL_SHIFT) |	\
 		((iomux_v3_cfg_t)(_sel_input_ofs) << MUX_SEL_INPUT_OFS_SHIFT) | \
 		((iomux_v3_cfg_t)(_sel_input) << MUX_SEL_INPUT_SHIFT))
+
+#define MUX_PAD_GRP_CTRL_SHIFT		16
+#define MUX_PAD_GRP_CTRL_MASK		((iomux_grp_cfg_t)0xFFF << MUX_PAD_GRP_CTRL_SHIFT)
+#define MUX_PAD_GRP_SHIFT_SHIFT	0
+#define MUX_PAD_GRP_SHIFT_MASK	((iomux_grp_cfg_t)0xFF << MUX_PAD_GRP_SHIFT_SHIFT)
+#define IOMUX_PAD_GRP(_pad_ctrl_ofs, _pad_ctrl_shift) \
+	(((iomux_grp_cfg_t)(_pad_ctrl_ofs) << MUX_PAD_GRP_CTRL_SHIFT) |	\
+		((iomux_grp_cfg_t)(_pad_ctrl_shift) << MUX_PAD_GRP_SHIFT_SHIFT))
 
 /*
  * Use to set PAD control
@@ -109,6 +118,8 @@ typedef u64 iomux_v3_cfg_t;
 #define PAD_CTL_SRE_SLOW		(0 << 0)
 
 #define IOMUX_CONFIG_SION		(0x1 << 4)
+
+void mxc_iomux_set_pad_groups(iomux_grp_cfg_t pad_grp, int value);
 
 /*
  * read/write a single pad in the iomuxer

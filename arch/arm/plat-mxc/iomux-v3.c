@@ -31,6 +31,17 @@
 
 static void __iomem *base;
 
+void mxc_iomux_set_pad_groups(iomux_grp_cfg_t pad_grp, int value)
+{
+	u32 pad_ctrl_ofs = (pad_grp & MUX_PAD_GRP_CTRL_MASK) >> MUX_PAD_GRP_CTRL_SHIFT;
+	u32 pad_ctrl_shift = (pad_grp & MUX_PAD_GRP_SHIFT_MASK) >> MUX_PAD_GRP_SHIFT_SHIFT;
+	u32 pad_ctrl_val;
+
+	pad_ctrl_val = (value << pad_ctrl_shift);
+	__raw_writel(pad_ctrl_val, base + pad_ctrl_ofs);
+}
+EXPORT_SYMBOL(mxc_iomux_set_pad_groups);
+
 /*
  * Read a single pad in the iomuxer
  */
