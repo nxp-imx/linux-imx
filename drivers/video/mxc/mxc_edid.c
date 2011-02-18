@@ -38,6 +38,8 @@
 #include <mach/mxc_edid.h>
 #include "../edid.h"
 
+#define MXC_EDID_LENGTH (EDID_LENGTH*2)
+
 struct mxc_ddc_data {
 	struct platform_device *pdev;
 	struct i2c_client *client;
@@ -45,7 +47,7 @@ struct mxc_ddc_data {
 	struct fb_info *fbi;
 	struct mxc_edid_cfg edid_cfg;
 	u8 cable_plugin;
-	u8 edid[256];
+	u8 edid[MXC_EDID_LENGTH];
 
 	u32 di;
 	void (*init)(void);
@@ -354,6 +356,23 @@ static ssize_t mxc_ddc_show_state(struct device *dev,
 
 static DEVICE_ATTR(cable_state, S_IRUGO, mxc_ddc_show_state, NULL);
 
+static ssize_t mxc_ddc_show_edid(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	int i, j, len = 0;
+
+	for (j = 0; j < MXC_EDID_LENGTH/16; j++) {
+		for (i = 0; i < 16; i++)
+			len += sprintf(buf+len, "0x%02X ",
+					mxc_ddc.edid[j*16 + i]);
+		len += sprintf(buf+len, "\n");
+	}
+
+	return len;
+}
+
+static DEVICE_ATTR(edid, S_IRUGO, mxc_ddc_show_edid, NULL);
+
 static void det_worker(struct work_struct *work)
 {
 	char event_string[16];
@@ -497,7 +516,11 @@ static int __devinit mxc_ddc_probe(struct i2c_client *client,
 			ret = device_create_file(&mxc_ddc.pdev->dev, &dev_attr_cable_state);
 			if (ret < 0)
 				dev_warn(&client->dev,
-						"MXC ddc: cound not crate sys node\n");
+					"MXC ddc: cound not create sys node for cable state\n");
+			ret = device_create_file(&mxc_ddc.pdev->dev, &dev_attr_edid);
+			if (ret < 0)
+				dev_warn(&client->dev,
+					"MXC ddc: cound not create sys node for edid\n");
 		}
 	}
 
