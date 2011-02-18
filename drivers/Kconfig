@@ -66,6 +66,8 @@ source "drivers/watchdog/Kconfig"
 
 source "drivers/ssb/Kconfig"
 
+source "drivers/switch/Kconfig"
+
 source "drivers/mfd/Kconfig"
 
 source "drivers/regulator/Kconfig"
