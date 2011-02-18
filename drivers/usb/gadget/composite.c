@@ -116,6 +116,19 @@ void usb_composite_force_reset(struct usb_composite_dev *cdev)
 	/* force reenumeration */
 	if (cdev && cdev->gadget &&
 			cdev->gadget->speed != USB_SPEED_UNKNOWN) {
+		/*
+		* Another USB disconnect event is reported from
+		* controller before "disconnected" switch event is sent out.
+		* This does happen. When force_reset is executed,
+		* two reset interrupt occur - one for get descriptor,
+		* one for bus enumeration.
+		* To avoid unnecessary switch event ignited,
+		* we set the flag "mute_switch" to 2.
+		* This is a "hard" assumption that two
+		* "disconnect" event will be reported
+		*/
+		cdev->mute_switch = 2;
+
 		/* avoid sending a disconnect switch event until after we disconnect */
 		spin_unlock_irqrestore(&cdev->lock, flags);
 
@@ -557,7 +570,7 @@ static int set_config(struct usb_composite_dev *cdev,
 done:
 	usb_gadget_vbus_draw(gadget, power);
 
-	cdev->online = 1;
+	schedule_work(&cdev->switch_work);
 	return result;
 }
 
@@ -1025,6 +1038,11 @@ static void composite_disconnect(struct usb_gadget *gadget)
 	spin_lock_irqsave(&cdev->lock, flags);
 	if (cdev->config)
 		reset_config(cdev);
+	if (cdev->mute_switch > 0)
+		cdev->mute_switch--;
+	else
+		schedule_work(&cdev->switch_work);
+
 	spin_unlock_irqrestore(&cdev->lock, flags);
 }
 
@@ -1082,6 +1100,8 @@ composite_unbind(struct usb_gadget *gadget)
 	if (composite->unbind)
 		composite->unbind(cdev);
 
+	switch_dev_unregister(&cdev->sdev);
+
 	if (cdev->req) {
 		kfree(cdev->req->buf);
 		usb_ep_free_request(gadget->ep0, cdev->req);
@@ -1112,6 +1132,19 @@ string_override(struct usb_gadget_strings **tab, u8 id, const char *s)
 		string_override_one(*tab, id, s);
 		tab++;
 	}
+}
+
+static void
+composite_switch_work(struct work_struct *data)
+{
+	struct usb_composite_dev *cdev =
+			container_of(data, struct usb_composite_dev, switch_work);
+	struct usb_configuration *config = cdev->config;
+
+	if (config)
+		switch_set_state(&cdev->sdev, config->bConfigurationValue);
+	else
+		switch_set_state(&cdev->sdev, 0);
 }
 
 static int composite_bind(struct usb_gadget *gadget)
@@ -1165,6 +1198,13 @@ static int composite_bind(struct usb_gadget *gadget)
 	if (status < 0)
 		goto fail;
 
+	cdev->sdev.name = "usb_configuration";
+	status = switch_dev_register(&cdev->sdev);
+	if (status < 0)
+		goto fail;
+	INIT_WORK(&cdev->switch_work, composite_switch_work);
+
+	cdev->mute_switch = 0;
 	cdev->desc = *composite->dev;
 	cdev->desc.bMaxPacketSize0 = gadget->ep0->maxpacket;
 
@@ -1252,9 +1292,6 @@ composite_uevent(struct device *dev, struct kobj_uevent_env *env)
 	if (add_uevent_var(env, "FUNCTION=%s", f->name))
 		return -ENOMEM;
 	if (add_uevent_var(env, "ENABLED=%d", !f->disabled))
-		return -ENOMEM;
-	if (add_uevent_var(env, "STATE=%s",
-			f->config->cdev->online ? "online" : "offline"))
 		return -ENOMEM;
 	return 0;
 }

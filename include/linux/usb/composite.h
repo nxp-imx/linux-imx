@@ -36,6 +36,7 @@
 
 #include <linux/usb/ch9.h>
 #include <linux/usb/gadget.h>
+#include <linux/switch.h>
 
 
 struct usb_configuration;
@@ -345,7 +346,9 @@ struct usb_composite_dev {
 
 	/* protects at least deactivation count */
 	spinlock_t			lock;
-	int				online;
+	struct switch_dev		sdev;
+	struct work_struct		switch_work;
+	int				mute_switch;
 };
 
 extern int usb_string_id(struct usb_composite_dev *c);

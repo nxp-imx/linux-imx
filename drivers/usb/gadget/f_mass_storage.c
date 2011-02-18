@@ -2321,7 +2321,6 @@ static int do_set_interface(struct fsg_common *common, struct fsg_dev *new_fsg)
 	const struct usb_endpoint_descriptor *d;
 	struct fsg_dev *fsg = NULL;
 	int i, rc = 0;
-	int online = 1;
 
 	if (common->running)
 		DBG(common, "reset interface\n");
@@ -2359,10 +2358,8 @@ reset:
 	}
 
 	common->running = 0;
-	if (!new_fsg || rc) {
-		online = 0;
-		goto out;
-	}
+	if (!new_fsg || rc)
+		return rc;
 
 	common->fsg = new_fsg;
 	fsg = common->fsg;
@@ -2403,12 +2400,6 @@ reset:
 	common->running = 1;
 	for (i = 0; i < common->nluns; ++i)
 		common->luns[i].unit_attention_data = SS_RESET_OCCURRED;
-out:
-	if (fsg) {
-		fsg->function.config->cdev->online = online;
-		kobject_uevent(&fsg->function.dev->kobj, KOBJ_CHANGE);
-	}
-
 	return rc;
 }
 

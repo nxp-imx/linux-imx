@@ -290,6 +290,39 @@ void android_enable_function(struct usb_function *f, int enable)
 
 	if (!!f->disabled != disable) {
 		usb_function_set_enabled(f, !disable);
+
+#ifdef CONFIG_USB_ANDROID_RNDIS
+		if (!strcmp(f->name, "rndis")) {
+			struct usb_function *func;
+
+			/* We need to specify the COMM class in
+			* the device descriptor if we are using RNDIS.
+			*/
+			if (enable)
+#ifdef CONFIG_USB_ANDROID_RNDIS_WCEIS
+				dev->cdev->desc.bDeviceClass =
+						USB_CLASS_WIRELESS_CONTROLLER;
+#else
+				dev->cdev->desc.bDeviceClass =
+						USB_CLASS_COMM;
+#endif
+			else
+				dev->cdev->desc.bDeviceClass =
+						USB_CLASS_PER_INTERFACE;
+
+			/* Windows does not support other interfaces
+			* when RNDIS is enabled,
+			* so we disable UMS and MTP and ADB when RNDIS is on.
+			*/
+			list_for_each_entry(func,
+					&android_config_driver.functions, list) {
+				if (!strcmp(func->name, "usb_mass_storage")
+						|| !strcmp(func->name, "mtp")
+						|| !strcmp(func->name, "adb"))
+					usb_function_set_enabled(func, !enable);
+			}
+		}
+#endif
 		product_id = get_product_id(dev);
 		device_desc.idProduct = __constant_cpu_to_le16(product_id);
 		if (dev->cdev)
