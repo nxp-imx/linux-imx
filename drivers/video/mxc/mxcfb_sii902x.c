@@ -50,6 +50,7 @@
 #include <mach/mxc_edid.h>
 
 #define IPU_DISP_PORT 0
+#define SII_EDID_LEN	256
 static bool g_enable_hdmi;
 
 struct sii902x_data {
@@ -59,7 +60,7 @@ struct sii902x_data {
 	struct fb_info *fbi;
 	struct mxc_edid_cfg edid_cfg;
 	u8 cable_plugin;
-	u8 edid[256];
+	u8 edid[SII_EDID_LEN];
 } sii902x;
 
 static void sii902x_poweron(void);
@@ -88,7 +89,24 @@ static ssize_t sii902x_show_state(struct device *dev,
 	return strlen(buf);
 }
 
-static DEVICE_ATTR(cable_state, S_IRUGO | S_IWUSR, sii902x_show_state, NULL);
+static DEVICE_ATTR(cable_state, S_IRUGO, sii902x_show_state, NULL);
+
+static ssize_t sii902x_show_edid(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	int i, j, len = 0;
+
+	for (j = 0; j < SII_EDID_LEN/16; j++) {
+		for (i = 0; i < 16; i++)
+			len += sprintf(buf+len, "0x%02X ",
+					sii902x.edid[j*16 + i]);
+		len += sprintf(buf+len, "\n");
+	}
+
+	return len;
+}
+
+static DEVICE_ATTR(edid, S_IRUGO, sii902x_show_edid, NULL);
 
 static void sii902x_setup(struct fb_info *fbi)
 {
@@ -351,7 +369,11 @@ static int __devinit sii902x_probe(struct i2c_client *client,
 		ret = device_create_file(&sii902x.pdev->dev, &dev_attr_cable_state);
 		if (ret < 0)
 			dev_warn(&sii902x.client->dev,
-				"Sii902x: cound not crate sys node\n");
+				"Sii902x: cound not create sys node for cable state\n");
+		ret = device_create_file(&sii902x.pdev->dev, &dev_attr_edid);
+		if (ret < 0)
+			dev_warn(&sii902x.client->dev,
+				"Sii902x: cound not create sys node for edid\n");
 	}
 
 	fb_register_client(&nb);
