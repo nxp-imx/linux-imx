@@ -475,9 +475,11 @@ static int __devinit mxc_ddc_probe(struct i2c_client *client,
 		if (mxc_edid_read(client->adapter, client->addr,
 					mxc_ddc.edid, &mxc_ddc.edid_cfg, &edid_fbi) < 0)
 			dev_warn(&client->dev, "Can not read edid\n");
+#if defined(CONFIG_MXC_IPU_V3) && defined(CONFIG_FB_MXC_SYNC_PANEL)
 		else
 			mxcfb_register_mode(mxc_ddc.di, edid_fbi.monspecs.modedb,
 					edid_fbi.monspecs.modedb_len, MXC_DISP_DDC_DEV);
+#endif
 	} else
 		mxc_ddc.cable_plugin = 0;
 
