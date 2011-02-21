@@ -38,6 +38,7 @@
 #include <linux/clk.h>
 #include <linux/uaccess.h>
 #include <linux/cpufreq.h>
+#include <linux/earlysuspend.h>
 #include <linux/firmware.h>
 #include <linux/kthread.h>
 #include <linux/dmaengine.h>
@@ -204,6 +205,8 @@ struct mxcfb_waveform_data_file {
 	struct waveform_data_header wdh;
 	u32 *data;	/* Temperature Range Table + Waveform Data */
 };
+
+static int mxc_epdc_earlysuspend_mode;
 
 void __iomem *epdc_base;
 
@@ -3787,9 +3790,30 @@ static int mxc_epdc_fb_remove(struct platform_device *pdev)
 	return 0;
 }
 
+#ifdef CONFIG_EARLYSUSPEND
+static void mxc_epdc_early_suspend(struct early_suspend *h)
+{
+	if (h->pm_mode == EARLY_SUSPEND_MODE_NORMAL)
+		mxc_epdc_earlysuspend_mode = 1;
+	else
+		mxc_epdc_earlysuspend_mode = 0;
+}
+
+static void mxc_epdc_late_resume(struct early_suspend *h)
+{
+}
+
+static struct early_suspend mxc_epdc_earlysuspend = {
+	.level = EARLY_SUSPEND_LEVEL_DISABLE_FB,
+	.suspend = mxc_epdc_early_suspend,
+	.resume = mxc_epdc_late_resume,
+};
+#endif
+
 #ifdef CONFIG_PM
 static int mxc_epdc_fb_suspend(struct platform_device *pdev, pm_message_t state)
 {
+
 	struct mxc_epdc_fb_data *data = platform_get_drvdata(pdev);
 	int ret;
 
@@ -3797,15 +3821,45 @@ static int mxc_epdc_fb_suspend(struct platform_device *pdev, pm_message_t state)
 	if (ret)
 		goto out;
 
+	if (mxc_epdc_earlysuspend_mode) {
+
+		unsigned long flags;
+		int i;
+
+		epdc_powerup(data);
+
+		epdc_set_update_addr(data->phys_start);
+		epdc_set_update_coord(0, 0);
+		epdc_set_update_dimensions(data->info.var.xres,
+					data->info.var.yres);
+		epdc_submit_update(0, data->wv_modes.mode_du, UPDATE_MODE_FULL, true, 0x0);
+
+		for (i = 0; i < 40; i++) {
+			if (!epdc_is_lut_active(0)) {
+				dev_dbg(data->dev, "Mode0 init complete\n");
+				break;
+			}
+			msleep(100);
+		}
+		data->powering_down = true;
+		disable_irq(data->epdc_irq);
+		epdc_powerdown(data);
+	}
+
 out:
 	return ret;
 }
 
 static int mxc_epdc_fb_resume(struct platform_device *pdev)
 {
+
 	struct mxc_epdc_fb_data *data = platform_get_drvdata(pdev);
 
+	if (mxc_epdc_earlysuspend_mode)
+		enable_irq(data->epdc_irq);
+
 	mxc_epdc_fb_blank(FB_BLANK_UNBLANK, &data->info);
+
 	return 0;
 }
 #else
@@ -4019,6 +4073,7 @@ static int pxp_complete_update(struct mxc_epdc_fb_data *fb_data, u32 *hist_stat)
 
 static int __init mxc_epdc_fb_init(void)
 {
+	register_early_suspend(&mxc_epdc_earlysuspend);
 	return platform_driver_register(&mxc_epdc_fb_driver);
 }
 late_initcall(mxc_epdc_fb_init);
@@ -4027,6 +4082,7 @@ late_initcall(mxc_epdc_fb_init);
 static void __exit mxc_epdc_fb_exit(void)
 {
 	platform_driver_unregister(&mxc_epdc_fb_driver);
+	unregister_early_suspend(&mxc_epdc_earlysuspend);
 }
 module_exit(mxc_epdc_fb_exit);
 
