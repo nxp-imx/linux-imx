@@ -862,6 +862,51 @@ static void mx53_smd_power_off(void)
 	gpio_request(MX53_SMD_SYS_ON_OFF_CTL, "power-off");
 	gpio_set_value(MX53_SMD_SYS_ON_OFF_CTL, 0);
 }
+
+#if defined(CONFIG_BATTERY_MAX17085) || defined(CONFIG_BATTERY_MAX17085_MODULE)
+static struct resource smd_batt_resource[] = {
+	{
+	.flags = IORESOURCE_IO,
+	.name = "pwr-good",
+	.start = MX53_SMD_PWR_GOOD,
+	.end = MX53_SMD_PWR_GOOD,
+	},
+	{
+	.flags = IORESOURCE_IO,
+	.name = "ac-in",
+	.start = MX53_SMD_AC_IN,
+	.end = MX53_SMD_AC_IN,
+	},
+	{
+	.flags = IORESOURCE_IO,
+	.name = "charge-now",
+	.start = MX53_SMD_CHRG_OR_CMOS,
+	.end = MX53_SMD_CHRG_OR_CMOS,
+	},
+	{
+	.flags = IORESOURCE_IO,
+	.name = "charge-done",
+	.start = MX53_SMD_USER_DEG_CHG_NONE,
+	.end = MX53_SMD_USER_DEG_CHG_NONE,
+	},
+};
+
+static struct platform_device smd_battery_device = {
+	.name           = "max17085_bat",
+	.resource	= smd_batt_resource,
+	.num_resources  = ARRAY_SIZE(smd_batt_resource),
+};
+
+static void __init smd_add_device_battery(void)
+{
+	platform_device_register(&smd_battery_device);
+}
+#else
+static void __init smd_add_device_battery(void)
+{
+}
+#endif
+
 /*!
  * Board specific fixup function. It is called by \b setup_arch() in
  * setup.c file very early on during kernel starts. It allows the user to
@@ -1014,6 +1059,16 @@ static void __init mx53_smd_io_init(void)
 	mdelay(5);
 	gpio_set_value(MX53_SMD_WLAN_PD, 1);
 	gpio_free(MX53_SMD_WLAN_PD);
+
+	/* battery */
+	gpio_request(MX53_SMD_AC_IN, "ac-in");
+	gpio_direction_input(MX53_SMD_AC_IN);
+	gpio_request(MX53_SMD_PWR_GOOD, "pwr-good");
+	gpio_direction_input(MX53_SMD_PWR_GOOD);
+	gpio_request(MX53_SMD_CHRG_OR_CMOS, "charger now");
+	gpio_direction_output(MX53_SMD_CHRG_OR_CMOS, 0);
+	gpio_request(MX53_SMD_USER_DEG_CHG_NONE, "charger done");
+	gpio_direction_output(MX53_SMD_USER_DEG_CHG_NONE, 0);
 }
 
 /*!
@@ -1090,6 +1145,7 @@ static void __init mxc_board_init(void)
 	mxc_register_device(&mxc_v4l2out_device, NULL);
 	mxc_register_device(&mxc_bt_rfkill, &mxc_bt_rfkill_data);
 	smd_add_device_buttons();
+	smd_add_device_battery();
 }
 
 static void __init mx53_smd_timer_init(void)
