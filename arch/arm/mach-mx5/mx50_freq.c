@@ -52,9 +52,9 @@ void __iomem *databahn_base;
 void (*change_ddr_freq)(void *ccm_addr, void *databahn_addr,
 			u32 freq, void *iram_ddr_settings) = NULL;
 void *wait_in_iram_base;
-void (*wait_in_iram)(void *ccm_addr, void *databahn_addr);
+void (*wait_in_iram)(void *ccm_addr, void *databahn_addr, u32 sys_clk_count);
 
-extern void mx50_wait(u32 ccm_base, u32 databahn_addr);
+extern void mx50_wait(u32 ccm_base, u32 databahn_addr, u32 sys_clk_count);
 extern int ddr_med_rate;
 extern void __iomem *ccm_base;
 extern void __iomem *databahn_base;

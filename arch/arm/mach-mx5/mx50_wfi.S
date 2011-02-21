@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2010-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -30,6 +30,7 @@ ENTRY(mx50_wait)
 
     mov    r6, r0                       @save CCM address
     mov    r5, r1                       @save DataBahn address
+    mov    r7, r2                       @save sys_clk usecount
 
     /*
      * Make sure the DDR is self-refresh, before setting the clock bits.
@@ -64,6 +65,10 @@ LoopCKE0:
     b       Wfi_Done
 
 Sync_mode:
+    /* If usecount of sys_clk is greater than 0, donot gate it. */
+    cmp    r7, #0
+    bgt    do_wfi
+
     /* Check if PLL1 is sourcing SYS_CLK. */
     ldr     r5, [r6, #0x90]
     and    r5, r0, #0x1
@@ -92,6 +97,9 @@ pll1_source:
 
 do_wfi:
     .long     0xe320f003              @ Opcode for WFI
+
+    cmp    r7, #0
+    bgt     Wfi_Done
 
      cmp    r5, #1
      beq    pll1_source1

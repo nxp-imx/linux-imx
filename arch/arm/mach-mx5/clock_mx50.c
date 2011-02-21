@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2010-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -1363,7 +1363,11 @@ static struct clk sdma_clk[] = {
 	 },
 	{
 	 .parent = &ipg_clk,
+#ifdef CONFIG_SDMA_IRAM
+	 .secondary = &ocram_clk,
+#else
 	 .secondary = &ddr_clk,
+#endif
 	 },
 };
 
@@ -1786,6 +1790,11 @@ static struct clk ssi1_clk[] = {
 	{
 	 .id = 0,
 	 .parent = &aips_tz2_clk,
+#ifdef CONFIG_SND_MXC_SOC_IRAM
+	 .secondary = &ocram_clk,
+#else
+	 .secondary = &ddr_clk,
+#endif
 	 },
 };
 
@@ -1841,6 +1850,11 @@ static struct clk ssi2_clk[] = {
 	{
 	 .id = 1,
 	 .parent = &spba_clk,
+#ifdef CONFIG_SND_MXC_SOC_IRAM
+	 .secondary = &ocram_clk,
+#else
+	 .secondary = &ddr_clk,
+#endif
 	 },
 };
 
@@ -2507,7 +2521,7 @@ static struct clk gpmi_nfc_clk[] = {
 	.disable = gpmi_clk_disable,
 	},
 	{	/* gpmi_apb_clk */
-	.parent = &ahb_clk,
+	.parent = &apbh_dma_clk,
 	.secondary = &gpmi_nfc_clk[2],
 	.enable = _clk_enable,
 	.enable_reg = MXC_CCM_CCGR7,
@@ -2523,7 +2537,7 @@ static struct clk gpmi_nfc_clk[] = {
 	.disable = bch_clk_disable,
 	},
 	{	/* bch_apb_clk */
-	.parent = &ahb_clk,
+	.parent = &apbh_dma_clk,
 	.enable = _clk_enable,
 	.enable_reg = MXC_CCM_CCGR7,
 	.enable_shift = MXC_CCM_CCGRx_CG12_OFFSET,
