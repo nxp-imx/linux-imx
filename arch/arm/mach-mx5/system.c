@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2008-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -40,8 +40,10 @@ extern int dvfs_core_is_active;
 extern void __iomem *ccm_base;
 extern void __iomem *databahn_base;
 extern int low_bus_freq_mode;
-extern void (*wait_in_iram)(void *ccm_addr, void *databahn_addr);
-extern void mx50_wait(u32 ccm_base, u32 databahn_addr);
+extern void (*wait_in_iram)(void *ccm_addr, void *databahn_addr,
+							u32 sys_clk_count);
+extern void mx50_wait(u32 ccm_base, u32 databahn_addr,
+						u32 sys_clk_count);
 extern void stop_dvfs(void);
 extern void *wait_in_iram_base;
 extern void __iomem *apll_base;
@@ -52,6 +54,7 @@ static struct clk *pll1_sw_clk;
 static struct clk *osc;
 static struct clk *pll1_main_clk;
 static struct clk *ddr_clk ;
+static struct clk *sys_clk ;
 static int dvfs_core_paused;
 
 /* set cpu low power mode before WFI instruction */
@@ -180,6 +183,9 @@ void arch_idle(void)
 		mxc_cpu_lp_set(arch_idle_mode);
 
 		if (cpu_is_mx50() && (clk_get_usecount(ddr_clk) == 0)) {
+			if (sys_clk == NULL)
+				sys_clk = clk_get(NULL, "sys_clk");
+
 			memcpy(wait_in_iram_base, mx50_wait, SZ_4K);
 			wait_in_iram = (void *)wait_in_iram_base;
 			if (low_bus_freq_mode) {
@@ -209,7 +215,8 @@ void arch_idle(void)
 				cpu_podf = __raw_readl(MXC_CCM_CACRR);
 				__raw_writel(0x01, MXC_CCM_CACRR);
 
-				wait_in_iram(ccm_base, databahn_base);
+				wait_in_iram(ccm_base, databahn_base,
+					clk_get_usecount(sys_clk));
 
 				/* Set the ARM-POD divider back
 				 * to the original.
@@ -217,7 +224,8 @@ void arch_idle(void)
 				__raw_writel(cpu_podf, MXC_CCM_CACRR);
 				clk_set_parent(pll1_sw_clk, pll1_main_clk);
 			} else
-				wait_in_iram(ccm_base, databahn_base);
+				wait_in_iram(ccm_base, databahn_base,
+					clk_get_usecount(sys_clk));
 		} else
 			cpu_do_idle();
 		clk_disable(gpc_dvfs_clk);
