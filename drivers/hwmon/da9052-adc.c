@@ -39,6 +39,15 @@ static const char *input_names[] = {
 	[DA9052_ADC_VBBAT]	=	"BACK-UP BATTERY TEMP",
 };
 
+struct da9052 *da9052_local;
+
+int da9052_adc_read(unsigned char channel)
+{
+	if (da9052_local != NULL)
+		return da9052_manual_read(da9052_local, channel);
+	return -1;
+}
+EXPORT_SYMBOL(da9052_adc_read);
 
 int da9052_manual_read(struct da9052 *da9052,
 			unsigned char channel)
@@ -591,6 +600,7 @@ static int __init da9052_adc_probe(struct platform_device *pdev)
 	/* Initialize mutex required for ADC Manual read */
 	mutex_init(&priv->da9052->manconv_lock);
 
+	da9052_local = priv->da9052;
 	return 0;
 
 out_err_create2:
