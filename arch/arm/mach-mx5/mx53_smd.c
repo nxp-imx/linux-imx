@@ -1121,6 +1121,7 @@ static void __init mxc_board_init(void)
 	gpio_direction_output(MX53_SMD_SATA_PWR_EN, 1);
 
 	mxc_register_device(&mxc_fec_device, &fec_data);
+	mxc_register_device(&mxc_ptp_device, NULL);
 	/* ASRC is only available for MX53 TO2.0 */
 	if (cpu_is_mx53_rev(CHIP_REV_2_0) >= 1) {
 		mxc_asrc_data.asrc_core_clk = clk_get(NULL, "asrc_clk");
