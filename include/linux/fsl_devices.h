@@ -183,6 +183,11 @@ struct fsl_mxc_tve_platform_data {
 	char *dig_reg;
 };
 
+struct fsl_mxc_lightsensor_platform_data {
+	char *vdd_reg;
+	int rext;
+};
+
 struct fsl_mxc_ldb_platform_data {
 	char *lvds_bg_reg;
 	u32 ext_ref;
