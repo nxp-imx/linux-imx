@@ -613,6 +613,10 @@ static struct mxc_camera_platform_data camera_data = {
 	.csi = 0,
 };
 
+static struct mxc_lightsensor_platform_data ls_data = {
+	.rext = 700,	/* calibration: 499K->700K */
+};
+
 static struct i2c_board_info mxc_i2c0_board_info[] __initdata = {
 	{
 	.type = "mma8451",
@@ -707,6 +711,12 @@ static struct i2c_board_info mxc_i2c2_board_info[] __initdata = {
 	.addr = 0x41,
 	.irq  = gpio_to_irq(MX53_SMD_CAP_TCH_INT1),
 	.platform_data = &p1003_ts_data,
+	},
+	{
+	.type = "isl29023",
+	.addr = 0x44,
+	.irq  = gpio_to_irq(MX53_SMD_ALS_INT),
+	.platform_data = &ls_data,
 	},
 };
 
@@ -1069,6 +1079,11 @@ static void __init mx53_smd_io_init(void)
 	gpio_direction_output(MX53_SMD_CHRG_OR_CMOS, 0);
 	gpio_request(MX53_SMD_USER_DEG_CHG_NONE, "charger done");
 	gpio_direction_output(MX53_SMD_USER_DEG_CHG_NONE, 0);
+
+	/* ambient light sensor */
+	gpio_request(MX53_SMD_ALS_INT, "als int");
+	gpio_direction_input(MX53_SMD_ALS_INT);
+
 }
 
 /*!
