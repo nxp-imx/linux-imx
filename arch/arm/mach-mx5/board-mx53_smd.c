@@ -60,6 +60,7 @@
 #define MX53_SMD_OSC_CKIH1_EN	IMX_GPIO_NR(6, 11)
 #define MX53_SMD_DCDC1V8_EN	IMX_GPIO_NR(3, 1)
 #define MX53_SMD_DCDC5V_BB_EN	IMX_GPIO_NR(4, 14)
+#define MX53_SMD_ALS_INT 	IMX_GPIO_NR(3, 22)
 
 extern int mx53_smd_init_da9052(void);
 
@@ -250,6 +251,10 @@ static struct fsl_mxc_camera_platform_data camera_data = {
 	.csi = 0,
 };
 
+static struct fsl_mxc_lightsensor_platform_data ls_data = {
+	.rext = 700,    /* calibration: 499K->700K */
+};
+
 static struct i2c_board_info mxc_i2c0_board_info[] __initdata = {
 	{
 	.type = "mma8451",
@@ -260,6 +265,7 @@ static struct i2c_board_info mxc_i2c0_board_info[] __initdata = {
 	.addr = 0x3C,
 	.platform_data = (void *)&camera_data,
 	},
+
 };
 
 static u16 smd_touchkey_martix[4] = {
@@ -339,6 +345,13 @@ static struct i2c_board_info mxc_i2c2_board_info[] __initdata = {
 		I2C_BOARD_INFO("p1003_ts", 0x41),
 		.irq = gpio_to_irq(MX53_SMD_CAP_TCH_INT1),
 	},
+	{
+	.type = "isl29023",
+	.addr = 0x44,
+	.irq  = gpio_to_irq(MX53_SMD_ALS_INT),
+	.platform_data = &ls_data,
+	},
+
 };
 
 /* HW Initialization, if return 0, initialization is successful. */
@@ -562,6 +575,10 @@ static void __init mx53_smd_board_init(void)
 
 	gpio_request(MX53_SMD_DCDC1V8_EN, "dcdc1v8-en");
 	gpio_direction_output(MX53_SMD_DCDC1V8_EN, 1);
+
+	/* ambient light sensor */
+	gpio_request(MX53_SMD_ALS_INT, "als int");
+	gpio_direction_input(MX53_SMD_ALS_INT);
 
 	mxc_register_device(&smd_audio_device, &smd_audio_data);
 	imx53_add_imx_ssi(1, &smd_ssi_pdata);
