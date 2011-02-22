@@ -40,11 +40,12 @@ struct max17085_chip {
 	int online;
 	int health;
 	int status;
-	int volt;
+	int voltage_uV;
 	int cap;
 };
 
 #define MAX17085_DELAY		1000
+#define MAX17085_DEF_TEMP	30
 
 static int max17085_bat_get_mfr(struct power_supply *psy,
 		union power_supply_propval *val)
@@ -76,7 +77,7 @@ static int max17085_bat_get_volt(struct power_supply *psy,
 	struct max17085_chip *chip = container_of(psy,
 			struct max17085_chip, bat);
 
-	val->intval = chip->volt;
+	val->intval = chip->voltage_uV;
 	return 0;
 }
 
@@ -119,11 +120,8 @@ static int max17085_bat_get_property(struct power_supply *psy,
 		val->intval = 1;
 		break;
 	case POWER_SUPPLY_PROP_TEMP:
-	case POWER_SUPPLY_PROP_VOLTAGE_AVG:
-	case POWER_SUPPLY_PROP_CURRENT_AVG:
-	case POWER_SUPPLY_PROP_TEMP_AMBIENT:
-	case POWER_SUPPLY_PROP_CHARGE_COUNTER:
-	case POWER_SUPPLY_PROP_SERIAL_NUMBER:
+		val->intval = MAX17085_DEF_TEMP;
+		break;
 	default:
 		ret = -EINVAL;
 		break;
@@ -152,15 +150,19 @@ static int max17085_ac_get_property(struct power_supply *psy,
 static void max17085_get_online(struct max17085_chip *chip)
 {
 	int level = gpio_get_value(chip->ac_in);
+	int cur_online = !level;
 
-	chip->online = !level;
+	if (chip->online != cur_online) {
+		chip->online = cur_online;
+		power_supply_changed(&chip->ac);
+	}
 }
 
 static void max17085_get_health(struct max17085_chip *chip)
 {
 	int level = gpio_get_value(chip->pwr_good);
 
-	if (level && (chip->volt >= 0))
+	if (level && (chip->voltage_uV >= 0))
 		chip->health = POWER_SUPPLY_HEALTH_GOOD;
 	else
 		chip->health = POWER_SUPPLY_HEALTH_UNSPEC_FAILURE;
@@ -168,34 +170,41 @@ static void max17085_get_health(struct max17085_chip *chip)
 
 extern int da9052_adc_read(unsigned char channel);
 #define VOLT_REG_TO_MV(val) ((val * 2500) / 1024)
+#define BATT_TO_ADC_SCALE	11
 static void max17085_get_volt(struct max17085_chip *chip)
 {
 	int val;
 	val = da9052_adc_read(6);
 	if (val > 0)
-		chip->volt = VOLT_REG_TO_MV(val);
+		chip->voltage_uV = VOLT_REG_TO_MV(val)*1000*BATT_TO_ADC_SCALE;
 	else
-		chip->volt = -1;
+		chip->voltage_uV = -1;
 }
 
 #define BATT_EMPTY_MV		9000
 #define BATT_FULL_MV		12600
-#define BATT_TO_ADC_SCALE	11
 static void max17085_get_cap(struct max17085_chip *chip)
 {
-	if (chip->volt >= 0) {
-		int voltage_uV;
-		voltage_uV = chip->volt * 1000 * BATT_TO_ADC_SCALE;
-		chip->cap = (voltage_uV/1000 - BATT_EMPTY_MV) * 100/
+	int old_cap = chip->cap;
+
+	if (chip->voltage_uV > BATT_EMPTY_MV*1000) {
+		chip->cap = (chip->voltage_uV/1000 - BATT_EMPTY_MV) * 100/
 				(BATT_FULL_MV - BATT_EMPTY_MV);
+		if (chip->cap > 100)
+			chip->cap = 100;
 	} else
 		chip->cap = 0;
+
+	if (chip->cap != old_cap)
+		power_supply_changed(&chip->bat);
 }
 
 static void max17085_update_status(struct max17085_chip *chip)
 {
+	int old_status = chip->status;
+
 	if (chip->online) {
-		if (chip->volt < BATT_FULL_MV)
+		if (chip->voltage_uV/1000 < BATT_FULL_MV)
 			chip->status =
 				POWER_SUPPLY_STATUS_CHARGING;
 		else
@@ -203,6 +212,13 @@ static void max17085_update_status(struct max17085_chip *chip)
 				POWER_SUPPLY_STATUS_NOT_CHARGING;
 	} else
 		chip->status = POWER_SUPPLY_STATUS_DISCHARGING;
+
+	if (chip->voltage_uV/1000 >= BATT_FULL_MV)
+		chip->status = POWER_SUPPLY_STATUS_FULL;
+
+	if (old_status != POWER_SUPPLY_STATUS_UNKNOWN &&
+		old_status != chip->status)
+		power_supply_changed(&chip->bat);
 
 	if (chip->cap < 20) {
 		gpio_set_value(chip->charge_now, 1);
@@ -236,14 +252,9 @@ static enum power_supply_property max17085_bat_props[] = {
 	POWER_SUPPLY_PROP_HEALTH,
 	POWER_SUPPLY_PROP_TECHNOLOGY,
 	POWER_SUPPLY_PROP_VOLTAGE_NOW,
-	POWER_SUPPLY_PROP_VOLTAGE_AVG,
-	POWER_SUPPLY_PROP_CURRENT_AVG,
 	POWER_SUPPLY_PROP_CAPACITY,
 	POWER_SUPPLY_PROP_TEMP,
-	POWER_SUPPLY_PROP_TEMP_AMBIENT,
 	POWER_SUPPLY_PROP_MANUFACTURER,
-	POWER_SUPPLY_PROP_SERIAL_NUMBER,
-	POWER_SUPPLY_PROP_CHARGE_COUNTER,
 };
 
 static enum power_supply_property max17085_ac_props[] = {
@@ -318,6 +329,12 @@ static int max17085_bat_probe(struct platform_device *pdev)
 		dev_err(chip->dev, "failed to register battery\n");
 		goto register_batt_failed;
 	}
+
+	max17085_get_online(chip);
+	max17085_get_volt(chip);
+	max17085_get_health(chip);
+	max17085_get_cap(chip);
+	max17085_update_status(chip);
 
 	INIT_DELAYED_WORK_DEFERRABLE(&chip->work, max17085_work);
 	schedule_delayed_work(&chip->work, MAX17085_DELAY);
