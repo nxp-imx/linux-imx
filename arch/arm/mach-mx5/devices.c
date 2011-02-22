@@ -1,6 +1,6 @@
 /*
  * Copyright 2009 Amit Kucheria <amit.kucheria@canonical.com>
- * Copyright (C) 2010 Freescale Semiconductor, Inc.
+ * Copyright (C) 2010-2011 Freescale Semiconductor, Inc.
  *
  * The code contained herein is licensed under the GNU General Public
  * License. You may obtain a copy of the GNU General Public License
@@ -37,9 +37,14 @@ struct platform_device mxc_hsi2c_device = {
 	.resource = mxc_hsi2c_resources
 };
 
+struct platform_device mxc_pm_device = {
+	.name = "mx5_pm",
+	.id = 0,
+};
+
 static u64 usb_dma_mask = DMA_BIT_MASK(32);
 
-static struct resource usbotg_resources[] = {
+static struct resource usbotg_udc_resources[] = {
 	{
 		.start = MX51_OTG_BASE_ADDR,
 		.end = MX51_OTG_BASE_ADDR + 0x1ff,
@@ -55,23 +60,76 @@ static struct resource usbotg_resources[] = {
 struct platform_device mxc_usbdr_udc_device = {
 	.name		= "fsl-usb2-udc",
 	.id		= -1,
-	.num_resources	= ARRAY_SIZE(usbotg_resources),
-	.resource	= usbotg_resources,
+	.num_resources	= ARRAY_SIZE(usbotg_udc_resources),
+	.resource	= usbotg_udc_resources,
 	.dev		= {
 		.dma_mask		= &usb_dma_mask,
 		.coherent_dma_mask	= DMA_BIT_MASK(32),
 	},
 };
 
+static struct resource usbotg_host_resources[] = {
+	{
+		.start = MX51_OTG_BASE_ADDR,
+		.end = MX51_OTG_BASE_ADDR + 0x1ff,
+		.flags = IORESOURCE_MEM,
+	},
+	{
+		.start = MX51_MXC_INT_USB_OTG,
+		.flags = IORESOURCE_IRQ,
+	},
+};
+
 struct platform_device mxc_usbdr_host_device = {
-	.name = "mxc-ehci",
+	.name = "fsl-ehci",
 	.id = 0,
-	.num_resources = ARRAY_SIZE(usbotg_resources),
-	.resource = usbotg_resources,
+	.num_resources = ARRAY_SIZE(usbotg_host_resources),
+	.resource = usbotg_host_resources,
 	.dev = {
 		.dma_mask = &usb_dma_mask,
 		.coherent_dma_mask = DMA_BIT_MASK(32),
 	},
+};
+
+static struct resource usbotg_wakeup_resources[] = {
+	{
+		.start = MX51_MXC_INT_USB_OTG,/* wakeup irq */
+		.flags = IORESOURCE_IRQ,
+	},
+	{
+		.start = MX51_MXC_INT_USB_OTG,/* usb core irq */
+		.flags = IORESOURCE_IRQ,
+	},
+};
+
+struct platform_device mxc_usbdr_wakeup_device = {
+	.name = "usb_wakeup",
+	.id   = 0,
+	.num_resources = ARRAY_SIZE(usbotg_wakeup_resources),
+	.resource = usbotg_wakeup_resources,
+};
+
+static struct resource usbotg_xcvr_resources[] = {
+	{
+		.start = MX51_OTG_BASE_ADDR,
+		.end = MX51_OTG_BASE_ADDR + 0x1ff,
+		.flags = IORESOURCE_MEM,
+	},
+	{
+		.start = MX51_MXC_INT_USB_OTG,
+		.flags = IORESOURCE_IRQ,
+	},
+};
+
+struct platform_device mxc_usbdr_otg_device = {
+	.name = "fsl-usb2-otg",
+	.id = -1,
+	.dev		= {
+		.dma_mask		= &usb_dma_mask,
+		.coherent_dma_mask	= DMA_BIT_MASK(32),
+	},
+	.resource      = usbotg_xcvr_resources,
+	.num_resources = ARRAY_SIZE(usbotg_xcvr_resources),
 };
 
 static struct resource usbh1_resources[] = {
@@ -87,7 +145,7 @@ static struct resource usbh1_resources[] = {
 };
 
 struct platform_device mxc_usbh1_device = {
-	.name = "mxc-ehci",
+	.name = "fsl-ehci",
 	.id = 1,
 	.num_resources = ARRAY_SIZE(usbh1_resources),
 	.resource = usbh1_resources,
@@ -95,6 +153,24 @@ struct platform_device mxc_usbh1_device = {
 		.dma_mask = &usb_dma_mask,
 		.coherent_dma_mask = DMA_BIT_MASK(32),
 	},
+};
+
+static struct resource usbh1_wakeup_resources[] = {
+	{
+		.start = MX51_MXC_INT_USB_H1, /*wakeup irq*/
+		.flags = IORESOURCE_IRQ,
+	},
+	{
+		.start = MX51_MXC_INT_USB_H1,
+		.flags = IORESOURCE_IRQ,/* usb core irq */
+	},
+};
+
+struct platform_device mxc_usbh1_wakeup_device = {
+	.name = "usb_wakeup",
+	.id   = 1,
+	.num_resources = ARRAY_SIZE(usbh1_wakeup_resources),
+	.resource = usbh1_wakeup_resources,
 };
 
 static struct resource usbh2_resources[] = {
@@ -110,7 +186,7 @@ static struct resource usbh2_resources[] = {
 };
 
 struct platform_device mxc_usbh2_device = {
-	.name = "mxc-ehci",
+	.name = "fsl-ehci",
 	.id = 2,
 	.num_resources = ARRAY_SIZE(usbh2_resources),
 	.resource = usbh2_resources,
@@ -118,6 +194,24 @@ struct platform_device mxc_usbh2_device = {
 		.dma_mask = &usb_dma_mask,
 		.coherent_dma_mask = DMA_BIT_MASK(32),
 	},
+};
+
+static struct resource usbh2_wakeup_resources[] = {
+	{
+		.start = MX51_MXC_INT_USB_H2,
+		.flags = IORESOURCE_IRQ,/* wakeup irq */
+	},
+	{
+		.start = MX51_MXC_INT_USB_H2,
+		.flags = IORESOURCE_IRQ,/* usb core irq */
+	},
+};
+
+struct platform_device mxc_usbh2_wakeup_device = {
+	.name = "usb_wakeup",
+	.id   = 2,
+	.num_resources = ARRAY_SIZE(usbh2_wakeup_resources),
+	.resource = usbh2_wakeup_resources,
 };
 
 static struct mxc_gpio_port mxc_gpio_ports[] = {

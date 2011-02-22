@@ -4,7 +4,7 @@
  * Copyright (C) 2004 - 2005 Nokia corporation
  * Written by Tuukka Tikkanen <tuukka.tikkanen@elektrobit.com>
  * Modified for omap shared clock framework by Tony Lindgren <tony@atomide.com>
- * Copyright 2007 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2007-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  * Copyright 2008 Juergen Beisert, kernel@pengutronix.de
  *
  * This program is free software; you can redistribute it and/or
@@ -109,6 +109,25 @@ void clk_disable(struct clk *clk)
 	mutex_unlock(&clocks_mutex);
 }
 EXPORT_SYMBOL(clk_disable);
+
+/*!
+ * @brief Function to get the usage count for the requested clock.
+ *
+ * This function returns the reference count for the clock.
+ *
+ * @param clk 	Handle to clock to disable.
+ *
+ * @return Returns the usage count for the requested clock.
+ */
+int clk_get_usecount(struct clk *clk)
+{
+	if (clk == NULL || IS_ERR(clk))
+		return 0;
+
+	return clk->usecount;
+}
+
+EXPORT_SYMBOL(clk_get_usecount);
 
 /* Retrieve the *current* clock rate. If the clock itself
  * does not provide a special calculation routine, ask

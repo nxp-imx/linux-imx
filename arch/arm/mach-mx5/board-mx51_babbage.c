@@ -1,5 +1,5 @@
 /*
- * Copyright 2009-2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2009-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  * Copyright (C) 2009-2010 Amit Kucheria <amit.kucheria@canonical.com>
  *
  * The code contained herein is licensed under the GNU General Public
@@ -36,6 +36,7 @@
 
 #include "devices-imx51.h"
 #include "devices.h"
+#include "crm_regs.h"
 #include "cpu_op-mx51.h"
 
 #define BABBAGE_USB_HUB_RESET	IMX_GPIO_NR(1, 7)
@@ -172,6 +173,23 @@ static const struct imxi2c_platform_data babbage_i2c_data __initconst = {
 static struct imxi2c_platform_data babbage_hsi2c_data = {
 	.bitrate = 400000,
 };
+
+static void babbage_suspend_enter()
+{
+}
+
+static void babbage_suspend_exit()
+{
+	/*clear the EMPGC0/1 bits */
+	__raw_writel(0, MXC_SRPG_EMPGC0_SRPGCR);
+	__raw_writel(0, MXC_SRPG_EMPGC1_SRPGCR);
+}
+
+static struct mxc_pm_platform_data babbage_pm_data = {
+	.suspend_enter = babbage_suspend_enter,
+	.suspend_exit = babbage_suspend_exit,
+};
+
 
 static int gpio_usbh1_active(void)
 {
@@ -337,6 +355,8 @@ static const struct spi_imx_master mx51_babbage_spi_pdata __initconst = {
 	.num_chipselect = ARRAY_SIZE(mx51_babbage_spi_cs),
 };
 
+static int z160_revision __initdata;
+
 /*
  * Board specific initialization.
  */
@@ -346,9 +366,6 @@ static void __init mx51_babbage_init(void)
 	iomux_v3_cfg_t power_key = _MX51_PAD_EIM_A27__GPIO2_21 |
 		MUX_PAD_CTRL(PAD_CTL_SRE_FAST | PAD_CTL_DSE_HIGH | PAD_CTL_PUS_100K_UP);
 
-#if defined(CONFIG_CPU_FREQ_IMX)
-	get_cpu_op = mx51_get_cpu_op;
-#endif
 	mxc_iomux_v3_setup_multiple_pads(mx51babbage_pads,
 					ARRAY_SIZE(mx51babbage_pads));
 
@@ -366,8 +383,9 @@ static void __init mx51_babbage_init(void)
 	imx51_add_imx_i2c(0, &babbage_i2c_data);
 	imx51_add_imx_i2c(1, &babbage_i2c_data);
 	mxc_register_device(&mxc_hsi2c_device, &babbage_hsi2c_data);
+	mxc_register_device(&mxc_pm_device, &babbage_pm_data);
 
-	if (otg_mode_host)
+	/*if (otg_mode_host)
 		mxc_register_device(&mxc_usbdr_host_device, &dr_utmi_config);
 	else {
 		initialize_otg_port(NULL);
@@ -375,7 +393,7 @@ static void __init mx51_babbage_init(void)
 	}
 
 	gpio_usbh1_active();
-	mxc_register_device(&mxc_usbh1_device, &usbh1_config);
+	mxc_register_device(&mxc_usbh1_device, &usbh1_config);*/
 	/* setback USBH1_STP to be function */
 	mxc_iomux_v3_setup_pad(usbh1stp);
 	babbage_usbhub_reset();
@@ -387,6 +405,7 @@ static void __init mx51_babbage_init(void)
 		ARRAY_SIZE(mx51_babbage_spi_board_info));
 	imx51_add_ecspi(0, &mx51_babbage_spi_pdata);
 	imx51_add_imx2_wdt(0, NULL);
+	imx51_add_mxc_gpu(&z160_revision);
 }
 
 static void __init mx51_babbage_timer_init(void)

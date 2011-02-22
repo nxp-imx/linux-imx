@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2010-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -38,7 +38,7 @@ static struct cpufreq_frequency_table *imx_freq_table;
 static int cpu_op_nr;
 static struct cpu_op *cpu_op_tbl;
 
-static int set_cpu_freq(int freq)
+int set_cpu_freq(int freq)
 {
 	int ret = 0;
 	int org_cpu_rate;

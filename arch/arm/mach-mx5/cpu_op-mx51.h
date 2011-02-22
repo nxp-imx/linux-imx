@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2010-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -11,4 +11,4 @@
  * http://www.gnu.org/copyleft/gpl.html
  */
 
-extern struct cpu_op *mx51_get_cpu_op(int *op);
+extern void mx51_cpu_op_init(void);

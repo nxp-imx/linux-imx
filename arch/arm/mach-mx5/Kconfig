@@ -26,12 +26,33 @@ config	SOC_IMX51
 	select ARCH_MXC_AUDMUX_V2
 	select ARCH_HAS_CPUFREQ
 	select ARCH_MX51
+	select IMX_HAVE_PLATFORM_FEC
+	select IMX_HAVE_PLATFORM_MXC_PWM
+	select IMX_HAVE_PLATFORM_IMX_IPUV3
+	select IMX_HAVE_PLATFORM_IMX_TVE
+	select IMX_HAVE_PLATFORM_IMX_VPU
+	select IMX_HAVE_PLATFORM_IMX_DVFS
+	select IMX_HAVE_PLATFORM_IMX_SSI
+	select IMX_HAVE_PLATFORM_IMX_IIM
 
 config	SOC_IMX53
 	bool
 	select MXC_TZIC
 	select ARCH_MXC_IOMUX_V3
+	select ARCH_HAS_CPUFREQ
 	select ARCH_MX53
+	select IMX_HAVE_PLATFORM_FEC
+	select IMX_HAVE_PLATFORM_MXC_PWM
+	select IMX_HAVE_PLATFORM_IMX_IPUV3
+	select IMX_HAVE_PLATFORM_IMX_TVE
+	select IMX_HAVE_PLATFORM_IMX_VPU
+	select IMX_HAVE_PLATFORM_IMX_DVFS
+	select IMX_HAVE_PLATFORM_IMX_SSI
+	select IMX_HAVE_PLATFORM_IMX_IIM
+
+config FORCE_MAX_ZONEORDER
+    int "MAX_ORDER"
+    default "13"
 
 comment "MX5 platforms:"
 
@@ -142,6 +163,7 @@ config MACH_MX53_EVK
 	select IMX_HAVE_PLATFORM_IMX2_WDT
 	select IMX_HAVE_PLATFORM_IMX_UART
 	select IMX_HAVE_PLATFORM_IMX_I2C
+	select IMX_HAVE_PLATFORM_MXC_GPU
 	select IMX_HAVE_PLATFORM_SDHCI_ESDHC_IMX
 	select IMX_HAVE_PLATFORM_SPI_IMX
 	help
@@ -154,6 +176,11 @@ config MACH_MX53_SMD
 	select IMX_HAVE_PLATFORM_IMX2_WDT
 	select IMX_HAVE_PLATFORM_IMX_I2C
 	select IMX_HAVE_PLATFORM_IMX_UART
+	select IMX_HAVE_PLATFORM_IMX_I2C
+	select IMX_HAVE_PLATFORM_MXC_GPU
+	select IMX_HAVE_PLATFORM_SDHCI_ESDHC_IMX
+	select IMX_HAVE_PLATFORM_IMX_SRTC
+	select IMX_HAVE_PLATFORM_SATA_AHCI
 	help
 	  Include support for MX53 SMD platform. This includes specific
 	  configurations for the board and its peripherals.
@@ -164,10 +191,24 @@ config MACH_MX53_LOCO
 	select IMX_HAVE_PLATFORM_IMX2_WDT
 	select IMX_HAVE_PLATFORM_IMX_I2C
 	select IMX_HAVE_PLATFORM_IMX_UART
+	select IMX_HAVE_PLATFORM_IMX_SRTC
+	select IMX_HAVE_PLATFORM_MXC_GPU
 	select IMX_HAVE_PLATFORM_SDHCI_ESDHC_IMX
+	select IMX_HAVE_PLATFORM_SATA_AHCI
 	select IMX_HAVE_PLATFORM_GPIO_KEYS
 	help
 	  Include support for MX53 LOCO platform. This includes specific
+	  configurations for the board and its peripherals.
+
+config MACH_MX53_ARD
+	bool "Support MX53 ARD platform"
+	select SOC_IMX53
+	select IMX_HAVE_PLATFORM_IMX2_WDT
+	select IMX_HAVE_PLATFORM_IMX_UART
+	select IMX_HAVE_PLATFORM_MXC_GPU
+	select IMX_HAVE_PLATFORM_SDHCI_ESDHC_IMX
+	help
+	  Include support for MX53 ARD platform. This includes specific
 	  configurations for the board and its peripherals.
 
 config MACH_MX50_RDP
@@ -176,6 +217,7 @@ config MACH_MX50_RDP
 	select SOC_IMX50
 	select IMX_HAVE_PLATFORM_IMX_I2C
 	select IMX_HAVE_PLATFORM_IMX_UART
+	select IMX_HAVE_PLATFORM_MXC_GPU
 	select IMX_HAVE_PLATFORM_SDHCI_ESDHC_IMX
 	select IMX_HAVE_PLATFORM_SPI_IMX
 	select IMX_HAVE_PLATFORM_FEC

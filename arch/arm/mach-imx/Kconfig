@@ -22,6 +22,8 @@ config SOC_IMX25
 	select ARCH_MXC_AUDMUX_V2
 	select ARCH_MXC_IOMUX_V3
 	select MXC_AVIC
+	select IMX_HAVE_PLATFORM_FEC
+	select IMX_HAVE_PLATFORM_MXC_PWM
 
 config SOC_IMX27
 	bool
@@ -30,6 +32,8 @@ config SOC_IMX27
 	select IMX_HAVE_DMA_V1
 	select IMX_HAVE_IOMUX_V1
 	select MXC_AVIC
+	select IMX_HAVE_PLATFORM_FEC
+	select IMX_HAVE_PLATFORM_MXC_PWM
 
 if ARCH_MX1
 

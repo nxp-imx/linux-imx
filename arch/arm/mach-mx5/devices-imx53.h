@@ -33,3 +33,55 @@ extern const struct imx_spi_imx_data imx53_ecspi_data[] __initconst;
 extern const struct imx_imx2_wdt_data imx53_imx2_wdt_data[] __initconst;
 #define imx53_add_imx2_wdt(id, pdata)	\
 	imx_add_imx2_wdt(&imx53_imx2_wdt_data[id])
+
+extern const struct imx_mxc_pwm_data imx53_mxc_pwm_data[] __initconst;
+#define imx53_add_mxc_pwm(id)	\
+	imx_add_mxc_pwm(&imx53_mxc_pwm_data[id])
+
+#define imx53_add_mxc_pwm_backlight(id, pdata)                 \
+	platform_device_register_resndata(NULL, "pwm-backlight",\
+			id, NULL, 0, pdata, sizeof(*pdata));
+
+extern const struct imx_ipuv3_data imx53_ipuv3_data __initconst;
+#define imx53_add_ipuv3(pdata)	imx_add_ipuv3(&imx53_ipuv3_data, pdata)
+
+extern const struct imx_vpu_data imx53_vpu_data __initconst;
+#define imx53_add_vpu()	imx_add_vpu(&imx53_vpu_data)
+
+extern const struct imx_tve_data imx53_tve_data __initconst;
+#define imx53_add_tve(pdata)	\
+	imx_add_tve(&imx53_tve_data, pdata)
+
+extern const struct imx_dvfs_core_data imx53_dvfs_core_data __initconst;
+#define imx53_add_dvfs_core(pdata)	\
+	imx_add_dvfs_core(&imx53_dvfs_core_data, pdata)
+
+#define imx53_add_busfreq(pdata)	imx_add_busfreq(pdata)
+
+extern const struct imx_srtc_data imx53_imx_srtc_data __initconst;
+#define imx53_add_srtc()	\
+	imx_add_srtc(&imx53_imx_srtc_data)
+
+#define imx53_add_v4l2_output(id)	\
+	platform_device_register_resndata(NULL, "mxc_v4l2_output",\
+			id, NULL, 0, NULL, 0);
+
+#define imx53_add_v4l2_capture(id)	\
+	platform_device_register_resndata(NULL, "mxc_v4l2_capture",\
+			id, NULL, 0, NULL, 0);
+
+extern const struct imx_ahci_imx_data imx53_ahci_imx_data[] __initconst;
+#define imx53_add_ahci_imx(id, pdata)		\
+	imx_add_ahci_imx(&imx53_ahci_imx_data[id], pdata)
+
+extern const struct imx_imx_ssi_data imx53_imx_ssi_data[] __initconst;
+#define imx53_add_imx_ssi(id, pdata)		\
+	imx_add_imx_ssi(&imx53_imx_ssi_data[id], pdata)
+
+extern const struct imx_iim_data imx53_imx_iim_data __initconst;
+#define imx53_add_iim(pdata) \
+	imx_add_iim(&imx53_imx_iim_data, pdata)
+
+extern const struct imx_mxc_gpu_data imx53_gpu_data __initconst;
+#define imx53_add_mxc_gpu(pdata) \
+	imx_add_mxc_gpu(&imx53_gpu_data, pdata)

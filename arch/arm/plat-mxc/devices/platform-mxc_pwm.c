@@ -49,6 +49,15 @@ const struct imx_mxc_pwm_data imx51_mxc_pwm_data[] __initconst = {
 };
 #endif /* ifdef CONFIG_SOC_IMX51 */
 
+#ifdef CONFIG_SOC_IMX53
+const struct imx_mxc_pwm_data imx53_mxc_pwm_data[] __initconst = {
+#define imx53_mxc_pwm_data_entry(_id, _hwid)				\
+	imx_mxc_pwm_data_entry(MX53, _id, _hwid, SZ_16K)
+	imx53_mxc_pwm_data_entry(0, 1),
+	imx53_mxc_pwm_data_entry(1, 2),
+};
+#endif /* ifdef CONFIG_SOC_IMX53 */
+
 struct platform_device *__init imx_add_mxc_pwm(
 		const struct imx_mxc_pwm_data *data)
 {

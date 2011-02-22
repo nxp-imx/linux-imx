@@ -81,6 +81,13 @@ struct imx_imxdi_rtc_data {
 struct platform_device *__init imx_add_imxdi_rtc(
 		const struct imx_imxdi_rtc_data *data);
 
+struct imx_srtc_data {
+	resource_size_t iobase;
+	resource_size_t irq;
+};
+struct platform_device *__init imx_add_srtc(
+		const struct imx_srtc_data *data);
+
 #include <mach/imxfb.h>
 struct imx_imx_fb_data {
 	resource_size_t iobase;
@@ -264,3 +271,77 @@ struct imx_spi_imx_data {
 struct platform_device *__init imx_add_spi_imx(
 		const struct imx_spi_imx_data *data,
 		const struct spi_imx_master *pdata);
+
+#include <mach/ipu-v3.h>
+struct imx_ipuv3_data {
+	resource_size_t iobase;
+	resource_size_t iosize;
+	resource_size_t irq_err;
+	resource_size_t irq;
+	int (*init) (void);
+	void (*pg) (int);
+};
+struct platform_device *__init imx_add_ipuv3(
+		const struct imx_ipuv3_data *data,
+		struct imx_ipuv3_platform_data *pdata);
+
+#include <mach/mxc_vpu.h>
+struct imx_vpu_data {
+	resource_size_t iobase;
+	resource_size_t irq;
+	void (*reset) (void);
+	void (*pg) (int);
+};
+struct platform_device *__init imx_add_vpu(
+		const struct imx_vpu_data *data);
+
+#include <mach/mxc_dvfs.h>
+struct imx_dvfs_core_data {
+	resource_size_t iobase;
+	resource_size_t irq;
+};
+struct platform_device *__init imx_add_dvfs_core(
+		const struct imx_dvfs_core_data *data,
+		const struct mxc_dvfs_platform_data *pdata);
+struct platform_device *__init imx_add_busfreq(
+		const struct mxc_bus_freq_platform_data *pdata);
+
+#include <linux/fsl_devices.h>
+struct imx_tve_data {
+	resource_size_t iobase;
+	resource_size_t irq;
+};
+struct platform_device *__init imx_add_tve(
+		const struct imx_tve_data *data,
+		const struct fsl_mxc_tve_platform_data *pdata);
+
+#include <linux/ahci_platform.h>
+struct imx_ahci_imx_data {
+	int id;
+	resource_size_t iobase;
+	resource_size_t irq;
+};
+struct platform_device *__init imx_add_ahci_imx(
+		const struct imx_ahci_imx_data *data,
+		const struct ahci_platform_data *pdata);
+
+struct imx_iim_data {
+	resource_size_t iobase;
+	resource_size_t irq;
+};
+struct platform_device *__init imx_add_iim(
+		const struct imx_iim_data *data,
+		const struct mxc_iim_platform_data *pdata);
+
+struct imx_mxc_gpu_data {
+	resource_size_t irq_2d;
+	resource_size_t irq_3d;
+	resource_size_t iobase_2d;
+	resource_size_t iobase_3d;
+	resource_size_t gmem_base;
+	resource_size_t gmem_size;
+};
+
+struct platform_device *__init imx_add_mxc_gpu(
+		const struct imx_mxc_gpu_data *data,
+		const int *pdata);

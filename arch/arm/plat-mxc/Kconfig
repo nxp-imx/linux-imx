@@ -53,6 +53,19 @@ source "arch/arm/mach-mx5/Kconfig"
 
 endmenu
 
+## Freescale private USB driver support
+# set if we need the 1504 transceiver
+config ISP1504_MXC
+	bool
+	default y
+
+# set if we need the UTMI transceiver
+config UTMI_MXC
+	bool
+	default y
+	depends on ARCH_MX25 || ARCH_MX35 || ARCH_MX37 || ARCH_MX5
+
+
 config MXC_IRQ_PRIOR
 	bool "Use IRQ priority"
 	help
@@ -118,6 +131,14 @@ config ARCH_MXC_AUDMUX_V2
 
 config IRAM_ALLOC
 	bool
+        default y
 	select GENERIC_ALLOCATOR
 
+config DMA_ZONE_SIZE
+        int "DMA memory zone size"
+        range 0 96
+        default 24
+        help
+          This is the size in MB for the DMA zone. The DMA zone is used for
+          dedicated memory for large contiguous video buffers
 endif

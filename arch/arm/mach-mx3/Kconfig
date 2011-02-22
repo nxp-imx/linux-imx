@@ -24,6 +24,8 @@ config SOC_IMX35
 	select HAVE_EPIT
 	select ARCH_MX35
 	select MXC_AVIC
+	select IMX_HAVE_PLATFORM_FEC
+	select IMX_HAVE_PLATFORM_MXC_PWM
 
 comment "MX3 platforms:"
 

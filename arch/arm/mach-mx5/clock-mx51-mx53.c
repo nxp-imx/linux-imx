@@ -1,5 +1,5 @@
 /*
- * Copyright 2008-2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2008-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  * Copyright (C) 2009-2010 Amit Kucheria <amit.kucheria@canonical.com>
  *
  * The code contained herein is licensed under the GNU General Public
@@ -1277,6 +1277,8 @@ DEFINE_CLOCK(i2c1_clk, 0, MXC_CCM_CCGR1, MXC_CCM_CCGRx_CG9_OFFSET,
 	NULL, NULL, &ipg_clk, NULL);
 DEFINE_CLOCK(i2c2_clk, 1, MXC_CCM_CCGR1, MXC_CCM_CCGRx_CG10_OFFSET,
 	NULL, NULL, &ipg_clk, NULL);
+DEFINE_CLOCK(i2c3_clk, 2, MXC_CCM_CCGR1, MXC_CCM_CCGRx_CG11_OFFSET,
+	NULL, NULL, &ipg_clk, NULL);
 DEFINE_CLOCK(hsi2c_clk, 0, MXC_CCM_CCGR1, MXC_CCM_CCGRx_CG11_OFFSET,
 	NULL, NULL, &ipg_clk, NULL);
 
@@ -1452,7 +1454,7 @@ static struct clk_lookup mx51_lookups[] = {
 	_REGISTER_CLOCK("imx2-wdt.0", NULL, dummy_clk)
 	_REGISTER_CLOCK("imx2-wdt.1", NULL, dummy_clk)
 	_REGISTER_CLOCK(NULL, "mipi_hsp", mipi_hsp_clk)
-	_REGISTER_CLOCK("imx-ipuv3", NULL, ipu_clk)
+	_REGISTER_CLOCK("imx-ipuv3", "ipu", ipu_clk)
 	_REGISTER_CLOCK("imx-ipuv3", "di0", ipu_di0_clk)
 	_REGISTER_CLOCK("imx-ipuv3", "di1", ipu_di1_clk)
 	_REGISTER_CLOCK(NULL, "gpc_dvfs", gpc_dvfs_clk)
@@ -1467,6 +1469,7 @@ static struct clk_lookup mx53_lookups[] = {
 	_REGISTER_CLOCK(NULL, "iim_clk", iim_clk)
 	_REGISTER_CLOCK("imx-i2c.0", NULL, i2c1_clk)
 	_REGISTER_CLOCK("imx-i2c.1", NULL, i2c2_clk)
+	_REGISTER_CLOCK("imx-i2c.2", NULL, i2c3_clk)
 	_REGISTER_CLOCK("sdhci-esdhc-imx.0", NULL, esdhc1_clk)
 	_REGISTER_CLOCK("sdhci-esdhc-imx.1", NULL, esdhc2_mx53_clk)
 	_REGISTER_CLOCK("sdhci-esdhc-imx.2", NULL, esdhc3_mx53_clk)
@@ -1476,6 +1479,11 @@ static struct clk_lookup mx53_lookups[] = {
 	_REGISTER_CLOCK("imx53-cspi.0", NULL, cspi_clk)
 	_REGISTER_CLOCK("imx2-wdt.0", NULL, dummy_clk)
 	_REGISTER_CLOCK("imx2-wdt.1", NULL, dummy_clk)
+	_REGISTER_CLOCK("imx-ipuv3", "ipu", ipu_clk)
+	_REGISTER_CLOCK("imx-ipuv3", "di0", ipu_di0_clk)
+	_REGISTER_CLOCK("imx-ipuv3", "di1", ipu_di1_clk)
+	_REGISTER_CLOCK("mxc_pwm.0", "pwm", pwm1_clk)
+	_REGISTER_CLOCK("mxc_pwm.1", "pwm", pwm2_clk)
 };
 
 static void clk_tree_init(void)

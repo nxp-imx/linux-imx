@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2007 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2004-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -68,4 +68,5 @@ extern void mxc91231_arch_reset(int, const char *);
 extern void mxc91231_prepare_idle(void);
 extern void mx51_efikamx_reset(void);
 extern int mx53_revision(void);
+extern int mx50_revision(void);
 #endif

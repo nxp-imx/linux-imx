@@ -373,6 +373,7 @@ config ARCH_MXC
 	select ARCH_REQUIRE_GPIOLIB
 	select CLKDEV_LOOKUP
 	select HAVE_SCHED_CLOCK
+	select ZONE_DMA
 	help
 	  Support for Freescale MXC/iMX-based family of processors
 
