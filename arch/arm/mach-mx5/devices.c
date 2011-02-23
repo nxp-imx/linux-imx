@@ -1544,9 +1544,7 @@ void __init mx5_init_irq(void)
 {
 	unsigned long tzic_addr;
 
-	if (cpu_is_mx51_rev(CHIP_REV_2_0) < 0)
-		tzic_addr = MX51_TZIC_BASE_ADDR_T01;
-	else if (cpu_is_mx51_rev(CHIP_REV_2_0) > 0)
+	if (cpu_is_mx51())
 		tzic_addr = MX51_TZIC_BASE_ADDR;
 	else /* mx53 and mx50 */
 		tzic_addr = MX53_TZIC_BASE_ADDR;
@@ -1859,7 +1857,7 @@ int __init mxc_init_devices(void)
 			mxc_gpu_resources[4].start = MX53_GPU_GMEM_BASE_ADDR;
 			mxc_gpu_resources[4].end = MX53_GPU_GMEM_BASE_ADDR
 						+ SZ_256K - 1;
-			if (cpu_is_mx53_rev(CHIP_REV_2_0) >= 1) {
+			if (mx53_revision() >= IMX_CHIP_REVISION_2_0) {
 				z160_revision = 1;
 			} else {
 				z160_revision = 0;
@@ -1885,9 +1883,6 @@ int __init mxc_init_devices(void)
 		mxc_nandv2_mtd_device.resource[1].end -= MX53_OFFSET;
 		ldb_resources[0].start -=  MX53_OFFSET;
 		ldb_resources[0].end -=  MX53_OFFSET;
-	} else if (cpu_is_mx51_rev(CHIP_REV_2_0) < 0) {
-		scc_resources[1].start += 0x8000;
-		scc_resources[1].end += 0x8000;
 	}
 
 

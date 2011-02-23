@@ -19,6 +19,7 @@
 #include <asm/io.h>
 #include <mach/hardware.h>
 #include <mach/clock.h>
+#include <mach/common.h>
 #include <asm/proc-fns.h>
 #include <asm/system.h>
 #include "crm_regs.h"
@@ -114,11 +115,11 @@ void mxc_cpu_lp_set(enum mxc_cpu_pwr_mode mode)
 
 	__raw_writel(plat_lpc, MXC_CORTEXA8_PLAT_LPC);
 	__raw_writel(ccm_clpcr, MXC_CCM_CLPCR);
-	if (cpu_is_mx51() || (cpu_is_mx53_rev(CHIP_REV_2_0) >= 1)
-		|| cpu_is_mx50_rev(CHIP_REV_1_1) >= 1)
+	if (cpu_is_mx51() || (mx53_revision() >= IMX_CHIP_REVISION_2_0)
+		|| (mx50_revision() >= IMX_CHIP_REVISION_1_1))
 		__raw_writel(arm_srpgcr, MXC_SRPG_ARM_SRPGCR);
 	/* Enable NEON SRPG for all but MX50TO1.0. */
-	if (!(cpu_is_mx50_rev(CHIP_REV_1_0) == 1))
+	if (!(mx50_revision() == IMX_CHIP_REVISION_1_0))
 		__raw_writel(arm_srpgcr, MXC_SRPG_NEON_SRPGCR);
 	if (stop_mode) {
 		__raw_writel(empgc0, MXC_SRPG_EMPGC0_SRPGCR);

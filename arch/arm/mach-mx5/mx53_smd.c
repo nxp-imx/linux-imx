@@ -1138,7 +1138,7 @@ static void __init mxc_board_init(void)
 	mxc_register_device(&mxc_fec_device, &fec_data);
 	mxc_register_device(&mxc_ptp_device, NULL);
 	/* ASRC is only available for MX53 TO2.0 */
-	if (cpu_is_mx53_rev(CHIP_REV_2_0) >= 1) {
+	if (mx53_revision() >= IMX_CHIP_REVISION_2_0) {
 		mxc_asrc_data.asrc_core_clk = clk_get(NULL, "asrc_clk");
 		clk_put(mxc_asrc_data.asrc_core_clk);
 		mxc_asrc_data.asrc_audio_clk = clk_get(NULL, "asrc_serial_clk");

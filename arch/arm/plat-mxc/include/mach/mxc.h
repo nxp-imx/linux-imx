@@ -218,10 +218,6 @@ extern unsigned int system_rev;
 #define cpu_is_mx31_rev(rev) cpu_rev(mx31, rev)
 #define cpu_is_mx35_rev(rev) cpu_rev(mx35, rev)
 #define cpu_is_mx37_rev(rev) cpu_rev(mx37, rev)
-#define cpu_is_mx50_rev(rev) cpu_rev(mx50, rev)
-#define cpu_is_mx51_rev(rev) cpu_rev(mx51, rev)
-#define cpu_is_mx53_rev(rev) cpu_rev(mx53, rev)
-
 
 #include <linux/types.h>
 

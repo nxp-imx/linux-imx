@@ -3866,10 +3866,7 @@ static int _clk_vpu_set_parent(struct clk *clk, struct clk *parent)
 static int _clk_vpu_enable(struct clk *clk)
 {
 	/* Set VPU's parent to be axi_a or ahb when its enabled. */
-	if (cpu_is_mx51_rev(CHIP_REV_2_0) < 0) {
-		clk_set_parent(&vpu_clk[0], &ahb_clk);
-		clk_set_parent(&vpu_clk[1], &ahb_clk);
-	} else if (cpu_is_mx51()) {
+	if (cpu_is_mx51()) {
 		clk_set_parent(&vpu_clk[0], &axi_a_clk);
 		clk_set_parent(&vpu_clk[1], &axi_a_clk);
 	}
@@ -4572,13 +4569,13 @@ int __init mx51_clocks_init(unsigned long ckil, unsigned long osc, unsigned long
 
 	/* set DDR clock parent */
 	reg = 0;
-	if (cpu_is_mx51_rev(CHIP_REV_2_0) >= 1) {
-		reg = __raw_readl(MXC_CCM_CBCDR) & MXC_CCM_CBCDR_DDR_HF_SEL;
-		reg >>= MXC_CCM_CBCDR_DDR_HF_SEL_OFFSET;
+	/* Note this code is for TO2 and above */
+	reg = __raw_readl(MXC_CCM_CBCDR) & MXC_CCM_CBCDR_DDR_HF_SEL;
+	reg >>= MXC_CCM_CBCDR_DDR_HF_SEL_OFFSET;
 
-		if (reg)
-			tclk = &ddr_hf_clk;
-	}
+	if (reg)
+		tclk = &ddr_hf_clk;
+
 	if (reg == 0) {
 		reg = __raw_readl(MXC_CCM_CBCMR) &
 					MXC_CCM_CBCMR_DDR_CLK_SEL_MASK;
@@ -4910,6 +4907,7 @@ int __init mx53_clocks_init(unsigned long ckil, unsigned long osc, unsigned long
 	max_ahb_clk = MAX_AHB_CLK_MX53;
 	max_emi_slow_clk = MAX_AHB_CLK_MX53;
 
+	mx53_revision();
 
 	/* set DDR clock parent */
 	reg = __raw_readl(MXC_CCM_CBCMR) &

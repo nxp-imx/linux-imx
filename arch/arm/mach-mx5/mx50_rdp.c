@@ -1568,7 +1568,7 @@ static void __init mxc_board_init(void)
 	mxc_register_device(&dcp_device, NULL);
 	mxc_register_device(&mxc_powerkey_device, &pwrkey_data);
 	mxc_register_device(&fixed_volt_reg_device, &fixed_volt_reg_pdata);
-	if (cpu_is_mx50_rev(CHIP_REV_1_1) >= 1)
+	if (mx50_revision() >= IMX_CHIP_REVISION_1_1)
 		mxc_register_device(&mxc_zq_calib_device, NULL);
 	mx50_rdp_init_mc13892();
 /*

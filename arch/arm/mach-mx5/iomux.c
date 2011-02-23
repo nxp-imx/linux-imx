@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2008-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -65,16 +65,6 @@ static inline void *_get_mux_reg(iomux_pin_name_t pin)
 {
 	u32 mux_reg = PIN_TO_IOMUX_MUX(pin);
 
-	if (cpu_is_mx51_rev(CHIP_REV_2_0) < 0) {
-		if ((pin == MX51_PIN_NANDF_RB5) ||
-			(pin == MX51_PIN_NANDF_RB6) ||
-			(pin == MX51_PIN_NANDF_RB7))
-			; /* Do nothing */
-		else if (mux_reg >= 0x2FC)
-			mux_reg += 8;
-		else if (mux_reg >= 0x130)
-			mux_reg += 0xC;
-	}
 	return IOMUXSW_MUX_CTL + mux_reg;
 }
 
@@ -83,25 +73,6 @@ static inline void *_get_pad_reg(iomux_pin_name_t pin)
 	u32 pad_reg = PIN_TO_IOMUX_PAD(pin);
 	void __iomem *sw_pad_reg = _get_sw_pad();
 
-
-	if (cpu_is_mx51_rev(CHIP_REV_2_0) < 0) {
-		if ((pin == MX51_PIN_NANDF_RB5) ||
-			(pin == MX51_PIN_NANDF_RB6) ||
-			(pin == MX51_PIN_NANDF_RB7))
-			; /* Do nothing */
-		else if (pad_reg == 0x4D0 - PAD_I_START_MX51)
-			pad_reg += 0x4C;
-		else if (pad_reg == 0x860 - PAD_I_START_MX51)
-			pad_reg += 0x9C;
-		else if (pad_reg >= 0x804 - PAD_I_START_MX51)
-			pad_reg += 0xB0;
-		else if (pad_reg >= 0x7FC - PAD_I_START_MX51)
-			pad_reg += 0xB4;
-		else if (pad_reg >= 0x4E4 - PAD_I_START_MX51)
-			pad_reg += 0xCC;
-		else
-			pad_reg += 8;
-	}
 	return sw_pad_reg + pad_reg;
 }
 
@@ -110,10 +81,7 @@ static inline void *_get_mux_end(void)
 	if (cpu_is_mx50())
 		return IO_ADDRESS(IOMUXC_BASE_ADDR) + 0x2C8;
 
-	if (cpu_is_mx51_rev(CHIP_REV_2_0) < 0)
-		return IO_ADDRESS(IOMUXC_BASE_ADDR) + (0x3F8 - 4);
-	else
-		return IO_ADDRESS(IOMUXC_BASE_ADDR) + (0x3F0 - 4);
+	return IO_ADDRESS(IOMUXC_BASE_ADDR) + (0x3F0 - 4);
 }
 
 /*!
@@ -238,24 +206,7 @@ void mxc_iomux_set_input(iomux_input_select_t input, u32 config)
 {
 	void __iomem *reg;
 
-	if (cpu_is_mx51_rev(CHIP_REV_2_0) < 0) {
-		if (input == MUX_IN_IPU_IPP_DI_0_IND_DISPB_SD_D_SELECT_INPUT)
-			input -= 4;
-		else if (input == MUX_IN_IPU_IPP_DI_1_IND_DISPB_SD_D_SELECT_INPUT)
-			input -= 3;
-		else if (input >= MUX_IN_KPP_IPP_IND_COL_6_SELECT_INPUT)
-			input -= 2;
-		else if (input >= MUX_IN_HSC_MIPI_MIX_PAR_SISG_TRIG_SELECT_INPUT)
-			input -= 5;
-		else if (input >= MUX_IN_HSC_MIPI_MIX_IPP_IND_SENS1_DATA_EN_SELECT_INPUT)
-			input -= 3;
-		else if (input >= MUX_IN_ECSPI2_IPP_IND_SS_B_3_SELECT_INPUT)
-			input -= 2;
-		else if (input >= MUX_IN_CCM_PLL1_BYPASS_CLK_SELECT_INPUT)
-			input -= 1;
-
-		reg = IOMUXSW_INPUT_CTL + (input << 2) + INPUT_CTL_START_MX51_TO1;
-	} else if (cpu_is_mx51()) {
+	if (cpu_is_mx51()) {
 		reg = IOMUXSW_INPUT_CTL + (input << 2) + INPUT_CTL_START_MX51;
 	} else if (cpu_is_mx53()) {
 		reg = IOMUXSW_INPUT_CTL + (input << 2) + INPUT_CTL_START_MX53;
