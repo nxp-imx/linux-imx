@@ -35,6 +35,7 @@
 #include <linux/fsl_devices.h>
 #include <linux/interrupt.h>
 #include <linux/irq.h>
+#include <linux/regulator/consumer.h>
 #include <mach/mxc_edid.h>
 #include "../edid.h"
 
@@ -52,6 +53,7 @@ struct mxc_ddc_data {
 	u32 di;
 	void (*init)(void);
 	int (*update)(void);
+	struct regulator *analog_reg;
 } mxc_ddc;
 
 static bool g_enable_ddc;
@@ -485,6 +487,12 @@ static int __devinit mxc_ddc_probe(struct i2c_client *client,
 	if (!mxc_ddc.update)
 		return -EINVAL;
 
+	mxc_ddc.analog_reg = regulator_get(&mxc_ddc.pdev->dev, plat->analog_regulator);
+	if (!IS_ERR(mxc_ddc.analog_reg)) {
+		regulator_set_voltage(mxc_ddc.analog_reg, 2775000, 2775000);
+		regulator_enable(mxc_ddc.analog_reg);
+	}
+
 	if (mxc_ddc.init)
 		mxc_ddc.init();
 
@@ -533,6 +541,8 @@ err:
 static int __devexit mxc_ddc_remove(struct i2c_client *client)
 {
 	fb_unregister_client(&nb);
+	if (!IS_ERR(mxc_ddc.analog_reg))
+		regulator_disable(mxc_ddc.analog_reg);
 	return 0;
 }
 
