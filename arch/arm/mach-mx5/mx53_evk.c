@@ -880,6 +880,7 @@ static struct mxc_ddc_platform_data mxc_ddc_dvi_data = {
 	.di = 0,
 	.init = ddc_dvi_init,
 	.update = ddc_dvi_update,
+	.analog_regulator = "VSD",
 };
 
 /* TO DO add platform data */
