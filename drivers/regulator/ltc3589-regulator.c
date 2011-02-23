@@ -1,5 +1,5 @@
  /*
- * Copyright (C) 2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2010-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -36,6 +36,7 @@
 #include <linux/delay.h>
 #include <linux/mfd/ltc3589/core.h>
 #include <mach/hardware.h>
+#include <mach/common.h>
 
 /* Register definitions */
 #define	LTC3589_REG_IRSTAT		0x02
@@ -960,7 +961,7 @@ static int ltc3589_regulator_probe(struct platform_device *pdev)
 	if (pdev->id < LTC3589_DCDC_1 || pdev->id > LTC3589_LDO4)
 		return -ENODEV;
 
-	if (cpu_is_mx53_rev(CHIP_REV_2_0) >= 1) {
+	if (mx53_revision() >= IMX_CHIP_REVISION_2_0) {
 		ltc3589_ldo2_r2 = LTC3589_LDO2_R2_TO2;
 		ltc3589_sw2_r2 = LTC3589_SW2_R2_TO2;
 	} else {

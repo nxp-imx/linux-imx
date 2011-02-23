@@ -37,8 +37,7 @@
 
 #include "mxc_v4l2_output.h"
 
-#define INTERLACED_CONTENT(vout) (((cpu_is_mx51_rev(CHIP_REV_2_0) >= 1) || \
-				   cpu_is_mx53()) &&			\
+#define INTERLACED_CONTENT(vout) ((cpu_is_mx51() || cpu_is_mx53()) &&	\
 				  (((vout)->field_fmt == V4L2_FIELD_INTERLACED_TB) || \
 				   ((vout)->field_fmt == V4L2_FIELD_INTERLACED_BT)))
 #define LOAD_3FIELDS(vout) ((INTERLACED_CONTENT(vout)) && \

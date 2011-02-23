@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2004-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -24,6 +24,7 @@
 #define __MXC_ND2_H__
 
 #include <mach/hardware.h>
+#include <mach/common.h>
 
 #define IS_2K_PAGE_NAND         ((mtd->writesize / num_of_interleave) \
 						== NAND_PAGESIZE_2KB)
@@ -143,7 +144,7 @@ do { \
 			raw_write(((raw_read(NFC_CONFIG2) & \
 					~(3 << 6)) | \
 					NFC_ECC_MODE_4), NFC_CONFIG2); \
-	} else if (cpu_is_mx51_rev(CHIP_REV_2_0) > 0) { \
+	} else if (cpu_is_mx51()) { \
 		if ((v) == NFC_SPAS_218 || (v) == NFC_SPAS_112) \
 			raw_write(((raw_read(NFC_CONFIG2) & \
 					~(1 << 6)) | \
