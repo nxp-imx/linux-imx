@@ -358,6 +358,17 @@ static ssize_t mxc_ddc_show_state(struct device *dev,
 
 static DEVICE_ATTR(cable_state, S_IRUGO, mxc_ddc_show_state, NULL);
 
+static ssize_t mxc_ddc_show_name(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	strcpy(buf, mxc_ddc.fbi->fix.id);
+	sprintf(buf+strlen(buf), "\n");
+
+	return strlen(buf);
+}
+
+static DEVICE_ATTR(fb_name, S_IRUGO, mxc_ddc_show_name, NULL);
+
 static ssize_t mxc_ddc_show_edid(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
@@ -521,6 +532,10 @@ static int __devinit mxc_ddc_probe(struct i2c_client *client,
 			goto err;
 		} else {
 			INIT_DELAYED_WORK(&(mxc_ddc.det_work), det_worker);
+			ret = device_create_file(&mxc_ddc.pdev->dev, &dev_attr_fb_name);
+			if (ret < 0)
+				dev_warn(&client->dev,
+					"MXC ddc: cound not create sys node for fb name\n");
 			ret = device_create_file(&mxc_ddc.pdev->dev, &dev_attr_cable_state);
 			if (ret < 0)
 				dev_warn(&client->dev,

@@ -78,6 +78,17 @@ static __attribute__ ((unused)) void dump_regs(u8 reg, int len)
 				i+reg, buf[i]);
 }
 
+static ssize_t sii902x_show_name(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	strcpy(buf, sii902x.fbi->fix.id);
+	sprintf(buf+strlen(buf), "\n");
+
+	return strlen(buf);
+}
+
+static DEVICE_ATTR(fb_name, S_IRUGO, sii902x_show_name, NULL);
+
 static ssize_t sii902x_show_state(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
@@ -366,6 +377,10 @@ static int __devinit sii902x_probe(struct i2c_client *client,
 			i2c_smbus_write_byte_data(sii902x.client, 0x3c, 0x01);
 			INIT_DELAYED_WORK(&(sii902x.det_work), det_worker);
 		}
+		ret = device_create_file(&sii902x.pdev->dev, &dev_attr_fb_name);
+		if (ret < 0)
+			dev_warn(&sii902x.client->dev,
+				"Sii902x: cound not create sys node for fb name\n");
 		ret = device_create_file(&sii902x.pdev->dev, &dev_attr_cable_state);
 		if (ret < 0)
 			dev_warn(&sii902x.client->dev,
