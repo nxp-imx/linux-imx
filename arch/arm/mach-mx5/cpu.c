@@ -167,10 +167,8 @@ static void __init mipi_hsc_disable(void)
 		temp = __raw_readl(reg_hsc_mxt_conf);
 		__raw_writel(temp | 0x0FF, reg_hsc_mxt_conf);
 
-		if (cpu_is_mx51_rev(CHIP_REV_2_0) > 0) {
-			temp = __raw_readl(reg_hsc_mxt_conf);
-			__raw_writel(temp | 0x10000, reg_hsc_mxt_conf);
-		}
+		temp = __raw_readl(reg_hsc_mxt_conf);
+		__raw_writel(temp | 0x10000, reg_hsc_mxt_conf);
 
 		clk_disable(clk);
 		clk_put(clk);

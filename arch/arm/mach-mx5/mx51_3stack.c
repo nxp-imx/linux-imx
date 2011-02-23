@@ -1008,8 +1008,7 @@ static void __init mxc_board_init(void)
 	if (debug_board_present)
 		mxc_register_device(&smsc_lan9217_device, &smsc911x_config);
 
-	if (cpu_is_mx51_rev(CHIP_REV_2_0) > 0)
-		lcd_data.reset = lcd_reset_to2;
+	lcd_data.reset = lcd_reset_to2;
 
 	mxc_register_device(&mxc_lcd_device, &lcd_data);
 	mxc_register_device(&lcd_wvga_device, &lcd_wvga_data);
@@ -1058,7 +1057,7 @@ static void __init mx51_3stack_timer_init(void)
 	struct clk *uart_clk;
 
 	/* Change the CPU voltages for TO2*/
-	if (cpu_is_mx51_rev(CHIP_REV_2_0) <= 1) {
+	if (mx51_revision() == IMX_CHIP_REVISION_2_0) {
 		cpu_wp_auto[0].cpu_voltage = 1175000;
 		cpu_wp_auto[1].cpu_voltage = 1100000;
 		cpu_wp_auto[2].cpu_voltage = 1000000;

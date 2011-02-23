@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2008-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -19,6 +19,7 @@
 #include <mach/hardware.h>
 #include <mach/clock.h>
 #include <mach/gpio.h>
+#include <mach/common.h>
 
 #include "iomux.h"
 #include "mx51_pins.h"
@@ -806,7 +807,7 @@ void __init mx51_3stack_io_init(void)
 	}
 
 	/* TO3 doesn't need pad to drive CSI_DATA_EN[0] high */
-	if (cpu_is_mx51_rev(CHIP_REV_3_0) > 0)
+	if (mx51_revision() >= IMX_CHIP_REVISION_3_0)
 		mxc_request_iomux(MX51_PIN_EIM_A26, IOMUX_CONFIG_ALT0);
 
 	/* Camera low power */

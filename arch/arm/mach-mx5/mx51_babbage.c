@@ -1278,7 +1278,7 @@ static void __init mx51_babbage_io_init(void)
 	gpio_request(BABBAGE_POWER_KEY, "power-key");
 	gpio_direction_input(BABBAGE_POWER_KEY);
 
-	if (cpu_is_mx51_rev(CHIP_REV_3_0) > 0) {
+	if (mx51_revision() >= IMX_CHIP_REVISION_3_0) {
 		/* DVI_I2C_ENB = 0 tristates the DVI I2C level shifter */
 		gpio_request(BABBAGE_DVI_I2C_EN, "dvi-i2c-en");
 		gpio_direction_output(BABBAGE_DVI_I2C_EN, 0);
@@ -1394,19 +1394,18 @@ static void __init mxc_board_init(void)
 	i2c_register_board_info(1, mxc_i2c1_board_info,
 				ARRAY_SIZE(mxc_i2c1_board_info));
 
-	if (cpu_is_mx51_rev(CHIP_REV_2_0) >= 1) {
-		vga_data.core_reg = NULL;
-		vga_data.io_reg = NULL;
-		vga_data.analog_reg = NULL;
-	}
+
+	vga_data.core_reg = NULL;
+	vga_data.io_reg = NULL;
+	vga_data.analog_reg = NULL;
+
 	i2c_register_board_info(3, mxc_i2c_hs_board_info,
 				ARRAY_SIZE(mxc_i2c_hs_board_info));
 
 	pm_power_off = mxc_power_off;
 
-	if (cpu_is_mx51_rev(CHIP_REV_1_1) == 2) {
-		sgtl5000_data.sysclk = 26000000;
-	}
+	sgtl5000_data.sysclk = 26000000;
+
 	gpio_request(BABBAGE_AUDAMP_STBY, "audioamp-stdby");
 	gpio_direction_output(BABBAGE_AUDAMP_STBY, 0);
 	mxc_register_device(&mxc_sgtl5000_device, &sgtl5000_data);
@@ -1420,7 +1419,7 @@ static void __init mx51_babbage_timer_init(void)
 	struct clk *uart_clk;
 
 	/* Change the CPU voltages for TO2*/
-	if (cpu_is_mx51_rev(CHIP_REV_2_0) <= 1) {
+	if (mx51_revision() == IMX_CHIP_REVISION_2_0) {
 		cpu_wp_auto[0].cpu_voltage = 1175000;
 		cpu_wp_auto[1].cpu_voltage = 1100000;
 		cpu_wp_auto[2].cpu_voltage = 1000000;

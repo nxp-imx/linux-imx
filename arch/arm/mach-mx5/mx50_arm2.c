@@ -1365,7 +1365,7 @@ static void __init mxc_board_init(void)
 	mxc_register_device(&mxc_rngb_device, NULL);
 	mxc_register_device(&dcp_device, NULL);
 	mxc_register_device(&fsl_otp_device, &otp_data);
-	if (cpu_is_mx50_rev(CHIP_REV_1_1) >= 1)
+	if (mx50_revision() >= IMX_CHIP_REVISION_1_1)
 		mxc_register_device(&mxc_zq_calib_device, NULL);
 	mxc_register_device(&mxc_perfmon, &mxc_perfmon_data);
 }
