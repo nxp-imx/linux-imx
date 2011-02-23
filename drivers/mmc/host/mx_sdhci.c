@@ -46,6 +46,7 @@
 #include <asm/mach-types.h>
 #include <mach/dma.h>
 #include <mach/mmc.h>
+#include <mach/common.h>
 
 #include "mx_sdhci.h"
 
@@ -241,8 +242,8 @@ static void sdhci_init(struct sdhci_host *host)
 	    SDHCI_INT_DATA_AVAIL | SDHCI_INT_SPACE_AVAIL |
 	    SDHCI_INT_DMA_END | SDHCI_INT_DATA_END | SDHCI_INT_RESPONSE;
 
-	if (cpu_is_mx50_rev(CHIP_REV_1_1) < 0
-			|| cpu_is_mx53_rev(CHIP_REV_2_0) < 0)
+	if ((mx50_revision() == IMX_CHIP_REVISION_1_0)
+			|| (mx53_revision() < IMX_CHIP_REVISION_2_0))
 		intmask |= SDHCI_INT_ACMD12ERR;
 
 	if (host->flags & SDHCI_USE_DMA)
@@ -652,8 +653,8 @@ static void sdhci_finish_data(struct sdhci_host *host)
 		blocks = (data->error == 0) ? 0 : 1;
 	else {
 		blocks = readl(host->ioaddr + SDHCI_BLOCK_COUNT) >> 16;
-		if (cpu_is_mx50_rev(CHIP_REV_1_1) >= 1
-				|| cpu_is_mx53_rev(CHIP_REV_2_0) >= 1) {
+		if ((mx50_revision() >= IMX_CHIP_REVISION_1_1)
+				|| (mx53_revision() >= IMX_CHIP_REVISION_2_0)) {
 			if (readl(host->ioaddr + SDHCI_VENDOR_SPEC) & 0x2)
 				writel(readl(host->ioaddr + SDHCI_VENDOR_SPEC)
 						& ~0x2,
@@ -662,8 +663,8 @@ static void sdhci_finish_data(struct sdhci_host *host)
 	}
 	data->bytes_xfered = data->blksz * data->blocks;
 
-	if ((data->stop) && !(cpu_is_mx50_rev(CHIP_REV_1_1) < 0
-				|| cpu_is_mx53_rev(CHIP_REV_2_0) < 0)) {
+	if ((data->stop) && ((mx50_revision() >= IMX_CHIP_REVISION_1_1)
+				|| (mx53_revision() >= IMX_CHIP_REVISION_2_0))) {
 		/*
 		 * The controller needs a reset of internal state machines
 		 * upon error conditions.
@@ -725,8 +726,8 @@ static void sdhci_send_command(struct sdhci_host *host, struct mmc_command *cmd)
 		mode = SDHCI_TRNS_BLK_CNT_EN | SDHCI_TRNS_DPSEL;
 		if (cmd->data->blocks > 1) {
 			mode |= SDHCI_TRNS_MULTI;
-			if (cpu_is_mx50_rev(CHIP_REV_1_1) < 0
-					|| cpu_is_mx53_rev(CHIP_REV_2_0) < 0) {
+			if (mx50_revision() == IMX_CHIP_REVISION_1_0
+					|| mx53_revision() == IMX_CHIP_REVISION_1_0) {
 				/* Fix multi-blk operations no INT bug
 				 * by SW workaround.
 				 */
@@ -744,8 +745,8 @@ static void sdhci_send_command(struct sdhci_host *host, struct mmc_command *cmd)
 					writel(tmp, host->ioaddr
 							+ SDHCI_INT_ENABLE);
 				}
-			} else if (cpu_is_mx50_rev(CHIP_REV_1_1) >= 1
-					|| cpu_is_mx53_rev(CHIP_REV_2_0) >= 1) {
+			} else if (mx50_revision() >= IMX_CHIP_REVISION_1_1
+					|| mx53_revision() >= IMX_CHIP_REVISION_2_0) {
 				/* Fix SDIO read no INT bug
 				 * set bit1 of Vendor Spec Registor
 				 */
@@ -1389,8 +1390,8 @@ static void sdhci_cmd_irq(struct sdhci_host *host, u32 intmask)
 			    SDHCI_INT_INDEX))
 		host->cmd->error = -EILSEQ;
 
-	if (cpu_is_mx50_rev(CHIP_REV_1_1) < 0
-			|| cpu_is_mx53_rev(CHIP_REV_2_0) < 0) {
+	if (mx50_revision() == IMX_CHIP_REVISION_1_0
+			|| mx53_revision() == IMX_CHIP_REVISION_1_0) {
 		if (intmask & SDHCI_INT_ACMD12ERR) {
 			int tmp = 0;
 			tmp = readl(host->ioaddr + SDHCI_ACMD12_ERR);

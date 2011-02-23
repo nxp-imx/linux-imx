@@ -571,9 +571,6 @@ static int scc_init(void)
 			goto out;
 		}
 
-		if (cpu_is_mx51_rev(CHIP_REV_2_0) < 0)
-			scm_ram_phys_base += 0x8000;
-
 		scm_ram_base = (void *)ioremap_nocache(scm_ram_phys_base,
 						       scc_configuration.
 						       partition_count *
