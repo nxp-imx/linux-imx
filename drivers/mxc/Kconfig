@@ -1,0 +1,39 @@
+# drivers/video/mxc/Kconfig
+
+if ARCH_MXC
+
+menu "MXC support drivers"
+
+config MXC_IPU
+	bool "Image Processing Unit Driver"
+	depends on !ARCH_MX21
+	depends on !ARCH_MX27
+	depends on !ARCH_MX25
+	select MXC_IPU_V1 if !ARCH_MX37 && !ARCH_MX5
+	select MXC_IPU_V3 if ARCH_MX37 || ARCH_MX5
+	select MXC_IPU_V3D if ARCH_MX37
+	select MXC_IPU_V3EX if ARCH_MX5
+	help
+	  If you plan to use the Image Processing unit, say
+	  Y here. IPU is needed by Framebuffer and V4L2 drivers.
+
+source "drivers/mxc/ipu/Kconfig"
+source "drivers/mxc/ipu3/Kconfig"
+
+source "drivers/mxc/ssi/Kconfig"
+source "drivers/mxc/dam/Kconfig"
+source "drivers/mxc/pmic/Kconfig"
+source "drivers/mxc/mcu_pmic/Kconfig"
+source "drivers/mxc/security/Kconfig"
+source "drivers/mxc/hmp4e/Kconfig"
+source "drivers/mxc/hw_event/Kconfig"
+source "drivers/mxc/vpu/Kconfig"
+source "drivers/mxc/asrc/Kconfig"
+source "drivers/mxc/bt/Kconfig"
+source "drivers/mxc/gps_ioctrl/Kconfig"
+source "drivers/mxc/mlb/Kconfig"
+source "drivers/mxc/adc/Kconfig"
+
+endmenu
+
+endif

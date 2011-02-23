@@ -1,0 +1,13 @@
+#
+# MLB configuration
+#
+
+menu "MXC Media Local Bus Driver"
+
+config MXC_MLB
+	tristate "MLB support"
+	depends on ARCH_MX35 || ARCH_MX53
+	---help---
+         Say Y to get the MLB support.
+
+endmenu
