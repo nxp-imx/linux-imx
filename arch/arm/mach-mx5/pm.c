@@ -61,7 +61,9 @@ extern void cpu_do_suspend_workaround(u32 sdclk_iomux_addr);
 extern void mx50_suspend(u32 databahn_addr);
 extern struct cpu_wp *(*get_cpu_wp)(int *wp);
 extern void __iomem *databahn_base;
-extern void da9053_suspend_cmd(void);
+extern void da9053_suspend_cmd_hw(void);
+extern void da9053_suspend_cmd_sw(void);
+extern void da9053_resume_dump(void);
 extern void pm_da9053_i2c_init(u32 base_addr);
 
 extern int iram_ready;
@@ -89,7 +91,7 @@ static void mx53_smd_loco_irq_wake_fixup(void)
 	/* only enable irq wakeup for da9053 */
 	__raw_writel(GPIO7_0_11_IRQ_BIT, tzic_base + TZIC_WAKEUP3_OFFSET);
 	iounmap(tzic_base);
-	pr_debug("only da9053 irq is wakeup-enabled\n");
+	pr_info("only da9053 irq is wakeup-enabled\n");
 }
 
 static int mx5_suspend_enter(suspend_state_t state)
@@ -119,8 +121,12 @@ static int mx5_suspend_enter(suspend_state_t state)
 		if (cpu_is_mx51() || cpu_is_mx53()) {
 			if (machine_is_mx53_smd() ||
 				machine_is_mx53_loco()) {
-				mx53_smd_loco_irq_wake_fixup();
-				da9053_suspend_cmd();
+				if (board_is_rev(BOARD_REV_4) ||
+					machine_is_mx53_loco()) {
+					mx53_smd_loco_irq_wake_fixup();
+					da9053_suspend_cmd_sw();
+				} else
+					da9053_suspend_cmd_hw();
 			}
 			/* Run the suspend code from iRAM. */
 			suspend_in_iram(suspend_param1);
@@ -237,6 +243,8 @@ static struct platform_driver mx5_pm_driver = {
 	.probe = mx5_pm_probe,
 };
 
+#define SUSPEND_ID_MX51 1
+#define SUSPEND_ID_MX53 3
 static int __init pm_init(void)
 {
 	unsigned long iram_paddr;
@@ -246,6 +254,7 @@ static int __init pm_init(void)
 		printk(KERN_ERR "mx5_pm_driver register failed\n");
 		return -ENODEV;
 	}
+	suspend_param1 = 0;
 	suspend_set_ops(&mx5_suspend_ops);
 	/* Move suspend routine into iRAM */
 	iram_alloc(SZ_4K, &iram_paddr);
@@ -255,7 +264,8 @@ static int __init pm_init(void)
 					  MT_HIGH_VECTORS);
 
 	if (cpu_is_mx51() || cpu_is_mx53()) {
-		suspend_param1 = IO_ADDRESS(IOMUXC_BASE_ADDR + 0x4b8);
+		suspend_param1 =
+			cpu_is_mx51() ? SUSPEND_ID_MX51 : SUSPEND_ID_MX53;
 		memcpy(suspend_iram_base, cpu_do_suspend_workaround,
 				SZ_4K);
 	} else if (cpu_is_mx50()) {

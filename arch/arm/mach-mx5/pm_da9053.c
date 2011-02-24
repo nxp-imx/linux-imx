@@ -30,6 +30,7 @@
 #include <linux/clk.h>
 #include <linux/mfd/da9052/reg.h>
 
+#include <asm/mach-types.h>
 #include <mach/hardware.h>
 #include <mach/i2c.h>
 
@@ -319,8 +320,23 @@ static void pm_da9053_preset_voltage(void)
 	pm_da9053_write_reg(DA9052_LDO10_REG, iLDO10_SUSPEND_PRESET);
 }
 
+void pm_da9053_dump(int start, int end)
+{
+	u8 reg, data;
+	for (reg = start; reg <= end; reg++) {
+		pm_da9053_read_reg(reg, &data);
+		pr_info("reg %u = 0x%2x\n",
+			reg, data);
+	}
+}
+
 #define DA9053_SLEEP_DELAY 0x1f
-int da9053_suspend_cmd(void)
+
+#define DA9052_CONTROLC_SMD_SET 0x62
+#define DA9052_GPIO0809_SMD_SET 0x18
+#define DA9052_ID1415_SMD_SET 0x1
+
+int da9053_suspend_cmd_sw(void)
 {
 	unsigned char buf[2] = {0, 0};
 	struct clk *i2c_clk;
@@ -345,6 +361,45 @@ int da9053_suspend_cmd(void)
 	pm_da9053_read_reg(DA9052_CONTROLB_REG, &data);
 	data |= DA9052_CONTROLB_DEEPSLEEP;
 	pm_da9053_write_reg(DA9052_CONTROLB_REG, data);
+
+	clk_disable(i2c_clk);
+	clk_put(i2c_clk);
+	return 0;
+}
+
+
+int da9053_suspend_cmd_hw(void)
+{
+	unsigned char buf[2] = {0, 0};
+	struct clk *i2c_clk;
+	u8 data;
+	buf[0] = 29;
+
+	i2c_clk = clk_get(NULL, "i2c_clk");
+	if (IS_ERR(i2c_clk)) {
+		pr_err("unable to get i2c clk\n");
+		return PTR_ERR(i2c_clk);
+	}
+	clk_enable(i2c_clk);
+
+	pm_da9053_preset_voltage();
+	pm_da9053_write_reg(DA9052_CONTROLC_REG,
+				DA9052_CONTROLC_SMD_SET);
+
+	pm_da9053_read_reg(DA9052_ID01_REG, &data);
+	data &= ~(DA9052_ID01_DEFSUPPLY | DA9052_ID01_nRESMODE);
+	pm_da9053_write_reg(DA9052_ID01_REG, data);
+
+	pm_da9053_write_reg(DA9052_GPIO0809_REG,
+			DA9052_GPIO0809_SMD_SET);
+
+	pm_da9053_read_reg(DA9052_ID1415_REG, &data);
+	data &= 0xf0;
+	data |= DA9052_ID1415_SMD_SET;
+	pm_da9053_write_reg(DA9052_ID1415_REG, data);
+
+	pm_da9053_write_reg(DA9052_SEQTIMER_REG, 0);
+	/* pm_da9053_write_reg(DA9052_SEQB_REG, 0x1f); */
 
 	clk_disable(i2c_clk);
 	clk_put(i2c_clk);
@@ -377,6 +432,29 @@ int da9053_poweroff_cmd(void)
 	pm_da9053_read_reg(DA9052_CONTROLB_REG, &data);
 	data |= DA9052_CONTROLB_SHUTDOWN;
 	pm_da9053_write_reg(DA9052_CONTROLB_REG, data);
+
+	clk_disable(i2c_clk);
+	clk_put(i2c_clk);
+	return 0;
+}
+
+int da9053_resume_dump(void)
+{
+	unsigned char buf[2] = {0, 0};
+	struct clk *i2c_clk;
+	buf[0] = 29;
+
+	i2c_clk = clk_get(NULL, "i2c_clk");
+	if (IS_ERR(i2c_clk)) {
+		pr_err("unable to get i2c clk\n");
+		return PTR_ERR(i2c_clk);
+	}
+	clk_enable(i2c_clk);
+
+	pm_da9053_dump(46, 59);
+	pm_da9053_dump(25, 25);
+	pm_da9053_dump(29, 29);
+	pm_da9053_dump(36, 36);
 
 	clk_disable(i2c_clk);
 	clk_put(i2c_clk);
