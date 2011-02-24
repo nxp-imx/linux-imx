@@ -1,8 +1,6 @@
 /*
  * Copyright (C) 2007-2011 Freescale Semiconductor, Inc. All Rights Reserved.
- */
-
-/*
+ *
  * The code contained herein is licensed under the GNU General Public
  * License. You may obtain a copy of the GNU General Public License
  * Version 2 or later at the following locations:
@@ -738,7 +736,7 @@ static void spdif_tx_init(void)
 
 	regval = __raw_readl(spdif_base_addr + SPDIF_REG_SCR);
 
-	regval &= 0xfc32e3;
+	regval &= 0xfc33e3;
 	regval |= SCR_TXFIFO_AUTOSYNC | SCR_TXFIFO_NORMAL |
 	    SCR_TXSEL_NORMAL | SCR_USRC_SEL_CHIP | (2 << SCR_TXFIFO_ESEL_BIT);
 	__raw_writel(regval, SPDIF_REG_SCR + spdif_base_addr);
@@ -985,7 +983,6 @@ static void spdif_start_tx(struct mxc_spdif_stream *s)
 		mxc_dma_config(s->dma_wchannel, &dma_request, 1,
 			       MXC_DMA_MODE_WRITE);
 		ret = mxc_dma_enable(s->dma_wchannel);
-		spdif_dma_enable(SCR_DMA_TX_EN, 1);
 		if (ret) {
 			pr_info("audio_process_dma: cannot queue DMA \
 				buffer\n");
@@ -1037,7 +1034,9 @@ static void spdif_start_tx(struct mxc_spdif_stream *s)
 		s->period++;
 		s->period %= runtime->periods;
 
-	}
+	} else
+		spdif_dma_enable(SCR_DMA_TX_EN, 0);
+
 	return;
 }
 
@@ -1647,6 +1646,8 @@ static int snd_mxc_spdif_hw_params(struct snd_pcm_substream
 		return ret;
 	}
 	runtime->dma_addr = virt_to_phys(runtime->dma_area);
+	spdif_dma_enable(SCR_DMA_TX_EN, 1);
+
 	return ret;
 }
 
