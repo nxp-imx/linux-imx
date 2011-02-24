@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2008-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 /*
  * The code contained herein is licensed under the GNU General Public
@@ -11,11 +11,37 @@
  */
 
 #include <linux/linkage.h>
+#include <mach/hardware.h>
+#include <mach/mx5x.h>
 
 #define ARM_CTRL_DCACHE  1 << 2
 #define ARM_CTRL_ICACHE  1 << 12
 #define ARM_AUXCR_L2EN   1 << 1
 
+.macro PM_SET_AND_BACKUP_REG, addr, bitmask, val, num
+	mov	r0, #(\addr & 0x000000FF)
+	orr	r0, r0, #(\addr & 0x0000FF00)
+	orr	r0, r0, #(\addr & 0x00FF0000)
+	orr	r0, r0, #(\addr & 0xFF000000)
+	ldr	r1, [r0]
+	str r1, __mx5x_temp_stack + \num * 4
+	bic r1, r1, #(\bitmask)
+	orr r1, r1, #(\val)
+	str r1, [r0]
+.endm
+
+.macro PM_SET_RESTORE_REG, addr, num
+	mov	r0, #(\addr & 0x000000FF)
+	orr	r0, r0, #(\addr & 0x0000FF00)
+	orr	r0, r0, #(\addr & 0x00FF0000)
+	orr	r0, r0, #(\addr & 0xFF000000)
+	ldr r1, __mx5x_temp_stack + \num * 4
+	str r1, [r0]
+.endm
+
+#define MX51_DRAM_SDCLK_PAD_CTRL_ADDR AIPS1_IO_ADDRESS(0x73FA84B8)
+#define MX53_DRAM_SDCLK0_PAD_CTRL_ADDR AIPS1_IO_ADDRESS(0x73FA8578)
+#define MX53_DRAM_SDCLK1_PAD_CTRL_ADDR AIPS1_IO_ADDRESS(0x73FA8570)
 
 /*
  *	cpu_do_suspend_workaround()
@@ -79,16 +105,29 @@ FinishedClean:
     mcr     p15, 0, r0, c1, c0, 1   @ Update aux control reg
 
 	/*Set the DDR drive strength to low */
-	ldr        r10, [r6]
-	and       r10, r10, #0xF1        @ clear bits 2-1
-	str        r10, [r6]
+    cmp     r6, #1
+    bne     mx53_reduce_ddr_drive_strength
+    PM_SET_AND_BACKUP_REG MX51_DRAM_SDCLK_PAD_CTRL_ADDR, 0x6, 0, 0
+mx53_reduce_ddr_drive_strength:
+    cmp     r6, #3
+    bne     mx5x_wfi
+    PM_SET_AND_BACKUP_REG MX53_DRAM_SDCLK0_PAD_CTRL_ADDR, 0x380000, 0, 0
+    PM_SET_AND_BACKUP_REG MX53_DRAM_SDCLK1_PAD_CTRL_ADDR, 0x380000, 0, 1
 
+mx5x_wfi:
     .long     0xe320f003              @ Opcode for WFI
 
 	/*Set the DDR drive strength to max */
-	orr       r10, r10, #0x06        @ set bits 2-1
-	str        r10, [r6]
+    cmp     r6, #1
+    bne     mx53_restore_ddr_drive_strength
+    PM_SET_RESTORE_REG MX51_DRAM_SDCLK_PAD_CTRL_ADDR, 0
+mx53_restore_ddr_drive_strength:
+    cmp     r6, #3
+    bne     mx5x_post_wfi
+    PM_SET_RESTORE_REG MX53_DRAM_SDCLK0_PAD_CTRL_ADDR, 0
+    PM_SET_RESTORE_REG MX53_DRAM_SDCLK1_PAD_CTRL_ADDR, 1
 
+mx5x_post_wfi:
     mov     r0, #0
     mcr     p15, 0, r0, c7, c5, 0   @ Invalidate inst cache
 
@@ -146,6 +185,8 @@ FinishedInvalidate:
     /* Restore registers */
     ldmfd sp!, {r4,r5,r6,r7,r9,r10,r11}
     mov		pc, lr
+__mx5x_temp_stack:
+	.space 32
 
 	.type	cpu_do_suspend, #object
 ENTRY(cpu_do_suspend)

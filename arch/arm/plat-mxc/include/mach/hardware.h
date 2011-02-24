@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2004-2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2004-2011 Freescale Semiconductor, Inc.
  * Copyright 2008 Juergen Beisert, kernel@pengutronix.de
  *
  * This program is free software; you can redistribute it and/or
@@ -42,6 +42,8 @@
 #define BOARD_REV_1		0x000
 #define BOARD_REV_2		0x100
 #define BOARD_REV_3		0x200
+#define BOARD_REV_4		0x300
+#define BOARD_REV_5		0x400
 
 #define IMX_IO_ADDRESS(addr, module)					\
 	((void __force __iomem *)					\
