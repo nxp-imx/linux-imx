@@ -1726,9 +1726,22 @@ static int mxcfb_setup(struct fb_info *fbi, struct platform_device *pdev)
 			INIT_LIST_HEAD(&fbi->modelist);
 
 			if (mxc_disp_mode[mxcfbi->ipu_di].num_modes) {
+				int i;
 				mode = mxc_disp_mode[mxcfbi->ipu_di].mode;
 				num = mxc_disp_mode[mxcfbi->ipu_di].num_modes;
-				fb_videomode_to_modelist(mode, num, &fbi->modelist);
+
+				for (i = 0; i < num; i++) {
+					/*
+					 * FIXME now we do not support interlaced
+					 * mode for ddc mode
+					 */
+					if ((mxc_disp_mode[mxcfbi->ipu_di].dev_mode
+						& MXC_DISP_DDC_DEV) &&
+						(mode[i].vmode & FB_VMODE_INTERLACED))
+						continue;
+					else
+						fb_add_videomode(&mode[i], &fbi->modelist);
+				}
 			}
 
 			if ((mxc_disp_mode[mxcfbi->ipu_di].dev_mode
