@@ -217,8 +217,10 @@ static void det_worker(struct work_struct *work)
 				fb_destroy_modelist(&mxc_ddc.fbi->modelist);
 
 				for (i = 0; i < mxc_ddc.fbi->monspecs.modedb_len; i++)
-					fb_add_videomode(&mxc_ddc.fbi->monspecs.modedb[i],
-							&mxc_ddc.fbi->modelist);
+					/*FIXME now we do not support interlaced mode */
+					if (!(mxc_ddc.fbi->monspecs.modedb[i].vmode & FB_VMODE_INTERLACED))
+						fb_add_videomode(&mxc_ddc.fbi->monspecs.modedb[i],
+								&mxc_ddc.fbi->modelist);
 
 				fb_var_to_videomode(&m, &mxc_ddc.fbi->var);
 				mode = fb_find_nearest_mode(&m,
