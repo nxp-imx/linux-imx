@@ -1,6 +1,7 @@
 /*
  *      uvc_isight.c  --  USB Video Class driver - iSight support
  *
+ *	Copyright (C) 2011 Freescale Semiconductor, Inc.
  *	Copyright (C) 2006-2007
  *		Ivan N. Zlatev <contact@i-nz.net>
  *	Copyright (C) 2008-2009
@@ -84,7 +85,12 @@ static int isight_decode(struct uvc_video_queue *queue, struct uvc_buffer *buf,
 	 */
 	if (!is_header) {
 		maxlen = buf->buf.length - buf->buf.bytesused;
+#ifdef CONFIG_USB_VIDEO_BUFFERS_DMA
+		mem = buf->vaddr + buf->buf.bytesused;
+#else
 		mem = queue->mem + buf->buf.m.offset + buf->buf.bytesused;
+#endif
+
 		nbytes = min(len, maxlen);
 		memcpy(mem, data, nbytes);
 		buf->buf.bytesused += nbytes;

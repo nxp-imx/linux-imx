@@ -385,6 +385,9 @@ struct uvc_buffer {
 	struct list_head queue;
 	wait_queue_head_t wait;
 	enum uvc_buffer_state state;
+#ifdef CONFIG_USB_VIDEO_BUFFERS_DMA
+	void *vaddr;
+#endif
 };
 
 #define UVC_QUEUE_STREAMING		(1 << 0)

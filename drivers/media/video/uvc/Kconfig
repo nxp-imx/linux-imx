@@ -15,3 +15,11 @@ config USB_VIDEO_CLASS_INPUT_EVDEV
 	  to report button events.
 
 	  If you are in doubt, say Y.
+
+config USB_VIDEO_BUFFERS_DMA
+       bool "UVC frame buffers allocated by DMA"
+       default y
+       depends on USB_VIDEO_CLASS
+       ---help---
+         This option makes frame buffers of USB Video Class devices are
+	 allocated by DMA.

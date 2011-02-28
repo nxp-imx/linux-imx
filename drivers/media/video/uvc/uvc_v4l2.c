@@ -1,6 +1,7 @@
 /*
  *      uvc_v4l2.c  --  USB Video Class driver - V4L2 API
  *
+ *      Copyright (C) 2011 Freescale Semiconductor, Inc.
  *      Copyright (C) 2005-2009
  *          Laurent Pinchart (laurent.pinchart@skynet.be)
  *
@@ -1071,10 +1072,13 @@ static int uvc_v4l2_mmap(struct file *file, struct vm_area_struct *vma)
 	struct uvc_streaming *stream = handle->stream;
 	struct uvc_video_queue *queue = &stream->queue;
 	struct uvc_buffer *uninitialized_var(buffer);
-	struct page *page;
-	unsigned long addr, start, size;
-	unsigned int i;
+	unsigned long start, size;
 	int ret = 0;
+#ifndef CONFIG_USB_VIDEO_BUFFERS_DMA
+	struct page *page;
+	unsigned long addr;
+	unsigned int i;
+#endif
 
 	uvc_trace(UVC_TRACE_CALLS, "uvc_v4l2_mmap\n");
 
@@ -1083,6 +1087,7 @@ static int uvc_v4l2_mmap(struct file *file, struct vm_area_struct *vma)
 
 	mutex_lock(&queue->mutex);
 
+#ifndef CONFIG_USB_VIDEO_BUFFERS_DMA
 	for (i = 0; i < queue->count; ++i) {
 		buffer = &queue->buffer[i];
 		if ((buffer->buf.m.offset >> PAGE_SHIFT) == vma->vm_pgoff)
@@ -1114,7 +1119,19 @@ static int uvc_v4l2_mmap(struct file *file, struct vm_area_struct *vma)
 	vma->vm_ops = &uvc_vm_ops;
 	vma->vm_private_data = buffer;
 	uvc_vm_open(vma);
+#else
+	vma->vm_page_prot = pgprot_writecombine(vma->vm_page_prot);
 
+	if (remap_pfn_range(vma, vma->vm_start,
+		vma->vm_pgoff, size, vma->vm_page_prot)) {
+		uvc_printk(KERN_ERR, "ERROR: v4l2 capture: uvc_v4l2_mmap: "
+			"remap_pfn_range failed\n");
+		ret = -ENOBUFS;
+		goto done;
+	}
+
+	vma->vm_flags &= ~VM_IO;	/* using shared anonymous pages */
+#endif
 done:
 	mutex_unlock(&queue->mutex);
 	return ret;

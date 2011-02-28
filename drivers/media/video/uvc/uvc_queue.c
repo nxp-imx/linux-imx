@@ -1,6 +1,7 @@
 /*
  *      uvc_queue.c  --  USB Video Class driver - Buffers management
  *
+ *      Copyright (C) 2011 Freescale Semiconductor, Inc.
  *      Copyright (C) 2005-2009
  *          Laurent Pinchart (laurent.pinchart@skynet.be)
  *
@@ -20,6 +21,8 @@
 #include <linux/vmalloc.h>
 #include <linux/wait.h>
 #include <asm/atomic.h>
+#include <linux/dma-mapping.h>
+#include <linux/highmem.h>
 
 #include "uvcvideo.h"
 
@@ -100,8 +103,12 @@ int uvc_alloc_buffers(struct uvc_video_queue *queue, unsigned int nbuffers,
 {
 	unsigned int bufsize = PAGE_ALIGN(buflength);
 	unsigned int i;
-	void *mem = NULL;
+	void *vaddr;
+	unsigned long paddr;
 	int ret;
+#ifndef CONFIG_USB_VIDEO_BUFFERS_DMA
+	void *mem = NULL;
+#endif
 
 	if (nbuffers > UVC_MAX_VIDEO_BUFFERS)
 		nbuffers = UVC_MAX_VIDEO_BUFFERS;
@@ -115,6 +122,7 @@ int uvc_alloc_buffers(struct uvc_video_queue *queue, unsigned int nbuffers,
 	if (nbuffers == 0)
 		goto done;
 
+#ifndef CONFIG_USB_VIDEO_BUFFERS_DMA
 	/* Decrement the number of buffers until allocation succeeds. */
 	for (; nbuffers > 0; --nbuffers) {
 		mem = vmalloc_32(nbuffers * bufsize);
@@ -141,6 +149,35 @@ int uvc_alloc_buffers(struct uvc_video_queue *queue, unsigned int nbuffers,
 	}
 
 	queue->mem = mem;
+#else
+	/* Allocate dma buffers */
+	for (i = 0; i < nbuffers; ++i) {
+		memset(&queue->buffer[i], 0, sizeof queue->buffer[i]);
+		vaddr = dma_alloc_coherent(0, bufsize,
+					(dma_addr_t *)&paddr,
+					GFP_DMA | GFP_KERNEL);
+
+		if (vaddr == 0) {
+			uvc_printk(KERN_ERR, "ERROR: v4l2 capture: "
+				"uvc_alloc_buffers from DMA failed.\n");
+			uvc_free_buffers(queue);
+			ret = -ENOBUFS;
+			goto done;
+		}
+
+		queue->buffer[i].buf.index = i;
+		queue->buffer[i].buf.m.offset = paddr;
+		queue->buffer[i].vaddr = vaddr;
+		queue->buffer[i].buf.length = bufsize;
+		queue->buffer[i].buf.type = queue->type;
+		queue->buffer[i].buf.sequence = 0;
+		queue->buffer[i].buf.field = V4L2_FIELD_NONE;
+		queue->buffer[i].buf.memory = V4L2_MEMORY_MMAP;
+		queue->buffer[i].buf.flags = 0;
+		init_waitqueue_head(&queue->buffer[i].wait);
+	}
+#endif
+
 	queue->count = nbuffers;
 	queue->buf_size = bufsize;
 	ret = nbuffers;
@@ -165,7 +202,20 @@ int uvc_free_buffers(struct uvc_video_queue *queue)
 	}
 
 	if (queue->count) {
+#ifndef CONFIG_USB_VIDEO_BUFFERS_DMA
 		vfree(queue->mem);
+#else
+		/* Free frame buffers */
+		for (i = 0; i < queue->count; ++i) {
+			if (queue->buffer[i].vaddr != 0) {
+				dma_free_coherent(0,
+					queue->buffer[i].buf.length,
+					queue->buffer[i].vaddr,
+					queue->buffer[i].buf.m.offset);
+				queue->buffer[i].vaddr = 0;
+			}
+		}
+#endif
 		queue->count = 0;
 	}
 

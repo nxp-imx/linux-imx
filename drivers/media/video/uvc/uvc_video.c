@@ -1,6 +1,7 @@
 /*
  *      uvc_video.c  --  USB Video Class driver - Video handling
  *
+ *      Copyright (C) 2011 Freescale Semiconductor, Inc.
  *      Copyright (C) 2005-2009
  *          Laurent Pinchart (laurent.pinchart@skynet.be)
  *
@@ -464,7 +465,9 @@ static int uvc_video_decode_start(struct uvc_streaming *stream,
 static void uvc_video_decode_data(struct uvc_streaming *stream,
 		struct uvc_buffer *buf, const __u8 *data, int len)
 {
+#ifndef CONFIG_USB_VIDEO_BUFFERS_DMA
 	struct uvc_video_queue *queue = &stream->queue;
+#endif
 	unsigned int maxlen, nbytes;
 	void *mem;
 
@@ -473,7 +476,11 @@ static void uvc_video_decode_data(struct uvc_streaming *stream,
 
 	/* Copy the video data to the buffer. */
 	maxlen = buf->buf.length - buf->buf.bytesused;
+#ifdef CONFIG_USB_VIDEO_BUFFERS_DMA
+	mem = buf->vaddr + buf->buf.bytesused;
+#else
 	mem = queue->mem + buf->buf.m.offset + buf->buf.bytesused;
+#endif
 	nbytes = min((unsigned int)len, maxlen);
 	memcpy(mem, data, nbytes);
 	buf->buf.bytesused += nbytes;
@@ -527,7 +534,11 @@ static int uvc_video_encode_data(struct uvc_streaming *stream,
 	void *mem;
 
 	/* Copy video data to the URB buffer. */
+#ifdef CONFIG_USB_VIDEO_BUFFERS_DMA
+	mem = buf->vaddr + queue->buf_used;
+#else
 	mem = queue->mem + buf->buf.m.offset + queue->buf_used;
+#endif
 	nbytes = min((unsigned int)len, buf->buf.bytesused - queue->buf_used);
 	nbytes = min(stream->bulk.max_payload_size - stream->bulk.payload_size,
 			nbytes);
