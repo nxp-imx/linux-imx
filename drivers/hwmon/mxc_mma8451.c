@@ -2,7 +2,7 @@
  *  mma8451.c - Linux kernel modules for 3-Axis Orientation/Motion
  *  Detection Sensor
  *
- *  Copyright (C) 2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ *  Copyright (C) 2010-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -45,6 +45,7 @@
 #define MMA8451_I2C_ADDR	0x1C
 #define MMA8451_ID		0x1A
 
+#define POLL_INTERVAL_MAX	500
 #define POLL_INTERVAL		100
 #define INPUT_FUZZ		32
 #define INPUT_FLAT		32
@@ -126,7 +127,6 @@ static struct mma8451_status mma_status = {
 
 static struct input_polled_dev *mma8451_idev;
 static struct device *hwmon_dev;
-static int test_test_mode = 1;
 static struct i2c_client *mma8451_i2c_client;
 
 /***************************************************************
@@ -226,11 +226,11 @@ static int __devinit mma8451_probe(struct i2c_client *client,
 				   const struct i2c_device_id *id)
 {
 	int result;
-	mma8451_i2c_client = client;
-	struct i2c_adapter *adapter = to_i2c_adapter(client->dev.parent);
-
 	struct input_dev *idev;
+	struct i2c_adapter *adapter;
 
+	mma8451_i2c_client = client;
+	adapter = to_i2c_adapter(client->dev.parent);
 	result = i2c_check_functionality(adapter,
 					 I2C_FUNC_SMBUS_BYTE |
 					 I2C_FUNC_SMBUS_BYTE_DATA);
@@ -266,10 +266,10 @@ static int __devinit mma8451_probe(struct i2c_client *client,
 	}
 	mma8451_idev->poll = mma8451_dev_poll;
 	mma8451_idev->poll_interval = POLL_INTERVAL;
+	mma8451_idev->poll_interval_max = POLL_INTERVAL_MAX;
 	idev = mma8451_idev->input;
 	idev->name = MMA8451_DRV_NAME;
 	idev->id.bustype = BUS_I2C;
-	idev->dev.parent = &client->dev;
 	idev->evbit[0] = BIT_MASK(EV_ABS);
 
 	input_set_abs_params(idev, ABS_X, -8192, 8191, INPUT_FUZZ, INPUT_FLAT);
