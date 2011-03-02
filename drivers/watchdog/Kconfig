@@ -1206,6 +1206,11 @@ config WDTPCI
 	  To compile this driver as a module, choose M here: the
 	  module will be called wdt_pci.
 
+config DA9052_WATCHDOG
+	tristate "Dialog DA9052 Watchdog"
+	depends on PMIC_DIALOG
+	help
+	  Support for the watchdog in the DA9052 PMIC.
 #
 # USB-based Watchdog Cards
 #

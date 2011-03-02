@@ -62,8 +62,8 @@ void clean_tsi_fifos(struct da9052_ts_priv *priv)
 
 void __init da9052_init_tsi_fifos(struct da9052_ts_priv *priv)
 {
-	init_MUTEX(&priv->tsi_raw_fifo.lock);
-	init_MUTEX(&priv->tsi_reg_fifo.lock);
+	sema_init(&priv->tsi_raw_fifo.lock, 1);
+	sema_init(&priv->tsi_reg_fifo.lock, 1);
 
 	clean_tsi_raw_fifo(priv);
 	clean_tsi_reg_fifo(priv);

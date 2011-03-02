@@ -424,6 +424,44 @@ config MFD_PCF50633
 	  facilities, and registers devices for the various functions
 	  so that function-specific drivers can bind to them.
 
+config PMIC_DIALOG
+	bool "Support Dialog Semiconductor PMIC"
+	depends on I2C=y
+	depends on SPI=y
+	select MFD_CORE
+	help
+	Support for Dialog semiconductor PMIC chips.
+	Use the options provided to support the desired PMIC's.
+choice
+	prompt "Chip Type"
+	depends on PMIC_DIALOG
+config PMIC_DA9052
+	bool "Support Dialog Semiconductor DA9052 PMIC"
+	help
+	Support for Dialog semiconductor DA9052 PMIC with inbuilt
+	SPI & I2C connectivities.
+	This driver provides common support for accessing  the device,
+	additional drivers must be enabled in order to use the
+	functionality of the device.
+config PMIC_DA9053AA
+	bool "Support Dialog Semiconductor DA9053 AA PMIC"
+	help
+	Support for Dialog semiconductor DA9053 AA PMIC with inbuilt
+	SPI & I2C connectivities.
+	This driver provides common support for accessing  the device,
+	additional drivers must be enabled in order to use the
+	functionality of the device.
+config PMIC_DA9053Bx
+	bool "Support Dialog Semiconductor DA9053 BA/BB PMIC"
+	help
+	Support for Dialog semiconductor DA9053 BA/BB PMIC with inbuilt
+	SPI & I2C connectivities.
+	This driver provides common support for accessing  the device,
+	additional drivers must be enabled in order to use the
+	functionality of the device.
+endchoice
+
+
 config MFD_MC13783
 	tristate
 

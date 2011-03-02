@@ -39,6 +39,13 @@ config HWMON_DEBUG_CHIP
 
 comment "Native drivers"
 
+config SENSORS_DA9052
+        tristate "Dialog DA9052 HWMon"
+        depends on PMIC_DIALOG
+        help
+          Say y here to support the ADC found on
+          Dialog Semiconductor DA9052 PMIC.
+
 config SENSORS_ABITUGURU
 	tristate "Abit uGuru (rev 1 & 2)"
 	depends on X86 && EXPERIMENTAL

@@ -638,7 +638,7 @@ static void __exit da9052_adc_exit(void)
 }
 module_exit(da9052_adc_exit);
 
-MODULE_AUTHOR("David Dajun Chen <dchen@diasemi.com>")
+MODULE_AUTHOR("David Dajun Chen <dchen@diasemi.com>");
 MODULE_DESCRIPTION("DA9052 ADC driver");
 MODULE_LICENSE("GPL v2");
 MODULE_ALIAS("platform:" DRIVER_NAME);

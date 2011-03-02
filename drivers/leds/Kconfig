@@ -439,4 +439,14 @@ config LEDS_TRIGGER_DEFAULT_ON
 comment "iptables trigger is under Netfilter config (LED target)"
 	depends on LEDS_TRIGGERS
 
+config LEDS_DA9052
+	tristate "Dialog DA9052 LEDS"
+	depends on PMIC_DIALOG
+	select LEDS_CLASS
+	help
+	  This option enables support for on-chip LED drivers found
+	  on Dialog Semiconductor DA9052 PMICs.
+
+comment "LED Triggers"
+
 endif # NEW_LEDS

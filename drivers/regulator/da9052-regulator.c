@@ -239,13 +239,15 @@ static int da9052_ldo_buck_is_enabled(struct regulator_dev *rdev)
 }
 
 int da9052_ldo_buck_set_voltage(struct regulator_dev *rdev,
-					int min_uV, int max_uV)
+					int min_uV, int max_uV,
+					unsigned *selector)
 {
 	struct da9052_regulator_priv *priv = rdev_get_drvdata(rdev);
 	struct da9052_ssc_msg ssc_msg;
 	int id = rdev_get_id(rdev);
 	int ret;
 	int ldo_volt = 0;
+	selector;
 
 	/* Below if condition is there for added setvoltage attribute
 	in sysfs */
@@ -433,7 +435,8 @@ static int __devinit da9052_regulator_probe(struct platform_device *pdev)
 		pdev->dev.platform_data = init_data;
 		priv->regulators[i] = regulator_register(
 				&da9052_regulators[i].reg_desc,
-				&pdev->dev, priv);
+				&pdev->dev, init_data,
+				priv);
 		if (IS_ERR(priv->regulators[i])) {
 			ret = PTR_ERR(priv->regulators[i]);
 			goto err;

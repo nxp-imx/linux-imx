@@ -440,7 +440,7 @@ static int da9052_rtc_class_ops_gettime
 			(struct device *dev, struct rtc_time *rtc_tm)
 {
 	int ret;
-	struct da9052 *da9052 = dev->parent->driver_data;
+	struct da9052 *da9052 = dev_get_drvdata(dev->parent);
 	ret = da9052_rtc_gettime(da9052, rtc_tm);
 	if (ret)
 		return ret;
@@ -451,7 +451,7 @@ static int da9052_rtc_class_ops_gettime
 static int da9052_rtc_class_ops_settime(struct device *dev, struct rtc_time *tm)
 {
 	int ret;
-	struct da9052 *da9052 = dev->parent->driver_data;
+	struct da9052 *da9052 = dev_get_drvdata(dev->parent);
 	ret = da9052_rtc_settime(da9052, tm);
 
 	return ret;
@@ -461,7 +461,7 @@ static int da9052_rtc_readalarm(struct device *dev, struct rtc_wkalrm *alrm)
 {
 	int ret;
 	struct rtc_time *tm = &alrm->time;
-	struct da9052 *da9052 = dev->parent->driver_data;
+	struct da9052 *da9052 = dev_get_drvdata(dev->parent);
 	ret = da9052_alarm_gettime(da9052, tm);
 
 	if (ret)
@@ -477,7 +477,7 @@ static int da9052_rtc_setalarm(struct device *dev, struct rtc_wkalrm *alrm)
 {
 	int ret = 0;
 	struct rtc_time *tm = &alrm->time;
-	struct da9052 *da9052 = dev->parent->driver_data;
+	struct da9052 *da9052 = dev_get_drvdata(dev->parent);
 
 	ret = da9052_alarm_settime(da9052, tm);
 
