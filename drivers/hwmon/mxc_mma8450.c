@@ -45,7 +45,9 @@
 #define MMA8450_I2C_ADDR	0x1C
 #define MMA8450_ID		0xC6
 #define MMA8450_STATUS 0x00
+
 #define MODE_CHANGE_DELAY_MS 100
+#define POLL_INTERVAL_MAX	500
 #define POLL_INTERVAL		100
 #define INPUT_FUZZ	32
 #define INPUT_FLAT	32
@@ -284,10 +286,10 @@ static int __devinit mma8450_probe(struct i2c_client *client,
 	}
 	mma8450_idev->poll = mma8450_dev_poll;
 	mma8450_idev->poll_interval = POLL_INTERVAL;
+	mma8450_idev->poll_interval_max = POLL_INTERVAL_MAX;
 	idev = mma8450_idev->input;
 	idev->name = MMA8450_DRV_NAME;
 	idev->id.bustype = BUS_I2C;
-	idev->dev.parent = &client->dev;
 	idev->evbit[0] = BIT_MASK(EV_ABS);
 
 	input_set_abs_params(idev, ABS_X, -8192, 8191, INPUT_FUZZ, INPUT_FLAT);
