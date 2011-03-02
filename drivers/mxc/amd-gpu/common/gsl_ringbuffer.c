@@ -356,12 +356,6 @@ kgsl_ringbuffer_submit(gsl_ringbuffer_t *rb)
     // send the wptr to the hw
     rb->device->ftbl.device_regwrite(rb->device, mmCP_RB_WPTR, rb->wptr);
 
-    // force wptr register to be updated
-    do
-    {
-        rb->device->ftbl.device_regread(rb->device, mmCP_RB_WPTR, &value);
-    } while (value != rb->wptr);
-
     rb->flags |= GSL_FLAGS_ACTIVE;
 
     kgsl_log_write( KGSL_LOG_GROUP_COMMAND | KGSL_LOG_LEVEL_TRACE, "<-- kgsl_ringbuffer_submit.\n" );
