@@ -1,0 +1,253 @@
+/*
+ * da9052 GPIO module declarations.
+ *
+ * Copyright(c) 2009 Dialog Semiconductor Ltd.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ *
+ */
+
+#ifndef __LINUX_MFD_DA9052_GPIO_H
+#define __LINUX_MFD_DA9052_GPIO_H
+
+#include <linux/gpio.h>
+#define DA9052_GPIO_DEVICE_NAME			"da9052_gpio"
+
+#define DA9052_GPIO_INVALID_TYPE		1
+#define DA9052_GPIO_INVALID_MODE		2
+#define DA9052_GPIO_INVALID_PORTNUMBER		3
+#define DA9052_GPIO_INVALID_FUNCTION		4
+
+#define DA9052_GPIO_CONFIG_ADC			1
+#define DA9052_GPIO_CONFIG_TSI			2
+#define DA9052_GPIO_CONFIG_PM			3
+#define DA9052_GPIO_CONFIG_ACC_ID_DET		4
+#define DA9052_GPIO_CONFIG_GP_FB1		5
+#define DA9052_GPIO_CONFIG_VDD_FAULT		6
+#define DA9052_GPIO_CONFIG_I2C			7
+#define DA9052_GPIO_CONFIG			8
+
+/* Currently used defines for GPIO PINs  */
+#define DA9052_GPIO_PIN_0			DA9052_GPIO_CONFIG_ADC
+#define DA9052_GPIO_PIN_1			DA9052_GPIO_CONFIG_ADC
+#define DA9052_GPIO_PIN_2			DA9052_GPIO_CONFIG_ADC
+
+#define DA9052_GPIO_PIN_3			DA9052_GPIO_CONFIG_TSI
+#define DA9052_GPIO_PIN_4			DA9052_GPIO_CONFIG_TSI
+#define DA9052_GPIO_PIN_5			DA9052_GPIO_CONFIG_TSI
+#define DA9052_GPIO_PIN_6			DA9052_GPIO_CONFIG_TSI
+#define DA9052_GPIO_PIN_7			DA9052_GPIO_CONFIG_TSI
+
+#define DA9052_GPIO_PIN_8			DA9052_GPIO_CONFIG
+#define DA9052_GPIO_PIN_9			DA9052_GPIO_CONFIG
+#define DA9052_GPIO_PIN_10			DA9052_GPIO_CONFIG
+#define DA9052_GPIO_PIN_11			DA9052_GPIO_CONFIG
+
+#define DA9052_GPIO_PIN_12			DA9052_GPIO_CONFIG
+#define DA9052_GPIO_PIN_13			DA9052_GPIO_CONFIG
+
+#define DA9052_GPIO_PIN_14			DA9052_GPIO_CONFIG
+#define DA9052_GPIO_PIN_15			DA9052_GPIO_CONFIG
+
+enum ip_op_type {
+	ALTERNATE_FUNCTIONALITY = 0,
+	INPUT,
+	OUTPUT_OPENDRAIN,
+	OUTPUT_PUSHPULL
+};
+
+enum ip_type {
+	ACTIVE_LOW = 0,
+	ACTIVE_HIGH
+};
+
+enum op_type {
+	SUPPLY_VDD_IO1 = 0,
+	SUPPLY_VDD_IO2
+};
+
+
+enum op_mode {
+	OUTPUT_LOWLEVEL = 0,
+	OUTPUT_HIGHLEVEL
+};
+
+
+enum ip_mode {
+	DEBOUNCING_OFF = 0,
+	DEBOUNCING_ON
+};
+
+/*DEFAULT CONFIG FOR GPIO 0*/
+#if (DA9052_GPIO_PIN_0 == DA9052_GPIO_CONFIG)
+#define DEFAULT_GPIO0_FUNCTION			INPUT
+#define DEFAULT_GPIO0_TYPE			ACTIVE_LOW
+#define DEFAULT_GPIO0_MODE			DEBOUNCING_ON
+#endif
+
+/*DEFAULT CONFIG FOR GPIO 1*/
+#if (DA9052_GPIO_PIN_1 == DA9052_GPIO_CONFIG)
+#define DEFAULT_GPIO1_FUNCTION			INPUT
+#define DEFAULT_GPIO1_TYPE			ACTIVE_LOW
+#define DEFAULT_GPIO1_MODE			DEBOUNCING_ON
+#endif
+
+/*DEFAULT CONFIG FOR GPIO 2*/
+#if (DA9052_GPIO_PIN_2 == DA9052_GPIO_CONFIG)
+#define DEFAULT_GPIO2_FUNCTION			INPUT
+#define DEFAULT_GPIO2_TYPE			ACTIVE_LOW
+#define DEFAULT_GPIO2_MODE			DEBOUNCING_ON
+#endif
+
+/*DEFAULT CONFIG FOR GPIO 3*/
+#if (DA9052_GPIO_PIN_3 == DA9052_GPIO_CONFIG)
+#define DEFAULT_GPIO3_FUNCTION			INPUT
+#define DEFAULT_GPIO3_TYPE			ACTIVE_LOW
+#define DEFAULT_GPIO3_MODE			DEBOUNCING_ON
+#endif
+
+/*DEFAULT CONFIG FOR GPIO 4*/
+#if (DA9052_GPIO_PIN_4 == DA9052_GPIO_CONFIG)
+#define DEFAULT_GPIO4_FUNCTION			OUTPUT_PUSHPULL
+#define DEFAULT_GPIO4_TYPE			SUPPLY_VDD_IO1
+#define DEFAULT_GPIO4_MODE			OUTPUT_LOWLEVEL
+#endif
+/*DEFAULT CONFIG FOR GPIO 5*/
+#if (DA9052_GPIO_PIN_5 == DA9052_GPIO_CONFIG)
+#define DEFAULT_GPIO5_FUNCTION			OUTPUT_PUSHPULL
+#define DEFAULT_GPIO5_TYPE			SUPPLY_VDD_IO1
+#define DEFAULT_GPIO5_MODE			OUTPUT_LOWLEVEL
+#endif
+
+/*DEFAULT CONFIG FOR GPIO 6*/
+#if (DA9052_GPIO_PIN_6 == DA9052_GPIO_CONFIG)
+#define DEFAULT_GPIO6_FUNCTION			OUTPUT_PUSHPULL
+#define DEFAULT_GPIO6_TYPE			SUPPLY_VDD_IO1
+#define DEFAULT_GPIO6_MODE			OUTPUT_LOWLEVEL
+#endif
+
+/*DEFAULT CONFIG FOR GPIO 7*/
+#if (DA9052_GPIO_PIN_7 == DA9052_GPIO_CONFIG)
+#define DEFAULT_GPIO7_FUNCTION			OUTPUT_PUSHPULL
+#define DEFAULT_GPIO7_TYPE			SUPPLY_VDD_IO1
+#define DEFAULT_GPIO7_MODE			OUTPUT_LOWLEVEL
+#endif
+
+/*DEFAULT CONFIG FOR GPIO 8*/
+#if (DA9052_GPIO_PIN_8 == DA9052_GPIO_CONFIG)
+#define DEFAULT_GPIO8_FUNCTION			INPUT
+#define DEFAULT_GPIO8_TYPE			ACTIVE_LOW
+#define DEFAULT_GPIO8_MODE			DEBOUNCING_ON
+#endif
+
+/*DEFAULT CONFIG FOR GPIO 9*/
+#if (DA9052_GPIO_PIN_9 == DA9052_GPIO_CONFIG)
+#define DEFAULT_GPIO9_FUNCTION			INPUT
+#define DEFAULT_GPIO9_TYPE			ACTIVE_LOW
+#define DEFAULT_GPIO9_MODE			DEBOUNCING_ON
+#endif
+
+#if (DA9052_GPIO_PIN_10 == DA9052_GPIO_CONFIG)
+#define DEFAULT_GPIO10_FUNCTION			OUTPUT_PUSHPULL
+#define DEFAULT_GPIO10_TYPE			SUPPLY_VDD_IO2
+#define DEFAULT_GPIO10_MODE			OUTPUT_HIGHLEVEL
+#endif
+
+/*DEFAULT CONFIG FOR GPIO 11 - for RTC blinking LED */
+#if (DA9052_GPIO_PIN_11 == DA9052_GPIO_CONFIG)
+#define DEFAULT_GPIO11_FUNCTION			OUTPUT_PUSHPULL
+#define DEFAULT_GPIO11_TYPE			SUPPLY_VDD_IO2
+#define DEFAULT_GPIO11_MODE			OUTPUT_HIGHLEVEL
+#endif
+
+/*DEFAULT CONFIG FOR GPIO 12*/
+#if (DA9052_GPIO_PIN_12 == DA9052_GPIO_CONFIG)
+#define DEFAULT_GPIO12_FUNCTION			OUTPUT_PUSHPULL
+#define DEFAULT_GPIO12_TYPE			SUPPLY_VDD_IO1
+#define DEFAULT_GPIO12_MODE			OUTPUT_LOWLEVEL
+#endif
+/*DEFAULT CONFIG FOR GPIO 13*/
+#if (DA9052_GPIO_PIN_13 == DA9052_GPIO_CONFIG)
+#define DEFAULT_GPIO13_FUNCTION			OUTPUT_PUSHPULL
+#define DEFAULT_GPIO13_TYPE			SUPPLY_VDD_IO1
+#define DEFAULT_GPIO13_MODE			OUTPUT_LOWLEVEL
+#endif
+
+/*DEFAULT CONFIG FOR GPIO 14 - for LED4 */
+#if (DA9052_GPIO_PIN_14 == DA9052_GPIO_CONFIG)
+#define DEFAULT_GPIO14_FUNCTION			OUTPUT_OPENDRAIN
+#define DEFAULT_GPIO14_TYPE			SUPPLY_VDD_IO1
+#define DEFAULT_GPIO14_MODE			OUTPUT_HIGHLEVEL
+#endif
+
+/*DEFAULT CONFIG FOR GPIO 15 - for LED5 */
+#if (DA9052_GPIO_PIN_15 == DA9052_GPIO_CONFIG)
+#define DEFAULT_GPIO15_FUNCTION			OUTPUT_OPENDRAIN
+#define DEFAULT_GPIO15_TYPE			SUPPLY_VDD_IO1
+#define DEFAULT_GPIO15_MODE			OUTPUT_HIGHLEVEL
+#endif
+
+#define DA9052_GPIO_MAX_PORTNUMBER			16
+#define DA9052_GPIO_MAX_PORTS_PER_REGISTER		8
+#define DA9052_GPIO_SHIFT_COUNT(no)			((no)%8)
+#define DA9052_GPIO_EVEN_PORT_FUNCTIONALITY		0x03
+#define DA9052_GPIO_ODD_PORT_FUNCTIONALITY		0x30
+#define DA9052_GPIO_MASK_UPPER_NIBBLE			0xF0
+#define DA9052_GPIO_MASK_LOWER_NIBBLE			0x0F
+#define DA9052_GPIO_NIBBLE_SHIFT			4
+#define DA9052_GPIO_EVEN_PORT_WRITE_MODE		(1 << 3)
+#define DA9052_GPIO_ODD_PORT_WRITE_MODE			(1 << 7)
+
+
+struct da9052_gpio_read_write {
+	u8 port_number:4;
+	u8 read_write_value:1;
+} ;
+
+struct da9052_gpio_multiple_read {
+	u8 signal_value[16];
+};
+
+struct da9052_gpi_config {
+	enum ip_type type;
+	enum ip_mode mode;
+};
+
+struct da9052_gpo_config {
+	enum op_type type;
+	enum op_mode mode;
+} ;
+
+union da9052_gpio_config {
+	struct da9052_gpi_config input;
+	struct da9052_gpo_config output;
+};
+
+struct da9052_gpio {
+	union da9052_gpio_config gpio_config;
+	enum ip_op_type gpio_function;
+	u8 port_number:4;
+};
+
+struct da9052_gpio_chip {
+	struct da9052_gpio gpio;
+	struct da9052_gpio_read_write read_write;
+	struct da9052 *da9052;
+	/* For testing*/
+	struct da9052_eh_nb eh_data;
+	struct gpio_chip gp;
+};
+
+#endif /* __LINUX_MFD_DA9052_GPIO_H */
