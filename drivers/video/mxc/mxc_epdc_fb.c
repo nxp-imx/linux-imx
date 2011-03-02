@@ -1477,13 +1477,16 @@ static void copy_before_process(struct mxc_epdc_fb_data *fb_data,
 	int bpp = fb_data->epdc_fb_var.bits_per_pixel;
 	int left_offs, right_offs;
 	int x_trailing_bytes, y_trailing_bytes;
+	int alt_buf_offset;
 
 	/* Set source buf pointer based on input source, panning, etc. */
 	if (upd_data->flags & EPDC_FLAG_USE_ALT_BUFFER) {
 		src_upd_region = &upd_data->alt_buffer_data.alt_update_region;
 		src_stride =
 			upd_data->alt_buffer_data.width * bpp/8;
-		src_ptr = upd_data->alt_buffer_data.virt_addr
+		alt_buf_offset = upd_data->alt_buffer_data.phys_addr -
+			fb_data->info.fix.smem_start;
+		src_ptr = fb_data->info.screen_base + alt_buf_offset
 			+ src_upd_region->top * src_stride;
 	} else {
 		src_upd_region = &upd_data->update_region;
@@ -2145,12 +2148,26 @@ int mxc_epdc_fb_send_update(struct mxcfb_update_data *upd_data,
 			"Aborting update.\n");
 		return -EINVAL;
 	}
-	if ((upd_data->flags & EPDC_FLAG_USE_ALT_BUFFER) &&
-		((upd_data->update_region.width != upd_data->alt_buffer_data.alt_update_region.width) ||
-		(upd_data->update_region.height != upd_data->alt_buffer_data.alt_update_region.height))) {
-		dev_err(fb_data->dev,
-			"Alternate update region dimensions must match screen update region dimensions.\n");
-		return -EINVAL;
+	if (upd_data->flags & EPDC_FLAG_USE_ALT_BUFFER) {
+		if ((upd_data->update_region.width !=
+			upd_data->alt_buffer_data.alt_update_region.width) ||
+			(upd_data->update_region.height !=
+			upd_data->alt_buffer_data.alt_update_region.height)) {
+			dev_err(fb_data->dev,
+				"Alternate update region dimensions must "
+				"match screen update region dimensions.\n");
+			return -EINVAL;
+		}
+		/* Validate physical address parameter */
+		if ((upd_data->alt_buffer_data.phys_addr <
+			fb_data->info.fix.smem_start) ||
+			(upd_data->alt_buffer_data.phys_addr >
+			fb_data->info.fix.smem_start + fb_data->map_size)) {
+			dev_err(fb_data->dev,
+				"Invalid physical address for alternate "
+				"buffer.  Aborting update...\n");
+			return -EINVAL;
+		}
 	}
 
 	spin_lock_irqsave(&fb_data->queue_lock, flags);
