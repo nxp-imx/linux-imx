@@ -58,7 +58,12 @@ kgsl_intr_decode(gsl_device_t *device, gsl_intrblock_t block_id)
     unsigned int               status;
 
     // read the block's interrupt status bits
-    device->ftbl.device_regread(device, block->status_reg, &status);
+    /* exclude CP block here to avoid hang in heavy loading with VPU+GPU */
+    if (block_id == GSL_INTR_BLOCK_YDX_CP) {
+	status = 0x80000000;
+    } else {
+	device->ftbl.device_regread(device, block->status_reg, &status);
+    }
 
     // mask off any interrupts which are disabled
     status &= device->intr.enabled[block->id];
