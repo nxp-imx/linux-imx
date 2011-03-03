@@ -195,7 +195,7 @@ static bool adc_ts;
 static bool wait_ts;
 static bool monitor_en;
 static bool monitor_adc;
-static DECLARE_MUTEX(convert_mutex);
+static DEFINE_SEMAPHORE(convert_mutex);
 
 static DECLARE_WAIT_QUEUE_HEAD(queue_adc_busy);
 static t_adc_state adc_dev[2];

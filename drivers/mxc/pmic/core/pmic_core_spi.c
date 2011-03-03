@@ -166,9 +166,6 @@ static int __devinit pmic_probe(struct spi_device *spi)
 	/* Initialize the PMIC event handling */
 	pmic_event_list_init();
 
-	/* Initialize GPIO for PMIC Interrupt */
-	gpio_pmic_active();
-
 	/* Get the PMIC Version */
 	pmic_get_revision(&mxc_pmic_version);
 	if (mxc_pmic_version.revision < 0) {
