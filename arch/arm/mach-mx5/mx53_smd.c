@@ -1208,9 +1208,11 @@ static void __init mxc_board_init(void)
 	mxc_register_device(&mxc_iim_device, &iim_data);
 	mxc_register_device(&mxc_pwm2_device, NULL);
 	mxc_register_device(&mxc_pwm1_backlight_device, &mxc_pwm_backlight_data);
+	/* Register mmc3(eMMC) first, make it's device number be 0 to
+	 * avoid device number change by hotplug in SD(mmc1) card */
+	mxc_register_device(&mxcsdhc3_device, &mmc3_data);
 	mxc_register_device(&mxcsdhc1_device, &mmc1_data);
 	mxc_register_device(&mxcsdhc2_device, &mmc2_data);
-	mxc_register_device(&mxcsdhc3_device, &mmc3_data);
 	mxc_register_device(&mxc_ssi1_device, NULL);
 	mxc_register_device(&mxc_ssi2_device, NULL);
 	mxc_register_device(&mxc_alsa_spdif_device, &mxc_spdif_data);
