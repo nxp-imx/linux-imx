@@ -79,7 +79,8 @@
 static unsigned long default_bpp = 16;
 
 struct update_marker_data {
-	struct list_head list;
+	struct list_head full_list;
+	struct list_head upd_list;
 	u32 update_marker;
 	struct completion update_completion;
 	int lut_num;
@@ -90,7 +91,7 @@ struct update_desc_list {
 	struct list_head list;
 	struct mxcfb_update_data upd_data;/* Update parameters */
 	u32 epdc_offs;		/* Added to buffer ptr to resolve alignment */
-	struct update_marker_data *upd_marker_data;
+	struct list_head upd_marker_list; /* List of markers for this update */
 	u32 update_order;	/* Numeric ordering value for update */
 };
 
@@ -142,10 +143,10 @@ struct mxc_epdc_fb_data {
 	bool waiting_for_idle;
 	u32 auto_mode;
 	u32 upd_scheme;
-	struct update_desc_list *upd_pending_list;
-	struct update_data_list *upd_buf_queue;
-	struct update_data_list *upd_buf_free_list;
-	struct update_data_list *upd_buf_collision_list;
+	struct list_head upd_pending_list;
+	struct list_head upd_buf_queue;
+	struct list_head upd_buf_free_list;
+	struct list_head upd_buf_collision_list;
 	struct update_data_list *cur_update;
 	spinlock_t queue_lock;
 	int trt_entries;
@@ -159,7 +160,7 @@ struct mxc_epdc_fb_data {
 	u32 working_buffer_phys;
 	u32 working_buffer_size;
 	u32 order_cnt;
-	struct update_marker_data *update_marker_list;
+	struct list_head full_marker_list;
 	u32 lut_update_order[EPDC_NUM_LUTS];
 	struct completion updates_done;
 	struct delayed_work epdc_done_work;
@@ -365,9 +366,9 @@ static void dump_collision_list(struct mxc_epdc_fb_data *fb_data)
 	struct update_data_list *plist;
 
 	dev_info(fb_data->dev, "Collision List:\n");
-	if (list_empty(&fb_data->upd_buf_collision_list->list))
+	if (list_empty(&fb_data->upd_buf_collision_list))
 		dev_info(fb_data->dev, "Empty");
-	list_for_each_entry(plist, &fb_data->upd_buf_collision_list->list, list) {
+	list_for_each_entry(plist, &fb_data->upd_buf_collision_list, list) {
 		dev_info(fb_data->dev, "Virt Addr = 0x%x, Phys Addr = 0x%x ",
 			(u32)plist->virt_addr, plist->phys_addr);
 		dump_update_data(fb_data->dev, plist);
@@ -379,9 +380,9 @@ static void dump_free_list(struct mxc_epdc_fb_data *fb_data)
 	struct update_data_list *plist;
 
 	dev_info(fb_data->dev, "Free List:\n");
-	if (list_empty(&fb_data->upd_buf_free_list->list))
+	if (list_empty(&fb_data->upd_buf_free_list))
 		dev_info(fb_data->dev, "Empty");
-	list_for_each_entry(plist, &fb_data->upd_buf_free_list->list, list) {
+	list_for_each_entry(plist, &fb_data->upd_buf_free_list, list) {
 		dev_info(fb_data->dev, "Virt Addr = 0x%x, Phys Addr = 0x%x ",
 			(u32)plist->virt_addr, plist->phys_addr);
 		dump_update_data(fb_data->dev, plist);
@@ -393,9 +394,9 @@ static void dump_queue(struct mxc_epdc_fb_data *fb_data)
 	struct update_data_list *plist;
 
 	dev_info(fb_data->dev, "Queue:\n");
-	if (list_empty(&fb_data->upd_buf_queue->list))
+	if (list_empty(&fb_data->upd_buf_queue))
 		dev_info(fb_data->dev, "Empty");
-	list_for_each_entry(plist, &fb_data->upd_buf_queue->list, list) {
+	list_for_each_entry(plist, &fb_data->upd_buf_queue, list) {
 		dev_info(fb_data->dev, "Virt Addr = 0x%x, Phys Addr = 0x%x ",
 			(u32)plist->virt_addr, plist->phys_addr);
 		dump_update_data(fb_data->dev, plist);
@@ -421,9 +422,9 @@ static void dump_pending_list(struct mxc_epdc_fb_data *fb_data)
 	struct update_desc_list *plist;
 
 	dev_info(fb_data->dev, "Queue:\n");
-	if (list_empty(&fb_data->upd_pending_list->list))
+	if (list_empty(&fb_data->upd_pending_list))
 		dev_info(fb_data->dev, "Empty");
-	list_for_each_entry(plist, &fb_data->upd_pending_list->list, list)
+	list_for_each_entry(plist, &fb_data->upd_pending_list, list)
 		dump_desc_data(fb_data->dev, plist);
 }
 
@@ -1826,8 +1827,7 @@ static int epdc_submit_merge(struct update_desc_list *upd_desc_list,
 		arect->left > (brect->left + brect->width) ||
 		brect->left > (arect->left + arect->width) ||
 		arect->top > (brect->top + brect->height) ||
-		brect->top > (arect->top + arect->height) ||
-		(b->update_marker != 0 && a->update_marker != 0))
+		brect->top > (arect->top + arect->height))
 		return MERGE_FAIL;
 
 	combine.left = arect->left < brect->left ? arect->left : brect->left;
@@ -1847,12 +1847,9 @@ static int epdc_submit_merge(struct update_desc_list *upd_desc_list,
 	if (use_flags)
 		a->flags = b->flags;
 
-	/* Preserve marker value for merged update */
-	if (b->update_marker != 0) {
-		a->update_marker = b->update_marker;
-		upd_desc_list->upd_marker_data =
-			update_to_merge->upd_marker_data;
-	}
+	/* Merge markers */
+	list_splice_tail(&update_to_merge->upd_marker_list,
+		&upd_desc_list->upd_marker_list);
 
 	/* Merged update should take on the earliest order */
 	upd_desc_list->update_order =
@@ -1865,17 +1862,15 @@ static int epdc_submit_merge(struct update_desc_list *upd_desc_list,
 static void epdc_submit_work_func(struct work_struct *work)
 {
 	int temp_index;
-	struct update_data_list *next_update;
-	struct update_data_list *temp_update;
-	struct update_desc_list *next_desc;
-	struct update_desc_list *temp_desc;
+	struct update_data_list *next_update, *temp_update;
+	struct update_desc_list *next_desc, *temp_desc;
+	struct update_marker_data *next_marker, *temp_marker;
 	unsigned long flags;
 	struct mxc_epdc_fb_data *fb_data =
 		container_of(work, struct mxc_epdc_fb_data, epdc_submit_work);
 	struct update_data_list *upd_data_list = NULL;
 	struct mxcfb_rect adj_update_region;
 	bool end_merge = false;
-	struct update_data_list *buf_free_list = fb_data->upd_buf_free_list;
 
 	/* Protect access to buffer queues and to update HW */
 	spin_lock_irqsave(&fb_data->queue_lock, flags);
@@ -1886,7 +1881,7 @@ static void epdc_submit_work_func(struct work_struct *work)
 	 * if the collision mask has been fully cleared
 	 */
 	list_for_each_entry_safe(next_update, temp_update,
-				&fb_data->upd_buf_collision_list->list, list) {
+				&fb_data->upd_buf_collision_list, list) {
 
 		if (next_update->collision_mask != 0)
 			continue;
@@ -1915,7 +1910,7 @@ static void epdc_submit_work_func(struct work_struct *work)
 				list_del_init(&next_update->list);
 				/* Add to free buffer list */
 				list_add_tail(&next_update->list,
-					 &buf_free_list->list);
+					 &fb_data->upd_buf_free_list);
 				break;
 			case MERGE_FAIL:
 				dev_dbg(fb_data->dev,
@@ -1951,21 +1946,21 @@ static void epdc_submit_work_func(struct work_struct *work)
 		 * already have a collision update selected)
 		*/
 		if (!upd_data_list &&
-			list_empty(&fb_data->upd_buf_free_list->list)) {
+			list_empty(&fb_data->upd_buf_free_list)) {
 			spin_unlock_irqrestore(&fb_data->queue_lock, flags);
 			return;
 		}
 
 		list_for_each_entry_safe(next_desc, temp_desc,
-				&fb_data->upd_pending_list->list, list) {
+				&fb_data->upd_pending_list, list) {
 
 			dev_dbg(fb_data->dev, "Found a pending update!\n");
 
 			if (!upd_data_list) {
-				if (list_empty(&buf_free_list->list))
+				if (list_empty(&fb_data->upd_buf_free_list))
 					break;
 				upd_data_list =
-					list_entry(buf_free_list->list.next,
+					list_entry(fb_data->upd_buf_free_list.next,
 						struct update_data_list, list);
 				list_del_init(&upd_data_list->list);
 				upd_data_list->update_desc = next_desc;
@@ -2015,7 +2010,8 @@ static void epdc_submit_work_func(struct work_struct *work)
 		kfree(upd_data_list->update_desc);
 		upd_data_list->update_desc = NULL;
 		/* Add to free buffer list */
-		list_add_tail(&upd_data_list->list, &buf_free_list->list);
+		list_add_tail(&upd_data_list->list,
+			&fb_data->upd_buf_free_list);
 		/* Release buffer queues */
 		spin_unlock_irqrestore(&fb_data->queue_lock, flags);
 		return;
@@ -2073,9 +2069,9 @@ static void epdc_submit_work_func(struct work_struct *work)
 	upd_data_list->lut_num = epdc_get_next_lut();
 
 	/* Associate LUT with update marker */
-	if (upd_data_list->update_desc->upd_marker_data)
-		upd_data_list->update_desc->upd_marker_data->lut_num =
-						fb_data->cur_update->lut_num;
+	list_for_each_entry_safe(next_marker, temp_marker,
+		&upd_data_list->update_desc->upd_marker_list, upd_list)
+		next_marker->lut_num = fb_data->cur_update->lut_num;
 
 	/* Mark LUT with order */
 	fb_data->lut_update_order[upd_data_list->lut_num] =
@@ -2117,7 +2113,7 @@ int mxc_epdc_fb_send_update(struct mxcfb_update_data *upd_data,
 	int temp_index;
 	int ret;
 	struct update_desc_list *upd_desc;
-	struct update_marker_data *marker_data;
+	struct update_marker_data *marker_data, *next_marker, *temp_marker;
 
 	/* Has EPDC HW been initialized? */
 	if (!fb_data->hw_ready) {
@@ -2176,7 +2172,7 @@ int mxc_epdc_fb_send_update(struct mxcfb_update_data *upd_data,
 		 * Get available intermediate (PxP output) buffer to hold
 		 * processed update region
 		 */
-		if (list_empty(&fb_data->upd_buf_free_list->list)) {
+		if (list_empty(&fb_data->upd_buf_free_list)) {
 			dev_err(fb_data->dev,
 				"No free intermediate buffers available.\n");
 			spin_unlock_irqrestore(&fb_data->queue_lock, flags);
@@ -2185,7 +2181,7 @@ int mxc_epdc_fb_send_update(struct mxcfb_update_data *upd_data,
 
 		/* Grab first available buffer and delete from the free list */
 		upd_data_list =
-		    list_entry(fb_data->upd_buf_free_list->list.next,
+		    list_entry(fb_data->upd_buf_free_list.next,
 			       struct update_data_list, list);
 
 		list_del_init(&upd_data_list->list);
@@ -2201,14 +2197,16 @@ int mxc_epdc_fb_send_update(struct mxcfb_update_data *upd_data,
 			"Insufficient system memory for update! Aborting.\n");
 		if (fb_data->upd_scheme == UPDATE_SCHEME_SNAPSHOT) {
 			list_add(&upd_data_list->list,
-				&fb_data->upd_buf_free_list->list);
+				&fb_data->upd_buf_free_list);
 		}
 		spin_unlock_irqrestore(&fb_data->queue_lock, flags);
 		return -EPERM;
 	}
+	/* Initialize per-update marker list */
+	INIT_LIST_HEAD(&upd_desc->upd_marker_list);
 	upd_desc->upd_data = *upd_data;
 	upd_desc->update_order = fb_data->order_cnt++;
-	list_add_tail(&upd_desc->list, &fb_data->upd_pending_list->list);
+	list_add_tail(&upd_desc->list, &fb_data->upd_pending_list);
 
 	/* If marker specified, associate it with a completion */
 	if (upd_data->update_marker != 0) {
@@ -2220,13 +2218,14 @@ int mxc_epdc_fb_send_update(struct mxcfb_update_data *upd_data,
 			spin_unlock_irqrestore(&fb_data->queue_lock, flags);
 			return -ENOMEM;
 		}
-		upd_desc->upd_marker_data = marker_data;
+		list_add_tail(&marker_data->upd_list,
+			&upd_desc->upd_marker_list);
 		marker_data->update_marker = upd_data->update_marker;
 		marker_data->lut_num = INVALID_LUT;
 		init_completion(&marker_data->update_completion);
-		/* Add marker to marker list */
-		list_add_tail(&marker_data->list,
-			&fb_data->update_marker_list->list);
+		/* Add marker to master marker list */
+		list_add_tail(&marker_data->full_list,
+			&fb_data->full_marker_list);
 	}
 
 	if (fb_data->upd_scheme != UPDATE_SCHEME_SNAPSHOT) {
@@ -2278,8 +2277,7 @@ int mxc_epdc_fb_send_update(struct mxcfb_update_data *upd_data,
 	 */
 	if ((fb_data->cur_update != NULL) || !epdc_any_luts_available()) {
 		/* Add processed Y buffer to update list */
-		list_add_tail(&upd_data_list->list,
-			      &fb_data->upd_buf_queue->list);
+		list_add_tail(&upd_data_list->list, &fb_data->upd_buf_queue);
 
 		/* Return and allow the update to be submitted by the ISR. */
 		spin_unlock_irqrestore(&fb_data->queue_lock, flags);
@@ -2293,9 +2291,9 @@ int mxc_epdc_fb_send_update(struct mxcfb_update_data *upd_data,
 	upd_data_list->lut_num = epdc_get_next_lut();
 
 	/* Associate LUT with update marker */
-	if (upd_data_list->update_desc->upd_marker_data)
-		upd_data_list->update_desc->upd_marker_data->lut_num =
-						upd_data_list->lut_num;
+	list_for_each_entry_safe(next_marker, temp_marker,
+		&upd_data_list->update_desc->upd_marker_list, upd_list)
+		next_marker->lut_num = upd_data_list->lut_num;
 
 	/* Mark LUT as containing new update */
 	fb_data->lut_update_order[upd_data_list->lut_num] =
@@ -2350,7 +2348,7 @@ int mxc_epdc_fb_wait_update_complete(u32 update_marker, struct fb_info *info)
 	spin_lock_irqsave(&fb_data->queue_lock, flags);
 
 	list_for_each_entry_safe(next_marker, temp,
-		&fb_data->update_marker_list->list, list) {
+		&fb_data->full_marker_list, full_list) {
 		if (next_marker->update_marker == update_marker) {
 			dev_dbg(fb_data->dev, "Waiting for marker %d\n",
 				update_marker);
@@ -2374,7 +2372,7 @@ int mxc_epdc_fb_wait_update_complete(u32 update_marker, struct fb_info *info)
 	if (!ret) {
 		dev_err(fb_data->dev,
 			"Timed out waiting for update completion\n");
-		list_del_init(&next_marker->list);
+		list_del_init(&next_marker->full_list);
 		ret = -ETIMEDOUT;
 	}
 
@@ -2557,7 +2555,7 @@ void mxc_epdc_fb_flush_updates(struct mxc_epdc_fb_data *fb_data)
 	 *   3) Active updates to panel - We can key off of EPDC
 	 *      power state to know if we have active updates.
 	 */
-	if (!list_empty(&fb_data->upd_pending_list->list) ||
+	if (!list_empty(&fb_data->upd_pending_list) ||
 		!is_free_list_full(fb_data) ||
 		((fb_data->power_state == POWER_STATE_ON) &&
 		!fb_data->powering_down)) {
@@ -2677,7 +2675,7 @@ static bool is_free_list_full(struct mxc_epdc_fb_data *fb_data)
 	struct update_data_list *plist;
 
 	/* Count buffers in free buffer list */
-	list_for_each_entry(plist, &fb_data->upd_buf_free_list->list, list)
+	list_for_each_entry(plist, &fb_data->upd_buf_free_list, list)
 		count++;
 
 	/* Check to see if all buffers are in this list */
@@ -2723,6 +2721,8 @@ static irqreturn_t mxc_epdc_irq_handler(int irq, void *dev_id)
 	u32 lut;
 	bool ignore_collision = false;
 	int i;
+	bool wb_lut_done = false;
+	bool free_update = true;
 
 	/*
 	 * If we just completed one-time panel init, bypass
@@ -2773,8 +2773,7 @@ static irqreturn_t mxc_epdc_irq_handler(int irq, void *dev_id)
 		 * the completed LUT.
 		 */
 		list_for_each_entry(collision_update,
-				    &fb_data->upd_buf_collision_list->
-				    list, list) {
+				    &fb_data->upd_buf_collision_list, list) {
 			collision_update->collision_mask =
 			    collision_update->collision_mask & ~(1 << i);
 		}
@@ -2791,27 +2790,35 @@ static irqreturn_t mxc_epdc_irq_handler(int irq, void *dev_id)
 			fb_data->waiting_for_lut = false;
 		}
 
+		/* Detect race condition where WB and its LUT complete
+		   (i.e. full update completes) in one swoop */
+		if (fb_data->cur_update &&
+			(i == fb_data->cur_update->lut_num))
+			wb_lut_done = true;
+
 		/* Signal completion if anyone waiting on this LUT */
-		list_for_each_entry_safe(next_marker, temp,
-			&fb_data->update_marker_list->list, list) {
-			if (next_marker->lut_num != i)
-				continue;
+		if (!wb_lut_done)
+			list_for_each_entry_safe(next_marker, temp,
+				&fb_data->full_marker_list,
+				full_list) {
+				if (next_marker->lut_num != i)
+					continue;
 
-			/* Found marker to signal - remove from marker list */
-			list_del_init(&next_marker->list);
+				/* Found marker to signal - remove from list */
+				list_del_init(&next_marker->full_list);
 
-			/* Signal completion of update */
-			dev_dbg(fb_data->dev, "Signaling marker %d\n",
-				next_marker->update_marker);
-			if (next_marker->waiting)
-				complete(&next_marker->update_completion);
-			else
-				kfree(next_marker);
-		}
+				/* Signal completion of update */
+				dev_dbg(fb_data->dev, "Signaling marker %d\n",
+					next_marker->update_marker);
+				if (next_marker->waiting)
+					complete(&next_marker->update_completion);
+				else
+					kfree(next_marker);
+			}
 	}
 
 	/* Check to see if all updates have completed */
-	if (list_empty(&fb_data->upd_pending_list->list) &&
+	if (list_empty(&fb_data->upd_pending_list) &&
 		is_free_list_full(fb_data) &&
 		(fb_data->cur_update == NULL) &&
 		!epdc_any_luts_active()) {
@@ -2862,8 +2869,7 @@ static irqreturn_t mxc_epdc_irq_handler(int irq, void *dev_id)
 		 *  - No collision reported with current active updates
 		 */
 		list_for_each_entry(collision_update,
-				    &fb_data->upd_buf_collision_list->list,
-				    list)
+				    &fb_data->upd_buf_collision_list, list)
 			if (do_updates_overlap(collision_update,
 				fb_data->cur_update))
 				missed_coll_mask |=
@@ -2912,27 +2918,52 @@ static irqreturn_t mxc_epdc_irq_handler(int irq, void *dev_id)
 				}
 			}
 
-			if (ignore_collision) {
-				/* Add to free buffer list */
-				list_add_tail(&fb_data->cur_update->list,
-					 &fb_data->upd_buf_free_list->list);
-			} else {
+			if (!ignore_collision) {
+				free_update = false;
 				/*
-				 * If update has a marker, clear the LUT, since
-				 * we don't want to signal that it is complete.
+				 * If update has markers, clear the LUTs to
+				 * avoid signalling that they have completed.
 				 */
-				if (fb_data->cur_update->update_desc->upd_marker_data)
-					fb_data->cur_update->update_desc->upd_marker_data->lut_num = INVALID_LUT;
+				list_for_each_entry_safe(next_marker, temp,
+					&fb_data->cur_update->update_desc->upd_marker_list,
+					upd_list)
+					next_marker->lut_num = INVALID_LUT;
 
 				/* Move to collision list */
 				list_add_tail(&fb_data->cur_update->list,
-					 &fb_data->upd_buf_collision_list->list);
+					 &fb_data->upd_buf_collision_list);
 			}
-		} else {
+		}
+
+		if (free_update) {
+			/* Handle condition where WB & LUT are both complete */
+			if (wb_lut_done)
+				list_for_each_entry_safe(next_marker, temp,
+					&fb_data->cur_update->update_desc->upd_marker_list,
+					upd_list) {
+
+					/* Del from per-update & full list */
+					list_del_init(&next_marker->upd_list);
+					list_del_init(&next_marker->full_list);
+
+					/* Signal completion of update */
+					dev_dbg(fb_data->dev,
+						"Signaling marker %d\n",
+						next_marker->update_marker);
+					if (next_marker->waiting)
+						complete(&next_marker->update_completion);
+					else
+						kfree(next_marker);
+				}
+
+			/* Free marker list and update descriptor */
+			kfree(fb_data->cur_update->update_desc);
+
 			/* Add to free buffer list */
 			list_add_tail(&fb_data->cur_update->list,
-				 &fb_data->upd_buf_free_list->list);
+				 &fb_data->upd_buf_free_list);
 		}
+
 		/* Clear current update */
 		fb_data->cur_update = NULL;
 
@@ -2970,7 +3001,7 @@ static irqreturn_t mxc_epdc_irq_handler(int irq, void *dev_id)
 	 * if the collision mask has been fully cleared
 	 */
 	list_for_each_entry(collision_update,
-			    &fb_data->upd_buf_collision_list->list, list) {
+			    &fb_data->upd_buf_collision_list, list) {
 
 		if (collision_update->collision_mask != 0)
 			continue;
@@ -2991,7 +3022,7 @@ static irqreturn_t mxc_epdc_irq_handler(int irq, void *dev_id)
 	 */
 	if (fb_data->cur_update == NULL) {
 		/* Is update list empty? */
-		if (list_empty(&fb_data->upd_buf_queue->list)) {
+		if (list_empty(&fb_data->upd_buf_queue)) {
 			dev_dbg(fb_data->dev, "No pending updates.\n");
 
 			/* No updates pending, so we are done */
@@ -3002,7 +3033,7 @@ static irqreturn_t mxc_epdc_irq_handler(int irq, void *dev_id)
 
 			/* Process next item in update list */
 			fb_data->cur_update =
-			    list_entry(fb_data->upd_buf_queue->list.next,
+			    list_entry(fb_data->upd_buf_queue.next,
 				       struct update_data_list, list);
 			list_del_init(&fb_data->cur_update->list);
 		}
@@ -3011,10 +3042,10 @@ static irqreturn_t mxc_epdc_irq_handler(int irq, void *dev_id)
 	/* LUTs are available, so we get one here */
 	fb_data->cur_update->lut_num = epdc_get_next_lut();
 
-	/* Associate LUT with update marker */
-	if (fb_data->cur_update->update_desc->upd_marker_data)
-		fb_data->cur_update->update_desc->upd_marker_data->lut_num =
-						fb_data->cur_update->lut_num;
+	/* Associate LUT with update markers */
+	list_for_each_entry_safe(next_marker, temp,
+		&fb_data->cur_update->update_desc->upd_marker_list, upd_list)
+		next_marker->lut_num = fb_data->cur_update->lut_num;
 
 	/* Mark LUT as containing new update */
 	fb_data->lut_update_order[fb_data->cur_update->lut_num] =
@@ -3513,32 +3544,15 @@ int __devinit mxc_epdc_fb_probe(struct platform_device *pdev)
 	fb_data->epdc_fb_var = *var_info;
 	fb_data->fb_offset = 0;
 
-	/* Allocate head objects for our lists */
-	fb_data->upd_pending_list =
-	    kzalloc(sizeof(struct update_desc_list), GFP_KERNEL);
-	fb_data->upd_buf_queue =
-	    kzalloc(sizeof(struct update_data_list), GFP_KERNEL);
-	fb_data->upd_buf_collision_list =
-	    kzalloc(sizeof(struct update_data_list), GFP_KERNEL);
-	fb_data->upd_buf_free_list =
-	    kzalloc(sizeof(struct update_data_list), GFP_KERNEL);
-	if ((fb_data->upd_pending_list == NULL) ||
-		(fb_data->upd_buf_queue == NULL) ||
-		(fb_data->upd_buf_free_list == NULL) ||
-		(fb_data->upd_buf_collision_list == NULL)) {
-		ret = -ENOMEM;
-		goto out_dma_fb;
-	}
-
 	/*
 	 * Initialize lists for pending updates,
 	 * active update requests, update collisions,
 	 * and available update (PxP output) buffers
 	 */
-	INIT_LIST_HEAD(&fb_data->upd_pending_list->list);
-	INIT_LIST_HEAD(&fb_data->upd_buf_queue->list);
-	INIT_LIST_HEAD(&fb_data->upd_buf_free_list->list);
-	INIT_LIST_HEAD(&fb_data->upd_buf_collision_list->list);
+	INIT_LIST_HEAD(&fb_data->upd_pending_list);
+	INIT_LIST_HEAD(&fb_data->upd_buf_queue);
+	INIT_LIST_HEAD(&fb_data->upd_buf_free_list);
+	INIT_LIST_HEAD(&fb_data->upd_buf_collision_list);
 
 	/* Allocate update buffers and add them to the list */
 	for (i = 0; i < EPDC_MAX_NUM_UPDATES; i++) {
@@ -3565,7 +3579,7 @@ int __devinit mxc_epdc_fb_probe(struct platform_device *pdev)
 		}
 
 		/* Add newly allocated buffer to free list */
-		list_add(&upd_list->list, &fb_data->upd_buf_free_list->list);
+		list_add(&upd_list->list, &fb_data->upd_buf_free_list);
 
 		dev_dbg(fb_data->info.device, "allocated %d bytes @ 0x%08X\n",
 			upd_list->size, upd_list->phys_addr);
@@ -3627,9 +3641,7 @@ int __devinit mxc_epdc_fb_probe(struct platform_device *pdev)
 	fb_data->wv_modes.mode_gc32 = 2;
 
 	/* Initialize marker list */
-	fb_data->update_marker_list =
-	    kzalloc(sizeof(struct update_marker_data), GFP_KERNEL);
-	INIT_LIST_HEAD(&fb_data->update_marker_list->list);
+	INIT_LIST_HEAD(&fb_data->full_marker_list);
 
 	/* Initialize all LUTs to inactive */
 	for (i = 0; i < EPDC_NUM_LUTS; i++)
@@ -3831,9 +3843,11 @@ out_dma_work_buf:
 	if (fb_data->pdata->put_pins)
 		fb_data->pdata->put_pins();
 out_upd_buffers:
-	list_for_each_entry_safe(plist, temp_list, &fb_data->upd_buf_free_list->list, list) {
+	list_for_each_entry_safe(plist, temp_list, &fb_data->upd_buf_free_list,
+			list) {
 		list_del(&plist->list);
-		dma_free_writecombine(&pdev->dev, plist->size, plist->virt_addr,
+		dma_free_writecombine(&pdev->dev, plist->size,
+				      plist->virt_addr,
 				      plist->phys_addr);
 		dma_free_writecombine(&pdev->dev, plist->size*2,
 				      plist->virt_addr_copybuf,
@@ -3877,9 +3891,11 @@ static int mxc_epdc_fb_remove(struct platform_device *pdev)
 		dma_free_writecombine(&pdev->dev, fb_data->waveform_buffer_size,
 				fb_data->waveform_buffer_virt,
 				fb_data->waveform_buffer_phys);
-	list_for_each_entry_safe(plist, temp_list, &fb_data->upd_buf_free_list->list, list) {
+	list_for_each_entry_safe(plist, temp_list, &fb_data->upd_buf_free_list,
+			list) {
 		list_del(&plist->list);
-		dma_free_writecombine(&pdev->dev, plist->size, plist->virt_addr,
+		dma_free_writecombine(&pdev->dev, plist->size,
+				      plist->virt_addr,
 				      plist->phys_addr);
 		dma_free_writecombine(&pdev->dev, plist->size*2,
 				      plist->virt_addr_copybuf,
