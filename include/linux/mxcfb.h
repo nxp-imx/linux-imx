@@ -89,7 +89,6 @@ struct mxcfb_rect {
 #define FB_POWERDOWN_DISABLE			-1
 
 struct mxcfb_alt_buffer_data {
-	void *virt_addr;
 	__u32 phys_addr;
 	__u32 width;	/* width of entire buffer */
 	__u32 height;	/* height of entire buffer */
