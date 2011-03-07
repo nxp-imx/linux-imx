@@ -57,7 +57,7 @@
  * Enable this define to have a default panel
  * loaded during driver initialization
  */
-/*#define DEFAULT_PANEL_HW_INIT*/
+#define DEFAULT_PANEL_HW_INIT
 
 #define NUM_SCREENS_MIN	2
 #define EPDC_NUM_LUTS 16
