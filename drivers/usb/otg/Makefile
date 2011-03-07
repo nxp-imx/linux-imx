@@ -18,3 +18,5 @@ obj-$(CONFIG_NOP_USB_XCEIV)	+= nop-usb-xceiv.o
 obj-$(CONFIG_USB_ULPI)		+= ulpi.o
 obj-$(CONFIG_USB_MSM_OTG_72K)	+= msm72k_otg.o
 obj-$(CONFIG_AB8500_USB)	+= ab8500-usb.o
+fsl_otg_arc-objs		:= fsl_otg.o otg_fsm.o
+obj-$(CONFIG_MXC_OTG)		+= fsl_otg_arc.o

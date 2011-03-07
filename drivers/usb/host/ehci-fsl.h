@@ -1,4 +1,4 @@
-/* Copyright (C) 2005-2010 Freescale Semiconductor, Inc.
+/* Copyright (C) 2005-2011 Freescale Semiconductor, Inc.
  * Copyright (c) 2005 MontaVista Software
  *
  * This program is free software; you can redistribute  it and/or modify it
@@ -19,13 +19,17 @@
 #define _EHCI_FSL_H
 
 /* offsets for the non-ehci registers in the FSL SOC USB controller */
-#define FSL_SOC_USB_ULPIVP	0x170
-#define FSL_SOC_USB_PORTSC1	0x184
+#define FSL_SOC_USB_SBUSCFG		0x90
+#define FSL_SOC_USB_BURSTSIZE		0x160
+#define FSL_SOC_USB_TXFILLTUNING	0x164
+#define FSL_SOC_USB_ULPIVP		0x170
+#define FSL_SOC_USB_PORTSC1		0x184
 #define PORT_PTS_MSK		(3<<30)
 #define PORT_PTS_UTMI		(0<<30)
 #define PORT_PTS_ULPI		(2<<30)
 #define	PORT_PTS_SERIAL		(3<<30)
 #define PORT_PTS_PTW		(1<<28)
+#define PORT_PTS_PHCD		(1<<23)
 #define FSL_SOC_USB_PORTSC2	0x188
 
 #define FSL_SOC_USB_USBGENCTRL	0x200
