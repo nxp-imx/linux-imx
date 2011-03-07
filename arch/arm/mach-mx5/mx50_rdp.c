@@ -542,6 +542,20 @@ static struct keypad_data keypad_plat_data = {
 	.matrix = keymapping,
 };
 
+static u16 keymapping_android[] = {
+	KEY_9, KEY_0, KEY_O, KEY_P,
+	KEY_F4, KEY_F1, KEY_F6, KEY_F9,
+	KEY_PREVIOUS, KEY_NEXT, KEY_HOME, KEY_NEXT,
+	KEY_F11, KEY_CAPSLOCK, KEY_SPACE, KEY_SPACE,
+};
+
+static struct keypad_data keypad_android_plat_data = {
+	.rowmax = 4,
+	.colmax = 4,
+	.learning = 0,
+	.delay = 2,
+	.matrix = keymapping_android,
+};
 
 /* workaround for cspi chipselect pin may not keep correct level when idle */
 static void mx50_rdp_gpio_spi_chipselect_active(int cspi_mode, int status,
@@ -1624,7 +1638,7 @@ static void __init mxc_board_init(void)
 	mxc_register_device(&pm_device, &mx50_pm_data);
 	mxc_register_device(&mxc_dvfs_core_device, &dvfs_core_data);
 	if (enable_keypad)
-		mxc_register_device(&mxc_keypad_device, &keypad_plat_data);
+		mxc_register_device(&mxc_keypad_device, &keypad_android_plat_data);
 
 	mxc_register_device(&mxcsdhc1_device, &mmc1_data);
 	mxc_register_device(&mxcsdhc2_device, &mmc2_data);
