@@ -573,6 +573,10 @@ mmc_blk_set_blksize(struct mmc_blk_data *md, struct mmc_card *card)
 	if (mmc_card_blockaddr(card))
 		return 0;
 
+	/* DDR Mode cards ignore MMC_SET_BLOCKLEN. */
+	if (mmc_card_ddrmode(card))
+		return 0;
+
 	mmc_claim_host(card->host);
 	cmd.opcode = MMC_SET_BLOCKLEN;
 	cmd.arg = 512;

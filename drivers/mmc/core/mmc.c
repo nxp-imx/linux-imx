@@ -853,11 +853,13 @@ static int mmc_init_card(struct mmc_host *host, u32 ocr,
 				(card->ext_csd.card_type & MMC_DDR_MODE_MASK)) {
 			ext_csd_bit = EXT_CSD_BUS_WIDTH_8_DDR;
 			bus_width = MMC_BUS_WIDTH_8 | MMC_BUS_WIDTH_DDR;
+			mmc_card_set_ddrmode(card);
 		} else if ((host->caps & MMC_CAP_4_BIT_DATA) &&
 				(host->caps & MMC_CAP_DATA_DDR) &&
 				(card->ext_csd.card_type & MMC_DDR_MODE_MASK)) {
 			ext_csd_bit = EXT_CSD_BUS_WIDTH_4_DDR;
 			bus_width = MMC_BUS_WIDTH_4 | MMC_BUS_WIDTH_DDR;
+			mmc_card_set_ddrmode(card);
 		} else if (host->caps & MMC_CAP_8_BIT_DATA) {
 			ext_csd_bit = EXT_CSD_BUS_WIDTH_8;
 			bus_width = MMC_BUS_WIDTH_8;
