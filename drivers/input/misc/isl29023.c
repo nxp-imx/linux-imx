@@ -826,14 +826,6 @@ static void isl29023_work(struct work_struct *work)
 	/* Clear interrupt flag */
 	isl29023_set_int_flag(client, 0);
 
-	/*
-	 * Max threshold to avoid multiple interrupts.
-	 * Let the user to reprogramme the interrupt
-	 * thresholds.
-	 */
-	isl29023_set_int_ht(client, 0xffff);
-	isl29023_set_int_lt(client, 0x0);
-
 	data->mode_before_interrupt = isl29023_get_mode(client);
 	lux = isl29023_get_adc_value(client);
 
