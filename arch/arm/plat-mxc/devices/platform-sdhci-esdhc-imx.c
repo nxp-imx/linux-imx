@@ -41,6 +41,18 @@ imx35_sdhci_esdhc_imx_data[] __initconst = {
 };
 #endif /* ifdef CONFIG_SOC_IMX35 */
 
+#ifdef CONFIG_SOC_IMX50
+const struct imx_sdhci_esdhc_imx_data
+imx50_sdhci_esdhc_imx_data[] __initconst = {
+#define imx50_sdhci_esdhc_imx_data_entry(_id, _hwid)			\
+	imx_sdhci_esdhc_imx_data_entry(MX50, _id, _hwid)
+	imx50_sdhci_esdhc_imx_data_entry(0, 1),
+	imx50_sdhci_esdhc_imx_data_entry(1, 2),
+	imx50_sdhci_esdhc_imx_data_entry(2, 3),
+	imx50_sdhci_esdhc_imx_data_entry(3, 4),
+};
+#endif /* ifdef CONFIG_SOC_IMX50 */
+
 #ifdef CONFIG_SOC_IMX51
 const struct imx_sdhci_esdhc_imx_data
 imx51_sdhci_esdhc_imx_data[] __initconst = {

@@ -33,7 +33,6 @@
 void __iomem *arm_plat_base;
 void __iomem *gpc_base;
 void __iomem *ccm_base;
-void __iomem *databahn_base;
 
 static int cpu_silicon_rev = -1;
 void (*set_num_cpu_op)(int num);
@@ -145,6 +144,7 @@ int mx53_revision(void)
 	return cpu_silicon_rev;
 }
 EXPORT_SYMBOL(mx53_revision);
+#define MX50_HW_ADADIG_DIGPROG	0xB0
 
 static int get_mx50_srev(void)
 {
@@ -190,13 +190,28 @@ static int __init post_cpu_init(void)
 	void __iomem *base;
 	struct clk *gpcclk = clk_get(NULL, "gpc_dvfs_clk");
 
+	if (cpu_is_mx51()) {
+		ccm_base = MX51_IO_ADDRESS(MX51_CCM_BASE_ADDR);
+		gpc_base = MX51_IO_ADDRESS(MX51_GPC_BASE_ADDR);
+		arm_plat_base = MX51_IO_ADDRESS(MX51_ARM_BASE_ADDR);
+		iram_init(MX51_IRAM_BASE_ADDR, MX51_IRAM_SIZE);
+	} else if (cpu_is_mx53()) {
+		ccm_base = MX53_IO_ADDRESS(MX53_CCM_BASE_ADDR);
+		gpc_base = MX53_IO_ADDRESS(MX53_GPC_BASE_ADDR);
+		arm_plat_base = MX53_IO_ADDRESS(MX53_ARM_BASE_ADDR);
+		iram_init(MX53_IRAM_BASE_ADDR, MX53_IRAM_SIZE);
+	} else {
+		ccm_base = MX50_IO_ADDRESS(MX50_CCM_BASE_ADDR);
+		gpc_base = MX50_IO_ADDRESS(MX50_GPC_BASE_ADDR);
+		arm_plat_base = MX50_IO_ADDRESS(MX50_ARM_BASE_ADDR);
+		iram_init(MX50_IRAM_BASE_ADDR, MX50_IRAM_SIZE);
+	}
+
 	if (cpu_is_mx51() || cpu_is_mx53()) {
 		if (cpu_is_mx51()) {
 			base = MX51_IO_ADDRESS(MX51_AIPS1_BASE_ADDR);
-			iram_init(MX51_IRAM_BASE_ADDR, MX51_IRAM_SIZE);
 		} else {
 			base = MX53_IO_ADDRESS(MX53_AIPS1_BASE_ADDR);
-			iram_init(MX53_IRAM_BASE_ADDR, MX53_IRAM_SIZE);
 		}
 
 		__raw_writel(0x0, base + 0x40);
@@ -218,9 +233,6 @@ static int __init post_cpu_init(void)
 		reg = __raw_readl(base + 0x50) & 0x00FFFFFF;
 		__raw_writel(reg, base + 0x50);
 	}
-	gpc_base = MX53_IO_ADDRESS(MX53_GPC_BASE_ADDR);
-	ccm_base = MX53_IO_ADDRESS(MX53_CCM_BASE_ADDR);
-
 	clk_enable(gpcclk);
 
 	/* Setup the number of clock cycles to wait for SRPG
@@ -240,8 +252,7 @@ static int __init post_cpu_init(void)
 	clk_put(gpcclk);
 
 	/* Set ALP bits to 000. Set ALP_EN bit in Arm Memory Controller reg. */
-	arm_plat_base = MX53_IO_ADDRESS(MX53_ARM_BASE_ADDR);
-		reg = 0x8;
+	reg = 0x8;
 	__raw_writel(reg, arm_plat_base + CORTEXA8_PLAT_AMC);
 
 	return 0;

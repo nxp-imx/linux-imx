@@ -248,7 +248,7 @@ static int __init pm_init(void)
 		 * Need to run the suspend code from IRAM as the DDR needs
 		 * to be put into self refresh mode manually.
 		 */
-		memcpy(suspend_iram_base, mx50_suspend, SZ_4K);
+		memcpy(cpaddr, mx50_suspend, SZ_4K);
 
 		suspend_param1 = databahn_base;
 	}

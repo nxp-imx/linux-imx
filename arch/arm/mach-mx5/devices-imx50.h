@@ -36,3 +36,20 @@ extern const struct imx_imx_i2c_data imx50_imx_i2c_data[] __initconst;
 extern const struct imx_mxc_gpu_data imx50_gpu_data __initconst;
 #define imx50_add_mxc_gpu(pdata) \
 	imx_add_mxc_gpu(&imx50_gpu_data, pdata)
+
+extern const struct imx_sdhci_esdhc_imx_data imx50_sdhci_esdhc_imx_data[] __initconst;
+#define imx50_add_sdhci_esdhc_imx(id, pdata)	\
+	imx_add_sdhci_esdhc_imx(&imx50_sdhci_esdhc_imx_data[id], pdata)
+
+extern const struct imx_otp_data imx50_otp_data __initconst;
+#define imx50_add_otp() \
+	imx_add_otp(&imx50_otp_data);
+
+extern const struct imx_dcp_data imx50_dcp_data __initconst;
+#define imx50_add_dcp() \
+	imx_add_dcp(&imx50_dcp_data);
+
+extern const struct imx_rngb_data imx50_rngb_data __initconst;
+#define imx50_add_rngb() \
+	imx_add_rngb(&imx50_rngb_data);
+

@@ -345,3 +345,29 @@ struct imx_mxc_gpu_data {
 struct platform_device *__init imx_add_mxc_gpu(
 		const struct imx_mxc_gpu_data *data,
 		const int *pdata);
+
+struct imx_otp_data {
+	resource_size_t iobase;
+	struct mxc_otp_platform_data *pdata;
+};
+
+struct platform_device *__init imx_add_otp(
+		const struct imx_otp_data *data);
+
+struct imx_dcp_data {
+	resource_size_t iobase;
+	resource_size_t irq1;
+	resource_size_t irq2;
+};
+
+struct platform_device *__init imx_add_dcp(
+		const struct imx_dcp_data *data);
+
+struct imx_rngb_data {
+	resource_size_t iobase;
+	resource_size_t irq;
+};
+
+struct platform_device *__init imx_add_rngb(
+		const struct imx_rngb_data *data);
+

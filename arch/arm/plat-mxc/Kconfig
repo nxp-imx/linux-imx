@@ -117,6 +117,9 @@ config MXC_ULPI
 config ARCH_HAS_RNGA
 	bool
 
+config ARCH_HAS_RNGC
+	bool
+
 config IMX_HAVE_IOMUX_V1
 	bool
 

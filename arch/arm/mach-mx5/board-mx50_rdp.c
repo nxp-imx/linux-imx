@@ -36,6 +36,7 @@
 #include <asm/mach/time.h>
 
 #include "devices-imx50.h"
+#include "cpu_op-mx50.h"
 
 #define FEC_EN		IMX_GPIO_NR(6, 23)
 #define FEC_RESET_B	IMX_GPIO_NR(4, 12)
@@ -198,14 +199,26 @@ static void __init mx50_rdp_board_init(void)
 	mxc_iomux_v3_setup_multiple_pads(mx50_rdp_pads,
 					ARRAY_SIZE(mx50_rdp_pads));
 
-	imx50_add_imx_uart(0, &uart_pdata);
-	imx50_add_imx_uart(1, &uart_pdata);
+#if defined(CONFIG_CPU_FREQ_IMX)
+	get_cpu_op = mx50_get_cpu_op;
+#endif
+	pr_info("CPU is iMX50 Revision %u\n",
+		mx50_revision());
+
+	imx50_add_imx_uart(0, NULL);
+	imx50_add_imx_uart(1, NULL);
 	mx50_rdp_fec_reset();
 	imx50_add_fec(&fec_data);
 	imx50_add_imx_i2c(0, &i2c_data);
 	imx50_add_imx_i2c(1, &i2c_data);
 	imx50_add_imx_i2c(2, &i2c_data);
 	imx50_add_mxc_gpu(&z160_revision);
+	imx50_add_sdhci_esdhc_imx(0, NULL);
+	imx50_add_sdhci_esdhc_imx(1, NULL);
+	imx50_add_sdhci_esdhc_imx(2, NULL);
+	imx50_add_otp();
+	imx50_add_dcp();
+	imx50_add_rngb();
 }
 
 static void __init mx50_rdp_timer_init(void)
