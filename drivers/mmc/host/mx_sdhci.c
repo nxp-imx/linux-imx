@@ -243,7 +243,7 @@ static void sdhci_init(struct sdhci_host *host)
 	    SDHCI_INT_DMA_END | SDHCI_INT_DATA_END | SDHCI_INT_RESPONSE;
 
 	if ((mx50_revision() == IMX_CHIP_REVISION_1_0)
-			|| (mx53_revision() < IMX_CHIP_REVISION_2_0))
+			|| (mx53_revision() == IMX_CHIP_REVISION_1_0))
 		intmask |= SDHCI_INT_ACMD12ERR;
 
 	if (host->flags & SDHCI_USE_DMA)
@@ -663,8 +663,8 @@ static void sdhci_finish_data(struct sdhci_host *host)
 	}
 	data->bytes_xfered = data->blksz * data->blocks;
 
-	if ((data->stop) && ((mx50_revision() >= IMX_CHIP_REVISION_1_1)
-				|| (mx53_revision() >= IMX_CHIP_REVISION_2_0))) {
+	if ((data->stop) && !((mx50_revision() == IMX_CHIP_REVISION_1_0) ||
+				(mx53_revision() == IMX_CHIP_REVISION_1_0))) {
 		/*
 		 * The controller needs a reset of internal state machines
 		 * upon error conditions.
