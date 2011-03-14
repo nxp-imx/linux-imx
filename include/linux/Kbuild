@@ -390,6 +390,7 @@ unifdef-y += xfrm.h
 
 ## i.MX specific files
 unifdef-y += fsl_devices.h
+unifdef-y += isl29023.h
 unifdef-y += imx_adc.h
 unifdef-y += ipu.h
 unifdef-y += mxc_asrc.h
