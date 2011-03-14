@@ -1144,5 +1144,11 @@ config RAMOOPS
 	  This enables panic and oops messages to be logged to a circular
 	  buffer in RAM where it can be read back at some later point.
 
+config MXC_IIM
+	tristate "MXC IIM device driver"
+	depends on ARCH_MXC
+	help
+	  Support for access to MXC IIM device, most people should say N here.
+
 endmenu
 
