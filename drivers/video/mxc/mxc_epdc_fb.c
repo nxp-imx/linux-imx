@@ -132,6 +132,8 @@ struct mxc_epdc_fb_data {
 	int epdc_irq;
 	struct device *dev;
 	int power_state;
+	int wait_for_powerdown;
+	struct completion powerdown_compl;
 	struct clk *epdc_clk_axi;
 	struct clk *epdc_clk_pix;
 	struct regulator *display_regulator;
@@ -163,6 +165,7 @@ struct mxc_epdc_fb_data {
 	u32 order_cnt;
 	struct list_head full_marker_list;
 	u32 lut_update_order[EPDC_NUM_LUTS];
+	u32 luts_complete_wb;
 	struct completion updates_done;
 	struct delayed_work epdc_done_work;
 	struct workqueue_struct *epdc_submit_workqueue;
@@ -385,11 +388,9 @@ static void dump_free_list(struct mxc_epdc_fb_data *fb_data)
 	dev_info(fb_data->dev, "Free List:\n");
 	if (list_empty(&fb_data->upd_buf_free_list))
 		dev_info(fb_data->dev, "Empty");
-	list_for_each_entry(plist, &fb_data->upd_buf_free_list, list) {
+	list_for_each_entry(plist, &fb_data->upd_buf_free_list, list)
 		dev_info(fb_data->dev, "Virt Addr = 0x%x, Phys Addr = 0x%x ",
 			(u32)plist->virt_addr, plist->phys_addr);
-		dump_update_data(fb_data->dev, plist);
-	}
 }
 
 static void dump_queue(struct mxc_epdc_fb_data *fb_data)
@@ -885,6 +886,11 @@ static void epdc_powerdown(struct mxc_epdc_fb_data *fb_data)
 
 	fb_data->power_state = POWER_STATE_OFF;
 	fb_data->powering_down = false;
+
+	if (fb_data->wait_for_powerdown) {
+		fb_data->wait_for_powerdown = false;
+		complete(&fb_data->powerdown_compl);
+	}
 
 	mutex_unlock(&fb_data->power_mutex);
 }
@@ -2074,6 +2080,9 @@ static void epdc_submit_work_func(struct work_struct *work)
 	fb_data->cur_update = upd_data_list;
 	upd_data_list->lut_num = epdc_get_next_lut();
 
+	/* Reset mask for LUTS that have completed during WB processing */
+	fb_data->luts_complete_wb = 0;
+
 	/* Associate LUT with update marker */
 	list_for_each_entry_safe(next_marker, temp_marker,
 		&upd_data_list->update_desc->upd_marker_list, upd_list)
@@ -2306,6 +2315,9 @@ int mxc_epdc_fb_send_update(struct mxcfb_update_data *upd_data,
 
 	/* Save current update */
 	fb_data->cur_update = upd_data_list;
+
+	/* Reset mask for LUTS that have completed during WB processing */
+	fb_data->luts_complete_wb = 0;
 
 	/* LUTs are available, so we get one here */
 	upd_data_list->lut_num = epdc_get_next_lut();
@@ -2565,6 +2577,7 @@ static void mxc_epdc_fb_deferred_io(struct fb_info *info,
 void mxc_epdc_fb_flush_updates(struct mxc_epdc_fb_data *fb_data)
 {
 	unsigned long flags;
+	int ret;
 	/* Grab queue lock to prevent any new updates from being submitted */
 	spin_lock_irqsave(&fb_data->queue_lock, flags);
 
@@ -2585,8 +2598,12 @@ void mxc_epdc_fb_flush_updates(struct mxc_epdc_fb_data *fb_data)
 
 		spin_unlock_irqrestore(&fb_data->queue_lock, flags);
 		/* Wait for any currently active updates to complete */
-		wait_for_completion_timeout(&fb_data->updates_done,
-						msecs_to_jiffies(10000));
+		ret = wait_for_completion_timeout(&fb_data->updates_done,
+						msecs_to_jiffies(5000));
+		if (!ret)
+			dev_err(fb_data->dev,
+				"Flush updates timeout! ret = 0x%x\n", ret);
+
 		spin_lock_irqsave(&fb_data->queue_lock, flags);
 		fb_data->waiting_for_idle = false;
 	}
@@ -2597,6 +2614,7 @@ void mxc_epdc_fb_flush_updates(struct mxc_epdc_fb_data *fb_data)
 static int mxc_epdc_fb_blank(int blank, struct fb_info *info)
 {
 	struct mxc_epdc_fb_data *fb_data = (struct mxc_epdc_fb_data *)info;
+	int ret;
 
 	dev_dbg(fb_data->dev, "blank = %d\n", blank);
 
@@ -2607,6 +2625,23 @@ static int mxc_epdc_fb_blank(int blank, struct fb_info *info)
 
 	switch (blank) {
 	case FB_BLANK_POWERDOWN:
+		mxc_epdc_fb_flush_updates(fb_data);
+		/* Wait for powerdown */
+		mutex_lock(&fb_data->power_mutex);
+		if (fb_data->power_state != POWER_STATE_OFF) {
+			fb_data->wait_for_powerdown = true;
+			init_completion(&fb_data->powerdown_compl);
+			mutex_unlock(&fb_data->power_mutex);
+			ret = wait_for_completion_timeout(&fb_data->powerdown_compl,
+				msecs_to_jiffies(5000));
+			if (!ret) {
+				dev_err(fb_data->dev,
+					"No powerdown received!\n");
+				return -ETIMEDOUT;
+			}
+		} else
+			mutex_unlock(&fb_data->power_mutex);
+		break;
 	case FB_BLANK_VSYNC_SUSPEND:
 	case FB_BLANK_HSYNC_SUSPEND:
 	case FB_BLANK_NORMAL:
@@ -2735,7 +2770,6 @@ static irqreturn_t mxc_epdc_irq_handler(int irq, void *dev_id)
 	struct update_marker_data *temp;
 	unsigned long flags;
 	int temp_index;
-	u32 luts_completed_mask;
 	u32 temp_mask;
 	u32 missed_coll_mask = 0;
 	u32 lut;
@@ -2777,7 +2811,6 @@ static irqreturn_t mxc_epdc_irq_handler(int irq, void *dev_id)
 	spin_lock_irqsave(&fb_data->queue_lock, flags);
 
 	/* Free any LUTs that have completed */
-	luts_completed_mask = 0;
 	for (i = 0; i < EPDC_NUM_LUTS; i++) {
 		if (!epdc_is_lut_complete(i))
 			continue;
@@ -2800,7 +2833,7 @@ static irqreturn_t mxc_epdc_irq_handler(int irq, void *dev_id)
 
 		epdc_clear_lut_complete_irq(i);
 
-		luts_completed_mask |= 1 << i;
+		fb_data->luts_complete_wb |= 1 << i;
 
 		fb_data->lut_update_order[i] = 0;
 
@@ -2909,8 +2942,9 @@ static irqreturn_t mxc_epdc_irq_handler(int irq, void *dev_id)
 					missed_coll_mask);
 			}
 
-			/* Clear collisions that just completed */
-			fb_data->cur_update->collision_mask &= ~luts_completed_mask;
+			/* Clear collisions that completed since WB began */
+			fb_data->cur_update->collision_mask &=
+				~fb_data->luts_complete_wb;
 
 			dev_dbg(fb_data->dev, "\nCollision mask = 0x%x\n",
 			       fb_data->cur_update->collision_mask);
@@ -3812,6 +3846,7 @@ int __devinit mxc_epdc_fb_probe(struct platform_device *pdev)
 	fb_data->blank = FB_BLANK_UNBLANK;
 	fb_data->power_state = POWER_STATE_OFF;
 	fb_data->powering_down = false;
+	fb_data->wait_for_powerdown = false;
 	fb_data->pwrdown_delay = 0;
 
 	/* Register FB */
