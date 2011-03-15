@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # Linux kernel version: 2.6.35.3
-# Wed Mar  2 13:55:20 2011
+# Tue Mar 15 09:25:32 2011
 #
 CONFIG_ARM=y
 CONFIG_HAVE_PWM=y
@@ -1822,7 +1822,7 @@ CONFIG_SND_DRIVERS=y
 # CONFIG_SND_SERIAL_U16550 is not set
 # CONFIG_SND_MPU401 is not set
 CONFIG_SND_ARM=y
-CONFIG_SND_MXC_SPDIF=m
+CONFIG_SND_MXC_SPDIF=y
 CONFIG_SND_SPI=y
 CONFIG_SND_USB=y
 # CONFIG_SND_USB_AUDIO is not set
