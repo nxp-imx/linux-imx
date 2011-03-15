@@ -28,6 +28,7 @@
 #include <linux/mmc/sdio_ids.h>
 #include <linux/mmc/sdio.h>
 #include <linux/kthread.h>
+#include <linux/semaphore.h>
 #include "hif_internal.h"
 #define ATH_MODULE_NAME hif
 #include "a_debug.h"
