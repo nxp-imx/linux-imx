@@ -2035,7 +2035,8 @@ CONFIG_DMA_ENGINE=y
 # CONFIG_DMATEST is not set
 # CONFIG_AUXDISPLAY is not set
 # CONFIG_UIO is not set
-# CONFIG_STAGING is not set
+CONFIG_STAGING=y
+CONFIG_STAGING_EXCLUDE_BUILD=n
 
 #
 # MXC support drivers
