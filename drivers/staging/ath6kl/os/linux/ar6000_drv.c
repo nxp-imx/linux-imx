@@ -120,7 +120,7 @@ HCI_TRANSPORT_CALLBACKS ar6kHciTransCallbacks = { NULL };
 unsigned int processDot11Hdr = 0;
 int bmienable = BMIENABLE_DEFAULT;
 
-char ifname[IFNAMSIZ] = {0,};
+char ifname[IFNAMSIZ] = "wlan%d";
 
 int wlaninitmode = WLAN_INIT_MODE_DEFAULT;
 unsigned int bypasswmi = 0;
