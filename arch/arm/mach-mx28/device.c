@@ -662,6 +662,7 @@ static void mx28_init_mmc(void)
 #if defined(CONFIG_SPI_MXS) || defined(CONFIG_SPI_MXS_MODULE)
 static struct mxs_spi_platform_data spi_data = {
 	.clk = "ssp.2",
+	.slave_mode = 0,
 };
 static struct resource ssp2_resources[] = {
 	{
