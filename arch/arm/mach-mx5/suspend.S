@@ -111,8 +111,8 @@ FinishedClean:
 mx53_reduce_ddr_drive_strength:
     cmp     r6, #3
     bne     mx5x_wfi
-    PM_SET_AND_BACKUP_REG MX53_DRAM_SDCLK0_PAD_CTRL_ADDR, 0x380000, 0, 0
-    PM_SET_AND_BACKUP_REG MX53_DRAM_SDCLK1_PAD_CTRL_ADDR, 0x380000, 0, 1
+    PM_SET_AND_BACKUP_REG MX53_DRAM_SDCLK0_PAD_CTRL_ADDR, 0x380000, 0x80000, 0
+    PM_SET_AND_BACKUP_REG MX53_DRAM_SDCLK1_PAD_CTRL_ADDR, 0x380000, 0x80000, 1
 
 mx5x_wfi:
     .long     0xe320f003              @ Opcode for WFI
