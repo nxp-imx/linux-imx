@@ -59,7 +59,7 @@ kgsl_intr_decode(gsl_device_t *device, gsl_intrblock_t block_id)
 
     // read the block's interrupt status bits
     /* exclude CP block here to avoid hang in heavy loading with VPU+GPU */
-    if (block_id == GSL_INTR_BLOCK_YDX_CP) {
+    if ((block_id == GSL_INTR_BLOCK_YDX_CP) && (device->flags & GSL_FLAGS_STARTED)) {
 	status = 0x80000000;
     } else {
 	device->ftbl.device_regread(device, block->status_reg, &status);
