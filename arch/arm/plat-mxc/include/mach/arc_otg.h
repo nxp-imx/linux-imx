@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2005-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -219,6 +219,9 @@ extern volatile u32 *mx3_usb_otg_addr;
 #define  OTGSC_IE_B_SESSION_END		(1 << 28)
 #define  OTGSC_IE_1ms_TIMER		(1 << 29)
 #define  OTGSC_IE_DATA_PULSE		(1 << 30)
+/* UOG_USBSTS bits */
+#define USBSTS_PCI			(1 << 2) /* Port Change Detect */
+#define USBSTS_URI			(1 << 6) /* USB Reset Received */
 
 #if 1				/* FIXME these here for compatibility between my names and Leo's */
 /* OTG interrupt enable bit masks */
