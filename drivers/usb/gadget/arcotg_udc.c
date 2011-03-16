@@ -2262,7 +2262,7 @@ static irqreturn_t fsl_udc_irq(int irq, void *_udc)
 
 	/* Reset Received */
 	if (irq_src & USB_STS_RESET) {
-		VDBG("reset int");
+		pr_debug("reset int");
 		reset_irq(udc);
 		status = IRQ_HANDLED;
 	}
@@ -2270,7 +2270,8 @@ static irqreturn_t fsl_udc_irq(int irq, void *_udc)
 	/* Sleep Enable (Suspend) */
 	if (irq_src & USB_STS_SUSPEND) {
 		VDBG("suspend int");
-		suspend_irq(udc);
+		if (!(udc->usb_state == USB_STATE_SUSPENDED))
+			suspend_irq(udc);
 		status = IRQ_HANDLED;
 	}
 
@@ -3148,9 +3149,16 @@ static int udc_suspend(struct fsl_udc *udc)
 
 	udc->stopped = 1;
 
-	/* stop the controller */
-	usbcmd = fsl_readl(&dr_regs->usbcmd) & ~USB_CMD_RUN_STOP;
-	fsl_writel(usbcmd, &dr_regs->usbcmd);
+	/* The dp should be still pulled up
+	 * if there is usb cable or usb charger on port.
+	 * In that case, the usb device can be remained on suspend state
+	 * and the dp will not be changed.
+	 */
+	if (!(fsl_readl(&dr_regs->otgsc) & OTGSC_B_SESSION_VALID)) {
+		/* stop the controller */
+		usbcmd = fsl_readl(&dr_regs->usbcmd) & ~USB_CMD_RUN_STOP;
+		fsl_writel(usbcmd, &dr_regs->usbcmd);
+	}
 
 	dr_phy_low_power_mode(udc, true);
 	printk(KERN_DEBUG "USB Gadget suspend ends\n");
@@ -3216,6 +3224,8 @@ static int fsl_udc_resume(struct platform_device *pdev)
 		mutex_unlock(&udc_resume_mutex);
 		return 0;
 	}
+	/* prevent the quirk interrupts from resuming */
+	disable_irq_nosync(udc_controller->irq);
 
 	/*
 	 * If the controller was stopped at suspend time, then
@@ -3269,6 +3279,7 @@ end:
 		dr_clk_gate(false);
 	}
 	--udc_controller->suspended;
+	enable_irq(udc_controller->irq);
 	mutex_unlock(&udc_resume_mutex);
 	printk(KERN_DEBUG "USB Gadget resume ends\n");
 	return 0;
