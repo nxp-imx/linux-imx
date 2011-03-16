@@ -3,7 +3,7 @@
  *
  * Author: dmitry pervushin <dimka@embeddedalley.com>
  *
- * Copyright 2008-2010 Freescale Semiconductor, Inc.
+ * Copyright 2008-2011 Freescale Semiconductor, Inc.
  * Copyright 2008 Embedded Alley Solutions, Inc All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
@@ -111,8 +111,10 @@ static int mxs_spi_setup_transfer(struct spi_device *spi,
 	u32 hz;
 	struct mxs_spi *ss /* = spi_master_get_devdata(spi->master) */ ;
 	u16 rate;
+	struct mxs_spi_platform_data *pdata;
 
 	ss = spi_master_get_devdata(spi->master);
+	pdata = ss->master_dev->platform_data;
 
 	bits_per_word = spi->bits_per_word;
 	if (t && t->bits_per_word)
@@ -162,7 +164,8 @@ static int mxs_spi_setup_transfer(struct spi_device *spi,
 		     (BV_SSP_CTRL1_WORD_LENGTH__EIGHT_BITS) |
 		     ((spi->mode & SPI_CPOL) ? BM_SSP_CTRL1_POLARITY : 0) |
 		     ((spi->mode & SPI_CPHA) ? BM_SSP_CTRL1_PHASE : 0) |
-		     (pio ? 0 : BM_SSP_CTRL1_DMA_ENABLE),
+		     (pio ? 0 : BM_SSP_CTRL1_DMA_ENABLE) |
+		     (pdata->slave_mode ? BM_SSP_CTRL1_SLAVE_MODE : 0),
 		     ss->regs + HW_SSP_CTRL1);
 
 	__raw_writel(0x00, ss->regs + HW_SSP_CMD0_SET);
@@ -221,9 +224,17 @@ static int mxs_spi_txrx_dma(struct mxs_spi *ss, int cs,
 	dma_addr_t spi_buf_dma = dma_buf;
 	int count, status = 0;
 	enum dma_data_direction dir = write ? DMA_TO_DEVICE : DMA_FROM_DEVICE;
+	struct mxs_spi_platform_data *pdata = ss->master_dev->platform_data;
 
-	c0 |= (*first ? BM_SSP_CTRL0_LOCK_CS : 0);
-	c0 |= (*last ? BM_SSP_CTRL0_IGNORE_CRC : 0);
+	if (pdata->slave_mode) {
+		/* slave mode only supports IGNORE_CRC=1 && LOCK_CS=0 */
+		/* It's from ic validation result */
+		c0 |= BM_SSP_CTRL0_IGNORE_CRC;
+	} else {
+		c0 |= (*first ? BM_SSP_CTRL0_LOCK_CS : 0);
+		c0 |= (*last ? BM_SSP_CTRL0_IGNORE_CRC : 0);
+	}
+
 	c0 |= (write ? 0 : BM_SSP_CTRL0_READ);
 	c0 |= BM_SSP_CTRL0_DATA_XFER;
 
@@ -559,6 +570,7 @@ static int __init mxs_spi_probe(struct platform_device *dev)
 	master->transfer = mxs_spi_transfer;
 	master->setup = mxs_spi_setup;
 	master->cleanup = mxs_spi_cleanup;
+	master->mode_bits = MODEBITS;
 
 	if (!request_mem_region(r->start,
 				resource_size(r), dev_name(&dev->dev))) {
@@ -634,6 +646,10 @@ static int __init mxs_spi_probe(struct platform_device *dev)
 		dev_dbg(&dev->dev, "cannot register spi master, %d\n", err);
 		goto out_free_irq_2;
 	}
+
+	if (pdata->slave_mode)
+		pio = 0;
+
 	dev_info(&dev->dev, "at 0x%08X mapped to 0x%08X, irq=%d, bus %d, %s ver_major %d\n",
 		 mem, (u32) ss->regs, ss->irq_dma,
 		 master->bus_num, pio ? "PIO" : "DMA", ss->ver_major);
