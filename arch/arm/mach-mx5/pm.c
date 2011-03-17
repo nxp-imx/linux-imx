@@ -125,8 +125,12 @@ static int mx5_suspend_enter(suspend_state_t state)
 					machine_is_mx53_loco()) {
 					mx53_smd_loco_irq_wake_fixup();
 					da9053_suspend_cmd_sw();
-				} else
+				} else {
+			/* for new OTP DA9053 board, comment out next */
+			/* line to enable other irq for wakeup */
+					mx53_smd_loco_irq_wake_fixup();
 					da9053_suspend_cmd_hw();
+				}
 			}
 			/* Run the suspend code from iRAM. */
 			suspend_in_iram(suspend_param1);
