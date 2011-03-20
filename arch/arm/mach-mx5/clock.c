@@ -2362,6 +2362,29 @@ static unsigned long _clk_cspi_get_rate(struct clk *clk)
 	return clk_get_rate(clk->parent) / (prediv * podf);
 }
 
+static int _clk_cspi_set_rate(struct clk *clk, unsigned long rate)
+{
+	u32 reg, div, pre, post;
+	u32 parent_rate = clk_get_rate(clk->parent);
+
+	div = parent_rate / rate;
+	if (div == 0)
+		div++;
+	if (((parent_rate / div) != rate))
+		return -EINVAL;
+
+	__calc_pre_post_dividers(div, &pre, &post);
+
+	reg = __raw_readl(MXC_CCM_CSCDR2) &
+		~(MXC_CCM_CSCDR2_ECSPI_CLK_PODF_MASK |
+		MXC_CCM_CSCDR2_ECSPI_CLK_PRED_MASK);
+	reg |= (post - 1) << MXC_CCM_CSCDR2_ECSPI_CLK_PODF_OFFSET;
+	reg |= (pre - 1) << MXC_CCM_CSCDR2_ECSPI_CLK_PRED_OFFSET;
+	__raw_writel(reg, MXC_CCM_CSCDR2);
+
+	return 0;
+}
+
 static int _clk_cspi_set_parent(struct clk *clk, struct clk *parent)
 {
 	u32 reg, mux;
@@ -2378,6 +2401,7 @@ static int _clk_cspi_set_parent(struct clk *clk, struct clk *parent)
 static struct clk cspi_main_clk = {
 	.parent = &pll3_sw_clk,
 	.get_rate = _clk_cspi_get_rate,
+	.set_rate = _clk_cspi_set_rate,
 	.set_parent = _clk_cspi_set_parent,
 	.flags = RATE_PROPAGATES,
 };
