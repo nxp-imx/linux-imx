@@ -1,5 +1,5 @@
 /*
- * Copyright 2008-2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2008-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * The code contained herein is licensed under the GNU General Public
  * License. You may obtain a copy of the GNU General Public License
@@ -474,6 +474,10 @@
 /* MX53 */
 #define MXC_CCM_CSCDR2_ASRC_CLK_PODF_OFFSET	(9)
 #define MXC_CCM_CSCDR2_ASRC_CLK_PODF_MASK		(0x3F << 9)
+#define MXC_CCM_CSCDR2_ECSPI_CLK_PODF_OFFSET            (19)
+#define MXC_CCM_CSCDR2_ECSPI_CLK_PODF_MASK              (0x3F << 19)
+#define MXC_CCM_CSCDR2_ECSPI_CLK_PRED_OFFSET            (25)
+#define MXC_CCM_CSCDR2_ECSPI_CLK_PRED_MASK              (0x7 << 25)
 #define MXC_CCM_CSCDR2_IEEE_CLK_PRED_OFFSET		(6)
 #define MXC_CCM_CSCDR2_IEEE_CLK_PRED_MASK		(0x7 << 6)
 #define MXC_CCM_CSCDR2_IEEE_CLK_PODF_OFFSET	(0)

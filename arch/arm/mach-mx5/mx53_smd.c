@@ -720,6 +720,47 @@ static struct i2c_board_info mxc_i2c2_board_info[] __initdata = {
 	},
 };
 
+#if defined(CONFIG_MTD_MXC_M25P80) || defined(CONFIG_MTD_MXC_M25P80_MODULE)
+static struct mtd_partition m25p32_partitions[] = {
+	{
+	.name = "bootloader",
+	.offset = 0,
+	.size = 0x00040000,
+	},
+	{
+	.name = "kernel",
+	.offset = MTDPART_OFS_APPEND,
+	.size = MTDPART_SIZ_FULL,
+	},
+};
+
+static struct flash_platform_data m25p32_spi_flash_data = {
+	.name = "m25p80",
+	.parts = m25p32_partitions,
+	.nr_parts = ARRAY_SIZE(m25p32_partitions),
+	.type = "m25p32",
+};
+#endif
+
+static struct spi_board_info m25p32_spi1_board_info[] __initdata = {
+#if defined(CONFIG_MTD_MXC_M25P80) || defined(CONFIG_MTD_MXC_M25P80_MODULE)
+	{
+		/* the modalias must be the same as spi device driver name */
+		.modalias = "m25p80",           /* Name of spi_driver for this device */
+		.max_speed_hz = 20000000,       /* max spi SCK clock speed in HZ */
+		.bus_num = 1,                   /* Framework bus number */
+		.chip_select = 1,               /* Framework chip select. */
+		.platform_data = &m25p32_spi_flash_data,
+	}
+#endif
+};
+
+static void spi_device_init(void)
+{
+	spi_register_board_info(m25p32_spi1_board_info,
+				ARRAY_SIZE(m25p32_spi1_board_info));
+}
+
 static void mx53_gpio_usbotg_driver_vbus(bool on)
 {
 	if (on)
@@ -1145,6 +1186,8 @@ static void __init mxc_board_init(void)
 		clk_put(mxc_asrc_data.asrc_audio_clk);
 		mxc_register_device(&mxc_asrc_device, &mxc_asrc_data);
 	}
+
+	spi_device_init();
 
 	i2c_register_board_info(0, mxc_i2c0_board_info,
 				ARRAY_SIZE(mxc_i2c0_board_info));
