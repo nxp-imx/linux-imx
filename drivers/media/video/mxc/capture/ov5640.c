@@ -181,8 +181,7 @@ static struct reg_value ov5640_setting_15fps_QSXGA_2592_1944[] = {
 	{0x583a, 0x9f, 0, 0}, {0x583b, 0xbf, 0, 0}, {0x583c, 0xec, 0, 0},
 	{0x5025, 0x00, 0, 0}, {0x3a0f, 0x30, 0, 0}, {0x3a10, 0x28, 0, 0},
 	{0x3a1b, 0x30, 0, 0}, {0x3a1e, 0x26, 0, 0}, {0x3a11, 0x60, 0, 0},
-	{0x3a1f, 0x14, 0, 0}, {0x3008, 0x02, 0, 0}, {0x3035, 0x11, 0, 0},
-	{0x3036, 0x46, 0, 0},
+	{0x3a1f, 0x14, 0, 0}, {0x3008, 0x02, 0, 0}, {0x3035, 0x21, 0, 0},
 };
 
 static struct reg_value ov5640_setting_30fps_VGA_640_480[] = {
@@ -619,7 +618,7 @@ static struct reg_value ov5640_setting_30fps_720P_1280_720[] = {
 	{0x460b, 0x37, 0, 0},
 };
 
-static struct reg_value ov5640_setting_30fps_1080P_1920_1080[] = {
+static struct reg_value ov5640_setting_15fps_1080P_1920_1080[] = {
 	{0x3103, 0x11, 0, 0}, {0x3008, 0x82, 0, 0}, {0x3008, 0x42, 0, 0},
 	{0x3103, 0x03, 0, 0}, {0x3017, 0xff, 0, 0}, {0x3018, 0xff, 0, 0},
 	{0x3034, 0x1a, 0, 0}, {0x3035, 0x11, 0, 0}, {0x3036, 0x69, 0, 0},
@@ -715,7 +714,9 @@ static struct ov5640_mode_info ov5640_mode_info_data[2][ov5640_mode_MAX + 1] = {
 		{ov5640_mode_NTSC_720_480, 0, 0, NULL, 0},
 		{ov5640_mode_PAL_720_576, 0, 0, NULL, 0},
 		{ov5640_mode_720P_1280_720, 0, 0, NULL, 0},
-		{ov5640_mode_1080P_1920_1080, 0, 0, NULL, 0},
+		{ov5640_mode_1080P_1920_1080, 1920, 1080,
+		ov5640_setting_15fps_1080P_1920_1080,
+		ARRAY_SIZE(ov5640_setting_15fps_1080P_1920_1080)},
 		{ov5640_mode_QSXGA_2592_1944, 2592, 1944,
 		ov5640_setting_15fps_QSXGA_2592_1944,
 		ARRAY_SIZE(ov5640_setting_15fps_QSXGA_2592_1944)},
@@ -736,9 +737,7 @@ static struct ov5640_mode_info ov5640_mode_info_data[2][ov5640_mode_MAX + 1] = {
 		{ov5640_mode_720P_1280_720,  1280, 720,
 		ov5640_setting_30fps_720P_1280_720,
 		ARRAY_SIZE(ov5640_setting_30fps_720P_1280_720)},
-		{ov5640_mode_1080P_1920_1080,  1920, 1080,
-		ov5640_setting_30fps_1080P_1920_1080,
-		ARRAY_SIZE(ov5640_setting_30fps_1080P_1920_1080)},
+		{ov5640_mode_1080P_1920_1080, 0, 0, NULL, 0},
 		{ov5640_mode_QSXGA_2592_1944, 0, 0, NULL, 0},
 	},
 };
