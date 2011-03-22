@@ -12,14 +12,6 @@ config MXC_VPU
 	  The VPU codec device provides codec function for H.264/MPEG4/H.263,
 	  as well as MPEG2/VC-1/DivX on some platforms.
 
-config MXC_VPU_IRAM
-	  tristate "Use IRAM as temporary buffer for VPU to enhance performace"
-	  depends on (ARCH_MX37 || ARCH_MX5)
-	  default y
-	---help---
-	  The VPU can use internal RAM as temporary buffer to save external
-	  memroy bandwith, thus to enhance video performance.
-
 config MXC_VPU_DEBUG
 	bool "MXC VPU debugging"
 	depends on MXC_VPU != n
