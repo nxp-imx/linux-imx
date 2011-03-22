@@ -1,5 +1,5 @@
 /*
- * Copyright 2006-2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2006-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -593,13 +593,13 @@ static int vpu_dev_probe(struct platform_device *pdev)
 
 	vpu_plat = pdev->dev.platform_data;
 
-	if (VPU_IRAM_SIZE)
-		iram_alloc(VPU_IRAM_SIZE, &addr);
+	if (vpu_plat && vpu_plat->iram_enable && vpu_plat->iram_size)
+		iram_alloc(vpu_plat->iram_size, &addr);
 	if (addr == 0)
 		iram.start = iram.end = 0;
 	else {
 		iram.start = addr;
-		iram.end = addr + VPU_IRAM_SIZE - 1;
+		iram.end = addr +  vpu_plat->iram_size - 1;
 	}
 
 	if (cpu_is_mx32()) {
@@ -682,8 +682,8 @@ static int vpu_dev_remove(struct platform_device *pdev)
 	destroy_workqueue(vpu_data.workqueue);
 
 	iounmap(vpu_base);
-	if (VPU_IRAM_SIZE)
-		iram_free(iram.start, VPU_IRAM_SIZE);
+	if (vpu_plat && vpu_plat->iram_enable && vpu_plat->iram_size)
+		iram_free(iram.start,  vpu_plat->iram_size);
 
 	return 0;
 }

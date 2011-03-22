@@ -504,6 +504,8 @@ struct ldb_platform_data {
 };
 
  struct mxc_vpu_platform_data {
+	bool iram_enable;
+	int  iram_size;
 	void (*reset) (void);
 };
 
