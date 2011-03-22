@@ -242,12 +242,13 @@ static iomux_v3_cfg_t mx51babbage_pads[] = {
 };
 
 static struct dvfs_wp dvfs_core_setpoint[] = {
-						{33, 8, 33, 10, 10, 0x08},
-						{26, 0, 33, 20, 10, 0x08},
-						{28, 8, 33, 20, 30, 0x08},
-						{29, 0, 33, 20, 10, 0x08},};
+	{33, 13, 33, 10, 10, 0x08}, /* 800MHz*/
+	{28, 8, 33, 10, 10, 0x08},   /* 400MHz */
+	{20, 0, 33, 20, 10, 0x08},   /* 160MHz*/
+	{28, 8, 33, 20, 30, 0x08},   /*160MHz, AHB 133MHz, LPAPM mode*/
+	{29, 0, 33, 20, 10, 0x08},}; /* 160MHz, AHB 24MHz */
 
-/* working point(wp): 0 - 800MHz; 1 - 166.25MHz; */
+/* CPU working point(wp) */
 static struct cpu_wp cpu_wp_auto[] = {
 	{
 	 .pll_rate = 1000000000,
@@ -269,7 +270,20 @@ static struct cpu_wp cpu_wp_auto[] = {
 	 .cpu_voltage = 1100000,},
 	{
 	 .pll_rate = 800000000,
+	 .cpu_rate = 400000000,
+	 .pdf = 0,
+	 .mfi = 8,
+	 .mfd = 2,
+	 .mfn = 1,
+	 .cpu_podf = 1,
+	 .cpu_voltage = 950000,},
+	{
+	 .pll_rate = 800000000,
 	 .cpu_rate = 166250000,
+	 .pdf = 0,
+	 .mfi = 8,
+	 .mfd = 2,
+	 .mfn = 1,
 	 .cpu_podf = 4,
 	 .cpu_voltage = 850000,},
 };
