@@ -733,6 +733,16 @@ static struct pca953x_platform_data mx53_i2c_max7310_platdata = {
 	.setup		= mx53_ard_max7310_setup,
 };
 
+/* Used only for ARD Rev B boards */
+static int p1003_ts_hw_status(void)
+{
+	return gpio_get_value(ARD_TS_INT);
+}
+
+static struct p1003_ts_platform_data p1003_ts_data = {
+	.hw_status = p1003_ts_hw_status,
+};
+
 static struct i2c_board_info mxc_i2c1_board_info[] __initdata = {
 	{
 	.type = "cs42888",
@@ -1153,9 +1163,12 @@ static void __init mx53_ard_io_init(void)
 	gpio_request(ARD_FPGA_INT_B, "fpga-int");
 	gpio_direction_input(ARD_FPGA_INT_B);
 
-	gpio_request(ARD_TS_INT, "ts-int");
-	gpio_direction_input(ARD_TS_INT);
-	gpio_free(ARD_TS_INT);
+	/* ARD Rev B boards use a different Touchscreen, only for Rev A */
+	if (board_is_mx53_ard_a()) {
+		gpio_request(ARD_TS_INT, "ts-int");
+		gpio_direction_input(ARD_TS_INT);
+		gpio_free(ARD_TS_INT);
+	}
 }
 
 /* Config CS1 settings for ethernet controller */
@@ -1254,10 +1267,18 @@ static void __init mxc_board_init(void)
 	mxc_register_device(&mxc_iim_device, &iim_data);
 
 	mxc_register_device(&mxc_pwm1_device, &mxc_pwm1_platform_data);
+	/* Rev B boards use a different LVDS Panel */
+	if (board_is_mx53_ard_b()) {
+		mxc_pwm1_backlight_data.pwm_period_ns = 50000;
+	}
 	mxc_register_device(&mxc_pwm1_backlight_device,
 		&mxc_pwm1_backlight_data);
 
 	mxc_register_device(&mxc_pwm2_device, &mxc_pwm2_platform_data);
+	/* Rev B boards use a different LVDS Panel */
+	if (board_is_mx53_ard_b()) {
+		mxc_pwm2_backlight_data.pwm_period_ns = 50000;
+	}
 	mxc_register_device(&mxc_pwm2_backlight_device,
 		&mxc_pwm2_backlight_data);
 
@@ -1284,6 +1305,14 @@ static void __init mxc_board_init(void)
 				ARRAY_SIZE(mxc_dataflash_device));
 	i2c_register_board_info(1, mxc_i2c1_board_info,
 				ARRAY_SIZE(mxc_i2c1_board_info));
+
+	/* Rev B boards use a different touchscreen */
+	if (board_is_mx53_ard_b()) {
+		strcpy(mxc_i2c2_board_info[0].type, "p1003_fwv33");
+		mxc_i2c2_board_info[0].addr = 0x41;
+		mxc_i2c2_board_info[0].platform_data = &p1003_ts_data;
+	}
+
 	i2c_register_board_info(2, mxc_i2c2_board_info,
 				ARRAY_SIZE(mxc_i2c2_board_info));
 
