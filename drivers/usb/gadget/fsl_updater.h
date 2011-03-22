@@ -1,7 +1,7 @@
 /*
  * Freescale UUT driver
  *
- * Copyright 2008-2010 Freescale Semiconductor, Inc.
+ * Copyright 2008-2011 Freescale Semiconductor, Inc.
  * Copyright 2008-2009 Embedded Alley Solutions, Inc All Rights Reserved.
  */
 
@@ -98,6 +98,7 @@ static struct utp_context {
 	u8 *buffer;
 	u32 counter;
 	u64 utp_version;
+	u32 cur_state;
 } utp_context;
 
 static const struct file_operations utp_fops = {
