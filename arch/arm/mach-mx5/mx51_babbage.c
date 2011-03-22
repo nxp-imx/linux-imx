@@ -997,11 +997,6 @@ static char *usb_functions_rndis[] = {
 	"rndis",
 };
 
-static char *usb_functions_rndis_adb[] = {
-	"rndis",
-	"adb",
-};
-
 static char *usb_functions_all[] = {
 	"rndis",
 	"usb_mass_storage",
@@ -1015,39 +1010,34 @@ static struct android_usb_product usb_products[] = {
 		.functions	= usb_functions_ums,
 	},
 	{
-		.product_id	= 0x0c02,
+		.product_id	= 0x0c01,
 		.num_functions	= ARRAY_SIZE(usb_functions_ums_adb),
 		.functions	= usb_functions_ums_adb,
 	},
 	{
-		.product_id	= 0x0ffe,
+		.product_id	= 0x0c10,
 		.num_functions	= ARRAY_SIZE(usb_functions_rndis),
 		.functions	= usb_functions_rndis,
-	},
-	{
-		.product_id	= 0x0c04,
-		.num_functions	= ARRAY_SIZE(usb_functions_rndis_adb),
-		.functions	= usb_functions_rndis_adb,
 	},
 };
 
 static struct usb_mass_storage_platform_data mass_storage_data = {
 	.nluns		= 3,
 	.vendor		= "Freescale",
-	.product	= "Android Phone",
+	.product	= "MX51 BBG Android",
 	.release	= 0x0100,
 };
 
 static struct usb_ether_platform_data rndis_data = {
-	.vendorID	= 0x0bb4,
+	.vendorID	= 0x15a2,
 	.vendorDescr	= "Freescale",
 };
 
 static struct android_usb_platform_data android_usb_data = {
-	.vendor_id      = 0x0bb4,
+	.vendor_id      = 0x15a2,
 	.product_id     = 0x0c01,
 	.version        = 0x0100,
-	.product_name   = "Android Phone",
+	.product_name   = "MX51 BBG Android",
 	.manufacturer_name = "Freescale",
 	.num_products = ARRAY_SIZE(usb_products),
 	.products = usb_products,
