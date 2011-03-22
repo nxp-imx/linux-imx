@@ -104,6 +104,12 @@ void __iomem *databahn;
 #define MAX_AHB_CLK		133333333
 #define MAX_EMI_SLOW_CLK	133000000
 
+#ifdef CONFIG_CLK_DEBUG
+#define __INIT_CLK_DEBUG(n)	.name = #n,
+#else
+#define __INIT_CLK_DEBUG(n)
+#endif
+
 extern int mxc_jtag_enabled;
 extern int uart_at_24;
 extern int cpufreq_trig_needed;
@@ -296,19 +302,23 @@ static unsigned long get_ckih2_reference_clock_rate(struct clk *clk)
 
 /* External high frequency clock */
 static struct clk ckih_clk = {
+	__INIT_CLK_DEBUG(ckih_clk)
 	.get_rate = get_high_reference_clock_rate,
 };
 
 static struct clk ckih2_clk = {
+	__INIT_CLK_DEBUG(ckih2_clk)
 	.get_rate = get_ckih2_reference_clock_rate,
 };
 
 static struct clk osc_clk = {
+	__INIT_CLK_DEBUG(osc_clk)
 	.get_rate = get_oscillator_reference_clock_rate,
 };
 
 /* External low frequency (32kHz) clock */
 static struct clk ckil_clk = {
+	__INIT_CLK_DEBUG(ckil_clk)
 	.get_rate = get_low_reference_clock_rate,
 };
 
@@ -329,6 +339,7 @@ static unsigned long apll_get_rate(struct clk *clk)
 }
 
 static struct clk apll_clk = {
+	__INIT_CLK_DEBUG(apll_clk)
 	.get_rate = apll_get_rate,
 	.enable = apll_enable,
 	.disable = apll_disable,
@@ -424,6 +435,7 @@ static void pfd_disable(struct clk *clk)
 }
 
 static struct clk pfd0_clk = {
+	__INIT_CLK_DEBUG(pfd0_clk)
 	.parent = &apll_clk,
 	.enable_reg = (void *)MXC_ANADIG_FRAC0,
 	.enable_shift = MXC_ANADIG_PFD0_FRAC_OFFSET,
@@ -435,6 +447,7 @@ static struct clk pfd0_clk = {
 };
 
 static struct clk pfd1_clk = {
+	__INIT_CLK_DEBUG(pfd1_clk)
 	.parent = &apll_clk,
 	.enable_reg = (void *)MXC_ANADIG_FRAC0,
 	.enable_shift = MXC_ANADIG_PFD1_FRAC_OFFSET,
@@ -446,6 +459,7 @@ static struct clk pfd1_clk = {
 };
 
 static struct clk pfd2_clk = {
+	__INIT_CLK_DEBUG(pfd2_clk)
 	.parent = &apll_clk,
 	.enable_reg = (void *)MXC_ANADIG_FRAC0,
 	.enable_shift = MXC_ANADIG_PFD2_FRAC_OFFSET,
@@ -457,6 +471,7 @@ static struct clk pfd2_clk = {
 };
 
 static struct clk pfd3_clk = {
+	__INIT_CLK_DEBUG(pfd3_clk)
 	.parent = &apll_clk,
 	.enable_reg = (void *)MXC_ANADIG_FRAC0,
 	.enable_shift = MXC_ANADIG_PFD3_FRAC_OFFSET,
@@ -468,6 +483,7 @@ static struct clk pfd3_clk = {
 };
 
 static struct clk pfd4_clk = {
+	__INIT_CLK_DEBUG(pfd4_clk)
 	.parent = &apll_clk,
 	.enable_reg = (void *)MXC_ANADIG_FRAC1,
 	.enable_shift = MXC_ANADIG_PFD4_FRAC_OFFSET,
@@ -479,6 +495,7 @@ static struct clk pfd4_clk = {
 };
 
 static struct clk pfd5_clk = {
+	__INIT_CLK_DEBUG(pfd5_clk)
 	.parent = &apll_clk,
 	.enable_reg = (void *)MXC_ANADIG_FRAC1,
 	.enable_shift = MXC_ANADIG_PFD5_FRAC_OFFSET,
@@ -490,6 +507,7 @@ static struct clk pfd5_clk = {
 };
 
 static struct clk pfd6_clk = {
+	__INIT_CLK_DEBUG(pfd6_clk)
 	.parent = &apll_clk,
 	.enable_reg = (void *)MXC_ANADIG_FRAC1,
 	.enable_shift = MXC_ANADIG_PFD6_FRAC_OFFSET,
@@ -501,6 +519,7 @@ static struct clk pfd6_clk = {
 };
 
 static struct clk pfd7_clk = {
+	__INIT_CLK_DEBUG(pfd7_clk)
 	.parent = &apll_clk,
 	.enable_reg = (void *)MXC_ANADIG_FRAC1,
 	.enable_shift = MXC_ANADIG_PFD7_FRAC_OFFSET,
@@ -648,6 +667,7 @@ static void _clk_pll_disable(struct clk *clk)
 }
 
 static struct clk pll1_main_clk = {
+	__INIT_CLK_DEBUG(pll1_main_clk)
 	.parent = &osc_clk,
 	.get_rate = _clk_pll_get_rate,
 	.set_rate = _clk_pll_set_rate,
@@ -714,6 +734,7 @@ static unsigned long _clk_pll1_sw_get_rate(struct clk *clk)
 
 /* pll1 switch clock */
 static struct clk pll1_sw_clk = {
+	__INIT_CLK_DEBUG(pll1_sw_clk)
 	.parent = &pll1_main_clk,
 	.set_parent = _clk_pll1_sw_set_parent,
 	.get_rate = _clk_pll1_sw_get_rate,
@@ -738,6 +759,7 @@ static int _clk_pll2_sw_set_parent(struct clk *clk, struct clk *parent)
 
 /* same as pll2_main_clk. These two clocks should always be the same */
 static struct clk pll2_sw_clk = {
+	__INIT_CLK_DEBUG(pll2_sw_clk)
 	.parent = &osc_clk,
 	.get_rate = _clk_pll_get_rate,
 	.enable = _clk_pll_enable,
@@ -749,6 +771,7 @@ static struct clk pll2_sw_clk = {
 
 /* same as pll3_main_clk. These two clocks should always be the same */
 static struct clk pll3_sw_clk = {
+	__INIT_CLK_DEBUG(pll3_sw_clk)
 	.parent = &osc_clk,
 	.set_rate = _clk_pll_set_rate,
 	.get_rate = _clk_pll_get_rate,
@@ -774,6 +797,7 @@ static int _clk_lp_apm_set_parent(struct clk *clk, struct clk *parent)
 }
 
 static struct clk lp_apm_clk = {
+	__INIT_CLK_DEBUG(lp_apm_clk)
 	.parent = &osc_clk,
 	.set_parent = _clk_lp_apm_set_parent,
 	.flags = RATE_PROPAGATES,
@@ -821,6 +845,7 @@ static unsigned long _clk_cpu_round_rate(struct clk *clk,
 
 
 static struct clk cpu_clk = {
+	__INIT_CLK_DEBUG(cpu_clk)
 	.parent = &pll1_sw_clk,
 	.get_rate = _clk_arm_get_rate,
 	.set_rate = _clk_cpu_set_rate,
@@ -853,6 +878,7 @@ static int _clk_main_bus_set_parent(struct clk *clk, struct clk *parent)
 }
 
 static struct clk main_bus_clk = {
+	__INIT_CLK_DEBUG(main_bus_clk)
 	.parent = &pll2_sw_clk,
 	.set_parent = _clk_main_bus_set_parent,
 	.get_rate = _clk_main_bus_get_rate,
@@ -914,6 +940,7 @@ static unsigned long _clk_axi_a_round_rate(struct clk *clk,
 
 
 static struct clk axi_a_clk = {
+	__INIT_CLK_DEBUG(axi_a_clk)
 	.parent = &main_bus_clk,
 	.get_rate = _clk_axi_a_get_rate,
 	.set_rate = _clk_axi_a_set_rate,
@@ -976,6 +1003,7 @@ static unsigned long _clk_axi_b_round_rate(struct clk *clk,
 
 
 static struct clk axi_b_clk = {
+	__INIT_CLK_DEBUG(axi_b_clk)
 	.parent = &main_bus_clk,
 	.get_rate = _clk_axi_b_get_rate,
 	.set_rate = _clk_axi_b_set_rate,
@@ -1041,6 +1069,7 @@ static unsigned long _clk_ahb_round_rate(struct clk *clk,
 
 
 static struct clk ahb_clk = {
+	__INIT_CLK_DEBUG(ahb_clk)
 	.parent = &main_bus_clk,
 	.get_rate = _clk_ahb_get_rate,
 	.set_rate = _clk_ahb_set_rate,
@@ -1077,6 +1106,7 @@ static void _clk_max_disable(struct clk *clk)
 
 
 static struct clk ahb_max_clk = {
+	__INIT_CLK_DEBUG(ahb_max_clk)
 	.parent = &ahb_clk,
 	.enable_reg = MXC_CCM_CCGR0,
 	.enable_shift = MXC_CCM_CCGRx_CG14_OFFSET,
@@ -1085,6 +1115,7 @@ static struct clk ahb_max_clk = {
 };
 
 static struct clk ahbmux1_clk = {
+	__INIT_CLK_DEBUG(ahbmux1_clk)
 	.id = 0,
 	.parent = &ahb_clk,
 	.secondary = &ahb_max_clk,
@@ -1105,6 +1136,7 @@ static unsigned long _clk_ipg_get_rate(struct clk *clk)
 }
 
 static struct clk ipg_clk = {
+	__INIT_CLK_DEBUG(ipg_clk)
 	.parent = &ahb_clk,
 	.get_rate = _clk_ipg_get_rate,
 	.flags = RATE_PROPAGATES,
@@ -1152,6 +1184,7 @@ static int _clk_ipg_per_set_parent(struct clk *clk, struct clk *parent)
 }
 
 static struct clk ipg_perclk = {
+	__INIT_CLK_DEBUG(ipg_perclk)
 	.parent = &lp_apm_clk,
 	.get_rate = _clk_ipg_per_get_rate,
 	.set_parent = _clk_ipg_per_set_parent,
@@ -1159,6 +1192,7 @@ static struct clk ipg_perclk = {
 };
 
 static struct clk ipmux1_clk = {
+	__INIT_CLK_DEBUG(ipmux1_clk)
 	.enable_reg = MXC_CCM_CCGR5,
 	.enable_shift = MXC_CCM_CCGRx_CG6_OFFSET,
 	.enable = _clk_enable,
@@ -1166,6 +1200,7 @@ static struct clk ipmux1_clk = {
 };
 
 static struct clk ipmux2_clk = {
+	__INIT_CLK_DEBUG(ipmux2_clk)
 	.enable_reg = MXC_CCM_CCGR6,
 	.enable_shift = MXC_CCM_CCGRx_CG0_OFFSET,
 	.enable = _clk_enable,
@@ -1212,6 +1247,7 @@ static void _clk_sys_clk_disable(struct clk *clk)
 }
 
 static struct clk sys_clk = {
+	__INIT_CLK_DEBUG(sys_clk)
 	.enable = _clk_sys_clk_enable,
 	.disable = _clk_sys_clk_disable,
 };
@@ -1270,6 +1306,7 @@ static unsigned long _clk_weim_round_rate(struct clk *clk,
 
 static struct clk weim_clk[] = {
 	{
+	__INIT_CLK_DEBUG(weim_clk_0)
 	.parent = &main_bus_clk,
 	.set_parent = _clk_weim_set_parent,
 	.set_rate = _clk_weim_set_rate,
@@ -1282,6 +1319,7 @@ static struct clk weim_clk[] = {
 	.secondary = &weim_clk[1],
 	},
 	{
+	__INIT_CLK_DEBUG(weim_clk_1)
 	.parent = &ipg_clk,
 	.secondary = &sys_clk,
 	.enable = _clk_enable,
@@ -1301,6 +1339,7 @@ static void _clk_ocram_disable(struct clk *clk)
 }
 
 static struct clk ocram_clk = {
+	__INIT_CLK_DEBUG(ocram_clk)
 	.parent = &sys_clk,
 	.enable_reg = MXC_CCM_CCGR6,
 	.enable_shift = MXC_CCM_CCGRx_CG1_OFFSET,
@@ -1309,6 +1348,7 @@ static struct clk ocram_clk = {
 };
 
 static struct clk aips_tz1_clk = {
+	__INIT_CLK_DEBUG(aips_tz1_clk)
 	.parent = &ahb_clk,
 	.secondary = &ahb_max_clk,
 	.enable_reg = MXC_CCM_CCGR0,
@@ -1318,6 +1358,7 @@ static struct clk aips_tz1_clk = {
 };
 
 static struct clk aips_tz2_clk = {
+	__INIT_CLK_DEBUG(aips_tz2_clk)
 	.parent = &ahb_clk,
 	.secondary = &ahb_max_clk,
 	.enable_reg = MXC_CCM_CCGR0,
@@ -1327,6 +1368,7 @@ static struct clk aips_tz2_clk = {
 };
 
 static struct clk gpc_dvfs_clk = {
+	__INIT_CLK_DEBUG(gpc_dvfs_clk)
 	.enable_reg = MXC_CCM_CCGR5,
 	.enable_shift = MXC_CCM_CCGRx_CG12_OFFSET,
 	.enable = _clk_enable,
@@ -1361,6 +1403,7 @@ static void _clk_sdma_disable(struct clk *clk)
 
 static struct clk sdma_clk[] = {
 	{
+	__INIT_CLK_DEBUG(sdma_clk_0)
 	 .parent = &ahb_clk,
 	 .enable_reg = MXC_CCM_CCGR4,
 	 .enable_shift = MXC_CCM_CCGRx_CG15_OFFSET,
@@ -1368,6 +1411,7 @@ static struct clk sdma_clk[] = {
 	 .disable = _clk_sdma_disable,
 	 },
 	{
+	__INIT_CLK_DEBUG(sdma_clk_1)
 	 .parent = &ipg_clk,
 #ifdef CONFIG_SDMA_IRAM
 	 .secondary = &ocram_clk,
@@ -1378,6 +1422,7 @@ static struct clk sdma_clk[] = {
 };
 
 static struct clk spba_clk = {
+	__INIT_CLK_DEBUG(spba_clk)
 	.parent = &ipg_clk,
 	.enable_reg = MXC_CCM_CCGR5,
 	.enable_shift = MXC_CCM_CCGRx_CG0_OFFSET,
@@ -1412,6 +1457,7 @@ static int _clk_uart_set_parent(struct clk *clk, struct clk *parent)
 }
 
 static struct clk uart_main_clk = {
+	__INIT_CLK_DEBUG(uart_main_clk)
 	.parent = &pll2_sw_clk,
 	.get_rate = _clk_uart_get_rate,
 	.set_parent = _clk_uart_set_parent,
@@ -1420,6 +1466,7 @@ static struct clk uart_main_clk = {
 
 static struct clk uart1_clk[] = {
 	{
+	__INIT_CLK_DEBUG(uart1_clk_0)
 	 .id = 0,
 	 .parent = &uart_main_clk,
 	 .secondary = &uart1_clk[1],
@@ -1432,6 +1479,7 @@ static struct clk uart1_clk[] = {
 #endif
 	 },
 	{
+	__INIT_CLK_DEBUG(uart1_clk_1)
 	 .id = 0,
 	 .parent = &ipg_clk,
 #if UART1_DMA_ENABLE
@@ -1446,6 +1494,7 @@ static struct clk uart1_clk[] = {
 
 static struct clk uart2_clk[] = {
 	{
+	__INIT_CLK_DEBUG(uart2_clk_0)
 	 .id = 1,
 	 .parent = &uart_main_clk,
 	 .secondary = &uart2_clk[1],
@@ -1458,6 +1507,7 @@ static struct clk uart2_clk[] = {
 #endif
 	 },
 	{
+	__INIT_CLK_DEBUG(uart2_clk_1)
 	 .id = 1,
 	 .parent = &ipg_clk,
 #if UART2_DMA_ENABLE
@@ -1472,6 +1522,7 @@ static struct clk uart2_clk[] = {
 
 static struct clk uart3_clk[] = {
 	{
+	__INIT_CLK_DEBUG(uart3_clk_0)
 	 .id = 2,
 	 .parent = &uart_main_clk,
 	 .secondary = &uart3_clk[1],
@@ -1484,6 +1535,7 @@ static struct clk uart3_clk[] = {
 #endif
 	 },
 	{
+	__INIT_CLK_DEBUG(uart3_clk_1)
 	 .id = 2,
 	 .parent = &ipg_clk,
 	 .secondary = &spba_clk,
@@ -1496,6 +1548,7 @@ static struct clk uart3_clk[] = {
 
 static struct clk uart4_clk[] = {
 	{
+	__INIT_CLK_DEBUG(uart4_clk_0)
 	 .id = 3,
 	 .parent = &uart_main_clk,
 	 .secondary = &uart4_clk[1],
@@ -1508,6 +1561,7 @@ static struct clk uart4_clk[] = {
 #endif
 	 },
 	{
+	__INIT_CLK_DEBUG(uart4_clk_1)
 	 .id = 3,
 	 .parent = &ipg_clk,
 	 .secondary = &spba_clk,
@@ -1520,6 +1574,7 @@ static struct clk uart4_clk[] = {
 
 static struct clk uart5_clk[] = {
 	{
+	__INIT_CLK_DEBUG(uart5_clk_0)
 	 .id = 4,
 	 .parent = &uart_main_clk,
 	 .secondary = &uart5_clk[1],
@@ -1532,6 +1587,7 @@ static struct clk uart5_clk[] = {
 #endif
 	 },
 	{
+	__INIT_CLK_DEBUG(uart5_clk_1)
 	 .id = 4,
 	 .parent = &ipg_clk,
 	 .secondary = &spba_clk,
@@ -1544,6 +1600,7 @@ static struct clk uart5_clk[] = {
 
 static struct clk gpt_clk[] = {
 	{
+	__INIT_CLK_DEBUG(gpt_clk_0)
 	 .parent = &ipg_perclk,
 	 .id = 0,
 	 .enable_reg = MXC_CCM_CCGR2,
@@ -1552,6 +1609,7 @@ static struct clk gpt_clk[] = {
 	 .disable = _clk_disable,
 	 },
 	{
+	__INIT_CLK_DEBUG(gpt_clk_1)
 	 .id = 0,
 	 .parent = &ipg_clk,
 	 .enable_reg = MXC_CCM_CCGR2,
@@ -1560,6 +1618,7 @@ static struct clk gpt_clk[] = {
 	 .disable = _clk_disable,
 	 },
 	{
+	__INIT_CLK_DEBUG(gpt_clk_2)
 	 .id = 0,
 	 .parent = &ckil_clk,
 	 },
@@ -1567,6 +1626,7 @@ static struct clk gpt_clk[] = {
 
 static struct clk pwm1_clk[] = {
 	{
+	__INIT_CLK_DEBUG(pwm1_clk_0)
 	 .parent = &ipg_perclk,
 	 .id = 0,
 	 .enable_reg = MXC_CCM_CCGR2,
@@ -1576,6 +1636,7 @@ static struct clk pwm1_clk[] = {
 	 .secondary = &pwm1_clk[1],
 	 },
 	{
+	__INIT_CLK_DEBUG(pwm1_clk_1)
 	 .id = 0,
 	 .parent = &ipg_clk,
 	 .enable_reg = MXC_CCM_CCGR2,
@@ -1584,6 +1645,7 @@ static struct clk pwm1_clk[] = {
 	 .disable = _clk_disable,
 	 },
 	{
+	__INIT_CLK_DEBUG(pwm1_clk_2)
 	 .id = 0,
 	 .parent = &ckil_clk,
 	 },
@@ -1591,6 +1653,7 @@ static struct clk pwm1_clk[] = {
 
 static struct clk pwm2_clk[] = {
 	{
+	__INIT_CLK_DEBUG(pwm2_clk_0)
 	 .parent = &ipg_perclk,
 	 .id = 1,
 	 .enable_reg = MXC_CCM_CCGR2,
@@ -1600,6 +1663,7 @@ static struct clk pwm2_clk[] = {
 	 .secondary = &pwm2_clk[1],
 	 },
 	{
+	__INIT_CLK_DEBUG(pwm2_clk_1)
 	 .id = 1,
 	 .parent = &ipg_clk,
 	 .enable_reg = MXC_CCM_CCGR2,
@@ -1608,6 +1672,7 @@ static struct clk pwm2_clk[] = {
 	 .disable = _clk_disable,
 	 },
 	{
+	__INIT_CLK_DEBUG(pwm2_clk_2)
 	 .id = 1,
 	 .parent = &ckil_clk,
 	 },
@@ -1615,6 +1680,7 @@ static struct clk pwm2_clk[] = {
 
 static struct clk i2c_clk[] = {
 	{
+	__INIT_CLK_DEBUG(i2c_clk_0)
 	 .id = 0,
 	 .parent = &ipg_perclk,
 	 .enable_reg = MXC_CCM_CCGR1,
@@ -1623,6 +1689,7 @@ static struct clk i2c_clk[] = {
 	 .disable = _clk_disable,
 	 },
 	{
+	__INIT_CLK_DEBUG(i2c_clk_1)
 	 .id = 1,
 	 .parent = &ipg_perclk,
 	 .enable_reg = MXC_CCM_CCGR1,
@@ -1631,6 +1698,7 @@ static struct clk i2c_clk[] = {
 	 .disable = _clk_disable,
 	 },
 	{
+	__INIT_CLK_DEBUG(i2c_clk_2)
 	 .id = 2,
 	 .parent = &ipg_perclk,
 	 .enable_reg = MXC_CCM_CCGR1,
@@ -1669,6 +1737,7 @@ static int _clk_cspi_set_parent(struct clk *clk, struct clk *parent)
 }
 
 static struct clk cspi_main_clk = {
+	__INIT_CLK_DEBUG(cspi_main_clk)
 	.parent = &pll3_sw_clk,
 	.get_rate = _clk_cspi_get_rate,
 	.set_parent = _clk_cspi_set_parent,
@@ -1677,6 +1746,7 @@ static struct clk cspi_main_clk = {
 
 static struct clk cspi1_clk[] = {
 	{
+	__INIT_CLK_DEBUG(cspi1_clk_0)
 	 .id = 0,
 	 .parent = &cspi_main_clk,
 	 .secondary = &cspi1_clk[1],
@@ -1686,6 +1756,7 @@ static struct clk cspi1_clk[] = {
 	 .disable = _clk_disable,
 	 },
 	{
+	__INIT_CLK_DEBUG(cspi1_clk_1)
 	 .id = 0,
 	 .parent = &ipg_clk,
 	 .secondary = &spba_clk,
@@ -1698,6 +1769,7 @@ static struct clk cspi1_clk[] = {
 
 static struct clk cspi2_clk[] = {
 	{
+	__INIT_CLK_DEBUG(cspi2_clk_0)
 	 .id = 1,
 	 .parent = &cspi_main_clk,
 	 .secondary = &cspi2_clk[1],
@@ -1707,6 +1779,7 @@ static struct clk cspi2_clk[] = {
 	 .disable = _clk_disable,
 	 },
 	{
+	__INIT_CLK_DEBUG(cspi2_clk_1)
 	 .id = 1,
 	 .parent = &ipg_clk,
 	 .secondary = &aips_tz2_clk,
@@ -1718,6 +1791,7 @@ static struct clk cspi2_clk[] = {
 };
 
 static struct clk cspi3_clk = {
+	__INIT_CLK_DEBUG(cspi3_clk)
 	.id = 2,
 	.parent = &ipg_clk,
 	.enable_reg = MXC_CCM_CCGR4,
@@ -1741,6 +1815,7 @@ static int _clk_ssi_lp_apm_set_parent(struct clk *clk, struct clk *parent)
 }
 
 static struct clk ssi_lp_apm_clk = {
+	__INIT_CLK_DEBUG(ssi_lp_apm_clk)
 	.parent = &ckih_clk,
 	.set_parent = _clk_ssi_lp_apm_set_parent,
 };
@@ -1774,6 +1849,7 @@ static int _clk_ssi1_set_parent(struct clk *clk, struct clk *parent)
 
 static struct clk ssi1_clk[] = {
 	{
+	__INIT_CLK_DEBUG(ssi1_clk_0)
 	 .id = 0,
 	 .parent = &pll3_sw_clk,
 	 .set_parent = _clk_ssi1_set_parent,
@@ -1785,6 +1861,7 @@ static struct clk ssi1_clk[] = {
 	 .disable = _clk_disable,
 	 },
 	{
+	__INIT_CLK_DEBUG(ssi1_clk_1)
 	 .id = 0,
 	 .parent = &ipg_clk,
 	 .secondary = &ssi1_clk[2],
@@ -1794,6 +1871,7 @@ static struct clk ssi1_clk[] = {
 	 .disable = _clk_disable,
 	 },
 	{
+	__INIT_CLK_DEBUG(ssi1_clk_2)
 	 .id = 0,
 	 .parent = &aips_tz2_clk,
 #ifdef CONFIG_SND_MXC_SOC_IRAM
@@ -1834,6 +1912,7 @@ static int _clk_ssi2_set_parent(struct clk *clk, struct clk *parent)
 
 static struct clk ssi2_clk[] = {
 	{
+	__INIT_CLK_DEBUG(ssi2_clk_0)
 	 .id = 1,
 	 .parent = &pll3_sw_clk,
 	 .set_parent = _clk_ssi2_set_parent,
@@ -1845,6 +1924,7 @@ static struct clk ssi2_clk[] = {
 	 .disable = _clk_disable,
 	 },
 	{
+	__INIT_CLK_DEBUG(ssi2_clk_1)
 	 .id = 1,
 	 .parent = &ipg_clk,
 	 .secondary = &ssi2_clk[2],
@@ -1854,6 +1934,7 @@ static struct clk ssi2_clk[] = {
 	 .disable = _clk_disable,
 	 },
 	{
+	__INIT_CLK_DEBUG(ssi2_clk_2)
 	 .id = 1,
 	 .parent = &spba_clk,
 #ifdef CONFIG_SND_MXC_SOC_IRAM
@@ -1942,6 +2023,7 @@ static unsigned long _clk_ssi_ext1_round_rate(struct clk *clk,
 }
 
 static struct clk ssi_ext1_clk = {
+	__INIT_CLK_DEBUG(ssi_ext1_clk)
 	.parent = &pll3_sw_clk,
 	.set_parent = _clk_ssi_ext1_set_parent,
 	.set_rate = _clk_ssi_ext1_set_rate,
@@ -1993,6 +2075,7 @@ static int _clk_ssi_ext2_set_parent(struct clk *clk, struct clk *parent)
 }
 
 static struct clk ssi_ext2_clk = {
+	__INIT_CLK_DEBUG(ssi_ext2_clk)
 	.parent = &pll3_sw_clk,
 	.set_parent = _clk_ssi_ext2_set_parent,
 	.get_rate = _clk_ssi_ext2_get_rate,
@@ -2003,6 +2086,7 @@ static struct clk ssi_ext2_clk = {
 };
 
 static struct clk tmax2_clk = {
+	__INIT_CLK_DEBUG(tmax2_clk)
 	 .id = 0,
 	 .parent = &ahb_clk,
 	 .secondary = &ahb_max_clk,
@@ -2013,6 +2097,7 @@ static struct clk tmax2_clk = {
 };
 
 static struct clk usb_ahb_clk = {
+	__INIT_CLK_DEBUG(usb_ahb_clk)
 	 .parent = &ipg_clk,
 	 .secondary = &ddr_clk,
 	 .enable = _clk_enable,
@@ -2024,6 +2109,7 @@ static struct clk usb_ahb_clk = {
 
 static struct clk usb_phy_clk[] = {
 	{
+	__INIT_CLK_DEBUG(usb_phy_clk_0)
 	.id = 0,
 	.parent = &osc_clk,
 	.enable = _clk_enable,
@@ -2032,6 +2118,7 @@ static struct clk usb_phy_clk[] = {
 	.disable = _clk_disable,
 	},
 	{
+	__INIT_CLK_DEBUG(usb_phy_clk_1)
 	.id = 1,
 	.parent = &osc_clk,
 	.enable = _clk_enable,
@@ -2042,6 +2129,7 @@ static struct clk usb_phy_clk[] = {
 };
 
 static struct clk esdhc_dep_clks = {
+	__INIT_CLK_DEBUG(esdhc_dep_clks)
 	 .parent = &spba_clk,
 	 .secondary = &ddr_clk,
 };
@@ -2101,6 +2189,7 @@ static int _clk_esdhc1_set_rate(struct clk *clk, unsigned long rate)
 
 static struct clk esdhc1_clk[] = {
 	{
+	__INIT_CLK_DEBUG(esdhc1_clk_0)
 	 .id = 0,
 	 .parent = &pll2_sw_clk,
 	 .set_parent = _clk_esdhc1_set_parent,
@@ -2114,6 +2203,7 @@ static struct clk esdhc1_clk[] = {
 	.flags = AHB_MED_SET_POINT | CPU_FREQ_TRIG_UPDATE,
 	 },
 	{
+	__INIT_CLK_DEBUG(esdhc1_clk_1)
 	 .id = 0,
 	 .parent = &ipg_clk,
 	 .secondary = &esdhc1_clk[2],
@@ -2123,6 +2213,7 @@ static struct clk esdhc1_clk[] = {
 	 .disable = _clk_disable,
 	 },
 	{
+	__INIT_CLK_DEBUG(esdhc1_clk_2)
 	 .id = 0,
 	 .parent = &tmax2_clk,
 	 .secondary = &esdhc_dep_clks,
@@ -2147,6 +2238,7 @@ static int _clk_esdhc2_set_parent(struct clk *clk, struct clk *parent)
 
 static struct clk esdhc2_clk[] = {
 	{
+	__INIT_CLK_DEBUG(esdhc2_clk_0)
 	 .id = 1,
 	 .parent = &esdhc1_clk[0],
 	 .set_parent = _clk_esdhc2_set_parent,
@@ -2158,6 +2250,7 @@ static struct clk esdhc2_clk[] = {
 	.flags = AHB_MED_SET_POINT | CPU_FREQ_TRIG_UPDATE,
 	 },
 	{
+	__INIT_CLK_DEBUG(esdhc2_clk_1)
 	 .id = 1,
 	 .parent = &ipg_clk,
 	 .secondary = &esdhc2_clk[2],
@@ -2167,6 +2260,7 @@ static struct clk esdhc2_clk[] = {
 	 .disable = _clk_disable,
 	 },
 	{
+	__INIT_CLK_DEBUG(esdhc2_clk_2)
 	 .id = 0,
 	 .parent = &tmax2_clk,
 	 .secondary = &esdhc_dep_clks,
@@ -2229,6 +2323,7 @@ static int _clk_esdhc3_set_rate(struct clk *clk, unsigned long rate)
 
 static struct clk esdhc3_clk[] = {
 	{
+	__INIT_CLK_DEBUG(esdhc3_clk_0)
 	 .id = 2,
 	 .parent = &pll2_sw_clk,
 	 .set_parent = _clk_esdhc3_set_parent,
@@ -2242,6 +2337,7 @@ static struct clk esdhc3_clk[] = {
 	.flags = AHB_MED_SET_POINT | CPU_FREQ_TRIG_UPDATE,
 	 },
 	{
+	__INIT_CLK_DEBUG(esdhc3_clk_1)
 	 .id = 2,
 	 .parent = &ipg_clk,
 	 .secondary = &esdhc3_clk[2],
@@ -2251,6 +2347,7 @@ static struct clk esdhc3_clk[] = {
 	 .disable = _clk_disable,
 	 },
 	{
+	__INIT_CLK_DEBUG(esdhc3_clk_2)
 	 .id = 0,
 	 .parent = &ahb_max_clk,
 	 .secondary = &esdhc_dep_clks,
@@ -2275,6 +2372,7 @@ static int _clk_esdhc4_set_parent(struct clk *clk, struct clk *parent)
 
 static struct clk esdhc4_clk[] = {
 	{
+	__INIT_CLK_DEBUG(esdhc4_clk_0)
 	 .id = 3,
 	 .parent = &esdhc1_clk[0],
 	 .set_parent = _clk_esdhc4_set_parent,
@@ -2286,6 +2384,7 @@ static struct clk esdhc4_clk[] = {
 	.flags = AHB_MED_SET_POINT | CPU_FREQ_TRIG_UPDATE,
 	 },
 	{
+	__INIT_CLK_DEBUG(esdhc4_clk_1)
 	 .id = 3,
 	 .parent = &ipg_clk,
 	 .secondary = &esdhc4_clk[2],
@@ -2295,6 +2394,7 @@ static struct clk esdhc4_clk[] = {
 	 .disable = _clk_disable,
 	 },
 	{
+	__INIT_CLK_DEBUG(esdhc4_clk_2)
 	 .id = 0,
 	 .parent = &tmax2_clk,
 	 .secondary = &esdhc_dep_clks,
@@ -2351,6 +2451,7 @@ static void _clk_ddr_disable(struct clk *clk)
 
 
 static struct clk ddr_clk = {
+	__INIT_CLK_DEBUG(ddr_clk)
 	.parent = &pll1_sw_clk,
 	.secondary = &sys_clk,
 	.set_parent = _clk_ddr_set_parent,
@@ -2373,6 +2474,7 @@ static unsigned long _clk_pgc_get_rate(struct clk *clk)
 }
 
 static struct clk pgc_clk = {
+	__INIT_CLK_DEBUG(pgc_clk)
 	.parent = &ipg_clk,
 	.get_rate = _clk_pgc_get_rate,
 };
@@ -2384,10 +2486,12 @@ static unsigned long _clk_usb_get_rate(struct clk *clk)
 
 /*usb OTG clock */
 static struct clk usb_clk = {
+	__INIT_CLK_DEBUG(usb_clk)
 	.get_rate = _clk_usb_get_rate,
 };
 
 static struct clk rtc_clk = {
+	__INIT_CLK_DEBUG(rtc_clk)
 	.parent = &ckil_clk,
 	.secondary = &ipg_clk,
 	.enable = _clk_enable,
@@ -2397,6 +2501,7 @@ static struct clk rtc_clk = {
 };
 
 struct clk rng_clk = {
+	__INIT_CLK_DEBUG(rng_clk)
 	.parent = &ipg_clk,
 	.enable = _clk_enable,
 	.enable_reg = MXC_CCM_CCGR7,
@@ -2405,6 +2510,7 @@ struct clk rng_clk = {
 };
 
 static struct clk owire_clk = {
+	__INIT_CLK_DEBUG(owire_clk)
 	.parent = &ipg_perclk,
 	.enable = _clk_enable,
 	.enable_reg = MXC_CCM_CCGR2,
@@ -2414,6 +2520,7 @@ static struct clk owire_clk = {
 
 static struct clk fec_clk[] = {
 	{
+	__INIT_CLK_DEBUG(fec_clk_0)
 	.parent = &ipg_clk,
 	.secondary = &fec_clk[1],
 	.enable = _clk_enable,
@@ -2423,6 +2530,7 @@ static struct clk fec_clk[] = {
 	.flags = AHB_HIGH_SET_POINT | CPU_FREQ_TRIG_UPDATE,
 	},
 	{
+	__INIT_CLK_DEBUG(fec_clk_1)
 	 .parent = &aips_tz2_clk,
 	 .secondary = &ddr_clk,
 	},
@@ -2517,6 +2625,7 @@ static int gpmi_set_rate(struct clk *clk, unsigned long rate)
 
 static struct clk gpmi_nfc_clk[] = {
 	{	/* gpmi_io_clk */
+	__INIT_CLK_DEBUG(gpmi_io_clk)
 	.parent = &osc_clk,
 	.secondary = &gpmi_nfc_clk[1],
 	.set_parent = gpmi_set_parent,
@@ -2527,6 +2636,7 @@ static struct clk gpmi_nfc_clk[] = {
 	.disable = gpmi_clk_disable,
 	},
 	{	/* gpmi_apb_clk */
+	__INIT_CLK_DEBUG(gpmi_apb_clk)
 	.parent = &apbh_dma_clk,
 	.secondary = &gpmi_nfc_clk[2],
 	.enable = _clk_enable,
@@ -2535,6 +2645,7 @@ static struct clk gpmi_nfc_clk[] = {
 	.disable = _clk_disable,
 	},
 	{	/* bch_clk */
+	__INIT_CLK_DEBUG(gpmi_bch_clk)
 	.parent = &osc_clk,
 	.secondary = &gpmi_nfc_clk[3],
 	.enable = bch_clk_enable,
@@ -2543,6 +2654,7 @@ static struct clk gpmi_nfc_clk[] = {
 	.disable = bch_clk_disable,
 	},
 	{	/* bch_apb_clk */
+	__INIT_CLK_DEBUG(gpmi_bch_apb_clk)
 	.parent = &apbh_dma_clk,
 	.enable = _clk_enable,
 	.enable_reg = MXC_CCM_CCGR7,
@@ -2552,6 +2664,7 @@ static struct clk gpmi_nfc_clk[] = {
 };
 
 static struct clk ocotp_clk = {
+	__INIT_CLK_DEBUG(ocotp_clk)
 	.parent = &ahb_clk,
 	.enable = _clk_enable,
 	.enable_reg = MXC_CCM_CCGR7,
@@ -2573,6 +2686,7 @@ static int _clk_gpu2d_set_parent(struct clk *clk, struct clk *parent)
 }
 
 static struct clk gpu2d_clk = {
+	__INIT_CLK_DEBUG(gpu2d_clk)
 	.parent = &axi_a_clk,
 	.secondary = &ddr_clk,
 	.set_parent = _clk_gpu2d_set_parent,
@@ -2584,6 +2698,7 @@ static struct clk gpu2d_clk = {
 };
 
 static struct clk apbh_dma_clk = {
+	__INIT_CLK_DEBUG(apbh_dma_clk)
 	.parent = &ahb_clk,
 	.secondary = &ddr_clk,
 	.enable = _clk_enable,
@@ -2593,6 +2708,7 @@ static struct clk apbh_dma_clk = {
 };
 
 struct clk dcp_clk = {
+	__INIT_CLK_DEBUG(dcp_clk)
 	.parent = &ahb_clk,
 	.secondary = &apbh_dma_clk,
 	.enable = _clk_enable,
@@ -2653,6 +2769,7 @@ static int _clk_display_axi_set_rate(struct clk *clk, unsigned long rate)
 }
 
 static struct clk display_axi_clk = {
+	__INIT_CLK_DEBUG(display_axi_clk)
 	.parent = &osc_clk,
 	.secondary = &apbh_dma_clk,
 	.set_parent = _clk_display_axi_set_parent,
@@ -2696,6 +2813,7 @@ static void _clk_pxp_axi_disable(struct clk *clk)
 
 /* TODO: check Auto-Slow Mode */
 static struct clk pxp_axi_clk = {
+	__INIT_CLK_DEBUG(pxp_axi_clk)
 	.parent = &display_axi_clk,
 	.enable = _clk_pxp_axi_enable,
 	.disable = _clk_pxp_axi_disable,
@@ -2705,6 +2823,7 @@ static struct clk pxp_axi_clk = {
 };
 
 static struct clk elcdif_axi_clk = {
+	__INIT_CLK_DEBUG(elcdif_axi_clk)
 	.parent = &display_axi_clk,
 	.enable = _clk_enable,
 	.disable = _clk_disable,
@@ -2787,6 +2906,7 @@ static void _clk_elcdif_pix_disable(struct clk *clk)
 }
 
 static struct clk elcdif_pix_clk = {
+	__INIT_CLK_DEBUG(elcdif_pix_clk)
 	.parent = &osc_clk,
 	.secondary = &ddr_clk,
 	.enable = _clk_elcdif_pix_enable,
@@ -2903,6 +3023,7 @@ static void _clk_epdc_axi_disable(struct clk *clk)
 
 /* TODO: check Auto-Slow Mode */
 static struct clk epdc_axi_clk = {
+	__INIT_CLK_DEBUG(epdc_axi_clk)
 	.parent = &osc_clk,
 	.secondary = &apbh_dma_clk,
 	.enable_reg = MXC_CCM_CCGR6,
@@ -2996,6 +3117,7 @@ static void _clk_epdc_pix_disable(struct clk *clk)
 
 /* TODO: check Auto-Slow Mode */
 static struct clk epdc_pix_clk = {
+	__INIT_CLK_DEBUG(epdc_pix_clk)
 	.parent = &osc_clk,
 	.secondary = &apbh_dma_clk,
 	.enable_reg = MXC_CCM_CCGR6,
@@ -3132,6 +3254,7 @@ static int cko1_set_parent(struct clk *clk, struct clk *parent)
 }
 
 static struct clk cko1_clk = {
+	__INIT_CLK_DEBUG(cko1_clk)
 	.parent = &pll1_sw_clk,
 	.get_rate = cko1_get_rate,
 	.enable = cko1_enable,
@@ -3329,8 +3452,10 @@ int __init mx50_clocks_init(unsigned long ckil, unsigned long osc, unsigned long
 	usb_phy_clk[0].enable_shift = MXC_CCM_CCGRx_CG5_OFFSET;
 	clk_tree_init();
 
-	for (i = 0; i < ARRAY_SIZE(lookups); i++)
+	for (i = 0; i < ARRAY_SIZE(lookups); i++) {
 		clkdev_add(&lookups[i]);
+		clk_debug_register(lookups[i].clk);
+	}
 
 	/* set DDR clock parent */
 	reg = __raw_readl(MXC_CCM_CLK_DDR) &

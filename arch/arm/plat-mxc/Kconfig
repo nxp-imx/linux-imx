@@ -144,4 +144,12 @@ config DMA_ZONE_SIZE
         help
           This is the size in MB for the DMA zone. The DMA zone is used for
           dedicated memory for large contiguous video buffers
+
+config CLK_DEBUG
+	bool "clock debug information export to user space"
+	depends on PM_DEBUG && DEBUG_FS
+	default n
+	help
+	  export clk debug information to user space
+
 endif

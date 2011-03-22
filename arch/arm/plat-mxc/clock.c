@@ -37,6 +37,8 @@
 #include <linux/proc_fs.h>
 #include <linux/semaphore.h>
 #include <linux/string.h>
+#include <linux/slab.h>
+#include <linux/debugfs.h>
 
 #include <mach/clock.h>
 #include <mach/hardware.h>
@@ -263,3 +265,122 @@ unsigned long mxc_decode_pll(unsigned int reg_val, u32 freq)
 
 	return ll;
 }
+
+#ifdef CONFIG_CLK_DEBUG
+/*
+ *	debugfs support to trace clock tree hierarchy and attributes
+ */
+static int clk_debug_rate_get(void *data, u64 *val)
+{
+	struct clk *clk = data;
+
+	*val = (u64)clk_get_rate(clk);
+	return 0;
+}
+DEFINE_SIMPLE_ATTRIBUTE(clk_debug_rate_fops, clk_debug_rate_get, NULL,
+		"%llu\n");
+
+
+static struct dentry *clk_root;
+static int clk_debug_register_one(struct clk *clk)
+{
+	int err;
+	struct dentry *d, *child, *child_tmp;
+	struct clk *pa = clk_get_parent(clk);
+
+	if (pa && !IS_ERR(pa))
+		d = debugfs_create_dir(clk->name, pa->dentry);
+	else {
+		if (!clk_root)
+			clk_root = debugfs_create_dir("clock", NULL);
+		if (!clk_root)
+			return -ENOMEM;
+		d = debugfs_create_dir(clk->name, clk_root);
+	}
+
+	if (!d)
+		return -ENOMEM;
+
+	clk->dentry = d;
+
+	d = debugfs_create_u8("enable_count", S_IRUGO, clk->dentry,
+			(u8 *)&clk->usecount);
+	if (!d) {
+		err = -ENOMEM;
+		goto err_out;
+	}
+
+	d = debugfs_create_file("rate", S_IRUGO, clk->dentry, (void *)clk,
+			&clk_debug_rate_fops);
+	if (!d) {
+		err = -ENOMEM;
+		goto err_out;
+	}
+
+	return 0;
+
+err_out:
+	d = clk->dentry;
+	list_for_each_entry_safe(child, child_tmp, &d->d_subdirs, d_u.d_child)
+		debugfs_remove(child);
+	debugfs_remove(clk->dentry);
+	return err;
+}
+
+struct preinit_clk {
+	struct list_head list;
+	struct clk *clk;
+};
+static LIST_HEAD(preinit_clks);
+static DEFINE_MUTEX(preinit_lock);
+static int init_done;
+
+void clk_debug_register(struct clk *clk)
+{
+	int err;
+	struct clk *pa;
+
+	if (init_done) {
+		pa = clk_get_parent(clk);
+
+		if (pa && !IS_ERR(pa) && !pa->dentry)
+			clk_debug_register(pa);
+
+		if (!clk->dentry) {
+			err = clk_debug_register_one(clk);
+			if (err)
+				return;
+		}
+	} else {
+		struct preinit_clk *p;
+		mutex_lock(&preinit_lock);
+		p = kmalloc(sizeof(*p), GFP_KERNEL);
+		if (p) {
+			p->clk = clk;
+			list_add(&p->list, &preinit_clks);
+		}
+		mutex_unlock(&preinit_lock);
+	}
+}
+EXPORT_SYMBOL_GPL(clk_debug_register);
+
+static int __init clk_debugfs_init(void)
+{
+	struct preinit_clk *pclk, *tmp;
+
+	init_done = 1;
+
+	mutex_lock(&preinit_lock);
+	list_for_each_entry(pclk, &preinit_clks, list) {
+		clk_debug_register(pclk->clk);
+	}
+
+	list_for_each_entry_safe(pclk, tmp, &preinit_clks, list) {
+		list_del(&pclk->list);
+		kfree(pclk);
+	}
+	mutex_unlock(&preinit_lock);
+	return 0;
+}
+late_initcall(clk_debugfs_init);
+#endif

@@ -23,9 +23,14 @@
 #ifndef __ASSEMBLY__
 #include <linux/list.h>
 
+#define CLK_NAME_LEN 32
 struct module;
 
 struct clk {
+#ifdef CONFIG_CLK_DEBUG
+	char name[CLK_NAME_LEN];
+	struct dentry           *dentry;
+#endif
 	int id;
 	/* Source clock this clk depends on */
 	struct clk *parent;
@@ -68,6 +73,12 @@ int clk_get_usecount(struct clk *clk);
 #define AHB_MED_SET_POINT	(1 << 5)	/* Requires med AHB clock */
 
 unsigned long mxc_decode_pll(unsigned int pll, u32 f_ref);
+
+#ifdef CONFIG_CLK_DEBUG
+void clk_debug_register(struct clk *clk);
+#else
+static inline void clk_debug_register(struct clk *clk) {}
+#endif
 
 #endif /* __ASSEMBLY__ */
 #endif /* __ASM_ARCH_MXC_CLOCK_H__ */
