@@ -73,7 +73,7 @@ static struct cpu_wp cpu_wp_aec[] = {
 	 .mfd = 2,
 	 .mfn = 1,
 	 .cpu_podf = 0,
-	 .cpu_voltage = 1050000,},
+	 .cpu_voltage = 1100000,},
 };
 
 /* working point for consumer 1G*/
@@ -86,7 +86,7 @@ static struct cpu_wp cpu_wp_ces[] = {
 	 .mfd = 11,
 	 .mfn = 5,
 	 .cpu_podf = 0,
-	 .cpu_voltage = 1200000,},
+	 .cpu_voltage = 1250000,},
 	{
 	 .pll_rate = 800000000,
 	 .cpu_rate = 800000000,
@@ -95,7 +95,7 @@ static struct cpu_wp cpu_wp_ces[] = {
 	 .mfd = 2,
 	 .mfn = 1,
 	 .cpu_podf = 0,
-	 .cpu_voltage = 1050000,},
+	 .cpu_voltage = 1100000,},
 	 {
 	  .pll_rate = 800000000,
 	  .cpu_rate = 400000000,
@@ -113,7 +113,7 @@ static struct cpu_wp cpu_wp_ces[] = {
 	 .mfd = 2,
 	 .mfn = 1,
 	 .cpu_podf = 4,
-	 .cpu_voltage = 900000,},
+	 .cpu_voltage = 950000,},
 };
 
 /* working point for consumer 1.2G*/
@@ -135,7 +135,7 @@ static struct cpu_wp cpu_wp_ces_1_2g[] = {
 	 .mfd = 11,
 	 .mfn = 5,
 	 .cpu_podf = 0,
-	 .cpu_voltage = 1200000,},
+	 .cpu_voltage = 1250000,},
 	{
 	 .pll_rate = 800000000,
 	 .cpu_rate = 800000000,
@@ -144,7 +144,7 @@ static struct cpu_wp cpu_wp_ces_1_2g[] = {
 	 .mfd = 2,
 	 .mfn = 1,
 	 .cpu_podf = 0,
-	 .cpu_voltage = 1050000,},
+	 .cpu_voltage = 1100000,},
 	 {
 	  .pll_rate = 800000000,
 	  .cpu_rate = 400000000,
@@ -158,7 +158,7 @@ static struct cpu_wp cpu_wp_ces_1_2g[] = {
 	 .mfd = 2,
 	 .mfn = 1,
 	 .cpu_podf = 4,
-	 .cpu_voltage = 900000,},
+	 .cpu_voltage = 950000,},
 };
 
 static struct dvfs_wp *mx53_get_dvfs_core_table(int *wp)
