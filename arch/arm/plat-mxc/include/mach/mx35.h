@@ -18,8 +18,6 @@
 #define SND_RAM_SIZE 0
 #endif
 
-#define VPU_IRAM_SIZE 0
-
 #define MX35_L2CC_BASE_ADDR		0x30000000
 #define MX35_L2CC_SIZE			SZ_1M
 

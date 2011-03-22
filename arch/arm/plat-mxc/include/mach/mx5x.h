@@ -98,12 +98,6 @@
 #define SND_RAM_SIZE 0
 #endif
 
-#ifdef CONFIG_MXC_VPU_IRAM
-#define VPU_IRAM_SIZE  0x14000
-#else
-#define VPU_IRAM_SIZE 0
-#endif
-
 #if defined(CONFIG_USB_STATIC_IRAM) \
     || defined(CONFIG_USB_STATIC_IRAM_PPH)
 #define USB_IRAM_SIZE	SZ_8K
