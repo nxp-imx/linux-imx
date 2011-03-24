@@ -33,6 +33,8 @@ extern int usb_host_wakeup_irq(struct device *wkup_dev);
 extern void usb_host_set_wakeup(struct device *wkup_dev, bool para);
 static void fsl_usb_lowpower_mode(struct fsl_usb2_platform_data *pdata, bool enable)
 {
+	pdata->lowpower = enable;
+
 	if (enable) {
 		if (pdata->phy_lowpower_suspend)
 			pdata->phy_lowpower_suspend(pdata, true);
@@ -40,7 +42,6 @@ static void fsl_usb_lowpower_mode(struct fsl_usb2_platform_data *pdata, bool ena
 		if (pdata->phy_lowpower_suspend)
 			pdata->phy_lowpower_suspend(pdata, false);
 	}
-	pdata->lowpower = enable;
 }
 
 static void fsl_usb_clk_gate(struct fsl_usb2_platform_data *pdata, bool enable)
