@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # Linux kernel version: 2.6.35.3
-# Tue Mar 22 18:45:35 2011
+# Thu Mar 24 19:46:10 2011
 #
 CONFIG_ARM=y
 CONFIG_HAVE_PWM=y
@@ -633,7 +633,7 @@ CONFIG_MTD_CFI_I2=y
 #
 # CONFIG_MTD_DATAFLASH is not set
 CONFIG_MTD_MXC_DATAFLASH=y
-# CONFIG_MTD_MXC_M25P80 is not set
+CONFIG_MTD_MXC_M25P80=y
 # CONFIG_MTD_M25P80 is not set
 # CONFIG_MTD_SST25L is not set
 # CONFIG_MTD_SLRAM is not set
