@@ -41,6 +41,7 @@
 #include <linux/fb.h>
 #include <linux/init.h>
 #include <linux/platform_device.h>
+#include <linux/regulator/consumer.h>
 #include <linux/i2c.h>
 #include <linux/mxcfb.h>
 #include <linux/fsl_devices.h>
@@ -56,6 +57,8 @@ static bool g_enable_hdmi;
 struct sii902x_data {
 	struct platform_device *pdev;
 	struct i2c_client *client;
+	struct regulator *io_reg;
+	struct regulator *analog_reg;
 	struct delayed_work det_work;
 	struct fb_info *fbi;
 	struct mxc_edid_cfg edid_cfg;
@@ -325,6 +328,17 @@ static int __devinit sii902x_probe(struct i2c_client *client,
 		return -EPERM;
 
 	sii902x.client = client;
+
+	sii902x.io_reg = regulator_get(&sii902x.client->dev, plat->io_reg);
+	if (!IS_ERR(sii902x.io_reg)) {
+		regulator_set_voltage(sii902x.io_reg, 3300000, 3300000);
+		regulator_enable(sii902x.io_reg);
+	}
+	sii902x.analog_reg = regulator_get(&sii902x.client->dev, plat->analog_reg);
+	if (!IS_ERR(sii902x.analog_reg)) {
+		regulator_set_voltage(sii902x.analog_reg, 1300000, 1300000);
+		regulator_enable(sii902x.analog_reg);
+	}
 
 	if (plat->reset) {
 		sii902x_reset = plat->reset;
