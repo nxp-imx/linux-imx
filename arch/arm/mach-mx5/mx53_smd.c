@@ -603,7 +603,8 @@ static void sii902x_hdmi_reset(void)
 }
 
 static struct mxc_lcd_platform_data sii902x_hdmi_data = {
-       .reset = sii902x_hdmi_reset,
+	.reset = sii902x_hdmi_reset,
+	.analog_reg = "DA9052_LDO2",
 };
 
 static struct imxi2c_platform_data mxci2c_data = {
