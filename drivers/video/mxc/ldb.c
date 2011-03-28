@@ -106,7 +106,9 @@ static struct device *g_ldb_dev;
 static u32 *ldb_reg;
 static int g_chan_mode_opt = LDB_NO_MODE;
 static int g_chan_bit_map[2];
-static bool g_enable_ldb;
+#define MXC_ENABLE	1
+#define MXC_DISABLE	2
+static int g_enable_ldb;
 static bool g_di0_used;
 static bool g_di1_used;
 
@@ -1244,8 +1246,22 @@ static int ldb_probe(struct platform_device *pdev)
 	int mxc_ldb_major;
 	struct class *mxc_ldb_class;
 
-	if (g_enable_ldb == false)
-		return -ENODEV;
+	if ((plat_data->boot_enable & (MXC_LDBDI0 | MXC_LDBDI1))
+		&& !g_enable_ldb) {
+		g_enable_ldb = MXC_ENABLE;
+		if (plat_data->boot_enable & MXC_LDBDI0)
+			g_di0_used = true;
+		if (plat_data->boot_enable & MXC_LDBDI1)
+			g_di1_used = true;
+	}
+
+	if (!g_enable_ldb)
+		g_enable_ldb = MXC_DISABLE;
+
+	if (g_enable_ldb == MXC_DISABLE) {
+		printk(KERN_WARNING "By setting, LDB driver will not be enabled\n");
+		return 0;
+	}
 
 	spin_lock_init(&ldb_lock);
 
@@ -1425,7 +1441,11 @@ static struct platform_driver mxcldb_driver = {
  */
 static int __init ldb_setup(char *options)
 {
-	g_enable_ldb = true;
+	if (!strcmp(options, "=off")) {
+		g_enable_ldb = MXC_DISABLE;
+		return 1;
+	} else
+		g_enable_ldb = MXC_ENABLE;
 
 	if (!strlen(options))
 		return 1;
