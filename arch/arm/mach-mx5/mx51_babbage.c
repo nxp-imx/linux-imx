@@ -576,6 +576,10 @@ static int __init mxc_init_fb(void)
 	/* WVGA Reset */
 	gpio_set_value(BABBAGE_DISP_BRIGHTNESS_CTL, 1);
 
+	/*for bbg board, set default display as DVI*/
+	if (primary_di < 0)
+		primary_di = 0;
+
 	if (primary_di) {
 		printk(KERN_INFO "DI1 is primary\n");
 
@@ -805,6 +809,7 @@ static struct mxc_ddc_platform_data mxc_ddc_dvi_data = {
 	.di = 0,
 	.init = ddc_dvi_init,
 	.update = ddc_dvi_update,
+	.boot_enable = 1,
 };
 
 static struct i2c_board_info mxc_i2c1_board_info[] __initdata = {

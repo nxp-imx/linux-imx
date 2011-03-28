@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2010-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,11 +19,18 @@
 #include <linux/init.h>
 #include <linux/string.h>
 
-int __initdata primary_di = { 0 };
-static int __init di_setup(char *__unused)
+int __initdata primary_di = { -1 };
+static int __init di1_setup(char *__unused)
 {
 	primary_di = 1;
 	return 1;
 }
-__setup("di1_primary", di_setup);
+__setup("di1_primary", di1_setup);
+
+static int __init di0_setup(char *__unused)
+{
+	primary_di = 0;
+	return 1;
+}
+__setup("di0_primary", di0_setup);
 
