@@ -681,6 +681,19 @@ config TOUCHSCREEN_STMPE
 	  To compile this driver as a module, choose M here: the
 	  module will be called stmpe-ts.
 
+config TOUCHSCREEN_P1003
+       tristate "HannStar P1003 touchscreens"
+       depends on I2C
+       help
+         Say Y here if you have a P1003 touchscreen
+	 controller.
+
+	 If unsure, say N.
+
+	 To compile this driver as a module, choose M here: the
+	 module will be called p1003-ts.
+
+
 config TOUCHSCREEN_TPS6507X
 	tristate "TPS6507x based touchscreens"
 	depends on I2C
