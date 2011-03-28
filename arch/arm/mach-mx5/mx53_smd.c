@@ -56,7 +56,7 @@
 #include <asm/mach/arch.h>
 #include <asm/mach/time.h>
 #include <asm/mach/keypad.h>
-#include <asm/mach/flash.h>
+#include <linux/spi/flash.h>
 #include <mach/memory.h>
 #include <mach/gpio.h>
 #include <mach/mmc.h>
@@ -746,7 +746,7 @@ static struct mtd_partition m25p32_partitions[] = {
 };
 
 static struct flash_platform_data m25p32_spi_flash_data = {
-	.name = "m25p80",
+	.name = "m25p32",
 	.parts = m25p32_partitions,
 	.nr_parts = ARRAY_SIZE(m25p32_partitions),
 	.type = "m25p32",
@@ -757,7 +757,7 @@ static struct spi_board_info m25p32_spi1_board_info[] __initdata = {
 #if defined(CONFIG_MTD_MXC_M25P80) || defined(CONFIG_MTD_MXC_M25P80_MODULE)
 	{
 		/* the modalias must be the same as spi device driver name */
-		.modalias = "m25p80",           /* Name of spi_driver for this device */
+		.modalias = "m25p32",           /* Name of spi_driver for this device */
 		.max_speed_hz = 20000000,       /* max spi SCK clock speed in HZ */
 		.bus_num = 1,                   /* Framework bus number */
 		.chip_select = 1,               /* Framework chip select. */
