@@ -329,6 +329,7 @@ static struct mxc_bus_freq_platform_data bus_freq_data = {
 
 static struct tve_platform_data tve_data = {
 	.dac_reg = "DA9052_LDO7",
+	.boot_enable = MXC_TVE_VGA,
 };
 
 static struct ldb_platform_data ldb_data = {
@@ -382,7 +383,7 @@ static struct mxc_fb_platform_data fb_data[] = {
 	 },
 	{
 	 .interface_pix_fmt = IPU_PIX_FMT_GBR24,
-	 .mode_str = "1024x768M-16@60",
+	 .mode_str = "VGA-XGA",
 	 .mode = video_modes,
 	 .num_modes = ARRAY_SIZE(video_modes),
 	 },
@@ -393,6 +394,10 @@ static int __init mxc_init_fb(void)
 {
 	if (!machine_is_mx53_loco())
 		return 0;
+
+	/*for loco board, set default display as VGA*/
+	if (primary_di < 0)
+		primary_di = 1;
 
 	if (primary_di) {
 		printk(KERN_INFO "DI1 is primary\n");

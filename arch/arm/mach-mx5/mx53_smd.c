@@ -503,6 +503,7 @@ static struct tve_platform_data tve_data = {
 
 static struct ldb_platform_data ldb_data = {
 	.ext_ref = 1,
+	.boot_enable = MXC_LDBDI1,
 };
 
 static void mxc_iim_enable_fuse(void)
@@ -545,14 +546,14 @@ static struct resource mxcfb_resources[] = {
 
 static struct mxc_fb_platform_data fb_data[] = {
 	{
-	 .interface_pix_fmt = IPU_PIX_FMT_RGB565,
-	 .mode_str = "CLAA-WVGA",
+	 .interface_pix_fmt = IPU_PIX_FMT_RGB24,
+	 .mode_str = "1024x768M-16@60",
 	 .mode = video_modes,
 	 .num_modes = ARRAY_SIZE(video_modes),
 	 },
 	{
-	 .interface_pix_fmt = IPU_PIX_FMT_GBR24,
-	 .mode_str = "1024x768M-16@60",
+	 .interface_pix_fmt = IPU_PIX_FMT_RGB666,
+	 .mode_str = "XGA",
 	 .mode = video_modes,
 	 .num_modes = ARRAY_SIZE(video_modes),
 	 },
@@ -563,6 +564,10 @@ static int __init mxc_init_fb(void)
 {
 	if (!machine_is_mx53_smd())
 		return 0;
+
+	/*for smd board, set default display as LDB*/
+	if (primary_di < 0)
+		primary_di = 1;
 
 	if (primary_di) {
 		printk(KERN_INFO "DI1 is primary\n");
@@ -605,6 +610,7 @@ static void sii902x_hdmi_reset(void)
 static struct mxc_lcd_platform_data sii902x_hdmi_data = {
 	.reset = sii902x_hdmi_reset,
 	.analog_reg = "DA9052_LDO2",
+	.boot_enable = 1,
 };
 
 static struct imxi2c_platform_data mxci2c_data = {

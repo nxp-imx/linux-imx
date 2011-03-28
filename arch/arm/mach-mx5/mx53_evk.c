@@ -783,6 +783,10 @@ static int __init mxc_init_fb(void)
 	if (!machine_is_mx53_evk())
 		return 0;
 
+	/*for evk board, set default display as CLAA-WVGA*/
+	if (primary_di < 0)
+		primary_di = 0;
+
 	if (primary_di) {
 		printk(KERN_INFO "DI1 is primary\n");
 		/* DI1 -> DP-BG channel: */
