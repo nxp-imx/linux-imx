@@ -7,8 +7,8 @@ obj-$(CONFIG_MXC_PMIC_MC9SDZ60)		+= mcu_pmic/
 obj-$(CONFIG_MXC_PMIC)			+= pmic/
 
 obj-$(CONFIG_MXC_HMP4E)         	+= hmp4e/
-obj-y                                   += security/
 obj-$(CONFIG_MXC_VPU)                   += vpu/
+obj-y                                   += security/
 obj-$(CONFIG_MXC_HWEVENT)               += hw_event/
 obj-$(CONFIG_MXC_ASRC)                 += asrc/
 obj-$(CONFIG_MXC_BLUETOOTH)		+= bt/
