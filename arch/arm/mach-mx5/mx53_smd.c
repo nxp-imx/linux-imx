@@ -424,6 +424,12 @@ static struct fb_videomode video_modes[] = {
 	 FB_VMODE_NONINTERLACED,
 	 0,},
 	{
+	/* 800x480 @ 60 Hz , pixel clk @ 32MHz */
+	"SEIKO-WVGA", 60, 800, 480, 29850, 89, 164, 23, 10, 10, 10,
+	FB_SYNC_CLK_LAT_FALL,
+	FB_VMODE_NONINTERLACED,
+	0,},
+	{
 	/* 1600x1200 @ 60 Hz 162M pixel clk*/
 	"UXGA", 60, 1600, 1200, 6172,
 	304, 64,
@@ -1134,6 +1140,8 @@ static void __init mx53_smd_io_init(void)
 	gpio_request(MX53_SMD_ALS_INT, "als int");
 	gpio_direction_input(MX53_SMD_ALS_INT);
 
+	gpio_request(MX53_SMD_LCD_PWR_EN, "lcd-pwr-en");
+	gpio_direction_output(MX53_SMD_LCD_PWR_EN, 1);
 }
 
 /*!
