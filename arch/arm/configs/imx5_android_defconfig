@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # Linux kernel version: 2.6.35.3
-# Tue Mar 15 09:25:32 2011
+# Tue Mar 29 17:22:38 2011
 #
 CONFIG_ARM=y
 CONFIG_HAVE_PWM=y
@@ -698,7 +698,6 @@ CONFIG_WIRELESS=y
 CONFIG_WIRELESS_EXT=y
 CONFIG_WEXT_CORE=y
 CONFIG_WEXT_PROC=y
-CONFIG_WEXT_SPY=y
 CONFIG_WEXT_PRIV=y
 # CONFIG_CFG80211 is not set
 CONFIG_WIRELESS_EXT_SYSFS=y
@@ -789,6 +788,7 @@ CONFIG_MTD_CFI_I2=y
 #
 # CONFIG_MTD_DATAFLASH is not set
 CONFIG_MTD_MXC_DATAFLASH=y
+# CONFIG_MTD_MXC_M25P80 is not set
 # CONFIG_MTD_M25P80 is not set
 # CONFIG_MTD_SST25L is not set
 # CONFIG_MTD_SLRAM is not set
@@ -919,40 +919,7 @@ CONFIG_SCSI_LOWLEVEL=y
 # CONFIG_SCSI_DEBUG is not set
 # CONFIG_SCSI_DH is not set
 # CONFIG_SCSI_OSD_INITIATOR is not set
-CONFIG_ATA=y
-# CONFIG_ATA_NONSTANDARD is not set
-CONFIG_ATA_VERBOSE_ERROR=y
-# CONFIG_SATA_PMP is not set
-
-#
-# Controllers with non-SFF native interface
-#
-CONFIG_SATA_AHCI_PLATFORM=y
-CONFIG_ATA_SFF=y
-
-#
-# SFF controllers with custom DMA interface
-#
-CONFIG_ATA_BMDMA=y
-
-#
-# SATA SFF controllers with BMDMA
-#
-# CONFIG_SATA_MV is not set
-
-#
-# PATA SFF controllers with BMDMA
-#
-CONFIG_PATA_FSL=m
-
-#
-# PIO-only SFF controllers
-#
-# CONFIG_PATA_PLATFORM is not set
-
-#
-# Generic fallback / legacy drivers
-#
+# CONFIG_ATA is not set
 CONFIG_MD=y
 # CONFIG_BLK_DEV_MD is not set
 CONFIG_BLK_DEV_DM=y
@@ -1021,17 +988,6 @@ CONFIG_FEC=y
 CONFIG_WLAN=y
 # CONFIG_USB_ZD1201 is not set
 # CONFIG_HOSTAP is not set
-CONFIG_ATH6K_LEGACY=m
-CONFIG_AR600x_SD31_XXX=y
-# CONFIG_AR600x_WB31_XXX is not set
-# CONFIG_AR600x_SD32_XXX is not set
-# CONFIG_AR600x_CUSTOM_XXX is not set
-# CONFIG_ATH6KL_ENABLE_COEXISTENCE is not set
-# CONFIG_ATH6KL_HCI_BRIDGE is not set
-# CONFIG_ATH6KL_CFG80211 is not set
-# CONFIG_ATH6KL_HTC_RAW_INTERFACE is not set
-# CONFIG_ATH6KL_VIRTUAL_SCATTER_GATHER is not set
-# CONFIG_ATH6KL_DEBUG is not set
 
 #
 # Enable WiMAX (Networking options) to see the WiMAX drivers
@@ -2289,6 +2245,18 @@ CONFIG_STAGING=y
 # CONFIG_TI_ST is not set
 # CONFIG_ST_BT is not set
 # CONFIG_ADIS16255 is not set
+CONFIG_ATH6K_LEGACY=m
+CONFIG_AR600x_SD31_XXX=y
+# CONFIG_AR600x_WB31_XXX is not set
+# CONFIG_AR600x_SD32_XXX is not set
+# CONFIG_AR600x_CUSTOM_XXX is not set
+# CONFIG_ATH6KL_ENABLE_COEXISTENCE is not set
+# CONFIG_ATH6KL_HCI_BRIDGE is not set
+# CONFIG_ATH6KL_CFG80211 is not set
+# CONFIG_ATH6KL_HTC_RAW_INTERFACE is not set
+# CONFIG_ATH6KL_VIRTUAL_SCATTER_GATHER is not set
+# CONFIG_ATH6KL_SKIP_ABI_VERSION_CHECK is not set
+# CONFIG_ATH6KL_DEBUG is not set
 
 #
 # Android
@@ -2363,7 +2331,6 @@ CONFIG_MXC_MC13892_POWER=y
 # MXC VPU(Video Processing Unit) support
 #
 CONFIG_MXC_VPU=y
-# CONFIG_MXC_VPU_IRAM is not set
 # CONFIG_MXC_VPU_DEBUG is not set
 
 #
