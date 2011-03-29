@@ -1340,13 +1340,19 @@ static struct clk ocram_clk = {
 };
 
 
-static struct clk aips_tz1_clk = {
-	.parent = &ahb_clk,
-	.secondary = &ahb_max_clk,
-	.enable_reg = MXC_CCM_CCGR0,
-	.enable_shift = MXC_CCM_CCGRx_CG12_OFFSET,
-	.enable = _clk_enable,
-	.disable = _clk_disable_inwait,
+static struct clk aips_tz1_clk[] = {
+	{
+	 .parent = &ahb_clk,
+	 .secondary = &aips_tz1_clk[1],
+	 .enable_reg = MXC_CCM_CCGR0,
+	 .enable_shift = MXC_CCM_CCGRx_CG12_OFFSET,
+	 .enable = _clk_enable,
+	 .disable = _clk_disable_inwait,
+	},
+	{
+	 .parent = &emi_fast_clk,
+	 .secondary = &ahb_max_clk,
+	},
 };
 
 static struct clk aips_tz2_clk = {
@@ -2107,7 +2113,7 @@ static struct clk uart1_clk[] = {
 	 .id = 0,
 	 .parent = &ipg_clk,
 #if UART1_DMA_ENABLE
-	 .secondary = &aips_tz1_clk,
+	 .secondary = &aips_tz1_clk[0],
 #endif
 	 .enable_reg = MXC_CCM_CCGR1,
 	 .enable_shift = MXC_CCM_CCGRx_CG3_OFFSET,
@@ -2133,7 +2139,7 @@ static struct clk uart2_clk[] = {
 	 .id = 1,
 	 .parent = &ipg_clk,
 #if UART2_DMA_ENABLE
-	 .secondary = &aips_tz1_clk,
+	 .secondary = &aips_tz1_clk[0],
 #endif
 	 .enable_reg = MXC_CCM_CCGR1,
 	 .enable_shift = MXC_CCM_CCGRx_CG5_OFFSET,
