@@ -495,7 +495,7 @@ do {	\
 #define READ_PAGE()	send_read_page(0)
 #define PROG_PAGE() 	send_prog_page(0)
 
-#elif CONFIG_ARCH_MXC_HAS_NFC_V2
+#elif defined(CONFIG_ARCH_MXC_HAS_NFC_V2)
 
 /*
  * For V1/V2 NFC registers Definition
