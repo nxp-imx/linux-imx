@@ -213,6 +213,28 @@ static int small_pop_event(struct snd_soc_dapm_widget *w,
 	return 0;
 }
 
+static int dap_enable_event(struct snd_soc_dapm_widget *w,
+	struct snd_kcontrol *kcontrol, int event)
+{
+	switch (event) {
+	case SND_SOC_DAPM_POST_PMU:
+		snd_soc_update_bits(w->codec, SGTL5000_DAP_CTRL,
+			0x1, 0x1);
+		break;
+
+	case SND_SOC_DAPM_PRE_PMD:
+		snd_soc_update_bits(w->codec, SGTL5000_DAP_CTRL,
+			0x1, 0);
+		snd_soc_dapm_disable_pin(&w->codec->dapm, "DAP_MIXER Mixer Channel");
+		snd_soc_dapm_sync(&w->codec->dapm);
+		break;
+	default:
+		break;
+	}
+
+	return 0;
+}
+
 /* input sources for ADC */
 static const char *adc_mux_text[] = {
 	"MIC_IN", "LINE_IN"
@@ -225,15 +247,50 @@ static const struct snd_kcontrol_new adc_mux =
 SOC_DAPM_ENUM("Capture Mux", adc_enum);
 
 /* input sources for DAC */
-static const char *dac_mux_text[] = {
+static const char *hp_mux_text[] = {
 	"DAC", "LINE_IN"
 };
 
-static const struct soc_enum dac_enum =
-SOC_ENUM_SINGLE(SGTL5000_CHIP_ANA_CTRL, 6, 2, dac_mux_text);
+static const struct soc_enum hp_enum =
+SOC_ENUM_SINGLE(SGTL5000_CHIP_ANA_CTRL, 6, 2, hp_mux_text);
 
-static const struct snd_kcontrol_new dac_mux =
-SOC_DAPM_ENUM("Headphone Mux", dac_enum);
+static const struct snd_kcontrol_new hp_mux =
+SOC_DAPM_ENUM("Headphone Mux", hp_enum);
+
+static const char *dap_in_mux_text[] = {
+	"ADC", "I2S_IN"
+};
+static const struct soc_enum dap_in_enum =
+SOC_ENUM_SINGLE(SGTL5000_CHIP_SSS_CTRL, 6, 2, dap_in_mux_text);
+
+static const struct snd_kcontrol_new dap_in_mux =
+SOC_DAPM_ENUM("DAP input mux", dap_in_enum);
+
+static const struct soc_enum dap_mixer_enum =
+SOC_ENUM_SINGLE(SGTL5000_CHIP_SSS_CTRL, 8, 2, dap_in_mux_text);
+
+static const struct snd_kcontrol_new dap_mixer_mux =
+SOC_DAPM_ENUM("DAP mixer channel mux", dap_mixer_enum);
+
+static const char *dap_out_mux_text[] = {
+	"ADC", "I2S_IN", "reserved", "DAP"
+};
+
+static const struct soc_enum dac_in_enum =
+SOC_ENUM_SINGLE(SGTL5000_CHIP_SSS_CTRL, 4, 4, dap_out_mux_text);
+
+static const struct snd_kcontrol_new dac_in_mux =
+SOC_DAPM_ENUM("DAC input mux", dac_in_enum);
+
+static const struct soc_enum i2s_out_enum =
+SOC_ENUM_SINGLE(SGTL5000_CHIP_SSS_CTRL, 0, 4, dap_out_mux_text);
+
+static const struct snd_kcontrol_new i2s_out_mux =
+SOC_DAPM_ENUM("i2s output mux", i2s_out_enum);
+
+static const struct snd_kcontrol_new dap_mixer_controls[] = {
+SOC_DAPM_SINGLE("Mixer Channel", SGTL5000_DAP_CTRL, 4, 1, 0),
+};
 
 static const struct snd_soc_dapm_widget sgtl5000_dapm_widgets[] = {
 	SND_SOC_DAPM_INPUT("LINE_IN"),
@@ -241,6 +298,16 @@ static const struct snd_soc_dapm_widget sgtl5000_dapm_widgets[] = {
 
 	SND_SOC_DAPM_OUTPUT("HP_OUT"),
 	SND_SOC_DAPM_OUTPUT("LINE_OUT"),
+
+	/* aif for i2s input */
+	SND_SOC_DAPM_AIF_IN("AIFIN", "Playback",
+				0, SGTL5000_CHIP_DIG_POWER,
+				0, 0),
+
+	/* aif for i2s output */
+	SND_SOC_DAPM_AIF_OUT("AIFOUT", "Capture",
+				0, SGTL5000_CHIP_DIG_POWER,
+				1, 0),
 
 	SND_SOC_DAPM_MICBIAS_E("Mic Bias", SGTL5000_CHIP_MIC_CTRL, 8, 0,
 				mic_bias_event,
@@ -254,20 +321,19 @@ static const struct snd_soc_dapm_widget sgtl5000_dapm_widgets[] = {
 			SND_SOC_DAPM_PRE_PMU | SND_SOC_DAPM_PRE_PMD),
 
 	SND_SOC_DAPM_MUX("Capture Mux", SND_SOC_NOPM, 0, 0, &adc_mux),
-	SND_SOC_DAPM_MUX("Headphone Mux", SND_SOC_NOPM, 0, 0, &dac_mux),
+	SND_SOC_DAPM_MUX("Headphone Mux", SND_SOC_NOPM, 0, 0, &hp_mux),
+	SND_SOC_DAPM_MUX_E("DAP_IN", SGTL5000_CHIP_DIG_POWER, 4, 0, &dap_in_mux,
+				dap_enable_event,
+				SND_SOC_DAPM_POST_PMU | SND_SOC_DAPM_PRE_PMD),
+	SND_SOC_DAPM_MUX("MIX_MUX", SND_SOC_NOPM, 0, 0, &dap_mixer_mux),
+	SND_SOC_DAPM_MUX("DAC_IN", SND_SOC_NOPM, 0, 0, &dac_in_mux),
+	SND_SOC_DAPM_MUX("I2S_OUT", SND_SOC_NOPM, 0, 0, &i2s_out_mux),
 
-	/* aif for i2s input */
-	SND_SOC_DAPM_AIF_IN("AIFIN", "Playback",
-				0, SGTL5000_CHIP_DIG_POWER,
-				0, 0),
-
-	/* aif for i2s output */
-	SND_SOC_DAPM_AIF_OUT("AIFOUT", "Capture",
-				0, SGTL5000_CHIP_DIG_POWER,
-				1, 0),
+	SND_SOC_DAPM_MIXER("DAP_MIXER", SND_SOC_NOPM, 0, 0,
+		&dap_mixer_controls[0],
+		ARRAY_SIZE(dap_mixer_controls)),
 
 	SND_SOC_DAPM_ADC("ADC", "Capture", SGTL5000_CHIP_ANA_POWER, 1, 0),
-
 	SND_SOC_DAPM_DAC("DAC", "Playback", SGTL5000_CHIP_ANA_POWER, 3, 0),
 };
 
@@ -277,9 +343,26 @@ static const struct snd_soc_dapm_route audio_map[] = {
 	{"Capture Mux", "MIC_IN", "MIC_IN"},	/* mic_in --> adc_mux */
 
 	{"ADC", NULL, "Capture Mux"},		/* adc_mux --> adc */
-	{"AIFOUT", NULL, "ADC"},		/* adc --> i2s_out */
 
-	{"DAC", NULL, "AIFIN"},			/* i2s-->dac,skip audio mux */
+	{"DAP_IN", "ADC", "ADC"},
+	{"DAP_IN", "I2S_IN", "AIFIN"},
+
+	{"MIX_MUX", "ADC", "ADC"},
+	{"MIX_MUX", "I2S_IN", "AIFIN"},
+
+	{"DAP_MIXER", NULL, "DAP_IN"},
+	{"DAP_MIXER", "Mixer Channel", "MIX_MUX"},
+
+	{"I2S_OUT", "ADC", "ADC"},		/* ADC --> I2S_OUT */
+	{"I2S_OUT", "I2S_IN", "AIFIN"},		/* ADC --> Audio Switch */
+	{"I2S_OUT", "DAP", "DAP_MIXER"},	/* ADC --> Audio Switch */
+	{"AIFOUT", NULL, "I2S_OUT"},		/* ADC --> Audio Switch */
+
+	{"DAC_IN", "ADC", "ADC"},		/* i2s-->dac,skip audio mux */
+	{"DAC_IN", "I2S_IN", "AIFIN"},		/* i2s-->dac,skip audio mux */
+	{"DAC_IN", "DAP", "DAP_MIXER"},		/* i2s-->dac,skip audio mux */
+	{"DAC", NULL, "DAC_IN"},
+
 	{"Headphone Mux", "DAC", "DAC"},	/* dac --> hp_mux */
 	{"LO", NULL, "DAC"},			/* dac --> line_out */
 
@@ -405,6 +488,117 @@ static int dac_put_volsw(struct snd_kcontrol *kcontrol,
 	return 0;
 }
 
+/*
+ * we need to caculator threshold dB by:
+ * register_value = ((10^(dB/20))*0.636)*2^15 ==>
+ * dB = (fls(register_value) - 14.347)*6.02
+ */
+static int avc_thrd_get(struct snd_kcontrol *kcontrol,
+			 struct snd_ctl_elem_value *ucontrol)
+{
+	struct snd_soc_codec *codec = snd_kcontrol_chip(kcontrol);
+	u16 reg = snd_soc_read(codec, SGTL5000_DAP_AVC_THRESHOLD);
+	int l;
+	/* 1/1000 of dB */
+	int fraction[5] = {585, 322, 170, 87, 44};
+	int i;
+	int tmp;
+
+	if (!reg) {
+		ucontrol->value.integer.value[0] = 96;
+		ucontrol->value.integer.value[1] = 96;
+		return 0;
+	}
+
+	/* caculate fls(register_value) */
+	l = fls(reg) - 1;
+	tmp = l * 1000; /* scale-up 1000 times */
+	for (i = l-1; i >= 0 && i >= l-5; i--) {
+		if (reg & 0x1 << i)
+			tmp += fraction[l-1-i];
+	}
+	tmp = ((tmp - 14347) * 6) / 1000;
+	tmp = clamp(-tmp, 0, 96);
+
+	ucontrol->value.integer.value[0] = tmp;
+	ucontrol->value.integer.value[1] = tmp;
+
+	return 0;
+}
+
+/*
+ * we need to caculator threshold dB by:
+ * register_value = ((10^(dB/20))*0.636)*2^15
+ *		  = 2^(3.322*db/20 + 15) * 0.636
+ *		  = 2^(3.322*db/20 + 15 - 0.653)
+ */
+static int avc_thrd_put(struct snd_kcontrol *kcontrol,
+			 struct snd_ctl_elem_value *ucontrol)
+{
+	struct snd_soc_codec *codec = snd_kcontrol_chip(kcontrol);
+	u16 reg;
+	int db;
+	int tmp;
+	int remain;
+	int i;
+	int fraction[5] = {1414, 1189, 1091, 1044, 1022};
+
+	db = -(ucontrol->value.integer.value[0]);
+
+	tmp = ((3322 * db) / 20 + 15000 - 653);
+	tmp = clamp(tmp, 0, 16000);
+
+	remain = tmp % 1000;
+	tmp = tmp / 1000;
+
+	reg = 0x1 << tmp;
+
+	for (i = 0; i < 5; i++) {
+		int level = 1000 / (0x1 << (i+1));
+		if (remain >= level) {
+			remain -= level;
+			reg = reg * fraction[i] / 1000;
+		}
+	}
+
+	snd_soc_write(codec, SGTL5000_DAP_AVC_THRESHOLD, reg);
+
+	return 0;
+}
+
+static int mixer_vol_get(struct snd_kcontrol *kcontrol,
+			 struct snd_ctl_elem_value *ucontrol)
+{
+	struct snd_soc_codec *codec = snd_kcontrol_chip(kcontrol);
+	struct soc_mixer_control *control =
+		(struct soc_mixer_control *)kcontrol->private_value;
+	u16 reg = snd_soc_read(codec, control->reg);
+	int vol;
+
+	vol = (reg * 100) >> 15;
+
+	ucontrol->value.integer.value[0] = vol;
+	ucontrol->value.integer.value[1] = vol;
+	return 0;
+}
+
+static int mixer_vol_put(struct snd_kcontrol *kcontrol,
+			 struct snd_ctl_elem_value *ucontrol)
+{
+	struct snd_soc_codec *codec = snd_kcontrol_chip(kcontrol);
+	struct soc_mixer_control *control =
+		(struct soc_mixer_control *)kcontrol->private_value;
+	u16 reg;
+	int vol;
+
+	vol = ucontrol->value.integer.value[0];
+	reg = (vol << 15) / 100;
+	snd_soc_write(codec, control->reg, reg);
+
+	return 0;
+}
+
+
 static const DECLARE_TLV_DB_SCALE(capture_6db_attenuate, -600, 600, 0);
 
 /* tlv for mic gain, 0db 20db 30db 40db */
@@ -416,6 +610,14 @@ static const unsigned int mic_gain_tlv[] = {
 
 /* tlv for hp volume, -51.5db to 12.0db, step .5db */
 static const DECLARE_TLV_DB_SCALE(headphone_volume, -5150, 50, 0);
+static const unsigned int bass_high_filter_freq[] = {
+	TLV_DB_RANGE_HEAD(7),
+	0, 0, TLV_DB_SCALE_ITEM(80, 0, 0),
+	1, 6, TLV_DB_SCALE_ITEM(100, 25, 0),
+};
+static const DECLARE_TLV_DB_SCALE(avc_max_gain, 0, 600, 0);
+static const DECLARE_TLV_DB_SCALE(avc_threshold, 0, 1, 0);
+static const DECLARE_TLV_DB_SCALE(mixer_volume, 0, 1, 0);
 
 static const struct snd_kcontrol_new sgtl5000_snd_controls[] = {
 	/* SOC_DOUBLE_S8_TLV with invert */
@@ -445,6 +647,37 @@ static const struct snd_kcontrol_new sgtl5000_snd_controls[] = {
 
 	SOC_SINGLE_TLV("Mic Volume", SGTL5000_CHIP_MIC_CTRL,
 			0, 4, 0, mic_gain_tlv),
+
+	/* Bass Enhance enable */
+	SOC_SINGLE("Bass Enable", SGTL5000_DAP_BASS_ENHANCE,
+			0, 1, 0),
+	SOC_SINGLE_TLV("Bass Filter Feq", SGTL5000_DAP_BASS_ENHANCE,
+			6, 7, 0, bass_high_filter_freq),
+	SOC_SINGLE("Bass Volume", SGTL5000_DAP_BASS_ENHANCE_CTRL,
+			8, 0x3f, 1),
+	/* Bass Harmonic Level Control */
+	SOC_SINGLE("Bass Level", SGTL5000_DAP_BASS_ENHANCE_CTRL,
+			0, 0x7f, 1),
+
+	/* DAP Surround */
+	SOC_SINGLE("Surround Width", SGTL5000_DAP_SURROUND,
+			4, 0x7, 0),
+
+	/* DAP MAIN Channel Voluem */
+	SOC_SINGLE_EXT_TLV("Main Channel Volume", SGTL5000_DAP_MAIN_CHAN,
+			0, 200, 0, mixer_vol_get, mixer_vol_put, mixer_volume),
+	SOC_SINGLE_EXT_TLV("Mixer Channel Volume", SGTL5000_DAP_MIX_CHAN,
+			0, 200, 0, mixer_vol_get, mixer_vol_put, mixer_volume),
+
+	/* DAP AVC */
+	SOC_SINGLE("AVC Enable", SGTL5000_DAP_AVC_CTRL,
+			0, 1, 0),
+	SOC_SINGLE("AVC Hard Limit", SGTL5000_DAP_AVC_CTRL,
+			5, 1, 0),
+	SOC_SINGLE_TLV("AVC Max Gain", SGTL5000_DAP_AVC_CTRL,
+			12, 2, 0, avc_max_gain),
+	SOC_SINGLE_EXT_TLV("AVC Threshold (-dB)", SGTL5000_DAP_AVC_THRESHOLD,
+			0, 96, 0, avc_thrd_get, avc_thrd_put, avc_threshold),
 };
 
 /* mute the codec used by alsa core */
@@ -788,6 +1021,20 @@ static int ldo_regulator_enable(struct regulator_dev *dev)
 	if (ldo_regulator_is_enabled(dev))
 		return 0;
 
+	snd_soc_update_bits(codec, SGTL5000_CHIP_ANA_POWER,
+				SGTL5000_LINREG_SIMPLE_POWERUP|
+				SGTL5000_STARTUP_POWERUP|
+				SGTL5000_REFTOP_POWERUP,
+				0);
+	udelay(10);
+	snd_soc_update_bits(codec, SGTL5000_CHIP_ANA_POWER,
+				SGTL5000_LINREG_SIMPLE_POWERUP|
+				SGTL5000_STARTUP_POWERUP|
+				SGTL5000_REFTOP_POWERUP,
+				SGTL5000_LINREG_SIMPLE_POWERUP|
+				SGTL5000_STARTUP_POWERUP|
+				SGTL5000_REFTOP_POWERUP);
+	udelay(10);
 	/* set regulator value firstly */
 	reg = (1600 - ldo->voltage / 1000) / 50;
 	reg = clamp(reg, 0x0, 0xf);
@@ -979,8 +1226,7 @@ static struct snd_soc_dai_driver sgtl5000_dai = {
 	.symmetric_rates = 1,
 };
 
-static int sgtl5000_volatile_register(struct snd_soc_codec *codec,
-					unsigned int reg)
+static int sgtl5000_volatile_register(unsigned int reg)
 {
 	switch (reg) {
 	case SGTL5000_CHIP_ID:
@@ -1233,7 +1479,6 @@ static int sgtl5000_enable_regulators(struct snd_soc_codec *codec)
 		}
 
 		sgtl5000->supplies[VDDD].supply = LDO_CONSUMER_NAME;
-
 		ret = regulator_bulk_get(codec->dev,
 				ARRAY_SIZE(sgtl5000->supplies),
 				sgtl5000->supplies);
