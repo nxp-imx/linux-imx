@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2010-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -85,7 +85,7 @@ static int _kgsl_device_active(gsl_device_t *dev, int all)
 }
 int kgsl_device_active(gsl_device_t *dev)
 {
-	return _kgsl_device_active(dev, 1);
+	return _kgsl_device_active(dev, 0);
 }
 
 static void kgsl_device_inactive(unsigned long data)
