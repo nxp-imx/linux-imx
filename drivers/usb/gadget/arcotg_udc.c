@@ -320,7 +320,6 @@ static void dr_phy_low_power_mode(struct fsl_udc *udc, bool enable)
 	struct fsl_usb2_platform_data *pdata = udc->pdata;
 	u32 portsc;
 
-	pdata->lowpower = enable;
 	if (pdata && pdata->phy_lowpower_suspend) {
 		pdata->phy_lowpower_suspend(pdata, enable);
 	} else {
@@ -334,6 +333,7 @@ static void dr_phy_low_power_mode(struct fsl_udc *udc, bool enable)
 			fsl_writel(portsc, &dr_regs->portsc1);
 		}
 	}
+	pdata->lowpower = enable;
 }
 
 
