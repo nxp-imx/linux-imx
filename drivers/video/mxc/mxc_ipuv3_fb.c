@@ -1515,11 +1515,16 @@ static void mxcfb_early_suspend(struct early_suspend *h)
 	int i;
 	struct platform_device *pdev;
 	pm_message_t state = { .event = PM_EVENT_SUSPEND };
+	struct fb_event event;
+	int blank = FB_BLANK_POWERDOWN;
 
 	for (i = 2; i >= 0; i--)
 		if (mxcfb_info[i]) {
 			pdev = to_platform_device(mxcfb_info[i]->device);
 			mxcfb_suspend(pdev, state);
+			event.info = mxcfb_info[i];
+			event.data = &blank;
+			fb_notifier_call_chain(FB_EVENT_BLANK, &event);
 		}
 }
 
@@ -1527,11 +1532,18 @@ static void mxcfb_later_resume(struct early_suspend *h)
 {
 	int i;
 	struct platform_device *pdev;
+	int blank = FB_BLANK_UNBLANK;
+	struct fb_event event;
+	struct mxcfb_info *mxc_fbi;
 
 	for (i = 0; i < 3; i++)
 		if (mxcfb_info[i]) {
 			pdev = to_platform_device(mxcfb_info[i]->device);
 			mxcfb_resume(pdev);
+			mxc_fbi = (struct mxcfb_info *)mxcfb_info[i]->par;
+			event.info = mxcfb_info[i];
+			event.data = &mxc_fbi->next_blank;
+			fb_notifier_call_chain(FB_EVENT_BLANK, &event);
 		}
 }
 
