@@ -84,21 +84,11 @@ kgsl_intr_decode(gsl_device_t *device, gsl_intrblock_t block_id)
 //----------------------------------------------------------------------------
 
 KGSL_API void
-kgsl_intr_isr()
+kgsl_intr_isr(gsl_device_t *device)
 {
-    gsl_deviceid_t  device_id;
-    gsl_device_t    *device;
-
-    // loop through the devices, and call device specific isr
-    for (device_id = (gsl_deviceid_t)(GSL_DEVICE_ANY + 1); device_id <= GSL_DEVICE_MAX; device_id++)
-    {
-        device = &gsl_driver.device[device_id-1];    // device_id is 1 based
-
-        if (device->intr.flags & GSL_FLAGS_INITIALIZED)
-        {
-            kgsl_device_active(device);
-            device->ftbl.intr_isr(device);
-        }
+    if (device->intr.flags & GSL_FLAGS_INITIALIZED) {
+	kgsl_device_active(device);
+	device->ftbl.intr_isr(device);
     }
 }
 
