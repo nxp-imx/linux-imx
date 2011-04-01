@@ -1,14 +1,19 @@
 /*
- * Copyright 2004-2010 Freescale Semiconductor, Inc. All Rights Reserved.
- */
-
-/*
- * The code contained herein is licensed under the GNU General Public
- * License. You may obtain a copy of the GNU General Public License
- * Version 2 or later at the following locations:
+ * Copyright 2004-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  *
- * http://www.opensource.org/licenses/gpl-license.html
- * http://www.gnu.org/copyleft/gpl.html
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
  */
 
 /*!
@@ -35,6 +40,8 @@
 #include <linux/pmic_status.h>
 
 #include <asm/uaccess.h>
+
+#include <linux/mfd/mc13892/core.h>
 
 #include "pmic.h"
 
@@ -80,6 +87,15 @@ static struct platform_device bleds_ldm = {
 	.id = 'b',
 };
 
+enum pmic_id {
+	PMIC_ID_MC13892,
+	PMIC_ID_INVALID,
+};
+
+struct pmic_internal pmic_internal[] = {
+	[PMIC_ID_MC13892] = _PMIC_INTERNAL_INITIALIZER(mc13892),
+};
+
 /*
  * External functions
  */
@@ -88,6 +104,43 @@ extern void pmic_event_callback(type_event event);
 extern void gpio_pmic_active(void);
 extern irqreturn_t pmic_irq_handler(int irq, void *dev_id);
 extern pmic_version_t mxc_pmic_version;
+
+static int get_index_pmic_internal(const char *name)
+{
+	int i;
+
+	for (i = 0; i < ARRAY_SIZE(pmic_internal); i++)
+		if (!strcmp(name, pmic_internal[i].name))
+			return i;
+
+	return PMIC_ID_INVALID;
+}
+
+static const char *get_client_device_name(const char *name, const char *format)
+{
+	char buf[30];
+	const char *client_devname;
+
+	if (snprintf(buf, sizeof(buf), format, name) > sizeof(buf))
+		return NULL;
+
+	client_devname = kmemdup(buf, strlen(buf) + 1, GFP_KERNEL);
+	if (!client_devname)
+		return NULL;
+
+	return client_devname;
+}
+
+static const char *get_chipname(struct spi_device *spidev)
+{
+	const struct spi_device_id *devid =
+		spi_get_device_id(spidev);
+
+	if (!devid)
+		return NULL;
+
+	return devid->name;
+}
 
 /*!
  * This function registers platform device structures for
@@ -156,12 +209,24 @@ static int __devinit pmic_probe(struct spi_device *spi)
 {
 	int ret = 0;
 	struct pmic_platform_data *plat_data = spi->dev.platform_data;
+	const char *name;
+	int pmic_index;
 
 	/* Initialize the PMIC parameters */
 	ret = pmic_spi_setup(spi);
 	if (ret != PMIC_SUCCESS) {
 		return PMIC_ERROR;
 	}
+
+	name = get_chipname(spi);
+	if (!name)
+		return PMIC_ERROR;
+	pmic_index = get_index_pmic_internal(name);
+	if (pmic_index == PMIC_ID_INVALID)
+		return PMIC_ERROR;
+
+	adc_ldm.name = get_client_device_name(name, "%s_adc");
+	battery_ldm.name = get_client_device_name(name, "%s_battery");
 
 	/* Initialize the PMIC event handling */
 	pmic_event_list_init();
@@ -170,7 +235,7 @@ static int __devinit pmic_probe(struct spi_device *spi)
 	gpio_pmic_active();
 
 	/* Get the PMIC Version */
-	pmic_get_revision(&mxc_pmic_version);
+	pmic_internal[pmic_index].pmic_get_revision(&mxc_pmic_version);
 	if (mxc_pmic_version.revision < 0) {
 		dev_err((struct device *)spi,
 			"PMIC not detected!!! Access Failed\n");
@@ -181,10 +246,11 @@ static int __devinit pmic_probe(struct spi_device *spi)
 			mxc_pmic_version.revision);
 	}
 
-	spi_set_drvdata(spi, pmic_alloc_data(&(spi->dev)));
+	spi_set_drvdata(spi,
+			pmic_internal[pmic_index].pmic_alloc_data(&(spi->dev)));
 
 	/* Initialize the PMIC parameters */
-	ret = pmic_init_registers();
+	ret = pmic_internal[pmic_index].pmic_init_registers();
 	if (ret != PMIC_SUCCESS) {
 		kfree(spi_get_drvdata(spi));
 		spi_set_drvdata(spi, NULL);
@@ -193,7 +259,7 @@ static int __devinit pmic_probe(struct spi_device *spi)
 
 	ret = pmic_start_event_thread(spi->irq);
 	if (ret) {
-		pr_err("mc13892 pmic driver init: \
+		pr_err("pmic driver init: \
 			fail to start event thread\n");
 		kfree(spi_get_drvdata(spi));
 		spi_set_drvdata(spi, NULL);
@@ -249,10 +315,19 @@ static int __devexit pmic_remove(struct spi_device *spi)
 	return PMIC_SUCCESS;
 }
 
+static const struct spi_device_id pmic_device_id[] = {
+	{
+		.name = "mc13892",
+	}, {
+		/* sentinel */
+	}
+};
+
 /*!
  * This structure contains pointers to the power management callback functions.
  */
 static struct spi_driver pmic_driver = {
+	.id_table = pmic_device_id,
 	.driver = {
 		   .name = "pmic_spi",
 		   .bus = &spi_bus_type,

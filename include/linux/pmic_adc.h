@@ -1,14 +1,19 @@
 /*
- * Copyright 2004-2010 Freescale Semiconductor, Inc. All Rights Reserved.
- */
-
-/*
- * The code contained herein is licensed under the GNU Lesser General
- * Public License.  You may obtain a copy of the GNU Lesser General
- * Public License Version 2.1 or later at the following locations:
+ * Copyright 2004-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  *
- * http://www.opensource.org/licenses/lgpl-license.html
- * http://www.gnu.org/copyleft/lgpl.html
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
  */
 
 #ifndef __ASM_ARCH_MXC_PMIC_ADC_H__
@@ -289,6 +294,12 @@ typedef struct {
 	t_comparator_cb callback;
 } t_adc_comp_param;
 
+struct pmic_adc_api {
+	int (*is_pmic_adc_ready)(void);
+	PMIC_STATUS (*pmic_adc_convert)(t_channel, unsigned short *);
+	PMIC_STATUS (*pmic_adc_get_touch_sample)(t_touch_screen *, int);
+};
+
 /* EXPORTED FUNCTIONS */
 
 #ifdef __KERNEL__
@@ -450,6 +461,8 @@ PMIC_STATUS pmic_adc_install_ts(void);
 PMIC_STATUS pmic_adc_remove_ts(void);
 
 int is_pmic_adc_ready(void);
+
+void register_adc_apis(struct pmic_adc_api *papi);
 
 #endif				/* _KERNEL */
 #endif				/* __ASM_ARCH_MXC_PMIC_ADC_H__ */
