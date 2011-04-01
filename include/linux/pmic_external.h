@@ -1,15 +1,21 @@
 /*
- * Copyright 2008-2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2008-2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
  */
 
-/*
- * The code contained herein is licensed under the GNU General Public
- * License. You may obtain a copy of the GNU General Public License
- * Version 2 or later at the following locations:
- *
- * http://www.opensource.org/licenses/gpl-license.html
- * http://www.gnu.org/copyleft/gpl.html
- */
 #ifndef __ASM_ARCH_MXC_PMIC_EXTERNAL_H__
 #define __ASM_ARCH_MXC_PMIC_EXTERNAL_H__
 
@@ -35,6 +41,7 @@
 
 #include <linux/ioctl.h>
 #include <linux/pmic_status.h>
+#include <linux/spi/spi.h>
 
 /*!
  * This is the enumeration of versions of PMIC
@@ -422,6 +429,11 @@ PMIC_STATUS pmic_get_sensors(t_sensor_bits *sensor_bits);
 
 void pmic_event_callback(type_event event);
 void pmic_event_list_init(void);
+
+unsigned int pmic_get_active_events(unsigned int *active_events);
+int pmic_event_mask(type_event event);
+int pmic_event_unmask(type_event event);
+int pmic_spi_setup(struct spi_device *spi);
 
 #endif				/*CONFIG_MXC_PMIC*/
 #endif				/* __KERNEL__ */

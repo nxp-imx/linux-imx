@@ -1,15 +1,21 @@
 /*
- * Copyright 2004-2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2004-2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
  */
 
-/*
- * The code contained herein is licensed under the GNU General Public
- * License. You may obtain a copy of the GNU General Public License
- * Version 2 or later at the following locations:
- *
- * http://www.opensource.org/licenses/gpl-license.html
- * http://www.gnu.org/copyleft/gpl.html
- */
 #ifndef __PMIC_H__
 #define __PMIC_H__
 
@@ -39,6 +45,21 @@ struct mxc_pmic {
 	struct spi_device *spi;
 };
 
+struct pmic_internal {
+	const char *name;
+	void *(*pmic_alloc_data)(struct device *dev);
+	int (*pmic_init_registers)(void);
+	void (*pmic_get_revision)(pmic_version_t *ver);
+};
+
+#define _PMIC_INTERNAL_INITIALIZER(type)				\
+{									\
+	.name			= #type,				\
+	.pmic_alloc_data	= type ## _alloc_data,			\
+	.pmic_init_registers	= type ## _init_registers,		\
+	.pmic_get_revision	= type ## _get_revision,		\
+}
+
 /*!
  * This function is called to transfer data to PMIC on SPI.
  *
@@ -66,60 +87,6 @@ static inline int spi_rw(struct spi_device *spi, u8 * buf, size_t len)
 	return len - m.actual_length;
 }
 
-/*!
- * This function returns the PMIC version in system.
- *
- * @param 	ver	pointer to the pmic_version_t structure
- *
- * @return       This function returns PMIC version.
- */
-void pmic_get_revision(pmic_version_t *ver);
-
-/*!
- * This function initializes the SPI device parameters for this PMIC.
- *
- * @param    spi	the SPI slave device(PMIC)
- *
- * @return   None
- */
-int pmic_spi_setup(struct spi_device *spi);
-
-/*!
- * This function initializes the PMIC registers.
- *
- * @return   None
- */
-int pmic_init_registers(void);
-
-/*!
- * This function reads the interrupt status registers of PMIC
- * and determine the current active events.
- *
- * @param 	active_events array pointer to be used to return active
- *		event numbers.
- *
- * @return       This function returns PMIC version.
- */
-unsigned int pmic_get_active_events(unsigned int *active_events);
-
-/*!
- * This function sets a bit in mask register of pmic to disable an event IT.
- *
- * @param	event 	the event to be masked
- *
- * @return     This function returns PMIC_SUCCESS on SUCCESS, error on FAILURE.
- */
-int pmic_event_mask(type_event event);
-
-/*!
- * This function unsets a bit in mask register of pmic to unmask an event IT.
- *
- * @param	event 	the event to be unmasked
- *
- * @return    This function returns PMIC_SUCCESS on SUCCESS, error on FAILURE.
- */
-int pmic_event_unmask(type_event event);
-
 #ifdef CONFIG_MXC_PMIC_FIXARB
 extern PMIC_STATUS pmic_fix_arbitration(struct spi_device *spi);
 #else
@@ -128,8 +95,6 @@ static inline PMIC_STATUS pmic_fix_arbitration(struct spi_device *spi)
 	return PMIC_SUCCESS;
 }
 #endif
-
-void *pmic_alloc_data(struct device *dev);
 
 int pmic_start_event_thread(int irq_num);
 
