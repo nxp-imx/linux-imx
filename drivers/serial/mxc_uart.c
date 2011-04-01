@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2004-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -85,10 +85,6 @@ typedef struct {
 	 */
 	int rx_event_id;
 	/*!
-	 * DMA Transmit tasklet
-	 */
-	struct tasklet_struct dma_tx_tasklet;
-	/*!
 	 * Flag indicates if the channel is in use
 	 */
 	int dma_txchnl_inuse;
@@ -133,14 +129,13 @@ static void mxcuart_stop_tx(struct uart_port *port)
 }
 
 /*!
- * DMA Transmit tasklet method is scheduled on completion of a DMA transmit
+ * DMA Transmit method is scheduled on completion of a DMA transmit
  * to send out any more data that is available in the UART xmit buffer.
  *
- * @param   arg  driver private data
+ * @param   arg  pointer of uart_mxc_port
  */
-static void dma_tx_do_tasklet(unsigned long arg)
+static void mxcuart_dma_tx(uart_mxc_port *umxc)
 {
-	uart_mxc_port *umxc = (uart_mxc_port *) arg;
 	struct circ_buf *xmit = &umxc->port.state->xmit;
 	mxc_dma_requestbuf_t writechnl_request;
 	int tx_num;
@@ -199,16 +194,15 @@ static void mxcuart_dma_writecallback(void *arg, int error, unsigned int count)
 
 	dma_unmap_single(umxc->port.dev, umxc->tx_handle, TXDMA_BUFF_SIZE,
 			 DMA_TO_DEVICE);
+
 	tx_num = uart_circ_chars_pending(xmit);
-	/* Schedule a tasklet to send out the pending characters */
-	if (tx_num > 0) {
-		tasklet_schedule(&dma_list[umxc->port.line].dma_tx_tasklet);
-	} else {
+	if (tx_num > 0)
+		mxcuart_dma_tx(umxc);
+	else
 		dma_list[umxc->port.line].dma_txchnl_inuse = 0;
-	}
-	if (tx_num < WAKEUP_CHARS) {
+
+	if (tx_num < WAKEUP_CHARS)
 		uart_write_wakeup(&umxc->port);
-	}
 }
 
 /*!
@@ -231,7 +225,7 @@ static void mxcuart_start_tx(struct uart_port *port)
 	if (umxc->dma_enabled == 1) {
 		/*
 		 * If the channel is in use then return immediately and use
-		 * the dma_tx tasklet to transfer queued data when current DMA
+		 * the mxcuart_dma_tx to transfer queued data when current DMA
 		 * transfer is complete
 		 */
 		if (dma_list[umxc->port.line].dma_txchnl_inuse == 1) {
@@ -832,7 +826,7 @@ static void mxcuart_dmaread_callback(void *arg, int error, unsigned int cnt)
 {
 	uart_mxc_port *umxc = arg;
 	struct tty_struct *tty = umxc->port.state->port.tty;
-	int buff_id, flip_cnt, num_bufs;
+	int buff_id, num_bufs, rd_cnt;
 	mxc_dma_requestbuf_t readchnl_request;
 	mxc_uart_rxdmamap *rx_buf_elem = NULL;
 	unsigned int sr1, sr2;
@@ -857,18 +851,18 @@ static void mxcuart_dmaread_callback(void *arg, int error, unsigned int cnt)
 		sr1 = __raw_readl(umxc->port.membase + MXC_UARTUSR1);
 		sr2 = __raw_readl(umxc->port.membase + MXC_UARTUSR2);
 
+		printk(KERN_ERR "UART: DMA_ERROR: sr1:%x sr2:%x\n", sr1, sr2);
+
 		if (sr2 & MXC_UARTUSR2_BRCD) {
 			umxc->port.icount.brk++;
-			if (uart_handle_break(&umxc->port)) {
+			if (uart_handle_break(&umxc->port))
 				goto drop_data;
-			}
-		} else if (sr1 & MXC_UARTUSR1_PARITYERR) {
+		else if (sr1 & MXC_UARTUSR1_PARITYERR)
 			umxc->port.icount.parity++;
-		} else if (sr1 & MXC_UARTUSR1_FRAMERR) {
+		else if (sr1 & MXC_UARTUSR1_FRAMERR)
 			umxc->port.icount.frame++;
-		} else if (sr2 & MXC_UARTUSR2_ORE) {
+		else if (sr2 & MXC_UARTUSR2_ORE)
 			umxc->port.icount.overrun++;
-
 		}
 
 		if (umxc->port.read_status_mask & MXC_UARTURXD_BRK) {
@@ -884,26 +878,18 @@ static void mxcuart_dmaread_callback(void *arg, int error, unsigned int cnt)
 			if (sr2 & MXC_UARTUSR2_ORE)
 				flag = TTY_OVERRUN;
 		}
-/* By default clearing all error bits in status reg */
+		/* By default clearing all error bits in status reg */
 		__raw_writel((MXC_UARTUSR2_BRCD | MXC_UARTUSR2_ORE),
 			     umxc->port.membase + MXC_UARTUSR2);
 		__raw_writel((MXC_UARTUSR1_PARITYERR | MXC_UARTUSR1_FRAMERR),
 			     umxc->port.membase + MXC_UARTUSR1);
 	}
 
-	flip_cnt = tty_buffer_request_room(tty, cnt);
+	rd_cnt = tty_insert_flip_string(tty, rx_buf_elem->rx_buf, cnt);
+	umxc->port.icount.rx += rd_cnt;
 
-	/* Check for space availability in the TTY Flip buffer */
-	if (flip_cnt <= 0) {
-		goto drop_data;
-	}
-	umxc->port.icount.rx += flip_cnt;
-
-	tty_insert_flip_string(tty, rx_buf_elem->rx_buf, flip_cnt);
-
-	if (flag != TTY_NORMAL) {
+	if (flag != TTY_NORMAL)
 		tty_insert_flip_char(tty, 0, flag);
-	}
 
 	tty_flip_buffer_push(tty);
 	umxc->port.state->port.tty->real_raw = 1;
@@ -930,9 +916,10 @@ static void mxcuart_dmaread_callback(void *arg, int error, unsigned int cnt)
  */
 static int mxcuart_initdma(dma_info *d_info, uart_mxc_port *umxc)
 {
-	int ret = 0, rxbufs, i, j;
+	int rxbufs, i, j;
 	mxc_dma_requestbuf_t *readchnl_reqelem;
 	mxc_uart_rxdmamap *rx_buf_elem;
+	int ret = 0;
 
 	/* Request for the read and write channels */
 	d_info->rd_channel = mxc_dma_request(umxc->dma_rx_id, "MXC UART Read");
@@ -1008,8 +995,6 @@ static int mxcuart_initdma(dma_info *d_info, uart_mxc_port *umxc)
 	/* Start the read channel */
 	mxc_dma_enable(d_info->rd_channel);
 	kfree(readchnl_reqelem);
-	tasklet_init(&d_info->dma_tx_tasklet, dma_tx_do_tasklet,
-		     (unsigned long)umxc);
 	d_info->dma_txchnl_inuse = 0;
 	return ret;
       cleanup:
