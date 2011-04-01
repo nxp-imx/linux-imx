@@ -4,7 +4,7 @@
  * Copyright (C) 2004 - 2005 Nokia corporation
  * Written by Tuukka Tikkanen <tuukka.tikkanen@elektrobit.com>
  * Modified for omap shared clock framework by Tony Lindgren <tony@atomide.com>
- * Copyright 2007-2010 Freescale Semiconductor, Inc.
+ * Copyright 2007-2011 Freescale Semiconductor, Inc.
  * Copyright 2008 Juergen Beisert, kernel@pengutronix.de
  *
  * This program is free software; you can redistribute it and/or
@@ -141,11 +141,11 @@ static void __clk_disable(struct clk *clk)
 		return;
 
 	if (!(--clk->usecount)) {
-		__clk_disable(clk->parent);
-		__clk_disable(clk->secondary);
-
 		if (clk->disable)
 			clk->disable(clk);
+
+		__clk_disable(clk->secondary);
+		__clk_disable(clk->parent);
 	}
 }
 
