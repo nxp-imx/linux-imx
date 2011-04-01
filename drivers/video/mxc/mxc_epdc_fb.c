@@ -3589,7 +3589,7 @@ int __devinit mxc_epdc_fb_probe(struct platform_device *pdev)
 	mxc_epdc_fb_set_fix(info);
 
 	fb_data->auto_mode = AUTO_UPDATE_MODE_REGION_MODE;
-	fb_data->upd_scheme = UPDATE_SCHEME_SNAPSHOT;
+	fb_data->upd_scheme = UPDATE_SCHEME_QUEUE_AND_MERGE;
 
 	/* Initialize our internal copy of the screeninfo */
 	fb_data->epdc_fb_var = *var_info;
