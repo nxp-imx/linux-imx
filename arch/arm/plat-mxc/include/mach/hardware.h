@@ -97,6 +97,7 @@ extern unsigned int system_rev;
 #define board_is_mx53_evk_b()    (cpu_is_mx53() && board_is_rev(BOARD_REV_3))
 #define board_is_mx53_ard_a()    (cpu_is_mx53() && board_is_rev(BOARD_REV_1))
 #define board_is_mx53_ard_b()    (cpu_is_mx53() && board_is_rev(BOARD_REV_2))
+#define board_is_mx50_rd3()	(cpu_is_mx50() && board_is_rev(BOARD_REV_4))
 #endif
 
 #include <mach/mxc.h>

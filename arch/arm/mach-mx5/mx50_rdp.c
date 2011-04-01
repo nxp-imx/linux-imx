@@ -102,7 +102,7 @@
 #define EPDC_PMIC_INT		(5*32 + 17)	/*GPIO_6_17 */
 #define EPDC_VCOM	(3*32 + 21)	/*GPIO_4_21 */
 #define EPDC_PWRSTAT	(2*32 + 28)	/*GPIO_3_28 */
-#define ELCDIF_PWR_ON	(1*32 + 21)	/*GPIO_2_21 */
+#define ELCDIF_PWR_ON (board_is_mx50_rd3() ? (1*32 + 18) : (1*32 + 21))
 #define ELCDIF_DAT0_DUMMY	(0*32 + 0)	/*GPIO_1_0 */
 #define ELCDIF_DAT1_DUMMY	(0*32 + 1)	/*GPIO_1_1 */
 #define ELCDIF_DAT2_DUMMY	(0*32 + 2)	/*GPIO_1_2 */
@@ -115,9 +115,11 @@
 #define CSPI_CS2	(3*32 + 11) /*GPIO_4_11*/
 #define SGTL_OSCEN (5*32 + 8) /*GPIO_6_8*/
 #define SGTL_AMP_SHDN		(5*32 + 15) /*GPIO_6_15*/
-#define FEC_EN (5*32 + 23) /*GPIO_6_23*/
+#define FEC_EN (board_is_mx50_rd3() ? (3*32 + 15) : (5*32 + 23))
 #define FEC_RESET_B (3*32 + 12) /*GPIO_4_12*/
 #define USB_OTG_PWR	(5*32 + 25) /*GPIO_6_25*/
+#define DCDC_EN (3*32 + 16) /*GPIO_4_16*/
+#define UART1_RTS (5*32 + 9) /*GPIO_6_9*/
 
 extern int __init mx50_rdp_init_mc13892(void);
 extern struct cpu_wp *(*get_cpu_wp)(int *wp);
@@ -317,6 +319,13 @@ static iomux_v3_cfg_t mx50_rdp[] = {
 	MX50_PAD_EIM_OE__GPIO_1_24,
 	MX50_PAD_EIM_RW__GPIO_1_25,
 	MX50_PAD_EIM_LBA__GPIO_1_26,
+};
+
+/* POWER_EN and DISP_VSYNC pin switched */
+static iomux_v3_cfg_t mx50_rd3_adjust[] = {
+	MX50_PAD_DISP_CS__ELCDIF_HSYNC,
+	MX50_PAD_DISP_BUSY__GPIO_2_18,
+	MX50_PAD_UART1_RTS__GPIO_6_9,	/* SD2 VDD */
 };
 
 static iomux_v3_cfg_t mx50_gpmi_nand[] = {
@@ -1248,7 +1257,10 @@ static void wvga_reset(void)
 	mxc_iomux_v3_setup_multiple_pads(rdp_wvga_pads, \
 				ARRAY_SIZE(rdp_wvga_pads));
 
-	gpio_direction_output(FEC_EN, 1);
+	if (board_is_mx50_rd3())
+		gpio_direction_output(FEC_EN, 0);
+	else
+		gpio_direction_output(FEC_EN, 1);
 
 	gpio_request(ELCDIF_DAT0_DUMMY, "elcdif-data0");
 	gpio_direction_output(ELCDIF_DAT0_DUMMY, 0);
@@ -1472,14 +1484,24 @@ static struct gpmi_nfc_platform_data  gpmi_nfc_platform_data = {
 
 static void fec_gpio_iomux_init()
 {
-	iomux_v3_cfg_t iomux_setting = (MX50_PAD_I2C3_SDA__GPIO_6_23 & \
+	iomux_v3_cfg_t iomux_setting;
+
+	if (board_is_mx50_rd3())
+		iomux_setting = (MX50_PAD_ECSPI1_SS0__GPIO_4_15 & \
+				~MUX_PAD_CTRL_MASK) | \
+				MUX_PAD_CTRL(PAD_CTL_PKE | PAD_CTL_DSE_HIGH);
+	else
+		iomux_setting = (MX50_PAD_I2C3_SDA__GPIO_6_23 & \
 				~MUX_PAD_CTRL_MASK) | \
 				MUX_PAD_CTRL(PAD_CTL_PKE | PAD_CTL_DSE_HIGH);
 
 	/* Enable the Pull/keeper */
 	mxc_iomux_v3_setup_pad(iomux_setting);
 	gpio_request(FEC_EN, "fec-en");
-	gpio_direction_output(FEC_EN, 0);
+	if (board_is_mx50_rd3())
+		gpio_direction_output(FEC_EN, 1);
+	else
+		gpio_direction_output(FEC_EN, 0);
 	gpio_request(FEC_RESET_B, "fec-reset_b");
 	gpio_direction_output(FEC_RESET_B, 0);
 	udelay(500);
@@ -1488,7 +1510,13 @@ static void fec_gpio_iomux_init()
 
 static void fec_gpio_iomux_deinit()
 {
-	iomux_v3_cfg_t iomux_setting = (MX50_PAD_I2C3_SDA__GPIO_6_23 & \
+	iomux_v3_cfg_t iomux_setting;
+
+	if (board_is_mx50_rd3())
+		iomux_setting = (MX50_PAD_ECSPI1_SS0__GPIO_4_15 & \
+					~MUX_PAD_CTRL_MASK) | MUX_PAD_CTRL(0x4);
+	else
+		iomux_setting = (MX50_PAD_I2C3_SDA__GPIO_6_23 & \
 					~MUX_PAD_CTRL_MASK) | MUX_PAD_CTRL(0x4);
 
 	mxc_iomux_v3_setup_pad(iomux_setting);
@@ -1502,6 +1530,17 @@ static void mx50_suspend_enter()
 {
 	iomux_v3_cfg_t *p = suspend_enter_pads;
 	int i;
+	iomux_v3_cfg_t iomux_setting =
+			(MX50_PAD_ECSPI2_SCLK__GPIO_4_16 &
+			~MUX_PAD_CTRL_MASK) | MUX_PAD_CTRL(0x84);
+
+	if (board_is_mx50_rd3()) {
+		/* Enable the Pull/keeper */
+		mxc_iomux_v3_setup_pad(iomux_setting);
+		gpio_request(DCDC_EN, "dcdc-en");
+		gpio_direction_output(DCDC_EN, 1);
+	}
+
 	/* Set PADCTRL to 0 for all IOMUX. */
 	for (i = 0; i < ARRAY_SIZE(suspend_enter_pads); i++) {
 		suspend_exit_pads[i] = *p;
@@ -1518,6 +1557,17 @@ static void mx50_suspend_enter()
 
 static void mx50_suspend_exit()
 {
+	iomux_v3_cfg_t iomux_setting =
+			(MX50_PAD_ECSPI2_SCLK__GPIO_4_16 &
+			~MUX_PAD_CTRL_MASK) | MUX_PAD_CTRL(0x84);
+
+	if (board_is_mx50_rd3()) {
+		/* Enable the Pull/keeper */
+		mxc_iomux_v3_setup_pad(iomux_setting);
+		gpio_request(DCDC_EN, "dcdc-en");
+		gpio_direction_output(DCDC_EN, 0);
+	}
+
 	mxc_iomux_v3_setup_multiple_pads(suspend_exit_pads,
 			ARRAY_SIZE(suspend_exit_pads));
 	fec_gpio_iomux_init();
@@ -1568,6 +1618,10 @@ static void __init mx50_rdp_io_init(void)
 	mxc_iomux_v3_setup_multiple_pads(mx50_rdp, \
 			ARRAY_SIZE(mx50_rdp));
 
+	if (board_is_mx50_rd3())
+		mxc_iomux_v3_setup_multiple_pads(mx50_rd3_adjust, \
+			ARRAY_SIZE(mx50_rd3_adjust));
+
 	gpio_request(SD1_WP, "sdhc1-wp");
 	gpio_direction_input(SD1_WP);
 
@@ -1600,6 +1654,11 @@ static void __init mx50_rdp_io_init(void)
 
 	gpio_request(ELCDIF_PWR_ON, "elcdif-power-on");
 	gpio_direction_output(ELCDIF_PWR_ON, 1);
+
+	if (board_is_mx50_rd3()) {
+		gpio_request(UART1_RTS, "sd2-vdd");
+		gpio_direction_output(UART1_RTS, 1);
+	}
 
 	if (enable_w1) {
 		iomux_v3_cfg_t one_wire = MX50_PAD_OWIRE__OWIRE;
