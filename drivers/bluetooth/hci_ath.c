@@ -1,5 +1,14 @@
 /*
- * Copyright (c) 2009-2010 Atheros Communications Inc.
+ *  Atheros Communication Bluetooth HCIATH3K UART protocol
+ *
+ *  HCIATH3K (HCI Atheros AR300x Protocol) is a Atheros Communication's
+ *  power management protocol extension to H4 to support AR300x Bluetooth Chip.
+ *
+ *  Copyright (c) 2009-2010 Atheros Communications Inc.
+ *
+ *  Acknowledgements:
+ *  This file is based on hci_h4.c, which was written
+ *  by Maxim Krasnyansky and Marcel Holtmann.
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -19,6 +28,7 @@
 
 #include <linux/module.h>
 #include <linux/kernel.h>
+#include <linux/version.h>
 
 #include <linux/init.h>
 #include <linux/slab.h>
@@ -32,84 +42,52 @@
 
 #include "hci_uart.h"
 
-#ifdef DEBUG
-#define ATH_DBG(fmt, arg...)   printk(KERN_ERR "[ATH_DBG] (%s) <%s>: " fmt "\n" , __FILE__ , __func__ , ## arg)
-#define ATH_INFO(fmt, arg...)  printk(KERN_INFO "[ATH_DBG] (%s) <%s>: " fmt "\n" , __FILE__ , __func__ , ## arg)
-#else
-#define ATH_DBG(fmt, arg...)
-#define ATH_INFO(fmt, arg...)
-#endif
-
-
-/* HCIATH receiver States */
-#define HCIATH_W4_PACKET_TYPE			0
-#define HCIATH_W4_EVENT_HDR			1
-#define HCIATH_W4_ACL_HDR			2
-#define HCIATH_W4_SCO_HDR			3
-#define HCIATH_W4_DATA				4
-
 struct ath_struct {
 	struct hci_uart *hu;
-	unsigned int rx_state;
-	unsigned int rx_count;
 	unsigned int cur_sleep;
 
-	spinlock_t hciath_lock;
-	struct sk_buff *rx_skb;
 	struct sk_buff_head txq;
-	wait_queue_head_t wqevt;
 	struct work_struct ctxtsw;
 };
 
-int ath_wakeup_ar3001(struct tty_struct *tty)
+static int ath_wakeup_ar3k(struct tty_struct *tty)
 {
 	struct termios settings;
-	int status = 0x00;
-	mm_segment_t oldfs;
-	status = tty->driver->ops->tiocmget(tty, NULL);
+	int status = tty->driver->ops->tiocmget(tty, NULL);
 
-	ATH_DBG("");
-
-	if ((status & TIOCM_CTS))
+	if (status & TIOCM_CTS)
 		return status;
 
-	oldfs = get_fs();
-	set_fs(KERNEL_DS);
+	/* Disable Automatic RTSCTS */
 	n_tty_ioctl_helper(tty, NULL, TCGETS, (unsigned long)&settings);
-
 	settings.c_cflag &= ~CRTSCTS;
 	n_tty_ioctl_helper(tty, NULL, TCSETS, (unsigned long)&settings);
-	set_fs(oldfs);
-	status = tty->driver->ops->tiocmget(tty, NULL);
 
-	/* Wake up board */
+	/* Clear RTS first */
+	status = tty->driver->ops->tiocmget(tty, NULL);
 	tty->driver->ops->tiocmset(tty, NULL, 0x00, TIOCM_RTS);
 	mdelay(20);
 
+	/* Set RTS, wake up board */
 	status = tty->driver->ops->tiocmget(tty, NULL);
-
 	tty->driver->ops->tiocmset(tty, NULL, TIOCM_RTS, 0x00);
 	mdelay(20);
 
 	status = tty->driver->ops->tiocmget(tty, NULL);
-	oldfs = get_fs();
-	set_fs(KERNEL_DS);
-	n_tty_ioctl_helper(tty, NULL, TCGETS, (unsigned long)&settings);
 
+	n_tty_ioctl_helper(tty, NULL, TCGETS, (unsigned long)&settings);
 	settings.c_cflag |= CRTSCTS;
 	n_tty_ioctl_helper(tty, NULL, TCSETS, (unsigned long)&settings);
-	set_fs(oldfs);
+
 	return status;
 }
 
-static void ath_context_switch(struct work_struct *work)
+static void ath_hci_uart_work(struct work_struct *work)
 {
 	int status;
 	struct ath_struct *ath;
 	struct hci_uart *hu;
 	struct tty_struct *tty;
-
-	ATH_DBG("");
 
 	ath = container_of(work, struct ath_struct, ctxtsw);
 
@@ -118,8 +96,7 @@ static void ath_context_switch(struct work_struct *work)
 
 	/* verify and wake up controller */
 	if (ath->cur_sleep) {
-
-		status = ath_wakeup_ar3001(tty);
+		status = ath_wakeup_ar3k(tty);
 		if (!(status & TIOCM_CTS))
 			return;
 	}
@@ -129,39 +106,24 @@ static void ath_context_switch(struct work_struct *work)
 	hci_uart_tx_wakeup(hu);
 }
 
-int ath_check_sleep_cmd(struct ath_struct *ath, unsigned char *packet)
-{
-	ATH_DBG("");
-
-	if (packet[0] == 0x04 && packet[1] == 0xFC)
-		ath->cur_sleep = packet[3];
-
-	ATH_DBG("ath->cur_sleep:%d\n", ath->cur_sleep);
-
-	return 0;
-}
-
-
 /* Initialize protocol */
 static int ath_open(struct hci_uart *hu)
 {
 	struct ath_struct *ath;
+
 	BT_DBG("hu %p", hu);
-	ATH_INFO("hu %p", hu);
 
 	ath = kzalloc(sizeof(*ath), GFP_ATOMIC);
 	if (!ath)
 		return -ENOMEM;
 
 	skb_queue_head_init(&ath->txq);
-	spin_lock_init(&ath->hciath_lock);
 
-	ath->cur_sleep = 0;
 	hu->priv = ath;
 	ath->hu = hu;
 
-	init_waitqueue_head(&ath->wqevt);
-	INIT_WORK(&ath->ctxtsw, ath_context_switch);
+	INIT_WORK(&ath->ctxtsw, ath_hci_uart_work);
+
 	return 0;
 }
 
@@ -169,8 +131,9 @@ static int ath_open(struct hci_uart *hu)
 static int ath_flush(struct hci_uart *hu)
 {
 	struct ath_struct *ath = hu->priv;
+
 	BT_DBG("hu %p", hu);
-	ATH_INFO("hu %p", hu);
+
 	skb_queue_purge(&ath->txq);
 
 	return 0;
@@ -180,33 +143,43 @@ static int ath_flush(struct hci_uart *hu)
 static int ath_close(struct hci_uart *hu)
 {
 	struct ath_struct *ath = hu->priv;
+
 	BT_DBG("hu %p", hu);
-	ATH_INFO("hu %p", hu);
 
 	skb_queue_purge(&ath->txq);
 
-	if (ath->rx_skb)
-		kfree_skb(ath->rx_skb);
+	cancel_work_sync(&ath->ctxtsw);
 
-	wake_up_interruptible(&ath->wqevt);
 	hu->priv = NULL;
 	kfree(ath);
+
 	return 0;
 }
+
+#define HCI_OP_ATH_SLEEP 0xFC04
 
 /* Enqueue frame for transmittion */
 static int ath_enqueue(struct hci_uart *hu, struct sk_buff *skb)
 {
 	struct ath_struct *ath = hu->priv;
-	if (bt_cb(skb)->pkt_type == HCI_SCODATA_PKT) {
 
-		/* Discard SCO packet.AR3001 does not support SCO over HCI */
-		BT_DBG("SCO Packet over HCI received Dropping\n");
-		kfree(skb);
+	if (bt_cb(skb)->pkt_type == HCI_SCODATA_PKT) {
+		kfree_skb(skb);
 		return 0;
 	}
+
+	/*
+	 * Update power management enable flag with parameters of
+	 * HCI sleep enable vendor specific HCI command.
+	 */
+	if (bt_cb(skb)->pkt_type == HCI_COMMAND_PKT) {
+		struct hci_command_hdr *hdr = (void *)skb->data;
+
+		if (__le16_to_cpu(hdr->opcode) == HCI_OP_ATH_SLEEP)
+			ath->cur_sleep = skb->data[HCI_COMMAND_HDR_SIZE];
+	}
+
 	BT_DBG("hu %p skb %p", hu, skb);
-	ATH_DBG("hu %p skb %p", hu, skb);
 
 	/* Prepend skb with frame type */
 	memcpy(skb_push(skb, 1), &bt_cb(skb)->pkt_type, 1);
@@ -215,151 +188,187 @@ static int ath_enqueue(struct hci_uart *hu, struct sk_buff *skb)
 	set_bit(HCI_UART_SENDING, &hu->tx_state);
 
 	schedule_work(&ath->ctxtsw);
+
 	return 0;
 }
 
 static struct sk_buff *ath_dequeue(struct hci_uart *hu)
 {
 	struct ath_struct *ath = hu->priv;
-	struct sk_buff *skbuf;
 
-	ATH_DBG("");
-
-	skbuf = skb_dequeue(&ath->txq);
-	if (skbuf != NULL)
-		ath_check_sleep_cmd(ath, &skbuf->data[1]);
-
-	return skbuf;
+	return skb_dequeue(&ath->txq);
 }
 
-static inline int ath_check_data_len(struct ath_struct *ath, int len)
-{
-	register int room = skb_tailroom(ath->rx_skb);
-	BT_DBG("len %d room %d", len, room);
-	ATH_DBG("len %d room %d", len, room);
+#if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 35)
+#define NUM_REASSEMBLY 4
 
-	if (len > room) {
-		BT_ERR("Data length is too large");
-		kfree_skb(ath->rx_skb);
-		ath->rx_state = HCIATH_W4_PACKET_TYPE;
-		ath->rx_skb = NULL;
-		ath->rx_count = 0;
-	} else {
-		ath->rx_state = HCIATH_W4_DATA;
-		ath->rx_count = len;
-		return len;
+/* Skb helpers */
+struct ath_bt_skb_cb {
+	__u8 pkt_type;
+	__u8 incoming;
+	__u16 expect;
+	__u8 tx_seq;
+	__u8 retries;
+	__u8 sar;
+};
+
+
+static int hci_reassembly(struct hci_dev *hdev, int type, void *data,
+			  int count, __u8 index, gfp_t gfp_mask)
+{
+	int len = 0;
+	int hlen = 0;
+	int remain = count;
+	struct sk_buff *skb;
+	struct ath_bt_skb_cb *scb;
+
+	if ((type < HCI_ACLDATA_PKT || type > HCI_EVENT_PKT) ||
+				index >= NUM_REASSEMBLY)
+		return -EILSEQ;
+
+	skb = hdev->reassembly[index];
+
+	if (!skb) {
+		switch (type) {
+		case HCI_ACLDATA_PKT:
+			len = HCI_MAX_FRAME_SIZE;
+			hlen = HCI_ACL_HDR_SIZE;
+			break;
+		case HCI_EVENT_PKT:
+			len = HCI_MAX_EVENT_SIZE;
+			hlen = HCI_EVENT_HDR_SIZE;
+			break;
+		case HCI_SCODATA_PKT:
+			len = HCI_MAX_SCO_SIZE;
+			hlen = HCI_SCO_HDR_SIZE;
+			break;
+		}
+
+		skb = bt_skb_alloc(len, gfp_mask);
+		if (!skb)
+			return -ENOMEM;
+
+		scb = (void *) skb->cb;
+		scb->expect = hlen;
+		scb->pkt_type = type;
+		skb->dev = (void *) hdev;
+		hdev->reassembly[index] = skb;
 	}
 
-	return 0;
+	while (count) {
+		scb = (void *) skb->cb;
+		len = min(scb->expect, (__u16)count);
+
+		memcpy(skb_put(skb, len), data, len);
+
+		count -= len;
+		data += len;
+		scb->expect -= len;
+		remain = count;
+
+		switch (type) {
+		case HCI_EVENT_PKT:
+			if (skb->len == HCI_EVENT_HDR_SIZE) {
+				struct hci_event_hdr *h = hci_event_hdr(skb);
+				scb->expect = h->plen;
+
+				if (skb_tailroom(skb) < scb->expect) {
+					kfree_skb(skb);
+					hdev->reassembly[index] = NULL;
+					return -ENOMEM;
+				}
+			}
+			break;
+
+		case HCI_ACLDATA_PKT:
+			if (skb->len  == HCI_ACL_HDR_SIZE) {
+				struct hci_acl_hdr *h = hci_acl_hdr(skb);
+				scb->expect = __le16_to_cpu(h->dlen);
+
+				if (skb_tailroom(skb) < scb->expect) {
+					kfree_skb(skb);
+					hdev->reassembly[index] = NULL;
+					return -ENOMEM;
+				}
+			}
+			break;
+
+		case HCI_SCODATA_PKT:
+			if (skb->len == HCI_SCO_HDR_SIZE) {
+				struct hci_sco_hdr *h = hci_sco_hdr(skb);
+				scb->expect = h->dlen;
+
+				if (skb_tailroom(skb) < scb->expect) {
+					kfree_skb(skb);
+					hdev->reassembly[index] = NULL;
+					return -ENOMEM;
+				}
+			}
+			break;
+		}
+
+		if (scb->expect == 0) {
+			/* Complete frame */
+
+			bt_cb(skb)->pkt_type = type;
+			hci_recv_frame(skb);
+
+			hdev->reassembly[index] = NULL;
+			return remain;
+		}
+	}
+
+	return remain;
 }
+
+#define STREAM_REASSEMBLY 0
+
+static int hci_recv_stream_fragment(struct hci_dev *hdev, void *data, int count)
+{
+	int type;
+	int rem = 0;
+
+	while (count) {
+		struct sk_buff *skb = hdev->reassembly[STREAM_REASSEMBLY];
+
+		if (!skb) {
+			struct { char type; } *pkt;
+
+			/* Start of the frame */
+			pkt = data;
+			type = pkt->type;
+
+			data++;
+			count--;
+		} else
+			type = bt_cb(skb)->pkt_type;
+
+		rem = hci_reassembly(hdev, type, data,
+					count, STREAM_REASSEMBLY, GFP_KERNEL);
+		if (rem < 0)
+			return rem;
+
+		data += (count - rem);
+		count = rem;
+	};
+
+	return rem;
+}
+#endif
 
 /* Recv data */
 static int ath_recv(struct hci_uart *hu, void *data, int count)
 {
-	struct ath_struct *ath = hu->priv;
-	register char *ptr;
-	struct hci_event_hdr *eh;
-	struct hci_acl_hdr *ah;
-	struct hci_sco_hdr *sh;
-	struct sk_buff *skbuf;
-	register int len, type, dlen;
+	int ret;
+	ret = hci_recv_stream_fragment(hu->hdev, data, count);
+	if (ret < 0)
+		BT_ERR("Frame Reassembly Failed: %d", ret);
 
-	skbuf = NULL;
-	BT_DBG("hu %p count %d rx_state %d rx_count %d", hu, count,
-	       ath->rx_state, ath->rx_count);
-	ATH_DBG("hu %p count %d rx_state %d rx_count %d", hu, count,
-	       ath->rx_state, ath->rx_count);
-	ptr = data;
-	while (count) {
-		if (ath->rx_count) {
-
-			len = min_t(unsigned int, ath->rx_count, count);
-			memcpy(skb_put(ath->rx_skb, len), ptr, len);
-			ath->rx_count -= len;
-			count -= len;
-			ptr += len;
-
-			if (ath->rx_count)
-				continue;
-			switch (ath->rx_state) {
-			case HCIATH_W4_DATA:
-				hci_recv_frame(ath->rx_skb);
-				ath->rx_state = HCIATH_W4_PACKET_TYPE;
-				ath->rx_skb = NULL;
-				ath->rx_count = 0;
-				continue;
-			case HCIATH_W4_EVENT_HDR:
-				eh = (struct hci_event_hdr *)ath->rx_skb->data;
-				BT_DBG("Event header: evt 0x%2.2x plen %d",
-				       eh->evt, eh->plen);
-				ATH_DBG("Event header: evt 0x%2.2x plen %d",
-				       eh->evt, eh->plen);
-				ath_check_data_len(ath, eh->plen);
-				continue;
-			case HCIATH_W4_ACL_HDR:
-				ah = (struct hci_acl_hdr *)ath->rx_skb->data;
-				dlen = __le16_to_cpu(ah->dlen);
-				BT_DBG("ACL header: dlen %d", dlen);
-				ATH_DBG("ACL header: dlen %d", dlen);
-				ath_check_data_len(ath, dlen);
-				continue;
-			case HCIATH_W4_SCO_HDR:
-				sh = (struct hci_sco_hdr *)ath->rx_skb->data;
-				BT_DBG("SCO header: dlen %d", sh->dlen);
-				ATH_DBG("SCO header: dlen %d", sh->dlen);
-				ath_check_data_len(ath, sh->dlen);
-				continue;
-			}
-		}
-
-		/* HCIATH_W4_PACKET_TYPE */
-		switch (*ptr) {
-		case HCI_EVENT_PKT:
-			BT_DBG("Event packet");
-			ATH_DBG("Event packet");
-			ath->rx_state = HCIATH_W4_EVENT_HDR;
-			ath->rx_count = HCI_EVENT_HDR_SIZE;
-			type = HCI_EVENT_PKT;
-			break;
-		case HCI_ACLDATA_PKT:
-			BT_DBG("ACL packet");
-			ATH_DBG("ACL packet");
-			ath->rx_state = HCIATH_W4_ACL_HDR;
-			ath->rx_count = HCI_ACL_HDR_SIZE;
-			type = HCI_ACLDATA_PKT;
-			break;
-		case HCI_SCODATA_PKT:
-			BT_DBG("SCO packet");
-			ATH_DBG("SCO packet");
-			ath->rx_state = HCIATH_W4_SCO_HDR;
-			ath->rx_count = HCI_SCO_HDR_SIZE;
-			type = HCI_SCODATA_PKT;
-			break;
-		default:
-			BT_ERR("Unknown HCI packet type %2.2x", (__u8) *ptr);
-			hu->hdev->stat.err_rx++;
-			ptr++;
-			count--;
-			continue;
-		};
-		ptr++;
-		count--;
-
-		/* Allocate packet */
-		ath->rx_skb = bt_skb_alloc(HCI_MAX_FRAME_SIZE, GFP_ATOMIC);
-		if (!ath->rx_skb) {
-			BT_ERR("Can't allocate mem for new packet");
-			ath->rx_state = HCIATH_W4_PACKET_TYPE;
-			ath->rx_count = 0;
-			return -ENOMEM;
-		}
-		ath->rx_skb->dev = (void *)hu->hdev;
-		bt_cb(ath->rx_skb)->pkt_type = type;
-	} return count;
+	return count;
 }
 
 static struct hci_uart_proto athp = {
-	.id = HCI_UART_ATH,
+	.id = HCI_UART_ATH3K,
 	.open = ath_open,
 	.close = ath_close,
 	.recv = ath_recv,
@@ -368,19 +377,19 @@ static struct hci_uart_proto athp = {
 	.flush = ath_flush,
 };
 
-int ath_init(void)
+int __init ath_init(void)
 {
 	int err = hci_uart_register_proto(&athp);
-	ATH_INFO("");
+
 	if (!err)
-		BT_INFO("HCIATH protocol initialized");
+		BT_INFO("HCIATH3K protocol initialized");
 	else
-		BT_ERR("HCIATH protocol registration failed with err %d", err);
+		BT_ERR("HCIATH3K protocol registration failed");
+
 	return err;
 }
 
-int ath_deinit(void)
+int __exit ath_deinit(void)
 {
-	ATH_INFO("");
 	return hci_uart_unregister_proto(&athp);
 }
