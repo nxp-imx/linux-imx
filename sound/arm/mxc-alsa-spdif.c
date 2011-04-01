@@ -2130,12 +2130,10 @@ static int mxc_alsa_spdif_probe(struct platform_device
 	chip->spdif_txclk_44100 = plat_data->spdif_clk_44100;
 	chip->spdif_txclk_48000 = plat_data->spdif_clk_48000;
 	if ((chip->spdif_txclk_44100 == 1) ||
-		(chip->spdif_txclk_48000 == 1)) {
+		(chip->spdif_txclk_48000 == 1))
 		/*spdif0_clk used as clk src*/
-		struct clk *spdif_clk;
-		spdif_clk = clk_get(&pdev->dev, NULL);
-		clk_enable(spdif_clk);
-	}
+		plat_data->spdif_clk = clk_get(&pdev->dev, NULL);
+
 	atomic_set(&chip->dpll_locked, 0);
 
 	err = snd_card_mxc_spdif_pcm(chip);
