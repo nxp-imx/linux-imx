@@ -120,8 +120,10 @@
 #define USB_OTG_PWR	(5*32 + 25) /*GPIO_6_25*/
 #define DCDC_EN (3*32 + 16) /*GPIO_4_16*/
 #define UART1_RTS (5*32 + 9) /*GPIO_6_9*/
+#define UART2_RX (5*32 + 11) /*GPIO_6_11*/
 
 extern int __init mx50_rdp_init_mc13892(void);
+extern int __init mx50_rdp_init_mc34708(void);
 extern struct cpu_wp *(*get_cpu_wp)(int *wp);
 extern void (*set_num_cpu_wp)(int num);
 extern struct dvfs_wp *(*get_dvfs_core_wp)(int *wp);
@@ -326,6 +328,7 @@ static iomux_v3_cfg_t mx50_rd3_adjust[] = {
 	MX50_PAD_DISP_CS__ELCDIF_HSYNC,
 	MX50_PAD_DISP_BUSY__GPIO_2_18,
 	MX50_PAD_UART1_RTS__GPIO_6_9,	/* SD2 VDD */
+	MX50_PAD_UART2_RXD__GPIO_6_11,
 };
 
 static iomux_v3_cfg_t mx50_gpmi_nand[] = {
@@ -1658,6 +1661,9 @@ static void __init mx50_rdp_io_init(void)
 	if (board_is_mx50_rd3()) {
 		gpio_request(UART1_RTS, "sd2-vdd");
 		gpio_direction_output(UART1_RTS, 1);
+		/* isolate EIM signals and boot configuration signals. */
+		gpio_request(UART2_RX, "eim-bootcfg-iso");
+		gpio_direction_output(UART2_RX, 0);
 	}
 
 	if (enable_w1) {
@@ -1712,13 +1718,19 @@ static void __init mxc_board_init(void)
 	mxc_register_device(&mxc_pxp_device, NULL);
 	mxc_register_device(&mxc_pxp_client_device, NULL);
 	mxc_register_device(&mxc_pxp_v4l2, NULL);
+	if (board_is_mx50_rd3())
+		bus_freq_data.gp_reg_id = "SW1A";
 	mxc_register_device(&busfreq_device, &bus_freq_data);
 	mxc_register_device(&pm_device, &mx50_pm_data);
+	if (board_is_mx50_rd3())
+		dvfs_core_data.reg_id = "SW1A";
 	mxc_register_device(&mxc_dvfs_core_device, &dvfs_core_data);
 	if (enable_keypad)
 		mxc_register_device(&mxc_keypad_device, &keypad_android_plat_data);
 
 	mxc_register_device(&mxcsdhc1_device, &mmc1_data);
+	if (board_is_mx50_rd3())
+		mmc2_data.power_mmc = NULL;
 	mxc_register_device(&mxcsdhc2_device, &mmc2_data);
 	mxc_register_device(&mxcsdhc3_device, &mmc3_data);
 	mxc_register_device(&mxc_ssi1_device, NULL);
@@ -1751,7 +1763,10 @@ static void __init mxc_board_init(void)
 	mxc_register_device(&fixed_volt_reg_device, &fixed_volt_reg_pdata);
 	if (mx50_revision() >= IMX_CHIP_REVISION_1_1)
 		mxc_register_device(&mxc_zq_calib_device, NULL);
-	mx50_rdp_init_mc13892();
+	if (board_is_mx50_rd3())
+		mx50_rdp_init_mc34708();
+	else
+		mx50_rdp_init_mc13892();
 /*
 	pm_power_off = mxc_power_off;
 	*/
