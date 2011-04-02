@@ -17,5 +17,5 @@ obj-$(CONFIG_MACH_MX53_ARD) += mx53_ard.o mx53_ard_pmic_ltc3589.o
 obj-$(CONFIG_MACH_MX53_SMD) += mx53_smd.o mx53_smd_pmic_da9053.o
 obj-$(CONFIG_MACH_MX53_LOCO) += mx53_loco.o mx53_loco_pmic_da9053.o
 obj-$(CONFIG_MACH_MX50_ARM2) += mx50_arm2.o mx50_arm2_pmic_mc13892.o
-obj-$(CONFIG_MACH_MX50_RDP) += mx50_rdp.o mx50_rdp_pmic_mc13892.o
+obj-$(CONFIG_MACH_MX50_RDP) += mx50_rdp.o mx50_rdp_pmic_mc13892.o mx50_rdp_pmic_mc34708.o
 obj-$(CONFIG_MXC_BLUETOOTH_RFKILL) += mx53_smd_rfkill.o
