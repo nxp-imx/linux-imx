@@ -46,6 +46,10 @@ struct mxc_pmic pmic_drv_data;
 static unsigned int events_enabled0;
 static unsigned int events_enabled1;
 
+#ifdef CONFIG_MXC_PMIC_MC34704
+extern int pmic_read(int reg_num, unsigned int *reg_val);
+extern int pmic_write(int reg_num, const unsigned int reg_val);
+#else
 int pmic_spi_setup(struct spi_device *spi)
 {
 	/* Setup the SPI slave i.e.PMIC */
@@ -101,6 +105,7 @@ int pmic_write(int reg_num, const unsigned int reg_val)
 		return PMIC_ERROR;
 	}
 }
+#endif
 
 /*!
  * This function is called by PMIC clients to read a register on PMIC.
@@ -162,6 +167,7 @@ PMIC_STATUS pmic_write_reg(int reg, unsigned int reg_value,
 	return ret;
 }
 
+#ifndef CONFIG_MXC_PMIC_MC34704
 unsigned int pmic_get_active_events(unsigned int *active_events)
 {
 	unsigned int count = 0;
@@ -260,6 +266,7 @@ int pmic_event_mask(type_event event)
 	return ret;
 }
 EXPORT_SYMBOL(pmic_event_mask);
+#endif
 
 EXPORT_SYMBOL(pmic_read_reg);
 EXPORT_SYMBOL(pmic_write_reg);

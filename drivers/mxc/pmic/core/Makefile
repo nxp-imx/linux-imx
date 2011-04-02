@@ -1,11 +1,10 @@
 #
 # Makefile for the PMIC core drivers.
 #
-obj-$(CONFIG_MXC_PMIC_MC13783) += pmic_mc13783_mod.o
-pmic_mc13783_mod-objs := pmic_external.o pmic_event.o pmic_common.o pmic_core_spi.o mc13783.o
+#obj-$(CONFIG_MXC_PMIC_MC13783) += pmic_mc13783_mod.o
+#pmic_mc13783_mod-objs := pmic_external.o pmic_event.o pmic_common.o pmic_core_spi.o mc13783.o
 
-
-obj-$(CONFIG_MXC_PMIC)	+= pmic_mxc_mod.o
+obj-$(findstring y, $(CONFIG_MXC_PMIC_MC13892) $(CONFIG_MXC_PMIC_MC34708))	+= pmic_mxc_mod.o
 pmic_mxc_mod-objs	:= pmic_external.o pmic_event.o pmic_common.o pmic_adc_interface.o
 
 ifneq ($(CONFIG_MXC_PMIC_MC13892),)
