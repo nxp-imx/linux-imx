@@ -23,6 +23,14 @@ config MXC_PMIC_MC13892
 	  This is the MXC MC13892(PMIC) support. It include
 	  ADC, Battery, Connectivity, Light, Power and RTC.
 
+config MXC_PMIC_MC34708
+	tristate "MC34708 PMIC"
+	depends on ARCH_MXC && (I2C || SPI)
+	select MXC_PMIC
+	---help---
+	  This is the MXC MC34708(PMIC) support. It include
+	  ADC, Battery, Connectivity, Light, Power and RTC.
+
 config MXC_PMIC_I2C
 	bool "Support PMIC I2C Interface"
 	depends on MXC_PMIC_MC13892 && I2C
@@ -61,4 +69,5 @@ source "drivers/mxc/pmic/mc13783/Kconfig"
 
 source "drivers/mxc/pmic/mc13892/Kconfig"
 
+source "drivers/mxc/pmic/mc34708/Kconfig"
 endmenu

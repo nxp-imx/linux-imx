@@ -1,0 +1,27 @@
+#
+# PMIC Modules configuration
+#
+
+config MXC_MC34708_ADC
+	tristate "MC34708 ADC support"
+	depends on MXC_PMIC_MC34708
+	---help---
+	This is the MC34708 ADC module driver. This module provides kernel API
+	for the ADC system of MC34708.
+	It controls also the touch screen interface.
+	If you want MC34708 ADC support, you should say Y here
+
+config MXC_MC34708_RTC
+	tristate "MC34708 Real Time Clock (RTC) support"
+	depends on MXC_PMIC_MC34708
+	---help---
+	This is the MC34708 RTC module driver. This module provides kernel API
+	for RTC part of MC34708.
+	If you want MC34708 RTC support, you should say Y here
+config MXC_MC34708_BATTERY
+	tristate "MC34708 Battery API support"
+	depends on MXC_PMIC_MC34708
+	---help---
+	This is the MC34708 battery module driver. This module provides kernel API
+	for battery control part of MC34708.
+	If you want MC34708 battery support, you should say Y here
