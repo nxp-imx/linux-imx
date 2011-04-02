@@ -42,6 +42,7 @@
 #include <asm/uaccess.h>
 
 #include <linux/mfd/mc13892/core.h>
+#include <linux/mfd/mc34708/core.h>
 
 #include "pmic.h"
 
@@ -89,11 +90,13 @@ static struct platform_device bleds_ldm = {
 
 enum pmic_id {
 	PMIC_ID_MC13892,
+	PMIC_ID_MC34708,
 	PMIC_ID_INVALID,
 };
 
 struct pmic_internal pmic_internal[] = {
 	[PMIC_ID_MC13892] = _PMIC_INTERNAL_INITIALIZER(mc13892),
+	[PMIC_ID_MC34708] = _PMIC_INTERNAL_INITIALIZER(mc34708),
 };
 
 /*
@@ -227,6 +230,7 @@ static int __devinit pmic_probe(struct spi_device *spi)
 
 	adc_ldm.name = get_client_device_name(name, "%s_adc");
 	battery_ldm.name = get_client_device_name(name, "%s_battery");
+	light_ldm.name = get_client_device_name(name, "%s_light");
 
 	/* Initialize the PMIC event handling */
 	pmic_event_list_init();
@@ -318,6 +322,8 @@ static int __devexit pmic_remove(struct spi_device *spi)
 static const struct spi_device_id pmic_device_id[] = {
 	{
 		.name = "mc13892",
+	}, {
+		.name = "mc34708",
 	}, {
 		/* sentinel */
 	}

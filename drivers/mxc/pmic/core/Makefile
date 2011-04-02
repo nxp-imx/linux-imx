@@ -11,6 +11,10 @@ ifneq ($(CONFIG_MXC_PMIC_MC13892),)
 pmic_mxc_mod-objs	+= mc13892.o
 endif
 
+ifneq ($(CONFIG_MXC_PMIC_MC34708),)
+pmic_mxc_mod-objs	+= mc34708.o
+endif
+
 ifneq ($(CONFIG_MXC_PMIC_SPI),)
 pmic_mxc_mod-objs += pmic_core_spi.o
 endif
