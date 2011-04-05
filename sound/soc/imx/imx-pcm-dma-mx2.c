@@ -83,7 +83,7 @@ static int imx_ssi_dma_alloc(struct snd_pcm_substream *substream,
 
 	dma_params = snd_soc_dai_get_dma_data(rtd->cpu_dai, substream);
 
-	iprtd->dma_data.peripheral_type = IMX_DMATYPE_SSI;
+	iprtd->dma_data.peripheral_type = IMX_DMATYPE_SSI_SP;
 	iprtd->dma_data.priority = DMA_PRIO_HIGH;
 	iprtd->dma_data.dma_request = dma_params->dma;
 
