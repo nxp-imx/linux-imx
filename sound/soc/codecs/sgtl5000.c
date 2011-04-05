@@ -33,75 +33,6 @@
 #define SGTL5000_DAP_REG_OFFSET	0x0100
 #define SGTL5000_MAX_REG_OFFSET	0x013A
 
-/* default value of sgtl5000 registers except DAP */
-static const u16 sgtl5000_regs[SGTL5000_MAX_REG_OFFSET >> 1] =  {
-	0xa011, /* 0x0000, CHIP_ID. 11 stand for revison 17 */
-	0x0000, /* 0x0002, CHIP_DIG_POWER. */
-	0x0008, /* 0x0004, CHIP_CKL_CTRL */
-	0x0010, /* 0x0006, CHIP_I2S_CTRL */
-	0x0000, /* 0x0008, reserved */
-	0x0008, /* 0x000A, CHIP_SSS_CTRL */
-	0x0000, /* 0x000C, reserved */
-	0x020c, /* 0x000E, CHIP_ADCDAC_CTRL */
-	0x3c3c, /* 0x0010, CHIP_DAC_VOL */
-	0x0000, /* 0x0012, reserved */
-	0x015f, /* 0x0014, CHIP_PAD_STRENGTH */
-	0x0000, /* 0x0016, reserved */
-	0x0000, /* 0x0018, reserved */
-	0x0000, /* 0x001A, reserved */
-	0x0000, /* 0x001E, reserved */
-	0x0000, /* 0x0020, CHIP_ANA_ADC_CTRL */
-	0x1818, /* 0x0022, CHIP_ANA_HP_CTRL */
-	0x0111, /* 0x0024, CHIP_ANN_CTRL */
-	0x0000, /* 0x0026, CHIP_LINREG_CTRL */
-	0x0000, /* 0x0028, CHIP_REF_CTRL */
-	0x0000, /* 0x002A, CHIP_MIC_CTRL */
-	0x0000, /* 0x002C, CHIP_LINE_OUT_CTRL */
-	0x0404, /* 0x002E, CHIP_LINE_OUT_VOL */
-	0x7060, /* 0x0030, CHIP_ANA_POWER */
-	0x5000, /* 0x0032, CHIP_PLL_CTRL */
-	0x0000, /* 0x0034, CHIP_CLK_TOP_CTRL */
-	0x0000, /* 0x0036, CHIP_ANA_STATUS */
-	0x0000, /* 0x0038, reserved */
-	0x0000, /* 0x003A, CHIP_ANA_TEST2 */
-	0x0000, /* 0x003C, CHIP_SHORT_CTRL */
-	0x0000, /* reserved */
-};
-
-/* default value of dap registers */
-static const u16 sgtl5000_dap_regs[] = {
-	0x0000, /* 0x0100, DAP_CONTROL */
-	0x0000, /* 0x0102, DAP_PEQ */
-	0x0040, /* 0x0104, DAP_BASS_ENHANCE */
-	0x051f, /* 0x0106, DAP_BASS_ENHANCE_CTRL */
-	0x0000, /* 0x0108, DAP_AUDIO_EQ */
-	0x0040, /* 0x010A, DAP_SGTL_SURROUND */
-	0x0000, /* 0x010C, DAP_FILTER_COEF_ACCESS */
-	0x0000, /* 0x010E, DAP_COEF_WR_B0_MSB */
-	0x0000, /* 0x0110, DAP_COEF_WR_B0_LSB */
-	0x0000, /* 0x0112, reserved */
-	0x0000, /* 0x0114, reserved */
-	0x002f, /* 0x0116, DAP_AUDIO_EQ_BASS_BAND0 */
-	0x002f, /* 0x0118, DAP_AUDIO_EQ_BAND0 */
-	0x002f, /* 0x011A, DAP_AUDIO_EQ_BAND2 */
-	0x002f, /* 0x011C, DAP_AUDIO_EQ_BAND3 */
-	0x002f, /* 0x011E, DAP_AUDIO_EQ_TREBLE_BAND4 */
-	0x8000, /* 0x0120, DAP_MAIN_CHAN */
-	0x0000, /* 0x0122, DAP_MIX_CHAN */
-	0x0510, /* 0x0124, DAP_AVC_CTRL */
-	0x1473, /* 0x0126, DAP_AVC_THRESHOLD */
-	0x0028, /* 0x0128, DAP_AVC_ATTACK */
-	0x0050, /* 0x012A, DAP_AVC_DECAY */
-	0x0000, /* 0x012C, DAP_COEF_WR_B1_MSB */
-	0x0000, /* 0x012E, DAP_COEF_WR_B1_LSB */
-	0x0000, /* 0x0130, DAP_COEF_WR_B2_MSB */
-	0x0000, /* 0x0132, DAP_COEF_WR_B2_LSB */
-	0x0000, /* 0x0134, DAP_COEF_WR_A1_MSB */
-	0x0000, /* 0x0136, DAP_COEF_WR_A1_LSB */
-	0x0000, /* 0x0138, DAP_COEF_WR_A2_MSB */
-	0x0000, /* 0x013A, DAP_COEF_WR_A2_LSB */
-};
-
 /* regulator supplies for sgtl5000, VDDD is an optional external supply */
 enum sgtl5000_regulator_supplies {
 	VDDA,
@@ -1012,6 +943,11 @@ static int ldo_regulator_is_enabled(struct regulator_dev *dev)
 	return ldo->enabled;
 }
 
+/*
+ * enable internal VDDD power supply. Since register
+ * cache not fill yet, we have to use hw_read and write
+ * instead of snd_soc_read and snd_soc_write.
+ */
 static int ldo_regulator_enable(struct regulator_dev *dev)
 {
 	struct ldo_regulator *ldo = rdev_get_drvdata(dev);
@@ -1021,20 +957,6 @@ static int ldo_regulator_enable(struct regulator_dev *dev)
 	if (ldo_regulator_is_enabled(dev))
 		return 0;
 
-	snd_soc_update_bits(codec, SGTL5000_CHIP_ANA_POWER,
-				SGTL5000_LINREG_SIMPLE_POWERUP|
-				SGTL5000_STARTUP_POWERUP|
-				SGTL5000_REFTOP_POWERUP,
-				0);
-	udelay(10);
-	snd_soc_update_bits(codec, SGTL5000_CHIP_ANA_POWER,
-				SGTL5000_LINREG_SIMPLE_POWERUP|
-				SGTL5000_STARTUP_POWERUP|
-				SGTL5000_REFTOP_POWERUP,
-				SGTL5000_LINREG_SIMPLE_POWERUP|
-				SGTL5000_STARTUP_POWERUP|
-				SGTL5000_REFTOP_POWERUP);
-	udelay(10);
 	/* set regulator value firstly */
 	reg = (1600 - ldo->voltage / 1000) / 50;
 	reg = clamp(reg, 0x0, 0xf);
@@ -1043,17 +965,17 @@ static int ldo_regulator_enable(struct regulator_dev *dev)
 	ldo->voltage = (1600 - reg * 50) * 1000;
 
 	/* set voltage to register */
-	snd_soc_update_bits(codec, SGTL5000_CHIP_LINREG_CTRL,
-				(0x1 << 4) - 1, reg);
+	codec->write(codec, SGTL5000_CHIP_LINREG_CTRL, reg);
 
-	snd_soc_update_bits(codec, SGTL5000_CHIP_ANA_POWER,
-				SGTL5000_LINEREG_D_POWERUP,
-				SGTL5000_LINEREG_D_POWERUP);
+	reg = codec->hw_read(codec, SGTL5000_CHIP_ANA_POWER);
+	reg |= SGTL5000_LINEREG_D_POWERUP;
+	codec->write(codec, SGTL5000_CHIP_ANA_POWER, reg);
 
+	reg &= ~SGTL5000_LINREG_SIMPLE_POWERUP;
 	/* when internal ldo enabled, simple digital power can be disabled */
-	snd_soc_update_bits(codec, SGTL5000_CHIP_ANA_POWER,
-				SGTL5000_LINREG_SIMPLE_POWERUP,
-				0);
+	codec->write(codec, SGTL5000_CHIP_ANA_POWER, reg);
+
+	udelay(10);
 
 	ldo->enabled = 1;
 	return 0;
@@ -1254,13 +1176,11 @@ static int sgtl5000_suspend(struct snd_soc_codec *codec, pm_message_t state)
 static int sgtl5000_restore_regs(struct snd_soc_codec *codec)
 {
 	u16 *cache = codec->reg_cache;
-	int i;
-	int regular_regs = SGTL5000_CHIP_SHORT_CTRL >> 1;
+	int reg;
+	int step = codec->driver->reg_cache_step;
 
 	/* restore regular registers */
-	for (i = 0; i < regular_regs; i++) {
-		int reg = i << 1;
-
+	for (reg = 0; reg < SGTL5000_CHIP_SHORT_CTRL; reg += step) {
 		/* this regs depends on the others */
 		if (reg == SGTL5000_CHIP_ANA_POWER ||
 			reg == SGTL5000_CHIP_CLK_CTRL ||
@@ -1269,35 +1189,32 @@ static int sgtl5000_restore_regs(struct snd_soc_codec *codec)
 			reg == SGTL5000_CHIP_CLK_CTRL)
 			continue;
 
-		snd_soc_write(codec, reg, cache[i]);
+		snd_soc_write(codec, reg, cache[reg]);
 	}
 
 	/* restore dap registers */
-	for (i = SGTL5000_DAP_REG_OFFSET >> 1;
-			i < SGTL5000_MAX_REG_OFFSET >> 1; i++) {
-		int reg = i << 1;
-
-		snd_soc_write(codec, reg, cache[i]);
-	}
+	for (reg = SGTL5000_DAP_REG_OFFSET;
+			reg < SGTL5000_MAX_REG_OFFSET; reg += step)
+		snd_soc_write(codec, reg, cache[reg]);
 
 	/*
 	 * restore power and other regs according
 	 * to set_power() and set_clock()
 	 */
 	snd_soc_write(codec, SGTL5000_CHIP_LINREG_CTRL,
-			cache[SGTL5000_CHIP_LINREG_CTRL >> 1]);
+			cache[SGTL5000_CHIP_LINREG_CTRL]);
 
 	snd_soc_write(codec, SGTL5000_CHIP_ANA_POWER,
-			cache[SGTL5000_CHIP_ANA_POWER >> 1]);
+			cache[SGTL5000_CHIP_ANA_POWER]);
 
 	snd_soc_write(codec, SGTL5000_CHIP_CLK_CTRL,
-			cache[SGTL5000_CHIP_CLK_CTRL >> 1]);
+			cache[SGTL5000_CHIP_CLK_CTRL]);
 
 	snd_soc_write(codec, SGTL5000_CHIP_REF_CTRL,
-			cache[SGTL5000_CHIP_REF_CTRL >> 1]);
+			cache[SGTL5000_CHIP_REF_CTRL]);
 
 	snd_soc_write(codec, SGTL5000_CHIP_LINE_OUT_CTRL,
-			cache[SGTL5000_CHIP_LINE_OUT_CTRL >> 1]);
+			cache[SGTL5000_CHIP_LINE_OUT_CTRL]);
 	return 0;
 }
 
@@ -1566,6 +1483,22 @@ err_regulator_free:
 
 }
 
+static int sgtl5000_fill_reg_cache(struct snd_soc_codec *codec)
+{
+	int reg;
+	int step = codec->driver->reg_cache_step;
+	u16 *cache = codec->reg_cache;
+
+	for (reg = SGTL5000_DAP_REG_OFFSET;
+		reg <= SGTL5000_MAX_REG_OFFSET; reg += step)
+		cache[reg] = codec->hw_read(codec, reg);
+
+	for (reg = 0; reg <= SGTL5000_CHIP_SHORT_CTRL; reg += step)
+		cache[reg] = codec->hw_read(codec, reg);
+
+	return 0;
+}
+
 static int sgtl5000_probe(struct snd_soc_codec *codec)
 {
 	int ret;
@@ -1581,6 +1514,8 @@ static int sgtl5000_probe(struct snd_soc_codec *codec)
 	ret = sgtl5000_enable_regulators(codec);
 	if (ret)
 		return ret;
+
+	sgtl5000_fill_reg_cache(codec);
 
 	/* power up sgtl5000 */
 	ret = sgtl5000_set_power_regs(codec);
@@ -1674,10 +1609,9 @@ static struct snd_soc_codec_driver sgtl5000_driver = {
 	.suspend = sgtl5000_suspend,
 	.resume = sgtl5000_resume,
 	.set_bias_level = sgtl5000_set_bias_level,
-	.reg_cache_size = ARRAY_SIZE(sgtl5000_regs),
+	.reg_cache_size = SGTL5000_MAX_REG_OFFSET,
 	.reg_word_size = sizeof(u16),
 	.reg_cache_step = 2,
-	.reg_cache_default = sgtl5000_regs,
 	.volatile_register = sgtl5000_volatile_register,
 };
 
@@ -1697,9 +1631,6 @@ static __devinit int sgtl5000_i2c_probe(struct i2c_client *client,
 	 * at init phase makes life easy.
 	 * FIXME: should we drop 'const' of sgtl5000_regs?
 	 */
-	memcpy((void *)(&sgtl5000_regs[0] + (SGTL5000_DAP_REG_OFFSET >> 1)),
-			sgtl5000_dap_regs,
-			SGTL5000_MAX_REG_OFFSET - SGTL5000_DAP_REG_OFFSET);
 
 	i2c_set_clientdata(client, sgtl5000);
 
