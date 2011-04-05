@@ -590,7 +590,7 @@ static struct imx_ssi_platform_data loco_ssi_pdata = {
 
 static struct mxc_audio_platform_data loco_audio_data = {
 	.ssi_num = 1,
-	.src_port = 1,
+	.src_port = 2,
 	.ext_port = 5,
 	.init = loco_ssi_init,
 };
@@ -672,7 +672,7 @@ static void __init mx53_loco_board_init(void)
 	mx5_usbh1_init();
 
 	mxc_register_device(&loco_audio_device, &loco_audio_data);
-	imx53_add_imx_ssi(0, &loco_ssi_pdata);
+	imx53_add_imx_ssi(1, &loco_ssi_pdata);
 
 	/*GPU*/
 	if (mx53_revision() >= IMX_CHIP_REVISION_2_0)
