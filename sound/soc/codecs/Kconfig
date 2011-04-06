@@ -294,6 +294,9 @@ config SND_SOC_BLUETOOTH
 config SND_SOC_MXS_SPDIF
 	tristate
 
+config SND_SOC_MXC_SPDIF
+	tristate
+
 # Amp
 config SND_SOC_MAX9877
 	tristate

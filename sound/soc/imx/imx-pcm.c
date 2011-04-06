@@ -2,7 +2,7 @@
  * imx-pcm.c -- ALSA SoC interface for the Freescale i.MX3 CPU's
  *
  * Copyright 2006 Wolfson Microelectronics PLC.
- * Copyright (C) 2006-2010 Freescale Semiconductor, Inc.
+ * Copyright (C) 2006-2011 Freescale Semiconductor, Inc.
  * Author: Liam Girdwood
  *         liam.girdwood@wolfsonmicro.com or linux@wolfsonmicro.com
  *
@@ -35,6 +35,7 @@
 #include "imx-pcm.h"
 #include "imx-ssi.h"
 #include "imx-esai.h"
+#include "imx-spdif.h"
 
 #if defined(CONFIG_MXC_ASRC) || defined(CONFIG_MXC_ASRC_MODULE)
 #include <linux/delay.h>
@@ -264,7 +265,19 @@ static int imx_get_sdma_transfer(int format, int dai_port,
 				else if (format == SNDRV_PCM_FORMAT_S20_3LE)
 					transfer = MXC_DMA_ESAI_24BIT_RX;
 			}
+		} else if (dai_port == IMX_DAI_SPDIF) {
+			if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
+				if (format == SNDRV_PCM_FORMAT_S16_LE)
+					transfer = MXC_DMA_SPDIF_16BIT_TX;
+				else if ((format == SNDRV_PCM_FORMAT_S24_LE) ||
+					 (format == SNDRV_PCM_FORMAT_S20_3LE) ||
+					 (format == SNDRV_PCM_FMTBIT_S24_LE))
+					transfer = MXC_DMA_SPDIF_32BIT_TX;
+			} else {
+				transfer = MXC_DMA_SPDIF_32BIT_RX;
+			}
 		}
+
 #if defined(CONFIG_MXC_ASRC) || defined(CONFIG_MXC_ASRC_MODULE)
 	}
 #endif
@@ -602,6 +615,9 @@ static int imx_pcm_preallocate_dma_buffer(struct snd_pcm *pcm, int stream)
 	buf->dev.type = SNDRV_DMA_TYPE_DEV;
 	buf->dev.dev = pcm->card->dev;
 	buf->private_data = NULL;
+
+	pr_err("capture=%d ext_ram=%d UseIram=%d\n",
+		(stream == SNDRV_PCM_STREAM_CAPTURE), ext_ram, UseIram);
 
 	if ((stream == SNDRV_PCM_STREAM_CAPTURE) || ext_ram || !UseIram)
 		buf->area =
