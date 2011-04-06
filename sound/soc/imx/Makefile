@@ -2,6 +2,7 @@
 snd-soc-imx-objs := imx-pcm.o
 snd-soc-imx-ssi-objs := imx-ssi.o
 snd-soc-imx-esai-objs := imx-esai.o
+snd-soc-imx-spdif-dai-objs := imx-spdif-dai.o
 
 ifdef CONFIG_MACH_MX27
 snd-soc-imx-objs += imx-pcm-dma-mx2.o
@@ -18,6 +19,7 @@ obj-$(CONFIG_SND_MXC_SOC) += snd-soc-imx.o
 obj-$(CONFIG_SND_MXC_SOC_SSI) += snd-soc-imx-ssi.o
 obj-$(CONFIG_SND_MXC_SOC_ESAI) += snd-soc-imx-esai.o
 obj-$(CONFIG_SND_MXC_SOC_AC97) += snd-soc-imx-ac97.o
+obj-$(CONFIG_SND_MXC_SOC_SPDIF_DAI) += snd-soc-imx-spdif-dai.o
 
 # i.MX Machine Support
 snd-soc-imx-3stack-wm8350-objs := imx-3stack-wm8350.o
@@ -34,4 +36,5 @@ snd-soc-imx-3stack-bt-objs := imx-3stack-bt.o
 obj-$(CONFIG_SND_SOC_IMX_3STACK_BLUETOOTH) += snd-soc-imx-3stack-bt.o
 snd-soc-imx-3stack-cs42888-objs := imx-3stack-cs42888.o
 obj-$(CONFIG_SND_SOC_IMX_3STACK_CS42888) += snd-soc-imx-3stack-cs42888.o
-
+snd-soc-imx-spdif-objs := imx-spdif.o
+obj-$(CONFIG_SND_SOC_IMX_SPDIF) += snd-soc-imx-spdif.o

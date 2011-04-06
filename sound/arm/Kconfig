@@ -39,12 +39,6 @@ config SND_PXA2XX_AC97
 	  Say Y or M if you want to support any AC97 codec attached to
 	  the PXA2xx AC97 interface.
 
-config SND_MXC_SPDIF
-        tristate "MXC SPDIF sound card spport"
-        select SND_PCM
-        help
-          Say Y here to enable SPDIF sound card
-
 config SND_MXC_PMIC
 	tristate "MXC PMIC sound system"
 	depends on ARCH_MXC && MXC_DAM && MXC_SSI && \
