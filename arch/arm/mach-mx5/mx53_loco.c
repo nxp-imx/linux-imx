@@ -568,6 +568,14 @@ static struct mxc_spdif_platform_data mxc_spdif_data = {
 	.spdif_clk = NULL,	/* spdif bus clk */
 };
 
+static struct mxc_audio_platform_data spdif_audio_data = {
+	.ext_ram = 1,
+};
+
+static struct platform_device mxc_spdif_audio_device = {
+	.name = "imx-spdif-audio-device",
+};
+
 static void mx53_loco_usbh1_vbus(bool on)
 {
 	if (on)
@@ -794,6 +802,7 @@ static void __init mxc_board_init(void)
 				ARRAY_SIZE(mxc_i2c1_board_info));
 
 	mxc_register_device(&mxc_sgtl5000_device, &sgtl5000_data);
+	mxc_register_device(&mxc_spdif_audio_device, &spdif_audio_data);
 	mx5_usb_dr_init();
 	mx5_set_host1_vbus_func(mx53_loco_usbh1_vbus);
 	mx5_usbh1_init();
