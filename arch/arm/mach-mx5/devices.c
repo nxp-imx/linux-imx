@@ -960,7 +960,7 @@ static struct resource spdif_resources[] = {
 };
 
 struct platform_device mxc_alsa_spdif_device = {
-	.name = "mxc_alsa_spdif",
+	.name = "mxc_spdif",
 	.id = 0,
 	.num_resources = ARRAY_SIZE(spdif_resources),
 	.resource = spdif_resources,
