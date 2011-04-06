@@ -30,16 +30,24 @@
 #include <linux/platform_device.h>
 #include <linux/device.h>
 #include <linux/kernel.h>
+#include <linux/suspend.h>
 #include <linux/init.h>
 #include <linux/rfkill.h>
 #include <mach/hardware.h>
 #include <mach/mxc_rfkill.h>
+
+static int system_in_suspend;
 
 static int mxc_bt_set_block(void *rfkdata, bool blocked)
 {
 	struct mxc_bt_rfkill_platform_data *data = rfkdata;
 	int ret;
 
+	/* Bluetooth stack will reset the bluetooth chip during
+	 * resume, since we keep bluetooth's power during suspend,
+	 * don't let rfkill to actually reset the chip. */
+	if (system_in_suspend)
+		return 0;
 	pr_info("rfkill: BT RF going to : %s\n", blocked ? "off" : "on");
 	if (!blocked)
 		ret = data->power_change(1);
@@ -51,6 +59,28 @@ static int mxc_bt_set_block(void *rfkdata, bool blocked)
 
 static const struct rfkill_ops mxc_bt_rfkill_ops = {
 	.set_block = mxc_bt_set_block,
+};
+
+static int mxc_bt_power_event(struct notifier_block *this,
+			      unsigned long event, void *dummy)
+{
+	switch (event) {
+	case PM_SUSPEND_PREPARE:
+		system_in_suspend = 1;
+		/* going to suspend, don't reset chip */
+		break;
+	case PM_POST_SUSPEND:
+		system_in_suspend = 0;
+		/* System is resume, can reset chip */
+		break;
+	default:
+		break;
+	}
+	return NOTIFY_DONE;
+}
+
+static struct notifier_block mxc_bt_power_notifier = {
+	.notifier_call = mxc_bt_power_event,
 };
 
 static int mxc_bt_rfkill_probe(struct platform_device *dev)
@@ -65,6 +95,10 @@ static int mxc_bt_rfkill_probe(struct platform_device *dev)
 		dev_err(&dev->dev, "no power_change function\n");
 		goto error_check_func;
 	}
+
+	rc = register_pm_notifier(&mxc_bt_power_notifier);
+	if (rc)
+		goto error_check_func;
 
 	rfk = rfkill_alloc("mxc-bt", &dev->dev, RFKILL_TYPE_BLUETOOTH,
 			   &mxc_bt_rfkill_ops, data);
