@@ -1081,7 +1081,12 @@ static struct flash_platform_data mxc_spi_flash_data[] = {
 	 .name = "mxc_dataflash",
 	 .parts = mxc_dataflash_partitions,
 	 .nr_parts = ARRAY_SIZE(mxc_dataflash_partitions),
-	 .type = "at45db321d",}
+	 .type = "at45db321d",},
+	 {
+	 .name = "m25p80",
+	 .parts = mxc_dataflash_partitions,
+	 .nr_parts = ARRAY_SIZE(mxc_dataflash_partitions),
+	 .type = "m25p32",}
 };
 
 
@@ -1092,6 +1097,15 @@ static struct spi_board_info mxc_dataflash_device[] __initdata = {
 	 .bus_num = 3,
 	 .chip_select = 1,
 	 .platform_data = &mxc_spi_flash_data[0],},
+};
+
+static struct spi_board_info m25pxx_dataflash_device[] __initdata = {
+	{
+	 .modalias = "m25p80",
+	 .max_speed_hz = 20000000,	/* max spi clock (SCK) speed in HZ */
+	 .bus_num = 3,
+	 .chip_select = 1,
+	 .platform_data = &mxc_spi_flash_data[1],},
 };
 
 static int sdhc_write_protect(struct device *dev)
@@ -1620,7 +1634,11 @@ static void __init mxc_board_init(void)
 	mxc_register_device(&mxc_ssi1_device, NULL);
 	mxc_register_device(&mxc_ssi2_device, NULL);
 	mxc_register_device(&mxc_fec_device, &fec_data);
-	spi_register_board_info(mxc_dataflash_device,
+	if (board_is_mx50_rd3())
+		spi_register_board_info(m25pxx_dataflash_device,
+				ARRAY_SIZE(m25pxx_dataflash_device));
+	else
+		spi_register_board_info(mxc_dataflash_device,
 				ARRAY_SIZE(mxc_dataflash_device));
 	i2c_register_board_info(0, mxc_i2c0_board_info,
 				ARRAY_SIZE(mxc_i2c0_board_info));
