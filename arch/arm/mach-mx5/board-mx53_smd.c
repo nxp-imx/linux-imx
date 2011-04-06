@@ -56,6 +56,10 @@
 #define MX53_SMD_NONKEY		IMX_GPIO_NR(1, 8)
 #define MX53_SMD_UI1		IMX_GPIO_NR(2, 14)
 #define MX53_SMD_UI2		IMX_GPIO_NR(2, 15)
+#define MX53_SMD_HEADPHONE_DEC	IMX_GPIO_NR(2, 5)
+#define MX53_SMD_OSC_CKIH1_EN	IMX_GPIO_NR(6, 11)
+#define MX53_SMD_DCDC1V8_EN	IMX_GPIO_NR(3, 1)
+#define MX53_SMD_DCDC5V_BB_EN	IMX_GPIO_NR(4, 14)
 
 extern int mx53_smd_init_da9052(void);
 
@@ -118,6 +122,29 @@ static iomux_v3_cfg_t mx53_smd_pads[] = {
 	MX53_PAD_EIM_DA14__GPIO3_14,
 	/* USB_OTG_PWR_EN */
 	MX53_PAD_PATA_DA_2__GPIO7_8,
+
+	/* OSC_CKIH1_EN, for audio codec clk */
+	MX53_PAD_NANDF_CS0__GPIO6_11,
+
+	/* AUDMUX3 */
+	MX53_PAD_CSI0_DAT4__AUDMUX_AUD3_TXC,
+	MX53_PAD_CSI0_DAT5__AUDMUX_AUD3_TXD,
+	MX53_PAD_CSI0_DAT6__AUDMUX_AUD3_TXFS,
+	MX53_PAD_CSI0_DAT7__AUDMUX_AUD3_RXD,
+
+	/* AUDMUX5 */
+	MX53_PAD_KEY_COL0__AUDMUX_AUD5_TXC,
+	MX53_PAD_KEY_ROW0__AUDMUX_AUD5_TXD,
+	MX53_PAD_KEY_COL1__AUDMUX_AUD5_TXFS,
+	MX53_PAD_KEY_ROW1__AUDMUX_AUD5_RXD,
+
+	/* AUD_AMP_STBY_B */
+	MX53_PAD_EIM_DA2__GPIO3_2,
+
+	/* DCDC1V8_EN */
+	MX53_PAD_EIM_DA1__GPIO3_1,
+	/* DCDC5V_BB_EN */
+	MX53_PAD_KEY_COL4__GPIO4_14,
 };
 
 #if defined(CONFIG_KEYBOARD_GPIO) || defined(CONFIG_KEYBOARD_GPIO_MODULE)
@@ -471,6 +498,33 @@ static void __init mx53_smd_init_usb(void)
 	mx5_usbh1_init();
 }
 
+static struct mxc_audio_platform_data smd_audio_data;
+
+static int smd_sgtl5000_init(void)
+{
+	smd_audio_data.sysclk = 22579200;
+
+	/* headphone_det_b */
+	gpio_request(MX53_SMD_HEADPHONE_DEC, "headphone-dec");
+	gpio_direction_input(MX53_SMD_HEADPHONE_DEC);
+
+	/* Enable OSC_CKIH1_EN for audio */
+	gpio_request(MX53_SMD_OSC_CKIH1_EN, "osc-en");
+	gpio_direction_output(MX53_SMD_OSC_CKIH1_EN, 1);
+	return 0;
+}
+
+static struct mxc_audio_platform_data smd_audio_data = {
+	.ssi_num = 1,
+	.src_port = 2,
+	.ext_port = 5,
+	.init = smd_sgtl5000_init,
+};
+
+static struct platform_device smd_audio_device = {
+	.name = "imx-sgtl5000",
+};
+
 static struct imx_ssi_platform_data smd_ssi_pdata = {
 	.flags = IMX_SSI_DMA,
 };
@@ -505,7 +559,12 @@ static void __init mx53_smd_board_init(void)
 	i2c_register_board_info(2, mxc_i2c2_board_info,
 				ARRAY_SIZE(mxc_i2c2_board_info));
 
-	imx53_add_imx_ssi(0, &smd_ssi_pdata);
+
+	gpio_request(MX53_SMD_DCDC1V8_EN, "dcdc1v8-en");
+	gpio_direction_output(MX53_SMD_DCDC1V8_EN, 1);
+
+	mxc_register_device(&smd_audio_device, &smd_audio_data);
+	imx53_add_imx_ssi(1, &smd_ssi_pdata);
 }
 
 static void __init mx53_smd_timer_init(void)

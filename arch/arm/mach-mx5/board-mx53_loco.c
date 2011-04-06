@@ -560,7 +560,7 @@ static struct ahci_platform_data sata_data = {
 
 static struct mxc_audio_platform_data loco_audio_data;
 
-static int loco_ssi_init(void)
+static int loco_sgtl5000_init(void)
 {
 	struct clk *ssi_ext1;
 	int rate;
@@ -592,7 +592,7 @@ static struct mxc_audio_platform_data loco_audio_data = {
 	.ssi_num = 1,
 	.src_port = 2,
 	.ext_port = 5,
-	.init = loco_ssi_init,
+	.init = loco_sgtl5000_init,
 };
 
 static struct platform_device loco_audio_device = {
