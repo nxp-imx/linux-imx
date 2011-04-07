@@ -7,7 +7,7 @@
  *
  * Based on code from Freescale:
  *
- * Copyright 2004-2009 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2004-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * The code contained herein is licensed under the GNU General Public
  * License. You may obtain a copy of the GNU General Public License
@@ -1114,7 +1114,8 @@ static int __init sdma_get_firmware(struct sdma_engine *sdma,
 	const struct sdma_script_start_addrs *addr;
 	unsigned short *ram_code;
 
-	fwname = kasprintf(GFP_KERNEL, "sdma-%s-to%d.bin", cpu_name, to_version);
+	fwname = kasprintf(GFP_KERNEL, "imx/sdma/sdma-%s-to%d.bin",
+				cpu_name, to_version);
 	if (!fwname)
 		return -ENOMEM;
 
