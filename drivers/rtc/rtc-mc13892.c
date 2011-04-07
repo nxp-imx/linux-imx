@@ -1,5 +1,5 @@
 /*
- * Copyright 2008-2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2008-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -197,7 +197,7 @@ static int mxc_rtc_probe(struct platform_device *pdev)
 {
 	struct rtc_drv_data *pdata = NULL;
 
-	printk(KERN_INFO "mc13892 rtc probe start\n");
+	printk(KERN_INFO "pmic rtc probe start\n");
 
 	pdata = kzalloc(sizeof(*pdata), GFP_KERNEL);
 
@@ -216,7 +216,7 @@ static int mxc_rtc_probe(struct platform_device *pdev)
 	if (IS_ERR(pdata->rtc))
 		return -1;
 
-	printk(KERN_INFO "mc13892 rtc probe succeed\n");
+	printk(KERN_INFO "pmic rtc probe succeed\n");
 	return 0;
 }
 
@@ -230,7 +230,18 @@ static int __exit mxc_rtc_remove(struct platform_device *pdev)
 	return 0;
 }
 
+static const struct platform_device_id rtc_device_id[] = {
+	{
+		.name = "mc13892_rtc",
+	}, {
+		.name = "mc34708_rtc",
+	}, {
+		/* sentinel */
+	}
+};
+
 static struct platform_driver mxc_rtc_driver = {
+	.id_table = rtc_device_id,
 	.driver = {
 		   .name = "pmic_rtc",
 		   },
