@@ -231,6 +231,7 @@ static int __devinit pmic_probe(struct spi_device *spi)
 	adc_ldm.name = get_client_device_name(name, "%s_adc");
 	battery_ldm.name = get_client_device_name(name, "%s_battery");
 	light_ldm.name = get_client_device_name(name, "%s_light");
+	rtc_ldm.name = get_client_device_name(name, "%s_rtc");
 
 	/* Initialize the PMIC event handling */
 	pmic_event_list_init();
