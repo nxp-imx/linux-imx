@@ -1833,10 +1833,13 @@ static int epdc_submit_merge(struct update_desc_list *upd_desc_list,
 		use_flags = true;
 	}
 
-	if ((a->waveform_mode != b->waveform_mode
-		&& a->waveform_mode != WAVEFORM_MODE_AUTO) ||
-		a->update_mode != b->update_mode ||
-		arect->left > (brect->left + brect->width) ||
+	if (a->update_mode != b->update_mode)
+		a->update_mode = UPDATE_MODE_FULL;
+
+	if (a->waveform_mode != b->waveform_mode)
+		a->waveform_mode = WAVEFORM_MODE_AUTO;
+
+	if (arect->left > (brect->left + brect->width) ||
 		brect->left > (arect->left + arect->width) ||
 		arect->top > (brect->top + brect->height) ||
 		brect->top > (arect->top + arect->height))
@@ -1899,6 +1902,10 @@ static void epdc_submit_work_func(struct work_struct *work)
 			continue;
 
 		dev_dbg(fb_data->dev, "A collision update is ready to go!\n");
+
+		/* Force waveform mode to auto for resubmitted collisions */
+		next_update->update_desc->upd_data.waveform_mode =
+			WAVEFORM_MODE_AUTO;
 
 		/*
 		 * We have a collision cleared, so select it for resubmission.
@@ -2740,27 +2747,6 @@ static bool is_free_list_full(struct mxc_epdc_fb_data *fb_data)
 		return false;
 }
 
-static bool do_updates_overlap(struct update_data_list *update1,
-					struct update_data_list *update2)
-{
-	struct mxcfb_rect *rect1 =
-		&update1->update_desc->upd_data.update_region;
-	struct mxcfb_rect *rect2 =
-		&update2->update_desc->upd_data.update_region;
-	__u32 bottom1, bottom2, right1, right2;
-	bottom1 = rect1->top + rect1->height;
-	bottom2 = rect2->top + rect2->height;
-	right1 = rect1->left + rect1->width;
-	right2 = rect2->left + rect2->width;
-
-	if ((rect1->top < bottom2) &&
-		(bottom1 > rect2->top) &&
-		(rect1->left < right2) &&
-		(right1 > rect2->left)) {
-		return true;
-	} else
-		return false;
-}
 static irqreturn_t mxc_epdc_irq_handler(int irq, void *dev_id)
 {
 	struct mxc_epdc_fb_data *fb_data = dev_id;
@@ -2771,7 +2757,6 @@ static irqreturn_t mxc_epdc_irq_handler(int irq, void *dev_id)
 	unsigned long flags;
 	int temp_index;
 	u32 temp_mask;
-	u32 missed_coll_mask = 0;
 	u32 lut;
 	bool ignore_collision = false;
 	int i;
@@ -2915,39 +2900,18 @@ static irqreturn_t mxc_epdc_irq_handler(int irq, void *dev_id)
 			fb_data->waiting_for_lut = false;
 		}
 
-		/*
-		 * Check for "missed collision" conditions:
-		 *  - Current update overlaps one or more updates
-		 *    in collision list
-		 *  - No collision reported with current active updates
-		 */
-		list_for_each_entry(collision_update,
-				    &fb_data->upd_buf_collision_list, list)
-			if (do_updates_overlap(collision_update,
-				fb_data->cur_update))
-				missed_coll_mask |=
-					collision_update->collision_mask;
-
 		/* Was there a collision? */
-		if (epdc_is_collision() || missed_coll_mask) {
+		if (epdc_is_collision()) {
 			/* Check list of colliding LUTs, and add to our collision mask */
 			fb_data->cur_update->collision_mask =
 			    epdc_get_colliding_luts();
-
-			if (!fb_data->cur_update->collision_mask) {
-				fb_data->cur_update->collision_mask =
-					missed_coll_mask;
-				dev_dbg(fb_data->dev, "Missed collision "
-					"possible. Mask = 0x%x\n",
-					missed_coll_mask);
-			}
 
 			/* Clear collisions that completed since WB began */
 			fb_data->cur_update->collision_mask &=
 				~fb_data->luts_complete_wb;
 
-			dev_dbg(fb_data->dev, "\nCollision mask = 0x%x\n",
-			       fb_data->cur_update->collision_mask);
+			dev_dbg(fb_data->dev, "Collision mask = 0x%x\n",
+			       epdc_get_colliding_luts());
 
 			/*
 			 * If we collide with newer updates, then
