@@ -557,6 +557,35 @@ static struct keypad_data keypad_android_plat_data = {
 	.matrix = keymapping_android,
 };
 
+/* NAND Flash Partitions */
+#ifdef CONFIG_MTD_PARTITIONS
+static struct mtd_partition nand_flash_partitions[] = {
+	{
+	 .name = "BOOT",
+	 .offset = 0,
+	 .size = 7 * 1024 * 1024},
+	{
+	 .name = "MISC",
+	 .offset = MTDPART_OFS_APPEND,
+	 .size = 1 * 1024 * 1024},
+	{
+	 .name = "RECOVERY",
+	 .offset = MTDPART_OFS_APPEND,
+	 .size = 20 * 1024 * 1024},
+	{
+	 .name = "ROOT",
+	 .offset = MTDPART_OFS_APPEND,
+	 .size = 350 * 1024 * 1024,
+	 /* system(150M), data(100M), cache(100M)  */
+	},
+	{
+	 .name = "FAT",
+	 .offset = MTDPART_OFS_APPEND,
+	 .size = MTDPART_SIZ_FULL,
+	},
+};
+#endif
+
 /* workaround for cspi chipselect pin may not keep correct level when idle */
 static void mx50_rdp_gpio_spi_chipselect_active(int cspi_mode, int status,
 					     int chipselect)
@@ -1437,8 +1466,8 @@ static struct gpmi_nfc_platform_data  gpmi_nfc_platform_data = {
 	.max_chip_count          = 2,
 	.boot_area_size_in_bytes = 20 * SZ_1M,
 	.partition_source_types  = gpmi_nfc_partition_source_types,
-	.partitions              = 0,
-	.partition_count         = 0,
+	.partitions              = nand_flash_partitions,
+	.partition_count         = ARRAY_SIZE(nand_flash_partitions),
 };
 
 static void fec_gpio_iomux_init()
