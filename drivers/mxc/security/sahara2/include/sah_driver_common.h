@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2004-2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2004-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -22,7 +22,7 @@
 #define SAH_DRIVER_COMMON_H
 
 #include "fsl_platform.h"
-#include <sahara.h>
+#include <linux/mxc_sahara.h>
 #include <adaptor.h>
 
 /** This specifies the permissions for the device file. It is equivalent to

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2004-2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2004-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -284,7 +284,7 @@
 
 #if defined(FSL_HAVE_SAHARA2) || defined(FSL_HAVE_SAHARA4)
 
-#include "sahara.h"
+#include <linux/mxc_sahara.h>
 
 #else
 
