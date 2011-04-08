@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2004-2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2004-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -18,7 +18,7 @@
  * for Sahara.
  */
 
-#include "sahara.h"
+#include <linux/mxc_sahara.h>
 #include "sf_util.h"
 
 #ifdef __KERNEL__

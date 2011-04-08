@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2004-2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2004-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -23,7 +23,7 @@
 #ifndef STATUS_MANAGER_H
 #define STATUS_MANAGER_H
 #include "sah_driver_common.h"
-#include "sahara.h"
+#include <linux/mxc_sahara.h>
 
 
 /******************************************************************************

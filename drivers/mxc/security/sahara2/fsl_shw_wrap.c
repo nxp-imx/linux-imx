@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2004-2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2004-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -64,7 +64,7 @@
 
  */
 
-#include "sahara.h"
+#include <linux/mxc_sahara.h>
 #include "fsl_platform.h"
 #include "fsl_shw_keystore.h"
 
