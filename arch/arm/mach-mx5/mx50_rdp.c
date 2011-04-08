@@ -91,13 +91,26 @@
 #define EPDC_GDOE	(2*32 + 18)	/*GPIO_3_18 */
 #define EPDC_GDRL	(2*32 + 19)	/*GPIO_3_19 */
 #define EPDC_SDCLK	(2*32 + 20)	/*GPIO_3_20 */
+#define EPDC_SDOEZ	(2*32 + 21)	/*GPIO_3_21 */
+#define EPDC_SDOED	(2*32 + 22)	/*GPIO_3_22 */
 #define EPDC_SDOE	(2*32 + 23)	/*GPIO_3_23 */
 #define EPDC_SDLE	(2*32 + 24)	/*GPIO_3_24 */
+#define EPDC_SDCLKN	(2*32 + 25)	/*GPIO_3_25 */
 #define EPDC_SDSHR	(2*32 + 26)	/*GPIO_3_26 */
+#define EPDC_PWRCOM	(2*32 + 27)	/*GPIO_3_27 */
+#define EPDC_PWRSTAT	(2*32 + 28)	/*GPIO_3_28 */
+#define EPDC_PWRCTRL0	(2*32 + 29)	/*GPIO_3_29 */
+#define EPDC_PWRCTRL1	(2*32 + 30)	/*GPIO_3_30 */
+#define EPDC_PWRCTRL2	(2*32 + 31)	/*GPIO_3_31 */
+#define EPDC_PWRCTRL3	(3*32 + 20)	/*GPIO_4_20 */
 #define EPDC_BDR0	(3*32 + 23)	/*GPIO_4_23 */
+#define EPDC_BDR1	(3*32 + 24)	/*GPIO_4_24 */
 #define EPDC_SDCE0	(3*32 + 25)	/*GPIO_4_25 */
 #define EPDC_SDCE1	(3*32 + 26)	/*GPIO_4_26 */
 #define EPDC_SDCE2	(3*32 + 27)	/*GPIO_4_27 */
+#define EPDC_SDCE3	(3*32 + 28)	/*GPIO_4_28 */
+#define EPDC_SDCE4	(3*32 + 29)	/*GPIO_4_29 */
+#define EPDC_SDCE5	(3*32 + 30)	/*GPIO_4_30 */
 #define EPDC_PMIC_WAKE		(5*32 + 16)	/*GPIO_6_16 */
 #define EPDC_PMIC_INT		(5*32 + 17)	/*GPIO_6_17 */
 #define EPDC_VCOM	(3*32 + 21)	/*GPIO_4_21 */
@@ -121,12 +134,16 @@
 #define DCDC_EN (3*32 + 16) /*GPIO_4_16*/
 #define UART1_RTS (5*32 + 9) /*GPIO_6_9*/
 #define UART2_RX (5*32 + 11) /*GPIO_6_11*/
+#define HDMI_DETECT		(0*32 + 24)	/* GPIO_1_24 */
+#define HDMI_PWR_ENABLE		(0*32 + 25)	/* GPIO_1_25 */
+#define HDMI_RESET		(0*32 + 26)	/* GPIO_1_26 */
 
 extern int __init mx50_rdp_init_mc13892(void);
 extern int __init mx50_rdp_init_mc34708(void);
 extern struct cpu_wp *(*get_cpu_wp)(int *wp);
 extern void (*set_num_cpu_wp)(int num);
 extern struct dvfs_wp *(*get_dvfs_core_wp)(int *wp);
+extern int lcdif_sel_lcd;
 
 static void mx50_suspend_enter(void);
 static void mx50_suspend_exit(void);
@@ -768,29 +785,33 @@ static struct fixed_voltage_config fixed_volt_reg_pdata = {
 	.gpio = -EINVAL,
 };
 
-static void epdc_get_pins(void)
+static int epdc_get_pins(void)
 {
+	int ret = 0;
+
 	/* Claim GPIOs for EPDC pins - used during power up/down */
-	gpio_request(EPDC_D0, "epdc_d0");
-	gpio_request(EPDC_D1, "epdc_d1");
-	gpio_request(EPDC_D2, "epdc_d2");
-	gpio_request(EPDC_D3, "epdc_d3");
-	gpio_request(EPDC_D4, "epdc_d4");
-	gpio_request(EPDC_D5, "epdc_d5");
-	gpio_request(EPDC_D6, "epdc_d6");
-	gpio_request(EPDC_D7, "epdc_d7");
-	gpio_request(EPDC_GDCLK, "epdc_gdclk");
-	gpio_request(EPDC_GDSP, "epdc_gdsp");
-	gpio_request(EPDC_GDOE, "epdc_gdoe");
-	gpio_request(EPDC_GDRL, "epdc_gdrl");
-	gpio_request(EPDC_SDCLK, "epdc_sdclk");
-	gpio_request(EPDC_SDOE, "epdc_sdoe");
-	gpio_request(EPDC_SDLE, "epdc_sdle");
-	gpio_request(EPDC_SDSHR, "epdc_sdshr");
-	gpio_request(EPDC_BDR0, "epdc_bdr0");
-	gpio_request(EPDC_SDCE0, "epdc_sdce0");
-	gpio_request(EPDC_SDCE1, "epdc_sdce1");
-	gpio_request(EPDC_SDCE2, "epdc_sdce2");
+	ret |= gpio_request(EPDC_D0, "epdc_d0");
+	ret |= gpio_request(EPDC_D1, "epdc_d1");
+	ret |= gpio_request(EPDC_D2, "epdc_d2");
+	ret |= gpio_request(EPDC_D3, "epdc_d3");
+	ret |= gpio_request(EPDC_D4, "epdc_d4");
+	ret |= gpio_request(EPDC_D5, "epdc_d5");
+	ret |= gpio_request(EPDC_D6, "epdc_d6");
+	ret |= gpio_request(EPDC_D7, "epdc_d7");
+	ret |= gpio_request(EPDC_GDCLK, "epdc_gdclk");
+	ret |= gpio_request(EPDC_GDSP, "epdc_gdsp");
+	ret |= gpio_request(EPDC_GDOE, "epdc_gdoe");
+	ret |= gpio_request(EPDC_GDRL, "epdc_gdrl");
+	ret |= gpio_request(EPDC_SDCLK, "epdc_sdclk");
+	ret |= gpio_request(EPDC_SDOE, "epdc_sdoe");
+	ret |= gpio_request(EPDC_SDLE, "epdc_sdle");
+	ret |= gpio_request(EPDC_SDSHR, "epdc_sdshr");
+	ret |= gpio_request(EPDC_BDR0, "epdc_bdr0");
+	ret |= gpio_request(EPDC_SDCE0, "epdc_sdce0");
+	ret |= gpio_request(EPDC_SDCE1, "epdc_sdce1");
+	ret |= gpio_request(EPDC_SDCE2, "epdc_sdce2");
+
+	return ret;
 }
 
 static void epdc_put_pins(void)
@@ -1103,11 +1124,220 @@ static struct i2c_board_info mxc_i2c0_board_info[] __initdata = {
 	 },
 };
 
+static void sii902x_hdmi_reset(void)
+{
+	gpio_set_value(HDMI_PWR_ENABLE, 1);
+	msleep(10);
+	gpio_set_value(HDMI_RESET, 0);
+	msleep(10);
+	gpio_set_value(HDMI_RESET, 1);
+	msleep(10);
+}
+
+static int sii902x_hdmi_get_pins(void)
+{
+	int ret = 0;
+
+	ret |= gpio_request(HDMI_RESET, "hdmi_reset");
+	ret |= gpio_request(HDMI_DETECT, "hdmi_detect");
+	ret |= gpio_request(EPDC_SDCE5, "hdmi_d0");
+	ret |= gpio_request(EPDC_SDCE4, "hdmi_d1");
+	ret |= gpio_request(EPDC_SDCE3, "hdmi_d2");
+	ret |= gpio_request(EPDC_SDCE2, "hdmi_d3");
+	ret |= gpio_request(EPDC_SDCE1, "hdmi_d4");
+	ret |= gpio_request(EPDC_SDCE0, "hdmi_d5");
+	ret |= gpio_request(EPDC_BDR1, "hdmi_d6");
+	ret |= gpio_request(EPDC_BDR0, "hdmi_d7");
+	ret |= gpio_request(EPDC_SDLE, "hdmi_d8");
+	ret |= gpio_request(EPDC_SDCLKN, "hdmi_d9");
+	ret |= gpio_request(EPDC_SDSHR, "hdmi_d10");
+	ret |= gpio_request(EPDC_PWRCOM, "hdmi_d11");
+	ret |= gpio_request(EPDC_PWRSTAT, "hdmi_d12");
+	ret |= gpio_request(EPDC_PWRCTRL0, "hdmi_d13");
+	ret |= gpio_request(EPDC_PWRCTRL1, "hdmi_d14");
+	ret |= gpio_request(EPDC_PWRCTRL2, "hdmi_d15");
+	ret |= gpio_request(EPDC_GDCLK, "hdmi_d16");
+	ret |= gpio_request(EPDC_GDSP, "hdmi_d17");
+	ret |= gpio_request(EPDC_GDOE, "hdmi_d18");
+	ret |= gpio_request(EPDC_GDRL, "hdmi_d19");
+	ret |= gpio_request(EPDC_SDCLK, "hdmi_d20");
+	ret |= gpio_request(EPDC_SDOEZ, "hdmi_d21");
+	ret |= gpio_request(EPDC_SDOED, "hdmi_d22");
+	ret |= gpio_request(EPDC_SDOE, "hdmi_d23");
+	ret |= gpio_request(EPDC_D0, "hdmi_dclk");
+	ret |= gpio_request(EPDC_D1, "hdmi_drdy");
+	ret |= gpio_request(EPDC_D2, "hdmi_vsync");
+	ret |= gpio_request(EPDC_D3, "hdmi_hsync");
+
+	return ret;
+}
+
+static void sii902x_hdmi_put_pins(void)
+{
+	gpio_free(HDMI_RESET);
+	gpio_free(HDMI_DETECT);
+	gpio_free(EPDC_SDCE5);
+	gpio_free(EPDC_SDCE4);
+	gpio_free(EPDC_SDCE3);
+	gpio_free(EPDC_SDCE2);
+	gpio_free(EPDC_SDCE1);
+	gpio_free(EPDC_SDCE0);
+	gpio_free(EPDC_BDR1);
+	gpio_free(EPDC_BDR0);
+	gpio_free(EPDC_SDLE);
+	gpio_free(EPDC_SDCLKN);
+	gpio_free(EPDC_SDSHR);
+	gpio_free(EPDC_PWRCOM);
+	gpio_free(EPDC_PWRSTAT);
+	gpio_free(EPDC_PWRCTRL0);
+	gpio_free(EPDC_PWRCTRL1);
+	gpio_free(EPDC_PWRCTRL2);
+	gpio_free(EPDC_GDCLK);
+	gpio_free(EPDC_GDSP);
+	gpio_free(EPDC_GDOE);
+	gpio_free(EPDC_GDRL);
+	gpio_free(EPDC_SDCLK);
+	gpio_free(EPDC_SDOEZ);
+	gpio_free(EPDC_SDOED);
+	gpio_free(EPDC_SDOE);
+	gpio_free(EPDC_D0);
+	gpio_free(EPDC_D1);
+	gpio_free(EPDC_D2);
+	gpio_free(EPDC_D3);
+}
+
+static iomux_v3_cfg_t mx50_sii902x_hdmi_pads_enabled[] = {
+	MX50_PAD_EPDC_SDCE5__ELCDIF_D0,
+	MX50_PAD_EPDC_SDCE4__ELCDIF_D1,
+	MX50_PAD_EPDC_SDCE3__ELCDIF_D2,
+	MX50_PAD_EPDC_SDCE2__ELCDIF_D3,
+	MX50_PAD_EPDC_SDCE1__ELCDIF_D4,
+	MX50_PAD_EPDC_SDCE0__ELCDIF_D5,
+	MX50_PAD_EPDC_BDR1__ELCDIF_D6,
+	MX50_PAD_EPDC_BDR0__ELCDIF_D7,
+	MX50_PAD_EPDC_SDLE__ELCDIF_D8,
+	MX50_PAD_EPDC_SDCLKN__ELCDIF_D9,
+	MX50_PAD_EPDC_SDSHR__ELCDIF_D10,
+	MX50_PAD_EPDC_PWRCOM__ELCDIF_D11,
+	MX50_PAD_EPDC_PWRSTAT__ELCDIF_D12,
+	MX50_PAD_EPDC_PWRCTRL0__ELCDIF_D13,
+	MX50_PAD_EPDC_PWRCTRL1__ELCDIF_D14,
+	MX50_PAD_EPDC_PWRCTRL2__ELCDIF_D15,
+	MX50_PAD_EPDC_GDCLK__ELCDIF_D16,
+	MX50_PAD_EPDC_GDSP__ELCDIF_D17,
+	MX50_PAD_EPDC_GDOE__ELCDIF_D18,
+	MX50_PAD_EPDC_GDRL__ELCDIF_D19,
+	MX50_PAD_EPDC_SDCLK__ELCDIF_D20,
+	MX50_PAD_EPDC_SDOEZ__ELCDIF_D21,
+	MX50_PAD_EPDC_SDOED__ELCDIF_D22,
+	MX50_PAD_EPDC_SDOE__ELCDIF_D23,
+	MX50_PAD_EPDC_D2__ELCDIF_VSYNC,
+	MX50_PAD_EPDC_D3__ELCDIF_HSYNC,
+	MX50_PAD_EPDC_D1__ELCDIF_EN,
+	MX50_PAD_EPDC_D0__ELCDIF_DCLK,
+	MX50_PAD_EIM_LBA__GPIO_1_26,
+	MX50_PAD_EIM_RW__GPIO_1_25,
+	MX50_PAD_EIM_OE__GPIO_1_24,
+};
+
+static iomux_v3_cfg_t mx50_sii902x_hdmi_pads_disabled[] = {
+	MX50_PAD_EPDC_SDCE5__GPIO_4_30,
+	MX50_PAD_EPDC_SDCE4__GPIO_4_29,
+	MX50_PAD_EPDC_SDCE3__GPIO_4_28,
+	MX50_PAD_EPDC_SDCE2__GPIO_4_27,
+	MX50_PAD_EPDC_SDCE1__GPIO_4_26,
+	MX50_PAD_EPDC_SDCE0__GPIO_4_25,
+	MX50_PAD_EPDC_BDR1__GPIO_4_24,
+	MX50_PAD_EPDC_BDR0__GPIO_4_23,
+	MX50_PAD_EPDC_SDLE__GPIO_3_24,
+	MX50_PAD_EPDC_SDCLKN__GPIO_3_25,
+	MX50_PAD_EPDC_SDSHR__GPIO_3_26,
+	MX50_PAD_EPDC_PWRCOM__GPIO_3_27,
+	MX50_PAD_EPDC_PWRSTAT__GPIO_3_28,
+	MX50_PAD_EPDC_PWRCTRL0__GPIO_3_29,
+	MX50_PAD_EPDC_PWRCTRL1__GPIO_3_30,
+	MX50_PAD_EPDC_PWRCTRL2__GPIO_3_31,
+	MX50_PAD_EPDC_GDCLK__GPIO_3_16,
+	MX50_PAD_EPDC_GDSP__GPIO_3_17,
+	MX50_PAD_EPDC_GDOE__GPIO_3_18,
+	MX50_PAD_EPDC_GDRL__GPIO_3_19,
+	MX50_PAD_EPDC_SDCLK__GPIO_3_20,
+	MX50_PAD_EPDC_SDOEZ__GPIO_3_21,
+	MX50_PAD_EPDC_SDOED__GPIO_3_22,
+	MX50_PAD_EPDC_SDOE__GPIO_3_23,
+	MX50_PAD_EPDC_D2__GPIO_3_2,
+	MX50_PAD_EPDC_D3__GPIO_3_3,
+	MX50_PAD_EPDC_D1__GPIO_3_1,
+	MX50_PAD_EPDC_D0__GPIO_3_0,
+	MX50_PAD_EIM_LBA__GPIO_1_26,
+	MX50_PAD_EIM_RW__GPIO_1_25,
+	MX50_PAD_EIM_OE__GPIO_1_24,
+};
+
+static void sii902x_hdmi_enable_pins(void)
+{
+	/* Configure MUX settings to enable HDMI use */
+	mxc_iomux_v3_setup_multiple_pads(mx50_sii902x_hdmi_pads_enabled, \
+				ARRAY_SIZE(mx50_sii902x_hdmi_pads_enabled));
+}
+
+static void sii902x_hdmi_disable_pins(void)
+{
+	/* Configure MUX settings for HDMI pins to
+	 * GPIO mode and drive to 0. */
+	mxc_iomux_v3_setup_multiple_pads(mx50_sii902x_hdmi_pads_disabled, \
+				ARRAY_SIZE(mx50_sii902x_hdmi_pads_disabled));
+
+	/* Setting as GPIO input should reduce power consumption */
+	gpio_direction_input(EPDC_SDCE5);
+	gpio_direction_input(EPDC_SDCE4);
+	gpio_direction_input(EPDC_SDCE3);
+	gpio_direction_input(EPDC_SDCE2);
+	gpio_direction_input(EPDC_SDCE1);
+	gpio_direction_input(EPDC_SDCE0);
+	gpio_direction_input(EPDC_BDR1);
+	gpio_direction_input(EPDC_BDR0);
+	gpio_direction_input(EPDC_SDLE);
+	gpio_direction_input(EPDC_SDCLKN);
+	gpio_direction_input(EPDC_SDSHR);
+	gpio_direction_input(EPDC_PWRCOM);
+	gpio_direction_input(EPDC_PWRSTAT);
+	gpio_direction_input(EPDC_PWRCTRL0);
+	gpio_direction_input(EPDC_PWRCTRL1);
+	gpio_direction_input(EPDC_PWRCTRL2);
+	gpio_direction_input(EPDC_GDCLK);
+	gpio_direction_input(EPDC_GDSP);
+	gpio_direction_input(EPDC_GDOE);
+	gpio_direction_input(EPDC_GDRL);
+	gpio_direction_input(EPDC_SDCLK);
+	gpio_direction_input(EPDC_SDOEZ);
+	gpio_direction_input(EPDC_SDOED);
+	gpio_direction_input(EPDC_SDOE);
+	gpio_direction_input(EPDC_D0);
+	gpio_direction_input(EPDC_D1);
+	gpio_direction_input(EPDC_D2);
+	gpio_direction_input(EPDC_D3);
+}
+
+static struct mxc_lcd_platform_data sii902x_hdmi_data = {
+	.reset = sii902x_hdmi_reset,
+	.get_pins = sii902x_hdmi_get_pins,
+	.put_pins = sii902x_hdmi_put_pins,
+	.enable_pins = sii902x_hdmi_enable_pins,
+	.disable_pins = sii902x_hdmi_disable_pins,
+};
+
 static struct i2c_board_info mxc_i2c1_board_info[] __initdata = {
 	{
 	 .type = "sgtl5000-i2c",
 	 .addr = 0x0a,
 	 },
+	{
+	.type = "sii902x",
+	.addr = 0x39,
+	.irq = gpio_to_irq(HDMI_DETECT),
+	.platform_data = &sii902x_hdmi_data,
+	},
 };
 
 static struct mtd_partition mxc_dataflash_partitions[] = {
@@ -1315,9 +1545,24 @@ static struct fb_videomode video_modes[] = {
 	 FB_SYNC_CLK_LAT_FALL,
 	 FB_VMODE_NONINTERLACED,
 	 0,},
+	{
+	/* 1600x1200 @ 60 Hz 162M pixel clk*/
+	"UXGA", 60, 1600, 1200, 6172,
+	304, 64,
+	1, 46,
+	192, 3,
+	FB_SYNC_HOR_HIGH_ACT|FB_SYNC_VERT_HIGH_ACT,
+	FB_VMODE_NONINTERLACED,
+	0,},
 };
 
 static struct mxc_fb_platform_data fb_data[] = {
+	{
+	 .interface_pix_fmt = V4L2_PIX_FMT_RGB24,
+	 .mode_str = "1024x768M-16@60",
+	 .mode = video_modes,
+	 .num_modes = ARRAY_SIZE(video_modes),
+	 },
 	{
 	 .interface_pix_fmt = V4L2_PIX_FMT_RGB565,
 	 .mode_str = "SEIKO-WVGA",
@@ -1680,6 +1925,14 @@ static void __init mx50_rdp_io_init(void)
 		gpio_direction_output(UART2_RX, 0);
 	}
 
+	/* Sii902x HDMI controller */
+	gpio_request(HDMI_RESET, "hdmi-reset");
+	gpio_direction_output(HDMI_RESET, 1);
+	gpio_request(HDMI_PWR_ENABLE, "hdmi-pwr-enable");
+	gpio_direction_output(HDMI_PWR_ENABLE, 0);
+	gpio_request(HDMI_DETECT, "hdmi-detect");
+	gpio_direction_input(HDMI_DETECT);
+
 	if (enable_w1) {
 		iomux_v3_cfg_t one_wire = MX50_PAD_OWIRE__OWIRE;
 		mxc_iomux_v3_setup_pad(one_wire);
@@ -1770,7 +2023,9 @@ static void __init mxc_board_init(void)
 	mxc_register_device(&max17135_sensor_device, NULL);
 	mxc_register_device(&epdc_device, &epdc_data);
 	mxc_register_device(&lcd_wvga_device, &lcd_wvga_data);
-	mxc_register_device(&elcdif_device, &fb_data[0]);
+	if (!board_is_mx50_rd3())
+		lcdif_sel_lcd = 1;
+	mxc_register_device(&elcdif_device, &fb_data[lcdif_sel_lcd]);
 	mxc_register_device(&mxc_pwm1_device, NULL);
 	mxc_register_device(&mxc_pwm1_backlight_device,
 		&mxc_pwm_backlight_data);

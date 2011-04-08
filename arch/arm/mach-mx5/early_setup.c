@@ -34,3 +34,11 @@ static int __init di0_setup(char *__unused)
 }
 __setup("di0_primary", di0_setup);
 
+int __initdata lcdif_sel_lcd = { 0 };
+static int __init lcd_setup(char *__unused)
+{
+	lcdif_sel_lcd = 1;
+	return 1;
+}
+__setup("lcd", lcd_setup);
+
