@@ -26,6 +26,7 @@ header-y += isl29023.h
 header-y += mxc_asrc.h
 header-y += mxc_mlb.h
 header-y += mxc_pf.h
+header-y += mxc_sahara.h
 header-y += mxc_scc2_driver.h
 header-y += mxc_scc_driver.h
 header-y += mxc_srtc.h
