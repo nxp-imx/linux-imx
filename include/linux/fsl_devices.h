@@ -307,6 +307,10 @@ struct mxc_lcd_platform_data {
 	char *core_reg;
 	char *analog_reg;
 	void (*reset) (void);
+	int (*get_pins) (void);
+	void (*put_pins) (void);
+	void (*enable_pins) (void);
+	void (*disable_pins) (void);
 	int boot_enable;
 };
 
@@ -359,7 +363,7 @@ struct mxc_epdc_fb_mode {
 struct mxc_epdc_fb_platform_data {
 	struct mxc_epdc_fb_mode *epdc_mode;
 	int num_modes;
-	void (*get_pins) (void);
+	int (*get_pins) (void);
 	void (*put_pins) (void);
 	void (*enable_pins) (void);
 	void (*disable_pins) (void);
