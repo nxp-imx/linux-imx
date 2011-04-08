@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2004-2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2004-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -20,7 +20,7 @@
 #define SF_UTIL_H
 
 #include <fsl_platform.h>
-#include <sahara.h>
+#include <linux/mxc_sahara.h>
 
 /*! Header value for Sahara Descriptor  1 */
 #define SAH_HDR_SKHA_SET_MODE_IV_KEY  0x10880000

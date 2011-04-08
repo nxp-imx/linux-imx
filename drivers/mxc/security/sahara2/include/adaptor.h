@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2004-2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2004-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -23,7 +23,7 @@
 #ifndef ADAPTOR_H
 #define ADAPTOR_H
 
-#include <sahara.h>
+#include <linux/mxc_sahara.h>
 
 /*!
  * Structure passed during user ioctl() call to submit request.
