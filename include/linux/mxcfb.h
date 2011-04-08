@@ -162,6 +162,8 @@ int mxcfb_set_refresh_mode(struct fb_info *fbi, int mode,
 void mxcfb_register_mode(int disp_port,
 		const struct fb_videomode *modedb,
 		int num_modes, int dev_mode);
+void mxcfb_elcdif_register_mode(const struct fb_videomode *modedb,
+		int num_modes, int dev_mode);
 
 void mxcfb_register_presetup(int disp_port,
 		int (*pre_setup)(struct fb_info *info));

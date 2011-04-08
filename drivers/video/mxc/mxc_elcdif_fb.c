@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010 Freescale Semiconductor, Inc.
+ * Copyright (C) 2010-2011 Freescale Semiconductor, Inc.
  */
 
 /*
@@ -85,6 +85,12 @@ struct elcdif_signal_cfg {
 	unsigned Vsync_pol:1;	/* true = active high */
 };
 
+struct mxcfb_mode {
+	int dev_mode;
+	int num_modes;
+	struct fb_videomode *mode;
+};
+
 static int mxc_elcdif_fb_blank(int blank, struct fb_info *info);
 static int mxc_elcdif_fb_map_video_memory(struct fb_info *info);
 static int mxc_elcdif_fb_unmap_video_memory(struct fb_info *info);
@@ -96,6 +102,7 @@ static bool g_elcdif_axi_clk_enable;
 static bool g_elcdif_pix_clk_enable;
 static struct clk *g_elcdif_axi_clk;
 static struct clk *g_elcdif_pix_clk;
+static __initdata struct mxcfb_mode mxc_disp_mode;
 
 static inline void setup_dotclk_panel(u32 pixel_clk,
 				      u16 v_pulse_width,
@@ -512,6 +519,31 @@ static inline void mxc_init_elcdif(void)
 	__raw_writel(BM_ELCDIF_CTRL1_RESET,
 		     elcdif_base + HW_ELCDIF_CTRL1_SET);
 	udelay(10);
+
+	return;
+}
+
+void mxcfb_elcdif_register_mode(const struct fb_videomode *modedb,
+	int num_modes, int dev_mode)
+{
+	struct fb_videomode *mode;
+	int mode_sum;
+
+	mode = kzalloc(num_modes * sizeof(struct fb_videomode), GFP_KERNEL);
+
+	if (mxc_disp_mode.num_modes)
+		memcpy(mode, mxc_disp_mode.mode,
+			mxc_disp_mode.num_modes * sizeof(struct fb_videomode));
+	if (modedb)
+		memcpy(mode + mxc_disp_mode.num_modes, modedb,
+			num_modes * sizeof(struct fb_videomode));
+
+	if (mxc_disp_mode.num_modes)
+		kfree(mxc_disp_mode.mode);
+
+	mxc_disp_mode.mode = mode;
+	mxc_disp_mode.num_modes += num_modes;
+	mxc_disp_mode.dev_mode = dev_mode;
 
 	return;
 }
@@ -1200,6 +1232,9 @@ static int mxc_elcdif_fb_probe(struct platform_device *pdev)
 	struct resource *res;
 	struct fb_info *fbi;
 	struct mxc_fb_platform_data *pdata = pdev->dev.platform_data;
+	const struct fb_videomode *mode;
+	struct fb_videomode m;
+	int num;
 
 	fbi = framebuffer_alloc(sizeof(struct mxc_elcdif_fb_data), &pdev->dev);
 	if (fbi == NULL) {
@@ -1260,9 +1295,30 @@ static int mxc_elcdif_fb_probe(struct platform_device *pdev)
 	if (pdata && !data->output_pix_fmt)
 		data->output_pix_fmt = pdata->interface_pix_fmt;
 
+	INIT_LIST_HEAD(&fbi->modelist);
+
 	if (pdata && pdata->mode && pdata->num_modes)
 		fb_videomode_to_modelist(pdata->mode, pdata->num_modes,
 				&fbi->modelist);
+
+	if (mxc_disp_mode.num_modes) {
+		int i;
+		mode = mxc_disp_mode.mode;
+		num = mxc_disp_mode.num_modes;
+
+		for (i = 0; i < num; i++) {
+			/*
+			 * FIXME now we do not support interlaced
+			 * mode for ddc mode
+			 */
+			if ((mxc_disp_mode.dev_mode
+				& MXC_DISP_DDC_DEV) &&
+				(mode[i].vmode & FB_VMODE_INTERLACED))
+				continue;
+			else
+				fb_add_videomode(&mode[i], &fbi->modelist);
+		}
+	}
 
 	if (!fb_mode && pdata && pdata->mode_str)
 		fb_mode = pdata->mode_str;
@@ -1270,10 +1326,24 @@ static int mxc_elcdif_fb_probe(struct platform_device *pdev)
 	if (fb_mode) {
 		ret = fb_find_mode(&fbi->var, fbi, fb_mode, NULL, 0, NULL,
 				   default_bpp);
-		if ((!ret || (ret > 2)) && pdata && pdata->mode &&
-		    pdata->num_modes)
-			fb_find_mode(&fbi->var, fbi, fb_mode, pdata->mode,
+		if ((ret == 1) || (ret == 2)) {
+			fb_var_to_videomode(&m, &fbi->var);
+			mode = fb_find_nearest_mode(&m,
+				&fbi->modelist);
+			fb_videomode_to_var(&fbi->var, mode);
+		} else if (pdata && pdata->mode && pdata->num_modes) {
+			ret = fb_find_mode(&fbi->var, fbi, fb_mode, pdata->mode,
 					pdata->num_modes, NULL, default_bpp);
+			if (!ret) {
+				dev_err(fbi->device,
+					"No valid video mode found");
+				goto err2;
+			}
+		} else {
+			dev_err(fbi->device,
+				"No valid video mode found");
+			goto err2;
+		}
 	}
 
 	mxc_elcdif_fb_check_var(&fbi->var, fbi);
@@ -1306,6 +1376,13 @@ static int mxc_elcdif_fb_probe(struct platform_device *pdev)
 	 * access ELCDIF registers.
 	 */
 	clk_set_rate(g_elcdif_pix_clk, 25000000);
+
+	fbi->var.activate |= FB_ACTIVATE_FORCE;
+	acquire_console_sem();
+	fbi->flags |= FBINFO_MISC_USEREVENT;
+	ret = fb_set_var(fbi, &fbi->var);
+	fbi->flags &= ~FBINFO_MISC_USEREVENT;
+	release_console_sem();
 
 	ret = register_framebuffer(fbi);
 	if (ret)
