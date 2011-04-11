@@ -38,6 +38,7 @@
 
 #define ARD_SD1_WP IMX_GPIO_NR(1, 9)
 #define ARD_SD2_WP IMX_GPIO_NR(1, 2)
+#define ARD_TS_INT IMX_GPIO_NR(7, 12)
 #define ARD_ETHERNET_INT_B IMX_GPIO_NR(2, 31)
 
 static iomux_v3_cfg_t mx53_ard_pads[] = {
@@ -110,6 +111,16 @@ static iomux_v3_cfg_t mx53_ard_pads[] = {
 	MX53_PAD_EIM_OE__EMI_WEIM_OE,
 	MX53_PAD_EIM_RW__EMI_WEIM_RW,
 	MX53_PAD_EIM_CS1__EMI_WEIM_CS_1,
+	/* I2C2 */
+	MX53_PAD_EIM_EB2__I2C2_SCL,
+	MX53_PAD_KEY_ROW3__I2C2_SDA,
+
+	/* I2C3 */
+	MX53_PAD_GPIO_3__I2C3_SCL,
+	MX53_PAD_GPIO_16__I2C3_SDA,
+
+	/* TOUCH_INT_B */
+	MX53_PAD_GPIO_17__GPIO7_12,
 };
 
 /* Config CS1 settings for ethernet controller */
@@ -178,6 +189,24 @@ static const struct esdhc_platform_data mx53_ard_sd1_data __initconst = {
 	.wp_gpio = ARD_SD2_WP,
 };
 
+static struct imxi2c_platform_data mx53_ard_i2c1_data = {
+	.bitrate = 50000,
+};
+
+static struct imxi2c_platform_data mx53_ard_i2c2_data = {
+	.bitrate = 400000,
+};
+
+static struct i2c_board_info mxc_i2c1_board_info[] __initdata = {
+};
+
+static struct i2c_board_info mxc_i2c2_board_info[] __initdata = {
+	{
+		I2C_BOARD_INFO("max11801", 0x49),
+		.irq  = gpio_to_irq(ARD_TS_INT),
+	},
+};
+
 static inline void mx53_ard_init_uart(void)
 {
 	imx53_add_imx_uart(0, NULL);
@@ -204,6 +233,13 @@ static void __init mx53_ard_board_init(void)
 	weim_cs_config();
 	mx53_ard_io_init();
 	mxc_register_device(&ard_smsc_lan9220_device, &ard_smsc911x_config);
+	imx53_add_imx_i2c(1, &mx53_ard_i2c1_data);
+	imx53_add_imx_i2c(2, &mx53_ard_i2c2_data);
+
+	i2c_register_board_info(1, mxc_i2c1_board_info,
+				ARRAY_SIZE(mxc_i2c1_board_info));
+	i2c_register_board_info(2, mxc_i2c2_board_info,
+				ARRAY_SIZE(mxc_i2c2_board_info));
 }
 
 static void __init mx53_ard_timer_init(void)
