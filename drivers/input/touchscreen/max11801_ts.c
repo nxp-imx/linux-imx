@@ -131,17 +131,8 @@ static void calibration_pointer(int *x_orig, int *y_orig)
 #else
 static void calibration_pointer(int *x_orig, int *y_orig)
 {
-	/* Currently, calibration algorithm will be overflow in XGA
-	 * resolution. */
-	/* Here work around for android touch screen and LCD 's rotation */
-	/* Will remove after calibration algorithm ok. */
-	int x, y;
-	/* Swap x, y */
-	x = *y_orig;
-	y = *x_orig;
-	/* Swap X  */
-	x = MAX11801_MAX_XC - x;
-	*x_orig = x;
+	int  y;
+	y = MAX11801_MAX_YC - *y_orig;
 	*y_orig = y;
 }
 #endif
