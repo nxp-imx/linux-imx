@@ -96,6 +96,13 @@ static int max11801_write_reg(struct i2c_client *client, int addr, int data)
 	return i2c_smbus_write_byte_data(client, addr << 1, data);
 }
 
+static void calibration_pointer(int *x_orig, int *y_orig)
+{
+	int  y;
+	y = MAX11801_MAX_Y - *y_orig;
+	*y_orig = y;
+}
+
 static irqreturn_t max11801_ts_interrupt(int irq, void *dev_id)
 {
 	struct max11801_data *data = dev_id;
@@ -131,6 +138,7 @@ static irqreturn_t max11801_ts_interrupt(int irq, void *dev_id)
 		case EVENT_INIT:
 			/* go through */
 		case EVENT_MIDDLE:
+			calibration_pointer(&x, &y);
 			input_report_abs(data->input_dev, ABS_X, x);
 			input_report_abs(data->input_dev, ABS_Y, y);
 			input_event(data->input_dev, EV_KEY, BTN_TOUCH, 1);
