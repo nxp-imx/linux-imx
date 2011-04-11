@@ -968,7 +968,10 @@ typedef struct fsl_shw_hco_t {	/* fsl_shw_hash_context_object */
 	uint8_t digest_length;	/* in bytes */
 	uint8_t context_length;	/* in bytes */
 	uint8_t context_register_length;	/* in bytes */
-	uint32_t context[9];	/* largest digest + msg size */
+	/* ensure following HW buffers not cached with surrounding fields */
+	uint8_t cache_front_pad[64]; /* fill out cache line */
+	uint32_t context[9];  /* largest digest + msg size */
+	uint8_t cache_back_pad[64]; /* fill out cache line */
 } fsl_shw_hco_t;
 
 /*!
@@ -980,12 +983,12 @@ typedef struct fsl_shw_hmco_t {	/* fsl_shw_hmac_context_object */
 	uint8_t digest_length;	/*!< in bytes */
 	uint8_t context_length;	/*!< in bytes */
 	uint8_t context_register_length;	/*!< in bytes */
-	uint32_t ongoing_context[9];	/*!< largest digest + msg
-					   size */
-	uint32_t inner_precompute[9];	/*!< largest digest + msg
-					   size */
-	uint32_t outer_precompute[9];	/*!< largest digest + msg
-					   size */
+	/* ensure following HW buffers not cached with surrounding fields */
+	uint8_t cache_front_pad[64]; /* fill out cache line */
+	uint32_t ongoing_context[9]; /**< largest digest + msg size */
+	uint32_t inner_precompute[9]; /**< largest digest + msg size */
+	uint32_t outer_precompute[9]; /**< largest digest + msg size */
+	uint8_t cache_back_pad[64]; /* fill out cache line */
 } fsl_shw_hmco_t;
 
 /* REQ-S2LRD-PINTFC-COA-SCCO-001 */
@@ -999,7 +1002,10 @@ typedef struct fsl_shw_scco_t {
 	/* Could put modulus plus 16-octet context in union with arc4
 	   sbox+ptrs... */
 	fsl_shw_ctr_mod_t modulus_exp;
+	/* ensure following HW buffers not cached with surrounding fields */
+	uint8_t cache_front_pad[64]; /* fill out cache line */
 	uint8_t context[259];
+	uint8_t cache_back_pad[64]; /* fill out cache line */
 } fsl_shw_scco_t;
 
 /*!
@@ -1023,6 +1029,8 @@ typedef struct fsl_shw_acco_t {
 		fsl_shw_hco_t hash_ctx_info;	/*!< For running the hash */
 	} auth_info;		/*!< "auth" info struct  */
 	uint8_t unencrypted_mac[16];	/*!< max block size... */
+	/* ensure above HW buffer not cached with any following variables */
+	uint8_t cache_back_pad[64]; /* fill out cache line */
 } fsl_shw_acco_t;
 
 /*!
