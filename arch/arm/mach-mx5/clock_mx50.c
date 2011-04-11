@@ -826,12 +826,22 @@ static unsigned long _clk_main_bus_get_rate(struct clk *clk)
 static int _clk_main_bus_set_parent(struct clk *clk, struct clk *parent)
 {
 	u32 reg, mux;
+	struct timespec nstimeofday;
+	struct timespec curtime;
 
 	mux = _get_mux(parent, &pll1_sw_clk, &pll2_sw_clk, &pll3_sw_clk,
 			&lp_apm_clk);
 	reg = __raw_readl(MXC_CCM_CBCDR) & ~MX50_CCM_CBCDR_PERIPH_CLK_SEL_MASK;
 	reg |= (mux << MX50_CCM_CBCDR_PERIPH_CLK_SEL_OFFSET);
 	__raw_writel(reg, MXC_CCM_CBCDR);
+
+	getnstimeofday(&nstimeofday);
+	while (__raw_readl(MXC_CCM_CDHIPR) &
+			MXC_CCM_CDHIPR_PERIPH_CLK_SEL_BUSY) {
+		getnstimeofday(&curtime);
+		if (curtime.tv_nsec - nstimeofday.tv_nsec > SPIN_DELAY)
+			panic("_clk_main_bus_set_parent failed\n");
+	}
 
 	return 0;
 }

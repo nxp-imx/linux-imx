@@ -39,6 +39,7 @@
 #define HW_QOS_DISABLE			0x70
 #define HW_QOS_DISABLE_SET	0x74
 #define HW_QOS_DISABLE_CLR	0x78
+#define QoS_DISABLE_MASTERS	0xFF0
 
 static struct clk *epdc_clk;
 
@@ -320,9 +321,11 @@ int update_ddr_freq(int ddr_rate)
 			}
 		}
 	}
-	/* Disable all masters from accessing the DDR. */
+	/* Disable all masters from accessing the DDR, leave masters
+	 * on port 0 and 1 enabled.
+	 */
 	reg = __raw_readl(qosc_base + HW_QOS_DISABLE);
-	reg |= 0xFFE;
+	reg |= QoS_DISABLE_MASTERS;
 	__raw_writel(reg, qosc_base + HW_QOS_DISABLE_SET);
 	udelay(100);
 

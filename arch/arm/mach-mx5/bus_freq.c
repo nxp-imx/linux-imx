@@ -55,6 +55,7 @@
 #define DDR_TYPE_DDR2		0x1
 
 DEFINE_SPINLOCK(ddr_freq_lock);
+DEFINE_SPINLOCK(freq_lock);
 
 unsigned long lp_normal_rate;
 unsigned long lp_med_rate;
@@ -182,13 +183,12 @@ void enter_lpapm_mode_mx50()
 {
 	u32 reg;
 	unsigned long flags;
-	spin_lock_irqsave(&ddr_freq_lock, flags);
+	spin_lock_irqsave(&freq_lock, flags);
 
 	set_ddr_freq(LP_APM_CLK);
+
 	/* Set the parent of main_bus_clk to be PLL3 */
-
 	clk_set_parent(main_bus_clk, pll3);
-
 	/* Set the AHB dividers to be 2.
 	 * Set the dividers so that clock rates
 	 * are not greater than current clock rate.
@@ -230,7 +230,7 @@ void enter_lpapm_mode_mx50()
 	while (__raw_readl(MXC_CCM_CDHIPR) & 0x0F)
 		udelay(10);
 
-	spin_unlock_irqrestore(&ddr_freq_lock, flags);
+	spin_unlock_irqrestore(&freq_lock, flags);
 
 	spin_lock_irqsave(&voltage_lock, flags);
 	lp_voltage = LP_LOW_VOLTAGE;
@@ -518,9 +518,9 @@ void exit_lpapm_mode_mx50(int high_bus_freq)
 			wait_for_completion_interruptible(&voltage_change_cmpl);
 	}
 
-	spin_lock_irqsave(&ddr_freq_lock, flags);
+	spin_lock_irqsave(&freq_lock, flags);
 	if (!low_bus_freq_mode) {
-		spin_unlock_irqrestore(&ddr_freq_lock, flags);
+		spin_unlock_irqrestore(&freq_lock, flags);
 		return;
 	}
 
@@ -592,7 +592,7 @@ void exit_lpapm_mode_mx50(int high_bus_freq)
 		med_bus_freq_mode = 0;
 		set_ddr_freq(ddr_normal_rate);
 	}
-	spin_unlock_irqrestore(&ddr_freq_lock, flags);
+	spin_unlock_irqrestore(&freq_lock, flags);
 
 	udelay(100);
 }
