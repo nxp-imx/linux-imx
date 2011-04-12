@@ -33,6 +33,7 @@
 void __iomem *arm_plat_base;
 void __iomem *gpc_base;
 void __iomem *ccm_base;
+extern void init_ddr_settings(void);
 
 static int cpu_silicon_rev = -1;
 void (*set_num_cpu_op)(int num);
@@ -254,6 +255,9 @@ static int __init post_cpu_init(void)
 	/* Set ALP bits to 000. Set ALP_EN bit in Arm Memory Controller reg. */
 	reg = 0x8;
 	__raw_writel(reg, arm_plat_base + CORTEXA8_PLAT_AMC);
+
+	if (cpu_is_mx50())
+		init_ddr_settings();
 
 	return 0;
 }

@@ -382,7 +382,7 @@ void init_ddr_settings(void)
 	/* Need to remap the area here since we want the memory region
 		 to be executable. */
 	ddr_freq_change_iram_base = __arm_ioremap(iram_paddr,
-						SZ_8K, MT_HIGH_VECTORS);
+						SZ_8K, MT_MEMORY);
 	memcpy(ddr_freq_change_iram_base, mx50_ddr_freq_change, SZ_8K);
 	change_ddr_freq = (void *)ddr_freq_change_iram_base;
 
@@ -399,7 +399,7 @@ void init_ddr_settings(void)
 	/* Need to remap the area here since we want the memory region
 		 to be executable. */
 	wait_in_iram_base = __arm_ioremap(iram_paddr,
-						SZ_4K, MT_HIGH_VECTORS);
+						SZ_4K, MT_MEMORY);
 	memcpy(wait_in_iram_base, mx50_wait, SZ_4K);
 	wait_in_iram = (void *)wait_in_iram_base;
 
