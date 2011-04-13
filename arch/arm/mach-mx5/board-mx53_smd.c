@@ -708,6 +708,11 @@ static void __init mx53_smd_board_init(void)
 	mxc_register_device(&smd_audio_device, &smd_audio_data);
 	mxc_register_device(&imx_bt_rfkill, &imx_bt_rfkill_data);
 	imx53_add_imx_ssi(1, &smd_ssi_pdata);
+
+	/* this call required to release SCC RAM partition held by ROM
+	  * during boot, even if SCC2 driver is not part of the image
+	  */
+	imx53_add_mxc_scc2();
 }
 
 static void __init mx53_smd_timer_init(void)

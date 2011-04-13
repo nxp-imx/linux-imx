@@ -89,3 +89,8 @@ extern const struct imx_mxc_gpu_data imx53_gpu_data __initconst;
 extern const struct imx_ldb_data imx53_ldb_data __initconst;
 #define imx53_add_ldb(pdata) \
 	imx_add_ldb(&imx53_ldb_data, pdata);
+
+extern const struct imx_mxc_scc2_data imx53_mxc_scc2_data __initconst;
+#define imx53_add_mxc_scc2() \
+	imx_add_mxc_scc2(&imx53_mxc_scc2_data)
+

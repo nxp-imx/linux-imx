@@ -743,6 +743,11 @@ static void __init mx53_evk_board_init(void)
 		ARRAY_SIZE(mx53_evk_spi_board_info));
 	imx53_add_ecspi(0, &mx53_evk_spi_data);
 	imx53_add_imx2_wdt(0, NULL);
+
+	/* this call required to release SCC RAM partition held by ROM
+	  * during boot, even if SCC2 driver is not part of the image
+	  */
+	imx53_add_mxc_scc2();
 }
 
 static void __init mx53_evk_timer_init(void)

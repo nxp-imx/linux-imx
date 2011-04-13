@@ -240,6 +240,11 @@ static void __init mx53_ard_board_init(void)
 				ARRAY_SIZE(mxc_i2c1_board_info));
 	i2c_register_board_info(2, mxc_i2c2_board_info,
 				ARRAY_SIZE(mxc_i2c2_board_info));
+
+	/* this call required to release SCC RAM partition held by ROM
+	  * during boot, even if SCC2 driver is not part of the image
+	  */
+	imx53_add_mxc_scc2();
 }
 
 static void __init mx53_ard_timer_init(void)

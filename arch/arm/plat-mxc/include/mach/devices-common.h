@@ -388,3 +388,14 @@ struct imx_ldb_data {
 struct platform_device *__init imx_add_ldb(
 	const struct imx_ldb_data *data,
 	struct fsl_mxc_ldb_platform_data *pdata);
+
+struct imx_mxc_scc2_data {
+	resource_size_t iobase;
+	resource_size_t ram_start;
+	resource_size_t irq_smn;
+	resource_size_t irq_scm;
+};
+
+struct platform_device *__init imx_add_mxc_scc2(
+		const struct imx_mxc_scc2_data *data);
+

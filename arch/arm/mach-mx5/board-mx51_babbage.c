@@ -462,6 +462,11 @@ static void __init mx51_babbage_init(void)
 	imx51_add_ecspi(0, &mx51_babbage_spi_pdata);
 	imx51_add_imx2_wdt(0, NULL);
 	imx51_add_mxc_gpu(&gpu_data);
+
+	/* this call required to release IRAM partition held by ROM during boot,
+	  * even if SCC2 driver is not part of the image
+	  */
+	imx51_add_mxc_scc2();
 }
 
 static void __init mx51_babbage_timer_init(void)

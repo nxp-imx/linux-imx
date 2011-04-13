@@ -59,3 +59,8 @@ extern const struct imx_imx_keypad_data imx51_imx_keypad_data __initconst;
 extern const struct imx_mxc_gpu_data imx51_gpu_data __initconst;
 #define imx51_add_mxc_gpu(pdata) \
 	imx_add_mxc_gpu(&imx51_gpu_data, pdata)
+
+extern const struct imx_mxc_scc2_data imx51_mxc_scc2_data __initconst;
+#define imx51_add_mxc_scc2() \
+	imx_add_mxc_scc2(&imx51_mxc_scc2_data)
+

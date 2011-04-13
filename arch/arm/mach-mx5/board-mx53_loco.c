@@ -750,6 +750,11 @@ static void __init mx53_loco_board_init(void)
 		gpu_data.z160_revision = 0;
 	imx53_add_mxc_gpu(&gpu_data);
 	imx_add_gpio_keys(&loco_button_data);
+
+	/* this call required to release SCC RAM partition held by ROM
+	  * during boot, even if SCC2 driver is not part of the image
+	  */
+	imx53_add_mxc_scc2();
 }
 
 static void __init mx53_loco_timer_init(void)
