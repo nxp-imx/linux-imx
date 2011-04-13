@@ -2075,7 +2075,6 @@ int uart_resume_port(struct uart_driver *drv, struct uart_port *uport)
 	struct tty_port *port = &state->port;
 	struct device *tty_dev;
 	struct uart_match match = {uport, drv};
-	struct ktermios termios;
 
 	mutex_lock(&port->mutex);
 
