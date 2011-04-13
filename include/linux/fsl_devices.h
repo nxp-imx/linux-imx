@@ -278,6 +278,12 @@ struct mxc_audio_platform_data {
 	void *priv;		/* used by board specific functions */
 };
 
+struct mxc_pwm_platform_data {
+	int pwmo_invert;
+	void (*enable_pwm_pad) (void);
+	void (*disable_pwm_pad) (void);
+};
+
 /* Returns non-zero if the current suspend operation would
  * lead to a deep sleep (i.e. power removed from the core,
  * instead of just the clock).
