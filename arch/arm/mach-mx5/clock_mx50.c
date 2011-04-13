@@ -325,6 +325,11 @@ static struct clk ckil_clk = {
 static int apll_enable(struct clk *clk)
 {
 	__raw_writel(1, apll_base + MXC_ANADIG_MISC_SET);
+
+	if (!WAIT(__raw_readl(apll_base + MXC_ANADIG_PLLCTRL)
+		  & MXC_ANADIG_APLL_LOCK, 80000))
+		panic("apll_enable failed!\n");
+
 	return 0;
 }
 
@@ -395,23 +400,10 @@ static int pfd_enable(struct clk *clk)
 		apbh_dma_clk.enable(&apbh_dma_clk);
 	index = _get_mux8(clk, &pfd0_clk, &pfd1_clk, &pfd2_clk, &pfd3_clk,
 			&pfd4_clk, &pfd5_clk, &pfd6_clk, &pfd7_clk);
-	__raw_writel(1 << (index + MXC_ANADIG_PFD_DIS_OFFSET),
-			apll_base + MXC_ANADIG_PLLCTRL_CLR);
 	/* clear clk gate bit */
 	__raw_writel((1 << (clk->enable_shift + 7)),
 			apll_base + (int)clk->enable_reg + 8);
 
-	/* check lock bit */
-	if (!WAIT(__raw_readl(apll_base + MXC_ANADIG_PLLCTRL)
-		  & MXC_ANADIG_APLL_LOCK, 50000)) {
-		__raw_writel(MXC_ANADIG_APLL_FORCE_LOCK,
-			     apll_base + MXC_ANADIG_PLLCTRL_CLR);
-		__raw_writel(MXC_ANADIG_APLL_FORCE_LOCK,
-			     apll_base + MXC_ANADIG_PLLCTRL_SET);
-		if (!WAIT(__raw_readl(apll_base + MXC_ANADIG_PLLCTRL)
-			  & MXC_ANADIG_APLL_LOCK, SPIN_DELAY))
-			panic("pfd_enable failed!\n");
-	}
 	if (apbh_dma_clk.usecount == 0)
 		apbh_dma_clk.disable(&apbh_dma_clk);
 	return 0;
@@ -428,8 +420,6 @@ static void pfd_disable(struct clk *clk)
 	/* set clk gate bit */
 	__raw_writel((1 << (clk->enable_shift + 7)),
 			apll_base + (int)clk->enable_reg + 4);
-	__raw_writel(1 << (index + MXC_ANADIG_PFD_DIS_OFFSET),
-			apll_base + MXC_ANADIG_PLLCTRL_SET);
 	if (apbh_dma_clk.usecount == 0)
 		apbh_dma_clk.disable(&apbh_dma_clk);
 }
