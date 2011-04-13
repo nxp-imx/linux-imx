@@ -25,4 +25,4 @@ obj-$(CONFIG_MACH_EUKREA_MBIMXSD51_BASEBOARD) += eukrea_mbimxsd-baseboard.o
 obj-$(CONFIG_MX51_EFIKA_COMMON) += mx51_efika.o
 obj-$(CONFIG_MACH_MX51_EFIKAMX) += board-mx51_efikamx.o
 obj-$(CONFIG_MACH_MX51_EFIKASB) += board-mx51_efikasb.o
-obj-$(CONFIG_MACH_MX50_RDP) += board-mx50_rdp.o
+obj-$(CONFIG_MACH_MX50_RDP) += board-mx50_rdp.o mx50_rdp_pmic_mc13892.o

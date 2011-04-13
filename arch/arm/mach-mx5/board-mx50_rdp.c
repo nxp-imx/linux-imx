@@ -41,6 +41,10 @@
 
 #define FEC_EN		IMX_GPIO_NR(6, 23)
 #define FEC_RESET_B	IMX_GPIO_NR(4, 12)
+#define MX50_RDP_CSPI_CS0	IMX_GPIO_NR(4, 13)
+#define MX50_RDP_CSPI_CS1	IMX_GPIO_NR(4, 11)
+
+extern int mx50_rdp_init_mc13892(void);
 
 static iomux_v3_cfg_t mx50_rdp_pads[] __initdata = {
 	/* SD1 */
@@ -194,6 +198,16 @@ static struct mxc_gpu_platform_data gpu_data __initdata = {
 	.z160_revision = 1,
 };
 
+static int mx50_rdp_spi_cs[] = {
+	MX50_RDP_CSPI_CS0,
+	MX50_RDP_CSPI_CS1,
+};
+
+static const struct spi_imx_master mx50_rdp_spi_pdata __initconst = {
+	.chipselect     = mx50_rdp_spi_cs,
+	.num_chipselect = ARRAY_SIZE(mx50_rdp_spi_cs),
+};
+
 /*
  * Board specific initialization.
  */
@@ -207,6 +221,8 @@ static void __init mx50_rdp_board_init(void)
 #endif
 	pr_info("CPU is iMX50 Revision %u\n",
 		mx50_revision());
+
+	imx50_add_cspi(3, &mx50_rdp_spi_pdata);
 
 	imx50_add_imx_uart(0, NULL);
 	imx50_add_imx_uart(1, NULL);
@@ -223,6 +239,7 @@ static void __init mx50_rdp_board_init(void)
 	imx50_add_dcp();
 	imx50_add_rngb();
 	imx50_add_perfmon();
+	mx50_rdp_init_mc13892();
 }
 
 static void __init mx50_rdp_timer_init(void)
