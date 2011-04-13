@@ -119,16 +119,6 @@
 #define SCC_DRIVER_MINOR_VERSION_2    2
 
 
-/*!
- *  Interrupt line number of SCM interrupt.
- */
-#define INT_SCC_SCM         MXC_INT_SCC_SCM
-
-/*!
- *  Interrupt line number of the SMN interrupt.
- */
-#define INT_SCC_SMN         MXC_INT_SCC_SMN
-
 /**
  * @typedef scc_return_t
  */
