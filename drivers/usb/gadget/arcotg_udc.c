@@ -337,38 +337,6 @@ static void dr_phy_low_power_mode(struct fsl_udc *udc, bool enable)
 	pdata->lowpower = enable;
 }
 
-
-/* workaroud for some boards, maybe there is a large capacitor between the ground and the Vbus
- * that will cause the vbus dropping very slowly when device is detached,
- * may cost 2-3 seconds to below 0.8V */
-static void udc_wait_b_session_low(void)
-{
-	u32 temp;
-	u32 wait = 5000/jiffies_to_msecs(1); /* max wait time is 5000 ms */
-	/* if we are in host mode, don't need to care the B session */
-	if ((fsl_readl(&dr_regs->otgsc) & OTGSC_STS_USB_ID) == 0)
-		return;
-	/* if the udc is dettached , there will be a suspend irq */
-	if (udc_controller->usb_state != USB_STATE_SUSPENDED)
-		return;
-	temp = fsl_readl(&dr_regs->otgsc);
-	temp &= ~OTGSC_B_SESSION_VALID_IRQ_EN;
-	fsl_writel(temp, &dr_regs->otgsc);
-
-	do {
-		if (!(fsl_readl(&dr_regs->otgsc) & OTGSC_B_SESSION_VALID))
-			break;
-		msleep(jiffies_to_msecs(1));
-		wait -= 1;
-	} while (wait);
-	if (!wait)
-		printk(KERN_ERR "ERROR!!!!!: the vbus can not be lower \
-				then 0.8V for 5 seconds, Pls Check your HW design\n");
-	temp = fsl_readl(&dr_regs->otgsc);
-	temp |= OTGSC_B_SESSION_VALID_IRQ_EN;
-	fsl_writel(temp, &dr_regs->otgsc);
-}
-
 static int dr_controller_setup(struct fsl_udc *udc)
 {
 	unsigned int tmp = 0, portctrl = 0;

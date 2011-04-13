@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010 Freescale Semiconductor, Inc.
+ * Copyright (C) 2010-2011 Freescale Semiconductor, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -91,9 +91,6 @@ static ssize_t show_temp_input2(struct device *dev,
 	max17135_reg_read(REG_MAX17135_EXT_TEMP, &reg_val);
 	return snprintf(buf, PAGE_SIZE, "%d\n", temp_from_reg(reg_val));
 }
-
-show_temp(temp_input1);
-show_temp(temp_input2);
 
 static DEVICE_ATTR(temp1_input, S_IRUGO, show_temp_input1, NULL);
 static DEVICE_ATTR(temp2_input, S_IRUGO, show_temp_input2, NULL);

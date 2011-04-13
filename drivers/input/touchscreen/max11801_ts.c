@@ -142,7 +142,7 @@ static void maxi_ts_work(struct work_struct *work)
 	struct max11801_data *data = container_of(to_delayed_work(work),
 						  struct max11801_data, work);
 	struct i2c_client *client = data->client;
-	unsigned int x, y;
+	unsigned int x = 0, y;
 	int status, i, ret;
 	u8 buf[XY_BUFSIZE];
 

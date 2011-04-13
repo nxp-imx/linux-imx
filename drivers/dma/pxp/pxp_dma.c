@@ -988,7 +988,6 @@ static void pxpdma_desc_put(struct pxp_channel *pxp_chan,
 	if (desc) {
 		struct device *dev = &pxp_chan->dma_chan.dev->device;
 		struct pxp_tx_desc *child;
-		unsigned long flags;
 
 		list_for_each_entry(child, &desc->tx_list, list)
 		    dev_info(dev, "moving child desc %p to freelist\n", child);
