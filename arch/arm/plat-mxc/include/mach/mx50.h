@@ -256,9 +256,11 @@
 #define MX50_INT_UART3		33
 #define MX50_INT_RESV34		34
 #define MX50_INT_RESV35		35
+/* eCSPI interrupts */
 #define MX50_INT_CSPI1		36
 #define MX50_INT_CSPI2		37
-#define MX50_INT_CSPI		38
+/* CSPI interrupt */
+#define MX50_INT_CSPI3		38
 #define MX50_INT_GPT		39
 #define MX50_INT_EPIT1		40
 #define MX50_INT_GPIO1_INT7	42

@@ -78,6 +78,16 @@ const struct imx_spi_imx_data imx35_cspi_data[] __initconst = {
 };
 #endif /* ifdef CONFIG_SOC_IMX35 */
 
+#ifdef CONFIG_SOC_IMX50
+const struct imx_spi_imx_data imx50_cspi_data[] __initconst = {
+#define imx50_cspi_data_entry(_id, _hwid)				\
+	imx_spi_imx_data_entry(MX50, CSPI, "imx50-cspi", _id, _hwid, SZ_4K)
+	imx50_cspi_data_entry(1, 1),
+	imx50_cspi_data_entry(2, 2),
+	imx50_cspi_data_entry(3, 3),
+};
+#endif /* ifdef CONFIG_SOC_IMX50 */
+
 #ifdef CONFIG_SOC_IMX51
 const struct imx_spi_imx_data imx51_cspi_data __initconst =
 	imx_spi_imx_data_entry_single(MX51, CSPI, "imx51-cspi", 0, , SZ_4K);
@@ -117,7 +127,6 @@ struct platform_device *__init imx_add_spi_imx(
 			.flags = IORESOURCE_IRQ,
 		},
 	};
-
 	return imx_add_platform_device(data->devid, data->id,
 			res, ARRAY_SIZE(res), pdata, sizeof(*pdata));
 }
