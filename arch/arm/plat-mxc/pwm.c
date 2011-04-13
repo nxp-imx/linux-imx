@@ -6,7 +6,7 @@
  * published by the Free Software Foundation.
  *
  * Derived from pxa PWM driver by eric miao <eric.miao@marvell.com>
- * Copyright 2009-2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2009-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 #include <linux/module.h>
@@ -117,10 +117,11 @@ int pwm_config(struct pwm_device *pwm, int duty_ns, int period_ns)
 		 * both the prescaler (/1 .. /128) and then by CLKSEL
 		 * (/2 .. /16).
 		 */
+		u32 p;
 		u32 max = readl(pwm->mmio_base + MX1_PWMP);
 		if (pwm->pwmo_invert)
 			duty_ns = period_ns - duty_ns;
-		u32 p = max * duty_ns / period_ns;
+		p = max * duty_ns / period_ns;
 		writel(max - p, pwm->mmio_base + MX1_PWMS);
 	} else {
 		BUG();

@@ -104,14 +104,6 @@ static struct regulator_consumer_supply sw4_consumers[] = {
 	},
 };
 
-static struct regulator_consumer_supply vgen1_consumers[] = {
-	{
-		/* sgtl5000 */
-		.supply = "VDDIO",
-		.dev_name = "1-000a",
-	},
-};
-
 struct mc13892;
 
 static struct regulator_init_data sw1_init = {

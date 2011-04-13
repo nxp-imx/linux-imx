@@ -867,13 +867,13 @@ static struct mxc_lcd_platform_data sii902x_hdmi_data = {
 	.reset = sii902x_hdmi_reset,
 };
 
-static void ddc_dvi_init()
+static void ddc_dvi_init(void)
 {
 	/* enable DVI I2C */
 	gpio_set_value(MX53_DVI_I2C, 1);
 }
 
-static int ddc_dvi_update()
+static int ddc_dvi_update(void)
 {
 	/* DVI cable state */
 	if (gpio_get_value(MX53_DVI_DETECT) == 1)
