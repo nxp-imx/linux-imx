@@ -137,6 +137,10 @@ static scc_config_t scc_configuration = {
  *  registers are unavailable).  Once it goes failed, it never leaves it. */
 static volatile enum scc_status scc_availability = SCC_STATUS_INITIAL;
 
+/* Variables to hold irq numbers */
+static int irq_smn;
+static int irq_scm;
+
 /** Flag to say whether interrupt handler has been registered for
  * SMN interrupt */
 static int smn_irq_set = 0;
@@ -537,12 +541,6 @@ static int scc_init(void)
 			goto out;
 		}
 
-		/* See whether there is an SCC available */
-		if (0 && !SCC_ENABLED()) {
-			os_printk(KERN_ERR
-				  "SCC2: Fuse for SCC is set to disabled.  Exiting.\n");
-			goto out;
-		}
 		/* Map the SCC (SCM and SMN) memory on the internal bus into
 		   kernel address space */
 		scc_base = (void *)ioremap(scc_phys_base, SZ_4K);
@@ -570,9 +568,6 @@ static int scc_init(void)
 		if (scc_availability != SCC_STATUS_OK) {
 			goto out;
 		}
-
-		if (cpu_is_mx51_rev(CHIP_REV_2_0) < 0)
-			scm_ram_phys_base += 0x8000;
 
 		scm_ram_base = (void *)ioremap_nocache(scm_ram_phys_base,
 						       scc_configuration.
@@ -711,13 +706,13 @@ static void scc_cleanup(void)
 
 	/* Deregister SCM interrupt handler */
 	if (scm_irq_set) {
-		os_deregister_interrupt(INT_SCC_SCM);
+		os_deregister_interrupt(irq_scm);
 	}
 
 	/* Deregister SMN interrupt handler */
 	if (smn_irq_set) {
 #ifdef USE_SMN_INTERRUPT
-		os_deregister_interrupt(INT_SCC_SMN);
+		os_deregister_interrupt(irq_smn);
 #endif
 	}
 
@@ -989,11 +984,11 @@ OS_DEV_ISR(scc_irq)
 	uint32_t scm_status;
 	int handled = 0;	/* assume interrupt isn't from SMN */
 #if defined(USE_SMN_INTERRUPT)
-	int smn_irq = INT_SCC_SMN;	/* SMN interrupt is on a line by itself */
+	int smn_irq = irq_smn;	/* SMN interrupt is on a line by itself */
 #elif defined (NO_SMN_INTERRUPT)
 	int smn_irq = -1;	/* not wired to CPU at all */
 #else
-	int smn_irq = INT_SCC_SCM;	/* SMN interrupt shares a line with SCM */
+	int smn_irq = irq_scm;	/* SMN interrupt shares a line with SCM */
 #endif
 
 	/* Update current state... This will perform callbacks... */
@@ -1012,7 +1007,7 @@ OS_DEV_ISR(scc_irq)
 	scm_status = SCC_READ_REGISTER(SCM_STATUS_REG);
 
 	/* The driver masks interrupts, so this should never happen. */
-	if (os_dev_get_irq() == INT_SCC_SCM) {
+	if (os_dev_get_irq() == irq_scm) {
 		/* but if it does, try to prevent it in the future */
 		SCC_WRITE_REGISTER(SCM_INT_CTL_REG, 0);
 		handled++;
@@ -1234,7 +1229,7 @@ static int setup_interrupt_handling(void)
 #ifdef USE_SMN_INTERRUPT
 	/* Install interrupt service routine for SMN. */
 	smn_error_code = os_register_interrupt(SCC_DRIVER_NAME,
-					       INT_SCC_SMN, scc_irq);
+					       irq_smn, scc_irq);
 	if (smn_error_code != 0) {
 		os_printk(KERN_ERR
 			  "SCC2 Driver: Error installing SMN Interrupt Handler: %d\n",
@@ -1254,7 +1249,7 @@ static int setup_interrupt_handling(void)
 	 * Install interrupt service routine for SCM (or both together).
 	 */
 	scm_error_code = os_register_interrupt(SCC_DRIVER_NAME,
-					       INT_SCC_SCM, scc_irq);
+					       irq_scm, scc_irq);
 	if (scm_error_code != 0) {
 #ifndef MXC
 		os_printk(KERN_ERR
@@ -2338,6 +2333,26 @@ static int scc_dev_probe(struct platform_device *pdev)
 	}
 
 	scm_ram_phys_base = r->start;
+
+	/* get the scc smn irq */
+	r = platform_get_resource(pdev, IORESOURCE_IRQ, 0);
+	if (!r) {
+		dev_err(&pdev->dev, "can't get IORESOURCE_IRQ (0)\n");
+		ret = -ENXIO;
+		goto exit;
+	}
+
+	irq_smn = r->start;
+
+	/* get the scc scm irq */
+	r = platform_get_resource(pdev, IORESOURCE_IRQ, 1);
+	if (!r) {
+		dev_err(&pdev->dev, "can't get IORESOURCE_IRQ (1)\n");
+		ret = -ENXIO;
+		goto exit;
+	}
+
+	irq_scm = r->start;
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,18))
 	scc_clk = clk_get(&pdev->dev, "scc_clk");

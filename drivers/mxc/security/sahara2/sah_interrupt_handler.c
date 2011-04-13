@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2004-2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2004-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -107,6 +107,11 @@ int sah_Intr_Init(wait_queue_head_t * wait_queue)
 
 	int result;
 
+	int irq_sah = MX53_INT_SAHARA_H0;
+
+	if (cpu_is_mx51())
+		irq_sah = MX51_MXC_INT_SAHARA_H0;
+
 #ifdef KERNEL_TEST
 	SAHARA_INT_PTR = sah_Intr_Top_Half;
 #endif
@@ -115,18 +120,18 @@ int sah_Intr_Init(wait_queue_head_t * wait_queue)
 	int_queue = wait_queue;
 
 	/* Request use of the Interrupt line. */
-	result = request_irq(SAHARA_IRQ,
+	result = request_irq(irq_sah,
 			     sah_Intr_Top_Half, 0, SAHARA_NAME, NULL);
 
 #ifdef DIAG_DRV_INTERRUPT
 	if (result != 0) {
 		sprintf(err_string, "Cannot use SAHARA interrupt line %d. "
-			"request_irq() return code is %i.", SAHARA_IRQ, result);
+			"request_irq() return code is %i.", irq_sah, result);
 		LOG_KDIAG(err_string);
 	} else {
 		sprintf(err_string,
 			"SAHARA driver registered for interrupt %d. ",
-			SAHARA_IRQ);
+			irq_sah);
 		LOG_KDIAG(err_string);
 	}
 #endif
@@ -154,8 +159,14 @@ int sah_Intr_Init(wait_queue_head_t * wait_queue)
 ******************************************************************************/
 void sah_Intr_Release(void)
 {
+
+	int irq_sah = MX53_INT_SAHARA_H0;
+
+	if (cpu_is_mx51())
+		irq_sah = MX51_MXC_INT_SAHARA_H0;
+
 	/* Release the Interrupt. */
-	free_irq(SAHARA_IRQ, NULL);
+	free_irq(irq_sah, NULL);
 }
 
 /*!

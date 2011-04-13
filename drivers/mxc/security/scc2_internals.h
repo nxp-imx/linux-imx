@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2004-2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2004-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -45,24 +45,6 @@
 
 #include <linux/mxc_scc2_driver.h>
 
-#if defined(MXC)
-
-#include <mach/iim.h>
-#include <mach/mxc_scc.h>
-
-
-/**
- * This macro is used to determine whether the SCC is enabled/available
- * on the platform.  This macro may need to be ported.
- */
-#define SCC_FUSE __raw_readl(IO_ADDRESS(IIM_BASE_ADDR + MXC_IIMHWV1))
-#define SCC_ENABLED() ((SCC_FUSE & MXC_IIMHWV1_SCC_DISABLE) == 0)
-
-#else  /* neither TAHITI nor MXC */
-
-#error Do not understand target architecture
-
-#endif /* TAHITI */
 /**
  * Define the number of Stored Keys which the SCC driver will make available.
  * Value shall be from 0 to 20.  Default is zero (0).

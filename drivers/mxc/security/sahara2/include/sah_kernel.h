@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2004-2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2004-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -33,8 +33,6 @@
 #define SAHARA_IRQ     MXC_INT_SAHARA
 #elif defined(CONFIG_ARCH_MX5)
 #include <mach/hardware.h>
-#define SAHA_BASE_ADDR SAHARA_BASE_ADDR
-#define SAHARA_IRQ     MXC_INT_SAHARA_H0
 #else
 #include <mach/mx2.h>
 #endif

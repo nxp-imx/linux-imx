@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2004-2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2004-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -210,7 +210,7 @@ typedef struct {
 /*! Keyword for registering write() operation handler. */
 #define OS_FN_WRITE write
 /*! Keyword for registering ioctl() operation handler. */
-#define OS_FN_IOCTL ioctl
+#define OS_FN_IOCTL unlocked_ioctl
 /*! Keyword for registering mmap() operation handler. */
 #define OS_FN_MMAP mmap
 /*! @} */
@@ -362,10 +362,10 @@ inline static int os_drv_do_reg(os_driver_reg_t * handle,
 		/* If any chardev/POSIX routines were added, then do chrdev part */
 		if (handle->fops.open || handle->fops.release
 		    || handle->fops.read || handle->fops.write
-		    || handle->fops.ioctl || handle->fops.mmap) {
+		    || handle->fops.unlocked_ioctl || handle->fops.mmap) {
 
 			printk("ioctl pointer: %p.  mmap pointer: %p\n",
-			       handle->fops.ioctl, handle->fops.mmap);
+			       handle->fops.unlocked_ioctl, handle->fops.mmap);
 
 			/* this method is depricated, see:
 			 * http://lwn.net/Articles/126808/
@@ -1219,7 +1219,7 @@ function_name
  * @return A call to #os_dev_ioctl_return()
  */
 #define OS_DEV_IOCTL(function_name)                                           \
-static int function_name(struct inode* inode_p_, struct file* file_p_,        \
+static int function_name(struct file *file_p_,                                 \
                      unsigned int cmd_, unsigned long data_)
 
 /*! Boo. */
@@ -1489,7 +1489,6 @@ do {                                                                         \
     int retcode = code;                                                      \
                                                                              \
     /* get rid of 'unused parameter' warnings */                             \
-    (void)inode_p_;                                                          \
     (void)file_p_;                                                           \
     (void)cmd_;                                                              \
     (void)data_;                                                             \

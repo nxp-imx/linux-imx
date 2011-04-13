@@ -131,6 +131,9 @@ static struct proc_dir_entry *Sahara_procfs_handle;
 uint32_t sah_hw_version;
 extern void *sah_virt_base;
 
+/* Mutex to prevent usage of the ioctl function by more than 1 user at a time */
+DEFINE_MUTEX(sahara_ioctl_mutex);
+
 /* This is the wait queue to this driver.  Linux declaration. */
 DECLARE_WAIT_QUEUE_HEAD(Wait_queue);
 
@@ -175,8 +178,10 @@ OS_DEV_INIT(sah_init)
 {
 	/* Status variable */
 	int os_error_code = 0;
-	uint32_t sah_phys_base = SAHARA_BASE_ADDR;
+	uint32_t sah_phys_base = MX53_SAHARA_BASE_ADDR;
 
+	if (cpu_is_mx51())
+		sah_phys_base = MX51_SAHARA_BASE_ADDR;
 
 	interrupt_registered = 0;
 
@@ -195,9 +200,6 @@ OS_DEV_INIT(sah_init)
 			clk_enable(sah_clk);
 	}
 #endif
-
-	if (cpu_is_mx53())
-		sah_phys_base -= 0x20000000;
 
 	sah_virt_base = (void *)ioremap(sah_phys_base, SZ_16K);
 	if (sah_virt_base == NULL) {
@@ -556,6 +558,8 @@ OS_DEV_IOCTL(sah_ioctl)
 	int status = 0;
 	int test_mode;
 
+	mutex_lock(&sahara_ioctl_mutex);
+
 	switch (os_dev_get_ioctl_op()) {
 	case SAHARA_HWRESET:
 #ifdef DIAG_DRV_IF
@@ -821,6 +825,7 @@ OS_DEV_IOCTL(sah_ioctl)
 		status = OS_ERROR_FAIL_S;
 	}
 
+	mutex_unlock(&sahara_ioctl_mutex);
 	os_dev_ioctl_return(status);
 }
 
