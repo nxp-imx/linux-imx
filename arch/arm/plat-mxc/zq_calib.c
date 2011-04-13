@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2010-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -48,15 +48,6 @@ extern void __iomem *databahn_base;
 #define DATABAHN_REG_ZQ_SW_CFG2		DATABAHN_CTL_REG75
 #define DATABAHN_REG_ZQ_STATUS		DATABAHN_CTL_REG83
 
-#define DDR_TYPE_LPDDR2			(0x5 << 8)
-static inline bool is_lpddr2(void)
-{
-	u32 v;
-	v = __raw_readl(databahn_base);
-
-	return (v & DDR_TYPE_LPDDR2) == DDR_TYPE_LPDDR2;
-}
-
 /*!
  * MXC ZQ interface - Compare PU vs the External Resistor (240/300 ohm)
  *
@@ -68,11 +59,14 @@ static inline bool is_lpddr2(void)
 static u32 mxc_zq_pu_compare(u32 pu, u32 pd)
 {
 	u32 data;
+	u32 pu_m1, pd_m1;
 
-	/* set PU+1 & PD+1 value
-	 * when pu=0x1F, set (pu+1) = 0x1F
+	/*
+	 * set PU-1 & PD-1 value
 	 */
-	data = ((pd + 1) << 24) | ((pu + 1) << 16);
+	pu_m1 = (pu <= 0) ? 0 : pu - 1;
+	pd_m1 = (pd <= 0) ? 0 : pd - 1;
+	data = ((pd_m1) << 24) | ((pu_m1) << 16);
 	__raw_writel(data, databahn_base + DATABAHN_REG_ZQ_SW_CFG1);
 	/*
 	 * set PU & PD value
@@ -105,11 +99,13 @@ static u32 mxc_zq_pu_compare(u32 pu, u32 pd)
 static u32 mxc_zq_pd_compare(u32 pu, u32 pd)
 {
 	u32 data;
+	u32 pu_m1, pd_m1;
 
 	/* set bit[4]=1, select PU/PD comparison */
 	/* PD range: 0~0xF */
-	/* when pd=0x0F, set (pd+1) = 0x0F */
-	data = ((pd + 1) << 24) | ((pu + 1) << 16) | (1 << 4);
+	pu_m1 = (pu <= 0) ? 0 : pu - 1;
+	pd_m1 = (pd <= 0) ? 0 : pd - 1;
+	data = ((pd_m1) << 24) | ((pu_m1) << 16) | (1 << 4);
 	__raw_writel(data, databahn_base + DATABAHN_REG_ZQ_SW_CFG1);
 	data = (pd << 8) | pu;
 	__raw_writel(data, databahn_base + DATABAHN_REG_ZQ_SW_CFG2);
@@ -202,10 +198,10 @@ static s32 mxc_zq_pd_calib(u32 start, u32 pu)
 static void mxc_zq_hw_load(u32 pu, u32 pd, u32 pu_pd_sel)
 {
 	u32 data;
-	u32 pu_plus_1, pd_plus_1;
+	u32 pu_m1, pd_m1;
 
-	pu_plus_1 = (pu == 0x1F) ? 0x1F : pu + 1;
-	pd_plus_1 = (pd == 0x0F) ? 0x0F : pd + 1;
+	pu_m1 = (pu <= 0) ? 0 : pu - 1;
+	pd_m1 = (pd <= 0) ? 0 : pd - 1;
 
 	/*
 	 * The PU/PD values stored in register
@@ -214,7 +210,7 @@ static void mxc_zq_hw_load(u32 pu, u32 pd, u32 pu_pd_sel)
 	data = (pd << 8) | pu;
 	__raw_writel(data, databahn_base + DATABAHN_REG_ZQ_SW_CFG2);
 
-	data = (pd_plus_1 << 24) | (pu_plus_1 << 16);  /* load PD */
+	data = (pd_m1 << 24) | (pu_m1 << 16);  /* load PD */
 	if (pu_pd_sel)
 		data |= (1 << 4);  /* load PU */
 	__raw_writel(data, databahn_base + DATABAHN_REG_ZQ_SW_CFG1);
@@ -251,12 +247,16 @@ static void mxc_zq_hw_load(u32 pu, u32 pd, u32 pu_pd_sel)
 static void mxc_zq_sw_load(u32 pu, u32 pd)
 {
 	u32 data;
+	u32 pu_m1, pd_m1;
 
 	/*
 	 * The PU/PD values stored in register
 	 * DATABAHN_REG_ZQ_SW_CFG1/2 would be loaded.
 	 * */
-	data = ((pd + 1) << 24) | ((pu + 1) << 16);
+	pu_m1 = (pu <= 0) ? 0 : pu - 1;
+	pd_m1 = (pd <= 0) ? 0 : pd - 1;
+
+	data = ((pd_m1) << 24) | ((pu_m1) << 16);
 	__raw_writel(data, databahn_base + DATABAHN_REG_ZQ_SW_CFG1);
 	data = (pd << 8) | pu;
 	__raw_writel(data, databahn_base + DATABAHN_REG_ZQ_SW_CFG2);
@@ -268,7 +268,7 @@ static void mxc_zq_sw_load(u32 pu, u32 pd)
 			databahn_base + DATABAHN_REG_ZQ_HW_CFG);
 
 	/* Loading PD value, set pu_pd_sel=1 */
-	data = ((pd + 1) << 24) | ((pu + 1) << 16) | (1 << 4);
+	data |= (1 << 4);
 	__raw_writel(data, databahn_base + DATABAHN_REG_ZQ_SW_CFG1);
 
 	/*
@@ -318,13 +318,11 @@ static void mxc_zq_main(struct work_struct *dummy)
 
 	spin_lock(&zq_lock);
 	/* Search pu value start from 0 */
-	pu = mxc_zq_pu_calib(0);
-	/* Search pd value start from 0 */
-	if (is_lpddr2()) {
-		pd = mxc_zq_pd_calib(0, pu) + 3;
-		pu = pu_calib_based_on_pd(0, pd);
-	} else
-		pd = mxc_zq_pd_calib(0, pu);
+	pu = mxc_zq_pu_calib(1);
+	/* Search pd value based on pu */
+	pd = mxc_zq_pd_calib(1, pu) + 3;
+	pu = pu_calib_based_on_pd(1, pd);
+
 	dev_dbg(zq_calib_dev, "za_calib: pu = %d, pd = %d\n", pu, pd);
 	mxc_zq_hw_load(pu, pd, 1);	/* Load Pu */
 	mxc_zq_hw_load(pu, pd, 0);	/* Load Pd */
