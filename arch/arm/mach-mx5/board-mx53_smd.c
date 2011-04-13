@@ -29,6 +29,8 @@
 #include <linux/ahci_platform.h>
 #include <linux/regulator/consumer.h>
 
+#include <linux/pwm_backlight.h>
+
 #include <mach/common.h>
 #include <mach/hardware.h>
 #include <mach/imx-uart.h>
@@ -149,6 +151,8 @@ static iomux_v3_cfg_t mx53_smd_pads[] = {
 	MX53_PAD_EIM_DA1__GPIO3_1,
 	/* DCDC5V_BB_EN */
 	MX53_PAD_KEY_COL4__GPIO4_14,
+	/* PWM */
+	MX53_PAD_GPIO_1__PWM2_PWMO,
 };
 
 #if defined(CONFIG_KEYBOARD_GPIO) || defined(CONFIG_KEYBOARD_GPIO_MODULE)
@@ -585,6 +589,13 @@ static struct imx_ssi_platform_data smd_ssi_pdata = {
 	.flags = IMX_SSI_DMA,
 };
 
+static struct platform_pwm_backlight_data mxc_pwm_backlight_data = {
+	.pwm_id = 1,
+	.max_brightness = 255,
+	.dft_brightness = 128,
+	.pwm_period_ns = 50000,
+};
+
 static void __init mx53_smd_board_init(void)
 {
 	mxc_iomux_v3_setup_multiple_pads(mx53_smd_pads,
@@ -602,6 +613,9 @@ static void __init mx53_smd_board_init(void)
 	imx53_add_sdhci_esdhc_imx(1, &mx53_smd_sd1_data);
 	imx53_add_sdhci_esdhc_imx(2, NULL);
 	imx53_add_ahci_imx(0, &sata_data);
+
+	imx53_add_mxc_pwm(1);
+	imx53_add_mxc_pwm_backlight(0, &mxc_pwm_backlight_data);
 
 	mx53_smd_init_usb();
 	imx53_add_iim(&iim_data);
