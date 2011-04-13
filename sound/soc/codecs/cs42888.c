@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010 Freescale  Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2010-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -218,7 +218,7 @@ static int cs42888_fill_cache(struct snd_soc_codec *codec)
  * After the initial read to pre-fill the cache, the CS42888 never updates
  * the register values, so we won't have a cache coherency problem.
  */
-static u8 cs42888_read_reg_cache(struct snd_soc_codec *codec,
+static unsigned int  cs42888_read_reg_cache(struct snd_soc_codec *codec,
 	unsigned int reg)
 {
 	u8 *cache = codec->reg_cache;
@@ -243,7 +243,7 @@ static u8 cs42888_read_reg_cache(struct snd_soc_codec *codec,
  * i2c_smbus_write_byte_data(), and it's just another layer of overhead.
  */
 static int cs42888_i2c_write(struct snd_soc_codec *codec, unsigned int reg,
-			    u8 value)
+			    unsigned int value)
 {
 	u8 *cache = codec->reg_cache;
 
@@ -285,10 +285,6 @@ static void dump_reg(struct snd_soc_codec *codec)
 		printk(KERN_DEBUG "reg[%d] = 0x%x\n", i, cache[i]);
 
 	printk(KERN_DEBUG "dump end\n");
-}
-#else
-static void dump_reg(struct snd_soc_codec *codec)
-{
 }
 #endif
 
@@ -720,7 +716,7 @@ static int cs42888_hw_params(struct snd_pcm_substream *substream,
 	unsigned int i;
 	unsigned int rate;
 	unsigned int ratio;
-	u8 val;
+	unsigned int val;
 
 	rate = params_rate(params);	/* Sampling rate, in Hz */
 	ratio = cs42888->mclk / rate;	/* MCLK/LRCK ratio */

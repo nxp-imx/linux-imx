@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010 Freescale Semiconductor, Inc.
+ * Copyright (C) 2010-2011 Freescale Semiconductor, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -212,7 +212,7 @@ static struct i2c_driver max17135_driver = {
 	.resume = max17135_resume,
 	.id_table = max17135_id,
 	.detect = max17135_detect,
-	.address_list = &normal_i2c,
+	.address_list = &normal_i2c[0],
 };
 
 static int __init max17135_init(void)

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2010-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -82,7 +82,7 @@ struct max17135_vcom_programming_data {
 	int vcom_step_uV;
 };
 
-static int max17135_pass_num = { 1 };
+static long unsigned int max17135_pass_num = { 1 };
 static int max17135_vcom = { -1250000 };
 
 struct max17135_vcom_programming_data vcom_data[2] = {
@@ -623,7 +623,7 @@ static int __init max17135_setup(char *options)
 			int offs = 5;
 			if (opt[5] == '-')
 				offs = 6;
-			ret = strict_strtoul(opt + offs, 0, &max17135_vcom);
+			ret = strict_strtoul(opt + offs, 0, (long *)&max17135_vcom);
 			if (ret < 0)
 				return ret;
 			max17135_vcom = -max17135_vcom;

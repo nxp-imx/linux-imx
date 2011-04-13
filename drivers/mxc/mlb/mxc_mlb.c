@@ -1,7 +1,7 @@
 /*
  * linux/drivers/mxc/mlb/mxc_mlb.c
  *
- * Copyright (C) 2008-2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2008-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -918,7 +918,7 @@ static int __devinit mxc_mlb_probe(struct platform_device *pdev)
 
 	for (i = 0; i < MLB_MINOR_DEVICES; i++) {
 		/* set the virtual and physical buf head address */
-		_get_txchan(i).buf_head = bufaddr;
+		_get_txchan(i).buf_head = (unsigned long)bufaddr;
 		_get_txchan(i).phy_head = phyaddr;
 
 		bufaddr += TX_CHANNEL_BUF_SIZE;

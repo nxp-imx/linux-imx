@@ -106,69 +106,6 @@ static void ehci_handover_companion_ports(struct ehci_hcd *ehci)
 	ehci->owned_ports = 0;
 }
 
-static void ehci_adjust_port_wakeup_flags(struct ehci_hcd *ehci,
-		bool suspending)
-{
-	int		port;
-	u32		temp;
-
-	/* If remote wakeup is enabled for the root hub but disabled
-	 * for the controller, we must adjust all the port wakeup flags
-	 * when the controller is suspended or resumed.  In all other
-	 * cases they don't need to be changed.
-	 */
-	if (!ehci_to_hcd(ehci)->self.root_hub->do_remote_wakeup ||
-			device_may_wakeup(ehci_to_hcd(ehci)->self.controller))
-		return;
-
-	/* clear phy low-power mode before changing wakeup flags */
-	if (ehci->has_hostpc) {
-		port = HCS_N_PORTS(ehci->hcs_params);
-		while (port--) {
-			u32 __iomem	*hostpc_reg;
-
-			hostpc_reg = (u32 __iomem *)((u8 *) ehci->regs
-					+ HOSTPC0 + 4 * port);
-			temp = ehci_readl(ehci, hostpc_reg);
-			ehci_writel(ehci, temp & ~HOSTPC_PHCD, hostpc_reg);
-		}
-		msleep(5);
-	}
-
-	port = HCS_N_PORTS(ehci->hcs_params);
-	while (port--) {
-		u32 __iomem	*reg = &ehci->regs->port_status[port];
-		u32		t1 = ehci_readl(ehci, reg) & ~PORT_RWC_BITS;
-		u32		t2 = t1 & ~PORT_WAKE_BITS;
-
-		/* If we are suspending the controller, clear the flags.
-		 * If we are resuming the controller, set the wakeup flags.
-		 */
-		if (!suspending) {
-			if (t1 & PORT_CONNECT)
-				t2 |= PORT_WKOC_E | PORT_WKDISC_E;
-			else
-				t2 |= PORT_WKOC_E | PORT_WKCONN_E;
-		}
-		ehci_vdbg(ehci, "port %d, %08x -> %08x\n",
-				port + 1, t1, t2);
-		ehci_writel(ehci, t2, reg);
-	}
-
-	/* enter phy low-power mode again */
-	if (ehci->has_hostpc) {
-		port = HCS_N_PORTS(ehci->hcs_params);
-		while (port--) {
-			u32 __iomem	*hostpc_reg;
-
-			hostpc_reg = (u32 __iomem *)((u8 *) ehci->regs
-					+ HOSTPC0 + 4 * port);
-			temp = ehci_readl(ehci, hostpc_reg);
-			ehci_writel(ehci, temp | HOSTPC_PHCD, hostpc_reg);
-		}
-	}
-}
-
 static int ehci_bus_suspend (struct usb_hcd *hcd)
 {
 	struct ehci_hcd		*ehci = hcd_to_ehci (hcd);

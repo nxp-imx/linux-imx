@@ -19,7 +19,7 @@
  * Copyright (c) 2004-2006 Macq Electronique SA.
  *
  * Support for FEC IEEE 1588.
- * Copyright (C) 2010 Freescale Semiconductor, Inc.
+ * Copyright (C) 2010-2011 Freescale Semiconductor, Inc.
  */
 
 #include <linux/module.h>
@@ -407,7 +407,6 @@ fec_enet_tx(struct net_device *dev)
 	struct  fec_ptp_private *fpp;
 	struct bufdesc *bdp;
 	unsigned short status;
-	unsigned long estatus;
 	struct	sk_buff	*skb;
 
 	fep = netdev_priv(dev);
