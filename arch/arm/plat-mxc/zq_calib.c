@@ -237,50 +237,6 @@ static void mxc_zq_hw_load(u32 pu, u32 pd, u32 pu_pd_sel)
 	__raw_writel(0x1, databahn_base + DATABAHN_REG_ZQ_HW_CFG);
 }
 
-/*!
- * MXC ZQ interface - Load the PU/PD value to the ZQ buffers by software
- *
- * @param pu	u32
- * @param pd	u32
- */
-
-static void mxc_zq_sw_load(u32 pu, u32 pd)
-{
-	u32 data;
-	u32 pu_m1, pd_m1;
-
-	/*
-	 * The PU/PD values stored in register
-	 * DATABAHN_REG_ZQ_SW_CFG1/2 would be loaded.
-	 * */
-	pu_m1 = (pu <= 0) ? 0 : pu - 1;
-	pd_m1 = (pd <= 0) ? 0 : pd - 1;
-
-	data = ((pd_m1) << 24) | ((pu_m1) << 16);
-	__raw_writel(data, databahn_base + DATABAHN_REG_ZQ_SW_CFG1);
-	data = (pd << 8) | pu;
-	__raw_writel(data, databahn_base + DATABAHN_REG_ZQ_SW_CFG2);
-
-	/* Loading PU value, set pu_pd_sel=0 */
-	__raw_writel((0x3 << 20) | (1 << 16),
-			databahn_base + DATABAHN_REG_ZQ_HW_CFG);
-	__raw_writel(0x1 << 21,
-			databahn_base + DATABAHN_REG_ZQ_HW_CFG);
-
-	/* Loading PD value, set pu_pd_sel=1 */
-	data |= (1 << 4);
-	__raw_writel(data, databahn_base + DATABAHN_REG_ZQ_SW_CFG1);
-
-	/*
-	 * bit[21]: select software load
-	 * bit[20]: enable software load
-	 */
-	__raw_writel((0x3 << 20) | (1 << 16),
-			databahn_base + DATABAHN_REG_ZQ_HW_CFG);
-	/* clear for next load */
-	__raw_writel(0x1 << 21, databahn_base + DATABAHN_REG_ZQ_HW_CFG);
-}
-
 /*
  * This function is for ZQ pu calibration
  */

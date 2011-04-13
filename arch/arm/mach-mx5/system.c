@@ -50,13 +50,11 @@ extern void *wait_in_iram_base;
 extern void __iomem *apll_base;
 
 static struct clk *gpc_dvfs_clk;
-static struct regulator *vpll;
 static struct clk *pll1_sw_clk;
 static struct clk *osc;
 static struct clk *pll1_main_clk;
 static struct clk *ddr_clk ;
 static struct clk *sys_clk ;
-static int dvfs_core_paused;
 
 /* set cpu low power mode before WFI instruction */
 void mxc_cpu_lp_set(enum mxc_cpu_pwr_mode mode)

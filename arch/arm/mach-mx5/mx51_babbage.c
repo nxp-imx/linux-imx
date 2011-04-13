@@ -613,93 +613,6 @@ static int __init mxc_init_fb(void)
 }
 device_initcall(mxc_init_fb);
 
-static int handle_edid(int *pixclk)
-{
-#if 0
-	int err = 0;
-	int dvi = 0;
-	int fb0 = 0;
-	int fb1 = 1;
-	struct fb_var_screeninfo screeninfo;
-	struct i2c_adapter *adp;
-
-	memset(&screeninfo, 0, sizeof(screeninfo));
-
-	adp = i2c_get_adapter(1);
-
-	if (cpu_is_mx51_rev(CHIP_REV_3_0) > 0) {
-		gpio_set_value(IOMUX_TO_GPIO(MX51_PIN_CSI2_HSYNC), 1);
-		msleep(1);
-	}
-	err = read_edid(adp, &screeninfo, &dvi);
-	if (cpu_is_mx51_rev(CHIP_REV_3_0) > 0)
-		gpio_set_value(IOMUX_TO_GPIO(MX51_PIN_CSI2_HSYNC), 0);
-
-	if (!err) {
-		printk(KERN_INFO " EDID read\n");
-		if (!dvi) {
-			enable_vga = 1;
-			fb0 = 1; /* fb0 will be VGA */
-			fb1 = 0; /* fb1 will be DVI or TV */
-		}
-
-		/* Handle TV modes */
-		/* This logic is fairly complex yet still doesn't handle all
-		   possibilities.  Once a customer knows the platform
-		   configuration, this should be simplified to what is desired.
-		 */
-		if (screeninfo.xres == 1920 && screeninfo.yres != 1200) {
-			/* MX51 can't handle clock speeds for anything larger.*/
-			if (!enable_tv)
-				enable_tv = 1;
-			if (enable_vga || enable_wvga || enable_tv == 2)
-				enable_tv = 2;
-			fb_data[0].mode = &(video_modes[0]);
-			if (!enable_wvga)
-				fb_data[1].mode_str = "800x600M-16@60";
-		} else if (screeninfo.xres > 1280 && screeninfo.yres > 1024) {
-			if (!enable_wvga) {
-				fb_data[fb0].mode_str = "1280x1024M-16@60";
-				fb_data[fb1].mode_str = NULL;
-			} else {
-				/* WVGA is preset so the DVI can't be > this. */
-				fb_data[0].mode_str = "1024x768M-16@60";
-			}
-		} else if (screeninfo.xres > 0 && screeninfo.yres > 0) {
-			if (!enable_wvga) {
-				fb_data[fb0].mode =
-					kzalloc(sizeof(struct fb_videomode),
-							GFP_KERNEL);
-				fb_var_to_videomode(fb_data[fb0].mode,
-						    &screeninfo);
-				fb_data[fb0].mode_str = NULL;
-				if (screeninfo.xres >= 1280 &&
-						screeninfo.yres > 720)
-					fb_data[fb1].mode_str = NULL;
-				else if (screeninfo.xres > 1024 &&
-						screeninfo.yres > 768)
-					fb_data[fb1].mode_str =
-						"800x600M-16@60";
-				else if (screeninfo.xres > 800 &&
-						screeninfo.yres > 600)
-					fb_data[fb1].mode_str =
-						"1024x768M-16@60";
-			} else {
-				/* A WVGA panel was specified and an EDID was
-				   read thus there is a DVI monitor attached. */
-				if (screeninfo.xres >= 1024)
-					fb_data[0].mode_str = "1024x768M-16@60";
-				else if (screeninfo.xres >= 800)
-					fb_data[0].mode_str = "800x600M-16@60";
-				else
-					fb_data[0].mode_str = "640x480M-16@60";
-			}
-		}
-	}
-#endif
-	return 0;
-}
-
 static void dvi_reset(void)
 {
 	gpio_direction_output(BABBAGE_DVI_RESET, 0);
@@ -792,13 +705,13 @@ static struct mxc_lightsensor_platform_data ls_data = {
 	.rext = 100,
 };
 
-static void ddc_dvi_init()
+static void ddc_dvi_init(void)
 {
 	/* enable DVI I2C */
 	gpio_set_value(BABBAGE_DVI_I2C_EN, 1);
 }
 
-static int ddc_dvi_update()
+static int ddc_dvi_update(void)
 {
 	/* DVI cable state */
 	if (gpio_get_value(BABBAGE_DVI_DET) == 1)

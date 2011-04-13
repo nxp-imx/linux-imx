@@ -304,17 +304,6 @@ static struct clk fpm_clk = {
 	.flags = RATE_PROPAGATES,
 };
 
-static unsigned long _fpm_div2_get_rate(struct clk *clk)
-{
-	return  clk_get_rate(clk->parent) / 2;
-}
-
-static struct clk fpm_div2_clk = {
-	.parent = &fpm_clk,
-	.get_rate = _fpm_div2_get_rate,
-	.flags = RATE_PROPAGATES,
-};
-
 static unsigned long _clk_pll_get_rate(struct clk *clk)
 {
 	long mfi, mfn, mfd, pdf, ref_clk, mfn_abs;
@@ -2343,16 +2332,6 @@ static struct clk hsi2c_serial_clk = {
 	.disable = _clk_disable,
 };
 
-static struct clk hsi2c_clk = {
-	.id = 0,
-	.parent = &ipg_clk,
-	.enable_reg = MXC_CCM_CCGR1,
-	.enable_shift = MXC_CCM_CCGRx_CG12_OFFSET,
-	.enable = _clk_enable,
-	.disable = _clk_disable,
-	.flags = AHB_HIGH_SET_POINT | CPU_FREQ_TRIG_UPDATE,
-};
-
 static unsigned long _clk_cspi_get_rate(struct clk *clk)
 {
 	u32 reg, prediv, podf;
@@ -2720,7 +2699,7 @@ static struct clk ssi3_clk[] = {
 	 .id = 2,
 	 .parent = &aips_tz2_clk,
 #ifdef CONFIG_SND_MXC_SOC_IRAM
-	 .secondary = &emi_intr_clk,
+	 .secondary = &emi_intr_clk[0],
 #else
 	 .secondary = &emi_fast_clk,
 #endif
@@ -3959,22 +3938,6 @@ static struct clk lpsr_clk = {
 	.set_parent = _clk_lpsr_set_parent,
 };
 
-static unsigned long _clk_pgc_get_rate(struct clk *clk)
-{
-	u32 reg, div;
-
-	reg = __raw_readl(MXC_CCM_CSCDR1);
-	div = (reg & MXC_CCM_CSCDR1_PGC_CLK_PODF_MASK) >>
-	    MXC_CCM_CSCDR1_PGC_CLK_PODF_OFFSET;
-	div = 1 >> div;
-	return clk_get_rate(clk->parent) / div;
-}
-
-static struct clk pgc_clk = {
-	.parent = &ipg_clk,
-	.get_rate = _clk_pgc_get_rate,
-};
-
 static unsigned long _clk_usb_get_rate(struct clk *clk)
 {
 	return 60000000;
@@ -4401,7 +4364,7 @@ static struct clk_lookup lookups[] = {
 	_REGISTER_CLOCK("mxc_vpu.0", NULL, vpu_clk[0]),
 	_REGISTER_CLOCK(NULL, "lpsr_clk", lpsr_clk),
 	_REGISTER_CLOCK("mxc_rtc.0", NULL, rtc_clk),
-	_REGISTER_CLOCK("pata_fsl", NULL, ata_clk),
+	_REGISTER_CLOCK("pata_fsl", NULL, ata_clk[0]),
 	_REGISTER_CLOCK("mxc_w1.0", NULL, owire_clk),
 	_REGISTER_CLOCK(NULL, "sahara_clk", sahara_clk[0]),
 	_REGISTER_CLOCK(NULL, "gpu3d_clk", gpu3d_clk[0]),

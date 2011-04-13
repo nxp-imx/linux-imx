@@ -269,7 +269,7 @@ static int __init pm_init(void)
 
 	if (cpu_is_mx51() || cpu_is_mx53()) {
 		suspend_param1 =
-			cpu_is_mx51() ? SUSPEND_ID_MX51 : SUSPEND_ID_MX53;
+			cpu_is_mx51() ? (void *)SUSPEND_ID_MX51:(void *)SUSPEND_ID_MX53;
 		memcpy(suspend_iram_base, cpu_do_suspend_workaround,
 				SZ_4K);
 	} else if (cpu_is_mx50()) {

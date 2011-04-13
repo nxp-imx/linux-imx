@@ -1078,16 +1078,6 @@ static struct clk ahb_max_clk = {
 	.disable = _clk_max_disable,
 };
 
-static struct clk ahbmux1_clk = {
-	.id = 0,
-	.parent = &ahb_clk,
-	.secondary = &ahb_max_clk,
-	.enable = _clk_enable,
-	.enable_reg = MXC_CCM_CCGR0,
-	.enable_shift = MXC_CCM_CCGRx_CG8_OFFSET,
-	.disable = _clk_disable_inwait,
-};
-
 static unsigned long _clk_ipg_get_rate(struct clk *clk)
 {
 	u32 reg, div;
@@ -1150,20 +1140,6 @@ static struct clk ipg_perclk = {
 	.get_rate = _clk_ipg_per_get_rate,
 	.set_parent = _clk_ipg_per_set_parent,
 	.flags = RATE_PROPAGATES,
-};
-
-static struct clk ipmux1_clk = {
-	.enable_reg = MXC_CCM_CCGR5,
-	.enable_shift = MXC_CCM_CCGRx_CG6_OFFSET,
-	.enable = _clk_enable,
-	.disable = _clk_disable,
-};
-
-static struct clk ipmux2_clk = {
-	.enable_reg = MXC_CCM_CCGR6,
-	.enable_shift = MXC_CCM_CCGRx_CG0_OFFSET,
-	.enable = _clk_enable,
-	.disable = _clk_disable,
 };
 
 static int _clk_sys_clk_enable(struct clk *clk)
@@ -2353,22 +2329,6 @@ static struct clk ddr_clk = {
 	.enable_reg = MXC_CCM_CCGR6,
 	.enable_shift = MXC_CCM_CCGRx_CG15_OFFSET,
 	.disable = _clk_ddr_disable,
-};
-
-static unsigned long _clk_pgc_get_rate(struct clk *clk)
-{
-	u32 reg, div;
-
-	reg = __raw_readl(MXC_CCM_CSCDR1);
-	div = (reg & MXC_CCM_CSCDR1_PGC_CLK_PODF_MASK) >>
-	    MXC_CCM_CSCDR1_PGC_CLK_PODF_OFFSET;
-	div = 1 >> div;
-	return clk_get_rate(clk->parent) / div;
-}
-
-static struct clk pgc_clk = {
-	.parent = &ipg_clk,
-	.get_rate = _clk_pgc_get_rate,
 };
 
 static unsigned long _clk_usb_get_rate(struct clk *clk)

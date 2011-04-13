@@ -437,7 +437,7 @@ static void *mxc_proc_clocks_seq_start(struct seq_file *file, loff_t *index)
 static void *mxc_proc_clocks_seq_next(struct seq_file *file, void *data,
 								loff_t *index)
 {
-	struct mxc_clk  *current_clock = (struct clk *) data;
+	struct mxc_clk  *current_clock = (struct mxc_clk *) data;
 
 	/* Check for nonsense. */
 
@@ -470,7 +470,6 @@ static int mxc_proc_clocks_seq_show(struct seq_file *file, void *data)
 {
 	int            result;
 	struct mxc_clk     *clock = (struct mxc_clk *) data;
-	struct clk     *parent = clock->reg_clk->parent;
 	unsigned int   longest_length = (unsigned int) file->private;
 	unsigned long  range_divisor;
 	const char     *range_units;
@@ -504,7 +503,7 @@ static int mxc_proc_clocks_seq_show(struct seq_file *file, void *data)
 		return result;
 
 	result = seq_printf(file, "  %10lu (%lu%s)\n",
-		rate,
+		(long unsigned int)rate,
 		rate / range_divisor, range_units);
 
 	return result;
