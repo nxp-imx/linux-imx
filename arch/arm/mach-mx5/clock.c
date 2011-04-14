@@ -4476,9 +4476,6 @@ static struct clk_lookup lookups[] = {
 	_REGISTER_CLOCK("imx-i2c.1", NULL, i2c_clk[1]),
 	_REGISTER_CLOCK("mxc_pwm.0", NULL, pwm1_clk[0]),
 	_REGISTER_CLOCK("mxc_pwm.1", NULL, pwm2_clk[0]),
-	_REGISTER_CLOCK("mxc_spi.0", NULL, cspi1_clk[0]),
-	_REGISTER_CLOCK("mxc_spi.1", NULL, cspi2_clk[0]),
-	_REGISTER_CLOCK("mxc_spi.2", NULL, cspi3_clk),
 	_REGISTER_CLOCK(NULL, "ssi_lp_apm_clk", ssi_lp_apm_clk),
 	_REGISTER_CLOCK("imx-ssi.0", NULL, ssi1_clk[0]),
 	_REGISTER_CLOCK("imx-ssi.1", NULL, ssi2_clk[0]),
@@ -4525,6 +4522,9 @@ static struct clk_lookup mx51_lookups[] = {
 	_REGISTER_CLOCK("mxc_alsa_spdif.0", NULL, spdif1_clk[0]),
 	_REGISTER_CLOCK(NULL, "mipi_hsp_clk", mipi_hsp_clk),
 	_REGISTER_CLOCK(NULL, "ddr_hf_clk", ddr_hf_clk),
+	_REGISTER_CLOCK("imx51-ecspi.0", NULL, cspi1_clk[0]),
+	_REGISTER_CLOCK("imx51-ecspi.1", NULL, cspi2_clk[0]),
+	_REGISTER_CLOCK("imx51-cspi.0", NULL, cspi3_clk),
 };
 
 static struct clk_lookup mx53_lookups[] = {
@@ -4546,6 +4546,9 @@ static struct clk_lookup mx53_lookups[] = {
 	_REGISTER_CLOCK(NULL, "esai_ipg_clk", esai_clk[1]),
 	_REGISTER_CLOCK(NULL, "asrc_clk", asrc_clk[1]),
 	_REGISTER_CLOCK(NULL, "asrc_serial_clk", asrc_clk[0]),
+	_REGISTER_CLOCK("imx53-ecspi.0", NULL, cspi1_clk[0]),
+	_REGISTER_CLOCK("imx53-ecspi.1", NULL, cspi2_clk[0]),
+	_REGISTER_CLOCK("imx53-cspi.0", NULL, cspi3_clk),
 };
 
 static void clk_tree_init(void)
