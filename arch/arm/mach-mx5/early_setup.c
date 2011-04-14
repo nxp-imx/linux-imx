@@ -18,6 +18,7 @@
 
 #include <linux/init.h>
 #include <linux/string.h>
+#include <linux/kernel.h>
 
 int __initdata primary_di = { -1 };
 static int __init di1_setup(char *__unused)
@@ -35,10 +36,20 @@ static int __init di0_setup(char *__unused)
 __setup("di0_primary", di0_setup);
 
 int __initdata lcdif_sel_lcd = { 0 };
-static int __init lcd_setup(char *__unused)
+static int __init lcd_setup(char *str)
 {
-	lcdif_sel_lcd = 1;
-	return 1;
+	int s, ret;
+
+	s = *str;
+	if (s == '=') {
+
+		str++;
+		ret = strict_strtoul(str, 0, &lcdif_sel_lcd);
+		if (ret < 0)
+			return 0;
+		return 1;
+	} else
+		return 0;
 }
 __setup("lcd", lcd_setup);
 
