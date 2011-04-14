@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010 Freescale Semiconductor, Inc.
+ * Copyright (C) 2010-2011 Freescale Semiconductor, Inc.
  * Copyright 2008 Embedded Alley Solutions, Inc All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
@@ -33,6 +33,8 @@
 #define BM_DRAM_CTL17_SREFRESH	0x00000001
 #define HW_CLKCTRL_CPU_ADDR \
 	(MX28_SOC_IO_ADDRESS(CLKCTRL_PHYS_ADDR) + HW_CLKCTRL_CPU)
+#define HW_CLKCTRL_HBUS_ADDR \
+	(MX28_SOC_IO_ADDRESS(CLKCTRL_PHYS_ADDR) + HW_CLKCTRL_HBUS)
 #define HW_POWER_MINPWR_ADDR \
 	(MX28_SOC_IO_ADDRESS(POWER_PHYS_ADDR) + HW_POWER_MINPWR)
 #define HW_POWER_RESET_ADDR \
@@ -274,6 +276,15 @@ ENTRY(mx28_cpu_standby)
 	//Gated PLL0
 	PM_BITS_CLR	HW_CLKCTRL_PLL0CTRL0_ADDR, BM_CLKCTRL_PLL0CTRL0_POWER
 
+	@ div hbus to lowest
+	mov r0, #(HW_CLKCTRL_HBUS_ADDR & 0x000000FF)
+	orr r0, r0, #(HW_CLKCTRL_HBUS_ADDR & 0x0000FF00)
+	orr r0, r0, #(HW_CLKCTRL_HBUS_ADDR & 0x00FF0000)
+	orr r0, r0, #(HW_CLKCTRL_HBUS_ADDR & 0xFF000000)
+	ldr r3, [r0]
+	mov r1, #(0x1F)
+	str r1, [r0, #4]
+
 	@ do enter standby
 	mov	r0, #(HW_CLKCTRL_CPU_ADDR & 0x000000FF)
 	orr	r0, r0, #(HW_CLKCTRL_CPU_ADDR & 0x0000FF00)
@@ -292,6 +303,13 @@ ENTRY(mx28_cpu_standby)
 	nop
 	nop
 	nop
+
+	@ restore hbus
+	mov r0, #(HW_CLKCTRL_HBUS_ADDR & 0x000000FF)
+	orr r0, r0, #(HW_CLKCTRL_HBUS_ADDR & 0x0000FF00)
+	orr r0, r0, #(HW_CLKCTRL_HBUS_ADDR & 0x00FF0000)
+	orr r0, r0, #(HW_CLKCTRL_HBUS_ADDR & 0xFF000000)
+	str r3, [r0]
 
 	mov	r2, #(HW_POWER_STS_ADDR & 0x000000FF)
 	orr	r2, r2, #(HW_POWER_STS_ADDR & 0x0000FF00)
