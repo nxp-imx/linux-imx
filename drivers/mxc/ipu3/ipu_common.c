@@ -284,12 +284,16 @@ static int __init register_fb_device(struct platform_device *pdev)
 		/* DI1 -> DP-BG channel: */
 		imx_add_ipuv3_fb(plat_data->fb_head1_platform_data, 1);
 		/* DI0 -> DC channel: */
+		plat_data->fb_head0_platform_data->res_base = 0;
+		plat_data->fb_head0_platform_data->res_size = 0;
 		imx_add_ipuv3_fb(plat_data->fb_head0_platform_data, 0);
 	} else {
 		dev_info(g_ipu_dev, "DI0 is primary\n");
 		/* DI0 -> DP-BG channel: */
 		imx_add_ipuv3_fb(plat_data->fb_head0_platform_data, 0);
 		/* DI1 -> DC channel: */
+		plat_data->fb_head1_platform_data->res_base = 0;
+		plat_data->fb_head1_platform_data->res_size = 0;
 		imx_add_ipuv3_fb(plat_data->fb_head1_platform_data, 1);
 	}
 
