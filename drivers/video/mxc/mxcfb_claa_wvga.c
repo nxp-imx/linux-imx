@@ -1,5 +1,5 @@
 /*
- * Copyright 2008-2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2008-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -123,6 +123,9 @@ static int __devinit lcd_probe(struct platform_device *pdev)
 		if (plat->reset)
 			plat->reset();
 
+		if (plat->get_pins)
+			plat->get_pins();
+
 		io_reg = regulator_get(&pdev->dev, plat->io_reg);
 		if (IS_ERR(io_reg))
 			io_reg = NULL;
@@ -147,6 +150,7 @@ static int __devinit lcd_probe(struct platform_device *pdev)
 
 	fb_register_client(&nb);
 
+	platform_set_drvdata(pdev, plat);
 	plcd_dev = pdev;
 
 	return 0;
@@ -154,12 +158,17 @@ static int __devinit lcd_probe(struct platform_device *pdev)
 
 static int __devexit lcd_remove(struct platform_device *pdev)
 {
+	struct mxc_lcd_platform_data *plat = pdev->dev.platform_data;
+
 	fb_unregister_client(&nb);
 	lcd_poweroff();
 	if (io_reg)
 		regulator_put(io_reg);
 	if (core_reg)
 		regulator_put(core_reg);
+
+	if (plat->put_pins)
+		plat->put_pins();
 
 	return 0;
 }
@@ -197,8 +206,13 @@ static struct platform_driver lcd_driver = {
  */
 static void lcd_poweron(void)
 {
+	struct mxc_lcd_platform_data *plat = platform_get_drvdata(plcd_dev);
+
 	if (lcd_on)
 		return;
+
+	if (plat->enable_pins)
+		plat->enable_pins();
 
 	dev_dbg(&plcd_dev->dev, "turning on LCD\n");
 	if (core_reg)
@@ -214,6 +228,11 @@ static void lcd_poweron(void)
  */
 static void lcd_poweroff(void)
 {
+	struct mxc_lcd_platform_data *plat = platform_get_drvdata(plcd_dev);
+
+	if (plat->disable_pins)
+		plat->disable_pins();
+
 	lcd_on = 0;
 	dev_dbg(&plcd_dev->dev, "turning off LCD\n");
 	if (io_reg)
