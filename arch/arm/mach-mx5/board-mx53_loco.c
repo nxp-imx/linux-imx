@@ -221,7 +221,7 @@ static const struct gpio_keys_button loco_buttons[] __initconst = {
 };
 
 static const struct gpio_keys_platform_data loco_button_data __initconst = {
-	.buttons        = loco_buttons,
+	.buttons        = (struct gpio_keys_button *)loco_buttons,
 	.nbuttons       = ARRAY_SIZE(loco_buttons),
 };
 
@@ -630,6 +630,10 @@ static struct mxc_iim_platform_data iim_data = {
 
 static int z160_revision __initdata;
 
+static struct fsl_mxc_ldb_platform_data ldb_data = {
+	.ext_ref = 1,
+};
+
 static void __init mx53_loco_board_init(void)
 {
 	mx53_loco_io_init();
@@ -642,6 +646,7 @@ static void __init mx53_loco_board_init(void)
 
 	imx53_add_ipuv3(&ipu_data);
 	imx53_add_vpu();
+	imx53_add_ldb(&ldb_data);
 	imx53_add_tve(&tve_data);
 	imx53_add_v4l2_output(0);
 
