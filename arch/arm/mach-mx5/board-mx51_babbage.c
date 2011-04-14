@@ -357,6 +357,62 @@ static const struct spi_imx_master mx51_babbage_spi_pdata __initconst = {
 
 static struct mxc_gpu_platform_data gpu_data __initdata;
 
+static void __init fixup_mxc_board(struct machine_desc *desc, struct tag *tags,
+				   char **cmdline, struct meminfo *mi)
+{
+	struct tag *t;
+	struct tag *mem_tag = 0;
+	int total_mem = SZ_512M;
+	int left_mem = 0;
+	int gpu_mem = SZ_64M;
+	int fb_mem = 0;
+	char *str;
+
+	for_each_tag(mem_tag, tags) {
+		if (mem_tag->hdr.tag == ATAG_MEM) {
+			total_mem = mem_tag->u.mem.size;
+			left_mem = total_mem - gpu_mem - fb_mem;
+			break;
+		}
+	}
+
+	for_each_tag(t, tags) {
+		if (t->hdr.tag == ATAG_CMDLINE) {
+			str = t->u.cmdline.cmdline;
+			str = strstr(str, "mem=");
+			if (str != NULL) {
+				str += 4;
+				left_mem = memparse(str, &str);
+				if (left_mem == 0 || left_mem > total_mem)
+					left_mem = total_mem - gpu_mem - fb_mem;
+			}
+
+			str = t->u.cmdline.cmdline;
+			str = strstr(str, "gpu_memory=");
+			if (str != NULL) {
+				str += 11;
+				gpu_mem = memparse(str, &str);
+			}
+
+			break;
+		}
+	}
+
+	if (mem_tag) {
+		fb_mem = total_mem - left_mem - gpu_mem;
+		if (fb_mem < 0) {
+			gpu_mem = total_mem - left_mem;
+			fb_mem = 0;
+		}
+		mem_tag->u.mem.size = left_mem;
+
+		/*reserve memory for gpu*/
+		gpu_data.reserved_mem_base =
+				mem_tag->u.mem.start + left_mem;
+		gpu_data.reserved_mem_size = gpu_mem;
+	}
+}
+
 /*
  * Board specific initialization.
  */
@@ -419,6 +475,7 @@ static struct sys_timer mx51_babbage_timer = {
 
 MACHINE_START(MX51_BABBAGE, "Freescale MX51 Babbage Board")
 	/* Maintainer: Amit Kucheria <amit.kucheria@canonical.com> */
+	.fixup = fixup_mxc_board,
 	.boot_params = MX51_PHYS_OFFSET + 0x100,
 	.map_io = mx51_map_io,
 	.init_early = imx51_init_early,

@@ -40,6 +40,7 @@
 #include <asm/mach-types.h>
 #include <asm/mach/arch.h>
 #include <asm/mach/time.h>
+#include <asm/setup.h>
 
 #include "crm_regs.h"
 #include "devices-imx53.h"
@@ -634,6 +635,69 @@ static struct fsl_mxc_ldb_platform_data ldb_data = {
 	.ext_ref = 1,
 };
 
+static void __init fixup_mxc_board(struct machine_desc *desc, struct tag *tags,
+				   char **cmdline, struct meminfo *mi)
+{
+	struct tag *t;
+	struct tag *mem_tag = 0;
+	int total_mem = SZ_1G;
+	int left_mem = 0;
+	int gpu_mem = SZ_128M;
+	int fb_mem = SZ_32M;
+	char *str;
+
+	for_each_tag(mem_tag, tags) {
+		if (mem_tag->hdr.tag == ATAG_MEM) {
+			total_mem = mem_tag->u.mem.size;
+			left_mem = total_mem - gpu_mem - fb_mem;
+			break;
+		}
+	}
+
+	for_each_tag(t, tags) {
+		if (t->hdr.tag == ATAG_CMDLINE) {
+			str = t->u.cmdline.cmdline;
+			str = strstr(str, "mem=");
+			if (str != NULL) {
+				str += 4;
+				left_mem = memparse(str, &str);
+				if (left_mem == 0 || left_mem > total_mem)
+					left_mem = total_mem - gpu_mem - fb_mem;
+			}
+
+			str = t->u.cmdline.cmdline;
+			str = strstr(str, "gpu_memory=");
+			if (str != NULL) {
+				str += 11;
+				gpu_mem = memparse(str, &str);
+			}
+
+			break;
+		}
+	}
+
+	if (mem_tag) {
+		fb_mem = total_mem - left_mem - gpu_mem;
+		if (fb_mem < 0) {
+			gpu_mem = total_mem - left_mem;
+			fb_mem = 0;
+		}
+		mem_tag->u.mem.size = left_mem;
+
+		/* reserve memory for gpu */
+		gpu_data.reserved_mem_base =
+				mem_tag->u.mem.start + left_mem;
+		gpu_data.reserved_mem_size = gpu_mem;
+
+		/* reserver memory for fb */
+		loco_fb_di0_data.res_base = gpu_data.reserved_mem_base
+					+ gpu_data.reserved_mem_size;
+		loco_fb_di0_data.res_size = fb_mem;
+		loco_fb_di1_data.res_base = loco_fb_di0_data.res_base;
+		loco_fb_di1_data.res_size = loco_fb_di0_data.res_size;
+	}
+}
+
 static void __init mx53_loco_board_init(void)
 {
 	mx53_loco_io_init();
@@ -698,6 +762,7 @@ static struct sys_timer mx53_loco_timer = {
 };
 
 MACHINE_START(MX53_LOCO, "Freescale MX53 LOCO Board")
+	.fixup = fixup_mxc_board,
 	.map_io = mx53_map_io,
 	.init_early = imx53_init_early,
 	.init_irq = mx53_init_irq,
