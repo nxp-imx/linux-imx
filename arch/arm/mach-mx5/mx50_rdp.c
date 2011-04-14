@@ -1493,10 +1493,52 @@ static struct platform_device lcd_wvga_device = {
 		},
 };
 
+/* Use same pinmux on HDMI */
+static int claa_wvga_get_pins(void)
+{
+	sii902x_hdmi_get_pins();
+}
+
+static void claa_wvga_put_pins(void)
+{
+	sii902x_hdmi_put_pins();
+}
+
+static void claa_wvga_enable_pins(void)
+{
+	sii902x_hdmi_enable_pins();
+}
+
+static void claa_wvga_disable_pins(void)
+{
+	sii902x_hdmi_disable_pins();
+}
+
+static struct mxc_lcd_platform_data lcd_wvga_data2 = {
+	.get_pins = claa_wvga_get_pins,
+	.put_pins = claa_wvga_put_pins,
+	.enable_pins = claa_wvga_enable_pins,
+	.disable_pins = claa_wvga_disable_pins,
+};
+
+
+static struct platform_device lcd_wvga_device2 = {
+	.name = "lcd_claa",
+	.dev = {
+		.platform_data = &lcd_wvga_data2,
+		},
+};
+
 static struct fb_videomode video_modes[] = {
 	{
 	 /* 800x480 @ 57 Hz , pixel clk @ 32MHz */
 	 "SEIKO-WVGA", 60, 800, 480, 29850, 99, 164, 33, 10, 10, 10,
+	 FB_SYNC_CLK_LAT_FALL,
+	 FB_VMODE_NONINTERLACED,
+	 0,},
+	{
+	 /* 800x480 @ 57 Hz , pixel clk @ 27MHz */
+	 "CLAA-WVGA", 57, 800, 480, 37037, 40, 60, 10, 10, 20, 10,
 	 FB_SYNC_CLK_LAT_FALL,
 	 FB_VMODE_NONINTERLACED,
 	 0,},
@@ -1521,6 +1563,12 @@ static struct mxc_fb_platform_data fb_data[] = {
 	{
 	 .interface_pix_fmt = V4L2_PIX_FMT_RGB565,
 	 .mode_str = "SEIKO-WVGA",
+	 .mode = video_modes,
+	 .num_modes = ARRAY_SIZE(video_modes),
+	 },
+	{
+	 .interface_pix_fmt = V4L2_PIX_FMT_RGB565,
+	 .mode_str = "CLAA-WVGA",
 	 .mode = video_modes,
 	 .num_modes = ARRAY_SIZE(video_modes),
 	 },
@@ -1903,6 +1951,8 @@ static void __init mxc_board_init(void)
 	mxc_register_device(&lcd_wvga_device, &lcd_wvga_data);
 	if (!board_is_mx50_rd3())
 		lcdif_sel_lcd = 1;
+	if (lcdif_sel_lcd == 2)
+		mxc_register_device(&lcd_wvga_device2, &lcd_wvga_data2);
 	mxc_register_device(&elcdif_device, &fb_data[lcdif_sel_lcd]);
 	mxc_register_device(&mxc_pwm1_device, NULL);
 	mxc_register_device(&mxc_pwm1_backlight_device,
