@@ -112,12 +112,6 @@ static bool g_di1_used;
 
 DEFINE_SPINLOCK(ldb_lock);
 
-/*fake clock api*/
-int clk_get_usecount(struct clk *clk)
-{
-	return 1;
-}
-
 struct fb_videomode mxcfb_ldb_modedb[] = {
 	{
 	 "1080P60", 60, 1920, 1080, 7692,
@@ -1244,7 +1238,7 @@ static int ldb_probe(struct platform_device *pdev)
 {
 	int ret = 0;
 	struct resource *res;
-	struct ldb_platform_data *plat_data = pdev->dev.platform_data;
+	struct fsl_mxc_ldb_platform_data *plat_data = pdev->dev.platform_data;
 	uint32_t reg;
 	struct device *temp;
 	int mxc_ldb_major;
