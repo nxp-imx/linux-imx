@@ -60,7 +60,7 @@ const struct imx_mxc_gpu_data imx53_gpu_data __initconst =
 
 struct platform_device *__init imx_add_mxc_gpu(
 		const struct imx_mxc_gpu_data *data,
-		const int *pdata)
+		const struct mxc_gpu_platform_data *pdata)
 {
 	struct resource res[] = {
 		{
@@ -91,12 +91,6 @@ struct platform_device *__init imx_add_mxc_gpu(
 			.start = data->gmem_base,
 			.end = data->gmem_base + data->gmem_size - 1,
 			.name = "gpu_graphics_mem",
-			.flags = IORESOURCE_MEM,
-		},
-		{
-			.start = 0,
-			.end = 0,
-			.name = "gpu_reserved_mem",
 			.flags = IORESOURCE_MEM,
 		},
 	};

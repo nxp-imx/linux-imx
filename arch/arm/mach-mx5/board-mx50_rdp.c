@@ -190,7 +190,9 @@ static const struct imxi2c_platform_data i2c_data __initconst = {
 	.bitrate = 100000,
 };
 
-static int z160_revision __initdata = 1;
+static struct mxc_gpu_platform_data gpu_data __initdata = {
+	.z160_revision = 1,
+};
 
 /*
  * Board specific initialization.
@@ -213,7 +215,7 @@ static void __init mx50_rdp_board_init(void)
 	imx50_add_imx_i2c(0, &i2c_data);
 	imx50_add_imx_i2c(1, &i2c_data);
 	imx50_add_imx_i2c(2, &i2c_data);
-	imx50_add_mxc_gpu(&z160_revision);
+	imx50_add_mxc_gpu(&gpu_data);
 	imx50_add_sdhci_esdhc_imx(0, NULL);
 	imx50_add_sdhci_esdhc_imx(1, NULL);
 	imx50_add_sdhci_esdhc_imx(2, NULL);

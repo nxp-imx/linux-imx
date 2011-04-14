@@ -628,7 +628,7 @@ static struct mxc_iim_platform_data iim_data = {
 	.disable_fuse = mxc_iim_disable_fuse,
 };
 
-static int z160_revision __initdata;
+static struct mxc_gpu_platform_data gpu_data __initdata;
 
 static struct fsl_mxc_ldb_platform_data ldb_data = {
 	.ext_ref = 1,
@@ -681,10 +681,10 @@ static void __init mx53_loco_board_init(void)
 
 	/*GPU*/
 	if (mx53_revision() >= IMX_CHIP_REVISION_2_0)
-		z160_revision = 1;
+		gpu_data.z160_revision = 1;
 	else
-		z160_revision = 0;
-	imx53_add_mxc_gpu(&z160_revision);
+		gpu_data.z160_revision = 0;
+	imx53_add_mxc_gpu(&gpu_data);
 	imx_add_gpio_keys(&loco_button_data);
 }
 

@@ -355,7 +355,7 @@ static const struct spi_imx_master mx51_babbage_spi_pdata __initconst = {
 	.num_chipselect = ARRAY_SIZE(mx51_babbage_spi_cs),
 };
 
-static int z160_revision __initdata;
+static struct mxc_gpu_platform_data gpu_data __initdata;
 
 /*
  * Board specific initialization.
@@ -405,7 +405,7 @@ static void __init mx51_babbage_init(void)
 		ARRAY_SIZE(mx51_babbage_spi_board_info));
 	imx51_add_ecspi(0, &mx51_babbage_spi_pdata);
 	imx51_add_imx2_wdt(0, NULL);
-	imx51_add_mxc_gpu(&z160_revision);
+	imx51_add_mxc_gpu(&gpu_data);
 }
 
 static void __init mx51_babbage_timer_init(void)
