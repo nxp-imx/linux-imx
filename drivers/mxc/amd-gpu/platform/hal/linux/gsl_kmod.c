@@ -31,13 +31,14 @@
 #include <linux/fs.h>
 #include <linux/device.h>
 #include <linux/interrupt.h>
-#include <asm/uaccess.h>
 #include <linux/mm.h>
 #include <linux/mutex.h>
 #include <linux/cdev.h>
-
 #include <linux/platform_device.h>
 #include <linux/vmalloc.h>
+#include <linux/uaccess.h>
+
+#include <mach/mxc_gpu.h>
 
 int gpu_2d_irq, gpu_3d_irq;
 
@@ -52,7 +53,7 @@ int z160_version;
 
 static ssize_t gsl_kmod_read(struct file *fd, char __user *buf, size_t len, loff_t *ptr);
 static ssize_t gsl_kmod_write(struct file *fd, const char __user *buf, size_t len, loff_t *ptr);
-static int gsl_kmod_ioctl(struct file *fd, unsigned int cmd, unsigned long arg);
+static long gsl_kmod_ioctl(struct file *fd, unsigned int cmd, unsigned long arg);
 static int gsl_kmod_mmap(struct file *fd, struct vm_area_struct *vma);
 static int gsl_kmod_fault(struct vm_area_struct *vma, struct vm_fault *vmf);
 static int gsl_kmod_open(struct inode *inode, struct file *fd);
@@ -90,7 +91,7 @@ static ssize_t gsl_kmod_write(struct file *fd, const char __user *buf, size_t le
     return 0;
 }
 
-static int gsl_kmod_ioctl(struct file *fd, unsigned int cmd, unsigned long arg)
+static long gsl_kmod_ioctl(struct file *fd, unsigned int cmd, unsigned long arg)
 {
     int kgslStatus = GSL_FAILURE;
 
@@ -765,11 +766,14 @@ static int gpu_probe(struct platform_device *pdev)
     int i;
     struct resource *res;
     struct device *dev;
+    struct mxc_gpu_platform_data *pdata;
 
-    if (pdev->dev.platform_data)
-	z160_version = *((int *)(pdev->dev.platform_data));
-    else
-	z160_version = 0;
+    pdata = pdev->dev.platform_data;
+    if (pdata) {
+	z160_version = pdata->z160_revision;
+	gpu_reserved_mem = pdata->reserved_mem_base;
+	gpu_reserved_mem_size = pdata->reserved_mem_size;
+    }
 
     for(i = 0; i < 2; i++){
         res = platform_get_resource(pdev, IORESOURCE_IRQ, i);
@@ -788,7 +792,7 @@ static int gpu_probe(struct platform_device *pdev)
         }
     }
 
-    for(i = 0; i < 4; i++){
+    for (i = 0; i < 3; i++) {
         res = platform_get_resource(pdev, IORESOURCE_MEM, i);
         if (!res) {
             gpu_2d_regbase = 0;
@@ -808,9 +812,6 @@ static int gpu_probe(struct platform_device *pdev)
                 gpu_3d_regsize = res->end - res->start + 1;
             }else if(strcmp(res->name, "gpu_graphics_mem") == 0){
                 gmem_size = res->end - res->start + 1;
-             }else if(strcmp(res->name, "gpu_reserved_mem") == 0){
-                gpu_reserved_mem = res->start;
-                gpu_reserved_mem_size = res->end - res->start + 1;
             }
         }
     }
