@@ -329,8 +329,8 @@ static struct mxc_w1_config mxc_w1_data = {
 };
 
 static u16 keymapping[16] = {
-	KEY_UP, KEY_DOWN, KEY_MENU, KEY_BACK,
-	KEY_RIGHT, KEY_LEFT, KEY_SELECT, KEY_ENTER,
+	KEY_UP, KEY_DOWN, KEY_BACK, KEY_HOME,
+	KEY_RIGHT, KEY_LEFT, KEY_SELECT, KEY_MENU,
 	KEY_F1, KEY_F3, KEY_1, KEY_3,
 	KEY_F2, KEY_F4, KEY_2, KEY_4,
 };
