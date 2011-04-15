@@ -162,7 +162,7 @@ static struct mc34708_charger_config ripley_charge_config = {
 	.lowBattThreshold = 3100000,
 	.toppingOffMicroAmp = 50000,	/* 50mA */
 	.chargingPoints = ripley_charger_setting_point,
-	.pointsNumber = 3,
+	.pointsNumber = 1,
 };
 
 static int dump_ripley_register(int reg);
