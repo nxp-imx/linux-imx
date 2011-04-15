@@ -5036,8 +5036,6 @@ int __init mx53_clocks_init(unsigned long ckil, unsigned long osc, unsigned long
 	clk_set_parent(&esdhc2_clk[0], &esdhc1_clk[0]);
 	clk_set_parent(&esdhc3_clk[0], &pll2_sw_clk);
 
-	clk_set_parent(&ipu_di_clk[0], &pll4_sw_clk);
-
 #if 0
 	/*Setup the LPM bypass bits */
 	reg = __raw_readl(MXC_CCM_CLPCR);
@@ -5146,7 +5144,6 @@ int __init mx53_clocks_init(unsigned long ckil, unsigned long osc, unsigned long
 
 	clk_set_parent(&arm_axi_clk, &axi_b_clk);
 	clk_set_parent(&ipu_clk[0], &axi_b_clk);
-	clk_set_parent(&uart_main_clk, &pll3_sw_clk);
 	clk_set_parent(&gpu3d_clk, &axi_b_clk);
 	clk_set_parent(&gpu2d_clk, &axi_b_clk);
 
