@@ -580,10 +580,6 @@ static int smd_sgtl5000_init(void)
 {
 	smd_audio_data.sysclk = 22579200;
 
-	/* headphone_det_b */
-	gpio_request(MX53_SMD_HEADPHONE_DEC, "headphone-dec");
-	gpio_direction_input(MX53_SMD_HEADPHONE_DEC);
-
 	/* Enable OSC_CKIH1_EN for audio */
 	gpio_request(MX53_SMD_OSC_CKIH1_EN, "osc-en");
 	gpio_direction_output(MX53_SMD_OSC_CKIH1_EN, 1);
@@ -595,6 +591,8 @@ static struct mxc_audio_platform_data smd_audio_data = {
 	.src_port = 2,
 	.ext_port = 5,
 	.init = smd_sgtl5000_init,
+	.hp_gpio = MX53_SMD_HEADPHONE_DEC,
+	.hp_active_low = 1,
 };
 
 static struct platform_device smd_audio_device = {
