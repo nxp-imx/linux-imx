@@ -745,6 +745,8 @@ static int tve_update_detect_status(void)
 	u32 cd_cont_reg;
 	u32 timeout = 40;
 	unsigned long lock_flags;
+	char event_string[16];
+	char *envp[] = { event_string, NULL };
 
 	spin_lock_irqsave(&tve_lock, lock_flags);
 
@@ -826,8 +828,18 @@ static int tve_update_detect_status(void)
 	__raw_writel(int_ctl | CD_SM_INT | CD_LM_INT,
 			tve.base + tve_regs->tve_int_cont_reg);
 
-	if (old_detect != tve.detect)
+	if (old_detect != tve.detect) {
 		sysfs_notify(&tve.pdev->dev.kobj, NULL, "headphone");
+		if (tve.detect == 1)
+			sprintf(event_string, "EVENT=CVBS0");
+		else if (tve.detect == 3)
+			sprintf(event_string, "EVENT=YPBPR");
+		else if (tve.detect == 4)
+			sprintf(event_string, "EVENT=SVIDEO");
+		else
+			sprintf(event_string, "EVENT=NONE");
+		kobject_uevent_env(&tve.pdev->dev.kobj, KOBJ_CHANGE, envp);
+	}
 
 	dev_dbg(&tve.pdev->dev, "detect = %d mode = %d\n",
 			tve.detect, tve.output_mode);
