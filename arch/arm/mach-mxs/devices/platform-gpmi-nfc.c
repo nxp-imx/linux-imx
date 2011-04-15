@@ -17,6 +17,7 @@
  */
 #include <asm/sizes.h>
 #include <mach/mx23.h>
+#include <mach/mx28.h>
 #include <mach/devices-common.h>
 
 #define RES_MEM(soc, _id, _s, _n)				\
@@ -57,6 +58,24 @@ const struct mxs_gpmi_nfc_data mx23_gpmi_nfc_data __initconst = {
 		RES_DMA(MX23, DMA_GPMI0, DMA_GPMI3,
 					GPMI_NFC_DMA_CHANNELS_RES_NAME),
 		RES_IRQ(MX23, GPMI_DMA, GPMI_NFC_DMA_INTERRUPT_RES_NAME),
+	},
+};
+#endif
+
+#ifdef CONFIG_SOC_IMX28
+const struct mxs_gpmi_nfc_data mx28_gpmi_nfc_data __initconst = {
+	.devid = "imx28-gpmi-nfc",
+	.res = {
+		/* GPMI */
+		RES_MEM(MX28, GPMI, SZ_8K, GPMI_NFC_GPMI_REGS_ADDR_RES_NAME),
+		RES_IRQ(MX28, GPMI, GPMI_NFC_GPMI_INTERRUPT_RES_NAME),
+		/* BCH */
+		RES_MEM(MX28, BCH, SZ_8K, GPMI_NFC_BCH_REGS_ADDR_RES_NAME),
+		RES_IRQ(MX28, BCH, GPMI_NFC_BCH_INTERRUPT_RES_NAME),
+		/* DMA */
+		RES_DMA(MX28, DMA_GPMI0, DMA_GPMI7,
+					GPMI_NFC_DMA_CHANNELS_RES_NAME),
+		RES_IRQ(MX28, GPMI_DMA, GPMI_NFC_DMA_INTERRUPT_RES_NAME),
 	},
 };
 #endif

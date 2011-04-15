@@ -2,7 +2,7 @@
  * Copyright (C) 2010 Pengutronix
  * Uwe Kleine-Koenig <u.kleine-koenig@pengutronix.de>
  *
- * Copyright 2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2010-2011 Freescale Semiconductor, Inc.
  *
  * This program is free software; you can redistribute it and/or modify it under
  * the terms of the GNU General Public License version 2 as published by the
@@ -33,6 +33,10 @@ extern const struct mxs_flexcan_data mx28_flexcan_data[] __initconst;
 	mxs_add_flexcan(&mx28_flexcan_data[id], pdata)
 #define mx28_add_flexcan0(pdata)	mx28_add_flexcan(0, pdata)
 #define mx28_add_flexcan1(pdata)	mx28_add_flexcan(1, pdata)
+
+extern const struct mxs_gpmi_nfc_data mx28_gpmi_nfc_data __initconst;
+#define mx28_add_gpmi_nfc(pdata)	\
+	mxs_add_gpmi_nfc(pdata, &mx28_gpmi_nfc_data)
 
 extern const struct mxs_i2c_data mx28_mxs_i2c_data[] __initconst;
 #define mx28_add_mxs_i2c(id)		mxs_add_mxs_i2c(&mx28_mxs_i2c_data[id])
