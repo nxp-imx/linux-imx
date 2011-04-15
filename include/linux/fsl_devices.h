@@ -266,8 +266,8 @@ struct mxc_audio_platform_data {
 	int ext_ram;
 	struct clk *ssi_clk[2];
 
-	int hp_irq;
-	int (*hp_status) (void);
+	int hp_gpio;
+	int hp_active_low;	/* headphone irq is active loaw */
 
 	int sysclk;
 

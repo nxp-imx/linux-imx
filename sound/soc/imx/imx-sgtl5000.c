@@ -15,13 +15,15 @@
 #include <linux/moduleparam.h>
 #include <linux/device.h>
 #include <linux/i2c.h>
+#include <linux/fsl_devices.h>
+#include <linux/gpio.h>
 #include <sound/core.h>
 #include <sound/pcm.h>
 #include <sound/soc.h>
+#include <sound/jack.h>
 #include <sound/soc-dapm.h>
 #include <asm/mach-types.h>
 #include <mach/audmux.h>
-#include <linux/fsl_devices.h>
 
 #include "../codecs/sgtl5000.h"
 #include "imx-ssi.h"
@@ -32,7 +34,26 @@ static struct imx_sgtl5000_priv {
 	struct platform_device *pdev;
 } card_priv;
 
+static struct snd_soc_jack hs_jack;
 static struct snd_soc_card imx_sgtl5000;
+
+/* Headphones jack detection DAPM pins */
+static struct snd_soc_jack_pin hs_jack_pins[] = {
+	{
+		.pin = "Headphone Jack",
+		.mask = SND_JACK_HEADPHONE,
+	},
+};
+
+/* Headphones jack detection gpios */
+static struct snd_soc_jack_gpio hs_jack_gpios[] = {
+	[0] = {
+		/* gpio is set on per-platform basis */
+		.name           = "hp-gpio",
+		.report         = SND_JACK_HEADPHONE,
+		.debounce_time	= 200,
+	},
+};
 
 static int sgtl5000_params(struct snd_pcm_substream *substream,
 	struct snd_pcm_hw_params *params)
@@ -226,8 +247,27 @@ static int imx_3stack_sgtl5000_init(struct snd_soc_pcm_runtime *rtd)
 
 	snd_soc_dapm_disable_pin(&codec->dapm, "Line In Jack");
 	snd_soc_dapm_enable_pin(&codec->dapm, "Headphone Jack");
-
 	snd_soc_dapm_sync(&codec->dapm);
+
+	/* Jack detection API stuff */
+	ret = snd_soc_jack_new(codec, "Headphone Jack",
+			       SND_JACK_HEADPHONE, &hs_jack);
+	if (ret)
+		return ret;
+
+	ret = snd_soc_jack_add_pins(&hs_jack, ARRAY_SIZE(hs_jack_pins),
+				hs_jack_pins);
+	if (ret) {
+		printk(KERN_ERR "failed to call  snd_soc_jack_add_pins\n");
+		return ret;
+	}
+
+	ret = snd_soc_jack_add_gpios(&hs_jack, ARRAY_SIZE(hs_jack_gpios),
+				hs_jack_gpios);
+	if (ret) {
+		printk(KERN_ERR "failed to call snd_soc_jack_add_gpios\n");
+		return ret;
+	}
 
 	return 0;
 }
@@ -290,6 +330,9 @@ static int __devinit imx_sgtl5000_probe(struct platform_device *pdev)
 		return ret;
 
 	card_priv.sysclk = plat->sysclk;
+
+	hs_jack_gpios[0].gpio = plat->hp_gpio;
+	hs_jack_gpios[0].invert = plat->hp_active_low;
 
 	return 0;
 }
