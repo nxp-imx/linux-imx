@@ -828,6 +828,9 @@ static int tve_update_detect_status(void)
 	__raw_writel(int_ctl | CD_SM_INT | CD_LM_INT,
 			tve.base + tve_regs->tve_int_cont_reg);
 
+done:
+	spin_unlock_irqrestore(&tve_lock, lock_flags);
+
 	if (old_detect != tve.detect) {
 		sysfs_notify(&tve.pdev->dev.kobj, NULL, "headphone");
 		if (tve.detect == 1)
@@ -843,8 +846,6 @@ static int tve_update_detect_status(void)
 
 	dev_dbg(&tve.pdev->dev, "detect = %d mode = %d\n",
 			tve.detect, tve.output_mode);
-done:
-	spin_unlock_irqrestore(&tve_lock, lock_flags);
 	return tve.detect;
 }
 
