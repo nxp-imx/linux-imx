@@ -64,6 +64,16 @@ struct platform_device *__init mxs_add_flexcan(
 		const struct mxs_flexcan_data *data,
 		const struct flexcan_platform_data *pdata);
 
+/* gpmi-nfc */
+#include <mach/gpmi-nfc.h>
+struct mxs_gpmi_nfc_data {
+	const char *devid;
+	const struct resource res[RES_SIZE];
+};
+struct platform_device *__init
+mxs_add_gpmi_nfc(const struct gpmi_nfc_platform_data *pdata,
+		const struct mxs_gpmi_nfc_data *data);
+
 /* i2c */
 struct mxs_i2c_data {
 	int id;
