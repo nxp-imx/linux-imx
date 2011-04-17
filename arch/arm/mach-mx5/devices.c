@@ -597,13 +597,23 @@ static struct resource mxcspi1_resources[] = {
 		.end = MXC_INT_CSPI1,
 		.flags = IORESOURCE_IRQ,
 	},
+	{
+		.start = MXC_DMA_CSPI1_TX,
+		.end = MXC_DMA_CSPI1_TX,
+		.flags = IORESOURCE_DMA,
+	},
 };
 
+static u64 spi_dma_mask = DMA_BIT_MASK(32);
 struct platform_device mxcspi1_device = {
 	.name = "mxc_spi",
 	.id = 0,
 	.num_resources = ARRAY_SIZE(mxcspi1_resources),
 	.resource = mxcspi1_resources,
+	.dev = {
+		.dma_mask = &spi_dma_mask,
+		.coherent_dma_mask = DMA_BIT_MASK(32),
+	},
 };
 
 static struct resource mxcspi2_resources[] = {
@@ -617,6 +627,11 @@ static struct resource mxcspi2_resources[] = {
 		.end = MXC_INT_CSPI2,
 		.flags = IORESOURCE_IRQ,
 	},
+	{
+		.start = MXC_DMA_CSPI2_TX,
+		.end = MXC_DMA_CSPI2_TX,
+		.flags = IORESOURCE_DMA,
+	},
 };
 
 struct platform_device mxcspi2_device = {
@@ -624,6 +639,10 @@ struct platform_device mxcspi2_device = {
 	.id = 1,
 	.num_resources = ARRAY_SIZE(mxcspi2_resources),
 	.resource = mxcspi2_resources,
+	.dev = {
+		.dma_mask = &spi_dma_mask,
+		.coherent_dma_mask = DMA_BIT_MASK(32),
+	},
 };
 
 static struct resource mxcspi3_resources[] = {
