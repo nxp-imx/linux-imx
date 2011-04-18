@@ -273,6 +273,7 @@ static irqreturn_t mxc_rtc_interrupt(int irq, void *dev_id)
 	/* clear interrupt status */
 	__raw_writel(lp_status, ioaddr + SRTC_LPSR);
 
+	rtc_write_sync_lp(ioaddr);
 	rtc_update_irq(pdata->rtc, 1, events);
 	return IRQ_HANDLED;
 }
@@ -312,37 +313,10 @@ static int mxc_rtc_ioctl(struct device *dev, unsigned int cmd,
 {
 	struct rtc_drv_data *pdata = dev_get_drvdata(dev);
 	void __iomem *ioaddr = pdata->ioaddr;
-	unsigned long lock_flags = 0;
-	u32 lp_cr;
 	u64 time_47bit;
 	int retVal;
 
 	switch (cmd) {
-	case RTC_AIE_OFF:
-		spin_lock_irqsave(&rtc_lock, lock_flags);
-		lp_cr = __raw_readl(ioaddr + SRTC_LPCR);
-		lp_cr &= ~(SRTC_LPCR_ALP | SRTC_LPCR_WAE);
-		if (((lp_cr & SRTC_LPCR_ALL_INT_EN) == 0)
-		    && (pdata->irq_enable)) {
-			disable_irq(pdata->irq);
-			pdata->irq_enable = false;
-		}
-		__raw_writel(lp_cr, ioaddr + SRTC_LPCR);
-		spin_unlock_irqrestore(&rtc_lock, lock_flags);
-		return 0;
-
-	case RTC_AIE_ON:
-		spin_lock_irqsave(&rtc_lock, lock_flags);
-		if (!pdata->irq_enable) {
-			enable_irq(pdata->irq);
-			pdata->irq_enable = true;
-		}
-		lp_cr = __raw_readl(ioaddr + SRTC_LPCR);
-		lp_cr |= SRTC_LPCR_ALP | SRTC_LPCR_WAE;
-		__raw_writel(lp_cr, ioaddr + SRTC_LPCR);
-		spin_unlock_irqrestore(&rtc_lock, lock_flags);
-		return 0;
-
 	case RTC_READ_TIME_47BIT:
 		time_47bit = (((u64) __raw_readl(ioaddr + SRTC_LPSCMR)) << 32 |
 			((u64) __raw_readl(ioaddr + SRTC_LPSCLR)));
@@ -508,8 +482,8 @@ static int mxc_rtc_set_alarm(struct device *dev, struct rtc_wkalrm *alrm)
 	__raw_writel(lp_cr, ioaddr + SRTC_LPCR);
 
 out:
-	spin_unlock_irqrestore(&rtc_lock, lock_flags);
 	rtc_write_sync_lp(ioaddr);
+	spin_unlock_irqrestore(&rtc_lock, lock_flags);
 	return ret;
 }
 
@@ -533,6 +507,39 @@ static int mxc_rtc_proc(struct device *dev, struct seq_file *seq)
 	return 0;
 }
 
+static int mxc_rtc_alarm_irq_enable(struct device *dev, unsigned int enable)
+{
+	struct rtc_drv_data *pdata = dev_get_drvdata(dev);
+	void __iomem *ioaddr = pdata->ioaddr;
+	u32 lp_cr;
+	unsigned long lock_flags = 0;
+
+	spin_lock_irqsave(&rtc_lock, lock_flags);
+
+	if (enable) {
+		if (!pdata->irq_enable) {
+			enable_irq(pdata->irq);
+			pdata->irq_enable = true;
+		}
+		lp_cr = __raw_readl(ioaddr + SRTC_LPCR);
+		lp_cr |= SRTC_LPCR_ALP | SRTC_LPCR_WAE;
+		__raw_writel(lp_cr, ioaddr + SRTC_LPCR);
+	} else {
+		lp_cr = __raw_readl(ioaddr + SRTC_LPCR);
+		lp_cr &= ~(SRTC_LPCR_ALP | SRTC_LPCR_WAE);
+		if (((lp_cr & SRTC_LPCR_ALL_INT_EN) == 0)
+		    && (pdata->irq_enable)) {
+			disable_irq(pdata->irq);
+			pdata->irq_enable = false;
+		}
+		__raw_writel(lp_cr, ioaddr + SRTC_LPCR);
+	}
+
+	rtc_write_sync_lp(ioaddr);
+	spin_unlock_irqrestore(&rtc_lock, lock_flags);
+	return 0;
+}
+
 /*!
  * The RTC driver structure
  */
@@ -545,6 +552,7 @@ static struct rtc_class_ops mxc_rtc_ops = {
 	.read_alarm = mxc_rtc_read_alarm,
 	.set_alarm = mxc_rtc_set_alarm,
 	.proc = mxc_rtc_proc,
+	.alarm_irq_enable = mxc_rtc_alarm_irq_enable,
 };
 
 /*! MXC RTC Power management control */
