@@ -22,5 +22,6 @@
 struct esdhc_platform_data {
 	unsigned int wp_gpio;
 	unsigned int cd_gpio;
+	unsigned int always_present;
 };
 #endif /* __ASM_ARCH_IMX_ESDHC_H */
