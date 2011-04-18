@@ -230,6 +230,7 @@ static void __init mx53_ard_board_init(void)
 	mxc_iomux_v3_setup_multiple_pads(mx53_ard_pads,
 					ARRAY_SIZE(mx53_ard_pads));
 	mx53_ard_init_uart();
+	imx53_add_srtc();
 	imx53_add_imx2_wdt(0, NULL);
 	imx53_add_sdhci_esdhc_imx(0, &mx53_ard_sd1_data);
 	imx53_add_sdhci_esdhc_imx(1, &mx53_ard_sd2_data);

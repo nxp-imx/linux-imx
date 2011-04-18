@@ -596,6 +596,8 @@ static void __init mx51_babbage_init(void)
 	imx51_add_imx_uart(1, &uart_pdata);
 	imx51_add_imx_uart(2, &uart_pdata);
 
+	imx51_add_srtc();
+
 	babbage_fec_reset();
 	imx51_add_fec(NULL);
 

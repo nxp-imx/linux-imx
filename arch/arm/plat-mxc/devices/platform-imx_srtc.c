@@ -28,6 +28,16 @@
 		.irq = soc ## _INT_SRTC_NTZ,				\
 	}
 
+#ifdef CONFIG_SOC_IMX50
+const struct imx_srtc_data imx50_imx_srtc_data __initconst =
+	imx_imx_srtc_data_entry_single(MX50);
+#endif /* ifdef CONFIG_SOC_IMX50 */
+
+#ifdef CONFIG_SOC_IMX51
+const struct imx_srtc_data imx51_imx_srtc_data __initconst =
+	imx_imx_srtc_data_entry_single(MX51);
+#endif /* ifdef CONFIG_SOC_IMX51 */
+
 #ifdef CONFIG_SOC_IMX53
 const struct imx_srtc_data imx53_imx_srtc_data __initconst =
 	imx_imx_srtc_data_entry_single(MX53);

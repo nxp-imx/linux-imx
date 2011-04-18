@@ -226,6 +226,7 @@ static void __init mx50_rdp_board_init(void)
 
 	imx50_add_imx_uart(0, NULL);
 	imx50_add_imx_uart(1, NULL);
+	imx50_add_srtc();
 	mx50_rdp_fec_reset();
 	imx50_add_fec(&fec_data);
 	imx50_add_imx_i2c(0, &i2c_data);

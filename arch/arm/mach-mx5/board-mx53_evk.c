@@ -724,6 +724,7 @@ static void __init mx53_evk_board_init(void)
 	mx53_evk_io_init();
 
 	mx53_evk_init_uart();
+	imx53_add_srtc();
 	mx53_evk_fec_reset();
 	imx53_add_fec(&mx53_evk_fec_pdata);
 
