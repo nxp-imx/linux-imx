@@ -1970,7 +1970,7 @@ static void __init mx50_rdp_io_init(void)
 		gpio_direction_output(UART1_RTS, 1);
 		/* isolate EIM signals and boot configuration signals. */
 		gpio_request(UART2_RX, "eim-bootcfg-iso");
-		gpio_direction_output(UART2_RX, 0);
+		gpio_direction_output(UART2_RX, 1);
 	}
 
 	/* Sii902x HDMI controller */
