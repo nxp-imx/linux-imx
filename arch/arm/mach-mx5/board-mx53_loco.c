@@ -55,6 +55,9 @@
 #define MX53_LOCO_UI2			IMX_GPIO_NR(2, 15)
 #define LOCO_FEC_PHY_RST		IMX_GPIO_NR(7, 6)
 #define LOCO_USBH1_VBUS			IMX_GPIO_NR(7, 8)
+#define MX53_LOCO_SD1_CD		IMX_GPIO_NR(3, 13)
+#define MX53_LOCO_SD3_CD		IMX_GPIO_NR(3, 11)
+#define MX53_LOCO_SD3_WP		IMX_GPIO_NR(3, 12)
 
 extern void __iomem *arm_plat_base;
 extern void __iomem *gpc_base;
@@ -94,6 +97,8 @@ static iomux_v3_cfg_t mx53_loco_pads[] = {
 	MX53_PAD_SD1_DATA1__ESDHC1_DAT1,
 	MX53_PAD_SD1_DATA2__ESDHC1_DAT2,
 	MX53_PAD_SD1_DATA3__ESDHC1_DAT3,
+	/* SD1_CD */
+	MX53_PAD_EIM_DA13__GPIO3_13,
 	/* SD3 */
 	MX53_PAD_PATA_DATA8__ESDHC3_DAT0,
 	MX53_PAD_PATA_DATA9__ESDHC3_DAT1,
@@ -381,6 +386,15 @@ static struct mxc_dvfs_platform_data loco_dvfs_core_data = {
 static struct mxc_bus_freq_platform_data loco_bus_freq_data = {
 	.gp_reg_id = "DA9052_BUCK_CORE",
 	.lp_reg_id = "DA9052_BUCK_PRO",
+};
+
+static const struct esdhc_platform_data mx53_loco_sd1_data __initconst = {
+	.cd_gpio = MX53_LOCO_SD1_CD,
+};
+
+static const struct esdhc_platform_data mx53_loco_sd3_data __initconst = {
+	.cd_gpio = MX53_LOCO_SD3_CD,
+	.wp_gpio = MX53_LOCO_SD3_WP,
 };
 
 static void mx53_loco_usbh1_vbus(bool on)
@@ -730,8 +744,8 @@ static void __init mx53_loco_board_init(void)
 	i2c_register_board_info(1, mxc_i2c1_board_info,
 				ARRAY_SIZE(mxc_i2c1_board_info));
 
-	imx53_add_sdhci_esdhc_imx(0, NULL);
-	imx53_add_sdhci_esdhc_imx(2, NULL);
+	imx53_add_sdhci_esdhc_imx(0, &mx53_loco_sd1_data);
+	imx53_add_sdhci_esdhc_imx(2, &mx53_loco_sd3_data);
 	imx53_add_ahci_imx(0, &sata_data);
 	imx53_add_iim(&iim_data);
 
