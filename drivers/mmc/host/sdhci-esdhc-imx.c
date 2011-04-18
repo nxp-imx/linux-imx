@@ -247,17 +247,24 @@ static int esdhc_pltfm_init(struct sdhci_host *host, struct sdhci_pltfm_data *pd
 	if (!cpu_is_mx25())
 		host->quirks |= SDHCI_QUIRK_BROKEN_TIMEOUT_VAL;
 
-	if (cpu_is_mx25() || cpu_is_mx35()) {
+	if (cpu_is_mx25() || cpu_is_mx35())
 		/* Fix errata ENGcm07207 present on i.MX25 and i.MX35 */
 		host->quirks |= SDHCI_QUIRK_NO_MULTIBLOCK;
-		/* write_protect can't be routed to controller, use gpio */
-		sdhci_esdhc_ops.get_ro = esdhc_pltfm_get_ro;
-	}
+
+	/* write_protect can't be routed to controller, use gpio */
+	sdhci_esdhc_ops.get_ro = esdhc_pltfm_get_ro;
 
 	if (!(cpu_is_mx25() || cpu_is_mx35() || cpu_is_mx51()))
 		imx_data->flags |= ESDHC_FLAG_MULTIBLK_NO_INT;
 
 	if (boarddata) {
+		/* Device is always present, e.x, populated emmc device */
+		if (boarddata->always_present) {
+			imx_data->flags |= ESDHC_FLAG_GPIO_FOR_CD_WP;
+			host->quirks &= ~SDHCI_QUIRK_BROKEN_CARD_DETECTION;
+			return 0;
+		}
+
 		err = gpio_request_one(boarddata->wp_gpio, GPIOF_IN, "ESDHC_WP");
 		if (err) {
 			dev_warn(mmc_dev(host->mmc),
@@ -271,10 +278,6 @@ static int esdhc_pltfm_init(struct sdhci_host *host, struct sdhci_pltfm_data *pd
 				"no card-detect pin available!\n");
 			goto no_card_detect_pin;
 		}
-
-		/* i.MX5x has issues to be researched */
-		if (!cpu_is_mx25() && !cpu_is_mx35())
-			goto not_supported;
 
 		err = request_irq(gpio_to_irq(boarddata->cd_gpio), cd_irq,
 				 IRQF_TRIGGER_FALLING | IRQF_TRIGGER_RISING,
@@ -295,7 +298,6 @@ static int esdhc_pltfm_init(struct sdhci_host *host, struct sdhci_pltfm_data *pd
 	gpio_free(boarddata->cd_gpio);
  no_card_detect_pin:
 	boarddata->cd_gpio = err;
- not_supported:
 	kfree(imx_data);
 	return 0;
 }
