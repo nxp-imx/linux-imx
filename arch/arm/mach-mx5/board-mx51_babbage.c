@@ -46,6 +46,10 @@
 #define BABBAGE_POWER_KEY	IMX_GPIO_NR(2, 21)
 #define BABBAGE_ECSPI1_CS0	IMX_GPIO_NR(4, 24)
 #define BABBAGE_ECSPI1_CS1	IMX_GPIO_NR(4, 25)
+#define MX51_BBG_SD1_CD         IMX_GPIO_NR(1, 0)
+#define MX51_BBG_SD1_WP         IMX_GPIO_NR(1, 1)
+#define MX51_BBG_SD2_CD         IMX_GPIO_NR(1, 6)
+#define MX51_BBG_SD2_WP         IMX_GPIO_NR(1, 5)
 
 /* USB_CTRL_1 */
 #define MX51_USB_CTRL_1_OFFSET			0x10
@@ -137,6 +141,10 @@ static iomux_v3_cfg_t mx51babbage_pads[] = {
 	/* FEC PHY reset line */
 	MX51_PAD_EIM_A20__GPIO2_14,
 
+	MX51_PAD_GPIO1_0__GPIO1_0,
+	MX51_PAD_GPIO1_1__GPIO1_1,
+	MX51_PAD_GPIO1_5__GPIO1_5,
+	MX51_PAD_GPIO1_6__GPIO1_6,
 	/* SD 1 */
 	MX51_PAD_SD1_CMD__SD1_CMD,
 	MX51_PAD_SD1_CLK__SD1_CLK,
@@ -172,6 +180,16 @@ static const struct imxi2c_platform_data babbage_i2c_data __initconst = {
 
 static struct imxi2c_platform_data babbage_hsi2c_data = {
 	.bitrate = 400000,
+};
+
+static const struct esdhc_platform_data mx51_bbg_sd1_data __initconst = {
+	.wp_gpio = MX51_BBG_SD1_WP,
+	.cd_gpio = MX51_BBG_SD1_CD,
+};
+
+static const struct esdhc_platform_data mx51_bbg_sd2_data __initconst = {
+	.wp_gpio = MX51_BBG_SD2_WP,
+	.cd_gpio = MX51_BBG_SD2_CD,
 };
 
 static void babbage_suspend_enter()
@@ -454,8 +472,8 @@ static void __init mx51_babbage_init(void)
 	mxc_iomux_v3_setup_pad(usbh1stp);
 	babbage_usbhub_reset();
 
-	imx51_add_sdhci_esdhc_imx(0, NULL);
-	imx51_add_sdhci_esdhc_imx(1, NULL);
+	imx51_add_sdhci_esdhc_imx(0, &mx51_bbg_sd1_data);
+	imx51_add_sdhci_esdhc_imx(1, &mx51_bbg_sd2_data);
 
 	spi_register_board_info(mx51_babbage_spi_board_info,
 		ARRAY_SIZE(mx51_babbage_spi_board_info));
