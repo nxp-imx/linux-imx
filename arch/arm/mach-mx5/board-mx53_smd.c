@@ -52,6 +52,7 @@
 
 
 #define SMD_FEC_PHY_RST		IMX_GPIO_NR(7, 6)
+#define MX53_SMD_SD1_CD         IMX_GPIO_NR(3, 13)
 #define MX53_SMD_SD1_WP         IMX_GPIO_NR(4, 11)
 #define MX53_SMD_HDMI_RESET_B   IMX_GPIO_NR(5, 0)
 #define MX53_SMD_MODEM_RESET_B  IMX_GPIO_NR(5, 2)
@@ -93,14 +94,17 @@ static iomux_v3_cfg_t mx53_smd_pads[] = {
 	MX53_PAD_GPIO_3__I2C3_SCL,
 	MX53_PAD_GPIO_6__I2C3_SDA,
 
-	/* SD1_CD */
-	MX53_PAD_EIM_DA13__GPIO3_13,
+	/* SD1 */
 	MX53_PAD_SD1_CMD__ESDHC1_CMD,
 	MX53_PAD_SD1_CLK__ESDHC1_CLK,
 	MX53_PAD_SD1_DATA0__ESDHC1_DAT0,
 	MX53_PAD_SD1_DATA1__ESDHC1_DAT1,
 	MX53_PAD_SD1_DATA2__ESDHC1_DAT2,
 	MX53_PAD_SD1_DATA3__ESDHC1_DAT3,
+	/* SD1_CD */
+	MX53_PAD_EIM_DA13__GPIO3_13,
+	/* SD1_WP */
+	MX53_PAD_KEY_ROW2__GPIO4_11,
 
 	/* SD2 */
 	MX53_PAD_SD2_CMD__ESDHC2_CMD,
@@ -263,7 +267,16 @@ static struct mxc_pm_platform_data smd_pm_data = {
 
 
 static const struct esdhc_platform_data mx53_smd_sd1_data __initconst = {
+	.cd_gpio = MX53_SMD_SD1_CD,
 	.wp_gpio = MX53_SMD_SD1_WP,
+};
+
+static const struct esdhc_platform_data mx53_smd_sd2_data __initconst = {
+	.always_present = 1,
+};
+
+static const struct esdhc_platform_data mx53_smd_sd3_data __initconst = {
+	.always_present = 1,
 };
 
 static struct fsl_mxc_camera_platform_data camera_data = {
@@ -678,9 +691,9 @@ static void __init mx53_smd_board_init(void)
 	imx53_add_v4l2_output(0);
 	imx53_add_mxc_pwm(1);
 	imx53_add_mxc_pwm_backlight(0, &mxc_pwm_backlight_data);
-	imx53_add_sdhci_esdhc_imx(0, NULL);
-	imx53_add_sdhci_esdhc_imx(1, &mx53_smd_sd1_data);
-	imx53_add_sdhci_esdhc_imx(2, NULL);
+	imx53_add_sdhci_esdhc_imx(0, &mx53_smd_sd1_data);
+	imx53_add_sdhci_esdhc_imx(1, &mx53_smd_sd2_data);
+	imx53_add_sdhci_esdhc_imx(2, &mx53_smd_sd3_data);
 	imx53_add_ahci_imx(0, &sata_data);
 
 	mx53_smd_init_usb();
