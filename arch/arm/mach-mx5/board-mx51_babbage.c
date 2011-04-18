@@ -22,11 +22,15 @@
 #include <linux/input.h>
 #include <linux/spi/flash.h>
 #include <linux/spi/spi.h>
+#include <linux/ipu.h>
+#include <linux/mxcfb.h>
+#include <linux/pwm_backlight.h>
 
 #include <mach/common.h>
 #include <mach/hardware.h>
 #include <mach/iomux-mx51.h>
 #include <mach/mxc_ehci.h>
+#include <mach/ipu-v3.h>
 
 #include <asm/irq.h>
 #include <asm/setup.h>
@@ -42,6 +46,7 @@
 #define BABBAGE_USB_HUB_RESET	IMX_GPIO_NR(1, 7)
 #define BABBAGE_USBH1_STP	IMX_GPIO_NR(1, 27)
 #define BABBAGE_PHY_RESET	IMX_GPIO_NR(2, 5)
+#define BABBAGE_VGA_RESET	IMX_GPIO_NR(2, 13)
 #define BABBAGE_FEC_PHY_RESET	IMX_GPIO_NR(2, 14)
 #define BABBAGE_POWER_KEY	IMX_GPIO_NR(2, 21)
 #define BABBAGE_ECSPI1_CS0	IMX_GPIO_NR(4, 24)
@@ -50,6 +55,17 @@
 #define MX51_BBG_SD1_WP         IMX_GPIO_NR(1, 1)
 #define MX51_BBG_SD2_CD         IMX_GPIO_NR(1, 6)
 #define MX51_BBG_SD2_WP         IMX_GPIO_NR(1, 5)
+
+#define BABBAGE_LVDS_POWER_DOWN		IMX_GPIO_NR(3, 3)	/* GPIO_3_3 */
+#define BABBAGE_DISP_BRIGHTNESS_CTL	IMX_GPIO_NR(3, 4)	/* GPIO_3_4 */
+#define BABBAGE_DVI_RESET		IMX_GPIO_NR(3, 5)	/* GPIO_3_5 */
+#define BABBAGE_DVI_POWER		IMX_GPIO_NR(3, 6)	/* GPIO_3_6 */
+#define BABBAGE_HEADPHONE_DET		IMX_GPIO_NR(3, 26)	/* GPIO_3_26 */
+#define BABBAGE_DVI_DET			IMX_GPIO_NR(3, 28)	/* GPIO_3_28 */
+
+#define BABBAGE_LCD_3V3_ON		IMX_GPIO_NR(4, 9)	/* GPIO_4_9 */
+#define BABBAGE_LCD_5V_ON		IMX_GPIO_NR(4, 10)	/* GPIO_4_10 */
+#define BABBAGE_DVI_I2C_EN		IMX_GPIO_NR(4, 14)	/* GPIO_4_14 */
 
 /* USB_CTRL_1 */
 #define MX51_USB_CTRL_1_OFFSET			0x10
@@ -167,6 +183,27 @@ static iomux_v3_cfg_t mx51babbage_pads[] = {
 	MX51_PAD_CSPI1_SCLK__ECSPI1_SCLK,
 	MX51_PAD_CSPI1_SS0__GPIO4_24,
 	MX51_PAD_CSPI1_SS1__GPIO4_25,
+
+	/* Display */
+	MX51_PAD_EIM_A19__GPIO2_13,
+	MX51_PAD_DI1_D0_CS__GPIO3_3,
+	MX51_PAD_DISPB2_SER_DIN__GPIO3_5,
+	MX51_PAD_DISPB2_SER_DIO__GPIO3_6,
+	MX51_PAD_NANDF_D14__GPIO3_26,
+	MX51_PAD_NANDF_D12__GPIO3_28,
+	MX51_PAD_CSI2_D12__GPIO4_9,
+	MX51_PAD_CSI2_D13__GPIO4_10,
+	MX51_PAD_CSI2_HSYNC__GPIO4_14,
+
+	MX51_PAD_DI_GP4__DI2_PIN15,
+	MX51_PAD_GPIO1_2__PWM1_PWMO,
+
+#ifdef CONFIG_FB_MXC_CLAA_WVGA_SYNC_PANEL
+	MX51_PAD_DISP1_DAT22__DISP2_DAT16,
+	MX51_PAD_DISP1_DAT23__DISP2_DAT17,
+
+	MX51_PAD_DI1_D1_CS__GPIO3_4,
+#endif
 };
 
 /* Serial ports */
@@ -373,6 +410,111 @@ static const struct spi_imx_master mx51_babbage_spi_pdata __initconst = {
 	.num_chipselect = ARRAY_SIZE(mx51_babbage_spi_cs),
 };
 
+static struct fb_videomode video_modes[] = {
+	{
+	 /*MITSUBISHI LVDS panel */
+	 "XGA", 60, 1024, 768, 15385,
+	 220, 40,
+	 21, 7,
+	 60, 10,
+	 0,
+	 FB_VMODE_NONINTERLACED,
+	 0,},
+	{
+	 /* 800x480 @ 57 Hz , pixel clk @ 27MHz */
+	 "CLAA-WVGA", 57, 800, 480, 37037, 40, 60, 10, 10, 20, 10,
+	 FB_SYNC_CLK_LAT_FALL,
+	 FB_VMODE_NONINTERLACED,
+	 0,},
+};
+
+static struct ipuv3_fb_platform_data bbg_fb_di0_data = {
+	.interface_pix_fmt = IPU_PIX_FMT_RGB24,
+	.mode_str = "1024x768M-16@60",
+	.modes = video_modes,
+	.num_modes = ARRAY_SIZE(video_modes),
+};
+
+static struct ipuv3_fb_platform_data bbg_fb_di1_data = {
+	.interface_pix_fmt = IPU_PIX_FMT_RGB565,
+	.mode_str = "CLAA-WVGA",
+	.modes = video_modes,
+	.num_modes = ARRAY_SIZE(video_modes),
+};
+
+static struct imx_ipuv3_platform_data ipu_data = {
+	.rev = 2,
+	.fb_head0_platform_data = &bbg_fb_di0_data,
+	.fb_head1_platform_data = &bbg_fb_di1_data,
+};
+
+static struct platform_pwm_backlight_data bbg_pwm_backlight_data = {
+	.pwm_id = 0,
+	.max_brightness = 255,
+	.dft_brightness = 128,
+	.pwm_period_ns = 78770,
+};
+
+static struct fsl_mxc_tve_platform_data tve_data = {
+	.dac_reg = "VVIDEO",
+};
+
+static void vga_reset(void)
+{
+
+	gpio_set_value(BABBAGE_VGA_RESET, 0);
+	msleep(50);
+	/* do reset */
+	gpio_set_value(BABBAGE_VGA_RESET, 1);
+	msleep(10);		/* tRES >= 50us */
+	gpio_set_value(BABBAGE_VGA_RESET, 0);
+}
+
+static struct fsl_mxc_lcd_platform_data vga_data = {
+	.core_reg = "VCAM",
+	.io_reg = "VGEN3",
+	.analog_reg = "VAUDIO",
+	.reset = vga_reset,
+};
+
+static void ddc_dvi_init()
+{
+	/* enable DVI I2C */
+	gpio_set_value(BABBAGE_DVI_I2C_EN, 1);
+}
+
+static int ddc_dvi_update()
+{
+	/* DVI cable state */
+	if (gpio_get_value(BABBAGE_DVI_DET) == 1)
+		return 1;
+	else
+		return 0;
+}
+
+static struct fsl_mxc_ddc_platform_data bbg_ddc_dvi_data = {
+	.di = 0,
+	.init = ddc_dvi_init,
+	.update = ddc_dvi_update,
+};
+
+static struct i2c_board_info mxc_i2c1_board_info[] __initdata = {
+	{
+	 .type = "mxc_ddc",
+	 .addr = 0x50,
+	 .irq = gpio_to_irq(BABBAGE_DVI_DET),
+	 .platform_data = &bbg_ddc_dvi_data,
+	 },
+};
+
+static struct i2c_board_info mxc_i2c_hs_board_info[] __initdata = {
+	{
+	 .type = "ch7026",
+	 .addr = 0x75,
+	 .platform_data = &vga_data,
+	 },
+};
+
 static struct mxc_gpu_platform_data gpu_data __initdata;
 
 static void __init fixup_mxc_board(struct machine_desc *desc, struct tag *tags,
@@ -428,6 +570,13 @@ static void __init fixup_mxc_board(struct machine_desc *desc, struct tag *tags,
 		gpu_data.reserved_mem_base =
 				mem_tag->u.mem.start + left_mem;
 		gpu_data.reserved_mem_size = gpu_mem;
+
+		/* reserver memory for fb */
+		bbg_fb_di0_data.res_base = gpu_data.reserved_mem_base
+					+ gpu_data.reserved_mem_size;
+		bbg_fb_di0_data.res_size = fb_mem;
+		bbg_fb_di1_data.res_base = bbg_fb_di0_data.res_base;
+		bbg_fb_di1_data.res_size = bbg_fb_di0_data.res_size;
 	}
 }
 
@@ -450,6 +599,14 @@ static void __init mx51_babbage_init(void)
 	babbage_fec_reset();
 	imx51_add_fec(NULL);
 
+	imx51_add_ipuv3(&ipu_data);
+	imx51_add_vpu();
+	imx51_add_tve(&tve_data);
+	imx51_add_v4l2_output(0);
+
+	imx51_add_mxc_pwm(0);
+	imx51_add_mxc_pwm_backlight(0, &bbg_pwm_backlight_data);
+
 	/* Set the PAD settings for the pwr key. */
 	mxc_iomux_v3_setup_pad(power_key);
 	imx51_add_gpio_keys(&imx_button_data);
@@ -458,6 +615,15 @@ static void __init mx51_babbage_init(void)
 	imx51_add_imx_i2c(1, &babbage_i2c_data);
 	mxc_register_device(&mxc_hsi2c_device, &babbage_hsi2c_data);
 	mxc_register_device(&mxc_pm_device, &babbage_pm_data);
+	i2c_register_board_info(1, mxc_i2c1_board_info,
+				ARRAY_SIZE(mxc_i2c1_board_info));
+
+	vga_data.core_reg = NULL;
+	vga_data.io_reg = NULL;
+	vga_data.analog_reg = NULL;
+
+	i2c_register_board_info(3, mxc_i2c_hs_board_info,
+				ARRAY_SIZE(mxc_i2c_hs_board_info));
 
 	/*if (otg_mode_host)
 		mxc_register_device(&mxc_usbdr_host_device, &dr_utmi_config);
@@ -477,6 +643,7 @@ static void __init mx51_babbage_init(void)
 
 	spi_register_board_info(mx51_babbage_spi_board_info,
 		ARRAY_SIZE(mx51_babbage_spi_board_info));
+
 	imx51_add_ecspi(0, &mx51_babbage_spi_pdata);
 	imx51_add_imx2_wdt(0, NULL);
 	imx51_add_mxc_gpu(&gpu_data);
@@ -485,6 +652,46 @@ static void __init mx51_babbage_init(void)
 	  * even if SCC2 driver is not part of the image
 	  */
 	imx51_add_mxc_scc2();
+
+	if (mx51_revision() >= IMX_CHIP_REVISION_3_0) {
+		/* DVI_I2C_ENB = 0 tristates the DVI I2C level shifter */
+		gpio_request(BABBAGE_DVI_I2C_EN, "dvi-i2c-en");
+		gpio_direction_output(BABBAGE_DVI_I2C_EN, 0);
+	}
+
+	/* Deassert VGA reset to free i2c bus */
+	gpio_request(BABBAGE_VGA_RESET, "vga-reset");
+	gpio_direction_output(BABBAGE_VGA_RESET, 1);
+
+	/* LCD related gpio */
+	gpio_request(BABBAGE_DISP_BRIGHTNESS_CTL, "disp-brightness-ctl");
+	gpio_request(BABBAGE_LVDS_POWER_DOWN, "lvds-power-down");
+	gpio_request(BABBAGE_LCD_3V3_ON, "lcd-3v3-on");
+	gpio_request(BABBAGE_LCD_5V_ON, "lcd-5v-on");
+	gpio_direction_output(BABBAGE_DISP_BRIGHTNESS_CTL, 0);
+	gpio_direction_output(BABBAGE_LVDS_POWER_DOWN, 0);
+	gpio_direction_output(BABBAGE_LCD_3V3_ON, 0);
+	gpio_direction_output(BABBAGE_LCD_5V_ON, 0);
+
+	/* DI0-LVDS */
+	gpio_set_value(BABBAGE_LVDS_POWER_DOWN, 0);
+	msleep(1);
+	gpio_set_value(BABBAGE_LVDS_POWER_DOWN, 1);
+	gpio_set_value(BABBAGE_LCD_3V3_ON, 1);
+	gpio_set_value(BABBAGE_LCD_5V_ON, 1);
+
+	/* DVI Detect */
+	gpio_request(BABBAGE_DVI_DET, "dvi-detect");
+	gpio_direction_input(BABBAGE_DVI_DET);
+	/* DVI Reset - Assert for i2c disabled mode */
+	gpio_request(BABBAGE_DVI_RESET, "dvi-reset");
+	gpio_direction_output(BABBAGE_DVI_RESET, 0);
+	/* DVI Power-down */
+	gpio_request(BABBAGE_DVI_POWER, "dvi-power");
+	gpio_direction_output(BABBAGE_DVI_POWER, 1);
+
+	/* WVGA Reset */
+	gpio_set_value(BABBAGE_DISP_BRIGHTNESS_CTL, 1);
 }
 
 static void __init mx51_babbage_timer_init(void)

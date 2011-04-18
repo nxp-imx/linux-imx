@@ -64,3 +64,28 @@ extern const struct imx_mxc_scc2_data imx51_mxc_scc2_data __initconst;
 #define imx51_add_mxc_scc2() \
 	imx_add_mxc_scc2(&imx51_mxc_scc2_data)
 
+extern const struct imx_mxc_pwm_data imx51_mxc_pwm_data[] __initconst;
+#define imx51_add_mxc_pwm(id)	\
+	imx_add_mxc_pwm(&imx51_mxc_pwm_data[id])
+
+#define imx51_add_mxc_pwm_backlight(id, pdata)                 \
+	platform_device_register_resndata(NULL, "pwm-backlight",\
+			id, NULL, 0, pdata, sizeof(*pdata));
+
+extern const struct imx_ipuv3_data imx51_ipuv3_data __initconst;
+#define imx51_add_ipuv3(pdata)	imx_add_ipuv3(&imx51_ipuv3_data, pdata)
+
+extern const struct imx_vpu_data imx51_vpu_data __initconst;
+#define imx51_add_vpu()	imx_add_vpu(&imx51_vpu_data)
+
+extern const struct imx_tve_data imx51_tve_data __initconst;
+#define imx51_add_tve(pdata)	\
+	imx_add_tve(&imx51_tve_data, pdata)
+
+#define imx51_add_v4l2_output(id)	\
+	platform_device_register_resndata(NULL, "mxc_v4l2_output",\
+			id, NULL, 0, NULL, 0);
+
+#define imx51_add_v4l2_capture(id)	\
+	platform_device_register_resndata(NULL, "mxc_v4l2_capture",\
+			id, NULL, 0, NULL, 0);
