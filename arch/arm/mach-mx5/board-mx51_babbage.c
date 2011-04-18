@@ -55,6 +55,9 @@
 #define MX51_BBG_SD1_WP         IMX_GPIO_NR(1, 1)
 #define MX51_BBG_SD2_CD         IMX_GPIO_NR(1, 6)
 #define MX51_BBG_SD2_WP         IMX_GPIO_NR(1, 5)
+#define BABBAGE_AUDAMP_STBY	IMX_GPIO_NR(2, 17)
+#define BABBAGE_HEADPHONE_DET	IMX_GPIO_NR(3, 26)
+#define BABBAGE_AUDIO_CLK_EN	IMX_GPIO_NR(4, 26)
 
 #define BABBAGE_LVDS_POWER_DOWN		IMX_GPIO_NR(3, 3)	/* GPIO_3_3 */
 #define BABBAGE_DISP_BRIGHTNESS_CTL	IMX_GPIO_NR(3, 4)	/* GPIO_3_4 */
@@ -204,6 +207,10 @@ static iomux_v3_cfg_t mx51babbage_pads[] = {
 
 	MX51_PAD_DI1_D1_CS__GPIO3_4,
 #endif
+	MX51_PAD_AUD3_BB_TXD__AUD3_TXD,
+	MX51_PAD_AUD3_BB_RXD__AUD3_RXD,
+	MX51_PAD_AUD3_BB_CK__AUD3_TXC,
+	MX51_PAD_AUD3_BB_FS__AUD3_TXFS,
 };
 
 /* Serial ports */
@@ -229,6 +236,13 @@ static const struct esdhc_platform_data mx51_bbg_sd2_data __initconst = {
 	.cd_gpio = MX51_BBG_SD2_CD,
 };
 
+static struct i2c_board_info mxc_i2c1_board_info[] __initdata = {
+	{
+	 .type = "sgtl5000",
+	 .addr = 0x0a,
+	 },
+};
+
 static void babbage_suspend_enter()
 {
 }
@@ -244,7 +258,6 @@ static struct mxc_pm_platform_data babbage_pm_data = {
 	.suspend_enter = babbage_suspend_enter,
 	.suspend_exit = babbage_suspend_exit,
 };
-
 
 static int gpio_usbh1_active(void)
 {
@@ -582,6 +595,36 @@ static void __init fixup_mxc_board(struct machine_desc *desc, struct tag *tags,
 	}
 }
 
+static struct imx_ssi_platform_data bbg_ssi_pdata = {
+	.flags = IMX_SSI_DMA,
+};
+
+static int bbg_sgtl5000_init(void)
+{
+	gpio_request(BABBAGE_AUDAMP_STBY, "audio_amp");
+	gpio_direction_input(BABBAGE_AUDAMP_STBY);
+
+	/* Enable OSC_CKIH1_EN for audio */
+	gpio_request(BABBAGE_AUDIO_CLK_EN, "audio_clk");
+	gpio_direction_output(BABBAGE_AUDIO_CLK_EN, 1);
+
+	return 0;
+}
+
+static struct mxc_audio_platform_data bbg_audio_data = {
+	.ssi_num = 1,
+	.src_port = 2,
+	.ext_port = 3,
+	.init = bbg_sgtl5000_init,
+	.sysclk = 12288000,
+	.hp_gpio = BABBAGE_HEADPHONE_DET,
+	.hp_active_low = 1,
+};
+
+static struct platform_device bbg_audio_device = {
+	.name = "imx-sgtl5000",
+};
+
 /*
  * Board specific initialization.
  */
@@ -617,6 +660,7 @@ static void __init mx51_babbage_init(void)
 
 	imx51_add_imx_i2c(0, &babbage_i2c_data);
 	imx51_add_imx_i2c(1, &babbage_i2c_data);
+
 	mxc_register_device(&mxc_hsi2c_device, &babbage_hsi2c_data);
 	mxc_register_device(&mxc_pm_device, &babbage_pm_data);
 	i2c_register_board_info(1, mxc_i2c1_board_info,
@@ -629,6 +673,8 @@ static void __init mx51_babbage_init(void)
 	i2c_register_board_info(3, mxc_i2c_hs_board_info,
 				ARRAY_SIZE(mxc_i2c_hs_board_info));
 
+	i2c_register_board_info(1, mxc_i2c1_board_info,
+				ARRAY_SIZE(mxc_i2c1_board_info));
 	/*if (otg_mode_host)
 		mxc_register_device(&mxc_usbdr_host_device, &dr_utmi_config);
 	else {
@@ -696,6 +742,10 @@ static void __init mx51_babbage_init(void)
 
 	/* WVGA Reset */
 	gpio_set_value(BABBAGE_DISP_BRIGHTNESS_CTL, 1);
+
+	mxc_register_device(&bbg_audio_device, &bbg_audio_data);
+	imx51_add_imx_ssi(1, &bbg_ssi_pdata);
+
 }
 
 static void __init mx51_babbage_timer_init(void)
