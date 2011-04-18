@@ -36,7 +36,9 @@
 #include "crm_regs.h"
 #include "devices-imx53.h"
 
+#define ARD_SD1_CD IMX_GPIO_NR(1, 1)
 #define ARD_SD1_WP IMX_GPIO_NR(1, 9)
+#define ARD_SD2_CD IMX_GPIO_NR(1, 4)
 #define ARD_SD2_WP IMX_GPIO_NR(1, 2)
 #define ARD_TS_INT IMX_GPIO_NR(7, 12)
 #define ARD_ETHERNET_INT_B IMX_GPIO_NR(2, 31)
@@ -181,11 +183,13 @@ static const struct imxuart_platform_data mx53_ard_uart_data __initconst = {
 	.flags = IMXUART_HAVE_RTSCTS,
 };
 
-static const struct esdhc_platform_data mx53_ard_sd0_data __initconst = {
+static const struct esdhc_platform_data mx53_ard_sd1_data __initconst = {
+	.cd_gpio = ARD_SD1_CD,
 	.wp_gpio = ARD_SD1_WP,
 };
 
-static const struct esdhc_platform_data mx53_ard_sd1_data __initconst = {
+static const struct esdhc_platform_data mx53_ard_sd2_data __initconst = {
+	.cd_gpio = ARD_SD2_CD,
 	.wp_gpio = ARD_SD2_WP,
 };
 
@@ -227,8 +231,8 @@ static void __init mx53_ard_board_init(void)
 					ARRAY_SIZE(mx53_ard_pads));
 	mx53_ard_init_uart();
 	imx53_add_imx2_wdt(0, NULL);
-	imx53_add_sdhci_esdhc_imx(0, &mx53_ard_sd0_data);
-	imx53_add_sdhci_esdhc_imx(1, &mx53_ard_sd1_data);
+	imx53_add_sdhci_esdhc_imx(0, &mx53_ard_sd1_data);
+	imx53_add_sdhci_esdhc_imx(1, &mx53_ard_sd2_data);
 
 	weim_cs_config();
 	mx53_ard_io_init();
