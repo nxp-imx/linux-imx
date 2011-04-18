@@ -564,6 +564,16 @@ static struct mxc_bus_freq_platform_data evk_bus_freq_data = {
 	.lp_reg_id = "SW2",
 };
 
+static const struct esdhc_platform_data mx53_evk_sd1_data __initconst = {
+	.cd_gpio = EVK_SD1_CD,
+	.wp_gpio = EVK_SD1_WP,
+};
+
+static const struct esdhc_platform_data mx53_evk_sd3_data __initconst = {
+	.cd_gpio = EVK_SD3_CD,
+	.wp_gpio = EVK_SD3_WP,
+};
+
 static int __initdata enable_spdif = { 0 };
 static int __init spdif_setup(char *__unused)
 {
@@ -736,8 +746,8 @@ static void __init mx53_evk_board_init(void)
 	i2c_register_board_info(1, mxc_i2c1_board_info,
 				ARRAY_SIZE(mxc_i2c1_board_info));
 
-	imx53_add_sdhci_esdhc_imx(0, NULL);
-	imx53_add_sdhci_esdhc_imx(1, NULL);
+	imx53_add_sdhci_esdhc_imx(0, &mx53_evk_sd1_data);
+	imx53_add_sdhci_esdhc_imx(2, &mx53_evk_sd3_data);
 
 	spi_register_board_info(mx53_evk_spi_board_info,
 		ARRAY_SIZE(mx53_evk_spi_board_info));
