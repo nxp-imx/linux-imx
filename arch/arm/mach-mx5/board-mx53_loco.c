@@ -337,7 +337,7 @@ static struct ipuv3_fb_platform_data loco_fb_di0_data = {
 
 static struct ipuv3_fb_platform_data loco_fb_di1_data = {
 	.interface_pix_fmt = IPU_PIX_FMT_GBR24,
-	.mode_str = "1024x768M-16@60",
+	.mode_str = "VGA-XGA",
 	.modes = video_modes,
 	.num_modes = ARRAY_SIZE(video_modes),
 };
@@ -346,6 +346,7 @@ static struct imx_ipuv3_platform_data ipu_data = {
 	.rev = 3,
 	.fb_head0_platform_data = &loco_fb_di0_data,
 	.fb_head1_platform_data = &loco_fb_di1_data,
+	.primary_di = MXC_PRI_DI1,
 };
 
 static struct platform_pwm_backlight_data loco_pwm_backlight_data = {
@@ -357,6 +358,7 @@ static struct platform_pwm_backlight_data loco_pwm_backlight_data = {
 
 static struct fsl_mxc_tve_platform_data tve_data = {
 	.dac_reg = "DA9052_LDO7",
+	.boot_enable = MXC_TVE_VGA,
 };
 
 static struct mxc_dvfs_platform_data loco_dvfs_core_data = {

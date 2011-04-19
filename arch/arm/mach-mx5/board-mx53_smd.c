@@ -368,6 +368,7 @@ static void sii9022_hdmi_reset(void)
 static struct fsl_mxc_lcd_platform_data sii902x_hdmi_data = {
 	.reset = sii9022_hdmi_reset,
 	.analog_reg = "DA9052_LDO2",
+	.boot_enable = 1,
 };
 
 static struct i2c_board_info mxc_i2c2_board_info[] __initdata = {
@@ -658,6 +659,7 @@ static struct imx_ipuv3_platform_data ipu_data = {
 	.rev = 3,
 	.fb_head0_platform_data = &smd_fb_di0_data,
 	.fb_head1_platform_data = &smd_fb_di1_data,
+	.primary_di = MXC_PRI_DI1,
 };
 
 static struct platform_pwm_backlight_data mxc_pwm_backlight_data = {
@@ -669,6 +671,7 @@ static struct platform_pwm_backlight_data mxc_pwm_backlight_data = {
 
 static struct fsl_mxc_ldb_platform_data ldb_data = {
 	.ext_ref = 1,
+	.boot_enable = MXC_LDBDI1,
 };
 
 static void __init mx53_smd_board_init(void)

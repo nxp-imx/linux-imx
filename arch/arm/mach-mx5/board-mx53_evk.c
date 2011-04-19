@@ -387,24 +387,25 @@ static struct fb_videomode video_modes[] = {
 	0,},
 };
 
-static struct ipuv3_fb_platform_data loco_fb_di0_data = {
+static struct ipuv3_fb_platform_data evk_fb_di0_data = {
 	.interface_pix_fmt = IPU_PIX_FMT_RGB565,
 	.mode_str = "CLAA-WVGA",
 	.modes = video_modes,
 	.num_modes = ARRAY_SIZE(video_modes),
 };
 
-static struct ipuv3_fb_platform_data loco_fb_di1_data = {
+static struct ipuv3_fb_platform_data evk_fb_di1_data = {
 	.interface_pix_fmt = IPU_PIX_FMT_GBR24,
-	.mode_str = "1024x768M-16@60",
+	.mode_str = "VGA-XGA",
 	.modes = video_modes,
 	.num_modes = ARRAY_SIZE(video_modes),
 };
 
 static struct imx_ipuv3_platform_data ipu_data = {
 	.rev = 3,
-	.fb_head0_platform_data = &loco_fb_di0_data,
-	.fb_head1_platform_data = &loco_fb_di1_data,
+	.fb_head0_platform_data = &evk_fb_di0_data,
+	.fb_head1_platform_data = &evk_fb_di1_data,
+	.primary_di = MXC_PRI_DI0,
 };
 
 static struct platform_pwm_backlight_data evk_pwm_backlight_data = {

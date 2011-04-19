@@ -446,6 +446,7 @@ static struct imx_ipuv3_platform_data ipu_data = {
 	.rev = 2,
 	.fb_head0_platform_data = &bbg_fb_di0_data,
 	.fb_head1_platform_data = &bbg_fb_di1_data,
+	.primary_di = MXC_PRI_DI0,
 };
 
 static struct platform_pwm_backlight_data bbg_pwm_backlight_data = {
@@ -496,6 +497,7 @@ static struct fsl_mxc_ddc_platform_data bbg_ddc_dvi_data = {
 	.di = 0,
 	.init = ddc_dvi_init,
 	.update = ddc_dvi_update,
+	.boot_enable = 1,
 };
 
 static struct i2c_board_info mxc_i2c1_board_info[] __initdata = {

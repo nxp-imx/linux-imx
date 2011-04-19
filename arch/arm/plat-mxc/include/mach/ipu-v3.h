@@ -33,6 +33,9 @@ struct imx_ipuv3_platform_data {
 	void (*pg) (int);
 	struct ipuv3_fb_platform_data	*fb_head0_platform_data;
 	struct ipuv3_fb_platform_data	*fb_head1_platform_data;
+#define MXC_PRI_DI0	1
+#define MXC_PRI_DI1	2
+	int primary_di;
 };
 
 #endif /* __MACH_IPU_V3_H_ */
