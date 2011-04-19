@@ -104,8 +104,10 @@ static int enabled;		/* enable power on or not */
 DEFINE_SPINLOCK(tve_lock);
 
 static struct fb_info *tve_fbi;
-static bool g_enable_tve;
-static bool g_enable_vga;
+#define MXC_ENABLE	1
+#define MXC_DISABLE	2
+static int g_enable_tve;
+static int g_enable_vga;
 
 struct tve_data {
 	struct platform_device *pdev;
@@ -1123,8 +1125,27 @@ static int tve_probe(struct platform_device *pdev)
 	struct fsl_mxc_tve_platform_data *plat_data = pdev->dev.platform_data;
 	u32 conf_reg;
 
-	if (g_enable_tve == false && g_enable_vga == false)
-		return -EPERM;
+	/*
+	 * tve/vga can be enabled by platform data when there is
+	 * no setting from cmdline setup
+	 */
+	if ((plat_data->boot_enable & MXC_TVE_TVOUT)
+		&& !g_enable_tve)
+		g_enable_tve = MXC_ENABLE;
+	if (!g_enable_tve)
+		g_enable_tve = MXC_DISABLE;
+
+	if ((plat_data->boot_enable & MXC_TVE_VGA) &&
+		!g_enable_vga)
+		g_enable_vga = MXC_ENABLE;
+	if (!g_enable_vga)
+		g_enable_vga = MXC_DISABLE;
+
+	if (g_enable_tve == MXC_DISABLE &&
+		g_enable_vga == MXC_DISABLE) {
+		printk(KERN_WARNING "By setting, TVE driver will not be enabled\n");
+		return 0;
+	}
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	if (res == NULL)
@@ -1196,16 +1217,16 @@ static int tve_probe(struct platform_device *pdev)
 
 	/* TVE is on disp port 1 */
 	if (tve.revision == 1) {
-		if (g_enable_tve)
+		if (g_enable_tve == MXC_ENABLE)
 			mxcfb_register_mode(IPU_DISP_PORT, video_modes,
 					3, MXC_DISP_SPEC_DEV);
 	} else {
-		if (g_enable_tve)
+		if (g_enable_tve == MXC_ENABLE)
 			mxcfb_register_mode(IPU_DISP_PORT, video_modes,
 					ARRAY_SIZE(video_modes),
 					MXC_DISP_SPEC_DEV);
 
-		if (cpu_is_mx53() && g_enable_vga)
+		if (cpu_is_mx53() && (g_enable_vga == MXC_ENABLE))
 			mxcfb_register_mode(IPU_DISP_PORT, video_modes_vga,
 					ARRAY_SIZE(video_modes_vga),
 					MXC_DISP_SPEC_DEV);
@@ -1269,7 +1290,10 @@ static struct platform_driver tve_driver = {
 
 static int __init enable_tve_setup(char *options)
 {
-	g_enable_tve = true;
+	if (!strcmp(options, "=off"))
+		g_enable_tve = MXC_DISABLE;
+	else
+		g_enable_tve = MXC_ENABLE;
 
 	return 1;
 }
@@ -1277,7 +1301,10 @@ __setup("tve", enable_tve_setup);
 
 static int __init enable_vga_setup(char *options)
 {
-	g_enable_vga = true;
+	if (!strcmp(options, "=off"))
+		g_enable_vga = MXC_DISABLE;
+	else
+		g_enable_vga = MXC_ENABLE;
 
 	return 1;
 }

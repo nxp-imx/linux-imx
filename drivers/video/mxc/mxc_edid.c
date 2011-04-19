@@ -64,7 +64,9 @@ struct mxc_ddc_data {
 	struct regulator *analog_reg;
 } mxc_ddc;
 
-static bool g_enable_ddc;
+#define MXC_ENABLE	1
+#define MXC_DISABLE	2
+static int g_enable_ddc;
 
 void mxc_edid_parse_ext_blk(unsigned char *edid,
 		struct mxc_edid_cfg *cfg,
@@ -292,8 +294,15 @@ static int __devinit mxc_ddc_probe(struct i2c_client *client,
 	struct fb_info edid_fbi;
 	struct fsl_mxc_ddc_platform_data *plat = client->dev.platform_data;
 
-	if (g_enable_ddc == false)
-		return -EPERM;
+	if (plat->boot_enable && !g_enable_ddc)
+		g_enable_ddc = MXC_ENABLE;
+	if (!g_enable_ddc)
+		g_enable_ddc = MXC_DISABLE;
+
+	if (g_enable_ddc == MXC_DISABLE) {
+		printk(KERN_WARNING "By setting, DDC driver will not be enabled\n");
+		return 0;
+	}
 
 	mxc_ddc.client = client;
 	mxc_ddc.di = plat->di;
@@ -368,7 +377,10 @@ static int __devexit mxc_ddc_remove(struct i2c_client *client)
 
 static int __init enable_ddc_setup(char *options)
 {
-	g_enable_ddc = true;
+	if (!strcmp(options, "=off"))
+		g_enable_ddc = MXC_DISABLE;
+	else
+		g_enable_ddc = MXC_ENABLE;
 
 	return 1;
 }

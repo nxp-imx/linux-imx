@@ -18,7 +18,6 @@
  *
  * @ingroup IPU
  */
-#define DEBUG
 #include <linux/types.h>
 #include <linux/init.h>
 #include <linux/platform_device.h>
@@ -243,12 +242,19 @@ static struct clk pixel_clk[] = {
 };
 
 int __initdata primary_di = { 0 };
-static int __init di_setup(char *__unused)
+static int __init di1_setup(char *__unused)
 {
-	primary_di = 1;
+	primary_di = MXC_PRI_DI1;
 	return 1;
 }
-__setup("di1_primary", di_setup);
+__setup("di1_primary", di1_setup);
+
+static int __init di0_setup(char *__unused)
+{
+	primary_di = MXC_PRI_DI0;
+	return 1;
+}
+__setup("di0_primary", di0_setup);
 
 struct platform_device *__init imx_add_ipuv3_fb(
 		const struct ipuv3_fb_platform_data *pdata, int id)
@@ -279,7 +285,10 @@ static int __init register_fb_device(struct platform_device *pdev)
 {
 	struct imx_ipuv3_platform_data *plat_data = pdev->dev.platform_data;
 
-	if (primary_di) {
+	if (!primary_di)
+		primary_di = plat_data->primary_di;
+
+	if (primary_di == MXC_PRI_DI1) {
 		dev_info(g_ipu_dev, "DI1 is primary\n");
 		/* DI1 -> DP-BG channel: */
 		imx_add_ipuv3_fb(plat_data->fb_head1_platform_data, 1);

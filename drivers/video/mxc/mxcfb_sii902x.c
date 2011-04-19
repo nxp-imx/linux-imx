@@ -52,7 +52,9 @@
 
 #define IPU_DISP_PORT 0
 #define SII_EDID_LEN	256
-static bool g_enable_hdmi;
+#define MXC_ENABLE	1
+#define MXC_DISABLE	2
+static int g_enable_hdmi;
 
 struct sii902x_data {
 	struct platform_device *pdev;
@@ -324,8 +326,16 @@ static int __devinit sii902x_probe(struct i2c_client *client,
 	struct fsl_mxc_lcd_platform_data *plat = client->dev.platform_data;
 	struct fb_info edid_fbi;
 
-	if (g_enable_hdmi == false)
-		return -EPERM;
+	if (plat->boot_enable &&
+		!g_enable_hdmi)
+		g_enable_hdmi = MXC_ENABLE;
+	if (!g_enable_hdmi)
+		g_enable_hdmi = MXC_DISABLE;
+
+	if (g_enable_hdmi == MXC_DISABLE) {
+		printk(KERN_WARNING "By setting, SII driver will not be enabled\n");
+		return 0;
+	}
 
 	sii902x.client = client;
 
@@ -497,7 +507,10 @@ static void __exit sii902x_exit(void)
 
 static int __init enable_hdmi_setup(char *options)
 {
-	g_enable_hdmi = true;
+	if (!strcmp(options, "=off"))
+		g_enable_hdmi = MXC_DISABLE;
+	else
+		g_enable_hdmi = MXC_ENABLE;
 
 	return 1;
 }
