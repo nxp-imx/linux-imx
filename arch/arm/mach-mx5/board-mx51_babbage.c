@@ -239,13 +239,6 @@ static const struct esdhc_platform_data mx51_bbg_sd2_data __initconst = {
 	.cd_gpio = MX51_BBG_SD2_CD,
 };
 
-static struct i2c_board_info mxc_i2c1_board_info[] __initdata = {
-	{
-	 .type = "sgtl5000",
-	 .addr = 0x0a,
-	 },
-};
-
 static void babbage_suspend_enter()
 {
 }
@@ -518,6 +511,10 @@ static struct fsl_mxc_ddc_platform_data bbg_ddc_dvi_data = {
 
 static struct i2c_board_info mxc_i2c1_board_info[] __initdata = {
 	{
+	 .type = "sgtl5000",
+	 .addr = 0x0a,
+	 },
+	{
 	 .type = "mxc_ddc",
 	 .addr = 0x50,
 	 .irq = gpio_to_irq(BABBAGE_DVI_DET),
@@ -677,8 +674,6 @@ static void __init mx51_babbage_init(void)
 	i2c_register_board_info(3, mxc_i2c_hs_board_info,
 				ARRAY_SIZE(mxc_i2c_hs_board_info));
 
-	i2c_register_board_info(1, mxc_i2c1_board_info,
-				ARRAY_SIZE(mxc_i2c1_board_info));
 	/*if (otg_mode_host)
 		mxc_register_device(&mxc_usbdr_host_device, &dr_utmi_config);
 	else {
