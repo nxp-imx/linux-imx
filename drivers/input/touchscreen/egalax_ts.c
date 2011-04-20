@@ -25,7 +25,6 @@
  * touch. */
 
 /* TODO:
-  - suspend support
   - auto idle mode support
   - early suspend support for android
 */
@@ -36,6 +35,7 @@
 #include <linux/interrupt.h>
 #include <linux/input.h>
 #include <linux/irq.h>
+#include <linux/gpio.h>
 #include <linux/delay.h>
 #include <linux/slab.h>
 #include <linux/bitops.h>
@@ -139,11 +139,17 @@ retry:
 		events[id].x = x;
 		events[id].y = y;
 
+#ifdef FORCE_SINGLE_POINTER_SUPPORT
+		input_report_abs(input_dev, ABS_X, x);
+		input_report_abs(input_dev, ABS_Y, y);
+		input_event(data->input_dev, EV_KEY, BTN_TOUCH, 1);
+#else
 		for (i = 0; i < MAX_SUPPORT_POINTS; i++) {
 			if (!events[i].valid)
 				continue;
 			dev_dbg(&client->dev, "report id:%d valid:%d x:%d y:%d",
 				i, valid, x, y);
+
 			input_report_abs(input_dev,
 					 ABS_MT_TRACKING_ID, i);
 			input_report_abs(input_dev,
@@ -154,17 +160,21 @@ retry:
 					 ABS_MT_POSITION_Y, events[i].y);
 			input_mt_sync(input_dev);
 		}
-		input_sync(input_dev);
+#endif
 	} else {
 		dev_dbg(&client->dev, "release id:%d\n", id);
 		events[id].valid = 0;
 		events[id].status = 0;
+#ifdef FORCE_SINGLE_POINTER_SUPPORT
+		input_report_key(input_dev, BTN_TOUCH, 0);
+#else
 		input_report_abs(input_dev, ABS_MT_TRACKING_ID, id);
 		input_event(input_dev, EV_ABS, ABS_MT_TOUCH_MAJOR, 0);
 		input_mt_sync(input_dev);
-		input_sync(input_dev);
+#endif
 	}
 
+	input_sync(input_dev);
 	return IRQ_HANDLED;
 }
 
@@ -223,13 +233,15 @@ static int __devinit egalax_ts_probe(struct i2c_client *client,
 	__set_bit(ABS_Y, input_dev->absbit);
 	input_set_abs_params(input_dev, ABS_X, 0, 32767, 0, 0);
 	input_set_abs_params(input_dev, ABS_Y, 0, 32767, 0, 0);
+
+#ifndef FORCE_SINGLE_POINTER_SUPPORT
 	input_set_abs_params(input_dev, ABS_MT_POSITION_X, 0, 32767, 0, 0);
 	input_set_abs_params(input_dev, ABS_MT_POSITION_Y, 0, 32767, 0, 0);
 	input_set_abs_params(input_dev, ABS_MT_TOUCH_MAJOR, 0, 255, 0, 0);
 	input_set_abs_params(input_dev, ABS_MT_WIDTH_MAJOR, 0, 255, 0, 0);
 	input_set_abs_params(input_dev, ABS_MT_TRACKING_ID, 0,
 			     MAX_SUPPORT_POINTS, 0, 0);
-
+#endif
 	input_set_drvdata(input_dev, data);
 
 	ret = request_threaded_irq(client->irq, NULL, egalax_ts_interrupt,
@@ -277,13 +289,32 @@ MODULE_DEVICE_TABLE(i2c, egalax_ts_id);
 #ifdef CONFIG_PM_SLEEP
 static int egalax_ts_suspend(struct device *dev)
 {
-	/* TODO */
-	return 0;
+	int ret;
+	u8 suspend_cmd[MAX_I2C_DATA_LEN] = {0x3, 0x6, 0xa, 0x3, 0x36,
+					    0x3f, 0x2, 0, 0, 0};
+	struct i2c_client *client = to_i2c_client(dev);
+	ret = i2c_master_send(client, suspend_cmd,
+			       MAX_I2C_DATA_LEN);
+	return ret > 0 ? 0 : ret;
 }
 
 static int egalax_ts_resume(struct device *dev)
 {
-	/* TODO */
+	struct i2c_client *client = to_i2c_client(dev);
+	int gpio = irq_to_gpio(client->irq);
+	int ret;
+
+	ret = gpio_request(gpio, "egalax_irq");
+	if (ret < 0) {
+		dev_err(&client->dev, "request gpio failed:%d\n", ret);
+		return ret;
+	}
+	/* wake up controller via an falling edge on IRQ. */
+	gpio_direction_output(gpio, 0);
+	gpio_set_value(gpio, 1);
+	/* controller should be waken up, return irq.  */
+	gpio_direction_input(gpio);
+	gpio_free(gpio);
 	return 0;
 }
 #endif
