@@ -1861,7 +1861,8 @@ static void __init mx50_rdp_io_init(void)
 	gpio_request(HDMI_RESET, "hdmi-reset");
 	gpio_direction_output(HDMI_RESET, 1);
 	gpio_request(HDMI_PWR_ENABLE, "hdmi-pwr-enable");
-	gpio_direction_output(HDMI_PWR_ENABLE, 0);
+	gpio_direction_output(HDMI_PWR_ENABLE, 1);
+	gpio_set_value(HDMI_PWR_ENABLE, 0);
 	gpio_request(HDMI_DETECT, "hdmi-detect");
 	gpio_direction_input(HDMI_DETECT);
 
