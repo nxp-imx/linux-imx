@@ -11,7 +11,7 @@ obj-$(CONFIG_SOC_IMX51) += clock.o
 obj-$(CONFIG_SOC_IMX53) += clock.o
 
 obj-$(CONFIG_CPU_FREQ_IMX)    += cpu_op-mx51.o cpu_op-mx53.o cpu_op-mx50.o
-obj-$(CONFIG_MACH_MX51_BABBAGE) += board-mx51_babbage.o
+obj-$(CONFIG_MACH_MX51_BABBAGE) += board-mx51_babbage.o mx51_babbage_pmic_mc13892.o
 obj-$(CONFIG_MACH_MX51_3DS) += board-mx51_3ds.o
 obj-$(CONFIG_MACH_MX53_EVK) += board-mx53_evk.o
 obj-$(CONFIG_MACH_MX53_SMD) += board-mx53_smd.o mx53_smd_pmic_da9053.o

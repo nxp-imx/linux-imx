@@ -184,8 +184,11 @@ static iomux_v3_cfg_t mx51babbage_pads[] = {
 	MX51_PAD_CSPI1_MISO__ECSPI1_MISO,
 	MX51_PAD_CSPI1_MOSI__ECSPI1_MOSI,
 	MX51_PAD_CSPI1_SCLK__ECSPI1_SCLK,
+	MX51_PAD_CSPI1_SS0__ECSPI1_SS0,
 	MX51_PAD_CSPI1_SS0__GPIO4_24,
 	MX51_PAD_CSPI1_SS1__GPIO4_25,
+	MX51_PAD_CSPI1_RDY__GPIO4_26,
+	MX51_PAD_CSPI1_SS1__ECSPI1_SS1,
 
 	/* Display */
 	MX51_PAD_EIM_A19__GPIO2_13,
@@ -599,6 +602,7 @@ static struct imx_ssi_platform_data bbg_ssi_pdata = {
 	.flags = IMX_SSI_DMA,
 };
 
+extern int mx51_babbage_init_mc13892(void);
 static int bbg_sgtl5000_init(void)
 {
 	gpio_request(BABBAGE_AUDAMP_STBY, "audio_amp");
@@ -743,6 +747,7 @@ static void __init mx51_babbage_init(void)
 	/* WVGA Reset */
 	gpio_set_value(BABBAGE_DISP_BRIGHTNESS_CTL, 1);
 
+	mx51_babbage_init_mc13892();
 	mxc_register_device(&bbg_audio_device, &bbg_audio_data);
 	imx51_add_imx_ssi(1, &bbg_ssi_pdata);
 
