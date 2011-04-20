@@ -730,6 +730,11 @@ static struct i2c_board_info mxc_i2c2_board_info[] __initdata = {
 	.platform_data = &p1003_ts_data,
 	},
 	{
+		.type = "egalax_ts",
+		.addr = 0x4,
+		.irq = gpio_to_irq(MX53_SMD_CAP_TCH_INT1),
+	},
+	{
 	.type = "isl29023",
 	.addr = 0x44,
 	.irq  = gpio_to_irq(MX53_SMD_ALS_INT),
