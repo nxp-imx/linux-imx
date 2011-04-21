@@ -654,6 +654,8 @@ static void pxp_clk_enable(struct pxps *pxp)
 
 static void pxp_clk_disable(struct pxps *pxp)
 {
+	unsigned long flags;
+
 	mutex_lock(&pxp->clk_mutex);
 
 	if (pxp->clk_stat == CLK_STAT_OFF) {
@@ -661,8 +663,13 @@ static void pxp_clk_disable(struct pxps *pxp)
 		return;
 	}
 
-	clk_disable(pxp->clk);
-	pxp->clk_stat = CLK_STAT_OFF;
+	spin_lock_irqsave(&pxp->lock, flags);
+	if ((pxp->pxp_ongoing == 0) && list_empty(&head)) {
+		spin_unlock_irqrestore(&pxp->lock, flags);
+		clk_disable(pxp->clk);
+		pxp->clk_stat = CLK_STAT_OFF;
+	} else
+		spin_unlock_irqrestore(&pxp->lock, flags);
 
 	mutex_unlock(&pxp->clk_mutex);
 }
@@ -1088,7 +1095,9 @@ static void pxp_issue_pending(struct dma_chan *chan)
 		return;
 	}
 
+	spin_lock_irqsave(&pxp->lock, flags);
 	pxp->pxp_ongoing = 1;
+	spin_unlock_irqrestore(&pxp->lock, flags);
 	pxpdma_dostart_work(pxp);
 }
 
