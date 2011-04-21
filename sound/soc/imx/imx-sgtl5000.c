@@ -264,10 +264,8 @@ static int imx_3stack_sgtl5000_init(struct snd_soc_pcm_runtime *rtd)
 
 	ret = snd_soc_jack_add_gpios(&hs_jack, ARRAY_SIZE(hs_jack_gpios),
 				hs_jack_gpios);
-	if (ret) {
-		printk(KERN_ERR "failed to call snd_soc_jack_add_gpios\n");
-		return ret;
-	}
+	if (ret)
+		printk(KERN_WARNING "failed to call snd_soc_jack_add_gpios\n");
 
 	return 0;
 }
