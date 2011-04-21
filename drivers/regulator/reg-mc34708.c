@@ -691,7 +691,7 @@ static int mc34708_sw_set_normal_voltage(struct regulator_dev *reg, int minuV,
 	switch (id) {
 	case MC34708_SW1A:
 		voltage =
-		    uv_to_bit_value(mV * 1000, SW1_MIN_UV, SW1_MAX_UV,
+			uv_to_bit_value(mV * 1000, SW1_MIN_UV, SW1_MAX_UV,
 				    SW1_STEP_UV);
 		register_val = BITFVAL(SW1A, voltage);
 		register_mask = BITFMASK(SW1A);
@@ -699,7 +699,7 @@ static int mc34708_sw_set_normal_voltage(struct regulator_dev *reg, int minuV,
 		break;
 	case MC34708_SW1B:
 		voltage =
-		    uv_to_bit_value(mV * 1000, SW1_MIN_UV, SW1_MAX_UV,
+			uv_to_bit_value(mV * 1000, SW1_MIN_UV, SW1_MAX_UV,
 				    SW1_STEP_UV);
 		register_val = BITFVAL(SW1B, voltage);
 		register_mask = BITFMASK(SW1B);
@@ -707,14 +707,16 @@ static int mc34708_sw_set_normal_voltage(struct regulator_dev *reg, int minuV,
 		break;
 	case MC34708_SW2:
 		voltage =
-		    uv_to_bit_value(mV, SW2_MIN_UV, SW2_MAX_UV, SW2_STEP_UV);
+			uv_to_bit_value(mV * 1000, SW2_MIN_UV, SW2_MAX_UV,
+					SW2_STEP_UV);
 		register_val = BITFVAL(SW2, voltage);
 		register_mask = BITFMASK(SW2);
 		register1 = MC34708_REG_SW2_3;
 		break;
 	case MC34708_SW3:
 		voltage =
-		    mv_to_bit_value(mV, SW3_MIN_MV, SW3_MAX_MV, SW3_STEP_MV);
+			mv_to_bit_value(mV, SW3_MIN_MV, SW3_MAX_MV,
+					SW3_STEP_MV);
 		register_val = BITFVAL(SW3, voltage);
 		register_mask = BITFMASK(SW3);
 		register1 = MC34708_REG_SW2_3;
