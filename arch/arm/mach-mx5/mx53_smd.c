@@ -978,6 +978,14 @@ static struct mxc_spdif_platform_data mxc_spdif_data = {
 	.spdif_clk = NULL,	/* spdif bus clk */
 };
 
+static struct mxc_audio_platform_data spdif_audio_data = {
+	.ext_ram = 1,
+};
+
+static struct platform_device mxc_spdif_audio_device = {
+	.name = "imx-spdif-audio-device",
+};
+
 static void mx53_smd_bt_reset(void)
 {
 	gpio_request(MX53_SMD_BT_RESET, "bt-reset");
@@ -1306,6 +1314,7 @@ static void __init mxc_board_init(void)
 				ARRAY_SIZE(mxc_i2c2_board_info));
 
 	mxc_register_device(&mxc_sgtl5000_device, &sgtl5000_data);
+	mxc_register_device(&mxc_spdif_audio_device, &spdif_audio_data);
 	mx5_set_otghost_vbus_func(mx53_gpio_usbotg_driver_vbus);
 	mx5_usb_dr_init();
 	mx5_usbh1_init();
