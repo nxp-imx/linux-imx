@@ -1172,6 +1172,14 @@ static struct mxc_spdif_platform_data mxc_spdif_data = {
 	.spdif_clk = NULL,	/* spdif bus clk */
 };
 
+static struct mxc_audio_platform_data spdif_audio_data = {
+	.ext_ram = 1,
+};
+
+static struct platform_device mxc_spdif_audio_device = {
+	.name = "imx-spdif-audio-device",
+};
+
 static struct mxc_audio_platform_data mxc_surround_audio_data = {
 	.ext_ram = 1,
 	.sysclk = 22579200,
@@ -1527,6 +1535,7 @@ static void __init mxc_board_init(void)
 	pm_power_off = mxc_power_off;
 	*/
 	mxc_register_device(&mxc_sgtl5000_device, &sgtl5000_data);
+	mxc_register_device(&mxc_spdif_audio_device, &spdif_audio_data);
 	mxc_register_device(&mxc_mlb_device, &mlb_data);
 	mxc_register_device(&mxc_powerkey_device, &pwrkey_data);
 	mx5_set_otghost_vbus_func(mx53_gpio_usbotg_driver_vbus);
