@@ -47,8 +47,7 @@
 #include <linux/gpio.h>
 #include <linux/regulator/driver.h>
 #include <linux/fsl_devices.h>
-
-#include <linux/time.h>
+#include <linux/bitops.h>
 
 #include "epdc_regs.h"
 
@@ -171,10 +170,15 @@ struct mxc_epdc_fb_data {
 	struct work_struct epdc_submit_work;
 	bool waiting_for_wb;
 	bool waiting_for_lut;
+	bool waiting_for_lut15;
 	struct completion update_res_free;
+	struct completion lut15_free;
+	struct completion eof_event;
+	int eof_sync_period;
 	struct mutex power_mutex;
 	bool powering_down;
 	int pwrdown_delay;
+	unsigned long tce_prevent;
 
 	/* FB elements related to PxP DMA */
 	struct completion pxp_tx_cmpl;
@@ -480,6 +484,25 @@ static inline void epdc_clear_working_buf_irq(void)
 		     EPDC_IRQ_CLEAR);
 }
 
+static inline void epdc_eof_intr(bool enable)
+{
+	if (enable)
+		__raw_writel(EPDC_IRQ_FRAME_END_IRQ, EPDC_IRQ_MASK_SET);
+	else
+		__raw_writel(EPDC_IRQ_FRAME_END_IRQ, EPDC_IRQ_MASK_CLEAR);
+}
+
+static inline void epdc_clear_eof_irq(void)
+{
+	__raw_writel(EPDC_IRQ_FRAME_END_IRQ, EPDC_IRQ_CLEAR);
+}
+
+static inline bool epdc_signal_eof(void)
+{
+	return (__raw_readl(EPDC_IRQ_MASK) & __raw_readl(EPDC_IRQ)
+		& EPDC_IRQ_FRAME_END_IRQ) ? true : false;
+}
+
 static inline void epdc_set_temp(u32 temp)
 {
 	__raw_writel(temp, EPDC_TEMP);
@@ -577,6 +600,21 @@ static inline int epdc_get_next_lut(void)
 	    __raw_readl(EPDC_STATUS_NEXTLUT) &
 	    EPDC_STATUS_NEXTLUT_NEXT_LUT_MASK;
 	return val;
+}
+
+static int epdc_choose_next_lut(int *next_lut)
+{
+	u32 luts_status = __raw_readl(EPDC_STATUS_LUTS);
+
+	*next_lut = fls(luts_status & 0xFFFF);
+
+	if (*next_lut > 15)
+		*next_lut = epdc_get_next_lut();
+
+	if (luts_status & 0x8000)
+		return 1;
+	else
+		return 0;
 }
 
 static inline bool epdc_is_working_buffer_busy(void)
@@ -1223,6 +1261,18 @@ static int mxc_epdc_fb_set_par(struct fb_info *info)
 			return ret;
 		}
 	}
+
+	/*
+	 * EOF sync delay (in us) should be equal to the vscan holdoff time
+	 * VSCAN_HOLDOFF time = (VSCAN_HOLDOFF value + 1) * Vertical lines
+	 * Add 25us for additional margin
+	 */
+	fb_data->eof_sync_period = (fb_data->cur_mode->vscan_holdoff + 1) *
+		1000000/(fb_data->cur_mode->vmode->refresh *
+		(fb_data->cur_mode->vmode->upper_margin +
+		fb_data->cur_mode->vmode->yres +
+		fb_data->cur_mode->vmode->lower_margin +
+		fb_data->cur_mode->vmode->vsync_len)) + 25;
 
 	mxc_epdc_fb_set_fix(info);
 
@@ -1883,6 +1933,7 @@ static void epdc_submit_work_func(struct work_struct *work)
 	struct update_data_list *upd_data_list = NULL;
 	struct mxcfb_rect adj_update_region;
 	bool end_merge = false;
+	int ret;
 
 	/* Protect access to buffer queues and to update HW */
 	spin_lock_irqsave(&fb_data->queue_lock, flags);
@@ -2079,10 +2130,43 @@ static void epdc_submit_work_func(struct work_struct *work)
 		spin_lock_irqsave(&fb_data->queue_lock, flags);
 	}
 
+	ret = epdc_choose_next_lut(&upd_data_list->lut_num);
+	/*
+	 * If LUT15 is in use:
+	 *   - Wait for LUT15 to complete is if TCE underrun prevent is enabled
+	 *   - If we go ahead with update, sync update submission with EOF
+	 */
+	if (ret && fb_data->tce_prevent) {
+		dev_dbg(fb_data->dev, "Waiting for LUT15\n");
+
+		/* Initialize event signalling that lut15 is free */
+		init_completion(&fb_data->lut15_free);
+
+		fb_data->waiting_for_lut15 = true;
+
+		/* Leave spinlock while waiting for LUT to free up */
+		spin_unlock_irqrestore(&fb_data->queue_lock, flags);
+		wait_for_completion(&fb_data->lut15_free);
+		spin_lock_irqsave(&fb_data->queue_lock, flags);
+
+		epdc_choose_next_lut(&upd_data_list->lut_num);
+	} else if (ret) {
+		/* Synchronize update submission time to reduce
+		   chances of TCE underrun */
+		init_completion(&fb_data->eof_event);
+
+		epdc_eof_intr(true);
+
+		/* Leave spinlock while waiting for EOF event */
+		spin_unlock_irqrestore(&fb_data->queue_lock, flags);
+		wait_for_completion(&fb_data->eof_event);
+		udelay(fb_data->eof_sync_period);
+		spin_lock_irqsave(&fb_data->queue_lock, flags);
+
+	}
 
 	/* LUTs are available, so we get one here */
 	fb_data->cur_update = upd_data_list;
-	upd_data_list->lut_num = epdc_get_next_lut();
 
 	/* Reset mask for LUTS that have completed during WB processing */
 	fb_data->luts_complete_wb = 0;
@@ -2317,14 +2401,23 @@ int mxc_epdc_fb_send_update(struct mxcfb_update_data *upd_data,
 		return 0;
 	}
 
+	/* LUTs are available, so we get one here */
+	ret = epdc_choose_next_lut(&upd_data_list->lut_num);
+	if (ret && fb_data->tce_prevent) {
+		dev_dbg(fb_data->dev, "Must wait for LUT15\n");
+		/* Add processed Y buffer to update list */
+		list_add_tail(&upd_data_list->list, &fb_data->upd_buf_queue);
+
+		/* Return and allow the update to be submitted by the ISR. */
+		spin_unlock_irqrestore(&fb_data->queue_lock, flags);
+		return 0;
+	}
+
 	/* Save current update */
 	fb_data->cur_update = upd_data_list;
 
 	/* Reset mask for LUTS that have completed during WB processing */
 	fb_data->luts_complete_wb = 0;
-
-	/* LUTs are available, so we get one here */
-	upd_data_list->lut_num = epdc_get_next_lut();
 
 	/* Associate LUT with update marker */
 	list_for_each_entry_safe(next_marker, temp_marker,
@@ -2759,6 +2852,7 @@ static irqreturn_t mxc_epdc_irq_handler(int irq, void *dev_id)
 	int i;
 	bool wb_lut_done = false;
 	bool free_update = true;
+	int ret, next_lut;
 
 	/*
 	 * If we just completed one-time panel init, bypass
@@ -2785,8 +2879,16 @@ static irqreturn_t mxc_epdc_irq_handler(int irq, void *dev_id)
 		return IRQ_HANDLED;
 
 	if (__raw_readl(EPDC_IRQ) & EPDC_IRQ_TCE_UNDERRUN_IRQ) {
-		dev_err(fb_data->dev, "TCE underrun!  Panel may lock up.\n");
-		return IRQ_HANDLED;
+		dev_err(fb_data->dev,
+			"TCE underrun! Will continue to update panel\n");
+		/* Clear TCE underrun IRQ */
+		__raw_writel(EPDC_IRQ_TCE_UNDERRUN_IRQ, EPDC_IRQ_CLEAR);
+	}
+
+	/* Check if we are waiting on EOF to sync a new update submission */
+	if (epdc_signal_eof()) {
+		epdc_clear_eof_irq();
+		complete(&fb_data->eof_event);
 	}
 
 	/* Protect access to buffer queues and to update HW */
@@ -2823,6 +2925,12 @@ static irqreturn_t mxc_epdc_irq_handler(int irq, void *dev_id)
 		if (fb_data->waiting_for_lut) {
 			complete(&fb_data->update_res_free);
 			fb_data->waiting_for_lut = false;
+		}
+
+		/* Signal completion if LUT15 free and is needed */
+		if (fb_data->waiting_for_lut15 && (i == 15)) {
+			complete(&fb_data->lut15_free);
+			fb_data->waiting_for_lut15 = false;
 		}
 
 		/* Detect race condition where WB and its LUT complete
@@ -3010,6 +3118,14 @@ static irqreturn_t mxc_epdc_irq_handler(int irq, void *dev_id)
 		return IRQ_HANDLED;
 	}
 
+	/* Check to see if there is a valid LUT to use */
+	ret = epdc_choose_next_lut(&next_lut);
+	if (ret && fb_data->tce_prevent) {
+		dev_dbg(fb_data->dev, "Must wait for LUT15\n");
+		spin_unlock_irqrestore(&fb_data->queue_lock, flags);
+		return IRQ_HANDLED;
+	}
+
 	/*
 	 * Are any of our collision updates able to go now?
 	 * Go through all updates in the collision list and check to see
@@ -3054,8 +3170,8 @@ static irqreturn_t mxc_epdc_irq_handler(int irq, void *dev_id)
 		}
 	}
 
-	/* LUTs are available, so we get one here */
-	fb_data->cur_update->lut_num = epdc_get_next_lut();
+	/* Use LUT selected above */
+	fb_data->cur_update->lut_num = next_lut;
 
 	/* Associate LUT with update markers */
 	list_for_each_entry_safe(next_marker, temp,
@@ -3361,6 +3477,8 @@ int __devinit mxc_epdc_fb_probe(struct platform_device *pdev)
 		goto out_fbdata;
 	}
 
+	fb_data->tce_prevent = 0;
+
 	if (options)
 		while ((opt = strsep(&options, ",")) != NULL) {
 			if (!*opt)
@@ -3371,6 +3489,8 @@ int __devinit mxc_epdc_fb_probe(struct platform_device *pdev)
 					simple_strtoul(opt + 4, NULL, 0);
 			else if (!strncmp(opt, "x_mem=", 6))
 				x_mem_size = memparse(opt + 6, NULL);
+			else if (!strncmp(opt, "tce_prevent", 11))
+				fb_data->tce_prevent = 1;
 			else
 				panel_str = opt;
 		}
@@ -3558,6 +3678,7 @@ int __devinit mxc_epdc_fb_probe(struct platform_device *pdev)
 	/* Initialize our internal copy of the screeninfo */
 	fb_data->epdc_fb_var = *var_info;
 	fb_data->fb_offset = 0;
+	fb_data->eof_sync_period = 0;
 
 	/*
 	 * Initialize lists for pending updates,
@@ -3803,6 +3924,7 @@ int __devinit mxc_epdc_fb_probe(struct platform_device *pdev)
 	fb_data->order_cnt = 0;
 	fb_data->waiting_for_wb = false;
 	fb_data->waiting_for_lut = false;
+	fb_data->waiting_for_lut15 = false;
 	fb_data->waiting_for_idle = false;
 	fb_data->blank = FB_BLANK_UNBLANK;
 	fb_data->power_state = POWER_STATE_OFF;
