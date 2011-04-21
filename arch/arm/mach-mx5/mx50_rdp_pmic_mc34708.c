@@ -44,14 +44,13 @@
 #define USB2_STBY_MASK		(1 << 19)
 #define USB_EN_MASK			(1 << 3)
 
-
 #define REG_MODE_0_ALL_MASK	(GEN1_STBY_MASK | PLL_STBY_MASK\
 				| GEN2_STBY_MASK | USB2_STBY_MASK)
 
 #define SW1A_MODE_MASK		(0xf << 0)
 #define SW2_MODE_MASK		(0xf << 14)
-#define SW1A_MODE_VALUE		(0xd << 0)
-#define SW2_MODE_VALUE		(0xd << 14)
+#define SW1A_MODE_VALUE		(0xc << 0)
+#define SW2_MODE_VALUE		(0xc << 14)
 
 #define REG_SW_1_2_MASK	(SW1A_MODE_MASK | SW2_MODE_MASK)
 #define REG_SW_1_2_VALUE	(SW1A_MODE_VALUE | SW2_MODE_VALUE)
@@ -61,10 +60,10 @@
 #define SW4B_MODE_MASK		(0xf << 12)
 #define SW5_MODE_MASK		(0xf << 18)
 
-#define SW3_MODE_VALUE		(0xd << 0)
-#define SW4A_MODE_VALUE		(0xd << 6)
-#define SW4B_MODE_VALUE		(0xd << 12)
-#define SW5_MODE_VALUE		(0xd << 18)
+#define SW3_MODE_VALUE		(0xc << 0)
+#define SW4A_MODE_VALUE		(0xc << 6)
+#define SW4B_MODE_VALUE		(0xc << 12)
+#define SW5_MODE_VALUE		(0xc << 18)
 
 #define REG_SW_3_4_5_MASK	(SW3_MODE_MASK | SW4A_MODE_MASK\
 				| SW4B_MODE_MASK | SW5_MODE_MASK)
@@ -267,8 +266,8 @@ static int mc34708_regulator_init(struct mc34708 *mc34708)
 
 	/* enable standby controll for mode0 regulators */
 	pmic_read_reg(REG_MC34708_MODE_0, &value, 0xffffff);
+	value &= ~(REG_MODE_0_ALL_MASK | USB_EN_MASK);
 	value |= REG_MODE_0_ALL_MASK;
-	value &= ~USB_EN_MASK;
 	pmic_write_reg(REG_MC34708_MODE_0, value, 0xffffff);
 
 	/* enable standby controll for mode0 regulators */
