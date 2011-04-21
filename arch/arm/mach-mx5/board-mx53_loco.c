@@ -47,17 +47,18 @@
 #include "devices.h"
 #include "usb.h"
 
+#define MX53_LOCO_POWER			IMX_GPIO_NR(1, 8)
+#define LOCO_HEADPHONE_DET		IMX_GPIO_NR(2, 5)
+#define MX53_LOCO_UI1			IMX_GPIO_NR(2, 14)
+#define MX53_LOCO_UI2			IMX_GPIO_NR(2, 15)
+#define MX53_LOCO_SD3_CD		IMX_GPIO_NR(3, 11)
+#define MX53_LOCO_SD3_WP		IMX_GPIO_NR(3, 12)
+#define MX53_LOCO_SD1_CD		IMX_GPIO_NR(3, 13)
 #define LOCO_DISP0_PWR			IMX_GPIO_NR(3, 24)
 #define LOCO_DISP0_DET_INT		IMX_GPIO_NR(3, 31)
 #define LOCO_DISP0_RESET		IMX_GPIO_NR(5, 0)
-#define MX53_LOCO_POWER			IMX_GPIO_NR(1, 8)
-#define MX53_LOCO_UI1			IMX_GPIO_NR(2, 14)
-#define MX53_LOCO_UI2			IMX_GPIO_NR(2, 15)
 #define LOCO_FEC_PHY_RST		IMX_GPIO_NR(7, 6)
 #define LOCO_USBH1_VBUS			IMX_GPIO_NR(7, 8)
-#define MX53_LOCO_SD1_CD		IMX_GPIO_NR(3, 13)
-#define MX53_LOCO_SD3_CD		IMX_GPIO_NR(3, 11)
-#define MX53_LOCO_SD3_WP		IMX_GPIO_NR(3, 12)
 
 extern void __iomem *arm_plat_base;
 extern void __iomem *gpc_base;
@@ -610,6 +611,8 @@ static struct mxc_audio_platform_data loco_audio_data = {
 	.src_port = 2,
 	.ext_port = 5,
 	.init = loco_sgtl5000_init,
+	.hp_gpio = LOCO_HEADPHONE_DET,
+	.hp_active_low = 1,
 };
 
 static struct platform_device loco_audio_device = {
