@@ -1152,6 +1152,8 @@ static int mil_boot_areas_init(struct gpmi_nfc_data *this)
 	int                            mtd_support_is_adequate;
 	unsigned int                   i;
 	struct mtd_partition           partitions[4];
+	struct mtd_partition           *partitions_ptr;
+	struct gpmi_nfc_platform_data *pdata = this->pdata;
 	struct mtd_info                *search_mtd;
 	struct mtd_info                *chip_0_remainder_mtd = 0;
 	struct mtd_info                *medium_remainder_mtd = 0;
@@ -1171,6 +1173,13 @@ static int mil_boot_areas_init(struct gpmi_nfc_data *this)
 	static char  *chip_1_boot_name      = "gpmi-nfc-1-boot";
 	static char  *medium_remainder_name = "gpmi-nfc-remainder";
 	static char  *general_use_name      = "gpmi-nfc-general-use";
+
+	/* If the platform defines the partions use it first */
+	if (pdata->partitions && pdata->partition_count) {
+		partitions_ptr = pdata->partitions;
+		return add_mtd_partitions(mtd, partitions_ptr,
+					pdata->partition_count);
+	}
 
 	/* Check if we're protecting the boot areas.*/
 	if (!rom->boot_area_count) {
@@ -1247,6 +1256,7 @@ static int mil_boot_areas_init(struct gpmi_nfc_data *this)
 
 	if (rom->boot_area_count == 1) {
 #if defined(CONFIG_MTD_PARTITIONS)
+
 		/*
 		 * We partition the medium like so:
 		 *
@@ -1561,6 +1571,9 @@ static int mil_partitions_init(struct gpmi_nfc_data *this)
 	error = mil_boot_areas_init(this);
 	if (error)
 		return error;
+
+	if (pdata->partition_count)
+		return 0;
 
 	/*
 	 * If we've been told to, register the MTD that represents the entire
