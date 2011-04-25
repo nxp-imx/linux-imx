@@ -134,6 +134,7 @@ static int mxc_ipu_ioctl(struct inode *inode, struct file *file,
 						parm.rot_mode,
 						parm.phyaddr_0,
 						parm.phyaddr_1,
+						parm.phyaddr_2,
 						parm.u_offset,
 						parm.v_offset);
 

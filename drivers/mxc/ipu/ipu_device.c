@@ -1,5 +1,5 @@
 /*
- * Copyright 2005-2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2005-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -177,6 +177,7 @@ static int mxc_ipu_ioctl(struct inode *inode, struct file *file,
 						    parm.rot_mode,
 						    parm.phyaddr_0,
 						    parm.phyaddr_1,
+						    0,
 						    parm.u_offset,
 						    parm.v_offset);
 

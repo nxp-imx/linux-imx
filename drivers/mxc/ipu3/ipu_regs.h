@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2005-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -87,6 +87,21 @@ extern u32 *ipu_vdi_reg;
 #define IPU_GPR			(ipu_cm_reg + 0x00E4/4)
 #define IPU_CHA_DB_MODE_SEL(ch)	(ipu_cm_reg + 0x0150/4 + (ch / 32))
 #define IPU_ALT_CHA_DB_MODE_SEL(ch) (ipu_cm_reg + 0x0168/4 + (ch / 32))
+/*
+ * IPUv3D doesn't support triple buffer, so point
+ * IPU_CHA_TRB_MODE_SEL, IPU_CHA_TRIPLE_CUR_BUF and
+ * IPU_CHA_BUF2_RDY to readonly
+ * IPU_ALT_CUR_BUF0 for IPUv3D.
+ */
+#define IPU_CHA_TRB_MODE_SEL(ch) ({g_ipu_hw_rev >= 2 ? \
+				   (ipu_cm_reg + 0x0178/4 + (ch / 32)) : \
+				   (ipu_cm_reg + 0x012C/4); })
+#define IPU_CHA_TRIPLE_CUR_BUF(ch) ({g_ipu_hw_rev >= 2 ? \
+				     (ipu_cm_reg + 0x0258/4 + ((ch*2) / 32)) : \
+				     (ipu_cm_reg + 0x012C/4); })
+#define IPU_CHA_BUF2_RDY(ch)	({g_ipu_hw_rev >= 2 ? \
+				  (ipu_cm_reg + 0x0288/4 + (ch / 32)) : \
+				  (ipu_cm_reg + 0x012C/4); })
 #define IPU_CHA_CUR_BUF(ch)	({g_ipu_hw_rev >= 2 ? \
 				  (ipu_cm_reg + 0x023C/4 + (ch / 32)) : \
 				  (ipu_cm_reg + 0x0124/4 + (ch / 32)); })
@@ -192,6 +207,16 @@ extern u32 *ipu_vdi_reg;
 #define IDMAC_SUB_ADDR_2	({g_ipu_hw_rev >= 2 ? \
 				  (ipu_idmac_reg + 0x0034/4) : \
 				  (ipu_idmac_reg + 0x0030/4); })
+/*
+ * IPUv3D doesn't support IDMAC_SUB_ADDR_3 and IDMAC_SUB_ADDR_4,
+ * so point them to readonly IDMAC_CHA_BUSY1 for IPUv3D.
+ */
+#define IDMAC_SUB_ADDR_3	({g_ipu_hw_rev >= 2 ? \
+				  (ipu_idmac_reg + 0x0038/4) : \
+				  (ipu_idmac_reg + 0x0040/4); })
+#define IDMAC_SUB_ADDR_4	({g_ipu_hw_rev >= 2 ? \
+				  (ipu_idmac_reg + 0x003c/4) : \
+				  (ipu_idmac_reg + 0x0040/4); })
 #define IDMAC_BAND_EN(ch)	({g_ipu_hw_rev >= 2 ? \
 				  (ipu_idmac_reg + 0x0040/4 + (ch/32)) : \
 				  (ipu_idmac_reg + 0x0034/4 + (ch/32)); })
