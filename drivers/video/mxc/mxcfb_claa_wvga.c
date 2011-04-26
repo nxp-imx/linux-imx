@@ -181,6 +181,11 @@ static int lcd_suspend(struct platform_device *pdev, pm_message_t state)
 
 static int lcd_resume(struct platform_device *pdev)
 {
+	struct mxc_lcd_platform_data *plat = pdev->dev.platform_data;
+
+	if (plat && plat->reset)
+		plat->reset();
+
 	return 0;
 }
 #else
