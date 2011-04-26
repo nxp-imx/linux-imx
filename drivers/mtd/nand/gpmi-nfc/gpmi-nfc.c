@@ -1141,9 +1141,14 @@ static int __devinit set_up_nfc_hal(struct gpmi_nfc_data *this)
 		.tRHOH_in_ns             = -1,
 	};
 
+#if defined(CONFIG_SOC_IMX23) || defined(CONFIG_SOC_IMX28)
 	if (GPMI_IS_MX23(this) || GPMI_IS_MX28(this))
 		nfc = &gpmi_nfc_hal_imx23_imx28;
-
+#endif
+#if defined(CONFIG_SOC_IMX50)
+	if (GPMI_IS_MX50(this))
+		nfc = &gpmi_nfc_hal_mx50;
+#endif
 	BUG_ON(nfc == NULL);
 	this->nfc = nfc;
 
@@ -2428,6 +2433,9 @@ static const struct platform_device_id gpmi_ids[] = {
 	}, {
 		.name = "imx28-gpmi-nfc",
 		.driver_data = IS_MX28,
+	}, {
+		.name = "imx50-gpmi-nfc",
+		.driver_data = IS_MX50,
 	}, {},
 };
 

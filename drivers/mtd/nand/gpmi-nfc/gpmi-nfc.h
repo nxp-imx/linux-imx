@@ -457,6 +457,7 @@ extern int start_dma_with_bch_irq(struct gpmi_nfc_data *this,
 					struct dma_async_tx_descriptor *desc);
 /* NFC HAL Structures */
 extern struct nfc_hal  gpmi_nfc_hal_imx23_imx28;
+extern struct nfc_hal  gpmi_nfc_hal_mx50;
 
 /* ONFI or TOGGLE nand */
 bool is_ddr_nand(struct gpmi_nfc_data *);
@@ -489,6 +490,8 @@ extern int gpmi_debug;
 /* Use the platform_id to distinguish different Archs. */
 #define IS_MX23			0x1
 #define IS_MX28			0x2
+#define IS_MX50			0x4
 #define GPMI_IS_MX23(x)		((x)->pdev->id_entry->driver_data == IS_MX23)
 #define GPMI_IS_MX28(x)		((x)->pdev->id_entry->driver_data == IS_MX28)
+#define GPMI_IS_MX50(x)		((x)->pdev->id_entry->driver_data == IS_MX50)
 #endif
