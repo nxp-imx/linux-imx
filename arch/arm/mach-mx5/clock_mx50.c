@@ -3324,7 +3324,7 @@ static struct clk_lookup lookups[] = {
 	_REGISTER_CLOCK("fec.0", NULL, fec_clk[0]),
 	_REGISTER_CLOCK(NULL, "fec_sec1_clk", fec_clk[1]),
 	_REGISTER_CLOCK("mxc_w1.0", NULL, owire_clk),
-	_REGISTER_CLOCK(NULL, "gpmi-nfc", gpmi_nfc_clk[0]),
+	_REGISTER_CLOCK("imx50-gpmi-nfc.0", NULL, gpmi_nfc_clk[0]),
 	_REGISTER_CLOCK(NULL, "gpmi-apb", gpmi_nfc_clk[1]),
 	_REGISTER_CLOCK(NULL, "bch", gpmi_nfc_clk[2]),
 	_REGISTER_CLOCK(NULL, "bch-apb", gpmi_nfc_clk[3]),

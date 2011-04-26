@@ -364,6 +364,11 @@ struct imx_dcp_data {
 struct platform_device *__init imx_add_dcp(
 		const struct imx_dcp_data *data);
 
+/* gpmi-nfc */
+#include <mach/gpmi-nfc.h>
+struct platform_device *__init imx_add_gpmi(
+		const struct gpmi_nfc_platform_data *data);
+
 struct imx_rngb_data {
 	resource_size_t iobase;
 	resource_size_t irq;

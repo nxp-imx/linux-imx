@@ -208,6 +208,42 @@ static const struct spi_imx_master mx50_rdp_spi_pdata __initconst = {
 	.num_chipselect = ARRAY_SIZE(mx50_rdp_spi_cs),
 };
 
+/* The GPMI is conflicted with SD3, so init this in the driver. */
+static iomux_v3_cfg_t mx50_gpmi_nand[] __initdata = {
+	MX50_PIN_EIM_DA8__NANDF_CLE,
+	MX50_PIN_EIM_DA9__NANDF_ALE,
+	MX50_PIN_EIM_DA10__NANDF_CE0,
+	MX50_PIN_EIM_DA11__NANDF_CE1,
+	MX50_PIN_EIM_DA12__NANDF_CE2,
+	MX50_PIN_EIM_DA13__NANDF_CE3,
+	MX50_PAD_EIM_DA14__NANDF_READY,
+	MX50_PIN_EIM_DA15__NANDF_DQS,
+	MX50_PIN_SD3_D4__NANDF_D0,
+	MX50_PIN_SD3_D5__NANDF_D1,
+	MX50_PIN_SD3_D6__NANDF_D2,
+	MX50_PIN_SD3_D7__NANDF_D3,
+	MX50_PIN_SD3_D0__NANDF_D4,
+	MX50_PIN_SD3_D1__NANDF_D5,
+	MX50_PIN_SD3_D2__NANDF_D6,
+	MX50_PIN_SD3_D3__NANDF_D7,
+	MX50_PIN_SD3_CLK__NANDF_RDN,
+	MX50_PIN_SD3_CMD__NANDF_WRN,
+	MX50_PIN_SD3_WP__NANDF_RESETN,
+};
+
+static int gpmi_nfc_platform_init(void)
+{
+	return mxc_iomux_v3_setup_multiple_pads(mx50_gpmi_nand,
+					ARRAY_SIZE(mx50_gpmi_nand));
+}
+
+static struct gpmi_nfc_platform_data  mx50_gpmi_nfc_platform_data __initdata = {
+	.platform_init           = gpmi_nfc_platform_init,
+	.min_prop_delay_in_ns    = 5,
+	.max_prop_delay_in_ns    = 9,
+	.max_chip_count          = 1,
+};
+
 /*
  * Board specific initialization.
  */
@@ -229,6 +265,7 @@ static void __init mx50_rdp_board_init(void)
 	imx50_add_srtc();
 	mx50_rdp_fec_reset();
 	imx50_add_fec(&fec_data);
+	imx50_add_gpmi(&mx50_gpmi_nfc_platform_data);
 	imx50_add_imx_i2c(0, &i2c_data);
 	imx50_add_imx_i2c(1, &i2c_data);
 	imx50_add_imx_i2c(2, &i2c_data);

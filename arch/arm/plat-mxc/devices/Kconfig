@@ -12,6 +12,9 @@ config IMX_HAVE_PLATFORM_GPIO_KEYS
 	bool
 	default y if SOC_IMX51
 
+config IMX_HAVE_PLATFORM_GPMI_NFC
+	bool
+
 config IMX_HAVE_PLATFORM_IMX21_HCD
 	bool
 
