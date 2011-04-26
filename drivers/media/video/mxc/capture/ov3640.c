@@ -696,7 +696,7 @@ static struct regulator *io_regulator;
 static struct regulator *core_regulator;
 static struct regulator *analog_regulator;
 static struct regulator *gpo_regulator;
-static struct mxc_camera_platform_data *camera_plat;
+static struct fsl_mxc_camera_platform_data *camera_plat;
 
 static int ov3640_probe(struct i2c_client *adapter,
 				const struct i2c_device_id *device_id);
@@ -1318,7 +1318,7 @@ static int ov3640_probe(struct i2c_client *client,
 			const struct i2c_device_id *id)
 {
 	int retval;
-	struct mxc_camera_platform_data *plat_data = client->dev.platform_data;
+	struct fsl_mxc_camera_platform_data *plat_data = client->dev.platform_data;
 
 	/* Set initial values for the sensor struct. */
 	memset(&ov3640_data, 0, sizeof(ov3640_data));

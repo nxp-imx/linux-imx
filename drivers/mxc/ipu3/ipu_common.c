@@ -414,11 +414,8 @@ static int ipu_probe(struct platform_device *pdev)
 	clk_set_parent(g_pixel_clk[1], g_ipu_clk);
 	clk_enable(g_ipu_clk);
 
-	g_di_clk[0] = clk_get(&pdev->dev, "ipu_di0_clk");
-	g_di_clk[1] = clk_get(&pdev->dev, "ipu_di1_clk");
-
-	/*g_csi_clk[0] = plat_data->csi_clk[0];
-	g_csi_clk[1] = plat_data->csi_clk[1];*/
+	g_csi_clk[0] = plat_data->csi_clk[0];
+	g_csi_clk[1] = plat_data->csi_clk[1];
 
 	__raw_writel(0x807FFFFF, IPU_MEM_RST);
 	while (__raw_readl(IPU_MEM_RST) & 0x80000000)
