@@ -70,6 +70,8 @@
 #define MX53_SMD_DCDC5V_BB_EN	IMX_GPIO_NR(4, 14)
 #define MX53_SMD_ALS_INT 	IMX_GPIO_NR(3, 22)
 #define MX53_SMD_BT_RESET	IMX_GPIO_NR(3, 28)
+#define MX53_SMD_CSI0_RST       IMX_GPIO_NR(6, 9)
+#define MX53_SMD_CSI0_PWN       IMX_GPIO_NR(6, 10)
 
 extern int mx53_smd_init_da9052(void);
 
@@ -158,9 +160,51 @@ static iomux_v3_cfg_t mx53_smd_pads[] = {
 	MX53_PAD_EIM_DA1__GPIO3_1,
 	/* DCDC5V_BB_EN */
 	MX53_PAD_KEY_COL4__GPIO4_14,
+	/*SSI_EXT1_CLK*/
+	MX53_PAD_GPIO_0__CCM_SSI_EXT1_CLK,
 	/* PWM */
 	MX53_PAD_GPIO_1__PWM2_PWMO,
-
+	/* CSI0 */
+	MX53_PAD_CSI0_DAT12__IPU_CSI0_D_12,
+	MX53_PAD_CSI0_DAT13__IPU_CSI0_D_13,
+	MX53_PAD_CSI0_DAT14__IPU_CSI0_D_14,
+	MX53_PAD_CSI0_DAT15__IPU_CSI0_D_15,
+	MX53_PAD_CSI0_DAT16__IPU_CSI0_D_16,
+	MX53_PAD_CSI0_DAT17__IPU_CSI0_D_17,
+	MX53_PAD_CSI0_DAT18__IPU_CSI0_D_18,
+	MX53_PAD_CSI0_DAT19__IPU_CSI0_D_19,
+	MX53_PAD_CSI0_VSYNC__IPU_CSI0_VSYNC,
+	MX53_PAD_CSI0_MCLK__IPU_CSI0_HSYNC,
+	MX53_PAD_CSI0_PIXCLK__IPU_CSI0_PIXCLK,
+	/* DISPLAY */
+	MX53_PAD_DI0_DISP_CLK__IPU_DI0_DISP_CLK,
+	MX53_PAD_DI0_PIN15__IPU_DI0_PIN15,
+	MX53_PAD_DI0_PIN2__IPU_DI0_PIN2,
+	MX53_PAD_DI0_PIN3__IPU_DI0_PIN3,
+	MX53_PAD_DISP0_DAT0__IPU_DISP0_DAT_0,
+	MX53_PAD_DISP0_DAT1__IPU_DISP0_DAT_1,
+	MX53_PAD_DISP0_DAT2__IPU_DISP0_DAT_2,
+	MX53_PAD_DISP0_DAT3__IPU_DISP0_DAT_3,
+	MX53_PAD_DISP0_DAT4__IPU_DISP0_DAT_4,
+	MX53_PAD_DISP0_DAT5__IPU_DISP0_DAT_5,
+	MX53_PAD_DISP0_DAT6__IPU_DISP0_DAT_6,
+	MX53_PAD_DISP0_DAT7__IPU_DISP0_DAT_7,
+	MX53_PAD_DISP0_DAT8__IPU_DISP0_DAT_8,
+	MX53_PAD_DISP0_DAT9__IPU_DISP0_DAT_9,
+	MX53_PAD_DISP0_DAT10__IPU_DISP0_DAT_10,
+	MX53_PAD_DISP0_DAT11__IPU_DISP0_DAT_11,
+	MX53_PAD_DISP0_DAT12__IPU_DISP0_DAT_12,
+	MX53_PAD_DISP0_DAT13__IPU_DISP0_DAT_13,
+	MX53_PAD_DISP0_DAT14__IPU_DISP0_DAT_14,
+	MX53_PAD_DISP0_DAT15__IPU_DISP0_DAT_15,
+	MX53_PAD_DISP0_DAT16__IPU_DISP0_DAT_16,
+	MX53_PAD_DISP0_DAT17__IPU_DISP0_DAT_17,
+	MX53_PAD_DISP0_DAT18__IPU_DISP0_DAT_18,
+	MX53_PAD_DISP0_DAT19__IPU_DISP0_DAT_19,
+	MX53_PAD_DISP0_DAT20__IPU_DISP0_DAT_20,
+	MX53_PAD_DISP0_DAT21__IPU_DISP0_DAT_21,
+	MX53_PAD_DISP0_DAT22__IPU_DISP0_DAT_22,
+	MX53_PAD_DISP0_DAT23__IPU_DISP0_DAT_23,
 	/* LDVS */
 	MX53_PAD_LVDS0_TX3_P__LDB_LVDS0_TX3,
 	MX53_PAD_LVDS0_CLK_P__LDB_LVDS0_CLK,
@@ -676,6 +720,7 @@ static struct fsl_mxc_ldb_platform_data ldb_data = {
 
 static void __init mx53_smd_board_init(void)
 {
+	ipu_data.csi_clk[0] = clk_get(NULL, "ssi_ext1_clk");
 	mxc_iomux_v3_setup_multiple_pads(mx53_smd_pads,
 					ARRAY_SIZE(mx53_smd_pads));
 	mx53_smd_init_uart();
@@ -692,6 +737,7 @@ static void __init mx53_smd_board_init(void)
 	imx53_add_vpu();
 	imx53_add_ldb(&ldb_data);
 	imx53_add_v4l2_output(0);
+	imx53_add_v4l2_capture(0);
 	imx53_add_mxc_pwm(1);
 	imx53_add_mxc_pwm_backlight(0, &mxc_pwm_backlight_data);
 	imx53_add_sdhci_esdhc_imx(0, &mx53_smd_sd1_data);
@@ -704,6 +750,17 @@ static void __init mx53_smd_board_init(void)
 	smd_add_device_buttons();
 
 	mx53_smd_init_da9052();
+
+	/* Camera reset */
+	gpio_request(MX53_SMD_CSI0_RST, "cam-reset");
+	gpio_set_value(MX53_SMD_CSI0_RST, 1);
+
+	/* Camera power down */
+	gpio_request(MX53_SMD_CSI0_PWN, "cam-pwdn");
+	gpio_direction_output(MX53_SMD_CSI0_PWN, 1);
+	msleep(1);
+	gpio_set_value(MX53_SMD_CSI0_PWN, 0);
+
 	i2c_register_board_info(0, mxc_i2c0_board_info,
 				ARRAY_SIZE(mxc_i2c0_board_info));
 	i2c_register_board_info(1, mxc_i2c1_board_info,

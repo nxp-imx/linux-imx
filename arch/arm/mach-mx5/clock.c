@@ -5093,8 +5093,6 @@ int __init mx53_clocks_init(unsigned long ckil, unsigned long osc, unsigned long
 	__raw_writel(reg, MXC_CCM_CS2CDR);
 
 	/* Change the SSI_EXT1_CLK to be sourced from PLL2 for camera */
-	clk_enable(&ssi_ext1_clk);
-	clk_disable(&ssi_ext1_clk);
 	clk_set_parent(&ssi_ext1_clk, &pll2_sw_clk);
 	clk_set_rate(&ssi_ext1_clk, 24000000);
 	clk_set_parent(&ssi_ext2_clk, &ssi2_clk[0]);
