@@ -36,17 +36,33 @@ static int __init di0_setup(char *__unused)
 __setup("di0_primary", di0_setup);
 
 int __initdata lcdif_sel_lcd = { 0 };
+int __initdata lcd_seiko_on_j12 = { 0 };
 static int __init lcd_setup(char *str)
 {
 	int s, ret;
+	unsigned long sel;
+	char *opt;
 
 	s = *str;
 	if (s == '=') {
 
 		str++;
-		ret = strict_strtoul(str, 0, &lcdif_sel_lcd);
-		if (ret < 0)
-			return 0;
+		while ((opt = strsep(&str, ",")) != NULL) {
+			if (!*opt)
+				continue;
+
+			ret = strict_strtoul(opt, 0, &sel);
+			if (ret == 0 && sel != 0) {
+				lcdif_sel_lcd = sel;
+				continue;
+			}
+
+			if (!strncmp(opt, "j12", 3)) {
+				lcd_seiko_on_j12 = 1;
+				continue;
+			}
+		}
+
 		return 1;
 	} else
 		return 0;

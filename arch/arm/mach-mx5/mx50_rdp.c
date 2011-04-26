@@ -138,12 +138,15 @@
 #define HDMI_PWR_ENABLE		(0*32 + 25)	/* GPIO_1_25 */
 #define HDMI_RESET		(0*32 + 26)	/* GPIO_1_26 */
 
+#define LCD_PWR_EN	(3*32 + 1) /* GPIO_4_1, KEY_ROW0 */
+
 extern int __init mx50_rdp_init_mc13892(void);
 extern int __init mx50_rdp_init_mc34708(void);
 extern struct cpu_wp *(*get_cpu_wp)(int *wp);
 extern void (*set_num_cpu_wp)(int num);
 extern struct dvfs_wp *(*get_dvfs_core_wp)(int *wp);
 extern int lcdif_sel_lcd;
+extern int lcd_seiko_on_j12;
 
 static void mx50_suspend_enter(void);
 static void mx50_suspend_exit(void);
@@ -1527,21 +1530,18 @@ static void wvga_reset(void)
 	return;
 }
 
-static struct mxc_lcd_platform_data lcd_wvga_data = {
-	.reset = wvga_reset,
-};
+static void wvga_reset__on_j12(void)
+{
+	mxc_iomux_v3_setup_pad(MX50_PAD_KEY_ROW0__GPIO_4_1);
 
-static struct platform_device lcd_wvga_device = {
-	.name = "lcd_seiko",
-	.dev = {
-		.platform_data = &lcd_wvga_data,
-		},
-};
+	gpio_request(LCD_PWR_EN, "power_en");
+	gpio_direction_output(LCD_PWR_EN, 1);
+}
 
 /* Use same pinmux on HDMI */
 static int claa_wvga_get_pins(void)
 {
-	sii902x_hdmi_get_pins();
+	return sii902x_hdmi_get_pins();
 }
 
 static void claa_wvga_put_pins(void)
@@ -1558,6 +1558,18 @@ static void claa_wvga_disable_pins(void)
 {
 	sii902x_hdmi_disable_pins();
 }
+
+static struct mxc_lcd_platform_data lcd_wvga_data = {
+	.reset = wvga_reset,
+};
+
+static struct platform_device lcd_wvga_device = {
+	.name = "lcd_seiko",
+	.dev = {
+		.platform_data = &lcd_wvga_data,
+		},
+};
+
 
 static struct mxc_lcd_platform_data lcd_wvga_data2 = {
 	.get_pins = claa_wvga_get_pins,
@@ -2071,9 +2083,22 @@ static void __init mxc_board_init(void)
 	mxc_register_device(&android_usb_device, &android_usb_data);
 	mxc_register_device(&max17135_sensor_device, NULL);
 	mxc_register_device(&epdc_device, &epdc_data);
-	mxc_register_device(&lcd_wvga_device, &lcd_wvga_data);
 	if (!board_is_mx50_rd3())
 		lcdif_sel_lcd = 1;
+
+	/* If choose "j12", but not "seiko wvga"; then abandon "j12" option */
+	if (lcd_seiko_on_j12 == 1 && lcdif_sel_lcd != 1)
+		lcd_seiko_on_j12 = 0;
+	if (lcd_seiko_on_j12 == 1 && lcdif_sel_lcd == 1) {
+		lcd_wvga_data.reset = wvga_reset__on_j12;
+		lcd_wvga_data.get_pins = claa_wvga_get_pins,
+		lcd_wvga_data.put_pins = claa_wvga_put_pins,
+		lcd_wvga_data.enable_pins = claa_wvga_enable_pins,
+		lcd_wvga_data.disable_pins = claa_wvga_disable_pins,
+		fb_data[1].interface_pix_fmt = V4L2_PIX_FMT_RGB24;
+	}
+	if (lcdif_sel_lcd == 1)
+		mxc_register_device(&lcd_wvga_device, &lcd_wvga_data);
 	if (lcdif_sel_lcd == 2)
 		mxc_register_device(&lcd_wvga_device2, &lcd_wvga_data2);
 	mxc_register_device(&elcdif_device, &fb_data[lcdif_sel_lcd]);
