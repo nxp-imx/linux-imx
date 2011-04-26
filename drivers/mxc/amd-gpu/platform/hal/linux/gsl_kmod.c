@@ -1,4 +1,5 @@
 /* Copyright (c) 2008-2010, Advanced Micro Devices. All rights reserved.
+ * Copyright (C) 2008-2011 Freescale Semiconductor, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -436,7 +437,9 @@ static int gsl_kmod_ioctl(struct inode *inode, struct file *fd, unsigned int cmd
                 {
                     add_memblock_to_allocated_list(fd, &tmp);
                 }
-            }
+	    } else {
+		    printk(KERN_ERR "GPU %s:%d kgsl_sharedmem_alloc failed!\n", __func__, __LINE__);
+	    }
             break;
         }
     case IOCTL_KGSL_SHAREDMEM_FREE:
