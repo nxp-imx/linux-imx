@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2009 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2004-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -63,5 +63,20 @@ static inline int imx_dma_is_general_purpose(struct dma_chan *chan)
 	return !strcmp(dev_name(chan->device->dev), "imx-sdma") ||
 		!strcmp(dev_name(chan->device->dev), "imx-dma");
 }
+
+struct mxs_dma_data {
+	int chan_irq;
+};
+
+static inline int mxs_dma_is_apbh(struct dma_chan *chan)
+{
+	return !strcmp(dev_name(chan->device->dev), "mxs-dma-apbh");
+}
+
+static inline int mxs_dma_is_apbx(struct dma_chan *chan)
+{
+	return !strcmp(dev_name(chan->device->dev), "mxs-dma-apbx");
+}
+
 
 #endif

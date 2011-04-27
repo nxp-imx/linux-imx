@@ -216,6 +216,7 @@ config MACH_MX53_ARD
 config MACH_MX50_RDP
 	bool "Support MX50 reference design platform"
 	select SOC_IMX50
+	select IMX_HAVE_PLATFORM_DMA
 	select IMX_HAVE_PLATFORM_IMX_I2C
 	select IMX_HAVE_PLATFORM_IMX_UART
 	select IMX_HAVE_PLATFORM_MXC_GPU
