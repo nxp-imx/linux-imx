@@ -54,6 +54,7 @@
 #include <asm/byteorder.h>
 #include <asm/uaccess.h>
 #include <asm/unaligned.h>
+#include <asm/mach-types.h>
 #include "fsl_otg.h"
 
 #define CONFIG_USB_OTG_DEBUG_FILES
@@ -1293,6 +1294,30 @@ static int __init fsl_otg_probe(struct platform_device *pdev)
 	struct fsl_usb2_platform_data *pdata;
 
 	DBG("pdev=0x%p\n", pdev);
+
+	if (machine_is_mx53_loco())
+		pr_warning(
+		"\n"
+		"****************************** NOTICE *****************************\n"
+		"You have seen this notice as you have enabled OTG driver for mx53 LOCO board\n"
+		"For mx53 loco board, the OTG function is unavailable due to hardware limitation\n"
+		"So, Only one usb function (device or host) can be available for certain image\n"
+		"Please config your kernel to disable OTG and the usb function you don't want to use\n"
+		"And remain the other usb function you would like to use\n"
+		"\n"
+		"Below OTG configs should be removed:\n"
+		"CONFIG_MXC_OTG, CONFIG_USB_OTG\n"
+		"\n"
+		"Choose one of below configs for host or device function\n"
+		"But DO NOT choose them together\n"
+		"\n"
+		"OTG host config\n"
+		"CONFIG_USB_EHCI_ARC_OTG\n"
+		"\n"
+		"OTG device config\n"
+		"CONFIG_USB_GADGET\n"
+		"\n"
+		);
 
 	if (!pdev)
 		return -ENODEV;
