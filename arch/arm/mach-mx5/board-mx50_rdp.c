@@ -260,6 +260,7 @@ static void __init mx50_rdp_board_init(void)
 
 	imx50_add_cspi(3, &mx50_rdp_spi_pdata);
 
+	imx50_add_dma();
 	imx50_add_imx_uart(0, NULL);
 	imx50_add_imx_uart(1, NULL);
 	imx50_add_srtc();

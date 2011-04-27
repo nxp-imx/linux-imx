@@ -3332,7 +3332,7 @@ static struct clk_lookup lookups[] = {
 	_REGISTER_CLOCK(NULL, "dcp_clk", dcp_clk),
 	_REGISTER_CLOCK(NULL, "ocotp_ctrl_apb", ocotp_clk),
 	_REGISTER_CLOCK(NULL, "ocram_clk", ocram_clk),
-	_REGISTER_CLOCK(NULL, "apbh_dma_clk", apbh_dma_clk),
+	_REGISTER_CLOCK("mxs-dma-apbh",	NULL, apbh_dma_clk),
 	_REGISTER_CLOCK(NULL, "sys_clk", sys_clk),
 	_REGISTER_CLOCK(NULL, "elcdif_pix", elcdif_pix_clk),
 	_REGISTER_CLOCK(NULL, "display_axi", display_axi_clk),

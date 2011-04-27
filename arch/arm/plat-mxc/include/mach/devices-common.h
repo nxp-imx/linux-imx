@@ -24,6 +24,11 @@ static inline struct platform_device *imx_add_platform_device(
 			name, id, res, num_resources, data, size_data, 0);
 }
 
+struct imx_dma_data {
+	resource_size_t iobase;
+};
+struct platform_device *__init imx_add_dma(const struct imx_dma_data *data);
+
 #include <linux/fec.h>
 struct imx_fec_data {
 	resource_size_t iobase;
