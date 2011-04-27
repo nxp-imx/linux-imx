@@ -1,5 +1,5 @@
 /*
- * Copyright 2009-2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2009-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -30,6 +30,7 @@
 #include <linux/interrupt.h>
 #include <linux/irq.h>
 #include <linux/kthread.h>
+#include <linux/freezer.h>
 #include <linux/pmic_external.h>
 #include <linux/pmic_status.h>
 
@@ -53,9 +54,17 @@ static int pmic_event_thread_func(void *v)
 	unsigned int count = 0;
 	unsigned int irq = (int)v;
 
+	set_freezable_with_signal();
 	while (1) {
-		wait_for_completion_interruptible(
-				&event_completion);
+		if (wait_for_completion_interruptible(
+				&event_completion)) {
+			/* possiblely wakeup by a freeze request*/
+			try_to_freeze();
+			/* check if irq arrives when resume*/
+			if (!try_wait_for_completion(
+				&event_completion))
+				continue;
+		}
 		if (kthread_should_stop())
 			break;
 
