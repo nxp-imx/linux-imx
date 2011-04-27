@@ -48,6 +48,7 @@
 #include <asm/unaligned.h>
 #include <asm/dma.h>
 #include <asm/cacheflush.h>
+#include <asm/mach-types.h>
 
 #include "arcotg_udc.h"
 #include <mach/arc_otg.h>
@@ -2162,9 +2163,13 @@ bool try_wake_up_udc(struct fsl_udc *udc)
 	if (irq_src & OTGSC_B_SESSION_VALID_IRQ_STS) {
 		u32 tmp;
 		fsl_writel(irq_src, &dr_regs->otgsc);
+		/* For mx53 loco board, the debug ID value is 0 and
+		 * DO NOT support OTG function
+		 */
+		if (!machine_is_mx53_loco())
 		/* only handle device interrupt event */
-		if (!(fsl_readl(&dr_regs->otgsc) & OTGSC_STS_USB_ID))
-			return false;
+			if (!(fsl_readl(&dr_regs->otgsc) & OTGSC_STS_USB_ID))
+				return false;
 
 		tmp = fsl_readl(&dr_regs->usbcmd);
 		/* check BSV bit to see if fall or rise */
