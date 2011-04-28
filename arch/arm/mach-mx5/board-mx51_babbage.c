@@ -58,7 +58,9 @@
 #define BABBAGE_AUDAMP_STBY	IMX_GPIO_NR(2, 17)
 #define BABBAGE_HEADPHONE_DET	IMX_GPIO_NR(3, 26)
 #define BABBAGE_AUDIO_CLK_EN	IMX_GPIO_NR(4, 26)
+#define BABBAGE_OSC_EN_B	IMX_GPIO_NR(2, 2)
 
+#define BABBAGE_26M_OSC_EN		IMX_GPIO_NR(3, 1)
 #define BABBAGE_LVDS_POWER_DOWN		IMX_GPIO_NR(3, 3)	/* GPIO_3_3 */
 #define BABBAGE_DISP_BRIGHTNESS_CTL	IMX_GPIO_NR(3, 4)	/* GPIO_3_4 */
 #define BABBAGE_DVI_RESET		IMX_GPIO_NR(3, 5)	/* GPIO_3_5 */
@@ -210,6 +212,7 @@ static iomux_v3_cfg_t mx51babbage_pads[] = {
 
 	MX51_PAD_DI1_D1_CS__GPIO3_4,
 #endif
+	MX51_PAD_EIM_LBA__GPIO3_1,
 	MX51_PAD_AUD3_BB_TXD__AUD3_TXD,
 	MX51_PAD_AUD3_BB_RXD__AUD3_RXD,
 	MX51_PAD_AUD3_BB_CK__AUD3_TXC,
@@ -607,7 +610,8 @@ static int bbg_sgtl5000_init(void)
 
 	/* Enable OSC_CKIH1_EN for audio */
 	gpio_request(BABBAGE_AUDIO_CLK_EN, "audio_clk");
-	gpio_direction_output(BABBAGE_AUDIO_CLK_EN, 1);
+	gpio_direction_output(BABBAGE_AUDIO_CLK_EN, 0);
+	gpio_set_value(BABBAGE_AUDIO_CLK_EN, 0);
 
 	return 0;
 }
@@ -617,7 +621,7 @@ static struct mxc_audio_platform_data bbg_audio_data = {
 	.src_port = 2,
 	.ext_port = 3,
 	.init = bbg_sgtl5000_init,
-	.sysclk = 12288000,
+	.sysclk = 26000000,
 	.hp_gpio = BABBAGE_HEADPHONE_DET,
 	.hp_active_low = 1,
 };
@@ -738,6 +742,13 @@ static void __init mx51_babbage_init(void)
 	/* DVI Power-down */
 	gpio_request(BABBAGE_DVI_POWER, "dvi-power");
 	gpio_direction_output(BABBAGE_DVI_POWER, 1);
+
+	gpio_request(BABBAGE_26M_OSC_EN, "26M-OSC-CLK");
+	gpio_direction_output(BABBAGE_26M_OSC_EN, 1);
+
+	/* OSC_EN */
+	gpio_request(BABBAGE_OSC_EN_B, "osc-en");
+	gpio_direction_output(BABBAGE_OSC_EN_B, 1);
 
 	/* WVGA Reset */
 	gpio_set_value(BABBAGE_DISP_BRIGHTNESS_CTL, 1);
