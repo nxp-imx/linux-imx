@@ -1475,6 +1475,25 @@ int32_t ipu_init_sync_panel(int disp, uint32_t pixel_clk,
 }
 EXPORT_SYMBOL(ipu_init_sync_panel);
 
+void ipu_uninit_sync_panel(int disp)
+{
+	unsigned long lock_flags;
+	uint32_t reg;
+	uint32_t di_gen;
+
+	spin_lock_irqsave(&ipu_lock, lock_flags);
+
+	di_gen = __raw_readl(DI_GENERAL(disp));
+	di_gen |= 0x3ff | DI_GEN_POLARITY_DISP_CLK;
+	__raw_writel(di_gen, DI_GENERAL(disp));
+
+	reg = __raw_readl(DI_POL(disp));
+	reg |= 0x3ffffff;
+	__raw_writel(reg, DI_POL(disp));
+
+	spin_unlock_irqrestore(&ipu_lock, lock_flags);
+}
+EXPORT_SYMBOL(ipu_uninit_sync_panel);
 
 int ipu_init_async_panel(int disp, int type, uint32_t cycle_time,
 			 uint32_t pixel_fmt, ipu_adc_sig_cfg_t sig)

@@ -956,6 +956,8 @@ int32_t ipu_init_sync_panel(int disp,
 			    uint16_t v_sync_width, uint16_t v_end_width,
 			    uint32_t v_to_h_sync, ipu_di_signal_cfg_t sig);
 
+void ipu_uninit_sync_panel(int disp);
+
 int32_t ipu_disp_set_window_pos(ipu_channel_t channel, int16_t x_pos,
 				int16_t y_pos);
 int32_t ipu_disp_get_window_pos(ipu_channel_t channel, int16_t *x_pos,
