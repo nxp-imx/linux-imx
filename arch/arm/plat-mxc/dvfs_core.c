@@ -106,6 +106,7 @@ static struct delayed_work dvfs_core_handler;
  */
 static struct clk *pll1_sw_clk;
 static struct clk *cpu_clk;
+static struct clk *gpu_clk;
 static struct clk *dvfs_clk;
 static struct regulator *core_regulator;
 
@@ -489,6 +490,7 @@ static irqreturn_t dvfs_irq(int irq, void *dev_id)
 	return IRQ_HANDLED;
 }
 
+extern int clk_get_usecount(struct clk *clk);
 static void dvfs_core_work_handler(struct work_struct *work)
 {
 	u32 fsvai;
@@ -510,6 +512,20 @@ static void dvfs_core_work_handler(struct work_struct *work)
 	}
 
 	curr_cpu = clk_get_rate(cpu_clk);
+
+	if (clk_get_usecount(gpu_clk)) {
+
+		maxf = 1;
+		if (curr_cpu != cpu_wp_tbl[0].cpu_rate) {
+			curr_wp = 0;
+			minf = 0;
+			dvfs_load_config(0);
+			if (!high_bus_freq_mode)
+				set_high_bus_freq(1);
+			set_cpu_freq(curr_wp);
+		}
+		goto END;
+	}
 	/* If FSVAI indicate freq down,
 	   check arm-clk is not in lowest frequency*/
 	if (fsvai == FSVAI_FREQ_DECREASE) {
@@ -830,6 +846,12 @@ static int __devinit mxc_dvfs_core_probe(struct platform_device *pdev)
 	if (IS_ERR(cpu_clk)) {
 		printk(KERN_ERR "%s: failed to get cpu clock\n", __func__);
 		return PTR_ERR(cpu_clk);
+	}
+
+	gpu_clk = clk_get(NULL, "gpu3d_clk");
+	if (IS_ERR(cpu_clk)) {
+		printk(KERN_ERR "%s: failed to get gpu clock\n", __func__);
+		return PTR_ERR(gpu_clk);
 	}
 
 	dvfs_clk = clk_get(NULL, dvfs_data->clk2_id);
