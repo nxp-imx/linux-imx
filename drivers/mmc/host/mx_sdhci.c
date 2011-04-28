@@ -804,12 +804,6 @@ static void sdhci_send_command(struct sdhci_host *host, struct mmc_command *cmd)
 	/* Configure the cmd type for cmd12 */
 	if (cmd->opcode == 12)
 		mode |= SDHCI_TRNS_ABORTCMD;
-	/*
-	 * Some delay is mandatory required between CMD6 and CMD13 after
-	 * switch to DDR mode when Sandisk eMMC44 soldered on SMD board
-	 */
-	if (cmd->opcode == 0xd)
-		mdelay(5);
 	DBG("Complete sending cmd, transfer mode would be 0x%x.\n", mode);
 	writel(mode, host->ioaddr + SDHCI_TRANSFER_MODE);
 }
@@ -848,6 +842,12 @@ static void sdhci_finish_command(struct sdhci_host *host)
 	if (!host->cmd->data)
 		queue_work(host->workqueue, &host->finish_wq);
 
+	/*
+	 * Some delay is mandatory required between CMD6 and CMD13 after
+	 * switch to DDR mode when Sandisk eMMC44 soldered on SMD board
+	 */
+	if (host->cmd->opcode == 0x6)
+		mdelay(5);
 	host->cmd = NULL;
 }
 
