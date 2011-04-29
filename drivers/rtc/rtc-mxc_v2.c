@@ -272,6 +272,7 @@ static irqreturn_t mxc_rtc_interrupt(int irq, void *dev_id)
 	/* clear interrupt status */
 	__raw_writel(lp_status, ioaddr + SRTC_LPSR);
 
+	rtc_write_sync_lp(ioaddr);
 	rtc_update_irq(pdata->rtc, 1, events);
 	return IRQ_HANDLED;
 }
@@ -327,6 +328,7 @@ static int mxc_rtc_ioctl(struct device *dev, unsigned int cmd,
 			pdata->irq_enable = false;
 		}
 		__raw_writel(lp_cr, ioaddr + SRTC_LPCR);
+		rtc_write_sync_lp(ioaddr);
 		spin_unlock_irqrestore(&rtc_lock, lock_flags);
 		return 0;
 
@@ -339,6 +341,7 @@ static int mxc_rtc_ioctl(struct device *dev, unsigned int cmd,
 		lp_cr = __raw_readl(ioaddr + SRTC_LPCR);
 		lp_cr |= SRTC_LPCR_ALP | SRTC_LPCR_WAE;
 		__raw_writel(lp_cr, ioaddr + SRTC_LPCR);
+		rtc_write_sync_lp(ioaddr);
 		spin_unlock_irqrestore(&rtc_lock, lock_flags);
 		return 0;
 
