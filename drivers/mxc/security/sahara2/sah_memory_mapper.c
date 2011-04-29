@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2004-2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2004-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -750,6 +750,7 @@ sah_Head_Desc *sah_Copy_Descriptors(fsl_shw_uco_t * user_ctx,
 sah_Link *sah_Physicalise_Links(sah_Link * first_link)
 {
 	sah_Link *link = first_link;
+	struct page *pg;
 
 	while (link != NULL) {
 #ifdef DO_DBG
@@ -814,8 +815,18 @@ sah_Link *sah_Physicalise_Links(sah_Link * first_link)
 			if (!(link->flags & SAH_PREPHYS_DATA)) {
 				link->original_data = link->data;
 
-				/* All pointers are virtual right now */
-				link->data = (void *)os_pa(link->data);
+				/* if the data buffer is not in kernel direct-
+				  * mapped region, find the physical addr
+				  * via other means.
+				  */
+				if (!virt_addr_valid(link->data)) {
+					pg = vmalloc_to_page(link->data);
+					link->data = (uint8_t *) (
+						page_to_phys(pg) +
+						(((unsigned int) link->data) &
+							~PAGE_MASK));
+				} else
+					link->data = (void *)os_pa(link->data);
 #ifdef DO_DBG
 				os_printk("%sput: %p (%d)\n",
 					  (link->
