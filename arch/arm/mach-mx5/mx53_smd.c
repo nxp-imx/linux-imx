@@ -665,6 +665,11 @@ static struct i2c_board_info mxc_i2c1_board_info[] __initdata = {
 	.irq = gpio_to_irq(MX53_SMD_KEY_INT),
 	.platform_data = &mpr121_keyboard_platdata,
 	},
+	{
+	.type = "mag3110",
+	.addr = 0x0e,
+	.irq = gpio_to_irq(MX53_SMD_eCOMPASS_INT),
+	},
 };
 
 #if defined(CONFIG_KEYBOARD_GPIO) || defined(CONFIG_KEYBOARD_GPIO_MODULE)
@@ -1155,6 +1160,10 @@ static void __init mx53_smd_io_init(void)
 
 	gpio_request(MX53_SMD_LCD_PWR_EN, "lcd-pwr-en");
 	gpio_direction_output(MX53_SMD_LCD_PWR_EN, 1);
+
+	/* mag3110 magnetometer sensor */
+	gpio_request(MX53_SMD_eCOMPASS_INT, "ecompass int");
+	gpio_direction_input(MX53_SMD_eCOMPASS_INT);
 }
 
 /*!
