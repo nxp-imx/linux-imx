@@ -48,6 +48,10 @@
 #define interruptible_sleep_on(x) sah_Handle_Interrupt()
 #endif
 
+MODULE_LICENSE("GPL");
+MODULE_AUTHOR("Freescale Semiconductor");
+MODULE_DESCRIPTION("Device Driver for SAHARA2 crypto hw block");
+
 #define TEST_MODE_OFF 1
 #define TEST_MODE_ON 2
 

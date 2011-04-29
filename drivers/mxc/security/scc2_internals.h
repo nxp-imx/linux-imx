@@ -489,6 +489,8 @@ EXPORT_SYMBOL(scc_release_partition);
 EXPORT_SYMBOL(scc_diminish_permissions);
 EXPORT_SYMBOL(scc_encrypt_region);
 EXPORT_SYMBOL(scc_decrypt_region);
+EXPORT_SYMBOL(scc_partition_status);
+EXPORT_SYMBOL(scc_virt_to_phys);
 /*EXPORT_SYMBOL(make_vpu_partition);*/
 
 
