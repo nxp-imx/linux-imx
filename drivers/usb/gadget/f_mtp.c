@@ -52,6 +52,7 @@
 /* number of tx and rx requests to allocate */
 #define TX_REQ_MAX 4
 #define RX_REQ_MAX 2
+#define INTR_REQ_MAX 5
 
 /* ID for Microsoft MTP OS String */
 #define MTP_OS_STRING_ID   0xEE
@@ -85,14 +86,13 @@ struct mtp_dev {
 	atomic_t ioctl_excl;
 
 	struct list_head tx_idle;
+	struct list_head intr_idle;
 
 	wait_queue_head_t read_wq;
 	wait_queue_head_t write_wq;
+	wait_queue_head_t intr_wq;
 	struct usb_request *rx_req[RX_REQ_MAX];
-	struct usb_request *intr_req;
 	int rx_done;
-	/* true if interrupt endpoint is busy */
-	int intr_busy;
 
 	/* for processing MTP_SEND_FILE and MTP_RECEIVE_FILE
 	 * ioctls on a work queue
@@ -369,11 +369,12 @@ static void mtp_complete_intr(struct usb_ep *ep, struct usb_request *req)
 {
 	struct mtp_dev *dev = _mtp_dev;
 
-	DBG(dev->cdev, "mtp_complete_intr status: %d actual: %d\n", 
-		req->status, req->actual);
-	dev->intr_busy = 0;
 	if (req->status != 0)
 		dev->state = STATE_ERROR;
+
+	mtp_req_put(dev, &dev->intr_idle, req);
+
+	wake_up(&dev->intr_wq);
 }
 
 static int mtp_create_bulk_endpoints(struct mtp_dev *dev,
@@ -439,11 +440,13 @@ static int mtp_create_bulk_endpoints(struct mtp_dev *dev,
 		req->complete = mtp_complete_out;
 		dev->rx_req[i] = req;
 	}
-	req = mtp_request_new(dev->ep_intr, INTR_BUFFER_SIZE);
-	if (!req)
-		goto fail;
-	req->complete = mtp_complete_intr;
-	dev->intr_req = req;
+	for (i = 0; i < INTR_REQ_MAX; i++) {
+		req = mtp_request_new(dev->ep_intr, INTR_BUFFER_SIZE);
+		if (!req)
+			goto fail;
+		req->complete = mtp_complete_intr;
+		mtp_req_put(dev, &dev->intr_idle, req);
+	}
 
 	return 0;
 
@@ -786,7 +789,7 @@ static void receive_file_work(struct work_struct *data)
 
 static int mtp_send_event(struct mtp_dev *dev, struct mtp_event *event)
 {
-	struct usb_request *req;
+	struct usb_request *req=NULL;
 	int ret;
 	int length = event->length;
 
@@ -796,21 +799,19 @@ static int mtp_send_event(struct mtp_dev *dev, struct mtp_event *event)
 		return -EINVAL;
 	if (dev->state == STATE_OFFLINE)
 		return -ENODEV;
-	/* unfortunately an interrupt request might hang indefinitely if the host
-	 * is not listening on the interrupt endpoint, so instead of waiting,
-	 * we just fail if the endpoint is busy.
-	 */
-	if (dev->intr_busy)
-		return -EBUSY;
+	ret = wait_event_interruptible_timeout(dev->intr_wq,
+		(req = mtp_req_get(dev, &dev->intr_idle)), msecs_to_jiffies(1000));
+	if (!req)
+	    return -ETIME;
 
-	req = dev->intr_req;
-	if (copy_from_user(req->buf, (void __user *)event->data, length))
+	if (copy_from_user(req->buf, (void __user *)event->data, length)) {
+		mtp_req_put(dev, &dev->intr_idle, req);
 		return -EFAULT;
+	}
 	req->length = length;
-	dev->intr_busy = 1;
 	ret = usb_ep_queue(dev->ep_intr, req, GFP_KERNEL);
 	if (ret)
-		dev->intr_busy = 0;
+		mtp_req_put(dev, &dev->intr_idle, req);
 
 	return ret;
 }
@@ -1031,7 +1032,8 @@ mtp_function_unbind(struct usb_configuration *c, struct usb_function *f)
 		mtp_request_free(req, dev->ep_in);
 	for (i = 0; i < RX_REQ_MAX; i++)
 		mtp_request_free(dev->rx_req[i], dev->ep_out);
-	mtp_request_free(dev->intr_req, dev->ep_intr);
+	while ((req = mtp_req_get(dev, &dev->intr_idle)))
+		mtp_request_free(req, dev->ep_intr);
 	dev->state = STATE_OFFLINE;
 }
 
@@ -1225,9 +1227,11 @@ static int mtp_setup(void)
 	spin_lock_init(&dev->lock);
 	init_waitqueue_head(&dev->read_wq);
 	init_waitqueue_head(&dev->write_wq);
+	init_waitqueue_head(&dev->intr_wq);
 	atomic_set(&dev->open_excl, 0);
 	atomic_set(&dev->ioctl_excl, 0);
 	INIT_LIST_HEAD(&dev->tx_idle);
+	INIT_LIST_HEAD(&dev->intr_idle);
 
 	dev->wq = create_singlethread_workqueue("f_mtp");
 	if (!dev->wq) {
