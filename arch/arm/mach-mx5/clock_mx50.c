@@ -324,18 +324,28 @@ static struct clk ckil_clk = {
 
 static int apll_enable(struct clk *clk)
 {
-	__raw_writel(1, apll_base + MXC_ANADIG_MISC_SET);
+	/* Set bit to flush multiple edges out of PLL vco */
+	__raw_writel(MXC_ANADIG_PLL_HOLD_RING_OFF,
+		apll_base + MXC_ANADIG_MISC_SET);
+
+	__raw_writel(MXC_ANADIG_PLL_POWERUP, apll_base + MXC_ANADIG_MISC_SET);
 
 	if (!WAIT(__raw_readl(apll_base + MXC_ANADIG_PLLCTRL)
 		  & MXC_ANADIG_APLL_LOCK, 80000))
 		panic("apll_enable failed!\n");
+
+	/* Clear after relocking, then wait 10 us */
+	__raw_writel(MXC_ANADIG_PLL_HOLD_RING_OFF,
+		apll_base + MXC_ANADIG_MISC_CLR);
+
+	udelay(10);
 
 	return 0;
 }
 
 static void apll_disable(struct clk *clk)
 {
-	__raw_writel(1, apll_base + MXC_ANADIG_MISC_CLR);
+	__raw_writel(MXC_ANADIG_PLL_POWERUP, apll_base + MXC_ANADIG_MISC_CLR);
 }
 
 static unsigned long apll_get_rate(struct clk *clk)
