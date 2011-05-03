@@ -38,4 +38,5 @@ obj-$(CONFIG_IMX_HAVE_PLATFORM_RANDOM_RNGC) += platform-imx-rngb.o
 obj-$(CONFIG_IMX_HAVE_PLATFORM_PERFMON) += platform-imx-perfmon.o
 obj-$(CONFIG_IMX_HAVE_PLATFORM_LDB) += platform-imx_ldb.o
 obj-y += platform-imx-scc2.o
-
+obj-$(CONFIG_IMX_HAVE_PLATFORM_IMX_PXP) += platform-imx-pxp.o
+obj-$(CONFIG_IMX_HAVE_PLATFORM_IMX_EPDC) += platform-imx-epdc-fb.o

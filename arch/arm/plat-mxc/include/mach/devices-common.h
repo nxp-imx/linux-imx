@@ -409,3 +409,21 @@ struct imx_mxc_scc2_data {
 struct platform_device *__init imx_add_mxc_scc2(
 		const struct imx_mxc_scc2_data *data);
 
+struct imx_pxp_data {
+    resource_size_t iobase;
+    resource_size_t iosize;
+    resource_size_t irq;
+};
+struct platform_device *__init imx_add_imx_pxp(
+	const struct imx_pxp_data *data);
+struct platform_device *__init imx_add_imx_pxp_client(void);
+
+#include <mach/epdc.h>
+struct imx_epdc_data {
+	resource_size_t iobase;
+	resource_size_t iosize;
+	resource_size_t irq;
+};
+struct platform_device *__init imx_add_imx_epdc(
+		const struct imx_epdc_data *data,
+		const struct imx_epdc_fb_platform_data *pdata);
