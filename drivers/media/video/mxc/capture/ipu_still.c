@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2004-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -130,7 +130,7 @@ static int prp_still_start(void *private)
 				      pixel_fmt, cam->v2f.fmt.pix.width,
 				      cam->v2f.fmt.pix.height,
 				      cam->v2f.fmt.pix.width, IPU_ROTATE_NONE,
-				      cam->still_buf[0], cam->still_buf[1],
+				      cam->still_buf[0], cam->still_buf[1], 0,
 				      0, 0);
 	if (err != 0)
 		return err;
