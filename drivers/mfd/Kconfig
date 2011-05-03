@@ -662,6 +662,13 @@ config MFD_WL1273_CORE
 	  driver connects the radio-wl1273 V4L2 module and the wl1273
 	  audio codec.
 
+config MFD_MAX17135
+    tristate "MAX17135 PMIC core"
+	depends on I2C
+    help
+      This is the MAX17135 PMIC support. It includes
+      core support for communication with the MAX17135 chip.
+
 endif # MFD_SUPPORT
 
 menu "Multimedia Capabilities Port drivers"
