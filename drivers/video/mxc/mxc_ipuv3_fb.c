@@ -82,7 +82,6 @@ struct mxcfb_info {
 	u32 pseudo_palette[16];
 
 	bool wait4vsync;
-	uint32_t waitcnt;
 	struct semaphore flip_sem;
 	struct semaphore alpha_flip_sem;
 	struct completion vsync_complete;
@@ -304,7 +303,7 @@ static int _setup_disp_channel2(struct fb_info *fbi)
 		fb_stride = fbi->fix.line_length;
 	}
 
-	mxc_fbi->cur_ipu_buf = 1;
+	mxc_fbi->cur_ipu_buf = 2;
 	sema_init(&mxc_fbi->flip_sem, 1);
 	if (mxc_fbi->alpha_chan_en) {
 		mxc_fbi->cur_ipu_alpha_buf = 1;
@@ -323,6 +322,8 @@ static int _setup_disp_channel2(struct fb_info *fbi)
 					 IPU_ROTATE_NONE,
 					 base,
 					 base,
+					 (fbi->var.accel_flags ==
+					  FB_ACCEL_TRIPLE_FLAG) ? base : 0,
 					 0, 0);
 	if (retval) {
 		dev_err(fbi->device,
@@ -338,6 +339,7 @@ static int _setup_disp_channel2(struct fb_info *fbi)
 						 IPU_ROTATE_NONE,
 						 mxc_fbi->alpha_phy_addr1,
 						 mxc_fbi->alpha_phy_addr0,
+						 0,
 						 0, 0);
 		if (retval) {
 			dev_err(fbi->device,
@@ -1299,12 +1301,13 @@ mxcfb_pan_display(struct fb_var_screeninfo *var, struct fb_info *info)
 				loc_alpha_en = true;
 				mxc_graphic_fbi = (struct mxcfb_info *)
 						(registered_fb[i]->par);
-				active_alpha_phy_addr = mxc_fbi->cur_ipu_buf ?
+				active_alpha_phy_addr =
+					mxc_fbi->cur_ipu_alpha_buf ?
 					mxc_graphic_fbi->alpha_phy_addr1 :
 					mxc_graphic_fbi->alpha_phy_addr0;
-				dev_dbg(info->device, "Updating SDC graphic "
+				dev_dbg(info->device, "Updating SDC alpha "
 					"buf %d address=0x%08lX\n",
-					mxc_fbi->cur_ipu_buf,
+					!mxc_fbi->cur_ipu_alpha_buf,
 					active_alpha_phy_addr);
 				break;
 			}
@@ -1313,7 +1316,8 @@ mxcfb_pan_display(struct fb_var_screeninfo *var, struct fb_info *info)
 
 	down(&mxc_fbi->flip_sem);
 
-	mxc_fbi->cur_ipu_buf = !mxc_fbi->cur_ipu_buf;
+	mxc_fbi->cur_ipu_buf = (++mxc_fbi->cur_ipu_buf) % 3;
+	mxc_fbi->cur_ipu_alpha_buf = !mxc_fbi->cur_ipu_alpha_buf;
 
 	dev_dbg(info->device, "Updating SDC %s buf %d address=0x%08lX\n",
 		info->fix.id, mxc_fbi->cur_ipu_buf, base);
@@ -1324,11 +1328,11 @@ mxcfb_pan_display(struct fb_var_screeninfo *var, struct fb_info *info)
 		if (loc_alpha_en && mxc_graphic_fbi == mxc_fbi &&
 		    ipu_update_channel_buffer(mxc_graphic_fbi->ipu_ch,
 					      IPU_ALPHA_IN_BUFFER,
-					      mxc_fbi->cur_ipu_buf,
+					      mxc_fbi->cur_ipu_alpha_buf,
 					      active_alpha_phy_addr) == 0) {
 			ipu_select_buffer(mxc_graphic_fbi->ipu_ch,
 					  IPU_ALPHA_IN_BUFFER,
-					  mxc_fbi->cur_ipu_buf);
+					  mxc_fbi->cur_ipu_alpha_buf);
 		}
 
 		ipu_select_buffer(mxc_fbi->ipu_ch, IPU_INPUT_BUFFER,
@@ -1337,9 +1341,20 @@ mxcfb_pan_display(struct fb_var_screeninfo *var, struct fb_info *info)
 		ipu_enable_irq(mxc_fbi->ipu_ch_irq);
 	} else {
 		dev_err(info->device,
-			"Error updating SDC buf %d to address=0x%08lX\n",
-			mxc_fbi->cur_ipu_buf, base);
-		mxc_fbi->cur_ipu_buf = !mxc_fbi->cur_ipu_buf;
+			"Error updating SDC buf %d to address=0x%08lX, "
+			"current buf %d, buf0 ready %d, buf1 ready %d, "
+			"buf2 ready %d\n", mxc_fbi->cur_ipu_buf, base,
+			ipu_get_cur_buffer_idx(mxc_fbi->ipu_ch,
+					       IPU_INPUT_BUFFER),
+			ipu_check_buffer_ready(mxc_fbi->ipu_ch,
+					       IPU_INPUT_BUFFER, 0),
+			ipu_check_buffer_ready(mxc_fbi->ipu_ch,
+					       IPU_INPUT_BUFFER, 1),
+			ipu_check_buffer_ready(mxc_fbi->ipu_ch,
+					       IPU_INPUT_BUFFER, 2));
+		mxc_fbi->cur_ipu_buf = (++mxc_fbi->cur_ipu_buf) % 3;
+		mxc_fbi->cur_ipu_buf = (++mxc_fbi->cur_ipu_buf) % 3;
+		mxc_fbi->cur_ipu_alpha_buf = !mxc_fbi->cur_ipu_alpha_buf;
 		ipu_clear_irq(mxc_fbi->ipu_ch_irq);
 		ipu_enable_irq(mxc_fbi->ipu_ch_irq);
 		return -EBUSY;
@@ -1435,30 +1450,8 @@ static irqreturn_t mxcfb_irq_handler(int irq, void *dev_id)
 		ipu_disable_irq(irq);
 		mxc_fbi->wait4vsync = 0;
 	} else {
-		if (!ipu_check_buffer_ready(mxc_fbi->ipu_ch,
-				IPU_INPUT_BUFFER, mxc_fbi->cur_ipu_buf)
-				|| (mxc_fbi->waitcnt > 1)) {
-			/*
-			 * This code wait for EOF irq to make sure current
-			 * buffer showed.
-			 *
-			 * Buffer ready will be clear after this buffer
-			 * begin to show. If it keep 1, it represents this
-			 * irq come from previous buffer. If so, wait for
-			 * EOF irq again.
-			 *
-			 * Normally, waitcnt will not > 1, if so, something
-			 * is wrong, then clear it manually.
-			 */
-			if (mxc_fbi->waitcnt > 1)
-				ipu_clear_buffer_ready(mxc_fbi->ipu_ch,
-						IPU_INPUT_BUFFER,
-						mxc_fbi->cur_ipu_buf);
-			up(&mxc_fbi->flip_sem);
-			ipu_disable_irq(irq);
-			mxc_fbi->waitcnt = 0;
-		} else
-			mxc_fbi->waitcnt++;
+		up(&mxc_fbi->flip_sem);
+		ipu_disable_irq(irq);
 	}
 	return IRQ_HANDLED;
 }
