@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2004-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -241,6 +241,7 @@ static int mxcfb_set_par(struct fb_info *fbi)
 					 fbi->fix.smem_start +
 					 (fbi->fix.line_length * fbi->var.yres),
 					 fbi->fix.smem_start,
+					 0,
 					 0, 0);
 	if (retval) {
 		dev_err(fbi->device,
