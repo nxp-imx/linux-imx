@@ -50,18 +50,16 @@ static struct dvfs_wp dvfs_core_setpoint_ces_1_2G[] = {
 			{33, 25, 33, 10, 10, 0x08}, /*1_2GHz*/
 			{30, 18, 33, 20, 10, 0x08}, /* 800MHz */
 			{25, 8, 33, 20, 10, 0x08}, /* 400MHz */
-			{23, 0, 33, 20, 10, 0x08}, /* 160MHz */
-			{28, 8, 33, 20, 30, 0x08}, /*160MHz, 133MHz */
-			{29, 0, 33, 20, 10, 0x08},}; /* 160MHz, 50MHz. */
+			{28, 8, 33, 20, 30, 0x08}, /* 400MHZ, 133MHz */
+			{29, 0, 33, 20, 10, 0x08},}; /* 400MHZ, 50MHz. */
 
 /* Place holder for dvfs_core setpoints for 1 GHz parts */
 static struct dvfs_wp dvfs_core_setpoint_ces[] = {
 			{33, 25, 33, 10, 10, 0x08}, /*1GHz*/
 			{30, 18, 33, 20, 10, 0x08}, /* 800MHz */
 			{25, 8, 33, 20, 10, 0x08}, /* 400MHz */
-			{23, 0, 33, 20, 10, 0x08}, /* 160MHz */
-			{28, 8, 33, 20, 30, 0x08}, /*160MHz, 133MHz */
-			{29, 0, 33, 20, 10, 0x08},}; /* 160MHz, 50MHz. */
+			{28, 8, 33, 20, 30, 0x08}, /* 400MHz, 133MHz */
+			{29, 0, 33, 20, 10, 0x08},}; /* 400MHz, 50MHz. */
 
 /* working point for auto*/
 static struct cpu_wp cpu_wp_aec[] = {
@@ -105,15 +103,6 @@ static struct cpu_wp cpu_wp_ces[] = {
 	 .mfn = 1,
 	 .cpu_podf = 1,
 	 .cpu_voltage = 950000,},
-	{
-	 .pll_rate = 800000000,
-	 .cpu_rate = 160000000,
-	 .pdf = 0,
-	 .mfi = 8,
-	 .mfd = 2,
-	 .mfn = 1,
-	 .cpu_podf = 4,
-	 .cpu_voltage = 950000,},
 };
 
 /* working point for consumer 1.2G*/
@@ -150,15 +139,6 @@ static struct cpu_wp cpu_wp_ces_1_2g[] = {
 	  .cpu_rate = 400000000,
 	  .cpu_podf = 1,
 	  .cpu_voltage = 950000,},
-	{
-	 .pll_rate = 800000000,
-	 .cpu_rate = 160000000,
-	 .pdf = 0,
-	 .mfi = 8,
-	 .mfd = 2,
-	 .mfn = 1,
-	 .cpu_podf = 4,
-	 .cpu_voltage = 950000,},
 };
 
 static struct dvfs_wp *mx53_get_dvfs_core_table(int *wp)

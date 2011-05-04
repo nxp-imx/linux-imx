@@ -314,7 +314,7 @@ void enter_lpapm_mode_mx53()
 	/* if (mx53_ddr_type == DDR_TYPE_DDR2) {
 	} */
 
-	/* move cpu clk to pll2, 400 / 3 = 133Mhz for cpu  */
+	/* move cpu clk to pll2, 400 / 1 = 400MHZ for cpu  */
 	/* Change the source of pll1_sw_clk to be the step_clk */
 	reg = __raw_readl(MXC_CCM_CCSR);
 	reg |= MXC_CCM_CCSR_PLL1_SW_CLK_SEL;
@@ -324,7 +324,7 @@ void enter_lpapm_mode_mx53()
 	reg = __raw_readl(MXC_CCM_CDHIPR);
 	while (1) {
 		if ((reg & MXC_CCM_CDHIPR_ARM_PODF_BUSY) == 0) {
-			__raw_writel(0x2, MXC_CCM_CACRR);
+			__raw_writel(0x0, MXC_CCM_CACRR);
 			break;
 		} else {
 			reg = __raw_readl(MXC_CCM_CDHIPR);
