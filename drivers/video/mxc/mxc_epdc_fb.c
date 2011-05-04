@@ -609,7 +609,7 @@ static int epdc_choose_next_lut(int *next_lut)
 	*next_lut = fls(luts_status & 0xFFFF);
 
 	if (*next_lut > 15)
-		*next_lut = epdc_get_next_lut();
+		*next_lut = ffz(luts_status & 0xFFFF);
 
 	if (luts_status & 0x8000)
 		return 1;
