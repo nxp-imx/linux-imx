@@ -2192,7 +2192,8 @@ static void epdc_submit_work_func(struct work_struct *work)
 		temp_index = mxc_epdc_fb_get_temp_index(fb_data,
 			upd_data_list->update_desc->upd_data.temp);
 		epdc_set_temp(temp_index);
-	}
+	} else
+		epdc_set_temp(fb_data->temp_index);
 	epdc_set_update_addr(upd_data_list->phys_addr
 				+ upd_data_list->update_desc->epdc_offs);
 	epdc_set_update_coord(adj_update_region.left, adj_update_region.top);
