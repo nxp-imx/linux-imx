@@ -44,10 +44,6 @@
 
 #include "pmic.h"
 
-#ifndef CONFIG_MXC_PMIC_I2C
-struct i2c_client *mc13892_client;
-#endif
-
 void *mc13892_alloc_data(struct device *dev)
 {
 	struct mc13892 *mc13892;

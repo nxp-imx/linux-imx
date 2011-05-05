@@ -1,14 +1,19 @@
 /*
- * Copyright 2008-2010 Freescale Semiconductor, Inc. All Rights Reserved.
- */
-
-/*
- * The code contained herein is licensed under the GNU General Public
- * License. You may obtain a copy of the GNU General Public License
- * Version 2 or later at the following locations:
+ * Copyright 2008-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  *
- * http://www.opensource.org/licenses/gpl-license.html
- * http://www.gnu.org/copyleft/gpl.html
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
  */
 
 /*!
@@ -51,8 +56,6 @@
 /*
  * Global variables
  */
-struct i2c_client *mc13892_client;
-
 extern pmic_version_t mxc_pmic_version;
 extern irqreturn_t pmic_irq_handler(int irq, void *dev_id);
 /*
@@ -90,6 +93,71 @@ static struct platform_device bleds_ldm = {
 	.name = "pmic_leds",
 	.id = 'b',
 };
+
+enum pmic_id {
+	PMIC_ID_MC13892,
+	PMIC_ID_INVALID,
+};
+
+static struct pmic_internal pmic_internal[] = {
+	[PMIC_ID_MC13892] = _PMIC_INTERNAL_INITIALIZER(mc13892),
+};
+
+static int get_index_pmic_internal(const char *name)
+{
+	int i;
+
+	for (i = 0; i < ARRAY_SIZE(pmic_internal); i++)
+		if (!strcmp(name, pmic_internal[i].name))
+			return i;
+
+	return PMIC_ID_INVALID;
+}
+
+static const char *get_client_device_name(const char *name, const char *format)
+{
+	char buf[30];
+	const char *client_devname;
+
+	if (snprintf(buf, sizeof(buf), format, name) > sizeof(buf))
+		return NULL;
+
+	client_devname = kmemdup(buf, strlen(buf) + 1, GFP_KERNEL);
+	if (!client_devname)
+		return NULL;
+
+	return client_devname;
+}
+
+static const struct i2c_device_id *i2c_match_id(const struct i2c_device_id *id,
+						const struct i2c_client *client)
+{
+	while (id->name[0]) {
+		if (strcmp(client->name, id->name) == 0)
+			return id;
+		id++;
+	}
+	return NULL;
+}
+
+static const struct i2c_device_id *i2c_get_device_id(
+		const struct i2c_client *idev)
+{
+	const struct i2c_driver *idrv = to_i2c_driver(idev->dev.driver);
+
+	return i2c_match_id(idrv->id_table, idev);
+}
+
+static const char *get_chipname(struct i2c_client *idev)
+{
+	const struct i2c_device_id *devid =
+		i2c_get_device_id(idev);
+
+	if (!devid)
+		return NULL;
+
+	return devid->name;
+}
 
 static void pmic_pdev_register(struct device *dev)
 {
@@ -139,7 +207,7 @@ static int __devinit is_chip_onboard(struct i2c_client *client)
 	return 0;
 }
 
-static ssize_t mc13892_show(struct device *dev,
+static ssize_t pmic_show(struct device *dev,
 			    struct device_attribute *attr, char *buf)
 {
 	int i, value;
@@ -159,7 +227,7 @@ static ssize_t mc13892_show(struct device *dev,
 	return 0;
 }
 
-static ssize_t mc13892_store(struct device *dev,
+static ssize_t pmic_store(struct device *dev,
 			     struct device_attribute *attr, const char *buf,
 			     size_t count)
 {
@@ -190,13 +258,13 @@ static ssize_t mc13892_store(struct device *dev,
 	return count;
 }
 
-static struct device_attribute mc13892_dev_attr = {
+static struct device_attribute pmic_dev_attr = {
 	.attr = {
-		 .name = "mc13892_ctl",
+		 .name = "pmic_ctl",
 		 .mode = S_IRUSR | S_IWUSR,
 		 },
-	.show = mc13892_show,
-	.store = mc13892_store,
+	.show = pmic_show,
+	.store = pmic_store,
 };
 
 static int __devinit pmic_probe(struct i2c_client *client,
@@ -204,24 +272,32 @@ static int __devinit pmic_probe(struct i2c_client *client,
 {
 	int ret = 0;
 	int pmic_irq;
-	struct mc13892 *mc13892;
-	struct mc13892_platform_data *plat_data = client->dev.platform_data;
+	struct pmic_platform_data *plat_data = client->dev.platform_data;
+	const char *name;
+	int pmic_index;
 
 	ret = is_chip_onboard(client);
 	if (ret == -1)
 		return -ENODEV;
 
-	mc13892 = kzalloc(sizeof(struct mc13892), GFP_KERNEL);
-	if (mc13892 == NULL)
-		return -ENOMEM;
+	name = get_chipname(client);
+	if (!name)
+		return PMIC_ERROR;
+	pmic_index = get_index_pmic_internal(name);
+	if (pmic_index == PMIC_ID_INVALID)
+		return PMIC_ERROR;
 
-	i2c_set_clientdata(client, mc13892);
-	mc13892->dev = &client->dev;
-	mc13892->i2c_client = client;
+	adc_ldm.name = get_client_device_name(name, "%s_adc");
+	battery_ldm.name = get_client_device_name(name, "%s_battery");
+	light_ldm.name = get_client_device_name(name, "%s_light");
+	rtc_ldm.name = get_client_device_name(name, "%s_rtc");
+
+	i2c_set_clientdata(client,
+		pmic_internal[pmic_index].pmic_alloc_data(&client->dev));
 
 	/* so far, we got matched chip on board */
 
-	mc13892_client = client;
+	pmic_i2c_setup(client);
 
 	/* Initialize the PMIC event handling */
 	pmic_event_list_init();
@@ -230,7 +306,7 @@ static int __devinit pmic_probe(struct i2c_client *client,
 	gpio_pmic_active();
 
 	/* Get the PMIC Version */
-	pmic_get_revision(&mxc_pmic_version);
+	pmic_internal[pmic_index].pmic_get_revision(&mxc_pmic_version);
 	if (mxc_pmic_version.revision < 0) {
 		dev_err((struct device *)client,
 			"PMIC not detected!!! Access Failed\n");
@@ -242,7 +318,7 @@ static int __devinit pmic_probe(struct i2c_client *client,
 	}
 
 	/* Initialize the PMIC parameters */
-	ret = pmic_init_registers();
+	ret = pmic_internal[pmic_index].pmic_init_registers();
 	if (ret != PMIC_SUCCESS)
 		return PMIC_ERROR;
 
@@ -252,7 +328,7 @@ static int __devinit pmic_probe(struct i2c_client *client,
 
 	ret = pmic_start_event_thread(pmic_irq);
 	if (ret) {
-		pr_err("mc13892 pmic driver init: \
+		pr_err("pmic driver init: \
 			fail to start event thread\n");
 		return PMIC_ERROR;
 	}
@@ -272,12 +348,12 @@ static int __devinit pmic_probe(struct i2c_client *client,
 	enable_irq_wake(pmic_irq);
 
 	if (plat_data && plat_data->init) {
-		ret = plat_data->init(mc13892);
+		ret = plat_data->init(i2c_get_clientdata(client));
 		if (ret != 0)
 			return PMIC_ERROR;
 	}
 
-	ret = device_create_file(&client->dev, &mc13892_dev_attr);
+	ret = device_create_file(&client->dev, &pmic_dev_attr);
 	if (ret)
 		dev_err(&client->dev, "create device file failed!\n");
 
@@ -308,23 +384,23 @@ static int pmic_resume(struct i2c_client *client)
 	return 0;
 }
 
-static const struct i2c_device_id mc13892_id[] = {
+static const struct i2c_device_id pmic_id[] = {
 	{"mc13892", 0},
 	{},
 };
 
-MODULE_DEVICE_TABLE(i2c, mc13892_id);
+MODULE_DEVICE_TABLE(i2c, pmic_id);
 
 static struct i2c_driver pmic_driver = {
 	.driver = {
-		   .name = "mc13892",
+		   .name = "pmic",
 		   .bus = NULL,
 		   },
 	.probe = pmic_probe,
 	.remove = pmic_remove,
 	.suspend = pmic_suspend,
 	.resume = pmic_resume,
-	.id_table = mc13892_id,
+	.id_table = pmic_id,
 };
 
 static int __init pmic_init(void)

@@ -20,7 +20,7 @@ pmic_mxc_mod-objs += pmic_core_spi.o
 endif
 
 ifneq ($(CONFIG_MXC_PMIC_I2C),)
-pmic_mc13892_mod-objs += pmic_core_i2c.o
+pmic_mxc_mod-objs += pmic_core_i2c.o
 endif
 
 obj-$(CONFIG_MXC_PMIC_MC34704) += pmic_mc34704_mod.o

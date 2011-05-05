@@ -597,7 +597,7 @@ static struct platform_driver mc34708_pmic_adc_driver_ldm = {
 
 static int __init mc34708_pmic_adc_module_init(void)
 {
-	pr_info("MC34708 PMIC ADC driver loading...\n");
+	pr_debug("MC34708 PMIC ADC driver loading...\n");
 	return platform_driver_register(&mc34708_pmic_adc_driver_ldm);
 }
 
