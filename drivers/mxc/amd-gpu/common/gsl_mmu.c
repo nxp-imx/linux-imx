@@ -89,7 +89,8 @@ const unsigned int GSL_PT_PAGE_AP[4] = {(GSL_PT_PAGE_READ | GSL_PT_PAGE_WRITE), 
 #define GSL_PT_MAP_SETBITS(pte, bits)       (GSL_PT_MAP_GET(pte) |= (((unsigned int) bits) & GSL_PT_PAGE_AP_MASK))
 #define GSL_PT_MAP_SETADDR(pte, pageaddr)   (GSL_PT_MAP_GET(pte)  = (GSL_PT_MAP_GET(pte) & ~GSL_PT_PAGE_ADDR_MASK) | (((unsigned int) pageaddr) & GSL_PT_PAGE_ADDR_MASK))
 
-#define GSL_PT_MAP_RESET(pte)               (GSL_PT_MAP_GET(pte)  = 0)
+/* reserve RV and WV bits to work around READ_PROTECTION_ERROR in some cases */
+#define GSL_PT_MAP_RESET(pte)               (GSL_PT_MAP_GET(pte) &= ~GSL_PT_PAGE_ADDR_MASK)
 #define GSL_PT_MAP_RESETBITS(pte, bits)     (GSL_PT_MAP_GET(pte) &= ~(((unsigned int) bits) & GSL_PT_PAGE_AP_MASK))
 
 #define GSL_MMU_VIRT_TO_PAGE(va)            *((unsigned int *)(pagetable->base.gpuaddr + (GSL_PT_ENTRY_GET(va) * GSL_PT_ENTRY_SIZEBYTES)))
@@ -708,6 +709,16 @@ kgsl_mmu_map(gsl_mmu_t *mmu, gpuaddr_t gpubaseaddr, const gsl_scatterlist_t *sca
 
 //----------------------------------------------------------------------------
 
+static bool is_superpte_empty(gsl_pagetable_t  *pagetable, unsigned int superpte)
+{
+	int i;
+	for (i = 0; i < GSL_PT_SUPER_PTE; i++) {
+		if (GSL_PT_MAP_GET(superpte+i))
+			return false;
+	}
+	return true;
+}
+
 int
 kgsl_mmu_unmap(gsl_mmu_t *mmu, gpuaddr_t gpubaseaddr, int range, unsigned int pid)
 {
@@ -777,7 +788,10 @@ kgsl_mmu_unmap(gsl_mmu_t *mmu, gpuaddr_t gpubaseaddr, int range, unsigned int pi
         {
             do
             {
-                pagetable->last_superpte -= GSL_PT_SUPER_PTE;
+		if (is_superpte_empty(pagetable, superpte))
+		    pagetable->last_superpte -= GSL_PT_SUPER_PTE;
+		else
+		    break;
             } while (!GSL_PT_MAP_GETADDR(pagetable->last_superpte) && pagetable->last_superpte >= GSL_PT_SUPER_PTE);
         }
 

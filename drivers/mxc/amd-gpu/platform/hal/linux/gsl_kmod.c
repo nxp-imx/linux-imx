@@ -39,6 +39,8 @@
 #include <linux/platform_device.h>
 #include <linux/vmalloc.h>
 
+#include <linux/fsl_devices.h>
+
 int gpu_2d_irq, gpu_3d_irq;
 
 phys_addr_t gpu_2d_regbase;
@@ -49,6 +51,7 @@ int gmem_size;
 phys_addr_t gpu_reserved_mem;
 int gpu_reserved_mem_size;
 int z160_version;
+int enable_mmu;
 
 static ssize_t gsl_kmod_read(struct file *fd, char __user *buf, size_t len, loff_t *ptr);
 static ssize_t gsl_kmod_write(struct file *fd, const char __user *buf, size_t len, loff_t *ptr);
@@ -765,11 +768,15 @@ static int gpu_probe(struct platform_device *pdev)
     int i;
     struct resource *res;
     struct device *dev;
+    struct mxc_gpu_platform_data *gpu_data = NULL;
 
-    if (pdev->dev.platform_data)
-	z160_version = *((int *)(pdev->dev.platform_data));
-    else
-	z160_version = 0;
+    gpu_data = (struct mxc_gpu_platform_data *)pdev->dev.platform_data;
+
+    if (gpu_data == NULL)
+	return 0;
+
+    z160_version = gpu_data->z160_revision;
+    enable_mmu = gpu_data->enable_mmu;
 
     for(i = 0; i < 2; i++){
         res = platform_get_resource(pdev, IORESOURCE_IRQ, i);
