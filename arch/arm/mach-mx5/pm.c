@@ -30,10 +30,6 @@
 #include <asm/delay.h>
 #include <asm/mach/map.h>
 #include <mach/hardware.h>
-#include <mach/gpio.h>
-#ifdef CONFIG_ARCH_MX50
-#include <mach/iomux-mx50.h>
-#endif
 
 #define MXC_SRPG_EMPGC0_SRPGCR	(IO_ADDRESS(GPC_BASE_ADDR) + 0x2C0)
 #define MXC_SRPG_EMPGC1_SRPGCR	(IO_ADDRESS(GPC_BASE_ADDR) + 0x2D0)
@@ -68,7 +64,7 @@ extern void pm_da9053_i2c_init(u32 base_addr);
 
 extern int iram_ready;
 void *suspend_iram_base;
-void (*suspend_in_iram)(void *sdclk_iomux_addr) = NULL;
+void (*suspend_in_iram)(void *param1) = NULL;
 void __iomem *suspend_param1;
 
 #define TZIC_WAKEUP0_OFFSET            0x0E00
@@ -139,12 +135,16 @@ static int mx5_suspend_enter(suspend_state_t state)
 			__raw_writel(0, MXC_SRPG_EMPGC0_SRPGCR);
 			__raw_writel(0, MXC_SRPG_EMPGC1_SRPGCR);
 		} else {
-			if (cpu_is_mx50() && pm_data->suspend_enter)
-				pm_data->suspend_enter();
-			/* Suspend now. */
-			suspend_in_iram(databahn_base);
-			if (cpu_is_mx50() && pm_data->suspend_exit)
-				pm_data->suspend_exit();
+			if (cpu_is_mx50()) {
+				if (pm_data->suspend_enter)
+					pm_data->suspend_enter();
+
+				/* Suspend now. */
+				suspend_in_iram(databahn_base);
+
+				if (pm_data->suspend_exit)
+					pm_data->suspend_exit();
+			}
 		}
 	} else {
 			cpu_do_idle();
