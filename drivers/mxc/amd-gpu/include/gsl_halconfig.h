@@ -27,7 +27,7 @@
  */
 
 /*
- * Copyright (C) 2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2010-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 #ifndef __GSL_HALCONFIG_H
@@ -38,7 +38,7 @@
 
 #define GSL_HAL_SIZE_REG_G12            0x00001000            /* 4KB */
 
-#define GSL_HAL_SHMEM_SIZE_EMEM1_MMU    0x01800000            /* 24MB */
+#define GSL_HAL_SHMEM_SIZE_EMEM1_MMU    0x08000000            /* 128MB */
 #define GSL_HAL_SHMEM_SIZE_EMEM2_MMU    0x00400000            /* 4MB */
 #define GSL_HAL_SHMEM_SIZE_PHYS_MMU     0x00400000            /* 4MB */
 

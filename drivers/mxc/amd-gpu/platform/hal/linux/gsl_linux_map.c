@@ -61,7 +61,7 @@ void *gsl_linux_map_alloc(unsigned int gpu_addr, unsigned int size)
 		}
 	}
 
-	va = __vmalloc(size, GFP_KERNEL, pgprot_noncached(pgprot_kernel));
+	va = __vmalloc(size, GFP_KERNEL, pgprot_writecombine(pgprot_kernel));
 	if(va == NULL){
 		mutex_unlock(&gsl_linux_map_mutex);
 		return NULL;
