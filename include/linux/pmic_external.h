@@ -508,6 +508,7 @@ unsigned int pmic_get_active_events(unsigned int *active_events);
 int pmic_event_mask(type_event event);
 int pmic_event_unmask(type_event event);
 int pmic_spi_setup(struct spi_device *spi);
+int pmic_i2c_setup(struct i2c_client *i2c);
 
 #endif				/*CONFIG_MXC_PMIC*/
 #endif				/* __KERNEL__ */

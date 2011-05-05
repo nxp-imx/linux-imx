@@ -29,6 +29,7 @@
   */
 
 #include <linux/spi/spi.h>
+#include <linux/i2c.h>
 
 #define MAX_ACTIVE_EVENTS		10
 
@@ -40,9 +41,10 @@
  */
 struct mxc_pmic {
 	/*!
-	 * Master side proxy for an SPI slave device(PMIC)
+	 * Master side proxy for an SPI/I2C slave device(PMIC)
 	 */
 	struct spi_device *spi;
+	struct i2c_client *i2c;
 };
 
 struct pmic_internal {

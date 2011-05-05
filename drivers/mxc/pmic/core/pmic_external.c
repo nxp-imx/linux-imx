@@ -30,6 +30,7 @@
 #include <linux/interrupt.h>
 #include <linux/wait.h>
 #include <linux/init.h>
+#include <linux/delay.h>
 #include <linux/errno.h>
 
 #include <linux/pmic_external.h>
@@ -42,7 +43,9 @@
 #define MXC_PMIC_REG_NUM_SHIFT		0x19
 #define MXC_PMIC_WRITE_BIT_SHIFT	31
 
-struct mxc_pmic pmic_drv_data;
+#define PMIC_I2C_RETRY_TIMES		10
+
+static struct mxc_pmic pmic_drv_data;
 static unsigned int events_enabled0;
 static unsigned int events_enabled1;
 
@@ -60,6 +63,60 @@ int pmic_spi_setup(struct spi_device *spi)
 	return spi_setup(spi);
 }
 
+int pmic_i2c_setup(struct i2c_client *i2c)
+{
+	pmic_drv_data.i2c = i2c;
+
+	return 0;
+}
+
+int pmic_i2c_24bit_read(struct i2c_client *client, unsigned int reg_num,
+			unsigned int *value)
+{
+	unsigned char buf[3];
+	int ret;
+	int i;
+
+	memset(buf, 0, 3);
+	for (i = 0; i < PMIC_I2C_RETRY_TIMES; i++) {
+		ret = i2c_smbus_read_i2c_block_data(client, reg_num, 3, buf);
+		if (ret == 3)
+			break;
+		msleep(1);
+	}
+
+	if (ret == 3) {
+		*value = buf[0] << 16 | buf[1] << 8 | buf[2];
+		return ret;
+	} else {
+		pr_err("24bit read error, ret = %d\n", ret);
+		return -1;	/* return -1 on failure */
+	}
+}
+
+int pmic_i2c_24bit_write(struct i2c_client *client,
+			 unsigned int reg_num, unsigned int reg_val)
+{
+	char buf[3];
+	int ret;
+	int i;
+
+	buf[0] = (reg_val >> 16) & 0xff;
+	buf[1] = (reg_val >> 8) & 0xff;
+	buf[2] = (reg_val) & 0xff;
+
+	for (i = 0; i < PMIC_I2C_RETRY_TIMES; i++) {
+		ret = i2c_smbus_write_i2c_block_data(client, reg_num, 3, buf);
+		if (ret == 0)
+			break;
+		msleep(1);
+	}
+	if (i == PMIC_I2C_RETRY_TIMES)
+		pr_err("24bit write error, ret = %d\n", ret);
+
+	return ret;
+}
+
 int pmic_read(int reg_num, unsigned int *reg_val)
 {
 	unsigned int frame = 0;
@@ -75,8 +132,12 @@ int pmic_read(int reg_num, unsigned int *reg_val)
 
 		*reg_val = frame & MXC_PMIC_FRAME_MASK;
 	} else {
-		pr_err("SPI dev Not set\n");
-		return PMIC_ERROR;
+		if (pmic_drv_data.i2c == NULL)
+			return PMIC_ERROR;
+
+		if (pmic_i2c_24bit_read(pmic_drv_data.i2c, reg_num, reg_val)
+			== -1)
+			return PMIC_ERROR;
 	}
 
 	return PMIC_SUCCESS;
@@ -101,8 +162,11 @@ int pmic_write(int reg_num, const unsigned int reg_val)
 
 		return ret;
 	} else {
-		pr_err("SPI dev Not set\n");
-		return PMIC_ERROR;
+		if (pmic_drv_data.i2c == NULL)
+			return PMIC_ERROR;
+
+		return pmic_i2c_24bit_write(pmic_drv_data.i2c,
+			reg_num, reg_val);
 	}
 }
 #endif
