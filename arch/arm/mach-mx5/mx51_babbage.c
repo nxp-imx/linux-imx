@@ -1018,7 +1018,6 @@ static void __init fixup_mxc_board(struct machine_desc *desc, struct tag *tags,
 	for_each_tag(mem_tag, tags) {
 		if (mem_tag->hdr.tag == ATAG_MEM) {
 			total_mem = mem_tag->u.mem.size;
-			left_mem = total_mem - gpu_mem - fb_mem;
 			break;
 		}
 	}
@@ -1030,9 +1029,12 @@ static void __init fixup_mxc_board(struct machine_desc *desc, struct tag *tags,
 			if (str != NULL) {
 				str += 4;
 				left_mem = memparse(str, &str);
-				if (left_mem == 0 || left_mem > total_mem)
-					left_mem = total_mem - gpu_mem - fb_mem;
 			}
+
+			str = t->u.cmdline.cmdline;
+			str = strstr(str, "gpu_nommu");
+			if (str != NULL)
+				gpu_data.enable_mmu = 0;
 
 			str = t->u.cmdline.cmdline;
 			str = strstr(str, "gpu_memory=");
@@ -1045,6 +1047,12 @@ static void __init fixup_mxc_board(struct machine_desc *desc, struct tag *tags,
 		}
 	}
 
+	if (gpu_data.enable_mmu)
+		gpu_mem = 0;
+
+	if (left_mem == 0 || left_mem > total_mem)
+		left_mem = total_mem - gpu_mem - fb_mem;
+
 	if (mem_tag) {
 		fb_mem = total_mem - left_mem - gpu_mem;
 		if (fb_mem < 0) {
@@ -1054,14 +1062,18 @@ static void __init fixup_mxc_board(struct machine_desc *desc, struct tag *tags,
 		mem_tag->u.mem.size = left_mem;
 
 		/*reserve memory for gpu*/
-		gpu_device.resource[5].start =
+		if (!gpu_data.enable_mmu) {
+			gpu_device.resource[5].start =
 				mem_tag->u.mem.start + left_mem;
-		gpu_device.resource[5].end =
+			gpu_device.resource[5].end =
 				gpu_device.resource[5].start + gpu_mem - 1;
+		}
 #if defined(CONFIG_FB_MXC_SYNC_PANEL) || \
 	defined(CONFIG_FB_MXC_SYNC_PANEL_MODULE)
 		if (fb_mem) {
 			mxcfb_resources[0].start =
+				gpu_data.enable_mmu ?
+				mem_tag->u.mem.start + left_mem :
 				gpu_device.resource[5].end + 1;
 			mxcfb_resources[0].end =
 				mxcfb_resources[0].start + fb_mem - 1;
@@ -1273,7 +1285,7 @@ static void __init mxc_board_init(void)
 	mxc_register_device(&mxc_ipu_device, &mxc_ipu_data);
 	mxc_register_device(&mxc_tve_device, &tve_data);
 	mxc_register_device(&mxcvpu_device, &mxc_vpu_data);
-	mxc_register_device(&gpu_device, NULL);
+	mxc_register_device(&gpu_device, &gpu_data);
 	mxc_register_device(&mxcscc_device, NULL);
 	mxc_register_device(&mx51_lpmode_device, NULL);
 	mxc_register_device(&busfreq_device, &bus_freq_data);
