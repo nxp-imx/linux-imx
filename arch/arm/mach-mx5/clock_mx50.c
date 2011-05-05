@@ -3349,6 +3349,10 @@ int __init mx50_clocks_init(unsigned long ckil, unsigned long osc, unsigned long
 	clk_disable(&pxp_axi_clk);
 	clk_disable(&elcdif_axi_clk);
 
+	/* Set the SELF-BIAS bit. */
+	__raw_writel(MXC_ANADIG_REF_SELFBIAS_OFF,
+					apll_base + MXC_ANADIG_MISC_SET);
+
 	clk_enable(&elcdif_pix_clk);
 	clk_set_parent(&elcdif_pix_clk, &pll1_sw_clk);
 	clk_disable(&elcdif_pix_clk);

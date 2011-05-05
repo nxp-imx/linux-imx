@@ -145,6 +145,7 @@ extern void (*set_num_cpu_wp)(int num);
 extern struct dvfs_wp *(*get_dvfs_core_wp)(int *wp);
 extern int lcdif_sel_lcd;
 extern int lcd_seiko_on_j12;
+extern void __iomem *apll_base;
 
 static void mx50_suspend_enter(void);
 static void mx50_suspend_exit(void);
@@ -1740,6 +1741,14 @@ static void mx50_suspend_enter()
 			(MX50_PAD_ECSPI2_SCLK__GPIO_4_16 &
 			~MUX_PAD_CTRL_MASK) | MUX_PAD_CTRL(0x84);
 
+	/* Clear the SELF_BIAS bit and power down
+	 * the band-gap.
+	 */
+	__raw_writel(MXC_ANADIG_REF_SELFBIAS_OFF,
+			apll_base + MXC_ANADIG_MISC_CLR);
+	__raw_writel(MXC_ANADIG_REF_PWD,
+			apll_base + MXC_ANADIG_MISC_SET);
+
 	if (board_is_mx50_rd3()) {
 		/* Enable the Pull/keeper */
 		mxc_iomux_v3_setup_pad(iomux_setting);
@@ -1766,6 +1775,13 @@ static void mx50_suspend_exit()
 	iomux_v3_cfg_t iomux_setting =
 			(MX50_PAD_ECSPI2_SCLK__GPIO_4_16 &
 			~MUX_PAD_CTRL_MASK) | MUX_PAD_CTRL(0x84);
+
+	/* Power Up the band-gap and set the SELFBIAS bit. */
+	__raw_writel(MXC_ANADIG_REF_PWD,
+			apll_base + MXC_ANADIG_MISC_CLR);
+	udelay(100);
+	__raw_writel(MXC_ANADIG_REF_SELFBIAS_OFF,
+			apll_base + MXC_ANADIG_MISC_SET);
 
 	if (board_is_mx50_rd3()) {
 		/* Enable the Pull/keeper */
