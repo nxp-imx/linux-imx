@@ -48,6 +48,7 @@
 #include <linux/regulator/driver.h>
 #include <linux/fsl_devices.h>
 #include <linux/bitops.h>
+#include <mach/epdc.h>
 
 #include "epdc_regs.h"
 
