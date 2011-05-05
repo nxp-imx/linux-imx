@@ -528,6 +528,11 @@ struct mxc_pwm_platform_data {
 	void (*disable_pwm_pad) (void);
 };
 
+struct mxc_gpu_platform_data {
+	int z160_revision;
+	int enable_mmu;
+};
+
 /* The name that links the i.MX NAND Flash Controller driver to its devices. */
 
 #define IMX_NFC_DRIVER_NAME  ("imx_nfc")
