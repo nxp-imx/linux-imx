@@ -422,7 +422,7 @@ static struct mc13892_platform_data mc13892_plat = {
 };
 
 static struct spi_board_info __initdata mc13892_spi_device = {
-	.modalias = "pmic_spi",
+	.modalias = "mc13892",
 	.irq = gpio_to_irq(8),
 	.max_speed_hz = 6000000,	/* max spi SCK clock speed in HZ */
 	.bus_num = 1,
