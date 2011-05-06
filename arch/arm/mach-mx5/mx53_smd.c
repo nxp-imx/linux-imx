@@ -1385,6 +1385,11 @@ static void __init fixup_android_board(struct machine_desc *desc, struct tag *ta
 			}
 
 			str = t->u.cmdline.cmdline;
+			str = strstr(str, "gpu_nommu");
+			if (str != NULL)
+				gpu_data.enable_mmu = 0;
+
+			str = t->u.cmdline.cmdline;
 			str = strstr(str, "gpu_memory=");
 			if (str != NULL) {
 				str += 11;
@@ -1393,6 +1398,9 @@ static void __init fixup_android_board(struct machine_desc *desc, struct tag *ta
 			break;
 		}
 	}
+
+	if (gpu_data.enable_mmu)
+		gpu_mem = 0;
 
 	/* get total memory from TAGS */
 	for_each_tag(mem_tag, tags) {
@@ -1415,10 +1423,12 @@ static void __init fixup_android_board(struct machine_desc *desc, struct tag *ta
 		mem_tag->u.mem.size = left_mem;
 
 		/*reserve memory for gpu*/
-		gpu_device.resource[5].start =
+		if (!gpu_data.enable_mmu) {
+			gpu_device.resource[5].start =
 				mem_tag->u.mem.start + left_mem;
-		gpu_device.resource[5].end =
+			gpu_device.resource[5].end =
 				gpu_device.resource[5].start + gpu_mem - 1;
+		}
 	}
 }
 
