@@ -131,6 +131,10 @@ static iomux_v3_cfg_t mx53_loco_pads[] = {
 	/* I2C2 */
 	MX53_PAD_KEY_COL3__I2C2_SCL,
 	MX53_PAD_KEY_ROW3__I2C2_SDA,
+	/* I2C3 */
+	MX53_PAD_GPIO_3__I2C3_SCL,
+	MX53_PAD_GPIO_6__I2C3_SDA,
+
 	/* SD1 */
 	MX53_PAD_SD1_CMD__ESDHC1_CMD,
 	MX53_PAD_SD1_CLK__ESDHC1_CLK,
@@ -462,6 +466,29 @@ static struct i2c_board_info mxc_i2c1_board_info[] __initdata = {
 	 .addr = 0x39,
 	 .irq = gpio_to_irq(DISP0_DET_INT),
 	 .platform_data = &sii902x_hdmi_data,
+	},
+};
+
+static int p1003_ts_hw_status(void)
+{
+	return gpio_get_value(DISP0_DET_INT);
+}
+
+static struct p1003_ts_platform_data p1003_ts_data = {
+	.hw_status = p1003_ts_hw_status,
+};
+
+static struct i2c_board_info mxc_i2c2_board_info[] __initdata = {
+	{
+	 .type = "p1003_fwv33",
+	 .addr = 0x41,
+	 .irq  = gpio_to_irq(DISP0_DET_INT),
+	 .platform_data = &p1003_ts_data,
+	},
+	{
+	 .type = "egalax_ts",
+	 .addr = 0x4,
+	 .irq  = gpio_to_irq(DISP0_DET_INT),
 	},
 };
 
@@ -860,6 +887,7 @@ static void __init mxc_board_init(void)
 	mxc_register_device(&mxc_wdt_device, NULL);
 	mxc_register_device(&mxci2c_devices[0], &mxci2c_data);
 	mxc_register_device(&mxci2c_devices[1], &mxci2c_data);
+	mxc_register_device(&mxci2c_devices[2], &mxci2c_data);
 
 	mx53_loco_init_da9052();
 
@@ -902,6 +930,8 @@ static void __init mxc_board_init(void)
 				ARRAY_SIZE(mxc_i2c0_board_info));
 	i2c_register_board_info(1, mxc_i2c1_board_info,
 				ARRAY_SIZE(mxc_i2c1_board_info));
+	i2c_register_board_info(2, mxc_i2c2_board_info,
+				ARRAY_SIZE(mxc_i2c2_board_info));
 
 	mxc_register_device(&mxc_sgtl5000_device, &sgtl5000_data);
 	mxc_register_device(&mxc_spdif_audio_device, &spdif_audio_data);
