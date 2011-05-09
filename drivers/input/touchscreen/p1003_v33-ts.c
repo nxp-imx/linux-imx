@@ -150,6 +150,7 @@ static void p1003_work(struct work_struct *work)
 			input_event(input, EV_ABS, ABS_X, x1);
 			input_event(input, EV_ABS, ABS_Y, y1);
 			input_event(input, EV_KEY, BTN_TOUCH, 1);
+			input_report_abs(input, ABS_PRESSURE, 1);
 			input_sync(input);
 			old_state->x1 = x1;
 			old_state->y1 = y1;
@@ -190,6 +191,7 @@ static void p1003_work(struct work_struct *work)
 	input_event(input, EV_ABS, ABS_MT_TOUCH_MAJOR, 0);
 	input_mt_sync(input);
 	input_event(input, EV_KEY, BTN_TOUCH, 0);
+	input_report_abs(input, ABS_PRESSURE, 0);
 	input_sync(input);
 	old_state->state = data[0];
 }
