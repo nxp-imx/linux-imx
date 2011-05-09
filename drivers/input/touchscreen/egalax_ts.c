@@ -143,6 +143,7 @@ retry:
 		input_report_abs(input_dev, ABS_X, x);
 		input_report_abs(input_dev, ABS_Y, y);
 		input_event(data->input_dev, EV_KEY, BTN_TOUCH, 1);
+		input_report_abs(input_dev, ABS_PRESSURE, 1);
 #else
 		for (i = 0; i < MAX_SUPPORT_POINTS; i++) {
 			if (!events[i].valid)
@@ -167,6 +168,7 @@ retry:
 		events[id].status = 0;
 #ifdef FORCE_SINGLE_POINTER_SUPPORT
 		input_report_key(input_dev, BTN_TOUCH, 0);
+		input_report_abs(input_dev, ABS_PRESSURE, 0);
 #else
 		input_report_abs(input_dev, ABS_MT_TRACKING_ID, id);
 		input_event(input_dev, EV_ABS, ABS_MT_TOUCH_MAJOR, 0);
@@ -231,6 +233,7 @@ static int __devinit egalax_ts_probe(struct i2c_client *client,
 	__set_bit(BTN_TOUCH, input_dev->keybit);
 	__set_bit(ABS_X, input_dev->absbit);
 	__set_bit(ABS_Y, input_dev->absbit);
+	__set_bit(ABS_PRESSURE, input_dev->absbit);
 	input_set_abs_params(input_dev, ABS_X, 0, 32767, 0, 0);
 	input_set_abs_params(input_dev, ABS_Y, 0, 32767, 0, 0);
 
