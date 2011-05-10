@@ -43,6 +43,7 @@ struct mxc_mmc_platform_data {
 	unsigned int clk_always_on;     /* Needed by SDIO cards and etc */
 	unsigned int dll_override_en;	/* Enable dll override delay line */
 	unsigned int dll_delay_cells;	/* The number of delay cells (0-0x3f) */
+	unsigned int usdhc_en;
 	unsigned int reserved:16;
 	unsigned int card_fixed:1;
 	unsigned int card_inserted_state:1;
