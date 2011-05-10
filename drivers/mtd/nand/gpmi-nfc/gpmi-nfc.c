@@ -35,6 +35,9 @@ int gpmi_debug;
 module_param(gpmi_debug, int, 0644);
 MODULE_PARM_DESC(gpmi_debug, "print out the debug infomation.");
 
+/* enable the gpmi-nfc */
+static bool enable_gpmi_nand;
+
 static ssize_t show_ignorebad(struct device *dev,
 				struct device_attribute *attr, char *buf)
 {
@@ -1229,8 +1232,6 @@ static void read_page_swap_end(struct gpmi_nfc_data *this,
 			void *alt_virt, dma_addr_t alt_phys, unsigned alt_size,
 			void *used_virt, dma_addr_t used_phys)
 {
-	struct device *dev = this->dev;
-
 	if (!this->mil.direct_dma_map_ok)
 		memcpy(destination, alt_virt, length);
 }
@@ -2453,6 +2454,9 @@ static int __init gpmi_nfc_init(void)
 {
 	int err;
 
+	if (!enable_gpmi_nand)
+		return 0;
+
 	err = platform_driver_register(&gpmi_nfc_driver);
 	if (err == 0)
 		printk(KERN_INFO "GPMI NFC driver registered. (IMX)\n");
@@ -2472,6 +2476,13 @@ static int __init gpmi_debug_setup(char *__unused)
 	return 1;
 }
 __setup("gpmi_debug_init", gpmi_debug_setup);
+
+static int __init gpmi_nand_setup(char *__unused)
+{
+	enable_gpmi_nand = true;
+	return 1;
+}
+__setup("gpmi-nfc", gpmi_nand_setup);
 
 module_init(gpmi_nfc_init);
 module_exit(gpmi_nfc_exit);
