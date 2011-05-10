@@ -2021,6 +2021,14 @@ static struct clk usb_phy_clk[] = {
 	}
 };
 
+static struct clk digctl_clk = {
+	.id = 0,
+	.enable = _clk_enable,
+	.enable_reg = MXC_CCM_CCGR7,
+	.enable_shift = MXC_CCM_CCGRx_CG15_OFFSET,
+	.disable = _clk_disable,
+};
+
 static struct clk esdhc_dep_clks = {
 	 .parent = &spba_clk,
 	 .secondary = &ddr_clk,
@@ -3166,6 +3174,7 @@ static struct clk_lookup lookups[] = {
 	_REGISTER_CLOCK("mxsdhci.1", NULL, esdhc2_clk[0]),
 	_REGISTER_CLOCK("mxsdhci.2", NULL, esdhc3_clk[0]),
 	_REGISTER_CLOCK("mxsdhci.3", NULL, esdhc4_clk[0]),
+	_REGISTER_CLOCK(NULL, "digctl_clk", digctl_clk),
 	_REGISTER_CLOCK(NULL, "ddr_clk", ddr_clk),
 	_REGISTER_CLOCK("mxc_rtc.0", NULL, rtc_clk),
 	_REGISTER_CLOCK("mxc_w1.0", NULL, owire_clk),
@@ -3282,8 +3291,6 @@ int __init mx50_clocks_init(unsigned long ckil, unsigned long osc, unsigned long
 				3 << MXC_CCM_CCGRx_CG1_OFFSET |
 				2 << MXC_CCM_CCGRx_CG14_OFFSET |
 				3 << MXC_CCM_CCGRx_CG15_OFFSET, MXC_CCM_CCGR6);
-
-	__raw_writel(0, MXC_CCM_CCGR7);
 
 	external_low_reference = ckil;
 	external_high_reference = ckih1;
