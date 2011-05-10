@@ -2,7 +2,7 @@
  *  linux/drivers/mmc/host/mx_sdhci.h - Secure Digital Host
  *  Controller Interface driver
  *
- *  Copyright (C) 2008-2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ *  Copyright (C) 2008-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -226,6 +226,15 @@ enum {
 #define   ESDHC_VENDOR_V22 	0x12
 #define   ESDHC_VENDOR_V3 	0x13
 
+/* registers for usdhc */
+#define USDHCI_MIXER_CTL        0x48
+#define USDHCI_COMMAND		0x0C
+
+/*
+ * USDHCI_DLL_CONTROL
+ */
+#define USDHC_DLL_CTRL_SLV_OVERRIDE	0x100
+
 struct sdhci_chip;
 
 struct sdhci_host {
@@ -288,6 +297,7 @@ struct sdhci_host {
 	/* Platform specific data */
 	struct mxc_mmc_platform_data *plat_data;
 
+	unsigned int usdhc_en;	/* enable usdhc */
 	struct timer_list timer;	/* Timer for timeouts */
 	struct timer_list cd_timer;	/* Timer for cd */
 };
