@@ -521,6 +521,7 @@ static int mxc_spdif_playback_prepare(struct snd_pcm_substream *substream,
 
 	regval = __raw_readl(spdif_base_addr + SPDIF_REG_SCR);
 	regval &= 0xfc33e3;
+	regval &= ~SCR_LOW_POWER;
 	regval |= SCR_TXFIFO_AUTOSYNC | SCR_TXFIFO_NORMAL |
 	    SCR_TXSEL_NORMAL | SCR_USRC_SEL_CHIP | (2 << SCR_TXFIFO_ESEL_BIT);
 	__raw_writel(regval, SPDIF_REG_SCR + spdif_base_addr);
@@ -584,6 +585,7 @@ static int mxc_spdif_playback_shutdown(struct snd_pcm_substream *substream,
 
 	regval = __raw_readl(SPDIF_REG_SCR + spdif_base_addr);
 	regval &= ~SCR_DMA_TX_EN;
+	regval |= SCR_LOW_POWER;
 	__raw_writel(regval, SPDIF_REG_SCR + spdif_base_addr);
 
 	clk_disable(plat_data->spdif_audio_clk);
@@ -705,7 +707,7 @@ static int mxc_spdif_capture_shutdown(struct snd_pcm_substream *substream,
 
 	/* turn off RX fifo, disable dma and autosync */
 	regval = __raw_readl(spdif_base_addr + SPDIF_REG_SCR);
-	regval |= SCR_RXFIFO_OFF | SCR_RXFIFO_CTL_ZERO;
+	regval |= SCR_RXFIFO_OFF | SCR_RXFIFO_CTL_ZERO | SCR_LOW_POWER;
 	regval &= ~(SCR_DMA_RX_EN | SCR_RXFIFO_AUTOSYNC);
 	__raw_writel(regval, spdif_base_addr + SPDIF_REG_SCR);
 
