@@ -140,6 +140,38 @@ void mxc_mmc_force_detect(int id)
 
 EXPORT_SYMBOL(mxc_mmc_force_detect);
 
+static int sdhci_is_usdhc(struct sdhci_host *host)
+{
+	return (cpu_is_mx50() && (host->id == 2));
+}
+
+static int sdhci_usdhc_select(struct sdhci_host *host)
+{
+	u32 value;
+	struct clk *clk;	/* Clock id */
+	void __iomem *digctl;
+
+	/* operating digctl register requring the digctl clock is on */
+	clk = clk_get(NULL, "digctl_clk");
+	if (IS_ERR(clk)) {
+		printk(KERN_ERR "mmc%d: failed to get digctl clock.\n", host->id);
+		return PTR_ERR(clk);
+	}
+	clk_enable(clk);
+
+	host->usdhc_en = 1;
+	digctl = ioremap(DIGCTL_BASE_ADDR, SZ_4K);
+	value = readl(digctl);
+	writel(0x3fffffff & readl(digctl), digctl);
+	writel(0x1 | readl(digctl), digctl);
+
+	iounmap(digctl);
+	clk_disable(clk);
+	clk_put(clk);
+
+	return 0;
+}
+
 static void sdhci_dumpregs(struct sdhci_host *host)
 {
 	printk(KERN_INFO DRIVER_NAME
@@ -231,7 +263,7 @@ static void sdhci_reset(struct sdhci_host *host, u8 mask)
 
 static void sdhci_init(struct sdhci_host *host)
 {
-	u32 intmask;
+	u32 intmask, vendor;
 
 	sdhci_reset(host, SDHCI_RESET_ALL);
 
@@ -255,6 +287,11 @@ static void sdhci_init(struct sdhci_host *host)
 		writel(SDHCI_WML_16_WORDS, host->ioaddr + SDHCI_WML);
 	writel(intmask | SDHCI_INT_CARD_INT, host->ioaddr + SDHCI_INT_ENABLE);
 	writel(intmask, host->ioaddr + SDHCI_SIGNAL_ENABLE);
+
+	if (host->usdhc_en) {
+		vendor = readl(host->ioaddr + SDHCI_VENDOR_SPEC);
+		writel(vendor | (1<<3), host->ioaddr + SDHCI_VENDOR_SPEC);
+	}
 }
 
 static void sdhci_activate_led(struct sdhci_host *host)
@@ -795,7 +832,6 @@ static void sdhci_send_command(struct sdhci_host *host, struct mmc_command *cmd)
 	if (cmd->data)
 		flags |= SDHCI_CMD_DATA;
 
-	mode |= SDHCI_MAKE_CMD(cmd->opcode, flags);
 	if (host->mmc->ios.bus_width & MMC_BUS_WIDTH_DDR) {
 		/* Eanble the DDR mode */
 		mode |= SDHCI_TRNS_DDR_EN;
@@ -804,8 +840,19 @@ static void sdhci_send_command(struct sdhci_host *host, struct mmc_command *cmd)
 	/* Configure the cmd type for cmd12 */
 	if (cmd->opcode == 12)
 		mode |= SDHCI_TRNS_ABORTCMD;
+
+	if (host->usdhc_en) {
+		writel(readl(host->ioaddr + SDHCI_VENDOR_SPEC) | 8,
+			host->ioaddr + SDHCI_VENDOR_SPEC);
+
+		writel(mode, host->ioaddr + USDHCI_MIXER_CTL);
+		writel(SDHCI_MAKE_CMD(cmd->opcode, flags),
+			host->ioaddr + USDHCI_COMMAND);
+	} else {
+		mode |= SDHCI_MAKE_CMD(cmd->opcode, flags);
+		writel(mode, host->ioaddr + SDHCI_TRANSFER_MODE);
+	}
 	DBG("Complete sending cmd, transfer mode would be 0x%x.\n", mode);
-	writel(mode, host->ioaddr + SDHCI_TRANSFER_MODE);
 }
 
 static void sdhci_finish_command(struct sdhci_host *host)
@@ -878,17 +925,26 @@ static void sdhci_set_clock(struct sdhci_host *host, unsigned int clock)
 
 	if (clock == host->min_clk)
 		prescaler = 16;
-	else if (cpu_is_mx53() || cpu_is_mx50())
+	else if (cpu_is_mx53() || (cpu_is_mx50() && !host->usdhc_en))
 		prescaler = 1;
 	else
 		prescaler = 0;
 	while (prescaler <= 0x80) {
 		for (div = 0; div <= 0xF; div++) {
 			int x;
-			if (prescaler != 0)
-				x = (clk_rate / (div + 1)) / (prescaler * 2);
-			else
-				x = clk_rate / (div + 1);
+
+			if ((host->usdhc_en) && (ios.bus_width
+				& MMC_BUS_WIDTH_DDR)) {
+				if (prescaler != 0)
+					x = (clk_rate / (div + 1)) / (prescaler * 4);
+				else
+					x = (clk_rate / (div + 1))/2;
+			} else {
+				if (prescaler != 0)
+					x = (clk_rate / (div + 1)) / (prescaler * 2);
+				else
+					x = clk_rate / (div + 1);
+			}
 
 			DBG("x=%d, clock=%d %d\n", x, clock, div);
 			if (x <= clock)
@@ -910,10 +966,16 @@ static void sdhci_set_clock(struct sdhci_host *host, unsigned int clock)
 
 	/* Configure the clock delay line */
 	if ((host->plat_data->vendor_ver >= ESDHC_VENDOR_V3)
-		&& host->plat_data->dll_override_en)
-		writel((host->plat_data->dll_delay_cells << 10)
-			| DLL_CTRL_SLV_OVERRIDE,
-			host->ioaddr + SDHCI_DLL_CONTROL);
+		&& host->plat_data->dll_override_en) {
+		if (host->usdhc_en)
+			writel((host->plat_data->dll_delay_cells << 9)
+				| USDHC_DLL_CTRL_SLV_OVERRIDE,
+				host->ioaddr + SDHCI_DLL_CONTROL);
+		else
+			writel((host->plat_data->dll_delay_cells << 10)
+				| DLL_CTRL_SLV_OVERRIDE,
+				host->ioaddr + SDHCI_DLL_CONTROL);
+	}
 
 	/* Configure the clock control register */
 	clk |=
@@ -931,10 +993,17 @@ static void sdhci_set_clock(struct sdhci_host *host, unsigned int clock)
 		udelay(20);
 	}
 
-	if (prescaler != 0)
-		 host->clock = (clk_rate / (div + 1)) / (prescaler * 2);
-	 else
-		 host->clock = clk_rate / (div + 1);
+	if ((host->usdhc_en) && (ios.bus_width & MMC_BUS_WIDTH_DDR)) {
+		if (prescaler != 0)
+			host->clock = (clk_rate / (div + 1)) / (prescaler * 4);
+		else
+			host->clock = (clk_rate / (div + 1))/2;
+	} else {
+		if (prescaler != 0)
+			host->clock = (clk_rate / (div + 1)) / (prescaler * 2);
+		else
+			host->clock = clk_rate / (div + 1);
+	}
 }
 
 static void sdhci_set_power(struct sdhci_host *host, unsigned short power)
@@ -1928,13 +1997,16 @@ static int __devinit sdhci_probe_slot(struct platform_device
 		goto out3;
 	}
 
+	if (host->plat_data->usdhc_en && sdhci_is_usdhc(host))
+		sdhci_usdhc_select(host);
+
 	sdhci_reset(host, SDHCI_RESET_ALL);
 
 	version = readl(host->ioaddr + SDHCI_HOST_VERSION);
 	host->plat_data->vendor_ver = (version & SDHCI_VENDOR_VER_MASK) >>
 	    SDHCI_VENDOR_VER_SHIFT;
 	version = (version & SDHCI_SPEC_VER_MASK) >> SDHCI_SPEC_VER_SHIFT;
-	if (version != 1) {
+	if (version != 1 && version != 2) {
 		printk(KERN_ERR "%s: Unknown controller version (%d). "
 		       "You may experience problems.\n", mmc_hostname(mmc),
 		       version);
