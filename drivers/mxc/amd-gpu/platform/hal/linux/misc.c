@@ -40,7 +40,7 @@ typedef struct _gsl_autogate_t {
 static gsl_autogate_t *g_autogate[2];
 static DECLARE_MUTEX(sem_dev);
 
-#define KGSL_DEVICE_IDLE_TIMEOUT 5000	/* unit ms */
+#define KGSL_DEVICE_IDLE_TIMEOUT 2000	/* unit ms */
 
 static void clk_disable_task(struct work_struct *work)
 {
