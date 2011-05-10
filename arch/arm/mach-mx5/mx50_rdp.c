@@ -1395,13 +1395,17 @@ static struct mxc_mmc_platform_data mmc2_data = {
 	.power_mmc = "VSD"
 };
 
+/*
+ * NOTE: Due to possible timing issue, it is not recommended to use usdhc
+ * with DDR mode enabled. Instead, we use esdhc for DDR mode by default.
+ */
 static struct mxc_mmc_platform_data mmc3_data = {
 	.ocr_mask = MMC_VDD_27_28 | MMC_VDD_28_29 | MMC_VDD_29_30
 		| MMC_VDD_31_32,
-	.caps = MMC_CAP_4_BIT_DATA | MMC_CAP_8_BIT_DATA,
+	.caps = MMC_CAP_4_BIT_DATA | MMC_CAP_8_BIT_DATA | MMC_CAP_DATA_DDR,
 	.min_clk = 400000,
 	.max_clk = 50000000,
-	.card_inserted_state = 0,
+	.card_inserted_state = 1,
 	.status = sdhc_get_card_det_status,
 	.wp_status = sdhc_write_protect,
 	.clock_mmc = "esdhc_clk",
