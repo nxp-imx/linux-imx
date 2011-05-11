@@ -914,11 +914,19 @@ static void fec_enet_get_drvinfo(struct net_device *dev,
 	strcpy(info->bus_info, dev_name(&dev->dev));
 }
 
+static int fec_enet_get_link(struct net_device *dev)
+{
+	if (netif_running(dev))
+		return netif_carrier_ok(dev) ? 1 : 0;
+	else
+		return -EINVAL;
+}
+
 static struct ethtool_ops fec_enet_ethtool_ops = {
 	.get_settings		= fec_enet_get_settings,
 	.set_settings		= fec_enet_set_settings,
 	.get_drvinfo		= fec_enet_get_drvinfo,
-	.get_link		= ethtool_op_get_link,
+	.get_link		= fec_enet_get_link,
 };
 
 static int fec_enet_ioctl(struct net_device *dev, struct ifreq *rq, int cmd)
