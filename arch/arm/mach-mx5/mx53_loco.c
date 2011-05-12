@@ -43,6 +43,7 @@
 #include <linux/mxcfb.h>
 #include <linux/pwm_backlight.h>
 #include <linux/fec.h>
+#include <linux/powerkey.h>
 #include <linux/ahci_platform.h>
 #include <linux/gpio_keys.h>
 #include <linux/mfd/da9052/da9052.h>
@@ -66,6 +67,7 @@
 #include "crm_regs.h"
 #include "devices.h"
 #include "usb.h"
+#include "pmic.h"
 
 /*!
  * @file mach-mx5/mx53_loco.c
@@ -103,8 +105,7 @@
 #define USER_LED_EN			(6*32 + 7)	/* GPIO_7_7 */
 #define USB_PWREN			(6*32 + 8)	/* GPIO_7_8 */
 #define NIRQ				(6*32 + 11)	/* GPIO7_11 */
-
-extern int __init mx53_loco_init_da9052(void);
+#define MX53_LOCO_MC34708_IRQ    (6*32 + 11)	/* GPIO7_11 */
 
 static iomux_v3_cfg_t mx53_loco_pads[] = {
 	/* FEC */
@@ -302,7 +303,6 @@ static struct fec_platform_data fec_data = {
 };
 
 static struct mxc_dvfs_platform_data dvfs_core_data = {
-	.reg_id = "DA9052_BUCK_CORE",
 	.clk1_id = "cpu_clk",
 	.clk2_id = "gpc_dvfs_clk",
 	.gpc_cntr_offset = MXC_GPC_CNTR_OFFSET,
@@ -325,13 +325,9 @@ static struct mxc_dvfs_platform_data dvfs_core_data = {
 	.delay_time = 30,
 };
 
-static struct mxc_bus_freq_platform_data bus_freq_data = {
-	.gp_reg_id = "DA9052_BUCK_CORE",
-	.lp_reg_id = "DA9052_BUCK_PRO",
-};
+static struct mxc_bus_freq_platform_data bus_freq_data;
 
 static struct tve_platform_data tve_data = {
-	.dac_reg = "DA9052_LDO7",
 	.boot_enable = MXC_TVE_VGA,
 };
 
@@ -651,6 +647,31 @@ static void __init loco_add_device_buttons(void)
 static void __init loco_add_device_buttons(void) {}
 #endif
 
+static void mxc_register_powerkey(pwrkey_callback pk_cb)
+{
+	pmic_event_callback_t power_key_event;
+
+	power_key_event.param = (void *)1;
+	power_key_event.func = (void *)pk_cb;
+	pmic_event_subscribe(EVENT_PWRONI, power_key_event);
+}
+
+static int mxc_pwrkey_getstatus(int id)
+{
+	int sense;
+
+	pmic_read_reg(REG_INT_SENSE1, &sense, 0xffffffff);
+	if (sense & (1 << 3))
+		return 0;
+
+	return 1;
+}
+
+static struct power_key_platform_data pwrkey_data = {
+	.key_value = KEY_F4,
+	.register_pwrkey = mxc_register_powerkey,
+	.get_key_status = mxc_pwrkey_getstatus,
+};
 
 /*!
  * Board specific fixup function. It is called by \b setup_arch() in
@@ -781,6 +802,9 @@ static void __init mx53_loco_io_init(void)
 	/* LCD panel power enable */
 	gpio_request(DISP0_POWER_EN, "disp0-power-en");
 	gpio_direction_output(DISP0_POWER_EN, 1);
+
+	gpio_request(MX53_LOCO_MC34708_IRQ, "pmic-int");
+	gpio_direction_input(MX53_LOCO_MC34708_IRQ);
 }
 
 /*!
@@ -806,7 +830,21 @@ static void __init mxc_board_init(void)
 	mxc_register_device(&mxci2c_devices[1], &mxci2c_data);
 	mxc_register_device(&mxci2c_devices[2], &mxci2c_data);
 
-	mx53_loco_init_da9052();
+    if (board_is_mx53_loco_mc34708()) {
+		mx53_loco_init_mc34708();
+		dvfs_core_data.reg_id = "SW1A";
+		tve_data.dac_reg = "VDAC";
+		bus_freq_data.gp_reg_id = "SW1A";
+		bus_freq_data.lp_reg_id = "SW2";
+		mxc_register_device(&mxc_powerkey_device, &pwrkey_data);
+	}
+    else {
+		mx53_loco_init_da9052();
+		dvfs_core_data.reg_id = "DA9052_BUCK_CORE";
+		tve_data.dac_reg = "DA9052_LDO7";
+		bus_freq_data.gp_reg_id = "DA9052_BUCK_CORE";
+		bus_freq_data.lp_reg_id = "DA9052_BUCK_PRO";
+	}
 
 	mxc_register_device(&mxc_rtc_device, NULL);
 	mxc_register_device(&mxc_ipu_device, &mxc_ipu_data);

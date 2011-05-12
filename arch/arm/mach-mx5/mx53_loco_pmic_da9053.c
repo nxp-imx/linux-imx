@@ -36,6 +36,7 @@
 #include <mach/irqs.h>
 #include <mach/iomux-mx53.h>
 #include <mach/gpio.h>
+#include "pmic.h"
 
 #define DA9052_LDO(max, min, rname, suspend_mv) \
 {\
