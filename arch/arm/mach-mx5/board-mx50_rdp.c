@@ -32,6 +32,7 @@
 #include <mach/hardware.h>
 #include <mach/iomux-mx50.h>
 #include <mach/epdc.h>
+#include <mach/mxc_dvfs.h>
 
 #include <asm/irq.h>
 #include <asm/setup.h>
@@ -42,6 +43,7 @@
 #include "devices-imx50.h"
 #include "cpu_op-mx50.h"
 #include "devices.h"
+#include "crm_regs.h"
 
 #define FEC_EN		IMX_GPIO_NR(6, 23)
 #define FEC_RESET_B	IMX_GPIO_NR(4, 12)
@@ -83,6 +85,13 @@
 #define MX50_RDP_EPDC_PMIC_WAKE IMX_GPIO_NR(6, 16)
 #define MX50_RDP_EPDC_PMIC_INT  IMX_GPIO_NR(6, 17)
 #define MX50_RDP_EPDC_VCOM      IMX_GPIO_NR(4, 21)
+#define MX50_RDP_SD1_WP		IMX_GPIO_NR(4, 19)	/*GPIO_4_19 */
+#define MX50_RDP_SD1_CD		IMX_GPIO_NR(1, 27)	/*GPIO_1_27 */
+#define MX50_RDP_SD2_WP		IMX_GPIO_NR(5, 16)	/*GPIO_5_16 */
+#define MX50_RDP_SD2_CD		IMX_GPIO_NR(5, 17) /*GPIO_5_17 */
+#define MX50_RDP_SD3_WP		IMX_GPIO_NR(5, 28) /*GPIO_5_28 */
+
+extern struct dvfs_op *(*get_dvfs_core_op)(int *wp);
 
 extern int mx50_rdp_init_mc13892(void);
 
@@ -709,6 +718,70 @@ static struct gpmi_nfc_platform_data  mx50_gpmi_nfc_platform_data __initdata = {
 	.max_chip_count          = 1,
 };
 
+
+static struct mxc_dvfs_platform_data rdp_dvfscore_data = {
+	.reg_id = "cpu_vddgp",
+	.clk1_id = "cpu_clk",
+	.clk2_id = "gpc_dvfs_clk",
+	.gpc_cntr_offset = MXC_GPC_CNTR_OFFSET,
+	.gpc_vcr_offset = MXC_GPC_VCR_OFFSET,
+	.ccm_cdcr_offset = MXC_CCM_CDCR_OFFSET,
+	.ccm_cacrr_offset = MXC_CCM_CACRR_OFFSET,
+	.ccm_cdhipr_offset = MXC_CCM_CDHIPR_OFFSET,
+	.prediv_mask = 0x1F800,
+	.prediv_offset = 11,
+	.prediv_val = 3,
+	.div3ck_mask = 0xE0000000,
+	.div3ck_offset = 29,
+	.div3ck_val = 2,
+	.emac_val = 0x08,
+	.upthr_val = 25,
+	.dnthr_val = 9,
+	.pncthr_val = 33,
+	.upcnt_val = 10,
+	.dncnt_val = 10,
+	.delay_time = 80,
+};
+
+static struct dvfs_op dvfs_core_setpoint[] = {
+	{33, 13, 33, 10, 10, 0x08}, /* 800MHz*/
+	{28, 8, 33, 10, 10, 0x08},   /* 400MHz */
+	{20, 0, 33, 20, 10, 0x08},   /* 160MHz*/
+	{28, 8, 33, 20, 30, 0x08},   /*160MHz, AHB 133MHz, LPAPM mode*/
+	{29, 0, 33, 20, 10, 0x08},}; /* 160MHz, AHB 24MHz */
+
+static struct dvfs_op *mx50_rdp_get_dvfs_core_table(int *wp)
+{
+	*wp = ARRAY_SIZE(dvfs_core_setpoint);
+	return dvfs_core_setpoint;
+}
+
+static struct mxc_bus_freq_platform_data rdp_bus_freq_data = {
+	.gp_reg_id = "cpu_vddgp",
+	.lp_reg_id = "lp_vcc",
+};
+
+static const struct esdhc_platform_data mx50_rdp_sd1_data __initconst = {
+	.cd_gpio = MX50_RDP_SD1_CD,
+	.wp_gpio = MX50_RDP_SD1_WP,
+};
+
+static const struct esdhc_platform_data mx50_rdp_sd2_data __initconst = {
+	.cd_gpio = MX50_RDP_SD2_CD,
+	.wp_gpio = MX50_RDP_SD2_WP,
+};
+
+static const struct esdhc_platform_data mx50_rdp_sd3_data __initconst = {
+	.wp_gpio = MX50_RDP_SD3_WP,
+	.always_present = 1,
+};
+
+static void __init fixup_mxc_board(struct machine_desc *desc, struct tag *tags,
+				   char **cmdline, struct meminfo *mi)
+{
+	get_dvfs_core_op = mx50_rdp_get_dvfs_core_table;
+}
+
 /*
  * Board specific initialization.
  */
@@ -740,16 +813,19 @@ static void __init mx50_rdp_board_init(void)
 	i2c_register_board_info(0, mxc_i2c0_board_info,
 				ARRAY_SIZE(mxc_i2c0_board_info));
 	mxc_register_device(&max17135_sensor_device, NULL);
-    imx50_add_imx_epdc(&epdc_data);
-    imx50_add_mxc_gpu(&gpu_data);
-	imx50_add_sdhci_esdhc_imx(0, NULL);
-	imx50_add_sdhci_esdhc_imx(1, NULL);
-	imx50_add_sdhci_esdhc_imx(2, NULL);
+	imx50_add_imx_epdc(&epdc_data);
+	imx50_add_mxc_gpu(&gpu_data);
+	imx50_add_sdhci_esdhc_imx(0, &mx50_rdp_sd1_data);
+	imx50_add_sdhci_esdhc_imx(1, &mx50_rdp_sd2_data);
+	imx50_add_sdhci_esdhc_imx(2, &mx50_rdp_sd3_data);
 	imx50_add_otp();
 	imx50_add_dcp();
 	imx50_add_rngb();
 	imx50_add_perfmon();
 	mx50_rdp_init_mc13892();
+
+	imx50_add_dvfs_core(&rdp_dvfscore_data);
+	imx50_add_busfreq(&rdp_bus_freq_data);
 }
 
 static void __init mx50_rdp_timer_init(void)
@@ -762,6 +838,7 @@ static struct sys_timer mx50_rdp_timer = {
 };
 
 MACHINE_START(MX50_RDP, "Freescale MX50 Reference Design Platform")
+	.fixup = fixup_mxc_board,
 	.map_io = mx50_map_io,
 	.init_early = imx50_init_early,
 	.init_irq = mx50_init_irq,

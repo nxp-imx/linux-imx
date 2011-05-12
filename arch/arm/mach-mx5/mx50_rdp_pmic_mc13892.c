@@ -94,7 +94,13 @@
 /* CPU */
 static struct regulator_consumer_supply sw1_consumers[] = {
 	{
-		.supply = "cpu_vcc",
+		.supply = "cpu_vddgp",
+	}
+};
+
+static struct regulator_consumer_supply sw2_consumers[] = {
+	{
+		.supply = "lp_vcc",
 	}
 };
 
@@ -112,6 +118,15 @@ static struct regulator_consumer_supply vgen1_consumers[] = {
 		.supply = "VDDIO",
 		.dev_name = "1-000a",
 	},
+};
+
+static struct regulator_consumer_supply vsd_consumers[] = {
+	REGULATOR_SUPPLY("vmmc", "sdhci-esdhc-imx.1"),
+};
+
+static struct regulator_consumer_supply vgen2_consumers[] = {
+	REGULATOR_SUPPLY("vmmc", "sdhci-esdhc-imx.0"),
+	REGULATOR_SUPPLY("vmmc", "sdhci-esdhc-imx.2"),
 };
 
 static struct regulator_init_data sw1_init = {
@@ -146,7 +161,9 @@ static struct regulator_init_data sw2_init = {
 			.mode = REGULATOR_MODE_NORMAL,
 			.enabled = 1,
 		},
-	}
+	},
+	.num_consumer_supplies = ARRAY_SIZE(sw2_consumers),
+	.consumer_supplies = sw2_consumers,
 };
 
 static struct regulator_init_data sw3_init = {
@@ -267,7 +284,9 @@ static struct regulator_init_data vsd_init = {
 		.valid_ops_mask = REGULATOR_CHANGE_VOLTAGE |
 			REGULATOR_CHANGE_STATUS,
 		.always_on = 1,
-	}
+	},
+	.num_consumer_supplies = ARRAY_SIZE(vsd_consumers),
+	.consumer_supplies = vsd_consumers,
 };
 
 static struct regulator_init_data vcam_init = {
@@ -302,7 +321,9 @@ static struct regulator_init_data vgen2_init = {
 		.valid_ops_mask = REGULATOR_CHANGE_VOLTAGE |
 			REGULATOR_CHANGE_STATUS,
 		.always_on = 1,
-	}
+	},
+	.num_consumer_supplies = ARRAY_SIZE(vgen2_consumers),
+	.consumer_supplies = vgen2_consumers,
 };
 
 static struct regulator_init_data vgen3_init = {

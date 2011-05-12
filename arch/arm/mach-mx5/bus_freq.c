@@ -120,19 +120,12 @@ void exit_lpapm_mode_mx53(void);
 int low_freq_bus_used(void);
 void set_ddr_freq(int ddr_freq);
 
-extern int dvfs_core_is_active;
 extern struct cpu_op *(*get_cpu_op)(int *op);
 extern void __iomem *ccm_base;
 extern void __iomem *databahn_base;
 extern int update_ddr_freq(int ddr_rate);
 extern unsigned int mx50_ddr_type;
 
-
-struct dvfs_wp dvfs_core_setpoint[] = {
-						{33, 8, 33, 10, 10, 0x08},
-						{26, 0, 33, 20, 10, 0x08},
-						{28, 8, 33, 20, 30, 0x08},
-						{29, 0, 33, 20, 10, 0x08},};
 
 static DEFINE_SPINLOCK(voltage_lock);
 struct mutex bus_freq_mutex;
@@ -1023,7 +1016,7 @@ static int __devinit busfreq_probe(struct platform_device *pdev)
 
 static struct platform_driver busfreq_driver = {
 	.driver = {
-		   .name = "busfreq",
+		   .name = "imx_busfreq",
 		},
 	.probe = busfreq_probe,
 	.suspend = busfreq_suspend,

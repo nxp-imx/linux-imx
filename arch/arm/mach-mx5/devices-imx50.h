@@ -81,3 +81,10 @@ extern const struct imx_spi_imx_data imx50_cspi_data[] __initconst;
 #define imx50_add_cspi(id, pdata)	\
 	imx_add_spi_imx(&imx50_cspi_data[id], pdata)
 
+extern const struct imx_dvfs_core_data imx50_dvfs_core_data __initconst;
+#define imx50_add_dvfs_core(pdata)	\
+	imx_add_dvfs_core(&imx50_dvfs_core_data, pdata)
+
+#define imx50_add_busfreq(pdata)	imx_add_busfreq(pdata)
+
+
