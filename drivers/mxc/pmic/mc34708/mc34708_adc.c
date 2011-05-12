@@ -85,7 +85,6 @@
 /* internal function */
 static void callback_tspendet(void *);
 static void callback_tsdone(void *);
-static void callback_adcbisdone(void *);
 
 static int suspend_flag;
 
@@ -101,7 +100,7 @@ u32 value[8];
 
 static bool pmic_adc_ready;
 
-int is_mc34708_adc_ready()
+int is_mc34708_adc_ready(void)
 {
 	return pmic_adc_ready;
 }
@@ -146,7 +145,6 @@ static void callback_adcdone(void *unused)
 
 int mc34708_pmic_adc_init(void)
 {
-	unsigned int reg_value = 0, i = 0;
 
 	if (suspend_flag == 1)
 		return -EBUSY;
@@ -189,7 +187,7 @@ PMIC_STATUS mc34708_pmic_adc_deinit(void)
 PMIC_STATUS mc34708_pmic_adc_convert(t_channel channel, unsigned short *result)
 {
 	PMIC_STATUS ret;
-	unsigned int register_val = 0, register_mask = 0;
+	unsigned int register_val = 0;
 	unsigned int register1;
 
 	register1 = MC34708_REG_ADC2;
@@ -310,6 +308,11 @@ static int pmic_adc_filter(t_touch_screen *ts_curr)
 
 PMIC_STATUS mc34708_adc_read_ts(t_touch_screen *ts_value, int wait_tsi)
 {
+	int i;
+	int adc3 = X_POS << 8 | X_POS << 10 | DUMMY << 12 |
+	    Y_POS << 14 | Y_POS << 16 | DUMMY << 18 |
+	    CONTACT_RES << 20 | CONTACT_RES << 22;
+
 	pr_debug("mc34708_adc : mc34708_adc_read_ts\n");
 
 	if (wait_tsi) {
@@ -326,10 +329,6 @@ PMIC_STATUS mc34708_adc_read_ts(t_touch_screen *ts_value, int wait_tsi)
 
 	INIT_COMPLETION(tsdone_int);
 
-	int adc3 = X_POS << 8 | X_POS << 10 | DUMMY << 12 |
-	    Y_POS << 14 | Y_POS << 16 | DUMMY << 18 |
-	    CONTACT_RES << 20 | CONTACT_RES << 22;
-
 	pmic_write_reg(MC34708_REG_ADC1, 0xFFF000, PMIC_ALL_BITS);
 	pmic_write_reg(MC34708_REG_ADC2, 0x000000, PMIC_ALL_BITS);
 	pmic_write_reg(MC34708_REG_ADC3, adc3, PMIC_ALL_BITS);
@@ -338,7 +337,6 @@ PMIC_STATUS mc34708_adc_read_ts(t_touch_screen *ts_value, int wait_tsi)
 
 	wait_for_completion_interruptible(&tsdone_int);
 
-	int i;
 	for (i = 0; i < 4; i++) {
 		int reg = MC34708_REG_ADC4 + i;
 		int result, ret;

@@ -849,16 +849,6 @@ static int mc34708_sw_get_normal_voltage(struct regulator_dev *reg)
 		return mV * 1000;
 }
 
-static int mc34708_sw_normal_enable(struct regulator_dev *reg)
-{
-	return 0;
-}
-
-static int mc34708_sw_normal_disable(struct regulator_dev *reg)
-{
-	return 0;
-}
-
 static int mc34708_sw_stby_enable(struct regulator_dev *reg)
 {
 	return 0;
@@ -871,7 +861,7 @@ static int mc34708_sw_stby_disable(struct regulator_dev *reg)
 
 static int mc34708_sw_set_stby_voltage(struct regulator_dev *reg, int uV)
 {
-	unsigned int register_val = 0, register_mask = 0, register_valtest = 0;
+	unsigned int register_val = 0, register_mask = 0;
 	unsigned int register1 = 0;
 
 	int voltage, mV = uV / 1000;
@@ -928,7 +918,6 @@ static int mc34708_sw_set_normal_mode(struct regulator_dev *reg,
 	unsigned int reg_val = 0, reg_mask = 0;
 	unsigned int register1 = 0;
 	unsigned int l_mode;
-	int sw = rdev_get_id(reg);
 
 	switch (mode) {
 	case REGULATOR_MODE_FAST:
@@ -957,8 +946,6 @@ static unsigned int mc34708_sw_get_normal_mode(struct regulator_dev *reg)
 {
 	unsigned int reg_val = 0, reg_mask = 0;
 	unsigned int register1 = 0;
-	unsigned int l_mode = 0;
-	int sw = rdev_get_id(reg);
 	int ret = 0;
 
 	ret = pmic_read_reg(register1, &reg_val, reg_mask);
@@ -971,8 +958,6 @@ static int mc34708_sw_set_stby_mode(struct regulator_dev *reg,
 {
 	unsigned int reg_val = 0, reg_mask = 0;
 	unsigned int register1 = 0;
-	unsigned int l_mode;
-	int sw = rdev_get_id(reg);
 
 	return pmic_write_reg(register1, reg_val, reg_mask);
 }

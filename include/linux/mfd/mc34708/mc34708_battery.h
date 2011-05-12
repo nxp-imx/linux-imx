@@ -67,7 +67,7 @@ struct mc34708_charger_setting_point {
 };
 
 /* brief Defines the battery charger configuration. */
-typedef struct mc34708_charger_config {
+struct mc34708_charger_config {
 
 	u32 batteryTempLow;
 	u32 batteryTempHigh;

@@ -37,6 +37,7 @@
 #include <linux/irq.h>
 #include <linux/i2c.h>
 #include <linux/mfd/mc13892/core.h>
+#include <linux/mfd/mc34708/core.h>
 #include <linux/pmic_external.h>
 #include <linux/pmic_status.h>
 #include <linux/uaccess.h>
@@ -45,14 +46,17 @@
 #include "pmic.h"
 
 #define MC13892_GENERATION_ID_LSH	6
-#define MC13892_IC_ID_LSH		13
+#define MC13892_IC_ID_LSH		    13
 
 #define MC13892_GENERATION_ID_WID	3
-#define MC13892_IC_ID_WID		6
+#define MC13892_IC_ID_WID		    6
 
-#define MC13892_GEN_ID_VALUE	0x7
-#define MC13892_IC_ID_VALUE		1
+#define MC13892_GEN_ID_VALUE	    0x7
+#define MC13892_IC_ID_VALUE		    1
 
+#define MC34708_GEN_ID_VALUE	    0x91
+#define MC34708_GENERATION_ID_LSH	0
+#define MC34708_GENERATION_ID_WID	9
 /*
  * Global variables
  */
@@ -96,11 +100,13 @@ static struct platform_device bleds_ldm = {
 
 enum pmic_id {
 	PMIC_ID_MC13892,
+	PMIC_ID_MC34708,
 	PMIC_ID_INVALID,
 };
 
 static struct pmic_internal pmic_internal[] = {
 	[PMIC_ID_MC13892] = _PMIC_INTERNAL_INITIALIZER(mc13892),
+	[PMIC_ID_MC34708] = _PMIC_INTERNAL_INITIALIZER(mc34708),
 };
 
 static int get_index_pmic_internal(const char *name)
@@ -194,8 +200,8 @@ static int __devinit is_chip_onboard(struct i2c_client *client)
 	/*bind the right device to the driver */
 	if (pmic_i2c_24bit_read(client, REG_IDENTIFICATION, &ret) == -1)
 		return -1;
-
-	if (MC13892_GEN_ID_VALUE != BITFEXT(ret, MC13892_GENERATION_ID)) {
+	if ((MC13892_GEN_ID_VALUE != BITFEXT(ret, MC13892_GENERATION_ID)) &&
+	   (MC34708_GEN_ID_VALUE != BITFEXT(ret, MC34708_GENERATION_ID))) {
 		/*compare the address value */
 		dev_err(&client->dev,
 			"read generation ID 0x%x is not equal to 0x%x!\n",
@@ -386,6 +392,7 @@ static int pmic_resume(struct i2c_client *client)
 
 static const struct i2c_device_id pmic_id[] = {
 	{"mc13892", 0},
+	{"mc34708", 0},
 	{},
 };
 

@@ -165,8 +165,6 @@ static struct mc34708_charger_config ripley_charge_config = {
 	.pointsNumber = 1,
 };
 
-static int dump_ripley_register(int reg);
-
 static int enable_charger(int enable)
 {
 	charging_flag = enable ? 1 : 0;
@@ -330,14 +328,6 @@ static enum power_supply_property ripley_usb_charger_props[] = {
 #define VBAT_TRKL_UV_TO_BITS(uv)	((uv-2800000) / 100000)
 #define LOWBATT_UV_TO_BITS(uv)	((uv - 3100000) / 100000)
 #define CHRITEM_UV_TO_BITS(uv)	(((uv / 1000) - 50) / 50)
-
-static int dump_ripley_register(int reg)
-{
-	unsigned int value;
-	pmic_read_reg(reg, &value, PMIC_ALL_BITS);
-	pr_info("ripley reg %d = 0x%x\n", reg, value);
-	return 0;
-}
 
 static int init_charger(struct mc34708_charger_config *config)
 {
@@ -714,7 +704,6 @@ static void battery_over_temp_event_callback(void *para)
 
 static void battery_charge_complete_event_callback(void *para)
 {
-	struct ripley_dev_info *di = (struct ripley_dev_info *)para;
 	pr_info("\n\n battery charge complete event, disable charging\n");
 }
 
