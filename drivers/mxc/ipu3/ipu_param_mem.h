@@ -179,7 +179,7 @@ static inline void _ipu_ch_param_init(int ch,
 	case IPU_PIX_FMT_RGB565:
 		ipu_ch_param_set_field(&params, 0, 107, 3, 3);	/* bits/pixel */
 		ipu_ch_param_set_field(&params, 1, 85, 4, 7);	/* pix format */
-		ipu_ch_param_set_field(&params, 1, 78, 7, 15);	/* burst size */
+		ipu_ch_param_set_field(&params, 1, 78, 7, 31);	/* burst size */
 
 		_ipu_ch_params_set_packing(&params, 5, 0, 6, 5, 5, 11, 8, 16);
 		break;
