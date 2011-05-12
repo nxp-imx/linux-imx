@@ -452,12 +452,11 @@ static int mc13892_sw_regulator_set_voltage(struct regulator_dev *rdev,
 	if (ret)
 		goto err;
 
+	hi  = val & MC13892_SWITCHERS0_SWxHI;
 	if (value > 1375000)
 		hi = 1;
-	else if (value < 1100000)
+	if (value < 1100000)
 		hi = 0;
-	else
-		hi = valread & MC13892_SWITCHERS0_SWxHI;
 
 	if (hi) {
 		value = (value - 1100000) / 25000;
