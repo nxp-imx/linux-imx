@@ -46,6 +46,7 @@
 #include <linux/fec.h>
 #include <linux/ahci_platform.h>
 #include <linux/gpio_keys.h>
+#include <linux/mfd/da9052/da9052.h>
 #include <mach/common.h>
 #include <mach/hardware.h>
 #include <asm/irq.h>
@@ -941,12 +942,6 @@ static struct mxc_bt_rfkill_platform_data mxc_bt_rfkill_data = {
 	.power_change = mx53_smd_bt_power_change,
 };
 
-static void mx53_smd_power_off(void)
-{
-	gpio_request(MX53_SMD_SYS_ON_OFF_CTL, "power-off");
-	gpio_set_value(MX53_SMD_SYS_ON_OFF_CTL, 0);
-}
-
 #if defined(CONFIG_BATTERY_MAX17085) || defined(CONFIG_BATTERY_MAX17085_MODULE)
 static struct resource smd_batt_resource[] = {
 	{
@@ -1195,7 +1190,8 @@ static void __init mxc_board_init(void)
 	mxc_cpu_common_init();
 	mx53_smd_io_init();
 
-	pm_power_off = mx53_smd_power_off;
+	/* power off by sending shutdown command to da9053*/
+	pm_power_off = da9053_power_off;
 	mxc_register_device(&mxc_dma_device, NULL);
 	mxc_register_device(&mxc_wdt_device, NULL);
 	mxc_register_device(&mxcspi1_device, &mxcspi1_data);
@@ -1257,6 +1253,7 @@ static void __init mxc_board_init(void)
 	mxc_register_device(&mxc_bt_rfkill, &mxc_bt_rfkill_data);
 	smd_add_device_buttons();
 	smd_add_device_battery();
+
 }
 
 static void __init mx53_smd_timer_init(void)
