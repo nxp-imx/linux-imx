@@ -34,6 +34,7 @@ struct da9052_eh_nb eve_nb_array[EVE_CNT];
 static struct da9052_ssc_ops ssc_ops;
 struct mutex manconv_lock;
 static struct semaphore eve_nb_array_lock;
+static struct da9052 *da9052_data;
 
 void da9052_lock(struct da9052 *da9052)
 {
@@ -499,6 +500,7 @@ int da9052_ssc_init(struct da9052 *da9052)
 		DA9052_EH_DEVICE_NAME, da9052))
 		return -EIO;
 	enable_irq_wake(da9052->irq);
+	da9052_data = da9052;
 
 	return 0;
 }
@@ -513,6 +515,22 @@ void da9052_ssc_exit(struct da9052 *da9052)
 	mutex_destroy(&da9052->ssc_lock);
 	mutex_destroy(&da9052->eve_nb_lock);
 	return;
+}
+
+void da9053_power_off(void)
+{
+	struct da9052_ssc_msg ssc_msg;
+	if (!da9052_data)
+		return;
+
+	ssc_msg.addr = DA9052_CONTROLB_REG;
+	da9052_data->read(da9052_data, &ssc_msg);
+	ssc_msg.data |= DA9052_CONTROLB_SHUTDOWN;
+	pr_info("da9052 shutdown: DA9052_CONTROLB_REG=%x\n", ssc_msg.data);
+	da9052_data->write(da9052_data, &ssc_msg);
+	ssc_msg.addr = DA9052_GPID9_REG;
+	ssc_msg.data = 0;
+	da9052_data->read(da9052_data, &ssc_msg);
 }
 
 MODULE_AUTHOR("Dialog Semiconductor Ltd <dchen@diasemi.com>");

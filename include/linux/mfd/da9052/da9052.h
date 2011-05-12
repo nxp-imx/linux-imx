@@ -225,4 +225,5 @@ int eh_register_nb(struct da9052 *da9052, struct da9052_eh_nb *nb);
 int eh_unregister_nb(struct da9052 *da9052, struct da9052_eh_nb *nb);
 int da9052_manual_read(struct da9052 *da9052,
 		unsigned char channel);
+void da9053_power_off(void);
 #endif /* __LINUX_MFD_DA9052_DA9052_H */
