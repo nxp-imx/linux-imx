@@ -1,7 +1,7 @@
 /*
  * Copyright (C) 1999 ARM Limited
  * Copyright (C) 2000 Deep Blue Solutions Ltd
- * Copyright (C) 2006-2010 Freescale Semiconductor
+ * Copyright (C) 2006-2011 Freescale Semiconductor, Inc.
  * Copyright 2008 Juergen Beisert, kernel@pengutronix.de
  * Copyright 2009 Ilya Yanok, Emcraft Systems Ltd, yanok@emcraft.com
  *
@@ -26,15 +26,18 @@
 #include <linux/err.h>
 #include <linux/delay.h>
 
+#include <asm/mach-types.h>
+#include <mach/iomux-mx53.h>
 #include <mach/hardware.h>
 #include <mach/common.h>
 #include <asm/proc-fns.h>
 #include <asm/system.h>
+#include <mach/gpio.h>
 
 static void __iomem *wdog_base;
 extern int dvfs_core_is_active;
 extern void stop_dvfs(void);
-
+#define MX53_WDA_GPIO 9
 /*
  * Reset the system. It is called by machine_restart().
  */
@@ -74,8 +77,16 @@ void arch_reset(char mode, const char *cmd)
 		wcr_enable = (1 << 2);
 	}
 
-	/* Assert SRS signal */
-	__raw_writew(wcr_enable, wdog_base);
+	if (machine_is_mx53_smd()) {
+		/* workaround for smd reset func */
+		gpio_request(MX53_WDA_GPIO, "wdog-rst");
+		gpio_direction_output(MX53_WDA_GPIO, 0);
+		gpio_set_value(MX53_WDA_GPIO, 0);
+	} else {
+		/* Assert SRS signal */
+		__raw_writew(wcr_enable, wdog_base);
+	}
+
 
 	/* wait for reset to assert... */
 	mdelay(500);

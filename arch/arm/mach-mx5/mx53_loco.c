@@ -47,6 +47,7 @@
 #include <linux/fec.h>
 #include <linux/ahci_platform.h>
 #include <linux/gpio_keys.h>
+#include <linux/mfd/da9052/da9052.h>
 #include <mach/common.h>
 #include <mach/hardware.h>
 #include <asm/irq.h>
@@ -941,6 +942,7 @@ static void __init mxc_board_init(void)
 	mxc_register_device(&mxc_v4l2_device, NULL);
 	mxc_register_device(&mxc_v4l2out_device, NULL);
 	loco_add_device_buttons();
+	pm_power_off = da9053_power_off;
 }
 
 static void __init mx53_loco_timer_init(void)
