@@ -678,8 +678,10 @@ static int mxcfb_check_var(struct fb_var_screeninfo *var, struct fb_info *info)
 
 	if (var->xres_virtual < var->xres)
 		var->xres_virtual = var->xres;
-	if (var->yres_virtual < var->yres)
-		var->yres_virtual = var->yres;
+
+	/* Default Y virtual size is 3*yres */
+	if (var->yres_virtual < var->yres * 3)
+		var->yres_virtual = var->yres * 3;
 
 	if ((var->bits_per_pixel != 32) && (var->bits_per_pixel != 24) &&
 	    (var->bits_per_pixel != 16) && (var->bits_per_pixel != 12) &&
@@ -1801,9 +1803,6 @@ static int mxcfb_setup(struct fb_info *fbi, struct platform_device *pdev)
 	}
 
 	mxcfb_check_var(&fbi->var, fbi);
-
-	/* Default Y virtual size is 3x panel size */
-	fbi->var.yres_virtual = fbi->var.yres * 3;
 
 	mxcfb_set_fix(fbi);
 
