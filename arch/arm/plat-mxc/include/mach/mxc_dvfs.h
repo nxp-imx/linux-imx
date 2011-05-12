@@ -124,7 +124,7 @@ extern void __iomem *ccm_base;
 /*
  * DVFS structure
  */
-struct dvfs_wp {
+struct dvfs_op {
 	int upthr;
 	int downthr;
 	int panicthr;
@@ -185,8 +185,6 @@ struct mxc_dvfs_platform_data {
 	int dncnt_val;
 	/* Delay time in us */
 	int delay_time;
-	/* Number of woking points supported */
-	int num_wp;
 };
 
 /*!

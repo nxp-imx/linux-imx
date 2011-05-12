@@ -4,7 +4,7 @@
  * Copyright (C) 2004 - 2005 Nokia corporation
  * Written by Tuukka Tikkanen <tuukka.tikkanen@elektrobit.com>
  * Modified for omap shared clock framework by Tony Lindgren <tony@atomide.com>
- * Copyright 2007-2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2007-2011 Freescale Semiconductor, Inc.
  * Copyright 2008 Juergen Beisert, kernel@pengutronix.de
  *
  * This program is free software; you can redistribute it and/or
@@ -39,9 +39,20 @@
 #include <linux/string.h>
 #include <linux/slab.h>
 #include <linux/debugfs.h>
+#include <linux/hardirq.h>
 
 #include <mach/clock.h>
 #include <mach/hardware.h>
+
+extern int dvfs_core_is_active;
+extern int lp_high_freq;
+extern int lp_med_freq;
+extern int low_bus_freq_mode;
+extern int high_bus_freq_mode;
+extern int med_bus_freq_mode;
+extern int set_high_bus_freq(int high_freq);
+extern int set_low_bus_freq(void);
+extern int low_freq_bus_used(void);
 
 static LIST_HEAD(clocks);
 static DEFINE_MUTEX(clocks_mutex);
@@ -84,10 +95,37 @@ static int __clk_enable(struct clk *clk)
  */
 int clk_enable(struct clk *clk)
 {
+	unsigned long flags;
 	int ret = 0;
+
+	if (in_interrupt()) {
+		printk(KERN_ERR " clk_enable cannot be called in an interrupt context\n");
+		dump_stack();
+		BUG();
+	}
 
 	if (clk == NULL || IS_ERR(clk))
 		return -EINVAL;
+
+	if ((clk->flags & CPU_FREQ_TRIG_UPDATE)
+			&& (clk_get_usecount(clk) == 0)) {
+		if (!(clk->flags &
+			(AHB_HIGH_SET_POINT | AHB_MED_SET_POINT)))  {
+			if (low_freq_bus_used() && !low_bus_freq_mode)
+				set_low_bus_freq();
+		} else {
+			if ((clk->flags & AHB_MED_SET_POINT)
+				&& !med_bus_freq_mode)
+				/* Set to Medium setpoint */
+				set_high_bus_freq(0);
+			else if ((clk->flags & AHB_HIGH_SET_POINT)
+				&& !high_bus_freq_mode)
+				/* Currently at low or medium set point,
+				  * need to set to high setpoint
+				  */
+				set_high_bus_freq(1);
+		}
+	}
 
 	mutex_lock(&clocks_mutex);
 	ret = __clk_enable(clk);
@@ -103,13 +141,30 @@ EXPORT_SYMBOL(clk_enable);
  */
 void clk_disable(struct clk *clk)
 {
+	unsigned long flags;
+
+	if (in_interrupt()) {
+		printk(KERN_ERR " clk_disable cannot be called in an interrupt context\n");
+		dump_stack();
+		BUG();
+	}
+
 	if (clk == NULL || IS_ERR(clk))
 		return;
 
 	mutex_lock(&clocks_mutex);
 	__clk_disable(clk);
 	mutex_unlock(&clocks_mutex);
+	if ((clk->flags & CPU_FREQ_TRIG_UPDATE)
+			&& (clk_get_usecount(clk) == 0)) {
+		if (low_freq_bus_used() && !low_bus_freq_mode)
+			set_low_bus_freq();
+		else
+			/* Set to either high or medium setpoint. */
+			set_high_bus_freq(0);
+	}
 }
+
 EXPORT_SYMBOL(clk_disable);
 
 /*!
@@ -312,6 +367,13 @@ static int clk_debug_register_one(struct clk *clk)
 
 	d = debugfs_create_file("rate", S_IRUGO, clk->dentry, (void *)clk,
 			&clk_debug_rate_fops);
+	if (!d) {
+		err = -ENOMEM;
+		goto err_out;
+	}
+
+	d = debugfs_create_u32("flags", S_IRUGO, clk->dentry,
+			(u32 *)&clk->flags);
 	if (!d) {
 		err = -ENOMEM;
 		goto err_out;

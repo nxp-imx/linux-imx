@@ -15,6 +15,11 @@
 		.irq = soc ## _INT_GPC1,				\
 	}
 
+#ifdef CONFIG_SOC_IMX50
+const struct imx_dvfs_core_data imx50_dvfs_core_data __initconst =
+			imx5_dvfs_core_data_entry_single(MX50);
+#endif /* ifdef CONFIG_SOC_IMX50 */
+
 #ifdef CONFIG_SOC_IMX51
 const struct imx_dvfs_core_data imx51_dvfs_core_data __initconst =
 			imx5_dvfs_core_data_entry_single(MX51);
@@ -41,13 +46,13 @@ struct platform_device *__init imx_add_dvfs_core(
 		},
 	};
 
-	return imx_add_platform_device("mxc_dvfs_core", 0,
+	return imx_add_platform_device("imx_dvfscore", 0,
 			res, ARRAY_SIZE(res), pdata, sizeof(*pdata));
 }
 
 struct platform_device *__init imx_add_busfreq(
 		const struct mxc_bus_freq_platform_data *pdata)
 {
-	return imx_add_platform_device("busfreq", 0,
+	return imx_add_platform_device("imx_busfreq", 0,
 			NULL, 0, pdata, sizeof(*pdata));
 }

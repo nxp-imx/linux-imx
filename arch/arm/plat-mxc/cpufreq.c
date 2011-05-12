@@ -28,6 +28,7 @@
 #define NANOSECOND	(1000 * 1000 * 1000)
 
 struct cpu_op *(*get_cpu_op)(int *op);
+int cpufreq_trig_needed;
 
 static int cpu_freq_khz_min;
 static int cpu_freq_khz_max;
