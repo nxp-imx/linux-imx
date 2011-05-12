@@ -1260,7 +1260,7 @@ static int ldb_probe(struct platform_device *pdev)
 
 	if (g_enable_ldb == MXC_DISABLE) {
 		printk(KERN_WARNING "By setting, LDB driver will not be enabled\n");
-		return 0;
+		return -ENODEV;
 	}
 
 	spin_lock_init(&ldb_lock);
