@@ -502,7 +502,7 @@ static struct mxc_spi_master mxcspi1_data = {
 };
 
 static struct imxi2c_platform_data mxci2c1_data = {
-	.bitrate = 50000,
+	.bitrate = 100000,
 };
 
 static struct imxi2c_platform_data mxci2c2_data = {
@@ -749,6 +749,16 @@ static struct p1003_ts_platform_data p1003_ts_data = {
 };
 
 static struct i2c_board_info mxc_i2c1_board_info[] __initdata = {
+	{
+	 .type = "p1003_fwv33",
+	 .addr = 0x41,
+	 .platform_data = &p1003_ts_data,
+	},
+	{
+	 .type = "egalax_ts",
+	 .addr = 0x4,
+	 .irq  = gpio_to_irq(ARD_TS_INT),
+	},
 	{
 	.type = "cs42888",
 	.addr = 0x48,
@@ -1332,6 +1342,7 @@ static void __init mxc_board_init(void)
 
 	i2c_register_board_info(2, mxc_i2c2_board_info,
 				ARRAY_SIZE(mxc_i2c2_board_info));
+
 
 	mxc_register_device(&mxc_mlb_device, &mlb_data);
 	mx5_set_otghost_vbus_func(mx53_ard_usbotg_driver_vbus);
