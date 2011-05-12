@@ -1107,53 +1107,6 @@ int32_t ipu_init_channel_buffer(ipu_channel_t channel, ipu_buffer_t type,
 		_ipu_ch_param_set_burst_size(dma_chan, 8);
 		_ipu_ch_param_set_block_mode(dma_chan);
 	} else if (_ipu_is_dmfc_chan(dma_chan)) {
-		u32 dmfc_dp_chan, dmfc_wr_chan;
-		/*
-		 * non-interleaving format need enlarge burst size
-		 * to work-around black flash issue.
-		 */
-		if (((dma_chan == 23) || (dma_chan == 27) || (dma_chan == 28))
-			&& ((pixel_fmt == IPU_PIX_FMT_YUV420P) ||
-			(pixel_fmt == IPU_PIX_FMT_YVU420P) ||
-			(pixel_fmt == IPU_PIX_FMT_YUV420P2) ||
-			(pixel_fmt == IPU_PIX_FMT_YVU422P) ||
-			(pixel_fmt == IPU_PIX_FMT_YUV422P) ||
-			(pixel_fmt == IPU_PIX_FMT_NV12))) {
-			if (dma_chan == 23) {
-				dmfc_dp_chan = __raw_readl(DMFC_DP_CHAN);
-				dmfc_dp_chan &= ~(0xc0);
-				dmfc_dp_chan |= 0x40;
-				__raw_writel(dmfc_dp_chan, DMFC_DP_CHAN);
-			} else if (dma_chan == 27) {
-				dmfc_dp_chan = __raw_readl(DMFC_DP_CHAN);
-				dmfc_dp_chan &= ~(0xc000);
-				dmfc_dp_chan |= 0x4000;
-				__raw_writel(dmfc_dp_chan, DMFC_DP_CHAN);
-			} else if (dma_chan == 28) {
-				dmfc_wr_chan = __raw_readl(DMFC_WR_CHAN);
-				dmfc_wr_chan &= ~(0xc0);
-				dmfc_wr_chan |= 0x40;
-				__raw_writel(dmfc_wr_chan, DMFC_WR_CHAN);
-			}
-			_ipu_ch_param_set_burst_size(dma_chan, 64);
-		} else {
-			if (dma_chan == 23) {
-				dmfc_dp_chan = __raw_readl(DMFC_DP_CHAN);
-				dmfc_dp_chan &= ~(0xc0);
-				dmfc_dp_chan |= 0x80;
-				__raw_writel(dmfc_dp_chan, DMFC_DP_CHAN);
-			} else if (dma_chan == 27) {
-				dmfc_dp_chan = __raw_readl(DMFC_DP_CHAN);
-				dmfc_dp_chan &= ~(0xc000);
-				dmfc_dp_chan |= 0x8000;
-				__raw_writel(dmfc_dp_chan, DMFC_DP_CHAN);
-			} else {
-				dmfc_wr_chan = __raw_readl(DMFC_WR_CHAN);
-				dmfc_wr_chan &= ~(0xc0);
-				dmfc_wr_chan |= 0x80;
-				__raw_writel(dmfc_wr_chan, DMFC_WR_CHAN);
-			}
-		}
 		spin_lock_irqsave(&ipu_lock, lock_flags);
 		_ipu_dmfc_set_wait4eot(dma_chan, width);
 		spin_unlock_irqrestore(&ipu_lock, lock_flags);
