@@ -92,12 +92,14 @@ extern unsigned int system_rev;
 #endif
 
 #ifdef CONFIG_ARCH_MX5
-#define board_is_mx53_arm2() (cpu_is_mx53() && board_is_rev(BOARD_REV_2))
-#define board_is_mx53_evk_a()    (cpu_is_mx53() && board_is_rev(BOARD_REV_1))
-#define board_is_mx53_evk_b()    (cpu_is_mx53() && board_is_rev(BOARD_REV_3))
-#define board_is_mx53_ard_a()    (cpu_is_mx53() && board_is_rev(BOARD_REV_1))
-#define board_is_mx53_ard_b()    (cpu_is_mx53() && board_is_rev(BOARD_REV_2))
-#define board_is_mx50_rd3()	(cpu_is_mx50() && board_is_rev(BOARD_REV_4))
+#define board_is_mx53_loco_mc34708() \
+  (cpu_is_mx53() &&  board_is_rev(BOARD_REV_2))
+#define board_is_mx53_arm2()  (cpu_is_mx53() && board_is_rev(BOARD_REV_2))
+#define board_is_mx53_evk_a() (cpu_is_mx53() && board_is_rev(BOARD_REV_1))
+#define board_is_mx53_evk_b() (cpu_is_mx53() && board_is_rev(BOARD_REV_3))
+#define board_is_mx53_ard_a() (cpu_is_mx53() && board_is_rev(BOARD_REV_1))
+#define board_is_mx53_ard_b() (cpu_is_mx53() && board_is_rev(BOARD_REV_2))
+#define board_is_mx50_rd3()	  (cpu_is_mx50() && board_is_rev(BOARD_REV_4))
 #endif
 
 #include <mach/mxc.h>

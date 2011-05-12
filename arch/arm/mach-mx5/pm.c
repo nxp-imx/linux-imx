@@ -24,7 +24,6 @@
 #include <linux/cpufreq.h>
 #include <linux/iram_alloc.h>
 #include <linux/fsl_devices.h>
-#include <linux/mfd/da9052/da9052.h>
 #include <asm/mach-types.h>
 #include <asm/cacheflush.h>
 #include <asm/tlb.h>
@@ -72,7 +71,7 @@ void __iomem *suspend_param1;
 #define TZIC_WAKEUP1_OFFSET            0x0E04
 #define TZIC_WAKEUP2_OFFSET            0x0E08
 #define TZIC_WAKEUP3_OFFSET            0x0E0C
-#define GPIO7_0_11_IRQ_BIT		(0x1<<11)
+#define GPIO7_0_11_IRQ_BIT			   (0x1<<11)
 
 static void mx53_smd_loco_irq_wake_fixup(void)
 {
@@ -116,18 +115,17 @@ static int mx5_suspend_enter(suspend_state_t state)
 		flush_cache_all();
 
 		if (cpu_is_mx51() || cpu_is_mx53()) {
-			if (machine_is_mx53_smd() ||
-				machine_is_mx53_loco()) {
+			if ((machine_is_mx53_smd() ||
+				machine_is_mx53_loco()) &&
+				(!board_is_mx53_loco_mc34708())) {
 				if (board_is_rev(BOARD_REV_4) ||
 					machine_is_mx53_loco()) {
 					mx53_smd_loco_irq_wake_fixup();
 					da9053_suspend_cmd_sw();
 				} else {
-		/* for new OTP DA9053 board, enable other irq for wakeup */
-		/* otherwise disable other wakeup sources */
-					if (da9053_get_chip_version() !=
-						DA9053_VERSION_BB)
-						mx53_smd_loco_irq_wake_fixup();
+			/* for new OTP DA9053 board, comment out next */
+			/* line to enable other irq for wakeup */
+					mx53_smd_loco_irq_wake_fixup();
 					da9053_suspend_cmd_hw();
 				}
 			}
@@ -275,7 +273,7 @@ static int __init pm_init(void)
 		suspend_param1 =
 			cpu_is_mx51() ? (void *)SUSPEND_ID_MX51:(void *)SUSPEND_ID_MX53;
 		/* for mx53 ARD, doesn't operate DDR in suspend */
-		if (machine_is_mx53_ard())
+		if (machine_is_mx53_ard() || board_is_mx53_loco_mc34708())
 			suspend_param1 = (void *)SUSPEND_ID_NONE;
 		memcpy(suspend_iram_base, cpu_do_suspend_workaround,
 				SZ_4K);
