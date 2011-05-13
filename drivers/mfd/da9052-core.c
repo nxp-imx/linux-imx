@@ -496,6 +496,22 @@ int da9052_ssc_init(struct da9052 *da9052)
 	ssc_msg.addr = DA9052_IRQMASKC_REG;
 	ssc_msg.data = 0xff;
 	da9052->write(da9052, &ssc_msg);
+
+	/* read chip version */
+	ssc_msg.addr = DA9052_CHIPID_REG;
+	da9052->read(da9052, &ssc_msg);
+	pr_info("DA9053 chip ID reg read=0x%x ", ssc_msg.data);
+	if ((ssc_msg.data & DA9052_CHIPID_MRC) == 0x80) {
+		da9052->chip_version = DA9053_VERSION_AA;
+		pr_info("AA version probed\n");
+	} else if ((ssc_msg.data & DA9052_CHIPID_MRC) == 0xf0) {
+		da9052->chip_version = DA9053_VERSION_BB;
+		pr_info("BB version probed\n");
+	} else {
+		da9052->chip_version = 0;
+		pr_info("unknown chip version\n");
+	}
+
 	if (request_irq(da9052->irq, da9052_eh_isr, IRQ_TYPE_LEVEL_LOW,
 		DA9052_EH_DEVICE_NAME, da9052))
 		return -EIO;
@@ -531,6 +547,11 @@ void da9053_power_off(void)
 	ssc_msg.addr = DA9052_GPID9_REG;
 	ssc_msg.data = 0;
 	da9052_data->read(da9052_data, &ssc_msg);
+}
+
+int da9053_get_chip_version(void)
+{
+	return da9052_data->chip_version;
 }
 
 MODULE_AUTHOR("Dialog Semiconductor Ltd <dchen@diasemi.com>");

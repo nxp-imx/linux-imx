@@ -75,6 +75,9 @@
 #define DA9052_SSC_I2C_REPEAT_WRITE_MODE	1
 #define DA9052_SSC_I2C_WRITE_MODE		DA9052_SSC_I2C_REPEAT_WRITE_MODE
 
+#define DA9053_VERSION_AA 1
+#define DA9053_VERSION_BB 2
+
 struct da9052_ssc_msg {
 	unsigned char	data;
 	unsigned char	addr;
@@ -162,6 +165,7 @@ struct da9052 {
 	struct device *dev;
 	struct i2c_adapter *adapter;
 	unsigned char	slave_addr;
+	int chip_version;
 };
 
 struct da9052_platform_data {
@@ -226,4 +230,5 @@ int eh_unregister_nb(struct da9052 *da9052, struct da9052_eh_nb *nb);
 int da9052_manual_read(struct da9052 *da9052,
 		unsigned char channel);
 void da9053_power_off(void);
+int da9053_get_chip_version(void);
 #endif /* __LINUX_MFD_DA9052_DA9052_H */
