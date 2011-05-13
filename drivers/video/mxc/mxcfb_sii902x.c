@@ -330,7 +330,7 @@ static int __devinit sii902x_probe(struct i2c_client *client,
 
 	if (g_enable_hdmi == MXC_DISABLE) {
 		printk(KERN_WARNING "By setting, SII driver will not be enabled\n");
-		return 0;
+		return -ENODEV;
 	}
 
 	sii902x.client = client;
