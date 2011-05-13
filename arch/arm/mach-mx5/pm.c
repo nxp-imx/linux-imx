@@ -24,6 +24,7 @@
 #include <linux/cpufreq.h>
 #include <linux/iram_alloc.h>
 #include <linux/fsl_devices.h>
+#include <linux/mfd/da9052/da9052.h>
 #include <asm/mach-types.h>
 #include <asm/cacheflush.h>
 #include <asm/tlb.h>
@@ -122,9 +123,11 @@ static int mx5_suspend_enter(suspend_state_t state)
 					mx53_smd_loco_irq_wake_fixup();
 					da9053_suspend_cmd_sw();
 				} else {
-			/* for new OTP DA9053 board, comment out next */
-			/* line to enable other irq for wakeup */
-					mx53_smd_loco_irq_wake_fixup();
+		/* for new OTP DA9053 board, enable other irq for wakeup */
+		/* otherwise disable other wakeup sources */
+					if (da9053_get_chip_version() !=
+						DA9053_VERSION_BB)
+						mx53_smd_loco_irq_wake_fixup();
 					da9053_suspend_cmd_hw();
 				}
 			}
