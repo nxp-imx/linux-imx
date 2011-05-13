@@ -1145,7 +1145,7 @@ static int tve_probe(struct platform_device *pdev)
 	if (g_enable_tve == MXC_DISABLE &&
 		g_enable_vga == MXC_DISABLE) {
 		printk(KERN_WARNING "By setting, TVE driver will not be enabled\n");
-		return 0;
+		return -ENODEV;
 	}
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
