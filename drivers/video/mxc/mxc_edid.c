@@ -498,7 +498,7 @@ static int __devinit mxc_ddc_probe(struct i2c_client *client,
 
 	if (g_enable_ddc == MXC_DISABLE) {
 		printk(KERN_WARNING "By setting, DDC driver will not be enabled\n");
-		return 0;
+		return -ENODEV;
 	}
 
 	mxc_ddc.client = client;
