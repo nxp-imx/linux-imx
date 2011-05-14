@@ -136,6 +136,9 @@ FinishedClean:
     bic     r0, r0, #ARM_AUXCR_L2EN @ Disable L2 cache
     mcr     p15, 0, r0, c1, c0, 1   @ Update aux control reg
 
+    /* Do nothing for DDR */
+    cmp     r6, #4
+    beq     mx5x_wfi
 	/*Set the DDR drive strength to low */
     cmp     r6, #1
     bne     mx53_reduce_ddr_drive_strength
@@ -183,6 +186,8 @@ mx5x_wfi:
     mov r0,#0x0
     .long     0xe320f003              @ Opcode for WFI
 
+    cmp     r6, #4
+    beq     mx5x_post_wfi
 	/*Set the DDR drive strength to max */
     cmp     r6, #1
     bne     mx53_restore_ddr_drive_strength

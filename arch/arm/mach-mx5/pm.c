@@ -249,6 +249,7 @@ static struct platform_driver mx5_pm_driver = {
 
 #define SUSPEND_ID_MX51 1
 #define SUSPEND_ID_MX53 3
+#define SUSPEND_ID_NONE 4
 static int __init pm_init(void)
 {
 	unsigned long iram_paddr;
@@ -270,6 +271,9 @@ static int __init pm_init(void)
 	if (cpu_is_mx51() || cpu_is_mx53()) {
 		suspend_param1 =
 			cpu_is_mx51() ? (void *)SUSPEND_ID_MX51:(void *)SUSPEND_ID_MX53;
+		/* for mx53 ARD, doesn't operate DDR in suspend */
+		if (machine_is_mx53_ard())
+			suspend_param1 = (void *)SUSPEND_ID_NONE;
 		memcpy(suspend_iram_base, cpu_do_suspend_workaround,
 				SZ_4K);
 	} else if (cpu_is_mx50()) {
