@@ -61,10 +61,6 @@ static int pwm_backlight_get_brightness(struct backlight_device *bl)
 
 static int pwm_backlight_check_fb(struct backlight_device *bl, struct fb_info *info)
 {
-	char *id = info->fix.id;
-	if (!strcmp(id, "DISP3 BG"))
-	    return 1;
-	else
 	return 0;
 }
 
