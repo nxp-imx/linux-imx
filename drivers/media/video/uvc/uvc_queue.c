@@ -168,7 +168,7 @@ int uvc_alloc_buffers(struct uvc_video_queue *queue, unsigned int nbuffers,
 		queue->buffer[i].buf.index = i;
 		queue->buffer[i].buf.m.offset = paddr;
 		queue->buffer[i].vaddr = vaddr;
-		queue->buffer[i].buf.length = bufsize;
+		queue->buffer[i].buf.length = buflength;
 		queue->buffer[i].buf.type = queue->type;
 		queue->buffer[i].buf.sequence = 0;
 		queue->buffer[i].buf.field = V4L2_FIELD_NONE;
