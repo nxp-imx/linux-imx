@@ -131,7 +131,7 @@ static int csi_enc_setup(cam_data *cam)
 	err = ipu_init_channel_buffer(CSI_MEM, IPU_OUTPUT_BUFFER,
 				      pixel_fmt, cam->v2f.fmt.pix.width,
 				      cam->v2f.fmt.pix.height,
-				      cam->v2f.fmt.pix.width, IPU_ROTATE_NONE,
+				      cam->v2f.fmt.pix.width, cam->rotation,
 				      dummy, dummy,
 				      cam->offset.u_offset,
 				      cam->offset.v_offset);
