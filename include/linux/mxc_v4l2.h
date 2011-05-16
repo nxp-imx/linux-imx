@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2004-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -39,6 +39,11 @@
 #define V4L2_MXC_ROTATE_90_RIGHT_VFLIP		5
 #define V4L2_MXC_ROTATE_90_RIGHT_HFLIP		6
 #define V4L2_MXC_ROTATE_90_LEFT			7
+
+#define V4L2_MXC_CAM_ROTATE_NONE		8
+#define V4L2_MXC_CAM_ROTATE_VERT_FLIP		9
+#define V4L2_MXC_CAM_ROTATE_HORIZ_FLIP		10
+#define V4L2_MXC_CAM_ROTATE_180			11
 
 struct v4l2_mxc_offset {
 	uint32_t u_offset;
