@@ -250,7 +250,7 @@ static struct regulator_consumer_supply vcom_consumers[] = {
 	},
 };
 
-static struct regulator_init_data max17135_init_data[] __initdata = {
+static struct regulator_init_data max17135_init_data[] = {
 	{
 		.constraints = {
 			.name = "DISPLAY",
