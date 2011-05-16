@@ -100,6 +100,22 @@ struct sensor {
 	int csi;
 } ov5642_data;
 
+static struct reg_value ov5642_rotate_none[] = {
+	{0x3818, 0x00, 0x60, 0x00}, {0x3621, 0x20, 0x20, 0x00},
+};
+
+static struct reg_value ov5642_rotate_vert_flip[] = {
+	{0x3818, 0x20, 0x60, 0x00}, {0x3621, 0x20, 0x20, 0x00},
+};
+
+static struct reg_value ov5642_rotate_horiz_flip[] = {
+	{0x3818, 0x40, 0x60, 0x00}, {0x3621, 0x00, 0x20, 0x00},
+};
+
+static struct reg_value ov5642_rotate_180[] = {
+	{0x3818, 0x60, 0x60, 0x00}, {0x3621, 0x00, 0x20, 0x00},
+};
+
 static struct reg_value ov5642_setting_15fps_QSXGA_2592_1944[] = {
 	{0x3103, 0x93, 0, 0}, {0x3008, 0x82, 0, 0}, {0x3017, 0x7f, 0, 0},
 	{0x3018, 0xfc, 0, 0}, {0x3810, 0xc2, 0, 0}, {0x3615, 0xf0, 0, 0},
@@ -1395,7 +1411,41 @@ static s32 ov5642_read_reg(u16 reg, u8 *val)
 
 	return u8RdVal;
 }
+static int ov5642_set_rotate_mode(struct reg_value *rotate_mode)
+{
+	s32 i = 0;
+	s32 iModeSettingArySize = 2;
+	register u32 Delay_ms = 0;
+	register u16 RegAddr = 0;
+	register u8 Mask = 0;
+	register u8 Val = 0;
+	u8 RegVal = 0;
+	int retval = 0;
+	for (i = 0; i < iModeSettingArySize; ++i, ++rotate_mode) {
+		Delay_ms = rotate_mode->u32Delay_ms;
+		RegAddr = rotate_mode->u16RegAddr;
+		Val = rotate_mode->u8Val;
+		Mask = rotate_mode->u8Mask;
+		if (Mask) {
+			retval = ov5642_read_reg(RegAddr, &RegVal);
+			if (retval < 0)
+				goto err;
 
+			RegVal &= ~(u8)Mask;
+			Val &= Mask;
+			Val |= RegVal;
+		}
+
+		retval = ov5642_write_reg(RegAddr, Val);
+		if (retval < 0)
+			goto err;
+
+		if (Delay_ms)
+			msleep(Delay_ms);
+	}
+err:
+	return retval;
+}
 static int ov5642_init_mode(enum ov5642_frame_rate frame_rate,
 			    enum ov5642_mode mode)
 {
@@ -1751,6 +1801,30 @@ static int ioctl_s_ctrl(struct v4l2_int_device *s, struct v4l2_control *vc)
 	case V4L2_CID_HFLIP:
 		break;
 	case V4L2_CID_VFLIP:
+		break;
+	case V4L2_CID_MXC_ROT:
+	case V4L2_CID_MXC_VF_ROT:
+		switch (vc->value) {
+		case V4L2_MXC_CAM_ROTATE_NONE:
+			if (ov5642_set_rotate_mode(ov5642_rotate_none))
+				retval = -EPERM;
+			break;
+		case V4L2_MXC_CAM_ROTATE_VERT_FLIP:
+			if (ov5642_set_rotate_mode(ov5642_rotate_vert_flip))
+				retval = -EPERM;
+			break;
+		case V4L2_MXC_CAM_ROTATE_HORIZ_FLIP:
+			if (ov5642_set_rotate_mode(ov5642_rotate_horiz_flip))
+				retval = -EPERM;
+			break;
+		case V4L2_MXC_CAM_ROTATE_180:
+			if (ov5642_set_rotate_mode(ov5642_rotate_180))
+				retval = -EPERM;
+			break;
+		default:
+			retval = -EPERM;
+			break;
+		}
 		break;
 	default:
 		retval = -EPERM;
