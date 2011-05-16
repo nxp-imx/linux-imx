@@ -666,7 +666,7 @@ static struct mxc_spi_master mxcspi3_data = {
 #define V_to_uV(V) (mV_to_uV(V * 1000))
 #define uV_to_V(uV) (uV_to_mV(uV) / 1000)
 
-static struct regulator_init_data max17135_init_data[] __initdata = {
+static struct regulator_init_data max17135_init_data[] = {
 	{
 		.constraints = {
 			.name = "DISPLAY",
