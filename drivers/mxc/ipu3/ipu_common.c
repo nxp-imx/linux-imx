@@ -28,6 +28,7 @@
 #include <linux/io.h>
 #include <linux/ipu.h>
 #include <linux/clk.h>
+#include <linux/clkdev.h>
 #include <mach/clock.h>
 #include <mach/hardware.h>
 #include <mach/ipu-v3.h>
@@ -220,8 +221,14 @@ static int _ipu_pixel_clk_set_parent(struct clk *clk, struct clk *parent)
 	return 0;
 }
 
+#ifdef CONFIG_CLK_DEBUG
+#define __INIT_CLK_DEBUG(n)	.name = #n,
+#else
+#define __INIT_CLK_DEBUG(n)
+#endif
 static struct clk pixel_clk[] = {
 	{
+	__INIT_CLK_DEBUG(pixel_clk_0)
 	.id = 0,
 	.get_rate = _ipu_pixel_clk_get_rate,
 	.set_rate = _ipu_pixel_clk_set_rate,
@@ -231,6 +238,7 @@ static struct clk pixel_clk[] = {
 	.disable = _ipu_pixel_clk_disable,
 	},
 	{
+	__INIT_CLK_DEBUG(pixel_clk_1)
 	.id = 1,
 	.get_rate = _ipu_pixel_clk_get_rate,
 	.set_rate = _ipu_pixel_clk_set_rate,
@@ -239,6 +247,19 @@ static struct clk pixel_clk[] = {
 	.enable = _ipu_pixel_clk_enable,
 	.disable = _ipu_pixel_clk_disable,
 	},
+};
+
+#define _REGISTER_CLOCK(d, n, c) \
+	{ \
+		.dev_id = d, \
+		.con_id = n, \
+		.clk = &c, \
+	}
+
+static struct clk_lookup ipu_lookups[] = {
+	_REGISTER_CLOCK(NULL, "pixel_clk_0", pixel_clk[0]),
+	_REGISTER_CLOCK(NULL, "pixel_clk_1", pixel_clk[1]),
+
 };
 
 int __initdata primary_di = { 0 };
@@ -398,6 +419,11 @@ static int ipu_probe(struct platform_device *pdev)
 	dev_dbg(g_ipu_dev, "IPU TPMem = %p\n", ipu_tpmem_base);
 	dev_dbg(g_ipu_dev, "IPU DC Template Mem = %p\n", ipu_dc_tmpl_reg);
 	dev_dbg(g_ipu_dev, "IPU Display Region 1 Mem = %p\n", ipu_disp_base[1]);
+
+	clkdev_add(&ipu_lookups[0]);
+	clkdev_add(&ipu_lookups[1]);
+	clk_debug_register(&pixel_clk[0]);
+	clk_debug_register(&pixel_clk[1]);
 
 	g_pixel_clk[0] = &pixel_clk[0];
 	g_pixel_clk[1] = &pixel_clk[1];
