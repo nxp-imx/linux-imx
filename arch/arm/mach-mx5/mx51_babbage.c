@@ -694,7 +694,7 @@ static struct mxc_camera_platform_data camera_data = {
 
 static struct i2c_board_info mxc_i2c0_board_info[] __initdata = {
 	{
-	.type = "ov3640",
+	.type = "ov5642",
 	.addr = 0x3C,
 	.platform_data = (void *)&camera_data,
 	},
