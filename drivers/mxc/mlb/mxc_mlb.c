@@ -212,14 +212,12 @@ static struct mlb_dev_info mlb_devinfo[MLB_MINOR_DEVICES] = {
 
 static struct regulator *reg_nvcc;	/* NVCC_MLB regulator */
 static struct clk *mlb_clk;
-static struct cdev mxc_mlb_dev;	/* chareset device */
 static dev_t dev;
 static struct class *mlb_class;	/* device class */
 static struct device *class_dev;
 static unsigned long mlb_base;	/* mlb module base address */
 static unsigned int irq;
 static unsigned long iram_base;
-static __iomem void *iram_addr;
 
 /*!
  * Initial the MLB module device
@@ -467,6 +465,11 @@ static irqreturn_t mlb_isr(int irq, void *dev_id)
 static int mxc_mlb_open(struct inode *inode, struct file *filp)
 {
 	int minor;
+	struct mxc_mlb_platform_data *plat_data;
+
+	plat_data = container_of(inode->i_cdev, struct mxc_mlb_platform_data,
+				cdev);
+	filp->private_data = plat_data;
 
 	minor = MINOR(inode->i_rdev);
 
@@ -507,6 +510,7 @@ static int mxc_mlb_ioctl(struct inode *inode, struct file *filp,
 	void __user *argp = (void __user *)arg;
 	unsigned long flags, event;
 	int minor;
+	struct mxc_mlb_platform_data *plat_data = filp->private_data;
 
 	minor = MINOR(inode->i_rdev);
 
@@ -566,6 +570,9 @@ static int mxc_mlb_ioctl(struct inode *inode, struct file *filp,
 				pr_err("mxc_mlb: copy from user failed\n");
 				return -EFAULT;
 			}
+
+			if (plat_data->fps_sel)
+				plat_data->fps_sel(fps);
 
 			/* check fps value */
 			if (fps != 256 && fps != 512 && fps != 1024) {
@@ -799,6 +806,10 @@ static int __devinit mxc_mlb_probe(struct platform_device *pdev)
 	void __iomem *base, *bufaddr;
 	unsigned long phyaddr;
 
+	plat_data = (struct mxc_mlb_platform_data *)pdev->dev.platform_data;
+	plat_data->dev = &pdev->dev;
+
+
 	/* malloc the Rx ring buffer firstly */
 	for (i = 0; i < MLB_MINOR_DEVICES; i++) {
 		char *buf;
@@ -812,8 +823,8 @@ static int __devinit mxc_mlb_probe(struct platform_device *pdev)
 		buf = kmalloc(bufsize * RX_RING_NODES, GFP_KERNEL);
 		if (buf == NULL) {
 			ret = -ENOMEM;
-			dev_err(&pdev->dev, "can not alloc rx buffers\n");
-			goto err4;
+			dev_err(plat_data->dev, "can not alloc rx buffers\n");
+			goto err3;
 		}
 		for (j = 0; j < RX_RING_NODES; j++) {
 			mlb_devinfo[i].rx_bufs[j].data = buf;
@@ -829,23 +840,23 @@ static int __devinit mxc_mlb_probe(struct platform_device *pdev)
 	mlb_major = MAJOR(dev);
 
 	if (ret < 0) {
-		dev_err(&pdev->dev, "can't get major %d\n", mlb_major);
-		goto err3;
+		dev_err(plat_data->dev, "can't get major %d\n", mlb_major);
+		goto err2;
 	}
 
-	cdev_init(&mxc_mlb_dev, &mxc_mlb_fops);
-	mxc_mlb_dev.owner = THIS_MODULE;
+	cdev_init(&plat_data->cdev, &mxc_mlb_fops);
+	plat_data->cdev.owner = THIS_MODULE;
 
-	ret = cdev_add(&mxc_mlb_dev, dev, MLB_MINOR_DEVICES);
+	ret = cdev_add(&plat_data->cdev, dev, MLB_MINOR_DEVICES);
 	if (ret) {
-		dev_err(&pdev->dev, "can't add cdev\n");
+		dev_err(plat_data->dev, "can't add cdev\n");
 		goto err2;
 	}
 
 	/* create class and device for udev information */
 	mlb_class = class_create(THIS_MODULE, "mlb");
 	if (IS_ERR(mlb_class)) {
-		dev_err(&pdev->dev, "failed to create mlb class\n");
+		dev_err(plat_data->dev, "failed to create mlb class\n");
 		ret = -ENOMEM;
 		goto err2;
 	}
@@ -855,7 +866,7 @@ static int __devinit mxc_mlb_probe(struct platform_device *pdev)
 		class_dev = device_create(mlb_class, NULL, MKDEV(mlb_major, i),
 					  NULL, mlb_devinfo[i].dev_name);
 		if (IS_ERR(class_dev)) {
-			dev_err(&pdev->dev, "failed to create mlb %s"
+			dev_err(plat_data->dev, "failed to create mlb %s"
 				" class device\n", mlb_devinfo[i].dev_name);
 			ret = -ENOMEM;
 			goto err1;
@@ -865,14 +876,14 @@ static int __devinit mxc_mlb_probe(struct platform_device *pdev)
 	/* get irq line */
 	res = platform_get_resource(pdev, IORESOURCE_IRQ, 0);
 	if (res == NULL) {
-		dev_err(&pdev->dev, "No mlb irq line provided\n");
+		dev_err(plat_data->dev, "No mlb irq line provided\n");
 		goto err1;
 	}
 
 	irq = res->start;
 	/* request irq */
 	if (request_irq(irq, mlb_isr, 0, "mlb", NULL)) {
-		dev_err(&pdev->dev, "failed to request irq\n");
+		dev_err(plat_data->dev, "failed to request irq\n");
 		ret = -EBUSY;
 		goto err1;
 	}
@@ -880,16 +891,16 @@ static int __devinit mxc_mlb_probe(struct platform_device *pdev)
 	/* ioremap from phy mlb to kernel space */
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	if (res == NULL) {
-		dev_err(&pdev->dev, "No mlb base address provided\n");
+		dev_err(plat_data->dev, "No mlb base address provided\n");
 		goto err0;
 	}
 
 	base = ioremap(res->start, res->end - res->start);
-	dev_dbg(&pdev->dev, "mapped mlb base address: 0x%08x\n",
+	dev_dbg(plat_data->dev, "mapped mlb base address: 0x%08x\n",
 		(unsigned int)base);
 
 	if (base == NULL) {
-		dev_err(&pdev->dev, "failed to do ioremap with mlb base\n");
+		dev_err(plat_data->dev, "failed to do ioremap with mlb base\n");
 		goto err0;
 	}
 	mlb_base = (unsigned long)base;
@@ -910,11 +921,9 @@ static int __devinit mxc_mlb_probe(struct platform_device *pdev)
 	 * | minor n rx buf  |
 	 * -------------------
 	 */
-
-	plat_data = (struct mxc_mlb_platform_data *)pdev->dev.platform_data;
-
-	bufaddr = iram_addr = iram_alloc(MLB_IRAM_SIZE, &iram_base);
-	phyaddr = iram_base;
+	bufaddr = iram_alloc(MLB_IRAM_SIZE, &iram_base);
+	plat_data->buf_addr = (unsigned long)bufaddr;
+	plat_data->phy_addr = phyaddr = iram_base;
 
 	for (i = 0; i < MLB_MINOR_DEVICES; i++) {
 		/* set the virtual and physical buf head address */
@@ -930,9 +939,9 @@ static int __devinit mxc_mlb_probe(struct platform_device *pdev)
 		bufaddr += RX_CHANNEL_BUF_SIZE;
 		phyaddr += RX_CHANNEL_BUF_SIZE;
 
-		dev_dbg(&pdev->dev, "phy_head: tx(%lx), rx(%lx)\n",
+		dev_dbg(plat_data->dev, "phy_head: tx(%lx), rx(%lx)\n",
 			_get_txchan(i).phy_head, _get_rxchan(i).phy_head);
-		dev_dbg(&pdev->dev, "buf_head: tx(%lx), rx(%lx)\n",
+		dev_dbg(plat_data->dev, "buf_head: tx(%lx), rx(%lx)\n",
 			_get_txchan(i).buf_head, _get_rxchan(i).buf_head);
 	}
 
@@ -941,7 +950,7 @@ static int __devinit mxc_mlb_probe(struct platform_device *pdev)
 
 	if (plat_data->reg_nvcc) {
 		/* power on MLB */
-		reg_nvcc = regulator_get(&pdev->dev, plat_data->reg_nvcc);
+		reg_nvcc = regulator_get(plat_data->dev, plat_data->reg_nvcc);
 		if (!IS_ERR(reg_nvcc)) {
 			/* set MAX LDO6 for NVCC to 2.5V */
 			regulator_set_voltage(reg_nvcc, 2500000, 2500000);
@@ -950,8 +959,10 @@ static int __devinit mxc_mlb_probe(struct platform_device *pdev)
 	}
 
 	/* enable clock */
-	mlb_clk = clk_get(&pdev->dev, plat_data->mlb_clk);
-	clk_enable(mlb_clk);
+	if (plat_data->mlb_clk) {
+		mlb_clk = clk_get(plat_data->dev, plat_data->mlb_clk);
+		clk_enable(mlb_clk);
+	}
 
 	/* initial MLB module */
 	mlb_dev_init();
@@ -959,17 +970,18 @@ static int __devinit mxc_mlb_probe(struct platform_device *pdev)
 	return 0;
 
 err0:
-	free_irq(irq, NULL);
+	if (irq) {
+		free_irq(irq, NULL);
+		irq = 0;
+	}
 err1:
 	for (--i; i >= 0; i--)
 		device_destroy(mlb_class, MKDEV(mlb_major, i));
 
 	class_destroy(mlb_class);
 err2:
-	cdev_del(&mxc_mlb_dev);
-err3:
 	unregister_chrdev_region(dev, MLB_MINOR_DEVICES);
-err4:
+err3:
 	for (i = 0; i < MLB_MINOR_DEVICES; i++)
 		kfree(mlb_devinfo[i].rx_bufs[0].data);
 
@@ -979,26 +991,42 @@ err4:
 static int __devexit mxc_mlb_remove(struct platform_device *pdev)
 {
 	int i;
+	struct mxc_mlb_platform_data *plat_data;
+
+	plat_data = (struct mxc_mlb_platform_data *)pdev->dev.platform_data;
 
 	mlb_dev_exit();
 
 	/* disable mlb clock */
-	clk_disable(mlb_clk);
-	clk_put(mlb_clk);
+	if (plat_data->mlb_clk) {
+		clk_disable(mlb_clk);
+		clk_put(mlb_clk);
+	}
 
 	/* disable mlb power */
-	regulator_disable(reg_nvcc);
-	regulator_put(reg_nvcc);
+	if (plat_data->reg_nvcc) {
+		regulator_disable(reg_nvcc);
+		regulator_put(reg_nvcc);
+	}
 
 	/* inactive GPIO */
 	gpio_mlb_inactive();
 
-	iram_free(iram_base, MLB_IRAM_SIZE);
+	if (iram_base) {
+		iram_free(iram_base, MLB_IRAM_SIZE);
+		iram_base = 0;
+	}
 
 	/* iounmap */
-	iounmap((void *)mlb_base);
+	if (mlb_base) {
+		iounmap((void *)mlb_base);
+		mlb_base = 0;
+	}
 
-	free_irq(irq, NULL);
+	if (irq) {
+		free_irq(irq, NULL);
+		irq = 0;
+	}
 
 	/* destroy mlb device class */
 	for (i = MLB_MINOR_DEVICES - 1; i >= 0; i--)
@@ -1006,7 +1034,6 @@ static int __devexit mxc_mlb_remove(struct platform_device *pdev)
 	class_destroy(mlb_class);
 
 	/* Unregister the two MLB devices */
-	cdev_del(&mxc_mlb_dev);
 	unregister_chrdev_region(dev, MLB_MINOR_DEVICES);
 
 	for (i = 0; i < MLB_MINOR_DEVICES; i++)
