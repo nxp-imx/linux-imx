@@ -18,6 +18,7 @@
 #define _FSL_DEVICE_H_
 
 #include <linux/types.h>
+#include <linux/cdev.h>
 
 /*
  * Some conventions on how we handle peripherals on Freescale chips
@@ -458,10 +459,13 @@ struct mxc_gps_platform_data {
 };
 
 struct mxc_mlb_platform_data {
-	u32 buf_address;
-	u32 phy_address;
+	struct device *dev;
+	u32 buf_addr;
+	u32 phy_addr;
 	char *reg_nvcc;
 	char *mlb_clk;
+	void (*fps_sel)(int mlbfs);
+	struct cdev cdev;
 };
 
 struct flexcan_platform_data {
