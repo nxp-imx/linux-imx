@@ -286,8 +286,6 @@ static struct regulator *core_regulator;
 static struct regulator *analog_regulator;
 static struct regulator *gpo_regulator;
 
-extern void gpio_sensor_active(void);
-extern void gpio_sensor_inactive(void);
 
 /* list of image formats supported by this sensor */
 /*
@@ -442,7 +440,6 @@ static int ioctl_s_power(struct v4l2_int_device *s, int on)
 	pr_debug("In ov2640:ioctl_s_power\n");
 
 	if (on && !sensor->on) {
-		gpio_sensor_active();
 		if (io_regulator)
 			if (regulator_enable(io_regulator) != 0)
 				return -EIO;
@@ -464,7 +461,6 @@ static int ioctl_s_power(struct v4l2_int_device *s, int on)
 			regulator_disable(io_regulator);
 		if (gpo_regulator)
 			regulator_disable(gpo_regulator);
-		gpio_sensor_inactive();
 	}
 
 	sensor->on = on;
@@ -796,7 +792,6 @@ static int ioctl_dev_init(struct v4l2_int_device *s)
 
 	pr_debug("In ov2640:ioctl_dev_init\n");
 
-	gpio_sensor_active();
 	ov2640_data.on = true;
 
 	tgt_xclk = ov2640_data.mclk;
@@ -820,8 +815,6 @@ static int ioctl_dev_init(struct v4l2_int_device *s)
 static int ioctl_dev_exit(struct v4l2_int_device *s)
 {
 	pr_debug("In ov2640:ioctl_dev_exit\n");
-
-	gpio_sensor_inactive();
 
 	return 0;
 }
@@ -878,7 +871,7 @@ static int ov2640_probe(struct i2c_client *client,
 			const struct i2c_device_id *id)
 {
 	int retval;
-	struct mxc_camera_platform_data *plat_data = client->dev.platform_data;
+	struct fsl_mxc_camera_platform_data *plat_data = client->dev.platform_data;
 
 	pr_debug("In ov2640_probe (RH_BT565)\n");
 
