@@ -1,5 +1,5 @@
 /*
- * Copyright 2008-2009 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2008-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  * Copyright (C) 2010 Jason Wang <jason77.wang@gmail.com>
  *
  * The code contained herein is licensed under the GNU General Public
@@ -68,6 +68,8 @@ static iomux_v3_cfg_t mx51_3ds_pads[] = {
 	MX51_PAD_NANDF_RB3__ECSPI2_MISO,
 	MX51_PAD_NANDF_D15__ECSPI2_MOSI,
 	MX51_PAD_NANDF_D12__GPIO3_28,
+
+	MX51_PAD_GPIO1_7__SPDIF_OUT,
 };
 
 /* Serial ports */
@@ -130,6 +132,15 @@ static struct spi_board_info mx51_3ds_spi_nor_device[] = {
 	 .platform_data = NULL,},
 };
 
+static struct mxc_spdif_platform_data mxc_spdif_data = {
+	.spdif_tx = 1,
+	.spdif_rx = 0,
+	.spdif_clk_44100 = 0,	/* spdif_ext_clk source for 44.1KHz */
+	.spdif_clk_48000 = 7,	/* audio osc source */
+	.spdif_clkid = 0,
+	.spdif_clk = NULL,	/* spdif bus clk */
+};
+
 /*
  * Board specific initialization.
  */
@@ -142,6 +153,9 @@ static void __init mx51_3ds_init(void)
 	imx51_add_imx_uart(1, &uart_pdata);
 	imx51_add_imx_uart(2, &uart_pdata);
 
+	mxc_spdif_data.spdif_core_clk = clk_get(NULL, "spdif_xtal_clk");
+	clk_put(mxc_spdif_data.spdif_core_clk);
+
 	imx51_add_ecspi(1, &mx51_3ds_ecspi2_pdata);
 	spi_register_board_info(mx51_3ds_spi_nor_device,
 				ARRAY_SIZE(mx51_3ds_spi_nor_device));
@@ -153,6 +167,10 @@ static void __init mx51_3ds_init(void)
 	imx51_add_sdhci_esdhc_imx(0, NULL);
 	imx51_add_imx_keypad(&mx51_3ds_map_data);
 	imx51_add_imx2_wdt(0, NULL);
+
+	imx51_add_spdif(&mxc_spdif_data);
+	imx51_add_spdif_dai();
+	imx51_add_spdif_audio_device();
 }
 
 static void __init mx51_3ds_timer_init(void)

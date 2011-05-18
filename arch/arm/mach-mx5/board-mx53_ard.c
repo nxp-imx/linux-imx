@@ -123,6 +123,9 @@ static iomux_v3_cfg_t mx53_ard_pads[] = {
 
 	/* TOUCH_INT_B */
 	MX53_PAD_GPIO_17__GPIO7_12,
+
+	/* MAINBRD_SPDIF_IN */
+	MX53_PAD_KEY_COL3__SPDIF_IN1,
 };
 
 /* Config CS1 settings for ethernet controller */
@@ -211,6 +214,15 @@ static struct i2c_board_info mxc_i2c2_board_info[] __initdata = {
 	},
 };
 
+static struct mxc_spdif_platform_data mxc_spdif_data = {
+	.spdif_tx = 0,
+	.spdif_rx = 1,
+	.spdif_clk_44100 = 0,	/* Souce from CKIH1 for 44.1K */
+	.spdif_clk_48000 = 7,	/* Source from CKIH2 for 48k and 32k */
+	.spdif_clkid = 0,
+	.spdif_clk = NULL,	/* spdif bus clk */
+};
+
 static inline void mx53_ard_init_uart(void)
 {
 	imx53_add_imx_uart(0, NULL);
@@ -229,6 +241,8 @@ static void __init mx53_ard_board_init(void)
 {
 	mxc_iomux_v3_setup_multiple_pads(mx53_ard_pads,
 					ARRAY_SIZE(mx53_ard_pads));
+	mxc_spdif_data.spdif_core_clk = clk_get(NULL, "spdif_xtal_clk");
+	clk_put(mxc_spdif_data.spdif_core_clk);
 	mx53_ard_init_uart();
 	imx53_add_srtc();
 	imx53_add_imx2_wdt(0, NULL);
@@ -240,6 +254,10 @@ static void __init mx53_ard_board_init(void)
 	mxc_register_device(&ard_smsc_lan9220_device, &ard_smsc911x_config);
 	imx53_add_imx_i2c(1, &mx53_ard_i2c1_data);
 	imx53_add_imx_i2c(2, &mx53_ard_i2c2_data);
+
+	imx53_add_spdif(&mxc_spdif_data);
+	imx53_add_spdif_dai();
+	imx53_add_spdif_audio_device();
 
 	i2c_register_board_info(1, mxc_i2c1_board_info,
 				ARRAY_SIZE(mxc_i2c1_board_info));

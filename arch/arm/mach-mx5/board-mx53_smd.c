@@ -216,6 +216,8 @@ static iomux_v3_cfg_t mx53_smd_pads[] = {
 	MX53_PAD_LVDS1_CLK_P__LDB_LVDS1_CLK,
 	MX53_PAD_LVDS1_TX1_P__LDB_LVDS1_TX1,
 	MX53_PAD_LVDS1_TX0_P__LDB_LVDS1_TX0,
+
+	MX53_PAD_GPIO_17__SPDIF_OUT1,
 };
 
 #if defined(CONFIG_KEYBOARD_GPIO) || defined(CONFIG_KEYBOARD_GPIO_MODULE)
@@ -718,11 +720,27 @@ static struct fsl_mxc_ldb_platform_data ldb_data = {
 	.boot_enable = MXC_LDBDI1,
 };
 
+static struct mxc_spdif_platform_data mxc_spdif_data = {
+	.spdif_tx = 1,
+	.spdif_rx = 0,
+	.spdif_clk_44100 = 0,	/* Souce from CKIH1 for 44.1K */
+	/* Source from CCM spdif_clk (24M) for 48k and 32k
+	 * It's not accurate
+	 */
+	.spdif_clk_48000 = 1,
+	.spdif_clkid = 0,
+	.spdif_clk = NULL,	/* spdif bus clk */
+};
+
 static void __init mx53_smd_board_init(void)
 {
 	ipu_data.csi_clk[0] = clk_get(NULL, "ssi_ext1_clk");
 	mxc_iomux_v3_setup_multiple_pads(mx53_smd_pads,
 					ARRAY_SIZE(mx53_smd_pads));
+
+	mxc_spdif_data.spdif_core_clk = clk_get(NULL, "spdif_xtal_clk");
+	clk_put(mxc_spdif_data.spdif_core_clk);
+
 	mx53_smd_init_uart();
 	mx53_smd_fec_reset();
 	mxc_register_device(&mxc_pm_device, &smd_pm_data);
@@ -779,6 +797,10 @@ static void __init mx53_smd_board_init(void)
 	mxc_register_device(&smd_audio_device, &smd_audio_data);
 	mxc_register_device(&imx_bt_rfkill, &imx_bt_rfkill_data);
 	imx53_add_imx_ssi(1, &smd_ssi_pdata);
+
+	imx53_add_spdif(&mxc_spdif_data);
+	imx53_add_spdif_dai();
+	imx53_add_spdif_audio_device();
 
 	/* this call required to release SCC RAM partition held by ROM
 	  * during boot, even if SCC2 driver is not part of the image

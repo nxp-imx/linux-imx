@@ -717,6 +717,18 @@ static void __init fixup_mxc_board(struct machine_desc *desc, struct tag *tags,
 	}
 }
 
+static struct mxc_spdif_platform_data mxc_spdif_data = {
+	.spdif_tx = 1,
+	.spdif_rx = 0,
+	.spdif_clk_44100 = -1,	/* No source for 44.1K */
+	/* Source from CCM spdif_clk (24M) for 48k and 32k
+	 * It's not accurate: for 48Khz it is actually 46875Hz (2.3% off)
+	 */
+	.spdif_clk_48000 = 1,
+	.spdif_clkid = 0,
+	.spdif_clk = NULL,	/* spdif bus clk */
+};
+
 static void __init mx53_loco_board_init(void)
 {
 	mx53_loco_io_init();
@@ -724,6 +736,9 @@ static void __init mx53_loco_board_init(void)
 	imx53_add_imx_uart(0, NULL);
 	mx53_loco_fec_reset();
 	imx53_add_fec(&mx53_loco_fec_data);
+
+	mxc_spdif_data.spdif_core_clk = clk_get(NULL, "spdif_xtal_clk");
+	clk_put(mxc_spdif_data.spdif_core_clk);
 
 	mxc_register_device(&mxc_pm_device, &loco_pm_data);
 
@@ -761,6 +776,10 @@ static void __init mx53_loco_board_init(void)
 
 	mxc_register_device(&loco_audio_device, &loco_audio_data);
 	imx53_add_imx_ssi(1, &loco_ssi_pdata);
+
+	imx53_add_spdif(&mxc_spdif_data);
+	imx53_add_spdif_dai();
+	imx53_add_spdif_audio_device();
 
 	/*GPU*/
 	if (mx53_revision() >= IMX_CHIP_REVISION_2_0)

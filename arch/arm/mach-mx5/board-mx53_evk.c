@@ -720,9 +720,21 @@ static void __init mx53_evk_io_init(void)
 	}
 }
 
+static struct mxc_spdif_platform_data mxc_spdif_data = {
+	.spdif_tx = 1,
+	.spdif_rx = 0,
+	.spdif_clk_44100 = 0,	/* Souce from CKIH1 for 44.1K */
+	.spdif_clk_48000 = 7,	/* Source from CKIH2 for 48k and 32k */
+	.spdif_clkid = 0,
+	.spdif_clk = NULL,	/* spdif bus clk */
+};
+
 static void __init mx53_evk_board_init(void)
 {
 	mx53_evk_io_init();
+
+	mxc_spdif_data.spdif_core_clk = clk_get(NULL, "spdif_xtal_clk");
+	clk_put(mxc_spdif_data.spdif_core_clk);
 
 	mx53_evk_init_uart();
 	imx53_add_srtc();
@@ -755,6 +767,10 @@ static void __init mx53_evk_board_init(void)
 		ARRAY_SIZE(mx53_evk_spi_board_info));
 	imx53_add_ecspi(0, &mx53_evk_spi_data);
 	imx53_add_imx2_wdt(0, NULL);
+
+	imx53_add_spdif(&mxc_spdif_data);
+	imx53_add_spdif_dai();
+	imx53_add_spdif_audio_device();
 
 	/* this call required to release SCC RAM partition held by ROM
 	  * during boot, even if SCC2 driver is not part of the image
