@@ -89,3 +89,11 @@ extern const struct imx_tve_data imx51_tve_data __initconst;
 #define imx51_add_v4l2_capture(id)	\
 	platform_device_register_resndata(NULL, "mxc_v4l2_capture",\
 			id, NULL, 0, NULL, 0);
+
+extern const struct imx_spdif_data imx51_imx_spdif_data __initconst;
+#define imx51_add_spdif(pdata)	imx_add_spdif(&imx51_imx_spdif_data, pdata)
+
+extern const struct imx_spdif_dai_data imx51_spdif_dai_data __initconst;
+#define imx51_add_spdif_dai()	imx_add_spdif_dai(&imx51_spdif_dai_data)
+
+#define imx51_add_spdif_audio_device(pdata)	imx_add_spdif_audio_device()
