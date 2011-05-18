@@ -900,9 +900,31 @@ static struct platform_device ard_smsc_lan9220_device = {
 	.resource = ard_smsc911x_resources,
 };
 
+#define IOMUXC_GPR0_MLBCLK_IN_INV_OFFSET	11
+#define IOMUXGPR0				(IO_ADDRESS(IOMUXC_BASE_ADDR))
+
+static void mlb_fps_sel(int mlbfs)
+{
+	u32 reg;
+
+	switch (mlbfs) {
+	case 1024:
+		reg = readl(IOMUXGPR0);
+
+		reg |= (1 << IOMUXC_GPR0_MLBCLK_IN_INV_OFFSET);
+		writel(reg, IOMUXGPR0);
+		break;
+	case 256:
+	case 512:
+	default:
+		break;
+	}
+}
+
 static struct mxc_mlb_platform_data mlb_data = {
 	.reg_nvcc = NULL,
 	.mlb_clk = "mlb_clk",
+	.fps_sel = mlb_fps_sel,
 };
 
 /* NAND Flash Partitions */
