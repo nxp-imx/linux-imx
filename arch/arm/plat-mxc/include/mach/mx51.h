@@ -358,7 +358,7 @@
 #define MX51_MXC_INT_OWIRE		88
 #define MX51_MXC_INT_CTI1_TG2		89
 #define MX51_MXC_INT_SJC		90
-#define MX51_MXC_INT_SPDIF		91
+#define MX51_INT_SPDIF			91
 #define MX51_INT_TVE			92
 #define MX51_MXC_INT_FIRI		93
 #define MX51_INT_PWM2			94

@@ -42,3 +42,6 @@ obj-$(CONFIG_IMX_HAVE_PLATFORM_LDB) += platform-imx_ldb.o
 obj-y += platform-imx-scc2.o
 obj-$(CONFIG_IMX_HAVE_PLATFORM_IMX_PXP) += platform-imx-pxp.o
 obj-$(CONFIG_IMX_HAVE_PLATFORM_IMX_EPDC) += platform-imx-epdc-fb.o
+obj-$(CONFIG_IMX_HAVE_PLATFORM_IMX_SPDIF) += platform-imx-spdif.o
+obj-$(CONFIG_IMX_HAVE_PLATFORM_IMX_SPDIF) += platform-imx-spdif-dai.o
+obj-$(CONFIG_IMX_HAVE_PLATFORM_IMX_SPDIF) += platform-imx-spdif-audio.o

@@ -4504,7 +4504,7 @@ static struct clk_lookup lookups[] = {
 	_REGISTER_CLOCK(NULL, "emi_intr_clk.0", emi_intr_clk[0]),
 	_REGISTER_CLOCK(NULL, "emi_intr_clk.1", emi_intr_clk[1]),
 	_REGISTER_CLOCK(NULL, "spdif_xtal_clk", spdif_xtal_clk),
-	_REGISTER_CLOCK("mxc_alsa_spdif.0", NULL, spdif0_clk[0]),
+	_REGISTER_CLOCK("mxc_spdif.0", NULL, spdif0_clk[0]),
 	_REGISTER_CLOCK("mxc_vpu.0", NULL, vpu_clk[0]),
 	_REGISTER_CLOCK(NULL, "lpsr_clk", lpsr_clk),
 	_REGISTER_CLOCK("mxc_rtc.0", NULL, rtc_clk),
@@ -4524,7 +4524,7 @@ static struct clk_lookup lookups[] = {
 static struct clk_lookup mx51_lookups[] = {
 	_REGISTER_CLOCK("mxc_i2c_hs.3", NULL, hsi2c_serial_clk),
 	_REGISTER_CLOCK("mxc_sim.0", NULL, sim_clk[0]),
-	_REGISTER_CLOCK("mxc_alsa_spdif.0", NULL, spdif1_clk[0]),
+	_REGISTER_CLOCK("mxc_spdif.0", NULL, spdif1_clk[0]),
 	_REGISTER_CLOCK(NULL, "mipi_hsp_clk", mipi_hsp_clk),
 	_REGISTER_CLOCK(NULL, "ddr_hf_clk", ddr_hf_clk),
 	_REGISTER_CLOCK("imx51-ecspi.0", NULL, cspi1_clk[0]),
