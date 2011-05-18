@@ -1325,7 +1325,7 @@ static struct regulator *io_regulator;
 static struct regulator *core_regulator;
 static struct regulator *analog_regulator;
 static struct regulator *gpo_regulator;
-static struct mxc_camera_platform_data *camera_plat;
+static struct fsl_mxc_camera_platform_data *camera_plat;
 
 static int ov5642_probe(struct i2c_client *adapter,
 				const struct i2c_device_id *device_id);
@@ -1351,8 +1351,6 @@ static struct i2c_driver ov5642_i2c_driver = {
 	.id_table = ov5642_id,
 };
 
-extern void gpio_sensor_active(unsigned int csi_index);
-extern void gpio_sensor_inactive(unsigned int csi);
 
 static s32 ov5642_write_reg(u16 reg, u8 val)
 {
@@ -1486,7 +1484,6 @@ static int ioctl_s_power(struct v4l2_int_device *s, int on)
 	struct sensor *sensor = s->priv;
 
 	if (on && !sensor->on) {
-		gpio_sensor_active(ov5642_data.csi);
 		if (io_regulator)
 			if (regulator_enable(io_regulator) != 0)
 				return -EIO;
@@ -1512,7 +1509,6 @@ static int ioctl_s_power(struct v4l2_int_device *s, int on)
 			regulator_disable(io_regulator);
 		if (gpo_regulator)
 			regulator_disable(gpo_regulator);
-		gpio_sensor_inactive(ov5642_data.csi);
 	}
 
 	sensor->on = on;
@@ -1842,7 +1838,6 @@ static int ioctl_dev_init(struct v4l2_int_device *s)
 	u32 tgt_fps;	/* target frames per secound */
 	enum ov5642_frame_rate frame_rate;
 
-	gpio_sensor_active(ov5642_data.csi);
 	ov5642_data.on = true;
 
 	/* mclk */
@@ -1877,8 +1872,6 @@ static int ioctl_dev_init(struct v4l2_int_device *s)
  */
 static int ioctl_dev_exit(struct v4l2_int_device *s)
 {
-	gpio_sensor_inactive(ov5642_data.csi);
-
 	return 0;
 }
 
@@ -1936,7 +1929,7 @@ static int ov5642_probe(struct i2c_client *client,
 			const struct i2c_device_id *id)
 {
 	int retval;
-	struct mxc_camera_platform_data *plat_data = client->dev.platform_data;
+	struct fsl_mxc_camera_platform_data *plat_data = client->dev.platform_data;
 
 	/* Set initial values for the sensor struct. */
 	memset(&ov5642_data, 0, sizeof(ov5642_data));
