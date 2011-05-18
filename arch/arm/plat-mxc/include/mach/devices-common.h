@@ -429,6 +429,24 @@ struct imx_epdc_data {
 struct platform_device *__init imx_add_imx_epdc(
 		const struct imx_epdc_data *data,
 		const struct imx_epdc_fb_platform_data *pdata);
+
+struct imx_spdif_data {
+	resource_size_t iobase;
+	resource_size_t irq;
+};
+struct platform_device *__init imx_add_spdif(
+		const struct imx_spdif_data *data,
+		const struct mxc_spdif_platform_data *pdata);
+
+struct imx_spdif_dai_data {
+	resource_size_t iobase;
+	resource_size_t dmatx;
+	resource_size_t dmarx;
+};
+struct platform_device *__init imx_add_spdif_dai(
+		const struct imx_spdif_dai_data *data);
+
+struct platform_device *__init imx_add_spdif_audio_device(void);
 struct platform_device *__init imx_add_perfmon(
 		const struct imx_perfmon_data *data);
 		const struct mxc_gpu_platform_data *pdata);

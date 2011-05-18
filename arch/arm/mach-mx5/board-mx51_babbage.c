@@ -11,6 +11,7 @@
  */
 
 #include <linux/init.h>
+#include <linux/clk.h>
 #include <linux/platform_device.h>
 #include <linux/i2c.h>
 #include <linux/gpio.h>
@@ -217,6 +218,8 @@ static iomux_v3_cfg_t mx51babbage_pads[] = {
 	MX51_PAD_AUD3_BB_RXD__AUD3_RXD,
 	MX51_PAD_AUD3_BB_CK__AUD3_TXC,
 	MX51_PAD_AUD3_BB_FS__AUD3_TXFS,
+
+	MX51_PAD_OWIRE_LINE__SPDIF_OUT,
 };
 
 /* Serial ports */
@@ -630,6 +633,15 @@ static struct platform_device bbg_audio_device = {
 	.name = "imx-sgtl5000",
 };
 
+static struct mxc_spdif_platform_data mxc_spdif_data = {
+	.spdif_tx = 1,
+	.spdif_rx = 0,
+	.spdif_clk_44100 = 0,	/* spdif_ext_clk source for 44.1KHz */
+	.spdif_clk_48000 = 7,	/* audio osc source */
+	.spdif_clkid = 0,
+	.spdif_clk = NULL,	/* spdif bus clk */
+};
+
 /*
  * Board specific initialization.
  */
@@ -641,6 +653,9 @@ static void __init mx51_babbage_init(void)
 
 	mxc_iomux_v3_setup_multiple_pads(mx51babbage_pads,
 					ARRAY_SIZE(mx51babbage_pads));
+
+	mxc_spdif_data.spdif_core_clk = clk_get(NULL, "spdif_xtal_clk");
+	clk_put(mxc_spdif_data.spdif_core_clk);
 
 	imx51_add_imx_uart(0, &uart_pdata);
 	imx51_add_imx_uart(1, &uart_pdata);
@@ -665,6 +680,10 @@ static void __init mx51_babbage_init(void)
 
 	imx51_add_imx_i2c(0, &babbage_i2c_data);
 	imx51_add_imx_i2c(1, &babbage_i2c_data);
+
+	imx51_add_spdif(&mxc_spdif_data);
+	imx51_add_spdif_dai();
+	imx51_add_spdif_audio_device();
 
 	mxc_register_device(&mxc_hsi2c_device, &babbage_hsi2c_data);
 	mxc_register_device(&mxc_pm_device, &babbage_pm_data);

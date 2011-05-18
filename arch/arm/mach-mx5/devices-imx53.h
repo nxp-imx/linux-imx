@@ -93,3 +93,10 @@ extern const struct imx_mxc_scc2_data imx53_mxc_scc2_data __initconst;
 #define imx53_add_mxc_scc2() \
 	imx_add_mxc_scc2(&imx53_mxc_scc2_data)
 
+extern const struct imx_spdif_data imx53_imx_spdif_data __initconst;
+#define imx53_add_spdif(pdata)	imx_add_spdif(&imx53_imx_spdif_data, pdata)
+
+extern const struct imx_spdif_dai_data imx53_spdif_dai_data __initconst;
+#define imx53_add_spdif_dai()	imx_add_spdif_dai(&imx53_spdif_dai_data)
+
+#define imx53_add_spdif_audio_device(pdata)	imx_add_spdif_audio_device()

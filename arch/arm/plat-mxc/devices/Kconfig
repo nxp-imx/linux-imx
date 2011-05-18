@@ -120,10 +120,13 @@ config IMX_HAVE_PLATFORM_PERFMON
 	bool
 
 config IMX_HAVE_PLATFORM_LDB
-    bool
+	bool
 
 config IMX_HAVE_PLATFORM_IMX_PXP
-    bool
+	bool
 
 config IMX_HAVE_PLATFORM_IMX_EPDC
+	bool
+
+config IMX_HAVE_PLATFORM_IMX_SPDIF
 	bool
