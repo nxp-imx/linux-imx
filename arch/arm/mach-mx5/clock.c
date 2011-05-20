@@ -4148,26 +4148,9 @@ static struct clk fec_clk[] = {
 	},
 };
 
-static struct clk sahara_clk[] = {
-	{
-	__INIT_CLK_DEBUG(sahara_clk_0)
-	.parent = &ahb_clk,
-	.secondary = &sahara_clk[1],
-	.enable_reg = MXC_CCM_CCGR4,
-	.enable_shift = MXC_CCM_CCGRx_CG7_OFFSET,
-	.enable = _clk_enable,
-	.disable = _clk_disable,
-	},
-	{
-	__INIT_CLK_DEBUG(sahara_clk_1)
-	.parent = &tmax1_clk,
-	.secondary = &emi_fast_clk,
-	}
-};
-
 static struct clk scc_clk[] = {
 	{
-	__INIT_CLK_DEBUG(scc_clk_0)
+	__INIT_CLK_DEBUG(sahara_clk_0)
 	.parent = &ahb_clk,
 	.secondary = &scc_clk[1],
 	.enable_reg = MXC_CCM_CCGR1,
@@ -4176,8 +4159,33 @@ static struct clk scc_clk[] = {
 	.disable = _clk_disable,
 	},
 	{
+	__INIT_CLK_DEBUG(sahara_clk_1)
+	.parent = &tmax1_clk,
+	.secondary = &scc_clk[2],
+	},
+	{
+	.parent = &emi_fast_clk,
+	.secondary = &emi_intr_clk[0],
+	}
+};
+
+static struct clk sahara_clk[] = {
+	{
+	__INIT_CLK_DEBUG(scc_clk_0)
+	.parent = &ahb_clk,
+	.secondary = &sahara_clk[1],
+	.enable_reg = MXC_CCM_CCGR4,
+	.enable_shift = MXC_CCM_CCGRx_CG7_OFFSET,
+	.enable = _clk_enable,
+	.disable = _clk_disable,
+	},
+	{
 	__INIT_CLK_DEBUG(scc_clk_1)
 	.parent = &tmax1_clk,
+	.secondary = &sahara_clk[2],
+	},
+	{
+	.parent = &scc_clk,
 	.secondary = &emi_fast_clk,
 	}
 };
