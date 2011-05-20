@@ -8,9 +8,9 @@ ifeq ($(CONFIG_ARCH_MX21)$(CONFIG_ARCH_MX27)$(CONFIG_ARCH_MX25),y)
 	obj-$(CONFIG_FB_MXC_EPSON_PANEL)        += mx2fb_epson.o
 else
 ifeq ($(CONFIG_MXC_IPU_V1),y)
-	obj-$(CONFIG_FB_MXC_SYNC_PANEL)         += mxcfb_tri_buf.o mxcfb_modedb.o
+	obj-$(CONFIG_FB_MXC_SYNC_PANEL)         += mxcfb.o mxcfb_modedb.o
 else
-	obj-$(CONFIG_FB_MXC_SYNC_PANEL)         += mxc_ipuv3_fb_tri_buf.o
+	obj-$(CONFIG_FB_MXC_SYNC_PANEL)         += mxc_ipuv3_fb.o
 endif
 	obj-$(CONFIG_FB_MXC_EPSON_PANEL)        += mxcfb_epson.o
 	obj-$(CONFIG_FB_MXC_EPSON_QVGA_PANEL)   += mxcfb_epson_qvga.o
