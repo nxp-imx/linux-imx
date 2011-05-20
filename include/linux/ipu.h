@@ -887,7 +887,6 @@ int32_t ipu_init_channel_buffer(ipu_channel_t channel, ipu_buffer_t type,
 				uint32_t stride,
 				ipu_rotate_mode_t rot_mode,
 				dma_addr_t phyaddr_0, dma_addr_t phyaddr_1,
-				dma_addr_t phyaddr_2,
 				uint32_t u_offset, uint32_t v_offset);
 
 int32_t ipu_update_channel_buffer(ipu_channel_t channel, ipu_buffer_t type,
@@ -1082,7 +1081,6 @@ typedef struct _ipu_channel_buf_parm {
 	ipu_rotate_mode_t rot_mode;
 	dma_addr_t phyaddr_0;
 	dma_addr_t phyaddr_1;
-	dma_addr_t phyaddr_2;
 	uint32_t u_offset;
 	uint32_t v_offset;
 	uint32_t bufNum;
