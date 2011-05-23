@@ -180,6 +180,25 @@ retry:
 	return IRQ_HANDLED;
 }
 
+static int egalax_wake_up_device(struct i2c_client *client)
+{
+	int gpio = irq_to_gpio(client->irq);
+	int ret;
+
+	ret = gpio_request(gpio, "egalax_irq");
+	if (ret < 0) {
+		dev_err(&client->dev, "request gpio failed:%d\n", ret);
+		return ret;
+	}
+	/* wake up controller via an falling edge on IRQ. */
+	gpio_direction_output(gpio, 0);
+	gpio_set_value(gpio, 1);
+	/* controller should be waken up, return irq.  */
+	gpio_direction_input(gpio);
+	gpio_free(gpio);
+	return 0;
+}
+
 static int egalax_7200_firmware_version(struct i2c_client *client)
 {
 	static const u8 cmd[MAX_I2C_DATA_LEN] = { 0x03, 0x03, 0xa, 0x01, 0x41 };
@@ -212,6 +231,7 @@ static int __devinit egalax_ts_probe(struct i2c_client *client,
 
 	data->client = client;
 	data->input_dev = input_dev;
+	egalax_wake_up_device(client);
 	ret = egalax_7200_firmware_version(client);
 	if (ret < 0) {
 		dev_err(&client->dev,
@@ -304,21 +324,7 @@ static int egalax_ts_suspend(struct device *dev)
 static int egalax_ts_resume(struct device *dev)
 {
 	struct i2c_client *client = to_i2c_client(dev);
-	int gpio = irq_to_gpio(client->irq);
-	int ret;
-
-	ret = gpio_request(gpio, "egalax_irq");
-	if (ret < 0) {
-		dev_err(&client->dev, "request gpio failed:%d\n", ret);
-		return ret;
-	}
-	/* wake up controller via an falling edge on IRQ. */
-	gpio_direction_output(gpio, 0);
-	gpio_set_value(gpio, 1);
-	/* controller should be waken up, return irq.  */
-	gpio_direction_input(gpio);
-	gpio_free(gpio);
-	return 0;
+	return egalax_wake_up_device(client);
 }
 #endif
 
