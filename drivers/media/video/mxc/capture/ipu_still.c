@@ -130,7 +130,7 @@ static int prp_still_start(void *private)
 				      pixel_fmt, cam->v2f.fmt.pix.width,
 				      cam->v2f.fmt.pix.height,
 				      cam->v2f.fmt.pix.width, IPU_ROTATE_NONE,
-				      cam->still_buf[0], cam->still_buf[1],
+				      cam->still_buf[0], cam->still_buf[1], 0,
 				      0, 0);
 	if (err != 0)
 		return err;

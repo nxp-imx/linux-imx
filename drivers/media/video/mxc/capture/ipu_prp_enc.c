@@ -177,7 +177,7 @@ static int prp_enc_setup(cam_data *cam)
 					      enc.csi_prp_enc_mem.out_width,
 					      IPU_ROTATE_NONE,
 					      cam->rot_enc_bufs[0],
-					      cam->rot_enc_bufs[1], 0, 0);
+					      cam->rot_enc_bufs[1], 0, 0, 0);
 		if (err != 0) {
 			printk(KERN_ERR "CSI_PRP_ENC_MEM err\n");
 			return err;
@@ -196,7 +196,7 @@ static int prp_enc_setup(cam_data *cam)
 					      enc.csi_prp_enc_mem.out_width,
 					      cam->rotation,
 					      cam->rot_enc_bufs[0],
-					      cam->rot_enc_bufs[1], 0, 0);
+					      cam->rot_enc_bufs[1], 0, 0, 0);
 		if (err != 0) {
 			printk(KERN_ERR "MEM_ROT_ENC_MEM input buffer\n");
 			return err;
@@ -210,7 +210,8 @@ static int prp_enc_setup(cam_data *cam)
 					    cam->v2f.fmt.pix.bytesperline /
 					    bytes_per_pixel(enc.csi_prp_enc_mem.
 							    out_pixel_fmt),
-					    IPU_ROTATE_NONE, dummy, dummy,
+					    IPU_ROTATE_NONE,
+					    dummy, dummy, 0,
 					    cam->offset.u_offset,
 					    cam->offset.v_offset);
 		if (err != 0) {
@@ -247,7 +248,8 @@ static int prp_enc_setup(cam_data *cam)
 					    cam->v2f.fmt.pix.bytesperline /
 					    bytes_per_pixel(enc.csi_prp_enc_mem.
 							    out_pixel_fmt),
-					    cam->rotation, dummy, dummy,
+					    cam->rotation,
+					    dummy, dummy, 0,
 					    cam->offset.u_offset,
 					    cam->offset.v_offset);
 		if (err != 0) {
