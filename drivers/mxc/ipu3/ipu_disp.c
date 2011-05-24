@@ -81,8 +81,8 @@ void _ipu_dmfc_init(int dmfc_type, int first)
 		 * 1C, 2C and 6B, 6F unused;
 		 */
 		printk(KERN_INFO "IPU DMFC DC HIGH RESOLUTION: 1(0~3), 5B(4,5), 5F(6,7)\n");
-		dmfc_wr_chan = 0x00000008;
-		dmfc_dp_chan = 0x00001614;
+		dmfc_wr_chan = 0x00000088;
+		dmfc_dp_chan = 0x00009694;
 		dmfc_size_28 = 256*4;
 		dmfc_size_29 = 0;
 		dmfc_size_24 = 0;
@@ -95,8 +95,8 @@ void _ipu_dmfc_init(int dmfc_type, int first)
 		 * 1C, 2C and 6B, 6F unused;
 		 */
 		printk(KERN_INFO "IPU DMFC DP HIGH RESOLUTION: 1(0,1), 5B(2~5), 5F(6,7)\n");
-		dmfc_wr_chan = 0x00000010;
-		dmfc_dp_chan = 0x0000160a;
+		dmfc_wr_chan = 0x00000090;
+		dmfc_dp_chan = 0x0000968a;
 		dmfc_size_28 = 128*4;
 		dmfc_size_29 = 0;
 		dmfc_size_24 = 0;
@@ -109,7 +109,7 @@ void _ipu_dmfc_init(int dmfc_type, int first)
 		 */
 		printk(KERN_INFO "IPU DMFC ONLY-DP HIGH RESOLUTION: 5B(0~3), 5F(4~7)\n");
 		dmfc_wr_chan = 0x00000000;
-		dmfc_dp_chan = 0x00000c08;
+		dmfc_dp_chan = 0x00008c88;
 		dmfc_size_28 = 0;
 		dmfc_size_29 = 0;
 		dmfc_size_24 = 0;
@@ -122,8 +122,8 @@ void _ipu_dmfc_init(int dmfc_type, int first)
 		 * 1C, 2C and 6B, 6F unused;
 		 */
 		printk(KERN_INFO "IPU DMFC NORMAL mode: 1(0~1), 5B(4,5), 5F(6,7)\n");
-		dmfc_wr_chan = 0x00000010;
-		dmfc_dp_chan = 0x00001614;
+		dmfc_wr_chan = 0x00000090;
+		dmfc_dp_chan = 0x00009694;
 		dmfc_size_28 = 128*4;
 		dmfc_size_29 = 0;
 		dmfc_size_24 = 0;
@@ -185,6 +185,44 @@ void _ipu_dmfc_set_wait4eot(int dma_chan, int width)
 	}
 
 	__raw_writel(dmfc_gen1, DMFC_GENERAL1);
+}
+
+void _ipu_dmfc_set_burst_size(int dma_chan, int burst_size)
+{
+	u32 dmfc_wr_chan = __raw_readl(DMFC_WR_CHAN);
+	u32 dmfc_dp_chan = __raw_readl(DMFC_DP_CHAN);
+	int dmfc_bs = 0;
+
+	switch (burst_size) {
+	case 64:
+		dmfc_bs = 0x40;
+		break;
+	case 32:
+	case 20:
+		dmfc_bs = 0x80;
+		break;
+	case 16:
+		dmfc_bs = 0xc0;
+		break;
+	default:
+		dev_err(g_ipu_dev, "Unsupported burst size %d\n",
+			burst_size);
+		return;
+	}
+
+	if (dma_chan == 23) { /*5B*/
+		dmfc_dp_chan &= ~(0xc0);
+		dmfc_dp_chan |= dmfc_bs;
+	} else if (dma_chan == 27) { /*5F*/
+		dmfc_dp_chan &= ~(0xc000);
+		dmfc_dp_chan |= (dmfc_bs << 8);
+	} else if (dma_chan == 28) { /*1*/
+		dmfc_wr_chan &= ~(0xc0);
+		dmfc_wr_chan |= dmfc_bs;
+	}
+
+	__raw_writel(dmfc_wr_chan, DMFC_WR_CHAN);
+	__raw_writel(dmfc_dp_chan, DMFC_DP_CHAN);
 }
 
 static void _ipu_di_data_wave_config(int di,
