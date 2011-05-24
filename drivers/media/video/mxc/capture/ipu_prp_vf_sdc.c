@@ -94,6 +94,7 @@ static int prpvf_start(void *private)
 	fbvar.yres = cam->win.w.height;
 	fbvar.yres_virtual = cam->win.w.height * 2;
 	fbvar.yoffset = 0;
+	fbvar.accel_flags = FB_ACCEL_DOUBLE_FLAG;
 	fbvar.activate |= FB_ACTIVATE_FORCE;
 	fb_set_var(fbi, &fbvar);
 
@@ -179,8 +180,9 @@ static int prpvf_start(void *private)
 					      vf.csi_prp_vf_mem.out_width,
 					      vf.csi_prp_vf_mem.out_height,
 					      vf.csi_prp_vf_mem.out_width,
-					      IPU_ROTATE_NONE, cam->vf_bufs[0],
-					      cam->vf_bufs[1], 0, 0);
+					      IPU_ROTATE_NONE,
+					      cam->vf_bufs[0], cam->vf_bufs[1],
+					      0, 0, 0);
 		if (err != 0) {
 			goto out_3;
 		}
@@ -196,8 +198,10 @@ static int prpvf_start(void *private)
 					      vf.csi_prp_vf_mem.out_width,
 					      vf.csi_prp_vf_mem.out_height,
 					      vf.csi_prp_vf_mem.out_width,
-					      cam->vf_rotation, cam->vf_bufs[0],
-					      cam->vf_bufs[1], 0, 0);
+					      cam->vf_rotation,
+					      cam->vf_bufs[0],
+					      cam->vf_bufs[1],
+					      0, 0, 0);
 		if (err != 0) {
 			printk(KERN_ERR "Error MEM_ROT_VF_MEM input buffer\n");
 			goto out_2;
@@ -219,7 +223,7 @@ static int prpvf_start(void *private)
 					      fbi->fix.smem_start +
 					      (fbi->fix.line_length *
 					       fbi->var.yres),
-					      fbi->fix.smem_start, 0, 0);
+					      fbi->fix.smem_start, 0, 0, 0);
 
 		if (err != 0) {
 			printk(KERN_ERR "Error MEM_ROT_VF_MEM output buffer\n");
@@ -256,7 +260,7 @@ static int prpvf_start(void *private)
 					      fbi->fix.smem_start +
 					      (fbi->fix.line_length *
 					       fbi->var.yres),
-					      fbi->fix.smem_start, 0, 0);
+					      fbi->fix.smem_start, 0, 0, 0);
 		if (err != 0) {
 			printk(KERN_ERR "Error initializing CSI_PRP_VF_MEM\n");
 			goto out_4;
@@ -354,6 +358,7 @@ static int prpvf_stop(void *private)
 
 	/* Set the overlay frame buffer std to what it is used to be */
 	fbvar = fbi->var;
+	fbvar.accel_flags = FB_ACCEL_TRIPLE_FLAG;
 	fbvar.nonstd = cam->fb_origin_std;
 	fbvar.activate |= FB_ACTIVATE_FORCE;
 	fb_set_var(fbi, &fbvar);
