@@ -491,6 +491,9 @@ void ipu_uninit_channel(ipu_channel_t channel)
  *                              Setting this to a value other than NULL enables
  *                              double buffering mode.
  *
+ * @param       phyaddr_2       Input parameter buffer 2 physical address.
+ *                              Dummy for IPUv1
+ *
  * @param       u		       	private u offset for additional cropping,
  *								zero if not used.
  *
@@ -505,6 +508,7 @@ int32_t ipu_init_channel_buffer(ipu_channel_t channel, ipu_buffer_t type,
 				uint32_t stride,
 				ipu_rotate_mode_t rot_mode,
 				dma_addr_t phyaddr_0, dma_addr_t phyaddr_1,
+				dma_addr_t phyaddr_2,
 				uint32_t u, uint32_t v)
 {
 	uint32_t params[10];
