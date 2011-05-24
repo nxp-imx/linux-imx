@@ -71,6 +71,31 @@ struct ipu_ch_param {
 	temp1; \
 })
 
+static inline int __ipu_ch_get_third_buf_cpmem_num(int ch)
+{
+	switch (ch) {
+	case 8:
+		return 64;
+	case 9:
+		return 65;
+	case 10:
+		return 66;
+	case 13:
+		return 67;
+	case 21:
+		return 68;
+	case 23:
+		return 69;
+	case 27:
+		return 70;
+	case 28:
+		return 71;
+	default:
+		return -EINVAL;
+	}
+	return 0;
+}
+
 static inline void _ipu_ch_params_set_packing(struct ipu_ch_param *p,
 					      int red_width, int red_offset,
 					      int green_width, int green_offset,
@@ -137,10 +162,11 @@ static inline void _ipu_ch_param_init(int ch,
 				      uint32_t height, uint32_t stride,
 				      uint32_t u, uint32_t v,
 				      uint32_t uv_stride, dma_addr_t addr0,
-				      dma_addr_t addr1)
+				      dma_addr_t addr1, dma_addr_t addr2)
 {
 	uint32_t u_offset = 0;
 	uint32_t v_offset = 0;
+	int32_t sub_ch = 0;
 	struct ipu_ch_param params;
 
 	memset(&params, 0, sizeof(params));
@@ -339,12 +365,32 @@ static inline void _ipu_ch_param_init(int ch,
 
 	pr_debug("initializing idma ch %d @ %p\n", ch, ipu_ch_param_addr(ch));
 	memcpy(ipu_ch_param_addr(ch), &params, sizeof(params));
+	if (addr2) {
+		ipu_ch_param_set_field(&params, 1, 0, 29, addr2 >> 3);
+		ipu_ch_param_set_field(&params, 1, 29, 29, 0);
+
+		sub_ch = __ipu_ch_get_third_buf_cpmem_num(ch);
+		if (sub_ch <= 0)
+			return;
+
+		pr_debug("initializing idma ch %d @ %p sub cpmem\n", ch,
+					ipu_ch_param_addr(sub_ch));
+		memcpy(ipu_ch_param_addr(sub_ch), &params, sizeof(params));
+	}
 };
 
 static inline void _ipu_ch_param_set_burst_size(uint32_t ch,
 						uint16_t burst_pixels)
 {
+	int32_t sub_ch = 0;
+
 	ipu_ch_param_mod_field(ipu_ch_param_addr(ch), 1, 78, 7,
+			       burst_pixels - 1);
+
+	sub_ch = __ipu_ch_get_third_buf_cpmem_num(ch);
+	if (sub_ch <= 0)
+		return;
+	ipu_ch_param_mod_field(ipu_ch_param_addr(sub_ch), 1, 78, 7,
 			       burst_pixels - 1);
 };
 
@@ -361,6 +407,13 @@ static inline int _ipu_ch_param_get_bpp(uint32_t ch)
 static inline void _ipu_ch_param_set_buffer(uint32_t ch, int bufNum,
 					    dma_addr_t phyaddr)
 {
+	if (bufNum == 2) {
+		ch = __ipu_ch_get_third_buf_cpmem_num(ch);
+		if (ch <= 0)
+			return;
+		bufNum = 0;
+	}
+
 	ipu_ch_param_mod_field(ipu_ch_param_addr(ch), 1, 29 * bufNum, 29,
 			       phyaddr / 8);
 };
@@ -369,32 +422,66 @@ static inline void _ipu_ch_param_set_rotation(uint32_t ch,
 					      ipu_rotate_mode_t rot)
 {
 	u32 temp_rot = bitrev8(rot) >> 5;
+	int32_t sub_ch = 0;
+
 	ipu_ch_param_mod_field(ipu_ch_param_addr(ch), 0, 119, 3, temp_rot);
+
+	sub_ch = __ipu_ch_get_third_buf_cpmem_num(ch);
+	if (sub_ch <= 0)
+		return;
+	ipu_ch_param_mod_field(ipu_ch_param_addr(sub_ch), 0, 119, 3, temp_rot);
 };
 
 static inline void _ipu_ch_param_set_block_mode(uint32_t ch)
 {
+	int32_t sub_ch = 0;
+
 	ipu_ch_param_mod_field(ipu_ch_param_addr(ch), 0, 117, 2, 1);
+
+	sub_ch = __ipu_ch_get_third_buf_cpmem_num(ch);
+	if (sub_ch <= 0)
+		return;
+	ipu_ch_param_mod_field(ipu_ch_param_addr(sub_ch), 0, 117, 2, 1);
 };
 
 static inline void _ipu_ch_param_set_alpha_use_separate_channel(uint32_t ch,
 								bool option)
 {
+	int32_t sub_ch = 0;
+
 	if (option) {
 		ipu_ch_param_mod_field(ipu_ch_param_addr(ch), 1, 89, 1, 1);
 	} else {
 		ipu_ch_param_mod_field(ipu_ch_param_addr(ch), 1, 89, 1, 0);
 	}
+
+	sub_ch = __ipu_ch_get_third_buf_cpmem_num(ch);
+	if (sub_ch <= 0)
+		return;
+
+	if (option) {
+		ipu_ch_param_mod_field(ipu_ch_param_addr(sub_ch), 1, 89, 1, 1);
+	} else {
+		ipu_ch_param_mod_field(ipu_ch_param_addr(sub_ch), 1, 89, 1, 0);
+	}
 };
 
 static inline void _ipu_ch_param_set_alpha_condition_read(uint32_t ch)
 {
+	int32_t sub_ch = 0;
+
 	ipu_ch_param_mod_field(ipu_ch_param_addr(ch), 1, 149, 1, 1);
+
+	sub_ch = __ipu_ch_get_third_buf_cpmem_num(ch);
+	if (sub_ch <= 0)
+		return;
+	ipu_ch_param_mod_field(ipu_ch_param_addr(sub_ch), 1, 149, 1, 1);
 };
 
 static inline void _ipu_ch_param_set_alpha_buffer_memory(uint32_t ch)
 {
 	int alp_mem_idx;
+	int32_t sub_ch = 0;
 
 	switch (ch) {
 	case 14: /* PRP graphic */
@@ -416,12 +503,23 @@ static inline void _ipu_ch_param_set_alpha_buffer_memory(uint32_t ch)
 	}
 
 	ipu_ch_param_mod_field(ipu_ch_param_addr(ch), 1, 90, 3, alp_mem_idx);
+
+	sub_ch = __ipu_ch_get_third_buf_cpmem_num(ch);
+	if (sub_ch <= 0)
+		return;
+	ipu_ch_param_mod_field(ipu_ch_param_addr(sub_ch), 1, 90, 3, alp_mem_idx);
 };
 
 static inline void _ipu_ch_param_set_interlaced_scan(uint32_t ch)
 {
 	u32 stride;
+	int32_t sub_ch = 0;
+
+	sub_ch = __ipu_ch_get_third_buf_cpmem_num(ch);
+
 	ipu_ch_param_set_field(ipu_ch_param_addr(ch), 0, 113, 1, 1);
+	if (sub_ch > 0)
+		ipu_ch_param_set_field(ipu_ch_param_addr(sub_ch), 0, 113, 1, 1);
 	stride = ipu_ch_param_read_field(ipu_ch_param_addr(ch), 1, 102, 14) + 1;
 	/* ILO is 20-bit and 8-byte aligned */
 	if (stride/8 > 0xfffff)
@@ -431,13 +529,26 @@ static inline void _ipu_ch_param_set_interlaced_scan(uint32_t ch)
 		dev_warn(g_ipu_dev,
 			 "IDMAC%d's ILO is not 8-byte aligned\n", ch);
 	ipu_ch_param_mod_field(ipu_ch_param_addr(ch), 1, 58, 20, stride / 8);
+	if (sub_ch > 0)
+		ipu_ch_param_mod_field(ipu_ch_param_addr(sub_ch), 1, 58, 20,
+				       stride / 8);
 	stride *= 2;
 	ipu_ch_param_mod_field(ipu_ch_param_addr(ch), 1, 102, 14, stride - 1);
+	if (sub_ch > 0)
+		ipu_ch_param_mod_field(ipu_ch_param_addr(sub_ch), 1, 102, 14,
+				       stride - 1);
 };
 
 static inline void _ipu_ch_param_set_high_priority(uint32_t ch)
 {
+	int32_t sub_ch = 0;
+
 	ipu_ch_param_mod_field(ipu_ch_param_addr(ch), 1, 93, 2, 1);
+
+	sub_ch = __ipu_ch_get_third_buf_cpmem_num(ch);
+	if (sub_ch <= 0)
+		return;
+	ipu_ch_param_mod_field(ipu_ch_param_addr(sub_ch), 1, 93, 2, 1);
 };
 
 /* IDMAC U/V offset changing support */
@@ -459,6 +570,7 @@ static inline void _ipu_ch_offset_update(int ch,
 	uint32_t v_offset = 0;
 	uint32_t u_fix = 0;
 	uint32_t v_fix = 0;
+	int32_t sub_ch = 0;
 
 	switch (pixel_fmt) {
 	case IPU_PIX_FMT_GENERIC:
@@ -594,11 +706,23 @@ static inline void _ipu_ch_offset_update(int ch,
 	ipu_ch_param_mod_field(ipu_ch_param_addr(ch), 0, 46, 22, u_offset / 8);
 	ipu_ch_param_mod_field(ipu_ch_param_addr(ch), 0, 68, 22, v_offset / 8);
 
+	sub_ch = __ipu_ch_get_third_buf_cpmem_num(ch);
+	if (sub_ch <= 0)
+		return;
+	ipu_ch_param_mod_field(ipu_ch_param_addr(sub_ch), 0, 46, 22, u_offset / 8);
+	ipu_ch_param_mod_field(ipu_ch_param_addr(sub_ch), 0, 68, 22, v_offset / 8);
 };
 
 static inline void _ipu_ch_params_set_alpha_width(uint32_t ch, int alpha_width)
 {
+	int32_t sub_ch = 0;
+
 	ipu_ch_param_set_field(ipu_ch_param_addr(ch), 1, 125, 3, alpha_width - 1);
+
+	sub_ch = __ipu_ch_get_third_buf_cpmem_num(ch);
+	if (sub_ch <= 0)
+		return;
+	ipu_ch_param_set_field(ipu_ch_param_addr(sub_ch), 1, 125, 3, alpha_width - 1);
 };
 
 #endif
