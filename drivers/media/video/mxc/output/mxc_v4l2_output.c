@@ -834,6 +834,7 @@ static int init_VDI_in_channel_buffer(vout_data *vout, uint32_t in_pixel_fmt,
 				    IPU_ROTATE_NONE,
 				    vout->v4l2_bufs[vout->ipu_buf[0]].m.offset,
 				    vout->v4l2_bufs[vout->ipu_buf[0]].m.offset,
+				    0,
 				    u_offset, v_offset) != 0) {
 		dev_err(dev, "Error initializing VDI current input buffer\n");
 		return -EINVAL;
@@ -845,6 +846,7 @@ static int init_VDI_in_channel_buffer(vout_data *vout, uint32_t in_pixel_fmt,
 					    stride, IPU_ROTATE_NONE,
 					    vout->v4l2_bufs[vout->ipu_buf_p[0]].m.offset+vout->bytesperline,
 					    vout->v4l2_bufs[vout->ipu_buf_p[0]].m.offset+vout->bytesperline,
+					    0,
 					    u_offset, v_offset) != 0) {
 			dev_err(dev, "Error initializing VDI previous input buffer\n");
 			return -EINVAL;
@@ -855,6 +857,7 @@ static int init_VDI_in_channel_buffer(vout_data *vout, uint32_t in_pixel_fmt,
 					    stride, IPU_ROTATE_NONE,
 					    vout->v4l2_bufs[vout->ipu_buf_n[0]].m.offset+vout->bytesperline,
 					    vout->v4l2_bufs[vout->ipu_buf_n[0]].m.offset+vout->bytesperline,
+					    0,
 					    u_offset, v_offset) != 0) {
 			dev_err(dev, "Error initializing VDI next input buffer\n");
 			return -EINVAL;
@@ -918,7 +921,7 @@ static int init_VDI(ipu_channel_params_t params, vout_data *vout,
 					    out_height, out_width,
 					    IPU_ROTATE_NONE,
 					    vout->rot_pp_bufs[0],
-					    vout->rot_pp_bufs[1], 0, 0) != 0) {
+					    vout->rot_pp_bufs[1], 0, 0, 0) != 0) {
 			dev_err(dev, "Error initializing PRP output buffer\n");
 			return -EINVAL;
 		}
@@ -934,7 +937,7 @@ static int init_VDI(ipu_channel_params_t params, vout_data *vout,
 					    out_height, out_width,
 					    vout->rotate,
 					    vout->rot_pp_bufs[0],
-					    vout->rot_pp_bufs[1], 0, 0) != 0) {
+					    vout->rot_pp_bufs[1], 0, 0, 0) != 0) {
 			dev_err(dev,
 				"Error initializing PP ROT input buffer\n");
 			return -EINVAL;
@@ -953,7 +956,7 @@ static int init_VDI(ipu_channel_params_t params, vout_data *vout,
 					    out_height, out_width,
 					    IPU_ROTATE_NONE,
 					    vout->display_bufs[0],
-					    vout->display_bufs[1], 0, 0) != 0) {
+					    vout->display_bufs[1], 0, 0, 0) != 0) {
 			dev_err(dev,
 				"Error initializing PP-VDI output buffer\n");
 			return -EINVAL;
@@ -974,7 +977,7 @@ static int init_VDI(ipu_channel_params_t params, vout_data *vout,
 					    out_height, out_width,
 					    vout->rotate,
 					    vout->display_bufs[0],
-					    vout->display_bufs[1], 0, 0) != 0) {
+					    vout->display_bufs[1], 0, 0, 0) != 0) {
 			dev_err(dev,
 				"Error initializing PP-VDI output buffer\n");
 			return -EINVAL;
@@ -1109,6 +1112,7 @@ static int init_PP(ipu_channel_params_t *params, vout_data *vout,
 				    IPU_ROTATE_NONE,
 				    phy_addr0,
 				    phy_addr1,
+				    0,
 				    vout->offset.u_offset,
 				    vout->offset.v_offset) != 0) {
 		dev_err(dev, "Error initializing PP input buffer\n");
@@ -1134,7 +1138,7 @@ static int init_PP(ipu_channel_params_t *params, vout_data *vout,
 					    out_height, out_stride,
 					    IPU_ROTATE_NONE,
 					    vout->rot_pp_bufs[0] + eba_offset,
-					    vout->rot_pp_bufs[1] + eba_offset, 0, 0) != 0) {
+					    vout->rot_pp_bufs[1] + eba_offset, 0, 0, 0) != 0) {
 			dev_err(dev, "Error initializing PP output buffer\n");
 			return -EINVAL;
 		}
@@ -1150,7 +1154,7 @@ static int init_PP(ipu_channel_params_t *params, vout_data *vout,
 					    out_height, out_stride,
 					    vout->rotate,
 					    vout->rot_pp_bufs[0],
-					    vout->rot_pp_bufs[1], 0, 0) != 0) {
+					    vout->rot_pp_bufs[1], 0, 0, 0) != 0) {
 			dev_err(dev,
 				"Error initializing PP ROT input buffer\n");
 			return -EINVAL;
@@ -1169,7 +1173,7 @@ static int init_PP(ipu_channel_params_t *params, vout_data *vout,
 					    out_height, out_stride,
 					    IPU_ROTATE_NONE,
 					    vout->display_bufs[0] + eba_offset,
-					    vout->display_bufs[1] + eba_offset, 0, 0) != 0) {
+					    vout->display_bufs[1] + eba_offset, 0, 0, 0) != 0) {
 			dev_err(dev, "Error initializing PP output buffer\n");
 			return -EINVAL;
 		}
@@ -1189,7 +1193,7 @@ static int init_PP(ipu_channel_params_t *params, vout_data *vout,
 					    out_height, out_stride,
 					    vout->rotate,
 					    vout->display_bufs[0] + eba_offset,
-					    vout->display_bufs[1] + eba_offset, 0, 0) != 0) {
+					    vout->display_bufs[1] + eba_offset, 0, 0, 0) != 0) {
 			dev_err(dev, "Error initializing PP output buffer\n");
 			return -EINVAL;
 		}
@@ -1424,6 +1428,7 @@ static int mxc_v4l2out_streamon(vout_data *vout)
 
 	/* Init display channel through fb API */
 	fbvar.yoffset = 0;
+	fbvar.accel_flags = FB_ACCEL_DOUBLE_FLAG;
 	fbvar.activate |= FB_ACTIVATE_FORCE;
 	console_lock();
 	fbi->flags |= FBINFO_MISC_USEREVENT;
@@ -1703,6 +1708,7 @@ static int mxc_v4l2out_streamoff(vout_data *vout)
 	}
 
 	if (vout->ic_bypass) {
+		fbi->var.accel_flags = FB_ACCEL_TRIPLE_FLAG;
 		fbi->var.activate |= FB_ACTIVATE_FORCE;
 		console_lock();
 		fbi->flags |= FBINFO_MISC_USEREVENT;
@@ -1733,6 +1739,7 @@ static int mxc_v4l2out_streamoff(vout_data *vout)
 		}
 		ipu_disable_channel(MEM_PP_MEM, true);
 
+		fbi->var.accel_flags = FB_ACCEL_TRIPLE_FLAG;
 		fbi->var.activate |= FB_ACTIVATE_FORCE;
 		console_lock();
 		fbi->flags |= FBINFO_MISC_USEREVENT;
@@ -1772,6 +1779,7 @@ static int mxc_v4l2out_streamoff(vout_data *vout)
 			ipu_disable_channel(MEM_VDI_PRP_VF_MEM_N, true);
 		}
 
+		fbi->var.accel_flags = FB_ACCEL_TRIPLE_FLAG;
 		fbi->var.activate |= FB_ACTIVATE_FORCE;
 		console_lock();
 		fbi->flags |= FBINFO_MISC_USEREVENT;
