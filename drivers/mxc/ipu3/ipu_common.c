@@ -1136,8 +1136,10 @@ int32_t ipu_init_channel_buffer(ipu_channel_t channel, ipu_buffer_t type,
 		_ipu_ch_param_set_burst_size(dma_chan, 8);
 		_ipu_ch_param_set_block_mode(dma_chan);
 	} else if (_ipu_is_dmfc_chan(dma_chan)) {
+		burst_size = _ipu_ch_param_get_burst_size(dma_chan);
 		spin_lock_irqsave(&ipu_lock, lock_flags);
 		_ipu_dmfc_set_wait4eot(dma_chan, width);
+		_ipu_dmfc_set_burst_size(dma_chan, burst_size);
 		spin_unlock_irqrestore(&ipu_lock, lock_flags);
 	}
 

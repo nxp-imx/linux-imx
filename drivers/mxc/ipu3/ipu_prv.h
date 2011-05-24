@@ -66,6 +66,7 @@ void _ipu_dp_dc_enable(ipu_channel_t channel);
 void _ipu_dp_dc_disable(ipu_channel_t channel, bool swap);
 void _ipu_dmfc_init(int dmfc_type, int first);
 void _ipu_dmfc_set_wait4eot(int dma_chan, int width);
+void _ipu_dmfc_set_burst_size(int dma_chan, int burst_size);
 int _ipu_disp_chan_is_interlaced(ipu_channel_t channel);
 
 void _ipu_ic_enable_task(ipu_channel_t channel);
