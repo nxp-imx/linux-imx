@@ -1,7 +1,7 @@
 /*
  * Low-level IRQ helper macros for Freescale MXS-based
  *
- * Copyright (C) 2009-2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2009-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -26,11 +26,23 @@
 	ldr \base, [\base]
 	ldr \irqnr, [\base, #0x70]
 	cmp \irqnr, #0x7F
-	moveqs \irqnr, #0
+	bne 100f
+	/* If the irq is 0x7F, check the raw bit to see
+	whether it is a real GPIO0 irq */
+	ldr \tmp, [\base, #0xD0]
+	mov \tmp, \tmp, lsr #31
+	and \tmp, \tmp, #0x1
+	cmp \tmp, #0x1
+	bne 200f
+	/* Do a dummy compare to make sure Z = 0 */
+	cmp \tmp, #0xFF
+	b 100f
+200:	movs \irqnr, #0
+100:
 	.endm
 
 	.macro  get_irqnr_preamble, base, tmp
 	.endm
 
 	.macro  arch_ret_to_user, tmp1, tmp2
-	.endm
+.endm
