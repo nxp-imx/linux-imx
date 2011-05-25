@@ -33,6 +33,7 @@
 #include <sound/soc-dapm.h>
 #include <sound/initval.h>
 #include <mach/hardware.h>
+#include <mach/clock.h>
 
 #include "mxc_spdif.h"
 
@@ -78,6 +79,7 @@ struct mxc_spdif_priv {
 	struct snd_card *card;	/* ALSA SPDIF sound card handle */
 	struct snd_pcm *pcm;	/* ALSA spdif driver type handle */
 	atomic_t dpll_locked;	/* DPLL locked status */
+	int resume_clk;
 };
 
 struct spdif_mixer_control mxc_spdif_control;
@@ -117,6 +119,7 @@ static void spdif_irq_bit_error(unsigned int bit, void *devid);
 static void spdif_irq_sym_error(unsigned int bit, void *devid);
 static void spdif_irq_valnogood(unsigned int bit, void *devid);
 static void spdif_irq_cnew(unsigned int bit, void *devid);
+
 
 /* irq function list */
 static spdif_irq_func_t spdif_irq_handlers[] = {
@@ -1121,7 +1124,11 @@ static int mxc_codec_suspend(struct platform_device *pdev, pm_message_t state)
 
 	spdif_priv = codec->drvdata;
 	plat_data = spdif_priv->plat_data;
-	clk_disable(plat_data->spdif_clk);
+
+	if (clk_get_usecount(plat_data->spdif_clk)) {
+		clk_disable(plat_data->spdif_clk);
+		spdif_priv->resume_clk = 1;
+	}
 	clk_disable(plat_data->spdif_core_clk);
 
 	return 0;
@@ -1141,7 +1148,10 @@ static int mxc_codec_resume(struct platform_device *pdev)
 	plat_data = spdif_priv->plat_data;
 
 	clk_enable(plat_data->spdif_core_clk);
-	clk_enable(plat_data->spdif_clk);
+	if (spdif_priv->resume_clk) {
+		clk_enable(plat_data->spdif_clk);
+		spdif_priv->resume_clk = 0;
+	}
 	spdif_softreset();
 
 	return 0;
@@ -1208,6 +1218,7 @@ static int __init mxc_spdif_probe(struct platform_device *pdev)
 	spdif_priv->reg_phys_base = res->start;
 	spdif_priv->reg_base = ioremap(res->start, res->end - res->start + 1);
 	spdif_priv->plat_data = plat_data;
+	spdif_priv->resume_clk = 0;
 
 	spdif_base_addr = (unsigned long)spdif_priv->reg_base;
 
