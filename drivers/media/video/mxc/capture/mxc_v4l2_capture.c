@@ -1036,24 +1036,40 @@ static int mxc_v4l2_s_ctrl(cam_data *cam, struct v4l2_control *c)
 			tmp_rotation = IPU_ROTATE_90_LEFT;
 			break;
 		case V4L2_MXC_CAM_ROTATE_NONE:
+			ipu_csi_enable_mclk_if(CSI_MCLK_I2C, cam->csi,
+					true, true);
 			if (vidioc_int_s_ctrl(cam->sensor, c)) {
 				ret = -EINVAL;
 			}
+			ipu_csi_enable_mclk_if(CSI_MCLK_I2C, cam->csi,
+					false, false);
 			break;
 		case V4L2_MXC_CAM_ROTATE_VERT_FLIP:
+			ipu_csi_enable_mclk_if(CSI_MCLK_I2C, cam->csi,
+					true, true);
 			if (vidioc_int_s_ctrl(cam->sensor, c)) {
 				ret = -EINVAL;
 			}
+			ipu_csi_enable_mclk_if(CSI_MCLK_I2C, cam->csi,
+					false, false);
 			break;
 		case V4L2_MXC_CAM_ROTATE_HORIZ_FLIP:
+			ipu_csi_enable_mclk_if(CSI_MCLK_I2C, cam->csi,
+					true, true);
 			if (vidioc_int_s_ctrl(cam->sensor, c)) {
 				ret = -EINVAL;
 			}
+			ipu_csi_enable_mclk_if(CSI_MCLK_I2C, cam->csi,
+					false, false);
 			break;
 		case V4L2_MXC_CAM_ROTATE_180:
+			ipu_csi_enable_mclk_if(CSI_MCLK_I2C, cam->csi,
+					true, true);
 			if (vidioc_int_s_ctrl(cam->sensor, c)) {
 				ret = -EINVAL;
 			}
+			ipu_csi_enable_mclk_if(CSI_MCLK_I2C, cam->csi,
+					false, false);
 			break;
 		default:
 			ret = -EINVAL;
