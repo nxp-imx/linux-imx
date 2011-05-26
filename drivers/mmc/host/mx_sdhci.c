@@ -1940,7 +1940,7 @@ static int __devinit sdhci_probe_slot(struct platform_device
 
 	/* Get the SDHC clock from clock system APIs */
 	host->clk = clk_get(&pdev->dev, mmc_plat->clock_mmc);
-	if (NULL == host->clk) {
+	if (IS_ERR(host->clk)) {
 		printk(KERN_ERR "MXC MMC can't get clock.\n");
 		goto out1;
 	}
