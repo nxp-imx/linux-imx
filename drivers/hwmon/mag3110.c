@@ -151,7 +151,7 @@ static int mag3110_read_data(short *x, short *y, short *z)
 	if (!wait_event_interruptible_timeout
 	    (data->waitq, data->data_ready != 0,
 	     msecs_to_jiffies(INT_TIMEOUT))) {
-		dev_err(&data->client->dev, "interrupt not received\n");
+		dev_dbg(&data->client->dev, "interrupt not received\n");
 		return -ETIME;
 	}
 
