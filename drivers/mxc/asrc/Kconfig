@@ -10,4 +10,7 @@ config MXC_ASRC
 	---help---
          Say Y to get the ASRC service.
 
+	 Be noted that if say M here, Please also say CONFIG_SND_MXC_SOC as M
+	 since it uses symbols in this module or the kernel may fail to compile.
+
 endmenu
