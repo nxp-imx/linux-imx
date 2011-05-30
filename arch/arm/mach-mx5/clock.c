@@ -4861,6 +4861,8 @@ int __init mx53_clocks_init(unsigned long ckil, unsigned long osc, unsigned long
 	esdhc3_clk[0].get_rate = _clk_esdhc3_get_rate;
 	esdhc3_clk[0].set_rate = _clk_sdhc3_set_rate;
 
+	vpu_clk[2].secondary = &emi_intr_clk[0];
+
 	ata_clk[1].secondary = &tmax3_clk;
 
 #if defined(CONFIG_USB_STATIC_IRAM) \
