@@ -2159,7 +2159,12 @@ static void epdc_submit_work_func(struct work_struct *work)
 
 		/* Leave spinlock while waiting for EOF event */
 		spin_unlock_irqrestore(&fb_data->queue_lock, flags);
-		wait_for_completion(&fb_data->eof_event);
+		ret = wait_for_completion_timeout(&fb_data->eof_event,
+			msecs_to_jiffies(1000));
+		if (!ret) {
+			dev_err(fb_data->dev, "Missed EOF event!\n");
+			epdc_eof_intr(false);
+		}
 		udelay(fb_data->eof_sync_period);
 		spin_lock_irqsave(&fb_data->queue_lock, flags);
 
@@ -2888,6 +2893,7 @@ static irqreturn_t mxc_epdc_irq_handler(int irq, void *dev_id)
 
 	/* Check if we are waiting on EOF to sync a new update submission */
 	if (epdc_signal_eof()) {
+		epdc_eof_intr(false);
 		epdc_clear_eof_irq();
 		complete(&fb_data->eof_event);
 	}
