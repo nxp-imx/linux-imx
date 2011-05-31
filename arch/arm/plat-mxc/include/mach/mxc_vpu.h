@@ -29,6 +29,8 @@
 #include <linux/fs.h>
 
 struct mxc_vpu_platform_data {
+	bool iram_enable;
+	int  iram_size;
 	void (*reset) (void);
 	void (*pg) (int);
 };
