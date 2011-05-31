@@ -177,6 +177,7 @@ struct mxc_epdc_fb_data {
 	int eof_sync_period;
 	struct mutex power_mutex;
 	bool powering_down;
+	bool updates_active;
 	int pwrdown_delay;
 	unsigned long tce_prevent;
 
@@ -859,6 +860,8 @@ static void epdc_powerup(struct mxc_epdc_fb_data *fb_data)
 	}
 
 	dev_dbg(fb_data->dev, "EPDC Powerup\n");
+
+	fb_data->updates_active = true;
 
 	/* Enable pins used by EPDC */
 	if (fb_data->pdata->enable_pins)
@@ -2693,8 +2696,7 @@ void mxc_epdc_fb_flush_updates(struct mxc_epdc_fb_data *fb_data)
 	 */
 	if (!list_empty(&fb_data->upd_pending_list) ||
 		!is_free_list_full(fb_data) ||
-		((fb_data->power_state == POWER_STATE_ON) &&
-		!fb_data->powering_down)) {
+		(fb_data->updates_active == true)) {
 		/* Initialize event signalling updates are done */
 		init_completion(&fb_data->updates_done);
 		fb_data->waiting_for_idle = true;
@@ -2983,6 +2985,8 @@ static irqreturn_t mxc_epdc_irq_handler(int irq, void *dev_id)
 		is_free_list_full(fb_data) &&
 		(fb_data->cur_update == NULL) &&
 		!epdc_luts_active) {
+
+		fb_data->updates_active = false;
 
 		if (fb_data->pwrdown_delay != FB_POWERDOWN_DISABLE) {
 			/*
@@ -3947,6 +3951,7 @@ int __devinit mxc_epdc_fb_probe(struct platform_device *pdev)
 	fb_data->power_state = POWER_STATE_OFF;
 	fb_data->powering_down = false;
 	fb_data->wait_for_powerdown = false;
+	fb_data->updates_active = false;
 	fb_data->pwrdown_delay = 0;
 
 	/* Register FB */
