@@ -50,7 +50,6 @@
 #include <mach/hardware.h>
 #include <mach/mxc_edid.h>
 
-#define IPU_DISP_PORT 0
 #define SII_EDID_LEN	256
 #define MXC_ENABLE	1
 #define MXC_DISABLE	2
@@ -59,12 +58,14 @@ static int g_enable_hdmi;
 struct sii902x_data {
 	struct platform_device *pdev;
 	struct i2c_client *client;
+	struct regulator *io_reg;
+	struct regulator *analog_reg;
 	struct delayed_work det_work;
 	struct fb_info *fbi;
 	struct mxc_edid_cfg edid_cfg;
+	char *fb_id;
 	u8 cable_plugin;
 	u8 edid[SII_EDID_LEN];
-	bool waiting_for_fb;
 } sii902x;
 
 static void sii902x_poweron(void);
@@ -158,6 +159,9 @@ static void sii902x_setup(struct fb_info *fbi)
 	i2c_smbus_write_byte_data(sii902x.client, 0x25, 0x00);
 	i2c_smbus_write_byte_data(sii902x.client, 0x26, 0x40);
 	i2c_smbus_write_byte_data(sii902x.client, 0x27, 0x00);
+
+	/* make it power on default */
+	sii902x_poweron();
 }
 
 #ifdef CONFIG_FB_MODE_HELPERS
@@ -165,6 +169,7 @@ static int sii902x_read_edid(struct fb_info *fbi)
 {
 	int old, dat, ret, cnt = 100;
 	unsigned short addr = 0x50;
+	u8 edid_old[SII_EDID_LEN];
 
 	old = i2c_smbus_read_byte_data(sii902x.client, 0x1A);
 
@@ -181,6 +186,9 @@ static int sii902x_read_edid(struct fb_info *fbi)
 	}
 
 	i2c_smbus_write_byte_data(sii902x.client, 0x1A, old | 0x06);
+
+	/* save old edid */
+	memcpy(edid_old, sii902x.edid, SII_EDID_LEN);
 
 	/* edid reading */
 	ret = mxc_edid_read(sii902x.client->adapter, addr,
@@ -199,6 +207,9 @@ static int sii902x_read_edid(struct fb_info *fbi)
 
 done:
 	i2c_smbus_write_byte_data(sii902x.client, 0x1A, old);
+
+	if (!memcmp(edid_old, sii902x.edid, SII_EDID_LEN))
+		ret = -2;
 	return ret;
 }
 #else
@@ -216,24 +227,30 @@ static void det_worker(struct work_struct *work)
 
 	dat = i2c_smbus_read_byte_data(sii902x.client, 0x3D);
 	if (dat & 0x1) {
+		int ret;
+
 		/* cable connection changes */
 		if (dat & 0x4) {
 			sii902x.cable_plugin = 1;
 			sprintf(event_string, "EVENT=plugin");
 
-			/* make sure fb is powerdown */
-			acquire_console_sem();
-			fb_blank(sii902x.fbi, FB_BLANK_POWERDOWN);
-			release_console_sem();
-
-			if (sii902x_read_edid(sii902x.fbi) < 0)
+			ret = sii902x_read_edid(sii902x.fbi);
+			if (ret == -1)
 				dev_err(&sii902x.client->dev,
 					"Sii902x: read edid fail\n");
+			else if (ret == -2)
+				dev_info(&sii902x.client->dev,
+					"Sii902x: same edid\n");
 			else {
 				if (sii902x.fbi->monspecs.modedb_len > 0) {
 					int i;
 					const struct fb_videomode *mode;
 					struct fb_videomode m;
+
+					/* make sure fb is powerdown */
+					acquire_console_sem();
+					fb_blank(sii902x.fbi, FB_BLANK_POWERDOWN);
+					release_console_sem();
 
 					fb_destroy_modelist(&sii902x.fbi->modelist);
 
@@ -256,18 +273,15 @@ static void det_worker(struct work_struct *work)
 					fb_set_var(sii902x.fbi, &sii902x.fbi->var);
 					sii902x.fbi->flags &= ~FBINFO_MISC_USEREVENT;
 					release_console_sem();
-				}
 
-				acquire_console_sem();
-				fb_blank(sii902x.fbi, FB_BLANK_UNBLANK);
-				release_console_sem();
+					acquire_console_sem();
+					fb_blank(sii902x.fbi, FB_BLANK_UNBLANK);
+					release_console_sem();
+				}
 			}
 		} else {
 			sii902x.cable_plugin = 0;
 			sprintf(event_string, "EVENT=plugout");
-			acquire_console_sem();
-			fb_blank(sii902x.fbi, FB_BLANK_POWERDOWN);
-			release_console_sem();
 		}
 		kobject_uevent_env(&sii902x.pdev->dev.kobj, KOBJ_CHANGE, envp);
 	}
@@ -278,8 +292,6 @@ static irqreturn_t sii902x_detect_handler(int irq, void *data)
 {
 	if (sii902x.fbi)
 		schedule_delayed_work(&(sii902x.det_work), msecs_to_jiffies(20));
-	else
-		sii902x.waiting_for_fb = true;
 
 	return IRQ_HANDLED;
 }
@@ -289,14 +301,14 @@ static int sii902x_fb_event(struct notifier_block *nb, unsigned long val, void *
 	struct fb_event *event = v;
 	struct fb_info *fbi = event->info;
 
+	if (strcmp(event->info->fix.id, sii902x.fb_id))
+		return 0;
+
 	switch (val) {
 	case FB_EVENT_FB_REGISTERED:
-		if (sii902x.fbi == NULL) {
-			sii902x.fbi = fbi;
-			if (sii902x.waiting_for_fb)
-				det_worker(NULL);
-		}
-		fb_show_logo(fbi, 0);
+		if (sii902x.fbi != NULL)
+			break;
+		sii902x.fbi = fbi;
 		break;
 	case FB_EVENT_MODE_CHANGE:
 		sii902x_setup(fbi);
@@ -334,6 +346,22 @@ static int __devinit sii902x_probe(struct i2c_client *client,
 	}
 
 	sii902x.client = client;
+	sii902x.fb_id = plat->fb_id;
+
+	if (plat->io_reg) {
+		sii902x.io_reg = regulator_get(&sii902x.client->dev, plat->io_reg);
+		if (!IS_ERR(sii902x.io_reg)) {
+			regulator_set_voltage(sii902x.io_reg, 3300000, 3300000);
+			regulator_enable(sii902x.io_reg);
+		}
+	}
+	if (plat->analog_reg) {
+		sii902x.analog_reg = regulator_get(&sii902x.client->dev, plat->analog_reg);
+		if (!IS_ERR(sii902x.analog_reg)) {
+			regulator_set_voltage(sii902x.analog_reg, 1300000, 1300000);
+			regulator_enable(sii902x.analog_reg);
+		}
+	}
 
 	/* Claim HDMI pins */
 	if (plat->get_pins)
@@ -378,9 +406,13 @@ static int __devinit sii902x_probe(struct i2c_client *client,
 		dev_warn(&sii902x.client->dev, "Can not read edid\n");
 
 #if defined(CONFIG_MXC_IPU_V3) && defined(CONFIG_FB_MXC_SYNC_PANEL)
-	if (ret >= 0)
-		mxcfb_register_mode(IPU_DISP_PORT, edid_fbi.monspecs.modedb,
+	if (ret >= 0) {
+		int di = 0;
+		if (!strcmp(sii902x.fb_id, "DISP3 BG - DI1"))
+			di = 1;
+		mxcfb_register_mode(di, edid_fbi.monspecs.modedb,
 				edid_fbi.monspecs.modedb_len, MXC_DISP_DDC_DEV);
+	}
 #endif
 #if defined(CONFIG_FB_MXC_ELCDIF_FB)
 	if (ret >= 0)
@@ -424,6 +456,8 @@ static int __devexit sii902x_remove(struct i2c_client *client)
 {
 	struct mxc_lcd_platform_data *plat = sii902x.client->dev.platform_data;
 
+	if (sii902x.client->irq)
+		free_irq(sii902x.client->irq, &sii902x);
 	fb_unregister_client(&nb);
 	sii902x_poweroff();
 
@@ -450,6 +484,8 @@ static void sii902x_poweron(void)
 {
 	struct mxc_lcd_platform_data *plat = sii902x.client->dev.platform_data;
 
+	dev_dbg(&sii902x.client->dev, "power on\n");
+
 	/* Enable pins to HDMI */
 	if (plat->enable_pins)
 		plat->enable_pins();
@@ -465,6 +501,8 @@ static void sii902x_poweron(void)
 static void sii902x_poweroff(void)
 {
 	struct mxc_lcd_platform_data *plat = sii902x.client->dev.platform_data;
+
+	dev_dbg(&sii902x.client->dev, "power off\n");
 
 	/* disable tmds before changing resolution */
 	if (sii902x.edid_cfg.hdmi_cap)

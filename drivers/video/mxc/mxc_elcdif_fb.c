@@ -1388,6 +1388,10 @@ static int mxc_elcdif_fb_probe(struct platform_device *pdev)
 	if (ret)
 		goto err3;
 
+#ifdef CONFIG_LOGO
+	fb_prepare_logo(fbi, 0);
+	fb_show_logo(fbi, 0);
+#endif
 	platform_set_drvdata(pdev, fbi);
 
 	return 0;
