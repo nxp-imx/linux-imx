@@ -2858,7 +2858,9 @@ static irqreturn_t mxc_epdc_irq_handler(int irq, void *dev_id)
 	int i;
 	bool wb_lut_done = false;
 	bool free_update = true;
-	int ret, next_lut;
+	int next_lut;
+	u32 epdc_irq_stat, epdc_luts_active, epdc_wb_busy, epdc_luts_avail;
+	u32 epdc_collision, epdc_colliding_luts, epdc_next_lut_15;
 
 	/*
 	 * If we just completed one-time panel init, bypass
@@ -2898,12 +2900,21 @@ static irqreturn_t mxc_epdc_irq_handler(int irq, void *dev_id)
 		complete(&fb_data->eof_event);
 	}
 
+	/* Capture EPDC status one time up front to prevent race conditions */
+	epdc_irq_stat = __raw_readl(EPDC_IRQ);
+	epdc_luts_active = epdc_any_luts_active();
+	epdc_wb_busy = epdc_is_working_buffer_busy();
+	epdc_luts_avail = epdc_any_luts_available();
+	epdc_collision = epdc_is_collision();
+	epdc_colliding_luts = epdc_get_colliding_luts();
+	epdc_next_lut_15 = epdc_choose_next_lut(&next_lut);
+
 	/* Protect access to buffer queues and to update HW */
 	spin_lock_irqsave(&fb_data->queue_lock, flags);
 
 	/* Free any LUTs that have completed */
 	for (i = 0; i < EPDC_NUM_LUTS; i++) {
-		if (!epdc_is_lut_complete(i))
+		if (!(epdc_irq_stat & (1 << i)))
 			continue;
 
 		dev_dbg(fb_data->dev, "\nLUT %d completed\n", i);
@@ -2971,7 +2982,7 @@ static irqreturn_t mxc_epdc_irq_handler(int irq, void *dev_id)
 	if (list_empty(&fb_data->upd_pending_list) &&
 		is_free_list_full(fb_data) &&
 		(fb_data->cur_update == NULL) &&
-		!epdc_any_luts_active()) {
+		!epdc_luts_active) {
 
 		if (fb_data->pwrdown_delay != FB_POWERDOWN_DISABLE) {
 			/*
@@ -2993,7 +3004,7 @@ static irqreturn_t mxc_epdc_irq_handler(int irq, void *dev_id)
 	}
 
 	/* Is Working Buffer busy? */
-	if (epdc_is_working_buffer_busy()) {
+	if (epdc_wb_busy) {
 		/* Can't submit another update until WB is done */
 		spin_unlock_irqrestore(&fb_data->queue_lock, flags);
 		return IRQ_HANDLED;
@@ -3013,17 +3024,17 @@ static irqreturn_t mxc_epdc_irq_handler(int irq, void *dev_id)
 		}
 
 		/* Was there a collision? */
-		if (epdc_is_collision()) {
+		if (epdc_collision) {
 			/* Check list of colliding LUTs, and add to our collision mask */
 			fb_data->cur_update->collision_mask =
-			    epdc_get_colliding_luts();
+			    epdc_colliding_luts;
 
 			/* Clear collisions that completed since WB began */
 			fb_data->cur_update->collision_mask &=
 				~fb_data->luts_complete_wb;
 
 			dev_dbg(fb_data->dev, "Collision mask = 0x%x\n",
-			       epdc_get_colliding_luts());
+			       epdc_colliding_luts);
 
 			/*
 			 * If we collide with newer updates, then
@@ -3119,15 +3130,14 @@ static irqreturn_t mxc_epdc_irq_handler(int irq, void *dev_id)
 	/* Snapshot update scheme processing */
 
 	/* Check to see if any LUTs are free */
-	if (!epdc_any_luts_available()) {
+	if (!epdc_luts_avail) {
 		dev_dbg(fb_data->dev, "No luts available.\n");
 		spin_unlock_irqrestore(&fb_data->queue_lock, flags);
 		return IRQ_HANDLED;
 	}
 
 	/* Check to see if there is a valid LUT to use */
-	ret = epdc_choose_next_lut(&next_lut);
-	if (ret && fb_data->tce_prevent) {
+	if (epdc_next_lut_15 && fb_data->tce_prevent) {
 		dev_dbg(fb_data->dev, "Must wait for LUT15\n");
 		spin_unlock_irqrestore(&fb_data->queue_lock, flags);
 		return IRQ_HANDLED;
