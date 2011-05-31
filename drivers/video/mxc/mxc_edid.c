@@ -395,23 +395,29 @@ static void det_worker(struct work_struct *work)
 
 	/* cable connection changes */
 	if (mxc_ddc.update()) {
+		u8 edid_old[MXC_EDID_LENGTH];
 		mxc_ddc.cable_plugin = 1;
 		sprintf(event_string, "EVENT=plugin");
 
-		/* make sure fb is powerdown */
-		acquire_console_sem();
-		fb_blank(mxc_ddc.fbi, FB_BLANK_POWERDOWN);
-		release_console_sem();
+		memcpy(edid_old, mxc_ddc.edid, MXC_EDID_LENGTH);
 
 		if (mxc_edid_read(mxc_ddc.client->adapter, mxc_ddc.client->addr,
 				mxc_ddc.edid, &mxc_ddc.edid_cfg, mxc_ddc.fbi) < 0)
 			dev_err(&mxc_ddc.client->dev,
 					"MXC ddc: read edid fail\n");
 		else {
-			if (mxc_ddc.fbi->monspecs.modedb_len > 0) {
+			if (!memcmp(edid_old, mxc_ddc.edid, MXC_EDID_LENGTH))
+				dev_info(&mxc_ddc.client->dev,
+					"Sii902x: same edid\n");
+			else if (mxc_ddc.fbi->monspecs.modedb_len > 0) {
 				int i;
 				const struct fb_videomode *mode;
 				struct fb_videomode m;
+
+				/* make sure fb is powerdown */
+				acquire_console_sem();
+				fb_blank(mxc_ddc.fbi, FB_BLANK_POWERDOWN);
+				release_console_sem();
 
 				fb_destroy_modelist(&mxc_ddc.fbi->modelist);
 
@@ -433,18 +439,15 @@ static void det_worker(struct work_struct *work)
 				fb_set_var(mxc_ddc.fbi, &mxc_ddc.fbi->var);
 				mxc_ddc.fbi->flags &= ~FBINFO_MISC_USEREVENT;
 				release_console_sem();
-			}
 
-			acquire_console_sem();
-			fb_blank(mxc_ddc.fbi, FB_BLANK_UNBLANK);
-			release_console_sem();
+				acquire_console_sem();
+				fb_blank(mxc_ddc.fbi, FB_BLANK_UNBLANK);
+				release_console_sem();
+			}
 		}
 	} else {
 		mxc_ddc.cable_plugin = 0;
 		sprintf(event_string, "EVENT=plugout");
-		acquire_console_sem();
-		fb_blank(mxc_ddc.fbi, FB_BLANK_POWERDOWN);
-		release_console_sem();
 	}
 
 	kobject_uevent_env(&mxc_ddc.pdev->dev.kobj, KOBJ_CHANGE, envp);
