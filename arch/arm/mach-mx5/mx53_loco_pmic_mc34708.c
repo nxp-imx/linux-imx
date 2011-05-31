@@ -83,7 +83,7 @@
 #define MC34708_I2C_DEVICE_NAME  "mc34708"
 /* 7-bit I2C bus slave address */
 #define MC34708_I2C_ADDR         (0x08)
-#define MX53_LOCO_MC34708_IRQ    (6*32 + 11)	/* GPIO7_11 */
+#define MX53_LOCO_MC34708_IRQ    (4*32 + 30)	/* GPIO5_30 */
 
 struct mc34708;
 
@@ -199,6 +199,7 @@ static struct regulator_init_data swbst_init = {
 		.name = "SWBST",
 		.valid_ops_mask = REGULATOR_CHANGE_STATUS,
 		.boot_on = 1,
+		.always_on = 1,
 	}
 };
 
@@ -241,12 +242,6 @@ static struct regulator_init_data vgen1_init = {
 		.max_uV = mV_to_uV(1550),
 		.valid_ops_mask = REGULATOR_CHANGE_VOLTAGE,
 		.always_on = 1,
-		.initial_state = PM_SUSPEND_MEM,
-		.state_mem = {
-			.uV = 950000,
-			.mode = REGULATOR_MODE_NORMAL,
-			.enabled = 1,
-		},
 	}
 };
 

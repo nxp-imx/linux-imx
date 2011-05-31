@@ -105,7 +105,7 @@
 #define USER_LED_EN			(6*32 + 7)	/* GPIO_7_7 */
 #define USB_PWREN			(6*32 + 8)	/* GPIO_7_8 */
 #define NIRQ				(6*32 + 11)	/* GPIO7_11 */
-#define MX53_LOCO_MC34708_IRQ    (6*32 + 11)	/* GPIO7_11 */
+#define MX53_LOCO_MC34708_IRQ    (4*32 + 30)	/* GPIO5_30 CSI0_DAT12 */
 
 static iomux_v3_cfg_t mx53_loco_pads[] = {
 	/* FEC */
@@ -188,7 +188,6 @@ static iomux_v3_cfg_t mx53_loco_pads[] = {
 	MX53_PAD_CSI0_DAT10__UART1_TXD_MUX,
 	MX53_PAD_CSI0_DAT11__UART1_RXD_MUX,
 	/* CSI0 */
-	MX53_PAD_CSI0_DAT12__IPU_CSI0_D_12,
 	MX53_PAD_CSI0_DAT13__IPU_CSI0_D_13,
 	MX53_PAD_CSI0_DAT14__IPU_CSI0_D_14,
 	MX53_PAD_CSI0_DAT15__IPU_CSI0_D_15,
@@ -804,8 +803,6 @@ static void __init mx53_loco_io_init(void)
 	gpio_request(DISP0_POWER_EN, "disp0-power-en");
 	gpio_direction_output(DISP0_POWER_EN, 1);
 
-	gpio_request(MX53_LOCO_MC34708_IRQ, "pmic-int");
-	gpio_direction_input(MX53_LOCO_MC34708_IRQ);
 }
 
 /*!
@@ -813,6 +810,10 @@ static void __init mx53_loco_io_init(void)
  */
 static void __init mxc_board_init(void)
 {
+
+	iomux_v3_cfg_t mc34708_int;
+	iomux_v3_cfg_t da9052_csi0_d12;
+
 	mxc_ipu_data.di_clk[0] = clk_get(NULL, "ipu_di0_clk");
 	mxc_ipu_data.di_clk[1] = clk_get(NULL, "ipu_di1_clk");
 	mxc_ipu_data.csi_clk[0] = clk_get(NULL, "ssi_ext1_clk");
@@ -832,6 +833,11 @@ static void __init mxc_board_init(void)
 	mxc_register_device(&mxci2c_devices[2], &mxci2c_data);
 
     if (board_is_mx53_loco_mc34708()) {
+		/* set pmic INT gpio pin */
+		mc34708_int = MX53_PAD_CSI0_DAT12__GPIO5_30;
+		mxc_iomux_v3_setup_pad(mc34708_int);
+		gpio_request(MX53_LOCO_MC34708_IRQ, "pmic-int");
+		gpio_direction_input(MX53_LOCO_MC34708_IRQ);
 		mx53_loco_init_mc34708();
 		dvfs_core_data.reg_id = "SW1A";
 		tve_data.dac_reg = "VDAC";
@@ -840,6 +846,8 @@ static void __init mxc_board_init(void)
 		mxc_register_device(&mxc_powerkey_device, &pwrkey_data);
 	}
     else {
+		da9052_csi0_d12 = MX53_PAD_CSI0_DAT12__IPU_CSI0_D_12;
+		mxc_iomux_v3_setup_pad(da9052_csi0_d12);
 		mx53_loco_init_da9052();
 		dvfs_core_data.reg_id = "DA9052_BUCK_CORE";
 		tve_data.dac_reg = "DA9052_LDO7";
