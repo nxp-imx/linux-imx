@@ -9,10 +9,12 @@
 #include <mach/hardware.h>
 #include <mach/devices-common.h>
 
-#define imx5_vpu_data_entry_single(soc, vpu_reset, vpu_pg)	\
+#define imx5_vpu_data_entry_single(soc, flag, size, vpu_reset, vpu_pg)	\
 	{							\
 		.iobase = soc ## _VPU_BASE_ADDR,		\
 		.irq = soc ## _INT_VPU,				\
+		.iram_enable = flag,				\
+		.iram_size = size,				\
 		.reset = vpu_reset,				\
 		.pg = vpu_pg,					\
 	}
@@ -53,7 +55,7 @@ void mx51_vpu_pg(int enable)
 }
 const struct imx_vpu_data imx51_vpu_data __initconst =
 			imx5_vpu_data_entry_single(MX51,
-			mx51_vpu_reset, mx51_vpu_pg);
+			false, 0x14000, mx51_vpu_reset, mx51_vpu_pg);
 #endif
 
 #ifdef CONFIG_SOC_IMX53
@@ -93,7 +95,7 @@ void mx53_vpu_pg(int enable)
 
 const struct imx_vpu_data imx53_vpu_data __initconst =
 			imx5_vpu_data_entry_single(MX53,
-			mx53_vpu_reset, mx53_vpu_pg);
+			true, 0x14000, mx53_vpu_reset, mx53_vpu_pg);
 #endif
 
 struct platform_device *__init imx_add_vpu(
