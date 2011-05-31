@@ -615,6 +615,7 @@ static void sii902x_hdmi_reset(void)
 static struct mxc_lcd_platform_data sii902x_hdmi_data = {
 	.reset = sii902x_hdmi_reset,
 	.analog_reg = "DA9052_LDO2",
+	.fb_id = "DISP3 BG",
 	.boot_enable = 1,
 };
 

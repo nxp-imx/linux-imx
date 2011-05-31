@@ -438,6 +438,7 @@ static void sii902x_hdmi_reset(void)
 
 static struct mxc_lcd_platform_data sii902x_hdmi_data = {
        .reset = sii902x_hdmi_reset,
+       .fb_id = "DISP3 BG",
 };
 
 static struct imxi2c_platform_data mxci2c_data = {

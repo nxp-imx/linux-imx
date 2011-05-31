@@ -1284,6 +1284,7 @@ static struct mxc_lcd_platform_data sii902x_hdmi_data = {
 	.put_pins = sii902x_hdmi_put_pins,
 	.enable_pins = sii902x_hdmi_enable_pins,
 	.disable_pins = sii902x_hdmi_disable_pins,
+	.fb_id = "mxc_elcdif_fb",
 };
 
 static struct i2c_board_info mxc_i2c1_board_info[] __initdata = {
