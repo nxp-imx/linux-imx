@@ -255,6 +255,15 @@ static int set_cpu_freq(int wp)
 		podf = cpu_wp_tbl[wp].cpu_podf;
 		gp_volt = cpu_wp_tbl[wp].cpu_voltage;
 
+		/* Get ARM_PODF */
+		reg = __raw_readl(ccm_base + dvfs_data->ccm_cacrr_offset);
+		arm_podf = reg & 0x07;
+		if (podf == arm_podf) {
+			printk(KERN_DEBUG
+			       "No need to change freq and voltage!!!!\n");
+			return 0;
+		}
+
 		/* Change arm_podf only */
 		/* set ARM_FREQ_SHIFT_DIVIDER */
 		reg = __raw_readl(ccm_base + dvfs_data->ccm_cdcr_offset);
@@ -268,15 +277,6 @@ static int set_cpu_freq(int wp)
 		reg &= ~(CCM_CDCR_SW_DVFS_EN | CCM_CDCR_ARM_FREQ_SHIFT_DIVIDER);
 		reg |= CCM_CDCR_ARM_FREQ_SHIFT_DIVIDER;
 		__raw_writel(reg, ccm_base + dvfs_data->ccm_cdcr_offset);
-
-		/* Get ARM_PODF */
-		reg = __raw_readl(ccm_base + dvfs_data->ccm_cacrr_offset);
-		arm_podf = reg & 0x07;
-		if (podf == arm_podf) {
-			printk(KERN_DEBUG
-			       "No need to change freq and voltage!!!!\n");
-			return 0;
-		}
 
 		/* Check if FSVAI indicate freq up */
 		if (podf < arm_podf) {
