@@ -312,6 +312,7 @@ struct mxc_lcd_platform_data {
 	void (*put_pins) (void);
 	void (*enable_pins) (void);
 	void (*disable_pins) (void);
+	char *fb_id;
 	int boot_enable;
 };
 
