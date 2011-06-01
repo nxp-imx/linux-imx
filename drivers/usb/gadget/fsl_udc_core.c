@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2004-2010 Freescale Semicondutor, Inc. All rights reserved.
+ * Copyright (C) 2004-2011 Freescale Semiconductor, Inc. All rights reserved.
  *
  * Author: Li Yang <leoli@freescale.com>
  *         Jiang Bo <tanya.jiang@freescale.com>
@@ -2239,7 +2239,7 @@ static int __init struct_ep_setup(struct fsl_udc *udc, unsigned char index,
  * all intialization operations implemented here except enabling usb_intr reg
  * board setup should have been done in the platform code
  */
-static int __init fsl_udc_probe(struct platform_device *pdev)
+static int __devinit fsl_udc_probe(struct platform_device *pdev)
 {
 	struct resource *res;
 	int ret = -ENODEV;

@@ -3,7 +3,7 @@
  *
  * Watchdog driver for FSL MXC. It is based on omap1610_wdt.c
  *
- * Copyright (C) 2004-2010 Freescale Semiconductor, Inc.
+ * Copyright (C) 2004-2011 Freescale Semiconductor, Inc.
  * 2005 (c) MontaVista Software, Inc.
 
  * This program is free software; you can redistribute it and/or modify
@@ -244,7 +244,7 @@ static struct miscdevice mxc_wdt_miscdev = {
 	.fops = &mxc_wdt_fops
 };
 
-static int __init mxc_wdt_probe(struct platform_device *pdev)
+static int __devinit mxc_wdt_probe(struct platform_device *pdev)
 {
 	struct resource *res, *mem;
 	int ret;

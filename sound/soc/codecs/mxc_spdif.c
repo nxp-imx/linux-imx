@@ -1169,7 +1169,7 @@ struct snd_soc_codec_device soc_codec_dev_spdif = {
 };
 EXPORT_SYMBOL_GPL(soc_codec_dev_spdif);
 
-static int __init mxc_spdif_probe(struct platform_device *pdev)
+static int __devinit mxc_spdif_probe(struct platform_device *pdev)
 {
 	struct mxc_spdif_platform_data *plat_data =
 	    (struct mxc_spdif_platform_data *)pdev->dev.platform_data;

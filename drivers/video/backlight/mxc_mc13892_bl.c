@@ -1,5 +1,5 @@
 /*
- * Copyright 2008-2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2008-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -75,7 +75,7 @@ static int mxcbl_check_fb(struct backlight_device *bldev, struct fb_info *info)
 
 static struct backlight_ops bl_ops;
 
-static int __init mxcbl_probe(struct platform_device *pdev)
+static int __devinit mxcbl_probe(struct platform_device *pdev)
 {
 	int ret = 0;
 	struct backlight_device *bd;

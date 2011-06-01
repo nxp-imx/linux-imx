@@ -1266,7 +1266,7 @@ static struct file_operations otg_fops = {
 	.release = fsl_otg_release,
 };
 
-static int __init fsl_otg_probe(struct platform_device *pdev)
+static int __devinit fsl_otg_probe(struct platform_device *pdev)
 {
 	int status;
 	struct fsl_usb2_platform_data *pdata;
