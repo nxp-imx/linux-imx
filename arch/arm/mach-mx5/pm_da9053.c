@@ -301,6 +301,12 @@ as the normal setting on Da9053 */
 #define LDO6_SUSPEND_PRESET 0xC0
 /* preset ldo10 to 1200 mv */
 #define iLDO10_SUSPEND_PRESET 0xC0
+/* set VUSB 2V5 active during suspend */
+#define BUCKPERI_SUSPEND_SW_STEP 0x50
+/* restore VUSB 2V5 active after suspend */
+#define BUCKPERI_RESTORE_SW_STEP 0x55
+/* restore VUSB 2V5 power supply after suspend */
+#define SUPPLY_RESTORE_VPERISW_EN 0x20
 #define CONF_BIT 0x80
 
 static u8 volt_settings[DA9052_LDO10_REG - DA9052_BUCKCORE_REG + 1];
@@ -318,6 +324,7 @@ static void pm_da9053_preset_voltage(void)
 	pm_da9053_write_reg(DA9052_BUCKPRO_REG, BUCKPRO_SUSPEND_PRESET);
 	pm_da9053_write_reg(DA9052_LDO6_REG, LDO6_SUSPEND_PRESET);
 	pm_da9053_write_reg(DA9052_LDO10_REG, iLDO10_SUSPEND_PRESET);
+	pm_da9053_write_reg(DA9052_ID1213_REG, BUCKPERI_SUSPEND_SW_STEP);
 }
 
 void pm_da9053_dump(int start, int end)
@@ -406,13 +413,26 @@ int da9053_suspend_cmd_hw(void)
 	return 0;
 }
 
-void da9053_restore_volt_settings(void)
+int da9053_restore_volt_settings(void)
 {
-	u8 reg;
-	for (reg = DA9052_BUCKCORE_REG;
-		reg <= DA9052_LDO10_REG; reg++)
-		pm_da9053_write_reg(reg,
-			volt_settings[reg - DA9052_BUCKCORE_REG]);
+	u8 data;
+	struct clk *i2c_clk;
+
+	i2c_clk = clk_get(NULL, "i2c_clk");
+	if (IS_ERR(i2c_clk)) {
+		pr_err("unable to get i2c clk\n");
+		return PTR_ERR(i2c_clk);
+	}
+	clk_enable(i2c_clk);
+
+	pm_da9053_write_reg(DA9052_ID1213_REG, BUCKPERI_RESTORE_SW_STEP);
+	pm_da9053_read_reg(DA9052_SUPPLY_REG, &data);
+	data |= SUPPLY_RESTORE_VPERISW_EN;
+	pm_da9053_write_reg(DA9052_SUPPLY_REG, data);
+
+	clk_disable(i2c_clk);
+	clk_put(i2c_clk);
+	return 0;
 }
 
 int da9053_poweroff_cmd(void)

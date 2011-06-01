@@ -24,6 +24,7 @@
 #include <linux/cpufreq.h>
 #include <linux/iram_alloc.h>
 #include <linux/fsl_devices.h>
+#include <linux/mfd/da9052/da9052.h>
 #include <asm/mach-types.h>
 #include <asm/cacheflush.h>
 #include <asm/tlb.h>
@@ -58,6 +59,7 @@ extern void mx50_suspend(u32 databahn_addr);
 extern struct cpu_wp *(*get_cpu_wp)(int *wp);
 extern void __iomem *databahn_base;
 extern void da9053_suspend_cmd_hw(void);
+extern int da9053_restore_volt_settings(void);
 extern void da9053_suspend_cmd_sw(void);
 extern void da9053_resume_dump(void);
 extern void pm_da9053_i2c_init(u32 base_addr);
@@ -123,15 +125,22 @@ static int mx5_suspend_enter(suspend_state_t state)
 					mx53_smd_loco_irq_wake_fixup();
 					da9053_suspend_cmd_sw();
 				} else {
-			/* for new OTP DA9053 board, comment out next */
-			/* line to enable other irq for wakeup */
-					mx53_smd_loco_irq_wake_fixup();
+				/*  for new OTP DA9053 board,
+					enable other irq for wakeup,
+					otherwise disable other wakeup sources.
+				*/
+					if (da9053_get_chip_version() !=
+						DA9053_VERSION_BB)
+						mx53_smd_loco_irq_wake_fixup();
+
 					da9053_suspend_cmd_hw();
 				}
 			}
 			/* Run the suspend code from iRAM. */
 			suspend_in_iram(suspend_param1);
 
+			if (da9053_get_chip_version())
+				da9053_restore_volt_settings();
 			/*clear the EMPGC0/1 bits */
 			__raw_writel(0, MXC_SRPG_EMPGC0_SRPGCR);
 			__raw_writel(0, MXC_SRPG_EMPGC1_SRPGCR);
