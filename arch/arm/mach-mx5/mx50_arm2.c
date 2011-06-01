@@ -881,7 +881,7 @@ static struct max17135_platform_data max17135_pdata __initdata = {
 	.init = max17135_regulator_init,
 };
 
-static int max17135_regulator_init(struct max17135 *max17135)
+static int __init max17135_regulator_init(struct max17135 *max17135)
 {
 	struct max17135_platform_data *pdata = &max17135_pdata;
 	int i, ret;

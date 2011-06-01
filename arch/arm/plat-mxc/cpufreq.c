@@ -205,7 +205,7 @@ static int mxc_set_target(struct cpufreq_policy *policy,
 	return ret;
 }
 
-static int __init mxc_cpufreq_driver_init(struct cpufreq_policy *policy)
+static int __devinit mxc_cpufreq_driver_init(struct cpufreq_policy *policy)
 {
 	int ret;
 	int i;
@@ -312,7 +312,7 @@ static struct cpufreq_driver mxc_driver = {
 	.name = "imx",
 };
 
-static int __devinit mxc_cpufreq_init(void)
+static int __init mxc_cpufreq_init(void)
 {
 	return cpufreq_register_driver(&mxc_driver);
 }

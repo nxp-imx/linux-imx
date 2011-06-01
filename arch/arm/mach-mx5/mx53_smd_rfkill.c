@@ -142,25 +142,24 @@ static int __devexit mxc_bt_rfkill_remove(struct platform_device *dev)
 	return 0;
 }
 
-static struct platform_driver mxc_bt_rfkill_drv = {
+static struct platform_driver mxc_bt_rfkill_driver = {
 	.driver = {
 		.name = "mxc_bt_rfkill",
 	},
-
 	.probe	= mxc_bt_rfkill_probe,
 	.remove = __devexit_p(mxc_bt_rfkill_remove),
 };
 
 static int __init mxc_bt_rfkill_init(void)
 {
-	return platform_driver_register(&mxc_bt_rfkill_drv);
+	return platform_driver_register(&mxc_bt_rfkill_driver);
 }
 
 module_init(mxc_bt_rfkill_init);
 
 static void __exit mxc_bt_rfkill_exit(void)
 {
-	platform_driver_unregister(&mxc_bt_rfkill_drv);
+	platform_driver_unregister(&mxc_bt_rfkill_driver);
 }
 
 module_exit(mxc_bt_rfkill_exit);
