@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # Linux kernel version: 2.6.35.3
-# Fri Apr 29 17:42:54 2011
+# Wed Jun  1 20:11:44 2011
 #
 CONFIG_ARM=y
 CONFIG_HAVE_PWM=y
@@ -771,6 +771,7 @@ CONFIG_ATA_VERBOSE_ERROR=y
 # Controllers with non-SFF native interface
 #
 CONFIG_SATA_AHCI_PLATFORM=y
+CONFIG_SATA_AHCI_FSL_NO_HOTPLUG_MODE=y
 CONFIG_ATA_SFF=y
 
 #
