@@ -75,6 +75,18 @@ config SATA_AHCI_PLATFORM
 
 	  If unsure, say N.
 
+config SATA_AHCI_FSL_NO_HOTPLUG_MODE
+	bool "Freescale i.MX SATA AHCI NO HOTPLUG mode"
+	depends on SATA_AHCI_PLATFORM != n
+	default n
+	help
+	  In order to decrease the pwr consumption, release the CLK resources
+	  such as usb_phy1_clk, when there is no SATA device adaptored into the
+	  AHCI SATA port. The HOTPLUG feature can't be enabled in this situation.
+	  Please disable this option if the HOTPLUG is mandatory required.
+
+	  If unsure, say N.
+
 config SATA_FSL
 	tristate "Freescale 3.0Gbps SATA support"
 	depends on FSL_SOC
