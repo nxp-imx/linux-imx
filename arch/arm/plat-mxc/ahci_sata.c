@@ -486,7 +486,6 @@ static int sata_init(struct device *dev)
 	if (AHCI_SAVE_PWR_WITHOUT_HOTPLUG) {
 		/* Release resources when there is no device on the port */
 		if ((readl(mmio + PORT_SATA_SR) & 0xF) == 0) {
-			iounmap(mmio);
 			ret = -ENODEV;
 			if (machine_is_mx53_smd() || machine_is_mx53_loco()
 				|| board_is_mx53_ard_b())
