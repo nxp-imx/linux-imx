@@ -504,7 +504,7 @@ int da9052_ssc_init(struct da9052 *da9052)
 	if ((ssc_msg.data & DA9052_CHIPID_MRC) == 0x80) {
 		da9052->chip_version = DA9053_VERSION_AA;
 		pr_info("AA version probed\n");
-	} else if ((ssc_msg.data & DA9052_CHIPID_MRC) == 0xf0) {
+	} else if ((ssc_msg.data & DA9052_CHIPID_MRC) == 0xa0) {
 		da9052->chip_version = DA9053_VERSION_BB;
 		pr_info("BB version probed\n");
 	} else {
