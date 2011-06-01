@@ -110,8 +110,8 @@ enum {
 static bool g_dp_in_use;
 LIST_HEAD(fb_alloc_list);
 static struct fb_info *mxcfb_info[3];
-static __initdata struct mxcfb_mode mxc_disp_mode[MXCFB_PORT_NUM];
-static __initdata int (*mxcfb_pre_setup[MXCFB_PORT_NUM])(struct fb_info *info);
+static struct mxcfb_mode mxc_disp_mode[MXCFB_PORT_NUM];
+static int (*mxcfb_pre_setup[MXCFB_PORT_NUM])(struct fb_info *info);
 
 /*
  * register pre-setup callback for some display
