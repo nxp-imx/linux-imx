@@ -99,5 +99,7 @@ void _ipu_csi_ccir_err_detection_disable(uint32_t csi);
 void _ipu_smfc_init(ipu_channel_t channel, uint32_t mipi_id, uint32_t csi);
 void _ipu_smfc_set_burst_size(ipu_channel_t channel, uint32_t bs);
 void _ipu_dp_set_csc_coefficients(ipu_channel_t channel, int32_t param[][3]);
+void _ipu_clear_buffer_ready(ipu_channel_t channel, ipu_buffer_t type,
+			     uint32_t bufNum);
 
 #endif				/* __INCLUDE_IPU_PRV_H__ */
