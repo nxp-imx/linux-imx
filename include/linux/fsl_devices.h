@@ -297,6 +297,17 @@ struct mxc_pwm_platform_data {
 	void (*disable_pwm_pad) (void);
 };
 
+struct mxc_spdif_platform_data {
+	int spdif_tx;		/* S/PDIF tx enabled for this board */
+	int spdif_rx;		/* S/PDIF rx enabled for this board */
+	int spdif_clk_44100;	/* tx clk mux in SPDIF_REG_STC; -1 for none */
+	int spdif_clk_48000;	/* tx clk mux in SPDIF_REG_STC; -1 for none */
+	int spdif_clkid;	/* rx clk mux select in SPDIF_REG_SRPC */
+	struct clk *spdif_clk;
+	struct clk *spdif_core_clk;
+	struct clk *spdif_audio_clk;
+};
+
 /* Returns non-zero if the current suspend operation would
  * lead to a deep sleep (i.e. power removed from the core,
  * instead of just the clock).

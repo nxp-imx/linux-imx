@@ -200,6 +200,9 @@ config SND_SOC_MAX98095
 config SND_SOC_MAX9850
 	tristate
 
+config SND_SOC_MXC_SPDIF
+       tristate
+
 config SND_SOC_PCM3008
        tristate
 
