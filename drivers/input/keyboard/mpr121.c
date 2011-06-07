@@ -30,6 +30,56 @@
 #include <linux/delay.h>
 #include <linux/bitops.h>
 
+#ifdef MPR121_DEBUG_THREADHOLD
+#include <linux/kthread.h>
+#endif
+
+/* Register definitions */
+#define ELE_TOUCH_STATUS_0_ADDR	0x0
+#define ELE_TOUCH_STATUS_1_ADDR	0X1
+#define MHD_RISING_ADDR		0x2b
+#define NHD_RISING_ADDR		0x2c
+#define NCL_RISING_ADDR		0x2d
+#define FDL_RISING_ADDR		0x2e
+#define MHD_FALLING_ADDR	0x2f
+#define NHD_FALLING_ADDR	0x30
+#define NCL_FALLING_ADDR	0x31
+#define FDL_FALLING_ADDR	0x32
+#define ELE0_TOUCH_THRESHOLD_ADDR	0x41
+#define ELE0_RELEASE_THRESHOLD_ADDR	0x42
+/* ELE0...ELE11's threshold will set in a loop */
+#define AFE_CONF_ADDR			0x5c
+#define FILTER_CONF_ADDR		0x5d
+
+/* ELECTRODE_CONF: this register is most important register, it
+ * control how many of electrode is enabled. If you set this register
+ * to 0x0, it make the sensor going to suspend mode. Other value(low
+ * bit is non-zero) will make the sensor into Run mode.  This register
+ * should be write at last.
+ */
+#define ELECTRODE_CONF_ADDR		0x5e
+#define ELECTRODE_CONF_QUICK_CHARGE	0x80
+
+#define AUTO_CONFIG_CTRL_ADDR		0x7b
+/* AUTO_CONFIG_USL: Upper Limit for auto baseline search, this
+ * register is related to VDD supplied on your board, the value of
+ * this register is calc by EQ: `((VDD-0.7)/VDD) * 256`.
+ * AUTO_CONFIG_LSL: Low Limit of auto baseline search. This is 65% of
+ * USL AUTO_CONFIG_TL: The Traget Level of auto baseline search, This
+ * is 90% of USL  */
+#define AUTO_CONFIG_USL_ADDR		0x7d
+#define AUTO_CONFIG_LSL_ADDR		0x7e
+#define AUTO_CONFIG_TL_ADDR		0x7f
+
+
+/* Threshold of touch/release trigger */
+#define TOUCH_THRESHOLD			0x08
+#define RELEASE_THRESHOLD		0x05
+/* Mask Button bits of STATUS_0 & STATUS_1 register */
+#define TOUCH_STATUS_MASK		0xfff
+/* MPR121 have 12 electrodes */
+#define MPR121_MAX_KEY_COUNT		12
+
 struct mpr121_touchkey_data {
 	struct i2c_client	*client;
 	struct input_dev	*input_dev;
@@ -57,6 +107,56 @@ static struct mpr121_init_register init_reg_table[] = {
 	{AFE_CONF_ADDR,		0x0b},
 	{AUTO_CONFIG_CTRL_ADDR, 0x0b},
 };
+
+#ifdef MPR121_DEBUG_THREADHOLD
+
+#define MPR121_BUF_SIZE 0x2B
+#define MPR121_ACTIVE_CHANNELS 13
+static int mpr121_debug_thread(void *arg)
+{
+	u8 reg_data[MPR121_BUF_SIZE];
+	short ele_signal[MPR121_ACTIVE_CHANNELS];
+	short ele_base[MPR121_ACTIVE_CHANNELS];
+	short ele_delta[MPR121_ACTIVE_CHANNELS];
+	int ret;
+	int i;
+	struct mpr121_touchkey_data *data = arg;
+
+	struct i2c_client *client = data->client;
+
+	msleep(5000);
+	printk(KERN_INFO "begin mpr121 debug thread\n");
+begin:
+
+	/* Get the status, ele data and baseline from MPR121 */
+	ret = i2c_smbus_read_i2c_block_data(client, ELE_TOUCH_STATUS_0_ADDR,
+					    32, &reg_data[0]);
+	if (ret < 32) {
+		dev_err(&client->dev, "i2c block read failed:%d\n", ret);
+		goto begin;
+	}
+
+	ret = i2c_smbus_read_i2c_block_data(client, 0x20, 0xb, &reg_data[32]);
+	if (ret < 0xb) {
+		dev_err(&client->dev, "i2c block read failed:%d\n", ret);
+		goto begin;
+	}
+
+	for (i = 0; i < MPR121_ACTIVE_CHANNELS; i++) {
+		ele_signal[i] = ((short)reg_data[0x04 + (2*i)])
+			| (((short)reg_data[0x04 + 1 + (2 * i)]) << 8);
+		ele_base[i] = ((short)reg_data[i+0x1e])<<2;
+		ele_delta[i] = ele_base[i]-ele_signal[i];
+		printk(KERN_INFO "CH%d: %d, %d, %d ", i, ele_signal[i],
+		       ele_base[i], ele_delta[i]);
+	}
+	printk(KERN_INFO "\n");
+
+	msleep(40);
+	goto begin;
+	return 0;
+}
+#endif
 
 static irqreturn_t mpr_touchkey_interrupt(int irq, void *dev_id)
 {
@@ -104,11 +204,13 @@ static int mpr121_phys_init(struct mpr121_platform_data *pdata,
 	struct mpr121_init_register *reg;
 	unsigned char usl, lsl, tl;
 	int i, t, vdd, ret;
+	u8  ele_conf;
 
 	/* setup touch/release threshold for ele0-ele11 */
 	for (i = 0; i <= MPR121_MAX_KEY_COUNT; i++) {
 		t = ELE0_TOUCH_THRESHOLD_ADDR + (i * 2);
 		ret = i2c_smbus_write_byte_data(client, t, TOUCH_THRESHOLD);
+
 		if (ret < 0)
 			goto err_i2c_write;
 		ret = i2c_smbus_write_byte_data(client, t + 1,
@@ -137,8 +239,10 @@ static int mpr121_phys_init(struct mpr121_platform_data *pdata,
 	ret = i2c_smbus_write_byte_data(client, AUTO_CONFIG_TL_ADDR, tl);
 	if (ret < 0)
 		goto err_i2c_write;
+	ele_conf = data->keycount | ELECTRODE_CONF_QUICK_CHARGE;
+
 	ret = i2c_smbus_write_byte_data(client, ELECTRODE_CONF_ADDR,
-					data->keycount);
+					ele_conf);
 	if (ret < 0)
 		goto err_i2c_write;
 
@@ -221,6 +325,9 @@ static int __devinit mpr_touchkey_probe(struct i2c_client *client,
 		goto err_free_irq;
 	i2c_set_clientdata(client, data);
 	device_init_wakeup(&client->dev, pdata->wakeup);
+#ifdef MPR121_DEBUG_THREADHOLD
+	kthread_run(mpr121_debug_thread, data, "mpr121_debug_thread");
+#endif
 	dev_info(&client->dev, "Mpr121 touch keyboard init success.\n");
 	return 0;
 
