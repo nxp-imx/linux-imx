@@ -188,12 +188,6 @@
 #include <linux/dmaengine.h>
 #include <mach/dma.h>
 
-struct imx_pcm_dma_params {
-	int dma;
-	unsigned long dma_addr;
-	int burstsize;
-};
-
 struct imx_ssi {
 	struct platform_device *ac97_dev;
 
