@@ -659,6 +659,9 @@ static int imx_ssi_probe(struct platform_device *pdev)
 	ssi->dma_params_tx.burstsize = 4;
 	ssi->dma_params_rx.burstsize = 4;
 
+	ssi->dma_params_tx.peripheral_type = IMX_DMATYPE_SSI_SP;
+	ssi->dma_params_rx.peripheral_type = IMX_DMATYPE_SSI_SP;
+
 	res = platform_get_resource_byname(pdev, IORESOURCE_DMA, "tx0");
 	if (res)
 		ssi->dma_params_tx.dma = res->start;

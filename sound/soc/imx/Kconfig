@@ -17,6 +17,9 @@ config SND_MXC_SOC_FIQ
 config SND_MXC_SOC_MX2
 	tristate
 
+config SND_MXC_SOC_SPDIF_DAI
+	tristate
+
 config SND_MXC_SOC_WM1133_EV1
 	tristate "Audio on the the i.MX31ADS with WM1133-EV1 fitted"
 	depends on MACH_MX31ADS_WM1133_EV1 && EXPERIMENTAL
@@ -64,5 +67,15 @@ config SND_SOC_EUKREA_TLV320
 	help
 	  Enable I2S based access to the TLV320AIC23B codec attached
 	  to the SSI interface
+
+config SND_SOC_IMX_SPDIF
+	tristate "SoC Audio support for IMX - S/PDIF"
+	default n
+	select SND_MXC_SOC_SPDIF_DAI
+	select SND_SOC_MXC_SPDIF
+	select SND_MXC_SOC_MX2
+	help
+	  Say Y if you want to add support for SoC audio on a IMX development
+	  board with S/PDIF.
 
 endif	# SND_IMX_SOC
