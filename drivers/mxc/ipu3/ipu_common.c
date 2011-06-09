@@ -28,6 +28,7 @@
 #include <linux/io.h>
 #include <linux/ipu.h>
 #include <linux/clk.h>
+#include <linux/wakelock.h>
 #include <mach/clock.h>
 #include <mach/hardware.h>
 #include <mach/mxc_dvfs.h>
@@ -59,6 +60,7 @@ bool g_chan_is_interlaced[52];
 uint32_t g_channel_init_mask;
 uint32_t g_channel_enable_mask;
 DEFINE_SPINLOCK(ipu_lock);
+static struct wake_lock ipu_wakelock;
 struct device *g_ipu_dev;
 
 static struct ipu_irq_node ipu_irq_list[IPU_IRQ_COUNT];
@@ -275,6 +277,7 @@ static int ipu_probe(struct platform_device *pdev)
 	unsigned long ipu_base;
 
 	spin_lock_init(&ipu_lock);
+	wake_lock_init(&ipu_wakelock, WAKE_LOCK_SUSPEND, "ipu");
 
 	g_ipu_hw_rev = plat_data->rev;
 
@@ -492,6 +495,8 @@ int32_t ipu_init_channel(ipu_channel_t channel, ipu_channel_params_t *params)
 	__raw_writel(0xFFFFFFFF, IPU_INT_CTRL(6));
 	__raw_writel(0xFFFFFFFF, IPU_INT_CTRL(9));
 	__raw_writel(0xFFFFFFFF, IPU_INT_CTRL(10));
+
+	wake_lock(&ipu_wakelock);
 
 	if (g_ipu_clk_enabled == false) {
 		stop_dvfs_per();
@@ -754,7 +759,10 @@ int32_t ipu_init_channel(ipu_channel_t channel, ipu_channel_params_t *params)
 
 	__raw_writel(ipu_conf, IPU_CONF);
 
+	spin_unlock_irqrestore(&ipu_lock, lock_flags);
+	return ret;
 err:
+	wake_unlock(&ipu_wakelock);
 	spin_unlock_irqrestore(&ipu_lock, lock_flags);
 	return ret;
 }
@@ -960,6 +968,9 @@ void ipu_uninit_channel(ipu_channel_t channel)
 		clk_disable(g_ipu_clk);
 		g_ipu_clk_enabled = false;
 	}
+
+	if (wake_lock_active(&ipu_wakelock))
+		wake_unlock(&ipu_wakelock);
 
 	WARN_ON(ipu_ic_use_count < 0);
 	WARN_ON(ipu_vdi_use_count < 0);
