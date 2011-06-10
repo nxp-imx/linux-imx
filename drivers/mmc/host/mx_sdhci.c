@@ -110,6 +110,11 @@ static unsigned int *adma_des_table;
 #define MXC_SDHCI_NUM	4
 #endif
 
+/* for MX25/MX31/MX35 and etc*/
+#ifndef DIGCTL_BASE_ADDR
+#define DIGCTL_BASE_ADDR 0
+#endif
+
 static struct sdhci_chip *mxc_fix_chips[MXC_SDHCI_NUM];
 
 static void sdhci_prepare_data(struct sdhci_host *, struct mmc_data *);
