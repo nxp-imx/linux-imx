@@ -495,6 +495,10 @@ static int sata_init(struct device *dev)
 		}
 	}
 
+	/* Add the temperature monitor */
+	ret = sysfs_create_group(&dev->kobj, &fsl_sata_ahci_group);
+	if (ret)
+		sysfs_remove_group(&dev->kobj, &fsl_sata_ahci_group);
 	iounmap(mmio);
 	return ret;
 
@@ -514,6 +518,7 @@ put_sata_clk:
 
 static void sata_exit(struct device *dev)
 {
+	sysfs_remove_group(&dev->kobj, &fsl_sata_ahci_group);
 	if (machine_is_mx53_smd() || machine_is_mx53_loco()
 			|| board_is_mx53_ard_b()) {
 		/* FSL IMX AHCI SATA uses the internal usb phy1 clk */
