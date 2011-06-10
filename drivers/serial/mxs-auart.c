@@ -177,6 +177,55 @@ mxs_auart_rx_char(struct mxs_auart_port *s, unsigned int stat, u8 c)
 	return stat;
 }
 
+
+static void dma_rx_do_tasklet(unsigned long arg)
+{
+	struct mxs_auart_port *s = (struct mxs_auart_port *) arg;
+	struct tty_struct *tty = s->port.info->port.tty;
+	u32 stat = 0;
+	int count;
+	struct list_head *p, *q;
+	int flag;
+	LIST_HEAD(list);
+	struct mxs_dma_desc *pdesc;
+
+	mxs_dma_cooked(s->dma_rx_chan, &list);
+	stat = __raw_readl(s->port.membase + HW_UARTAPP_STAT);
+
+	flag = TTY_NORMAL;
+	if (stat & BM_UARTAPP_STAT_BERR) {
+		stat &= ~BM_UARTAPP_STAT_BERR;
+		s->port.icount.brk++;
+		if (uart_handle_break(&s->port))
+			return;
+		flag = TTY_BREAK;
+	} else if (stat & BM_UARTAPP_STAT_PERR) {
+		stat &= ~BM_UARTAPP_STAT_PERR;
+		s->port.icount.parity++;
+		flag = TTY_PARITY;
+	} else if (stat & BM_UARTAPP_STAT_FERR) {
+		stat &= ~BM_UARTAPP_STAT_FERR;
+		s->port.icount.frame++;
+		flag = TTY_FRAME;
+	}
+
+	if (stat & BM_UARTAPP_STAT_OERR)
+		s->port.icount.overrun++;
+
+	list_for_each_safe(p, q, &list) {
+		list_del(p);
+		pdesc = list_entry(p, struct mxs_dma_desc, node);
+		count = stat & BM_UARTAPP_STAT_RXCOUNT;
+		tty_insert_flip_string(tty, pdesc->buffer, count);
+		if (flag != TTY_NORMAL)
+			tty_insert_flip_char(tty, 0, flag);
+		list_add(p, &s->free);
+	}
+	mxs_auart_submit_rx(s);
+	__raw_writel(stat, s->port.membase + HW_UARTAPP_STAT);
+	tty_flip_buffer_push(tty);
+}
+
 static void mxs_auart_rx_chars(struct mxs_auart_port *s)
 {
 	u8 c;
@@ -184,25 +233,8 @@ static void mxs_auart_rx_chars(struct mxs_auart_port *s)
 	u32 stat = 0;
 
 	if (s->flags & MXS_AUART_PORT_DMA_MODE) {
-		int i, count;
-		struct list_head *p, *q;
-		LIST_HEAD(list);
-		struct mxs_dma_desc *pdesc;
-		mxs_dma_cooked(s->dma_rx_chan, &list);
-		stat = __raw_readl(s->port.membase + HW_UARTAPP_STAT);
-		list_for_each_safe(p, q, &list) {
-			u8 *buffer;
-			list_del(p);
-			pdesc = list_entry(p, struct mxs_dma_desc, node);
-			count = stat & BM_UARTAPP_STAT_RXCOUNT;
-			buffer = pdesc->buffer;
-			for (i = 0; i < count; i++)
-				stat = mxs_auart_rx_char(s, stat, buffer[i]);
-			list_add(p, &s->free);
-			stat = __raw_readl(s->port.membase + HW_UARTAPP_STAT);
-		}
-		mxs_auart_submit_rx(s);
-		goto out;
+		tasklet_schedule(&s->rx_task);
+		return;
 	}
 	for (;;) {
 		stat = __raw_readl(s->port.membase + HW_UARTAPP_STAT);
@@ -212,7 +244,6 @@ static void mxs_auart_rx_chars(struct mxs_auart_port *s)
 		stat = mxs_auart_rx_char(s, stat, c);
 		__raw_writel(stat, s->port.membase + HW_UARTAPP_STAT);
 	}
-out:
 	__raw_writel(stat, s->port.membase + HW_UARTAPP_STAT);
 	tty_flip_buffer_push(tty);
 }
@@ -268,6 +299,9 @@ static int mxs_auart_dma_init(struct mxs_auart_port *s)
 
 	mxs_dma_enable_irq(s->dma_rx_chan, 1);
 	mxs_dma_enable_irq(s->dma_tx_chan, 1);
+
+	/* Initialize RX tasklet */
+	tasklet_init(&s->rx_task, dma_rx_do_tasklet, (unsigned long)s);
 
 	return 0;
 fail_alloc_desc:
@@ -1002,6 +1036,9 @@ static int __devinit mxs_auart_probe(struct platform_device *pdev)
 	s->port.dev = s->dev = get_device(&pdev->dev);
 
 	s->flags = plat->dma_mode ? MXS_AUART_PORT_DMA_MODE : 0;
+	if (s->flags & MXS_AUART_PORT_DMA_MODE)
+		s->port.flags |= ASYNC_LOW_LATENCY;
+
 	s->ctrl = 0;
 	s->dma_rx_buffer_size = plat->dma_rx_buffer_size;
 
