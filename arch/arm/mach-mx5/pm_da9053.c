@@ -341,7 +341,8 @@ void pm_da9053_dump(int start, int end)
 
 #define DA9052_CONTROLC_SMD_SET 0x62
 #define DA9052_GPIO0809_SMD_SET 0x18
-#define DA9052_ID1415_SMD_SET 0x1
+#define DA9052_ID1415_SMD_SET   0x1
+#define DA9052_GPI9_IRQ_MASK    0x2
 
 int da9053_suspend_cmd_sw(void)
 {
@@ -399,6 +400,9 @@ int da9053_suspend_cmd_hw(void)
 
 	pm_da9053_write_reg(DA9052_GPIO0809_REG,
 			DA9052_GPIO0809_SMD_SET);
+	pm_da9053_read_reg(DA9052_IRQMASKD_REG, &data);
+	data |= DA9052_GPI9_IRQ_MASK;
+	pm_da9053_write_reg(DA9052_IRQMASKD_REG, data);
 
 	pm_da9053_read_reg(DA9052_ID1415_REG, &data);
 	data &= 0xf0;
