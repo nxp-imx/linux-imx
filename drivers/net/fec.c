@@ -914,12 +914,12 @@ static void fec_enet_get_drvinfo(struct net_device *dev,
 	strcpy(info->bus_info, dev_name(&dev->dev));
 }
 
-static int fec_enet_get_link(struct net_device *dev)
+static u32 fec_enet_get_link(struct net_device *dev)
 {
 	if (netif_running(dev))
 		return netif_carrier_ok(dev) ? 1 : 0;
 	else
-		return -EINVAL;
+		return (u32)(-EINVAL);
 }
 
 static struct ethtool_ops fec_enet_ethtool_ops = {
