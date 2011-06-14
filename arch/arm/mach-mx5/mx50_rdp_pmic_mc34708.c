@@ -259,7 +259,7 @@ static struct regulator_init_data vgen2_init = {
 
 static int mc34708_regulator_init(struct mc34708 *mc34708)
 {
-	unsigned int value, register_mask;
+	unsigned int value;
 
 	pmic_read_reg(REG_MC34708_IDENTIFICATION, &value, 0xffffff);
 	pr_info("PMIC MC34708 ID:0x%x\n", value);

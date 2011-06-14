@@ -4041,7 +4041,7 @@ static struct clk sahara_clk[] = {
 	.secondary = &sahara_clk[2],
 	},
 	{
-	.parent = &scc_clk,
+	.parent = &scc_clk[0],
 	.secondary = &emi_fast_clk,
 	}
 };

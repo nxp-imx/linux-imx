@@ -310,7 +310,7 @@ static int __mxs_reset_block(void __iomem *hwreg, int just_enable)
 int mxs_reset_block(void __iomem *hwreg, int just_enable)
 {
 	int try = 10;
-	int r;
+	int r = 0;
 
 	while (try--) {
 		r = __mxs_reset_block(hwreg, just_enable);
