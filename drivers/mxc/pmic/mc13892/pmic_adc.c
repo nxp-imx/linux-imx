@@ -228,7 +228,7 @@ static unsigned channel_num[] = {
 
 static bool pmic_adc_ready;
 
-int is_mc13892_adc_ready()
+int is_mc13892_adc_ready(void)
 {
 	return pmic_adc_ready;
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright 2008-2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2008-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -217,7 +217,7 @@ void cleanup_chrdev(void)
  *
  * @return              0 on success, -1 otherwise.
  */
-static int __init gps_ioctrl_probe(struct platform_device *pdev)
+static int __devinit gps_ioctrl_probe(struct platform_device *pdev)
 {
 	struct regulator *gps_regu;
 
