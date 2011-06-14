@@ -605,7 +605,7 @@ static struct regulator_init_data max17135_init_data[] __initdata = {
 	},
 };
 
-static void epdc_get_pins(void)
+static int epdc_get_pins(void)
 {
 	/* Claim GPIOs for EPDC pins - used during power up/down */
 	gpio_request(EPDC_D0, "epdc_d0");
@@ -628,6 +628,7 @@ static void epdc_get_pins(void)
 	gpio_request(EPDC_SDCE0, "epdc_sdce0");
 	gpio_request(EPDC_SDCE1, "epdc_sdce1");
 	gpio_request(EPDC_SDCE2, "epdc_sdce2");
+	return 0;
 }
 
 static void epdc_put_pins(void)
