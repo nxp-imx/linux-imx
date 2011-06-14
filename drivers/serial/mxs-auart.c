@@ -3,7 +3,7 @@
  *
  * Author: dmitry pervushin <dimka@embeddedalley.com>
  *
- * Copyright 2008-2010 Freescale Semiconductor, Inc.
+ * Copyright 2008-2012 Freescale Semiconductor, Inc.
  * Copyright 2008 Embedded Alley Solutions, Inc All Rights Reserved.
  */
 
@@ -528,7 +528,7 @@ static void mxs_auart_settermios(struct uart_port *u,
 
 	/* figure out the hardware flow control settings */
 	if (cflag & CRTSCTS)
-		ctrl2 |= BM_UARTAPP_CTRL2_CTSEN /* | BM_UARTAPP_CTRL2_RTSEN */ ;
+		ctrl2 |= BM_UARTAPP_CTRL2_CTSEN | BM_UARTAPP_CTRL2_RTSEN;
 	else
 		ctrl2 &= ~BM_UARTAPP_CTRL2_CTSEN;
 
