@@ -197,9 +197,9 @@
 #define MX6Q_USDHC2_BASE_ADDR                (AIPS2_OFF_BASE_ADDR + 0x14000)
 #define MX6Q_USDHC3_BASE_ADDR                (AIPS2_OFF_BASE_ADDR + 0x18000)
 #define MX6Q_USDHC4_BASE_ADDR                (AIPS2_OFF_BASE_ADDR + 0x1C000)
-#define I2C1_BASE_ADDR                  (AIPS2_OFF_BASE_ADDR + 0x20000)
-#define I2C2_BASE_ADDR                  (AIPS2_OFF_BASE_ADDR + 0x24000)
-#define I2C3_BASE_ADDR                  (AIPS2_OFF_BASE_ADDR + 0x28000)
+#define MX6Q_I2C1_BASE_ADDR                  (AIPS2_OFF_BASE_ADDR + 0x20000)
+#define MX6Q_I2C2_BASE_ADDR                  (AIPS2_OFF_BASE_ADDR + 0x24000)
+#define MX6Q_I2C3_BASE_ADDR                  (AIPS2_OFF_BASE_ADDR + 0x28000)
 #define ROMCP_BASE_ADDR                 (AIPS2_OFF_BASE_ADDR + 0x2C000)
 #define MMDC_P0_BASE_ADDR               (AIPS2_OFF_BASE_ADDR + 0x30000)
 #define MMDC_P1_BASE_ADDR               (AIPS2_OFF_BASE_ADDR + 0x34000)
@@ -303,9 +303,9 @@
 #define MX6Q_INT_ECSPI3                             65
 #define MX6Q_INT_ECSPI4                             66
 #define MX6Q_INT_ECSPI5                             67
-#define MXC_INT_I2C1                               68
-#define MXC_INT_I2C2                               69
-#define MXC_INT_I2C3                               70
+#define MX6Q_INT_I2C1                               68
+#define MX6Q_INT_I2C2                               69
+#define MX6Q_INT_I2C3                               70
 #define MXC_INT_SATA                               71
 #define MXC_INT_USBOH3_UH1                         72
 #define MXC_INT_USBOH3_UH2                         73
