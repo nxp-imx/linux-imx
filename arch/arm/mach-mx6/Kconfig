@@ -24,6 +24,7 @@ config MACH_MX6Q_SABREAUTO
 	select IMX_HAVE_PLATFORM_FEC
 	select IMX_HAVE_PLATFORM_SDHCI_ESDHC_IMX
 	select IMX_HAVE_PLATFORM_SPI_IMX
+	select IMX_HAVE_PLATFORM_IMX_I2C
 	help
 	  Include support for i.MX 6Quad SABRE Automotive Infotainment platform. This includes specific
 	  configurations for the board and its peripherals.
