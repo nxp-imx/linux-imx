@@ -63,6 +63,8 @@
 #define MX6Q_SABREAUTO_ECSPI1_CS1	IMX_GPIO_NR(3, 19)
 #define MX6Q_SABREAUTO_SD3_CD	IMX_GPIO_NR(6, 11)
 #define MX6Q_SABREAUTO_SD3_WP	IMX_GPIO_NR(6, 14)
+#define MX6Q_SABREAUTO_MAX7310_1_BASE_ADDR	IMX_GPIO_NR(8, 0)
+#define MX6Q_SABREAUTO_CAP_TCH_INT	IMX_GPIO_NR(3, 31)
 
 void __init early_console_setup(unsigned long base, struct clk *clk);
 
@@ -127,6 +129,14 @@ static iomux_v3_cfg_t mx6q_sabreauto_pads[] = {
 	MX6Q_PAD_EIM_D16__ECSPI1_SCLK,
 	MX6Q_PAD_EIM_D17__ECSPI1_MISO,
 	MX6Q_PAD_EIM_D18__ECSPI1_MOSI,
+
+	/* I2C2 */
+	MX6Q_PAD_KEY_COL3__I2C2_SCL,
+	MX6Q_PAD_KEY_ROW3__I2C2_SDA,
+
+	/* I2C3 */
+	MX6Q_PAD_GPIO_5__I2C3_SCL,
+	MX6Q_PAD_GPIO_16__I2C3_SDA,
 };
 
 static const struct esdhc_platform_data mx6q_sabreauto_sd3_data __initconst = {
@@ -162,6 +172,46 @@ static const struct spi_imx_master mx6q_sabreauto_spi_data __initconst = {
 	.num_chipselect = ARRAY_SIZE(mx6q_sabreauto_spi_cs),
 };
 
+static int max7310_1_setup(struct i2c_client *client,
+	unsigned gpio_base, unsigned ngpio,
+	void *context)
+{
+	static int max7310_gpio_value[] = {
+		0, 1, 0, 0, 0, 0, 0, 0,
+	};
+
+	int n;
+
+	 for (n = 0; n < ARRAY_SIZE(max7310_gpio_value); ++n) {
+		gpio_request(gpio_base + n, "MAX7310 1 GPIO Expander");
+		if (max7310_gpio_value[n] < 0)
+			gpio_direction_input(gpio_base + n);
+		else
+			gpio_direction_output(gpio_base + n,
+						max7310_gpio_value[n]);
+		gpio_export(gpio_base + n, 0);
+	}
+
+	return 0;
+}
+
+static struct pca953x_platform_data max7310_platdata = {
+	.gpio_base	= MX6Q_SABREAUTO_MAX7310_1_BASE_ADDR,
+	.invert		= 0,
+	.setup		= max7310_1_setup,
+};
+
+static struct imxi2c_platform_data mx6q_sabreauto_i2c_data = {
+	.bitrate = 400000,
+};
+
+static struct i2c_board_info mxc_i2c2_board_info[] __initdata = {
+	{
+		I2C_BOARD_INFO("max7310", 0x1F),
+		.platform_data = &max7310_platdata,
+	},
+};
+
 /*!
  * Board specific initialization.
  */
@@ -171,6 +221,10 @@ static void __init mx6_board_init(void)
 					ARRAY_SIZE(mx6q_sabreauto_pads));
 
 	mx6q_sabreauto_init_uart();
+	imx6q_add_imx_i2c(1, &mx6q_sabreauto_i2c_data);
+	imx6q_add_imx_i2c(2, &mx6q_sabreauto_i2c_data);
+	i2c_register_board_info(2, mxc_i2c2_board_info,
+			ARRAY_SIZE(mxc_i2c2_board_info));
 
 	imx6q_add_sdhci_usdhc_imx(3, &mx6q_sabreauto_sd4_data);
 }
