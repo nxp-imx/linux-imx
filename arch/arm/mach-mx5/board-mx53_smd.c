@@ -32,6 +32,12 @@
 #include <linux/pwm_backlight.h>
 #include <linux/mxcfb.h>
 #include <linux/ipu.h>
+#include <linux/spi/spi.h>
+#include <linux/spi/flash.h>
+
+#include <linux/mtd/mtd.h>
+#include <linux/mtd/map.h>
+#include <linux/mtd/partitions.h>
 
 #include <mach/common.h>
 #include <mach/hardware.h>
@@ -72,6 +78,8 @@
 #define MX53_SMD_BT_RESET	IMX_GPIO_NR(3, 28)
 #define MX53_SMD_CSI0_RST       IMX_GPIO_NR(6, 9)
 #define MX53_SMD_CSI0_PWN       IMX_GPIO_NR(6, 10)
+#define MX53_SMD_ECSPI1_CS0	IMX_GPIO_NR(2, 30)
+#define MX53_SMD_ECSPI1_CS1	IMX_GPIO_NR(3, 19)
 
 extern int mx53_smd_init_da9052(void);
 
@@ -95,6 +103,15 @@ static iomux_v3_cfg_t mx53_smd_pads[] = {
 	/* I2C3 */
 	MX53_PAD_GPIO_3__I2C3_SCL,
 	MX53_PAD_GPIO_6__I2C3_SDA,
+
+	/* CSPI1 */
+	MX53_PAD_EIM_EB2__ECSPI1_SS0,
+	MX53_PAD_EIM_D16__ECSPI1_SCLK,
+	MX53_PAD_EIM_D17__ECSPI1_MISO,
+	MX53_PAD_EIM_D18__ECSPI1_MOSI,
+	MX53_PAD_EIM_D19__ECSPI1_SS1,
+	MX53_PAD_EIM_EB2__GPIO2_30,
+	MX53_PAD_EIM_D19__GPIO3_19,
 
 	/* SD1 */
 	MX53_PAD_SD1_CMD__ESDHC1_CMD,
@@ -371,6 +388,57 @@ static struct i2c_board_info mxc_i2c1_board_info[] __initdata = {
 	.platform_data = &mpr121_keyboard_platdata,
 	},
 };
+
+static int mx53_smd_spi_cs[] = {
+	MX53_SMD_ECSPI1_CS0,
+	MX53_SMD_ECSPI1_CS1,
+};
+
+static struct spi_imx_master mx53_smd_spi_data = {
+	.chipselect = mx53_smd_spi_cs,
+	.num_chipselect = ARRAY_SIZE(mx53_smd_spi_cs),
+};
+
+#if defined(CONFIG_MTD_M25P80) || defined(CONFIG_MTD_M25P80_MODULE)
+static struct mtd_partition m25p32_partitions[] = {
+	{
+	.name = "bootloader",
+	.offset = 0,
+	.size = 0x00040000,
+	},
+	{
+	.name = "kernel",
+	.offset = MTDPART_OFS_APPEND,
+	.size = MTDPART_SIZ_FULL,
+	},
+};
+
+static struct flash_platform_data m25p32_spi_flash_data = {
+	.name = "m25p32",
+	.parts = m25p32_partitions,
+	.nr_parts = ARRAY_SIZE(m25p32_partitions),
+	.type = "m25p32",
+};
+#endif
+
+static struct spi_board_info m25p32_spi0_board_info[] __initdata = {
+#if defined(CONFIG_MTD_M25P80) || defined(CONFIG_MTD_M25P80_MODULE)
+	{
+		/* The modalias must be the same as spi device driver name */
+		.modalias = "m25p80",
+		.max_speed_hz = 20000000,
+		.bus_num = 0,
+		.chip_select = 1,
+		.platform_data = &m25p32_spi_flash_data,
+	}
+#endif
+};
+
+static void spi_device_init(void)
+{
+	spi_register_board_info(m25p32_spi0_board_info,
+				ARRAY_SIZE(m25p32_spi0_board_info));
+}
 
 static void mxc_iim_enable_fuse(void)
 {
@@ -750,6 +818,7 @@ static void __init mx53_smd_board_init(void)
 	imx53_add_imx_i2c(0, &mx53_smd_i2c_data);
 	imx53_add_imx_i2c(1, &mx53_smd_i2c_data);
 	imx53_add_imx_i2c(2, &mx53_smd_i2c_data);
+	imx53_add_ecspi(0, &mx53_smd_spi_data);
 
 	imx53_add_ipuv3(&ipu_data);
 	imx53_add_vpu();
@@ -778,6 +847,8 @@ static void __init mx53_smd_board_init(void)
 	gpio_direction_output(MX53_SMD_CSI0_PWN, 1);
 	msleep(1);
 	gpio_set_value(MX53_SMD_CSI0_PWN, 0);
+
+	spi_device_init();
 
 	i2c_register_board_info(0, mxc_i2c0_board_info,
 				ARRAY_SIZE(mxc_i2c0_board_info));
