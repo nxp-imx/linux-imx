@@ -1,5 +1,5 @@
 /*
-  * Copyright (C) 2010 Freescale Semiconductor, Inc. All Rights Reserved.
+  * Copyright (C) 2010-2012 Freescale Semiconductor, Inc. All Rights Reserved.
   *
   * This program is distributed in the hope that it will be useful,
   * This program is free software; you can redistribute it and/or modify
@@ -73,7 +73,7 @@ static struct mxs_auart_plat_data mxs_auart1_platdata = {
 #ifdef CONFIG_MXS_AUART1_DMA_ENABLE
 	.dma_mode = 1,
 #endif
-	.dma_rx_buffer_size = 8,
+	.dma_rx_buffer_size = 4096,
 	.timeout = HZ,
 };
 #endif
