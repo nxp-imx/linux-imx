@@ -8,6 +8,7 @@
  *
  * Copyright (C) 2011 Freescale Semiconductor, Inc.
  */
+#include <linux/dma-mapping.h>
 #include <asm/sizes.h>
 #include <mach/hardware.h>
 #include <mach/devices-common.h>
