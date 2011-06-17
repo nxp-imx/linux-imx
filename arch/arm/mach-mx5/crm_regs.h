@@ -778,18 +778,16 @@
 #define MXC_SRPG_MEGAMIX_BASE	(MXC_GPC_BASE + 0x2E0)
 #define MXC_SRPG_EMI_BASE	(MXC_GPC_BASE + 0x300)
 
-/* CORTEXA8 platform */
-extern void __iomem *arm_plat_base;
-#define MXC_CORTEXA8_BASE		(arm_plat_base)
-#define MXC_CORTEXA8_PLAT_PVID		(arm_plat_base + 0x0)
-#define MXC_CORTEXA8_PLAT_GPC		(arm_plat_base + 0x4)
-#define MXC_CORTEXA8_PLAT_PIC		(arm_plat_base + 0x8)
-#define MXC_CORTEXA8_PLAT_LPC		(arm_plat_base + 0xC)
-#define MXC_CORTEXA8_PLAT_NEON_LPC	(arm_plat_base + 0x10)
-#define MXC_CORTEXA8_PLAT_ICGC		(arm_plat_base + 0x14)
-#define MXC_CORTEXA8_PLAT_AMC		(arm_plat_base + 0x18)
-#define MXC_CORTEXA8_PLAT_NMC		(arm_plat_base + 0x20)
-#define MXC_CORTEXA8_PLAT_NMS		(arm_plat_base + 0x24)
+/* CORTEXA8 platform offsets */
+#define MXC_CORTEXA8_PLAT_PVID		(0x0)
+#define MXC_CORTEXA8_PLAT_GPC			(0x4)
+#define MXC_CORTEXA8_PLAT_PIC			(0x8)
+#define MXC_CORTEXA8_PLAT_LPC			(0xC)
+#define MXC_CORTEXA8_PLAT_NEON_LPC	(0x10)
+#define MXC_CORTEXA8_PLAT_ICGC		(0x14)
+#define MXC_CORTEXA8_PLAT_AMC		(0x18)
+#define MXC_CORTEXA8_PLAT_NMC		(0x20)
+#define MXC_CORTEXA8_PLAT_NMS		(0x24)
 
 /* DVFS CORE */
 #define MXC_DVFSTHRS		(MXC_DVFS_CORE_BASE + 0x00)

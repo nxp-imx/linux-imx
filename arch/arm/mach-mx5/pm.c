@@ -44,6 +44,10 @@ static struct cpu_wp *cpu_wp_tbl;
 static int cpu_wp_nr;
 static struct clk *cpu_clk;
 static struct mxc_pm_platform_data *pm_data;
+static int databahn_mode;
+
+void __iomem *pll1_base;
+void __iomem *pm_ccm_base;
 
 #if defined(CONFIG_CPU_FREQ)
 static int org_freq;
@@ -57,6 +61,7 @@ struct clk *gpc_dvfs_clk;
 extern void cpu_do_suspend_workaround(u32 sdclk_iomux_addr);
 extern void mx50_suspend(u32 databahn_addr);
 extern struct cpu_wp *(*get_cpu_wp)(int *wp);
+extern void __iomem *ccm_base;
 extern void __iomem *databahn_base;
 extern void da9053_suspend_cmd_hw(void);
 extern int da9053_restore_volt_settings(void);
@@ -66,7 +71,7 @@ extern void pm_da9053_i2c_init(u32 base_addr);
 
 extern int iram_ready;
 void *suspend_iram_base;
-void (*suspend_in_iram)(void *param1) = NULL;
+void (*suspend_in_iram)(void *param1, void *param2, void* param3) = NULL;
 void __iomem *suspend_param1;
 
 #define TZIC_WAKEUP0_OFFSET            0x0E00
@@ -137,7 +142,7 @@ static int mx5_suspend_enter(suspend_state_t state)
 				}
 			}
 			/* Run the suspend code from iRAM. */
-			suspend_in_iram(suspend_param1);
+			suspend_in_iram(suspend_param1, NULL, NULL);
 			if (machine_is_mx53_smd() ||
 				(machine_is_mx53_loco() &&
 				(!board_is_mx53_loco_mc34708())))
@@ -151,8 +156,17 @@ static int mx5_suspend_enter(suspend_state_t state)
 				if (pm_data->suspend_enter)
 					pm_data->suspend_enter();
 
+				/* Store the LPM mode of databanhn */
+				databahn_mode = __raw_readl(
+					databahn_base + DATABAHN_CTL_REG20);
+
 				/* Suspend now. */
-				suspend_in_iram(databahn_base);
+				suspend_in_iram(databahn_base,
+						ccm_base, pll1_base);
+
+				/* Restore the LPM databahn_mode. */
+				__raw_writel(databahn_mode,
+					databahn_base + DATABAHN_CTL_REG20);
 
 				if (pm_data->suspend_exit)
 					pm_data->suspend_exit();
@@ -271,6 +285,8 @@ static int __init pm_init(void)
 		printk(KERN_ERR "mx5_pm_driver register failed\n");
 		return -ENODEV;
 	}
+	pll1_base = ioremap(MX53_BASE_ADDR(PLL1_BASE_ADDR), SZ_4K);
+
 	suspend_param1 = 0;
 	suspend_set_ops(&mx5_suspend_ops);
 	/* Move suspend routine into iRAM */
