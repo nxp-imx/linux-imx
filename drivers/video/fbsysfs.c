@@ -399,9 +399,12 @@ static ssize_t store_fbstate(struct device *device,
 
 	state = simple_strtoul(buf, &last, 0);
 
+	if (!lock_fb_info(fb_info))
+		return -ENODEV;
 	acquire_console_sem();
 	fb_set_suspend(fb_info, (int)state);
 	release_console_sem();
+	unlock_fb_info(fb_info);
 
 	return count;
 }
