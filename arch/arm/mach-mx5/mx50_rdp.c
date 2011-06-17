@@ -1938,6 +1938,13 @@ static void __init mxc_board_init(void)
 	mxc_register_device(&mxcspi1_device, &mxcspi1_data);
 	mxc_register_device(&mxcspi3_device, &mxcspi3_data);
 
+	if (board_is_mx50_rd3())
+		dvfs_core_data.reg_id = "SW1A";
+	mxc_register_device(&mxc_dvfs_core_device, &dvfs_core_data);
+	if (board_is_mx50_rd3())
+		bus_freq_data.gp_reg_id = "SW1A";
+	mxc_register_device(&busfreq_device, &bus_freq_data);
+
 	mxc_register_device(&mxc_dma_device, NULL);
 	mxc_register_device(&mxs_dma_apbh_device, &dma_apbh_data);
 	mxc_register_device(&mxc_wdt_device, NULL);
@@ -1951,13 +1958,7 @@ static void __init mxc_board_init(void)
 	mxc_register_device(&mxc_pxp_device, NULL);
 	mxc_register_device(&mxc_pxp_client_device, NULL);
 	mxc_register_device(&mxc_pxp_v4l2, NULL);
-	if (board_is_mx50_rd3())
-		bus_freq_data.gp_reg_id = "SW1A";
-	mxc_register_device(&busfreq_device, &bus_freq_data);
 	mxc_register_device(&pm_device, &mx50_pm_data);
-	if (board_is_mx50_rd3())
-		dvfs_core_data.reg_id = "SW1A";
-	mxc_register_device(&mxc_dvfs_core_device, &dvfs_core_data);
 	if (enable_keypad)
 		mxc_register_device(&mxc_keypad_device, &keypad_plat_data);
 

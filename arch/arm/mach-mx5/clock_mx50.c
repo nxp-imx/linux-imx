@@ -505,6 +505,77 @@ static struct clk pfd7_clk = {
 	.flags = RATE_PROPAGATES | AHB_MED_SET_POINT | CPU_FREQ_TRIG_UPDATE,
 };
 
+static int do_workaround;
+
+static void do_pll_workaround(struct clk *clk, unsigned long rate)
+{
+	u32 reg;
+
+	/*
+	  * Need to apply the PLL1 workaround. Set the PLL initially to 864MHz
+	  * and then relock it to 800MHz.
+	  */
+	/* Disable the auto-restart bit o f PLL1. */
+	reg = __raw_readl(pll1_base + MXC_PLL_DP_CONFIG);
+	reg &= ~MXC_PLL_DP_CONFIG_AREN;
+	__raw_writel(reg, pll1_base + MXC_PLL_DP_CONFIG);
+
+	/* Configure the PLL1 to 864MHz.
+	  * MFI =8
+	  * MFN = 180
+	  * MFD = 179
+	  * PDF = 0
+	  */
+	/* MFI & PFD */
+	reg = 0x80;
+	__raw_writel(reg, pll1_base + MXC_PLL_DP_OP);
+	__raw_writel(reg, pll1_base + MXC_PLL_DP_HFS_OP);
+
+	/* MFD */
+	reg = 179;
+	__raw_writel(reg, pll1_base + MXC_PLL_DP_MFD);
+	__raw_writel(reg, pll1_base + MXC_PLL_DP_HFS_MFD);
+
+	/* MFN */
+	reg = 180;
+	__raw_writel(reg, pll1_base + MXC_PLL_DP_MFN);
+	__raw_writel(reg, pll1_base + MXC_PLL_DP_HFS_MFN);
+
+	/* Restart PLL1. */
+	reg = (MXC_PLL_DP_CTL_DPDCK0_2_EN
+			| (2 << MXC_PLL_DP_CTL_REF_CLK_SEL_OFFSET)
+			| MXC_PLL_DP_CTL_UPEN | MXC_PLL_DP_CTL_RST
+			| MXC_PLL_DP_CTL_PLM | MXC_PLL_DP_CTL_BRM0);
+	__raw_writel(reg, pll1_base + MXC_PLL_DP_CTL);
+
+	/* Poll the lock bit. */
+	if (!WAIT(__raw_readl(pll1_base + MXC_PLL_DP_CTL) & MXC_PLL_DP_CTL_LRF,
+				SPIN_DELAY))
+		panic("pll1_set_rate relock failed\n");
+
+	/* Now update the MFN so that PLL1 is at 800MHz. */
+	reg = 60;
+	__raw_writel(reg, pll1_base + MXC_PLL_DP_MFN);
+	__raw_writel(reg, pll1_base + MXC_PLL_DP_HFS_MFN);
+
+	/* Set the LDREQ bit. */
+	reg = __raw_readl(pll1_base + MXC_PLL_DP_CONFIG);
+	reg |= MXC_PLL_DP_CONFIG_LDREQ;
+	__raw_writel(reg, pll1_base + MXC_PLL_DP_CONFIG);
+
+	/* Poll the LDREQ bit. - cleared means
+	  * DPLL has finished updating MFN.
+	  */
+	while (__raw_readl(pll1_base + MXC_PLL_DP_CONFIG)
+			& MXC_PLL_DP_CONFIG_LDREQ)
+		;
+
+	/* Now delay for 4usecs. */
+	udelay(10);
+
+	do_workaround = 0;
+}
+
 static unsigned long _clk_pll_get_rate(struct clk *clk)
 {
 	long mfi, mfn, mfd, pdf, ref_clk, mfn_abs;
@@ -614,8 +685,13 @@ static int _clk_pll_enable(struct clk *clk)
 {
 	u32 reg;
 	void __iomem *pllbase;
+	u32 rate = clk_get_rate(clk);
 
 	pllbase = _get_pll_base(clk);
+
+	if (do_workaround && rate > 700000000)
+		do_pll_workaround(clk, rate);
+
 	reg = __raw_readl(pllbase + MXC_PLL_DP_CTL);
 
 	if (reg & MXC_PLL_DP_CTL_UPEN)
@@ -639,12 +715,40 @@ static void _clk_pll_disable(struct clk *clk)
 	pllbase = _get_pll_base(clk);
 	reg = __raw_readl(pllbase + MXC_PLL_DP_CTL) & ~MXC_PLL_DP_CTL_UPEN;
 	__raw_writel(reg, pllbase + MXC_PLL_DP_CTL);
+	if (clk == &pll1_main_clk)
+		do_workaround = 1;
+}
+
+static int _clk_pll1_set_rate(struct clk *clk, unsigned long rate)
+{
+	u32 reg;
+
+	if (rate < 700000000) {
+		/* Clear the PLM bit. */
+		reg = __raw_readl(pll1_base + MXC_PLL_DP_CTL);
+		reg &= ~MXC_PLL_DP_CTL_PLM;
+		__raw_writel(reg, pll1_base + MXC_PLL_DP_CTL);
+
+		/* Enable the auto-restart bit o f PLL1. */
+		reg = __raw_readl(pll1_base + MXC_PLL_DP_CONFIG);
+		reg |= MXC_PLL_DP_CONFIG_AREN;
+		__raw_writel(reg, pll1_base + MXC_PLL_DP_CONFIG);
+
+		_clk_pll_set_rate(clk, rate);
+	} else {
+		/* Above 700MHz, only 800MHz freq is supported. */
+		if (rate != 800000000)
+			return -EINVAL;
+		do_pll_workaround(clk, rate);
+	}
+
+	return 0;
 }
 
 static struct clk pll1_main_clk = {
 	.parent = &osc_clk,
 	.get_rate = _clk_pll_get_rate,
-	.set_rate = _clk_pll_set_rate,
+	.set_rate = _clk_pll1_set_rate,
 	.enable = _clk_pll_enable,
 	.disable = _clk_pll_disable,
 	.flags = RATE_PROPAGATES,
