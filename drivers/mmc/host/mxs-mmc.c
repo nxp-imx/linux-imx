@@ -3,7 +3,7 @@
  * Portions copyright (C) 2004-2005 Pierre Ossman, W83L51xD SD/MMC driver
  *
  * Copyright 2008 Embedded Alley Solutions, Inc.
- * Copyright 2009-2010 Freescale Semiconductor, Inc.
+ * Copyright 2009-2011 Freescale Semiconductor, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -141,6 +141,7 @@ struct mxs_mmc_host {
 
 	spinlock_t lock;
 	int sdio_irq_en;
+	int pio_size;
 };
 
 /* Return read only state of card */
@@ -249,7 +250,6 @@ static void mxs_mmc_bc(struct mxs_mmc_host *host)
 {
 	struct mmc_command *cmd = host->cmd;
 	struct mxs_dma_desc *dma_desc = host->dma_desc;
-	unsigned long flags;
 
 	dma_desc->cmd.cmd.bits.command = NO_DMA_XFER;
 	dma_desc->cmd.cmd.bits.irq = 1;
@@ -298,7 +298,6 @@ static void mxs_mmc_ac(struct mxs_mmc_host *host)
 	u32 ssp_ctrl0;
 	u32 ssp_cmd0;
 	u32 ssp_cmd1;
-	unsigned long flags;
 
 	ignore_crc = (mmc_resp_type(cmd) & MMC_RSP_CRC) ?
 	    0 : BM_SSP_CTRL0_IGNORE_CRC;
@@ -451,7 +450,7 @@ static void __init_reg(struct device *dev, struct regulator **pp_reg)
 }
 
 /* Send adtc command to the card */
-static void mxs_mmc_adtc(struct mxs_mmc_host *host)
+static void mxs_mmc_adtc(struct mxs_mmc_host *host, int polling_mode)
 {
 	struct mmc_command *cmd = host->cmd;
 	struct mxs_dma_desc *dma_desc = host->dma_desc;
@@ -468,7 +467,7 @@ static void mxs_mmc_adtc(struct mxs_mmc_host *host)
 
 	u32 data_size = cmd->data->blksz * cmd->data->blocks;
 	u32 log2_block_size;
-	unsigned long flags;
+	u32 transfer_size = data_size;
 
 	ignore_crc = mmc_resp_type(cmd) & MMC_RSP_CRC ? 0 : 1;
 	resp = mmc_resp_type(cmd) & MMC_RSP_PRESENT ? 1 : 0;
@@ -483,8 +482,8 @@ static void mxs_mmc_adtc(struct mxs_mmc_host *host)
 
 	if (cmd->data->flags & MMC_DATA_WRITE) {
 		dev_dbg(host->dev, "Data Write\n");
-		copy_size = mxs_sg_dma_copy(host, data_size, 1);
-		BUG_ON(copy_size < data_size);
+		if (!polling_mode)
+			copy_size = mxs_sg_dma_copy(host, data_size, 1);
 		is_reading = 0;
 		if (!host->regulator)
 			__init_reg(host->dev, &host->regulator);
@@ -510,6 +509,9 @@ static void mxs_mmc_adtc(struct mxs_mmc_host *host)
 	BUG_ON(cmd->data->flags & MMC_DATA_STREAM);
 	/* BUG_ON((data_size % 8) > 0); */
 
+	if (polling_mode)
+		goto skip_dma_setup1;
+
 	/* when is_reading is set, DMA controller performs WRITE operation. */
 	dma_desc->cmd.cmd.bits.command = is_reading ? DMA_WRITE : DMA_READ;
 	dma_desc->cmd.cmd.bits.irq = 1;
@@ -518,6 +520,7 @@ static void mxs_mmc_adtc(struct mxs_mmc_host *host)
 	dma_desc->cmd.cmd.bits.pio_words = 3;
 	dma_desc->cmd.cmd.bits.bytes = data_size;
 
+skip_dma_setup1:
 	ssp_ver_major = __raw_readl(host->ssp_base + HW_SSP_VERSION) >> 24;
 	dev_dbg(host->dev, "ssp ver major is 0x%x\n", ssp_ver_major);
 	if (ssp_ver_major > 3) {
@@ -607,25 +610,112 @@ static void mxs_mmc_adtc(struct mxs_mmc_host *host)
 
 	ssp_cmd1 = BF(cmd->arg, SSP_CMD1_CMD_ARG);
 
-	dma_desc->cmd.pio_words[0] = ssp_ctrl0;
-	dma_desc->cmd.pio_words[1] = ssp_cmd0;
-	dma_desc->cmd.pio_words[2] = ssp_cmd1;
+	if (!polling_mode) {
+		dma_desc->cmd.pio_words[0] = ssp_ctrl0;
+		dma_desc->cmd.pio_words[1] = ssp_cmd0;
+		dma_desc->cmd.pio_words[2] = ssp_cmd1;
 
-	/* Set the timeout count */
-	timeout = mxs_ns_to_ssp_ticks(host->clkrt, cmd->data->timeout_ns);
-	val = __raw_readl(host->ssp_base + HW_SSP_TIMING);
-	val &= ~(BM_SSP_TIMING_TIMEOUT);
-	val |= BF(timeout, SSP_TIMING_TIMEOUT);
-	__raw_writel(val, host->ssp_base + HW_SSP_TIMING);
+		/* Set the timeout count */
+		timeout = mxs_ns_to_ssp_ticks(host->clkrt, \
+			cmd->data->timeout_ns);
+		val = __raw_readl(host->ssp_base + HW_SSP_TIMING);
+		val &= ~(BM_SSP_TIMING_TIMEOUT);
+		val |= BF(timeout, SSP_TIMING_TIMEOUT);
+		__raw_writel(val, host->ssp_base + HW_SSP_TIMING);
 
-	init_completion(&host->dma_done);
-	mxs_dma_reset(host->dmach);
-	if (mxs_dma_desc_append(host->dmach, host->dma_desc) < 0)
-		dev_err(host->dev, "mmc_dma_desc_append failed\n");
-	dev_dbg(host->dev, "%s start DMA.\n", __func__);
-	if (mxs_dma_enable(host->dmach) < 0)
-		dev_err(host->dev, "mmc_dma_enable failed\n");
-	wait_for_completion(&host->dma_done);
+		init_completion(&host->dma_done);
+		mxs_dma_reset(host->dmach);
+		if (mxs_dma_desc_append(host->dmach, host->dma_desc) < 0)
+			dev_err(host->dev, "mmc_dma_desc_append failed\n");
+		dev_dbg(host->dev, "%s start DMA.\n", __func__);
+		if (mxs_dma_enable(host->dmach) < 0)
+			dev_err(host->dev, "mmc_dma_enable failed\n");
+		wait_for_completion(&host->dma_done);
+	} else {
+		int index = 0;
+		int len;
+		struct scatterlist *sg;
+		int size;
+		char *sgbuf;
+		u8 *p;
+		u32 data, status;
+		u32 ssp_status = (u32)host->ssp_base + HW_SSP_STATUS;
+		u32 ssp_data = (u32)host->ssp_base + HW_SSP_DATA;
+		u32 ssp_ctl0 = (u32)host->ssp_base + HW_SSP_CTRL0;
+
+		sg = host->cmd->data->sg;
+		len = host->cmd->data->sg_len;
+
+		__raw_writel(ssp_ctrl0, host->ssp_base + HW_SSP_CTRL0);
+		__raw_writel(ssp_cmd0, host->ssp_base + HW_SSP_CMD0);
+		__raw_writel(ssp_cmd1, host->ssp_base + HW_SSP_CMD1);
+
+		init_completion(&host->dma_done);
+		__raw_writel(BM_SSP_CTRL0_RUN, ssp_ctl0 + 4);
+
+		while (__raw_readl(host->ssp_base + HW_SSP_CTRL0) & \
+			BM_SSP_STATUS_CMD_BUSY)
+			continue;
+
+		while (transfer_size) {
+			sgbuf = kmap_atomic(sg_page(&sg[index]), \
+				KM_BIO_SRC_IRQ) + sg[index].offset;
+
+			p = (u8 *)sgbuf;
+			size = transfer_size < sg[index].length ? \
+				transfer_size : sg[index].length;
+
+			if (is_reading) {
+				while (size) {
+					status = __raw_readl(ssp_status);
+					if (status & BM_SSP_STATUS_FIFO_EMPTY)
+						continue;
+					data = __raw_readl(ssp_data);
+					if ((u32)p & 0x3) {
+						*p++ = data & 0xff;
+						*p++ = (data >> 8) & 0xff;
+						*p++ = (data >> 16) & 0xff;
+						*p++ = (data >> 24) & 0xff;
+					} else {
+						*(u32 *)p = data;
+						p += 4;
+					}
+					transfer_size -= 4;
+					size -= 4;
+				}
+			} else {
+				while (size) {
+					status = __raw_readl(ssp_status);
+					if (status & BM_SSP_STATUS_FIFO_FULL)
+						continue;
+					if ((u32)p & 0x3)
+						data = p[0] | \
+							(p[1] << 8) | \
+							(p[2] << 16) | \
+							(p[3] << 24);
+					else
+						data = *(u32 *)p;
+
+					__raw_writel(data, ssp_data);
+					transfer_size -= 4;
+					size -= 4;
+					p += 4;
+				}
+			}
+			kunmap_atomic(sgbuf, KM_BIO_SRC_IRQ);
+			index++;
+		}
+		status = BM_SSP_STATUS_BUSY | \
+			BM_SSP_STATUS_DATA_BUSY | \
+			BM_SSP_STATUS_CMD_BUSY;
+		while (__raw_readl(host->ssp_base + HW_SSP_STATUS) & status)
+			continue;
+
+		cmd->data->bytes_xfered = data_size;
+
+		host->status =
+			__raw_readl(host->ssp_base + HW_SSP_STATUS);
+	}
 	if (host->regulator)
 		regulator_set_current_limit(host->regulator, 0, 0);
 
@@ -658,8 +748,12 @@ static void mxs_mmc_adtc(struct mxs_mmc_host *host)
 
 	if (cmd->error) {
 		dev_dbg(host->dev, "Command error 0x%x\n", cmd->error);
+		if (polling_mode)
+			return;
 		mxs_dma_reset(host->dmach);
 	} else {
+		if (polling_mode)
+			return;
 		if (is_reading) {
 			cmd->data->bytes_xfered =
 			    mxs_sg_dma_copy(host, data_size, 0);
@@ -676,6 +770,8 @@ static void mxs_mmc_adtc(struct mxs_mmc_host *host)
 static void mxs_mmc_start_cmd(struct mxs_mmc_host *host,
 				   struct mmc_command *cmd)
 {
+	int data_size = 0;
+
 	dev_dbg(host->dev, "MMC command:\n"
 		"type: 0x%x opcode: %u, arg: %u, flags 0x%x retries: %u\n",
 		mmc_cmd_type(cmd), cmd->opcode, cmd->arg, cmd->flags,
@@ -694,7 +790,8 @@ static void mxs_mmc_start_cmd(struct mxs_mmc_host *host,
 		mxs_mmc_ac(host);
 		break;
 	case MMC_CMD_ADTC:
-		mxs_mmc_adtc(host);
+		data_size = host->cmd->data->blksz * host->cmd->data->blocks;
+		mxs_mmc_adtc(host, data_size < host->pio_size);
 		break;
 	default:
 		dev_warn(host->dev, "Unknown MMC command\n");
@@ -1107,7 +1204,7 @@ static int __init mxs_mmc_probe(struct platform_device *pdev)
 	host->dev = dev;
 
 	host->sdio_irq_en = 0;
-
+	host->pio_size = 0;
 	/* Set minimal clock rate */
 	host->clk = clk_get(dev, mmc_data->clock_mmc);
 	if (IS_ERR(host->clk)) {
