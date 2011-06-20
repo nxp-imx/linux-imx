@@ -3872,29 +3872,6 @@ static int _clk_vpu_set_parent(struct clk *clk, struct clk *parent)
 	return 0;
 }
 
-static int _clk_vpu_enable(struct clk *clk)
-{
-	/* Set VPU's parent to be axi_a or ahb when its enabled. */
-	if (cpu_is_mx51()) {
-		clk_set_parent(&vpu_clk[0], &axi_a_clk);
-		clk_set_parent(&vpu_clk[1], &axi_a_clk);
-	}
-
-	return _clk_enable(clk);
-
-}
-
-static void _clk_vpu_disable(struct clk *clk)
-{
-	_clk_disable(clk);
-
-	/* Set VPU's parent to be axi_b when its disabled. */
-	if (cpu_is_mx51()) {
-		clk_set_parent(&vpu_clk[0], &axi_b_clk);
-		clk_set_parent(&vpu_clk[1], &axi_b_clk);
-	}
-}
-
 static struct clk vpu_clk[] = {
 	{
 	 .set_parent = _clk_vpu_set_parent,
@@ -3907,17 +3884,15 @@ static struct clk vpu_clk[] = {
 	 },
 	{
 	 .set_parent = _clk_vpu_set_parent,
-	 .enable = _clk_vpu_enable,
+	 .enable = _clk_enable,
 	 .enable_reg = MXC_CCM_CCGR5,
 	 .enable_shift = MXC_CCM_CCGRx_CG3_OFFSET,
-	 .disable = _clk_vpu_disable,
+	 .disable = _clk_disable,
 	 .secondary = &vpu_clk[2],
 	 },
 	{
 	 .parent = &emi_fast_clk,
-#ifdef CONFIG_MXC_VPU_IRAM
 	 .secondary = &emi_intr_clk[0],
-#endif
 	 }
 };
 
@@ -4623,8 +4598,8 @@ int __init mx51_clocks_init(unsigned long ckil, unsigned long osc, unsigned long
 	/* Initialise the parents to be axi_b, parents are set to
 	 * axi_a when the clocks are enabled.
 	 */
-	clk_set_parent(&vpu_clk[0], &axi_b_clk);
-	clk_set_parent(&vpu_clk[1], &axi_b_clk);
+	clk_set_parent(&vpu_clk[0], &axi_a_clk);
+	clk_set_parent(&vpu_clk[1], &axi_a_clk);
 	clk_set_parent(&gpu3d_clk[0], &axi_a_clk);
 	clk_set_parent(&gpu2d_clk, &axi_a_clk);
 
