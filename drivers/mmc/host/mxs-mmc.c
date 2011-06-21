@@ -182,14 +182,16 @@ static void mxs_mmc_detect_poll(unsigned long arg)
 	mod_timer(&host->timer, jiffies + MXS_MMC_DETECT_TIMEOUT);
 }
 
-#define MXS_MMC_IRQ_BITS  (BM_SSP_CTRL1_SDIO_IRQ		| \
-				BM_SSP_CTRL1_RESP_ERR_IRQ	| \
+#define MXS_MMC_ERR_IRQ_BITS  (BM_SSP_CTRL1_RESP_ERR_IRQ	| \
 				BM_SSP_CTRL1_RESP_TIMEOUT_IRQ	| \
 				BM_SSP_CTRL1_DATA_TIMEOUT_IRQ	| \
 				BM_SSP_CTRL1_DATA_CRC_IRQ	| \
 				BM_SSP_CTRL1_FIFO_UNDERRUN_IRQ	| \
 				BM_SSP_CTRL1_RECV_TIMEOUT_IRQ   | \
 				BM_SSP_CTRL1_FIFO_OVERRUN_IRQ)
+
+#define MXS_MMC_IRQ_BITS  (BM_SSP_CTRL1_SDIO_IRQ		| \
+				MXS_MMC_ERR_IRQ_BITS)
 
 #define MXS_MMC_ERR_BITS (BM_SSP_CTRL1_RESP_ERR_IRQ       | \
 				BM_SSP_CTRL1_RESP_TIMEOUT_IRQ   | \
@@ -205,8 +207,12 @@ static irqreturn_t mmc_irq_handler(int irq, void *dev_id)
 	LIST_HEAD(list);
 
 	c1 = __raw_readl(host->ssp_base + HW_SSP_CTRL1);
-	__raw_writel(c1 & MXS_MMC_IRQ_BITS,
-			host->ssp_base + HW_SSP_CTRL1_CLR);
+	if (irq == host->dmairq)
+		__raw_writel(c1 & MXS_MMC_ERR_IRQ_BITS,
+				host->ssp_base + HW_SSP_CTRL1_CLR);
+	else
+		__raw_writel(c1 & MXS_MMC_IRQ_BITS,
+				host->ssp_base + HW_SSP_CTRL1_CLR);
 	if (irq == host->dmairq) {
 		dev_dbg(host->dev, "dma irq 0x%x and stop DMA.\n", irq);
 		mxs_dma_ack_irq(host->dmach);
@@ -222,7 +228,8 @@ static irqreturn_t mmc_irq_handler(int irq, void *dev_id)
 		}
 
 	if ((c1 & BM_SSP_CTRL1_SDIO_IRQ) && (c1 & BM_SSP_CTRL1_SDIO_IRQ_EN))
-		mmc_signal_sdio_irq(host->mmc);
+		if (irq == host->errirq)
+			mmc_signal_sdio_irq(host->mmc);
 
 	return IRQ_HANDLED;
 }
@@ -293,7 +300,7 @@ static void mxs_mmc_bc(struct mxs_mmc_host *host)
 	host->status =
 		__raw_readl(host->ssp_base + HW_SSP_STATUS);
 	c1 = __raw_readl(host->ssp_base + HW_SSP_CTRL1);
-	__raw_writel(c1 & MXS_MMC_IRQ_BITS,
+	__raw_writel(c1 & MXS_MMC_ERR_IRQ_BITS,
 			host->ssp_base + HW_SSP_CTRL1_CLR);
 	/* reenable these bits */
 	__raw_writel(ssp_ctrl1, host->ssp_base + HW_SSP_CTRL1_SET);
@@ -359,7 +366,7 @@ static void mxs_mmc_ac(struct mxs_mmc_host *host)
 	host->status =
 		__raw_readl(host->ssp_base + HW_SSP_STATUS);
 	c1 = __raw_readl(host->ssp_base + HW_SSP_CTRL1);
-	__raw_writel(c1 & MXS_MMC_IRQ_BITS,
+	__raw_writel(c1 & MXS_MMC_ERR_IRQ_BITS,
 			host->ssp_base + HW_SSP_CTRL1_CLR);
 	/* reenable these bits */
 	__raw_writel(ssp_ctrl1, host->ssp_base + HW_SSP_CTRL1_SET);
@@ -826,7 +833,7 @@ skip_dma_setup1:
 		host->status =
 			__raw_readl(host->ssp_base + HW_SSP_STATUS);
 		c1 = __raw_readl(host->ssp_base + HW_SSP_CTRL1);
-		__raw_writel(c1 & MXS_MMC_IRQ_BITS,
+		__raw_writel(c1 & MXS_MMC_ERR_IRQ_BITS,
 			host->ssp_base + HW_SSP_CTRL1_CLR);
 		/* reenable these bits */
 		__raw_writel(ssp_ctrl1, host->ssp_base + HW_SSP_CTRL1_SET);
