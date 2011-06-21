@@ -2748,7 +2748,27 @@ static int mxc_epdc_fb_blank(int blank, struct fb_info *info)
 		mxc_epdc_fb_flush_updates(fb_data);
 		/* Wait for powerdown */
 		mutex_lock(&fb_data->power_mutex);
-		if (fb_data->power_state != POWER_STATE_OFF) {
+		if ((fb_data->power_state == POWER_STATE_ON) &&
+			(fb_data->pwrdown_delay == FB_POWERDOWN_DISABLE)) {
+
+			/* Powerdown disabled, so we disable EPDC manually */
+			int count = 0;
+			int sleep_ms = 10;
+
+			mutex_unlock(&fb_data->power_mutex);
+
+			/* If any active updates, wait for them to complete */
+			while (fb_data->updates_active) {
+				/* Timeout after 1 sec */
+				if ((count * sleep_ms) > 1000)
+					break;
+				msleep(sleep_ms);
+				count++;
+			}
+
+			fb_data->powering_down = true;
+			epdc_powerdown(fb_data);
+		} else if (fb_data->power_state != POWER_STATE_OFF) {
 			fb_data->wait_for_powerdown = true;
 			init_completion(&fb_data->powerdown_compl);
 			mutex_unlock(&fb_data->power_mutex);
