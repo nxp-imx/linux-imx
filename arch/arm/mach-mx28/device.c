@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2009-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -565,6 +565,7 @@ static struct mxs_mmc_platform_data mmc0_data = {
 	.write_uA       = 70000,
 	.clock_mmc = "ssp.0",
 	.power_mmc = NULL,
+	.fastpath_sz = 1024,
 };
 
 static struct resource mmc0_resource[] = {
@@ -604,6 +605,7 @@ static struct mxs_mmc_platform_data mmc1_data = {
 	.write_uA       = 70000,
 	.clock_mmc = "ssp.1",
 	.power_mmc = NULL,
+	.fastpath_sz = 1024,
 };
 
 static struct resource mmc1_resource[] = {
