@@ -74,12 +74,12 @@ static ssize_t otp_show(struct kobject *kobj, struct kobj_attribute *attr,
 
 	mutex_lock(&otp_mutex);
 
-	if (otp_read_prepare()) {
+	if (otp_read_prepare(otp_data)) {
 		mutex_unlock(&otp_mutex);
 		return 0;
 	}
 	value = __raw_readl(REGS_OCOTP_BASE + HW_OCOTP_CUSTn(index));
-	otp_read_post();
+	otp_read_post(otp_data);
 
 	mutex_unlock(&otp_mutex);
 	return sprintf(buf, "0x%x\n", value);
@@ -122,7 +122,7 @@ static ssize_t otp_store(struct kobject *kobj, struct kobj_attribute *attr,
 		return 0;
 	}
 	otp_write_bits(index, value, 0x3e77);
-	otp_write_post();
+	otp_write_post(otp_data);
 	mutex_unlock(&otp_mutex);
 	return count;
 }
