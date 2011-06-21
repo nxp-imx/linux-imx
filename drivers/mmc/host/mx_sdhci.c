@@ -1821,6 +1821,7 @@ static int sdhci_suspend(struct platform_device *pdev, pm_message_t state)
 {
 	struct sdhci_chip *chip;
 	int i, ret;
+	struct mmc_host *mmc;
 
 	chip = dev_get_drvdata(&pdev->dev);
 	if (!chip)
@@ -1831,10 +1832,12 @@ static int sdhci_suspend(struct platform_device *pdev, pm_message_t state)
 	for (i = 0; i < chip->num_slots; i++) {
 		if (!chip->hosts[i])
 			continue;
-		ret = mmc_suspend_host(chip->hosts[i]->mmc);
+
+		mmc = chip->hosts[i]->mmc;
+		ret = mmc_suspend_host(mmc);
 		if (ret) {
 			for (i--; i >= 0; i--)
-				mmc_resume_host(chip->hosts[i]->mmc);
+				mmc_resume_host(mmc);
 			return ret;
 		}
 	}
@@ -1842,7 +1845,10 @@ static int sdhci_suspend(struct platform_device *pdev, pm_message_t state)
 	for (i = 0; i < chip->num_slots; i++) {
 		if (!chip->hosts[i])
 			continue;
-		free_irq(chip->hosts[i]->irq, chip->hosts[i]);
+		mmc = chip->hosts[i]->mmc;
+		/* Only free irq when not require sdio irq wake up. */
+		if (mmc && !(mmc->pm_flags & MMC_PM_WAKE_SDIO_IRQ))
+			free_irq(chip->hosts[i]->irq, chip->hosts[i]);
 	}
 
 	return 0;
@@ -1851,6 +1857,7 @@ static int sdhci_suspend(struct platform_device *pdev, pm_message_t state)
 static int sdhci_resume(struct platform_device *pdev)
 {
 	struct sdhci_chip *chip;
+	struct mmc_host *mmc;
 	int i, ret;
 
 	chip = dev_get_drvdata(&pdev->dev);
@@ -1862,12 +1869,16 @@ static int sdhci_resume(struct platform_device *pdev)
 	for (i = 0; i < chip->num_slots; i++) {
 		if (!chip->hosts[i])
 			continue;
-		ret = request_irq(chip->hosts[i]->irq, sdhci_irq,
-				  IRQF_SHARED,
-				  mmc_hostname(chip->hosts[i]->mmc),
-				  chip->hosts[i]);
-		if (ret)
-			return ret;
+		mmc = chip->hosts[i]->mmc;
+		/* Only request irq when not require sdio irq wake up. */
+		if (mmc && !(mmc->pm_flags & MMC_PM_WAKE_SDIO_IRQ)) {
+			ret = request_irq(chip->hosts[i]->irq, sdhci_irq,
+					  IRQF_SHARED,
+					  mmc_hostname(chip->hosts[i]->mmc),
+					  chip->hosts[i]);
+			if (ret)
+				return ret;
+		}
 		sdhci_init(chip->hosts[i]);
 		chip->hosts[i]->init_flag = 2;
 		mmiowb();
@@ -2001,6 +2012,8 @@ static int __devinit sdhci_probe_slot(struct platform_device
 		ret = -ENOMEM;
 		goto out3;
 	}
+
+	mmc->pm_caps = MMC_PM_KEEP_POWER | MMC_PM_WAKE_SDIO_IRQ;
 
 	if (host->plat_data->usdhc_en && sdhci_is_usdhc(host))
 		sdhci_usdhc_select(host);
