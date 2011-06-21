@@ -235,8 +235,6 @@ static irqreturn_t vpu_irq_handler(int irq, void *dev_id)
 static int vpu_open(struct inode *inode, struct file *filp)
 {
 	spin_lock(&vpu_lock);
-	if ((open_count++ == 0) && cpu_is_mx32())
-		vl2cc_enable();
 	filp->private_data = (void *)(&vpu_data);
 	spin_unlock(&vpu_lock);
 	return 0;
@@ -339,11 +337,6 @@ static long vpu_ioctl(struct file *filp, u_int cmd,
 				codec_done = 0;
 			break;
 		}
-	case VPU_IOC_VL2CC_FLUSH:
-		if (cpu_is_mx32()) {
-			vl2cc_flush();
-		}
-		break;
 	case VPU_IOC_IRAM_SETTING:
 		{
 			ret = copy_to_user((void __user *)arg, &iram,
@@ -421,54 +414,6 @@ static long vpu_ioctl(struct file *filp, u_int cmd,
 			}
 			break;
 		}
-	case VPU_IOC_GET_PIC_PARA_ADDR:
-		{
-			if (pic_para_mem.cpu_addr != 0) {
-				ret =
-				    copy_to_user((void __user *)arg,
-						 &pic_para_mem,
-						 sizeof(struct vpu_mem_desc));
-				break;
-			} else {
-				if (copy_from_user(&pic_para_mem,
-						   (struct vpu_mem_desc *)arg,
-						   sizeof(struct vpu_mem_desc)))
-					return -EFAULT;
-
-				if (vpu_alloc_dma_buffer(&pic_para_mem) == -1)
-					ret = -EFAULT;
-				else if (copy_to_user((void __user *)arg,
-						      &pic_para_mem,
-						      sizeof(struct
-							     vpu_mem_desc)))
-					ret = -EFAULT;
-			}
-			break;
-		}
-	case VPU_IOC_GET_USER_DATA_ADDR:
-		{
-			if (user_data_mem.cpu_addr != 0) {
-				ret =
-				    copy_to_user((void __user *)arg,
-						 &user_data_mem,
-						 sizeof(struct vpu_mem_desc));
-				break;
-			} else {
-				if (copy_from_user(&user_data_mem,
-						   (struct vpu_mem_desc *)arg,
-						   sizeof(struct vpu_mem_desc)))
-					return -EFAULT;
-
-				if (vpu_alloc_dma_buffer(&user_data_mem) == -1)
-					ret = -EFAULT;
-				else if (copy_to_user((void __user *)arg,
-						      &user_data_mem,
-						      sizeof(struct
-							     vpu_mem_desc)))
-					ret = -EFAULT;
-			}
-			break;
-		}
 	case VPU_IOC_SYS_SW_RESET:
 		{
 			if (vpu_plat->reset)
@@ -498,9 +443,6 @@ static int vpu_release(struct inode *inode, struct file *filp)
 	spin_lock(&vpu_lock);
 	if (open_count > 0 && !(--open_count)) {
 		vpu_free_buffers();
-
-		if (cpu_is_mx32())
-			vl2cc_disable();
 
 		/* Free shared memory when vpu device is idle */
 		vpu_free_dma_buffer(&share_mem);
@@ -603,12 +545,6 @@ static int vpu_dev_probe(struct platform_device *pdev)
 		iram.end = addr +  vpu_plat->iram_size - 1;
 	}
 
-	if (cpu_is_mx32()) {
-		err = vl2cc_init(iram.start);
-		if (err != 0)
-			return err;
-	}
-
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	if (!res) {
 		printk(KERN_ERR "vpu: unable to get vpu base addr\n");
@@ -668,9 +604,6 @@ static int vpu_dev_probe(struct platform_device *pdev)
 	unregister_chrdev(vpu_major, "mxc_vpu");
       error:
 	iounmap(vpu_base);
-	if (cpu_is_mx32()) {
-		vl2cc_cleanup();
-	}
       out:
 	return err;
 }
@@ -713,7 +646,7 @@ static int vpu_suspend(struct platform_device *pdev, pm_message_t state)
 	for (i = 0; i < vpu_clk_usercount; i++)
 		clk_disable(vpu_clk);
 
-	if (!cpu_is_mx53()) {
+	if (cpu_is_mx51()) {
 		clk_enable(vpu_clk);
 		if (bitwork_mem.cpu_addr != 0) {
 			SAVE_WORK_REGS;
@@ -729,7 +662,7 @@ static int vpu_suspend(struct platform_device *pdev, pm_message_t state)
 		clk_disable(vpu_clk);
 	}
 
-	if ((cpu_is_mx37() || cpu_is_mx51()) && vpu_plat->pg)
+	if (cpu_is_mx51() && vpu_plat->pg)
 		vpu_plat->pg(1);
 
 	return 0;
@@ -744,11 +677,11 @@ static int vpu_resume(struct platform_device *pdev)
 {
 	int i;
 
-	if ((cpu_is_mx37() || cpu_is_mx51()) && vpu_plat->pg)
-		vpu_plat->pg(0);
-
 	if (cpu_is_mx53())
 		goto recover_clk;
+
+	if (vpu_plat->pg)
+		vpu_plat->pg(0);
 
 	clk_enable(vpu_clk);
 	if (bitwork_mem.cpu_addr != 0) {
@@ -766,36 +699,21 @@ static int vpu_resume(struct platform_device *pdev)
 		 * Re-load boot code, from the codebuffer in external RAM.
 		 * Thankfully, we only need 4096 bytes, same for all platforms.
 		 */
-		if (cpu_is_mx51()) {
-			for (i = 0; i < 2048; i += 4) {
-				data = p[(i / 2) + 1];
-				data_hi = (data >> 16) & 0xFFFF;
-				data_lo = data & 0xFFFF;
-				WRITE_REG((i << 16) | data_hi, BIT_CODE_DOWN);
-				WRITE_REG(((i + 1) << 16) | data_lo,
-					  BIT_CODE_DOWN);
+		for (i = 0; i < 2048; i += 4) {
+			data = p[(i / 2) + 1];
+			data_hi = (data >> 16) & 0xFFFF;
+			data_lo = data & 0xFFFF;
+			WRITE_REG((i << 16) | data_hi, BIT_CODE_DOWN);
+			WRITE_REG(((i + 1) << 16) | data_lo,
+				  BIT_CODE_DOWN);
 
-				data = p[i / 2];
-				data_hi = (data >> 16) & 0xFFFF;
-				data_lo = data & 0xFFFF;
-				WRITE_REG(((i + 2) << 16) | data_hi,
-					  BIT_CODE_DOWN);
-				WRITE_REG(((i + 3) << 16) | data_lo,
-					  BIT_CODE_DOWN);
-			}
-		} else {
-			for (i = 0; i < 2048; i += 2) {
-				if (cpu_is_mx37())
-					data = swab32(p[i / 2]);
-				else
-					data = p[i / 2];
-				data_hi = (data >> 16) & 0xFFFF;
-				data_lo = data & 0xFFFF;
-
-				WRITE_REG((i << 16) | data_hi, BIT_CODE_DOWN);
-				WRITE_REG(((i + 1) << 16) | data_lo,
-					  BIT_CODE_DOWN);
-			}
+			data = p[i / 2];
+			data_hi = (data >> 16) & 0xFFFF;
+			data_lo = data & 0xFFFF;
+			WRITE_REG(((i + 2) << 16) | data_hi,
+				  BIT_CODE_DOWN);
+			WRITE_REG(((i + 3) << 16) | data_lo,
+				  BIT_CODE_DOWN);
 		}
 
 		RESTORE_CTRL_REGS;
@@ -858,10 +776,6 @@ static void __exit vpu_exit(void)
 		class_destroy(vpu_class);
 		unregister_chrdev(vpu_major, "mxc_vpu");
 		vpu_major = 0;
-	}
-
-	if (cpu_is_mx32()) {
-		vl2cc_cleanup();
 	}
 
 	vpu_free_dma_buffer(&bitwork_mem);
