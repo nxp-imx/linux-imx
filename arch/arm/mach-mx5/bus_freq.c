@@ -498,10 +498,12 @@ void exit_lpapm_mode_mx50(int high_bus_freq)
 		__raw_writel(0x02, MXC_CCM_CACRR);
 
 		clk_set_rate(pll1, cpu_op_tbl[0].pll_rate);
-		clk_set_parent(pll1_sw_clk, pll1);
 
-		/* Set the divider to ARM_PODF to 5. */
+		/* Set the divider to ARM_PODF to 5 before
+		  * switching the parent.
+		  */
 		__raw_writel(0x4, MXC_CCM_CACRR);
+		clk_set_parent(pll1_sw_clk, pll1);
 	}
 
 	if (!completion_done(&voltage_change_cmpl))
