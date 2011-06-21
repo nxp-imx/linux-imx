@@ -186,6 +186,7 @@ struct mxs_mmc_platform_data {
 	int write_uA;
 	char *power_mmc;
 	char *clock_mmc;
+	int fastpath_sz;
 };
 /* end of mxs ssp sd/mmc data definitions */
 
