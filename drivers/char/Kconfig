@@ -111,7 +111,7 @@ config BFIN_OTP_WRITE_ENABLE
 
 config FSL_OTP
 	tristate "Freescale On-Chip OTP Memory Support"
-	depends on (ARCH_MX23 || ARCH_MX28 || ARCH_MX50)
+	depends on (ARCH_MX23 || ARCH_MX28 || ARCH_MX50 || ARCH_MX6)
 	default n
 	help
 	  If you say Y here, you will get support for a character device
@@ -634,7 +634,7 @@ config MSM_SMD_PKT
 
 config MXC_IIM
 	tristate "MXC IIM device driver"
-	depends on ARCH_MXC
+	depends on (ARCH_MX51 || ARCH_MX53)
 	help
 	  Support for access to MXC IIM device, most people should say N here.
 
