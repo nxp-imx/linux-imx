@@ -2298,6 +2298,19 @@ int mxc_epdc_fb_send_update(struct mxcfb_update_data *upd_data,
 
 	if (fb_data->upd_scheme == UPDATE_SCHEME_SNAPSHOT) {
 		/*
+		 * If next update is a FULL mode update, then we must
+		 * ensure that all pending & active updates are complete
+		 * before submitting the update.  Otherwise, the FULL
+		 * mode update may cause an endless collision loop with
+		 * other updates.  Block here until updates are flushed.
+		 */
+		if (upd_data->update_mode == UPDATE_MODE_FULL) {
+			spin_unlock_irqrestore(&fb_data->queue_lock, flags);
+			mxc_epdc_fb_flush_updates(fb_data);
+			spin_lock_irqsave(&fb_data->queue_lock, flags);
+		}
+
+		/*
 		 * Get available intermediate (PxP output) buffer to hold
 		 * processed update region
 		 */
@@ -2371,11 +2384,11 @@ int mxc_epdc_fb_send_update(struct mxcfb_update_data *upd_data,
 
 	/* Snapshot update scheme processing */
 
-	spin_unlock_irqrestore(&fb_data->queue_lock, flags);
-
 	/* Set descriptor for current update, delete from pending list */
 	upd_data_list->update_desc = upd_desc;
 	list_del_init(&upd_desc->list);
+
+	spin_unlock_irqrestore(&fb_data->queue_lock, flags);
 
 	/*
 	 * Hold on to original screen update region, which we
@@ -2513,8 +2526,7 @@ int mxc_epdc_fb_wait_update_complete(u32 update_marker, struct fb_info *info)
 	if (!ret) {
 		dev_err(fb_data->dev,
 			"Timed out waiting for update completion\n");
-		list_del_init(&next_marker->full_list);
-		ret = -ETIMEDOUT;
+		return -ETIMEDOUT;
 	}
 
 	/* Free update marker object */
