@@ -49,12 +49,9 @@ struct vpu_mem_desc {
 #define VPU_IOC_WAIT4INT	_IO(VPU_IOC_MAGIC, 2)
 #define VPU_IOC_PHYMEM_DUMP	_IO(VPU_IOC_MAGIC, 3)
 #define VPU_IOC_REG_DUMP	_IO(VPU_IOC_MAGIC, 4)
-#define VPU_IOC_VL2CC_FLUSH	_IO(VPU_IOC_MAGIC, 5)
 #define VPU_IOC_IRAM_SETTING	_IO(VPU_IOC_MAGIC, 6)
 #define VPU_IOC_CLKGATE_SETTING	_IO(VPU_IOC_MAGIC, 7)
 #define VPU_IOC_GET_WORK_ADDR   _IO(VPU_IOC_MAGIC, 8)
-#define VPU_IOC_GET_PIC_PARA_ADDR   _IO(VPU_IOC_MAGIC, 9)
-#define VPU_IOC_GET_USER_DATA_ADDR   _IO(VPU_IOC_MAGIC, 10)
 #define VPU_IOC_SYS_SW_RESET	_IO(VPU_IOC_MAGIC, 11)
 #define VPU_IOC_GET_SHARE_MEM   _IO(VPU_IOC_MAGIC, 12)
 
@@ -91,6 +88,12 @@ struct vpu_mem_desc {
 
 #define	VPU_SLEEP_REG_VALUE		10
 #define	VPU_WAKE_REG_VALUE		11
+
+int vl2cc_init(u32 vl2cc_hw_base);
+void vl2cc_enable(void);
+void vl2cc_flush(void);
+void vl2cc_disable(void);
+void vl2cc_cleanup(void);
 
 int vl2cc_init(u32 vl2cc_hw_base);
 void vl2cc_enable(void);
