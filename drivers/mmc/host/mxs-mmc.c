@@ -127,6 +127,7 @@ struct mxs_mmc_host {
 	int dmairq, errirq;
 
 	/* DMA descriptor to transfer data over SSP interface */
+	dma_addr_t dma_desc_phys;
 	struct mxs_dma_desc *dma_desc;
 
 	/* DMA buffer */
@@ -201,6 +202,7 @@ static irqreturn_t mmc_irq_handler(int irq, void *dev_id)
 {
 	struct mxs_mmc_host *host = dev_id;
 	u32 c1;
+	LIST_HEAD(list);
 
 	c1 = __raw_readl(host->ssp_base + HW_SSP_CTRL1);
 	__raw_writel(c1 & MXS_MMC_IRQ_BITS,
@@ -209,7 +211,7 @@ static irqreturn_t mmc_irq_handler(int irq, void *dev_id)
 		dev_dbg(host->dev, "dma irq 0x%x and stop DMA.\n", irq);
 		mxs_dma_ack_irq(host->dmach);
 		/* STOP the dma transfer here. */
-		mxs_dma_cooked(host->dmach, NULL);
+		mxs_dma_cooked(host->dmach, &list);
 	}
 
 	if ((irq == host->dmairq) || (c1 & MXS_MMC_ERR_BITS))
@@ -474,6 +476,57 @@ static void __init_reg(struct device *dev, struct regulator **pp_reg)
 #endif
 }
 
+static int mxs_mmc_map_sg(struct mxs_mmc_host *host, int is_reading)
+{
+	struct mxs_dma_desc *dma_desc = host->dma_desc;
+	struct mmc_data *data = host->cmd->data;
+	struct scatterlist *sg;
+	unsigned int sg_len;
+	int count = 0;
+
+	BUG_ON(!data);
+
+	sg_len = dma_map_sg(mmc_dev(host->mmc), data->sg,
+		data->sg_len, is_reading ? \
+		DMA_FROM_DEVICE : DMA_TO_DEVICE);
+	for_each_sg(data->sg, sg, sg_len, count) {
+		if (count == PAGE_SIZE / sizeof(*dma_desc)) {
+			dma_unmap_sg(mmc_dev(host->mmc), data->sg,
+				data->sg_len, is_reading ? \
+				DMA_FROM_DEVICE : DMA_TO_DEVICE);
+			return 0;
+		}
+
+		dma_desc[count].cmd.next = 0;
+		dma_desc[count].cmd.cmd.data = 0;
+
+		dma_desc[count].cmd.address = (u32)sg->dma_address;
+		dma_desc[count].address = host->dma_desc_phys + \
+					sizeof(*dma_desc) * count;
+		dma_desc[count].cmd.cmd.bits.command = is_reading ? \
+						DMA_WRITE : DMA_READ;
+		dma_desc[count].cmd.cmd.bits.halt_on_terminate = 1;
+
+		if (count == 0)
+			dma_desc[count].cmd.cmd.bits.pio_words = 3;
+
+		dma_desc[count].cmd.cmd.bits.bytes = sg->length;
+		dma_desc[count].cmd.cmd.bits.dec_sem = 1;
+	}
+	dma_desc[count - 1].cmd.cmd.bits.irq = 1;
+	dma_desc[count - 1].cmd.cmd.bits.wait4end = 1;
+
+	return count;
+}
+
+static void mxs_mmc_unmap_sg(struct mxs_mmc_host *host, int is_reading)
+{
+	struct mmc_data *data = host->cmd->data;
+
+	dma_unmap_sg(mmc_dev(host->mmc), data->sg, data->sg_len,
+		is_reading ? DMA_FROM_DEVICE : DMA_TO_DEVICE);
+}
+
 /* Send adtc command to the card */
 static void mxs_mmc_adtc(struct mxs_mmc_host *host, int polling_mode)
 {
@@ -483,7 +536,7 @@ static void mxs_mmc_adtc(struct mxs_mmc_host *host, int polling_mode)
 	int is_reading = 0;
 	unsigned int copy_size;
 	unsigned int ssp_ver_major;
-
+	int desc_count = 0;
 	u32 ssp_ctrl0;
 	u32 ssp_cmd0;
 	u32 ssp_cmd1;
@@ -507,9 +560,15 @@ static void mxs_mmc_adtc(struct mxs_mmc_host *host, int polling_mode)
 
 	if (cmd->data->flags & MMC_DATA_WRITE) {
 		dev_dbg(host->dev, "Data Write\n");
-		if (!polling_mode)
-			copy_size = mxs_sg_dma_copy(host, data_size, 1);
 		is_reading = 0;
+		desc_count = mxs_mmc_map_sg(host, is_reading);
+
+		if (desc_count == 0) {
+			host->dma_desc->cmd.address = (u32) host->dma_buf_phys;
+			if (!polling_mode)
+				copy_size = mxs_sg_dma_copy(host, data_size, 1);
+			BUG_ON(copy_size < data_size);
+		}
 		if (!host->regulator)
 			__init_reg(host->dev, &host->regulator);
 		if (host->regulator)
@@ -519,6 +578,9 @@ static void mxs_mmc_adtc(struct mxs_mmc_host *host, int polling_mode)
 	} else if (cmd->data->flags & MMC_DATA_READ) {
 		dev_dbg(host->dev, "Data Read\n");
 		is_reading = 1;
+		desc_count = mxs_mmc_map_sg(host, is_reading);
+		if (desc_count == 0)
+			host->dma_desc->cmd.address = (u32) host->dma_buf_phys;
 		if (!host->regulator)
 			__init_reg(host->dev, &host->regulator);
 		if (host->regulator)
@@ -538,12 +600,15 @@ static void mxs_mmc_adtc(struct mxs_mmc_host *host, int polling_mode)
 		goto skip_dma_setup1;
 
 	/* when is_reading is set, DMA controller performs WRITE operation. */
-	dma_desc->cmd.cmd.bits.command = is_reading ? DMA_WRITE : DMA_READ;
-	dma_desc->cmd.cmd.bits.irq = 1;
-	dma_desc->cmd.cmd.bits.dec_sem = 1;
-	dma_desc->cmd.cmd.bits.wait4end = 1;
-	dma_desc->cmd.cmd.bits.pio_words = 3;
-	dma_desc->cmd.cmd.bits.bytes = data_size;
+	if (desc_count == 0) {
+		dma_desc->cmd.cmd.bits.command = is_reading ? \
+						DMA_WRITE : DMA_READ;
+		dma_desc->cmd.cmd.bits.irq = 1;
+		dma_desc->cmd.cmd.bits.dec_sem = 1;
+		dma_desc->cmd.cmd.bits.wait4end = 1;
+		dma_desc->cmd.cmd.bits.pio_words = 3;
+		dma_desc->cmd.cmd.bits.bytes = data_size;
+	}
 
 skip_dma_setup1:
 	ssp_ver_major = __raw_readl(host->ssp_base + HW_SSP_VERSION) >> 24;
@@ -636,9 +701,9 @@ skip_dma_setup1:
 	ssp_cmd1 = BF(cmd->arg, SSP_CMD1_CMD_ARG);
 
 	if (!polling_mode) {
-		dma_desc->cmd.pio_words[0] = ssp_ctrl0;
-		dma_desc->cmd.pio_words[1] = ssp_cmd0;
-		dma_desc->cmd.pio_words[2] = ssp_cmd1;
+		dma_desc[0].cmd.pio_words[0] = ssp_ctrl0;
+		dma_desc[0].cmd.pio_words[1] = ssp_cmd0;
+		dma_desc[0].cmd.pio_words[2] = ssp_cmd1;
 
 		/* Set the timeout count */
 		timeout = mxs_ns_to_ssp_ticks(host->clkrt, \
@@ -647,15 +712,25 @@ skip_dma_setup1:
 		val &= ~(BM_SSP_TIMING_TIMEOUT);
 		val |= BF(timeout, SSP_TIMING_TIMEOUT);
 		__raw_writel(val, host->ssp_base + HW_SSP_TIMING);
-
 		init_completion(&host->dma_done);
 		mxs_dma_reset(host->dmach);
-		if (mxs_dma_desc_append(host->dmach, host->dma_desc) < 0)
-			dev_err(host->dev, "mmc_dma_desc_append failed\n");
+		if (desc_count != 0) {
+			int i = 0;
+
+			while (i != desc_count) {
+				if (mxs_dma_desc_append(host->dmach, &host->dma_desc[i]) < 0)
+					dev_err(host->dev, "desc_append failed\n");
+				i++;
+			}
+		} else
+			if (mxs_dma_desc_append(host->dmach, host->dma_desc) < 0)
+				dev_err(host->dev, "desc_append failed\n");
 		dev_dbg(host->dev, "%s start DMA.\n", __func__);
 		if (mxs_dma_enable(host->dmach) < 0)
 			dev_err(host->dev, "mmc_dma_enable failed\n");
 		wait_for_completion(&host->dma_done);
+		if (desc_count != 0)
+			mxs_mmc_unmap_sg(host, is_reading);
 	} else {
 		int index = 0;
 		int len;
@@ -667,14 +742,24 @@ skip_dma_setup1:
 		u32 ssp_status = (u32)host->ssp_base + HW_SSP_STATUS;
 		u32 ssp_data = (u32)host->ssp_base + HW_SSP_DATA;
 		u32 ssp_ctl0 = (u32)host->ssp_base + HW_SSP_CTRL0;
+		u32 ssp_ctrl1;
+		u32 c1;
 
 		sg = host->cmd->data->sg;
 		len = host->cmd->data->sg_len;
 
+		ssp_ctrl1 =
+			BM_SSP_CTRL1_DMA_ENABLE |
+			BM_SSP_CTRL1_RECV_TIMEOUT_IRQ_EN |
+			BM_SSP_CTRL1_DATA_CRC_IRQ_EN |
+			BM_SSP_CTRL1_DATA_TIMEOUT_IRQ_EN |
+			BM_SSP_CTRL1_RESP_TIMEOUT_IRQ_EN |
+			BM_SSP_CTRL1_RESP_ERR_IRQ_EN;
 		__raw_writel(ssp_ctrl0, host->ssp_base + HW_SSP_CTRL0);
 		__raw_writel(ssp_cmd0, host->ssp_base + HW_SSP_CMD0);
 		__raw_writel(ssp_cmd1, host->ssp_base + HW_SSP_CMD1);
-
+		/* clear these bits */
+		__raw_writel(ssp_ctrl1, host->ssp_base + HW_SSP_CTRL1_CLR);
 		init_completion(&host->dma_done);
 		__raw_writel(BM_SSP_CTRL0_RUN, ssp_ctl0 + 4);
 
@@ -740,6 +825,11 @@ skip_dma_setup1:
 
 		host->status =
 			__raw_readl(host->ssp_base + HW_SSP_STATUS);
+		c1 = __raw_readl(host->ssp_base + HW_SSP_CTRL1);
+		__raw_writel(c1 & MXS_MMC_IRQ_BITS,
+			host->ssp_base + HW_SSP_CTRL1_CLR);
+		/* reenable these bits */
+		__raw_writel(ssp_ctrl1, host->ssp_base + HW_SSP_CTRL1_SET);
 	}
 	if (host->regulator)
 		regulator_set_current_limit(host->regulator, 0, 0);
@@ -779,7 +869,7 @@ skip_dma_setup1:
 	} else {
 		if (polling_mode)
 			return;
-		if (is_reading) {
+		if (!desc_count && is_reading) {
 			cmd->data->bytes_xfered =
 			    mxs_sg_dma_copy(host, data_size, 0);
 		} else
@@ -1093,7 +1183,9 @@ static int mxs_mmc_dma_init(struct mxs_mmc_host *host, int reset)
 			goto out_mem;
 		}
 
-		host->dma_desc = mxs_dma_alloc_desc();
+		host->dma_desc = dma_alloc_coherent(host->dev, PAGE_SIZE,
+						   &host->dma_desc_phys,
+						   GFP_KERNEL);
 		if (host->dma_desc == NULL) {
 			dev_err(host->dev,
 				"Unable to allocate DMA descriptor\n");
@@ -1101,9 +1193,8 @@ static int mxs_mmc_dma_init(struct mxs_mmc_host *host, int reset)
 			goto out_cmd;
 		}
 
-		host->dma_desc->cmd.next = (u32) host->dma_desc->address;
-		host->dma_desc->cmd.address = (u32) host->dma_buf_phys;
-		host->dma_desc->buffer = host->dma_buf;
+		memset(host->dma_desc, 0, PAGE_SIZE);
+		host->dma_desc->address = host->dma_desc_phys;
 	}
 
 	/* Reset DMA channel */
@@ -1135,7 +1226,8 @@ static void mxs_mmc_dma_release(struct mxs_mmc_host *host)
 	dma_free_coherent(host->dev, SSP_BUFFER_SIZE, host->dma_buf,
 			  host->dma_buf_phys);
 
-	mxs_dma_free_desc(host->dma_desc);
+	dma_free_coherent(host->dev, PAGE_SIZE, host->dma_desc,
+			  host->dma_desc_phys);
 	mxs_dma_release(host->dmach, host->dev);
 }
 
