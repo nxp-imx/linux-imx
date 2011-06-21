@@ -99,3 +99,8 @@ extern const struct imx_ldb_data imx6q_ldb_data __initconst;
 
 extern const struct imx_vpu_data imx6q_vpu_data __initconst;
 #define imx6q_add_vpu() imx_add_vpu(&imx6q_vpu_data)
+
+extern const struct imx_otp_data imx6q_otp_data __initconst;
+#define imx6q_add_otp() \
+	imx_add_otp(&imx6q_otp_data);
+
