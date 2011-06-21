@@ -141,7 +141,7 @@ struct mxs_mmc_host {
 
 	spinlock_t lock;
 	int sdio_irq_en;
-	int pio_size;
+	int fastpath_sz;
 };
 
 /* Return read only state of card */
@@ -816,7 +816,7 @@ static void mxs_mmc_start_cmd(struct mxs_mmc_host *host,
 		break;
 	case MMC_CMD_ADTC:
 		data_size = host->cmd->data->blksz * host->cmd->data->blocks;
-		mxs_mmc_adtc(host, data_size < host->pio_size);
+		mxs_mmc_adtc(host, data_size < host->fastpath_sz);
 		break;
 	default:
 		dev_warn(host->dev, "Unknown MMC command\n");
@@ -1229,7 +1229,7 @@ static int __init mxs_mmc_probe(struct platform_device *pdev)
 	host->dev = dev;
 
 	host->sdio_irq_en = 0;
-	host->pio_size = 0;
+	host->fastpath_sz = mmc_data->fastpath_sz;
 	/* Set minimal clock rate */
 	host->clk = clk_get(dev, mmc_data->clock_mmc);
 	if (IS_ERR(host->clk)) {
