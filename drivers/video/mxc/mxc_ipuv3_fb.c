@@ -1482,7 +1482,14 @@ static int mxcfb_suspend(struct platform_device *pdev, pm_message_t state)
 	acquire_console_sem();
 	fb_set_suspend(fbi, 1);
 	saved_blank = mxc_fbi->cur_blank;
+#ifdef CONFIG_ANDROID
+	if (mxc_fbi->ipu_ch != MEM_FG_SYNC)
+		mxcfb_blank(FB_BLANK_POWERDOWN, fbi);
+	else
+		mxc_fbi->cur_blank = FB_BLANK_POWERDOWN;
+#else
 	mxcfb_blank(FB_BLANK_POWERDOWN, fbi);
+#endif
 	mxc_fbi->next_blank = saved_blank;
 	release_console_sem();
 
