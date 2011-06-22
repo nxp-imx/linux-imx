@@ -101,6 +101,7 @@
 #define IPU_DISP_PORT 1
 
 static int enabled;		/* enable power on or not */
+static int enabled_before_suspend;
 DEFINE_SPINLOCK(tve_lock);
 
 static struct fb_info *tve_fbi;
@@ -929,8 +930,11 @@ static int tve_suspend(void)
 		__raw_writel(0, tve.base + tve_regs->tve_int_cont_reg);
 		__raw_writel(0, tve.base + tve_regs->tve_cd_cont_reg);
 		__raw_writel(0, tve.base + tve_regs->tve_com_conf_reg);
-		clk_disable(tve.clk);
-	}
+		tve_disable();
+		enabled_before_suspend = 1;
+	} else
+		enabled_before_suspend = 0;
+
 	return 0;
 }
 
@@ -938,7 +942,7 @@ static int tve_resume(struct fb_info *fbi)
 {
 	int mode;
 
-	if (enabled) {
+	if (enabled_before_suspend) {
 		clk_enable(tve.clk);
 
 		/* Setup cable detect */
