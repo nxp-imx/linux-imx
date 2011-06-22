@@ -1,7 +1,7 @@
 /*
  * Copyright (C) 1999 ARM Limited
  * Copyright (C) 2000 Deep Blue Solutions Ltd
- * Copyright 2004-2010 Freescale Semiconductor, Inc.
+ * Copyright 2004-2011 Freescale Semiconductor, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -91,3 +91,12 @@ void arch_idle(void)
 	}
 }
 
+void mxc_pg_enable(struct platform_device *pdev)
+{
+}
+EXPORT_SYMBOL(mxc_pg_enable);
+
+void mxc_pg_disable(struct platform_device *pdev)
+{
+}
+EXPORT_SYMBOL(mxc_pg_enable);
