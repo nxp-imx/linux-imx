@@ -2603,6 +2603,11 @@ EXPORT_SYMBOL(ipu_set_csc_coefficients);
 
 static int ipu_suspend(struct platform_device *pdev, pm_message_t state)
 {
+#ifdef CONFIG_ANDROID
+	ipu_disable_channel(MEM_FG_SYNC, true);
+	ipu_uninit_channel(MEM_FG_SYNC);
+#endif
+
 	if (g_ipu_clk_enabled) {
 		uint32_t chan_should_disable, timeout = 1000, time = 0;
 
