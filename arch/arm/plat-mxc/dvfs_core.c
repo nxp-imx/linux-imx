@@ -969,9 +969,16 @@ static int mxc_dvfs_core_resume(struct platform_device *pdev)
 	return 0;
 }
 
+static void mxc_dvfscore_shutdown(struct device *dev)
+{
+	dev_info(dev, "disable dvfs during shutdown");
+	stop_dvfs();
+}
+
 static struct platform_driver mxc_dvfs_core_driver = {
 	.driver = {
 		   .name = "mxc_dvfs_core",
+		   .shutdown = mxc_dvfscore_shutdown,
 		   },
 	.probe = mxc_dvfs_core_probe,
 	.suspend = mxc_dvfs_core_suspend,
