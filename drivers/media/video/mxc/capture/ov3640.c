@@ -1123,6 +1123,9 @@ static int ioctl_s_ctrl(struct v4l2_int_device *s, struct v4l2_control *vc)
 		break;
 	case V4L2_CID_VFLIP:
 		break;
+	case V4L2_CID_MXC_ROT:
+	case V4L2_CID_MXC_VF_ROT:
+		break;
 	default:
 		retval = -EPERM;
 		break;
