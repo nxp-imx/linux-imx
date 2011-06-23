@@ -619,39 +619,35 @@ static struct android_usb_product usb_products[] = {
 		.functions	= usb_functions_ums,
 	},
 	{
-		.product_id	= 0x0c02,
+		.product_id	= 0x0c01,
 		.num_functions	= ARRAY_SIZE(usb_functions_ums_adb),
 		.functions	= usb_functions_ums_adb,
 	},
 	{
-		.product_id	= 0x0ffe,
+		.product_id	= 0x0c10,
 		.num_functions	= ARRAY_SIZE(usb_functions_rndis),
 		.functions	= usb_functions_rndis,
 	},
-	{
-		.product_id	= 0x0c04,
-		.num_functions	= ARRAY_SIZE(usb_functions_rndis_adb),
-		.functions	= usb_functions_rndis_adb,
-	},
+
 };
 
 static struct usb_mass_storage_platform_data mass_storage_data = {
 	.nluns		= 3,
 	.vendor		= "Freescale",
-	.product	= "Android Phone",
+	.product	= "MX53 QS Android Phone",
 	.release	= 0x0100,
 };
 
 static struct usb_ether_platform_data rndis_data = {
-	.vendorID	= 0x0bb4,
+	.vendorID	= 0x15a2,
 	.vendorDescr	= "Freescale",
 };
 
 static struct android_usb_platform_data android_usb_data = {
-	.vendor_id      = 0x0bb4,
+	.vendor_id      = 0x15a2,
 	.product_id     = 0x0c01,
 	.version        = 0x0100,
-	.product_name   = "Android Phone",
+	.product_name   = "MX53 QS Android Phone",
 	.manufacturer_name = "Freescale",
 	.num_products = ARRAY_SIZE(usb_products),
 	.products = usb_products,
@@ -738,14 +734,26 @@ static void mxc_register_powerkey(pwrkey_callback pk_cb)
 	power_key_event.param = (void *)1;
 	power_key_event.func = (void *)pk_cb;
 	pmic_event_subscribe(EVENT_PWRONI, power_key_event);
+
+	power_key_event.param = (void *)3;
+	pmic_event_subscribe(EVENT_PWRON3I, power_key_event);
 }
 
 static int mxc_pwrkey_getstatus(int id)
 {
-	int sense;
+	int sense, off = 3;
 
 	pmic_read_reg(REG_INT_SENSE1, &sense, 0xffffffff);
-	if (sense & (1 << 3))
+	switch (id) {
+	case 2:
+		off = 4;
+		break;
+	case 3:
+		off = 2;
+		break;
+	}
+
+	if (sense & (1 << off))
 		return 0;
 
 	return 1;
