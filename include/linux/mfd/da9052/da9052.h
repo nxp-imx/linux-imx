@@ -52,7 +52,7 @@
 #define INVALID				1
 
 /* Total number of registers in DA9057 */
-#define DA9052_REG_CNT			DA9052_PAGE1_REG_END
+#define DA9052_REG_CNT			(DA9052_PAGE1_REG_END+1)
 
 /* Maximum number of registers that can be read/written by a singe request */
 #define	MAX_READ_WRITE_CNT		16
