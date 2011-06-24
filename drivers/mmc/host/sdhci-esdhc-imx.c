@@ -30,6 +30,7 @@
 /* VENDOR SPEC register */
 #define SDHCI_VENDOR_SPEC		0xC0
 #define  SDHCI_VENDOR_SPEC_SDIO_QUIRK	0x00000002
+#define SDHCI_MIX_CTRL			0x48
 
 #define ESDHC_FLAG_GPIO_FOR_CD_WP	(1 << 0)
 /*
@@ -143,8 +144,17 @@ static void esdhc_writew_le(struct sdhci_host *host, u16 val, int reg)
 		     host->cmd->opcode == MMC_SET_BLOCK_COUNT) &&
 	            (imx_data->flags & ESDHC_FLAG_MULTIBLK_NO_INT))
 			val |= SDHCI_CMD_ABORTCMD;
-		writel(val << 16 | imx_data->scratchpad,
-			host->ioaddr + SDHCI_TRANSFER_MODE);
+
+		writel(0x08800880, host->ioaddr + SDHCI_CAPABILITIES_1);
+		if (cpu_is_mx6q()) {
+			writel(imx_data->scratchpad,
+				host->ioaddr + SDHCI_MIX_CTRL);
+			writel(val << 16,
+				host->ioaddr + SDHCI_TRANSFER_MODE);
+		} else {
+			writel(val << 16 | imx_data->scratchpad,
+				host->ioaddr + SDHCI_TRANSFER_MODE);
+		}
 		return;
 	case SDHCI_BLOCK_SIZE:
 		val &= ~SDHCI_MAKE_BLKSZ(0x7, 0);
