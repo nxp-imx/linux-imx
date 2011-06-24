@@ -1,5 +1,5 @@
 /*
- * Copyright 2009-2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2009-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -54,7 +54,8 @@
 #define DDR_TYPE_DDR3		0x0
 #define DDR_TYPE_DDR2		0x1
 
-DEFINE_SPINLOCK(ddr_freq_lock);
+static DEFINE_SPINLOCK(ddr_freq_lock);
+static DEFINE_SPINLOCK(freq_lock);
 
 unsigned long lp_normal_rate;
 unsigned long lp_med_rate;
@@ -182,12 +183,12 @@ void enter_lpapm_mode_mx50()
 {
 	u32 reg;
 	unsigned long flags;
-	spin_lock_irqsave(&ddr_freq_lock, flags);
+	spin_lock_irqsave(&freq_lock, flags);
 
 	set_ddr_freq(LP_APM_CLK);
+
 	/* Set the parent of main_bus_clk to be PLL3 */
 	clk_set_parent(main_bus_clk, pll3);
-
 	/* Set the AHB dividers to be 2.
 	 * Set the dividers so that clock rates
 	 * are not greater than current clock rate.
@@ -229,7 +230,7 @@ void enter_lpapm_mode_mx50()
 	while (__raw_readl(MXC_CCM_CDHIPR) & 0x0F)
 		udelay(10);
 
-	spin_unlock_irqrestore(&ddr_freq_lock, flags);
+	spin_unlock_irqrestore(&freq_lock, flags);
 
 	spin_lock_irqsave(&voltage_lock, flags);
 	lp_voltage = LP_LOW_VOLTAGE;
@@ -243,7 +244,7 @@ void enter_lpapm_mode_mx50()
 		/* Set the divider to ARM_PODF to 3. */
 		__raw_writel(0x02, MXC_CCM_CACRR);
 
-		clk_set_rate(pll1, 160000000);
+		clk_set_rate(pll1, cpu_op_tbl[cpu_op_nr - 1].cpu_rate);
 		clk_set_parent(pll1_sw_clk, pll1);
 		/* Set the divider to ARM_PODF to 1. */
 		__raw_writel(0x0, MXC_CCM_CACRR);
@@ -314,18 +315,23 @@ void enter_lpapm_mode_mx53()
 	/* if (mx53_ddr_type == DDR_TYPE_DDR2) {
 	} */
 
-	/* move cpu clk to pll2, 400 / 3 = 133Mhz for cpu  */
-    /* Change the source of pll1_sw_clk to be the step_clk */
-    reg = __raw_readl(MXC_CCM_CCSR);
-    reg |= MXC_CCM_CCSR_PLL1_SW_CLK_SEL;
-    __raw_writel(reg, MXC_CCM_CCSR);
+	/* move cpu clk to pll2, 400 / 1 = 400MHZ for cpu  */
+	/* Change the source of pll1_sw_clk to be the step_clk */
+	reg = __raw_readl(MXC_CCM_CCSR);
+	reg |= MXC_CCM_CCSR_PLL1_SW_CLK_SEL;
+	__raw_writel(reg, MXC_CCM_CCSR);
 
 	cpu_podf = __raw_readl(MXC_CCM_CACRR);
 	reg = __raw_readl(MXC_CCM_CDHIPR);
-	if ((reg & MXC_CCM_CDHIPR_ARM_PODF_BUSY) == 0)
-		__raw_writel(0x2, MXC_CCM_CACRR);
-	else
-		printk(KERN_DEBUG "ARM_PODF still in busy!!!!\n");
+	while (1) {
+		if ((reg & MXC_CCM_CDHIPR_ARM_PODF_BUSY) == 0) {
+			__raw_writel(0x0, MXC_CCM_CACRR);
+			break;
+		} else {
+			reg = __raw_readl(MXC_CCM_CDHIPR);
+			printk(KERN_DEBUG "ARM_PODF still in busy!!!!\n");
+		}
+	}
 	clk_set_parent(pll1_sw_clk, pll2);
 
 	/* ahb = pll2/8, axi_b = pll2/8, axi_a = pll2/1*/
@@ -491,8 +497,9 @@ void exit_lpapm_mode_mx50(int high_bus_freq)
 		/* Set the divider to ARM_PODF to 3, cpu is at 160MHz. */
 		__raw_writel(0x02, MXC_CCM_CACRR);
 
-		clk_set_rate(pll1, 800000000);
+		clk_set_rate(pll1, cpu_op_tbl[0].pll_rate);
 		clk_set_parent(pll1_sw_clk, pll1);
+
 		/* Set the divider to ARM_PODF to 5. */
 		__raw_writel(0x4, MXC_CCM_CACRR);
 	}
@@ -513,9 +520,9 @@ void exit_lpapm_mode_mx50(int high_bus_freq)
 			wait_for_completion_interruptible(&voltage_change_cmpl);
 	}
 
-	spin_lock_irqsave(&ddr_freq_lock, flags);
+	spin_lock_irqsave(&freq_lock, flags);
 	if (!low_bus_freq_mode) {
-		spin_unlock_irqrestore(&ddr_freq_lock, flags);
+		spin_unlock_irqrestore(&freq_lock, flags);
 		return;
 	}
 
@@ -587,8 +594,7 @@ void exit_lpapm_mode_mx50(int high_bus_freq)
 		med_bus_freq_mode = 0;
 		set_ddr_freq(ddr_normal_rate);
 	}
-
-	spin_unlock_irqrestore(&ddr_freq_lock, flags);
+	spin_unlock_irqrestore(&freq_lock, flags);
 
 	udelay(100);
 }
@@ -659,13 +665,15 @@ void exit_lpapm_mode_mx53()
 
 	/* move cpu clk to pll1 */
 	reg = __raw_readl(MXC_CCM_CDHIPR);
-	if ((reg & MXC_CCM_CDHIPR_ARM_PODF_BUSY) != 0)
-		__raw_writel(cpu_podf & 0x7,
-				MXC_CCM_CACRR);
-	else
-		printk(KERN_DEBUG
-			"ARM_PODF still in busy!!!!\n");
-
+	while (1) {
+		if ((reg & MXC_CCM_CDHIPR_ARM_PODF_BUSY) == 0) {
+			__raw_writel(cpu_podf & 0x7, MXC_CCM_CACRR);
+			break;
+		} else {
+			reg = __raw_readl(MXC_CCM_CDHIPR);
+			printk(KERN_DEBUG "ARM_PODF still in busy!!!!\n");
+		}
+	}
 	clk_set_parent(pll1_sw_clk, pll1);
 
 
