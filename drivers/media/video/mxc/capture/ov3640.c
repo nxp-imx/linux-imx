@@ -92,6 +92,22 @@ struct sensor {
 	int csi;
 } ov3640_data;
 
+static struct reg_value ov3640_rotate_normal[] = {
+	{0x307c, 0x10, 0x00, 0x00}, {0x3090, 0xc0, 0x00, 0x00},
+};
+
+static struct reg_value ov3640_rotate_mirror[] = {
+	{0x307c, 0x12, 0x00, 0x00}, {0x3090, 0xc8, 0x00, 0x00},
+};
+
+static struct reg_value ov3640_rotate_flip[] = {
+	{0x307c, 0x11, 0x00, 0x00}, {0x3090, 0xc0, 0x00, 0x00},
+};
+
+static struct reg_value ov3640_rotate_180[] = {
+	{0x307c, 0x13, 0x00, 0x00}, {0x3090, 0xc8, 0x00, 0x00},
+};
+
 static struct reg_value ov3640_setting_15fps_QXGA_2048_1536[] = {
 #if 0
 	/* The true 15fps QXGA setting. */
@@ -767,6 +783,43 @@ static s32 ov3640_read_reg(u16 reg, u8 *val)
 	return u8RdVal;
 }
 
+static int ov3640_set_rotate_mode(struct reg_value *rotate_mode)
+{
+	s32 i = 0;
+	s32 iModeSettingArySize = \
+	sizeof(ov3640_rotate_normal)/sizeof(ov3640_rotate_normal[0]);
+	register u32 Delay_ms = 0;
+	register u16 RegAddr = 0;
+	register u8 Mask = 0;
+	register u8 Val = 0;
+	u8 RegVal = 0;
+	int retval = 0;
+	for (i = 0; i < iModeSettingArySize; ++i, ++rotate_mode) {
+		Delay_ms = rotate_mode->u32Delay_ms;
+		RegAddr = rotate_mode->u16RegAddr;
+		Val = rotate_mode->u8Val;
+		Mask = rotate_mode->u8Mask;
+		if (Mask) {
+			retval = ov3640_read_reg(RegAddr, &RegVal);
+			if (retval < 0)
+				goto err;
+
+			RegVal &= ~(u8)Mask;
+			Val &= Mask;
+			Val |= RegVal;
+		}
+
+		retval = ov3640_write_reg(RegAddr, Val);
+		if (retval < 0)
+			goto err;
+
+		if (Delay_ms)
+			msleep(Delay_ms);
+	}
+err:
+	return retval;
+}
+
 static int ov3640_init_mode(enum ov3640_frame_rate frame_rate,
 			    enum ov3640_mode mode)
 {
@@ -1125,6 +1178,27 @@ static int ioctl_s_ctrl(struct v4l2_int_device *s, struct v4l2_control *vc)
 		break;
 	case V4L2_CID_MXC_ROT:
 	case V4L2_CID_MXC_VF_ROT:
+		switch (vc->value) {
+		case V4L2_MXC_CAM_ROTATE_NONE:
+			if (ov3640_set_rotate_mode(ov3640_rotate_normal))
+				retval = -EPERM;
+			break;
+		case V4L2_MXC_CAM_ROTATE_VERT_FLIP:
+			if (ov3640_set_rotate_mode(ov3640_rotate_flip))
+				retval = -EPERM;
+			break;
+		case V4L2_MXC_CAM_ROTATE_HORIZ_FLIP:
+			if (ov3640_set_rotate_mode(ov3640_rotate_mirror))
+				retval = -EPERM;
+			break;
+		case V4L2_MXC_CAM_ROTATE_180:
+			if (ov3640_set_rotate_mode(ov3640_rotate_180))
+				retval = -EPERM;
+			break;
+		default:
+			retval = -EPERM;
+			break;
+		}
 		break;
 	default:
 		retval = -EPERM;
