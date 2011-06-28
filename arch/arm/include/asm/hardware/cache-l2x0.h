@@ -74,8 +74,6 @@
 
 #ifndef __ASSEMBLY__
 extern void __init l2x0_init(void __iomem *base, __u32 aux_val, __u32 aux_mask);
-extern void l2x0_enable(void);
-extern void l2x0_disable(void);
 #endif
 
 #endif

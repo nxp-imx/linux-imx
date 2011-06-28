@@ -95,7 +95,7 @@ static int __clk_enable(struct clk *clk)
  */
 int clk_enable(struct clk *clk)
 {
-	unsigned long flags;
+	/* unsigned long flags; */
 	int ret = 0;
 
 	if (in_interrupt()) {
@@ -141,7 +141,7 @@ EXPORT_SYMBOL(clk_enable);
  */
 void clk_disable(struct clk *clk)
 {
-	unsigned long flags;
+	/* unsigned long flags; */
 
 	if (in_interrupt()) {
 		printk(KERN_ERR " clk_disable cannot be called in an interrupt context\n");

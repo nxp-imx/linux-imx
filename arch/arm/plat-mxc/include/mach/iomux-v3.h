@@ -83,8 +83,36 @@ typedef u64 iomux_v3_cfg_t;
 /*
  * Use to set PAD control
  */
+#ifdef CONFIG_SOC_IMX6Q
+#define PAD_CTL_HYS			(1 << 16)
+
+#define PAD_CTL_PUS_100K_DOWN		(0 << 14)
+#define PAD_CTL_PUS_47K_UP		(1 << 14)
+#define PAD_CTL_PUS_100K_UP		(2 << 14)
+#define PAD_CTL_PUS_22K_UP		(3 << 14)
+
+#define PAD_CTL_PUE			(1 << 13)
+#define PAD_CTL_PKE			(1 << 12)
+#define PAD_CTL_ODE			(1 << 11)
+
+#define PAD_CTL_SPEED_LOW		(1 << 6)
+#define PAD_CTL_SPEED_MED		(2 << 6)
+#define PAD_CTL_SPEED_HIGH		(3 << 6)
+
+#define PAD_CTL_DSE_DISABLE		(0 << 3)
+#define PAD_CTL_DSE_240ohm		(1 << 3)
+#define PAD_CTL_DSE_120ohm		(2 << 3)
+#define PAD_CTL_DSE_80ohm		(3 << 3)
+#define PAD_CTL_DSE_60ohm		(4 << 3)
+#define PAD_CTL_DSE_48ohm		(5 << 3)
+#define PAD_CTL_DSE_40ohm		(6 << 3)
+#define PAD_CTL_DSE_34ohm		(7 << 3)
 
 #define NO_PAD_CTRL			(1 << 16)
+#define PAD_CTL_SRE_FAST		(1 << 0)
+#define PAD_CTL_SRE_SLOW		(0 << 0)
+
+#else
 #define PAD_CTL_DVS			(1 << 13)
 #define PAD_CTL_HYS			(1 << 8)
 
@@ -104,7 +132,7 @@ typedef u64 iomux_v3_cfg_t;
 
 #define PAD_CTL_SRE_FAST		(1 << 0)
 #define PAD_CTL_SRE_SLOW		(0 << 0)
-
+#endif
 #define IOMUX_CONFIG_SION		(0x1 << 4)
 
 #define MX51_NUM_GPIO_PORT	4
@@ -137,5 +165,9 @@ int mxc_iomux_v3_setup_multiple_pads(iomux_v3_cfg_t *pad_list, unsigned count);
  */
 void mxc_iomux_v3_init(void __iomem *iomux_v3_base);
 
+/*
+ * Set bits for general purpose registers
+ */
+void mxc_iomux_set_gpr_register(int group, int start_bit, int num_bits, int value);
 #endif /* __MACH_IOMUX_V3_H__*/
 

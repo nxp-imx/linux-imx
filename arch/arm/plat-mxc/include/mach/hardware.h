@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2007 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2004-2011 Freescale Semiconductor, Inc.
  * Copyright 2008 Juergen Beisert, kernel@pengutronix.de
  *
  * This program is free software; you can redistribute it and/or
@@ -101,6 +101,10 @@
 #include <mach/mx50.h>
 #include <mach/mx51.h>
 #include <mach/mx53.h>
+#endif
+
+#ifdef CONFIG_ARCH_MX6
+#include <mach/mx6.h>
 #endif
 
 #ifdef CONFIG_ARCH_MX3
