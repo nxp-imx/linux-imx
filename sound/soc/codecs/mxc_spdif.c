@@ -327,6 +327,9 @@ static void spdif_softreset(void)
 		value = __raw_readl(spdif_base_addr + SPDIF_REG_SCR) & 0x1000;
 }
 
+/*
+ * Set clock accuracy information in consumer channel status.
+ */
 static int spdif_set_clk_accuracy(enum spdif_clk_accuracy level)
 {
 	unsigned long value;
@@ -394,55 +397,76 @@ static int spdif_get_rxclk_rate(struct clk *bus_clk, enum spdif_gainsel gainsel)
 	return (int)tmpval64;
 }
 
-static int spdif_set_sample_rate(int src_44100, int src_48000, int sample_rate)
+static int spdif_set_sample_rate(struct snd_soc_codec *codec, int sample_rate)
 {
-	unsigned long cstatus, stc;
-	int ret = 0;
-
-	cstatus = __raw_readl(SPDIF_REG_STCSCL + spdif_base_addr) & 0xfffff0;
-	stc = __raw_readl(SPDIF_REG_STC + spdif_base_addr) & ~0x7FF;
+	struct mxc_spdif_priv *spdif_priv = snd_soc_codec_get_drvdata(codec);
+	struct mxc_spdif_platform_data *plat_data = spdif_priv->plat_data;
+	unsigned long cstatus, stc, clk = -1, div = 1, cstatus_fs = 0;
+	int clk_fs;
 
 	switch (sample_rate) {
 	case 44100:
-		if (src_44100 < 0) {
-			pr_info("%s: no defined 44100 clk src\n", __func__);
-			ret = -1;
-		} else {
-			__raw_writel(cstatus, SPDIF_REG_STCSCL + spdif_base_addr);
-			stc |= (src_44100 << 8) | 0x07;
-			__raw_writel(stc, SPDIF_REG_STC + spdif_base_addr);
-			pr_debug("set sample rate to 44100\n");
-		}
+		clk_fs = 44100;
+		clk = plat_data->spdif_clk_44100;
+		div = plat_data->spdif_div_44100;
+		cstatus_fs = 0;
 		break;
+
 	case 48000:
-		if (src_48000 < 0) {
-			pr_info("%s: no defined 48000 clk src\n", __func__);
-			ret = -1;
-		} else {
-			cstatus |= 0x04;
-			__raw_writel(cstatus, SPDIF_REG_STCSCL + spdif_base_addr);
-			stc |= (src_48000 << 8) | 0x07;
-			__raw_writel(stc, SPDIF_REG_STC + spdif_base_addr);
-			pr_debug("set sample rate to 48000\n");
-		}
+		clk_fs = 48000;
+		clk = plat_data->spdif_clk_48000;
+		div = plat_data->spdif_div_48000;
+		cstatus_fs = 0x04;
 		break;
+
 	case 32000:
-		if (src_48000 < 0) {
-			pr_info("%s: no defined 48000 clk src\n", __func__);
-			ret = -1;
-		} else {
-			cstatus |= 0x0c;
-			__raw_writel(cstatus, SPDIF_REG_STCSCL + spdif_base_addr);
-			stc |= (src_48000 << 8) | 0x0b;
-			__raw_writel(stc, SPDIF_REG_STC + spdif_base_addr);
-			pr_debug("set sample rate to 32000\n");
-		}
+		/* use 48K clk for 32K */
+		clk_fs = 48000;
+		clk = plat_data->spdif_clk_48000;
+		div = plat_data->spdif_div_32000;
+		cstatus_fs = 0x0c;
 		break;
+
+	default:
+		pr_err("%s: unsupported sample rate %d\n", __func__, sample_rate);
+		return -EINVAL;
 	}
+
+	if (clk < 0) {
+		pr_info("%s: no defined %d clk src\n", __func__, clk_fs);
+		return -EINVAL;
+	}
+
+	/*
+	 * The S/PDIF block needs a clock of 64 * fs * div.  The S/PDIF block
+	 * will divide by (div).  So request 64 * fs * (div+1) which will
+	 * get rounded.
+	 */
+	if (plat_data->spdif_clk_set_rate)
+		plat_data->spdif_clk_set_rate(plat_data->spdif_clk,
+					      64 * sample_rate * (div + 1));
+
+#if MXC_SPDIF_DEBUG
+	pr_debug("%s wanted spdif clock rate = %d\n", __func__,
+		(int)(64 * sample_rate * div));
+	pr_debug("%s got spdif clock rate    = %d\n", __func__,
+		(int)clk_get_rate(plat_data->spdif_clk));
+#endif
+
+	/* set fs field in consumer channel status */
+	cstatus = __raw_readl(SPDIF_REG_STCSCL + spdif_base_addr) & 0xfffff0;
+	cstatus |= cstatus_fs;
+	__raw_writel(cstatus, SPDIF_REG_STCSCL + spdif_base_addr);
+
+	/* select clock source and divisor */
+	stc = __raw_readl(SPDIF_REG_STC + spdif_base_addr) & ~0x7FF;
+	stc |= STC_TXCLK_SRC_EN | (clk << STC_TXCLK_SRC_OFFSET) | (div - 1);
+	__raw_writel(stc, SPDIF_REG_STC + spdif_base_addr);
+	pr_debug("set sample rate to %d\n", sample_rate);
 
 	pr_debug("STCSCL: 0x%08x\n", __raw_readl(spdif_base_addr + SPDIF_REG_STCSCL));
 
-	return ret;
+	return 0;
 }
 
 static int spdif_set_channel_status(int value, unsigned long reg)
@@ -533,9 +557,7 @@ static int mxc_spdif_playback_prepare(struct snd_pcm_substream *substream,
 	ch_status = mxc_spdif_control.ch_status[3];
 	spdif_set_channel_status(ch_status, SPDIF_REG_STCSCL);
 	spdif_intr_enable(INT_TXFIFO_RESYNC, 1);
-	err = spdif_set_sample_rate(plat_data->spdif_clk_44100,
-				    plat_data->spdif_clk_48000,
-				    runtime->rate);
+	err = spdif_set_sample_rate(codec, runtime->rate);
 	if (err < 0) {
 		pr_info("%s - err < 0\n", __func__);
 		return err;
@@ -659,7 +681,7 @@ static int mxc_spdif_capture_prepare(struct snd_pcm_substream *substream,
 			  INT_LOSS_LOCK, 1);
 
 	/* setup rx clock source */
-	spdif_set_rx_clksrc(plat_data->spdif_clkid, SPDIF_DEFAULT_GAINSEL, 1);
+	spdif_set_rx_clksrc(plat_data->spdif_rx_clk, SPDIF_DEFAULT_GAINSEL, 1);
 
 	regval = __raw_readl(SPDIF_REG_SCR + spdif_base_addr);
 	regval |= SCR_DMA_RX_EN;
