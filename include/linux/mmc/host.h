@@ -256,6 +256,8 @@ struct mmc_host {
 	unsigned int		tuning_min;
 	unsigned int		tuning_max;
 	unsigned int		tuning_step;
+	unsigned int		max_discard_to;	/* max. discard timeout in ms */
+
 	/* private data */
 	spinlock_t		lock;		/* lock for claim and bus ops */
 
