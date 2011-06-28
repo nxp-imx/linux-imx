@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2006 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2004-2011 Freescale Semiconductor, Inc.
  * Copyright (C) 2008 by Sascha Hauer <kernel@pengutronix.de>
  * Copyright (C) 2009 by Jan Weitzel Phytec Messtechnik GmbH,
  *                       <armlinux@phytec.de>
@@ -71,6 +71,21 @@ int mxc_iomux_v3_setup_multiple_pads(iomux_v3_cfg_t *pad_list, unsigned count)
 	return 0;
 }
 EXPORT_SYMBOL(mxc_iomux_v3_setup_multiple_pads);
+
+void mxc_iomux_set_gpr_register(int group, int start_bit, int num_bits, int value)
+{
+	int i = 0;
+	u32 reg;
+	reg = __raw_readl(base + group * 4);
+	while (num_bits) {
+		reg &= ~(1<<(start_bit + i));
+		i++;
+		num_bits -= i;
+	}
+	reg |= (value << start_bit);
+	__raw_writel(reg, base + group * 4);
+}
+EXPORT_SYMBOL(mxc_iomux_set_gpr_register);
 
 void mxc_iomux_v3_init(void __iomem *iomux_v3_base)
 {

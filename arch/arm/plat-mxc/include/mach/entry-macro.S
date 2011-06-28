@@ -1,6 +1,6 @@
 /*
  *  Copyright (C) 2007 Lennert Buytenhek <buytenh@wantstofly.org>
- *  Copyright 2004-2009 Freescale Semiconductor, Inc. All Rights Reserved.
+ *  Copyright (C) 2004-2011 Freescale Semiconductor, Inc.
  */
 
 /*
@@ -10,6 +10,17 @@
  */
 
 #include <mach/hardware.h>
+
+#if defined(CONFIG_ARM_GIC)
+#include <asm/hardware/entry-macro-gic.S>
+
+	.macro	disable_fiq
+	.endm
+
+	.macro	arch_ret_to_user, tmp1, tmp2
+	.endm
+
+#else
 
 #define AVIC_NIMASK	0x04
 
@@ -82,3 +93,5 @@
 	@ irq priority table (not used)
 	.macro	irq_prio_table
 	.endm
+#endif
+

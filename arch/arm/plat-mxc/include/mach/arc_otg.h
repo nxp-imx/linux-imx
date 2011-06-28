@@ -1,15 +1,21 @@
 /*
  * Copyright (C) 2005-2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+
+ * You should have received a copy of the GNU General Public License along
+ * with this program; if not, write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-/*
- * The code contained herein is licensed under the GNU General Public
- * License. You may obtain a copy of the GNU General Public License
- * Version 2 or later at the following locations:
- *
- * http://www.opensource.org/licenses/gpl-license.html
- * http://www.gnu.org/copyleft/gpl.html
- */
 #ifndef __ASM_ARCH_MXC_ARC_OTG_H__
 #define __ASM_ARCH_MXC_ARC_OTG_H__
 
@@ -224,6 +230,9 @@ extern void __iomem *imx_otg_base;
 #define  OTGSC_IE_1ms_TIMER		(1 << 29)
 #define  OTGSC_IE_DATA_PULSE		(1 << 30)
 
+/* UOG_USBSTS bits */
+#define USBSTS_PCI                     (1 << 2) /* Port Change Detect */
+#define USBSTS_URI                     (1 << 6) /* USB Reset Received */
 #if 1				/* FIXME these here for compatibility between my names and Leo's */
 /* OTG interrupt enable bit masks */
 #define  OTGSC_INTERRUPT_ENABLE_BITS_MASK	OTGSC_IE_MASK

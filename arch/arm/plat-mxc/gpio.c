@@ -3,7 +3,7 @@
  * Copyright 2008 Juergen Beisert, kernel@pengutronix.de
  *
  * Based on code from Freescale,
- * Copyright (C) 2004-2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2004-2011 Freescale Semiconductor, Inc.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -177,6 +177,8 @@ static void mx3_gpio_irq_handler(u32 irq, struct irq_desc *desc)
 	u32 irq_stat;
 	struct mxc_gpio_port *port = irq_get_handler_data(irq);
 
+	desc->irq_data.chip->irq_ack(&desc->irq_data);
+
 	irq_stat = __raw_readl(port->base + GPIO_ISR) &
 			__raw_readl(port->base + GPIO_IMR);
 
@@ -337,7 +339,7 @@ int __init mxc_gpio_init(struct mxc_gpio_port *port, int cnt)
 		BUG_ON( gpiochip_add(&port[i].chip) < 0 );
 
 		if (cpu_is_mx1() || cpu_is_mx3() || cpu_is_mx25() ||
-			cpu_is_mx51() || cpu_is_mx53()) {
+			cpu_is_mx51() || cpu_is_mx53() || cpu_is_mx6q()) {
 			/* setup one handler for each entry */
 			irq_set_chained_handler(port[i].irq,
 						mx3_gpio_irq_handler);

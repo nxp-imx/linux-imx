@@ -1,6 +1,6 @@
 /*
- *  Copyright (C) 1999 ARM Limited
- * Copyright 2004-2007 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 1999 ARM Limited
+ * Copyright (C) 2004-2011 Freescale Semiconductor, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -25,6 +25,8 @@
 #elif defined CONFIG_ARCH_MX25
 #define CLOCK_TICK_RATE		16000000
 #elif defined CONFIG_ARCH_MX5
+#define CLOCK_TICK_RATE		8000000
+#elif defined CONFIG_ARCH_MX6
 #define CLOCK_TICK_RATE		8000000
 #endif
 

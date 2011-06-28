@@ -1,5 +1,5 @@
 /*
- *  Copyright 2004-2007 Freescale Semiconductor, Inc. All Rights Reserved.
+ *  Copyright 2004-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -16,6 +16,9 @@
  */
 #ifdef CONFIG_MXC_TZIC
 #define MXC_INTERNAL_IRQS	128
+#elif defined CONFIG_ARM_GIC
+/* assuem 256 is enough for GIC */
+#define MXC_INTERNAL_IRQS	256
 #else
 #define MXC_INTERNAL_IRQS	64
 #endif
@@ -37,6 +40,8 @@
 #define MXC_GPIO_IRQS		(32 * 4)
 #elif defined CONFIG_ARCH_MX3
 #define MXC_GPIO_IRQS		(32 * 3)
+#elif defined CONFIG_ARCH_MX6
+#define MXC_GPIO_IRQS		(32 * 7)
 #endif
 
 /*
