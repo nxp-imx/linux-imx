@@ -12,6 +12,7 @@ config ARCH_MX6Q
 	select IMX_HAVE_PLATFORM_IMX_IPUV3
 	select IMX_HAVE_PLATFORM_MXC_PWM
 	select IMX_HAVE_PLATFORM_LDB
+	select IMX_HAVE_PLATFORM_IMX_SPDIF
 
 config FORCE_MAX_ZONEORDER
     int "MAX_ORDER"
@@ -48,6 +49,7 @@ config MACH_MX6Q_SABREAUTO
 	select IMX_HAVE_PLATFORM_IMX_PM
 	select IMX_HAVE_PLATFORM_MXC_HDMI
 	select IMX_HAVE_PLATFORM_IMX_ASRC
+	select IMX_HAVE_PLATFORM_IMX_SPDIF
 	help
 	  Include support for i.MX 6Quad SABRE Automotive Infotainment platform. This includes specific
 	  configurations for the board and its peripherals.

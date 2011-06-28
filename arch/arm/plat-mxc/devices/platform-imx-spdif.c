@@ -42,6 +42,11 @@ const struct imx_spdif_data imx53_imx_spdif_data __initconst =
 			imx5_spdif_data_entry_single(MX53);
 #endif /* ifdef CONFIG_SOC_IMX53 */
 
+#ifdef CONFIG_SOC_IMX6Q
+const struct imx_spdif_data imx6q_imx_spdif_data __initconst =
+			imx5_spdif_data_entry_single(MX6Q);
+#endif /* ifdef CONFIG_SOC_IMX6Q */
+
 struct platform_device *__init imx_add_spdif(
 		const struct imx_spdif_data *data,
 		const struct mxc_spdif_platform_data *pdata)

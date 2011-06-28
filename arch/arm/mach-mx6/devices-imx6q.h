@@ -143,3 +143,14 @@ extern const struct imx_dvfs_core_data imx6q_dvfs_core_data __initconst;
 #define imx6q_add_dvfs_core(pdata)	\
 	imx_add_dvfs_core(&imx6q_dvfs_core_data, pdata)
 
+extern const struct imx_viv_gpu_data imx6_gc2000_data __initconst;
+extern const struct imx_viv_gpu_data imx6_gc320_data __initconst;
+extern const struct imx_viv_gpu_data imx6_gc355_data __initconst;
+
+extern const struct imx_spdif_data imx6q_imx_spdif_data __initconst;
+#define imx6q_add_spdif(pdata)	imx_add_spdif(&imx6q_imx_spdif_data, pdata)
+
+extern const struct imx_spdif_dai_data imx6q_spdif_dai_data __initconst;
+#define imx6q_add_spdif_dai()	imx_add_spdif_dai(&imx6q_spdif_dai_data)
+
+#define imx6q_add_spdif_audio_device(pdata)	imx_add_spdif_audio_device()
