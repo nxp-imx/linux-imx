@@ -130,7 +130,7 @@
 #define ATZ2_BASE_ADDR              AIPS2_ARB_BASE_ADDR
 
 /* slots 0,7 of SDMA reserved, therefore left unused in IPMUX3 */
-#define SPDIF_BASE_ADDR             (ATZ1_BASE_ADDR + 0x04000) /* slot 1 */
+#define MX6Q_SPDIF_BASE_ADDR             (ATZ1_BASE_ADDR + 0x04000) /* slot 1 */
 #define MX6Q_ECSPI1_BASE_ADDR            (ATZ1_BASE_ADDR + 0x08000) /* slot 2 */
 #define MX6Q_ECSPI2_BASE_ADDR            (ATZ1_BASE_ADDR + 0x0C000) /* slot 3 */
 #define MX6Q_ECSPI3_BASE_ADDR            (ATZ1_BASE_ADDR + 0x10000) /* slot 4 */
@@ -330,7 +330,7 @@
 #define MXC_INT_ANATOP_TEMPSNSR                    81
 #define MX6Q_INT_ASRC                               82
 #define MXC_INT_ESAI                              83
-#define MXC_INT_SPDIF                              84
+#define MX6Q_INT_SPDIF                              84
 #define MXC_INT_MLB                                85
 #define MXC_INT_ANATOP_ANA1                        86
 #define MXC_INT_GPT                                87
