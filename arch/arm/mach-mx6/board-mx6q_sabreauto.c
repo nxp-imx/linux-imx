@@ -264,6 +264,10 @@ static iomux_v3_cfg_t mx6q_sabreauto_pads[] = {
 
 	/* USBOTG ID pin */
 	MX6Q_PAD_GPIO_1__USBOTG_ID,
+
+	/* SPDIF */
+	MX6Q_PAD_GPIO_16__SPDIF_IN1,
+	MX6Q_PAD_GPIO_17__SPDIF_OUT1,
 };
 
 static iomux_v3_cfg_t mx6q_sabreauto_esai_record_pads[] = {
@@ -869,6 +873,35 @@ static inline void __init mx6q_csi0_io_init(void)
 	gpio_set_value(MX6Q_SMD_CSI0_PWN, 0);
 	mxc_iomux_set_gpr_register(1, 19, 1, 1);
 }
+
+static int spdif_clk_set_rate(struct clk *clk, unsigned long rate)
+{
+	unsigned long rate_actual;
+	rate_actual = clk_round_rate(clk, rate);
+	clk_set_rate(clk, rate_actual);
+	return 0;
+}
+
+static struct mxc_spdif_platform_data mxc_spdif_data = {
+	.spdif_tx = 1,		/* enable tx */
+	.spdif_rx = 1,		/* enable rx */
+	/*
+	 * spdif0_clk will be 454.7MHz divided by ccm dividers.
+	 *
+	 * 44.1KHz: 454.7MHz / 7 (ccm) / 23 (spdif) = 44,128 Hz ~ 0.06% error
+	 * 48KHz:   454.7MHz / 4 (ccm) / 37 (spdif) = 48,004 Hz ~ 0.01% error
+	 * 32KHz:   454.7MHz / 6 (ccm) / 37 (spdif) = 32,003 Hz ~ 0.01% error
+	 */
+	.spdif_clk_44100 = 1,	/* tx clk from spdif0_clk_root */
+	.spdif_clk_48000 = 1,	/* tx clk from spdif0_clk_root */
+	.spdif_div_44100 = 23,
+	.spdif_div_48000 = 37,
+	.spdif_div_32000 = 37,
+	.spdif_rx_clk = 0,	/* rx clk from spdif stream */
+	.spdif_clk_set_rate = spdif_clk_set_rate,
+	.spdif_clk = NULL,	/* spdif bus clk */
+};
+
 /*!
  * Board specific initialization.
  */
@@ -954,6 +987,12 @@ static void __init mx6_board_init(void)
 	imx6q_add_gpmi(&mx6q_gpmi_nfc_platform_data);
 
 	imx6q_add_dvfs_core(&sabreauto_dvfscore_data);
+
+	mxc_spdif_data.spdif_core_clk = clk_get_sys("mxc_spdif.0", NULL);
+	clk_put(mxc_spdif_data.spdif_core_clk);
+	imx6q_add_spdif(&mxc_spdif_data);
+	imx6q_add_spdif_dai();
+	imx6q_add_spdif_audio_device();
 }
 
 extern void __iomem *twd_base;
