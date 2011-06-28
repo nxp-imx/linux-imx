@@ -4483,7 +4483,7 @@ static struct clk_lookup lookups[] = {
 	_REGISTER_CLOCK("FlexCAN.1", "can_clk", can2_clk[0]),
 	_REGISTER_CLOCK(NULL, "ldb_di0_clk", ldb_di0_clk),
 	_REGISTER_CLOCK(NULL, "ldb_di1_clk", ldb_di1_clk),
-	_REGISTER_CLOCK(NULL, "mxc_alsa_spdif.0", spdif0_clk[0]),
+	_REGISTER_CLOCK("mxc_spdif.0", NULL, spdif0_clk[0]),
 	_REGISTER_CLOCK(NULL, "esai_clk", esai_clk),
 	_REGISTER_CLOCK("mxc_spi.0", NULL, ecspi_clk[0]),
 	_REGISTER_CLOCK("mxc_spi.1", NULL, ecspi_clk[1]),
@@ -4652,6 +4652,9 @@ int __init mx6_clocks_init(unsigned long ckil, unsigned long osc,
 
 	/* Lower the ipg_perclk frequency to 8.25MHz. */
 	clk_set_rate(&ipg_perclk, 8250000);
+
+	/* S/PDIF */
+	clk_set_parent(&spdif0_clk[0], &pll3_pfd_454M);
 
 	base = ioremap(GPT_BASE_ADDR, SZ_4K);
 	mxc_timer_init(&gpt_clk[0], base, MXC_INT_GPT);

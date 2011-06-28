@@ -33,6 +33,11 @@ const struct imx_spdif_dai_data imx53_spdif_dai_data __initconst =
 			imx_spdif_dai_data_entry(MX53);
 #endif /* ifdef CONFIG_SOC_IMX53 */
 
+#ifdef CONFIG_SOC_IMX6Q
+const struct imx_spdif_dai_data imx6q_spdif_dai_data __initconst =
+			imx_spdif_dai_data_entry(MX6Q);
+#endif /* #ifdef CONFIG_SOC_IMX6Q */
+
 struct platform_device *__init imx_add_spdif_dai(
 			const struct imx_spdif_dai_data *data)
 {
