@@ -108,6 +108,8 @@ enum spdif_gainsel {
 /* SPDIF Clock register */
 #define STC_SYSCLK_DIV_OFFSET	11
 #define STC_TXCLK_SRC_OFFSET	8
+#define STC_TXCLK_SRC_EN_OFFSET 7
+#define STC_TXCLK_SRC_EN        (1 << 7)
 #define STC_TXCLK_DIV_OFFSET	0
 
 #define SPDIF_CSTATUS_BYTE	6

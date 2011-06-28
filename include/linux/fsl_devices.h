@@ -330,7 +330,11 @@ struct mxc_spdif_platform_data {
 	int spdif_rx;		/* S/PDIF rx enabled for this board */
 	int spdif_clk_44100;	/* tx clk mux in SPDIF_REG_STC; -1 for none */
 	int spdif_clk_48000;	/* tx clk mux in SPDIF_REG_STC; -1 for none */
-	int spdif_clkid;	/* rx clk mux select in SPDIF_REG_SRPC */
+	int spdif_div_44100;	/* tx clk div in SPDIF_REG_STC */
+	int spdif_div_48000;	/* tx clk div in SPDIF_REG_STC */
+	int spdif_div_32000;	/* tx clk div in SPDIF_REG_STC */
+	int spdif_rx_clk;	/* rx clk mux select in SPDIF_REG_SRPC */
+	int (*spdif_clk_set_rate) (struct clk *clk, unsigned long rate);
 	struct clk *spdif_clk;
 	struct clk *spdif_core_clk;
 	struct clk *spdif_audio_clk;
