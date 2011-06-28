@@ -120,6 +120,7 @@ static __init void mxc_init_scc_iram(struct resource res[])
 
 	scm_rd_timeout = 0;
 
+#ifdef CONFIG_ARCH_MX5
 	/* Release all partitions for SCC2 driver on MX53*/
 	if (cpu_is_mx53())
 		scc_partno = 0;
@@ -127,6 +128,10 @@ static __init void mxc_init_scc_iram(struct resource res[])
 	else
 		scc_partno = ram_partitions -
 			(MX51_SCC_RAM_SIZE / ram_partition_size);
+#else
+	scc_partno = 0;
+#endif
+
 
 	for (partition_no = scc_partno; partition_no < ram_partitions;
 	     partition_no++) {

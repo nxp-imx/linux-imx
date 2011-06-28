@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2007, 2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2004-2007, 2011 Freescale Semiconductor, Inc.
  * Copyright (C) 2008 Juergen Beisert (kernel@pengutronix.de)
  *
  * This program is free software; you can redistribute it and/or
@@ -206,6 +206,10 @@ extern unsigned int __mxc_cpu_type;
 # define cpu_is_mx53()		(mxc_cpu_type == MXC_CPU_MX53)
 #else
 # define cpu_is_mx53()		(0)
+#endif
+
+#ifdef CONFIG_SOC_IMX6Q
+#define cpu_is_mx6q()		(1)
 #endif
 
 #ifdef CONFIG_ARCH_MXC91231
