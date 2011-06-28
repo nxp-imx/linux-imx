@@ -135,9 +135,12 @@ static struct spi_board_info mx51_3ds_spi_nor_device[] = {
 static struct mxc_spdif_platform_data mxc_spdif_data = {
 	.spdif_tx = 1,
 	.spdif_rx = 0,
-	.spdif_clk_44100 = 0,	/* spdif_ext_clk source for 44.1KHz */
-	.spdif_clk_48000 = 7,	/* audio osc source */
-	.spdif_clkid = 0,
+	.spdif_clk_44100 = 0,	/* tx clk from CKIH1 for 44.1K */
+	.spdif_clk_48000 = 7,	/* tx clk from CKIH2 for 48k and 32k */
+	.spdif_div_44100 = 8,
+	.spdif_div_48000 = 8,
+	.spdif_div_32000 = 12,
+	.spdif_rx_clk = 0,	/* rx clk from spdif stream */
 	.spdif_clk = NULL,	/* spdif bus clk */
 };
 

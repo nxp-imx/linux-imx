@@ -734,7 +734,10 @@ static struct mxc_spdif_platform_data mxc_spdif_data = {
 	 * It's not accurate
 	 */
 	.spdif_clk_48000 = 1,
-	.spdif_clkid = 0,
+	.spdif_div_44100 = 8,
+	.spdif_div_48000 = 8,
+	.spdif_div_32000 = 12,
+	.spdif_rx_clk = 0,	/* rx clk from spdif stream */
 	.spdif_clk = NULL,	/* spdif bus clk */
 };
 
