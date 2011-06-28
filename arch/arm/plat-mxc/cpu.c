@@ -1,8 +1,26 @@
+/*
+ * Copyright (C) 2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+
+ * You should have received a copy of the GNU General Public License along
+ * with this program; if not, write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+ */
 
 #include <linux/module.h>
 
 unsigned int __mxc_cpu_type;
 EXPORT_SYMBOL(__mxc_cpu_type);
+extern int mxc_early_serial_console_init(unsigned long base, struct clk *clk);
 
 void mxc_set_cpu_type(unsigned int type)
 {
@@ -31,3 +49,20 @@ static int __init jtag_wfi_setup(char *p)
 	return 0;
 }
 early_param("jtag", jtag_wfi_setup);
+/**
+ * early_console_setup - setup debugging console
+ *
+ * Consoles started here require little enough setup that we can start using
+ * them very early in the boot process, either right after the machine
+ * vector initialization, or even before if the drivers can detect their hw.
+ *
+ * Returns non-zero if a console couldn't be setup.
+ * This function is developed based on
+ * early_console_setup function as defined in arch/ia64/kernel/setup.c
+ */
+void __init early_console_setup(unsigned long base, struct clk *clk)
+{
+#ifdef CONFIG_SERIAL_IMX_CONSOLE
+	mxc_early_serial_console_init(base, clk);
+#endif
+}

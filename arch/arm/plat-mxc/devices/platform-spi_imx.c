@@ -112,6 +112,18 @@ const struct imx_spi_imx_data imx53_ecspi_data[] __initconst = {
 };
 #endif /* ifdef CONFIG_SOC_IMX53 */
 
+#ifdef CONFIG_SOC_IMX6Q
+const struct imx_spi_imx_data imx6q_ecspi_data[] __initconst = {
+#define imx6q_ecspi_data_entry(_id, _hwid)				\
+	imx_spi_imx_data_entry(MX6Q, ECSPI, "imx6q-ecspi", _id, _hwid, SZ_4K)
+	imx6q_ecspi_data_entry(0, 1),
+	imx6q_ecspi_data_entry(1, 2),
+	imx6q_ecspi_data_entry(2, 3),
+	imx6q_ecspi_data_entry(3, 4),
+	imx6q_ecspi_data_entry(4, 5),
+};
+#endif /* ifdef CONFIG_SOC_IMX6Q */
+
 struct platform_device *__init imx_add_spi_imx(
 		const struct imx_spi_imx_data *data,
 		const struct spi_imx_master *pdata)

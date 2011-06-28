@@ -26,7 +26,6 @@
 #define CACHE_LINE_SIZE		32
 
 static void __iomem *l2x0_base;
-static unsigned long l2x0_aux;
 static DEFINE_SPINLOCK(l2x0_lock);
 static uint32_t l2x0_way_mask;	/* Bitmask of active ways */
 static uint32_t l2x0_size;
@@ -166,18 +165,6 @@ static void l2x0_inv_all(void)
 	spin_unlock_irqrestore(&l2x0_lock, flags);
 }
 
-static void l2x0_flush_all(void)
-{
-	unsigned long flags;
-
-	/* clean and invalidate all ways */
-	spin_lock_irqsave(&l2x0_lock, flags);
-	writel(0xff, l2x0_base + L2X0_CLEAN_INV_WAY);
-	cache_wait(l2x0_base + L2X0_CLEAN_INV_WAY, 0xff);
-	cache_sync();
-	spin_unlock_irqrestore(&l2x0_lock, flags);
-}
-
 static void l2x0_inv_range(unsigned long start, unsigned long end)
 {
 	void __iomem *base = l2x0_base;
@@ -305,7 +292,6 @@ void __init l2x0_init(void __iomem *base, __u32 aux_val, __u32 aux_mask)
 
 	aux &= aux_mask;
 	aux |= aux_val;
-	l2x0_aux = aux;
 
 	/* Determine the number of ways */
 	switch (cache_id & L2X0_CACHE_ID_PART_MASK) {
@@ -364,24 +350,4 @@ void __init l2x0_init(void __iomem *base, __u32 aux_val, __u32 aux_mask)
 	printk(KERN_INFO "%s cache controller enabled\n", type);
 	printk(KERN_INFO "l2x0: %d ways, CACHE_ID 0x%08x, AUX_CTRL 0x%08x, Cache size: %d B\n",
 			ways, cache_id, aux, l2x0_size);
-}
-
-void l2x0_disable(void)
-{
-	if (readl(l2x0_base + L2X0_CTRL)
-	    && !(readl(l2x0_base + L2X0_DEBUG_CTRL) & 0x2)) {
-		l2x0_flush_all();
-		writel(0, l2x0_base + L2X0_CTRL);
-		l2x0_flush_all();
-	}
-}
-
-void l2x0_enable(void)
-{
-	if (!readl(l2x0_base + L2X0_CTRL)) {
-		writel(l2x0_aux, l2x0_base + L2X0_AUX_CTRL);
-		l2x0_inv_all();
-		/* enable L2X0 */
-		writel(1, l2x0_base + L2X0_CTRL);
-	}
 }

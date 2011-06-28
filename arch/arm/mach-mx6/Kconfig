@@ -1,0 +1,33 @@
+if ARCH_MX6
+
+config ARCH_MX6Q
+	bool
+	select USB_ARCH_HAS_EHCI
+	select MXC_TZIC
+	select ARCH_MXC_IOMUX_V3
+	select ARM_GIC
+	select IMX_HAVE_PLATFORM_IMX_UART
+	select IMX_HAVE_PLATFORM_FEC
+
+config FORCE_MAX_ZONEORDER
+    int "MAX_ORDER"
+    default "13"
+
+config	SOC_IMX6Q
+	bool
+
+config MACH_MX6Q_SABREAUTO
+	bool "Support i.MX 6Quad SABRE Automotive Infotainment platform"
+	select ARCH_MX6Q
+	select SOC_IMX6Q
+	select IMX_HAVE_PLATFORM_IMX_UART
+	select IMX_HAVE_PLATFORM_FEC
+	select IMX_HAVE_PLATFORM_SDHCI_ESDHC_IMX
+	select IMX_HAVE_PLATFORM_SPI_IMX
+	help
+	  Include support for i.MX 6Quad SABRE Automotive Infotainment platform. This includes specific
+	  configurations for the board and its peripherals.
+
+comment "MX6 Options:"
+
+endif
