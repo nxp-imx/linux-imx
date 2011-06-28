@@ -225,6 +225,7 @@
 /* Cortex-A9 MPCore private memory region */
 #define ARM_PERIPHBASE                  0x00A00000
 #define SCU_BASE_ADDR                   ARM_PERIPHBASE
+#define LOCAL_TWD_ADDR			(SCU_BASE_ADDR + 0x600)
 #define IC_INTERFACES_BASE_ADDR         (ARM_PERIPHBASE + 0x0100)
 #define GLOBAL_TIMER_BASE_ADDR          (ARM_PERIPHBASE + 0x0200)
 #define PRIVATE_TIMERS_WD_BASE_ADDR     (ARM_PERIPHBASE + 0x0600)

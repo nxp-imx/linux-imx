@@ -175,10 +175,14 @@ static void __init mx6_board_init(void)
 	imx6q_add_sdhci_usdhc_imx(3, &mx6q_sabreauto_sd4_data);
 }
 
+extern void __iomem *twd_base;
 static void __init mx6_timer_init(void)
 {
 	struct clk *uart_clk;
-
+#ifdef CONFIG_LOCAL_TIMERS
+	twd_base = ioremap(LOCAL_TWD_ADDR, SZ_256);
+	BUG_ON(!twd_base);
+#endif
 	mx6_clocks_init(32768, 24000000, 0, 0);
 
 	uart_clk = clk_get_sys("imx-uart.0", NULL);

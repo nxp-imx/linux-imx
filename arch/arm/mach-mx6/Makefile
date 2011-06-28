@@ -7,3 +7,4 @@ obj-y   := cpu.o mm.o system.o devices.o dummy_gpio.o irq.o bus_freq.o
 
 obj-$(CONFIG_ARCH_MX6) += clock.o
 obj-$(CONFIG_MACH_MX6Q_SABREAUTO) += board-mx6q_sabreauto.o
+obj-$(CONFIG_SMP) += plat_hotplug.o platsmp.o headsmp.o localtimer.o
