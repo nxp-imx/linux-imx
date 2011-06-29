@@ -210,6 +210,8 @@ extern unsigned int __mxc_cpu_type;
 
 #ifdef CONFIG_SOC_IMX6Q
 #define cpu_is_mx6q()		(1)
+#else
+#define cpu_is_mx6q()		(0)
 #endif
 
 struct cpu_op {
