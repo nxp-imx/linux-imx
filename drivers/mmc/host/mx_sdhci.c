@@ -47,6 +47,7 @@
 #include <mach/dma.h>
 #include <mach/mmc.h>
 #include <mach/common.h>
+#include <linux/mmc/sdio_func.h>
 
 #include "mx_sdhci.h"
 
@@ -127,6 +128,21 @@ static void sdhci_finish_command(struct sdhci_host *);
 extern void gpio_sdhc_active(int module);
 extern void gpio_sdhc_inactive(int module);
 static void sdhci_dma_irq(void *devid, int error, unsigned int cnt);
+
+void sdhci_clock_enable(struct mmc_host *mmc, unsigned int enable)
+{
+	struct sdhci_host *host;
+
+	host = mmc_priv(mmc);
+	if (enable) {
+		clk_enable(host->clk);
+		host->plat_data->clk_flg = 1;
+	} else {
+		clk_disable(host->clk);
+		host->plat_data->clk_flg = 0;
+	}
+}
+EXPORT_SYMBOL(sdhci_clock_enable);
 
 void mxc_mmc_force_detect(int id)
 {
@@ -1334,6 +1350,7 @@ static void sdhci_finish_worker(struct work_struct *work)
 	unsigned long flags;
 	int req_done;
 	struct mmc_request *mrq;
+	struct sdio_func *func = NULL;
 
 	spin_lock_irqsave(&host->lock, flags);
 
@@ -1378,9 +1395,13 @@ static void sdhci_finish_worker(struct work_struct *work)
 	/* Stop the clock when the req is done */
 	req_done = !(readl(host->ioaddr + SDHCI_PRESENT_STATE) &
 		(SDHCI_DATA_ACTIVE | SDHCI_DOING_WRITE | SDHCI_DOING_READ));
+
+	if ((host->mmc->card) && host->mmc->card->sdio_func)
+		func = host->mmc->card->sdio_func[0];
+
 	if (req_done && host->plat_data->clk_flg &&
 		!(host->plat_data->clk_always_on) &&
-		!(host->mmc->card && mmc_card_sdio(host->mmc->card))) {
+		!(func && sdio_func_present(func) && func->dev.driver)) {
 		clk_disable(host->clk);
 		host->plat_data->clk_flg = 0;
 	}
