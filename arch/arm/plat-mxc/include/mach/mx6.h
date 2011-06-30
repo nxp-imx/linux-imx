@@ -87,7 +87,6 @@
 #define GPU_2D_ARB_END_ADDR             0x00137FFF
 #define DTCP_ARB_BASE_ADDR              0x00138000
 #define DTCP_ARB_END_ADDR               0x0013BFFF
-#define GPU_MEM_BASE_ADDR               GPU_3D_ARB_BASE_ADDR
 
 /* GPV - PL301 configuration ports */
 #define GPV0_BASE_ADDR                  0x00B00000

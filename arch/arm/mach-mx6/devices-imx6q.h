@@ -41,3 +41,7 @@ extern const struct imx_spi_imx_data imx6q_ecspi_data[] __initconst;
 extern const struct imx_imx_i2c_data imx6q_imx_i2c_data[] __initconst;
 #define imx6q_add_imx_i2c(id, pdata)	\
 	imx_add_imx_i2c(&imx6q_imx_i2c_data[id], pdata)
+
+extern const struct imx_viv_gpu_data imx6_gc2000_data __initconst;
+extern const struct imx_viv_gpu_data imx6_gc320_data __initconst;
+extern const struct imx_viv_gpu_data imx6_gc355_data __initconst;
