@@ -447,3 +447,13 @@ struct platform_device *__init imx_add_spdif_dai(
 		const struct imx_spdif_dai_data *data);
 
 struct platform_device *__init imx_add_spdif_audio_device(void);
+
+#include <mach/viv_gpu.h>
+struct imx_viv_gpu_data {
+	resource_size_t irq;
+	resource_size_t iobase;
+};
+struct platform_device *__init imx_add_viv_gpu(
+		const char *name,
+		const struct imx_viv_gpu_data *data,
+		const struct viv_gpu_platform_data *pdata);

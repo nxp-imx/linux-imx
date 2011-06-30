@@ -44,6 +44,7 @@
 #include <linux/mxcfb.h>
 #include <linux/pwm_backlight.h>
 #include <linux/fec.h>
+#include <linux/memblock.h>
 #include <mach/common.h>
 #include <mach/hardware.h>
 #include <asm/irq.h>
@@ -55,6 +56,7 @@
 #include <mach/memory.h>
 #include <mach/iomux-mx6q.h>
 #include <mach/imx-uart.h>
+#include <mach/viv_gpu.h>
 #include <linux/gpio.h>
 
 #include "devices-imx6q.h"
@@ -212,6 +214,10 @@ static struct i2c_board_info mxc_i2c2_board_info[] __initdata = {
 	},
 };
 
+static struct viv_gpu_platform_data imx6q_gc2000_pdata __initdata = {
+	.reserved_mem_size = SZ_128M,
+};
+
 /*!
  * Board specific initialization.
  */
@@ -227,6 +233,7 @@ static void __init mx6_board_init(void)
 			ARRAY_SIZE(mxc_i2c2_board_info));
 
 	imx6q_add_sdhci_usdhc_imx(3, &mx6q_sabreauto_sd4_data);
+	imx_add_viv_gpu("gc2000", &imx6_gc2000_data, &imx6q_gc2000_pdata);
 }
 
 extern void __iomem *twd_base;
@@ -247,6 +254,18 @@ static struct sys_timer mxc_timer = {
 	.init   = mx6_timer_init,
 };
 
+static void __init mx6q_reserve(void)
+{
+	phys_addr_t phys;
+
+	if (imx6q_gc2000_pdata.reserved_mem_size) {
+		phys = memblock_alloc(imx6q_gc2000_pdata.reserved_mem_size, SZ_4K);
+		memblock_free(phys, imx6q_gc2000_pdata.reserved_mem_size);
+		memblock_remove(phys, imx6q_gc2000_pdata.reserved_mem_size);
+		imx6q_gc2000_pdata.reserved_mem_base = phys;
+	}
+}
+
 /*
  * initialize __mach_desc_MX6Q_SABREAUTO data structure.
  */
@@ -258,4 +277,5 @@ MACHINE_START(MX6Q_SABREAUTO, "Freescale i.MX 6Quad SABRE Auto Board")
 	.init_irq = mx6_init_irq,
 	.init_machine = mx6_board_init,
 	.timer = &mxc_timer,
+	.reserve = mx6q_reserve,
 MACHINE_END
