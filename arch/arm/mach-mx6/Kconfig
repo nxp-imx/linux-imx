@@ -3,7 +3,6 @@ if ARCH_MX6
 config ARCH_MX6Q
 	bool
 	select USB_ARCH_HAS_EHCI
-	select MXC_TZIC
 	select ARCH_MXC_IOMUX_V3
 	select ARM_GIC
 	select IMX_HAVE_PLATFORM_IMX_UART
