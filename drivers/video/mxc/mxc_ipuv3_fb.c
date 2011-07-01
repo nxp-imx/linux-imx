@@ -2027,6 +2027,10 @@ static int mxcfb_option_setup(struct fb_info *info, char *options)
 			mxcfbi->ipu_di_pix_fmt = IPU_PIX_FMT_YUV444;
 			continue;
 		}
+		if (!strncmp(opt, "VYU444", 6)) {
+			mxcfbi->ipu_di_pix_fmt = IPU_PIX_FMT_VYU444;
+			continue;
+		}
 		if (!strncmp(opt, "LVDS666", 7)) {
 			mxcfbi->ipu_di_pix_fmt = IPU_PIX_FMT_LVDS666;
 			continue;
