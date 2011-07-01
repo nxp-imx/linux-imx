@@ -46,3 +46,4 @@ obj-$(CONFIG_IMX_HAVE_PLATFORM_IMX_SPDIF) += platform-imx-spdif.o
 obj-$(CONFIG_IMX_HAVE_PLATFORM_IMX_SPDIF) += platform-imx-spdif-dai.o
 obj-$(CONFIG_IMX_HAVE_PLATFORM_IMX_SPDIF) += platform-imx-spdif-audio.o
 obj-$(CONFIG_IMX_HAVE_PLATFORM_VIV_GPU) +=  platform-viv_gpu.o
+obj-$(CONFIG_IMX_HAVE_PLATFORM_IMX_ANATOP_THERMAL) += platform-imx-anatop-thermal.o

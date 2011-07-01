@@ -23,7 +23,10 @@ extern const struct imx_imx_uart_1irq_data imx6q_imx_uart_data[] __initconst;
 #define imx6q_add_imx_uart(id, pdata)	\
 	imx_add_imx_uart_1irq(&imx6q_imx_uart_data[id], pdata)
 
-extern struct platform_device anatop_thermal_device;
+extern const struct imx_anatop_thermal_imx_data
+imx6q_anatop_thermal_imx_data __initconst;
+#define imx6q_add_anatop_thermal_imx(id, pdata)	\
+	imx_add_anatop_thermal_imx(&imx6q_anatop_thermal_imx_data, pdata)
 
 extern const struct imx_fec_data imx6q_fec_data __initconst;
 #define imx6q_add_fec(pdata)	\
