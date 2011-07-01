@@ -8,6 +8,7 @@ config ARCH_MX6Q
 	select ARM_GIC
 	select IMX_HAVE_PLATFORM_IMX_UART
 	select IMX_HAVE_PLATFORM_FEC
+	select IMX_HAVE_PLATFORM_IMX_ANATOP_THERMAL
 
 config FORCE_MAX_ZONEORDER
     int "MAX_ORDER"
@@ -26,6 +27,7 @@ config MACH_MX6Q_SABREAUTO
 	select IMX_HAVE_PLATFORM_SPI_IMX
 	select IMX_HAVE_PLATFORM_IMX_I2C
 	select IMX_HAVE_PLATFORM_VIV_GPU
+	select IMX_HAVE_PLATFORM_IMX_ANATOP_THERMAL
 	help
 	  Include support for i.MX 6Quad SABRE Automotive Infotainment platform. This includes specific
 	  configurations for the board and its peripherals.

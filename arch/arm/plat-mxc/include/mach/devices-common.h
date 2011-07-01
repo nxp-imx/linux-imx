@@ -457,6 +457,16 @@ struct platform_device *__init imx_add_viv_gpu(
 		const char *name,
 		const struct imx_viv_gpu_data *data,
 		const struct viv_gpu_platform_data *pdata);
+
+#include <mach/anatop_thermal.h>
+struct imx_anatop_thermal_imx_data {
+	int id;
+	resource_size_t iobase;
+	resource_size_t irq;
+};
+struct platform_device *__init imx_add_anatop_thermal_imx(
+		const struct imx_anatop_thermal_imx_data *data,
+		const struct anatop_thermal_platform_data *pdata);
 struct platform_device *__init imx_add_perfmon(
 		const struct imx_perfmon_data *data);
 		const struct mxc_gpu_platform_data *pdata);
