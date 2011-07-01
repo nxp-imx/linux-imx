@@ -898,6 +898,7 @@ void _ipu_init_dc_mappings(struct ipu_soc *ipu)
 	_ipu_dc_map_link(ipu, 12, 5, 2, 5, 1, 5, 0);
 
 	/* IPU_PIX_FMT_GBR24 */
+	/* IPU_PIX_FMT_VYU444 */
 	_ipu_dc_map_clear(ipu, 13);
 	_ipu_dc_map_link(ipu, 13, 0, 2, 0, 0, 0, 1);
 
@@ -929,6 +930,7 @@ int _ipu_pixfmt_to_map(uint32_t fmt)
 	case IPU_PIX_FMT_YVYU:
 		return 12;
 	case IPU_PIX_FMT_GBR24:
+	case IPU_PIX_FMT_VYU444:
 		return 13;
 	case IPU_PIX_FMT_BGR24:
 		return 14;
