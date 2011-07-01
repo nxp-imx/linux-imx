@@ -32,8 +32,16 @@ struct mxc_edid_cfg {
 	bool cea_ycbcr444;
 	bool cea_ycbcr422;
 	bool hdmi_cap;
+
+	/*VSD*/
+	bool vsd_dc_48bit;
+	bool vsd_dc_36bit;
+	bool vsd_dc_30bit;
+	bool vsd_dc_y444;
+	bool vsd_dvi_dual;
 };
 
+int mxc_edid_var_to_vic(struct fb_var_screeninfo *var);
 int mxc_edid_read(struct i2c_adapter *adp, unsigned short addr,
 	unsigned char *edid, struct mxc_edid_cfg *cfg, struct fb_info *fbi);
 
