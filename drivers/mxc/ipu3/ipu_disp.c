@@ -920,6 +920,7 @@ void _ipu_init_dc_mappings(void)
 	_ipu_dc_map_link(12, 5, 2, 5, 1, 5, 0);
 
 	/* IPU_PIX_FMT_GBR24 */
+	/* IPU_PIX_FMT_VYU444 */
 	_ipu_dc_map_clear(13);
 	_ipu_dc_map_link(13, 0, 2, 0, 0, 0, 1);
 
@@ -951,6 +952,7 @@ int _ipu_pixfmt_to_map(uint32_t fmt)
 	case IPU_PIX_FMT_YVYU:
 		return 12;
 	case IPU_PIX_FMT_GBR24:
+	case IPU_PIX_FMT_VYU444:
 		return 13;
 	case IPU_PIX_FMT_BGR24:
 		return 14;
@@ -1098,17 +1100,22 @@ int32_t ipu_init_sync_panel(int disp, uint32_t pixel_clk,
 		 * so if the clk rate is not fit, try ext clk.
 		 */
 		if (!sig.int_clk &&
-			((rounded_pixel_clk >= pixel_clk + pixel_clk/16) ||
-			(rounded_pixel_clk <= pixel_clk - pixel_clk/16))) {
+			((rounded_pixel_clk >= pixel_clk + pixel_clk/200) ||
+			(rounded_pixel_clk <= pixel_clk - pixel_clk/200))) {
 			dev_dbg(g_ipu_dev, "try ipu ext di clk\n");
-			rounded_pixel_clk = pixel_clk * 2;
-			while (rounded_pixel_clk < 150000000)
-				rounded_pixel_clk += pixel_clk * 2;
-			clk_set_rate(di_parent, rounded_pixel_clk);
-			rounded_pixel_clk =
-				clk_round_rate(g_di_clk[disp], pixel_clk);
-			clk_set_rate(g_di_clk[disp], rounded_pixel_clk);
-			clk_set_parent(g_pixel_clk[disp], g_di_clk[disp]);
+			if (clk_get_usecount(di_parent))
+				dev_warn(g_ipu_dev,
+					"ext di clk already in use, go back to internal clk\n");
+			else {
+				rounded_pixel_clk = pixel_clk * 2;
+				while (rounded_pixel_clk < 150000000)
+					rounded_pixel_clk += pixel_clk * 2;
+				clk_set_rate(di_parent, rounded_pixel_clk);
+				rounded_pixel_clk =
+					clk_round_rate(g_di_clk[disp], pixel_clk);
+				clk_set_rate(g_di_clk[disp], rounded_pixel_clk);
+				clk_set_parent(g_pixel_clk[disp], g_di_clk[disp]);
+			}
 		}
 	}
 	rounded_pixel_clk = clk_round_rate(g_pixel_clk[disp], pixel_clk);
