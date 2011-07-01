@@ -1,0 +1,21 @@
+#
+# ANATOP Configuration
+#
+
+menu "ANATOP_THERMAL"
+
+config ANATOP_THERMAL
+	tristate "Thermal Zone"
+	depends on ARCH_MX6
+	select THERMAL
+	default y
+	help
+	  This driver supports ANATOP thermal zones. It is HIGHLY
+	  recommended that this option be enabled, as your processor(s)
+	  may be damaged without it.
+
+	  To compile this driver as a module, choose M here:
+	  the module will be called thermal.
+
+endmenu
+
