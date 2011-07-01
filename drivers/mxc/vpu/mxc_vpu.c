@@ -77,7 +77,7 @@ static struct vpu_mem_desc user_data_mem = { 0 };
 static struct vpu_mem_desc share_mem = { 0 };
 
 static void __iomem *vpu_base;
-static int vpu_irq;
+static int vpu_ipi_irq;
 static u32 phy_vpu_base_addr;
 static struct mxc_vpu_platform_data *vpu_plat;
 
@@ -92,6 +92,14 @@ static u32 workctrl_regsave[6];
 static u32 rd_ptr_regsave[4];
 static u32 wr_ptr_regsave[4];
 static u32 dis_flag_regsave[4];
+
+#ifdef CONFIG_SOC_IMX6Q
+#define MXC_VPU_HAS_JPU
+#endif
+
+#ifdef MXC_VPU_HAS_JPU
+static int vpu_jpu_irq;
+#endif
 
 #define	READ_REG(x)		__raw_readl(vpu_base + x)
 #define	WRITE_REG(val, x)	__raw_writel(val, vpu_base + x)
@@ -215,7 +223,7 @@ static inline void vpu_worker_callback(struct work_struct *w)
 /*!
  * @brief vpu interrupt handler
  */
-static irqreturn_t vpu_irq_handler(int irq, void *dev_id)
+static irqreturn_t vpu_ipi_irq_handler(int irq, void *dev_id)
 {
 	struct vpu_priv *dev = dev_id;
 
@@ -226,6 +234,22 @@ static irqreturn_t vpu_irq_handler(int irq, void *dev_id)
 
 	return IRQ_HANDLED;
 }
+
+/*!
+ * @brief vpu jpu interrupt handler
+ */
+#ifdef MXC_VPU_HAS_JPU
+static irqreturn_t vpu_jpu_irq_handler(int irq, void *dev_id)
+{
+	struct vpu_priv *dev = dev_id;
+
+	WRITE_REG(0, MJPEG_PIC_STATUS_REG);
+
+	queue_work(dev->workqueue, &dev->work);
+
+	return IRQ_HANDLED;
+}
+#endif
 
 /*!
  * @brief open function for vpu file operation
@@ -585,12 +609,29 @@ static int vpu_dev_probe(struct platform_device *pdev)
 		err = -ENXIO;
 		goto err_out_class;
 	}
-	vpu_irq = res->start;
+	vpu_ipi_irq = res->start;
 
-	err = request_irq(vpu_irq, vpu_irq_handler, 0, "VPU_CODEC_IRQ",
+	err = request_irq(vpu_ipi_irq, vpu_ipi_irq_handler, 0, "VPU_CODEC_IRQ",
 			  (void *)(&vpu_data));
 	if (err)
 		goto err_out_class;
+
+#ifdef MXC_VPU_HAS_JPU
+	res = platform_get_resource(pdev, IORESOURCE_IRQ, 1);
+	if (!res) {
+		printk(KERN_ERR "vpu: unable to get vpu jpu interrupt\n");
+		err = -ENXIO;
+		free_irq(vpu_ipi_irq, &vpu_data);
+		goto err_out_class;
+	}
+	vpu_jpu_irq = res->start;
+	err = request_irq(vpu_jpu_irq, vpu_jpu_irq_handler, 0, "VPU_JPG_IRQ",
+			  (void *)(&vpu_data));
+	if (err) {
+		free_irq(vpu_ipi_irq, &vpu_data);
+		goto err_out_class;
+	}
+#endif
 
 	vpu_data.workqueue = create_workqueue("vpu_wq");
 	INIT_WORK(&vpu_data.work, vpu_worker_callback);
@@ -610,7 +651,10 @@ static int vpu_dev_probe(struct platform_device *pdev)
 
 static int vpu_dev_remove(struct platform_device *pdev)
 {
-	free_irq(vpu_irq, &vpu_data);
+	free_irq(vpu_ipi_irq, &vpu_data);
+#ifdef MXC_VPU_HAS_JPU
+	free_irq(vpu_jpu_irq, &vpu_data);
+#endif
 	cancel_work_sync(&vpu_data.work);
 	flush_workqueue(vpu_data.workqueue);
 	destroy_workqueue(vpu_data.workqueue);
@@ -677,7 +721,7 @@ static int vpu_resume(struct platform_device *pdev)
 {
 	int i;
 
-	if (cpu_is_mx53())
+	if (!cpu_is_mx51())
 		goto recover_clk;
 
 	if (vpu_plat->pg)
