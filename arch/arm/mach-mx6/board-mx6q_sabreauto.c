@@ -140,7 +140,6 @@ static iomux_v3_cfg_t mx6q_sabreauto_pads[] = {
 	MX6Q_PAD_GPIO_5__I2C3_SCL,
 	MX6Q_PAD_GPIO_16__I2C3_SDA,
 };
-
 static const struct esdhc_platform_data mx6q_sabreauto_sd3_data __initconst = {
 	.cd_gpio = MX6Q_SABREAUTO_SD3_CD,
 	.wp_gpio = MX6Q_SABREAUTO_SD3_WP,
@@ -151,6 +150,9 @@ static const struct esdhc_platform_data mx6q_sabreauto_sd4_data __initconst = {
 	.always_present = 1,
 };
 
+static const struct anatop_thermal_platform_data mx6q_sabreauto_anatop_thermal_data __initconst = {
+	.name = "anatop_thermal",
+};
 
 static inline void mx6q_sabreauto_init_uart(void)
 {
@@ -232,6 +234,7 @@ static void __init mx6_board_init(void)
 	i2c_register_board_info(2, mxc_i2c2_board_info,
 			ARRAY_SIZE(mxc_i2c2_board_info));
 
+	imx6q_add_anatop_thermal_imx(1, &mx6q_sabreauto_anatop_thermal_data);
 	imx6q_add_sdhci_usdhc_imx(3, &mx6q_sabreauto_sd4_data);
 	imx_add_viv_gpu("gc2000", &imx6_gc2000_data, &imx6q_gc2000_pdata);
 }
