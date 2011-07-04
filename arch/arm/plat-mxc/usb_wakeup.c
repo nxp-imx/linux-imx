@@ -1,15 +1,20 @@
 /*
- * Copyright 2009-2011 Freescale Semiconductor, Inc. All Rights Reserved.
- */
+ * Copyright (C) 2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
 
-/*
- *  The code contained herein is licensed under the GNU General Public
- *  License. You may obtain a copy of the GNU General Public License
- *  Version 2 or later at the following locations:
- *  *
- *  http://www.opensource.org/licenses/gpl-license.html
- *  http://www.gnu.org/copyleft/gpl.html
-*/
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+
+ * You should have received a copy of the GNU General Public License along
+ * with this program; if not, write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+ */
 
 #include <linux/sched.h>
 #include <linux/delay.h>
@@ -21,6 +26,8 @@
 #include <linux/mutex.h>
 #include <linux/fsl_devices.h>
 #include <linux/suspend.h>
+#include <linux/io.h>
+#include <mach/arc_otg.h>
 
 struct wakeup_ctrl {
 	int wakeup_irq;
@@ -31,7 +38,7 @@ struct wakeup_ctrl {
 };
 static struct wakeup_ctrl *g_ctrl;
 
-extern int usb_event_is_otg_wakeup(void);
+extern int usb_event_is_otg_wakeup(struct fsl_usb2_platform_data *pdata);
 extern void usb_debounce_id_vbus(void);
 
 static void wakeup_clk_gate(struct fsl_usb2_wakeup_platform_data *pdata, bool on)
@@ -51,6 +58,7 @@ static bool usb2_is_in_lowpower(struct wakeup_ctrl *ctrl)
 				return false;
 		}
 	}
+
 	return true;
 }
 
@@ -67,6 +75,7 @@ static void delay_process_wakeup(struct wakeup_ctrl *ctrl)
 			pdata->usb_pdata[i]->irq_delay = 1;
 		}
 	}
+
 	pdata->usb_wakeup_is_pending = true;
 	complete(&ctrl->event);
 }
@@ -75,9 +84,8 @@ static irqreturn_t usb_wakeup_handler(int irq, void *_dev)
 {
 	struct wakeup_ctrl *ctrl = (struct wakeup_ctrl *)_dev;
 	irqreturn_t ret = IRQ_NONE;
-
 	if (usb2_is_in_lowpower(ctrl)) {
-		printk(KERN_INFO "usb wakeup is here\n");
+		printk("usb wakeup is here\n");
 		delay_process_wakeup(ctrl);
 		ret = IRQ_HANDLED;
 	}
@@ -97,23 +105,24 @@ static void wakeup_event_handler(struct wakeup_ctrl *ctrl)
 	struct fsl_usb2_wakeup_platform_data *pdata = ctrl->pdata;
 	int already_waked = 0;
 	enum usb_wakeup_event wakeup_evt;
-	int i, cnt = 0;
+	int i;
 
 	wakeup_clk_gate(ctrl->pdata, true);
 
 recheck:
-	/* In order to get the real id/vbus value */
-	if (usb_event_is_otg_wakeup())
-		msleep(10);	/* usb_debounce_id_vbus(); */
-
 	for (i = 0; i < 3; i++) {
 		struct fsl_usb2_platform_data *usb_pdata = pdata->usb_pdata[i];
 		if (usb_pdata) {
+			/* In order to get the real id/vbus value */
+			if (usb_event_is_otg_wakeup(usb_pdata))
+				usb_debounce_id_vbus();
+
 			usb_pdata->irq_delay = 0;
 			wakeup_evt = is_wakeup(usb_pdata);
 			if (wakeup_evt != WAKEUP_EVENT_INVALID) {
-				if (usb_pdata->usb_clock_for_pm)
-					usb_pdata->usb_clock_for_pm(true);
+				if (usb2_is_in_lowpower(ctrl))
+					if (usb_pdata->usb_clock_for_pm)
+						usb_pdata->usb_clock_for_pm(true);
 				usb_pdata->lowpower = 0;
 				already_waked = 1;
 				if (usb_pdata->wakeup_handler) {
@@ -122,9 +131,7 @@ recheck:
 			}
 		}
 	}
-	/* for IC: ID/VBUS status change after wakeup interrupt */
-	if ((cnt++ < 5) && (already_waked == 0))
-		goto recheck;
+
 	/* If nothing to wakeup, clear wakeup event */
 	if ((already_waked == 0) && pdata->usb_wakeup_exhandle)
 		pdata->usb_wakeup_exhandle();
@@ -157,6 +164,7 @@ static int wakeup_dev_probe(struct platform_device *pdev)
 	struct fsl_usb2_wakeup_platform_data *pdata;
 	struct wakeup_ctrl *ctrl = NULL;
 	int status;
+	unsigned long interrupt_flag;
 
 	printk(KERN_INFO "IMX usb wakeup probe\n");
 
@@ -166,24 +174,31 @@ static int wakeup_dev_probe(struct platform_device *pdev)
 	if (!ctrl)
 		return -ENOMEM;
 	pdata = pdev->dev.platform_data;
+	ctrl->pdata = pdata;
 	init_waitqueue_head(&pdata->wq);
 	pdata->usb_wakeup_is_pending = false;
 
-	ctrl->pdata = pdata;
 	init_completion(&ctrl->event);
-	ctrl->wakeup_irq = platform_get_irq(pdev, 0);
-	status = request_irq(ctrl->wakeup_irq, usb_wakeup_handler, IRQF_SHARED, "usb_wakeup", (void *)ctrl);
+	/* Currently, both mx5x and mx6q uses usb controller's irq
+	 * as wakeup irq.
+	 */
+	ctrl->wakeup_irq = platform_get_irq(pdev, 1);
+	ctrl->usb_irq = platform_get_irq(pdev, 1);
+	if (ctrl->wakeup_irq != ctrl->usb_irq)
+		interrupt_flag = IRQF_DISABLED;
+	else
+		interrupt_flag = IRQF_SHARED;
+	status = request_irq(ctrl->wakeup_irq, usb_wakeup_handler, interrupt_flag, "usb_wakeup", (void *)ctrl);
 	if (status)
 		goto error1;
-	ctrl->usb_irq = platform_get_irq(pdev, 1);
 
 	ctrl->thread = kthread_run(wakeup_event_thread, (void *)ctrl, "usb_wakeup thread");
 	status = IS_ERR(ctrl->thread) ? -1 : 0;
 	if (status)
 		goto error2;
 	g_ctrl = ctrl;
-	printk(KERN_DEBUG "the wakeup pdata is 0x%p\n", pdata);
 
+	printk(KERN_DEBUG "the wakeup pdata is 0x%p\n", pdata);
 	return 0;
 error2:
 	free_irq(ctrl->wakeup_irq, (void *)ctrl);
@@ -206,7 +221,7 @@ static struct platform_driver wakeup_d = {
 	.probe   = wakeup_dev_probe,
 	.remove  = wakeup_dev_exit,
 	.driver = {
-		.name = "usb_wakeup",
+		.name = "usb-wakeup",
 	},
 };
 

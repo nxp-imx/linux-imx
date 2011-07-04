@@ -33,5 +33,5 @@ obj-$(CONFIG_MXC_DVFS_PER) 	+= dvfs_per.o
 
 # USB support
 obj-$(CONFIG_ISP1504_MXC) += isp1504xc.o
-obj-$(CONFIG_UTMI_MXC)    += utmixc.o
+obj-$(CONFIG_USB)    += utmixc.o
 obj-$(CONFIG_USB)         += serialxc.o
