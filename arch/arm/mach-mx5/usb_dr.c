@@ -178,7 +178,6 @@ static void usbotg_wakeup_event_clear(void)
 
 
 #ifdef CONFIG_USB_EHCI_ARC_OTG
-extern void fsl_usb_recover_hcd(struct platform_device *pdev);
 /* Beginning of host related operation for DR port */
 static void _host_wakeup_enable(struct fsl_usb2_platform_data *pdata, bool enable)
 {
@@ -203,8 +202,8 @@ static void _host_phy_lowpower_suspend(struct fsl_usb2_platform_data *pdata, boo
 
 static enum usb_wakeup_event _is_host_wakeup(struct fsl_usb2_platform_data *pdata)
 {
-	int wakeup_req = USBCTRL & UCTRL_OWIR;
-	int otgsc = UOG_OTGSC;
+	u32 wakeup_req = USBCTRL & UCTRL_OWIR;
+	u32 otgsc = UOG_OTGSC;
 
 	/* if ID change sts, it is a host wakeup event */
 	if (wakeup_req && (otgsc & OTGSC_IS_USB_ID)) {
@@ -225,7 +224,7 @@ static void host_wakeup_handler(struct fsl_usb2_platform_data *pdata)
 {
 	_host_wakeup_enable(pdata, false);
 	_host_phy_lowpower_suspend(pdata, false);
-	fsl_usb_recover_hcd(&mxc_usbdr_host_device);
+	pdata->wakeup_event = 1;
 }
 /* End of host related operation for DR port */
 #endif /* CONFIG_USB_EHCI_ARC_OTG */
@@ -258,17 +257,29 @@ static void _device_phy_lowpower_suspend(struct fsl_usb2_platform_data *pdata, b
 static enum usb_wakeup_event _is_device_wakeup(struct fsl_usb2_platform_data *pdata)
 {
 	int wakeup_req = USBCTRL & UCTRL_OWIR;
-	u32 otgsc = 0;
 
-	otgsc = UOG_OTGSC;
-	if (wakeup_req  &&
-		(otgsc & OTGSC_STS_USB_ID) &&
-		(otgsc & OTGSC_IS_B_SESSION_VALID)) {
-		printk(KERN_INFO "otg udc wakeup\n");
-		return WAKEUP_EVENT_VBUS;
+	pr_debug("the otgsc is 0x%x, usbsts is 0x%x, portsc is 0x%x, wakeup_irq is 0x%x\n", UOG_OTGSC, UOG_USBSTS, UOG_PORTSC1, wakeup_req);
+
+	/* if ID=1, it is a device wakeup event */
+	if (wakeup_req && (UOG_OTGSC & OTGSC_STS_USB_ID) && (UOG_PORTSC1 & PORTSC_PORT_FORCE_RESUME)) {
+		printk(KERN_INFO "otg udc wakeup, host sends resume signal\n");
+		return true;
 	}
-	return WAKEUP_EVENT_INVALID;
+	if (wakeup_req && (UOG_OTGSC & OTGSC_STS_USB_ID) && (UOG_USBSTS & USBSTS_URI)) {
+		printk(KERN_INFO "otg udc wakeup, host sends reset signal\n");
+		return true;
+	}
+	if (wakeup_req && (UOG_OTGSC & OTGSC_STS_USB_ID) && (UOG_OTGSC & OTGSC_STS_A_VBUS_VALID) \
+		&& (UOG_OTGSC & OTGSC_IS_B_SESSION_VALID)) {
+		printk(KERN_INFO "otg udc vbus rising wakeup\n");
+		return true;
+	}
+	if (wakeup_req && (UOG_OTGSC & OTGSC_STS_USB_ID) && !(UOG_OTGSC & OTGSC_STS_A_VBUS_VALID)) {
+		printk(KERN_INFO "otg udc vbus falling wakeup\n");
+		return true;
+	}
 
+	return WAKEUP_EVENT_INVALID;
 }
 
 static void device_wakeup_handler(struct fsl_usb2_platform_data *pdata)
@@ -295,7 +306,9 @@ void __init mx5_usb_dr_init(void)
 	dr_utmi_config.operating_mode = FSL_USB2_DR_OTG;
 	dr_utmi_config.wakeup_pdata = &dr_wakeup_config;
 	ret |= platform_device_add_data(&mxc_usbdr_otg_device, &dr_utmi_config, sizeof(dr_utmi_config));
-	ret |= platform_device_register(&mxc_usbdr_otg_device);
+	if (!machine_is_mx53_loco()) {
+		ret |= platform_device_register(&mxc_usbdr_otg_device);
+	}
 	dr_wakeup_config.usb_pdata[0] = mxc_usbdr_otg_device.dev.platform_data;
 #endif
 #ifdef CONFIG_USB_EHCI_ARC_OTG
