@@ -20,8 +20,6 @@
  * with this program; if not, write  to the Free Software Foundation, Inc.,
  * 675 Mass Ave, Cambridge, MA 02139, USA.
  */
-#define VERBOSE
-
 #include <linux/module.h>
 #include <linux/moduleparam.h>
 #include <linux/kernel.h>
@@ -52,6 +50,7 @@
 #include <asm/io.h>
 #include <asm/irq.h>
 #include <asm/system.h>
+#include <asm/mach-types.h>
 #include <asm/byteorder.h>
 #include <asm/uaccess.h>
 #include <asm/unaligned.h>
@@ -776,7 +775,7 @@ irqreturn_t fsl_otg_isr_gpio(int irq, void *dev_id)
 
 	f_otg->fsm.id = value;
 
-	cancel_delayed_work(&f_otg->otg_event);
+	__cancel_delayed_work(&f_otg->otg_event);
 	schedule_otg_work(&f_otg->otg_event, msecs_to_jiffies(10));
 
 	return IRQ_HANDLED;
@@ -799,6 +798,7 @@ irqreturn_t fsl_otg_isr(int irq, void *dev_id)
 		if (pdata->irq_delay)
 			return ret;
 	}
+
 	otg_sc = le32_to_cpu(usb_dr_regs->otgsc);
 	otg_int_src = otg_sc & OTGSC_INTSTS_MASK & (otg_sc >> 8);
 
@@ -826,7 +826,7 @@ irqreturn_t fsl_otg_isr(int irq, void *dev_id)
 
 			printk(KERN_DEBUG "ID int (ID is %d)\n", fotg->fsm.id);
 
-			cancel_delayed_work(&fotg->otg_event);
+			__cancel_delayed_work(&fotg->otg_event);
 			schedule_otg_work(&fotg->otg_event, msecs_to_jiffies(10));
 			ret = IRQ_HANDLED;
 		}
@@ -1219,7 +1219,7 @@ static int otg_proc_read(char *page, char **start, off_t off, int count,
 /* This function handle some ioctl command,such as get otg
  * status and set host suspend
  */
-static int fsl_otg_ioctl(struct file *file,
+static long fsl_otg_ioctl(struct file *file,
 			 unsigned int cmd, unsigned long arg)
 {
 	u32 retval = 0;
@@ -1276,7 +1276,7 @@ static struct file_operations otg_fops = {
 	.release	= fsl_otg_release,
 };
 
-static int __init fsl_otg_probe(struct platform_device *pdev)
+static int __devinit fsl_otg_probe(struct platform_device *pdev)
 {
 	int status;
 	struct fsl_usb2_platform_data *pdata;
