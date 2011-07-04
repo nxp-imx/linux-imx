@@ -60,12 +60,15 @@
 #include <linux/gpio.h>
 #include <linux/etherdevice.h>
 
+#include "usb.h"
 #include "devices-imx6q.h"
+#include "regs-anadig.h"
 
 #define MX6Q_SABREAUTO_ECSPI1_CS0	IMX_GPIO_NR(2, 30)
 #define MX6Q_SABREAUTO_ECSPI1_CS1	IMX_GPIO_NR(3, 19)
 #define MX6Q_SABREAUTO_SD3_CD	IMX_GPIO_NR(6, 11)
 #define MX6Q_SABREAUTO_SD3_WP	IMX_GPIO_NR(6, 14)
+#define MX6Q_SABREAUTO_USB_OTG_PWR	IMX_GPIO_NR(3, 22)
 #define MX6Q_SABREAUTO_MAX7310_1_BASE_ADDR	IMX_GPIO_NR(8, 0)
 #define MX6Q_SABREAUTO_MAX7310_2_BASE_ADDR	IMX_GPIO_NR(8, 8)
 #define MX6Q_SABREAUTO_CAP_TCH_INT	IMX_GPIO_NR(3, 31)
@@ -150,6 +153,7 @@ static iomux_v3_cfg_t mx6q_sabreauto_pads[] = {
 	/* I2C3 */
 	MX6Q_PAD_GPIO_5__I2C3_SCL,
 	MX6Q_PAD_GPIO_16__I2C3_SDA,
+	MX6Q_PAD_GPIO_1__USBOTG_ID,
 };
 static const struct esdhc_platform_data mx6q_sabreauto_sd3_data __initconst = {
 	.cd_gpio = MX6Q_SABREAUTO_SD3_CD,
@@ -270,6 +274,40 @@ static struct i2c_board_info mxc_i2c2_board_info[] __initdata = {
 	},
 };
 
+static void imx6q_sabreauto_usbotg_vbus(bool on)
+{
+	if (on)
+		gpio_set_value(MX6Q_SABREAUTO_USB_OTG_PWR, 1);
+	else
+		gpio_set_value(MX6Q_SABREAUTO_USB_OTG_PWR, 0);
+}
+
+static void __init imx6q_sabreauto_init_usb(void)
+{
+	int ret = 0;
+	void __iomem *anatop_base_addr = MX6_IO_ADDRESS(ANATOP_BASE_ADDR);
+
+	imx_otg_base = MX6_IO_ADDRESS(MX6Q_USB_OTG_BASE_ADDR);
+	/* disable external charger detect, or it will affect signal quality at dp */
+	__raw_writel(BM_ANADIG_USB1_CHRG_DETECT_EN_B  \
+			| BM_ANADIG_USB1_CHRG_DETECT_CHK_CHRG_B,  \
+			anatop_base_addr + HW_ANADIG_USB1_CHRG_DETECT);
+	__raw_writel(BM_ANADIG_USB2_CHRG_DETECT_EN_B  \
+			| BM_ANADIG_USB2_CHRG_DETECT_CHK_CHRG_B, \
+			anatop_base_addr + HW_ANADIG_USB2_CHRG_DETECT);
+
+	ret = gpio_request(MX6Q_SABREAUTO_USB_OTG_PWR, "usb-pwr");
+	if (ret) {
+		printk(KERN_ERR"failed to get GPIO MX6Q_SABREAUTO_USB_OTG_PWR: %d\n", ret);
+		return;
+	}
+	gpio_direction_output(MX6Q_SABREAUTO_USB_OTG_PWR, 0);
+	mxc_iomux_set_gpr_register(1, 13, 1, 1);
+
+	mx6_set_otghost_vbus_func(imx6q_sabreauto_usbotg_vbus);
+	mx6_usb_dr_init();
+	mx6_usb_h1_init();
+}
 static struct viv_gpu_platform_data imx6q_gc2000_pdata __initdata = {
 	.reserved_mem_size = SZ_128M,
 };
@@ -293,6 +331,7 @@ static void __init mx6_board_init(void)
 
 	imx6q_add_sdhci_usdhc_imx(3, &mx6q_sabreauto_sd4_data);
 	imx_add_viv_gpu("gc2000", &imx6_gc2000_data, &imx6q_gc2000_pdata);
+	imx6q_sabreauto_init_usb();
 }
 
 extern void __iomem *twd_base;

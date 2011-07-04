@@ -229,6 +229,10 @@ struct platform_device *__init imx_add_mxc_ehci(
 		const struct imx_mxc_ehci_data *data,
 		const struct mxc_usbh_platform_data *pdata);
 
+struct platform_device *__init imx_add_fsl_ehci(
+		const struct imx_mxc_ehci_data *data,
+		const struct fsl_usb2_platform_data *pdata);
+
 #include <mach/mmc.h>
 struct imx_mxc_mmc_data {
 	int id;
@@ -485,6 +489,23 @@ struct imx_dcp_data {
 };
 
 struct platform_device *__init imx_add_dcp(
+
+struct imx_fsl_usb2_otg_data {
+	resource_size_t iobase;
+	resource_size_t irq;
+};
+struct platform_device *__init imx_add_fsl_usb2_otg(
+		const struct imx_fsl_usb2_otg_data *data,
+		const struct fsl_usb2_platform_data *pdata);
+
+struct imx_fsl_usb2_wakeup_data {
+	int id;
+	resource_size_t irq_phy;
+	resource_size_t irq_core;
+};
+struct platform_device *__init imx_add_fsl_usb2_wakeup(
+		const struct imx_fsl_usb2_wakeup_data *data,
+		const struct fsl_usb2_wakeup_platform_data *pdata);
 		const struct imx_dcp_data *data);
 
 /* gpmi-nfc */

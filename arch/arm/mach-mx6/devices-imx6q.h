@@ -45,6 +45,30 @@ extern const struct imx_imx_i2c_data imx6q_imx_i2c_data[] __initconst;
 #define imx6q_add_imx_i2c(id, pdata)	\
 	imx_add_imx_i2c(&imx6q_imx_i2c_data[id], pdata)
 
+extern const struct imx_fsl_usb2_udc_data imx6q_fsl_usb2_udc_data __initconst;
+#define imx6q_add_fsl_usb2_udc(pdata)	\
+	imx_add_fsl_usb2_udc(&imx6q_fsl_usb2_udc_data, pdata)
+
+extern const struct imx_mxc_ehci_data imx6q_mxc_ehci_otg_data __initconst;
+#define imx6q_add_fsl_ehci_otg(pdata)	\
+	imx_add_fsl_ehci(&imx6q_mxc_ehci_otg_data, pdata)
+
+extern const struct imx_mxc_ehci_data imx6q_mxc_ehci_hs_data[] __initconst;
+#define imx6q_add_fsl_ehci_hs(id, pdata)	\
+	imx_add_fsl_ehci(&imx6q_mxc_ehci_hs_data[id - 1], pdata)
+
+extern const struct imx_fsl_usb2_otg_data imx6q_fsl_usb2_otg_data __initconst;
+#define imx6q_add_fsl_usb2_otg(pdata)	\
+	imx_add_fsl_usb2_otg(&imx6q_fsl_usb2_otg_data, pdata)
+
+extern const struct imx_fsl_usb2_wakeup_data imx6q_fsl_otg_wakeup_data __initconst;
+#define imx6q_add_fsl_usb2_otg_wakeup(pdata)	\
+	imx_add_fsl_usb2_wakeup(&imx6q_fsl_otg_wakeup_data, pdata)
+
+extern const struct imx_fsl_usb2_wakeup_data imx6q_fsl_hs_wakeup_data[] __initconst;
+#define imx6q_add_fsl_usb2_hs_wakeup(id, pdata)	\
+	imx_add_fsl_usb2_wakeup(&imx6q_fsl_hs_wakeup_data[id - 1], pdata)
+
 extern const struct imx_viv_gpu_data imx6_gc2000_data __initconst;
 extern const struct imx_viv_gpu_data imx6_gc320_data __initconst;
 extern const struct imx_viv_gpu_data imx6_gc355_data __initconst;

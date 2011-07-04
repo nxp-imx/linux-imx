@@ -2239,6 +2239,8 @@ typedef enum iomux_config {
 		IOMUX_PAD(0x05F4, 0x0224, 1, 0x0000, 0, 0)
 #define _MX6Q_PAD_GPIO_1__KPP_ROW_5			\
 		IOMUX_PAD(0x05F4, 0x0224, 2, 0x08F4, 0, 0)
+#define MX6Q_PAD_GPIO_1__USBOTG_ID                      \
+		IOMUX_PAD(0x05F4, 0x0224, 3, 0x0000, 0, MX6Q_USDHC_PAD_CTRL)
 #define _MX6Q_PAD_GPIO_1__PWM2_PWMO			\
 		IOMUX_PAD(0x05F4, 0x0224, 4, 0x0000, 0, 0)
 #define _MX6Q_PAD_GPIO_1__GPIO_1_1			\

@@ -1,14 +1,19 @@
 /*
- * Copyright (C) 2004-2011 Freescale Semiconductor, Inc. All Rights Reserved.
- */
-
-/*
- * The code contained herein is licensed under the GNU General Public
- * License. You may obtain a copy of the GNU General Public License
- * Version 2 or later at the following locations:
+ * Copyright (C) 2011 Freescale Semiconductor, Inc. All Rights Reserved.
  *
- * http://www.opensource.org/licenses/gpl-license.html
- * http://www.gnu.org/copyleft/gpl.html
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+
+ * You should have received a copy of the GNU General Public License along
+ * with this program; if not, write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
 /*!
@@ -39,9 +44,11 @@
 #include <linux/usb/otg.h>
 #include <linux/usb/fsl_xcvr.h>
 #include <linux/regulator/consumer.h>
+#include <linux/io.h>
+#include <asm/mach-types.h>
 #include <mach/arc_otg.h>
 #include <mach/hardware.h>
-#include <asm/mach-types.h>
+#include <mach/mxc.h>
 
 void __iomem *imx_otg_base;
 
@@ -81,12 +88,20 @@ static int fsl_check_usbclk(void)
 
 	usb_ahb_clk = clk_get(NULL, "usb_ahb_clk");
 	if (clk_enable(usb_ahb_clk)) {
+		if (cpu_is_mx6q())
+			return 0; /* there is no ahb clock at mx6 */
 		printk(KERN_ERR "clk_enable(usb_ahb_clk) failed\n");
 		return -EINVAL;
 	}
 	clk_put(usb_ahb_clk);
 
 	usb_clk = clk_get(NULL, "usb_clk");
+	if (clk_enable(usb_clk)) {
+		if (cpu_is_mx6q())
+			return 0; /* there is usb_clk at mx6 */
+		printk(KERN_ERR "clk_enable(usb_clk) failed\n");
+		return -EINVAL;
+	}
 	freq = clk_get_rate(usb_clk);
 	clk_put(usb_clk);
 	if ((freq < 59999000) || (freq > 60001000)) {
@@ -390,18 +405,7 @@ static void usbh2_set_serial_xcvr(void)
 	    UCTRL_USBTE |	/* USBT is enabled */
 	    UCTRL_H2DT;		/* Disable H2 TLL */
 
-	if (cpu_is_mx35() && (imx_cpu_ver() < IMX_CHIP_REVISION_2_0)) {
-		/* Disable Host2 bus Lock for i.MX35 1.0 */
-		USBCTRL |= UCTRL_H2LOCKD;
-		/* USBOTG_PWR low active */
-		USBCTRL &= ~UCTRL_PP;
-		/* OverCurrent Polarity is Low Active */
-		USBCTRL &= ~UCTRL_OCPOL;
-	} else if (cpu_is_mx35() && (imx_cpu_ver() >= IMX_CHIP_REVISION_2_0)) {
-		/* i.MX35 2.0 OTG and Host2 have seperate OC/PWR polarity */
-		USBCTRL &= ~UCTRL_H2PP;
-		USBCTRL &= ~UCTRL_H2OCPOL;
-	} else if (cpu_is_mx25()) {
+	if (cpu_is_mx25()) {
 		/*
 		 * USBH2_PWR and USBH2_OC are active high.
 		 * Must force xcvr clock to "internal" so that
@@ -481,11 +485,6 @@ int fsl_usb_host_init(struct platform_device *pdev)
 	if (pdata->gpio_usb_active && pdata->gpio_usb_active())
 		return -EINVAL;
 
-	if (clk_enable(usb_clk)) {
-		printk(KERN_ERR "clk_enable(usb_clk) failed\n");
-		return -EINVAL;
-	}
-
 	if (cpu_is_mx50())
 		/* Turn on AHB CLK for H1*/
 		USB_CLKONOFF_CTRL &= ~H1_AHBCLK_OFF;
@@ -503,23 +502,24 @@ int fsl_usb_host_init(struct platform_device *pdev)
 
 	if (usb_register_remote_wakeup(pdev))
 		pr_debug("%s port is not a wakeup source.\n", pdata->name);
-
-	if (xops->xcvr_type == PORTSC_PTS_SERIAL) {
-		if (cpu_is_mx35()) {
-			usbh2_set_serial_xcvr();
-			/* Close the internal 60Mhz */
-			USBCTRL &= ~UCTRL_XCSH2;
-		} else if (cpu_is_mx25())
-			usbh2_set_serial_xcvr();
-		else
-			usbh1_set_serial_xcvr();
-	} else if (xops->xcvr_type == PORTSC_PTS_ULPI) {
-		if (!strcmp("Host 1", pdata->name))
-			usbh1_set_ulpi_xcvr();
-		if (!strcmp("Host 2", pdata->name))
-			usbh2_set_ulpi_xcvr();
-	} else if (xops->xcvr_type == PORTSC_PTS_UTMI) {
-		usbh1_set_utmi_xcvr();
+	if (!cpu_is_mx6q()) {
+		if (xops->xcvr_type == PORTSC_PTS_SERIAL) {
+			if (cpu_is_mx35()) {
+				usbh2_set_serial_xcvr();
+				/* Close the internal 60Mhz */
+				USBCTRL &= ~UCTRL_XCSH2;
+			} else if (cpu_is_mx25())
+				usbh2_set_serial_xcvr();
+			else
+				usbh1_set_serial_xcvr();
+		} else if (xops->xcvr_type == PORTSC_PTS_ULPI) {
+			if (!strcmp("Host 1", pdata->name))
+				usbh1_set_ulpi_xcvr();
+			if (!strcmp("Host 2", pdata->name))
+				usbh2_set_ulpi_xcvr();
+		} else if (xops->xcvr_type == PORTSC_PTS_UTMI) {
+			usbh1_set_utmi_xcvr();
+		}
 	}
 
 	pr_debug("%s: %s success\n", __func__, pdata->name);
@@ -730,6 +730,11 @@ static void otg_set_utmi_xcvr(void)
 		/* Set the PHY clock to 19.2MHz */
 		USB_PHY_CTR_FUNC2 &= ~USB_UTMI_PHYCTRL2_PLLDIV_MASK;
 		USB_PHY_CTR_FUNC2 |= 0x01;
+	} else if (machine_is_mx37_3ds()) {
+		/* Reference voltage for HS disconnect envelope detector */
+		/* adjust the Squelch level */
+		USB_PHY_CTR_FUNC2 &= ~(USB_UTMI_PHYCTRL2_HSDEVSEL_MASK <<
+			USB_UTMI_PHYCTRL2_HSDEVSEL_SHIFT);
 	}
 
 	/* Workaround an IC issue for ehci driver:
@@ -764,6 +769,12 @@ static void otg_set_utmi_xcvr(void)
 	 */
 	msleep(100);
 
+	if (cpu_is_mx37()) {
+		/* fix USB PHY Power Gating leakage issue for i.MX37 */
+		USB_PHY_CTR_FUNC &= ~USB_UTMI_PHYCTRL_CHGRDETON;
+		USB_PHY_CTR_FUNC &= ~USB_UTMI_PHYCTRL_CHGRDETEN;
+	}
+
 	/* Turn off the usbpll for UTMI tranceivers */
 	clk_disable(usb_clk);
 }
@@ -796,29 +807,26 @@ int usbotg_init(struct platform_device *pdev)
 		pr_debug("%s: grab pins\n", __func__);
 		if (pdata->gpio_usb_active && pdata->gpio_usb_active())
 			return -EINVAL;
-
-		if (clk_enable(usb_clk)) {
-			printk(KERN_ERR "clk_enable(usb_clk) failed\n");
-			return -EINVAL;
-		}
-
 		if (xops->init)
 			xops->init(xops);
+		if (!(cpu_is_mx6q())) {
+			UOG_PORTSC1 = UOG_PORTSC1 & ~PORTSC_PHCD;
 
-		UOG_PORTSC1 = UOG_PORTSC1 & ~PORTSC_PHCD;
-		if (xops->xcvr_type == PORTSC_PTS_SERIAL) {
-			if (pdata->operating_mode == FSL_USB2_DR_HOST) {
-				otg_set_serial_host();
-				/* need reset */
-				UOG_USBCMD |= UCMD_RESET;
-				msleep(100);
-			} else if (pdata->operating_mode == FSL_USB2_DR_DEVICE)
-				otg_set_serial_peripheral();
-			otg_set_serial_xcvr();
-		} else if (xops->xcvr_type == PORTSC_PTS_ULPI) {
-			otg_set_ulpi_xcvr();
-		} else if (xops->xcvr_type == PORTSC_PTS_UTMI) {
-			otg_set_utmi_xcvr();
+
+			if (xops->xcvr_type == PORTSC_PTS_SERIAL) {
+				if (pdata->operating_mode == FSL_USB2_DR_HOST) {
+					otg_set_serial_host();
+					/* need reset */
+					UOG_USBCMD |= UCMD_RESET;
+					msleep(100);
+				} else if (pdata->operating_mode == FSL_USB2_DR_DEVICE)
+					otg_set_serial_peripheral();
+				otg_set_serial_xcvr();
+			} else if (xops->xcvr_type == PORTSC_PTS_ULPI) {
+				otg_set_ulpi_xcvr();
+			} else if (xops->xcvr_type == PORTSC_PTS_UTMI) {
+				otg_set_utmi_xcvr();
+			}
 		}
 	}
 
@@ -864,40 +872,30 @@ EXPORT_SYMBOL(usbotg_uninit);
  */
 void usb_debounce_id_vbus(void)
 {
-	mdelay(3);
+	msleep(3);
 }
 EXPORT_SYMBOL(usb_debounce_id_vbus);
 
-int usb_host_wakeup_irq(struct device *wkup_dev)
+int usb_event_is_otg_wakeup(struct fsl_usb2_platform_data *pdata)
 {
-	int wakeup_req = 0;
-	struct fsl_usb2_platform_data *pdata = wkup_dev->platform_data;
-
-	if (!strcmp("Host 1", pdata->name)) {
-		wakeup_req = USBCTRL & UCTRL_H1WIR;
-	} else if (!strcmp("Host 2", pdata->name)) {
-		wakeup_req = USBCTRL_HOST2 & UCTRL_H2WIR;
-	} else if (!strcmp("DR", pdata->name)) {
-		wakeup_req = USBCTRL & UCTRL_OWIR;
-		/*if only host mode is enabled, the wakeup event
-		 * must be host wakeup event */
-#ifdef CONFIG_USB_OTG
-		/* if ID change status, it is host wakeup event */
-		if (wakeup_req && (UOG_OTGSC & OTGSC_IS_USB_ID))
-			wakeup_req = 0;
-#endif
-	}
-
-	return wakeup_req;
-}
-EXPORT_SYMBOL(usb_host_wakeup_irq);
-
-int usb_event_is_otg_wakeup(void)
-{
-	int ret = (USBCTRL & UCTRL_OWIR) ? 1 : 0;
-	return ret;
+	return (USBCTRL & UCTRL_OWIR) ? true : false;
 }
 EXPORT_SYMBOL(usb_event_is_otg_wakeup);
+
+#ifdef CONFIG_ARCH_MX6
+/* enable/disable high-speed disconnect detector of phy ctrl */
+void fsl_platform_set_usb_phy_dis(struct fsl_usb2_platform_data *pdata,
+				  bool enable)
+{
+	if (enable)
+		__raw_writel(BM_USBPHY_CTRL_ENHOSTDISCONDETECT,
+			MX6_IO_ADDRESS(pdata->phy_regs) + HW_USBPHY_CTRL_SET);
+	else
+		__raw_writel(BM_USBPHY_CTRL_ENHOSTDISCONDETECT,
+			MX6_IO_ADDRESS(pdata->phy_regs) + HW_USBPHY_CTRL_CLR);
+}
+EXPORT_SYMBOL(fsl_platform_set_usb_phy_dis);
+#endif
 
 void usb_host_set_wakeup(struct device *wkup_dev, bool para)
 {
