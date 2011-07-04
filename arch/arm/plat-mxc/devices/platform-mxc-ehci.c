@@ -8,7 +8,6 @@
  */
 #include <mach/hardware.h>
 #include <mach/devices-common.h>
-
 #define imx_mxc_ehci_data_entry_single(soc, _id, hs)			\
 	{								\
 		.id = _id,						\
@@ -48,6 +47,14 @@ const struct imx_mxc_ehci_data imx35_mxc_ehci_hs_data __initconst =
 	imx_mxc_ehci_data_entry_single(MX35, 1, HS);
 #endif /* ifdef CONFIG_SOC_IMX35 */
 
+#ifdef CONFIG_SOC_IMX6Q
+const struct imx_mxc_ehci_data imx6q_mxc_ehci_otg_data __initconst =
+	imx_mxc_ehci_data_entry_single(MX6Q, 0, OTG);
+const struct imx_mxc_ehci_data imx6q_mxc_ehci_hs_data[] __initconst = {
+	imx_mxc_ehci_data_entry_single(MX6Q, 1, HS1),
+};
+#endif /* ifdef CONFIG_SOC_IMX6Q */
+
 struct platform_device *__init imx_add_mxc_ehci(
 		const struct imx_mxc_ehci_data *data,
 		const struct mxc_usbh_platform_data *pdata)
@@ -64,6 +71,27 @@ struct platform_device *__init imx_add_mxc_ehci(
 		},
 	};
 	return imx_add_platform_device_dmamask("mxc-ehci", data->id,
+			res, ARRAY_SIZE(res),
+			pdata, sizeof(*pdata), DMA_BIT_MASK(32));
+}
+
+/* FSL internal non-upstream code */
+struct platform_device *__init imx_add_fsl_ehci(
+		const struct imx_mxc_ehci_data *data,
+		const struct fsl_usb2_platform_data *pdata)
+{
+	struct resource res[] = {
+		{
+			.start = data->iobase,
+			.end = data->iobase + SZ_512 - 1,
+			.flags = IORESOURCE_MEM,
+		}, {
+			.start = data->irq,
+			.end = data->irq,
+			.flags = IORESOURCE_IRQ,
+		},
+	};
+	return imx_add_platform_device_dmamask("fsl-ehci", data->id,
 			res, ARRAY_SIZE(res),
 			pdata, sizeof(*pdata), DMA_BIT_MASK(32));
 }

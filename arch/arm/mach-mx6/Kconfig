@@ -27,6 +27,10 @@ config MACH_MX6Q_SABREAUTO
 	select IMX_HAVE_PLATFORM_IMX_I2C
 	select IMX_HAVE_PLATFORM_VIV_GPU
 	select IMX_HAVE_PLATFORM_IMX_ANATOP_THERMAL
+	select IMX_HAVE_PLATFORM_FSL_USB2_UDC
+	select IMX_HAVE_PLATFORM_MXC_EHCI
+	select IMX_HAVE_PLATFORM_FSL_OTG
+	select IMX_HAVE_PLATFORM_FSL_USB_WAKEUP
 	help
 	  Include support for i.MX 6Quad SABRE Automotive Infotainment platform. This includes specific
 	  configurations for the board and its peripherals.
