@@ -164,6 +164,8 @@
 #define WDOG2_BASE_ADDR             (AIPS1_OFF_BASE_ADDR + 0x40000)
 #define CCM_BASE_ADDR               (AIPS1_OFF_BASE_ADDR + 0x44000)
 #define ANATOP_BASE_ADDR            (AIPS1_OFF_BASE_ADDR + 0x48000)
+#define USB_PHY0_BASE_ADDR          (AIPS1_OFF_BASE_ADDR + 0x49000)
+#define USB_PHY1_BASE_ADDR          (AIPS1_OFF_BASE_ADDR + 0x4a000)
 #define SNVS_BASE_ADDR              (AIPS1_OFF_BASE_ADDR + 0x4C000)
 #define EPIT1_BASE_ADDR             (AIPS1_OFF_BASE_ADDR + 0x50000)
 #define EPIT2_BASE_ADDR             (AIPS1_OFF_BASE_ADDR + 0x54000)
@@ -184,11 +186,9 @@
 #define CAAM_BASE_ADDR              ATZ2_BASE_ADDR
 #define ARM_BASE_ADDR		        (ATZ2_BASE_ADDR + 0x40000)
 
-#define USBOH3_PL301_BASE_ADDR          (AIPS2_OFF_BASE_ADDR + 0x0000)
-#define USBOH3_USB_BASE_ADDR            (AIPS2_OFF_BASE_ADDR + 0x4000)
-/* Frank Li Need IC confirm OTG base address*/
-/* Zeng Zhaoming: FIXME, conflict with plat-mxc/include/mach/arc_otg.h:21 */
-/* #define OTG_BASE_ADDR		USBOH3_USB_BASE_ADDR */
+#define MX6Q_PL301_BASE_ADDR          (AIPS2_OFF_BASE_ADDR + 0x0000)
+#define MX6Q_USB_OTG_BASE_ADDR            (AIPS2_OFF_BASE_ADDR + 0x4000)
+#define MX6Q_USB_HS1_BASE_ADDR            (AIPS2_OFF_BASE_ADDR + 0x4200)
 #define ENET_BASE_ADDR                  (AIPS2_OFF_BASE_ADDR+0x8000)
 #define MLB_BASE_ADDR                   (AIPS2_OFF_BASE_ADDR+0xC000)
 
@@ -218,8 +218,6 @@
 #define UART3_BASE_ADDR                 (AIPS2_OFF_BASE_ADDR + 0x6C000)
 #define UART4_BASE_ADDR                 (AIPS2_OFF_BASE_ADDR + 0x70000)
 #define UART5_BASE_ADDR                 (AIPS2_OFF_BASE_ADDR + 0x74000)
-#define IP2APB_USBPHY1_BASE_ADDR        (AIPS2_OFF_BASE_ADDR + 0x78000)
-#define IP2APB_USBPHY2_BASE_ADDR        (AIPS2_OFF_BASE_ADDR + 0x7C000)
 
 /* Cortex-A9 MPCore private memory region */
 #define ARM_PERIPHBASE                  0x00A00000
@@ -306,12 +304,12 @@
 #define MX6Q_INT_I2C2                               69
 #define MX6Q_INT_I2C3                               70
 #define MXC_INT_SATA                               71
-#define MXC_INT_USBOH3_UH1                         72
-#define MXC_INT_USBOH3_UH2                         73
-#define MXC_INT_USBOH3_UH3                         74
-#define MXC_INT_USBOH3_UOTG                        75
-#define MXC_INT_ANATOP_UTMI0                       76
-#define MXC_INT_ANATOP_UTMI1                       77
+#define MX6Q_INT_USB_HS1					72
+#define MX6Q_INT_USB_HS2					73
+#define MX6Q_INT_USB_HS3					74
+#define MX6Q_INT_USB_OTG				75
+#define MX6Q_INT_USB_PHY0				76
+#define MX6Q_INT_USB_PHY1				77
 #define MXC_INT_SSI1                               78
 #define MXC_INT_SSI2                               79
 #define MXC_INT_SSI3                               80
