@@ -44,6 +44,7 @@
 #include <asm/io.h>
 #include <asm/irq.h>
 #include <asm/system.h>
+#include <asm/mach-types.h>
 #include <asm/unaligned.h>
 #include <asm/dma.h>
 #include <asm/cacheflush.h>
@@ -333,38 +334,6 @@ static void dr_phy_low_power_mode(struct fsl_udc *udc, bool enable)
 		}
 	}
 	pdata->lowpower = enable;
-}
-
-
-/* workaroud for some boards, maybe there is a large capacitor between the ground and the Vbus
- * that will cause the vbus dropping very slowly when device is detached,
- * may cost 2-3 seconds to below 0.8V */
-static void udc_wait_b_session_low(void)
-{
-	u32 temp;
-	u32 wait = 5000/jiffies_to_msecs(1); /* max wait time is 5000 ms */
-	/* if we are in host mode, don't need to care the B session */
-	if ((fsl_readl(&dr_regs->otgsc) & OTGSC_STS_USB_ID) == 0)
-		return;
-	/* if the udc is dettached , there will be a suspend irq */
-	if (udc_controller->usb_state != USB_STATE_SUSPENDED)
-		return;
-	temp = fsl_readl(&dr_regs->otgsc);
-	temp &= ~OTGSC_B_SESSION_VALID_IRQ_EN;
-	fsl_writel(temp, &dr_regs->otgsc);
-
-	do {
-		if (!(fsl_readl(&dr_regs->otgsc) & OTGSC_B_SESSION_VALID))
-			break;
-		msleep(jiffies_to_msecs(1));
-		wait -= 1;
-	} while (wait);
-	if (!wait)
-		printk(KERN_ERR "ERROR!!!!!: the vbus can not be lower \
-				then 0.8V for 5 seconds, Pls Check your HW design\n");
-	temp = fsl_readl(&dr_regs->otgsc);
-	temp |= OTGSC_B_SESSION_VALID_IRQ_EN;
-	fsl_writel(temp, &dr_regs->otgsc);
 }
 
 static int dr_controller_setup(struct fsl_udc *udc)
@@ -2050,7 +2019,7 @@ static void suspend_irq(struct fsl_udc *udc)
 	fsl_writel(otgsc, &dr_regs->otgsc);
 
 	/* discharge in work queue */
-	cancel_delayed_work(&udc->gadget_delay_work);
+	__cancel_delayed_work(&udc->gadget_delay_work);
 	schedule_delayed_work(&udc->gadget_delay_work, msecs_to_jiffies(20));
 
 	/* report suspend to the driver, serial.c does not support this */
@@ -2160,10 +2129,15 @@ bool try_wake_up_udc(struct fsl_udc *udc)
 	irq_src = fsl_readl(&dr_regs->otgsc) & (~OTGSC_ID_CHANGE_IRQ_STS);
 	if (irq_src & OTGSC_B_SESSION_VALID_IRQ_STS) {
 		u32 tmp;
+		/* Only handle device interrupt event
+		 * For mx53 loco board, the debug ID value is 0 and
+		 * DO NOT support OTG function
+		 */
+		if (!machine_is_mx53_loco())
+			if (!(fsl_readl(&dr_regs->otgsc) & OTGSC_STS_USB_ID))
+				return false;
+
 		fsl_writel(irq_src, &dr_regs->otgsc);
-		/* only handle device interrupt event */
-		if (!(fsl_readl(&dr_regs->otgsc) & OTGSC_STS_USB_ID))
-			return false;
 
 		tmp = fsl_readl(&dr_regs->usbcmd);
 		/* check BSV bit to see if fall or rise */
@@ -2222,8 +2196,8 @@ static irqreturn_t fsl_udc_irq(int irq, void *_udc)
 	irq_src = fsl_readl(&dr_regs->usbsts) & fsl_readl(&dr_regs->usbintr);
 	/* Clear notification bits */
 	fsl_writel(irq_src, &dr_regs->usbsts);
+	pr_debug("%s: 0x%x\n", __func__, irq_src);
 
-	VDBG("0x%x\n", irq_src);
 	/* Need to resume? */
 	if (udc->usb_state == USB_STATE_SUSPENDED)
 		if ((fsl_readl(&dr_regs->portsc1) & PORTSCX_PORT_SUSPEND) == 0)
@@ -2810,7 +2784,7 @@ static int __init struct_ep_setup(struct fsl_udc *udc, unsigned char index,
  * all intialization operations implemented here except enabling usb_intr reg
  * board setup should have been done in the platform code
  */
-static int __init fsl_udc_probe(struct platform_device *pdev)
+static int __devinit fsl_udc_probe(struct platform_device *pdev)
 {
 	struct resource *res;
 	struct fsl_usb2_platform_data *pdata = pdev->dev.platform_data;
@@ -3061,7 +3035,6 @@ static int __exit fsl_udc_remove(struct platform_device *pdev)
 	device_unregister(&udc_controller->gadget.dev);
 	/* free udc --wait for the release() finished */
 	wait_for_completion(&done);
-
 	/*
 	 * do platform specific un-initialization:
 	 * release iomux pins, etc.
@@ -3071,6 +3044,7 @@ static int __exit fsl_udc_remove(struct platform_device *pdev)
 
 	if (udc_controller->stopped)
 		dr_clk_gate(false);
+
 	return 0;
 }
 
@@ -3101,16 +3075,12 @@ static int udc_suspend(struct fsl_udc *udc)
 	 * Otherwise, the system will wakeup even the user only wants to
 	 * charge using usb
 	 */
-	printk(KERN_DEBUG "udc suspend begins\n");
 	if (pdata->pmflags == 0) {
 		if (!udc_can_wakeup_system())
 			dr_wake_up_enable(udc, false);
 		else
 			dr_wake_up_enable(udc, true);
 	}
-
-	mode = fsl_readl(&dr_regs->usbmode) & USB_MODE_CTRL_MODE_MASK;
-	usbcmd = fsl_readl(&dr_regs->usbcmd);
 
 	/*
 	 * If the controller is already stopped, then this must be a
@@ -3122,32 +3092,36 @@ static int udc_suspend(struct fsl_udc *udc)
 		goto out;
 	}
 
+	mode = fsl_readl(&dr_regs->usbmode) & USB_MODE_CTRL_MODE_MASK;
+	usbcmd = fsl_readl(&dr_regs->usbcmd);
 	if (mode != USB_MODE_CTRL_MODE_DEVICE) {
 		printk(KERN_DEBUG "gadget not in device mode, leaving early\n");
 		goto out;
 	}
 
-	/* Comment udc_wait_b_session_low, uncomment it at below two
-	 * situations:
-	 * 1. the user wants to debug some problems about vbus
-	 * 2. the vbus discharges very slow at user's board
-	 */
-
-	/* For some buggy hardware designs, see comment of this function for detail */
-	/* udc_wait_b_session_low(); */
-
 	udc->stopped = 1;
 
-	/* stop the controller */
-	usbcmd = fsl_readl(&dr_regs->usbcmd) & ~USB_CMD_RUN_STOP;
-	fsl_writel(usbcmd, &dr_regs->usbcmd);
+	if (!(fsl_readl(&dr_regs->otgsc) & OTGSC_A_BUS_VALID)) {
+		/* stop the controller */
+		usbcmd = fsl_readl(&dr_regs->usbcmd) & ~USB_CMD_RUN_STOP;
+		fsl_writel(usbcmd, &dr_regs->usbcmd);
+	}
 
 	dr_phy_low_power_mode(udc, true);
-	printk(KERN_DEBUG "USB Gadget suspend ends\n");
 out:
+	if (udc->suspended > 1) {
+		pr_warning(
+			"It's the case usb device is on otg port\
+				and the gadget driver"
+			"is loaded during boots up\n"
+			"So, do not increase suspended counter Or\
+				there is a error, "
+			"please debug it !!!\n"
+			 );
+		return 0;
+	}
+
 	udc->suspended++;
-	if (udc->suspended > 2)
-		printk(KERN_ERR "ERROR: suspended times > 2\n");
 
 	return 0;
 }
@@ -3159,6 +3133,7 @@ out:
 static int fsl_udc_suspend(struct platform_device *pdev, pm_message_t state)
 {
 	int ret;
+	printk(KERN_DEBUG "udc suspend begins\n");
 #ifdef CONFIG_USB_OTG
 	if (udc_controller->transceiver->gadget == NULL)
 		return 0;
@@ -3174,6 +3149,7 @@ static int fsl_udc_suspend(struct platform_device *pdev, pm_message_t state)
 		ret = udc_suspend(udc_controller);
 	dr_clk_gate(false);
 
+	printk(KERN_DEBUG "USB Gadget suspend ends\n");
 	return ret;
 }
 
