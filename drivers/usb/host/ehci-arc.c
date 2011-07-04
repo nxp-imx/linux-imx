@@ -28,8 +28,6 @@
 #include "../core/usb.h"
 #include "ehci-fsl.h"
 #include <mach/fsl_usb.h>
-
-extern int usb_host_wakeup_irq(struct device *wkup_dev);
 extern void usb_host_set_wakeup(struct device *wkup_dev, bool para);
 static void fsl_usb_lowpower_mode(struct fsl_usb2_platform_data *pdata, bool enable)
 {
@@ -136,6 +134,32 @@ void fsl_usb_recover_hcd(struct platform_device *pdev)
 }
 
 /**
+ * This irq is used to open the hw access and let usb_hcd_irq process the usb event
+ * ehci_fsl_pre_irq will be called before usb_hcd_irq
+ * The hcd operation need to be done during the wakeup irq
+ */
+static irqreturn_t ehci_fsl_pre_irq(int irq, void *dev)
+{
+	struct platform_device *pdev = (struct platform_device *)dev;
+	struct usb_hcd *hcd = platform_get_drvdata(pdev);
+	struct fsl_usb2_platform_data *pdata;
+	struct ehci_hcd *ehci = hcd_to_ehci(hcd);
+
+	pdata = hcd->self.controller->platform_data;
+
+	if (!test_bit(HCD_FLAG_HW_ACCESSIBLE, &hcd->flags)) {
+		if (pdata->irq_delay || !pdata->wakeup_event)
+			return IRQ_NONE;
+
+		pr_debug("%s\n", __func__);
+		pdata->wakeup_event = 0;
+		fsl_usb_recover_hcd(pdev);
+		return IRQ_HANDLED;
+	}
+	return IRQ_NONE;
+}
+
+/**
  * usb_hcd_fsl_probe - initialize FSL-based HCDs
  * @drvier: Driver to be used for this HCD
  * @pdev: USB Host Controller being probed
@@ -150,6 +174,7 @@ int usb_hcd_fsl_probe(const struct hc_driver *driver,
 	struct fsl_usb2_platform_data *pdata;
 	struct usb_hcd *hcd;
 	struct resource *res;
+	struct ehci_hcd *ehci;
 	int irq;
 	int retval;
 
@@ -218,15 +243,23 @@ int usb_hcd_fsl_probe(const struct hc_driver *driver,
 	 */
 	if (pdata->init && pdata->init(pdev)) {
 		retval = -ENODEV;
-		goto err3;
+		goto err4;
 	}
 
 	fsl_platform_set_host_mode(hcd);
 	hcd->power_budget = pdata->power_budget;
+	/*
+	 * The ehci_fsl_pre_irq must be registered before usb_hcd_irq, in that case
+	 * it can be called before usb_hcd_irq when irq occurs
+	 */
+	retval = request_irq(irq, ehci_fsl_pre_irq, IRQF_SHARED,
+			"fsl ehci pre interrupt", (void *)pdev);
+	if (retval != 0)
+		goto err4;
 
 	retval = usb_add_hcd(hcd, irq, IRQF_DISABLED | IRQF_SHARED);
 	if (retval != 0)
-		goto err4;
+		goto err5;
 
 	if (pdata->operating_mode == FSL_USB2_DR_OTG) {
 		struct ehci_hcd *ehci = hcd_to_ehci(hcd);
@@ -239,7 +272,7 @@ int usb_hcd_fsl_probe(const struct hc_driver *driver,
 		if (!ehci->transceiver) {
 			printk(KERN_ERR "can't find transceiver\n");
 			retval = -ENODEV;
-			goto err5;
+			goto err6;
 		}
 
 		retval = otg_set_host(ehci->transceiver, &ehci_to_hcd(ehci)->self);
@@ -251,9 +284,13 @@ int usb_hcd_fsl_probe(const struct hc_driver *driver,
 
 	fsl_platform_set_ahb_burst(hcd);
 	ehci_testmode_init(hcd_to_ehci(hcd));
+	ehci = hcd_to_ehci(hcd);
+	pdata->pm_command = ehci->command;
 	return retval;
-err5:
+err6:
 	usb_remove_hcd(hcd);
+err5:
+	free_irq(irq, (void *)pdev);
 err4:
 	iounmap(hcd->regs);
 err3:
@@ -364,7 +401,7 @@ static int ehci_fsl_bus_suspend(struct usb_hcd *hcd)
 	struct fsl_usb2_platform_data *pdata;
 
 	pdata = hcd->self.controller->platform_data;
-	printk(KERN_DEBUG "%s, %s\n", __func__, pdata->name);
+	printk(KERN_DEBUG "%s begins, %s\n", __func__, pdata->name);
 
 	/* the host is already at low power mode */
 	if (!test_bit(HCD_FLAG_HW_ACCESSIBLE, &hcd->flags)) {
@@ -382,6 +419,7 @@ static int ehci_fsl_bus_suspend(struct usb_hcd *hcd)
 	fsl_usb_lowpower_mode(pdata, true);
 	fsl_usb_clk_gate(hcd->self.controller->platform_data, false);
 	clear_bit(HCD_FLAG_HW_ACCESSIBLE, &hcd->flags);
+	printk(KERN_DEBUG "%s ends, %s\n", __func__, pdata->name);
 
 	return ret;
 }
@@ -390,9 +428,10 @@ static int ehci_fsl_bus_resume(struct usb_hcd *hcd)
 {
 	int ret = 0;
 	struct fsl_usb2_platform_data *pdata;
+	struct ehci_hcd *ehci = hcd_to_ehci(hcd);
 
 	pdata = hcd->self.controller->platform_data;
-	printk(KERN_DEBUG "%s, %s\n", __func__, pdata->name);
+	printk(KERN_DEBUG "%s begins, %s\n", __func__, pdata->name);
 
 	/*
 	 * At otg mode, it should not call host resume for usb gadget device
@@ -412,9 +451,11 @@ static int ehci_fsl_bus_resume(struct usb_hcd *hcd)
 	if (pdata->platform_resume)
 		pdata->platform_resume(pdata);
 
+	ehci->command = pdata->pm_command;
 	ret = ehci_bus_resume(hcd);
 	if (ret)
 		return ret;
+	printk(KERN_DEBUG "%s ends, %s\n", __func__, pdata->name);
 
 	return ret;
 }
@@ -588,6 +629,7 @@ static int ehci_fsl_drv_suspend(struct platform_device *pdev,
 			usb_host_set_wakeup(hcd->self.controller, false);
 			fsl_usb_clk_gate(hcd->self.controller->platform_data, false);
 		}
+		printk(KERN_DEBUG "host suspend ends\n");
 		return 0;
 	}
 
@@ -627,8 +669,8 @@ static int ehci_fsl_drv_suspend(struct platform_device *pdev,
 
 	port_status = ehci_readl(ehci, &ehci->regs->port_status[0]);
 	/* save EHCI registers */
-	pdata->pm_command = ehci_readl(ehci, &ehci->regs->command);
-	pdata->pm_command &= ~CMD_RUN;
+/*	pdata->pm_command = ehci_readl(ehci, &ehci->regs->command); */
+/*	pdata->pm_command &= ~CMD_RUN; */
 	pdata->pm_status  = ehci_readl(ehci, &ehci->regs->status);
 	pdata->pm_intr_enable  = ehci_readl(ehci, &ehci->regs->intr_enable);
 	pdata->pm_frame_index  = ehci_readl(ehci, &ehci->regs->frame_index);

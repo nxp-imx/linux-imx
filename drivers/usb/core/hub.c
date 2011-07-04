@@ -30,6 +30,13 @@
 
 #include "usb.h"
 
+#ifdef CONFIG_ARCH_MX6
+#define MX6_USB_HOST_HACK
+
+#include <linux/fsl_devices.h>
+extern void fsl_platform_set_usb_phy_dis(struct fsl_usb2_platform_data *pdata,
+					 bool enable);
+#endif
 /* if we are in debug mode, always announce new devices */
 #ifdef DEBUG
 #ifndef CONFIG_USB_ANNOUNCE_NEW_DEVICES
@@ -3022,6 +3029,19 @@ hub_port_init (struct usb_hub *hub, struct usb_device *udev, int port1,
 			break;
 		}
 	}
+#ifdef MX6_USB_HOST_HACK
+	{	/*Must enable HOSTDISCONDETECT after second reset*/
+		if (port1 == 1) {
+			if (udev->speed == USB_SPEED_HIGH) {
+				struct device *dev = hcd->self.controller;
+				struct fsl_usb2_platform_data *pdata;
+				pdata = (struct fsl_usb2_platform_data *)
+					 dev->platform_data;
+				fsl_platform_set_usb_phy_dis(pdata, 1);
+			}
+		}
+	}
+#endif
 	if (retval)
 		goto fail;
 
@@ -3159,6 +3179,24 @@ static void hub_port_connect_change(struct usb_hub *hub, int port1,
 		hub->indicator[port1-1] = INDICATOR_AUTO;
 	}
 
+#ifdef MX6_USB_HOST_HACK
+	{
+		struct device *dev = hcd->self.controller;
+		struct fsl_usb2_platform_data *pdata;
+
+		pdata = (struct fsl_usb2_platform_data *)dev->platform_data;
+		if (dev->parent && dev->type) {
+			if (port1 == 1 && pdata->init)
+				pdata->init(NULL);
+		}
+		if (port1 == 1) {
+			if (!(portstatus&USB_PORT_STAT_CONNECTION)) {
+				/* Must clear HOSTDISCONDETECT when disconnect*/
+				fsl_platform_set_usb_phy_dis(pdata, 0);
+			}
+		}
+	}
+#endif
 #ifdef	CONFIG_USB_OTG
 	/* during HNP, don't repeat the debounce */
 	if (hdev->bus->is_b_host)
