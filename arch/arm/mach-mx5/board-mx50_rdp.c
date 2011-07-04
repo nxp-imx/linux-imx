@@ -43,6 +43,7 @@
 #include "devices-imx50.h"
 #include "cpu_op-mx50.h"
 #include "devices.h"
+#include "usb.h"
 #include "crm_regs.h"
 
 #define FEC_EN		IMX_GPIO_NR(6, 23)
@@ -88,8 +89,9 @@
 #define MX50_RDP_SD1_WP		IMX_GPIO_NR(4, 19)	/*GPIO_4_19 */
 #define MX50_RDP_SD1_CD		IMX_GPIO_NR(1, 27)	/*GPIO_1_27 */
 #define MX50_RDP_SD2_WP		IMX_GPIO_NR(5, 16)	/*GPIO_5_16 */
-#define MX50_RDP_SD2_CD		IMX_GPIO_NR(5, 17) /*GPIO_5_17 */
-#define MX50_RDP_SD3_WP		IMX_GPIO_NR(5, 28) /*GPIO_5_28 */
+#define MX50_RDP_SD2_CD		IMX_GPIO_NR(5, 17) 	/*GPIO_5_17 */
+#define MX50_RDP_SD3_WP		IMX_GPIO_NR(5, 28) 	/*GPIO_5_28 */
+#define MX50_RDP_USB_OTG_PWR	IMX_GPIO_NR(6, 25)	/*GPIO_6_25*/
 
 extern struct dvfs_op *(*get_dvfs_core_op)(int *wp);
 
@@ -782,6 +784,30 @@ static void __init fixup_mxc_board(struct machine_desc *desc, struct tag *tags,
 	get_dvfs_core_op = mx50_rdp_get_dvfs_core_table;
 }
 
+static void mx50_rdp_usbotg_vbus(bool on)
+{
+	if (on)
+		gpio_set_value(MX50_RDP_USB_OTG_PWR, 1);
+	else
+		gpio_set_value(MX50_RDP_USB_OTG_PWR, 0);
+}
+
+static void __init mx50_rdp_init_usb(void)
+{
+	int ret = 0;
+
+	imx_otg_base = MX50_IO_ADDRESS(MX50_OTG_BASE_ADDR);
+	ret = gpio_request(MX50_RDP_USB_OTG_PWR, "usb-pwr");
+	if (ret) {
+		printk(KERN_ERR"failed to get GPIO OTG_VBUS: %d\n", ret);
+		return;
+	}
+	gpio_direction_output(MX50_RDP_USB_OTG_PWR, 0);
+
+	mx5_set_otghost_vbus_func(mx50_rdp_usbotg_vbus);
+	mx5_usb_dr_init();
+	mx5_usbh1_init();
+}
 /*
  * Board specific initialization.
  */
@@ -826,6 +852,7 @@ static void __init mx50_rdp_board_init(void)
 
 	imx50_add_dvfs_core(&rdp_dvfscore_data);
 	imx50_add_busfreq(&rdp_bus_freq_data);
+	mx50_rdp_init_usb();
 }
 
 static void __init mx50_rdp_timer_init(void)

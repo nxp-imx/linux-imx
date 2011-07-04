@@ -35,12 +35,6 @@ extern int clk_get_usecount(struct clk *clk);
 #define MX5X_USBH1_STP		IMX_GPIO_NR(1, 27)
 #define MX51_3DS_PHY_RESET	IMX_GPIO_NR(2, 5)
 
-#ifdef CONFIG_USB_EHCI_ARC
-extern void fsl_usb_recover_hcd(struct platform_device *pdev);
-#else
-static void fsl_usb_recover_hcd(struct platform_device *pdev)
-{; }
-#endif
 /*
  * USB Host1 HS port
  */
@@ -139,7 +133,7 @@ static void h1_wakeup_handler(struct fsl_usb2_platform_data *pdata)
 {
 	_wake_up_enable(pdata, false);
 	_phy_lowpower_suspend(pdata, false);
-	fsl_usb_recover_hcd(&mxc_usbh1_device);
+	pdata->wakeup_event = 1;
 }
 
 static void usbh1_wakeup_event_clear(void)
