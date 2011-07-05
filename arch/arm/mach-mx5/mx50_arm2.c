@@ -60,6 +60,7 @@
 #include <mach/mxc_dvfs.h>
 #include <mach/iomux-mx50.h>
 #include <mach/i2c.h>
+#include <mach/check_fuse.h>
 
 #include "devices.h"
 #include "crm_regs.h"
@@ -1318,7 +1319,8 @@ static void __init mxc_board_init(void)
 
 	mxc_register_device(&mxc_rtc_device, NULL);
 	mxc_register_device(&mxc_w1_master_device, &mxc_w1_data);
-	mxc_register_device(&gpu_device, &gpu_data);
+	if (!mxc_fuse_get_gpu_status())
+		mxc_register_device(&gpu_device, &gpu_data);
 	mxc_register_device(&mxc_pxp_device, NULL);
 	mxc_register_device(&mxc_pxp_client_device, NULL);
 	mxc_register_device(&mxc_pxp_v4l2, NULL);

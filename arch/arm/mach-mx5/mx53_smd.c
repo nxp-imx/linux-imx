@@ -64,6 +64,7 @@
 #include <mach/i2c.h>
 #include <mach/mxc_iim.h>
 #include <mach/mxc_rfkill.h>
+#include <mach/check_fuse.h>
 
 #include "crm_regs.h"
 #include "devices.h"
@@ -1205,8 +1206,10 @@ static void __init mxc_board_init(void)
 	mxc_register_device(&mxc_ipu_device, &mxc_ipu_data);
 	mxc_register_device(&mxc_ldb_device, &ldb_data);
 	mxc_register_device(&mxc_tve_device, &tve_data);
-	mxc_register_device(&mxcvpu_device, &mxc_vpu_data);
-	mxc_register_device(&gpu_device, &gpu_data);
+	if (!mxc_fuse_get_vpu_status())
+		mxc_register_device(&mxcvpu_device, &mxc_vpu_data);
+	if (!mxc_fuse_get_gpu_status())
+		mxc_register_device(&gpu_device, &gpu_data);
 	mxc_register_device(&mxcscc_device, NULL);
 	mxc_register_device(&mxc_dvfs_core_device, &dvfs_core_data);
 	mxc_register_device(&busfreq_device, &bus_freq_data);
