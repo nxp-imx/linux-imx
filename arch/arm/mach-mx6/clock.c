@@ -3824,6 +3824,26 @@ static struct clk pcie_clk = {
 static int _clk_sata_enable(struct clk *clk)
 {
 	unsigned int reg;
+	unsigned int cyclecount;
+
+	/* Clear Power Down and Enable PLLs */
+	reg = __raw_readl(PLL8_ENET_BASE_ADDR);
+	reg &= ~ANADIG_PLL_ENET_POWER_DOWN;
+	__raw_writel(reg, PLL8_ENET_BASE_ADDR);
+
+	reg = __raw_readl(PLL8_ENET_BASE_ADDR);
+	reg |= ANADIG_PLL_ENET_EN;
+	__raw_writel(reg, PLL8_ENET_BASE_ADDR);
+
+	/* Waiting for the PLL is locked */
+	if (!WAIT(ANADIG_PLL_ENET_LOCK & __raw_readl(PLL8_ENET_BASE_ADDR),
+				SPIN_DELAY))
+		panic("pll8 lock failed\n");
+
+	/* Disable the bypass */
+	reg = __raw_readl(PLL8_ENET_BASE_ADDR);
+	reg &= ~ANADIG_PLL_ENET_BYPASS;
+	__raw_writel(reg, PLL8_ENET_BASE_ADDR);
 
 	/* Enable SATA ref clock */
 	reg = __raw_readl(PLL8_ENET_BASE_ADDR);
