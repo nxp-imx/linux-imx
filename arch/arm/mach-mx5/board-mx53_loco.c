@@ -60,6 +60,8 @@
 #define LOCO_FEC_PHY_RST		IMX_GPIO_NR(7, 6)
 #define LOCO_USBH1_VBUS			IMX_GPIO_NR(7, 8)
 
+static struct clk *sata_clk, *sata_ref_clk;
+
 extern void __iomem *arm_plat_base;
 extern void __iomem *gpc_base;
 extern void __iomem *ccm_base;
@@ -453,127 +455,73 @@ static void __init mx53_loco_io_init(void)
 }
 
 /* HW Initialization, if return 0, initialization is successful. */
-static int sata_init(struct device *dev, void __iomem *addr)
+static int mx53_loco_sata_init(struct device *dev, void __iomem *addr)
 {
-	void __iomem *mmio;
-	struct clk *clk;
-	int ret = 0;
 	u32 tmpdata;
+	int ret = 0;
+	struct clk *clk;
 
-	clk = clk_get(dev, "imx_sata_clk");
-	ret = IS_ERR(clk);
-	if (ret) {
-		printk(KERN_ERR "AHCI can't get clock.\n");
-		return ret;
+	sata_clk = clk_get(dev, "imx_sata_clk");
+	if (IS_ERR(sata_clk)) {
+		dev_err(dev, "no sata clock.\n");
+		return PTR_ERR(sata_clk);
 	}
-	ret = clk_enable(clk);
+	ret = clk_enable(sata_clk);
 	if (ret) {
-		printk(KERN_ERR "AHCI can't enable clock.\n");
-		clk_put(clk);
-		return ret;
+		dev_err(dev, "can't enable sata clock.\n");
+		goto put_sata_clk;
+	}
+
+	sata_ref_clk = clk_get(NULL, "usb_phy1_clk");
+	if (IS_ERR(sata_ref_clk)) {
+		dev_err(dev, "no sata ref clock.\n");
+		ret = PTR_ERR(sata_ref_clk);
+		goto release_sata_clk;
+	}
+	ret = clk_enable(sata_ref_clk);
+	if (ret) {
+		dev_err(dev, "can't enable sata ref clock.\n");
+		goto put_sata_ref_clk;
 	}
 
 	/* Get the AHB clock rate, and configure the TIMER1MS reg later */
 	clk = clk_get(NULL, "ahb_clk");
-	ret = IS_ERR(clk);
-	if (ret) {
-		printk(KERN_ERR "AHCI can't get AHB clock.\n");
-		goto no_ahb_clk;
+	if (IS_ERR(clk)) {
+		dev_err(dev, "no ahb clock.\n");
+		ret = PTR_ERR(clk);
+		goto release_sata_ref_clk;
 	}
-
-	mmio = ioremap(MX53_SATA_BASE_ADDR, SZ_2K);
-	if (mmio == NULL) {
-		printk(KERN_ERR "Failed to map SATA REGS\n");
-		goto no_ahb_clk;
-	}
-
-	tmpdata = readl(mmio + HOST_CAP);
-	if (!(tmpdata & HOST_CAP_SSS)) {
-		tmpdata |= HOST_CAP_SSS;
-		writel(tmpdata, mmio + HOST_CAP);
-	}
-
-	if (!(readl(mmio + HOST_PORTS_IMPL) & 0x1))
-		writel((readl(mmio + HOST_PORTS_IMPL) | 0x1),
-			mmio + HOST_PORTS_IMPL);
-
 	tmpdata = clk_get_rate(clk) / 1000;
-	writel(tmpdata, mmio + HOST_TIMER1MS);
+	clk_put(clk);
 
-	clk = clk_get(dev, "usb_phy1_clk");
-	ret = IS_ERR(clk);
-	if (ret) {
-		printk(KERN_ERR "AHCI can't get USB PHY1 CLK.\n");
-		goto no_ahb_clk;
-	}
-	ret = clk_enable(clk);
-	if (ret) {
-		printk(KERN_ERR "AHCI Can't enable USB PHY1 clock.\n");
-		clk_put(clk);
-		goto no_ahb_clk;
-	}
-
-	/* Release resources when there is no device on the port */
-	if ((readl(mmio + PORT_SATA_SR) & 0xF) == 0) {
-		iounmap(mmio);
-		ret = -ENODEV;
-		goto no_device;
-	}
-
-	iounmap(mmio);
+	sata_init(addr, tmpdata);
 
 	return ret;
 
-no_device:
-	printk(KERN_INFO "NO SATA device is found, relase resource!\n");
-	clk = clk_get(dev, "usb_phy1_clk");
-	if (IS_ERR(clk)) {
-		clk = NULL;
-		printk(KERN_ERR "AHCI can't get USB PHY1 CLK.\n");
-	} else {
-		clk_disable(clk);
-		clk_put(clk);
-	}
-
-no_ahb_clk:
-	clk = clk_get(dev, "imx_sata_clk");
-	if (IS_ERR(clk)) {
-		clk = NULL;
-		printk(KERN_ERR "IMX SATA can't get clock.\n");
-	} else {
-		clk_disable(clk);
-		clk_put(clk);
-	}
+release_sata_ref_clk:
+	clk_disable(sata_ref_clk);
+put_sata_ref_clk:
+	clk_put(sata_ref_clk);
+release_sata_clk:
+	clk_disable(sata_clk);
+put_sata_clk:
+	clk_put(sata_clk);
 
 	return ret;
 }
 
-static void sata_exit(struct device *dev)
+static void mx53_loco_sata_exit(struct device *dev)
 {
-	struct clk *clk;
+	clk_disable(sata_ref_clk);
+	clk_put(sata_ref_clk);
 
-	clk = clk_get(dev, "usb_phy1_clk");
-	if (IS_ERR(clk)) {
-		clk = NULL;
-		printk(KERN_ERR "AHCI can't get USB PHY1 CLK.\n");
-	} else {
-		clk_disable(clk);
-		clk_put(clk);
-	}
-
-	clk = clk_get(dev, "imx_sata_clk");
-	if (IS_ERR(clk)) {
-		clk = NULL;
-		printk(KERN_ERR "IMX SATA can't get clock.\n");
-	} else {
-		clk_disable(clk);
-		clk_put(clk);
-	}
+	clk_disable(sata_clk);
+	clk_put(sata_clk);
 }
 
-static struct ahci_platform_data sata_data = {
-	.init = sata_init,
-	.exit = sata_exit,
+static struct ahci_platform_data mx53_loco_sata_data = {
+	.init = mx53_loco_sata_init,
+	.exit = mx53_loco_sata_exit,
 };
 
 static struct mxc_audio_platform_data loco_audio_data;
@@ -766,7 +714,7 @@ static void __init mx53_loco_board_init(void)
 
 	imx53_add_sdhci_esdhc_imx(0, &mx53_loco_sd1_data);
 	imx53_add_sdhci_esdhc_imx(2, &mx53_loco_sd3_data);
-	imx53_add_ahci_imx(0, &sata_data);
+	imx53_add_ahci(0, &mx53_loco_sata_data);
 	imx53_add_iim(&iim_data);
 
 	/* USB */
