@@ -219,7 +219,7 @@ config MACH_MX53_SMD
 	select IMX_HAVE_PLATFORM_MXC_GPU
 	select IMX_HAVE_PLATFORM_SDHCI_ESDHC_IMX
 	select IMX_HAVE_PLATFORM_IMX_SRTC
-	select IMX_HAVE_PLATFORM_SATA_AHCI
+	select IMX_HAVE_PLATFORM_AHCI
 	help
 	  Include support for MX53 SMD platform. This includes specific
 	  configurations for the board and its peripherals.
@@ -233,8 +233,8 @@ config MACH_MX53_LOCO
 	select IMX_HAVE_PLATFORM_IMX_SRTC
 	select IMX_HAVE_PLATFORM_MXC_GPU
 	select IMX_HAVE_PLATFORM_SDHCI_ESDHC_IMX
-	select IMX_HAVE_PLATFORM_SATA_AHCI
 	select IMX_HAVE_PLATFORM_GPIO_KEYS
+	select IMX_HAVE_PLATFORM_AHCI
 	help
 	  Include support for MX53 LOCO platform. This includes specific
 	  configurations for the board and its peripherals.
