@@ -987,20 +987,20 @@ mxs_set_sclk_speed(struct mxs_mmc_host *host, unsigned int hz)
 	 */
 	ssp = clk_get_rate(host->clk);
 
-	for (div1 = 2; div1 < 254; div1 += 2) {
+	for (div1 = 2; div1 <= 254; div1 += 2) {
 		div2 = ssp / hz / div1;
-		if (div2 < 0x100)
+		if (div2 <= 256)
 			break;
 	}
-	if (div1 >= 254) {
+	if (div1 > 254) {
 		dev_err(host->dev, "Cannot set clock to %dHz\n", hz);
 		return;
 	}
 
 	if (div2 == 0)
-		bus_clk = ssp / div1;
-	else
-		bus_clk = ssp / div1 / div2;
+		div2 = 1;
+
+	bus_clk = ssp / div1 / div2;
 
 	dev_dbg(host->dev, "Setting clock rate to %ld Hz [%x+%x] "
 		"(requested %d), source %ldk\n",
