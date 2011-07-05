@@ -29,12 +29,17 @@
 	}
 
 #ifdef CONFIG_SOC_IMX53
-const struct imx_ahci_imx_data imx53_ahci_imx_data __initconst =
+const struct imx_ahci_data imx53_ahci_data __initconst =
 	imx_ahci_data_entry_single(MX53);
 #endif
 
-struct platform_device *__init imx_add_ahci_imx(
-		const struct imx_ahci_imx_data *data,
+#ifdef CONFIG_SOC_IMX6Q
+const struct imx_ahci_data imx6q_ahci_data __initconst =
+	imx_ahci_data_entry_single(MX6Q);
+#endif
+
+struct platform_device *__init imx_add_ahci(
+		const struct imx_ahci_data *data,
 		const struct ahci_platform_data *pdata)
 {
 	struct resource res[] = {
