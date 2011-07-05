@@ -18,7 +18,7 @@
  * Bug fixes and cleanup by Philippe De Muyter (phdm@macqel.be)
  * Copyright (c) 2004-2006 Macq Electronique SA.
  *
- * Copyright (C) 2010 Freescale Semiconductor, Inc.
+ * Copyright (C) 2010-2011 Freescale Semiconductor, Inc.
  */
 
 #include <linux/module.h>
@@ -68,10 +68,18 @@
 #define FEC_QUIRK_SWAP_FRAME		(1 << 1)
 
 static struct platform_device_id fec_devtype[] = {
+#ifdef CONFIG_SOC_IMX6Q
+	{
+		.name = DRIVER_NAME,
+		.driver_data = FEC_QUIRK_ENET_MAC,
+	},
+#else
 	{
 		.name = DRIVER_NAME,
 		.driver_data = 0,
-	}, {
+	},
+#endif
+	{
 		.name = "imx28-fec",
 		.driver_data = FEC_QUIRK_ENET_MAC | FEC_QUIRK_SWAP_FRAME,
 	},
@@ -860,6 +868,31 @@ static int fec_enet_mdio_write(struct mii_bus *bus, int mii_id, int regnum,
 
 	return 0;
 }
+#ifdef CONFIG_MACH_MX6Q_SABREAUTO
+
+static int mx6_sabreauto_rework(struct  mii_bus *bus)
+{
+	unsigned short val;
+
+	/* To enable AR8031 ouput a 125MHz clk from CLK_25M */
+	fec_enet_mdio_write(bus, 0, 0xd, 0x7);
+	fec_enet_mdio_write(bus, 0, 0xe, 0x8016);
+	fec_enet_mdio_write(bus, 0, 0xd, 0x4007);
+	val = fec_enet_mdio_read(bus, 0, 0xe);
+
+	val &= 0xffe3;
+	val |= 0x18;
+	fec_enet_mdio_write(bus, 0, 0xe, val);
+
+	/* introduce tx clock delay */
+	fec_enet_mdio_write(bus, 0, 0x1d, 0x5);
+	val = fec_enet_mdio_read(bus, 0, 0x1e);
+	val |= 0x0100;
+	fec_enet_mdio_write(bus, 0, 0x1e, val);
+
+	return 0;
+}
+#endif
 
 static int fec_enet_mdio_reset(struct mii_bus *bus)
 {
@@ -899,15 +932,20 @@ static int fec_enet_mii_probe(struct net_device *ndev)
 	}
 
 	snprintf(phy_name, MII_BUS_ID_SIZE, PHY_ID_FMT, mdio_bus_id, phy_id);
-	phy_dev = phy_connect(ndev, phy_name, &fec_enet_adjust_link, 0,
-		PHY_INTERFACE_MODE_MII);
+	phy_dev = phy_connect(dev, phy_name, &fec_enet_adjust_link, 0,
+		fep->phy_interface);
+
 	if (IS_ERR(phy_dev)) {
 		printk(KERN_ERR "%s: could not attach to PHY\n", ndev->name);
 		return PTR_ERR(phy_dev);
 	}
 
 	/* mask with MAC supported features */
-	phy_dev->supported &= PHY_BASIC_FEATURES;
+	if (cpu_is_mx6q())
+		phy_dev->supported &= PHY_GBIT_FEATURES;
+	else
+		phy_dev->supported &= PHY_BASIC_FEATURES;
+
 	phy_dev->advertising = phy_dev->supported;
 
 	fep->phy_dev = phy_dev;
@@ -959,6 +997,11 @@ static int fec_enet_mii_init(struct platform_device *pdev)
 	 * Set MII speed to 2.5 MHz (= clk_get_rate() / 2 * phy_speed)
 	 */
 	fep->phy_speed = DIV_ROUND_UP(clk_get_rate(fep->clk), 5000000) << 1;
+
+#ifdef CONFIG_MACH_MX6Q_SABREAUTO
+	/* FIXME: hard code to 0x1a for clock issue */
+	fep->phy_speed = 0x11a;
+#endif
 	writel(fep->phy_speed, fep->hwp + FEC_MII_SPEED);
 
 	fep->mii_bus = mdiobus_alloc();
@@ -974,6 +1017,10 @@ static int fec_enet_mii_init(struct platform_device *pdev)
 	snprintf(fep->mii_bus->id, MII_BUS_ID_SIZE, "%x", pdev->id + 1);
 	fep->mii_bus->priv = fep;
 	fep->mii_bus->parent = &pdev->dev;
+
+#ifdef CONFIG_MACH_MX6Q_SABREAUTO
+	mx6_sabreauto_rework(fep->mii_bus);
+#endif
 
 	fep->mii_bus->irq = kmalloc(sizeof(int) * PHY_MAX_ADDR, GFP_KERNEL);
 	if (!fep->mii_bus->irq) {
@@ -1151,6 +1198,7 @@ fec_enet_open(struct net_device *ndev)
 		fec_enet_free_buffers(ndev);
 		return ret;
 	}
+
 	phy_start(fep->phy_dev);
 	netif_start_queue(ndev);
 	fep->opened = 1;
@@ -1536,6 +1584,31 @@ static struct platform_driver fec_driver = {
 	.probe	= fec_probe,
 	.remove	= __devexit_p(fec_drv_remove),
 };
+
+static int fec_mac_addr_setup(char *mac_addr)
+{
+	char *ptr, *p = mac_addr;
+	unsigned long tmp;
+	int i = 0, ret = 0;
+
+	while (p && (*p) && i < 6) {
+		ptr = strchr(p, ':');
+		if (ptr)
+			*ptr++ = '\0';
+
+		if (strlen(p)) {
+			ret = strict_strtoul(p, 16, &tmp);
+			if (ret < 0 || tmp > 0xff)
+				break;
+			macaddr[i++] = tmp;
+		}
+		p = ptr;
+	}
+
+	return 0;
+}
+
+__setup("fec_mac=", fec_mac_addr_setup);
 
 static int __init
 fec_enet_module_init(void)
