@@ -354,13 +354,13 @@ struct platform_device *__init imx_add_tve(
 		const struct fsl_mxc_tve_platform_data *pdata);
 
 #include <linux/ahci_platform.h>
-struct imx_ahci_imx_data {
+struct imx_ahci_data {
 	int id;
 	resource_size_t iobase;
 	resource_size_t irq;
 };
-struct platform_device *__init imx_add_ahci_imx(
-		const struct imx_ahci_imx_data *data,
+struct platform_device *__init imx_add_ahci(
+		const struct imx_ahci_data *data,
 		const struct ahci_platform_data *pdata);
 
 struct imx_iim_data {
