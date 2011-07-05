@@ -99,7 +99,7 @@
 #define AIPS1_ARB_END_ADDR              0x020FFFFF
 #define AIPS2_ARB_BASE_ADDR             0x02100000
 #define AIPS2_ARB_END_ADDR              0x021FFFFF
-#define SATA_ARB_BASE_ADDR              0x02200000
+#define MX6Q_SATA_BASE_ADDR              0x02200000
 #define SATA_ARB_END_ADDR               0x02203FFF
 #define OPENVG_ARB_BASE_ADDR            0x02204000
 #define OPENVG_ARB_END_ADDR             0x02207FFF
@@ -303,7 +303,7 @@
 #define MX6Q_INT_I2C1                               68
 #define MX6Q_INT_I2C2                               69
 #define MX6Q_INT_I2C3                               70
-#define MXC_INT_SATA                               71
+#define MX6Q_INT_SATA                               71
 #define MX6Q_INT_USB_HS1					72
 #define MX6Q_INT_USB_HS2					73
 #define MX6Q_INT_USB_HS3					74
