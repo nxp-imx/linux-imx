@@ -1660,7 +1660,8 @@ static int epdc_process_update(struct update_data_list *upd_data_list,
 	input_unaligned = ((offset_from_4 * bytes_per_pixel % 4) != 0) ?
 				true : false;
 
-	pix_per_line_added = offset_from_4 / bytes_per_pixel;
+	pix_per_line_added = (offset_from_4 * bytes_per_pixel % 4)
+					/ bytes_per_pixel;
 	if ((((fb_data->epdc_fb_var.rotate == FB_ROTATE_UR) ||
 		fb_data->epdc_fb_var.rotate == FB_ROTATE_UD)) &&
 		(ALIGN(src_upd_region->width, 8) <
@@ -1710,7 +1711,8 @@ static int epdc_process_update(struct update_data_list *upd_data_list,
 			* bytes_per_pixel & 0xFFFFFFFC;
 		/* Update region should change to reflect relative position to input ptr */
 		pxp_upd_region.top = 0;
-		pxp_upd_region.left = offset_from_4 / bytes_per_pixel;
+		pxp_upd_region.left = (offset_from_4 * bytes_per_pixel % 4)
+					/ bytes_per_pixel;
 	} else {
 		pxp_input_offs =
 			(src_upd_region->top * src_width + src_upd_region->left)
