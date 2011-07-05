@@ -22,8 +22,12 @@
 enum {
 	HOST_CAP = 0x00,
 	HOST_CAP_SSS = (1 << 27), /* Staggered Spin-up */
+	HOST_CTL		= 0x04, /* global host control */
+	HOST_RESET		= (1 << 0),  /* reset controller; self-clear */
 	HOST_PORTS_IMPL	= 0x0c,
 	HOST_TIMER1MS = 0xe0, /* Timer 1-ms */
+	HOST_VERSIONR = 0xfc, /* host version register*/
+
 	/* Offest used to control the MPLL input clk */
 	PHY_CR_CLOCK_FREQ_OVRD = 0x12,
 	/* Port0 SATA Status */
@@ -48,4 +52,5 @@ enum {
 	SATA_PHY_CR_CLOCK_MPLL_TST = 0x0017,
 };
 
+extern int sata_init(void __iomem *addr, unsigned long timer1ms);
 #endif /* __PLAT_MXC_AHCI_SATA_H__ */
