@@ -57,12 +57,14 @@
 #include <mach/iomux-mx6q.h>
 #include <mach/imx-uart.h>
 #include <mach/viv_gpu.h>
+#include <mach/ahci_sata.h>
 #include <linux/gpio.h>
 #include <linux/etherdevice.h>
 
 #include "usb.h"
 #include "devices-imx6q.h"
 #include "regs-anadig.h"
+#include "crm_regs.h"
 
 #define MX6Q_SABREAUTO_ECSPI1_CS0	IMX_GPIO_NR(2, 30)
 #define MX6Q_SABREAUTO_ECSPI1_CS1	IMX_GPIO_NR(3, 19)
@@ -74,6 +76,7 @@
 #define MX6Q_SABREAUTO_CAP_TCH_INT	IMX_GPIO_NR(3, 31)
 
 void __init early_console_setup(unsigned long base, struct clk *clk);
+static struct clk *sata_clk;
 
 static iomux_v3_cfg_t mx6q_sabreauto_pads[] = {
 
@@ -312,6 +315,86 @@ static struct viv_gpu_platform_data imx6q_gc2000_pdata __initdata = {
 	.reserved_mem_size = SZ_128M,
 };
 
+/* HW Initialization, if return 0, initialization is successful. */
+static int mx6q_sabreauto_sata_init(struct device *dev, void __iomem *addr)
+{
+	u32 tmpdata;
+	int ret = 0;
+	struct clk *clk;
+
+	/* Enable SATA PWR CTRL_0 of MAX7310 */
+	gpio_request(MX6Q_SABREAUTO_MAX7310_1_BASE_ADDR, "SATA_PWR_EN");
+	gpio_direction_output(MX6Q_SABREAUTO_MAX7310_1_BASE_ADDR, 1);
+
+	sata_clk = clk_get(dev, "imx_sata_clk");
+	if (IS_ERR(sata_clk)) {
+		dev_err(dev, "no sata clock.\n");
+		return PTR_ERR(sata_clk);
+	}
+	ret = clk_enable(sata_clk);
+	if (ret) {
+		dev_err(dev, "can't enable sata clock.\n");
+		goto put_sata_clk;
+	}
+
+	/* Set PHY Paremeters, two steps to configure the GPR13,
+	 * one write for rest of parameters, mask of first write is 0x07FF7FFD,
+	 * and the other one write for setting the mpll_clk_off_b
+	 *.rx_eq_val_0(iomuxc_gpr13[26:24]),
+	 *.los_lvl(iomuxc_gpr13[23:19]),
+	 *.rx_dpll_mode_0(iomuxc_gpr13[18:16]),
+	 *.mpll_ss_en(iomuxc_gpr13[14]),
+	 *.tx_atten_0(iomuxc_gpr13[13:11]),
+	 *.tx_boost_0(iomuxc_gpr13[10:7]),
+	 *.tx_lvl(iomuxc_gpr13[6:2]),
+	 *.mpll_ck_off(iomuxc_gpr13[1]),
+	 *.tx_edgerate_0(iomuxc_gpr13[0]),
+	 */
+	tmpdata = readl(IOMUXC_GPR13);
+	writel(((tmpdata & ~0x07FF7FFD) | 0x05932044), IOMUXC_GPR13);
+
+	/* enable SATA_PHY PLL */
+	tmpdata = readl(IOMUXC_GPR13);
+	writel(((tmpdata & ~0x2) | 0x2), IOMUXC_GPR13);
+
+	/* Get the AHB clock rate, and configure the TIMER1MS reg later */
+	clk = clk_get(NULL, "ahb");
+	if (IS_ERR(clk)) {
+		dev_err(dev, "no ahb clock.\n");
+		ret = PTR_ERR(clk);
+		goto release_sata_clk;
+	}
+	tmpdata = clk_get_rate(clk) / 1000;
+	clk_put(clk);
+
+	sata_init(addr, tmpdata);
+
+	return ret;
+
+release_sata_clk:
+	clk_disable(sata_clk);
+put_sata_clk:
+	clk_put(sata_clk);
+
+	return ret;
+}
+
+static void mx6q_sabreauto_sata_exit(struct device *dev)
+{
+	clk_disable(sata_clk);
+	clk_put(sata_clk);
+
+	/* Disable SATA PWR CTRL_0 of MAX7310 */
+	gpio_request(MX6Q_SABREAUTO_MAX7310_1_BASE_ADDR, "SATA_PWR_EN");
+	gpio_direction_output(MX6Q_SABREAUTO_MAX7310_1_BASE_ADDR, 0);
+
+}
+
+static struct ahci_platform_data mx6q_sabreauto_sata_data = {
+	.init = mx6q_sabreauto_sata_init,
+	.exit = mx6q_sabreauto_sata_exit,
+};
+
 /*!
  * Board specific initialization.
  */
@@ -332,6 +415,7 @@ static void __init mx6_board_init(void)
 	imx6q_add_sdhci_usdhc_imx(3, &mx6q_sabreauto_sd4_data);
 	imx_add_viv_gpu("gc2000", &imx6_gc2000_data, &imx6q_gc2000_pdata);
 	imx6q_sabreauto_init_usb();
+	imx6q_add_ahci(0, &mx6q_sabreauto_sata_data);
 }
 
 extern void __iomem *twd_base;

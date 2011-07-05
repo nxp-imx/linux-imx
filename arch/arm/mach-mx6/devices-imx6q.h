@@ -72,3 +72,7 @@ extern const struct imx_fsl_usb2_wakeup_data imx6q_fsl_hs_wakeup_data[] __initco
 extern const struct imx_viv_gpu_data imx6_gc2000_data __initconst;
 extern const struct imx_viv_gpu_data imx6_gc320_data __initconst;
 extern const struct imx_viv_gpu_data imx6_gc355_data __initconst;
+
+extern const struct imx_ahci_data imx6q_ahci_data __initconst;
+#define imx6q_add_ahci(id, pdata)   \
+	imx_add_ahci(&imx6q_ahci_data, pdata)
