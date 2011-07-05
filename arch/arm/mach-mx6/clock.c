@@ -3969,7 +3969,7 @@ static struct clk_lookup lookups[] = {
 	_REGISTER_CLOCK("mxc_pwm.2", NULL, pwm_clk[2]),
 	_REGISTER_CLOCK("mxc_pwm.3", NULL, pwm_clk[3]),
 	_REGISTER_CLOCK(NULL, "pcie_clk", pcie_clk),
-	_REGISTER_CLOCK(NULL, "enet_clk", enet_clk),
+	_REGISTER_CLOCK("fec.0", NULL, enet_clk),
 	_REGISTER_CLOCK(NULL, "imx_sata_clk", sata_clk),
 	_REGISTER_CLOCK(NULL, "usboh3_clk", usboh3_clk),
 	_REGISTER_CLOCK(NULL, "usb_phy1_clk", usb_phy1_clk),
