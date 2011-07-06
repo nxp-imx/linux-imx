@@ -67,6 +67,7 @@
 #define MX6Q_SABREAUTO_SD3_CD	IMX_GPIO_NR(6, 11)
 #define MX6Q_SABREAUTO_SD3_WP	IMX_GPIO_NR(6, 14)
 #define MX6Q_SABREAUTO_MAX7310_1_BASE_ADDR	IMX_GPIO_NR(8, 0)
+#define MX6Q_SABREAUTO_MAX7310_2_BASE_ADDR	IMX_GPIO_NR(8, 8)
 #define MX6Q_SABREAUTO_CAP_TCH_INT	IMX_GPIO_NR(3, 31)
 
 void __init early_console_setup(unsigned long base, struct clk *clk);
@@ -200,8 +201,8 @@ static int max7310_1_setup(struct i2c_client *client,
 	unsigned gpio_base, unsigned ngpio,
 	void *context)
 {
-	static int max7310_gpio_value[] = {
-		0, 1, 0, 0, 0, 0, 0, 0,
+	int max7310_gpio_value[] = {
+		0, 1, 0, 1, 0, 0, 0, 0,
 	};
 
 	int n;
@@ -225,6 +226,35 @@ static struct pca953x_platform_data max7310_platdata = {
 	.setup		= max7310_1_setup,
 };
 
+static int max7310_u48_setup(struct i2c_client *client,
+	unsigned gpio_base, unsigned ngpio,
+	void *context)
+{
+	int max7310_gpio_value[] = {
+		0, 1, 1, 0, 0, 0, 0, 0,
+	};
+
+	int n;
+
+	 for (n = 0; n < ARRAY_SIZE(max7310_gpio_value); ++n) {
+		gpio_request(gpio_base + n, "MAX7310 U48 GPIO Expander");
+		if (max7310_gpio_value[n] < 0)
+			gpio_direction_input(gpio_base + n);
+		else
+			gpio_direction_output(gpio_base + n,
+						max7310_gpio_value[n]);
+		gpio_export(gpio_base + n, 0);
+	}
+
+	return 0;
+}
+
+static struct pca953x_platform_data max7310_u48_platdata = {
+	.gpio_base	= MX6Q_SABREAUTO_MAX7310_2_BASE_ADDR,
+	.invert		= 0,
+	.setup		= max7310_u48_setup,
+};
+
 static struct imxi2c_platform_data mx6q_sabreauto_i2c_data = {
 	.bitrate = 400000,
 };
@@ -233,6 +263,10 @@ static struct i2c_board_info mxc_i2c2_board_info[] __initdata = {
 	{
 		I2C_BOARD_INFO("max7310", 0x1F),
 		.platform_data = &max7310_platdata,
+	},
+	{
+		I2C_BOARD_INFO("max7310", 0x1B),
+		.platform_data = &max7310_u48_platdata,
 	},
 };
 
