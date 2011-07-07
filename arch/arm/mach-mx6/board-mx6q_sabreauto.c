@@ -414,6 +414,8 @@ static void __init mx6_board_init(void)
 
 	imx6q_add_sdhci_usdhc_imx(3, &mx6q_sabreauto_sd4_data);
 	imx_add_viv_gpu("gc2000", &imx6_gc2000_data, &imx6q_gc2000_pdata);
+	imx_add_viv_gpu("gc355", &imx6_gc355_data, NULL);
+	imx_add_viv_gpu("gc320", &imx6_gc320_data, NULL);
 	imx6q_sabreauto_init_usb();
 	imx6q_add_ahci(0, &mx6q_sabreauto_sata_data);
 }
