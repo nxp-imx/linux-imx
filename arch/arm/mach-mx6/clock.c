@@ -1257,7 +1257,6 @@ static struct clk gpu2d_axi_clk = {
 	__INIT_CLK_DEBUG(gpu2d_axi_clk)
 	.parent = &axi_clk,
 	.set_parent = _clk_gpu2d_axi_set_parent,
-	.get_rate = _clk_axi_get_rate,
 };
 
 static int _clk_gpu3d_axi_set_parent(struct clk *clk, struct clk *parent)
@@ -1276,7 +1275,6 @@ static struct clk gpu3d_axi_clk = {
 	__INIT_CLK_DEBUG(gpu3d_axi_clk)
 	.parent = &axi_clk,
 	.set_parent = _clk_gpu3d_axi_set_parent,
-	.get_rate = _clk_axi_get_rate,
 };
 
 static int _clk_pcie_axi_set_parent(struct clk *clk, struct clk *parent)
@@ -1295,7 +1293,6 @@ static struct clk pcie_axi_clk = {
 	__INIT_CLK_DEBUG(pcie_axi_clk)
 	.parent = &axi_clk,
 	.set_parent = _clk_pcie_axi_set_parent,
-	.get_rate = _clk_axi_get_rate,
 };
 
 static int _clk_vdo_axi_set_parent(struct clk *clk, struct clk *parent)
@@ -1318,7 +1315,6 @@ static struct clk vdo_axi_clk = {
 	.enable = _clk_enable,
 	.disable = _clk_disable,
 	.set_parent = _clk_vdo_axi_set_parent,
-	.get_rate = _clk_axi_get_rate,
 };
 
 static struct clk vdoa_clk = {
