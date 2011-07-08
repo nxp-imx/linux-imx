@@ -30,10 +30,7 @@ extern void __iomem *imx_otg_base;
 #define USB_OTGREGS_BASE	(OTG_BASE_ADDR + 0x000)
 #define USB_H1REGS_BASE		(OTG_BASE_ADDR + 0x200)
 #define USB_H2REGS_BASE		(OTG_BASE_ADDR + 0x400)
-#if defined CONFIG_ARCH_MX5
-#define USB_H3REGS_BASE		(OTG_BASE_ADDR + 0x600)
-#define USB_OTHERREGS_BASE	(OTG_BASE_ADDR + 0x800)
-#elif CONFIG_ARCH_MX6
+#if (defined CONFIG_ARCH_MX5 | defined CONFIG_ARCH_MX6)
 #define USB_H3REGS_BASE		(OTG_BASE_ADDR + 0x600)
 #define USB_OTHERREGS_BASE	(OTG_BASE_ADDR + 0x800)
 #else
