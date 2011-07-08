@@ -12,11 +12,22 @@
 #define imx5_vpu_data_entry_single(soc, flag, size, vpu_reset, vpu_pg)	\
 	{							\
 		.iobase = soc ## _VPU_BASE_ADDR,		\
-		.irq = soc ## _INT_VPU,				\
+		.irq_ipi = soc ## _INT_VPU,			\
 		.iram_enable = flag,				\
 		.iram_size = size,				\
 		.reset = vpu_reset,				\
 		.pg = vpu_pg,					\
+	}
+
+#define imx6_vpu_data_entry_single(soc, flag, size, vpu_reset, vpu_pg)  \
+	{                                                       \
+		.iobase = soc ## _VPU_BASE_ADDR,                \
+		.irq_ipi = soc ## _INT_VPU_IPI,                 \
+		.irq_jpg = soc ## _INT_VPU_JPG,			\
+		.iram_enable = flag,                            \
+		.iram_size = size,                              \
+		.reset = vpu_reset,                             \
+		.pg = vpu_pg,                                   \
 	}
 
 #ifdef CONFIG_SOC_IMX51
@@ -98,6 +109,12 @@ const struct imx_vpu_data imx53_vpu_data __initconst =
 			true, 0x14000, mx53_vpu_reset, mx53_vpu_pg);
 #endif
 
+#ifdef CONFIG_SOC_IMX6Q
+const struct imx_vpu_data imx6q_vpu_data __initconst =
+			imx6_vpu_data_entry_single(MX6Q,
+			false, 0x14000, NULL, NULL);
+#endif
+
 struct platform_device *__init imx_add_vpu(
 		const struct imx_vpu_data *data)
 {
@@ -105,13 +122,20 @@ struct platform_device *__init imx_add_vpu(
 	struct resource res[] = {
 		{
 			.start = data->iobase,
-			.end = data->iobase + SZ_4K - 1,
+			.end = data->iobase + SZ_16K - 1,
 			.flags = IORESOURCE_MEM,
 		}, {
-			.start = data->irq,
-			.end = data->irq,
+			.start = data->irq_ipi,
+			.end = data->irq_ipi,
 			.flags = IORESOURCE_IRQ,
 		},
+#ifdef CONFIG_SOC_IMX6Q
+		{
+			.start = data->irq_jpg,
+			.end = data->irq_jpg,
+			.flags = IORESOURCE_IRQ,
+		},
+#endif
 	};
 
 	pdata.reset = data->reset;

@@ -60,6 +60,8 @@ struct vpu_mem_desc {
 #define	BIT_INT_CLEAR			0x00C
 #define	BIT_INT_STATUS			0x010
 
+#define MJPEG_PIC_STATUS_REG		0x3004
+
 #define BIT_WORK_CTRL_BUF_BASE		0x100
 #define BIT_WORK_CTRL_BUF_REG(i)	(BIT_WORK_CTRL_BUF_BASE + i * 4)
 #define BIT_CODE_BUF_ADDR		BIT_WORK_CTRL_BUF_REG(0)

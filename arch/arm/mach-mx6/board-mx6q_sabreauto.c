@@ -501,6 +501,7 @@ static void __init mx6_board_init(void)
 	imx_add_viv_gpu("gc320", &imx6_gc320_data, NULL);
 	imx6q_sabreauto_init_usb();
 	imx6q_add_ahci(0, &mx6q_sabreauto_sata_data);
+	imx6q_add_vpu();
 
 	gpio_request(MX6Q_SABREAUTO_DISP0_PWR, "disp0-pwr");
 	gpio_direction_output(MX6Q_SABREAUTO_DISP0_PWR, 1);
