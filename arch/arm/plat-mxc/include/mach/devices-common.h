@@ -330,7 +330,8 @@ struct platform_device *__init imx_add_ipuv3_fb(
 #include <mach/mxc_vpu.h>
 struct imx_vpu_data {
 	resource_size_t iobase;
-	resource_size_t irq;
+	resource_size_t irq_ipi;
+	resource_size_t irq_jpg;
 	bool iram_enable;
 	int iram_size;
 	void (*reset) (void);

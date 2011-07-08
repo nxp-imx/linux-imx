@@ -141,7 +141,7 @@
 #define SSI3_BASE_ADDR              (ATZ1_BASE_ADDR + 0x30000) /* slot 12 */
 #define ASRC_BASE_ADDR              (ATZ1_BASE_ADDR + 0x34000) /* slot 13 */
 #define SPBA_BASE_ADDR              (ATZ1_BASE_ADDR + 0x3C000) /* slot 15 */
-#define VPU_BASE_ADDR               (ATZ1_BASE_ADDR + 0x40000) /* slot 33,
+#define MX6Q_VPU_BASE_ADDR          (ATZ1_BASE_ADDR + 0x40000) /* slot 33,
 					global en[1], til 0x7BFFF */
 
 /* ATZ#1- On Platform */
@@ -272,7 +272,7 @@
 #define MXC_INT_GPR                                32
 #define MXC_INT_CHEETAH_CSYSPWRUPREQ               33
 #define MX6Q_INT_SDMA                              34
-#define MXC_INT_VPU_JPG                            35
+#define MX6Q_INT_VPU_JPG                            35
 #define MXC_INT_INTERRUPT_36_NUM                   36
 #define MX6Q_INT_IPU1_ERR                          37
 #define MX6Q_INT_IPU1_SYN                          38
@@ -281,7 +281,7 @@
 #define MXC_INT_GPU3D_IRQ                          41
 #define MXC_INT_GPU2D_IRQ                          42
 #define MXC_INT_OPENVG_XAQ2                        43
-#define MXC_INT_VPU_IPI                            44
+#define MX6Q_INT_VPU_IPI                            44
 #define MXC_INT_APBHDMA_DMA                        45
 #define MXC_INT_WEIM                               46
 #define MXC_INT_RAWNAND_BCH                        47
