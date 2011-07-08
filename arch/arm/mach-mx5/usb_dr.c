@@ -19,6 +19,7 @@
 #include <mach/arc_otg.h>
 #include <mach/hardware.h>
 #include <linux/delay.h>
+#include <asm/mach-types.h>
 #include "usb.h"
 static int usbotg_init_ext(struct platform_device *pdev);
 static void usbotg_uninit_ext(struct platform_device *pdev);
