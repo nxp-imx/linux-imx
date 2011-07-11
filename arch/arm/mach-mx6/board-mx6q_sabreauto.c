@@ -63,7 +63,6 @@
 
 #include "usb.h"
 #include "devices-imx6q.h"
-#include "regs-anadig.h"
 #include "crm_regs.h"
 
 #define MX6Q_SABREAUTO_ECSPI1_CS0	IMX_GPIO_NR(2, 30)
@@ -288,16 +287,9 @@ static void imx6q_sabreauto_usbotg_vbus(bool on)
 static void __init imx6q_sabreauto_init_usb(void)
 {
 	int ret = 0;
-	void __iomem *anatop_base_addr = MX6_IO_ADDRESS(ANATOP_BASE_ADDR);
 
 	imx_otg_base = MX6_IO_ADDRESS(MX6Q_USB_OTG_BASE_ADDR);
 	/* disable external charger detect, or it will affect signal quality at dp */
-	__raw_writel(BM_ANADIG_USB1_CHRG_DETECT_EN_B  \
-			| BM_ANADIG_USB1_CHRG_DETECT_CHK_CHRG_B,  \
-			anatop_base_addr + HW_ANADIG_USB1_CHRG_DETECT);
-	__raw_writel(BM_ANADIG_USB2_CHRG_DETECT_EN_B  \
-			| BM_ANADIG_USB2_CHRG_DETECT_CHK_CHRG_B, \
-			anatop_base_addr + HW_ANADIG_USB2_CHRG_DETECT);
 
 	ret = gpio_request(MX6Q_SABREAUTO_USB_OTG_PWR, "usb-pwr");
 	if (ret) {

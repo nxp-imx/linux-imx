@@ -28,9 +28,9 @@
 #include <mach/arc_otg.h>
 #include <mach/hardware.h>
 #include "devices-imx6q.h"
+#include "regs-anadig.h"
 #include "usb.h"
 
-static struct clk *usb_phy2_clk;
 static struct clk *usb_oh3_clk;
 extern int clk_get_usecount(struct clk *clk);
 static struct fsl_usb2_platform_data usbh1_config;
@@ -89,10 +89,6 @@ static int fsl_usb_host_init_ext(struct platform_device *pdev)
 	clk_enable(usb_clk);
 	usb_oh3_clk = usb_clk;
 
-	usb_clk = clk_get(NULL, "usb_phy2_clk");
-	clk_enable(usb_clk);
-	usb_phy2_clk = usb_clk;
-
 	ret = fsl_usb_host_init(pdev);
 	if (ret) {
 		printk(KERN_ERR "host1 init fails......\n");
@@ -113,9 +109,6 @@ static void fsl_usb_host_uninit_ext(struct platform_device *pdev)
 	clk_disable(usb_oh3_clk);
 	clk_put(usb_oh3_clk);
 
-	clk_disable(usb_phy2_clk);
-	clk_put(usb_phy2_clk);
-
 }
 
 static void usbh1_clock_gate(bool on)
@@ -123,9 +116,7 @@ static void usbh1_clock_gate(bool on)
 	pr_debug("%s: on is %d\n", __func__, on);
 	if (on) {
 		clk_enable(usb_oh3_clk);
-		clk_enable(usb_phy2_clk);
 	} else {
-		clk_disable(usb_phy2_clk);
 		clk_disable(usb_oh3_clk);
 	}
 }
@@ -260,8 +251,24 @@ static struct fsl_usb2_wakeup_platform_data usbh1_wakeup_config = {
 
 void __init mx6_usb_h1_init(void)
 {
+	static void __iomem *anatop_base_addr = MX6_IO_ADDRESS(ANATOP_BASE_ADDR);
 	imx6q_add_fsl_ehci_hs(1, &usbh1_config);
 	usbh1_config.wakeup_pdata = &usbh1_wakeup_config;
 	imx6q_add_fsl_usb2_hs_wakeup(1, &usbh1_wakeup_config);
+	/* Some phy and power's special controls for host1
+	 * 1. The external charger detector needs to be disabled
+	 * or the signal at DP will be poor
+	 * 2. The PLL's power and output to usb for host 1
+	 * is totally controlled by IC, so the Software only needs
+	 * to enable them at initializtion.
+	 */
+	__raw_writel(BM_ANADIG_USB2_CHRG_DETECT_EN_B  \
+			| BM_ANADIG_USB2_CHRG_DETECT_CHK_CHRG_B, \
+			anatop_base_addr + HW_ANADIG_USB2_CHRG_DETECT);
+
+	__raw_writel(BM_ANADIG_USB2_PLL_480_CTRL_ENABLE  \
+			| BM_ANADIG_USB2_PLL_480_CTRL_POWER \
+			| BM_ANADIG_USB2_PLL_480_CTRL_EN_USB_CLKS, \
+			anatop_base_addr + HW_ANADIG_USB2_PLL_480_CTRL_SET);
 }
 
