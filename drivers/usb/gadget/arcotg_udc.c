@@ -319,6 +319,8 @@ static void dr_phy_low_power_mode(struct fsl_udc *udc, bool enable)
 {
 	struct fsl_usb2_platform_data *pdata = udc->pdata;
 	u32 portsc;
+	unsigned long flags;
+	spin_lock_irqsave(&udc->lock, flags);
 
 	if (pdata && pdata->phy_lowpower_suspend) {
 		pdata->phy_lowpower_suspend(pdata, enable);
@@ -334,6 +336,7 @@ static void dr_phy_low_power_mode(struct fsl_udc *udc, bool enable)
 		}
 	}
 	pdata->lowpower = enable;
+	spin_unlock_irqrestore(&udc->lock, flags);
 }
 
 static int dr_controller_setup(struct fsl_udc *udc)
