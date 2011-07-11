@@ -143,7 +143,6 @@ static irqreturn_t ehci_fsl_pre_irq(int irq, void *dev)
 	struct platform_device *pdev = (struct platform_device *)dev;
 	struct usb_hcd *hcd = platform_get_drvdata(pdev);
 	struct fsl_usb2_platform_data *pdata;
-	struct ehci_hcd *ehci = hcd_to_ehci(hcd);
 
 	pdata = hcd->self.controller->platform_data;
 
@@ -399,6 +398,8 @@ static int ehci_fsl_bus_suspend(struct usb_hcd *hcd)
 {
 	int ret = 0;
 	struct fsl_usb2_platform_data *pdata;
+	struct ehci_hcd *ehci = hcd_to_ehci(hcd);
+	unsigned long flags;
 
 	pdata = hcd->self.controller->platform_data;
 	printk(KERN_DEBUG "%s begins, %s\n", __func__, pdata->name);
@@ -416,7 +417,9 @@ static int ehci_fsl_bus_suspend(struct usb_hcd *hcd)
 		pdata->platform_suspend(pdata);
 
 	usb_host_set_wakeup(hcd->self.controller, true);
+	spin_lock_irqsave(&ehci->lock, flags);
 	fsl_usb_lowpower_mode(pdata, true);
+	spin_unlock_irqrestore(&ehci->lock, flags);
 	fsl_usb_clk_gate(hcd->self.controller->platform_data, false);
 	clear_bit(HCD_FLAG_HW_ACCESSIBLE, &hcd->flags);
 	printk(KERN_DEBUG "%s ends, %s\n", __func__, pdata->name);
@@ -429,6 +432,7 @@ static int ehci_fsl_bus_resume(struct usb_hcd *hcd)
 	int ret = 0;
 	struct fsl_usb2_platform_data *pdata;
 	struct ehci_hcd *ehci = hcd_to_ehci(hcd);
+	unsigned long flags;
 
 	pdata = hcd->self.controller->platform_data;
 	printk(KERN_DEBUG "%s begins, %s\n", __func__, pdata->name);
@@ -445,7 +449,9 @@ static int ehci_fsl_bus_resume(struct usb_hcd *hcd)
 		set_bit(HCD_FLAG_HW_ACCESSIBLE, &hcd->flags);
 		fsl_usb_clk_gate(hcd->self.controller->platform_data, true);
 		usb_host_set_wakeup(hcd->self.controller, false);
+		spin_lock_irqsave(&ehci->lock, flags);
 		fsl_usb_lowpower_mode(pdata, false);
+		spin_unlock_irqrestore(&ehci->lock, flags);
 	}
 
 	if (pdata->platform_resume)
@@ -609,6 +615,7 @@ static int ehci_fsl_drv_suspend(struct platform_device *pdev,
 	struct usb_hcd *hcd = platform_get_drvdata(pdev);
 	struct ehci_hcd *ehci = hcd_to_ehci(hcd);
 	struct usb_device *roothub = hcd->self.root_hub;
+	unsigned long flags;
 	u32 port_status;
 	struct fsl_usb2_platform_data *pdata = pdev->dev.platform_data;
 
@@ -688,7 +695,9 @@ static int ehci_fsl_drv_suspend(struct platform_device *pdev,
 	pdata->pm_portsc &= ~PORT_PTS_PHCD;
 
 	usb_host_set_wakeup(hcd->self.controller, true);
+	spin_lock_irqsave(&ehci->lock, flags);
 	fsl_usb_lowpower_mode(pdata, true);
+	spin_unlock_irqrestore(&ehci->lock, flags);
 
 	if (test_bit(HCD_FLAG_HW_ACCESSIBLE, &hcd->flags)) {
 		clear_bit(HCD_FLAG_HW_ACCESSIBLE, &hcd->flags);
@@ -704,6 +713,7 @@ static int ehci_fsl_drv_resume(struct platform_device *pdev)
 	struct usb_hcd *hcd = platform_get_drvdata(pdev);
 	struct ehci_hcd *ehci = hcd_to_ehci(hcd);
 	struct usb_device *roothub = hcd->self.root_hub;
+	unsigned long flags;
 	u32 tmp;
 	struct fsl_usb2_platform_data *pdata = pdev->dev.platform_data;
 	struct fsl_usb2_wakeup_platform_data *wake_up_pdata = pdata->wakeup_pdata;
@@ -728,7 +738,9 @@ static int ehci_fsl_drv_resume(struct platform_device *pdev)
 		set_bit(HCD_FLAG_HW_ACCESSIBLE, &hcd->flags);
 		fsl_usb_clk_gate(hcd->self.controller->platform_data, true);
 		usb_host_set_wakeup(hcd->self.controller, false);
+		spin_lock_irqsave(&ehci->lock, flags);
 		fsl_usb_lowpower_mode(pdata, false);
+		spin_unlock_irqrestore(&ehci->lock, flags);
 	}
 
 	/* set host mode */
