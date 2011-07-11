@@ -1434,12 +1434,24 @@ int sdma_probe(struct platform_device *pdev)
 	int irq;
 	struct resource *rsrc;
 	configs_data confreg_data;
+	char *ddr_clk_name = "emi_fast_clk";
+	struct clk *mem_clock;
+
+	if (cpu_is_mx50())
+		ddr_clk_name = "ddr_clk";
 
 	/* Initialize to the default values */
 	confreg_data = iapi_ConfigDefaults;
 
 	confreg_data.dspdma = 0;
 	/* Set ACR bit */
+	mem_clock = clk_get(&pdev->dev, ddr_clk_name);
+	if (!mem_clock) {
+		printk(KERN_ERR"can't get ddr memory clock\n");
+		return -ENODEV;
+	}
+
+	clk_enable(mem_clock);
 	mxc_sdma_ahb_clk = clk_get(&pdev->dev, "sdma_ahb_clk");
 	mxc_sdma_ipg_clk = clk_get(&pdev->dev, "sdma_ipg_clk");
 	clk_enable(mxc_sdma_ahb_clk);
@@ -1499,12 +1511,14 @@ int sdma_probe(struct platform_device *pdev)
 
 	clk_disable(mxc_sdma_ahb_clk);
 	clk_disable(mxc_sdma_ipg_clk);
+	clk_disable(mem_clock);
 	return res;
 
       sdma_init_fail:
 	printk(KERN_ERR "Error 0x%x in sdma_init\n", res);
 	clk_disable(mxc_sdma_ahb_clk);
 	clk_disable(mxc_sdma_ipg_clk);
+	clk_disable(mem_clock);
 	return res;
 }
 
