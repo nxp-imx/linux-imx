@@ -85,7 +85,7 @@ static irqreturn_t usb_wakeup_handler(int irq, void *_dev)
 	struct wakeup_ctrl *ctrl = (struct wakeup_ctrl *)_dev;
 	irqreturn_t ret = IRQ_NONE;
 	if (usb2_is_in_lowpower(ctrl)) {
-		printk("usb wakeup is here\n");
+		pr_debug("usb wakeup is here\n");
 		delay_process_wakeup(ctrl);
 		ret = IRQ_HANDLED;
 	}
@@ -109,7 +109,6 @@ static void wakeup_event_handler(struct wakeup_ctrl *ctrl)
 
 	wakeup_clk_gate(ctrl->pdata, true);
 
-recheck:
 	for (i = 0; i < 3; i++) {
 		struct fsl_usb2_platform_data *usb_pdata = pdata->usb_pdata[i];
 		if (usb_pdata) {
