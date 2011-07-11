@@ -1613,7 +1613,23 @@ CONFIG_RTC_DRV_SNVS=y
 #
 # on-CPU RTC drivers
 #
-# CONFIG_DMADEVICES is not set
+CONFIG_DMADEVICES=y
+# CONFIG_DMADEVICES_DEBUG is not set
+
+#
+# DMA Devices
+#
+# CONFIG_MXC_PXP is not set
+# CONFIG_TIMB_DMA is not set
+CONFIG_IMX_SDMA=y
+CONFIG_DMA_ENGINE=y
+
+#
+# DMA Clients
+#
+# CONFIG_NET_DMA is not set
+# CONFIG_ASYNC_TX_DMA is not set
+# CONFIG_DMATEST is not set
 # CONFIG_AUXDISPLAY is not set
 # CONFIG_UIO is not set
 # CONFIG_STAGING is not set
