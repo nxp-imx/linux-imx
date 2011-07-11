@@ -26,11 +26,16 @@
 #include <mach/arc_otg.h>
 #include <mach/hardware.h>
 #include "devices-imx6q.h"
+#include "regs-anadig.h"
 #include "usb.h"
 static int usbotg_init_ext(struct platform_device *pdev);
 static void usbotg_uninit_ext(struct platform_device *pdev);
 static void usbotg_clock_gate(bool on);
 
+/* The usb_phy1_clk do not have enable/disable function at clock.c
+ * and PLL output for usb1's phy should be always enabled.
+ * usb_phy1_clk only stands for usb uses pll3 as its parent.
+ */
 static struct clk *usb_phy1_clk;
 static struct clk *usb_oh3_clk;
 static void usbotg_wakeup_event_clear(void);
@@ -409,6 +414,7 @@ static void device_wakeup_handler(struct fsl_usb2_platform_data *pdata)
 void __init mx6_usb_dr_init(void)
 {
 	struct platform_device *pdev;
+	static void __iomem *anatop_base_addr = MX6_IO_ADDRESS(ANATOP_BASE_ADDR);
 #ifdef CONFIG_USB_OTG
 	/* wake_up_enable is useless, just for usb_register_remote_wakeup execution*/
 	dr_utmi_config.wake_up_enable = _device_wakeup_enable;
@@ -439,4 +445,16 @@ void __init mx6_usb_dr_init(void)
 #endif
 	/* register wakeup device */
 	imx6q_add_fsl_usb2_otg_wakeup(&dr_wakeup_config);
+	/* Some phy and power's special controls for otg
+	 * 1. The external charger detector needs to be disabled
+	 * or the signal at DP will be poor
+	 * 2. The EN_USB_CLKS is always enabled.
+	 * The PLL's power is controlled by usb and others who
+	 * use pll3 too.
+	 */
+	__raw_writel(BM_ANADIG_USB1_CHRG_DETECT_EN_B  \
+			| BM_ANADIG_USB1_CHRG_DETECT_CHK_CHRG_B,  \
+			anatop_base_addr + HW_ANADIG_USB1_CHRG_DETECT);
+	__raw_writel(BM_ANADIG_USB1_PLL_480_CTRL_EN_USB_CLKS,
+			anatop_base_addr + HW_ANADIG_USB1_PLL_480_CTRL_SET);
 }

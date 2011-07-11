@@ -328,20 +328,6 @@ static void _clk_pfd_disable(struct clk *clk)
 		apbh_dma_clk.disable(&apbh_dma_clk);
 }
 
-static void _clk_usb_phy_enable(struct clk *clk)
-{
-	u32 usb_phy_reg;
-	usb_phy_reg = __raw_readl(clk->enable_reg);
-	__raw_writel(usb_phy_reg | clk->enable_shift, clk->enable_reg);
-}
-
-static void _clk_usb_phy_disable(struct clk *clk)
-{
-	u32 usb_phy_reg;
-	usb_phy_reg = __raw_readl(clk->enable_reg);
-	__raw_writel(usb_phy_reg & (~clk->enable_shift), clk->enable_reg);
-}
-
 static int _clk_pll_enable(struct clk *clk)
 {
 	unsigned int reg;
@@ -383,7 +369,7 @@ static void _clk_pll_disable(struct clk *clk)
 	reg &= ~ANADIG_PLL_ENABLE;
 	reg |= ANADIG_PLL_BYPASS;
 	reg |= ANADIG_PLL_POWER_DOWN;
-	if (clk == &pll3_usb_otg_main_clk || clk == &pll7_usb_host_main_clk)
+	if (clk == &pll3_usb_otg_main_clk)
 		reg &= ~ANADIG_PLL_POWER_DOWN;
 	__raw_writel(reg, pllbase);
 }
@@ -610,13 +596,8 @@ static struct clk pll3_usb_otg_main_clk = {
 static struct clk usb_phy1_clk = {
 	__INIT_CLK_DEBUG(usb_phy1_clk)
 	.parent = &pll3_usb_otg_main_clk,
-	.enable = _clk_usb_phy_enable,
-	.disable = _clk_usb_phy_disable,
-	.enable_reg = (void *)PLL3_480_USB1_BASE_ADDR,
-	.enable_shift = ANADIG_PLL_480_EN_USB_CLKS,
 	.set_rate = _clk_pll3_usb_otg_set_rate,
 	.get_rate = _clk_pll3_usb_otg_get_rate,
-
 };
 
 static struct clk pll3_pfd_508M = {
@@ -772,18 +753,6 @@ static struct clk pll7_usb_host_main_clk = {
 	.parent = &osc_clk,
 	.enable = _clk_pll_enable,
 	.disable = _clk_pll_disable,
-	.set_rate = _clk_pll7_usb_otg_set_rate,
-	.get_rate = _clk_pll7_usb_otg_get_rate,
-
-};
-
-static struct clk usb_phy2_clk = {
-	__INIT_CLK_DEBUG(usb_phy2_clk)
-	.parent = &pll7_usb_host_main_clk,
-	.enable = _clk_usb_phy_enable,
-	.disable = _clk_usb_phy_disable,
-	.enable_reg = (void *)PLL7_480_USB2_BASE_ADDR,
-	.enable_shift = ANADIG_PLL_480_EN_USB_CLKS,
 	.set_rate = _clk_pll7_usb_otg_set_rate,
 	.get_rate = _clk_pll7_usb_otg_get_rate,
 
@@ -3989,7 +3958,6 @@ static struct clk_lookup lookups[] = {
 	_REGISTER_CLOCK(NULL, "imx_sata_clk", sata_clk),
 	_REGISTER_CLOCK(NULL, "usboh3_clk", usboh3_clk),
 	_REGISTER_CLOCK(NULL, "usb_phy1_clk", usb_phy1_clk),
-	_REGISTER_CLOCK(NULL, "usb_phy2_clk", usb_phy2_clk),
 	_REGISTER_CLOCK(NULL, "video_27M_clk", video_27M_clk),
 };
 
