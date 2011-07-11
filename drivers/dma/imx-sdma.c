@@ -7,7 +7,7 @@
  *
  * Based on code from Freescale:
  *
- * Copyright 2004-2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2004-2011 Freescale Semiconductor, Inc.
  *
  * The code contained herein is licensed under the GNU General Public
  * License. You may obtain a copy of the GNU General Public License
@@ -794,7 +794,7 @@ static dma_cookie_t sdma_tx_submit(struct dma_async_tx_descriptor *tx)
 	struct sdma_channel *sdmac = to_sdma_chan(tx->chan);
 	struct sdma_engine *sdma = sdmac->sdma;
 	dma_cookie_t cookie;
-	int flag;
+	unsigned long flag;
 
 	spin_lock_irqsave(&sdmac->lock, flag);
 
