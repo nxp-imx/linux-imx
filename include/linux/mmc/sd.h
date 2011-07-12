@@ -91,5 +91,7 @@
 #define SD_SWITCH_ACCESS_DEF	0
 #define SD_SWITCH_ACCESS_HS	1
 
-#endif
+#define SD_VOLTAGE_SWITCH	11
+#define SD_TUNING_CMD		19
 
+#endif
