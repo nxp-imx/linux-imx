@@ -154,6 +154,31 @@ config USB_ATMEL_USBA
 	default USB_GADGET
 	select USB_GADGET_SELECTED
 
+config USB_GADGET_ARC
+	boolean "Freescale USB Device Controller"
+	depends on ARCH_MXC || ARCH_STMP3XXX || ARCH_MXS
+	select USB_GADGET_DUALSPEED
+	select USB_OTG_UTILS
+	help
+	   Some Freescale processors have a USBOTG controller,
+	   which supports device mode.
+
+	   Say "y" to link the driver statically, or "m" to build a
+	   dynamically linked module called "arc_udc" and force all
+	   gadget drivers to also be dynamically linked.
+
+config USB_STATIC_IRAM_PPH
+	bool "Apply static IRAM patch"
+	depends on USB_GADGET_ARC && (ARCH_MX37 || ARCH_MX3 || ARCH_MX25 || ARCH_MX51)
+	help
+	   Apply static IRAM patch to peripheral driver.
+
+config USB_ARC
+	tristate
+	depends on USB_GADGET_ARC
+	default USB_GADGET
+	select USB_GADGET_SELECTED
+
 config USB_GADGET_FSL_USB2
 	boolean "Freescale Highspeed USB DR Peripheral Controller"
 	depends on FSL_SOC || ARCH_MXC
@@ -519,31 +544,6 @@ config USB_GADGET_GOKU
 config USB_GOKU
 	tristate
 	depends on USB_GADGET_GOKU
-	default USB_GADGET
-	select USB_GADGET_SELECTED
-
-config USB_GADGET_ARC
-	boolean "Freescale USB Device Controller"
-	depends on ARCH_MXC || ARCH_STMP3XXX || ARCH_MXS
-	select USB_GADGET_DUALSPEED
-	select USB_OTG_UTILS
-	help
-	   Some Freescale processors have a USBOTG controller,
-	   which supports device mode.
-
-	   Say "y" to link the driver statically, or "m" to build a
-	   dynamically linked module called "arc_udc" and force all
-	   gadget drivers to also be dynamically linked.
-
-config USB_STATIC_IRAM_PPH
-	bool "Apply static IRAM patch"
-	depends on USB_GADGET_ARC && (ARCH_MX37 || ARCH_MX3 || ARCH_MX25 || ARCH_MX51)
-	help
-	   Apply static IRAM patch to peripheral driver.
-
-config USB_ARC
-	tristate
-	depends on USB_GADGET_ARC
 	default USB_GADGET
 	select USB_GADGET_SELECTED
 
