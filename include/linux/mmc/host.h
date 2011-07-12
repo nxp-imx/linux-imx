@@ -56,6 +56,9 @@ struct mmc_ios {
 #define MMC_SDR_MODE		0
 #define MMC_1_2V_DDR_MODE	1
 #define MMC_1_8V_DDR_MODE	2
+
+	unsigned int	tuning_flag;		/* request tuning only */
+	unsigned int	tuning;			/* tuning parameter */
 };
 
 struct mmc_host_ops {
@@ -193,7 +196,9 @@ struct mmc_host {
 	unsigned int		max_req_size;	/* maximum number of bytes in one req */
 	unsigned int		max_blk_size;	/* maximum size of one mmc block */
 	unsigned int		max_blk_count;	/* maximum number of blocks in one req */
-
+	unsigned int		tuning_min;
+	unsigned int		tuning_max;
+	unsigned int		tuning_step;
 	/* private data */
 	spinlock_t		lock;		/* lock for claim and bus ops */
 
