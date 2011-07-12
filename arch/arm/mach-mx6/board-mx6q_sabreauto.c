@@ -131,6 +131,8 @@ static iomux_v3_cfg_t mx6q_sabreauto_pads[] = {
 	MX6Q_PAD_SD3_DAT6__USDHC3_DAT6,
 	MX6Q_PAD_SD3_DAT7__USDHC3_DAT7,
 	MX6Q_PAD_SD3_RST__USDHC3_RST,
+	/* SD3 VSelect */
+	MX6Q_PAD_GPIO_18__USDHC3_VSELECT,
 	/* SD3_CD and SD3_WP */
 	MX6Q_PAD_NANDF_CS0__GPIO_6_11,
 	MX6Q_PAD_NANDF_CS1__GPIO_6_14,
@@ -198,6 +200,7 @@ static iomux_v3_cfg_t mx6q_sabreauto_pads[] = {
 static const struct esdhc_platform_data mx6q_sabreauto_sd3_data __initconst = {
 	.cd_gpio = MX6Q_SABREAUTO_SD3_CD,
 	.wp_gpio = MX6Q_SABREAUTO_SD3_WP,
+	.support_18v = 1,
 };
 
 /* No card detect signal for SD4 */
@@ -492,6 +495,7 @@ static void __init mx6_board_init(void)
 	imx6q_init_fec();
 
 	imx6q_add_sdhci_usdhc_imx(3, &mx6q_sabreauto_sd4_data);
+	imx6q_add_sdhci_usdhc_imx(2, &mx6q_sabreauto_sd3_data);
 	imx_add_viv_gpu("gc2000", &imx6_gc2000_data, &imx6q_gc2000_pdata);
 	imx_add_viv_gpu("gc355", &imx6_gc355_data, NULL);
 	imx_add_viv_gpu("gc320", &imx6_gc320_data, NULL);
