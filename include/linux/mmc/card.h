@@ -93,6 +93,7 @@ struct sd_scr {
 	unsigned char		cmds;
 #define SD_SCR_CMD20_SUPPORT   (1<<0)
 #define SD_SCR_CMD23_SUPPORT   (1<<1)
+	unsigned char		sda_vsn3;
 };
 
 struct sd_ssr {
@@ -182,6 +183,9 @@ struct mmc_card {
 #define MMC_STATE_HIGHSPEED_DDR (1<<4)		/* card is in high speed mode */
 #define MMC_STATE_ULTRAHIGHSPEED (1<<5)		/* card is in ultra high speed mode */
 #define MMC_CARD_SDXC		(1<<6)		/* card is SDXC */
+#define MMC_STATE_SD_SDR50	(1<<5)		/* card is in sdr50 mode */
+#define MMC_STATE_SD_SDR104	(1<<6)		/* card is in sdr104 mode */
+#define MMC_STATE_SD_DDR50	(1<<7)		/* card is in ddr50 mode */
 	unsigned int		quirks; 	/* card quirks */
 #define MMC_QUIRK_LENIENT_FN0	(1<<0)		/* allow SDIO FN0 writes outside of the VS CCCR range */
 #define MMC_QUIRK_BLKSZ_FOR_BYTE_MODE (1<<1)	/* use func->cur_blksize */
