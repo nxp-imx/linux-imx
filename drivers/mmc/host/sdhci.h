@@ -223,6 +223,7 @@ struct sdhci_ops {
 	void (*platform_send_init_74_clocks)(struct sdhci_host *host,
 					     u8 power_mode);
 	unsigned int    (*get_ro)(struct sdhci_host *host);
+	void		(*pre_tuning)(struct sdhci_host *host, u32 val);
 };
 
 #ifdef CONFIG_MMC_SDHCI_IO_ACCESSORS
