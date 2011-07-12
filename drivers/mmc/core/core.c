@@ -648,6 +648,18 @@ void mmc_set_clock(struct mmc_host *host, unsigned int hz)
 	mmc_set_ios(host);
 }
 
+void mmc_set_tuning(struct mmc_host *host, unsigned int tuning)
+{
+	WARN_ON(tuning < host->tuning_min);
+	if (tuning > host->tuning_max)
+		tuning = host->tuning_max;
+
+	host->ios.tuning = tuning;
+	host->ios.tuning_flag = 1;
+	mmc_set_ios(host);
+	host->ios.tuning_flag = 0;
+}
+
 #ifdef CONFIG_MMC_CLKGATE
 /*
  * This gates the clock by setting it to 0 Hz.
@@ -1002,6 +1014,7 @@ static void mmc_power_off(struct mmc_host *host)
 {
 	host->ios.clock = 0;
 	host->ios.vdd = 0;
+	host->ocr = 0;
 	if (!mmc_host_is_spi(host)) {
 		host->ios.bus_mode = MMC_BUSMODE_OPENDRAIN;
 		host->ios.chip_select = MMC_CS_DONTCARE;
