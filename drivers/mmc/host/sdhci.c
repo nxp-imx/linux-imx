@@ -1280,6 +1280,12 @@ static void sdhci_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
 	if (host->flags & SDHCI_DEVICE_DEAD)
 		goto out;
 
+	if (ios->tuning_flag) {
+		/* means this request is for tuning only */
+		if (host->ops->pre_tuning)
+			host->ops->pre_tuning(host, ios->tuning);
+		goto out;
+	}
 	/*
 	 * Reset the chip on each power off.
 	 * Should clear out any weird states.
@@ -2690,6 +2696,9 @@ int sdhci_add_host(struct sdhci_host *host)
 	 */
 	mmc->max_blk_count = (host->quirks & SDHCI_QUIRK_NO_MULTIBLOCK) ? 1 : 65535;
 
+	mmc->tuning_min = host->tuning_min;
+	mmc->tuning_max = host->tuning_max;
+	mmc->tuning_step = host->tuning_step;
 	/*
 	 * Init tasklets.
 	 */
