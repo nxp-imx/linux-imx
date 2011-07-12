@@ -717,6 +717,8 @@ static struct platform_device_id mxs_dma_type[] = {
 	}, {
 		.name = "mxs-dma-apbx",
 		.driver_data = MXS_DMA_APBX,
+	}, {
+		/* end of list */
 	}
 };
 
