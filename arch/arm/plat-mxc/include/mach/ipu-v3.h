@@ -17,10 +17,11 @@
 #define __MACH_IPU_V3_H_
 
 struct ipuv3_fb_platform_data {
-	const struct fb_videomode	*modes;
-	int				num_modes;
-	char				*mode_str;
+	char				disp_dev[32];
 	u32				interface_pix_fmt;
+	char				*mode_str;
+	int				default_bpp;
+	bool				int_clk;
 
 	/* reserved mem */
 	resource_size_t 		res_base;
@@ -29,14 +30,10 @@ struct ipuv3_fb_platform_data {
 
 struct imx_ipuv3_platform_data {
 	int rev;
-	int (*init) (void);
+	int (*init) (int);
 	void (*pg) (int);
-	struct ipuv3_fb_platform_data	*fb_head0_platform_data;
-	struct ipuv3_fb_platform_data	*fb_head1_platform_data;
-#define MXC_PRI_DI0	1
-#define MXC_PRI_DI1	2
-	int primary_di;
-	struct clk  *csi_clk[2];
+
+	char *csi_clk[2];
 };
 
 #endif /* __MACH_IPU_V3_H_ */

@@ -314,12 +314,18 @@ struct imx_ipuv3_data {
 	resource_size_t iosize;
 	resource_size_t irq_err;
 	resource_size_t irq;
-	int (*init) (void);
+	unsigned int irq_start;
+	int (*init) (int);
 	void (*pg) (int);
 };
 struct platform_device *__init imx_add_ipuv3(
+		const int id,
 		const struct imx_ipuv3_data *data,
 		struct imx_ipuv3_platform_data *pdata);
+
+struct platform_device *__init imx_add_ipuv3_fb(
+		const int id,
+		const struct ipuv3_fb_platform_data *pdata);
 
 #include <mach/mxc_vpu.h>
 struct imx_vpu_data {

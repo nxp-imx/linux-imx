@@ -105,10 +105,10 @@
 #define OPENVG_ARB_END_ADDR             0x02207FFF
 #define HSI_ARB_BASE_ADDR               0x02208000
 #define HSI_ARB_END_ADDR                0x0220BFFF
-#define IPU1_ARB_BASE_ADDR              0x02400000
-#define IPU1_ARB_END_ADDR               0x027FFFFF
-#define IPU2_ARB_BASE_ADDR              0x02800000
-#define IPU2_ARB_END_ADDR               0x02BFFFFF
+#define MX6Q_IPU1_ARB_BASE_ADDR         0x02400000
+#define MX6Q_IPU1_ARB_END_ADDR          0x027FFFFF
+#define MX6Q_IPU2_ARB_BASE_ADDR         0x02800000
+#define MX6Q_IPU2_ARB_END_ADDR          0x02BFFFFF
 #define WEIM_ARB_BASE_ADDR              0x08000000
 #define WEIM_ARB_END_ADDR               0x0FFFFFFF
 
@@ -171,7 +171,7 @@
 #define EPIT2_BASE_ADDR             (AIPS1_OFF_BASE_ADDR + 0x54000)
 #define SRC_BASE_ADDR               (AIPS1_OFF_BASE_ADDR + 0x58000)
 #define GPC_BASE_ADDR               (AIPS1_OFF_BASE_ADDR + 0x5C000)
-#define IOMUXC_BASE_ADDR            (AIPS1_OFF_BASE_ADDR + 0x60000)
+#define MX6Q_IOMUXC_BASE_ADDR       (AIPS1_OFF_BASE_ADDR + 0x60000)
 #define DCIC1_BASE_ADDR             (AIPS1_OFF_BASE_ADDR + 0x64000)
 #define DCIC2_BASE_ADDR             (AIPS1_OFF_BASE_ADDR + 0x68000)
 #define MX6Q_SDMA_BASE_ADDR			(AIPS1_OFF_BASE_ADDR + 0x6C000)
@@ -269,10 +269,10 @@
 #define MX6Q_INT_SDMA                              34
 #define MXC_INT_VPU_JPG                            35
 #define MXC_INT_INTERRUPT_36_NUM                   36
-#define MXC_INT_IPU1_ERR                           37
-#define MXC_INT_IPU1_FUNC                          38
-#define MXC_INT_IPU2_ERR                           39
-#define MXC_INT_IPU2_FUNC                          40
+#define MX6Q_INT_IPU1_ERR                          37
+#define MX6Q_INT_IPU1_SYN                          38
+#define MX6Q_INT_IPU2_ERR                          39
+#define MX6Q_INT_IPU2_SYN                          40
 #define MXC_INT_GPU3D_IRQ                          41
 #define MXC_INT_GPU2D_IRQ                          42
 #define MXC_INT_OPENVG_XAQ2                        43
