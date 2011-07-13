@@ -991,6 +991,17 @@ fb_set_var(struct fb_info *info, struct fb_var_screeninfo *var)
 			old_var = info->var;
 			info->var = *var;
 
+			/* call pre-mode change */
+			if (flags & FBINFO_MISC_USEREVENT) {
+				struct fb_event event;
+				int evnt = FB_EVENT_PREMODE_CHANGE;
+
+				info->flags &= ~FBINFO_MISC_USEREVENT;
+				event.info = info;
+				event.data = &mode;
+				fb_notifier_call_chain(evnt, &event);
+			}
+
 			if (info->fbops->fb_set_par) {
 				ret = info->fbops->fb_set_par(info);
 
