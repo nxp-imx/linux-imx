@@ -369,43 +369,30 @@ static const struct imxuart_platform_data mx53_evk_uart_pdata __initconst = {
 	.flags = IMXUART_HAVE_RTSCTS,
 };
 
-static struct fb_videomode video_modes[] = {
-	{
-	 /* 800x480 @ 57 Hz , pixel clk @ 27MHz */
-	 "CLAA-WVGA", 57, 800, 480, 37037, 40, 60, 10, 10, 20, 10,
-	 FB_SYNC_CLK_LAT_FALL,
-	 FB_VMODE_NONINTERLACED,
-	 0,},
-	{
-	/* 1600x1200 @ 60 Hz 162M pixel clk*/
-	"UXGA", 60, 1600, 1200, 6172,
-	304, 64,
-	1, 46,
-	192, 3,
-	FB_SYNC_HOR_HIGH_ACT|FB_SYNC_VERT_HIGH_ACT,
-	FB_VMODE_NONINTERLACED,
-	0,},
+static struct fsl_mxc_lcd_platform_data lcdif_data = {
+	.ipu_id = 0,
+	.disp_id = 0,
+	.default_ifmt = IPU_PIX_FMT_RGB565,
 };
 
-static struct ipuv3_fb_platform_data evk_fb_di0_data = {
+static struct ipuv3_fb_platform_data evk_fb_data[] = {
+	{
+	.disp_dev = "lcd",
 	.interface_pix_fmt = IPU_PIX_FMT_RGB565,
 	.mode_str = "CLAA-WVGA",
-	.modes = video_modes,
-	.num_modes = ARRAY_SIZE(video_modes),
-};
-
-static struct ipuv3_fb_platform_data evk_fb_di1_data = {
+	.default_bpp = 16,
+	.int_clk = false,
+	}, {
+	.disp_dev = "vga",
 	.interface_pix_fmt = IPU_PIX_FMT_GBR24,
 	.mode_str = "VGA-XGA",
-	.modes = video_modes,
-	.num_modes = ARRAY_SIZE(video_modes),
+	.default_bpp = 16,
+	.int_clk = false,
+	},
 };
 
 static struct imx_ipuv3_platform_data ipu_data = {
 	.rev = 3,
-	.fb_head0_platform_data = &evk_fb_di0_data,
-	.fb_head1_platform_data = &evk_fb_di1_data,
-	.primary_di = MXC_PRI_DI0,
 };
 
 static struct platform_pwm_backlight_data evk_pwm_backlight_data = {
@@ -500,8 +487,9 @@ static int ddc_dvi_update(void)
 		return 0;
 }
 
-static struct fsl_mxc_ddc_platform_data evk_ddc_dvi_data = {
-	.di = 0,
+static struct fsl_mxc_dvi_platform_data evk_ddc_dvi_data = {
+	.ipu_id = 0,
+	.disp_id = 0,
 	.init = ddc_dvi_init,
 	.update = ddc_dvi_update,
 	.analog_regulator = "VSD",
@@ -731,6 +719,8 @@ static struct mxc_spdif_platform_data mxc_spdif_data = {
 
 static void __init mx53_evk_board_init(void)
 {
+	int i;
+
 	mx53_evk_io_init();
 
 	mxc_spdif_data.spdif_core_clk = clk_get(NULL, "spdif_xtal_clk");
@@ -741,7 +731,9 @@ static void __init mx53_evk_board_init(void)
 	mx53_evk_fec_reset();
 	imx53_add_fec(&mx53_evk_fec_pdata);
 
-	imx53_add_ipuv3(&ipu_data);
+	imx53_add_ipuv3(0, &ipu_data);
+	for (i = 0; i < ARRAY_SIZE(evk_fb_data); i++)
+		imx53_add_ipuv3fb(i, &evk_fb_data[i]);
 	imx53_add_vpu();
 	imx53_add_tve(&tve_data);
 	imx53_add_v4l2_output(0);

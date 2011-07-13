@@ -273,7 +273,9 @@ static void sii902x_hdmi_reset(void)
 }
 
 static struct fsl_mxc_lcd_platform_data sii902x_hdmi_data = {
-       .reset = sii902x_hdmi_reset,
+	.ipu_id = 0,
+	.disp_id = 0,
+	.reset = sii902x_hdmi_reset,
 };
 
 static void loco_suspend_enter(void)
@@ -307,49 +309,30 @@ static struct i2c_board_info mxc_i2c1_board_info[] __initdata = {
 	},
 };
 
-static struct fb_videomode video_modes[] = {
-	{
-	/* 800x480 @ 57 Hz , pixel clk @ 27MHz */
-	"CLAA-WVGA", 57, 800, 480, 37037, 40, 60, 10, 10, 20, 10,
-	FB_SYNC_CLK_LAT_FALL,
-	FB_VMODE_NONINTERLACED,
-	0,},
-	{
-	/* 800x480 @ 60 Hz , pixel clk @ 32MHz */
-	"SEIKO-WVGA", 60, 800, 480, 29850, 89, 164, 23, 10, 10, 10,
-	FB_SYNC_CLK_LAT_FALL,
-	FB_VMODE_NONINTERLACED,
-	0,},
-	{
-	/* 1600x1200 @ 60 Hz 162M pixel clk*/
-	"UXGA", 60, 1600, 1200, 6172,
-	304, 64,
-	1, 46,
-	192, 3,
-	FB_SYNC_HOR_HIGH_ACT|FB_SYNC_VERT_HIGH_ACT,
-	FB_VMODE_NONINTERLACED,
-	0,},
+static struct fsl_mxc_lcd_platform_data lcdif_data = {
+	.ipu_id = 0,
+	.disp_id = 0,
+	.default_ifmt = IPU_PIX_FMT_RGB565,
 };
 
-static struct ipuv3_fb_platform_data loco_fb_di0_data = {
-	.interface_pix_fmt = IPU_PIX_FMT_RGB565,
-	.mode_str = "CLAA-WVGA",
-	.modes = video_modes,
-	.num_modes = ARRAY_SIZE(video_modes),
-};
-
-static struct ipuv3_fb_platform_data loco_fb_di1_data = {
+static struct ipuv3_fb_platform_data loco_fb_data[] = {
+	{ /*fb0*/
+	.disp_dev = "vga",
 	.interface_pix_fmt = IPU_PIX_FMT_GBR24,
 	.mode_str = "VGA-XGA",
-	.modes = video_modes,
-	.num_modes = ARRAY_SIZE(video_modes),
+	.default_bpp = 16,
+	.int_clk = false,
+	}, {
+	.disp_dev = "lcd",
+	.interface_pix_fmt = IPU_PIX_FMT_RGB565,
+	.mode_str = "CLAA-WVGA",
+	.default_bpp = 16,
+	.int_clk = false,
+	},
 };
 
 static struct imx_ipuv3_platform_data ipu_data = {
 	.rev = 3,
-	.fb_head0_platform_data = &loco_fb_di0_data,
-	.fb_head1_platform_data = &loco_fb_di1_data,
-	.primary_di = MXC_PRI_DI1,
 };
 
 static struct platform_pwm_backlight_data loco_pwm_backlight_data = {
@@ -361,7 +344,6 @@ static struct platform_pwm_backlight_data loco_pwm_backlight_data = {
 
 static struct fsl_mxc_tve_platform_data tve_data = {
 	.dac_reg = "DA9052_LDO7",
-	.boot_enable = MXC_TVE_VGA,
 };
 
 static struct mxc_dvfs_platform_data loco_dvfs_core_data = {
@@ -599,7 +581,10 @@ static struct mxc_iim_platform_data iim_data = {
 static struct mxc_gpu_platform_data gpu_data __initdata;
 
 static struct fsl_mxc_ldb_platform_data ldb_data = {
+	.ipu_id = 0,
+	.disp_id = 0,
 	.ext_ref = 1,
+	.mode = LDB_SIN_DI0,
 };
 
 static void __init fixup_mxc_board(struct machine_desc *desc, struct tag *tags,
@@ -657,11 +642,9 @@ static void __init fixup_mxc_board(struct machine_desc *desc, struct tag *tags,
 		gpu_data.reserved_mem_size = gpu_mem;
 
 		/* reserver memory for fb */
-		loco_fb_di0_data.res_base = gpu_data.reserved_mem_base
+		loco_fb_data[0].res_base = gpu_data.reserved_mem_base
 					+ gpu_data.reserved_mem_size;
-		loco_fb_di0_data.res_size = fb_mem;
-		loco_fb_di1_data.res_base = loco_fb_di0_data.res_base;
-		loco_fb_di1_data.res_size = loco_fb_di0_data.res_size;
+		loco_fb_data[0].res_size = fb_mem;
 	}
 }
 
@@ -679,6 +662,8 @@ static struct mxc_spdif_platform_data mxc_spdif_data = {
 
 static void __init mx53_loco_board_init(void)
 {
+	int i;
+
 	mx53_loco_io_init();
 
 	imx53_add_imx_uart(0, NULL);
@@ -690,8 +675,13 @@ static void __init mx53_loco_board_init(void)
 
 	mxc_register_device(&mxc_pm_device, &loco_pm_data);
 
-	imx53_add_ipuv3(&ipu_data);
+	imx53_add_ipuv3(0, &ipu_data);
+
+	for (i = 0; i < ARRAY_SIZE(loco_fb_data); i++)
+		imx53_add_ipuv3fb(i, &loco_fb_data[i]);
+
 	imx53_add_vpu();
+	imx53_add_lcdif(&lcdif_data);
 	imx53_add_ldb(&ldb_data);
 	imx53_add_tve(&tve_data);
 	imx53_add_v4l2_output(0);
