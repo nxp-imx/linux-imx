@@ -48,6 +48,7 @@
 #include <linux/fsl_devices.h>
 #include <asm/mach-types.h>
 #include <mach/ipu-v3.h>
+#include "mxc_dispdrv.h"
 
 /*
  * Driver name
@@ -60,11 +61,11 @@
  * Structure containing the MXC specific framebuffer information.
  */
 struct mxcfb_info {
-	char *fb_mode_str;
 	int default_bpp;
 	int cur_blank;
 	int next_blank;
 	ipu_channel_t ipu_ch;
+	int ipu_id;
 	int ipu_di;
 	u32 ipu_di_pix_fmt;
 	bool ipu_int_clk;
@@ -82,16 +83,14 @@ struct mxcfb_info {
 
 	u32 pseudo_palette[16];
 
+	bool mode_found;
 	bool wait4vsync;
 	struct semaphore flip_sem;
 	struct semaphore alpha_flip_sem;
 	struct completion vsync_complete;
-};
 
-struct mxcfb_mode {
-	int dev_mode;
-	int num_modes;
-	struct fb_videomode *mode;
+	void *ipu;
+	struct fb_info *ovfbi;
 };
 
 struct mxcfb_alloc_list {
@@ -108,72 +107,8 @@ enum {
 	BOTH_OFF
 };
 
-static bool g_dp_in_use;
+static bool g_dp_in_use[2];
 LIST_HEAD(fb_alloc_list);
-static struct fb_info *mxcfb_info[3];
-static __initdata struct mxcfb_mode mxc_disp_mode[MXCFB_PORT_NUM];
-static __initdata int (*mxcfb_pre_setup[MXCFB_PORT_NUM])(struct fb_info *info);
-
-/*
- * register pre-setup callback for some display
- * driver which need prepare clk etc.
- */
-void mxcfb_register_presetup(int disp_port,
-	int (*pre_setup)(struct fb_info *info))
-{
-	if (pre_setup)
-		mxcfb_pre_setup[disp_port] = pre_setup;
-}
-EXPORT_SYMBOL(mxcfb_register_presetup);
-
-/*
- * mode register from each display driver before
- * primary fb setting.
- */
-void mxcfb_register_mode(int disp_port,
-	const struct fb_videomode *modedb,
-	int num_modes, int dev_mode)
-{
-	struct fb_videomode *mode;
-	int mode_sum;
-
-	if (disp_port > MXCFB_PORT_NUM)
-		return;
-
-	/*
-	 * if there is new DDC device, overwrite old modes.
-	 * if there is old DDC device while new device is not DDC,
-	 * just keep old DDC modes.
-	 */
-	if (dev_mode & MXC_DISP_DDC_DEV) {
-		if (mxc_disp_mode[disp_port].num_modes) {
-			kfree(mxc_disp_mode[disp_port].mode);
-			mxc_disp_mode[disp_port].num_modes = 0;
-		}
-	} else if (mxc_disp_mode[disp_port].dev_mode & MXC_DISP_DDC_DEV)
-		return;
-
-	mode_sum = mxc_disp_mode[disp_port].num_modes + num_modes;
-	mode = kzalloc(mode_sum * sizeof(struct fb_videomode), GFP_KERNEL);
-
-	if (mxc_disp_mode[disp_port].num_modes)
-		memcpy(mode, mxc_disp_mode[disp_port].mode,
-			mxc_disp_mode[disp_port].num_modes
-			* sizeof(struct fb_videomode));
-	if (modedb)
-		memcpy(mode + mxc_disp_mode[disp_port].num_modes,
-			modedb, num_modes * sizeof(struct fb_videomode));
-
-	if (mxc_disp_mode[disp_port].num_modes)
-		kfree(mxc_disp_mode[disp_port].mode);
-
-	mxc_disp_mode[disp_port].mode = mode;
-	mxc_disp_mode[disp_port].num_modes += num_modes;
-	mxc_disp_mode[disp_port].dev_mode = dev_mode;
-
-	return;
-}
-EXPORT_SYMBOL(mxcfb_register_mode);
 
 static uint32_t bpp_to_pixfmt(struct fb_info *fbi)
 {
@@ -196,11 +131,29 @@ static uint32_t bpp_to_pixfmt(struct fb_info *fbi)
 	return pixfmt;
 }
 
+static struct fb_info *found_registered_fb(ipu_channel_t ipu_ch, int ipu_id)
+{
+	int i;
+	struct mxcfb_info *mxc_fbi;
+	struct fb_info *fbi = NULL;
+
+	for (i = 0; i < num_registered_fb; i++) {
+		mxc_fbi =
+			((struct mxcfb_info *)(registered_fb[i]->par));
+
+		if ((mxc_fbi->ipu_ch == ipu_ch) &&
+			(mxc_fbi->ipu_id == ipu_id)) {
+			fbi = registered_fb[i];
+			break;
+		}
+	}
+	return fbi;
+}
+
 static irqreturn_t mxcfb_irq_handler(int irq, void *dev_id);
 static int mxcfb_blank(int blank, struct fb_info *info);
 static int mxcfb_map_video_memory(struct fb_info *fbi);
 static int mxcfb_unmap_video_memory(struct fb_info *fbi);
-static int mxcfb_option_setup(struct fb_info *info, char *options);
 
 /*
  * Set fixed framebuffer parameters based on variable settings.
@@ -230,56 +183,23 @@ static int _setup_disp_channel1(struct fb_info *fbi)
 	struct mxcfb_info *mxc_fbi = (struct mxcfb_info *)fbi->par;
 
 	memset(&params, 0, sizeof(params));
-	params.mem_dp_bg_sync.di = mxc_fbi->ipu_di;
 
-	/*
-	 * Assuming interlaced means yuv output, below setting also
-	 * valid for mem_dc_sync. FG should have the same vmode as BG.
-	 */
-	if (mxc_fbi->ipu_ch == MEM_FG_SYNC) {
-		struct mxcfb_info *mxc_fbi_tmp;
-		int i;
-
-		for (i = 0; i < num_registered_fb; i++) {
-			mxc_fbi_tmp = (struct mxcfb_info *)
-				(registered_fb[i]->par);
-			if (mxc_fbi_tmp->ipu_ch == MEM_BG_SYNC) {
-				fbi->var.vmode =
-				registered_fb[i]->var.vmode;
-				mxc_fbi->ipu_di_pix_fmt =
-				mxc_fbi_tmp->ipu_di_pix_fmt;
-				break;
-			}
-		}
-	}
 	if (mxc_fbi->ipu_ch == MEM_DC_SYNC) {
-		if (fbi->var.vmode & FB_VMODE_INTERLACED) {
+		params.mem_dc_sync.di = mxc_fbi->ipu_di;
+		if (fbi->var.vmode & FB_VMODE_INTERLACED)
 			params.mem_dc_sync.interlaced = true;
-			params.mem_dc_sync.out_pixel_fmt =
-				IPU_PIX_FMT_YUV444;
-		} else {
-			if (mxc_fbi->ipu_di_pix_fmt)
-				params.mem_dc_sync.out_pixel_fmt = mxc_fbi->ipu_di_pix_fmt;
-			else
-				params.mem_dc_sync.out_pixel_fmt = IPU_PIX_FMT_RGB666;
-		}
+		params.mem_dc_sync.out_pixel_fmt = mxc_fbi->ipu_di_pix_fmt;
 		params.mem_dc_sync.in_pixel_fmt = bpp_to_pixfmt(fbi);
 	} else {
-		if (fbi->var.vmode & FB_VMODE_INTERLACED) {
+		params.mem_dp_bg_sync.di = mxc_fbi->ipu_di;
+		if (fbi->var.vmode & FB_VMODE_INTERLACED)
 			params.mem_dp_bg_sync.interlaced = true;
-			params.mem_dp_bg_sync.out_pixel_fmt =
-				IPU_PIX_FMT_YUV444;
-		} else {
-			if (mxc_fbi->ipu_di_pix_fmt)
-				params.mem_dp_bg_sync.out_pixel_fmt = mxc_fbi->ipu_di_pix_fmt;
-			else
-				params.mem_dp_bg_sync.out_pixel_fmt = IPU_PIX_FMT_RGB666;
-		}
+		params.mem_dp_bg_sync.out_pixel_fmt = mxc_fbi->ipu_di_pix_fmt;
 		params.mem_dp_bg_sync.in_pixel_fmt = bpp_to_pixfmt(fbi);
 		if (mxc_fbi->alpha_chan_en)
 			params.mem_dp_bg_sync.alpha_chan_en = true;
 	}
-	ipu_init_channel(mxc_fbi->ipu_ch, &params);
+	ipu_init_channel(mxc_fbi->ipu, mxc_fbi->ipu_ch, &params);
 
 	return 0;
 }
@@ -316,7 +236,8 @@ static int _setup_disp_channel2(struct fb_info *fbi)
 	base = (fbi->var.bits_per_pixel) * base / 8;
 	base += fbi->fix.smem_start;
 
-	retval = ipu_init_channel_buffer(mxc_fbi->ipu_ch, IPU_INPUT_BUFFER,
+	retval = ipu_init_channel_buffer(mxc_fbi->ipu,
+					 mxc_fbi->ipu_ch, IPU_INPUT_BUFFER,
 					 bpp_to_pixfmt(fbi),
 					 fbi->var.xres, fbi->var.yres,
 					 fb_stride,
@@ -332,7 +253,8 @@ static int _setup_disp_channel2(struct fb_info *fbi)
 	}
 
 	if (mxc_fbi->alpha_chan_en) {
-		retval = ipu_init_channel_buffer(mxc_fbi->ipu_ch,
+		retval = ipu_init_channel_buffer(mxc_fbi->ipu,
+						 mxc_fbi->ipu_ch,
 						 IPU_ALPHA_IN_BUFFER,
 						 IPU_PIX_FMT_GENERIC,
 						 fbi->var.xres, fbi->var.yres,
@@ -366,10 +288,10 @@ static int mxcfb_set_par(struct fb_info *fbi)
 
 	dev_dbg(fbi->device, "Reconfiguring framebuffer\n");
 
-	ipu_disable_irq(mxc_fbi->ipu_ch_irq);
-	ipu_disable_channel(mxc_fbi->ipu_ch, true);
-	ipu_uninit_channel(mxc_fbi->ipu_ch);
-	ipu_clear_irq(mxc_fbi->ipu_ch_irq);
+	ipu_clear_irq(mxc_fbi->ipu, mxc_fbi->ipu_ch_irq);
+	ipu_disable_irq(mxc_fbi->ipu, mxc_fbi->ipu_ch_irq);
+	ipu_disable_channel(mxc_fbi->ipu, mxc_fbi->ipu_ch, true);
+	ipu_uninit_channel(mxc_fbi->ipu, mxc_fbi->ipu_ch);
 	mxcfb_set_fix(fbi);
 
 	mem_len = fbi->var.yres_virtual * fbi->fix.line_length;
@@ -380,6 +302,7 @@ static int mxcfb_set_par(struct fb_info *fbi)
 		if (mxcfb_map_video_memory(fbi) < 0)
 			return -ENOMEM;
 	}
+
 	if (mxc_fbi->alpha_chan_en) {
 		alpha_mem_len = fbi->var.xres * fbi->var.yres;
 		if ((!mxc_fbi->alpha_phy_addr0 && !mxc_fbi->alpha_phy_addr1) ||
@@ -435,15 +358,9 @@ static int mxcfb_set_par(struct fb_info *fbi)
 		uint32_t out_pixel_fmt;
 
 		memset(&sig_cfg, 0, sizeof(sig_cfg));
-		if (fbi->var.vmode & FB_VMODE_INTERLACED) {
+		if (fbi->var.vmode & FB_VMODE_INTERLACED)
 			sig_cfg.interlaced = true;
-			out_pixel_fmt = IPU_PIX_FMT_YUV444;
-		} else {
-			if (mxc_fbi->ipu_di_pix_fmt)
-				out_pixel_fmt = mxc_fbi->ipu_di_pix_fmt;
-			else
-				out_pixel_fmt = IPU_PIX_FMT_RGB666;
-		}
+		out_pixel_fmt = mxc_fbi->ipu_di_pix_fmt;
 		if (fbi->var.vmode & FB_VMODE_ODD_FLD_FIRST) /* PAL */
 			sig_cfg.odd_field_first = true;
 		if (mxc_fbi->ipu_int_clk)
@@ -464,7 +381,7 @@ static int mxcfb_set_par(struct fb_info *fbi)
 		dev_dbg(fbi->device, "pixclock = %ul Hz\n",
 			(u32) (PICOS2KHZ(fbi->var.pixclock) * 1000UL));
 
-		if (ipu_init_sync_panel(mxc_fbi->ipu_di,
+		if (ipu_init_sync_panel(mxc_fbi->ipu, mxc_fbi->ipu_di,
 					(PICOS2KHZ(fbi->var.pixclock)) * 1000UL,
 					fbi->var.xres, fbi->var.yres,
 					out_pixel_fmt,
@@ -484,29 +401,30 @@ static int mxcfb_set_par(struct fb_info *fbi)
 		    (struct fb_videomode *)fb_match_mode(&fbi->var,
 							 &fbi->modelist);
 
-		ipu_disp_set_window_pos(mxc_fbi->ipu_ch, 0, 0);
+		ipu_disp_set_window_pos(mxc_fbi->ipu, mxc_fbi->ipu_ch, 0, 0);
 	}
 
 	retval = _setup_disp_channel2(fbi);
 	if (retval)
 		return retval;
 
-	ipu_enable_channel(mxc_fbi->ipu_ch);
+	ipu_enable_channel(mxc_fbi->ipu, mxc_fbi->ipu_ch);
 
 	return retval;
 }
 
-static int _swap_channels(struct fb_info *fbi,
+static int _swap_channels(struct fb_info *fbi_from,
 			  struct fb_info *fbi_to, bool both_on)
 {
 	int retval, tmp;
 	ipu_channel_t old_ch;
-	struct mxcfb_info *mxc_fbi_from = (struct mxcfb_info *)fbi->par;
+	struct fb_info *ovfbi;
+	struct mxcfb_info *mxc_fbi_from = (struct mxcfb_info *)fbi_from->par;
 	struct mxcfb_info *mxc_fbi_to = (struct mxcfb_info *)fbi_to->par;
 
 	if (both_on) {
-		ipu_disable_channel(mxc_fbi_to->ipu_ch, true);
-		ipu_uninit_channel(mxc_fbi_to->ipu_ch);
+		ipu_disable_channel(mxc_fbi_to->ipu, mxc_fbi_to->ipu_ch, true);
+		ipu_uninit_channel(mxc_fbi_to->ipu, mxc_fbi_to->ipu_ch);
 	}
 
 	/* switch the mxc fbi parameters */
@@ -516,33 +434,36 @@ static int _swap_channels(struct fb_info *fbi,
 	tmp = mxc_fbi_from->ipu_ch_irq;
 	mxc_fbi_from->ipu_ch_irq = mxc_fbi_to->ipu_ch_irq;
 	mxc_fbi_to->ipu_ch_irq = tmp;
+	ovfbi = mxc_fbi_from->ovfbi;
+	mxc_fbi_from->ovfbi = mxc_fbi_to->ovfbi;
+	mxc_fbi_to->ovfbi = ovfbi;
 
-	_setup_disp_channel1(fbi);
-	retval = _setup_disp_channel2(fbi);
+	_setup_disp_channel1(fbi_from);
+	retval = _setup_disp_channel2(fbi_from);
 	if (retval)
 		return retval;
 
 	/* switch between dp and dc, disable old idmac, enable new idmac */
-	retval = ipu_swap_channel(old_ch, mxc_fbi_from->ipu_ch);
-	ipu_uninit_channel(old_ch);
+	retval = ipu_swap_channel(mxc_fbi_from->ipu, old_ch, mxc_fbi_from->ipu_ch);
+	ipu_uninit_channel(mxc_fbi_from->ipu, old_ch);
 
 	if (both_on) {
 		_setup_disp_channel1(fbi_to);
 		retval = _setup_disp_channel2(fbi_to);
 		if (retval)
 			return retval;
-		ipu_enable_channel(mxc_fbi_to->ipu_ch);
+		ipu_enable_channel(mxc_fbi_to->ipu, mxc_fbi_to->ipu_ch);
 	}
 
 	return retval;
 }
 
-static int swap_channels(struct fb_info *fbi)
+static int swap_channels(struct fb_info *fbi_from)
 {
 	int i;
 	int swap_mode;
 	ipu_channel_t ch_to;
-	struct mxcfb_info *mxc_fbi_from = (struct mxcfb_info *)fbi->par;
+	struct mxcfb_info *mxc_fbi_from = (struct mxcfb_info *)fbi_from->par;
 	struct fb_info *fbi_to = NULL;
 	struct mxcfb_info *mxc_fbi_to;
 
@@ -552,21 +473,15 @@ static int swap_channels(struct fb_info *fbi)
 	else
 		ch_to = MEM_BG_SYNC;
 
-	for (i = 0; i < num_registered_fb; i++) {
-		mxc_fbi_to =
-			(struct mxcfb_info *)mxcfb_info[i]->par;
-		if (mxc_fbi_to->ipu_ch == ch_to) {
-			fbi_to = mxcfb_info[i];
-			break;
-		}
-	}
-	if (fbi_to == NULL)
+	fbi_to = found_registered_fb(ch_to, mxc_fbi_from->ipu_id);
+	if (!fbi_to)
 		return -1;
+	mxc_fbi_to = (struct mxcfb_info *)fbi_to->par;
 
-	ipu_clear_irq(mxc_fbi_from->ipu_ch_irq);
-	ipu_clear_irq(mxc_fbi_to->ipu_ch_irq);
-	ipu_free_irq(mxc_fbi_from->ipu_ch_irq, fbi);
-	ipu_free_irq(mxc_fbi_to->ipu_ch_irq, fbi_to);
+	ipu_clear_irq(mxc_fbi_from->ipu, mxc_fbi_from->ipu_ch_irq);
+	ipu_clear_irq(mxc_fbi_to->ipu, mxc_fbi_to->ipu_ch_irq);
+	ipu_free_irq(mxc_fbi_from->ipu, mxc_fbi_from->ipu_ch_irq, fbi_from);
+	ipu_free_irq(mxc_fbi_to->ipu, mxc_fbi_to->ipu_ch_irq, fbi_to);
 
 	if (mxc_fbi_from->cur_blank == FB_BLANK_UNBLANK) {
 		if (mxc_fbi_to->cur_blank == FB_BLANK_UNBLANK)
@@ -580,31 +495,18 @@ static int swap_channels(struct fb_info *fbi)
 			swap_mode = BOTH_OFF;
 	}
 
-	/* tvout di-1: for DC use UYVY, for DP use RGB */
-	if (mxc_fbi_from->ipu_di == 1 && ch_to == MEM_DC_SYNC) {
-		fbi->var.bits_per_pixel = 16;
-		fbi->var.nonstd = IPU_PIX_FMT_UYVY;
-	} else if (mxc_fbi_from->ipu_di == 1 && ch_to == MEM_BG_SYNC) {
-		fbi->var.nonstd = 0;
-	} else if (mxc_fbi_from->ipu_di == 0 && ch_to == MEM_DC_SYNC) {
-		fbi_to->var.nonstd = 0;
-	} else if (mxc_fbi_from->ipu_di == 0 && ch_to == MEM_BG_SYNC) {
-		fbi->var.bits_per_pixel = 16;
-		fbi->var.nonstd = IPU_PIX_FMT_UYVY;
-	}
-
 	switch (swap_mode) {
 	case BOTH_ON:
 		/* disable target->switch src->enable target */
-		_swap_channels(fbi, fbi_to, true);
+		_swap_channels(fbi_from, fbi_to, true);
 		break;
 	case SRC_ON:
 		/* just switch src */
-		_swap_channels(fbi, fbi_to, false);
+		_swap_channels(fbi_from, fbi_to, false);
 		break;
 	case TGT_ON:
 		/* just switch target */
-		_swap_channels(fbi_to, fbi, false);
+		_swap_channels(fbi_to, fbi_from, false);
 		break;
 	case BOTH_OFF:
 		/* switch directly, no more need to do */
@@ -618,20 +520,20 @@ static int swap_channels(struct fb_info *fbi)
 		break;
 	}
 
-	if (ipu_request_irq(mxc_fbi_from->ipu_ch_irq, mxcfb_irq_handler, 0,
-		MXCFB_NAME, fbi) != 0) {
-		dev_err(fbi->device, "Error registering irq %d\n",
+	if (ipu_request_irq(mxc_fbi_from->ipu, mxc_fbi_from->ipu_ch_irq, mxcfb_irq_handler, 0,
+		MXCFB_NAME, fbi_from) != 0) {
+		dev_err(fbi_from->device, "Error registering irq %d\n",
 			mxc_fbi_from->ipu_ch_irq);
 		return -EBUSY;
 	}
-	ipu_disable_irq(mxc_fbi_from->ipu_ch_irq);
-	if (ipu_request_irq(mxc_fbi_to->ipu_ch_irq, mxcfb_irq_handler, 0,
+	ipu_disable_irq(mxc_fbi_from->ipu, mxc_fbi_from->ipu_ch_irq);
+	if (ipu_request_irq(mxc_fbi_to->ipu, mxc_fbi_to->ipu_ch_irq, mxcfb_irq_handler, 0,
 		MXCFB_NAME, fbi_to) != 0) {
 		dev_err(fbi_to->device, "Error registering irq %d\n",
 			mxc_fbi_to->ipu_ch_irq);
 		return -EBUSY;
 	}
-	ipu_disable_irq(mxc_fbi_to->ipu_ch_irq);
+	ipu_disable_irq(mxc_fbi_to->ipu, mxc_fbi_to->ipu_ch_irq);
 
 	return 0;
 }
@@ -652,25 +554,19 @@ static int mxcfb_check_var(struct fb_var_screeninfo *var, struct fb_info *info)
 	/* fg should not bigger than bg */
 	if (mxc_fbi->ipu_ch == MEM_FG_SYNC) {
 		struct fb_info *fbi_tmp;
-		struct mxcfb_info *mxc_fbi_tmp;
-		int i, bg_xres, bg_yres;
+		int bg_xres = 0, bg_yres = 0;
 		int16_t pos_x, pos_y;
 
 		bg_xres = var->xres;
 		bg_yres = var->yres;
 
-		for (i = 0; i < num_registered_fb; i++) {
-			fbi_tmp = registered_fb[i];
-			mxc_fbi_tmp = (struct mxcfb_info *)
-				(fbi_tmp->par);
-			if (mxc_fbi_tmp->ipu_ch == MEM_BG_SYNC) {
-				bg_xres = fbi_tmp->var.xres;
-				bg_yres = fbi_tmp->var.yres;
-				break;
-			}
+		fbi_tmp = found_registered_fb(MEM_BG_SYNC, mxc_fbi->ipu_id);
+		if (fbi_tmp) {
+			bg_xres = fbi_tmp->var.xres;
+			bg_yres = fbi_tmp->var.yres;
 		}
 
-		ipu_disp_get_window_pos(mxc_fbi->ipu_ch, &pos_x, &pos_y);
+		ipu_disp_get_window_pos(mxc_fbi->ipu, mxc_fbi->ipu_ch, &pos_x, &pos_y);
 
 		if ((var->xres + pos_x) > bg_xres)
 			var->xres = bg_xres - pos_x;
@@ -855,7 +751,8 @@ static int mxcfb_ioctl(struct fb_info *fbi, unsigned int cmd, unsigned long arg)
 				break;
 			}
 
-			if (ipu_disp_set_global_alpha(mxc_fbi->ipu_ch,
+			if (ipu_disp_set_global_alpha(mxc_fbi->ipu,
+						      mxc_fbi->ipu_ch,
 						      (bool)ga.enable,
 						      ga.alpha)) {
 				retval = -EINVAL;
@@ -874,35 +771,36 @@ static int mxcfb_ioctl(struct fb_info *fbi, unsigned int cmd, unsigned long arg)
 	case MXCFB_SET_LOC_ALPHA:
 		{
 			struct mxcfb_loc_alpha la;
-			int i;
-			char *video_plane_idstr = "";
 
 			if (copy_from_user(&la, (void *)arg, sizeof(la))) {
 				retval = -EFAULT;
 				break;
 			}
 
-			if (ipu_disp_set_global_alpha(mxc_fbi->ipu_ch,
+			if (ipu_disp_set_global_alpha(mxc_fbi->ipu, mxc_fbi->ipu_ch,
 						      !(bool)la.enable, 0)) {
 				retval = -EINVAL;
 				break;
 			}
 
 			if (la.enable && !la.alpha_in_pixel) {
+				struct fb_info *fbi_tmp;
+				ipu_channel_t ipu_ch;
+
 				mxc_fbi->alpha_chan_en = true;
 
 				if (mxc_fbi->ipu_ch == MEM_FG_SYNC)
-					video_plane_idstr = "DISP3 BG";
+					ipu_ch = MEM_BG_SYNC;
 				else if (mxc_fbi->ipu_ch == MEM_BG_SYNC)
-					video_plane_idstr = "DISP3 FG";
-
-				for (i = 0; i < num_registered_fb; i++) {
-					char *idstr = registered_fb[i]->fix.id;
-					if (strcmp(idstr, video_plane_idstr) == 0) {
-						((struct mxcfb_info *)(registered_fb[i]->par))->alpha_chan_en = false;
-						break;
-					}
+					ipu_ch = MEM_FG_SYNC;
+				else {
+					retval = -EINVAL;
+					break;
 				}
+
+				fbi_tmp = found_registered_fb(ipu_ch, mxc_fbi->ipu_id);
+				if (fbi_tmp)
+					((struct mxcfb_info *)(fbi_tmp->par))->alpha_chan_en = false;
 			} else
 				mxc_fbi->alpha_chan_en = false;
 
@@ -956,16 +854,16 @@ static int mxcfb_ioctl(struct fb_info *fbi, unsigned int cmd, unsigned long arg)
 
 			mxc_fbi->cur_ipu_alpha_buf =
 						!mxc_fbi->cur_ipu_alpha_buf;
-			if (ipu_update_channel_buffer(mxc_fbi->ipu_ch,
+			if (ipu_update_channel_buffer(mxc_fbi->ipu, mxc_fbi->ipu_ch,
 						      IPU_ALPHA_IN_BUFFER,
 						      mxc_fbi->
 							cur_ipu_alpha_buf,
 						      base) == 0) {
-				ipu_select_buffer(mxc_fbi->ipu_ch,
+				ipu_select_buffer(mxc_fbi->ipu, mxc_fbi->ipu_ch,
 						  IPU_ALPHA_IN_BUFFER,
 						  mxc_fbi->cur_ipu_alpha_buf);
-				ipu_clear_irq(ipu_alp_ch_irq);
-				ipu_enable_irq(ipu_alp_ch_irq);
+				ipu_clear_irq(mxc_fbi->ipu, ipu_alp_ch_irq);
+				ipu_enable_irq(mxc_fbi->ipu, ipu_alp_ch_irq);
 			} else {
 				dev_err(fbi->device,
 					"Error updating %s SDC alpha buf %d "
@@ -982,7 +880,7 @@ static int mxcfb_ioctl(struct fb_info *fbi, unsigned int cmd, unsigned long arg)
 				retval = -EFAULT;
 				break;
 			}
-			retval = ipu_disp_set_color_key(mxc_fbi->ipu_ch,
+			retval = ipu_disp_set_color_key(mxc_fbi->ipu, mxc_fbi->ipu_ch,
 							key.enable,
 							key.color_key);
 			dev_dbg(fbi->device, "Set color key to 0x%08X\n",
@@ -996,7 +894,8 @@ static int mxcfb_ioctl(struct fb_info *fbi, unsigned int cmd, unsigned long arg)
 				retval = -EFAULT;
 				break;
 			}
-			retval = ipu_disp_set_gamma_correction(mxc_fbi->ipu_ch,
+			retval = ipu_disp_set_gamma_correction(mxc_fbi->ipu,
+							mxc_fbi->ipu_ch,
 							gamma.enable,
 							gamma.constk,
 							gamma.slopek);
@@ -1005,14 +904,17 @@ static int mxcfb_ioctl(struct fb_info *fbi, unsigned int cmd, unsigned long arg)
 	case MXCFB_WAIT_FOR_VSYNC:
 		{
 			if (mxc_fbi->ipu_ch == MEM_FG_SYNC) {
+				/* BG should poweron */
 				struct mxcfb_info *bg_mxcfbi = NULL;
-				int i;
-				for (i = 0; i < num_registered_fb; i++) {
-					bg_mxcfbi =
-					((struct mxcfb_info *)(registered_fb[i]->par));
+				struct fb_info *fbi_tmp;
 
-					if (bg_mxcfbi->ipu_ch == MEM_BG_SYNC)
-						break;
+				fbi_tmp = found_registered_fb(MEM_BG_SYNC, mxc_fbi->ipu_id);
+				if (fbi_tmp)
+					bg_mxcfbi = ((struct mxcfb_info *)(fbi_tmp->par));
+
+				if (!bg_mxcfbi) {
+					retval = -EINVAL;
+					break;
 				}
 				if (bg_mxcfbi->cur_blank != FB_BLANK_UNBLANK) {
 					retval = -EINVAL;
@@ -1026,9 +928,9 @@ static int mxcfb_ioctl(struct fb_info *fbi, unsigned int cmd, unsigned long arg)
 
 			init_completion(&mxc_fbi->vsync_complete);
 
-			ipu_clear_irq(mxc_fbi->ipu_ch_irq);
+			ipu_clear_irq(mxc_fbi->ipu, mxc_fbi->ipu_ch_irq);
 			mxc_fbi->wait4vsync = 1;
-			ipu_enable_irq(mxc_fbi->ipu_ch_irq);
+			ipu_enable_irq(mxc_fbi->ipu, mxc_fbi->ipu_ch_irq);
 			retval = wait_for_completion_interruptible_timeout(
 				&mxc_fbi->vsync_complete, 1 * HZ);
 			if (retval == 0) {
@@ -1103,7 +1005,6 @@ static int mxcfb_ioctl(struct fb_info *fbi, unsigned int cmd, unsigned long arg)
 			struct mxcfb_pos pos;
 			struct fb_info *bg_fbi = NULL;
 			struct mxcfb_info *bg_mxcfbi = NULL;
-			int i;
 
 			if (mxc_fbi->ipu_ch != MEM_FG_SYNC) {
 				dev_err(fbi->device, "Should use the overlay "
@@ -1118,15 +1019,9 @@ static int mxcfb_ioctl(struct fb_info *fbi, unsigned int cmd, unsigned long arg)
 				break;
 			}
 
-			for (i = 0; i < num_registered_fb; i++) {
-				bg_mxcfbi =
-				((struct mxcfb_info *)(registered_fb[i]->par));
-
-				if (bg_mxcfbi->ipu_ch == MEM_BG_SYNC) {
-					bg_fbi = registered_fb[i];
-					break;
-				}
-			}
+			bg_fbi = found_registered_fb(MEM_BG_SYNC, mxc_fbi->ipu_id);
+			if (bg_fbi)
+				bg_mxcfbi = ((struct mxcfb_info *)(bg_fbi->par));
 
 			if (bg_fbi == NULL) {
 				dev_err(fbi->device, "Cannot find the "
@@ -1148,7 +1043,7 @@ static int mxcfb_ioctl(struct fb_info *fbi, unsigned int cmd, unsigned long arg)
 					pos.y = bg_fbi->var.yres - fbi->var.yres;
 			}
 
-			retval = ipu_disp_set_window_pos(mxc_fbi->ipu_ch,
+			retval = ipu_disp_set_window_pos(mxc_fbi->ipu, mxc_fbi->ipu_ch,
 							 pos.x, pos.y);
 
 			if (copy_to_user((void *)arg, &pos, sizeof(pos))) {
@@ -1229,9 +1124,10 @@ static int mxcfb_blank(int blank, struct fb_info *info)
 	case FB_BLANK_VSYNC_SUSPEND:
 	case FB_BLANK_HSYNC_SUSPEND:
 	case FB_BLANK_NORMAL:
-		ipu_disable_channel(mxc_fbi->ipu_ch, true);
-		ipu_uninit_sync_panel(mxc_fbi->ipu_di);
-		ipu_uninit_channel(mxc_fbi->ipu_ch);
+		ipu_disable_channel(mxc_fbi->ipu, mxc_fbi->ipu_ch, true);
+		if (mxc_fbi->ipu_di >= 0)
+			ipu_uninit_sync_panel(mxc_fbi->ipu, mxc_fbi->ipu_di);
+		ipu_uninit_channel(mxc_fbi->ipu, mxc_fbi->ipu_ch);
 		break;
 	case FB_BLANK_UNBLANK:
 		mxcfb_set_par(info);
@@ -1257,7 +1153,7 @@ mxcfb_pan_display(struct fb_var_screeninfo *var, struct fb_info *info)
 	u_int y_bottom;
 	unsigned long base, active_alpha_phy_addr = 0;
 	bool loc_alpha_en = false;
-	int i = 0;
+	int i;
 
 	if (info->var.yoffset == var->yoffset)
 		return 0;	/* No change, do nothing */
@@ -1265,14 +1161,13 @@ mxcfb_pan_display(struct fb_var_screeninfo *var, struct fb_info *info)
 	/* no pan display during fb blank */
 	if (mxc_fbi->ipu_ch == MEM_FG_SYNC) {
 		struct mxcfb_info *bg_mxcfbi = NULL;
-		int j;
-		for (j = 0; j < num_registered_fb; j++) {
-			bg_mxcfbi =
-				((struct mxcfb_info *)(registered_fb[j]->par));
+		struct fb_info *fbi_tmp;
 
-			if (bg_mxcfbi->ipu_ch == MEM_BG_SYNC)
-				break;
-		}
+		fbi_tmp = found_registered_fb(MEM_BG_SYNC, mxc_fbi->ipu_id);
+		if (fbi_tmp)
+			bg_mxcfbi = ((struct mxcfb_info *)(fbi_tmp->par));
+		if (!bg_mxcfbi)
+			return -EINVAL;
 		if (bg_mxcfbi->cur_blank != FB_BLANK_UNBLANK)
 			return -EINVAL;
 	}
@@ -1294,9 +1189,13 @@ mxcfb_pan_display(struct fb_var_screeninfo *var, struct fb_info *info)
 	/* Check if DP local alpha is enabled and find the graphic fb */
 	if (mxc_fbi->ipu_ch == MEM_BG_SYNC || mxc_fbi->ipu_ch == MEM_FG_SYNC) {
 		for (i = 0; i < num_registered_fb; i++) {
+			char *bg_id = "DISP3 BG";
+			char *fg_id = "DISP3 FG";
 			char *idstr = registered_fb[i]->fix.id;
-			if ((strcmp(idstr, "DISP3 BG") == 0 ||
-			     strcmp(idstr, "DISP3 FG") == 0) &&
+			bg_id[4] += mxc_fbi->ipu_id;
+			fg_id[4] += mxc_fbi->ipu_id;
+			if ((strcmp(idstr, bg_id) == 0 ||
+			     strcmp(idstr, fg_id) == 0) &&
 			    ((struct mxcfb_info *)
 			      (registered_fb[i]->par))->alpha_chan_en) {
 				loc_alpha_en = true;
@@ -1323,41 +1222,41 @@ mxcfb_pan_display(struct fb_var_screeninfo *var, struct fb_info *info)
 	dev_dbg(info->device, "Updating SDC %s buf %d address=0x%08lX\n",
 		info->fix.id, mxc_fbi->cur_ipu_buf, base);
 
-	if (ipu_update_channel_buffer(mxc_fbi->ipu_ch, IPU_INPUT_BUFFER,
+	if (ipu_update_channel_buffer(mxc_fbi->ipu, mxc_fbi->ipu_ch, IPU_INPUT_BUFFER,
 				      mxc_fbi->cur_ipu_buf, base) == 0) {
 		/* Update the DP local alpha buffer only for graphic plane */
 		if (loc_alpha_en && mxc_graphic_fbi == mxc_fbi &&
-		    ipu_update_channel_buffer(mxc_graphic_fbi->ipu_ch,
+		    ipu_update_channel_buffer(mxc_graphic_fbi->ipu, mxc_graphic_fbi->ipu_ch,
 					      IPU_ALPHA_IN_BUFFER,
 					      mxc_fbi->cur_ipu_alpha_buf,
 					      active_alpha_phy_addr) == 0) {
-			ipu_select_buffer(mxc_graphic_fbi->ipu_ch,
+			ipu_select_buffer(mxc_graphic_fbi->ipu, mxc_graphic_fbi->ipu_ch,
 					  IPU_ALPHA_IN_BUFFER,
 					  mxc_fbi->cur_ipu_alpha_buf);
 		}
 
-		ipu_select_buffer(mxc_fbi->ipu_ch, IPU_INPUT_BUFFER,
+		ipu_select_buffer(mxc_fbi->ipu, mxc_fbi->ipu_ch, IPU_INPUT_BUFFER,
 				  mxc_fbi->cur_ipu_buf);
-		ipu_clear_irq(mxc_fbi->ipu_ch_irq);
-		ipu_enable_irq(mxc_fbi->ipu_ch_irq);
+		ipu_clear_irq(mxc_fbi->ipu, mxc_fbi->ipu_ch_irq);
+		ipu_enable_irq(mxc_fbi->ipu, mxc_fbi->ipu_ch_irq);
 	} else {
 		dev_err(info->device,
 			"Error updating SDC buf %d to address=0x%08lX, "
 			"current buf %d, buf0 ready %d, buf1 ready %d, "
 			"buf2 ready %d\n", mxc_fbi->cur_ipu_buf, base,
-			ipu_get_cur_buffer_idx(mxc_fbi->ipu_ch,
+			ipu_get_cur_buffer_idx(mxc_fbi->ipu, mxc_fbi->ipu_ch,
 					       IPU_INPUT_BUFFER),
-			ipu_check_buffer_ready(mxc_fbi->ipu_ch,
+			ipu_check_buffer_ready(mxc_fbi->ipu, mxc_fbi->ipu_ch,
 					       IPU_INPUT_BUFFER, 0),
-			ipu_check_buffer_ready(mxc_fbi->ipu_ch,
+			ipu_check_buffer_ready(mxc_fbi->ipu, mxc_fbi->ipu_ch,
 					       IPU_INPUT_BUFFER, 1),
-			ipu_check_buffer_ready(mxc_fbi->ipu_ch,
+			ipu_check_buffer_ready(mxc_fbi->ipu, mxc_fbi->ipu_ch,
 					       IPU_INPUT_BUFFER, 2));
 		mxc_fbi->cur_ipu_buf = (++mxc_fbi->cur_ipu_buf) % 3;
 		mxc_fbi->cur_ipu_buf = (++mxc_fbi->cur_ipu_buf) % 3;
 		mxc_fbi->cur_ipu_alpha_buf = !mxc_fbi->cur_ipu_alpha_buf;
-		ipu_clear_irq(mxc_fbi->ipu_ch_irq);
-		ipu_enable_irq(mxc_fbi->ipu_ch_irq);
+		ipu_clear_irq(mxc_fbi->ipu, mxc_fbi->ipu_ch_irq);
+		ipu_enable_irq(mxc_fbi->ipu, mxc_fbi->ipu_ch_irq);
 		return -EBUSY;
 	}
 
@@ -1448,11 +1347,11 @@ static irqreturn_t mxcfb_irq_handler(int irq, void *dev_id)
 
 	if (mxc_fbi->wait4vsync) {
 		complete(&mxc_fbi->vsync_complete);
-		ipu_disable_irq(irq);
+		ipu_disable_irq(mxc_fbi->ipu, irq);
 		mxc_fbi->wait4vsync = 0;
 	} else {
 		up(&mxc_fbi->flip_sem);
-		ipu_disable_irq(irq);
+		ipu_disable_irq(mxc_fbi->ipu, irq);
 	}
 	return IRQ_HANDLED;
 }
@@ -1463,7 +1362,7 @@ static irqreturn_t mxcfb_alpha_irq_handler(int irq, void *dev_id)
 	struct mxcfb_info *mxc_fbi = fbi->par;
 
 	up(&mxc_fbi->alpha_flip_sem);
-	ipu_disable_irq(irq);
+	ipu_disable_irq(mxc_fbi->ipu, irq);
 	return IRQ_HANDLED;
 }
 
@@ -1478,6 +1377,18 @@ static int mxcfb_suspend(struct platform_device *pdev, pm_message_t state)
 #ifdef CONFIG_FB_MXC_LOW_PWR_DISPLAY
 	void *fbmem;
 #endif
+
+	if (mxc_fbi->ovfbi) {
+		struct mxcfb_info *mxc_fbi_fg =
+			(struct mxcfb_info *)mxc_fbi->ovfbi->par;
+
+		console_lock();
+		fb_set_suspend(mxc_fbi->ovfbi, 1);
+		saved_blank = mxc_fbi_fg->cur_blank;
+		mxcfb_blank(FB_BLANK_POWERDOWN, mxc_fbi->ovfbi);
+		mxc_fbi_fg->next_blank = saved_blank;
+		console_unlock();
+	}
 
 	console_lock();
 	fb_set_suspend(fbi, 1);
@@ -1501,6 +1412,15 @@ static int mxcfb_resume(struct platform_device *pdev)
 	mxcfb_blank(mxc_fbi->next_blank, fbi);
 	fb_set_suspend(fbi, 0);
 	console_unlock();
+
+	if (mxc_fbi->ovfbi) {
+		struct mxcfb_info *mxc_fbi_fg =
+			(struct mxcfb_info *)mxc_fbi->ovfbi->par;
+		console_lock();
+		mxcfb_blank(mxc_fbi_fg->next_blank, mxc_fbi->ovfbi);
+		fb_set_suspend(mxc_fbi->ovfbi, 0);
+		console_unlock();
+	}
 
 	return 0;
 }
@@ -1631,16 +1551,12 @@ static ssize_t swap_disp_chan(struct device *dev,
 	     (strstr(buf, "1-layer-fb") != NULL)) ||
 	    ((mxcfbi->ipu_ch == MEM_DC_SYNC) &&
 	     (strstr(buf, "2-layer-fb-bg") != NULL))) {
-		int i;
+		struct fb_info *fbi_fg;
 
-		for (i = 0; i < num_registered_fb; i++) {
-			fg_mxcfbi =
-				(struct mxcfb_info *)mxcfb_info[i]->par;
-			if (fg_mxcfbi->ipu_ch == MEM_FG_SYNC)
-				break;
-			else
-				fg_mxcfbi = NULL;
-		}
+		fbi_fg = found_registered_fb(MEM_FG_SYNC, mxcfbi->ipu_id);
+		if (fbi_fg)
+			fg_mxcfbi = (struct mxcfb_info *)fbi_fg->par;
+
 		if (!fg_mxcfbi ||
 			fg_mxcfbi->cur_blank == FB_BLANK_UNBLANK) {
 			dev_err(dev,
@@ -1658,151 +1574,183 @@ static ssize_t swap_disp_chan(struct device *dev,
 }
 DEVICE_ATTR(fsl_disp_property, 644, show_disp_chan, swap_disp_chan);
 
-static int mxcfb_setup(struct fb_info *fbi, struct platform_device *pdev)
+static int mxcfb_dispdrv_init(struct platform_device *pdev,
+		struct fb_info *fbi)
 {
-	struct mxcfb_info *mxcfbi = (struct mxcfb_info *)fbi->par;
 	struct ipuv3_fb_platform_data *plat_data = pdev->dev.platform_data;
+	struct mxcfb_info *mxcfbi = (struct mxcfb_info *)fbi->par;
+	struct mxc_dispdrv_setting setting;
+	char disp_dev[32], *default_dev = "lcd";
 	int ret = 0;
 
-	/* Need dummy values until real panel is configured */
-	fbi->var.xres = 240;
-	fbi->var.yres = 320;
-
-	if (!mxcfbi->default_bpp)
-		mxcfbi->default_bpp = 16;
-
-	if (plat_data && !mxcfbi->ipu_di_pix_fmt)
-		mxcfbi->ipu_di_pix_fmt = plat_data->interface_pix_fmt;
-
-	if (!mxcfbi->fb_mode_str && plat_data && plat_data->mode_str)
-		mxcfbi->fb_mode_str = plat_data->mode_str;
-
-	if (mxcfbi->fb_mode_str) {
-		if (mxcfbi->ipu_di >= 0) {
-			const struct fb_videomode *mode = NULL;
-			struct fb_videomode m;
-			int num = 0, found = 0;
-
-			dev_dbg(fbi->device, "Config display port %d\n",
-					mxcfbi->ipu_di);
-
-			INIT_LIST_HEAD(&fbi->modelist);
-
-			if (mxc_disp_mode[mxcfbi->ipu_di].num_modes) {
-				int i;
-				mode = mxc_disp_mode[mxcfbi->ipu_di].mode;
-				num = mxc_disp_mode[mxcfbi->ipu_di].num_modes;
-
-				for (i = 0; i < num; i++) {
-					/*
-					 * FIXME now we do not support interlaced
-					 * mode for ddc mode
-					 */
-					if ((mxc_disp_mode[mxcfbi->ipu_di].dev_mode
-						& MXC_DISP_DDC_DEV) &&
-						(mode[i].vmode & FB_VMODE_INTERLACED))
-						continue;
-					else
-						fb_add_videomode(&mode[i], &fbi->modelist);
-				}
-			}
-
-			if ((mxc_disp_mode[mxcfbi->ipu_di].dev_mode
-				& MXC_DISP_DDC_DEV) &&
-				!list_empty(&fbi->modelist)) {
-				dev_dbg(fbi->device,
-					"Look for video mode %s in ddc modelist\n",
-					mxcfbi->fb_mode_str);
-				/*
-				 * For DDC mode, try to get compatible mode first.
-				 * If get one, try to find nearest mode, otherwise,
-				 * use first mode provide by DDC.
-				 */
-				ret = fb_find_mode(&fbi->var, fbi,
-						mxcfbi->fb_mode_str, NULL, 0,
-						NULL, mxcfbi->default_bpp);
-				if (ret) {
-					fb_var_to_videomode(&m, &fbi->var);
-					mode = fb_find_nearest_mode(&m,
-						&fbi->modelist);
-					fb_videomode_to_var(&fbi->var, mode);
-				} else {
-					struct list_head *pos, *head;
-					struct fb_modelist *modelist;
-
-					head = &fbi->modelist;
-					list_for_each(pos, head) {
-						modelist = list_entry(pos,
-							struct fb_modelist, list);
-						m = modelist->mode;
-						if (m.flag & FB_MODE_IS_FIRST)
-							break;
-					}
-					/* if no first mode, use last one */
-					mode = &m;
-					fb_videomode_to_var(&fbi->var, mode);
-				}
-				found = 1;
-			} else if (!list_empty(&fbi->modelist)) {
-				dev_dbg(fbi->device,
-					"Look for video mode %s in spec modelist\n",
-					mxcfbi->fb_mode_str);
-				/*
-				 * For specific mode, try to get specified mode
-				 * from fbi modelist.
-				 */
-				ret = fb_find_mode(&fbi->var, fbi,
-						mxcfbi->fb_mode_str, mode, num,
-						NULL, mxcfbi->default_bpp);
-				if (ret == 1)
-					found = 1;
-
-			}
-			/*
-			 * if no DDC mode and spec mode found,
-			 * try plat_data mode.
-			 */
-			if (!found) {
-				dev_dbg(fbi->device,
-					"Look for video mode %s in plat modelist\n",
-					mxcfbi->fb_mode_str);
-				if (plat_data && plat_data->modes
-					&& plat_data->num_modes)
-					ret = fb_find_mode(&fbi->var, fbi,
-						mxcfbi->fb_mode_str,
-						plat_data->modes,
-						plat_data->num_modes,
-						NULL,
-						mxcfbi->default_bpp);
-				else
-					ret = fb_find_mode(&fbi->var, fbi,
-						mxcfbi->fb_mode_str, NULL, 0,
-						NULL, mxcfbi->default_bpp);
-				if (ret)
-					found = 1;
-			}
-
-			if (!found) {
-				dev_err(fbi->device,
-					"Not found any valid video mode");
-				ret = -EINVAL;
-				goto done;
-			}
-
-			/*added found mode to fbi modelist*/
-			fb_var_to_videomode(&m, &fbi->var);
-			fb_add_videomode(&m, &fbi->modelist);
-		}
+	setting.if_fmt = plat_data->interface_pix_fmt;
+	setting.dft_mode_str = plat_data->mode_str;
+	setting.default_bpp = plat_data->default_bpp;
+	if (!setting.default_bpp)
+		setting.default_bpp = 16;
+	setting.fbi = fbi;
+	if (!strlen(plat_data->disp_dev)) {
+		memcpy(disp_dev, default_dev, strlen(default_dev));
+		disp_dev[strlen(default_dev)] = '\0';
+	} else {
+		memcpy(disp_dev, plat_data->disp_dev,
+				strlen(plat_data->disp_dev));
+		disp_dev[strlen(plat_data->disp_dev)] = '\0';
 	}
+
+	dev_info(&pdev->dev, "register mxc display driver %s\n", disp_dev);
+
+	ret = mxc_dispdrv_init(disp_dev, &setting);
+	if (ret < 0) {
+		dev_err(&pdev->dev,
+			"register mxc display driver failed with %d\n", ret);
+	} else {
+		/* fix-up  */
+		mxcfbi->ipu_di_pix_fmt = setting.if_fmt;
+		mxcfbi->default_bpp = setting.default_bpp;
+
+		/* setting */
+		mxcfbi->ipu_id = setting.dev_id;
+		mxcfbi->ipu_di = setting.disp_id;
+	}
+
+	return ret;
+}
+
+/*
+ * Parse user specified options (`video=trident:')
+ * example:
+ * 	video=mxcfb0:dev=lcd,800x480M-16@55,if=RGB565,bpp=16,noaccel
+ */
+static int mxcfb_option_setup(struct platform_device *pdev)
+{
+	struct ipuv3_fb_platform_data *pdata = pdev->dev.platform_data;
+	char *options, *opt, *fb_mode_str = NULL;
+	char name[] = "mxcfb0";
+
+	name[5] += pdev->id;
+	fb_get_options(name, &options);
+
+	if (!options || !*options)
+		return 0;
+
+	while ((opt = strsep(&options, ",")) != NULL) {
+		if (!*opt)
+			continue;
+
+		if (!strncmp(opt, "dev=", 4)) {
+			memcpy(pdata->disp_dev, opt + 4, strlen(opt) - 4);
+			continue;
+		}
+		if (!strncmp(opt, "if=", 3)) {
+			if (!strncmp(opt+3, "RGB24", 5)) {
+				pdata->interface_pix_fmt = IPU_PIX_FMT_RGB24;
+				continue;
+			} else if (!strncmp(opt+6, "BGR24", 5)) {
+				pdata->interface_pix_fmt = IPU_PIX_FMT_BGR24;
+				continue;
+			}
+			if (!strncmp(opt+3, "GBR24", 5)) {
+				pdata->interface_pix_fmt = IPU_PIX_FMT_GBR24;
+				continue;
+			}
+			if (!strncmp(opt+3, "RGB565", 6)) {
+				pdata->interface_pix_fmt = IPU_PIX_FMT_RGB565;
+				continue;
+			}
+			if (!strncmp(opt+3, "RGB666", 6)) {
+				pdata->interface_pix_fmt = IPU_PIX_FMT_RGB666;
+				continue;
+			}
+			if (!strncmp(opt+3, "YUV444", 6)) {
+				pdata->interface_pix_fmt = IPU_PIX_FMT_YUV444;
+				continue;
+			}
+			if (!strncmp(opt+3, "LVDS666", 7)) {
+				pdata->interface_pix_fmt = IPU_PIX_FMT_LVDS666;
+				continue;
+			}
+			if (!strncmp(opt+3, "YUYV16", 6)) {
+				pdata->interface_pix_fmt = IPU_PIX_FMT_YUYV;
+				continue;
+			}
+			if (!strncmp(opt+3, "UYVY16", 6)) {
+				pdata->interface_pix_fmt = IPU_PIX_FMT_UYVY;
+				continue;
+			}
+			if (!strncmp(opt+3, "YVYU16", 6)) {
+				pdata->interface_pix_fmt = IPU_PIX_FMT_YVYU;
+				continue;
+			}
+			if (!strncmp(opt+3, "VYUY16", 6)) {
+				pdata->interface_pix_fmt = IPU_PIX_FMT_VYUY;
+				continue;
+			}
+		}
+		if (!strncmp(opt, "int_clk", 7)) {
+			pdata->int_clk = true;
+			continue;
+		}
+		if (!strncmp(opt, "bpp=", 4))
+			pdata->default_bpp =
+				simple_strtoul(opt + 4, NULL, 0);
+		else
+			fb_mode_str = opt;
+	}
+
+	if (fb_mode_str)
+		pdata->mode_str = fb_mode_str;
+
+	return 0;
+}
+
+static int mxcfb_register(struct fb_info *fbi)
+{
+	struct mxcfb_info *mxcfbi = (struct mxcfb_info *)fbi->par;
+	struct fb_videomode m;
+	int ret = 0;
+	char bg0_id[] = "DISP3 BG";
+	char bg1_id[] = "DISP3 BG - DI1";
+	char fg_id[] = "DISP3 FG";
+
+	if (mxcfbi->ipu_di == 0) {
+		bg0_id[4] += mxcfbi->ipu_id;
+		strcpy(fbi->fix.id, bg0_id);
+	} else if (mxcfbi->ipu_di == 1) {
+		bg1_id[4] += mxcfbi->ipu_id;
+		strcpy(fbi->fix.id, bg1_id);
+	} else { /* Overlay */
+		fg_id[4] += mxcfbi->ipu_id;
+		strcpy(fbi->fix.id, fg_id);
+	}
+
+	if (ipu_request_irq(mxcfbi->ipu, mxcfbi->ipu_ch_irq, mxcfb_irq_handler, 0,
+				MXCFB_NAME, fbi) != 0) {
+		dev_err(fbi->device, "Error registering BG irq handler.\n");
+		ret = -EBUSY;
+		goto err0;
+	}
+	ipu_disable_irq(mxcfbi->ipu, mxcfbi->ipu_ch_irq);
+
+	if (mxcfbi->ipu_alp_ch_irq != -1)
+		if (ipu_request_irq(mxcfbi->ipu, mxcfbi->ipu_alp_ch_irq,
+					mxcfb_alpha_irq_handler, 0,
+					MXCFB_NAME, fbi) != 0) {
+			dev_err(fbi->device, "Error registering alpha irq "
+					"handler.\n");
+			ret = -EBUSY;
+			goto err1;
+		}
 
 	mxcfb_check_var(&fbi->var, fbi);
 
 	mxcfb_set_fix(fbi);
 
-	/* setup display */
-	if (mxcfbi->ipu_di >= 0)
-		if (mxcfb_pre_setup[mxcfbi->ipu_di])
-			(mxcfb_pre_setup[mxcfbi->ipu_di])(fbi);
+	/*added first mode to fbi modelist*/
+	if (!fbi->modelist.next || !fbi->modelist.prev)
+		INIT_LIST_HEAD(&fbi->modelist);
+	fb_var_to_videomode(&m, &fbi->var);
+	fb_add_videomode(&m, &fbi->modelist);
 
 	fbi->var.activate |= FB_ACTIVATE_FORCE;
 	console_lock();
@@ -1810,8 +1758,107 @@ static int mxcfb_setup(struct fb_info *fbi, struct platform_device *pdev)
 	ret = fb_set_var(fbi, &fbi->var);
 	fbi->flags &= ~FBINFO_MISC_USEREVENT;
 	console_unlock();
-done:
+
+	ret = register_framebuffer(fbi);
+	if (ret < 0)
+		goto err2;
+
 	return ret;
+err2:
+	if (mxcfbi->ipu_alp_ch_irq != -1)
+		ipu_free_irq(mxcfbi->ipu, mxcfbi->ipu_alp_ch_irq, fbi);
+err1:
+	ipu_free_irq(mxcfbi->ipu, mxcfbi->ipu_ch_irq, fbi);
+err0:
+	return ret;
+}
+
+static void mxcfb_unregister(struct fb_info *fbi)
+{
+	struct mxcfb_info *mxcfbi = (struct mxcfb_info *)fbi->par;
+
+	if (mxcfbi->ipu_alp_ch_irq != -1)
+		ipu_free_irq(mxcfbi->ipu, mxcfbi->ipu_alp_ch_irq, fbi);
+	if (mxcfbi->ipu_ch_irq)
+		ipu_free_irq(mxcfbi->ipu, mxcfbi->ipu_ch_irq, fbi);
+
+	unregister_framebuffer(fbi);
+}
+
+static int mxcfb_setup_overlay(struct platform_device *pdev,
+		struct fb_info *fbi_bg)
+{
+	struct fb_info *ovfbi;
+	struct mxcfb_info *mxcfbi_bg = (struct mxcfb_info *)fbi_bg->par;
+	struct mxcfb_info *mxcfbi_fg;
+	int ret = 0;
+
+	ovfbi = mxcfb_init_fbinfo(&pdev->dev, &mxcfb_ops);
+	if (!ovfbi) {
+		ret = -ENOMEM;
+		goto init_ovfbinfo_failed;
+	}
+	mxcfbi_fg = (struct mxcfb_info *)ovfbi->par;
+
+	mxcfbi_fg->ipu = ipu_get_soc(mxcfbi_bg->ipu_id);
+	if (IS_ERR(mxcfbi_fg->ipu)) {
+		ret = -ENODEV;
+		goto get_ipu_failed;
+	}
+	mxcfbi_fg->ipu_id = mxcfbi_bg->ipu_id;
+	mxcfbi_fg->ipu_ch_irq = IPU_IRQ_FG_SYNC_EOF;
+	mxcfbi_fg->ipu_alp_ch_irq = IPU_IRQ_FG_ALPHA_SYNC_EOF;
+	mxcfbi_fg->ipu_ch = MEM_FG_SYNC;
+	mxcfbi_fg->ipu_di = -1;
+	mxcfbi_fg->ipu_di_pix_fmt = mxcfbi_bg->ipu_di_pix_fmt;
+	mxcfbi_fg->overlay = true;
+	mxcfbi_fg->cur_blank = mxcfbi_fg->next_blank = FB_BLANK_POWERDOWN;
+
+	/* Need dummy values until real panel is configured */
+	ovfbi->var.xres = 240;
+	ovfbi->var.yres = 320;
+
+	ret = mxcfb_register(ovfbi);
+	if (ret < 0)
+		goto register_ov_failed;
+
+	mxcfbi_bg->ovfbi = ovfbi;
+
+	return ret;
+
+register_ov_failed:
+get_ipu_failed:
+	fb_dealloc_cmap(&ovfbi->cmap);
+	framebuffer_release(ovfbi);
+init_ovfbinfo_failed:
+	return ret;
+}
+
+static void mxcfb_unsetup_overlay(struct fb_info *fbi_bg)
+{
+	struct mxcfb_info *mxcfbi_bg = (struct mxcfb_info *)fbi_bg->par;
+	struct fb_info *ovfbi = mxcfbi_bg->ovfbi;
+
+	mxcfb_unregister(ovfbi);
+
+	if (&ovfbi->cmap)
+		fb_dealloc_cmap(&ovfbi->cmap);
+	framebuffer_release(ovfbi);
+}
+
+static bool ipu_usage[2][2];
+static int ipu_test_set_usage(int ipu, int di)
+{
+	if (ipu_usage[ipu][di])
+		return -EBUSY;
+	else
+		ipu_usage[ipu][di] = true;
+	return 0;
+}
+
+static void ipu_clear_usage(int ipu, int di)
+{
+	ipu_usage[ipu][di] = false;
 }
 
 /*!
@@ -1824,11 +1871,10 @@ done:
  */
 static int mxcfb_probe(struct platform_device *pdev)
 {
+	struct ipuv3_fb_platform_data *plat_data = pdev->dev.platform_data;
 	struct fb_info *fbi;
 	struct mxcfb_info *mxcfbi;
 	struct resource *res;
-	char *options;
-	char name[] = "mxcdi0fb";
 	int ret = 0;
 
 	/*
@@ -1837,76 +1883,23 @@ static int mxcfb_probe(struct platform_device *pdev)
 	fbi = mxcfb_init_fbinfo(&pdev->dev, &mxcfb_ops);
 	if (!fbi) {
 		ret = -ENOMEM;
-		goto err0;
+		goto init_fbinfo_failed;
 	}
+
+	mxcfb_option_setup(pdev);
+
 	mxcfbi = (struct mxcfb_info *)fbi->par;
+	mxcfbi->ipu_int_clk = plat_data->int_clk;
+	ret = mxcfb_dispdrv_init(pdev, fbi);
+	if (ret < 0)
+		goto init_dispdrv_failed;
 
-	name[5] += pdev->id;
-	if (fb_get_options(name, &options)) {
-		ret = -ENODEV;
-		goto err1;
+	ret = ipu_test_set_usage(mxcfbi->ipu_id, mxcfbi->ipu_di);
+	if (ret < 0) {
+		dev_err(&pdev->dev, "ipu%d-di%d already in use\n",
+				mxcfbi->ipu_id, mxcfbi->ipu_di);
+		goto ipu_in_busy;
 	}
-
-	if (options)
-		mxcfb_option_setup(fbi, options);
-
-	if (!g_dp_in_use) {
-		mxcfbi->ipu_ch_irq = IPU_IRQ_BG_SYNC_EOF;
-		mxcfbi->ipu_ch = MEM_BG_SYNC;
-		mxcfbi->cur_blank = mxcfbi->next_blank = FB_BLANK_UNBLANK;
-	} else {
-		mxcfbi->ipu_ch_irq = IPU_IRQ_DC_SYNC_EOF;
-		mxcfbi->ipu_ch = MEM_DC_SYNC;
-		mxcfbi->cur_blank = mxcfbi->next_blank = FB_BLANK_POWERDOWN;
-	}
-
-	mxcfbi->ipu_di = pdev->id;
-	mxcfbi->ipu_alp_ch_irq = -1;
-
-	if (pdev->id == 0) {
-		ipu_disp_set_global_alpha(mxcfbi->ipu_ch, true, 0x80);
-		ipu_disp_set_color_key(mxcfbi->ipu_ch, false, 0);
-		strcpy(fbi->fix.id, "DISP3 BG");
-
-		if (!g_dp_in_use)
-			mxcfbi->ipu_alp_ch_irq = IPU_IRQ_BG_ALPHA_SYNC_EOF;
-		g_dp_in_use = true;
-	} else if (pdev->id == 1) {
-		strcpy(fbi->fix.id, "DISP3 BG - DI1");
-
-		if (!g_dp_in_use)
-			mxcfbi->ipu_alp_ch_irq = IPU_IRQ_BG_ALPHA_SYNC_EOF;
-		g_dp_in_use = true;
-	} else if (pdev->id == 2) {	/* Overlay */
-		mxcfbi->ipu_ch_irq = IPU_IRQ_FG_SYNC_EOF;
-		mxcfbi->ipu_alp_ch_irq = IPU_IRQ_FG_ALPHA_SYNC_EOF;
-		mxcfbi->ipu_ch = MEM_FG_SYNC;
-		mxcfbi->ipu_di = -1;
-		mxcfbi->overlay = true;
-		mxcfbi->cur_blank = mxcfbi->next_blank = FB_BLANK_POWERDOWN;
-
-		strcpy(fbi->fix.id, "DISP3 FG");
-	}
-
-	mxcfb_info[pdev->id] = fbi;
-
-	if (ipu_request_irq(mxcfbi->ipu_ch_irq, mxcfb_irq_handler, 0,
-			    MXCFB_NAME, fbi) != 0) {
-		dev_err(&pdev->dev, "Error registering BG irq handler.\n");
-		ret = -EBUSY;
-		goto err1;
-	}
-	ipu_disable_irq(mxcfbi->ipu_ch_irq);
-
-	if (mxcfbi->ipu_alp_ch_irq != -1)
-		if (ipu_request_irq(mxcfbi->ipu_alp_ch_irq,
-					mxcfb_alpha_irq_handler, 0,
-					MXCFB_NAME, fbi) != 0) {
-			dev_err(&pdev->dev, "Error registering alpha irq "
-					"handler.\n");
-			ret = -EBUSY;
-			goto err2;
-		}
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	if (res && res->end) {
@@ -1915,13 +1908,43 @@ static int mxcfb_probe(struct platform_device *pdev)
 		fbi->screen_base = ioremap(fbi->fix.smem_start, fbi->fix.smem_len);
 	}
 
-	ret =  mxcfb_setup(fbi, pdev);
-	if (ret < 0)
-		goto err3;
+	mxcfbi->ipu = ipu_get_soc(mxcfbi->ipu_id);
+	if (IS_ERR(mxcfbi->ipu)) {
+		ret = -ENODEV;
+		goto get_ipu_failed;
+	}
 
-	ret = register_framebuffer(fbi);
-	if (ret < 0)
-		goto err3;
+	/* first user uses DP with alpha feature */
+	if (!g_dp_in_use[mxcfbi->ipu_id]) {
+		mxcfbi->ipu_ch_irq = IPU_IRQ_BG_SYNC_EOF;
+		mxcfbi->ipu_alp_ch_irq = IPU_IRQ_BG_ALPHA_SYNC_EOF;
+		mxcfbi->ipu_ch = MEM_BG_SYNC;
+		mxcfbi->cur_blank = mxcfbi->next_blank = FB_BLANK_UNBLANK;
+
+		ipu_disp_set_global_alpha(mxcfbi->ipu, mxcfbi->ipu_ch, true, 0x80);
+		ipu_disp_set_color_key(mxcfbi->ipu, mxcfbi->ipu_ch, false, 0);
+
+		ret = mxcfb_register(fbi);
+		if (ret < 0)
+			goto mxcfb_register_failed;
+
+		ret = mxcfb_setup_overlay(pdev, fbi);
+		if (ret < 0) {
+			mxcfb_unregister(fbi);
+			goto mxcfb_setupoverlay_failed;
+		}
+
+		g_dp_in_use[mxcfbi->ipu_id] = true;
+	} else {
+		mxcfbi->ipu_ch_irq = IPU_IRQ_DC_SYNC_EOF;
+		mxcfbi->ipu_alp_ch_irq = -1;
+		mxcfbi->ipu_ch = MEM_DC_SYNC;
+		mxcfbi->cur_blank = mxcfbi->next_blank = FB_BLANK_POWERDOWN;
+
+		ret = mxcfb_register(fbi);
+		if (ret < 0)
+			goto mxcfb_register_failed;
+	}
 
 	platform_set_drvdata(pdev, fbi);
 
@@ -1935,15 +1958,16 @@ static int mxcfb_probe(struct platform_device *pdev)
 #endif
 
 	return 0;
-err3:
-	if (mxcfbi->ipu_alp_ch_irq != -1)
-		ipu_free_irq(mxcfbi->ipu_alp_ch_irq, fbi);
-err2:
-	ipu_free_irq(mxcfbi->ipu_ch_irq, fbi);
-err1:
+
+mxcfb_setupoverlay_failed:
+mxcfb_register_failed:
+get_ipu_failed:
+	ipu_clear_usage(mxcfbi->ipu_id, mxcfbi->ipu_di);
+ipu_in_busy:
+init_dispdrv_failed:
 	fb_dealloc_cmap(&fbi->cmap);
 	framebuffer_release(fbi);
-err0:
+init_fbinfo_failed:
 	return ret;
 }
 
@@ -1956,13 +1980,18 @@ static int mxcfb_remove(struct platform_device *pdev)
 		return 0;
 
 	mxcfb_blank(FB_BLANK_POWERDOWN, fbi);
-	ipu_free_irq(mxc_fbi->ipu_ch_irq, fbi);
+	mxcfb_unregister(fbi);
 	mxcfb_unmap_video_memory(fbi);
 
+	if (mxc_fbi->ovfbi) {
+		mxcfb_blank(FB_BLANK_POWERDOWN, mxc_fbi->ovfbi);
+		mxcfb_unsetup_overlay(fbi);
+		mxcfb_unmap_video_memory(mxc_fbi->ovfbi);
+	}
+
+	ipu_clear_usage(mxc_fbi->ipu_id, mxc_fbi->ipu_di);
 	if (&fbi->cmap)
 		fb_dealloc_cmap(&fbi->cmap);
-
-	unregister_framebuffer(fbi);
 	framebuffer_release(fbi);
 	return 0;
 }
@@ -1979,81 +2008,6 @@ static struct platform_driver mxcfb_driver = {
 	.suspend = mxcfb_suspend,
 	.resume = mxcfb_resume,
 };
-
-/*
- * Parse user specified options (`video=trident:')
- * example:
- * 	video=mxcdi0fb:RGB24, 1024x768M-16@60,bpp=16,noaccel
- */
-static int mxcfb_option_setup(struct fb_info *info, char *options)
-{
-	struct mxcfb_info *mxcfbi = info->par;
-	char *opt;
-
-	if (!options || !*options)
-		return 0;
-
-	while ((opt = strsep(&options, ",")) != NULL) {
-		if (!*opt)
-			continue;
-
-		if (!strncmp(opt, "RGB24", 5)) {
-			mxcfbi->ipu_di_pix_fmt = IPU_PIX_FMT_RGB24;
-			continue;
-		}
-		if (!strncmp(opt, "BGR24", 5)) {
-			mxcfbi->ipu_di_pix_fmt = IPU_PIX_FMT_BGR24;
-			continue;
-		}
-		if (!strncmp(opt, "GBR24", 5)) {
-			mxcfbi->ipu_di_pix_fmt = IPU_PIX_FMT_GBR24;
-			continue;
-		}
-		if (!strncmp(opt, "RGB565", 6)) {
-			mxcfbi->ipu_di_pix_fmt = IPU_PIX_FMT_RGB565;
-			continue;
-		}
-		if (!strncmp(opt, "RGB666", 6)) {
-			mxcfbi->ipu_di_pix_fmt = IPU_PIX_FMT_RGB666;
-			continue;
-		}
-		if (!strncmp(opt, "YUV444", 6)) {
-			mxcfbi->ipu_di_pix_fmt = IPU_PIX_FMT_YUV444;
-			continue;
-		}
-		if (!strncmp(opt, "LVDS666", 7)) {
-			mxcfbi->ipu_di_pix_fmt = IPU_PIX_FMT_LVDS666;
-			continue;
-		}
-		if (!strncmp(opt, "YUYV16", 6)) {
-			mxcfbi->ipu_di_pix_fmt = IPU_PIX_FMT_YUYV;
-			continue;
-		}
-		if (!strncmp(opt, "UYVY16", 6)) {
-			mxcfbi->ipu_di_pix_fmt = IPU_PIX_FMT_UYVY;
-			continue;
-		}
-		if (!strncmp(opt, "YVYU16", 6)) {
-			mxcfbi->ipu_di_pix_fmt = IPU_PIX_FMT_YVYU;
-			continue;
-		}
-		if (!strncmp(opt, "VYUY16", 6)) {
-			mxcfbi->ipu_di_pix_fmt = IPU_PIX_FMT_VYUY;
-			continue;
-		}
-		if (!strncmp(opt, "int_clk", 7)) {
-			mxcfbi->ipu_int_clk = true;
-			continue;
-		}
-		if (!strncmp(opt, "bpp=", 4))
-			mxcfbi->default_bpp =
-				simple_strtoul(opt + 4, NULL, 0);
-		else
-			mxcfbi->fb_mode_str = opt;
-	}
-
-	return 0;
-}
 
 /*!
  * Main entry function for the framebuffer. The function registers the power
