@@ -249,9 +249,9 @@ static int select_display_buffer(vout_data *vout, int next_buf)
 	int ret = 0;
 
 	vout->disp_buf_num = next_buf;
-	if (ipu_get_cur_buffer_idx(vout->display_ch, IPU_INPUT_BUFFER)
+	if (ipu_get_cur_buffer_idx(vout->ipu, vout->display_ch, IPU_INPUT_BUFFER)
 			!= next_buf)
-		ret = ipu_select_buffer(vout->display_ch, IPU_INPUT_BUFFER,
+		ret = ipu_select_buffer(vout->ipu, vout->display_ch, IPU_INPUT_BUFFER,
 				next_buf);
 	else
 		dev_dbg(&vout->video_dev->dev,
@@ -294,7 +294,7 @@ static int finish_previous_frame(vout_data *vout)
 	int ret = 0, try = 0;
 
 	/* make sure buf[vout->disp_buf_num] in showing */
-	while (ipu_check_buffer_ready(vout->display_ch,
+	while (ipu_check_buffer_ready(vout->ipu, vout->display_ch,
 			IPU_INPUT_BUFFER, vout->disp_buf_num)) {
 		if (fbi->fbops->fb_ioctl) {
 			old_fs = get_fs();
@@ -309,7 +309,7 @@ static int finish_previous_frame(vout_data *vout)
 				 * when fb doing blank and unblank, it has chance to go into
 				 * dead loop: fb unblank just after buffer 1 ready selected.
 				 */
-				ipu_clear_buffer_ready(vout->display_ch, IPU_INPUT_BUFFER,
+				ipu_clear_buffer_ready(vout->ipu, vout->display_ch, IPU_INPUT_BUFFER,
 						vout->disp_buf_num);
 			}
 		}
@@ -327,7 +327,7 @@ static int show_current_frame(vout_data *vout)
 	int ret = 0;
 
 	/* make sure buf[vout->disp_buf_num] begin to show */
-	if (ipu_get_cur_buffer_idx(vout->display_ch, IPU_INPUT_BUFFER)
+	if (ipu_get_cur_buffer_idx(vout->ipu, vout->display_ch, IPU_INPUT_BUFFER)
 		!= vout->disp_buf_num) {
 		/* wait for display frame finish */
 		if (fbi->fbops->fb_ioctl) {
@@ -364,7 +364,7 @@ static void icbypass_work_func(struct work_struct *work)
 	vout->frame_count++;
 
 	vout->ipu_buf[vout->next_rdy_ipu_buf] = index;
-	ret = ipu_update_channel_buffer(vout->display_ch, IPU_INPUT_BUFFER,
+	ret = ipu_update_channel_buffer(vout->ipu, vout->display_ch, IPU_INPUT_BUFFER,
 			vout->next_rdy_ipu_buf,
 			vout->v4l2_bufs[index].m.offset);
 	ret += select_display_buffer(vout, vout->next_rdy_ipu_buf);
@@ -499,11 +499,11 @@ static void mxc_v4l2out_timer_handler(unsigned long arg)
 		/* if first come back from fb blank, recover correct stack */
 		if (old_fb_blank != FB_BLANK_UNBLANK) {
 			if (vout->next_disp_ipu_buf == 1)
-				ipu_select_buffer(vout->display_ch, IPU_INPUT_BUFFER, 0);
+				ipu_select_buffer(vout->ipu, vout->display_ch, IPU_INPUT_BUFFER, 0);
 			else
-				ipu_select_buffer(vout->display_ch, IPU_INPUT_BUFFER, 1);
+				ipu_select_buffer(vout->ipu, vout->display_ch, IPU_INPUT_BUFFER, 1);
 		}
-		if (ipu_get_cur_buffer_idx(vout->display_ch, IPU_INPUT_BUFFER)
+		if (ipu_get_cur_buffer_idx(vout->ipu, vout->display_ch, IPU_INPUT_BUFFER)
 				== vout->next_disp_ipu_buf) {
 			dev_dbg(&vout->video_dev->dev, "IPU disp busy\n");
 			index = peek_next_buf(&vout->ready_q);
@@ -531,15 +531,15 @@ static void mxc_v4l2out_timer_handler(unsigned long arg)
 		vout->ipu_buf_p[vout->next_rdy_ipu_buf] = last_index_n;
 		vout->ipu_buf[vout->next_rdy_ipu_buf] = index;
 		vout->ipu_buf_n[vout->next_rdy_ipu_buf] = index;
-		ret = ipu_update_channel_buffer(vout->post_proc_ch,
+		ret = ipu_update_channel_buffer(vout->ipu, vout->post_proc_ch,
 				IPU_INPUT_BUFFER,
 				vout->next_rdy_ipu_buf,
 				vout->v4l2_bufs[index].m.offset);
-		ret += ipu_update_channel_buffer(MEM_VDI_PRP_VF_MEM_P,
+		ret += ipu_update_channel_buffer(vout->ipu, MEM_VDI_PRP_VF_MEM_P,
 				IPU_INPUT_BUFFER,
 				vout->next_rdy_ipu_buf,
 				vout->v4l2_bufs[index_p].m.offset + vout->bytesperline);
-		ret += ipu_update_channel_buffer(MEM_VDI_PRP_VF_MEM_N,
+		ret += ipu_update_channel_buffer(vout->ipu, MEM_VDI_PRP_VF_MEM_N,
 				IPU_INPUT_BUFFER,
 				vout->next_rdy_ipu_buf,
 				vout->v4l2_bufs[index_n].m.offset + vout->bytesperline);
@@ -549,7 +549,7 @@ static void mxc_v4l2out_timer_handler(unsigned long arg)
 		if (vout->pp_split) {
 			vout->ipu_buf[!vout->next_rdy_ipu_buf] = index;
 			/* always left stripe */
-			ret = ipu_update_channel_buffer(vout->post_proc_ch,
+			ret = ipu_update_channel_buffer(vout->ipu, vout->post_proc_ch,
 					IPU_INPUT_BUFFER,
 					0,/* vout->next_rdy_ipu_buf,*/
 					(vout->v4l2_bufs[index].m.offset) +
@@ -558,7 +558,7 @@ static void mxc_v4l2out_timer_handler(unsigned long arg)
 
 			/* the U/V offset has to be updated inside of IDMAC */
 			/* according to stripe offset */
-			ret += ipu_update_channel_offset(vout->post_proc_ch,
+			ret += ipu_update_channel_offset(vout->ipu, vout->post_proc_ch,
 					IPU_INPUT_BUFFER,
 					vout->v2f.fmt.pix.pixelformat,
 					vout->v2f.fmt.pix.width,
@@ -569,7 +569,7 @@ static void mxc_v4l2out_timer_handler(unsigned long arg)
 					vout->pp_up_stripe.input_column,
 					vout->pp_left_stripe.input_column);
 		} else
-			ret = ipu_update_channel_buffer(vout->post_proc_ch,
+			ret = ipu_update_channel_buffer(vout->ipu, vout->post_proc_ch,
 					IPU_INPUT_BUFFER,
 					vout->next_rdy_ipu_buf,
 					vout->v4l2_bufs[index].m.offset);
@@ -584,9 +584,9 @@ static void mxc_v4l2out_timer_handler(unsigned long arg)
 
 	/* set next buffer ready */
 	if (LOAD_3FIELDS(vout))
-		ret = ipu_select_multi_vdi_buffer(vout->next_rdy_ipu_buf);
+		ret = ipu_select_multi_vdi_buffer(vout->ipu, vout->next_rdy_ipu_buf);
 	else
-		ret = ipu_select_buffer(vout->post_proc_ch, IPU_INPUT_BUFFER,
+		ret = ipu_select_buffer(vout->ipu, vout->post_proc_ch, IPU_INPUT_BUFFER,
 				vout->next_rdy_ipu_buf);
 	if (ret < 0) {
 		dev_err(&vout->video_dev->dev,
@@ -680,12 +680,12 @@ static irqreturn_t mxc_v4l2out_work_irq_handler(int irq, void *dev_id)
 									vout->pp_down_stripe.input_column;
 				}
 
-				ret = ipu_update_channel_buffer(vout->post_proc_ch,
+				ret = ipu_update_channel_buffer(vout->ipu, vout->post_proc_ch,
 						IPU_INPUT_BUFFER,
 						(1 - local_buffer),
 						(vout->v4l2_bufs[vout->ipu_buf[disp_buf_num]].m.offset)
 						+ eba_offset + vertical_offset * vout->bytesperline);
-				ret += ipu_update_channel_offset(vout->post_proc_ch,
+				ret += ipu_update_channel_offset(vout->ipu, vout->post_proc_ch,
 								IPU_INPUT_BUFFER,
 								vout->v2f.fmt.pix.pixelformat,
 								vout->v2f.fmt.pix.width,
@@ -697,7 +697,7 @@ static irqreturn_t mxc_v4l2out_work_irq_handler(int irq, void *dev_id)
 								eba_offset);
 
 				/* select right stripe */
-				ret += ipu_select_buffer(vout->post_proc_ch, IPU_INPUT_BUFFER,
+				ret += ipu_select_buffer(vout->ipu, vout->post_proc_ch, IPU_INPUT_BUFFER,
 							(1 - local_buffer));
 				if (ret < 0)
 					dev_err(&vout->video_dev->dev,
@@ -735,17 +735,17 @@ static irqreturn_t mxc_v4l2out_work_irq_handler(int irq, void *dev_id)
 			eba_offset = vout->display_bufs[disp_buf_num_next] +
 						pp_out_buf_offset + eba_offset;
 
-			ipu_update_channel_buffer(vout->post_proc_ch, IPU_OUTPUT_BUFFER,
+			ipu_update_channel_buffer(vout->ipu, vout->post_proc_ch, IPU_OUTPUT_BUFFER,
 						local_buffer, eba_offset);
 
 			/* next buffer ready */
-			ret = ipu_select_buffer(vout->post_proc_ch, IPU_OUTPUT_BUFFER, local_buffer);
+			ret = ipu_select_buffer(vout->ipu, vout->post_proc_ch, IPU_OUTPUT_BUFFER, local_buffer);
 
 			/* next stripe_buffer index 0..7 */
 			vout->pp_split_buf_num = (vout->pp_split_buf_num + vout->pp_split) & 0x7;
 		} else {
 			disp_buf_num = vout->next_done_ipu_buf;
-			ret += ipu_select_buffer(vout->display_input_ch, IPU_OUTPUT_BUFFER,
+			ret += ipu_select_buffer(vout->ipu, vout->display_input_ch, IPU_OUTPUT_BUFFER,
 					vout->next_done_ipu_buf);
 		}
 
@@ -798,16 +798,16 @@ static int init_VDI_channel(vout_data *vout, ipu_channel_params_t params)
 {
 	struct device *dev = &vout->video_dev->dev;
 
-	if (ipu_init_channel(MEM_VDI_PRP_VF_MEM, &params) != 0) {
+	if (ipu_init_channel(vout->ipu, MEM_VDI_PRP_VF_MEM, &params) != 0) {
 		dev_dbg(dev, "Error initializing VDI current channel\n");
 		return -EINVAL;
 	}
 	if (LOAD_3FIELDS(vout)) {
-		if (ipu_init_channel(MEM_VDI_PRP_VF_MEM_P, &params) != 0) {
+		if (ipu_init_channel(vout->ipu, MEM_VDI_PRP_VF_MEM_P, &params) != 0) {
 			dev_err(dev, "Error initializing VDI previous channel\n");
 			return -EINVAL;
 		}
-		if (ipu_init_channel(MEM_VDI_PRP_VF_MEM_N, &params) != 0) {
+		if (ipu_init_channel(vout->ipu, MEM_VDI_PRP_VF_MEM_N, &params) != 0) {
 			dev_err(dev, "Error initializing VDI next channel\n");
 			return -EINVAL;
 		}
@@ -829,7 +829,7 @@ static int init_VDI_in_channel_buffer(vout_data *vout, uint32_t in_pixel_fmt,
 {
 	struct device *dev = &vout->video_dev->dev;
 
-	if (ipu_init_channel_buffer(MEM_VDI_PRP_VF_MEM, IPU_INPUT_BUFFER,
+	if (ipu_init_channel_buffer(vout->ipu, MEM_VDI_PRP_VF_MEM, IPU_INPUT_BUFFER,
 				    in_pixel_fmt, in_width, in_height, stride,
 				    IPU_ROTATE_NONE,
 				    vout->v4l2_bufs[vout->ipu_buf[0]].m.offset,
@@ -840,7 +840,7 @@ static int init_VDI_in_channel_buffer(vout_data *vout, uint32_t in_pixel_fmt,
 		return -EINVAL;
 	}
 	if (LOAD_3FIELDS(vout)) {
-		if (ipu_init_channel_buffer(MEM_VDI_PRP_VF_MEM_P,
+		if (ipu_init_channel_buffer(vout->ipu, MEM_VDI_PRP_VF_MEM_P,
 					    IPU_INPUT_BUFFER,
 					    in_pixel_fmt, in_width, in_height,
 					    stride, IPU_ROTATE_NONE,
@@ -851,7 +851,7 @@ static int init_VDI_in_channel_buffer(vout_data *vout, uint32_t in_pixel_fmt,
 			dev_err(dev, "Error initializing VDI previous input buffer\n");
 			return -EINVAL;
 		}
-		if (ipu_init_channel_buffer(MEM_VDI_PRP_VF_MEM_N,
+		if (ipu_init_channel_buffer(vout->ipu, MEM_VDI_PRP_VF_MEM_N,
 					    IPU_INPUT_BUFFER,
 					    in_pixel_fmt, in_width, in_height,
 					    stride, IPU_ROTATE_NONE,
@@ -914,7 +914,7 @@ static int init_VDI(ipu_channel_params_t params, vout_data *vout,
 			return -ENOBUFS;
 		}
 
-		if (ipu_init_channel_buffer(vout->post_proc_ch,
+		if (ipu_init_channel_buffer(vout->ipu, vout->post_proc_ch,
 					    IPU_OUTPUT_BUFFER,
 					    params.mem_prp_vf_mem.
 					    out_pixel_fmt, out_width,
@@ -926,11 +926,11 @@ static int init_VDI(ipu_channel_params_t params, vout_data *vout,
 			return -EINVAL;
 		}
 
-		if (ipu_init_channel(MEM_ROT_VF_MEM, NULL) != 0) {
+		if (ipu_init_channel(vout->ipu, MEM_ROT_VF_MEM, NULL) != 0) {
 			dev_err(dev, "Error initializing PP ROT channel\n");
 			return -EINVAL;
 		}
-		if (ipu_init_channel_buffer(MEM_ROT_VF_MEM,
+		if (ipu_init_channel_buffer(vout->ipu, MEM_ROT_VF_MEM,
 					    IPU_INPUT_BUFFER,
 					    params.mem_prp_vf_mem.
 					    out_pixel_fmt, out_width,
@@ -949,7 +949,7 @@ static int init_VDI(ipu_channel_params_t params, vout_data *vout,
 			out_height = vout->crop_current.height;
 		}
 
-		if (ipu_init_channel_buffer(MEM_ROT_VF_MEM,
+		if (ipu_init_channel_buffer(vout->ipu, MEM_ROT_VF_MEM,
 					    IPU_OUTPUT_BUFFER,
 					    params.mem_prp_vf_mem.
 					    out_pixel_fmt, out_width,
@@ -962,15 +962,15 @@ static int init_VDI(ipu_channel_params_t params, vout_data *vout,
 			return -EINVAL;
 		}
 
-		if (ipu_link_channels(vout->post_proc_ch, MEM_ROT_VF_MEM) < 0)
+		if (ipu_link_channels(vout->ipu, vout->post_proc_ch, MEM_ROT_VF_MEM) < 0)
 			return -EINVAL;
 
 		vout->display_input_ch = MEM_ROT_VF_MEM;
-		ipu_enable_channel(MEM_ROT_VF_MEM);
-		ipu_select_buffer(MEM_ROT_VF_MEM, IPU_OUTPUT_BUFFER, 0);
-		ipu_select_buffer(MEM_ROT_VF_MEM, IPU_OUTPUT_BUFFER, 1);
+		ipu_enable_channel(vout->ipu, MEM_ROT_VF_MEM);
+		ipu_select_buffer(vout->ipu, MEM_ROT_VF_MEM, IPU_OUTPUT_BUFFER, 0);
+		ipu_select_buffer(vout->ipu, MEM_ROT_VF_MEM, IPU_OUTPUT_BUFFER, 1);
 	} else {
-		if (ipu_init_channel_buffer(vout->post_proc_ch,
+		if (ipu_init_channel_buffer(vout->ipu, vout->post_proc_ch,
 					    IPU_OUTPUT_BUFFER,
 					    params.mem_prp_vf_mem.
 					    out_pixel_fmt, out_width,
@@ -1090,7 +1090,7 @@ static int init_PP(ipu_channel_params_t *params, vout_data *vout,
 		vout->pp_split_buf_num = 0;
 	}
 
-	if (ipu_init_channel(vout->post_proc_ch, params) != 0) {
+	if (ipu_init_channel(vout->ipu, vout->post_proc_ch, params) != 0) {
 		dev_err(dev, "Error initializing PP channel\n");
 		return -EINVAL;
 	}
@@ -1101,7 +1101,7 @@ static int init_PP(ipu_channel_params_t *params, vout_data *vout,
 		phy_addr1 = phy_addr0;
 	else
 		phy_addr1 = vout->v4l2_bufs[vout->ipu_buf[1]].m.offset;
-	if (ipu_init_channel_buffer(vout->post_proc_ch,
+	if (ipu_init_channel_buffer(vout->ipu, vout->post_proc_ch,
 				    IPU_INPUT_BUFFER,
 				    params->mem_pp_mem.in_pixel_fmt,
 				    params->mem_pp_mem.in_width,
@@ -1131,7 +1131,7 @@ static int init_PP(ipu_channel_params_t *params, vout_data *vout,
 			return -ENOBUFS;
 		}
 
-		if (ipu_init_channel_buffer(vout->post_proc_ch,
+		if (ipu_init_channel_buffer(vout->ipu, vout->post_proc_ch,
 					    IPU_OUTPUT_BUFFER,
 					    params->mem_pp_mem.
 					    out_pixel_fmt, out_width,
@@ -1143,11 +1143,11 @@ static int init_PP(ipu_channel_params_t *params, vout_data *vout,
 			return -EINVAL;
 		}
 
-		if (ipu_init_channel(MEM_ROT_PP_MEM, NULL) != 0) {
+		if (ipu_init_channel(vout->ipu, MEM_ROT_PP_MEM, NULL) != 0) {
 			dev_err(dev, "Error initializing PP ROT channel\n");
 			return -EINVAL;
 		}
-		if (ipu_init_channel_buffer(MEM_ROT_PP_MEM,
+		if (ipu_init_channel_buffer(vout->ipu, MEM_ROT_PP_MEM,
 					    IPU_INPUT_BUFFER,
 					    params->mem_pp_mem.
 					    out_pixel_fmt, out_width,
@@ -1166,7 +1166,7 @@ static int init_PP(ipu_channel_params_t *params, vout_data *vout,
 			out_height = vout->crop_current.height;
 		}
 
-		if (ipu_init_channel_buffer(MEM_ROT_PP_MEM,
+		if (ipu_init_channel_buffer(vout->ipu, MEM_ROT_PP_MEM,
 					    IPU_OUTPUT_BUFFER,
 					    params->mem_pp_mem.
 					    out_pixel_fmt, out_width,
@@ -1178,15 +1178,15 @@ static int init_PP(ipu_channel_params_t *params, vout_data *vout,
 			return -EINVAL;
 		}
 
-		if (ipu_link_channels(vout->post_proc_ch, MEM_ROT_PP_MEM) < 0)
+		if (ipu_link_channels(vout->ipu, vout->post_proc_ch, MEM_ROT_PP_MEM) < 0)
 			return -EINVAL;
 
 		vout->display_input_ch = MEM_ROT_PP_MEM;
-		ipu_enable_channel(MEM_ROT_PP_MEM);
-		ipu_select_buffer(MEM_ROT_PP_MEM, IPU_OUTPUT_BUFFER, 0);
-		ipu_select_buffer(MEM_ROT_PP_MEM, IPU_OUTPUT_BUFFER, 1);
+		ipu_enable_channel(vout->ipu, MEM_ROT_PP_MEM);
+		ipu_select_buffer(vout->ipu, MEM_ROT_PP_MEM, IPU_OUTPUT_BUFFER, 0);
+		ipu_select_buffer(vout->ipu, MEM_ROT_PP_MEM, IPU_OUTPUT_BUFFER, 1);
 	} else {
-		if (ipu_init_channel_buffer(vout->post_proc_ch,
+		if (ipu_init_channel_buffer(vout->ipu, vout->post_proc_ch,
 					    IPU_OUTPUT_BUFFER,
 					    params->mem_pp_mem.
 					    out_pixel_fmt, out_width,
@@ -1201,26 +1201,26 @@ static int init_PP(ipu_channel_params_t *params, vout_data *vout,
 
 	/* fix EBAs for IDMAC channels */
 	if (vout->pp_split) {
-		ipu_update_channel_buffer(vout->post_proc_ch, IPU_INPUT_BUFFER,
+		ipu_update_channel_buffer(vout->ipu, vout->post_proc_ch, IPU_INPUT_BUFFER,
 									0,
 									vout->v4l2_bufs[vout->ipu_buf[0]].m.offset +
 									vout->pp_left_stripe.input_column +
 									vout->pp_up_stripe.input_column * vout->bytesperline);
 
 
-		ipu_update_channel_buffer(vout->post_proc_ch, IPU_INPUT_BUFFER,
+		ipu_update_channel_buffer(vout->ipu, vout->post_proc_ch, IPU_INPUT_BUFFER,
 									1,
 									vout->v4l2_bufs[vout->ipu_buf[0]].m.offset +
 									vout->pp_right_stripe.input_column +
 									vout->pp_up_stripe.input_column * vout->bytesperline);
 
-		ipu_update_channel_buffer(vout->post_proc_ch, IPU_OUTPUT_BUFFER,
+		ipu_update_channel_buffer(vout->ipu, vout->post_proc_ch, IPU_OUTPUT_BUFFER,
 									0,
 									vout->display_bufs[0] + eba_offset +
 									vout->pp_left_stripe.output_column +
 									vout->pp_up_stripe.output_column);
 
-		ipu_update_channel_buffer(vout->post_proc_ch, IPU_OUTPUT_BUFFER,
+		ipu_update_channel_buffer(vout->ipu, vout->post_proc_ch, IPU_OUTPUT_BUFFER,
 									1,
 									vout->display_bufs[0] + eba_offset +
 									vout->pp_right_stripe.output_column +
@@ -1543,8 +1543,8 @@ static int mxc_v4l2out_streamon(vout_data *vout)
 		vout->work_irq = -1;
 
 	if (!vout->ic_bypass && (vout->work_irq > 0)) {
-		ipu_clear_irq(vout->work_irq);
-		ipu_request_irq(vout->work_irq,
+		ipu_clear_irq(vout->ipu, vout->work_irq);
+		ipu_request_irq(vout->ipu, vout->work_irq,
 				mxc_v4l2out_work_irq_handler,
 				0, vout->video_dev->name, vout);
 	}
@@ -1558,37 +1558,37 @@ static int mxc_v4l2out_streamon(vout_data *vout)
 		console_unlock();
 		vout->fb_blank = FB_BLANK_UNBLANK;
 	} else {
-		ipu_enable_channel(vout->display_ch);
+		ipu_enable_channel(vout->ipu, vout->display_ch);
 	}
 
 	/* correct display ch buffer address */
-	ipu_update_channel_buffer(vout->display_ch, IPU_INPUT_BUFFER,
+	ipu_update_channel_buffer(vout->ipu, vout->display_ch, IPU_INPUT_BUFFER,
 					0, vout->display_bufs[0]);
-	ipu_update_channel_buffer(vout->display_ch, IPU_INPUT_BUFFER,
+	ipu_update_channel_buffer(vout->ipu, vout->display_ch, IPU_INPUT_BUFFER,
 					1, vout->display_bufs[1]);
 
 	if (!vout->ic_bypass) {
 #ifndef CONFIG_MXC_IPU_V1
-		ipu_enable_channel(vout->post_proc_ch);
+		ipu_enable_channel(vout->ipu, vout->post_proc_ch);
 #endif
 		if (LOAD_3FIELDS(vout)) {
-			ipu_enable_channel(MEM_VDI_PRP_VF_MEM_P);
-			ipu_enable_channel(MEM_VDI_PRP_VF_MEM_N);
-			ipu_select_multi_vdi_buffer(0);
+			ipu_enable_channel(vout->ipu, MEM_VDI_PRP_VF_MEM_P);
+			ipu_enable_channel(vout->ipu, MEM_VDI_PRP_VF_MEM_N);
+			ipu_select_multi_vdi_buffer(vout->ipu, 0);
 		} else
-			ipu_select_buffer(vout->post_proc_ch, IPU_INPUT_BUFFER, 0);
-		ipu_select_buffer(vout->post_proc_ch, IPU_OUTPUT_BUFFER, 0);
-		ipu_select_buffer(vout->post_proc_ch, IPU_OUTPUT_BUFFER, 1);
+			ipu_select_buffer(vout->ipu, vout->post_proc_ch, IPU_INPUT_BUFFER, 0);
+		ipu_select_buffer(vout->ipu, vout->post_proc_ch, IPU_OUTPUT_BUFFER, 0);
+		ipu_select_buffer(vout->ipu, vout->post_proc_ch, IPU_OUTPUT_BUFFER, 1);
 #ifdef CONFIG_MXC_IPU_V1
-		ipu_enable_channel(vout->post_proc_ch);
+		ipu_enable_channel(vout->ipu, vout->post_proc_ch);
 #endif
 	} else {
-		ipu_update_channel_buffer(vout->display_ch,
+		ipu_update_channel_buffer(vout->ipu, vout->display_ch,
 				IPU_INPUT_BUFFER,
 				0, vout->v4l2_bufs[vout->ipu_buf[0]].m.offset);
 		if (vout->offset.u_offset || vout->offset.v_offset)
 			/* only update u/v offset */
-			ipu_update_channel_offset(vout->display_ch,
+			ipu_update_channel_offset(vout->ipu, vout->display_ch,
 					IPU_INPUT_BUFFER,
 					vout->v2f.fmt.pix.pixelformat,
 					vout->v2f.fmt.pix.width,
@@ -1598,7 +1598,7 @@ static int mxc_v4l2out_streamon(vout_data *vout)
 					vout->offset.v_offset,
 					0,
 					0);
-		ipu_select_buffer(vout->display_ch, IPU_INPUT_BUFFER, 0);
+		ipu_select_buffer(vout->ipu, vout->display_ch, IPU_INPUT_BUFFER, 0);
 		queue_work(vout->v4l_wq, &vout->icbypass_work);
 	}
 
@@ -1634,7 +1634,7 @@ static int mxc_v4l2out_streamoff(vout_data *vout)
 	}
 
 	if (!vout->ic_bypass)
-		ipu_free_irq(vout->work_irq, vout);
+		ipu_free_irq(vout->ipu, vout->work_irq, vout);
 
 	if (vout->ic_bypass)
 		cancel_work_sync(&vout->icbypass_work);
@@ -1728,8 +1728,8 @@ static int mxc_v4l2out_streamoff(vout_data *vout)
 	    vout->post_proc_ch == MEM_PRP_VF_MEM) {
 		/* SDC with Rotation */
 		if (!ipu_can_rotate_in_place(vout->rotate)) {
-			ipu_unlink_channels(MEM_PP_MEM, MEM_ROT_PP_MEM);
-			ipu_disable_channel(MEM_ROT_PP_MEM, true);
+			ipu_unlink_channels(vout->ipu, MEM_PP_MEM, MEM_ROT_PP_MEM);
+			ipu_disable_channel(vout->ipu, MEM_ROT_PP_MEM, true);
 
 			if (vout->rot_pp_bufs[0]) {
 				mxc_free_buffers(vout->rot_pp_bufs,
@@ -1737,7 +1737,7 @@ static int mxc_v4l2out_streamoff(vout_data *vout)
 						 vout->display_buf_size);
 			}
 		}
-		ipu_disable_channel(MEM_PP_MEM, true);
+		ipu_disable_channel(vout->ipu, MEM_PP_MEM, true);
 
 		fbi->var.accel_flags = FB_ACCEL_TRIPLE_FLAG;
 		fbi->var.activate |= FB_ACTIVATE_FORCE;
@@ -1756,15 +1756,15 @@ static int mxc_v4l2out_streamoff(vout_data *vout)
 		vout->display_bufs[0] = 0;
 		vout->display_bufs[1] = 0;
 
-		ipu_uninit_channel(MEM_PP_MEM);
+		ipu_uninit_channel(vout->ipu, MEM_PP_MEM);
 		if (!ipu_can_rotate_in_place(vout->rotate))
-			ipu_uninit_channel(MEM_ROT_PP_MEM);
+			ipu_uninit_channel(vout->ipu, MEM_ROT_PP_MEM);
 	} else if (INTERLACED_CONTENT(vout) &&
 		(vout->post_proc_ch == MEM_VDI_PRP_VF_MEM)) {
 		if (!ipu_can_rotate_in_place(vout->rotate)) {
-			ipu_unlink_channels(MEM_VDI_PRP_VF_MEM,
+			ipu_unlink_channels(vout->ipu, MEM_VDI_PRP_VF_MEM,
 					    MEM_ROT_VF_MEM);
-			ipu_disable_channel(MEM_ROT_VF_MEM, true);
+			ipu_disable_channel(vout->ipu, MEM_ROT_VF_MEM, true);
 
 			if (vout->rot_pp_bufs[0]) {
 				mxc_free_buffers(vout->rot_pp_bufs,
@@ -1773,10 +1773,10 @@ static int mxc_v4l2out_streamoff(vout_data *vout)
 			}
 		}
 
-		ipu_disable_channel(MEM_VDI_PRP_VF_MEM, true);
+		ipu_disable_channel(vout->ipu, MEM_VDI_PRP_VF_MEM, true);
 		if (LOAD_3FIELDS(vout)) {
-			ipu_disable_channel(MEM_VDI_PRP_VF_MEM_P, true);
-			ipu_disable_channel(MEM_VDI_PRP_VF_MEM_N, true);
+			ipu_disable_channel(vout->ipu, MEM_VDI_PRP_VF_MEM_P, true);
+			ipu_disable_channel(vout->ipu, MEM_VDI_PRP_VF_MEM_N, true);
 		}
 
 		fbi->var.accel_flags = FB_ACCEL_TRIPLE_FLAG;
@@ -1796,13 +1796,13 @@ static int mxc_v4l2out_streamoff(vout_data *vout)
 		vout->display_bufs[0] = 0;
 		vout->display_bufs[1] = 0;
 
-		ipu_uninit_channel(MEM_VDI_PRP_VF_MEM);
+		ipu_uninit_channel(vout->ipu, MEM_VDI_PRP_VF_MEM);
 		if (LOAD_3FIELDS(vout)) {
-			ipu_uninit_channel(MEM_VDI_PRP_VF_MEM_P);
-			ipu_uninit_channel(MEM_VDI_PRP_VF_MEM_N);
+			ipu_uninit_channel(vout->ipu, MEM_VDI_PRP_VF_MEM_P);
+			ipu_uninit_channel(vout->ipu, MEM_VDI_PRP_VF_MEM_N);
 		}
 		if (!ipu_can_rotate_in_place(vout->rotate))
-			ipu_uninit_channel(MEM_ROT_VF_MEM);
+			ipu_uninit_channel(vout->ipu, MEM_ROT_VF_MEM);
 	}
 
 	vout->ready_q.head = vout->ready_q.tail = 0;
@@ -2284,7 +2284,7 @@ mxc_v4l2out_do_ioctl(struct file *file,
 						    (void *)vout->
 						    v4l2_bufs[index]
 						    .reserved, sizeof(param)))
-					ipu_set_csc_coefficients(vout->
+					ipu_set_csc_coefficients(vout->ipu, vout->
 								 display_ch,
 								 param);
 			queue_buf(&vout->ready_q, index);
@@ -2504,7 +2504,8 @@ mxc_v4l2out_do_ioctl(struct file *file,
 						break;
 					}
 
-					if (ipu_ch == MEM_BG_SYNC) {
+					if ((ipu_ch == MEM_BG_SYNC) &&
+						(!strncmp(fbi->fix.id, "DISP3", 5))) {
 						fbnum = i;
 						break;
 					}
@@ -2713,7 +2714,7 @@ static int mxc_v4l2out_probe(struct platform_device *pdev)
 	vout->cur_disp_output = -1;
 	for (i = 0; i < num_registered_fb; i++) {
 		char *idstr = registered_fb[i]->fix.id;
-		if (strncmp(idstr, "DISP", 4) == 0) {
+		if (strncmp(idstr, "DISP3", 5) == 0) {
 			int disp_num = idstr[4] - '0';
 			if (disp_num == 3) {
 				if (strcmp(idstr, "DISP3 BG - DI1") == 0)
@@ -2736,6 +2737,8 @@ static int mxc_v4l2out_probe(struct platform_device *pdev)
 
 	}
 	vout->crop_current = vout->crop_bounds[vout->cur_disp_output];
+
+	vout->ipu = ipu_get_soc(0);
 
 	platform_set_drvdata(pdev, vout);
 
