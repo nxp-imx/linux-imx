@@ -484,7 +484,6 @@ static void sii9022_hdmi_reset(void)
 static struct fsl_mxc_lcd_platform_data sii902x_hdmi_data = {
 	.reset = sii9022_hdmi_reset,
 	.analog_reg = "DA9052_LDO2",
-	.boot_enable = 1,
 };
 
 static struct i2c_board_info mxc_i2c2_board_info[] __initdata = {
@@ -679,49 +678,31 @@ static struct imx_ssi_platform_data smd_ssi_pdata = {
 	.flags = IMX_SSI_DMA,
 };
 
-static struct fb_videomode video_modes[] = {
-	{
-	/* 800x480 @ 57 Hz , pixel clk @ 27MHz */
-	"CLAA-WVGA", 57, 800, 480, 37037, 40, 60, 10, 10, 20, 10,
-	FB_SYNC_CLK_LAT_FALL,
-	FB_VMODE_NONINTERLACED,
-	0,},
-	{
-	/* 800x480 @ 60 Hz , pixel clk @ 32MHz */
-	"SEIKO-WVGA", 60, 800, 480, 29850, 89, 164, 23, 10, 10, 10,
-	FB_SYNC_CLK_LAT_FALL,
-	FB_VMODE_NONINTERLACED,
-	0,},
-	{
-	/* 1600x1200 @ 60 Hz 162M pixel clk*/
-	"UXGA", 60, 1600, 1200, 6172,
-	304, 64,
-	1, 46,
-	192, 3,
-	FB_SYNC_HOR_HIGH_ACT|FB_SYNC_VERT_HIGH_ACT,
-	FB_VMODE_NONINTERLACED,
-	0,},
+static struct fsl_mxc_lcd_platform_data lcdif_data = {
+	.ipu_id = 0,
+	.disp_id = 0,
+	.default_ifmt = IPU_PIX_FMT_RGB565,
 };
 
-static struct ipuv3_fb_platform_data smd_fb_di0_data = {
+static struct ipuv3_fb_platform_data smd_fb_data[] = {
+	{
+	.disp_dev = "ldb",
+	.interface_pix_fmt = IPU_PIX_FMT_RGB666,
+	.mode_str = "LDB-XGA",
+	.default_bpp = 16,
+	.int_clk = false,
+	}, {
+	.disp_dev = "hdmi",
 	.interface_pix_fmt = IPU_PIX_FMT_RGB24,
 	.mode_str = "1024x768M-16@60",
-	.modes = video_modes,
-	.num_modes = ARRAY_SIZE(video_modes),
-};
-
-static struct ipuv3_fb_platform_data smd_fb_di1_data = {
-	.interface_pix_fmt = IPU_PIX_FMT_RGB666,
-	.mode_str = "XGA",
-	.modes = video_modes,
-	.num_modes = ARRAY_SIZE(video_modes),
+	.default_bpp = 16,
+	.int_clk = false,
+	},
 };
 
 static struct imx_ipuv3_platform_data ipu_data = {
 	.rev = 3,
-	.fb_head0_platform_data = &smd_fb_di0_data,
-	.fb_head1_platform_data = &smd_fb_di1_data,
-	.primary_di = MXC_PRI_DI1,
+	.csi_clk[0] = "ssi_ext1_clk",
 };
 
 static struct platform_pwm_backlight_data mxc_pwm_backlight_data = {
@@ -732,8 +713,10 @@ static struct platform_pwm_backlight_data mxc_pwm_backlight_data = {
 };
 
 static struct fsl_mxc_ldb_platform_data ldb_data = {
+	.ipu_id = 0,
+	.disp_id = 1,
 	.ext_ref = 1,
-	.boot_enable = MXC_LDBDI1,
+	.mode = LDB_SIN_DI1,
 };
 
 static struct mxc_spdif_platform_data mxc_spdif_data = {
@@ -750,7 +733,8 @@ static struct mxc_spdif_platform_data mxc_spdif_data = {
 
 static void __init mx53_smd_board_init(void)
 {
-	ipu_data.csi_clk[0] = clk_get(NULL, "ssi_ext1_clk");
+	int i;
+
 	mxc_iomux_v3_setup_multiple_pads(mx53_smd_pads,
 					ARRAY_SIZE(mx53_smd_pads));
 
@@ -768,7 +752,10 @@ static void __init mx53_smd_board_init(void)
 	imx53_add_imx_i2c(2, &mx53_smd_i2c_data);
 	imx53_add_ecspi(0, &mx53_smd_spi_data);
 
-	imx53_add_ipuv3(&ipu_data);
+	imx53_add_ipuv3(0, &ipu_data);
+	for (i = 0; i < ARRAY_SIZE(smd_fb_data); i++)
+		imx53_add_ipuv3fb(i, &smd_fb_data[i]);
+	imx53_add_lcdif(&lcdif_data);
 	imx53_add_vpu();
 	imx53_add_ldb(&ldb_data);
 	imx53_add_v4l2_output(0);
