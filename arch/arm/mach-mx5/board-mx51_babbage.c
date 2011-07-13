@@ -425,43 +425,30 @@ static const struct spi_imx_master mx51_babbage_spi_pdata __initconst = {
 	.num_chipselect = ARRAY_SIZE(mx51_babbage_spi_cs),
 };
 
-static struct fb_videomode video_modes[] = {
-	{
-	 /*MITSUBISHI LVDS panel */
-	 "XGA", 60, 1024, 768, 15385,
-	 220, 40,
-	 21, 7,
-	 60, 10,
-	 0,
-	 FB_VMODE_NONINTERLACED,
-	 0,},
-	{
-	 /* 800x480 @ 57 Hz , pixel clk @ 27MHz */
-	 "CLAA-WVGA", 57, 800, 480, 37037, 40, 60, 10, 10, 20, 10,
-	 FB_SYNC_CLK_LAT_FALL,
-	 FB_VMODE_NONINTERLACED,
-	 0,},
+static struct fsl_mxc_lcd_platform_data lcdif_data = {
+	.ipu_id = 0,
+	.disp_id = 0,
+	.default_ifmt = IPU_PIX_FMT_RGB565,
 };
 
-static struct ipuv3_fb_platform_data bbg_fb_di0_data = {
+static struct ipuv3_fb_platform_data bbg_fb_data[] = {
+	{
+	.disp_dev = "dvi",
 	.interface_pix_fmt = IPU_PIX_FMT_RGB24,
 	.mode_str = "1024x768M-16@60",
-	.modes = video_modes,
-	.num_modes = ARRAY_SIZE(video_modes),
-};
-
-static struct ipuv3_fb_platform_data bbg_fb_di1_data = {
+	.default_bpp = 16,
+	.int_clk = false,
+	}, {
+	.disp_dev = "lcd",
 	.interface_pix_fmt = IPU_PIX_FMT_RGB565,
 	.mode_str = "CLAA-WVGA",
-	.modes = video_modes,
-	.num_modes = ARRAY_SIZE(video_modes),
+	.default_bpp = 16,
+	.int_clk = false,
+	},
 };
 
 static struct imx_ipuv3_platform_data ipu_data = {
 	.rev = 2,
-	.fb_head0_platform_data = &bbg_fb_di0_data,
-	.fb_head1_platform_data = &bbg_fb_di1_data,
-	.primary_di = MXC_PRI_DI0,
 };
 
 static struct platform_pwm_backlight_data bbg_pwm_backlight_data = {
@@ -508,11 +495,11 @@ static int ddc_dvi_update()
 		return 0;
 }
 
-static struct fsl_mxc_ddc_platform_data bbg_ddc_dvi_data = {
-	.di = 0,
+static struct fsl_mxc_dvi_platform_data bbg_ddc_dvi_data = {
+	.ipu_id = 0,
+	.disp_id = 0,
 	.init = ddc_dvi_init,
 	.update = ddc_dvi_update,
-	.boot_enable = 1,
 };
 
 static struct i2c_board_info mxc_i2c1_board_info[] __initdata = {
@@ -593,11 +580,9 @@ static void __init fixup_mxc_board(struct machine_desc *desc, struct tag *tags,
 		gpu_data.reserved_mem_size = gpu_mem;
 
 		/* reserver memory for fb */
-		bbg_fb_di0_data.res_base = gpu_data.reserved_mem_base
+		bbg_fb_data[0].res_base = gpu_data.reserved_mem_base
 					+ gpu_data.reserved_mem_size;
-		bbg_fb_di0_data.res_size = fb_mem;
-		bbg_fb_di1_data.res_base = bbg_fb_di0_data.res_base;
-		bbg_fb_di1_data.res_size = bbg_fb_di0_data.res_size;
+		bbg_fb_data[0].res_size = fb_mem;
 	}
 }
 
@@ -647,6 +632,8 @@ static struct mxc_spdif_platform_data mxc_spdif_data = {
  */
 static void __init mx51_babbage_init(void)
 {
+	int i;
+
 	iomux_v3_cfg_t usbh1stp = MX51_PAD_USBH1_STP__USBH1_STP;
 	iomux_v3_cfg_t power_key = _MX51_PAD_EIM_A27__GPIO2_21 |
 		MUX_PAD_CTRL(PAD_CTL_SRE_FAST | PAD_CTL_DSE_HIGH | PAD_CTL_PUS_100K_UP);
@@ -666,7 +653,10 @@ static void __init mx51_babbage_init(void)
 	babbage_fec_reset();
 	imx51_add_fec(NULL);
 
-	imx51_add_ipuv3(&ipu_data);
+	imx51_add_ipuv3(0, &ipu_data);
+	for (i = 0; i < ARRAY_SIZE(bbg_fb_data); i++)
+		imx51_add_ipuv3fb(i, &bbg_fb_data[i]);
+	imx51_add_lcdif(&lcdif_data);
 	imx51_add_vpu();
 	imx51_add_tve(&tve_data);
 	imx51_add_v4l2_output(0);

@@ -73,7 +73,8 @@ extern const struct imx_mxc_pwm_data imx51_mxc_pwm_data[] __initconst;
 			id, NULL, 0, pdata, sizeof(*pdata));
 
 extern const struct imx_ipuv3_data imx51_ipuv3_data __initconst;
-#define imx51_add_ipuv3(pdata)	imx_add_ipuv3(&imx51_ipuv3_data, pdata)
+#define imx51_add_ipuv3(id, pdata)	imx_add_ipuv3(id, &imx51_ipuv3_data, pdata)
+#define imx51_add_ipuv3fb(id, pdata)	imx_add_ipuv3_fb(id, pdata)
 
 extern const struct imx_vpu_data imx51_vpu_data __initconst;
 #define imx51_add_vpu()	imx_add_vpu(&imx51_vpu_data)
@@ -81,6 +82,10 @@ extern const struct imx_vpu_data imx51_vpu_data __initconst;
 extern const struct imx_tve_data imx51_tve_data __initconst;
 #define imx51_add_tve(pdata)	\
 	imx_add_tve(&imx51_tve_data, pdata)
+
+#define imx51_add_lcdif(pdata)	\
+	platform_device_register_resndata(NULL, "mxc_lcdif",\
+			0, NULL, 0, pdata, sizeof(*pdata));
 
 #define imx51_add_v4l2_output(id)	\
 	platform_device_register_resndata(NULL, "mxc_v4l2_output",\
