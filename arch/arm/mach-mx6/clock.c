@@ -244,10 +244,12 @@ static unsigned long pfd_round_rate(struct clk *clk, unsigned long rate)
 	u64 tmp;
 
 	tmp = (u64)clk_get_rate(clk->parent) * 18;
+	tmp += rate/2;
 	do_div(tmp, rate);
 	frac = tmp;
-	frac = frac < 18 ? 18 : frac;
+	frac = frac < 12 ? 12 : frac;
 	frac = frac > 35 ? 35 : frac;
+	tmp = (u64)clk_get_rate(clk->parent) * 18;
 	do_div(tmp, frac);
 	return tmp;
 }
@@ -2390,9 +2392,10 @@ static unsigned long _clk_ipu2_di0_get_rate(struct clk *clk)
 		(clk->parent == &ldb_di1_clk))
 		return clk_get_rate(clk->parent);
 
-	reg = __raw_readl(MXC_CCM_CHSCCDR);
+	reg = __raw_readl(MXC_CCM_CSCDR2);
 
-	div = (reg & MXC_CCM_CHSCCDR_IPU2_DI0_PODF_MASK) + 1;
+	div = ((reg & MXC_CCM_CSCDR2_IPU2_DI0_PODF_MASK) >>
+			MXC_CCM_CSCDR2_IPU2_DI0_PODF_OFFSET) + 1;
 
 	return clk_get_rate(clk->parent) / div;
 }
@@ -2416,10 +2419,10 @@ static int _clk_ipu2_di0_set_rate(struct clk *clk, unsigned long rate)
 	if (((parent_rate / div) != rate) || (div > 8))
 		return -EINVAL;
 
-	reg = __raw_readl(MXC_CCM_CHSCCDR);
-	reg &= ~MXC_CCM_CHSCCDR_IPU2_DI0_PODF_MASK;
-	reg |= (div - 1) << MXC_CCM_CHSCCDR_IPU2_DI0_PODF_OFFSET;
-	__raw_writel(reg, MXC_CCM_CHSCCDR);
+	reg = __raw_readl(MXC_CCM_CSCDR2);
+	reg &= ~MXC_CCM_CSCDR2_IPU2_DI0_PODF_MASK;
+	reg |= (div - 1) << MXC_CCM_CSCDR2_IPU2_DI0_PODF_OFFSET;
+	__raw_writel(reg, MXC_CCM_CSCDR2);
 
 	return 0;
 }
@@ -2433,23 +2436,23 @@ static int _clk_ipu2_di0_set_parent(struct clk *clk, struct clk *parent)
 	else if (parent == &ldb_di1_clk)
 		mux = 0x4;
 	else {
-		reg = __raw_readl(MXC_CCM_CHSCCDR)
-			& ~MXC_CCM_CHSCCDR_IPU2_DI0_PRE_CLK_SEL_MASK;
+		reg = __raw_readl(MXC_CCM_CSCDR2)
+			& ~MXC_CCM_CSCDR2_IPU2_DI0_PRE_CLK_SEL_MASK;
 
 		mux = _get_mux6(parent, &mmdc_ch0_axi_clk[0],
 				&pll3_usb_otg_main_clk, &pll5_video_main_clk,
 				&pll2_pfd_352M, &pll2_pfd_400M, &pll3_pfd_540M);
-		reg |= (mux << MXC_CCM_CHSCCDR_IPU2_DI0_PRE_CLK_SEL_OFFSET);
+		reg |= (mux << MXC_CCM_CSCDR2_IPU2_DI0_PRE_CLK_SEL_OFFSET);
 
-		__raw_writel(reg, MXC_CCM_CHSCCDR);
+		__raw_writel(reg, MXC_CCM_CSCDR2);
 
 		/* Derive clock from divided pre-muxed ipu2_di0 clock.*/
 		mux = 0;
 	}
-	reg = __raw_readl(MXC_CCM_CHSCCDR)
-		& ~MXC_CCM_CHSCCDR_IPU2_DI0_CLK_SEL_MASK;
-	__raw_writel(reg | (mux << MXC_CCM_CHSCCDR_IPU2_DI0_CLK_SEL_OFFSET),
-		MXC_CCM_CHSCCDR);
+	reg = __raw_readl(MXC_CCM_CSCDR2)
+		& ~MXC_CCM_CSCDR2_IPU2_DI0_CLK_SEL_MASK;
+	__raw_writel(reg | (mux << MXC_CCM_CSCDR2_IPU2_DI0_CLK_SEL_OFFSET),
+		MXC_CCM_CSCDR2);
 
 	return 0;
 }
@@ -2462,9 +2465,10 @@ static unsigned long _clk_ipu2_di1_get_rate(struct clk *clk)
 		(clk->parent == &ldb_di1_clk))
 		return clk_get_rate(clk->parent);
 
-	reg = __raw_readl(MXC_CCM_CHSCCDR);
+	reg = __raw_readl(MXC_CCM_CSCDR2);
 
-	div = (reg & MXC_CCM_CHSCCDR_IPU2_DI1_PODF_MASK) + 1;
+	div = ((reg & MXC_CCM_CSCDR2_IPU2_DI1_PODF_MASK)
+		>> MXC_CCM_CSCDR2_IPU2_DI1_PODF_OFFSET) + 1;
 
 	return clk_get_rate(clk->parent) / div;
 }
@@ -2488,10 +2492,10 @@ static int _clk_ipu2_di1_set_rate(struct clk *clk, unsigned long rate)
 	if (((parent_rate / div) != rate) || (div > 8))
 		return -EINVAL;
 
-	reg = __raw_readl(MXC_CCM_CHSCCDR);
-	reg &= ~MXC_CCM_CHSCCDR_IPU2_DI1_PODF_MASK;
-	reg |= (div - 1) << MXC_CCM_CHSCCDR_IPU2_DI1_PODF_OFFSET;
-	__raw_writel(reg, MXC_CCM_CHSCCDR);
+	reg = __raw_readl(MXC_CCM_CSCDR2);
+	reg &= ~MXC_CCM_CSCDR2_IPU2_DI1_PODF_MASK;
+	reg |= (div - 1) << MXC_CCM_CSCDR2_IPU2_DI1_PODF_OFFSET;
+	__raw_writel(reg, MXC_CCM_CSCDR2);
 
 	return 0;
 }
@@ -2505,23 +2509,23 @@ static int _clk_ipu2_di1_set_parent(struct clk *clk, struct clk *parent)
 	else if (parent == &ldb_di1_clk)
 		mux = 0x4;
 	else {
-		reg = __raw_readl(MXC_CCM_CHSCCDR)
-			& ~MXC_CCM_CHSCCDR_IPU2_DI1_PRE_CLK_SEL_MASK;
+		reg = __raw_readl(MXC_CCM_CSCDR2)
+			& ~MXC_CCM_CSCDR2_IPU2_DI1_PRE_CLK_SEL_MASK;
 
 		mux = _get_mux6(parent, &mmdc_ch0_axi_clk[0],
 				&pll3_usb_otg_main_clk, &pll5_video_main_clk,
 				&pll2_pfd_352M, &pll2_pfd_400M, &pll3_pfd_540M);
-		reg |= (mux << MXC_CCM_CHSCCDR_IPU2_DI1_PRE_CLK_SEL_OFFSET);
+		reg |= (mux << MXC_CCM_CSCDR2_IPU2_DI1_PRE_CLK_SEL_OFFSET);
 
-		__raw_writel(reg, MXC_CCM_CHSCCDR);
+		__raw_writel(reg, MXC_CCM_CSCDR2);
 
 		/* Derive clock from divided pre-muxed ipu1_di0 clock.*/
 		mux = 0;
 	}
-	reg = __raw_readl(MXC_CCM_CHSCCDR)
-		& ~MXC_CCM_CHSCCDR_IPU2_DI1_CLK_SEL_MASK;
-	__raw_writel(reg | (mux << MXC_CCM_CHSCCDR_IPU2_DI1_CLK_SEL_OFFSET),
-		MXC_CCM_CHSCCDR);
+	reg = __raw_readl(MXC_CCM_CSCDR2)
+		& ~MXC_CCM_CSCDR2_IPU2_DI1_CLK_SEL_MASK;
+	__raw_writel(reg | (mux << MXC_CCM_CSCDR2_IPU2_DI1_CLK_SEL_OFFSET),
+		MXC_CCM_CSCDR2);
 
 	return 0;
 }
