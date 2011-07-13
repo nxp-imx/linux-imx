@@ -58,6 +58,14 @@ ENTRY(mx6_secondary_startup)
 
 	/* invalidate l1-cache first */
 	bl      v7_invalidate_l1
+	mrc	p15, 0, r0, c0, c0, 5
+	and r0, r0, #15
+	ldr r1, = 0x020d8020
+	add r1, r0, LSL#3
+
+	mov r0, #0
+	str r0, [r1]
+	str r0, [r1, #0x4]
 
 	/* jump to secondary_startup */
 	b secondary_startup
