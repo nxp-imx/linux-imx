@@ -868,9 +868,11 @@ typedef struct {
 #define CSI_MCLK_RAW 4
 #define CSI_MCLK_I2C 8
 
+struct ipu_soc;
 /* Common IPU API */
-int32_t ipu_init_channel(ipu_channel_t channel, ipu_channel_params_t *params);
-void ipu_uninit_channel(ipu_channel_t channel);
+struct ipu_soc *ipu_get_soc(int id);
+int32_t ipu_init_channel(struct ipu_soc *ipu, ipu_channel_t channel, ipu_channel_params_t *params);
+void ipu_uninit_channel(struct ipu_soc *ipu, ipu_channel_t channel);
 
 static inline bool ipu_can_rotate_in_place(ipu_rotate_mode_t rot)
 {
@@ -881,7 +883,7 @@ static inline bool ipu_can_rotate_in_place(ipu_rotate_mode_t rot)
 #endif
 }
 
-int32_t ipu_init_channel_buffer(ipu_channel_t channel, ipu_buffer_t type,
+int32_t ipu_init_channel_buffer(struct ipu_soc *ipu, ipu_channel_t channel, ipu_buffer_t type,
 				uint32_t pixel_fmt,
 				uint16_t width, uint16_t height,
 				uint32_t stride,
@@ -890,48 +892,48 @@ int32_t ipu_init_channel_buffer(ipu_channel_t channel, ipu_buffer_t type,
 				dma_addr_t phyaddr_2,
 				uint32_t u_offset, uint32_t v_offset);
 
-int32_t ipu_update_channel_buffer(ipu_channel_t channel, ipu_buffer_t type,
+int32_t ipu_update_channel_buffer(struct ipu_soc *ipu, ipu_channel_t channel, ipu_buffer_t type,
 				  uint32_t bufNum, dma_addr_t phyaddr);
 
-int32_t ipu_update_channel_offset(ipu_channel_t channel, ipu_buffer_t type,
+int32_t ipu_update_channel_offset(struct ipu_soc *ipu, ipu_channel_t channel, ipu_buffer_t type,
 				uint32_t pixel_fmt,
 				uint16_t width, uint16_t height,
 				uint32_t stride,
 				uint32_t u, uint32_t v,
 				uint32_t vertical_offset, uint32_t horizontal_offset);
 
-int32_t ipu_select_buffer(ipu_channel_t channel,
+int32_t ipu_select_buffer(struct ipu_soc *ipu, ipu_channel_t channel,
 			  ipu_buffer_t type, uint32_t bufNum);
-int32_t ipu_select_multi_vdi_buffer(uint32_t bufNum);
+int32_t ipu_select_multi_vdi_buffer(struct ipu_soc *ipu, uint32_t bufNum);
 
-int32_t ipu_link_channels(ipu_channel_t src_ch, ipu_channel_t dest_ch);
-int32_t ipu_unlink_channels(ipu_channel_t src_ch, ipu_channel_t dest_ch);
+int32_t ipu_link_channels(struct ipu_soc *ipu, ipu_channel_t src_ch, ipu_channel_t dest_ch);
+int32_t ipu_unlink_channels(struct ipu_soc *ipu, ipu_channel_t src_ch, ipu_channel_t dest_ch);
 
-int32_t ipu_is_channel_busy(ipu_channel_t channel);
-int32_t ipu_check_buffer_ready(ipu_channel_t channel, ipu_buffer_t type,
+int32_t ipu_is_channel_busy(struct ipu_soc *ipu, ipu_channel_t channel);
+int32_t ipu_check_buffer_ready(struct ipu_soc *ipu, ipu_channel_t channel, ipu_buffer_t type,
 		uint32_t bufNum);
-void ipu_clear_buffer_ready(ipu_channel_t channel, ipu_buffer_t type,
+void ipu_clear_buffer_ready(struct ipu_soc *ipu, ipu_channel_t channel, ipu_buffer_t type,
 		uint32_t bufNum);
-uint32_t ipu_get_cur_buffer_idx(ipu_channel_t channel, ipu_buffer_t type);
-int32_t ipu_enable_channel(ipu_channel_t channel);
-int32_t ipu_disable_channel(ipu_channel_t channel, bool wait_for_stop);
-int32_t ipu_swap_channel(ipu_channel_t from_ch, ipu_channel_t to_ch);
+uint32_t ipu_get_cur_buffer_idx(struct ipu_soc *ipu, ipu_channel_t channel, ipu_buffer_t type);
+int32_t ipu_enable_channel(struct ipu_soc *ipu, ipu_channel_t channel);
+int32_t ipu_disable_channel(struct ipu_soc *ipu, ipu_channel_t channel, bool wait_for_stop);
+int32_t ipu_swap_channel(struct ipu_soc *ipu, ipu_channel_t from_ch, ipu_channel_t to_ch);
 
-int32_t ipu_enable_csi(uint32_t csi);
-int32_t ipu_disable_csi(uint32_t csi);
+int32_t ipu_enable_csi(struct ipu_soc *ipu, uint32_t csi);
+int32_t ipu_disable_csi(struct ipu_soc *ipu, uint32_t csi);
 
 int ipu_lowpwr_display_enable(void);
 int ipu_lowpwr_display_disable(void);
 
-void ipu_enable_irq(uint32_t irq);
-void ipu_disable_irq(uint32_t irq);
-void ipu_clear_irq(uint32_t irq);
-int ipu_request_irq(uint32_t irq,
+void ipu_enable_irq(struct ipu_soc *ipu, uint32_t irq);
+void ipu_disable_irq(struct ipu_soc *ipu, uint32_t irq);
+void ipu_clear_irq(struct ipu_soc *ipu, uint32_t irq);
+int ipu_request_irq(struct ipu_soc *ipu, uint32_t irq,
 		    irqreturn_t(*handler) (int, void *),
 		    uint32_t irq_flags, const char *devname, void *dev_id);
-void ipu_free_irq(uint32_t irq, void *dev_id);
-bool ipu_get_irq_status(uint32_t irq);
-void ipu_set_csc_coefficients(ipu_channel_t channel, int32_t param[][3]);
+void ipu_free_irq(struct ipu_soc *ipu, uint32_t irq, void *dev_id);
+bool ipu_get_irq_status(struct ipu_soc *ipu, uint32_t irq);
+void ipu_set_csc_coefficients(struct ipu_soc *ipu, ipu_channel_t channel, int32_t param[][3]);
 
 /* SDC API */
 int32_t ipu_sdc_init_panel(ipu_panel_t panel,
@@ -948,7 +950,7 @@ int32_t ipu_sdc_set_color_key(ipu_channel_t channel, bool enable,
 			      uint32_t colorKey);
 int32_t ipu_sdc_set_brightness(uint8_t value);
 
-int32_t ipu_init_sync_panel(int disp,
+int32_t ipu_init_sync_panel(struct ipu_soc *ipu, int disp,
 			    uint32_t pixel_clk,
 			    uint16_t width, uint16_t height,
 			    uint32_t pixel_fmt,
@@ -957,23 +959,23 @@ int32_t ipu_init_sync_panel(int disp,
 			    uint16_t v_sync_width, uint16_t v_end_width,
 			    uint32_t v_to_h_sync, ipu_di_signal_cfg_t sig);
 
-void ipu_uninit_sync_panel(int disp);
+void ipu_uninit_sync_panel(struct ipu_soc *ipu, int disp);
 
-int32_t ipu_disp_set_window_pos(ipu_channel_t channel, int16_t x_pos,
+int32_t ipu_disp_set_window_pos(struct ipu_soc *ipu, ipu_channel_t channel, int16_t x_pos,
 				int16_t y_pos);
-int32_t ipu_disp_get_window_pos(ipu_channel_t channel, int16_t *x_pos,
+int32_t ipu_disp_get_window_pos(struct ipu_soc *ipu, ipu_channel_t channel, int16_t *x_pos,
 				int16_t *y_pos);
-int32_t ipu_disp_set_global_alpha(ipu_channel_t channel, bool enable,
+int32_t ipu_disp_set_global_alpha(struct ipu_soc *ipu, ipu_channel_t channel, bool enable,
 				  uint8_t alpha);
-int32_t ipu_disp_set_color_key(ipu_channel_t channel, bool enable,
+int32_t ipu_disp_set_color_key(struct ipu_soc *ipu, ipu_channel_t channel, bool enable,
 			       uint32_t colorKey);
-int32_t ipu_disp_set_gamma_correction(ipu_channel_t channel, bool enable,
+int32_t ipu_disp_set_gamma_correction(struct ipu_soc *ipu, ipu_channel_t channel, bool enable,
 				int constk[], int slopek[]);
 
-int ipu_init_async_panel(int disp, int type, uint32_t cycle_time,
+int ipu_init_async_panel(struct ipu_soc *ipu, int disp, int type, uint32_t cycle_time,
 			 uint32_t pixel_fmt, ipu_adc_sig_cfg_t sig);
-void ipu_disp_direct_write(ipu_channel_t channel, u32 value, u32 offset);
-void ipu_reset_disp_panel(void);
+void ipu_disp_direct_write(struct ipu_soc *ipu, ipu_channel_t channel, u32 value, u32 offset);
+void ipu_reset_disp_panel(struct ipu_soc *ipu);
 
 /* ADC API */
 int32_t ipu_adc_write_template(display_port_t disp, uint32_t *pCmd,
@@ -1005,20 +1007,20 @@ int32_t ipu_adc_init_ifc_timing(display_port_t disp, bool read,
 				uint32_t read_latch_time, uint32_t pixel_clk);
 
 /* CMOS Sensor Interface API */
-int32_t ipu_csi_init_interface(uint16_t width, uint16_t height,
+int32_t ipu_csi_init_interface(struct ipu_soc *ipu, uint16_t width, uint16_t height,
 			       uint32_t pixel_fmt, ipu_csi_signal_cfg_t sig);
 
-int32_t ipu_csi_get_sensor_protocol(uint32_t csi);
+int32_t ipu_csi_get_sensor_protocol(struct ipu_soc *ipu, uint32_t csi);
 
-int32_t ipu_csi_enable_mclk(int src, bool flag, bool wait);
+int32_t ipu_csi_enable_mclk(struct ipu_soc *ipu, int src, bool flag, bool wait);
 
-static inline int32_t ipu_csi_enable_mclk_if(int src, uint32_t csi,
+static inline int32_t ipu_csi_enable_mclk_if(struct ipu_soc *ipu, int src, uint32_t csi,
 		bool flag, bool wait)
 {
 #ifdef CONFIG_MXC_IPU_V1
-	return ipu_csi_enable_mclk(src, flag, wait);
+	return ipu_csi_enable_mclk(ipu, src, flag, wait);
 #else
-	return ipu_csi_enable_mclk(csi, flag, wait);
+	return ipu_csi_enable_mclk(ipu, csi, flag, wait);
 #endif
 }
 
@@ -1026,11 +1028,11 @@ int ipu_csi_read_mclk_flag(void);
 
 void ipu_csi_flash_strobe(bool flag);
 
-void ipu_csi_get_window_size(uint32_t *width, uint32_t *height, uint32_t csi);
+void ipu_csi_get_window_size(struct ipu_soc *ipu, uint32_t *width, uint32_t *height, uint32_t csi);
 
-void ipu_csi_set_window_size(uint32_t width, uint32_t height, uint32_t csi);
+void ipu_csi_set_window_size(struct ipu_soc *ipu, uint32_t width, uint32_t height, uint32_t csi);
 
-void ipu_csi_set_window_pos(uint32_t left, uint32_t top, uint32_t csi);
+void ipu_csi_set_window_pos(struct ipu_soc *ipu, uint32_t left, uint32_t top, uint32_t csi);
 
 /* Post Filter functions */
 int32_t ipu_pf_set_pause_row(uint32_t pause_row);
