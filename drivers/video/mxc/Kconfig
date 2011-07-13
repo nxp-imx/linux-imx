@@ -27,7 +27,7 @@ config FB_MXC_EPSON_VGA_SYNC_PANEL
 config FB_MXC_TVOUT_TVE
 	tristate "MXC TVE TV Out Encoder"
 	depends on FB_MXC_SYNC_PANEL
-	depends on MXC_IPU_V3
+	depends on MXC_IPU_V3 && !ARCH_MX6Q
 
 config FB_MXC_LDB
 	tristate "MXC LDB"

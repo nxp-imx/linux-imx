@@ -1,7 +1,7 @@
 obj-$(CONFIG_FB_MXC_TVOUT_TVE)             	+= tve.o
 obj-$(CONFIG_FB_MXC_SII902X)                    += mxcfb_sii902x.o
 obj-$(CONFIG_FB_MXC_LDB)			+= ldb.o
-obj-$(CONFIG_FB_MODE_HELPERS)			+= mxc_edid.o
+#obj-$(CONFIG_FB_MODE_HELPERS)			+= mxc_edid.o
 ifeq ($(CONFIG_ARCH_MX21)$(CONFIG_ARCH_MX27)$(CONFIG_ARCH_MX25),y)
 	obj-$(CONFIG_FB_MXC_TVOUT)              += fs453.o
 	obj-$(CONFIG_FB_MXC_SYNC_PANEL)         += mx2fb.o mxcfb_modedb.o
@@ -10,7 +10,7 @@ else
 ifeq ($(CONFIG_MXC_IPU_V1),y)
 	obj-$(CONFIG_FB_MXC_SYNC_PANEL)         += mxcfb.o mxcfb_modedb.o
 else
-	obj-$(CONFIG_FB_MXC_SYNC_PANEL)         += mxc_ipuv3_fb.o
+	obj-$(CONFIG_FB_MXC_SYNC_PANEL)         += mxc_dispdrv.o mxc_lcdif.o mxc_ipuv3_fb.o
 endif
 	obj-$(CONFIG_FB_MXC_EPSON_PANEL)        += mxcfb_epson.o
 	obj-$(CONFIG_FB_MXC_EPSON_QVGA_PANEL)   += mxcfb_epson_qvga.o

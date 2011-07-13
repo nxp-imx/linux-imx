@@ -38,6 +38,7 @@
 #include <linux/uaccess.h>
 #include <asm/atomic.h>
 #include <mach/hardware.h>
+#include "mxc_dispdrv.h"
 
 #define TVE_ENABLE			(1UL)
 #define TVE_DAC_FULL_RATE		(0UL<<1)
@@ -98,16 +99,8 @@
 #define TVOUT_FMT_VGA_SXGA		12
 #define TVOUT_FMT_VGA_WSXGA		13
 
-#define IPU_DISP_PORT 1
-
-static int enabled;		/* enable power on or not */
-DEFINE_SPINLOCK(tve_lock);
-
-static struct fb_info *tve_fbi;
-#define MXC_ENABLE	1
-#define MXC_DISABLE	2
-static int g_enable_tve;
-static int g_enable_vga;
+#define DISPDRV_VGA 	"vga"
+#define DISPDRV_TVE 	"tve"
 
 struct tve_data {
 	struct platform_device *pdev;
@@ -116,14 +109,21 @@ struct tve_data {
 	int output_mode;
 	int detect;
 	void *base;
+	spinlock_t tve_lock;
+	bool inited;
+	int enabled;
 	int irq;
-	int blank;
 	struct clk *clk;
 	struct clk *di_clk;
 	struct regulator *dac_reg;
 	struct regulator *dig_reg;
 	struct delayed_work cd_work;
-} tve;
+	struct tve_reg_mapping *regs;
+	struct tve_reg_fields_mapping *reg_fields;
+	struct mxc_dispdrv_entry *disp_tve;
+	struct mxc_dispdrv_entry *disp_vga;
+	struct notifier_block nb;
+};
 
 struct tve_reg_mapping {
 	u32 tve_com_conf_reg;
@@ -165,11 +165,7 @@ static struct tve_reg_fields_mapping tve_reg_fields_v2 = {
 	1, 2, 1, 2, 4, 0x01000000, 0x700000, 0x7000, 20, 12, 16
 };
 
-
-struct tve_reg_mapping *tve_regs;
-struct tve_reg_fields_mapping *tve_reg_fields;
-
-static struct fb_videomode video_modes[] = {
+static struct fb_videomode video_modes_tve[] = {
 	{
 	 /* NTSC TV output */
 	 "TV-NTSC", 60, 720, 480, 74074,
@@ -252,6 +248,7 @@ static struct fb_videomode video_modes[] = {
 	 FB_VMODE_NONINTERLACED,
 	 FB_MODE_IS_DETAILED,},
 };
+static int tve_modedb_sz = ARRAY_SIZE(video_modes_tve);
 
 static struct fb_videomode video_modes_vga[] = {
 	{
@@ -291,6 +288,7 @@ static struct fb_videomode video_modes_vga[] = {
 	FB_VMODE_NONINTERLACED,
 	FB_MODE_IS_DETAILED,},
 };
+static int vga_modedb_sz = ARRAY_SIZE(video_modes_vga);
 
 enum tvout_mode {
 	TV_OFF,
@@ -314,30 +312,30 @@ static unsigned short tvout_mode_to_channel_map[8] = {
 	7	/* TVRGB */
 };
 
-static void tve_dump_regs(void)
+static void tve_dump_regs(struct tve_data *tve)
 {
-	dev_dbg(&tve.pdev->dev, "tve_com_conf_reg 0x%x\n",
-			__raw_readl(tve.base + tve_regs->tve_com_conf_reg));
-	dev_dbg(&tve.pdev->dev, "tve_cd_cont_reg 0x%x\n",
-			__raw_readl(tve.base + tve_regs->tve_cd_cont_reg));
-	dev_dbg(&tve.pdev->dev, "tve_int_cont_reg 0x%x\n",
-			__raw_readl(tve.base + tve_regs->tve_int_cont_reg));
-	dev_dbg(&tve.pdev->dev, "tve_tst_mode_reg 0x%x\n",
-			__raw_readl(tve.base + tve_regs->tve_tst_mode_reg));
-	dev_dbg(&tve.pdev->dev, "tve_tvdac_cont_reg0 0x%x\n",
-			__raw_readl(tve.base + tve_regs->tve_tvdac_cont_reg));
-	dev_dbg(&tve.pdev->dev, "tve_tvdac_cont_reg1 0x%x\n",
-			__raw_readl(tve.base + tve_regs->tve_tvdac_cont_reg + 4));
-	dev_dbg(&tve.pdev->dev, "tve_tvdac_cont_reg2 0x%x\n",
-			__raw_readl(tve.base + tve_regs->tve_tvdac_cont_reg + 8));
+	dev_dbg(&tve->pdev->dev, "tve_com_conf_reg 0x%x\n",
+			readl(tve->base + tve->regs->tve_com_conf_reg));
+	dev_dbg(&tve->pdev->dev, "tve_cd_cont_reg 0x%x\n",
+			readl(tve->base + tve->regs->tve_cd_cont_reg));
+	dev_dbg(&tve->pdev->dev, "tve_int_cont_reg 0x%x\n",
+			readl(tve->base + tve->regs->tve_int_cont_reg));
+	dev_dbg(&tve->pdev->dev, "tve_tst_mode_reg 0x%x\n",
+			readl(tve->base + tve->regs->tve_tst_mode_reg));
+	dev_dbg(&tve->pdev->dev, "tve_tvdac_cont_reg0 0x%x\n",
+			readl(tve->base + tve->regs->tve_tvdac_cont_reg));
+	dev_dbg(&tve->pdev->dev, "tve_tvdac_cont_reg1 0x%x\n",
+			readl(tve->base + tve->regs->tve_tvdac_cont_reg + 4));
+	dev_dbg(&tve->pdev->dev, "tve_tvdac_cont_reg2 0x%x\n",
+			readl(tve->base + tve->regs->tve_tvdac_cont_reg + 8));
 }
 
-static int is_vga_enabled(void)
+static int is_vga_enabled(struct tve_data *tve)
 {
 	u32 reg;
 
-	if (tve.revision == 2) {
-		reg = __raw_readl(tve.base + tve_regs->tve_tst_mode_reg);
+	if (tve->revision == 2) {
+		reg = readl(tve->base + tve->regs->tve_tst_mode_reg);
 		if (reg & TVEV2_DAC_TEST_MODE_MASK)
 			return 1;
 		else
@@ -368,78 +366,64 @@ static inline int valid_mode(int mode)
 		|| (mode == TVOUT_FMT_1080P30));
 }
 
-static int get_video_mode(struct fb_info *fbi, int *fmt)
+static int get_video_mode(struct fb_info *fbi)
 {
 	int mode;
 
-	if (fb_mode_is_equal(fbi->mode, &video_modes[0])) {
-		*fmt = IPU_PIX_FMT_YUV444;
+	if (fb_mode_is_equal(fbi->mode, &video_modes_tve[0])) {
 		mode = TVOUT_FMT_NTSC;
-	} else if (fb_mode_is_equal(fbi->mode, &video_modes[1])) {
-		*fmt = IPU_PIX_FMT_YUV444;
+	} else if (fb_mode_is_equal(fbi->mode, &video_modes_tve[1])) {
 		mode = TVOUT_FMT_PAL;
-	} else if (fb_mode_is_equal(fbi->mode, &video_modes[2])) {
-		*fmt = IPU_PIX_FMT_YUV444;
+	} else if (fb_mode_is_equal(fbi->mode, &video_modes_tve[2])) {
 		mode = TVOUT_FMT_720P60;
-	} else if (fb_mode_is_equal(fbi->mode, &video_modes[3])) {
-		*fmt = IPU_PIX_FMT_YUV444;
+	} else if (fb_mode_is_equal(fbi->mode, &video_modes_tve[3])) {
 		mode = TVOUT_FMT_720P30;
-	} else if (fb_mode_is_equal(fbi->mode, &video_modes[4])) {
-		*fmt = IPU_PIX_FMT_YUV444;
+	} else if (fb_mode_is_equal(fbi->mode, &video_modes_tve[4])) {
 		mode = TVOUT_FMT_1080I60;
-	} else if (fb_mode_is_equal(fbi->mode, &video_modes[5])) {
-		*fmt = IPU_PIX_FMT_YUV444;
+	} else if (fb_mode_is_equal(fbi->mode, &video_modes_tve[5])) {
 		mode = TVOUT_FMT_1080I50;
-	} else if (fb_mode_is_equal(fbi->mode, &video_modes[6])) {
-		*fmt = IPU_PIX_FMT_YUV444;
+	} else if (fb_mode_is_equal(fbi->mode, &video_modes_tve[6])) {
 		mode = TVOUT_FMT_1080P30;
-	} else if (fb_mode_is_equal(fbi->mode, &video_modes[7])) {
-		*fmt = IPU_PIX_FMT_YUV444;
+	} else if (fb_mode_is_equal(fbi->mode, &video_modes_tve[7])) {
 		mode = TVOUT_FMT_1080P25;
-	} else if (fb_mode_is_equal(fbi->mode, &video_modes[8])) {
-		*fmt = IPU_PIX_FMT_YUV444;
+	} else if (fb_mode_is_equal(fbi->mode, &video_modes_tve[8])) {
 		mode = TVOUT_FMT_1080P24;
 	} else if (fb_mode_is_equal(fbi->mode, &video_modes_vga[0])) {
-		*fmt = IPU_PIX_FMT_GBR24;
 		mode = TVOUT_FMT_VGA_SVGA;
 	} else if (fb_mode_is_equal(fbi->mode, &video_modes_vga[1])) {
-		*fmt = IPU_PIX_FMT_GBR24;
 		mode = TVOUT_FMT_VGA_XGA;
 	} else if (fb_mode_is_equal(fbi->mode, &video_modes_vga[2])) {
-		*fmt = IPU_PIX_FMT_GBR24;
 		mode = TVOUT_FMT_VGA_SXGA;
 	} else if (fb_mode_is_equal(fbi->mode, &video_modes_vga[3])) {
-		*fmt = IPU_PIX_FMT_GBR24;
 		mode = TVOUT_FMT_VGA_WSXGA;
 	} else {
-		*fmt = IPU_PIX_FMT_YUV444;
 		mode = TVOUT_FMT_OFF;
 	}
 	return mode;
 }
 
-static void tve_disable_vga_mode(void)
+static void tve_disable_vga_mode(struct tve_data *tve)
 {
-	if (tve.revision == 2) {
+	if (tve->revision == 2) {
 		u32 reg;
 		/* disable test mode */
-		reg = __raw_readl(tve.base + tve_regs->tve_tst_mode_reg);
+		reg = readl(tve->base + tve->regs->tve_tst_mode_reg);
 		reg = reg & ~TVEV2_DAC_TEST_MODE_MASK;
-		__raw_writel(reg, tve.base + tve_regs->tve_tst_mode_reg);
+		writel(reg, tve->base + tve->regs->tve_tst_mode_reg);
 	}
 }
 
-static void tve_set_tvout_mode(int mode)
+static void tve_set_tvout_mode(struct tve_data *tve, int mode)
 {
 	u32 conf_reg;
 
 	/* clear sync_ch and tvout_mode fields */
-	conf_reg = __raw_readl(tve.base + tve_regs->tve_com_conf_reg);
-	conf_reg &= ~(tve_reg_fields->sync_ch_mask |
-				tve_reg_fields->tvout_mode_mask);
+	conf_reg = readl(tve->base + tve->regs->tve_com_conf_reg);
+	conf_reg &= ~(tve->reg_fields->sync_ch_mask |
+				tve->reg_fields->tvout_mode_mask);
 
 	conf_reg = conf_reg & ~TVE_DAC_SAMPRATE_MASK;
-	if (tve.revision == 2) {
+	if (tve->revision == 2) {
 		conf_reg = (conf_reg & ~TVEV2_DATA_SRC_MASK) |
 			TVEV2_DATA_SRC_BUS_1;
 		conf_reg = conf_reg & ~TVEV2_INP_VIDEO_FORM;
@@ -447,18 +431,18 @@ static void tve_set_tvout_mode(int mode)
 	}
 
 	conf_reg |=
-		mode << tve_reg_fields->
+		mode << tve->reg_fields->
 		tvout_mode_offset | tvout_mode_to_channel_map[mode] <<
-		tve_reg_fields->sync_ch_offset;
-	__raw_writel(conf_reg, tve.base + tve_regs->tve_com_conf_reg);
+		tve->reg_fields->sync_ch_offset;
+	writel(conf_reg, tve->base + tve->regs->tve_com_conf_reg);
 }
 
-static int _is_tvout_mode_hd_compatible(void)
+static int _is_tvout_mode_hd_compatible(struct tve_data *tve)
 {
 	u32 conf_reg, mode;
 
-	conf_reg = __raw_readl(tve.base + tve_regs->tve_com_conf_reg);
-	mode = (conf_reg >> tve_reg_fields->tvout_mode_offset) & 7;
+	conf_reg = readl(tve->base + tve->regs->tve_com_conf_reg);
+	mode = (conf_reg >> tve->reg_fields->tvout_mode_offset) & 7;
 	if (mode == YPBPR || mode == TVRGB) {
 		return 1;
 	} else {
@@ -466,37 +450,37 @@ static int _is_tvout_mode_hd_compatible(void)
 	}
 }
 
-static int tve_setup_vga(void)
+static int tve_setup_vga(struct tve_data *tve)
 {
 	u32 reg;
 
-	if (tve.revision == 2) {
+	if (tve->revision == 2) {
 		/* set gain */
-		reg = __raw_readl(tve.base + tve_regs->tve_tvdac_cont_reg);
+		reg = readl(tve->base + tve->regs->tve_tvdac_cont_reg);
 		reg = (reg & ~TVEV2_DAC_GAIN_MASK) | 0;
-		__raw_writel(reg, tve.base + tve_regs->tve_tvdac_cont_reg);
-		reg = __raw_readl(tve.base + tve_regs->tve_tvdac_cont_reg + 4);
+		writel(reg, tve->base + tve->regs->tve_tvdac_cont_reg);
+		reg = readl(tve->base + tve->regs->tve_tvdac_cont_reg + 4);
 		reg = (reg & ~TVEV2_DAC_GAIN_MASK) | 0;
-		__raw_writel(reg, tve.base + tve_regs->tve_tvdac_cont_reg + 4);
-		reg = __raw_readl(tve.base + tve_regs->tve_tvdac_cont_reg + 8);
+		writel(reg, tve->base + tve->regs->tve_tvdac_cont_reg + 4);
+		reg = readl(tve->base + tve->regs->tve_tvdac_cont_reg + 8);
 		reg = (reg & ~TVEV2_DAC_GAIN_MASK) | 0;
-		__raw_writel(reg, tve.base + tve_regs->tve_tvdac_cont_reg + 8);
+		writel(reg, tve->base + tve->regs->tve_tvdac_cont_reg + 8);
 
 		/* set tve_com_conf_reg  */
-		reg = __raw_readl(tve.base + tve_regs->tve_com_conf_reg);
+		reg = readl(tve->base + tve->regs->tve_com_conf_reg);
 		reg = (reg & ~TVE_DAC_SAMPRATE_MASK) | TVE_DAC_DIV2_RATE;
 		reg = (reg & ~TVEV2_DATA_SRC_MASK) | TVEV2_DATA_SRC_BUS_2;
 		reg = reg | TVEV2_INP_VIDEO_FORM;
 		reg = reg & ~TVEV2_P2I_CONV_EN;
 		reg = (reg & ~TVE_STAND_MASK) | TVE_HD1080P30_STAND;
-		reg |= TVRGB << tve_reg_fields->tvout_mode_offset |
-			1 << tve_reg_fields->sync_ch_offset;
-		__raw_writel(reg, tve.base + tve_regs->tve_com_conf_reg);
+		reg |= TVRGB << tve->reg_fields->tvout_mode_offset |
+			1 << tve->reg_fields->sync_ch_offset;
+		writel(reg, tve->base + tve->regs->tve_com_conf_reg);
 
 		/* set test mode */
-		reg = __raw_readl(tve.base + tve_regs->tve_tst_mode_reg);
+		reg = readl(tve->base + tve->regs->tve_tst_mode_reg);
 		reg = (reg & ~TVEV2_DAC_TEST_MODE_MASK) | 1;
-		__raw_writel(reg, tve.base + tve_regs->tve_tst_mode_reg);
+		writel(reg, tve->base + tve->regs->tve_tst_mode_reg);
 	}
 
 	return 0;
@@ -511,7 +495,7 @@ static int tve_setup_vga(void)
  * 	0 successful
  * 	otherwise failed
  */
-static int tve_setup(int mode)
+static int tve_setup(struct tve_data *tve, int mode)
 {
 	u32 reg;
 	struct clk *tve_parent_clk;
@@ -519,10 +503,10 @@ static int tve_setup(int mode)
 	unsigned long tve_clock_rate = 216000000;
 	unsigned long lock_flags;
 
-	if (tve.cur_mode == mode)
+	if (tve->cur_mode == mode)
 		return 0;
 
-	spin_lock_irqsave(&tve_lock, lock_flags);
+	spin_lock_irqsave(&tve->tve_lock, lock_flags);
 
 	switch (mode) {
 	case TVOUT_FMT_PAL:
@@ -562,122 +546,122 @@ static int tve_setup(int mode)
 		di1_clock_rate = 147140000;
 		break;
 	}
-	if (enabled)
-		clk_disable(tve.clk);
+	if (tve->enabled)
+		clk_disable(tve->clk);
 
-	tve_parent_clk = clk_get_parent(tve.clk);
+	tve_parent_clk = clk_get_parent(tve->clk);
 
 	clk_set_rate(tve_parent_clk, parent_clock_rate);
 
-	tve_clock_rate = clk_round_rate(tve.clk, tve_clock_rate);
-	clk_set_rate(tve.clk, tve_clock_rate);
+	tve_clock_rate = clk_round_rate(tve->clk, tve_clock_rate);
+	clk_set_rate(tve->clk, tve_clock_rate);
 
-	clk_enable(tve.clk);
-	di1_clock_rate = clk_round_rate(tve.di_clk, di1_clock_rate);
-	clk_set_rate(tve.di_clk, di1_clock_rate);
+	clk_enable(tve->clk);
+	di1_clock_rate = clk_round_rate(tve->di_clk, di1_clock_rate);
+	clk_set_rate(tve->di_clk, di1_clock_rate);
 
-	tve.cur_mode = mode;
+	tve->cur_mode = mode;
 
 	/* select output video format */
 	if (mode == TVOUT_FMT_PAL) {
-		tve_disable_vga_mode();
-		tve_set_tvout_mode(YPBPR);
-		reg = __raw_readl(tve.base + tve_regs->tve_com_conf_reg);
+		tve_disable_vga_mode(tve);
+		tve_set_tvout_mode(tve, YPBPR);
+		reg = readl(tve->base + tve->regs->tve_com_conf_reg);
 		reg = (reg & ~TVE_STAND_MASK) | TVE_PAL_STAND;
-		__raw_writel(reg, tve.base + tve_regs->tve_com_conf_reg);
-		pr_debug("TVE: change to PAL video\n");
+		writel(reg, tve->base + tve->regs->tve_com_conf_reg);
+		dev_dbg(&tve->pdev->dev, "TVE: change to PAL video\n");
 	} else if (mode == TVOUT_FMT_NTSC) {
-		tve_disable_vga_mode();
-		tve_set_tvout_mode(YPBPR);
-		reg = __raw_readl(tve.base + tve_regs->tve_com_conf_reg);
+		tve_disable_vga_mode(tve);
+		tve_set_tvout_mode(tve, YPBPR);
+		reg = readl(tve->base + tve->regs->tve_com_conf_reg);
 		reg = (reg & ~TVE_STAND_MASK) | TVE_NTSC_STAND;
-		__raw_writel(reg, tve.base + tve_regs->tve_com_conf_reg);
-		pr_debug("TVE: change to NTSC video\n");
+		writel(reg, tve->base + tve->regs->tve_com_conf_reg);
+		dev_dbg(&tve->pdev->dev, "TVE: change to NTSC video\n");
 	} else if (mode == TVOUT_FMT_720P60) {
-		tve_disable_vga_mode();
-		if (!_is_tvout_mode_hd_compatible()) {
-			tve_set_tvout_mode(YPBPR);
-			pr_debug("The TV out mode is HD incompatible. Setting to YPBPR.");
+		tve_disable_vga_mode(tve);
+		if (!_is_tvout_mode_hd_compatible(tve)) {
+			tve_set_tvout_mode(tve, YPBPR);
+			dev_dbg(&tve->pdev->dev, "The TV out mode is HD incompatible. Setting to YPBPR.");
 		}
-		reg = __raw_readl(tve.base + tve_regs->tve_com_conf_reg);
+		reg = readl(tve->base + tve->regs->tve_com_conf_reg);
 		reg = (reg & ~TVE_STAND_MASK) | TVE_HD720P60_STAND;
-		__raw_writel(reg, tve.base + tve_regs->tve_com_conf_reg);
-		pr_debug("TVE: change to 720P60 video\n");
+		writel(reg, tve->base + tve->regs->tve_com_conf_reg);
+		dev_dbg(&tve->pdev->dev, "TVE: change to 720P60 video\n");
 	} else if (mode == TVOUT_FMT_720P30) {
-		tve_disable_vga_mode();
-		if (!_is_tvout_mode_hd_compatible()) {
-			tve_set_tvout_mode(YPBPR);
-			pr_debug("The TV out mode is HD incompatible. Setting to YPBPR.");
+		tve_disable_vga_mode(tve);
+		if (!_is_tvout_mode_hd_compatible(tve)) {
+			tve_set_tvout_mode(tve, YPBPR);
+			dev_dbg(&tve->pdev->dev, "The TV out mode is HD incompatible. Setting to YPBPR.");
 		}
-		reg = __raw_readl(tve.base + tve_regs->tve_com_conf_reg);
+		reg = readl(tve->base + tve->regs->tve_com_conf_reg);
 		reg = (reg & ~TVE_STAND_MASK) | TVE_HD720P30_STAND;
-		__raw_writel(reg, tve.base + tve_regs->tve_com_conf_reg);
-		pr_debug("TVE: change to 720P30 video\n");
+		writel(reg, tve->base + tve->regs->tve_com_conf_reg);
+		dev_dbg(&tve->pdev->dev, "TVE: change to 720P30 video\n");
 	} else if (mode == TVOUT_FMT_1080I60) {
-		tve_disable_vga_mode();
-		if (!_is_tvout_mode_hd_compatible()) {
-			tve_set_tvout_mode(YPBPR);
-			pr_debug("The TV out mode is HD incompatible. Setting to YPBPR.");
+		tve_disable_vga_mode(tve);
+		if (!_is_tvout_mode_hd_compatible(tve)) {
+			tve_set_tvout_mode(tve, YPBPR);
+			dev_dbg(&tve->pdev->dev, "The TV out mode is HD incompatible. Setting to YPBPR.");
 		}
-		reg = __raw_readl(tve.base + tve_regs->tve_com_conf_reg);
+		reg = readl(tve->base + tve->regs->tve_com_conf_reg);
 		reg = (reg & ~TVE_STAND_MASK) | TVE_HD1080I60_STAND;
-		__raw_writel(reg, tve.base + tve_regs->tve_com_conf_reg);
-		pr_debug("TVE: change to 1080I60 video\n");
+		writel(reg, tve->base + tve->regs->tve_com_conf_reg);
+		dev_dbg(&tve->pdev->dev, "TVE: change to 1080I60 video\n");
 	} else if (mode == TVOUT_FMT_1080I50) {
-		tve_disable_vga_mode();
-		if (!_is_tvout_mode_hd_compatible()) {
-			tve_set_tvout_mode(YPBPR);
-			pr_debug("The TV out mode is HD incompatible. Setting to YPBPR.");
+		tve_disable_vga_mode(tve);
+		if (!_is_tvout_mode_hd_compatible(tve)) {
+			tve_set_tvout_mode(tve, YPBPR);
+			dev_dbg(&tve->pdev->dev, "The TV out mode is HD incompatible. Setting to YPBPR.");
 		}
-		reg = __raw_readl(tve.base + tve_regs->tve_com_conf_reg);
+		reg = readl(tve->base + tve->regs->tve_com_conf_reg);
 		reg = (reg & ~TVE_STAND_MASK) | TVE_HD1080I50_STAND;
-		__raw_writel(reg, tve.base + tve_regs->tve_com_conf_reg);
-		pr_debug("TVE: change to 1080I50 video\n");
+		writel(reg, tve->base + tve->regs->tve_com_conf_reg);
+		dev_dbg(&tve->pdev->dev, "TVE: change to 1080I50 video\n");
 	} else if (mode == TVOUT_FMT_1080P30) {
-		tve_disable_vga_mode();
-		if (!_is_tvout_mode_hd_compatible()) {
-			tve_set_tvout_mode(YPBPR);
-			pr_debug("The TV out mode is HD incompatible. Setting to YPBPR.");
+		tve_disable_vga_mode(tve);
+		if (!_is_tvout_mode_hd_compatible(tve)) {
+			tve_set_tvout_mode(tve, YPBPR);
+			dev_dbg(&tve->pdev->dev, "The TV out mode is HD incompatible. Setting to YPBPR.");
 		}
-		reg = __raw_readl(tve.base + tve_regs->tve_com_conf_reg);
+		reg = readl(tve->base + tve->regs->tve_com_conf_reg);
 		reg = (reg & ~TVE_STAND_MASK) | TVE_HD1080P30_STAND;
-		__raw_writel(reg, tve.base + tve_regs->tve_com_conf_reg);
-		pr_debug("TVE: change to 1080P30 video\n");
+		writel(reg, tve->base + tve->regs->tve_com_conf_reg);
+		dev_dbg(&tve->pdev->dev, "TVE: change to 1080P30 video\n");
 	} else if (mode == TVOUT_FMT_1080P25) {
-		tve_disable_vga_mode();
-		if (!_is_tvout_mode_hd_compatible()) {
-			tve_set_tvout_mode(YPBPR);
-			pr_debug("The TV out mode is HD incompatible. Setting to YPBPR.");
+		tve_disable_vga_mode(tve);
+		if (!_is_tvout_mode_hd_compatible(tve)) {
+			tve_set_tvout_mode(tve, YPBPR);
+			dev_dbg(&tve->pdev->dev, "The TV out mode is HD incompatible. Setting to YPBPR.");
 		}
-		reg = __raw_readl(tve.base + tve_regs->tve_com_conf_reg);
+		reg = readl(tve->base + tve->regs->tve_com_conf_reg);
 		reg = (reg & ~TVE_STAND_MASK) | TVE_HD1080P25_STAND;
-		__raw_writel(reg, tve.base + tve_regs->tve_com_conf_reg);
-		pr_debug("TVE: change to 1080P25 video\n");
+		writel(reg, tve->base + tve->regs->tve_com_conf_reg);
+		dev_dbg(&tve->pdev->dev, "TVE: change to 1080P25 video\n");
 	} else if (mode == TVOUT_FMT_1080P24) {
-		tve_disable_vga_mode();
-		if (!_is_tvout_mode_hd_compatible()) {
-			tve_set_tvout_mode(YPBPR);
-			pr_debug("The TV out mode is HD incompatible. Setting to YPBPR.");
+		tve_disable_vga_mode(tve);
+		if (!_is_tvout_mode_hd_compatible(tve)) {
+			tve_set_tvout_mode(tve, YPBPR);
+			dev_dbg(&tve->pdev->dev, "The TV out mode is HD incompatible. Setting to YPBPR.");
 		}
-		reg = __raw_readl(tve.base + tve_regs->tve_com_conf_reg);
+		reg = readl(tve->base + tve->regs->tve_com_conf_reg);
 		reg = (reg & ~TVE_STAND_MASK) | TVE_HD1080P24_STAND;
-		__raw_writel(reg, tve.base + tve_regs->tve_com_conf_reg);
-		pr_debug("TVE: change to 1080P24 video\n");
+		writel(reg, tve->base + tve->regs->tve_com_conf_reg);
+		dev_dbg(&tve->pdev->dev, "TVE: change to 1080P24 video\n");
 	} else if (is_vga_mode(mode)) {
 		/* do not need cable detect */
-		tve_setup_vga();
-		pr_debug("TVE: change to VGA video\n");
+		tve_setup_vga(tve);
+		dev_dbg(&tve->pdev->dev, "TVE: change to VGA video\n");
 	} else if (mode == TVOUT_FMT_OFF) {
-		__raw_writel(0x0, tve.base + tve_regs->tve_com_conf_reg);
-		pr_debug("TVE: change to OFF video\n");
+		writel(0x0, tve->base + tve->regs->tve_com_conf_reg);
+		dev_dbg(&tve->pdev->dev, "TVE: change to OFF video\n");
 	} else {
-		pr_debug("TVE: no such video format.\n");
+		dev_dbg(&tve->pdev->dev, "TVE: no such video format.\n");
 	}
 
-	if (!enabled)
-		clk_disable(tve.clk);
+	if (!tve->enabled)
+		clk_disable(tve->clk);
 
-	spin_unlock_irqrestore(&tve_lock, lock_flags);
+	spin_unlock_irqrestore(&tve->tve_lock, lock_flags);
 	return 0;
 }
 
@@ -685,63 +669,63 @@ static int tve_setup(int mode)
  * tve_enable
  * Enable the tve Power to begin TV encoder
  */
-static void tve_enable(void)
+static void tve_enable(struct tve_data *tve)
 {
 	u32 reg;
 	unsigned long lock_flags;
 
-	spin_lock_irqsave(&tve_lock, lock_flags);
-	if (!enabled) {
-		enabled = 1;
-		clk_enable(tve.clk);
-		reg = __raw_readl(tve.base + tve_regs->tve_com_conf_reg);
-		__raw_writel(reg | TVE_IPU_CLK_ENABLE | TVE_ENABLE,
-					tve.base + tve_regs->tve_com_conf_reg);
-		pr_debug("TVE power on.\n");
+	spin_lock_irqsave(&tve->tve_lock, lock_flags);
+	if (!tve->enabled) {
+		tve->enabled = 1;
+		clk_enable(tve->clk);
+		reg = readl(tve->base + tve->regs->tve_com_conf_reg);
+		writel(reg | TVE_IPU_CLK_ENABLE | TVE_ENABLE,
+					tve->base + tve->regs->tve_com_conf_reg);
+		dev_dbg(&tve->pdev->dev, "TVE power on.\n");
 	}
 
-	if (is_vga_enabled()) {
+	if (is_vga_enabled(tve)) {
 		/* disable interrupt */
-		pr_debug("TVE VGA disable cable detect.\n");
-		__raw_writel(0xffffffff, tve.base + tve_regs->tve_stat_reg);
-		__raw_writel(0, tve.base + tve_regs->tve_int_cont_reg);
+		dev_dbg(&tve->pdev->dev, "TVE VGA disable cable detect.\n");
+		writel(0xffffffff, tve->base + tve->regs->tve_stat_reg);
+		writel(0, tve->base + tve->regs->tve_int_cont_reg);
 	} else {
 		/* enable interrupt */
-		pr_debug("TVE TVE enable cable detect.\n");
-		__raw_writel(0xffffffff, tve.base + tve_regs->tve_stat_reg);
-		__raw_writel(CD_SM_INT | CD_LM_INT | CD_MON_END_INT,
-				tve.base + tve_regs->tve_int_cont_reg);
+		dev_dbg(&tve->pdev->dev, "TVE TVE enable cable detect.\n");
+		writel(0xffffffff, tve->base + tve->regs->tve_stat_reg);
+		writel(CD_SM_INT | CD_LM_INT | CD_MON_END_INT,
+				tve->base + tve->regs->tve_int_cont_reg);
 	}
 
-	spin_unlock_irqrestore(&tve_lock, lock_flags);
+	spin_unlock_irqrestore(&tve->tve_lock, lock_flags);
 
-	tve_dump_regs();
+	tve_dump_regs(tve);
 }
 
 /**
  * tve_disable
  * Disable the tve Power to stop TV encoder
  */
-static void tve_disable(void)
+static void tve_disable(struct tve_data *tve)
 {
 	u32 reg;
 	unsigned long lock_flags;
 
-	spin_lock_irqsave(&tve_lock, lock_flags);
-	if (enabled) {
-		enabled = 0;
-		reg = __raw_readl(tve.base + tve_regs->tve_com_conf_reg);
-		__raw_writel(reg & ~TVE_ENABLE & ~TVE_IPU_CLK_ENABLE,
-				tve.base + tve_regs->tve_com_conf_reg);
-		clk_disable(tve.clk);
-		pr_debug("TVE power off.\n");
+	spin_lock_irqsave(&tve->tve_lock, lock_flags);
+	if (tve->enabled) {
+		tve->enabled = 0;
+		reg = readl(tve->base + tve->regs->tve_com_conf_reg);
+		writel(reg & ~TVE_ENABLE & ~TVE_IPU_CLK_ENABLE,
+				tve->base + tve->regs->tve_com_conf_reg);
+		clk_disable(tve->clk);
+		dev_dbg(&tve->pdev->dev, "TVE power off.\n");
 	}
-	spin_unlock_irqrestore(&tve_lock, lock_flags);
+	spin_unlock_irqrestore(&tve->tve_lock, lock_flags);
 }
 
-static int tve_update_detect_status(void)
+static int tve_update_detect_status(struct tve_data *tve)
 {
-	int old_detect = tve.detect;
+	int old_detect = tve->detect;
 	u32 stat_lm, stat_sm, stat;
 	u32 int_ctl;
 	u32 cd_cont_reg;
@@ -750,244 +734,201 @@ static int tve_update_detect_status(void)
 	char event_string[16];
 	char *envp[] = { event_string, NULL };
 
-	spin_lock_irqsave(&tve_lock, lock_flags);
+	spin_lock_irqsave(&tve->tve_lock, lock_flags);
 
-	if (!enabled) {
-		pr_warning("Warning: update tve status while it disabled!\n");
-		tve.detect = 0;
+	if (!tve->enabled) {
+		dev_warn(&tve->pdev->dev, "Warning: update tve status while it disabled!\n");
+		tve->detect = 0;
 		goto done;
 	}
 
-	int_ctl = __raw_readl(tve.base + tve_regs->tve_int_cont_reg);
-	cd_cont_reg = __raw_readl(tve.base + tve_regs->tve_cd_cont_reg);
+	int_ctl = readl(tve->base + tve->regs->tve_int_cont_reg);
+	cd_cont_reg = readl(tve->base + tve->regs->tve_cd_cont_reg);
 
 	if ((cd_cont_reg & 0x1) == 0) {
-		pr_warning("Warning: pls enable TVE CD first!\n");
+		dev_warn(&tve->pdev->dev, "Warning: pls enable TVE CD first!\n");
 		goto done;
 	}
 
-	stat = __raw_readl(tve.base + tve_regs->tve_stat_reg);
+	stat = readl(tve->base + tve->regs->tve_stat_reg);
 	while (((stat & CD_MON_END_INT) == 0) && (timeout > 0)) {
-		spin_unlock_irqrestore(&tve_lock, lock_flags);
+		spin_unlock_irqrestore(&tve->tve_lock, lock_flags);
 		msleep(2);
-		spin_lock_irqsave(&tve_lock, lock_flags);
+		spin_lock_irqsave(&tve->tve_lock, lock_flags);
 		timeout -= 2;
-		if (!enabled) {
-			pr_warning("Warning: update tve status while it disabled!\n");
-			tve.detect = 0;
+		if (!tve->enabled) {
+			dev_warn(&tve->pdev->dev, "Warning: update tve status while it disabled!\n");
+			tve->detect = 0;
 			goto done;
 		} else
-			stat = __raw_readl(tve.base + tve_regs->tve_stat_reg);
+			stat = readl(tve->base + tve->regs->tve_stat_reg);
 	}
 	if (((stat & CD_MON_END_INT) == 0) && (timeout <= 0)) {
-		pr_warning("Warning: get detect result without CD_MON_END_INT!\n");
+		dev_warn(&tve->pdev->dev, "Warning: get detect result without CD_MON_END_INT!\n");
 		goto done;
 	}
 
-	stat = stat >> tve_reg_fields->cd_ch_stat_offset;
+	stat = stat >> tve->reg_fields->cd_ch_stat_offset;
 	stat_lm = stat & (CD_CH_0_LM_ST | CD_CH_1_LM_ST | CD_CH_2_LM_ST);
 	if ((stat_lm == (CD_CH_0_LM_ST | CD_CH_1_LM_ST | CD_CH_2_LM_ST)) &&
 		((stat & (CD_CH_0_SM_ST | CD_CH_1_SM_ST | CD_CH_2_SM_ST)) == 0)
 		) {
-			tve.detect = 3;
-			tve.output_mode = YPBPR;
+			tve->detect = 3;
+			tve->output_mode = YPBPR;
 	} else if ((stat_lm == (CD_CH_0_LM_ST | CD_CH_1_LM_ST)) &&
 		((stat & (CD_CH_0_SM_ST | CD_CH_1_SM_ST)) == 0)) {
-			tve.detect = 4;
-			tve.output_mode = SVIDEO;
+			tve->detect = 4;
+			tve->output_mode = SVIDEO;
 	} else if (stat_lm == CD_CH_0_LM_ST) {
 		stat_sm = stat & CD_CH_0_SM_ST;
 		if (stat_sm != 0) {
 			/* headset */
-			tve.detect = 2;
-			tve.output_mode = TV_OFF;
+			tve->detect = 2;
+			tve->output_mode = TV_OFF;
 		} else {
-			tve.detect = 1;
-			tve.output_mode = CVBS0;
+			tve->detect = 1;
+			tve->output_mode = CVBS0;
 		}
 	} else if (stat_lm == CD_CH_2_LM_ST) {
 		stat_sm = stat & CD_CH_2_SM_ST;
 		if (stat_sm != 0) {
 			/* headset */
-			tve.detect = 2;
-			tve.output_mode = TV_OFF;
+			tve->detect = 2;
+			tve->output_mode = TV_OFF;
 		} else {
-			tve.detect = 1;
-			tve.output_mode = CVBS2;
+			tve->detect = 1;
+			tve->output_mode = CVBS2;
 		}
 	} else {
 		/* none */
-		tve.detect = 0;
-		tve.output_mode = TV_OFF;
+		tve->detect = 0;
+		tve->output_mode = TV_OFF;
 	}
 
-	tve_set_tvout_mode(tve.output_mode);
+	tve_set_tvout_mode(tve, tve->output_mode);
 
 	/* clear interrupt */
-	__raw_writel(CD_MON_END_INT | CD_LM_INT | CD_SM_INT,
-			tve.base + tve_regs->tve_stat_reg);
+	writel(CD_MON_END_INT | CD_LM_INT | CD_SM_INT,
+			tve->base + tve->regs->tve_stat_reg);
 
-	__raw_writel(int_ctl | CD_SM_INT | CD_LM_INT,
-			tve.base + tve_regs->tve_int_cont_reg);
+	writel(int_ctl | CD_SM_INT | CD_LM_INT,
+			tve->base + tve->regs->tve_int_cont_reg);
 
 done:
-	spin_unlock_irqrestore(&tve_lock, lock_flags);
+	spin_unlock_irqrestore(&tve->tve_lock, lock_flags);
 
-	if (old_detect != tve.detect) {
-		sysfs_notify(&tve.pdev->dev.kobj, NULL, "headphone");
-		if (tve.detect == 1)
+	if (old_detect != tve->detect) {
+		sysfs_notify(&tve->pdev->dev.kobj, NULL, "headphone");
+		if (tve->detect == 1)
 			sprintf(event_string, "EVENT=CVBS0");
-		else if (tve.detect == 3)
+		else if (tve->detect == 3)
 			sprintf(event_string, "EVENT=YPBPR");
-		else if (tve.detect == 4)
+		else if (tve->detect == 4)
 			sprintf(event_string, "EVENT=SVIDEO");
 		else
 			sprintf(event_string, "EVENT=NONE");
-		kobject_uevent_env(&tve.pdev->dev.kobj, KOBJ_CHANGE, envp);
+		kobject_uevent_env(&tve->pdev->dev.kobj, KOBJ_CHANGE, envp);
 	}
 
-	dev_dbg(&tve.pdev->dev, "detect = %d mode = %d\n",
-			tve.detect, tve.output_mode);
-	return tve.detect;
+	dev_dbg(&tve->pdev->dev, "detect = %d mode = %d\n",
+			tve->detect, tve->output_mode);
+	return tve->detect;
 }
 
 static void cd_work_func(struct work_struct *work)
 {
-	tve_update_detect_status();
+	struct delayed_work *delay_work = to_delayed_work(work);
+	struct tve_data *tve =
+		container_of(delay_work, struct tve_data, cd_work);
+
+	tve_update_detect_status(tve);
 }
-#if 0
-static int tve_man_detect(void)
-{
-	u32 cd_cont;
-	u32 int_cont;
-
-	if (!enabled)
-		return -1;
-
-	int_cont = __raw_readl(tve.base + tve_regs->tve_int_cont_reg);
-	__raw_writel(int_cont &
-				~(tve_reg_fields->cd_sm_int | tve_reg_fields->cd_lm_int),
-				tve.base + tve_regs->tve_int_cont_reg);
-
-	cd_cont = __raw_readl(tve.base + tve_regs->tve_cd_cont_reg);
-	__raw_writel(cd_cont | tve_reg_fields->cd_trig_mode,
-				tve.base + tve_regs->tve_cd_cont_reg);
-
-	__raw_writel(tve_reg_fields->cd_sm_int | tve_reg_fields->
-			cd_lm_int | tve_reg_fields->
-			cd_mon_end_int | tve_reg_fields->cd_man_trig,
-			tve.base + tve_regs->tve_stat_reg);
-
-	while ((__raw_readl(tve.base + tve_regs->tve_stat_reg)
-		& tve_reg_fields->cd_mon_end_int) == 0)
-		msleep(5);
-
-	tve_update_detect_status();
-
-	__raw_writel(cd_cont, tve.base + tve_regs->tve_cd_cont_reg);
-	__raw_writel(int_cont, tve.base + tve_regs->tve_int_cont_reg);
-
-	return tve.detect;
-}
-#endif
 
 static irqreturn_t tve_detect_handler(int irq, void *data)
 {
-	u32 int_ctl = __raw_readl(tve.base + tve_regs->tve_int_cont_reg);
+	struct tve_data *tve = data;
+
+	u32 int_ctl = readl(tve->base + tve->regs->tve_int_cont_reg);
 
 	/* disable INT first */
 	int_ctl &= ~(CD_SM_INT | CD_LM_INT | CD_MON_END_INT);
-	__raw_writel(int_ctl, tve.base + tve_regs->tve_int_cont_reg);
+	writel(int_ctl, tve->base + tve->regs->tve_int_cont_reg);
 
-	__raw_writel(CD_MON_END_INT | CD_LM_INT | CD_SM_INT,
-			tve.base + tve_regs->tve_stat_reg);
+	writel(CD_MON_END_INT | CD_LM_INT | CD_SM_INT,
+			tve->base + tve->regs->tve_stat_reg);
 
-	schedule_delayed_work(&tve.cd_work, msecs_to_jiffies(1000));
+	schedule_delayed_work(&tve->cd_work, msecs_to_jiffies(1000));
 
 	return IRQ_HANDLED;
-}
-
-static inline void tve_set_di_fmt(struct fb_info *fbi, unsigned int fmt)
-{
-	mm_segment_t old_fs;
-
-	if (fbi->fbops->fb_ioctl) {
-		old_fs = get_fs();
-		set_fs(KERNEL_DS);
-		fbi->fbops->fb_ioctl(fbi, MXCFB_SET_DIFMT, (unsigned long)&fmt);
-		set_fs(old_fs);
-	}
 }
 
 /*!
  * FB suspend/resume routing
  */
-static int tve_suspend(void)
+static int tve_suspend(struct tve_data *tve)
 {
-	if (enabled) {
-		__raw_writel(0, tve.base + tve_regs->tve_int_cont_reg);
-		__raw_writel(0, tve.base + tve_regs->tve_cd_cont_reg);
-		__raw_writel(0, tve.base + tve_regs->tve_com_conf_reg);
-		clk_disable(tve.clk);
+	if (tve->enabled) {
+		writel(0, tve->base + tve->regs->tve_int_cont_reg);
+		writel(0, tve->base + tve->regs->tve_cd_cont_reg);
+		writel(0, tve->base + tve->regs->tve_com_conf_reg);
+		clk_disable(tve->clk);
 	}
 	return 0;
 }
 
-static int tve_resume(struct fb_info *fbi)
+static int tve_resume(struct tve_data *tve, struct fb_info *fbi)
 {
 	int mode;
 
-	if (enabled) {
-		clk_enable(tve.clk);
+	if (tve->enabled) {
+		clk_enable(tve->clk);
 
 		/* Setup cable detect */
-		if (tve.revision == 1)
-			__raw_writel(0x01067701,
-				tve.base + tve_regs->tve_cd_cont_reg);
+		if (tve->revision == 1)
+			writel(0x01067701,
+				tve->base + tve->regs->tve_cd_cont_reg);
 		else
-			__raw_writel(0x00770601,
-				tve.base + tve_regs->tve_cd_cont_reg);
+			writel(0x00770601,
+				tve->base + tve->regs->tve_cd_cont_reg);
 
-		if (valid_mode(tve.cur_mode)) {
-			mode = tve.cur_mode;
-			tve_disable();
-			tve.cur_mode = TVOUT_FMT_OFF;
-			tve_setup(mode);
+		if (valid_mode(tve->cur_mode)) {
+			mode = tve->cur_mode;
+			tve_disable(tve);
+			tve->cur_mode = TVOUT_FMT_OFF;
+			tve_setup(tve, mode);
 		}
-		tve_enable();
+		tve_enable(tve);
 	}
 
 	return 0;
 }
 
-int tve_fb_setup(struct fb_info *fbi)
+int tve_fb_setup(struct tve_data *tve, struct fb_info *fbi)
 {
-	int mode, fmt;
+	int mode;
 
 	fbi->mode = (struct fb_videomode *)fb_match_mode(&fbi->var,
 			&fbi->modelist);
 
 	if (!fbi->mode) {
-		pr_warning("TVE: can not find mode for xres=%d, yres=%d\n",
+		dev_warn(&tve->pdev->dev, "TVE: can not find mode for xres=%d, yres=%d\n",
 				fbi->var.xres, fbi->var.yres);
-		tve_disable();
-		tve.cur_mode = TVOUT_FMT_OFF;
+		tve_disable(tve);
+		tve->cur_mode = TVOUT_FMT_OFF;
 		return 0;
 	}
 
-	pr_debug("TVE: fb mode change event: xres=%d, yres=%d\n",
+	dev_dbg(&tve->pdev->dev, "TVE: fb mode change event: xres=%d, yres=%d\n",
 			fbi->mode->xres, fbi->mode->yres);
 
-	mode = get_video_mode(fbi, &fmt);
+	mode = get_video_mode(fbi);
 	if (mode != TVOUT_FMT_OFF) {
-		tve_set_di_fmt(fbi, fmt);
-		tve_disable();
-		tve_setup(mode);
-		if (tve.blank == FB_BLANK_UNBLANK)
-			tve_enable();
+		tve_disable(tve);
+		tve_setup(tve, mode);
+		tve_enable(tve);
 	} else {
-		tve_disable();
-		tve_setup(mode);
+		tve_disable(tve);
+		tve_setup(tve, mode);
 	}
 
 	return 0;
@@ -995,78 +936,62 @@ int tve_fb_setup(struct fb_info *fbi)
 
 int tve_fb_event(struct notifier_block *nb, unsigned long val, void *v)
 {
+	struct tve_data *tve = container_of(nb, struct tve_data, nb);
 	struct fb_event *event = v;
 	struct fb_info *fbi = event->info;
 
+	/* only work for ipu0 di1*/
 	if (strcmp(fbi->fix.id, "DISP3 BG - DI1"))
 		return 0;
 
 	switch (val) {
-	case FB_EVENT_FB_REGISTERED:
-		pr_debug("TVE: fb registered event\n");
-		if (tve_fbi != NULL)
-			break;
-
-		tve_fbi = fbi;
-		break;
-	case FB_EVENT_MODE_CHANGE:
+	case FB_EVENT_PREMODE_CHANGE:
 	{
-		if (tve_fbi != fbi)
-			break;
-
-		tve_fb_setup(fbi);
+		tve_fb_setup(tve, fbi);
 		break;
 	}
 	case FB_EVENT_BLANK:
-		if ((tve_fbi != fbi) || (fbi->mode == NULL))
+		if (fbi->mode == NULL)
 			return 0;
 
-		pr_debug("TVE: fb blank event\n");
+		dev_dbg(&tve->pdev->dev, "TVE: fb blank event\n");
 
 		if (*((int *)event->data) == FB_BLANK_UNBLANK) {
-			if (tve.blank != FB_BLANK_UNBLANK) {
-				int mode, fmt;
-				mode = get_video_mode(fbi, &fmt);
-				if (mode != TVOUT_FMT_OFF) {
-					if (tve.cur_mode != mode) {
-						tve_disable();
-						tve_setup(mode);
-					}
-					tve_enable();
-				} else
-					tve_setup(mode);
-				tve.blank = FB_BLANK_UNBLANK;
-			}
-		} else {
-			tve_disable();
-			tve.blank = FB_BLANK_POWERDOWN;
-		}
+			int mode;
+			mode = get_video_mode(fbi);
+			if (mode != TVOUT_FMT_OFF) {
+				if (tve->cur_mode != mode) {
+					tve_disable(tve);
+					tve_setup(tve, mode);
+				}
+				tve_enable(tve);
+			} else
+				tve_setup(tve, mode);
+		} else
+			tve_disable(tve);
 		break;
 	case FB_EVENT_SUSPEND:
-		tve_suspend();
+		tve_suspend(tve);
 		break;
 	case FB_EVENT_RESUME:
-		tve_resume(fbi);
+		tve_resume(tve, fbi);
 		break;
 	}
 	return 0;
 }
 
-static struct notifier_block nb = {
-	.notifier_call = tve_fb_event,
-};
-
 static ssize_t show_headphone(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
+	struct tve_data *tve = dev_get_drvdata(dev);
 	int detect;
 
-	if (!enabled) {
+	if (!tve->enabled) {
 		strcpy(buf, "tve power off\n");
 		return strlen(buf);
 	}
 
-	detect = tve_update_detect_status();
+	detect = tve_update_detect_status(tve);
 
 	if (detect == 0)
 		strcpy(buf, "none\n");
@@ -1084,14 +1009,14 @@ static ssize_t show_headphone(struct device *dev,
 
 static DEVICE_ATTR(headphone, S_IRUGO | S_IWUSR, show_headphone, NULL);
 
-static int _tve_get_revision(void)
+static int _tve_get_revision(struct tve_data *tve)
 {
 	u32 conf_reg;
 	u32 rev = 0;
 
 	/* find out TVE rev based on the base addr default value
 	 * can be used at the init/probe ONLY */
-	conf_reg = __raw_readl(tve.base);
+	conf_reg = readl(tve->base);
 	switch (conf_reg) {
 	case 0x00842000:
 		rev = 1;
@@ -1103,180 +1028,250 @@ static int _tve_get_revision(void)
 	return rev;
 }
 
-int tve_fb_pre_setup(struct fb_info *fbi)
+static int tve_drv_init(struct mxc_dispdrv_entry *disp, bool vga)
 {
-	if (fbi->fbops->fb_ioctl) {
-		mm_segment_t old_fs;
+	int ret;
+	struct tve_data *tve = mxc_dispdrv_getdata(disp);
+	struct mxc_dispdrv_setting *setting = mxc_dispdrv_getsetting(disp);
+	struct fsl_mxc_tve_platform_data *plat_data
+			= tve->pdev->dev.platform_data;
+	struct resource *res;
+	struct fb_videomode *modedb;
+	int modedb_sz;
+	u32 conf_reg;
 
-		old_fs = get_fs();
-		set_fs(KERNEL_DS);
-		fbi->fbops->fb_ioctl(fbi,
-				MXCFB_GET_FB_BLANK,
-				(unsigned int)(&tve.blank));
-		set_fs(old_fs);
+	if (tve->inited == true)
+		return -ENODEV;
+
+	/*tve&vga only use ipu0 and di1*/
+	setting->dev_id = 0;
+	setting->disp_id = 1;
+
+	res = platform_get_resource(tve->pdev, IORESOURCE_MEM, 0);
+	if (res == NULL) {
+		ret = -ENOMEM;
+		goto get_res_failed;
 	}
-	return tve_fb_setup(fbi);
+
+	tve->irq = platform_get_irq(tve->pdev, 0);
+	if (tve->irq < 0) {
+		ret = tve->irq;
+		goto get_irq_failed;
+	}
+
+	tve->base = ioremap(res->start, res->end - res->start);
+	if (!tve->base) {
+		ret = -ENOMEM;
+		goto ioremap_failed;
+	}
+
+	ret = device_create_file(&tve->pdev->dev, &dev_attr_headphone);
+	if (ret < 0)
+		goto dev_file_create_failed;
+
+	tve->dac_reg = regulator_get(&tve->pdev->dev, plat_data->dac_reg);
+	if (!IS_ERR(tve->dac_reg)) {
+		regulator_set_voltage(tve->dac_reg, 2750000, 2750000);
+		regulator_enable(tve->dac_reg);
+	}
+	tve->dig_reg = regulator_get(&tve->pdev->dev, plat_data->dig_reg);
+	if (!IS_ERR(tve->dig_reg)) {
+		regulator_set_voltage(tve->dig_reg, 1250000, 1250000);
+		regulator_enable(tve->dig_reg);
+	}
+
+	tve->clk = clk_get(&tve->pdev->dev, "tve_clk");
+	if (IS_ERR(tve->clk)) {
+		ret = PTR_ERR(tve->clk);
+		goto get_tveclk_failed;
+	}
+	tve->di_clk = clk_get(NULL, "ipu1_di1_clk");
+	if (IS_ERR(tve->di_clk)) {
+		ret = PTR_ERR(tve->di_clk);
+		goto get_diclk_failed;
+	}
+
+	clk_set_rate(tve->clk, 216000000);
+	clk_set_parent(tve->di_clk, tve->clk);
+	clk_enable(tve->clk);
+
+	tve->revision = _tve_get_revision(tve);
+	if (tve->revision == 1) {
+		tve->regs = &tve_regs_v1;
+		tve->reg_fields = &tve_reg_fields_v1;
+	} else {
+		tve->regs = &tve_regs_v2;
+		tve->reg_fields = &tve_reg_fields_v2;
+	}
+
+	/* adjust video mode for mx37 */
+	if (cpu_is_mx37()) {
+		video_modes_tve[0].left_margin = 121;
+		video_modes_tve[0].right_margin = 16;
+		video_modes_tve[0].upper_margin = 17;
+		video_modes_tve[0].lower_margin = 5;
+		video_modes_tve[1].left_margin = 131;
+		video_modes_tve[1].right_margin = 12;
+		video_modes_tve[1].upper_margin = 21;
+		video_modes_tve[1].lower_margin = 3;
+	}
+
+	if (vga && cpu_is_mx53()) {
+		setting->if_fmt = IPU_PIX_FMT_GBR24;
+		modedb = video_modes_vga;
+		modedb_sz = vga_modedb_sz;
+	} else {
+		setting->if_fmt = IPU_PIX_FMT_YUV444;
+		if (tve->revision == 1) {
+			modedb = video_modes_tve;
+			modedb_sz = 3;
+		} else {
+			modedb = video_modes_tve;
+			modedb_sz = tve_modedb_sz;
+		}
+	}
+
+	fb_videomode_to_modelist(modedb, modedb_sz, &setting->fbi->modelist);
+
+	/* must use spec video mode defined by driver */
+	ret = fb_find_mode(&setting->fbi->var, setting->fbi, setting->dft_mode_str,
+				modedb, modedb_sz, NULL, setting->default_bpp);
+	if (ret != 1)
+		fb_videomode_to_var(&setting->fbi->var, &modedb[0]);
+
+	ret = request_irq(tve->irq, tve_detect_handler, 0, tve->pdev->name, tve);
+	if (ret < 0)
+		goto req_irq_failed;
+
+	/* Setup cable detect, for YPrPb mode, default use channel#-1 for Y */
+	INIT_DELAYED_WORK(&tve->cd_work, cd_work_func);
+	if (tve->revision == 1)
+		writel(0x01067701, tve->base + tve->regs->tve_cd_cont_reg);
+	else
+		writel(0x00770601, tve->base + tve->regs->tve_cd_cont_reg);
+
+	conf_reg = 0;
+	writel(conf_reg, tve->base + tve->regs->tve_com_conf_reg);
+
+	writel(0x00000000, tve->base + tve->regs->tve_mv_cont_reg - 4 * 5);
+	writel(0x00000000, tve->base + tve->regs->tve_mv_cont_reg - 4 * 4);
+	writel(0x00000000, tve->base + tve->regs->tve_mv_cont_reg - 4 * 3);
+	writel(0x00000000, tve->base + tve->regs->tve_mv_cont_reg - 4 * 2);
+	writel(0x00000000, tve->base + tve->regs->tve_mv_cont_reg - 4);
+	writel(0x00000000, tve->base + tve->regs->tve_mv_cont_reg);
+
+	clk_disable(tve->clk);
+
+	tve->nb.notifier_call = tve_fb_event;
+	ret = fb_register_client(&tve->nb);
+	if (ret < 0)
+		goto reg_fbclient_failed;
+
+	dev_set_drvdata(&tve->pdev->dev, tve);
+
+	spin_lock_init(&tve->tve_lock);
+
+	tve->inited = true;
+
+	return 0;
+
+reg_fbclient_failed:
+	free_irq(tve->irq, tve->pdev);
+req_irq_failed:
+get_diclk_failed:
+get_tveclk_failed:
+	device_remove_file(&tve->pdev->dev, &dev_attr_headphone);
+dev_file_create_failed:
+	iounmap(tve->base);
+ioremap_failed:
+get_irq_failed:
+get_res_failed:
+	return ret;
+
+}
+
+static int tvout_init(struct mxc_dispdrv_entry *disp)
+{
+	return tve_drv_init(disp, 0);
+}
+
+static int vga_init(struct mxc_dispdrv_entry *disp)
+{
+	return tve_drv_init(disp, 1);
+}
+
+void tvout_deinit(struct mxc_dispdrv_entry *disp)
+{
+	struct tve_data *tve = mxc_dispdrv_getdata(disp);
+
+	if (tve->enabled)
+		clk_disable(tve->clk);
+
+	fb_unregister_client(&tve->nb);
+	free_irq(tve->irq, tve->pdev);
+	device_remove_file(&tve->pdev->dev, &dev_attr_headphone);
+	iounmap(tve->base);
+}
+
+static struct mxc_dispdrv_driver tve_drv = {
+	.name 	= DISPDRV_TVE,
+	.init  	= tvout_init,
+	.deinit = tvout_deinit,
+};
+
+static struct mxc_dispdrv_driver vga_drv = {
+	.name 	= DISPDRV_VGA,
+	.init 	= vga_init,
+	.deinit	= tvout_deinit,
+};
+
+static int tve_dispdrv_init(struct tve_data *tve)
+{
+	tve->disp_tve = mxc_dispdrv_register(&tve_drv);
+	mxc_dispdrv_setdata(tve->disp_tve, tve);
+	tve->disp_vga = mxc_dispdrv_register(&vga_drv);
+	mxc_dispdrv_setdata(tve->disp_vga, tve);
+	return 0;
+}
+
+static void tve_dispdrv_deinit(struct tve_data *tve)
+{
+	mxc_dispdrv_unregister(tve->disp_tve);
+	mxc_dispdrv_unregister(tve->disp_vga);
 }
 
 static int tve_probe(struct platform_device *pdev)
 {
 	int ret;
-	struct resource *res;
-	struct fsl_mxc_tve_platform_data *plat_data = pdev->dev.platform_data;
-	u32 conf_reg;
+	struct tve_data *tve;
 
-	/*
-	 * tve/vga can be enabled by platform data when there is
-	 * no setting from cmdline setup
-	 */
-	if ((plat_data->boot_enable & MXC_TVE_TVOUT)
-		&& !g_enable_tve)
-		g_enable_tve = MXC_ENABLE;
-	if (!g_enable_tve)
-		g_enable_tve = MXC_DISABLE;
-
-	if ((plat_data->boot_enable & MXC_TVE_VGA) &&
-		!g_enable_vga)
-		g_enable_vga = MXC_ENABLE;
-	if (!g_enable_vga)
-		g_enable_vga = MXC_DISABLE;
-
-	if (g_enable_tve == MXC_DISABLE &&
-		g_enable_vga == MXC_DISABLE) {
-		printk(KERN_WARNING "By setting, TVE driver will not be enabled\n");
-		return 0;
+	tve = kzalloc(sizeof(struct tve_data), GFP_KERNEL);
+	if (!tve) {
+		ret = -ENOMEM;
+		goto alloc_failed;
 	}
 
-	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
-	if (res == NULL)
-		return -ENOMEM;
-
-	tve.pdev = pdev;
-	tve.base = ioremap(res->start, res->end - res->start);
-
-	tve.irq = platform_get_irq(pdev, 0);
-	if (tve.irq < 0) {
-		ret = tve.irq;
-		goto err0;
-	}
-
-	ret = request_irq(tve.irq, tve_detect_handler, 0, pdev->name, pdev);
+	tve->pdev = pdev;
+	ret = tve_dispdrv_init(tve);
 	if (ret < 0)
-		goto err0;
+		goto dispdrv_init_failed;
 
-	ret = device_create_file(&pdev->dev, &dev_attr_headphone);
-	if (ret < 0)
-		goto err1;
-
-	tve.dac_reg = regulator_get(&pdev->dev, plat_data->dac_reg);
-	if (!IS_ERR(tve.dac_reg)) {
-		regulator_set_voltage(tve.dac_reg, 2750000, 2750000);
-		regulator_enable(tve.dac_reg);
-	}
-
-	tve.dig_reg = regulator_get(&pdev->dev, plat_data->dig_reg);
-	if (!IS_ERR(tve.dig_reg)) {
-		regulator_set_voltage(tve.dig_reg, 1250000, 1250000);
-		regulator_enable(tve.dig_reg);
-	}
-
-	tve.clk = clk_get(&pdev->dev, "tve_clk");
-	if (IS_ERR(tve.clk)) {
-		ret = PTR_ERR(tve.clk);
-		goto err2;
-	}
-	tve.di_clk = clk_get(NULL, "ipu_di1_clk");
-	if (IS_ERR(tve.di_clk)) {
-		ret = PTR_ERR(tve.di_clk);
-		goto err2;
-	}
-	clk_set_rate(tve.clk, 216000000);
-	clk_set_parent(tve.di_clk, tve.clk);
-	clk_enable(tve.clk);
-
-	tve.revision = _tve_get_revision();
-	if (tve.revision == 1) {
-		tve_regs = &tve_regs_v1;
-		tve_reg_fields = &tve_reg_fields_v1;
-	} else {
-		tve_regs = &tve_regs_v2;
-		tve_reg_fields = &tve_reg_fields_v2;
-	}
-
-	/*[> adjust video mode for mx37 <]
-	if (cpu_is_mx37()) {
-		video_modes[0].left_margin = 121;
-		video_modes[0].right_margin = 16;
-		video_modes[0].upper_margin = 17;
-		video_modes[0].lower_margin = 5;
-		video_modes[1].left_margin = 131;
-		video_modes[1].right_margin = 12;
-		video_modes[1].upper_margin = 21;
-		video_modes[1].lower_margin = 3;
-	}*/
-
-	/* TVE is on disp port 1 */
-	if (tve.revision == 1) {
-		if (g_enable_tve == MXC_ENABLE)
-			mxcfb_register_mode(IPU_DISP_PORT, video_modes,
-					3, MXC_DISP_SPEC_DEV);
-	} else {
-		if (g_enable_tve == MXC_ENABLE)
-			mxcfb_register_mode(IPU_DISP_PORT, video_modes,
-					ARRAY_SIZE(video_modes),
-					MXC_DISP_SPEC_DEV);
-
-		if (cpu_is_mx53() && (g_enable_vga == MXC_ENABLE))
-			mxcfb_register_mode(IPU_DISP_PORT, video_modes_vga,
-					ARRAY_SIZE(video_modes_vga),
-					MXC_DISP_SPEC_DEV);
-	}
-	mxcfb_register_presetup(IPU_DISP_PORT, tve_fb_pre_setup);
-
-	/* Setup cable detect, for YPrPb mode, default use channel#-1 for Y */
-	INIT_DELAYED_WORK(&tve.cd_work, cd_work_func);
-	if (tve.revision == 1)
-		__raw_writel(0x01067701, tve.base + tve_regs->tve_cd_cont_reg);
-	else
-		__raw_writel(0x00770601, tve.base + tve_regs->tve_cd_cont_reg);
-
-	conf_reg = 0;
-	__raw_writel(conf_reg, tve.base + tve_regs->tve_com_conf_reg);
-
-	__raw_writel(0x00000000, tve.base + tve_regs->tve_mv_cont_reg - 4 * 5);
-	__raw_writel(0x00000000, tve.base + tve_regs->tve_mv_cont_reg - 4 * 4);
-	__raw_writel(0x00000000, tve.base + tve_regs->tve_mv_cont_reg - 4 * 3);
-	__raw_writel(0x00000000, tve.base + tve_regs->tve_mv_cont_reg - 4 * 2);
-	__raw_writel(0x00000000, tve.base + tve_regs->tve_mv_cont_reg - 4);
-	__raw_writel(0x00000000, tve.base + tve_regs->tve_mv_cont_reg);
-
-	clk_disable(tve.clk);
-
-	ret = fb_register_client(&nb);
-	if (ret < 0)
-		goto err2;
-
-	tve.blank = -1;
+	dev_set_drvdata(&pdev->dev, tve);
 
 	return 0;
-err2:
-	device_remove_file(&pdev->dev, &dev_attr_headphone);
-err1:
-	free_irq(tve.irq, pdev);
-err0:
-	iounmap(tve.base);
+
+dispdrv_init_failed:
+	kfree(tve);
+alloc_failed:
 	return ret;
 }
 
 static int tve_remove(struct platform_device *pdev)
 {
-	if (enabled) {
-		clk_disable(tve.clk);
-		enabled = 0;
-	}
-	free_irq(tve.irq, pdev);
-	device_remove_file(&pdev->dev, &dev_attr_headphone);
-	fb_unregister_client(&nb);
+	struct tve_data *tve = dev_get_drvdata(&pdev->dev);
+
+	tve_dispdrv_deinit(tve);
+	kfree(tve);
 	return 0;
 }
 
@@ -1287,28 +1282,6 @@ static struct platform_driver tve_driver = {
 	.probe = tve_probe,
 	.remove = tve_remove,
 };
-
-static int __init enable_tve_setup(char *options)
-{
-	if (!strcmp(options, "=off"))
-		g_enable_tve = MXC_DISABLE;
-	else
-		g_enable_tve = MXC_ENABLE;
-
-	return 1;
-}
-__setup("tve", enable_tve_setup);
-
-static int __init enable_vga_setup(char *options)
-{
-	if (!strcmp(options, "=off"))
-		g_enable_vga = MXC_DISABLE;
-	else
-		g_enable_vga = MXC_ENABLE;
-
-	return 1;
-}
-__setup("vga", enable_vga_setup);
 
 static int __init tve_init(void)
 {
