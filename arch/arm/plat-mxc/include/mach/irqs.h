@@ -65,9 +65,14 @@
 #else
 #define MX3_IPU_IRQS 0
 #endif
-/* REVISIT: Add IPU irqs on IMX51 */
 
-#define NR_IRQS			(MXC_IPU_IRQ_START + MX3_IPU_IRQS)
+#ifdef CONFIG_ARCH_MX5
+#define MX5_IPU_IRQS (32*15)
+#else
+#define MX5_IPU_IRQS 0
+#endif
+
+#define NR_IRQS	(MXC_IPU_IRQ_START + MX3_IPU_IRQS + MX5_IPU_IRQS)
 
 extern int imx_irq_set_priority(unsigned char irq, unsigned char prio);
 
