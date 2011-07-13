@@ -151,6 +151,7 @@ typedef struct _vout_data {
 	u16 xres; /* width of physical frame (BGs) */
 	u16 yres; /* heigth of physical frame (BGs)*/
 
+	void *ipu;
 } vout_data;
 
 #endif
