@@ -9,10 +9,11 @@ config MXC_IPU
 	depends on !ARCH_MX21
 	depends on !ARCH_MX27
 	depends on !ARCH_MX25
-	select MXC_IPU_V1 if !ARCH_MX37 && !ARCH_MX5
-	select MXC_IPU_V3 if ARCH_MX37 || ARCH_MX5
+	select MXC_IPU_V1 if !ARCH_MX37 && !ARCH_MX5 && !ARCH_MX6Q
+	select MXC_IPU_V3 if ARCH_MX37 || ARCH_MX5 || ARCH_MX6Q
 	select MXC_IPU_V3D if ARCH_MX37
 	select MXC_IPU_V3EX if ARCH_MX5
+	select MXC_IPU_V3H if ARCH_MX6Q
 	help
 	  If you plan to use the Image Processing unit, say
 	  Y here. IPU is needed by Framebuffer and V4L2 drivers.

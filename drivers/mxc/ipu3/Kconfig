@@ -3,3 +3,9 @@ config MXC_IPU_V3
 
 config MXC_IPU_V3D
 	bool
+
+config MXC_IPU_V3EX
+	bool
+
+config MXC_IPU_V3H
+	bool
