@@ -33,6 +33,11 @@ const struct imx_ldb_data imx53_ldb_data __initconst =
 			imx_ldb_data_entry_single(MX53, SZ_4K);
 #endif
 
+#ifdef CONFIG_SOC_IMX6Q
+const struct imx_ldb_data imx6q_ldb_data __initconst =
+			imx_ldb_data_entry_single(MX6Q, SZ_4K);
+#endif
+
 struct platform_device *__init imx_add_ldb(
 		const struct imx_ldb_data *data,
 		struct fsl_mxc_ldb_platform_data *pdata)
