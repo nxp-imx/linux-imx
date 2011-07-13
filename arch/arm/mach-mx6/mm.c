@@ -61,7 +61,7 @@ void __init mx6_map_io(void)
 {
 	iotable_init(mx6_io_desc, ARRAY_SIZE(mx6_io_desc));
 	mxc_iomux_v3_init(IO_ADDRESS(MX6Q_IOMUXC_BASE_ADDR));
-	mxc_arch_reset_init(IO_ADDRESS(WDOG1_BASE_ADDR));
+	mxc_arch_reset_init(IO_ADDRESS(MX6Q_WDOG1_BASE_ADDR));
 }
 #ifdef CONFIG_CACHE_L2X0
 static int mxc_init_l2x0(void)
