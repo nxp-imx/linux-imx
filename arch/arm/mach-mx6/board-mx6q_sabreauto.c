@@ -58,6 +58,7 @@
 #include <mach/imx-uart.h>
 #include <mach/viv_gpu.h>
 #include <mach/ahci_sata.h>
+#include <mach/ipu-v3.h>
 #include <linux/gpio.h>
 #include <linux/etherdevice.h>
 
@@ -65,8 +66,10 @@
 #include "devices-imx6q.h"
 #include "crm_regs.h"
 
+#define MX6Q_SABREAUTO_LDB_BACKLIGHT	IMX_GPIO_NR(1, 9)
 #define MX6Q_SABREAUTO_ECSPI1_CS0	IMX_GPIO_NR(2, 30)
 #define MX6Q_SABREAUTO_ECSPI1_CS1	IMX_GPIO_NR(3, 19)
+#define MX6Q_SABREAUTO_DISP0_PWR	IMX_GPIO_NR(3, 24)
 #define MX6Q_SABREAUTO_SD3_CD	IMX_GPIO_NR(6, 11)
 #define MX6Q_SABREAUTO_SD3_WP	IMX_GPIO_NR(6, 14)
 #define MX6Q_SABREAUTO_USB_OTG_PWR	IMX_GPIO_NR(3, 22)
@@ -151,6 +154,41 @@ static iomux_v3_cfg_t mx6q_sabreauto_pads[] = {
 	/* I2C2 */
 	MX6Q_PAD_KEY_COL3__I2C2_SCL,
 	MX6Q_PAD_KEY_ROW3__I2C2_SDA,
+
+	/* DISPLAY */
+	MX6Q_PAD_DI0_DISP_CLK__IPU1_DI0_DISP_CLK,
+	MX6Q_PAD_DI0_PIN15__IPU1_DI0_PIN15,
+	MX6Q_PAD_DI0_PIN2__IPU1_DI0_PIN2,
+	MX6Q_PAD_DI0_PIN3__IPU1_DI0_PIN3,
+	MX6Q_PAD_DISP0_DAT0__IPU1_DISP0_DAT_0,
+	MX6Q_PAD_DISP0_DAT1__IPU1_DISP0_DAT_1,
+	MX6Q_PAD_DISP0_DAT2__IPU1_DISP0_DAT_2,
+	MX6Q_PAD_DISP0_DAT3__IPU1_DISP0_DAT_3,
+	MX6Q_PAD_DISP0_DAT4__IPU1_DISP0_DAT_4,
+	MX6Q_PAD_DISP0_DAT5__IPU1_DISP0_DAT_5,
+	MX6Q_PAD_DISP0_DAT6__IPU1_DISP0_DAT_6,
+	MX6Q_PAD_DISP0_DAT7__IPU1_DISP0_DAT_7,
+	MX6Q_PAD_DISP0_DAT8__IPU1_DISP0_DAT_8,
+	MX6Q_PAD_DISP0_DAT9__IPU1_DISP0_DAT_9,
+	MX6Q_PAD_DISP0_DAT10__IPU1_DISP0_DAT_10,
+	MX6Q_PAD_DISP0_DAT11__IPU1_DISP0_DAT_11,
+	MX6Q_PAD_DISP0_DAT12__IPU1_DISP0_DAT_12,
+	MX6Q_PAD_DISP0_DAT13__IPU1_DISP0_DAT_13,
+	MX6Q_PAD_DISP0_DAT14__IPU1_DISP0_DAT_14,
+	MX6Q_PAD_DISP0_DAT15__IPU1_DISP0_DAT_15,
+	MX6Q_PAD_DISP0_DAT16__IPU1_DISP0_DAT_16,
+	MX6Q_PAD_DISP0_DAT17__IPU1_DISP0_DAT_17,
+	MX6Q_PAD_DISP0_DAT18__IPU1_DISP0_DAT_18,
+	MX6Q_PAD_DISP0_DAT19__IPU1_DISP0_DAT_19,
+	MX6Q_PAD_DISP0_DAT20__IPU1_DISP0_DAT_20,
+	MX6Q_PAD_DISP0_DAT21__IPU1_DISP0_DAT_21,
+	MX6Q_PAD_DISP0_DAT22__IPU1_DISP0_DAT_22,
+	MX6Q_PAD_DISP0_DAT23__IPU1_DISP0_DAT_23,
+
+	MX6Q_PAD_EIM_D24__GPIO_3_24,
+
+	/* ldb: pwm fixme*/
+	MX6Q_PAD_GPIO_9__GPIO_1_9,
 
 	/* I2C3 */
 	MX6Q_PAD_GPIO_5__I2C3_SCL,
@@ -387,15 +425,64 @@ static struct ahci_platform_data mx6q_sabreauto_sata_data = {
 	.exit = mx6q_sabreauto_sata_exit,
 };
 
+static struct ipuv3_fb_platform_data sabr_fb_data[] = {
+	{ /*fb0*/
+	.disp_dev = "lcd",
+	.interface_pix_fmt = IPU_PIX_FMT_RGB565,
+	.mode_str = "CLAA-WVGA",
+	.default_bpp = 16,
+	.int_clk = false,
+	}, {
+	.disp_dev = "ldb",
+	.interface_pix_fmt = IPU_PIX_FMT_RGB666,
+	.mode_str = "LDB-XGA",
+	.default_bpp = 16,
+	.int_clk = false,
+	},
+};
+
+static struct fsl_mxc_lcd_platform_data lcdif_data = {
+	.ipu_id = 0,
+	.disp_id = 0,
+	.default_ifmt = IPU_PIX_FMT_RGB565,
+};
+
+static struct fsl_mxc_ldb_platform_data ldb_data = {
+	.ipu_id = 1,
+	.disp_id = 0,
+	.ext_ref = 1,
+	.mode = LDB_SEP,
+};
+
+static struct imx_ipuv3_platform_data ipu_data[] = {
+	{
+	.rev = 4,
+	}, {
+	.rev = 4,
+	},
+};
+
 /*!
  * Board specific initialization.
  */
 static void __init mx6_board_init(void)
 {
+	int i;
+
 	mxc_iomux_v3_setup_multiple_pads(mx6q_sabreauto_pads,
 					ARRAY_SIZE(mx6q_sabreauto_pads));
 
 	mx6q_sabreauto_init_uart();
+
+	imx6q_add_ipuv3(0, &ipu_data[0]);
+	imx6q_add_ipuv3(1, &ipu_data[1]);
+
+	for (i = 0; i < ARRAY_SIZE(sabr_fb_data); i++)
+		imx6q_add_ipuv3fb(i, &sabr_fb_data[i]);
+
+	imx6q_add_lcdif(&lcdif_data);
+	imx6q_add_ldb(&ldb_data);
+	imx6q_add_v4l2_output(0);
 	imx6q_add_imx_i2c(1, &mx6q_sabreauto_i2c_data);
 	imx6q_add_imx_i2c(2, &mx6q_sabreauto_i2c_data);
 	i2c_register_board_info(2, mxc_i2c2_board_info,
@@ -410,6 +497,12 @@ static void __init mx6_board_init(void)
 	imx_add_viv_gpu("gc320", &imx6_gc320_data, NULL);
 	imx6q_sabreauto_init_usb();
 	imx6q_add_ahci(0, &mx6q_sabreauto_sata_data);
+
+	gpio_request(MX6Q_SABREAUTO_DISP0_PWR, "disp0-pwr");
+	gpio_direction_output(MX6Q_SABREAUTO_DISP0_PWR, 1);
+
+	gpio_request(MX6Q_SABREAUTO_LDB_BACKLIGHT, "ldb-backlight");
+	gpio_direction_output(MX6Q_SABREAUTO_LDB_BACKLIGHT, 1);
 }
 
 extern void __iomem *twd_base;
