@@ -71,6 +71,11 @@
 #define PCIE_ARB_BASE_ADDR              0x01000000
 #define PCIE_ARB_END_ADDR               0x01FFFFFF
 
+/* IRAM
+ */
+#define MX6Q_IRAM_BASE_ADDR		IRAM_BASE_ADDR
+#define MX6Q_IRAM_SIZE			SZ_256K
+
 /* Blocks connected via pl301periph */
 #define ROMCP_ARB_BASE_ADDR             0x00000000
 #define ROMCP_ARB_END_ADDR              0x000FFFFF
@@ -160,8 +165,8 @@
 #define GPIO6_BASE_ADDR             (AIPS1_OFF_BASE_ADDR + 0x30000)
 #define GPIO7_BASE_ADDR             (AIPS1_OFF_BASE_ADDR + 0x34000)
 #define KPP_BASE_ADDR               (AIPS1_OFF_BASE_ADDR + 0x38000)
-#define WDOG1_BASE_ADDR             (AIPS1_OFF_BASE_ADDR + 0x3C000)
-#define WDOG2_BASE_ADDR             (AIPS1_OFF_BASE_ADDR + 0x40000)
+#define MX6Q_WDOG1_BASE_ADDR        (AIPS1_OFF_BASE_ADDR + 0x3C000)
+#define MX6Q_WDOG2_BASE_ADDR        (AIPS1_OFF_BASE_ADDR + 0x40000)
 #define CCM_BASE_ADDR               (AIPS1_OFF_BASE_ADDR + 0x44000)
 #define ANATOP_BASE_ADDR            (AIPS1_OFF_BASE_ADDR + 0x48000)
 #define USB_PHY0_BASE_ADDR          (AIPS1_OFF_BASE_ADDR + 0x49000)
