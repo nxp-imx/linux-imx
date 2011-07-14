@@ -674,7 +674,8 @@ static unsigned long _clk_main_bus_get_rate(struct clk *clk)
 {
 	u32 div = 0;
 
-	if (dvfs_per_divider_active() || low_bus_freq_mode)
+	if (cpu_is_mx51() &&
+		(dvfs_per_divider_active() || low_bus_freq_mode))
 		div  = (__raw_readl(MXC_CCM_CDCR) & 0x3);
 	return clk_get_rate(clk->parent) / (div + 1);
 }
