@@ -22,12 +22,15 @@
 #include <linux/clk.h>
 #include <linux/module.h>
 #include <mach/hardware.h>
+#include <linux/iram_alloc.h>
 #include <asm/io.h>
 
 static int __init post_cpu_init(void)
 {
 	unsigned int reg;
 	void __iomem *base;
+
+	iram_init(MX6Q_IRAM_BASE_ADDR, MX6Q_IRAM_SIZE);
 
 	base = ioremap(AIPS1_ON_BASE_ADDR, PAGE_SIZE);
 	__raw_writel(0x0, base + 0x40);

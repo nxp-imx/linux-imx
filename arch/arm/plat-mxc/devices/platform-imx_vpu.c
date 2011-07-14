@@ -112,7 +112,7 @@ const struct imx_vpu_data imx53_vpu_data __initconst =
 #ifdef CONFIG_SOC_IMX6Q
 const struct imx_vpu_data imx6q_vpu_data __initconst =
 			imx6_vpu_data_entry_single(MX6Q,
-			false, 0x14000, NULL, NULL);
+			true, 0x21000, NULL, NULL);
 #endif
 
 struct platform_device *__init imx_add_vpu(
@@ -140,6 +140,8 @@ struct platform_device *__init imx_add_vpu(
 
 	pdata.reset = data->reset;
 	pdata.pg = data->pg;
+	pdata.iram_enable = data->iram_enable;
+	pdata.iram_size = data->iram_size;
 
 	return imx_add_platform_device("mxc_vpu", -1,
 			res, ARRAY_SIZE(res), &pdata, sizeof(pdata));
