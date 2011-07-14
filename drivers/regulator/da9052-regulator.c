@@ -59,7 +59,7 @@ struct regulator {
 		.mask_bits		= (mbits),\
 		.en_bit_mask	= (cbits),\
 }
-
+#define DA9052_MAX_REGULATORS (14)
 struct regulator_info {
 	struct regulator_desc reg_desc;
 	struct regulation_constraints reg_const;
@@ -478,18 +478,24 @@ static int __devinit da9052_regulator_probe(struct platform_device *pdev)
 				(pdev->dev.platform_data);
 	struct da9052 *da9052 = dev_get_drvdata(pdev->dev.parent);
 	struct regulator_init_data  *init_data;
+	struct da9052_platform_data *da9052_pdata = da9052->dev->platform_data;
 	int i, ret = 0;
 
-	priv = kzalloc(sizeof(*priv), GFP_KERNEL);
+	if ((da9052_pdata == NULL) ||
+		(da9052_pdata->num_regulators > DA9052_MAX_REGULATORS) ||
+		(da9052_pdata->num_regulators <= 0))
+		return -EINVAL;
+
+	priv = kzalloc(sizeof(*priv) + sizeof(priv->regulators[0]) *
+			da9052_pdata->num_regulators, GFP_KERNEL);
 	if (priv == NULL)
 		return -ENOMEM;
 
 	priv->da9052 = da9052;
-	for (i = 0; i < 14; i++) {
+	for (i = 0; i < da9052_pdata->num_regulators; i++) {
 
 		init_data = &pdata->regulators[i];
 		init_data->driver_data = da9052;
-		pdev->dev.platform_data = init_data;
 		priv->regulators[i] = regulator_register(
 				&da9052_regulators[i].reg_desc,
 				&pdev->dev, init_data,
