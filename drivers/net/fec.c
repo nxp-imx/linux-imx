@@ -1385,7 +1385,9 @@ fec_restart(struct net_device *dev, int duplex)
 	val = (0x1 << 1);
 
 	/* if phy work at 1G mode, set ENET RGMII speed to 1G */
-	if (fep->phy_dev && fep->phy_dev->supported == PHY_GBIT_FEATURES &&
+	if (fep->phy_dev && (fep->phy_dev->supported &
+		(SUPPORTED_1000baseT_Half | SUPPORTED_1000baseT_Full)) &&
+		fep->phy_interface == PHY_INTERFACE_MODE_RGMII &&
 		fep->phy_dev->speed == SPEED_1000)
 		val |= (0x1 << 5);
 
