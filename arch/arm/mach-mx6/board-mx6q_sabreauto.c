@@ -534,7 +534,7 @@ static void __init mx6q_reserve(void)
 	phys_addr_t phys;
 
 	if (imx6q_gc2000_pdata.reserved_mem_size) {
-		phys = memblock_alloc(imx6q_gc2000_pdata.reserved_mem_size, SZ_4K);
+		phys = memblock_alloc_base(imx6q_gc2000_pdata.reserved_mem_size, SZ_4K, SZ_2G);
 		memblock_free(phys, imx6q_gc2000_pdata.reserved_mem_size);
 		memblock_remove(phys, imx6q_gc2000_pdata.reserved_mem_size);
 		imx6q_gc2000_pdata.reserved_mem_base = phys;
