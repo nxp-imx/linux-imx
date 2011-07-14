@@ -4514,6 +4514,11 @@ int __init mx51_clocks_init(unsigned long ckil, unsigned long osc, unsigned long
 	esdhc2_clk[0].get_rate = _clk_esdhc2_get_rate;
 	esdhc2_clk[0].set_rate = _clk_esdhc2_set_rate;
 
+	esdhc1_clk[0].flags = AHB_MED_SET_POINT | CPU_FREQ_TRIG_UPDATE;
+	esdhc2_clk[0].flags = AHB_MED_SET_POINT | CPU_FREQ_TRIG_UPDATE;
+	esdhc3_clk[0].flags = AHB_MED_SET_POINT | CPU_FREQ_TRIG_UPDATE;
+	esdhc4_clk[0].flags = AHB_MED_SET_POINT | CPU_FREQ_TRIG_UPDATE;
+
 	ata_clk[1].secondary = &ahb_max_clk;
 
 	clk_tree_init();
