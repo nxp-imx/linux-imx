@@ -3995,6 +3995,11 @@ int __init mx6_clocks_init(unsigned long ckil, unsigned long osc,
 		clk_debug_register(lookups[i].clk);
 	}
 
+	clk_set_parent(&gpu3d_shader_clk, &pll2_pfd_594M);
+	clk_set_rate(&gpu3d_shader_clk, 594000000);
+	clk_set_parent(&gpu3d_core_clk, &mmdc_ch0_axi_clk);
+	clk_set_rate(&gpu3d_core_clk, 528000000);
+
 	/* Make sure all clocks are ON initially */
 	__raw_writel(0xFFFFFFFF, MXC_CCM_CCGR0);
 	__raw_writel(0xFFFFFFFF, MXC_CCM_CCGR1);
