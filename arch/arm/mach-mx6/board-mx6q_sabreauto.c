@@ -371,11 +371,12 @@ static int mx6q_sabreauto_sata_init(struct device *dev, void __iomem *addr)
 	}
 
 	/* Set PHY Paremeters, two steps to configure the GPR13,
-	 * one write for rest of parameters, mask of first write is 0x07FF7FFD,
+	 * one write for rest of parameters, mask of first write is 0x07FFFFFD,
 	 * and the other one write for setting the mpll_clk_off_b
 	 *.rx_eq_val_0(iomuxc_gpr13[26:24]),
 	 *.los_lvl(iomuxc_gpr13[23:19]),
 	 *.rx_dpll_mode_0(iomuxc_gpr13[18:16]),
+	 *.sata_speed(iomuxc_gpr13[15]),
 	 *.mpll_ss_en(iomuxc_gpr13[14]),
 	 *.tx_atten_0(iomuxc_gpr13[13:11]),
 	 *.tx_boost_0(iomuxc_gpr13[10:7]),
@@ -384,7 +385,7 @@ static int mx6q_sabreauto_sata_init(struct device *dev, void __iomem *addr)
 	 *.tx_edgerate_0(iomuxc_gpr13[0]),
 	 */
 	tmpdata = readl(IOMUXC_GPR13);
-	writel(((tmpdata & ~0x07FF7FFD) | 0x05932044), IOMUXC_GPR13);
+	writel(((tmpdata & ~0x07FFFFFD) | 0x0593A044), IOMUXC_GPR13);
 
 	/* enable SATA_PHY PLL */
 	tmpdata = readl(IOMUXC_GPR13);
