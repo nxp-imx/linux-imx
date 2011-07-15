@@ -171,7 +171,7 @@
 #define ANATOP_BASE_ADDR            (AIPS1_OFF_BASE_ADDR + 0x48000)
 #define USB_PHY0_BASE_ADDR          (AIPS1_OFF_BASE_ADDR + 0x49000)
 #define USB_PHY1_BASE_ADDR          (AIPS1_OFF_BASE_ADDR + 0x4a000)
-#define SNVS_BASE_ADDR              (AIPS1_OFF_BASE_ADDR + 0x4C000)
+#define MX6Q_SNVS_BASE_ADDR              (AIPS1_OFF_BASE_ADDR + 0x4C000)
 #define EPIT1_BASE_ADDR             (AIPS1_OFF_BASE_ADDR + 0x50000)
 #define EPIT2_BASE_ADDR             (AIPS1_OFF_BASE_ADDR + 0x54000)
 #define SRC_BASE_ADDR               (AIPS1_OFF_BASE_ADDR + 0x58000)
@@ -287,7 +287,7 @@
 #define MXC_INT_RAWNAND_GPMI                       48
 #define MXC_INT_DTCP                               49
 #define MXC_INT_VDOA                               50
-#define MXC_INT_SNVS                               51
+#define MX6Q_INT_SNVS                               51
 #define MXC_INT_SNVS_SEC                           52
 #define MXC_INT_CSU                                53
 #define MX6Q_INT_USDHC1                             54
