@@ -104,3 +104,6 @@ extern const struct imx_otp_data imx6q_otp_data __initconst;
 #define imx6q_add_otp() \
 	imx_add_otp(&imx6q_otp_data);
 
+extern const struct imx_imx2_wdt_data imx6q_imx2_wdt_data[] __initconst;
+#define imx6q_add_imx2_wdt(id, pdata)   \
+	imx_add_imx2_wdt(&imx6q_imx2_wdt_data[id])

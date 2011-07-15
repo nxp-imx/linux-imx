@@ -3858,6 +3858,10 @@ static struct clk usboh3_clk = {
 	.disable = _clk_disable,
 };
 
+static struct clk dummy_clk = {
+	.id = 0,
+};
+
 #define _REGISTER_CLOCK(d, n, c) \
 	{ \
 		.dev_id = d, \
@@ -3963,6 +3967,8 @@ static struct clk_lookup lookups[] = {
 	_REGISTER_CLOCK(NULL, "usboh3_clk", usboh3_clk),
 	_REGISTER_CLOCK(NULL, "usb_phy1_clk", usb_phy1_clk),
 	_REGISTER_CLOCK(NULL, "video_27M_clk", video_27M_clk),
+	_REGISTER_CLOCK("imx2-wdt.0", NULL, dummy_clk),
+	_REGISTER_CLOCK("imx2-wdt.1", NULL, dummy_clk),
 };
 
 

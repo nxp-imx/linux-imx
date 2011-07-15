@@ -510,6 +510,7 @@ static void __init mx6_board_init(void)
 	gpio_request(MX6Q_SABREAUTO_LDB_BACKLIGHT, "ldb-backlight");
 	gpio_direction_output(MX6Q_SABREAUTO_LDB_BACKLIGHT, 1);
 	imx6q_add_otp();
+	imx6q_add_imx2_wdt(0, NULL);
 }
 
 extern void __iomem *twd_base;
