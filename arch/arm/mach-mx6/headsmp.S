@@ -19,7 +19,6 @@
 #include <linux/linkage.h>
 #include <linux/init.h>
 
-        __INIT
 ENTRY(v7_invalidate_l1)
         mov     r0, #0
         mcr     p15, 2, r0, c0, c0, 0
