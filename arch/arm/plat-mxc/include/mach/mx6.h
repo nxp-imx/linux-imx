@@ -259,12 +259,11 @@
  * it returns 0xDEADBEEF
  */
 #define IO_ADDRESS(x)   \
-	(void __force __iomem *) \
 	(((((x) >= (unsigned long)AIPS1_ARB_BASE_ADDR) && \
 	  ((x) <= (unsigned long)AIPS2_ARB_END_ADDR)) || \
 	  ((x) >= (unsigned long)ARM_PERIPHBASE && \
 	  ((x) <= (unsigned long)(ARM_PERIPHBASE + ARM_PERIPHBASE)))) ? \
-	   MX6_IO_ADDRESS(x) : 0xDEADBEEF)
+	   MX6_IO_ADDRESS(x) : (void __force __iomem *)0xDEADBEEF)
 
 /*
  * Interrupt numbers
