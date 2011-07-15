@@ -49,6 +49,8 @@
 #define  SDHCI_PRESENT_STATE_DLSL_H4	(0xF << 28)
 
 #define ESDHC_FLAG_GPIO_FOR_CD_WP	(1 << 0)
+
+#define	SDHCI_CTRL_D3CD			0x08
 /*
  * The CMDTYPE of the CMD register (offset 0xE) should be set to
  * "11" when the STOP CMD12 is issued on imx53 to abort one
@@ -104,14 +106,48 @@ static void esdhc_writel_le(struct sdhci_host *host, u32 val, int reg)
 {
 	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
 	struct pltfm_imx_data *imx_data = pltfm_host->priv;
+	u32 data;
 
-	if (unlikely((reg == SDHCI_INT_ENABLE || reg == SDHCI_SIGNAL_ENABLE)
-			&& (imx_data->flags & ESDHC_FLAG_GPIO_FOR_CD_WP)))
-		/*
-		 * these interrupts won't work with a custom card_detect gpio
-		 * (only applied to mx25/35)
-		 */
-		val &= ~(SDHCI_INT_CARD_REMOVE | SDHCI_INT_CARD_INSERT);
+	if (unlikely((reg == SDHCI_INT_ENABLE || reg == SDHCI_SIGNAL_ENABLE))) {
+		if (imx_data->flags & ESDHC_FLAG_GPIO_FOR_CD_WP)
+			/*
+			 * these interrupts won't work with a custom
+			 * card_detect gpio (only applied to mx25/35)
+			 */
+			val &= ~(SDHCI_INT_CARD_REMOVE | \
+				SDHCI_INT_CARD_INSERT);
+
+		if (!(val & SDHCI_INT_CARD_INT) && cpu_is_mx6q())
+			/*
+			 * write 1 to clear card interrupt status bit
+			 * (only applied to mx6q)
+			 * uSDHC used for mx6q has such problem which is
+			 * not consistant with standard host controller
+			 * definition.
+			 * eSDHC used for mx25/35/50/51/53 does not have
+			 * such problem.
+			 */
+			writel(SDHCI_INT_CARD_INT, \
+				host->ioaddr + SDHCI_INT_STATUS);
+
+		if (val & SDHCI_INT_CARD_INT && (!cpu_is_mx6q())) {
+			/*
+			 * clear D3CD bit and set D3CD bit to avoid
+			 * losing card interrupt
+			 * (applied to all processors except mx6q)
+			 * eSDHC controller used for mx25/35/50/51/53
+			 * has such issue, so that we need to do following
+			 * operation to avoid losing card interrupt.
+			 * uSDCH controller used for mx6q and after won't
+			 * have such problem.
+			 */
+			data = readl(host->ioaddr + SDHCI_HOST_CONTROL);
+			data &= ~SDHCI_CTRL_D3CD;
+			writel(data, host->ioaddr + SDHCI_HOST_CONTROL);
+			data |= SDHCI_CTRL_D3CD;
+			writel(data, host->ioaddr + SDHCI_HOST_CONTROL);
+		}
+	}
 
 	if (unlikely((imx_data->flags & ESDHC_FLAG_MULTIBLK_NO_INT)
 				&& (reg == SDHCI_INT_STATUS)
@@ -231,8 +267,10 @@ static void esdhc_writeb_le(struct sdhci_host *host, u8 val, int reg)
 		}
 		return;
 	case SDHCI_HOST_CONTROL:
-		/* FSL messed up here, so we can just keep those two */
-		new_val = val & (SDHCI_CTRL_LED | SDHCI_CTRL_4BITBUS);
+		/* FSL messed up here, so we can just keep those three */
+		new_val = val & (SDHCI_CTRL_LED | \
+				SDHCI_CTRL_4BITBUS | \
+				SDHCI_CTRL_D3CD);
 		/* ensure the endianess */
 		new_val |= ESDHC_HOST_CONTROL_LE;
 		/* DMA mode bits are shifted */
