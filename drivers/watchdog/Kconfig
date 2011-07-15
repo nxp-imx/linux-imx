@@ -321,7 +321,7 @@ config MAX63XX_WATCHDOG
 
 config IMX2_WDT
 	tristate "IMX2+ Watchdog"
-	depends on ARCH_MX2 || ARCH_MX25 || ARCH_MX3 || ARCH_MX5
+	depends on ARCH_MX2 || ARCH_MX25 || ARCH_MX3 || ARCH_MX5 || ARCH_MX6
 	help
 	  This is the driver for the hardware watchdog
 	  on the Freescale IMX2 and later processors.
