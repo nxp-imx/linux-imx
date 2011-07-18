@@ -503,3 +503,13 @@ struct imx_fsl_usb2_wakeup_data {
 struct platform_device *__init imx_add_fsl_usb2_wakeup(
 		const struct imx_fsl_usb2_wakeup_data *data,
 		const struct fsl_usb2_wakeup_platform_data *pdata);
+
+#include <mach/imx-pm.h>
+struct imx_pm_imx_data {
+	int id;
+	resource_size_t iobase;
+	resource_size_t irq;
+};
+struct platform_device *__init imx_add_pm_imx(
+		const struct imx_pm_imx_data *data,
+		const struct pm_platform_data *pdata);
