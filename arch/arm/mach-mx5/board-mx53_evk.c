@@ -511,7 +511,7 @@ static struct i2c_board_info mxc_i2c1_board_info[] __initdata = {
 	 .addr = 0x2c,
 	 },
 	{
-	 .type = "mxc_ddc",
+	 .type = "mxc_dvi",
 	 .addr = 0x50,
 	 .irq = gpio_to_irq(EVK_DISP0_DET_INT),
 	 .platform_data = &evk_ddc_dvi_data,
