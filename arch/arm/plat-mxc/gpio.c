@@ -177,7 +177,9 @@ static void mx3_gpio_irq_handler(u32 irq, struct irq_desc *desc)
 	u32 irq_stat;
 	struct mxc_gpio_port *port = irq_get_handler_data(irq);
 
+#ifndef CONFIG_MXC_TZIC
 	desc->irq_data.chip->irq_ack(&desc->irq_data);
+#endif
 
 	irq_stat = __raw_readl(port->base + GPIO_ISR) &
 			__raw_readl(port->base + GPIO_IMR);
