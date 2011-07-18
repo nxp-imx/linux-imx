@@ -213,6 +213,10 @@ struct fsl_mxc_lcd_platform_data {
 	char *core_reg;
 	char *analog_reg;
 	void (*reset) (void);
+	int (*get_pins) (void);
+	void (*put_pins) (void);
+	void (*enable_pins) (void);
+	void (*disable_pins) (void);
 	int default_ifmt;
 	int ipu_id;
 	int disp_id;
