@@ -51,6 +51,9 @@
 #include <asm/mach-types.h>
 #include <mach/hardware.h>
 #include <mach/mxc_edid.h>
+#include "mxc_dispdrv.h"
+
+#define DISPDRV_SII	"hdmi"
 
 #define TPI_PIX_CLK_LSB                 (0x00)
 #define TPI_PIX_CLK_MSB                 (0x01)
@@ -182,23 +185,20 @@
 #define _16_To_9                0x20
 #define SAME_AS_AR              0x08
 
-#define MXC_ENABLE	1
-#define MXC_DISABLE	2
-static int g_enable_hdmi;
-
 struct sii902x_data {
 	struct platform_device *pdev;
 	struct i2c_client *client;
+	struct mxc_dispdrv_entry *disp_hdmi;
 	struct regulator *io_reg;
 	struct regulator *analog_reg;
 	struct delayed_work det_work;
 	struct fb_info *fbi;
 	struct mxc_edid_cfg edid_cfg;
-	char *fb_id;
 	bool cable_plugin;
 	bool rx_powerup;
 	bool need_mode_change;
 	u8 edid[SII_EDID_LEN];
+	struct notifier_block nb;
 
 	u8 power_state;
 	u8 tpivmode[3];
@@ -269,7 +269,6 @@ struct sii902x_data {
 	u8 audio_word_len;
 	u8 audio_i2s_fmt;
 };
-static struct sii902x_data *g_sii902x;
 
 static __attribute__ ((unused)) void dump_regs(struct sii902x_data *sii902x,
 					u8 reg, int len)
@@ -840,7 +839,7 @@ static void sii902x_disable_tmds(struct sii902x_data *sii902x)
 
 static void sii902x_poweron(struct sii902x_data *sii902x)
 {
-	struct mxc_lcd_platform_data *plat = sii902x->client->dev.platform_data;
+	struct fsl_mxc_lcd_platform_data *plat = sii902x->client->dev.platform_data;
 
 	dev_dbg(&sii902x->client->dev, "power on\n");
 
@@ -854,7 +853,7 @@ static void sii902x_poweron(struct sii902x_data *sii902x)
 
 static void sii902x_poweroff(struct sii902x_data *sii902x)
 {
-	struct mxc_lcd_platform_data *plat = sii902x->client->dev.platform_data;
+	struct fsl_mxc_lcd_platform_data *plat = sii902x->client->dev.platform_data;
 
 	dev_dbg(&sii902x->client->dev, "power off\n");
 
@@ -873,11 +872,11 @@ static void sii902x_rx_powerup(struct sii902x_data *sii902x)
 
 	if (sii902x->need_mode_change) {
 		sii902x->fbi->var.activate |= FB_ACTIVATE_FORCE;
-		acquire_console_sem();
+		console_lock();
 		sii902x->fbi->flags |= FBINFO_MISC_USEREVENT;
 		fb_set_var(sii902x->fbi, &sii902x->fbi->var);
 		sii902x->fbi->flags &= ~FBINFO_MISC_USEREVENT;
-		release_console_sem();
+		console_unlock();
 		sii902x->need_mode_change = false;
 	}
 
@@ -991,8 +990,8 @@ static void det_worker(struct work_struct *work)
 static irqreturn_t sii902x_detect_handler(int irq, void *data)
 {
 	struct sii902x_data *sii902x = data;
-	if (sii902x->fbi)
-		schedule_delayed_work(&(sii902x->det_work), msecs_to_jiffies(20));
+
+	schedule_delayed_work(&(sii902x->det_work), msecs_to_jiffies(20));
 
 	return IRQ_HANDLED;
 }
@@ -1001,36 +1000,28 @@ static int sii902x_fb_event(struct notifier_block *nb, unsigned long val, void *
 {
 	struct fb_event *event = v;
 	struct fb_info *fbi = event->info;
+	struct sii902x_data *sii902x = container_of(nb, struct sii902x_data, nb);
 
-	if (strcmp(event->info->fix.id, g_sii902x->fb_id))
+	if (strcmp(event->info->fix.id, sii902x->fbi->fix.id))
 		return 0;
 
 	switch (val) {
-	case FB_EVENT_FB_REGISTERED:
-		if (g_sii902x->fbi != NULL)
-			break;
-		g_sii902x->fbi = fbi;
-		break;
 	case FB_EVENT_MODE_CHANGE:
-		sii902x_setup(g_sii902x, fbi);
+		sii902x_setup(sii902x, fbi);
 		break;
 	case FB_EVENT_BLANK:
 		if (*((int *)event->data) == FB_BLANK_UNBLANK)
-			sii902x_poweron(g_sii902x);
+			sii902x_poweron(sii902x);
 		else
-			sii902x_poweroff(g_sii902x);
+			sii902x_poweroff(sii902x);
 		break;
 	}
 	return 0;
 }
 
-static struct notifier_block nb = {
-	.notifier_call = sii902x_fb_event,
-};
-
-static int __devinit sii902x_TPI_init(struct i2c_client *client)
+static int sii902x_TPI_init(struct i2c_client *client)
 {
-	struct mxc_lcd_platform_data *plat = client->dev.platform_data;
+	struct fsl_mxc_lcd_platform_data *plat = client->dev.platform_data;
 	u8 devid = 0;
 	u16 wid = 0;
 
@@ -1069,39 +1060,19 @@ static int __devinit sii902x_TPI_init(struct i2c_client *client)
 	return 0;
 }
 
-static int __devinit sii902x_probe(struct i2c_client *client,
-		const struct i2c_device_id *id)
+static int sii902x_disp_init(struct mxc_dispdrv_entry *disp)
 {
 	int ret = 0;
-	struct mxc_lcd_platform_data *plat = client->dev.platform_data;
-	struct fb_info edid_fbi;
-	struct sii902x_data *sii902x;
+	struct sii902x_data *sii902x = mxc_dispdrv_getdata(disp);
+	struct mxc_dispdrv_setting *setting = mxc_dispdrv_getsetting(disp);
+	struct fsl_mxc_lcd_platform_data *plat = sii902x->client->dev.platform_data;
+	bool found = false;
 
-	if (plat->boot_enable &&
-		!g_enable_hdmi)
-		g_enable_hdmi = MXC_ENABLE;
-	if (!g_enable_hdmi)
-		g_enable_hdmi = MXC_DISABLE;
+	setting->dev_id = plat->ipu_id;
+	setting->disp_id = plat->disp_id;
+	setting->if_fmt = IPU_PIX_FMT_RGB24;
 
-	if (g_enable_hdmi == MXC_DISABLE) {
-		printk(KERN_WARNING "By setting, SII driver will not be enabled\n");
-		return -ENODEV;
-	}
-
-	if (!i2c_check_functionality(client->adapter,
-				I2C_FUNC_SMBUS_BYTE | I2C_FUNC_I2C))
-		return -ENODEV;
-
-	sii902x = kzalloc(sizeof(struct sii902x_data), GFP_KERNEL);
-	if (!sii902x) {
-		ret = -ENOMEM;
-		goto alloc_failed;
-	}
-
-	sii902x->client = client;
-	sii902x->fb_id = plat->fb_id;
-	g_sii902x = sii902x;
-
+	sii902x->fbi = setting->fbi;
 	sii902x->power_state = TX_POWER_STATE_D2;
 	sii902x->icolor_space = RGB;
 	sii902x->audio_mode = AMODE_SPDIF;
@@ -1137,29 +1108,50 @@ static int __devinit sii902x_probe(struct i2c_client *client,
 			goto get_pins_failed;
 		}
 
-	ret = sii902x_TPI_init(client);
+	ret = sii902x_TPI_init(sii902x->client);
 	if (ret < 0)
 		goto init_failed;
 
 	/* try to read edid */
-	ret = sii902x_read_edid(sii902x, &edid_fbi);
+	ret = sii902x_read_edid(sii902x, sii902x->fbi);
 	if (ret < 0)
 		dev_warn(&sii902x->client->dev, "Can not read edid\n");
+	else {
+		INIT_LIST_HEAD(&sii902x->fbi->modelist);
+		if (sii902x->fbi->monspecs.modedb_len > 0) {
+			int i;
+			const struct fb_videomode *mode;
+			struct fb_videomode m;
 
-#if defined(CONFIG_MXC_IPU_V3) && defined(CONFIG_FB_MXC_SYNC_PANEL)
-	if (ret >= 0) {
-		int di = 0;
-		if (!strcmp(sii902x->fb_id, "DISP3 BG - DI1"))
-			di = 1;
-		mxcfb_register_mode(di, edid_fbi.monspecs.modedb,
-				edid_fbi.monspecs.modedb_len, MXC_DISP_DDC_DEV);
+			for (i = 0; i < sii902x->fbi->monspecs.modedb_len; i++) {
+				/*FIXME now we do not support interlaced mode */
+				if (!(sii902x->fbi->monspecs.modedb[i].vmode
+							& FB_VMODE_INTERLACED))
+					fb_add_videomode(
+							&sii902x->fbi->monspecs.modedb[i],
+							&sii902x->fbi->modelist);
+			}
+
+			fb_find_mode(&sii902x->fbi->var, sii902x->fbi, setting->dft_mode_str,
+					NULL, 0, NULL, setting->default_bpp);
+
+			fb_var_to_videomode(&m, &sii902x->fbi->var);
+			mode = fb_find_nearest_mode(&m,
+					&sii902x->fbi->modelist);
+			fb_videomode_to_var(&sii902x->fbi->var, mode);
+			found = 1;
+		}
+
 	}
-#endif
-#if defined(CONFIG_FB_MXC_ELCDIF_FB)
-	if (ret >= 0)
-		mxcfb_elcdif_register_mode(edid_fbi.monspecs.modedb,
-				edid_fbi.monspecs.modedb_len, MXC_DISP_DDC_DEV);
-#endif
+
+	if (!found) {
+		ret = fb_find_mode(&sii902x->fbi->var, sii902x->fbi, setting->dft_mode_str,
+				NULL, 0, NULL, setting->default_bpp);
+		if (!ret) {
+			ret = -EINVAL;
+			goto find_mode_failed;
+		}
+	}
 
 	if (sii902x->client->irq) {
 		ret = request_irq(sii902x->client->irq, sii902x_detect_handler,
@@ -1197,30 +1189,31 @@ static int __devinit sii902x_probe(struct i2c_client *client,
 		dev_set_drvdata(&sii902x->pdev->dev, sii902x);
 	}
 
-	fb_register_client(&nb);
-
-	i2c_set_clientdata(client, sii902x);
+	sii902x->nb.notifier_call = sii902x_fb_event;
+	ret = fb_register_client(&sii902x->nb);
+	if (ret < 0)
+		goto reg_fbclient_failed;
 
 	return ret;
 
+reg_fbclient_failed:
+find_mode_failed:
 init_failed:
 get_pins_failed:
 	platform_device_unregister(sii902x->pdev);
 register_pltdev_failed:
-	kfree(sii902x);
-alloc_failed:
 	return ret;
 }
 
-static int __devexit sii902x_remove(struct i2c_client *client)
+static void sii902x_disp_deinit(struct mxc_dispdrv_entry *disp)
 {
-	struct sii902x_data *sii902x = i2c_get_clientdata(client);
-	struct mxc_lcd_platform_data *plat = client->dev.platform_data;
+	struct sii902x_data *sii902x = mxc_dispdrv_getdata(disp);
+	struct fsl_mxc_lcd_platform_data *plat = sii902x->client->dev.platform_data;
 
 	if (sii902x->client->irq)
 		free_irq(sii902x->client->irq, sii902x);
 
-	fb_unregister_client(&nb);
+	fb_unregister_client(&sii902x->nb);
 
 	sii902x_poweroff(sii902x);
 
@@ -1231,19 +1224,47 @@ static int __devexit sii902x_remove(struct i2c_client *client)
 	platform_device_unregister(sii902x->pdev);
 
 	kfree(sii902x);
-
-	return 0;
 }
 
-static int sii902x_suspend(struct i2c_client *client, pm_message_t message)
+static struct mxc_dispdrv_driver sii902x_drv = {
+	.name 	= DISPDRV_SII,
+	.init 	= sii902x_disp_init,
+	.deinit	= sii902x_disp_deinit,
+};
+
+static int __devinit sii902x_probe(struct i2c_client *client,
+		const struct i2c_device_id *id)
 {
-	/*TODO*/
-	return 0;
+	struct sii902x_data *sii902x;
+	int ret = 0;
+
+	if (!i2c_check_functionality(client->adapter,
+				I2C_FUNC_SMBUS_BYTE | I2C_FUNC_I2C))
+		return -ENODEV;
+
+	sii902x = kzalloc(sizeof(struct sii902x_data), GFP_KERNEL);
+	if (!sii902x) {
+		ret = -ENOMEM;
+		goto alloc_failed;
+	}
+
+	sii902x->client = client;
+
+	sii902x->disp_hdmi = mxc_dispdrv_register(&sii902x_drv);
+	mxc_dispdrv_setdata(sii902x->disp_hdmi, sii902x);
+
+	i2c_set_clientdata(client, sii902x);
+
+alloc_failed:
+	return ret;
 }
 
-static int sii902x_resume(struct i2c_client *client)
+static int __devexit sii902x_remove(struct i2c_client *client)
 {
-	/*TODO*/
+	struct sii902x_data *sii902x = i2c_get_clientdata(client);
+
+	mxc_dispdrv_unregister(sii902x->disp_hdmi);
+	kfree(sii902x);
 	return 0;
 }
 
@@ -1259,8 +1280,6 @@ static struct i2c_driver sii902x_i2c_driver = {
 		   },
 	.probe = sii902x_probe,
 	.remove = sii902x_remove,
-	.suspend = sii902x_suspend,
-	.resume = sii902x_resume,
 	.id_table = sii902x_id,
 };
 
@@ -1273,17 +1292,6 @@ static void __exit sii902x_exit(void)
 {
 	i2c_del_driver(&sii902x_i2c_driver);
 }
-
-static int __init enable_hdmi_setup(char *options)
-{
-	if (!strcmp(options, "=off"))
-		g_enable_hdmi = MXC_DISABLE;
-	else
-		g_enable_hdmi = MXC_ENABLE;
-
-	return 1;
-}
-__setup("hdmi", enable_hdmi_setup);
 
 module_init(sii902x_init);
 module_exit(sii902x_exit);
