@@ -39,7 +39,7 @@
 #define DPRINTK(fmt, args...)
 #endif
 
-const struct fb_videomode cea_modes[64] = {
+const struct fb_videomode mxc_cea_mode[64] = {
 	/* #1: 640x480p@59.94/60Hz */
 	[1] = {
 		NULL, 60, 640, 480, 39722, 48, 16, 33, 10, 96, 2, 0,
@@ -203,10 +203,10 @@ int mxc_edid_parse_ext_blk(unsigned char *edid,
 			while (i < blklen) {
 				index++;
 				cea_idx = edid[index] & 0x7f;
-				if (cea_idx < ARRAY_SIZE(cea_modes) &&
-					(cea_modes[cea_idx].xres)) {
+				if (cea_idx < ARRAY_SIZE(mxc_cea_mode) &&
+					(mxc_cea_mode[cea_idx].xres)) {
 					DPRINTK("Support CEA Format #%d\n", cea_idx);
-					mode[num] = cea_modes[cea_idx];
+					mode[num] = mxc_cea_mode[cea_idx];
 					mode[num].flag |= FB_MODE_IS_STANDARD;
 					num++;
 				}
@@ -392,13 +392,13 @@ int mxc_edid_var_to_vic(struct fb_var_screeninfo *var)
 	int i;
 	struct fb_videomode m;
 
-	for (i = 0; i < ARRAY_SIZE(cea_modes); i++) {
+	for (i = 0; i < ARRAY_SIZE(mxc_cea_mode); i++) {
 		fb_var_to_videomode(&m, var);
-		if (fb_mode_is_equal(&m, &cea_modes[i]))
+		if (fb_mode_is_equal(&m, &mxc_cea_mode[i]))
 			break;
 	}
 
-	if (i == ARRAY_SIZE(cea_modes))
+	if (i == ARRAY_SIZE(mxc_cea_mode))
 		return 0;
 
 	return i;
