@@ -373,6 +373,7 @@ static int sdma_run_channel(struct sdma_channel *sdmac)
 
 	init_completion(&sdmac->done);
 
+	wmb();
 	__raw_writel(1 << channel, sdma->regs + SDMA_H_START);
 
 	ret = wait_for_completion_timeout(&sdmac->done, HZ);
@@ -768,6 +769,7 @@ out:
 
 static void sdma_enable_channel(struct sdma_engine *sdma, int channel)
 {
+	wmb();
 	__raw_writel(1 << channel, sdma->regs + SDMA_H_START);
 }
 
