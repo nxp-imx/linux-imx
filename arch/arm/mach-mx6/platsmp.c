@@ -61,7 +61,6 @@ int __cpuinit boot_secondary(unsigned int cpu, struct task_struct *idle)
 {
 	unsigned long boot_entry;
 	void __iomem *src_base = IO_ADDRESS(SRC_BASE_ADDR);
-	unsigned long timeout;
 	int val;
 
 	 /*
