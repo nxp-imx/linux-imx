@@ -70,6 +70,9 @@
 #define MX6Q_SABREAUTO_ECSPI1_CS0	IMX_GPIO_NR(2, 30)
 #define MX6Q_SABREAUTO_ECSPI1_CS1	IMX_GPIO_NR(3, 19)
 #define MX6Q_SABREAUTO_DISP0_PWR	IMX_GPIO_NR(3, 24)
+#define MX6Q_SABREAUTO_DISP0_I2C_EN	IMX_GPIO_NR(3, 28)
+#define MX6Q_SABREAUTO_DISP0_DET_INT	IMX_GPIO_NR(3, 31)
+#define MX6Q_SABREAUTO_DISP0_RESET	IMX_GPIO_NR(5, 0)
 #define MX6Q_SABREAUTO_SD3_CD	IMX_GPIO_NR(6, 11)
 #define MX6Q_SABREAUTO_SD3_WP	IMX_GPIO_NR(6, 14)
 #define MX6Q_SABREAUTO_USB_OTG_PWR	IMX_GPIO_NR(3, 22)
@@ -192,6 +195,15 @@ static iomux_v3_cfg_t mx6q_sabreauto_pads[] = {
 	/* ldb: pwm fixme*/
 	MX6Q_PAD_GPIO_9__GPIO_1_9,
 
+	/* DISP0 I2C ENABLE*/
+	MX6Q_PAD_EIM_D28__GPIO_3_28,
+
+	/* DISP0 DET */
+	MX6Q_PAD_EIM_D31__GPIO_3_31,
+
+	/* DISP0 RESET */
+	MX6Q_PAD_EIM_WAIT__GPIO_5_0,
+
 	/* I2C3 */
 	MX6Q_PAD_GPIO_5__I2C3_SCL,
 	MX6Q_PAD_GPIO_16__I2C3_SDA,
@@ -302,6 +314,28 @@ static struct pca953x_platform_data max7310_u48_platdata = {
 	.setup		= max7310_u48_setup,
 };
 
+static void ddc_dvi_init(void)
+{
+	/* enable DVI I2C */
+	gpio_set_value(MX6Q_SABREAUTO_DISP0_I2C_EN, 1);
+}
+
+static int ddc_dvi_update(void)
+{
+	/* DVI cable state */
+	if (gpio_get_value(MX6Q_SABREAUTO_DISP0_DET_INT) == 1)
+		return 1;
+	else
+		return 0;
+}
+
+static struct fsl_mxc_dvi_platform_data sabr_ddc_dvi_data = {
+	.ipu_id = 0,
+	.disp_id = 0,
+	.init = ddc_dvi_init,
+	.update = ddc_dvi_update,
+};
+
 static struct imxi2c_platform_data mx6q_sabreauto_i2c_data = {
 	.bitrate = 400000,
 };
@@ -314,6 +348,11 @@ static struct i2c_board_info mxc_i2c2_board_info[] __initdata = {
 	{
 		I2C_BOARD_INFO("max7310", 0x1B),
 		.platform_data = &max7310_u48_platdata,
+	},
+	{
+		I2C_BOARD_INFO("mxc_dvi", 0x50),
+		.platform_data = &sabr_ddc_dvi_data,
+		.irq = gpio_to_irq(MX6Q_SABREAUTO_DISP0_DET_INT),
 	},
 };
 
@@ -503,6 +542,18 @@ static void __init mx6_board_init(void)
 	imx6q_sabreauto_init_usb();
 	imx6q_add_ahci(0, &mx6q_sabreauto_sata_data);
 	imx6q_add_vpu();
+
+	/* DISP0 Detect */
+	gpio_request(MX6Q_SABREAUTO_DISP0_DET_INT, "disp0-detect");
+	gpio_direction_input(MX6Q_SABREAUTO_DISP0_DET_INT);
+
+	/* DISP0 Reset - Assert for i2c disabled mode */
+	gpio_request(MX6Q_SABREAUTO_DISP0_RESET, "disp0-reset");
+	gpio_direction_output(MX6Q_SABREAUTO_DISP0_RESET, 0);
+
+	/* DISP0 I2C enable */
+	gpio_request(MX6Q_SABREAUTO_DISP0_I2C_EN, "disp0-i2c");
+	gpio_direction_output(MX6Q_SABREAUTO_DISP0_I2C_EN, 0);
 
 	gpio_request(MX6Q_SABREAUTO_DISP0_PWR, "disp0-pwr");
 	gpio_direction_output(MX6Q_SABREAUTO_DISP0_PWR, 1);
