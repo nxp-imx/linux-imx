@@ -505,6 +505,20 @@ static struct imx_ipuv3_platform_data ipu_data[] = {
 	},
 };
 
+static void sabreauto_suspend_enter(void)
+{
+	/* suspend preparation */
+}
+
+static void sabreauto_suspend_exit(void)
+{
+	/* resmue resore */
+}
+static const struct pm_platform_data mx6q_sabreauto_pm_data __initconst = {
+	.name = "imx_pm",
+	.suspend_enter = sabreauto_suspend_enter,
+	.suspend_exit = sabreauto_suspend_exit,
+};
 /*!
  * Board specific initialization.
  */
@@ -537,6 +551,7 @@ static void __init mx6_board_init(void)
 	imx6q_add_anatop_thermal_imx(1, &mx6q_sabreauto_anatop_thermal_data);
 	imx6q_init_fec();
 
+	imx6q_add_pm_imx(0, &mx6q_sabreauto_pm_data);
 	imx6q_add_sdhci_usdhc_imx(3, &mx6q_sabreauto_sd4_data);
 	imx6q_add_sdhci_usdhc_imx(2, &mx6q_sabreauto_sd3_data);
 	imx_add_viv_gpu("gc2000", &imx6_gc2000_data, &imx6q_gc2000_pdata);

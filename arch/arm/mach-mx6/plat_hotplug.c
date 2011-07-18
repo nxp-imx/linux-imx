@@ -19,7 +19,11 @@
 #include <linux/kernel.h>
 #include <linux/errno.h>
 #include <linux/smp.h>
-
+#include <mach/hardware.h>
+#include <asm/mach-types.h>
+#include <linux/io.h>
+#include "src-reg.h"
+#include <linux/sched.h>
 #include <asm/cacheflush.h>
 
 
@@ -34,7 +38,30 @@ int platform_cpu_kill(unsigned int cpu)
  */
 void platform_cpu_die(unsigned int cpu)
 {
+	void __iomem *src_base = IO_ADDRESS(SRC_BASE_ADDR);
+	unsigned int val;
 
+	if (cpu == 0) {
+		printk(KERN_ERR "CPU0 can't be disabled!\n");
+		return;
+	}
+	flush_cache_all();
+	dsb();
+
+	/*
+	 * we're ready for shutdown now, so do it
+	 */
+	val = readl(src_base + SRC_SCR_OFFSET);
+	val &= ~(1 << (BP_SRC_SCR_CORES_DBG_RST + cpu));
+	writel(val, src_base + SRC_SCR_OFFSET);
+
+	for (;;) {
+		/*
+		 * Execute WFI
+		 */
+		cpu_do_idle();
+		printk(KERN_INFO "CPU%u: spurious wakeup call\n", cpu);
+	}
 }
 
 int platform_cpu_disable(unsigned int cpu)

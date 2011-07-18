@@ -32,27 +32,6 @@
 #include <mach/hardware.h>
 #include <mach/gpio.h>
 
-static struct resource mxc_anatop_resources[] = {
-	{
-		.start = ANATOP_BASE_ADDR,
-		.end = ANATOP_BASE_ADDR + SZ_4K - 1,
-		.flags = IORESOURCE_MEM,
-	},
-	{
-		.start = MXC_INT_ANATOP_TEMPSNSR,
-		.end = MXC_INT_ANATOP_TEMPSNSR,
-		.flags = IORESOURCE_IRQ,
-	},
-};
-
-struct platform_device anatop_thermal_device = {
-	.name = "anatop_thermal",
-	.id = 1,
-	.num_resources = ARRAY_SIZE(mxc_anatop_resources),
-	.resource = mxc_anatop_resources,
-};
-
-
 static struct mxc_gpio_port mxc_gpio_ports[] = {
 	{
 		.chip.label = "gpio-0",

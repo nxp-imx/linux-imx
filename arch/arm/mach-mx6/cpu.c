@@ -21,6 +21,7 @@
 #include <linux/init.h>
 #include <linux/clk.h>
 #include <linux/module.h>
+#include <linux/iram_alloc.h>
 #include <mach/hardware.h>
 #include <linux/iram_alloc.h>
 #include <asm/io.h>

@@ -503,6 +503,16 @@ struct imx_dcp_data {
 	resource_size_t irq2;
 };
 
+
+#include <mach/imx-pm.h>
+struct imx_pm_imx_data {
+	int id;
+	resource_size_t iobase;
+	resource_size_t irq;
+};
+struct platform_device *__init imx_add_pm_imx(
+		const struct imx_pm_imx_data *data,
+		const struct pm_platform_data *pdata);
 struct platform_device *__init imx_add_dcp(
 
 struct imx_fsl_usb2_otg_data {
