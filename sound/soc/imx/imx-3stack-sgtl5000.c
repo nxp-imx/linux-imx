@@ -609,6 +609,9 @@ static int __devinit imx_3stack_sgtl5000_probe(struct platform_device *pdev)
 
 	imx_3stack_dai.cpu_dai = sgtl5000_cpu_dai;
 
+	/* get mxc_audio_platform_data for pcm */
+	imx_3stack_dai.cpu_dai->dev = &pdev->dev;
+
 	ret = driver_create_file(pdev->dev.driver, &driver_attr_headphone);
 	if (ret < 0) {
 		pr_err("%s:failed to create driver_attr_headphone\n", __func__);
