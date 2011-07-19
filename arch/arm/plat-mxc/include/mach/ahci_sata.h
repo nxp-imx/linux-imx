@@ -52,5 +52,10 @@ enum {
 	SATA_PHY_CR_CLOCK_MPLL_TST = 0x0017,
 };
 
+extern int write_phy_ctl_ack_polling(u32 data, void __iomem *mmio,
+		int max_iterations, u32 exp_val);
+extern int sata_phy_cr_addr(u32 addr, void __iomem *mmio);
+extern int sata_phy_cr_write(u32 data, void __iomem *mmio);
+extern int sata_phy_cr_read(u32 *data, void __iomem *mmio);
 extern int sata_init(void __iomem *addr, unsigned long timer1ms);
 #endif /* __PLAT_MXC_AHCI_SATA_H__ */
