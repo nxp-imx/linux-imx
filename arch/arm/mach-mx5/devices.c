@@ -214,6 +214,11 @@ struct platform_device mxc_usbh2_wakeup_device = {
 	.resource = usbh2_wakeup_resources,
 };
 
+struct platform_device imx_ahci_device_hwmon = {
+	.name		= "imx-ahci-hwmon",
+	.id		= -1,
+};
+
 static struct mxc_gpio_port mxc_gpio_ports[] = {
 	{
 		.chip.label = "gpio-0",

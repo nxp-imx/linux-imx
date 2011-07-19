@@ -705,6 +705,7 @@ static void __init mx53_loco_board_init(void)
 	imx53_add_sdhci_esdhc_imx(0, &mx53_loco_sd1_data);
 	imx53_add_sdhci_esdhc_imx(2, &mx53_loco_sd3_data);
 	imx53_add_ahci(0, &mx53_loco_sata_data);
+	mxc_register_device(&imx_ahci_device_hwmon, NULL);
 	imx53_add_iim(&iim_data);
 
 	/* USB */

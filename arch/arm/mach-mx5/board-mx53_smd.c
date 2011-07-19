@@ -766,6 +766,7 @@ static void __init mx53_smd_board_init(void)
 	imx53_add_sdhci_esdhc_imx(1, &mx53_smd_sd2_data);
 	imx53_add_sdhci_esdhc_imx(2, &mx53_smd_sd3_data);
 	imx53_add_ahci(0, &mx53_smd_sata_data);
+	mxc_register_device(&imx_ahci_device_hwmon, NULL);
 
 	mx53_smd_init_usb();
 	imx53_add_iim(&iim_data);
