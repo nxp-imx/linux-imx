@@ -1029,6 +1029,7 @@ static struct mxc_audio_platform_data sgtl5000_data = {
 	.hp_status = headphone_det_status,
 	.amp_enable = mxc_sgtl5000_amp_enable,
 	.init = mxc_sgtl5000_init,
+	.ext_ram_rx = 1,
 };
 
 static int mxc_sgtl5000_init(void)
@@ -1175,7 +1176,7 @@ static struct mxc_spdif_platform_data mxc_spdif_data = {
 };
 
 static struct mxc_audio_platform_data spdif_audio_data = {
-	.ext_ram = 1,
+	.ext_ram_tx = 1,
 };
 
 static struct platform_device mxc_spdif_audio_device = {
@@ -1183,10 +1184,10 @@ static struct platform_device mxc_spdif_audio_device = {
 };
 
 static struct mxc_audio_platform_data mxc_surround_audio_data = {
-	.ext_ram = 1,
+	.ext_ram_tx = 1,
+	.ext_ram_rx = 1,
 	.sysclk = 22579200,
 };
-
 
 static struct platform_device mxc_alsa_surround_device = {
 	.name = "imx-3stack-cs42888",
@@ -1462,6 +1463,9 @@ static void __init mxc_board_init(void)
 	mxc_spdif_data.spdif_core_clk = clk_get(NULL, "spdif_xtal_clk");
 	clk_put(mxc_spdif_data.spdif_core_clk);
 
+	spdif_audio_data.ext_ram_clk = clk_get(NULL, "emi_fast_clk");
+	clk_put(spdif_audio_data.ext_ram_clk);
+
 	/* SD card detect irqs */
 	if (board_is_mx53_arm2()) {
 		mxcsdhc1_device.resource[2].start = gpio_to_irq(ARM2_SD1_CD);
@@ -1550,6 +1554,12 @@ static void __init mxc_board_init(void)
 /*
 	pm_power_off = mxc_power_off;
 	*/
+	sgtl5000_data.ext_ram_clk = clk_get(NULL, "emi_fast_clk");
+	clk_put(sgtl5000_data.ext_ram_clk);
+
+	mxc_surround_audio_data.ext_ram_clk = clk_get(NULL, "emi_fast_clk");
+	clk_put(mxc_surround_audio_data.ext_ram_clk);
+
 	mxc_register_device(&mxc_sgtl5000_device, &sgtl5000_data);
 	mxc_register_device(&mxc_spdif_audio_device, &spdif_audio_data);
 	mxc_register_device(&mxc_mlb_device, &mlb_data);

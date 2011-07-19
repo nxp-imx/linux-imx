@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2008-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -362,6 +362,7 @@ static struct mxc_audio_platform_data sgtl5000_data = {
 	.hp_irq = IOMUX_TO_IRQ(MX25_PIN_A10),
 	.hp_status = headphone_det_status,
 	.sysclk = 8300000,
+	.ext_ram_rx = 1,
 };
 
 static struct platform_device mxc_sgtl5000_device = {
@@ -398,7 +399,10 @@ static void mxc_init_sgtl5000(void)
 	clk_enable(cko1);
 	sgtl5000_data.sysclk = rate;
 	sgtl5000_enable_amp();
-	platform_device_register(&mxc_sgtl5000_device);
+
+	sgtl5000_data.ext_ram_clk = clk_get(NULL, "emi_clk");
+	clk_put(sgtl5000_data.ext_ram_clk);
+	mxc_register_device(&mxc_sgtl5000_device, &sgtl5000_data);
 }
 #else
 static inline void mxc_init_sgtl5000(void)

@@ -486,6 +486,12 @@ static struct mxc_dvfsper_data dvfs_per_data = {
 	.lp_low = 1250000,
 };
 
+static struct mxc_audio_platform_data spdif_audio_data;
+
+static struct platform_device mxc_spdif_audio_device = {
+	.name = "imx-spdif-audio-device",
+};
+
 static struct mxc_spdif_platform_data mxc_spdif_data = {
 	.spdif_tx = 1,
 	.spdif_rx = 0,
@@ -895,6 +901,7 @@ static struct mxc_audio_platform_data sgtl5000_data = {
 	.amp_enable = mxc_sgtl5000_amp_enable,
 	.clock_enable = mxc_sgtl5000_clock_enable,
 	.sysclk = 12288000,
+	.ext_ram_rx = 1,
 };
 
 static struct platform_device mxc_sgtl5000_device = {
@@ -1261,6 +1268,13 @@ static void __init mxc_board_init(void)
 
 	mxc_spdif_data.spdif_core_clk = clk_get(NULL, "spdif_xtal_clk");
 	clk_put(mxc_spdif_data.spdif_core_clk);
+
+	spdif_audio_data.ext_ram_clk = clk_get(NULL, "emi_fast_clk");
+	clk_put(spdif_audio_data.ext_ram_clk);
+
+	sgtl5000_data.ext_ram_clk = clk_get(NULL, "emi_fast_clk");
+	clk_put(sgtl5000_data.ext_ram_clk);
+
 	/* SD card detect irqs */
 	mxcsdhc2_device.resource[2].start = gpio_to_irq(BABBAGE_SD2_CD_2_5);
 	mxcsdhc2_device.resource[2].end = gpio_to_irq(BABBAGE_SD2_CD_2_5);
@@ -1311,6 +1325,7 @@ static void __init mxc_board_init(void)
 	mxc_register_device(&mxc_v4l2_device, NULL);
 	mxc_register_device(&mxc_v4l2out_device, NULL);
 	mxc_register_device(&mxc_powerkey_device, &pwrkey_data);
+	mxc_register_device(&mxc_spdif_audio_device, &spdif_audio_data);
 
 	mx51_babbage_init_mc13892();
 
@@ -1342,6 +1357,7 @@ static void __init mxc_board_init(void)
 
 	gpio_request(BABBAGE_AUDAMP_STBY, "audioamp-stdby");
 	gpio_direction_output(BABBAGE_AUDAMP_STBY, 0);
+
 	mxc_register_device(&mxc_sgtl5000_device, &sgtl5000_data);
 
 	mx5_usb_dr_init();

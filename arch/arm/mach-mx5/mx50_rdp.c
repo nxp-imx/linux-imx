@@ -2148,7 +2148,11 @@ static void __init mxc_board_init(void)
 	pm_power_off = mxc_power_off;
 	*/
 	mx5_set_otghost_vbus_func(mx50_arm2_usb_set_vbus);
+
+	sgtl5000_data.ext_ram_clk = clk_get(NULL, "ddr_clk");
+	clk_put(sgtl5000_data.ext_ram_clk);
 	mxc_register_device(&mxc_sgtl5000_device, &sgtl5000_data);
+
 	mxc_register_device(&gpmi_nfc_device, &gpmi_nfc_platform_data);
 	mx5_usb_dr_init();
 	mx5_usbh1_init();
