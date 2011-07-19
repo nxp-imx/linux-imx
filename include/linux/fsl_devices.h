@@ -243,7 +243,9 @@ struct mxc_audio_platform_data {
 	int ext_port;
 
 	int intr_id_hp;
-	int ext_ram;
+	int ext_ram_rx;		/* Use external ram (not iram) for capture */
+	int ext_ram_tx;		/* Use external ram (not iram) for playback */
+	struct clk *ext_ram_clk;
 	struct clk *ssi_clk[2];
 
 	int hp_irq;

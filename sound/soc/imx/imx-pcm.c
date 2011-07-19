@@ -23,6 +23,7 @@
 #include <linux/dma-mapping.h>
 #include <linux/iram_alloc.h>
 #include <linux/fsl_devices.h>
+#include <linux/clk.h>
 #include <sound/core.h>
 #include <sound/pcm.h>
 #include <sound/pcm_params.h>
@@ -461,6 +462,44 @@ static int imx_pcm_hw_free(struct snd_pcm_substream *substream)
 	return 0;
 }
 
+/*
+ * Get value of ext_ram for the capture/playback stream
+ */
+static int get_ext_ram(struct snd_soc_dai *cpu_dai, int stream)
+{
+	struct mxc_audio_platform_data *dev_data = cpu_dai->dev->platform_data;
+	struct clk *ext_ram_clk = dev_data->ext_ram_clk;
+	int ext_ram = 0;
+
+	if (stream == SNDRV_PCM_STREAM_CAPTURE)
+		ext_ram = dev_data->ext_ram_rx;
+	else
+		ext_ram = dev_data->ext_ram_tx;
+
+	WARN(ext_ram && ((ext_ram_clk == NULL) || IS_ERR(ext_ram_clk)),
+	     "%s: Need a valid pointer to external ram clock\n", __func__);
+
+	return ext_ram;
+}
+
+/*
+ * Update the value of ext_ram for the capture/playback stream to
+ * show whether the buffer is actually in external ram or iram.
+ */
+static void update_ext_ram(struct snd_soc_dai *cpu_dai, int stream, int ext_ram)
+{
+	struct mxc_audio_platform_data *dev_data = cpu_dai->dev->platform_data;
+	struct clk *ext_ram_clk = dev_data->ext_ram_clk;
+
+	if (stream == SNDRV_PCM_STREAM_CAPTURE)
+		dev_data->ext_ram_rx = ext_ram;
+	else
+		dev_data->ext_ram_tx = ext_ram;
+
+	WARN(ext_ram && ((ext_ram_clk == NULL) || IS_ERR(ext_ram_clk)),
+	     "%s: Need a valid pointer to external ram clock\n", __func__);
+}
+
 static int imx_pcm_trigger(struct snd_pcm_substream *substream, int cmd)
 {
 	struct mxc_runtime_data *prtd = substream->runtime->private_data;
@@ -522,8 +561,16 @@ static snd_pcm_uframes_t imx_pcm_pointer(struct
 static int imx_pcm_open(struct snd_pcm_substream *substream)
 {
 	struct snd_pcm_runtime *runtime = substream->runtime;
+	struct snd_soc_pcm_runtime *rtd = substream->private_data;
+	struct snd_soc_device *socdev = rtd->socdev;
+	struct snd_soc_dai *cpu_dai = socdev->card->dai_link->cpu_dai;
+	struct mxc_audio_platform_data *dev_data = cpu_dai->dev->platform_data;
 	struct mxc_runtime_data *prtd;
 	int ret;
+
+	/* if audio buffer is in external ram, enable the clock */
+	if (get_ext_ram(cpu_dai, substream->stream))
+		clk_enable(dev_data->ext_ram_clk);
 
 	snd_soc_set_runtime_hwparams(substream, &imx_pcm_hardware);
 
@@ -544,6 +591,13 @@ static int imx_pcm_close(struct snd_pcm_substream *substream)
 {
 	struct snd_pcm_runtime *runtime = substream->runtime;
 	struct mxc_runtime_data *prtd = runtime->private_data;
+	struct snd_soc_pcm_runtime *rtd = substream->private_data;
+	struct snd_soc_device *socdev = rtd->socdev;
+	struct snd_soc_dai *cpu_dai = socdev->card->dai_link->cpu_dai;
+	struct mxc_audio_platform_data *dev_data = cpu_dai->dev->platform_data;
+
+	if (get_ext_ram(cpu_dai, substream->stream))
+		clk_disable(dev_data->ext_ram_clk);
 
 	kfree(prtd);
 	return 0;
@@ -556,22 +610,17 @@ imx_pcm_mmap(struct snd_pcm_substream *substream, struct vm_area_struct *vma)
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	struct snd_soc_device *socdev = rtd->socdev;
 	struct snd_soc_dai *cpu_dai = socdev->card->dai_link->cpu_dai;
-	struct mxc_audio_platform_data *dev_data;
 	int ext_ram = 0;
 	int ret = 0;
 
-	dbg("+imx_pcm_mmap:"
-	    "UseIram=%d dma_addr=%x dma_area=%x dma_bytes=%d\n",
-	    UseIram, (unsigned int)runtime->dma_addr,
-	    runtime->dma_area, runtime->dma_bytes);
+	ext_ram = get_ext_ram(cpu_dai, substream->stream);
 
-	if (cpu_dai->dev && cpu_dai->dev->platform_data) {
-		dev_data = cpu_dai->dev->platform_data;
-		ext_ram = dev_data->ext_ram;
-	}
+	dbg("%s: UseIram=%d ext_ram=%d dma_addr=%x dma_area=%x dma_bytes=%d\n",
+		__func__, UseIram, ext_ram, (unsigned int)runtime->dma_addr,
+		runtime->dma_area, runtime->dma_bytes);
 
-	if ((substream->stream == SNDRV_PCM_STREAM_CAPTURE)
-	    || ext_ram || !UseIram) {
+	if (ext_ram || !UseIram) {
+		update_ext_ram(cpu_dai, substream->stream, 1);
 		ret =
 		    dma_mmap_writecombine(substream->pcm->card->
 					  dev, vma,
@@ -579,8 +628,10 @@ imx_pcm_mmap(struct snd_pcm_substream *substream, struct vm_area_struct *vma)
 					  runtime->dma_addr,
 					  runtime->dma_bytes);
 		return ret;
-	} else
+	} else {
+		update_ext_ram(cpu_dai, substream->stream, 0);
 		return imx_iram_audio_playback_mmap(substream, vma);
+	}
 }
 
 struct snd_pcm_ops imx_pcm_ops = {
@@ -602,33 +653,29 @@ static int imx_pcm_preallocate_dma_buffer(struct snd_pcm *pcm, int stream)
 	struct snd_soc_pcm_runtime *rtd = pcm->private_data;
 	struct snd_soc_device *socdev = rtd->socdev;
 	struct snd_soc_dai *cpu_dai = socdev->card->dai_link->cpu_dai;
-	struct mxc_audio_platform_data *dev_data;
 	unsigned long buf_paddr;
 	int ext_ram = 0;
 	size_t size = imx_pcm_hardware.buffer_bytes_max;
 
-	if (cpu_dai->dev && cpu_dai->dev->platform_data) {
-		dev_data = cpu_dai->dev->platform_data;
-		ext_ram = dev_data->ext_ram;
-	}
+	ext_ram = get_ext_ram(cpu_dai, stream);
 
 	buf->dev.type = SNDRV_DMA_TYPE_DEV;
 	buf->dev.dev = pcm->card->dev;
 	buf->private_data = NULL;
 
-	pr_err("capture=%d ext_ram=%d UseIram=%d\n",
-		(stream == SNDRV_PCM_STREAM_CAPTURE), ext_ram, UseIram);
-
-	if ((stream == SNDRV_PCM_STREAM_CAPTURE) || ext_ram || !UseIram)
+	if (ext_ram || !UseIram) {
+		update_ext_ram(cpu_dai, substream->stream, 1);
 		buf->area =
 		    dma_alloc_writecombine(pcm->card->dev, size,
 					   &buf->addr, GFP_KERNEL);
-	else {
+	} else {
+		update_ext_ram(cpu_dai, substream->stream, 0);
 		buf->area = iram_alloc(size, &buf_paddr);
 		buf->addr = buf_paddr;
 
 		if (!buf->area) {
 			pr_warning("imx-pcm: Falling back to external ram.\n");
+			update_ext_ram(cpu_dai, substream->stream, 1);
 			UseIram = 0;
 			buf->area =
 			    dma_alloc_writecombine(pcm->card->dev, size,
@@ -639,9 +686,15 @@ static int imx_pcm_preallocate_dma_buffer(struct snd_pcm *pcm, int stream)
 	if (!buf->area)
 		return -ENOMEM;
 	buf->bytes = size;
-	printk(KERN_INFO "DMA Sound Buffers Allocated:"
-	       "UseIram=%d buf->addr=%x buf->area=%p size=%d\n",
-	       UseIram, buf->addr, buf->area, size);
+
+	if (stream == SNDRV_PCM_STREAM_CAPTURE)
+		printk(KERN_INFO "DMA Sound Buffer Allocated: Capture  "
+			"UseIram=%d ext_ram=%d buf->addr=%x buf->area=%p size=%d\n",
+			UseIram, ext_ram, buf->addr, buf->area, size);
+	else
+		printk(KERN_INFO "DMA Sound Buffer Allocated: Playback "
+			"UseIram=%d ext_ram=%d buf->addr=%x buf->area=%p size=%d\n",
+			UseIram, ext_ram, buf->addr, buf->area, size);
 	return 0;
 }
 
@@ -652,14 +705,8 @@ static void imx_pcm_free_dma_buffers(struct snd_pcm *pcm)
 	struct snd_soc_pcm_runtime *rtd = pcm->private_data;
 	struct snd_soc_device *socdev = rtd->socdev;
 	struct snd_soc_dai *cpu_dai = socdev->card->dai_link->cpu_dai;
-	struct mxc_audio_platform_data *dev_data;
 	int ext_ram = 0;
 	int stream;
-
-	if (cpu_dai->dev && cpu_dai->dev->platform_data) {
-		dev_data = cpu_dai->dev->platform_data;
-		ext_ram = dev_data->ext_ram;
-	}
 
 	for (stream = 0; stream < 2; stream++) {
 		substream = pcm->streams[stream].substream;
@@ -670,8 +717,8 @@ static void imx_pcm_free_dma_buffers(struct snd_pcm *pcm)
 		if (!buf->area)
 			continue;
 
-		if ((stream == SNDRV_PCM_STREAM_CAPTURE)
-		    || ext_ram || !UseIram)
+		ext_ram = get_ext_ram(cpu_dai, stream);
+		if (ext_ram)
 			dma_free_writecombine(pcm->card->dev,
 					      buf->bytes, buf->area, buf->addr);
 		else {
@@ -686,7 +733,23 @@ static u64 imx_pcm_dmamask = 0xffffffff;
 static int imx_pcm_new(struct snd_card *card,
 		       struct snd_soc_dai *dai, struct snd_pcm *pcm)
 {
+	struct snd_soc_pcm_runtime *rtd = pcm->private_data;
+	struct snd_soc_device *socdev = rtd->socdev;
+	struct snd_soc_dai *cpu_dai = socdev->card->dai_link->cpu_dai;
+	struct mxc_audio_platform_data *dev_data;
+	struct clk *ext_ram_clk;
 	int ret = 0;
+
+	/* must have platform data (mxc_audio_platform_data) */
+	BUG_ON(!cpu_dai->dev || !cpu_dai->dev->platform_data);
+
+	/* if buffer is in external ram, we need the external ram clock */
+	dev_data = cpu_dai->dev->platform_data;
+	ext_ram_clk = dev_data->ext_ram_clk;
+	if (dev_data->ext_ram_tx || dev_data->ext_ram_rx)
+		WARN((ext_ram_clk == NULL) || IS_ERR(ext_ram_clk),
+		     "%s: Need a valid pointer to external ram clock\n",
+		      __func__);
 
 	if (!card->dev->dma_mask)
 		card->dev->dma_mask = &imx_pcm_dmamask;

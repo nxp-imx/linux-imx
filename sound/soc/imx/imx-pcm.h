@@ -2,7 +2,7 @@
  * imx-pcm.h :- ASoC platform header for Freescale i.MX
  *
  * Copyright 2006 Wolfson Microelectronics PLC.
- * Copyright 2006, 2009-2010 Freescale  Semiconductor, Inc.
+ * Copyright 2006, 2009-2011 Freescale Semiconductor, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
