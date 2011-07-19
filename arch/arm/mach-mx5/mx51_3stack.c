@@ -331,6 +331,8 @@ static struct mxc_dvfsper_data dvfs_per_data = {
 	.lp_low = 1250000,
 };
 
+static struct mxc_audio_platform_data spdif_audio_data;
+
 static struct mxc_spdif_platform_data mxc_spdif_data = {
 	.spdif_tx = 1,
 	.spdif_rx = 0,
@@ -800,7 +802,9 @@ static struct platform_device mxc_wm8903_device = {
 	.id = 0,
 };
 
-static struct mxc_audio_platform_data wm8903_data;
+static struct mxc_audio_platform_data wm8903_data = {
+	.ext_ram_rx = 1,
+};
 
 static void __init mxc_init_wm8903(void)
 {
@@ -814,7 +818,9 @@ static void __init mxc_init_wm8903(void)
 	wm8903_data.src_port = 2;
 	wm8903_data.ext_port = 3;
 
-	(void)platform_device_register(&mxc_wm8903_device);
+	wm8903_data.ext_ram_clk = clk_get(NULL, "emi_fast_clk");
+	clk_put(wm8903_data.ext_ram_clk);
+	mxc_register_device(&mxc_wm8903_device, &wm8903_data);
 }
 
 static struct platform_device mxc_sgtl5000_device = {
@@ -873,6 +879,7 @@ static struct mxc_audio_platform_data sgtl5000_data = {
 	.sysclk = 12000000,
 	.init = mxc_sgtl5000_plat_init,
 	.finit = mxc_sgtl5000_plat_finit,
+	.ext_ram_rx = 1,
 };
 
 static void bt_reset(void)
@@ -972,6 +979,12 @@ static void __init mxc_board_init(void)
 
 	mxc_spdif_data.spdif_core_clk = clk_get(NULL, "spdif_xtal_clk");
 	clk_put(mxc_spdif_data.spdif_core_clk);
+
+	spdif_audio_data.ext_ram_clk = clk_get(NULL, "emi_fast_clk");
+	clk_put(spdif_audio_data.ext_ram_clk);
+
+	sgtl5000_data.ext_ram_clk = clk_get(NULL, "emi_fast_clk");
+	clk_put(sgtl5000_data.ext_ram_clk);
 
 	mxc_cpu_common_init();
 	mx51_3stack_io_init();

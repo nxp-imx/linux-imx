@@ -1,6 +1,6 @@
 /*
  * Copyright 2009 Sascha Hauer, <kernel@pengutronix.de>
- * Copyright (C) 2010 Freescale Semiconductor, Inc.
+ * Copyright (C) 2010-2011 Freescale Semiconductor, Inc.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -667,7 +667,8 @@ static void mxc_init_esai(void)
 #endif
 
 static struct mxc_audio_platform_data mxc_surround_audio_data = {
-	.ext_ram = 1,
+	.ext_ram_tx = 1,
+	.ext_ram_rx = 1,
 };
 
 static struct platform_device mxc_alsa_surround_device = {
@@ -680,7 +681,10 @@ static struct platform_device mxc_alsa_surround_device = {
 
 static void mxc_init_surround_audio(void)
 {
-	platform_device_register(&mxc_alsa_surround_device);
+	mxc_surround_audio_data.ext_ram_clk = clk_get(NULL, "emi_clk");
+	clk_put(mxc_surround_audio_data.ext_ram_clk);
+	mxc_register_device(&mxc_alsa_surround_device,
+			    &mxc_surround_audio_data);
 }
 
 #if defined(CONFIG_MXC_IIM) || defined(CONFIG_MXC_IIM_MODULE)

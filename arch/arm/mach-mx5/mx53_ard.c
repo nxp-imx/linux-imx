@@ -999,6 +999,14 @@ static struct mxc_asrc_platform_data mxc_asrc_data = {
 	.clk_map_ver = 2.
 };
 
+static struct mxc_audio_platform_data spdif_audio_data = {
+	.ext_ram_rx = 1,
+};
+
+static struct platform_device mxc_spdif_audio_device = {
+	.name = "imx-spdif-audio-device",
+};
+
 static struct mxc_spdif_platform_data mxc_spdif_data = {
 	.spdif_tx = 0,
 	.spdif_rx = 1,
@@ -1009,10 +1017,10 @@ static struct mxc_spdif_platform_data mxc_spdif_data = {
 };
 
 static struct mxc_audio_platform_data mxc_surround_audio_data = {
-	.ext_ram = 1,
+	.ext_ram_tx = 1,
+	.ext_ram_rx = 1,
 	.sysclk = 24576000,
 };
-
 
 static struct platform_device mxc_alsa_surround_device = {
 	.name = "imx-3stack-cs42888",
@@ -1285,6 +1293,12 @@ static void __init mxc_board_init(void)
 	mxc_spdif_data.spdif_core_clk = clk_get(NULL, "spdif_xtal_clk");
 	clk_put(mxc_spdif_data.spdif_core_clk);
 
+	spdif_audio_data.ext_ram_clk = clk_get(NULL, "emi_fast_clk");
+	clk_put(spdif_audio_data.ext_ram_clk);
+
+	mxc_surround_audio_data.ext_ram_clk = clk_get(NULL, "emi_fast_clk");
+	clk_put(mxc_surround_audio_data.ext_ram_clk);
+
 	mxcsdhc2_device.resource[2].start = gpio_to_irq(ARD_SD2_CD);
 	mxcsdhc2_device.resource[2].end = gpio_to_irq(ARD_SD2_CD);
 	mxcsdhc1_device.resource[2].start = gpio_to_irq(ARD_SD1_CD);
@@ -1352,6 +1366,7 @@ static void __init mxc_board_init(void)
 		mxc_register_device(&mxc_asrc_device, &mxc_asrc_data);
 	}
 
+	mxc_register_device(&mxc_spdif_audio_device, &spdif_audio_data);
 	mxc_register_device(&mxc_alsa_spdif_device, &mxc_spdif_data);
 
 	spi_register_board_info(mxc_dataflash_device,
