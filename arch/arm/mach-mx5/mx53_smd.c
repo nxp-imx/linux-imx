@@ -1132,7 +1132,7 @@ static void __init mx53_smd_io_init(void)
 
 	/* Camera reset */
 	gpio_request(MX53_SMD_CSI0_RST, "cam-reset");
-	gpio_set_value(MX53_SMD_CSI0_RST, 1);
+	gpio_direction_output(MX53_SMD_CSI0_RST, 1);
 
 	/* Camera power down */
 	gpio_request(MX53_SMD_CSI0_PWN, "cam-pwdn");
