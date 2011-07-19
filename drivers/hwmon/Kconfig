@@ -1374,6 +1374,13 @@ config SENSORS_MC13783_ADC
         help
           Support for the A/D converter on MC13783 PMIC.
 
+config SENSORS_IMX_AHCI
+	tristate "Freescale built-in AHCI temperature monitor"
+	depends on (ARCH_MX53 && IMX_HAVE_PLATFORM_AHCI)
+	help
+	  If you say yes here you get support for the built-in AHCI of
+	  the Freescale i.MX53 SoC
+
 if ACPI
 
 comment "ACPI drivers"
