@@ -110,6 +110,7 @@ obj-$(CONFIG_MXC_MMA7450)	+= mxc_mma7450.o
 obj-$(CONFIG_MXC_MMA8450)       += mxc_mma8450.o
 obj-$(CONFIG_MXC_MMA8451)       += mxc_mma8451.o
 obj-$(CONFIG_SENSORS_MAG3110)   += mag3110.o
+obj-$(CONFIG_SENSORS_IMX_AHCI)	+= imx_ahci_hwmon.o
 
 ifeq ($(CONFIG_HWMON_DEBUG_CHIP),y)
 EXTRA_CFLAGS += -DDEBUG
