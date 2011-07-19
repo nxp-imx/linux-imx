@@ -248,6 +248,7 @@ static void __init mx53_ard_board_init(void)
 	imx53_add_imx2_wdt(0, NULL);
 	imx53_add_sdhci_esdhc_imx(0, &mx53_ard_sd1_data);
 	imx53_add_sdhci_esdhc_imx(1, &mx53_ard_sd2_data);
+	mxc_register_device(&imx_ahci_device_hwmon, NULL);
 
 	weim_cs_config();
 	mx53_ard_io_init();

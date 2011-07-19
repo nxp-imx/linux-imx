@@ -754,6 +754,7 @@ static void __init mx53_evk_board_init(void)
 
 	imx53_add_sdhci_esdhc_imx(0, &mx53_evk_sd1_data);
 	imx53_add_sdhci_esdhc_imx(2, &mx53_evk_sd3_data);
+	mxc_register_device(&imx_ahci_device_hwmon, NULL);
 
 	spi_register_board_info(mx53_evk_spi_board_info,
 		ARRAY_SIZE(mx53_evk_spi_board_info));
