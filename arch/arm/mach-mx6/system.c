@@ -34,17 +34,17 @@
 #define SCU_INVALIDATE		0x0c
 #define SCU_FPGA_REVISION	0x10
 
-void gpc_enable_wakeup(unsigned int irq)
+extern unsigned int gpc_wake_irq[4];
+
+void gpc_set_wakeup(unsigned int irq[4])
 {
 	void __iomem *gpc_base = IO_ADDRESS(GPC_BASE_ADDR);
-
-	if ((irq < 32) || (irq > 158))
-		printk(KERN_ERR "Invalid irq number!\n");
-
-	/* Enable wake up source */
-	__raw_writel(~(1 << (irq % 32)),
-		gpc_base + 0x8 + (irq / 32 - 1) * 4);
-
+	/* Mask all wake up source */
+	__raw_writel(~irq[0], gpc_base + 0x8);
+	__raw_writel(~irq[1], gpc_base + 0xc);
+	__raw_writel(~irq[2], gpc_base + 0x10);
+	__raw_writel(~irq[3], gpc_base + 0x14);
+	return;
 }
 /* set cpu low power mode before WFI instruction */
 void mxc_cpu_lp_set(enum mxc_cpu_pwr_mode mode)
@@ -91,16 +91,11 @@ void mxc_cpu_lp_set(enum mxc_cpu_pwr_mode mode)
 	}
 
 	if (stop_mode == 1) {
-		/* Mask all wake up source */
-		__raw_writel(0xFFFFFFFF, gpc_base + 0x8);
-		__raw_writel(0xFFFFFFFF, gpc_base + 0xC);
-		__raw_writel(0xFFFFFFFF, gpc_base + 0x10);
-		__raw_writel(0xFFFFFFFF, gpc_base + 0x14);
+
+		gpc_set_wakeup(gpc_wake_irq);
 		/* Power down and power up sequence */
 		__raw_writel(0xFFFFFFFF, gpc_base + 0x2a4);
 		__raw_writel(0xFFFFFFFF, gpc_base + 0x2a8);
-
-		gpc_enable_wakeup(MXC_INT_UART4_ANDED);
 	}
 
 	__raw_writel(scu_cr, scu_base + SCU_CTRL);
