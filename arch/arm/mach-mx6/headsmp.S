@@ -52,21 +52,119 @@ ENTRY(v7_invalidate_l1)
         mov     pc, lr
 ENDPROC(v7_invalidate_l1)
 
+	__CPUINIT
 ENTRY(mx6_secondary_startup)
-	msr     cpsr_fsxc, #0xd3
+	/*************************************************************
+	The following code include workaround for smp wdog reset issue,
+	when system reset, core1~core3 will check its GPR register, if
+	it contain a valid pointer, they will continue to run, but
+	since when a reset happen, DRAM can't be access before its
+	controller initialized, so we must make sure the pointer value
+	is in iRAM space, also, ARM recommend that there should not be
+	any AXI access pending in the system if we want to reset
+	individual CPU, it is better to put CPU in WFI state before
+	reset, so now we implement the following flow to make sure
+	this scenario:
 
-	/* invalidate l1-cache first */
-	bl      v7_invalidate_l1
+         _______________________             _______________________
+        |           CPU0        |     ----> |        CPU<n>         |
+        |_______________________|    |      |_______________________|
+                    |                |                 |
+                    |                |                 |
+                   \|/               |                \|/
+         _______________________     |      _______________________
+        |  GPR<n*2+2>=parameter |    |     | Rom jump to boot_entry|
+        |_______________________|    |     |_______________________|
+                    |                |                 |
+                    |                |                 |
+                   \|/               |                \|/
+         _______________________     |      _______________________
+        | GPR<n*2+1>=boot_entry |    |  -- |     GPR<n*2+1>=0      |
+        |_______________________|    | |   |_______________________|
+                    |                | |                |
+                    |                | |                |    <----------------
+                   \|/               | |               \|/                    |
+         _______________________     | |          _____________     N     _________
+        |        Reset CPU<n>   |____| |    ---> /CPU<n*2+2>=0?\ ------->|  WFI    |
+        |_______________________|      |    |    \_____________/         |_________|
+                    |                  |    |            |                    ^
+-------------->     |                  |    |            | Y                  |
+|                  \|/                 |    |           \|/                   |
+|      N      _____________            |    |                                 |
+-------------/GPR<n*2+1>=0?\ <---------     |                                 |
+             \_____________/                |                                 |
+                    |                       |                                 |
+                 Y  |                       |                                 |
+                   \|/                      |                                 |
+         _______________________            |                                 |
+        |       GPR<n*2+2>=0    | ----------                                  |
+        |_______________________|                                             |
+                    |                                                         |
+                    |                                                         |
+                   \|/                                                        |
+         _______________________                                              |
+        |    IPI software irq   |---------------------------------------------
+        |_______________________|
+
+
+	This function code is copied to iRAM 0x93f000, since
+	there is function call below, such as v7_invalidate_l1 and
+	secondary_startup, we have to use absolute address jump,
+	to get the physical address of these functions, we need
+	the offset of physical and virtual address, the
+	offset is passed from GPR parameter, currently we store
+	it at r8, future code change should avoid using r8.
+*****************************************************************************/
+	/* count the offset value and store it in r8 */
+	ldr r3, =mx6_secondary_startup
 	mrc	p15, 0, r0, c0, c0, 5
 	and r0, r0, #15
-	ldr r1, = 0x020d8020
+	ldr r1, =0x020d8024
 	add r1, r0, LSL#3
+	ldr r0, [r1]
+	sub r8, r3, r0
 
+	msr     cpsr_fsxc, #0xd3
+
+	/* must enable gic cpu, then cpu<n> can wakeup when cpu0
+	send a software irq*/
+	ldr r1, =0xa00100
+	mov r0, #0x1
+	str r0, [r1]
+	mov r0, #0xf0
+	str r0, [r1, #0x4]
+	mov r0, #0x2
+	str r0, [r1, #0x8]
+
+	/* read cpu number in order to clear related GPRx */
+	mrc	p15, 0, r0, c0, c0, 5
+	and r0, r0, #15
+	ldr r1, =0x020d8020
+	add r1, r0, LSL#3
+	/* clear GPR boot_entry register */
 	mov r0, #0
 	str r0, [r1]
-	str r0, [r1, #0x4]
+
+	/* check whether GPR paremeter register is cleared */
+	ldr r0, [r1, #0x4]
+	cmp r0, #0x0
+	beq 4f
+3:
+	wfi
+	ldr r0, [r1, #0x4]
+	cmp r0, #0x0
+	bne 3b
+4:
+	/* invalidate l1-cache first */
+	ldr r0, =v7_invalidate_l1
+	sub r0, r0, r8
+	mov lr, pc
+	add lr, lr, #0x4
+	mov pc, r0
+	ldr r0, =secondary_startup
+	sub r0, r0, r8
 
 	/* jump to secondary_startup */
-	b secondary_startup
+	mov pc, r0
 
 ENDPROC(mx6_secondary_startup)
