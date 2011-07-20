@@ -52,7 +52,7 @@ enum ov5642_mode {
 	ov5642_mode_720P_1280_720 = 4,
 	ov5642_mode_1080P_1920_1080 = 5,
 	ov5642_mode_QSXGA_2592_1944 = 6,
-	ov5642_mode_QCIF_177_144 = 7,
+	ov5642_mode_QCIF_176_144 = 7,
 	ov5642_mode_MAX = 7
 };
 
@@ -117,7 +117,7 @@ static struct reg_value ov5642_rotate_180[] = {
 	{0x3818, 0x60, 0x60, 0x00}, {0x3621, 0x00, 0x20, 0x00},
 };
 
-static struct reg_value ov5642_setting_15fps_QCIF_177_144[] = {
+static struct reg_value ov5642_setting_15fps_QCIF_176_144[] = {
 	{0x3103, 0x93, 0, 0}, {0x3008, 0x82, 0, 0}, {0x3017, 0x7f, 0, 0},
 	{0x3018, 0xfc, 0, 0}, {0x3810, 0xc2, 0, 0}, {0x3615, 0xf0, 0, 0},
 	{0x3000, 0x00, 0, 0}, {0x3001, 0x00, 0, 0}, {0x3002, 0x5c, 0, 0},
@@ -287,7 +287,7 @@ static struct reg_value ov5642_setting_15fps_QCIF_177_144[] = {
 	{0x380b, 0x90, 0, 0}, {0x3a00, 0x78, 0, 0},
 };
 
-static struct reg_value ov5642_setting_30fps_QCIF_177_144[] = {
+static struct reg_value ov5642_setting_30fps_QCIF_176_144[] = {
 	{0x3103, 0x93, 0, 0}, {0x3008, 0x82, 0, 0}, {0x3017, 0x7f, 0, 0},
 	{0x3018, 0xfc, 0, 0}, {0x3810, 0xc2, 0, 0}, {0x3615, 0xf0, 0, 0},
 	{0x3000, 0x00, 0, 0}, {0x3001, 0x00, 0, 0}, {0x3002, 0x5c, 0, 0},
@@ -1656,9 +1656,9 @@ static struct ov5642_mode_info ov5642_mode_info_data[2][ov5642_mode_MAX + 1] = {
 		{ov5642_mode_QSXGA_2592_1944, 2592, 1944,
 		ov5642_setting_15fps_QSXGA_2592_1944,
 		ARRAY_SIZE(ov5642_setting_15fps_QSXGA_2592_1944)},
-		{ov5642_mode_QCIF_177_144, 177, 144,
-		ov5642_setting_15fps_QCIF_177_144,
-		ARRAY_SIZE(ov5642_setting_15fps_QCIF_177_144)},
+		{ov5642_mode_QCIF_176_144, 176, 144,
+		ov5642_setting_15fps_QCIF_176_144,
+		ARRAY_SIZE(ov5642_setting_15fps_QCIF_176_144)},
 	},
 	{
 		{ov5642_mode_VGA_640_480,    640,  480,
@@ -1678,9 +1678,9 @@ static struct ov5642_mode_info ov5642_mode_info_data[2][ov5642_mode_MAX + 1] = {
 		ARRAY_SIZE(ov5642_setting_30fps_720P_1280_720)},
 		{ov5642_mode_1080P_1920_1080, 0, 0, NULL, 0},
 		{ov5642_mode_QSXGA_2592_1944, 0, 0, NULL, 0},
-		{ov5642_mode_QCIF_177_144, 177, 144,
-		ov5642_setting_30fps_QCIF_177_144,
-		ARRAY_SIZE(ov5642_setting_30fps_QCIF_177_144)},
+		{ov5642_mode_QCIF_176_144, 176, 144,
+		ov5642_setting_30fps_QCIF_176_144,
+		ARRAY_SIZE(ov5642_setting_30fps_QCIF_176_144)},
 	},
 };
 
