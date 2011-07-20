@@ -356,6 +356,27 @@ static struct i2c_board_info mxc_i2c2_board_info[] __initdata = {
 	},
 };
 
+static int p1003_ts_hw_status(void)
+{
+	return gpio_get_value(MX6Q_SABREAUTO_CAP_TCH_INT);
+}
+
+static struct p1003_ts_platform_data p1003_ts_data = {
+	.hw_status = p1003_ts_hw_status,
+};
+
+static struct i2c_board_info mxc_i2c1_board_info[] __initdata = {
+	{
+		I2C_BOARD_INFO("egalax_ts", 0x4),
+		.irq = gpio_to_irq(MX6Q_SABREAUTO_CAP_TCH_INT),
+	},
+	{
+		I2C_BOARD_INFO("p1003_fwv33", 0x41),
+		.irq = gpio_to_irq(MX6Q_SABREAUTO_CAP_TCH_INT),
+		.platform_data = &p1003_ts_data,
+	},
+};
+
 static void imx6q_sabreauto_usbotg_vbus(bool on)
 {
 	if (on)
@@ -545,6 +566,8 @@ static void __init mx6_board_init(void)
 
 	imx6q_add_imx_i2c(1, &mx6q_sabreauto_i2c_data);
 	imx6q_add_imx_i2c(2, &mx6q_sabreauto_i2c_data);
+	i2c_register_board_info(1, mxc_i2c1_board_info,
+			ARRAY_SIZE(mxc_i2c1_board_info));
 	i2c_register_board_info(2, mxc_i2c2_board_info,
 			ARRAY_SIZE(mxc_i2c2_board_info));
 
