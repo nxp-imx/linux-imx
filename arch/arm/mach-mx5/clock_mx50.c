@@ -146,11 +146,6 @@ static int _clk_enable(struct clk *clk)
 	reg |= MXC_CCM_CCGRx_CG_MASK << clk->enable_shift;
 	__raw_writel(reg, clk->enable_reg);
 
-	if (clk->flags & AHB_HIGH_SET_POINT)
-		lp_high_freq++;
-	else if (clk->flags & AHB_MED_SET_POINT)
-		lp_med_freq++;
-
 	return 0;
 }
 
@@ -168,14 +163,10 @@ static int _clk_enable_inrun(struct clk *clk)
 static void _clk_disable(struct clk *clk)
 {
 	u32 reg;
+
 	reg = __raw_readl(clk->enable_reg);
 	reg &= ~(MXC_CCM_CCGRx_CG_MASK << clk->enable_shift);
 	__raw_writel(reg, clk->enable_reg);
-
-	if (clk->flags & AHB_HIGH_SET_POINT)
-		lp_high_freq--;
-	else if (clk->flags & AHB_MED_SET_POINT)
-		lp_med_freq--;
 }
 
 static void _clk_disable_inwait(struct clk *clk)
@@ -3592,6 +3583,10 @@ int __init mx50_clocks_init(unsigned long ckil, unsigned long osc, unsigned long
 
 	base = ioremap(MX53_BASE_ADDR(GPT1_BASE_ADDR), SZ_4K);
 	mxc_timer_init(&gpt_clk[0], base, MXC_INT_GPT);
+
+	lp_med_freq = 0;
+	lp_high_freq = 0;
+
 	return 0;
 }
 
