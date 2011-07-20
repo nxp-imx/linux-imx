@@ -21,5 +21,8 @@
 
 extern int __init mx53_loco_init_da9052(void);
 extern int __init mx53_loco_init_mc34708(void);
+extern int da9053_suspend_cmd_sw(void);
+extern int da9053_suspend_cmd_hw(void);
+extern int da9053_restore_volt_settings(void);
 
 #endif
