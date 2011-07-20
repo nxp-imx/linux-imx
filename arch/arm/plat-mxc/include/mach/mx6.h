@@ -54,7 +54,6 @@
  */
 #define DVFS_MAX_PIX_CLK	54000000
 
-
 /* IROM
  */
 #define IROM_BASE_ADDR		0x0
@@ -268,6 +267,7 @@
 /*
  * Interrupt numbers
  */
+#define MXC_INT_START                              32
 #define MXC_INT_GPR                                32
 #define MXC_INT_CHEETAH_CSYSPWRUPREQ               33
 #define MX6Q_INT_SDMA                              34
@@ -396,6 +396,7 @@
 #define MXC_INT_DCIC2                              157
 #define MXC_INT_MLB_AHB1                           158
 #define MXC_INT_ANATOP_ANA2                        159
+#define MXC_INT_END 		                       159
 
 #define MX6Q_INT_UART1	MXC_INT_UART1_ANDED
 #define MX6Q_INT_UART2	MXC_INT_UART2_ANDED
