@@ -30,6 +30,7 @@
 #include <asm/smp_scu.h>
 #include <mach/mx6.h>
 #include "src-reg.h"
+#include <asm/io.h>
 
 static DEFINE_SPINLOCK(boot_lock);
 
@@ -61,7 +62,8 @@ int __cpuinit boot_secondary(unsigned int cpu, struct task_struct *idle)
 {
 	unsigned long boot_entry;
 	void __iomem *src_base = IO_ADDRESS(SRC_BASE_ADDR);
-	int val;
+	void *boot_iram_base;
+	unsigned int val;
 
 	 /*
 	  * set synchronisation state between this boot processor
@@ -69,24 +71,38 @@ int __cpuinit boot_secondary(unsigned int cpu, struct task_struct *idle)
 	  */
 	spin_lock(&boot_lock);
 
-	/* set entry point for cpu1-cpu3*/
-	boot_entry = virt_to_phys(mx6_secondary_startup);
+	/* boot entry is at the last 4K iRAM, from 0x93f000 */
+	boot_entry = MX6Q_IRAM_BASE_ADDR + MX6Q_IRAM_SIZE;
+	boot_iram_base = (void *)ioremap(boot_entry, SZ_4K);
+	memcpy((void *)boot_iram_base, mx6_secondary_startup, SZ_1K);
 
+	/* set entry point for cpu1-cpu3*/
 	writel(boot_entry, src_base + SRC_GPR1_OFFSET + 4 * 2 * cpu);
-	writel(0, src_base + SRC_GPR1_OFFSET + 4 * 2 * cpu + 4);
+	writel(virt_to_phys(mx6_secondary_startup),
+			src_base + SRC_GPR1_OFFSET + 4 * 2 * cpu + 4);
 
 	smp_wmb();
 	dsb();
 	flush_cache_all();
 
-	/* reset cpu n */
+	/* reset cpu<n> */
 	val = readl(src_base + SRC_SCR_OFFSET);
 	val |= 1 << (BP_SRC_SCR_CORE0_RST + cpu);
 	val |= 1 << (BP_SRC_SCR_CORES_DBG_RST + cpu);
 	writel(val, src_base + SRC_SCR_OFFSET);
 
+	val = jiffies;
+	/* wait cpu<n> boot up and clear boot_entry, timeout is 500ms */
+	while (__raw_readl(src_base + SRC_GPR1_OFFSET + 4 * 2 * cpu) != 0) {
+		if (time_after(jiffies, val + HZ / 2)) {
+			printk(KERN_WARNING "cpu %d: boot up failed!\n", cpu);
+			break;
+		}
+	}
+
 	/* let cpu<n> out of loop, call secondary_startup function*/
 	writel(0, src_base + SRC_GPR1_OFFSET + 4 * 2 * cpu + 4);
+	smp_send_reschedule(cpu);
 
 	/*
 	* now the secondary core is starting up let it run its
