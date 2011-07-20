@@ -73,7 +73,8 @@
 /* IRAM
  */
 #define MX6Q_IRAM_BASE_ADDR		IRAM_BASE_ADDR
-#define MX6Q_IRAM_SIZE			SZ_256K
+/* The last 4K is for cpu hotplug to workaround wdog issue*/
+#define MX6Q_IRAM_SIZE			(SZ_256K - SZ_4K)
 
 /* Blocks connected via pl301periph */
 #define ROMCP_ARB_BASE_ADDR             0x00000000

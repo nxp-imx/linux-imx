@@ -23,7 +23,6 @@
 #include <linux/module.h>
 #include <linux/iram_alloc.h>
 #include <mach/hardware.h>
-#include <linux/iram_alloc.h>
 #include <asm/io.h>
 
 static int __init post_cpu_init(void)
