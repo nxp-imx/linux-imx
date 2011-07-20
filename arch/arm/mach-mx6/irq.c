@@ -20,15 +20,40 @@
 #include <linux/init.h>
 #include <linux/io.h>
 #include <linux/platform_device.h>
-
+#include <linux/irq.h>
 #include <asm/hardware/gic.h>
 #include <mach/hardware.h>
 
 int mx6q_register_gpios(void);
+unsigned int gpc_wake_irq[4];
 
+static int mx6_gic_irq_set_wake(struct irq_data *d, unsigned int enable)
+{
+	if ((d->irq < MXC_INT_START) || (d->irq > MXC_INT_END)) {
+		printk(KERN_ERR "Invalid irq number!\n");
+		return -EINVAL;
+	}
+
+	if (enable) {
+		gpc_wake_irq[d->irq / 32 - 1] |= 1 << (d->irq % 32);
+		printk(KERN_INFO "add wake up source irq %d\n", d->irq);
+	} else {
+		printk(KERN_INFO "remove wake up source irq %d\n", d->irq);
+		gpc_wake_irq[d->irq / 32 - 1] &= ~(1 << (d->irq % 32));
+	}
+	return 0;
+}
 void __init mx6_init_irq(void)
 {
+	struct irq_desc *desc;
+	unsigned int i;
+
 	gic_init(0, 29, IO_ADDRESS(IC_DISTRIBUTOR_BASE_ADDR),
 		IO_ADDRESS(IC_INTERFACES_BASE_ADDR));
+
+	for (i = MXC_INT_START; i <= MXC_INT_END; i++) {
+		desc = irq_to_desc(i);
+		desc->irq_data.chip->irq_set_wake = mx6_gic_irq_set_wake;
+	}
 	mx6q_register_gpios();
 }
