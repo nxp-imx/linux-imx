@@ -1341,6 +1341,7 @@ static void __init mxc_board_init(void)
 	mxc_register_device(&mxcsdhc2_device, &mmc2_data);
 
 	mxc_register_device(&ahci_fsl_device, &sata_data);
+	mxc_register_device(&imx_ahci_device_hwmon, NULL);
 
 	/* ASRC is only available for MX53 TO2.0 */
 	if (mx53_revision() >= IMX_CHIP_REVISION_2_0) {

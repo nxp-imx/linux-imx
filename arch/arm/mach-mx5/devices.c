@@ -1189,6 +1189,11 @@ struct platform_device ahci_fsl_device = {
 	},
 };
 
+struct platform_device imx_ahci_device_hwmon = {
+	.name		= "imx-ahci-hwmon",
+	.id		= -1,
+};
+
 static u64 usb_dma_mask = DMA_BIT_MASK(32);
 
 static struct resource usbotg_host_resources[] = {

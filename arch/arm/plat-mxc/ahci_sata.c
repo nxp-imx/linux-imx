@@ -27,6 +27,7 @@
 #include <asm/mach-types.h>
 #include <mach/common.h>
 #include <mach/hardware.h>
+#include <mach/ahci_sata.h>
 
 /* In order to decrease the pwr consumption, release the CLK resources when
  * there is no SATA device adaptored into the AHCI SATA port.
@@ -41,42 +42,7 @@
 
 static struct clk *sata_clk, *sata_ref_clk;
 
-/*****************************************************************************\
- *                                                                           *
- * FSL SATA AHCI low level functions                                         *
- * return value 1 failure, 0 success                                         *
- *                                                                           *
-\*****************************************************************************/
-enum {
-	HOST_CAP = 0x00,
-	HOST_CAP_SSS = (1 << 27), /* Staggered Spin-up */
-	HOST_PORTS_IMPL	= 0x0c,
-	HOST_TIMER1MS = 0xe0, /* Timer 1-ms */
-	/* Offest used to control the MPLL input clk */
-	PHY_CR_CLOCK_FREQ_OVRD = 0x12,
-	/* Port0 SATA Status */
-	PORT_SATA_SR = 0x128,
-	/* Port0 PHY Control */
-	PORT_PHY_CTL = 0x178,
-	/* PORT_PHY_CTL bits */
-	PORT_PHY_CTL_CAP_ADR_LOC = 0x10000,
-	PORT_PHY_CTL_CAP_DAT_LOC = 0x20000,
-	PORT_PHY_CTL_WRITE_LOC = 0x40000,
-	PORT_PHY_CTL_READ_LOC = 0x80000,
-	/* Port0 PHY Status */
-	PORT_PHY_SR = 0x17c,
-	/* PORT_PHY_SR */
-	PORT_PHY_STAT_DATA_LOC = 0,
-	PORT_PHY_STAT_ACK_LOC = 18,
-	/* SATA PHY Register */
-	SATA_PHY_CR_CLOCK_CRCMP_LT_LIMIT = 0x0001,
-	SATA_PHY_CR_CLOCK_DAC_CTL = 0x0008,
-	SATA_PHY_CR_CLOCK_RTUNE_CTL = 0x0009,
-	SATA_PHY_CR_CLOCK_ADC_OUT = 0x000A,
-	SATA_PHY_CR_CLOCK_MPLL_TST = 0x0017,
-};
-
-static int write_phy_ctl_ack_polling(u32 data, void __iomem *mmio,
+int write_phy_ctl_ack_polling(u32 data, void __iomem *mmio,
 		int max_iterations, u32 exp_val)
 {
 	u32 i, val;
@@ -92,12 +58,12 @@ static int write_phy_ctl_ack_polling(u32 data, void __iomem *mmio,
 			printk(KERN_ERR "Wait for CR ACK error!\n");
 			return 1;
 		}
-		msleep(1);
+		udelay(200);
 	}
 	return 0;
 }
 
-static int sata_phy_cr_addr(u32 addr, void __iomem *mmio)
+int sata_phy_cr_addr(u32 addr, void __iomem *mmio)
 {
 	u32 temp_wr_data;
 
@@ -122,7 +88,7 @@ static int sata_phy_cr_addr(u32 addr, void __iomem *mmio)
 	return 0;
 }
 
-static int sata_phy_cr_write(u32 data, void __iomem *mmio)
+int sata_phy_cr_write(u32 data, void __iomem *mmio)
 {
 	u32 temp_wr_data;
 
@@ -160,7 +126,7 @@ static int sata_phy_cr_write(u32 data, void __iomem *mmio)
 	return 0;
 }
 
-static int sata_phy_cr_read(u32 *data, void __iomem *mmio)
+int sata_phy_cr_read(u32 *data, void __iomem *mmio)
 {
 	u32 temp_rd_data, temp_wr_data;
 
@@ -184,176 +150,6 @@ static int sata_phy_cr_read(u32 *data, void __iomem *mmio)
 
 	return 0;
 }
-
-/* SATA AHCI temperature monitor */
-static ssize_t sata_ahci_current_tmp(struct device *dev, struct device_attribute
-			      *devattr, char *buf)
-{
-	void __iomem *mmio;
-	u32 mpll_test_reg, rtune_ctl_reg, dac_ctl_reg, adc_out_reg;
-	u32 str1, str2, str3, str4, read_sum, index;
-	int m1, m2, a, temp;
-
-	/* map the IO addr */
-	mmio = ioremap(MX53_SATA_BASE_ADDR, SZ_2K);
-	if (mmio == NULL) {
-		printk(KERN_ERR "Failed to map SATA REGS\n");
-		return 1;
-	}
-
-	/* check rd-wr to reg */
-	read_sum = 0;
-	sata_phy_cr_addr(SATA_PHY_CR_CLOCK_CRCMP_LT_LIMIT, mmio);
-	sata_phy_cr_write(read_sum, mmio);
-	sata_phy_cr_read(&read_sum, mmio);
-	if ((read_sum & 0xffff) != 0)
-		printk(KERN_ERR "Read/Write REG error, 0x%x!\n", read_sum);
-
-	sata_phy_cr_write(0x5A5A, mmio);
-	sata_phy_cr_read(&read_sum, mmio);
-	if ((read_sum & 0xffff) != 0x5A5A)
-		printk(KERN_ERR "Read/Write REG error, 0x%x!\n", read_sum);
-
-	sata_phy_cr_write(0x1234, mmio);
-	sata_phy_cr_read(&read_sum, mmio);
-	if ((read_sum & 0xffff) != 0x1234)
-		printk(KERN_ERR "Read/Write REG error, 0x%x!\n", read_sum);
-
-	/* stat temperature test */
-	sata_phy_cr_addr(SATA_PHY_CR_CLOCK_MPLL_TST, mmio);
-	sata_phy_cr_read(&mpll_test_reg, mmio);
-	sata_phy_cr_addr(SATA_PHY_CR_CLOCK_RTUNE_CTL, mmio);
-	sata_phy_cr_read(&rtune_ctl_reg, mmio);
-	sata_phy_cr_addr(SATA_PHY_CR_CLOCK_DAC_CTL, mmio);
-	sata_phy_cr_read(&dac_ctl_reg, mmio);
-
-	/* mpll_tst.meas_iv   ([12:2]) */
-	str1 = (mpll_test_reg >> 2) & 0x7FF;
-	/* rtune_ctl.mode     ([1:0]) */
-	str2 = (rtune_ctl_reg) & 0x3;
-	/* dac_ctl.dac_mode   ([14:12]) */
-	str3 = (dac_ctl_reg >> 12)  & 0x7;
-	/* rtune_ctl.sel_atbp ([4]) */
-	str4 = (rtune_ctl_reg >> 4);
-
-	/* Caculate the m1 */
-	/* mpll_tst.meas_iv */
-	mpll_test_reg = (mpll_test_reg & 0xE03) | (512) << 2;
-	/* rtune_ctl.mode */
-	rtune_ctl_reg = (rtune_ctl_reg & 0xFFC) | (1);
-	/* dac_ctl.dac_mode */
-	dac_ctl_reg = (dac_ctl_reg & 0x8FF) | (4) << 12;
-	/* rtune_ctl.sel_atbp */
-	rtune_ctl_reg = (rtune_ctl_reg & 0xFEF) | (0) << 4;
-
-	sata_phy_cr_addr(SATA_PHY_CR_CLOCK_MPLL_TST, mmio);
-	sata_phy_cr_write(mpll_test_reg, mmio);
-	sata_phy_cr_addr(SATA_PHY_CR_CLOCK_DAC_CTL, mmio);
-	sata_phy_cr_write(dac_ctl_reg, mmio);
-	sata_phy_cr_addr(SATA_PHY_CR_CLOCK_RTUNE_CTL, mmio);
-	sata_phy_cr_write(rtune_ctl_reg, mmio);
-
-	/* two dummy read */
-	index = 0;
-	read_sum = 0;
-	adc_out_reg = 0;
-	sata_phy_cr_addr(SATA_PHY_CR_CLOCK_ADC_OUT, mmio);
-	while (index < 2) {
-		sata_phy_cr_read(&adc_out_reg, mmio);
-		/* check if valid */
-		if (adc_out_reg & 0x400)
-			index = index + 1;
-		read_sum++;
-		if (read_sum > 100000) {
-			printk(KERN_ERR "Read REG more than 100000 times!\n");
-			break;
-		}
-	}
-
-	index = 0;
-	read_sum = 0;
-	while (index < 80) {
-		sata_phy_cr_read(&adc_out_reg, mmio);
-		if (adc_out_reg & 0x400) {
-			read_sum = read_sum + (adc_out_reg & 0x3FF);
-			index = index + 1;
-		}
-	}
-	/* Use the U32 to make 1000 precision */
-	m1 = (read_sum * 1000) / 80;
-
-	/* Caculate the m2 */
-	/* rtune_ctl.sel_atbp */
-	rtune_ctl_reg = (rtune_ctl_reg & 0xFEF) | (1) << 4;
-	sata_phy_cr_addr(SATA_PHY_CR_CLOCK_RTUNE_CTL, mmio);
-	sata_phy_cr_write(rtune_ctl_reg, mmio);
-
-	/* two dummy read */
-	index = 0;
-	read_sum = 0;
-	sata_phy_cr_addr(SATA_PHY_CR_CLOCK_ADC_OUT, mmio);
-	while (index < 2) {
-		sata_phy_cr_read(&adc_out_reg, mmio);
-		/* check if valid */
-		if (adc_out_reg & 0x400)
-			index = index + 1;
-		read_sum++;
-		if (read_sum > 100000) {
-			printk(KERN_ERR "Read REG more than 100000 times!\n");
-			break;
-		}
-	}
-
-	index = 0;
-	read_sum = 0;
-	while (index < 80) {
-		/* FIX ME dead loop protection??? */
-		sata_phy_cr_read(&adc_out_reg, mmio);
-		if (adc_out_reg & 0x400) {
-			read_sum = read_sum + (adc_out_reg & 0x3FF);
-			index = index + 1;
-		}
-	}
-	/* Use the U32 to make 1000 precision */
-	m2 = (read_sum * 1000) / 80;
-
-	/* restore the status  */
-	/* mpll_tst.meas_iv */
-	mpll_test_reg = (mpll_test_reg & 0xE03) | (str1) << 2;
-	/* rtune_ctl.mode */
-	rtune_ctl_reg = (rtune_ctl_reg & 0xFFC) | (str2);
-	/* dac_ctl.dac_mode */
-	dac_ctl_reg = (dac_ctl_reg & 0x8FF) | (str3) << 12;
-	/* rtune_ctl.sel_atbp */
-	rtune_ctl_reg = (rtune_ctl_reg & 0xFEF) | (str4) << 4;
-
-	sata_phy_cr_addr(SATA_PHY_CR_CLOCK_MPLL_TST, mmio);
-	sata_phy_cr_write(mpll_test_reg, mmio);
-	sata_phy_cr_addr(SATA_PHY_CR_CLOCK_DAC_CTL, mmio);
-	sata_phy_cr_write(dac_ctl_reg, mmio);
-	sata_phy_cr_addr(SATA_PHY_CR_CLOCK_RTUNE_CTL, mmio);
-	sata_phy_cr_write(rtune_ctl_reg, mmio);
-
-	/* Compute temperature */
-	if (!(m2 / 1000))
-		m2 = 1000;
-	a = (m2 - m1) / (m2 / 1000);
-	temp = ((((-559) * a) / 1000) * a) / 1000 + (1379) * a / 1000 + (-458);
-
-	iounmap(mmio);
-	return sprintf(buf, "SATA AHCI current temperature:%d\n", temp);
-}
-
-static DEVICE_ATTR(temperature, S_IRUGO, sata_ahci_current_tmp, NULL);
-
-static struct attribute *fsl_sata_ahci_attr[] = {
-	&dev_attr_temperature.attr,
-	NULL
-};
-
-static const struct attribute_group fsl_sata_ahci_group = {
-	.attrs = fsl_sata_ahci_attr,
-};
 
 /* HW Initialization, if return 1, initialization is failed. */
 static int sata_init(struct device *dev)
@@ -495,10 +291,6 @@ static int sata_init(struct device *dev)
 		}
 	}
 
-	/* Add the temperature monitor */
-	ret = sysfs_create_group(&dev->kobj, &fsl_sata_ahci_group);
-	if (ret)
-		sysfs_remove_group(&dev->kobj, &fsl_sata_ahci_group);
 	iounmap(mmio);
 	return ret;
 
@@ -518,7 +310,6 @@ put_sata_clk:
 
 static void sata_exit(struct device *dev)
 {
-	sysfs_remove_group(&dev->kobj, &fsl_sata_ahci_group);
 	if (machine_is_mx53_smd() || machine_is_mx53_loco()
 			|| board_is_mx53_ard_b()) {
 		/* FSL IMX AHCI SATA uses the internal usb phy1 clk */
