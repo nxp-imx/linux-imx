@@ -24,7 +24,6 @@
 #include <linux/i2c.h>
 #include <linux/input.h>
 #include <linux/irq.h>
-#include <linux/gpio.h>
 #include <linux/platform_device.h>
 #include <linux/fsl_devices.h>
 
@@ -41,7 +40,6 @@ struct p1003_priv {
 	struct input_dev *input;
 	char phys[32];
 	unsigned int irq;
-	unsigned int gpio;
 	struct work_struct work;
 	struct point_state old_state;
 	struct workqueue_struct *workqueue;
@@ -121,13 +119,14 @@ static void p1003_work(struct work_struct *work)
 {
 	struct p1003_priv *p1003 = container_of(work, struct p1003_priv, work);
 	struct i2c_client *client = p1003->client;
+	struct p1003_ts_platform_data *pdata = client->dev.platform_data;
 	struct input_dev *input = p1003->input;
 	struct point_state *old_state = &p1003->old_state;
 	char data[POINTER_DATA_LEN];
 	int x1, x2, y1, y2;
 
 	/* the sample can only be read when intr pin low */
-	while (!gpio_get_value(p1003->gpio)) {
+	while (!pdata->hw_status()) {
 		if (p1003_i2c_read_packet(client, data) < 0) {
 			dev_err(&client->dev, "read i2c packet failed\n");
 			continue;
@@ -151,6 +150,7 @@ static void p1003_work(struct work_struct *work)
 			input_event(input, EV_ABS, ABS_X, x1);
 			input_event(input, EV_ABS, ABS_Y, y1);
 			input_event(input, EV_KEY, BTN_TOUCH, 1);
+			input_report_abs(input, ABS_PRESSURE, 1);
 			input_sync(input);
 			old_state->x1 = x1;
 			old_state->y1 = y1;
@@ -191,6 +191,7 @@ static void p1003_work(struct work_struct *work)
 	input_event(input, EV_ABS, ABS_MT_TOUCH_MAJOR, 0);
 	input_mt_sync(input);
 	input_event(input, EV_KEY, BTN_TOUCH, 0);
+	input_report_abs(input, ABS_PRESSURE, 0);
 	input_sync(input);
 	old_state->state = data[0];
 }
@@ -230,10 +231,16 @@ static int __devinit p1003_probe(struct i2c_client *client,
 	int ret, xmax, ymax;
 	struct p1003_priv *p1003;
 	struct input_dev *input_dev;
+	struct p1003_ts_platform_data *pdata = client->dev.platform_data;
 
 	if (!i2c_check_functionality(client->adapter,
 				     I2C_FUNC_SMBUS_READ_I2C_BLOCK)) {
 		dev_err(&client->dev, "I2C don't support enough function");
+		return -EIO;
+	}
+
+	if (!pdata || !pdata->hw_status) {
+		dev_err(&client->dev, "No hw status function!\n");
 		return -EIO;
 	}
 
@@ -250,7 +257,6 @@ static int __devinit p1003_probe(struct i2c_client *client,
 	p1003->client = client;
 	p1003->irq = client->irq;
 	p1003->input = input_dev;
-	p1003->gpio = irq_to_gpio(client->irq);
 	p1003->workqueue = create_singlethread_workqueue("p1003");
 	INIT_WORK(&p1003->work, p1003_work);
 
@@ -278,6 +284,7 @@ static int __devinit p1003_probe(struct i2c_client *client,
 	__set_bit(BTN_TOUCH, input_dev->keybit);
 	__set_bit(ABS_X, input_dev->absbit);
 	__set_bit(ABS_Y, input_dev->absbit);
+	__set_bit(ABS_PRESSURE, input_dev->absbit);
 
 	input_set_abs_params(input_dev, ABS_MT_POSITION_X, 0, xmax, 0, 0);
 	input_set_abs_params(input_dev, ABS_MT_POSITION_Y, 0, ymax, 0, 0);
@@ -303,7 +310,7 @@ static int __devinit p1003_probe(struct i2c_client *client,
 		goto err_unreg_dev;
 	}
 
-	if (!gpio_get_value(p1003->gpio))
+	if (!pdata->hw_status())
 		queue_work(p1003->workqueue, &p1003->work);
 
 	return 0;
@@ -332,7 +339,7 @@ static int __devexit p1003_remove(struct i2c_client *client)
 }
 
 static const struct i2c_device_id p1003_idtable[] = {
-	{"p1003_ts", 0},
+	{"p1003_fwv33", 0},
 	{}
 };
 
@@ -342,7 +349,7 @@ static struct i2c_driver p1003_driver = {
 
 	.driver = {
 		   .owner = THIS_MODULE,
-		   .name = "p1003",
+		   .name = "p1003_fwv33",
 		   },
 	.id_table = p1003_idtable,
 	.probe = p1003_probe,
