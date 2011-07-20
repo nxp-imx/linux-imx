@@ -321,6 +321,10 @@ struct mxc_spdif_platform_data {
 	struct clk *spdif_audio_clk;
 };
 
+struct p1003_ts_platform_data {
+	int (*hw_status) (void);
+};
+
 /* Returns non-zero if the current suspend operation would
  * lead to a deep sleep (i.e. power removed from the core,
  * instead of just the clock).
