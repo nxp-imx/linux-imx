@@ -110,6 +110,14 @@
 #define NIRQ				(6*32 + 11)	/* GPIO7_11 */
 #define MX53_LOCO_MC34708_IRQ    (4*32 + 30)	/* GPIO5_30 CSI0_DAT12 */
 
+#define MX53_OFFSET					(0x20000000)
+#define TZIC_WAKEUP0_OFFSET         (0x0E00)
+#define TZIC_WAKEUP1_OFFSET         (0x0E04)
+#define TZIC_WAKEUP2_OFFSET         (0x0E08)
+#define TZIC_WAKEUP3_OFFSET         (0x0E0C)
+#define GPIO7_0_11_IRQ_BIT			(0x1<<11)
+
+extern void pm_i2c_init(u32 base_addr);
 static iomux_v3_cfg_t mx53_loco_pads[] = {
 	/* FEC */
 	MX53_PAD_FEC_MDC__FEC_MDC,
@@ -254,6 +262,44 @@ static iomux_v3_cfg_t mx53_loco_pads[] = {
 	MX53_PAD_GPIO_5__GPIO1_5,
 	MX53_PAD_GPIO_16__GPIO7_11,
 	MX53_PAD_GPIO_8__GPIO1_8,
+};
+
+static void loco_da9053_irq_wakeup_only_fixup(void)
+{
+	void __iomem *tzic_base;
+	tzic_base = ioremap(MX53_TZIC_BASE_ADDR, SZ_4K);
+	if (NULL == tzic_base) {
+		pr_err("fail to map MX53_TZIC_BASE_ADDR\n");
+		return;
+	}
+	__raw_writel(0, tzic_base + TZIC_WAKEUP0_OFFSET);
+	__raw_writel(0, tzic_base + TZIC_WAKEUP1_OFFSET);
+	__raw_writel(0, tzic_base + TZIC_WAKEUP2_OFFSET);
+	/* only enable irq wakeup for da9053 */
+	__raw_writel(GPIO7_0_11_IRQ_BIT, tzic_base + TZIC_WAKEUP3_OFFSET);
+	iounmap(tzic_base);
+	pr_info("only da9053 irq is wakeup-enabled\n");
+}
+
+static void loco_suspend_enter(void)
+{
+	if (!board_is_mx53_loco_mc34708()) {
+		loco_da9053_irq_wakeup_only_fixup();
+		da9053_suspend_cmd_sw();
+	}
+}
+
+static void loco_suspend_exit(void)
+{
+	if (!board_is_mx53_loco_mc34708()) {
+		if (da9053_get_chip_version())
+			da9053_restore_volt_settings();
+	}
+}
+
+static struct mxc_pm_platform_data loco_pm_data = {
+	.suspend_enter = loco_suspend_enter,
+	.suspend_exit = loco_suspend_exit,
 };
 
 static struct fb_videomode video_modes[] = {
@@ -957,6 +1003,7 @@ static void __init mxc_board_init(void)
 	if (!mxc_fuse_get_gpu_status())
 		mxc_register_device(&gpu_device, &gpu_data);
 	mxc_register_device(&mxcscc_device, NULL);
+	mxc_register_device(&pm_device, &loco_pm_data);
 	mxc_register_device(&mxc_dvfs_core_device, &dvfs_core_data);
 	mxc_register_device(&busfreq_device, &bus_freq_data);
 	mxc_register_device(&mxc_iim_device, &iim_data);
@@ -1001,6 +1048,7 @@ static void __init mxc_board_init(void)
 	mxc_register_device(&mxc_v4l2out_device, NULL);
 	loco_add_device_buttons();
 	pm_power_off = da9053_power_off;
+	pm_i2c_init(I2C1_BASE_ADDR - MX53_OFFSET);
 }
 
 static void __init mx53_loco_timer_init(void)
