@@ -695,18 +695,75 @@ static struct clk pll3_60M = {
 	.get_rate = _clk_pll3_60M_get_rate,
 };
 
+static unsigned long  _clk_audio_video_get_rate(struct clk *clk)
+{
+	unsigned int div, mfn, mfd;
+	unsigned long rate;
+	unsigned int parent_rate = clk_get_rate(clk->parent);
+	void __iomem *pllbase;
+
+	if (clk == &pll4_audio_main_clk)
+		pllbase = PLL4_AUDIO_BASE_ADDR;
+	else
+		pllbase = PLL5_VIDEO_BASE_ADDR;
+
+	div = __raw_readl(pllbase) & ANADIG_PLL_SYS_DIV_SELECT_MASK;
+	mfn = __raw_readl(pllbase + PLL_NUM_DIV_OFFSET);
+	mfd = __raw_readl(pllbase + PLL_DENOM_DIV_OFFSET);
+
+	rate = (parent_rate * div) + ((parent_rate / mfd) * mfn);
+
+	return rate;
+}
+
+static int _clk_audio_video_set_rate(struct clk *clk, unsigned long rate)
+{
+	unsigned int reg,  div;
+	unsigned int mfn, mfd = 1000000;
+	s64 temp64;
+	unsigned int parent_rate = clk_get_rate(clk->parent);
+	void __iomem *pllbase;
+
+	if ((rate / 1000) < 650000 || (rate / 1000) > 1300000000)
+		return -EINVAL;
+
+	if (clk == &pll4_audio_main_clk)
+		pllbase = PLL4_AUDIO_BASE_ADDR;
+	else
+		pllbase = PLL5_VIDEO_BASE_ADDR;
+
+	div = rate / parent_rate ;
+	temp64 = (u64) (rate - (div * parent_rate));
+	temp64 *= mfd;
+	do_div(temp64, parent_rate);
+	mfn = temp64;
+
+	reg = __raw_readl(pllbase) & ~ANADIG_PLL_SYS_DIV_SELECT_MASK;
+	reg |= div;
+	__raw_writel(reg, pllbase);
+	__raw_writel(mfn, pllbase + PLL_NUM_DIV_OFFSET);
+	__raw_writel(mfd, pllbase + PLL_DENOM_DIV_OFFSET);
+
+	return 0;
+}
+
 static struct clk pll4_audio_main_clk = {
 	__INIT_CLK_DEBUG(pll4_audio_main_clk)
 	.parent = &osc_clk,
 	.enable = _clk_pll_enable,
 	.disable = _clk_pll_disable,
+	.set_rate = _clk_audio_video_set_rate,
+	.get_rate = _clk_audio_video_get_rate,
 };
+
 
 static struct clk pll5_video_main_clk = {
 	__INIT_CLK_DEBUG(pll5_video_main_clk)
 	.parent = &osc_clk,
 	.enable = _clk_pll_enable,
 	.disable = _clk_pll_disable,
+	.set_rate = _clk_audio_video_set_rate,
+	.get_rate = _clk_audio_video_get_rate,
 };
 
 static struct clk pll6_MLB_main_clk = {
@@ -4000,6 +4057,10 @@ int __init mx6_clocks_init(unsigned long ckil, unsigned long osc,
 		clkdev_add(&lookups[i]);
 		clk_debug_register(lookups[i].clk);
 	}
+
+	/* Initialize Audio and Video PLLs to valid frequency (650MHz). */
+	clk_set_rate(&pll4_audio_main_clk, 650000000);
+	clk_set_rate(&pll5_video_main_clk, 650000000);
 
 	clk_set_parent(&gpu3d_shader_clk, &pll2_pfd_594M);
 	clk_set_rate(&gpu3d_shader_clk, 594000000);
