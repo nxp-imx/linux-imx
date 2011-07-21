@@ -37,6 +37,9 @@
 #define GPC_PGC_CPU_PUPSCR_OFFSET	0x2a4
 #define GPC_PGC_CPU_PDNSCR_OFFSET	0x2a8
 
+#define MODULE_CLKGATE		(1 << 30)
+#define MODULE_SFTRST		(1 << 31)
+
 extern unsigned int gpc_wake_irq[4];
 
 void gpc_set_wakeup(unsigned int irq[4])
@@ -120,4 +123,93 @@ void mxc_cpu_lp_set(enum mxc_cpu_pwr_mode mode)
 void arch_idle(void)
 {
 	cpu_do_idle();
+}
+
+static int __mxs_reset_block(void __iomem *hwreg, int just_enable)
+{
+	u32 c;
+	int timeout;
+
+	/* the process of software reset of IP block is done
+	   in several steps:
+
+	   - clear SFTRST and wait for block is enabled;
+	   - clear clock gating (CLKGATE bit);
+	   - set the SFTRST again and wait for block is in reset;
+	   - clear SFTRST and wait for reset completion.
+	 */
+	c = __raw_readl(hwreg);
+	c &= ~MODULE_SFTRST;	/* clear SFTRST */
+	__raw_writel(c, hwreg);
+	for (timeout = 1000000; timeout > 0; timeout--)
+		/* still in SFTRST state ? */
+		if ((__raw_readl(hwreg) & MODULE_SFTRST) == 0)
+			break;
+	if (timeout <= 0) {
+		printk(KERN_ERR "%s(%p): timeout when enabling\n",
+		       __func__, hwreg);
+		return -ETIME;
+	}
+
+	c = __raw_readl(hwreg);
+	c &= ~MODULE_CLKGATE;	/* clear CLKGATE */
+	__raw_writel(c, hwreg);
+
+	if (!just_enable) {
+		c = __raw_readl(hwreg);
+		c |= MODULE_SFTRST;	/* now again set SFTRST */
+		__raw_writel(c, hwreg);
+		for (timeout = 1000000; timeout > 0; timeout--)
+			/* poll until CLKGATE set */
+			if (__raw_readl(hwreg) & MODULE_CLKGATE)
+				break;
+		if (timeout <= 0) {
+			printk(KERN_ERR "%s(%p): timeout when resetting\n",
+			       __func__, hwreg);
+			return -ETIME;
+		}
+
+		c = __raw_readl(hwreg);
+		c &= ~MODULE_SFTRST;	/* clear SFTRST */
+		__raw_writel(c, hwreg);
+		for (timeout = 1000000; timeout > 0; timeout--)
+			/* still in SFTRST state ? */
+			if ((__raw_readl(hwreg) & MODULE_SFTRST) == 0)
+				break;
+		if (timeout <= 0) {
+			printk(KERN_ERR "%s(%p): timeout when enabling "
+			       "after reset\n", __func__, hwreg);
+			return -ETIME;
+		}
+
+		c = __raw_readl(hwreg);
+		c &= ~MODULE_CLKGATE;	/* clear CLKGATE */
+		__raw_writel(c, hwreg);
+	}
+	for (timeout = 1000000; timeout > 0; timeout--)
+		/* still in SFTRST state ? */
+		if ((__raw_readl(hwreg) & MODULE_CLKGATE) == 0)
+			break;
+
+	if (timeout <= 0) {
+		printk(KERN_ERR "%s(%p): timeout when unclockgating\n",
+		       __func__, hwreg);
+		return -ETIME;
+	}
+
+	return 0;
+}
+
+int mxs_reset_block(void __iomem *hwreg, int just_enable)
+{
+	int try = 10;
+	int r;
+
+	while (try--) {
+		r = __mxs_reset_block(hwreg, just_enable);
+		if (!r)
+			break;
+		pr_debug("%s: try %d failed\n", __func__, 10 - try);
+	}
+	return r;
 }
