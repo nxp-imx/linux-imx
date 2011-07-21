@@ -64,3 +64,46 @@ imx_add_gpmi(const struct gpmi_nfc_platform_data *platform_data)
 			sizeof(*platform_data), DMA_BIT_MASK(32));
 }
 #endif /* ifdef CONFIG_SOC_IMX50 */
+
+#ifdef CONFIG_SOC_IMX6Q
+struct platform_device *__init
+imx_add_gpmi(const struct gpmi_nfc_platform_data *platform_data)
+{
+	struct resource res[] = {
+	{ /* GPMI */
+		 .name  = GPMI_NFC_GPMI_REGS_ADDR_RES_NAME,
+		 .flags = IORESOURCE_MEM,
+		 .start = MX6Q_GPMI_BASE_ADDR,
+		 .end   = MX6Q_GPMI_BASE_ADDR + SZ_8K - 1,
+	}, {
+		 .name  = GPMI_NFC_GPMI_INTERRUPT_RES_NAME,
+		 .flags = IORESOURCE_IRQ,
+		 .start	= MXC_INT_RAWNAND_GPMI,
+		 .end	= MXC_INT_RAWNAND_GPMI,
+	}, { /* BCH */
+		 .name  = GPMI_NFC_BCH_REGS_ADDR_RES_NAME,
+		 .flags = IORESOURCE_MEM,
+		 .start = MX6Q_BCH_BASE_ADDR,
+		 .end   = MX6Q_BCH_BASE_ADDR + SZ_8K - 1,
+	}, {
+		 .name  = GPMI_NFC_BCH_INTERRUPT_RES_NAME,
+		 .flags = IORESOURCE_IRQ,
+		 .start	= MXC_INT_RAWNAND_BCH,
+		 .end	= MXC_INT_RAWNAND_BCH,
+	}, { /* DMA */
+		 .name  = GPMI_NFC_DMA_CHANNELS_RES_NAME,
+		 .flags = IORESOURCE_DMA,
+		 .start	= MX6Q_DMA_CHANNEL_AHB_APBH_GPMI0,
+		 .end	= MX6Q_DMA_CHANNEL_AHB_APBH_GPMI7,
+	}, {
+		 .name  = GPMI_NFC_DMA_INTERRUPT_RES_NAME,
+		 .flags = IORESOURCE_IRQ,
+		 .start	= MXC_INT_APBHDMA_DMA,
+		 .end	= MXC_INT_APBHDMA_DMA,
+	}, };
+
+	return imx_add_platform_device_dmamask("imx6q-gpmi-nfc", 0,
+			res, ARRAY_SIZE(res), platform_data,
+			sizeof(*platform_data), DMA_BIT_MASK(32));
+}
+#endif
