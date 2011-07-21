@@ -491,7 +491,9 @@ extern int gpmi_debug;
 #define IS_MX23			0x1
 #define IS_MX28			0x2
 #define IS_MX50			0x4
+#define IS_MX6Q			0x8
 #define GPMI_IS_MX23(x)		((x)->pdev->id_entry->driver_data == IS_MX23)
 #define GPMI_IS_MX28(x)		((x)->pdev->id_entry->driver_data == IS_MX28)
 #define GPMI_IS_MX50(x)		((x)->pdev->id_entry->driver_data == IS_MX50)
+#define GPMI_IS_MX6Q(x)		((x)->pdev->id_entry->driver_data == IS_MX6Q)
 #endif
