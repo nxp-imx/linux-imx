@@ -377,6 +377,23 @@ static void dma_irq_callback(void *param)
 	}
 }
 
+/* This is very useful! */
+void gpmi_show_regs(struct gpmi_nfc_data *this)
+{
+	struct resources *r = &this->resources;
+	u32 reg;
+	int i;
+	int n;
+
+	n = 0xc0 / 0x10 + 1;
+
+	pr_info("-------------- Show GPMI registers ----------\n");
+	for (i = 0; i <= n; i++) {
+		reg = __raw_readl(r->gpmi_regs + i * 0x10);
+		pr_info("offset 0x%.3x : 0x%.8x\n", i * 0x10, reg);
+	}
+	pr_info("-------------- Show GPMI registers end ----------\n");
+}
 int start_dma_without_bch_irq(struct gpmi_nfc_data *this,
 				struct dma_async_tx_descriptor *desc)
 {
@@ -393,8 +410,11 @@ int start_dma_without_bch_irq(struct gpmi_nfc_data *this,
 	err = wait_for_completion_timeout(&nfc->dma_done,
 					msecs_to_jiffies(1000));
 	err = (!err) ? -ETIMEDOUT : 0;
-	if (err)
+	if (err) {
 		pr_info("DMA timeout!!!\n");
+		gpmi_show_regs(this);
+		panic("----------------");
+	}
 	return err;
 }
 
@@ -1148,8 +1168,8 @@ static int __devinit set_up_nfc_hal(struct gpmi_nfc_data *this)
 	if (GPMI_IS_MX23(this) || GPMI_IS_MX28(this))
 		nfc = &gpmi_nfc_hal_imx23_imx28;
 #endif
-#if defined(CONFIG_SOC_IMX50)
-	if (GPMI_IS_MX50(this))
+#if defined(CONFIG_SOC_IMX50) || defined(CONFIG_SOC_IMX6Q)
+	if (GPMI_IS_MX50(this) || GPMI_IS_MX6Q(this))
 		nfc = &gpmi_nfc_hal_mx50;
 #endif
 	BUG_ON(nfc == NULL);
@@ -1379,6 +1399,7 @@ static void mil_cmd_ctrl(struct mtd_info *mtd, int data, unsigned int ctrl)
 
 	mil->command_length = 0;
 }
+
 
 static int mil_dev_ready(struct mtd_info *mtd)
 {
@@ -2437,6 +2458,9 @@ static const struct platform_device_id gpmi_ids[] = {
 	}, {
 		.name = "imx50-gpmi-nfc",
 		.driver_data = IS_MX50,
+	}, {
+		.name = "imx6q-gpmi-nfc",
+		.driver_data = IS_MX6Q,
 	}, {},
 };
 
@@ -2473,6 +2497,7 @@ static void __exit gpmi_nfc_exit(void)
 static int __init gpmi_debug_setup(char *__unused)
 {
 	gpmi_debug = GPMI_DEBUG_INIT;
+	enable_gpmi_nand = true;
 	return 1;
 }
 __setup("gpmi_debug_init", gpmi_debug_setup);
