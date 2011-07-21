@@ -299,6 +299,10 @@ static inline bool is_board_support_ddr(struct gpmi_nfc_data *this)
 /* To check if we need to initialize something else*/
 static int extra_init(struct gpmi_nfc_data *this)
 {
+	/* mx6q do not need the extra clocks, while the mx50 needs. */
+	if (GPMI_IS_MX6Q(this))
+		return 0;
+
 	ddr_clk = clk_get(NULL, "ddr_clk");
 	if (IS_ERR(ddr_clk)) {
 		printk(KERN_ERR "The ddr clock is gone!");
