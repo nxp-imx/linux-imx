@@ -425,7 +425,7 @@ config MTD_NAND_NANDSIM
 
 config MTD_NAND_GPMI_NFC
         bool "GPMI NAND Flash Controller driver"
-        depends on MTD_NAND && (SOC_IMX23 || SOC_IMX28 || SOC_IMX50)
+        depends on MTD_NAND && (SOC_IMX23 || SOC_IMX28 || SOC_IMX50 || SOC_IMX6Q)
 	select MTD_PARTITIONS
 	select MTD_CMDLINE_PARTS
         help
