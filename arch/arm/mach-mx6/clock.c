@@ -3786,10 +3786,11 @@ static struct clk gpu3d_shader_clk = {
 	.round_rate = _clk_gpu3d_shader_round_rate,
 };
 
+/* set the parent by the ipcg table */
 static struct clk gpmi_nfc_clk[] = {
 	{	/* gpmi_io_clk */
 	__INIT_CLK_DEBUG(gpmi_io_clk)
-	.parent = &osc_clk,
+	.parent = &enfc_clk,
 	.secondary = &gpmi_nfc_clk[1],
 	.enable = _clk_enable,
 	.enable_reg = MXC_CCM_CCGR4,
@@ -3798,7 +3799,7 @@ static struct clk gpmi_nfc_clk[] = {
 	},
 	{	/* gpmi_apb_clk */
 	__INIT_CLK_DEBUG(gpmi_apb_clk)
-	.parent = &apbh_dma_clk,
+	.parent = &usdhc3_clk,
 	.secondary = &gpmi_nfc_clk[2],
 	.enable = _clk_enable,
 	.enable_reg = MXC_CCM_CCGR4,
@@ -3807,7 +3808,7 @@ static struct clk gpmi_nfc_clk[] = {
 	},
 	{	/* bch_clk */
 	__INIT_CLK_DEBUG(gpmi_bch_clk)
-	.parent = &osc_clk,
+	.parent = &usdhc4_clk,
 	.secondary = &gpmi_nfc_clk[3],
 	.enable = _clk_enable,
 	.enable_reg = MXC_CCM_CCGR4,
@@ -3816,7 +3817,7 @@ static struct clk gpmi_nfc_clk[] = {
 	},
 	{	/* bch_apb_clk */
 	__INIT_CLK_DEBUG(gpmi_bch_apb_clk)
-	.parent = &apbh_dma_clk,
+	.parent = &usdhc3_clk,
 	.enable = _clk_enable,
 	.enable_reg = MXC_CCM_CCGR4,
 	.enable_shift = MXC_CCM_CCGRx_CG12_OFFSET,
@@ -4057,7 +4058,7 @@ static struct clk_lookup lookups[] = {
 	_REGISTER_CLOCK(NULL, "gpu2d_clk", gpu2d_core_clk),
 	_REGISTER_CLOCK(NULL, "gpu3d_shader_clk", gpu3d_shader_clk),
 	_REGISTER_CLOCK(NULL, "gpt", gpt_clk[0]),
-	_REGISTER_CLOCK(NULL, "gpmi-nfc", gpmi_nfc_clk[0]),
+	_REGISTER_CLOCK("imx6q-gpmi-nfc.0", NULL, gpmi_nfc_clk[0]),
 	_REGISTER_CLOCK(NULL, "gpmi-apb", gpmi_nfc_clk[1]),
 	_REGISTER_CLOCK(NULL, "bch", gpmi_nfc_clk[2]),
 	_REGISTER_CLOCK(NULL, "bch-apb", gpmi_nfc_clk[3]),
@@ -4127,6 +4128,9 @@ int __init mx6_clocks_init(unsigned long ckil, unsigned long osc,
 	 */
 	clk_set_parent(&spdif1_clk[0], &pll3_sw_clk);
 	clk_set_rate(&spdif1_clk[0], 1500000);
+
+	/* set the NAND to 11MHz. Too fast will cause dma timeout. */
+	clk_set_rate(&enfc_clk, enfc_clk.round_rate(&enfc_clk, 11000000));
 
 	/* Make sure all clocks are ON initially */
 	__raw_writel(0xFFFFFFFF, MXC_CCM_CCGR0);
