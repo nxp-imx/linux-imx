@@ -77,16 +77,8 @@ void arch_reset(char mode, const char *cmd)
 		wcr_enable = (1 << 2);
 	}
 
-	if (machine_is_mx53_smd()) {
-		/* workaround for smd reset func */
-		gpio_request(MX53_WDA_GPIO, "wdog-rst");
-		gpio_direction_output(MX53_WDA_GPIO, 0);
-		gpio_set_value(MX53_WDA_GPIO, 0);
-	} else {
-		/* Assert SRS signal */
-		__raw_writew(wcr_enable, wdog_base);
-	}
-
+	/* Assert SRS signal */
+	__raw_writew(wcr_enable, wdog_base);
 
 	/* wait for reset to assert... */
 	mdelay(500);
