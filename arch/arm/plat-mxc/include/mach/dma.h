@@ -77,4 +77,19 @@ static inline int imx_dma_is_general_purpose(struct dma_chan *chan)
 		!strcmp(dev_name(chan->device->dev), "imx-dma");
 }
 
+struct mxs_dma_data {
+	int chan_irq;
+};
+
+static inline int mxs_dma_is_apbh(struct dma_chan *chan)
+{
+	return !strcmp(dev_name(chan->device->dev), "mxs-dma-apbh");
+}
+
+static inline int mxs_dma_is_apbx(struct dma_chan *chan)
+{
+	return !strcmp(dev_name(chan->device->dev), "mxs-dma-apbx");
+}
+
+
 #endif
