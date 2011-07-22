@@ -102,7 +102,7 @@ static bool g_elcdif_axi_clk_enable;
 static bool g_elcdif_pix_clk_enable;
 static struct clk *g_elcdif_axi_clk;
 static struct clk *g_elcdif_pix_clk;
-static __initdata struct mxcfb_mode mxc_disp_mode;
+static struct mxcfb_mode mxc_disp_mode;
 
 static inline void setup_dotclk_panel(u32 pixel_clk,
 				      u16 v_pulse_width,
@@ -527,7 +527,6 @@ void mxcfb_elcdif_register_mode(const struct fb_videomode *modedb,
 	int num_modes, int dev_mode)
 {
 	struct fb_videomode *mode;
-	int mode_sum;
 
 	mode = kzalloc(num_modes * sizeof(struct fb_videomode), GFP_KERNEL);
 
@@ -1225,7 +1224,7 @@ static int mxc_elcdif_fb_unmap_video_memory(struct fb_info *fbi)
 	return 0;
 }
 
-static int mxc_elcdif_fb_probe(struct platform_device *pdev)
+static int __devinit mxc_elcdif_fb_probe(struct platform_device *pdev)
 {
 	int ret = 0;
 	struct mxc_elcdif_fb_data *data;
