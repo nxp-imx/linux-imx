@@ -9,12 +9,18 @@
 #include <linux/err.h>
 #include <linux/init.h>
 
-#include <mach/mx50.h>
+#include <mach/hardware.h>
 #include <mach/devices-common.h>
 
 #ifdef CONFIG_SOC_IMX50
 const struct imx_dma_data imx50_dma_data __initconst = {
 	.iobase = MX50_APBHDMA_BASE_ADDR,
+};
+#endif
+
+#ifdef CONFIG_SOC_IMX6Q
+const struct imx_dma_data imx6q_dma_data __initconst = {
+	.iobase = APBH_DMA_ARB_BASE_ADDR,
 };
 #endif
 
