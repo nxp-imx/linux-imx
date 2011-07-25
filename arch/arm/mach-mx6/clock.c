@@ -610,6 +610,7 @@ static struct clk pll3_pfd_508M = {
 	.enable = _clk_pfd_enable,
 	.disable = _clk_pfd_disable,
 	.set_rate = pfd_set_rate,
+	.get_rate = pfd_get_rate,
 	.round_rate = pfd_round_rate,
 };
 
@@ -2849,7 +2850,7 @@ static int _clk_esai_set_parent(struct clk *clk, struct clk *parent)
 {
 	u32 reg, mux;
 
-	reg = __raw_readl(MXC_CCM_CSCMR2) & MXC_CCM_CSCMR2_ESAI_CLK_SEL_MASK;
+	reg = __raw_readl(MXC_CCM_CSCMR2) & ~MXC_CCM_CSCMR2_ESAI_CLK_SEL_MASK;
 
 	mux = _get_mux6(parent, &pll4_audio_main_clk, &pll3_pfd_508M,
 			&pll3_pfd_454M,	&pll3_sw_clk, NULL, NULL);

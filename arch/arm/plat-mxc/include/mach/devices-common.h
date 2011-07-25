@@ -147,6 +147,19 @@ struct platform_device *__init imx_add_imx_ssi(
 		const struct imx_imx_ssi_data *data,
 		const struct imx_ssi_platform_data *pdata);
 
+#include <mach/esai.h>
+struct imx_imx_esai_data {
+	int id;
+	resource_size_t iobase;
+	resource_size_t iosize;
+	resource_size_t irq;
+	resource_size_t dmatx;
+	resource_size_t dmarx;
+};
+struct platform_device *__init imx_add_imx_esai(
+		const struct imx_imx_esai_data *data,
+		const struct imx_esai_platform_data *pdata);
+
 #include <mach/imx-uart.h>
 struct imx_imx_uart_3irq_data {
 	int id;
