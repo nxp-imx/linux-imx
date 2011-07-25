@@ -1,5 +1,5 @@
 # i.MX Platform Support
-snd-soc-imx-objs := imx-ssi.o
+snd-soc-imx-objs := imx-esai.o
 snd-soc-imx-fiq-objs := imx-pcm-fiq.o
 snd-soc-imx-mx2-objs := imx-pcm-dma-mx2.o
 snd-soc-imx-spdif-dai-objs := imx-spdif-dai.o
@@ -14,10 +14,12 @@ snd-soc-eukrea-tlv320-objs := eukrea-tlv320.o
 snd-soc-phycore-ac97-objs := phycore-ac97.o
 snd-soc-wm1133-ev1-objs := wm1133-ev1.o
 snd-soc-imx-sgtl5000-objs := imx-sgtl5000.o
+snd-soc-imx-cs42888-objs := imx-cs42888.o
 snd-soc-imx-spdif-objs := imx-spdif.o
 
 obj-$(CONFIG_SND_SOC_EUKREA_TLV320) += snd-soc-eukrea-tlv320.o
 obj-$(CONFIG_SND_SOC_PHYCORE_AC97) += snd-soc-phycore-ac97.o
 obj-$(CONFIG_SND_MXC_SOC_WM1133_EV1) += snd-soc-wm1133-ev1.o
 obj-$(CONFIG_SND_SOC_IMX_SGTL5000) += snd-soc-imx-sgtl5000.o
+obj-$(CONFIG_SND_SOC_IMX_CS42888) += snd-soc-imx-cs42888.o
 obj-$(CONFIG_SND_SOC_IMX_SPDIF) += snd-soc-imx-spdif.o
