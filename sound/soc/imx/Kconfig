@@ -11,6 +11,9 @@ menuconfig SND_IMX_SOC
 
 if SND_IMX_SOC
 
+config SND_MXC_SOC_ESAI
+	tristate
+
 config SND_MXC_SOC_FIQ
 	tristate
 
@@ -55,6 +58,15 @@ config SND_SOC_IMX_SGTL5000
 	help
 	  Say Y if you want to add support for SoC audio on an i.MX board with
 	  a sgtl5000 codec.
+
+config SND_SOC_IMX_CS42888
+	tristate "SoC Audio support for i.MX boards with cs42888"
+	depends on MACH_MX6Q_SABREAUTO
+	select SND_SOC_CS42888
+	select SND_MXC_SOC_MX2
+	help
+	  Say Y if you want to add support for SoC audio on an i.MX board with
+	  a cs42888 codec
 
 config SND_SOC_EUKREA_TLV320
 	tristate "Eukrea TLV320"
