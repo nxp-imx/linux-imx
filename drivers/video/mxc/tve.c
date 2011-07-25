@@ -457,13 +457,13 @@ static int tve_setup_vga(struct tve_data *tve)
 	if (tve->revision == 2) {
 		/* set gain */
 		reg = readl(tve->base + tve->regs->tve_tvdac_cont_reg);
-		reg = (reg & ~TVEV2_DAC_GAIN_MASK) | 0;
+		reg = (reg & ~TVEV2_DAC_GAIN_MASK) | 0xa;
 		writel(reg, tve->base + tve->regs->tve_tvdac_cont_reg);
 		reg = readl(tve->base + tve->regs->tve_tvdac_cont_reg + 4);
-		reg = (reg & ~TVEV2_DAC_GAIN_MASK) | 0;
+		reg = (reg & ~TVEV2_DAC_GAIN_MASK) | 0xa;
 		writel(reg, tve->base + tve->regs->tve_tvdac_cont_reg + 4);
 		reg = readl(tve->base + tve->regs->tve_tvdac_cont_reg + 8);
-		reg = (reg & ~TVEV2_DAC_GAIN_MASK) | 0;
+		reg = (reg & ~TVEV2_DAC_GAIN_MASK) | 0xa;
 		writel(reg, tve->base + tve->regs->tve_tvdac_cont_reg + 8);
 
 		/* set tve_com_conf_reg  */
