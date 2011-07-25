@@ -795,6 +795,10 @@ static struct i2c_board_info mxc_i2c2_board_info[] __initdata = {
 	.addr = 0x21,
 	.platform_data = (void *)&adv7180_data,
 	 },
+	{
+	.type = "mma8451",
+	.addr = 0x1C,
+	},
 };
 
 static struct mtd_partition mxc_dataflash_partitions[] = {
