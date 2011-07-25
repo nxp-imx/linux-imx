@@ -73,6 +73,10 @@ extern const struct imx_fsl_usb2_wakeup_data imx6q_fsl_hs_wakeup_data[] __initco
 #define imx6q_add_fsl_usb2_hs_wakeup(id, pdata)	\
 	imx_add_fsl_usb2_wakeup(&imx6q_fsl_hs_wakeup_data[id - 1], pdata)
 
+extern const struct imx_imx_esai_data imx6q_imx_esai_data[] __initconst;
+#define imx6q_add_imx_esai(id, pdata) \
+	imx_add_imx_esai(&imx6q_imx_esai_data[id], pdata)
+
 extern const struct imx_viv_gpu_data imx6_gc2000_data __initconst;
 extern const struct imx_viv_gpu_data imx6_gc320_data __initconst;
 extern const struct imx_viv_gpu_data imx6_gc355_data __initconst;
