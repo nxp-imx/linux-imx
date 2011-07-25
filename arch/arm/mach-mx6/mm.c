@@ -66,6 +66,18 @@ void __init mx6_map_io(void)
 #ifdef CONFIG_CACHE_L2X0
 static int mxc_init_l2x0(void)
 {
+	unsigned int val;
+
+	writel(0x132, IO_ADDRESS(L2_BASE_ADDR + L2X0_TAG_LATENCY_CTRL));
+	writel(0x132, IO_ADDRESS(L2_BASE_ADDR + L2X0_DATA_LATENCY_CTRL));
+
+	val = readl(IO_ADDRESS(L2_BASE_ADDR + L2X0_PREFETCH_CTRL));
+	val |= 0x40800000;
+	writel(val, IO_ADDRESS(L2_BASE_ADDR + L2X0_PREFETCH_CTRL));
+	val = readl(IO_ADDRESS(L2_BASE_ADDR + L2X0_POWER_CTRL));
+	val |= L2X0_DYNAMIC_CLK_GATING_EN;
+	val |= L2X0_STNDBY_MODE_EN;
+	writel(val, IO_ADDRESS(L2_BASE_ADDR + L2X0_POWER_CTRL));
 
 	l2x0_init(IO_ADDRESS(L2_BASE_ADDR), 0x0, ~0x00000000);
 	return 0;
