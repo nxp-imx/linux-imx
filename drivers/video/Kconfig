@@ -2393,6 +2393,13 @@ if ARCH_MXC
 source "drivers/video/mxc/Kconfig"
 endif
 
+config FB_MXC_HDMI
+	depends on FB_MXC_SYNC_PANEL
+	tristate "MXC HDMI driver support"
+	help
+	  Driver for the on-chip MXC HDMI controller.
+
+
 if VT
 	source "drivers/video/console/Kconfig"
 endif
