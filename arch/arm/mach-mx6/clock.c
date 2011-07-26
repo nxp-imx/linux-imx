@@ -4019,8 +4019,8 @@ static struct clk_lookup lookups[] = {
 	_REGISTER_CLOCK("FlexCAN.1", "can_clk", can2_clk[0]),
 	_REGISTER_CLOCK(NULL, "ldb_di0_clk", ldb_di0_clk),
 	_REGISTER_CLOCK(NULL, "ldb_di1_clk", ldb_di1_clk),
-	_REGISTER_CLOCK("mxc_alsa_spdif.0", NULL, spdif0_clk[0]),
-	_REGISTER_CLOCK("mxc_alsa_spdif.1", NULL, spdif1_clk[0]),
+	_REGISTER_CLOCK(NULL, "mxc_alsa_spdif.0", spdif0_clk[0]),
+	_REGISTER_CLOCK(NULL, "mxc_alsa_spdif.1", spdif1_clk[0]),
 	_REGISTER_CLOCK(NULL, "esai_clk", esai_clk),
 	_REGISTER_CLOCK("mxc_spi.0", NULL, ecspi_clk[0]),
 	_REGISTER_CLOCK("mxc_spi.1", NULL, ecspi_clk[1]),
@@ -4099,6 +4099,14 @@ int __init mx6_clocks_init(unsigned long ckil, unsigned long osc,
 	clk_set_rate(&gpu3d_shader_clk, 594000000);
 	clk_set_parent(&gpu3d_core_clk, &mmdc_ch0_axi_clk);
 	clk_set_rate(&gpu3d_core_clk, 528000000);
+
+	/*
+	 * FIXME: asrc needs to use spdif1 clock to do sample rate convertion,
+	 * however we found it only works when set to 1.5M clock and the
+	 * parent is pll3_sw_clk.
+	 */
+	clk_set_parent(&spdif1_clk[0], &pll3_sw_clk);
+	clk_set_rate(&spdif1_clk[0], 1500000);
 
 	/* Make sure all clocks are ON initially */
 	__raw_writel(0xFFFFFFFF, MXC_CCM_CCGR0);

@@ -123,3 +123,7 @@ extern const struct imx_imx2_wdt_data imx6q_imx2_wdt_data[] __initconst;
 extern const struct imx_pm_imx_data imx6q_pm_imx_data __initconst;
 #define imx6q_add_pm_imx(id, pdata)	\
 	imx_add_pm_imx(&imx6q_pm_imx_data, pdata)
+
+extern const struct imx_imx_asrc_data imx6q_imx_asrc_data[] __initconst;
+#define imx6q_add_asrc(pdata)	\
+	imx_add_imx_asrc(imx6q_imx_asrc_data, pdata)
