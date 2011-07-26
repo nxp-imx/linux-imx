@@ -60,6 +60,7 @@
 #include <mach/ahci_sata.h>
 #include <mach/ipu-v3.h>
 #include <mach/mxc_hdmi.h>
+#include <mach/mxc_asrc.h>
 #include <linux/gpio.h>
 #include <linux/etherdevice.h>
 
@@ -529,6 +530,11 @@ static struct ahci_platform_data mx6q_sabreauto_sata_data = {
 	.exit = mx6q_sabreauto_sata_exit,
 };
 
+static struct imx_asrc_platform_data imx_asrc_data = {
+	.channel_bits = 4,
+	.clk_map_ver = 2,
+};
+
 static struct ipuv3_fb_platform_data sabr_fb_data[] = {
 	{ /*fb0*/
 	.disp_dev = "lcd",
@@ -665,6 +671,10 @@ static void __init mx6_board_init(void)
 	imx6q_add_ahci(0, &mx6q_sabreauto_sata_data);
 	imx6q_add_vpu();
 	imx6q_init_audio();
+
+	imx_asrc_data.asrc_core_clk = clk_get(NULL, "asrc_clk");
+	imx_asrc_data.asrc_audio_clk = clk_get(NULL, "mxc_alsa_spdif.1");
+	imx6q_add_asrc(&imx_asrc_data);
 
 	/* DISP0 Detect */
 	gpio_request(MX6Q_SABREAUTO_DISP0_DET_INT, "disp0-detect");

@@ -139,7 +139,7 @@
 #define SSI1_BASE_ADDR              (ATZ1_BASE_ADDR + 0x28000) /* slot 10 */
 #define SSI2_BASE_ADDR              (ATZ1_BASE_ADDR + 0x2C000) /* slot 11 */
 #define SSI3_BASE_ADDR              (ATZ1_BASE_ADDR + 0x30000) /* slot 12 */
-#define ASRC_BASE_ADDR              (ATZ1_BASE_ADDR + 0x34000) /* slot 13 */
+#define MX6Q_ASRC_BASE_ADDR	    (ATZ1_BASE_ADDR + 0x34000) /* slot 13 */
 #define SPBA_BASE_ADDR              (ATZ1_BASE_ADDR + 0x3C000) /* slot 15 */
 #define MX6Q_VPU_BASE_ADDR          (ATZ1_BASE_ADDR + 0x40000) /* slot 33,
 					global en[1], til 0x7BFFF */
@@ -319,7 +319,7 @@
 #define MXC_INT_SSI2                               79
 #define MXC_INT_SSI3                               80
 #define MXC_INT_ANATOP_TEMPSNSR                    81
-#define MXC_INT_ASRC                               82
+#define MX6Q_INT_ASRC                               82
 #define MXC_INT_ESAI                              83
 #define MXC_INT_SPDIF                              84
 #define MXC_INT_MLB                                85
