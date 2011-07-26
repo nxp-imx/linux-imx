@@ -1321,6 +1321,7 @@ CONFIG_FB_MXC_LDB=y
 # CONFIG_FB_MXC_ASYNC_PANEL is not set
 # CONFIG_FB_MXC_EINK_PANEL is not set
 # CONFIG_FB_MXC_ELCDIF_FB is not set
+CONFIG_FB_MXC_HDMI=y
 
 #
 # Console display driver support
