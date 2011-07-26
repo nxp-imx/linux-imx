@@ -234,6 +234,7 @@ static irqreturn_t vpu_irq_handler(int irq, void *dev_id)
 static int vpu_open(struct inode *inode, struct file *filp)
 {
 	spin_lock(&vpu_lock);
+	open_count++;
 	filp->private_data = (void *)(&vpu_data);
 	spin_unlock(&vpu_lock);
 	return 0;
