@@ -54,9 +54,6 @@
 #define MC13892_GEN_ID_VALUE	    0x7
 #define MC13892_IC_ID_VALUE		    1
 
-#define MC34708_GEN_ID_VALUE	    0x91
-#define MC34708_GENERATION_ID_LSH	0
-#define MC34708_GENERATION_ID_WID	9
 /*
  * Global variables
  */
@@ -200,15 +197,6 @@ static int __devinit is_chip_onboard(struct i2c_client *client)
 	/*bind the right device to the driver */
 	if (pmic_i2c_24bit_read(client, REG_IDENTIFICATION, &ret) == -1)
 		return -1;
-	if ((MC13892_GEN_ID_VALUE != BITFEXT(ret, MC13892_GENERATION_ID)) &&
-	   (MC34708_GEN_ID_VALUE != BITFEXT(ret, MC34708_GENERATION_ID))) {
-		/*compare the address value */
-		dev_err(&client->dev,
-			"read generation ID 0x%x is not equal to 0x%x!\n",
-			BITFEXT(ret, MC13892_GENERATION_ID),
-			MC13892_GEN_ID_VALUE);
-		return -1;
-	}
 
 	return 0;
 }
