@@ -52,3 +52,4 @@ obj-$(CONFIG_IMX_HAVE_PLATFORM_IMX_ANATOP_THERMAL) += platform-imx-anatop-therma
 obj-$(CONFIG_IMX_HAVE_PLATFORM_FSL_OTG) += platform-fsl-usb2-otg.o
 obj-$(CONFIG_IMX_HAVE_PLATFORM_FSL_USB_WAKEUP) += platform-fsl-usb2-wakeup.o
 obj-$(CONFIG_IMX_HAVE_PLATFORM_IMX_PM) += platform-imx-pm.o
+obj-$(CONFIG_IMX_HAVE_PLATFORM_MXC_HDMI) +=  platform-mxc_hdmi.o

@@ -526,6 +526,18 @@ struct imx_pm_imx_data {
 struct platform_device *__init imx_add_pm_imx(
 		const struct imx_pm_imx_data *data,
 		const struct pm_platform_data *pdata);
+
+#include <mach/mxc_hdmi.h>
+struct imx_mxc_hdmi_data {
+	resource_size_t iobase;
+	resource_size_t iosize;
+	resource_size_t irq;
+	resource_size_t irq_wakeup;
+};
+
+struct platform_device *__init imx_add_mxc_hdmi(
+		const struct imx_mxc_hdmi_data *data,
+		const struct fsl_mxc_lcd_platform_data *pdata);
 struct platform_device *__init imx_add_dcp(
 
 struct imx_fsl_usb2_otg_data {

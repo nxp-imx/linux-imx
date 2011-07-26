@@ -84,8 +84,8 @@
 #define CAAM_ARB_END_ADDR               0x00103FFF
 #define APBH_DMA_ARB_BASE_ADDR          0x00110000
 #define APBH_DMA_ARB_END_ADDR           0x00117FFF
-#define HDMI_ARB_BASE_ADDR              0x00120000
-#define HDMI_ARB_END_ADDR               0x00128FFF
+#define MX6Q_HDMI_ARB_BASE_ADDR         0x00120000
+#define MX6Q_HDMI_ARB_END_ADDR          0x00128FFF
 #define GPU_3D_ARB_BASE_ADDR            0x00130000
 #define GPU_3D_ARB_END_ADDR             0x00133FFF
 #define GPU_2D_ARB_BASE_ADDR            0x00134000
@@ -384,8 +384,8 @@
 #define MXC_INT_PERFMON1                           144
 #define MXC_INT_PERFMON2                           145
 #define MXC_INT_PERFMON3                           146
-#define MXC_INT_HDMI_TX                            147
-#define MXC_INT_HDMI_TX_WAKEUP                     148
+#define MX6Q_INT_HDMI_TX                           147
+#define MX6Q_INT_HDMI_TX_WAKEUP                    148
 #define MXC_INT_MLB_AHB0                           149
 #define MXC_INT_ENET1                              150
 #define MXC_INT_ENET2                              151
