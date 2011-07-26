@@ -49,6 +49,9 @@ static struct clk apbh_dma_clk;
 
 #define SPIN_DELAY	1000000 /* in nanoseconds */
 
+#define AUDIO_VIDEO_MIN_CLK_FREQ	650000000
+#define AUDIO_VIDEO_MAX_CLK_FREQ	1300000000
+
 #define WAIT(exp, timeout) \
 ({ \
 	struct timespec nstimeofday; \
@@ -610,7 +613,6 @@ static struct clk pll3_pfd_508M = {
 	.enable = _clk_pfd_enable,
 	.disable = _clk_pfd_disable,
 	.set_rate = pfd_set_rate,
-	.get_rate = pfd_get_rate,
 	.round_rate = pfd_round_rate,
 };
 
@@ -748,6 +750,19 @@ static int _clk_audio_video_set_rate(struct clk *clk, unsigned long rate)
 	return 0;
 }
 
+static unsigned long _clk_audio_video_round_rate(struct clk *clk,
+						unsigned long rate)
+{
+	if (rate < AUDIO_VIDEO_MIN_CLK_FREQ)
+		return AUDIO_VIDEO_MIN_CLK_FREQ;
+
+	if (rate > AUDIO_VIDEO_MAX_CLK_FREQ)
+		return AUDIO_VIDEO_MAX_CLK_FREQ;
+
+	return rate;
+}
+
+
 static struct clk pll4_audio_main_clk = {
 	__INIT_CLK_DEBUG(pll4_audio_main_clk)
 	.parent = &osc_clk,
@@ -755,6 +770,7 @@ static struct clk pll4_audio_main_clk = {
 	.disable = _clk_pll_disable,
 	.set_rate = _clk_audio_video_set_rate,
 	.get_rate = _clk_audio_video_get_rate,
+	.round_rate = _clk_audio_video_round_rate,
 };
 
 
@@ -765,6 +781,7 @@ static struct clk pll5_video_main_clk = {
 	.disable = _clk_pll_disable,
 	.set_rate = _clk_audio_video_set_rate,
 	.get_rate = _clk_audio_video_get_rate,
+	.round_rate = _clk_audio_video_round_rate,
 };
 
 static struct clk pll6_MLB_main_clk = {
@@ -3424,14 +3441,26 @@ static struct clk hsi_tx_clk = {
 	.get_rate = _clk_hsi_tx_get_rate,
 };
 
-static struct clk video_27M_clk = {
-	 __INIT_CLK_DEBUG(video_27M_clk)
+static struct clk hdmi_clk[] = {
+	{
+	 __INIT_CLK_DEBUG(hdmi_isfr_clk)
 	.id = 0,
-	 .parent = &pll2_pfd_400M,
+	.parent = &pll3_pfd_540M,
+	.secondary = &hdmi_clk[1],
 	.enable_reg = MXC_CCM_CCGR2,
 	.enable_shift = MXC_CCM_CCGRx_CG2_OFFSET,
 	.enable = _clk_enable,
 	.disable = _clk_disable,
+	},
+	{
+	 __INIT_CLK_DEBUG(hdmi_iahb_clk)
+	.id = 1,
+	 .parent = &ahb_clk,
+	.enable_reg = MXC_CCM_CCGR2,
+	.enable_shift = MXC_CCM_CCGRx_CG0_OFFSET,
+	.enable = _clk_enable,
+	.disable = _clk_disable,
+	},
 };
 
 static struct clk caam_clk[] = {
@@ -4024,9 +4053,10 @@ static struct clk_lookup lookups[] = {
 	_REGISTER_CLOCK(NULL, "imx_sata_clk", sata_clk),
 	_REGISTER_CLOCK(NULL, "usboh3_clk", usboh3_clk),
 	_REGISTER_CLOCK(NULL, "usb_phy1_clk", usb_phy1_clk),
-	_REGISTER_CLOCK(NULL, "video_27M_clk", video_27M_clk),
 	_REGISTER_CLOCK("imx2-wdt.0", NULL, dummy_clk),
 	_REGISTER_CLOCK("imx2-wdt.1", NULL, dummy_clk),
+	_REGISTER_CLOCK(NULL, "hdmi_isfr_clk", hdmi_clk[0]),
+	_REGISTER_CLOCK(NULL, "hdmi_iahb_clk", hdmi_clk[1]),
 };
 
 
@@ -4062,6 +4092,8 @@ int __init mx6_clocks_init(unsigned long ckil, unsigned long osc,
 	/* Initialize Audio and Video PLLs to valid frequency (650MHz). */
 	clk_set_rate(&pll4_audio_main_clk, 650000000);
 	clk_set_rate(&pll5_video_main_clk, 650000000);
+
+	clk_set_parent(&ipu1_di_clk[0], &pll5_video_main_clk);
 
 	clk_set_parent(&gpu3d_shader_clk, &pll2_pfd_594M);
 	clk_set_rate(&gpu3d_shader_clk, 594000000);

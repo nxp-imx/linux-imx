@@ -59,6 +59,7 @@
 #include <mach/viv_gpu.h>
 #include <mach/ahci_sata.h>
 #include <mach/ipu-v3.h>
+#include <mach/mxc_hdmi.h>
 #include <linux/gpio.h>
 #include <linux/etherdevice.h>
 
@@ -226,6 +227,13 @@ static iomux_v3_cfg_t mx6q_sabreauto_pads[] = {
 	/* I2C3 */
 	MX6Q_PAD_GPIO_5__I2C3_SCL,
 	MX6Q_PAD_GPIO_16__I2C3_SDA,
+
+	/* HDMI */
+	MX6Q_PAD_EIM_A25__HDMI_TX_CEC_LINE,
+	MX6Q_PAD_SD1_DAT1__HDMI_TX_OPHYDTB_0,
+	MX6Q_PAD_SD1_DAT0__HDMI_TX_OPHYDTB_1,
+
+	/* USBOTG ID pin */
 	MX6Q_PAD_GPIO_1__USBOTG_ID,
 };
 static const struct esdhc_platform_data mx6q_sabreauto_sd3_data __initconst = {
@@ -404,6 +412,9 @@ static struct i2c_board_info mxc_i2c1_board_info[] __initdata = {
 		.irq = gpio_to_irq(MX6Q_SABREAUTO_CAP_TCH_INT),
 		.platform_data = &p1003_ts_data,
 	},
+	{
+		I2C_BOARD_INFO("mxc_hdmi_i2c", 0x50),
+	},
 };
 
 static void imx6q_sabreauto_usbotg_vbus(bool on)
@@ -534,6 +545,12 @@ static struct ipuv3_fb_platform_data sabr_fb_data[] = {
 	},
 };
 
+static struct fsl_mxc_lcd_platform_data hdmi_data = {
+	.ipu_id = 0,
+	.disp_id = 0,
+	.default_ifmt = IPU_PIX_FMT_RGB24,
+};
+
 static struct fsl_mxc_lcd_platform_data lcdif_data = {
 	.ipu_id = 0,
 	.disp_id = 0,
@@ -632,6 +649,8 @@ static void __init mx6_board_init(void)
 			ARRAY_SIZE(mxc_i2c1_board_info));
 	i2c_register_board_info(2, mxc_i2c2_board_info,
 			ARRAY_SIZE(mxc_i2c2_board_info));
+
+	imx6q_add_mxc_hdmi(&hdmi_data);
 
 	imx6q_add_anatop_thermal_imx(1, &mx6q_sabreauto_anatop_thermal_data);
 	imx6q_init_fec();

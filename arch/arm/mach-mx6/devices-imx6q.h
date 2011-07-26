@@ -105,6 +105,10 @@ extern const struct imx_ldb_data imx6q_ldb_data __initconst;
 	platform_device_register_resndata(NULL, "mxc_v4l2_capture",\
 			id, NULL, 0, NULL, 0);
 
+extern const struct fsl_mxc_lcd_platform_data imx6q_mxc_hdmi_data __initconst;
+#define imx6q_add_mxc_hdmi(pdata)	\
+	imx_add_mxc_hdmi(&imx6q_mxc_hdmi_data, pdata)
+
 extern const struct imx_vpu_data imx6q_vpu_data __initconst;
 #define imx6q_add_vpu() imx_add_vpu(&imx6q_vpu_data)
 
