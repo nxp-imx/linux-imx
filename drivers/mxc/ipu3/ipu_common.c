@@ -1368,7 +1368,8 @@ int32_t ipu_init_channel_buffer(struct ipu_soc *ipu, ipu_channel_t channel,
 		_ipu_smfc_set_burst_size(ipu, channel, burst_size-1);
 	}
 
-	if (idma_is_set(ipu, IDMAC_CHA_PRI, dma_chan) && !cpu_is_mx53())
+	if (idma_is_set(ipu, IDMAC_CHA_PRI, dma_chan) && !cpu_is_mx53()
+		&& !cpu_is_mx6q())
 		_ipu_ch_param_set_high_priority(ipu, dma_chan);
 
 	_ipu_ch_param_dump(ipu, dma_chan);
