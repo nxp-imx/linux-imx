@@ -1,5 +1,5 @@
 # i.MX Platform Support
-snd-soc-imx-objs := imx-esai.o
+snd-soc-imx-objs := imx-ssi.o imx-esai.o
 snd-soc-imx-fiq-objs := imx-pcm-fiq.o
 snd-soc-imx-mx2-objs := imx-pcm-dma-mx2.o
 
