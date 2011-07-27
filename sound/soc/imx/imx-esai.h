@@ -326,10 +326,5 @@ struct imx_esai {
 	struct platform_device *soc_platform_pdev;
 	struct platform_device *soc_platform_pdev_fiq;
 };
-int snd_imx_pcm_mmap(struct snd_pcm_substream *substream, \
-	struct vm_area_struct *vma);
-int imx_pcm_new(struct snd_card *card, struct snd_soc_dai *dai,
-	struct snd_pcm *pcm);
-void imx_pcm_free(struct snd_pcm *pcm);
 
 #endif
