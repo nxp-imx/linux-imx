@@ -90,7 +90,7 @@ static int mx5_suspend_enter(suspend_state_t state)
 		local_flush_tlb_all();
 		flush_cache_all();
 
-		if (pm_data->suspend_enter)
+		if (pm_data && pm_data->suspend_enter)
 			pm_data->suspend_enter();
 		if (cpu_is_mx51() || cpu_is_mx53()) {
 			/* Run the suspend code from iRAM. */
@@ -115,7 +115,7 @@ static int mx5_suspend_enter(suspend_state_t state)
 
 			}
 		}
-		if (pm_data->suspend_exit)
+		if (pm_data && pm_data->suspend_exit)
 			pm_data->suspend_exit();
 	} else {
 			cpu_do_idle();
