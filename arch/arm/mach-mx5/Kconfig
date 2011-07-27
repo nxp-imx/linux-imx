@@ -258,4 +258,12 @@ config MACH_IMX_BLUETOOTH_RFKILL
        depends on RFKILL
        ---help---
 	Say Y to get the standard rfkill interface of Bluetooth
+
+config DMA_ZONE_SIZE
+        int "DMA memory zone size"
+        range 0 96
+        default 24
+        help
+          This is the size in MB for the DMA zone. The DMA zone is used for
+          dedicated memory for large contiguous video buffers
 endif
