@@ -2599,7 +2599,7 @@ ealloc:
 	return ret;
 }
 
-static int __exit mxc_hdmi_remove(struct platform_device *pdev)
+static int  mxc_hdmi_remove(struct platform_device *pdev)
 {
 	struct fsl_mxc_lcd_platform_data *pdata = pdev->dev.platform_data;
 	struct mxc_hdmi *hdmi = platform_get_drvdata(pdev);
