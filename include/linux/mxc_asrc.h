@@ -37,6 +37,7 @@
 #define ASRC_STATUS	_IOW(ASRC_IOC_MAGIC, 10, struct asrc_status_flags)
 #define ASRC_FLUSH	_IOW(ASRC_IOC_MAGIC, 11, enum asrc_pair_index)
 
+
 enum asrc_pair_index {
 	ASRC_PAIR_A,
 	ASRC_PAIR_B,
@@ -182,8 +183,8 @@ struct asrc_pair_params {
 	unsigned int output_counter;
 	unsigned int input_queue_empty;
 	unsigned int output_queue_empty;
-	unsigned int input_dma_channel;
-	unsigned int output_dma_channel;
+	struct dma_chan *input_dma_channel;
+	struct dma_chan *output_dma_channel;
 	unsigned int input_buffer_size;
 	unsigned int output_buffer_size;
 	unsigned int buffer_num;
