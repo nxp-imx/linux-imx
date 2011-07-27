@@ -144,14 +144,6 @@ config IRAM_ALLOC
         default y
 	select GENERIC_ALLOCATOR
 
-config DMA_ZONE_SIZE
-        int "DMA memory zone size"
-        range 0 96
-        default 24
-        help
-          This is the size in MB for the DMA zone. The DMA zone is used for
-          dedicated memory for large contiguous video buffers
-
 config CLK_DEBUG
 	bool "clock debug information export to user space"
 	depends on PM_DEBUG && DEBUG_FS
