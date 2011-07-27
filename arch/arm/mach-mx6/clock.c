@@ -613,6 +613,7 @@ static struct clk pll3_pfd_508M = {
 	.enable = _clk_pfd_enable,
 	.disable = _clk_pfd_disable,
 	.set_rate = pfd_set_rate,
+	.get_rate = pfd_get_rate,
 	.round_rate = pfd_round_rate,
 };
 
