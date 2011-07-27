@@ -42,7 +42,7 @@ typedef enum iomux_config {
 #define NON_MUX_I       0x3FF
 #define NON_PAD_I       0x7FF
 
-#define MX6Q_HIGH_DRV	(PAD_CTL_DSE_240ohm)
+#define MX6Q_HIGH_DRV	(PAD_CTL_DSE_120ohm)
 #define MX6Q_UART_PAD_CTRL	(PAD_CTL_PKE | PAD_CTL_PUE |	\
 		PAD_CTL_PUS_100K_UP | PAD_CTL_SPEED_MED |	\
 		PAD_CTL_DSE_40ohm | PAD_CTL_SRE_FAST | PAD_CTL_HYS)
