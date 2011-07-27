@@ -31,7 +31,6 @@
 #include <sound/tlv.h>
 #include <sound/initval.h>
 #include <asm/div64.h>
-
 #include "cs42888.h"
 #define CS42888_NUM_SUPPLIES 4
 static const char *cs42888_supply_names[CS42888_NUM_SUPPLIES] = {
@@ -147,7 +146,7 @@ static const char *cs42888_supply_names[CS42888_NUM_SUPPLIES] = {
 
 /* Private data for the CS42888 */
 struct cs42888_private {
-	struct snd_soc_codec codec;
+	struct snd_soc_codec *codec;
 	u8 reg_cache[CS42888_NUMREGS + 1];
 	unsigned int mclk; /* Input frequency of the MCLK pin */
 	unsigned int mode; /* The mode (I2S or left-justified) */
@@ -195,6 +194,8 @@ static void dump_reg(struct snd_soc_codec *codec)
 {
 	int i, reg;
 	int ret;
+	u8 *cache = codec->reg_cache + 1;
+
 	printk(KERN_DEBUG "dump begin\n");
 	printk(KERN_DEBUG "reg value in cache\n");
 	for (i = 0; i < CS42888_NUMREGS; i++)
@@ -781,6 +782,8 @@ static int cs42888_probe(struct snd_soc_codec *codec)
 	int val;
 
 	struct cs42888_private *cs42888 = snd_soc_codec_get_drvdata(codec);
+	cs42888->codec = codec;
+
 	/* setup i2c data ops */
 	ret = snd_soc_codec_set_cache_io(codec, 8, 8, SND_SOC_I2C);
 	if (ret < 0) {
@@ -964,7 +967,7 @@ MODULE_DEVICE_TABLE(i2c, cs42888_i2c_id);
 static int cs42888_i2c_suspend(struct i2c_client *client, pm_message_t mesg)
 {
 	struct cs42888_private *cs42888 = i2c_get_clientdata(client);
-	struct snd_soc_codec *codec = &cs42888->codec;
+	struct snd_soc_codec *codec = cs42888->codec;
 	int reg = snd_soc_read(codec, CS42888_PWRCTL) | CS42888_PWRCTL_PDN_MASK;
 
 	return snd_soc_write(codec, CS42888_PWRCTL, reg);
@@ -973,7 +976,7 @@ static int cs42888_i2c_suspend(struct i2c_client *client, pm_message_t mesg)
 static int cs42888_i2c_resume(struct i2c_client *client)
 {
 	struct cs42888_private *cs42888 = i2c_get_clientdata(client);
-	struct snd_soc_codec *codec = &cs42888->codec;
+	struct snd_soc_codec *codec = cs42888->codec;
 	int reg;
 
 	/* In case the device was put to hard reset during sleep, we need to
