@@ -39,6 +39,7 @@
 #include <asm/irq.h>
 #include <asm/memory.h>
 #include <mach/dma.h>
+#include <mach/mxc_asrc.h>
 
 static int asrc_major;
 static struct class *asrc_class;
@@ -137,7 +138,12 @@ static const unsigned char asrc_divider_table[] = {
 static struct asrc_data *g_asrc_data;
 static struct proc_dir_entry *proc_asrc;
 static unsigned long asrc_vrt_base_addr;
-static struct mxc_asrc_platform_data *mxc_asrc_data;
+static unsigned long asrc_phy_base_addr;
+static struct imx_asrc_platform_data *mxc_asrc_data;
+struct dma_async_tx_descriptor *desc_in;
+struct dma_async_tx_descriptor *desc_out;
+static int asrc_dmarx[3];
+static int asrc_dmatx[3];
 
 /* The following tables map the relationship between asrc_inclk/asrc_outclk in
  * mxc_asrc.h and the registers of ASRCSR
@@ -159,6 +165,11 @@ static unsigned char output_clk_map_v2[] = {
 };
 
 static unsigned char *input_clk_map, *output_clk_map;
+
+static struct dma_chan *imx_asrc_dma_alloc(u32 dma_req);
+struct dma_async_tx_descriptor *imx_asrc_dma_config(struct dma_chan * chan,
+					u32 dma_addr, void *buf_addr,
+					u32 buf_len, int in);
 
 static int asrc_set_clock_ratio(enum asrc_pair_index index,
 				int input_sample_rate, int output_sample_rate)
@@ -628,6 +639,7 @@ void asrc_start_conv(enum asrc_pair_index index)
 	reg = __raw_readl(asrc_vrt_base_addr + ASRC_ASRCTR_REG);
 	if ((reg & 0x0E) == 0)
 		clk_enable(mxc_asrc_data->asrc_audio_clk);
+
 	reg |= (1 << (1 + index));
 	__raw_writel(reg, asrc_vrt_base_addr + ASRC_ASRCTR_REG);
 
@@ -824,12 +836,13 @@ static int asrc_get_output_buffer_size(int input_buffer_size,
 	return outbuffer_size;
 }
 
-static void asrc_input_dma_callback(void *data, int error, unsigned int count)
+static void asrc_input_dma_callback(void *data)
 {
 	struct asrc_pair_params *params;
 	struct dma_block *block;
-	mxc_dma_requestbuf_t dma_request;
 	unsigned long lock_flags;
+	u32 dma_addr;
+	void *buf_addr;
 
 	params = data;
 
@@ -839,12 +852,19 @@ static void asrc_input_dma_callback(void *data, int error, unsigned int count)
 		block =
 		    list_entry(params->input_queue.next,
 			       struct dma_block, queue);
-		dma_request.src_addr = (dma_addr_t) block->dma_paddr;
-		dma_request.dst_addr =
-		    (ASRC_BASE_ADDR + ASRC_ASRDIA_REG + (params->index << 3));
-		dma_request.num_of_bytes = block->length;
-		mxc_dma_config(params->input_dma_channel, &dma_request,
-			       1, MXC_DMA_MODE_WRITE);
+		dma_addr =
+		    (asrc_phy_base_addr + ASRC_ASRDIA_REG +
+		     (params->index << 3));
+		buf_addr = block->dma_vaddr;
+		spin_unlock_irqrestore(&input_int_lock, lock_flags);
+		desc_in = imx_asrc_dma_config(
+				params->input_dma_channel,
+				dma_addr, buf_addr,
+				block->length, 1);
+		if (!desc_in)
+			pr_err("%s:%d failed to config dma\n",
+				__func__, __LINE__);
+		spin_lock_irqsave(&input_int_lock, lock_flags);
 		list_del(params->input_queue.next);
 		list_add_tail(&block->queue, &params->input_done_queue);
 		params->input_queue_empty++;
@@ -855,12 +875,13 @@ static void asrc_input_dma_callback(void *data, int error, unsigned int count)
 	return;
 }
 
-static void asrc_output_dma_callback(void *data, int error, unsigned int count)
+static void asrc_output_dma_callback(void *data)
 {
 	struct asrc_pair_params *params;
 	struct dma_block *block;
-	mxc_dma_requestbuf_t dma_request;
 	unsigned long lock_flags;
+	u32 dma_addr;
+	void *buf_addr;
 
 	params = data;
 
@@ -871,12 +892,21 @@ static void asrc_output_dma_callback(void *data, int error, unsigned int count)
 		block =
 		    list_entry(params->output_queue.next,
 			       struct dma_block, queue);
-		dma_request.src_addr =
-		    (ASRC_BASE_ADDR + ASRC_ASRDOA_REG + (params->index << 3));
-		dma_request.dst_addr = (dma_addr_t) block->dma_paddr;
-		dma_request.num_of_bytes = block->length;
-		mxc_dma_config(params->output_dma_channel, &dma_request,
-			       1, MXC_DMA_MODE_READ);
+
+		dma_addr =
+		    (asrc_phy_base_addr + ASRC_ASRDOA_REG +
+		     (params->index << 3));
+		buf_addr = block->dma_vaddr;
+		spin_unlock_irqrestore(&output_int_lock, lock_flags);
+		desc_out = imx_asrc_dma_config(
+				params->output_dma_channel,
+				dma_addr, buf_addr,
+				block->length, 0);
+		if (!desc_out)
+			pr_err("%s:%d failed to config dma\n",
+				__func__, __LINE__);
+		spin_lock_irqsave(&output_int_lock, lock_flags);
+
 		list_del(params->output_queue.next);
 		list_add_tail(&block->queue, &params->output_done_queue);
 		params->output_queue_empty++;
@@ -892,19 +922,11 @@ static void mxc_free_dma_buf(struct asrc_pair_params *params)
 	int i;
 	for (i = 0; i < ASRC_DMA_BUFFER_NUM; i++) {
 		if (params->input_dma[i].dma_vaddr != NULL) {
-			dma_free_coherent(0,
-					  params->input_buffer_size,
-					  params->input_dma[i].
-					  dma_vaddr,
-					  params->input_dma[i].dma_paddr);
+			kfree(params->input_dma[i].dma_vaddr);
 			params->input_dma[i].dma_vaddr = NULL;
 		}
 		if (params->output_dma[i].dma_vaddr != NULL) {
-			dma_free_coherent(0,
-					  params->output_buffer_size,
-					  params->output_dma[i].
-					  dma_vaddr,
-					  params->output_dma[i].dma_paddr);
+			kfree(params->output_dma[i].dma_vaddr);
 			params->output_dma[i].dma_vaddr = NULL;
 		}
 	}
@@ -917,9 +939,9 @@ static int mxc_allocate_dma_buf(struct asrc_pair_params *params)
 	int i;
 	for (i = 0; i < ASRC_DMA_BUFFER_NUM; i++) {
 		params->input_dma[i].dma_vaddr =
-		    dma_alloc_coherent(0, params->input_buffer_size,
-				       &params->input_dma[i].dma_paddr,
-				       GFP_DMA | GFP_KERNEL);
+			kzalloc(params->input_buffer_size, GFP_KERNEL);
+		params->input_dma[i].dma_paddr =
+			virt_to_dma(NULL, params->input_dma[i].dma_vaddr);
 		if (params->input_dma[i].dma_vaddr == NULL) {
 			mxc_free_dma_buf(params);
 			pr_info("can't allocate buff\n");
@@ -928,10 +950,9 @@ static int mxc_allocate_dma_buf(struct asrc_pair_params *params)
 	}
 	for (i = 0; i < ASRC_DMA_BUFFER_NUM; i++) {
 		params->output_dma[i].dma_vaddr =
-		    dma_alloc_coherent(0,
-				       params->output_buffer_size,
-				       &params->output_dma[i].dma_paddr,
-				       GFP_DMA | GFP_KERNEL);
+			kzalloc(params->output_buffer_size, GFP_KERNEL);
+		params->output_dma[i].dma_paddr =
+			virt_to_dma(NULL, params->output_dma[i].dma_vaddr);
 		if (params->output_dma[i].dma_vaddr == NULL) {
 			mxc_free_dma_buf(params);
 			return -ENOBUFS;
@@ -939,6 +960,64 @@ static int mxc_allocate_dma_buf(struct asrc_pair_params *params)
 	}
 
 	return 0;
+}
+
+static bool filter(struct dma_chan *chan, void *param)
+{
+
+	if (!imx_dma_is_general_purpose(chan))
+		return false;
+
+	chan->private = param;
+	return true;
+}
+
+static struct dma_chan *imx_asrc_dma_alloc(u32 dma_req)
+{
+	dma_cap_mask_t mask;
+	struct imx_dma_data dma_data;
+
+	dma_data.peripheral_type = IMX_DMATYPE_ASRC;
+	dma_data.priority = DMA_PRIO_MEDIUM;
+	dma_data.dma_request = dma_req;
+
+	/* Try to grab a DMA channel */
+	dma_cap_zero(mask);
+	dma_cap_set(DMA_SLAVE, mask);
+	return dma_request_channel(mask, filter, &dma_data);
+}
+
+struct dma_async_tx_descriptor *imx_asrc_dma_config(struct dma_chan * chan,
+					u32 dma_addr, void *buf_addr,
+					u32 buf_len, int in)
+{
+	struct dma_slave_config slave_config;
+	struct scatterlist sg;
+	int ret;
+
+	if (in) {
+		slave_config.direction = DMA_TO_DEVICE;
+		slave_config.dst_addr = dma_addr;
+		slave_config.dst_addr_width = DMA_SLAVE_BUSWIDTH_4_BYTES;
+		slave_config.dst_maxburst = 4;
+	} else {
+		slave_config.direction = DMA_FROM_DEVICE;
+		slave_config.src_addr = dma_addr;
+		slave_config.src_addr_width = DMA_SLAVE_BUSWIDTH_4_BYTES;
+		slave_config.src_maxburst = 4;
+	}
+
+	ret = dmaengine_slave_config(chan, &slave_config);
+	if (ret)
+		return NULL;
+
+	sg_init_one(&sg, buf_addr, buf_len);
+	ret = dma_map_sg(NULL, &sg, 1, slave_config.direction);
+	if (ret != 1)
+		return NULL;
+
+	return chan->device->device_prep_slave_sg(chan,
+					&sg, 1, slave_config.direction, 1);
 }
 
 /*!
@@ -955,7 +1034,7 @@ static int mxc_allocate_dma_buf(struct asrc_pair_params *params)
  * @return           0 success, ENODEV for invalid device instance,
  *                   -1 for other errors.
  */
-static int asrc_ioctl(struct inode *inode, struct file *file,
+static long asrc_ioctl(struct file *file,
 		      unsigned int cmd, unsigned long arg)
 {
 	int err = 0;
@@ -987,9 +1066,8 @@ static int asrc_ioctl(struct inode *inode, struct file *file,
 	case ASRC_CONFIG_PAIR:
 		{
 			struct asrc_config config;
-			mxc_dma_device_t rx_id, tx_id;
+			u32 rx_id, tx_id;
 			char *rx_name, *tx_name;
-			int channel = -1;
 			if (copy_from_user
 			    (&config, (void __user *)arg,
 			     sizeof(struct asrc_config))) {
@@ -1017,32 +1095,34 @@ static int asrc_ioctl(struct inode *inode, struct file *file,
 
 			/* TBD - need to update when new SDMA interface ready */
 			if (config.pair == ASRC_PAIR_A) {
-				rx_id = MXC_DMA_ASRC_A_RX;
-				tx_id = MXC_DMA_ASRC_A_TX;
+				rx_id = asrc_dmarx[ASRC_PAIR_A];
+				tx_id = asrc_dmatx[ASRC_PAIR_A];
 				rx_name = asrc_pair_id[0];
 				tx_name = asrc_pair_id[1];
 			} else if (config.pair == ASRC_PAIR_B) {
-				rx_id = MXC_DMA_ASRC_B_RX;
-				tx_id = MXC_DMA_ASRC_B_TX;
+				rx_id = asrc_dmarx[ASRC_PAIR_B];
+				tx_id = asrc_dmatx[ASRC_PAIR_B];
 				rx_name = asrc_pair_id[2];
 				tx_name = asrc_pair_id[3];
 			} else {
-				rx_id = MXC_DMA_ASRC_C_RX;
-				tx_id = MXC_DMA_ASRC_C_TX;
+				rx_id = asrc_dmarx[ASRC_PAIR_C];
+				tx_id = asrc_dmatx[ASRC_PAIR_C];
 				rx_name = asrc_pair_id[4];
 				tx_name = asrc_pair_id[5];
 			}
-			channel = mxc_dma_request(rx_id, rx_name);
-			params->input_dma_channel = channel;
-			err = mxc_dma_callback_set(channel, (mxc_dma_callback_t)
-						   asrc_input_dma_callback,
-						   (void *)params);
-			channel = mxc_dma_request(tx_id, tx_name);
-			params->output_dma_channel = channel;
-			err = mxc_dma_callback_set(channel, (mxc_dma_callback_t)
-						   asrc_output_dma_callback,
-						   (void *)params);
-			/* TBD - need to update when new SDMA interface ready */
+
+			params->input_dma_channel = imx_asrc_dma_alloc(rx_id);
+			if (params->input_dma_channel == NULL) {
+				pr_err("unable to get rx channel %d\n", rx_id);
+				err = -EBUSY;
+			}
+
+			params->output_dma_channel = imx_asrc_dma_alloc(tx_id);
+			if (params->output_dma_channel == NULL) {
+				pr_err("unable to get tx channel %d\n", tx_id);
+				err = -EBUSY;
+			}
+
 			params->input_queue_empty = 0;
 			params->output_queue_empty = 0;
 			INIT_LIST_HEAD(&params->input_queue);
@@ -1093,8 +1173,11 @@ static int asrc_ioctl(struct inode *inode, struct file *file,
 				break;
 			}
 
-			mxc_dma_free(params->input_dma_channel);
-			mxc_dma_free(params->output_dma_channel);
+			if (params->input_dma_channel)
+				dma_release_channel(params->input_dma_channel);
+			if (params->output_dma_channel)
+				dma_release_channel(params->output_dma_channel);
+
 			mxc_free_dma_buf(params);
 			asrc_release_pair(index);
 			params->pair_hold = 0;
@@ -1104,7 +1187,8 @@ static int asrc_ioctl(struct inode *inode, struct file *file,
 		{
 			struct asrc_buffer buf;
 			struct dma_block *block;
-			mxc_dma_requestbuf_t dma_request;
+			u32 dma_addr;
+			void *buf_addr;
 			unsigned long lock_flags;
 			if (copy_from_user
 			    (&buf, (void __user *)arg,
@@ -1112,6 +1196,7 @@ static int asrc_ioctl(struct inode *inode, struct file *file,
 				err = -EFAULT;
 				break;
 			}
+
 			spin_lock_irqsave(&input_int_lock, lock_flags);
 			params->input_dma[buf.index].index = buf.index;
 			params->input_dma[buf.index].length = buf.length;
@@ -1122,16 +1207,25 @@ static int asrc_ioctl(struct inode *inode, struct file *file,
 				block =
 				    list_entry(params->input_queue.next,
 					       struct dma_block, queue);
-				dma_request.src_addr =
-				    (dma_addr_t) block->dma_paddr;
-				dma_request.dst_addr =
-				    (ASRC_BASE_ADDR + ASRC_ASRDIA_REG +
+				dma_addr =
+				    (asrc_phy_base_addr + ASRC_ASRDIA_REG +
 				     (params->index << 3));
-				dma_request.num_of_bytes = block->length;
-				mxc_dma_config(params->
-					       input_dma_channel,
-					       &dma_request, 1,
-					       MXC_DMA_MODE_WRITE);
+				buf_addr = block->dma_vaddr;
+				spin_unlock_irqrestore(&input_int_lock,
+							lock_flags);
+				desc_in = imx_asrc_dma_config(
+						params->input_dma_channel,
+						dma_addr, buf_addr,
+						block->length, 1);
+				if (desc_in) {
+					desc_in->callback =
+						asrc_input_dma_callback;
+					desc_in->callback_param = params;
+				} else {
+					err = -EINVAL;
+					break;
+				}
+				spin_lock_irqsave(&input_int_lock, lock_flags);
 				params->input_queue_empty++;
 				list_del(params->input_queue.next);
 				list_add_tail(&block->queue,
@@ -1195,7 +1289,8 @@ static int asrc_ioctl(struct inode *inode, struct file *file,
 	case ASRC_Q_OUTBUF:{
 			struct asrc_buffer buf;
 			struct dma_block *block;
-			mxc_dma_requestbuf_t dma_request;
+			u32 dma_addr;
+			void *buf_addr;
 			unsigned long lock_flags;
 			if (copy_from_user
 			    (&buf, (void __user *)arg,
@@ -1203,6 +1298,7 @@ static int asrc_ioctl(struct inode *inode, struct file *file,
 				err = -EFAULT;
 				break;
 			}
+
 			spin_lock_irqsave(&output_int_lock, lock_flags);
 			params->output_dma[buf.index].index = buf.index;
 			params->output_dma[buf.index].length = buf.length;
@@ -1213,16 +1309,25 @@ static int asrc_ioctl(struct inode *inode, struct file *file,
 				block =
 				    list_entry(params->output_queue.
 					       next, struct dma_block, queue);
-				dma_request.src_addr =
-				    (ASRC_BASE_ADDR + ASRC_ASRDOA_REG +
+				dma_addr =
+				    (asrc_phy_base_addr + ASRC_ASRDOA_REG +
 				     (params->index << 3));
-				dma_request.dst_addr =
-				    (dma_addr_t) block->dma_paddr;
-				dma_request.num_of_bytes = block->length;
-				mxc_dma_config(params->
-					       output_dma_channel,
-					       &dma_request, 1,
-					       MXC_DMA_MODE_READ);
+				buf_addr = block->dma_vaddr;
+				spin_unlock_irqrestore(&output_int_lock,
+							lock_flags);
+				desc_out = imx_asrc_dma_config(
+						params->output_dma_channel,
+					dma_addr, buf_addr, block->length, 0);
+				if (desc_out) {
+					desc_out->callback =
+						asrc_output_dma_callback;
+					desc_out->callback_param = params;
+				} else {
+					err = -EINVAL;
+					break;
+				}
+				spin_lock_irqsave(&output_int_lock, lock_flags);
+
 				list_del(params->output_queue.next);
 				list_add_tail(&block->queue,
 					      &params->output_done_queue);
@@ -1304,8 +1409,8 @@ static int asrc_ioctl(struct inode *inode, struct file *file,
 			params->asrc_active = 1;
 
 			asrc_start_conv(index);
-			mxc_dma_enable(params->input_dma_channel);
-			mxc_dma_enable(params->output_dma_channel);
+			dmaengine_submit(desc_in);
+			dmaengine_submit(desc_out);
 			break;
 		}
 	case ASRC_STOP_CONV:{
@@ -1316,8 +1421,8 @@ static int asrc_ioctl(struct inode *inode, struct file *file,
 				err = -EFAULT;
 				break;
 			}
-			mxc_dma_disable(params->input_dma_channel);
-			mxc_dma_disable(params->output_dma_channel);
+			dmaengine_terminate_all(params->input_dma_channel);
+			dmaengine_terminate_all(params->output_dma_channel);
 			asrc_stop_conv(index);
 			params->asrc_active = 0;
 			break;
@@ -1340,9 +1445,8 @@ static int asrc_ioctl(struct inode *inode, struct file *file,
 	case ASRC_FLUSH:{
 			/* flush input dma buffer */
 			unsigned long lock_flags;
-			mxc_dma_device_t rx_id, tx_id;
+			u32 rx_id, tx_id;
 			char *rx_name, *tx_name;
-			int channel = -1;
 			spin_lock_irqsave(&input_int_lock, lock_flags);
 			while (!list_empty(&params->input_queue))
 				list_del(params->input_queue.next);
@@ -1363,34 +1467,36 @@ static int asrc_ioctl(struct inode *inode, struct file *file,
 			spin_unlock_irqrestore(&output_int_lock, lock_flags);
 
 			/* release DMA and request again */
-			mxc_dma_free(params->input_dma_channel);
-			mxc_dma_free(params->output_dma_channel);
+			dma_release_channel(params->input_dma_channel);
+			dma_release_channel(params->output_dma_channel);
 			if (params->index == ASRC_PAIR_A) {
-				rx_id = MXC_DMA_ASRC_A_RX;
-				tx_id = MXC_DMA_ASRC_A_TX;
+				rx_id = asrc_dmarx[ASRC_PAIR_A];
+				tx_id = asrc_dmatx[ASRC_PAIR_A];
 				rx_name = asrc_pair_id[0];
 				tx_name = asrc_pair_id[1];
 			} else if (params->index == ASRC_PAIR_B) {
-				rx_id = MXC_DMA_ASRC_B_RX;
-				tx_id = MXC_DMA_ASRC_B_TX;
+				rx_id = asrc_dmarx[ASRC_PAIR_B];
+				tx_id = asrc_dmatx[ASRC_PAIR_B];
 				rx_name = asrc_pair_id[2];
 				tx_name = asrc_pair_id[3];
 			} else {
-				rx_id = MXC_DMA_ASRC_C_RX;
-				tx_id = MXC_DMA_ASRC_C_TX;
+				rx_id = asrc_dmarx[ASRC_PAIR_C];
+				tx_id = asrc_dmatx[ASRC_PAIR_C];
 				rx_name = asrc_pair_id[4];
 				tx_name = asrc_pair_id[5];
 			}
-			channel = mxc_dma_request(rx_id, rx_name);
-			params->input_dma_channel = channel;
-			err = mxc_dma_callback_set(channel, (mxc_dma_callback_t)
-						   asrc_input_dma_callback,
-						   (void *)params);
-			channel = mxc_dma_request(tx_id, tx_name);
-			params->output_dma_channel = channel;
-			err = mxc_dma_callback_set(channel, (mxc_dma_callback_t)
-						   asrc_output_dma_callback,
-						   (void *)params);
+
+			params->input_dma_channel = imx_asrc_dma_alloc(rx_id);
+			if (params->input_dma_channel == NULL) {
+				pr_err("unable to get rx channel %d\n", rx_id);
+				err = -EBUSY;
+			}
+
+			params->output_dma_channel = imx_asrc_dma_alloc(tx_id);
+			if (params->output_dma_channel == NULL) {
+				pr_err("unable to get tx channel %d\n", tx_id);
+				err = -EBUSY;
+			}
 
 			break;
 		}
@@ -1424,7 +1530,7 @@ static int mxc_asrc_open(struct inode *inode, struct file *file)
 		err = -ENOBUFS;
 	}
 
-	init_MUTEX(&pair_params->busy_lock);
+	sema_init(&pair_params->busy_lock, 1);
 	file->private_data = pair_params;
 	return err;
 }
@@ -1442,15 +1548,15 @@ static int mxc_asrc_close(struct inode *inode, struct file *file)
 	struct asrc_pair_params *pair_params;
 	pair_params = file->private_data;
 	if (pair_params->asrc_active == 1) {
-		mxc_dma_disable(pair_params->input_dma_channel);
-		mxc_dma_disable(pair_params->output_dma_channel);
+		dmaengine_terminate_all(pair_params->input_dma_channel);
+		dmaengine_terminate_all(pair_params->output_dma_channel);
 		asrc_stop_conv(pair_params->index);
 		wake_up_interruptible(&pair_params->input_wait_queue);
 		wake_up_interruptible(&pair_params->output_wait_queue);
 	}
 	if (pair_params->pair_hold == 1) {
-		mxc_dma_free(pair_params->input_dma_channel);
-		mxc_dma_free(pair_params->output_dma_channel);
+		dma_release_channel(pair_params->input_dma_channel);
+		dma_release_channel(pair_params->output_dma_channel);
 		mxc_free_dma_buf(pair_params);
 		asrc_release_pair(pair_params->index);
 	}
@@ -1484,7 +1590,7 @@ static int mxc_asrc_mmap(struct file *file, struct vm_area_struct *vma)
 
 static struct file_operations asrc_fops = {
 	.owner = THIS_MODULE,
-	.ioctl = asrc_ioctl,
+	.unlocked_ioctl	= asrc_ioctl,
 	.mmap = mxc_asrc_mmap,
 	.open = mxc_asrc_open,
 	.release = mxc_asrc_close,
@@ -1626,11 +1732,12 @@ static int mxc_asrc_probe(struct platform_device *pdev)
 		goto err_out_class;
 	}
 
+	asrc_phy_base_addr = res->start;
 	asrc_vrt_base_addr =
 	    (unsigned long)ioremap(res->start, res->end - res->start + 1);
 
 	mxc_asrc_data =
-	    (struct mxc_asrc_platform_data *)pdev->dev.platform_data;
+	    (struct imx_asrc_platform_data *)pdev->dev.platform_data;
 	clk_enable(mxc_asrc_data->asrc_core_clk);
 
 	switch (mxc_asrc_data->clk_map_ver) {
@@ -1644,6 +1751,31 @@ static int mxc_asrc_probe(struct platform_device *pdev)
 		output_clk_map = &output_clk_map_v2[0];
 		break;
 	}
+
+	res = platform_get_resource_byname(pdev, IORESOURCE_DMA, "tx1");
+	if (res)
+		asrc_dmatx[0] = res->start;
+
+	res = platform_get_resource_byname(pdev, IORESOURCE_DMA, "rx1");
+	if (res)
+		asrc_dmarx[0] = res->start;
+
+	res = platform_get_resource_byname(pdev, IORESOURCE_DMA, "tx2");
+	if (res)
+		asrc_dmatx[1] = res->start;
+
+	res = platform_get_resource_byname(pdev, IORESOURCE_DMA, "rx2");
+	if (res)
+		asrc_dmarx[1] = res->start;
+
+	res = platform_get_resource_byname(pdev, IORESOURCE_DMA, "tx3");
+	if (res)
+		asrc_dmatx[2] = res->start;
+
+	res = platform_get_resource_byname(pdev, IORESOURCE_DMA, "rx3");
+	if (res)
+		asrc_dmarx[2] = res->start;
+
 	irq = platform_get_irq(pdev, 0);
 	if (request_irq(irq, asrc_isr, 0, "asrc", NULL))
 		return -1;
