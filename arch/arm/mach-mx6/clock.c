@@ -72,16 +72,29 @@ static struct clk apbh_dma_clk;
 static unsigned long external_high_reference, external_low_reference;
 static unsigned long oscillator_reference, ckih2_reference;
 
-static void __calc_pre_post_dividers(u32 div, u32 *pre, u32 *post)
+static void __calc_pre_post_dividers(u32 max_podf, u32 div, u32 *pre, u32 *post)
 {
 	u32 min_pre, temp_pre, old_err, err;
 
-	if (div >= 512) {
+	/* Some of the podfs are 3 bits while others are 6 bits.
+	  * Handle both cases here.
+	  */
+	if (div >= 512 && (max_podf == 64)) {
+		/* For pre = 3bits and podf = 6 bits, max divider is 512. */
 		*pre = 8;
 		*post = 64;
+	} else if (div >= 64 && (max_podf == 8)) {
+		/* For pre = 3bits and podf = 3 bits, max divider is 64. */
+		*pre = 8;
+		*post = 8;
 	} else if (div >= 8) {
-		min_pre = (div - 1) / 64 + 1;
+		/* Find the minimum pre-divider for a max podf */
+		if (max_podf == 64)
+			min_pre = (div - 1) / (1 << 6) + 1;
+		else
+			min_pre = (div - 1) / (1 << 3) + 1;
 		old_err = 8;
+		/* Now loop through to find the max pre-divider. */
 		for (temp_pre = 8; temp_pre >= min_pre; temp_pre--) {
 			err = div % temp_pre;
 			if (err == 0) {
@@ -1290,7 +1303,7 @@ static struct clk sdma_clk = {
 
 static int _clk_gpu2d_axi_set_parent(struct clk *clk, struct clk *parent)
 {
-	u32 reg = __raw_readl(MXC_CCM_CBCMR) & MXC_CCM_CBCMR_GPU2D_AXI_CLK_SEL;
+	u32 reg = __raw_readl(MXC_CCM_CBCMR) & ~MXC_CCM_CBCMR_GPU2D_AXI_CLK_SEL;
 
 	if (parent == &ahb_clk)
 		reg |= MXC_CCM_CBCMR_GPU2D_AXI_CLK_SEL;
@@ -1308,7 +1321,7 @@ static struct clk gpu2d_axi_clk = {
 
 static int _clk_gpu3d_axi_set_parent(struct clk *clk, struct clk *parent)
 {
-	u32 reg = __raw_readl(MXC_CCM_CBCMR) & MXC_CCM_CBCMR_GPU3D_AXI_CLK_SEL;
+	u32 reg = __raw_readl(MXC_CCM_CBCMR) & ~MXC_CCM_CBCMR_GPU3D_AXI_CLK_SEL;
 
 	if (parent == &ahb_clk)
 		reg |= MXC_CCM_CBCMR_GPU3D_AXI_CLK_SEL;
@@ -1326,7 +1339,7 @@ static struct clk gpu3d_axi_clk = {
 
 static int _clk_pcie_axi_set_parent(struct clk *clk, struct clk *parent)
 {
-	u32 reg = __raw_readl(MXC_CCM_CBCMR) & MXC_CCM_CBCMR_PCIE_AXI_CLK_SEL;
+	u32 reg = __raw_readl(MXC_CCM_CBCMR) & ~MXC_CCM_CBCMR_PCIE_AXI_CLK_SEL;
 
 	if (parent == &ahb_clk)
 		reg |= MXC_CCM_CBCMR_PCIE_AXI_CLK_SEL;
@@ -1344,7 +1357,7 @@ static struct clk pcie_axi_clk = {
 
 static int _clk_vdo_axi_set_parent(struct clk *clk, struct clk *parent)
 {
-	u32 reg = __raw_readl(MXC_CCM_CBCMR) & MXC_CCM_CBCMR_VDOAXI_CLK_SEL;
+	u32 reg = __raw_readl(MXC_CCM_CBCMR) & ~MXC_CCM_CBCMR_VDOAXI_CLK_SEL;
 
 	if (parent == &ahb_clk)
 		reg |= MXC_CCM_CBCMR_VDOAXI_CLK_SEL;
@@ -1438,7 +1451,7 @@ static int _clk_vpu_axi_set_parent(struct clk *clk, struct clk *parent)
 {
 	int mux;
 	u32 reg = __raw_readl(MXC_CCM_CBCMR)
-		& MXC_CCM_CBCMR_VPU_AXI_CLK_SEL_MASK;
+		& ~MXC_CCM_CBCMR_VPU_AXI_CLK_SEL_MASK;
 
 	mux = _get_mux6(parent, &axi_clk, &pll2_pfd_400M,
 		&pll2_pfd_352M, NULL, NULL, NULL);
@@ -1517,7 +1530,7 @@ static int _clk_ipu1_set_parent(struct clk *clk, struct clk *parent)
 {
 	int mux;
 	u32 reg = __raw_readl(MXC_CCM_CSCDR3)
-		& MXC_CCM_CSCDR3_IPU1_HSP_CLK_SEL_MASK;
+		& ~MXC_CCM_CSCDR3_IPU1_HSP_CLK_SEL_MASK;
 
 	mux = _get_mux6(parent, &mmdc_ch0_axi_clk[0],
 		&pll2_pfd_400M, &pll3_120M, &pll3_pfd_540M, NULL, NULL);
@@ -1596,7 +1609,7 @@ static int _clk_ipu2_set_parent(struct clk *clk, struct clk *parent)
 {
 	int mux;
 	u32 reg = __raw_readl(MXC_CCM_CSCDR3)
-		& MXC_CCM_CSCDR3_IPU2_HSP_CLK_SEL_MASK;
+		& ~MXC_CCM_CSCDR3_IPU2_HSP_CLK_SEL_MASK;
 
 	mux = _get_mux6(parent, &mmdc_ch0_axi_clk[0],
 		&pll2_pfd_400M, &pll3_120M, &pll3_pfd_540M, NULL, NULL);
@@ -1673,7 +1686,7 @@ static unsigned long _clk_usdhc_round_rate(struct clk *clk,
 
 static int _clk_usdhc1_set_parent(struct clk *clk, struct clk *parent)
 {
-	u32 reg = __raw_readl(MXC_CCM_CSCMR1) & MXC_CCM_CSCMR1_USDHC1_CLK_SEL;
+	u32 reg = __raw_readl(MXC_CCM_CSCMR1) & ~MXC_CCM_CSCMR1_USDHC1_CLK_SEL;
 
 	if (parent == &pll2_pfd_352M)
 		reg |= (MXC_CCM_CSCMR1_USDHC1_CLK_SEL);
@@ -1729,7 +1742,7 @@ static struct clk usdhc1_clk = {
 
 static int _clk_usdhc2_set_parent(struct clk *clk, struct clk *parent)
 {
-	u32 reg = __raw_readl(MXC_CCM_CSCMR1) & MXC_CCM_CSCMR1_USDHC2_CLK_SEL;
+	u32 reg = __raw_readl(MXC_CCM_CSCMR1) & ~MXC_CCM_CSCMR1_USDHC2_CLK_SEL;
 
 	if (parent == &pll2_pfd_352M)
 		reg |= (MXC_CCM_CSCMR1_USDHC2_CLK_SEL);
@@ -1785,7 +1798,7 @@ static struct clk usdhc2_clk = {
 
 static int _clk_usdhc3_set_parent(struct clk *clk, struct clk *parent)
 {
-	u32 reg = __raw_readl(MXC_CCM_CSCMR1) & MXC_CCM_CSCMR1_USDHC3_CLK_SEL;
+	u32 reg = __raw_readl(MXC_CCM_CSCMR1) & ~MXC_CCM_CSCMR1_USDHC3_CLK_SEL;
 
 	if (parent == &pll2_pfd_352M)
 		reg |= (MXC_CCM_CSCMR1_USDHC3_CLK_SEL);
@@ -1842,7 +1855,7 @@ static struct clk usdhc3_clk = {
 
 static int _clk_usdhc4_set_parent(struct clk *clk, struct clk *parent)
 {
-	u32 reg = __raw_readl(MXC_CCM_CSCMR1) & MXC_CCM_CSCMR1_USDHC4_CLK_SEL;
+	u32 reg = __raw_readl(MXC_CCM_CSCMR1) & ~MXC_CCM_CSCMR1_USDHC4_CLK_SEL;
 
 	if (parent == &pll2_pfd_352M)
 		reg |= (MXC_CCM_CSCMR1_USDHC4_CLK_SEL);
@@ -1907,7 +1920,7 @@ static unsigned long _clk_ssi_round_rate(struct clk *clk,
 	if (parent_rate % rate)
 		div++;
 
-	__calc_pre_post_dividers(div, &pre, &post);
+	__calc_pre_post_dividers(1 << 6, div, &pre, &post);
 
 	return parent_rate / (pre * post);
 }
@@ -1937,7 +1950,7 @@ static int _clk_ssi1_set_rate(struct clk *clk, unsigned long rate)
 	if (((parent_rate / div) != rate) || div > 512)
 		return -EINVAL;
 
-	__calc_pre_post_dividers(div, &pre, &post);
+	__calc_pre_post_dividers(1 << 6, div, &pre, &post);
 
 	reg = __raw_readl(MXC_CCM_CS1CDR);
 	reg &= ~(MXC_CCM_CS1CDR_SSI1_CLK_PRED_MASK |
@@ -1956,7 +1969,7 @@ static int _clk_ssi1_set_parent(struct clk *clk, struct clk *parent)
 	u32 reg, mux;
 
 	reg = __raw_readl(MXC_CCM_CSCMR1)
-		& MXC_CCM_CSCMR1_SSI1_CLK_SEL_MASK;
+		& ~MXC_CCM_CSCMR1_SSI1_CLK_SEL_MASK;
 
 	mux = _get_mux6(parent, &pll3_pfd_508M, &pll3_pfd_454M,
 			&pll4_audio_main_clk, NULL, NULL, NULL);
@@ -2005,7 +2018,7 @@ static int _clk_ssi2_set_rate(struct clk *clk, unsigned long rate)
 	if (((parent_rate / div) != rate) || div > 512)
 		return -EINVAL;
 
-	__calc_pre_post_dividers(div, &pre, &post);
+	__calc_pre_post_dividers(1 << 6, div, &pre, &post);
 
 	reg = __raw_readl(MXC_CCM_CS2CDR);
 	reg &= ~(MXC_CCM_CS2CDR_SSI2_CLK_PRED_MASK |
@@ -2024,7 +2037,7 @@ static int _clk_ssi2_set_parent(struct clk *clk, struct clk *parent)
 	u32 reg, mux;
 
 	reg = __raw_readl(MXC_CCM_CSCMR1)
-		& MXC_CCM_CSCMR1_SSI2_CLK_SEL_MASK;
+		& ~MXC_CCM_CSCMR1_SSI2_CLK_SEL_MASK;
 
 	mux = _get_mux6(parent, &pll3_pfd_508M, &pll3_pfd_454M,
 			&pll4_audio_main_clk, NULL, NULL, NULL);
@@ -2073,7 +2086,7 @@ static int _clk_ssi3_set_rate(struct clk *clk, unsigned long rate)
 	if (((parent_rate / div) != rate) || div > 512)
 		return -EINVAL;
 
-	__calc_pre_post_dividers(div, &pre, &post);
+	__calc_pre_post_dividers(1 << 6, div, &pre, &post);
 
 	reg = __raw_readl(MXC_CCM_CS1CDR);
 	reg &= ~(MXC_CCM_CS1CDR_SSI3_CLK_PODF_MASK|
@@ -2091,7 +2104,7 @@ static int _clk_ssi3_set_parent(struct clk *clk, struct clk *parent)
 {
 	u32 reg, mux;
 
-	reg = __raw_readl(MXC_CCM_CSCMR1) & MXC_CCM_CSCMR1_SSI3_CLK_SEL_MASK;
+	reg = __raw_readl(MXC_CCM_CSCMR1) & ~MXC_CCM_CSCMR1_SSI3_CLK_SEL_MASK;
 
 	mux = _get_mux6(parent, &pll3_pfd_508M, &pll3_pfd_454M,
 				&pll4_audio_main_clk, NULL, NULL, NULL);
@@ -2166,7 +2179,7 @@ static int _clk_ldb_di0_set_parent(struct clk *clk, struct clk *parent)
 	u32 reg, mux;
 
 	reg = __raw_readl(MXC_CCM_CS2CDR)
-		& MXC_CCM_CS2CDR_LDB_DI0_CLK_SEL_MASK;
+		& ~MXC_CCM_CS2CDR_LDB_DI0_CLK_SEL_MASK;
 
 	mux = _get_mux6(parent, &pll5_video_main_clk,
 		&pll2_pfd_352M, &pll2_pfd_400M, &pll3_pfd_540M,
@@ -2232,7 +2245,7 @@ static int _clk_ldb_di1_set_parent(struct clk *clk, struct clk *parent)
 	u32 reg, mux;
 
 	reg = __raw_readl(MXC_CCM_CS2CDR)
-		& MXC_CCM_CS2CDR_LDB_DI1_CLK_SEL_MASK;
+		& ~MXC_CCM_CS2CDR_LDB_DI1_CLK_SEL_MASK;
 
 	mux = _get_mux6(parent, &pll5_video_main_clk,
 		&pll2_pfd_352M, &pll2_pfd_400M, &pll3_pfd_540M,
@@ -2368,7 +2381,8 @@ static unsigned long _clk_ipu1_di1_get_rate(struct clk *clk)
 
 	reg = __raw_readl(MXC_CCM_CHSCCDR);
 
-	div = (reg & MXC_CCM_CHSCCDR_IPU1_DI1_PODF_MASK) + 1;
+	div = ((reg & MXC_CCM_CHSCCDR_IPU1_DI1_PODF_MASK)
+			>> MXC_CCM_CHSCCDR_IPU1_DI1_PODF_OFFSET) + 1;
 
 	return clk_get_rate(clk->parent) / div;
 }
@@ -2690,7 +2704,7 @@ static unsigned long _clk_spdif_round_rate(struct clk *clk,
 	if (parent_rate % rate)
 		div++;
 
-	__calc_pre_post_dividers(div, &pre, &post);
+	__calc_pre_post_dividers(1 << 3, div, &pre, &post);
 
 	return parent_rate / (pre * post);
 }
@@ -2700,7 +2714,7 @@ static int _clk_spdif0_set_parent(struct clk *clk, struct clk *parent)
 	u32 reg, mux;
 
 	reg = __raw_readl(MXC_CCM_CDCDR)
-		& MXC_CCM_CDCDR_SPDIF0_CLK_SEL_MASK;
+		& ~MXC_CCM_CDCDR_SPDIF0_CLK_SEL_MASK;
 
 	mux = _get_mux6(parent, &pll4_audio_main_clk,
 		&pll3_pfd_508M, &pll3_pfd_454M,
@@ -2734,10 +2748,10 @@ static int _clk_spdif0_set_rate(struct clk *clk, unsigned long rate)
 	div = parent_rate / rate;
 	if (div == 0)
 		div++;
-	if (((parent_rate / div) != rate) || div > 512)
+	if (((parent_rate / div) != rate) || div > 64)
 		return -EINVAL;
 
-	__calc_pre_post_dividers(div, &pre, &post);
+	__calc_pre_post_dividers(1 << 3, div, &pre, &post);
 
 	reg = __raw_readl(MXC_CCM_CDCDR);
 	reg &= ~(MXC_CCM_CDCDR_SPDIF0_CLK_PRED_MASK|
@@ -2777,7 +2791,7 @@ static int _clk_spdif1_set_parent(struct clk *clk, struct clk *parent)
 {
 	u32 reg, mux;
 
-	reg = __raw_readl(MXC_CCM_CDCDR) & MXC_CCM_CDCDR_SPDIF1_CLK_SEL_MASK;
+	reg = __raw_readl(MXC_CCM_CDCDR) & ~MXC_CCM_CDCDR_SPDIF1_CLK_SEL_MASK;
 
 	mux = _get_mux6(parent, &pll4_audio_main_clk, &pll3_pfd_508M,
 			&pll3_pfd_454M,	&pll3_sw_clk, NULL, NULL);
@@ -2810,10 +2824,10 @@ static int _clk_spdif1_set_rate(struct clk *clk, unsigned long rate)
 	div = parent_rate / rate;
 	if (div == 0)
 		div++;
-	if (((parent_rate / div) != rate) || div > 512)
+	if (((parent_rate / div) != rate) || div > 64)
 		return -EINVAL;
 
-	__calc_pre_post_dividers(div, &pre, &post);
+	__calc_pre_post_dividers(1 << 3, div, &pre, &post);
 
 	reg = __raw_readl(MXC_CCM_CDCDR);
 	reg &= ~(MXC_CCM_CDCDR_SPDIF1_CLK_PRED_MASK|
@@ -2859,7 +2873,7 @@ static unsigned long _clk_esai_round_rate(struct clk *clk,
 	if (parent_rate % rate)
 		div++;
 
-	__calc_pre_post_dividers(div, &pre, &post);
+	__calc_pre_post_dividers(1 << 3, div, &pre, &post);
 
 	return parent_rate / (pre * post);
 }
@@ -2901,10 +2915,10 @@ static int _clk_esai_set_rate(struct clk *clk, unsigned long rate)
 	div = parent_rate / rate;
 	if (div == 0)
 		div++;
-	if (((parent_rate / div) != rate) || div > 512)
+	if (((parent_rate / div) != rate) || div > 64)
 		return -EINVAL;
 
-	__calc_pre_post_dividers(div, &pre, &post);
+	__calc_pre_post_dividers(1 << 3, div, &pre, &post);
 
 	reg = __raw_readl(MXC_CCM_CS1CDR);
 	reg &= ~(MXC_CCM_CS1CDR_ESAI_CLK_PRED_MASK|
@@ -3080,7 +3094,7 @@ static int _clk_emi_slow_set_parent(struct clk *clk, struct clk *parent)
 {
 	int mux;
 	u32 reg = __raw_readl(MXC_CCM_CSCMR1)
-		& MXC_CCM_CSCMR1_ACLK_EMI_SLOW_MASK;
+		& ~MXC_CCM_CSCMR1_ACLK_EMI_SLOW_MASK;
 
 	mux = _get_mux6(parent, &axi_clk, &pll3_usb_otg_main_clk,
 				&pll2_pfd_400M, &pll2_pfd_352M, NULL, NULL);
@@ -3157,7 +3171,7 @@ static unsigned long _clk_emi_round_rate(struct clk *clk,
 static int _clk_emi_set_parent(struct clk *clk, struct clk *parent)
 {
 	int mux;
-	u32 reg = __raw_readl(MXC_CCM_CSCMR1) & MXC_CCM_CSCMR1_ACLK_EMI_MASK;
+	u32 reg = __raw_readl(MXC_CCM_CSCMR1) & ~MXC_CCM_CSCMR1_ACLK_EMI_MASK;
 
 	mux = _get_mux6(parent, &axi_clk, &pll3_usb_otg_main_clk,
 			&pll2_pfd_400M, &pll2_pfd_352M, NULL, NULL);
@@ -3217,7 +3231,7 @@ static unsigned long _clk_enfc_round_rate(struct clk *clk,
 	if (parent_rate % rate)
 		div++;
 
-	__calc_pre_post_dividers(div, &pre, &post);
+	__calc_pre_post_dividers(1 << 6, div, &pre, &post);
 
 	return parent_rate / (pre * post);
 }
@@ -3227,7 +3241,7 @@ static int _clk_enfc_set_parent(struct clk *clk, struct clk *parent)
 	u32 reg, mux;
 
 	reg = __raw_readl(MXC_CCM_CS2CDR)
-		& MXC_CCM_CS2CDR_ENFC_CLK_SEL_MASK;
+		& ~MXC_CCM_CS2CDR_ENFC_CLK_SEL_MASK;
 
 	mux = _get_mux6(parent, &pll2_pfd_352M,
 		&pll2_528_bus_main_clk, &pll3_usb_otg_main_clk,
@@ -3264,7 +3278,7 @@ static int _clk_enfc_set_rate(struct clk *clk, unsigned long rate)
 	if (((parent_rate / div) != rate) || div > 512)
 		return -EINVAL;
 
-	__calc_pre_post_dividers(div, &pre, &post);
+	__calc_pre_post_dividers(1 << 6, div, &pre, &post);
 
 	reg = __raw_readl(MXC_CCM_CS2CDR);
 	reg &= ~(MXC_CCM_CS2CDR_ENFC_CLK_PRED_MASK|
@@ -3388,7 +3402,7 @@ static unsigned long _clk_hsi_tx_round_rate(struct clk *clk,
 
 static int _clk_hsi_tx_set_parent(struct clk *clk, struct clk *parent)
 {
-	u32 reg = __raw_readl(MXC_CCM_CDCDR) & MXC_CCM_CDCDR_HSI_TX_CLK_SEL;
+	u32 reg = __raw_readl(MXC_CCM_CDCDR) & ~MXC_CCM_CDCDR_HSI_TX_CLK_SEL;
 
 	if (parent == &pll2_pfd_400M)
 		reg |= (MXC_CCM_CDCDR_HSI_TX_CLK_SEL);
@@ -3639,7 +3653,8 @@ static unsigned long _clk_gpu2d_core_round_rate(struct clk *clk,
 static int _clk_gpu2d_core_set_parent(struct clk *clk, struct clk *parent)
 {
 	int mux;
-	u32 reg = __raw_readl(MXC_CCM_CBCMR) & MXC_CCM_CBCMR_GPU2D_CLK_SEL_MASK;
+	u32 reg = __raw_readl(MXC_CCM_CBCMR) &
+				~MXC_CCM_CBCMR_GPU2D_CLK_SEL_MASK;
 
 	mux = _get_mux6(parent, &axi_clk, &pll3_usb_otg_main_clk,
 		&pll2_pfd_352M, &pll2_pfd_400M, NULL, NULL);
