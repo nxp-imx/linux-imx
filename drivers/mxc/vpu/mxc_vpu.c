@@ -38,7 +38,7 @@
 #include <linux/slab.h>
 #include <linux/workqueue.h>
 #include <linux/sched.h>
-
+#include <linux/vmalloc.h>
 #include <asm/sizes.h>
 #include <mach/clock.h>
 #include <mach/hardware.h>
@@ -75,6 +75,7 @@ static struct vpu_mem_desc bitwork_mem = { 0 };
 static struct vpu_mem_desc pic_para_mem = { 0 };
 static struct vpu_mem_desc user_data_mem = { 0 };
 static struct vpu_mem_desc share_mem = { 0 };
+static struct vpu_mem_desc vshare_mem = { 0 };
 
 static void __iomem *vpu_base;
 static int vpu_ipi_irq;
@@ -415,6 +416,36 @@ static long vpu_ioctl(struct file *filp, u_int cmd,
 			spin_unlock(&vpu_lock);
 			break;
 		}
+	case VPU_IOC_REQ_VSHARE_MEM:
+		{
+			spin_lock(&vpu_lock);
+			if (vshare_mem.cpu_addr != 0) {
+				ret = copy_to_user((void __user *)arg,
+						   &vshare_mem,
+						   sizeof(struct vpu_mem_desc));
+				spin_unlock(&vpu_lock);
+				break;
+			} else {
+				if (copy_from_user(&vshare_mem,
+						   (struct vpu_mem_desc *)arg,
+						   sizeof(struct
+							  vpu_mem_desc))) {
+					spin_unlock(&vpu_lock);
+					return -EFAULT;
+				}
+				/* vmalloc shared memory if not allocated */
+				if (!vshare_mem.cpu_addr)
+					vshare_mem.cpu_addr =
+					    (unsigned long)
+					    vmalloc_user(vshare_mem.size);
+				if (copy_to_user
+				     ((void __user *)arg, &vshare_mem,
+				     sizeof(struct vpu_mem_desc)))
+					ret = -EFAULT;
+			}
+			spin_unlock(&vpu_lock);
+			break;
+		}
 	case VPU_IOC_GET_WORK_ADDR:
 		{
 			if (bitwork_mem.cpu_addr != 0) {
@@ -472,6 +503,8 @@ static int vpu_release(struct inode *inode, struct file *filp)
 		/* Free shared memory when vpu device is idle */
 		vpu_free_dma_buffer(&share_mem);
 		share_mem.cpu_addr = 0;
+		vfree((void *)vshare_mem.cpu_addr);
+		vshare_mem.cpu_addr = 0;
 	}
 	spin_unlock(&vpu_lock);
 
@@ -509,7 +542,7 @@ static int vpu_map_hwregs(struct file *fp, struct vm_area_struct *vm)
  * @brief memory map function of memory for vpu file operation
  * @return  0 on success or negative error code on error
  */
-static int vpu_map_mem(struct file *fp, struct vm_area_struct *vm)
+static int vpu_map_dma_mem(struct file *fp, struct vm_area_struct *vm)
 {
 	int request_size;
 	request_size = vm->vm_end - vm->vm_start;
@@ -526,14 +559,35 @@ static int vpu_map_mem(struct file *fp, struct vm_area_struct *vm)
 
 }
 
+/* !
+ * @brief memory map function of vmalloced share memory
+ * @return  0 on success or negative error code on error
+ */
+static int vpu_map_vshare_mem(struct file *fp, struct vm_area_struct *vm)
+{
+	int ret = -EINVAL;
+
+	spin_lock(&vpu_lock);
+	ret = remap_vmalloc_range(vm, (void *)(vm->vm_pgoff << PAGE_SHIFT), 0);
+	vm->vm_flags |= VM_IO;
+	spin_unlock(&vpu_lock);
+
+	return ret;
+}
 /*!
  * @brief memory map interface for vpu file operation
  * @return  0 on success or negative error code on error
  */
 static int vpu_mmap(struct file *fp, struct vm_area_struct *vm)
 {
-	if (vm->vm_pgoff)
-		return vpu_map_mem(fp, vm);
+	unsigned long offset;
+
+	offset = vshare_mem.cpu_addr >> PAGE_SHIFT;
+
+	if (vm->vm_pgoff && (vm->vm_pgoff == offset))
+		return vpu_map_vshare_mem(fp, vm);
+	else if (vm->vm_pgoff)
+		return vpu_map_dma_mem(fp, vm);
 	else
 		return vpu_map_hwregs(fp, vm);
 }
