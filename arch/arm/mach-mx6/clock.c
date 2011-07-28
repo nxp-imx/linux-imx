@@ -3562,7 +3562,7 @@ static int _clk_gpu3d_core_set_parent(struct clk *clk, struct clk *parent)
 {
 	int mux;
 	u32 reg = __raw_readl(MXC_CCM_CBCMR)
-		& MXC_CCM_CBCMR_GPU3D_CORE_CLK_SEL_MASK;
+		& ~MXC_CCM_CBCMR_GPU3D_CORE_CLK_SEL_MASK;
 
 	mux = _get_mux6(parent, &mmdc_ch0_axi_clk[0],
 		&pll3_usb_otg_main_clk,
@@ -3592,8 +3592,8 @@ static int _clk_gpu3d_core_set_rate(struct clk *clk, unsigned long rate)
 	div = parent_rate / rate;
 	if (div == 0)
 		div++;
-	if (((parent_rate / div) != rate) || (div > 8))
-		return -EINVAL;
+	if (div > 8)
+		div = 8;
 
 	reg = __raw_readl(MXC_CCM_CBCMR);
 	reg &= ~MXC_CCM_CBCMR_GPU3D_CORE_PODF_MASK;
@@ -3715,7 +3715,7 @@ static int _clk_gpu3d_shader_set_parent(struct clk *clk, struct clk *parent)
 {
 	int mux;
 	u32 reg = __raw_readl(MXC_CCM_CBCMR)
-		& MXC_CCM_CBCMR_GPU3D_SHADER_CLK_SEL_MASK;
+		& ~MXC_CCM_CBCMR_GPU3D_SHADER_CLK_SEL_MASK;
 
 	mux = _get_mux6(parent, &mmdc_ch0_axi_clk[0],
 		&pll3_usb_otg_main_clk,
@@ -3745,8 +3745,8 @@ static int _clk_gpu3d_shader_set_rate(struct clk *clk, unsigned long rate)
 	div = parent_rate / rate;
 	if (div == 0)
 		div++;
-	if (((parent_rate / div) != rate) || (div > 8))
-		return -EINVAL;
+	if (div > 8)
+		div = 8;
 
 	reg = __raw_readl(MXC_CCM_CBCMR);
 	reg &= ~MXC_CCM_CBCMR_GPU3D_SHADER_PODF_MASK;
