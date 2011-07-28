@@ -22,12 +22,16 @@
 #include <linux/clk.h>
 #include <linux/delay.h>
 #include <linux/gpio.h>
+#include <linux/mxcfb.h>
+#include <linux/ipu.h>
+#include <linux/pwm_backlight.h>
 #include <linux/smsc911x.h>
 
 #include <mach/common.h>
 #include <mach/hardware.h>
 #include <mach/imx-uart.h>
 #include <mach/iomux-mx53.h>
+#include <mach/ipu-v3.h>
 
 #include <asm/mach-types.h>
 #include <asm/mach/arch.h>
@@ -126,6 +130,20 @@ static iomux_v3_cfg_t mx53_ard_pads[] = {
 
 	/* MAINBRD_SPDIF_IN */
 	MX53_PAD_KEY_COL3__SPDIF_IN1,
+	/* LVDS */
+	MX53_PAD_LVDS0_TX3_P__LDB_LVDS0_TX3,
+	MX53_PAD_LVDS0_CLK_P__LDB_LVDS0_CLK,
+	MX53_PAD_LVDS0_TX2_P__LDB_LVDS0_TX2,
+	MX53_PAD_LVDS0_TX1_P__LDB_LVDS0_TX1,
+	MX53_PAD_LVDS0_TX0_P__LDB_LVDS0_TX0,
+	MX53_PAD_LVDS1_TX3_P__LDB_LVDS1_TX3,
+	MX53_PAD_LVDS1_TX2_P__LDB_LVDS1_TX2,
+	MX53_PAD_LVDS1_CLK_P__LDB_LVDS1_CLK,
+	MX53_PAD_LVDS1_TX1_P__LDB_LVDS1_TX1,
+	MX53_PAD_LVDS1_TX0_P__LDB_LVDS1_TX0,
+	/* PWM */
+	MX53_PAD_DISP0_DAT8__PWM1_PWMO,
+	MX53_PAD_DISP0_DAT9__PWM2_PWMO
 };
 
 /* Config CS1 settings for ethernet controller */
@@ -230,6 +248,52 @@ static inline void mx53_ard_init_uart(void)
 	imx53_add_imx_uart(2, &mx53_ard_uart_data);
 }
 
+static struct ipuv3_fb_platform_data ard_fb_data[] = {
+	{
+	.disp_dev = "ldb",
+	.interface_pix_fmt = IPU_PIX_FMT_RGB666,
+	.mode_str = "LDB-XGA",
+	.default_bpp = 16,
+	.int_clk = false,
+	},
+	{
+	.disp_dev = "vga",
+	.interface_pix_fmt = IPU_PIX_FMT_GBR24,
+	.mode_str = "VGA-XGA",
+	.default_bpp = 16,
+	.int_clk = false,
+	},
+};
+
+static struct imx_ipuv3_platform_data ipu_data = {
+	.rev = 3,
+};
+
+static struct platform_pwm_backlight_data ard_pwm1_backlight_data = {
+	.pwm_id = 0,
+	.max_brightness = 255,
+	.dft_brightness = 128,
+	.pwm_period_ns = 50000,
+};
+
+static struct platform_pwm_backlight_data ard_pwm2_backlight_data = {
+	.pwm_id = 1,
+	.max_brightness = 255,
+	.dft_brightness = 128,
+	.pwm_period_ns = 50000,
+};
+
+static struct fsl_mxc_tve_platform_data tve_data = {
+	.dac_reg = "LDO4",
+};
+
+static struct fsl_mxc_ldb_platform_data ldb_data = {
+	.ipu_id = 0,
+	.disp_id = 0,
+	.ext_ref = 1,
+	.mode = LDB_SIN0,
+};
+
 static void __init mx53_ard_io_init(void)
 {
 	/* MX53 ARD board */
@@ -237,13 +301,48 @@ static void __init mx53_ard_io_init(void)
 	gpio_request(ARD_ETHERNET_INT_B, "eth-int-b");
 	gpio_direction_input(ARD_ETHERNET_INT_B);
 }
+
+static int __initdata enable_ard_vga = { 0 };
+static int __init ard_vga_setup(char *__unused)
+{
+	enable_ard_vga = 1;
+	printk(KERN_INFO "Enable MX53 ARD VGA\n");
+	return cpu_is_mx53();
+}
+__setup("ard-vga", ard_vga_setup);
+
 static void __init mx53_ard_board_init(void)
 {
+	int i;
 	mxc_iomux_v3_setup_multiple_pads(mx53_ard_pads,
 					ARRAY_SIZE(mx53_ard_pads));
+	/* setup VGA PINs */
+	if (enable_ard_vga) {
+			iomux_v3_cfg_t vga;
+			vga = MX53_PAD_EIM_OE__IPU_DI1_PIN7;
+			mxc_iomux_v3_setup_pad(vga);
+			vga = MX53_PAD_EIM_RW__IPU_DI1_PIN8;
+			mxc_iomux_v3_setup_pad(vga);
+	}
+
 	mxc_spdif_data.spdif_core_clk = clk_get(NULL, "spdif_xtal_clk");
 	clk_put(mxc_spdif_data.spdif_core_clk);
 	mx53_ard_init_uart();
+
+	imx53_add_ipuv3(0, &ipu_data);
+	for (i = 0; i < ARRAY_SIZE(ard_fb_data); i++)
+			imx53_add_ipuv3fb(i, &ard_fb_data[i]);
+
+	imx53_add_vpu();
+	imx53_add_ldb(&ldb_data);
+	imx53_add_tve(&tve_data);
+	imx53_add_v4l2_output(0);
+
+	imx53_add_mxc_pwm(0);
+	imx53_add_mxc_pwm_backlight(0, &ard_pwm1_backlight_data);
+	imx53_add_mxc_pwm(1);
+	imx53_add_mxc_pwm_backlight(1, &ard_pwm2_backlight_data);
+
 	imx53_add_srtc();
 	imx53_add_imx2_wdt(0, NULL);
 	imx53_add_sdhci_esdhc_imx(0, &mx53_ard_sd1_data);
