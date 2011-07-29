@@ -62,11 +62,11 @@
 #define ARD_GPS_RST_B			(MAX7310_BASE_ADDR + 7)
 
 static struct regulator *cpu_regulator;
+static char *gp_reg_id;
 
-extern char *gp_reg_id;
 extern char *lp_reg_id;
-extern struct regulator *(*get_cpu_regulator)(void);
-extern void (*put_cpu_regulator)(void);
+extern void (*set_cpu_voltage)(u32 volt);
+extern int mx5_set_cpu_voltage(struct regulator *gp_reg, u32 cpu_volt);
 
 static iomux_v3_cfg_t mx53_ard_pads[] = {
 	/* UART */
@@ -351,25 +351,22 @@ static struct mxc_regulator_platform_data ard_regulator_data = {
 	.cpu_reg_id = "SW1",
 };
 
-static struct regulator *mx53_ard_get_cpu_regulator(void)
+static int mx53_ard_set_cpu_voltage(u32 cpu_volt)
 {
+	int ret = -EINVAL;
+
 	if (cpu_regulator == NULL)
 		cpu_regulator = regulator_get(NULL, gp_reg_id);
-	return cpu_regulator;
-}
+	if (!IS_ERR(cpu_regulator))
+		ret = mx5_set_cpu_voltage(cpu_regulator, cpu_volt);
 
-static void mx53_ard_put_cpu_regulator(void)
-{
-	if (cpu_regulator != NULL)
-		regulator_put(cpu_regulator);
-	cpu_regulator = NULL;
+	return ret;
 }
 
 static void __init fixup_mxc_board(struct machine_desc *desc, struct tag *tags,
 				   char **cmdline, struct meminfo *mi)
 {
-	get_cpu_regulator = mx53_ard_get_cpu_regulator;
-	put_cpu_regulator = mx53_ard_put_cpu_regulator;
+	set_cpu_voltage = mx53_ard_set_cpu_voltage;
 }
 
 static inline void mx53_ard_init_uart(void)

@@ -97,6 +97,8 @@ static int minf;
 
 extern void setup_pll(void);
 extern int cpufreq_trig_needed;
+extern int (*set_cpu_voltage)(u32 cpu_volt);
+
 struct timeval core_prev_intr;
 
 void dump_dvfs_core_regs(void);
@@ -112,13 +114,10 @@ static struct clk *pll1_sw_clk;
 static struct clk *cpu_clk;
 static struct clk *dvfs_clk;
 static struct regulator *core_regulator;
-extern struct regulator *(*get_cpu_regulator)(void);
-extern void*(*put_cpu_regulator)(void);
 
 static int cpu_op_nr;
-#ifdef CONFIG_ARCH_MX5
 extern struct cpu_op *(*get_cpu_op)(int *op);
-#endif
+extern int (*set_cpu_voltage)(u32 cpu_volt);
 
 enum {
 	FSVAI_FREQ_NOCHANGE = 0x0,
@@ -194,8 +193,7 @@ static int set_cpu_freq(int op)
 
 		/*Set the voltage for the GP domain. */
 		if (rate > org_cpu_rate) {
-			ret = regulator_set_voltage(core_regulator, gp_volt,
-						    gp_volt);
+			ret = set_cpu_voltage(gp_volt);
 			if (ret < 0) {
 				printk(KERN_DEBUG "COULD NOT SET GP VOLTAGE\n");
 				return ret;
@@ -242,8 +240,7 @@ static int set_cpu_freq(int op)
 		spin_unlock_irqrestore(&mxc_dvfs_core_lock, flags);
 
 		if (rate < org_cpu_rate) {
-			ret = regulator_set_voltage(core_regulator,
-						    gp_volt, gp_volt);
+			ret = set_cpu_voltage(gp_volt);
 			if (ret < 0) {
 				printk(KERN_DEBUG
 				       "COULD NOT SET GP VOLTAGE!!!!\n");
@@ -284,8 +281,7 @@ static int set_cpu_freq(int op)
 		}
 		/* Check if FSVAI indicate freq up */
 		if (podf < arm_podf) {
-			ret = regulator_set_voltage(core_regulator,
-						    gp_volt, gp_volt);
+			ret = set_cpu_voltage(gp_volt);
 			if (ret < 0) {
 				printk(KERN_DEBUG
 				       "COULD NOT SET GP VOLTAGE!!!!\n");
@@ -345,8 +341,7 @@ static int set_cpu_freq(int op)
 		spin_unlock_irqrestore(&mxc_dvfs_core_lock, flags);
 
 		if (vinc == 0) {
-			ret = regulator_set_voltage(core_regulator,
-						    gp_volt, gp_volt);
+			ret = set_cpu_voltage(gp_volt);
 			if (ret < 0) {
 				printk(KERN_DEBUG
 				       "COULD NOT SET GP VOLTAGE\n!!!");
@@ -497,7 +492,7 @@ static void dvfs_core_work_handler(struct work_struct *work)
 {
 	u32 fsvai;
 	u32 reg;
-	u32 curr_cpu;
+	u32 curr_cpu = 0;
 	int ret = 0;
 	int low_freq_bus_ready = 0;
 	int bus_incr = 0, cpu_dcr = 0;
@@ -851,15 +846,6 @@ static int __devinit mxc_dvfs_core_probe(struct platform_device *pdev)
 	if (IS_ERR(dvfs_clk)) {
 		printk(KERN_ERR "%s: failed to get dvfs clock\n", __func__);
 		return PTR_ERR(dvfs_clk);
-	}
-
-	core_regulator = get_cpu_regulator();
-	if (IS_ERR(core_regulator)) {
-		clk_put(cpu_clk);
-		clk_put(dvfs_clk);
-		printk(KERN_ERR "%s: failed to get gp regulator %s\n",
-				__func__, dvfs_data->reg_id);
-		return PTR_ERR(core_regulator);
 	}
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);

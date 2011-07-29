@@ -67,14 +67,14 @@ extern void __iomem *arm_plat_base;
 extern void __iomem *gpc_base;
 extern void __iomem *ccm_base;
 extern void __iomem *imx_otg_base;
-extern char *gp_reg_id;
 extern char *lp_reg_id;
-extern struct regulator *(*get_cpu_regulator)(void);
-extern void (*put_cpu_regulator)(void);
+extern int (*set_cpu_voltage)(u32 volt);
+extern int mx5_set_cpu_voltage(struct regulator *gp_reg, u32 cpu_volt);
 
 extern int __init mx53_loco_init_da9052(void);
 
 static struct regulator *cpu_regulator;
+static char *gp_reg_id;
 
 static iomux_v3_cfg_t mx53_loco_pads[] = {
 	/* FEC */
@@ -593,18 +593,15 @@ static struct mxc_regulator_platform_data loco_regulator_data = {
 	.cpu_reg_id = "cpu_vddgp",
 };
 
-static struct regulator *mx53_loco_get_cpu_regulator(void)
+static int mx53_loco_set_cpu_voltage(u32 cpu_volt)
 {
+	int ret = -EINVAL;
+
 	if (cpu_regulator == NULL)
 		cpu_regulator = regulator_get(NULL, gp_reg_id);
-	return cpu_regulator;
-}
-
-static void mx53_loco_put_cpu_regulator(void)
-{
-	if (cpu_regulator != NULL)
-		regulator_put(cpu_regulator);
-	cpu_regulator = NULL;
+	if (!IS_ERR(cpu_regulator))
+		ret = mx5_set_cpu_voltage(cpu_regulator, cpu_volt);
+	return ret;
 }
 
 static void __init fixup_mxc_board(struct machine_desc *desc, struct tag *tags,
@@ -618,8 +615,7 @@ static void __init fixup_mxc_board(struct machine_desc *desc, struct tag *tags,
 	int fb_mem = SZ_32M;
 	char *str;
 
-	get_cpu_regulator = mx53_loco_get_cpu_regulator;
-	put_cpu_regulator = mx53_loco_put_cpu_regulator;
+	set_cpu_voltage = mx53_loco_set_cpu_voltage;
 
 	for_each_tag(mem_tag, tags) {
 		if (mem_tag->hdr.tag == ATAG_MEM) {

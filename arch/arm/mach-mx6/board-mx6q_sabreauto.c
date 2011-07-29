@@ -67,6 +67,7 @@
 #include "usb.h"
 #include "devices-imx6q.h"
 #include "crm_regs.h"
+#include "cpu_op-mx6.h"
 
 #define MX6Q_SABREAUTO_LDB_BACKLIGHT	IMX_GPIO_NR(1, 9)
 #define MX6Q_SABREAUTO_ECSPI1_CS0	IMX_GPIO_NR(2, 30)
@@ -85,6 +86,11 @@
 void __init early_console_setup(unsigned long base, struct clk *clk);
 static struct clk *sata_clk;
 static int esai_record;
+
+extern struct regulator *(*get_cpu_regulator)(void);
+extern void (*put_cpu_regulator)(void);
+extern int (*set_cpu_voltage)(u32 volt);
+extern int mx6_set_cpu_voltage(u32 cpu_volt);
 
 static iomux_v3_cfg_t mx6q_sabreauto_pads[] = {
 
@@ -300,11 +306,6 @@ static inline void mx6q_sabreauto_init_uart(void)
 	imx6q_add_imx_uart(0, NULL);
 	imx6q_add_imx_uart(1, NULL);
 	imx6q_add_imx_uart(3, NULL);
-}
-
-static void __init fixup_mxc_board(struct machine_desc *desc, struct tag *tags,
-				char **cmdline, struct meminfo *mi)
-{
 }
 
 static struct fec_platform_data fec_data __initdata = {
@@ -674,6 +675,19 @@ static int __init early_use_esai_record(char *p)
 }
 
 early_param("esai_record", early_use_esai_record);
+
+static int mx6_sabre_set_cpu_voltage(u32 cpu_volt)
+{
+	return mx6_set_cpu_voltage(cpu_volt);
+}
+
+static void __init fixup_mxc_board(struct machine_desc *desc, struct tag *tags,
+				   char **cmdline, struct meminfo *mi)
+{
+	set_cpu_voltage = mx6_sabre_set_cpu_voltage;
+}
+
+
 /*!
  * Board specific initialization.
  */

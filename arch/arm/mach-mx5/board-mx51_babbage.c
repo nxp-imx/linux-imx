@@ -83,12 +83,12 @@
 #define	MX51_USB_PLL_DIV_19_2_MHZ	0x01
 #define	MX51_USB_PLL_DIV_24_MHZ	0x02
 
-extern char *gp_reg_id;
 extern char *lp_reg_id;
-extern struct regulator *(*get_cpu_regulator)(void);
-extern void (*put_cpu_regulator)(void);
+extern int (*set_cpu_voltage)(u32 volt);
+extern int mx5_set_cpu_voltage(struct regulator *gp_reg, u32 cpu_volt);
 
 static struct regulator *cpu_regulator;
+static char *gp_reg_id;
 
 static struct gpio_keys_button babbage_buttons[] = {
 	{
@@ -562,18 +562,17 @@ static struct i2c_board_info mxc_i2c_hs_board_info[] __initdata = {
 
 static struct mxc_gpu_platform_data gpu_data __initdata;
 
-static struct regulator *mx51_bbg_get_cpu_regulator(void)
+static int mx51_bbg_set_cpu_voltage(u32 cpu_volt)
 {
+	int ret = -EINVAL;
+
 	if (cpu_regulator == NULL)
 		cpu_regulator = regulator_get(NULL, gp_reg_id);
-	return cpu_regulator;
-}
+	if (!IS_ERR(cpu_regulator))
+		ret = mx5_set_cpu_voltage(cpu_regulator, cpu_volt);
 
-static void mx51_bbg_put_cpu_regulator(void)
-{
-	if (cpu_regulator != NULL)
-		regulator_put(cpu_regulator);
-	cpu_regulator = NULL;
+	return ret;
+
 }
 
 static void __init fixup_mxc_board(struct machine_desc *desc, struct tag *tags,
@@ -587,8 +586,7 @@ static void __init fixup_mxc_board(struct machine_desc *desc, struct tag *tags,
 	int fb_mem = 0;
 	char *str;
 
-	get_cpu_regulator = mx51_bbg_get_cpu_regulator;
-	put_cpu_regulator = mx51_bbg_put_cpu_regulator;
+	set_cpu_voltage = mx51_bbg_set_cpu_voltage;
 
 	for_each_tag(mem_tag, tags) {
 		if (mem_tag->hdr.tag == ATAG_MEM) {
