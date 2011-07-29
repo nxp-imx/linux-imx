@@ -94,6 +94,14 @@ static struct platform_device bleds_ldm = {
 	.name = "pmic_leds",
 	.id = 'b',
 };
+static struct platform_device pwm1_ldm = {
+	.name = "pmic_pwm",
+	.id = 0,
+};
+static struct platform_device pwm2_ldm = {
+	.name = "pmic_pwm",
+	.id = 1,
+};
 
 enum pmic_id {
 	PMIC_ID_MC13892,
@@ -175,6 +183,8 @@ static void pmic_pdev_register(struct device *dev)
 	platform_device_register(&rleds_ldm);
 	platform_device_register(&gleds_ldm);
 	platform_device_register(&bleds_ldm);
+	platform_device_register(&pwm1_ldm);
+	platform_device_register(&pwm2_ldm);
 }
 
 /*!
@@ -188,6 +198,8 @@ static void pmic_pdev_unregister(void)
 	platform_device_unregister(&rtc_ldm);
 	platform_device_unregister(&power_ldm);
 	platform_device_unregister(&light_ldm);
+	platform_device_unregister(&pwm1_ldm);
+	platform_device_unregister(&pwm2_ldm);
 }
 
 static int __devinit is_chip_onboard(struct i2c_client *client)
@@ -285,6 +297,8 @@ static int __devinit pmic_probe(struct i2c_client *client,
 	battery_ldm.name = get_client_device_name(name, "%s_battery");
 	light_ldm.name = get_client_device_name(name, "%s_light");
 	rtc_ldm.name = get_client_device_name(name, "%s_rtc");
+	pwm1_ldm.name = get_client_device_name(name, "%s_pwm");
+	pwm2_ldm.name = get_client_device_name(name, "%s_pwm");
 
 	i2c_set_clientdata(client,
 		pmic_internal[pmic_index].pmic_alloc_data(&client->dev));

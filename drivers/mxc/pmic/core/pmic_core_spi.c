@@ -87,6 +87,14 @@ static struct platform_device bleds_ldm = {
 	.name = "pmic_leds",
 	.id = 'b',
 };
+static struct platform_device pwm1_ldm = {
+	.name = "pmic_pwm",
+	.id = 0,
+};
+static struct platform_device pwm2_ldm = {
+	.name = "pmic_pwm",
+	.id = 1,
+};
 
 enum pmic_id {
 	PMIC_ID_MC13892,
@@ -159,6 +167,8 @@ static void pmic_pdev_register(void)
 	platform_device_register(&rleds_ldm);
 	platform_device_register(&gleds_ldm);
 	platform_device_register(&bleds_ldm);
+	platform_device_register(&pwm1_ldm);
+	platform_device_register(&pwm2_ldm);
 }
 
 /*!
@@ -172,6 +182,8 @@ static void pmic_pdev_unregister(void)
 	platform_device_unregister(&rtc_ldm);
 	platform_device_unregister(&power_ldm);
 	platform_device_unregister(&light_ldm);
+	platform_device_unregister(&pwm1_ldm);
+	platform_device_unregister(&pwm2_ldm);
 }
 
 /*!
@@ -232,6 +244,8 @@ static int __devinit pmic_probe(struct spi_device *spi)
 	battery_ldm.name = get_client_device_name(name, "%s_battery");
 	light_ldm.name = get_client_device_name(name, "%s_light");
 	rtc_ldm.name = get_client_device_name(name, "%s_rtc");
+	pwm1_ldm.name = get_client_device_name(name, "%s_pwm");
+	pwm2_ldm.name = get_client_device_name(name, "%s_pwm");
 
 	/* Initialize the PMIC event handling */
 	pmic_event_list_init();

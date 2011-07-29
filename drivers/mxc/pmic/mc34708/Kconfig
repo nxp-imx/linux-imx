@@ -25,3 +25,11 @@ config MXC_MC34708_BATTERY
 	This is the MC34708 battery module driver. This module provides kernel API
 	for battery control part of MC34708.
 	If you want MC34708 battery support, you should say Y here
+
+config MXC_MC34708_PWM
+	tristate "MC34708 PWM API support"
+	depends on MXC_PMIC_MC34708
+	---help---
+	This is the MC34708 PWM module driver. This module provides kernel API
+	for PWM control part of MC34708.
+	If you want MC34708 PWM support, you should say Y here
