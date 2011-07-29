@@ -89,10 +89,6 @@ retry:
 	if (ret < 0)
 		return IRQ_HANDLED;
 
-	dev_dbg(&client->dev, "recv ret:%d", ret);
-	for (i = 0; i < MAX_I2C_DATA_LEN; i++)
-		printk(KERN_DEBUG " %x ", buf[i]);
-
 	if (buf[0] != REPORT_MODE_VENDOR
 	    && buf[0] != REPORT_MODE_SINGLE
 	    && buf[0] != REPORT_MODE_MTTOUCH) {
