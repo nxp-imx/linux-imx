@@ -224,20 +224,6 @@ static int mx6_suspend_prepare(void)
  */
 static void mx6_suspend_finish(void)
 {
-#if defined(CONFIG_CPU_FREQ)
-	struct cpufreq_freqs freqs;
-
-	freqs.old = clk_get_rate(cpu_clk) / 1000;
-	freqs.new = org_freq / 1000;
-	freqs.cpu = 0;
-	freqs.flags = 0;
-
-	if (org_freq != clk_get_rate(cpu_clk)) {
-		set_cpu_freq(org_freq);
-		cpufreq_notify_transition(&freqs, CPUFREQ_PRECHANGE);
-		cpufreq_notify_transition(&freqs, CPUFREQ_POSTCHANGE);
-	}
-#endif
 }
 
 /*

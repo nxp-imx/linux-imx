@@ -17,6 +17,9 @@
 #include <linux/clk.h>
 #include <linux/module.h>
 #include <linux/iram_alloc.h>
+#include <linux/regulator/consumer.h>
+#include <linux/err.h>
+
 #include <mach/hardware.h>
 #include <asm/io.h>
 
@@ -33,10 +36,11 @@
 void __iomem *arm_plat_base;
 void __iomem *gpc_base;
 void __iomem *ccm_base;
+struct cpu_op *(*get_cpu_op)(int *op);
+
 extern void init_ddr_settings(void);
 
 static int cpu_silicon_rev = -1;
-void (*set_num_cpu_op)(int num);
 
 #define IIM_SREV 0x24
 #define MX50_HW_ADADIG_DIGPROG	0xB0
@@ -166,6 +170,18 @@ static int get_mx50_srev(void)
 	else if (rev == 0x1)
 		return IMX_CHIP_REVISION_1_1;
 	return 0;
+}
+
+int mx5_set_cpu_voltage(struct regulator *gp_reg, u32 cpu_volt)
+{
+	u32 ret = 0;
+
+	if (!IS_ERR(gp_reg)) {
+		ret = regulator_set_voltage(gp_reg, cpu_volt, cpu_volt);
+		if (ret < 0)
+			printk(KERN_DEBUG "COULD NOT SET GP VOLTAGE!!!!\n");
+	}
+	return ret;
 }
 
 /*
