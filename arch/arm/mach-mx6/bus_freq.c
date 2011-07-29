@@ -74,7 +74,6 @@ int high_bus_freq_mode;
 int med_bus_freq_mode;
 
 int bus_freq_scaling_initialized;
-char *gp_reg_id;
 char *lp_reg_id;
 
 static struct device *busfreq_dev;

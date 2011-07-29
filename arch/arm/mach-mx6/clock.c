@@ -29,6 +29,7 @@
 #include <mach/clock.h>
 #include <mach/mxc_dvfs.h>
 #include "crm_regs.h"
+#include "cpu_op-mx6.h"
 
 #ifdef CONFIG_CLK_DEBUG
 #define __INIT_CLK_DEBUG(n)	.name = #n,
@@ -37,6 +38,8 @@
 #endif
 
 extern int mxc_jtag_enabled;
+extern struct cpu_op *(*get_cpu_op)(int *op);
+
 void __iomem *apll_base;
 static struct clk pll1_sys_main_clk;
 static struct clk pll2_528_bus_main_clk;
@@ -48,6 +51,8 @@ static struct clk pll7_usb_host_main_clk;
 static struct clk pll8_enet_main_clk;
 static struct clk apbh_dma_clk;
 static struct clk openvg_axi_clk;
+static struct cpu_op *cpu_op_tbl;
+static int cpu_op_nr;
 
 #define SPIN_DELAY	1000000 /* in nanoseconds */
 
@@ -408,7 +413,7 @@ static int _clk_pll1_main_set_rate(struct clk *clk, unsigned long rate)
 {
 	unsigned int reg,  div;
 
-	if (rate/1000 < 650000 || rate/1000 > 1300000000)
+	if (rate < AUDIO_VIDEO_MIN_CLK_FREQ || rate > AUDIO_VIDEO_MAX_CLK_FREQ)
 		return -EINVAL;
 
 	div = (rate * 2) / clk_get_rate(clk->parent) ;
@@ -870,9 +875,37 @@ static unsigned long _clk_arm_get_rate(struct clk *clk)
 
 static int _clk_arm_set_rate(struct clk *clk, unsigned long rate)
 {
+	int i;
 	u32 div;
+	u32 parent_rate;
 
-	div = (clk_get_rate(clk->parent) / rate);
+
+	for (i = 0; i < cpu_op_nr; i++) {
+		if (rate == cpu_op_tbl[i].cpu_rate)
+			break;
+	}
+	if (i >= cpu_op_nr)
+		return -EINVAL;
+
+	if (cpu_op_tbl[i].pll_rate != clk_get_rate(&pll1_sys_main_clk)) {
+		/* Change the PLL1 rate. */
+		if (pll2_pfd_400M.usecount != 0)
+			pll1_sw_clk.set_parent(&pll1_sw_clk, &pll2_pfd_400M);
+		else
+			pll1_sw_clk.set_parent(&pll1_sw_clk, &osc_clk);
+		pll1_sys_main_clk.set_rate(&pll1_sys_main_clk, cpu_op_tbl[i].pll_rate);
+		pll1_sw_clk.set_parent(&pll1_sw_clk, &pll1_sys_main_clk);
+	}
+
+	parent_rate = clk_get_rate(clk->parent);
+	div = parent_rate / rate;
+
+	if (div == 0)
+		div = 1;
+
+	if ((parent_rate / div) > rate)
+		div++;
+
 	if (div > 8)
 		return -1;
 
@@ -4080,6 +4113,9 @@ static struct clk_lookup lookups[] = {
 	_REGISTER_CLOCK("imx2-wdt.1", NULL, dummy_clk),
 	_REGISTER_CLOCK(NULL, "hdmi_isfr_clk", hdmi_clk[0]),
 	_REGISTER_CLOCK(NULL, "hdmi_iahb_clk", hdmi_clk[1]),
+	_REGISTER_CLOCK(NULL, NULL, vdoa_clk),
+	_REGISTER_CLOCK(NULL, NULL, aips_tz2_clk),
+	_REGISTER_CLOCK(NULL, NULL, aips_tz1_clk),
 };
 
 
@@ -4094,7 +4130,6 @@ int __init mx6_clocks_init(unsigned long ckil, unsigned long osc,
 	unsigned long ckih1, unsigned long ckih2)
 {
 	__iomem void *base;
-	u32 reg;
 
 	int i;
 
@@ -4136,6 +4171,9 @@ int __init mx6_clocks_init(unsigned long ckil, unsigned long osc,
 
 	/* set the NAND to 11MHz. Too fast will cause dma timeout. */
 	clk_set_rate(&enfc_clk, enfc_clk.round_rate(&enfc_clk, 11000000));
+
+	mx6_cpu_op_init();
+	cpu_op_tbl = get_cpu_op(&cpu_op_nr);
 
 	/* Gate off all possible clocks */
 	if (mxc_jtag_enabled) {
