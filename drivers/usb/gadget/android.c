@@ -217,7 +217,7 @@ static int android_setup_config(struct usb_configuration *c,
 
 	for (i = 0; i < android_config_driver.next_interface_id; i++) {
 		if (android_config_driver.interface[i]->setup) {
-			tmp_ctl.wIndex = cpu_to_le16(i);
+			tmp_ctrl.wIndex = cpu_to_le16(i);
 			ret = android_config_driver.interface[i]->setup(
 				android_config_driver.interface[i], &tmp_ctrl);
 			if (ret >= 0)
@@ -335,15 +335,6 @@ static int android_bind(struct usb_composite_dev *cdev)
 	return 0;
 }
 
-static struct usb_composite_driver android_usb_driver = {
-	.name		= "android_usb",
-	.dev		= &device_desc,
-	.strings	= dev_strings,
-	.enable_function = android_enable_function,
-	.suspend	= android_suspend,
-	.resume		= android_resume,
-};
-
 void android_register_function(struct android_usb_function *f)
 {
 	struct android_dev *dev = _android_dev;
@@ -440,6 +431,15 @@ static void android_resume(struct usb_composite_dev *dev)
 	wake_lock(&_android_dev->wake_lock);
 }
 
+static struct usb_composite_driver android_usb_driver = {
+	.name		= "android_usb",
+	.dev		= &device_desc,
+	.strings	= dev_strings,
+	.enable_function = android_enable_function,
+	.suspend	= android_suspend,
+	.resume		= android_resume,
+};
+
 static int android_probe(struct platform_device *pdev)
 {
 	struct android_usb_platform_data *pdata = pdev->dev.platform_data;
@@ -474,7 +474,7 @@ static int android_probe(struct platform_device *pdev)
 
 	wake_lock_init(&dev->wake_lock, WAKE_LOCK_SUSPEND,
 			"android_usb");
-	return usb_composite_register(&android_usb_driver);
+	return usb_composite_probe(&android_usb_driver, android_bind);
 }
 
 static int android_remove(struct platform_device *pdev)

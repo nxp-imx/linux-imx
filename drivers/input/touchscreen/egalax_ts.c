@@ -332,7 +332,10 @@ static SIMPLE_DEV_PM_OPS(egalax_ts_pm_ops, egalax_ts_suspend, egalax_ts_resume);
 static struct i2c_driver egalax_ts_driver = {
 	.driver = {
 		.name = "egalax_ts",
+#if 0  /* temp disable touch screen suspend due to can't wake up touchscreen,
+	  may caused by HW design of 6q CPU board. */
 		.pm	= &egalax_ts_pm_ops,
+#endif
 	},
 	.id_table	= egalax_ts_id,
 	.probe		= egalax_ts_probe,

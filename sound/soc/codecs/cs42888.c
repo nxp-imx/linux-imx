@@ -146,6 +146,7 @@ static const char *cs42888_supply_names[CS42888_NUM_SUPPLIES] = {
 #define DIF_RIGHT_J		2
 #define DIF_TDM			6
 
+static int cs42888_probed;
 /* Private data for the CS42888 */
 struct cs42888_private {
 	struct snd_soc_codec *codec;
@@ -861,6 +862,8 @@ static int cs42888_probe(struct snd_soc_codec *codec)
 	/* Add DAPM controls */
 	cs42888_add_widgets(codec);
 
+	cs42888_probed = 1;
+
 	return 0;
 err:
 	regulator_bulk_disable(ARRAY_SIZE(cs42888->supplies),
@@ -880,6 +883,7 @@ static int cs42888_remove(struct snd_soc_codec *codec)
 {
 	struct cs42888_private *cs42888 = snd_soc_codec_get_drvdata(codec);
 
+	cs42888_probed = 0;
 	regulator_bulk_disable(ARRAY_SIZE(cs42888->supplies),
 						cs42888->supplies);
 	regulator_bulk_free(ARRAY_SIZE(cs42888->supplies),
@@ -992,6 +996,9 @@ static int cs42888_i2c_suspend(struct i2c_client *client, pm_message_t mesg)
 {
 	struct cs42888_private *cs42888 = i2c_get_clientdata(client);
 	struct snd_soc_codec *codec = cs42888->codec;
+
+	if (!cs42888_probed)
+		return 0;
 	int reg = snd_soc_read(codec, CS42888_PWRCTL) | CS42888_PWRCTL_PDN_MASK;
 
 	return snd_soc_write(codec, CS42888_PWRCTL, reg);
@@ -1003,6 +1010,8 @@ static int cs42888_i2c_resume(struct i2c_client *client)
 	struct snd_soc_codec *codec = cs42888->codec;
 	int reg;
 
+	if (!cs42888_probed)
+		return 0;
 	/* In case the device was put to hard reset during sleep, we need to
 	 * wait 500ns here before any I2C communication. */
 	ndelay(500);

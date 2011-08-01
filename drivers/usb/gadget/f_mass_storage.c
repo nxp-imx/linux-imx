@@ -634,8 +634,6 @@ static int fsg_setup(struct usb_function *f,
 		/* Init respond data/status */
 		req->length = 0;
 		fsg->common->ep0req->context = NULL;
-		fsg->common->ep0req_name =
-			ctrl->bRequestType & USB_DIR_IN ? "ep0-in" : "ep0-out";
 
 		/*
 		 * Raise an exception to stop the current operation

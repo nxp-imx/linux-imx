@@ -710,7 +710,7 @@ static struct android_pmem_platform_data android_pmem_data = {
 
 static struct android_pmem_platform_data android_pmem_gpu_data = {
 	.name = "pmem_gpu",
-	.size = SZ_64M,
+	.size = SZ_128M,
 	.cached = 1,
 };
 
@@ -942,8 +942,8 @@ static void __init mx6_board_init(void)
 	imx6q_add_asrc(&imx_asrc_data);
 
 	/* DISP0 Detect */
-	gpio_request(MX6Q_SABREAUTO_DISP0_DET_INT, "disp0-detect");
-	gpio_direction_input(MX6Q_SABREAUTO_DISP0_DET_INT);
+	//gpio_request(MX6Q_SABREAUTO_DISP0_DET_INT, "disp0-detect");
+	//gpio_direction_input(MX6Q_SABREAUTO_DISP0_DET_INT);
 
 	/* DISP0 Reset - Assert for i2c disabled mode */
 	gpio_request(MX6Q_SABREAUTO_DISP0_RESET, "disp0-reset");

@@ -46,6 +46,7 @@
 #include <linux/mxcfb.h>
 #include <linux/uaccess.h>
 #include <linux/fsl_devices.h>
+#include <linux/earlysuspend.h>
 #include <asm/mach-types.h>
 #include <mach/ipu-v3.h>
 #include "mxc_dispdrv.h"
@@ -2012,9 +2013,59 @@ static struct platform_driver mxcfb_driver = {
 		   },
 	.probe = mxcfb_probe,
 	.remove = mxcfb_remove,
+#ifndef CONFIG_HAS_EARLYSUSPEND
 	.suspend = mxcfb_suspend,
 	.resume = mxcfb_resume,
+#endif
 };
+
+#ifdef CONFIG_HAS_EARLYSUSPEND
+static void mxcfb_early_suspend(struct early_suspend *h)
+{
+	int i;
+	struct platform_device *pdev;
+	struct mxcfb_info *mxcfbi;
+	pm_message_t state = { .event = PM_EVENT_SUSPEND };
+	struct fb_event event;
+	int blank = FB_BLANK_POWERDOWN;
+
+	for (i = 0; i < num_registered_fb; i++) {
+		mxcfbi = (struct mxcfb_info *)registered_fb[i]->par;
+		if (!mxcfbi || mxcfbi->ipu_ch == MEM_FG_SYNC)
+			continue;
+		pdev = to_platform_device(registered_fb[i]->device);
+		mxcfb_suspend(pdev, state);
+		event.info = registered_fb[i];
+		event.data = &blank;
+		fb_notifier_call_chain(FB_EVENT_BLANK, &event);
+	}
+}
+
+static void mxcfb_later_resume(struct early_suspend *h)
+{
+	int i;
+	struct platform_device *pdev;
+	struct fb_event event;
+	struct mxcfb_info *mxcfbi;
+
+	for (i = num_registered_fb - 1; i >= 0; i-- ) {
+		mxcfbi = (struct mxcfb_info *)registered_fb[i]->par;
+		if (!mxcfbi || mxcfbi->ipu_ch == MEM_FG_SYNC)
+			continue;
+		pdev = to_platform_device(registered_fb[i]->device);
+		mxcfb_resume(pdev);
+		event.info = registered_fb[i];
+		event.data = &mxcfbi->next_blank;
+		fb_notifier_call_chain(FB_EVENT_BLANK, &event);
+	}
+}
+
+struct early_suspend fbdrv_earlysuspend = {
+	.level = EARLY_SUSPEND_LEVEL_DISABLE_FB,
+	.suspend = mxcfb_early_suspend,
+	.resume = mxcfb_later_resume,
+};
+#endif
 
 /*!
  * Main entry function for the framebuffer. The function registers the power
@@ -2025,11 +2076,16 @@ static struct platform_driver mxcfb_driver = {
  */
 int __init mxcfb_init(void)
 {
-	return platform_driver_register(&mxcfb_driver);
+	int ret;
+	ret = platform_driver_register(&mxcfb_driver);
+	if (!ret)
+		register_early_suspend(&fbdrv_earlysuspend);
+	return ret;
 }
 
 void mxcfb_exit(void)
 {
+	unregister_early_suspend(&fbdrv_earlysuspend);
 	platform_driver_unregister(&mxcfb_driver);
 }
 
