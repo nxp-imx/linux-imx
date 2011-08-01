@@ -252,8 +252,9 @@ static struct fsl_usb2_wakeup_platform_data usbh1_wakeup_config = {
 void __init mx6_usb_h1_init(void)
 {
 	static void __iomem *anatop_base_addr = MX6_IO_ADDRESS(ANATOP_BASE_ADDR);
-	imx6q_add_fsl_ehci_hs(1, &usbh1_config);
 	usbh1_config.wakeup_pdata = &usbh1_wakeup_config;
+	imx6q_add_fsl_ehci_hs(1, &usbh1_config);
+
 	imx6q_add_fsl_usb2_hs_wakeup(1, &usbh1_wakeup_config);
 	/* Some phy and power's special controls for host1
 	 * 1. The external charger detector needs to be disabled
