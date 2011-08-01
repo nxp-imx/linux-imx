@@ -543,18 +543,6 @@ static ssize_t __init da9052_tsi_init_drv(struct da9052_ts_priv *priv)
 
 	da9052_init_tsi_fifos(priv);
 
-	init_completion(&priv->tsi_reg_proc_thread.notifier);
-	priv->tsi_reg_proc_thread.state = ACTIVE;
-	priv->tsi_reg_proc_thread.pid =
-				kernel_thread(da9052_tsi_reg_proc_thread,
-					priv, CLONE_KERNEL | SIGCHLD);
-
-	init_completion(&priv->tsi_raw_proc_thread.notifier);
-	priv->tsi_raw_proc_thread.state = ACTIVE;
-	priv->tsi_raw_proc_thread.pid =
-				kernel_thread(da9052_tsi_raw_proc_thread,
-					priv, CLONE_KERNEL | SIGCHLD);
-
 	ret = da9052_tsi_config_state(priv, DEFAULT_TSI_STATE);
 	if (ret) {
 		for (cnt = 0; cnt < NUM_INPUT_DEVS; cnt++) {
@@ -1159,6 +1147,8 @@ static void da9052_tsi_penup_event(struct da9052_ts_priv *priv)
 	priv->early_data_flag = TRUE;
 	priv->debounce_over = FALSE;
 	priv->win_reference_valid = FALSE;
+	priv->tsi_reg_proc_thread.state = INACTIVE;
+	priv->tsi_raw_proc_thread.state = INACTIVE;
 
 	printk(KERN_DEBUG "The raw data count is %d\n", priv->raw_data_cnt);
 	printk(KERN_DEBUG "The OS data count is %d\n", priv->os_data_cnt);
@@ -1218,6 +1208,25 @@ void da9052_tsi_pen_down_handler(struct da9052_eh_nb *eh_data, u32 event)
 
 	tsi_reg.tsi_state =  SAMPLING_ACTIVE;
 
+	init_completion(&priv->tsi_reg_proc_thread.notifier);
+	priv->tsi_reg_proc_thread.state = ACTIVE;
+	priv->tsi_reg_proc_thread.thread_task =
+	kthread_run(da9052_tsi_reg_proc_thread, (void *)priv, "da9052_tsi_reg");
+	if (IS_ERR(priv->tsi_reg_proc_thread.thread_task)) {
+		printk(KERN_ERR "da9052: failed to create kthread tsi_reg");
+		priv->tsi_reg_proc_thread.thread_task = NULL;
+		goto fail;
+	}
+
+	init_completion(&priv->tsi_raw_proc_thread.notifier);
+	priv->tsi_raw_proc_thread.state = ACTIVE;
+	priv->tsi_raw_proc_thread.thread_task =
+	kthread_run(da9052_tsi_raw_proc_thread, (void *)priv, "da9052_tsi_raw");
+	if (IS_ERR(priv->tsi_raw_proc_thread.thread_task)) {
+		printk(KERN_ERR "da9052: failed to create kthread tsi_raw");
+		priv->tsi_raw_proc_thread.thread_task = NULL;
+		goto fail;
+	}
 	goto success;
 
 fail:
@@ -1345,6 +1354,10 @@ static s32 da9052_tsi_get_rawdata(struct da9052_tsi_reg *buf, u8 cnt) {
 static ssize_t da9052_tsi_suspend(struct platform_device *dev, 
 							pm_message_t state)
 {
+	struct da9052_ts_priv *priv = platform_get_drvdata(dev);
+
+	priv->tsi_reg_proc_thread.state = INACTIVE;
+	priv->tsi_raw_proc_thread.state = INACTIVE;
 	printk(KERN_INFO "%s: called\n", __FUNCTION__);
 	return 0;
 }
