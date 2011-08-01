@@ -213,11 +213,13 @@ static int android_setup_config(struct usb_configuration *c,
 {
 	int i;
 	int ret = -EOPNOTSUPP;
+	struct usb_ctrlrequest tmp_ctrl = *ctrl;
 
 	for (i = 0; i < android_config_driver.next_interface_id; i++) {
 		if (android_config_driver.interface[i]->setup) {
+			tmp_ctl.wIndex = cpu_to_le16(i);
 			ret = android_config_driver.interface[i]->setup(
-				android_config_driver.interface[i], ctrl);
+				android_config_driver.interface[i], &tmp_ctrl);
 			if (ret >= 0)
 				return ret;
 		}
