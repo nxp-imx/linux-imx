@@ -1067,6 +1067,12 @@ static int sii902x_disp_init(struct mxc_dispdrv_entry *disp)
 	struct mxc_dispdrv_setting *setting = mxc_dispdrv_getsetting(disp);
 	struct fsl_mxc_lcd_platform_data *plat = sii902x->client->dev.platform_data;
 	bool found = false;
+	static bool inited;
+
+	if (inited)
+		return -EBUSY;
+
+	inited = true;
 
 	setting->dev_id = plat->ipu_id;
 	setting->disp_id = plat->disp_id;
@@ -1139,7 +1145,7 @@ static int sii902x_disp_init(struct mxc_dispdrv_entry *disp)
 			mode = fb_find_nearest_mode(&m,
 					&sii902x->fbi->modelist);
 			fb_videomode_to_var(&sii902x->fbi->var, mode);
-			found = 1;
+			found = true;
 		}
 
 	}
