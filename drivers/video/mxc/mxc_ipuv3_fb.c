@@ -1640,6 +1640,7 @@ static int mxcfb_option_setup(struct platform_device *pdev)
 
 		if (!strncmp(opt, "dev=", 4)) {
 			memcpy(pdata->disp_dev, opt + 4, strlen(opt) - 4);
+			pdata->disp_dev[strlen(opt) - 4] = '\0';
 			continue;
 		}
 		if (!strncmp(opt, "if=", 3)) {
@@ -1758,6 +1759,12 @@ static int mxcfb_register(struct fb_info *fbi)
 	ret = fb_set_var(fbi, &fbi->var);
 	fbi->flags &= ~FBINFO_MISC_USEREVENT;
 	console_unlock();
+
+	if (mxcfbi->next_blank == FB_BLANK_UNBLANK) {
+		console_lock();
+		fb_blank(fbi, FB_BLANK_UNBLANK);
+		console_unlock();
+	}
 
 	ret = register_framebuffer(fbi);
 	if (ret < 0)
