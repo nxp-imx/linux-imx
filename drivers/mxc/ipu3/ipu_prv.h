@@ -22,13 +22,14 @@
 /* Globals */
 extern struct device *g_ipu_dev;
 extern spinlock_t ipu_lock;
-extern bool g_ipu_clk_enabled;
+extern struct mutex ipu_clk_lock;
 extern struct clk *g_ipu_clk;
 extern struct clk *g_di_clk[2];
 extern struct clk *g_pixel_clk[2];
 extern struct clk *g_csi_clk[2];
 extern unsigned char g_dc_di_assignment[];
 extern int g_ipu_hw_rev;
+extern int g_ipu_use_count;
 extern int dmfc_type_setup;
 
 #define IDMA_CHAN_INVALID	0xFF
@@ -51,7 +52,8 @@ enum ipu_dmfc_type {
 int register_ipu_device(void);
 ipu_color_space_t format_to_colorspace(uint32_t fmt);
 bool ipu_pixel_format_has_alpha(uint32_t fmt);
-
+void ipu_get_clk(bool stop_dvfs);
+void ipu_put_clk(void);
 void ipu_dump_registers(void);
 
 uint32_t _ipu_channel_status(ipu_channel_t channel);
