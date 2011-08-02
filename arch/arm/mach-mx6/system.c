@@ -33,6 +33,9 @@
 #define SCU_CPU_STATUS		0x08
 #define SCU_INVALIDATE		0x0c
 #define SCU_FPGA_REVISION	0x10
+#define GPC_PGC_CPU_PDN_OFFSET	0x2a0
+#define GPC_PGC_CPU_PUPSCR_OFFSET	0x2a4
+#define GPC_PGC_CPU_PDNSCR_OFFSET	0x2a8
 
 extern unsigned int gpc_wake_irq[4];
 
@@ -65,19 +68,28 @@ void mxc_cpu_lp_set(enum mxc_cpu_pwr_mode mode)
 		break;
 	case WAIT_UNCLOCKED_POWER_OFF:
 	case STOP_POWER_OFF:
+	case ARM_POWER_OFF:
 		if (mode == WAIT_UNCLOCKED_POWER_OFF) {
 			ccm_clpcr |= 0x1 << MXC_CCM_CLPCR_LPM_OFFSET;
 			ccm_clpcr &= ~MXC_CCM_CLPCR_VSTBY;
 			ccm_clpcr &= ~MXC_CCM_CLPCR_SBYOS;
 			stop_mode = 0;
-		} else {
+		} else if (mode == STOP_POWER_OFF) {
 			ccm_clpcr |= 0x2 << MXC_CCM_CLPCR_LPM_OFFSET;
 			ccm_clpcr |= 0x3 << MXC_CCM_CLPCR_STBY_COUNT_OFFSET;
 			ccm_clpcr |= MXC_CCM_CLPCR_VSTBY;
 			ccm_clpcr |= MXC_CCM_CLPCR_SBYOS;
 			ccm_clpcr |= MXC_CCM_CLPCR_BYP_MMDC_CH1_LPM_HS;
 			stop_mode = 1;
+		} else {
+			ccm_clpcr |= 0x2 << MXC_CCM_CLPCR_LPM_OFFSET;
+			ccm_clpcr |= 0x3 << MXC_CCM_CLPCR_STBY_COUNT_OFFSET;
+			ccm_clpcr |= MXC_CCM_CLPCR_VSTBY;
+			ccm_clpcr |= MXC_CCM_CLPCR_SBYOS;
+			ccm_clpcr |= MXC_CCM_CLPCR_BYP_MMDC_CH1_LPM_HS;
+			stop_mode = 2;
 		}
+
 		/* scu standby enable, scu clk will be
 		 * off after all cpu enter WFI */
 		scu_cr |= 0x20;
@@ -90,12 +102,15 @@ void mxc_cpu_lp_set(enum mxc_cpu_pwr_mode mode)
 		return;
 	}
 
-	if (stop_mode == 1) {
-
+	if (stop_mode > 0) {
 		gpc_set_wakeup(gpc_wake_irq);
 		/* Power down and power up sequence */
-		__raw_writel(0xFFFFFFFF, gpc_base + 0x2a4);
-		__raw_writel(0xFFFFFFFF, gpc_base + 0x2a8);
+		__raw_writel(0xFFFFFFFF, gpc_base + GPC_PGC_CPU_PUPSCR_OFFSET);
+		__raw_writel(0xFFFFFFFF, gpc_base + GPC_PGC_CPU_PDNSCR_OFFSET);
+
+		/* dormant mode, need to power off the arm core */
+		if (stop_mode == 2)
+			__raw_writel(0x1, gpc_base + GPC_PGC_CPU_PDN_OFFSET);
 	}
 
 	__raw_writel(scu_cr, scu_base + SCU_CTRL);

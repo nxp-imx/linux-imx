@@ -233,6 +233,7 @@ enum mxc_cpu_pwr_mode {
 	WAIT_UNCLOCKED_POWER_OFF,	/* WAIT + SRPG */
 	STOP_POWER_ON,		/* just STOP */
 	STOP_POWER_OFF,		/* STOP + SRPG */
+	ARM_POWER_OFF,		/* STOP + SRPG + ARM power off */
 };
 
 int tzic_enable_wake(int is_idle);
