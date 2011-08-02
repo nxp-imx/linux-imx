@@ -45,7 +45,7 @@ see define in include/linux/suspend.h
 *************************************************************/
 
 ENTRY(mx6q_suspend)
-	stmfd   sp!, {r0-r8}     @ Save registers
+	stmfd   sp!, {r0-r12}     @ Save registers
 /*************************************************************
 suspend mode entry
 *************************************************************/
@@ -363,7 +363,7 @@ clear src register we used
 return back to mx6_suspend_enter for dormant
 ***********************************************************/
 	mov lr, r5
-	ldmfd   sp!, {r0-r8}
+	ldmfd   sp!, {r0-r12}
 	mov pc, lr
 
 
@@ -371,7 +371,7 @@ return back to mx6_suspend_enter for dormant
 return back to mx6_suspend_enter for suspend
 *************************************************/
 out:
-	ldmfd   sp!, {r0-r8}
+	ldmfd   sp!, {r0-r12}
 	mov pc, lr
 
 	.equ	va2pa_offset, (PAGE_OFFSET - MX6_PHYS_OFFSET)
