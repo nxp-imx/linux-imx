@@ -94,7 +94,7 @@ static DEFINE_SPINLOCK(rtc_lock);
  * LP counter register reads should always use this function.
  * This function reads 2 consective times from LP counter register
  * until the 2 values match. This is to avoid reading corrupt
- * value if the counter is in the middle of updating
+ * value if the counter is in the middle of updating (TKT052983)
  */
 static inline u32 rtc_read_lp_counter(void __iomem *counter_reg)
 {
@@ -132,7 +132,9 @@ static inline void rtc_write_sync_lp(void __iomem *ioaddr)
 	/* Wait for 3 CKIL cycles */
 	for (i = 0; i < 3; i++) {
 
-		/* Do consective reads of LSB of counter to ensure integrity */
+		/* TKT052983: Do consective reads of LSB of counter
+		 * to ensure integrity
+		 */
 		do {
 			count1 = __raw_readl(ioaddr + SNVS_LPSRTCLR);
 			count2 = __raw_readl(ioaddr + SNVS_LPSRTCLR);
