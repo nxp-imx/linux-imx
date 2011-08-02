@@ -350,7 +350,7 @@ static void __cpuinit gic_cpu_init(struct gic_chip_data *gic)
 	writel_relaxed(1, base + GIC_CPU_CTRL);
 }
 
-void __init gic_init(unsigned int gic_nr, unsigned int irq_start,
+void gic_init(unsigned int gic_nr, unsigned int irq_start,
 	void __iomem *dist_base, void __iomem *cpu_base)
 {
 	struct gic_chip_data *gic;
