@@ -277,7 +277,7 @@ static void l2x0_disable(void)
 	spin_unlock_irqrestore(&l2x0_lock, flags);
 }
 
-static void __init l2x0_unlock(__u32 cache_id)
+static void l2x0_unlock(__u32 cache_id)
 {
 	int lockregs;
 	int i;
@@ -296,7 +296,7 @@ static void __init l2x0_unlock(__u32 cache_id)
 	}
 }
 
-void __init l2x0_init(void __iomem *base, __u32 aux_val, __u32 aux_mask)
+void l2x0_init(void __iomem *base, __u32 aux_val, __u32 aux_mask)
 {
 	__u32 aux;
 	__u32 cache_id;
