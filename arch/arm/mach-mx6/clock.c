@@ -741,7 +741,8 @@ static int _clk_audio_video_set_rate(struct clk *clk, unsigned long rate)
 	unsigned int parent_rate = clk_get_rate(clk->parent);
 	void __iomem *pllbase;
 
-	if ((rate / 1000) < 650000 || (rate / 1000) > 1300000000)
+	if ((rate < AUDIO_VIDEO_MIN_CLK_FREQ) ||
+		(rate > AUDIO_VIDEO_MAX_CLK_FREQ))
 		return -EINVAL;
 
 	if (clk == &pll4_audio_main_clk)
@@ -2449,7 +2450,7 @@ static struct clk ipu1_di_clk[] = {
 	{
 	 __INIT_CLK_DEBUG(ipu1_di_clk_0)
 	.id = 0,
-	.parent = &pll3_pfd_540M,
+	.parent = &pll5_video_main_clk,
 	.enable_reg = MXC_CCM_CCGR3,
 	.enable_shift = MXC_CCM_CCGRx_CG1_OFFSET,
 	.enable = _clk_enable,
@@ -2462,7 +2463,7 @@ static struct clk ipu1_di_clk[] = {
 	{
 	 __INIT_CLK_DEBUG(ipu1_di_clk_1)
 	.id = 1,
-	.parent = &pll3_pfd_540M,
+	.parent = &pll5_video_main_clk,
 	.enable_reg = MXC_CCM_CCGR3,
 	.enable_shift = MXC_CCM_CCGRx_CG2_OFFSET,
 	.enable = _clk_enable,
@@ -2624,7 +2625,7 @@ static struct clk ipu2_di_clk[] = {
 	{
 	 __INIT_CLK_DEBUG(ipu2_di_clk_0)
 	.id = 0,
-	.parent = &pll3_pfd_540M,
+	.parent = &pll5_video_main_clk,
 	.enable_reg = MXC_CCM_CCGR3,
 	.enable_shift = MXC_CCM_CCGRx_CG1_OFFSET,
 	.enable = _clk_enable,
@@ -2637,7 +2638,7 @@ static struct clk ipu2_di_clk[] = {
 	{
 	 __INIT_CLK_DEBUG(ipu2_di_clk_1)
 	.id = 1,
-	.parent = &pll3_pfd_540M,
+	.parent = &pll5_video_main_clk,
 	.enable_reg = MXC_CCM_CCGR3,
 	.enable_shift = MXC_CCM_CCGRx_CG2_OFFSET,
 	.enable = _clk_enable,
@@ -4110,6 +4111,9 @@ int __init mx6_clocks_init(unsigned long ckil, unsigned long osc,
 	clk_set_rate(&pll5_video_main_clk, 650000000);
 
 	clk_set_parent(&ipu1_di_clk[0], &pll5_video_main_clk);
+	clk_set_parent(&ipu1_di_clk[1], &pll5_video_main_clk);
+	clk_set_parent(&ipu2_di_clk[0], &pll5_video_main_clk);
+	clk_set_parent(&ipu2_di_clk[1], &pll5_video_main_clk);
 
 	clk_set_parent(&gpu3d_shader_clk, &pll2_pfd_594M);
 	clk_set_rate(&gpu3d_shader_clk, 594000000);
