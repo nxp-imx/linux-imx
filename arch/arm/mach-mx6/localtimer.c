@@ -30,6 +30,8 @@
  */
 void __cpuinit local_timer_setup(struct clock_event_device *evt)
 {
+#ifdef CONFIG_LOCAL_TIMERS
 	evt->irq = IRQ_LOCALTIMER;
 	twd_timer_setup(evt);
+#endif
 }
