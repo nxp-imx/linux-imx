@@ -45,7 +45,6 @@ struct ipu_irq_node {
 
 /* Globals */
 struct clk *g_ipu_clk;
-bool g_ipu_clk_enabled;
 struct clk *g_di_clk[2];
 struct clk *g_pixel_clk[2];
 struct clk *g_csi_clk[2];
@@ -53,12 +52,14 @@ unsigned char g_dc_di_assignment[10];
 ipu_channel_t g_ipu_csi_channel[2];
 int g_ipu_irq[2];
 int g_ipu_hw_rev;
+int g_ipu_use_count;
 bool g_sec_chan_en[24];
 bool g_thrd_chan_en[24];
 bool g_chan_is_interlaced[52];
 uint32_t g_channel_init_mask;
 uint32_t g_channel_enable_mask;
 DEFINE_SPINLOCK(ipu_lock);
+DEFINE_MUTEX(ipu_clk_lock);
 struct device *g_ipu_dev;
 
 static struct ipu_irq_node ipu_irq_list[IPU_IRQ_COUNT];
@@ -275,6 +276,7 @@ static int ipu_probe(struct platform_device *pdev)
 	unsigned long ipu_base;
 
 	spin_lock_init(&ipu_lock);
+	mutex_init(&ipu_clk_lock);
 
 	g_ipu_hw_rev = plat_data->rev;
 
@@ -419,7 +421,41 @@ int ipu_remove(struct platform_device *pdev)
 	iounmap(ipu_disp_base[1]);
 	iounmap(ipu_vdi_reg);
 
+	mutex_destroy(&ipu_clk_lock);
+
 	return 0;
+}
+
+void ipu_get_clk(bool stop_dvfs)
+{
+	mutex_lock(&ipu_clk_lock);
+
+	g_ipu_use_count++;
+
+	if (g_ipu_use_count == 1) {
+		if (stop_dvfs)
+			stop_dvfs_per();
+		clk_enable(g_ipu_clk);
+	}
+
+	mutex_unlock(&ipu_clk_lock);
+}
+
+void ipu_put_clk(void)
+{
+	mutex_lock(&ipu_clk_lock);
+
+	g_ipu_use_count--;
+
+	if (g_ipu_use_count == 0)
+		clk_disable(g_ipu_clk);
+
+	if (g_ipu_use_count < 0) {
+		dev_err(g_ipu_dev, "ipu use count < 0\n");
+		g_ipu_use_count = 0;
+	}
+
+	mutex_unlock(&ipu_clk_lock);
 }
 
 void ipu_dump_registers(void)
@@ -493,11 +529,7 @@ int32_t ipu_init_channel(ipu_channel_t channel, ipu_channel_params_t *params)
 	__raw_writel(0xFFFFFFFF, IPU_INT_CTRL(9));
 	__raw_writel(0xFFFFFFFF, IPU_INT_CTRL(10));
 
-	if (g_ipu_clk_enabled == false) {
-		stop_dvfs_per();
-		g_ipu_clk_enabled = true;
-		clk_enable(g_ipu_clk);
-	}
+	ipu_get_clk(true);
 
 	spin_lock_irqsave(&ipu_lock, lock_flags);
 
@@ -956,10 +988,7 @@ void ipu_uninit_channel(ipu_channel_t channel)
 
 	spin_unlock_irqrestore(&ipu_lock, lock_flags);
 
-	if (ipu_conf == 0) {
-		clk_disable(g_ipu_clk);
-		g_ipu_clk_enabled = false;
-	}
+	ipu_put_clk();
 
 	WARN_ON(ipu_ic_use_count < 0);
 	WARN_ON(ipu_vdi_use_count < 0);
@@ -2247,9 +2276,7 @@ void ipu_enable_irq(uint32_t irq)
 	uint32_t reg;
 	unsigned long lock_flags;
 
-	if (!g_ipu_clk_enabled)
-		clk_enable(g_ipu_clk);
-
+	ipu_get_clk(false);
 	spin_lock_irqsave(&ipu_lock, lock_flags);
 
 	reg = __raw_readl(IPUIRQ_2_CTRLREG(irq));
@@ -2257,8 +2284,7 @@ void ipu_enable_irq(uint32_t irq)
 	__raw_writel(reg, IPUIRQ_2_CTRLREG(irq));
 
 	spin_unlock_irqrestore(&ipu_lock, lock_flags);
-	if (!g_ipu_clk_enabled)
-		clk_disable(g_ipu_clk);
+	ipu_put_clk();
 }
 EXPORT_SYMBOL(ipu_enable_irq);
 
@@ -2274,8 +2300,6 @@ void ipu_disable_irq(uint32_t irq)
 	uint32_t reg;
 	unsigned long lock_flags;
 
-	if (!g_ipu_clk_enabled)
-		clk_enable(g_ipu_clk);
 	spin_lock_irqsave(&ipu_lock, lock_flags);
 
 	reg = __raw_readl(IPUIRQ_2_CTRLREG(irq));
@@ -2283,8 +2307,6 @@ void ipu_disable_irq(uint32_t irq)
 	__raw_writel(reg, IPUIRQ_2_CTRLREG(irq));
 
 	spin_unlock_irqrestore(&ipu_lock, lock_flags);
-	if (!g_ipu_clk_enabled)
-		clk_disable(g_ipu_clk);
 }
 EXPORT_SYMBOL(ipu_disable_irq);
 
@@ -2297,13 +2319,12 @@ EXPORT_SYMBOL(ipu_disable_irq);
  */
 void ipu_clear_irq(uint32_t irq)
 {
-	if (!g_ipu_clk_enabled)
-		clk_enable(g_ipu_clk);
+	ipu_get_clk(false);
 
 	__raw_writel(IPUIRQ_2_MASK(irq), IPUIRQ_2_STATREG(irq));
 
-	if (!g_ipu_clk_enabled)
-		clk_disable(g_ipu_clk);
+	ipu_put_clk();
+
 }
 EXPORT_SYMBOL(ipu_clear_irq);
 
@@ -2320,13 +2341,11 @@ bool ipu_get_irq_status(uint32_t irq)
 {
 	uint32_t reg;
 
-	if (!g_ipu_clk_enabled)
-		clk_enable(g_ipu_clk);
+	ipu_get_clk(false);
 
 	reg = __raw_readl(IPUIRQ_2_STATREG(irq));
 
-	if (!g_ipu_clk_enabled)
-		clk_disable(g_ipu_clk);
+	ipu_put_clk();
 
 	if (reg & IPUIRQ_2_MASK(irq))
 		return true;
@@ -2398,7 +2417,9 @@ EXPORT_SYMBOL(ipu_request_irq);
  */
 void ipu_free_irq(uint32_t irq, void *dev_id)
 {
+	ipu_get_clk(false);
 	ipu_disable_irq(irq);	/* disable the interrupt */
+	ipu_put_clk();
 
 	if (ipu_irq_list[irq].dev_id == dev_id)
 		ipu_irq_list[irq].handler = NULL;
@@ -2592,13 +2613,11 @@ EXPORT_SYMBOL(ipu_set_csc_coefficients);
 
 static int ipu_suspend(struct platform_device *pdev, pm_message_t state)
 {
-#ifdef CONFIG_ANDROID
-	ipu_disable_channel(MEM_FG_SYNC, true);
-	ipu_uninit_channel(MEM_FG_SYNC);
-#endif
-
-	if (g_ipu_clk_enabled) {
+	mutex_lock(&ipu_clk_lock);
+	if (g_ipu_use_count > 0) {
 		uint32_t chan_should_disable, timeout = 1000, time = 0;
+
+		dev_err(g_ipu_dev, "ipu suspend with ipu clock enabled\n");
 
 		/* save and disable enabled channels*/
 		idma_enable_reg[0] = __raw_readl(IDMAC_CHA_EN(0));
@@ -2678,6 +2697,7 @@ static int ipu_suspend(struct platform_device *pdev, pm_message_t state)
 		buf_ready_reg[8] = __raw_readl(IPU_CHA_BUF2_RDY(0));
 		buf_ready_reg[9] = __raw_readl(IPU_CHA_BUF2_RDY(32));
 	}
+	mutex_unlock(&ipu_clk_lock);
 
 	mxc_pg_enable(pdev);
 
@@ -2688,8 +2708,8 @@ static int ipu_resume(struct platform_device *pdev)
 {
 	mxc_pg_disable(pdev);
 
-	if (g_ipu_clk_enabled) {
-
+	mutex_lock(&ipu_clk_lock);
+	if (g_ipu_use_count > 0) {
 		/* restore buf ready regs */
 		__raw_writel(buf_ready_reg[0], IPU_CHA_BUF0_RDY(0));
 		__raw_writel(buf_ready_reg[1], IPU_CHA_BUF0_RDY(32));
@@ -2753,6 +2773,7 @@ static int ipu_resume(struct platform_device *pdev)
 		__raw_writel(0x18800001L, IDMAC_CHA_PRI(0));
 		clk_disable(g_ipu_clk);
 	}
+	mutex_unlock(&ipu_clk_lock);
 
 	return 0;
 }
