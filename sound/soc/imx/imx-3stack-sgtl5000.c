@@ -70,6 +70,43 @@ struct imx_3stack_priv {
 	struct platform_device *pdev;
 };
 
+#if defined(CONFIG_MXC_ASRC) || defined(CONFIG_MXC_ASRC_MODULE)
+static int get_format_width(struct snd_pcm_hw_params *params)
+{
+	switch (params_format(params)) {
+	case SNDRV_PCM_FORMAT_S8:
+	case SNDRV_PCM_FORMAT_U8:
+		return 8;
+
+	case SNDRV_PCM_FORMAT_U16:
+	case SNDRV_PCM_FORMAT_S16_LE:
+	case SNDRV_PCM_FORMAT_S16_BE:
+		return 16;
+
+	case SNDRV_PCM_FORMAT_S20_3LE:
+	case SNDRV_PCM_FORMAT_S20_3BE:
+	case SNDRV_PCM_FORMAT_S24_3LE:
+	case SNDRV_PCM_FORMAT_S24_3BE:
+	case SNDRV_PCM_FORMAT_S24_BE:
+	case SNDRV_PCM_FORMAT_S24_LE:
+	case SNDRV_PCM_FORMAT_U24_BE:
+	case SNDRV_PCM_FORMAT_U24_LE:
+	case SNDRV_PCM_FORMAT_U24_3BE:
+	case SNDRV_PCM_FORMAT_U24_3LE:
+		return 24;
+
+	case SNDRV_PCM_FORMAT_S32:
+	case SNDRV_PCM_FORMAT_U32:
+		return 32;
+
+	default:
+		return 0;
+	}
+
+	return 0;
+}
+#endif
+
 static struct imx_3stack_priv card_priv;
 
 static int imx_3stack_audio_hw_params(struct snd_pcm_substream *substream,
@@ -99,7 +136,7 @@ static int imx_3stack_audio_hw_params(struct snd_pcm_substream *substream,
 		unsigned int channel = params_channels(params);
 		struct mxc_runtime_data *pcm_data =
 		    substream->runtime->private_data;
-		struct asrc_config config;
+		struct asrc_config config = {0};
 		struct mxc_audio_platform_data *plat;
 		struct imx_3stack_priv *priv = &card_priv;
 		int retVal = 0;
@@ -113,7 +150,7 @@ static int imx_3stack_audio_hw_params(struct snd_pcm_substream *substream,
 		config.input_sample_rate = asrc_input_rate;
 		config.output_sample_rate = asrc_ssi_data.output_sample_rate;
 		config.inclk = INCLK_NONE;
-		config.word_width = 32;
+		config.word_width = get_format_width(params);
 		plat = priv->pdev->dev.platform_data;
 		if (plat->src_port == 1)
 			config.outclk = OUTCLK_SSI1_TX;

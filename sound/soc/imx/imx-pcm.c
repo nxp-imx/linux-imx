@@ -382,14 +382,14 @@ static int imx_pcm_prepare(struct snd_pcm_substream *substream)
 				       1, MXC_DMA_MODE_WRITE);
 			prtd->dma_asrc = channel;
 			if (prtd->asrc_index == 0)
-				prtd->dma_ch = MXC_DMA_ASRC_A_RX;
+				channel = MXC_DMA_ASRC_A_RX;
 			else if (prtd->asrc_index == 1)
-				prtd->dma_ch = MXC_DMA_ASRC_B_RX;
+				channel = MXC_DMA_ASRC_B_RX;
 			else
-				prtd->dma_ch = MXC_DMA_ASRC_C_RX;
+				channel = MXC_DMA_ASRC_C_RX;
 
 			channel =
-			    mxc_dma_request(MXC_DMA_ASRC_A_RX, "ALSA ASRC RX");
+			    mxc_dma_request(channel, "ALSA ASRC RX");
 		} else
 			channel = mxc_dma_request(prtd->dma_ch, "ALSA TX SDMA");
 #else

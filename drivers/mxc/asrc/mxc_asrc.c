@@ -576,14 +576,46 @@ int asrc_config_pair(struct asrc_config *config)
 
 	}
 
+	if (cpu_is_mx53) {
+		/*
+		 * for mx53, we need to set input data format
+		 * and output data format
+		 */
+		if (config->word_width == 16)
+			reg = 0x1 << 9;
+		else if (config->word_width == 8)
+			reg = 0x2 << 9;
+
+		if ((config->outclk & 0x0f) != OUTCLK_ASRCK1_CLK)
+			reg |= 0x1;
+
+		__raw_writel(reg, asrc_vrt_base_addr +
+				ASRC_ASRMCR1A_REG + config->pair * 4);
+	}
+
 	/* check whether ideal ratio is a must */
 	if ((config->inclk & 0x0f) == INCLK_NONE) {
+		int input_rate = config->input_sample_rate;
+
 		reg = __raw_readl(asrc_vrt_base_addr + ASRC_ASRCTR_REG);
 		reg &= ~(1 << (20 + config->pair));
 		reg |= (0x03 << (13 + (config->pair << 1)));
 		__raw_writel(reg, asrc_vrt_base_addr + ASRC_ASRCTR_REG);
+
+		if (cpu_is_mx53()) {
+			/*
+			 * for mx53, like ssi, data will compact to one word,
+			 * and frame rate is the result of word rate.
+			 * So we need to convert input rate to word rate.
+			 * FIXME: ESAI has same issue?
+			 */
+			if (config->word_width == 16)
+				input_rate >>= 1;
+			else if (config->word_width == 8)
+				input_rate >>= 2;
+		}
 		err = asrc_set_clock_ratio(config->pair,
-					   config->input_sample_rate,
+					   input_rate,
 					   config->output_sample_rate);
 		if (err < 0)
 			return err;

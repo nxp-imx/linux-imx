@@ -1,5 +1,5 @@
 /*
- * Copyright 2008-2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2008-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -161,6 +161,17 @@ enum asrc_error_status {
 #define ASRC_ASRIDRLC_REG 	0x94
 #define ASRC_ASR76K_REG 	0x98
 #define ASRC_ASR56K_REG 	0x9C
+
+/* mx53 expanded */
+#define ASRC_ASRMCRA_REG	0xA0
+#define ASRC_ASRFSTA_REG	0xA4
+#define ASRC_ASRMCRB_REG	0xA8
+#define ASRC_ASRFSTB_REG	0xAC
+#define ASRC_ASRMCRC_REG	0xB0
+#define ASRC_ASRFSTC_REG	0xB4
+#define ASRC_ASRMCR1A_REG	0xC0
+#define ASRC_ASRMCR1B_REG	0xC4
+#define ASRC_ASRMCR1C_REG	0xC8
 
 struct dma_block {
 	unsigned int index;
