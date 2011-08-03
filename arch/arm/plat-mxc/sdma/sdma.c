@@ -468,6 +468,7 @@ static inline int sdma_asrc_set_info(dma_channel_params *p,
 			return wml;
 		wml1 = p->watermark_level;
 		wml2 = ep->watermark_level2;
+		/* asrc watermake is set as per channel */
 		if (info->channs) {
 			wml |= (info->channs & SDMA_ASRC_INFO_N_MASK) <<
 			    SDMA_ASRC_INFO_N_OFF;
@@ -476,7 +477,11 @@ static inline int sdma_asrc_set_info(dma_channel_params *p,
 			else
 				wml1 *= info->channs & SDMA_ASRC_INFO_N_MASK;
 		}
+
 		if (info->channs & 1) {
+			wml |= (info->channs & SDMA_ASRC_INFO_N_MASK) <<
+			    SDMA_ASRC_INFO_N_OFF;
+
 			if (ep->p2p_dir)
 				wml |= SDMA_ASRC_P2P_INFO_PS;
 			else
@@ -584,12 +589,18 @@ static int sdma_load_context(int channel, dma_channel_params *p)
 				}
 			}
 
-			if (p->ext)
+			if (p->ext && p->peripheral_type == ASRC) {
 				context.wml = ep->info_bits;
-			/* Watermark Level */
-			context.wml |= event2_greater_than_32 |
-				event1_greater_than_32 | p->watermark_level;
 
+				context.wml |= sdma_asrc_set_info(p,
+						&context,
+						event2_greater_than_32 |
+						event1_greater_than_32);
+			} else {
+				/* Watermark Level */
+				context.wml |= event2_greater_than_32 |
+				event1_greater_than_32 | p->watermark_level;
+			}
 			/* Address */
 			context.shp_addr = (unsigned long)(p->per_address);
 			if (p->ext)

@@ -1,6 +1,6 @@
 
 /*
- * Copyright 2004-2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2004-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -72,7 +72,7 @@
 #define SDMA_ASRC_P2P_INFO_SPDIF (1 << 10)
 #define SDMA_ASRC_P2P_INFO_SP (1 << 11)
 #define SDMA_ASRC_P2P_INFO_DP (1 << 12)
-#define SDMA_ASRC_P2P_INFO_HWML_OFF 14
+#define SDMA_ASRC_P2P_INFO_HWML_OFF 16
 #define SDMA_ASRC_P2P_INFO_HWML_MASK ((1 << 10) - 1)
 #define SDMA_ASRC_P2P_INFO_LWE (1 << 28)
 #define SDMA_ASRC_P2P_INFO_HWE (1 << 29)

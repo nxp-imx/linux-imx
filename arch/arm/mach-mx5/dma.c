@@ -986,8 +986,8 @@ static mxc_sdma_channel_ext_params_t mxc_sdma_asrca_ssi2_tx0_params = {
 				       SSI2_BASE_ADDR + MXC_SSI_TX0_REG,
 				       .peripheral_type = ASRC,
 				       .transfer_type = per_2_per,
-				       .event_id = DMA_REQ_SSI2_TX1,
-				       .event_id2 = DMA_REQ_ASRC_DMA4,
+				       .event_id2 = DMA_REQ_SSI2_TX1,
+				       .event_id = DMA_REQ_ASRC_DMA4,
 				       .bd_number = 32,
 				       .word_size = TRANSFER_32BIT,
 				       .ext = 1,
@@ -1671,7 +1671,7 @@ static void __init mx53_sdma_get_script_info(sdma_script_start_addrs *sdma_scrip
 	sdma_script_addr->mxc_sdma_mcu_2_ssish_addr = mcu_2_ssish_ADDR_MX53;
 	sdma_script_addr->mxc_sdma_ssish_2_mcu_addr = ssish_2_mcu_ADDR_MX53;
 #endif
-
+	sdma_script_addr->mxc_sdma_per_2_per_addr = p_2_p_ADDR_MX53;
 	/* core */
 	sdma_script_addr->mxc_sdma_start_addr = (unsigned short *)sdma_code_mx53;
 	sdma_script_addr->mxc_sdma_ram_code_start_addr = RAM_CODE_START_ADDR_MX53;
