@@ -43,6 +43,10 @@ void arch_reset(char mode, const char *cmd)
 	/* wait for reset to assert... */
 	wcr_enable = (1 << 2);
 	__raw_writew(wcr_enable, wdog_base);
+	/* errata TKT039676, SRS bit may be missed when
+	SRC sample it, need to write the wdog controller
+	twice to avoid it */
+	__raw_writew(wcr_enable, wdog_base);
 
 	/* wait for reset to assert... */
 	mdelay(500);
