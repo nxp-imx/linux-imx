@@ -851,6 +851,8 @@ imx_set_termios(struct uart_port *port, struct ktermios *termios,
 	baud = uart_get_baud_rate(port, termios, old, 50, port->uartclk / 16);
 	quot = uart_get_divisor(port, baud);
 
+	del_timer_sync(&sport->timer);
+
 	spin_lock_irqsave(&sport->port.lock, flags);
 
 	sport->port.read_status_mask = 0;
@@ -874,8 +876,6 @@ imx_set_termios(struct uart_port *port, struct ktermios *termios,
 		if (termios->c_iflag & IGNPAR)
 			sport->port.ignore_status_mask |= URXD_OVRRUN;
 	}
-
-	del_timer_sync(&sport->timer);
 
 	/*
 	 * Update the per-port timeout.
@@ -940,10 +940,10 @@ imx_set_termios(struct uart_port *port, struct ktermios *termios,
 	/* set the parity, stop bits and data size */
 	writel(ucr2 | old_txrxen, sport->port.membase + UCR2);
 
+	spin_unlock_irqrestore(&sport->port.lock, flags);
+
 	if (UART_ENABLE_MS(&sport->port, termios->c_cflag))
 		imx_enable_ms(&sport->port);
-
-	spin_unlock_irqrestore(&sport->port.lock, flags);
 }
 
 static const char *imx_type(struct uart_port *port)
