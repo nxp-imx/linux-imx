@@ -200,12 +200,17 @@ struct fsl_mxc_ldb_platform_data {
 #define LDB_SPL_DI1	2
 #define LDB_DUL_DI0	3
 #define LDB_DUL_DI1	4
-#define LDB_SIN_DI0	5
-#define LDB_SIN_DI1	6
-#define LDB_SEP		7
+#define LDB_SIN0	5
+#define LDB_SIN1	6
+#define LDB_SEP0	7
+#define LDB_SEP1	8
 	int mode;
 	int ipu_id;
 	int disp_id;
+
+	/*only work for separate mode*/
+	int sec_ipu_id;
+	int sec_disp_id;
 };
 
 struct fsl_mxc_lcd_platform_data {
