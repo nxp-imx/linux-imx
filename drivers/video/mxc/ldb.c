@@ -147,6 +147,23 @@ static int valid_mode(int pixel_fmt)
 		(pixel_fmt == IPU_PIX_FMT_BGR666));
 }
 
+/*
+ *    "ldb=spl0/1"       --      split mode on DI0/1
+ *    "ldb=dul0/1"       --      dual mode on DI0/1
+ *    "ldb=sin0/1"       --      single mode on LVDS0/1
+ *    "ldb=sep0/1" 	 --      separate mode begin from LVDS0/1
+ *
+ *    there are two LVDS channels(LVDS0 and LVDS1) which can transfer video
+ *    datas, there two channels can be used as split/dual/single/separate mode.
+ *
+ *    split mode means display data from DI0 or DI1 will send to both channels
+ *    LVDS0+LVDS1.
+ *    dual mode means display data from DI0 or DI1 will be duplicated on LVDS0
+ *    and LVDS1, it said, LVDS0 and LVDS1 has the same content.
+ *    single mode means only work for DI0/DI1->LVDS0 or DI0/DI1->LVDS1.
+ *    separate mode means you can make DI0/DI1->LVDS0 and DI0/DI1->LVDS1 work
+ *    at the same time.
+ */
 static int __init ldb_setup(char *options)
 {
 	if (!strcmp(options, "spl0"))
@@ -158,11 +175,13 @@ static int __init ldb_setup(char *options)
 	else if (!strcmp(options, "dul1"))
 		g_ldb_mode = LDB_DUL_DI1;
 	else if (!strcmp(options, "sin0"))
-		g_ldb_mode = LDB_SIN_DI0;
+		g_ldb_mode = LDB_SIN0;
 	else if (!strcmp(options, "sin1"))
-		g_ldb_mode = LDB_SIN_DI1;
-	else if (!strcmp(options, "sep"))
-		g_ldb_mode = LDB_SEP;
+		g_ldb_mode = LDB_SIN1;
+	else if (!strcmp(options, "sep0"))
+		g_ldb_mode = LDB_SEP0;
+	else if (!strcmp(options, "sep1"))
+		g_ldb_mode = LDB_SEP1;
 
 	return 1;
 }
@@ -201,6 +220,8 @@ int ldb_fb_event(struct notifier_block *nb, unsigned long val, void *v)
 	if (setting_idx < 0)
 		return 0;
 
+	di = ldb->setting[setting_idx].di;
+
 	fbi->mode = (struct fb_videomode *)fb_match_mode(&fbi->var,
 			&fbi->modelist);
 
@@ -215,13 +236,12 @@ int ldb_fb_event(struct notifier_block *nb, unsigned long val, void *v)
 		return 0;
 	}
 
-	di = ldb->setting[setting_idx].di;
-
 	switch (val) {
 	case FB_EVENT_PREMODE_CHANGE:
 	{
 		uint32_t reg;
 		uint32_t pixel_clk, rounded_pixel_clk;
+		struct clk *ldb_clk_parent;
 
 		/* vsync setup */
 		reg = readl(ldb->control_reg);
@@ -244,6 +264,11 @@ int ldb_fb_event(struct notifier_block *nb, unsigned long val, void *v)
 
 		/* clk setup */
 		pixel_clk = (PICOS2KHZ(fbi->var.pixclock)) * 1000UL;
+		ldb_clk_parent = clk_get_parent(ldb->ldb_di_clk[di]);
+		if ((ldb->mode == LDB_SPL_DI0) || (ldb->mode == LDB_SPL_DI1))
+			clk_set_rate(ldb_clk_parent, pixel_clk * 7 / 2);
+		else
+			clk_set_rate(ldb_clk_parent, pixel_clk * 7);
 		rounded_pixel_clk = clk_round_rate(ldb->ldb_di_clk[di],
 				pixel_clk);
 		clk_set_rate(ldb->ldb_di_clk[di], rounded_pixel_clk);
@@ -305,38 +330,76 @@ static int ldb_ipu_ldb_route(int ipu, int di, struct ldb_data *ldb)
 				(ROUTE_IPU1_DI1 << LVDS1_MUX_CTL_OFFS);
 		dev_dbg(&ldb->pdev->dev,
 			"Dual/Split mode both channels route to IPU%d-DI1\n", ipu);
-	} else if (mode == LDB_SIN_DI0) {
+	} else if (mode == LDB_SIN0) {
 		reg &= ~LVDS0_MUX_CTL_MASK;
-		if (ipu == 0)
-			reg |= ROUTE_IPU0_DI0 << LVDS0_MUX_CTL_OFFS;
-		else
-			reg |= ROUTE_IPU1_DI0 << LVDS0_MUX_CTL_OFFS;
-		dev_dbg(&ldb->pdev->dev,
-			"Single mode channel 0 route to IPU%d-DI0\n", ipu);
-	} else if (mode == LDB_SIN_DI1) {
-		reg &= ~LVDS1_MUX_CTL_MASK;
-		if (ipu == 0)
-			reg |= ROUTE_IPU0_DI1 << LVDS1_MUX_CTL_OFFS;
-		else
-			reg |= ROUTE_IPU1_DI1 << LVDS1_MUX_CTL_OFFS;
-		dev_dbg(&ldb->pdev->dev,
-			"Single mode channel 1 route to IPU%d-DI1\n", ipu);
-	} else if (mode == LDB_SEP) {
-		if (di == 0)
-			reg &= ~LVDS0_MUX_CTL_MASK;
-		else
-			reg &= ~LVDS1_MUX_CTL_MASK;
 		if ((ipu == 0) && (di == 0))
 			reg |= ROUTE_IPU0_DI0 << LVDS0_MUX_CTL_OFFS;
 		else if ((ipu == 0) && (di == 1))
-			reg |= ROUTE_IPU0_DI1 << LVDS1_MUX_CTL_OFFS;
+			reg |= ROUTE_IPU0_DI1 << LVDS0_MUX_CTL_OFFS;
 		else if ((ipu == 1) && (di == 0))
 			reg |= ROUTE_IPU1_DI0 << LVDS0_MUX_CTL_OFFS;
 		else
-			reg |= ROUTE_IPU1_DI1 << LVDS1_MUX_CTL_OFFS;
-
+			reg |= ROUTE_IPU1_DI1 << LVDS0_MUX_CTL_OFFS;
 		dev_dbg(&ldb->pdev->dev,
-			"Separate mode channel %d route to IPU%d-DI%d\n", di, ipu, di);
+			"Single mode channel 0 route to IPU%d-DI%d\n", ipu, di);
+	} else if (mode == LDB_SIN1) {
+		reg &= ~LVDS1_MUX_CTL_MASK;
+		if ((ipu == 0) && (di == 0))
+			reg |= ROUTE_IPU0_DI0 << LVDS1_MUX_CTL_OFFS;
+		else if ((ipu == 0) && (di == 1))
+			reg |= ROUTE_IPU0_DI1 << LVDS1_MUX_CTL_OFFS;
+		else if ((ipu == 1) && (di == 0))
+			reg |= ROUTE_IPU1_DI0 << LVDS1_MUX_CTL_OFFS;
+		else
+			reg |= ROUTE_IPU1_DI1 << LVDS1_MUX_CTL_OFFS;
+		dev_dbg(&ldb->pdev->dev,
+			"Single mode channel 1 route to IPU%d-DI%d\n", ipu, di);
+	} else {
+		static bool first = true;
+		int channel;
+
+		if (first) {
+			if (mode == LDB_SEP0) {
+				reg &= ~LVDS0_MUX_CTL_MASK;
+				channel = 0;
+			} else {
+				reg &= ~LVDS1_MUX_CTL_MASK;
+				channel = 1;
+			}
+			first = false;
+		} else {
+			if (mode == LDB_SEP0) {
+				reg &= ~LVDS1_MUX_CTL_MASK;
+				channel = 1;
+			} else {
+				reg &= ~LVDS0_MUX_CTL_MASK;
+				channel = 0;
+			}
+		}
+
+		if ((ipu == 0) && (di == 0)) {
+			if (channel == 0)
+				reg |= ROUTE_IPU0_DI0 << LVDS0_MUX_CTL_OFFS;
+			else
+				reg |= ROUTE_IPU0_DI0 << LVDS1_MUX_CTL_OFFS;
+		} else if ((ipu == 0) && (di == 1)) {
+			if (channel == 0)
+				reg |= ROUTE_IPU0_DI1 << LVDS0_MUX_CTL_OFFS;
+			else
+				reg |= ROUTE_IPU0_DI1 << LVDS1_MUX_CTL_OFFS;
+		} else if ((ipu == 1) && (di == 0)) {
+			if (channel == 0)
+				reg |= ROUTE_IPU1_DI0 << LVDS0_MUX_CTL_OFFS;
+			else
+				reg |= ROUTE_IPU1_DI0 << LVDS1_MUX_CTL_OFFS;
+		} else {
+			if (channel == 0)
+				reg |= ROUTE_IPU1_DI1 << LVDS0_MUX_CTL_OFFS;
+			else
+				reg |= ROUTE_IPU1_DI1 << LVDS1_MUX_CTL_OFFS;
+		}
+
+		dev_dbg(&ldb->pdev->dev, "Separate mode channel %d route to IPU%d-DI%d\n", channel, ipu, di);
 	}
 	writel(reg, ldb->gpr3_reg);
 
@@ -353,59 +416,21 @@ static int ldb_disp_init(struct mxc_dispdrv_entry *disp)
 	uint32_t base_addr;
 	uint32_t reg, setting_idx;
 
-	/* ipu selected by platform data setting */
-	setting->dev_id = plat_data->ipu_id;
-
 	/* if input format not valid, make RGB666 as default*/
 	if (!valid_mode(setting->if_fmt)) {
 		dev_warn(&ldb->pdev->dev, "Input pixel format not valid"
-					"use default RGB666\n");
+					" use default RGB666\n");
 		setting->if_fmt = IPU_PIX_FMT_RGB666;
 	}
 
 	if (!ldb->inited) {
-		struct clk *ldb_clk_parent;
-		char di0_clk[] = "ipu1_di0_clk";
-		char di1_clk[] = "ipu1_di1_clk";
-		unsigned long ldb_clk_prate = 455000000;
-
-		ldb->ldb_di_clk[0] = clk_get(&ldb->pdev->dev, "ldb_di0_clk");
-		if (IS_ERR(ldb->ldb_di_clk[0])) {
-			dev_err(&ldb->pdev->dev, "get ldb clk0 failed\n");
-			return PTR_ERR(ldb->ldb_di_clk[0]);
-		}
-		ldb->ldb_di_clk[1] = clk_get(&ldb->pdev->dev, "ldb_di1_clk");
-		if (IS_ERR(ldb->ldb_di_clk[1])) {
-			dev_err(&ldb->pdev->dev, "get ldb clk1 failed\n");
-			return PTR_ERR(ldb->ldb_di_clk[1]);
-		}
-		di0_clk[3] += plat_data->ipu_id;
-		di1_clk[3] += plat_data->ipu_id;
-
-		ldb->di_clk[0] = clk_get(&ldb->pdev->dev, di0_clk);
-		if (IS_ERR(ldb->di_clk[0])) {
-			dev_err(&ldb->pdev->dev, "get di clk0 failed\n");
-			return PTR_ERR(ldb->di_clk[0]);
-		}
-		ldb->di_clk[1] = clk_get(&ldb->pdev->dev, di1_clk);
-		if (IS_ERR(ldb->di_clk[1])) {
-			dev_err(&ldb->pdev->dev, "get di clk1 failed\n");
-			return PTR_ERR(ldb->di_clk[1]);
-		}
-
-		/* FIXME: set ldb_di_clk parent to 455M to fit both XGA/1080P mode*/
-		ldb_clk_parent =
-			clk_get_parent(ldb->ldb_di_clk[0]);
-		clk_set_rate(ldb_clk_parent, ldb_clk_prate);
-		ldb_clk_parent =
-			clk_get_parent(ldb->ldb_di_clk[1]);
-		clk_set_rate(ldb_clk_parent, ldb_clk_prate);
+		char di_clk[] = "ipu1_di0_clk";
+		char ldb_clk[] = "ldb_di0_clk";
+		int lvds_channel = 0;
 
 		res = platform_get_resource(ldb->pdev, IORESOURCE_MEM, 0);
-		if (IS_ERR(res)) {
-			ret = -ENOMEM;
-			goto get_res_failed;
-		}
+		if (IS_ERR(res))
+			return -ENOMEM;
 
 		base_addr = res->start;
 		ldb->reg = ioremap(base_addr, res->end - res->start + 1);
@@ -417,6 +442,9 @@ static int ldb_disp_init(struct mxc_dispdrv_entry *disp)
 			regulator_set_voltage(ldb->lvds_bg_reg, 2500000, 2500000);
 			regulator_enable(ldb->lvds_bg_reg);
 		}
+
+		/* ipu selected by platform data setting */
+		setting->dev_id = plat_data->ipu_id;
 
 		reg = readl(ldb->control_reg);
 
@@ -461,25 +489,47 @@ static int ldb_disp_init(struct mxc_dispdrv_entry *disp)
 			reg &= ~LDB_SPLIT_MODE_EN;
 			reg |= LDB_CH0_MODE_EN_TO_DI1 | LDB_CH1_MODE_EN_TO_DI1;
 			setting->disp_id = 1;
-		} else if (ldb->mode == LDB_SIN_DI0) {
+		} else if (ldb->mode == LDB_SIN0) {
 			reg &= ~LDB_SPLIT_MODE_EN;
-			reg |= LDB_CH0_MODE_EN_TO_DI0;
-			setting->disp_id = 0;
-		} else if (ldb->mode == LDB_SIN_DI1) {
-			reg &= ~LDB_SPLIT_MODE_EN;
-			reg |= LDB_CH1_MODE_EN_TO_DI1;
-			setting->disp_id = 1;
-		} else { /* separate mode*/
-			reg &= ~LDB_SPLIT_MODE_EN;
-			reg |= LDB_CH0_MODE_EN_TO_DI0 | LDB_CH1_MODE_EN_TO_DI1;
 			setting->disp_id = plat_data->disp_id;
+			if (setting->disp_id == 0)
+				reg |= LDB_CH0_MODE_EN_TO_DI0;
+			else
+				reg |= LDB_CH0_MODE_EN_TO_DI1;
+		} else if (ldb->mode == LDB_SIN1) {
+			reg &= ~LDB_SPLIT_MODE_EN;
+			setting->disp_id = plat_data->disp_id;
+			if (setting->disp_id == 0)
+				reg |= LDB_CH1_MODE_EN_TO_DI0;
+			else
+				reg |= LDB_CH1_MODE_EN_TO_DI1;
+		} else { /* separate mode*/
+			setting->disp_id = plat_data->disp_id;
+
+			/* first output is LVDS0 or LVDS1 */
+			if (ldb->mode == LDB_SEP0)
+				lvds_channel = 0;
+			else
+				lvds_channel = 1;
+
+			reg &= ~LDB_SPLIT_MODE_EN;
+
+			if ((lvds_channel == 0) && (setting->disp_id == 0))
+				reg |= LDB_CH0_MODE_EN_TO_DI0;
+			else if ((lvds_channel == 0) && (setting->disp_id == 1))
+				reg |= LDB_CH0_MODE_EN_TO_DI1;
+			else if ((lvds_channel == 1) && (setting->disp_id == 0))
+				reg |= LDB_CH1_MODE_EN_TO_DI0;
+			else
+				reg |= LDB_CH1_MODE_EN_TO_DI1;
+
 			if (bits_per_pixel(setting->if_fmt) == 24) {
-				if (setting->disp_id == 0)
+				if (lvds_channel == 0)
 					reg &= ~LDB_DATA_WIDTH_CH1_24;
 				else
 					reg &= ~LDB_DATA_WIDTH_CH0_24;
 			} else {
-				if (setting->disp_id == 0)
+				if (lvds_channel == 0)
 					reg &= ~LDB_DATA_WIDTH_CH1_18;
 				else
 					reg &= ~LDB_DATA_WIDTH_CH0_18;
@@ -488,55 +538,129 @@ static int ldb_disp_init(struct mxc_dispdrv_entry *disp)
 
 		writel(reg, ldb->control_reg);
 
+		/* clock setting */
+		if (cpu_is_mx6q() &&
+			((ldb->mode == LDB_SEP0) || (ldb->mode == LDB_SEP1)))
+			ldb_clk[6] += lvds_channel;
+		else
+			ldb_clk[6] += setting->disp_id;
+		ldb->ldb_di_clk[0] = clk_get(&ldb->pdev->dev, ldb_clk);
+		if (IS_ERR(ldb->ldb_di_clk[0])) {
+			dev_err(&ldb->pdev->dev, "get ldb clk0 failed\n");
+			iounmap(ldb->reg);
+			return PTR_ERR(ldb->ldb_di_clk[0]);
+		}
+		di_clk[3] += setting->dev_id;
+		di_clk[7] += setting->disp_id;
+		ldb->di_clk[0] = clk_get(&ldb->pdev->dev, di_clk);
+		if (IS_ERR(ldb->di_clk[0])) {
+			dev_err(&ldb->pdev->dev, "get di clk0 failed\n");
+			iounmap(ldb->reg);
+			return PTR_ERR(ldb->di_clk[0]);
+		}
+
+		dev_dbg(&ldb->pdev->dev, "ldb_clk to di clk: %s -> %s\n", ldb_clk, di_clk);
+
 		/* fb notifier for clk setting */
 		ldb->nb.notifier_call = ldb_fb_event,
 		ret = fb_register_client(&ldb->nb);
-		if (ret < 0)
-			goto fb_register_nb_failed;
+		if (ret < 0) {
+			iounmap(ldb->reg);
+			return ret;
+		}
 
 		setting_idx = 0;
 		ldb->inited = true;
 	} else { /* second time for separate mode */
-		int disp_id;
+		char di_clk[] = "ipu1_di0_clk";
+		char ldb_clk[] = "ldb_di0_clk";
+		int lvds_channel;
 
 		if ((ldb->mode == LDB_SPL_DI0) ||
 			(ldb->mode == LDB_SPL_DI1) ||
 			(ldb->mode == LDB_DUL_DI0) ||
 			(ldb->mode == LDB_DUL_DI1) ||
-			(ldb->mode == LDB_SIN_DI0) ||
-			(ldb->mode == LDB_SIN_DI1)) {
+			(ldb->mode == LDB_SIN0) ||
+			(ldb->mode == LDB_SIN1)) {
 			dev_err(&ldb->pdev->dev, "for second ldb disp"
 					"ldb mode should in separate mode\n");
 			return -EINVAL;
 		}
 
-		disp_id = setting->disp_id = !plat_data->disp_id;
+		if (cpu_is_mx6q()) {
+			setting->dev_id = plat_data->sec_ipu_id;
+			setting->disp_id = plat_data->sec_disp_id;
+		} else {
+			setting->dev_id = plat_data->ipu_id;
+			setting->disp_id = !plat_data->disp_id;
+		}
+
+		/* second output is LVDS0 or LVDS1 */
+		if (ldb->mode == LDB_SEP0)
+			lvds_channel = 1;
+		else
+			lvds_channel = 0;
 
 		reg = readl(ldb->control_reg);
+		if ((lvds_channel == 0) && (setting->disp_id == 0))
+			reg |= LDB_CH0_MODE_EN_TO_DI0;
+		else if ((lvds_channel == 0) && (setting->disp_id == 1))
+			reg |= LDB_CH0_MODE_EN_TO_DI1;
+		else if ((lvds_channel == 1) && (setting->disp_id == 0))
+			reg |= LDB_CH1_MODE_EN_TO_DI0;
+		else
+			reg |= LDB_CH1_MODE_EN_TO_DI1;
+
 		if (bits_per_pixel(setting->if_fmt) == 24) {
-			if (disp_id == 0)
+			if (lvds_channel == 0)
 				reg |= LDB_DATA_WIDTH_CH0_24;
 			else
 				reg |= LDB_DATA_WIDTH_CH1_24;
 		} else {
-			if (disp_id == 0)
+			if (lvds_channel == 0)
 				reg |= LDB_DATA_WIDTH_CH0_18;
 			else
 				reg |= LDB_DATA_WIDTH_CH1_18;
 		}
 		writel(reg, ldb->control_reg);
+
+		/* clock setting */
+		if (cpu_is_mx6q())
+			ldb_clk[6] += lvds_channel;
+		else
+			ldb_clk[6] += setting->disp_id;
+		ldb->ldb_di_clk[1] = clk_get(&ldb->pdev->dev, ldb_clk);
+		if (IS_ERR(ldb->ldb_di_clk[1])) {
+			dev_err(&ldb->pdev->dev, "get ldb clk1 failed\n");
+			return PTR_ERR(ldb->ldb_di_clk[1]);
+		}
+		di_clk[3] += setting->dev_id;
+		di_clk[7] += setting->disp_id;
+		ldb->di_clk[1] = clk_get(&ldb->pdev->dev, di_clk);
+		if (IS_ERR(ldb->di_clk[1])) {
+			dev_err(&ldb->pdev->dev, "get di clk1 failed\n");
+			return PTR_ERR(ldb->di_clk[1]);
+		}
+
+		dev_dbg(&ldb->pdev->dev, "ldb_clk to di clk: %s -> %s\n", ldb_clk, di_clk);
+
 		setting_idx = 1;
 	}
 
-	if (cpu_is_mx6q())
+	if (cpu_is_mx6q()) {
+		reg = readl(ldb->control_reg);
+		reg &= ~(LDB_CH0_MODE_MASK | LDB_CH1_MODE_MASK);
+		reg |= LDB_CH0_MODE_EN_TO_DI0 | LDB_CH1_MODE_EN_TO_DI1;
+		writel(reg, ldb->control_reg);
 		ldb_ipu_ldb_route(setting->dev_id, setting->disp_id, ldb);
+	}
 
 	/*
 	 * ldb_di0_clk -> ipux_di0_clk
 	 * ldb_di1_clk -> ipux_di1_clk
 	 */
-	clk_set_parent(ldb->di_clk[setting->disp_id],
-			ldb->ldb_di_clk[setting->disp_id]);
+	clk_set_parent(ldb->di_clk[setting_idx],
+			ldb->ldb_di_clk[setting_idx]);
 
 	/* must use spec video mode defined by driver */
 	ret = fb_find_mode(&setting->fbi->var, setting->fbi, setting->dft_mode_str,
@@ -560,11 +684,6 @@ static int ldb_disp_init(struct mxc_dispdrv_entry *disp)
 	ldb->setting[setting_idx].ipu = setting->dev_id;
 	ldb->setting[setting_idx].di = setting->disp_id;
 
-	return ret;
-
-fb_register_nb_failed:
-	iounmap(ldb->reg);
-get_res_failed:
 	return ret;
 }
 
