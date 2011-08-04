@@ -716,7 +716,7 @@ static struct fsl_mxc_ldb_platform_data ldb_data = {
 	.ipu_id = 0,
 	.disp_id = 1,
 	.ext_ref = 1,
-	.mode = LDB_SIN_DI1,
+	.mode = LDB_SIN1,
 };
 
 static struct mxc_spdif_platform_data mxc_spdif_data = {

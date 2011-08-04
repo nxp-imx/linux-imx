@@ -584,7 +584,7 @@ static struct fsl_mxc_ldb_platform_data ldb_data = {
 	.ipu_id = 0,
 	.disp_id = 0,
 	.ext_ref = 1,
-	.mode = LDB_SIN_DI0,
+	.mode = LDB_SIN0,
 };
 
 static void __init fixup_mxc_board(struct machine_desc *desc, struct tag *tags,
