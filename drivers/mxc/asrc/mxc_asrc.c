@@ -576,7 +576,7 @@ int asrc_config_pair(struct asrc_config *config)
 
 	}
 
-	if (cpu_is_mx53) {
+	if (cpu_is_mx53()) {
 		/*
 		 * for mx53, we need to set input data format
 		 * and output data format
