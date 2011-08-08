@@ -533,7 +533,7 @@ static int loco_sgtl5000_init(void)
 }
 
 static struct imx_ssi_platform_data loco_ssi_pdata = {
-	.flags = IMX_SSI_DMA,
+	.flags = IMX_SSI_DMA | IMX_SSI_SYN,
 };
 
 static struct mxc_audio_platform_data loco_audio_data = {
