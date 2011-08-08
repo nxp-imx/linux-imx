@@ -33,11 +33,11 @@ config MXC_PMIC_MC34708
 
 config MXC_PMIC_I2C
 	bool "Support PMIC I2C Interface"
-	depends on MXC_PMIC_MC13892 && I2C
+	depends on (MXC_PMIC_MC13892 || MXC_PMIC_MC34708) && I2C
 
 config MXC_PMIC_SPI
 	bool "Support PMIC SPI Interface"
-	depends on (MXC_PMIC_MC13892 || MXC_PMIC_MC13783) && SPI
+	depends on (MXC_PMIC_MC13892 || MXC_PMIC_MC13783 || MXC_PMIC_MC34708) && SPI
 
 config MXC_PMIC_MC34704
 	tristate "MC34704 PMIC"

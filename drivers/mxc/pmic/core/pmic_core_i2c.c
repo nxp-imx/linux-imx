@@ -104,14 +104,22 @@ static struct platform_device pwm2_ldm = {
 };
 
 enum pmic_id {
+#if defined(CONFIG_MXC_PMIC_MC13892) || defined(CONFIG_MXC_PMIC_MC13892_MODULE)
 	PMIC_ID_MC13892,
+#endif
+#if defined(CONFIG_MXC_PMIC_MC34708) || defined(CONFIG_MXC_PMIC_MC34708_MODULE)
 	PMIC_ID_MC34708,
+#endif
 	PMIC_ID_INVALID,
 };
 
 static struct pmic_internal pmic_internal[] = {
+#if defined(CONFIG_MXC_PMIC_MC13892) || defined(CONFIG_MXC_PMIC_MC13892_MODULE)
 	[PMIC_ID_MC13892] = _PMIC_INTERNAL_INITIALIZER(mc13892),
+#endif
+#if defined(CONFIG_MXC_PMIC_MC34708) || defined(CONFIG_MXC_PMIC_MC34708_MODULE)
 	[PMIC_ID_MC34708] = _PMIC_INTERNAL_INITIALIZER(mc34708),
+#endif
 };
 
 static int get_index_pmic_internal(const char *name)
