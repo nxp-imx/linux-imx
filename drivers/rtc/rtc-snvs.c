@@ -482,19 +482,7 @@ static int snvs_rtc_probe(struct platform_device *pdev)
 	pdata->baseaddr = res->start;
 	pdata->ioaddr = ioremap(pdata->baseaddr, 0xC00);
 	ioaddr = pdata->ioaddr;
-
-	/* Configure and enable the RTC */
 	pdata->irq = platform_get_irq(pdev, 0);
-	if (pdata->irq >= 0) {
-		if (request_irq(pdata->irq, snvs_rtc_interrupt, IRQF_SHARED,
-				pdev->name, pdev) < 0) {
-			dev_warn(&pdev->dev, "interrupt not available.\n");
-			pdata->irq = -1;
-		} else {
-			disable_irq(pdata->irq);
-			pdata->irq_enable = false;
-		}
-	}
 
 	/* initialize glitch detect */
 	__raw_writel(SNVS_LPPGDR_INIT, ioaddr + SNVS_LPPGDR);
@@ -512,6 +500,17 @@ static int snvs_rtc_probe(struct platform_device *pdev)
 
 	__raw_writel(0xFFFFFFFF, ioaddr + SNVS_LPSR);
 	udelay(100);
+
+	if (pdata->irq >= 0) {
+		if (request_irq(pdata->irq, snvs_rtc_interrupt, IRQF_SHARED,
+				pdev->name, pdev) < 0) {
+			dev_warn(&pdev->dev, "interrupt not available.\n");
+			pdata->irq = -1;
+		} else {
+			disable_irq(pdata->irq);
+			pdata->irq_enable = false;
+		}
+	}
 
 	rtc = rtc_device_register(pdev->name, &pdev->dev,
 				  &snvs_rtc_ops, THIS_MODULE);
