@@ -1428,7 +1428,7 @@ void mxc_epdc_fb_set_waveform_modes(struct mxcfb_waveform_modes *modes,
 	struct mxc_epdc_fb_data *fb_data = info ?
 		(struct mxc_epdc_fb_data *)info:g_fb_data;
 
-	memcpy(&fb_data->wv_modes, modes, sizeof(modes));
+	memcpy(&fb_data->wv_modes, modes, sizeof(struct mxcfb_waveform_modes));
 }
 EXPORT_SYMBOL(mxc_epdc_fb_set_waveform_modes);
 
