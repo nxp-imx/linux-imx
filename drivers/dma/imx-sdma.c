@@ -673,11 +673,11 @@ static int sdma_config_channel(struct sdma_channel *sdmac)
 	sdmac->shp_addr = 0;
 	sdmac->per_addr = 0;
 
-	if (sdmac->event_id0) {
-		if (sdmac->event_id0 > 32)
-			return -EINVAL;
+	if (sdmac->event_id0)
 		sdma_event_enable(sdmac, sdmac->event_id0);
-	}
+
+	if (sdmac->event_id1)
+		sdma_event_enable(sdmac, sdmac->event_id1);
 
 	switch (sdmac->peripheral_type) {
 	case IMX_DMATYPE_DSP:
@@ -699,10 +699,10 @@ static int sdma_config_channel(struct sdma_channel *sdmac)
 		if (sdmac->event_id1) {
 			sdmac->event_mask1 = 1 << (sdmac->event_id1 % 32);
 			if (sdmac->event_id1 > 31)
-				sdmac->watermark_level |= 1 << 31;
+				sdmac->watermark_level |= 1 << 29;
 			sdmac->event_mask0 = 1 << (sdmac->event_id0 % 32);
 			if (sdmac->event_id0 > 31)
-				sdmac->watermark_level |= 1 << 30;
+				sdmac->watermark_level |= 1 << 28;
 		} else {
 			sdmac->event_mask0 = 1 << sdmac->event_id0;
 			sdmac->event_mask1 = 1 << (sdmac->event_id0 - 32);
