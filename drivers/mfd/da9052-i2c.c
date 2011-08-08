@@ -21,23 +21,21 @@ static struct da9052 *da9052_i2c;
 
 static int da9052_i2c_is_connected(void)
 {
+	struct da9052_ssc_msg msg;
+	int retries = 10, ret = -1;
 
-        struct da9052_ssc_msg msg;
+	msg.addr = DA9052_INTERFACE_REG;
+	do {
+		/* Test i2c connectivity by reading the GPIO_0-1 register */
+		if (0 != da9052_i2c_read(da9052_i2c, &msg)) {
+			printk(KERN_INFO"da9052_i2c_is_connected - i2c read failed.....\n");
+		} else {
+			printk(KERN_INFO"da9052_i2c_is_connected - i2c read success....\n");
+			ret = 0;
+		}
+	} while (ret != 0 && retries--);
 
-        //printk("Entered da9052_i2c_is_connected.............\n");
-
-        msg.addr = DA9052_INTERFACE_REG;
-
-        /* Test spi connectivity by performing read of the GPIO_0-1 register */
-        if ( 0 != da9052_i2c_read(da9052_i2c, &msg)) {
-                printk("da9052_i2c_is_connected - i2c read failed.............\n");
-                return -1;
-        }
-        else {
-               printk("da9052_i2c_is_connected - i2c read success..............\n");
-                return 0;
-        }
-
+	return ret;
 }
 
 static int __devinit da9052_i2c_probe(struct i2c_client *client,

@@ -536,17 +536,17 @@ void da9052_ssc_exit(struct da9052 *da9052)
 void da9053_power_off(void)
 {
 	struct da9052_ssc_msg ssc_msg;
+	struct da9052_ssc_msg ssc_msg_dummy[2];
 	if (!da9052_data)
 		return;
 
 	ssc_msg.addr = DA9052_CONTROLB_REG;
 	da9052_data->read(da9052_data, &ssc_msg);
-	ssc_msg.data |= DA9052_CONTROLB_SHUTDOWN;
-	pr_info("da9052 shutdown: DA9052_CONTROLB_REG=%x\n", ssc_msg.data);
-	da9052_data->write(da9052_data, &ssc_msg);
-	ssc_msg.addr = DA9052_GPID9_REG;
-	ssc_msg.data = 0;
-	da9052_data->read(da9052_data, &ssc_msg);
+	ssc_msg_dummy[0].addr = DA9052_CONTROLB_REG;
+	ssc_msg_dummy[0].data = ssc_msg.data | DA9052_CONTROLB_SHUTDOWN;
+	ssc_msg_dummy[1].addr = DA9052_GPID9_REG;
+	ssc_msg_dummy[1].data = 0;
+	da9052_data->write_many(da9052_data, &ssc_msg_dummy[0], 2);
 }
 
 int da9053_get_chip_version(void)
