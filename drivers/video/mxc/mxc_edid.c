@@ -158,112 +158,116 @@ int mxc_edid_parse_ext_blk(unsigned char *edid,
 		struct mxc_edid_cfg *cfg,
 		struct fb_monspecs *specs)
 {
-	char detail_timming_desc_offset;
+	char detail_timing_desc_offset;
 	struct fb_videomode *mode, *m;
 	unsigned char index = 0x0;
 	unsigned char *block;
-	int i, num = 0;
+	int i, num = 0, revision;
 
 	if (edid[index++] != 0x2) /* only support cea ext block now */
 		return -1;
-	if (edid[index++] != 0x3) /* only support version 3*/
-		return -1;
+	revision = edid[index++];
+	DPRINTK("cea extent revision %d\n", revision);
 	mode = kzalloc(50 * sizeof(struct fb_videomode), GFP_KERNEL);
 	if (mode == NULL)
 		return -1;
 
-	detail_timming_desc_offset = edid[index++];
+	detail_timing_desc_offset = edid[index++];
 
-	cfg->cea_underscan = (edid[index] >> 7) & 0x1;
-	cfg->cea_basicaudio = (edid[index] >> 6) & 0x1;
-	cfg->cea_ycbcr444 = (edid[index] >> 5) & 0x1;
-	cfg->cea_ycbcr422 = (edid[index] >> 4) & 0x1;
+	if (revision >= 2) {
+		cfg->cea_underscan = (edid[index] >> 7) & 0x1;
+		cfg->cea_basicaudio = (edid[index] >> 6) & 0x1;
+		cfg->cea_ycbcr444 = (edid[index] >> 5) & 0x1;
+		cfg->cea_ycbcr422 = (edid[index] >> 4) & 0x1;
 
-	DPRINTK("CEA underscan %d\n", cfg->cea_underscan);
-	DPRINTK("CEA basicaudio %d\n", cfg->cea_basicaudio);
-	DPRINTK("CEA ycbcr444 %d\n", cfg->cea_ycbcr444);
-	DPRINTK("CEA ycbcr422 %d\n", cfg->cea_ycbcr422);
+		DPRINTK("CEA underscan %d\n", cfg->cea_underscan);
+		DPRINTK("CEA basicaudio %d\n", cfg->cea_basicaudio);
+		DPRINTK("CEA ycbcr444 %d\n", cfg->cea_ycbcr444);
+		DPRINTK("CEA ycbcr422 %d\n", cfg->cea_ycbcr422);
+	}
 
-	/* short desc */
-	DPRINTK("CEA Short desc timmings\n");
-	index++;
-	while (index < detail_timming_desc_offset) {
-		unsigned char tagcode, blklen;
-
-		tagcode = (edid[index] >> 5) & 0x7;
-		blklen = (edid[index]) & 0x1f;
-
-		DPRINTK("Tagcode %x Len %d\n", tagcode, blklen);
-
-		switch (tagcode) {
-		case 0x2: /*Video data block*/
-		{
-			int cea_idx;
-			i = 0;
-			while (i < blklen) {
-				index++;
-				cea_idx = edid[index] & 0x7f;
-				if (cea_idx < ARRAY_SIZE(mxc_cea_mode) &&
-					(mxc_cea_mode[cea_idx].xres)) {
-					DPRINTK("Support CEA Format #%d\n", cea_idx);
-					mode[num] = mxc_cea_mode[cea_idx];
-					mode[num].flag |= FB_MODE_IS_STANDARD;
-					num++;
-				}
-				i++;
-			}
-			break;
-		}
-		case 0x3: /*Vendor specific data*/
-		{
-			unsigned char IEEE_reg_iden[3];
-			unsigned char deep_color;
-			IEEE_reg_iden[0] = edid[index+1];
-			IEEE_reg_iden[1] = edid[index+2];
-			IEEE_reg_iden[2] = edid[index+3];
-			deep_color = edid[index+6];
-
-			if ((IEEE_reg_iden[0] == 0x03) &&
-				(IEEE_reg_iden[1] == 0x0c) &&
-				(IEEE_reg_iden[2] == 0x00))
-				cfg->hdmi_cap = 1;
-
-			if (deep_color & 0x40)
-				cfg->vsd_dc_48bit = true;
-			if (deep_color & 0x20)
-				cfg->vsd_dc_36bit = true;
-			if (deep_color & 0x10)
-				cfg->vsd_dc_30bit = true;
-			if (deep_color & 0x08)
-				cfg->vsd_dc_y444 = true;
-			if (deep_color & 0x01)
-				cfg->vsd_dvi_dual = true;
-
-			DPRINTK("VSD hdmi capability %d\n", cfg->hdmi_cap);
-			DPRINTK("VSD support deep color 48bit %d\n", cfg->vsd_dc_48bit);
-			DPRINTK("VSD support deep color 36bit %d\n", cfg->vsd_dc_36bit);
-			DPRINTK("VSD support deep color 30bit %d\n", cfg->vsd_dc_30bit);
-			DPRINTK("VSD support deep color y444 %d\n", cfg->vsd_dc_y444);
-			DPRINTK("VSD support dvi dual %d\n", cfg->vsd_dvi_dual);
-
-			index += blklen;
-			break;
-		}
-		case 0x1: /*Audio data block*/
-		case 0x4: /*Speaker allocation block*/
-		case 0x7: /*User extended block*/
-		default:
-			/* skip */
-			index += blklen;
-			break;
-		}
-
+	if (revision >= 3) {
+		/* short desc */
+		DPRINTK("CEA Short desc timmings\n");
 		index++;
+		while (index < detail_timing_desc_offset) {
+			unsigned char tagcode, blklen;
+
+			tagcode = (edid[index] >> 5) & 0x7;
+			blklen = (edid[index]) & 0x1f;
+
+			DPRINTK("Tagcode %x Len %d\n", tagcode, blklen);
+
+			switch (tagcode) {
+			case 0x2: /*Video data block*/
+				{
+					int cea_idx;
+					i = 0;
+					while (i < blklen) {
+						index++;
+						cea_idx = edid[index] & 0x7f;
+						if (cea_idx < ARRAY_SIZE(mxc_cea_mode) &&
+								(mxc_cea_mode[cea_idx].xres)) {
+							DPRINTK("Support CEA Format #%d\n", cea_idx);
+							mode[num] = mxc_cea_mode[cea_idx];
+							mode[num].flag |= FB_MODE_IS_STANDARD;
+							num++;
+						}
+						i++;
+					}
+					break;
+				}
+			case 0x3: /*Vendor specific data*/
+				{
+					unsigned char IEEE_reg_iden[3];
+					unsigned char deep_color;
+					IEEE_reg_iden[0] = edid[index+1];
+					IEEE_reg_iden[1] = edid[index+2];
+					IEEE_reg_iden[2] = edid[index+3];
+					deep_color = edid[index+6];
+
+					if ((IEEE_reg_iden[0] == 0x03) &&
+							(IEEE_reg_iden[1] == 0x0c) &&
+							(IEEE_reg_iden[2] == 0x00))
+						cfg->hdmi_cap = 1;
+
+					if (deep_color & 0x40)
+						cfg->vsd_dc_48bit = true;
+					if (deep_color & 0x20)
+						cfg->vsd_dc_36bit = true;
+					if (deep_color & 0x10)
+						cfg->vsd_dc_30bit = true;
+					if (deep_color & 0x08)
+						cfg->vsd_dc_y444 = true;
+					if (deep_color & 0x01)
+						cfg->vsd_dvi_dual = true;
+
+					DPRINTK("VSD hdmi capability %d\n", cfg->hdmi_cap);
+					DPRINTK("VSD support deep color 48bit %d\n", cfg->vsd_dc_48bit);
+					DPRINTK("VSD support deep color 36bit %d\n", cfg->vsd_dc_36bit);
+					DPRINTK("VSD support deep color 30bit %d\n", cfg->vsd_dc_30bit);
+					DPRINTK("VSD support deep color y444 %d\n", cfg->vsd_dc_y444);
+					DPRINTK("VSD support dvi dual %d\n", cfg->vsd_dvi_dual);
+
+					index += blklen;
+					break;
+				}
+			case 0x1: /*Audio data block*/
+			case 0x4: /*Speaker allocation block*/
+			case 0x7: /*User extended block*/
+			default:
+				/* skip */
+				index += blklen;
+				break;
+			}
+
+			index++;
+		}
 	}
 
 	/* long desc */
 	DPRINTK("CEA long desc timmings\n");
-	index = detail_timming_desc_offset;
+	index = detail_timing_desc_offset;
 	block = edid + index;
 	while (index < (EDID_LENGTH - DETAILED_TIMING_DESCRIPTION_SIZE)) {
 		if (!(block[0] == 0x00 && block[1] == 0x00)) {
