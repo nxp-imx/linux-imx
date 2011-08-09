@@ -181,15 +181,6 @@ int clk_enable(struct clk *clk)
 	if (clk == NULL || IS_ERR(clk))
 		return -EINVAL;
 
-	spin_lock_irqsave(&clockfw_lock, flags);
-
-	if (clk->flags & AHB_HIGH_SET_POINT)
-		lp_high_freq++;
-	else if (clk->flags & AHB_MED_SET_POINT)
-		lp_med_freq++;
-
-	spin_unlock_irqrestore(&clockfw_lock, flags);
-
 	if ((clk->flags & CPU_FREQ_TRIG_UPDATE)
 			&& (clk_get_usecount(clk) == 0)) {
 #if (defined(CONFIG_ARCH_MX5) || defined(CONFIG_ARCH_MX37))
@@ -211,6 +202,7 @@ int clk_enable(struct clk *clk)
 		}
 #endif
 	}
+
 
 	spin_lock_irqsave(&clockfw_lock, flags);
 
@@ -243,15 +235,10 @@ void clk_disable(struct clk *clk)
 
 	__clk_disable(clk);
 
-	if (clk->flags & AHB_HIGH_SET_POINT)
-		lp_high_freq--;
-	else if (clk->flags & AHB_MED_SET_POINT)
-		lp_med_freq--;
-
 	spin_unlock_irqrestore(&clockfw_lock, flags);
 
 	if ((clk->flags & CPU_FREQ_TRIG_UPDATE)
-			&& (clk->usecount == 0)) {
+			&& (clk_get_usecount(clk) == 0)) {
 #if (defined(CONFIG_ARCH_MX5) || defined(CONFIG_ARCH_MX37))
 		if (low_freq_bus_used() && !low_bus_freq_mode)
 			set_low_bus_freq();
