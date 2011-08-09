@@ -22,42 +22,55 @@
 #include <mach/devices-common.h>
 
 #ifdef CONFIG_ARCH_MX6
-const struct imx_viv_gpu_data imx6_gc2000_data __initconst = {
-	.iobase = GPU_3D_ARB_BASE_ADDR,
-	.irq = MXC_INT_GPU3D_IRQ,
-};
-
-const struct imx_viv_gpu_data imx6_gc320_data __initconst = {
-	.iobase = GPU_2D_ARB_BASE_ADDR,
-	.irq = MXC_INT_GPU2D_IRQ,
-};
-
-const struct imx_viv_gpu_data imx6_gc355_data __initconst = {
-	.iobase = OPENVG_ARB_BASE_ADDR,
-	.irq = MXC_INT_OPENVG_XAQ2,
+const struct imx_viv_gpu_data imx6_gpu_data __initconst = {
+	.iobase_3d = GPU_3D_ARB_BASE_ADDR,
+	.irq_3d = MXC_INT_GPU3D_IRQ,
+	.iobase_2d = GPU_2D_ARB_BASE_ADDR,
+	.irq_2d = MXC_INT_GPU2D_IRQ,
+	.iobase_vg = OPENVG_ARB_BASE_ADDR,
+	.irq_vg = MXC_INT_OPENVG_XAQ2,
 };
 #endif
 
 struct platform_device *__init imx_add_viv_gpu(
-		const char *name,
 		const struct imx_viv_gpu_data *data,
 		const struct viv_gpu_platform_data *pdata)
 {
 	struct resource res[] = {
 		{
-			.name = "gpu_base",
-			.start = data->iobase,
-			.end = data->iobase + SZ_16K - 1,
+			.name = "iobase_3d",
+			.start = data->iobase_3d,
+			.end = data->iobase_3d + SZ_16K - 1,
 			.flags = IORESOURCE_MEM,
 		}, {
-			.name = "gpu_irq",
-			.start = data->irq,
-			.end = data->irq,
+			.name = "irq_3d",
+			.start = data->irq_3d,
+			.end = data->irq_3d,
+			.flags = IORESOURCE_IRQ,
+		}, {
+			.name = "iobase_2d",
+			.start = data->iobase_2d,
+			.end = data->iobase_2d + SZ_16K - 1,
+			.flags = IORESOURCE_MEM,
+		}, {
+			.name = "irq_2d",
+			.start = data->irq_2d,
+			.end = data->irq_2d,
+			.flags = IORESOURCE_IRQ,
+		}, {
+			.name = "iobase_vg",
+			.start = data->iobase_vg,
+			.end = data->iobase_vg + SZ_16K - 1,
+			.flags = IORESOURCE_MEM,
+		}, {
+			.name = "irq_vg",
+			.start = data->irq_vg,
+			.end = data->irq_vg,
 			.flags = IORESOURCE_IRQ,
 		},
 	};
 
-	return imx_add_platform_device_dmamask(name, 0,
+	return imx_add_platform_device_dmamask("galcore", 0,
 			res, ARRAY_SIZE(res),
 			pdata, sizeof(*pdata),
 			DMA_BIT_MASK(32));
