@@ -482,7 +482,7 @@ static void __init imx6q_sabreauto_init_usb(void)
 	mx6_usb_dr_init();
 	mx6_usb_h1_init();
 }
-static struct viv_gpu_platform_data imx6q_gc2000_pdata __initdata = {
+static struct viv_gpu_platform_data imx6q_gpu_pdata __initdata = {
 	.reserved_mem_size = SZ_128M,
 };
 
@@ -709,9 +709,7 @@ static void __init mx6_board_init(void)
 	imx6q_add_pm_imx(0, &mx6q_sabreauto_pm_data);
 	imx6q_add_sdhci_usdhc_imx(3, &mx6q_sabreauto_sd4_data);
 	imx6q_add_sdhci_usdhc_imx(2, &mx6q_sabreauto_sd3_data);
-	imx_add_viv_gpu("gc2000", &imx6_gc2000_data, &imx6q_gc2000_pdata);
-	imx_add_viv_gpu("gc355", &imx6_gc355_data, NULL);
-	imx_add_viv_gpu("gc320", &imx6_gc320_data, NULL);
+	imx_add_viv_gpu(&imx6_gpu_data, &imx6q_gpu_pdata);
 	imx6q_sabreauto_init_usb();
 	imx6q_add_ahci(0, &mx6q_sabreauto_sata_data);
 	imx6q_add_vpu();
@@ -766,11 +764,11 @@ static void __init mx6q_reserve(void)
 {
 	phys_addr_t phys;
 
-	if (imx6q_gc2000_pdata.reserved_mem_size) {
-		phys = memblock_alloc_base(imx6q_gc2000_pdata.reserved_mem_size, SZ_4K, SZ_2G);
-		memblock_free(phys, imx6q_gc2000_pdata.reserved_mem_size);
-		memblock_remove(phys, imx6q_gc2000_pdata.reserved_mem_size);
-		imx6q_gc2000_pdata.reserved_mem_base = phys;
+	if (imx6q_gpu_pdata.reserved_mem_size) {
+		phys = memblock_alloc_base(imx6q_gpu_pdata.reserved_mem_size, SZ_4K, SZ_2G);
+		memblock_free(phys, imx6q_gpu_pdata.reserved_mem_size);
+		memblock_remove(phys, imx6q_gpu_pdata.reserved_mem_size);
+		imx6q_gpu_pdata.reserved_mem_base = phys;
 	}
 }
 
