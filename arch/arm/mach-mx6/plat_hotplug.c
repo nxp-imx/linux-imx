@@ -26,9 +26,28 @@
 #include <linux/sched.h>
 #include <asm/cacheflush.h>
 
-
+static atomic_t cpu_die_done = ATOMIC_INIT(0);
 int platform_cpu_kill(unsigned int cpu)
 {
+	void __iomem *src_base = IO_ADDRESS(SRC_BASE_ADDR);
+	unsigned int val;
+
+	val = jiffies;
+	/* wait secondary cpu to die, timeout is 500ms */
+	while (atomic_read(&cpu_die_done) == 0) {
+		if (time_after(jiffies, (unsigned long)(val + HZ / 2))) {
+			printk(KERN_WARNING "cpu %d: cpu could not die\n", cpu);
+			break;
+		}
+	}
+	/*
+	 * we're ready for shutdown now, so do it
+	 */
+	val = readl(src_base + SRC_SCR_OFFSET);
+	val &= ~(1 << (BP_SRC_SCR_CORES_DBG_RST + cpu));
+	writel(val, src_base + SRC_SCR_OFFSET);
+
+	atomic_set(&cpu_die_done, 0);
 	return 1;
 }
 
@@ -38,23 +57,16 @@ int platform_cpu_kill(unsigned int cpu)
  */
 void platform_cpu_die(unsigned int cpu)
 {
-	void __iomem *src_base = IO_ADDRESS(SRC_BASE_ADDR);
-	unsigned int val;
-
 	if (cpu == 0) {
 		printk(KERN_ERR "CPU0 can't be disabled!\n");
 		return;
 	}
+
 	flush_cache_all();
 	dsb();
 
-	/*
-	 * we're ready for shutdown now, so do it
-	 */
-	val = readl(src_base + SRC_SCR_OFFSET);
-	val &= ~(1 << (BP_SRC_SCR_CORES_DBG_RST + cpu));
-	writel(val, src_base + SRC_SCR_OFFSET);
-
+	/* tell cpu0 to kill me */
+	atomic_set(&cpu_die_done, 1);
 	for (;;) {
 		/*
 		 * Execute WFI
