@@ -104,6 +104,8 @@ int __cpuinit boot_secondary(unsigned int cpu, struct task_struct *idle)
 	writel(0, src_base + SRC_GPR1_OFFSET + 4 * 2 * cpu + 4);
 	smp_send_reschedule(cpu);
 
+	/* unmap iram base */
+	iounmap(boot_iram_base);
 	/*
 	* now the secondary core is starting up let it run its
 	* calibrations, then wait for it to finish
