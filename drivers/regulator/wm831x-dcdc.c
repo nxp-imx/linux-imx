@@ -422,11 +422,29 @@ static int wm831x_buckv_get_current_limit(struct regulator_dev *rdev)
 	return wm831x_dcdc_ilim[val & WM831X_DC1_HC_THR_MASK];
 }
 
+static int wm831x_stby_enable(struct regulator_dev *reg)
+{
+	return 0;
+}
+
+static int wm831x_stby_disable(struct regulator_dev *reg)
+{
+	return 0;
+}
+
+static int wm831x_stby_set_mode(struct regulator_dev *reg, unsigned int mode)
+{
+	return 0;
+}
+
 static struct regulator_ops wm831x_buckv_ops = {
 	.set_voltage = wm831x_buckv_set_voltage,
 	.get_voltage = wm831x_buckv_get_voltage,
 	.list_voltage = wm831x_buckv_list_voltage,
 	.set_suspend_voltage = wm831x_buckv_set_suspend_voltage,
+	.set_suspend_enable = wm831x_stby_enable,
+	.set_suspend_disable = wm831x_stby_disable,
+	.set_suspend_mode = wm831x_stby_set_mode,
 	.set_current_limit = wm831x_buckv_set_current_limit,
 	.get_current_limit = wm831x_buckv_get_current_limit,
 
@@ -690,6 +708,9 @@ static struct regulator_ops wm831x_buckp_ops = {
 	.get_voltage = wm831x_buckp_get_voltage,
 	.list_voltage = wm831x_buckp_list_voltage,
 	.set_suspend_voltage = wm831x_buckp_set_suspend_voltage,
+	.set_suspend_enable = wm831x_stby_enable,
+	.set_suspend_disable = wm831x_stby_disable,
+	.set_suspend_mode = wm831x_stby_set_mode,
 
 	.is_enabled = wm831x_dcdc_is_enabled,
 	.enable = wm831x_dcdc_enable,

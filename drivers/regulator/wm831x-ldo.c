@@ -283,12 +283,29 @@ static unsigned int wm831x_gp_ldo_get_optimum_mode(struct regulator_dev *rdev,
 	return REGULATOR_MODE_NORMAL;
 }
 
+static int wm831x_stby_enable(struct regulator_dev *reg)
+{
+	return 0;
+}
+
+static int wm831x_stby_disable(struct regulator_dev *reg)
+{
+	return 0;
+}
+
+static int wm831x_stby_set_mode(struct regulator_dev *reg, unsigned int mode)
+{
+	return 0;
+}
 
 static struct regulator_ops wm831x_gp_ldo_ops = {
 	.list_voltage = wm831x_gp_ldo_list_voltage,
 	.get_voltage = wm831x_gp_ldo_get_voltage,
 	.set_voltage = wm831x_gp_ldo_set_voltage,
 	.set_suspend_voltage = wm831x_gp_ldo_set_suspend_voltage,
+	.set_suspend_enable = wm831x_stby_enable,
+	.set_suspend_disable = wm831x_stby_disable,
+	.set_suspend_mode = wm831x_stby_set_mode,
 	.get_mode = wm831x_gp_ldo_get_mode,
 	.set_mode = wm831x_gp_ldo_set_mode,
 	.get_status = wm831x_gp_ldo_get_status,
@@ -550,6 +567,9 @@ static struct regulator_ops wm831x_aldo_ops = {
 	.get_voltage = wm831x_aldo_get_voltage,
 	.set_voltage = wm831x_aldo_set_voltage,
 	.set_suspend_voltage = wm831x_aldo_set_suspend_voltage,
+	.set_suspend_enable = wm831x_stby_enable,
+	.set_suspend_disable = wm831x_stby_disable,
+	.set_suspend_mode = wm831x_stby_set_mode,
 	.get_mode = wm831x_aldo_get_mode,
 	.set_mode = wm831x_aldo_set_mode,
 	.get_status = wm831x_aldo_get_status,
@@ -738,6 +758,9 @@ static struct regulator_ops wm831x_alive_ldo_ops = {
 	.get_voltage = wm831x_alive_ldo_get_voltage,
 	.set_voltage = wm831x_alive_ldo_set_voltage,
 	.set_suspend_voltage = wm831x_alive_ldo_set_suspend_voltage,
+	.set_suspend_enable = wm831x_stby_enable,
+	.set_suspend_disable = wm831x_stby_disable,
+	.set_suspend_mode = wm831x_stby_set_mode,
 	.get_status = wm831x_alive_ldo_get_status,
 
 	.is_enabled = wm831x_ldo_is_enabled,

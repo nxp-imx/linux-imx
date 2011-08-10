@@ -95,6 +95,7 @@ enum wm831x_parent {
 	WM8311 = 0x8311,
 	WM8312 = 0x8312,
 	WM8320 = 0x8320,
+	WM8325 = 0x8325,
 };
 
 static int wm831x_reg_locked(struct wm831x *wm831x, unsigned short reg)
@@ -433,6 +434,18 @@ static irqreturn_t wm831x_auxadc_irq(int irq, void *irq_data)
 
 	return IRQ_HANDLED;
 }
+
+static struct wm831x *wm831x_export;
+
+void wm831x_poweroff_system(void)
+{
+	int ret;
+
+	ret = wm831x_reg_read(wm831x_export, WM831X_POWER_STATE);
+	ret &= ~(1 << 15);
+	wm831x_reg_write(wm831x_export, WM831X_POWER_STATE, ret);
+}
+EXPORT_SYMBOL_GPL(wm831x_poweroff_system);
 
 /**
  * wm831x_auxadc_read_uv: Read a voltage from the WM831x AUXADC
@@ -1463,7 +1476,12 @@ static int wm831x_device_init(struct wm831x *wm831x, unsigned long id, int irq)
 		dev_err(wm831x->dev, "Failed to read parent ID: %d\n", ret);
 		goto err;
 	}
-	if (ret != 0x6204) {
+
+	switch (ret) {
+	case 0x6204:
+	case 0x6246:
+		break;
+	default:
 		dev_err(wm831x->dev, "Device is not a WM831x: ID %x\n", ret);
 		ret = -EINVAL;
 		goto err;
@@ -1531,6 +1549,12 @@ static int wm831x_device_init(struct wm831x *wm831x, unsigned long id, int irq)
 		parent = WM8320;
 		wm831x->num_gpio = 12;
 		dev_info(wm831x->dev, "WM8320 revision %c\n", 'A' + rev);
+		break;
+
+	case WM8325:
+		parent = WM8325;
+		wm831x->num_gpio = 12;
+		dev_info(wm831x->dev, "WM8325 revision %c\n", 'A' + rev);
 		break;
 
 	default:
@@ -1602,9 +1626,10 @@ static int wm831x_device_init(struct wm831x *wm831x, unsigned long id, int irq)
 		break;
 
 	case WM8320:
+	case WM8325:
 		ret = mfd_add_devices(wm831x->dev, -1,
 				      wm8320_devs, ARRAY_SIZE(wm8320_devs),
-				      NULL, 0);
+				      NULL, wm831x->irq_base);
 		break;
 
 	default:
@@ -1755,6 +1780,7 @@ static int wm831x_i2c_probe(struct i2c_client *i2c,
 	wm831x->read_dev = wm831x_i2c_read_device;
 	wm831x->write_dev = wm831x_i2c_write_device;
 
+	wm831x_export = wm831x;
 	return wm831x_device_init(wm831x, id->driver_data, i2c->irq);
 }
 
@@ -1779,6 +1805,7 @@ static const struct i2c_device_id wm831x_i2c_id[] = {
 	{ "wm8311", WM8311 },
 	{ "wm8312", WM8312 },
 	{ "wm8320", WM8320 },
+	{ "wm8325", WM8325 },
 	{ }
 };
 MODULE_DEVICE_TABLE(i2c, wm831x_i2c_id);
