@@ -22,6 +22,7 @@
 #include <linux/platform_device.h>
 #include <linux/regulator/consumer.h>
 #include <linux/fsl_devices.h>
+#include <mach/hardware.h>
 
 #include <sound/core.h>
 #include <sound/pcm.h>
@@ -32,6 +33,7 @@
 #include <sound/initval.h>
 #include <asm/div64.h>
 #include "cs42888.h"
+
 #define CS42888_NUM_SUPPLIES 4
 static const char *cs42888_supply_names[CS42888_NUM_SUPPLIES] = {
 	"VA",
@@ -696,6 +698,7 @@ static int cs42888_hw_params(struct snd_pcm_substream *substream,
 		pr_err("i2c write failed\n");
 		return ret;
 	}
+	 msleep(400);
 
 	ret = cs42888_fill_cache(codec);
 	if (ret < 0) {
@@ -747,22 +750,35 @@ static struct snd_soc_dai_ops cs42888_dai_ops = {
 	.shutdown	= cs42888_shutdown,
 };
 
+
 struct snd_soc_dai_driver cs42888_dai = {
 	.name = "CS42888",
 	.playback = {
 		.stream_name = "Playback",
 		.channels_min = 1,
 		.channels_max = 8,
+#ifdef CONFIG_SOC_IMX53
+		.rates = (SNDRV_PCM_RATE_48000 | SNDRV_PCM_RATE_96000 |\
+			SNDRV_PCM_RATE_192000),
+#endif
+#ifdef CONFIG_SOC_IMX6Q
 		.rates = (SNDRV_PCM_RATE_44100 | SNDRV_PCM_RATE_88200 |\
 			SNDRV_PCM_RATE_176400),
+#endif
 		.formats = CS42888_FORMATS,
 	},
 	.capture = {
 		.stream_name = "Capture",
 		.channels_min = 1,
 		.channels_max = 4,
+#ifdef CONFIG_SOC_IMX53
+		.rates = (SNDRV_PCM_RATE_48000 | SNDRV_PCM_RATE_96000 |\
+			SNDRV_PCM_RATE_192000),
+#endif
+#ifdef CONFIG_SOC_IMX6Q
 		.rates = (SNDRV_PCM_RATE_44100 | SNDRV_PCM_RATE_88200 |\
 			SNDRV_PCM_RATE_176400),
+#endif
 		.formats = CS42888_FORMATS,
 	},
 	.ops = &cs42888_dai_ops,
@@ -790,22 +806,25 @@ static int cs42888_probe(struct snd_soc_codec *codec)
 		dev_err(codec->dev, "Failed to set cache I/O: %d\n", ret);
 		return ret;
 	}
+	if (cpu_is_mx6q()) {
+		for (i = 0; i < ARRAY_SIZE(cs42888->supplies); i++)
+			cs42888->supplies[i].supply = cs42888_supply_names[i];
 
-	for (i = 0; i < ARRAY_SIZE(cs42888->supplies); i++)
-		cs42888->supplies[i].supply = cs42888_supply_names[i];
+		ret = regulator_bulk_get(codec->dev,
+			ARRAY_SIZE(cs42888->supplies), cs42888->supplies);
+		if (ret != 0) {
+			dev_err(codec->dev, "Failed to request supplies: %d\n",
+				ret);
+			return ret;
+		}
 
-	ret = regulator_bulk_get(codec->dev, ARRAY_SIZE(cs42888->supplies),
-				 cs42888->supplies);
-	if (ret != 0) {
-		dev_err(codec->dev, "Failed to request supplies: %d\n", ret);
-		return ret;
-	}
-
-	ret = regulator_bulk_enable(ARRAY_SIZE(cs42888->supplies),
-				    cs42888->supplies);
-	if (ret != 0) {
-		dev_err(codec->dev, "Failed to enable supplies: %d\n", ret);
-		goto err;
+		ret = regulator_bulk_enable(ARRAY_SIZE(cs42888->supplies),
+				cs42888->supplies);
+		if (ret != 0) {
+			dev_err(codec->dev, "Failed to enable supplies: %d\n",
+				ret);
+			goto err;
+		}
 	}
 	msleep(1);
 
