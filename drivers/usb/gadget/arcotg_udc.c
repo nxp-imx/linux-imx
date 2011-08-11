@@ -2305,8 +2305,10 @@ int usb_gadget_register_driver(struct usb_gadget_driver *driver)
 	}
 
 	if (udc_controller->transceiver) {
-		/* Suspend the controller until OTG enable it */
-		udc_controller->suspended = 1;/* let the otg resume it */
+		if (fsl_readl(&dr_regs->otgsc) & OTGSC_STS_USB_ID)
+			udc_controller->suspended = 1;/* let the otg resume it */
+		else
+			udc_controller->suspended = 0;/* let the otg suspend it */
 		printk(KERN_DEBUG "Suspend udc for OTG auto detect\n");
 		dr_wake_up_enable(udc_controller, true);
 		dr_clk_gate(false);
@@ -3202,6 +3204,20 @@ static int fsl_udc_resume(struct platform_device *pdev)
 		 udc_controller->stopped, udc_controller->suspended);
 	/* Do noop if the udc is already at resume state */
 	if (udc_controller->suspended == 0) {
+		u32 temp;
+		if (udc_controller->stopped)
+			dr_clk_gate(true);
+		usb_debounce_id_vbus();
+		if (fsl_readl(&dr_regs->otgsc) & OTGSC_STS_USB_ID) {
+			temp = fsl_readl(&dr_regs->otgsc);
+			/* if b_session_irq_en is cleared by otg */
+			if (!(temp & OTGSC_B_SESSION_VALID_IRQ_EN)) {
+				temp |= OTGSC_B_SESSION_VALID_IRQ_EN;
+				fsl_writel(temp, &dr_regs->otgsc);
+			}
+		}
+		if (udc_controller->stopped)
+			dr_clk_gate(false);
 		mutex_unlock(&udc_resume_mutex);
 		return 0;
 	}
