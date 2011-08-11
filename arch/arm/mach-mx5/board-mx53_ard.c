@@ -26,6 +26,7 @@
 #include <linux/ipu.h>
 #include <linux/pwm_backlight.h>
 #include <linux/smsc911x.h>
+#include <linux/i2c/pca953x.h>
 
 #include <mach/common.h>
 #include <mach/hardware.h>
@@ -44,8 +45,21 @@
 #define ARD_SD1_WP IMX_GPIO_NR(1, 9)
 #define ARD_SD2_CD IMX_GPIO_NR(1, 4)
 #define ARD_SD2_WP IMX_GPIO_NR(1, 2)
+#define ARD_ESAI_INT IMX_GPIO_NR(2, 4)
 #define ARD_TS_INT IMX_GPIO_NR(7, 12)
 #define ARD_ETHERNET_INT_B IMX_GPIO_NR(2, 31)
+
+/* Start directly after the CPU's GPIO*/
+#define MAX7310_BASE_ADDR		224	/* 7x32 */
+#define ARD_BACKLIGHT_ON		MAX7310_BASE_ADDR
+#define ARD_SPARE			    (MAX7310_BASE_ADDR + 1)
+#define ARD_CPU_PER_RST_B		(MAX7310_BASE_ADDR + 2)
+#define ARD_MAIN_PER_RST_B		(MAX7310_BASE_ADDR + 3)
+#define ARD_IPOD_RST_B			(MAX7310_BASE_ADDR + 4)
+#define ARD_MLB_RST_B			(MAX7310_BASE_ADDR + 5)
+#define ARD_SSI_STEERING		(MAX7310_BASE_ADDR + 6)
+#define ARD_GPS_RST_B			(MAX7310_BASE_ADDR + 7)
+
 
 static iomux_v3_cfg_t mx53_ard_pads[] = {
 	/* UART */
@@ -199,6 +213,82 @@ static struct platform_device ard_smsc_lan9220_device = {
 	.resource = ard_smsc911x_resources,
 };
 
+static iomux_v3_cfg_t mx53_ard_esai_pads[] = {
+	MX53_PAD_FEC_MDIO__ESAI1_SCKR,
+	MX53_PAD_FEC_REF_CLK__ESAI1_FSR,
+	MX53_PAD_FEC_CRS_DV__ESAI1_SCKT,
+	MX53_PAD_FEC_RXD1__ESAI1_FST,
+	MX53_PAD_FEC_TX_EN__ESAI1_TX3_RX2,
+	MX53_PAD_GPIO_5__ESAI1_TX2_RX3,
+	MX53_PAD_FEC_TXD0__ESAI1_TX4_RX1,
+	MX53_PAD_GPIO_8__ESAI1_TX5_RX0,
+	MX53_PAD_NANDF_CS2__ESAI1_TX0,
+	MX53_PAD_NANDF_CS3__ESAI1_TX1,
+	MX53_PAD_PATA_DATA4__GPIO2_4,
+};
+
+void ard_gpio_activate_esai_ports(void)
+{
+	mxc_iomux_v3_setup_multiple_pads(mx53_ard_esai_pads,
+					ARRAY_SIZE(mx53_ard_esai_pads));
+	/* ESAI_INT */
+	gpio_request(ARD_ESAI_INT, "esai-int");
+	gpio_direction_input(ARD_ESAI_INT);
+
+}
+
+static struct imx_esai_platform_data esai_data = {
+	.flags = IMX_ESAI_NET,
+};
+
+static struct platform_device mxc_alsa_surround_device = {
+	.name = "imx-cs42888",
+};
+
+static struct mxc_audio_platform_data mxc_surround_audio_data = {
+	.ext_ram = 1,
+	.sysclk = 24576000,
+};
+
+static int imx53_init_audio(void)
+{
+	ard_gpio_activate_esai_ports();
+
+	mxc_register_device(&mxc_alsa_surround_device,
+		&mxc_surround_audio_data);
+	imx53_add_imx_esai(0, &esai_data);
+
+    return 0;
+}
+
+static int mx53_ard_max7310_setup(struct i2c_client *client,
+			       unsigned gpio_base, unsigned ngpio,
+			       void *context)
+{
+	static int max7310_gpio_value[] = {
+		1, 1, 1, 1, 0, 0, 0, 0,
+	};
+	int n;
+
+	for (n = 0; n < ARRAY_SIZE(max7310_gpio_value); ++n) {
+		gpio_request(gpio_base + n, "MAX7310 GPIO Expander");
+		if (max7310_gpio_value[n] < 0)
+			gpio_direction_input(gpio_base + n);
+		else
+			gpio_direction_output(gpio_base + n,
+					      max7310_gpio_value[n]);
+		/* Export, direction locked down */
+		gpio_export(gpio_base + n, 0);
+	}
+
+	return 0;
+}
+
+static struct pca953x_platform_data mx53_i2c_max7310_platdata = {
+	.gpio_base	= MAX7310_BASE_ADDR,
+	.invert		= 0, /* Do not invert */
+	.setup		= mx53_ard_max7310_setup,
+};
 
 static const struct imxuart_platform_data mx53_ard_uart_data __initconst = {
 	.flags = IMXUART_HAVE_RTSCTS,
@@ -223,12 +313,21 @@ static struct imxi2c_platform_data mx53_ard_i2c2_data = {
 };
 
 static struct i2c_board_info mxc_i2c1_board_info[] __initdata = {
+	{
+    .type = "cs42888",
+	.addr = 0x48,
+	},
 };
 
 static struct i2c_board_info mxc_i2c2_board_info[] __initdata = {
 	{
 		I2C_BOARD_INFO("max11801", 0x49),
 		.irq  = gpio_to_irq(ARD_TS_INT),
+	},
+	{
+	 .type = "max7310",
+	 .addr = 0x18,
+	 .platform_data = &mx53_i2c_max7310_platdata,
 	},
 };
 
@@ -363,6 +462,8 @@ static void __init mx53_ard_board_init(void)
 				ARRAY_SIZE(mxc_i2c1_board_info));
 	i2c_register_board_info(2, mxc_i2c2_board_info,
 				ARRAY_SIZE(mxc_i2c2_board_info));
+
+	imx53_init_audio();
 
 	/* this call required to release SCC RAM partition held by ROM
 	  * during boot, even if SCC2 driver is not part of the image

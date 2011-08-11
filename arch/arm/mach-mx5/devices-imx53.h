@@ -105,5 +105,8 @@ extern const struct imx_spdif_dai_data imx53_spdif_dai_data __initconst;
 #define imx53_add_spdif_dai()	imx_add_spdif_dai(&imx53_spdif_dai_data)
 
 #define imx53_add_spdif_audio_device(pdata)	imx_add_spdif_audio_device()
+extern const struct imx_imx_esai_data imx53_imx_esai_data[] __initconst;
+#define imx53_add_imx_esai(id, pdata) \
+       imx_add_imx_esai(&imx53_imx_esai_data[id], pdata)
 
 extern struct platform_device imx_ahci_device_hwmon;

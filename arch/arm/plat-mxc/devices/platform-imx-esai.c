@@ -9,10 +9,17 @@
 #include <mach/hardware.h>
 #include <mach/devices-common.h>
 
-#define MX6Q_DMA_REQ_ESAI_RX            23
-#define MX6Q_DMA_REQ_ESAI_TX            24
+#define imx53_esai_data_entry(soc, _id, _size)			\
+	[_id] = {							\
+		.id = _id,						\
+		.iobase = MX53_ESAI_BASE_ADDR,		\
+		.iosize = _size,					\
+		.irq = MX53_INT_ESAI,			\
+		.dmatx = soc ## _DMA_REQ_ESAI ## _TX,		\
+		.dmarx = soc ## _DMA_REQ_ESAI ## _RX,		\
+	}
 
-#define imx_imx_esai_data_entry(soc, _id, _size)			\
+#define imx6q_esai_data_entry(soc, _id, _size)			\
 	[_id] = {							\
 		.id = _id,						\
 		.iobase = ESAI1_BASE_ADDR,		\
@@ -22,10 +29,18 @@
 		.dmarx = soc ## _DMA_REQ_ESAI ## _RX,		\
 	}
 
+#ifdef CONFIG_SOC_IMX53
+const struct imx_imx_esai_data imx53_imx_esai_data[] __initconst = {
+#define imx53_imx_esai_data_entry(_id)				\
+		imx53_esai_data_entry(MX53, _id, SZ_4K)
+		imx53_imx_esai_data_entry(0),
+};
+#endif /* ifdef CONFIG_SOC_IMX53 */
+
 #ifdef CONFIG_SOC_IMX6Q
 const struct imx_imx_esai_data imx6q_imx_esai_data[] __initconst = {
 #define imx6q_imx_esai_data_entry(_id)				\
-	imx_imx_esai_data_entry(MX6Q, _id, SZ_4K)
+	imx6q_esai_data_entry(MX6Q, _id, SZ_4K)
 	imx6q_imx_esai_data_entry(0),
 };
 #endif /* ifdef CONFIG_SOC_IMX6Q */
