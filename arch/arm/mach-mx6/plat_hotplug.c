@@ -33,19 +33,31 @@ int platform_cpu_kill(unsigned int cpu)
 	unsigned int val;
 
 	val = jiffies;
-	/* wait secondary cpu to die, timeout is 500ms */
+	/* wait secondary cpu to die, timeout is 50ms */
 	while (atomic_read(&cpu_die_done) == 0) {
-		if (time_after(jiffies, (unsigned long)(val + HZ / 2))) {
+		if (time_after(jiffies, (unsigned long)(val + HZ / 20))) {
 			printk(KERN_WARNING "cpu %d: cpu could not die\n", cpu);
 			break;
 		}
 	}
+
 	/*
 	 * we're ready for shutdown now, so do it
 	 */
-	val = readl(src_base + SRC_SCR_OFFSET);
+	val = __raw_readl(src_base + SRC_SCR_OFFSET);
 	val &= ~(1 << (BP_SRC_SCR_CORES_DBG_RST + cpu));
-	writel(val, src_base + SRC_SCR_OFFSET);
+	val |= (1 << (BP_SRC_SCR_CORE0_RST + cpu));
+	__raw_writel(val, src_base + SRC_SCR_OFFSET);
+
+	val = jiffies;
+	/* wait secondary cpu reset done, timeout is 10ms */
+	while ((__raw_readl(src_base + SRC_SCR_OFFSET) &
+		(1 << (BP_SRC_SCR_CORE0_RST + cpu))) != 0) {
+		if (time_after(jiffies, (unsigned long)(val + HZ / 100))) {
+			printk(KERN_WARNING "cpu %d: cpu reset fail\n", cpu);
+			break;
+		}
+	}
 
 	atomic_set(&cpu_die_done, 0);
 	return 1;
