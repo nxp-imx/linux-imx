@@ -65,7 +65,7 @@ static void __iomem *pll2_base;
 static void __iomem *pll3_base;
 static void __iomem *pll4_base;
 
-extern int cpu_op_nr;
+static int cpu_op_nr;
 extern int lp_high_freq;
 extern int lp_med_freq;
 static int max_axi_a_clk;
@@ -630,6 +630,7 @@ static unsigned long _clk_arm_get_rate(struct clk *clk)
 static int _clk_cpu_set_rate(struct clk *clk, unsigned long rate)
 {
 	u32 i;
+
 	for (i = 0; i < cpu_op_nr; i++) {
 		if (rate == cpu_op_tbl[i].cpu_rate)
 			break;
@@ -5106,6 +5107,7 @@ int __init mx53_clocks_init(unsigned long ckil, unsigned long osc, unsigned long
 	 */
 	pll1_rate = clk_get_rate(&pll1_main_clk);
 
+	mx53_cpu_op_init();
 	if (pll1_rate > 1000000000)
 		mx53_set_cpu_part_number(IMX53_CEC_1_2G);
 	else if (pll1_rate > 800000000)

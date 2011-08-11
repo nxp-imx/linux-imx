@@ -11,4 +11,5 @@
  * http://www.gnu.org/copyleft/gpl.html
  */
 
-extern struct cpu_op *mx50_get_cpu_op(int *op);
+void mx50_cpu_op_init(void);
+

@@ -1,3 +1,4 @@
+extern void mx51_cpu_op_init(void);
 /*
  * Copyright (C) 2011 Freescale Semiconductor, Inc. All Rights Reserved.
  */
@@ -36,6 +37,7 @@ enum mx53_cpu_part_number {
 };
 
 void mx53_set_cpu_part_number(enum mx53_cpu_part_number part_num);
+void mx53_cpu_op_init(void);
 
 #endif /*__ARCH_ARM_MACH_MX53_WP_H__ */
 
