@@ -1028,6 +1028,7 @@ static void mmc_power_off(struct mmc_host *host)
 	host->ios.power_mode = MMC_POWER_OFF;
 	host->ios.bus_width = MMC_BUS_WIDTH_1;
 	host->ios.timing = MMC_TIMING_LEGACY;
+	host->ios.ddr = MMC_SDR_MODE;
 	mmc_set_ios(host);
 }
 
