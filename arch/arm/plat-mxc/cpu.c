@@ -21,6 +21,8 @@
 unsigned int __mxc_cpu_type;
 EXPORT_SYMBOL(__mxc_cpu_type);
 extern int mxc_early_serial_console_init(unsigned long base, struct clk *clk);
+struct regulator *(*get_cpu_regulator)(void);
+void (*put_cpu_regulator)(void);
 
 void mxc_set_cpu_type(unsigned int type)
 {

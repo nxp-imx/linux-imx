@@ -93,10 +93,15 @@
 #define MX50_RDP_SD3_WP		IMX_GPIO_NR(5, 28) 	/*GPIO_5_28 */
 #define MX50_RDP_USB_OTG_PWR	IMX_GPIO_NR(6, 25)	/*GPIO_6_25*/
 
-extern struct dvfs_op *(*get_dvfs_core_op)(int *wp);
+extern struct regulator *(*get_cpu_regulator)(void);
+extern void (*put_cpu_regulator)(void);
 
 extern int mx50_rdp_init_mc13892(void);
 
+extern char *gp_reg_id;
+extern char *lp_reg_id;
+
+static struct regulator *cpu_regulator;
 static int max17135_regulator_init(struct max17135 *max17135);
 
 static iomux_v3_cfg_t mx50_rdp_pads[] __initdata = {
@@ -745,23 +750,24 @@ static struct mxc_dvfs_platform_data rdp_dvfscore_data = {
 	.delay_time = 80,
 };
 
-static struct dvfs_op dvfs_core_setpoint[] = {
-	{33, 13, 33, 10, 10, 0x08}, /* 800MHz*/
-	{28, 8, 33, 10, 10, 0x08},   /* 400MHz */
-	{20, 0, 33, 20, 10, 0x08},   /* 160MHz*/
-	{28, 8, 33, 20, 30, 0x08},   /*160MHz, AHB 133MHz, LPAPM mode*/
-	{29, 0, 33, 20, 10, 0x08},}; /* 160MHz, AHB 24MHz */
+static struct mxc_regulator_platform_data rdp_regulator_data = {
+	.cpu_reg_id = "cpu_vddgp",
+	.vcc_reg_id = "lp_vcc",
+};
 
-static struct dvfs_op *mx50_rdp_get_dvfs_core_table(int *wp)
+static struct regulator *mx50_rdp_get_cpu_regulator(void)
 {
-	*wp = ARRAY_SIZE(dvfs_core_setpoint);
-	return dvfs_core_setpoint;
+	if (cpu_regulator == NULL)
+		cpu_regulator = regulator_get(NULL, gp_reg_id);
+	return cpu_regulator;
 }
 
-static struct mxc_bus_freq_platform_data rdp_bus_freq_data = {
-	.gp_reg_id = "cpu_vddgp",
-	.lp_reg_id = "lp_vcc",
-};
+static void mx50_rdp_put_cpu_regulator(void)
+{
+	if (cpu_regulator != NULL)
+		regulator_put(cpu_regulator);
+	cpu_regulator = NULL;
+}
 
 static const struct esdhc_platform_data mx50_rdp_sd1_data __initconst = {
 	.cd_gpio = MX50_RDP_SD1_CD,
@@ -781,7 +787,8 @@ static const struct esdhc_platform_data mx50_rdp_sd3_data __initconst = {
 static void __init fixup_mxc_board(struct machine_desc *desc, struct tag *tags,
 				   char **cmdline, struct meminfo *mi)
 {
-	get_dvfs_core_op = mx50_rdp_get_dvfs_core_table;
+	get_cpu_regulator = mx50_rdp_get_cpu_regulator;
+	put_cpu_regulator = mx50_rdp_put_cpu_regulator;
 }
 
 static void mx50_rdp_usbotg_vbus(bool on)
@@ -816,11 +823,11 @@ static void __init mx50_rdp_board_init(void)
 	mxc_iomux_v3_setup_multiple_pads(mx50_rdp_pads,
 					ARRAY_SIZE(mx50_rdp_pads));
 
-#if defined(CONFIG_CPU_FREQ_IMX)
-	get_cpu_op = mx50_get_cpu_op;
-#endif
 	pr_info("CPU is iMX50 Revision %u\n",
 		mx50_revision());
+
+	gp_reg_id = rdp_regulator_data.cpu_reg_id;
+	lp_reg_id = rdp_regulator_data.vcc_reg_id;
 
 	imx50_add_cspi(3, &mx50_rdp_spi_pdata);
 
@@ -852,7 +859,9 @@ static void __init mx50_rdp_board_init(void)
 	mx50_rdp_init_mc13892();
 
 	imx50_add_dvfs_core(&rdp_dvfscore_data);
-	imx50_add_busfreq(&rdp_bus_freq_data);
+
+	imx50_add_busfreq();
+
 	mx50_rdp_init_usb();
 }
 

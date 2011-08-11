@@ -50,9 +50,9 @@ struct platform_device *__init imx_add_dvfs_core(
 			res, ARRAY_SIZE(res), pdata, sizeof(*pdata));
 }
 
-struct platform_device *__init imx_add_busfreq(
-		const struct mxc_bus_freq_platform_data *pdata)
+struct platform_device *__init imx_add_busfreq()
 {
 	return imx_add_platform_device("imx_busfreq", 0,
-			NULL, 0, pdata, sizeof(*pdata));
+			NULL, 0, NULL, 0);
 }
+
