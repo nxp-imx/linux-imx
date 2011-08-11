@@ -241,11 +241,13 @@ static const struct esdhc_platform_data mx6q_sabreauto_sd3_data __initconst = {
 	.cd_gpio = MX6Q_SABREAUTO_SD3_CD,
 	.wp_gpio = MX6Q_SABREAUTO_SD3_WP,
 	.support_18v = 1,
+	.support_8bit = 1,
 };
 
 /* No card detect signal for SD4 */
 static const struct esdhc_platform_data mx6q_sabreauto_sd4_data __initconst = {
 	.always_present = 1,
+	.support_8bit = 1,
 };
 
 /* The GPMI is conflicted with SD3, so init this in the driver. */

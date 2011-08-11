@@ -24,5 +24,6 @@ struct esdhc_platform_data {
 	unsigned int cd_gpio;
 	unsigned int always_present;
 	unsigned int support_18v;
+	unsigned int support_8bit;
 };
 #endif /* __ASM_ARCH_IMX_ESDHC_H */
