@@ -112,8 +112,10 @@ static struct clk *pll1_sw_clk;
 static struct clk *cpu_clk;
 static struct clk *dvfs_clk;
 static struct regulator *core_regulator;
+extern struct regulator *(*get_cpu_regulator)(void);
+extern void*(*put_cpu_regulator)(void);
 
-extern int cpu_op_nr;
+static int cpu_op_nr;
 #ifdef CONFIG_ARCH_MX5
 extern struct cpu_op *(*get_cpu_op)(int *op);
 #endif
@@ -280,7 +282,6 @@ static int set_cpu_freq(int op)
 			       "No need to change freq and voltage!!!!\n");
 			return 0;
 		}
-
 		/* Check if FSVAI indicate freq up */
 		if (podf < arm_podf) {
 			ret = regulator_set_voltage(core_regulator,
@@ -348,7 +349,7 @@ static int set_cpu_freq(int op)
 						    gp_volt, gp_volt);
 			if (ret < 0) {
 				printk(KERN_DEBUG
-				       "COULD NOT SET GP VOLTAGE!!!!\n");
+				       "COULD NOT SET GP VOLTAGE\n!!!");
 				return ret;
 			}
 			udelay(dvfs_data->delay_time);
@@ -852,7 +853,7 @@ static int __devinit mxc_dvfs_core_probe(struct platform_device *pdev)
 		return PTR_ERR(dvfs_clk);
 	}
 
-	core_regulator = regulator_get(NULL, dvfs_data->reg_id);
+	core_regulator = get_cpu_regulator();
 	if (IS_ERR(core_regulator)) {
 		clk_put(cpu_clk);
 		clk_put(dvfs_clk);

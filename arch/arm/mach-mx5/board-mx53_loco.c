@@ -22,6 +22,7 @@
 #include <linux/clk.h>
 #include <linux/fec.h>
 #include <linux/delay.h>
+#include <linux/regulator/consumer.h>
 #include <linux/gpio.h>
 #include <linux/mxcfb.h>
 #include <linux/ipu.h>
@@ -66,8 +67,14 @@ extern void __iomem *arm_plat_base;
 extern void __iomem *gpc_base;
 extern void __iomem *ccm_base;
 extern void __iomem *imx_otg_base;
+extern char *gp_reg_id;
+extern char *lp_reg_id;
+extern struct regulator *(*get_cpu_regulator)(void);
+extern void (*put_cpu_regulator)(void);
 
 extern int __init mx53_loco_init_da9052(void);
+
+static struct regulator *cpu_regulator;
 
 static iomux_v3_cfg_t mx53_loco_pads[] = {
 	/* FEC */
@@ -347,7 +354,7 @@ static struct fsl_mxc_tve_platform_data tve_data = {
 };
 
 static struct mxc_dvfs_platform_data loco_dvfs_core_data = {
-	.reg_id = "DA9052_BUCK_CORE",
+	.reg_id = "cpu_vddgp",
 	.clk1_id = "cpu_clk",
 	.clk2_id = "gpc_dvfs_clk",
 	.gpc_cntr_offset = MXC_GPC_CNTR_OFFSET,
@@ -368,11 +375,6 @@ static struct mxc_dvfs_platform_data loco_dvfs_core_data = {
 	.upcnt_val = 10,
 	.dncnt_val = 10,
 	.delay_time = 30,
-};
-
-static struct mxc_bus_freq_platform_data loco_bus_freq_data = {
-	.gp_reg_id = "DA9052_BUCK_CORE",
-	.lp_reg_id = "DA9052_BUCK_PRO",
 };
 
 static const struct esdhc_platform_data mx53_loco_sd1_data __initconst = {
@@ -587,6 +589,24 @@ static struct fsl_mxc_ldb_platform_data ldb_data = {
 	.mode = LDB_SIN0,
 };
 
+static struct mxc_regulator_platform_data loco_regulator_data = {
+	.cpu_reg_id = "cpu_vddgp",
+};
+
+static struct regulator *mx53_loco_get_cpu_regulator(void)
+{
+	if (cpu_regulator == NULL)
+		cpu_regulator = regulator_get(NULL, gp_reg_id);
+	return cpu_regulator;
+}
+
+static void mx53_loco_put_cpu_regulator(void)
+{
+	if (cpu_regulator != NULL)
+		regulator_put(cpu_regulator);
+	cpu_regulator = NULL;
+}
+
 static void __init fixup_mxc_board(struct machine_desc *desc, struct tag *tags,
 				   char **cmdline, struct meminfo *mi)
 {
@@ -597,6 +617,9 @@ static void __init fixup_mxc_board(struct machine_desc *desc, struct tag *tags,
 	int gpu_mem = SZ_128M;
 	int fb_mem = SZ_32M;
 	char *str;
+
+	get_cpu_regulator = mx53_loco_get_cpu_regulator;
+	put_cpu_regulator = mx53_loco_put_cpu_regulator;
 
 	for_each_tag(mem_tag, tags) {
 		if (mem_tag->hdr.tag == ATAG_MEM) {
@@ -665,6 +688,8 @@ static void __init mx53_loco_board_init(void)
 	int i;
 
 	mx53_loco_io_init();
+	gp_reg_id = loco_regulator_data.cpu_reg_id;
+	lp_reg_id = loco_regulator_data.vcc_reg_id;
 
 	imx53_add_imx_uart(0, NULL);
 	mx53_loco_fec_reset();
@@ -691,8 +716,6 @@ static void __init mx53_loco_board_init(void)
 
 	imx53_add_imx2_wdt(0, NULL);
 	imx53_add_srtc();
-	imx53_add_dvfs_core(&loco_dvfs_core_data);
-	imx53_add_busfreq(&loco_bus_freq_data);
 	imx53_add_imx_i2c(0, &mx53_loco_i2c_data);
 	imx53_add_imx_i2c(1, &mx53_loco_i2c_data);
 
@@ -732,6 +755,8 @@ static void __init mx53_loco_board_init(void)
 	  * during boot, even if SCC2 driver is not part of the image
 	  */
 	imx53_add_mxc_scc2();
+	imx53_add_dvfs_core(&loco_dvfs_core_data);
+	imx53_add_busfreq();
 }
 
 static void __init mx53_loco_timer_init(void)

@@ -93,8 +93,6 @@ int high_bus_freq_mode;
 int med_bus_freq_mode;
 
 int bus_freq_scaling_initialized;
-char *gp_reg_id;
-char *lp_reg_id;
 
 static struct cpu_op *cpu_op_tbl;
 static struct device *busfreq_dev;
@@ -103,9 +101,10 @@ static int cpu_podf;
 /* True if bus_frequency is scaled not using DVFS-PER */
 int bus_freq_scaling_is_active;
 
-int cpu_op_nr;
+static int cpu_op_nr;
 int lp_high_freq;
 int lp_med_freq;
+char *lp_reg_id;
 
 static int lp_voltage;
 struct workqueue_struct *voltage_wq;
@@ -126,7 +125,6 @@ extern void __iomem *ccm_base;
 extern void __iomem *databahn_base;
 extern int update_ddr_freq(int ddr_rate);
 extern unsigned int mx50_ddr_type;
-
 
 static DEFINE_SPINLOCK(voltage_lock);
 struct mutex bus_freq_mutex;
@@ -808,11 +806,6 @@ static int __devinit busfreq_probe(struct platform_device *pdev)
 {
 	int err = 0;
 	unsigned long pll2_rate, pll1_rate;
-	struct mxc_bus_freq_platform_data *p_bus_freq_data;
-
-	p_bus_freq_data = pdev->dev.platform_data;
-	gp_reg_id = p_bus_freq_data->gp_reg_id;
-	lp_reg_id = p_bus_freq_data->lp_reg_id;
 
 	if (cpu_is_mx51()) {
 		pll1_base = MX51_IO_ADDRESS(MX51_PLL1_BASE_ADDR);
@@ -1002,16 +995,20 @@ static int __devinit busfreq_probe(struct platform_device *pdev)
 	if (cpu_is_mx50()) {
 		cur_ddr_rate = ddr_normal_rate;
 
-		lp_regulator = regulator_get(NULL, lp_reg_id);
-		if (IS_ERR(lp_regulator)) {
-			printk(KERN_DEBUG
-			"%s: failed to get lp regulator\n", __func__);
-			return PTR_ERR(lp_regulator);
-		}
-		voltage_wq = create_workqueue("voltage_change");
-		INIT_WORK(&voltage_change_handler, voltage_work_handler);
+		if (lp_reg_id != NULL) {
+			lp_regulator = regulator_get(NULL, lp_reg_id);
+			if (IS_ERR(lp_regulator)) {
+				printk(KERN_DEBUG
+				"%s: failed to get lp regulator\n", __func__);
+				return PTR_ERR(lp_regulator);
+			}
 
-		init_completion(&voltage_change_cmpl);
+			voltage_wq = create_workqueue("voltage_change");
+			INIT_WORK(&voltage_change_handler,
+					voltage_work_handler);
+
+			init_completion(&voltage_change_cmpl);
+		}
 	}
 	cpu_op_tbl = get_cpu_op(&cpu_op_nr);
 	low_bus_freq_mode = 0;

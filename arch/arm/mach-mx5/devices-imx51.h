@@ -102,3 +102,10 @@ extern const struct imx_spdif_dai_data imx51_spdif_dai_data __initconst;
 #define imx51_add_spdif_dai()	imx_add_spdif_dai(&imx51_spdif_dai_data)
 
 #define imx51_add_spdif_audio_device(pdata)	imx_add_spdif_audio_device()
+
+extern const struct imx_dvfs_core_data imx51_dvfs_core_data __initconst;
+#define imx51_add_dvfs_core(pdata)	\
+	imx_add_dvfs_core(&imx51_dvfs_core_data, pdata)
+
+#define imx51_add_busfreq(pdata)	imx_add_busfreq(pdata)
+

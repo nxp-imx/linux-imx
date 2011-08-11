@@ -11,4 +11,4 @@
  * http://www.gnu.org/copyleft/gpl.html
  */
 
-extern void mx51_cpu_op_init(void);
+void mx51_cpu_op_init(void);

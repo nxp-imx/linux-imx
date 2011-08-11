@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2010-2011 Freescale Semiconductor, Inc.
  * Copyright (C) 2010 Yong Shen. <Yong.Shen@linaro.org>
  */
 
@@ -29,6 +29,7 @@
 #include <linux/mxcfb.h>
 #include <linux/ipu.h>
 #include <linux/pwm_backlight.h>
+#include <linux/regulator/consumer.h>
 
 #include <mach/common.h>
 #include <mach/hardware.h>
@@ -77,6 +78,13 @@
 #define ARM2_SD1_CD			IMX_GPIO_NR(1, 1)	/* GPIO_1_1 */
 #define ARM2_OTG_VBUS			IMX_GPIO_NR(3, 22)	/* GPIO_3_22 */
 #define ARM2_LCD_CONTRAST		IMX_GPIO_NR(4, 20)	/* GPIO_4_20 */
+
+extern char *gp_reg_id;
+extern char *lp_reg_id;
+extern struct regulator *(*get_cpu_regulator)(void);
+extern void (*put_cpu_regulator)(void);
+
+static struct regulator *cpu_regulator;
 
 static iomux_v3_cfg_t mx53common_pads[] = {
 	MX53_PAD_EIM_WAIT__GPIO5_0,
@@ -548,11 +556,6 @@ static struct mxc_dvfs_platform_data evk_dvfs_core_data = {
 	.delay_time = 30,
 };
 
-static struct mxc_bus_freq_platform_data evk_bus_freq_data = {
-	.gp_reg_id = "SW1",
-	.lp_reg_id = "SW2",
-};
-
 static const struct esdhc_platform_data mx53_evk_sd1_data __initconst = {
 	.cd_gpio = EVK_SD1_CD,
 	.wp_gpio = EVK_SD1_WP,
@@ -717,11 +720,40 @@ static struct mxc_spdif_platform_data mxc_spdif_data = {
 	.spdif_clk = NULL,	/* spdif bus clk */
 };
 
+static struct mxc_regulator_platform_data evk_regulator_data = {
+	.cpu_reg_id = "SW1",
+	.vcc_reg_id = "SW2",
+};
+
+static struct regulator *mx53_evk_get_cpu_regulator(void)
+{
+	if (cpu_regulator == NULL)
+		cpu_regulator = regulator_get(NULL, gp_reg_id);
+	return cpu_regulator;
+}
+
+static void mx53_evk_put_cpu_regulator(void)
+{
+	if (cpu_regulator != NULL)
+		regulator_put(cpu_regulator);
+	cpu_regulator = NULL;
+}
+
+static void __init fixup_mxc_board(struct machine_desc *desc, struct tag *tags,
+				   char **cmdline, struct meminfo *mi)
+{
+	get_cpu_regulator = mx53_evk_get_cpu_regulator;
+	put_cpu_regulator = mx53_evk_put_cpu_regulator;
+}
+
 static void __init mx53_evk_board_init(void)
 {
 	int i;
 
 	mx53_evk_io_init();
+
+	gp_reg_id = evk_regulator_data.cpu_reg_id;
+	lp_reg_id = evk_regulator_data.vcc_reg_id;
 
 	mxc_spdif_data.spdif_core_clk = clk_get(NULL, "spdif_xtal_clk");
 	clk_put(mxc_spdif_data.spdif_core_clk);
@@ -744,7 +776,7 @@ static void __init mx53_evk_board_init(void)
 	}
 
 	imx53_add_dvfs_core(&evk_dvfs_core_data);
-	imx53_add_busfreq(&evk_bus_freq_data);
+	imx53_add_busfreq();
 	imx53_add_imx_i2c(0, &mx53_evk_i2c_data);
 	imx53_add_imx_i2c(1, &mx53_evk_i2c_data);
 	i2c_register_board_info(0, mxc_i2c0_board_info,
@@ -781,6 +813,7 @@ static struct sys_timer mx53_evk_timer = {
 };
 
 MACHINE_START(MX53_EVK, "Freescale MX53 EVK Board")
+	.fixup = fixup_mxc_board,
 	.map_io = mx53_map_io,
 	.init_early = imx53_init_early,
 	.init_irq = mx53_init_irq,
