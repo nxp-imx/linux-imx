@@ -809,20 +809,6 @@ static int cs42888_probe(struct snd_soc_codec *codec)
 	}
 	msleep(1);
 
-	/* Verify that we have a CS42888 */
-	val = snd_soc_read(codec, CS42888_CHIPID);
-	if (val < 0) {
-		pr_err("Device with ID register %x is not a CS42888", val);
-		return -ENODEV;
-	}
-	/* The top four bits of the chip ID should be 0000. */
-	if ((val & CS42888_CHIPID_ID_MASK) != 0x00) {
-		dev_err(codec->dev, "device is not a CS42888\n");
-		return -ENODEV;
-	}
-
-	dev_info(codec->dev, "hardware revision %X\n", val & 0xF);
-
 	/* The I2C interface is set up, so pre-fill our register cache */
 	ret = cs42888_fill_cache(codec);
 	if (ret < 0) {
@@ -908,6 +894,23 @@ static int cs42888_i2c_probe(struct i2c_client *i2c_client,
 {
 	struct cs42888_private *cs42888;
 	int ret;
+	int val;
+
+	/* Verify that we have a CS42888 */
+	val = i2c_smbus_read_byte_data(i2c_client, CS42888_CHIPID);
+	if (val < 0) {
+		pr_err("Device with ID register %x is not a CS42888", val);
+		return -ENODEV;
+	}
+	/* The top four bits of the chip ID should be 0000. */
+	if ((val & CS42888_CHIPID_ID_MASK) != 0x00) {
+		dev_err(&i2c_client->dev, "device is not a CS42888\n");
+		return -ENODEV;
+	}
+
+	dev_info(&i2c_client->dev, "found device at i2c address %X\n",
+		i2c_client->addr);
+	dev_info(&i2c_client->dev, "hardware revision %X\n", val & 0xF);
 
 	/* Allocate enough space for the snd_soc_codec structure
 	   and our private data together. */
