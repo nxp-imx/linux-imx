@@ -246,14 +246,14 @@ static int imx_esai_set_dai_fmt(struct snd_soc_dai *cpu_dai, unsigned int fmt)
 	}
 
 	/* sync */
-	if (esai->flags == IMX_ESAI_SYN)
+	if (esai->flags & IMX_ESAI_SYN)
 		saicr |= ESAI_SAICR_SYNC;
 	else
 		saicr &= ~ESAI_SAICR_SYNC;
 
 	tcr &= ESAI_TCR_TMOD_MASK;
 	rcr &= ESAI_RCR_RMOD_MASK;
-	if (esai->flags == IMX_ESAI_NET) {
+	if (esai->flags & IMX_ESAI_NET) {
 		tcr |= ESAI_TCR_TMOD_NETWORK;
 		rcr |= ESAI_RCR_RMOD_NETWORK;
 	} else {
@@ -276,6 +276,8 @@ static int imx_esai_startup(struct snd_pcm_substream *substream,
 			    struct snd_soc_dai *cpu_dai)
 {
 	struct imx_esai *esai = snd_soc_dai_get_drvdata(cpu_dai);
+
+	clk_enable(esai->clk);
 
 	writel(ESAI_ECR_ERST, esai->base + ESAI_ECR);
 	writel(ESAI_ECR_ESAIEN, esai->base + ESAI_ECR);
@@ -303,14 +305,6 @@ static int imx_esai_hw_tx_params(struct snd_pcm_substream *substream,
 	struct imx_esai *esai = snd_soc_dai_get_drvdata(cpu_dai);
 	u32 tcr, tfcr;
 	unsigned int channels;
-	struct imx_pcm_dma_params *dma_data;
-	/* Tx/Rx config */
-	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK)
-		dma_data = &esai->dma_params_tx;
-	else
-		dma_data = &esai->dma_params_rx;
-
-	snd_soc_dai_set_dma_data(cpu_dai, substream, dma_data);
 
 	tcr = readl(esai->base + ESAI_TCR);
 	tfcr = readl(esai->base + ESAI_TFCR);
@@ -403,16 +397,34 @@ static int imx_esai_hw_params(struct snd_pcm_substream *substream,
 			      struct snd_soc_dai *cpu_dai)
 {
 	struct imx_esai *esai = snd_soc_dai_get_drvdata(cpu_dai);
+	struct imx_pcm_dma_params *dma_data;
+
 	/* Tx/Rx config */
 	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
 		if (readl(esai->base + ESAI_TCR) & ESAI_TCR_TE0)
 			return 0;
+
+		dma_data = &esai->dma_params_tx;
+		snd_soc_dai_set_dma_data(cpu_dai, substream, dma_data);
 		return imx_esai_hw_tx_params(substream, params, cpu_dai);
 	} else {
 		if (readl(esai->base + ESAI_RCR) & ESAI_RCR_RE1)
 			return 0;
+
+		dma_data = &esai->dma_params_rx;
+		snd_soc_dai_set_dma_data(cpu_dai, substream, dma_data);
 		return imx_esai_hw_rx_params(substream, params, cpu_dai);
 	}
+}
+
+static void imx_esai_shutdown(struct snd_pcm_substream *substream,
+			      struct snd_soc_dai *cpu_dai)
+{
+	struct imx_esai *esai = snd_soc_dai_get_drvdata(cpu_dai);
+
+	/* close easi clock */
+	clk_disable(esai->clk);
+
 }
 
 static int imx_esai_trigger(struct snd_pcm_substream *substream, int cmd,
@@ -508,6 +520,7 @@ static int imx_esai_resume(struct snd_soc_dai *cpu_dai)
 
 static struct snd_soc_dai_ops imx_esai_dai_ops = {
 	.startup = imx_esai_startup,
+	.shutdown = imx_esai_shutdown,
 	.trigger = imx_esai_trigger,
 	.hw_params = imx_esai_hw_params,
 	.set_sysclk = imx_esai_set_dai_sysclk,
@@ -568,7 +581,6 @@ static int imx_esai_probe(struct platform_device *pdev)
 			ret);
 		goto failed_clk;
 	}
-	clk_enable(esai->clk);
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	if (!res) {
@@ -672,7 +684,6 @@ static int __devexit imx_esai_remove(struct platform_device *pdev)
 
 	iounmap(esai->base);
 	release_mem_region(res->start, resource_size(res));
-	clk_disable(esai->clk);
 	clk_put(esai->clk);
 	kfree(esai);
 

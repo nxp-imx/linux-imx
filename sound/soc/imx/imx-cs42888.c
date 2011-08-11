@@ -64,40 +64,73 @@ static int imx_3stack_surround_hw_params(struct snd_pcm_substream *substream,
 	unsigned int lrclk_ratio = 0;
 	if (clk_state.lr_clk_active > 1)
 		return 0;
-
-	switch (rate) {
-	case 32000:
-		lrclk_ratio = 5;
-		break;
-	case 48000:
-		lrclk_ratio = 5;
-		break;
-	case 64000:
-		lrclk_ratio = 2;
-		break;
-	case 96000:
-		lrclk_ratio = 2;
-		break;
-	case 128000:
-		lrclk_ratio = 2;
-		break;
-	case 44100:
-		lrclk_ratio = 5;
-		break;
-	case 88200:
-		lrclk_ratio = 2;
-		break;
-	case 176400:
-		lrclk_ratio = 0;
-		break;
-	case 192000:
-		lrclk_ratio = 0;
-		break;
-	default:
-		pr_info("Rate not support.\n");
-		return -EINVAL;;
+	if (cpu_is_mx53()) {
+		switch (rate) {
+		case 32000:
+			lrclk_ratio = 3;
+			break;
+		case 48000:
+			lrclk_ratio = 3;
+			break;
+		case 64000:
+			lrclk_ratio = 1;
+			break;
+		case 96000:
+			lrclk_ratio = 1;
+			break;
+		case 128000:
+			lrclk_ratio = 1;
+			break;
+		case 44100:
+			lrclk_ratio = 3;
+			break;
+		case 88200:
+			lrclk_ratio = 1;
+			break;
+		case 176400:
+			lrclk_ratio = 0;
+			break;
+		case 192000:
+			lrclk_ratio = 0;
+			break;
+		default:
+			pr_info("Rate not support.\n");
+			return -EINVAL;;
+		}
+	} else if (cpu_is_mx6q()) {
+		switch (rate) {
+		case 32000:
+			lrclk_ratio = 5;
+			break;
+		case 48000:
+			lrclk_ratio = 5;
+			break;
+		case 64000:
+			lrclk_ratio = 2;
+			break;
+		case 96000:
+			lrclk_ratio = 2;
+			break;
+		case 128000:
+			lrclk_ratio = 2;
+			break;
+		case 44100:
+			lrclk_ratio = 5;
+			break;
+		case 88200:
+			lrclk_ratio = 2;
+			break;
+		case 176400:
+			lrclk_ratio = 0;
+			break;
+		case 192000:
+			lrclk_ratio = 0;
+			break;
+		default:
+			pr_info("Rate not support.\n");
+			return -EINVAL;;
+		}
 	}
-
 	dai_format = SND_SOC_DAIFMT_LEFT_J | SND_SOC_DAIFMT_NB_NF |
 	    SND_SOC_DAIFMT_CBS_CFS;
 
@@ -107,11 +140,19 @@ static int imx_3stack_surround_hw_params(struct snd_pcm_substream *substream,
 	/* set i.MX active slot mask */
 	snd_soc_dai_set_tdm_slot(cpu_dai, 0x3, 0x3, 2, 32);
 	/* set the ESAI system clock as output */
-	snd_soc_dai_set_sysclk(cpu_dai, ESAI_CLK_EXTAL_DIV,
-		mclk_freq, SND_SOC_CLOCK_OUT);
+	if (cpu_is_mx53()) {
+		snd_soc_dai_set_sysclk(cpu_dai, ESAI_CLK_EXTAL,
+			mclk_freq, SND_SOC_CLOCK_OUT);
+	} else if (cpu_is_mx6q()) {
+		snd_soc_dai_set_sysclk(cpu_dai, ESAI_CLK_EXTAL_DIV,
+			mclk_freq, SND_SOC_CLOCK_OUT);
+	}
 	/* set the ratio */
 	snd_soc_dai_set_clkdiv(cpu_dai, ESAI_TX_DIV_PSR, 1);
-	snd_soc_dai_set_clkdiv(cpu_dai, ESAI_TX_DIV_PM, 2);
+	if (cpu_is_mx53())
+		snd_soc_dai_set_clkdiv(cpu_dai, ESAI_TX_DIV_PM, 0);
+	else if (cpu_is_mx6q())
+		snd_soc_dai_set_clkdiv(cpu_dai, ESAI_TX_DIV_PM, 2);
 	snd_soc_dai_set_clkdiv(cpu_dai, ESAI_TX_DIV_FP, lrclk_ratio);
 	snd_soc_dai_set_clkdiv(cpu_dai, ESAI_RX_DIV_PSR, 1);
 	snd_soc_dai_set_clkdiv(cpu_dai, ESAI_RX_DIV_PM, 0);
@@ -171,7 +212,12 @@ static struct snd_soc_dai_link imx_3stack_dai[] = {
 	.name = "HiFi",
 	.stream_name = "HiFi",
 	.codec_dai_name = "CS42888",
+#ifdef CONFIG_SOC_IMX53
+	.codec_name = "cs42888.1-0048",
+#endif
+#ifdef CONFIG_SOC_IMX6Q
 	.codec_name = "cs42888.0-0048",
+#endif
 	.cpu_dai_name = "imx-esai.0",
 	.platform_name = "imx-pcm-audio.0",
 	.init = imx_3stack_cs42888_init,
@@ -180,7 +226,7 @@ static struct snd_soc_dai_link imx_3stack_dai[] = {
 };
 
 static struct snd_soc_card snd_soc_card_imx_3stack = {
-	.name = "imx-3stack",
+	.name = "cs42888-audio",
 	.dai_link = imx_3stack_dai,
 	.num_links = ARRAY_SIZE(imx_3stack_dai),
 };
@@ -219,7 +265,7 @@ static int __init imx_3stack_asoc_init(void)
 	if (ret < 0)
 		goto exit;
 
-	imx_3stack_snd_device = platform_device_alloc("soc-audio", 1);
+	imx_3stack_snd_device = platform_device_alloc("soc-audio", 2);
 	if (!imx_3stack_snd_device)
 		goto err_device_alloc;
 	platform_set_drvdata(imx_3stack_snd_device, &snd_soc_card_imx_3stack);
