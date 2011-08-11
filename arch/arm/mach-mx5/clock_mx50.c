@@ -69,7 +69,7 @@ static void __iomem *pll2_base;
 static void __iomem *pll3_base;
 void __iomem *apll_base;
 
-extern int cpu_op_nr;
+static int cpu_op_nr;
 extern int lp_high_freq;
 extern int lp_med_freq;
 
@@ -815,6 +815,7 @@ static unsigned long _clk_arm_get_rate(struct clk *clk)
 static int _clk_cpu_set_rate(struct clk *clk, unsigned long rate)
 {
 	u32 i;
+
 	for (i = 0; i < cpu_op_nr; i++) {
 		if (rate == cpu_op_tbl[i].cpu_rate)
 			break;
@@ -3562,8 +3563,13 @@ int __init mx50_clocks_init(unsigned long ckil, unsigned long osc, unsigned long
 	clk_enable(&pll3_sw_clk);
 	clk_disable(&pll3_sw_clk);
 
+	/* Get the CPU operating points table. */
+	mx50_cpu_op_init();
+	cpu_op_tbl = get_cpu_op(&cpu_op_nr);
+
 	base = MX50_IO_ADDRESS(MX50_GPT1_BASE_ADDR);
 	mxc_timer_init(&gpt_clk[0], base, MX50_INT_GPT);
+
 	return 0;
 }
 

@@ -240,7 +240,6 @@ int tzic_enable_wake(int is_idle);
 
 extern void mxc_cpu_lp_set(enum mxc_cpu_pwr_mode mode);
 extern int tzic_enable_wake(int is_idle);
-extern struct cpu_op *(*get_cpu_op)(int *op);
 #endif
 
 #if defined(CONFIG_ARCH_MX3) || defined(CONFIG_ARCH_MX2)

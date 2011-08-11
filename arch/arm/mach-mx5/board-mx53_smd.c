@@ -83,7 +83,14 @@
 
 static struct clk *sata_clk, *sata_ref_clk;
 
+extern char *gp_reg_id;
+extern char *lp_reg_id;
+extern struct regulator *(*get_cpu_regulator)(void);
+extern void (*put_cpu_regulator)(void);
+
 extern int mx53_smd_init_da9052(void);
+
+static struct regulator *cpu_regulator;
 
 static iomux_v3_cfg_t mx53_smd_pads[] = {
 	MX53_PAD_CSI0_DAT10__UART1_TXD_MUX,
@@ -731,12 +738,40 @@ static struct mxc_spdif_platform_data mxc_spdif_data = {
 	.spdif_clk = NULL,	/* spdif bus clk */
 };
 
+static struct mxc_regulator_platform_data smd_regulator_data = {
+	.cpu_reg_id = "DA9052_BUCK_CORE",
+};
+
+static struct regulator *mx53_smd_get_cpu_regulator(void)
+{
+	if (cpu_regulator == NULL)
+		cpu_regulator = regulator_get(NULL, gp_reg_id);
+	return cpu_regulator;
+}
+
+static void mx53_smd_put_cpu_regulator(void)
+{
+	if (cpu_regulator != NULL)
+		regulator_put(cpu_regulator);
+	cpu_regulator = NULL;
+}
+
+static void __init fixup_mxc_board(struct machine_desc *desc, struct tag *tags,
+				   char **cmdline, struct meminfo *mi)
+{
+	get_cpu_regulator = mx53_smd_get_cpu_regulator;
+	put_cpu_regulator = mx53_smd_put_cpu_regulator;
+}
+
 static void __init mx53_smd_board_init(void)
 {
 	int i;
 
 	mxc_iomux_v3_setup_multiple_pads(mx53_smd_pads,
 					ARRAY_SIZE(mx53_smd_pads));
+
+	gp_reg_id = smd_regulator_data.cpu_reg_id;
+	lp_reg_id = smd_regulator_data.vcc_reg_id;
 
 	mxc_spdif_data.spdif_core_clk = clk_get(NULL, "spdif_xtal_clk");
 	clk_put(mxc_spdif_data.spdif_core_clk);
@@ -825,6 +860,7 @@ static struct sys_timer mx53_smd_timer = {
 };
 
 MACHINE_START(MX53_SMD, "Freescale MX53 SMD Board")
+	.fixup = fixup_mxc_board,
 	.map_io = mx53_map_io,
 	.init_early = imx53_init_early,
 	.init_irq = mx53_init_irq,

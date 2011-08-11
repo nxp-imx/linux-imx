@@ -16,11 +16,11 @@
  * The CPUFREQ driver is for controlling CPU frequency. It allows you to change
  * the CPU clock speed on the fly.
  */
-
 #include <linux/cpufreq.h>
 #include <linux/clk.h>
 #include <linux/err.h>
 #include <linux/slab.h>
+#include <linux/regulator/consumer.h>
 #include <mach/hardware.h>
 #include <mach/clock.h>
 
@@ -28,6 +28,7 @@
 #define NANOSECOND	(1000 * 1000 * 1000)
 
 struct cpu_op *(*get_cpu_op)(int *op);
+char *gp_reg_id;
 int cpufreq_trig_needed;
 
 static int cpu_freq_khz_min;
@@ -38,20 +39,51 @@ static struct cpufreq_frequency_table *imx_freq_table;
 
 static int cpu_op_nr;
 static struct cpu_op *cpu_op_tbl;
+static struct regulator *gp_regulator;
+
+extern int dvfs_core_is_active;
+extern struct regulator *(*get_cpu_regulator)(void);
+extern void (*put_cpu_regulator)(void);
 
 int set_cpu_freq(int freq)
 {
-	int ret = 0;
+	int i, ret = 0;
 	int org_cpu_rate;
+	int gp_volt = 0;
 
 	org_cpu_rate = clk_get_rate(cpu_clk);
 	if (org_cpu_rate == freq)
 		return ret;
 
+	for (i = 0; i < cpu_op_nr; i++) {
+		if (freq == cpu_op_tbl[i].cpu_rate)
+			gp_volt = cpu_op_tbl[i].cpu_voltage;
+	}
+
+	if (gp_volt == 0)
+		return ret;
+
+	/*Set the voltage for the GP domain. */
+	if (freq > org_cpu_rate) {
+		ret = regulator_set_voltage(gp_regulator, gp_volt, gp_volt);
+		if (ret < 0) {
+			printk(KERN_DEBUG "COULD NOT SET GP VOLTAGE!!!!\n");
+			return ret;
+		}
+	}
+
 	ret = clk_set_rate(cpu_clk, freq);
 	if (ret != 0) {
 		printk(KERN_DEBUG "cannot set CPU clock rate\n");
 		return ret;
+	}
+
+	if (freq < org_cpu_rate) {
+		ret = regulator_set_voltage(gp_regulator, gp_volt, gp_volt);
+		if (ret < 0) {
+			printk(KERN_DEBUG "COULD NOT SET GP VOLTAGE!!!!\n");
+			return ret;
+		}
 	}
 
 	return ret;
@@ -81,6 +113,11 @@ static int mxc_set_target(struct cpufreq_policy *policy,
 	int ret = 0;
 	unsigned int index;
 
+	if (dvfs_core_is_active) {
+		printk(KERN_DEBUG"DVFS-CORE is active, cannot change frequency using CPUFREQ\n");
+		return ret;
+	}
+
 	cpufreq_frequency_table_target(policy, imx_freq_table,
 			target_freq, relation, &index);
 	freq_Hz = imx_freq_table[index].frequency * 1000;
@@ -98,7 +135,7 @@ static int mxc_set_target(struct cpufreq_policy *policy,
 	return ret;
 }
 
-static int __init mxc_cpufreq_init(struct cpufreq_policy *policy)
+static int __devinit mxc_cpufreq_init(struct cpufreq_policy *policy)
 {
 	int ret;
 	int i;
@@ -115,6 +152,14 @@ static int __init mxc_cpufreq_init(struct cpufreq_policy *policy)
 	if (IS_ERR(cpu_clk)) {
 		printk(KERN_ERR "%s: failed to get cpu clock\n", __func__);
 		return PTR_ERR(cpu_clk);
+	}
+
+	gp_regulator = get_cpu_regulator();
+
+	if (IS_ERR(gp_regulator)) {
+		clk_put(cpu_clk);
+		printk(KERN_ERR "%s: failed to get gp regulator\n", __func__);
+		return PTR_ERR(gp_regulator);
 	}
 
 	cpu_op_tbl = get_cpu_op(&cpu_op_nr);
@@ -188,7 +233,7 @@ static struct cpufreq_driver mxc_driver = {
 	.name = "imx",
 };
 
-static int __devinit mxc_cpufreq_driver_init(void)
+static int __init mxc_cpufreq_driver_init(void)
 {
 	return cpufreq_register_driver(&mxc_driver);
 }

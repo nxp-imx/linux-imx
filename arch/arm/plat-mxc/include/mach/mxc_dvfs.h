@@ -228,12 +228,11 @@ struct mxc_dvfsper_data {
  * This structure is used to define the platform data of bus freq
  * driver. It includes the regulator name strings.
  */
-
-struct mxc_bus_freq_platform_data {
+struct mxc_regulator_platform_data {
 	/* VDDGP regulator name */
-	char *gp_reg_id;
+	char *cpu_reg_id;
 	/* VCC regulator name */
-	char *lp_reg_id;
+	char *vcc_reg_id;
 };
 
 #if defined(CONFIG_MXC_DVFS_PER)

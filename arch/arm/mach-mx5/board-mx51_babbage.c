@@ -1,5 +1,5 @@
 /*
- * Copyright 2009-2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2009-2011 Freescale Semiconductor, Inc.
  * Copyright (C) 2009-2010 Amit Kucheria <amit.kucheria@canonical.com>
  *
  * The code contained herein is licensed under the GNU General Public
@@ -13,6 +13,7 @@
 #include <linux/init.h>
 #include <linux/clk.h>
 #include <linux/platform_device.h>
+#include <linux/regulator/consumer.h>
 #include <linux/i2c.h>
 #include <linux/gpio.h>
 #include <linux/delay.h>
@@ -32,6 +33,7 @@
 #include <mach/iomux-mx51.h>
 #include <mach/mxc_ehci.h>
 #include <mach/ipu-v3.h>
+#include <mach/mxc_dvfs.h>
 
 #include <asm/irq.h>
 #include <asm/setup.h>
@@ -80,6 +82,13 @@
 #define	MX51_USB_PLLDIV_12_MHZ		0x00
 #define	MX51_USB_PLL_DIV_19_2_MHZ	0x01
 #define	MX51_USB_PLL_DIV_24_MHZ	0x02
+
+extern char *gp_reg_id;
+extern char *lp_reg_id;
+extern struct regulator *(*get_cpu_regulator)(void);
+extern void (*put_cpu_regulator)(void);
+
+static struct regulator *cpu_regulator;
 
 static struct gpio_keys_button babbage_buttons[] = {
 	{
@@ -222,6 +231,34 @@ static iomux_v3_cfg_t mx51babbage_pads[] = {
 	MX51_PAD_OWIRE_LINE__SPDIF_OUT,
 };
 
+static struct mxc_dvfs_platform_data bbg_dvfscore_data = {
+	.reg_id = "cpu_vcc",
+	.clk1_id = "cpu_clk",
+	.clk2_id = "gpc_dvfs_clk",
+	.gpc_cntr_offset = MXC_GPC_CNTR_OFFSET,
+	.gpc_vcr_offset = MXC_GPC_VCR_OFFSET,
+	.ccm_cdcr_offset = MXC_CCM_CDCR_OFFSET,
+	.ccm_cacrr_offset = MXC_CCM_CACRR_OFFSET,
+	.ccm_cdhipr_offset = MXC_CCM_CDHIPR_OFFSET,
+	.prediv_mask = 0x1F800,
+	.prediv_offset = 11,
+	.prediv_val = 3,
+	.div3ck_mask = 0xE0000000,
+	.div3ck_offset = 29,
+	.div3ck_val = 2,
+	.emac_val = 0x08,
+	.upthr_val = 25,
+	.dnthr_val = 9,
+	.pncthr_val = 33,
+	.upcnt_val = 10,
+	.dncnt_val = 10,
+	.delay_time = 30,
+};
+
+static struct mxc_regulator_platform_data bbg_regulator_data = {
+	.cpu_reg_id = "cpu_vcc",
+};
+
 /* Serial ports */
 static const struct imxuart_platform_data uart_pdata __initconst = {
 	.flags = IMXUART_HAVE_RTSCTS,
@@ -245,11 +282,11 @@ static const struct esdhc_platform_data mx51_bbg_sd2_data __initconst = {
 	.cd_gpio = MX51_BBG_SD2_CD,
 };
 
-static void babbage_suspend_enter()
+static void babbage_suspend_enter(void)
 {
 }
 
-static void babbage_suspend_exit()
+static void babbage_suspend_exit(void)
 {
 	/*clear the EMPGC0/1 bits */
 	__raw_writel(0, MXC_SRPG_EMPGC0_SRPGCR);
@@ -480,13 +517,13 @@ static struct fsl_mxc_lcd_platform_data vga_data = {
 	.reset = vga_reset,
 };
 
-static void ddc_dvi_init()
+static void ddc_dvi_init(void)
 {
 	/* enable DVI I2C */
 	gpio_set_value(BABBAGE_DVI_I2C_EN, 1);
 }
 
-static int ddc_dvi_update()
+static int ddc_dvi_update(void)
 {
 	/* DVI cable state */
 	if (gpio_get_value(BABBAGE_DVI_DET) == 1)
@@ -525,6 +562,20 @@ static struct i2c_board_info mxc_i2c_hs_board_info[] __initdata = {
 
 static struct mxc_gpu_platform_data gpu_data __initdata;
 
+static struct regulator *mx51_bbg_get_cpu_regulator(void)
+{
+	if (cpu_regulator == NULL)
+		cpu_regulator = regulator_get(NULL, gp_reg_id);
+	return cpu_regulator;
+}
+
+static void mx51_bbg_put_cpu_regulator(void)
+{
+	if (cpu_regulator != NULL)
+		regulator_put(cpu_regulator);
+	cpu_regulator = NULL;
+}
+
 static void __init fixup_mxc_board(struct machine_desc *desc, struct tag *tags,
 				   char **cmdline, struct meminfo *mi)
 {
@@ -535,6 +586,9 @@ static void __init fixup_mxc_board(struct machine_desc *desc, struct tag *tags,
 	int gpu_mem = SZ_64M;
 	int fb_mem = 0;
 	char *str;
+
+	get_cpu_regulator = mx51_bbg_get_cpu_regulator;
+	put_cpu_regulator = mx51_bbg_put_cpu_regulator;
 
 	for_each_tag(mem_tag, tags) {
 		if (mem_tag->hdr.tag == ATAG_MEM) {
@@ -640,6 +694,9 @@ static void __init mx51_babbage_init(void)
 
 	mxc_iomux_v3_setup_multiple_pads(mx51babbage_pads,
 					ARRAY_SIZE(mx51babbage_pads));
+
+	gp_reg_id = bbg_regulator_data.cpu_reg_id;
+	lp_reg_id = bbg_regulator_data.vcc_reg_id;
 
 	mxc_spdif_data.spdif_core_clk = clk_get(NULL, "spdif_xtal_clk");
 	clk_put(mxc_spdif_data.spdif_core_clk);
@@ -766,6 +823,8 @@ static void __init mx51_babbage_init(void)
 	mxc_register_device(&bbg_audio_device, &bbg_audio_data);
 	imx51_add_imx_ssi(1, &bbg_ssi_pdata);
 
+	imx51_add_dvfs_core(&bbg_dvfscore_data);
+	imx51_add_busfreq();
 }
 
 static void __init mx51_babbage_timer_init(void)
