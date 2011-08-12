@@ -20,6 +20,7 @@
  * Based on STMP378X PxP driver
  * Copyright 2008-2009 Embedded Alley Solutions, Inc All Rights Reserved.
  */
+
 #include <linux/dma-mapping.h>
 #include <linux/init.h>
 #include <linux/interrupt.h>
@@ -429,9 +430,16 @@ static void pxp_set_lut(struct pxps *pxp)
 	int lut_op = pxp_conf->proc_data.lut_transform;
 	u32 reg_val;
 	int i;
+	bool use_cmap = (lut_op & PXP_LUT_USE_CMAP) ? true : false;
+	u8 *cmap = pxp_conf->proc_data.lut_map;
+	u32 entry_src;
 
-	/* If LUT already configured as needed, return */
-	if (pxp->lut_state == lut_op)
+	/*
+	 * If LUT already configured as needed, return...
+	 * Unless CMAP is needed and it has been updated.
+	 */
+	if ((pxp->lut_state == lut_op) &&
+		!(use_cmap && pxp_conf->proc_data.lut_map_updated))
 		return;
 
 	if (lut_op == PXP_LUT_NONE) {
@@ -449,11 +457,12 @@ static void pxp_set_lut(struct pxps *pxp)
 			reg_val =
 			    __raw_readl(pxp->base +
 					HW_PXP_LUT_CTRL) & BM_PXP_LUT_CTRL_ADDR;
-			reg_val = (reg_val < 0x80) ? 0x00 : 0xFF;
+			entry_src = use_cmap ? cmap[i] : reg_val;
+			reg_val = (entry_src < 0x80) ? 0x00 : 0xFF;
 			reg_val = ~reg_val & BM_PXP_LUT_DATA;
 			__raw_writel(reg_val, pxp->base + HW_PXP_LUT);
 		}
-	} else if (lut_op == PXP_LUT_INVERT) {
+	} else if ((lut_op & PXP_LUT_INVERT) != 0) {
 		/* Fill out LUT table with 8-bit inverted values */
 
 		/* Initialize LUT address to 0 and clear bypass bit */
@@ -464,10 +473,11 @@ static void pxp_set_lut(struct pxps *pxp)
 			reg_val =
 			    __raw_readl(pxp->base +
 					HW_PXP_LUT_CTRL) & BM_PXP_LUT_CTRL_ADDR;
-			reg_val = ~reg_val & BM_PXP_LUT_DATA;
+			entry_src = use_cmap ? cmap[i] : reg_val;
+			reg_val = ~entry_src & BM_PXP_LUT_DATA;
 			__raw_writel(reg_val, pxp->base + HW_PXP_LUT);
 		}
-	} else if (lut_op == PXP_LUT_BLACK_WHITE) {
+	} else if ((lut_op & PXP_LUT_BLACK_WHITE) != 0) {
 		/* Fill out LUT table with 8-bit monochromized values */
 
 		/* Initialize LUT address to 0 and clear bypass bit */
@@ -478,8 +488,20 @@ static void pxp_set_lut(struct pxps *pxp)
 			reg_val =
 			    __raw_readl(pxp->base +
 					HW_PXP_LUT_CTRL) & BM_PXP_LUT_CTRL_ADDR;
-			reg_val = (reg_val < 0x80) ? 0xFF : 0x00;
-			reg_val = ~reg_val & BM_PXP_LUT_DATA;
+			entry_src = use_cmap ? cmap[i] : reg_val;
+			reg_val = (entry_src < 0x80) ? 0x00 : 0xFF;
+			reg_val = reg_val & BM_PXP_LUT_DATA;
+			__raw_writel(reg_val, pxp->base + HW_PXP_LUT);
+		}
+	} else if (use_cmap) {
+		/* Fill out LUT table using colormap values */
+
+		/* Initialize LUT address to 0 and clear bypass bit */
+		__raw_writel(0, pxp->base + HW_PXP_LUT_CTRL);
+
+		/* LUT address pointer auto-increments after each data write */
+		for (i = 0; i < 256; i++) {
+			reg_val = cmap[i] & BM_PXP_LUT_DATA;
 			__raw_writel(reg_val, pxp->base + HW_PXP_LUT);
 		}
 	}

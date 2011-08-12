@@ -942,9 +942,11 @@ static void epdc_init_sequence(struct mxc_epdc_fb_data *fb_data)
 	epdc_init_settings(fb_data);
 	__raw_writel(fb_data->waveform_buffer_phys, EPDC_WVADDR);
 	__raw_writel(fb_data->working_buffer_phys, EPDC_WB_ADDR);
+	fb_data->in_init = true;
 	epdc_powerup(fb_data);
 	draw_mode0(fb_data);
 	epdc_powerdown(fb_data);
+	fb_data->updates_active = false;
 }
 
 static int mxc_epdc_fb_mmap(struct fb_info *info, struct vm_area_struct *vma)
@@ -977,51 +979,100 @@ static int mxc_epdc_fb_mmap(struct fb_info *info, struct vm_area_struct *vma)
 	return 0;
 }
 
+static inline u_int _chan_to_field(u_int chan, struct fb_bitfield *bf)
+{
+	chan &= 0xffff;
+	chan >>= 16 - bf->length;
+	return chan << bf->offset;
+}
+
 static int mxc_epdc_fb_setcolreg(u_int regno, u_int red, u_int green,
 				 u_int blue, u_int transp, struct fb_info *info)
 {
-	if (regno >= 256)	/* no. of hw registers */
-		return 1;
+	unsigned int val;
+	int ret = 1;
+
 	/*
-	 * Program hardware... do anything you want with transp
+	 * If greyscale is true, then we convert the RGB value
+	 * to greyscale no matter what visual we are using.
 	 */
-
-	/* grayscale works only partially under directcolor */
-	if (info->var.grayscale) {
-		/* grayscale = 0.30*R + 0.59*G + 0.11*B */
-		red = green = blue = (red * 77 + green * 151 + blue * 28) >> 8;
-	}
-
-#define CNVT_TOHW(val, width) ((((val)<<(width))+0x7FFF-(val))>>16)
+	if (info->var.grayscale)
+		red = green = blue = (19595 * red + 38470 * green +
+				      7471 * blue) >> 16;
 	switch (info->fix.visual) {
 	case FB_VISUAL_TRUECOLOR:
-	case FB_VISUAL_PSEUDOCOLOR:
-		red = CNVT_TOHW(red, info->var.red.length);
-		green = CNVT_TOHW(green, info->var.green.length);
-		blue = CNVT_TOHW(blue, info->var.blue.length);
-		transp = CNVT_TOHW(transp, info->var.transp.length);
+		/*
+		 * 16-bit True Colour.  We encode the RGB value
+		 * according to the RGB bitfield information.
+		 */
+		if (regno < 16) {
+			u32 *pal = info->pseudo_palette;
+
+			val = _chan_to_field(red, &info->var.red);
+			val |= _chan_to_field(green, &info->var.green);
+			val |= _chan_to_field(blue, &info->var.blue);
+
+			pal[regno] = val;
+			ret = 0;
+		}
 		break;
-	case FB_VISUAL_DIRECTCOLOR:
-		red = CNVT_TOHW(red, 8);	/* expect 8 bit DAC */
-		green = CNVT_TOHW(green, 8);
-		blue = CNVT_TOHW(blue, 8);
-		/* hey, there is bug in transp handling... */
-		transp = CNVT_TOHW(transp, 8);
+
+	case FB_VISUAL_STATIC_PSEUDOCOLOR:
+	case FB_VISUAL_PSEUDOCOLOR:
 		break;
 	}
-#undef CNVT_TOHW
-	/* Truecolor has hardware independent palette */
-	if (info->fix.visual == FB_VISUAL_TRUECOLOR) {
 
-		if (regno >= 16)
+	return ret;
+}
+
+static int mxc_epdc_fb_setcmap(struct fb_cmap *cmap, struct fb_info *info)
+{
+	int count, index, r;
+	u16 *red, *green, *blue, *transp;
+	u16 trans = 0xffff;
+	struct mxc_epdc_fb_data *fb_data = (struct mxc_epdc_fb_data *)info;
+	int i;
+
+	dev_dbg(fb_data->dev, "setcmap\n");
+
+	if (info->fix.visual == FB_VISUAL_STATIC_PSEUDOCOLOR) {
+		/* Only support an 8-bit, 256 entry lookup */
+		if (cmap->len != 256)
 			return 1;
 
-		((u32 *) (info->pseudo_palette))[regno] =
-		    (red << info->var.red.offset) |
-		    (green << info->var.green.offset) |
-		    (blue << info->var.blue.offset) |
-		    (transp << info->var.transp.offset);
+		mxc_epdc_fb_flush_updates(fb_data);
+
+		mutex_lock(&fb_data->pxp_mutex);
+		/*
+		 * Store colormap in pxp_conf structure for later transmit
+		 * to PxP during update process to convert gray pixels.
+		 *
+		 * Since red=blue=green for pseudocolor visuals, we can
+		 * just use red values.
+		 */
+		for (i = 0; i < 256; i++)
+			fb_data->pxp_conf.proc_data.lut_map[i] = cmap->red[i] & 0xFF;
+
+		fb_data->pxp_conf.proc_data.lut_map_updated = true;
+
+		mutex_unlock(&fb_data->pxp_mutex);
+	} else {
+		red     = cmap->red;
+		green   = cmap->green;
+		blue    = cmap->blue;
+		transp  = cmap->transp;
+		index   = cmap->start;
+
+		for (count = 0; count < cmap->len; count++) {
+			if (transp)
+				trans = *transp++;
+			r = mxc_epdc_fb_setcolreg(index++, *red++, *green++, *blue++,
+						trans, info);
+			if (r != 0)
+				return r;
+		}
 	}
+
 	return 0;
 }
 
@@ -1798,6 +1849,10 @@ static int epdc_process_update(struct update_data_list *upd_data_list,
 	if (upd_desc_list->upd_data.flags & EPDC_FLAG_FORCE_MONOCHROME)
 		fb_data->pxp_conf.proc_data.lut_transform |=
 			PXP_LUT_BLACK_WHITE;
+	if (upd_desc_list->upd_data.flags & EPDC_FLAG_USE_CMAP) {
+		fb_data->pxp_conf.proc_data.lut_transform |=
+			PXP_LUT_USE_CMAP;
+	}
 
 	/*
 	 * Toggle inversion processing if 8-bit
@@ -2697,6 +2752,10 @@ static void mxc_epdc_fb_deferred_io(struct fb_info *info,
 void mxc_epdc_fb_flush_updates(struct mxc_epdc_fb_data *fb_data)
 {
 	int ret;
+
+	if (fb_data->in_init)
+		return;
+
 	/* Grab queue lock to prevent any new updates from being submitted */
 	mutex_lock(&fb_data->queue_mutex);
 
@@ -2838,6 +2897,7 @@ static struct fb_ops mxc_epdc_fb_ops = {
 	.owner = THIS_MODULE,
 	.fb_check_var = mxc_epdc_fb_check_var,
 	.fb_set_par = mxc_epdc_fb_set_par,
+	.fb_setcmap = mxc_epdc_fb_setcmap,
 	.fb_setcolreg = mxc_epdc_fb_setcolreg,
 	.fb_pan_display = mxc_epdc_fb_pan_display,
 	.fb_ioctl = mxc_epdc_fb_ioctl,
@@ -3292,7 +3352,6 @@ static void draw_mode0(struct mxc_epdc_fb_data *fb_data)
 
 	epdc_working_buf_intr(true);
 	epdc_lut_complete_intr(0, true);
-	fb_data->in_init = true;
 
 	/* Use unrotated (native) width/height */
 	if ((screeninfo->rotate == FB_ROTATE_CW) ||
@@ -3932,6 +3991,7 @@ int __devinit mxc_epdc_fb_probe(struct platform_device *pdev)
 	proc_data->bgcolor = 0;
 	proc_data->overlay_state = 0;
 	proc_data->lut_transform = PXP_LUT_NONE;
+	proc_data->lut_map = NULL;
 
 	/*
 	 * We initially configure PxP for RGB->YUV conversion,
@@ -3972,6 +4032,18 @@ int __devinit mxc_epdc_fb_probe(struct platform_device *pdev)
 	pxp_conf->out_param.width = fb_data->info.var.xres;
 	pxp_conf->out_param.height = fb_data->info.var.yres;
 	pxp_conf->out_param.pixel_fmt = PXP_PIX_FMT_GREY;
+
+	/* Initialize color map for conversion of 8-bit gray pixels */
+	fb_data->pxp_conf.proc_data.lut_map = kmalloc(256, GFP_KERNEL);
+	if (fb_data->pxp_conf.proc_data.lut_map == NULL) {
+		dev_err(&pdev->dev, "Can't allocate mem for lut map!\n");
+		ret = -ENOMEM;
+		goto out_dmaengine;
+	}
+	for (i = 0; i < 256; i++)
+		fb_data->pxp_conf.proc_data.lut_map[i] = i;
+
+	fb_data->pxp_conf.proc_data.lut_map_updated = true;
 
 	/*
 	 * Ensure this is set to NULL here...we will initialize pxp_chan
@@ -4360,6 +4432,10 @@ static int pxp_complete_update(struct mxc_epdc_fb_data *fb_data, u32 *hist_stat)
 		fb_data->pxp_chan = NULL;
 		return ret ? : -ETIMEDOUT;
 	}
+
+	if ((fb_data->pxp_conf.proc_data.lut_transform & EPDC_FLAG_USE_CMAP) &&
+		fb_data->pxp_conf.proc_data.lut_map_updated)
+		fb_data->pxp_conf.proc_data.lut_map_updated = false;
 
 	*hist_stat = to_tx_desc(fb_data->txd)->hist_status;
 	dma_release_channel(&fb_data->pxp_chan->dma_chan);
