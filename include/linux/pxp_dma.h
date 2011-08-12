@@ -78,6 +78,7 @@ typedef unsigned char bool;
 #define PXP_LUT_NONE			0x0
 #define PXP_LUT_INVERT			0x1
 #define PXP_LUT_BLACK_WHITE		0x2
+#define PXP_LUT_USE_CMAP		0x4
 
 #define NR_PXP_VIRT_CHANNEL	16
 
@@ -150,6 +151,8 @@ struct pxp_proc_data {
 
 	/* LUT transformation on Y data */
 	int lut_transform;
+	u8 *lut_map; /* 256 entries */
+	bool lut_map_updated; /* Map recently changed */
 };
 
 struct pxp_config_data {
