@@ -299,9 +299,10 @@ static int mxc_gpio_direction_output(struct gpio_chip *chip,
 	return 0;
 }
 
-int __init mxc_gpio_init(struct mxc_gpio_port *port, int cnt)
+int mxc_gpio_init(struct mxc_gpio_port *port, int cnt)
 {
 	int i, j;
+	static bool initialed;
 
 	/* save for local usage */
 	mxc_gpio_ports = port;
@@ -330,8 +331,9 @@ int __init mxc_gpio_init(struct mxc_gpio_port *port, int cnt)
 
 		spin_lock_init(&port[i].lock);
 
-		/* its a serious configuration bug when it fails */
-		BUG_ON( gpiochip_add(&port[i].chip) < 0 );
+		if (!initialed)
+			/* its a serious configuration bug when it fails */
+			BUG_ON(gpiochip_add(&port[i].chip) < 0);
 
 		if (cpu_is_mx1() || cpu_is_mx3() || cpu_is_mx25() ||
 			cpu_is_mx51() || cpu_is_mx53() || cpu_is_mx6q()) {
@@ -346,7 +348,7 @@ int __init mxc_gpio_init(struct mxc_gpio_port *port, int cnt)
 			}
 		}
 	}
-
+	initialed = true;
 	if (cpu_is_mx2()) {
 		/* setup one handler for all GPIO interrupts */
 		set_irq_chained_handler(port[0].irq, mx2_gpio_irq_handler);
