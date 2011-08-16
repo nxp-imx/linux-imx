@@ -620,5 +620,11 @@ config TILE_SROM
 	  device appear much like a simple EEPROM, and knows
 	  how to partition a single ROM for multiple purposes.
 
+config MXS_VIIM
+	tristate "MXS Virtual IIM device driver"
+	depends on (ARCH_MX50 || ARCH_MX6)
+	help
+	  Support for access to MXS Virtual IIM device, most people should say N here.
+
 endmenu
 
