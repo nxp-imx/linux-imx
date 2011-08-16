@@ -61,6 +61,10 @@ extern const struct imx_otp_data imx50_otp_data __initconst;
 #define imx50_add_otp() \
 	imx_add_otp(&imx50_otp_data);
 
+extern const struct imx_viim_data imx50_viim_data  __initconst;
+#define imx50_add_viim() \
+	imx_add_viim(&imx50_viim_data)
+
 extern const struct imx_dcp_data imx50_dcp_data __initconst;
 #define imx50_add_dcp() \
 	imx_add_dcp(&imx50_dcp_data);

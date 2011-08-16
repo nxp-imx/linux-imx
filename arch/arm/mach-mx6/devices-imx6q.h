@@ -117,7 +117,11 @@ extern const struct imx_vpu_data imx6q_vpu_data __initconst;
 
 extern const struct imx_otp_data imx6q_otp_data __initconst;
 #define imx6q_add_otp() \
-	imx_add_otp(&imx6q_otp_data);
+	imx_add_otp(&imx6q_otp_data)
+
+extern const struct imx_viim_data imx6q_viim_data __initconst;
+#define imx6q_add_viim() \
+	imx_add_viim(&imx6q_viim_data)
 
 extern const struct imx_imx2_wdt_data imx6q_imx2_wdt_data[] __initconst;
 #define imx6q_add_imx2_wdt(id, pdata)   \

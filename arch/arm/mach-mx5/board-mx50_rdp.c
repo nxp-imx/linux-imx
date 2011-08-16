@@ -845,6 +845,7 @@ static void __init mx50_rdp_board_init(void)
 	imx50_add_sdhci_esdhc_imx(1, &mx50_rdp_sd2_data);
 	imx50_add_sdhci_esdhc_imx(2, &mx50_rdp_sd3_data);
 	imx50_add_otp();
+	imx50_add_viim();
 	imx50_add_dcp();
 	imx50_add_rngb();
 	imx50_add_perfmon();
