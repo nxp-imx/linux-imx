@@ -43,7 +43,7 @@ static int mx6_gic_irq_set_wake(struct irq_data *d, unsigned int enable)
 	}
 	return 0;
 }
-void __init mx6_init_irq(void)
+void mx6_init_irq(void)
 {
 	struct irq_desc *desc;
 	unsigned int i;

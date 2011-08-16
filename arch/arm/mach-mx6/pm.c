@@ -61,6 +61,7 @@ static int org_freq;
 extern int set_cpu_freq(int wp);
 #endif
 extern void mx6q_suspend(suspend_state_t state);
+extern void mx6_init_irq(void);
 static struct device *pm_dev;
 struct clk *gpc_dvfs_clk;
 
@@ -115,6 +116,7 @@ static void mx6_suspend_restore(void)
 	__raw_writel(local_timer[3], local_twd_base + LOCAL_TWD_INT_OFFSET);
 #endif
 }
+
 static int mx6_suspend_enter(suspend_state_t state)
 {
 	mx6_suspend_store();
@@ -147,8 +149,8 @@ static int mx6_suspend_enter(suspend_state_t state)
 		mx6q_suspend(state);
 
 		if (state == PM_SUSPEND_MEM) {
-			/* need to re-init gic */
-			gic_init(0, 29, gic_dist_base, gic_cpu_base);
+			/* need to re-init irq */
+			mx6_init_irq();
 
 #ifdef CONFIG_LOCAL_TIMERS
 			gic_enable_ppi(IRQ_LOCALTIMER);
