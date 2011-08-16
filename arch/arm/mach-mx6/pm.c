@@ -73,6 +73,11 @@ static void __iomem *pl310_base;
 static void __iomem *gic_dist_base;
 static void __iomem *gic_cpu_base;
 
+static void *suspend_iram_base;
+static void (*suspend_in_iram)(suspend_state_t state,
+	unsigned long iram_paddr, unsigned long suspend_iram_base) = NULL;
+static unsigned long iram_paddr, cpaddr;
+
 static u32 ccm_clpcr, scu_ctrl;
 static u32 gpc_imr[4], gpc_cpu_pup, gpc_cpu_pdn, gpc_cpu;
 static u32 local_timer[4];
@@ -144,9 +149,8 @@ static int mx6_suspend_enter(suspend_state_t state)
 		if (state == PM_SUSPEND_MEM)
 			outer_cache.disable();
 
-		/* mx6q mmdc can enter self-refresh when ARM enter wfi
-		 * , so no need to run the code in the iram */
-		mx6q_suspend(state);
+		suspend_in_iram(state, (unsigned long)iram_paddr,
+			(unsigned long)suspend_iram_base);
 
 		if (state == PM_SUSPEND_MEM) {
 			/* need to re-init irq */
@@ -262,6 +266,23 @@ static int __init pm_init(void)
 	}
 
 	suspend_set_ops(&mx6_suspend_ops);
+	/* Move suspend routine into iRAM */
+	cpaddr = (unsigned long)iram_alloc(SZ_4K, &iram_paddr);
+	/* Need to remap the area here since we want the memory region
+		 to be executable. */
+	suspend_iram_base = __arm_ioremap(iram_paddr, SZ_4K,
+					  MT_MEMORY);
+	pr_info("cpaddr = %x suspend_iram_base=%x\n",
+		(unsigned int)cpaddr, (unsigned int)suspend_iram_base);
+
+	/*
+	 * Need to run the suspend code from IRAM as the DDR needs
+	 * to be put into low power mode manually.
+	 */
+	memcpy((void *)cpaddr, mx6q_suspend, SZ_4K);
+
+	suspend_in_iram = (void *)suspend_iram_base;
+
 	cpu_clk = clk_get(NULL, "cpu_clk");
 	if (IS_ERR(cpu_clk)) {
 		printk(KERN_DEBUG "%s: failed to get cpu_clk\n", __func__);
