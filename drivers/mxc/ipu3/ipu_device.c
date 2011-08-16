@@ -324,8 +324,10 @@ static int mxc_ipu_ioctl(struct inode *inode, struct file *file,
 				if ((file->f_flags & O_NONBLOCK) &&
 					(irq_info[info.irq].irq_pending == 0))
 					return -EAGAIN;
-				wait_event_interruptible_timeout(irq_info[info.irq].waitq,
+				r = wait_event_interruptible_timeout(irq_info[info.irq].waitq,
 						(irq_info[info.irq].irq_pending != 0), 2 * HZ);
+				if (r == -ERESTARTSYS)
+					return r;
 				r = get_events(&info);
 			}
 			ret = -1;
