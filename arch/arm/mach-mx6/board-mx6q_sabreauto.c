@@ -739,6 +739,7 @@ static void __init mx6_board_init(void)
 	gpio_request(MX6Q_SABREAUTO_LDB_BACKLIGHT, "ldb-backlight");
 	gpio_direction_output(MX6Q_SABREAUTO_LDB_BACKLIGHT, 1);
 	imx6q_add_otp();
+	imx6q_add_viim();
 	imx6q_add_imx2_wdt(0, NULL);
 	imx6q_add_dma();
 	imx6q_add_gpmi(&mx6q_gpmi_nfc_platform_data);

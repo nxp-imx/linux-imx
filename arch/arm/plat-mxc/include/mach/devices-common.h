@@ -513,6 +513,13 @@ struct imx_otp_data {
 struct platform_device *__init imx_add_otp(
 		const struct imx_otp_data *data);
 
+struct imx_viim_data {
+	resource_size_t iobase;
+};
+
+struct platform_device *__init imx_add_viim(
+		const struct imx_viim_data *data);
+
 struct imx_dcp_data {
 	resource_size_t iobase;
 	resource_size_t irq1;
