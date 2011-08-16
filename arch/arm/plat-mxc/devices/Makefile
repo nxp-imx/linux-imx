@@ -37,6 +37,7 @@ obj-$(CONFIG_IMX_HAVE_PLATFORM_AHCI) +=  platform-ahci-imx.o
 obj-$(CONFIG_IMX_HAVE_PLATFORM_IMX_IIM)	+= platform-imx-iim.o
 obj-$(CONFIG_IMX_HAVE_PLATFORM_MXC_GPU) +=  platform-mxc_gpu.o
 obj-$(CONFIG_IMX_HAVE_PLATFORM_IMX_OCOTP) += platform-imx-ocotp.o
+obj-$(CONFIG_IMX_HAVE_PLATFORM_IMX_VIIM) += platform-imx-viim.o
 obj-$(CONFIG_IMX_HAVE_PLATFORM_IMX_DCP) += platform-imx-dcp.o
 obj-$(CONFIG_IMX_HAVE_PLATFORM_RANDOM_RNGC) += platform-imx-rngb.o
 obj-$(CONFIG_IMX_HAVE_PLATFORM_PERFMON) += platform-imx-perfmon.o
