@@ -190,7 +190,7 @@ static int set_otp_timing(struct mxc_otp_platform_data *otp_data)
 /* IMX5 does not need to open the bank anymore */
 static int otp_read_prepare(struct mxc_otp_platform_data *otp_data)
 {
-	return set_otp_timing();
+	return set_otp_timing(otp_data);
 }
 static int otp_read_post(struct mxc_otp_platform_data *otp_data)
 {
@@ -202,7 +202,7 @@ static int otp_write_prepare(struct mxc_otp_platform_data *otp_data)
 	int ret = 0;
 
 	/* [1] set timing */
-	ret = set_otp_timing();
+	ret = set_otp_timing(otp_data);
 	if (ret)
 		return ret;
 
