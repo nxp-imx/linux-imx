@@ -84,7 +84,7 @@ static struct mxc_gpio_port mxc_gpio_ports[] = {
 	},
 };
 
-int __init mx6q_register_gpios(void)
+int mx6q_register_gpios(void)
 {
 	/* 7 ports for Mx6 */
 	return mxc_gpio_init(mxc_gpio_ports, 7);
