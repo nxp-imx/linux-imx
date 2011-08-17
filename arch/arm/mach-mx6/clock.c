@@ -36,6 +36,7 @@
 #define __INIT_CLK_DEBUG(n)
 #endif
 
+extern int mxc_jtag_enabled;
 void __iomem *apll_base;
 static struct clk pll1_sys_main_clk;
 static struct clk pll2_528_bus_main_clk;
@@ -4132,14 +4133,31 @@ int __init mx6_clocks_init(unsigned long ckil, unsigned long osc,
 	/* set the NAND to 11MHz. Too fast will cause dma timeout. */
 	clk_set_rate(&enfc_clk, enfc_clk.round_rate(&enfc_clk, 11000000));
 
-	/* Make sure all clocks are ON initially */
-	__raw_writel(0xFFFFFFFF, MXC_CCM_CCGR0);
-	__raw_writel(0xFFFFFFFF, MXC_CCM_CCGR1);
-	__raw_writel(0xFFFFFFFF, MXC_CCM_CCGR2);
-	__raw_writel(0xFFFFFFFF, MXC_CCM_CCGR3);
-	__raw_writel(0xFFFFFFFF, MXC_CCM_CCGR4);
-	__raw_writel(0xFFFFFFFF, MXC_CCM_CCGR5);
-	__raw_writel(0xFFFFFFFF, MXC_CCM_CCGR6);
+	/* Gate off all possible clocks */
+	if (mxc_jtag_enabled) {
+		__raw_writel(3 << MXC_CCM_CCGRx_CG11_OFFSET |
+			     3 << MXC_CCM_CCGRx_CG2_OFFSET |
+			     3 << MXC_CCM_CCGRx_CG1_OFFSET |
+			     3 << MXC_CCM_CCGRx_CG0_OFFSET, MXC_CCM_CCGR0);
+	} else {
+		__raw_writel(3 << MXC_CCM_CCGRx_CG2_OFFSET |
+			     3 << MXC_CCM_CCGRx_CG1_OFFSET |
+			     3 << MXC_CCM_CCGRx_CG0_OFFSET, MXC_CCM_CCGR0);
+	}
+	__raw_writel(3 << MXC_CCM_CCGRx_CG10_OFFSET, MXC_CCM_CCGR1);
+	__raw_writel(3 << MXC_CCM_CCGRx_CG10_OFFSET |
+		     3 << MXC_CCM_CCGRx_CG9_OFFSET |
+		     3 << MXC_CCM_CCGRx_CG8_OFFSET, MXC_CCM_CCGR2);
+	__raw_writel(3 << MXC_CCM_CCGRx_CG14_OFFSET |
+		     3 << MXC_CCM_CCGRx_CG13_OFFSET |
+		     3 << MXC_CCM_CCGRx_CG12_OFFSET |
+		     3 << MXC_CCM_CCGRx_CG11_OFFSET |
+		     3 << MXC_CCM_CCGRx_CG10_OFFSET, MXC_CCM_CCGR3);
+	__raw_writel(3 << MXC_CCM_CCGRx_CG7_OFFSET |
+		     3 << MXC_CCM_CCGRx_CG4_OFFSET, MXC_CCM_CCGR4);
+	__raw_writel(3 << MXC_CCM_CCGRx_CG3_OFFSET |
+		     3 << MXC_CCM_CCGRx_CG0_OFFSET, MXC_CCM_CCGR5);
+	__raw_writel(0, MXC_CCM_CCGR6);
 
 	base = ioremap(GPT_BASE_ADDR, SZ_4K);
 	mxc_timer_init(&gpt_clk[0], base, MXC_INT_GPT);
