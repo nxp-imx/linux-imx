@@ -2010,22 +2010,10 @@ static void port_change_irq(struct fsl_udc *udc)
 /* Process suspend interrupt */
 static void suspend_irq(struct fsl_udc *udc)
 {
-	u32 otgsc = 0;
-
 	pr_debug("%s begins\n", __func__);
 
 	udc->resume_state = udc->usb_state;
 	udc->usb_state = USB_STATE_SUSPENDED;
-
-	/* Set discharge vbus */
-	otgsc = fsl_readl(&dr_regs->otgsc);
-	otgsc &= ~(OTGSC_INTSTS_MASK);
-	otgsc |= OTGSC_CTRL_VBUS_DISCHARGE;
-	fsl_writel(otgsc, &dr_regs->otgsc);
-
-	/* discharge in work queue */
-	cancel_delayed_work(&udc->gadget_delay_work);
-	schedule_delayed_work(&udc->gadget_delay_work, msecs_to_jiffies(20));
 
 	/* report suspend to the driver, serial.c does not support this */
 	if (udc->driver->suspend)
@@ -2116,20 +2104,6 @@ static void fsl_gadget_event(struct work_struct *work)
 	/* close dr controller clock */
 	dr_clk_gate(false);
 	printk(KERN_DEBUG "%s: udc enter low power mode\n", __func__);
-}
-
-static void fsl_gadget_delay_event(struct work_struct *work)
-{
-	u32 otgsc = 0;
-
-	dr_clk_gate(true);
-	otgsc = fsl_readl(&dr_regs->otgsc);
-	/* clear vbus discharge */
-	if (otgsc & OTGSC_CTRL_VBUS_DISCHARGE) {
-		otgsc &= ~(OTGSC_INTSTS_MASK | OTGSC_CTRL_VBUS_DISCHARGE);
-		fsl_writel(otgsc, &dr_regs->otgsc);
-	}
-	dr_clk_gate(false);
 }
 
 /* if wakup udc, return true; else return false*/
@@ -2958,8 +2932,6 @@ static int __devinit fsl_udc_probe(struct platform_device *pdev)
 	}
 
 	INIT_WORK(&udc_controller->gadget_work, fsl_gadget_event);
-	INIT_DELAYED_WORK(&udc_controller->gadget_delay_work,
-						fsl_gadget_delay_event);
 #ifdef POSTPONE_FREE_LAST_DTD
 	last_free_td = NULL;
 #endif
