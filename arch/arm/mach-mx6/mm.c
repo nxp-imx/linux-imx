@@ -64,7 +64,7 @@ void __init mx6_map_io(void)
 	mxc_arch_reset_init(IO_ADDRESS(MX6Q_WDOG1_BASE_ADDR));
 }
 #ifdef CONFIG_CACHE_L2X0
-static int mxc_init_l2x0(void)
+int mxc_init_l2x0(void)
 {
 	unsigned int val;
 
