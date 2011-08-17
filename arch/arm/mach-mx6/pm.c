@@ -42,6 +42,10 @@
 #define GPC_IMR2_OFFSET				0x0c
 #define GPC_IMR3_OFFSET				0x10
 #define GPC_IMR4_OFFSET				0x14
+#define GPC_ISR1_OFFSET				0x18
+#define GPC_ISR2_OFFSET				0x1c
+#define GPC_ISR3_OFFSET				0x20
+#define GPC_ISR4_OFFSET				0x24
 #define GPC_PGC_CPU_PDN_OFFSET		0x2a0
 #define GPC_PGC_CPU_PUPSCR_OFFSET	0x2a4
 #define GPC_PGC_CPU_PDNSCR_OFFSET	0x2a8
@@ -63,6 +67,7 @@ extern int set_cpu_freq(int wp);
 extern void mx6q_suspend(suspend_state_t state);
 extern void mx6_init_irq(void);
 extern int mxc_init_l2x0(void);
+extern unsigned int gpc_wake_irq[4];
 static struct device *pm_dev;
 struct clk *gpc_dvfs_clk;
 
@@ -72,6 +77,7 @@ static void __iomem *src_base;
 static void __iomem *local_twd_base;
 static void __iomem *gic_dist_base;
 static void __iomem *gic_cpu_base;
+static void __iomem *uart4_base;
 
 static void *suspend_iram_base;
 static void (*suspend_in_iram)(suspend_state_t state,
@@ -124,6 +130,25 @@ static void mx6_suspend_restore(void)
 
 static int mx6_suspend_enter(suspend_state_t state)
 {
+	unsigned int wake_irq_isr[4];
+
+	wake_irq_isr[0] = __raw_readl(gpc_base +
+			GPC_ISR1_OFFSET) & gpc_wake_irq[0];
+	wake_irq_isr[1] = __raw_readl(gpc_base +
+			GPC_ISR1_OFFSET) & gpc_wake_irq[1];
+	wake_irq_isr[2] = __raw_readl(gpc_base +
+			GPC_ISR1_OFFSET) & gpc_wake_irq[2];
+	wake_irq_isr[3] = __raw_readl(gpc_base +
+			GPC_ISR1_OFFSET) & gpc_wake_irq[3];
+	if (wake_irq_isr[0] | wake_irq_isr[1] |
+			wake_irq_isr[2] | wake_irq_isr[3]) {
+		printk(KERN_INFO "There are wakeup irq pending,system resume!\n");
+		printk(KERN_INFO "wake_irq_isr[0-3]: 0x%x, 0x%x, 0x%x, 0x%x\n",
+				wake_irq_isr[0], wake_irq_isr[1],
+				wake_irq_isr[2], wake_irq_isr[3]);
+		return 0;
+	}
+
 	mx6_suspend_store();
 
 	switch (state) {
@@ -259,6 +284,7 @@ static int __init pm_init(void)
 	gic_dist_base = IO_ADDRESS(IC_DISTRIBUTOR_BASE_ADDR);
 	gic_cpu_base = IO_ADDRESS(IC_INTERFACES_BASE_ADDR);
 	local_twd_base = IO_ADDRESS(LOCAL_TWD_ADDR);
+	uart4_base = IO_ADDRESS(0x21f0000);
 
 	pr_info("Static Power Management for Freescale i.MX6\n");
 
