@@ -62,6 +62,7 @@ extern int set_cpu_freq(int wp);
 #endif
 extern void mx6q_suspend(suspend_state_t state);
 extern void mx6_init_irq(void);
+extern int mxc_init_l2x0(void);
 static struct device *pm_dev;
 struct clk *gpc_dvfs_clk;
 
@@ -69,7 +70,6 @@ static void __iomem *scu_base;
 static void __iomem *gpc_base;
 static void __iomem *src_base;
 static void __iomem *local_twd_base;
-static void __iomem *pl310_base;
 static void __iomem *gic_dist_base;
 static void __iomem *gic_cpu_base;
 
@@ -143,12 +143,13 @@ static int mx6_suspend_enter(suspend_state_t state)
 
 		local_flush_tlb_all();
 		flush_cache_all();
+#ifdef CONFIG_CACHE_L2X0
 		outer_cache.flush_all();
 
 		/* for dormant mode, we need to disable l2 cache */
 		if (state == PM_SUSPEND_MEM)
 			outer_cache.disable();
-
+#endif
 		suspend_in_iram(state, (unsigned long)iram_paddr,
 			(unsigned long)suspend_iram_base);
 
@@ -168,8 +169,10 @@ static int mx6_suspend_enter(suspend_state_t state)
 					(MXC_INT_GPT / 32) * 4);
 
 			flush_cache_all();
+#ifdef CONFIG_CACHE_L2X0
 			/* init l2 cache, pl310 */
-			l2x0_init(pl310_base, 0x0, ~0x00000000);
+			mxc_init_l2x0();
+#endif
 		}
 
 		mx6_suspend_restore();
@@ -253,7 +256,6 @@ static int __init pm_init(void)
 	scu_base = IO_ADDRESS(SCU_BASE_ADDR);
 	gpc_base = IO_ADDRESS(GPC_BASE_ADDR);
 	src_base = IO_ADDRESS(SRC_BASE_ADDR);
-	pl310_base = IO_ADDRESS(L2_BASE_ADDR);
 	gic_dist_base = IO_ADDRESS(IC_DISTRIBUTOR_BASE_ADDR);
 	gic_cpu_base = IO_ADDRESS(IC_INTERFACES_BASE_ADDR);
 	local_twd_base = IO_ADDRESS(LOCAL_TWD_ADDR);
