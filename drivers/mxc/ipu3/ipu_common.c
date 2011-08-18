@@ -236,7 +236,7 @@ static int _ipu_pixel_clk_set_parent(struct clk *clk, struct clk *parent)
 #else
 #define __INIT_CLK_DEBUG(n)
 #endif
-static int __devinit ipu_clk_setup(struct ipu_soc *ipu,
+static int __devinit ipu_clk_setup_enable(struct ipu_soc *ipu,
 		struct platform_device *pdev)
 {
 	struct imx_ipuv3_platform_data *plat_data = pdev->dev.platform_data;
@@ -297,6 +297,8 @@ static int __devinit ipu_clk_setup(struct ipu_soc *ipu,
 
 	clk_debug_register(&ipu->pixel_clk[0]);
 	clk_debug_register(&ipu->pixel_clk[1]);
+
+	clk_enable(ipu->ipu_clk);
 
 	clk_set_parent(&ipu->pixel_clk[0], ipu->ipu_clk);
 	clk_set_parent(&ipu->pixel_clk[1], ipu->ipu_clk);
@@ -596,13 +598,11 @@ static int __devinit ipu_probe(struct platform_device *pdev)
 	dev_dbg(ipu->dev, "IPU Display Region 1 Mem = %p\n", ipu->disp_base[1]);
 	dev_dbg(ipu->dev, "IPU VDI Regs = %p\n", ipu->vdi_reg);
 
-	ret = ipu_clk_setup(ipu, pdev);
+	ret = ipu_clk_setup_enable(ipu, pdev);
 	if (ret < 0) {
 		dev_err(ipu->dev, "ipu clk setup failed\n");
 		goto failed_clk_setup;
 	}
-
-	clk_enable(ipu->ipu_clk);
 
 	platform_set_drvdata(pdev, ipu);
 
