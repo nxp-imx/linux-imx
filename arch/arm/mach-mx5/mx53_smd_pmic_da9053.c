@@ -261,16 +261,21 @@ static void da9052_init_ssc_cache(struct da9052 *da9052)
 
 
 #define MX53_SMD_DA9052_IRQ			(6*32 + 11)	/* GPIO7_11 */
-
+#define DA9052_BACKUPCHARGER_ISET   (0xfe)
 static int __init smd_da9052_init(struct da9052 *da9052)
 {
 	/* Configuring for DA9052 interrupt servce */
-	/* s3c_gpio_setpull(DA9052_IRQ_PIN, S3C_GPIO_PULL_UP);*/
 	int ret;
+	struct da9052_ssc_msg ssc_msg;
+
 	/* Set interrupt as LOW LEVEL interrupt source */
 	set_irq_type(gpio_to_irq(MX53_SMD_DA9052_IRQ), IRQF_TRIGGER_LOW);
 
 	da9052_init_ssc_cache(da9052);
+	ssc_msg.addr = DA9052_BBATCONT_REG;
+	/* enable 6mA/3V Backup battery charger */
+	ssc_msg.data = DA9052_BACKUPCHARGER_ISET;
+	da9052->write(da9052, &ssc_msg);
 	ret = platform_device_register(&wifi_bt_reg_device);
 
 	return 0;
