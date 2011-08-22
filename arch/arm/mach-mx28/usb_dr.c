@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2009-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -31,6 +31,12 @@
 #include "mx28_pins.h"
 #define USB_POWER_ENABLE MXS_PIN_TO_GPIO(PINID_AUART2_TX)
 
+#ifdef CONFIG_WORKAROUND_ARCUSB_REG_RW
+static void fsl_safe_writel(u32 val32, volatile u32 *addr)
+{
+	__asm__ ("swp %0, %0, [%1]" : : "r"(val32), "r"(addr));
+}
+#endif
 extern int clk_get_usecount(struct clk *clk);
 static struct clk *usb_clk;
 static struct clk *usb_phy_clk;
@@ -142,7 +148,7 @@ static void enter_phy_lowpower_suspend(struct fsl_usb2_platform_data *pdata, boo
 	if (enable) {
 		tmp = __raw_readl(usb_reg + UOG_PORTSC1);
 		tmp |= PORTSC_PHCD;
-		__raw_writel(tmp, usb_reg + UOG_PORTSC1);
+		fsl_safe_writel(tmp, usb_reg + UOG_PORTSC1);
 
 		pr_debug("%s, Poweroff UTMI \n", __func__);
 
@@ -170,7 +176,7 @@ static void enter_phy_lowpower_suspend(struct fsl_usb2_platform_data *pdata, boo
 
 		tmp = __raw_readl(usb_reg + UOG_PORTSC1);
 		tmp &= ~PORTSC_PHCD;
-		__raw_writel(tmp, usb_reg + UOG_PORTSC1);
+		fsl_safe_writel(tmp, usb_reg + UOG_PORTSC1);
 	}
 }
 
@@ -307,7 +313,7 @@ static bool _is_host_wakeup(struct fsl_usb2_platform_data *pdata)
 		pr_debug("otg host ID wakeup\n");
 		/* if host ID wakeup, we must clear the b session change sts */
 		__raw_writel(wakeup_irq_bits, phy_reg + HW_USBPHY_CTRL_CLR);
-		__raw_writel(otgsc & (~OTGSC_IS_USB_ID), usb_reg + UOG_OTGSC);
+		fsl_safe_writel(otgsc & (~OTGSC_IS_USB_ID), usb_reg + UOG_OTGSC);
 		return true;
 	}
 	if (wakeup_req /*&& (!((otgsc & OTGSC_IS_B_SESSION_VALID)))*/ && (!((otgsc & OTGSC_STS_USB_ID)))) {

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2009-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -48,6 +48,12 @@
 #include <linux/io.h>
 #define MXC_NUMBER_USB_TRANSCEIVER 6
 struct fsl_xcvr_ops *g_xc_ops[MXC_NUMBER_USB_TRANSCEIVER] = { NULL };
+#ifdef CONFIG_WORKAROUND_ARCUSB_REG_RW
+static void fsl_safe_writel(u32 val32, volatile u32 *addr)
+{
+	__asm__ ("swp %0, %0, [%1]" : : "r"(val32), "r"(addr));
+}
+#endif
 
 void fsl_usb_xcvr_register(struct fsl_xcvr_ops *xcvr_ops)
 {
@@ -228,12 +234,12 @@ int usb_phy_enable(struct fsl_usb2_platform_data *pdata)
 	usbcmd = usb_reg + UOG_USBCMD;
 	tmp = __raw_readl(usbcmd); /* usb command */
 	tmp &= ~UCMD_RUN_STOP;
-	__raw_writel(tmp, usbcmd);
+	fsl_safe_writel(tmp, usbcmd);
 	while (__raw_readl(usbcmd) & UCMD_RUN_STOP)
 		;
 
 	tmp |= UCMD_RESET;
-	__raw_writel(tmp, usbcmd);
+	fsl_safe_writel(tmp, usbcmd);
 	while (__raw_readl(usbcmd) & UCMD_RESET)
 		;
 	mdelay(10);
@@ -263,7 +269,7 @@ int usb_phy_enable(struct fsl_usb2_platform_data *pdata)
 	tmp = __raw_readl(portsc);
 	tmp &=  ~PORTSC_PTS_MASK;
 	tmp |= (PORTSC_PTS_UTMI | PORTSC_PTW);
-	__raw_writel(tmp, portsc);
+	fsl_safe_writel(tmp, portsc);
 
 	/* Power up the PHY */
 	__raw_writel(0, phy_reg + HW_USBPHY_PWD);

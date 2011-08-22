@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2009-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -39,6 +39,12 @@ static void usb_host_phy_resume(struct fsl_usb2_platform_data *plat)
 }
 
 static int internal_phy_clk_already_on;
+#ifdef CONFIG_WORKAROUND_ARCUSB_REG_RW
+static void fsl_safe_writel(u32 val32, volatile u32 *addr)
+{
+	__asm__ ("swp %0, %0, [%1]" : : "r"(val32), "r"(addr));
+}
+#endif
 static void usbh1_internal_phy_clock_gate(bool on)
 {
 	u32 tmp;
@@ -89,7 +95,9 @@ static void usbh1_clock_gate(bool on)
 	if (on) {
 		clk_enable(usb_clk);
 		clk_enable(usb_phy_clk);
+		usbh1_internal_phy_clock_gate(on);
 	} else {
+		usbh1_internal_phy_clock_gate(on);
 		clk_disable(usb_phy_clk);
 		clk_disable(usb_clk);
 	}
@@ -134,7 +142,7 @@ static void _phy_lowpower_suspend(struct fsl_usb2_platform_data *pdata, bool ena
 	if (enable) {
 		tmp = __raw_readl(usb_reg + UOG_PORTSC1);
 		tmp |= PORTSC_PHCD;
-		__raw_writel(tmp, usb_reg + UOG_PORTSC1);
+		fsl_safe_writel(tmp, usb_reg + UOG_PORTSC1);
 
 		pr_debug("%s, Poweroff UTMI \n", __func__);
 
@@ -162,7 +170,7 @@ static void _phy_lowpower_suspend(struct fsl_usb2_platform_data *pdata, bool ena
 
 		tmp = __raw_readl(usb_reg + UOG_PORTSC1);
 		tmp &= ~PORTSC_PHCD;
-		__raw_writel(tmp, usb_reg + UOG_PORTSC1);
+		fsl_safe_writel(tmp, usb_reg + UOG_PORTSC1);
 	}
 }
 
