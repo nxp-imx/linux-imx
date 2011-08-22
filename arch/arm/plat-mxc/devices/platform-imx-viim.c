@@ -39,7 +39,7 @@ struct platform_device *__init imx_add_viim(
 		},
 	};
 
-	return imx_add_platform_device("mxs-viim", 0,
+	return imx_add_platform_device("mxs_viim", 0,
 			res, ARRAY_SIZE(res), NULL, 0);
 }
 
