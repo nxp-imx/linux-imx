@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2010-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -668,6 +668,7 @@ static const struct file_operations mxs_dma_proc_info_ops = {
 
 static int __init mxs_dmaengine_info_init(void)
 {
+#if defined(CONFIG_MXS_DMA_ENGINE)
 	struct proc_dir_entry *res;
 	res = create_proc_entry("dma-engine", 0, NULL);
 	if (!res) {
@@ -675,6 +676,7 @@ static int __init mxs_dmaengine_info_init(void)
 		return -ENOMEM;
 	}
 	res->proc_fops = &mxs_dma_proc_info_ops;
+#endif
 	return 0;
 }
 
