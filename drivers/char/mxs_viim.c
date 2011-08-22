@@ -150,7 +150,7 @@ static int mxs_viim_remove(struct platform_device *pdev)
 static struct platform_driver mxs_viim_driver = {
 	.driver = {
 		   .owner = THIS_MODULE,
-		   .name = "imx_viim",
+		   .name = "mxs_viim",
 		   },
 	.probe = mxs_viim_probe,
 	.remove = mxs_viim_remove,
