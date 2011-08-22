@@ -40,11 +40,6 @@
 #include "ipu_regs.h"
 #include "ipu_param_mem.h"
 
-#ifdef CONFIG_MXC_IPU_V3H
-#define MXC_IPU_MAX_NUM	2
-#else
-#define MXC_IPU_MAX_NUM	1
-#endif
 static struct ipu_soc ipu_array[MXC_IPU_MAX_NUM];
 int g_ipu_hw_rev;
 
@@ -624,7 +619,7 @@ static int __devinit ipu_probe(struct platform_device *pdev)
 
 	clk_disable(ipu->ipu_clk);
 
-	/*register_ipu_device();*/
+	register_ipu_device(ipu, pdev->id);
 
 	return ret;
 
@@ -658,6 +653,8 @@ failed_get_res:
 int __devexit ipu_remove(struct platform_device *pdev)
 {
 	struct ipu_soc *ipu = platform_get_drvdata(pdev);
+
+	unregister_ipu_device(ipu, pdev->id);
 
 	if (ipu->irq_sync)
 		free_irq(ipu->irq_sync, ipu);
@@ -2274,6 +2271,8 @@ int32_t ipu_disable_channel(struct ipu_soc *ipu, ipu_channel_t channel, bool wai
 				dev_err(ipu->dev, "warning: no channel busy, break\n");
 				break;
 			}
+
+			dev_err(ipu->dev, "warning: channel %d busy, need wait\n", irq);
 
 			ret = ipu_request_irq(ipu, irq, disable_chan_irq_handler, 0, NULL, &disable_comp);
 			if (ret < 0) {

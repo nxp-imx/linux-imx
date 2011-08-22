@@ -1817,7 +1817,7 @@ int32_t ipu_disp_set_window_pos(struct ipu_soc *ipu, ipu_channel_t channel,
 	uint32_t flow = 0;
 	uint32_t dp_srm_shift;
 
-	if (channel == MEM_FG_SYNC) {
+	if ((channel == MEM_FG_SYNC) || (channel == MEM_BG_SYNC)) {
 		flow = DP_SYNC;
 		dp_srm_shift = 3;
 	} else if (channel == MEM_FG_ASYNC0) {
