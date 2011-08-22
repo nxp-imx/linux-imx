@@ -201,8 +201,9 @@ struct platform_device *__init imx_add_ipuv3(
 	pdata->init = data->init;
 	pdata->pg = data->pg;
 
-	return imx_add_platform_device("imx-ipuv3", id,
-			res, ARRAY_SIZE(res), pdata, sizeof(*pdata));
+	return imx_add_platform_device_dmamask("imx-ipuv3", id,
+			res, ARRAY_SIZE(res), pdata, sizeof(*pdata),
+			DMA_BIT_MASK(32));
 }
 
 struct platform_device *__init imx_add_ipuv3_fb(
