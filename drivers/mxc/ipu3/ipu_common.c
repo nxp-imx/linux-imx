@@ -2192,6 +2192,7 @@ int32_t ipu_disable_channel(struct ipu_soc *ipu, ipu_channel_t channel, bool wai
 	uint32_t out_dma;
 	uint32_t sec_dma = NO_DMA;
 	uint32_t thrd_dma = NO_DMA;
+	uint16_t fg_pos_x, fg_pos_y;
 
 	spin_lock_irqsave(&ipu->ipu_lock, lock_flags);
 
@@ -2223,8 +2224,10 @@ int32_t ipu_disable_channel(struct ipu_soc *ipu, ipu_channel_t channel, bool wai
 
 	if ((channel == MEM_BG_SYNC) || (channel == MEM_FG_SYNC) ||
 	    (channel == MEM_DC_SYNC)) {
-		if (channel == MEM_FG_SYNC)
+		if (channel == MEM_FG_SYNC) {
+			ipu_disp_get_window_pos(ipu, channel, &fg_pos_x, &fg_pos_y);
 			ipu_disp_set_window_pos(ipu, channel, 0, 0);
+		}
 
 		_ipu_dp_dc_disable(ipu, channel, false);
 
@@ -2357,6 +2360,9 @@ int32_t ipu_disable_channel(struct ipu_soc *ipu, ipu_channel_t channel, bool wai
 		ipu_clear_buffer_ready(ipu, channel, IPU_ALPHA_IN_BUFFER, 0);
 		ipu_clear_buffer_ready(ipu, channel, IPU_ALPHA_IN_BUFFER, 1);
 	}
+
+	if (channel == MEM_FG_SYNC)
+		ipu_disp_set_window_pos(ipu, channel, fg_pos_x, fg_pos_y);
 
 	return 0;
 }
