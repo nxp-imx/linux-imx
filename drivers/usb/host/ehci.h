@@ -647,6 +647,12 @@ static inline unsigned int ehci_readl(const struct ehci_hcd *ehci,
 #endif
 }
 
+#ifdef CONFIG_WORKAROUND_ARCUSB_REG_RW
+static void fsl_safe_writel(u32 val32, volatile u32 *addr)
+{
+	__asm__ ("swp %0, %0, [%1]" : : "r"(val32), "r"(addr));
+}
+#endif
 static inline void ehci_writel(const struct ehci_hcd *ehci,
 		const unsigned int val, __u32 __iomem *regs)
 {
@@ -655,7 +661,12 @@ static inline void ehci_writel(const struct ehci_hcd *ehci,
 		writel_be(val, regs) :
 		writel(val, regs);
 #else
+
+#ifdef CONFIG_WORKAROUND_ARCUSB_REG_RW
+	fsl_safe_writel(val, regs);
+#else
 	writel(val, regs);
+#endif
 #endif
 }
 
