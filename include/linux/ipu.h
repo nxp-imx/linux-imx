@@ -35,7 +35,11 @@ typedef unsigned char bool;
 #endif
 #define irqreturn_t int
 #define dma_addr_t int
+#define uint32_t unsigned int
+#define uint16_t unsigned short
+#define uint8_t unsigned char
 #define u32 unsigned int
+#define u8 unsigned char
 #define __u32 u32
 #endif
 
@@ -936,6 +940,27 @@ void ipu_free_irq(struct ipu_soc *ipu, uint32_t irq, void *dev_id);
 bool ipu_get_irq_status(struct ipu_soc *ipu, uint32_t irq);
 void ipu_set_csc_coefficients(struct ipu_soc *ipu, ipu_channel_t channel, int32_t param[][3]);
 
+/* two stripe calculations */
+struct stripe_param{
+	unsigned int input_width; /* width of the input stripe */
+	unsigned int output_width; /* width of the output stripe */
+	unsigned int input_column; /* the first column on the input stripe */
+	unsigned int output_column; /* the first column on the output stripe */
+	unsigned int idr;
+	/* inverse downisizing ratio parameter; expressed as a power of 2 */
+	unsigned int irr;
+	/* inverse resizing ratio parameter; expressed as a multiple of 2^-13 */
+};
+int ipu_calc_stripes_sizes(const unsigned int input_frame_width,
+				unsigned int output_frame_width,
+				const unsigned int maximal_stripe_width,
+				const unsigned long long cirr,
+				const unsigned int equal_stripes,
+				u32 input_pixelformat,
+				u32 output_pixelformat,
+				struct stripe_param *left,
+				struct stripe_param *right);
+
 /* SDC API */
 int32_t ipu_sdc_init_panel(ipu_panel_t panel,
 			   uint32_t pixel_clk,
@@ -1040,260 +1065,112 @@ int32_t ipu_pf_set_pause_row(uint32_t pause_row);
 
 uint32_t bytes_per_pixel(uint32_t fmt);
 
-/* New added for IPU-lib functionality*/
-int ipu_open(void);
-int ipu_register_generic_isr(int irq, void *dev);
-void ipu_close(void);
-
-/* two stripe calculations */
-struct stripe_param{
-	unsigned int input_width; /* width of the input stripe */
-	unsigned int output_width; /* width of the output stripe */
-	unsigned int input_column; /* the first column on the input stripe */
-	unsigned int output_column; /* the first column on the output stripe */
-	unsigned int idr;
-	/* inverse downisizing ratio parameter; expressed as a power of 2 */
-	unsigned int irr;
-	/* inverse resizing ratio parameter; expressed as a multiple of 2^-13 */
+/* IPU device */
+struct ipu_pos {
+	u32 x;
+	u32 y;
 };
 
-typedef struct _ipu_stripe_parm {
-	unsigned int input_width;
-	unsigned int output_width;
-	unsigned int maximal_stripe_width;
-	unsigned long long cirr;
-	unsigned int equal_stripes;
-	u32 input_pixelformat;
-	u32 output_pixelformat;
-	struct stripe_param left;
-	struct stripe_param right;
-} ipu_stripe_parm;
+struct ipu_crop {
+	struct ipu_pos pos;
+	u32 w;
+	u32 h;
+};
 
-typedef struct _ipu_channel_parm {
-	ipu_channel_t channel;
-	ipu_channel_params_t params;
-	bool flag;
-} ipu_channel_parm;
+struct ipu_deinterlace {
+	bool	enable;
+	u8	motion; /*see ipu_motion_sel*/
+#define IPU_DEINTERLACE_FIELD_TOP	0
+#define IPU_DEINTERLACE_FIELD_BOTTOM	1
+	u8	field_fmt;
+};
 
-typedef struct _ipu_channel_buf_parm {
-	ipu_channel_t channel;
-	ipu_buffer_t type;
-	uint32_t pixel_fmt;
-	uint16_t width;
-	uint16_t height;
-	uint16_t stride;
-	ipu_rotate_mode_t rot_mode;
-	dma_addr_t phyaddr_0;
-	dma_addr_t phyaddr_1;
-	dma_addr_t phyaddr_2;
-	uint32_t u_offset;
-	uint32_t v_offset;
-	uint32_t bufNum;
-} ipu_channel_buf_parm;
-
-typedef struct _ipu_buf_offset_parm {
-	ipu_channel_t channel;
-	ipu_buffer_t type;
-	uint32_t pixel_fmt;
-	uint16_t width;
-	uint16_t height;
-	uint16_t stride;
-	uint32_t u_offset;
-	uint32_t v_offset;
-	uint32_t vertical_offset;
-	uint32_t horizontal_offset;
-} ipu_buf_offset_parm;
-
-typedef struct _ipu_channel_link {
-	ipu_channel_t src_ch;
-	ipu_channel_t dest_ch;
-} ipu_channel_link;
-
-typedef struct _ipu_channel_info {
-	ipu_channel_t channel;
-	bool stop;
-} ipu_channel_info;
-
-typedef struct ipu_irq_info {
-	uint32_t irq;
-	 irqreturn_t(*handler) (int, void *);
-	uint32_t irq_flags;
-	char *devname;
-	void *dev_id;
-} ipu_irq_info;
-
-typedef struct _ipu_sdc_panel_info {
-	ipu_panel_t panel;
-	uint32_t pixel_clk;
-	uint16_t width;
-	uint16_t height;
-	uint32_t pixel_fmt;
-	uint16_t hStartWidth;
-	uint16_t hSyncWidth;
-	uint16_t hEndWidth;
-	uint16_t vStartWidth;
-	uint16_t vSyncWidth;
-	uint16_t vEndWidth;
-	ipu_di_signal_cfg_t signal;
-} ipu_sdc_panel_info;
-
-typedef struct _ipu_sdc_window_pos {
-	ipu_channel_t channel;
-	int16_t x_pos;
-	int16_t y_pos;
-} ipu_sdc_window_pos;
-
-typedef struct _ipu_sdc_global_alpha {
-	bool enable;
-	uint8_t alpha;
-} ipu_sdc_global_alpha;
-
-typedef struct _ipu_sdc_color_key {
-	ipu_channel_t channel;
-	bool enable;
-	uint32_t colorKey;
-} ipu_sdc_color_key;
-
-typedef struct _ipu_adc_template {
-	display_port_t disp;
-	uint32_t *pCmd;
-	bool write;
-} ipu_adc_template;
-
-typedef struct _ipu_adc_update {
-	ipu_channel_t channel;
-	ipu_adc_update_mode_t mode;
-	uint32_t refresh_rate;
-	unsigned long addr;
-	uint32_t *size;
-} ipu_adc_update;
-
-typedef struct _ipu_adc_snoop {
-	uint32_t *statl;
-	uint32_t *stath;
-} ipu_adc_snoop;
-
-typedef struct _ipu_adc_cmd {
-	display_port_t disp;
-	cmddata_t type;
-	uint32_t cmd;
-	uint32_t *params;
-	uint16_t numParams;
-} ipu_adc_cmd;
-
-typedef struct _ipu_adc_panel {
-	display_port_t disp;
-	uint16_t width;
-	uint16_t height;
-	uint32_t pixel_fmt;
-	uint32_t stride;
-	ipu_adc_sig_cfg_t signal;
-	display_addressing_t addr;
-	uint32_t vsync_width;
-	vsync_t mode;
-} ipu_adc_panel;
-
-typedef struct _ipu_adc_ifc_timing {
-	display_port_t disp;
-	bool read;
-	uint32_t cycle_time;
-	uint32_t up_time;
-	uint32_t down_time;
-	uint32_t read_latch_time;
-	uint32_t pixel_clk;
-} ipu_adc_ifc_timing;
-
-typedef struct _ipu_csi_interface {
-	uint16_t width;
-	uint16_t height;
-	uint16_t pixel_fmt;
-	ipu_csi_signal_cfg_t signal;
-} ipu_csi_interface;
-
-typedef struct _ipu_csi_mclk {
-	int src;
-	bool flag;
-	bool wait;
-} ipu_csi_mclk;
-
-typedef struct _ipu_csi_window {
-	uint32_t left;
-	uint32_t top;
-} ipu_csi_window;
-
-typedef struct _ipu_csi_window_size {
-	uint32_t width;
-	uint32_t height;
-} ipu_csi_window_size;
-
-typedef struct _ipu_event_info {
-	int irq;
-	void *dev;
-} ipu_event_info;
-
-typedef struct _ipu_mem_info {
+struct ipu_input {
+	u32 width;
+	u32 height;
+	u32 format;
+	struct ipu_crop crop;
 	dma_addr_t paddr;
-	void *vaddr;
-	int size;
-} ipu_mem_info;
 
-typedef struct _ipu_csc_update {
-	ipu_channel_t channel;
-	int **param;
-} ipu_csc_update;
+	struct ipu_deinterlace deinterlace;
+	dma_addr_t paddr_n; /*valid when deinterlace enable*/
+};
+
+struct ipu_alpha {
+#define IPU_ALPHA_MODE_GLOBAL	0
+#define IPU_ALPHA_MODE_LOCAL	1
+	u8 mode;
+	u8 gvalue; /* 0~255 */
+	dma_addr_t loc_alp_paddr;
+};
+
+struct ipu_colorkey {
+	bool enable;
+	u32 value; /* RGB 24bit */
+};
+
+struct ipu_overlay {
+	u32	width;
+	u32	height;
+	u32	format;
+	struct ipu_crop crop;
+	struct ipu_alpha alpha;
+	struct ipu_colorkey colorkey;
+	dma_addr_t paddr;
+};
+
+struct ipu_output {
+	u32	width;
+	u32	height;
+	u32	format;
+	u8	rotate;
+	struct ipu_crop crop;
+	dma_addr_t paddr;
+};
+
+struct ipu_task {
+	struct ipu_input input;
+	struct ipu_output output;
+
+	bool overlay_en;
+	struct ipu_overlay overlay;
+
+#define IPU_TASK_PRIORITY_NORMAL 0
+#define IPU_TASK_PRIORITY_HIGH	1
+	u8	priority;
+
+#define	IPU_TASK_ID_ANY	0
+#define	IPU_TASK_ID_VF	1
+#define	IPU_TASK_ID_PP	2
+#define	IPU_TASK_ID_MAX 3
+	u8	task_id;
+
+	int	timeout;
+};
+
+enum {
+	IPU_CHECK_OK = 0,
+	IPU_CHECK_WARN_INPUT_OFFS_NOT8ALIGN = 0x1,
+	IPU_CHECK_WARN_OUTPUT_OFFS_NOT8ALIGN = 0x2,
+	IPU_CHECK_WARN_OVERLAY_OFFS_NOT8ALIGN = 0x4,
+	IPU_CHECK_ERR_MIN,
+	IPU_CHECK_ERR_INPUT_CROP,
+	IPU_CHECK_ERR_OUTPUT_CROP,
+	IPU_CHECK_ERR_OVERLAY_CROP,
+	IPU_CHECK_ERR_INPUT_OVER_LIMIT,
+	IPU_CHECK_ERR_OV_OUT_NO_FIT,
+	IPU_CHECK_ERR_OVERLAY_WITH_VDI,
+	IPU_CHECK_ERR_PROC_NO_NEED,
+	IPU_CHECK_ERR_SPLIT_INPUTW_OVER,
+	IPU_CHECK_ERR_SPLIT_INPUTH_OVER,
+	IPU_CHECK_ERR_SPLIT_OUTPUTW_OVER,
+	IPU_CHECK_ERR_SPLIT_OUTPUTH_OVER,
+};
 
 /* IOCTL commands */
+#define IPU_CHECK_TASK		_IOWR('I', 0x1, struct ipu_task)
+#define IPU_QUEUE_TASK		_IOW('I', 0x2, struct ipu_task)
+#define IPU_ALLOC		_IOWR('I', 0x3, int)
+#define IPU_FREE		_IOW('I', 0x4, int)
 
-#define IPU_INIT_CHANNEL              _IOW('I', 0x1, ipu_channel_parm)
-#define IPU_UNINIT_CHANNEL            _IOW('I', 0x2, ipu_channel_t)
-#define IPU_INIT_CHANNEL_BUFFER       _IOW('I', 0x3, ipu_channel_buf_parm)
-#define IPU_UPDATE_CHANNEL_BUFFER     _IOW('I', 0x4, ipu_channel_buf_parm)
-#define IPU_SELECT_CHANNEL_BUFFER     _IOW('I', 0x5, ipu_channel_buf_parm)
-#define IPU_LINK_CHANNELS             _IOW('I', 0x6, ipu_channel_link)
-#define IPU_UNLINK_CHANNELS           _IOW('I', 0x7, ipu_channel_link)
-#define IPU_ENABLE_CHANNEL            _IOW('I', 0x8, ipu_channel_t)
-#define IPU_DISABLE_CHANNEL           _IOW('I', 0x9, ipu_channel_info)
-#define IPU_ENABLE_IRQ                _IOW('I', 0xA, int)
-#define IPU_DISABLE_IRQ               _IOW('I', 0xB, int)
-#define IPU_CLEAR_IRQ                 _IOW('I', 0xC, int)
-#define IPU_FREE_IRQ                  _IOW('I', 0xD, ipu_irq_info)
-#define IPU_REQUEST_IRQ_STATUS        _IOW('I', 0xE, int)
-#define IPU_SDC_INIT_PANEL            _IOW('I', 0xF, ipu_sdc_panel_info)
-#define IPU_SDC_SET_WIN_POS           _IOW('I', 0x10, ipu_sdc_window_pos)
-#define IPU_SDC_SET_GLOBAL_ALPHA      _IOW('I', 0x11, ipu_sdc_global_alpha)
-#define IPU_SDC_SET_COLOR_KEY         _IOW('I', 0x12, ipu_sdc_color_key)
-#define IPU_SDC_SET_BRIGHTNESS        _IOW('I', 0x13, int)
-#define IPU_ADC_WRITE_TEMPLATE        _IOW('I', 0x14, ipu_adc_template)
-#define IPU_ADC_UPDATE                _IOW('I', 0x15, ipu_adc_update)
-#define IPU_ADC_SNOOP                 _IOW('I', 0x16, ipu_adc_snoop)
-#define IPU_ADC_CMD                   _IOW('I', 0x17, ipu_adc_cmd)
-#define IPU_ADC_INIT_PANEL            _IOW('I', 0x18, ipu_adc_panel)
-#define IPU_ADC_IFC_TIMING            _IOW('I', 0x19, ipu_adc_ifc_timing)
-#define IPU_CSI_INIT_INTERFACE        _IOW('I', 0x1A, ipu_csi_interface)
-#define IPU_CSI_ENABLE_MCLK           _IOW('I', 0x1B, ipu_csi_mclk)
-#define IPU_CSI_READ_MCLK_FLAG        _IOR('I', 0x1C, ipu_csi_mclk)
-#define IPU_CSI_FLASH_STROBE          _IOW('I', 0x1D, ipu_csi_mclk)
-#define IPU_CSI_GET_WIN_SIZE          _IOR('I', 0x1E, ipu_csi_window_size)
-#define IPU_CSI_SET_WIN_SIZE          _IOW('I', 0x1F, ipu_csi_window_size)
-#define IPU_CSI_SET_WINDOW            _IOW('I', 0x20, ipu_csi_window)
-#define IPU_PF_SET_PAUSE_ROW          _IOW('I', 0x21, uint32_t)
-#define IPU_REGISTER_GENERIC_ISR      _IOW('I', 0x22, ipu_event_info)
-#define IPU_GET_EVENT                 _IOWR('I', 0x23, ipu_event_info)
-#define IPU_ALOC_MEM		      _IOWR('I', 0x24, ipu_mem_info)
-#define IPU_FREE_MEM		      _IOW('I', 0x25, ipu_mem_info)
-#define IPU_IS_CHAN_BUSY	      _IOW('I', 0x26, ipu_channel_t)
-#define IPU_CALC_STRIPES_SIZE	      _IOWR('I', 0x27, ipu_stripe_parm)
-#define IPU_UPDATE_BUF_OFFSET         _IOW('I', 0x28, ipu_buf_offset_parm)
-#define IPU_CSC_UPDATE                _IOW('I', 0x29, ipu_csc_update)
-#define IPU_SELECT_MULTI_VDI_BUFFER   _IOW('I', 0x2A, uint32_t)
-
-int ipu_calc_stripes_sizes(const unsigned int input_frame_width,
-				unsigned int output_frame_width,
-				const unsigned int maximal_stripe_width,
-				const unsigned long long cirr,
-				const unsigned int equal_stripes,
-				u32 input_pixelformat,
-				u32 output_pixelformat,
-				struct stripe_param *left,
-				struct stripe_param *right);
 #endif
