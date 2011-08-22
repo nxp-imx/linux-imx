@@ -43,17 +43,6 @@
 static struct ipu_soc ipu_array[MXC_IPU_MAX_NUM];
 int g_ipu_hw_rev;
 
-/* for power gating */
-static uint32_t ipu_conf_reg;
-static uint32_t ic_conf_reg;
-static uint32_t ipu_cha_db_mode_reg[4];
-static uint32_t ipu_cha_trb_mode_reg[2];
-static uint32_t ipu_cha_cur_buf_reg[4];
-static uint32_t ipu_cha_triple_cur_buf_reg[4];
-static uint32_t idma_sub_addr_reg[5];
-static uint32_t idma_enable_reg[2];
-static uint32_t buf_ready_reg[10];
-
 /* Static functions */
 static irqreturn_t ipu_irq_handler(int irq, void *desc);
 
@@ -2846,90 +2835,74 @@ EXPORT_SYMBOL(ipu_set_csc_coefficients);
 static int ipu_suspend(struct platform_device *pdev, pm_message_t state)
 {
 	struct imx_ipuv3_platform_data *plat_data = pdev->dev.platform_data;
+	struct ipu_soc *ipu = platform_get_drvdata(pdev);
 
-#if 0
-	if (g_ipu_clk_enabled) {
+	if (ipu->ipu_use_count) {
 		/* save and disable enabled channels*/
-		idma_enable_reg[0] = __raw_readl(IDMAC_CHA_EN(0));
-		idma_enable_reg[1] = __raw_readl(IDMAC_CHA_EN(32));
-		while ((__raw_readl(IDMAC_CHA_BUSY(0)) & idma_enable_reg[0])
-			|| (__raw_readl(IDMAC_CHA_BUSY(32)) &
-				idma_enable_reg[1])) {
+		ipu->idma_enable_reg[0] = ipu_idmac_read(ipu, IDMAC_CHA_EN(0));
+		ipu->idma_enable_reg[1] = ipu_idmac_read(ipu, IDMAC_CHA_EN(32));
+		while ((ipu_idmac_read(ipu, IDMAC_CHA_BUSY(0))
+			& ipu->idma_enable_reg[0])
+			|| (ipu_idmac_read(ipu, IDMAC_CHA_BUSY(32))
+			& ipu->idma_enable_reg[1])) {
 			/* disable channel not busy already */
 			uint32_t chan_should_disable, timeout = 1000, time = 0;
 
 			chan_should_disable =
-				__raw_readl(IDMAC_CHA_BUSY(0))
-					^ idma_enable_reg[0];
-			__raw_writel((~chan_should_disable) &
-					idma_enable_reg[0], IDMAC_CHA_EN(0));
+				ipu_idmac_read(ipu, IDMAC_CHA_BUSY(0))
+					^ ipu->idma_enable_reg[0];
+			ipu_idmac_write(ipu, (~chan_should_disable) &
+					ipu->idma_enable_reg[0], IDMAC_CHA_EN(0));
 			chan_should_disable =
-				__raw_readl(IDMAC_CHA_BUSY(1))
-					^ idma_enable_reg[1];
-			__raw_writel((~chan_should_disable) &
-					idma_enable_reg[1], IDMAC_CHA_EN(32));
+				ipu_idmac_read(ipu, IDMAC_CHA_BUSY(1))
+					^ ipu->idma_enable_reg[1];
+			ipu_idmac_write(ipu, (~chan_should_disable) &
+					ipu->idma_enable_reg[1], IDMAC_CHA_EN(32));
 			msleep(2);
 			time += 2;
 			if (time >= timeout)
 				return -1;
 		}
-		__raw_writel(0, IDMAC_CHA_EN(0));
-		__raw_writel(0, IDMAC_CHA_EN(32));
+		ipu_idmac_write(ipu, 0, IDMAC_CHA_EN(0));
+		ipu_idmac_write(ipu, 0, IDMAC_CHA_EN(32));
 
 		/* save double buffer select regs */
-		ipu_cha_db_mode_reg[0] = __raw_readl(IPU_CHA_DB_MODE_SEL(0));
-		ipu_cha_db_mode_reg[1] = __raw_readl(IPU_CHA_DB_MODE_SEL(32));
-		ipu_cha_db_mode_reg[2] =
-			__raw_readl(IPU_ALT_CHA_DB_MODE_SEL(0));
-		ipu_cha_db_mode_reg[3] =
-			__raw_readl(IPU_ALT_CHA_DB_MODE_SEL(32));
+		ipu->cha_db_mode_reg[0] = ipu_cm_read(ipu, IPU_CHA_DB_MODE_SEL(0));
+		ipu->cha_db_mode_reg[1] = ipu_cm_read(ipu, IPU_CHA_DB_MODE_SEL(32));
+		ipu->cha_db_mode_reg[2] =
+			ipu_cm_read(ipu, IPU_ALT_CHA_DB_MODE_SEL(0));
+		ipu->cha_db_mode_reg[3] =
+			ipu_cm_read(ipu, IPU_ALT_CHA_DB_MODE_SEL(32));
 
 		/* save triple buffer select regs */
-		ipu_cha_trb_mode_reg[0] = __raw_readl(IPU_CHA_TRB_MODE_SEL(0));
-		ipu_cha_trb_mode_reg[1] = __raw_readl(IPU_CHA_TRB_MODE_SEL(32));
-
-		/* save current buffer regs */
-		ipu_cha_cur_buf_reg[0] = __raw_readl(IPU_CHA_CUR_BUF(0));
-		ipu_cha_cur_buf_reg[1] = __raw_readl(IPU_CHA_CUR_BUF(32));
-		ipu_cha_cur_buf_reg[2] = __raw_readl(IPU_ALT_CUR_BUF0);
-		ipu_cha_cur_buf_reg[3] = __raw_readl(IPU_ALT_CUR_BUF1);
-
-		/* save current triple buffer regs */
-		ipu_cha_triple_cur_buf_reg[0] =
-					__raw_readl(IPU_CHA_TRIPLE_CUR_BUF(0));
-		ipu_cha_triple_cur_buf_reg[1] =
-					__raw_readl(IPU_CHA_TRIPLE_CUR_BUF(32));
-		ipu_cha_triple_cur_buf_reg[2] =
-					__raw_readl(IPU_CHA_TRIPLE_CUR_BUF(64));
-		ipu_cha_triple_cur_buf_reg[3] =
-					__raw_readl(IPU_CHA_TRIPLE_CUR_BUF(96));
+		ipu->cha_trb_mode_reg[0] = ipu_cm_read(ipu, IPU_CHA_TRB_MODE_SEL(0));
+		ipu->cha_trb_mode_reg[1] = ipu_cm_read(ipu, IPU_CHA_TRB_MODE_SEL(32));
 
 		/* save idamc sub addr regs */
-		idma_sub_addr_reg[0] = __raw_readl(IDMAC_SUB_ADDR_0);
-		idma_sub_addr_reg[1] = __raw_readl(IDMAC_SUB_ADDR_1);
-		idma_sub_addr_reg[2] = __raw_readl(IDMAC_SUB_ADDR_2);
-		idma_sub_addr_reg[3] = __raw_readl(IDMAC_SUB_ADDR_3);
-		idma_sub_addr_reg[4] = __raw_readl(IDMAC_SUB_ADDR_4);
+		ipu->idma_sub_addr_reg[0] = ipu_idmac_read(ipu, IDMAC_SUB_ADDR_0);
+		ipu->idma_sub_addr_reg[1] = ipu_idmac_read(ipu, IDMAC_SUB_ADDR_1);
+		ipu->idma_sub_addr_reg[2] = ipu_idmac_read(ipu, IDMAC_SUB_ADDR_2);
+		ipu->idma_sub_addr_reg[3] = ipu_idmac_read(ipu, IDMAC_SUB_ADDR_3);
+		ipu->idma_sub_addr_reg[4] = ipu_idmac_read(ipu, IDMAC_SUB_ADDR_4);
 
 		/* save sub-modules status and disable all */
-		ic_conf_reg = __raw_readl(IC_CONF);
-		__raw_writel(0, IC_CONF);
-		ipu_conf_reg = __raw_readl(IPU_CONF);
-		__raw_writel(0, IPU_CONF);
+		ipu->ic_conf_reg = ipu_ic_read(ipu, IC_CONF);
+		ipu_ic_write(ipu, 0, IC_CONF);
+		ipu->ipu_conf_reg = ipu_cm_read(ipu, IPU_CONF);
+		ipu_cm_write(ipu, 0, IPU_CONF);
 
 		/* save buf ready regs */
-		buf_ready_reg[0] = __raw_readl(IPU_CHA_BUF0_RDY(0));
-		buf_ready_reg[1] = __raw_readl(IPU_CHA_BUF0_RDY(32));
-		buf_ready_reg[2] = __raw_readl(IPU_CHA_BUF1_RDY(0));
-		buf_ready_reg[3] = __raw_readl(IPU_CHA_BUF1_RDY(32));
-		buf_ready_reg[4] = __raw_readl(IPU_ALT_CHA_BUF0_RDY(0));
-		buf_ready_reg[5] = __raw_readl(IPU_ALT_CHA_BUF0_RDY(32));
-		buf_ready_reg[6] = __raw_readl(IPU_ALT_CHA_BUF1_RDY(0));
-		buf_ready_reg[7] = __raw_readl(IPU_ALT_CHA_BUF1_RDY(32));
-		buf_ready_reg[8] = __raw_readl(IPU_CHA_BUF2_RDY(0));
-		buf_ready_reg[9] = __raw_readl(IPU_CHA_BUF2_RDY(32));
+		ipu->buf_ready_reg[0] = ipu_cm_read(ipu, IPU_CHA_BUF0_RDY(0));
+		ipu->buf_ready_reg[1] = ipu_cm_read(ipu, IPU_CHA_BUF0_RDY(32));
+		ipu->buf_ready_reg[2] = ipu_cm_read(ipu, IPU_CHA_BUF1_RDY(0));
+		ipu->buf_ready_reg[3] = ipu_cm_read(ipu, IPU_CHA_BUF1_RDY(32));
+		ipu->buf_ready_reg[4] = ipu_cm_read(ipu, IPU_ALT_CHA_BUF0_RDY(0));
+		ipu->buf_ready_reg[5] = ipu_cm_read(ipu, IPU_ALT_CHA_BUF0_RDY(32));
+		ipu->buf_ready_reg[6] = ipu_cm_read(ipu, IPU_ALT_CHA_BUF1_RDY(0));
+		ipu->buf_ready_reg[7] = ipu_cm_read(ipu, IPU_ALT_CHA_BUF1_RDY(32));
+		ipu->buf_ready_reg[8] = ipu_cm_read(ipu, IPU_CHA_BUF2_RDY(0));
+		ipu->buf_ready_reg[9] = ipu_cm_read(ipu, IPU_CHA_BUF2_RDY(32));
 	}
-#endif
 
 	if (plat_data->pg)
 		plat_data->pg(1);
@@ -2940,77 +2913,59 @@ static int ipu_suspend(struct platform_device *pdev, pm_message_t state)
 static int ipu_resume(struct platform_device *pdev)
 {
 	struct imx_ipuv3_platform_data *plat_data = pdev->dev.platform_data;
+	struct ipu_soc *ipu = platform_get_drvdata(pdev);
 
 	if (plat_data->pg)
 		plat_data->pg(0);
 
-#if 0
-	if (g_ipu_clk_enabled) {
+	if (ipu->ipu_use_count) {
 
 		/* restore buf ready regs */
-		__raw_writel(buf_ready_reg[0], IPU_CHA_BUF0_RDY(0));
-		__raw_writel(buf_ready_reg[1], IPU_CHA_BUF0_RDY(32));
-		__raw_writel(buf_ready_reg[2], IPU_CHA_BUF1_RDY(0));
-		__raw_writel(buf_ready_reg[3], IPU_CHA_BUF1_RDY(32));
-		__raw_writel(buf_ready_reg[4], IPU_ALT_CHA_BUF0_RDY(0));
-		__raw_writel(buf_ready_reg[5], IPU_ALT_CHA_BUF0_RDY(32));
-		__raw_writel(buf_ready_reg[6], IPU_ALT_CHA_BUF1_RDY(0));
-		__raw_writel(buf_ready_reg[7], IPU_ALT_CHA_BUF1_RDY(32));
-		__raw_writel(buf_ready_reg[8], IPU_CHA_BUF2_RDY(0));
-		__raw_writel(buf_ready_reg[9], IPU_CHA_BUF2_RDY(32));
+		ipu_cm_write(ipu, ipu->buf_ready_reg[0], IPU_CHA_BUF0_RDY(0));
+		ipu_cm_write(ipu, ipu->buf_ready_reg[1], IPU_CHA_BUF0_RDY(32));
+		ipu_cm_write(ipu, ipu->buf_ready_reg[2], IPU_CHA_BUF1_RDY(0));
+		ipu_cm_write(ipu, ipu->buf_ready_reg[3], IPU_CHA_BUF1_RDY(32));
+		ipu_cm_write(ipu, ipu->buf_ready_reg[4], IPU_ALT_CHA_BUF0_RDY(0));
+		ipu_cm_write(ipu, ipu->buf_ready_reg[5], IPU_ALT_CHA_BUF0_RDY(32));
+		ipu_cm_write(ipu, ipu->buf_ready_reg[6], IPU_ALT_CHA_BUF1_RDY(0));
+		ipu_cm_write(ipu, ipu->buf_ready_reg[7], IPU_ALT_CHA_BUF1_RDY(32));
+		ipu_cm_write(ipu, ipu->buf_ready_reg[8], IPU_CHA_BUF2_RDY(0));
+		ipu_cm_write(ipu, ipu->buf_ready_reg[9], IPU_CHA_BUF2_RDY(32));
 
 		/* re-enable sub-modules*/
-		__raw_writel(ipu_conf_reg, IPU_CONF);
-		__raw_writel(ic_conf_reg, IC_CONF);
+		ipu_cm_write(ipu, ipu->ipu_conf_reg, IPU_CONF);
+		ipu_ic_write(ipu, ipu->ic_conf_reg, IC_CONF);
 
 		/* restore double buffer select regs */
-		__raw_writel(ipu_cha_db_mode_reg[0], IPU_CHA_DB_MODE_SEL(0));
-		__raw_writel(ipu_cha_db_mode_reg[1], IPU_CHA_DB_MODE_SEL(32));
-		__raw_writel(ipu_cha_db_mode_reg[2],
+		ipu_cm_write(ipu, ipu->cha_db_mode_reg[0], IPU_CHA_DB_MODE_SEL(0));
+		ipu_cm_write(ipu, ipu->cha_db_mode_reg[1], IPU_CHA_DB_MODE_SEL(32));
+		ipu_cm_write(ipu, ipu->cha_db_mode_reg[2],
 				IPU_ALT_CHA_DB_MODE_SEL(0));
-		__raw_writel(ipu_cha_db_mode_reg[3],
+		ipu_cm_write(ipu, ipu->cha_db_mode_reg[3],
 				IPU_ALT_CHA_DB_MODE_SEL(32));
 
 		/* restore triple buffer select regs */
-		__raw_writel(ipu_cha_trb_mode_reg[0], IPU_CHA_TRB_MODE_SEL(0));
-		__raw_writel(ipu_cha_trb_mode_reg[1], IPU_CHA_TRB_MODE_SEL(32));
-
-		/* restore current buffer select regs */
-		__raw_writel(~(ipu_cha_cur_buf_reg[0]), IPU_CHA_CUR_BUF(0));
-		__raw_writel(~(ipu_cha_cur_buf_reg[1]), IPU_CHA_CUR_BUF(32));
-		__raw_writel(~(ipu_cha_cur_buf_reg[2]), IPU_ALT_CUR_BUF0);
-		__raw_writel(~(ipu_cha_cur_buf_reg[3]), IPU_ALT_CUR_BUF1);
-
-		/* restore triple current buffer select regs */
-		__raw_writel(~(ipu_cha_triple_cur_buf_reg[0]),
-						IPU_CHA_TRIPLE_CUR_BUF(0));
-		__raw_writel(~(ipu_cha_triple_cur_buf_reg[1]),
-						IPU_CHA_TRIPLE_CUR_BUF(32));
-		__raw_writel(~(ipu_cha_triple_cur_buf_reg[2]),
-						IPU_CHA_TRIPLE_CUR_BUF(64));
-		__raw_writel(~(ipu_cha_triple_cur_buf_reg[3]),
-						IPU_CHA_TRIPLE_CUR_BUF(96));
+		ipu_cm_write(ipu, ipu->cha_trb_mode_reg[0], IPU_CHA_TRB_MODE_SEL(0));
+		ipu_cm_write(ipu, ipu->cha_trb_mode_reg[1], IPU_CHA_TRB_MODE_SEL(32));
 
 		/* restore idamc sub addr regs */
-		__raw_writel(idma_sub_addr_reg[0], IDMAC_SUB_ADDR_0);
-		__raw_writel(idma_sub_addr_reg[1], IDMAC_SUB_ADDR_1);
-		__raw_writel(idma_sub_addr_reg[2], IDMAC_SUB_ADDR_2);
-		__raw_writel(idma_sub_addr_reg[3], IDMAC_SUB_ADDR_3);
-		__raw_writel(idma_sub_addr_reg[4], IDMAC_SUB_ADDR_4);
+		ipu_idmac_write(ipu, ipu->idma_sub_addr_reg[0], IDMAC_SUB_ADDR_0);
+		ipu_idmac_write(ipu, ipu->idma_sub_addr_reg[1], IDMAC_SUB_ADDR_1);
+		ipu_idmac_write(ipu, ipu->idma_sub_addr_reg[2], IDMAC_SUB_ADDR_2);
+		ipu_idmac_write(ipu, ipu->idma_sub_addr_reg[3], IDMAC_SUB_ADDR_3);
+		ipu_idmac_write(ipu, ipu->idma_sub_addr_reg[4], IDMAC_SUB_ADDR_4);
 
 		/* restart idma channel*/
-		__raw_writel(idma_enable_reg[0], IDMAC_CHA_EN(0));
-		__raw_writel(idma_enable_reg[1], IDMAC_CHA_EN(32));
+		ipu_idmac_write(ipu, ipu->idma_enable_reg[0], IDMAC_CHA_EN(0));
+		ipu_idmac_write(ipu, ipu->idma_enable_reg[1], IDMAC_CHA_EN(32));
 	} else {
-		clk_enable(g_ipu_clk);
-		_ipu_dmfc_init(dmfc_type_setup, 1);
-		_ipu_init_dc_mappings();
-
+		_ipu_get(ipu);
+		_ipu_dmfc_init(ipu, dmfc_type_setup, 1);
+		_ipu_init_dc_mappings(ipu);
 		/* Set sync refresh channels as high priority */
-		__raw_writel(0x18800001L, IDMAC_CHA_PRI(0));
-		clk_disable(g_ipu_clk);
+		ipu_idmac_write(ipu, 0x18800001L, IDMAC_CHA_PRI(0));
+		_ipu_put(ipu);
 	}
-#endif
 
 	return 0;
 }
