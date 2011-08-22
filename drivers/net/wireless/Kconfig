@@ -284,7 +284,11 @@ source "drivers/net/wireless/rtlwifi/Kconfig"
 source "drivers/net/wireless/wl1251/Kconfig"
 source "drivers/net/wireless/wl12xx/Kconfig"
 source "drivers/net/wireless/zd1211rw/Kconfig"
+<<<<<<< HEAD
 source "drivers/net/wireless/mwifiex/Kconfig"
-source "drivers/net/wireless/ath6kl/Kconfig"
+#source "drivers/net/wireless/ath6kl/Kconfig"
+=======
+#source "drivers/net/wireless/ath6kl/Kconfig"
+>>>>>>> ENGR00139260-1 [ath6k wifi]remove drivers under drivers/net/wireless
 
 endif # WLAN
