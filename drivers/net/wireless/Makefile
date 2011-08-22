@@ -57,9 +57,5 @@ obj-$(CONFIG_WL12XX_PLATFORM_DATA)	+= wl12xx/
 
 obj-$(CONFIG_IWM)	+= iwmc3200wifi/
 
-<<<<<<< HEAD
 obj-$(CONFIG_MWIFIEX)	+= mwifiex/
 #obj-$(CONFIG_ATH6K_LEGACY)	+= ath6kl/
-=======
-#obj-$(CONFIG_ATH6K_LEGACY)	+= ath6kl/
->>>>>>> ENGR00139260-1 [ath6k wifi]remove drivers under drivers/net/wireless
