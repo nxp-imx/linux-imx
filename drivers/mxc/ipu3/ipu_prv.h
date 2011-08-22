@@ -111,6 +111,15 @@ struct ipu_soc {
 	bool dc_swap;
 	struct completion dc_comp;
 
+	/* for power gating */
+	u32 ipu_conf_reg;
+	u32 ic_conf_reg;
+	u32 cha_db_mode_reg[4];
+	u32 cha_trb_mode_reg[2];
+	u32 idma_sub_addr_reg[5];
+	u32 idma_enable_reg[2];
+	u32 buf_ready_reg[10];
+
 	/*ipu processing driver*/
 	struct list_head task_list[2];
 	struct mutex task_lock[2];
