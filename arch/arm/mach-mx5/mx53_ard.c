@@ -443,10 +443,13 @@ static void flexcan_xcvr_enable(int id, int en)
 	if (id < 0 || id > 1)
 		return;
 
-	if (en)
+	if (en) {
 		gpio_set_value(ARD_CAN_EN, 1);
-	else
+		gpio_set_value(ARD_CAN_STBY, 1);
+	} else {
 		gpio_set_value(ARD_CAN_EN, 0);
+		gpio_set_value(ARD_CAN_STBY, 0);
+	}
 }
 
 static struct flexcan_platform_data flexcan0_data = {
