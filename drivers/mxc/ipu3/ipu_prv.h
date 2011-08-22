@@ -19,6 +19,12 @@
 #include <linux/interrupt.h>
 #include <linux/fsl_devices.h>
 
+#ifdef CONFIG_MXC_IPU_V3H
+#define MXC_IPU_MAX_NUM	2
+#else
+#define MXC_IPU_MAX_NUM	1
+#endif
+
 /* Globals */
 extern int dmfc_type_setup;
 
@@ -104,6 +110,12 @@ struct ipu_soc {
 	bool color_key_4rgb;
 	bool dc_swap;
 	struct completion dc_comp;
+
+	/*ipu processing driver*/
+	struct list_head task_list[2];
+	struct mutex task_lock[2];
+	wait_queue_head_t waitq[2];
+	struct task_struct *thread[2];
 };
 
 struct ipu_channel {
@@ -241,7 +253,8 @@ static inline void ipu_ic_write(struct ipu_soc *ipu,
 	writel(value, ipu->ic_reg + offset);
 }
 
-int register_ipu_device(void);
+int register_ipu_device(struct ipu_soc *ipu, int id);
+void unregister_ipu_device(struct ipu_soc *ipu, int id);
 ipu_color_space_t format_to_colorspace(uint32_t fmt);
 bool ipu_pixel_format_has_alpha(uint32_t fmt);
 
