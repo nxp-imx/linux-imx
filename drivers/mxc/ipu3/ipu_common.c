@@ -1983,6 +1983,7 @@ int32_t ipu_disable_channel(ipu_channel_t channel, bool wait_for_stop)
 	uint32_t out_dma;
 	uint32_t sec_dma = NO_DMA;
 	uint32_t thrd_dma = NO_DMA;
+	uint16_t fg_pos_x, fg_pos_y;
 
 	spin_lock_irqsave(&ipu_lock, lock_flags);
 
@@ -2014,8 +2015,10 @@ int32_t ipu_disable_channel(ipu_channel_t channel, bool wait_for_stop)
 
 	if ((channel == MEM_BG_SYNC) || (channel == MEM_FG_SYNC) ||
 	    (channel == MEM_DC_SYNC)) {
-		if (channel == MEM_FG_SYNC)
+		if (channel == MEM_FG_SYNC) {
+			ipu_disp_get_window_pos(channel, &fg_pos_x, &fg_pos_y);
 			ipu_disp_set_window_pos(channel, 0, 0);
+		}
 
 		_ipu_dp_dc_disable(channel, false);
 
@@ -2147,6 +2150,9 @@ int32_t ipu_disable_channel(ipu_channel_t channel, bool wait_for_stop)
 	g_channel_enable_mask &= ~(1L << IPU_CHAN_ID(channel));
 
 	spin_unlock_irqrestore(&ipu_lock, lock_flags);
+
+	if (channel == MEM_FG_SYNC)
+		ipu_disp_set_window_pos(channel, fg_pos_x, fg_pos_y);
 
 	return 0;
 }
