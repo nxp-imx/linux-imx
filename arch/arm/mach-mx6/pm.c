@@ -77,7 +77,6 @@ static void __iomem *src_base;
 static void __iomem *local_twd_base;
 static void __iomem *gic_dist_base;
 static void __iomem *gic_cpu_base;
-static void __iomem *uart4_base;
 
 static void *suspend_iram_base;
 static void (*suspend_in_iram)(suspend_state_t state,
@@ -284,7 +283,6 @@ static int __init pm_init(void)
 	gic_dist_base = IO_ADDRESS(IC_DISTRIBUTOR_BASE_ADDR);
 	gic_cpu_base = IO_ADDRESS(IC_INTERFACES_BASE_ADDR);
 	local_twd_base = IO_ADDRESS(LOCAL_TWD_ADDR);
-	uart4_base = IO_ADDRESS(0x21f0000);
 
 	pr_info("Static Power Management for Freescale i.MX6\n");
 
