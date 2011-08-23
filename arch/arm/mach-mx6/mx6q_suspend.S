@@ -49,6 +49,162 @@ see define in include/linux/suspend.h
 r1: iram_paddr
 r2: suspend_iram_base
 *************************************************************/
+	.macro	ddr_io_save
+
+	ldr	r4, [r1, #0x5ac] /* DRAM_DQM0 */
+	ldr	r5, [r1, #0x5b4] /* DRAM_DQM1 */
+	ldr	r6, [r1, #0x528] /* DRAM_DQM2 */
+	ldr	r7, [r1, #0x520] /* DRAM_DQM3 */
+	stmfd	r0!, {r4-r7}
+
+	ldr	r4, [r1, #0x514] /* DRAM_DQM4 */
+	ldr	r5, [r1, #0x510] /* DRAM_DQM5 */
+	ldr	r6, [r1, #0x5bc] /* DRAM_DQM6 */
+	ldr	r7, [r1, #0x5c4] /* DRAM_DQM7 */
+	stmfd	r0!, {r4-r7}
+
+	ldr	r4, [r1, #0x56c] /* DRAM_CAS */
+	ldr	r5, [r1, #0x578] /* DRAM_RAS */
+	ldr	r6, [r1, #0x588] /* DRAM_SDCLK_0 */
+	ldr	r7, [r1, #0x594] /* DRAM_SDCLK_1 */
+	stmfd	r0!, {r4-r7}
+
+	ldr	r5, [r1, #0x750] /* DDRMODE_CTL */
+	ldr	r6, [r1, #0x774] /* DDRMODE */
+	stmfd	r0!, {r5-r6}
+
+	ldr	r4, [r1, #0x5a8] /* DRAM_SDQS0 */
+	ldr	r5, [r1, #0x5b0] /* DRAM_SDQS1 */
+	ldr	r6, [r1, #0x524] /* DRAM_SDQS2 */
+	ldr	r7, [r1, #0x51c] /* DRAM_SDQS3 */
+	stmfd	r0!, {r4-r7}
+
+	ldr	r4, [r1, #0x518] /* DRAM_SDQS4 */
+	ldr	r5, [r1, #0x50c] /* DRAM_SDQS5 */
+	ldr	r6, [r1, #0x5b8] /* DRAM_SDQS6 */
+	ldr	r7, [r1, #0x5c0] /* DRAM_SDQS7 */
+	stmfd	r0!, {r4-r7}
+
+	ldr	r4, [r1, #0x784] /* GPR_B0DS */
+	ldr	r5, [r1, #0x788] /* GPR_B1DS */
+	ldr	r6, [r1, #0x794] /* GPR_B2DS */
+	ldr	r7, [r1, #0x79c] /* GPR_B3DS */
+	stmfd	r0!, {r4-r7}
+
+	ldr	r4, [r1, #0x7a0] /* GPR_B4DS */
+	ldr	r5, [r1, #0x7a4] /* GPR_B5DS */
+	ldr	r6, [r1, #0x7a8] /* GPR_B6DS */
+	ldr	r7, [r1, #0x748] /* GPR_B7DS */
+	stmfd	r0!, {r4-r7}
+
+	ldr	r5, [r1, #0x74c] /* GPR_ADDS*/
+	ldr	r6, [r1, #0x59c] /* DRAM_SODT0*/
+	ldr	r7, [r1, #0x5a0] /* DRAM_SODT1*/
+	stmfd	r0!, {r5-r7}
+
+	.endm
+
+	.macro	ddr_io_restore
+
+	ldmea	r0!, {r4-r7}
+	str	r4, [r1, #0x5ac] /* DRAM_DQM0 */
+	str	r5, [r1, #0x5b4] /* DRAM_DQM1 */
+	str	r6, [r1, #0x528] /* DRAM_DQM2 */
+	str	r7, [r1, #0x520] /* DRAM_DQM3 */
+
+	ldmea	r0!, {r4-r7}
+	str	r4, [r1, #0x514] /* DRAM_DQM4 */
+	str	r5, [r1, #0x510] /* DRAM_DQM5 */
+	str	r6, [r1, #0x5bc] /* DRAM_DQM6 */
+	str	r7, [r1, #0x5c4] /* DRAM_DQM7 */
+
+	ldmea	r0!, {r4-r7}
+	str	r4, [r1, #0x56c] /* DRAM_CAS */
+	str	r5, [r1, #0x578] /* DRAM_RAS */
+	str	r6, [r1, #0x588] /* DRAM_SDCLK_0 */
+	str	r7, [r1, #0x594] /* DRAM_SDCLK_1 */
+
+	ldmea	r0!, {r5-r6}
+	str	r5, [r1, #0x750] /* DDRMODE_CTL */
+	str	r6, [r1, #0x774] /* DDRMODE */
+
+	ldmea	r0!, {r4-r7}
+	str	r4, [r1, #0x5a8] /* DRAM_SDQS0 */
+	str	r5, [r1, #0x5b0] /* DRAM_SDQS1 */
+	str	r6, [r1, #0x524] /* DRAM_SDQS2 */
+	str	r7, [r1, #0x51c] /* DRAM_SDQS3 */
+
+	ldmea	r0!, {r4-r7}
+	str	r4, [r1, #0x518] /* DRAM_SDQS4 */
+	str	r5, [r1, #0x50c] /* DRAM_SDQS5 */
+	str	r6, [r1, #0x5b8] /* DRAM_SDQS6 */
+	str	r7, [r1, #0x5c0] /* DRAM_SDQS7 */
+
+	ldmea	r0!, {r4-r7}
+	str	r4, [r1, #0x784] /* GPR_B0DS */
+	str	r5, [r1, #0x788] /* GPR_B1DS */
+	str	r6, [r1, #0x794] /* GPR_B2DS */
+	str	r7, [r1, #0x79c] /* GPR_B3DS */
+
+	ldmea	r0!, {r4-r7}
+	str	r4, [r1, #0x7a0] /* GPR_B4DS */
+	str	r5, [r1, #0x7a4] /* GPR_B5DS */
+	str	r6, [r1, #0x7a8] /* GPR_B6DS */
+	str	r7, [r1, #0x748] /* GPR_B7DS */
+
+	ldmea	r0!, {r5-r7}
+	str	r5, [r1, #0x74c] /* GPR_ADDS*/
+	str	r6, [r1, #0x59c] /* DRAM_SODT0*/
+	str	r7, [r1, #0x5a0] /* DRAM_SODT1*/
+
+	.endm
+
+	.macro	ddr_io_set_lpm
+
+	mov	r0, #0
+	str	r0, [r1, #0x5ac] /* DRAM_DQM0 */
+	str	r0, [r1, #0x5b4] /* DRAM_DQM1 */
+	str	r0, [r1, #0x528] /* DRAM_DQM2 */
+	str	r0, [r1, #0x520] /* DRAM_DQM3 */
+
+	str	r0, [r1, #0x514] /* DRAM_DQM4 */
+	str	r0, [r1, #0x510] /* DRAM_DQM5 */
+	str	r0, [r1, #0x5bc] /* DRAM_DQM6 */
+	str	r0, [r1, #0x5c4] /* DRAM_DQM7 */
+
+	str	r0, [r1, #0x56c] /* DRAM_CAS */
+	str	r0, [r1, #0x578] /* DRAM_RAS */
+	str	r0, [r1, #0x588] /* DRAM_SDCLK_0 */
+	str	r0, [r1, #0x594] /* DRAM_SDCLK_1 */
+
+	str	r0, [r1, #0x750] /* DDRMODE_CTL */
+	str	r0, [r1, #0x774] /* DDRMODE */
+
+	str	r0, [r1, #0x5a8] /* DRAM_SDQS0 */
+	str	r0, [r1, #0x5b0] /* DRAM_SDQS1 */
+	str	r0, [r1, #0x524] /* DRAM_SDQS2 */
+	str	r0, [r1, #0x51c] /* DRAM_SDQS3 */
+
+	str	r0, [r1, #0x518] /* DRAM_SDQS4 */
+	str	r0, [r1, #0x50c] /* DRAM_SDQS5 */
+	str	r0, [r1, #0x5b8] /* DRAM_SDQS6 */
+	str	r0, [r1, #0x5c0] /* DRAM_SDQS7 */
+
+	str	r0, [r1, #0x784] /* GPR_B0DS */
+	str	r0, [r1, #0x788] /* GPR_B1DS */
+	str	r0, [r1, #0x794] /* GPR_B2DS */
+	str	r0, [r1, #0x79c] /* GPR_B3DS */
+
+	str	r0, [r1, #0x7a0] /* GPR_B4DS */
+	str	r0, [r1, #0x7a4] /* GPR_B5DS */
+	str	r0, [r1, #0x7a8] /* GPR_B6DS */
+	str	r0, [r1, #0x748] /* GPR_B7DS */
+
+	str	r0, [r1, #0x74c] /* GPR_ADDS*/
+	str	r0, [r1, #0x59c] /* DRAM_SODT0*/
+	str	r0, [r1, #0x5a0] /* DRAM_SODT1*/
+
+	.endm
 
 ENTRY(mx6q_suspend)
 	stmfd	sp!, {r0-r12}     @ Save registers
@@ -111,61 +267,11 @@ ddr_iomux_save:
 	ldr	r1, =MX6Q_IOMUXC_BASE_ADDR
 	add	r1, r1, #PERIPBASE_VIRT
 
-	ldr	r4, [r1, #0x5ac] /* DRAM_DQM0 */
-	ldr	r5, [r1, #0x5b4] /* DRAM_DQM1 */
-	ldr	r6, [r1, #0x528] /* DRAM_DQM2 */
-	ldr	r7, [r1, #0x520] /* DRAM_DQM3 */
-	stmfd	r0!, {r4-r7}
+	ddr_io_save
 
-	ldr	r4, [r1, #0x514] /* DRAM_DQM4 */
-	ldr	r5, [r1, #0x510] /* DRAM_DQM5 */
-	ldr	r6, [r1, #0x5bc] /* DRAM_DQM6 */
-	ldr	r7, [r1, #0x5c4] /* DRAM_DQM7 */
-	stmfd	r0!, {r4-r7}
-
-	ldr	r4, [r1, #0x56c] /* DRAM_CAS */
-	ldr	r5, [r1, #0x578] /* DRAM_RAS */
-	ldr	r6, [r1, #0x588] /* DRAM_SDCLK_0 */
-	ldr	r7, [r1, #0x594] /* DRAM_SDCLK_1 */
-	stmfd	r0!, {r4-r7}
-
-	ldr	r5, [r1, #0x750] /* DDRMODE_CTL */
-	ldr	r6, [r1, #0x774] /* DDRMODE */
-	stmfd	r0!, {r5-r6}
-
-	ldr	r4, [r1, #0x5a8] /* DRAM_SDQS0 */
-	ldr	r5, [r1, #0x5b0] /* DRAM_SDQS1 */
-	ldr	r6, [r1, #0x524] /* DRAM_SDQS2 */
-	ldr	r7, [r1, #0x51c] /* DRAM_SDQS3 */
-	stmfd	r0!, {r4-r7}
-
-	ldr	r4, [r1, #0x518] /* DRAM_SDQS4 */
-	ldr	r5, [r1, #0x50c] /* DRAM_SDQS5 */
-	ldr	r6, [r1, #0x5b8] /* DRAM_SDQS6 */
-	ldr	r7, [r1, #0x5c0] /* DRAM_SDQS7 */
-	stmfd	r0!, {r4-r7}
-
-	ldr	r4, [r1, #0x784] /* GPR_B0DS */
-	ldr	r5, [r1, #0x788] /* GPR_B1DS */
-	ldr	r6, [r1, #0x794] /* GPR_B2DS */
-	ldr	r7, [r1, #0x79c] /* GPR_B3DS */
-	stmfd	r0!, {r4-r7}
-
-	ldr	r4, [r1, #0x7a0] /* GPR_B4DS */
-	ldr	r5, [r1, #0x7a4] /* GPR_B5DS */
-	ldr	r6, [r1, #0x7a8] /* GPR_B6DS */
-	ldr	r7, [r1, #0x748] /* GPR_B7DS */
-	stmfd	r0!, {r4-r7}
-
-	ldr	r5, [r1, #0x74c] /* GPR_ADDS*/
-	ldr	r6, [r1, #0x59c] /* DRAM_SODT0*/
-	ldr	r7, [r1, #0x5a0] /* DRAM_SODT1*/
-	stmfd	r0!, {r5-r7}
-ddr_iomux_save_done:
-
-	mov	r4, sp		@ Store sp
-	mrs	r5, spsr	@ Store spsr
-	mov	r6, lr		@ Store lr
+	mov	r4, sp			@ Store sp
+	mrs	r5, spsr		@ Store spsr
+	mov	r6, lr			@ Store lr
 	stmfd	r0!, {r4-r6}
 
 	/* c1 and c2 registers */
@@ -197,11 +303,11 @@ ddr_iomux_save_done:
 	 * Flush all data from the L1 data cache before disabling
 	 * SCTLR.C bit.
 	 */
-	push	{r0-r12}
+	push	{r0-r12, lr}
 	ldr	r0, =v7_flush_dcache_all
 	mov	lr, pc
 	mov	pc, r0
-	pop	{r0-r12}
+	pop	{r0-r12, lr}
 
 	/*
 	 * Clear the SCTLR.C bit to prevent further data cache
@@ -218,11 +324,11 @@ ddr_iomux_save_done:
 	 * necessary exported flush API is used here. Doing clean
 	 * on already clean cache would be almost NOP.
 	 */
-	push	{r0-r12}
+	push	{r0-r12, lr}
 	ldr	r0, =v7_flush_dcache_all
 	mov	lr, pc
 	mov	pc, r0
-	pop	{r0-r12}
+	pop	{r0-r12, lr}
 
 	/*
 	 * Execute an ISB instruction to ensure that all of the
@@ -241,64 +347,22 @@ ddr_iomux_save_done:
 /****************************************************************
 set ddr iomux to low power mode
 ****************************************************************/
-ddr_iomux_set_lpm:
 	ldr	r1, =MMDC_P0_BASE_ADDR
 	add	r1, r1, #PERIPBASE_VIRT
 	ldr	r0, [r1, #MMDC_MAPSR_OFFSET]
-	bic	r0, #MMDC_MAPSR_PSD /* enable power saving */
+	bic	r0, #MMDC_MAPSR_PSD 		/* enable lpm */
 	str	r0, [r1, #MMDC_MAPSR_OFFSET]
 refresh:
-	ldr	r0, [r1, #MMDC_MAPSR_OFFSET] /* MMDC_MAPSR */
-	and	r0, r0, #MMDC_MAPSR_PSS /* PSS bit */
+	ldr	r0, [r1, #MMDC_MAPSR_OFFSET] 	/* MMDC_MAPSR */
+	and	r0, r0, #MMDC_MAPSR_PSS 	/* PSS bit */
 	cmp	r0, #0
 	beq	refresh
 
 	/* set mmdc iomux to low power mode */
 	ldr	r1, =MX6Q_IOMUXC_BASE_ADDR
 	add	r1, r1, #PERIPBASE_VIRT
-	mov	r0 , #0
-	str	r0, [r1, #0x5ac] /* DRAM_DQM0 */
-	str	r0, [r1, #0x5b4] /* DRAM_DQM1 */
-	str	r0, [r1, #0x528] /* DRAM_DQM2 */
-	str	r0, [r1, #0x520] /* DRAM_DQM3 */
 
-	str	r0, [r1, #0x514] /* DRAM_DQM4 */
-	str	r0, [r1, #0x510] /* DRAM_DQM5 */
-	str	r0, [r1, #0x5bc] /* DRAM_DQM6 */
-	str	r0, [r1, #0x5c4] /* DRAM_DQM7 */
-
-	str	r0, [r1, #0x56c] /* DRAM_CAS */
-	str	r0, [r1, #0x578] /* DRAM_RAS */
-	str	r0, [r1, #0x588] /* DRAM_SDCLK_0 */
-	str	r0, [r1, #0x594] /* DRAM_SDCLK_1 */
-
-	str	r0, [r1, #0x750] /* DDRMODE_CTL */
-	str	r0, [r1, #0x774] /* DDRMODE */
-
-	str	r0, [r1, #0x5a8] /* DRAM_SDQS0 */
-	str	r0, [r1, #0x5b0] /* DRAM_SDQS1 */
-	str	r0, [r1, #0x524] /* DRAM_SDQS2 */
-	str	r0, [r1, #0x51c] /* DRAM_SDQS3 */
-
-	str	r0, [r1, #0x518] /* DRAM_SDQS4 */
-	str	r0, [r1, #0x50c] /* DRAM_SDQS5 */
-	str	r0, [r1, #0x5b8] /* DRAM_SDQS6 */
-	str	r0, [r1, #0x5c0] /* DRAM_SDQS7 */
-
-	str	r0, [r1, #0x784] /* GPR_B0DS */
-	str	r0, [r1, #0x788] /* GPR_B1DS */
-	str	r0, [r1, #0x794] /* GPR_B2DS */
-	str	r0, [r1, #0x79c] /* GPR_B3DS */
-
-	str	r0, [r1, #0x7a0] /* GPR_B4DS */
-	str	r0, [r1, #0x7a4] /* GPR_B5DS */
-	str	r0, [r1, #0x7a8] /* GPR_B6DS */
-	str	r0, [r1, #0x748] /* GPR_B7DS */
-
-	str	r0, [r1, #0x74c] /* GPR_ADDS*/
-	str	r0, [r1, #0x59c] /* DRAM_SODT0*/
-	str	r0, [r1, #0x5a0] /* DRAM_SODT1*/
-ddr_iomux_set_lpm_done:
+	ddr_io_set_lpm
 /****************************************************************
 save resume pointer into SRC_GPR1
 ****************************************************************/
@@ -320,14 +384,22 @@ execute a wfi instruction to let SOC go into stop mode.
 	nop
 
 /****************************************************************
-never go here.
+if go here, means there is a wakeup irq pending, we should resume
+system immediately.
 ****************************************************************/
+	mov	r0, r2 		/* get suspend_iram_base */
+	add	r0, r0, #IRAM_SUSPEND_SIZE	/* 4K */
 
+	ldr	r1, =MX6Q_IOMUXC_BASE_ADDR
+	add	r1, r1, #PERIPBASE_VIRT
 
+	ddr_io_restore
 
+	mrc	p15, 0, r1, c1, c0, 0
+	orr	r1, r1, #(1 << 2)	@ Enable the C bit
+	mcr	p15, 0, r1, c1, c0, 0
 
-
-
+	b 	out	/* exit standby */
 
 /****************************************************************
 when SOC exit stop mode, arm core restart from here, currently
@@ -338,66 +410,10 @@ resume:
 	ldr	r0, =SRC_BASE_ADDR
 	str	r1, [r0, #SRC_GPR1_OFFSET] /* clear SRC_GPR1 */
 	ldr	r0, [r0, #SRC_GPR2_OFFSET]
-ddr_iomux_restore:
+
 	ldr	r1, =MX6Q_IOMUXC_BASE_ADDR
-	ldmea	r0!, {r4-r7}
-	str	r4, [r1, #0x5ac] /* DRAM_DQM0 */
-	str	r5, [r1, #0x5b4] /* DRAM_DQM1 */
-	str	r6, [r1, #0x528] /* DRAM_DQM2 */
-	str	r7, [r1, #0x520] /* DRAM_DQM3 */
+	ddr_io_restore
 
-	ldmea	r0!, {r4-r7}
-	str	r4, [r1, #0x514] /* DRAM_DQM4 */
-	str	r5, [r1, #0x510] /* DRAM_DQM5 */
-	str	r6, [r1, #0x5bc] /* DRAM_DQM6 */
-	str	r7, [r1, #0x5c4] /* DRAM_DQM7 */
-
-	ldmea	r0!, {r4-r7}
-	str	r4, [r1, #0x56c] /* DRAM_CAS */
-	str	r5, [r1, #0x578] /* DRAM_RAS */
-	str	r6, [r1, #0x588] /* DRAM_SDCLK_0 */
-	str	r7, [r1, #0x594] /* DRAM_SDCLK_1 */
-
-	ldmea	r0!, {r5-r6}
-	@str 	r4, [r1, #0x57c] /* DRAM_RESET */
-	str	r5, [r1, #0x750] /* DDRMODE_CTL */
-	str	r6, [r1, #0x774] /* DDRMODE */
-
-	ldmea	r0!, {r4-r7}
-	str	r4, [r1, #0x5a8] /* DRAM_SDQS0 */
-	str	r5, [r1, #0x5b0] /* DRAM_SDQS1 */
-	str	r6, [r1, #0x524] /* DRAM_SDQS2 */
-	str	r7, [r1, #0x51c] /* DRAM_SDQS3 */
-
-	ldmea	r0!, {r4-r7}
-	str	r4, [r1, #0x518] /* DRAM_SDQS4 */
-	str	r5, [r1, #0x50c] /* DRAM_SDQS5 */
-	str	r6, [r1, #0x5b8] /* DRAM_SDQS6 */
-	str	r7, [r1, #0x5c0] /* DRAM_SDQS7 */
-
-	ldmea	r0!, {r4-r7}
-	str	r4, [r1, #0x784] /* GPR_B0DS */
-	str	r5, [r1, #0x788] /* GPR_B1DS */
-	str	r6, [r1, #0x794] /* GPR_B2DS */
-	str	r7, [r1, #0x79c] /* GPR_B3DS */
-
-	ldmea	r0!, {r4-r7}
-	str	r4, [r1, #0x7a0] /* GPR_B4DS */
-	str	r5, [r1, #0x7a4] /* GPR_B5DS */
-	str	r6, [r1, #0x7a8] /* GPR_B6DS */
-	str	r7, [r1, #0x748] /* GPR_B7DS */
-
-	ldmea	r0!, {r5-r7}
-	str	r5, [r1, #0x74c] /* GPR_ADDS*/
-	str	r6, [r1, #0x59c] /* DRAM_SODT0*/
-	str	r7, [r1, #0x5a0] /* DRAM_SODT1*/
-ddr_iomux_restore_done:
-
-	ldr	r2, =ddr
-	ldr	r1, =va2pa_offset
-	sub	r2, r2, r1
-	mov	pc, r2
-ddr:
 	/* Restore cp15 registers */
 	ldmea	r0!, {r4-r6}
 	mov	sp, r4
