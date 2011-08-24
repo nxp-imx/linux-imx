@@ -868,6 +868,12 @@ void usbotg_uninit(struct fsl_usb2_platform_data *pdata)
 		if (pdata->xcvr_type == PORTSC_PTS_SERIAL)
 			clk_disable(usb_clk);
 		clk_disable(usb_ahb_clk);
+	/* FIXME workaround for clock refcounf when load/unload usb module
+	 * Need to fix it in future
+	 */
+	#ifdef CONFIG_USB_OTG
+		clk_disable(usb_ahb_clk);
+	#endif
 	}
 }
 EXPORT_SYMBOL(usbotg_uninit);

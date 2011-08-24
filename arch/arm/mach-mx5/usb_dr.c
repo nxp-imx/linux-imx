@@ -225,7 +225,7 @@ static void host_wakeup_handler(struct fsl_usb2_platform_data *pdata)
 {
 	_host_wakeup_enable(pdata, false);
 	_host_phy_lowpower_suspend(pdata, false);
-	fsl_usb_recover_hcd(&mxc_usbdr_host_device);
+	pdata->wakeup_event = 1;
 }
 /* End of host related operation for DR port */
 #endif /* CONFIG_USB_EHCI_ARC_OTG */
