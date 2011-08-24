@@ -222,6 +222,12 @@ __v7_setup:
 	orreq	r10, r10, #(1 << 9)		@ set PLDNOP to 1
 	mcreq	p15, 0, r10, c1, c0, 1		@ write aux control register
 #endif
+	mrc     p15, 0, r10, c1, c0, 1		@ R0 = auxiliary control reg
+	orr     r10, r10, #(1<<5)		@ Enable L1NEON
+	orr     r10, r10, #(1<<4)		@ Enable speculative access on AXI
+	bic     r10, r10, #(1<<3)		@ Disable L1PE
+	bic	r10, r10, #(1<<0)		@ L1ALIAS enabled (error if disabled)
+	mcr     p15, 0, r10, c1, c0, 1		@ Update aux control reg
 #ifdef CONFIG_ARM_ERRATA_460075
 	teq	r0, #0x20			@ only present in r2p0
 	mrceq	p15, 1, r10, c9, c0, 2		@ read L2 cache aux ctrl register
@@ -229,7 +235,21 @@ __v7_setup:
 	orreq	r10, r10, #(1 << 22)		@ set the Write Allocate disable bit
 	mcreq	p15, 1, r10, c9, c0, 2		@ write the L2 cache aux ctrl register
 #endif
+	mrc p15, 1, r10, c9, c0, 2          @ Read L2 Cache Auxiliary Control Register
+	orr r10, r10, #(1<<29)      @ read data multiplexer select, one cycle
+	bic r10, r10, #(1<<27)      @ PLD forwarding
+	orr r10, r10, #(1<<25)      @ Write combine
+	bic r10, r10, #(1<<24)
+	orr r10, r10, #(1<<23)
+	orr r10, r10, #(1<<22)
+	bic r10, r10, #(1<<16)      @ L2 inner: L2 observes outer cacheability
+	bic r10, r10, #(7<<6)
+	orr r10, r10, #(3<<6)       @ Tag RAM latency, 4 cycles
+	bic r10, r10, #(15<<0)
+	orr r10, r10, #(3<<0)       @ Data RAM latency, 4 cycles
 
+	mcr p15, 1, r10, c9, c0, 2 @ Write L2 Cache Auxiliary Control Register
+	/* End of L2 configuration */
 2:	mov	r10, #0
 #ifdef HARVARD_CACHE
 	mcr	p15, 0, r10, c7, c5, 0		@ I+BTB cache invalidate

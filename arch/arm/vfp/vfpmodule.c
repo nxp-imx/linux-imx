@@ -49,7 +49,7 @@ static void vfp_thread_flush(struct thread_info *thread)
 	memset(vfp, 0, sizeof(union vfp_state));
 
 	vfp->hard.fpexc = FPEXC_EN;
-	vfp->hard.fpscr = FPSCR_ROUND_NEAREST;
+	vfp->hard.fpscr = FPSCR_DEFAULT_NAN | FPSCR_FLUSHTOZERO | FPSCR_ROUND_NEAREST;
 
 	/*
 	 * Disable VFP to ensure we initialize it first.  We must ensure
