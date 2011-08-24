@@ -22,12 +22,6 @@
 #include "iomux.h"
 #include "mx51_pins.h"
 
-#ifdef CONFIG_USB_EHCI_ARC
-extern void fsl_usb_recover_hcd(struct platform_device *pdev);
-#else
-static void fsl_usb_recover_hcd(struct platform_device *pdev)
-{; }
-#endif
 /*
  * USB Host2 HS port
  */
@@ -109,7 +103,7 @@ static void h2_wakeup_handler(struct fsl_usb2_platform_data *pdata)
 {
 	_wake_up_enable(pdata, false);
 	_phy_lowpower_suspend(pdata, false);
-	fsl_usb_recover_hcd(&mxc_usbh2_device);
+	pdata->wakeup_event = 1;
 }
 
 static void usbh2_wakeup_event_clear(void)
