@@ -395,6 +395,7 @@ static int esdhc_pltfm_init(struct sdhci_host *host, struct sdhci_pltfm_data *pd
 	struct clk *clk;
 	int err;
 	struct pltfm_imx_data *imx_data;
+	u32 reg;
 
 	clk = clk_get(mmc_dev(host->mmc), NULL);
 	if (IS_ERR(clk)) {
@@ -439,6 +440,20 @@ static int esdhc_pltfm_init(struct sdhci_host *host, struct sdhci_pltfm_data *pd
 		host->tuning_max = SDHCI_TUNE_CTRL_MAX;
 		host->tuning_step = SDHCI_TUNE_CTRL_STEP;
 	}
+
+	/* disable card interrupt enable bit, and clear status bit
+	 * the default value of this enable bit is 1, but it should
+	 * be 0 regarding to standard host controller spec 2.1.3.
+	 * if this bit is 1, it may cause some problems.
+	 * there's dat1 glitch when some cards inserting into the slot,
+	 * thus wrongly generate a card interrupt that will cause
+	 * system panic because it lacks of sdio handler
+	 * following code will solve the problem.
+	 */
+	reg = sdhci_readl(host, SDHCI_INT_ENABLE);
+	reg &= ~SDHCI_INT_CARD_INT;
+	sdhci_writel(host, reg, SDHCI_INT_ENABLE);
+	sdhci_writel(host, SDHCI_INT_CARD_INT, SDHCI_INT_STATUS);
 
 	if (boarddata) {
 		/* Device is always present, e.x, populated emmc device */
