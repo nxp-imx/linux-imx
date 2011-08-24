@@ -359,6 +359,20 @@ static int plt_8bit_width(struct sdhci_host *host, int width)
 
 	return 0;
 }
+
+static void plt_clk_ctrl(struct sdhci_host *host, bool enable)
+{
+	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
+
+	if (enable) {
+		clk_enable(pltfm_host->clk);
+		host->clk_status = true;
+	} else {
+		clk_disable(pltfm_host->clk);
+		host->clk_status = false;
+	}
+}
+
 static struct sdhci_ops sdhci_esdhc_ops = {
 	.read_l = esdhc_readl_le,
 	.read_w = esdhc_readw_le,
@@ -371,6 +385,7 @@ static struct sdhci_ops sdhci_esdhc_ops = {
 	.pre_tuning = esdhc_prepare_tuning,
 	.platform_8bit_width = plt_8bit_width,
 	.platform_ddr_mode = plt_ddr_mode,
+	.platform_clk_ctrl = plt_clk_ctrl,
 };
 
 static irqreturn_t cd_irq(int irq, void *data)
@@ -439,6 +454,7 @@ static int esdhc_pltfm_init(struct sdhci_host *host, struct sdhci_pltfm_data *pd
 		host->tuning_min = SDHCI_TUNE_CTRL_MIN;
 		host->tuning_max = SDHCI_TUNE_CTRL_MAX;
 		host->tuning_step = SDHCI_TUNE_CTRL_STEP;
+		host->clk_mgr_en = true;
 	}
 
 	/* disable card interrupt enable bit, and clear status bit
@@ -460,6 +476,8 @@ static int esdhc_pltfm_init(struct sdhci_host *host, struct sdhci_pltfm_data *pd
 		if (boarddata->always_present) {
 			imx_data->flags |= ESDHC_FLAG_GPIO_FOR_CD_WP;
 			host->quirks &= ~SDHCI_QUIRK_BROKEN_CARD_DETECTION;
+			if (host->clk_mgr_en)
+				clk_disable(pltfm_host->clk);
 			return 0;
 		}
 
@@ -489,7 +507,8 @@ static int esdhc_pltfm_init(struct sdhci_host *host, struct sdhci_pltfm_data *pd
 		/* Now we have a working card_detect again */
 		host->quirks &= ~SDHCI_QUIRK_BROKEN_CARD_DETECTION;
 	}
-
+	if (host->clk_mgr_en)
+		clk_disable(pltfm_host->clk);
 	return 0;
 
  no_card_detect_irq:
@@ -497,6 +516,8 @@ static int esdhc_pltfm_init(struct sdhci_host *host, struct sdhci_pltfm_data *pd
  no_card_detect_pin:
 	boarddata->cd_gpio = err;
 	kfree(imx_data);
+	if (host->clk_mgr_en)
+		clk_disable(pltfm_host->clk);
 	return 0;
 }
 
@@ -516,7 +537,8 @@ static void esdhc_pltfm_exit(struct sdhci_host *host)
 			free_irq(gpio_to_irq(boarddata->cd_gpio), host);
 	}
 
-	clk_disable(pltfm_host->clk);
+	if (!host->clk_mgr_en)
+		clk_disable(pltfm_host->clk);
 	clk_put(pltfm_host->clk);
 	kfree(imx_data);
 }
