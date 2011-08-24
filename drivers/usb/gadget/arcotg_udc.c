@@ -2088,17 +2088,25 @@ static void fsl_gadget_event(struct work_struct *work)
 {
 	struct fsl_udc *udc = udc_controller;
 	unsigned long flags;
+	u32 tmp;
 
 	if (udc->driver)
 		udc->driver->disconnect(&udc->gadget);
 	spin_lock_irqsave(&udc->lock, flags);
 	/* update port status */
 	fsl_udc_speed_update(udc);
+	udc->stopped = 1;
 	spin_unlock_irqrestore(&udc->lock, flags);
 
-	udc->stopped = 1;
 	/* enable wake up */
 	dr_wake_up_enable(udc, true);
+	/* here we need to enable the B_SESSION_IRQ
+	 * to enable the following device attach
+	 */
+	tmp = fsl_readl(&dr_regs->otgsc);
+	if (!(tmp & (OTGSC_B_SESSION_VALID_IRQ_EN)))
+		fsl_writel(tmp | (OTGSC_B_SESSION_VALID_IRQ_EN),
+				&dr_regs->otgsc);
 	/* close USB PHY clock */
 	dr_phy_low_power_mode(udc, true);
 	/* close dr controller clock */
@@ -2137,6 +2145,17 @@ bool try_wake_up_udc(struct fsl_udc *udc)
 			printk(KERN_DEBUG "%s: udc out low power mode\n", __func__);
 		} else {
 			fsl_writel(tmp & ~USB_CMD_RUN_STOP, &dr_regs->usbcmd);
+			/* here we need disable B_SESSION_IRQ, after
+			 * schedule_work finished, it need to be enabled again.
+			 * Doing like this can avoid conflicting between rapid
+			 * plug in/out.
+			 */
+			tmp = fsl_readl(&dr_regs->otgsc);
+			if (tmp & (OTGSC_B_SESSION_VALID_IRQ_EN))
+				fsl_writel(tmp &
+					   (~OTGSC_B_SESSION_VALID_IRQ_EN),
+					   &dr_regs->otgsc);
+
 			schedule_work(&udc->gadget_work);
 			return false;
 		}
