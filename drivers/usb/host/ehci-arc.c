@@ -126,7 +126,7 @@ void fsl_usb_recover_hcd(struct platform_device *pdev)
 	 * CMDRUN bit in 20ms to keep port status.
 	 */
 	cmd = ehci_readl(ehci, &ehci->regs->command);
-	if (!(cmd & CMD_RUN)) {
+	if (!(cmd & CMD_RUN) || (hcd->state == HC_STATE_SUSPENDED)) {
 		ehci_writel(ehci, ehci->command, &ehci->regs->command);
 		/* Resume root hub here? */
 		usb_hcd_resume_root_hub(hcd);
@@ -404,6 +404,8 @@ static int ehci_fsl_bus_suspend(struct usb_hcd *hcd)
 {
 	int ret = 0;
 	struct fsl_usb2_platform_data *pdata;
+	u32 tmp, portsc;
+	struct ehci_hcd *ehci = hcd_to_ehci(hcd);
 
 	pdata = hcd->self.controller->platform_data;
 	printk(KERN_DEBUG "%s, %s\n", __func__, pdata->name);
@@ -413,9 +415,17 @@ static int ehci_fsl_bus_suspend(struct usb_hcd *hcd)
 		return 0;
 	}
 
+	portsc = ehci_readl(ehci, &ehci->regs->port_status[0]);
 	ret = ehci_bus_suspend(hcd);
 	if (ret != 0)
 		return ret;
+
+	if (portsc & PORT_CCS) {
+		printk(KERN_DEBUG "there is a device on the port\n");
+		tmp = ehci_readl(ehci, &ehci->regs->command);
+		tmp |= CMD_RUN;
+		ehci_writel(ehci, tmp, &ehci->regs->command);
+	}
 
 	if (pdata->platform_suspend)
 		pdata->platform_suspend(pdata);
