@@ -30,6 +30,7 @@
 #define	PORT_PTS_SERIAL		(3<<30)
 #define PORT_PTS_PTW		(1<<28)
 #define PORT_PTS_PHCD		(1<<23)
+#define PORT_CCS		(1<<0)
 #define FSL_SOC_USB_PORTSC2	0x188
 #define FSL_SOC_USB_USBMODE	0x1a8
 #define USBMODE_CM_HOST		(3 << 0)	/* controller mode: host */
