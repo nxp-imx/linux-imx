@@ -1306,6 +1306,7 @@ int usb_suspend(struct device *dev, pm_message_t msg)
 	choose_wakeup(udev, msg);
 	return usb_suspend_both(udev, msg);
 }
+EXPORT_SYMBOL_GPL(usb_suspend);
 
 /* The device lock is held by the PM core */
 int usb_resume(struct device *dev, pm_message_t msg)
@@ -1341,6 +1342,7 @@ int usb_resume(struct device *dev, pm_message_t msg)
 		status = 0;
 	return status;
 }
+EXPORT_SYMBOL_GPL(usb_resume);
 
 #endif /* CONFIG_PM */
 
