@@ -16,6 +16,7 @@
 #include "power.h"
 
 DEFINE_MUTEX(pm_mutex);
+EXPORT_SYMBOL(pm_mutex);
 
 unsigned int pm_flags;
 EXPORT_SYMBOL(pm_flags);

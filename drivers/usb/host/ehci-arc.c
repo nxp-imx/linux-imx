@@ -137,6 +137,31 @@ void fsl_usb_recover_hcd(struct platform_device *pdev)
 }
 
 /**
+ * This irq is used to open the hw access and let usb_hcd_irq process the usb event
+ * ehci_fsl_pre_irq will be called before usb_hcd_irq
+ * The hcd operation need to be done during the wakeup irq
+ */
+static irqreturn_t ehci_fsl_pre_irq(int irq, void *dev)
+{
+	struct platform_device *pdev = (struct platform_device *)dev;
+	struct usb_hcd *hcd = platform_get_drvdata(pdev);
+	struct fsl_usb2_platform_data *pdata;
+
+	pdata = hcd->self.controller->platform_data;
+
+	if (!test_bit(HCD_FLAG_HW_ACCESSIBLE, &hcd->flags)) {
+		if (pdata->irq_delay || !pdata->wakeup_event)
+			return IRQ_NONE;
+
+		pr_debug("%s\n", __func__);
+		pdata->wakeup_event = 0;
+		fsl_usb_recover_hcd(pdev);
+		return IRQ_HANDLED;
+	}
+	return IRQ_NONE;
+}
+
+/**
  * usb_hcd_fsl_probe - initialize FSL-based HCDs
  * @drvier: Driver to be used for this HCD
  * @pdev: USB Host Controller being probed
@@ -224,10 +249,18 @@ int usb_hcd_fsl_probe(const struct hc_driver *driver,
 
 	fsl_platform_set_host_mode(hcd);
 	hcd->power_budget = pdata->power_budget;
+	/*
+	 * The ehci_fsl_pre_irq must be registered before usb_hcd_irq, in that case
+	 * it can be called before usb_hcd_irq when irq occurs
+	 */
+	retval = request_irq(irq, ehci_fsl_pre_irq, IRQF_SHARED,
+			"fsl ehci pre interrupt", (void *)pdev);
+	if (retval != 0)
+		goto err4;
 
 	retval = usb_add_hcd(hcd, irq, IRQF_DISABLED | IRQF_SHARED);
 	if (retval != 0)
-		goto err4;
+		goto err5;
 
 	if (pdata->operating_mode == FSL_USB2_DR_OTG) {
 		struct ehci_hcd *ehci = hcd_to_ehci(hcd);
@@ -240,7 +273,7 @@ int usb_hcd_fsl_probe(const struct hc_driver *driver,
 		if (!ehci->transceiver) {
 			printk(KERN_ERR "can't find transceiver\n");
 			retval = -ENODEV;
-			goto err5;
+			goto err6;
 		}
 
 		retval = otg_set_host(ehci->transceiver, &ehci_to_hcd(ehci)->self);
@@ -259,10 +292,12 @@ int usb_hcd_fsl_probe(const struct hc_driver *driver,
 	fsl_platform_set_ahb_burst(hcd);
 	ehci_testmode_init(hcd_to_ehci(hcd));
 	return retval;
-err5:
+err6:
 	usb_remove_hcd(hcd);
-err4:
+err5:
 	iounmap(hcd->regs);
+err4:
+	free_irq(irq, (void *)pdev);
 err3:
 	if (pdata->operating_mode != FSL_USB2_DR_OTG)
 		release_mem_region(hcd->rsrc_start, hcd->rsrc_len);
@@ -535,7 +570,9 @@ static int ehci_fsl_drv_remove(struct platform_device *pdev)
 {
 	struct usb_hcd *hcd = platform_get_drvdata(pdev);
 
-	/* FIXME we only want one one remove() not two */
+	/* free ehci_fsl_pre_irq first */
+	free_irq(hcd->irq, (void *)pdev);
+	/* FIXME we only want one remove() not two */
 	usb_hcd_fsl_remove(hcd, pdev);
 	return 0;
 }
