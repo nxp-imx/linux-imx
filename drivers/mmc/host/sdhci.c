@@ -1,7 +1,7 @@
 /*
  *  linux/drivers/mmc/host/sdhci.c - Secure Digital Host Controller Interface driver
  *
- *  Copyright (C) 2005-2008 Pierre Ossman, All Rights Reserved.
+ *  Copyright (C) 2005-2011 Pierre Ossman, All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -25,10 +25,12 @@
 
 #include <linux/mmc/mmc.h>
 #include <linux/mmc/host.h>
+#include <linux/mmc/card.h>
 
 #include "sdhci.h"
 
 #define DRIVER_NAME "sdhci"
+#define CLK_TIMEOUT	(10 * HZ)
 
 #define DBG(f, x...) \
 	pr_debug(DRIVER_NAME " [%s()]: " f, __func__,## x)
@@ -48,6 +50,48 @@ static void sdhci_send_command(struct sdhci_host *, struct mmc_command *);
 static void sdhci_finish_command(struct sdhci_host *);
 static int sdhci_execute_tuning(struct mmc_host *mmc);
 static void sdhci_tuning_timer(unsigned long data);
+
+static void sdhci_clk_worker(struct work_struct *work)
+{
+	unsigned long flags;
+	struct sdhci_host *host =
+		container_of(work, struct sdhci_host, clk_worker.work);
+
+	spin_lock_irqsave(&host->lock, flags);
+	if (host->ops->platform_clk_ctrl && host->clk_status)
+		host->ops->platform_clk_ctrl(host, false);
+	spin_unlock_irqrestore(&host->lock, flags);
+}
+
+static inline bool sdhci_is_sdio_attached(struct sdhci_host *host)
+{
+	struct mmc_card *card = host->mmc->card;
+
+	if (card && card->sdio_func[0])
+		return true;
+	return false;
+}
+
+static void sdhci_enable_clk(struct sdhci_host *host)
+{
+	if (host->clk_mgr_en) {
+		if (!in_interrupt())
+			cancel_delayed_work(&host->clk_worker);
+		if (!host->clk_status && host->ops->platform_clk_ctrl)
+			host->ops->platform_clk_ctrl(host, true);
+	}
+}
+
+static void sdhci_disable_clk(struct sdhci_host *host, int delay)
+{
+	if (host->clk_mgr_en && !sdhci_is_sdio_attached(host)) {
+		if (delay == 0 && !in_interrupt()) {
+			if (host->ops->platform_clk_ctrl && host->clk_status)
+				host->ops->platform_clk_ctrl(host, false);
+		} else
+			schedule_delayed_work(&host->clk_worker, delay);
+	}
+}
 
 static void sdhci_dumpregs(struct sdhci_host *host)
 {
@@ -246,12 +290,14 @@ static void sdhci_led_control(struct led_classdev *led,
 	unsigned long flags;
 
 	spin_lock_irqsave(&host->lock, flags);
+	sdhci_enable_clk(host);
 
 	if (brightness == LED_OFF)
 		sdhci_deactivate_led(host);
 	else
 		sdhci_activate_led(host);
 
+	sdhci_disable_clk(host, CLK_TIMEOUT);
 	spin_unlock_irqrestore(&host->lock, flags);
 }
 #endif
@@ -1227,6 +1273,7 @@ static void sdhci_request(struct mmc_host *mmc, struct mmc_request *mrq)
 	}
 
 	host->mrq = mrq;
+	sdhci_enable_clk(host);
 
 	/* If polling, assume that the card is always present. */
 	if (host->quirks & SDHCI_QUIRK_BROKEN_CARD_DETECTION)
@@ -1276,6 +1323,7 @@ static void sdhci_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
 	host = mmc_priv(mmc);
 
 	spin_lock_irqsave(&host->lock, flags);
+	sdhci_enable_clk(host);
 
 	if (host->flags & SDHCI_DEVICE_DEAD)
 		goto out;
@@ -1427,6 +1475,9 @@ static void sdhci_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
 
 out:
 	mmiowb();
+	if (ios->power_mode == MMC_POWER_OFF)
+		sdhci_disable_clk(host, 0);
+
 	spin_unlock_irqrestore(&host->lock, flags);
 }
 
@@ -1436,6 +1487,7 @@ static int check_ro(struct sdhci_host *host)
 	int is_readonly;
 
 	spin_lock_irqsave(&host->lock, flags);
+	sdhci_enable_clk(host);
 
 	if (host->flags & SDHCI_DEVICE_DEAD)
 		is_readonly = 0;
@@ -1483,6 +1535,7 @@ static void sdhci_enable_sdio_irq(struct mmc_host *mmc, int enable)
 	host = mmc_priv(mmc);
 
 	spin_lock_irqsave(&host->lock, flags);
+	sdhci_enable_clk(host);
 
 	if (host->flags & SDHCI_DEVICE_DEAD)
 		goto out;
@@ -1830,6 +1883,9 @@ static void sdhci_tasklet_card(unsigned long param)
 
 	spin_lock_irqsave(&host->lock, flags);
 
+	if (host->clk_mgr_en)
+		goto out;
+
 	if (!(sdhci_readl(host, SDHCI_PRESENT_STATE) & SDHCI_CARD_PRESENT)) {
 		if (host->mrq) {
 			printk(KERN_ERR "%s: Card removed during transfer!\n",
@@ -1844,7 +1900,7 @@ static void sdhci_tasklet_card(unsigned long param)
 			tasklet_schedule(&host->finish_tasklet);
 		}
 	}
-
+out:
 	spin_unlock_irqrestore(&host->lock, flags);
 
 	mmc_detect_change(host->mmc, msecs_to_jiffies(200));
@@ -1906,6 +1962,7 @@ static void sdhci_tasklet_finish(unsigned long param)
 #endif
 
 	mmiowb();
+	sdhci_disable_clk(host, CLK_TIMEOUT);
 	spin_unlock_irqrestore(&host->lock, flags);
 
 	mmc_request_done(host->mmc, mrq);
@@ -2228,6 +2285,7 @@ int sdhci_suspend_host(struct sdhci_host *host, pm_message_t state)
 {
 	int ret;
 
+	sdhci_enable_clk(host);
 	sdhci_disable_card_detection(host);
 
 	/* Disable tuning since we are suspending */
@@ -2239,13 +2297,19 @@ int sdhci_suspend_host(struct sdhci_host *host, pm_message_t state)
 
 	ret = mmc_suspend_host(host->mmc);
 	if (ret)
-		return ret;
+		goto out;
 
 	free_irq(host->irq, host);
 
 	if (host->vmmc)
 		ret = regulator_disable(host->vmmc);
 
+out:
+	/* sync worker
+	 * mmc_suspend_host may disable the clk
+	 */
+	sdhci_enable_clk(host);
+	sdhci_disable_clk(host, 0);
 	return ret;
 }
 
@@ -2261,7 +2325,7 @@ int sdhci_resume_host(struct sdhci_host *host)
 			return ret;
 	}
 
-
+	sdhci_enable_clk(host);
 	if (host->flags & (SDHCI_USE_SDMA | SDHCI_USE_ADMA)) {
 		if (host->ops->enable_dma)
 			host->ops->enable_dma(host);
@@ -2270,13 +2334,20 @@ int sdhci_resume_host(struct sdhci_host *host)
 	ret = request_irq(host->irq, sdhci_irq, IRQF_SHARED,
 			  mmc_hostname(host->mmc), host);
 	if (ret)
-		return ret;
+		goto out;
 
 	sdhci_init(host, (host->mmc->pm_flags & MMC_PM_KEEP_POWER));
 	mmiowb();
 
 	ret = mmc_resume_host(host->mmc);
+
+	/* mmc_resume_host may disable the clk */
+	sdhci_enable_clk(host);
 	sdhci_enable_card_detection(host);
+
+out:
+	/* sync worker */
+	sdhci_disable_clk(host, 0);
 
 	/* Set the re-tuning expiration flag */
 	if ((host->version >= SDHCI_SPEC_300) && host->tuning_count &&
@@ -2291,9 +2362,12 @@ EXPORT_SYMBOL_GPL(sdhci_resume_host);
 void sdhci_enable_irq_wakeups(struct sdhci_host *host)
 {
 	u8 val;
+
+	sdhci_enable_clk(host);
 	val = sdhci_readb(host, SDHCI_WAKE_UP_CONTROL);
 	val |= SDHCI_WAKE_ON_INT;
 	sdhci_writeb(host, val, SDHCI_WAKE_UP_CONTROL);
+	sdhci_disable_clk(host, CLK_TIMEOUT);
 }
 
 EXPORT_SYMBOL_GPL(sdhci_enable_irq_wakeups);
@@ -2343,6 +2417,10 @@ int sdhci_add_host(struct sdhci_host *host)
 	if (debug_quirks)
 		host->quirks = debug_quirks;
 
+	if (host->clk_mgr_en)
+		INIT_DELAYED_WORK(&host->clk_worker, sdhci_clk_worker);
+
+	sdhci_enable_clk(host);
 	sdhci_reset(host, SDHCI_RESET_ALL);
 
 	host->version = sdhci_readw(host, SDHCI_HOST_VERSION);
@@ -2437,6 +2515,7 @@ int sdhci_add_host(struct sdhci_host *host)
 			printk(KERN_ERR
 			       "%s: Hardware doesn't specify base clock "
 			       "frequency.\n", mmc_hostname(mmc));
+			sdhci_disable_clk(host, 0);
 			return -ENODEV;
 		}
 		host->max_clk = host->ops->get_max_clock(host);
@@ -2452,6 +2531,7 @@ int sdhci_add_host(struct sdhci_host *host)
 			printk(KERN_ERR
 			       "%s: Hardware doesn't specify timeout clock "
 			       "frequency.\n", mmc_hostname(mmc));
+			sdhci_disable_clk(host, 0);
 			return -ENODEV;
 		}
 	}
@@ -2639,6 +2719,7 @@ int sdhci_add_host(struct sdhci_host *host)
 	if (mmc->ocr_avail == 0) {
 		printk(KERN_ERR "%s: Hardware doesn't report any "
 			"support voltages.\n", mmc_hostname(mmc));
+		sdhci_disable_clk(host, 0);
 		return -ENODEV;
 	}
 
@@ -2762,7 +2843,7 @@ int sdhci_add_host(struct sdhci_host *host)
 		(host->flags & SDHCI_USE_SDMA) ? "DMA" : "PIO");
 
 	sdhci_enable_card_detection(host);
-
+	sdhci_disable_clk(host, CLK_TIMEOUT);
 	return 0;
 
 #ifdef SDHCI_USE_LEDS_CLASS
@@ -2773,7 +2854,7 @@ reset:
 untasklet:
 	tasklet_kill(&host->card_tasklet);
 	tasklet_kill(&host->finish_tasklet);
-
+	sdhci_disable_clk(host, 0);
 	return ret;
 }
 
@@ -2793,12 +2874,14 @@ void sdhci_remove_host(struct sdhci_host *host, int dead)
 				" transfer!\n", mmc_hostname(host->mmc));
 
 			host->mrq->cmd->error = -ENOMEDIUM;
+			sdhci_enable_clk(host);
 			tasklet_schedule(&host->finish_tasklet);
 		}
 
 		spin_unlock_irqrestore(&host->lock, flags);
 	}
 
+	sdhci_enable_clk(host);
 	sdhci_disable_card_detection(host);
 
 	mmc_remove_host(host->mmc);
@@ -2807,8 +2890,10 @@ void sdhci_remove_host(struct sdhci_host *host, int dead)
 	led_classdev_unregister(&host->led);
 #endif
 
+	sdhci_enable_clk(host);
 	if (!dead)
 		sdhci_reset(host, SDHCI_RESET_ALL);
+	sdhci_disable_clk(host, 0);
 
 	free_irq(host->irq, host);
 
