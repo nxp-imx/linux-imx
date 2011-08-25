@@ -47,6 +47,7 @@ static struct clk pll6_MLB_main_clk;
 static struct clk pll7_usb_host_main_clk;
 static struct clk pll8_enet_main_clk;
 static struct clk apbh_dma_clk;
+static struct clk openvg_axi_clk;
 
 #define SPIN_DELAY	1000000 /* in nanoseconds */
 
@@ -1318,6 +1319,7 @@ static int _clk_gpu2d_axi_set_parent(struct clk *clk, struct clk *parent)
 static struct clk gpu2d_axi_clk = {
 	__INIT_CLK_DEBUG(gpu2d_axi_clk)
 	.parent = &axi_clk,
+	.secondary = &openvg_axi_clk,
 	.set_parent = _clk_gpu2d_axi_set_parent,
 };
 
@@ -3622,6 +3624,7 @@ static int _clk_gpu3d_core_set_rate(struct clk *clk, unsigned long rate)
 static struct clk gpu3d_core_clk = {
 	__INIT_CLK_DEBUG(gpu3d_core_clk)
 	.parent = &pll2_pfd_594M,
+	.secondary = &gpu3d_axi_clk,
 	.enable = _clk_enable,
 	.enable_reg = MXC_CCM_CCGR1,
 	.enable_shift = MXC_CCM_CCGRx_CG13_OFFSET,
@@ -3698,6 +3701,7 @@ static int _clk_gpu2d_core_set_rate(struct clk *clk, unsigned long rate)
 static struct clk gpu2d_core_clk = {
 	__INIT_CLK_DEBUG(gpu2d_core_clk)
 	.parent = &pll2_pfd_352M,
+	.secondary = &gpu2d_axi_clk,
 	.enable = _clk_enable,
 	.enable_reg = MXC_CCM_CCGR1,
 	.enable_shift = MXC_CCM_CCGRx_CG12_OFFSET,
@@ -4119,7 +4123,7 @@ int __init mx6_clocks_init(unsigned long ckil, unsigned long osc,
 
 	clk_set_parent(&gpu3d_shader_clk, &pll2_pfd_594M);
 	clk_set_rate(&gpu3d_shader_clk, 594000000);
-	clk_set_parent(&gpu3d_core_clk, &mmdc_ch0_axi_clk);
+	clk_set_parent(&gpu3d_core_clk, &mmdc_ch0_axi_clk[0]);
 	clk_set_rate(&gpu3d_core_clk, 528000000);
 
 	/*
