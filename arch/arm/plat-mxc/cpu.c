@@ -17,6 +17,7 @@
  */
 
 #include <linux/module.h>
+#include <mach/clock.h>
 
 unsigned int __mxc_cpu_type;
 EXPORT_SYMBOL(__mxc_cpu_type);
