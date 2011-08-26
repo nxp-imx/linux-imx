@@ -84,6 +84,7 @@
 
 void __init early_console_setup(unsigned long base, struct clk *clk);
 static struct clk *sata_clk;
+static int esai_record;
 
 static iomux_v3_cfg_t mx6q_sabreauto_pads[] = {
 
@@ -160,18 +161,14 @@ static iomux_v3_cfg_t mx6q_sabreauto_pads[] = {
 
 	/* ESAI */
 	MX6Q_PAD_ENET_RXD0__ESAI1_HCKT,
-	/* MX6Q_PAD_ENET_RX_ER__ESAI1_HCKR,
-	MX6Q_PAD_ENET_MDIO__ESAI1_SCKR,
-	MX6Q_PAD_ENET_REF_CLK__ESAI1_FSR, */
 	MX6Q_PAD_ENET_CRS_DV__ESAI1_SCKT,
 	MX6Q_PAD_ENET_RXD1__ESAI1_FST,
-	/* MX6Q_PAD_ENET_TX_EN__ESAI1_TX3_RX2,
+	MX6Q_PAD_ENET_TX_EN__ESAI1_TX3_RX2,
 	MX6Q_PAD_ENET_TXD1__ESAI1_TX2_RX3,
 	MX6Q_PAD_ENET_TXD0__ESAI1_TX4_RX1,
-	MX6Q_PAD_ENET_MDC__ESAI1_TX5_RX0, */
+	MX6Q_PAD_ENET_MDC__ESAI1_TX5_RX0,
 	MX6Q_PAD_NANDF_CS2__ESAI1_TX0,
 	MX6Q_PAD_NANDF_CS3__ESAI1_TX1,
-	/* MX53_PAD_PATA_DATA4__GPIO2_4, */
 
 	/* I2C1 */
 	MX6Q_PAD_CSI0_DAT8__I2C1_SDA,
@@ -237,6 +234,13 @@ static iomux_v3_cfg_t mx6q_sabreauto_pads[] = {
 	/* USBOTG ID pin */
 	MX6Q_PAD_GPIO_1__USBOTG_ID,
 };
+
+static iomux_v3_cfg_t mx6q_sabreauto_esai_record_pads[] = {
+	MX6Q_PAD_ENET_RX_ER__ESAI1_HCKR,
+	MX6Q_PAD_ENET_MDIO__ESAI1_SCKR,
+	MX6Q_PAD_ENET_REF_CLK__ESAI1_FSR,
+};
+
 static const struct esdhc_platform_data mx6q_sabreauto_sd3_data __initconst = {
 	.cd_gpio = MX6Q_SABREAUTO_SD3_CD,
 	.wp_gpio = MX6Q_SABREAUTO_SD3_WP,
@@ -668,7 +672,17 @@ static int imx6q_init_audio(void)
 
 	clk_set_parent(esai_clk, pll3_pfd);
 	clk_set_rate(esai_clk, 101647058);
+
+	return 0;
 }
+
+static int __init early_use_esai_record(char *p)
+{
+	esai_record = 1;
+	return 0;
+}
+
+early_param("esai_record", early_use_esai_record);
 /*!
  * Board specific initialization.
  */
@@ -678,6 +692,10 @@ static void __init mx6_board_init(void)
 
 	mxc_iomux_v3_setup_multiple_pads(mx6q_sabreauto_pads,
 					ARRAY_SIZE(mx6q_sabreauto_pads));
+
+	if (esai_record)
+	    mxc_iomux_v3_setup_multiple_pads(mx6q_sabreauto_esai_record_pads,
+			ARRAY_SIZE(mx6q_sabreauto_esai_record_pads));
 
 	mx6q_sabreauto_init_uart();
 
@@ -706,7 +724,9 @@ static void __init mx6_board_init(void)
 	imx6q_add_mxc_hdmi(&hdmi_data);
 
 	imx6q_add_anatop_thermal_imx(1, &mx6q_sabreauto_anatop_thermal_data);
-	imx6q_init_fec();
+
+	if (!esai_record)
+		imx6q_init_fec();
 
 	imx6q_add_pm_imx(0, &mx6q_sabreauto_pm_data);
 	imx6q_add_sdhci_usdhc_imx(3, &mx6q_sabreauto_sd4_data);
