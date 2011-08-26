@@ -618,6 +618,7 @@ static int cs42888_set_dai_fmt(struct snd_soc_dai *codec_dai,
 		return ret;
 	}
 
+	dump_reg(codec);
 	return ret;
 }
 
@@ -647,7 +648,7 @@ static int cs42888_hw_params(struct snd_pcm_substream *substream,
 	unsigned int i;
 	unsigned int rate;
 	unsigned int ratio;
-	u8 val;
+	u32 val;
 
 	rate = params_rate(params);	/* Sampling rate, in Hz */
 	ratio = cs42888->mclk / rate;	/* MCLK/LRCK ratio */
@@ -706,6 +707,7 @@ static int cs42888_hw_params(struct snd_pcm_substream *substream,
 		return ret;
 	}
 
+	dump_reg(codec);
 	return ret;
 }
 
