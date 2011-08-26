@@ -68,7 +68,7 @@ static int imx_esai_set_dai_sysclk(struct snd_soc_dai *cpu_dai,
 			ecr |= ESAI_ECR_ETI;
 			ecr &= ~ESAI_ECR_ETO;
 			ecr |= ESAI_ECR_ERI;
-			ecr |= ESAI_ECR_ERO;
+			ecr &= ~ESAI_ECR_ERO;
 		}
 	}
 
