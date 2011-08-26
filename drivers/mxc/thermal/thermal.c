@@ -117,6 +117,8 @@
 #define CONVER_CONST			1413  /* rough value, need calibration */
 #define CONVER_DIV_1024			550  /* div value, need calibration */
 
+#define ANATOP_DEBUG	false
+
 MODULE_AUTHOR("Anson Huang");
 MODULE_DESCRIPTION("ANATOP Thermal Zone Driver");
 MODULE_LICENSE("GPL");
@@ -129,6 +131,8 @@ MODULE_PARM_DESC(psv, "Disable or override all passive trip points.");
 
 static int anatop_thermal_add(struct anatop_device *device);
 static int anatop_thermal_remove(struct platform_device *pdev);
+static int anatop_thermal_suspend(struct platform_device *pdev,
+	pm_message_t state);
 static int anatop_thermal_resume(struct platform_device *pdev);
 /* static void anatop_thermal_notify(struct anatop_device *device,
  * u32 event); */
@@ -208,10 +212,10 @@ struct anatop_thermal {
 	struct mutex lock;
 };
 
-/* ---------------------------------------------
+/* -----------------------------------------------------------
 			Thermal Zone Management
-   --------------------------------------------- */
-static int anatop_dump_temperature_register()
+   ----------------------------------------------------------- */
+static int anatop_dump_temperature_register(void)
 {
 	if (!anatop_base) {
 		pr_info("anatop_base is not initialized!!!\n");
@@ -222,6 +226,7 @@ static int anatop_dump_temperature_register()
 			__raw_readl(anatop_base + HW_ANADIG_TEMPSENSE0));
 	pr_info("HW_ANADIG_TEMPSENSE1 = 0x%x\n",
 			__raw_readl(anatop_base + HW_ANADIG_TEMPSENSE1));
+	return 0;
 }
 static int anatop_tempsense_value_to_dc(int val)
 {
@@ -268,7 +273,8 @@ static int anatop_thermal_get_temperature(struct anatop_thermal *tz)
 				>> BP_ANADIG_TEMPSENSE0_TEMP_VALUE;
 		__raw_writel(BM_ANADIG_TEMPSENSE0_FINISHED,
 			anatop_base + HW_ANADIG_TEMPSENSE0_CLR);
-		/* anatop_dump_temperature_register(); */
+		if (ANATOP_DEBUG)
+			anatop_dump_temperature_register();
 	}
 
 	tmp = tmp / 5;
@@ -725,10 +731,13 @@ static int anatop_thermal_remove(struct platform_device *pdev)
 	/* struct anatop_device *device = platform_get_drvdata(pdev); */
 	return 0;
 }
-
+static int anatop_thermal_suspend(struct platform_device *pdev,
+pm_message_t state)
+{
+	return 0;
+}
 static int anatop_thermal_resume(struct platform_device *pdev)
 {
-
 	return 0;
 }
 static int anatop_thermal_power_on(void)
@@ -789,10 +798,6 @@ device_alloc_failed:
 success:
 	pr_info("%s\n", __func__);
 	return retval;
-}
-static int anatop_thermal_suspend(struct platform_device *pdev)
-{
-	return 0;
 }
 
 static struct platform_driver anatop_thermal_driver_ldm = {
