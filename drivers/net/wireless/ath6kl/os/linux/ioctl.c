@@ -33,6 +33,7 @@ extern int bmienable;
 extern int bypasswmi;
 extern int loghci;
 
+static A_UINT8 data[MAX_OPT_DATA_LEN];
 static int
 ar6000_ioctl_get_roam_tbl(struct net_device *dev, struct ifreq *rq)
 {
@@ -1837,7 +1838,695 @@ ar6000_ioctl_setkey(AR_SOFTC_T *ar, struct ieee80211req_key *ik)
 
     return 0;
 }
+int ar6000_ioctl1(struct net_device *dev, struct ifreq *rq, int cmd, char *userdata)
+{
+	AR_SOFTC_T *ar = (AR_SOFTC_T *)ar6k_priv(dev);
+	HIF_DEVICE *hifDevice = ar->arHifDevice;
+	int ret = 0;
+	unsigned int length = 0;
+	unsigned char *buffer;
 
+	switch (cmd) {
+	case AR6000_XIOCTL_WMI_SETRETRYLIMITS:
+	{
+		WMI_SET_RETRY_LIMITS_CMD setRetryParams;
+
+		if (ar->arWmiReady == FALSE)
+			ret = -EIO;
+		else if (copy_from_user(&setRetryParams, userdata,
+			sizeof(setRetryParams)))
+			ret = -EFAULT;
+		else {
+			if (wmi_set_retry_limits_cmd(ar->arWmi, setRetryParams.frameType,
+				setRetryParams.trafficClass,
+				setRetryParams.maxRetries,
+				setRetryParams.enableNotify) != A_OK)
+				ret = -EIO;
+			AR6000_SPIN_LOCK(&ar->arLock, 0);
+			ar->arMaxRetries = setRetryParams.maxRetries;
+			AR6000_SPIN_UNLOCK(&ar->arLock, 0);
+		}
+		break;
+	}
+	case AR6000_XIOCTL_SET_BEACON_INTVAL:
+	{
+		WMI_BEACON_INT_CMD bIntvlCmd;
+
+		if (ar->arWmiReady == FALSE)
+			ret = -EIO;
+		else if (copy_from_user(&bIntvlCmd, userdata,
+			sizeof(bIntvlCmd)))
+			ret = -EFAULT;
+		else if (wmi_set_adhoc_bconIntvl_cmd(ar->arWmi, bIntvlCmd.beaconInterval)
+			!= A_OK)
+			ret = -EIO;
+
+		if (ret == 0) {
+			ar->ap_beacon_interval = bIntvlCmd.beaconInterval;
+			ar->ap_profile_flag = 1; /* There is a change in profile */
+		}
+		break;
+	}
+	case IEEE80211_IOCTL_SETAUTHALG:
+	{
+		AR_SOFTC_T *ar = (AR_SOFTC_T *)ar6k_priv(dev);
+		struct ieee80211req_authalg req;
+
+		if (ar->arWmiReady == FALSE)
+			ret = -EIO;
+		else if (copy_from_user(&req, userdata,
+			sizeof(struct ieee80211req_authalg)))
+			ret = -EFAULT;
+		else {
+			if (req.auth_alg & AUTH_ALG_OPEN_SYSTEM) {
+				ar->arDot11AuthMode  |= OPEN_AUTH;
+				ar->arPairwiseCrypto  = NONE_CRYPT;
+				ar->arGroupCrypto     = NONE_CRYPT;
+			}
+			if (req.auth_alg & AUTH_ALG_SHARED_KEY) {
+				ar->arDot11AuthMode  |= SHARED_AUTH;
+				ar->arPairwiseCrypto  = WEP_CRYPT;
+				ar->arGroupCrypto     = WEP_CRYPT;
+				ar->arAuthMode        = NONE_AUTH;
+			}
+			if (req.auth_alg == AUTH_ALG_LEAP)
+				ar->arDot11AuthMode   = LEAP_AUTH;
+		}
+		break;
+	}
+	case AR6000_XIOCTL_SET_VOICE_PKT_SIZE:
+		ret = ar6000_xioctl_set_voice_pkt_size(dev, userdata);
+		break;
+	case AR6000_XIOCTL_SET_MAX_SP:
+		ret = ar6000_xioctl_set_max_sp_len(dev, userdata);
+		break;
+	case AR6000_XIOCTL_WMI_GET_ROAM_TBL:
+		ret = ar6000_ioctl_get_roam_tbl(dev, rq);
+		break;
+	case AR6000_XIOCTL_WMI_SET_ROAM_CTRL:
+		ret = ar6000_ioctl_set_roam_ctrl(dev, userdata);
+		break;
+	case AR6000_XIOCTRL_WMI_SET_POWERSAVE_TIMERS:
+		ret = ar6000_ioctl_set_powersave_timers(dev, userdata);
+		break;
+	case AR6000_XIOCTRL_WMI_GET_POWER_MODE:
+		ret = ar6000_ioctl_get_power_mode(dev, rq);
+		break;
+	case AR6000_XIOCTRL_WMI_SET_WLAN_STATE:
+	{
+		AR6000_WLAN_STATE state;
+		if (get_user(state, (unsigned int *)userdata))
+			ret = -EFAULT;
+		else if (ar6000_set_wlan_state(ar, state) != A_OK)
+			ret = -EIO;
+		break;
+	}
+	case AR6000_XIOCTL_WMI_GET_ROAM_DATA:
+		ret = ar6000_ioctl_get_roam_data(dev, rq);
+		break;
+	case AR6000_XIOCTL_WMI_SET_BT_STATUS:
+		ret = ar6000_xioctl_set_bt_status_cmd(dev, userdata);
+		break;
+	case AR6000_XIOCTL_WMI_SET_BT_PARAMS:
+		ret = ar6000_xioctl_set_bt_params_cmd(dev, userdata);
+		break;
+	case AR6000_XIOCTL_WMI_SET_BTCOEX_FE_ANT:
+		ret = ar6000_xioctl_set_btcoex_fe_ant_cmd(dev, userdata);
+		break;
+
+	case AR6000_XIOCTL_WMI_SET_BTCOEX_COLOCATED_BT_DEV:
+		ret = ar6000_xioctl_set_btcoex_colocated_bt_dev_cmd(dev, userdata);
+		break;
+	case AR6000_XIOCTL_WMI_SET_BTCOEX_BTINQUIRY_PAGE_CONFIG:
+		ret = ar6000_xioctl_set_btcoex_btinquiry_page_config_cmd(dev, userdata);
+		break;
+	case AR6000_XIOCTL_WMI_SET_BTCOEX_SCO_CONFIG:
+		ret = ar6000_xioctl_set_btcoex_sco_config_cmd(dev, userdata);
+		break;
+	case AR6000_XIOCTL_WMI_SET_BTCOEX_A2DP_CONFIG:
+		ret = ar6000_xioctl_set_btcoex_a2dp_config_cmd(dev, userdata);
+		break;
+	case AR6000_XIOCTL_WMI_SET_BTCOEX_ACLCOEX_CONFIG:
+		ret = ar6000_xioctl_set_btcoex_aclcoex_config_cmd(dev, userdata);
+		break;
+	case AR6000_XIOCTL_WMI_SET_BTCOEX_DEBUG:
+		ret = ar60000_xioctl_set_btcoex_debug_cmd(dev, userdata);
+		break;
+	case AR6000_XIOCTL_WMI_SET_BT_OPERATING_STATUS:
+		ret = ar6000_xioctl_set_btcoex_bt_operating_status_cmd(dev, userdata);
+		break;
+	case AR6000_XIOCTL_WMI_GET_BTCOEX_CONFIG:
+		ret = ar6000_xioctl_get_btcoex_config_cmd(dev, userdata, rq);
+		break;
+	case AR6000_XIOCTL_WMI_GET_BTCOEX_STATS:
+		ret = ar6000_xioctl_get_btcoex_stats_cmd(dev, userdata, rq);
+		break;
+	case AR6000_XIOCTL_WMI_STARTSCAN:
+	{
+		WMI_START_SCAN_CMD setStartScanCmd, *cmdp;
+
+		if (ar->arWmiReady == FALSE)
+			ret = -EIO;
+		else if (copy_from_user(&setStartScanCmd, userdata,
+			sizeof(setStartScanCmd)))
+			ret = -EFAULT;
+		else {
+			if (setStartScanCmd.numChannels > 1) {
+				cmdp = A_MALLOC(130);
+				if (copy_from_user(cmdp, userdata,
+					sizeof(*cmdp) +
+					((setStartScanCmd.numChannels - 1) *
+					sizeof(A_UINT16)))) {
+					kfree(cmdp);
+					ret = -EFAULT;
+					goto ioctl_done;
+				}
+			} else {
+				cmdp = &setStartScanCmd;
+			}
+
+			if (wmi_startscan_cmd(ar->arWmi, cmdp->scanType,
+				cmdp->forceFgScan,
+				cmdp->isLegacy,
+				cmdp->homeDwellTime,
+				cmdp->forceScanInterval,
+				cmdp->numChannels,
+				cmdp->channelList) != A_OK)
+				ret = -EIO;
+		}
+		break;
+	}
+	case AR6000_XIOCTL_WMI_SETFIXRATES:
+	{
+		WMI_FIX_RATES_CMD setFixRatesCmd;
+		A_STATUS returnStatus;
+
+		if (ar->arWmiReady == FALSE)
+			ret = -EIO;
+		else if (copy_from_user(&setFixRatesCmd, userdata,
+			sizeof(setFixRatesCmd)))
+			ret = -EFAULT;
+		else {
+			returnStatus = wmi_set_fixrates_cmd(ar->arWmi, setFixRatesCmd.fixRateMask);
+			if (returnStatus == A_EINVAL)
+				ret = -EINVAL;
+			else if (returnStatus != A_OK)
+				ret = -EIO;
+			else
+				ar->ap_profile_flag = 1; /* There is a change in profile */
+		}
+		break;
+	}
+	case AR6000_XIOCTL_WMI_GETFIXRATES:
+	{
+		WMI_FIX_RATES_CMD getFixRatesCmd;
+		AR_SOFTC_T *ar = (AR_SOFTC_T *)ar6k_priv(dev);
+		int ret = 0;
+
+		if (ar->bIsDestroyProgress) {
+			ret = -EBUSY;
+			goto ioctl_done;
+		}
+		if (ar->arWmiReady == FALSE) {
+			ret = -EIO;
+			goto ioctl_done;
+		}
+
+		if (down_interruptible(&ar->arSem)) {
+			ret = -ERESTARTSYS;
+			goto ioctl_done;
+		}
+		if (ar->bIsDestroyProgress) {
+			up(&ar->arSem);
+			ret = -EBUSY;
+			goto ioctl_done;
+		}
+		/* Used copy_from_user/copy_to_user to access user space data */
+		if (copy_from_user(&getFixRatesCmd, userdata, sizeof(getFixRatesCmd)))
+			ret = -EFAULT;
+		else {
+			ar->arRateMask = 0xFFFFFFFF;
+
+			if (wmi_get_ratemask_cmd(ar->arWmi) != A_OK) {
+				up(&ar->arSem);
+				ret = -EIO;
+				goto ioctl_done;
+			}
+
+			wait_event_interruptible_timeout(arEvent, ar->arRateMask != 0xFFFFFFFF, wmitimeout * HZ);
+
+			if (signal_pending(current))
+				ret = -EINTR;
+
+			if (!ret)
+				getFixRatesCmd.fixRateMask = ar->arRateMask;
+
+			if (copy_to_user(userdata, &getFixRatesCmd, sizeof(getFixRatesCmd)))
+				ret = -EFAULT;
+
+			up(&ar->arSem);
+		}
+		break;
+	}
+	case AR6000_XIOCTL_WMI_SET_AUTHMODE:
+	{
+		WMI_SET_AUTH_MODE_CMD setAuthMode;
+
+		if (ar->arWmiReady == FALSE)
+			ret = -EIO;
+		else if (copy_from_user(&setAuthMode, userdata,
+			sizeof(setAuthMode)))
+			ret = -EFAULT;
+		else
+			if (wmi_set_authmode_cmd(ar->arWmi, setAuthMode.mode) != A_OK)
+				ret = -EIO;
+		break;
+	}
+	case AR6000_XIOCTL_WMI_SET_REASSOCMODE:
+	{
+		WMI_SET_REASSOC_MODE_CMD setReassocMode;
+
+		if (ar->arWmiReady == FALSE)
+			ret = -EIO;
+		else if (copy_from_user(&setReassocMode, userdata,
+			sizeof(setReassocMode)))
+			ret = -EFAULT;
+		else
+			if (wmi_set_reassocmode_cmd(ar->arWmi, setReassocMode.mode) != A_OK)
+				ret = -EIO;
+		break;
+	}
+	case AR6000_XIOCTL_DIAG_READ:
+	{
+		A_UINT32 addr, data;
+		if (get_user(addr, (unsigned int *)userdata)) {
+			ret = -EFAULT;
+			break;
+		}
+		addr = TARG_VTOP(ar->arTargetType, addr);
+		if (ar6000_ReadRegDiag(ar->arHifDevice, &addr, &data) != A_OK)
+			ret = -EIO;
+		if (put_user(data, (unsigned int *)userdata + 1)) {
+			ret = -EFAULT;
+			break;
+		}
+		break;
+	}
+	case AR6000_XIOCTL_DIAG_WRITE:
+	{
+		A_UINT32 addr, data;
+		if (get_user(addr, (unsigned int *)userdata) ||
+			get_user(data, (unsigned int *)userdata + 1)) {
+			ret = -EFAULT;
+			break;
+		}
+		addr = TARG_VTOP(ar->arTargetType, addr);
+		if (ar6000_WriteRegDiag(ar->arHifDevice, &addr, &data) != A_OK)
+			ret = -EIO;
+		break;
+	}
+	case AR6000_XIOCTL_WMI_SET_KEEPALIVE:
+	{
+		WMI_SET_KEEPALIVE_CMD setKeepAlive;
+		if (ar->arWmiReady == FALSE) {
+			ret = -EIO;
+			goto ioctl_done;
+		} else if (copy_from_user(&setKeepAlive, userdata,
+			sizeof(setKeepAlive)))
+			ret = -EFAULT;
+		else
+			if (wmi_set_keepalive_cmd(ar->arWmi, setKeepAlive.keepaliveInterval) != A_OK)
+				ret = -EIO;
+		break;
+	}
+	case AR6000_XIOCTL_WMI_SET_PARAMS:
+	{
+		WMI_SET_PARAMS_CMD cmd;
+		if (ar->arWmiReady == FALSE) {
+			ret = -EIO;
+			goto ioctl_done;
+		} else if (copy_from_user(&cmd, userdata,
+			sizeof(cmd)))
+			ret = -EFAULT;
+		else if (copy_from_user(&cmd, userdata,
+			sizeof(cmd) + cmd.length))
+			ret = -EFAULT;
+		else
+			if (wmi_set_params_cmd(ar->arWmi, cmd.opcode, cmd.length, cmd.buffer) != A_OK)
+				ret = -EIO;
+		break;
+	}
+	case AR6000_XIOCTL_WMI_SET_MCAST_FILTER:
+	{
+		WMI_SET_MCAST_FILTER_CMD cmd;
+		if (ar->arWmiReady == FALSE) {
+			ret = -EIO;
+			goto ioctl_done;
+		} else if (copy_from_user(&cmd, userdata,
+			sizeof(cmd)))
+			ret = -EFAULT;
+		else
+			if (wmi_set_mcast_filter_cmd(ar->arWmi, cmd.multicast_mac[0],
+				cmd.multicast_mac[1],
+				cmd.multicast_mac[2],
+				cmd.multicast_mac[3]) != A_OK)
+				ret = -EIO;
+		break;
+	}
+	case AR6000_XIOCTL_WMI_DEL_MCAST_FILTER:
+	{
+		WMI_SET_MCAST_FILTER_CMD cmd;
+		if (ar->arWmiReady == FALSE) {
+			ret = -EIO;
+			goto ioctl_done;
+		} else if (copy_from_user(&cmd, userdata,
+			sizeof(cmd)))
+			ret = -EFAULT;
+		else {
+			if (wmi_del_mcast_filter_cmd(ar->arWmi, cmd.multicast_mac[0],
+				cmd.multicast_mac[1],
+				cmd.multicast_mac[2],
+				cmd.multicast_mac[3]) != A_OK)
+				ret = -EIO;
+		}
+		break;
+	}
+	case AR6000_XIOCTL_WMI_MCAST_FILTER:
+	{
+		WMI_MCAST_FILTER_CMD cmd;
+		if (ar->arWmiReady == FALSE) {
+			ret = -EIO;
+			goto ioctl_done;
+		} else if (copy_from_user(&cmd, userdata,
+			sizeof(cmd)))
+			ret = -EFAULT;
+		else
+			if (wmi_mcast_filter_cmd(ar->arWmi, cmd.enable)  != A_OK)
+				ret = -EIO;
+		break;
+	}
+	case AR6000_XIOCTL_WMI_GET_KEEPALIVE:
+	{
+		AR_SOFTC_T *ar = (AR_SOFTC_T *)ar6k_priv(dev);
+		WMI_GET_KEEPALIVE_CMD getKeepAlive;
+		int ret = 0;
+		if (ar->bIsDestroyProgress) {
+			ret = -EBUSY;
+			goto ioctl_done;
+		}
+		if (ar->arWmiReady == FALSE) {
+			ret = -EIO;
+			goto ioctl_done;
+		}
+		if (down_interruptible(&ar->arSem)) {
+			ret = -ERESTARTSYS;
+			goto ioctl_done;
+		}
+		if (ar->bIsDestroyProgress) {
+			up(&ar->arSem);
+			ret = -EBUSY;
+			goto ioctl_done;
+		}
+		if (copy_from_user(&getKeepAlive, userdata, sizeof(getKeepAlive)))
+			ret = -EFAULT;
+		else {
+			getKeepAlive.keepaliveInterval = wmi_get_keepalive_cmd(ar->arWmi);
+			ar->arKeepaliveConfigured = 0xFF;
+			if (wmi_get_keepalive_configured(ar->arWmi) != A_OK) {
+				up(&ar->arSem);
+				ret = -EIO;
+				goto ioctl_done;
+		}
+		wait_event_interruptible_timeout(arEvent, ar->arKeepaliveConfigured != 0xFF, wmitimeout * HZ);
+		if (signal_pending(current))
+			ret = -EINTR;
+
+		if (!ret)
+			getKeepAlive.configured = ar->arKeepaliveConfigured;
+
+		if (copy_to_user(userdata, &getKeepAlive, sizeof(getKeepAlive)))
+			ret = -EFAULT;
+
+		up(&ar->arSem);
+		}
+		break;
+	}
+	case AR6000_XIOCTL_WMI_SET_APPIE:
+	{
+		WMI_SET_APPIE_CMD appIEcmd;
+		A_UINT8		appIeInfo[IEEE80211_APPIE_FRAME_MAX_LEN];
+		A_UINT32	fType, ieLen;
+
+		if (ar->arWmiReady == FALSE) {
+			ret = -EIO;
+			goto ioctl_done;
+		}
+		if (get_user(fType, (A_UINT32 *)userdata)) {
+			ret = -EFAULT;
+			break;
+		}
+		appIEcmd.mgmtFrmType = fType;
+		if (appIEcmd.mgmtFrmType >= IEEE80211_APPIE_NUM_OF_FRAME)
+			ret = -EIO;
+		else {
+			if (get_user(ieLen, (A_UINT32 *)(userdata + 4))) {
+				ret = -EFAULT;
+				break;
+			}
+			appIEcmd.ieLen = ieLen;
+			A_PRINTF("WPSIE: Type-%d, Len-%d\n", appIEcmd.mgmtFrmType, appIEcmd.ieLen);
+			if (appIEcmd.ieLen > IEEE80211_APPIE_FRAME_MAX_LEN) {
+				ret = -EIO;
+				break;
+			}
+			if (copy_from_user(appIeInfo, userdata + 8, appIEcmd.ieLen))
+				ret = -EFAULT;
+			else {
+				if (wmi_set_appie_cmd(ar->arWmi, appIEcmd.mgmtFrmType,
+					appIEcmd.ieLen, appIeInfo) != A_OK)
+					ret = -EIO;
+			}
+		}
+		break;
+	}
+	case AR6000_XIOCTL_WMI_SET_MGMT_FRM_RX_FILTER:
+	{
+		WMI_BSS_FILTER_CMD cmd;
+		A_UINT32    filterType;
+
+		if (copy_from_user(&filterType, userdata, sizeof(A_UINT32))) {
+			ret = -EFAULT;
+			goto ioctl_done;
+		}
+		if (filterType & (IEEE80211_FILTER_TYPE_BEACON |
+			IEEE80211_FILTER_TYPE_PROBE_RESP))
+			cmd.bssFilter = ALL_BSS_FILTER;
+		else
+			cmd.bssFilter = NONE_BSS_FILTER;
+
+		if (wmi_bssfilter_cmd(ar->arWmi, cmd.bssFilter, 0) != A_OK)
+			ret = -EIO;
+		else
+			ar->arUserBssFilter = cmd.bssFilter;
+
+		AR6000_SPIN_LOCK(&ar->arLock, 0);
+		ar->arMgmtFilter = filterType;
+		AR6000_SPIN_UNLOCK(&ar->arLock, 0);
+		break;
+	}
+	case AR6000_XIOCTL_WMI_SET_WSC_STATUS:
+	{
+		A_UINT32    wsc_status;
+
+		if (ar->arWmiReady == FALSE) {
+			ret = -EIO;
+			goto ioctl_done;
+		} else if (copy_from_user(&wsc_status, userdata, sizeof(A_UINT32))) {
+			ret = -EFAULT;
+			goto ioctl_done;
+		}
+		if (wmi_set_wsc_status_cmd(ar->arWmi, wsc_status) != A_OK)
+			ret = -EIO;
+
+		break;
+	}
+	case AR6000_XIOCTL_BMI_ROMPATCH_INSTALL:
+	{
+		A_UINT32 ROM_addr;
+		A_UINT32 RAM_addr;
+		A_UINT32 nbytes;
+		A_UINT32 do_activate;
+		A_UINT32 rompatch_id;
+
+		if (get_user(ROM_addr, (A_UINT32 *)userdata) ||
+			get_user(RAM_addr, (A_UINT32 *)userdata + 1) ||
+			get_user(nbytes, (A_UINT32 *)userdata + 2) ||
+			get_user(do_activate, (A_UINT32 *)userdata + 3)) {
+			ret = -EFAULT;
+			break;
+		}
+		AR_DEBUG_PRINTF(ATH_DEBUG_INFO, ("Install rompatch from ROM: 0x%x to RAM: 0x%x  length: %d\n",
+			ROM_addr, RAM_addr, nbytes));
+		ret = BMIrompatchInstall(hifDevice, ROM_addr, RAM_addr,
+				nbytes, do_activate, &rompatch_id);
+		if (ret == A_OK) {
+			/* return value */
+			if (put_user(rompatch_id, (unsigned int *)rq->ifr_data)) {
+				ret = -EFAULT;
+				break;
+			}
+		}
+		break;
+	}
+	case AR6000_XIOCTL_BMI_ROMPATCH_UNINSTALL:
+	{
+		A_UINT32 rompatch_id;
+
+		if (get_user(rompatch_id, (A_UINT32 *)userdata)) {
+			ret = -EFAULT;
+			break;
+		}
+		AR_DEBUG_PRINTF(ATH_DEBUG_INFO, ("UNinstall rompatch_id %d\n", rompatch_id));
+		ret = BMIrompatchUninstall(hifDevice, rompatch_id);
+		break;
+	}
+	case AR6000_XIOCTL_BMI_ROMPATCH_ACTIVATE:
+	case AR6000_XIOCTL_BMI_ROMPATCH_DEACTIVATE:
+	{
+		A_UINT32 rompatch_count;
+
+		if (get_user(rompatch_count, (A_UINT32 *)userdata)) {
+			ret = -EFAULT;
+			break;
+		}
+		AR_DEBUG_PRINTF(ATH_DEBUG_INFO, ("Change rompatch activation count=%d\n", rompatch_count));
+		length = sizeof(A_UINT32) * rompatch_count;
+		buffer = (unsigned char *)A_MALLOC(length);
+		if (buffer != NULL) {
+			A_MEMZERO(buffer, length);
+			if (copy_from_user(buffer, &userdata[sizeof(rompatch_count)], length))
+				ret = -EFAULT;
+			else {
+				if (cmd == AR6000_XIOCTL_BMI_ROMPATCH_ACTIVATE)
+					ret = BMIrompatchActivate(hifDevice, rompatch_count, (A_UINT32 *)buffer);
+				else
+					ret = BMIrompatchDeactivate(hifDevice, rompatch_count, (A_UINT32 *)buffer);
+			}
+			A_FREE(buffer);
+		} else
+			ret = -ENOMEM;
+
+		break;
+	}
+	case AR6000_XIOCTL_SET_IP:
+	{
+		WMI_SET_IP_CMD setIP;
+
+		if (ar->arWmiReady == FALSE)
+			ret = -EIO;
+		else if (copy_from_user(&setIP, userdata,
+				sizeof(setIP)))
+			ret = -EFAULT;
+		else {
+			if (wmi_set_ip_cmd(ar->arWmi,
+				&setIP) != A_OK)
+				ret = -EIO;
+		}
+		break;
+	}
+	case AR6000_XIOCTL_WMI_SET_HOST_SLEEP_MODE:
+	{
+		WMI_SET_HOST_SLEEP_MODE_CMD setHostSleepMode;
+
+		if (ar->arWmiReady == FALSE)
+			ret = -EIO;
+		else if (copy_from_user(&setHostSleepMode, userdata,
+			sizeof(setHostSleepMode)))
+			ret = -EFAULT;
+		else {
+			if (wmi_set_host_sleep_mode_cmd(ar->arWmi,
+				&setHostSleepMode) != A_OK)
+				ret = -EIO;
+		}
+		break;
+	}
+	case AR6000_XIOCTL_WMI_SET_WOW_MODE:
+	{
+		WMI_SET_WOW_MODE_CMD setWowMode;
+
+		if (ar->arWmiReady == FALSE)
+			ret = -EIO;
+		else if (copy_from_user(&setWowMode, userdata,
+			sizeof(setWowMode)))
+			ret = -EFAULT;
+		else {
+			if (wmi_set_wow_mode_cmd(ar->arWmi,
+				&setWowMode) != A_OK)
+				ret = -EIO;
+		}
+		break;
+	}
+	case AR6000_XIOCTL_WMI_GET_WOW_LIST:
+	{
+		WMI_GET_WOW_LIST_CMD getWowList;
+
+		if (ar->arWmiReady == FALSE)
+			ret = -EIO;
+		else if (copy_from_user(&getWowList, userdata,
+				sizeof(getWowList)))
+			ret = -EFAULT;
+		else {
+			if (wmi_get_wow_list_cmd(ar->arWmi,
+				&getWowList) != A_OK)
+				ret = -EIO;
+		}
+		break;
+	}
+	case AR6000_XIOCTL_WMI_ADD_WOW_PATTERN:
+	{
+#define WOW_PATTERN_SIZE 64
+#define WOW_MASK_SIZE 64
+
+		WMI_ADD_WOW_PATTERN_CMD cmd;
+		A_UINT8 mask_data[WOW_PATTERN_SIZE] = {0};
+		A_UINT8 pattern_data[WOW_PATTERN_SIZE] = {0};
+
+		do {
+			if (ar->arWmiReady == FALSE) {
+				ret = -EIO;
+				break;
+			}
+			if (copy_from_user(&cmd, userdata,
+				sizeof(WMI_ADD_WOW_PATTERN_CMD))) {
+				ret = -EFAULT;
+				break;
+			}
+			if (copy_from_user(pattern_data,
+				userdata + 3,
+				cmd.filter_size)) {
+				ret = -EFAULT;
+				break;
+			}
+			if (copy_from_user(mask_data,
+				(userdata + 3 + cmd.filter_size),
+				cmd.filter_size)) {
+				ret = -EFAULT;
+				break;
+			}
+			if (wmi_add_wow_pattern_cmd(ar->arWmi,
+				&cmd, pattern_data, mask_data, cmd.filter_size) != A_OK)
+				ret = -EIO;
+		} while (FALSE);
+#undef WOW_PATTERN_SIZE
+#undef WOW_MASK_SIZE
+		break;
+	}
+	default:
+		ret = -EOPNOTSUPP;
+	}
+ioctl_done:
+	return ret;
+}
 int ar6000_ioctl(struct net_device *dev, struct ifreq *rq, int cmd)
 {
     AR_SOFTC_T *ar = (AR_SOFTC_T *)ar6k_priv(dev);
@@ -3075,7 +3764,6 @@ int ar6000_ioctl(struct net_device *dev, struct ifreq *rq, int cmd)
         case AR6000_XIOCTL_OPT_SEND_FRAME:
         {
         WMI_OPT_TX_FRAME_CMD optTxFrmCmd;
-            A_UINT8 data[MAX_OPT_DATA_LEN];
 
             if (ar->arWmiReady == FALSE) {
                 ret = -EIO;
@@ -3099,734 +3787,7 @@ int ar6000_ioctl(struct net_device *dev, struct ifreq *rq, int cmd)
 
             break;
         }
-        case AR6000_XIOCTL_WMI_SETRETRYLIMITS:
-        {
-            WMI_SET_RETRY_LIMITS_CMD setRetryParams;
 
-            if (ar->arWmiReady == FALSE) {
-                ret = -EIO;
-            } else if (copy_from_user(&setRetryParams, userdata,
-                                      sizeof(setRetryParams)))
-            {
-                ret = -EFAULT;
-            } else {
-                if (wmi_set_retry_limits_cmd(ar->arWmi, setRetryParams.frameType,
-                                          setRetryParams.trafficClass,
-                                          setRetryParams.maxRetries,
-                                          setRetryParams.enableNotify) != A_OK)
-                {
-                    ret = -EIO;
-                }
-                AR6000_SPIN_LOCK(&ar->arLock, 0);
-                ar->arMaxRetries = setRetryParams.maxRetries;
-                AR6000_SPIN_UNLOCK(&ar->arLock, 0);
-            }
-            break;
-        }
-
-        case AR6000_XIOCTL_SET_BEACON_INTVAL:
-        {
-            WMI_BEACON_INT_CMD bIntvlCmd;
-
-            if (ar->arWmiReady == FALSE) {
-                ret = -EIO;
-            } else if (copy_from_user(&bIntvlCmd, userdata,
-                       sizeof(bIntvlCmd)))
-            {
-                ret = -EFAULT;
-            } else if (wmi_set_adhoc_bconIntvl_cmd(ar->arWmi, bIntvlCmd.beaconInterval)
-                        != A_OK)
-            {
-                ret = -EIO;
-            }
-            if(ret == 0) {
-                ar->ap_beacon_interval = bIntvlCmd.beaconInterval;
-                ar->ap_profile_flag = 1; /* There is a change in profile */
-            }
-            break;
-        }
-        case IEEE80211_IOCTL_SETAUTHALG:
-        {
-            AR_SOFTC_T *ar = (AR_SOFTC_T *)ar6k_priv(dev);
-            struct ieee80211req_authalg req;
-
-            if (ar->arWmiReady == FALSE) {
-                ret = -EIO;
-            } else if (copy_from_user(&req, userdata,
-                       sizeof(struct ieee80211req_authalg)))
-            {
-                ret = -EFAULT;
-            } else {
-                if (req.auth_alg & AUTH_ALG_OPEN_SYSTEM) {
-                    ar->arDot11AuthMode  |= OPEN_AUTH;
-                    ar->arPairwiseCrypto  = NONE_CRYPT;
-                    ar->arGroupCrypto     = NONE_CRYPT;
-                }
-                if (req.auth_alg & AUTH_ALG_SHARED_KEY) {
-                    ar->arDot11AuthMode  |= SHARED_AUTH;
-                    ar->arPairwiseCrypto  = WEP_CRYPT;
-                    ar->arGroupCrypto     = WEP_CRYPT;
-                    ar->arAuthMode        = NONE_AUTH;
-                }
-                if (req.auth_alg == AUTH_ALG_LEAP) {
-                    ar->arDot11AuthMode   = LEAP_AUTH;
-                }
-            }
-            break;
-        }
-
-        case AR6000_XIOCTL_SET_VOICE_PKT_SIZE:
-            ret = ar6000_xioctl_set_voice_pkt_size(dev, userdata);
-            break;
-
-        case AR6000_XIOCTL_SET_MAX_SP:
-            ret = ar6000_xioctl_set_max_sp_len(dev, userdata);
-            break;
-
-        case AR6000_XIOCTL_WMI_GET_ROAM_TBL:
-            ret = ar6000_ioctl_get_roam_tbl(dev, rq);
-            break;
-        case AR6000_XIOCTL_WMI_SET_ROAM_CTRL:
-            ret = ar6000_ioctl_set_roam_ctrl(dev, userdata);
-            break;
-        case AR6000_XIOCTRL_WMI_SET_POWERSAVE_TIMERS:
-            ret = ar6000_ioctl_set_powersave_timers(dev, userdata);
-            break;
-        case AR6000_XIOCTRL_WMI_GET_POWER_MODE:
-            ret = ar6000_ioctl_get_power_mode(dev, rq);
-            break;
-        case AR6000_XIOCTRL_WMI_SET_WLAN_STATE:
-        {
-            AR6000_WLAN_STATE state;
-            get_user(state, (unsigned int *)userdata);
-            if (ar6000_set_wlan_state(ar, state)!=A_OK) {
-                ret = -EIO;
-            }       
-            break;
-        }
-        case AR6000_XIOCTL_WMI_GET_ROAM_DATA:
-            ret = ar6000_ioctl_get_roam_data(dev, rq);
-            break;
-
-        case AR6000_XIOCTL_WMI_SET_BT_STATUS:
-            ret = ar6000_xioctl_set_bt_status_cmd(dev, userdata);
-            break;
-
-        case AR6000_XIOCTL_WMI_SET_BT_PARAMS:
-            ret = ar6000_xioctl_set_bt_params_cmd(dev, userdata);
-            break;
-
-		case AR6000_XIOCTL_WMI_SET_BTCOEX_FE_ANT:
-			ret = ar6000_xioctl_set_btcoex_fe_ant_cmd(dev, userdata);
-			break;
-
-		case AR6000_XIOCTL_WMI_SET_BTCOEX_COLOCATED_BT_DEV:
-			ret = ar6000_xioctl_set_btcoex_colocated_bt_dev_cmd(dev, userdata);
-			break;
-
-		case AR6000_XIOCTL_WMI_SET_BTCOEX_BTINQUIRY_PAGE_CONFIG:
-			ret = ar6000_xioctl_set_btcoex_btinquiry_page_config_cmd(dev, userdata);
-			break;
-
-		case AR6000_XIOCTL_WMI_SET_BTCOEX_SCO_CONFIG:
-			ret = ar6000_xioctl_set_btcoex_sco_config_cmd( dev, userdata);
-			break;
-
-		case AR6000_XIOCTL_WMI_SET_BTCOEX_A2DP_CONFIG:
-			ret = ar6000_xioctl_set_btcoex_a2dp_config_cmd(dev, userdata);
-			break;
-
-		case AR6000_XIOCTL_WMI_SET_BTCOEX_ACLCOEX_CONFIG:
-			ret = ar6000_xioctl_set_btcoex_aclcoex_config_cmd(dev, userdata);
-			break;
-
-		case AR6000_XIOCTL_WMI_SET_BTCOEX_DEBUG:
-			ret = ar60000_xioctl_set_btcoex_debug_cmd(dev, userdata);
-			break;
-
-		case AR6000_XIOCTL_WMI_SET_BT_OPERATING_STATUS:
-			ret = ar6000_xioctl_set_btcoex_bt_operating_status_cmd(dev, userdata);
-			break;
-
-		case AR6000_XIOCTL_WMI_GET_BTCOEX_CONFIG:
-			ret = ar6000_xioctl_get_btcoex_config_cmd(dev, userdata, rq);
-			break;
-
-		case AR6000_XIOCTL_WMI_GET_BTCOEX_STATS:
-			ret = ar6000_xioctl_get_btcoex_stats_cmd(dev, userdata, rq);
-			break;
-
-        case AR6000_XIOCTL_WMI_STARTSCAN:
-        {
-            WMI_START_SCAN_CMD setStartScanCmd, *cmdp;
-
-            if (ar->arWmiReady == FALSE) {
-                    ret = -EIO;
-                } else if (copy_from_user(&setStartScanCmd, userdata,
-                                          sizeof(setStartScanCmd)))
-                {
-                    ret = -EFAULT;
-                } else {
-                    if (setStartScanCmd.numChannels > 1) {
-                        cmdp = A_MALLOC(130);
-                        if (copy_from_user(cmdp, userdata,
-                                           sizeof (*cmdp) +
-                                           ((setStartScanCmd.numChannels - 1) *
-                                           sizeof(A_UINT16))))
-                        {
-                            kfree(cmdp);
-                            ret = -EFAULT;
-                            goto ioctl_done;
-                        }
-                    } else {
-                        cmdp = &setStartScanCmd;
-                    }
-
-                    if (wmi_startscan_cmd(ar->arWmi, cmdp->scanType,
-                                          cmdp->forceFgScan,
-                                          cmdp->isLegacy,
-                                          cmdp->homeDwellTime,
-                                          cmdp->forceScanInterval,
-                                          cmdp->numChannels,
-                                          cmdp->channelList) != A_OK)
-                    {
-                        ret = -EIO;
-                    }
-                }
-            break;
-        }
-        case AR6000_XIOCTL_WMI_SETFIXRATES:
-        {
-            WMI_FIX_RATES_CMD setFixRatesCmd;
-            A_STATUS returnStatus;
-
-            if (ar->arWmiReady == FALSE) {
-                    ret = -EIO;
-                } else if (copy_from_user(&setFixRatesCmd, userdata,
-                                          sizeof(setFixRatesCmd)))
-                {
-                    ret = -EFAULT;
-                } else {
-                    returnStatus = wmi_set_fixrates_cmd(ar->arWmi, setFixRatesCmd.fixRateMask);
-                    if (returnStatus == A_EINVAL) {
-                        ret = -EINVAL;
-                    } else if(returnStatus != A_OK) {
-                        ret = -EIO;
-                    } else {
-                        ar->ap_profile_flag = 1; /* There is a change in profile */
-                    }
-                }
-            break;
-        }
-
-        case AR6000_XIOCTL_WMI_GETFIXRATES:
-        {
-            WMI_FIX_RATES_CMD getFixRatesCmd;
-            AR_SOFTC_T *ar = (AR_SOFTC_T *)ar6k_priv(dev);
-            int ret = 0;
-
-            if (ar->bIsDestroyProgress) {
-                ret = -EBUSY;
-                goto ioctl_done;
-            }
-            if (ar->arWmiReady == FALSE) {
-                ret = -EIO;
-                goto ioctl_done;
-            }
-
-            if (down_interruptible(&ar->arSem)) {
-                ret = -ERESTARTSYS;
-                goto ioctl_done;
-            }
-            if (ar->bIsDestroyProgress) {
-                up(&ar->arSem);
-                ret = -EBUSY;
-                goto ioctl_done;
-            }
-            /* Used copy_from_user/copy_to_user to access user space data */
-            if (copy_from_user(&getFixRatesCmd, userdata, sizeof(getFixRatesCmd))) {
-                ret = -EFAULT;
-            } else {
-                ar->arRateMask = 0xFFFFFFFF;
-
-                if (wmi_get_ratemask_cmd(ar->arWmi) != A_OK) {
-                    up(&ar->arSem);
-                    ret = -EIO;
-                    goto ioctl_done;
-                }
-
-                wait_event_interruptible_timeout(arEvent, ar->arRateMask != 0xFFFFFFFF, wmitimeout * HZ);
-
-                if (signal_pending(current)) {
-                    ret = -EINTR;
-                }
-
-                if (!ret) {
-                    getFixRatesCmd.fixRateMask = ar->arRateMask;
-                }
-
-                if(copy_to_user(userdata, &getFixRatesCmd, sizeof(getFixRatesCmd))) {
-                   ret = -EFAULT;
-                }
-
-                up(&ar->arSem);
-            }
-            break;
-        }
-        case AR6000_XIOCTL_WMI_SET_AUTHMODE:
-        {
-            WMI_SET_AUTH_MODE_CMD setAuthMode;
-
-            if (ar->arWmiReady == FALSE) {
-                ret = -EIO;
-            } else if (copy_from_user(&setAuthMode, userdata,
-                                      sizeof(setAuthMode)))
-            {
-                ret = -EFAULT;
-            } else {
-                if (wmi_set_authmode_cmd(ar->arWmi, setAuthMode.mode) != A_OK)
-                {
-                    ret = -EIO;
-                }
-            }
-            break;
-        }
-        case AR6000_XIOCTL_WMI_SET_REASSOCMODE:
-        {
-            WMI_SET_REASSOC_MODE_CMD setReassocMode;
-
-            if (ar->arWmiReady == FALSE) {
-                ret = -EIO;
-            } else if (copy_from_user(&setReassocMode, userdata,
-                                      sizeof(setReassocMode)))
-            {
-                ret = -EFAULT;
-            } else {
-                if (wmi_set_reassocmode_cmd(ar->arWmi, setReassocMode.mode) != A_OK)
-                {
-                    ret = -EIO;
-                }
-            }
-            break;
-        }
-        case AR6000_XIOCTL_DIAG_READ:
-        {
-            A_UINT32 addr, data;
-            get_user(addr, (unsigned int *)userdata);
-            addr = TARG_VTOP(ar->arTargetType, addr);
-            if (ar6000_ReadRegDiag(ar->arHifDevice, &addr, &data) != A_OK) {
-                ret = -EIO;
-            }
-            put_user(data, (unsigned int *)userdata + 1);
-            break;
-        }
-        case AR6000_XIOCTL_DIAG_WRITE:
-        {
-            A_UINT32 addr, data;
-            get_user(addr, (unsigned int *)userdata);
-            get_user(data, (unsigned int *)userdata + 1);
-            addr = TARG_VTOP(ar->arTargetType, addr);
-            if (ar6000_WriteRegDiag(ar->arHifDevice, &addr, &data) != A_OK) {
-                ret = -EIO;
-            }
-            break;
-        }
-        case AR6000_XIOCTL_WMI_SET_KEEPALIVE:
-        {
-             WMI_SET_KEEPALIVE_CMD setKeepAlive;
-             if (ar->arWmiReady == FALSE) {
-                 ret = -EIO;
-                 goto ioctl_done;
-             } else if (copy_from_user(&setKeepAlive, userdata,
-                        sizeof(setKeepAlive))){
-                 ret = -EFAULT;
-             } else {
-                 if (wmi_set_keepalive_cmd(ar->arWmi, setKeepAlive.keepaliveInterval) != A_OK) {
-                     ret = -EIO;
-               }
-             }
-             break;
-        }
-        case AR6000_XIOCTL_WMI_SET_PARAMS:
-        {
-             WMI_SET_PARAMS_CMD cmd;
-             if (ar->arWmiReady == FALSE) {
-                 ret = -EIO;
-                 goto ioctl_done;
-             } else if (copy_from_user(&cmd, userdata,
-                        sizeof(cmd))){
-                 ret = -EFAULT;
-             } else if (copy_from_user(&cmd, userdata,
-                        sizeof(cmd) + cmd.length))
-            {
-                ret = -EFAULT;
-            } else {
-                 if (wmi_set_params_cmd(ar->arWmi, cmd.opcode, cmd.length, cmd.buffer) != A_OK) {
-                     ret = -EIO;
-               }
-             }
-             break;
-        }
-        case AR6000_XIOCTL_WMI_SET_MCAST_FILTER:
-        {
-             WMI_SET_MCAST_FILTER_CMD cmd;
-             if (ar->arWmiReady == FALSE) {
-                 ret = -EIO;
-                 goto ioctl_done;
-             } else if (copy_from_user(&cmd, userdata,
-                        sizeof(cmd))){
-                 ret = -EFAULT;
-             } else {
-                 if (wmi_set_mcast_filter_cmd(ar->arWmi, cmd.multicast_mac[0],
-                                                                                     cmd.multicast_mac[1],
-                                                                                     cmd.multicast_mac[2],
-                                                                                     cmd.multicast_mac[3]) != A_OK) {
-                     ret = -EIO;
-               }
-             }
-             break;
-        }
-        case AR6000_XIOCTL_WMI_DEL_MCAST_FILTER:
-        {
-             WMI_SET_MCAST_FILTER_CMD cmd;
-             if (ar->arWmiReady == FALSE) {
-                 ret = -EIO;
-                 goto ioctl_done;
-             } else if (copy_from_user(&cmd, userdata,
-                        sizeof(cmd))){
-                 ret = -EFAULT;
-             } else {
-                 if (wmi_del_mcast_filter_cmd(ar->arWmi, cmd.multicast_mac[0],
-                                                                                     cmd.multicast_mac[1],
-                                                                                     cmd.multicast_mac[2],
-                                                                                     cmd.multicast_mac[3]) != A_OK) {
-                     ret = -EIO;
-               }
-             }
-             break;
-        }
-        case AR6000_XIOCTL_WMI_MCAST_FILTER:
-        {
-             WMI_MCAST_FILTER_CMD cmd;
-             if (ar->arWmiReady == FALSE) {
-                 ret = -EIO;
-                 goto ioctl_done;
-             } else if (copy_from_user(&cmd, userdata,
-                        sizeof(cmd))){
-                 ret = -EFAULT;
-             } else {
-                 if (wmi_mcast_filter_cmd(ar->arWmi, cmd.enable)  != A_OK) {
-                     ret = -EIO;
-               }
-             }
-             break;
-        }
-        case AR6000_XIOCTL_WMI_GET_KEEPALIVE:
-        {
-            AR_SOFTC_T *ar = (AR_SOFTC_T *)ar6k_priv(dev);
-            WMI_GET_KEEPALIVE_CMD getKeepAlive;
-            int ret = 0;
-            if (ar->bIsDestroyProgress) {
-                ret =-EBUSY;
-                goto ioctl_done;
-            }
-            if (ar->arWmiReady == FALSE) {
-               ret = -EIO;
-               goto ioctl_done;
-            }
-            if (down_interruptible(&ar->arSem)) {
-                ret = -ERESTARTSYS;
-                goto ioctl_done;
-            }
-            if (ar->bIsDestroyProgress) {
-                up(&ar->arSem);
-                ret = -EBUSY;
-                goto ioctl_done;
-            }
-            if (copy_from_user(&getKeepAlive, userdata,sizeof(getKeepAlive))) {
-               ret = -EFAULT;
-            } else {
-            getKeepAlive.keepaliveInterval = wmi_get_keepalive_cmd(ar->arWmi);
-            ar->arKeepaliveConfigured = 0xFF;
-            if (wmi_get_keepalive_configured(ar->arWmi) != A_OK){
-                up(&ar->arSem);
-                ret = -EIO;
-                goto ioctl_done;
-            }
-            wait_event_interruptible_timeout(arEvent, ar->arKeepaliveConfigured != 0xFF, wmitimeout * HZ);
-            if (signal_pending(current)) {
-                ret = -EINTR;
-            }
-
-            if (!ret) {
-                getKeepAlive.configured = ar->arKeepaliveConfigured;
-            }
-            if (copy_to_user(userdata, &getKeepAlive, sizeof(getKeepAlive))) {
-               ret = -EFAULT;
-            }
-            up(&ar->arSem);
-            }
-            break;
-        }
-        case AR6000_XIOCTL_WMI_SET_APPIE:
-        {
-            WMI_SET_APPIE_CMD appIEcmd;
-            A_UINT8           appIeInfo[IEEE80211_APPIE_FRAME_MAX_LEN];
-            A_UINT32            fType,ieLen;
-
-            if (ar->arWmiReady == FALSE) {
-                ret = -EIO;
-                goto ioctl_done;
-            }
-            get_user(fType, (A_UINT32 *)userdata);
-            appIEcmd.mgmtFrmType = fType;
-            if (appIEcmd.mgmtFrmType >= IEEE80211_APPIE_NUM_OF_FRAME) {
-                ret = -EIO;
-            } else {
-                get_user(ieLen, (A_UINT32 *)(userdata + 4));
-                appIEcmd.ieLen = ieLen;
-                A_PRINTF("WPSIE: Type-%d, Len-%d\n",appIEcmd.mgmtFrmType, appIEcmd.ieLen);
-                if (appIEcmd.ieLen > IEEE80211_APPIE_FRAME_MAX_LEN) {
-                    ret = -EIO;
-                    break;
-                }
-                if (copy_from_user(appIeInfo, userdata + 8, appIEcmd.ieLen)) {
-                    ret = -EFAULT;
-                } else {
-                    if (wmi_set_appie_cmd(ar->arWmi, appIEcmd.mgmtFrmType,
-                                          appIEcmd.ieLen,  appIeInfo) != A_OK)
-                    {
-                        ret = -EIO;
-                    }
-                }
-            }
-            break;
-        }
-        case AR6000_XIOCTL_WMI_SET_MGMT_FRM_RX_FILTER:
-        {
-            WMI_BSS_FILTER_CMD cmd;
-            A_UINT32    filterType;
-
-            if (copy_from_user(&filterType, userdata, sizeof(A_UINT32)))
-            {
-                ret = -EFAULT;
-                goto ioctl_done;
-            }
-            if (filterType & (IEEE80211_FILTER_TYPE_BEACON |
-                                    IEEE80211_FILTER_TYPE_PROBE_RESP))
-            {
-                cmd.bssFilter = ALL_BSS_FILTER;
-            } else {
-                cmd.bssFilter = NONE_BSS_FILTER;
-            }
-            if (wmi_bssfilter_cmd(ar->arWmi, cmd.bssFilter, 0) != A_OK) {
-                ret = -EIO;
-            } else {
-                ar->arUserBssFilter = cmd.bssFilter;
-            }
-
-            AR6000_SPIN_LOCK(&ar->arLock, 0);
-            ar->arMgmtFilter = filterType;
-            AR6000_SPIN_UNLOCK(&ar->arLock, 0);
-            break;
-        }
-        case AR6000_XIOCTL_WMI_SET_WSC_STATUS:
-        {
-            A_UINT32    wsc_status;
-
-            if (ar->arWmiReady == FALSE) {
-                ret = -EIO;
-                goto ioctl_done;
-            } else if (copy_from_user(&wsc_status, userdata, sizeof(A_UINT32)))
-            {
-                ret = -EFAULT;
-                goto ioctl_done;
-            }
-            if (wmi_set_wsc_status_cmd(ar->arWmi, wsc_status) != A_OK) {
-                ret = -EIO;
-            }
-            break;
-        }
-        case AR6000_XIOCTL_BMI_ROMPATCH_INSTALL:
-        {
-            A_UINT32 ROM_addr;
-            A_UINT32 RAM_addr;
-            A_UINT32 nbytes;
-            A_UINT32 do_activate;
-            A_UINT32 rompatch_id;
-
-            get_user(ROM_addr, (A_UINT32 *)userdata);
-            get_user(RAM_addr, (A_UINT32 *)userdata + 1);
-            get_user(nbytes, (A_UINT32 *)userdata + 2);
-            get_user(do_activate, (A_UINT32 *)userdata + 3);
-            AR_DEBUG_PRINTF(ATH_DEBUG_INFO,("Install rompatch from ROM: 0x%x to RAM: 0x%x  length: %d\n",
-                             ROM_addr, RAM_addr, nbytes));
-            ret = BMIrompatchInstall(hifDevice, ROM_addr, RAM_addr,
-                                        nbytes, do_activate, &rompatch_id);
-            if (ret == A_OK) {
-                put_user(rompatch_id, (unsigned int *)rq->ifr_data); /* return value */
-            }
-            break;
-        }
-
-        case AR6000_XIOCTL_BMI_ROMPATCH_UNINSTALL:
-        {
-            A_UINT32 rompatch_id;
-
-            get_user(rompatch_id, (A_UINT32 *)userdata);
-            AR_DEBUG_PRINTF(ATH_DEBUG_INFO,("UNinstall rompatch_id %d\n", rompatch_id));
-            ret = BMIrompatchUninstall(hifDevice, rompatch_id);
-            break;
-        }
-
-        case AR6000_XIOCTL_BMI_ROMPATCH_ACTIVATE:
-        case AR6000_XIOCTL_BMI_ROMPATCH_DEACTIVATE:
-        {
-            A_UINT32 rompatch_count;
-
-            get_user(rompatch_count, (A_UINT32 *)userdata);
-            AR_DEBUG_PRINTF(ATH_DEBUG_INFO,("Change rompatch activation count=%d\n", rompatch_count));
-            length = sizeof(A_UINT32) * rompatch_count;
-            if ((buffer = (unsigned char *)A_MALLOC(length)) != NULL) {
-                A_MEMZERO(buffer, length);
-                if (copy_from_user(buffer, &userdata[sizeof(rompatch_count)], length))
-                {
-                    ret = -EFAULT;
-                } else {
-                    if (cmd == AR6000_XIOCTL_BMI_ROMPATCH_ACTIVATE) {
-                        ret = BMIrompatchActivate(hifDevice, rompatch_count, (A_UINT32 *)buffer);
-                    } else {
-                        ret = BMIrompatchDeactivate(hifDevice, rompatch_count, (A_UINT32 *)buffer);
-                    }
-                }
-                A_FREE(buffer);
-            } else {
-                ret = -ENOMEM;
-            }
-
-            break;
-        }
-        case AR6000_XIOCTL_SET_IP:
-        {
-            WMI_SET_IP_CMD setIP;
-
-            if (ar->arWmiReady == FALSE) {
-                ret = -EIO;
-            } else if (copy_from_user(&setIP, userdata,
-                                      sizeof(setIP)))
-            {
-                ret = -EFAULT;
-            } else {
-                if (wmi_set_ip_cmd(ar->arWmi,
-                                &setIP) != A_OK)
-                {
-                    ret = -EIO;
-                }
-            }
-            break;
-        }
-
-        case AR6000_XIOCTL_WMI_SET_HOST_SLEEP_MODE:
-        {
-            WMI_SET_HOST_SLEEP_MODE_CMD setHostSleepMode;
-
-            if (ar->arWmiReady == FALSE) {
-                ret = -EIO;
-            } else if (copy_from_user(&setHostSleepMode, userdata,
-                                      sizeof(setHostSleepMode)))
-            {
-                ret = -EFAULT;
-            } else {
-                if (wmi_set_host_sleep_mode_cmd(ar->arWmi,
-                                &setHostSleepMode) != A_OK)
-                {
-                    ret = -EIO;
-                }
-            }
-            break;
-        }
-        case AR6000_XIOCTL_WMI_SET_WOW_MODE:
-        {
-            WMI_SET_WOW_MODE_CMD setWowMode;
-
-            if (ar->arWmiReady == FALSE) {
-                ret = -EIO;
-            } else if (copy_from_user(&setWowMode, userdata,
-                                      sizeof(setWowMode)))
-            {
-                ret = -EFAULT;
-            } else {
-                if (wmi_set_wow_mode_cmd(ar->arWmi,
-                                &setWowMode) != A_OK)
-                {
-                    ret = -EIO;
-                }
-            }
-            break;
-        }
-        case AR6000_XIOCTL_WMI_GET_WOW_LIST:
-        {
-            WMI_GET_WOW_LIST_CMD getWowList;
-
-            if (ar->arWmiReady == FALSE) {
-                ret = -EIO;
-            } else if (copy_from_user(&getWowList, userdata,
-                                      sizeof(getWowList)))
-            {
-                ret = -EFAULT;
-            } else {
-                if (wmi_get_wow_list_cmd(ar->arWmi,
-                                &getWowList) != A_OK)
-                {
-                    ret = -EIO;
-                }
-            }
-            break;
-        }
-        case AR6000_XIOCTL_WMI_ADD_WOW_PATTERN:
-        {
-#define WOW_PATTERN_SIZE 64
-#define WOW_MASK_SIZE 64
-
-            WMI_ADD_WOW_PATTERN_CMD cmd;
-            A_UINT8 mask_data[WOW_PATTERN_SIZE]={0};
-            A_UINT8 pattern_data[WOW_PATTERN_SIZE]={0};
-
-            do {
-                if (ar->arWmiReady == FALSE) {
-                    ret = -EIO;
-                    break;        
-                } 
-                if(copy_from_user(&cmd, userdata,
-                            sizeof(WMI_ADD_WOW_PATTERN_CMD))) 
-                {
-                    ret = -EFAULT;
-                    break;        
-                }
-                if (copy_from_user(pattern_data,
-                                      userdata + 3,
-                                      cmd.filter_size)) 
-                {
-                    ret = -EFAULT;
-                    break;        
-                }
-                if (copy_from_user(mask_data,
-                                  (userdata + 3 + cmd.filter_size),
-                                  cmd.filter_size))
-                {
-                    ret = -EFAULT;
-                    break;
-                }
-                if (wmi_add_wow_pattern_cmd(ar->arWmi,
-                            &cmd, pattern_data, mask_data, cmd.filter_size) != A_OK)
-                {
-                    ret = -EIO;
-                }
-            } while(FALSE);
-#undef WOW_PATTERN_SIZE
-#undef WOW_MASK_SIZE
-            break;
-        }
         case AR6000_XIOCTL_WMI_DEL_WOW_PATTERN:
         {
             WMI_DEL_WOW_PATTERN_CMD delWowPattern;
@@ -3848,7 +3809,9 @@ int ar6000_ioctl(struct net_device *dev, struct ifreq *rq, int cmd)
         }
         case AR6000_XIOCTL_DUMP_HTC_CREDIT_STATE:
             if (ar->arHtcTarget != NULL) {
+#ifdef ATH_DEBUG_MODULE
                 HTCDumpCreditStates(ar->arHtcTarget);
+#endif /* ATH_DEBUG_MODULE */
 #ifdef HTC_EP_STAT_PROFILING
                 {
                     HTC_ENDPOINT_STATS stats;
@@ -4488,7 +4451,7 @@ int ar6000_ioctl(struct net_device *dev, struct ifreq *rq, int cmd)
             break;
         }
         default:
-            ret = -EOPNOTSUPP;
+		ret = ar6000_ioctl1(dev, rq, cmd, userdata);
     }
 
 ioctl_done:
