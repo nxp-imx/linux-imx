@@ -623,6 +623,8 @@ static int ehci_fsl_drv_suspend(struct platform_device *pdev,
 	/* Only handles OTG mode switch event, system suspend event will be done in bus suspend */
 	if (pdata->pmflags == 0) {
 		printk(KERN_DEBUG "%s, pm event \n", __func__);
+		ehci_prepare_ports_for_controller_suspend(hcd_to_ehci(hcd),
+				device_may_wakeup(&(pdev->dev)));
 		if (!host_can_wakeup_system(pdev)) {
 			int mask;
 			/* Need open clock for register access */
@@ -732,6 +734,7 @@ static int ehci_fsl_drv_resume(struct platform_device *pdev)
 				fsl_usb_clk_gate(hcd->self.controller->platform_data, false);
 			}
 		}
+		ehci_prepare_ports_for_controller_resume(hcd_to_ehci(hcd));
 		return 0;
 	}
 	if (!test_bit(HCD_FLAG_HW_ACCESSIBLE, &hcd->flags)) {
