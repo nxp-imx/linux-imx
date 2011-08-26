@@ -94,7 +94,7 @@ int __cpuinit boot_secondary(unsigned int cpu, struct task_struct *idle)
 	val = jiffies;
 	/* wait cpu<n> boot up and clear boot_entry, timeout is 500ms */
 	while (__raw_readl(src_base + SRC_GPR1_OFFSET + 4 * 2 * cpu) != 0) {
-		if (time_after(jiffies, val + HZ / 2)) {
+		if (time_after(jiffies, (unsigned long)(val + HZ / 2))) {
 			printk(KERN_WARNING "cpu %d: boot up failed!\n", cpu);
 			break;
 		}
