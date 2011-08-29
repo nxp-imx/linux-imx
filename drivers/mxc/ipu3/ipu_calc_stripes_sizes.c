@@ -214,14 +214,14 @@ int ipu_calc_stripes_sizes(const unsigned int input_frame_width,
 	/* M, F calculations */
 	/* read back pfs from params */
 
-	input_f = f_calc(input_pixelformat, 0, NULL);
+	input_f = 16;
 	input_m = 16;
 	/* BPP should be used in the out_F calc */
 	/* Temporarily not used */
 	/* out_F = F_calc(idmac->pfs, idmac->bpp, NULL); */
 
 	output_f = 16;
-	output_m = m_calc(output_pixelformat);
+	output_m = 16;
 
 
 	if ((input_frame_width < 4) || (output_frame_width < 4))
@@ -370,6 +370,7 @@ int ipu_calc_stripes_sizes(const unsigned int input_frame_width,
 		left->output_column = 0;
 		right->output_column = onw;
 	}
+
 	return status;
 }
 EXPORT_SYMBOL(ipu_calc_stripes_sizes);
