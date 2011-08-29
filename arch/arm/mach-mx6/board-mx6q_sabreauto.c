@@ -435,26 +435,17 @@ static struct i2c_board_info mxc_i2c2_board_info[] __initdata = {
 		.platform_data = &sabr_ddc_dvi_data,
 		.irq = gpio_to_irq(MX6Q_SABREAUTO_DISP0_DET_INT),
 	},
-};
+	{
+		I2C_BOARD_INFO("egalax_ts", 0x4),
+		.irq = gpio_to_irq(MX6Q_SABREAUTO_CAP_TCH_INT),
+	},
 
-static int p1003_ts_hw_status(void)
-{
-	return gpio_get_value(MX6Q_SABREAUTO_CAP_TCH_INT);
-}
-
-static struct p1003_ts_platform_data p1003_ts_data = {
-	.hw_status = p1003_ts_hw_status,
 };
 
 static struct i2c_board_info mxc_i2c1_board_info[] __initdata = {
 	{
 		I2C_BOARD_INFO("egalax_ts", 0x4),
 		.irq = gpio_to_irq(MX6Q_SABREAUTO_CAP_TCH_INT),
-	},
-	{
-		I2C_BOARD_INFO("p1003_fwv33", 0x41),
-		.irq = gpio_to_irq(MX6Q_SABREAUTO_CAP_TCH_INT),
-		.platform_data = &p1003_ts_data,
 	},
 	{
 		I2C_BOARD_INFO("mxc_hdmi_i2c", 0x50),
