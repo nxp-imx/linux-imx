@@ -154,8 +154,12 @@ static int imx_3stack_surround_hw_params(struct snd_pcm_substream *substream,
 	else if (cpu_is_mx6q())
 		snd_soc_dai_set_clkdiv(cpu_dai, ESAI_TX_DIV_PM, 2);
 	snd_soc_dai_set_clkdiv(cpu_dai, ESAI_TX_DIV_FP, lrclk_ratio);
+
 	snd_soc_dai_set_clkdiv(cpu_dai, ESAI_RX_DIV_PSR, 1);
-	snd_soc_dai_set_clkdiv(cpu_dai, ESAI_RX_DIV_PM, 2);
+	if (cpu_is_mx53())
+		snd_soc_dai_set_clkdiv(cpu_dai, ESAI_RX_DIV_PM, 0);
+	else if (cpu_is_mx6q())
+		snd_soc_dai_set_clkdiv(cpu_dai, ESAI_RX_DIV_PM, 2);
 	snd_soc_dai_set_clkdiv(cpu_dai, ESAI_RX_DIV_FP, lrclk_ratio);
 
 	/* set codec DAI configuration */
