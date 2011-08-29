@@ -1,5 +1,5 @@
 /*
- * Copyright 2005-2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2005-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -214,10 +214,13 @@ void _ipu_ic_init_prpvf(ipu_channel_params_t *params, bool src_is_csi)
 	ipu_color_space_t in_fmt, out_fmt;
 
 	/* Setup vertical resizing */
-	_calc_resize_coeffs(params->mem_prp_vf_mem.in_height,
-			    params->mem_prp_vf_mem.out_height,
-			    &resizeCoeff, &downsizeCoeff);
-	reg = (downsizeCoeff << 30) | (resizeCoeff << 16);
+	if (!(params->mem_prp_vf_mem.outv_resize_ratio)) {
+		_calc_resize_coeffs(params->mem_prp_vf_mem.in_height,
+				params->mem_prp_vf_mem.out_height,
+				&resizeCoeff, &downsizeCoeff);
+		reg = (downsizeCoeff << 30) | (resizeCoeff << 16);
+	} else
+		reg = (params->mem_prp_vf_mem.outv_resize_ratio) << 16;
 
 	/* Setup horizontal resizing */
 	/* Upadeted for IC split case */
@@ -336,10 +339,13 @@ void _ipu_ic_init_prpenc(ipu_channel_params_t *params, bool src_is_csi)
 	ipu_color_space_t in_fmt, out_fmt;
 
 	/* Setup vertical resizing */
-	_calc_resize_coeffs(params->mem_prp_enc_mem.in_height,
-			    params->mem_prp_enc_mem.out_height,
-			    &resizeCoeff, &downsizeCoeff);
-	reg = (downsizeCoeff << 30) | (resizeCoeff << 16);
+	if (!(params->mem_prp_enc_mem.outv_resize_ratio)) {
+		_calc_resize_coeffs(params->mem_prp_enc_mem.in_height,
+				params->mem_prp_enc_mem.out_height,
+				&resizeCoeff, &downsizeCoeff);
+		reg = (downsizeCoeff << 30) | (resizeCoeff << 16);
+	} else
+		reg = (params->mem_prp_enc_mem.outv_resize_ratio) << 16;
 
 	/* Setup horizontal resizing */
 	/* Upadeted for IC split case */
