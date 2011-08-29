@@ -106,7 +106,8 @@
 #define USER_LED_EN			(6*32 + 7)	/* GPIO_7_7 */
 #define USB_PWREN			(6*32 + 8)	/* GPIO_7_8 */
 #define NIRQ				(6*32 + 11)	/* GPIO7_11 */
-#define MX53_LOCO_MC34708_IRQ    (4*32 + 30)	/* GPIO5_30 CSI0_DAT12 */
+#define MX53_LOCO_MC34708_IRQ_REVA    (4*32 + 30)	/* GPIO5_30 */
+#define MX53_LOCO_MC34708_IRQ_REVB    (4*32 + 23)	/* GPIO5_23 */
 
 #define MX53_OFFSET					(0x20000000)
 #define TZIC_WAKEUP0_OFFSET         (0x0E00)
@@ -116,6 +117,7 @@
 #define GPIO7_0_11_IRQ_BIT			(0x1<<11)
 
 extern void pm_i2c_init(u32 base_addr);
+static u32 mx53_loco_mc34708_irq;
 static iomux_v3_cfg_t mx53_loco_pads[] = {
 	/* FEC */
 	MX53_PAD_FEC_MDC__FEC_MDC,
@@ -859,7 +861,7 @@ static void __init mx53_loco_io_init(void)
 static void __init mxc_board_init(void)
 {
 
-	iomux_v3_cfg_t mc34708_int;
+	iomux_v3_cfg_t mc34708_int = MX53_PAD_CSI0_DAT12__GPIO5_30;
 	iomux_v3_cfg_t da9052_csi0_d12;
 
 	mxc_ipu_data.di_clk[0] = clk_get(NULL, "ipu_di0_clk");
@@ -882,11 +884,17 @@ static void __init mxc_board_init(void)
 
     if (board_is_mx53_loco_mc34708()) {
 		/* set pmic INT gpio pin */
-		mc34708_int = MX53_PAD_CSI0_DAT12__GPIO5_30;
+		if (board_is_rev(BOARD_REV_2)) {/*Board rev A*/
+			mc34708_int = MX53_PAD_CSI0_DAT12__GPIO5_30;
+			mx53_loco_mc34708_irq = MX53_LOCO_MC34708_IRQ_REVA;
+		} else if (board_is_rev(BOARD_REV_4)) {/*Board rev B*/
+			mc34708_int = MX53_PAD_CSI0_DAT5__GPIO5_23;
+			mx53_loco_mc34708_irq = MX53_LOCO_MC34708_IRQ_REVB;
+		}
 		mxc_iomux_v3_setup_pad(mc34708_int);
-		gpio_request(MX53_LOCO_MC34708_IRQ, "pmic-int");
-		gpio_direction_input(MX53_LOCO_MC34708_IRQ);
-		mx53_loco_init_mc34708();
+		gpio_request(mx53_loco_mc34708_irq, "pmic-int");
+		gpio_direction_input(mx53_loco_mc34708_irq);
+		mx53_loco_init_mc34708(mx53_loco_mc34708_irq);
 		dvfs_core_data.reg_id = "SW1A";
 		tve_data.dac_reg = "VDAC";
 		bus_freq_data.gp_reg_id = "SW1A";

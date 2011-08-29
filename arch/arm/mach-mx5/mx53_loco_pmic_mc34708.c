@@ -312,11 +312,11 @@ static struct mc34708_platform_data mc34708_plat = {
 
 static struct i2c_board_info __initdata mc34708_i2c_device = {
 	I2C_BOARD_INFO(MC34708_I2C_DEVICE_NAME, MC34708_I2C_ADDR),
-	.irq = gpio_to_irq(MX53_LOCO_MC34708_IRQ),
 	.platform_data = &mc34708_plat,
 };
 
-int __init mx53_loco_init_mc34708(void)
+int __init mx53_loco_init_mc34708(u32 int_gpio)
 {
+	mc34708_i2c_device.irq = gpio_to_irq(int_gpio);/*update INT gpio*/
 	return i2c_register_board_info(0, &mc34708_i2c_device, 1);
 }
