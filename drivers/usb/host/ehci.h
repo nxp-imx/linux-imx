@@ -769,6 +769,23 @@ static inline unsigned ehci_read_frame_index(struct ehci_hcd *ehci)
 
 #endif
 
+/*
+ * Writing to dma coherent memory on ARM may be delayed via L2
+ * writing buffer, so introduce the helper which can flush L2 writing
+ * buffer into memory immediately, especially used to flush ehci
+ * descriptor to memory.
+ * */
+#ifdef	CONFIG_ARM_DMA_MEM_BUFFERABLE
+static inline void ehci_sync_mem()
+{
+	mb();
+}
+#else
+static inline void ehci_sync_mem()
+{
+}
+#endif
+
 /*-------------------------------------------------------------------------*/
 
 #ifndef DEBUG
