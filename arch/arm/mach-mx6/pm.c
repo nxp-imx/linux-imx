@@ -61,7 +61,6 @@ static struct clk *cpu_clk;
 static struct pm_platform_data *pm_data;
 
 #if defined(CONFIG_CPU_FREQ)
-static int org_freq;
 extern int set_cpu_freq(int wp);
 #endif
 extern void mx6q_suspend(suspend_state_t state);

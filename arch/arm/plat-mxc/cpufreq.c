@@ -42,7 +42,6 @@ static struct cpufreq_frequency_table *imx_freq_table;
 
 static int cpu_op_nr;
 static struct cpu_op *cpu_op_tbl;
-static struct regulator *gp_regulator;
 static u32 pre_suspend_rate;
 
 extern int dvfs_core_is_active;
@@ -165,11 +164,9 @@ static int mxc_set_target(struct cpufreq_policy *policy,
 	return ret;
 }
 
-static int mxc_cpufreq_suspend(struct platform_device *pdev,
+static int mxc_cpufreq_suspend(struct cpufreq_policy *policy,
 				 pm_message_t state)
 {
-	struct cpufreq_policy *policy = pdev;
-
 	pre_suspend_rate = clk_get_rate(cpu_clk);
 	/* Set to max freq and voltage */
 	if (pre_suspend_rate != (imx_freq_table[0].frequency * 1000))
@@ -178,11 +175,8 @@ static int mxc_cpufreq_suspend(struct platform_device *pdev,
 	return 0;
 }
 
-static int mxc_cpufreq_resume(struct platform_device *pdev,
-				 pm_message_t state)
+static int mxc_cpufreq_resume(struct cpufreq_policy *policy)
 {
-	struct cpufreq_policy *policy = pdev;
-
 	if (clk_get_rate(cpu_clk) != pre_suspend_rate)
 		set_cpu_freq(pre_suspend_rate);
 
