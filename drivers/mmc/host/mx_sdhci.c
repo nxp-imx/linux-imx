@@ -1247,13 +1247,7 @@ static void sdhci_enable_sdio_irq(struct mmc_host *mmc, int enable)
 
 	spin_lock_irqsave(&host->lock, flags);
 
-	if (enable) {
-		if (host->sdio_enable++)
-			goto exit_unlock;
-	} else {
-		if (--(host->sdio_enable))
-			goto exit_unlock;
-	}
+	host->sdio_enable = enable;
 
 	ier = readl(host->ioaddr + SDHCI_INT_ENABLE);
 	prot = readl(host->ioaddr + SDHCI_HOST_CONTROL);
