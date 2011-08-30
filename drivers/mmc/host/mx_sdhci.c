@@ -1282,7 +1282,7 @@ static void sdhci_enable_sdio_irq(struct mmc_host *mmc, int enable)
 	writel(prot, host->ioaddr + SDHCI_HOST_CONTROL);
 
 	mmiowb();
-      exit_unlock:
+
 	spin_unlock_irqrestore(&host->lock, flags);
 }
 
@@ -1351,6 +1351,31 @@ static void sdhci_finish_worker(struct work_struct *work)
 	del_timer(&host->timer);
 
 	mrq = host->mrq;
+
+	if (!mrq->cmd->data && !mrq->cmd->error
+			&& (mrq->cmd->flags & MMC_RSP_BUSY)) {
+		int timeout = 250000;
+
+		/* DDTS ENGcm03648.
+		 * if it's a cmd with busy, we should disable auto clock
+		 * gate and we need to poll dat0 until it's high which means
+		 * data bus is idle.
+		 * This sdhci driver disable all auto clock gate bits by
+		 * default, so we skip changing auto clock gate bits.
+		 * Be careful if auto clock gate bits logic is changed!
+		 * Poll on DATA0 line for cmd with busy signal for 250 ms
+		 */
+		while (timeout > 0 && !(readl(host->ioaddr + \
+				SDHCI_PRESENT_STATE) & SDHCI_DAT0_IDLE)) {
+			udelay(1);
+			timeout--;
+		}
+
+		if (timeout <= 0) {
+			DBG(KERN_ERR "Timeout waiting for DAT0 to go high!\n");
+			mrq->cmd->error = -ETIMEDOUT;
+		}
+	}
 
 	/*
 	 * The controller needs a reset of internal state machines
