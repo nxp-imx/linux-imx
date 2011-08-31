@@ -31,8 +31,7 @@
 /* VENDOR SPEC register */
 #define SDHCI_VENDOR_SPEC		0xC0
 #define  SDHCI_VENDOR_SPEC_SDIO_QUIRK	0x00000002
-#define SDHCI_MIX_CTRL			0x48
-#define SDHCI_MIX_CTRL_DDREN		(1 << 3)
+
 #define SDHCI_MIX_CTRL_EXE_TUNE		(1 << 22)
 #define SDHCI_MIX_CTRL_SMPCLK_SEL	(1 << 23)
 #define SDHCI_MIX_CTRL_AUTO_TUNE	(1 << 24)
@@ -340,6 +339,9 @@ static int plt_ddr_mode(struct sdhci_host *host, int mode)
 		reg &= ~SDHCI_MIX_CTRL_DDREN;
 
 	sdhci_writel(host, reg, SDHCI_MIX_CTRL);
+
+	/* set clock frequency again */
+	esdhc_set_clock(host, host->clock);
 
 	return 0;
 }
