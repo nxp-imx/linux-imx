@@ -65,6 +65,8 @@ extern int iram_ready;
 void *suspend_iram_base;
 void (*suspend_in_iram)(void *param1, void *param2, void* param3) = NULL;
 void __iomem *suspend_param1;
+void *mx53_iram_base;
+void (*mx53_wait_in_ram)(void) = NULL;
 
 static int mx5_suspend_enter(suspend_state_t state)
 {
@@ -87,8 +89,10 @@ static int mx5_suspend_enter(suspend_state_t state)
 		return -EAGAIN;
 
 	if (state == PM_SUSPEND_MEM) {
-		local_flush_tlb_all();
-		flush_cache_all();
+		if (!cpu_is_mx53()) {
+			local_flush_tlb_all();
+			flush_cache_all();
+		}
 
 		if (pm_data && pm_data->suspend_enter)
 			pm_data->suspend_enter();
@@ -96,9 +100,11 @@ static int mx5_suspend_enter(suspend_state_t state)
 			/* Run the suspend code from iRAM. */
 			suspend_in_iram(suspend_param1, NULL, NULL);
 
-			/*clear the EMPGC0/1 bits */
-			__raw_writel(0, MXC_SRPG_EMPGC0_SRPGCR);
-			__raw_writel(0, MXC_SRPG_EMPGC1_SRPGCR);
+			if (!cpu_is_mx53()) {
+				/*clear the EMPGC0/1 bits */
+				__raw_writel(0, MXC_SRPG_EMPGC0_SRPGCR);
+				__raw_writel(0, MXC_SRPG_EMPGC1_SRPGCR);
+			}
 		} else {
 			if (cpu_is_mx50()) {
 				/* Store the LPM mode of databanhn */
@@ -239,14 +245,11 @@ static int __init pm_init(void)
 	/* Need to remap the area here since we want the memory region
 		 to be executable. */
 	suspend_iram_base = __arm_ioremap(iram_paddr, SZ_4K,
-					  MT_HIGH_VECTORS);
+					  MT_MEMORY_NONCACHED);
 
 	if (cpu_is_mx51() || cpu_is_mx53()) {
 		suspend_param1 =
 			cpu_is_mx51() ? (void *)SUSPEND_ID_MX51:(void *)SUSPEND_ID_MX53;
-		/* for mx53 ARD, doesn't operate DDR in suspend */
-		if (machine_is_mx53_ard() || board_is_mx53_loco_mc34708())
-			suspend_param1 = (void *)SUSPEND_ID_NONE;
 		memcpy(suspend_iram_base, cpu_do_suspend_workaround,
 				SZ_4K);
 	} else if (cpu_is_mx50()) {
