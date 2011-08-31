@@ -49,6 +49,8 @@ extern void stop_dvfs(void);
 extern void *wait_in_iram_base;
 extern void __iomem *apll_base;
 extern void __iomem *arm_plat_base;
+extern void (*suspend_in_iram)(void *param1, void *param2, void* param3);
+extern void __iomem *suspend_param1;
 
 static struct clk *gpc_dvfs_clk;
 static struct clk *pll1_sw_clk;
@@ -61,7 +63,8 @@ static struct clk *sys_clk ;
 void mxc_cpu_lp_set(enum mxc_cpu_pwr_mode mode)
 {
 	u32 plat_lpc, arm_srpgcr, ccm_clpcr;
-	u32 empgc0, empgc1;
+	u32 empgc0 = 0;
+	u32 empgc1 = 0;
 	int stop_mode = 0;
 
 	/* always allow platform to issue a deep sleep mode request */
@@ -69,8 +72,10 @@ void mxc_cpu_lp_set(enum mxc_cpu_pwr_mode mode)
 	    ~(MXC_CORTEXA8_PLAT_LPC_DSM);
 	ccm_clpcr = __raw_readl(MXC_CCM_CLPCR) & ~(MXC_CCM_CLPCR_LPM_MASK);
 	arm_srpgcr = __raw_readl(MXC_SRPG_ARM_SRPGCR) & ~(MXC_SRPGCR_PCR);
-	empgc0 = __raw_readl(MXC_SRPG_EMPGC0_SRPGCR) & ~(MXC_SRPGCR_PCR);
-	empgc1 = __raw_readl(MXC_SRPG_EMPGC1_SRPGCR) & ~(MXC_SRPGCR_PCR);
+	if (!cpu_is_mx53()) {
+		empgc0 = __raw_readl(MXC_SRPG_EMPGC0_SRPGCR) & ~(MXC_SRPGCR_PCR);
+		empgc1 = __raw_readl(MXC_SRPG_EMPGC1_SRPGCR) & ~(MXC_SRPGCR_PCR);
+	}
 
 	switch (mode) {
 	case WAIT_CLOCKED:
@@ -96,7 +101,7 @@ void mxc_cpu_lp_set(enum mxc_cpu_pwr_mode mode)
 		}
 
 		arm_srpgcr |= MXC_SRPGCR_PCR;
-		if (stop_mode) {
+		if (stop_mode && !cpu_is_mx53()) {
 			empgc0 |= MXC_SRPGCR_PCR;
 			empgc1 |= MXC_SRPGCR_PCR;
 		}
@@ -120,7 +125,7 @@ void mxc_cpu_lp_set(enum mxc_cpu_pwr_mode mode)
 	/* Enable NEON SRPG for all but MX50TO1.0. */
 	if (!(mx50_revision() == IMX_CHIP_REVISION_1_0))
 		__raw_writel(arm_srpgcr, MXC_SRPG_NEON_SRPGCR);
-	if (stop_mode) {
+	if (stop_mode && !cpu_is_mx53()) {
 		__raw_writel(empgc0, MXC_SRPG_EMPGC0_SRPGCR);
 		__raw_writel(empgc1, MXC_SRPG_EMPGC1_SRPGCR);
 	}
@@ -226,6 +231,9 @@ void arch_idle(void)
 			} else
 				wait_in_iram(ccm_base, databahn_base,
 					clk_get_usecount(sys_clk));
+		} else if (cpu_is_mx53() && (clk_get_usecount(ddr_clk) == 0)
+				&& low_bus_freq_mode) {
+			suspend_in_iram(suspend_param1, NULL, NULL);
 		} else
 			cpu_do_idle();
 		clk_disable(gpc_dvfs_clk);
