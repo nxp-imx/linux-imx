@@ -1,7 +1,7 @@
 /*
  * sgtl5000.c  --  SGTL5000 ALSA SoC Audio driver
  *
- * Copyright (C) 2008-2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2008-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -1360,6 +1360,20 @@ static __devexit int sgtl5000_i2c_remove(struct i2c_client *client)
 	return 0;
 }
 
+static __devexit int sgtl5000_i2c_shutdown(struct i2c_client *client)
+{
+	struct snd_soc_codec *codec = i2c_get_clientdata(client);
+	int reg;
+	reg = sgtl5000_read(codec, SGTL5000_CHIP_ANA_POWER);
+	reg &= ~SGTL5000_VAG_POWERUP;
+	reg &= ~SGTL5000_HP_POWERUP;
+	reg &= ~SGTL5000_LINE_OUT_POWERUP;
+	reg &= ~SGTL5000_DAC_POWERUP;
+	reg &= ~SGTL5000_ADC_POWERUP;
+	sgtl5000_write(codec, SGTL5000_CHIP_ANA_POWER, reg);
+	return 0;
+}
+
 static const struct i2c_device_id sgtl5000_id[] = {
 	{"sgtl5000-i2c", 0},
 	{},
@@ -1375,6 +1389,7 @@ static struct i2c_driver sgtl5000_i2c_driver = {
 	.probe = sgtl5000_i2c_probe,
 	.remove = __devexit_p(sgtl5000_i2c_remove),
 	.id_table = sgtl5000_id,
+	.shutdown = sgtl5000_i2c_shutdown,
 };
 
 static int __init sgtl5000_modinit(void)
