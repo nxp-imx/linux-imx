@@ -88,6 +88,14 @@ static inline void esdhc_set_clock(struct sdhci_host *host, unsigned int clock)
 		| (pre_div << ESDHC_PREDIV_SHIFT));
 	sdhci_writel(host, temp, ESDHC_SYSTEM_CONTROL);
 	mdelay(100);
+
+	/* if there's board callback function
+	 * for pad setting change, that means
+	 * board needs to reconfig its pad for
+	 * corresponding sd bus frequency
+	 */
+	if (boarddata->platform_pad_change)
+		boarddata->platform_pad_change(clock);
 out:
 	host->clock = clock;
 }
