@@ -25,5 +25,6 @@ struct esdhc_platform_data {
 	unsigned int always_present;
 	unsigned int support_18v;
 	unsigned int support_8bit;
+	int (*platform_pad_change)(int clock);
 };
 #endif /* __ASM_ARCH_IMX_ESDHC_H */

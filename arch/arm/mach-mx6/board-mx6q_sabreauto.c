@@ -132,16 +132,16 @@ static iomux_v3_cfg_t mx6q_sabreauto_pads[] = {
 	MX6Q_PAD_SD2_DAT2__USDHC2_DAT2,
 	MX6Q_PAD_SD2_DAT3__USDHC2_DAT3,
 	/* SD3 */
-	MX6Q_PAD_SD3_CLK__USDHC3_CLK,
-	MX6Q_PAD_SD3_CMD__USDHC3_CMD,
-	MX6Q_PAD_SD3_DAT0__USDHC3_DAT0,
-	MX6Q_PAD_SD3_DAT1__USDHC3_DAT1,
-	MX6Q_PAD_SD3_DAT2__USDHC3_DAT2,
-	MX6Q_PAD_SD3_DAT3__USDHC3_DAT3,
-	MX6Q_PAD_SD3_DAT4__USDHC3_DAT4,
-	MX6Q_PAD_SD3_DAT5__USDHC3_DAT5,
-	MX6Q_PAD_SD3_DAT6__USDHC3_DAT6,
-	MX6Q_PAD_SD3_DAT7__USDHC3_DAT7,
+	MX6Q_PAD_SD3_CLK__USDHC3_CLK_50MHZ,
+	MX6Q_PAD_SD3_CMD__USDHC3_CMD_50MHZ,
+	MX6Q_PAD_SD3_DAT0__USDHC3_DAT0_50MHZ,
+	MX6Q_PAD_SD3_DAT1__USDHC3_DAT1_50MHZ,
+	MX6Q_PAD_SD3_DAT2__USDHC3_DAT2_50MHZ,
+	MX6Q_PAD_SD3_DAT3__USDHC3_DAT3_50MHZ,
+	MX6Q_PAD_SD3_DAT4__USDHC3_DAT4_50MHZ,
+	MX6Q_PAD_SD3_DAT5__USDHC3_DAT5_50MHZ,
+	MX6Q_PAD_SD3_DAT6__USDHC3_DAT6_50MHZ,
+	MX6Q_PAD_SD3_DAT7__USDHC3_DAT7_50MHZ,
 	MX6Q_PAD_SD3_RST__USDHC3_RST,
 	/* SD3 VSelect */
 	MX6Q_PAD_GPIO_18__USDHC3_VSELECT,
@@ -149,16 +149,16 @@ static iomux_v3_cfg_t mx6q_sabreauto_pads[] = {
 	MX6Q_PAD_NANDF_CS0__GPIO_6_11,
 	MX6Q_PAD_NANDF_CS1__GPIO_6_14,
 	/* SD4 */
-	MX6Q_PAD_SD4_CLK__USDHC4_CLK,
-	MX6Q_PAD_SD4_CMD__USDHC4_CMD,
-	MX6Q_PAD_SD4_DAT0__USDHC4_DAT0,
-	MX6Q_PAD_SD4_DAT1__USDHC4_DAT1,
-	MX6Q_PAD_SD4_DAT2__USDHC4_DAT2,
-	MX6Q_PAD_SD4_DAT3__USDHC4_DAT3,
-	MX6Q_PAD_SD4_DAT4__USDHC4_DAT4,
-	MX6Q_PAD_SD4_DAT5__USDHC4_DAT5,
-	MX6Q_PAD_SD4_DAT6__USDHC4_DAT6,
-	MX6Q_PAD_SD4_DAT7__USDHC4_DAT7,
+	MX6Q_PAD_SD4_CLK__USDHC4_CLK_50MHZ,
+	MX6Q_PAD_SD4_CMD__USDHC4_CMD_50MHZ,
+	MX6Q_PAD_SD4_DAT0__USDHC4_DAT0_50MHZ,
+	MX6Q_PAD_SD4_DAT1__USDHC4_DAT1_50MHZ,
+	MX6Q_PAD_SD4_DAT2__USDHC4_DAT2_50MHZ,
+	MX6Q_PAD_SD4_DAT3__USDHC4_DAT3_50MHZ,
+	MX6Q_PAD_SD4_DAT4__USDHC4_DAT4_50MHZ,
+	MX6Q_PAD_SD4_DAT5__USDHC4_DAT5_50MHZ,
+	MX6Q_PAD_SD4_DAT6__USDHC4_DAT6_50MHZ,
+	MX6Q_PAD_SD4_DAT7__USDHC4_DAT7_50MHZ,
 	MX6Q_PAD_NANDF_ALE__USDHC4_RST,
 	/* eCSPI1 */
 	MX6Q_PAD_EIM_D16__ECSPI1_SCLK,
@@ -247,17 +247,102 @@ static iomux_v3_cfg_t mx6q_sabreauto_esai_record_pads[] = {
 	MX6Q_PAD_ENET_REF_CLK__ESAI1_FSR,
 };
 
+#define MX6Q_USDHC_PAD_SETTING(id, speed)	\
+mx6q_sd##id##_##speed##mhz[] = {		\
+	MX6Q_PAD_SD##id##_CLK__USDHC##id##_CLK_##speed##MHZ,	\
+	MX6Q_PAD_SD##id##_CMD__USDHC##id##_CMD_##speed##MHZ,	\
+	MX6Q_PAD_SD##id##_DAT0__USDHC##id##_DAT0_##speed##MHZ,	\
+	MX6Q_PAD_SD##id##_DAT1__USDHC##id##_DAT1_##speed##MHZ,	\
+	MX6Q_PAD_SD##id##_DAT2__USDHC##id##_DAT2_##speed##MHZ,	\
+	MX6Q_PAD_SD##id##_DAT3__USDHC##id##_DAT3_##speed##MHZ,	\
+	MX6Q_PAD_SD##id##_DAT4__USDHC##id##_DAT4_##speed##MHZ,	\
+	MX6Q_PAD_SD##id##_DAT5__USDHC##id##_DAT5_##speed##MHZ,	\
+	MX6Q_PAD_SD##id##_DAT6__USDHC##id##_DAT6_##speed##MHZ,	\
+	MX6Q_PAD_SD##id##_DAT7__USDHC##id##_DAT7_##speed##MHZ,	\
+}
+
+static iomux_v3_cfg_t MX6Q_USDHC_PAD_SETTING(3, 50);
+static iomux_v3_cfg_t MX6Q_USDHC_PAD_SETTING(3, 100);
+static iomux_v3_cfg_t MX6Q_USDHC_PAD_SETTING(3, 200);
+static iomux_v3_cfg_t MX6Q_USDHC_PAD_SETTING(4, 50);
+static iomux_v3_cfg_t MX6Q_USDHC_PAD_SETTING(4, 100);
+static iomux_v3_cfg_t MX6Q_USDHC_PAD_SETTING(4, 200);
+
+enum sd_pad_mode {
+	SD_PAD_MODE_LOW_SPEED,
+	SD_PAD_MODE_MED_SPEED,
+	SD_PAD_MODE_HIGH_SPEED,
+};
+
+static int plt_sd3_pad_change(int clock)
+{
+	static enum sd_pad_mode pad_mode = SD_PAD_MODE_LOW_SPEED;
+
+	if (clock > 100000000) {
+		if (pad_mode == SD_PAD_MODE_HIGH_SPEED)
+			return 0;
+
+		pad_mode = SD_PAD_MODE_HIGH_SPEED;
+		return mxc_iomux_v3_setup_multiple_pads(mx6q_sd3_200mhz,
+					ARRAY_SIZE(mx6q_sd3_200mhz));
+	} else if (clock > 52000000) {
+		if (pad_mode == SD_PAD_MODE_MED_SPEED)
+			return 0;
+
+		pad_mode = SD_PAD_MODE_MED_SPEED;
+		return mxc_iomux_v3_setup_multiple_pads(mx6q_sd3_100mhz,
+					ARRAY_SIZE(mx6q_sd3_100mhz));
+	} else {
+		if (pad_mode == SD_PAD_MODE_LOW_SPEED)
+			return 0;
+
+		pad_mode = SD_PAD_MODE_LOW_SPEED;
+		return mxc_iomux_v3_setup_multiple_pads(mx6q_sd3_50mhz,
+					ARRAY_SIZE(mx6q_sd3_50mhz));
+	}
+}
+
+static int plt_sd4_pad_change(int clock)
+{
+	static enum sd_pad_mode pad_mode = SD_PAD_MODE_LOW_SPEED;
+
+	if (clock > 100000000) {
+		if (pad_mode == SD_PAD_MODE_HIGH_SPEED)
+			return 0;
+
+		pad_mode = SD_PAD_MODE_HIGH_SPEED;
+		return mxc_iomux_v3_setup_multiple_pads(mx6q_sd4_200mhz,
+					ARRAY_SIZE(mx6q_sd4_200mhz));
+	} else if (clock > 52000000) {
+		if (pad_mode == SD_PAD_MODE_MED_SPEED)
+			return 0;
+
+		pad_mode = SD_PAD_MODE_MED_SPEED;
+		return mxc_iomux_v3_setup_multiple_pads(mx6q_sd4_100mhz,
+					ARRAY_SIZE(mx6q_sd4_100mhz));
+	} else {
+		if (pad_mode == SD_PAD_MODE_LOW_SPEED)
+			return 0;
+
+		pad_mode = SD_PAD_MODE_LOW_SPEED;
+		return mxc_iomux_v3_setup_multiple_pads(mx6q_sd4_50mhz,
+					ARRAY_SIZE(mx6q_sd4_50mhz));
+	}
+}
+
 static const struct esdhc_platform_data mx6q_sabreauto_sd3_data __initconst = {
 	.cd_gpio = MX6Q_SABREAUTO_SD3_CD,
 	.wp_gpio = MX6Q_SABREAUTO_SD3_WP,
 	.support_18v = 1,
 	.support_8bit = 1,
+	.platform_pad_change = plt_sd3_pad_change,
 };
 
 /* No card detect signal for SD4 */
 static const struct esdhc_platform_data mx6q_sabreauto_sd4_data __initconst = {
 	.always_present = 1,
 	.support_8bit = 1,
+	.platform_pad_change = plt_sd4_pad_change,
 };
 
 /* The GPMI is conflicted with SD3, so init this in the driver. */
