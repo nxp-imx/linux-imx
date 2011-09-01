@@ -1320,9 +1320,63 @@ static struct clk mmdc_ch1_axi_clk[] = {
 	},
 };
 
+static unsigned long _clk_ipg_perclk_get_rate(struct clk *clk)
+{
+	u32 reg, div;
+
+	reg = __raw_readl(MXC_CCM_CSCMR1);
+	div = ((reg & MXC_CCM_CSCMR1_PERCLK_PODF_MASK) >>
+			MXC_CCM_CSCMR1_PERCLK_PODF_OFFSET) + 1;
+
+	return clk_get_rate(clk->parent) / div;
+}
+
+static int _clk_ipg_perclk_set_rate(struct clk *clk, unsigned long rate)
+{
+	u32 reg, div;
+	u32 parent_rate = clk_get_rate(clk->parent);
+
+	div = parent_rate / rate;
+	if (div == 0)
+		div++;
+	if (((parent_rate / div) != rate) || (div > 64))
+		return -EINVAL;
+
+	reg = __raw_readl(MXC_CCM_CSCMR1);
+	reg &= ~MXC_CCM_CSCMR1_PERCLK_PODF_MASK;
+	reg |= (div - 1) << MXC_CCM_CSCMR1_PERCLK_PODF_OFFSET;
+	__raw_writel(reg, MXC_CCM_CSCMR1);
+
+	return 0;
+}
+
+
+static unsigned long _clk_ipg_perclk_round_rate(struct clk *clk,
+						unsigned long rate)
+{
+	u32 div;
+	u32 parent_rate = clk_get_rate(clk->parent);
+
+	div = parent_rate / rate;
+
+	/* Make sure rate is not greater than the maximum value for the clock.
+	 * Also prevent a div of 0.
+	 */
+	if (div == 0)
+		div++;
+
+	if (div > 64)
+		div = 64;
+
+	return parent_rate / div;
+}
+
 static struct clk ipg_perclk = {
 	__INIT_CLK_DEBUG(ipg_perclk)
 	.parent = &ipg_clk,
+	.get_rate = _clk_ipg_perclk_get_rate,
+	.set_rate = _clk_ipg_perclk_set_rate,
+	.round_rate = _clk_ipg_perclk_round_rate,
 };
 
 static struct clk spba_clk = {
@@ -4152,6 +4206,7 @@ int __init mx6_clocks_init(unsigned long ckil, unsigned long osc,
 	unsigned long ckih1, unsigned long ckih2)
 {
 	__iomem void *base;
+	unsigned int reg;
 
 	int i;
 
@@ -4208,7 +4263,8 @@ int __init mx6_clocks_init(unsigned long ckil, unsigned long osc,
 			     3 << MXC_CCM_CCGRx_CG1_OFFSET |
 			     3 << MXC_CCM_CCGRx_CG0_OFFSET, MXC_CCM_CCGR0);
 	} else {
-		__raw_writel(3 << MXC_CCM_CCGRx_CG2_OFFSET |
+		__raw_writel(1 << MXC_CCM_CCGRx_CG11_OFFSET |
+			     3 << MXC_CCM_CCGRx_CG2_OFFSET |
 			     3 << MXC_CCM_CCGRx_CG1_OFFSET |
 			     3 << MXC_CCM_CCGRx_CG0_OFFSET, MXC_CCM_CCGR0);
 	}
@@ -4228,6 +4284,9 @@ int __init mx6_clocks_init(unsigned long ckil, unsigned long osc,
 	__raw_writel(3 << MXC_CCM_CCGRx_CG3_OFFSET |
 		     3 << MXC_CCM_CCGRx_CG0_OFFSET, MXC_CCM_CCGR5);
 	__raw_writel(0, MXC_CCM_CCGR6);
+
+	/* Lower the ipg_perclk frequency to 11MHz. */
+	clk_set_rate(&ipg_perclk, 11000000);
 
 	base = ioremap(GPT_BASE_ADDR, SZ_4K);
 	mxc_timer_init(&gpt_clk[0], base, MXC_INT_GPT);

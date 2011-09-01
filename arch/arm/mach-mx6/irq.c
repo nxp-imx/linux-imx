@@ -45,6 +45,7 @@ static int mx6_gic_irq_set_wake(struct irq_data *d, unsigned int enable)
 }
 void mx6_init_irq(void)
 {
+	void __iomem *gpc_base = IO_ADDRESS(GPC_BASE_ADDR);
 	struct irq_desc *desc;
 	unsigned int i;
 
@@ -58,6 +59,10 @@ void mx6_init_irq(void)
 	 */
 	gic_init(0, 29, IO_ADDRESS(IC_DISTRIBUTOR_BASE_ADDR),
 		IO_ADDRESS(IC_INTERFACES_BASE_ADDR));
+
+	/* Mask the always pending interrupts - HW bug. */
+	__raw_writel(0x00400000, gpc_base + 0x0c);
+	__raw_writel(0x20000000, gpc_base + 0x10);
 
 	for (i = MXC_INT_START; i <= MXC_INT_END; i++) {
 		desc = irq_to_desc(i);
