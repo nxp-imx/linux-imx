@@ -1577,17 +1577,6 @@ static void setup_received_irq(struct fsl_udc *udc,
 	unsigned mA = 500;
 	udc_reset_ep_queue(udc, 0);
 
-	if (wLength) {
-		int dir;
-		dir = EP_DIR_IN;
-		if (setup->bRequestType & USB_DIR_IN) {
-			dir = EP_DIR_OUT;
-		}
-		spin_unlock(&udc->lock);
-		if (ep0_prime_status(udc, dir))
-			ep0stall(udc);
-		spin_lock(&udc->lock);
-	}
 	/* We process some stardard setup requests here */
 	switch (setup->bRequest) {
 	case USB_REQ_GET_STATUS:
@@ -1689,9 +1678,16 @@ static void setup_received_irq(struct fsl_udc *udc,
 		spin_unlock(&udc->lock);
 		if (udc->driver->setup(&udc->gadget,
 				&udc->local_setup_buff) < 0) {
-			/* cancel status phase */
+			/* cancel all requests on ep0 */
 			udc_reset_ep_queue(udc, 0);
 			ep0stall(udc);
+		} else {
+			/* prime the status phase */
+			int dir = EP_DIR_IN;
+			if (setup->bRequestType & USB_DIR_IN)
+				dir = EP_DIR_OUT;
+			if (ep0_prime_status(udc, dir))
+				ep0stall(udc);
 		}
 	} else {
 		/* No data phase, IN status from gadget */
