@@ -1,9 +1,8 @@
 /*
- *  acpi_drivers.h  ($Revision: 31 $)
+ *  anatop_drivers.h
  *
  *  Copyright (C) 2001, 2002 Andy Grover <andrew.grover@intel.com>
  *  Copyright (C) 2001, 2002 Paul Diefenbaugh <paul.s.diefenbaugh@intel.com>
- *
  *  Copyright (C) 2011 Freescale Semiconductor, Inc.
  * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
  *
@@ -31,10 +30,12 @@
 typedef void *anatop_handle;	/* Actually a ptr to a NS Node */
 
 /* Device */
-#define ACPI_MAX_HANDLES	10
+#define ANATOP_MAX_HANDLES	10
+#define ANATOP_DEVICE_ID_LENGTH	0x09
+
 struct anatop_handle_list {
 	u32 count;
-	anatop_handle handles[ACPI_MAX_HANDLES];
+	anatop_handle handles[ANATOP_MAX_HANDLES];
 };
 
 struct anatop_device {
@@ -45,8 +46,7 @@ struct anatop_device {
 	void *driver_data;
 };
 struct anatop_device_id {
-	__u8 id[ACPI_ID_LEN];
-	kernel_ulong_t driver_data;
+	__u8 id[ANATOP_DEVICE_ID_LENGTH];
 };
 typedef int (*anatop_op_add) (struct anatop_device *device);
 typedef int (*anatop_op_remove) (struct anatop_device *device, int type);
@@ -77,7 +77,7 @@ struct anatop_device_ops {
 struct anatop_driver {
 	char name[80];
 	char class[80];
-	const struct acpi_device_id *ids; /* Supported Hardware IDs */
+	const struct anatop_device_id *ids; /* Supported Hardware IDs */
 	unsigned int flags;
 	struct anatop_device_ops ops;
 	struct device_driver drv;
@@ -94,10 +94,7 @@ typedef u32 anatop_status;	/* All ANATOP Exceptions */
 
 #define ANATOP_MAX_STRING			80
 
-/*
- * Please update drivers/acpi/debug.c and Documentation/acpi/debug.txt
- * if you add to this list.
- */
+
 #define ANATOP_BUS_COMPONENT		0x00010000
 #define ANATOP_AC_COMPONENT		0x00020000
 #define ANATOP_BATTERY_COMPONENT		0x00040000
@@ -113,11 +110,6 @@ typedef u32 anatop_status;	/* All ANATOP Exceptions */
 #define ANATOP_VIDEO_COMPONENT		0x10000000
 #define ANATOP_PROCESSOR_COMPONENT	0x20000000
 
-/*
- * _HID definitions
- * HIDs must conform to ACPI spec(6.1.4)
- * Linux specific HIDs do not apply to this and begin with LNX:
- */
 
 #define ANATOP_POWER_HID			"LNXPOWER"
 #define ANATOP_PROCESSOR_OBJECT_HID	"LNXCPU"
@@ -131,19 +123,16 @@ typedef u32 anatop_status;	/* All ANATOP Exceptions */
 /* Quirk for broken IBM BIOSes */
 #define ANATOP_SMBUS_IBM_HID		"SMBUSIBM"
 
-/*
- * For fixed hardware buttons, we fabricate acpi_devices with HID
- * ACPI_BUTTON_HID_POWERF or ACPI_BUTTON_HID_SLEEPF.  Fixed hardware
- * signals only an event; it doesn't supply a notification value.
- * To allow drivers to treat notifications from fixed hardware the
- * same as those from real devices, we turn the events into this
- * notification value.
- */
 #define ANATOP_FIXED_HARDWARE_EVENT	0x100
 
 static inline void *anatop_driver_data(struct anatop_device *d)
 {
 	return d->driver_data;
 }
+
+extern void anatop_thermal_cpufreq_init(void);
+extern int anatop_thermal_cpu_hotplug(bool cpu_on);
+extern struct thermal_cooling_device_ops imx_processor_cooling_ops;
+extern void arch_reset(char mode, const char *cmd);
 
 #endif /*__ANATOP_DRIVERS_H__*/
