@@ -152,9 +152,9 @@ mode_store(struct device *dev, struct device_attribute *attr,
 	if (!tz->ops->set_mode)
 		return -EPERM;
 
-	if (!strncmp(buf, "enabled", sizeof("enabled")))
+	if (!strncmp(buf, "enabled", sizeof("enabled") - 1))
 		result = tz->ops->set_mode(tz, THERMAL_DEVICE_ENABLED);
-	else if (!strncmp(buf, "disabled", sizeof("disabled")))
+	else if (!strncmp(buf, "disabled", sizeof("disabled") - 1))
 		result = tz->ops->set_mode(tz, THERMAL_DEVICE_DISABLED);
 	else
 		result = -EINVAL;
@@ -217,6 +217,29 @@ trip_point_temp_show(struct device *dev, struct device_attribute *attr,
 		return ret;
 
 	return sprintf(buf, "%ld\n", temperature);
+}
+static ssize_t
+trip_point_temp_store(struct device *dev, struct device_attribute *attr,
+		     const char *buf, size_t count)
+{
+	struct thermal_zone_device *tz = to_thermal_zone(dev);
+	int trip, ret;
+	long temperature;
+
+	if (!tz->ops->set_trip_temp)
+		return -EPERM;
+
+	if (!sscanf(attr->attr.name, "trip_point_%d_temp", &trip))
+		return -EINVAL;
+
+	ret = sscanf(buf, "%lu", &temperature);
+
+	ret = tz->ops->set_trip_temp(tz, trip, &temperature);
+	if (ret)
+		return -EINVAL;
+
+	return count;
+
 }
 
 static ssize_t
@@ -288,11 +311,14 @@ static DEVICE_ATTR(passive, S_IRUGO | S_IWUSR, passive_show, \
 
 static struct device_attribute trip_point_attrs[] = {
 	__ATTR(trip_point_0_type, 0444, trip_point_type_show, NULL),
-	__ATTR(trip_point_0_temp, 0444, trip_point_temp_show, NULL),
+	__ATTR(trip_point_0_temp, 0644, trip_point_temp_show,
+			trip_point_temp_store),
 	__ATTR(trip_point_1_type, 0444, trip_point_type_show, NULL),
-	__ATTR(trip_point_1_temp, 0444, trip_point_temp_show, NULL),
+	__ATTR(trip_point_1_temp, 0644, trip_point_temp_show,
+			trip_point_temp_store),
 	__ATTR(trip_point_2_type, 0444, trip_point_type_show, NULL),
-	__ATTR(trip_point_2_temp, 0444, trip_point_temp_show, NULL),
+	__ATTR(trip_point_2_temp, 0644, trip_point_temp_show,
+			trip_point_temp_store),
 	__ATTR(trip_point_3_type, 0444, trip_point_type_show, NULL),
 	__ATTR(trip_point_3_temp, 0444, trip_point_temp_show, NULL),
 	__ATTR(trip_point_4_type, 0444, trip_point_type_show, NULL),
