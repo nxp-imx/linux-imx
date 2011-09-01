@@ -89,3 +89,5 @@ obj-$(CONFIG_MFD_MAX17135)  += max17135-core.o
 da9052-objs			:= da9052-spi.o da9052-i2c.o da9052-core.o
 obj-$(CONFIG_PMIC_DIALOG)	+= da9052.o
 #endif
+
+obj-$(CONFIG_MFD_MXC_HDMI)       += mxc-hdmi-core.o
