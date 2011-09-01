@@ -193,6 +193,9 @@
 #define CAAM_BASE_ADDR              ATZ2_BASE_ADDR
 #define ARM_BASE_ADDR		        (ATZ2_BASE_ADDR + 0x40000)
 
+/* ARM Cortex A9 MPCore Platform */
+#define MX6Q_A9_PLATFRM_BASE		(ARM_BASE_ADDR + 0x20000)
+
 #define MX6Q_PL301_BASE_ADDR          (AIPS2_OFF_BASE_ADDR + 0x0000)
 #define MX6Q_USB_OTG_BASE_ADDR            (AIPS2_OFF_BASE_ADDR + 0x4000)
 #define MX6Q_USB_HS1_BASE_ADDR            (AIPS2_OFF_BASE_ADDR + 0x4200)
