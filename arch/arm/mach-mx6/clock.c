@@ -136,9 +136,7 @@ static void _clk_disable(struct clk *clk)
 	u32 reg;
 	reg = __raw_readl(clk->enable_reg);
 	reg &= ~(MXC_CCM_CCGRx_CG_MASK << clk->enable_shift);
-	/* TODO: un-comment the disable code */
-	/* __raw_writel(reg, clk->enable_reg); */
-
+	__raw_writel(reg, clk->enable_reg);
 }
 
 static void _clk_disable_inwait(struct clk *clk)
@@ -147,8 +145,7 @@ static void _clk_disable_inwait(struct clk *clk)
 	reg = __raw_readl(clk->enable_reg);
 	reg &= ~(MXC_CCM_CCGRx_CG_MASK << clk->enable_shift);
 	reg |= 1 << clk->enable_shift;
-	/* TODO: un-comment the disable code */
-	/* __raw_writel(reg, clk->enable_reg); */
+	__raw_writel(reg, clk->enable_reg);
 }
 
 /*
