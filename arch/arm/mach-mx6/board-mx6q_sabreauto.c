@@ -788,6 +788,7 @@ static void __init mx6_board_init(void)
 			ARRAY_SIZE(mx6q_sabreauto_esai_record_pads));
 
 	mx6q_sabreauto_init_uart();
+	imx6q_add_mxc_hdmi_core();
 
 	imx6q_add_ipuv3(0, &ipu_data[0]);
 	imx6q_add_ipuv3(1, &ipu_data[1]);
