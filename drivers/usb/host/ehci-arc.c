@@ -623,21 +623,22 @@ static int ehci_fsl_drv_suspend(struct platform_device *pdev,
 	/* Only handles OTG mode switch event, system suspend event will be done in bus suspend */
 	if (pdata->pmflags == 0) {
 		printk(KERN_DEBUG "%s, pm event \n", __func__);
+		/* Need open clock for register access */
+		if (!test_bit(HCD_FLAG_HW_ACCESSIBLE, &hcd->flags))
+			fsl_usb_clk_gate(hcd->self.controller->platform_data, true);
+
 		ehci_prepare_ports_for_controller_suspend(hcd_to_ehci(hcd),
 				device_may_wakeup(&(pdev->dev)));
 		if (!host_can_wakeup_system(pdev)) {
 			int mask;
-			/* Need open clock for register access */
-			if (!test_bit(HCD_FLAG_HW_ACCESSIBLE, &hcd->flags))
-				fsl_usb_clk_gate(hcd->self.controller->platform_data, true);
 
 			mask = ehci_readl(ehci, &ehci->regs->intr_enable);
 			mask &= ~STS_PCD;
 			ehci_writel(ehci, mask, &ehci->regs->intr_enable);
 
 			usb_host_set_wakeup(hcd->self.controller, false);
-			fsl_usb_clk_gate(hcd->self.controller->platform_data, false);
 		}
+		fsl_usb_clk_gate(hcd->self.controller->platform_data, false);
 		printk(KERN_DEBUG "host suspend ends\n");
 		return 0;
 	}
@@ -724,17 +725,17 @@ static int ehci_fsl_drv_resume(struct platform_device *pdev)
 	if (pdata->pmflags == 0) {
 		printk(KERN_DEBUG "%s,pm event, wait for wakeup irq if needed\n", __func__);
 		wait_event_interruptible(wake_up_pdata->wq, !wake_up_pdata->usb_wakeup_is_pending);
+		if (!test_bit(HCD_FLAG_HW_ACCESSIBLE, &hcd->flags)) {
+			fsl_usb_clk_gate(hcd->self.controller->platform_data, true);
+		}
 		if (!host_can_wakeup_system(pdev)) {
-			if (!test_bit(HCD_FLAG_HW_ACCESSIBLE, &hcd->flags)) {
-				fsl_usb_clk_gate(hcd->self.controller->platform_data, true);
-			}
 			usb_host_set_wakeup(hcd->self.controller, true);
 
-			if (!test_bit(HCD_FLAG_HW_ACCESSIBLE, &hcd->flags)) {
-				fsl_usb_clk_gate(hcd->self.controller->platform_data, false);
-			}
 		}
 		ehci_prepare_ports_for_controller_resume(hcd_to_ehci(hcd));
+		if (!test_bit(HCD_FLAG_HW_ACCESSIBLE, &hcd->flags)) {
+			fsl_usb_clk_gate(hcd->self.controller->platform_data, false);
+		}
 		return 0;
 	}
 	if (!test_bit(HCD_FLAG_HW_ACCESSIBLE, &hcd->flags)) {
