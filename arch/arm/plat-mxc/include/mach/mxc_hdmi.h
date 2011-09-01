@@ -45,7 +45,9 @@
 #define HDMI_IH_CEC_STAT0                       0x0106
 #define HDMI_IH_VP_STAT0                        0x0107
 #define HDMI_IH_I2CMPHY_STAT0                   0x0108
-#define HDMI_IH_AHBDMAAUD_STAT0                 0x0180
+#define HDMI_IH_AHBDMAAUD_STAT0                 0x0109
+
+#define HDMI_IH_MUTE_FC_STAT0                   0x0180
 #define HDMI_IH_MUTE_FC_STAT1                   0x0181
 #define HDMI_IH_MUTE_FC_STAT2                   0x0182
 #define HDMI_IH_MUTE_AS_STAT0                   0x0183
@@ -582,6 +584,10 @@ enum {
 	HDMI_IH_PHY_STAT0_RX_SENSE0_CLEAR = 0x4,
 	HDMI_IH_PHY_STAT0_TX_PHY_LOCK_CLEAR = 0x2,
 	HDMI_IH_PHY_STAT0_HDP_CLEAR = 0x1,
+
+/* IH_MUTE field values */
+	HDMI_IH_MUTE_MUTE_WAKEUP_INTERRUPT = 0x2,
+	HDMI_IH_MUTE_MUTE_ALL_INTERRUPT = 0x1,
 
 /* TX_INVID0 field values */
 	HDMI_TX_INVID0_INTERNAL_DE_GENERATOR_MASK = 0x80,

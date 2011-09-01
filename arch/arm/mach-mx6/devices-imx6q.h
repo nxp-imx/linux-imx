@@ -112,6 +112,10 @@ extern const struct fsl_mxc_lcd_platform_data imx6q_mxc_hdmi_data __initconst;
 #define imx6q_add_mxc_hdmi(pdata)	\
 	imx_add_mxc_hdmi(&imx6q_mxc_hdmi_data, pdata)
 
+extern const struct imx_mxc_hdmi_core_data imx6q_mxc_hdmi_core_data __initconst;
+#define imx6q_add_mxc_hdmi_core()		\
+	imx_add_mxc_hdmi_core(&imx6q_mxc_hdmi_core_data)
+
 extern const struct imx_vpu_data imx6q_vpu_data __initconst;
 #define imx6q_add_vpu() imx_add_vpu(&imx6q_vpu_data)
 
