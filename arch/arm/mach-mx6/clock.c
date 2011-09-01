@@ -3937,7 +3937,6 @@ static struct clk pcie_clk = {
 static int _clk_sata_enable(struct clk *clk)
 {
 	unsigned int reg;
-	unsigned int cyclecount;
 
 	/* Clear Power Down and Enable PLLs */
 	reg = __raw_readl(PLL8_ENET_BASE_ADDR);
@@ -4144,6 +4143,10 @@ int __init mx6_clocks_init(unsigned long ckil, unsigned long osc,
 		clk_debug_register(lookups[i].clk);
 	}
 
+	/* enable mmdc_ch0_axi_clk to make sure the usecount is > 0
+	 * or ipu's parent is mmdc_ch0_axi_clk, if ipu disable clk,
+	 * mmdc_ch0_axi_clk will also be disabled, system will hang */
+	clk_enable(&mmdc_ch0_axi_clk[0]);
 	/* Initialize Audio and Video PLLs to valid frequency (650MHz). */
 	clk_set_rate(&pll4_audio_main_clk, 650000000);
 	clk_set_rate(&pll5_video_main_clk, 650000000);
