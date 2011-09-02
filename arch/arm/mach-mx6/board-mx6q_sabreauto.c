@@ -677,10 +677,33 @@ static struct ipuv3_fb_platform_data sabr_fb_data[] = {
 	},
 };
 
-static struct fsl_mxc_lcd_platform_data hdmi_data = {
+static void hdmi_init(int ipu_id, int disp_id)
+{
+	int hdmi_mux_setting;
+
+	if ((ipu_id > 1) || (ipu_id < 0)) {
+		printk(KERN_ERR"Invalid IPU select for HDMI: %d. Set to 0\n",
+			ipu_id);
+		ipu_id = 0;
+	}
+
+	if ((disp_id > 1) || (disp_id < 0)) {
+		printk(KERN_ERR"Invalid DI select for HDMI: %d. Set to 0\n",
+			disp_id);
+		disp_id = 0;
+	}
+
+	/* Configure the connection between IPU1/2 and HDMI */
+	hdmi_mux_setting = 2*ipu_id + disp_id;
+
+	/* GPR3, bits 2-3 = HDMI_MUX_CTL */
+	mxc_iomux_set_gpr_register(3, 2, 2, hdmi_mux_setting);
+}
+
+static struct fsl_mxc_hdmi_platform_data hdmi_data = {
+	.init = hdmi_init,
 	.ipu_id = 0,
 	.disp_id = 0,
-	.default_ifmt = IPU_PIX_FMT_RGB24,
 };
 
 static struct fsl_mxc_lcd_platform_data lcdif_data = {
