@@ -149,7 +149,7 @@ static unsigned long _ipu_pixel_clk_get_rate(struct clk *clk)
 
 static unsigned long _ipu_pixel_clk_round_rate(struct clk *clk, unsigned long rate)
 {
-	u32 div, div1;
+	u32 div;
 	u32 parent_rate = clk_get_rate(clk->parent) * 16;
 	/*
 	 * Calculate divider
@@ -163,11 +163,11 @@ static unsigned long _ipu_pixel_clk_round_rate(struct clk *clk, unsigned long ra
 	if (div & ~0xFEF)
 		div &= 0xFF8;
 	else {
-		div1 = div & 0xFE0;
-		if ((parent_rate / div1 - parent_rate / div) < rate / 4)
-			div = div1;
-		else
-			div &= 0xFF8;
+		/* Round up divider if it gets us closer to desired pix clk */
+		if ((div & 0xC) == 0xC) {
+			div += 0x10;
+			div &= ~0xF;
+		}
 	}
 	return parent_rate / div;
 }
@@ -177,6 +177,12 @@ static int _ipu_pixel_clk_set_rate(struct clk *clk, unsigned long rate)
 	struct ipu_soc *ipu = pixelclk2ipu(clk);
 	u32 div = (clk_get_rate(clk->parent) * 16) / rate;
 	unsigned long lock_flags;
+
+	/* Round up divider if it gets us closer to desired pix clk */
+	if ((div & 0xC) == 0xC) {
+		div += 0x10;
+		div &= ~0xF;
+	}
 
 	spin_lock_irqsave(&ipu->ipu_lock, lock_flags);
 	ipu_di_write(ipu, clk->id, div, DI_BS_CLKGEN0);
