@@ -40,79 +40,119 @@
 #endif
 
 const struct fb_videomode mxc_cea_mode[64] = {
-	/* #1: 640x480p@59.94/60Hz */
+	/* #1: 640x480p@59.94/60Hz 4:3 */
 	[1] = {
 		NULL, 60, 640, 480, 39722, 48, 16, 33, 10, 96, 2, 0,
-		FB_VMODE_NONINTERLACED, 0,
+		FB_VMODE_NONINTERLACED, FB_MODE_ASPECT_4_3,
 	},
-	/* #3: 720x480p@59.94/60Hz */
+	/* #2: 720x480p@59.94/60Hz 4:3 */
+	[2] = {
+		NULL, 60, 640, 480, 39722, 48, 16, 33, 10, 96, 2, 0,
+		FB_VMODE_NONINTERLACED, FB_MODE_ASPECT_4_3,
+	},
+	/* #3: 720x480p@59.94/60Hz 16:9 */
 	[3] = {
 		NULL, 60, 720, 480, 37037, 60, 16, 30, 9, 62, 6, 0,
-		FB_VMODE_NONINTERLACED, 0,
+		FB_VMODE_NONINTERLACED, FB_MODE_ASPECT_16_9,
 	},
-	/* #4: 1280x720p@59.94/60Hz */
+	/* #4: 1280x720p@59.94/60Hz 16:9 */
 	[4] = {
 		NULL, 60, 1280, 720, 13468, 220, 110, 20, 5, 40, 5,
 		FB_SYNC_HOR_HIGH_ACT | FB_SYNC_VERT_HIGH_ACT,
-		FB_VMODE_NONINTERLACED, 0,
+		FB_VMODE_NONINTERLACED, FB_MODE_ASPECT_16_9,
 	},
-	/* #5: 1920x1080i@59.94/60Hz */
+	/* #5: 1920x1080i@59.94/60Hz 16:9 */
 	[5] = {
 		NULL, 60, 1920, 1080, 13763, 148, 88, 15, 2, 44, 5,
 		FB_SYNC_HOR_HIGH_ACT | FB_SYNC_VERT_HIGH_ACT,
-		FB_VMODE_INTERLACED, 0,
+		FB_VMODE_INTERLACED, FB_MODE_ASPECT_16_9,
 	},
-	/* #7: 720(1440)x480iH@59.94/60Hz */
+	/* #6: 720(1440)x480iH@59.94/60Hz 4:3 */
+	[6] = {
+		NULL, 60, 1440, 480, 18554/*37108*/, 114, 38, 15, 4, 124, 3, 0,
+		FB_VMODE_INTERLACED, FB_MODE_ASPECT_4_3,
+	},
+	/* #7: 720(1440)x480iH@59.94/60Hz 16:9 */
 	[7] = {
 		NULL, 60, 1440, 480, 18554/*37108*/, 114, 38, 15, 4, 124, 3, 0,
-		FB_VMODE_INTERLACED, 0,
+		FB_VMODE_INTERLACED, FB_MODE_ASPECT_16_9,
 	},
-	/* #9: 720(1440)x240pH@59.94/60Hz */
+	/* #8: 720(1440)x240pH@59.94/60Hz 4:3 */
+	[8] = {
+		NULL, 60, 1440, 240, 18554, 114, 38, 16, 4, 124, 3, 0,
+		FB_VMODE_NONINTERLACED, FB_MODE_ASPECT_16_9,
+	},
+	/* #9: 720(1440)x240pH@59.94/60Hz 16:9 */
 	[9] = {
 		NULL, 60, 1440, 240, 18554, 114, 38, 16, 4, 124, 3, 0,
-		FB_VMODE_NONINTERLACED, 0,
+		FB_VMODE_NONINTERLACED, FB_MODE_ASPECT_16_9,
 	},
-	/* #16: 1920x1080p@60Hz */
+	/* #16: 1920x1080p@60Hz 16:9 */
 	[16] = {
 		NULL, 60, 1920, 1080, 6734, 148, 88, 36, 4, 44, 5,
 		FB_SYNC_HOR_HIGH_ACT | FB_SYNC_VERT_HIGH_ACT,
-		FB_VMODE_NONINTERLACED, 0,
+		FB_VMODE_NONINTERLACED, FB_MODE_ASPECT_16_9,
 	},
-	/* #18: 720x576pH@50Hz */
+	/* #17: 720x576pH@50Hz 4:3 */
+	[17] = {
+		NULL, 50, 720, 576, 37037, 68, 12, 39, 5, 64, 5, 0,
+		FB_VMODE_NONINTERLACED, FB_MODE_ASPECT_4_3,
+	},
+	/* #18: 720x576pH@50Hz 16:9 */
 	[18] = {
 		NULL, 50, 720, 576, 37037, 68, 12, 39, 5, 64, 5, 0,
-		FB_VMODE_NONINTERLACED, 0,
+		FB_VMODE_NONINTERLACED, FB_MODE_ASPECT_16_9,
 	},
 	/* #19: 1280x720p@50Hz */
 	[19] = {
 		NULL, 50, 1280, 720, 13468, 220, 440, 20, 5, 40, 5,
 		FB_SYNC_HOR_HIGH_ACT | FB_SYNC_VERT_HIGH_ACT,
-		FB_VMODE_NONINTERLACED, 0,
+		FB_VMODE_NONINTERLACED, FB_MODE_ASPECT_16_9,
 	},
 	/* #20: 1920x1080i@50Hz */
 	[20] = {
 		NULL, 50, 1920, 1080, 13480, 148, 528, 15, 5, 528, 5,
 		FB_SYNC_HOR_HIGH_ACT | FB_SYNC_VERT_HIGH_ACT,
-		FB_VMODE_INTERLACED, 0,
+		FB_VMODE_INTERLACED, FB_MODE_ASPECT_16_9,
 	},
 	/* #31: 1920x1080p@50Hz */
 	[31] = {
 		NULL, 50, 1920, 1080, 6734, 148, 528, 36, 4, 44, 5,
 		FB_SYNC_HOR_HIGH_ACT | FB_SYNC_VERT_HIGH_ACT,
-		FB_VMODE_NONINTERLACED, 0,
+		FB_VMODE_NONINTERLACED, FB_MODE_ASPECT_16_9,
 	},
 	/* #32: 1920x1080p@23.98/24Hz */
 	[32] = {
 		NULL, 24, 1920, 1080, 13468, 148, 638, 36, 4, 44, 5,
 		FB_SYNC_HOR_HIGH_ACT | FB_SYNC_VERT_HIGH_ACT,
-		FB_VMODE_NONINTERLACED, 0,
+		FB_VMODE_NONINTERLACED, FB_MODE_ASPECT_16_9,
 	},
 	/* #35: (2880)x480p4x@59.94/60Hz */
 	[35] = {
 		NULL, 60, 2880, 480, 9250, 240, 64, 30, 9, 248, 6, 0,
-		FB_VMODE_NONINTERLACED, 0,
+		FB_VMODE_NONINTERLACED, FB_MODE_ASPECT_4_3,
 	},
 };
+
+/*
+ * We have a special version of fb_mode_is_equal that ignores
+ * pixclock, since for many CEA modes, 2 frequencies are supported
+ * e.g. 640x480 @ 60Hz or 59.94Hz
+ */
+int mxc_edid_fb_mode_is_equal(const struct fb_videomode *mode1,
+		     const struct fb_videomode *mode2)
+{
+	return (mode1->xres         == mode2->xres &&
+		mode1->yres         == mode2->yres &&
+		mode1->hsync_len    == mode2->hsync_len &&
+		mode1->vsync_len    == mode2->vsync_len &&
+		mode1->left_margin  == mode2->left_margin &&
+		mode1->right_margin == mode2->right_margin &&
+		mode1->upper_margin == mode2->upper_margin &&
+		mode1->lower_margin == mode2->lower_margin &&
+		mode1->sync         == mode2->sync &&
+		mode1->vmode        == mode2->vmode);
+}
 
 static void get_detailed_timing(unsigned char *block,
 				struct fb_videomode *mode)
@@ -398,7 +438,7 @@ int mxc_edid_var_to_vic(struct fb_var_screeninfo *var)
 
 	for (i = 0; i < ARRAY_SIZE(mxc_cea_mode); i++) {
 		fb_var_to_videomode(&m, var);
-		if (fb_mode_is_equal(&m, &mxc_cea_mode[i]))
+		if (mxc_edid_fb_mode_is_equal(&m, &mxc_cea_mode[i]))
 			break;
 	}
 
@@ -407,7 +447,31 @@ int mxc_edid_var_to_vic(struct fb_var_screeninfo *var)
 
 	return i;
 }
+
 EXPORT_SYMBOL(mxc_edid_var_to_vic);
+
+int mxc_edid_mode_to_vic(const struct fb_videomode *mode)
+{
+	int i;
+	u32 aspect_flags = FB_MODE_ASPECT_16_9 | FB_MODE_ASPECT_4_3;
+
+	for (i = 0; i < ARRAY_SIZE(mxc_cea_mode); i++) {
+		if (mxc_edid_fb_mode_is_equal(mode, &mxc_cea_mode[i])) {
+			if (mode->flag & FB_MODE_IS_STANDARD) {
+				if ((mode->flag & aspect_flags) ==
+					mxc_cea_mode[i].flag)
+					break;
+			} else
+				break;
+		}
+	}
+
+	if (i == ARRAY_SIZE(mxc_cea_mode))
+		return 0;
+
+	return i;
+}
+EXPORT_SYMBOL(mxc_edid_mode_to_vic);
 
 /* make sure edid has 512 bytes*/
 int mxc_edid_read(struct i2c_adapter *adp, unsigned short addr,
