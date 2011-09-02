@@ -26,6 +26,9 @@
 #ifndef MXC_EDID_H
 #define MXC_EDID_H
 
+#define FB_MODE_ASPECT_4_3	0x10
+#define FB_MODE_ASPECT_16_9	0x20
+
 struct mxc_edid_cfg {
 	bool cea_underscan;
 	bool cea_basicaudio;
@@ -42,6 +45,7 @@ struct mxc_edid_cfg {
 };
 
 int mxc_edid_var_to_vic(struct fb_var_screeninfo *var);
+int mxc_edid_mode_to_vic(const struct fb_videomode *mode);
 int mxc_edid_read(struct i2c_adapter *adp, unsigned short addr,
 	unsigned char *edid, struct mxc_edid_cfg *cfg, struct fb_info *fbi);
 
