@@ -235,6 +235,16 @@ struct fsl_mxc_dvi_platform_data {
 	int disp_id;
 };
 
+struct fsl_mxc_hdmi_platform_data {
+	void (*init) (int, int);
+	int (*get_pins) (void);
+	void (*put_pins) (void);
+	void (*enable_pins) (void);
+	void (*disable_pins) (void);
+	int ipu_id;
+	int disp_id;
+};
+
 struct fsl_mxc_camera_platform_data {
 	char *core_regulator;
 	char *io_regulator;
