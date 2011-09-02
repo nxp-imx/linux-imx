@@ -391,7 +391,11 @@ static void _clk_pll_disable(struct clk *clk)
 	reg &= ~ANADIG_PLL_ENABLE;
 	reg |= ANADIG_PLL_BYPASS;
 	reg |= ANADIG_PLL_POWER_DOWN;
-	if (clk == &pll3_usb_otg_main_clk)
+
+	/* The 480MHz PLLs, pll3 & pll7, have the opposite
+	 * definition for power bit.
+	 */
+	if (clk == &pll3_usb_otg_main_clk || clk == &pll7_usb_host_main_clk)
 		reg &= ~ANADIG_PLL_POWER_DOWN;
 	__raw_writel(reg, pllbase);
 }
