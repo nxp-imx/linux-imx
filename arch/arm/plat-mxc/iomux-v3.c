@@ -80,7 +80,7 @@ void mxc_iomux_set_gpr_register(int group, int start_bit, int num_bits, int valu
 	while (num_bits) {
 		reg &= ~(1<<(start_bit + i));
 		i++;
-		num_bits -= i;
+		num_bits--;
 	}
 	reg |= (value << start_bit);
 	__raw_writel(reg, base + group * 4);
