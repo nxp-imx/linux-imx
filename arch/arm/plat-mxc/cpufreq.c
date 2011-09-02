@@ -207,28 +207,29 @@ static int __devinit mxc_cpufreq_init(struct cpufreq_policy *policy)
 	cpu_freq_khz_min = cpu_op_tbl[0].cpu_rate / 1000;
 	cpu_freq_khz_max = cpu_op_tbl[0].cpu_rate / 1000;
 
-	imx_freq_table = kmalloc(
-		sizeof(struct cpufreq_frequency_table) * (cpu_op_nr + 1),
-			GFP_KERNEL);
-	if (!imx_freq_table) {
-		ret = -ENOMEM;
-		goto err1;
-	}
+	if (imx_freq_table == NULL) {
+		imx_freq_table = kmalloc(
+			sizeof(struct cpufreq_frequency_table) * (cpu_op_nr + 1),
+				GFP_KERNEL);
+		if (!imx_freq_table) {
+			ret = -ENOMEM;
+			goto err1;
+		}
 
-	for (i = 0; i < cpu_op_nr; i++) {
+		for (i = 0; i < cpu_op_nr; i++) {
+			imx_freq_table[i].index = i;
+			imx_freq_table[i].frequency = cpu_op_tbl[i].cpu_rate / 1000;
+
+			if ((cpu_op_tbl[i].cpu_rate / 1000) < cpu_freq_khz_min)
+				cpu_freq_khz_min = cpu_op_tbl[i].cpu_rate / 1000;
+
+			if ((cpu_op_tbl[i].cpu_rate / 1000) > cpu_freq_khz_max)
+				cpu_freq_khz_max = cpu_op_tbl[i].cpu_rate / 1000;
+		}
+
 		imx_freq_table[i].index = i;
-		imx_freq_table[i].frequency = cpu_op_tbl[i].cpu_rate / 1000;
-
-		if ((cpu_op_tbl[i].cpu_rate / 1000) < cpu_freq_khz_min)
-			cpu_freq_khz_min = cpu_op_tbl[i].cpu_rate / 1000;
-
-		if ((cpu_op_tbl[i].cpu_rate / 1000) > cpu_freq_khz_max)
-			cpu_freq_khz_max = cpu_op_tbl[i].cpu_rate / 1000;
+		imx_freq_table[i].frequency = CPUFREQ_TABLE_END;
 	}
-
-	imx_freq_table[i].index = i;
-	imx_freq_table[i].frequency = CPUFREQ_TABLE_END;
-
 	policy->cur = clk_get_rate(cpu_clk) / 1000;
 	policy->min = policy->cpuinfo.min_freq = cpu_freq_khz_min;
 	policy->max = policy->cpuinfo.max_freq = cpu_freq_khz_max;
@@ -265,9 +266,11 @@ static int mxc_cpufreq_exit(struct cpufreq_policy *policy)
 {
 	cpufreq_frequency_table_put_attr(policy->cpu);
 
-	set_cpu_freq(cpu_freq_khz_max * 1000);
-	clk_put(cpu_clk);
-	kfree(imx_freq_table);
+	if (policy->cpu == 0) {
+		set_cpu_freq(cpu_freq_khz_max * 1000);
+		clk_put(cpu_clk);
+		kfree(imx_freq_table);
+	}
 	return 0;
 }
 
