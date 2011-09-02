@@ -22,29 +22,21 @@
 #include <mach/hardware.h>
 #include <mach/devices-common.h>
 
-#define imx6_mxc_hdmi_data_entry_single(soc, size)	\
+#define imx6_mxc_hdmi_data_entry_single(soc)				\
 	{								\
-		.iobase = soc ## _HDMI_ARB_BASE_ADDR,			\
 		.irq = soc ## _INT_HDMI_TX,				\
-		.irq_wakeup = soc ## _INT_HDMI_TX_WAKEUP,		\
-		.iosize = size,						\
 	}
 
 #ifdef CONFIG_SOC_IMX6Q
 const struct imx_mxc_hdmi_data imx6q_mxc_hdmi_data __initconst =
-			imx6_mxc_hdmi_data_entry_single(MX6Q, SZ_32K + SZ_4K);
+			imx6_mxc_hdmi_data_entry_single(MX6Q);
 #endif
 
 struct platform_device *__init imx_add_mxc_hdmi(
 		const struct imx_mxc_hdmi_data *data,
-		const struct fsl_mxc_lcd_platform_data *pdata)
+		const struct fsl_mxc_hdmi_platform_data *pdata)
 {
 	struct resource res[] = {
-		{
-			.start = data->iobase,
-			.end = data->iobase + data->iosize - 1,
-			.flags = IORESOURCE_MEM,
-		},
 		{
 			.start = data->irq,
 			.end = data->irq,
