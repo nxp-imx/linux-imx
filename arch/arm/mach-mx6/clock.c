@@ -937,7 +937,7 @@ static int _clk_periph_set_parent(struct clk *clk, struct clk *parent)
 		reg |= mux << MXC_CCM_CBCMR_PRE_PERIPH_CLK_SEL_OFFSET;
 		__raw_writel(reg, MXC_CCM_CBCMR);
 
-	/* Set the periph_clk_sel multiplexer. */
+		/* Set the periph_clk_sel multiplexer. */
 		reg = __raw_readl(MXC_CCM_CBCDR);
 		reg &= ~MXC_CCM_CBCDR_PERIPH_CLK_SEL;
 		__raw_writel(reg, MXC_CCM_CBCDR);
@@ -945,9 +945,6 @@ static int _clk_periph_set_parent(struct clk *clk, struct clk *parent)
 		reg = __raw_readl(MXC_CCM_CBCDR);
 		/* Set the periph_clk2_podf divider to divide by 1. */
 		reg &= ~MXC_CCM_CBCDR_PERIPH_CLK2_PODF_MASK;
-		/* Clear periph_clk_sel to select periph_clk2. */
-		reg |= MXC_CCM_CBCDR_PERIPH_CLK_SEL;
-
 		__raw_writel(reg, MXC_CCM_CBCDR);
 
 		/* Set the periph_clk2_sel mux. */
@@ -955,11 +952,16 @@ static int _clk_periph_set_parent(struct clk *clk, struct clk *parent)
 		reg &= ~MXC_CCM_CBCMR_PERIPH_CLK2_SEL_MASK;
 		reg |= ((mux - 4) << MXC_CCM_CBCMR_PERIPH_CLK2_SEL_OFFSET);
 		__raw_writel(reg, MXC_CCM_CBCMR);
+
+		reg = __raw_readl(MXC_CCM_CBCDR);
+		/* Set periph_clk_sel to select periph_clk2. */
+		reg |= MXC_CCM_CBCDR_PERIPH_CLK_SEL;
+		__raw_writel(reg, MXC_CCM_CBCDR);
 	}
 
 	if (!WAIT(!(__raw_readl(MXC_CCM_CDHIPR)
 	     & MXC_CCM_CDHIPR_PERIPH_CLK_SEL_BUSY), SPIN_DELAY))
-		panic("pll _clk_axi_a_set_rate failed\n");
+		panic("_clk_periph_set_parent failed\n");
 
 	return 0;
 }
