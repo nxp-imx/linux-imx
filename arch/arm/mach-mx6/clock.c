@@ -1052,7 +1052,7 @@ static int _clk_axi_set_parent(struct clk *clk, struct clk *parent)
 		/* Set the AXI_ALT_SEL mux. */
 		reg = __raw_readl(MXC_CCM_CBCDR)
 			& ~MXC_CCM_CBCDR_AXI_ALT_SEL_MASK;
-		reg = ((mux - 1) << MXC_CCM_CBCDR_AXI_ALT_SEL_OFFSET);\
+		reg = ((mux - 1) << MXC_CCM_CBCDR_AXI_ALT_SEL_OFFSET);
 		__raw_writel(reg, MXC_CCM_CBCDR);
 
 		/* Set the AXI_SEL mux */
