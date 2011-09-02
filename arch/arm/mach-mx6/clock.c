@@ -938,9 +938,12 @@ static int _clk_periph_set_parent(struct clk *clk, struct clk *parent)
 		reg &= ~MXC_CCM_CBCDR_PERIPH_CLK_SEL;
 		__raw_writel(reg, MXC_CCM_CBCDR);
 	} else {
-		/* Set the periph_clk2_podf divider to divide by 1. */
 		reg = __raw_readl(MXC_CCM_CBCDR);
+		/* Set the periph_clk2_podf divider to divide by 1. */
 		reg &= ~MXC_CCM_CBCDR_PERIPH_CLK2_PODF_MASK;
+		/* Clear periph_clk_sel to select periph_clk2. */
+		reg |= MXC_CCM_CBCDR_PERIPH_CLK_SEL;
+
 		__raw_writel(reg, MXC_CCM_CBCDR);
 
 		/* Set the periph_clk2_sel mux. */
