@@ -37,7 +37,6 @@
 #include <linux/fb.h>
 #include <linux/init.h>
 #include <linux/list.h>
-#include <linux/mutex.h>
 #include <linux/delay.h>
 #include <linux/dma-mapping.h>
 #include <linux/err.h>
@@ -56,6 +55,7 @@
 #include <mach/mxc_edid.h>
 #include "mxc/mxc_dispdrv.h"
 
+#include <linux/mfd/mxc-hdmi-core.h>
 #include <mach/mxc_hdmi.h>
 
 #define DISPDRV_HDMI	"hdmi"
@@ -67,352 +67,18 @@
 #define NUM_CEA_VIDEO_MODES	64
 #define DEFAULT_VIDEO_MODE	16 /* 1080P */
 
-/* VIC = Video ID Code */
-static struct fb_videomode hdmi_cea_video_modes[NUM_CEA_VIDEO_MODES] = {
-	{ /* 1 */
-		.xres = 640,
-		.yres = 480,
-		.refresh = 60,
-	},
-	{
-		.xres = 720,
-		.yres = 480,
-		.refresh = 60,
-	},
-	{
-		.xres = 720,
-		.yres = 480,
-		.refresh = 60,
-	},
-	{
-		.xres = 1280,
-		.yres = 720,
-		.refresh = 60,
-	},
-	{
-		.xres = 1920,
-		.yres = 1080,
-		.refresh = 60,
-		.flag = FB_VMODE_INTERLACED,
-	},
-	{
-		.xres = 720,
-		.yres = 480,
-		.refresh = 60,
-		.flag = FB_VMODE_INTERLACED,
-	},
-	{
-		.xres = 720,
-		.yres = 480,
-		.refresh = 60,
-		.flag = FB_VMODE_INTERLACED,
-	},
-	{
-		.xres = 720,
-		.yres = 240,
-		.refresh = 60,
-	},
-	{
-		.xres = 720,
-		.yres = 240,
-		.refresh = 60,
-	},
-	{ /* 10 */
-		.xres = 2880,
-		.yres = 480,
-		.refresh = 60,
-		.flag = FB_VMODE_INTERLACED,
-	},
-	{
-		.xres = 2880,
-		.yres = 480,
-		.refresh = 60,
-		.flag = FB_VMODE_INTERLACED,
-	},
-	{
-		.xres = 2880,
-		.yres = 240,
-		.refresh = 60,
-	},
-	{
-		.xres = 2880,
-		.yres = 240,
-		.refresh = 60,
-	},
-	{
-		.xres = 1440,
-		.yres = 480,
-		.refresh = 60,
-	},
-	{
-		.xres = 1440,
-		.yres = 480,
-		.refresh = 60,
-	},
-	{
-		.xres = 1920,
-		.yres = 1080,
-		.refresh = 60,
-	},
-	{
-		.xres = 720,
-		.yres = 576,
-		.refresh = 50,
-	},
-	{
-		.xres = 720,
-		.yres = 576,
-		.refresh = 50,
-	},
-	{
-		.xres = 1280,
-		.yres = 720,
-		.refresh = 50,
-	},
-	{ /* 20 */
-		.xres = 1920,
-		.yres = 1080,
-		.refresh = 50,
-		.flag = FB_VMODE_INTERLACED,
-	},
-	{
-		.xres = 720,
-		.yres = 576,
-		.refresh = 50,
-		.flag = FB_VMODE_INTERLACED,
-	},
-	{
-		.xres = 720,
-		.yres = 576,
-		.refresh = 50,
-		.flag = FB_VMODE_INTERLACED,
-	},
-	{
-		.xres = 720,
-		.yres = 288,
-		.refresh = 50,
-	},
-	{
-		.xres = 720,
-		.yres = 288,
-		.refresh = 50,
-	},
-	{
-		.xres = 2880,
-		.yres = 576,
-		.refresh = 50,
-		.flag = FB_VMODE_INTERLACED,
-	},
-	{
-		.xres = 2880,
-		.yres = 576,
-		.refresh = 50,
-		.flag = FB_VMODE_INTERLACED,
-	},
-	{
-		.xres = 2880,
-		.yres = 288,
-		.refresh = 50,
-	},
-	{
-		.xres = 2880,
-		.yres = 288,
-		.refresh = 50,
-	},
-	{
-		.xres = 1440,
-		.yres = 576,
-		.refresh = 50,
-		.flag = FB_VMODE_INTERLACED,
-	},
-	{ /* 30 */
-		.xres = 1440,
-		.yres = 576,
-		.refresh = 50,
-		.flag = FB_VMODE_INTERLACED,
-	},
-	{
-		.xres = 1920,
-		.yres = 1080,
-		.refresh = 50,
-	},
-	{
-		.xres = 1920,
-		.yres = 1080,
-		.refresh = 24,
-	},
-	{
-		.xres = 1920,
-		.yres = 1080,
-		.refresh = 25,
-	},
-	{
-		.xres = 1920,
-		.yres = 1080,
-		.refresh = 30,
-	},
-	{
-		.xres = 2880,
-		.yres = 480,
-		.refresh = 60,
-	},
-	{
-		.xres = 2880,
-		.yres = 480,
-		.refresh = 60,
-	},
-	{
-		.xres = 2880,
-		.yres = 576,
-		.refresh = 50,
-	},
-	{
-		.xres = 2880,
-		.yres = 576,
-		.refresh = 50,
-	},
-	{
-		.xres = 1920,
-		.yres = 1080,
-		.refresh = 50,
-		.flag = FB_VMODE_INTERLACED,
-	},
-	{ /* 40 */
-		.xres = 1920,
-		.yres = 1080,
-		.refresh = 100,
-		.flag = FB_VMODE_INTERLACED,
-	},
-	{
-		.xres = 1280,
-		.yres = 720,
-		.refresh = 100,
-	},
-	{
-		.xres = 720,
-		.yres = 576,
-		.refresh = 100,
-	},
-	{
-		.xres = 720,
-		.yres = 576,
-		.refresh = 100,
-	},
-	{
-		.xres = 720,
-		.yres = 576,
-		.refresh = 100,
-		.flag = FB_VMODE_INTERLACED,
-	},
-	{
-		.xres = 720,
-		.yres = 576,
-		.refresh = 100,
-		.flag = FB_VMODE_INTERLACED,
-	},
-	{
-		.xres = 1920,
-		.yres = 1080,
-		.refresh = 120,
-		.flag = FB_VMODE_INTERLACED,
-	},
-	{
-		.xres = 1280,
-		.yres = 720,
-		.refresh = 120,
-	},
-	{
-		.xres = 720,
-		.yres = 480,
-		.refresh = 120,
-	},
-	{
-		.xres = 720,
-		.yres = 480,
-		.refresh = 120,
-	},
-	{ /* 50 */
-		.xres = 720,
-		.yres = 480,
-		.refresh = 120,
-		.flag = FB_VMODE_INTERLACED,
-	},
-	{
-		.xres = 720,
-		.yres = 480,
-		.refresh = 120,
-		.flag = FB_VMODE_INTERLACED,
-	},
-	{
-		.xres = 720,
-		.yres = 576,
-		.refresh = 200,
-	},
-	{
-		.xres = 720,
-		.yres = 576,
-		.refresh = 200,
-	},
-	{
-		.xres = 720,
-		.yres = 576,
-		.refresh = 200,
-		.flag = FB_VMODE_INTERLACED,
-	},
-	{
-		.xres = 720,
-		.yres = 576,
-		.refresh = 200,
-		.flag = FB_VMODE_INTERLACED,
-	},
-	{
-		.xres = 720,
-		.yres = 480,
-		.refresh = 240,
-	},
-	{
-		.xres = 720,
-		.yres = 480,
-		.refresh = 240,
-	},
-	{
-		.xres = 720,
-		.yres = 480,
-		.refresh = 240,
-		.flag = FB_VMODE_INTERLACED,
-	},
-	{
-		.xres = 720,
-		.yres = 480,
-		.refresh = 240,
-		.flag = FB_VMODE_INTERLACED,
-	},
-	{ /* 60 */
-		.xres = 1280,
-		.yres = 720,
-		.refresh = 24,
-	},
-	{
-		.xres = 1280,
-		.yres = 720,
-		.refresh = 25,
-	},
-	{
-		.xres = 1280,
-		.yres = 720,
-		.refresh = 30,
-	},
-	{
-		.xres = 1920,
-		.yres = 1080,
-		.refresh = 120,
-	},
-	{
-		.xres = 1920,
-		.yres = 1080,
-		.refresh = 100,
-	},
-};
+#define HDMI_IH_PHY_RX_SENSE	(HDMI_IH_PHY_STAT0_RX_SENSE0 |\
+				HDMI_IH_PHY_STAT0_RX_SENSE1 |\
+				HDMI_IH_PHY_STAT0_RX_SENSE2 |\
+				HDMI_IH_PHY_STAT0_RX_SENSE3)
+#define HDMI_PHY_RX_SENSE	(HDMI_PHY_RX_SENSE0 | HDMI_PHY_RX_SENSE1 |\
+				HDMI_PHY_RX_SENSE2 | HDMI_PHY_RX_SENSE3)
+
+#define RGB			0
+#define YCBCR444		1
+#define YCBCR422_16BITS		2
+#define YCBCR422_8BITS		3
+#define XVYCC444		4
 
 enum hdmi_datamap {
 	RGB444_8B = 0x01,
@@ -441,28 +107,14 @@ enum hdmi_colorimetry {
 };
 
 struct hdmi_vmode {
-	unsigned int mCode;
 	unsigned int mHdmiDviSel;
-	unsigned int mRVBlankInOSC;
-	unsigned int mRefreshRate;
-	unsigned int mHImageSize;
-	unsigned int mVImageSize;
-	unsigned int mHActive;
-	unsigned int mVActive;
-	unsigned int mHBlanking;
-	unsigned int mVBlanking;
-	unsigned int mHSyncOffset;
-	unsigned int mVSyncOffset;
-	unsigned int mHSyncPulseWidth;
-	unsigned int mVSyncPulseWidth;
 	unsigned int mHSyncPolarity;
 	unsigned int mVSyncPolarity;
-	unsigned int mDataEnablePolarity;
 	unsigned int mInterlaced;
+	unsigned int mDataEnablePolarity;
 	unsigned int mPixelClock;
-	unsigned int mHBorder;
-	unsigned int mVBorder;
 	unsigned int mPixelRepetitionInput;
+	unsigned int mPixelRepetitionOutput;
 };
 
 struct hdmi_data_info {
@@ -475,646 +127,26 @@ struct hdmi_data_info {
 	struct hdmi_vmode video_mode;
 };
 
-enum hotplug_state {
-	HDMI_HOTPLUG_DISCONNECTED,
-	HDMI_HOTPLUG_CONNECTED,
-	HDMI_HOTPLUG_EDID_DONE,
-};
-
 struct mxc_hdmi {
-	void __iomem *base;
-	enum hotplug_state hp_state;	/* hot-plug status */
-
-	struct regulator *io_reg;
-	struct regulator *analog_reg;
+	struct platform_device *pdev;
+	struct platform_device *core_pdev;
 	struct mxc_dispdrv_entry *disp_mxc_hdmi;
-	struct hdmi_data_info hdmi_data;
+	struct fb_info *fbi;
 	struct clk *hdmi_clk;
+	struct delayed_work det_work;
+	struct notifier_block nb;
 
+	struct hdmi_data_info hdmi_data;
+	int vic;
 	struct mxc_edid_cfg edid_cfg;
 	u8 edid[HDMI_EDID_LEN];
-
-	struct platform_device *pdev;
-	struct fb_info *fbi;
-	struct mutex mutex;		/* Protect the info pointer */
-	struct delayed_work edid_work;
-	struct fb_var_screeninfo var;
-	struct fb_monspecs monspec;
-	struct notifier_block nb;
+	bool fb_reg;
+	bool need_mode_change;
+	bool cable_plugin;
+	u8 latest_intr_stat;
 };
 
 struct i2c_client *hdmi_i2c;
-
-static irqreturn_t mxc_hdmi_hotplug(int irq, void *dev_id)
-{
-}
-
-/*!
- * this submodule is responsible for the video/audio data composition.
- */
-void hdmi_set_video_mode(struct hdmi_vmode *vmode)
-{
-	vmode->mHBorder = 0;
-	vmode->mVBorder = 0;
-	vmode->mPixelRepetitionInput = 0;
-	vmode->mHImageSize = 16;
-	vmode->mVImageSize = 9;
-
-	switch (vmode->mCode) {
-	case 1:				/* 640x480p @ 59.94/60Hz 4:3 */
-		vmode->mHImageSize = 4;
-		vmode->mVImageSize = 3;
-		vmode->mHActive = 640;
-		vmode->mVActive = 480;
-		vmode->mHBlanking = 160;
-		vmode->mVBlanking = 45;
-		vmode->mHSyncOffset = 16;
-		vmode->mVSyncOffset = 10;
-		vmode->mHSyncPulseWidth = 96;
-		vmode->mVSyncPulseWidth = 2;
-		vmode->mHSyncPolarity = vmode->mVSyncPolarity = FALSE;
-		vmode->mInterlaced = FALSE; /* not(progressive_nI) */
-		vmode->mPixelClock =
-			(vmode->mRefreshRate == 59940) ? 2517 : 2520;
-		break;
-	case 2:				/* 720x480p @ 59.94/60Hz 4:3 */
-		vmode->mHImageSize = 4;
-		vmode->mVImageSize = 3;
-	case 3:				/* 720x480p @ 59.94/60Hz 16:9 */
-		vmode->mHActive = 720;
-		vmode->mVActive = 480;
-		vmode->mHBlanking = 138;
-		vmode->mVBlanking = 45;
-		vmode->mHSyncOffset = 16;
-		vmode->mVSyncOffset = 9;
-		vmode->mHSyncPulseWidth = 62;
-		vmode->mVSyncPulseWidth = 6;
-		vmode->mHSyncPolarity = vmode->mVSyncPolarity = FALSE;
-		vmode->mInterlaced = FALSE;
-		vmode->mPixelClock =
-			(vmode->mRefreshRate == 59940) ? 2700 : 2702;
-		break;
-	case 4:				/* 1280x720p @ 59.94/60Hz 16:9 */
-		vmode->mHActive = 1280;
-		vmode->mVActive = 720;
-		vmode->mHBlanking = 370;
-		vmode->mVBlanking = 30;
-		vmode->mHSyncOffset = 110;
-		vmode->mVSyncOffset = 5;
-		vmode->mHSyncPulseWidth = 40;
-		vmode->mVSyncPulseWidth = 5;
-		vmode->mHSyncPolarity = vmode->mVSyncPolarity = TRUE;
-		vmode->mInterlaced = FALSE;
-		vmode->mPixelClock =
-			(vmode->mRefreshRate == 59940) ? 7417 : 7425;
-		break;
-	case 5:				/* 1920x1080i @ 59.94/60Hz 16:9 */
-		vmode->mHActive = 1920;
-		vmode->mVActive = 540;
-		vmode->mHBlanking = 280;
-		vmode->mVBlanking = 22;
-		vmode->mHSyncOffset = 88;
-		vmode->mVSyncOffset = 2;
-		vmode->mHSyncPulseWidth = 44;
-		vmode->mVSyncPulseWidth = 5;
-		vmode->mHSyncPolarity = vmode->mVSyncPolarity = TRUE;
-		vmode->mInterlaced = TRUE;
-		vmode->mPixelClock =
-			(vmode->mRefreshRate == 59940) ? 7417 : 7425;
-		break;
-	case 6:				/* 720(1440)x480i @ 59.94/60Hz 4:3 */
-		vmode->mHImageSize = 4;
-		vmode->mVImageSize = 3;
-	case 7:				/* 720(1440)x480i @ 59.94/60Hz 16:9 */
-		vmode->mHActive = 1440;
-		vmode->mVActive = 240;
-		vmode->mHBlanking = 276;
-		vmode->mVBlanking = 22;
-		vmode->mHSyncOffset = 38;
-		vmode->mVSyncOffset = 4;
-		vmode->mHSyncPulseWidth = 124;
-		vmode->mVSyncPulseWidth = 3;
-		vmode->mHSyncPolarity = vmode->mVSyncPolarity = FALSE;
-		vmode->mInterlaced = TRUE;
-		vmode->mPixelClock =
-			(vmode->mRefreshRate == 59940) ? 2700 : 2702;
-		vmode->mPixelRepetitionInput = 1;
-		break;
-	case 8:	/* 720(1440)x240p @ 59.826/60.054/59.886/60.115Hz 4:3 */
-		vmode->mHImageSize = 4;
-		vmode->mVImageSize = 3;
-	case 9:	/* 720(1440)x240p @ 59.826/60.054/59.886/60.115Hz 16:9 */
-		vmode->mHActive = 1440;
-		vmode->mVActive = 240;
-		vmode->mHBlanking = 276;
-		vmode->mVBlanking = (vmode->mRefreshRate > 60000) ? 22 : 23;
-		vmode->mHSyncOffset = 38;
-		vmode->mVSyncOffset = (vmode->mRefreshRate > 60000) ? 4 : 5;
-		vmode->mHSyncPulseWidth = 124;
-		vmode->mVSyncPulseWidth = 3;
-		vmode->mHSyncPolarity = vmode->mVSyncPolarity = FALSE;
-		vmode->mInterlaced = FALSE;
-		vmode->mPixelClock =
-			((vmode->mRefreshRate == 60054) ||
-			vmode->mRefreshRate == 59826)
-			? 2700 : 2702; /*  else 60.115/59.886 Hz */
-		vmode->mPixelRepetitionInput = 1;
-		break;
-	case 10:			/* 2880x480i @ 59.94/60Hz 4:3 */
-		vmode->mHImageSize = 4;
-		vmode->mVImageSize = 3;
-	case 11:			/* 2880x480i @ 59.94/60Hz 16:9 */
-		vmode->mHActive = 2880;
-		vmode->mVActive = 240;
-		vmode->mHBlanking = 552;
-		vmode->mVBlanking = 22;
-		vmode->mHSyncOffset = 76;
-		vmode->mVSyncOffset = 4;
-		vmode->mHSyncPulseWidth = 248;
-		vmode->mVSyncPulseWidth = 3;
-		vmode->mHSyncPolarity = vmode->mVSyncPolarity = FALSE;
-		vmode->mInterlaced = TRUE;
-		vmode->mPixelClock =
-			(vmode->mRefreshRate == 59940) ? 5400 : 5405;
-		break;
-	case 12:	/* 2880x240p @ 59.826/60.054/59.886/60.115Hz 4:3 */
-		vmode->mHImageSize = 4;
-		vmode->mVImageSize = 3;
-	case 13:	/* 2880x240p @ 59.826/60.054/59.886/60.115Hz 16:9 */
-		vmode->mHActive = 2880;
-		vmode->mVActive = 240;
-		vmode->mHBlanking = 552;
-		vmode->mVBlanking = (vmode->mRefreshRate > 60000) ? 22 : 23;
-		vmode->mHSyncOffset = 76;
-		vmode->mVSyncOffset = (vmode->mRefreshRate > 60000) ? 4 : 5;
-		vmode->mHSyncPulseWidth = 248;
-		vmode->mVSyncPulseWidth = 3;
-		vmode->mHSyncPolarity = vmode->mVSyncPolarity = FALSE;
-		vmode->mInterlaced = FALSE;
-		vmode->mPixelClock =
-			((vmode->mRefreshRate == 60054) ||
-			vmode->mRefreshRate == 59826)
-			? 5400 : 5405; /*  else 60.115/59.886 Hz */
-		break;
-	case 14:			/* 1440x480p @ 59.94/60Hz 4:3 */
-		vmode->mHImageSize = 4;
-		vmode->mVImageSize = 3;
-	case 15:			/* 1440x480p @ 59.94/60Hz 16:9 */
-		vmode->mHActive = 1440;
-		vmode->mVActive = 480;
-		vmode->mHBlanking = 276;
-		vmode->mVBlanking = 45;
-		vmode->mHSyncOffset = 32;
-		vmode->mVSyncOffset = 9;
-		vmode->mHSyncPulseWidth = 124;
-		vmode->mVSyncPulseWidth = 6;
-		vmode->mHSyncPolarity = vmode->mVSyncPolarity = FALSE;
-		vmode->mInterlaced = FALSE;
-		vmode->mPixelClock =
-			(vmode->mRefreshRate == 59940) ? 5400 : 5405;
-		break;
-	case 16:			/* 1920x1080p @ 59.94/60Hz 16:9 */
-		vmode->mHActive = 1920;
-		vmode->mVActive = 1080;
-		vmode->mHBlanking = 280;
-		vmode->mVBlanking = 45;
-		vmode->mHSyncOffset = 88;
-		vmode->mVSyncOffset = 4;
-		vmode->mHSyncPulseWidth = 44;
-		vmode->mVSyncPulseWidth = 5;
-		vmode->mHSyncPolarity = vmode->mVSyncPolarity = TRUE;
-		vmode->mInterlaced = FALSE;
-		vmode->mPixelClock =
-			(vmode->mRefreshRate == 59940) ? 14835 : 14850;
-		break;
-	case 17:			/* 720x576p @ 50Hz 4:3 */
-		vmode->mHImageSize = 4;
-		vmode->mVImageSize = 3;
-	case 18:			/* 720x576p @ 50Hz 16:9 */
-		vmode->mHActive = 720;
-		vmode->mVActive = 576;
-		vmode->mHBlanking = 144;
-		vmode->mVBlanking = 49;
-		vmode->mHSyncOffset = 12;
-		vmode->mVSyncOffset = 5;
-		vmode->mHSyncPulseWidth = 64;
-		vmode->mVSyncPulseWidth = 5;
-		vmode->mHSyncPolarity = vmode->mVSyncPolarity = FALSE;
-		vmode->mInterlaced = FALSE;
-		vmode->mPixelClock = 2700;
-		break;
-	case 19:			/* 1280x720p @ 50Hz 16:9 */
-		vmode->mHActive = 1280;
-		vmode->mVActive = 720;
-		vmode->mHBlanking = 700;
-		vmode->mVBlanking = 30;
-		vmode->mHSyncOffset = 440;
-		vmode->mVSyncOffset = 5;
-		vmode->mHSyncPulseWidth = 40;
-		vmode->mVSyncPulseWidth = 5;
-		vmode->mHSyncPolarity = vmode->mVSyncPolarity = TRUE;
-		vmode->mInterlaced = FALSE;
-		vmode->mPixelClock = 7425;
-		break;
-	case 20:			/* 1920x1080i @ 50Hz 16:9 */
-		vmode->mHActive = 1920;
-		vmode->mVActive = 540;
-		vmode->mHBlanking = 720;
-		vmode->mVBlanking = 22;
-		vmode->mHSyncOffset = 528;
-		vmode->mVSyncOffset = 2;
-		vmode->mHSyncPulseWidth = 44;
-		vmode->mVSyncPulseWidth = 5;
-		vmode->mHSyncPolarity = vmode->mVSyncPolarity = TRUE;
-		vmode->mInterlaced = TRUE;
-		vmode->mPixelClock = 7425;
-		break;
-	case 21:			/* 720(1440)x576i @ 50Hz 4:3 */
-		vmode->mHImageSize = 4;
-		vmode->mVImageSize = 3;
-	case 22:			/* 720(1440)x576i @ 50Hz 16:9 */
-		vmode->mHActive = 1440;
-		vmode->mVActive = 288;
-		vmode->mHBlanking = 288;
-		vmode->mVBlanking = 24;
-		vmode->mHSyncOffset = 24;
-		vmode->mVSyncOffset = 2;
-		vmode->mHSyncPulseWidth = 126;
-		vmode->mVSyncPulseWidth = 3;
-		vmode->mHSyncPolarity = vmode->mVSyncPolarity = FALSE;
-		vmode->mInterlaced = TRUE;
-		vmode->mPixelClock = 2700;
-		vmode->mPixelRepetitionInput = 1;
-		break;
-	case 23:			/* 720(1440)x288p @ 50Hz 4:3 */
-		vmode->mHImageSize = 4;
-		vmode->mVImageSize = 3;
-	case 24:			/* 720(1440)x288p @ 50Hz 16:9 */
-		vmode->mHActive = 1440;
-		vmode->mVActive = 288;
-		vmode->mHBlanking = 288;
-		vmode->mVBlanking =
-			(vmode->mRefreshRate == 50080) ?
-			24 : ((vmode->mRefreshRate == 49920) ? 25 : 26);
-		vmode->mHSyncOffset = 24;
-		vmode->mVSyncOffset =
-			(vmode->mRefreshRate == 50080) ?
-			2 : ((vmode->mRefreshRate == 49920) ? 3 : 4);
-		vmode->mHSyncPulseWidth = 126;
-		vmode->mVSyncPulseWidth = 3;
-		vmode->mHSyncPolarity = vmode->mVSyncPolarity = FALSE;
-		vmode->mInterlaced = FALSE;
-		vmode->mPixelClock = 2700;
-		vmode->mPixelRepetitionInput = 1;
-		break;
-	case 25:			/* 2880x576i @ 50Hz 4:3 */
-		vmode->mHImageSize = 4;
-		vmode->mVImageSize = 3;
-	case 26:			/* 2880x576i @ 50Hz 16:9 */
-		vmode->mHActive = 2880;
-		vmode->mVActive = 288;
-		vmode->mHBlanking = 576;
-		vmode->mVBlanking = 24;
-		vmode->mHSyncOffset = 48;
-		vmode->mVSyncOffset = 2;
-		vmode->mHSyncPulseWidth = 252;
-		vmode->mVSyncPulseWidth = 3;
-		vmode->mHSyncPolarity = vmode->mVSyncPolarity = FALSE;
-		vmode->mInterlaced = TRUE;
-		vmode->mPixelClock = 5400;
-		break;
-	case 27:			/* 2880x288p @ 50Hz 4:3 */
-		vmode->mHImageSize = 4;
-		vmode->mVImageSize = 3;
-	case 28:			/* 2880x288p @ 50Hz 16:9 */
-		vmode->mHActive = 2880;
-		vmode->mVActive = 288;
-		vmode->mHBlanking = 576;
-		vmode->mVBlanking =
-			(vmode->mRefreshRate == 50080) ?
-			24 : ((vmode->mRefreshRate == 49920) ? 25 : 26);
-		vmode->mHSyncOffset = 48;
-		vmode->mVSyncOffset =
-			(vmode->mRefreshRate == 50080) ?
-			2 : ((vmode->mRefreshRate == 49920) ? 3 : 4);
-		vmode->mHSyncPulseWidth = 252;
-		vmode->mVSyncPulseWidth = 3;
-		vmode->mHSyncPolarity = vmode->mVSyncPolarity = FALSE;
-		vmode->mInterlaced = FALSE;
-		vmode->mPixelClock = 5400;
-		break;
-	case 29:			/* 1440x576p @ 50Hz 4:3 */
-		vmode->mHImageSize = 4;
-		vmode->mVImageSize = 3;
-	case 30:			/* 1440x576p @ 50Hz 16:9 */
-		vmode->mHActive = 1440;
-		vmode->mVActive = 576;
-		vmode->mHBlanking = 288;
-		vmode->mVBlanking = 49;
-		vmode->mHSyncOffset = 24;
-		vmode->mVSyncOffset = 5;
-		vmode->mHSyncPulseWidth = 128;
-		vmode->mVSyncPulseWidth = 5;
-		vmode->mHSyncPolarity = vmode->mVSyncPolarity = FALSE;
-		vmode->mInterlaced = FALSE;
-		vmode->mPixelClock = 5400;
-		break;
-	case 31:			/* 1920x1080p @ 50Hz 16:9 */
-		vmode->mHActive = 1920;
-		vmode->mVActive = 1080;
-		vmode->mHBlanking = 720;
-		vmode->mVBlanking = 45;
-		vmode->mHSyncOffset = 528;
-		vmode->mVSyncOffset = 4;
-		vmode->mHSyncPulseWidth = 44;
-		vmode->mVSyncPulseWidth = 5;
-		vmode->mHSyncPolarity = vmode->mVSyncPolarity = TRUE;
-		vmode->mInterlaced = FALSE;
-		vmode->mPixelClock = 14850;
-		break;
-	case 32:			/* 1920x1080p @ 23.976/24Hz 16:9 */
-		vmode->mHActive = 1920;
-		vmode->mVActive = 1080;
-		vmode->mHBlanking = 830;
-		vmode->mVBlanking = 45;
-		vmode->mHSyncOffset = 638;
-		vmode->mVSyncOffset = 4;
-		vmode->mHSyncPulseWidth = 44;
-		vmode->mVSyncPulseWidth = 5;
-		vmode->mHSyncPolarity = vmode->mVSyncPolarity = TRUE;
-		vmode->mInterlaced = FALSE;
-		vmode->mPixelClock =
-			(vmode->mRefreshRate == 23976) ? 7417 : 7425;
-		break;
-	case 33:			/* 1920x1080p @ 25Hz 16:9 */
-		vmode->mHActive = 1920;
-		vmode->mVActive = 1080;
-		vmode->mHBlanking = 720;
-		vmode->mVBlanking = 45;
-		vmode->mHSyncOffset = 528;
-		vmode->mVSyncOffset = 4;
-		vmode->mHSyncPulseWidth = 44;
-		vmode->mVSyncPulseWidth = 5;
-		vmode->mHSyncPolarity = vmode->mVSyncPolarity = TRUE;
-		vmode->mInterlaced = FALSE;
-		vmode->mPixelClock = 7425;
-		break;
-	case 34:			/* 1920x1080p @ 29.97/30Hz 16:9 */
-		vmode->mHActive = 1920;
-		vmode->mVActive = 1080;
-		vmode->mHBlanking = 280;
-		vmode->mVBlanking = 45;
-		vmode->mHSyncOffset = 88;
-		vmode->mVSyncOffset = 4;
-		vmode->mHSyncPulseWidth = 44;
-		vmode->mVSyncPulseWidth = 5;
-		vmode->mHSyncPolarity = vmode->mVSyncPolarity = TRUE;
-		vmode->mInterlaced = FALSE;
-		vmode->mPixelClock =
-			(vmode->mRefreshRate == 29970) ? 7417 : 7425;
-		break;
-	case 35:			/* 2880x480p @ 60Hz 4:3 */
-		vmode->mHImageSize = 4;
-		vmode->mVImageSize = 3;
-	case 36:			/* 2880x480p @ 60Hz 16:9 */
-		vmode->mHActive = 2880;
-		vmode->mVActive = 480;
-		vmode->mHBlanking = 552;
-		vmode->mVBlanking = 45;
-		vmode->mHSyncOffset = 64;
-		vmode->mVSyncOffset = 9;
-		vmode->mHSyncPulseWidth = 248;
-		vmode->mVSyncPulseWidth = 6;
-		vmode->mHSyncPolarity = vmode->mVSyncPolarity = FALSE;
-		vmode->mInterlaced = FALSE;
-		vmode->mPixelClock =
-			(vmode->mRefreshRate == 59940) ? 10800 : 10810;
-		break;
-	case 37:			/* 2880x576p @ 50Hz 4:3 */
-		vmode->mHImageSize = 4;
-		vmode->mVImageSize = 3;
-	case 38:			/* 2880x576p @ 50Hz 16:9 */
-		vmode->mHActive = 2880;
-		vmode->mVActive = 576;
-		vmode->mHBlanking = 576;
-		vmode->mVBlanking = 49;
-		vmode->mHSyncOffset = 48;
-		vmode->mVSyncOffset = 5;
-		vmode->mHSyncPulseWidth = 256;
-		vmode->mVSyncPulseWidth = 5;
-		vmode->mHSyncPolarity = vmode->mVSyncPolarity = FALSE;
-		vmode->mInterlaced = FALSE;
-		vmode->mPixelClock = 10800;
-		break;
-	case 39:		/* 1920x1080i (1250 total) @ 50Hz 16:9 */
-		vmode->mHActive = 1920;
-		vmode->mVActive = 540;
-		vmode->mHBlanking = 384;
-		vmode->mVBlanking = 85;
-		vmode->mHSyncOffset = 32;
-		vmode->mVSyncOffset = 23;
-		vmode->mHSyncPulseWidth = 168;
-		vmode->mVSyncPulseWidth = 5;
-		vmode->mHSyncPolarity = vmode->mVSyncPolarity = TRUE;
-		vmode->mInterlaced = TRUE;
-		vmode->mPixelClock = 7200;
-		break;
-	case 40:			/* 1920x1080i @ 100Hz 16:9 */
-		vmode->mHActive = 1920;
-		vmode->mVActive = 540;
-		vmode->mHBlanking = 720;
-		vmode->mVBlanking = 22;
-		vmode->mHSyncOffset = 528;
-		vmode->mVSyncOffset = 2;
-		vmode->mHSyncPulseWidth = 44;
-		vmode->mVSyncPulseWidth = 5;
-		vmode->mHSyncPolarity = vmode->mVSyncPolarity = TRUE;
-		vmode->mInterlaced = TRUE;
-		vmode->mPixelClock = 14850;
-		break;
-	case 41:			/* 1280x720p @ 100Hz 16:9 */
-		vmode->mHActive = 1280;
-		vmode->mVActive = 720;
-		vmode->mHBlanking = 700;
-		vmode->mVBlanking = 30;
-		vmode->mHSyncOffset = 440;
-		vmode->mVSyncOffset = 5;
-		vmode->mHSyncPulseWidth = 40;
-		vmode->mVSyncPulseWidth = 5;
-		vmode->mHSyncPolarity = vmode->mVSyncPolarity = TRUE;
-		vmode->mInterlaced = FALSE;
-		vmode->mPixelClock = 14850;
-		break;
-	case 42:			/* 720x576p @ 100Hz 4:3 */
-		vmode->mHImageSize = 4;
-		vmode->mVImageSize = 3;
-	case 43:			/* 720x576p @ 100Hz 16:9 */
-		vmode->mHActive = 720;
-		vmode->mVActive = 576;
-		vmode->mHBlanking = 144;
-		vmode->mVBlanking = 49;
-		vmode->mHSyncOffset = 12;
-		vmode->mVSyncOffset = 5;
-		vmode->mHSyncPulseWidth = 64;
-		vmode->mVSyncPulseWidth = 5;
-		vmode->mHSyncPolarity = vmode->mVSyncPolarity = FALSE;
-		vmode->mInterlaced = FALSE;
-		vmode->mPixelClock = 5400;
-		break;
-	case 44:			/* 720(1440)x576i @ 100Hz 4:3 */
-		vmode->mHImageSize = 4;
-		vmode->mVImageSize = 3;
-	case 45:			/* 720(1440)x576i @ 100Hz 16:9 */
-		vmode->mHActive = 1440;
-		vmode->mVActive = 288;
-		vmode->mHBlanking = 288;
-		vmode->mVBlanking = 24;
-		vmode->mHSyncOffset = 24;
-		vmode->mVSyncOffset = 2;
-		vmode->mHSyncPulseWidth = 126;
-		vmode->mVSyncPulseWidth = 3;
-		vmode->mHSyncPolarity = vmode->mVSyncPolarity = FALSE;
-		vmode->mInterlaced = TRUE;
-		vmode->mPixelClock = 5400;
-		vmode->mPixelRepetitionInput = 1;
-		break;
-	case 46:			/* 1920x1080i @ 119.88/120Hz 16:9 */
-		vmode->mHActive = 1920;
-		vmode->mVActive = 540;
-		vmode->mHBlanking = 288;
-		vmode->mVBlanking = 22;
-		vmode->mHSyncOffset = 88;
-		vmode->mVSyncOffset = 2;
-		vmode->mHSyncPulseWidth = 44;
-		vmode->mVSyncPulseWidth = 5;
-		vmode->mHSyncPolarity = vmode->mVSyncPolarity = TRUE;
-		vmode->mInterlaced = TRUE;
-		vmode->mPixelClock =
-			(vmode->mRefreshRate == 119880) ? 14835 : 14850;
-		break;
-	case 47:			/* 1280x720p @ 119.88/120Hz 16:9 */
-		vmode->mHActive = 1280;
-		vmode->mVActive = 720;
-		vmode->mHBlanking = 370;
-		vmode->mVBlanking = 30;
-		vmode->mHSyncOffset = 110;
-		vmode->mVSyncOffset = 5;
-		vmode->mHSyncPulseWidth = 40;
-		vmode->mVSyncPulseWidth = 5;
-		vmode->mHSyncPolarity = vmode->mVSyncPolarity = TRUE;
-		vmode->mInterlaced = FALSE;
-		vmode->mPixelClock =
-			(vmode->mRefreshRate == 119880) ? 14835 : 14850;
-		break;
-	case 48:			/* 720x480p @ 119.88/120Hz 4:3 */
-		vmode->mHImageSize = 4;
-		vmode->mVImageSize = 3;
-	case 49:			/* 720x480p @ 119.88/120Hz 16:9 */
-		vmode->mHActive = 720;
-		vmode->mVActive = 480;
-		vmode->mHBlanking = 138;
-		vmode->mVBlanking = 45;
-		vmode->mHSyncOffset = 16;
-		vmode->mVSyncOffset = 9;
-		vmode->mHSyncPulseWidth = 62;
-		vmode->mVSyncPulseWidth = 6;
-		vmode->mHSyncPolarity = vmode->mVSyncPolarity = FALSE;
-		vmode->mInterlaced = FALSE;
-		vmode->mPixelClock =
-			(vmode->mRefreshRate == 119880) ? 5400 : 5405;
-		break;
-	case 50:		/* 720(1440)x480i @ 119.88/120Hz 4:3 */
-		vmode->mHImageSize = 4;
-		vmode->mVImageSize = 3;
-	case 51:		/* 720(1440)x480i @ 119.88/120Hz 16:9 */
-		vmode->mHActive = 1440;
-		vmode->mVActive = 240;
-		vmode->mHBlanking = 276;
-		vmode->mVBlanking = 22;
-		vmode->mHSyncOffset = 38;
-		vmode->mVSyncOffset = 4;
-		vmode->mHSyncPulseWidth = 124;
-		vmode->mVSyncPulseWidth = 3;
-		vmode->mHSyncPolarity = vmode->mVSyncPolarity = FALSE;
-		vmode->mInterlaced = TRUE;
-		vmode->mPixelClock =
-			(vmode->mRefreshRate == 119880) ? 5400 : 5405;
-		vmode->mPixelRepetitionInput = 1;
-		break;
-	case 52:			/* 720X576p @ 200Hz 4:3 */
-		vmode->mHImageSize = 4;
-		vmode->mVImageSize = 3;
-	case 53:			/* 720X576p @ 200Hz 16:9 */
-		vmode->mHActive = 720;
-		vmode->mVActive = 576;
-		vmode->mHBlanking = 144;
-		vmode->mVBlanking = 49;
-		vmode->mHSyncOffset = 12;
-		vmode->mVSyncOffset = 5;
-		vmode->mHSyncPulseWidth = 64;
-		vmode->mVSyncPulseWidth = 5;
-		vmode->mHSyncPolarity = vmode->mVSyncPolarity = FALSE;
-		vmode->mInterlaced = FALSE;
-		vmode->mPixelClock = 10800;
-		break;
-	case 54:			/* 720(1440)x576i @ 200Hz 4:3 */
-		vmode->mHImageSize = 4;
-		vmode->mVImageSize = 3;
-	case 55:			/* 720(1440)x576i @ 200Hz 16:9 */
-		vmode->mHActive = 1440;
-		vmode->mVActive = 288;
-		vmode->mHBlanking = 288;
-		vmode->mVBlanking = 24;
-		vmode->mHSyncOffset = 24;
-		vmode->mVSyncOffset = 2;
-		vmode->mHSyncPulseWidth = 126;
-		vmode->mVSyncPulseWidth = 3;
-		vmode->mHSyncPolarity = vmode->mVSyncPolarity = FALSE;
-		vmode->mInterlaced = TRUE;
-		vmode->mPixelClock = 10800;
-		vmode->mPixelRepetitionInput = 1;
-		break;
-	case 56:			/* 720x480p @ 239.76/240Hz 4:3 */
-		vmode->mHImageSize = 4;
-		vmode->mVImageSize = 3;
-	case 57:			/* 720x480p @ 239.76/240Hz 16:9 */
-		vmode->mHActive = 720;
-		vmode->mVActive = 480;
-		vmode->mHBlanking = 138;
-		vmode->mVBlanking = 45;
-		vmode->mHSyncOffset = 16;
-		vmode->mVSyncOffset = 9;
-		vmode->mHSyncPulseWidth = 62;
-		vmode->mVSyncPulseWidth = 6;
-		vmode->mHSyncPolarity = vmode->mVSyncPolarity = FALSE;
-		vmode->mInterlaced = FALSE;
-		vmode->mPixelClock =
-			(vmode->mRefreshRate == 239760) ? 10800 : 10810;
-		break;
-	case 58:		/* 720(1440)x480i @ 239.76/240Hz 4:3 */
-		vmode->mHImageSize = 4;
-		vmode->mVImageSize = 3;
-	case 59:		/* 720(1440)x480i @ 239.76/240Hz 16:9 */
-		vmode->mHActive = 1440;
-		vmode->mVActive = 240;
-		vmode->mHBlanking = 276;
-		vmode->mVBlanking = 22;
-		vmode->mHSyncOffset = 38;
-		vmode->mVSyncOffset = 4;
-		vmode->mHSyncPulseWidth = 124;
-		vmode->mVSyncPulseWidth = 3;
-		vmode->mHSyncPolarity = vmode->mVSyncPolarity = FALSE;
-		vmode->mInterlaced = TRUE;
-		vmode->mPixelClock =
-			(vmode->mRefreshRate == 239760) ? 10800 : 10810;
-		vmode->mPixelRepetitionInput = 1;
-		break;
-	default:
-		vmode->mCode = -1;
-		return;
-	}
-	return;
-}
 
 /*!
  * this submodule is responsible for the video data synchronization.
@@ -1164,19 +196,19 @@ void hdmi_video_sample(struct mxc_hdmi *hdmi)
 	val = HDMI_TX_INVID0_INTERNAL_DE_GENERATOR_DISABLE |
 		((color_format << HDMI_TX_INVID0_VIDEO_MAPPING_OFFSET) &
 		HDMI_TX_INVID0_VIDEO_MAPPING_MASK);
-	writeb(val, hdmi->base + HDMI_TX_INVID0);
+	hdmi_writeb(val, HDMI_TX_INVID0);
 
 	/* Enable TX stuffing: When DE is inactive, fix the output data to 0 */
 	val = HDMI_TX_INSTUFFING_BDBDATA_STUFFING_ENABLE |
 		HDMI_TX_INSTUFFING_RCRDATA_STUFFING_ENABLE |
 		HDMI_TX_INSTUFFING_GYDATA_STUFFING_ENABLE;
-	writeb(val, hdmi->base + HDMI_TX_INSTUFFING);
-	writeb(0x0, hdmi->base + HDMI_TX_GYDATA0);
-	writeb(0x0, hdmi->base + HDMI_TX_GYDATA1);
-	writeb(0x0, hdmi->base + HDMI_TX_RCRDATA0);
-	writeb(0x0, hdmi->base + HDMI_TX_RCRDATA1);
-	writeb(0x0, hdmi->base + HDMI_TX_BCBDATA0);
-	writeb(0x0, hdmi->base + HDMI_TX_BCBDATA1);
+	hdmi_writeb(val, HDMI_TX_INSTUFFING);
+	hdmi_writeb(0x0, HDMI_TX_GYDATA0);
+	hdmi_writeb(0x0, HDMI_TX_GYDATA1);
+	hdmi_writeb(0x0, HDMI_TX_RCRDATA0);
+	hdmi_writeb(0x0, HDMI_TX_RCRDATA1);
+	hdmi_writeb(0x0, HDMI_TX_BCBDATA0);
+	hdmi_writeb(0x0, HDMI_TX_BCBDATA1);
 }
 
 static int isColorSpaceConversion(struct mxc_hdmi *hdmi)
@@ -1207,6 +239,7 @@ void update_csc_coeffs(struct mxc_hdmi *hdmi)
 	unsigned short csc_coeff[3][4];
 	unsigned int csc_scale = 1;
 	u8 val;
+	bool coeff_selected = false;
 
 	if (isColorSpaceConversion(hdmi) == TRUE) { /* csc needed */
 		if (hdmi->hdmi_data.enc_out_format == eRGB) {
@@ -1227,6 +260,7 @@ void update_csc_coeffs(struct mxc_hdmi *hdmi)
 				csc_coeff[2][3] = 0x7e3b;
 
 				csc_scale = 1;
+				coeff_selected = true;
 			} else if (hdmi->hdmi_data.colorimetry == eITU709) {
 				csc_coeff[0][0] = 0x2000;
 				csc_coeff[0][1] = 0x7106;
@@ -1244,6 +278,7 @@ void update_csc_coeffs(struct mxc_hdmi *hdmi)
 				csc_coeff[2][3] = 0x7e25;
 
 				csc_scale = 1;
+				coeff_selected = true;
 			}
 		} else if (hdmi->hdmi_data.enc_in_format == eRGB) {
 			if (hdmi->hdmi_data.colorimetry == eITU601) {
@@ -1257,12 +292,13 @@ void update_csc_coeffs(struct mxc_hdmi *hdmi)
 				csc_coeff[1][2] = 0x7acc;
 				csc_coeff[1][3] = 0x0200;
 
-				csc_coeff[1][0] = 0x6acd;
-				csc_coeff[1][1] = 0x7534;
-				csc_coeff[1][2] = 0x2000;
-				csc_coeff[1][3] = 0x0200;
+				csc_coeff[2][0] = 0x6acd;
+				csc_coeff[2][1] = 0x7534;
+				csc_coeff[2][2] = 0x2000;
+				csc_coeff[2][3] = 0x0200;
 
 				csc_scale = 1;
+				coeff_selected = true;
 			} else if (hdmi->hdmi_data.colorimetry == eITU709) {
 				csc_coeff[0][0] = 0x2dc5;
 				csc_coeff[0][1] = 0x0d9b;
@@ -1280,9 +316,12 @@ void update_csc_coeffs(struct mxc_hdmi *hdmi)
 				csc_coeff[2][3] = 0x0200;
 
 				csc_scale = 1;
+				coeff_selected = true;
 			}
 		}
-	} else {
+	}
+
+	if (!coeff_selected) {
 		csc_coeff[0][0] = 0x2000;
 		csc_coeff[0][1] = 0x0000;
 		csc_coeff[0][2] = 0x0000;
@@ -1302,61 +341,61 @@ void update_csc_coeffs(struct mxc_hdmi *hdmi)
 	}
 
 	/* Update CSC parameters in HDMI CSC registers */
-	writeb((unsigned char)(csc_coeff[0][0] & 0xFF),
-		hdmi->base + HDMI_CSC_COEF_A1_LSB);
-	writeb((unsigned char)(csc_coeff[0][0] >> 8),
-		hdmi->base + HDMI_CSC_COEF_A1_MSB);
-	writeb((unsigned char)(csc_coeff[0][1] & 0xFF),
-		hdmi->base + HDMI_CSC_COEF_A2_LSB);
-	writeb((unsigned char)(csc_coeff[0][1] >> 8),
-		hdmi->base + HDMI_CSC_COEF_A2_MSB);
-	writeb((unsigned char)(csc_coeff[0][2] & 0xFF),
-		hdmi->base + HDMI_CSC_COEF_A3_LSB);
-	writeb((unsigned char)(csc_coeff[0][2] >> 8),
-		hdmi->base + HDMI_CSC_COEF_A3_MSB);
-	writeb((unsigned char)(csc_coeff[0][3] & 0xFF),
-		hdmi->base + HDMI_CSC_COEF_A4_LSB);
-	writeb((unsigned char)(csc_coeff[0][3] >> 8),
-		hdmi->base + HDMI_CSC_COEF_A4_MSB);
+	hdmi_writeb((unsigned char)(csc_coeff[0][0] & 0xFF),
+		HDMI_CSC_COEF_A1_LSB);
+	hdmi_writeb((unsigned char)(csc_coeff[0][0] >> 8),
+		HDMI_CSC_COEF_A1_MSB);
+	hdmi_writeb((unsigned char)(csc_coeff[0][1] & 0xFF),
+		HDMI_CSC_COEF_A2_LSB);
+	hdmi_writeb((unsigned char)(csc_coeff[0][1] >> 8),
+		HDMI_CSC_COEF_A2_MSB);
+	hdmi_writeb((unsigned char)(csc_coeff[0][2] & 0xFF),
+		HDMI_CSC_COEF_A3_LSB);
+	hdmi_writeb((unsigned char)(csc_coeff[0][2] >> 8),
+		HDMI_CSC_COEF_A3_MSB);
+	hdmi_writeb((unsigned char)(csc_coeff[0][3] & 0xFF),
+		HDMI_CSC_COEF_A4_LSB);
+	hdmi_writeb((unsigned char)(csc_coeff[0][3] >> 8),
+		HDMI_CSC_COEF_A4_MSB);
 
-	writeb((unsigned char)(csc_coeff[1][0] & 0xFF),
-		hdmi->base + HDMI_CSC_COEF_B1_LSB);
-	writeb((unsigned char)(csc_coeff[1][0] >> 8),
-		hdmi->base + HDMI_CSC_COEF_B1_MSB);
-	writeb((unsigned char)(csc_coeff[1][1] & 0xFF),
-		hdmi->base + HDMI_CSC_COEF_B2_LSB);
-	writeb((unsigned char)(csc_coeff[1][1] >> 8),
-		hdmi->base + HDMI_CSC_COEF_B2_MSB);
-	writeb((unsigned char)(csc_coeff[1][2] & 0xFF),
-		hdmi->base + HDMI_CSC_COEF_B3_LSB);
-	writeb((unsigned char)(csc_coeff[1][2] >> 8),
-		hdmi->base + HDMI_CSC_COEF_B3_MSB);
-	writeb((unsigned char)(csc_coeff[1][3] & 0xFF),
-		hdmi->base + HDMI_CSC_COEF_B4_LSB);
-	writeb((unsigned char)(csc_coeff[1][3] >> 8),
-		hdmi->base + HDMI_CSC_COEF_B4_MSB);
+	hdmi_writeb((unsigned char)(csc_coeff[1][0] & 0xFF),
+		HDMI_CSC_COEF_B1_LSB);
+	hdmi_writeb((unsigned char)(csc_coeff[1][0] >> 8),
+		HDMI_CSC_COEF_B1_MSB);
+	hdmi_writeb((unsigned char)(csc_coeff[1][1] & 0xFF),
+		HDMI_CSC_COEF_B2_LSB);
+	hdmi_writeb((unsigned char)(csc_coeff[1][1] >> 8),
+		HDMI_CSC_COEF_B2_MSB);
+	hdmi_writeb((unsigned char)(csc_coeff[1][2] & 0xFF),
+		HDMI_CSC_COEF_B3_LSB);
+	hdmi_writeb((unsigned char)(csc_coeff[1][2] >> 8),
+		HDMI_CSC_COEF_B3_MSB);
+	hdmi_writeb((unsigned char)(csc_coeff[1][3] & 0xFF),
+		HDMI_CSC_COEF_B4_LSB);
+	hdmi_writeb((unsigned char)(csc_coeff[1][3] >> 8),
+		HDMI_CSC_COEF_B4_MSB);
 
-	writeb((unsigned char)(csc_coeff[2][0] & 0xFF),
-		hdmi->base + HDMI_CSC_COEF_C1_LSB);
-	writeb((unsigned char)(csc_coeff[2][0] >> 8),
-		hdmi->base + HDMI_CSC_COEF_C1_MSB);
-	writeb((unsigned char)(csc_coeff[2][1] & 0xFF),
-		hdmi->base + HDMI_CSC_COEF_C2_LSB);
-	writeb((unsigned char)(csc_coeff[2][1] >> 8),
-		hdmi->base + HDMI_CSC_COEF_C2_MSB);
-	writeb((unsigned char)(csc_coeff[2][2] & 0xFF),
-		hdmi->base + HDMI_CSC_COEF_C3_LSB);
-	writeb((unsigned char)(csc_coeff[2][2] >> 8),
-		hdmi->base + HDMI_CSC_COEF_C3_MSB);
-	writeb((unsigned char)(csc_coeff[2][3] & 0xFF),
-		hdmi->base + HDMI_CSC_COEF_C4_LSB);
-	writeb((unsigned char)(csc_coeff[2][3] >> 8),
-		hdmi->base + HDMI_CSC_COEF_C4_MSB);
+	hdmi_writeb((unsigned char)(csc_coeff[2][0] & 0xFF),
+		HDMI_CSC_COEF_C1_LSB);
+	hdmi_writeb((unsigned char)(csc_coeff[2][0] >> 8),
+		HDMI_CSC_COEF_C1_MSB);
+	hdmi_writeb((unsigned char)(csc_coeff[2][1] & 0xFF),
+		HDMI_CSC_COEF_C2_LSB);
+	hdmi_writeb((unsigned char)(csc_coeff[2][1] >> 8),
+		HDMI_CSC_COEF_C2_MSB);
+	hdmi_writeb((unsigned char)(csc_coeff[2][2] & 0xFF),
+		HDMI_CSC_COEF_C3_LSB);
+	hdmi_writeb((unsigned char)(csc_coeff[2][2] >> 8),
+		HDMI_CSC_COEF_C3_MSB);
+	hdmi_writeb((unsigned char)(csc_coeff[2][3] & 0xFF),
+		HDMI_CSC_COEF_C4_LSB);
+	hdmi_writeb((unsigned char)(csc_coeff[2][3] >> 8),
+		HDMI_CSC_COEF_C4_MSB);
 
-	readb(hdmi->base + HDMI_CSC_SCALE);
+	val = hdmi_readb(HDMI_CSC_SCALE);
 	val &= ~HDMI_CSC_SCALE_CSCSCALE_MASK;
 	val |= csc_scale & HDMI_CSC_SCALE_CSCSCALE_MASK;
-	writeb(val, hdmi->base + HDMI_CSC_SCALE);
+	hdmi_writeb(val, HDMI_CSC_SCALE);
 }
 
 void hdmi_video_csc(struct mxc_hdmi *hdmi)
@@ -1384,11 +423,11 @@ void hdmi_video_csc(struct mxc_hdmi *hdmi)
 		return;
 
 	/*configure the CSC registers */
-	writeb(interpolation | decimation, hdmi->base + HDMI_CSC_CFG);
-	val = readb(hdmi->base + HDMI_CSC_SCALE);
+	hdmi_writeb(interpolation | decimation, HDMI_CSC_CFG);
+	val = hdmi_readb(HDMI_CSC_SCALE);
 	val &= ~HDMI_CSC_SCALE_CSC_COLORDE_PTH_MASK;
 	val |= color_depth;
-	writeb(val, hdmi->base + HDMI_CSC_SCALE);
+	hdmi_writeb(val, HDMI_CSC_SCALE);
 
 	update_csc_coeffs(hdmi);
 }
@@ -1441,79 +480,79 @@ void hdmi_video_packetize(struct mxc_hdmi *hdmi)
 		((hdmi_data->pix_repet_factor <<
 		HDMI_VP_PR_CD_DESIRED_PR_FACTOR_OFFSET) &
 		HDMI_VP_PR_CD_DESIRED_PR_FACTOR_MASK);
-	writeb(val, hdmi->base + HDMI_VP_PR_CD);
+	hdmi_writeb(val, HDMI_VP_PR_CD);
 
-	val = readb(hdmi->base + HDMI_VP_STUFF);
+	val = hdmi_readb(HDMI_VP_STUFF);
 	val &= ~HDMI_VP_STUFF_PR_STUFFING_MASK;
 	val |= HDMI_VP_STUFF_PR_STUFFING_STUFFING_MODE;
-	writeb(val, hdmi->base + HDMI_VP_STUFF);
+	hdmi_writeb(val, HDMI_VP_STUFF);
 
 	/* Data from pixel repeater block */
 	if (hdmi_data->pix_repet_factor > 1) {
-		val = readb(hdmi->base + HDMI_VP_CONF);
+		val = hdmi_readb(HDMI_VP_CONF);
 		val &= ~(HDMI_VP_CONF_PR_EN_MASK |
 			HDMI_VP_CONF_BYPASS_SELECT_MASK);
 		val |= HDMI_VP_CONF_PR_EN_ENABLE |
 			HDMI_VP_CONF_BYPASS_SELECT_PIX_REPEATER;
-		writeb(val, hdmi->base + HDMI_VP_CONF);
+		hdmi_writeb(val, HDMI_VP_CONF);
 	} else { /* data from packetizer block */
-		val = readb(hdmi->base + HDMI_VP_CONF);
+		val = hdmi_readb(HDMI_VP_CONF);
 		val &= ~(HDMI_VP_CONF_PR_EN_MASK |
 			HDMI_VP_CONF_BYPASS_SELECT_MASK);
 		val |= HDMI_VP_CONF_PR_EN_DISABLE |
 			HDMI_VP_CONF_BYPASS_SELECT_VID_PACKETIZER;
-		writeb(val, hdmi->base + HDMI_VP_CONF);
+		hdmi_writeb(val, HDMI_VP_CONF);
 	}
 
-	val = readb(hdmi->base + HDMI_VP_STUFF);
+	val = hdmi_readb(HDMI_VP_STUFF);
 	val &= ~HDMI_VP_STUFF_IDEFAULT_PHASE_MASK;
 	val |= 1 << HDMI_VP_STUFF_IDEFAULT_PHASE_OFFSET;
-	writeb(val, hdmi->base + HDMI_VP_STUFF);
+	hdmi_writeb(val, HDMI_VP_STUFF);
 
-	writeb(remap_size, hdmi->base + HDMI_VP_REMAP);
+	hdmi_writeb(remap_size, HDMI_VP_REMAP);
 
 	if (output_select == HDMI_VP_CONF_OUTPUT_SELECTOR_PP) {
-		val = readb(hdmi->base + HDMI_VP_CONF);
+		val = hdmi_readb(HDMI_VP_CONF);
 		val &= ~(HDMI_VP_CONF_BYPASS_EN_MASK |
 			HDMI_VP_CONF_PP_EN_ENMASK |
 			HDMI_VP_CONF_YCC422_EN_MASK);
 		val |= HDMI_VP_CONF_BYPASS_EN_DISABLE |
 			HDMI_VP_CONF_PP_EN_ENABLE |
 			HDMI_VP_CONF_YCC422_EN_DISABLE;
-		writeb(val, hdmi->base + HDMI_VP_CONF);
+		hdmi_writeb(val, HDMI_VP_CONF);
 	} else if (output_select == HDMI_VP_CONF_OUTPUT_SELECTOR_YCC422) {
-		val = readb(hdmi->base + HDMI_VP_CONF);
+		val = hdmi_readb(HDMI_VP_CONF);
 		val &= ~(HDMI_VP_CONF_BYPASS_EN_MASK |
 			HDMI_VP_CONF_PP_EN_ENMASK |
 			HDMI_VP_CONF_YCC422_EN_MASK);
 		val |= HDMI_VP_CONF_BYPASS_EN_DISABLE |
 			HDMI_VP_CONF_PP_EN_DISABLE |
 			HDMI_VP_CONF_YCC422_EN_ENABLE;
-		writeb(val, hdmi->base + HDMI_VP_CONF);
+		hdmi_writeb(val, HDMI_VP_CONF);
 	} else if (output_select == HDMI_VP_CONF_OUTPUT_SELECTOR_BYPASS) {
-		val = readb(hdmi->base + HDMI_VP_CONF);
+		val = hdmi_readb(HDMI_VP_CONF);
 		val &= ~(HDMI_VP_CONF_BYPASS_EN_MASK |
 			HDMI_VP_CONF_PP_EN_ENMASK |
 			HDMI_VP_CONF_YCC422_EN_MASK);
 		val |= HDMI_VP_CONF_BYPASS_EN_ENABLE |
 			HDMI_VP_CONF_PP_EN_DISABLE |
 			HDMI_VP_CONF_YCC422_EN_DISABLE;
-		writeb(val, hdmi->base + HDMI_VP_CONF);
+		hdmi_writeb(val, HDMI_VP_CONF);
 	} else {
 		return;
 	}
 
-	val = readb(hdmi->base + HDMI_VP_STUFF);
+	val = hdmi_readb(HDMI_VP_STUFF);
 	val &= ~(HDMI_VP_STUFF_PP_STUFFING_MASK |
 		HDMI_VP_STUFF_YCC422_STUFFING_MASK);
 	val |= HDMI_VP_STUFF_PP_STUFFING_STUFFING_MODE |
 		HDMI_VP_STUFF_YCC422_STUFFING_STUFFING_MODE;
-	writeb(val, hdmi->base + HDMI_VP_STUFF);
+	hdmi_writeb(val, HDMI_VP_STUFF);
 
-	val = readb(hdmi->base + HDMI_VP_CONF);
+	val = hdmi_readb(HDMI_VP_CONF);
 	val &= ~HDMI_VP_CONF_OUTPUT_SELECTOR_MASK;
 	val |= output_select;
-	writeb(val, hdmi->base + HDMI_VP_CONF);
+	hdmi_writeb(val, HDMI_VP_CONF);
 }
 
 void hdmi_video_force_output(struct mxc_hdmi *hdmi, unsigned char force)
@@ -1521,94 +560,73 @@ void hdmi_video_force_output(struct mxc_hdmi *hdmi, unsigned char force)
 	u8 val;
 
 	if (force == TRUE) {
-		writeb(0x00, hdmi->base + HDMI_FC_DBGTMDS2);   /* R */
-		writeb(0x00, hdmi->base + HDMI_FC_DBGTMDS1);   /* G */
-		writeb(0xFF, hdmi->base + HDMI_FC_DBGTMDS0);   /* B */
-		val = readb(hdmi->base + HDMI_FC_DBGFORCE);
+		hdmi_writeb(0x00, HDMI_FC_DBGTMDS2);   /* R */
+		hdmi_writeb(0x00, HDMI_FC_DBGTMDS1);   /* G */
+		hdmi_writeb(0xFF, HDMI_FC_DBGTMDS0);   /* B */
+		val = hdmi_readb(HDMI_FC_DBGFORCE);
 		val |= HDMI_FC_DBGFORCE_FORCEVIDEO;
-		writeb(val, hdmi->base + HDMI_FC_DBGFORCE);
+		hdmi_writeb(val, HDMI_FC_DBGFORCE);
 	} else {
-		val = readb(hdmi->base + HDMI_FC_DBGFORCE);
+		val = hdmi_readb(HDMI_FC_DBGFORCE);
 		val &= ~HDMI_FC_DBGFORCE_FORCEVIDEO;
-		writeb(val, hdmi->base + HDMI_FC_DBGFORCE);
-		writeb(0x00, hdmi->base + HDMI_FC_DBGTMDS2);   /* R */
-		writeb(0x00, hdmi->base + HDMI_FC_DBGTMDS1);   /* G */
-		writeb(0x00, hdmi->base + HDMI_FC_DBGTMDS0);   /* B */
+		hdmi_writeb(val, HDMI_FC_DBGFORCE);
+		hdmi_writeb(0x00, HDMI_FC_DBGTMDS2);   /* R */
+		hdmi_writeb(0x00, HDMI_FC_DBGTMDS1);   /* G */
+		hdmi_writeb(0x00, HDMI_FC_DBGTMDS0);   /* B */
 	}
 }
 
 static inline void hdmi_phy_test_clear(struct mxc_hdmi *hdmi,
 						unsigned char bit)
 {
-	u8 val = readb(hdmi->base + HDMI_PHY_TST0);
+	u8 val = hdmi_readb(HDMI_PHY_TST0);
 	val &= ~HDMI_PHY_TST0_TSTCLR_MASK;
 	val |= (bit << HDMI_PHY_TST0_TSTCLR_OFFSET) &
 		HDMI_PHY_TST0_TSTCLR_MASK;
-	writeb(val, hdmi->base + HDMI_PHY_TST0);
+	hdmi_writeb(val, HDMI_PHY_TST0);
 }
 
 static inline void hdmi_phy_test_enable(struct mxc_hdmi *hdmi,
 						unsigned char bit)
 {
-	u8 val = readb(hdmi->base + HDMI_PHY_TST0);
+	u8 val = hdmi_readb(HDMI_PHY_TST0);
 	val &= ~HDMI_PHY_TST0_TSTEN_MASK;
 	val |= (bit << HDMI_PHY_TST0_TSTEN_OFFSET) &
 		HDMI_PHY_TST0_TSTEN_MASK;
-	writeb(val, hdmi->base + HDMI_PHY_TST0);
+	hdmi_writeb(val, HDMI_PHY_TST0);
 }
 
 static inline void hdmi_phy_test_clock(struct mxc_hdmi *hdmi,
 						unsigned char bit)
 {
-	u8 val = readb(hdmi->base + HDMI_PHY_TST0);
+	u8 val = hdmi_readb(HDMI_PHY_TST0);
 	val &= ~HDMI_PHY_TST0_TSTCLK_MASK;
 	val |= (bit << HDMI_PHY_TST0_TSTCLK_OFFSET) &
 		HDMI_PHY_TST0_TSTCLK_MASK;
-	writeb(val, hdmi->base + HDMI_PHY_TST0);
+	hdmi_writeb(val, HDMI_PHY_TST0);
 }
 
 static inline void hdmi_phy_test_din(struct mxc_hdmi *hdmi,
 						unsigned char bit)
 {
-	writeb(bit, hdmi->base + HDMI_PHY_TST1);
+	hdmi_writeb(bit, HDMI_PHY_TST1);
 }
 
 static inline void hdmi_phy_test_dout(struct mxc_hdmi *hdmi,
 						unsigned char bit)
 {
-	writeb(bit, hdmi->base + HDMI_PHY_TST2);
-}
-
-static int hdmi_phy_test_control(struct mxc_hdmi *hdmi, unsigned char value)
-{
-	hdmi_phy_test_din(hdmi, value);
-	hdmi_phy_test_enable(hdmi, 1);
-	hdmi_phy_test_clock(hdmi, 1);
-	hdmi_phy_test_clock(hdmi, 0);
-	hdmi_phy_test_enable(hdmi, 0);
-
-	return TRUE;
-}
-
-static int hdmi_phy_test_data(struct mxc_hdmi *hdmi, unsigned char value)
-{
-	hdmi_phy_test_din(hdmi, value);
-	hdmi_phy_test_enable(hdmi, 0);
-	hdmi_phy_test_clock(hdmi, 1);
-	hdmi_phy_test_clock(hdmi, 0);
-
-	return TRUE;
+	hdmi_writeb(bit, HDMI_PHY_TST2);
 }
 
 int hdmi_phy_wait_i2c_done(struct mxc_hdmi *hdmi, int msec)
 {
 	unsigned char val = 0;
-	val = readb(hdmi->base + HDMI_IH_I2CMPHY_STAT0) & 0x3;
+	val = hdmi_readb(HDMI_IH_I2CMPHY_STAT0) & 0x3;
 	while (val == 0) {
 		udelay(1000);
 		if (msec-- == 0)
 			return FALSE;
-		val = readb(hdmi->base + HDMI_IH_I2CMPHY_STAT0) & 0x3;
+		val = hdmi_readb(HDMI_IH_I2CMPHY_STAT0) & 0x3;
 	}
 	return TRUE;
 }
@@ -1616,14 +634,14 @@ int hdmi_phy_wait_i2c_done(struct mxc_hdmi *hdmi, int msec)
 int hdmi_phy_i2c_write(struct mxc_hdmi *hdmi, unsigned short data,
 				unsigned char addr)
 {
-	writeb(0xFF, hdmi->base + HDMI_IH_I2CMPHY_STAT0);
-	writeb(addr, hdmi->base + HDMI_PHY_I2CM_ADDRESS_ADDR);
-	writeb((unsigned char)(data >> 8),
-		hdmi->base + HDMI_PHY_I2CM_DATAO_1_ADDR);
-	writeb((unsigned char)(data >> 0),
-		hdmi->base + HDMI_PHY_I2CM_DATAO_0_ADDR);
-	writeb(HDMI_PHY_I2CM_OPERATION_ADDR_WRITE,
-		hdmi->base + HDMI_PHY_I2CM_OPERATION_ADDR);
+	hdmi_writeb(0xFF, HDMI_IH_I2CMPHY_STAT0);
+	hdmi_writeb(addr, HDMI_PHY_I2CM_ADDRESS_ADDR);
+	hdmi_writeb((unsigned char)(data >> 8),
+		HDMI_PHY_I2CM_DATAO_1_ADDR);
+	hdmi_writeb((unsigned char)(data >> 0),
+		HDMI_PHY_I2CM_DATAO_0_ADDR);
+	hdmi_writeb(HDMI_PHY_I2CM_OPERATION_ADDR_WRITE,
+		HDMI_PHY_I2CM_OPERATION_ADDR);
 	hdmi_phy_wait_i2c_done(hdmi, 1000);
 	return TRUE;
 }
@@ -1632,13 +650,13 @@ unsigned short hdmi_phy_i2c_read(struct mxc_hdmi *hdmi, unsigned char addr)
 {
 	unsigned short data;
 	unsigned char msb = 0, lsb = 0;
-	writeb(0xFF, hdmi->base + HDMI_IH_I2CMPHY_STAT0);
-	writeb(addr, hdmi->base + HDMI_PHY_I2CM_ADDRESS_ADDR);
-	writeb(HDMI_PHY_I2CM_OPERATION_ADDR_READ,
-		hdmi->base + HDMI_PHY_I2CM_OPERATION_ADDR);
+	hdmi_writeb(0xFF, HDMI_IH_I2CMPHY_STAT0);
+	hdmi_writeb(addr, HDMI_PHY_I2CM_ADDRESS_ADDR);
+	hdmi_writeb(HDMI_PHY_I2CM_OPERATION_ADDR_READ,
+		HDMI_PHY_I2CM_OPERATION_ADDR);
 	hdmi_phy_wait_i2c_done(hdmi, 1000);
-	msb = readb(hdmi->base + HDMI_PHY_I2CM_DATAI_1_ADDR);
-	lsb = readb(hdmi->base + HDMI_PHY_I2CM_DATAI_0_ADDR);
+	msb = hdmi_readb(HDMI_PHY_I2CM_DATAI_1_ADDR);
+	lsb = hdmi_readb(HDMI_PHY_I2CM_DATAI_0_ADDR);
 	data = (msb << 8) | lsb;
 	return data;
 }
@@ -1658,7 +676,6 @@ int hdmi_phy_configure(struct mxc_hdmi *hdmi, unsigned char pRep,
 				unsigned char cRes, int cscOn, int audioOn,
 				int cecOn, int hdcpOn)
 {
-	unsigned short clk = 0, rep = 0;
 	u8 val;
 
 	/* color resolution 0 is 8 bit colour depth */
@@ -1670,44 +687,11 @@ int hdmi_phy_configure(struct mxc_hdmi *hdmi, unsigned char pRep,
 	else if (cRes != 8 && cRes != 12)
 		return FALSE;
 
-	switch (hdmi->hdmi_data.video_mode.mPixelClock) {
-	case 2520:
-		clk = 0x93C1;
-		rep = (cRes == 8) ? 0x6A4A : 0x6653;
-		break;
-	case 2700:
-		clk = 0x96C1;
-		rep = (cRes == 8) ? 0x6A4A : 0x6653;
-		break;
-	case 5400:
-		clk = 0x8CC3;
-		rep = (cRes == 8) ? 0x6A4A : 0x6653;
-		break;
-	case 7200:
-		clk = 0x90C4;
-		rep = (cRes == 8) ? 0x6A4A : 0x6654;
-		break;
-	case 7425:
-		clk = 0x95C8;
-		rep = (cRes == 8) ? 0x6A4A : 0x6654;
-		break;
-	case 10800:
-		clk = 0x98C6;
-		rep = (cRes == 8) ? 0x6A4A : 0x6653;
-		break;
-	case 14850:
-		clk = 0x89C9;
-		rep = (cRes == 8) ? 0x6A4A : 0x6654;
-		break;
-	default:
-		return FALSE;
-	}
-
 	if (cscOn)
 		val = HDMI_MC_FLOWCTRL_FEED_THROUGH_OFF_CSC_IN_PATH;
 	else
 		val = HDMI_MC_FLOWCTRL_FEED_THROUGH_OFF_CSC_BYPASS;
-	writeb(val, hdmi->base + HDMI_MC_FLOWCTRL);
+	hdmi_writeb(val, HDMI_MC_FLOWCTRL);
 
 #if 0
 	/* clock gate == 0 => turn on modules */
@@ -1738,39 +722,35 @@ int hdmi_phy_configure(struct mxc_hdmi *hdmi, unsigned char pRep,
 	val |= audioOn ? HDMI_MC_CLKDIS_AUDCLK_DISABLE_DISABLE :
 		HDMI_MC_CLKDIS_AUDCLK_DISABLE_ENABLE;
 #endif
-	writeb(val, hdmi->base + HDMI_MC_CLKDIS);
+	hdmi_writeb(val, HDMI_MC_CLKDIS);
 
 	/* gen2 tx power off */
-	val = readb(hdmi->base + HDMI_PHY_CONF0);
+	val = hdmi_readb(HDMI_PHY_CONF0);
 	val &= ~HDMI_PHY_CONF0_GEN2_TXPWRON_MASK;
 	val |= HDMI_PHY_CONF0_GEN2_TXPWRON_POWER_OFF;
-	writeb(val, hdmi->base + HDMI_PHY_CONF0);
+	hdmi_writeb(val, HDMI_PHY_CONF0);
 
 	/* gen2 pddq */
-	val = readb(hdmi->base + HDMI_PHY_CONF0);
+	val = hdmi_readb(HDMI_PHY_CONF0);
 	val &= ~HDMI_PHY_CONF0_GEN2_PDDQ_MASK;
 	val |= HDMI_PHY_CONF0_GEN2_PDDQ_ENABLE;
-	writeb(val, hdmi->base + HDMI_PHY_CONF0);
+	hdmi_writeb(val, HDMI_PHY_CONF0);
 
 	/* PHY reset */
-#if 0
-	writeb(HDMI_MC_PHYRSTZ_ASSERT, hdmi->base + HDMI_MC_PHYRSTZ);
-	writeb(HDMI_MC_PHYRSTZ_DEASSERT, hdmi->base + HDMI_MC_PHYRSTZ);
-#else
-	writeb(HDMI_MC_PHYRSTZ_DEASSERT, hdmi->base + HDMI_MC_PHYRSTZ);
-	writeb(HDMI_MC_PHYRSTZ_ASSERT, hdmi->base + HDMI_MC_PHYRSTZ);
-#endif
+	hdmi_writeb(HDMI_MC_PHYRSTZ_DEASSERT, HDMI_MC_PHYRSTZ);
+	hdmi_writeb(HDMI_MC_PHYRSTZ_ASSERT, HDMI_MC_PHYRSTZ);
 
-	writeb(HDMI_MC_HEACPHY_RST_ASSERT,
-		hdmi->base + HDMI_MC_HEACPHY_RST);
+	hdmi_writeb(HDMI_MC_HEACPHY_RST_ASSERT,
+		HDMI_MC_HEACPHY_RST);
 
 	hdmi_phy_test_clear(hdmi, 1);
-	writeb(HDMI_PHY_I2CM_SLAVE_ADDR_PHY_GEN2,
-			hdmi->base + HDMI_PHY_I2CM_SLAVE_ADDR);
+	hdmi_writeb(HDMI_PHY_I2CM_SLAVE_ADDR_PHY_GEN2,
+			HDMI_PHY_I2CM_SLAVE_ADDR);
 	hdmi_phy_test_clear(hdmi, 0);
 
 	switch (hdmi->hdmi_data.video_mode.mPixelClock) {
-	case 2520:
+	case 25200000: /* 60 Hz */
+	case 24780000: /* 59 Hz (rounded down from 59.94) */
 		switch (cRes) {
 		case 8:
 			/* PLL/MPLL Cfg */
@@ -1814,7 +794,7 @@ int hdmi_phy_configure(struct mxc_hdmi *hdmi, unsigned char pRep,
 			return FALSE;
 		}
 		break;
-	case 2700:
+	case 27000000:
 		switch (cRes) {
 		case 8:
 			hdmi_phy_i2c_write(hdmi, 0x01e0, 0x06);
@@ -1853,7 +833,7 @@ int hdmi_phy_configure(struct mxc_hdmi *hdmi, unsigned char pRep,
 			return FALSE;
 		}
 		break;
-	case 5400:
+	case 54000000:
 		switch (cRes) {
 		case 8:
 			hdmi_phy_i2c_write(hdmi, 0x0140, 0x06);
@@ -1892,7 +872,7 @@ int hdmi_phy_configure(struct mxc_hdmi *hdmi, unsigned char pRep,
 			return FALSE;
 		}
 		break;
-	case 7200:
+	case 72000000:
 		switch (cRes) {
 		case 8:
 			hdmi_phy_i2c_write(hdmi, 0x0140, 0x06);
@@ -1931,7 +911,7 @@ int hdmi_phy_configure(struct mxc_hdmi *hdmi, unsigned char pRep,
 			return FALSE;
 		}
 		break;
-	case 7425:
+	case 74250000:
 		switch (cRes) {
 		case 8:
 			hdmi_phy_i2c_write(hdmi, 0x0140, 0x06);
@@ -1970,7 +950,7 @@ int hdmi_phy_configure(struct mxc_hdmi *hdmi, unsigned char pRep,
 			return FALSE;
 		}
 		break;
-	case 10800:
+	case 108000000:
 		switch (cRes) {
 		case 8:
 			hdmi_phy_i2c_write(hdmi, 0x00a0, 0x06);
@@ -2009,7 +989,7 @@ int hdmi_phy_configure(struct mxc_hdmi *hdmi, unsigned char pRep,
 			return FALSE;
 		}
 		break;
-	case 14850:
+	case 148500000:
 		switch (cRes) {
 		case 8:
 			hdmi_phy_i2c_write(hdmi, 0x00a0, 0x06);
@@ -2049,23 +1029,26 @@ int hdmi_phy_configure(struct mxc_hdmi *hdmi, unsigned char pRep,
 		}
 		break;
 	default:
+		dev_err(&hdmi->pdev->dev,
+				"Pixel clock %d - unsupported by HDMI\n",
+				hdmi->hdmi_data.video_mode.mPixelClock);
 		return FALSE;
 	}
 
 	/* gen2 tx power on */
-	val = readb(hdmi->base + HDMI_PHY_CONF0);
+	val = hdmi_readb(HDMI_PHY_CONF0);
 	val &= ~HDMI_PHY_CONF0_GEN2_TXPWRON_MASK;
 	val |= HDMI_PHY_CONF0_GEN2_TXPWRON_POWER_ON;
-	writeb(val, hdmi->base + HDMI_PHY_CONF0);
+	hdmi_writeb(val, HDMI_PHY_CONF0);
 
-	val = readb(hdmi->base + HDMI_PHY_CONF0);
+	val = hdmi_readb(HDMI_PHY_CONF0);
 	val &= ~HDMI_PHY_CONF0_GEN2_PDDQ_MASK;
 	val |= HDMI_PHY_CONF0_GEN2_PDDQ_DISABLE;
-	writeb(val, hdmi->base + HDMI_PHY_CONF0);
+	hdmi_writeb(val, HDMI_PHY_CONF0);
 
 	udelay(1000);
 
-	if ((readb(hdmi->base + HDMI_PHY_STAT0) & 0x01) == 0)
+	if ((hdmi_readb(HDMI_PHY_STAT0) & 0x01) == 0)
 		return FALSE;
 
 	return TRUE;
@@ -2075,10 +1058,7 @@ void hdmi_phy_init(struct mxc_hdmi *hdmi, unsigned char de)
 {
 	u8 val;
 
-	/* configure the interrupt mask of source PHY. */
-	writeb(0xFF, hdmi->base + HDMI_PHY_MASK0);
-
-	val = readb(hdmi->base + HDMI_PHY_CONF0);
+	val = hdmi_readb(HDMI_PHY_CONF0);
 	/* set the DE polarity */
 	val |= (de << HDMI_PHY_CONF0_SELDATAENPOL_OFFSET) &
 		HDMI_PHY_CONF0_SELDATAENPOL_MASK;
@@ -2088,19 +1068,15 @@ void hdmi_phy_init(struct mxc_hdmi *hdmi, unsigned char de)
 	/* enable TMDS output */
 	val |= (1 << HDMI_PHY_CONF0_ENTMDS_OFFSET) &
 		HDMI_PHY_CONF0_ENTMDS_MASK;
-	writeb(val, hdmi->base + HDMI_PHY_CONF0);
+	hdmi_writeb(val, HDMI_PHY_CONF0);
 
-	/* PHY power down disable (i.e., enable PHY) */
-	val = readb(hdmi->base + HDMI_PHY_CONF0);
+	/* PHY power enable */
+	val = hdmi_readb(HDMI_PHY_CONF0);
 	val |= (1 << HDMI_PHY_CONF0_PDZ_OFFSET) &
 		HDMI_PHY_CONF0_PDZ_MASK;
-	writeb(val, hdmi->base + HDMI_PHY_CONF0);
+	hdmi_writeb(val, HDMI_PHY_CONF0);
 
 	hdmi_phy_configure(hdmi, 0, 8, FALSE, FALSE, FALSE, FALSE);
-}
-
-void hdmi_tx_tmds_clock(unsigned short tmdsclk, int i2cfsmode)
-{
 }
 
 void hdmi_tx_hdcp_config(struct mxc_hdmi *hdmi)
@@ -2113,46 +1089,158 @@ void hdmi_tx_hdcp_config(struct mxc_hdmi *hdmi)
 		de = HDMI_A_VIDPOLCFG_DATAENPOL_ACTIVE_LOW;
 
 	/* disable rx detect */
-	val = readb(hdmi->base + HDMI_A_HDCPCFG0);
+	val = hdmi_readb(HDMI_A_HDCPCFG0);
 	val &= HDMI_A_HDCPCFG0_RXDETECT_MASK;
 	val |= HDMI_A_HDCPCFG0_RXDETECT_DISABLE;
-	writeb(val, hdmi->base + HDMI_A_HDCPCFG0);
+	hdmi_writeb(val, HDMI_A_HDCPCFG0);
 
-	val = readb(hdmi->base + HDMI_A_VIDPOLCFG);
+	val = hdmi_readb(HDMI_A_VIDPOLCFG);
 	val &= HDMI_A_VIDPOLCFG_DATAENPOL_MASK;
 	val |= de;
-	writeb(val, hdmi->base + HDMI_A_VIDPOLCFG);
+	hdmi_writeb(val, HDMI_A_VIDPOLCFG);
 
-	val = readb(hdmi->base + HDMI_A_HDCPCFG1);
+	val = hdmi_readb(HDMI_A_HDCPCFG1);
 	val &= HDMI_A_HDCPCFG1_ENCRYPTIONDISABLE_MASK;
 	val |= HDMI_A_HDCPCFG1_ENCRYPTIONDISABLE_DISABLE;
-	writeb(val, hdmi->base + HDMI_A_HDCPCFG1);
-
-	hdmi_tx_tmds_clock(0, 0);
-}
-
-void hdmi_audio_mute(struct mxc_hdmi *hdmi, int en)
-{
-	u8 val;
-	val = readb(hdmi->base + HDMI_FC_AUDSCONF);
-	val &= HDMI_FC_AUDSCONF_AUD_PACKET_SAMPFIT_MASK;
-	val |= ((en == TRUE) ? 0xF : 0) <<
-		HDMI_FC_AUDSCONF_AUD_PACKET_SAMPFIT_OFFSET;
-	writeb(val, hdmi->base + HDMI_FC_AUDSCONF);
+	hdmi_writeb(val, HDMI_A_HDCPCFG1);
 }
 
 void preamble_filter_set(struct mxc_hdmi *hdmi, unsigned char value,
 				unsigned char channel)
 {
 	if (channel == 0)
-		writeb(value, hdmi->base + HDMI_FC_CH0PREAM);
+		hdmi_writeb(value, HDMI_FC_CH0PREAM);
 	else if (channel == 1)
-		writeb(value, hdmi->base + HDMI_FC_CH1PREAM);
+		hdmi_writeb(value, HDMI_FC_CH1PREAM);
 	else if (channel == 2)
-		writeb(value, hdmi->base + HDMI_FC_CH2PREAM);
+		hdmi_writeb(value, HDMI_FC_CH2PREAM);
 	else
 
 	return;
+}
+
+static void hdmi_config_AVI(struct mxc_hdmi *hdmi)
+{
+	u8 val;
+	u8 pix_fmt;
+	u8 act_ratio, coded_ratio, colorimetry, ext_colorimetry;
+	struct fb_videomode mode;
+	const struct fb_videomode *edid_mode;
+	bool aspect_16_9;
+
+	dev_dbg(&hdmi->pdev->dev, "set up AVI frame\n");
+
+	fb_var_to_videomode(&mode, &hdmi->fbi->var);
+	/* Use mode from list extracted from EDID to get aspect ratio */
+	if (!list_empty(&hdmi->fbi->modelist)) {
+		edid_mode = fb_find_nearest_mode(&mode, &hdmi->fbi->modelist);
+		if (edid_mode->flag & FB_MODE_ASPECT_16_9)
+			aspect_16_9 = true;
+		else
+			aspect_16_9 = false;
+	} else
+		aspect_16_9 = false;
+
+	/********************************************
+	 * AVI Data Byte 1
+	 ********************************************/
+	if (hdmi->edid_cfg.cea_ycbcr444)
+		pix_fmt = HDMI_FC_AVICONF0_PIX_FMT_YCBCR444;
+	else if (hdmi->edid_cfg.cea_ycbcr422)
+		pix_fmt = HDMI_FC_AVICONF0_PIX_FMT_YCBCR422;
+	else
+		pix_fmt = HDMI_FC_AVICONF0_PIX_FMT_RGB;
+
+	/*
+	 * Active format identification data is present in the AVI InfoFrame.
+	 * No scan info, no bar data
+	 */
+	val = pix_fmt |
+		HDMI_FC_AVICONF0_ACTIVE_FMT_INFO_PRESENT |
+		HDMI_FC_AVICONF0_BAR_DATA_NO_DATA |
+		HDMI_FC_AVICONF0_SCAN_INFO_NODATA;
+
+	hdmi_writeb(val, HDMI_FC_AVICONF0);
+
+	/********************************************
+	 * AVI Data Byte 2
+	 ********************************************/
+
+	/*  Set the Aspect Ratio */
+	if (aspect_16_9) {
+		act_ratio = HDMI_FC_AVICONF1_ACTIVE_ASPECT_RATIO_16_9;
+		coded_ratio = HDMI_FC_AVICONF1_CODED_ASPECT_RATIO_16_9;
+	} else {
+		act_ratio = HDMI_FC_AVICONF1_ACTIVE_ASPECT_RATIO_4_3;
+		coded_ratio = HDMI_FC_AVICONF1_CODED_ASPECT_RATIO_4_3;
+	}
+
+	/* Set up colorimetry */
+	if (hdmi->hdmi_data.enc_out_format == XVYCC444) {
+		colorimetry = HDMI_FC_AVICONF1_COLORIMETRY_EXTENDED_INFO;
+		if (hdmi->hdmi_data.colorimetry == eITU601)
+			ext_colorimetry =
+				HDMI_FC_AVICONF2_EXT_COLORIMETRY_XVYCC601;
+		else /* hdmi->hdmi_data.colorimetry == eITU709 */
+			ext_colorimetry =
+				HDMI_FC_AVICONF2_EXT_COLORIMETRY_XVYCC709;
+	} else if (hdmi->hdmi_data.enc_out_format != RGB) {
+		if (hdmi->hdmi_data.colorimetry == eITU601)
+			colorimetry = HDMI_FC_AVICONF1_COLORIMETRY_SMPTE;
+		else /* hdmi->hdmi_data.colorimetry == eITU709 */
+			colorimetry = HDMI_FC_AVICONF1_COLORIMETRY_ITUR;
+		ext_colorimetry = HDMI_FC_AVICONF2_EXT_COLORIMETRY_XVYCC601;
+	} else { /* Carries no data */
+		colorimetry = HDMI_FC_AVICONF1_COLORIMETRY_NO_DATA;
+		ext_colorimetry = HDMI_FC_AVICONF2_EXT_COLORIMETRY_XVYCC601;
+	}
+
+	val = colorimetry | coded_ratio | act_ratio;
+	hdmi_writeb(val, HDMI_FC_AVICONF1);
+
+	/********************************************
+	 * AVI Data Byte 3
+	 ********************************************/
+
+	val = HDMI_FC_AVICONF2_IT_CONTENT_NO_DATA | ext_colorimetry |
+		HDMI_FC_AVICONF2_RGB_QUANT_DEFAULT |
+		HDMI_FC_AVICONF2_SCALING_NONE;
+	hdmi_writeb(val, HDMI_FC_AVICONF2);
+
+	/********************************************
+	 * AVI Data Byte 4
+	 ********************************************/
+	hdmi_writeb(hdmi->vic, HDMI_FC_AVIVID);
+
+	/********************************************
+	 * AVI Data Byte 5
+	 ********************************************/
+
+	/* Set up input and output pixel repetition */
+	val = (((hdmi->hdmi_data.video_mode.mPixelRepetitionInput + 1) <<
+		HDMI_FC_PRCONF_INCOMING_PR_FACTOR_OFFSET) &
+		HDMI_FC_PRCONF_INCOMING_PR_FACTOR_MASK) |
+		((hdmi->hdmi_data.video_mode.mPixelRepetitionOutput <<
+		HDMI_FC_PRCONF_OUTPUT_PR_FACTOR_OFFSET) &
+		HDMI_FC_PRCONF_OUTPUT_PR_FACTOR_MASK);
+	hdmi_writeb(val, HDMI_FC_PRCONF);
+
+	/* IT Content and quantization range = don't care */
+	val = HDMI_FC_AVICONF2_IT_CONTENT_TYPE_GRAPHICS |
+		HDMI_FC_AVICONF3_QUANT_RANGE_LIMITED;
+	hdmi_writeb(val, HDMI_FC_AVICONF3);
+
+	/********************************************
+	 * AVI Data Bytes 6-13
+	 ********************************************/
+	hdmi_writeb(0, HDMI_FC_AVIETB0);
+	hdmi_writeb(0, HDMI_FC_AVIETB1);
+	hdmi_writeb(0, HDMI_FC_AVISBB0);
+	hdmi_writeb(0, HDMI_FC_AVISBB1);
+	hdmi_writeb(0, HDMI_FC_AVIELB0);
+	hdmi_writeb(0, HDMI_FC_AVIELB1);
+	hdmi_writeb(0, HDMI_FC_AVISRB0);
+	hdmi_writeb(0, HDMI_FC_AVISRB1);
 }
 
 /*!
@@ -2162,113 +1250,103 @@ void hdmi_av_composer(struct mxc_hdmi *hdmi)
 {
 	unsigned char i = 0;
 	u8 val;
+	struct fb_info *fbi = hdmi->fbi;
+	struct fb_videomode fb_mode;
+	struct hdmi_vmode *vmode = &hdmi->hdmi_data.video_mode;
+	int hblank, vblank;
 
-	hdmi_set_video_mode(&hdmi->hdmi_data.video_mode);
+	fb_var_to_videomode(&fb_mode, &fbi->var);
+
+	vmode->mHSyncPolarity =
+		(fb_mode.sync & FB_SYNC_HOR_HIGH_ACT) ? TRUE : FALSE;
+	vmode->mVSyncPolarity =
+		(fb_mode.sync & FB_SYNC_VERT_HIGH_ACT) ? TRUE : FALSE;
+	vmode->mInterlaced =
+		(fb_mode.vmode & FB_VMODE_INTERLACED) ? TRUE : FALSE;
+	vmode->mPixelClock = (fb_mode.xres + fb_mode.left_margin +
+		fb_mode.right_margin + fb_mode.hsync_len) * (fb_mode.yres +
+		fb_mode.upper_margin + fb_mode.lower_margin +
+		fb_mode.vsync_len) * fb_mode.refresh;
+
+	/* Expose pixel clock for audio driver */
+	mxc_hdmi_pixel_clk = vmode->mPixelClock;
+
+	dev_dbg(&hdmi->pdev->dev, "final pixclk = %d\n", vmode->mPixelClock);
 
 	/* Set up HDMI_FC_INVIDCONF */
 	val = ((hdmi->hdmi_data.hdcp_enable == TRUE) ?
 		HDMI_FC_INVIDCONF_HDCP_KEEPOUT_ACTIVE :
 		HDMI_FC_INVIDCONF_HDCP_KEEPOUT_INACTIVE);
-	val |= ((hdmi->hdmi_data.video_mode.mVSyncPolarity == TRUE) ?
+	val |= ((vmode->mVSyncPolarity == TRUE) ?
 		HDMI_FC_INVIDCONF_VSYNC_IN_POLARITY_ACTIVE_HIGH :
 		HDMI_FC_INVIDCONF_VSYNC_IN_POLARITY_ACTIVE_LOW);
-	val |= ((hdmi->hdmi_data.video_mode.mHSyncPolarity == TRUE) ?
+	val |= ((vmode->mHSyncPolarity == TRUE) ?
 		HDMI_FC_INVIDCONF_HSYNC_IN_POLARITY_ACTIVE_HIGH :
 		HDMI_FC_INVIDCONF_HSYNC_IN_POLARITY_ACTIVE_LOW);
-	val |= ((hdmi->hdmi_data.video_mode.mDataEnablePolarity == TRUE) ?
+	val |= ((vmode->mDataEnablePolarity == TRUE) ?
 		HDMI_FC_INVIDCONF_DE_IN_POLARITY_ACTIVE_HIGH :
 		HDMI_FC_INVIDCONF_DE_IN_POLARITY_ACTIVE_LOW);
-	val |= ((hdmi->hdmi_data.video_mode.mHdmiDviSel == TRUE) ?
+	val |= ((vmode->mHdmiDviSel == TRUE) ?
 		HDMI_FC_INVIDCONF_DVI_MODEZ_HDMI_MODE :
 		HDMI_FC_INVIDCONF_DVI_MODEZ_DVI_MODE);
-	if (hdmi->hdmi_data.video_mode.mCode == 39)
+	if (hdmi->vic == 39)
 		val |= HDMI_FC_INVIDCONF_R_V_BLANK_IN_OSC_ACTIVE_HIGH;
 	else
-		val |= ((hdmi->hdmi_data.video_mode.mInterlaced == TRUE) ?
+		val |= ((vmode->mInterlaced == TRUE) ?
 			HDMI_FC_INVIDCONF_R_V_BLANK_IN_OSC_ACTIVE_HIGH :
 			HDMI_FC_INVIDCONF_R_V_BLANK_IN_OSC_ACTIVE_LOW);
-	val |= ((hdmi->hdmi_data.video_mode.mInterlaced == TRUE) ?
+	val |= ((vmode->mInterlaced == TRUE) ?
 		HDMI_FC_INVIDCONF_IN_I_P_INTERLACED :
 		HDMI_FC_INVIDCONF_IN_I_P_PROGRESSIVE);
-	writeb(val, hdmi->base + HDMI_FC_INVIDCONF);
+	hdmi_writeb(val, HDMI_FC_INVIDCONF);
 
 	/* Set up horizontal active pixel region width */
-	writeb(hdmi->hdmi_data.video_mode.mHActive,
-			hdmi->base + HDMI_FC_INHACTV0);
-	writeb(hdmi->hdmi_data.video_mode.mHActive >> 8,
-			hdmi->base + HDMI_FC_INHACTV1);
+	hdmi_writeb(fb_mode.xres,
+			HDMI_FC_INHACTV0);
+	hdmi_writeb(fb_mode.xres >> 8,
+			HDMI_FC_INHACTV1);
 
 	/* Set up horizontal blanking pixel region width */
-	writeb(hdmi->hdmi_data.video_mode.mHBlanking,
-			hdmi->base + HDMI_FC_INHBLANK0);
-	writeb(hdmi->hdmi_data.video_mode.mHBlanking >> 8,
-			hdmi->base + HDMI_FC_INHBLANK1);
+	hblank = fb_mode.left_margin + fb_mode.right_margin +
+		fb_mode.hsync_len;
+	hdmi_writeb(hblank, HDMI_FC_INHBLANK0);
+	hdmi_writeb(hblank >> 8, HDMI_FC_INHBLANK1);
 
 	/* Set up vertical blanking pixel region width */
-	writeb(hdmi->hdmi_data.video_mode.mVActive,
-			hdmi->base + HDMI_FC_INVACTV0);
-	writeb(hdmi->hdmi_data.video_mode.mVActive >> 8,
-			hdmi->base + HDMI_FC_INVACTV1);
+	hdmi_writeb(fb_mode.yres, HDMI_FC_INVACTV0);
+	hdmi_writeb(fb_mode.yres >> 8, HDMI_FC_INVACTV1);
 
 	/* Set up vertical blanking pixel region width */
-	writeb(hdmi->hdmi_data.video_mode.mVBlanking,
-			hdmi->base + HDMI_FC_INVBLANK);
+	vblank = fb_mode.upper_margin + fb_mode.lower_margin +
+		fb_mode.vsync_len;
+	hdmi_writeb(vblank, HDMI_FC_INVBLANK);
 
 	/* Set up HSYNC active edge delay width (in pixel clks) */
-	writeb(hdmi->hdmi_data.video_mode.mHSyncOffset,
-			hdmi->base + HDMI_FC_HSYNCINDELAY0);
-	writeb(hdmi->hdmi_data.video_mode.mHSyncOffset >> 8,
-			hdmi->base + HDMI_FC_HSYNCINDELAY1);
+	hdmi_writeb(fb_mode.right_margin, HDMI_FC_HSYNCINDELAY0);
+	hdmi_writeb(fb_mode.right_margin >> 8, HDMI_FC_HSYNCINDELAY1);
 
 	/* Set up HSYNC active pulse width (in pixel clks) */
-	writeb(hdmi->hdmi_data.video_mode.mHSyncPulseWidth,
-			hdmi->base + HDMI_FC_HSYNCINWIDTH0);
-	writeb(hdmi->hdmi_data.video_mode.mHSyncPulseWidth >> 8,
-			hdmi->base + HDMI_FC_HSYNCINWIDTH1);
-
-	/* Set up vertical blanking pixel region width */
-	writeb(hdmi->hdmi_data.video_mode.mVBlanking,
-			hdmi->base + HDMI_FC_INVBLANK);
+	hdmi_writeb(fb_mode.hsync_len, HDMI_FC_HSYNCINWIDTH0);
+	hdmi_writeb(fb_mode.hsync_len >> 8, HDMI_FC_HSYNCINWIDTH1);
 
 	/* Set up VSYNC active edge delay (in pixel clks) */
-	writeb(hdmi->hdmi_data.video_mode.mVSyncOffset,
-			hdmi->base + HDMI_FC_VSYNCINDELAY);
+	hdmi_writeb(fb_mode.lower_margin, HDMI_FC_VSYNCINDELAY);
 
 	/* Set up VSYNC active edge delay (in pixel clks) */
-	writeb(hdmi->hdmi_data.video_mode.mVSyncPulseWidth,
-			hdmi->base + HDMI_FC_VSYNCINWIDTH);
+	hdmi_writeb(fb_mode.vsync_len, HDMI_FC_VSYNCINWIDTH);
 
 	/* control period minimum duration */
-	writeb(12, hdmi->base + HDMI_FC_CTRLDUR);
-	writeb(32, hdmi->base + HDMI_FC_EXCTRLDUR);
-	writeb(1, hdmi->base + HDMI_FC_EXCTRLSPAC);
+	hdmi_writeb(12, HDMI_FC_CTRLDUR);
+	hdmi_writeb(32, HDMI_FC_EXCTRLDUR);
+	hdmi_writeb(1, HDMI_FC_EXCTRLSPAC);
 
 	for (i = 0; i < 3; i++)
 		preamble_filter_set(hdmi, (i + 1) * 11, i);
 
-	/* Set up input and output pixel repetition */
-	val = (((hdmi->hdmi_data.video_mode.mPixelRepetitionInput + 1) <<
-		HDMI_FC_PRCONF_INCOMING_PR_FACTOR_OFFSET) &
-		HDMI_FC_PRCONF_INCOMING_PR_FACTOR_MASK) |
-		((0 << HDMI_FC_PRCONF_INCOMING_PR_FACTOR_OFFSET) &
-		HDMI_FC_PRCONF_INCOMING_PR_FACTOR_MASK);
-	writeb(val, hdmi->base + HDMI_FC_PRCONF);
-
-	/* AVI - underscan , IT601 */
-	writeb(0x20, hdmi->base + HDMI_FC_AVICONF0);
-	writeb(0x40, hdmi->base + HDMI_FC_AVICONF1);
+	/* configure AVI InfoFrame */
+	hdmi_config_AVI(hdmi);
 }
 
-static void mxc_hdmi_poweron(struct mxc_hdmi *hdmi)
-{
-	struct fsl_mxc_lcd_platform_data *plat = hdmi->pdev->dev.platform_data;
-
-	dev_dbg(&hdmi->pdev->dev, "power on\n");
-
-	/* Enable pins to HDMI */
-	if (plat->enable_pins)
-		plat->enable_pins();
-}
 static int mxc_hdmi_read_edid(struct mxc_hdmi *hdmi,
 			struct fb_info *fbi)
 {
@@ -2287,9 +1365,20 @@ static int mxc_hdmi_read_edid(struct mxc_hdmi *hdmi,
 	return ret;
 }
 
+static void mxc_hdmi_poweron(struct mxc_hdmi *hdmi)
+{
+	struct fsl_mxc_hdmi_platform_data *plat = hdmi->pdev->dev.platform_data;
+
+	dev_dbg(&hdmi->pdev->dev, "power on\n");
+
+	/* Enable pins to HDMI */
+	if (plat->enable_pins)
+		plat->enable_pins();
+}
+
 static void mxc_hdmi_poweroff(struct mxc_hdmi *hdmi)
 {
-	struct fsl_mxc_lcd_platform_data *plat = hdmi->pdev->dev.platform_data;
+	struct fsl_mxc_hdmi_platform_data *plat = hdmi->pdev->dev.platform_data;
 
 	dev_dbg(&hdmi->pdev->dev, "power off\n");
 
@@ -2298,18 +1387,281 @@ static void mxc_hdmi_poweroff(struct mxc_hdmi *hdmi)
 		plat->disable_pins();
 }
 
+static void mxc_hdmi_rx_powerup(struct mxc_hdmi *hdmi)
+{
+	u8 val;
+
+	dev_dbg(&hdmi->pdev->dev, "rx power up\n");
+
+	/* Enable HDMI PHY - Set PDDQ=0 and TXPWRON=1 */
+	val = hdmi_readb(HDMI_PHY_CONF0);
+	val &= ~(HDMI_PHY_CONF0_GEN2_PDDQ_MASK |
+		HDMI_PHY_CONF0_GEN2_TXPWRON_MASK);
+	val |= HDMI_PHY_CONF0_GEN2_PDDQ_DISABLE |
+		HDMI_PHY_CONF0_GEN2_TXPWRON_POWER_ON;
+	hdmi_writeb(val, HDMI_PHY_CONF0);
+
+	if (hdmi->need_mode_change && hdmi->fb_reg) {
+		dev_dbg(&hdmi->pdev->dev, "HDMI changing FB mode\n");
+		hdmi->fbi->var.activate |= FB_ACTIVATE_FORCE;
+		console_lock();
+		hdmi->fbi->flags |= FBINFO_MISC_USEREVENT;
+		fb_set_var(hdmi->fbi, &hdmi->fbi->var);
+		hdmi->fbi->flags &= ~FBINFO_MISC_USEREVENT;
+		console_unlock();
+		hdmi->need_mode_change = false;
+	}
+}
+
+static void mxc_hdmi_rx_powerdown(struct mxc_hdmi *hdmi)
+{
+	u8 val;
+
+	dev_dbg(&hdmi->pdev->dev, "rx power down\n");
+
+	/* Disable HDMI PHY - Set PDDQ=1 and TXPWRON=0 */
+	val = hdmi_readb(HDMI_PHY_CONF0);
+	val &= ~(HDMI_PHY_CONF0_GEN2_PDDQ_MASK |
+		HDMI_PHY_CONF0_GEN2_TXPWRON_MASK);
+	val |= HDMI_PHY_CONF0_GEN2_PDDQ_ENABLE |
+		HDMI_PHY_CONF0_GEN2_TXPWRON_POWER_OFF;
+	hdmi_writeb(val, HDMI_PHY_CONF0);
+}
+
+static int mxc_hdmi_cable_connected(struct mxc_hdmi *hdmi)
+{
+	int ret;
+
+	dev_dbg(&hdmi->pdev->dev, "cable connected\n");
+
+	hdmi->cable_plugin = true;
+
+	/* edid read */
+	ret = mxc_hdmi_read_edid(hdmi, hdmi->fbi);
+	if (ret == -1)
+		dev_err(&hdmi->pdev->dev,
+				"read edid fail\n");
+	else if (ret == -2)
+		dev_info(&hdmi->pdev->dev,
+				"same edid\n");
+	else {
+		if (hdmi->fbi->monspecs.modedb_len > 0) {
+			int i;
+			const struct fb_videomode *mode;
+			struct fb_videomode m;
+
+			fb_destroy_modelist(&hdmi->fbi->modelist);
+
+			for (i = 0; i < hdmi->fbi->monspecs.modedb_len; i++) {
+				/*
+				 * Check whether mode is supported by HDMI.
+				 * We do not currently support interlaced modes
+				 */
+				if (mxc_edid_mode_to_vic(&hdmi->fbi->monspecs.modedb[i]) &&
+					!(hdmi->fbi->monspecs.modedb[i].vmode
+					& FB_VMODE_INTERLACED))
+					fb_add_videomode(&hdmi->fbi->monspecs.modedb[i],
+							&hdmi->fbi->modelist);
+			}
+
+			fb_var_to_videomode(&m, &hdmi->fbi->var);
+			mode = fb_find_nearest_mode(&m,
+					&hdmi->fbi->modelist);
+
+			fb_videomode_to_var(&hdmi->fbi->var, mode);
+			hdmi->need_mode_change = true;
+		}
+	}
+	return 0;
+}
+
+static void mxc_hdmi_cable_disconnected(struct mxc_hdmi *hdmi)
+{
+	hdmi->cable_plugin = false;
+}
+
+static void det_worker(struct work_struct *work)
+{
+	struct delayed_work *delay_work = to_delayed_work(work);
+	struct mxc_hdmi *hdmi =
+		container_of(delay_work, struct mxc_hdmi, det_work);
+	u32 phy_int_stat, phy_int_pol, phy_int_mask;
+	u8 val;
+
+	/* Use saved interrupt status, since it was cleared in IST */
+	phy_int_stat = hdmi->latest_intr_stat;
+	phy_int_pol = hdmi_readb(HDMI_PHY_POL0);
+
+	/* check cable status */
+	if (phy_int_stat & HDMI_IH_PHY_STAT0_HPD) {
+		/* cable connection changes */
+		if (phy_int_pol & HDMI_PHY_HPD) {
+			dev_dbg(&hdmi->pdev->dev, "EVENT=plugin");
+			mxc_hdmi_cable_connected(hdmi);
+
+			/* Make HPD intr active low to capture unplug event */
+			val = hdmi_readb(HDMI_PHY_POL0);
+			val &= ~HDMI_PHY_HPD;
+			hdmi_writeb(val, HDMI_PHY_POL0);
+		} else if (!(phy_int_pol & HDMI_PHY_HPD)) {
+			dev_dbg(&hdmi->pdev->dev, "EVENT=plugout");
+			mxc_hdmi_cable_disconnected(hdmi);
+
+			/* Make HPD intr active high to capture plugin event */
+			val = hdmi_readb(HDMI_PHY_POL0);
+			val |= HDMI_PHY_HPD;
+			hdmi_writeb(val, HDMI_PHY_POL0);
+		} else
+			dev_dbg(&hdmi->pdev->dev, "EVENT=none?");
+	}
+
+	/* check rx power */
+	if (phy_int_stat & HDMI_IH_PHY_RX_SENSE) {
+		if ((phy_int_pol & HDMI_PHY_RX_SENSE)) {
+			mxc_hdmi_rx_powerup(hdmi);
+
+			/* Change RX Sense pol to capture RX disable */
+			val = hdmi_readb(HDMI_PHY_POL0);
+			val &= ~HDMI_PHY_RX_SENSE;
+			hdmi_writeb(val, HDMI_PHY_POL0);
+		} else if (!(phy_int_pol & HDMI_PHY_RX_SENSE)) {
+			mxc_hdmi_rx_powerdown(hdmi);
+
+			/* Change RX Sense pol to capture RX enable */
+			val = hdmi_readb(HDMI_PHY_POL0);
+			val |= HDMI_PHY_RX_SENSE;
+			hdmi_writeb(val, HDMI_PHY_POL0);
+		} else
+			dev_err(&hdmi->pdev->dev,
+				"Received RX sense event but no change\n");
+	}
+
+	/* Re-enable RX Sense and HPD interrupts */
+	phy_int_mask = hdmi_readb(HDMI_PHY_MASK0);
+	phy_int_mask &= ~(HDMI_PHY_RX_SENSE | HDMI_PHY_HPD);
+	hdmi_writeb(phy_int_mask, HDMI_PHY_MASK0);
+}
+
+static irqreturn_t mxc_hdmi_hotplug(int irq, void *data)
+{
+	struct mxc_hdmi *hdmi = data;
+	u8 val, intr_stat;
+
+	/* Capture status - used in det_worker ISR */
+	intr_stat = hdmi_readb(HDMI_IH_PHY_STAT0);
+	if ((intr_stat & (HDMI_IH_PHY_RX_SENSE | HDMI_IH_PHY_STAT0_HPD)) == 0)
+		return IRQ_HANDLED;
+
+	dev_dbg(&hdmi->pdev->dev, "Hotplug interrupt received\n");
+	hdmi->latest_intr_stat = intr_stat;
+
+	/* Unmask interrupts until handled */
+	val = hdmi_readb(HDMI_PHY_MASK0);
+	val |= HDMI_PHY_RX_SENSE | HDMI_PHY_HPD;
+	hdmi_writeb(val, HDMI_PHY_MASK0);
+
+	/* Clear Hotplug/RX Sense interrupts */
+	hdmi_writeb(HDMI_IH_PHY_STAT0_HPD |
+		HDMI_IH_PHY_STAT0_TX_PHY_LOCK |
+		HDMI_IH_PHY_STAT0_RX_SENSE0 |
+		HDMI_IH_PHY_STAT0_RX_SENSE1 |
+		HDMI_IH_PHY_STAT0_RX_SENSE2 |
+		HDMI_IH_PHY_STAT0_RX_SENSE3,
+		HDMI_IH_PHY_STAT0);
+
+	schedule_delayed_work(&(hdmi->det_work), msecs_to_jiffies(20));
+
+	return IRQ_HANDLED;
+}
+
+static int mxc_hdmi_setup(struct mxc_hdmi *hdmi)
+{
+	struct fb_videomode m;
+	const struct fb_videomode *edid_mode;
+
+	fb_var_to_videomode(&m, &hdmi->fbi->var);
+	if (!list_empty(&hdmi->fbi->modelist)) {
+		edid_mode = fb_find_nearest_mode(&m, &hdmi->fbi->modelist);
+
+		hdmi->vic = mxc_edid_mode_to_vic(edid_mode);
+	} else
+		hdmi->vic = 0;
+
+	if (hdmi->vic == 0) {
+		dev_dbg(&hdmi->pdev->dev, "Non-CEA mode used in HDMI\n");
+		hdmi->vic = DEFAULT_VIDEO_MODE;
+		hdmi->hdmi_data.video_mode.mHdmiDviSel = FALSE;
+	} else
+		hdmi->hdmi_data.video_mode.mHdmiDviSel = TRUE;
+
+	if ((hdmi->vic == 6) || (hdmi->vic == 7) ||
+		(hdmi->vic == 21) || (hdmi->vic == 22) ||
+		(hdmi->vic == 2) || (hdmi->vic == 3) ||
+		(hdmi->vic == 17) || (hdmi->vic == 18))
+		hdmi->hdmi_data.colorimetry = eITU601;
+	else
+		hdmi->hdmi_data.colorimetry = eITU709;
+
+	if ((hdmi->vic == 10) || (hdmi->vic == 11) ||
+		(hdmi->vic == 12) || (hdmi->vic == 13) ||
+		(hdmi->vic == 14) || (hdmi->vic == 15) ||
+		(hdmi->vic == 25) || (hdmi->vic == 26) ||
+		(hdmi->vic == 27) || (hdmi->vic == 28) ||
+		(hdmi->vic == 29) || (hdmi->vic == 30) ||
+		(hdmi->vic == 35) || (hdmi->vic == 36) ||
+		(hdmi->vic == 37) || (hdmi->vic == 38))
+		hdmi->hdmi_data.video_mode.mPixelRepetitionOutput = 1;
+	else
+		hdmi->hdmi_data.video_mode.mPixelRepetitionOutput = 0;
+
+	hdmi->hdmi_data.video_mode.mPixelRepetitionInput = 0;
+
+	/* TODO: Get input format from IPU (via FB driver iface) */
+	hdmi->hdmi_data.enc_in_format = eRGB;
+
+	hdmi->hdmi_data.enc_out_format = RGB;
+	if (hdmi->edid_cfg.hdmi_cap) {
+		if (hdmi->edid_cfg.cea_ycbcr444)
+			hdmi->hdmi_data.enc_out_format = YCBCR444;
+		else if (hdmi->edid_cfg.cea_ycbcr422)
+			hdmi->hdmi_data.enc_out_format = YCBCR422_8BITS;
+	}
+
+	hdmi->hdmi_data.enc_color_depth = 8;
+	hdmi->hdmi_data.pix_repet_factor = 0;
+	hdmi->hdmi_data.hdcp_enable = 0;
+	hdmi->hdmi_data.video_mode.mDataEnablePolarity = TRUE;
+
+	hdmi_video_force_output(hdmi, TRUE);
+	hdmi_av_composer(hdmi);
+	hdmi_video_packetize(hdmi);
+	hdmi_video_csc(hdmi);
+	hdmi_video_sample(hdmi);
+	hdmi_tx_hdcp_config(hdmi);
+	hdmi_phy_init(hdmi, TRUE);
+	hdmi_video_force_output(hdmi, FALSE);
+
+	return 0;
+}
+
 static int mxc_hdmi_fb_event(struct notifier_block *nb,
 					unsigned long val, void *v)
 {
 	struct fb_event *event = v;
-	struct fb_info *fbi = event->info;
 	struct mxc_hdmi *hdmi = container_of(nb, struct mxc_hdmi, nb);
 
 	if (strcmp(event->info->fix.id, hdmi->fbi->fix.id))
 		return 0;
 
 	switch (val) {
+	case FB_EVENT_FB_REGISTERED:
+		hdmi->fb_reg = true;
+		break;
+	case FB_EVENT_FB_UNREGISTERED:
+		hdmi->fb_reg = false;
+		break;
 	case FB_EVENT_MODE_CHANGE:
+		mxc_hdmi_setup(hdmi);
 		break;
 	case FB_EVENT_BLANK:
 		if (*((int *)event->data) == FB_BLANK_UNBLANK)
@@ -2321,51 +1673,17 @@ static int mxc_hdmi_fb_event(struct notifier_block *nb,
 	return 0;
 }
 
-static bool hdmi_is_mode_equal(struct fb_videomode *mode1,
-	struct fb_videomode *mode2)
-{
-	if ((mode1->xres == mode2->xres) &&
-		(mode1->yres == mode2->yres) &&
-		((mode1->refresh >= mode2->refresh - 1) &&
-		(mode1->refresh <= mode2->refresh + 1)) &&
-		((mode1->flag & mode2->flag) == mode2->flag))
-		return true;
-	else
-		return false;
-}
-
-static int mxc_hdmi_get_vmode(struct fb_info *fbi)
-{
-	int i;
-	int vci_code = 0;
-	struct fb_videomode m;
-
-	fb_var_to_videomode(&m, &fbi->var);
-
-	for (i = 1; i < NUM_CEA_VIDEO_MODES; i++)
-		if (hdmi_is_mode_equal(&m, &hdmi_cea_video_modes[i-1])) {
-			vci_code = i;
-			break;
-		}
-
-	return vci_code;
-}
-
-
 static int mxc_hdmi_disp_init(struct mxc_dispdrv_entry *disp)
 {
 	int ret = 0;
 	struct mxc_hdmi *hdmi = mxc_dispdrv_getdata(disp);
 	struct mxc_dispdrv_setting *setting = mxc_dispdrv_getsetting(disp);
-	struct fsl_mxc_lcd_platform_data *plat = hdmi->pdev->dev.platform_data;
-	struct resource *res =
-		platform_get_resource(hdmi->pdev, IORESOURCE_MEM, 0);
+	struct fsl_mxc_hdmi_platform_data *plat = hdmi->pdev->dev.platform_data;
 	int irq = platform_get_irq(hdmi->pdev, 0);
 	bool found = false;
-	int i;
-	int mCode;
+	u8 val;
 
-	if (!res || !plat || irq < 0)
+	if (!plat || irq < 0)
 		return -ENODEV;
 
 	setting->dev_id = plat->ipu_id;
@@ -2374,29 +1692,16 @@ static int mxc_hdmi_disp_init(struct mxc_dispdrv_entry *disp)
 
 	hdmi->fbi = setting->fbi;
 
-	if (plat->io_reg) {
-		hdmi->io_reg = regulator_get(&hdmi->pdev->dev, plat->io_reg);
-		if (!IS_ERR(hdmi->io_reg)) {
-			regulator_set_voltage(hdmi->io_reg, 3300000, 3300000);
-			regulator_enable(hdmi->io_reg);
-		}
-	}
-	if (plat->analog_reg) {
-		hdmi->analog_reg =
-			regulator_get(&hdmi->pdev->dev, plat->analog_reg);
-		if (!IS_ERR(hdmi->analog_reg)) {
-			regulator_set_voltage(hdmi->analog_reg,
-						1300000, 1300000);
-			regulator_enable(hdmi->analog_reg);
-		}
-	}
-
 	/* Claim HDMI pins */
 	if (plat->get_pins)
 		if (!plat->get_pins()) {
 			ret = -EACCES;
 			goto egetpins;
 		}
+
+	/* Initialize HDMI */
+	if (plat->init)
+		plat->init(plat->ipu_id, plat->disp_id);
 
 	hdmi->hdmi_clk = clk_get(&hdmi->pdev->dev, "hdmi_isfr_clk");
 	if (IS_ERR(hdmi->hdmi_clk)) {
@@ -2414,68 +1719,58 @@ static int mxc_hdmi_disp_init(struct mxc_dispdrv_entry *disp)
 	}
 	dev_dbg(&hdmi->pdev->dev, "Enabled HDMI clocks\n");
 
-	if (!request_mem_region(res->start, resource_size(res),
-				dev_name(&hdmi->pdev->dev))) {
-		dev_err(&hdmi->pdev->dev,
-			"HDMI register region already claimed\n");
-		ret = -EBUSY;
-		goto ereqreg;
-	}
-
-	hdmi->base = ioremap(res->start, resource_size(res));
-	if (!hdmi->base) {
-		dev_err(&hdmi->pdev->dev,
-			"HDMI register iomap failed\n");
-		ret = -ENOMEM;
-		goto emap;
-	}
-
 	/* Product and revision IDs */
 	dev_info(&hdmi->pdev->dev,
 		"Detected HDMI controller 0x%x:0x%x:0x%x:0x%x\n",
-		readb(hdmi->base + HDMI_DESIGN_ID),
-		readb(hdmi->base + HDMI_REVISION_ID),
-		readb(hdmi->base + HDMI_PRODUCT_ID0),
-		readb(hdmi->base + HDMI_PRODUCT_ID1));
+		hdmi_readb(HDMI_DESIGN_ID),
+		hdmi_readb(HDMI_REVISION_ID),
+		hdmi_readb(HDMI_PRODUCT_ID0),
+		hdmi_readb(HDMI_PRODUCT_ID1));
 
-	ret = request_irq(irq, mxc_hdmi_hotplug, 0,
-			  dev_name(&hdmi->pdev->dev), hdmi);
-	if (ret < 0) {
-		dev_err(&hdmi->pdev->dev, "Unable to request irq: %d\n", ret);
-		goto ereqirq;
-	}
+	INIT_LIST_HEAD(&hdmi->fbi->modelist);
 
 	/* try to read edid */
 	ret = mxc_hdmi_read_edid(hdmi, hdmi->fbi);
 	if (ret < 0)
 		dev_warn(&hdmi->pdev->dev, "Can not read edid\n");
-	else {
-		INIT_LIST_HEAD(&hdmi->fbi->modelist);
-		if (hdmi->fbi->monspecs.modedb_len > 0) {
-			int i;
-			const struct fb_videomode *mode;
-			struct fb_videomode m;
+	else if (hdmi->fbi->monspecs.modedb_len > 0) {
+		int i;
+		const struct fb_videomode *mode;
+		struct fb_videomode m;
+		struct fb_var_screeninfo var;
 
-			for (i = 0; i < hdmi->fbi->monspecs.modedb_len; i++) {
-				/*FIXME now we do not support interlaced mode */
-				if (!(hdmi->fbi->monspecs.modedb[i].vmode
-						& FB_VMODE_INTERLACED)) {
-					fb_add_videomode(
-						&hdmi->fbi->monspecs.modedb[i],
-						&hdmi->fbi->modelist);
-				}
-			}
-
-			fb_find_mode(&hdmi->fbi->var, hdmi->fbi,
-				setting->dft_mode_str, NULL, 0, NULL,
-				setting->default_bpp);
-
-			fb_var_to_videomode(&m, &hdmi->fbi->var);
-			mode = fb_find_nearest_mode(&m,
+		for (i = 0; i < hdmi->fbi->monspecs.modedb_len; i++) {
+			/*
+			 * Check whether mode is supported by HDMI.
+			 * Also, we do not currently support interlaced modes
+			 */
+			fb_videomode_to_var(&var, &hdmi->fbi->monspecs.modedb[i]);
+			if (mxc_edid_mode_to_vic(&hdmi->fbi->monspecs.modedb[i]) &&
+				!(hdmi->fbi->monspecs.modedb[i].vmode
+				& FB_VMODE_INTERLACED)) {
+				dev_dbg(&hdmi->pdev->dev, "Adding mode %d:", i);
+				dev_dbg(&hdmi->pdev->dev,
+					"xres = %d, yres = %d, freq = %d\n",
+					hdmi->fbi->monspecs.modedb[i].xres,
+					hdmi->fbi->monspecs.modedb[i].yres,
+					hdmi->fbi->monspecs.modedb[i].refresh);
+				fb_add_videomode(
+					&hdmi->fbi->monspecs.modedb[i],
 					&hdmi->fbi->modelist);
-			fb_videomode_to_var(&hdmi->fbi->var, mode);
-			found = 1;
+			}
 		}
+
+		fb_find_mode(&hdmi->fbi->var, hdmi->fbi,
+			setting->dft_mode_str, NULL, 0, NULL,
+			setting->default_bpp);
+
+		fb_var_to_videomode(&m, &hdmi->fbi->var);
+		mode = fb_find_nearest_mode(&m,
+				&hdmi->fbi->modelist);
+		fb_videomode_to_var(&hdmi->fbi->var, mode);
+		found = 1;
+
+		hdmi->need_mode_change = true;
 	}
 
 	if (!found) {
@@ -2488,38 +1783,50 @@ static int mxc_hdmi_disp_init(struct mxc_dispdrv_entry *disp)
 		}
 	}
 
+	ret = request_irq(irq, mxc_hdmi_hotplug, IRQF_SHARED,
+			  dev_name(&hdmi->pdev->dev), hdmi);
+	if (ret < 0) {
+		dev_err(&hdmi->pdev->dev,
+			"Unable to request irq: %d\n", ret);
+		goto ereqirq;
+	}
+
+	INIT_DELAYED_WORK(&(hdmi->det_work), det_worker);
+
+	/* Configure registers related to HDMI interrupt
+	 * generation before registering IRQ. */
+	hdmi_writeb(HDMI_PHY_RX_SENSE | HDMI_PHY_HPD,
+		HDMI_PHY_POL0);
+
+	/* enable cable hot plug irq */
+	val = HDMI_PHY_RX_SENSE | HDMI_PHY_HPD;
+	val = ~val;
+	hdmi_writeb(val, HDMI_PHY_MASK0);
+
+	/* Clear Hotplug/RX Sense interrupts */
+	hdmi_writeb(HDMI_IH_PHY_STAT0_HPD |
+		HDMI_IH_PHY_STAT0_TX_PHY_LOCK |
+		HDMI_IH_PHY_STAT0_RX_SENSE0 |
+		HDMI_IH_PHY_STAT0_RX_SENSE1 |
+		HDMI_IH_PHY_STAT0_RX_SENSE2 |
+		HDMI_IH_PHY_STAT0_RX_SENSE3,
+		HDMI_IH_PHY_STAT0);
+
+	hdmi_writeb(~(HDMI_IH_PHY_STAT0_HPD |
+		HDMI_IH_PHY_STAT0_RX_SENSE0 |
+		HDMI_IH_PHY_STAT0_RX_SENSE1 |
+		HDMI_IH_PHY_STAT0_RX_SENSE2 |
+		HDMI_IH_PHY_STAT0_RX_SENSE3),
+		HDMI_IH_MUTE_PHY_STAT0);
+
 	hdmi->nb.notifier_call = mxc_hdmi_fb_event;
 	ret = fb_register_client(&hdmi->nb);
 	if (ret < 0)
 		goto efbclient;
 
-	mCode = mxc_hdmi_get_vmode(hdmi->fbi);
-	if (mCode == 0)
-		mCode = DEFAULT_VIDEO_MODE;
-
 	memset(&hdmi->hdmi_data, 0, sizeof(struct hdmi_data_info));
 
-	hdmi->hdmi_data.enc_in_format = eRGB;
-	hdmi->hdmi_data.enc_out_format = eRGB;
-	hdmi->hdmi_data.enc_color_depth = 8;
-	hdmi->hdmi_data.colorimetry = eITU601;
-	hdmi->hdmi_data.pix_repet_factor = 0;
-	hdmi->hdmi_data.hdcp_enable = 0;
-	hdmi->hdmi_data.video_mode.mCode = mCode;
-	hdmi->hdmi_data.video_mode.mHdmiDviSel = TRUE;
-	hdmi->hdmi_data.video_mode.mRVBlankInOSC = FALSE;
-	hdmi->hdmi_data.video_mode.mRefreshRate = 60000;
-	hdmi->hdmi_data.video_mode.mDataEnablePolarity = TRUE;
-
-	hdmi_video_force_output(hdmi, TRUE);
-	hdmi_av_composer(hdmi);
-	hdmi_video_packetize(hdmi);
-	hdmi_video_csc(hdmi);
-	hdmi_video_sample(hdmi);
-	hdmi_audio_mute(hdmi, TRUE);
-	hdmi_tx_hdcp_config(hdmi);
-	hdmi_phy_init(hdmi, TRUE);
-	hdmi_video_force_output(hdmi, FALSE);
+	mxc_hdmi_setup(hdmi);
 
 	return ret;
 
@@ -2527,10 +1834,6 @@ efbclient:
 	free_irq(irq, hdmi);
 efindmode:
 ereqirq:
-	iounmap(hdmi->base);
-emap:
-	release_mem_region(res->start, resource_size(res));
-ereqreg:
 	clk_disable(hdmi->hdmi_clk);
 erate:
 	clk_put(hdmi->hdmi_clk);
@@ -2542,7 +1845,7 @@ egetpins:
 static void mxc_hdmi_disp_deinit(struct mxc_dispdrv_entry *disp)
 {
 	struct mxc_hdmi *hdmi = mxc_dispdrv_getdata(disp);
-	struct fsl_mxc_lcd_platform_data *plat = hdmi->pdev->dev.platform_data;
+	struct fsl_mxc_hdmi_platform_data *plat = hdmi->pdev->dev.platform_data;
 
 	fb_unregister_client(&hdmi->nb);
 
@@ -2563,7 +1866,7 @@ static struct mxc_dispdrv_driver mxc_hdmi_drv = {
 	.deinit	= mxc_hdmi_disp_deinit,
 };
 
-static int __init mxc_hdmi_probe(struct platform_device *pdev)
+static int __devinit mxc_hdmi_probe(struct platform_device *pdev)
 {
 	struct mxc_hdmi *hdmi;
 	int ret = 0;
@@ -2581,6 +1884,14 @@ static int __init mxc_hdmi_probe(struct platform_device *pdev)
 
 	hdmi->pdev = pdev;
 
+	hdmi->core_pdev = platform_device_alloc("mxc_hdmi_core", -1);
+	if (!hdmi->core_pdev) {
+		pr_err("%s failed platform_device_alloc for hdmi core\n",
+			__func__);
+		ret = -ENOMEM;
+		goto ecore;
+	}
+
 	hdmi->disp_mxc_hdmi = mxc_dispdrv_register(&mxc_hdmi_drv);
 	if (IS_ERR(hdmi->disp_mxc_hdmi)) {
 		dev_err(&pdev->dev, "Failed to register dispdrv - 0x%x\n",
@@ -2594,16 +1905,16 @@ static int __init mxc_hdmi_probe(struct platform_device *pdev)
 
 	return 0;
 edispdrv:
+	platform_device_put(hdmi->core_pdev);
+ecore:
 	kfree(hdmi);
 ealloc:
 	return ret;
 }
 
-static int  mxc_hdmi_remove(struct platform_device *pdev)
+static int mxc_hdmi_remove(struct platform_device *pdev)
 {
-	struct fsl_mxc_lcd_platform_data *pdata = pdev->dev.platform_data;
 	struct mxc_hdmi *hdmi = platform_get_drvdata(pdev);
-	struct resource *res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	int irq = platform_get_irq(pdev, 0);
 
 	fb_unregister_client(&hdmi->nb);
@@ -2612,8 +1923,6 @@ static int  mxc_hdmi_remove(struct platform_device *pdev)
 	free_irq(irq, hdmi);
 	clk_disable(hdmi->hdmi_clk);
 	clk_put(hdmi->hdmi_clk);
-	iounmap(hdmi->base);
-	release_mem_region(res->start, resource_size(res));
 	kfree(hdmi);
 
 	return 0;
