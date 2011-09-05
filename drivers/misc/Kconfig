@@ -345,6 +345,10 @@ config UID_STAT
 	bool "UID based statistics tracking exported to /proc/uid_stat"
 	default n
 
+config IFACE_STAT
+	bool "Persistent interface statistics tracking exported to /proc/iface_stat"
+	default n
+
 config VMWARE_BALLOON
 	tristate "VMware Balloon Driver"
 	depends on X86
