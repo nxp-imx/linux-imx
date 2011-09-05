@@ -114,9 +114,9 @@
 #define _COMPONENT		ANATOP_THERMAL_COMPONENT
 #define KELVIN_OFFSET			273
 #define POLLING_FREQ			2000 /* 2s */
-#define TEMP_CRITICAL			323 /* 50 C*/
-#define TEMP_HOT				313 /* 40 C*/
-#define TEMP_ACTIVE				303 /* 30 C*/
+#define TEMP_CRITICAL			373 /* 100 C*/
+#define TEMP_HOT				363 /* 90 C*/
+#define TEMP_ACTIVE				353 /* 80 C*/
 #define MEASURE_FREQ			327  /* 327 RTC clocks delay, 10ms */
 #define CONVER_CONST			14113  /* need calibration */
 #define CONVER_DIV				17259
