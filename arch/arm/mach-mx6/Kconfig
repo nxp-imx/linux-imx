@@ -53,11 +53,4 @@ config MACH_MX6Q_SABREAUTO
 
 comment "MX6 Options:"
 
-config DMA_ZONE_SIZE
-        int "DMA memory zone size"
-        range 0 184
-        default 24
-        help
-          This is the size in MB for the DMA zone. The DMA zone is used for
-          dedicated memory for large contiguous video buffers
 endif
