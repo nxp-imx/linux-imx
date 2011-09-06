@@ -151,4 +151,12 @@ config CLK_DEBUG
 	help
 	  export clk debug information to user space
 
+config DMA_ZONE_SIZE
+        int "DMA memory zone size"
+        range 0 184
+        default 24
+        help
+          This is the size in MB for the DMA zone. The DMA zone is used for
+          dedicated memory for large contiguous video buffers
+
 endif

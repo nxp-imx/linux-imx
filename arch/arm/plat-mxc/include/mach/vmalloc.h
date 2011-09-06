@@ -1,6 +1,6 @@
 /*
  *  Copyright (C) 2000 Russell King.
- *  Copyright 2004-2007 Freescale Semiconductor, Inc. All Rights Reserved.
+ *  Copyright 2004-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -17,6 +17,6 @@
 #define __ASM_ARCH_MXC_VMALLOC_H__
 
 /* vmalloc ending address */
-#define VMALLOC_END       0xf4000000UL
+#define VMALLOC_END       0xf2000000UL
 
 #endif /* __ASM_ARCH_MXC_VMALLOC_H__ */
