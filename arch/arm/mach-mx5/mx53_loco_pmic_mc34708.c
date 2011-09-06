@@ -73,7 +73,7 @@
 					| SW4B_MODE_VALUE | SW5_MODE_VALUE)
 
 #define SWBST_MODE_MASK		(0x3 << 5)
-#define SWBST_MODE_VALUE	(0x0 << 5)
+#define SWBST_MODE_VALUE	(0x2 << 5)	/*Auto mode*/
 
 #define REG_SWBST_MODE_MASK	(SWBST_MODE_MASK)
 #define REG_SWBST_MODE_VALUE	(SWBST_MODE_VALUE)
