@@ -852,7 +852,7 @@ static void __init mx6_board_init(void)
 	imx6q_init_audio();
 
 	imx_asrc_data.asrc_core_clk = clk_get(NULL, "asrc_clk");
-	imx_asrc_data.asrc_audio_clk = clk_get(NULL, "mxc_alsa_spdif.1");
+	imx_asrc_data.asrc_audio_clk = clk_get(NULL, "asrc_serial_clk");
 	imx6q_add_asrc(&imx_asrc_data);
 
 	/* DISP0 Detect */
