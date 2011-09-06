@@ -2696,7 +2696,7 @@ static struct clk can2_clk[] = {
 	{
 	 __INIT_CLK_DEBUG(can2_module_clk)
 	.id = 0,
-	.parent = &pll3_sw_clk,
+	.parent = &pll3_60M,
 	.enable_reg = MXC_CCM_CCGR0,
 	.enable_shift = MXC_CCM_CCGRx_CG9_OFFSET,
 	.enable = _clk_enable,
@@ -2706,7 +2706,7 @@ static struct clk can2_clk[] = {
 	{
 	 __INIT_CLK_DEBUG(can2_serial_clk)
 	.id = 1,
-	.parent = &pll3_sw_clk,
+	.parent = &pll3_60M,
 	.enable_reg = MXC_CCM_CCGR0,
 	.enable_shift = MXC_CCM_CCGRx_CG10_OFFSET,
 	.enable = _clk_enable,
@@ -2719,7 +2719,7 @@ static struct clk can1_clk[] = {
 	{
 	 __INIT_CLK_DEBUG(can1_module_clk)
 	.id = 0,
-	.parent = &pll3_sw_clk,
+	.parent = &pll3_60M,
 	.enable_reg = MXC_CCM_CCGR0,
 	.enable_shift = MXC_CCM_CCGRx_CG7_OFFSET,
 	.enable = _clk_enable,
@@ -2729,7 +2729,7 @@ static struct clk can1_clk[] = {
 	{
 	 __INIT_CLK_DEBUG(can1_serial_clk)
 	.id = 1,
-	.parent = &pll3_sw_clk,
+	.parent = &pll3_60M,
 	.enable_reg = MXC_CCM_CCGR0,
 	.enable_shift = MXC_CCM_CCGRx_CG8_OFFSET,
 	.enable = _clk_enable,
@@ -2825,82 +2825,6 @@ static struct clk spdif0_clk[] = {
 	{
 	__INIT_CLK_DEBUG(spdif0_clk_1)
 	 .id = 1,
-	 .parent = &ipg_clk,
-	 .secondary = &spba_clk,
-	 },
-};
-
-static int _clk_spdif1_set_parent(struct clk *clk, struct clk *parent)
-{
-	u32 reg, mux;
-
-	reg = __raw_readl(MXC_CCM_CDCDR) & ~MXC_CCM_CDCDR_SPDIF1_CLK_SEL_MASK;
-
-	mux = _get_mux6(parent, &pll4_audio_main_clk, &pll3_pfd_508M,
-			&pll3_pfd_454M,	&pll3_sw_clk, NULL, NULL);
-	reg |= mux << MXC_CCM_CDCDR_SPDIF1_CLK_SEL_OFFSET;
-
-	__raw_writel(reg, MXC_CCM_CDCDR);
-
-	return 0;
-}
-
-static unsigned long _clk_spdif1_get_rate(struct clk *clk)
-{
-	u32 reg, pred, podf;
-
-	reg = __raw_readl(MXC_CCM_CDCDR);
-
-	pred = ((reg & MXC_CCM_CDCDR_SPDIF1_CLK_PRED_MASK)
-		>> MXC_CCM_CDCDR_SPDIF1_CLK_PRED_OFFSET) + 1;
-	podf = ((reg & MXC_CCM_CDCDR_SPDIF1_CLK_PODF_MASK)
-		>> MXC_CCM_CDCDR_SPDIF1_CLK_PODF_OFFSET) + 1;
-
-	return clk_get_rate(clk->parent) / (pred * podf);
-}
-
-static int _clk_spdif1_set_rate(struct clk *clk, unsigned long rate)
-{
-	u32 reg, div, pre, post;
-	u32 parent_rate = clk_get_rate(clk->parent);
-
-	div = parent_rate / rate;
-	if (div == 0)
-		div++;
-	if (((parent_rate / div) != rate) || div > 64)
-		return -EINVAL;
-
-	__calc_pre_post_dividers(1 << 3, div, &pre, &post);
-
-	reg = __raw_readl(MXC_CCM_CDCDR);
-	reg &= ~(MXC_CCM_CDCDR_SPDIF1_CLK_PRED_MASK|
-		 MXC_CCM_CDCDR_SPDIF1_CLK_PODF_MASK);
-	reg |= (post - 1) << MXC_CCM_CDCDR_SPDIF1_CLK_PODF_OFFSET;
-	reg |= (pre - 1) << MXC_CCM_CDCDR_SPDIF1_CLK_PRED_OFFSET;
-
-	__raw_writel(reg, MXC_CCM_CDCDR);
-
-	return 0;
-}
-
-static struct clk spdif1_clk[] = {
-	{
-	__INIT_CLK_DEBUG(spdif1_clk_0)
-	.id = 0,
-	.parent = &pll3_sw_clk,
-	 .enable = _clk_enable,
-	 .enable_reg = MXC_CCM_CCGR5,
-	 .enable_shift = MXC_CCM_CCGRx_CG7_OFFSET,
-	 .disable = _clk_disable,
-	 .secondary = &spdif1_clk[1],
-	 .set_rate = _clk_spdif1_set_rate,
-	 .get_rate = _clk_spdif1_get_rate,
-	 .set_parent = _clk_spdif1_set_parent,
-	 .round_rate = _clk_spdif_round_rate,
-	},
-	{
-	__INIT_CLK_DEBUG(spdif1_clk_1)
-	 .id = 0,
 	 .parent = &ipg_clk,
 	 .secondary = &spba_clk,
 	 },
@@ -3549,7 +3473,76 @@ static struct clk caam_clk[] = {
 	},
 };
 
-static struct clk asrc_clk = {
+static int _clk_asrc_serial_set_parent(struct clk *clk, struct clk *parent)
+{
+	u32 reg, mux;
+
+	reg = __raw_readl(MXC_CCM_CDCDR) & ~MXC_CCM_CDCDR_SPDIF1_CLK_SEL_MASK;
+
+	mux = _get_mux6(parent, &pll4_audio_main_clk, &pll3_pfd_508M,
+			&pll3_pfd_454M,	&pll3_sw_clk, NULL, NULL);
+	reg |= mux << MXC_CCM_CDCDR_SPDIF1_CLK_SEL_OFFSET;
+
+	__raw_writel(reg, MXC_CCM_CDCDR);
+
+	return 0;
+}
+
+static unsigned long _clk_asrc_serial_get_rate(struct clk *clk)
+{
+	u32 reg, pred, podf;
+
+	reg = __raw_readl(MXC_CCM_CDCDR);
+
+	pred = ((reg & MXC_CCM_CDCDR_SPDIF1_CLK_PRED_MASK)
+		>> MXC_CCM_CDCDR_SPDIF1_CLK_PRED_OFFSET) + 1;
+	podf = ((reg & MXC_CCM_CDCDR_SPDIF1_CLK_PODF_MASK)
+		>> MXC_CCM_CDCDR_SPDIF1_CLK_PODF_OFFSET) + 1;
+
+	return clk_get_rate(clk->parent) / (pred * podf);
+}
+
+static int _clk_asrc_serial_set_rate(struct clk *clk, unsigned long rate)
+{
+	u32 reg, div, pre, post;
+	u32 parent_rate = clk_get_rate(clk->parent);
+
+	div = parent_rate / rate;
+	if (div == 0)
+		div++;
+	if (((parent_rate / div) != rate) || div > 64)
+		return -EINVAL;
+
+	__calc_pre_post_dividers(1 << 3, div, &pre, &post);
+
+	reg = __raw_readl(MXC_CCM_CDCDR);
+	reg &= ~(MXC_CCM_CDCDR_SPDIF1_CLK_PRED_MASK|
+		 MXC_CCM_CDCDR_SPDIF1_CLK_PODF_MASK);
+	reg |= (post - 1) << MXC_CCM_CDCDR_SPDIF1_CLK_PODF_OFFSET;
+	reg |= (pre - 1) << MXC_CCM_CDCDR_SPDIF1_CLK_PRED_OFFSET;
+
+	__raw_writel(reg, MXC_CCM_CDCDR);
+
+	return 0;
+}
+
+static unsigned long _clk_asrc_serial_round_rate(struct clk *clk,
+						unsigned long rate)
+{
+	u32 pre, post;
+	u32 parent_rate = clk_get_rate(clk->parent);
+	u32 div = parent_rate / rate;
+
+	if (parent_rate % rate)
+		div++;
+
+	__calc_pre_post_dividers(1 << 3, div, &pre, &post);
+
+	return parent_rate / (pre * post);
+}
+
+static struct clk asrc_clk[] = {
+	{
 	__INIT_CLK_DEBUG(asrc_clk)
 	.id = 0,
 	.parent = &pll4_audio_main_clk,
@@ -3557,11 +3550,25 @@ static struct clk asrc_clk = {
 	.enable_shift = MXC_CCM_CCGRx_CG3_OFFSET,
 	.enable = _clk_enable,
 	.disable = _clk_disable,
+	},
+	{
+	/*In the MX6 spec, asrc_serial_clk is listed as SPDIF1 clk
+	 * This clock can never be gated and does  not have any
+	 * CCGR bits associated with it.
+	 */
+	__INIT_CLK_DEBUG(asrc_serial_clk)
+	.id = 1,
+	.parent = &pll3_sw_clk,
+	 .set_rate = _clk_asrc_serial_set_rate,
+	 .get_rate = _clk_asrc_serial_get_rate,
+	 .set_parent = _clk_asrc_serial_set_parent,
+	 .round_rate = _clk_asrc_serial_round_rate,
+	},
 };
 
 static struct clk apbh_dma_clk = {
 	__INIT_CLK_DEBUG(apbh_dma_clk)
-	.parent = &ahb_clk,
+	.parent = &usdhc3_clk,
 	.enable = _clk_enable,
 	.disable = _clk_disable_inwait,
 	.enable_reg = MXC_CCM_CCGR0,
@@ -4081,7 +4088,6 @@ static struct clk_lookup lookups[] = {
 	_REGISTER_CLOCK(NULL, "ldb_di0_clk", ldb_di0_clk),
 	_REGISTER_CLOCK(NULL, "ldb_di1_clk", ldb_di1_clk),
 	_REGISTER_CLOCK(NULL, "mxc_alsa_spdif.0", spdif0_clk[0]),
-	_REGISTER_CLOCK(NULL, "mxc_alsa_spdif.1", spdif1_clk[0]),
 	_REGISTER_CLOCK(NULL, "esai_clk", esai_clk),
 	_REGISTER_CLOCK("mxc_spi.0", NULL, ecspi_clk[0]),
 	_REGISTER_CLOCK("mxc_spi.1", NULL, ecspi_clk[1]),
@@ -4094,7 +4100,8 @@ static struct clk_lookup lookups[] = {
 	_REGISTER_CLOCK("imx-uart.0", NULL, uart_clk[0]),
 	_REGISTER_CLOCK(NULL, "hsi_tx", hsi_tx_clk),
 	_REGISTER_CLOCK(NULL, "caam_clk", caam_clk[0]),
-	_REGISTER_CLOCK(NULL, "asrc_clk", asrc_clk),
+	_REGISTER_CLOCK(NULL, "asrc_clk", asrc_clk[0]),
+	_REGISTER_CLOCK(NULL, "asrc_serial_clk", asrc_clk[1]),
 	_REGISTER_CLOCK("mxs-dma-apbh",	NULL, apbh_dma_clk),
 	_REGISTER_CLOCK(NULL, "openvg_axi_clk", openvg_axi_clk),
 	_REGISTER_CLOCK(NULL, "gpu3d_clk", gpu3d_core_clk),
@@ -4171,12 +4178,12 @@ int __init mx6_clocks_init(unsigned long ckil, unsigned long osc,
 	clk_set_rate(&gpu3d_core_clk, 528000000);
 
 	/*
-	 * FIXME: asrc needs to use spdif1 clock to do sample rate convertion,
+	 * FIXME: asrc needs to use asrc_serial(spdif1) clock to do sample rate convertion,
 	 * however we found it only works when set to 1.5M clock and the
 	 * parent is pll3_sw_clk.
 	 */
-	clk_set_parent(&spdif1_clk[0], &pll3_sw_clk);
-	clk_set_rate(&spdif1_clk[0], 1500000);
+	clk_set_parent(&asrc_clk[1], &pll3_sw_clk);
+	clk_set_rate(&asrc_clk[1], 1500000);
 
 	/* set the NAND to 11MHz. Too fast will cause dma timeout. */
 	clk_set_rate(&enfc_clk, enfc_clk.round_rate(&enfc_clk, 11000000));
@@ -4196,7 +4203,9 @@ int __init mx6_clocks_init(unsigned long ckil, unsigned long osc,
 			     3 << MXC_CCM_CCGRx_CG0_OFFSET, MXC_CCM_CCGR0);
 	}
 	__raw_writel(3 << MXC_CCM_CCGRx_CG10_OFFSET, MXC_CCM_CCGR1);
-	__raw_writel(3 << MXC_CCM_CCGRx_CG10_OFFSET |
+	__raw_writel(3 << MXC_CCM_CCGRx_CG12_OFFSET |
+		     3 << MXC_CCM_CCGRx_CG11_OFFSET |
+		     3 << MXC_CCM_CCGRx_CG10_OFFSET |
 		     3 << MXC_CCM_CCGRx_CG9_OFFSET |
 		     3 << MXC_CCM_CCGRx_CG8_OFFSET, MXC_CCM_CCGR2);
 	__raw_writel(3 << MXC_CCM_CCGRx_CG14_OFFSET |
