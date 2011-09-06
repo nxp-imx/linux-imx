@@ -1713,7 +1713,6 @@ static void do_task(struct ipu_soc *ipu, struct ipu_task_entry *t)
 	dev_dbg(t->dev, "[0x%p]task irq is %d\n", (void *)t, irq);
 
 	init_completion(&comp);
-	ipu_clear_irq(ipu, irq);
 	ret = ipu_request_irq(ipu, irq, task_irq_handler, 0, NULL, &comp);
 	if (ret < 0) {
 		t->state = STATE_IRQ_FAIL;
@@ -1768,27 +1767,6 @@ static void do_task(struct ipu_soc *ipu, struct ipu_task_entry *t)
 		t->state = STATE_IRQ_TIMEOUT;
 
 	ipu_free_irq(ipu, irq, &comp);
-	if (t->set.task & IC_VF) {
-		ipu_clear_irq(ipu, IPU_IRQ_PRP_IN_EOF);
-		ipu_clear_irq(ipu, IPU_IRQ_PRP_VF_OUT_EOF);
-	} else if (t->set.task & IC_PP) {
-		ipu_clear_irq(ipu, IPU_IRQ_PP_IN_EOF);
-		ipu_clear_irq(ipu, IPU_IRQ_PP_OUT_EOF);
-	} else if (t->set.task & VDI_VF) {
-		ipu_clear_irq(ipu, IPU_IRQ_VDI_C_IN_EOF);
-		if (deinterlace_3_field(t)) {
-			ipu_clear_irq(ipu, IPU_IRQ_VDI_P_IN_EOF);
-			ipu_clear_irq(ipu, IPU_IRQ_VDI_N_IN_EOF);
-		}
-		ipu_clear_irq(ipu, IPU_IRQ_PRP_VF_OUT_EOF);
-	}
-	if (t->set.task & ROT_VF) {
-		ipu_clear_irq(ipu, IPU_IRQ_PRP_VF_ROT_IN_EOF);
-		ipu_clear_irq(ipu, IPU_IRQ_PRP_VF_ROT_OUT_EOF);
-	} else if (t->set.task & ROT_PP) {
-		ipu_clear_irq(ipu, IPU_IRQ_PP_ROT_IN_EOF);
-		ipu_clear_irq(ipu, IPU_IRQ_PP_ROT_OUT_EOF);
-	}
 
 	if (only_ic(t->set.mode)) {
 		ipu_disable_channel(ipu, t->set.ic_chan, true);

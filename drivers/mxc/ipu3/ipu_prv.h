@@ -16,6 +16,7 @@
 #include <linux/types.h>
 #include <linux/device.h>
 #include <mach/clock.h>
+#include <linux/clkdev.h>
 #include <linux/interrupt.h>
 #include <linux/fsl_devices.h>
 
@@ -27,6 +28,8 @@
 
 /* Globals */
 extern int dmfc_type_setup;
+extern struct clk ipu_pixel_clk[];
+extern struct clk_lookup ipu_lookups[];
 
 #define IDMA_CHAN_INVALID	0xFF
 #define HIGH_RESOLUTION_WIDTH	1024
@@ -50,7 +53,6 @@ enum csc_type_t {
 struct ipu_soc {
 	/*clk*/
 	struct clk *ipu_clk;
-	bool clk_enabled;
 	struct clk *di_clk[2];
 	struct clk *csi_clk[2];
 	struct clk pixel_clk[2];
@@ -76,7 +78,6 @@ struct ipu_soc {
 	u32 *disp_base[2];
 	u32 *vdi_reg;
 
-	spinlock_t ipu_lock;
 	struct device *dev;
 
 	ipu_channel_t csi_channel[2];
@@ -89,6 +90,7 @@ struct ipu_soc {
 	uint32_t channel_enable_mask;
 
 	/*use count*/
+	atomic_t ipu_use_count;
 	int dc_use_count;
 	int dp_use_count;
 	int dmfc_use_count;
@@ -98,6 +100,9 @@ struct ipu_soc {
 	int vdi_use_count;
 	int di_use_count[2];
 	int csi_use_count[2];
+
+	struct mutex mutex_lock;
+	spinlock_t spin_lock;
 
 	int dmfc_size_28;
 	int dmfc_size_29;
@@ -315,5 +320,12 @@ void _ipu_csi_ccir_err_detection_disable(struct ipu_soc *ipu, uint32_t csi);
 void _ipu_smfc_init(struct ipu_soc *ipu, ipu_channel_t channel, uint32_t mipi_id, uint32_t csi);
 void _ipu_smfc_set_burst_size(struct ipu_soc *ipu, ipu_channel_t channel, uint32_t bs);
 void _ipu_dp_set_csc_coefficients(struct ipu_soc *ipu, ipu_channel_t channel, int32_t param[][3]);
-
+int32_t _ipu_disp_set_window_pos(struct ipu_soc *ipu, ipu_channel_t channel,
+		int16_t x_pos, int16_t y_pos);
+int32_t _ipu_disp_get_window_pos(struct ipu_soc *ipu, ipu_channel_t channel,
+		int16_t *x_pos, int16_t *y_pos);
+void _ipu_get(struct ipu_soc *ipu);
+void _ipu_put(struct ipu_soc *ipu);
+void _ipu_lock(struct ipu_soc *ipu);
+void _ipu_unlock(struct ipu_soc *ipu);
 #endif				/* __INCLUDE_IPU_PRV_H__ */
