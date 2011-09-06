@@ -41,6 +41,24 @@ struct ipu_ch_param {
 	} \
 }
 
+#define ipu_ch_param_set_field_io(base, w, bit, size, v) { \
+	int i = (bit) / 32; \
+	int off = (bit) % 32; \
+	unsigned reg_offset; \
+	u32 temp; \
+	reg_offset = sizeof(struct ipu_ch_param_word) * w / 4; \
+	reg_offset += i; \
+	temp = readl((u32 *)base + reg_offset); \
+	temp |= (v) << off; \
+	writel(temp, (u32 *)base + reg_offset); \
+	if (((bit)+(size)-1)/32 > i) { \
+		reg_offset++; \
+		temp = readl((u32 *)base + reg_offset); \
+		temp |= (v) >> (off ? (32 - off) : 0); \
+		writel(temp, (u32 *)base + reg_offset); \
+	} \
+}
+
 #define ipu_ch_param_mod_field(base, w, bit, size, v) { \
 	int i = (bit) / 32; \
 	int off = (bit) % 32; \
@@ -56,6 +74,27 @@ struct ipu_ch_param {
 	} \
 }
 
+#define ipu_ch_param_mod_field_io(base, w, bit, size, v) { \
+	int i = (bit) / 32; \
+	int off = (bit) % 32; \
+	u32 mask = (1UL << size) - 1; \
+	unsigned reg_offset; \
+	u32 temp; \
+	reg_offset = sizeof(struct ipu_ch_param_word) * w / 4; \
+	reg_offset += i; \
+	temp = readl((u32 *)base + reg_offset); \
+	temp &= ~(mask << off); \
+	temp |= (v) << off; \
+	writel(temp, (u32 *)base + reg_offset); \
+	if (((bit)+(size)-1)/32 > i) { \
+		reg_offset++; \
+		temp = readl((u32 *)base + reg_offset); \
+		temp &= ~(mask >> (32 - off)); \
+		temp |= ((v) >> (off ? (32 - off) : 0)); \
+		writel(temp, (u32 *)base + reg_offset); \
+	} \
+}
+
 #define ipu_ch_param_read_field(base, w, bit, size) ({ \
 	u32 temp2; \
 	int i = (bit) / 32; \
@@ -65,6 +104,25 @@ struct ipu_ch_param {
 	temp1 = mask & (temp1 >> off); \
 	if (((bit)+(size)-1)/32 > i) { \
 		temp2 = _param_word(base, w)[i + 1]; \
+		temp2 &= mask >> (off ? (32 - off) : 0); \
+		temp1 |= temp2 << (off ? (32 - off) : 0); \
+	} \
+	temp1; \
+})
+
+#define ipu_ch_param_read_field_io(base, w, bit, size) ({ \
+	u32 temp1, temp2; \
+	int i = (bit) / 32; \
+	int off = (bit) % 32; \
+	u32 mask = (1UL << size) - 1; \
+	unsigned reg_offset; \
+	reg_offset = sizeof(struct ipu_ch_param_word) * w / 4; \
+	reg_offset += i; \
+	temp1 = readl((u32 *)base + reg_offset); \
+	temp1 = mask & (temp1 >> off); \
+	if (((bit)+(size)-1)/32 > i) { \
+		reg_offset++; \
+		temp2 = readl((u32 *)base + reg_offset); \
 		temp2 &= mask >> (off ? (32 - off) : 0); \
 		temp1 |= temp2 << (off ? (32 - off) : 0); \
 	} \
@@ -126,35 +184,35 @@ static inline void _ipu_ch_param_dump(struct ipu_soc *ipu, int ch)
 		 p->word[1].data[0], p->word[1].data[1], p->word[1].data[2],
 		 p->word[1].data[3], p->word[1].data[4]);
 	dev_dbg(ipu->dev, "PFS 0x%x, ",
-		 ipu_ch_param_read_field(ipu_ch_param_addr(ipu, ch), 1, 85, 4));
+		 ipu_ch_param_read_field_io(ipu_ch_param_addr(ipu, ch), 1, 85, 4));
 	dev_dbg(ipu->dev, "BPP 0x%x, ",
-		 ipu_ch_param_read_field(ipu_ch_param_addr(ipu, ch), 0, 107, 3));
+		 ipu_ch_param_read_field_io(ipu_ch_param_addr(ipu, ch), 0, 107, 3));
 	dev_dbg(ipu->dev, "NPB 0x%x\n",
-		 ipu_ch_param_read_field(ipu_ch_param_addr(ipu, ch), 1, 78, 7));
+		 ipu_ch_param_read_field_io(ipu_ch_param_addr(ipu, ch), 1, 78, 7));
 
 	dev_dbg(ipu->dev, "FW %d, ",
-		 ipu_ch_param_read_field(ipu_ch_param_addr(ipu, ch), 0, 125, 13));
+		 ipu_ch_param_read_field_io(ipu_ch_param_addr(ipu, ch), 0, 125, 13));
 	dev_dbg(ipu->dev, "FH %d, ",
-		 ipu_ch_param_read_field(ipu_ch_param_addr(ipu, ch), 0, 138, 12));
+		 ipu_ch_param_read_field_io(ipu_ch_param_addr(ipu, ch), 0, 138, 12));
 	dev_dbg(ipu->dev, "Stride %d\n",
-		 ipu_ch_param_read_field(ipu_ch_param_addr(ipu, ch), 1, 102, 14));
+		 ipu_ch_param_read_field_io(ipu_ch_param_addr(ipu, ch), 1, 102, 14));
 
 	dev_dbg(ipu->dev, "Width0 %d+1, ",
-		 ipu_ch_param_read_field(ipu_ch_param_addr(ipu, ch), 1, 116, 3));
+		 ipu_ch_param_read_field_io(ipu_ch_param_addr(ipu, ch), 1, 116, 3));
 	dev_dbg(ipu->dev, "Width1 %d+1, ",
-		 ipu_ch_param_read_field(ipu_ch_param_addr(ipu, ch), 1, 119, 3));
+		 ipu_ch_param_read_field_io(ipu_ch_param_addr(ipu, ch), 1, 119, 3));
 	dev_dbg(ipu->dev, "Width2 %d+1, ",
-		 ipu_ch_param_read_field(ipu_ch_param_addr(ipu, ch), 1, 122, 3));
+		 ipu_ch_param_read_field_io(ipu_ch_param_addr(ipu, ch), 1, 122, 3));
 	dev_dbg(ipu->dev, "Width3 %d+1, ",
-		 ipu_ch_param_read_field(ipu_ch_param_addr(ipu, ch), 1, 125, 3));
+		 ipu_ch_param_read_field_io(ipu_ch_param_addr(ipu, ch), 1, 125, 3));
 	dev_dbg(ipu->dev, "Offset0 %d, ",
-		 ipu_ch_param_read_field(ipu_ch_param_addr(ipu, ch), 1, 128, 5));
+		 ipu_ch_param_read_field_io(ipu_ch_param_addr(ipu, ch), 1, 128, 5));
 	dev_dbg(ipu->dev, "Offset1 %d, ",
-		 ipu_ch_param_read_field(ipu_ch_param_addr(ipu, ch), 1, 133, 5));
+		 ipu_ch_param_read_field_io(ipu_ch_param_addr(ipu, ch), 1, 133, 5));
 	dev_dbg(ipu->dev, "Offset2 %d, ",
-		 ipu_ch_param_read_field(ipu_ch_param_addr(ipu, ch), 1, 138, 5));
+		 ipu_ch_param_read_field_io(ipu_ch_param_addr(ipu, ch), 1, 138, 5));
 	dev_dbg(ipu->dev, "Offset3 %d\n",
-		 ipu_ch_param_read_field(ipu_ch_param_addr(ipu, ch), 1, 143, 5));
+		 ipu_ch_param_read_field_io(ipu_ch_param_addr(ipu, ch), 1, 143, 5));
 }
 
 static inline void _ipu_ch_param_init(struct ipu_soc *ipu, int ch,
@@ -392,24 +450,24 @@ static inline void _ipu_ch_param_set_burst_size(struct ipu_soc *ipu,
 {
 	int32_t sub_ch = 0;
 
-	ipu_ch_param_mod_field(ipu_ch_param_addr(ipu, ch), 1, 78, 7,
+	ipu_ch_param_mod_field_io(ipu_ch_param_addr(ipu, ch), 1, 78, 7,
 			       burst_pixels - 1);
 
 	sub_ch = __ipu_ch_get_third_buf_cpmem_num(ch);
 	if (sub_ch <= 0)
 		return;
-	ipu_ch_param_mod_field(ipu_ch_param_addr(ipu, sub_ch), 1, 78, 7,
+	ipu_ch_param_mod_field_io(ipu_ch_param_addr(ipu, sub_ch), 1, 78, 7,
 			       burst_pixels - 1);
 };
 
 static inline int _ipu_ch_param_get_burst_size(struct ipu_soc *ipu, uint32_t ch)
 {
-	return ipu_ch_param_read_field(ipu_ch_param_addr(ipu, ch), 1, 78, 7) + 1;
+	return ipu_ch_param_read_field_io(ipu_ch_param_addr(ipu, ch), 1, 78, 7) + 1;
 };
 
 static inline int _ipu_ch_param_get_bpp(struct ipu_soc *ipu, uint32_t ch)
 {
-	return ipu_ch_param_read_field(ipu_ch_param_addr(ipu, ch), 0, 107, 3);
+	return ipu_ch_param_read_field_io(ipu_ch_param_addr(ipu, ch), 0, 107, 3);
 };
 
 static inline void _ipu_ch_param_set_buffer(struct ipu_soc *ipu, uint32_t ch,
@@ -422,7 +480,7 @@ static inline void _ipu_ch_param_set_buffer(struct ipu_soc *ipu, uint32_t ch,
 		bufNum = 0;
 	}
 
-	ipu_ch_param_mod_field(ipu_ch_param_addr(ipu, ch), 1, 29 * bufNum, 29,
+	ipu_ch_param_mod_field_io(ipu_ch_param_addr(ipu, ch), 1, 29 * bufNum, 29,
 			       phyaddr / 8);
 };
 
@@ -432,24 +490,24 @@ static inline void _ipu_ch_param_set_rotation(struct ipu_soc *ipu, uint32_t ch,
 	u32 temp_rot = bitrev8(rot) >> 5;
 	int32_t sub_ch = 0;
 
-	ipu_ch_param_mod_field(ipu_ch_param_addr(ipu, ch), 0, 119, 3, temp_rot);
+	ipu_ch_param_mod_field_io(ipu_ch_param_addr(ipu, ch), 0, 119, 3, temp_rot);
 
 	sub_ch = __ipu_ch_get_third_buf_cpmem_num(ch);
 	if (sub_ch <= 0)
 		return;
-	ipu_ch_param_mod_field(ipu_ch_param_addr(ipu, sub_ch), 0, 119, 3, temp_rot);
+	ipu_ch_param_mod_field_io(ipu_ch_param_addr(ipu, sub_ch), 0, 119, 3, temp_rot);
 };
 
 static inline void _ipu_ch_param_set_block_mode(struct ipu_soc *ipu, uint32_t ch)
 {
 	int32_t sub_ch = 0;
 
-	ipu_ch_param_mod_field(ipu_ch_param_addr(ipu, ch), 0, 117, 2, 1);
+	ipu_ch_param_mod_field_io(ipu_ch_param_addr(ipu, ch), 0, 117, 2, 1);
 
 	sub_ch = __ipu_ch_get_third_buf_cpmem_num(ch);
 	if (sub_ch <= 0)
 		return;
-	ipu_ch_param_mod_field(ipu_ch_param_addr(ipu, sub_ch), 0, 117, 2, 1);
+	ipu_ch_param_mod_field_io(ipu_ch_param_addr(ipu, sub_ch), 0, 117, 2, 1);
 };
 
 static inline void _ipu_ch_param_set_alpha_use_separate_channel(struct ipu_soc *ipu,
@@ -459,9 +517,9 @@ static inline void _ipu_ch_param_set_alpha_use_separate_channel(struct ipu_soc *
 	int32_t sub_ch = 0;
 
 	if (option) {
-		ipu_ch_param_mod_field(ipu_ch_param_addr(ipu, ch), 1, 89, 1, 1);
+		ipu_ch_param_mod_field_io(ipu_ch_param_addr(ipu, ch), 1, 89, 1, 1);
 	} else {
-		ipu_ch_param_mod_field(ipu_ch_param_addr(ipu, ch), 1, 89, 1, 0);
+		ipu_ch_param_mod_field_io(ipu_ch_param_addr(ipu, ch), 1, 89, 1, 0);
 	}
 
 	sub_ch = __ipu_ch_get_third_buf_cpmem_num(ch);
@@ -469,9 +527,9 @@ static inline void _ipu_ch_param_set_alpha_use_separate_channel(struct ipu_soc *
 		return;
 
 	if (option) {
-		ipu_ch_param_mod_field(ipu_ch_param_addr(ipu, sub_ch), 1, 89, 1, 1);
+		ipu_ch_param_mod_field_io(ipu_ch_param_addr(ipu, sub_ch), 1, 89, 1, 1);
 	} else {
-		ipu_ch_param_mod_field(ipu_ch_param_addr(ipu, sub_ch), 1, 89, 1, 0);
+		ipu_ch_param_mod_field_io(ipu_ch_param_addr(ipu, sub_ch), 1, 89, 1, 0);
 	}
 };
 
@@ -479,12 +537,12 @@ static inline void _ipu_ch_param_set_alpha_condition_read(struct ipu_soc *ipu, u
 {
 	int32_t sub_ch = 0;
 
-	ipu_ch_param_mod_field(ipu_ch_param_addr(ipu, ch), 1, 149, 1, 1);
+	ipu_ch_param_mod_field_io(ipu_ch_param_addr(ipu, ch), 1, 149, 1, 1);
 
 	sub_ch = __ipu_ch_get_third_buf_cpmem_num(ch);
 	if (sub_ch <= 0)
 		return;
-	ipu_ch_param_mod_field(ipu_ch_param_addr(ipu, sub_ch), 1, 149, 1, 1);
+	ipu_ch_param_mod_field_io(ipu_ch_param_addr(ipu, sub_ch), 1, 149, 1, 1);
 };
 
 static inline void _ipu_ch_param_set_alpha_buffer_memory(struct ipu_soc *ipu, uint32_t ch)
@@ -511,12 +569,12 @@ static inline void _ipu_ch_param_set_alpha_buffer_memory(struct ipu_soc *ipu, ui
 		return;
 	}
 
-	ipu_ch_param_mod_field(ipu_ch_param_addr(ipu, ch), 1, 90, 3, alp_mem_idx);
+	ipu_ch_param_mod_field_io(ipu_ch_param_addr(ipu, ch), 1, 90, 3, alp_mem_idx);
 
 	sub_ch = __ipu_ch_get_third_buf_cpmem_num(ch);
 	if (sub_ch <= 0)
 		return;
-	ipu_ch_param_mod_field(ipu_ch_param_addr(ipu, sub_ch), 1, 90, 3, alp_mem_idx);
+	ipu_ch_param_mod_field_io(ipu_ch_param_addr(ipu, sub_ch), 1, 90, 3, alp_mem_idx);
 };
 
 static inline void _ipu_ch_param_set_interlaced_scan(struct ipu_soc *ipu, uint32_t ch)
@@ -526,10 +584,10 @@ static inline void _ipu_ch_param_set_interlaced_scan(struct ipu_soc *ipu, uint32
 
 	sub_ch = __ipu_ch_get_third_buf_cpmem_num(ch);
 
-	ipu_ch_param_set_field(ipu_ch_param_addr(ipu, ch), 0, 113, 1, 1);
+	ipu_ch_param_set_field_io(ipu_ch_param_addr(ipu, ch), 0, 113, 1, 1);
 	if (sub_ch > 0)
-		ipu_ch_param_set_field(ipu_ch_param_addr(ipu, sub_ch), 0, 113, 1, 1);
-	stride = ipu_ch_param_read_field(ipu_ch_param_addr(ipu, ch), 1, 102, 14) + 1;
+		ipu_ch_param_set_field_io(ipu_ch_param_addr(ipu, sub_ch), 0, 113, 1, 1);
+	stride = ipu_ch_param_read_field_io(ipu_ch_param_addr(ipu, ch), 1, 102, 14) + 1;
 	/* ILO is 20-bit and 8-byte aligned */
 	if (stride/8 > 0xfffff)
 		dev_warn(ipu->dev,
@@ -537,27 +595,29 @@ static inline void _ipu_ch_param_set_interlaced_scan(struct ipu_soc *ipu, uint32
 	if (stride%8)
 		dev_warn(ipu->dev,
 			 "IDMAC%d's ILO is not 8-byte aligned\n", ch);
-	ipu_ch_param_mod_field(ipu_ch_param_addr(ipu, ch), 1, 58, 20, stride / 8);
+	ipu_ch_param_mod_field_io(ipu_ch_param_addr(ipu, ch), 1, 58, 20, stride / 8);
 	if (sub_ch > 0)
-		ipu_ch_param_mod_field(ipu_ch_param_addr(ipu, sub_ch), 1, 58, 20,
+		ipu_ch_param_mod_field_io(ipu_ch_param_addr(ipu, sub_ch), 1, 58, 20,
 				       stride / 8);
 	stride *= 2;
-	ipu_ch_param_mod_field(ipu_ch_param_addr(ipu, ch), 1, 102, 14, stride - 1);
+	ipu_ch_param_mod_field_io(ipu_ch_param_addr(ipu, ch), 1, 102, 14, stride - 1);
 	if (sub_ch > 0)
-		ipu_ch_param_mod_field(ipu_ch_param_addr(ipu, sub_ch), 1, 102, 14,
+		ipu_ch_param_mod_field_io(ipu_ch_param_addr(ipu, sub_ch), 1, 102, 14,
 				       stride - 1);
 };
 
-static inline void _ipu_ch_param_set_high_priority(struct ipu_soc *ipu, uint32_t ch)
+static inline void _ipu_ch_param_set_axi_id(struct ipu_soc *ipu, uint32_t ch, uint32_t id)
 {
 	int32_t sub_ch = 0;
 
-	ipu_ch_param_mod_field(ipu_ch_param_addr(ipu, ch), 1, 93, 2, 1);
+	id %= 4;
+
+	ipu_ch_param_mod_field_io(ipu_ch_param_addr(ipu, ch), 1, 93, 2, id);
 
 	sub_ch = __ipu_ch_get_third_buf_cpmem_num(ch);
 	if (sub_ch <= 0)
 		return;
-	ipu_ch_param_mod_field(ipu_ch_param_addr(ipu, sub_ch), 1, 93, 2, 1);
+	ipu_ch_param_mod_field_io(ipu_ch_param_addr(ipu, sub_ch), 1, 93, 2, id);
 };
 
 /* IDMAC U/V offset changing support */
@@ -713,26 +773,26 @@ static inline void _ipu_ch_offset_update(struct ipu_soc *ipu,
 		dev_warn(ipu->dev,
 			"IDMAC%d's V offset is not 8-byte aligned\n", ch);
 
-	ipu_ch_param_mod_field(ipu_ch_param_addr(ipu, ch), 0, 46, 22, u_offset / 8);
-	ipu_ch_param_mod_field(ipu_ch_param_addr(ipu, ch), 0, 68, 22, v_offset / 8);
+	ipu_ch_param_mod_field_io(ipu_ch_param_addr(ipu, ch), 0, 46, 22, u_offset / 8);
+	ipu_ch_param_mod_field_io(ipu_ch_param_addr(ipu, ch), 0, 68, 22, v_offset / 8);
 
 	sub_ch = __ipu_ch_get_third_buf_cpmem_num(ch);
 	if (sub_ch <= 0)
 		return;
-	ipu_ch_param_mod_field(ipu_ch_param_addr(ipu, sub_ch), 0, 46, 22, u_offset / 8);
-	ipu_ch_param_mod_field(ipu_ch_param_addr(ipu, sub_ch), 0, 68, 22, v_offset / 8);
+	ipu_ch_param_mod_field_io(ipu_ch_param_addr(ipu, sub_ch), 0, 46, 22, u_offset / 8);
+	ipu_ch_param_mod_field_io(ipu_ch_param_addr(ipu, sub_ch), 0, 68, 22, v_offset / 8);
 };
 
 static inline void _ipu_ch_params_set_alpha_width(struct ipu_soc *ipu, uint32_t ch, int alpha_width)
 {
 	int32_t sub_ch = 0;
 
-	ipu_ch_param_set_field(ipu_ch_param_addr(ipu, ch), 1, 125, 3, alpha_width - 1);
+	ipu_ch_param_set_field_io(ipu_ch_param_addr(ipu, ch), 1, 125, 3, alpha_width - 1);
 
 	sub_ch = __ipu_ch_get_third_buf_cpmem_num(ch);
 	if (sub_ch <= 0)
 		return;
-	ipu_ch_param_set_field(ipu_ch_param_addr(ipu, sub_ch), 1, 125, 3, alpha_width - 1);
+	ipu_ch_param_set_field_io(ipu_ch_param_addr(ipu, sub_ch), 1, 125, 3, alpha_width - 1);
 };
 
 #endif

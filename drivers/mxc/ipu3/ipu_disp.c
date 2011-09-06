@@ -26,6 +26,7 @@
 #include <linux/io.h>
 #include <linux/ipu.h>
 #include <linux/clk.h>
+#include <linux/err.h>
 #include <asm/atomic.h>
 #include <mach/clock.h>
 #include "ipu_prv.h"
@@ -44,6 +45,147 @@ struct dp_csc_param_t {
 #define DC_DISP_ID_SYNC(di)	(di)
 #define DC_DISP_ID_SERIAL	2
 #define DC_DISP_ID_ASYNC	3
+
+static inline struct ipu_soc *pixelclk2ipu(struct clk *clk)
+{
+	struct ipu_soc *ipu;
+	struct clk *base = clk - clk->id;
+
+	ipu = container_of(base, struct ipu_soc, pixel_clk[0]);
+
+	return ipu;
+}
+
+static unsigned long _ipu_pixel_clk_get_rate(struct clk *clk)
+{
+	struct ipu_soc *ipu = pixelclk2ipu(clk);
+	u32 div = ipu_di_read(ipu, clk->id, DI_BS_CLKGEN0);
+	if (div == 0)
+		return 0;
+	return  (clk_get_rate(clk->parent) * 16) / div;
+}
+
+static unsigned long _ipu_pixel_clk_round_rate(struct clk *clk, unsigned long rate)
+{
+	u32 div;
+	u32 parent_rate = clk_get_rate(clk->parent) * 16;
+	/*
+	 * Calculate divider
+	 * Fractional part is 4 bits,
+	 * so simply multiply by 2^4 to get fractional part.
+	 */
+	div = parent_rate / rate;
+
+	if (div < 0x10)            /* Min DI disp clock divider is 1 */
+		div = 0x10;
+	if (div & ~0xFEF)
+		div &= 0xFF8;
+	else {
+		/* Round up divider if it gets us closer to desired pix clk */
+		if ((div & 0xC) == 0xC) {
+			div += 0x10;
+			div &= ~0xF;
+		}
+	}
+	return parent_rate / div;
+}
+
+static int _ipu_pixel_clk_set_rate(struct clk *clk, unsigned long rate)
+{
+	struct ipu_soc *ipu = pixelclk2ipu(clk);
+	u32 div = (clk_get_rate(clk->parent) * 16) / rate;
+
+	/* Round up divider if it gets us closer to desired pix clk */
+	if ((div & 0xC) == 0xC) {
+		div += 0x10;
+		div &= ~0xF;
+	}
+
+	ipu_di_write(ipu, clk->id, div, DI_BS_CLKGEN0);
+
+	/* Setup pixel clock timing */
+	/* FIXME: needs to be more flexible */
+	/* Down time is half of period */
+	ipu_di_write(ipu, clk->id, (div / 16) << 16, DI_BS_CLKGEN1);
+
+	return 0;
+}
+
+static int _ipu_pixel_clk_enable(struct clk *clk)
+{
+	struct ipu_soc *ipu = pixelclk2ipu(clk);
+	u32 disp_gen = ipu_cm_read(ipu, IPU_DISP_GEN);
+	disp_gen |= clk->id ? DI1_COUNTER_RELEASE : DI0_COUNTER_RELEASE;
+	ipu_cm_write(ipu, disp_gen, IPU_DISP_GEN);
+
+	return 0;
+}
+
+static void _ipu_pixel_clk_disable(struct clk *clk)
+{
+	struct ipu_soc *ipu = pixelclk2ipu(clk);
+
+	u32 disp_gen = ipu_cm_read(ipu, IPU_DISP_GEN);
+	disp_gen &= clk->id ? ~DI1_COUNTER_RELEASE : ~DI0_COUNTER_RELEASE;
+	ipu_cm_write(ipu, disp_gen, IPU_DISP_GEN);
+}
+
+static int _ipu_pixel_clk_set_parent(struct clk *clk, struct clk *parent)
+{
+	struct ipu_soc *ipu = pixelclk2ipu(clk);
+	u32 di_gen;
+
+	di_gen = ipu_di_read(ipu, clk->id, DI_GENERAL);
+	if (parent == ipu->ipu_clk)
+		di_gen &= ~DI_GEN_DI_CLK_EXT;
+	else if (!IS_ERR(ipu->di_clk[clk->id]) && parent == ipu->di_clk[clk->id])
+		di_gen |= DI_GEN_DI_CLK_EXT;
+	else {
+		return -EINVAL;
+	}
+
+	ipu_di_write(ipu, clk->id, di_gen, DI_GENERAL);
+	return 0;
+}
+
+#ifdef CONFIG_CLK_DEBUG
+#define __INIT_CLK_DEBUG(n)    .name = #n,
+#else
+#define __INIT_CLK_DEBUG(n)
+#endif
+struct clk ipu_pixel_clk[] = {
+	{
+		__INIT_CLK_DEBUG(pixel_clk_0)
+			.id = 0,
+		.get_rate = _ipu_pixel_clk_get_rate,
+		.set_rate = _ipu_pixel_clk_set_rate,
+		.round_rate = _ipu_pixel_clk_round_rate,
+		.set_parent = _ipu_pixel_clk_set_parent,
+		.enable = _ipu_pixel_clk_enable,
+		.disable = _ipu_pixel_clk_disable,
+	},
+	{
+		__INIT_CLK_DEBUG(pixel_clk_1)
+			.id = 1,
+		.get_rate = _ipu_pixel_clk_get_rate,
+		.set_rate = _ipu_pixel_clk_set_rate,
+		.round_rate = _ipu_pixel_clk_round_rate,
+		.set_parent = _ipu_pixel_clk_set_parent,
+		.enable = _ipu_pixel_clk_enable,
+		.disable = _ipu_pixel_clk_disable,
+	},
+};
+
+struct clk_lookup ipu_lookups[] = {
+	{
+		.dev_id = NULL,
+		.con_id = "pixel_clk_0",
+	},
+	{
+		.dev_id = NULL,
+		.con_id = "pixel_clk_1",
+	},
+};
 
 int dmfc_type_setup;
 
@@ -764,7 +906,6 @@ static irqreturn_t dc_irq_handler(int irq, void *dev_id)
 void _ipu_dp_dc_disable(struct ipu_soc *ipu, ipu_channel_t channel, bool swap)
 {
 	int ret;
-	unsigned long lock_flags;
 	uint32_t reg;
 	uint32_t csc;
 	uint32_t dc_chan;
@@ -783,8 +924,6 @@ void _ipu_dp_dc_disable(struct ipu_soc *ipu, ipu_channel_t channel, bool swap)
 		/* Disable FG channel */
 		dc_chan = 5;
 
-		spin_lock_irqsave(&ipu->ipu_lock, lock_flags);
-
 		reg = ipu_dp_read(ipu, DP_COM_CONF(DP_SYNC));
 		csc = reg & DP_COM_CONF_CSC_DEF_MASK;
 		if (csc == DP_COM_CONF_CSC_DEF_FG)
@@ -795,8 +934,6 @@ void _ipu_dp_dc_disable(struct ipu_soc *ipu, ipu_channel_t channel, bool swap)
 
 		reg = ipu_cm_read(ipu, IPU_SRM_PRI2) | 0x8;
 		ipu_cm_write(ipu, reg, IPU_SRM_PRI2);
-
-		spin_unlock_irqrestore(&ipu->ipu_lock, lock_flags);
 
 		ipu_cm_write(ipu, IPUIRQ_2_MASK(IPU_IRQ_DP_SF_END),
 			     IPUIRQ_2_STATREG(IPU_IRQ_DP_SF_END));
@@ -813,7 +950,6 @@ void _ipu_dp_dc_disable(struct ipu_soc *ipu, ipu_channel_t channel, bool swap)
 	}
 
 	init_completion(&ipu->dc_comp);
-	ipu_clear_irq(ipu, irq);
 	ret = ipu_request_irq(ipu, irq, dc_irq_handler, 0, NULL, ipu);
 	if (ret < 0) {
 		dev_err(ipu->dev, "DC irq %d in use\n", irq);
@@ -824,14 +960,12 @@ void _ipu_dp_dc_disable(struct ipu_soc *ipu, ipu_channel_t channel, bool swap)
 	dev_dbg(ipu->dev, "DC stop timeout - %d * 10ms\n", 5 - ret);
 
 	if (ipu->dc_swap) {
-		spin_lock_irqsave(&ipu->ipu_lock, lock_flags);
 		/* Swap DC channel 1 and 5 settings, and disable old dc chan */
 		reg = ipu_dc_read(ipu, DC_WR_CH_CONF(dc_chan));
 		ipu_dc_write(ipu, reg, DC_WR_CH_CONF(6 - dc_chan));
 		reg &= ~DC_WR_CH_CONF_PROG_TYPE_MASK;
 		reg ^= DC_WR_CH_CONF_PROG_DI_ID;
 		ipu_dc_write(ipu, reg, DC_WR_CH_CONF(dc_chan));
-		spin_unlock_irqrestore(&ipu->ipu_lock, lock_flags);
 	} else
 		/* Clock is already off because it must be done quickly, but
 		   we need to fix the ref count */
@@ -971,6 +1105,12 @@ void _ipu_dp_set_csc_coefficients(struct ipu_soc *ipu, ipu_channel_t channel, in
 	__ipu_dp_csc_setup(ipu, dp, dp_csc_param, true);
 }
 
+void ipu_set_csc_coefficients(struct ipu_soc *ipu, ipu_channel_t channel, int32_t param[][3])
+{
+	_ipu_dp_set_csc_coefficients(ipu, channel, param);
+}
+EXPORT_SYMBOL(ipu_set_csc_coefficients);
+
 /*!
  * This function is called to adapt synchronous LCD panel to IPU restriction.
  *
@@ -1038,7 +1178,6 @@ int32_t ipu_init_sync_panel(struct ipu_soc *ipu, int disp, uint32_t pixel_clk,
 			    uint16_t v_sync_width, uint16_t v_end_width,
 			    uint32_t v_to_h_sync, ipu_di_signal_cfg_t sig)
 {
-	unsigned long lock_flags;
 	uint32_t field0_offset = 0;
 	uint32_t field1_offset;
 	uint32_t reg;
@@ -1108,7 +1247,7 @@ int32_t ipu_init_sync_panel(struct ipu_soc *ipu, int disp, uint32_t pixel_clk,
 	/* Get integer portion of divider */
 	div = clk_get_rate(clk_get_parent(&ipu->pixel_clk[disp])) / rounded_pixel_clk;
 
-	spin_lock_irqsave(&ipu->ipu_lock, lock_flags);
+	_ipu_lock(ipu);
 
 	_ipu_di_data_wave_config(ipu, disp, SYNC_WAVE, div - 1, div - 1);
 	_ipu_di_data_pin_config(ipu, disp, SYNC_WAVE, DI_PIN15, 3, 0, div * 2);
@@ -1116,7 +1255,7 @@ int32_t ipu_init_sync_panel(struct ipu_soc *ipu, int disp, uint32_t pixel_clk,
 	map = _ipu_pixfmt_to_map(pixel_fmt);
 	if (map < 0) {
 		dev_dbg(ipu->dev, "IPU_DISP: No MAP\n");
-		spin_unlock_irqrestore(&ipu->ipu_lock, lock_flags);
+		_ipu_unlock(ipu);
 		return -EINVAL;
 	}
 
@@ -1503,7 +1642,7 @@ int32_t ipu_init_sync_panel(struct ipu_soc *ipu, int disp, uint32_t pixel_clk,
 
 	ipu_dc_write(ipu, width, DC_DISP_CONF2(DC_DISP_ID_SYNC(disp)));
 
-	spin_unlock_irqrestore(&ipu->ipu_lock, lock_flags);
+	_ipu_unlock(ipu);
 
 	return 0;
 }
@@ -1511,14 +1650,13 @@ EXPORT_SYMBOL(ipu_init_sync_panel);
 
 void ipu_uninit_sync_panel(struct ipu_soc *ipu, int disp)
 {
-	unsigned long lock_flags;
 	uint32_t reg;
 	uint32_t di_gen;
 
 	if ((disp != 0) || (disp != 1))
 		return;
 
-	spin_lock_irqsave(&ipu->ipu_lock, lock_flags);
+	_ipu_lock(ipu);
 
 	di_gen = ipu_di_read(ipu, disp, DI_GENERAL);
 	di_gen |= 0x3ff | DI_GEN_POLARITY_DISP_CLK;
@@ -1528,14 +1666,13 @@ void ipu_uninit_sync_panel(struct ipu_soc *ipu, int disp)
 	reg |= 0x3ffffff;
 	ipu_di_write(ipu, disp, reg, DI_POL);
 
-	spin_unlock_irqrestore(&ipu->ipu_lock, lock_flags);
+	_ipu_unlock(ipu);
 }
 EXPORT_SYMBOL(ipu_uninit_sync_panel);
 
 int ipu_init_async_panel(struct ipu_soc *ipu, int disp, int type, uint32_t cycle_time,
 			 uint32_t pixel_fmt, ipu_adc_sig_cfg_t sig)
 {
-	unsigned long lock_flags;
 	int map;
 	u32 ser_conf = 0;
 	u32 div;
@@ -1549,7 +1686,7 @@ int ipu_init_async_panel(struct ipu_soc *ipu, int disp, int type, uint32_t cycle
 	if (map < 0)
 		return -EINVAL;
 
-	spin_lock_irqsave(&ipu->ipu_lock, lock_flags);
+	_ipu_lock(ipu);
 
 	if (type == IPU_PANEL_SERIAL) {
 		ipu_di_write(ipu, disp, (div << 24) | ((sig.ifc_width - 1) << 4),
@@ -1578,7 +1715,7 @@ int ipu_init_async_panel(struct ipu_soc *ipu, int disp, int type, uint32_t cycle
 		ipu_di_write(ipu, disp, ser_conf, DI_SER_CONF);
 	}
 
-	spin_unlock_irqrestore(&ipu->ipu_lock, lock_flags);
+	_ipu_unlock(ipu);
 	return 0;
 }
 EXPORT_SYMBOL(ipu_init_async_panel);
@@ -1603,7 +1740,6 @@ int32_t ipu_disp_set_global_alpha(struct ipu_soc *ipu, ipu_channel_t channel,
 {
 	uint32_t reg;
 	uint32_t flow;
-	unsigned long lock_flags;
 	bool bg_chan;
 
 	if (channel == MEM_BG_SYNC || channel == MEM_FG_SYNC)
@@ -1621,9 +1757,9 @@ int32_t ipu_disp_set_global_alpha(struct ipu_soc *ipu, ipu_channel_t channel,
 	else
 		bg_chan = false;
 
-	if (!ipu->clk_enabled)
-		clk_enable(ipu->ipu_clk);
-	spin_lock_irqsave(&ipu->ipu_lock, lock_flags);
+	_ipu_get(ipu);
+
+	_ipu_lock(ipu);
 
 	if (bg_chan) {
 		reg = ipu_dp_read(ipu, DP_COM_CONF(flow));
@@ -1648,9 +1784,9 @@ int32_t ipu_disp_set_global_alpha(struct ipu_soc *ipu, ipu_channel_t channel,
 	reg = ipu_cm_read(ipu, IPU_SRM_PRI2) | 0x8;
 	ipu_cm_write(ipu, reg, IPU_SRM_PRI2);
 
-	spin_unlock_irqrestore(&ipu->ipu_lock, lock_flags);
-	if (!ipu->clk_enabled)
-		clk_disable(ipu->ipu_clk);
+	_ipu_unlock(ipu);
+
+	_ipu_put(ipu);
 
 	return 0;
 }
@@ -1674,7 +1810,6 @@ int32_t ipu_disp_set_color_key(struct ipu_soc *ipu, ipu_channel_t channel,
 	uint32_t reg, flow;
 	int y, u, v;
 	int red, green, blue;
-	unsigned long lock_flags;
 
 	if (channel == MEM_BG_SYNC || channel == MEM_FG_SYNC)
 		flow = DP_SYNC;
@@ -1685,10 +1820,9 @@ int32_t ipu_disp_set_color_key(struct ipu_soc *ipu, ipu_channel_t channel,
 	else
 		return -EINVAL;
 
-	if (!ipu->clk_enabled)
-		clk_enable(ipu->ipu_clk);
+	_ipu_get(ipu);
 
-	spin_lock_irqsave(&ipu->ipu_lock, lock_flags);
+	_ipu_lock(ipu);
 
 	ipu->color_key_4rgb = true;
 	/* Transform color key from rgb to yuv if CSC is enabled */
@@ -1727,9 +1861,9 @@ int32_t ipu_disp_set_color_key(struct ipu_soc *ipu, ipu_channel_t channel,
 	reg = ipu_cm_read(ipu, IPU_SRM_PRI2) | 0x8;
 	ipu_cm_write(ipu, reg, IPU_SRM_PRI2);
 
-	spin_unlock_irqrestore(&ipu->ipu_lock, lock_flags);
-	if (!ipu->clk_enabled)
-		clk_disable(ipu->ipu_clk);
+	_ipu_unlock(ipu);
+
+	_ipu_put(ipu);
 
 	return 0;
 }
@@ -1752,7 +1886,6 @@ EXPORT_SYMBOL(ipu_disp_set_color_key);
 int32_t ipu_disp_set_gamma_correction(struct ipu_soc *ipu, ipu_channel_t channel, bool enable, int constk[], int slopek[])
 {
 	uint32_t reg, flow, i;
-	unsigned long lock_flags;
 
 	if (channel == MEM_BG_SYNC || channel == MEM_FG_SYNC)
 		flow = DP_SYNC;
@@ -1763,9 +1896,9 @@ int32_t ipu_disp_set_gamma_correction(struct ipu_soc *ipu, ipu_channel_t channel
 	else
 		return -EINVAL;
 
-	if (!ipu->clk_enabled)
-		clk_enable(ipu->ipu_clk);
-	spin_lock_irqsave(&ipu->ipu_lock, lock_flags);
+	_ipu_get(ipu);
+
+	_ipu_lock(ipu);
 
 	for (i = 0; i < 8; i++)
 		ipu_dp_write(ipu, (constk[2*i] & 0x1ff) | ((constk[2*i+1] & 0x1ff) << 16), DP_GAMMA_C(flow, i));
@@ -1786,9 +1919,9 @@ int32_t ipu_disp_set_gamma_correction(struct ipu_soc *ipu, ipu_channel_t channel
 	reg = ipu_cm_read(ipu, IPU_SRM_PRI2) | 0x8;
 	ipu_cm_write(ipu, reg, IPU_SRM_PRI2);
 
-	spin_unlock_irqrestore(&ipu->ipu_lock, lock_flags);
-	if (!ipu->clk_enabled)
-		clk_disable(ipu->ipu_clk);
+	_ipu_unlock(ipu);
+
+	_ipu_put(ipu);
 
 	return 0;
 }
@@ -1809,11 +1942,10 @@ EXPORT_SYMBOL(ipu_disp_set_gamma_correction);
  *
  * @return      Returns 0 on success or negative error code on fail
  */
-int32_t ipu_disp_set_window_pos(struct ipu_soc *ipu, ipu_channel_t channel,
+int32_t _ipu_disp_set_window_pos(struct ipu_soc *ipu, ipu_channel_t channel,
 				int16_t x_pos, int16_t y_pos)
 {
 	u32 reg;
-	unsigned long lock_flags;
 	uint32_t flow = 0;
 	uint32_t dp_srm_shift;
 
@@ -1829,11 +1961,6 @@ int32_t ipu_disp_set_window_pos(struct ipu_soc *ipu, ipu_channel_t channel,
 	} else
 		return -EINVAL;
 
-	if (!ipu->clk_enabled)
-		clk_enable(ipu->ipu_clk);
-
-	spin_lock_irqsave(&ipu->ipu_lock, lock_flags);
-
 	ipu_dp_write(ipu, (x_pos << 16) | y_pos, DP_FG_POS(flow));
 
 	if (ipu_is_channel_busy(ipu, channel)) {
@@ -1847,19 +1974,27 @@ int32_t ipu_disp_set_window_pos(struct ipu_soc *ipu, ipu_channel_t channel,
 		ipu_cm_write(ipu, reg, IPU_SRM_PRI2);
 	}
 
-	spin_unlock_irqrestore(&ipu->ipu_lock, lock_flags);
-	if (!ipu->clk_enabled)
-		clk_disable(ipu->ipu_clk);
-
 	return 0;
+}
+
+int32_t ipu_disp_set_window_pos(struct ipu_soc *ipu, ipu_channel_t channel,
+				int16_t x_pos, int16_t y_pos)
+{
+	int ret;
+
+	_ipu_get(ipu);
+	_ipu_lock(ipu);
+	ret = _ipu_disp_set_window_pos(ipu, channel, x_pos, y_pos);
+	_ipu_unlock(ipu);
+	_ipu_put(ipu);
+	return ret;
 }
 EXPORT_SYMBOL(ipu_disp_set_window_pos);
 
-int32_t ipu_disp_get_window_pos(struct ipu_soc *ipu, ipu_channel_t channel,
+int32_t _ipu_disp_get_window_pos(struct ipu_soc *ipu, ipu_channel_t channel,
 				int16_t *x_pos, int16_t *y_pos)
 {
 	u32 reg;
-	unsigned long lock_flags;
 	uint32_t flow = 0;
 
 	if (channel == MEM_FG_SYNC)
@@ -1871,20 +2006,24 @@ int32_t ipu_disp_get_window_pos(struct ipu_soc *ipu, ipu_channel_t channel,
 	else
 		return -EINVAL;
 
-	if (!ipu->clk_enabled)
-		clk_enable(ipu->ipu_clk);
-	spin_lock_irqsave(&ipu->ipu_lock, lock_flags);
-
 	reg = ipu_dp_read(ipu, DP_FG_POS(flow));
 
 	*x_pos = (reg >> 16) & 0x7FF;
 	*y_pos = reg & 0x7FF;
 
-	spin_unlock_irqrestore(&ipu->ipu_lock, lock_flags);
-	if (!ipu->clk_enabled)
-		clk_disable(ipu->ipu_clk);
-
 	return 0;
+}
+int32_t ipu_disp_get_window_pos(struct ipu_soc *ipu, ipu_channel_t channel,
+				int16_t *x_pos, int16_t *y_pos)
+{
+	int ret;
+
+	_ipu_get(ipu);
+	_ipu_lock(ipu);
+	ret = _ipu_disp_get_window_pos(ipu, channel, x_pos, y_pos);
+	_ipu_unlock(ipu);
+	_ipu_put(ipu);
+	return ret;
 }
 EXPORT_SYMBOL(ipu_disp_get_window_pos);
 
