@@ -2196,6 +2196,10 @@ static irqreturn_t fsl_udc_irq(int irq, void *_udc)
 	/* Clear notification bits */
 	fsl_writel(irq_src, &dr_regs->usbsts);
 
+	/* only handle enabled interrupt */
+	if (irq_src == 0x0)
+		goto irq_end;
+
 	VDBG("0x%x\n", irq_src);
 
 	/* Need to resume? */
