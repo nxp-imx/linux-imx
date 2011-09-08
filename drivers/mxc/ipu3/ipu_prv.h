@@ -51,6 +51,8 @@ enum csc_type_t {
 };
 
 struct ipu_soc {
+	bool online;
+
 	/*clk*/
 	struct clk *ipu_clk;
 	struct clk *di_clk[2];
