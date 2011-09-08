@@ -148,7 +148,7 @@ struct mxc_epdc_fb_data {
 	struct list_head upd_buf_free_list;
 	struct list_head upd_buf_collision_list;
 	struct update_data_list *cur_update;
-	spinlock_t queue_lock;
+	struct mutex queue_mutex;
 	int trt_entries;
 	int temp_index;
 	u8 *temp_range_bounds;
@@ -169,6 +169,8 @@ struct mxc_epdc_fb_data {
 	struct delayed_work epdc_done_work;
 	struct workqueue_struct *epdc_submit_workqueue;
 	struct work_struct epdc_submit_work;
+	struct workqueue_struct *epdc_intr_workqueue;
+	struct work_struct epdc_intr_work;
 	bool waiting_for_wb;
 	bool waiting_for_lut;
 	bool waiting_for_lut15;
@@ -1134,7 +1136,6 @@ static int mxc_epdc_fb_set_par(struct fb_info *info)
 	struct imx_epdc_fb_mode *epdc_modes = fb_data->pdata->epdc_mode;
 	int i;
 	int ret;
-	unsigned long flags;
 	__u32 xoffset_old, yoffset_old;
 
 	/*
@@ -1143,7 +1144,7 @@ static int mxc_epdc_fb_set_par(struct fb_info *info)
 	 */
 	mxc_epdc_fb_flush_updates(fb_data);
 
-	spin_lock_irqsave(&fb_data->queue_lock, flags);
+	mutex_lock(&fb_data->queue_mutex);
 	/*
 	 * Set all screeninfo except for xoffset/yoffset
 	 * Subsequent call to pan_display will handle those.
@@ -1153,7 +1154,7 @@ static int mxc_epdc_fb_set_par(struct fb_info *info)
 	fb_data->epdc_fb_var = *screeninfo;
 	fb_data->epdc_fb_var.xoffset = xoffset_old;
 	fb_data->epdc_fb_var.yoffset = yoffset_old;
-	spin_unlock_irqrestore(&fb_data->queue_lock, flags);
+	mutex_unlock(&fb_data->queue_mutex);
 
 	mutex_lock(&fb_data->pxp_mutex);
 
@@ -1467,12 +1468,11 @@ int mxc_epdc_fb_set_temperature(int temperature, struct fb_info *info)
 {
 	struct mxc_epdc_fb_data *fb_data = info ?
 		(struct mxc_epdc_fb_data *)info:g_fb_data;
-	unsigned long flags;
 
 	/* Store temp index. Used later when configuring updates. */
-	spin_lock_irqsave(&fb_data->queue_lock, flags);
+	mutex_lock(&fb_data->queue_mutex);
 	fb_data->temp_index = mxc_epdc_fb_get_temp_index(fb_data, temperature);
-	spin_unlock_irqrestore(&fb_data->queue_lock, flags);
+	mutex_unlock(&fb_data->queue_mutex);
 
 	return 0;
 }
@@ -1935,7 +1935,6 @@ static void epdc_submit_work_func(struct work_struct *work)
 	struct update_data_list *next_update, *temp_update;
 	struct update_desc_list *next_desc, *temp_desc;
 	struct update_marker_data *next_marker, *temp_marker;
-	unsigned long flags;
 	struct mxc_epdc_fb_data *fb_data =
 		container_of(work, struct mxc_epdc_fb_data, epdc_submit_work);
 	struct update_data_list *upd_data_list = NULL;
@@ -1944,7 +1943,7 @@ static void epdc_submit_work_func(struct work_struct *work)
 	int ret;
 
 	/* Protect access to buffer queues and to update HW */
-	spin_lock_irqsave(&fb_data->queue_lock, flags);
+	mutex_lock(&fb_data->queue_mutex);
 
 	/*
 	 * Are any of our collision updates able to go now?
@@ -2022,7 +2021,7 @@ static void epdc_submit_work_func(struct work_struct *work)
 		*/
 		if (!upd_data_list &&
 			list_empty(&fb_data->upd_buf_free_list)) {
-			spin_unlock_irqrestore(&fb_data->queue_lock, flags);
+			mutex_unlock(&fb_data->queue_mutex);
 			return;
 		}
 
@@ -2070,7 +2069,7 @@ static void epdc_submit_work_func(struct work_struct *work)
 	}
 
 	/* Release buffer queues */
-	spin_unlock_irqrestore(&fb_data->queue_lock, flags);
+	mutex_unlock(&fb_data->queue_mutex);
 
 	/* Is update list empty? */
 	if (!upd_data_list)
@@ -2080,7 +2079,7 @@ static void epdc_submit_work_func(struct work_struct *work)
 	if (epdc_process_update(upd_data_list, fb_data)) {
 		dev_dbg(fb_data->dev, "PXP processing error.\n");
 		/* Protect access to buffer queues and to update HW */
-		spin_lock_irqsave(&fb_data->queue_lock, flags);
+		mutex_lock(&fb_data->queue_mutex);
 		list_del_init(&upd_data_list->update_desc->list);
 		kfree(upd_data_list->update_desc);
 		upd_data_list->update_desc = NULL;
@@ -2088,7 +2087,7 @@ static void epdc_submit_work_func(struct work_struct *work)
 		list_add_tail(&upd_data_list->list,
 			&fb_data->upd_buf_free_list);
 		/* Release buffer queues */
-		spin_unlock_irqrestore(&fb_data->queue_lock, flags);
+		mutex_unlock(&fb_data->queue_mutex);
 		return;
 	}
 
@@ -2098,7 +2097,7 @@ static void epdc_submit_work_func(struct work_struct *work)
 		&adj_update_region);
 
 	/* Protect access to buffer queues and to update HW */
-	spin_lock_irqsave(&fb_data->queue_lock, flags);
+	mutex_lock(&fb_data->queue_mutex);
 
 	/*
 	 * Is the working buffer idle?
@@ -2114,9 +2113,9 @@ static void epdc_submit_work_func(struct work_struct *work)
 		fb_data->waiting_for_wb = true;
 
 		/* Leave spinlock while waiting for WB to complete */
-		spin_unlock_irqrestore(&fb_data->queue_lock, flags);
+		mutex_unlock(&fb_data->queue_mutex);
 		wait_for_completion(&fb_data->update_res_free);
-		spin_lock_irqsave(&fb_data->queue_lock, flags);
+		mutex_lock(&fb_data->queue_mutex);
 	}
 
 	/*
@@ -2133,9 +2132,9 @@ static void epdc_submit_work_func(struct work_struct *work)
 		fb_data->waiting_for_lut = true;
 
 		/* Leave spinlock while waiting for LUT to free up */
-		spin_unlock_irqrestore(&fb_data->queue_lock, flags);
+		mutex_unlock(&fb_data->queue_mutex);
 		wait_for_completion(&fb_data->update_res_free);
-		spin_lock_irqsave(&fb_data->queue_lock, flags);
+		mutex_lock(&fb_data->queue_mutex);
 	}
 
 	ret = epdc_choose_next_lut(&upd_data_list->lut_num);
@@ -2153,9 +2152,9 @@ static void epdc_submit_work_func(struct work_struct *work)
 		fb_data->waiting_for_lut15 = true;
 
 		/* Leave spinlock while waiting for LUT to free up */
-		spin_unlock_irqrestore(&fb_data->queue_lock, flags);
+		mutex_unlock(&fb_data->queue_mutex);
 		wait_for_completion(&fb_data->lut15_free);
-		spin_lock_irqsave(&fb_data->queue_lock, flags);
+		mutex_lock(&fb_data->queue_mutex);
 
 		epdc_choose_next_lut(&upd_data_list->lut_num);
 	} else if (ret) {
@@ -2166,7 +2165,7 @@ static void epdc_submit_work_func(struct work_struct *work)
 		epdc_eof_intr(true);
 
 		/* Leave spinlock while waiting for EOF event */
-		spin_unlock_irqrestore(&fb_data->queue_lock, flags);
+		mutex_unlock(&fb_data->queue_mutex);
 		ret = wait_for_completion_timeout(&fb_data->eof_event,
 			msecs_to_jiffies(1000));
 		if (!ret) {
@@ -2174,7 +2173,7 @@ static void epdc_submit_work_func(struct work_struct *work)
 			epdc_eof_intr(false);
 		}
 		udelay(fb_data->eof_sync_period);
-		spin_lock_irqsave(&fb_data->queue_lock, flags);
+		mutex_lock(&fb_data->queue_mutex);
 
 	}
 
@@ -2215,7 +2214,7 @@ static void epdc_submit_work_func(struct work_struct *work)
 			   false, 0);
 
 	/* Release buffer queues */
-	spin_unlock_irqrestore(&fb_data->queue_lock, flags);
+	mutex_unlock(&fb_data->queue_mutex);
 }
 
 
@@ -2225,7 +2224,6 @@ int mxc_epdc_fb_send_update(struct mxcfb_update_data *upd_data,
 	struct mxc_epdc_fb_data *fb_data = info ?
 		(struct mxc_epdc_fb_data *)info:g_fb_data;
 	struct update_data_list *upd_data_list = NULL;
-	unsigned long flags;
 	struct mxcfb_rect *screen_upd_region; /* Region on screen to update */
 	int temp_index;
 	int ret;
@@ -2284,7 +2282,7 @@ int mxc_epdc_fb_send_update(struct mxcfb_update_data *upd_data,
 		}
 	}
 
-	spin_lock_irqsave(&fb_data->queue_lock, flags);
+	mutex_lock(&fb_data->queue_mutex);
 
 	/*
 	 * If we are waiting to go into suspend, or the FB is blanked,
@@ -2294,7 +2292,7 @@ int mxc_epdc_fb_send_update(struct mxcfb_update_data *upd_data,
 		(fb_data->blank != FB_BLANK_UNBLANK)) {
 		dev_dbg(fb_data->dev, "EPDC not active."
 			"Update request abort.\n");
-		spin_unlock_irqrestore(&fb_data->queue_lock, flags);
+		mutex_unlock(&fb_data->queue_mutex);
 		return -EPERM;
 	}
 
@@ -2307,9 +2305,9 @@ int mxc_epdc_fb_send_update(struct mxcfb_update_data *upd_data,
 		 * other updates.  Block here until updates are flushed.
 		 */
 		if (upd_data->update_mode == UPDATE_MODE_FULL) {
-			spin_unlock_irqrestore(&fb_data->queue_lock, flags);
+			mutex_unlock(&fb_data->queue_mutex);
 			mxc_epdc_fb_flush_updates(fb_data);
-			spin_lock_irqsave(&fb_data->queue_lock, flags);
+			mutex_lock(&fb_data->queue_mutex);
 		}
 
 		/*
@@ -2319,7 +2317,7 @@ int mxc_epdc_fb_send_update(struct mxcfb_update_data *upd_data,
 		if (list_empty(&fb_data->upd_buf_free_list)) {
 			dev_err(fb_data->dev,
 				"No free intermediate buffers available.\n");
-			spin_unlock_irqrestore(&fb_data->queue_lock, flags);
+			mutex_unlock(&fb_data->queue_mutex);
 			return -ENOMEM;
 		}
 
@@ -2343,7 +2341,7 @@ int mxc_epdc_fb_send_update(struct mxcfb_update_data *upd_data,
 			list_add(&upd_data_list->list,
 				&fb_data->upd_buf_free_list);
 		}
-		spin_unlock_irqrestore(&fb_data->queue_lock, flags);
+		mutex_unlock(&fb_data->queue_mutex);
 		return -EPERM;
 	}
 	/* Initialize per-update marker list */
@@ -2359,7 +2357,7 @@ int mxc_epdc_fb_send_update(struct mxcfb_update_data *upd_data,
 				GFP_KERNEL);
 		if (!marker_data) {
 			dev_err(fb_data->dev, "No memory for marker!\n");
-			spin_unlock_irqrestore(&fb_data->queue_lock, flags);
+			mutex_unlock(&fb_data->queue_mutex);
 			return -ENOMEM;
 		}
 		list_add_tail(&marker_data->upd_list,
@@ -2375,7 +2373,7 @@ int mxc_epdc_fb_send_update(struct mxcfb_update_data *upd_data,
 	if (fb_data->upd_scheme != UPDATE_SCHEME_SNAPSHOT) {
 		/* Queued update scheme processing */
 
-		spin_unlock_irqrestore(&fb_data->queue_lock, flags);
+		mutex_unlock(&fb_data->queue_mutex);
 
 		/* Signal workqueue to handle new update */
 		queue_work(fb_data->epdc_submit_workqueue,
@@ -2390,7 +2388,7 @@ int mxc_epdc_fb_send_update(struct mxcfb_update_data *upd_data,
 	upd_data_list->update_desc = upd_desc;
 	list_del_init(&upd_desc->list);
 
-	spin_unlock_irqrestore(&fb_data->queue_lock, flags);
+	mutex_unlock(&fb_data->queue_mutex);
 
 	/*
 	 * Hold on to original screen update region, which we
@@ -2412,7 +2410,7 @@ int mxc_epdc_fb_send_update(struct mxcfb_update_data *upd_data,
 		NULL);
 
 	/* Grab lock for queue manipulation and update submission */
-	spin_lock_irqsave(&fb_data->queue_lock, flags);
+	mutex_lock(&fb_data->queue_mutex);
 
 	/*
 	 * Is the working buffer idle?
@@ -2424,7 +2422,7 @@ int mxc_epdc_fb_send_update(struct mxcfb_update_data *upd_data,
 		list_add_tail(&upd_data_list->list, &fb_data->upd_buf_queue);
 
 		/* Return and allow the update to be submitted by the ISR. */
-		spin_unlock_irqrestore(&fb_data->queue_lock, flags);
+		mutex_unlock(&fb_data->queue_mutex);
 		return 0;
 	}
 
@@ -2436,7 +2434,7 @@ int mxc_epdc_fb_send_update(struct mxcfb_update_data *upd_data,
 		list_add_tail(&upd_data_list->list, &fb_data->upd_buf_queue);
 
 		/* Return and allow the update to be submitted by the ISR. */
-		spin_unlock_irqrestore(&fb_data->queue_lock, flags);
+		mutex_unlock(&fb_data->queue_mutex);
 		return 0;
 	}
 
@@ -2475,7 +2473,7 @@ int mxc_epdc_fb_send_update(struct mxcfb_update_data *upd_data,
 			   upd_desc->upd_data.waveform_mode,
 			   upd_desc->upd_data.update_mode, false, 0);
 
-	spin_unlock_irqrestore(&fb_data->queue_lock, flags);
+	mutex_unlock(&fb_data->queue_mutex);
 	return 0;
 }
 EXPORT_SYMBOL(mxc_epdc_fb_send_update);
@@ -2486,7 +2484,6 @@ int mxc_epdc_fb_wait_update_complete(u32 update_marker, struct fb_info *info)
 		(struct mxc_epdc_fb_data *)info:g_fb_data;
 	struct update_marker_data *next_marker;
 	struct update_marker_data *temp;
-	unsigned long flags;
 	bool marker_found = false;
 	int ret = 0;
 
@@ -2501,7 +2498,7 @@ int mxc_epdc_fb_wait_update_complete(u32 update_marker, struct fb_info *info)
 	 */
 
 	/* Grab queue lock to protect access to marker list */
-	spin_lock_irqsave(&fb_data->queue_lock, flags);
+	mutex_lock(&fb_data->queue_mutex);
 
 	list_for_each_entry_safe(next_marker, temp,
 		&fb_data->full_marker_list, full_list) {
@@ -2514,7 +2511,7 @@ int mxc_epdc_fb_wait_update_complete(u32 update_marker, struct fb_info *info)
 		}
 	}
 
-	spin_unlock_irqrestore(&fb_data->queue_lock, flags);
+	mutex_unlock(&fb_data->queue_mutex);
 
 	/*
 	 * If marker not found, it has either been signalled already
@@ -2699,10 +2696,9 @@ static void mxc_epdc_fb_deferred_io(struct fb_info *info,
 
 void mxc_epdc_fb_flush_updates(struct mxc_epdc_fb_data *fb_data)
 {
-	unsigned long flags;
 	int ret;
 	/* Grab queue lock to prevent any new updates from being submitted */
-	spin_lock_irqsave(&fb_data->queue_lock, flags);
+	mutex_lock(&fb_data->queue_mutex);
 
 	/*
 	 * 3 places to check for updates that are active or pending:
@@ -2718,7 +2714,7 @@ void mxc_epdc_fb_flush_updates(struct mxc_epdc_fb_data *fb_data)
 		init_completion(&fb_data->updates_done);
 		fb_data->waiting_for_idle = true;
 
-		spin_unlock_irqrestore(&fb_data->queue_lock, flags);
+		mutex_unlock(&fb_data->queue_mutex);
 		/* Wait for any currently active updates to complete */
 		ret = wait_for_completion_timeout(&fb_data->updates_done,
 						msecs_to_jiffies(5000));
@@ -2726,11 +2722,11 @@ void mxc_epdc_fb_flush_updates(struct mxc_epdc_fb_data *fb_data)
 			dev_err(fb_data->dev,
 				"Flush updates timeout! ret = 0x%x\n", ret);
 
-		spin_lock_irqsave(&fb_data->queue_lock, flags);
+		mutex_lock(&fb_data->queue_mutex);
 		fb_data->waiting_for_idle = false;
 	}
 
-	spin_unlock_irqrestore(&fb_data->queue_lock, flags);
+	mutex_unlock(&fb_data->queue_mutex);
 }
 
 static int mxc_epdc_fb_blank(int blank, struct fb_info *info)
@@ -2798,7 +2794,6 @@ static int mxc_epdc_fb_pan_display(struct fb_var_screeninfo *var,
 {
 	struct mxc_epdc_fb_data *fb_data = (struct mxc_epdc_fb_data *)info;
 	u_int y_bottom;
-	unsigned long flags;
 
 	dev_dbg(info->device, "%s: var->yoffset %d, info->var.yoffset %d\n",
 		 __func__, var->yoffset, info->var.yoffset);
@@ -2821,7 +2816,7 @@ static int mxc_epdc_fb_pan_display(struct fb_var_screeninfo *var,
 	if (y_bottom > info->var.yres_virtual)
 		return -EINVAL;
 
-	spin_lock_irqsave(&fb_data->queue_lock, flags);
+	mutex_lock(&fb_data->queue_mutex);
 
 	fb_data->fb_offset = (var->yoffset * var->xres_virtual + var->xoffset)
 		* (var->bits_per_pixel) / 8;
@@ -2834,7 +2829,7 @@ static int mxc_epdc_fb_pan_display(struct fb_var_screeninfo *var,
 	else
 		info->var.vmode &= ~FB_VMODE_YWRAP;
 
-	spin_unlock_irqrestore(&fb_data->queue_lock, flags);
+	mutex_unlock(&fb_data->queue_mutex);
 
 	return 0;
 }
@@ -2885,21 +2880,7 @@ static bool is_free_list_full(struct mxc_epdc_fb_data *fb_data)
 static irqreturn_t mxc_epdc_irq_handler(int irq, void *dev_id)
 {
 	struct mxc_epdc_fb_data *fb_data = dev_id;
-	struct update_data_list *collision_update;
-	struct mxcfb_rect *next_upd_region;
-	struct update_marker_data *next_marker;
-	struct update_marker_data *temp;
-	unsigned long flags;
-	int temp_index;
-	u32 temp_mask;
-	u32 lut;
-	bool ignore_collision = false;
-	int i;
-	bool wb_lut_done = false;
-	bool free_update = true;
-	int next_lut;
-	u32 epdc_irq_stat, epdc_luts_active, epdc_wb_busy, epdc_luts_avail;
-	u32 epdc_collision, epdc_colliding_luts, epdc_next_lut_15;
+	u32 ints_fired;
 
 	/*
 	 * If we just completed one-time panel init, bypass
@@ -2939,17 +2920,46 @@ static irqreturn_t mxc_epdc_irq_handler(int irq, void *dev_id)
 		complete(&fb_data->eof_event);
 	}
 
+	/* Clear the interrupt mask for any interrupts signalled */
+	ints_fired = __raw_readl(EPDC_IRQ_MASK) & __raw_readl(EPDC_IRQ);
+	__raw_writel(ints_fired, EPDC_IRQ_MASK_CLEAR);
+
+	queue_work(fb_data->epdc_intr_workqueue,
+		&fb_data->epdc_intr_work);
+
+	return IRQ_HANDLED;
+}
+
+static void epdc_intr_work_func(struct work_struct *work)
+{
+	struct mxc_epdc_fb_data *fb_data =
+		container_of(work, struct mxc_epdc_fb_data, epdc_intr_work);
+	struct update_data_list *collision_update;
+	struct mxcfb_rect *next_upd_region;
+	struct update_marker_data *next_marker;
+	struct update_marker_data *temp;
+	int temp_index;
+	u32 temp_mask;
+	u32 lut;
+	bool ignore_collision = false;
+	int i;
+	bool wb_lut_done = false;
+	bool free_update = true;
+	int next_lut;
+	u32 epdc_irq_stat, epdc_luts_active, epdc_wb_busy, epdc_luts_avail;
+	u32 epdc_collision, epdc_colliding_luts, epdc_next_lut_15;
+
 	/* Capture EPDC status one time up front to prevent race conditions */
-	epdc_irq_stat = __raw_readl(EPDC_IRQ);
 	epdc_luts_active = epdc_any_luts_active();
 	epdc_wb_busy = epdc_is_working_buffer_busy();
 	epdc_luts_avail = epdc_any_luts_available();
 	epdc_collision = epdc_is_collision();
 	epdc_colliding_luts = epdc_get_colliding_luts();
 	epdc_next_lut_15 = epdc_choose_next_lut(&next_lut);
+	epdc_irq_stat = __raw_readl(EPDC_IRQ);
 
 	/* Protect access to buffer queues and to update HW */
-	spin_lock_irqsave(&fb_data->queue_lock, flags);
+	mutex_lock(&fb_data->queue_mutex);
 
 	/* Free any LUTs that have completed */
 	for (i = 0; i < EPDC_NUM_LUTS; i++) {
@@ -3047,8 +3057,8 @@ static irqreturn_t mxc_epdc_irq_handler(int irq, void *dev_id)
 	/* Is Working Buffer busy? */
 	if (epdc_wb_busy) {
 		/* Can't submit another update until WB is done */
-		spin_unlock_irqrestore(&fb_data->queue_lock, flags);
-		return IRQ_HANDLED;
+		mutex_unlock(&fb_data->queue_mutex);
+		return;
 	}
 
 	/*
@@ -3163,9 +3173,9 @@ static irqreturn_t mxc_epdc_irq_handler(int irq, void *dev_id)
 				&fb_data->epdc_submit_work);
 
 		/* Release buffer queues */
-		spin_unlock_irqrestore(&fb_data->queue_lock, flags);
+		mutex_unlock(&fb_data->queue_mutex);
 
-		return IRQ_HANDLED;
+		return;
 	}
 
 	/* Snapshot update scheme processing */
@@ -3173,15 +3183,15 @@ static irqreturn_t mxc_epdc_irq_handler(int irq, void *dev_id)
 	/* Check to see if any LUTs are free */
 	if (!epdc_luts_avail) {
 		dev_dbg(fb_data->dev, "No luts available.\n");
-		spin_unlock_irqrestore(&fb_data->queue_lock, flags);
-		return IRQ_HANDLED;
+		mutex_unlock(&fb_data->queue_mutex);
+		return;
 	}
 
 	/* Check to see if there is a valid LUT to use */
 	if (epdc_next_lut_15 && fb_data->tce_prevent) {
 		dev_dbg(fb_data->dev, "Must wait for LUT15\n");
-		spin_unlock_irqrestore(&fb_data->queue_lock, flags);
-		return IRQ_HANDLED;
+		mutex_unlock(&fb_data->queue_mutex);
+		return;
 	}
 
 	/*
@@ -3215,8 +3225,8 @@ static irqreturn_t mxc_epdc_irq_handler(int irq, void *dev_id)
 			dev_dbg(fb_data->dev, "No pending updates.\n");
 
 			/* No updates pending, so we are done */
-			spin_unlock_irqrestore(&fb_data->queue_lock, flags);
-			return IRQ_HANDLED;
+			mutex_unlock(&fb_data->queue_mutex);
+			return;
 		} else {
 			dev_dbg(fb_data->dev, "Found a pending update!\n");
 
@@ -3266,9 +3276,9 @@ static irqreturn_t mxc_epdc_irq_handler(int irq, void *dev_id)
 			   false, 0);
 
 	/* Release buffer queues */
-	spin_unlock_irqrestore(&fb_data->queue_lock, flags);
+	mutex_unlock(&fb_data->queue_mutex);
 
-	return IRQ_HANDLED;
+	return;
 }
 
 static void draw_mode0(struct mxc_epdc_fb_data *fb_data)
@@ -3842,6 +3852,14 @@ int __devinit mxc_epdc_fb_probe(struct platform_device *pdev)
 	for (i = 0; i < EPDC_NUM_LUTS; i++)
 		fb_data->lut_update_order[i] = 0;
 
+	INIT_DELAYED_WORK(&fb_data->epdc_done_work, epdc_done_work_func);
+	fb_data->epdc_submit_workqueue = alloc_workqueue("EPDC Submit", WQ_MEM_RECLAIM |
+					 WQ_HIGHPRI | WQ_CPU_INTENSIVE, 0);
+	INIT_WORK(&fb_data->epdc_submit_work, epdc_submit_work_func);
+	fb_data->epdc_intr_workqueue = alloc_workqueue("EPDC Interrupt", WQ_MEM_RECLAIM |
+					 WQ_HIGHPRI | WQ_CPU_INTENSIVE, 0);
+	INIT_WORK(&fb_data->epdc_intr_work, epdc_intr_work_func);
+
 	/* Retrieve EPDC IRQ num */
 	res = platform_get_resource(pdev, IORESOURCE_IRQ, 0);
 	if (res == NULL) {
@@ -3860,11 +3878,6 @@ int __devinit mxc_epdc_fb_probe(struct platform_device *pdev)
 		ret = -ENODEV;
 		goto out_dma_work_buf;
 	}
-
-	INIT_DELAYED_WORK(&fb_data->epdc_done_work, epdc_done_work_func);
-	fb_data->epdc_submit_workqueue = alloc_workqueue("submit", WQ_MEM_RECLAIM |
-					 WQ_HIGHPRI | WQ_CPU_INTENSIVE, 0);
-	INIT_WORK(&fb_data->epdc_submit_work, epdc_submit_work_func);
 
 	info->fbdefio = &mxc_epdc_fb_defio;
 #ifdef CONFIG_FB_MXC_EINK_AUTO_UPDATE_MODE
@@ -3893,10 +3906,8 @@ int __devinit mxc_epdc_fb_probe(struct platform_device *pdev)
 
 	fb_data->cur_update = NULL;
 
-	spin_lock_init(&fb_data->queue_lock);
-
+	mutex_init(&fb_data->queue_mutex);
 	mutex_init(&fb_data->pxp_mutex);
-
 	mutex_init(&fb_data->power_mutex);
 
 	/* PxP DMA interface */
