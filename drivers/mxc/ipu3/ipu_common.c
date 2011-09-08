@@ -329,6 +329,8 @@ struct ipu_soc *ipu_get_soc(int id)
 {
 	if (id >= MXC_IPU_MAX_NUM)
 		return ERR_PTR(-ENODEV);
+	else if (!ipu_array[id].online)
+		return ERR_PTR(-ENODEV);
 	else
 		return &(ipu_array[id]);
 }
@@ -493,6 +495,8 @@ static int __devinit ipu_probe(struct platform_device *pdev)
 	clk_disable(ipu->ipu_clk);
 
 	register_ipu_device(ipu, pdev->id);
+
+	ipu->online = true;
 
 	return ret;
 
