@@ -215,6 +215,21 @@ static inline void _ipu_ch_param_dump(struct ipu_soc *ipu, int ch)
 		 ipu_ch_param_read_field_io(ipu_ch_param_addr(ipu, ch), 1, 143, 5));
 }
 
+static inline void fill_cpmem(struct ipu_soc *ipu, int ch, struct ipu_ch_param *params)
+{
+	int i, w;
+	void *addr = ipu_ch_param_addr(ipu, ch);
+
+	/* 2 words, 5 valid data */
+	for (w = 0; w < 2; w++) {
+		for (i = 0; i < 5; i++) {
+			writel(params->word[w].data[i], addr);
+			addr += 4;
+		}
+		addr += 12;
+	}
+}
+
 static inline void _ipu_ch_param_init(struct ipu_soc *ipu, int ch,
 				      uint32_t pixel_fmt, uint32_t width,
 				      uint32_t height, uint32_t stride,
@@ -429,7 +444,7 @@ static inline void _ipu_ch_param_init(struct ipu_soc *ipu, int ch,
 	ipu_ch_param_set_field(&params, 0, 68, 22, v_offset / 8);
 
 	dev_dbg(ipu->dev, "initializing idma ch %d @ %p\n", ch, ipu_ch_param_addr(ipu, ch));
-	memcpy(ipu_ch_param_addr(ipu, ch), &params, sizeof(params));
+	fill_cpmem(ipu, ch, &params);
 	if (addr2) {
 		ipu_ch_param_set_field(&params, 1, 0, 29, addr2 >> 3);
 		ipu_ch_param_set_field(&params, 1, 29, 29, 0);
@@ -440,7 +455,7 @@ static inline void _ipu_ch_param_init(struct ipu_soc *ipu, int ch,
 
 		dev_dbg(ipu->dev, "initializing idma ch %d @ %p sub cpmem\n", ch,
 					ipu_ch_param_addr(ipu, sub_ch));
-		memcpy(ipu_ch_param_addr(ipu, sub_ch), &params, sizeof(params));
+		fill_cpmem(ipu, sub_ch, &params);
 	}
 };
 
