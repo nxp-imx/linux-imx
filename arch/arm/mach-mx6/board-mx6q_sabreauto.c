@@ -912,7 +912,7 @@ static void __init mx6q_reserve(void)
 /*
  * initialize __mach_desc_MX6Q_SABREAUTO data structure.
  */
-MACHINE_START(MX6Q_SABREAUTO, "Freescale i.MX 6Quad SABRE Auto Board")
+MACHINE_START(MX6Q_SABREAUTO, "Freescale MX6 Quad SABRE Auto Board")
 	/* Maintainer: Freescale Semiconductor, Inc. */
 	.boot_params = MX6_PHYS_OFFSET + 0x100,
 	.fixup = fixup_mxc_board,
