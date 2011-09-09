@@ -331,10 +331,6 @@ static int max17085_bat_probe(struct platform_device *pdev)
 	}
 
 	max17085_get_online(chip);
-	max17085_get_volt(chip);
-	max17085_get_health(chip);
-	max17085_get_cap(chip);
-	max17085_update_status(chip);
 
 	INIT_DELAYED_WORK_DEFERRABLE(&chip->work, max17085_work);
 	schedule_delayed_work(&chip->work, MAX17085_DELAY);
