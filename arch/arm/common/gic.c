@@ -386,6 +386,117 @@ void __cpuinit gic_enable_ppi(unsigned int irq)
 	local_irq_restore(flags);
 }
 
+void save_gic_cpu_state(unsigned int gic_nr, struct gic_cpu_state *gcs)
+{
+	BUG_ON(gic_nr >= MAX_GIC_NR);
+
+	gcs->iccicr = __raw_readl(gic_data[gic_nr].cpu_base + GIC_CPU_CTRL);
+	gcs->iccpmr = __raw_readl(gic_data[gic_nr].cpu_base + GIC_CPU_PRIMASK);
+	gcs->iccbpr = __raw_readl(gic_data[gic_nr].cpu_base + GIC_CPU_BINPOINT);
+}
+
+void restore_gic_cpu_state(unsigned int gic_nr, struct gic_cpu_state *gcs)
+{
+	BUG_ON(gic_nr >= MAX_GIC_NR);
+
+	__raw_writel(gcs->iccpmr, gic_data[gic_nr].cpu_base + GIC_CPU_PRIMASK);
+	__raw_writel(gcs->iccbpr, gic_data[gic_nr].cpu_base + GIC_CPU_BINPOINT);
+
+	/* at last, restore ctrl register */
+	__raw_writel(gcs->iccicr, gic_data[gic_nr].cpu_base + GIC_CPU_CTRL);
+}
+
+void save_gic_dist_state(unsigned int gic_nr, struct gic_dist_state *gds)
+{
+	unsigned int gic_irqs, i;
+
+	BUG_ON(gic_nr >= MAX_GIC_NR);
+
+	gic_irqs = readl(gic_data[gic_nr].dist_base + GIC_DIST_CTR) & 0x1f;
+	gic_irqs = (gic_irqs + 1) * 32;
+	if (gic_irqs > 1020)
+		gic_irqs = 1020;
+
+	gds->icddcr = __raw_readl(gic_data[gic_nr].dist_base + GIC_DIST_CTRL);
+
+	/* save interrupt enable status */
+	for (i = 0; i < gic_irqs; i += 32)
+		gds->icdisern[i / 32] = __raw_readl(gic_data[gic_nr].dist_base
+					+ GIC_DIST_ENABLE_SET + i * 4 / 32);
+
+	/* save interrupt pending status */
+	for (i = 0; i < gic_irqs; i += 32)
+		gds->icdisprn[i / 32] = __raw_readl(gic_data[gic_nr].dist_base
+					+ GIC_DIST_PENDING_SET + i * 4 / 32);
+
+	/* save active bit status */
+	for (i = 0; i < gic_irqs; i += 32)
+		gds->icdabrn[i / 32] = __raw_readl(gic_data[gic_nr].dist_base
+					+ GIC_DIST_ACTIVE_BIT + i * 4 / 32);
+
+	/* interrupt priority registers */
+	for (i = 0; i < gic_irqs; i += 4)
+		gds->icdiprn[i / 4] = __raw_readl(gic_data[gic_nr].dist_base
+					+ GIC_DIST_PRI + i * 4 / 4);
+
+	/* interrupt processor targets registers */
+	for (i = 0; i < gic_irqs; i += 4)
+		gds->icdiptrn[i / 4] = __raw_readl(gic_data[gic_nr].dist_base
+					+ GIC_DIST_TARGET + i * 4 / 4);
+
+	/* interrupt configuration registers */
+	for (i = 0; i < gic_irqs; i += 16)
+		gds->icdicfrn[i / 16] = __raw_readl(gic_data[gic_nr].dist_base
+					+ GIC_DIST_CONFIG + i * 4 / 16);
+}
+
+void restore_gic_dist_state(unsigned int gic_nr, struct gic_dist_state *gds)
+{
+	unsigned int gic_irqs, i;
+
+	BUG_ON(gic_nr >= MAX_GIC_NR);
+
+	gic_irqs = readl(gic_data[gic_nr].dist_base + GIC_DIST_CTR) & 0x1f;
+	gic_irqs = (gic_irqs + 1) * 32;
+	if (gic_irqs > 1020)
+		gic_irqs = 1020;
+
+	__raw_writel(0, gic_data[gic_nr].dist_base + GIC_DIST_CTRL);
+
+	/* interrupt configuration registers */
+	for (i = 0; i < gic_irqs; i += 16)
+		 __raw_writel(gds->icdicfrn[i / 16], gic_data[gic_nr].dist_base
+					+ GIC_DIST_CONFIG + i * 4 / 16);
+
+	/* interrupt priority registers */
+	for (i = 0; i < gic_irqs; i += 4)
+		 __raw_writel(gds->icdiprn[i / 4], gic_data[gic_nr].dist_base
+					+ GIC_DIST_PRI + i * 4 / 4);
+
+	/* interrupt processor targets registers */
+	for (i = 0; i < gic_irqs; i += 4)
+		 __raw_writel(gds->icdiptrn[i / 4], gic_data[gic_nr].dist_base
+					+ GIC_DIST_TARGET + i * 4 / 4);
+
+	/* restore active bits */
+	for (i = 0; i < gic_irqs; i += 32)
+		__raw_writel(gds->icdabrn[i / 32], gic_data[gic_nr].dist_base
+					+ GIC_DIST_ACTIVE_BIT + i * 4 / 32);
+
+	/* restore pending bits */
+	for (i = 0; i < gic_irqs; i += 32)
+		__raw_writel(gds->icdisprn[i / 32], gic_data[gic_nr].dist_base
+					+ GIC_DIST_PENDING_SET + i * 4 / 32);
+
+	/* restore interrupt enable status */
+	for (i = 0; i < gic_irqs; i += 32)
+		__raw_writel(gds->icdisern[i / 32], gic_data[gic_nr].dist_base
+					+ GIC_DIST_ENABLE_SET + i * 4 / 32);
+
+	/* at last restore ctrl register */
+	__raw_writel(gds->icddcr, gic_data[gic_nr].dist_base + GIC_DIST_CTRL);
+}
+
 #ifdef CONFIG_SMP
 void gic_raise_softirq(const struct cpumask *mask, unsigned int irq)
 {
