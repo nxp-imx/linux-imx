@@ -52,8 +52,8 @@ static u32 truncate(u32 up, /* 0: down; else: up */
 		return d;
 }
 
-static unsigned int f_calc(unsigned int pfs, unsigned int bpp, unsigned int *write)
-{/* return input_f */
+/*static unsigned int f_calc(unsigned int pfs, unsigned int bpp, unsigned int *write)
+{[> return input_f <]
 	unsigned int f_calculated = 0;
 	switch (pfs) {
 	case IPU_PIX_FMT_YVU422P:
@@ -129,7 +129,7 @@ static unsigned int m_calc(unsigned int pfs)
 
 	}
 	return m_calculated;
-}
+}*/
 
 
 /* Stripe parameters calculator */
