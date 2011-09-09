@@ -48,6 +48,14 @@ void mx6_init_irq(void)
 	struct irq_desc *desc;
 	unsigned int i;
 
+	/* start offset if private timer irq id, which is 29.
+	 * ID table:
+	 * Global timer, PPI -> ID27
+	 * A legacy nFIQ, PPI -> ID28
+	 * Private timer, PPI -> ID29
+	 * Watchdog timers, PPI -> ID30
+	 * A legacy nIRQ, PPI -> ID31
+	 */
 	gic_init(0, 29, IO_ADDRESS(IC_DISTRIBUTOR_BASE_ADDR),
 		IO_ADDRESS(IC_INTERFACES_BASE_ADDR));
 
