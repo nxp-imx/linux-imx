@@ -2161,7 +2161,7 @@ int32_t ipu_disable_channel(struct ipu_soc *ipu, ipu_channel_t channel, bool wai
 		 * wait for BG channel EOF then disable FG-IDMAC,
 		 * it avoid FG NFB4EOF error.
 		 */
-		if (channel == MEM_FG_SYNC) {
+		if ((channel == MEM_FG_SYNC) && (ipu_is_channel_busy(ipu, MEM_BG_SYNC))) {
 			int timeout = 50;
 
 			ipu_cm_write(ipu, IPUIRQ_2_MASK(IPU_IRQ_BG_SYNC_EOF),
@@ -2198,16 +2198,18 @@ int32_t ipu_disable_channel(struct ipu_soc *ipu, ipu_channel_t channel, bool wai
 				irq = in_dma;
 
 			if (irq == 0xffffffff) {
-				dev_err(ipu->dev, "warning: no channel busy, break\n");
+				dev_dbg(ipu->dev, "warning: no channel busy, break\n");
 				break;
 			}
 
-			dev_err(ipu->dev, "warning: channel %d busy, need wait\n", irq);
-
 			ipu_cm_write(ipu, IPUIRQ_2_MASK(irq),
 					IPUIRQ_2_STATREG(irq));
-			while ((ipu_cm_read(ipu, IPUIRQ_2_STATREG(irq)) &
-						IPUIRQ_2_MASK(irq)) == 0) {
+
+			dev_dbg(ipu->dev, "warning: channel %d busy, need wait\n", irq);
+
+			while (((ipu_cm_read(ipu, IPUIRQ_2_STATREG(irq))
+				& IPUIRQ_2_MASK(irq)) == 0) &&
+				(idma_is_set(ipu, IDMAC_CHA_BUSY, irq))) {
 				msleep(10);
 				timeout -= 10;
 				if (timeout <= 0) {
