@@ -84,7 +84,10 @@ static unsigned long iram_paddr, cpaddr;
 
 static u32 ccm_clpcr, scu_ctrl;
 static u32 gpc_imr[4], gpc_cpu_pup, gpc_cpu_pdn, gpc_cpu;
+
+#ifdef CONFIG_LOCAL_TIMERS
 static u32 local_timer[4];
+#endif
 
 static void mx6_suspend_store(void)
 {
@@ -129,6 +132,8 @@ static void mx6_suspend_restore(void)
 static int mx6_suspend_enter(suspend_state_t state)
 {
 	unsigned int wake_irq_isr[4];
+	struct gic_dist_state gds;
+	struct gic_cpu_state gcs;
 
 	wake_irq_isr[0] = __raw_readl(gpc_base +
 			GPC_ISR1_OFFSET) & gpc_wake_irq[0];
@@ -167,24 +172,19 @@ static int mx6_suspend_enter(suspend_state_t state)
 		local_flush_tlb_all();
 		flush_cache_all();
 
+		if (state == PM_SUSPEND_MEM) {
+			/* preserve gic state */
+			save_gic_dist_state(0, &gds);
+			save_gic_cpu_state(0, &gcs);
+		}
+
 		suspend_in_iram(state, (unsigned long)iram_paddr,
 			(unsigned long)suspend_iram_base);
 
 		if (state == PM_SUSPEND_MEM) {
-			/* need to re-init irq */
-			mx6_init_irq();
-
-#ifdef CONFIG_LOCAL_TIMERS
-			gic_enable_ppi(IRQ_LOCALTIMER);
-#endif
-			/* if we use gpt as system timer, we need to
-			 * enable gpt timer here, and even LOCAL_TIMERS
-			 * defined, but if we only boot up a core, then
-			 * kernel will still use GPT as timer */
-			__raw_writel(1 << (MXC_INT_GPT % 32),
-					gic_dist_base + GIC_DIST_ENABLE_SET +
-					(MXC_INT_GPT / 32) * 4);
-
+			/* restore gic registers */
+			restore_gic_dist_state(0, &gds);
+			restore_gic_cpu_state(0, &gcs);
 		}
 		mx6_suspend_restore();
 
