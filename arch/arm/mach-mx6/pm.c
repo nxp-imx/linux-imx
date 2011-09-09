@@ -166,13 +166,7 @@ static int mx6_suspend_enter(suspend_state_t state)
 
 		local_flush_tlb_all();
 		flush_cache_all();
-#ifdef CONFIG_CACHE_L2X0
-		outer_cache.flush_all();
 
-		/* for dormant mode, we need to disable l2 cache */
-		if (state == PM_SUSPEND_MEM)
-			outer_cache.disable();
-#endif
 		suspend_in_iram(state, (unsigned long)iram_paddr,
 			(unsigned long)suspend_iram_base);
 
@@ -191,13 +185,7 @@ static int mx6_suspend_enter(suspend_state_t state)
 					gic_dist_base + GIC_DIST_ENABLE_SET +
 					(MXC_INT_GPT / 32) * 4);
 
-			flush_cache_all();
-#ifdef CONFIG_CACHE_L2X0
-			/* init l2 cache, pl310 */
-			mxc_init_l2x0();
-#endif
 		}
-
 		mx6_suspend_restore();
 
 		if (pm_data && pm_data->suspend_exit)
@@ -282,7 +270,7 @@ static int __init pm_init(void)
 	/* Need to remap the area here since we want the memory region
 		 to be executable. */
 	suspend_iram_base = __arm_ioremap(iram_paddr, SZ_4K,
-					  MT_MEMORY);
+					  MT_MEMORY_NONCACHED);
 	pr_info("cpaddr = %x suspend_iram_base=%x\n",
 		(unsigned int)cpaddr, (unsigned int)suspend_iram_base);
 
