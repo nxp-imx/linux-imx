@@ -36,11 +36,41 @@
 extern void __iomem *gic_cpu_base_addr;
 extern struct irq_chip gic_arch_extn;
 
+struct gic_dist_state {
+	u32	icddcr;			/* 0x000 */
+					/* 0x004 RO */
+					/* 0x008 RO */
+					/* 0x00c ~ 0x07c Reserved */
+	u32	icdisrn[8];		/* 0x080 ~ 0x09c */
+	u32	icdisern[8];		/* 0x100 ~ 0x11c Reserved */
+					/* 0x120 ~ 0x17c */
+	u32	icdicern[8];		/* 0x180 ~ 0x19c */
+	u32	icdisprn[32];		/* 0x200 ~ 0x27c */
+	u32	icdicprn[8];		/* 0x280 ~ 0x29c */
+	u32	icdabrn[8];		/* 0x300 ~ 0x31c */
+					/* 0x320 ~ 0x3fc Reserved */
+	u32	icdiprn[64];		/* 0x400 ~ 0x4fc */
+					/* 0x500 ~ 0x7fc Reserved */
+	u32	icdiptrn[64];		/* 0x800 ~ 0x8fc */
+					/* 0x900 ~ 0xbfc Reserved */
+	u32	icdicfrn[16];		/* 0xc00 ~ 0xc3c */
+};
+
+struct gic_cpu_state {
+	u32	iccicr;			/* 0x000 */
+	u32	iccpmr;			/* 0x004 */
+	u32	iccbpr;			/* 0x008 */
+};
+
 void gic_init(unsigned int, unsigned int, void __iomem *, void __iomem *);
 void gic_secondary_init(unsigned int);
 void gic_cascade_irq(unsigned int gic_nr, unsigned int irq);
 void gic_raise_softirq(const struct cpumask *mask, unsigned int irq);
 void gic_enable_ppi(unsigned int);
+void save_gic_cpu_state(unsigned int gic_nr, struct gic_cpu_state *gcs);
+void restore_gic_cpu_state(unsigned int gic_nr, struct gic_cpu_state *gcs);
+void save_gic_dist_state(unsigned int gic_nr, struct gic_dist_state *gds);
+void restore_gic_dist_state(unsigned int gic_nr, struct gic_dist_state *gds);
 #endif
 
 #endif
