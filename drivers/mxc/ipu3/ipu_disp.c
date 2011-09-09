@@ -935,14 +935,16 @@ void _ipu_dp_dc_disable(struct ipu_soc *ipu, ipu_channel_t channel, bool swap)
 		reg = ipu_cm_read(ipu, IPU_SRM_PRI2) | 0x8;
 		ipu_cm_write(ipu, reg, IPU_SRM_PRI2);
 
-		ipu_cm_write(ipu, IPUIRQ_2_MASK(IPU_IRQ_DP_SF_END),
-			     IPUIRQ_2_STATREG(IPU_IRQ_DP_SF_END));
-		while ((ipu_cm_read(ipu, IPUIRQ_2_STATREG(IPU_IRQ_DP_SF_END)) &
-			IPUIRQ_2_MASK(IPU_IRQ_DP_SF_END)) == 0) {
-			msleep(2);
-			timeout -= 2;
-			if (timeout <= 0)
-				break;
+		if (ipu_is_channel_busy(ipu, MEM_BG_SYNC)) {
+			ipu_cm_write(ipu, IPUIRQ_2_MASK(IPU_IRQ_DP_SF_END),
+					IPUIRQ_2_STATREG(IPU_IRQ_DP_SF_END));
+			while ((ipu_cm_read(ipu, IPUIRQ_2_STATREG(IPU_IRQ_DP_SF_END)) &
+						IPUIRQ_2_MASK(IPU_IRQ_DP_SF_END)) == 0) {
+				msleep(2);
+				timeout -= 2;
+				if (timeout <= 0)
+					break;
+			}
 		}
 		return;
 	} else {
