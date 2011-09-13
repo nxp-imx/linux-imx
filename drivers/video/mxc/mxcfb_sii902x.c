@@ -671,7 +671,11 @@ static void sii902x_setup(struct sii902x_data *sii902x, struct fb_info *fbi)
 	/* reg 0x0a: set output format to RGB */
 	sii902x->tpivmode[2] = 0x00;
 
-	if (fbi->var.xres/16 == fbi->var.yres/9)
+	if (fbi->var.vmode & FB_VMODE_ASPECT_16_9)
+		sii902x->aspect_ratio = VMD_ASPECT_RATIO_16x9;
+	else if (fbi->var.vmode & FB_VMODE_ASPECT_4_3)
+		sii902x->aspect_ratio = VMD_ASPECT_RATIO_4x3;
+	else if (fbi->var.xres/16 == fbi->var.yres/9)
 		sii902x->aspect_ratio = VMD_ASPECT_RATIO_16x9;
 	else
 		sii902x->aspect_ratio = VMD_ASPECT_RATIO_4x3;
