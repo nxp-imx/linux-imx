@@ -1134,7 +1134,7 @@ static void hdmi_config_AVI(struct mxc_hdmi *hdmi)
 	/* Use mode from list extracted from EDID to get aspect ratio */
 	if (!list_empty(&hdmi->fbi->modelist)) {
 		edid_mode = fb_find_nearest_mode(&mode, &hdmi->fbi->modelist);
-		if (edid_mode->flag & FB_MODE_ASPECT_16_9)
+		if (edid_mode->vmode & FB_VMODE_ASPECT_16_9)
 			aspect_16_9 = true;
 		else
 			aspect_16_9 = false;
