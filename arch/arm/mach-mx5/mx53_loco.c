@@ -484,9 +484,27 @@ static void sii902x_hdmi_reset(void)
 	msleep(10);
 }
 
+static int sii902x_get_pins(void)
+{
+	/* Sii902x HDMI controller */
+	gpio_request(DISP0_RESET, "disp0-reset");
+	gpio_direction_output(DISP0_RESET, 0);
+	gpio_request(DISP0_DET_INT, "disp0-detect");
+	gpio_direction_input(DISP0_DET_INT);
+	return 1;
+}
+
+static void sii902x_put_pins(void)
+{
+	gpio_free(DISP0_RESET);
+	gpio_free(DISP0_DET_INT);
+}
+
 static struct mxc_lcd_platform_data sii902x_hdmi_data = {
-       .reset = sii902x_hdmi_reset,
-       .fb_id = "DISP3 BG",
+	.reset = sii902x_hdmi_reset,
+	.fb_id = "DISP3 BG",
+	.get_pins = sii902x_get_pins,
+	.put_pins = sii902x_put_pins,
 };
 
 static struct imxi2c_platform_data mxci2c_data = {
@@ -842,12 +860,6 @@ static void __init mx53_loco_io_init(void)
 	/* USB PWR enable */
 	gpio_request(USB_PWREN, "usb-pwr");
 	gpio_direction_output(USB_PWREN, 0);
-
-	/* Sii902x HDMI controller */
-	gpio_request(DISP0_RESET, "disp0-reset");
-	gpio_direction_output(DISP0_RESET, 0);
-	gpio_request(DISP0_DET_INT, "disp0-detect");
-	gpio_direction_input(DISP0_DET_INT);
 
 	/* LCD panel power enable */
 	gpio_request(DISP0_POWER_EN, "disp0-power-en");
