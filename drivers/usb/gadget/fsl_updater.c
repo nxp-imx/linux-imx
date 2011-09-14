@@ -139,8 +139,8 @@ static ssize_t utp_file_write(struct file *file, const char __user *buf,
 	return size;
 }
 
-static int
-utp_ioctl(struct inode *inode, struct file *file,
+static long
+utp_ioctl(struct file *file,
 	      unsigned int cmd, unsigned long arg)
 {
 	int cpu_id = 0;
