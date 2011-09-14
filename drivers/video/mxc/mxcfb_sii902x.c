@@ -1204,6 +1204,8 @@ static int __devinit sii902x_probe(struct i2c_client *client,
 	return ret;
 
 init_failed:
+	if (plat->put_pins)
+		plat->put_pins();
 get_pins_failed:
 	platform_device_unregister(sii902x->pdev);
 register_pltdev_failed:
