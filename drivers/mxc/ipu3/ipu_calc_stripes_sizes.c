@@ -20,7 +20,7 @@
  */
 
 #include <linux/module.h>
-#include <linux/ipu.h>
+#include <mach/ipu-v3.h>
 #include <asm/div64.h>
 
 #define BPP_32 0

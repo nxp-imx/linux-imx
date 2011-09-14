@@ -28,7 +28,6 @@
 #include <linux/io.h>
 #include <linux/irq.h>
 #include <linux/irqdesc.h>
-#include <linux/ipu.h>
 #include <linux/clk.h>
 #include <mach/clock.h>
 #include <mach/hardware.h>
