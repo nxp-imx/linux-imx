@@ -126,6 +126,17 @@ const struct imx_imx_uart_1irq_data imx53_imx_uart_data[] __initconst = {
 };
 #endif /* ifdef CONFIG_SOC_IMX53 */
 
+#ifdef CONFIG_SOC_IMX6Q
+const struct imx_imx_uart_1irq_data imx6q_imx_uart_data[] __initconst = {
+#define imx6q_imx_uart_data_entry(_id, _hwid)				\
+	imx_imx_uart_1irq_data_entry(MX6Q, _id, _hwid, SZ_4K)
+	imx6q_imx_uart_data_entry(0, 4),
+	imx6q_imx_uart_data_entry(1, 2),
+	imx6q_imx_uart_data_entry(2, 3),
+	imx6q_imx_uart_data_entry(3, 1),
+};
+#endif /* ifdef CONFIG_SOC_IMX6Q */
+
 struct platform_device *__init imx_add_imx_uart_3irq(
 		const struct imx_imx_uart_3irq_data *data,
 		const struct imxuart_platform_data *pdata)

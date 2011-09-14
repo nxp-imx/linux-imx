@@ -42,6 +42,8 @@ static const unsigned int tacc_mant[] = {
 	35,	40,	45,	50,	55,	60,	70,	80,
 };
 
+#define	CCS_BIT		(1 << 30)
+#define	S18A_BIT	(1 << 24)
 #define UNSTUFF_BITS(resp,start,size)					\
 	({								\
 		const int __size = size;				\
@@ -188,7 +190,7 @@ static int mmc_decode_scr(struct mmc_card *card)
 
 	scr->sda_vsn = UNSTUFF_BITS(resp, 56, 4);
 	scr->bus_widths = UNSTUFF_BITS(resp, 48, 4);
-
+	scr->sda_vsn3 = UNSTUFF_BITS(resp, 47, 1);
 	if (UNSTUFF_BITS(resp, 55, 1))
 		card->erased_byte = 0xFF;
 	else
@@ -296,7 +298,10 @@ static int mmc_read_switch(struct mmc_card *card)
 
 	if (status[13] & 0x02)
 		card->sw_caps.hs_max_dtr = 50000000;
-
+	if (status[13] & 0x04)
+		card->sw_caps.hs_max_dtr = 100000000;
+	if (status[13] & 0x08)
+		card->sw_caps.hs_max_dtr = 200000000;
 out:
 	kfree(status);
 
@@ -351,6 +356,69 @@ out:
 	return err;
 }
 
+/*
+ * Test if the card supports SDR mode and, if so, switch to it.
+ */
+int mmc_sd_switch_sdr_mode(struct mmc_card *card, int mode)
+{
+	int err;
+	u8 *status;
+	u8 function;
+
+	if (card->scr.sda_vsn < SCR_SPEC_VER_1 || \
+		card->scr.sda_vsn3 == 0)
+		return 0;
+
+	if (!(card->csd.cmdclass & CCC_SWITCH))
+		return 0;
+
+	if (!(card->host->caps & MMC_CAP_SD_HIGHSPEED))
+		return 0;
+
+	if (card->sw_caps.hs_max_dtr == 0)
+		return 0;
+
+	err = -EIO;
+
+	status = kmalloc(64, GFP_KERNEL);
+	if (!status) {
+		printk(KERN_ERR "%s: could not allocate a buffer for "
+			"switch capabilities.\n", mmc_hostname(card->host));
+		return -ENOMEM;
+	}
+
+	switch (mode) {
+	case MMC_STATE_SD_SDR50:
+		function = 2;
+		break;
+	case MMC_STATE_SD_SDR104:
+		function = 3;
+		break;
+	case MMC_STATE_SD_DDR50:
+		function = 4;
+		break;
+	default:
+		function = 1;
+		break;
+	}
+	err = mmc_sd_switch(card, 1, 0, function, status);
+	if (err)
+		goto out;
+
+	if ((status[16] & 0xF) != function) {
+		printk(KERN_WARNING "%s: Problem switching card "
+			"into sdr mode!function: %d\n",
+			mmc_hostname(card->host), function);
+		err = 0;
+	} else {
+		err = 1;
+	}
+
+out:
+	kfree(status);
+
+	return err;
+}
 MMC_DEV_ATTR(cid, "%08x%08x%08x%08x\n", card->raw_cid[0], card->raw_cid[1],
 	card->raw_cid[2], card->raw_cid[3]);
 MMC_DEV_ATTR(csd, "%08x%08x%08x%08x\n", card->raw_csd[0], card->raw_csd[1],
@@ -396,13 +464,30 @@ struct device_type sd_type = {
 	.groups = sd_attr_groups,
 };
 
+static int mmc_vol_switch(struct mmc_host *host)
+{
+	struct mmc_command cmd;
+	int err;
+
+	cmd.opcode = SD_VOLTAGE_SWITCH;
+	cmd.arg = 0;
+	cmd.flags = MMC_RSP_R1 | MMC_CMD_AC;
+
+	err = mmc_wait_for_cmd(host, &cmd, 0);
+	if (err)
+		return err;
+	msleep(10);
+
+	return 0;
+}
+
 /*
  * Fetch CID from card.
  */
 int mmc_sd_get_cid(struct mmc_host *host, u32 ocr, u32 *cid)
 {
 	int err;
-
+	int new_ocr;
 	/*
 	 * Since we're changing the OCR value, we seem to
 	 * need to tell some cards to go back to the idle
@@ -421,10 +506,22 @@ int mmc_sd_get_cid(struct mmc_host *host, u32 ocr, u32 *cid)
 	if (!err)
 		ocr |= 1 << 30;
 
-	err = mmc_send_app_op_cond(host, ocr, NULL);
+	ocr |= S18A_BIT | CCS_BIT;
+	err = mmc_send_app_op_cond(host, ocr, &new_ocr);
 	if (err)
 		return err;
-
+	else {
+		if ((new_ocr & S18A_BIT) && \
+			(host->ocr_avail_sd & MMC_VDD_165_195)) {
+			new_ocr = MMC_VDD_165_195;
+			mmc_vol_switch(host);
+		}
+		host->ocr = mmc_select_voltage(host, new_ocr);
+		if (!host->ocr) {
+			err = -EINVAL;
+			return err;
+		}
+	}
 	if (mmc_host_is_spi(host))
 		err = mmc_send_cid(host, cid);
 	else
@@ -574,6 +671,7 @@ static int mmc_sd_init_card(struct mmc_host *host, u32 ocr,
 	struct mmc_card *card;
 	int err;
 	u32 cid[4];
+	u32 clock = 50000000;
 
 	BUG_ON(!host);
 	WARN_ON(!host->claimed);
@@ -643,7 +741,7 @@ static int mmc_sd_init_card(struct mmc_host *host, u32 ocr,
 	/*
 	 * Set bus speed.
 	 */
-	mmc_set_clock(host, mmc_sd_get_max_clock(card));
+	mmc_set_clock(host, min(mmc_sd_get_max_clock(card), clock));
 
 	/*
 	 * Switch to wider bus (if supported).
@@ -656,6 +754,55 @@ static int mmc_sd_init_card(struct mmc_host *host, u32 ocr,
 
 		mmc_set_bus_width(host, MMC_BUS_WIDTH_4);
 	}
+
+	if (mmc_sd_get_max_clock(card) <= clock)
+		goto skip_sdr_tuning;
+
+
+	/*
+	 * Attempt to change to sdr-speed (if supported)
+	 */
+	err = mmc_sd_switch_sdr_mode(card, MMC_STATE_SD_SDR104);
+	if (err > 0) {
+		clock = 200000000;
+		mmc_sd_go_highspeed(card);
+		goto skip_sdr_mode;
+	}
+	err = mmc_sd_switch_sdr_mode(card, MMC_STATE_SD_SDR50);
+	if (err > 0) {
+		clock = 100000000;
+		mmc_sd_go_highspeed(card);
+	} else
+		goto skip_sdr_tuning;
+skip_sdr_mode:
+	mmc_set_clock(host, min(mmc_sd_get_max_clock(card), clock));
+
+	{
+		int min, max, avg;
+
+		min = host->tuning_min;
+		while (min < host->tuning_max) {
+			mmc_set_tuning(host, min);
+			if (!mmc_send_tuning_cmd(card))
+				break;
+			min += host->tuning_step;
+		}
+
+		max = min;
+		while (max < host->tuning_max) {
+			mmc_set_tuning(host, max);
+			if (mmc_send_tuning_cmd(card))
+				break;
+			max += host->tuning_step;
+		}
+
+		avg = (min + max) / 2;
+		mmc_set_tuning(host, avg);
+		mmc_send_tuning_cmd(card);
+		mmc_send_tuning_cmd(card);
+	}
+
+skip_sdr_tuning:
 
 	host->card = card;
 	return 0;

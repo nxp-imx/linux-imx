@@ -1,0 +1,13 @@
+#
+# DAM API configuration
+#
+
+menu "MXC Digital Audio Multiplexer support"
+
+config MXC_DAM
+	tristate "DAM support"
+	depends on ARCH_MXC
+	---help---
+	  Say Y to get the Digital Audio Multiplexer services API available on MXC platform.
+
+endmenu

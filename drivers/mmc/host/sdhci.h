@@ -45,6 +45,7 @@
 #define  SDHCI_CMD_CRC		0x08
 #define  SDHCI_CMD_INDEX	0x10
 #define  SDHCI_CMD_DATA		0x20
+#define  SDHCI_CMD_ABORTCMD	0xC0
 
 #define  SDHCI_CMD_RESP_NONE	0x00
 #define  SDHCI_CMD_RESP_LONG	0x01
@@ -222,6 +223,11 @@ struct sdhci_ops {
 	void (*platform_send_init_74_clocks)(struct sdhci_host *host,
 					     u8 power_mode);
 	unsigned int    (*get_ro)(struct sdhci_host *host);
+	void		(*pre_tuning)(struct sdhci_host *host, u32 val);
+	int		(*platform_ddr_mode)(struct sdhci_host *host,
+					       int mode);
+	void		(*platform_clk_ctrl)(struct sdhci_host *host,
+					       bool enable);
 };
 
 #ifdef CONFIG_MMC_SDHCI_IO_ACCESSORS

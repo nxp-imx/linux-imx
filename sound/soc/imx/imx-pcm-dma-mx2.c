@@ -83,7 +83,7 @@ static int imx_ssi_dma_alloc(struct snd_pcm_substream *substream,
 
 	dma_params = snd_soc_dai_get_dma_data(rtd->cpu_dai, substream);
 
-	iprtd->dma_data.peripheral_type = IMX_DMATYPE_SSI;
+	iprtd->dma_data.peripheral_type = dma_params->peripheral_type;
 	iprtd->dma_data.priority = DMA_PRIO_HIGH;
 	iprtd->dma_data.dma_request = dma_params->dma;
 
@@ -303,6 +303,10 @@ static struct snd_soc_platform_driver imx_soc_platform_mx2 = {
 
 static int __devinit imx_soc_platform_probe(struct platform_device *pdev)
 {
+	struct imx_ssi *ssi = platform_get_drvdata(pdev);
+	ssi->dma_params_tx.burstsize = 4;
+	ssi->dma_params_rx.burstsize = 6;
+
 	return snd_soc_register_platform(&pdev->dev, &imx_soc_platform_mx2);
 }
 

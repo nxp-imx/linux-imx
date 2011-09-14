@@ -32,7 +32,7 @@ struct imx_imx_sdma_data {
 	}
 
 #ifdef CONFIG_SOC_IMX25
-struct imx_imx_sdma_data imx25_imx_sdma_data __initconst =
+const struct imx_imx_sdma_data imx25_imx_sdma_data __initconst =
 	imx_imx_sdma_data_entry_single(MX25, 1, "imx25", 0);
 #endif /* ifdef CONFIG_SOC_IMX25 */
 
@@ -50,6 +50,16 @@ struct imx_imx_sdma_data imx35_imx_sdma_data __initdata =
 struct imx_imx_sdma_data imx51_imx_sdma_data __initconst =
 	imx_imx_sdma_data_entry_single(MX51, 2, "imx51", 0);
 #endif /* ifdef CONFIG_SOC_IMX51 */
+
+#ifdef CONFIG_SOC_IMX53
+struct imx_imx_sdma_data imx53_imx_sdma_data __initconst =
+	imx_imx_sdma_data_entry_single(MX53, 2, "imx53", 1);
+#endif /* ifdef CONFIG_SOC_IMX53 */
+
+#ifdef CONFIG_SOC_IMX6Q
+struct imx_imx_sdma_data imx6q_imx_sdma_data __initconst =
+	imx_imx_sdma_data_entry_single(MX6Q, 2, "imx6q", 1);
+#endif /* ifdef CONFIG_SOC_IMX6Q */
 
 static struct platform_device __init __maybe_unused *imx_add_imx_sdma(
 		const struct imx_imx_sdma_data *data)
@@ -76,7 +86,7 @@ static struct platform_device __init __maybe_unused *imx_add_imx_dma(void)
 	return imx_add_platform_device("imx-dma", -1, NULL, 0, NULL, 0);
 }
 
-#ifdef CONFIG_ARCH_MX25
+#ifdef CONFIG_SOC_IMX25
 static struct sdma_script_start_addrs addr_imx25_to1 = {
 	.ap_2_ap_addr = 729,
 	.uart_2_mcu_addr = 904,
@@ -94,7 +104,7 @@ static struct sdma_script_start_addrs addr_imx25_to1 = {
 };
 #endif
 
-#ifdef CONFIG_ARCH_MX31
+#ifdef CONFIG_SOC_IMX31
 static struct sdma_script_start_addrs addr_imx31_to1 = {
 	.per_2_per_addr = 1677,
 };
@@ -106,7 +116,7 @@ static struct sdma_script_start_addrs addr_imx31_to2 = {
 };
 #endif
 
-#ifdef CONFIG_ARCH_MX35
+#ifdef CONFIG_SOC_IMX35
 static struct sdma_script_start_addrs addr_imx35_to1 = {
 	.ap_2_ap_addr = 642,
 	.uart_2_mcu_addr = 817,
@@ -139,7 +149,7 @@ static struct sdma_script_start_addrs addr_imx35_to2 = {
 #endif
 
 #ifdef CONFIG_SOC_IMX51
-static struct sdma_script_start_addrs addr_imx51_to1 = {
+static struct sdma_script_start_addrs addr_imx51_to3 = {
 	.ap_2_ap_addr = 642,
 	.uart_2_mcu_addr = 817,
 	.mcu_2_app_addr = 747,
@@ -150,6 +160,36 @@ static struct sdma_script_start_addrs addr_imx51_to1 = {
 	.app_2_mcu_addr = 683,
 	.shp_2_per_addr = 1251,
 	.shp_2_mcu_addr = 892,
+};
+#endif
+
+#ifdef CONFIG_SOC_IMX53
+static struct sdma_script_start_addrs addr_imx53_to1 = {
+	.ap_2_ap_addr = 642,
+	.uart_2_mcu_addr = 817,
+	.mcu_2_app_addr = 747,
+	.per_2_per_addr = 6331,
+	.uartsh_2_mcu_addr = 1032,
+	.mcu_2_shp_addr = 960,
+	.app_2_mcu_addr = 683,
+	.shp_2_mcu_addr = 891,
+	.spdif_2_mcu_addr = 1100,
+	.mcu_2_spdif_addr = 1134,
+};
+#endif
+
+#ifdef CONFIG_SOC_IMX6Q
+static struct sdma_script_start_addrs addr_imx6q_to1 = {
+	.ap_2_ap_addr = 642,
+	.uart_2_mcu_addr = 817,
+	.mcu_2_app_addr = 747,
+	.per_2_per_addr = 6474,
+	.uartsh_2_mcu_addr = 1032,
+	.mcu_2_shp_addr = 960,
+	.app_2_mcu_addr = 683,
+	.shp_2_mcu_addr = 891,
+	.spdif_2_mcu_addr = 1100,
+	.mcu_2_spdif_addr = 1134,
 };
 #endif
 
@@ -167,7 +207,7 @@ static int __init imxXX_add_imx_dma(void)
 	if (cpu_is_mx25()) {
 		imx25_imx_sdma_data.pdata.script_addrs = &addr_imx25_to1;
 		ret = imx_add_imx_sdma(&imx25_imx_sdma_data);
-	} else
+	else
 #endif
 
 #if defined(CONFIG_SOC_IMX31)
@@ -175,9 +215,11 @@ static int __init imxXX_add_imx_dma(void)
 		int to_version = mx31_revision() >> 4;
 		imx31_imx_sdma_data.pdata.to_version = to_version;
 		if (to_version == 1)
-			imx31_imx_sdma_data.pdata.script_addrs = &addr_imx31_to1;
+			imx31_imx_sdma_data.pdata.script_addrs =
+							&addr_imx31_to1;
 		else
-			imx31_imx_sdma_data.pdata.script_addrs = &addr_imx31_to2;
+			imx31_imx_sdma_data.pdata.script_addrs =
+							&addr_imx31_to2;
 		ret = imx_add_imx_sdma(&imx31_imx_sdma_data);
 	} else
 #endif
@@ -187,17 +229,43 @@ static int __init imxXX_add_imx_dma(void)
 		int to_version = mx35_revision() >> 4;
 		imx35_imx_sdma_data.pdata.to_version = to_version;
 		if (to_version == 1)
-			imx35_imx_sdma_data.pdata.script_addrs = &addr_imx35_to1;
+			imx35_imx_sdma_data.pdata.script_addrs =
+							&addr_imx35_to1;
 		else
-			imx35_imx_sdma_data.pdata.script_addrs = &addr_imx35_to2;
+			imx35_imx_sdma_data.pdata.script_addrs =
+							&addr_imx35_to2;
 		ret = imx_add_imx_sdma(&imx35_imx_sdma_data);
 	} else
 #endif
 
-#if defined(CONFIG_ARCH_MX51)
+#if defined(CONFIG_SOC_IMX51)
 	if (cpu_is_mx51()) {
-		imx51_imx_sdma_data.pdata.script_addrs = &addr_imx51_to1;
+		int to_version = mx51_revision() >> 4;
+		imx51_imx_sdma_data.pdata.to_version = to_version;
+		if (to_version == 3)
+			imx51_imx_sdma_data.pdata.script_addrs =
+							&addr_imx51_to3;
 		ret = imx_add_imx_sdma(&imx51_imx_sdma_data);
+	} else
+#endif
+#if defined(CONFIG_SOC_IMX53)
+	if (cpu_is_mx53()) {
+		int to_version = 1;
+		imx53_imx_sdma_data.pdata.to_version = to_version;
+		if (to_version == 1)
+			imx53_imx_sdma_data.pdata.script_addrs =
+							&addr_imx53_to1;
+		ret = imx_add_imx_sdma(&imx53_imx_sdma_data);
+	} else
+#endif
+#if defined(CONFIG_SOC_IMX6Q)
+	if (cpu_is_mx6q()) {
+		int to_version = 1;
+		imx6q_imx_sdma_data.pdata.to_version = to_version;
+		if (to_version == 1)
+			imx6q_imx_sdma_data.pdata.script_addrs =
+							&addr_imx6q_to1;
+		ret = imx_add_imx_sdma(&imx6q_imx_sdma_data);
 	} else
 #endif
 		ret = ERR_PTR(-ENODEV);

@@ -1,3 +1,21 @@
+/*
+ * Copyright (C) 2010-2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+
+ * You should have received a copy of the GNU General Public License along
+ * with this program; if not, write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+ */
+
 #ifndef __MACH_MX50_H__
 #define __MACH_MX50_H__
 
@@ -21,7 +39,33 @@
 /*
  * Databahn
  */
-#define MX50_DATABAHN_BASE_ADDR			0x14000000
+#define MX50_DATABAHN_BASE_ADDR		0x14000000
+#define DATABAHN_CTL_REG19			0x4c
+#define DATABAHN_CTL_REG20			0x50
+#define DATABAHN_CTL_REG21			0x54
+#define DATABAHN_CTL_REG22			0x58
+#define DATABAHN_CTL_REG23			0x5c
+#define DATABAHN_CTL_REG42			0xa8
+#define DATABAHN_CTL_REG43			0xac
+#define DATABAHN_CTL_REG55			0xdc
+#define DATABAHN_CTL_REG63			0xFC
+#define DATABAHN_CTL_REG73			0x124
+#define DATABAHN_CTL_REG74			0x128
+#define DATABAHN_CTL_REG75			0x12C
+#define DATABAHN_CTL_REG83			0x14C
+#define LOWPOWER_CONTROL_MASK	 	0x1F
+#define LOWPOWER_AUTOENABLE_MASK 		0x1F
+#define LOWPOWER_EXTERNAL_CNT_MASK		(0xFFFF << 16)
+#define LOWPOWER_EXTERNAL_CNT_OFFSET	16
+#define LOWPOWER_INTERNAL_CNT_MASK		(0xFFFF << 8)
+#define LOWPOWER_INTERNAL_CNT_OFFSET	8
+#define LOWPOWER_REFRESH_ENABLE_MASK	(3 << 16)
+#define LOWPOWER_REFRESH_ENABLE_OFFSET	16
+#define LOWPOWER_REFRESH_HOLD_MASK		0xFFFF
+#define LOWPOWER_REFRESH_HOLD_OFFSET	0
+#define MX50_LPDDR2				(0x5 << 8)
+#define MX50_MDDR					(0x1 << 8)
+
 
 /*
  * Graphics Memory of GPU
@@ -60,13 +104,13 @@
 #define MX50_SPBA0_BASE_ADDR		0x50000000
 #define MX50_SPBA0_SIZE			SZ_1M
 
-#define MX50_MMC_SDHC1_BASE_ADDR	(MX50_SPBA0_BASE_ADDR + 0x00004000)
-#define MX50_MMC_SDHC2_BASE_ADDR	(MX50_SPBA0_BASE_ADDR + 0x00008000)
+#define MX50_ESDHC1_BASE_ADDR	(MX50_SPBA0_BASE_ADDR + 0x00004000)
+#define MX50_ESDHC2_BASE_ADDR	(MX50_SPBA0_BASE_ADDR + 0x00008000)
 #define MX50_UART3_BASE_ADDR		(MX50_SPBA0_BASE_ADDR + 0x0000c000)
 #define MX50_CSPI1_BASE_ADDR		(MX50_SPBA0_BASE_ADDR + 0x00010000)
 #define MX50_SSI2_BASE_ADDR		(MX50_SPBA0_BASE_ADDR + 0x00014000)
-#define MX50_MMC_SDHC3_BASE_ADDR	(MX50_SPBA0_BASE_ADDR + 0x00020000)
-#define MX50_MMC_SDHC4_BASE_ADDR	(MX50_SPBA0_BASE_ADDR + 0x00024000)
+#define MX50_ESDHC3_BASE_ADDR	(MX50_SPBA0_BASE_ADDR + 0x00020000)
+#define MX50_ESDHC4_BASE_ADDR	(MX50_SPBA0_BASE_ADDR + 0x00024000)
 
 /*
  * AIPS 1
@@ -99,6 +143,12 @@
 
 #define MX50_MSHC_BASE_ADDR	(MX50_AIPS1_BASE_ADDR + 0x000f4000)
 #define MX50_RNGB_BASE_ADDR	(MX50_AIPS1_BASE_ADDR + 0x000f8000)
+#define MX50_DVFSCORE_BASE_ADDR	(MX50_GPC_BASE_ADDR + 0x180)
+
+/* GPC offsets */
+#define MXC_GPC_CNTR_OFFSET		0x0
+#define MXC_GPC_PGR_OFFSET		0x4
+#define MXC_GPC_VCR_OFFSET		0x8
 
 /*
  * AIPS 2
@@ -188,10 +238,10 @@
 /*
  * Interrupt numbers
  */
-#define MX50_INT_MMC_SDHC1	1
-#define MX50_INT_MMC_SDHC2	2
-#define MX50_INT_MMC_SDHC3	3
-#define MX50_INT_MMC_SDHC4	4
+#define MX50_INT_ESDHC1	1
+#define MX50_INT_ESDHC2	2
+#define MX50_INT_ESDHC3	3
+#define MX50_INT_ESDHC4	4
 #define MX50_INT_DAP		5
 #define MX50_INT_SDMA		6
 #define MX50_INT_IOMUX		7
@@ -212,9 +262,11 @@
 #define MX50_INT_UART3		33
 #define MX50_INT_RESV34		34
 #define MX50_INT_RESV35		35
+/* eCSPI interrupts */
 #define MX50_INT_CSPI1		36
 #define MX50_INT_CSPI2		37
-#define MX50_INT_CSPI		38
+/* CSPI interrupt */
+#define MX50_INT_CSPI3		38
 #define MX50_INT_GPT		39
 #define MX50_INT_EPIT1		40
 #define MX50_INT_GPIO1_INT7	42
@@ -281,5 +333,20 @@
 #define MX50_INT_APBHDMA_CHAN5	115
 #define MX50_INT_APBHDMA_CHAN6	116
 #define MX50_INT_APBHDMA_CHAN7	117
+
+/* DMA */
+#define MX50_DMA_CHANNEL_AHB_APBH_GPMI0	0
+#define MX50_DMA_CHANNEL_AHB_APBH_GPMI1	1
+#define MX50_DMA_CHANNEL_AHB_APBH_GPMI2	2
+#define MX50_DMA_CHANNEL_AHB_APBH_GPMI3	3
+#define MX50_DMA_CHANNEL_AHB_APBH_GPMI4	4
+#define MX50_DMA_CHANNEL_AHB_APBH_GPMI5	5
+#define MX50_DMA_CHANNEL_AHB_APBH_GPMI6	6
+#define MX50_DMA_CHANNEL_AHB_APBH_GPMI7	7
+#define MX50_DMA_CHANNEL_AHB_APBH_SSP	8
+
+#if !defined(__ASSEMBLY__) && !defined(__MXC_BOOT_UNCOMPRESS)
+extern int mx50_revision(void);
+#endif
 
 #endif /* ifndef __MACH_MX50_H__ */

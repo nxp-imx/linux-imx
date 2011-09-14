@@ -30,6 +30,16 @@ int __init mxs_add_amba_device(const struct amba_device *dev);
 /* duart */
 int __init mxs_add_duart(const struct amba_device *dev);
 
+/* auart */
+struct mxs_auart_data {
+	int id;
+	resource_size_t iobase;
+	resource_size_t iosize;
+	resource_size_t irq;
+};
+struct platform_device *__init mxs_add_auart(
+		const struct mxs_auart_data *data);
+
 /* fec */
 #include <linux/fec.h>
 struct mxs_fec_data {
@@ -41,3 +51,38 @@ struct mxs_fec_data {
 struct platform_device *__init mxs_add_fec(
 		const struct mxs_fec_data *data,
 		const struct fec_platform_data *pdata);
+
+/* flexcan */
+#include <linux/can/platform/flexcan.h>
+struct mxs_flexcan_data {
+	int id;
+	resource_size_t iobase;
+	resource_size_t iosize;
+	resource_size_t irq;
+};
+struct platform_device *__init mxs_add_flexcan(
+		const struct mxs_flexcan_data *data,
+		const struct flexcan_platform_data *pdata);
+
+/* gpmi-nfc */
+#include <mach/gpmi-nfc.h>
+struct mxs_gpmi_nfc_data {
+	const char *devid;
+	const struct resource res[RES_SIZE];
+};
+struct platform_device *__init
+mxs_add_gpmi_nfc(const struct gpmi_nfc_platform_data *pdata,
+		const struct mxs_gpmi_nfc_data *data);
+
+/* i2c */
+struct mxs_i2c_data {
+	int id;
+	resource_size_t iobase;
+	resource_size_t errirq;
+	resource_size_t dmairq;
+};
+struct platform_device * __init mxs_add_mxs_i2c(const struct mxs_i2c_data *data);
+
+/* pwm */
+struct platform_device *__init mxs_add_mxs_pwm(
+		resource_size_t iobase, int id);

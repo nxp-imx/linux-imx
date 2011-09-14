@@ -165,6 +165,16 @@ config TOUCHSCREEN_EETI
 	  To compile this driver as a module, choose M here: the
 	  module will be called eeti_ts.
 
+config TOUCHSCREEN_EGALAX
+	tristate "EETI eGalax multi-touchscreen panel support"
+	depends on I2C
+	help
+	  Say Y here to enable support for I2C connected EETI
+	  eGalax multiple touch panels.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called egalax_ts.
+
 config TOUCHSCREEN_FUJITSU
 	tristate "Fujitsu serial touchscreen"
 	select SERIO
@@ -687,6 +697,19 @@ config TOUCHSCREEN_STMPE
 	  To compile this driver as a module, choose M here: the
 	  module will be called stmpe-ts.
 
+config TOUCHSCREEN_P1003
+       tristate "HannStar P1003 touchscreens"
+       depends on I2C
+       help
+         Say Y here if you have a P1003 touchscreen
+	 controller.
+
+	 If unsure, say N.
+
+	 To compile this driver as a module, choose M here: the
+	 module will be called p1003-ts.
+
+
 config TOUCHSCREEN_TPS6507X
 	tristate "TPS6507x based touchscreens"
 	depends on I2C
@@ -698,5 +721,24 @@ config TOUCHSCREEN_TPS6507X
 
 	  To compile this driver as a module, choose M here: the
 	  module will be called tps6507x_ts.
+
+config TOUCHSCREEN_DA9052
+        tristate "Dialog DA9052 TSI"
+        depends on PMIC_DIALOG
+        help
+          Say y here to support the touchscreen found on
+          Dialog Semiconductor DA9052 PMIC
+
+config TOUCHSCREEN_MAX11801
+       tristate "MAX11801 based touchscreens"
+       depends on I2C
+       help
+        Say Y here if you have a MAX11801 based touchscreen
+        controller
+
+        If unsure, say N.
+
+        To compile this driver as a module, choose M here: the
+	  module will be called max11801_ts
 
 endif

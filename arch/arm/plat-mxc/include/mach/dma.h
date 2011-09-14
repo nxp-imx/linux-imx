@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2009 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2004-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -12,6 +12,12 @@
 #include <linux/scatterlist.h>
 #include <linux/device.h>
 #include <linux/dmaengine.h>
+
+#define MXC_DMA_DYNAMIC_CHANNEL   255
+
+#define MXC_DMA_DONE		  0x0
+#define MXC_DMA_REQUEST_TIMEOUT   0x1
+#define MXC_DMA_TRANSFER_ERROR    0x2
 
 /*
  * This enumerates peripheral types. Used for SDMA.
@@ -53,6 +59,13 @@ struct imx_dma_data {
 	int priority;
 };
 
+struct imx_pcm_dma_params {
+	enum sdma_peripheral_type peripheral_type;
+	int dma;
+	unsigned long dma_addr;
+	int burstsize;
+};
+
 static inline int imx_dma_is_ipu(struct dma_chan *chan)
 {
 	return !strcmp(dev_name(chan->device->dev), "ipu-core");
@@ -63,5 +76,20 @@ static inline int imx_dma_is_general_purpose(struct dma_chan *chan)
 	return !strcmp(dev_name(chan->device->dev), "imx-sdma") ||
 		!strcmp(dev_name(chan->device->dev), "imx-dma");
 }
+
+struct mxs_dma_data {
+	int chan_irq;
+};
+
+static inline int mxs_dma_is_apbh(struct dma_chan *chan)
+{
+	return !strcmp(dev_name(chan->device->dev), "mxs-dma-apbh");
+}
+
+static inline int mxs_dma_is_apbx(struct dma_chan *chan)
+{
+	return !strcmp(dev_name(chan->device->dev), "mxs-dma-apbx");
+}
+
 
 #endif

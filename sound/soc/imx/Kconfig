@@ -14,10 +14,16 @@ if SND_IMX_SOC
 config SND_MXC_SOC_SSI
 	tristate
 
+config SND_MXC_SOC_ESAI
+	tristate
+
 config SND_MXC_SOC_FIQ
 	tristate
 
 config SND_MXC_SOC_MX2
+	tristate
+
+config SND_MXC_SOC_SPDIF_DAI
 	tristate
 
 config SND_MXC_SOC_WM1133_EV1
@@ -40,16 +46,45 @@ config SND_SOC_PHYCORE_AC97
 	  Say Y if you want to add support for SoC audio on Phytec phyCORE
 	  and phyCARD boards in AC97 mode
 
+config SND_SOC_IMX_SGTL5000
+	tristate "SoC Audio support for i.MX boards with sgtl5000"
+	depends on MACH_MX35_3DS || MACH_MX51_BABBAGE
+	select SND_SOC_SGTL5000
+	select SND_MXC_SOC_MX2
+	help
+	  Say Y if you want to add support for SoC audio on an i.MX board with
+	  a sgtl5000 codec.
+
+config SND_SOC_IMX_CS42888
+	tristate "SoC Audio support for i.MX boards with cs42888"
+	depends on MACH_MX6Q_SABREAUTO || MACH_MX53_ARD
+	select SND_SOC_CS42888
+	select SND_MXC_SOC_MX2
+	help
+	  Say Y if you want to add support for SoC audio on an i.MX board with
+	  a cs42888 codec
+
 config SND_SOC_EUKREA_TLV320
 	tristate "Eukrea TLV320"
 	depends on MACH_EUKREA_MBIMX27_BASEBOARD \
 		|| MACH_EUKREA_MBIMXSD25_BASEBOARD \
-		|| MACH_EUKREA_MBIMXSD35_BASEBOARD
+		|| MACH_EUKREA_MBIMXSD35_BASEBOARD \
+		|| MACH_EUKREA_MBIMXSD51_BASEBOARD
 	select SND_SOC_TLV320AIC23
 	select SND_MXC_SOC_SSI
 	select SND_MXC_SOC_FIQ
 	help
 	  Enable I2S based access to the TLV320AIC23B codec attached
 	  to the SSI interface
+
+config SND_SOC_IMX_SPDIF
+	tristate "SoC Audio support for IMX - S/PDIF"
+	default n
+	select SND_MXC_SOC_SPDIF_DAI
+	select SND_SOC_MXC_SPDIF
+	select SND_MXC_SOC_MX2
+	help
+	  Say Y if you want to add support for SoC audio on a IMX development
+	  board with S/PDIF.
 
 endif	# SND_IMX_SOC

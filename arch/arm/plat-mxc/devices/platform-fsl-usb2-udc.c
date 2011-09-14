@@ -1,4 +1,6 @@
 /*
+ * Copyright (C) 2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ *
  * Copyright (C) 2010 Pengutronix
  * Uwe Kleine-Koenig <u.kleine-koenig@pengutronix.de>
  *
@@ -34,6 +36,11 @@ const struct imx_fsl_usb2_udc_data imx31_fsl_usb2_udc_data __initconst =
 const struct imx_fsl_usb2_udc_data imx35_fsl_usb2_udc_data __initconst =
 	imx_fsl_usb2_udc_data_entry_single(MX35);
 #endif /* ifdef CONFIG_SOC_IMX35 */
+
+#ifdef CONFIG_SOC_IMX6Q
+const struct imx_fsl_usb2_udc_data imx6q_fsl_usb2_udc_data __initconst =
+	imx_fsl_usb2_udc_data_entry_single(MX6Q);
+#endif /* ifdef CONFIG_SOC_IMX6Q */
 
 struct platform_device *__init imx_add_fsl_usb2_udc(
 		const struct imx_fsl_usb2_udc_data *data,

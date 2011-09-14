@@ -145,6 +145,13 @@ struct sdhci_host {
 	unsigned int            ocr_avail_sd;
 	unsigned int            ocr_avail_mmc;
 
+	unsigned int		tuning_min;
+	unsigned int		tuning_max;
+	unsigned int		tuning_step;
+
+	struct delayed_work	clk_worker;	/* Clock delayed worker */
+	unsigned int		clk_mgr_en;
+	unsigned int		clk_status;
 	unsigned long private[0] ____cacheline_aligned;
 };
 #endif /* __SDHCI_H */

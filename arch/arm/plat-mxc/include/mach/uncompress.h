@@ -62,9 +62,11 @@ static inline void flush(void)
 #define MX2X_UART1_BASE_ADDR	0x1000a000
 #define MX3X_UART1_BASE_ADDR	0x43F90000
 #define MX3X_UART2_BASE_ADDR	0x43F94000
+#define MX3X_UART5_BASE_ADDR	0x43FB4000
 #define MX51_UART1_BASE_ADDR	0x73fbc000
 #define MX50_UART1_BASE_ADDR	0x53fbc000
 #define MX53_UART1_BASE_ADDR	0x53fbc000
+#define MX6Q_UART4_BASE_ADDR    0x021f0000
 
 static __inline__ void __arch_decomp_setup(unsigned long arch_id)
 {
@@ -83,6 +85,7 @@ static __inline__ void __arch_decomp_setup(unsigned long arch_id)
 	case MACH_TYPE_MX21ADS:
 	case MACH_TYPE_PCA100:
 	case MACH_TYPE_MXT_TD60:
+	case MACH_TYPE_IMX27IPCAM:
 		uart_base = MX2X_UART1_BASE_ADDR;
 		break;
 	case MACH_TYPE_MX31LITE:
@@ -101,6 +104,9 @@ static __inline__ void __arch_decomp_setup(unsigned long arch_id)
 	case MACH_TYPE_MAGX_ZN5:
 		uart_base = MX3X_UART2_BASE_ADDR;
 		break;
+	case MACH_TYPE_BUG:
+		uart_base = MX3X_UART5_BASE_ADDR;
+		break;
 	case MACH_TYPE_MX51_BABBAGE:
 	case MACH_TYPE_EUKREA_CPUIMX51SD:
 	case MACH_TYPE_MX51_3DS:
@@ -110,7 +116,12 @@ static __inline__ void __arch_decomp_setup(unsigned long arch_id)
 		uart_base = MX50_UART1_BASE_ADDR;
 		break;
 	case MACH_TYPE_MX53_EVK:
+	case MACH_TYPE_MX53_LOCO:
+	case MACH_TYPE_MX53_SMD:
 		uart_base = MX53_UART1_BASE_ADDR;
+		break;
+	case MACH_TYPE_MX6Q_SABREAUTO:
+		uart_base = MX6Q_UART4_BASE_ADDR;
 		break;
 	default:
 		break;

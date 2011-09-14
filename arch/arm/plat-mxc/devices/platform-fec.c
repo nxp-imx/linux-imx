@@ -5,6 +5,8 @@
  * This program is free software; you can redistribute it and/or modify it under
  * the terms of the GNU General Public License version 2 as published by the
  * Free Software Foundation.
+ *
+ * Copyright (C) 2011 Freescale Semiconductor, Inc.
  */
 #include <asm/sizes.h>
 #include <mach/hardware.h>
@@ -31,6 +33,11 @@ const struct imx_fec_data imx35_fec_data __initconst =
 	imx_fec_data_entry_single(MX35);
 #endif
 
+#ifdef CONFIG_SOC_IMX50
+const struct imx_fec_data imx50_fec_data __initconst =
+	imx_fec_data_entry_single(MX50);
+#endif
+
 #ifdef CONFIG_SOC_IMX51
 const struct imx_fec_data imx51_fec_data __initconst =
 	imx_fec_data_entry_single(MX51);
@@ -41,6 +48,11 @@ const struct imx_fec_data imx53_fec_data __initconst =
 	imx_fec_data_entry_single(MX53);
 #endif
 
+#ifdef CONFIG_SOC_IMX6Q
+const struct imx_fec_data imx6q_fec_data __initconst =
+	imx_fec_data_entry_single(MX6Q);
+#endif
+
 struct platform_device *__init imx_add_fec(
 		const struct imx_fec_data *data,
 		const struct fec_platform_data *pdata)
@@ -48,7 +60,7 @@ struct platform_device *__init imx_add_fec(
 	struct resource res[] = {
 		{
 			.start = data->iobase,
-			.end = data->iobase + SZ_4K,
+			.end = data->iobase + SZ_4K - 1,
 			.flags = IORESOURCE_MEM,
 		}, {
 			.start = data->irq,
@@ -57,7 +69,7 @@ struct platform_device *__init imx_add_fec(
 		},
 	};
 
-	return imx_add_platform_device("fec", 0 /* -1? */,
+	return imx_add_platform_device_dmamask("fec", 0,
 			res, ARRAY_SIZE(res),
-			pdata, sizeof(*pdata));
+			pdata, sizeof(*pdata), DMA_BIT_MASK(32));
 }

@@ -564,6 +564,22 @@ config BFIN_OTP_WRITE_ENABLE
 
 	  If unsure, say N.
 
+config FSL_OTP
+	tristate "Freescale On-Chip OTP Memory Support"
+	depends on (ARCH_MX23 || ARCH_MX28 || ARCH_MX50 || ARCH_MX6)
+	default n
+	help
+	  If you say Y here, you will get support for a character device
+	  interface into the One Time Programmable memory pages that are
+	  stored on the iMX23/28/50 processor.  This will not get you access
+	  to the secure memory pages however.  You will need to write your
+	  own secure code and reader for that.
+
+	  To compile this driver as a module, choose M here: the module
+	  will be called fsl_otp.
+
+	  If unsure, it is safe to say Y.
+
 config PRINTER
 	tristate "Parallel printer support"
 	depends on PARPORT
@@ -1160,6 +1176,18 @@ config RAMOOPS
 	help
 	  This enables panic and oops messages to be logged to a circular
 	  buffer in RAM where it can be read back at some later point.
+
+config MXC_IIM
+	tristate "MXC IIM device driver"
+	depends on (ARCH_MX51 || ARCH_MX53)
+	help
+	  Support for access to MXC IIM device, most people should say N here.
+
+config MXS_VIIM
+	tristate "MXS Virtual IIM device driver"
+	depends on (ARCH_MX50 || ARCH_MX6)
+	help
+	  Support for access to MXS Virtual IIM device, most people should say N here.
 
 endmenu
 

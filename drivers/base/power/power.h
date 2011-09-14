@@ -10,6 +10,10 @@ static inline void pm_runtime_remove(struct device *dev) {}
 
 #endif /* !CONFIG_PM_RUNTIME */
 
+#ifdef CONFIG_SUSPEND_DEVICE_TIME_DEBUG
+extern int device_suspend_time_threshold;
+#endif
+
 #ifdef CONFIG_PM_SLEEP
 
 /* kernel/power/main.c */

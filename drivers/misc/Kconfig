@@ -497,6 +497,10 @@ config APANIC_PLABEL
 	---help---
 	 If your platform uses a different flash partition label for storing
  	 crashdumps, enter it here.
+config MXS_PERFMON
+	tristate "i.MX Performance Monitor"
+	depends on ARCH_MX50
+	default y
 
 source "drivers/misc/c2port/Kconfig"
 source "drivers/misc/eeprom/Kconfig"

@@ -1,0 +1,64 @@
+#
+# PMIC device driver configuration
+#
+
+menu "MXC PMIC support"
+
+config MXC_PMIC
+	boolean
+
+config MXC_PMIC_MC13783
+	tristate "MC13783 PMIC"
+	depends on ARCH_MXC && SPI
+	select MXC_PMIC
+	---help---
+	  This is the MXC MC13783(PMIC) support. It include
+	  ADC, Audio, Battery, Connectivity, Light, Power and RTC.
+
+config MXC_PMIC_MC13892
+	tristate "MC13892 PMIC"
+	depends on ARCH_MXC && (I2C || SPI)
+	select MXC_PMIC
+	---help---
+	  This is the MXC MC13892(PMIC) support. It include
+	  ADC, Battery, Connectivity, Light, Power and RTC.
+
+config MXC_PMIC_I2C
+	bool "Support PMIC I2C Interface"
+	depends on MXC_PMIC_MC13892 && I2C
+
+config MXC_PMIC_SPI
+	bool "Support PMIC SPI Interface"
+	depends on (MXC_PMIC_MC13892 || MXC_PMIC_MC13783) && SPI
+
+config MXC_PMIC_MC34704
+	tristate "MC34704 PMIC"
+	depends on ARCH_MXC && I2C
+	select MXC_PMIC
+	  ---help---
+	  This is the MXC MC34704 PMIC support.
+
+config MXC_PMIC_MC9SDZ60
+	tristate "MC9sDZ60 PMIC"
+	depends on ARCH_MXC && I2C
+	select MXC_PMIC
+	  ---help---
+	  This is the MXC MC9sDZ60(MCU) PMIC support.
+
+config MXC_PMIC_CHARDEV
+	tristate "MXC PMIC device interface"
+	depends on MXC_PMIC
+	help
+	  Say Y here to use "pmic" device files, found in the /dev directory
+	  on the system.  They make it possible to have user-space programs
+	  use or controll PMIC. Mainly its useful for notifying PMIC events
+	  to user-space programs.
+
+comment "MXC PMIC Client Drivers"
+	depends on MXC_PMIC
+
+source "drivers/mxc/pmic/mc13783/Kconfig"
+
+source "drivers/mxc/pmic/mc13892/Kconfig"
+
+endmenu

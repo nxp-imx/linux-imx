@@ -1,5 +1,5 @@
 /*
- *  Copyright 2004-2007 Freescale Semiconductor, Inc. All Rights Reserved.
+ *  Copyright 2004-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -16,6 +16,9 @@
  */
 #ifdef CONFIG_MXC_TZIC
 #define MXC_INTERNAL_IRQS	128
+#elif defined CONFIG_ARM_GIC
+/* assuem 256 is enough for GIC */
+#define MXC_INTERNAL_IRQS	256
 #else
 #define MXC_INTERNAL_IRQS	64
 #endif
@@ -23,22 +26,24 @@
 #define MXC_GPIO_IRQ_START	MXC_INTERNAL_IRQS
 
 /* these are ordered by size to support multi-SoC kernels */
-#if defined CONFIG_ARCH_MX53
+#if defined CONFIG_SOC_IMX53
 #define MXC_GPIO_IRQS		(32 * 7)
 #elif defined CONFIG_ARCH_MX2
 #define MXC_GPIO_IRQS		(32 * 6)
-#elif defined CONFIG_ARCH_MX50
+#elif defined CONFIG_SOC_IMX50
 #define MXC_GPIO_IRQS		(32 * 6)
 #elif defined CONFIG_ARCH_MX1
 #define MXC_GPIO_IRQS		(32 * 4)
 #elif defined CONFIG_ARCH_MX25
 #define MXC_GPIO_IRQS		(32 * 4)
-#elif defined CONFIG_ARCH_MX51
+#elif defined CONFIG_SOC_IMX51
 #define MXC_GPIO_IRQS		(32 * 4)
 #elif defined CONFIG_ARCH_MXC91231
 #define MXC_GPIO_IRQS		(32 * 4)
 #elif defined CONFIG_ARCH_MX3
 #define MXC_GPIO_IRQS		(32 * 3)
+#elif defined CONFIG_ARCH_MX6
+#define MXC_GPIO_IRQS		(32 * 7)
 #endif
 
 /*
@@ -62,9 +67,14 @@
 #else
 #define MX3_IPU_IRQS 0
 #endif
-/* REVISIT: Add IPU irqs on IMX51 */
 
-#define NR_IRQS			(MXC_IPU_IRQ_START + MX3_IPU_IRQS)
+#ifdef CONFIG_ARCH_MX5
+#define MX5_IPU_IRQS (32*15)
+#else
+#define MX5_IPU_IRQS 0
+#endif
+
+#define NR_IRQS	(MXC_IPU_IRQ_START + MX3_IPU_IRQS + MX5_IPU_IRQS)
 
 extern int imx_irq_set_priority(unsigned char irq, unsigned char prio);
 

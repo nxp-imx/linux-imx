@@ -1,5 +1,5 @@
 /*
- * Copyright 2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2010-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -26,17 +26,140 @@
 
 #include "devices-mx23.h"
 
+#define MX23EVK_LCD_ENABLE	MXS_GPIO_NR(1, 18)
+#define MX23EVK_BL_ENABLE	MXS_GPIO_NR(1, 28)
+
 static const iomux_cfg_t mx23evk_pads[] __initconst = {
 	/* duart */
-	MX23_PAD_PWM0__DUART_RX | MXS_PAD_4MA,
-	MX23_PAD_PWM1__DUART_TX | MXS_PAD_4MA,
+	MX23_PAD_PWM0__DUART_RX | MXS_PAD_CTRL,
+	MX23_PAD_PWM1__DUART_TX | MXS_PAD_CTRL,
+
+	/* auart */
+	MX23_PAD_AUART1_RX__AUART1_RX | MXS_PAD_CTRL,
+	MX23_PAD_AUART1_TX__AUART1_TX | MXS_PAD_CTRL,
+	MX23_PAD_AUART1_CTS__AUART1_CTS | MXS_PAD_CTRL,
+	MX23_PAD_AUART1_RTS__AUART1_RTS | MXS_PAD_CTRL,
+
+	/* mxsfb (lcdif) */
+	MX23_PAD_LCD_D00__LCD_D00 | MXS_PAD_CTRL,
+	MX23_PAD_LCD_D01__LCD_D01 | MXS_PAD_CTRL,
+	MX23_PAD_LCD_D02__LCD_D02 | MXS_PAD_CTRL,
+	MX23_PAD_LCD_D03__LCD_D03 | MXS_PAD_CTRL,
+	MX23_PAD_LCD_D04__LCD_D04 | MXS_PAD_CTRL,
+	MX23_PAD_LCD_D05__LCD_D05 | MXS_PAD_CTRL,
+	MX23_PAD_LCD_D06__LCD_D06 | MXS_PAD_CTRL,
+	MX23_PAD_LCD_D07__LCD_D07 | MXS_PAD_CTRL,
+	MX23_PAD_LCD_D08__LCD_D08 | MXS_PAD_CTRL,
+	MX23_PAD_LCD_D09__LCD_D09 | MXS_PAD_CTRL,
+	MX23_PAD_LCD_D10__LCD_D10 | MXS_PAD_CTRL,
+	MX23_PAD_LCD_D11__LCD_D11 | MXS_PAD_CTRL,
+	MX23_PAD_LCD_D12__LCD_D12 | MXS_PAD_CTRL,
+	MX23_PAD_LCD_D13__LCD_D13 | MXS_PAD_CTRL,
+	MX23_PAD_LCD_D14__LCD_D14 | MXS_PAD_CTRL,
+	MX23_PAD_LCD_D15__LCD_D15 | MXS_PAD_CTRL,
+	MX23_PAD_LCD_D16__LCD_D16 | MXS_PAD_CTRL,
+	MX23_PAD_LCD_D17__LCD_D17 | MXS_PAD_CTRL,
+	MX23_PAD_GPMI_D08__LCD_D18 | MXS_PAD_CTRL,
+	MX23_PAD_GPMI_D09__LCD_D19 | MXS_PAD_CTRL,
+	MX23_PAD_GPMI_D10__LCD_D20 | MXS_PAD_CTRL,
+	MX23_PAD_GPMI_D11__LCD_D21 | MXS_PAD_CTRL,
+	MX23_PAD_GPMI_D12__LCD_D22 | MXS_PAD_CTRL,
+	MX23_PAD_GPMI_D13__LCD_D23 | MXS_PAD_CTRL,
+	MX23_PAD_LCD_VSYNC__LCD_VSYNC | MXS_PAD_CTRL,
+	MX23_PAD_LCD_HSYNC__LCD_HSYNC | MXS_PAD_CTRL,
+	MX23_PAD_LCD_DOTCK__LCD_DOTCK | MXS_PAD_CTRL,
+	MX23_PAD_LCD_ENABLE__LCD_ENABLE | MXS_PAD_CTRL,
+	/* LCD panel enable */
+	MX23_PAD_LCD_RESET__GPIO_1_18 | MXS_PAD_CTRL,
+	/* backlight control */
+	MX23_PAD_PWM2__GPIO_1_28 | MXS_PAD_CTRL,
+};
+
+/* gpmi-nfc */
+#define MXS_PAD_GPMI_NFC	(MXS_PAD_12MA | MXS_PAD_3V3 | MXS_PAD_NOPULL)
+static iomux_cfg_t mx23evk_gpmi_nfc_pads[] = {
+	MX23_PAD_GPMI_D00__GPMI_D00 | MXS_PAD_CTRL,
+	MX23_PAD_GPMI_D01__GPMI_D01 | MXS_PAD_CTRL,
+	MX23_PAD_GPMI_D02__GPMI_D02 | MXS_PAD_CTRL,
+	MX23_PAD_GPMI_D03__GPMI_D03 | MXS_PAD_CTRL,
+	MX23_PAD_GPMI_D04__GPMI_D04 | MXS_PAD_CTRL,
+	MX23_PAD_GPMI_D05__GPMI_D05 | MXS_PAD_CTRL,
+	MX23_PAD_GPMI_D06__GPMI_D06 | MXS_PAD_CTRL,
+	MX23_PAD_GPMI_D07__GPMI_D07 | MXS_PAD_CTRL,
+	MX23_PAD_GPMI_CLE__GPMI_CLE | MXS_PAD_CTRL,
+	MX23_PAD_GPMI_ALE__GPMI_ALE | MXS_PAD_CTRL,
+	MX23_PAD_GPMI_WPN__GPMI_WPN | MXS_PAD_GPMI_NFC,
+	MX23_PAD_GPMI_WRN__GPMI_WRN | MXS_PAD_GPMI_NFC,
+	MX23_PAD_GPMI_RDN__GPMI_RDN | MXS_PAD_GPMI_NFC,
+	MX23_PAD_GPMI_RDY0__GPMI_RDY0 | MXS_PAD_CTRL,
+	MX23_PAD_GPMI_RDY1__GPMI_RDY1 | MXS_PAD_CTRL,
+	MX23_PAD_GPMI_CE0N__GPMI_CE0N | MXS_PAD_CTRL,
+	MX23_PAD_GPMI_CE1N__GPMI_CE1N | MXS_PAD_CTRL,
+};
+
+static int mx23evk_gpmi_nfc_platform_init(void)
+{
+	return mxs_iomux_setup_multiple_pads(mx23evk_gpmi_nfc_pads,
+				ARRAY_SIZE(mx23evk_gpmi_nfc_pads));
+}
+
+static const
+struct gpmi_nfc_platform_data mx23evk_gpmi_nfc_data __initconst = {
+	.platform_init		= mx23evk_gpmi_nfc_platform_init,
+	.min_prop_delay_in_ns	= 5,
+	.max_prop_delay_in_ns	= 9,
+	.max_chip_count		= 1,
+};
+
+/* mxsfb (lcdif) */
+static struct fb_videomode mx23evk_video_modes[] = {
+	{
+		.name		= "Samsung-LMS430HF02",
+		.refresh	= 60,
+		.xres		= 480,
+		.yres		= 272,
+		.pixclock	= 108096, /* picosecond (9.2 MHz) */
+		.left_margin	= 15,
+		.right_margin	= 8,
+		.upper_margin	= 12,
+		.lower_margin	= 4,
+		.hsync_len	= 1,
+		.vsync_len	= 1,
+		.sync		= FB_SYNC_DATA_ENABLE_HIGH_ACT |
+				  FB_SYNC_DOTCLK_FAILING_ACT,
+	},
+};
+
+static const struct mxsfb_platform_data mx23evk_mxsfb_pdata __initconst = {
+	.mode_list	= mx23evk_video_modes,
+	.mode_count	= ARRAY_SIZE(mx23evk_video_modes),
+	.default_bpp	= 32,
+	.ld_intf_width	= STMLCDIF_24BIT,
 };
 
 static void __init mx23evk_init(void)
 {
+	int ret;
+
 	mxs_iomux_setup_multiple_pads(mx23evk_pads, ARRAY_SIZE(mx23evk_pads));
 
 	mx23_add_duart();
+	mx23_add_auart0();
+
+	ret = gpio_request_one(MX23EVK_LCD_ENABLE, GPIOF_DIR_OUT, "lcd-enable");
+	if (ret)
+		pr_warn("failed to request gpio lcd-enable: %d\n", ret);
+	else
+		gpio_set_value(MX23EVK_LCD_ENABLE, 1);
+
+	ret = gpio_request_one(MX23EVK_BL_ENABLE, GPIOF_DIR_OUT, "bl-enable");
+	if (ret)
+		pr_warn("failed to request gpio bl-enable: %d\n", ret);
+	else
+		gpio_set_value(MX23EVK_BL_ENABLE, 1);
+
+	mx23_add_gpmi_nfc(&mx23evk_gpmi_nfc_data);
+	mx23_add_mxsfb(&mx23evk_mxsfb_pdata);
 }
 
 static void __init mx23evk_timer_init(void)

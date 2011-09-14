@@ -1,6 +1,6 @@
 /*
  *
- * Copyright (c) 2004-2010 Atheros Communications Inc.
+ * Copyright (c) 2004-2011 Atheros Communications Inc.
  * All rights reserved.
  *
  * 
@@ -290,6 +290,7 @@ A_STATUS ar6000_resume_ev(void *context)
 #ifdef CONFIG_HAS_WAKELOCK
     wake_unlock(&ar6k_suspend_wake_lock);
 #endif
+    mdelay(100);
     return A_OK;
 }
 

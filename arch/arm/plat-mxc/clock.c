@@ -4,7 +4,7 @@
  * Copyright (C) 2004 - 2005 Nokia corporation
  * Written by Tuukka Tikkanen <tuukka.tikkanen@elektrobit.com>
  * Modified for omap shared clock framework by Tony Lindgren <tony@atomide.com>
- * Copyright 2007 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2007-2011 Freescale Semiconductor, Inc.
  * Copyright 2008 Juergen Beisert, kernel@pengutronix.de
  *
  * This program is free software; you can redistribute it and/or
@@ -37,9 +37,22 @@
 #include <linux/proc_fs.h>
 #include <linux/semaphore.h>
 #include <linux/string.h>
+#include <linux/slab.h>
+#include <linux/debugfs.h>
+#include <linux/hardirq.h>
 
 #include <mach/clock.h>
 #include <mach/hardware.h>
+
+extern int dvfs_core_is_active;
+extern int lp_high_freq;
+extern int lp_med_freq;
+extern int low_bus_freq_mode;
+extern int high_bus_freq_mode;
+extern int med_bus_freq_mode;
+extern int set_high_bus_freq(int high_freq);
+extern int set_low_bus_freq(void);
+extern int low_freq_bus_used(void);
 
 static LIST_HEAD(clocks);
 static DEFINE_MUTEX(clocks_mutex);
@@ -82,10 +95,37 @@ static int __clk_enable(struct clk *clk)
  */
 int clk_enable(struct clk *clk)
 {
+	/* unsigned long flags; */
 	int ret = 0;
+
+	if (in_interrupt()) {
+		printk(KERN_ERR " clk_enable cannot be called in an interrupt context\n");
+		dump_stack();
+		BUG();
+	}
 
 	if (clk == NULL || IS_ERR(clk))
 		return -EINVAL;
+
+	if ((clk->flags & CPU_FREQ_TRIG_UPDATE)
+			&& (clk_get_usecount(clk) == 0)) {
+		if (!(clk->flags &
+			(AHB_HIGH_SET_POINT | AHB_MED_SET_POINT)))  {
+			if (low_freq_bus_used() && !low_bus_freq_mode)
+				set_low_bus_freq();
+		} else {
+			if ((clk->flags & AHB_MED_SET_POINT)
+				&& !med_bus_freq_mode)
+				/* Set to Medium setpoint */
+				set_high_bus_freq(0);
+			else if ((clk->flags & AHB_HIGH_SET_POINT)
+				&& !high_bus_freq_mode)
+				/* Currently at low or medium set point,
+				  * need to set to high setpoint
+				  */
+				set_high_bus_freq(1);
+		}
+	}
 
 	mutex_lock(&clocks_mutex);
 	ret = __clk_enable(clk);
@@ -101,14 +141,50 @@ EXPORT_SYMBOL(clk_enable);
  */
 void clk_disable(struct clk *clk)
 {
+	/* unsigned long flags; */
+
+	if (in_interrupt()) {
+		printk(KERN_ERR " clk_disable cannot be called in an interrupt context\n");
+		dump_stack();
+		BUG();
+	}
+
 	if (clk == NULL || IS_ERR(clk))
 		return;
 
 	mutex_lock(&clocks_mutex);
 	__clk_disable(clk);
 	mutex_unlock(&clocks_mutex);
+	if ((clk->flags & CPU_FREQ_TRIG_UPDATE)
+			&& (clk_get_usecount(clk) == 0)) {
+		if (low_freq_bus_used() && !low_bus_freq_mode)
+			set_low_bus_freq();
+		else
+			/* Set to either high or medium setpoint. */
+			set_high_bus_freq(0);
+	}
 }
+
 EXPORT_SYMBOL(clk_disable);
+
+/*!
+ * @brief Function to get the usage count for the requested clock.
+ *
+ * This function returns the reference count for the clock.
+ *
+ * @param clk 	Handle to clock to disable.
+ *
+ * @return Returns the usage count for the requested clock.
+ */
+int clk_get_usecount(struct clk *clk)
+{
+	if (clk == NULL || IS_ERR(clk))
+		return 0;
+
+	return clk->usecount;
+}
+
+EXPORT_SYMBOL(clk_get_usecount);
 
 /* Retrieve the *current* clock rate. If the clock itself
  * does not provide a special calculation routine, ask
@@ -244,3 +320,129 @@ unsigned long mxc_decode_pll(unsigned int reg_val, u32 freq)
 
 	return ll;
 }
+
+#ifdef CONFIG_CLK_DEBUG
+/*
+ *	debugfs support to trace clock tree hierarchy and attributes
+ */
+static int clk_debug_rate_get(void *data, u64 *val)
+{
+	struct clk *clk = data;
+
+	*val = (u64)clk_get_rate(clk);
+	return 0;
+}
+DEFINE_SIMPLE_ATTRIBUTE(clk_debug_rate_fops, clk_debug_rate_get, NULL,
+		"%llu\n");
+
+
+static struct dentry *clk_root;
+static int clk_debug_register_one(struct clk *clk)
+{
+	int err;
+	struct dentry *d, *child, *child_tmp;
+	struct clk *pa = clk_get_parent(clk);
+
+	if (pa && !IS_ERR(pa))
+		d = debugfs_create_dir(clk->name, pa->dentry);
+	else {
+		if (!clk_root)
+			clk_root = debugfs_create_dir("clock", NULL);
+		if (!clk_root)
+			return -ENOMEM;
+		d = debugfs_create_dir(clk->name, clk_root);
+	}
+
+	if (!d)
+		return -ENOMEM;
+
+	clk->dentry = d;
+
+	d = debugfs_create_u8("enable_count", S_IRUGO, clk->dentry,
+			(u8 *)&clk->usecount);
+	if (!d) {
+		err = -ENOMEM;
+		goto err_out;
+	}
+
+	d = debugfs_create_file("rate", S_IRUGO, clk->dentry, (void *)clk,
+			&clk_debug_rate_fops);
+	if (!d) {
+		err = -ENOMEM;
+		goto err_out;
+	}
+
+	d = debugfs_create_u32("flags", S_IRUGO, clk->dentry,
+			(u32 *)&clk->flags);
+	if (!d) {
+		err = -ENOMEM;
+		goto err_out;
+	}
+
+	return 0;
+
+err_out:
+	d = clk->dentry;
+	list_for_each_entry_safe(child, child_tmp, &d->d_subdirs, d_u.d_child)
+		debugfs_remove(child);
+	debugfs_remove(clk->dentry);
+	return err;
+}
+
+struct preinit_clk {
+	struct list_head list;
+	struct clk *clk;
+};
+static LIST_HEAD(preinit_clks);
+static DEFINE_MUTEX(preinit_lock);
+static int init_done;
+
+void clk_debug_register(struct clk *clk)
+{
+	int err;
+	struct clk *pa;
+
+	if (init_done) {
+		pa = clk_get_parent(clk);
+
+		if (pa && !IS_ERR(pa) && !pa->dentry)
+			clk_debug_register(pa);
+
+		if (!clk->dentry) {
+			err = clk_debug_register_one(clk);
+			if (err)
+				return;
+		}
+	} else {
+		struct preinit_clk *p;
+		mutex_lock(&preinit_lock);
+		p = kmalloc(sizeof(*p), GFP_KERNEL);
+		if (p) {
+			p->clk = clk;
+			list_add(&p->list, &preinit_clks);
+		}
+		mutex_unlock(&preinit_lock);
+	}
+}
+EXPORT_SYMBOL_GPL(clk_debug_register);
+
+static int __init clk_debugfs_init(void)
+{
+	struct preinit_clk *pclk, *tmp;
+
+	init_done = 1;
+
+	mutex_lock(&preinit_lock);
+	list_for_each_entry(pclk, &preinit_clks, list) {
+		clk_debug_register(pclk->clk);
+	}
+
+	list_for_each_entry_safe(pclk, tmp, &preinit_clks, list) {
+		list_del(&pclk->list);
+		kfree(pclk);
+	}
+	mutex_unlock(&preinit_lock);
+	return 0;
+}
+late_initcall(clk_debugfs_init);
+#endif
