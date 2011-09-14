@@ -30,9 +30,9 @@
 
 #ifdef __KERNEL__
 
-#include <linux/ipu.h>
 #include <linux/mxc_v4l2.h>
 #include <linux/videodev2.h>
+#include <mach/ipu-v3.h>
 
 #define MIN_FRAME_NUM 2
 #define MAX_FRAME_NUM 30
