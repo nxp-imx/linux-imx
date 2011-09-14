@@ -32,9 +32,9 @@
 #include <linux/slab.h>
 #include <linux/dma-mapping.h>
 #include <linux/io.h>
-#include <linux/ipu.h>
 #include <linux/kthread.h>
 #include <asm/cacheflush.h>
+#include <mach/ipu-v3.h>
 
 #include "ipu_prv.h"
 #include "ipu_regs.h"

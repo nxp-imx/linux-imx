@@ -24,7 +24,7 @@
 #include <linux/spinlock.h>
 #include <linux/videodev2.h>
 #include <linux/io.h>
-#include <linux/ipu.h>
+#include <mach/ipu-v3.h>
 
 #include "ipu_prv.h"
 #include "ipu_regs.h"
