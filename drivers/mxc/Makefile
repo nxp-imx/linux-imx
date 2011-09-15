@@ -16,5 +16,5 @@ obj-$(CONFIG_GPS_IOCTRL)		+= gps_ioctrl/
 obj-$(CONFIG_MXC_MLB)                   += mlb/
 obj-$(CONFIG_IMX_ADC)                   += adc/
 obj-$(CONFIG_MXC_AMD_GPU)              += amd-gpu/
+obj-$(CONFIG_MXC_GPU_VIV)              += gpu-viv/
 obj-$(CONFIG_ANATOP_THERMAL)            += thermal/
-
