@@ -35,6 +35,7 @@ source "drivers/mxc/gps_ioctrl/Kconfig"
 source "drivers/mxc/mlb/Kconfig"
 source "drivers/mxc/adc/Kconfig"
 source "drivers/mxc/amd-gpu/Kconfig"
+source "drivers/mxc/gpu-viv/Kconfig"
 source "drivers/mxc/thermal/Kconfig"
 
 endmenu
