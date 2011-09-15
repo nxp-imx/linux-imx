@@ -181,7 +181,7 @@ static void max17085_get_volt(struct max17085_chip *chip)
 		chip->voltage_uV = -1;
 }
 
-#define BATT_EMPTY_MV		9000
+#define BATT_EMPTY_MV		9600
 #define BATT_FULL_MV		12600
 static void max17085_get_cap(struct max17085_chip *chip)
 {
