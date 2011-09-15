@@ -130,7 +130,11 @@ static int mic_bias_event(struct snd_soc_dapm_widget *w,
 	case SND_SOC_DAPM_POST_PMU:
 		/* change mic bias resistor to 4Kohm */
 		snd_soc_update_bits(w->codec, SGTL5000_CHIP_MIC_CTRL,
-				SGTL5000_BIAS_R_4k, SGTL5000_BIAS_R_4k);
+			SGTL5000_BIAS_R_MASK,
+			SGTL5000_BIAS_R_4k << SGTL5000_BIAS_R_SHIFT);
+
+		snd_soc_update_bits(w->codec, SGTL5000_CHIP_ANA_POWER,
+			SGTL5000_VAG_POWERUP, SGTL5000_VAG_POWERUP);
 		break;
 
 	case SND_SOC_DAPM_PRE_PMD:
@@ -139,7 +143,11 @@ static int mic_bias_event(struct snd_soc_dapm_widget *w,
 		 * of mic bias and output impedance
 		 */
 		snd_soc_update_bits(w->codec, SGTL5000_CHIP_MIC_CTRL,
-				SGTL5000_BIAS_R_8k, 0);
+			SGTL5000_BIAS_R_MASK,
+			SGTL5000_BIAS_R_off << SGTL5000_BIAS_R_SHIFT);
+
+		snd_soc_update_bits(w->codec, SGTL5000_CHIP_ANA_POWER,
+			SGTL5000_VAG_POWERUP, 0);
 		break;
 	}
 	return 0;
@@ -267,7 +275,7 @@ static const struct snd_soc_dapm_widget sgtl5000_dapm_widgets[] = {
 				0, SGTL5000_CHIP_DIG_POWER,
 				1, 0),
 
-	SND_SOC_DAPM_MICBIAS_E("Mic Bias", SGTL5000_CHIP_MIC_CTRL, 8, 0,
+	SND_SOC_DAPM_MICBIAS_E("Mic Bias", SND_SOC_NOPM, 0, 0,
 				mic_bias_event,
 				SND_SOC_DAPM_POST_PMU | SND_SOC_DAPM_PRE_PMD),
 
@@ -298,7 +306,8 @@ static const struct snd_soc_dapm_widget sgtl5000_dapm_widgets[] = {
 /* routes for sgtl5000 */
 static const struct snd_soc_dapm_route audio_map[] = {
 	{"Capture Mux", "LINE_IN", "LINE_IN"},	/* line_in --> adc_mux */
-	{"Capture Mux", "MIC_IN", "MIC_IN"},	/* mic_in --> adc_mux */
+	{"Mic Bias", NULL, "MIC_IN"},		/* mic_in --> mic bias */
+	{"Capture Mux", "MIC_IN", "Mic Bias"},	/* mic bias --> adc_mux */
 
 	{"ADC", NULL, "Capture Mux"},		/* adc_mux --> adc */
 
