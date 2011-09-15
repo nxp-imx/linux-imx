@@ -117,8 +117,8 @@ extern const struct imx_mxc_hdmi_data imx6q_mxc_hdmi_data __initconst;
 	imx_add_mxc_hdmi(&imx6q_mxc_hdmi_data, pdata)
 
 extern const struct imx_mxc_hdmi_core_data imx6q_mxc_hdmi_core_data __initconst;
-#define imx6q_add_mxc_hdmi_core()		\
-	imx_add_mxc_hdmi_core(&imx6q_mxc_hdmi_core_data)
+#define imx6q_add_mxc_hdmi_core(pdata)	\
+	imx_add_mxc_hdmi_core(&imx6q_mxc_hdmi_core_data, pdata)
 
 extern const struct imx_vpu_data imx6q_vpu_data __initconst;
 #define imx6q_add_vpu() imx_add_vpu(&imx6q_vpu_data)
@@ -158,3 +158,8 @@ extern const struct imx_spdif_dai_data imx6q_spdif_dai_data __initconst;
 #define imx6q_add_spdif_dai()	imx_add_spdif_dai(&imx6q_spdif_dai_data)
 
 #define imx6q_add_spdif_audio_device(pdata)	imx_add_spdif_audio_device()
+
+#define imx6q_add_hdmi_soc() imx_add_hdmi_soc()
+extern const struct imx_hdmi_soc_data imx6q_imx_hdmi_soc_dai_data __initconst;
+#define imx6q_add_hdmi_soc_dai() \
+	imx_add_hdmi_soc_dai(&imx6q_imx_hdmi_soc_dai_data)
