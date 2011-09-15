@@ -767,6 +767,9 @@ static void hdmi_init(int ipu_id, int disp_id)
 
 static struct fsl_mxc_hdmi_platform_data hdmi_data = {
 	.init = hdmi_init,
+};
+
+static struct fsl_mxc_hdmi_core_platform_data hdmi_core_data = {
 	.ipu_id = 0,
 	.disp_id = 0,
 };
@@ -942,7 +945,7 @@ static void __init mx6_board_init(void)
 			ARRAY_SIZE(mx6q_sabreauto_esai_record_pads));
 
 	mx6q_sabreauto_init_uart();
-	imx6q_add_mxc_hdmi_core();
+	imx6q_add_mxc_hdmi_core(&hdmi_core_data);
 
 	imx6q_add_ipuv3(0, &ipu_data[0]);
 	imx6q_add_ipuv3(1, &ipu_data[1]);
@@ -1018,6 +1021,9 @@ static void __init mx6_board_init(void)
 	imx6q_add_spdif(&mxc_spdif_data);
 	imx6q_add_spdif_dai();
 	imx6q_add_spdif_audio_device();
+
+	imx6q_add_hdmi_soc();
+	imx6q_add_hdmi_soc_dai();
 }
 
 extern void __iomem *twd_base;
