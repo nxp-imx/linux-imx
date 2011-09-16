@@ -151,7 +151,7 @@ struct pxp_proc_data {
 
 	/* LUT transformation on Y data */
 	int lut_transform;
-	u8 *lut_map; /* 256 entries */
+	__u8 *lut_map; /* 256 entries */
 	bool lut_map_updated; /* Map recently changed */
 };
 
