@@ -236,7 +236,6 @@ __v7_setup:
 	mcreq	p15, 1, r10, c9, c0, 2		@ write the L2 cache aux ctrl register
 #endif
 	mrc p15, 1, r10, c9, c0, 2          @ Read L2 Cache Auxiliary Control Register
-	orr r10, r10, #(1<<29)      @ read data multiplexer select, one cycle
 	bic r10, r10, #(1<<27)      @ PLD forwarding
 	orr r10, r10, #(1<<25)      @ Write combine
 	bic r10, r10, #(1<<24)
