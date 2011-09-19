@@ -176,14 +176,22 @@ struct clk ipu_pixel_clk[] = {
 	},
 };
 
-struct clk_lookup ipu_lookups[] = {
+struct clk_lookup ipu_lookups[MXC_IPU_MAX_NUM][2] = {
 	{
-		.dev_id = NULL,
-		.con_id = "pixel_clk_0",
+		{
+			.con_id = "pixel_clk_0",
+		},
+		{
+			.con_id = "pixel_clk_1",
+		},
 	},
 	{
-		.dev_id = NULL,
-		.con_id = "pixel_clk_1",
+		{
+			.con_id = "pixel_clk_0",
+		},
+		{
+			.con_id = "pixel_clk_1",
+		},
 	},
 };
 

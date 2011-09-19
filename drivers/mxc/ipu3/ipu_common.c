@@ -134,10 +134,12 @@ static int __devinit ipu_clk_setup_enable(struct ipu_soc *ipu,
 	ipu->pixel_clk[0] = ipu_pixel_clk[0];
 	ipu->pixel_clk[1] = ipu_pixel_clk[1];
 
-	ipu_lookups[0].clk = &ipu->pixel_clk[0];
-	ipu_lookups[1].clk = &ipu->pixel_clk[1];
-	clkdev_add(&ipu_lookups[0]);
-	clkdev_add(&ipu_lookups[1]);
+	ipu_lookups[pdev->id][0].clk = &ipu->pixel_clk[0];
+	ipu_lookups[pdev->id][1].clk = &ipu->pixel_clk[1];
+	ipu_lookups[pdev->id][0].dev_id = dev_name(ipu->dev);
+	ipu_lookups[pdev->id][1].dev_id = dev_name(ipu->dev);
+	clkdev_add(&ipu_lookups[pdev->id][0]);
+	clkdev_add(&ipu_lookups[pdev->id][1]);
 
 	clk_debug_register(&ipu->pixel_clk[0]);
 	clk_debug_register(&ipu->pixel_clk[1]);
