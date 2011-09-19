@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # Linux/arm 2.6.38 Kernel Configuration
-# Thu Sep 15 18:47:42 2011
+# Mon Sep 19 16:32:11 2011
 #
 CONFIG_ARM=y
 CONFIG_HAVE_PWM=y
@@ -353,8 +353,8 @@ CONFIG_CPU_HAS_PMU=y
 # CONFIG_ARM_ERRATA_742231 is not set
 # CONFIG_PL310_ERRATA_588369 is not set
 # CONFIG_ARM_ERRATA_720789 is not set
-# CONFIG_ARM_ERRATA_743622 is not set
-# CONFIG_ARM_ERRATA_751472 is not set
+CONFIG_ARM_ERRATA_743622=y
+CONFIG_ARM_ERRATA_751472=y
 # CONFIG_ARM_ERRATA_753970 is not set
 # CONFIG_PL310_ERRATA_727915 is not set
 CONFIG_ARM_GIC=y
