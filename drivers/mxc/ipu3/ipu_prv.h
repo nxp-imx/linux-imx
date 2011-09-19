@@ -29,7 +29,7 @@
 /* Globals */
 extern int dmfc_type_setup;
 extern struct clk ipu_pixel_clk[];
-extern struct clk_lookup ipu_lookups[];
+extern struct clk_lookup ipu_lookups[MXC_IPU_MAX_NUM][2];
 
 #define IDMA_CHAN_INVALID	0xFF
 #define HIGH_RESOLUTION_WIDTH	1024
