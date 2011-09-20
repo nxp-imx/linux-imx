@@ -123,16 +123,19 @@ struct platform_device *__init imx_add_vpu(
 		{
 			.start = data->iobase,
 			.end = data->iobase + SZ_16K - 1,
+			.name = "vpu_regs",
 			.flags = IORESOURCE_MEM,
 		}, {
 			.start = data->irq_ipi,
 			.end = data->irq_ipi,
+			.name = "vpu_ipi_irq",
 			.flags = IORESOURCE_IRQ,
 		},
 #ifdef CONFIG_SOC_IMX6Q
 		{
 			.start = data->irq_jpg,
 			.end = data->irq_jpg,
+			.name = "vpu_jpu_irq",
 			.flags = IORESOURCE_IRQ,
 		},
 #endif
