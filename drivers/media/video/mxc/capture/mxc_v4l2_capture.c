@@ -1899,6 +1899,7 @@ static long mxc_v4l_do_ioctl(struct file *file,
 		int index = buf->index;
 		pr_debug("   case VIDIOC_QBUF\n");
 
+		up(&cam->busy_lock);
 		spin_lock_irqsave(&cam->queue_int_lock, lock_flags);
 		if ((cam->frame[index].buffer.flags & 0x7) ==
 		    V4L2_BUF_FLAG_MAPPED) {
@@ -1924,6 +1925,8 @@ static long mxc_v4l_do_ioctl(struct file *file,
 
 		buf->flags = cam->frame[index].buffer.flags;
 		spin_unlock_irqrestore(&cam->queue_int_lock, lock_flags);
+		if (down_interruptible(&cam->busy_lock))
+			return -EBUSY;
 		break;
 	}
 
@@ -1940,8 +1943,10 @@ static long mxc_v4l_do_ioctl(struct file *file,
 			break;
 		}
 
+		up(&cam->busy_lock);
 		retval = mxc_v4l_dqueue(cam, buf);
-
+		if (down_interruptible(&cam->busy_lock))
+			return -EBUSY;
 		break;
 	}
 
