@@ -581,6 +581,7 @@ int asrc_config_pair(struct asrc_config *config)
 		 * for mx53, we need to set input data format
 		 * and output data format
 		 */
+		reg = 0;
 		if (config->word_width == 16)
 			reg = 0x1 << 9;
 		else if (config->word_width == 8)
