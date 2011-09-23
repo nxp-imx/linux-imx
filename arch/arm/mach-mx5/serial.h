@@ -45,7 +45,7 @@
 #define UART1_DMA_ENABLE	0
 /* UART 2 configuration */
 #define UART2_UCR4_CTSTL        -1
-#define UART2_DMA_ENABLE	1
+#define UART2_DMA_ENABLE	0
 #define UART2_DMA_RXBUFSIZE     512
 #define UART2_UFCR_RXTL         16
 #define UART2_UFCR_TXTL         16
