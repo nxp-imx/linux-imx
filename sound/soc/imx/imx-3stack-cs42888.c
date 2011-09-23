@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2011 Freescale  Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2010-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -26,6 +26,7 @@
 #include <sound/soc-dapm.h>
 #include <sound/initval.h>
 #include <sound/soc-dai.h>
+#include <sound/pcm_params.h>
 
 #include <mach/hardware.h>
 #include <mach/clock.h>
@@ -64,6 +65,41 @@ struct asrc_esai {
 
 static struct asrc_esai asrc_esai_data;
 
+static int get_format_width(struct snd_pcm_hw_params *params)
+{
+	switch (params_format(params)) {
+	case SNDRV_PCM_FORMAT_S8:
+	case SNDRV_PCM_FORMAT_U8:
+		return 8;
+
+	case SNDRV_PCM_FORMAT_U16:
+	case SNDRV_PCM_FORMAT_S16_LE:
+	case SNDRV_PCM_FORMAT_S16_BE:
+		return 16;
+
+	case SNDRV_PCM_FORMAT_S20_3LE:
+	case SNDRV_PCM_FORMAT_S20_3BE:
+	case SNDRV_PCM_FORMAT_S24_3LE:
+	case SNDRV_PCM_FORMAT_S24_3BE:
+	case SNDRV_PCM_FORMAT_S24_BE:
+	case SNDRV_PCM_FORMAT_S24_LE:
+	case SNDRV_PCM_FORMAT_U24_BE:
+	case SNDRV_PCM_FORMAT_U24_LE:
+	case SNDRV_PCM_FORMAT_U24_3BE:
+	case SNDRV_PCM_FORMAT_U24_3LE:
+		return 24;
+
+	case SNDRV_PCM_FORMAT_S32:
+	case SNDRV_PCM_FORMAT_U32:
+		return 32;
+
+	default:
+		return 0;
+	}
+
+	return 0;
+}
+
 #endif
 
 struct imx_3stack_pcm_state {
@@ -84,10 +120,6 @@ static int imx_3stack_startup(struct snd_pcm_substream *substream)
 		struct snd_soc_dai *codec_dai = pcm_link->codec_dai;
 		asrc_esai_data.cpu_dai_rates = cpu_dai->playback.rates;
 		asrc_esai_data.codec_dai_rates = codec_dai->playback.rates;
-		cpu_dai->playback.rates =
-		    SNDRV_PCM_RATE_8000_192000 | SNDRV_PCM_RATE_KNOT;
-		codec_dai->playback.rates =
-		    SNDRV_PCM_RATE_8000_192000 | SNDRV_PCM_RATE_KNOT;
 	}
 #endif
 
@@ -134,7 +166,7 @@ static int imx_3stack_surround_hw_params(struct snd_pcm_substream *substream,
 		unsigned int asrc_input_rate = rate;
 		struct mxc_runtime_data *pcm_data =
 		    substream->runtime->private_data;
-		struct asrc_config config;
+		struct asrc_config config = {0};
 		int retVal = 0;;
 
 		retVal = asrc_req_pair(channel, &asrc_esai_data.asrc_index);
@@ -148,7 +180,7 @@ static int imx_3stack_surround_hw_params(struct snd_pcm_substream *substream,
 		config.input_sample_rate = asrc_input_rate;
 		config.output_sample_rate = asrc_esai_data.output_sample_rate;
 		config.inclk = INCLK_NONE;
-		config.word_width = 32;
+		config.word_width = get_format_width(params);
 		config.outclk = OUTCLK_ESAI_TX;
 		retVal = asrc_config_pair(&config);
 		if (retVal < 0) {
@@ -277,7 +309,7 @@ static int asrc_set_rate(struct snd_kcontrol *kcontrol,
 		return 0;
 
 	asrc_func = ucontrol->value.enumerated.item[0];
-	asrc_esai_data.output_sample_rate = asrc_rates[asrc_func + 4];
+	asrc_esai_data.output_sample_rate = asrc_rates[asrc_func];
 
 	return 1;
 }
@@ -301,7 +333,7 @@ static int imx_3stack_cs42888_init(struct snd_soc_codec *codec)
 		if (ret < 0)
 			return ret;
 	}
-	asrc_esai_data.output_sample_rate = asrc_rates[asrc_func + 4];
+	asrc_esai_data.output_sample_rate = asrc_rates[asrc_func];
 #endif
 
 	snd_soc_dapm_new_controls(codec, imx_3stack_dapm_widgets,
