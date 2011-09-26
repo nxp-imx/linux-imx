@@ -45,10 +45,11 @@ static int callback_flag;
  */
 static irqreturn_t prp_csi_eof_callback(int irq, void *dev_id)
 {
-	ipu_select_buffer(CSI_MEM, IPU_OUTPUT_BUFFER,
+	cam_data *cam = devid;
+	ipu_select_buffer(cam->ipu, CSI_MEM, IPU_OUTPUT_BUFFER,
 			  callback_flag%2 ? 1 : 0);
 	if (callback_flag == 0)
-		ipu_enable_channel(CSI_MEM);
+		ipu_enable_channel(cam->ipu, CSI_MEM);
 
 	callback_flag++;
 	return IRQ_HANDLED;
@@ -71,7 +72,7 @@ static irqreturn_t prp_still_callback(int irq, void *dev_id)
 	if (callback_eof_flag < 5) {
 #ifndef CONFIG_MXC_IPU_V1
 		buffer_num = (buffer_num == 0) ? 1 : 0;
-		ipu_select_buffer(CSI_MEM, IPU_OUTPUT_BUFFER, buffer_num);
+		ipu_select_buffer(cam->ipu, CSI_MEM, IPU_OUTPUT_BUFFER, buffer_num);
 #endif
 	} else {
 		cam->still_counter++;
@@ -119,14 +120,14 @@ static int prp_still_start(void *private)
 		return -EINVAL;
 	}
 
-	ipu_csi_enable_mclk_if(CSI_MCLK_RAW, cam->csi, true, true);
+	ipu_csi_enable_mclk_if(cam->ipu, CSI_MCLK_RAW, cam->csi, true, true);
 
 	memset(&params, 0, sizeof(params));
-	err = ipu_init_channel(CSI_MEM, &params);
+	err = ipu_init_channel(cam->ipu, CSI_MEM, &params);
 	if (err != 0)
 		return err;
 
-	err = ipu_init_channel_buffer(CSI_MEM, IPU_OUTPUT_BUFFER,
+	err = ipu_init_channel_buffer(cam->ipu, CSI_MEM, IPU_OUTPUT_BUFFER,
 				      pixel_fmt, cam->v2f.fmt.pix.width,
 				      cam->v2f.fmt.pix.height,
 				      cam->v2f.fmt.pix.width, IPU_ROTATE_NONE,
@@ -147,7 +148,7 @@ static int prp_still_start(void *private)
 	callback_eof_flag = 0;
 	ipu_clear_irq(IPU_IRQ_SENSOR_EOF);
 	err = ipu_request_irq(IPU_IRQ_SENSOR_EOF, prp_csi_eof_callback,
-			      0, "Mxc Camera", NULL);
+			      0, "Mxc Camera", cam);
 	if (err != 0) {
 		printk(KERN_ERR "Error IPU_IRQ_SENSOR_EOF \n");
 		return err;
@@ -156,17 +157,17 @@ static int prp_still_start(void *private)
 	callback_eof_flag = 0;
 	buffer_num = 0;
 
-	ipu_clear_irq(IPU_IRQ_CSI0_OUT_EOF);
-	err = ipu_request_irq(IPU_IRQ_CSI0_OUT_EOF, prp_still_callback,
+	ipu_clear_irq(cam->ipu, IPU_IRQ_CSI0_OUT_EOF);
+	err = ipu_request_irq(cam->ipu, IPU_IRQ_CSI0_OUT_EOF, prp_still_callback,
 			      0, "Mxc Camera", cam);
 	if (err != 0) {
 		printk(KERN_ERR "Error registering irq.\n");
 		return err;
 	}
 
-	ipu_select_buffer(CSI_MEM, IPU_OUTPUT_BUFFER, 0);
-	ipu_enable_channel(CSI_MEM);
-	ipu_enable_csi(cam->csi);
+	ipu_select_buffer(cam->ipu, CSI_MEM, IPU_OUTPUT_BUFFER, 0);
+	ipu_enable_channel(cam->ipu, CSI_MEM);
+	ipu_enable_csi(cam->ipu, cam->csi);
 #endif
 
 	return err;
@@ -187,13 +188,13 @@ static int prp_still_stop(void *private)
 	ipu_free_irq(IPU_IRQ_SENSOR_EOF, NULL);
 	ipu_free_irq(IPU_IRQ_SENSOR_OUT_EOF, cam);
 #else
-	ipu_free_irq(IPU_IRQ_CSI0_OUT_EOF, cam);
+	ipu_free_irq(cam->ipu, IPU_IRQ_CSI0_OUT_EOF, cam);
 #endif
 
-	ipu_disable_csi(cam->csi);
-	ipu_disable_channel(CSI_MEM, true);
-	ipu_uninit_channel(CSI_MEM);
-	ipu_csi_enable_mclk_if(CSI_MCLK_RAW, cam->csi, false, false);
+	ipu_disable_csi(cam->ipu, cam->csi);
+	ipu_disable_channel(cam->ipu, CSI_MEM, true);
+	ipu_uninit_channel(cam->ipu, CSI_MEM);
+	ipu_csi_enable_mclk_if(cam->ipu, CSI_MCLK_RAW, cam->csi, false, false);
 
 	return err;
 }

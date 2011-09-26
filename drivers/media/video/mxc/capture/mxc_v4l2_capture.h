@@ -32,6 +32,7 @@
 #include <linux/smp_lock.h>
 #include <linux/ipu.h>
 #include <linux/mxc_v4l2.h>
+#include <mach/ipu-v3.h>
 
 #include <media/v4l2-dev.h>
 
@@ -167,7 +168,7 @@ typedef struct _cam_data {
 	struct v4l2_rect crop_defrect;
 	struct v4l2_rect crop_current;
 
-	int (*enc_update_eba) (dma_addr_t eba, int *bufferNum);
+	int (*enc_update_eba) (struct ipu_soc *ipu, dma_addr_t eba, int *bufferNum);
 	int (*enc_enable) (void *private);
 	int (*enc_disable) (void *private);
 	int (*enc_enable_csi) (void *private);
@@ -195,6 +196,7 @@ typedef struct _cam_data {
 	/* camera sensor interface */
 	struct camera_sensor *cam_sensor; 	/* old version */
 	struct v4l2_int_device *sensor;
+	void *ipu;
 } cam_data;
 
 #if defined(CONFIG_MXC_IPU_V1) || defined(CONFIG_VIDEO_MXC_EMMA_CAMERA) \
