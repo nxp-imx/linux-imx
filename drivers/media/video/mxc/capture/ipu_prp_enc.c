@@ -76,7 +76,7 @@ static int prp_enc_setup(cam_data *cam)
 	}
 	memset(&enc, 0, sizeof(ipu_channel_params_t));
 
-	ipu_csi_get_window_size(&enc.csi_prp_enc_mem.in_width,
+	ipu_csi_get_window_size(cam->ipu, &enc.csi_prp_enc_mem.in_width,
 				&enc.csi_prp_enc_mem.in_height, cam->csi);
 
 	enc.csi_prp_enc_mem.in_pixel_fmt = IPU_PIX_FMT_UYVY;
@@ -123,13 +123,13 @@ static int prp_enc_setup(cam_data *cam)
 		return -EINVAL;
 	}
 
-	err = ipu_init_channel(CSI_PRP_ENC_MEM, &enc);
+	err = ipu_init_channel(cam->ipu, CSI_PRP_ENC_MEM, &enc);
 	if (err != 0) {
 		printk(KERN_ERR "ipu_init_channel %d\n", err);
 		return err;
 	}
 
-	ipu_csi_enable_mclk_if(CSI_MCLK_ENC, cam->csi, true, true);
+	ipu_csi_enable_mclk_if(cam->ipu, CSI_MCLK_ENC, cam->csi, true, true);
 
 	grotation = cam->rotation;
 	if (cam->rotation >= IPU_ROTATE_90_RIGHT) {
@@ -169,7 +169,7 @@ static int prp_enc_setup(cam_data *cam)
 			return -ENOMEM;
 		}
 
-		err = ipu_init_channel_buffer(CSI_PRP_ENC_MEM,
+		err = ipu_init_channel_buffer(cam->ipu, CSI_PRP_ENC_MEM,
 					      IPU_OUTPUT_BUFFER,
 					      enc.csi_prp_enc_mem.out_pixel_fmt,
 					      enc.csi_prp_enc_mem.out_width,
@@ -183,13 +183,13 @@ static int prp_enc_setup(cam_data *cam)
 			return err;
 		}
 
-		err = ipu_init_channel(MEM_ROT_ENC_MEM, NULL);
+		err = ipu_init_channel(cam->ipu, MEM_ROT_ENC_MEM, NULL);
 		if (err != 0) {
 			printk(KERN_ERR "MEM_ROT_ENC_MEM channel err\n");
 			return err;
 		}
 
-		err = ipu_init_channel_buffer(MEM_ROT_ENC_MEM, IPU_INPUT_BUFFER,
+		err = ipu_init_channel_buffer(cam->ipu, MEM_ROT_ENC_MEM, IPU_INPUT_BUFFER,
 					      enc.csi_prp_enc_mem.out_pixel_fmt,
 					      enc.csi_prp_enc_mem.out_width,
 					      enc.csi_prp_enc_mem.out_height,
@@ -203,7 +203,7 @@ static int prp_enc_setup(cam_data *cam)
 		}
 
 		err =
-		    ipu_init_channel_buffer(MEM_ROT_ENC_MEM, IPU_OUTPUT_BUFFER,
+		    ipu_init_channel_buffer(cam->ipu, MEM_ROT_ENC_MEM, IPU_OUTPUT_BUFFER,
 					    enc.csi_prp_enc_mem.out_pixel_fmt,
 					    enc.csi_prp_enc_mem.out_height,
 					    enc.csi_prp_enc_mem.out_width,
@@ -219,29 +219,29 @@ static int prp_enc_setup(cam_data *cam)
 			return err;
 		}
 
-		err = ipu_link_channels(CSI_PRP_ENC_MEM, MEM_ROT_ENC_MEM);
+		err = ipu_link_channels(cam->ipu, CSI_PRP_ENC_MEM, MEM_ROT_ENC_MEM);
 		if (err < 0) {
 			printk(KERN_ERR
 			       "link CSI_PRP_ENC_MEM-MEM_ROT_ENC_MEM\n");
 			return err;
 		}
 
-		err = ipu_enable_channel(CSI_PRP_ENC_MEM);
+		err = ipu_enable_channel(cam->ipu, CSI_PRP_ENC_MEM);
 		if (err < 0) {
 			printk(KERN_ERR "ipu_enable_channel CSI_PRP_ENC_MEM\n");
 			return err;
 		}
-		err = ipu_enable_channel(MEM_ROT_ENC_MEM);
+		err = ipu_enable_channel(cam->ipu, MEM_ROT_ENC_MEM);
 		if (err < 0) {
 			printk(KERN_ERR "ipu_enable_channel MEM_ROT_ENC_MEM\n");
 			return err;
 		}
 
-		ipu_select_buffer(CSI_PRP_ENC_MEM, IPU_OUTPUT_BUFFER, 0);
-		ipu_select_buffer(CSI_PRP_ENC_MEM, IPU_OUTPUT_BUFFER, 1);
+		ipu_select_buffer(cam->ipu, CSI_PRP_ENC_MEM, IPU_OUTPUT_BUFFER, 0);
+		ipu_select_buffer(cam->ipu, CSI_PRP_ENC_MEM, IPU_OUTPUT_BUFFER, 1);
 	} else {
 		err =
-		    ipu_init_channel_buffer(CSI_PRP_ENC_MEM, IPU_OUTPUT_BUFFER,
+		    ipu_init_channel_buffer(cam->ipu, CSI_PRP_ENC_MEM, IPU_OUTPUT_BUFFER,
 					    enc.csi_prp_enc_mem.out_pixel_fmt,
 					    enc.csi_prp_enc_mem.out_width,
 					    enc.csi_prp_enc_mem.out_height,
@@ -256,7 +256,7 @@ static int prp_enc_setup(cam_data *cam)
 			printk(KERN_ERR "CSI_PRP_ENC_MEM output buffer\n");
 			return err;
 		}
-		err = ipu_enable_channel(CSI_PRP_ENC_MEM);
+		err = ipu_enable_channel(cam->ipu, CSI_PRP_ENC_MEM);
 		if (err < 0) {
 			printk(KERN_ERR "ipu_enable_channel CSI_PRP_ENC_MEM\n");
 			return err;
@@ -274,34 +274,34 @@ static int prp_enc_setup(cam_data *cam)
  *
  * @return  status
  */
-static int prp_enc_eba_update(dma_addr_t eba, int *buffer_num)
+static int prp_enc_eba_update(struct ipu_soc *ipu, dma_addr_t eba, int *buffer_num)
 {
 	int err = 0;
 
 	pr_debug("eba %x\n", eba);
 	if (grotation >= IPU_ROTATE_90_RIGHT) {
-		err = ipu_update_channel_buffer(MEM_ROT_ENC_MEM,
+		err = ipu_update_channel_buffer(ipu, MEM_ROT_ENC_MEM,
 						IPU_OUTPUT_BUFFER, *buffer_num,
 						eba);
 	} else {
-		err = ipu_update_channel_buffer(CSI_PRP_ENC_MEM,
+		err = ipu_update_channel_buffer(ipu, CSI_PRP_ENC_MEM,
 						IPU_OUTPUT_BUFFER, *buffer_num,
 						eba);
 	}
 	if (err != 0) {
 		if (grotation >= IPU_ROTATE_90_RIGHT) {
-			ipu_clear_buffer_ready(MEM_ROT_ENC_MEM,
+			ipu_clear_buffer_ready(ipu, MEM_ROT_ENC_MEM,
 					       IPU_OUTPUT_BUFFER,
 					       *buffer_num);
-			err = ipu_update_channel_buffer(MEM_ROT_ENC_MEM,
+			err = ipu_update_channel_buffer(ipu, MEM_ROT_ENC_MEM,
 							IPU_OUTPUT_BUFFER,
 							*buffer_num,
 							eba);
 		} else {
-			ipu_clear_buffer_ready(CSI_PRP_ENC_MEM,
+			ipu_clear_buffer_ready(ipu, CSI_PRP_ENC_MEM,
 					       IPU_OUTPUT_BUFFER,
 					       *buffer_num);
-			err = ipu_update_channel_buffer(CSI_PRP_ENC_MEM,
+			err = ipu_update_channel_buffer(ipu, CSI_PRP_ENC_MEM,
 							IPU_OUTPUT_BUFFER,
 							*buffer_num,
 							eba);
@@ -315,10 +315,10 @@ static int prp_enc_eba_update(dma_addr_t eba, int *buffer_num)
 	}
 
 	if (grotation >= IPU_ROTATE_90_RIGHT) {
-		ipu_select_buffer(MEM_ROT_ENC_MEM, IPU_OUTPUT_BUFFER,
+		ipu_select_buffer(ipu, MEM_ROT_ENC_MEM, IPU_OUTPUT_BUFFER,
 				  *buffer_num);
 	} else {
-		ipu_select_buffer(CSI_PRP_ENC_MEM, IPU_OUTPUT_BUFFER,
+		ipu_select_buffer(ipu, CSI_PRP_ENC_MEM, IPU_OUTPUT_BUFFER,
 				  *buffer_num);
 	}
 
@@ -353,10 +353,10 @@ static int prp_enc_enabling_tasks(void *private)
 	cam->dummy_frame.buffer.m.offset = cam->dummy_frame.paddress;
 
 	if (cam->rotation >= IPU_ROTATE_90_RIGHT) {
-		err = ipu_request_irq(IPU_IRQ_PRP_ENC_ROT_OUT_EOF,
+		err = ipu_request_irq(cam->ipu, IPU_IRQ_PRP_ENC_ROT_OUT_EOF,
 				      prp_enc_callback, 0, "Mxc Camera", cam);
 	} else {
-		err = ipu_request_irq(IPU_IRQ_PRP_ENC_OUT_EOF,
+		err = ipu_request_irq(cam->ipu, IPU_IRQ_PRP_ENC_OUT_EOF,
 				      prp_enc_callback, 0, "Mxc Camera", cam);
 	}
 	if (err != 0) {
@@ -385,23 +385,23 @@ static int prp_enc_disabling_tasks(void *private)
 	int err = 0;
 
 	if (cam->rotation >= IPU_ROTATE_90_RIGHT) {
-		ipu_free_irq(IPU_IRQ_PRP_ENC_ROT_OUT_EOF, cam);
+		ipu_free_irq(cam->ipu, IPU_IRQ_PRP_ENC_ROT_OUT_EOF, cam);
 	} else {
-		ipu_free_irq(IPU_IRQ_PRP_ENC_OUT_EOF, cam);
+		ipu_free_irq(cam->ipu, IPU_IRQ_PRP_ENC_OUT_EOF, cam);
 	}
 
 	if (cam->rotation >= IPU_ROTATE_90_RIGHT) {
-		ipu_unlink_channels(CSI_PRP_ENC_MEM, MEM_ROT_ENC_MEM);
+		ipu_unlink_channels(cam->ipu, CSI_PRP_ENC_MEM, MEM_ROT_ENC_MEM);
 	}
 
-	err = ipu_disable_channel(CSI_PRP_ENC_MEM, true);
+	err = ipu_disable_channel(cam->ipu, CSI_PRP_ENC_MEM, true);
 	if (cam->rotation >= IPU_ROTATE_90_RIGHT) {
-		err |= ipu_disable_channel(MEM_ROT_ENC_MEM, true);
+		err |= ipu_disable_channel(cam->ipu, MEM_ROT_ENC_MEM, true);
 	}
 
-	ipu_uninit_channel(CSI_PRP_ENC_MEM);
+	ipu_uninit_channel(cam->ipu, CSI_PRP_ENC_MEM);
 	if (cam->rotation >= IPU_ROTATE_90_RIGHT) {
-		ipu_uninit_channel(MEM_ROT_ENC_MEM);
+		ipu_uninit_channel(cam->ipu, MEM_ROT_ENC_MEM);
 	}
 
 	if (cam->dummy_frame.vaddress != 0) {
@@ -410,7 +410,7 @@ static int prp_enc_disabling_tasks(void *private)
 				  cam->dummy_frame.paddress);
 		cam->dummy_frame.vaddress = 0;
 	}
-	ipu_csi_enable_mclk_if(CSI_MCLK_ENC, cam->csi, false, false);
+	ipu_csi_enable_mclk_if(cam->ipu, CSI_MCLK_ENC, cam->csi, false, false);
 
 	return err;
 }
@@ -425,7 +425,7 @@ static int prp_enc_enable_csi(void *private)
 {
 	cam_data *cam = (cam_data *) private;
 
-	return ipu_enable_csi(cam->csi);
+	return ipu_enable_csi(cam->ipu, cam->csi);
 }
 
 /*!
@@ -438,7 +438,7 @@ static int prp_enc_disable_csi(void *private)
 {
 	cam_data *cam = (cam_data *) private;
 
-	return ipu_disable_csi(cam->csi);
+	return ipu_disable_csi(cam->ipu, cam->csi);
 }
 
 /*!
