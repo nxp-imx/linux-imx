@@ -47,6 +47,7 @@
 #include <linux/mutex.h>
 #include <linux/time.h>
 #include <linux/kernel_stat.h>
+#include <linux/tick.h>
 
 #include "rcutree.h"
 
@@ -1413,6 +1414,7 @@ static void rcu_process_callbacks(struct softirq_action *unused)
 	/* If we are last CPU on way to dyntick-idle mode, accelerate it. */
 	rcu_needs_cpu_flush();
 }
+static atomic_t rcu_barrier_cpu_count;
 
 static void
 __call_rcu(struct rcu_head *head, void (*func)(struct rcu_head *rcu),
@@ -1439,6 +1441,14 @@ __call_rcu(struct rcu_head *head, void (*func)(struct rcu_head *rcu),
 	/* Add the callback to our list. */
 	*rdp->nxttail[RCU_NEXT_TAIL] = head;
 	rdp->nxttail[RCU_NEXT_TAIL] = &head->next;
+
+	/* Work around for reboot issue, check rcu_barrier_cpu_count
+	to see whether it is in the _rcu_barrier process, do
+	tick_nohz_restart_sched_tick if yes. If we enqueue an rcu
+	callback, we need the CPU tick to stay alive until we take care
+	of those by completing the appropriate grace period. */
+	if (atomic_read(&rcu_barrier_cpu_count) != 0)
+		tick_nohz_restart_sched_tick();
 
 	/*
 	 * Force the grace period if too many callbacks or too long waiting.
@@ -1654,7 +1664,6 @@ static int rcu_needs_cpu_quick_check(int cpu)
 }
 
 static DEFINE_PER_CPU(struct rcu_head, rcu_barrier_head) = {NULL};
-static atomic_t rcu_barrier_cpu_count;
 static DEFINE_MUTEX(rcu_barrier_mutex);
 static struct completion rcu_barrier_completion;
 
