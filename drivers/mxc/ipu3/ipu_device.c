@@ -520,6 +520,9 @@ static void dump_check_err(struct device *dev, int err)
 	case IPU_CHECK_ERR_SPLIT_OUTPUTH_OVER:
 		dev_err(dev, "split mode output height overflow\n");
 		break;
+	case IPU_CHECK_ERR_SPLIT_WITH_ROT:
+		dev_err(dev, "split mode with rotation\n");
+		break;
 	default:
 		break;
 	}
@@ -605,15 +608,14 @@ static int update_split_setting(struct ipu_task_entry *t)
 	struct stripe_param down_stripe;
 	u32 iw, ih, ow, oh;
 
+	if (t->output.rotate >= IPU_ROTATE_90_RIGHT)
+		return IPU_CHECK_ERR_SPLIT_WITH_ROT;
+
 	iw = t->input.crop.w;
 	ih = t->input.crop.h;
-	if (t->output.rotate >= IPU_ROTATE_90_RIGHT) {
-		ow = t->output.crop.h;
-		oh = t->output.crop.w;
-	} else {
-		ow = t->output.crop.w;
-		oh = t->output.crop.h;
-	}
+
+	ow = t->output.crop.w;
+	oh = t->output.crop.h;
 
 	if (t->set.split_mode & RL_SPLIT) {
 		ipu_calc_stripes_sizes(iw,
