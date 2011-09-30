@@ -132,6 +132,8 @@ static inline void *anatop_driver_data(struct anatop_device *d)
 
 extern void anatop_thermal_cpufreq_init(void);
 extern int anatop_thermal_cpu_hotplug(bool cpu_on);
+extern int anatop_thermal_cpufreq_up(void);
+extern int anatop_thermal_cpufreq_down(void);
 extern struct thermal_cooling_device_ops imx_processor_cooling_ops;
 extern void arch_reset(char mode, const char *cmd);
 
