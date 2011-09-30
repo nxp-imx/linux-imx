@@ -129,7 +129,9 @@
 /* variables */
 unsigned long anatop_base;
 static bool full_run = true;
-unsigned long temperature_hotplug;
+bool cooling_cpuhotplug;
+bool cooling_device_disable;
+unsigned long temperature_cooling;
 static const struct anatop_device_id thermal_device_ids[] = {
 	{ANATOP_THERMAL_HID},
 	{""},
@@ -522,6 +524,9 @@ static int anatop_thermal_notify(struct thermal_zone_device *thermal, int trip,
 	const char *cmd = "reboot";
 	struct anatop_thermal *tz = thermal->devdata;
 
+	if (cooling_device_disable)
+		return ret;
+
 	if (trip_type == THERMAL_TRIP_CRITICAL) {
 		type = ANATOP_THERMAL_NOTIFY_CRITICAL;
 		printk(KERN_WARNING "thermal_notify: trip_critical reached!\n");
@@ -530,17 +535,23 @@ static int anatop_thermal_notify(struct thermal_zone_device *thermal, int trip,
 		printk(KERN_DEBUG "thermal_notify: trip_hot reached!\n");
 		type = ANATOP_THERMAL_NOTIFY_HOT;
 		/* if temperature increase, continue to detach secondary CPUs*/
-		if (tz->temperature > (temperature_hotplug + 1)) {
-			anatop_thermal_cpu_hotplug(false);
-			temperature_hotplug = tz->temperature;
+		if (tz->temperature > (temperature_cooling + 1)) {
+			if (cooling_cpuhotplug)
+				anatop_thermal_cpu_hotplug(false);
+			else
+				anatop_thermal_cpufreq_down();
+			temperature_cooling = tz->temperature;
 		}
 		if (ret)
 			printk(KERN_INFO "No secondary CPUs detached!\n");
 		full_run = false;
 	} else {
 		if (!full_run) {
-			temperature_hotplug = 0;
-			anatop_thermal_cpu_hotplug(true);
+			temperature_cooling = 0;
+			if (cooling_cpuhotplug)
+				anatop_thermal_cpu_hotplug(true);
+			else
+				anatop_thermal_cpufreq_up();
 			if (ret)
 				printk(KERN_INFO "No secondary CPUs attached!\n");
 		}
@@ -740,6 +751,24 @@ end:
 	return result;
 }
 
+static int __init anatop_thermal_cooling_device_setup(char *str)
+{
+	if (!strcmp(str, "cpuhotplug")) {
+		cooling_cpuhotplug = 1;
+		pr_info("%s: cooling device set to hotplug!\n", __func__);
+	}
+	return 1;
+}
+__setup("cooling_device=", anatop_thermal_cooling_device_setup);
+
+static int __init anatop_thermal_cooling_device_disable(char *str)
+{
+	cooling_device_disable = 1;
+	pr_info("%s: cooling device is disabled!\n", __func__);
+	return 1;
+}
+__setup("no_cooling_device", anatop_thermal_cooling_device_disable);
+
 static int anatop_thermal_probe(struct platform_device *pdev)
 {
 	int retval = 0;
@@ -770,7 +799,8 @@ static int anatop_thermal_probe(struct platform_device *pdev)
 	anatop_base = (unsigned long)base;
 
 	anatop_thermal_add(device);
-	/* anatop_thermal_cpufreq_init(); */
+	anatop_thermal_cpufreq_init();
+	pr_info("%s: default cooling device is cpufreq!\n", __func__);
 
 	goto success;
 anatop_failed:
