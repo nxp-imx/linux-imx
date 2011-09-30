@@ -784,7 +784,6 @@ struct snd_soc_dai_driver cs42888_dai = {
 		.formats = CS42888_FORMATS,
 	},
 	.ops = &cs42888_dai_ops,
-	.symmetric_rates = 1,
 };
 
 /**

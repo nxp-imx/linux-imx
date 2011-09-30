@@ -277,18 +277,23 @@ static int imx_esai_startup(struct snd_pcm_substream *substream,
 {
 	struct imx_esai *esai = snd_soc_dai_get_drvdata(cpu_dai);
 
-	clk_enable(esai->clk);
+	if (!(local_esai->imx_esai_txrx_state & IMX_DAI_ESAI_TXRX)) {
+		clk_enable(esai->clk);
 
-	writel(ESAI_ECR_ERST, esai->base + ESAI_ECR);
-	writel(ESAI_ECR_ESAIEN, esai->base + ESAI_ECR);
+		writel(ESAI_ECR_ERST, esai->base + ESAI_ECR);
+		writel(ESAI_ECR_ESAIEN, esai->base + ESAI_ECR);
 
-	writel(ESAI_GPIO_ESAI, esai->base + ESAI_PRRC);
-	writel(ESAI_GPIO_ESAI, esai->base + ESAI_PCRC);
+		writel(ESAI_GPIO_ESAI, esai->base + ESAI_PRRC);
+		writel(ESAI_GPIO_ESAI, esai->base + ESAI_PCRC);
+	}
 
-	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK)
+	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
+		local_esai->imx_esai_txrx_state |= IMX_DAI_ESAI_TX;
 		writel(ESAI_TCR_TPR, esai->base + ESAI_TCR);
-	else
+	} else {
+		local_esai->imx_esai_txrx_state |= IMX_DAI_ESAI_RX;
 		writel(ESAI_RCR_RPR, esai->base + ESAI_RCR);
+	}
 
 	ESAI_DUMP();
 	return 0;
@@ -422,9 +427,14 @@ static void imx_esai_shutdown(struct snd_pcm_substream *substream,
 {
 	struct imx_esai *esai = snd_soc_dai_get_drvdata(cpu_dai);
 
-	/* close easi clock */
-	clk_disable(esai->clk);
+	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK)
+		local_esai->imx_esai_txrx_state &= ~IMX_DAI_ESAI_TX;
+	else
+		local_esai->imx_esai_txrx_state &= ~IMX_DAI_ESAI_RX;
 
+	if (!(local_esai->imx_esai_txrx_state & IMX_DAI_ESAI_TXRX))
+		/* close easi clock */
+		clk_disable(esai->clk);
 }
 
 static int imx_esai_trigger(struct snd_pcm_substream *substream, int cmd,
@@ -532,6 +542,7 @@ static struct snd_soc_dai_ops imx_esai_dai_ops = {
 static int imx_esai_dai_probe(struct snd_soc_dai *dai)
 {
 	struct imx_esai *esai = dev_get_drvdata(dai->dev);
+	local_esai->imx_esai_txrx_state = 0;
 	snd_soc_dai_set_drvdata(dai, esai);
 	return 0;
 }
