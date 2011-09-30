@@ -34,23 +34,29 @@
 #include "../codecs/cs42888.h"
 
 
-struct imx_3stack_pcm_state {
-	int lr_clk_active;
+struct imx_priv_state {
+	int hw;
 };
 
-static struct imx_3stack_pcm_state clk_state;
+static struct imx_priv_state hw_state;
 unsigned int mclk_freq;
 
 static int imx_3stack_startup(struct snd_pcm_substream *substream)
 {
-	clk_state.lr_clk_active++;
+	struct snd_soc_pcm_runtime *rtd = substream->private_data;
+	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
+	if (!cpu_dai->active)
+		hw_state.hw = 0;
 
 	return 0;
 }
 
 static void imx_3stack_shutdown(struct snd_pcm_substream *substream)
 {
-	clk_state.lr_clk_active--;
+	struct snd_soc_pcm_runtime *rtd = substream->private_data;
+	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
+	if (!cpu_dai->active)
+		hw_state.hw = 0;
 }
 
 static int imx_3stack_surround_hw_params(struct snd_pcm_substream *substream,
@@ -62,8 +68,10 @@ static int imx_3stack_surround_hw_params(struct snd_pcm_substream *substream,
 	unsigned int rate = params_rate(params);
 	u32 dai_format;
 	unsigned int lrclk_ratio = 0;
-	if (clk_state.lr_clk_active > 1)
+
+	if (hw_state.hw)
 		return 0;
+	hw_state.hw = 1;
 	if (cpu_is_mx53()) {
 		switch (rate) {
 		case 32000:
