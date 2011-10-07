@@ -38,6 +38,8 @@ extern void mx6_wait(void);
 struct cpu_op *(*get_cpu_op)(int *op);
 static void __iomem *arm_base = IO_ADDRESS(MX6Q_A9_PLATFRM_BASE);
 
+void __iomem *gpc_base;
+void __iomem *ccm_base;
 
 int mx6_set_cpu_voltage(u32 cpu_volt)
 {
@@ -103,6 +105,9 @@ static int __init post_cpu_init(void)
 	 */
 	memcpy((void *)cpaddr, mx6_wait, SZ_4K);
 	mx6_wait_in_iram = (void *)mx6_wait_in_iram_base;
+
+	gpc_base = MX6_IO_ADDRESS(GPC_BASE_ADDR);
+	ccm_base = MX6_IO_ADDRESS(CCM_BASE_ADDR);
 
 	return 0;
 }

@@ -28,6 +28,7 @@ endif
 obj-y += devices/
 
 obj-$(CONFIG_ARCH_MX5) += dvfs_core.o
+obj-$(CONFIG_ARCH_MX6) += dvfs_core.o
 
 # DVFS-PER support
 obj-$(CONFIG_MXC_DVFS_PER) 	+= dvfs_per.o
