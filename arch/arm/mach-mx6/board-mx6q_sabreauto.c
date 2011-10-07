@@ -45,14 +45,12 @@
 #include <linux/pwm_backlight.h>
 #include <linux/fec.h>
 #include <linux/memblock.h>
+#include <linux/gpio.h>
+#include <linux/etherdevice.h>
+
 #include <mach/common.h>
 #include <mach/hardware.h>
-#include <asm/irq.h>
-#include <asm/setup.h>
-#include <asm/mach-types.h>
-#include <asm/mach/arch.h>
-#include <asm/mach/time.h>
-#include <asm/mach/flash.h>
+#include <mach/mxc_dvfs.h>
 #include <mach/memory.h>
 #include <mach/iomux-mx6q.h>
 #include <mach/imx-uart.h>
@@ -61,8 +59,13 @@
 #include <mach/ipu-v3.h>
 #include <mach/mxc_hdmi.h>
 #include <mach/mxc_asrc.h>
-#include <linux/gpio.h>
-#include <linux/etherdevice.h>
+
+#include <asm/irq.h>
+#include <asm/setup.h>
+#include <asm/mach-types.h>
+#include <asm/mach/arch.h>
+#include <asm/mach/time.h>
+#include <asm/mach/flash.h>
 
 #include "usb.h"
 #include "devices-imx6q.h"
@@ -784,6 +787,29 @@ static int __init early_use_esai_record(char *p)
 
 early_param("esai_record", early_use_esai_record);
 
+static struct mxc_dvfs_platform_data sabreauto_dvfscore_data = {
+	.reg_id = "cpu_vddgp",
+	.clk1_id = "cpu_clk",
+	.clk2_id = "gpc_dvfs_clk",
+	.gpc_cntr_offset = MXC_GPC_CNTR_OFFSET,
+	.ccm_cdcr_offset = MXC_CCM_CDCR_OFFSET,
+	.ccm_cacrr_offset = MXC_CCM_CACRR_OFFSET,
+	.ccm_cdhipr_offset = MXC_CCM_CDHIPR_OFFSET,
+	.prediv_mask = 0x1F800,
+	.prediv_offset = 11,
+	.prediv_val = 3,
+	.div3ck_mask = 0xE0000000,
+	.div3ck_offset = 29,
+	.div3ck_val = 2,
+	.emac_val = 0x08,
+	.upthr_val = 25,
+	.dnthr_val = 9,
+	.pncthr_val = 33,
+	.upcnt_val = 10,
+	.dncnt_val = 10,
+	.delay_time = 80,
+};
+
 static int mx6_sabre_set_cpu_voltage(u32 cpu_volt)
 {
 	return mx6_set_cpu_voltage(cpu_volt);
@@ -877,6 +903,8 @@ static void __init mx6_board_init(void)
 	imx6q_add_imx2_wdt(0, NULL);
 	imx6q_add_dma();
 	imx6q_add_gpmi(&mx6q_gpmi_nfc_platform_data);
+
+	imx6q_add_dvfs_core(&sabreauto_dvfscore_data);
 }
 
 extern void __iomem *twd_base;

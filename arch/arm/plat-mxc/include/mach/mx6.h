@@ -182,6 +182,7 @@
 #define DCIC1_BASE_ADDR             (AIPS1_OFF_BASE_ADDR + 0x64000)
 #define DCIC2_BASE_ADDR             (AIPS1_OFF_BASE_ADDR + 0x68000)
 #define MX6Q_SDMA_BASE_ADDR			(AIPS1_OFF_BASE_ADDR + 0x6C000)
+#define MX6Q_DVFSCORE_BASE_ADDR	(GPC_BASE_ADDR + 0x180)
 
 /* ATZ#2- On Platform */
 #define AIPS2_ON_BASE_ADDR              (ATZ2_BASE_ADDR + 0x7C000)
@@ -254,6 +255,9 @@
 #define AIPS1_SIZE SZ_1M
 #define AIPS2_SIZE SZ_1M
 #define ARM_PERIPHBASE_SIZE (SZ_8K + SZ_4K)
+
+/* GPC offsets */
+#define MXC_GPC_CNTR_OFFSET		0x0
 
 #define MX6_IO_ADDRESS(x) (void __force __iomem *)((x)  + PERIPBASE_VIRT)
 
@@ -363,7 +367,7 @@
 #define MXC_INT_PWM4                               118
 #define MXC_INT_CCM_INT1_NUM                               119
 #define MXC_INT_CCM_INT2_NUM                               120
-#define MXC_INT_GPC_INT1_NUM                               121
+#define MX6Q_INT_GPC1                                 121
 #define MXC_INT_GPC_INT2_NUM                               122
 #define MXC_INT_SRC                                123
 #define MXC_INT_CHEETAH_L2                         124

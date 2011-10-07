@@ -369,6 +369,7 @@ struct imx_dvfs_core_data {
 struct platform_device *__init imx_add_dvfs_core(
 		const struct imx_dvfs_core_data *data,
 		const struct mxc_dvfs_platform_data *pdata);
+
 struct platform_device *__init imx_add_busfreq(void);
 
 #include <linux/fsl_devices.h>

@@ -12,10 +12,12 @@
  */
 
 #include <linux/types.h>
-#include <mach/hardware.h>
 #include <linux/kernel.h>
+#include <mach/hardware.h>
+#include <mach/mxc_dvfs.h>
 
 extern struct cpu_op *(*get_cpu_op)(int *op);
+extern struct dvfs_op *(*get_dvfs_core_op)(int *wp);
 extern void (*set_num_cpu_op)(int num);
 static int num_cpu_op;
 
@@ -51,6 +53,18 @@ static struct cpu_op mx6_cpu_op[] = {
 	 .cpu_voltage = 900000,},
 };
 
+static struct dvfs_op dvfs_core_setpoint[] = {
+	{33, 14, 33, 10, 10, 0x08}, /* 1GHz*/
+	{30, 12, 33, 10, 10, 0x08},   /* 800MHz */
+	{28, 8, 33, 10, 10, 0x08},   /* 400MHz */
+	{20, 0, 33, 20, 10, 0x08} };   /* 167MHz*/
+
+static struct dvfs_op *mx6_get_dvfs_core_table(int *wp)
+{
+	*wp = ARRAY_SIZE(dvfs_core_setpoint);
+	return dvfs_core_setpoint;
+}
+
 struct cpu_op *mx6_get_cpu_op(int *op)
 {
 	*op = num_cpu_op;
@@ -69,5 +83,6 @@ void mx6_cpu_op_init(void)
 	set_num_cpu_op = mx6_set_num_cpu_op;
 
 	num_cpu_op = ARRAY_SIZE(mx6_cpu_op);
+	get_dvfs_core_op = mx6_get_dvfs_core_table;
 }
 

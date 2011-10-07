@@ -43,6 +43,8 @@
 #if defined(CONFIG_CPU_FREQ)
 #include <linux/cpufreq.h>
 #endif
+#include <asm/cpu.h>
+
 #include <mach/hardware.h>
 #include <mach/mxc_dvfs.h>
 
@@ -113,11 +115,27 @@ static struct delayed_work dvfs_core_handler;
 static struct clk *pll1_sw_clk;
 static struct clk *cpu_clk;
 static struct clk *dvfs_clk;
-static struct regulator *core_regulator;
 
 static int cpu_op_nr;
 extern struct cpu_op *(*get_cpu_op)(int *op);
 extern int (*set_cpu_voltage)(u32 cpu_volt);
+
+static inline unsigned long dvfs_cpu_jiffies(unsigned long old, u_int div, u_int mult)
+{
+#if BITS_PER_LONG == 32
+
+	u64 result = ((u64) old) * ((u64) mult);
+	do_div(result, div);
+	return (unsigned long) result;
+
+#elif BITS_PER_LONG == 64
+
+	unsigned long result = old * ((u64) mult);
+	result /= div;
+	return result;
+
+#endif
+}
 
 enum {
 	FSVAI_FREQ_NOCHANGE = 0x0,
@@ -158,15 +176,15 @@ static void dvfs_load_config(int set_point)
 	__raw_writel(reg, dvfs_data->membase + MXC_DVFSCORE_COUN);
 
 	/* Set EMAC value */
-	__raw_writel((dvfs_core_setpoint[set_point].emac <<
-					MXC_DVFSEMAC_EMAC_OFFSET),
-					dvfs_data->membase
-					+ MXC_DVFSCORE_EMAC);
+	reg = __raw_readl(dvfs_data->membase + MXC_DVFSCORE_EMAC);
+	reg &= ~MXC_DVFSEMAC_EMAC_MASK;
+	reg |= dvfs_core_setpoint[set_point].emac << MXC_DVFSEMAC_EMAC_OFFSET;
+	__raw_writel(reg, dvfs_data->membase + MXC_DVFSCORE_EMAC);
 
 	dvfs_config_setpoint = set_point;
 }
 
-static int set_cpu_freq(int op)
+static int mx5_set_cpu_freq(int op)
 {
 	int arm_podf;
 	int podf;
@@ -357,9 +375,59 @@ static int set_cpu_freq(int op)
 		reg |= en_sw_dvfs;
 		__raw_writel(reg, ccm_base + dvfs_data->ccm_cdcr_offset);
 	}
-#if defined(CONFIG_CPU_FREQ)
-		cpufreq_trig_needed = 1;
-#endif
+	return ret;
+}
+
+static int mx6_set_cpu_freq(int op)
+{
+	int ret = 0;
+	int org_cpu_rate;
+	unsigned long rate = 0;
+	int gp_volt = cpu_op_tbl[op].cpu_voltage;
+
+	org_cpu_rate = clk_get_rate(cpu_clk);
+	rate = cpu_op_tbl[op].cpu_rate;
+
+	if (rate == org_cpu_rate)
+		return ret;
+
+	if (rate > org_cpu_rate) {
+		/* Increase voltage first. */
+		ret = set_cpu_voltage(gp_volt);
+		if (ret < 0) {
+			printk(KERN_DEBUG "COULD NOT INCREASE GP VOLTAGE!!!!\n");
+			return ret;
+		}
+		udelay(dvfs_data->delay_time);
+	}
+	ret = clk_set_rate(cpu_clk, rate);
+	if (ret != 0) {
+		printk(KERN_DEBUG "cannot set CPU clock rate\n");
+		return ret;
+	}
+
+	if (rate < org_cpu_rate) {
+		/* Increase voltage first. */
+		ret = set_cpu_voltage(gp_volt);
+		if (ret < 0) {
+			printk(KERN_DEBUG "COULD NOT INCREASE GP VOLTAGE!!!!\n");
+			return ret;
+		}
+	}
+	return ret;
+}
+
+
+static int set_cpu_freq(int op)
+{
+	int ret = 0;
+
+	if (cpu_is_mx6q())
+		ret = mx6_set_cpu_freq(op);
+	else
+		ret = mx5_set_cpu_freq(op);
+
+	cpufreq_trig_needed = 1;
 	old_op = op;
 	return ret;
 }
@@ -403,7 +471,8 @@ static int start_dvfs(void)
 	/* GPCIRQ=1, select ARM IRQ */
 	reg |= MXC_GPCCNTR_GPCIRQ_ARM;
 	/* ADU=1, select ARM domain */
-	reg |= MXC_GPCCNTR_ADU;
+	if (!cpu_is_mx6q())
+		reg |= MXC_GPCCNTR_ADU;
 	__raw_writel(reg, gpc_base + dvfs_data->gpc_cntr_offset);
 
 	/* Set PREDIV bits */
@@ -417,8 +486,11 @@ static int start_dvfs(void)
 	/* FSVAIM=0 */
 	reg = (reg & ~MXC_DVFSCNTR_FSVAIM);
 	/* Set MAXF, MINF */
-	reg = (reg & ~(MXC_DVFSCNTR_MAXF_MASK | MXC_DVFSCNTR_MINF_MASK));
-	reg |= 1 << MXC_DVFSCNTR_MAXF_OFFSET;
+	if (!cpu_is_mx6q()) {
+		reg = (reg & ~(MXC_DVFSCNTR_MAXF_MASK
+					| MXC_DVFSCNTR_MINF_MASK));
+		reg |= 1 << MXC_DVFSCNTR_MAXF_OFFSET;
+	}
 	/* Select ARM domain */
 	reg |= MXC_DVFSCNTR_DVFIS;
 	/* Enable DVFS frequency adjustment interrupt */
@@ -432,9 +504,22 @@ static int start_dvfs(void)
 	__raw_writel(reg, dvfs_data->membase + MXC_DVFSCORE_CNTR);
 
 	/* Enable DVFS */
-	reg = __raw_readl(dvfs_data->membase + MXC_DVFSCORE_CNTR);
-	reg |= MXC_DVFSCNTR_DVFEN;
-	__raw_writel(reg, dvfs_data->membase + MXC_DVFSCORE_CNTR);
+	if (cpu_is_mx6q()) {
+		unsigned long cpu_wfi = 0;
+		int num_cpus = num_possible_cpus();
+		reg = __raw_readl(dvfs_data->membase + MXC_DVFSCORE_EMAC);
+		/* Need to enable DVFS tracking for each core that is active */
+		do {
+			if (cpu_active(num_cpus))
+				set_bit(num_cpus, &cpu_wfi);
+		} while (num_cpus--);
+		reg |= cpu_wfi << 9;
+		__raw_writel(reg, dvfs_data->membase + MXC_DVFSCORE_EMAC);
+	} else {
+		reg = __raw_readl(dvfs_data->membase + MXC_DVFSCORE_CNTR);
+		reg |= MXC_DVFSCNTR_DVFEN;
+		__raw_writel(reg, dvfs_data->membase + MXC_DVFSCORE_CNTR);
+	}
 
 	dvfs_core_is_active = 1;
 
@@ -496,6 +581,7 @@ static void dvfs_core_work_handler(struct work_struct *work)
 	int ret = 0;
 	int low_freq_bus_ready = 0;
 	int bus_incr = 0, cpu_dcr = 0;
+	int cpu;
 
 	low_freq_bus_ready = low_freq_bus_used();
 
@@ -511,7 +597,7 @@ static void dvfs_core_work_handler(struct work_struct *work)
 	/* If FSVAI indicate freq down,
 	   check arm-clk is not in lowest frequency*/
 	if (fsvai == FSVAI_FREQ_DECREASE) {
-		if (curr_cpu == cpu_op_tbl[cpu_op_nr - 1].cpu_rate) {
+		if (curr_cpu <= cpu_op_tbl[cpu_op_nr - 1].cpu_rate) {
 			minf = 1;
 			if (low_bus_freq_mode)
 				goto END;
@@ -566,7 +652,17 @@ static void dvfs_core_work_handler(struct work_struct *work)
 		bus_incr = 0;
 	}
 
-END:	/* Set MAXF, MINF */
+END:
+	if (cpufreq_trig_needed == 1) {
+		/*Fix loops-per-jiffy */
+		cpufreq_trig_needed = 0;
+		for_each_online_cpu(cpu)
+			per_cpu(cpu_data, cpu).loops_per_jiffy =
+			dvfs_cpu_jiffies(per_cpu(cpu_data, cpu).loops_per_jiffy,
+				curr_cpu / 1000, clk_get_rate(cpu_clk) / 1000);
+	}
+
+	/* Set MAXF, MINF */
 	reg = __raw_readl(dvfs_data->membase + MXC_DVFSCORE_CNTR);
 	reg = (reg & ~(MXC_DVFSCNTR_MAXF_MASK | MXC_DVFSCNTR_MINF_MASK));
 	reg |= maxf << MXC_DVFSCNTR_MAXF_OFFSET;
@@ -585,19 +681,6 @@ END:	/* Set MAXF, MINF */
 	reg &= ~MXC_GPCCNTR_GPCIRQM;
 	__raw_writel(reg, gpc_base + dvfs_data->gpc_cntr_offset);
 
-#if defined(CONFIG_CPU_FREQ)
-	if (cpufreq_trig_needed == 1) {
-		struct cpufreq_freqs freqs;
-		unsigned int target_freq;
-		cpufreq_trig_needed = 0;
-		freqs.old = curr_cpu/1000;
-		freqs.new = clk_get_rate(cpu_clk) / 1000;
-		freqs.cpu = 0;
-		freqs.flags = 0;
-		cpufreq_notify_transition(&freqs, CPUFREQ_PRECHANGE);
-		cpufreq_notify_transition(&freqs, CPUFREQ_POSTCHANGE);
-	}
-#endif
 }
 
 
@@ -609,6 +692,7 @@ void stop_dvfs(void)
 	u32 reg = 0;
 	unsigned long flags;
 	u32 curr_cpu;
+	int cpu;
 
 	if (dvfs_core_is_active) {
 
@@ -627,21 +711,13 @@ void stop_dvfs(void)
 		curr_cpu = clk_get_rate(cpu_clk);
 		if (curr_cpu != cpu_op_tbl[curr_op].cpu_rate) {
 			set_cpu_freq(curr_op);
-#if defined(CONFIG_CPU_FREQ)
-			if (cpufreq_trig_needed == 1) {
-				struct cpufreq_freqs freqs;
-				unsigned int target_freq;
-				cpufreq_trig_needed = 0;
-				freqs.old = curr_cpu/1000;
-				freqs.new = clk_get_rate(cpu_clk) / 1000;
-				freqs.cpu = 0;
-				freqs.flags = 0;
-				cpufreq_notify_transition(&freqs,
-						CPUFREQ_PRECHANGE);
-				cpufreq_notify_transition(&freqs,
-						CPUFREQ_POSTCHANGE);
-			}
-#endif
+
+			/*Fix loops-per-jiffy */
+			for_each_online_cpu(cpu)
+				per_cpu(cpu_data, cpu).loops_per_jiffy =
+				dvfs_cpu_jiffies(per_cpu(cpu_data, cpu).loops_per_jiffy,
+					curr_cpu/1000, clk_get_rate(cpu_clk) / 1000);
+
 		}
 		spin_lock_irqsave(&mxc_dvfs_core_lock, flags);
 
@@ -841,13 +917,13 @@ static int __devinit mxc_dvfs_core_probe(struct platform_device *pdev)
 		printk(KERN_ERR "%s: failed to get cpu clock\n", __func__);
 		return PTR_ERR(cpu_clk);
 	}
-
-	dvfs_clk = clk_get(NULL, dvfs_data->clk2_id);
-	if (IS_ERR(dvfs_clk)) {
-		printk(KERN_ERR "%s: failed to get dvfs clock\n", __func__);
-		return PTR_ERR(dvfs_clk);
+	if (!cpu_is_mx6q()) {
+		dvfs_clk = clk_get(NULL, dvfs_data->clk2_id);
+		if (IS_ERR(dvfs_clk)) {
+			printk(KERN_ERR "%s: failed to get dvfs clock\n", __func__);
+			return PTR_ERR(dvfs_clk);
+		}
 	}
-
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	if (res == NULL) {
 		err = -ENODEV;
