@@ -9,7 +9,7 @@
 #include <mach/hardware.h>
 #include <mach/devices-common.h>
 
-#define imx5_dvfs_core_data_entry_single(soc)				\
+#define imx_dvfs_core_data_entry_single(soc)				\
 	{							\
 		.iobase = soc ## _DVFSCORE_BASE_ADDR,		\
 		.irq = soc ## _INT_GPC1,				\
@@ -17,18 +17,23 @@
 
 #ifdef CONFIG_SOC_IMX50
 const struct imx_dvfs_core_data imx50_dvfs_core_data __initconst =
-			imx5_dvfs_core_data_entry_single(MX50);
+			imx_dvfs_core_data_entry_single(MX50);
 #endif /* ifdef CONFIG_SOC_IMX50 */
 
 #ifdef CONFIG_SOC_IMX51
 const struct imx_dvfs_core_data imx51_dvfs_core_data __initconst =
-			imx5_dvfs_core_data_entry_single(MX51);
+			imx_dvfs_core_data_entry_single(MX51);
 #endif /* ifdef CONFIG_SOC_IMX51 */
 
 #ifdef CONFIG_SOC_IMX53
 const struct imx_dvfs_core_data imx53_dvfs_core_data __initconst =
-			imx5_dvfs_core_data_entry_single(MX53);
+			imx_dvfs_core_data_entry_single(MX53);
 #endif /* ifdef CONFIG_SOC_IMX53 */
+
+#ifdef CONFIG_SOC_IMX6Q
+const struct imx_dvfs_core_data imx6q_dvfs_core_data __initconst =
+			imx_dvfs_core_data_entry_single(MX6Q);
+#endif /* ifdef CONFIG_SOC_IMX6Q */
 
 struct platform_device *__init imx_add_dvfs_core(
 		const struct imx_dvfs_core_data *data,
