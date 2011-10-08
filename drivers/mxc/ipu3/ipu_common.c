@@ -2785,6 +2785,9 @@ static int ipu_resume(struct platform_device *pdev)
 
 		/* Set sync refresh channels as high priority */
 		__raw_writel(0x18800001L, IDMAC_CHA_PRI(0));
+
+		/* AXI burst setting for sync refresh channels */
+		__raw_writel(0x003F0000, IDMAC_CH_LOCK_EN_1);
 		clk_disable(g_ipu_clk);
 	}
 	mutex_unlock(&ipu_clk_lock);
