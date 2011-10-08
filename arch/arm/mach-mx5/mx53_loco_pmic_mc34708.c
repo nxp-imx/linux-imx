@@ -285,6 +285,11 @@ static int mc34708_regulator_init(struct mc34708 *mc34708)
 	value &= ~SWHOLD_MASK;
 	pmic_write_reg(REG_MC34708_USB_CONTROL, value, 0xffffff);
 
+	/* enable WDI reset*/
+	pmic_read_reg(REG_MC34708_POWER_CTL2, &value, 0xffffff);
+	value |= 0x1000;
+	pmic_write_reg(REG_MC34708_POWER_CTL2, value, 0xffffff);
+
 	mc34708_register_regulator(mc34708, MC34708_SW1A, &sw1a_init);
 	mc34708_register_regulator(mc34708, MC34708_SW1B, &sw1b_init);
 	mc34708_register_regulator(mc34708, MC34708_SW2, &sw2_init);

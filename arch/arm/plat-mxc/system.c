@@ -78,6 +78,10 @@ void arch_reset(char mode, const char *cmd)
 	}
 
 	/* Assert SRS signal */
+#ifdef CONFIG_ARCH_MX5
+	if (board_is_mx53_loco_mc34708())	/*only for mx53_loco_mc34708*/
+		mxc_iomux_v3_setup_pad(MX53_PAD_GPIO_9__WDOG1_WDOG_B);
+#endif
 	__raw_writew(wcr_enable, wdog_base);
 
 	/* wait for reset to assert... */
