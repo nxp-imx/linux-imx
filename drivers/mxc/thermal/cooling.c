@@ -53,8 +53,6 @@ static unsigned int cpufreq;
 static unsigned int cpufreq_new;
 static char cpufreq_new_str[10];
 static int cpufreq_change_count;
-static DEFINE_PER_CPU(unsigned int, cpufreq_thermal_reduction_pctg);
-
 
 int anatop_thermal_cpufreq_get_cur(void)
 {
@@ -95,7 +93,7 @@ int anatop_thermal_cpufreq_up(void)
 
 	strcpy(cpu_sys_file, CPUx);
 	sprintf(cpu_number, "%d%s", 0, "/cpufreq/scaling_setspeed");
-	sprintf(cpufreq_new_str, "%ld", cpufreq_new);
+	sprintf(cpufreq_new_str, "%d", cpufreq_new);
 	strcat(cpu_sys_file, cpu_number);
 
 	fd = sys_open((const char __user __force *)cpu_sys_file,
@@ -125,7 +123,7 @@ int anatop_thermal_cpufreq_down(void)
 
 	strcpy(cpu_sys_file, CPUx);
 	sprintf(cpu_number, "%d%s", 0, "/cpufreq/scaling_setspeed");
-	sprintf(cpufreq_new_str, "%ld", cpufreq_new);
+	sprintf(cpufreq_new_str, "%d", cpufreq_new);
 	strcat(cpu_sys_file, cpu_number);
 
 	fd = sys_open((const char __user __force *)cpu_sys_file,
@@ -237,29 +235,6 @@ imx_processor_set_cur_state(struct thermal_cooling_device *cdev,
 
 	return result;
 }
-
-static int anatop_thermal_cpufreq_notifier(struct notifier_block *nb,
-					 unsigned long event, void *data)
-{
-	struct cpufreq_policy *policy = data;
-	unsigned long max_freq = 0;
-
-	if (event != CPUFREQ_ADJUST)
-		goto out;
-
-	max_freq = (
-	    policy->cpuinfo.max_freq *
-	    (100 - per_cpu(cpufreq_thermal_reduction_pctg, policy->cpu) * 20)
-	) / 100;
-
-	cpufreq_verify_within_limits(policy, 0, max_freq);
-
-out:
-	return 0;
-}
-static struct notifier_block anatop_thermal_cpufreq_notifier_block = {
-	.notifier_call = anatop_thermal_cpufreq_notifier,
-};
 
 void anatop_thermal_cpufreq_init(void)
 {
