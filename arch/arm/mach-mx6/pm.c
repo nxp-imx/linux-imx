@@ -65,11 +65,10 @@ extern int set_cpu_freq(int wp);
 #endif
 extern void mx6q_suspend(suspend_state_t state);
 extern void mx6_init_irq(void);
-extern int mxc_init_l2x0(void);
 extern unsigned int gpc_wake_irq[4];
+
 static struct device *pm_dev;
 struct clk *gpc_dvfs_clk;
-
 static void __iomem *scu_base;
 static void __iomem *gpc_base;
 static void __iomem *src_base;
@@ -85,10 +84,6 @@ static unsigned long iram_paddr, cpaddr;
 static u32 ccm_clpcr, scu_ctrl;
 static u32 gpc_imr[4], gpc_cpu_pup, gpc_cpu_pdn, gpc_cpu;
 
-#ifdef CONFIG_LOCAL_TIMERS
-static u32 local_timer[4];
-#endif
-
 static void mx6_suspend_store(void)
 {
 	/* save some settings before suspend */
@@ -101,12 +96,6 @@ static void mx6_suspend_store(void)
 	gpc_cpu_pup = __raw_readl(gpc_base + GPC_PGC_CPU_PUPSCR_OFFSET);
 	gpc_cpu_pdn = __raw_readl(gpc_base + GPC_PGC_CPU_PDNSCR_OFFSET);
 	gpc_cpu = __raw_readl(gpc_base + GPC_PGC_CPU_PDN_OFFSET);
-#ifdef CONFIG_LOCAL_TIMERS
-	local_timer[0] = __raw_readl(local_twd_base + LOCAL_TWD_LOAD_OFFSET);
-	local_timer[1] = __raw_readl(local_twd_base + LOCAL_TWD_COUNT_OFFSET);
-	local_timer[2] = __raw_readl(local_twd_base + LOCAL_TWD_CONTROL_OFFSET);
-	local_timer[3] = __raw_readl(local_twd_base + LOCAL_TWD_INT_OFFSET);
-#endif
 }
 
 static void mx6_suspend_restore(void)
@@ -121,12 +110,6 @@ static void mx6_suspend_restore(void)
 	__raw_writel(gpc_cpu_pup, gpc_base + GPC_PGC_CPU_PUPSCR_OFFSET);
 	__raw_writel(gpc_cpu_pdn, gpc_base + GPC_PGC_CPU_PDNSCR_OFFSET);
 	__raw_writel(gpc_cpu, gpc_base + GPC_PGC_CPU_PDN_OFFSET);
-#ifdef CONFIG_LOCAL_TIMERS
-	__raw_writel(local_timer[0], local_twd_base + LOCAL_TWD_LOAD_OFFSET);
-	__raw_writel(local_timer[1], local_twd_base + LOCAL_TWD_COUNT_OFFSET);
-	__raw_writel(local_timer[2], local_twd_base + LOCAL_TWD_CONTROL_OFFSET);
-	__raw_writel(local_timer[3], local_twd_base + LOCAL_TWD_INT_OFFSET);
-#endif
 }
 
 static int mx6_suspend_enter(suspend_state_t state)
