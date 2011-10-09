@@ -223,7 +223,17 @@ suspend mode entry
 	nop
 	nop
 	nop
-
+	/* Due to the L2 cache errata(TKT065875)
+	, need to wait at least 170ns, each IO read
+	takes about 76ns, but the actual wait time
+	to make system more stable is about 380ns */
+	ldr	r0, =SRC_BASE_ADDR
+	add 	r0, r0, #PERIPBASE_VIRT
+	ldr	r1, [r0]
+	ldr	r1, [r0, #0x4]
+	ldr	r1, [r0, #0x8]
+	ldr	r1, [r0, #0xc]
+	ldr	r1, [r0, #0x10]
 /***********************************************************
 never run to here
 ************************************************************/
@@ -310,28 +320,9 @@ ddr_iomux_save:
 	ldr	r7, [r2, #L2X0_DATA_LATENCY_CTRL]
 	stmfd	r0!, {r4-r7}
 
-	ldr	r4, [r2, #L2X0_EVENT_CNT_CTRL]
-	ldr	r5, [r2, #L2X0_EVENT_CNT1_CFG]
-	ldr	r6, [r2, #L2X0_EVENT_CNT0_CFG]
-	ldr	r7, [r2, #L2X0_EVENT_CNT1_VAL]
-	stmfd	r0!, {r4-r7}
-
-	ldr	r4, [r2, #L2X0_EVENT_CNT0_VAL]
-	ldr	r5, [r2, #L2X0_INTR_MASK]
-	ldr	r6, [r2, #L2X0_MASKED_INTR_STAT]
-	ldr	r7, [r2, #L2X0_RAW_INTR_STAT]
-	stmfd	r0!, {r4-r7}
-
-	ldr	r4, [r2, #L2X0_INTR_CLEAR]
-	ldr	r5, [r2, #L2X0_LOCKDOWN_WAY_D]
-	ldr	r6, [r2, #L2X0_LOCKDOWN_WAY_I]
-	ldr	r7, [r2, #L2X0_LINE_DATA]
-	stmfd	r0!, {r4-r7}
-
-	ldr	r4, [r2, #L2X0_LINE_TAG]
-	ldr	r5, [r2, #L2X0_PREFETCH_CTRL]
-	ldr	r6, [r2, #L2X0_POWER_CTRL]
-	stmfd	r0!, {r4-r6}
+	ldr	r4, [r2, #L2X0_PREFETCH_CTRL]
+	ldr	r5, [r2, #L2X0_POWER_CTRL]
+	stmfd	r0!, {r4-r5}
 #endif
 	/*
 	 * Flush all data from the L1 data cache before disabling
@@ -377,6 +368,36 @@ ddr_iomux_save:
 	 */
 	dsb
 	dmb
+
+	/* Clean L2 cache to write the dirty data into DRAM to make
+	sure the data alignment between DRAM and L2 cache.
+	*/
+#ifdef CONFIG_CACHE_L2X0
+	/* Clean L2 cache here */
+	ldr	r1, =L2_BASE_ADDR
+	add	r1, r1, #PERIPBASE_VIRT
+	/* Make way to 0xFFFF 16 ways */
+	mov	r0, #0x10000
+	sub	r0, r0, #0x1
+	/* 0x7BC is L2X0_CLEAN_WAY */
+	mov	r4, #0x700
+	orr	r4, #0xBC
+	str	r0, [r1, r4]
+wait:
+	ldr	r2, [r1, r4]
+	ands	r2, r2, r0
+	bne	wait
+l2x0_sync:
+	mov	r2, #0x0
+	/* 0x730 is L2X0_CACHE_SYNC */
+	mov	r4, #0x700
+	orr	r4, #0x30
+	str	r2, [r1, r4]
+sync:
+	ldr	r2, [r1, r4]
+	ands	r2, r2, #0x1
+	bne	sync
+#endif
 /****************************************************************
 set ddr iomux to low power mode
 ****************************************************************/
@@ -439,8 +460,17 @@ when SOC exit stop mode, arm core restart from here, currently
 are running with MMU off.
 ****************************************************************/
 resume:
-	mov	r1, #0x0
 	ldr	r0, =SRC_BASE_ADDR
+	/* Due to the L2 cache errata(TKT065875)
+	, need to wait at least 170ns, each IO read
+	takes about 76ns, but the actual wait time
+	to make system more stable is about 380ns */
+	ldr	r1, [r0]
+	ldr	r1, [r0, #0x4]
+	ldr	r1, [r0, #0x8]
+	ldr	r1, [r0, #0xc]
+	ldr	r1, [r0, #0x10]
+	mov	r1, #0x0
 	str	r1, [r0, #SRC_GPR1_OFFSET] /* clear SRC_GPR1 */
 	ldr	r0, [r0, #SRC_GPR2_OFFSET]
 
@@ -528,8 +558,8 @@ use_ttbr0:
 	ldr	r1, =mmu_on_label
 	bx	r1
 mmu_on_label:
-	/* Set up the per-CPU stacks */
 	mov 	r8, lr
+	/* Set up the per-CPU stacks */
 	bl	cpu_init
 
 #ifdef CONFIG_CACHE_L2X0
@@ -544,35 +574,19 @@ mmu_on_label:
 	str	r6, [r2, #L2X0_TAG_LATENCY_CTRL]
 	str	r7, [r2, #L2X0_DATA_LATENCY_CTRL]
 
-	ldmea	r0!, {r4-r7}
-	str	r4, [r2, #L2X0_EVENT_CNT_CTRL]
-	str	r5, [r2, #L2X0_EVENT_CNT1_CFG]
-	str	r6, [r2, #L2X0_EVENT_CNT0_CFG]
-	str	r7, [r2, #L2X0_EVENT_CNT1_VAL]
-
-	ldmea	r0!, {r4-r7}
-	str	r4, [r2, #L2X0_EVENT_CNT0_VAL]
-	str	r5, [r2, #L2X0_INTR_MASK]
-	str	r6, [r2, #L2X0_MASKED_INTR_STAT]
-	str	r7, [r2, #L2X0_RAW_INTR_STAT]
-
-	ldmea	r0!, {r4-r7}
-	str	r4, [r2, #L2X0_INTR_CLEAR]
-	str	r5, [r2, #L2X0_LOCKDOWN_WAY_D]
-	str	r6, [r2, #L2X0_LOCKDOWN_WAY_I]
-	str	r7, [r2, #L2X0_LINE_DATA]
-
-	ldmea	r0!, {r4-r6}
-	str	r4, [r2, #L2X0_LINE_TAG]
-	str	r5, [r2, #L2X0_PREFETCH_CTRL]
-	str	r6, [r2, #L2X0_POWER_CTRL]
+	ldmea	r0!, {r4-r5}
+	str	r4, [r2, #L2X0_PREFETCH_CTRL]
+	str	r5, [r2, #L2X0_POWER_CTRL]
 #endif
 	/*
 	 * Restore the MMU table entry that was modified for
 	 * enabling MMU.
 	 */
-	mov	r0, r9
-	mov	r10, r0
+	ldr	r4, =PAGE_OFFSET
+	ldr	r5, =MX6_PHYS_OFFSET
+	sub	r4, r4, r5
+	add	r4, r4, r10
+	str	r9, [r4]
 
 	mov	r0, #0
 	mcr	p15, 0, r0, c7, c1, 6	@ flush TLB and issue barriers
@@ -626,18 +640,19 @@ restore control register to enable cache
 	dsb
 	isb
 
+#ifdef CONFIG_CACHE_L2X0
 	/* Enable L2 cache here */
-    ldr r2, =L2_BASE_ADDR
-    add r2, r2, #PERIPBASE_VIRT
+	ldr r2, =L2_BASE_ADDR
+	add r2, r2, #PERIPBASE_VIRT
 	mov r4, #0x1
 	str	r4, [r2, #L2X0_CTRL]
+#endif
 /***********************************************************
 return back to mx6_suspend_enter for dormant
 ***********************************************************/
 	mov	lr, r8
 	ldmfd	sp!, {r0-r12}
 	mov	pc, lr
-
 /************************************************
 return back to mx6_suspend_enter for suspend
 *************************************************/
