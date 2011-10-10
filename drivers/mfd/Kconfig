@@ -507,6 +507,21 @@ config PMIC_DA9053Bx
 endchoice
 
 
+config MFD_MC_PMIC
+	tristate "Support Freescale Freescale's PMIC"
+	depends on I2C
+	select MFD_CORE
+	help
+	  Support for the Freescale's PMIC .
+	  This driver provides common support for accessing  the device,
+	  additional drivers must be enabled in order to use the
+	  functionality of the device.
+config MFD_MC34708
+	tristate "Support for Freescale's PMIC MC34708"
+	select MFD_MC_PMIC
+	help
+	  Support for the Freescale's PMIC MC34708
+
 config PCF50633_ADC
 	tristate "Support for NXP PCF50633 ADC"
 	depends on MFD_PCF50633
