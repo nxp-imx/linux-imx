@@ -1019,6 +1019,13 @@ config RTC_DRV_MC13XXX
 	  This enables support for the RTCs found on Freescale's PMICs
 	  MC13783 and MC13892.
 
+config RTC_DRV_MC34708
+	depends on MFD_MC_PMIC
+	tristate "Freescale MC34708 RTC"
+	help
+	  This enables support for the RTCs found on Freescale's PMICs
+	  MC34708.
+
 config RTC_DRV_MPC5121
 	tristate "Freescale MPC5121 built-in RTC"
 	depends on PPC_MPC512x && RTC_CLASS
