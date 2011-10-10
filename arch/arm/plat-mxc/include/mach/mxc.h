@@ -67,6 +67,7 @@
 #define IMX_BOARD_REV_1		0x000
 #define IMX_BOARD_REV_2		0x100
 #define IMX_BOARD_REV_3		0x200
+#define IMX_BOARD_REV_4		0x300
 
 #ifndef __ASSEMBLY__
 extern unsigned int system_rev;
@@ -75,6 +76,8 @@ extern unsigned int system_rev;
 #endif
 
 #ifdef CONFIG_ARCH_MX5
+#define board_is_mx53_loco_mc34708() (cpu_is_mx53() &&	\
+	(board_is_rev(IMX_BOARD_REV_2) || board_is_rev(IMX_BOARD_REV_4)))
 #define board_is_mx53_arm2() (cpu_is_mx53() && board_is_rev(IMX_BOARD_REV_2))
 #define board_is_mx53_evk_a()    (cpu_is_mx53() && board_is_rev(IMX_BOARD_REV_1))
 #define board_is_mx53_evk_b()    (cpu_is_mx53() && board_is_rev(IMX_BOARD_REV_3))
