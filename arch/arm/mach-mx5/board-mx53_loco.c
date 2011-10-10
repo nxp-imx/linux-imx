@@ -37,6 +37,7 @@
 #include <mach/ipu-v3.h>
 #include <mach/mxc_dvfs.h>
 #include <mach/ahci_sata.h>
+#include <mach/mxc.h>
 
 #include <asm/mach-types.h>
 #include <asm/mach/arch.h>
@@ -61,7 +62,11 @@
 #define LOCO_FEC_PHY_RST		IMX_GPIO_NR(7, 6)
 #define LOCO_USBH1_VBUS			IMX_GPIO_NR(7, 8)
 
+#define MX53_LOCO_MC34708_IRQ_REVA      IMX_GPIO_NR(5, 30)
+#define MX53_LOCO_MC34708_IRQ_REVB      IMX_GPIO_NR(5, 23)
+
 static struct clk *sata_clk, *sata_ref_clk;
+static u32 mx53_loco_mc34708_irq;
 
 extern void __iomem *arm_plat_base;
 extern void __iomem *gpc_base;
@@ -72,6 +77,7 @@ extern int (*set_cpu_voltage)(u32 volt);
 extern int mx5_set_cpu_voltage(struct regulator *gp_reg, u32 cpu_volt);
 
 extern int __init mx53_loco_init_da9052(void);
+extern int __init mx53_loco_init_mc34708(u32 int_gpio);
 
 static struct regulator *cpu_regulator;
 static char *gp_reg_id;
@@ -684,7 +690,8 @@ static struct mxc_spdif_platform_data mxc_spdif_data = {
 
 static void __init mx53_loco_board_init(void)
 {
-	int i;
+	int i, ret;
+	iomux_v3_cfg_t mc34708_int = MX53_PAD_CSI0_DAT12__GPIO5_30;
 
 	mx53_loco_io_init();
 	gp_reg_id = loco_regulator_data.cpu_reg_id;
@@ -717,8 +724,27 @@ static void __init mx53_loco_board_init(void)
 	imx53_add_srtc();
 	imx53_add_imx_i2c(0, &mx53_loco_i2c_data);
 	imx53_add_imx_i2c(1, &mx53_loco_i2c_data);
+	if (board_is_mx53_loco_mc34708()) {
+		if (board_is_rev(IMX_BOARD_REV_2)) {/*Board RevA*/
+			mc34708_int = MX53_PAD_CSI0_DAT12__GPIO5_30;
+			mx53_loco_mc34708_irq = MX53_LOCO_MC34708_IRQ_REVA;
+		} else if (board_is_rev(IMX_BOARD_REV_4)) {/*Board RevB*/
+			mc34708_int = MX53_PAD_CSI0_DAT5__GPIO5_23;
+			mx53_loco_mc34708_irq = MX53_LOCO_MC34708_IRQ_REVB;
+		}
+		mxc_iomux_v3_setup_pad(mc34708_int);
+		ret = gpio_request(mx53_loco_mc34708_irq, "mc34708-int");
+		if (ret) {
+			printk(KERN_ERR"request mc34708-int error!!\n");
+			return;
+		} else {
+			gpio_direction_input(mx53_loco_mc34708_irq);
+			mx53_loco_init_mc34708(mx53_loco_mc34708_irq);
+		}
 
-	mx53_loco_init_da9052();
+	} else {
+		mx53_loco_init_da9052();
+	}
 	i2c_register_board_info(0, mxc_i2c0_board_info,
 				ARRAY_SIZE(mxc_i2c0_board_info));
 	i2c_register_board_info(1, mxc_i2c1_board_info,
