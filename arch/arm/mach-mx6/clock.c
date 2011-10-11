@@ -4198,7 +4198,14 @@ static struct clk_lookup lookups[] = {
 static void clk_tree_init(void)
 
 {
+	unsigned int reg;
 
+	reg = __raw_readl(MMDC_MDMISC_OFFSET);
+	if ((reg & MMDC_MDMISC_DDR_TYPE_MASK) ==
+		(0x1 << MMDC_MDMISC_DDR_TYPE_OFFSET)) {
+		clk_set_parent(&periph_clk, &pll2_pfd_400M);
+		printk(KERN_INFO "Set periph_clk's parent to pll2_pfd_400M!\n");
+	}
 }
 
 
@@ -4206,8 +4213,6 @@ int __init mx6_clocks_init(unsigned long ckil, unsigned long osc,
 	unsigned long ckih1, unsigned long ckih2)
 {
 	__iomem void *base;
-	unsigned int reg;
-
 	int i;
 
 	external_low_reference = ckil;
@@ -4217,12 +4222,12 @@ int __init mx6_clocks_init(unsigned long ckil, unsigned long osc,
 
 	apll_base = ioremap(ANATOP_BASE_ADDR, SZ_4K);
 
-	clk_tree_init();
-
 	for (i = 0; i < ARRAY_SIZE(lookups); i++) {
 		clkdev_add(&lookups[i]);
 		clk_debug_register(lookups[i].clk);
 	}
+
+	clk_tree_init();
 
 	/* enable mmdc_ch0_axi_clk to make sure the usecount is > 0
 	 * or ipu's parent is mmdc_ch0_axi_clk, if ipu disable clk,
