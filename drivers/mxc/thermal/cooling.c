@@ -24,140 +24,158 @@
 #include <linux/io.h>
 #include <linux/thermal.h>
 #include <linux/syscalls.h>
-
-
-struct cpu_op {
-	u32 pll_reg;
-	u32 pll_rate;
-	u32 cpu_rate;
-	u32 pdr0_reg;
-	u32 pdf;
-	u32 mfi;
-	u32 mfd;
-	u32 mfn;
-	u32 cpu_voltage;
-	u32 cpu_podf;
-};
+#include <mach/hardware.h>
 
 #define	CPUx		"/sys/devices/system/cpu/cpu"
+#define MAX_GOVERNOR_NAME_LEN 12
+#define MAX_CPU_FREQ_LEN 6
+#define MAX_CPU_ONLINE_LEN 1
 
+/* Save the last hot point trigger temperature */
 extern unsigned long temperature_cooling;
+/* cooling device selection */
 extern bool cooling_cpuhotplug;
 extern struct cpu_op *(*get_cpu_op)(int *op);
+/* Save the string we will read/write to the sys file */
 static unsigned char cpu_sys_file[80];
 static unsigned int cpu_mask;
 static unsigned int anatop_thermal_cpufreq_is_init;
+/* Save cpu operation table and current work point */
 static struct cpu_op *cpu_op_tbl;
 static int cpu_op_nr, cpu_op_cur;
-static unsigned int cpufreq;
+
+/* Save the cpu freq necessray setting before thermal driver change it */
+static unsigned int saved_cpu_freq[5];
+static char saved_max_cpufreq_str[4][10];
+
+/* New cpufreq to be set */
 static unsigned int cpufreq_new;
 static char cpufreq_new_str[10];
+
+/* This variable record the cpufreq change, when we lower the
+cpufreq, it minor 1, and when we promote cpufreq, it add 1, so
+if it is 0, mean we didn't change the cpufreq */
 static int cpufreq_change_count;
 
-int anatop_thermal_cpufreq_get_cur(void)
+int anatop_thermal_get_cpufreq_cur(void)
 {
-	int i;
+	int ret = -EINVAL;
+#ifdef CONFIG_CPU_FREQ
+	unsigned int i, freq;
 
-	cpufreq = cpufreq_quick_get(0);
-	cpufreq *= 1000;
+	freq = cpufreq_quick_get(0);
+	saved_cpu_freq[abs(cpufreq_change_count)] = freq;
+	printk(KERN_WARNING "cooling: cpu cur freq is %d\n", freq * 1000);
+	freq *= 1000;
 
 	for (i = 0; i < cpu_op_nr; i++) {
-		if (cpufreq == cpu_op_tbl[i].cpu_rate)
+		if (freq == cpu_op_tbl[i].cpu_rate)
 			break;
 	}
 
 	if (i >= cpu_op_nr) {
-		printk(KERN_WARNING "%s: can't get cpufreq\
-			current operating point!\n", __func__);
-		return -EINVAL;
+		printk(KERN_WARNING "cooling: can't get cpufreq\
+			current operating point!\n");
+		return ret;
 	}
 	cpu_op_cur = i;
-
-	return 1;
+#endif
+	return 0;
 
 }
 
 int anatop_thermal_cpufreq_up(void)
 {
+	int ret = -EINVAL;
+#ifdef CONFIG_CPU_FREQ
 	int fd;
-	char cpu_number[30];
 
-	anatop_thermal_cpufreq_get_cur();
-	if (cpu_op_cur == 0 || cpu_op_cur >= cpu_op_nr)
-		printk(KERN_ERR "%s: Bad cpu_op_cur!\n", __func__);
+	anatop_thermal_get_cpufreq_cur();
+	if (cpu_op_cur == 0 || cpu_op_cur >= cpu_op_nr) {
+		printk(KERN_ERR "cooling: Bad cpu_op_cur!\n");
+		return ret;
+	}
 
 	cpufreq_new = cpu_op_tbl[cpu_op_cur - 1].cpu_rate;
-	printk(KERN_INFO "%s: cpufreq up from %d to %d\n",
-		__func__, cpufreq, cpufreq_new);
-	cpufreq_new /= 1000;
+	printk(KERN_INFO "cooling: cpu max freq set to %s\n",
+		saved_max_cpufreq_str[abs(cpufreq_change_count) - 1]);
 
 	strcpy(cpu_sys_file, CPUx);
-	sprintf(cpu_number, "%d%s", 0, "/cpufreq/scaling_setspeed");
-	sprintf(cpufreq_new_str, "%d", cpufreq_new);
-	strcat(cpu_sys_file, cpu_number);
+	strcat(cpu_sys_file, "0/cpufreq/scaling_max_freq");
 
 	fd = sys_open((const char __user __force *)cpu_sys_file,
 	  O_RDWR, 0700);
 	if (fd >= 0) {
-		sys_write(fd, cpufreq_new_str, strlen(cpufreq_new_str));
+		sys_write(fd, saved_max_cpufreq_str[abs(cpufreq_change_count) - 1],
+			strlen(saved_max_cpufreq_str[abs(cpufreq_change_count) - 1]));
+		cpufreq_update_policy(0);
 		sys_close(fd);
+		ret = 0;
 	}
-	cpufreq_change_count++;
 
-	return 1;
+	cpufreq_change_count++;
+#endif
+	return ret;
 }
 int anatop_thermal_cpufreq_down(void)
 {
+	int ret = -EINVAL;
+#ifdef CONFIG_CPU_FREQ
 	int fd;
-	char cpu_number[30];
 
-	anatop_thermal_cpufreq_get_cur();
-	if (cpu_op_cur == (cpu_op_nr - 1) || cpu_op_cur >= cpu_op_nr)
-		printk(KERN_ERR "%s: Bad cpu_op_cur!\n", __func__);
+	anatop_thermal_get_cpufreq_cur();
+	if (cpu_op_cur == (cpu_op_nr - 1) || cpu_op_cur >= cpu_op_nr) {
+		printk(KERN_ERR "cooling: Bad cpu_op_cur!\n");
+		return ret;
+	}
 
 	cpufreq_new = cpu_op_tbl[cpu_op_cur + 1].cpu_rate;
 
-	printk(KERN_INFO "%s: cpufreq down from %d to %d\n",
-		__func__, cpufreq, cpufreq_new);
+	printk(KERN_INFO "cooling: cpu max freq set to %d\n", cpufreq_new);
 	cpufreq_new /= 1000;
 
 	strcpy(cpu_sys_file, CPUx);
-	sprintf(cpu_number, "%d%s", 0, "/cpufreq/scaling_setspeed");
 	sprintf(cpufreq_new_str, "%d", cpufreq_new);
-	strcat(cpu_sys_file, cpu_number);
+	strcat(cpu_sys_file, "0/cpufreq/scaling_max_freq");
 
 	fd = sys_open((const char __user __force *)cpu_sys_file,
 	  O_RDWR, 0700);
 	if (fd >= 0) {
+		sys_read(fd, saved_max_cpufreq_str[abs(cpufreq_change_count)],
+			MAX_CPU_FREQ_LEN);
 		sys_write(fd, cpufreq_new_str, strlen(cpufreq_new_str));
 		sys_close(fd);
+		ret = 0;
 	}
-	cpufreq_change_count--;
 
-	return 1;
+	cpufreq_change_count--;
+	cpufreq_update_policy(0);
+#endif
+	return ret;
 }
 
 
 int anatop_thermal_cpu_hotplug(bool cpu_on)
 {
-	unsigned int ret, i;
+	int ret = -EINVAL;
+#ifdef CONFIG_HOTPLUG
+	unsigned int cpu;
 	char online;
 	char cpu_number[9];
 	int fd;
 
-	ret = -EINVAL;
 	if (cpu_on) {
-		for (i = 1; i < 4; i++) {
+		for (cpu = 1; cpu < num_possible_cpus(); cpu++) {
 			strcpy(cpu_sys_file, CPUx);
-			sprintf(cpu_number, "%d%s", i, "/online");
+			sprintf(cpu_number, "%d%s", cpu, "/online");
 			strcat(cpu_sys_file, cpu_number);
 			fd = sys_open((const char __user __force *)cpu_sys_file,
 			  O_RDWR, 0700);
 			if (fd >= 0) {
-				sys_read(fd, &online, 1);
+				sys_read(fd, &online, MAX_CPU_ONLINE_LEN);
 				if (online == '0') {
-					sys_write(fd, (char *)"1", 1);
-					cpu_mask &= ~(0x1 << i);
+					sys_write(fd, (char *)"1", MAX_CPU_ONLINE_LEN);
+					cpu_mask &= ~(0x1 << cpu);
 					ret = 0;
 					break;
 				}
@@ -165,17 +183,20 @@ int anatop_thermal_cpu_hotplug(bool cpu_on)
 			}
 		}
 	} else {
-		for (i = 3; i > 0; i--) {
+		if (num_online_cpus() < 2)
+			return ret;
+
+		for (cpu = num_possible_cpus() - 1; cpu > 0; cpu--) {
 			strcpy(cpu_sys_file, CPUx);
-			sprintf(cpu_number, "%d%s", i, "/online");
+			sprintf(cpu_number, "%d%s", cpu, "/online");
 			strcat(cpu_sys_file, cpu_number);
 			fd = sys_open((const char __user __force *)cpu_sys_file,
 					O_RDWR, 0700);
 			if (fd >= 0) {
 				sys_read(fd, &online, 1);
 				if (online == '1') {
-					sys_write(fd, (char *)"0", 1);
-					cpu_mask |= 0x1 << i;
+					sys_write(fd, (char *)"0", MAX_CPU_ONLINE_LEN);
+					cpu_mask |= 0x1 << cpu;
 					ret = 0;
 					break;
 				}
@@ -183,6 +204,7 @@ int anatop_thermal_cpu_hotplug(bool cpu_on)
 			}
 		}
 	}
+#endif
 	return ret;
 }
 
