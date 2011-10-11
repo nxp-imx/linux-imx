@@ -89,14 +89,13 @@ static int imx_ssi_set_dai_fmt(struct snd_soc_dai *cpu_dai, unsigned int fmt)
 	struct imx_ssi *ssi = snd_soc_dai_get_drvdata(cpu_dai);
 	u32 strcr = 0, scr;
 
-	scr = readl(ssi->base + SSI_SCR) & ~(SSI_SCR_SYN | SSI_SCR_NET);
+	scr = readl(ssi->base + SSI_SCR) & ~SSI_SCR_SYN;
 
 	/* DAI mode */
 	switch (fmt & SND_SOC_DAIFMT_FORMAT_MASK) {
 	case SND_SOC_DAIFMT_I2S:
 		/* data on rising edge of bclk, frame low 1clk before data */
 		strcr |= SSI_STCR_TFSI | SSI_STCR_TEFS | SSI_STCR_TXBIT0;
-		scr |= SSI_SCR_NET;
 		if (ssi->flags & IMX_SSI_USE_I2S_SLAVE) {
 			scr &= ~SSI_I2S_MODE_MASK;
 			scr |= SSI_SCR_I2S_MODE_SLAVE;
@@ -145,8 +144,6 @@ static int imx_ssi_set_dai_fmt(struct snd_soc_dai *cpu_dai, unsigned int fmt)
 
 	strcr |= SSI_STCR_TFEN0;
 
-	if (ssi->flags & IMX_SSI_NET)
-		scr |= SSI_SCR_NET;
 	if (ssi->flags & IMX_SSI_SYN)
 		scr |= SSI_SCR_SYN;
 
@@ -243,7 +240,8 @@ static int imx_ssi_hw_params(struct snd_pcm_substream *substream,
 {
 	struct imx_ssi *ssi = snd_soc_dai_get_drvdata(cpu_dai);
 	struct imx_pcm_dma_params *dma_data;
-	u32 reg, sccr;
+	u32 reg, sccr, scr;
+	unsigned int channels = params_channels(params);
 
 	/* Tx/Rx config */
 	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
@@ -276,6 +274,14 @@ static int imx_ssi_hw_params(struct snd_pcm_substream *substream,
 
 	writel(sccr, ssi->base + reg);
 
+	scr = readl(ssi->base + SSI_SCR);
+
+	if (channels == 1)
+		scr &= ~SSI_SCR_NET;
+	else
+		scr |= SSI_SCR_NET;
+
+	writel(scr, ssi->base + SSI_SCR);
 	return 0;
 }
 

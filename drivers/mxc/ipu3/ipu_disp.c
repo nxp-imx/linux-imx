@@ -24,11 +24,11 @@
 #include <linux/delay.h>
 #include <linux/spinlock.h>
 #include <linux/io.h>
-#include <linux/ipu.h>
 #include <linux/clk.h>
 #include <linux/err.h>
 #include <asm/atomic.h>
 #include <mach/clock.h>
+#include <mach/ipu-v3.h>
 #include "ipu_prv.h"
 #include "ipu_regs.h"
 #include "ipu_param_mem.h"
@@ -176,14 +176,22 @@ struct clk ipu_pixel_clk[] = {
 	},
 };
 
-struct clk_lookup ipu_lookups[] = {
+struct clk_lookup ipu_lookups[MXC_IPU_MAX_NUM][2] = {
 	{
-		.dev_id = NULL,
-		.con_id = "pixel_clk_0",
+		{
+			.con_id = "pixel_clk_0",
+		},
+		{
+			.con_id = "pixel_clk_1",
+		},
 	},
 	{
-		.dev_id = NULL,
-		.con_id = "pixel_clk_1",
+		{
+			.con_id = "pixel_clk_0",
+		},
+		{
+			.con_id = "pixel_clk_1",
+		},
 	},
 };
 

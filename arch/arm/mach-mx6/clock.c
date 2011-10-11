@@ -3869,9 +3869,18 @@ static struct clk gpmi_nfc_clk[] = {
 	{	/* bch_apb_clk */
 	__INIT_CLK_DEBUG(gpmi_bch_apb_clk)
 	.parent = &usdhc3_clk,
+	.secondary = &gpmi_nfc_clk[4],
 	.enable = _clk_enable,
 	.enable_reg = MXC_CCM_CCGR4,
 	.enable_shift = MXC_CCM_CCGRx_CG12_OFFSET,
+	.disable = _clk_disable,
+	},
+	{	/* bch relative clk */
+	__INIT_CLK_DEBUG(pl301_mx6qperl_bch)
+	.parent = &usdhc3_clk,
+	.enable = _clk_enable,
+	.enable_reg = MXC_CCM_CCGR4,
+	.enable_shift = MXC_CCM_CCGRx_CG6_OFFSET,
 	.disable = _clk_disable,
 	},
 };
@@ -4112,6 +4121,7 @@ static struct clk_lookup lookups[] = {
 	_REGISTER_CLOCK(NULL, "gpmi-apb", gpmi_nfc_clk[1]),
 	_REGISTER_CLOCK(NULL, "bch", gpmi_nfc_clk[2]),
 	_REGISTER_CLOCK(NULL, "bch-apb", gpmi_nfc_clk[3]),
+	_REGISTER_CLOCK(NULL, "pl301_mx6qperl-bch", gpmi_nfc_clk[4]),
 	_REGISTER_CLOCK("mxc_pwm.0", NULL, pwm_clk[0]),
 	_REGISTER_CLOCK("mxc_pwm.1", NULL, pwm_clk[1]),
 	_REGISTER_CLOCK("mxc_pwm.2", NULL, pwm_clk[2]),

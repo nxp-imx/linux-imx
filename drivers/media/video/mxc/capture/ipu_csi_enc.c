@@ -76,7 +76,7 @@ static int csi_enc_setup(cam_data *cam)
 	memset(&params, 0, sizeof(ipu_channel_params_t));
 	params.csi_mem.csi = cam->csi;
 
-	sensor_protocol = ipu_csi_get_sensor_protocol(cam->csi);
+	sensor_protocol = ipu_csi_get_sensor_protocol(cam->ipu, cam->csi);
 	switch (sensor_protocol) {
 	case IPU_CSI_CLK_MODE_GATED_CLK:
 	case IPU_CSI_CLK_MODE_NONGATED_CLK:
@@ -120,15 +120,15 @@ static int csi_enc_setup(cam_data *cam)
 		return -EINVAL;
 	}
 
-	ipu_csi_enable_mclk_if(CSI_MCLK_ENC, cam->csi, true, true);
+	ipu_csi_enable_mclk_if(cam->ipu, CSI_MCLK_ENC, cam->csi, true, true);
 
-	err = ipu_init_channel(CSI_MEM, &params);
+	err = ipu_init_channel(cam->ipu, CSI_MEM, &params);
 	if (err != 0) {
 		printk(KERN_ERR "ipu_init_channel %d\n", err);
 		return err;
 	}
 
-	err = ipu_init_channel_buffer(CSI_MEM, IPU_OUTPUT_BUFFER,
+	err = ipu_init_channel_buffer(cam->ipu, CSI_MEM, IPU_OUTPUT_BUFFER,
 				      pixel_fmt, cam->v2f.fmt.pix.width,
 				      cam->v2f.fmt.pix.height,
 				      cam->v2f.fmt.pix.width, IPU_ROTATE_NONE,
@@ -139,7 +139,7 @@ static int csi_enc_setup(cam_data *cam)
 		printk(KERN_ERR "CSI_MEM output buffer\n");
 		return err;
 	}
-	err = ipu_enable_channel(CSI_MEM);
+	err = ipu_enable_channel(cam->ipu, CSI_MEM);
 	if (err < 0) {
 		printk(KERN_ERR "ipu_enable_channel CSI_MEM\n");
 		return err;
@@ -156,18 +156,18 @@ static int csi_enc_setup(cam_data *cam)
  *
  * @return  status
  */
-static int csi_enc_eba_update(dma_addr_t eba, int *buffer_num)
+static int csi_enc_eba_update(struct ipu_soc *ipu, dma_addr_t eba, int *buffer_num)
 {
 	int err = 0;
 
 	pr_debug("eba %x\n", eba);
-	err = ipu_update_channel_buffer(CSI_MEM, IPU_OUTPUT_BUFFER,
+	err = ipu_update_channel_buffer(ipu, CSI_MEM, IPU_OUTPUT_BUFFER,
 					*buffer_num, eba);
 	if (err != 0) {
-		ipu_clear_buffer_ready(CSI_MEM, IPU_OUTPUT_BUFFER,
+		ipu_clear_buffer_ready(ipu, CSI_MEM, IPU_OUTPUT_BUFFER,
 				       *buffer_num);
 
-		err = ipu_update_channel_buffer(CSI_MEM, IPU_OUTPUT_BUFFER,
+		err = ipu_update_channel_buffer(ipu, CSI_MEM, IPU_OUTPUT_BUFFER,
 						*buffer_num, eba);
 		if (err != 0) {
 			pr_err("ERROR: v4l2 capture: fail to update "
@@ -176,7 +176,7 @@ static int csi_enc_eba_update(dma_addr_t eba, int *buffer_num)
 		}
 	}
 
-	ipu_select_buffer(CSI_MEM, IPU_OUTPUT_BUFFER, *buffer_num);
+	ipu_select_buffer(ipu, CSI_MEM, IPU_OUTPUT_BUFFER, *buffer_num);
 
 	*buffer_num = (*buffer_num == 0) ? 1 : 0;
 
@@ -209,8 +209,8 @@ static int csi_enc_enabling_tasks(void *private)
 	    PAGE_ALIGN(cam->v2f.fmt.pix.sizeimage);
 	cam->dummy_frame.buffer.m.offset = cam->dummy_frame.paddress;
 
-	ipu_clear_irq(IPU_IRQ_CSI0_OUT_EOF);
-	err = ipu_request_irq(IPU_IRQ_CSI0_OUT_EOF,
+	ipu_clear_irq(cam->ipu, IPU_IRQ_CSI0_OUT_EOF);
+	err = ipu_request_irq(cam->ipu, IPU_IRQ_CSI0_OUT_EOF,
 			      csi_enc_callback, 0, "Mxc Camera", cam);
 	if (err != 0) {
 		printk(KERN_ERR "Error registering rot irq\n");
@@ -237,11 +237,11 @@ static int csi_enc_disabling_tasks(void *private)
 	cam_data *cam = (cam_data *) private;
 	int err = 0;
 
-	ipu_free_irq(IPU_IRQ_CSI0_OUT_EOF, cam);
+	ipu_free_irq(cam->ipu, IPU_IRQ_CSI0_OUT_EOF, cam);
 
-	err = ipu_disable_channel(CSI_MEM, true);
+	err = ipu_disable_channel(cam->ipu, CSI_MEM, true);
 
-	ipu_uninit_channel(CSI_MEM);
+	ipu_uninit_channel(cam->ipu, CSI_MEM);
 
 	if (cam->dummy_frame.vaddress != 0) {
 		dma_free_coherent(0, cam->dummy_frame.buffer.length,
@@ -249,7 +249,7 @@ static int csi_enc_disabling_tasks(void *private)
 				  cam->dummy_frame.paddress);
 		cam->dummy_frame.vaddress = 0;
 	}
-	ipu_csi_enable_mclk_if(CSI_MCLK_ENC, cam->csi, false, false);
+	ipu_csi_enable_mclk_if(cam->ipu, CSI_MCLK_ENC, cam->csi, false, false);
 
 	return err;
 }
@@ -264,7 +264,7 @@ static int csi_enc_enable_csi(void *private)
 {
 	cam_data *cam = (cam_data *) private;
 
-	return ipu_enable_csi(cam->csi);
+	return ipu_enable_csi(cam->ipu, cam->csi);
 }
 
 /*!
@@ -277,7 +277,7 @@ static int csi_enc_disable_csi(void *private)
 {
 	cam_data *cam = (cam_data *) private;
 
-	return ipu_disable_csi(cam->csi);
+	return ipu_disable_csi(cam->ipu, cam->csi);
 }
 
 /*!

@@ -304,6 +304,10 @@
 #include <linux/dmaengine.h>
 #include <mach/dma.h>
 
+#define IMX_DAI_ESAI_TX 0x04
+#define IMX_DAI_ESAI_RX 0x08
+#define IMX_DAI_ESAI_TXRX (IMX_DAI_ESAI_TX | IMX_DAI_ESAI_RX)
+
 struct imx_esai {
 	struct platform_device *ac97_dev;
 	struct snd_soc_dai *imx_ac97;
@@ -322,6 +326,7 @@ struct imx_esai {
 	struct imx_pcm_dma_params dma_params_tx;
 
 	int enabled;
+	int imx_esai_txrx_state;
 
 	struct platform_device *soc_platform_pdev;
 	struct platform_device *soc_platform_pdev_fiq;

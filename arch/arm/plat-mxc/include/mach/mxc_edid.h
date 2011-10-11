@@ -26,8 +26,8 @@
 #ifndef MXC_EDID_H
 #define MXC_EDID_H
 
-#define FB_MODE_ASPECT_4_3	0x10
-#define FB_MODE_ASPECT_16_9	0x20
+#define FB_VMODE_ASPECT_4_3	0x10
+#define FB_VMODE_ASPECT_16_9	0x20
 
 struct mxc_edid_cfg {
 	bool cea_underscan;

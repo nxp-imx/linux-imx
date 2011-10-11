@@ -624,7 +624,7 @@ static int vpu_dev_probe(struct platform_device *pdev)
 		iram.end = addr +  vpu_plat->iram_size - 1;
 	}
 
-	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+	res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "vpu_regs");
 	if (!res) {
 		printk(KERN_ERR "vpu: unable to get vpu base addr\n");
 		return -ENODEV;
@@ -658,28 +658,25 @@ static int vpu_dev_probe(struct platform_device *pdev)
 		goto err_out_class;
 	}
 
-	res = platform_get_resource(pdev, IORESOURCE_IRQ, 0);
-	if (!res) {
+	vpu_ipi_irq = platform_get_irq_byname(pdev, "vpu_ipi_irq");
+	if (vpu_ipi_irq < 0) {
 		printk(KERN_ERR "vpu: unable to get vpu interrupt\n");
 		err = -ENXIO;
 		goto err_out_class;
 	}
-	vpu_ipi_irq = res->start;
-
 	err = request_irq(vpu_ipi_irq, vpu_ipi_irq_handler, 0, "VPU_CODEC_IRQ",
 			  (void *)(&vpu_data));
 	if (err)
 		goto err_out_class;
 
 #ifdef MXC_VPU_HAS_JPU
-	res = platform_get_resource(pdev, IORESOURCE_IRQ, 1);
-	if (!res) {
+	vpu_jpu_irq = platform_get_irq_byname(pdev, "vpu_jpu_irq");
+	if (vpu_jpu_irq < 0) {
 		printk(KERN_ERR "vpu: unable to get vpu jpu interrupt\n");
 		err = -ENXIO;
 		free_irq(vpu_ipi_irq, &vpu_data);
 		goto err_out_class;
 	}
-	vpu_jpu_irq = res->start;
 	err = request_irq(vpu_jpu_irq, vpu_jpu_irq_handler, 0, "VPU_JPG_IRQ",
 			  (void *)(&vpu_data));
 	if (err) {

@@ -1,0 +1,9 @@
+menu "MXC GPU support"
+
+config MXC_GPU_VIV
+	tristate "MXC GPU support"
+	depends on ARCH_MX6
+	---help---
+         Say Y to get the GPU driver support.
+
+endmenu
