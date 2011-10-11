@@ -1036,6 +1036,8 @@ static void __init fixup_android_board(struct machine_desc *desc, struct tag *ta
 		android_pmem_gpu_data.start = mem_tag->u.mem.start + left_mem;
 		mem_tag->u.mem.size = left_mem;
 	}
+
+	set_cpu_voltage = mx6_sabre_set_cpu_voltage;
 }
 
 /*
