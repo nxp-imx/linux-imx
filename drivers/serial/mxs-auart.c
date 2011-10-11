@@ -181,7 +181,7 @@ mxs_auart_rx_char(struct mxs_auart_port *s, unsigned int stat, u8 c)
 static void dma_rx_do_tasklet(unsigned long arg)
 {
 	struct mxs_auart_port *s = (struct mxs_auart_port *) arg;
-	struct tty_struct *tty = s->port.info->port.tty;
+	struct tty_struct *tty = s->port.state->port.tty;
 	u32 stat = 0;
 	int count;
 	struct list_head *p, *q;
