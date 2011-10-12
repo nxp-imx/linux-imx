@@ -1560,7 +1560,7 @@ static int mxc_v4l_open(struct file *file)
 		pr_debug("On Open: Input to ipu size is %d x %d\n",
 				cam_fmt.fmt.pix.width, cam_fmt.fmt.pix.height);
 		ipu_csi_set_window_size(cam->ipu, cam->crop_current.width,
-					cam->crop_current.width,
+					cam->crop_current.height,
 					cam->csi);
 		ipu_csi_set_window_pos(cam->ipu, cam->crop_current.left,
 					cam->crop_current.top,
