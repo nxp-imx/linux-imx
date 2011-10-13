@@ -144,6 +144,14 @@ void ep93xx_dma_m2p_submit_recursive(struct ep93xx_dma_m2p_client *m2p,
  * ignored in software.
  *
  */
-void ep93xx_dma_m2p_flush(struct ep93xx_dma_m2p_client *m2p);
+static inline enum dma_transfer_direction
+ep93xx_dma_chan_direction(struct dma_chan *chan)
+{
+	if (!ep93xx_dma_chan_is_m2p(chan))
+		return DMA_NONE;
+
+	/* even channels are for TX, odd for RX */
+	return (chan->chan_id % 2 == 0) ? DMA_MEM_TO_DEV : DMA_DEV_TO_MEM;
+}
 
 #endif /* __ASM_ARCH_DMA_H */

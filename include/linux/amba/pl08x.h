@@ -111,10 +111,8 @@ struct pl08x_phy_chan {
 struct pl08x_txd {
 	struct dma_async_tx_descriptor tx;
 	struct list_head node;
-	enum dma_data_direction	direction;
-	dma_addr_t src_addr;
-	dma_addr_t dst_addr;
-	size_t len;
+	struct list_head dsg_list;
+	enum dma_transfer_direction direction;
 	dma_addr_t llis_bus;
 	struct pl08x_lli *llis_va;
 	/* Default cctl value for LLIs */
@@ -172,9 +170,12 @@ struct pl08x_dma_chan {
 	int phychan_hold;
 	struct tasklet_struct tasklet;
 	char *name;
-	struct pl08x_channel_data *cd;
-	dma_addr_t runtime_addr;
-	enum dma_data_direction	runtime_direction;
+	const struct pl08x_channel_data *cd;
+	dma_addr_t src_addr;
+	dma_addr_t dst_addr;
+	u32 src_cctl;
+	u32 dst_cctl;
+	enum dma_transfer_direction runtime_direction;
 	dma_cookie_t lc;
 	struct list_head pend_list;
 	struct pl08x_txd *at;
