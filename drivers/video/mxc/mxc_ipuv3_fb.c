@@ -1965,6 +1965,13 @@ static int mxcfb_probe(struct platform_device *pdev)
 		fbi->fix.smem_len = res->end - res->start + 1;
 		fbi->fix.smem_start = res->start;
 		fbi->screen_base = ioremap(fbi->fix.smem_start, fbi->fix.smem_len);
+		if (!fbi->screen_base) {
+			dev_err(&pdev->dev,
+				"Failed to do ioremap for fb%d buffer\n", pdev->id);
+			ret = -ENOMEM;
+			goto err3;
+		}
+		memset((char *)fbi->screen_base, 0, fbi->fix.smem_len);
 	}
 
 	ret =  mxcfb_setup(fbi, pdev);
