@@ -3163,7 +3163,6 @@ static int fsg_main_thread(void *fsg_)
 	complete_and_exit(&fsg->thread_notifier, 0);
 }
 
-
 /*-------------------------------------------------------------------------*/
 
 
