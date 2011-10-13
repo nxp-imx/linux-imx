@@ -598,9 +598,15 @@ static struct mxc_iim_data iim_data = {
 };
 
 static struct resource mxcfb_resources[] = {
-	[0] = {
-	       .flags = IORESOURCE_MEM,
-	       },
+	{
+	 .flags = IORESOURCE_MEM,
+	 },
+	{
+	 .flags = IORESOURCE_MEM,
+	 },
+	{
+	 .flags = IORESOURCE_MEM,
+	 },
 };
 
 static struct mxc_fb_platform_data fb_data[] = {
@@ -631,18 +637,20 @@ static int __init mxc_init_fb(void)
 	if (primary_di) {
 		printk(KERN_INFO "DI1 is primary\n");
 		/* DI1 -> DP-BG channel: */
-		mxc_fb_devices[1].num_resources = ARRAY_SIZE(mxcfb_resources);
-		mxc_fb_devices[1].resource = mxcfb_resources;
+		mxc_fb_devices[1].num_resources = 1;
+		mxc_fb_devices[1].resource = &mxcfb_resources[0];
 		mxc_register_device(&mxc_fb_devices[1], &fb_data[1]);
 
 		/* DI0 -> DC channel: */
+		mxc_fb_devices[0].num_resources = 1;
+		mxc_fb_devices[0].resource = &mxcfb_resources[1];
 		mxc_register_device(&mxc_fb_devices[0], &fb_data[0]);
 	} else {
 		printk(KERN_INFO "DI0 is primary\n");
 
 		/* DI0 -> DP-BG channel: */
-		mxc_fb_devices[0].num_resources = ARRAY_SIZE(mxcfb_resources);
-		mxc_fb_devices[0].resource = mxcfb_resources;
+		mxc_fb_devices[0].num_resources = 1;
+		mxc_fb_devices[0].resource = &mxcfb_resources[0];
 		mxc_register_device(&mxc_fb_devices[0], &fb_data[0]);
 
 		/* DI1 -> DC channel: */
@@ -652,6 +660,8 @@ static int __init mxc_init_fb(void)
 	/*
 	 * DI0/1 DP-FG channel:
 	 */
+	mxc_fb_devices[2].num_resources = 1;
+	mxc_fb_devices[2].resource = &mxcfb_resources[2];
 	mxc_register_device(&mxc_fb_devices[2], NULL);
 
 	return 0;
@@ -1426,34 +1436,31 @@ static struct sys_timer mxc_timer = {
 	.init	= mx53_smd_timer_init,
 };
 
+#define TRIPLE_1080P_SIZE	(1920*ALIGN(1080, 128)*2*3)
 static void __init fixup_android_board(struct machine_desc *desc, struct tag *tags,
 				   char **cmdline, struct meminfo *mi)
 {
 	char *str;
-	struct tag *t;
-	struct tag *mem_tag = 0;
+	struct tag *t, *mem_tag = 0;
+	int reserve_2ndisp = 1;
 	int total_mem = SZ_1G;
-	int left_mem = 0, avali_mem = 0;
+	int left_mem = 0;
 	int gpu_mem = SZ_64M;
+	int fb0_mem = 0, fb_mem = ALIGN(TRIPLE_1080P_SIZE, SZ_1M);
 	int pmem_gpu_size = android_pmem_gpu_data.size;
 	int pmem_adsp_size = android_pmem_data.size;
 
 	mxc_set_cpu_type(MXC_CPU_MX53);
 
-	/* get mem= and gpu_memory= from cmdline */
+	/* get fbmem= and gpu_memory= from cmdline */
 	for_each_tag(t, tags) {
 		if (t->hdr.tag == ATAG_CMDLINE) {
 			str = t->u.cmdline.cmdline;
-			str = strstr(str, "mem=");
+			str = strstr(str, "fbmem=");
 			if (str != NULL) {
-				str += 4;
-				avali_mem = memparse(str, &str);
+				str += 6;
+				fb0_mem = memparse(str, &str);
 			}
-
-			str = t->u.cmdline.cmdline;
-			str = strstr(str, "gpu_nommu");
-			if (str != NULL)
-				gpu_data.enable_mmu = 0;
 
 			str = t->u.cmdline.cmdline;
 			str = strstr(str, "gpu_memory=");
@@ -1461,27 +1468,33 @@ static void __init fixup_android_board(struct machine_desc *desc, struct tag *ta
 				str += 11;
 				gpu_mem = memparse(str, &str);
 			}
+
+			str = t->u.cmdline.cmdline;
+			if (strstr(str, "di0_primary"))
+				reserve_2ndisp = 0;
 			break;
 		}
 	}
-
-	if (gpu_data.enable_mmu)
-		gpu_mem = 0;
 
 	/* get total memory from TAGS */
-	for_each_tag(mem_tag, tags) {
-		if (mem_tag->hdr.tag == ATAG_MEM) {
-			total_mem = mem_tag->u.mem.size;
-			left_mem = total_mem - gpu_mem
-				- pmem_gpu_size - pmem_adsp_size;
-			break;
-		}
+	for_each_tag(t, tags) {
+		if (t->hdr.tag == ATAG_MEM)
+			if (!mem_tag || (mem_tag &&
+				mem_tag->u.mem.start < t->u.mem.start))
+				mem_tag = t;
 	}
 
-	if (avali_mem > 0 && avali_mem < left_mem)
-		left_mem = avali_mem;
+	total_mem = mem_tag->u.mem.size;
+	left_mem = total_mem - gpu_mem
+		- fb_mem * (reserve_2ndisp ? 2 : 1) - fb0_mem
+		- pmem_gpu_size - pmem_adsp_size;
+
+	if (left_mem <= 0)
+		panic("No enough left memory for kernel!");
 
 	if (mem_tag) {
+		int start;
+
 		android_pmem_data.start = mem_tag->u.mem.start
 				+ left_mem + gpu_mem + pmem_gpu_size;
 		android_pmem_gpu_data.start = mem_tag->u.mem.start
@@ -1494,6 +1507,25 @@ static void __init fixup_android_board(struct machine_desc *desc, struct tag *ta
 				mem_tag->u.mem.start + left_mem;
 			gpu_device.resource[5].end =
 				gpu_device.resource[5].start + gpu_mem - 1;
+		}
+
+		if (reserve_2ndisp) {
+			mxcfb_resources[1].start =
+				android_pmem_data.start + android_pmem_data.size;
+			mxcfb_resources[1].end =
+				mxcfb_resources[1].start + fb_mem - 1;
+			start = mxcfb_resources[1].end + 1;
+		} else {
+			start = android_pmem_data.start + android_pmem_data.size;
+		}
+
+		mxcfb_resources[2].start = start;
+		mxcfb_resources[2].end = start + fb_mem - 1;
+		if (fb0_mem) {
+			mxcfb_resources[0].start =
+				mxcfb_resources[2].end + 1;
+			mxcfb_resources[0].end =
+				mxcfb_resources[0].start + fb0_mem - 1;
 		}
 	}
 }

@@ -1407,7 +1407,7 @@ struct platform_device gpu_device = {
 
 struct mxc_gpu_platform_data gpu_data = {
 	.z160_revision = 0,
-	.enable_mmu = 1,
+	.enable_mmu = 0,
 };
 
 static struct resource mxc_gpu2d_resources[] = {
