@@ -29,7 +29,7 @@ static struct cpu_op mx6_cpu_op[] = {
 	 .mfd = 11,
 	 .mfn = 5,
 	 .cpu_podf = 0,
-	 .cpu_voltage = 1100000,},
+	 .cpu_voltage = 1150000,},
 	{
 	 .pll_rate = 792000000,
 	 .cpu_rate = 792000000,
@@ -38,17 +38,17 @@ static struct cpu_op mx6_cpu_op[] = {
 	 .mfd = 2,
 	 .mfn = 1,
 	 .cpu_podf = 0,
-	 .cpu_voltage = 1025000,},
+	 .cpu_voltage = 1150000,},
 	 {
 	  .pll_rate = 792000000,
 	  .cpu_rate = 400000000,
 	  .cpu_podf = 1,
-	  .cpu_voltage = 1025000,},
+	  .cpu_voltage = 1050000,},
 	{
 	 .pll_rate = 792000000,
 	 .cpu_rate = 167000000,
 	 .cpu_podf = 4,
-	 .cpu_voltage = 1000000,},
+	 .cpu_voltage = 900000,},
 };
 
 struct cpu_op *mx6_get_cpu_op(int *op)
