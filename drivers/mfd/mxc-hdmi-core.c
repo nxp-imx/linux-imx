@@ -25,11 +25,15 @@
 #include <linux/err.h>
 #include <linux/io.h>
 #include <linux/clk.h>
+#include <linux/spinlock.h>
+#include <linux/irq.h>
+#include <linux/interrupt.h>
 
 #include <linux/platform_device.h>
 #include <linux/regulator/machine.h>
 #include <asm/mach-types.h>
 
+#include <mach/clock.h>
 #include <mach/mxc_hdmi.h>
 #include <linux/mfd/mxc-hdmi-core.h>
 
@@ -42,7 +46,11 @@ struct mxc_hdmi_data {
 };
 
 static unsigned long hdmi_base;
-
+struct clk *iahb_clk;
+static unsigned int irq_enable_cnt;
+spinlock_t irq_spinlock;
+bool irq_initialized;
+bool irq_enabled;
 int mxc_hdmi_pixel_clk;
 int mxc_hdmi_ratio;
 
@@ -86,6 +94,56 @@ void hdmi_write4(unsigned int value, unsigned int reg)
 	hdmi_writeb((value >> 8) & 0xff, reg + 1);
 	hdmi_writeb((value >> 16) & 0xff, reg + 2);
 	hdmi_writeb((value >> 24) & 0xff, reg + 3);
+}
+
+void hdmi_irq_init()
+{
+	/* First time IRQ is initialized, set enable_cnt to 1,
+	 * since IRQ starts out enabled after request_irq */
+	if (!irq_initialized) {
+		irq_enable_cnt = 1;
+		irq_initialized = true;
+		irq_enabled = true;
+	}
+}
+
+void hdmi_irq_enable(int irq)
+{
+	unsigned long flags;
+
+	spin_lock_irqsave(&irq_spinlock, flags);
+
+	if (!irq_enabled) {
+		enable_irq(irq);
+		irq_enabled = true;
+	}
+
+	irq_enable_cnt++;
+
+	spin_unlock_irqrestore(&irq_spinlock, flags);
+}
+
+unsigned int hdmi_irq_disable(int irq)
+{
+	unsigned long flags;
+
+	spin_lock_irqsave(&irq_spinlock, flags);
+
+	WARN_ON (irq_enable_cnt == 0);
+
+	irq_enable_cnt--;
+
+	/* Only disable HDMI IRQ if IAHB clk is off */
+	if ((irq_enable_cnt == 0) && (clk_get_usecount(iahb_clk) == 0)) {
+		disable_irq_nosync(irq);
+		irq_enabled = false;
+		spin_unlock_irqrestore(&irq_spinlock, flags);
+		return IRQ_DISABLE_SUCCEED;
+	}
+
+	spin_unlock_irqrestore(&irq_spinlock, flags);
+
+	return IRQ_DISABLE_FAIL;
 }
 
 static void initialize_hdmi_ih_mutes(void)
@@ -143,6 +201,11 @@ static int mxc_hdmi_core_probe(struct platform_device *pdev)
 	}
 	hdmi_data->pdev = pdev;
 
+	irq_enable_cnt = 0;
+	irq_initialized = false;
+	irq_enabled = true;
+	spin_lock_init(&irq_spinlock);
+
 	hdmi_data->isfr_clk = clk_get(&hdmi_data->pdev->dev, "hdmi_isfr_clk");
 	if (IS_ERR(hdmi_data->isfr_clk)) {
 		ret = PTR_ERR(hdmi_data->isfr_clk);
@@ -159,6 +222,20 @@ static int mxc_hdmi_core_probe(struct platform_device *pdev)
 
 	pr_debug("%s isfr_clk:%d\n", __func__,
 		(int)clk_get_rate(hdmi_data->isfr_clk));
+
+	iahb_clk = clk_get(&hdmi_data->pdev->dev, "hdmi_iahb_clk");
+	if (IS_ERR(iahb_clk)) {
+		ret = PTR_ERR(iahb_clk);
+		dev_err(&hdmi_data->pdev->dev,
+			"Unable to get HDMI iahb clk: %d\n", ret);
+		goto eclkg2;
+	}
+
+	ret = clk_enable(iahb_clk);
+	if (ret < 0) {
+		dev_err(&pdev->dev, "Cannot enable HDMI clock: %d\n", ret);
+		goto eclke2;
+	}
 
 	hdmi_data->reg_phys_base = res->start;
 	if (!request_mem_region(res->start, resource_size(res),
@@ -180,6 +257,10 @@ static int mxc_hdmi_core_probe(struct platform_device *pdev)
 
 	initialize_hdmi_ih_mutes();
 
+	/* Disable HDMI clocks until video/audio sub-drivers are initialized */
+	clk_disable(hdmi_data->isfr_clk);
+	clk_disable(iahb_clk);
+
 	/* Replace platform data coming in with a local struct */
 	platform_set_drvdata(pdev, hdmi_data);
 
@@ -188,6 +269,10 @@ static int mxc_hdmi_core_probe(struct platform_device *pdev)
 eirq:
 	release_mem_region(res->start, resource_size(res));
 emem:
+	clk_disable(iahb_clk);
+eclke2:
+	clk_put(iahb_clk);
+eclkg2:
 	clk_disable(hdmi_data->isfr_clk);
 eclke:
 	clk_put(hdmi_data->isfr_clk);
