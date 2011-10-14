@@ -3482,7 +3482,6 @@ static struct clk hdmi_clk[] = {
 	 __INIT_CLK_DEBUG(hdmi_isfr_clk)
 	.id = 0,
 	.parent = &pll3_pfd_540M,
-	.secondary = &hdmi_clk[1],
 	.enable_reg = MXC_CCM_CCGR2,
 	.enable_shift = MXC_CCM_CCGRx_CG2_OFFSET,
 	.enable = _clk_enable,
