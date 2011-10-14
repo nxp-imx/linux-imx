@@ -580,6 +580,17 @@ struct platform_device *__init imx_add_hdmi_soc(void);
 
 struct platform_device *__init imx_add_hdmi_soc_dai(
 		const struct imx_hdmi_soc_data *data);
+
+#include <mach/mipi_dsi.h>
+struct imx_mipi_dsi_data {
+	int id;
+	resource_size_t iobase;
+	resource_size_t iosize;
+	resource_size_t irq;
+};
+struct platform_device *__init imx_add_mipi_dsi(
+		const struct imx_mipi_dsi_data *data,
+		const struct mipi_dsi_platform_data *pdata);
 struct platform_device *__init imx_add_dcp(
 
 struct imx_fsl_usb2_otg_data {

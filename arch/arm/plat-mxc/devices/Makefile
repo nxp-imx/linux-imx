@@ -58,3 +58,4 @@ obj-$(CONFIG_IMX_HAVE_PLATFORM_MXC_HDMI) +=  platform-mxc-hdmi-core.o
 obj-$(CONFIG_IMX_HAVE_PLATFORM_MXC_HDMI) += platform-imx-hdmi-soc.o
 obj-$(CONFIG_IMX_HAVE_PLATFORM_MXC_HDMI) += platform-imx-hdmi-soc-dai.o
 obj-$(CONFIG_IMX_HAVE_PLATFORM_IMX_ASRC) += platform-imx-asrc.o
+obj-$(CONFIG_IMX_HAVE_PLATFORM_IMX_MIPI_DSI) += platform-imx-mipi_dsi.o
