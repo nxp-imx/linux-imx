@@ -34,6 +34,15 @@ config FB_MXC_LDB
 	depends on FB_MXC_SYNC_PANEL
 	depends on MXC_IPU_V3
 
+config FB_MXC_MIPI_DSI
+	tristate "MXC MIPI_DSI"
+	depends on FB_MXC_SYNC_PANEL
+	depends on MXC_IPU_V3
+
+config FB_MXC_TRULY_WVGA_SYNC_PANEL
+	tristate "TRULY WVGA Panel"
+	depends on FB_MXC_SYNC_PANEL && FB_MXC_MIPI_DSI
+
 config FB_MXC_CLAA_WVGA_SYNC_PANEL
 	depends on FB_MXC_SYNC_PANEL
 	tristate "CLAA WVGA Panel"
