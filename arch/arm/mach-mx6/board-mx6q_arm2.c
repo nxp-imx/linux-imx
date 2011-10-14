@@ -64,6 +64,7 @@
 #include <mach/ipu-v3.h>
 #include <mach/mxc_hdmi.h>
 #include <mach/mxc_asrc.h>
+#include <mach/mipi_dsi.h>
 
 #include <asm/irq.h>
 #include <asm/setup.h>
@@ -775,6 +776,28 @@ static struct imx_asrc_platform_data imx_asrc_data = {
 	.clk_map_ver = 2,
 };
 
+static void mx6q_sabreauto_reset_mipi_dsi(void)
+{
+	gpio_set_value(MX6Q_ARM2_DISP0_PWR, 1);
+	gpio_set_value(MX6Q_ARM2_DISP0_RESET, 1);
+	udelay(10);
+	gpio_set_value(MX6Q_ARM2_DISP0_RESET, 0);
+	udelay(50);
+	gpio_set_value(MX6Q_ARM2_DISP0_RESET, 1);
+
+	/*
+	 * it needs to delay 120ms minimum for reset complete
+	 */
+	msleep(120);
+}
+
+static struct mipi_dsi_platform_data mipi_dsi_pdata = {
+	.ipu_id	 = 0,
+	.disp_id = 0,
+	.lcd_panel = "TRULY-WVGA",
+	.reset   = mx6q_sabreauto_reset_mipi_dsi,
+};
+
 static struct ipuv3_fb_platform_data sabr_fb_data[] = {
 	{ /*fb0*/
 	.disp_dev = "ldb",
@@ -1128,6 +1151,7 @@ static void __init mx6_board_init(void)
 	for (i = 0; i < ARRAY_SIZE(sabr_fb_data); i++)
 		imx6q_add_ipuv3fb(i, &sabr_fb_data[i]);
 
+	imx6q_add_mipi_dsi(&mipi_dsi_pdata);
 	imx6q_add_lcdif(&lcdif_data);
 	imx6q_add_ldb(&ldb_data);
 	imx6q_add_v4l2_output(0);

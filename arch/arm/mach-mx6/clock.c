@@ -3782,6 +3782,16 @@ static struct clk hsi_tx_clk[] = {
 	 },
 };
 
+static struct clk mipi_pllref_clk = {
+	 __INIT_CLK_DEBUG(mipi_pllref_clk)
+	.id = 0,
+	.parent = &pll3_pfd_540M,
+	.enable_reg = MXC_CCM_CCGR3,
+	.enable_shift = MXC_CCM_CCGRx_CG8_OFFSET,
+	.enable = _clk_enable,
+	.disable = _clk_disable,
+};
+
 static struct clk hdmi_clk[] = {
 	{
 	 __INIT_CLK_DEBUG(hdmi_isfr_clk)
@@ -4660,6 +4670,7 @@ static struct clk_lookup lookups[] = {
 	_REGISTER_CLOCK("imx2-wdt.1", NULL, dummy_clk),
 	_REGISTER_CLOCK(NULL, "hdmi_isfr_clk", hdmi_clk[0]),
 	_REGISTER_CLOCK(NULL, "hdmi_iahb_clk", hdmi_clk[1]),
+	_REGISTER_CLOCK(NULL, "mipi_pllref_clk", mipi_pllref_clk),
 	_REGISTER_CLOCK(NULL, NULL, vdoa_clk),
 	_REGISTER_CLOCK(NULL, NULL, aips_tz2_clk),
 	_REGISTER_CLOCK(NULL, NULL, aips_tz1_clk),
