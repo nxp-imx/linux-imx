@@ -1,6 +1,8 @@
 obj-$(CONFIG_FB_MXC_TVOUT_TVE)             	+= tve.o
 obj-$(CONFIG_FB_MXC_SII902X)                    += mxcfb_sii902x.o
 obj-$(CONFIG_FB_MXC_LDB)			+= ldb.o
+obj-$(CONFIG_FB_MXC_MIPI_DSI)			+= mipi_dsi.o
+obj-$(CONFIG_FB_MXC_TRULY_WVGA_SYNC_PANEL) 	+= mxcfb_hx8369_wvga.o
 obj-$(CONFIG_FB_MODE_HELPERS)			+= mxc_edid.o mxc_dvi.o
 ifeq ($(CONFIG_ARCH_MX21)$(CONFIG_ARCH_MX27)$(CONFIG_ARCH_MX25),y)
 	obj-$(CONFIG_FB_MXC_TVOUT)              += fs453.o
