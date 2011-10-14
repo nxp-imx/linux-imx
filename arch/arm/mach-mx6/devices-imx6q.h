@@ -175,3 +175,7 @@ extern const struct imx_spdif_dai_data imx6q_spdif_dai_data __initconst;
 extern const struct imx_hdmi_soc_data imx6q_imx_hdmi_soc_dai_data __initconst;
 #define imx6q_add_hdmi_soc_dai() \
 	imx_add_hdmi_soc_dai(&imx6q_imx_hdmi_soc_dai_data)
+
+extern const struct imx_mipi_dsi_data imx6q_mipi_dsi_data __initconst;
+#define imx6q_add_mipi_dsi(pdata)	\
+	imx_add_mipi_dsi(&imx6q_mipi_dsi_data, pdata)
