@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # Linux/arm 2.6.38 Kernel Configuration
-# Tue Oct 11 17:15:24 2011
+# Fri Oct 14 14:57:33 2011
 #
 CONFIG_ARM=y
 CONFIG_HAVE_PWM=y
@@ -2167,7 +2167,7 @@ CONFIG_MXC_VPU=y
 #
 # ANATOP_THERMAL
 #
-# CONFIG_ANATOP_THERMAL is not set
+CONFIG_ANATOP_THERMAL=y
 
 #
 # File systems
