@@ -19,11 +19,17 @@
 #ifndef __LINUX_MXC_HDMI_CORE_H_
 #define __LINUX_MXC_HDMI_CORE_H_
 
+#define IRQ_DISABLE_SUCCEED	0
+#define IRQ_DISABLE_FAIL	1
+
 u8 hdmi_readb(unsigned int reg);
 void hdmi_writeb(u8 value, unsigned int reg);
 void hdmi_mask_writeb(u8 data, unsigned int addr, u8 shift, u8 mask);
 unsigned int hdmi_read4(unsigned int reg);
 void hdmi_write4(unsigned int value, unsigned int reg);
+void hdmi_irq_init(void);
+void hdmi_irq_enable(int irq);
+unsigned int hdmi_irq_disable(int irq);
 
 extern int mxc_hdmi_pixel_clk;
 extern int mxc_hdmi_ratio;
