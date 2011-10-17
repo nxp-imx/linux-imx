@@ -51,6 +51,9 @@ static struct clk pll7_usb_host_main_clk;
 static struct clk pll8_enet_main_clk;
 static struct clk apbh_dma_clk;
 static struct clk openvg_axi_clk;
+static struct clk enfc_clk;
+static struct clk ipu1_di_clk_root;
+static struct clk ipu2_di_clk_root;
 static struct cpu_op *cpu_op_tbl;
 static int cpu_op_nr;
 
@@ -1700,6 +1703,123 @@ static struct clk ipu1_clk = {
 	.round_rate = _clk_ipu_round_rate,
 	.set_rate = _clk_ipu1_set_rate,
 	.get_rate = _clk_ipu1_get_rate,
+};
+
+static int _clk_cko1_clk0_set_parent(struct clk *clk, struct clk *parent)
+{
+	u32 sel, reg;
+
+	if (parent == &pll3_sw_clk)
+		sel = 0;
+	else if (parent == &pll2_528_bus_main_clk)
+		sel = 1;
+	else if (parent == &pll1_sys_main_clk)
+		sel = 2;
+	else if (parent == &pll5_video_main_clk)
+		sel = 3;
+	else if (parent == &axi_clk)
+		sel = 5;
+	else if (parent == &enfc_clk)
+		sel = 6;
+	else if (parent == &ipu1_di_clk_root)
+		sel = 7;
+	else if (parent == &ipu1_di_clk_root)
+		sel = 8;
+	else if (parent == &ipu2_di_clk_root)
+		sel = 9;
+	else if (parent == &ipu2_di_clk_root)
+		sel = 10;
+	else if (parent == &ahb_clk)
+		sel = 11;
+	else if (parent == &ipg_clk)
+		sel = 12;
+	else if (parent == &ipg_perclk)
+		sel = 13;
+	else if (parent == &ckil_clk)
+		sel = 14;
+	else if (parent == &pll4_audio_main_clk)
+		sel = 15;
+	else
+		return -EINVAL;
+
+	reg = __raw_readl(MXC_CCM_CCOSR);
+	reg &= ~MXC_CCM_CCOSR_CKOL_SEL_MASK;
+	reg |= sel << MXC_CCM_CCOSR_CKOL_SEL_OFFSET;
+	__raw_writel(reg, MXC_CCM_CCOSR);
+	return 0;
+}
+
+static unsigned long _clk_cko1_round_rate(struct clk *clk,
+						unsigned long rate)
+{
+	u32 div;
+	u32 parent_rate = clk_get_rate(clk->parent);
+
+	div = parent_rate / rate;
+
+	/* Make sure rate is not greater than the maximum value for the clock.
+	 * Also prevent a div of 0.
+	 */
+	if (div == 0)
+		div++;
+
+	if (div > 8)
+		div = 8;
+
+	return parent_rate / div;
+}
+
+static int _clk_cko1_set_rate(struct clk *clk, unsigned long rate)
+{
+	u32 reg, div;
+	u32 parent_rate = clk_get_rate(clk->parent);
+
+	div = parent_rate / rate;
+	if (div == 0)
+		div++;
+	if (((parent_rate / div) != rate) || (div > 8))
+		return -EINVAL;
+
+	reg = __raw_readl(MXC_CCM_CCOSR);
+	reg &= ~MXC_CCM_CCOSR_CKOL_DIV_MASK;
+	reg |= div << MXC_CCM_CCOSR_CKOL_DIV_OFFSET;
+	__raw_writel(reg, MXC_CCM_CCOSR);
+
+	return 0;
+}
+
+static unsigned long _clk_cko1_get_rate(struct clk *clk)
+{
+	u32 reg, div;
+
+	reg = __raw_readl(MXC_CCM_CCOSR);
+	div = ((reg & MXC_CCM_CCOSR_CKOL_DIV_MASK) >>
+			MXC_CCM_CCOSR_CKOL_DIV_OFFSET) + 1;
+
+	return clk_get_rate(clk->parent) / div;
+}
+
+static int cko1_clk_enable(struct clk *clk)
+{
+	u32 reg;
+	reg = __raw_readl(clk->enable_reg);
+	reg |= clk->enable_shift;
+	__raw_writel(reg, clk->enable_reg);
+
+	return 0;
+}
+
+static struct clk cko1_clk0 = {
+	__INIT_CLK_DEBUG(cko1_clk0)
+	.parent = &ipg_clk,
+	.enable_reg = MXC_CCM_CCOSR,
+	.enable_shift = MXC_CCM_CCOSR_CKOL_EN,
+	.enable = cko1_clk_enable,
+	.disable = _clk_disable,
+	.set_parent = _clk_cko1_clk0_set_parent,
+	.round_rate = _clk_cko1_round_rate,
+	.set_rate = _clk_cko1_set_rate,
+	.get_rate = _clk_cko1_get_rate,
 };
 
 static int _clk_ipu2_set_parent(struct clk *clk, struct clk *parent)
@@ -4134,6 +4254,7 @@ static struct clk_lookup lookups[] = {
 	_REGISTER_CLOCK(NULL, "vpu_clk", vpu_clk),
 	_REGISTER_CLOCK(NULL, "ipu1_clk", ipu1_clk),
 	_REGISTER_CLOCK(NULL, "ipu2_clk", ipu2_clk),
+	_REGISTER_CLOCK(NULL, "cko1_clk0", cko1_clk0),
 	_REGISTER_CLOCK("sdhci-esdhc-imx.0", NULL, usdhc1_clk),
 	_REGISTER_CLOCK("sdhci-esdhc-imx.1", NULL, usdhc2_clk),
 	_REGISTER_CLOCK("sdhci-esdhc-imx.2", NULL, usdhc3_clk),
@@ -4240,6 +4361,10 @@ int __init mx6_clocks_init(unsigned long ckil, unsigned long osc,
 	clk_set_parent(&ipu1_di_clk[1], &pll5_video_main_clk);
 	clk_set_parent(&ipu2_di_clk[0], &pll5_video_main_clk);
 	clk_set_parent(&ipu2_di_clk[1], &pll5_video_main_clk);
+
+	clk_set_parent(&cko1_clk0, &ipg_clk);
+	clk_set_rate(&cko1_clk0, 22000000);
+	clk_enable(&cko1_clk0);
 
 	clk_set_parent(&gpu3d_shader_clk, &pll2_pfd_594M);
 	clk_set_rate(&gpu3d_shader_clk, 594000000);
