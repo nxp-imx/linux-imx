@@ -86,6 +86,10 @@
 #define MX6Q_SABREAUTO_MAX7310_2_BASE_ADDR	IMX_GPIO_NR(8, 8)
 #define MX6Q_SABREAUTO_CAP_TCH_INT	IMX_GPIO_NR(3, 31)
 
+
+#define MX6Q_SMD_CSI0_RST		IMX_GPIO_NR(4, 5)
+#define MX6Q_SMD_CSI0_PWN		IMX_GPIO_NR(5, 23)
+
 void __init early_console_setup(unsigned long base, struct clk *clk);
 static struct clk *sata_clk;
 static int esai_record;
@@ -117,6 +121,7 @@ static iomux_v3_cfg_t mx6q_sabreauto_pads[] = {
 	MX6Q_PAD_RGMII_RD2__ENET_RGMII_RD2,
 	MX6Q_PAD_RGMII_RD3__ENET_RGMII_RD3,
 	MX6Q_PAD_RGMII_RX_CTL__ENET_RGMII_RX_CTL,
+	/* MCLK for csi0 */
 	MX6Q_PAD_GPIO_0__CCM_CLKO,
 	MX6Q_PAD_GPIO_3__CCM_CLKO2,
 
@@ -216,6 +221,23 @@ static iomux_v3_cfg_t mx6q_sabreauto_pads[] = {
 	MX6Q_PAD_DISP0_DAT21__IPU1_DISP0_DAT_21,
 	MX6Q_PAD_DISP0_DAT22__IPU1_DISP0_DAT_22,
 	MX6Q_PAD_DISP0_DAT23__IPU1_DISP0_DAT_23,
+
+	/* ipu1 csi0 */
+	MX6Q_PAD_CSI0_DAT12__IPU1_CSI0_D_12,
+	MX6Q_PAD_CSI0_DAT13__IPU1_CSI0_D_13,
+	MX6Q_PAD_CSI0_DAT14__IPU1_CSI0_D_14,
+	MX6Q_PAD_CSI0_DAT15__IPU1_CSI0_D_15,
+	MX6Q_PAD_CSI0_DAT16__IPU1_CSI0_D_16,
+	MX6Q_PAD_CSI0_DAT17__IPU1_CSI0_D_17,
+	MX6Q_PAD_CSI0_DAT18__IPU1_CSI0_D_18,
+	MX6Q_PAD_CSI0_DAT19__IPU1_CSI0_D_19,
+	MX6Q_PAD_CSI0_VSYNC__IPU1_CSI0_VSYNC,
+	MX6Q_PAD_CSI0_MCLK__IPU1_CSI0_HSYNC,
+	MX6Q_PAD_CSI0_PIXCLK__IPU1_CSI0_PIXCLK,
+	/* camera reset */
+	MX6Q_PAD_GPIO_19__GPIO_4_5,
+	/* camera powerdown */
+	MX6Q_PAD_CSI0_DAT5__GPIO_5_23,
 
 	MX6Q_PAD_EIM_D24__GPIO_3_24,
 
@@ -496,9 +518,20 @@ static struct fsl_mxc_dvi_platform_data sabr_ddc_dvi_data = {
 	.update = ddc_dvi_update,
 };
 
+static struct fsl_mxc_camera_platform_data camera_data = {
+	.analog_regulator = "DA9052_LDO7",
+	.core_regulator = "DA9052_LDO9",
+	.mclk = 24000000,
+	.csi = 0,
+};
+
 static struct i2c_board_info mxc_i2c0_board_info[] __initdata = {
 	{
 		I2C_BOARD_INFO("cs42888", 0x48),
+	},
+	{
+		I2C_BOARD_INFO("ov3640", 0x3c),
+		.platform_data = (void *)&camera_data,
 	},
 };
 
@@ -727,8 +760,10 @@ static struct fsl_mxc_ldb_platform_data ldb_data = {
 static struct imx_ipuv3_platform_data ipu_data[] = {
 	{
 	.rev = 4,
+	.csi_clk[0] = "ccm_clk0",
 	}, {
 	.rev = 4,
+	.csi_clk[0] = "ccm_clk0",
 	},
 };
 
@@ -821,7 +856,19 @@ static void __init fixup_mxc_board(struct machine_desc *desc, struct tag *tags,
 	set_cpu_voltage = mx6_sabre_set_cpu_voltage;
 }
 
+static inline void __init mx6q_csi0_io_init(void)
+{
+	/* Camera reset */
+	gpio_request(MX6Q_SMD_CSI0_RST, "cam-reset");
+	gpio_direction_output(MX6Q_SMD_CSI0_RST, 1);
 
+	/* Camera power down */
+	gpio_request(MX6Q_SMD_CSI0_PWN, "cam-pwdn");
+	gpio_direction_output(MX6Q_SMD_CSI0_PWN, 1);
+	msleep(1);
+	gpio_set_value(MX6Q_SMD_CSI0_PWN, 0);
+	mxc_iomux_set_gpr_register(1, 19, 1, 1);
+}
 /*!
  * Board specific initialization.
  */
@@ -848,6 +895,7 @@ static void __init mx6_board_init(void)
 	imx6q_add_lcdif(&lcdif_data);
 	imx6q_add_ldb(&ldb_data);
 	imx6q_add_v4l2_output(0);
+	imx6q_add_v4l2_capture(0);
 
 	imx6q_add_imx_snvs_rtc();
 
@@ -881,6 +929,7 @@ static void __init mx6_board_init(void)
 	imx_asrc_data.asrc_audio_clk = clk_get(NULL, "asrc_serial_clk");
 	imx6q_add_asrc(&imx_asrc_data);
 
+	mx6q_csi0_io_init();
 	/* DISP0 Detect */
 	gpio_request(MX6Q_SABREAUTO_DISP0_DET_INT, "disp0-detect");
 	gpio_direction_input(MX6Q_SABREAUTO_DISP0_DET_INT);
