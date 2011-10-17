@@ -70,6 +70,13 @@ void set_mclk_rate(uint32_t *p_mclk_freq, uint32_t csi)
 			pr_err("invalid csi num %d\n", csi);
 			return;
 		}
+	} else if (cpu_is_mx6q()) {
+		if (csi == 0) {
+			mclk = "cko1_clk0";
+		} else {
+			pr_err("invalid csi num %d\n", csi);
+			return;
+		};
 	} else {
 		if (csi == 0) {
 			mclk = "csi_mclk1";
