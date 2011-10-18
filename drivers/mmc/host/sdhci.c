@@ -77,6 +77,9 @@ static void sdhci_enable_clk(struct sdhci_host *host)
 	if (host->clk_mgr_en) {
 		if (!in_interrupt())
 			cancel_delayed_work(&host->clk_worker);
+		else
+			__cancel_delayed_work(&host->clk_worker);
+
 		if (!host->clk_status && host->ops->platform_clk_ctrl)
 			host->ops->platform_clk_ctrl(host, true);
 	}
