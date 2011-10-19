@@ -655,11 +655,19 @@ static void dvfs_core_work_handler(struct work_struct *work)
 END:
 	if (cpufreq_trig_needed == 1) {
 		/*Fix loops-per-jiffy */
-		cpufreq_trig_needed = 0;
+#ifdef CONFIG_SMP
 		for_each_online_cpu(cpu)
 			per_cpu(cpu_data, cpu).loops_per_jiffy =
 			dvfs_cpu_jiffies(per_cpu(cpu_data, cpu).loops_per_jiffy,
 				curr_cpu / 1000, clk_get_rate(cpu_clk) / 1000);
+#else
+		u32 old_loops_per_jiffy = loops_per_jiffy;
+
+		loops_per_jiffy =
+			dvfs_cpu_jiffies(old_loops_per_jiffy,
+				curr_cpu/1000, clk_get_rate(cpu_clk) / 1000);
+#endif
+		cpufreq_trig_needed = 0;
 	}
 
 	/* Set MAXF, MINF */
@@ -713,10 +721,18 @@ void stop_dvfs(void)
 			set_cpu_freq(curr_op);
 
 			/*Fix loops-per-jiffy */
+#ifdef CONFIG_SMP
 			for_each_online_cpu(cpu)
 				per_cpu(cpu_data, cpu).loops_per_jiffy =
 				dvfs_cpu_jiffies(per_cpu(cpu_data, cpu).loops_per_jiffy,
 					curr_cpu/1000, clk_get_rate(cpu_clk) / 1000);
+#else
+		u32 old_loops_per_jiffy = loops_per_jiffy;
+
+		loops_per_jiffy =
+			dvfs_cpu_jiffies(old_loops_per_jiffy,
+				curr_cpu/1000, clk_get_rate(cpu_clk) / 1000);
+#endif
 
 		}
 		spin_lock_irqsave(&mxc_dvfs_core_lock, flags);
