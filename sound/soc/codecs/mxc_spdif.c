@@ -1167,11 +1167,9 @@ static int __devinit mxc_spdif_probe(struct platform_device *pdev)
 		mxc_spdif_codec_dai.capture.channels_min = 2;
 		mxc_spdif_codec_dai.capture.channels_max = 2;
 
-		if (plat_data->spdif_clk_44100 >= 0)
-			mxc_spdif_codec_dai.capture.rates |= SNDRV_PCM_RATE_44100;
-		if (plat_data->spdif_clk_48000 >= 0)
-			mxc_spdif_codec_dai.capture.rates |= SNDRV_PCM_RATE_32000 |
-							     SNDRV_PCM_RATE_48000;
+		/* rx clock is recovered from audio stream, so it is not
+		   dependent on tx clocks available */
+		mxc_spdif_codec_dai.capture.rates = MXC_SPDIF_RATES_CAPTURE;
 
 		mxc_spdif_codec_dai.capture.formats = MXC_SPDIF_FORMATS_CAPTURE;
 	}
