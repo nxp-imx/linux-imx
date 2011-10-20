@@ -27,6 +27,7 @@ struct android_usb_function {
 };
 
 struct android_usb_product {
+	__u16 vendor_id;
 	/* Default product ID. */
 	__u16 product_id;
 

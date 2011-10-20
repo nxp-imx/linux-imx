@@ -347,8 +347,10 @@ struct usb_composite_dev {
 	/* protects at least deactivation count */
 	spinlock_t			lock;
 	struct switch_dev		sdev;
+	struct switch_dev		sw_connected;
 	struct work_struct		switch_work;
 	int				mute_switch;
+	int				connected;
 };
 
 extern int usb_string_id(struct usb_composite_dev *c);
