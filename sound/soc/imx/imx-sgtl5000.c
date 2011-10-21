@@ -390,7 +390,7 @@ static void __exit imx_sgtl5000_exit(void)
 	platform_device_unregister(imx_sgtl5000_snd_device);
 }
 
-late_initcall(imx_sgtl5000_init);
+module_init(imx_sgtl5000_init);
 module_exit(imx_sgtl5000_exit);
 
 MODULE_AUTHOR("Sascha Hauer <s.hauer@pengutronix.de>");
