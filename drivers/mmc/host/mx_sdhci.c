@@ -1726,12 +1726,7 @@ static void esdhc_cd_callback(struct work_struct *work)
 			queue_work(host->workqueue, &host->finish_wq);
 		}
 
-		if (host->init_flag > 0)
-			/* The initialization of sdhc controller has been
-			 * done in the resume func */
-			host->init_flag--;
-		else
-			sdhci_init(host);
+		sdhci_init(host);
 	}
 
 	spin_unlock_irqrestore(&host->lock, flags);
@@ -1919,9 +1914,6 @@ static int sdhci_resume(struct platform_device *pdev)
 			if (ret)
 				return ret;
 		}
-		sdhci_init(chip->hosts[i]);
-		chip->hosts[i]->init_flag = 2;
-		mmiowb();
 		ret = mmc_resume_host(chip->hosts[i]->mmc);
 		if (ret)
 			return ret;

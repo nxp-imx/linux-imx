@@ -445,7 +445,7 @@ int mmc_host_disable(struct mmc_host *host)
 
 	if (host->rescan_disable) {
 		spin_unlock_irqrestore(&host->lock, flags);
-		return;
+		return 0;
 	}
 
 	spin_unlock_irqrestore(&host->lock, flags);
