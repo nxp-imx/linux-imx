@@ -28,22 +28,26 @@
 #include <asm/system.h>
 #include "crm_regs.h"
 
-#define SCU_CTRL		0x00
-#define SCU_CONFIG		0x04
-#define SCU_CPU_STATUS		0x08
-#define SCU_INVALIDATE		0x0c
-#define SCU_FPGA_REVISION	0x10
-#define GPC_PGC_CPU_PDN_OFFSET	0x2a0
+#define SCU_CTRL					0x00
+#define SCU_CONFIG					0x04
+#define SCU_CPU_STATUS				0x08
+#define SCU_INVALIDATE				0x0c
+#define SCU_FPGA_REVISION			0x10
+#define GPC_CNTR_OFFSET				0x0
+#define GPC_PGC_GPU_PGCR_OFFSET		0x260
+#define GPC_PGC_CPU_PDN_OFFSET		0x2a0
 #define GPC_PGC_CPU_PUPSCR_OFFSET	0x2a4
 #define GPC_PGC_CPU_PDNSCR_OFFSET	0x2a8
+#define ANATOP_REG_2P5_OFFSET		0x130
+#define ANATOP_REG_CORE_OFFSET		0x140
 
 #define MODULE_CLKGATE		(1 << 30)
 #define MODULE_SFTRST		(1 << 31)
-static DEFINE_SPINLOCK(wfi_lock);
+/* static DEFINE_SPINLOCK(wfi_lock); */
 
 extern unsigned int gpc_wake_irq[4];
 
-static unsigned int cpu_idle_mask;
+/* static unsigned int cpu_idle_mask; */
 
 static void __iomem *gpc_base = IO_ADDRESS(GPC_BASE_ADDR);
 
@@ -64,8 +68,10 @@ void gpc_set_wakeup(unsigned int irq[4])
 /* set cpu low power mode before WFI instruction */
 void mxc_cpu_lp_set(enum mxc_cpu_pwr_mode mode)
 {
-	u32 ccm_clpcr;
+
 	int stop_mode = 0;
+	void __iomem *anatop_base = IO_ADDRESS(ANATOP_BASE_ADDR);
+	u32 ccm_clpcr, anatop_val;
 
 	ccm_clpcr = __raw_readl(MXC_CCM_CLPCR) & ~(MXC_CCM_CLPCR_LPM_MASK);
 
@@ -116,8 +122,22 @@ void mxc_cpu_lp_set(enum mxc_cpu_pwr_mode mode)
 		__raw_writel(0xFFFFFFFF, gpc_base + GPC_PGC_CPU_PDNSCR_OFFSET);
 
 		/* dormant mode, need to power off the arm core */
-		if (stop_mode == 2)
-			__raw_writel(0x1, gpc_base + GPC_PGC_CPU_PDN_OFFSET);
+		if (stop_mode == 2) {
+			 __raw_writel(0x1, gpc_base + GPC_PGC_CPU_PDN_OFFSET);
+			__raw_writel(0x1, gpc_base + GPC_PGC_GPU_PGCR_OFFSET);
+			__raw_writel(0x1, gpc_base + GPC_CNTR_OFFSET);
+			/* Enable weak 2P5 linear regulator */
+			anatop_val = __raw_readl(anatop_base + ANATOP_REG_2P5_OFFSET);
+			anatop_val |= 1 << 18;
+			__raw_writel(anatop_val, anatop_base + ANATOP_REG_2P5_OFFSET);
+			/* Set ARM core power domain to 1V and PU domain set to off */
+			anatop_val = __raw_readl(anatop_base + ANATOP_REG_CORE_OFFSET);
+			anatop_val &= 0xfffc0000;
+			anatop_val |= 0xc;
+			__raw_writel(anatop_val, anatop_base + ANATOP_REG_CORE_OFFSET);
+			__raw_writel(__raw_readl(MXC_CCM_CCR) | MXC_CCM_CCR_RBC_EN, MXC_CCM_CCR);
+			ccm_clpcr |= MXC_CCM_CLPCR_WB_PER_AT_LPM;
+		}
 	}
 	__raw_writel(ccm_clpcr, MXC_CCM_CLPCR);
 }
