@@ -249,23 +249,25 @@ static int imx_3stack_sgtl5000_init(struct snd_soc_pcm_runtime *rtd)
 	snd_soc_dapm_enable_pin(&codec->dapm, "Headphone Jack");
 	snd_soc_dapm_sync(&codec->dapm);
 
-	/* Jack detection API stuff */
-	ret = snd_soc_jack_new(codec, "Headphone Jack",
-			       SND_JACK_HEADPHONE, &hs_jack);
-	if (ret)
-		return ret;
+	if (hs_jack_gpios[0].gpio != -1) {
+		/* Jack detection API stuff */
+		ret = snd_soc_jack_new(codec, "Headphone Jack",
+				       SND_JACK_HEADPHONE, &hs_jack);
+		if (ret)
+			return ret;
 
-	ret = snd_soc_jack_add_pins(&hs_jack, ARRAY_SIZE(hs_jack_pins),
-				hs_jack_pins);
-	if (ret) {
-		printk(KERN_ERR "failed to call  snd_soc_jack_add_pins\n");
-		return ret;
+		ret = snd_soc_jack_add_pins(&hs_jack, ARRAY_SIZE(hs_jack_pins),
+					hs_jack_pins);
+		if (ret) {
+			printk(KERN_ERR "failed to call  snd_soc_jack_add_pins\n");
+			return ret;
+		}
+
+		ret = snd_soc_jack_add_gpios(&hs_jack,
+					ARRAY_SIZE(hs_jack_gpios), hs_jack_gpios);
+		if (ret)
+			printk(KERN_WARNING "failed to call snd_soc_jack_add_gpios\n");
 	}
-
-	ret = snd_soc_jack_add_gpios(&hs_jack, ARRAY_SIZE(hs_jack_gpios),
-				hs_jack_gpios);
-	if (ret)
-		printk(KERN_WARNING "failed to call snd_soc_jack_add_gpios\n");
 
 	return 0;
 }
