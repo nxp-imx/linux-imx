@@ -46,6 +46,7 @@
 #define GPC_ISR2_OFFSET				0x1c
 #define GPC_ISR3_OFFSET				0x20
 #define GPC_ISR4_OFFSET				0x24
+#define GPC_PGC_GPU_PGCR_OFFSET		0x260
 #define GPC_PGC_CPU_PDN_OFFSET		0x2a0
 #define GPC_PGC_CPU_PUPSCR_OFFSET	0x2a4
 #define GPC_PGC_CPU_PDNSCR_OFFSET	0x2a8
@@ -57,6 +58,9 @@
 #define LOCAL_TWD_COUNT_OFFSET		0x4
 #define LOCAL_TWD_CONTROL_OFFSET	0x8
 #define LOCAL_TWD_INT_OFFSET		0xc
+#define ANATOP_REG_2P5_OFFSET		0x130
+#define ANATOP_REG_CORE_OFFSET		0x140
+
 static struct clk *cpu_clk;
 static struct pm_platform_data *pm_data;
 
@@ -75,18 +79,22 @@ static void __iomem *src_base;
 static void __iomem *local_twd_base;
 static void __iomem *gic_dist_base;
 static void __iomem *gic_cpu_base;
+static void __iomem *anatop_base;
 
 static void *suspend_iram_base;
 static void (*suspend_in_iram)(suspend_state_t state,
 	unsigned long iram_paddr, unsigned long suspend_iram_base) = NULL;
 static unsigned long iram_paddr, cpaddr;
 
-static u32 ccm_clpcr, scu_ctrl;
-static u32 gpc_imr[4], gpc_cpu_pup, gpc_cpu_pdn, gpc_cpu;
+static u32 ccm_ccr, ccm_clpcr, scu_ctrl;
+static u32 gpc_imr[4], gpc_cpu_pup, gpc_cpu_pdn, gpc_cpu, gpc_gpu_pgcr;
+static u32 anatop[2];
+
 
 static void mx6_suspend_store(void)
 {
 	/* save some settings before suspend */
+	ccm_ccr = __raw_readl(MXC_CCM_CCR);
 	ccm_clpcr = __raw_readl(MXC_CCM_CLPCR);
 	scu_ctrl = __raw_readl(scu_base + SCU_CTRL_OFFSET);
 	gpc_imr[0] = __raw_readl(gpc_base + GPC_IMR1_OFFSET);
@@ -96,11 +104,15 @@ static void mx6_suspend_store(void)
 	gpc_cpu_pup = __raw_readl(gpc_base + GPC_PGC_CPU_PUPSCR_OFFSET);
 	gpc_cpu_pdn = __raw_readl(gpc_base + GPC_PGC_CPU_PDNSCR_OFFSET);
 	gpc_cpu = __raw_readl(gpc_base + GPC_PGC_CPU_PDN_OFFSET);
+	gpc_gpu_pgcr = __raw_readl(gpc_base + GPC_PGC_GPU_PGCR_OFFSET);
+	anatop[0] = __raw_readl(anatop_base + ANATOP_REG_2P5_OFFSET);
+	anatop[1] = __raw_readl(anatop_base + ANATOP_REG_CORE_OFFSET);
 }
 
 static void mx6_suspend_restore(void)
 {
 	/* restore settings after suspend */
+	__raw_writel(ccm_ccr, MXC_CCM_CCR);
 	__raw_writel(ccm_clpcr, MXC_CCM_CLPCR);
 	__raw_writel(scu_ctrl, scu_base + SCU_CTRL_OFFSET);
 	__raw_writel(gpc_imr[0], gpc_base + GPC_IMR1_OFFSET);
@@ -110,6 +122,9 @@ static void mx6_suspend_restore(void)
 	__raw_writel(gpc_cpu_pup, gpc_base + GPC_PGC_CPU_PUPSCR_OFFSET);
 	__raw_writel(gpc_cpu_pdn, gpc_base + GPC_PGC_CPU_PDNSCR_OFFSET);
 	__raw_writel(gpc_cpu, gpc_base + GPC_PGC_CPU_PDN_OFFSET);
+	__raw_writel(gpc_gpu_pgcr, gpc_base + GPC_PGC_GPU_PGCR_OFFSET);
+	__raw_writel(anatop[0], anatop_base + ANATOP_REG_2P5_OFFSET);
+	__raw_writel(anatop[1], anatop_base + ANATOP_REG_CORE_OFFSET);
 }
 
 static int mx6_suspend_enter(suspend_state_t state)
@@ -239,6 +254,7 @@ static int __init pm_init(void)
 	gic_dist_base = IO_ADDRESS(IC_DISTRIBUTOR_BASE_ADDR);
 	gic_cpu_base = IO_ADDRESS(IC_INTERFACES_BASE_ADDR);
 	local_twd_base = IO_ADDRESS(LOCAL_TWD_ADDR);
+	anatop_base = IO_ADDRESS(ANATOP_BASE_ADDR);
 
 	pr_info("Static Power Management for Freescale i.MX6\n");
 
