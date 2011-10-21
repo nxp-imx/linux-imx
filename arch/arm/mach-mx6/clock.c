@@ -4408,6 +4408,123 @@ static struct clk usboh3_clk[] = {
 	},
 };
 
+static int _clk_enable1(struct clk *clk)
+{
+	u32 reg;
+	reg = __raw_readl(clk->enable_reg);
+	reg |= 1 << clk->enable_shift;
+	__raw_writel(reg, clk->enable_reg);
+
+	return 0;
+}
+
+static void _clk_disable1(struct clk *clk)
+{
+	u32 reg;
+	reg = __raw_readl(clk->enable_reg);
+	reg &= ~(1 << clk->enable_shift);
+	__raw_writel(reg, clk->enable_reg);
+}
+
+static int _clk_clko_set_parent(struct clk *clk, struct clk *parent)
+{
+	u32 sel, reg;
+
+	if (parent == &pll3_usb_otg_main_clk)
+		sel = 0;
+	else if (parent == &pll2_528_bus_main_clk)
+		sel = 1;
+	else if (parent == &pll1_sys_main_clk)
+		sel = 2;
+	else if (parent == &pll5_video_main_clk)
+		sel = 3;
+	else if (parent == &axi_clk)
+		sel = 5;
+	else if (parent == &enfc_clk)
+		sel = 6;
+	else if (parent == &ipu1_di_clk[0])
+		sel = 7;
+	else if (parent == &ipu1_di_clk[1])
+		sel = 8;
+	else if (parent == &ipu2_di_clk[0])
+		sel = 9;
+	else if (parent == &ipu2_di_clk[1])
+		sel = 10;
+	else if (parent == &ahb_clk)
+		sel = 11;
+	else if (parent == &ipg_clk)
+		sel = 12;
+	else if (parent == &ipg_perclk)
+		sel = 13;
+	else if (parent == &ckil_clk)
+		sel = 14;
+	else if (parent == &pll4_audio_main_clk)
+		sel = 15;
+	else
+		return -EINVAL;
+
+	reg = __raw_readl(MXC_CCM_CCOSR);
+	reg &= ~MXC_CCM_CCOSR_CKOL_SEL_MASK;
+	reg |= sel << MXC_CCM_CCOSR_CKOL_SEL_OFFSET;
+	__raw_writel(reg, MXC_CCM_CCOSR);
+	return 0;
+}
+
+static unsigned long _clk_clko_get_rate(struct clk *clk)
+{
+	u32 reg = __raw_readl(MXC_CCM_CCOSR);
+	u32 div = ((reg & MXC_CCM_CCOSR_CKOL_DIV_MASK) >>
+			MXC_CCM_CCOSR_CKOL_DIV_OFFSET) + 1;
+	return clk_get_rate(clk->parent) / div;
+}
+
+static int _clk_clko_set_rate(struct clk *clk, unsigned long rate)
+{
+	u32 reg;
+	u32 parent_rate = clk_get_rate(clk->parent);
+	u32 div = parent_rate / rate;
+
+	if (div == 0)
+		div++;
+	if (((parent_rate / div) != rate) || (div > 8))
+		return -EINVAL;
+
+	reg = __raw_readl(MXC_CCM_CCOSR);
+	reg &= ~MXC_CCM_CCOSR_CKOL_DIV_MASK;
+	reg |= (div - 1) << MXC_CCM_CCOSR_CKOL_DIV_OFFSET;
+	__raw_writel(reg, MXC_CCM_CCOSR);
+	return 0;
+}
+
+static unsigned long _clk_clko_round_rate(struct clk *clk,
+						unsigned long rate)
+{
+	u32 parent_rate = clk_get_rate(clk->parent);
+	u32 div = parent_rate / rate;
+
+	/* Make sure rate is not greater than the maximum value for the clock.
+	 * Also prevent a div of 0.
+	 */
+	if (div == 0)
+		div++;
+	if (div > 8)
+		div = 8;
+	return parent_rate / div;
+}
+
+static struct clk clko_clk = {
+	__INIT_CLK_DEBUG(clko_clk)
+	.parent = &pll2_528_bus_main_clk,
+	.enable = _clk_enable1,
+	.enable_reg = MXC_CCM_CCOSR,
+	.enable_shift = MXC_CCM_CCOSR_CKOL_EN_OFFSET,
+	.disable = _clk_disable1,
+	.set_parent = _clk_clko_set_parent,
+	.set_rate = _clk_clko_set_rate,
+	.get_rate = _clk_clko_get_rate,
+	.round_rate = _clk_clko_round_rate,
+};
+
 static struct clk dummy_clk = {
 	.id = 0,
 };
@@ -4525,6 +4642,7 @@ static struct clk_lookup lookups[] = {
 	_REGISTER_CLOCK(NULL, NULL, vdoa_clk),
 	_REGISTER_CLOCK(NULL, NULL, aips_tz2_clk),
 	_REGISTER_CLOCK(NULL, NULL, aips_tz1_clk),
+	_REGISTER_CLOCK(NULL, "clko_clk", clko_clk),
 };
 
 
