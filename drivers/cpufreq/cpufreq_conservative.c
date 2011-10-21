@@ -10,7 +10,6 @@
  * it under the terms of the GNU General Public License version 2 as
  * published by the Free Software Foundation.
  */
-
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/init.h>
@@ -45,6 +44,7 @@
 #define MIN_SAMPLING_RATE_RATIO			(2)
 
 static unsigned int min_sampling_rate;
+static unsigned int cpuloading[4] ;
 
 #define LATENCY_MULTIPLIER			(1000)
 #define MIN_LATENCY_MULTIPLIER			(100)
@@ -177,9 +177,16 @@ static ssize_t show_sampling_rate_min(struct kobject *kobj,
 {
 	return sprintf(buf, "%u\n", min_sampling_rate);
 }
+static ssize_t show_cpu_loading(struct kobject *kobj,
+				      struct attribute *attr, char *buf)
+{
+	return sprintf(buf, "CPU[0-3] %u %u %u %u\n", cpuloading[0],
+			cpuloading[1], cpuloading[2], cpuloading[3]);
+}
 
 define_one_global_ro(sampling_rate_max);
 define_one_global_ro(sampling_rate_min);
+define_one_global_ro(cpu_loading);
 
 /* cpufreq_conservative Governor Tunables */
 #define show_one(file_name, object)					\
@@ -216,9 +223,11 @@ show_one_old(ignore_nice_load);
 show_one_old(freq_step);
 show_one_old(sampling_rate_min);
 show_one_old(sampling_rate_max);
+show_one_old(cpu_loading);
 
 cpufreq_freq_attr_ro_old(sampling_rate_min);
 cpufreq_freq_attr_ro_old(sampling_rate_max);
+cpufreq_freq_attr_ro_old(cpu_loading);
 
 /*** delete after deprecation time ***/
 
@@ -372,6 +381,7 @@ static struct attribute *dbs_attributes[] = {
 	&down_threshold.attr,
 	&ignore_nice_load.attr,
 	&freq_step.attr,
+	&cpu_loading.attr,
 	NULL
 };
 
@@ -413,6 +423,7 @@ static struct attribute *dbs_attributes_old[] = {
 	&down_threshold_old.attr,
 	&ignore_nice_load_old.attr,
 	&freq_step_old.attr,
+	&cpu_loading_old.attr,
 	NULL
 };
 
@@ -448,6 +459,10 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 	 */
 
 	/* Get Absolute Load */
+	cpuloading[0] = 0;
+	cpuloading[1] = 0;
+	cpuloading[2] = 0;
+	cpuloading[3] = 0;
 	for_each_cpu(j, policy->cpus) {
 		struct cpu_dbs_info_s *j_dbs_info;
 		cputime64_t cur_wall_time, cur_idle_time;
@@ -486,10 +501,13 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 			continue;
 
 		load = 100 * (wall_time - idle_time) / wall_time;
+		cpuloading[j] = load;
+		pr_debug("CPU%d %d\n", j, load);
 
 		if (load > max_load)
 			max_load = load;
 	}
+	load = (cpuloading[0] + cpuloading[1] + cpuloading[2] + cpuloading[3])/num_online_cpus();
 
 	/*
 	 * break out if we 'cannot' reduce the speed as the user might
@@ -526,7 +544,7 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 	 * can support the current CPU usage without triggering the up
 	 * policy. To be safe, we focus 10 points under the threshold.
 	 */
-	if (max_load < (dbs_tuners_ins.down_threshold - 10)) {
+	if (max_load <= 50 && load < (dbs_tuners_ins.down_threshold - 10)) {
 		freq_target = (dbs_tuners_ins.freq_step * policy->max) / 100;
 
 		this_dbs_info->requested_freq -= freq_target;
