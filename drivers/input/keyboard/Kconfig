@@ -557,4 +557,12 @@ config KEYBOARD_MPR121
 	  If unsure, say N.
 
 	  To compile this driver as a module, choose M here
+
+config KEYBOARD_FAKE_PWRKEY
+	tristate "Freescale fake power key driver"
+	default n
+	help
+	  Say Y here if you have the Fake Power key support
+	  which send a menu key in your system.
+
 endif
