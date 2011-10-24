@@ -554,13 +554,13 @@ static struct snd_soc_dai_driver imx_esai_dai = {
 	 .resume = imx_esai_resume,
 	 .playback = {
 		      .channels_min = 1,
-		      .channels_max = 6,
+		      .channels_max = 12,
 		      .rates = IMX_ESAI_RATES,
 		      .formats = IMX_ESAI_FORMATS,
 		      },
 	 .capture = {
 		     .channels_min = 1,
-		     .channels_max = 4,
+		     .channels_max = 8,
 		     .rates = IMX_ESAI_RATES,
 		     .formats = IMX_ESAI_FORMATS,
 		     },
