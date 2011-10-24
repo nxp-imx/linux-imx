@@ -931,6 +931,7 @@ static void __init mx6_board_init(void)
 	mxc_register_device(&usb_mass_storage_device, &mass_storage_data);
 	mxc_register_device(&usb_rndis_device, &rndis_data);
 	mxc_register_device(&android_usb_device, &android_usb_data);
+	mxc_register_device(&fake_pwrkey_device, NULL);
 
 	imx6q_sabreauto_init_usb();
 	imx6q_add_ahci(0, &mx6q_sabreauto_sata_data);

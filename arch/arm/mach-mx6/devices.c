@@ -57,6 +57,11 @@ struct platform_device usb_rndis_device = {
 	.id	= -1,
 };
 
+struct platform_device fake_pwrkey_device = {
+	.name = "fake_pwrkey",
+	.id = -1,
+};
+
 static struct mxc_gpio_port mxc_gpio_ports[] = {
 	{
 		.chip.label = "gpio-0",
