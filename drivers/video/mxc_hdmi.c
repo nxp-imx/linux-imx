@@ -68,13 +68,6 @@
 #define NUM_CEA_VIDEO_MODES	64
 #define DEFAULT_VIDEO_MODE	16 /* 1080P */
 
-#define HDMI_IH_PHY_RX_SENSE	(HDMI_IH_PHY_STAT0_RX_SENSE0 |\
-				HDMI_IH_PHY_STAT0_RX_SENSE1 |\
-				HDMI_IH_PHY_STAT0_RX_SENSE2 |\
-				HDMI_IH_PHY_STAT0_RX_SENSE3)
-#define HDMI_PHY_RX_SENSE	(HDMI_PHY_RX_SENSE0 | HDMI_PHY_RX_SENSE1 |\
-				HDMI_PHY_RX_SENSE2 | HDMI_PHY_RX_SENSE3)
-
 #define RGB			0
 #define YCBCR444		1
 #define YCBCR422_16BITS		2
@@ -140,6 +133,7 @@ struct mxc_hdmi {
 	bool cable_plugin;
 	u8 latest_intr_stat;
 	bool irq_enabled;
+	spinlock_t irq_lock;
 };
 
 struct i2c_client *hdmi_i2c;
@@ -1262,11 +1256,11 @@ static void mxc_hdmi_poweroff(struct mxc_hdmi *hdmi)
 		plat->disable_pins();
 }
 
-static void mxc_hdmi_rx_powerup(struct mxc_hdmi *hdmi)
+static void mxc_hdmi_enable(struct mxc_hdmi *hdmi)
 {
 	u8 val;
 
-	dev_dbg(&hdmi->pdev->dev, "rx power up\n");
+	dev_dbg(&hdmi->pdev->dev, "hdmi enable\n");
 
 	clk_enable(hdmi->hdmi_iahb_clk);
 
@@ -1290,11 +1284,11 @@ static void mxc_hdmi_rx_powerup(struct mxc_hdmi *hdmi)
 	}
 }
 
-static void mxc_hdmi_rx_powerdown(struct mxc_hdmi *hdmi)
+static void mxc_hdmi_disable(struct mxc_hdmi *hdmi)
 {
 	u8 val;
 
-	dev_dbg(&hdmi->pdev->dev, "rx power down\n");
+	dev_dbg(&hdmi->pdev->dev, "hdmi disable\n");
 
 	/* Disable HDMI PHY - Set PDDQ=1 and TXPWRON=0 */
 	val = hdmi_readb(HDMI_PHY_CONF0);
@@ -1370,16 +1364,16 @@ static void det_worker(struct work_struct *work)
 		container_of(delay_work, struct mxc_hdmi, det_work);
 	u32 phy_int_stat, phy_int_pol, phy_int_mask;
 	u8 val;
-	bool rx_powerdown = false;
+	bool hdmi_disable = false;
 	int irq = platform_get_irq(hdmi->pdev, 0);
+	unsigned long flags;
 
 	if (!hdmi->irq_enabled) {
 		clk_enable(hdmi->hdmi_iahb_clk);
 
 		/* Capture status - used in det_worker ISR */
 		phy_int_stat = hdmi_readb(HDMI_IH_PHY_STAT0);
-		if ((phy_int_stat &
-			(HDMI_IH_PHY_RX_SENSE | HDMI_IH_PHY_STAT0_HPD)) == 0) {
+		if ((phy_int_stat & HDMI_IH_PHY_STAT0_HPD) == 0) {
 			clk_disable(hdmi->hdmi_iahb_clk);
 			return; /* No interrupts to handle */
 		}
@@ -1388,17 +1382,11 @@ static void det_worker(struct work_struct *work)
 
 		/* Unmask interrupts until handled */
 		val = hdmi_readb(HDMI_PHY_MASK0);
-		val |= HDMI_PHY_RX_SENSE | HDMI_PHY_HPD;
+		val |= HDMI_PHY_HPD;
 		hdmi_writeb(val, HDMI_PHY_MASK0);
 
-		/* Clear Hotplug/RX Sense interrupts */
-		hdmi_writeb(HDMI_IH_PHY_STAT0_HPD |
-			HDMI_IH_PHY_STAT0_TX_PHY_LOCK |
-			HDMI_IH_PHY_STAT0_RX_SENSE0 |
-			HDMI_IH_PHY_STAT0_RX_SENSE1 |
-			HDMI_IH_PHY_STAT0_RX_SENSE2 |
-			HDMI_IH_PHY_STAT0_RX_SENSE3,
-			HDMI_IH_PHY_STAT0);
+		/* Clear Hotplug interrupts */
+		hdmi_writeb(HDMI_IH_PHY_STAT0_HPD, HDMI_IH_PHY_STAT0);
 
 		phy_int_pol = hdmi_readb(HDMI_PHY_POL0);
 
@@ -1418,6 +1406,7 @@ static void det_worker(struct work_struct *work)
 		if (phy_int_pol & HDMI_PHY_HPD) {
 			dev_dbg(&hdmi->pdev->dev, "EVENT=plugin\n");
 			mxc_hdmi_cable_connected(hdmi);
+			mxc_hdmi_enable(hdmi);
 
 			/* Make HPD intr active low to capture unplug event */
 			val = hdmi_readb(HDMI_PHY_POL0);
@@ -1426,6 +1415,7 @@ static void det_worker(struct work_struct *work)
 		} else if (!(phy_int_pol & HDMI_PHY_HPD)) {
 			dev_dbg(&hdmi->pdev->dev, "EVENT=plugout\n");
 			mxc_hdmi_cable_disconnected(hdmi);
+			hdmi_disable = true;
 
 			/* Make HPD intr active high to capture plugin event */
 			val = hdmi_readb(HDMI_PHY_POL0);
@@ -1435,34 +1425,19 @@ static void det_worker(struct work_struct *work)
 			dev_dbg(&hdmi->pdev->dev, "EVENT=none?\n");
 	}
 
-	/* check rx power */
-	if (phy_int_stat & HDMI_IH_PHY_RX_SENSE) {
-		if ((phy_int_pol & HDMI_PHY_RX_SENSE)) {
-			mxc_hdmi_rx_powerup(hdmi);
+	/* Lock here to ensure full powerdown sequence
+	 * completed before next interrupt processed */
+	spin_lock_irqsave(&hdmi->irq_lock, flags);
 
-			/* Change RX Sense pol to capture RX disable */
-			val = hdmi_readb(HDMI_PHY_POL0);
-			val &= ~HDMI_PHY_RX_SENSE;
-			hdmi_writeb(val, HDMI_PHY_POL0);
-		} else if (!(phy_int_pol & HDMI_PHY_RX_SENSE)) {
-			rx_powerdown = true;
-
-			/* Change RX Sense pol to capture RX enable */
-			val = hdmi_readb(HDMI_PHY_POL0);
-			val |= HDMI_PHY_RX_SENSE;
-			hdmi_writeb(val, HDMI_PHY_POL0);
-		} else
-			dev_err(&hdmi->pdev->dev,
-				"Received RX sense event but no change\n");
-	}
-
-	/* Re-enable RX Sense and HPD interrupts */
+	/* Re-enable HPD interrupts */
 	phy_int_mask = hdmi_readb(HDMI_PHY_MASK0);
-	phy_int_mask &= ~(HDMI_PHY_RX_SENSE | HDMI_PHY_HPD);
+	phy_int_mask &= ~HDMI_PHY_HPD;
 	hdmi_writeb(phy_int_mask, HDMI_PHY_MASK0);
 
-	if (rx_powerdown)
-		mxc_hdmi_rx_powerdown(hdmi);
+	if (hdmi_disable)
+		mxc_hdmi_disable(hdmi);
+
+	spin_unlock_irqrestore(&hdmi->irq_lock, flags);
 }
 
 static irqreturn_t mxc_hdmi_hotplug(int irq, void *data)
@@ -1470,6 +1445,9 @@ static irqreturn_t mxc_hdmi_hotplug(int irq, void *data)
 	struct mxc_hdmi *hdmi = data;
 	unsigned int ret;
 	u8 val, intr_stat;
+	unsigned long flags;
+
+	spin_lock_irqsave(&hdmi->irq_lock, flags);
 
 	/*
 	 * We have to disable the irq, rather than just masking
@@ -1483,8 +1461,7 @@ static irqreturn_t mxc_hdmi_hotplug(int irq, void *data)
 	if (ret == IRQ_DISABLE_FAIL) {
 		/* Capture status - used in det_worker ISR */
 		intr_stat = hdmi_readb(HDMI_IH_PHY_STAT0);
-		if ((intr_stat &
-			(HDMI_IH_PHY_RX_SENSE | HDMI_IH_PHY_STAT0_HPD)) == 0)
+		if ((intr_stat & HDMI_IH_PHY_STAT0_HPD) == 0)
 			return IRQ_HANDLED;
 
 		dev_dbg(&hdmi->pdev->dev, "Hotplug interrupt received\n");
@@ -1492,23 +1469,19 @@ static irqreturn_t mxc_hdmi_hotplug(int irq, void *data)
 
 		/* Unmask interrupts until handled */
 		val = hdmi_readb(HDMI_PHY_MASK0);
-		val |= HDMI_PHY_RX_SENSE | HDMI_PHY_HPD;
+		val |= HDMI_PHY_HPD;
 		hdmi_writeb(val, HDMI_PHY_MASK0);
 
-		/* Clear Hotplug/RX Sense interrupts */
-		hdmi_writeb(HDMI_IH_PHY_STAT0_HPD |
-			HDMI_IH_PHY_STAT0_TX_PHY_LOCK |
-			HDMI_IH_PHY_STAT0_RX_SENSE0 |
-			HDMI_IH_PHY_STAT0_RX_SENSE1 |
-			HDMI_IH_PHY_STAT0_RX_SENSE2 |
-			HDMI_IH_PHY_STAT0_RX_SENSE3,
-			HDMI_IH_PHY_STAT0);
+		/* Clear Hotplug interrupts */
+		hdmi_writeb(HDMI_IH_PHY_STAT0_HPD, HDMI_IH_PHY_STAT0);
 
 		hdmi->irq_enabled = true;
 	} else
 		hdmi->irq_enabled = false;
 
 	schedule_delayed_work(&(hdmi->det_work), msecs_to_jiffies(20));
+
+	spin_unlock_irqrestore(&hdmi->irq_lock, flags);
 
 	return IRQ_HANDLED;
 }
@@ -1736,44 +1709,22 @@ static int mxc_hdmi_disp_init(struct mxc_dispdrv_entry *disp)
 		}
 	}
 
-	ret = request_irq(irq, mxc_hdmi_hotplug, IRQF_SHARED,
-			  dev_name(&hdmi->pdev->dev), hdmi);
-	if (ret < 0) {
-		dev_err(&hdmi->pdev->dev,
-			"Unable to request irq: %d\n", ret);
-		goto ereqirq;
-	}
-
-	/* Initialize IRQ at HDMI core level */
-	hdmi_irq_init();
+	spin_lock_init(&hdmi->irq_lock);
 
 	INIT_DELAYED_WORK(&(hdmi->det_work), det_worker);
 
 	/* Configure registers related to HDMI interrupt
 	 * generation before registering IRQ. */
-	hdmi_writeb(HDMI_PHY_RX_SENSE | HDMI_PHY_HPD,
-		HDMI_PHY_POL0);
+	hdmi_writeb(HDMI_PHY_HPD, HDMI_PHY_POL0);
 
 	/* enable cable hot plug irq */
-	val = HDMI_PHY_RX_SENSE | HDMI_PHY_HPD;
-	val = ~val;
+	val = ~HDMI_PHY_HPD;
 	hdmi_writeb(val, HDMI_PHY_MASK0);
 
-	/* Clear Hotplug/RX Sense interrupts */
-	hdmi_writeb(HDMI_IH_PHY_STAT0_HPD |
-		HDMI_IH_PHY_STAT0_TX_PHY_LOCK |
-		HDMI_IH_PHY_STAT0_RX_SENSE0 |
-		HDMI_IH_PHY_STAT0_RX_SENSE1 |
-		HDMI_IH_PHY_STAT0_RX_SENSE2 |
-		HDMI_IH_PHY_STAT0_RX_SENSE3,
-		HDMI_IH_PHY_STAT0);
+	/* Clear Hotplug interrupts */
+	hdmi_writeb(HDMI_IH_PHY_STAT0_HPD, HDMI_IH_PHY_STAT0);
 
-	hdmi_writeb(~(HDMI_IH_PHY_STAT0_HPD |
-		HDMI_IH_PHY_STAT0_RX_SENSE0 |
-		HDMI_IH_PHY_STAT0_RX_SENSE1 |
-		HDMI_IH_PHY_STAT0_RX_SENSE2 |
-		HDMI_IH_PHY_STAT0_RX_SENSE3),
-		HDMI_IH_MUTE_PHY_STAT0);
+	hdmi_writeb(~HDMI_IH_PHY_STAT0_HPD, HDMI_IH_MUTE_PHY_STAT0);
 
 	hdmi->nb.notifier_call = mxc_hdmi_fb_event;
 	ret = fb_register_client(&hdmi->nb);
@@ -1787,6 +1738,17 @@ static int mxc_hdmi_disp_init(struct mxc_dispdrv_entry *disp)
 	/* Disable IAHB clock while waiting for hotplug interrupt.
 	 * ISFR clock must remain enabled for hotplug to work. */
 	clk_disable(hdmi->hdmi_iahb_clk);
+
+	/* Initialize IRQ at HDMI core level */
+	hdmi_irq_init();
+
+	ret = request_irq(irq, mxc_hdmi_hotplug, IRQF_SHARED,
+			  dev_name(&hdmi->pdev->dev), hdmi);
+	if (ret < 0) {
+		dev_err(&hdmi->pdev->dev,
+			"Unable to request irq: %d\n", ret);
+		goto ereqirq;
+	}
 
 	return ret;
 
