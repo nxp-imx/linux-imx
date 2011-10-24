@@ -59,7 +59,12 @@ static inline struct ipu_soc *pixelclk2ipu(struct clk *clk)
 static unsigned long _ipu_pixel_clk_get_rate(struct clk *clk)
 {
 	struct ipu_soc *ipu = pixelclk2ipu(clk);
-	u32 div = ipu_di_read(ipu, clk->id, DI_BS_CLKGEN0);
+	u32 div;
+
+	_ipu_get(ipu);
+	div = ipu_di_read(ipu, clk->id, DI_BS_CLKGEN0);
+	_ipu_put(ipu);
+
 	if (div == 0)
 		return 0;
 	return  (clk_get_rate(clk->parent) * 16) / div;
