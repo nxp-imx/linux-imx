@@ -175,6 +175,9 @@ config SND_SOC_DMIC
 config SND_SOC_MAX98088
        tristate
 
+config SND_SOC_MXC_HDMI
+       tristate
+
 config SND_SOC_MXC_SPDIF
        tristate
 

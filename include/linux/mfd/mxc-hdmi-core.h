@@ -30,8 +30,10 @@ void hdmi_write4(unsigned int value, unsigned int reg);
 void hdmi_irq_init(void);
 void hdmi_irq_enable(int irq);
 unsigned int hdmi_irq_disable(int irq);
+void hdmi_set_sample_rate(unsigned int rate);
+void hdmi_set_clk_regenerator(void);
 
-extern int mxc_hdmi_pixel_clk;
-extern int mxc_hdmi_ratio;
+extern int mxc_hdmi_ipu_id;
+extern int mxc_hdmi_disp_id;
 
 #endif
