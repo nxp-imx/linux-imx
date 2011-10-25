@@ -201,6 +201,9 @@ config SND_SOC_MAX98095
 config SND_SOC_MAX9850
 	tristate
 
+config SND_SOC_MXC_HDMI
+       tristate
+
 config SND_SOC_MXC_SPDIF
        tristate
 
