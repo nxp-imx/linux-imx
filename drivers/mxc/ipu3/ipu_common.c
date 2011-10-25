@@ -389,7 +389,8 @@ static int ipu_probe(struct platform_device *pdev)
 	__raw_writel(0x18800001L, IDMAC_CHA_PRI(0));
 
 	/* AXI burst setting for sync refresh channels */
-	__raw_writel(0x003F0000, IDMAC_CH_LOCK_EN_1);
+	if (g_ipu_hw_rev == 3)
+		__raw_writel(0x003F0000, IDMAC_CH_LOCK_EN_1);
 
 	/* Set MCU_T to divide MCU access window into 2 */
 	__raw_writel(0x00400000L | (IPU_MCU_T_DEFAULT << 18), IPU_DISP_GEN);
@@ -996,6 +997,11 @@ void ipu_uninit_channel(ipu_channel_t channel)
 		ipu_conf &= ~IPU_CONF_SMFC_EN;
 
 	__raw_writel(ipu_conf, IPU_CONF);
+
+	/* Restore IDMAC_LOCK_EN when we don't use dual display */
+	if (!(ipu_di_use_count[0] && ipu_di_use_count[1]) &&
+	    _ipu_is_dmfc_chan(in_dma) && g_ipu_hw_rev == 3)
+		__raw_writel(0x003F0000, IDMAC_CH_LOCK_EN_1);
 
 	spin_unlock_irqrestore(&ipu_lock, lock_flags);
 
@@ -1810,6 +1816,14 @@ int32_t ipu_enable_channel(ipu_channel_t channel)
 	if (ipu_smfc_use_count > 0)
 		ipu_conf |= IPU_CONF_SMFC_EN;
 	__raw_writel(ipu_conf, IPU_CONF);
+
+	/* Clear IDMAC_LOCK_EN to workaround black flash for dual display */
+	if (g_ipu_hw_rev == 3 && _ipu_is_dmfc_chan(in_dma)) {
+		if (ipu_di_use_count[1] && ipu_di_use_count[0])
+			__raw_writel(0x0, IDMAC_CH_LOCK_EN_1);
+		else
+			__raw_writel(0x003F0000, IDMAC_CH_LOCK_EN_1);
+	}
 
 	if (idma_is_valid(in_dma)) {
 		reg = __raw_readl(IDMAC_CHA_EN(in_dma));
@@ -2787,7 +2801,8 @@ static int ipu_resume(struct platform_device *pdev)
 		__raw_writel(0x18800001L, IDMAC_CHA_PRI(0));
 
 		/* AXI burst setting for sync refresh channels */
-		__raw_writel(0x003F0000, IDMAC_CH_LOCK_EN_1);
+		if (g_ipu_hw_rev == 3)
+			__raw_writel(0x003F0000, IDMAC_CH_LOCK_EN_1);
 		clk_disable(g_ipu_clk);
 	}
 	mutex_unlock(&ipu_clk_lock);
