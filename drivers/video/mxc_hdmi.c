@@ -1137,9 +1137,6 @@ void hdmi_av_composer(struct mxc_hdmi *hdmi)
 		fb_mode.upper_margin + fb_mode.lower_margin +
 		fb_mode.vsync_len) * fb_mode.refresh;
 
-	/* Expose pixel clock for audio driver */
-	mxc_hdmi_pixel_clk = vmode->mPixelClock;
-
 	dev_dbg(&hdmi->pdev->dev, "final pixclk = %d\n", vmode->mPixelClock);
 
 	/* Set up HDMI_FC_INVIDCONF */
@@ -1553,6 +1550,7 @@ static int mxc_hdmi_setup(struct mxc_hdmi *hdmi)
 	hdmi_tx_hdcp_config(hdmi);
 	hdmi_phy_init(hdmi, TRUE);
 	hdmi_video_force_output(hdmi, FALSE);
+	hdmi_set_clk_regenerator();
 
 	return 0;
 }
@@ -1599,8 +1597,8 @@ static int mxc_hdmi_disp_init(struct mxc_dispdrv_entry *disp)
 	if (!plat || irq < 0)
 		return -ENODEV;
 
-	setting->dev_id = plat->ipu_id;
-	setting->disp_id = plat->disp_id;
+	setting->dev_id = mxc_hdmi_ipu_id;
+	setting->disp_id = mxc_hdmi_disp_id;
 	setting->if_fmt = IPU_PIX_FMT_RGB24;
 
 	hdmi->fbi = setting->fbi;
@@ -1614,7 +1612,7 @@ static int mxc_hdmi_disp_init(struct mxc_dispdrv_entry *disp)
 
 	/* Initialize HDMI */
 	if (plat->init)
-		plat->init(plat->ipu_id, plat->disp_id);
+		plat->init(mxc_hdmi_ipu_id, mxc_hdmi_disp_id);
 
 	hdmi->hdmi_isfr_clk = clk_get(&hdmi->pdev->dev, "hdmi_isfr_clk");
 	if (IS_ERR(hdmi->hdmi_isfr_clk)) {
