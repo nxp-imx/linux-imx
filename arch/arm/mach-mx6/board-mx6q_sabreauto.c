@@ -422,7 +422,31 @@ static inline void mx6q_sabreauto_init_uart(void)
 	imx6q_add_imx_uart(3, NULL);
 }
 
+static int mx6q_sabreauto_fec_phy_init(struct phy_device *phydev)
+{
+	unsigned short val;
+
+	/* To enable AR8031 ouput a 125MHz clk from CLK_25M */
+	phy_write(phydev, 0xd, 0x7);
+	phy_write(phydev, 0xe, 0x8016);
+	phy_write(phydev, 0xd, 0x4007);
+	val = phy_read(phydev, 0xe);
+
+	val &= 0xffe3;
+	val |= 0x18;
+	phy_write(phydev, 0xe, val);
+
+	/* introduce tx clock delay */
+	phy_write(phydev, 0x1d, 0x5);
+	val = phy_read(phydev, 0x1e);
+	val |= 0x0100;
+	phy_write(phydev, 0x1e, val);
+
+	return 0;
+}
+
 static struct fec_platform_data fec_data __initdata = {
+	.init = mx6q_sabreauto_fec_phy_init,
 	.phy = PHY_INTERFACE_MODE_RGMII,
 };
 
