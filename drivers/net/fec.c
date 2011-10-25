@@ -690,7 +690,7 @@ static int fec_enet_mdio_read(struct mii_bus *bus, int mii_id, int regnum)
 			usecs_to_jiffies(FEC_MII_TIMEOUT));
 	if (time_left == 0) {
 		fep->mii_timeout = 1;
-		printk(KERN_ERR "FEC: MDIO read timeout\n");
+		printk(KERN_ERR "FEC: MDIO read timeout, mii_id=%d\n", mii_id);
 		return -ETIMEDOUT;
 	}
 
@@ -718,37 +718,12 @@ static int fec_enet_mdio_write(struct mii_bus *bus, int mii_id, int regnum,
 			usecs_to_jiffies(FEC_MII_TIMEOUT));
 	if (time_left == 0) {
 		fep->mii_timeout = 1;
-		printk(KERN_ERR "FEC: MDIO write timeout\n");
+		printk(KERN_ERR "FEC: MDIO write timeout, mii_id=%d\n", mii_id);
 		return -ETIMEDOUT;
 	}
 
 	return 0;
 }
-#ifdef CONFIG_MACH_MX6Q_SABREAUTO
-
-static int mx6_sabreauto_rework(struct  mii_bus *bus)
-{
-	unsigned short val;
-
-	/* To enable AR8031 ouput a 125MHz clk from CLK_25M */
-	fec_enet_mdio_write(bus, 0, 0xd, 0x7);
-	fec_enet_mdio_write(bus, 0, 0xe, 0x8016);
-	fec_enet_mdio_write(bus, 0, 0xd, 0x4007);
-	val = fec_enet_mdio_read(bus, 0, 0xe);
-
-	val &= 0xffe3;
-	val |= 0x18;
-	fec_enet_mdio_write(bus, 0, 0xe, val);
-
-	/* introduce tx clock delay */
-	fec_enet_mdio_write(bus, 0, 0x1d, 0x5);
-	val = fec_enet_mdio_read(bus, 0, 0x1e);
-	val |= 0x0100;
-	fec_enet_mdio_write(bus, 0, 0x1e, val);
-
-	return 0;
-}
-#endif
 
 static int fec_enet_mdio_reset(struct mii_bus *bus)
 {
@@ -854,10 +829,10 @@ static int fec_enet_mii_init(struct platform_device *pdev)
 	 */
 	fep->phy_speed = DIV_ROUND_UP(clk_get_rate(fep->clk), 5000000) << 1;
 
-#ifdef CONFIG_MACH_MX6Q_SABREAUTO
-	/* FIXME: hard code to 0x1a for clock issue */
-	fep->phy_speed = 0x11a;
-#endif
+	if (cpu_is_mx6q())
+		/* FIXME: hard code to 0x1a for clock issue */
+		fep->phy_speed = 0x11a;
+
 	writel(fep->phy_speed, fep->hwp + FEC_MII_SPEED);
 
 	fep->mii_bus = mdiobus_alloc();
@@ -873,10 +848,6 @@ static int fec_enet_mii_init(struct platform_device *pdev)
 	snprintf(fep->mii_bus->id, MII_BUS_ID_SIZE, "%x", pdev->id + 1);
 	fep->mii_bus->priv = fep;
 	fep->mii_bus->parent = &pdev->dev;
-
-#ifdef CONFIG_MACH_MX6Q_SABREAUTO
-	mx6_sabreauto_rework(fep->mii_bus);
-#endif
 
 	fep->mii_bus->irq = kmalloc(sizeof(int) * PHY_MAX_ADDR, GFP_KERNEL);
 	if (!fep->mii_bus->irq) {
@@ -1038,6 +1009,7 @@ static int
 fec_enet_open(struct net_device *ndev)
 {
 	struct fec_enet_private *fep = netdev_priv(ndev);
+	struct fec_platform_data *pdata = fep->pdev->dev.platform_data;
 	int ret;
 
 	/* I should reset the ring buffers here, but I don't yet know
@@ -1058,6 +1030,11 @@ fec_enet_open(struct net_device *ndev)
 	phy_start(fep->phy_dev);
 	netif_start_queue(ndev);
 	fep->opened = 1;
+
+	ret = -EINVAL;
+	if (pdata->init && pdata->init(fep->phy_dev))
+		return ret;
+
 	return 0;
 }
 
