@@ -35,10 +35,12 @@
 
 #include <mach/clock.h>
 #include <mach/mxc_hdmi.h>
+#include <mach/ipu-v3.h>
+#include "../mxc/ipu3/ipu_prv.h"
 #include <linux/mfd/mxc-hdmi-core.h>
+#include <linux/fsl_devices.h>
 
 struct mxc_hdmi_data {
-	struct clk *isfr_clk;
 	struct platform_device *pdev;
 	unsigned long __iomem *reg_base;
 	unsigned long reg_phys_base;
@@ -46,13 +48,18 @@ struct mxc_hdmi_data {
 };
 
 static unsigned long hdmi_base;
+struct clk *isfr_clk;
 struct clk *iahb_clk;
 static unsigned int irq_enable_cnt;
 spinlock_t irq_spinlock;
 bool irq_initialized;
 bool irq_enabled;
-int mxc_hdmi_pixel_clk;
-int mxc_hdmi_ratio;
+unsigned int sample_rate;
+unsigned long pixel_clk_rate;
+struct clk *pixel_clk;
+int hdmi_ratio;
+int mxc_hdmi_ipu_id;
+int mxc_hdmi_disp_id;
 
 u8 hdmi_readb(unsigned int reg)
 {
@@ -181,14 +188,215 @@ static void initialize_hdmi_ih_mutes(void)
 	hdmi_writeb(ih_mute, HDMI_IH_MUTE);
 }
 
+static void hdmi_set_clock_regenerator_n(unsigned int value)
+{
+	hdmi_writeb(value & 0xff, HDMI_AUD_N1);
+	hdmi_writeb((value >> 8) & 0xff, HDMI_AUD_N2);
+	hdmi_writeb((value >> 16) & 0xff, HDMI_AUD_N3);
+}
+
+static void hdmi_set_clock_regenerator_cts(unsigned int cts)
+{
+	hdmi_writeb(cts & 0xff, HDMI_AUD_CTS1);
+	hdmi_writeb((cts >> 8) & 0xff, HDMI_AUD_CTS2);
+	hdmi_writeb(((cts >> 16) & HDMI_AUD_CTS3_AUDCTS19_16_MASK) |
+		    HDMI_AUD_CTS3_CTS_MANUAL, HDMI_AUD_CTS3);
+}
+
+static unsigned int hdmi_compute_n(unsigned int freq, unsigned long pixel_clk,
+				   unsigned int ratio)
+{
+	unsigned int n = (128 * freq) / 1000;
+
+	switch (freq) {
+	case 32000:
+		if (pixel_clk == 25170000)
+			n = (ratio == 150) ? 9152 : 4576;
+		else if (pixel_clk == 27020000)
+			n = (ratio == 150) ? 8192 : 4096;
+		else if (pixel_clk == 74170000 || pixel_clk == 148350000)
+			n = 11648;
+		else
+			n = 4096;
+		break;
+
+	case 44100:
+		if (pixel_clk == 25170000)
+			n = 7007;
+		else if (pixel_clk == 74170000)
+			n = 17836;
+		else if (pixel_clk == 148350000)
+			n = (ratio == 150) ? 17836 : 8918;
+		else
+			n = 6272;
+		break;
+
+	case 48000:
+		if (pixel_clk == 25170000)
+			n = (ratio == 150) ? 9152 : 6864;
+		else if (pixel_clk == 27020000)
+			n = (ratio == 150) ? 8192 : 6144;
+		else if (pixel_clk == 74170000)
+			n = 11648;
+		else if (pixel_clk == 148350000)
+			n = (ratio == 150) ? 11648 : 5824;
+		else
+			n = 6144;
+		break;
+
+	case 88200:
+		n = hdmi_compute_n(44100, pixel_clk, ratio) * 2;
+		break;
+
+	case 96000:
+		n = hdmi_compute_n(48000, pixel_clk, ratio) * 2;
+		break;
+
+	case 176400:
+		n = hdmi_compute_n(44100, pixel_clk, ratio) * 4;
+		break;
+
+	case 192000:
+		n = hdmi_compute_n(48000, pixel_clk, ratio) * 4;
+		break;
+
+	default:
+		break;
+	}
+
+	return n;
+}
+
+static unsigned int hdmi_compute_cts(unsigned int freq, unsigned long pixel_clk,
+				     unsigned int ratio)
+{
+	unsigned int cts = 0;
+	switch (freq) {
+	case 32000:
+		if (pixel_clk == 297000000) {
+			cts = 222750;
+			break;
+		}
+	case 48000:
+	case 96000:
+	case 192000:
+		switch (pixel_clk) {
+		case 25200000:
+		case 27000000:
+		case 54000000:
+		case 74250000:
+		case 148500000:
+			cts = pixel_clk / 1000;
+			break;
+		case 297000000:
+			cts = 247500;
+			break;
+		/*
+		 * All other TMDS clocks are not supported by
+		 * DWC_hdmi_tx. The TMDS clocks divided or
+		 * multiplied by 1,001 coefficients are not
+		 * supported.
+		 */
+		default:
+			break;
+		}
+		break;
+	case 44100:
+	case 88200:
+	case 176400:
+		switch (pixel_clk) {
+		case 25200000:
+			cts = 28000;
+			break;
+		case 27000000:
+			cts = 30000;
+			break;
+		case 54000000:
+			cts = 60000;
+			break;
+		case 74250000:
+			cts = 82500;
+			break;
+		case 148500000:
+			cts = 165000;
+			break;
+		case 297000000:
+			cts = 247500;
+			break;
+		default:
+			break;
+		}
+		break;
+	default:
+		break;
+	}
+	if (ratio == 100)
+		return cts;
+	else
+		return (cts * ratio) / 100;
+}
+
+static void hdmi_get_pixel_clk(void)
+{
+	struct ipu_soc *ipu;
+
+	if (pixel_clk == NULL) {
+		ipu = ipu_get_soc(mxc_hdmi_ipu_id);
+		pixel_clk = clk_get(ipu->dev, "pixel_clk_0");
+		if (IS_ERR(pixel_clk)) {
+			pr_err("%s could not get pixel_clk_0\n", __func__);
+			return;
+		}
+	}
+
+	pixel_clk_rate = clk_get_rate(pixel_clk);
+}
+
+/*
+ * input:  audio sample rate and video pixel rate
+ * output: N and cts written to the HDMI regs.
+ */
+void hdmi_set_clk_regenerator(void)
+{
+	unsigned int clk_n, clk_cts;
+
+	/* Get pixel clock from ipu */
+	hdmi_get_pixel_clk();
+
+	pr_debug("%s: sample rate is %d ; ratio is %d ; pixel clk is %d\n",
+		__func__, sample_rate, hdmi_ratio, (int)pixel_clk_rate);
+
+	clk_n = hdmi_compute_n(sample_rate, pixel_clk_rate, hdmi_ratio);
+	clk_cts = hdmi_compute_cts(sample_rate, pixel_clk_rate, hdmi_ratio);
+
+	if (clk_cts == 0) {
+		pr_err("%s: pixel clock not supported: %d\n",
+			__func__, (int)pixel_clk_rate);
+		return;
+	}
+
+	clk_enable(isfr_clk);
+	clk_enable(iahb_clk);
+
+	hdmi_set_clock_regenerator_n(clk_n);
+	hdmi_set_clock_regenerator_cts(clk_cts);
+
+	clk_disable(iahb_clk);
+	clk_disable(isfr_clk);
+}
+
+void hdmi_set_sample_rate(unsigned int rate)
+{
+	sample_rate = rate;
+	hdmi_set_clk_regenerator();
+}
+
 static int mxc_hdmi_core_probe(struct platform_device *pdev)
 {
+	struct fsl_mxc_hdmi_core_platform_data *pdata = pdev->dev.platform_data;
 	struct mxc_hdmi_data *hdmi_data;
 	struct resource *res;
 	int ret = 0;
-
-	/* 100% for 8 bit pixels */
-	mxc_hdmi_ratio = 100;
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	if (!res)
@@ -201,27 +409,32 @@ static int mxc_hdmi_core_probe(struct platform_device *pdev)
 	}
 	hdmi_data->pdev = pdev;
 
+	pixel_clk = NULL;
+	sample_rate = 48000;
+	pixel_clk_rate = 74250000;
+	hdmi_ratio = 100;
+
 	irq_enable_cnt = 0;
 	irq_initialized = false;
 	irq_enabled = true;
 	spin_lock_init(&irq_spinlock);
 
-	hdmi_data->isfr_clk = clk_get(&hdmi_data->pdev->dev, "hdmi_isfr_clk");
-	if (IS_ERR(hdmi_data->isfr_clk)) {
-		ret = PTR_ERR(hdmi_data->isfr_clk);
+	isfr_clk = clk_get(&hdmi_data->pdev->dev, "hdmi_isfr_clk");
+	if (IS_ERR(isfr_clk)) {
+		ret = PTR_ERR(isfr_clk);
 		dev_err(&hdmi_data->pdev->dev,
 			"Unable to get HDMI isfr clk: %d\n", ret);
 		goto eclkg;
 	}
 
-	ret = clk_enable(hdmi_data->isfr_clk);
+	ret = clk_enable(isfr_clk);
 	if (ret < 0) {
 		dev_err(&pdev->dev, "Cannot enable HDMI clock: %d\n", ret);
 		goto eclke;
 	}
 
 	pr_debug("%s isfr_clk:%d\n", __func__,
-		(int)clk_get_rate(hdmi_data->isfr_clk));
+		(int)clk_get_rate(isfr_clk));
 
 	iahb_clk = clk_get(&hdmi_data->pdev->dev, "hdmi_iahb_clk");
 	if (IS_ERR(iahb_clk)) {
@@ -255,10 +468,13 @@ static int mxc_hdmi_core_probe(struct platform_device *pdev)
 
 	pr_debug("\n%s hdmi hw base = 0x%08x\n\n", __func__, (int)res->start);
 
+	mxc_hdmi_ipu_id = pdata->ipu_id;
+	mxc_hdmi_disp_id = pdata->disp_id;
+
 	initialize_hdmi_ih_mutes();
 
 	/* Disable HDMI clocks until video/audio sub-drivers are initialized */
-	clk_disable(hdmi_data->isfr_clk);
+	clk_disable(isfr_clk);
 	clk_disable(iahb_clk);
 
 	/* Replace platform data coming in with a local struct */
@@ -273,9 +489,9 @@ emem:
 eclke2:
 	clk_put(iahb_clk);
 eclkg2:
-	clk_disable(hdmi_data->isfr_clk);
+	clk_disable(isfr_clk);
 eclke:
-	clk_put(hdmi_data->isfr_clk);
+	clk_put(isfr_clk);
 eclkg:
 	kfree(hdmi_data);
 	return ret;

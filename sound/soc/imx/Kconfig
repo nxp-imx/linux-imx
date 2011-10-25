@@ -90,4 +90,12 @@ config SND_SOC_IMX_SPDIF
 	  Say Y if you want to add support for SoC audio on a IMX development
 	  board with S/PDIF.
 
+config SND_SOC_IMX_HDMI
+	tristate "SoC Audio support for IMX - HDMI"
+	default n
+	select SND_SOC_MXC_HDMI
+	select MFD_MXC_HDMI
+	help
+	  Say Y if you want to add support for SoC audio through IMX HDMI.
+
 endif	# SND_IMX_SOC
