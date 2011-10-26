@@ -37,6 +37,7 @@ extern void mx6_wait(void);
 
 struct cpu_op *(*get_cpu_op)(int *op);
 static void __iomem *arm_base = IO_ADDRESS(MX6Q_A9_PLATFRM_BASE);
+static bool enable_wait_mode;
 
 void __iomem *gpc_base;
 void __iomem *ccm_base;
@@ -83,12 +84,13 @@ static int __init post_cpu_init(void)
 	__raw_writel(reg, base + 0x50);
 	iounmap(base);
 
-	/* Allow SCU_CLK to be disabled when all cores are in WFI*/
-	base = IO_ADDRESS(SCU_BASE_ADDR);
-	reg = __raw_readl(base);
-	reg |= 0x20;
-	__raw_writel(reg, base);
-
+	if (enable_wait_mode) {
+		/* Allow SCU_CLK to be disabled when all cores are in WFI*/
+		base = IO_ADDRESS(SCU_BASE_ADDR);
+		reg = __raw_readl(base);
+		reg |= 0x20;
+		__raw_writel(reg, base);
+	}
 	/* Allocate IRAM for WAIT code. */
 	/* Move wait routine into iRAM */
 	cpaddr = (unsigned long)iram_alloc(SZ_4K, &iram_paddr);
@@ -111,5 +113,12 @@ static int __init post_cpu_init(void)
 
 	return 0;
 }
-
 postcore_initcall(post_cpu_init);
+
+static int __init enable_wait(char *p)
+{
+	enable_wait_mode = true;
+	return 0;
+}
+early_param("enable_wait_mode", enable_wait);
+
