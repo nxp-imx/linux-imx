@@ -113,7 +113,7 @@ static int __init imx_spdif_init(void)
 		return -ENOMEM;
 	}
 
-	imx_spdif_snd_device = platform_device_alloc("soc-audio", -1);
+	imx_spdif_snd_device = platform_device_alloc("soc-audio", 3);
 	if (!imx_spdif_snd_device) {
 		pr_err("%s - failed platform_device_alloc\n", __func__);
 		return -ENOMEM;
