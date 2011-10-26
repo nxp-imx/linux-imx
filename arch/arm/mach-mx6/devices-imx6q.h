@@ -88,6 +88,10 @@ extern const struct imx_ahci_data imx6q_ahci_data __initconst;
 #define imx6q_add_ahci(id, pdata)   \
 	imx_add_ahci(&imx6q_ahci_data, pdata)
 
+extern const struct imx_imx_ssi_data imx6_imx_ssi_data[] __initconst;
+#define imx6q_add_imx_ssi(id, pdata)            \
+	imx_add_imx_ssi(&imx6_imx_ssi_data[id], pdata)
+
 extern const struct imx_ipuv3_data imx6q_ipuv3_data[] __initconst;
 #define imx6q_add_ipuv3(id, pdata)	imx_add_ipuv3(id, &imx6q_ipuv3_data[id], pdata)
 #define imx6q_add_ipuv3fb(id, pdata)	imx_add_ipuv3_fb(id, pdata)
