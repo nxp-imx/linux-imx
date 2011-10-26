@@ -1502,7 +1502,8 @@ static void __init fixup_android_board(struct machine_desc *desc, struct tag *ta
 	/* get total memory from TAGS */
 	for_each_tag(t, tags) {
 		if (t->hdr.tag == ATAG_MEM)
-			if (!mem_tag || (mem_tag &&
+			if (!mem_tag ||
+				(t->u.mem.size != 0 && mem_tag &&
 				mem_tag->u.mem.start < t->u.mem.start))
 				mem_tag = t;
 	}
