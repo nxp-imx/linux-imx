@@ -1461,9 +1461,11 @@ static irqreturn_t mxc_hdmi_hotplug(int irq, void *data)
 	if (ret == IRQ_DISABLE_FAIL) {
 		/* Capture status - used in det_worker ISR */
 		intr_stat = hdmi_readb(HDMI_IH_PHY_STAT0);
-		if ((intr_stat & HDMI_IH_PHY_STAT0_HPD) == 0)
+		if ((intr_stat & HDMI_IH_PHY_STAT0_HPD) == 0) {
+			hdmi_irq_enable(irq);
+			spin_unlock_irqrestore(&hdmi->irq_lock, flags);
 			return IRQ_HANDLED;
-
+		}
 		dev_dbg(&hdmi->pdev->dev, "Hotplug interrupt received\n");
 		hdmi->latest_intr_stat = intr_stat;
 
