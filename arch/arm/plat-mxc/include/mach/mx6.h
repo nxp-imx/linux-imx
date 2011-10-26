@@ -138,9 +138,9 @@
 #define MX6Q_ECSPI5_BASE_ADDR            (ATZ1_BASE_ADDR + 0x18000) /* slot 6 */
 #define UART1_BASE_ADDR             (ATZ1_BASE_ADDR + 0x20000) /* slot 8 */
 #define ESAI1_BASE_ADDR             (ATZ1_BASE_ADDR + 0x24000) /* slot 9 */
-#define SSI1_BASE_ADDR              (ATZ1_BASE_ADDR + 0x28000) /* slot 10 */
-#define SSI2_BASE_ADDR              (ATZ1_BASE_ADDR + 0x2C000) /* slot 11 */
-#define SSI3_BASE_ADDR              (ATZ1_BASE_ADDR + 0x30000) /* slot 12 */
+#define MX6Q_SSI1_BASE_ADDR              (ATZ1_BASE_ADDR + 0x28000) /* slot 10 */
+#define MX6Q_SSI2_BASE_ADDR              (ATZ1_BASE_ADDR + 0x2C000) /* slot 11 */
+#define MX6Q_SSI3_BASE_ADDR              (ATZ1_BASE_ADDR + 0x30000) /* slot 12 */
 #define MX6Q_ASRC_BASE_ADDR	    (ATZ1_BASE_ADDR + 0x34000) /* slot 13 */
 #define SPBA_BASE_ADDR              (ATZ1_BASE_ADDR + 0x3C000) /* slot 15 */
 #define MX6Q_VPU_BASE_ADDR          (ATZ1_BASE_ADDR + 0x40000) /* slot 33,
@@ -324,9 +324,9 @@
 #define MX6Q_INT_USB_OTG				75
 #define MX6Q_INT_USB_PHY0				76
 #define MX6Q_INT_USB_PHY1				77
-#define MXC_INT_SSI1                               78
-#define MXC_INT_SSI2                               79
-#define MXC_INT_SSI3                               80
+#define MX6Q_INT_SSI1                               78
+#define MX6Q_INT_SSI2                               79
+#define MX6Q_INT_SSI3                               80
 #define MXC_INT_ANATOP_TEMPSNSR                    81
 #define MX6Q_INT_ASRC                               82
 #define MXC_INT_ESAI                              83
