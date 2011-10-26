@@ -368,7 +368,7 @@ static int __init imx_sgtl5000_init(void)
 	else
 		imx_sgtl5000_dai[0].codec_name = "sgtl5000.1-000a";
 
-	imx_sgtl5000_snd_device = platform_device_alloc("soc-audio", -1);
+	imx_sgtl5000_snd_device = platform_device_alloc("soc-audio", 1);
 	if (!imx_sgtl5000_snd_device)
 		return -ENOMEM;
 
