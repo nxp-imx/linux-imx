@@ -86,6 +86,7 @@ static struct mxc_vpu_platform_data *vpu_plat;
 static struct iram_setting iram;
 
 /* implement the blocking ioctl */
+static int irq_status;
 static int codec_done;
 static wait_queue_head_t vpu_queue;
 
@@ -211,14 +212,17 @@ static inline void vpu_worker_callback(struct work_struct *w)
 	if (dev->async_queue)
 		kill_fasync(&dev->async_queue, SIGIO, POLL_IN);
 
-	codec_done = 1;
-	wake_up_interruptible(&vpu_queue);
-
+	irq_status = 1;
 	/*
 	 * Clock is gated on when dec/enc started, gate it off when
-	 * interrupt is received.
+	 * codec is done.
 	 */
-	clk_disable(vpu_clk);
+	if (codec_done) {
+		clk_disable(vpu_clk);
+		codec_done = 0;
+	}
+
+	wake_up_interruptible(&vpu_queue);
 }
 
 /*!
@@ -227,8 +231,11 @@ static inline void vpu_worker_callback(struct work_struct *w)
 static irqreturn_t vpu_ipi_irq_handler(int irq, void *dev_id)
 {
 	struct vpu_priv *dev = dev_id;
+	unsigned long reg;
 
-	READ_REG(BIT_INT_STATUS);
+	reg = READ_REG(BIT_INT_REASON);
+	if (reg & 0x8)
+		codec_done = 1;
 	WRITE_REG(0x1, BIT_INT_CLEAR);
 
 	queue_work(dev->workqueue, &dev->work);
@@ -243,8 +250,11 @@ static irqreturn_t vpu_ipi_irq_handler(int irq, void *dev_id)
 static irqreturn_t vpu_jpu_irq_handler(int irq, void *dev_id)
 {
 	struct vpu_priv *dev = dev_id;
+	unsigned long reg;
 
-	WRITE_REG(0, MJPEG_PIC_STATUS_REG);
+	reg = READ_REG(MJPEG_PIC_STATUS_REG);
+	if (reg & 0x3)
+		codec_done = 1;
 
 	queue_work(dev->workqueue, &dev->work);
 
@@ -351,7 +361,7 @@ static long vpu_ioctl(struct file *filp, u_int cmd,
 		{
 			u_long timeout = (u_long) arg;
 			if (!wait_event_interruptible_timeout
-			    (vpu_queue, codec_done != 0,
+			    (vpu_queue, irq_status != 0,
 			     msecs_to_jiffies(timeout))) {
 				printk(KERN_WARNING "VPU blocking: timeout.\n");
 				ret = -ETIME;
@@ -360,7 +370,7 @@ static long vpu_ioctl(struct file *filp, u_int cmd,
 				       "VPU interrupt received.\n");
 				ret = -ERESTARTSYS;
 			} else
-				codec_done = 0;
+				irq_status = 0;
 			break;
 		}
 	case VPU_IOC_IRAM_SETTING:
@@ -677,8 +687,8 @@ static int vpu_dev_probe(struct platform_device *pdev)
 		free_irq(vpu_ipi_irq, &vpu_data);
 		goto err_out_class;
 	}
-	err = request_irq(vpu_jpu_irq, vpu_jpu_irq_handler, 0, "VPU_JPG_IRQ",
-			  (void *)(&vpu_data));
+	err = request_irq(vpu_jpu_irq, vpu_jpu_irq_handler, IRQF_TRIGGER_RISING,
+			  "VPU_JPG_IRQ", (void *)(&vpu_data));
 	if (err) {
 		free_irq(vpu_ipi_irq, &vpu_data);
 		goto err_out_class;
