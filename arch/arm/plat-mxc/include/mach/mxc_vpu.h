@@ -60,6 +60,7 @@ struct vpu_mem_desc {
 #define BIT_CODE_DOWN			0x004
 #define	BIT_INT_CLEAR			0x00C
 #define	BIT_INT_STATUS			0x010
+#define BIT_INT_REASON			0x174
 
 #define MJPEG_PIC_STATUS_REG		0x3004
 
