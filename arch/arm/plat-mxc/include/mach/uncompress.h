@@ -67,6 +67,7 @@ static inline void flush(void)
 #define MX50_UART1_BASE_ADDR	0x53fbc000
 #define MX53_UART1_BASE_ADDR	0x53fbc000
 #define MX6Q_UART4_BASE_ADDR    0x021f0000
+#define MX6Q_UART2_BASE_ADDR    0x021e8000
 
 static __inline__ void __arch_decomp_setup(unsigned long arch_id)
 {
@@ -122,6 +123,9 @@ static __inline__ void __arch_decomp_setup(unsigned long arch_id)
 		break;
 	case MACH_TYPE_MX6Q_ARM2:
 		uart_base = MX6Q_UART4_BASE_ADDR;
+		break;
+	case MACH_TYPE_MX6Q_SABRELITE:
+		uart_base = MX6Q_UART2_BASE_ADDR;
 		break;
 	default:
 		break;
