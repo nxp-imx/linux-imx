@@ -155,6 +155,14 @@ extern const struct imx_viv_gpu_data imx6_gc2000_data __initconst;
 extern const struct imx_viv_gpu_data imx6_gc320_data __initconst;
 extern const struct imx_viv_gpu_data imx6_gc355_data __initconst;
 
+extern const struct imx_mxc_pwm_data imx6q_mxc_pwm_data[] __initconst;
+#define imx6q_add_mxc_pwm(id)	\
+	imx_add_mxc_pwm(&imx6q_mxc_pwm_data[id])
+
+#define imx6q_add_mxc_pwm_backlight(id, pdata)	   \
+	platform_device_register_resndata(NULL, "pwm-backlight",\
+			id, NULL, 0, pdata, sizeof(*pdata));
+
 extern const struct imx_spdif_data imx6q_imx_spdif_data __initconst;
 #define imx6q_add_spdif(pdata)	imx_add_spdif(&imx6q_imx_spdif_data, pdata)
 
