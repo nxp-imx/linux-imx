@@ -47,6 +47,10 @@
 #include <linux/memblock.h>
 #include <linux/gpio.h>
 #include <linux/etherdevice.h>
+#include <linux/regulator/anatop-regulator.h>
+#include <linux/regulator/consumer.h>
+#include <linux/regulator/machine.h>
+#include <linux/regulator/fixed.h>
 
 #include <mach/common.h>
 #include <mach/hardware.h>
@@ -98,6 +102,8 @@ extern struct regulator *(*get_cpu_regulator)(void);
 extern void (*put_cpu_regulator)(void);
 extern int (*set_cpu_voltage)(u32 volt);
 extern int mx6_set_cpu_voltage(u32 cpu_volt);
+static struct regulator *cpu_regulator;
+static char *gp_reg_id;
 
 static iomux_v3_cfg_t mx6q_sabreauto_pads[] = {
 
@@ -826,6 +832,86 @@ static struct imx_esai_platform_data sab_esai_pdata = {
 	.flags = IMX_ESAI_NET,
 };
 
+#ifdef CONFIG_SND_SOC_SGTL5000
+
+static struct regulator_consumer_supply sgtl5000_consumer_vdda = {
+	.supply = "VDDA",
+	.dev_name = "0-000a",
+};
+
+static struct regulator_consumer_supply sgtl5000_consumer_vddio = {
+	.supply = "VDDIO",
+	.dev_name = "0-000a",
+};
+
+static struct regulator_consumer_supply sgtl5000_consumer_vddd = {
+	.supply = "VDDD",
+	.dev_name = "0-000a",
+};
+
+static struct regulator_init_data sgtl5000_vdda_reg_initdata = {
+	.num_consumer_supplies = 1,
+	.consumer_supplies = &sgtl5000_consumer_vdda,
+};
+
+static struct regulator_init_data sgtl5000_vddio_reg_initdata = {
+	.num_consumer_supplies = 1,
+	.consumer_supplies = &sgtl5000_consumer_vddio,
+};
+
+static struct regulator_init_data sgtl5000_vddd_reg_initdata = {
+	.num_consumer_supplies = 1,
+	.consumer_supplies = &sgtl5000_consumer_vddd,
+};
+
+static struct fixed_voltage_config sgtl5000_vdda_reg_config = {
+	.supply_name		= "VDDA",
+	.microvolts		= 1800000,
+	.gpio			= -1,
+	.init_data		= &sgtl5000_vdda_reg_initdata,
+};
+
+static struct fixed_voltage_config sgtl5000_vddio_reg_config = {
+	.supply_name		= "VDDIO",
+	.microvolts		= 3300000,
+	.gpio			= -1,
+	.init_data		= &sgtl5000_vddio_reg_initdata,
+};
+
+static struct fixed_voltage_config sgtl5000_vddd_reg_config = {
+	.supply_name		= "VDDD",
+	.microvolts		= 0,
+	.gpio			= -1,
+	.init_data		= &sgtl5000_vddd_reg_initdata,
+};
+
+struct platform_device sgtl5000_vdda_reg_devices = {
+	.name	= "reg-fixed-voltage",
+	.id	= 0,
+	.dev	= {
+		.platform_data = &sgtl5000_vdda_reg_config,
+	},
+};
+
+struct platform_device sgtl5000_vddio_reg_devices = {
+	.name	= "reg-fixed-voltage",
+	.id	= 1,
+	.dev	= {
+		.platform_data = &sgtl5000_vddio_reg_config,
+	},
+};
+
+struct platform_device sgtl5000_vddd_reg_devices = {
+	.name	= "reg-fixed-voltage",
+	.id	= 2,
+	.dev	= {
+		.platform_data = &sgtl5000_vddd_reg_config,
+	},
+};
+
+#endif /* CONFIG_SND_SOC_SGTL5000 */
+
+
 static int imx6q_init_audio(void)
 {
 	struct clk *pll3_pfd, *esai_clk;
@@ -879,7 +965,15 @@ static struct mxc_dvfs_platform_data sabreauto_dvfscore_data = {
 
 static int mx6_sabre_set_cpu_voltage(u32 cpu_volt)
 {
-	return mx6_set_cpu_voltage(cpu_volt);
+	int ret = -EINVAL;
+
+	if (cpu_regulator == NULL)
+		cpu_regulator = regulator_get(NULL, gp_reg_id);
+
+	if (!IS_ERR(cpu_regulator))
+		ret = regulator_set_voltage(cpu_regulator,
+						    cpu_volt, cpu_volt);
+	return ret;
 }
 
 static void __init fixup_mxc_board(struct machine_desc *desc, struct tag *tags,
@@ -944,6 +1038,7 @@ static void __init mx6_board_init(void)
 	    mxc_iomux_v3_setup_multiple_pads(mx6q_sabreauto_esai_record_pads,
 			ARRAY_SIZE(mx6q_sabreauto_esai_record_pads));
 
+	gp_reg_id = sabreauto_dvfscore_data.reg_id;
 	mx6q_sabreauto_init_uart();
 	imx6q_add_mxc_hdmi_core(&hdmi_core_data);
 
