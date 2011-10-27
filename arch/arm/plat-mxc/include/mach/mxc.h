@@ -83,6 +83,13 @@ extern unsigned int system_rev;
 #define board_is_mx53_evk_b()    (cpu_is_mx53() && board_is_rev(IMX_BOARD_REV_3))
 #endif
 
+#ifdef CONFIG_SOC_IMX6Q
+#define board_is_mx6q_arm2() (cpu_is_mx6q() && \
+	board_is_rev(IMX_BOARD_REV_1))
+#define board_is_mx6q_sabre_lite() (cpu_is_mx6q() && \
+	board_is_rev(IMX_BOARD_REV_2))
+#endif
+
 #ifndef __ASSEMBLY__
 extern unsigned int __mxc_cpu_type;
 #endif
