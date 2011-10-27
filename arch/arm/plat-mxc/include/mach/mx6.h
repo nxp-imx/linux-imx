@@ -152,10 +152,10 @@
 /* ATZ#1- Off Platform */
 #define AIPS1_OFF_BASE_ADDR             (ATZ1_BASE_ADDR + 0x80000)
 
-#define PWM1_BASE_ADDR              (AIPS1_OFF_BASE_ADDR + 0x0000)
-#define PWM2_BASE_ADDR              (AIPS1_OFF_BASE_ADDR + 0x4000)
-#define PWM3_BASE_ADDR              (AIPS1_OFF_BASE_ADDR + 0x8000)
-#define PWM4_BASE_ADDR              (AIPS1_OFF_BASE_ADDR + 0xC000)
+#define MX6Q_PWM1_BASE_ADDR              (AIPS1_OFF_BASE_ADDR + 0x0000)
+#define MX6Q_PWM2_BASE_ADDR              (AIPS1_OFF_BASE_ADDR + 0x4000)
+#define MX6Q_PWM3_BASE_ADDR              (AIPS1_OFF_BASE_ADDR + 0x8000)
+#define MX6Q_PWM4_BASE_ADDR              (AIPS1_OFF_BASE_ADDR + 0xC000)
 #define CAN1_BASE_ADDR              (AIPS1_OFF_BASE_ADDR + 0x10000)
 #define CAN2_BASE_ADDR              (AIPS1_OFF_BASE_ADDR + 0x14000)
 #define GPT_BASE_ADDR               (AIPS1_OFF_BASE_ADDR + 0x18000)
@@ -361,10 +361,10 @@
 #define MXC_INT_WDOG1                              112
 #define MXC_INT_WDOG2                              113
 #define MXC_INT_KPP                                114
-#define MXC_INT_PWM1                               115
-#define MXC_INT_PWM2                               116
-#define MXC_INT_PWM3                               117
-#define MXC_INT_PWM4                               118
+#define MX6Q_INT_PWM1                               115
+#define MX6Q_INT_PWM2                               116
+#define MX6Q_INT_PWM3                               117
+#define MX6Q_INT_PWM4                               118
 #define MXC_INT_CCM_INT1_NUM                               119
 #define MXC_INT_CCM_INT2_NUM                               120
 #define MX6Q_INT_GPC1                                 121
