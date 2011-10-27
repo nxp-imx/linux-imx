@@ -290,4 +290,12 @@ config REGULATOR_DA9052
 	help
 	  Say y here to support the BUCKs and LDOs regulators found on
 	  Dialog Semiconductor DA9052 PMIC.
+
+config REGULATOR_ANATOP
+	tristate "ANATOP LDO regulators"
+	depends on REGULATOR
+	depends on ARCH_MX6
+	default y
+	help
+	  Say y here to support ANATOP LDOs regulators.
 endif
