@@ -37,6 +37,10 @@
 #define SDHCI_MIX_CTRL_AUTO_TUNE	(1 << 24)
 #define SDHCI_MIX_CTRL_FBCLK_SEL	(1 << 25)
 
+#define SDHCI_DLL_CTRL			0x60
+#define SDHCI_DLL_OVERRIDE_OFFSET	0x9
+#define SDHCI_DLL_OVERRIDE_EN_OFFSET	0x8
+
 #define SDHCI_TUNE_CTRL_STATUS		0x68
 #define SDHCI_TUNE_CTRL_STEP		0x1
 #define SDHCI_TUNE_CTRL_MIN		0x0
@@ -57,6 +61,7 @@
 #define SDHCI_PROT_CTRL_8BIT		(2 << 1)
 #define SDHCI_PROT_CTRL_4BIT		(1 << 1)
 #define SDHCI_PROT_CTRL_1BIT		(0 << 1)
+
 /*
  * The CMDTYPE of the CMD register (offset 0xE) should be set to
  * "11" when the STOP CMD12 is issued on imx53 to abort one
@@ -332,6 +337,8 @@ static unsigned int esdhc_pltfm_get_ro(struct sdhci_host *host)
 static int plt_ddr_mode(struct sdhci_host *host, int mode)
 {
 	u32 reg = sdhci_readl(host, SDHCI_MIX_CTRL);
+	struct esdhc_platform_data *boarddata =
+				host->mmc->parent->platform_data;
 
 	if (mode == MMC_1_8V_DDR_MODE)
 		reg |= SDHCI_MIX_CTRL_DDREN;
@@ -342,6 +349,17 @@ static int plt_ddr_mode(struct sdhci_host *host, int mode)
 
 	/* set clock frequency again */
 	esdhc_set_clock(host, host->clock);
+
+	/* delay line setting */
+	if (!boarddata->delay_line)
+		return 0;
+
+	if (mode == MMC_1_8V_DDR_MODE)
+		sdhci_writel(host,
+			(boarddata->delay_line << SDHCI_DLL_OVERRIDE_OFFSET) |
+			(1 << SDHCI_DLL_OVERRIDE_EN_OFFSET), SDHCI_DLL_CTRL);
+	else
+		sdhci_writel(host, 0, SDHCI_DLL_CTRL);
 
 	return 0;
 }
