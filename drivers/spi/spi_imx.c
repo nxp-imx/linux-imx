@@ -758,6 +758,9 @@ static struct platform_device_id spi_imx_devtype[] = {
 		.name = "imx53-ecspi",
 		.driver_data = SPI_IMX_VER_2_3,
 	}, {
+		.name = "imx6q-ecspi",
+		.driver_data = SPI_IMX_VER_2_3,
+	}, {
 		/* sentinel */
 	}
 };
