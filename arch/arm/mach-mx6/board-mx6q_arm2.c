@@ -76,19 +76,19 @@
 #include "crm_regs.h"
 #include "cpu_op-mx6.h"
 
-#define MX6Q_SABREAUTO_LDB_BACKLIGHT	IMX_GPIO_NR(1, 9)
-#define MX6Q_SABREAUTO_ECSPI1_CS0	IMX_GPIO_NR(2, 30)
-#define MX6Q_SABREAUTO_ECSPI1_CS1	IMX_GPIO_NR(3, 19)
-#define MX6Q_SABREAUTO_DISP0_PWR	IMX_GPIO_NR(3, 24)
-#define MX6Q_SABREAUTO_DISP0_I2C_EN	IMX_GPIO_NR(3, 28)
-#define MX6Q_SABREAUTO_DISP0_DET_INT	IMX_GPIO_NR(3, 31)
-#define MX6Q_SABREAUTO_DISP0_RESET	IMX_GPIO_NR(5, 0)
-#define MX6Q_SABREAUTO_SD3_CD	IMX_GPIO_NR(6, 11)
-#define MX6Q_SABREAUTO_SD3_WP	IMX_GPIO_NR(6, 14)
-#define MX6Q_SABREAUTO_USB_OTG_PWR	IMX_GPIO_NR(3, 22)
-#define MX6Q_SABREAUTO_MAX7310_1_BASE_ADDR	IMX_GPIO_NR(8, 0)
-#define MX6Q_SABREAUTO_MAX7310_2_BASE_ADDR	IMX_GPIO_NR(8, 8)
-#define MX6Q_SABREAUTO_CAP_TCH_INT	IMX_GPIO_NR(3, 31)
+#define MX6Q_ARM2_LDB_BACKLIGHT	IMX_GPIO_NR(1, 9)
+#define MX6Q_ARM2_ECSPI1_CS0	IMX_GPIO_NR(2, 30)
+#define MX6Q_ARM2_ECSPI1_CS1	IMX_GPIO_NR(3, 19)
+#define MX6Q_ARM2_DISP0_PWR	IMX_GPIO_NR(3, 24)
+#define MX6Q_ARM2_DISP0_I2C_EN	IMX_GPIO_NR(3, 28)
+#define MX6Q_ARM2_DISP0_DET_INT	IMX_GPIO_NR(3, 31)
+#define MX6Q_ARM2_DISP0_RESET	IMX_GPIO_NR(5, 0)
+#define MX6Q_ARM2_SD3_CD	IMX_GPIO_NR(6, 11)
+#define MX6Q_ARM2_SD3_WP	IMX_GPIO_NR(6, 14)
+#define MX6Q_ARM2_USB_OTG_PWR	IMX_GPIO_NR(3, 22)
+#define MX6Q_ARM2_MAX7310_1_BASE_ADDR	IMX_GPIO_NR(8, 0)
+#define MX6Q_ARM2_MAX7310_2_BASE_ADDR	IMX_GPIO_NR(8, 8)
+#define MX6Q_ARM2_CAP_TCH_INT	IMX_GPIO_NR(3, 31)
 
 
 #define MX6Q_SMD_CSI0_RST		IMX_GPIO_NR(4, 5)
@@ -105,7 +105,7 @@ extern int mx6_set_cpu_voltage(u32 cpu_volt);
 static struct regulator *cpu_regulator;
 static char *gp_reg_id;
 
-static iomux_v3_cfg_t mx6q_sabreauto_pads[] = {
+static iomux_v3_cfg_t mx6q_arm2_pads[] = {
 
 	/* UART4 for debug */
 	MX6Q_PAD_KEY_COL0__UART4_TXD,
@@ -276,7 +276,7 @@ static iomux_v3_cfg_t mx6q_sabreauto_pads[] = {
 	MX6Q_PAD_GPIO_17__SPDIF_OUT1,
 };
 
-static iomux_v3_cfg_t mx6q_sabreauto_esai_record_pads[] = {
+static iomux_v3_cfg_t mx6q_arm2_esai_record_pads[] = {
 	MX6Q_PAD_ENET_RX_ER__ESAI1_HCKR,
 	MX6Q_PAD_ENET_MDIO__ESAI1_SCKR,
 	MX6Q_PAD_ENET_REF_CLK__ESAI1_FSR,
@@ -365,9 +365,9 @@ static int plt_sd4_pad_change(int clock)
 	}
 }
 
-static const struct esdhc_platform_data mx6q_sabreauto_sd3_data __initconst = {
-	.cd_gpio = MX6Q_SABREAUTO_SD3_CD,
-	.wp_gpio = MX6Q_SABREAUTO_SD3_WP,
+static const struct esdhc_platform_data mx6q_arm2_sd3_data __initconst = {
+	.cd_gpio = MX6Q_ARM2_SD3_CD,
+	.wp_gpio = MX6Q_ARM2_SD3_WP,
 	.support_18v = 1,
 	.support_8bit = 1,
 	.delay_line = 0,
@@ -375,7 +375,7 @@ static const struct esdhc_platform_data mx6q_sabreauto_sd3_data __initconst = {
 };
 
 /* No card detect signal for SD4 */
-static const struct esdhc_platform_data mx6q_sabreauto_sd4_data __initconst = {
+static const struct esdhc_platform_data mx6q_arm2_sd4_data __initconst = {
 	.always_present = 1,
 	.support_8bit = 1,
 	.platform_pad_change = plt_sd4_pad_change,
@@ -418,18 +418,19 @@ mx6q_gpmi_nfc_platform_data __initconst = {
 	.max_chip_count          = 1,
 };
 
-static const struct anatop_thermal_platform_data mx6q_sabreauto_anatop_thermal_data __initconst = {
+static const struct anatop_thermal_platform_data
+	mx6q_arm2_anatop_thermal_data __initconst = {
 	.name = "anatop_thermal",
 };
 
-static inline void mx6q_sabreauto_init_uart(void)
+static inline void mx6q_arm2_init_uart(void)
 {
 	imx6q_add_imx_uart(0, NULL);
 	imx6q_add_imx_uart(1, NULL);
 	imx6q_add_imx_uart(3, NULL);
 }
 
-static int mx6q_sabreauto_fec_phy_init(struct phy_device *phydev)
+static int mx6q_arm2_fec_phy_init(struct phy_device *phydev)
 {
 	unsigned short val;
 
@@ -453,7 +454,7 @@ static int mx6q_sabreauto_fec_phy_init(struct phy_device *phydev)
 }
 
 static struct fec_platform_data fec_data __initdata = {
-	.init = mx6q_sabreauto_fec_phy_init,
+	.init = mx6q_arm2_fec_phy_init,
 	.phy = PHY_INTERFACE_MODE_RGMII,
 };
 
@@ -463,14 +464,14 @@ static inline void imx6q_init_fec(void)
 	imx6q_add_fec(&fec_data);
 }
 
-static int mx6q_sabreauto_spi_cs[] = {
-	MX6Q_SABREAUTO_ECSPI1_CS0,
-	MX6Q_SABREAUTO_ECSPI1_CS1,
+static int mx6q_arm2_spi_cs[] = {
+	MX6Q_ARM2_ECSPI1_CS0,
+	MX6Q_ARM2_ECSPI1_CS1,
 };
 
-static const struct spi_imx_master mx6q_sabreauto_spi_data __initconst = {
-	.chipselect     = mx6q_sabreauto_spi_cs,
-	.num_chipselect = ARRAY_SIZE(mx6q_sabreauto_spi_cs),
+static const struct spi_imx_master mx6q_arm2_spi_data __initconst = {
+	.chipselect     = mx6q_arm2_spi_cs,
+	.num_chipselect = ARRAY_SIZE(mx6q_arm2_spi_cs),
 };
 
 static int max7310_1_setup(struct i2c_client *client,
@@ -497,7 +498,7 @@ static int max7310_1_setup(struct i2c_client *client,
 }
 
 static struct pca953x_platform_data max7310_platdata = {
-	.gpio_base	= MX6Q_SABREAUTO_MAX7310_1_BASE_ADDR,
+	.gpio_base	= MX6Q_ARM2_MAX7310_1_BASE_ADDR,
 	.invert		= 0,
 	.setup		= max7310_1_setup,
 };
@@ -526,7 +527,7 @@ static int max7310_u48_setup(struct i2c_client *client,
 }
 
 static struct pca953x_platform_data max7310_u48_platdata = {
-	.gpio_base	= MX6Q_SABREAUTO_MAX7310_2_BASE_ADDR,
+	.gpio_base	= MX6Q_ARM2_MAX7310_2_BASE_ADDR,
 	.invert		= 0,
 	.setup		= max7310_u48_setup,
 };
@@ -534,13 +535,13 @@ static struct pca953x_platform_data max7310_u48_platdata = {
 static void ddc_dvi_init(void)
 {
 	/* enable DVI I2C */
-	gpio_set_value(MX6Q_SABREAUTO_DISP0_I2C_EN, 1);
+	gpio_set_value(MX6Q_ARM2_DISP0_I2C_EN, 1);
 }
 
 static int ddc_dvi_update(void)
 {
 	/* DVI cable state */
-	if (gpio_get_value(MX6Q_SABREAUTO_DISP0_DET_INT) == 1)
+	if (gpio_get_value(MX6Q_ARM2_DISP0_DET_INT) == 1)
 		return 1;
 	else
 		return 0;
@@ -570,11 +571,11 @@ static struct i2c_board_info mxc_i2c0_board_info[] __initdata = {
 	},
 };
 
-static struct imxi2c_platform_data mx6q_sabreauto_i2c_data = {
+static struct imxi2c_platform_data mx6q_arm2_i2c_data = {
 	.bitrate = 400000,
 };
 
-static struct imxi2c_platform_data mx6q_sabreauto_i2c0_data = {
+static struct imxi2c_platform_data mx6q_arm2_i2c0_data = {
 	.bitrate = 100000,
 };
 
@@ -590,11 +591,11 @@ static struct i2c_board_info mxc_i2c2_board_info[] __initdata = {
 	{
 		I2C_BOARD_INFO("mxc_dvi", 0x50),
 		.platform_data = &sabr_ddc_dvi_data,
-		.irq = gpio_to_irq(MX6Q_SABREAUTO_DISP0_DET_INT),
+		.irq = gpio_to_irq(MX6Q_ARM2_DISP0_DET_INT),
 	},
 	{
 		I2C_BOARD_INFO("egalax_ts", 0x4),
-		.irq = gpio_to_irq(MX6Q_SABREAUTO_CAP_TCH_INT),
+		.irq = gpio_to_irq(MX6Q_ARM2_CAP_TCH_INT),
 	},
 
 };
@@ -602,37 +603,40 @@ static struct i2c_board_info mxc_i2c2_board_info[] __initdata = {
 static struct i2c_board_info mxc_i2c1_board_info[] __initdata = {
 	{
 		I2C_BOARD_INFO("egalax_ts", 0x4),
-		.irq = gpio_to_irq(MX6Q_SABREAUTO_CAP_TCH_INT),
+		.irq = gpio_to_irq(MX6Q_ARM2_CAP_TCH_INT),
 	},
 	{
 		I2C_BOARD_INFO("mxc_hdmi_i2c", 0x50),
 	},
 };
 
-static void imx6q_sabreauto_usbotg_vbus(bool on)
+static void imx6q_arm2_usbotg_vbus(bool on)
 {
 	if (on)
-		gpio_set_value(MX6Q_SABREAUTO_USB_OTG_PWR, 1);
+		gpio_set_value(MX6Q_ARM2_USB_OTG_PWR, 1);
 	else
-		gpio_set_value(MX6Q_SABREAUTO_USB_OTG_PWR, 0);
+		gpio_set_value(MX6Q_ARM2_USB_OTG_PWR, 0);
 }
 
-static void __init imx6q_sabreauto_init_usb(void)
+static void __init imx6q_arm2_init_usb(void)
 {
 	int ret = 0;
 
 	imx_otg_base = MX6_IO_ADDRESS(MX6Q_USB_OTG_BASE_ADDR);
-	/* disable external charger detect, or it will affect signal quality at dp */
+	/* disable external charger detect,
+	 * or it will affect signal quality at dp.
+	 */
 
-	ret = gpio_request(MX6Q_SABREAUTO_USB_OTG_PWR, "usb-pwr");
+	ret = gpio_request(MX6Q_ARM2_USB_OTG_PWR, "usb-pwr");
 	if (ret) {
-		printk(KERN_ERR"failed to get GPIO MX6Q_SABREAUTO_USB_OTG_PWR: %d\n", ret);
+		printk(KERN_ERR"failed to get GPIO MX6Q_ARM2_USB_OTG_PWR:"
+			" %d\n", ret);
 		return;
 	}
-	gpio_direction_output(MX6Q_SABREAUTO_USB_OTG_PWR, 0);
+	gpio_direction_output(MX6Q_ARM2_USB_OTG_PWR, 0);
 	mxc_iomux_set_gpr_register(1, 13, 1, 1);
 
-	mx6_set_otghost_vbus_func(imx6q_sabreauto_usbotg_vbus);
+	mx6_set_otghost_vbus_func(imx6q_arm2_usbotg_vbus);
 	mx6_usb_dr_init();
 	mx6_usb_h1_init();
 }
@@ -641,15 +645,15 @@ static struct viv_gpu_platform_data imx6q_gpu_pdata __initdata = {
 };
 
 /* HW Initialization, if return 0, initialization is successful. */
-static int mx6q_sabreauto_sata_init(struct device *dev, void __iomem *addr)
+static int mx6q_arm2_sata_init(struct device *dev, void __iomem *addr)
 {
 	u32 tmpdata;
 	int ret = 0;
 	struct clk *clk;
 
 	/* Enable SATA PWR CTRL_0 of MAX7310 */
-	gpio_request(MX6Q_SABREAUTO_MAX7310_1_BASE_ADDR, "SATA_PWR_EN");
-	gpio_direction_output(MX6Q_SABREAUTO_MAX7310_1_BASE_ADDR, 1);
+	gpio_request(MX6Q_ARM2_MAX7310_1_BASE_ADDR, "SATA_PWR_EN");
+	gpio_direction_output(MX6Q_ARM2_MAX7310_1_BASE_ADDR, 1);
 
 	sata_clk = clk_get(dev, "imx_sata_clk");
 	if (IS_ERR(sata_clk)) {
@@ -705,20 +709,20 @@ put_sata_clk:
 	return ret;
 }
 
-static void mx6q_sabreauto_sata_exit(struct device *dev)
+static void mx6q_arm2_sata_exit(struct device *dev)
 {
 	clk_disable(sata_clk);
 	clk_put(sata_clk);
 
 	/* Disable SATA PWR CTRL_0 of MAX7310 */
-	gpio_request(MX6Q_SABREAUTO_MAX7310_1_BASE_ADDR, "SATA_PWR_EN");
-	gpio_direction_output(MX6Q_SABREAUTO_MAX7310_1_BASE_ADDR, 0);
+	gpio_request(MX6Q_ARM2_MAX7310_1_BASE_ADDR, "SATA_PWR_EN");
+	gpio_direction_output(MX6Q_ARM2_MAX7310_1_BASE_ADDR, 0);
 
 }
 
-static struct ahci_platform_data mx6q_sabreauto_sata_data = {
-	.init = mx6q_sabreauto_sata_init,
-	.exit = mx6q_sabreauto_sata_exit,
+static struct ahci_platform_data mx6q_arm2_sata_data = {
+	.init = mx6q_arm2_sata_init,
+	.exit = mx6q_arm2_sata_exit,
 };
 
 static struct imx_asrc_platform_data imx_asrc_data = {
@@ -805,19 +809,19 @@ static struct imx_ipuv3_platform_data ipu_data[] = {
 	},
 };
 
-static void sabreauto_suspend_enter(void)
+static void arm2_suspend_enter(void)
 {
 	/* suspend preparation */
 }
 
-static void sabreauto_suspend_exit(void)
+static void arm2_suspend_exit(void)
 {
 	/* resmue resore */
 }
-static const struct pm_platform_data mx6q_sabreauto_pm_data __initconst = {
+static const struct pm_platform_data mx6q_arm2_pm_data __initconst = {
 	.name = "imx_pm",
-	.suspend_enter = sabreauto_suspend_enter,
-	.suspend_exit = sabreauto_suspend_exit,
+	.suspend_enter = arm2_suspend_enter,
+	.suspend_exit = arm2_suspend_exit,
 };
 
 static struct mxc_audio_platform_data sab_audio_data = {
@@ -940,7 +944,7 @@ static int __init early_use_esai_record(char *p)
 
 early_param("esai_record", early_use_esai_record);
 
-static struct mxc_dvfs_platform_data sabreauto_dvfscore_data = {
+static struct mxc_dvfs_platform_data arm2_dvfscore_data = {
 	.reg_id = "cpu_vddgp",
 	.clk1_id = "cpu_clk",
 	.clk2_id = "gpc_dvfs_clk",
@@ -963,7 +967,7 @@ static struct mxc_dvfs_platform_data sabreauto_dvfscore_data = {
 	.delay_time = 80,
 };
 
-static int mx6_sabre_set_cpu_voltage(u32 cpu_volt)
+static int mx6_arm2_set_cpu_voltage(u32 cpu_volt)
 {
 	int ret = -EINVAL;
 
@@ -979,7 +983,7 @@ static int mx6_sabre_set_cpu_voltage(u32 cpu_volt)
 static void __init fixup_mxc_board(struct machine_desc *desc, struct tag *tags,
 				   char **cmdline, struct meminfo *mi)
 {
-	set_cpu_voltage = mx6_sabre_set_cpu_voltage;
+	set_cpu_voltage = mx6_arm2_set_cpu_voltage;
 }
 
 static inline void __init mx6q_csi0_io_init(void)
@@ -1031,15 +1035,15 @@ static void __init mx6_board_init(void)
 {
 	int i;
 
-	mxc_iomux_v3_setup_multiple_pads(mx6q_sabreauto_pads,
-					ARRAY_SIZE(mx6q_sabreauto_pads));
+	mxc_iomux_v3_setup_multiple_pads(mx6q_arm2_pads,
+					ARRAY_SIZE(mx6q_arm2_pads));
 
 	if (esai_record)
-	    mxc_iomux_v3_setup_multiple_pads(mx6q_sabreauto_esai_record_pads,
-			ARRAY_SIZE(mx6q_sabreauto_esai_record_pads));
+	    mxc_iomux_v3_setup_multiple_pads(mx6q_arm2_esai_record_pads,
+			ARRAY_SIZE(mx6q_arm2_esai_record_pads));
 
-	gp_reg_id = sabreauto_dvfscore_data.reg_id;
-	mx6q_sabreauto_init_uart();
+	gp_reg_id = arm2_dvfscore_data.reg_id;
+	mx6q_arm2_init_uart();
 	imx6q_add_mxc_hdmi_core(&hdmi_core_data);
 
 	imx6q_add_ipuv3(0, &ipu_data[0]);
@@ -1055,9 +1059,9 @@ static void __init mx6_board_init(void)
 
 	imx6q_add_imx_snvs_rtc();
 
-	imx6q_add_imx_i2c(0, &mx6q_sabreauto_i2c0_data);
-	imx6q_add_imx_i2c(1, &mx6q_sabreauto_i2c_data);
-	imx6q_add_imx_i2c(2, &mx6q_sabreauto_i2c_data);
+	imx6q_add_imx_i2c(0, &mx6q_arm2_i2c0_data);
+	imx6q_add_imx_i2c(1, &mx6q_arm2_i2c_data);
+	imx6q_add_imx_i2c(2, &mx6q_arm2_i2c_data);
 	i2c_register_board_info(0, mxc_i2c0_board_info,
 			ARRAY_SIZE(mxc_i2c0_board_info));
 	i2c_register_board_info(1, mxc_i2c1_board_info,
@@ -1067,17 +1071,17 @@ static void __init mx6_board_init(void)
 
 	imx6q_add_mxc_hdmi(&hdmi_data);
 
-	imx6q_add_anatop_thermal_imx(1, &mx6q_sabreauto_anatop_thermal_data);
+	imx6q_add_anatop_thermal_imx(1, &mx6q_arm2_anatop_thermal_data);
 
 	if (!esai_record)
 		imx6q_init_fec();
 
-	imx6q_add_pm_imx(0, &mx6q_sabreauto_pm_data);
-	imx6q_add_sdhci_usdhc_imx(3, &mx6q_sabreauto_sd4_data);
-	imx6q_add_sdhci_usdhc_imx(2, &mx6q_sabreauto_sd3_data);
+	imx6q_add_pm_imx(0, &mx6q_arm2_pm_data);
+	imx6q_add_sdhci_usdhc_imx(3, &mx6q_arm2_sd4_data);
+	imx6q_add_sdhci_usdhc_imx(2, &mx6q_arm2_sd3_data);
 	imx_add_viv_gpu(&imx6_gpu_data, &imx6q_gpu_pdata);
-	imx6q_sabreauto_init_usb();
-	imx6q_add_ahci(0, &mx6q_sabreauto_sata_data);
+	imx6q_arm2_init_usb();
+	imx6q_add_ahci(0, &mx6q_arm2_sata_data);
 	imx6q_add_vpu();
 	imx6q_init_audio();
 
@@ -1087,29 +1091,29 @@ static void __init mx6_board_init(void)
 
 	mx6q_csi0_io_init();
 	/* DISP0 Detect */
-	gpio_request(MX6Q_SABREAUTO_DISP0_DET_INT, "disp0-detect");
-	gpio_direction_input(MX6Q_SABREAUTO_DISP0_DET_INT);
+	gpio_request(MX6Q_ARM2_DISP0_DET_INT, "disp0-detect");
+	gpio_direction_input(MX6Q_ARM2_DISP0_DET_INT);
 
 	/* DISP0 Reset - Assert for i2c disabled mode */
-	gpio_request(MX6Q_SABREAUTO_DISP0_RESET, "disp0-reset");
-	gpio_direction_output(MX6Q_SABREAUTO_DISP0_RESET, 0);
+	gpio_request(MX6Q_ARM2_DISP0_RESET, "disp0-reset");
+	gpio_direction_output(MX6Q_ARM2_DISP0_RESET, 0);
 
 	/* DISP0 I2C enable */
-	gpio_request(MX6Q_SABREAUTO_DISP0_I2C_EN, "disp0-i2c");
-	gpio_direction_output(MX6Q_SABREAUTO_DISP0_I2C_EN, 0);
+	gpio_request(MX6Q_ARM2_DISP0_I2C_EN, "disp0-i2c");
+	gpio_direction_output(MX6Q_ARM2_DISP0_I2C_EN, 0);
 
-	gpio_request(MX6Q_SABREAUTO_DISP0_PWR, "disp0-pwr");
-	gpio_direction_output(MX6Q_SABREAUTO_DISP0_PWR, 1);
+	gpio_request(MX6Q_ARM2_DISP0_PWR, "disp0-pwr");
+	gpio_direction_output(MX6Q_ARM2_DISP0_PWR, 1);
 
-	gpio_request(MX6Q_SABREAUTO_LDB_BACKLIGHT, "ldb-backlight");
-	gpio_direction_output(MX6Q_SABREAUTO_LDB_BACKLIGHT, 1);
+	gpio_request(MX6Q_ARM2_LDB_BACKLIGHT, "ldb-backlight");
+	gpio_direction_output(MX6Q_ARM2_LDB_BACKLIGHT, 1);
 	imx6q_add_otp();
 	imx6q_add_viim();
 	imx6q_add_imx2_wdt(0, NULL);
 	imx6q_add_dma();
 	imx6q_add_gpmi(&mx6q_gpmi_nfc_platform_data);
 
-	imx6q_add_dvfs_core(&sabreauto_dvfscore_data);
+	imx6q_add_dvfs_core(&arm2_dvfscore_data);
 
 	mxc_spdif_data.spdif_core_clk = clk_get_sys("mxc_spdif.0", NULL);
 	clk_put(mxc_spdif_data.spdif_core_clk);
@@ -1144,7 +1148,8 @@ static void __init mx6q_reserve(void)
 	phys_addr_t phys;
 
 	if (imx6q_gpu_pdata.reserved_mem_size) {
-		phys = memblock_alloc_base(imx6q_gpu_pdata.reserved_mem_size, SZ_4K, SZ_2G);
+		phys = memblock_alloc_base(imx6q_gpu_pdata.reserved_mem_size,
+			SZ_4K, SZ_2G);
 		memblock_free(phys, imx6q_gpu_pdata.reserved_mem_size);
 		memblock_remove(phys, imx6q_gpu_pdata.reserved_mem_size);
 		imx6q_gpu_pdata.reserved_mem_base = phys;
@@ -1152,9 +1157,9 @@ static void __init mx6q_reserve(void)
 }
 
 /*
- * initialize __mach_desc_MX6Q_SABREAUTO data structure.
+ * initialize __mach_desc_MX6Q_ARM2 data structure.
  */
-MACHINE_START(MX6Q_SABREAUTO, "Freescale MX6 Quad SABRE Auto Board")
+MACHINE_START(MX6Q_ARM2, "Freescale i.MX 6Quad Armadillo2 Board")
 	/* Maintainer: Freescale Semiconductor, Inc. */
 	.boot_params = MX6_PHYS_OFFSET + 0x100,
 	.fixup = fixup_mxc_board,
