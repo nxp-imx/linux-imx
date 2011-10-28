@@ -364,6 +364,7 @@ static const struct esdhc_platform_data mx6q_sabreauto_sd3_data __initconst = {
 	.wp_gpio = MX6Q_SABREAUTO_SD3_WP,
 	.support_18v = 1,
 	.support_8bit = 1,
+	.delay_line = 0,
 	.platform_pad_change = plt_sd3_pad_change,
 };
 
