@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2004-2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2004-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -62,7 +62,7 @@
 #define CONSISTENT_DMA_SIZE SZ_4M
 #else
 
-#ifdef CONFIG_ARCH_MX5
+#if defined(CONFIG_ARCH_MX5) && (CONFIG_DMA_ZONE_SIZE > 0)
 #define CONSISTENT_DMA_SIZE	(96 * SZ_1M)
 #else
 #define CONSISTENT_DMA_SIZE	(32 * SZ_1M)
@@ -72,6 +72,7 @@
 
 #ifndef __ASSEMBLY__
 
+#if CONFIG_DMA_ZONE_SIZE > 0
 #ifdef CONFIG_DMA_ZONE_SIZE
 #define MXC_DMA_ZONE_SIZE	((CONFIG_DMA_ZONE_SIZE * SZ_1M) >> PAGE_SHIFT)
 #else
@@ -93,6 +94,7 @@ static inline void __arch_adjust_zones(int node, unsigned long *zone_size,
 #define arch_adjust_zones(node, size, holes) \
 	__arch_adjust_zones(node, size, holes)
 
+#endif
 #endif
 
 #endif /* __ASM_ARCH_MXC_MEMORY_H__ */

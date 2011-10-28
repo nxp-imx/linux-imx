@@ -957,7 +957,7 @@ static struct platform_device mxc_sgtl5000_device = {
 
 static struct android_pmem_platform_data android_pmem_data = {
 	.name = "pmem_adsp",
-	.size = SZ_32M,
+	.size = SZ_64M,
 };
 
 static struct android_pmem_platform_data android_pmem_gpu_data = {
@@ -1490,6 +1490,19 @@ static void __init fixup_android_board(struct machine_desc *desc, struct tag *ta
 			if (str != NULL) {
 				str += 11;
 				gpu_mem = memparse(str, &str);
+			}
+
+			str = t->u.cmdline.cmdline;
+			str = strstr(str, "pmem=");
+			if (str != NULL) {
+				str += 5;
+				pmem_gpu_size = memparse(str, &str);
+				android_pmem_gpu_data.size = pmem_gpu_size;
+				if (*str == ',') {
+					str++;
+					pmem_adsp_size = memparse(str, &str);
+					android_pmem_data.size = pmem_adsp_size;
+				}
 			}
 
 			str = t->u.cmdline.cmdline;
