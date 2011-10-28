@@ -2675,6 +2675,13 @@ static int mxc_v4l2_probe(struct platform_device *pdev)
 static int mxc_v4l2_remove(struct platform_device *pdev)
 {
 
+	if (g_cam->dummy_frame.vaddress != 0) {
+		dma_free_coherent(0, g_cam->dummy_frame.buffer.length,
+				  g_cam->dummy_frame.vaddress,
+				  g_cam->dummy_frame.paddress);
+		g_cam->dummy_frame.vaddress = 0;
+	}
+
 	if (g_cam->open_count) {
 		pr_err("ERROR: v4l2 capture:camera open "
 			"-- setting ops to NULL\n");
