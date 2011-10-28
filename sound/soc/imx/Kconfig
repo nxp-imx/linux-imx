@@ -61,7 +61,7 @@ config SND_SOC_IMX_SGTL5000
 
 config SND_SOC_IMX_CS42888
 	tristate "SoC Audio support for i.MX boards with cs42888"
-	depends on MACH_MX6Q_SABREAUTO || MACH_MX53_ARD
+	depends on MACH_MX6Q_ARM2 || MACH_MX53_ARD
 	select SND_SOC_CS42888
 	select SND_MXC_SOC_MX2
 	help
