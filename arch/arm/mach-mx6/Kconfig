@@ -22,8 +22,8 @@ config FORCE_MAX_ZONEORDER
 config	SOC_IMX6Q
 	bool
 
-config MACH_MX6Q_SABREAUTO
-	bool "Support i.MX 6Quad SABRE Automotive Infotainment platform"
+config MACH_MX6Q_ARM2
+	bool "Support i.MX 6Quad Armadillo2 platform"
 	select ARCH_MX6Q
 	select SOC_IMX6Q
 	select IMX_HAVE_PLATFORM_IMX_UART
@@ -52,7 +52,7 @@ config MACH_MX6Q_SABREAUTO
 	select IMX_HAVE_PLATFORM_IMX_ASRC
 	select IMX_HAVE_PLATFORM_IMX_SPDIF
 	help
-	  Include support for i.MX 6Quad SABRE Automotive Infotainment platform. This includes specific
+	  Include support for i.MX 6Quad Armadillo2 platform. This includes specific
 	  configurations for the board and its peripherals.
 
 comment "MX6 Options:"

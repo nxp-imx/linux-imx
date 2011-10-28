@@ -120,7 +120,7 @@ static __inline__ void __arch_decomp_setup(unsigned long arch_id)
 	case MACH_TYPE_MX53_SMD:
 		uart_base = MX53_UART1_BASE_ADDR;
 		break;
-	case MACH_TYPE_MX6Q_SABREAUTO:
+	case MACH_TYPE_MX6Q_ARM2:
 		uart_base = MX6Q_UART4_BASE_ADDR;
 		break;
 	default:
