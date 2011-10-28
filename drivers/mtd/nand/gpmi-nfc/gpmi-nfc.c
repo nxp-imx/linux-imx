@@ -133,14 +133,6 @@ static inline int get_ecc_strength(struct gpmi_nfc_data *this)
 
 bool is_ddr_nand(struct gpmi_nfc_data *this)
 {
-	struct nand_chip *chip = &this->mil.nand;
-
-	/* ONFI nand */
-	if (chip->onfi_version != 0)
-		return true;
-
-	/* TOGGLE nand */
-
 	return false;
 }
 
