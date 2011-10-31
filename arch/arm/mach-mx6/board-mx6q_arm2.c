@@ -881,6 +881,32 @@ static struct imx_esai_platform_data sab_esai_pdata = {
 	.flags = IMX_ESAI_NET,
 };
 
+static struct regulator_consumer_supply arm2_vmmc_consumers[] = {
+	REGULATOR_SUPPLY("vmmc", "sdhci-esdhc-imx.1"),
+	REGULATOR_SUPPLY("vmmc", "sdhci-esdhc-imx.2"),
+	REGULATOR_SUPPLY("vmmc", "sdhci-esdhc-imx.3"),
+};
+
+static struct regulator_init_data arm2_vmmc_init = {
+	.num_consumer_supplies = ARRAY_SIZE(arm2_vmmc_consumers),
+	.consumer_supplies = arm2_vmmc_consumers,
+};
+
+static struct fixed_voltage_config arm2_vmmc_reg_config = {
+	.supply_name		= "vmmc",
+	.microvolts		= 3300000,
+	.gpio			= -1,
+	.init_data		= &arm2_vmmc_init,
+};
+
+static struct platform_device arm2_vmmc_reg_devices = {
+	.name	= "reg-fixed-voltage",
+	.id	= 1,
+	.dev	= {
+		.platform_data = &arm2_vmmc_reg_config,
+	},
+};
+
 #ifdef CONFIG_SND_SOC_SGTL5000
 
 static struct regulator_consumer_supply sgtl5000_arm2_consumer_vdda = {
@@ -976,6 +1002,8 @@ static int imx6q_init_audio(void)
 
 	clk_set_parent(esai_clk, pll3_pfd);
 	clk_set_rate(esai_clk, 101647058);
+
+	platform_device_register(&arm2_vmmc_reg_devices);
 #ifdef CONFIG_SND_SOC_SGTL5000
 	platform_device_register(&sgtl5000_arm2_vdda_reg_devices);
 	platform_device_register(&sgtl5000_arm2_vddio_reg_devices);
