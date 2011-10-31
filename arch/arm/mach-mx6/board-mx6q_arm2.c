@@ -31,6 +31,7 @@
 #include <linux/fsl_devices.h>
 #include <linux/smsc911x.h>
 #include <linux/spi/spi.h>
+#include <linux/spi/flash.h>
 #include <linux/i2c.h>
 #include <linux/i2c/pca953x.h>
 #include <linux/ata.h>
@@ -69,7 +70,6 @@
 #include <asm/mach-types.h>
 #include <asm/mach/arch.h>
 #include <asm/mach/time.h>
-#include <asm/mach/flash.h>
 
 #include "usb.h"
 #include "devices-imx6q.h"
@@ -175,9 +175,13 @@ static iomux_v3_cfg_t mx6q_arm2_pads[] = {
 	MX6Q_PAD_SD4_DAT7__USDHC4_DAT7_50MHZ,
 	MX6Q_PAD_NANDF_ALE__USDHC4_RST,
 	/* eCSPI1 */
+	MX6Q_PAD_EIM_EB2__ECSPI1_SS0,
 	MX6Q_PAD_EIM_D16__ECSPI1_SCLK,
 	MX6Q_PAD_EIM_D17__ECSPI1_MISO,
 	MX6Q_PAD_EIM_D18__ECSPI1_MOSI,
+	MX6Q_PAD_EIM_D19__ECSPI1_SS1,
+	MX6Q_PAD_EIM_EB2__GPIO_2_30,	/*SS0*/
+	MX6Q_PAD_EIM_D19__GPIO_3_19,	/*SS1*/
 
 	/* ESAI */
 	MX6Q_PAD_ENET_RXD0__ESAI1_HCKT,
@@ -473,6 +477,47 @@ static const struct spi_imx_master mx6q_arm2_spi_data __initconst = {
 	.chipselect     = mx6q_arm2_spi_cs,
 	.num_chipselect = ARRAY_SIZE(mx6q_arm2_spi_cs),
 };
+
+#if defined(CONFIG_MTD_M25P80) || defined(CONFIG_MTD_M25P80_MODULE)
+static struct mtd_partition m25p32_partitions[] = {
+	{
+		.name = "bootloader",
+		.offset = 0,
+		.size = 0x00040000,
+	},
+	{
+		.name = "kernel",
+		.offset = MTDPART_OFS_APPEND,
+		.size = MTDPART_SIZ_FULL,
+	},
+};
+
+static struct flash_platform_data m25p32_spi_flash_data = {
+	.name = "m25p32",
+	.parts = m25p32_partitions,
+	.nr_parts = ARRAY_SIZE(m25p32_partitions),
+	.type = "m25p32",
+};
+#endif
+
+static struct spi_board_info m25p32_spi0_board_info[] __initdata = {
+#if defined(CONFIG_MTD_M25P80)
+	{
+		/* The modalias must be the same as spi device driver name */
+		.modalias = "m25p80",
+		.max_speed_hz = 20000000,
+		.bus_num = 0,
+		.chip_select = 1,
+		.platform_data = &m25p32_spi_flash_data,
+	},
+#endif
+};
+
+static void spi_device_init(void)
+{
+	spi_register_board_info(m25p32_spi0_board_info,
+				ARRAY_SIZE(m25p32_spi0_board_info));
+}
 
 static int max7310_1_setup(struct i2c_client *client,
 	unsigned gpio_base, unsigned ngpio,
@@ -1068,6 +1113,10 @@ static void __init mx6_board_init(void)
 			ARRAY_SIZE(mxc_i2c1_board_info));
 	i2c_register_board_info(2, mxc_i2c2_board_info,
 			ARRAY_SIZE(mxc_i2c2_board_info));
+
+	/* SPI */
+	imx6q_add_ecspi(0, &mx6q_arm2_spi_data);
+	spi_device_init();
 
 	imx6q_add_mxc_hdmi(&hdmi_data);
 
