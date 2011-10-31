@@ -320,12 +320,6 @@ static int __init regulators_init(void)
 	anatop_register_regulator(&vdd1p1_reg, ANATOP_VDD1P1, &vdd1p1_init);
 	anatop_register_regulator(&vdd3p0_reg, ANATOP_VDD3P0, &vdd3p0_init);
 
-#ifdef CONFIG_SND_SOC_SGTL5000
-	platform_device_register(&sgtl5000_vdda_reg_devices);
-	platform_device_register(&sgtl5000_vddio_reg_devices);
-	platform_device_register(&sgtl5000_vddd_reg_devices);
-#endif
-
 	return 0;
 }
 postcore_initcall(regulators_init);
