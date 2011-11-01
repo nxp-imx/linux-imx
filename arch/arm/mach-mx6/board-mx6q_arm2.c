@@ -1130,7 +1130,6 @@ static int imx6q_init_audio(void)
 	clk_set_parent(esai_clk, pll3_pfd);
 	clk_set_rate(esai_clk, 101647058);
 
-	platform_device_register(&arm2_vmmc_reg_devices);
 #ifdef CONFIG_SND_SOC_SGTL5000
 	platform_device_register(&sgtl5000_arm2_vdda_reg_devices);
 	platform_device_register(&sgtl5000_arm2_vddio_reg_devices);
@@ -1299,7 +1298,7 @@ static void __init mx6_board_init(void)
 	imx6q_add_ahci(0, &mx6q_arm2_sata_data);
 	imx6q_add_vpu();
 	imx6q_init_audio();
-
+	platform_device_register(&arm2_vmmc_reg_devices);
 	imx_asrc_data.asrc_core_clk = clk_get(NULL, "asrc_clk");
 	imx_asrc_data.asrc_audio_clk = clk_get(NULL, "asrc_serial_clk");
 	imx6q_add_asrc(&imx_asrc_data);
