@@ -924,11 +924,115 @@ static struct fixed_voltage_config arm2_vmmc_reg_config = {
 
 static struct platform_device arm2_vmmc_reg_devices = {
 	.name	= "reg-fixed-voltage",
-	.id	= 1,
+	.id	= 0,
 	.dev	= {
 		.platform_data = &arm2_vmmc_reg_config,
 	},
 };
+
+#ifdef CONFIG_SND_SOC_CS42888
+
+static struct regulator_consumer_supply cs42888_arm2_consumer_va = {
+	.supply = "VA",
+	.dev_name = "0-0048",
+};
+
+static struct regulator_consumer_supply cs42888_arm2_consumer_vd = {
+	.supply = "VD",
+	.dev_name = "0-0048",
+};
+
+static struct regulator_consumer_supply cs42888_arm2_consumer_vls = {
+	.supply = "VLS",
+	.dev_name = "0-0048",
+};
+
+static struct regulator_consumer_supply cs42888_arm2_consumer_vlc = {
+	.supply = "VLC",
+	.dev_name = "0-0048",
+};
+
+static struct regulator_init_data cs42888_arm2_va_reg_initdata = {
+	.num_consumer_supplies = 1,
+	.consumer_supplies = &cs42888_arm2_consumer_va,
+};
+
+static struct regulator_init_data cs42888_arm2_vd_reg_initdata = {
+	.num_consumer_supplies = 1,
+	.consumer_supplies = &cs42888_arm2_consumer_vd,
+};
+
+static struct regulator_init_data cs42888_arm2_vls_reg_initdata = {
+	.num_consumer_supplies = 1,
+	.consumer_supplies = &cs42888_arm2_consumer_vls,
+};
+
+static struct regulator_init_data cs42888_arm2_vlc_reg_initdata = {
+	.num_consumer_supplies = 1,
+	.consumer_supplies = &cs42888_arm2_consumer_vlc,
+};
+
+static struct fixed_voltage_config cs42888_arm2_va_reg_config = {
+	.supply_name		= "VA",
+	.microvolts		= 2800000,
+	.gpio			= -1,
+	.init_data		= &cs42888_arm2_va_reg_initdata,
+};
+
+static struct fixed_voltage_config cs42888_arm2_vd_reg_config = {
+	.supply_name		= "VD",
+	.microvolts		= 2800000,
+	.gpio			= -1,
+	.init_data		= &cs42888_arm2_vd_reg_initdata,
+};
+
+static struct fixed_voltage_config cs42888_arm2_vls_reg_config = {
+	.supply_name		= "VLS",
+	.microvolts		= 2800000,
+	.gpio			= -1,
+	.init_data		= &cs42888_arm2_vls_reg_initdata,
+};
+
+static struct fixed_voltage_config cs42888_arm2_vlc_reg_config = {
+	.supply_name		= "VLC",
+	.microvolts		= 2800000,
+	.gpio			= -1,
+	.init_data		= &cs42888_arm2_vlc_reg_initdata,
+};
+
+static struct platform_device cs42888_arm2_va_reg_devices = {
+	.name	= "reg-fixed-voltage",
+	.id	= 3,
+	.dev	= {
+		.platform_data = &cs42888_arm2_va_reg_config,
+	},
+};
+
+static struct platform_device cs42888_arm2_vd_reg_devices = {
+	.name	= "reg-fixed-voltage",
+	.id	= 4,
+	.dev	= {
+		.platform_data = &cs42888_arm2_vd_reg_config,
+	},
+};
+
+static struct platform_device cs42888_arm2_vls_reg_devices = {
+	.name	= "reg-fixed-voltage",
+	.id	= 5,
+	.dev	= {
+		.platform_data = &cs42888_arm2_vls_reg_config,
+	},
+};
+
+static struct platform_device cs42888_arm2_vlc_reg_devices = {
+	.name	= "reg-fixed-voltage",
+	.id	= 6,
+	.dev	= {
+		.platform_data = &cs42888_arm2_vlc_reg_config,
+	},
+};
+
+#endif /* CONFIG_SND_SOC_CS42888 */
 
 #ifdef CONFIG_SND_SOC_SGTL5000
 
@@ -985,7 +1089,7 @@ static struct fixed_voltage_config sgtl5000_arm2_vddd_reg_config = {
 
 static struct platform_device sgtl5000_arm2_vdda_reg_devices = {
 	.name	= "reg-fixed-voltage",
-	.id	= 0,
+	.id	= 7,
 	.dev	= {
 		.platform_data = &sgtl5000_arm2_vdda_reg_config,
 	},
@@ -993,7 +1097,7 @@ static struct platform_device sgtl5000_arm2_vdda_reg_devices = {
 
 static struct platform_device sgtl5000_arm2_vddio_reg_devices = {
 	.name	= "reg-fixed-voltage",
-	.id	= 1,
+	.id	= 8,
 	.dev	= {
 		.platform_data = &sgtl5000_arm2_vddio_reg_config,
 	},
@@ -1001,7 +1105,7 @@ static struct platform_device sgtl5000_arm2_vddio_reg_devices = {
 
 static struct platform_device sgtl5000_arm2_vddd_reg_devices = {
 	.name	= "reg-fixed-voltage",
-	.id	= 2,
+	.id	= 9,
 	.dev	= {
 		.platform_data = &sgtl5000_arm2_vddd_reg_config,
 	},
@@ -1031,6 +1135,13 @@ static int imx6q_init_audio(void)
 	platform_device_register(&sgtl5000_arm2_vdda_reg_devices);
 	platform_device_register(&sgtl5000_arm2_vddio_reg_devices);
 	platform_device_register(&sgtl5000_arm2_vddd_reg_devices);
+#endif
+
+#ifdef CONFIG_SND_SOC_CS42888
+	platform_device_register(&cs42888_arm2_va_reg_devices);
+	platform_device_register(&cs42888_arm2_vd_reg_devices);
+	platform_device_register(&cs42888_arm2_vls_reg_devices);
+	platform_device_register(&cs42888_arm2_vlc_reg_devices);
 #endif
 	return 0;
 }
