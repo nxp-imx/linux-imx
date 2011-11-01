@@ -641,6 +641,31 @@ static const struct pm_platform_data mx6q_sabrelite_pm_data __initconst = {
 	.suspend_exit = sabrelite_suspend_exit,
 };
 
+static struct regulator_consumer_supply sabrelite_vmmc_consumers[] = {
+	REGULATOR_SUPPLY("vmmc", "sdhci-esdhc-imx.2"),
+	REGULATOR_SUPPLY("vmmc", "sdhci-esdhc-imx.3"),
+};
+
+static struct regulator_init_data sabrelite_vmmc_init = {
+	.num_consumer_supplies = ARRAY_SIZE(sabrelite_vmmc_consumers),
+	.consumer_supplies = sabrelite_vmmc_consumers,
+};
+
+static struct fixed_voltage_config sabrelite_vmmc_reg_config = {
+	.supply_name		= "vmmc",
+	.microvolts		= 3300000,
+	.gpio			= -1,
+	.init_data		= &sabrelite_vmmc_init,
+};
+
+static struct platform_device sabrelite_vmmc_reg_devices = {
+	.name	= "reg-fixed-voltage",
+	.id	= 3,
+	.dev	= {
+		.platform_data = &sabrelite_vmmc_reg_config,
+	},
+};
+
 #ifdef CONFIG_SND_SOC_SGTL5000
 
 static struct regulator_consumer_supply sgtl5000_sabrelite_consumer_vdda = {
@@ -820,6 +845,7 @@ static void __init mx6_sabrelite_board_init(void)
 	imx6q_sabrelite_init_usb();
 	imx6q_add_vpu();
 	imx6q_init_audio();
+	platform_device_register(&sabrelite_vmmc_reg_devices);
 	/* release USB Hub reset */
 	gpio_set_value(MX6Q_SABRELITE_USB_HUB_RESET, 1);
 
