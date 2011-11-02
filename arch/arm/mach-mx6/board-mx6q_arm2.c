@@ -106,6 +106,7 @@
 void __init early_console_setup(unsigned long base, struct clk *clk);
 static struct clk *sata_clk;
 static int esai_record;
+static int spdif_in;
 
 extern struct regulator *(*get_cpu_regulator)(void);
 extern void (*put_cpu_regulator)(void);
@@ -272,10 +273,6 @@ static iomux_v3_cfg_t mx6q_arm2_pads[] = {
 	/* DISP0 RESET */
 	MX6Q_PAD_EIM_WAIT__GPIO_5_0,
 
-	/* I2C3 */
-	MX6Q_PAD_GPIO_5__I2C3_SCL,
-	MX6Q_PAD_GPIO_16__I2C3_SDA,
-
 	/* HDMI */
 	MX6Q_PAD_EIM_A25__HDMI_TX_CEC_LINE,
 	MX6Q_PAD_SD1_DAT1__HDMI_TX_OPHYDTB_0,
@@ -285,7 +282,6 @@ static iomux_v3_cfg_t mx6q_arm2_pads[] = {
 	MX6Q_PAD_GPIO_1__USBOTG_ID,
 
 	/* SPDIF */
-	MX6Q_PAD_GPIO_16__SPDIF_IN1,
 	MX6Q_PAD_GPIO_17__SPDIF_OUT1,
 
 	/* CAN1 */
@@ -298,6 +294,15 @@ static iomux_v3_cfg_t mx6q_arm2_pads[] = {
 	MX6Q_PAD_KEY_COL4__CAN2_TXCAN,
 	MX6Q_PAD_KEY_ROW4__CAN2_RXCAN,
 	MX6Q_PAD_CSI0_DAT6__GPIO_5_24,	/* CAN2 EN */
+};
+
+static iomux_v3_cfg_t mx6q_arm2_i2c3_pads[] = {
+	MX6Q_PAD_GPIO_5__I2C3_SCL,
+	MX6Q_PAD_GPIO_16__I2C3_SDA,
+};
+
+static iomux_v3_cfg_t mx6q_arm2_spdif_in_pads[] = {
+	MX6Q_PAD_GPIO_16__SPDIF_IN1,
 };
 
 static iomux_v3_cfg_t mx6q_arm2_esai_record_pads[] = {
@@ -1272,6 +1277,14 @@ static inline void __init mx6q_csi0_io_init(void)
 	mxc_iomux_set_gpr_register(1, 19, 1, 1);
 }
 
+static int __init early_enable_spdif(char *p)
+{
+	spdif_in = 1;
+	return 0;
+}
+
+early_param("spdif_in", early_enable_spdif);
+
 static int spdif_clk_set_rate(struct clk *clk, unsigned long rate)
 {
 	unsigned long rate_actual;
@@ -1282,7 +1295,7 @@ static int spdif_clk_set_rate(struct clk *clk, unsigned long rate)
 
 static struct mxc_spdif_platform_data mxc_spdif_data = {
 	.spdif_tx = 1,		/* enable tx */
-	.spdif_rx = 1,		/* enable rx */
+	.spdif_rx = 0,		/* disable rx for now (see below) */
 	/*
 	 * spdif0_clk will be 454.7MHz divided by ccm dividers.
 	 *
@@ -1315,6 +1328,16 @@ static void __init mx6_board_init(void)
 	    mxc_iomux_v3_setup_multiple_pads(mx6q_arm2_esai_record_pads,
 			ARRAY_SIZE(mx6q_arm2_esai_record_pads));
 
+	/* S/PDIF in and i2c3 are mutually exclusive because both
+	 * use GPIO_17 */
+	if (spdif_in) {
+		mxc_iomux_v3_setup_multiple_pads(mx6q_arm2_spdif_in_pads,
+			ARRAY_SIZE(mx6q_arm2_spdif_in_pads));
+		mxc_spdif_data.spdif_rx = 1;
+	} else
+		mxc_iomux_v3_setup_multiple_pads(mx6q_arm2_i2c3_pads,
+			ARRAY_SIZE(mx6q_arm2_i2c3_pads));
+
 	gp_reg_id = arm2_dvfscore_data.reg_id;
 	mx6q_arm2_init_uart();
 	imx6q_add_mxc_hdmi_core(&hdmi_core_data);
@@ -1335,13 +1358,15 @@ static void __init mx6_board_init(void)
 
 	imx6q_add_imx_i2c(0, &mx6q_arm2_i2c0_data);
 	imx6q_add_imx_i2c(1, &mx6q_arm2_i2c_data);
-	imx6q_add_imx_i2c(2, &mx6q_arm2_i2c_data);
 	i2c_register_board_info(0, mxc_i2c0_board_info,
 			ARRAY_SIZE(mxc_i2c0_board_info));
 	i2c_register_board_info(1, mxc_i2c1_board_info,
 			ARRAY_SIZE(mxc_i2c1_board_info));
-	i2c_register_board_info(2, mxc_i2c2_board_info,
-			ARRAY_SIZE(mxc_i2c2_board_info));
+	if (!spdif_in) {
+		imx6q_add_imx_i2c(2, &mx6q_arm2_i2c_data);
+		i2c_register_board_info(2, mxc_i2c2_board_info,
+				ARRAY_SIZE(mxc_i2c2_board_info));
+	}
 
 	/* SPI */
 	imx6q_add_ecspi(0, &mx6q_arm2_spi_data);
