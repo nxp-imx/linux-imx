@@ -72,6 +72,8 @@ struct mxc_spdif_priv {
 	struct snd_card *card;	/* ALSA SPDIF sound card handle */
 	struct snd_pcm *pcm;	/* ALSA spdif driver type handle */
 	atomic_t dpll_locked;	/* DPLL locked status */
+	bool tx_active;
+	bool rx_active;
 };
 
 struct spdif_mixer_control mxc_spdif_control;
@@ -506,6 +508,7 @@ static int mxc_spdif_playback_startup(struct snd_pcm_substream *substream,
 	if (!plat_data->spdif_tx)
 		return -EINVAL;
 
+	spdif_priv->tx_active = true;
 	clk_enable(plat_data->spdif_clk);
 	clk_enable(plat_data->spdif_audio_clk);
 
@@ -521,7 +524,9 @@ static int mxc_spdif_playback_startup(struct snd_pcm_substream *substream,
 
 	return 0;
 failed:
+	clk_disable(plat_data->spdif_audio_clk);
 	clk_disable(plat_data->spdif_clk);
+	spdif_priv->tx_active = false;
 	return err;
 }
 
@@ -610,6 +615,7 @@ static int mxc_spdif_playback_shutdown(struct snd_pcm_substream *substream,
 
 	clk_disable(plat_data->spdif_audio_clk);
 	clk_disable(plat_data->spdif_clk);
+	spdif_priv->tx_active = false;
 
 	return 0;
 }
@@ -625,6 +631,8 @@ static int mxc_spdif_capture_startup(struct snd_pcm_substream *substream,
 
 	if (!plat_data->spdif_rx)
 		return -EINVAL;
+
+	spdif_priv->rx_active = true;
 
 	/* enable rx bus clock */
 	clk_enable(plat_data->spdif_clk);
@@ -648,6 +656,7 @@ static int mxc_spdif_capture_startup(struct snd_pcm_substream *substream,
 
 failed:
 	clk_disable(plat_data->spdif_clk);
+	spdif_priv->rx_active = false;
 	return err;
 }
 
@@ -727,6 +736,7 @@ static int mxc_spdif_capture_shutdown(struct snd_pcm_substream *substream,
 	__raw_writel(regval, spdif_base_addr + SPDIF_REG_SCR);
 
 	clk_disable(plat_data->spdif_clk);
+	spdif_priv->rx_active = false;
 
 	return 0;
 }
@@ -1117,7 +1127,15 @@ static int mxc_spdif_soc_suspend(struct snd_soc_codec *codec,
 		return -EINVAL;
 
 	plat_data = spdif_priv->plat_data;
-	clk_disable(plat_data->spdif_clk);
+
+	if (spdif_priv->tx_active) {
+		clk_disable(plat_data->spdif_audio_clk);
+		clk_disable(plat_data->spdif_clk);
+	}
+
+	if (spdif_priv->rx_active)
+		clk_disable(plat_data->spdif_clk);
+
 	clk_disable(plat_data->spdif_core_clk);
 
 	return 0;
@@ -1134,7 +1152,15 @@ static int mxc_spdif_soc_resume(struct snd_soc_codec *codec)
 	plat_data = spdif_priv->plat_data;
 
 	clk_enable(plat_data->spdif_core_clk);
-	clk_enable(plat_data->spdif_clk);
+
+	if (spdif_priv->tx_active) {
+		clk_enable(plat_data->spdif_clk);
+		clk_enable(plat_data->spdif_audio_clk);
+	}
+
+	if (spdif_priv->rx_active)
+		clk_enable(plat_data->spdif_clk);
+
 	spdif_softreset();
 
 	return 0;
@@ -1196,6 +1222,8 @@ static int __devinit mxc_spdif_probe(struct platform_device *pdev)
 		mxc_spdif_codec_dai.capture.formats = MXC_SPDIF_FORMATS_CAPTURE;
 	}
 
+	spdif_priv->tx_active = false;
+	spdif_priv->rx_active = false;
 	platform_set_drvdata(pdev, spdif_priv);
 
 	spdif_priv->reg_phys_base = res->start;
@@ -1250,7 +1278,6 @@ static int __devinit mxc_spdif_probe(struct platform_device *pdev)
 	return 0;
 
 card_err:
-	clk_disable(plat_data->spdif_clk);
 	clk_put(plat_data->spdif_clk);
 	clk_disable(plat_data->spdif_core_clk);
 
@@ -1267,7 +1294,6 @@ static int __devexit mxc_spdif_remove(struct platform_device *pdev)
 
 	snd_soc_unregister_codec(&pdev->dev);
 
-	clk_disable(plat_data->spdif_clk);
 	clk_put(plat_data->spdif_clk);
 	clk_disable(plat_data->spdif_core_clk);
 
