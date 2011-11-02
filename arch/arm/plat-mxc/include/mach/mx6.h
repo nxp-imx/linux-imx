@@ -156,8 +156,8 @@
 #define MX6Q_PWM2_BASE_ADDR              (AIPS1_OFF_BASE_ADDR + 0x4000)
 #define MX6Q_PWM3_BASE_ADDR              (AIPS1_OFF_BASE_ADDR + 0x8000)
 #define MX6Q_PWM4_BASE_ADDR              (AIPS1_OFF_BASE_ADDR + 0xC000)
-#define CAN1_BASE_ADDR              (AIPS1_OFF_BASE_ADDR + 0x10000)
-#define CAN2_BASE_ADDR              (AIPS1_OFF_BASE_ADDR + 0x14000)
+#define MX6Q_CAN1_BASE_ADDR              (AIPS1_OFF_BASE_ADDR + 0x10000)
+#define MX6Q_CAN2_BASE_ADDR              (AIPS1_OFF_BASE_ADDR + 0x14000)
 #define GPT_BASE_ADDR               (AIPS1_OFF_BASE_ADDR + 0x18000)
 #define GPIO1_BASE_ADDR             (AIPS1_OFF_BASE_ADDR + 0x1C000)
 #define GPIO2_BASE_ADDR             (AIPS1_OFF_BASE_ADDR + 0x20000)
@@ -389,8 +389,8 @@
 #define MXC_INT_INTERRUPT_139_NUM                          139
 #define MXC_INT_TZASC1                             140
 #define MXC_INT_TZASC2                             141
-#define MXC_INT_CAN1                               142
-#define MXC_INT_CAN2                               143
+#define MX6Q_INT_CAN1                               142
+#define MX6Q_INT_CAN2                               143
 #define MXC_INT_PERFMON1                           144
 #define MXC_INT_PERFMON2                           145
 #define MXC_INT_PERFMON3                           146
