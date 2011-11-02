@@ -1617,6 +1617,11 @@ static struct clk gpt_clk[] = {
 	 },
 };
 
+static unsigned long _clk_iim_get_rate(struct clk *clk)
+{
+	return clk_get_rate(clk->parent);
+}
+
 static struct clk iim_clk = {
 	__INIT_CLK_DEBUG(iim_clk)
 	.parent = &ipg_clk,
@@ -1624,6 +1629,7 @@ static struct clk iim_clk = {
 	.enable_reg = MXC_CCM_CCGR2,
 	.enable_shift = MXC_CCM_CCGRx_CG6_OFFSET,
 	.disable = _clk_disable,
+	.get_rate = _clk_iim_get_rate,
 };
 
 static struct clk i2c_clk[] = {
