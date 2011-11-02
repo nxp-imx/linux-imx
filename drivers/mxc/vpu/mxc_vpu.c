@@ -480,6 +480,26 @@ static long vpu_ioctl(struct file *filp, u_int cmd,
 			}
 			break;
 		}
+	/*
+	 * The following two ioctl is used when user allocates working buffer
+	 * and register it to vpu driver.
+	 */
+	case VPU_IOC_QUERY_BITWORK_MEM:
+		{
+			if (copy_to_user((void __user *)arg,
+					 &bitwork_mem,
+					 sizeof(struct vpu_mem_desc)))
+				ret = -EFAULT;
+			break;
+		}
+	case VPU_IOC_SET_BITWORK_MEM:
+		{
+			if (copy_from_user(&bitwork_mem,
+					   (struct vpu_mem_desc *)arg,
+					   sizeof(struct vpu_mem_desc)))
+				ret = -EFAULT;
+			break;
+		}
 	case VPU_IOC_SYS_SW_RESET:
 		{
 			if (vpu_plat->reset)
