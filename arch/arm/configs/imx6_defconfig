@@ -884,6 +884,8 @@ CONFIG_SMSC911X=y
 # CONFIG_KS8851 is not set
 # CONFIG_KS8851_MLL is not set
 CONFIG_FEC=y
+# CONFIG_FEC_158 is not set
+# CONFIG_OUT_OF_BAND is not set
 # CONFIG_NETDEV_1000 is not set
 # CONFIG_NETDEV_10000 is not set
 CONFIG_WLAN=y
