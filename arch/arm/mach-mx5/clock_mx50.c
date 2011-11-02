@@ -2664,6 +2664,11 @@ static struct clk gpmi_nfc_clk[] = {
 	},
 };
 
+static unsigned long _clk_ocotp_get_rate(struct clk *clk)
+{
+	return clk_get_rate(clk->parent);
+}
+
 static struct clk ocotp_clk = {
 	__INIT_CLK_DEBUG(ocotp_clk)
 	.parent = &ahb_clk,
@@ -2671,6 +2676,7 @@ static struct clk ocotp_clk = {
 	.enable_reg = MXC_CCM_CCGR7,
 	.enable_shift = MXC_CCM_CCGRx_CG13_OFFSET,
 	.disable = _clk_disable,
+	.get_rate = _clk_ocotp_get_rate,
 };
 
 static int _clk_gpu2d_set_parent(struct clk *clk, struct clk *parent)
@@ -3341,7 +3347,7 @@ static struct clk_lookup lookups[] = {
 	_REGISTER_CLOCK(NULL, "bch-apb", gpmi_nfc_clk[3]),
 	_REGISTER_CLOCK(NULL, "rng_clk", rng_clk),
 	_REGISTER_CLOCK(NULL, "dcp_clk", dcp_clk),
-	_REGISTER_CLOCK(NULL, "ocotp_ctrl_apb", ocotp_clk),
+	_REGISTER_CLOCK(NULL, "ocotp_ctrl_ahb_clk", ocotp_clk),
 	_REGISTER_CLOCK(NULL, "ocram_clk", ocram_clk),
 	_REGISTER_CLOCK("mxs-dma-apbh",	NULL, apbh_dma_clk),
 	_REGISTER_CLOCK(NULL, "sys_clk", sys_clk),
@@ -3474,8 +3480,6 @@ int __init mx50_clocks_init(unsigned long ckil, unsigned long osc, unsigned long
 	clk_enable(&cpu_clk);
 
 	clk_enable(&main_bus_clk);
-
-	clk_enable(&ocotp_clk);
 
 	databahn = ioremap(MX50_DATABAHN_BASE_ADDR, SZ_16K);
 
