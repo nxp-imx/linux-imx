@@ -41,6 +41,7 @@
 #include <linux/input.h>
 #include <linux/platform_device.h>
 #include <linux/cpufreq.h>
+#include <linux/suspend.h>
 #include <mach/hardware.h>
 #include <mach/mxc_dvfs.h>
 
@@ -828,6 +829,34 @@ static DEVICE_ATTR(down_threshold, 0644, downthreshold_show,
 						downthreshold_store);
 static DEVICE_ATTR(down_count, 0644, downcount_show, downcount_store);
 
+static int dvfs_notifier(struct notifier_block *nb,
+			 unsigned long event, void *dummy)
+{
+	switch (event) {
+	case PM_SUSPEND_PREPARE:
+		if (dvfs_core_is_active) {
+			dvfs_core_resume = 1;
+			printk(KERN_INFO "dvfs: disable dvfs before suspend\n");
+			stop_dvfs();
+		}
+		break;
+
+	case PM_POST_SUSPEND:
+		if (dvfs_core_resume) {
+			dvfs_core_resume = 0;
+			printk(KERN_INFO "dvfs: enable dvfs after resume\n");
+			start_dvfs();
+		}
+		break;
+	}
+
+	return 0;
+}
+
+static struct notifier_block dvfs_notifier_block = {
+	.notifier_call = dvfs_notifier,
+};
+
 /*!
  * This is the probe routine for the DVFS driver.
  *
@@ -953,6 +982,8 @@ static int __devinit mxc_dvfs_core_probe(struct platform_device *pdev)
 	dvfs_core_resume = 0;
 	cpufreq_trig_needed = 0;
 
+	register_pm_notifier(&dvfs_notifier_block);
+
 	return err;
 err3:
 	free_irq(dvfs_data->irq, dvfs_dev);
@@ -1013,8 +1044,6 @@ static struct platform_driver mxc_dvfs_core_driver = {
 		   .shutdown = mxc_dvfscore_shutdown,
 		   },
 	.probe = mxc_dvfs_core_probe,
-	.suspend = mxc_dvfs_core_suspend,
-	.resume = mxc_dvfs_core_resume,
 };
 
 static int __init dvfs_init(void)
