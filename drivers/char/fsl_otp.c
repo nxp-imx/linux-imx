@@ -40,6 +40,7 @@ static struct attribute **attrs;
 static struct kobj_attribute *kattr;
 static struct attribute_group attr_group;
 static struct mxc_otp_platform_data *otp_data;
+static struct clk *otp_clk;
 
 static inline unsigned int get_reg_index(struct kobj_attribute *tmp)
 {
@@ -177,6 +178,12 @@ static int __devinit fsl_otp_probe(struct platform_device *pdev)
 	if (pdata == NULL)
 		return -ENODEV;
 
+	/* Enable clock */
+	if (pdata->clock_name) {
+		otp_clk = clk_get(&pdev->dev, pdata->clock_name);
+		clk_enable(otp_clk);
+	}
+
 	retval = alloc_otp_attr(pdata);
 	if (retval)
 		return retval;
@@ -207,11 +214,23 @@ error:
 
 static int otp_remove(struct platform_device *pdev)
 {
+	struct mxc_otp_platform_data *pdata;
+
+	pdata = pdev->dev.platform_data;
+	if (pdata == NULL)
+		return -ENODEV;
+
 	kobject_put(otp_kobj);
 	otp_kobj = NULL;
 
 	free_otp_attr();
 	unmap_ocotp_addr();
+
+	if (pdata->clock_name) {
+		clk_disable(otp_clk);
+		clk_put(otp_clk);
+	}
+
 	return 0;
 }
 
