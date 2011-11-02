@@ -27,12 +27,13 @@
 #include <linux/regulator/driver.h>
 #include <linux/regulator/anatop-regulator.h>
 
-static int anatop_set_voltage(struct regulator_dev *reg, int MiniV, int uv)
+static int anatop_set_voltage(struct regulator_dev *reg, int min_uV,
+				  int max_uV, unsigned *selector)
 {
 	struct anatop_regulator *anatop_reg = rdev_get_drvdata(reg);
 
 	if (anatop_reg->rdata->set_voltage)
-		return anatop_reg->rdata->set_voltage(anatop_reg, uv);
+		return anatop_reg->rdata->set_voltage(anatop_reg, max_uV);
 	else
 		return -ENOTSUPP;
 }
