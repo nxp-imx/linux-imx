@@ -52,6 +52,7 @@ config MACH_MX6Q_ARM2
 	select IMX_HAVE_PLATFORM_IMX_ASRC
 	select IMX_HAVE_PLATFORM_IMX_SPDIF
 	select IMX_HAVE_PLATFORM_IMX_MIPI_DSI
+	select IMX_HAVE_PLATFORM_FLEXCAN
 	help
 	  Include support for i.MX 6Quad Armadillo2 platform. This includes specific
 	  configurations for the board and its peripherals.

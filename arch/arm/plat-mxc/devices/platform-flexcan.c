@@ -8,21 +8,22 @@
 #include <mach/hardware.h>
 #include <mach/devices-common.h>
 
-#define imx_flexcan_data_entry_single(soc, _id, _hwid, _size)		\
+#define imx_flexcan_data_entry_single(soc, _devid, _id, _hwid, _size)	\
 	{								\
+		.devid = _devid,					\
 		.id = _id,						\
 		.iobase = soc ## _CAN ## _hwid ## _BASE_ADDR,		\
 		.iosize = _size,					\
 		.irq = soc ## _INT_CAN ## _hwid,			\
 	}
 
-#define imx_flexcan_data_entry(soc, _id, _hwid, _size)			\
-	[_id] = imx_flexcan_data_entry_single(soc, _id, _hwid, _size)
+#define imx_flexcan_data_entry(soc, _devid, _id, _hwid, _size)		\
+	[_id] = imx_flexcan_data_entry_single(soc, _devid, _id, _hwid, _size)
 
 #ifdef CONFIG_SOC_IMX25
 const struct imx_flexcan_data imx25_flexcan_data[] __initconst = {
 #define imx25_flexcan_data_entry(_id, _hwid)				\
-	imx_flexcan_data_entry(MX25, _id, _hwid, SZ_16K)
+	imx_flexcan_data_entry(MX25, "imx25-flexcan", _id, _hwid, SZ_16K)
 	imx25_flexcan_data_entry(0, 1),
 	imx25_flexcan_data_entry(1, 2),
 };
@@ -31,11 +32,20 @@ const struct imx_flexcan_data imx25_flexcan_data[] __initconst = {
 #ifdef CONFIG_SOC_IMX35
 const struct imx_flexcan_data imx35_flexcan_data[] __initconst = {
 #define imx35_flexcan_data_entry(_id, _hwid)				\
-	imx_flexcan_data_entry(MX35, _id, _hwid, SZ_16K)
+	imx_flexcan_data_entry(MX35, "imx35-flexcan", _id, _hwid, SZ_16K)
 	imx35_flexcan_data_entry(0, 1),
 	imx35_flexcan_data_entry(1, 2),
 };
 #endif /* ifdef CONFIG_SOC_IMX35 */
+
+#ifdef CONFIG_SOC_IMX6Q
+const struct imx_flexcan_data imx6q_flexcan_data[] __initconst = {
+#define imx6q_flexcan_data_entry(_id, _hwid)				\
+	imx_flexcan_data_entry(MX6Q, "imx6q-flexcan", _id, _hwid, SZ_16K)
+	imx6q_flexcan_data_entry(0, 1),
+	imx6q_flexcan_data_entry(1, 2),
+};
+#endif /* ifdef CONFIG_SOC_IMX6Q*/
 
 struct platform_device *__init imx_add_flexcan(
 		const struct imx_flexcan_data *data,
@@ -53,6 +63,6 @@ struct platform_device *__init imx_add_flexcan(
 		},
 	};
 
-	return imx_add_platform_device("flexcan", data->id,
+	return imx_add_platform_device(data->devid, data->id,
 			res, ARRAY_SIZE(res), pdata, sizeof(*pdata));
 }

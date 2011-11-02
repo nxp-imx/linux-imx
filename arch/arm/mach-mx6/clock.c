@@ -3032,11 +3032,70 @@ static struct clk ipu2_di_clk[] = {
 	},
 };
 
+static unsigned long _clk_can_root_round_rate(struct clk *clk,
+						unsigned long rate)
+{
+	u32 div;
+	u32 parent_rate = clk_get_rate(clk->parent);
+
+	div = parent_rate / rate;
+
+	/* Make sure rate is not greater than the maximum value for the clock.
+	 * Also prevent a div of 0.
+	 */
+	if (div == 0)
+		div++;
+
+	if (div > 64)
+		div = 64;
+
+	return parent_rate / div;
+}
+
+static int _clk_can_root_set_rate(struct clk *clk, unsigned long rate)
+{
+	u32 reg, div;
+	u32 parent_rate = clk_get_rate(clk->parent);
+
+	div = parent_rate / rate;
+	if (div == 0)
+		div++;
+	if (((parent_rate / div) != rate) || (div > 64))
+		return -EINVAL;
+
+	reg = __raw_readl(MXC_CCM_CSCMR2) & MXC_CCM_CSCMR2_CAN_CLK_PODF_MASK;
+	reg |= ((div - 1) << MXC_CCM_CSCMR2_CAN_CLK_PODF_OFFSET);
+
+	__raw_writel(reg, MXC_CCM_CSCMR2);
+
+	return 0;
+}
+
+static unsigned long _clk_can_root_get_rate(struct clk *clk)
+{
+	u32 reg, div;
+	unsigned long val;
+
+	reg = __raw_readl(MXC_CCM_CSCMR2) & MXC_CCM_CSCMR2_CAN_CLK_PODF_MASK;
+	div = (reg >> MXC_CCM_CSCMR2_CAN_CLK_PODF_OFFSET) + 1;
+	val = clk_get_rate(clk->parent) / div;
+
+	return val;
+}
+
+static struct clk can_clk_root = {
+	 __INIT_CLK_DEBUG(can_clk_root)
+	.parent = &pll3_60M,
+	.set_rate = _clk_can_root_set_rate,
+	.get_rate = _clk_can_root_get_rate,
+	.round_rate = _clk_can_root_round_rate,
+};
+
 static struct clk can2_clk[] = {
 	{
 	 __INIT_CLK_DEBUG(can2_module_clk)
 	.id = 0,
-	.parent = &pll3_60M,
+	.parent = &can_clk_root,
 	.enable_reg = MXC_CCM_CCGR0,
 	.enable_shift = MXC_CCM_CCGRx_CG9_OFFSET,
 	.enable = _clk_enable,
@@ -3047,7 +3106,7 @@ static struct clk can2_clk[] = {
 	{
 	 __INIT_CLK_DEBUG(can2_serial_clk)
 	.id = 1,
-	.parent = &pll3_60M,
+	.parent = &can_clk_root,
 	.enable_reg = MXC_CCM_CCGR0,
 	.enable_shift = MXC_CCM_CCGRx_CG10_OFFSET,
 	.enable = _clk_enable,
@@ -3060,7 +3119,7 @@ static struct clk can1_clk[] = {
 	{
 	 __INIT_CLK_DEBUG(can1_module_clk)
 	.id = 0,
-	.parent = &pll3_60M,
+	.parent = &can_clk_root,
 	.enable_reg = MXC_CCM_CCGR0,
 	.enable_shift = MXC_CCM_CCGRx_CG7_OFFSET,
 	.enable = _clk_enable,
@@ -3071,7 +3130,7 @@ static struct clk can1_clk[] = {
 	{
 	 __INIT_CLK_DEBUG(can1_serial_clk)
 	.id = 1,
-	.parent = &pll3_60M,
+	.parent = &can_clk_root,
 	.enable_reg = MXC_CCM_CCGR0,
 	.enable_shift = MXC_CCM_CCGRx_CG8_OFFSET,
 	.enable = _clk_enable,
@@ -4630,8 +4689,9 @@ static struct clk_lookup lookups[] = {
 	_REGISTER_CLOCK(NULL, "ipu1_di1_clk", ipu1_di_clk[1]),
 	_REGISTER_CLOCK(NULL, "ipu2_di0_clk", ipu2_di_clk[0]),
 	_REGISTER_CLOCK(NULL, "ipu2_di1_clk", ipu2_di_clk[1]),
-	_REGISTER_CLOCK("FlexCAN.0", "can_clk", can1_clk[0]),
-	_REGISTER_CLOCK("FlexCAN.1", "can_clk", can2_clk[0]),
+	_REGISTER_CLOCK(NULL, "can_root_clk", can_clk_root),
+	_REGISTER_CLOCK("imx6q-flexcan.0", NULL, can1_clk[0]),
+	_REGISTER_CLOCK("imx6q-flexcan.1", NULL, can2_clk[0]),
 	_REGISTER_CLOCK(NULL, "ldb_di0_clk", ldb_di0_clk),
 	_REGISTER_CLOCK(NULL, "ldb_di1_clk", ldb_di1_clk),
 	_REGISTER_CLOCK("mxc_spdif.0", NULL, spdif0_clk[0]),
