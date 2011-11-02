@@ -36,8 +36,6 @@
 #include <linux/oom.h>
 #include <linux/sched.h>
 #include <linux/notifier.h>
-#include <linux/nodemask.h>
-#include <linux/vmstat.h>
 
 static uint32_t lowmem_debug_level = 2;
 static int lowmem_adj[6] = {
@@ -94,15 +92,6 @@ static int lowmem_shrink(struct shrinker *s, int nr_to_scan, gfp_t gfp_mask)
 	int array_size = ARRAY_SIZE(lowmem_adj);
 	int other_free = global_page_state(NR_FREE_PAGES);
 	int other_file = global_page_state(NR_FILE_PAGES);
-	int node;
-
-	for_each_node_state(node, N_HIGH_MEMORY) {
-		struct zone *z =
-			&NODE_DATA(node)->node_zones[ZONE_DMA];
-
-		other_free -= zone_page_state(z, NR_FREE_PAGES);
-		other_file -= zone_page_state(z, NR_FILE_PAGES);
-	}
 
 	/*
 	 * If we already have a death outstanding, then
