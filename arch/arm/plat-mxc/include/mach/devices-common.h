@@ -40,6 +40,7 @@ struct platform_device *__init imx_add_fec(
 
 #include <linux/can/platform/flexcan.h>
 struct imx_flexcan_data {
+	const char *devid;
 	int id;
 	resource_size_t iobase;
 	resource_size_t iosize;
