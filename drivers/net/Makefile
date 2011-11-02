@@ -128,6 +128,15 @@ obj-$(CONFIG_FEC_MPC52xx) += fec_mpc52xx.o
 ifeq ($(CONFIG_FEC_MPC52xx_MDIO),y)
 	obj-$(CONFIG_FEC_MPC52xx) += fec_mpc52xx_phy.o
 endif
+ifeq ($(CONFIG_ARCH_MX28),y)
+	obj-$(CONFIG_FEC_1588) += fec_1588.o
+endif
+ifeq ($(CONFIG_ARCH_MX53),y)
+	obj-$(CONFIG_FEC_1588) += imx_ptp.o
+endif
+ifeq ($(CONFIG_ARCH_MX6),y)
+	obj-$(CONFIG_FEC_1588) += fec_1588.o
+endif
 obj-$(CONFIG_68360_ENET) += 68360enet.o
 obj-$(CONFIG_WD80x3) += wd.o 8390.o
 obj-$(CONFIG_EL2) += 3c503.o 8390p.o
