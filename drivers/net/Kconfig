@@ -1951,6 +1951,29 @@ config FEC
 	  Say Y here if you want to use the built-in 10/100 Fast ethernet
 	  controller on some Motorola ColdFire and Freescale i.MX processors.
 
+config FEC_1588
+	bool "Enable FEC 1588 timestamping"
+	depends on FEC
+
+choice
+	prompt "IEEE 1588 operation mode"
+	depends on (ARCH_MX5 || ARCH_MX6) && FEC_1588
+	default OUT_OF_BAND
+
+config OUT_OF_BAND
+	bool "out-of-band mode"
+	help
+	  IEEE 1588 operation mode is out-of-band, in this mode, the Tx and Rx
+	  timestamp will be caputred into special registers.
+
+config IN_BAND
+	bool "in-band mode"
+	help
+	  IEEE 1588 operation mode is in-band, in this mode, the Tx timestamp
+	  will be captured into special retisters, but the Rx timestamp will be
+	  captured into the first eight bytes of received ethernet packet.
+endchoice
+
 config FEC_MPC52xx
 	tristate "MPC52xx FEC driver"
 	depends on PPC_MPC52xx && PPC_BESTCOMM
