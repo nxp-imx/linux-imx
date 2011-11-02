@@ -36,6 +36,7 @@
 #include <linux/platform_device.h>
 
 #include <mach/clock.h>
+#include <mach/hardware.h>
 
 #define DRV_NAME			"flexcan"
 
@@ -162,8 +163,20 @@ struct flexcan_regs {
 	u32 imask1;		/* 0x28 */
 	u32 iflag2;		/* 0x2c */
 	u32 iflag1;		/* 0x30 */
-	u32 _reserved2[19];
+	u32 crl2;		/* 0x34 */
+	u32 esr2;		/* 0x38 */
+	u32 _reserved2[2];
+	u32 crcr;		/* 0x44 */
+	u32 rxfgmask;		/* 0x48 */
+	u32 rxfir;		/* 0x4c */
+	u32 _reserved3[12];
 	struct flexcan_mb cantxfg[64];
+};
+
+enum flexcan_ip_version {
+	FLEXCAN_VER_3_0_0,
+	FLEXCAN_VER_3_0_4,
+	FLEXCAN_VER_10_0_12,
 };
 
 struct flexcan_priv {
@@ -177,6 +190,7 @@ struct flexcan_priv {
 
 	struct clk *clk;
 	struct flexcan_platform_data *pdata;
+	enum flexcan_ip_version version;
 };
 
 static struct can_bittiming_const flexcan_bittiming_const = {
@@ -723,6 +737,10 @@ static int flexcan_chip_start(struct net_device *dev)
 	writel(0x0, &regs->rx14mask);
 	writel(0x0, &regs->rx15mask);
 
+	/* clear rx fifo global mask */
+	if (priv->version >= FLEXCAN_VER_10_0_12)
+		writel(0x0, &regs->rxfgmask);
+
 	flexcan_transceiver_switch(priv, 1);
 
 	/* synchronize with the can bus */
@@ -896,6 +914,25 @@ static void __devexit unregister_flexcandev(struct net_device *dev)
 	unregister_candev(dev);
 }
 
+static struct platform_device_id flexcan_devtype[] = {
+	{
+		.name = "imx25-flexcan",
+		.driver_data = FLEXCAN_VER_3_0_0,
+	}, {
+		.name = "imx28-flexcan",
+		.driver_data = FLEXCAN_VER_3_0_4,
+	}, {
+		.name = "imx35-flexcan",
+		.driver_data = FLEXCAN_VER_3_0_0,
+	}, {
+		.name = "imx53-flexcan",
+		.driver_data = FLEXCAN_VER_3_0_0,
+	}, {
+		.name = "imx6q-flexcan",
+		.driver_data = FLEXCAN_VER_10_0_12,
+	},
+};
+
 static int __devinit flexcan_probe(struct platform_device *pdev)
 {
 	struct net_device *dev;
@@ -954,6 +991,7 @@ static int __devinit flexcan_probe(struct platform_device *pdev)
 	priv->dev = dev;
 	priv->clk = clk;
 	priv->pdata = pdev->dev.platform_data;
+	priv->version = pdev->id_entry->driver_data;
 
 	netif_napi_add(dev, &priv->napi, flexcan_poll, FLEXCAN_NAPI_WEIGHT);
 
@@ -1006,6 +1044,7 @@ static int __devexit flexcan_remove(struct platform_device *pdev)
 static struct platform_driver flexcan_driver = {
 	.driver.name = DRV_NAME,
 	.probe = flexcan_probe,
+	.id_table = flexcan_devtype,
 	.remove = __devexit_p(flexcan_remove),
 };
 
