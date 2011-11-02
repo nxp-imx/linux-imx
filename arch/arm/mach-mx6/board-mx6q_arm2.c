@@ -252,8 +252,8 @@ static iomux_v3_cfg_t mx6q_arm2_pads[] = {
 
 	MX6Q_PAD_EIM_D24__GPIO_3_24,
 
-	/* ldb: pwm fixme*/
-	MX6Q_PAD_GPIO_9__GPIO_1_9,
+	/* PWM1 */
+	MX6Q_PAD_GPIO_9__PWM1_PWMO,
 
 	/* DISP0 I2C ENABLE*/
 	MX6Q_PAD_EIM_D28__GPIO_3_28,
@@ -877,6 +877,13 @@ static struct imx_ipuv3_platform_data ipu_data[] = {
 	},
 };
 
+static struct platform_pwm_backlight_data mx6_arm2_pwm_backlight_data = {
+	.pwm_id = 0,
+	.max_brightness = 255,
+	.dft_brightness = 128,
+	.pwm_period_ns = 50000,
+};
+
 static void arm2_suspend_enter(void)
 {
 	/* suspend preparation */
@@ -1328,6 +1335,9 @@ static void __init mx6_board_init(void)
 	imx6q_add_gpmi(&mx6q_gpmi_nfc_platform_data);
 
 	imx6q_add_dvfs_core(&arm2_dvfscore_data);
+
+	imx6q_add_mxc_pwm(0);
+	imx6q_add_mxc_pwm_backlight(0, &mx6_arm2_pwm_backlight_data);
 
 	mxc_spdif_data.spdif_core_clk = clk_get_sys("mxc_spdif.0", NULL);
 	clk_put(mxc_spdif_data.spdif_core_clk);
