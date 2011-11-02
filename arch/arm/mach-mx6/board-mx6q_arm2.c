@@ -16,7 +16,6 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-
 #include <linux/types.h>
 #include <linux/sched.h>
 #include <linux/delay.h>
@@ -91,6 +90,15 @@
 #define MX6Q_ARM2_MAX7310_2_BASE_ADDR	IMX_GPIO_NR(8, 8)
 #define MX6Q_ARM2_CAP_TCH_INT	IMX_GPIO_NR(3, 31)
 
+#define MX6Q_ARM2_IO_EXP_GPIO1(x) \
+		(MX6Q_ARM2_MAX7310_1_BASE_ADDR + (x))
+#define MX6Q_ARM2_IO_EXP_GPIO2(x) \
+		(MX6Q_ARM2_MAX7310_2_BASE_ADDR + (x))
+
+#define MX6Q_ARM2_CAN1_STBY       IMX_GPIO_NR(7, 12)
+#define MX6Q_ARM2_CAN1_EN         IMX_GPIO_NR(7, 13)
+#define MX6Q_ARM2_CAN2_STBY       MX6Q_ARM2_IO_EXP_GPIO2(1)
+#define MX6Q_ARM2_CAN2_EN         IMX_GPIO_NR(5, 24)
 
 #define MX6Q_SMD_CSI0_RST		IMX_GPIO_NR(4, 5)
 #define MX6Q_SMD_CSI0_PWN		IMX_GPIO_NR(5, 23)
@@ -279,6 +287,17 @@ static iomux_v3_cfg_t mx6q_arm2_pads[] = {
 	/* SPDIF */
 	MX6Q_PAD_GPIO_16__SPDIF_IN1,
 	MX6Q_PAD_GPIO_17__SPDIF_OUT1,
+
+	/* CAN1 */
+	MX6Q_PAD_GPIO_7__CAN1_TXCAN,
+	MX6Q_PAD_KEY_ROW2__CAN1_RXCAN,
+	MX6Q_PAD_GPIO_17__GPIO_7_12,	/* CAN1 STBY */
+	MX6Q_PAD_GPIO_18__GPIO_7_13,	/* CAN1 EN */
+
+	/* CAN2 */
+	MX6Q_PAD_KEY_COL4__CAN2_TXCAN,
+	MX6Q_PAD_KEY_ROW4__CAN2_RXCAN,
+	MX6Q_PAD_CSI0_DAT6__GPIO_5_24,	/* CAN2 EN */
 };
 
 static iomux_v3_cfg_t mx6q_arm2_esai_record_pads[] = {
@@ -884,6 +903,43 @@ static struct platform_pwm_backlight_data mx6_arm2_pwm_backlight_data = {
 	.pwm_period_ns = 50000,
 };
 
+static struct gpio mx6q_flexcan_gpios[] = {
+	{ MX6Q_ARM2_CAN1_EN, GPIOF_OUT_INIT_LOW, "flexcan1-en" },
+	{ MX6Q_ARM2_CAN1_STBY, GPIOF_OUT_INIT_LOW, "flexcan1-stby" },
+	{ MX6Q_ARM2_CAN2_EN, GPIOF_OUT_INIT_LOW, "flexcan2-en" },
+};
+
+static void mx6q_flexcan0_switch(int enable)
+{
+	if (enable) {
+		gpio_set_value(MX6Q_ARM2_CAN1_EN, 1);
+		gpio_set_value(MX6Q_ARM2_CAN1_STBY, 1);
+	} else {
+		gpio_set_value(MX6Q_ARM2_CAN1_EN, 0);
+		gpio_set_value(MX6Q_ARM2_CAN1_STBY, 0);
+	}
+}
+
+static void mx6q_flexcan1_switch(int enable)
+{
+	if (enable) {
+		gpio_set_value(MX6Q_ARM2_CAN2_EN, 1);
+		gpio_set_value(MX6Q_ARM2_CAN2_STBY, 1);
+	} else {
+		gpio_set_value(MX6Q_ARM2_CAN2_EN, 0);
+		gpio_set_value(MX6Q_ARM2_CAN2_STBY, 0);
+	}
+}
+
+static const struct flexcan_platform_data
+		mx6q_arm2_flexcan_pdata[] __initconst = {
+	{
+		.transceiver_switch = mx6q_flexcan0_switch,
+	}, {
+		.transceiver_switch = mx6q_flexcan1_switch,
+	}
+};
+
 static void arm2_suspend_enter(void)
 {
 	/* suspend preparation */
@@ -1250,6 +1306,7 @@ static struct mxc_spdif_platform_data mxc_spdif_data = {
 static void __init mx6_board_init(void)
 {
 	int i;
+	int ret;
 
 	mxc_iomux_v3_setup_multiple_pads(mx6q_arm2_pads,
 					ARRAY_SIZE(mx6q_arm2_pads));
@@ -1347,6 +1404,15 @@ static void __init mx6_board_init(void)
 
 	imx6q_add_hdmi_soc();
 	imx6q_add_hdmi_soc_dai();
+
+	ret = gpio_request_array(mx6q_flexcan_gpios,
+			ARRAY_SIZE(mx6q_flexcan_gpios));
+	if (ret) {
+		pr_err("failed to request flexcan-gpios: %d\n", ret);
+	} else {
+		imx6q_add_flexcan0(&mx6q_arm2_flexcan_pdata[0]);
+		imx6q_add_flexcan1(&mx6q_arm2_flexcan_pdata[1]);
+	}
 }
 
 extern void __iomem *twd_base;
