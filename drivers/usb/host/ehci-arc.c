@@ -283,6 +283,14 @@ int usb_hcd_fsl_probe(const struct hc_driver *driver,
 
 	fsl_platform_set_ahb_burst(hcd);
 	ehci_testmode_init(hcd_to_ehci(hcd));
+	/*
+	 * Only for HSIC host controller, let HSCI controller
+	 * connect with device, call it after EHCI initialization
+	 * finishes.
+	 */
+	if (pdata->hsic_post_ops)
+		pdata->hsic_post_ops();
+
 	ehci = hcd_to_ehci(hcd);
 	pdata->pm_command = ehci->command;
 	return retval;
@@ -378,6 +386,10 @@ static void fsl_setup_phy(struct ehci_hcd *ehci,
 		/* fall through */
 	case FSL_USB2_PHY_UTMI:
 		portsc |= PORT_PTS_UTMI;
+		break;
+		/* HSIC */
+	case FSL_USB2_PHY_HSIC:
+		portsc |= PORT_PTS_HSIC;
 		break;
 	case FSL_USB2_PHY_NONE:
 		break;
