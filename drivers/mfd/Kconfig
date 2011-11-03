@@ -785,7 +785,7 @@ config TPS65911_COMPARATOR
 	tristate
 
 config MFD_MAX17135
-    tristate "MAX17135 PMIC core"
+    tristate "Maxim MAX17135 EPD PMIC core"
 	depends on I2C
     help
       This is the MAX17135 PMIC support. It includes

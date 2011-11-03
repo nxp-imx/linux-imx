@@ -354,6 +354,33 @@ static int max17135_display_is_enabled(struct regulator_dev *reg)
 		return 1;
 }
 
+static int max17135_v3p3_enable(struct regulator_dev *reg)
+{
+	struct max17135 *max17135 = rdev_get_drvdata(reg);
+
+	gpio_set_value(max17135->gpio_pmic_v3p3, 1);
+	return 0;
+}
+
+static int max17135_v3p3_disable(struct regulator_dev *reg)
+{
+	struct max17135 *max17135 = rdev_get_drvdata(reg);
+
+	gpio_set_value(max17135->gpio_pmic_v3p3, 0);
+	return 0;
+}
+
+static int max17135_v3p3_is_enabled(struct regulator_dev *reg)
+{
+	struct max17135 *max17135 = rdev_get_drvdata(reg);
+	int gpio = gpio_get_value(max17135->gpio_pmic_v3p3);
+
+	if (gpio == 0)
+		return 0;
+	else
+		return 1;
+}
+
 /*
  * Regulator operations
  */
@@ -393,6 +420,13 @@ static struct regulator_ops max17135_vneg_ops = {
 
 static struct regulator_ops max17135_vpos_ops = {
 };
+
+static struct regulator_ops max17135_v3p3_ops = {
+	.enable = max17135_v3p3_enable,
+	.disable = max17135_v3p3_disable,
+	.is_enabled = max17135_v3p3_is_enabled,
+};
+
 
 /*
  * Regulator descriptors
@@ -451,6 +485,13 @@ static struct regulator_desc max17135_reg[MAX17135_NUM_REGULATORS] = {
 	.name = "VPOS",
 	.id = MAX17135_VPOS,
 	.ops = &max17135_vpos_ops,
+	.type = REGULATOR_VOLTAGE,
+	.owner = THIS_MODULE,
+},
+{
+	.name = "V3P3",
+	.id = MAX17135_V3P3,
+	.ops = &max17135_v3p3_ops,
 	.type = REGULATOR_VOLTAGE,
 	.owner = THIS_MODULE,
 },
