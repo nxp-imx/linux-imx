@@ -180,6 +180,11 @@ typedef struct _gcsTASK_SIGNAL
 
     /* Signal handle to signal. */
     IN gctSIGNAL                signal;
+
+#if defined(__QNXNTO__)
+    IN gctINT32                 coid;
+    IN gctINT32                 rcvid;
+#endif
 }
 gcsTASK_SIGNAL;
 

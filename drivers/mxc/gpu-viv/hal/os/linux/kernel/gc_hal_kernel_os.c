@@ -66,6 +66,10 @@ const char * _PLATFORM = "\n\0$PLATFORM$Linux$\n";
 #define MEMORY_MAP_UNLOCK(os) \
     gcmkVERIFY_OK(gckOS_ReleaseMutex((os), (os)->memoryMapLock))
 
+/* Protection bit when mapping memroy to user sapce */
+#define gcmkPAGED_MEMROY_PROT(x) pgprot_noncached(x)
+#define gcmkNONPAGED_MEMROY_PROT(x) pgprot_writecombine(x)
+
 #define gcdINFINITE_TIMEOUT     (60 * 1000)
 #define gcdDETECT_TIMEOUT       0
 #define gcdDETECT_DMA_ADDRESS   1
@@ -443,7 +447,7 @@ _DumpGPUState(
         gcmkONERROR(_DumpDebugRegisters(Os, &_dbgRegs[i]));
     }
 
-    if (kernel->hardware->chipFeatures & (1 << 4))
+    if (kernel->hardware->identity.chipFeatures & (1 << 4))
     {
         gctUINT32 read0, read1, write;
 
@@ -1212,7 +1216,7 @@ gckOS_MapMemory(
         }
 #else
 #if !gcdPAGED_MEMORY_CACHEABLE
-        mdlMap->vma->vm_page_prot = pgprot_noncached(mdlMap->vma->vm_page_prot);
+        mdlMap->vma->vm_page_prot = gcmkPAGED_MEMROY_PROT(mdlMap->vma->vm_page_prot);
         mdlMap->vma->vm_flags |= VM_IO | VM_DONTCOPY | VM_DONTEXPAND | VM_RESERVED;
 #   endif
         mdlMap->vma->vm_pgoff = 0;
@@ -1610,7 +1614,7 @@ gckOS_AllocateNonPagedMemory(
             gcmkONERROR(gcvSTATUS_OUT_OF_RESOURCES);
         }
 #else
-        mdlMap->vma->vm_page_prot = pgprot_noncached(mdlMap->vma->vm_page_prot);
+        mdlMap->vma->vm_page_prot = gcmkNONPAGED_MEMROY_PROT(mdlMap->vma->vm_page_prot);
         mdlMap->vma->vm_flags |= VM_IO | VM_DONTCOPY | VM_DONTEXPAND | VM_RESERVED;
         mdlMap->vma->vm_pgoff = 0;
 
@@ -2819,6 +2823,84 @@ gckOS_AtomicExchangePtr(
     return gcvSTATUS_OK;
 }
 
+#if gcdSMP
+/*******************************************************************************
+**
+**  gckOS_AtomicSetMask
+**
+**  Atomically set mask to Atom
+**
+**  INPUT:
+**      IN OUT gctPOINTER Atom
+**          Pointer to the atom to set.
+**
+**      IN gctUINT32 Mask
+**          Mask to set.
+**
+**  OUTPUT:
+**
+**      Nothing.
+*/
+gceSTATUS
+gckOS_AtomSetMask(
+    IN gctPOINTER Atom,
+    IN gctUINT32 Mask
+    )
+{
+    gctUINT32 oval, nval;
+
+    gcmkHEADER_ARG("Atom=0x%0x", Atom);
+    gcmkVERIFY_ARGUMENT(Atom != gcvNULL);
+
+    do
+    {
+        oval = atomic_read((atomic_t *) Atom);
+        nval = oval | Mask;
+    } while (atomic_cmpxchg((atomic_t *) Atom, oval, nval) != oval);
+
+    gcmkFOOTER_NO();
+    return gcvSTATUS_OK;
+}
+
+/*******************************************************************************
+**
+**  gckOS_AtomClearMask
+**
+**  Atomically clear mask from Atom
+**
+**  INPUT:
+**      IN OUT gctPOINTER Atom
+**          Pointer to the atom to clear.
+**
+**      IN gctUINT32 Mask
+**          Mask to clear.
+**
+**  OUTPUT:
+**
+**      Nothing.
+*/
+gceSTATUS
+gckOS_AtomClearMask(
+    IN gctPOINTER Atom,
+    IN gctUINT32 Mask
+    )
+{
+    gctUINT32 oval, nval;
+
+    gcmkHEADER_ARG("Atom=0x%0x", Atom);
+    gcmkVERIFY_ARGUMENT(Atom != gcvNULL);
+
+    do
+    {
+        oval = atomic_read((atomic_t *) Atom);
+        nval = oval & ~Mask;
+    } while (atomic_cmpxchg((atomic_t *) Atom, oval, nval) != oval);
+
+    gcmkFOOTER_NO();
+    return gcvSTATUS_OK;
+}
+#endif
+
 /*******************************************************************************
 **
 **  gckOS_AtomConstruct
@@ -3397,7 +3479,15 @@ gckOS_AllocatePagedMemoryEx(
         }
 
         SetPageReserved(page);
-        flush_dcache_page(page);
+
+        if (page_to_phys(page))
+        {
+            gcmkVERIFY_OK(
+                gckOS_CacheFlush(Os, _GetProcessID(), gcvNULL,
+                                (gctPOINTER)page_to_phys(page),
+                                 addr + i * PAGE_SIZE,
+                                 PAGE_SIZE));
+        }
     }
 
     /* Return physical address. */
@@ -3677,7 +3767,7 @@ gckOS_LockPages(
         if (Cacheable == gcvFALSE)
         {
             /* Make this mapping non-cached. */
-            mdlMap->vma->vm_page_prot = pgprot_noncached(mdlMap->vma->vm_page_prot);
+            mdlMap->vma->vm_page_prot = gcmkPAGED_MEMROY_PROT(mdlMap->vma->vm_page_prot);
         }
 #endif
         addr = mdl->addr;
@@ -5352,6 +5442,32 @@ gckOS_ZeroMemory(
 ********************************* Cache Control ********************************
 *******************************************************************************/
 
+#if !gcdCACHE_FUNCTION_UNIMPLEMENTED && defined(CONFIG_OUTER_CACHE)
+static inline gceSTATUS
+outer_func(
+    gceCACHEOPERATION Type,
+    unsigned long Start,
+    unsigned long End
+    )
+{
+    switch (Type)
+    {
+        case gcvCACHE_CLEAN:
+            outer_clean_range(Start, End);
+            break;
+        case gcvCACHE_INVALIDATE:
+            outer_inv_range(Start, End);
+            break;
+        case gcvCACHE_FLUSH:
+            outer_flush_range(Start, End);
+            break;
+        default:
+            return gcvSTATUS_INVALID_ARGUMENT;
+            break;
+    }
+    return gcvSTATUS_OK;
+}
+
 /*******************************************************************************
 **  _HandleOuterCache
 **
@@ -5380,32 +5496,6 @@ gckOS_ZeroMemory(
 **      gceOUTERCACHE_OPERATION Type
 **          Operation need to be execute.
 */
-#if !gcdCACHE_FUNCTION_UNIMPLEMENTED && defined(CONFIG_OUTER_CACHE)
-static inline gceSTATUS
-outer_func(
-    gceCACHEOPERATION Type,
-    unsigned long Start,
-    unsigned long End
-    )
-{
-    switch (Type)
-    {
-        case gcvCACHE_CLEAN:
-            outer_clean_range(Start, End);
-            break;
-        case gcvCACHE_INVALIDATE:
-            outer_inv_range(Start, End);
-            break;
-        case gcvCACHE_FLUSH:
-            outer_flush_range(Start, End);
-            break;
-        default:
-            return gcvSTATUS_INVALID_ARGUMENT;
-            break;
-    }
-    return gcvSTATUS_OK;
-}
-
 static gceSTATUS
 _HandleOuterCache(
     IN gckOS Os,

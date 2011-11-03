@@ -34,6 +34,8 @@
     static struct dove_gpio_irq_handler gc500_handle;
 #endif
 
+#define gcmIS_CORE_PRESENT(Device, Core) (Device->irqLines[Core] > 0)
+
 /******************************************************************************\
 *************************** Memory Allocation Wrappers *************************
 \******************************************************************************/
@@ -777,18 +779,21 @@ gckGALDEVICE_Construct(
                 device->requestedContiguousBase  = ContiguousBase;
                 device->requestedContiguousSize  = ContiguousSize;
 
-                device->contiguousBase
-#if gcdPAGED_MEMORY_CACHEABLE
-                    = (gctPOINTER) ioremap_cached(ContiguousBase, ContiguousSize);
-#else
-                    = (gctPOINTER) ioremap_nocache(ContiguousBase, ContiguousSize);
-#endif
-                if (device->contiguousBase == gcvNULL)
+                if (gcmIS_CORE_PRESENT(device, gcvCORE_VG))
                 {
-                    device->contiguousVidMem = gcvNULL;
-                    device->contiguousSize = 0;
+                    device->contiguousBase
+#if gcdPAGED_MEMORY_CACHEABLE
+                        = (gctPOINTER) ioremap_cached(ContiguousBase, ContiguousSize);
+#else
+                        = (gctPOINTER) ioremap_nocache(ContiguousBase, ContiguousSize);
+#endif
+                    if (device->contiguousBase == gcvNULL)
+                    {
+                        device->contiguousVidMem = gcvNULL;
+                        device->contiguousSize = 0;
 
-                    gcmkONERROR(gcvSTATUS_OUT_OF_RESOURCES);
+                        gcmkONERROR(gcvSTATUS_OUT_OF_RESOURCES);
+                    }
                 }
 
                 device->contiguousPhysical = (gctPHYS_ADDR) ContiguousBase;
@@ -900,13 +905,13 @@ gckGALDEVICE_Destroy(
                         ));
                 }
 
-				if (Device->requestedContiguousBase != 0)
-				{
-					release_mem_region(Device->requestedContiguousBase, Device->requestedContiguousSize);
-				}
-
                 Device->contiguousBase     = gcvNULL;
                 Device->contiguousPhysical = gcvNULL;
+            }
+
+            if (Device->requestedContiguousBase != 0)
+            {
+                release_mem_region(Device->requestedContiguousBase, Device->requestedContiguousSize);
                 Device->requestedContiguousBase = 0;
                 Device->requestedContiguousSize = 0;
             }
@@ -1563,6 +1568,13 @@ gckGALDEVICE_Stop(
     {
         /* Setup the ISR routine. */
         gcmkONERROR(gckGALDEVICE_Release_ISR_VG(Device));
+
+#if gcdENABLE_VG
+        /* Switch to OFF power state. */
+        gcmkONERROR(gckVGHARDWARE_SetPowerManagementState(
+            Device->kernels[gcvCORE_VG]->vg->hardware, gcvPOWER_OFF
+            ));
+#endif
     }
 
     /* Stop the kernel thread. */

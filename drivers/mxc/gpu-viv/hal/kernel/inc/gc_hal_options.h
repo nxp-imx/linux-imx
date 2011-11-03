@@ -471,7 +471,14 @@
    gcdPAGED_MEMORY_CACHEABLE
 
         When non-zero, paged memory will be cacheable.
- */
+
+        Normally, driver will detemines whether a video memory
+        is cacheable or not. When cacheable is not neccessary,
+        it will be writecombine.
+
+        This option is only for those SOC which can't enable
+        writecombine without enabling cacheable.
+*/
 
 #ifndef gcdPAGED_MEMORY_CACHEABLE
 #   define gcdPAGED_MEMORY_CACHEABLE            0
@@ -481,7 +488,7 @@
    gcdNONPAGED_MEMORY_CACHEABLE
 
         When non-zero, non paged memory will be cacheable.
- */
+*/
 
 #ifndef gcdNONPAGED_MEMORY_CACHEABLE
 #   define gcdNONPAGED_MEMORY_CACHEABLE         0
@@ -493,7 +500,7 @@
         When non-zero, non paged memory will be bufferable.
         gcdNONPAGED_MEMORY_BUFFERABLE and gcdNONPAGED_MEMORY_CACHEABLE
         can't be set 1 at same time
- */
+*/
 
 #ifndef gcdNONPAGED_MEMORY_BUFFERABLE
 #   define gcdNONPAGED_MEMORY_BUFFERABLE        1
@@ -540,8 +547,9 @@
 /*
     gcdPOWEROFF_TIMEOUT
 
-        When non-zero, GPU will power off automatically after idle
-        state lasting for gcdPOWEROFF_TIMEOUT milliseconds.
+        When non-zero, GPU will power off automatically from
+        idle state, and gcdPOWEROFF_TIMEOUT is also the default
+        timeout value.
  */
 
 #ifndef gcdPOWEROFF_TIMEOUT
@@ -569,6 +577,63 @@
 */
 #ifndef gcdENABLE_RECOVERY
 #   define gcdENABLE_RECOVERY                   0
+#endif
+
+/*
+    gcdRENDER_THREADS
+
+        Number of render threads. Make it zero, and there will be no render
+        threads.
+*/
+#ifndef gcdRENDER_THREADS
+#   define gcdRENDER_THREADS                    0
+#endif
+
+/*
+    gcdSMP
+
+        This define enables SMP support.
+
+        Currently, it only works on Linux/Android,
+        Kbuild will config it according to whether
+        CONFIG_SMP is set.
+
+*/
+#ifndef gcdSMP
+#   define gcdSMP                               0
+#endif
+
+/*
+    gcdSUPPORT_SWAP_RECTANGLE
+
+        Support swap with a specific rectangle.
+
+        Set the rectangle with eglSetSwapRectangleANDROID api.
+*/
+#ifndef gcdSUPPORT_SWAP_RECTANGLE
+#   define gcdSUPPORT_SWAP_RECTANGLE            0
+#endif
+
+/*
+    gcdDEFER_RESOLVES
+
+        Support deferred resolves for 3D apps.
+*/
+#ifndef gcdDEFER_RESOLVES
+#   define gcdDEFER_RESOLVES                    0
+#endif
+
+/*
+    gcdSYNC_CPU_APP_WITH_COMPOSITOR
+
+        Synchronize access to a linear buffer between CPU app and compositor (i.e. GPU - 2D, 3D or CE).
+*/
+#ifndef gcdSYNC_CPU_APP_WITH_COMPOSITOR
+#   define gcdSYNC_CPU_APP_WITH_COMPOSITOR      0
+#endif
+
+#ifndef gcdUSE_TRIANGLE_STRIP_PATCH
+#   define gcdUSE_TRIANGLE_STRIP_PATCH			1
 #endif
 
 #endif /* __gc_hal_options_h_ */
