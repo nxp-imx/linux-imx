@@ -30,8 +30,12 @@ extern void gpio_usbotg_utmi_inactive(void);
 
 extern void __init mx6_usb_dr_init(void);
 extern void __init mx6_usb_h1_init(void);
+extern void __init mx6_usb_h2_init(void);
+extern void __init mx6_usb_h3_init(void);
 
 typedef void (*driver_vbus_func)(bool);
+extern void mx6_set_host3_vbus_func(driver_vbus_func);
+extern void mx6_set_host2_vbus_func(driver_vbus_func);
 extern void mx6_set_host1_vbus_func(driver_vbus_func);
 extern void mx6_set_otghost_vbus_func(driver_vbus_func);
 extern struct platform_device anatop_thermal_device;

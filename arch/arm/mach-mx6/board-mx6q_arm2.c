@@ -120,8 +120,17 @@ static iomux_v3_cfg_t mx6q_arm2_pads[] = {
 	/* UART4 for debug */
 	MX6Q_PAD_KEY_COL0__UART4_TXD,
 	MX6Q_PAD_KEY_ROW0__UART4_RXD,
+	/* USB HSIC ports use the same pin with ENET */
+#ifdef CONFIG_USB_EHCI_ARC_HSIC
+	/* USB H2 strobe/data pin */
+	MX6Q_PAD_RGMII_TX_CTL__USBOH3_H2_STROBE,
+	MX6Q_PAD_RGMII_TXC__USBOH3_H2_DATA,
 
+	/* USB H3 strobe/data pin */
+	MX6Q_PAD_RGMII_RXC__USBOH3_H3_STROBE,
+	MX6Q_PAD_RGMII_RX_CTL__USBOH3_H3_DATA,
 	/* ENET */
+#else
 	MX6Q_PAD_KEY_COL1__ENET_MDIO,
 	MX6Q_PAD_KEY_COL2__ENET_MDC,
 	MX6Q_PAD_RGMII_TXC__ENET_RGMII_TXC,
@@ -137,6 +146,7 @@ static iomux_v3_cfg_t mx6q_arm2_pads[] = {
 	MX6Q_PAD_RGMII_RD2__ENET_RGMII_RD2,
 	MX6Q_PAD_RGMII_RD3__ENET_RGMII_RD3,
 	MX6Q_PAD_RGMII_RX_CTL__ENET_RGMII_RX_CTL,
+#endif
 	/* MCLK for csi0 */
 	MX6Q_PAD_GPIO_0__CCM_CLKO,
 	MX6Q_PAD_GPIO_3__CCM_CLKO2,
@@ -709,7 +719,12 @@ static void __init imx6q_arm2_init_usb(void)
 	mx6_set_otghost_vbus_func(imx6q_arm2_usbotg_vbus);
 	mx6_usb_dr_init();
 	mx6_usb_h1_init();
+#ifdef CONFIG_USB_EHCI_ARC_HSIC
+	mx6_usb_h2_init();
+	mx6_usb_h3_init();
+#endif
 }
+
 static struct viv_gpu_platform_data imx6q_gpu_pdata __initdata = {
 	.reserved_mem_size = SZ_128M,
 };
