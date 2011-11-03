@@ -324,16 +324,31 @@ gcoSURF_Resolve(
     IN gcoSURF DestSurface
     );
 
-/* Export the render target */
+/* Export the render target. */
 gceSTATUS
 gcoSURF_ExportRenderTarget(
     IN gcoSURF SrcSurface
 );
 
-/* Import the render target */
+/* Export render target by given key. */
+gceSTATUS
+gcoSURF_ExportRenderTargetByKey(
+    IN gcoSURF Key,
+    IN gcoSURF SrcSurface
+);
+
+/* Import the render target. */
 gceSTATUS
 gcoSURF_ImportRenderTarget(
     IN gctUINT32 Pid,
+    IN gcoSURF SrcSurface
+);
+
+/* Import the render target by given key. */
+gceSTATUS
+gcoSURF_ImportRenderTargetByKey(
+    IN gctUINT32 Pid,
+    IN gcoSURF Key,
     IN gcoSURF SrcSurface
 );
 
@@ -350,7 +365,8 @@ gcoSURF_PrepareRemoteResolveRect(
 gceSTATUS
 gcoSURF_RemoteResolveRect(
     IN gcoSURF SrcSurface,
-    IN gcoSURF DestSurface
+    IN gcoSURF DestSurface,
+    IN gctBOOL *resolveDiscarded
     );
 
 /*
@@ -1759,12 +1775,14 @@ typedef struct _gcsCOMPOSITION
     /* Layer to be composed. */
     gcoSURF                         layer;
 
-    /* Rotation angle. */
-    gceSURF_ROTATION                rotation;
-
     /* Source and target coordinates. */
     gcsRECT                         srcRect;
     gcsRECT                         trgRect;
+
+    /* Target rectangle */
+    gcsPOINT                        v0;
+    gcsPOINT                        v1;
+    gcsPOINT                        v2;
 
     /* Blending parameters. */
     gctBOOL                         enableBlending;

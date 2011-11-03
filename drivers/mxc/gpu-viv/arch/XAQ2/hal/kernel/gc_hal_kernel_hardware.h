@@ -48,28 +48,11 @@ struct _gckHARDWARE
     gceCORE                     core;
 
     /* Chip characteristics. */
-    gceCHIPMODEL                chipModel;
-    gctUINT32                   chipRevision;
-    gctUINT32                   chipFeatures;
-    gctUINT32                   chipMinorFeatures0;
-    gctUINT32                   chipMinorFeatures1;
-    gctUINT32                   chipMinorFeatures2;
-    gctUINT32                   chipMinorFeatures3;
+    gcsHAL_QUERY_CHIP_IDENTITY  identity;
     gctBOOL                     allowFastClear;
     gctBOOL                     allowCompression;
     gctUINT32                   powerBaseAddress;
     gctBOOL                     extraEventStates;
-
-    gctUINT32                   pixelPipes;
-    gctUINT32                   streamCount;
-    gctUINT32                   registerMax;
-    gctUINT32                   threadCount;
-    gctUINT32                   shaderCoreCount;
-    gctUINT32                   vertexCacheSize;
-    gctUINT32                   vertexOutputBufferSize;
-    gctUINT32                   instructionCount;
-    gctUINT32                   numConstants;
-    gctUINT32                   bufferSize;
 
     /* Big endian */
     gctBOOL                     bigEndian;
@@ -96,6 +79,7 @@ struct _gckHARDWARE
 #if gcdPOWEROFF_TIMEOUT
     gctUINT32                   powerOffTime;
     gctPOINTER                  powerOffSema;
+    gctUINT32                   powerOffTimeout;
 #endif
 };
 

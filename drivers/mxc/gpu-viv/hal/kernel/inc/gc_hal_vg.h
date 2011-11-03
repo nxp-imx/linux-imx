@@ -47,6 +47,10 @@ extern "C" {
     typedef gctUINT             gctTHREADFUNCRESULT;
     typedef gctPOINTER          gctTHREADFUNCPARAMETER;
 #   define  gctTHREADFUNCTYPE   __stdcall
+#elif defined(__QNXNTO__)
+    typedef void *              gctTHREADFUNCRESULT;
+    typedef gctPOINTER          gctTHREADFUNCPARAMETER;
+#   define  gctTHREADFUNCTYPE
 #endif
 
 typedef gctTHREADFUNCRESULT (gctTHREADFUNCTYPE * gctTHREADFUNC) (
@@ -517,7 +521,36 @@ gckVGHARDWARE_ReadInterrupt(
     OUT gctUINT32_PTR IDs
     );
 
+/* Power management. */
+gceSTATUS
+gckVGHARDWARE_SetPowerManagementState(
+    IN gckVGHARDWARE Hardware,
+    IN gceCHIPPOWERSTATE State
+    );
 
+gceSTATUS
+gckVGHARDWARE_QueryPowerManagementState(
+    IN gckVGHARDWARE Hardware,
+    OUT gceCHIPPOWERSTATE* State
+    );
+
+gceSTATUS
+gckVGHARDWARE_SetPowerOffTimeout(
+    IN gckVGHARDWARE  Hardware,
+    IN gctUINT32    Timeout
+    );
+
+gceSTATUS
+gckVGHARDWARE_QueryPowerOffTimeout(
+    IN gckVGHARDWARE  Hardware,
+    OUT gctUINT32*  Timeout
+    );
+
+gceSTATUS
+gckVGHARDWARE_QueryIdle(
+    IN gckVGHARDWARE Hardware,
+    OUT gctBOOL_PTR IsIdle
+    );
 /******************************************************************************\
 *************************** Command Buffer Structures **************************
 \******************************************************************************/
@@ -623,6 +656,11 @@ typedef struct _gcsVGCONTEXT
     /* Completion signal. */
     gctHANDLE                   process;
     gctSIGNAL                   signal;
+
+#if defined(__QNXNTO__)
+    gctINT32                    coid;
+    gctINT32                    rcvid;
+#endif
 }
 gcsVGCONTEXT;
 

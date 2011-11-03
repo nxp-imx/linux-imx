@@ -30,7 +30,11 @@
 
 static gceSTATUS _lastError  = gcvSTATUS_OK;
 static gctUINT32 _debugLevel = gcvLEVEL_ERROR;
-static gctUINT32 _debugZones = gcvZONE_ALL;
+/*
+_debugZones config value
+Please Reference define in gc_hal_base.h
+*/
+static gctUINT32 _debugZones = gcvZONE_NONE;
 
 /******************************************************************************\
 ********************************* Debug Switches *******************************
