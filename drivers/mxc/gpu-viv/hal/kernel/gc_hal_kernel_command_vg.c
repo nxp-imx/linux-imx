@@ -1113,6 +1113,23 @@ _EventHandler_BusError(
     return gcvSTATUS_OK;
 }
 
+#if gcdPOWER_MANAGEMENT
+/******************************************************************************\
+****************************** Power Stall Handler *******************************
+\******************************************************************************/
+
+static gceSTATUS
+_EventHandler_PowerStall(
+    IN gckVGKERNEL Kernel
+    )
+{
+    /* Signal. */
+    return gckOS_Signal(
+        Kernel->os,
+        Kernel->command->powerStallSignal,
+        gcvTRUE);
+}
+#endif
 
 /******************************************************************************\
 ******************************** Task Routines *********************************
@@ -1378,10 +1395,18 @@ _TaskSignal(
         /* Cast the task pointer. */
         gcsTASK_SIGNAL_PTR task = (gcsTASK_SIGNAL_PTR) TaskHeader->task;
 
+
         /* Map the signal into kernel space. */
+#ifdef __QNXNTO__
+        gcmkERR_BREAK(gckOS_UserSignal(
+            Command->os, task->signal, task->rcvid, task->coid
+            ));
+#else
         gcmkERR_BREAK(gckOS_UserSignal(
             Command->os, task->signal, task->process
             ));
+#endif /* __QNXNTO__ */
+
         /* Update the reference counter. */
         TaskHeader->container->referenceCount -= 1;
 
@@ -1734,6 +1759,7 @@ gcmDECLARE_INTERRUPT_HANDLER(COMMAND, 0)
     /* Verify the arguments. */
     gcmkVERIFY_OBJECT(Kernel, gcvOBJ_KERNEL);
 
+
     do
     {
         gckVGCOMMAND command;
@@ -1857,6 +1883,15 @@ gcmDECLARE_INTERRUPT_HANDLER(COMMAND, 0)
                             );
                     }
                 }
+#if gcdPOWER_MANAGEMENT
+                else
+                {
+
+                    status = gckVGHARDWARE_SetPowerManagementState(
+                                Kernel->command->hardware, gcvPOWER_IDLE_BROADCAST
+                                );
+                }
+#endif
 
                 /* Break out of the loop. */
                 break;
@@ -1870,6 +1905,7 @@ gcmDECLARE_INTERRUPT_HANDLER(COMMAND, 0)
             ));
     }
     while (gcvFALSE);
+
 
     gcmkFOOTER();
     /* Return status. */
@@ -2590,10 +2626,10 @@ _UnlockCurrentQueue(
 }
 
 
+
 /******************************************************************************\
 ****************************** gckVGCOMMAND API Code *****************************
 \******************************************************************************/
-
 gceSTATUS
 gckVGCOMMAND_Construct(
     IN gckVGKERNEL Kernel,
@@ -2641,6 +2677,10 @@ gckVGCOMMAND_Construct(
         command->taskMutex   = gcvNULL;
         command->commitMutex = gcvNULL;
 
+        command->powerStallBuffer   = gcvNULL;
+        command->powerStallSignal   = gcvNULL;
+        command->powerSemaphore     = gcvNULL;
+
         /* Reset context states. */
         command->contextCounter = 0;
         command->currentContext = 0;
@@ -2666,6 +2706,12 @@ gckVGCOMMAND_Construct(
         gcmkERR_BREAK(gckOS_CreateMutex(Kernel->os, &command->taskMutex));
         gcmkERR_BREAK(gckOS_CreateMutex(Kernel->os, &command->commitMutex));
 
+        /* Create the power management semaphore. */
+        gcmkERR_BREAK(gckOS_CreateSemaphore(Kernel->os,
+            &command->powerSemaphore));
+
+        gcmkERR_BREAK(gckOS_CreateSignal(Kernel->os,
+            gcvFALSE, &command->powerStallSignal));
 
         /***********************************************************************
         ** Command queue initialization.
@@ -2720,6 +2766,15 @@ gckVGCOMMAND_Construct(
             _EventHandler_BusError
             ));
 
+#if gcdPOWER_MANAGEMENT
+        command->powerStallInt = 30;
+        /* Enable the interrupt. */
+        gcmkERR_BREAK(gckVGINTERRUPT_Enable(
+            Kernel->interrupt,
+            &command->powerStallInt,
+            _EventHandler_PowerStall
+            ));
+#endif
 
         /***********************************************************************
         ** Task management initialization.
@@ -2870,6 +2925,20 @@ gckVGCOMMAND_Construct(
                 ));
         }
 
+        if (command->powerSemaphore != gcvNULL)
+        {
+            gcmkVERIFY_OK(gckOS_DestroySemaphore(
+                Kernel->os, command->powerSemaphore));
+        }
+
+        if (command->powerStallSignal != gcvNULL)
+        {
+            /* Create the power management semaphore. */
+            gcmkVERIFY_OK(gckOS_DestroySignal(
+                Kernel->os,
+                command->powerStallSignal));
+        }
+
         /* Free the gckVGCOMMAND structure. */
         gcmkCHECK_STATUS(gckOS_Free(
             Kernel->os, command
@@ -2999,6 +3068,21 @@ gckVGCOMMAND_Destroy(
             Command->queueMutex = gcvNULL;
         }
 
+        if (Command->powerSemaphore != gcvNULL)
+        {
+            /* Destroy the power management semaphore. */
+            gcmkERR_BREAK(gckOS_DestroySemaphore(
+                Command->os, Command->powerSemaphore));
+        }
+
+        if (Command->powerStallSignal != gcvNULL)
+        {
+            /* Create the power management semaphore. */
+            gcmkERR_BREAK(gckOS_DestroySignal(
+                Command->os,
+                Command->powerStallSignal));
+        }
+
         if (Command->queue != gcvNULL)
         {
             /* Delete the command queue. */
@@ -3091,7 +3175,7 @@ gckVGCOMMAND_Allocate(
         gcmkERR_BREAK(_AllocateCommandBuffer(Command, Size, CommandBuffer));
 
         /* Determine the data pointer. */
-        * Data = (gctUINT8_PTR) CommandBuffer + (* CommandBuffer)->bufferOffset;
+        * Data = (gctUINT8_PTR) (*CommandBuffer) + (* CommandBuffer)->bufferOffset;
     }
     while (gcvFALSE);
 
@@ -3246,6 +3330,35 @@ gckVGCOMMAND_Commit(
             gcvINFINITE
             ));
 
+#if gcdPOWER_MANAGEMENT
+        status = gckVGHARDWARE_SetPowerManagementState(
+            Command->hardware, gcvPOWER_ON_AUTO);
+
+        if (gcmIS_ERROR(status))
+        {
+            /* Acquire the mutex. */
+            gcmkVERIFY_OK(gckOS_ReleaseMutex(
+                Command->os,
+                Command->commitMutex
+                ));
+
+            break;
+        }
+            /* Acquire the power semaphore. */
+        status = gckOS_AcquireSemaphore(
+            Command->os, Command->powerSemaphore);
+
+        if (gcmIS_ERROR(status))
+        {
+            /* Acquire the mutex. */
+            gcmkVERIFY_OK(gckOS_ReleaseMutex(
+                Command->os,
+                Command->commitMutex
+                ));
+
+            break;
+        }
+#endif
         do
         {
             /* Assign a context ID if not yet assigned. */
@@ -3273,9 +3386,17 @@ gckVGCOMMAND_Commit(
                 Queue      += 1;
 
                 /* Set the signal to avoid user waiting. */
+#ifdef __QNXNTO__
+                gcmkERR_BREAK(gckOS_UserSignal(
+                    Command->os, Context->signal, Context->rcvid, Context->coid
+                    ));
+#else
                 gcmkERR_BREAK(gckOS_UserSignal(
                     Command->os, Context->signal, Context->process
                     ));
+
+#endif /* __QNXNTO__ */
+
             }
             else
             {
@@ -3453,6 +3574,7 @@ gckVGCOMMAND_Commit(
                     ));
             }
 
+
             /* Unmap the user command buffer. */
             gcmkERR_BREAK(gckOS_UnmapUserPointer(
                 Command->os,
@@ -3463,6 +3585,10 @@ gckVGCOMMAND_Commit(
         }
         while (gcvFALSE);
 
+#if gcdPOWER_MANAGEMENT
+        gcmkVERIFY_OK(gckOS_ReleaseSemaphore(
+            Command->os, Command->powerSemaphore));
+#endif
         /* Release the mutex. */
         gcmkCHECK_STATUS(gckOS_ReleaseMutex(
             Command->os,

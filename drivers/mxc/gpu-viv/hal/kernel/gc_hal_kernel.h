@@ -469,12 +469,16 @@ struct _gckEVENT
     gctPOINTER                  eventQueueMutex;
 
     /* Array of event queues. */
-    gcsEVENT_QUEUE              queues[31];
+    gcsEVENT_QUEUE              queues[30];
     gctUINT8                    lastID;
     gctPOINTER                  freeAtom;
 
     /* Pending events. */
+#if gcdSMP
+    gctPOINTER                  pending;
+#else
     volatile gctUINT            pending;
+#endif
 
     /* List of free event structures and its mutex. */
     gcsEVENT_PTR                freeEventList;

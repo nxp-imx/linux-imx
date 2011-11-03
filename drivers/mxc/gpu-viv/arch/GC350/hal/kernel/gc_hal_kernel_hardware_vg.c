@@ -23,10 +23,28 @@
 
 #include "gc_hal.h"
 #include "gc_hal_kernel.h"
+#include "gc_hal_kernel_hardware_command_vg.h"
 
 #if gcdENABLE_VG
 
 #define _GC_OBJ_ZONE    gcvZONE_HARDWARE
+
+typedef enum
+{
+    gcvPOWER_FLAG_INITIALIZE    = 1 << 0,
+    gcvPOWER_FLAG_STALL         = 1 << 1,
+    gcvPOWER_FLAG_STOP          = 1 << 2,
+    gcvPOWER_FLAG_START         = 1 << 3,
+    gcvPOWER_FLAG_RELEASE       = 1 << 4,
+    gcvPOWER_FLAG_DELAY         = 1 << 5,
+    gcvPOWER_FLAG_SAVE          = 1 << 6,
+    gcvPOWER_FLAG_ACQUIRE       = 1 << 7,
+    gcvPOWER_FLAG_POWER_OFF     = 1 << 8,
+    gcvPOWER_FLAG_CLOCK_OFF     = 1 << 9,
+    gcvPOWER_FLAG_CLOCK_ON      = 1 << 10,
+    gcvPOWER_FLAG_NOP           = 1 << 11,
+}
+gcePOWER_FLAGS;
 
 /******************************************************************************\
 ********************************* Support Code *********************************
@@ -108,6 +126,59 @@ _IdentifyHardware(
     return status;
 }
 
+#if gcdPOWER_MANAGEMENT
+static gctTHREADFUNCRESULT gctTHREADFUNCTYPE
+_TimeIdleThread(
+    gctTHREADFUNCPARAMETER ThreadParameter
+    )
+{
+    gctUINT32           currentTime = 0;
+    gctBOOL             isAfter = gcvFALSE;
+    gceCHIPPOWERSTATE   state;
+
+    /* Cast the object. */
+    gckVGHARDWARE hardware = (gckVGHARDWARE) ThreadParameter;
+
+    gcmkVERIFY_OK(gckOS_AcquireSemaphore(
+        hardware->os,
+        hardware->idleSemaphore));
+
+    while(gcvTRUE)
+    {
+        if (hardware->killThread)
+        {
+            break;
+        }
+
+        gcmkVERIFY_OK(gckOS_AcquireSemaphore(
+            hardware->os,
+            hardware->idleSemaphore));
+
+        do
+        {
+            gcmkVERIFY_OK(gckOS_GetTicks(&currentTime));
+
+            gcmkVERIFY_OK(
+                gckOS_TicksAfter(currentTime, hardware->powerOffTime, &isAfter));
+
+            if (isAfter)
+            {
+                gcmkVERIFY_OK(gckVGHARDWARE_SetPowerManagementState(
+                    hardware, gcvPOWER_OFF_BROADCAST));
+            }
+
+            gcmkVERIFY_OK(gckOS_Delay(hardware->os, 200));
+
+            gcmkVERIFY_OK(gckVGHARDWARE_QueryPowerManagementState(
+                hardware, &state));
+
+        } while (state == gcvPOWER_IDLE);
+    }
+    return 0;
+}
+#endif
+
+
 /******************************************************************************\
 ****************************** gckVGHARDWARE API code *****************************
 \******************************************************************************/
@@ -135,7 +206,7 @@ gckVGHARDWARE_Construct(
     OUT gckVGHARDWARE * Hardware
     )
 {
-    gckVGHARDWARE hardware;
+    gckVGHARDWARE hardware = gcvNULL;
     gceSTATUS status;
     gceCHIPMODEL chipModel;
     gctUINT32 chipRevision;
@@ -173,6 +244,16 @@ gckVGHARDWARE_Construct(
         hardware->chipMinorFeatures  = chipMinorFeatures;
         hardware->chipMinorFeatures2 = chipMinorFeatures2;
 
+        hardware->powerMutex            = gcvNULL;
+        hardware->idleSemaphore         = gcvNULL;
+        hardware->chipPowerState        = gcvPOWER_ON;
+        hardware->chipPowerStateGlobal  = gcvPOWER_ON;
+        hardware->clockState            = gcvTRUE;
+        hardware->powerState            = gcvTRUE;
+        hardware->powerOffTimeout       = gcdPOWEROFF_TIMEOUT;
+        hardware->powerOffTime          = 0;
+        hardware->timeIdleThread        = gcvNULL;
+        hardware->killThread            = gcvFALSE;
         /* Determine whether FE 2.0 is present. */
         hardware->fe20 = ((((gctUINT32) (hardware->chipFeatures)) >> (0 ? 28:28) & ((gctUINT32) ((((1 ? 28:28) - (0 ? 28:28) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 28:28) - (0 ? 28:28) + 1)))))) == (0x1  & ((gctUINT32) ((((1 ? 28:28) - (0 ? 28:28) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 28:28) - (0 ? 28:28) + 1)))))));
 
@@ -188,6 +269,17 @@ gckVGHARDWARE_Construct(
         /* Set fast clear to auto. */
         gcmkVERIFY_OK(gckVGHARDWARE_SetFastClear(hardware, -1));
 
+        gcmkERR_BREAK(gckOS_CreateMutex(Os, &hardware->powerMutex));
+
+        gcmkERR_BREAK(gckOS_CreateSemaphore(Os, &hardware->idleSemaphore));
+#if gcdPOWER_MANAGEMENT
+        gcmkERR_BREAK(gckOS_StartThread(
+            hardware->os,
+            _TimeIdleThread,
+            hardware,
+            &hardware->timeIdleThread
+            ));
+#endif
         /* Return pointer to the gckVGHARDWARE object. */
         *Hardware = hardware;
 
@@ -196,6 +288,11 @@ gckVGHARDWARE_Construct(
         return gcvSTATUS_OK;
     }
     while (gcvFALSE);
+
+    if (hardware != gcvNULL)
+    {
+        gcmkVERIFY_OK(gckOS_Free(Os, hardware));
+    }
 
     gcmkFOOTER();
     /* Return the status. */
@@ -227,8 +324,24 @@ gckVGHARDWARE_Destroy(
     /* Verify the arguments. */
     gcmkVERIFY_OBJECT(Hardware, gcvOBJ_HARDWARE);
 
+#if gcdPOWER_MANAGEMENT
+    Hardware->killThread  = gcvTRUE;
+    gcmkVERIFY_OK(gckOS_StopThread(Hardware->os, Hardware->timeIdleThread));
+#endif
     /* Mark the object as unknown. */
     Hardware->object.type = gcvOBJ_UNKNOWN;
+
+    if (Hardware->powerMutex != gcvNULL)
+    {
+        gcmkVERIFY_OK(gckOS_DeleteMutex(
+            Hardware->os, Hardware->powerMutex));
+    }
+
+    if (Hardware->idleSemaphore != gcvNULL)
+    {
+        gcmkVERIFY_OK(gckOS_DestroySemaphore(
+            Hardware->os, Hardware->idleSemaphore));
+    }
 
     /* Free the object. */
     status = gckOS_Free(Hardware->os, Hardware);
@@ -1064,13 +1177,29 @@ gceSTATUS gckVGHARDWARE_FlushMMU(
             | ((((gctUINT32) (0)) & ~(((gctUINT32) (((gctUINT32) ((((1 ? 2:2) - (0 ? 2:2) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 2:2) - (0 ? 2:2) + 1))))))) << (0 ? 2:2))) | (((gctUINT32) (0x1 & ((gctUINT32) ((((1 ? 2:2) - (0 ? 2:2) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 2:2) - (0 ? 2:2) + 1))))))) << (0 ? 2:2)))
             | ((((gctUINT32) (0)) & ~(((gctUINT32) (((gctUINT32) ((((1 ? 3:3) - (0 ? 3:3) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 3:3) - (0 ? 3:3) + 1))))))) << (0 ? 3:3))) | (((gctUINT32) (0x1 & ((gctUINT32) ((((1 ? 3:3) - (0 ? 3:3) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 3:3) - (0 ? 3:3) + 1))))))) << (0 ? 3:3)))
             | ((((gctUINT32) (0)) & ~(((gctUINT32) (((gctUINT32) ((((1 ? 4:4) - (0 ? 4:4) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 4:4) - (0 ? 4:4) + 1))))))) << (0 ? 4:4))) | (((gctUINT32) (0x1 & ((gctUINT32) ((((1 ? 4:4) - (0 ? 4:4) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 4:4) - (0 ? 4:4) + 1))))))) << (0 ? 4:4)));
+#if gcdPOWER_MANAGEMENT
+        /* Acquire the power management semaphore. */
+        gcmkERR_BREAK(gckOS_AcquireSemaphore(Hardware->os,
+                               Hardware->kernel->command->powerSemaphore));
 
+        status = gckVGCOMMAND_Execute(
+                            Hardware->kernel->command,
+                            commandBuffer
+                            );
+        /* Acquire the power management semaphore. */
+        gcmkVERIFY_OK(gckOS_ReleaseSemaphore(Hardware->os,
+                               Hardware->kernel->command->powerSemaphore));
+
+        gcmkERR_BREAK(status);
+#else
         gcmkERR_BREAK(gckVGCOMMAND_Execute(
             Hardware->kernel->command,
             commandBuffer
             ));
+#endif
     }
     while(gcvFALSE);
+
     gcmkFOOTER();
     /* Return the status. */
     return status;
@@ -1212,5 +1341,636 @@ gckVGHARDWARE_ReadInterrupt(
     return status;
 }
 
+#if gcdPOWER_MANAGEMENT
+static gceSTATUS _CommandStall(
+    gckVGHARDWARE Hardware)
+{
+    gceSTATUS status;
+    gckVGCOMMAND command;
+
+    gcmkHEADER_ARG("Hardware=0x%x", Hardware);
+    /* Verify the arguments. */
+    gcmkVERIFY_OBJECT(Hardware, gcvOBJ_HARDWARE);
+
+    do
+    {
+        gctUINT32_PTR buffer;
+        command = Hardware->kernel->command;
+
+        /* Allocate command buffer space. */
+        gcmkERR_BREAK(gckVGCOMMAND_Allocate(
+            command, 8, &command->powerStallBuffer,
+            (gctPOINTER *) &buffer
+            ));
+
+        gcmkERR_BREAK(gckVGCOMMAND_EventCommand(
+            command, buffer, gcvBLOCK_PIXEL,
+            command->powerStallInt, gcvNULL));
+
+        gcmkERR_BREAK(gckVGCOMMAND_Execute(
+            command,
+            command->powerStallBuffer
+            ));
+
+        /* Wait the signal. */
+        gcmkERR_BREAK(gckOS_WaitSignal(
+            command->os,
+            command->powerStallSignal,
+            gcvINFINITE));
+
+
+    }
+    while(gcvFALSE);
+
+    gcmkFOOTER();
+    /* Return the status. */
+    return status;
+}
+#endif
+
+/*******************************************************************************
+**
+**  gckHARDWARE_SetPowerManagementState
+**
+**  Set GPU to a specified power state.
+**
+**  INPUT:
+**
+**      gckHARDWARE Harwdare
+**          Pointer to an gckHARDWARE object.
+**
+**      gceCHIPPOWERSTATE State
+**          Power State.
+**
+*/
+gceSTATUS
+gckVGHARDWARE_SetPowerManagementState(
+    IN gckVGHARDWARE Hardware,
+    IN gceCHIPPOWERSTATE State
+    )
+{
+#if gcdPOWER_MANAGEMENT
+    gceSTATUS status;
+    gckVGCOMMAND command = gcvNULL;
+    gckOS os;
+    gctUINT flag, clock;
+
+    gctBOOL acquired        = gcvFALSE;
+    gctBOOL stall           = gcvTRUE;
+    gctBOOL commitMutex     = gcvFALSE;
+    gctBOOL mutexAcquired   = gcvFALSE;
+
+    gctBOOL broadcast = gcvFALSE;
+    gctUINT32 process, thread;
+    gctBOOL global = gcvFALSE;
+    gctUINT32   currentTime;
+
+
+#if gcdENABLE_PROFILING
+    gctUINT64 time, freq, mutexTime, onTime, stallTime, stopTime, delayTime,
+              initTime, offTime, startTime, totalTime;
+#endif
+
+    /* State transition flags. */
+    static const gctUINT flags[4][4] =
+    {
+        /* gcvPOWER_ON           */
+        {   /* ON                */ 0,
+            /* OFF               */ gcvPOWER_FLAG_ACQUIRE   |
+                                    gcvPOWER_FLAG_STALL     |
+                                    gcvPOWER_FLAG_STOP      |
+                                    gcvPOWER_FLAG_POWER_OFF |
+                                    gcvPOWER_FLAG_CLOCK_OFF,
+            /* IDLE              */ gcvPOWER_FLAG_NOP,
+            /* SUSPEND           */ gcvPOWER_FLAG_ACQUIRE   |
+                                    gcvPOWER_FLAG_STALL     |
+                                    gcvPOWER_FLAG_STOP      |
+                                    gcvPOWER_FLAG_CLOCK_OFF,
+        },
+
+        /* gcvPOWER_OFF          */
+        {   /* ON                */ gcvPOWER_FLAG_INITIALIZE |
+                                    gcvPOWER_FLAG_START      |
+                                    gcvPOWER_FLAG_RELEASE    |
+                                    gcvPOWER_FLAG_DELAY,
+            /* OFF               */ 0,
+            /* IDLE              */ gcvPOWER_FLAG_INITIALIZE |
+                                    gcvPOWER_FLAG_START      |
+                                    gcvPOWER_FLAG_RELEASE    |
+                                    gcvPOWER_FLAG_DELAY,
+            /* SUSPEND           */ gcvPOWER_FLAG_INITIALIZE |
+                                    gcvPOWER_FLAG_CLOCK_OFF,
+        },
+
+        /* gcvPOWER_IDLE         */
+        {   /* ON                */ gcvPOWER_FLAG_NOP,
+            /* OFF               */ gcvPOWER_FLAG_ACQUIRE   |
+                                    gcvPOWER_FLAG_STOP      |
+                                    gcvPOWER_FLAG_POWER_OFF |
+                                    gcvPOWER_FLAG_CLOCK_OFF,
+            /* IDLE              */ 0,
+            /* SUSPEND           */ gcvPOWER_FLAG_ACQUIRE   |
+                                    gcvPOWER_FLAG_STOP      |
+                                    gcvPOWER_FLAG_CLOCK_OFF,
+        },
+
+        /* gcvPOWER_SUSPEND      */
+        {   /* ON                */ gcvPOWER_FLAG_START     |
+                                    gcvPOWER_FLAG_RELEASE   |
+                                    gcvPOWER_FLAG_DELAY     |
+                                    gcvPOWER_FLAG_CLOCK_ON,
+            /* OFF               */ gcvPOWER_FLAG_SAVE      |
+                                    gcvPOWER_FLAG_POWER_OFF |
+                                    gcvPOWER_FLAG_CLOCK_OFF,
+            /* IDLE              */ gcvPOWER_FLAG_START     |
+                                    gcvPOWER_FLAG_DELAY     |
+                                    gcvPOWER_FLAG_RELEASE   |
+                                    gcvPOWER_FLAG_CLOCK_ON,
+            /* SUSPEND           */ 0,
+        },
+    };
+
+    /* Clocks. */
+    static const gctUINT clocks[4] =
+    {
+        /* gcvPOWER_ON */
+        ((((gctUINT32) (0)) & ~(((gctUINT32) (((gctUINT32) ((((1 ? 0:0) - (0 ? 0:0) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 0:0) - (0 ? 0:0) + 1))))))) << (0 ? 0:0))) | (((gctUINT32) ((gctUINT32) (0) & ((gctUINT32) ((((1 ? 0:0) - (0 ? 0:0) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 0:0) - (0 ? 0:0) + 1))))))) << (0 ? 0:0))) |
+        ((((gctUINT32) (0)) & ~(((gctUINT32) (((gctUINT32) ((((1 ? 1:1) - (0 ? 1:1) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 1:1) - (0 ? 1:1) + 1))))))) << (0 ? 1:1))) | (((gctUINT32) ((gctUINT32) (0) & ((gctUINT32) ((((1 ? 1:1) - (0 ? 1:1) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 1:1) - (0 ? 1:1) + 1))))))) << (0 ? 1:1))) |
+        ((((gctUINT32) (0)) & ~(((gctUINT32) (((gctUINT32) ((((1 ? 8:2) - (0 ? 8:2) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 8:2) - (0 ? 8:2) + 1))))))) << (0 ? 8:2))) | (((gctUINT32) ((gctUINT32) (64) & ((gctUINT32) ((((1 ? 8:2) - (0 ? 8:2) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 8:2) - (0 ? 8:2) + 1))))))) << (0 ? 8:2))) |
+        ((((gctUINT32) (0)) & ~(((gctUINT32) (((gctUINT32) ((((1 ? 9:9) - (0 ? 9:9) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 9:9) - (0 ? 9:9) + 1))))))) << (0 ? 9:9))) | (((gctUINT32) ((gctUINT32) (1) & ((gctUINT32) ((((1 ? 9:9) - (0 ? 9:9) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 9:9) - (0 ? 9:9) + 1))))))) << (0 ? 9:9))),
+
+        /* gcvPOWER_OFF */
+        ((((gctUINT32) (0)) & ~(((gctUINT32) (((gctUINT32) ((((1 ? 0:0) - (0 ? 0:0) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 0:0) - (0 ? 0:0) + 1))))))) << (0 ? 0:0))) | (((gctUINT32) ((gctUINT32) (1) & ((gctUINT32) ((((1 ? 0:0) - (0 ? 0:0) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 0:0) - (0 ? 0:0) + 1))))))) << (0 ? 0:0))) |
+        ((((gctUINT32) (0)) & ~(((gctUINT32) (((gctUINT32) ((((1 ? 1:1) - (0 ? 1:1) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 1:1) - (0 ? 1:1) + 1))))))) << (0 ? 1:1))) | (((gctUINT32) ((gctUINT32) (1) & ((gctUINT32) ((((1 ? 1:1) - (0 ? 1:1) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 1:1) - (0 ? 1:1) + 1))))))) << (0 ? 1:1))) |
+        ((((gctUINT32) (0)) & ~(((gctUINT32) (((gctUINT32) ((((1 ? 8:2) - (0 ? 8:2) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 8:2) - (0 ? 8:2) + 1))))))) << (0 ? 8:2))) | (((gctUINT32) ((gctUINT32) (1) & ((gctUINT32) ((((1 ? 8:2) - (0 ? 8:2) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 8:2) - (0 ? 8:2) + 1))))))) << (0 ? 8:2))) |
+        ((((gctUINT32) (0)) & ~(((gctUINT32) (((gctUINT32) ((((1 ? 9:9) - (0 ? 9:9) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 9:9) - (0 ? 9:9) + 1))))))) << (0 ? 9:9))) | (((gctUINT32) ((gctUINT32) (1) & ((gctUINT32) ((((1 ? 9:9) - (0 ? 9:9) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 9:9) - (0 ? 9:9) + 1))))))) << (0 ? 9:9))),
+
+        /* gcvPOWER_IDLE */
+        ((((gctUINT32) (0)) & ~(((gctUINT32) (((gctUINT32) ((((1 ? 0:0) - (0 ? 0:0) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 0:0) - (0 ? 0:0) + 1))))))) << (0 ? 0:0))) | (((gctUINT32) ((gctUINT32) (0) & ((gctUINT32) ((((1 ? 0:0) - (0 ? 0:0) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 0:0) - (0 ? 0:0) + 1))))))) << (0 ? 0:0))) |
+        ((((gctUINT32) (0)) & ~(((gctUINT32) (((gctUINT32) ((((1 ? 1:1) - (0 ? 1:1) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 1:1) - (0 ? 1:1) + 1))))))) << (0 ? 1:1))) | (((gctUINT32) ((gctUINT32) (0) & ((gctUINT32) ((((1 ? 1:1) - (0 ? 1:1) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 1:1) - (0 ? 1:1) + 1))))))) << (0 ? 1:1))) |
+        ((((gctUINT32) (0)) & ~(((gctUINT32) (((gctUINT32) ((((1 ? 8:2) - (0 ? 8:2) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 8:2) - (0 ? 8:2) + 1))))))) << (0 ? 8:2))) | (((gctUINT32) ((gctUINT32) (1) & ((gctUINT32) ((((1 ? 8:2) - (0 ? 8:2) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 8:2) - (0 ? 8:2) + 1))))))) << (0 ? 8:2))) |
+        ((((gctUINT32) (0)) & ~(((gctUINT32) (((gctUINT32) ((((1 ? 9:9) - (0 ? 9:9) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 9:9) - (0 ? 9:9) + 1))))))) << (0 ? 9:9))) | (((gctUINT32) ((gctUINT32) (1) & ((gctUINT32) ((((1 ? 9:9) - (0 ? 9:9) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 9:9) - (0 ? 9:9) + 1))))))) << (0 ? 9:9))),
+
+        /* gcvPOWER_SUSPEND */
+        ((((gctUINT32) (0)) & ~(((gctUINT32) (((gctUINT32) ((((1 ? 0:0) - (0 ? 0:0) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 0:0) - (0 ? 0:0) + 1))))))) << (0 ? 0:0))) | (((gctUINT32) ((gctUINT32) (1) & ((gctUINT32) ((((1 ? 0:0) - (0 ? 0:0) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 0:0) - (0 ? 0:0) + 1))))))) << (0 ? 0:0))) |
+        ((((gctUINT32) (0)) & ~(((gctUINT32) (((gctUINT32) ((((1 ? 1:1) - (0 ? 1:1) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 1:1) - (0 ? 1:1) + 1))))))) << (0 ? 1:1))) | (((gctUINT32) ((gctUINT32) (1) & ((gctUINT32) ((((1 ? 1:1) - (0 ? 1:1) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 1:1) - (0 ? 1:1) + 1))))))) << (0 ? 1:1))) |
+        ((((gctUINT32) (0)) & ~(((gctUINT32) (((gctUINT32) ((((1 ? 8:2) - (0 ? 8:2) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 8:2) - (0 ? 8:2) + 1))))))) << (0 ? 8:2))) | (((gctUINT32) ((gctUINT32) (1) & ((gctUINT32) ((((1 ? 8:2) - (0 ? 8:2) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 8:2) - (0 ? 8:2) + 1))))))) << (0 ? 8:2))) |
+        ((((gctUINT32) (0)) & ~(((gctUINT32) (((gctUINT32) ((((1 ? 9:9) - (0 ? 9:9) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 9:9) - (0 ? 9:9) + 1))))))) << (0 ? 9:9))) | (((gctUINT32) ((gctUINT32) (1) & ((gctUINT32) ((((1 ? 9:9) - (0 ? 9:9) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 9:9) - (0 ? 9:9) + 1))))))) << (0 ? 9:9))),
+    };
+
+    gcmkHEADER_ARG("Hardware=0x%x State=%d", Hardware, State);
+#if gcmIS_DEBUG(gcdDEBUG_TRACE)
+    gcmkTRACE_ZONE(gcvLEVEL_INFO, gcvZONE_HARDWARE,
+                   "Switching to power state %d",
+                   State);
+#endif
+
+    /* Verify the arguments. */
+    gcmkVERIFY_OBJECT(Hardware, gcvOBJ_HARDWARE);
+
+    /* Get the gckOS object pointer. */
+    os = Hardware->os;
+    gcmkVERIFY_OBJECT(os, gcvOBJ_OS);
+
+    /* Get the gckCOMMAND object pointer. */
+    gcmkVERIFY_OBJECT(Hardware->kernel, gcvOBJ_KERNEL);
+    command = Hardware->kernel->command;
+    gcmkVERIFY_OBJECT(command, gcvOBJ_COMMAND);
+
+    /* Start profiler. */
+    gcmkPROFILE_INIT(freq, time);
+
+    /* Convert the broadcast power state. */
+    switch (State)
+    {
+    case gcvPOWER_SUSPEND_ATPOWERON:
+        /* Convert to SUSPEND and don't wait for STALL. */
+        State = gcvPOWER_SUSPEND;
+        stall = gcvFALSE;
+        break;
+
+    case gcvPOWER_OFF_ATPOWERON:
+        /* Convert to OFF and don't wait for STALL. */
+        State = gcvPOWER_OFF;
+        stall = gcvFALSE;
+        break;
+
+    case gcvPOWER_IDLE_BROADCAST:
+        /* Convert to IDLE and note we are inside broadcast. */
+        State     = gcvPOWER_IDLE;
+        broadcast = gcvTRUE;
+        break;
+
+    case gcvPOWER_SUSPEND_BROADCAST:
+        /* Convert to SUSPEND and note we are inside broadcast. */
+        State     = gcvPOWER_SUSPEND;
+        broadcast = gcvTRUE;
+        break;
+
+    case gcvPOWER_OFF_BROADCAST:
+        /* Convert to OFF and note we are inside broadcast. */
+        State     = gcvPOWER_OFF;
+        broadcast = gcvTRUE;
+        break;
+
+    case gcvPOWER_OFF_RECOVERY:
+        /* Convert to OFF and note we are inside recovery. */
+        State     = gcvPOWER_OFF;
+        stall     = gcvFALSE;
+        broadcast = gcvTRUE;
+        break;
+
+    case gcvPOWER_ON_AUTO:
+        /* Convert to ON and note we are inside recovery. */
+        State = gcvPOWER_ON;
+        break;
+
+    case gcvPOWER_ON:
+    case gcvPOWER_IDLE:
+    case gcvPOWER_SUSPEND:
+    case gcvPOWER_OFF:
+        /* Mark as global power management. */
+        global = gcvTRUE;
+        break;
+
+    default:
+        break;
+    }
+
+    /* Get current process and thread IDs. */
+    gcmkONERROR(gckOS_GetProcessID(&process));
+    gcmkONERROR(gckOS_GetThreadID(&thread));
+
+    /* Acquire the power mutex. */
+    if (broadcast)
+    {
+        /* Try to acquire the power mutex. */
+        status = gckOS_AcquireMutex(os, Hardware->powerMutex, 0);
+
+        if (status == gcvSTATUS_TIMEOUT)
+        {
+            /* Check if we already own this mutex. */
+            if ((Hardware->powerProcess == process)
+            &&  (Hardware->powerThread  == thread)
+            )
+            {
+                /* Bail out on recursive power management. */
+                gcmkFOOTER_NO();
+                return gcvSTATUS_OK;
+            }
+            else if (State == gcvPOWER_IDLE)
+            {
+                /* gcvPOWER_IDLE_BROADCAST is from IST,
+                ** so waiting here will cause deadlock,
+                ** if lock holder call gckCOMMAND_Stall() */
+                gcmkONERROR(gcvSTATUS_INVALID_REQUEST);
+            }
+            else
+            {
+                /* Acquire the power mutex. */
+                gcmkONERROR(gckOS_AcquireMutex(os,
+                                               Hardware->powerMutex,
+                                               gcvINFINITE));
+            }
+        }
+    }
+    else
+    {
+        /* Acquire the power mutex. */
+        gcmkONERROR(gckOS_AcquireMutex(os, Hardware->powerMutex, gcvINFINITE));
+    }
+
+    /* Get time until mtuex acquired. */
+    gcmkPROFILE_QUERY(time, mutexTime);
+
+    Hardware->powerProcess = process;
+    Hardware->powerThread  = thread;
+    mutexAcquired          = gcvTRUE;
+
+    /* Grab control flags and clock. */
+    flag  = flags[Hardware->chipPowerState][State];
+    clock = clocks[State];
+
+    if (flag == 0)
+    {
+        /* Release the power mutex. */
+        gcmkONERROR(gckOS_ReleaseMutex(os, Hardware->powerMutex));
+
+        /* No need to do anything. */
+        gcmkFOOTER_NO();
+        return gcvSTATUS_OK;
+    }
+
+    /* internal power control */
+    if (!global)
+    {
+        if (Hardware->chipPowerStateGlobal == gcvPOWER_OFF)
+        {
+            /* Release the power mutex. */
+            gcmkONERROR(gckOS_ReleaseMutex(os, Hardware->powerMutex));
+
+            /* No need to do anything. */
+            gcmkFOOTER_NO();
+            return gcvSTATUS_OK;
+        }
+    }
+
+    if (flag & (gcvPOWER_FLAG_INITIALIZE | gcvPOWER_FLAG_CLOCK_ON))
+    {
+        /* Turn on the power. */
+        gcmkONERROR(gckOS_SetGPUPower(os, gcvTRUE, gcvTRUE));
+
+        /* Mark clock and power as enabled. */
+        Hardware->clockState = gcvTRUE;
+        Hardware->powerState = gcvTRUE;
+    }
+
+    /* Get time until powered on. */
+    gcmkPROFILE_QUERY(time, onTime);
+
+    if ((flag & gcvPOWER_FLAG_STALL) && stall)
+    {
+        /* Acquire the mutex. */
+        gcmkONERROR(gckOS_AcquireMutex(
+            command->os,
+            command->commitMutex,
+            gcvINFINITE
+            ));
+
+        commitMutex = gcvTRUE;
+
+        gcmkONERROR(_CommandStall(Hardware));
+    }
+
+    /* Get time until stalled. */
+    gcmkPROFILE_QUERY(time, stallTime);
+
+    if (flag & gcvPOWER_FLAG_ACQUIRE)
+    {
+        /* Acquire the power management semaphore. */
+        gcmkONERROR(gckOS_AcquireSemaphore(os, command->powerSemaphore));
+
+        acquired = gcvTRUE;
+    }
+
+    if (flag & gcvPOWER_FLAG_STOP)
+    {
+    }
+
+    /* Get time until stopped. */
+    gcmkPROFILE_QUERY(time, stopTime);
+
+    /* Only process this when hardware is enabled. */
+    if (Hardware->clockState && Hardware->powerState)
+    {
+    }
+
+    if (flag & gcvPOWER_FLAG_DELAY)
+    {
+        /* Wait for the specified amount of time to settle coming back from
+        ** power-off or suspend state. */
+        gcmkONERROR(gckOS_Delay(os, gcdPOWER_CONTROL_DELAY));
+    }
+
+    /* Get time until delayed. */
+    gcmkPROFILE_QUERY(time, delayTime);
+
+    if (flag & gcvPOWER_FLAG_INITIALIZE)
+    {
+        /* Force the command queue to reload the next context. */
+        command->currentContext = 0;
+    }
+
+    /* Get time until initialized. */
+    gcmkPROFILE_QUERY(time, initTime);
+
+    if (flag & (gcvPOWER_FLAG_POWER_OFF | gcvPOWER_FLAG_CLOCK_OFF))
+    {
+        /* Turn off the GPU power. */
+        gcmkONERROR(
+            gckOS_SetGPUPower(os,
+                              (flag & gcvPOWER_FLAG_CLOCK_OFF) ? gcvFALSE
+                                                               : gcvTRUE,
+                              (flag & gcvPOWER_FLAG_POWER_OFF) ? gcvFALSE
+                                                               : gcvTRUE));
+
+        /* Save current hardware power and clock states. */
+        Hardware->clockState = (flag & gcvPOWER_FLAG_CLOCK_OFF) ? gcvFALSE
+                                                                : gcvTRUE;
+        Hardware->powerState = (flag & gcvPOWER_FLAG_POWER_OFF) ? gcvFALSE
+                                                                : gcvTRUE;
+    }
+
+    /* Get time until off. */
+    gcmkPROFILE_QUERY(time, offTime);
+
+    if (flag & gcvPOWER_FLAG_START)
+    {
+    }
+
+    /* Get time until started. */
+    gcmkPROFILE_QUERY(time, startTime);
+
+    if (flag & gcvPOWER_FLAG_RELEASE)
+    {
+        /* Release the power management semaphore. */
+        gcmkONERROR(gckOS_ReleaseSemaphore(os, command->powerSemaphore));
+        acquired = gcvFALSE;
+    }
+
+    /* Save the new power state. */
+    Hardware->chipPowerState = State;
+
+    if (global)
+    {
+        /* Save the new power state. */
+        Hardware->chipPowerStateGlobal = State;
+    }
+
+    if (State == gcvPOWER_IDLE)
+    {
+        gcmkONERROR(gckOS_ReleaseSemaphore(os, Hardware->idleSemaphore));
+    }
+        /* Reset power off time */
+    gcmkONERROR(gckOS_GetTicks(&currentTime));
+    Hardware->powerOffTime = currentTime + Hardware->powerOffTimeout;
+
+    if (commitMutex)
+    {
+        /* Acquire the mutex. */
+        gcmkVERIFY_OK(gckOS_ReleaseMutex(
+            command->os,
+            command->commitMutex
+            ));
+    }
+
+    /* Release the power mutex. */
+    gcmkONERROR(gckOS_ReleaseMutex(os, Hardware->powerMutex));
+
+    /* Get total time. */
+    gcmkPROFILE_QUERY(time, totalTime);
+#if gcdENABLE_PROFILING
+    gcmkTRACE_ZONE(gcvLEVEL_INFO, gcvZONE_HARDWARE,
+                   "PROF(%llu): mutex:%llu on:%llu stall:%llu stop:%llu",
+                   freq, mutexTime, onTime, stallTime, stopTime);
+    gcmkTRACE_ZONE(gcvLEVEL_INFO, gcvZONE_HARDWARE,
+                   "  delay:%llu init:%llu off:%llu start:%llu total:%llu",
+                   delayTime, initTime, offTime, startTime, totalTime);
+#endif
+
+    /* Success. */
+    gcmkFOOTER_NO();
+    return gcvSTATUS_OK;
+
+OnError:
+
+    if (acquired)
+    {
+        /* Release semaphore. */
+        gcmkVERIFY_OK(gckOS_ReleaseSemaphore(Hardware->os,
+                                             command->powerSemaphore));
+    }
+
+    if (mutexAcquired)
+    {
+        gcmkVERIFY_OK(gckOS_ReleaseMutex(Hardware->os, Hardware->powerMutex));
+    }
+
+    if (commitMutex)
+    {
+        /* Acquire the mutex. */
+        gcmkVERIFY_OK(gckOS_ReleaseMutex(
+            command->os,
+            command->commitMutex
+            ));
+    }
+
+    /* Return the status. */
+    gcmkFOOTER();
+    return status;
+#else /* gcdPOWER_MANAGEMENT */
+    /* Do nothing */
+    return gcvSTATUS_OK;
+#endif
+}
+
+/*******************************************************************************
+**
+**  gckHARDWARE_QueryPowerManagementState
+**
+**  Get GPU power state.
+**
+**  INPUT:
+**
+**      gckHARDWARE Harwdare
+**          Pointer to an gckHARDWARE object.
+**
+**      gceCHIPPOWERSTATE* State
+**          Power State.
+**
+*/
+gceSTATUS
+gckVGHARDWARE_QueryPowerManagementState(
+    IN gckVGHARDWARE Hardware,
+    OUT gceCHIPPOWERSTATE* State
+    )
+{
+    gcmkHEADER_ARG("Hardware=0x%x", Hardware);
+
+    /* Verify the arguments. */
+    gcmkVERIFY_OBJECT(Hardware, gcvOBJ_HARDWARE);
+    gcmkVERIFY_ARGUMENT(State != gcvNULL);
+
+    /* Return the statue. */
+    *State = Hardware->chipPowerState;
+
+    /* Success. */
+    gcmkFOOTER_ARG("*State=%d", *State);
+    return gcvSTATUS_OK;
+}
+
+gceSTATUS
+gckVGHARDWARE_SetPowerOffTimeout(
+    IN gckVGHARDWARE  Hardware,
+    IN gctUINT32    Timeout
+    )
+{
+    gcmkHEADER_ARG("Hardware=0x%x Timeout=%d", Hardware, Timeout);
+
+    Hardware->powerOffTimeout = Timeout;
+
+    gcmkFOOTER_NO();
+    return gcvSTATUS_OK;
+}
+
+
+gceSTATUS
+gckVGHARDWARE_QueryPowerOffTimeout(
+    IN gckVGHARDWARE  Hardware,
+    OUT gctUINT32*  Timeout
+    )
+{
+    gcmkHEADER_ARG("Hardware=0x%x", Hardware);
+
+    *Timeout = Hardware->powerOffTimeout;
+
+    gcmkFOOTER_ARG("*Timeout=%d", *Timeout);
+    return gcvSTATUS_OK;
+}
+
+gceSTATUS
+gckVGHARDWARE_QueryIdle(
+    IN gckVGHARDWARE Hardware,
+    OUT gctBOOL_PTR IsIdle
+    )
+{
+    gceSTATUS status;
+    gctUINT32 idle;
+
+    gcmkHEADER_ARG("Hardware=0x%x", Hardware);
+
+    /* Verify the arguments. */
+    gcmkVERIFY_OBJECT(Hardware, gcvOBJ_HARDWARE);
+    gcmkVERIFY_ARGUMENT(IsIdle != gcvNULL);
+
+    /* We are idle when the power is not ON. */
+    if (Hardware->chipPowerState != gcvPOWER_ON)
+    {
+        *IsIdle = gcvTRUE;
+    }
+
+    else
+    {
+        /* Read idle register. */
+        gcmkONERROR(
+            gckOS_ReadRegisterEx(Hardware->os, gcvCORE_VG, 0x00004, &idle));
+
+        /* Pipe must be idle. */
+        if (((((((gctUINT32) (idle)) >> (0 ? 0:0)) & ((gctUINT32) ((((1 ? 0:0) - (0 ? 0:0) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 0:0) - (0 ? 0:0) + 1)))))) ) != 1)
+        ||  ((((((gctUINT32) (idle)) >> (0 ? 8:8)) & ((gctUINT32) ((((1 ? 8:8) - (0 ? 8:8) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 8:8) - (0 ? 8:8) + 1)))))) ) != 1)
+        ||  ((((((gctUINT32) (idle)) >> (0 ? 9:9)) & ((gctUINT32) ((((1 ? 9:9) - (0 ? 9:9) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 9:9) - (0 ? 9:9) + 1)))))) ) != 1)
+        ||  ((((((gctUINT32) (idle)) >> (0 ? 10:10)) & ((gctUINT32) ((((1 ? 10:10) - (0 ? 10:10) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 10:10) - (0 ? 10:10) + 1)))))) ) != 1)
+        ||  ((((((gctUINT32) (idle)) >> (0 ? 11:11)) & ((gctUINT32) ((((1 ? 11:11) - (0 ? 11:11) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 11:11) - (0 ? 11:11) + 1)))))) ) != 1)
+        )
+        {
+            /* Something is busy. */
+            *IsIdle = gcvFALSE;
+        }
+
+        else
+        {
+            *IsIdle = gcvTRUE;
+        }
+    }
+
+    /* Success. */
+    gcmkFOOTER_NO();
+    return gcvSTATUS_OK;
+
+OnError:
+    /* Return the status. */
+    gcmkFOOTER();
+    return status;
+}
 #endif /* gcdENABLE_VG */
 

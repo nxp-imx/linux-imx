@@ -978,70 +978,49 @@ gckCOMMAND_Commit(
     IN gctUINT32 ProcessID
     )
 {
-#if gcdNULL_DRIVER
-    /* Context switch required? */
-    if ((Context != gcvNULL) && (Command->currContext != Context))
-    {
-        /* Yes, merge in the deltas. */
-        gckCONTEXT_Update(Context, ProcessID, StateDelta);
-
-		/* Update the current context. */
-		Command->currContext = Context;
-	}
-
-    /* Do nothing with infinite hardware. */
-    return gcvSTATUS_OK;
-#else
     gceSTATUS status;
+    gctBOOL commitEntered = gcvFALSE;
+    gctBOOL contextAcquired = gcvFALSE;
     gckHARDWARE hardware;
-    gcsCONTEXT_PTR contextBuffer;
-
     gctBOOL needCopy = gcvFALSE;
-
-    struct _gcoCMDBUF _commandBufferObject;
-    gcoCMDBUF commandBufferObject = gcvNULL;
+    gcsQUEUE_PTR eventRecord = gcvNULL;
+    gcsQUEUE _eventRecord;
+    gcsQUEUE_PTR nextEventRecord;
     gctBOOL commandBufferMapped = gcvFALSE;
+    gcoCMDBUF commandBufferObject = gcvNULL;
+
+#if !gcdNULL_DRIVER
+    gcsCONTEXT_PTR contextBuffer;
+    struct _gcoCMDBUF _commandBufferObject;
     gctPHYS_ADDR commandBufferPhysical;
     gctUINT8_PTR commandBufferLogical;
     gctUINT8_PTR commandBufferLink;
     gctUINT commandBufferSize;
-
-    gctBOOL commitEntered = gcvFALSE;
-    gctBOOL contextAcquired = gcvFALSE;
-
     gctSIZE_T nopBytes;
     gctSIZE_T pipeBytes;
     gctSIZE_T linkBytes;
     gctSIZE_T bytes;
     gctUINT32 offset;
-
     gctPHYS_ADDR entryPhysical;
     gctPOINTER entryLogical;
     gctSIZE_T entryBytes;
-
     gctPHYS_ADDR exitPhysical;
     gctPOINTER exitLogical;
     gctSIZE_T exitBytes;
-
     gctPHYS_ADDR waitLinkPhysical;
     gctPOINTER waitLinkLogical;
     gctSIZE_T waitLinkBytes;
-
     gctPHYS_ADDR waitPhysical;
     gctPOINTER waitLogical;
     gctUINT32 waitOffset;
     gctSIZE_T waitSize;
 
-    gcsQUEUE _eventRecord;
-    gcsQUEUE_PTR eventRecord = gcvNULL;
-    gcsQUEUE_PTR nextEventRecord;
-
 #if gcdDUMP_COMMAND
     gctPOINTER contextDumpLogical = gcvNULL;
     gctSIZE_T contextDumpBytes = 0;
-
     gctPOINTER bufferDumpLogical = gcvNULL;
     gctSIZE_T bufferDumpBytes = 0;
+# endif
 #endif
 
     gctPOINTER pointer = gcvNULL;
@@ -1070,6 +1049,17 @@ gckCOMMAND_Commit(
     /* Check wehther we need to copy the structures or not. */
     gcmkONERROR(gckOS_QueryNeedCopy(Command->os, ProcessID, &needCopy));
 
+#if gcdNULL_DRIVER
+    /* Context switch required? */
+    if ((Context != gcvNULL) && (Command->currContext != Context))
+    {
+        /* Yes, merge in the deltas. */
+        gckCONTEXT_Update(Context, ProcessID, StateDelta);
+
+		/* Update the current context. */
+		Command->currContext = Context;
+	}
+#else
     if (needCopy)
     {
         commandBufferObject = &_commandBufferObject;
@@ -1860,6 +1850,7 @@ gckCOMMAND_Commit(
 #if gcdDUMP_COMMAND && !gcdSIMPLE_COMMAND_DUMP
     gcmkPRINT("@[kernel.commit]");
 #endif
+#endif /* gcdNULL_DRIVER */
 
     /* Release the context switching mutex. */
     gcmkONERROR(gckOS_ReleaseMutex(Command->os, Command->mutexContext));
@@ -1972,7 +1963,6 @@ OnError:
     /* Return status. */
     gcmkFOOTER();
     return status;
-#endif
 }
 
 /*******************************************************************************

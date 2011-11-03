@@ -83,6 +83,7 @@ gctCONST_STRING _DispatchText[] =
     gcmDEFINE2TEXT(gcvHAL_TIMESTAMP),
     gcmDEFINE2TEXT(gcvHAL_DATABASE),
     gcmDEFINE2TEXT(gcvHAL_VERSION),
+    gcmDEFINE2TEXT(gcvHAL_CHIP_INFO),
     gcmDEFINE2TEXT(gcvHAL_ATTACH),
     gcmDEFINE2TEXT(gcvHAL_DETACH)
 };
@@ -711,28 +712,7 @@ gckKERNEL_Dispatch(
         gcmkONERROR(
             gckHARDWARE_QueryChipIdentity(
                 Kernel->hardware,
-                &Interface->u.QueryChipIdentity.chipModel,
-                &Interface->u.QueryChipIdentity.chipRevision,
-                &Interface->u.QueryChipIdentity.chipFeatures,
-                &Interface->u.QueryChipIdentity.chipMinorFeatures,
-                &Interface->u.QueryChipIdentity.chipMinorFeatures1,
-                &Interface->u.QueryChipIdentity.chipMinorFeatures2,
-                &Interface->u.QueryChipIdentity.chipMinorFeatures3));
-
-        /* Query chip specifications. */
-        gcmkONERROR(
-            gckHARDWARE_QueryChipSpecs(
-                Kernel->hardware,
-                &Interface->u.QueryChipIdentity.streamCount,
-                &Interface->u.QueryChipIdentity.registerMax,
-                &Interface->u.QueryChipIdentity.threadCount,
-                &Interface->u.QueryChipIdentity.shaderCoreCount,
-                &Interface->u.QueryChipIdentity.vertexCacheSize,
-                &Interface->u.QueryChipIdentity.vertexOutputBufferSize,
-                &Interface->u.QueryChipIdentity.pixelPipes,
-                &Interface->u.QueryChipIdentity.instructionCount,
-                &Interface->u.QueryChipIdentity.numConstants,
-                &Interface->u.QueryChipIdentity.bufferSize));
+                &Interface->u.QueryChipIdentity));
         break;
 
     case gcvHAL_MAP_MEMORY:
@@ -991,7 +971,6 @@ gckKERNEL_Dispatch(
                                          FromUser,
                                          Interface->u.LockVideoMemory.address,
                                          &Interface->u.LockVideoMemory.memory));
-			gckOS_ZeroMemory(Interface->u.LockVideoMemory.memory, node->VidMem.bytes);
 #endif
         }
         else

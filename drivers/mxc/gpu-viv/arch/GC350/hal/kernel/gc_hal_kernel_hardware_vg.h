@@ -53,6 +53,23 @@ struct _gckVGHARDWARE
 
     /* Event mask. */
     gctUINT32                   eventMask;
+
+    gctBOOL                     clockState;
+    gctBOOL                     powerState;
+    gctPOINTER                  powerMutex;
+    gctSEMAPHORE                idleSemaphore;
+    gctUINT32                   powerProcess;
+    gctUINT32                   powerThread;
+    gceCHIPPOWERSTATE           chipPowerState;
+    gceCHIPPOWERSTATE           chipPowerStateGlobal;
+    gctISRMANAGERFUNC           startIsr;
+    gctISRMANAGERFUNC           stopIsr;
+    gctPOINTER                  isrContext;
+    gctUINT32                   powerOffTime;
+    gctUINT32                   powerOffTimeout;
+    gctTHREAD                   timeIdleThread;
+    gctBOOL                     killThread;
+
 };
 
 #endif /* __gc_hal_kernel_hardware_h_ */

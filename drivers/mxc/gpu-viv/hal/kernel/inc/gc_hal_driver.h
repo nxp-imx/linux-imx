@@ -144,11 +144,9 @@ typedef enum _gceHAL_COMMAND_CODES
     /* Frame database. */
     gcvHAL_GET_FRAME_INFO,
 
-#if gcdENABLE_SHARED_INFO
     /* Shared info for each process */
     gcvHAL_GET_SHARED_INFO,
     gcvHAL_SET_SHARED_INFO,
-#endif
     gcvHAL_QUERY_COMMAND_BUFFER
 }
 gceHAL_COMMAND_CODES;
@@ -167,30 +165,91 @@ typedef struct _gcsKERNEL_SETTINGS
 }
 gcsKERNEL_SETTINGS;
 
+
+/* gcvHAL_QUERY_CHIP_IDENTITY */
+typedef struct _gcsHAL_QUERY_CHIP_IDENTITY * gcsHAL_QUERY_CHIP_IDENTITY_PTR;
+typedef struct _gcsHAL_QUERY_CHIP_IDENTITY
+{
+
+    /* Chip model. */
+    gceCHIPMODEL                chipModel;
+
+    /* Revision value.*/
+    gctUINT32                   chipRevision;
+
+    /* Supported feature fields. */
+    gctUINT32                   chipFeatures;
+
+    /* Supported minor feature fields. */
+    gctUINT32                   chipMinorFeatures;
+
+    /* Supported minor feature 1 fields. */
+    gctUINT32                   chipMinorFeatures1;
+
+    /* Supported minor feature 2 fields. */
+    gctUINT32                   chipMinorFeatures2;
+
+    /* Supported minor feature 3 fields. */
+    gctUINT32                   chipMinorFeatures3;
+
+    /* Number of streams supported. */
+    gctUINT32                   streamCount;
+
+    /* Total number of temporary registers per thread. */
+    gctUINT32                   registerMax;
+
+    /* Maximum number of threads. */
+    gctUINT32                   threadCount;
+
+    /* Number of shader cores. */
+    gctUINT32                   shaderCoreCount;
+
+    /* Size of the vertex cache. */
+    gctUINT32                   vertexCacheSize;
+
+    /* Number of entries in the vertex output buffer. */
+    gctUINT32                   vertexOutputBufferSize;
+
+    /* Number of pixel pipes. */
+    gctUINT32                   pixelPipes;
+
+    /* Number of instructions. */
+	gctUINT32                   instructionCount;
+
+    /* Number of constants. */
+	gctUINT32                   numConstants;
+
+	/* Buffer size */
+	gctUINT32                   bufferSize;
+
+}
+gcsHAL_QUERY_CHIP_IDENTITY;
+
 /* gcvHAL_COMPOSE. */
 typedef struct _gcsHAL_COMPOSE * gcsHAL_COMPOSE_PTR;
 typedef struct _gcsHAL_COMPOSE
 {
     /* Composition state buffer. */
-    IN gctSIZE_T                size;
-    IN gctPHYS_ADDR             physical;
-    IN gctPOINTER               logical;
+    gctPHYS_ADDR                physical;
+    gctPOINTER                  logical;
+    gctSIZE_T                   offset;
+    gctSIZE_T                   size;
 
     /* Composition end signal. */
-    IN gctHANDLE                process;
-    IN gctSIGNAL                signal;
+    gctHANDLE                   process;
+    gctSIGNAL                   signal;
 
     /* User signals. */
-    IN gctHANDLE                userProcess;
-    IN gctSIGNAL                userSignal1;
-    IN gctSIGNAL                userSignal2;
+    gctHANDLE                   userProcess;
+    gctSIGNAL                   userSignal1;
+    gctSIGNAL                   userSignal2;
 
 #if defined(__QNXNTO__)
     /* Client pulse side-channel connection ID. */
-    IN gctINT32                 coid;
+    gctINT32                    coid;
 
     /* Set by server. */
-    IN gctINT32                 rcvid;
+    gctINT32                    rcvid;
 #endif
 }
 gcsHAL_COMPOSE;
@@ -247,62 +306,7 @@ typedef struct _gcsHAL_INTERFACE
         QueryVideoMemory;
 
         /* gcvHAL_QUERY_CHIP_IDENTITY */
-        struct _gcsHAL_QUERY_CHIP_IDENTITY
-        {
-
-            /* Chip model. */
-            OUT gceCHIPMODEL            chipModel;
-
-            /* Revision value.*/
-            OUT gctUINT32               chipRevision;
-
-            /* Supported feature fields. */
-            OUT gctUINT32               chipFeatures;
-
-            /* Supported minor feature fields. */
-            OUT gctUINT32               chipMinorFeatures;
-
-            /* Supported minor feature 1 fields. */
-            OUT gctUINT32               chipMinorFeatures1;
-
-            /* Supported minor feature 2 fields. */
-            OUT gctUINT32               chipMinorFeatures2;
-
-            /* Supported minor feature 3 fields. */
-            OUT gctUINT32               chipMinorFeatures3;
-
-            /* Number of streams supported. */
-            OUT gctUINT32               streamCount;
-
-            /* Total number of temporary registers per thread. */
-            OUT gctUINT32               registerMax;
-
-            /* Maximum number of threads. */
-            OUT gctUINT32               threadCount;
-
-            /* Number of shader cores. */
-            OUT gctUINT32               shaderCoreCount;
-
-            /* Size of the vertex cache. */
-            OUT gctUINT32               vertexCacheSize;
-
-            /* Number of entries in the vertex output buffer. */
-            OUT gctUINT32               vertexOutputBufferSize;
-
-            /* Number of pixel pipes. */
-            OUT gctUINT32               pixelPipes;
-
-            /* Number of instructions. */
-			OUT gctUINT32               instructionCount;
-
-            /* Number of constants. */
-			OUT gctUINT32               numConstants;
-
-			/* Buffer size */
-			OUT gctUINT32               bufferSize;
-
-        }
-        QueryChipIdentity;
+        gcsHAL_QUERY_CHIP_IDENTITY      QueryChipIdentity;
 
         /* gcvHAL_MAP_MEMORY */
         struct _gcsHAL_MAP_MEMORY

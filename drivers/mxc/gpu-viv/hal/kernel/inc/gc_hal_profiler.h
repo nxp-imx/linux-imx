@@ -435,6 +435,11 @@ extern "C" {
 #define	VG11_TRANSFORMPATH			(VG11_SHEAR						+ 1)
 #define	VG11_TRANSLATE				(VG11_TRANSFORMPATH				+ 1)
 #define	VG11_WRITEPIXELS			(VG11_TRANSLATE					+ 1)
+#define VG11_CALLS                  (VG11_WRITEPIXELS               + 1)
+#define VG11_DRAWCALLS              (VG11_CALLS                     + 1)
+#define VG11_STATECHANGECALLS       (VG11_DRAWCALLS                 + 1)
+#define VG11_FILLCOUNT              (VG11_STATECHANGECALLS          + 1)
+#define VG11_STROKECOUNT            (VG11_FILLCOUNT                 + 1)
 /* End of Driver API ID Definitions. */
 
 /* HAL & MISC IDs. */
