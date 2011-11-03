@@ -97,4 +97,11 @@ static inline void fsl_platform_set_ahb_burst(struct usb_hcd *hcd)
 				hcd->regs + FSL_SOC_USB_TXFILLTUNING);
 	}
 
+	/* Increase TX fifo threshold for in Hostx */
+	if (cpu_is_mx6q()) {
+		temp = readl(hcd->regs + FSL_SOC_USB_TXFILLTUNING);
+		/* Change TX FIFO threshold to be 0x08 */
+		writel((temp & (~(0x3f << 16))) | (0x08 << 16),
+				hcd->regs + FSL_SOC_USB_TXFILLTUNING);
+	}
 }

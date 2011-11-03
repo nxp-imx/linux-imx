@@ -200,6 +200,8 @@
 #define MX6Q_PL301_BASE_ADDR          (AIPS2_OFF_BASE_ADDR + 0x0000)
 #define MX6Q_USB_OTG_BASE_ADDR            (AIPS2_OFF_BASE_ADDR + 0x4000)
 #define MX6Q_USB_HS1_BASE_ADDR            (AIPS2_OFF_BASE_ADDR + 0x4200)
+#define MX6Q_USB_HS2_BASE_ADDR            (AIPS2_OFF_BASE_ADDR + 0x4400)
+#define MX6Q_USB_HS3_BASE_ADDR            (AIPS2_OFF_BASE_ADDR + 0x4600)
 #define ENET_BASE_ADDR                  (AIPS2_OFF_BASE_ADDR+0x8000)
 #define MLB_BASE_ADDR                   (AIPS2_OFF_BASE_ADDR+0xC000)
 
@@ -325,6 +327,12 @@
 #define MX6Q_INT_USB_OTG				75
 #define MX6Q_INT_USB_PHY0				76
 #define MX6Q_INT_USB_PHY1				77
+/*
+ * MX6Q_INT_USB_PHY2, MX6Q_INT_USB_PHY3 are dummy interrupts
+ * In order to compile pass for platform device's definition
+ */
+#define MX6Q_INT_USB_PHY2				73
+#define MX6Q_INT_USB_PHY3				74
 #define MX6Q_INT_SSI1                               78
 #define MX6Q_INT_SSI2                               79
 #define MX6Q_INT_SSI3                               80

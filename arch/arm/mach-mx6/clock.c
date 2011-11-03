@@ -634,8 +634,25 @@ static struct clk pll3_usb_otg_main_clk = {
 	.get_rate = _clk_pll3_usb_otg_get_rate,
 };
 
+/* for USB OTG */
 static struct clk usb_phy1_clk = {
 	__INIT_CLK_DEBUG(usb_phy1_clk)
+	.parent = &pll3_usb_otg_main_clk,
+	.set_rate = _clk_pll3_usb_otg_set_rate,
+	.get_rate = _clk_pll3_usb_otg_get_rate,
+};
+
+/* For HSIC port 1 */
+static struct clk usb_phy3_clk = {
+	__INIT_CLK_DEBUG(usb_phy3_clk)
+	.parent = &pll3_usb_otg_main_clk,
+	.set_rate = _clk_pll3_usb_otg_set_rate,
+	.get_rate = _clk_pll3_usb_otg_get_rate,
+};
+
+/* For HSIC port 2 */
+static struct clk usb_phy4_clk = {
+	__INIT_CLK_DEBUG(usb_phy4_clk)
 	.parent = &pll3_usb_otg_main_clk,
 	.set_rate = _clk_pll3_usb_otg_set_rate,
 	.get_rate = _clk_pll3_usb_otg_get_rate,
@@ -4732,6 +4749,8 @@ static struct clk_lookup lookups[] = {
 	_REGISTER_CLOCK(NULL, "imx_sata_clk", sata_clk[0]),
 	_REGISTER_CLOCK(NULL, "usboh3_clk", usboh3_clk[0]),
 	_REGISTER_CLOCK(NULL, "usb_phy1_clk", usb_phy1_clk),
+	_REGISTER_CLOCK(NULL, "usb_phy3_clk", usb_phy3_clk),
+	_REGISTER_CLOCK(NULL, "usb_phy4_clk", usb_phy4_clk),
 	_REGISTER_CLOCK("imx2-wdt.0", NULL, dummy_clk),
 	_REGISTER_CLOCK("imx2-wdt.1", NULL, dummy_clk),
 	_REGISTER_CLOCK(NULL, "hdmi_isfr_clk", hdmi_clk[0]),
