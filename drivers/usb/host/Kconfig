@@ -77,6 +77,17 @@ config USB_EHCI_ARC_OTG
 	---help---
 	  Enable support for the USB OTG port in HS/FS Host mode.
 
+config USB_EHCI_ARC_HSIC
+	bool "Support HSIC Host controller for Freescale SoC"
+	depends on USB_EHCI_ARC && ARCH_MX6
+	default n
+	---help---
+	   Some Freescale processors have an HSIC featured controller,
+	   which supports EHCI host mode.
+
+	   Say "y" here to add support for this controller
+	   to the EHCI HCD driver.
+
 config USB_STATIC_IRAM
 	bool "Use IRAM for USB"
 	depends on USB_EHCI_ARC
@@ -507,7 +518,7 @@ config USB_SL811_HCD
 	help
 	  The SL811HS is a single-port USB controller that supports either
 	  host side or peripheral side roles.  Enable this option if your
-	  board has this chip, and you want to use it as a host controller. 
+	  board has this chip, and you want to use it as a host controller.
 	  If unsure, say N.
 
 	  To compile this driver as a module, choose M here: the
