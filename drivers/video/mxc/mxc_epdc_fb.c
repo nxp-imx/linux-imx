@@ -135,6 +135,7 @@ struct mxc_epdc_fb_data {
 	struct clk *epdc_clk_pix;
 	struct regulator *display_regulator;
 	struct regulator *vcom_regulator;
+	struct regulator *v3p3_regulator;
 	bool fw_default_load;
 
 	/* FB elements related to EPDC updates */
@@ -866,6 +867,17 @@ static void epdc_powerup(struct mxc_epdc_fb_data *fb_data)
 
 	fb_data->updates_active = true;
 
+	/* Enable the v3p3 regulator */
+	ret = regulator_enable(fb_data->v3p3_regulator);
+	if (IS_ERR((void *)ret)) {
+		dev_err(fb_data->dev, "Unable to enable V3P3 regulator."
+			"err = 0x%x\n", ret);
+		mutex_unlock(&fb_data->power_mutex);
+		return;
+	}
+
+	msleep(1);
+
 	/* Enable pins used by EPDC */
 	if (fb_data->pdata->enable_pins)
 		fb_data->pdata->enable_pins();
@@ -924,6 +936,9 @@ static void epdc_powerdown(struct mxc_epdc_fb_data *fb_data)
 	/* Disable pins used by EPDC (to prevent leakage current) */
 	if (fb_data->pdata->disable_pins)
 		fb_data->pdata->disable_pins();
+
+	/* turn off the V3p3 */
+	regulator_disable(fb_data->v3p3_regulator);
 
 	fb_data->power_state = POWER_STATE_OFF;
 	fb_data->powering_down = false;
@@ -3959,6 +3974,15 @@ int __devinit mxc_epdc_fb_probe(struct platform_device *pdev)
 		ret = -ENODEV;
 		goto out_irq;
 	}
+	fb_data->v3p3_regulator = regulator_get(NULL, "V3P3");
+	if (IS_ERR(fb_data->v3p3_regulator)) {
+		regulator_put(fb_data->vcom_regulator);
+		regulator_put(fb_data->display_regulator);
+		dev_err(&pdev->dev, "Unable to get V3P3 regulator."
+			"err = 0x%x\n", (int)fb_data->vcom_regulator);
+		ret = -ENODEV;
+		goto out_irq;
+	}
 
 	if (device_create_file(info->dev, &fb_attrs[0]))
 		dev_err(&pdev->dev, "Unable to create file from fb_attrs\n");
@@ -4163,6 +4187,7 @@ static int mxc_epdc_fb_remove(struct platform_device *pdev)
 
 	regulator_put(fb_data->display_regulator);
 	regulator_put(fb_data->vcom_regulator);
+	regulator_put(fb_data->v3p3_regulator);
 
 	unregister_framebuffer(&fb_data->info);
 	free_irq(fb_data->epdc_irq, fb_data);
