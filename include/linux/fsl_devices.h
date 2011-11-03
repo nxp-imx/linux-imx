@@ -65,6 +65,7 @@ enum fsl_usb2_phy_modes {
 	FSL_USB2_PHY_UTMI,
 	FSL_USB2_PHY_UTMI_WIDE,
 	FSL_USB2_PHY_SERIAL,
+	FSL_USB2_PHY_HSIC,
 };
 
 enum usb_wakeup_event {
@@ -121,6 +122,7 @@ struct fsl_usb2_platform_data {
 	void (*platform_driver_vbus)(bool on); /* for vbus shutdown/open */
 	enum usb_wakeup_event (*is_wakeup_event)(struct fsl_usb2_platform_data *);
 	void (*wakeup_handler)(struct fsl_usb2_platform_data *);
+	void (*hsic_post_ops)(void);
 
 	struct fsl_usb2_wakeup_platform_data *wakeup_pdata;
 	struct platform_device *pdev;
