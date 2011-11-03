@@ -2454,7 +2454,7 @@ static void init_camera_struct(cam_data *cam, struct platform_device *pdev)
 	cam->ipu = ipu_get_soc(0);
 	if (cam->ipu == NULL)
 		pr_err("ERROR: v4l2 capture: failed to get ipu\n");
-	else if (cam->ipu == -ENODEV)
+	else if (cam->ipu == ERR_PTR(-ENODEV))
 		pr_err("ERROR: v4l2 capture: get invalid ipu\n");
 
 	init_MUTEX(&cam->param_lock);
