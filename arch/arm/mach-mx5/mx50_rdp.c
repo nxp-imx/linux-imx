@@ -243,6 +243,7 @@ static iomux_v3_cfg_t mx50_rdp[] = {
 
 	MX50_PAD_EPDC_PWRSTAT__GPIO_3_28,
 	MX50_PAD_EPDC_VCOM0__GPIO_4_21,
+	MX50_PAD_EPDC_PWRCTRL0__GPIO_3_29,
 
 	MX50_PAD_DISP_D8__DISP_D8,
 	MX50_PAD_DISP_D9__DISP_D9,
@@ -269,6 +270,9 @@ static iomux_v3_cfg_t mx50_rdp[] = {
 
 	/* EPD PMIC intr */
 	MX50_PAD_UART4_RXD__GPIO_6_17,
+
+	/* EPD PMIC powerup */
+	MX50_PAD_EPDC_PWRCTRL0__GPIO_3_29,
 
 	MX50_PAD_EPITO__USBH1_PWR,
 	/* Need to comment below line if
@@ -718,6 +722,11 @@ static struct regulator_init_data max17135_init_data[] = {
 			.min_uV = V_to_uV(15),
 			.max_uV = V_to_uV(15),
 		},
+	}, {
+		.constraints = {
+			.name = "V3P3",
+			.valid_ops_mask =  REGULATOR_CHANGE_STATUS,
+		},
 	},
 };
 
@@ -923,13 +932,13 @@ static struct fb_videomode e60_v220_mode = {
 	.refresh = 85,
 	.xres = 800,
 	.yres = 600,
-	.pixclock = 32000000,
+	.pixclock = 30000000,
 	.left_margin = 8,
-	.right_margin = 166,
+	.right_margin = 164,
 	.upper_margin = 4,
-	.lower_margin = 26,
-	.hsync_len = 20,
-	.vsync_len = 4,
+	.lower_margin = 8,
+	.hsync_len = 4,
+	.vsync_len = 1,
 	.sync = 0,
 	.vmode = FB_VMODE_NONINTERLACED,
 	.flag = 0,
@@ -973,10 +982,10 @@ static struct mxc_epdc_fb_mode panel_modes[] = {
 		20,	/* sdoed_delay */
 		10,	/* sdoez_width */
 		20,	/* sdoez_delay */
-		428,	/* gdclk_hp_offs */
+		465,	/* gdclk_hp_offs */
 		20,	/* gdsp_offs */
 		0,	/* gdoe_offs */
-		1,	/* gdclk_offs */
+		9,	/* gdclk_offs */
 		1,	/* num_ce */
 	},
 	{
@@ -1020,6 +1029,7 @@ static struct max17135_platform_data max17135_pdata __initdata = {
 	.gpio_pmic_pwrgood = EPDC_PWRSTAT,
 	.gpio_pmic_vcom_ctrl = EPDC_VCOM,
 	.gpio_pmic_wakeup = EPDC_PMIC_WAKE,
+	.gpio_pmic_v3p3 = EPDC_PWRCTRL0,
 	.gpio_pmic_intr = EPDC_PMIC_INT,
 	.regulator_init = max17135_init_data,
 	.init = max17135_regulator_init,
@@ -1045,12 +1055,13 @@ static int __init max17135_regulator_init(struct max17135 *max17135)
 	max17135->gpio_pmic_pwrgood = pdata->gpio_pmic_pwrgood;
 	max17135->gpio_pmic_vcom_ctrl = pdata->gpio_pmic_vcom_ctrl;
 	max17135->gpio_pmic_wakeup = pdata->gpio_pmic_wakeup;
+	max17135->gpio_pmic_v3p3 = pdata->gpio_pmic_v3p3;
 	max17135->gpio_pmic_intr = pdata->gpio_pmic_intr;
 
 	max17135->vcom_setup = false;
 	max17135->init_done = false;
 
-	for (i = 0; i <= MAX17135_VPOS; i++) {
+	for (i = 0; i < MAX17135_NUM_REGULATORS; i++) {
 		ret = max17135_register_regulator(max17135, i,
 			&pdata->regulator_init[i]);
 		if (ret != 0) {
@@ -1873,6 +1884,9 @@ static void __init mx50_rdp_io_init(void)
 
 	gpio_request(EPDC_VCOM, "epdc-vcom");
 	gpio_direction_output(EPDC_VCOM, 0);
+
+	gpio_request(EPDC_PWRCTRL0, "epdc-powerup");
+	gpio_direction_output(EPDC_PWRCTRL0, 0);
 
 	gpio_request(EPDC_PMIC_INT, "epdc-pmic-int");
 	gpio_direction_input(EPDC_PMIC_INT);
