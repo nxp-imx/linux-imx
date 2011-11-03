@@ -46,6 +46,9 @@ extern void __iomem *imx_otg_base;
 #define USBH2_REG32(offset)	(*((volatile u32 __force *)(USB_H2REGS_BASE + (offset))))
 #define USBH2_REG16(offset)	(*((volatile u16 __force *)(USB_H2REGS_BASE + (offset))))
 
+#define USBH3_REG32(offset)	(*((volatile u32 __force *)(USB_H3REGS_BASE + (offset))))
+#define USBH3_REG16(offset)	(*((volatile u16 __force *)(USB_H3REGS_BASE + (offset))))
+
 #define USBOTHER_REG(offset)	(*((volatile u32 __force *)(USB_OTHERREGS_BASE + (offset))))
 
 /*
@@ -147,6 +150,60 @@ extern void __iomem *imx_otg_base;
 #define UH2_PORTSC1		USBH2_REG32(0x184)	/* port status and control */
 /* end EHCI registers */
 #define UH2_USBMODE		USBH2_REG32(0x1a8)	/* USB device mode */
+/*
+ * Host 2 registers
+ */
+#define UH2_ID			USBH2_REG32(0x00)	/* Host ID */
+#define UH2_HWGENERAL		USBH2_REG32(0x04)	/* Host General */
+#define UH2_HWHOST		USBH2_REG32(0x08)	/* Host h/w params */
+#define UH2_HWTXBUF		USBH2_REG32(0x10)	/* TX buffer h/w params */
+#define UH2_HWRXBUF		USBH2_REG32(0x14)	/* RX buffer h/w params */
+#define UH2_CAPLENGTH		USBH2_REG16(0x100)	/* Capability register length */
+#define UH2_HCIVERSION		USBH2_REG16(0x102)	/* Host Interface version */
+#define UH2_HCSPARAMS		USBH2_REG32(0x104)	/* Host control structural params */
+#define UH2_HCCPARAMS		USBH2_REG32(0x108)	/* control capability params */
+/* start EHCI registers: */
+#define UH2_USBCMD		USBH2_REG32(0x140)	/* USB command register */
+#define UH2_USBSTS		USBH2_REG32(0x144)	/* USB status register */
+#define UH2_USBINTR		USBH2_REG32(0x148)	/* interrupt enable register */
+#define UH2_FRINDEX		USBH2_REG32(0x14c)	/* USB frame index */
+/*      segment                            (0x150)	   addr bits 63:32 if needed */
+#define UH2_PERIODICLISTBASE	USBH2_REG32(0x154)	/* host crtlr frame list base addr */
+#define UH2_ASYNCLISTADDR	USBH2_REG32(0x158)	/* host ctrlr nest async addr */
+#define UH2_BURSTSIZE		USBH2_REG32(0x160)	/* host ctrlr embedded TT async buf status */
+#define UH2_TXFILLTUNING	USBH2_REG32(0x164)	/* TX FIFO fill tuning */
+#define UH2_ULPIVIEW		USBH2_REG32(0x170)	/* ULPI viewport */
+/*      configured_flag                    (0x180)	   configflag (supports HS) */
+#define UH2_PORTSC1		USBH2_REG32(0x184)	/* port status and control */
+/* end EHCI registers */
+#define UH2_USBMODE		USBH2_REG32(0x1a8)	/* USB device mode */
+/*
+ * Host 2 registers
+ */
+#define UH3_ID			USBH3_REG32(0x00)	/* Host ID */
+#define UH3_HWGENERAL		USBH3_REG32(0x04)	/* Host General */
+#define UH3_HWHOST		USBH3_REG32(0x08)	/* Host h/w params */
+#define UH3_HWTXBUF		USBH3_REG32(0x10)	/* TX buffer h/w params */
+#define UH3_HWRXBUF		USBH3_REG32(0x14)	/* RX buffer h/w params */
+#define UH3_CAPLENGTH		USBH3_REG16(0x100)	/* Capability register length */
+#define UH3_HCIVERSION		USBH3_REG16(0x102)	/* Host Interface version */
+#define UH3_HCSPARAMS		USBH3_REG32(0x104)	/* Host control structural params */
+#define UH3_HCCPARAMS		USBH3_REG32(0x108)	/* control capability params */
+/* start EHCI registers: */
+#define UH3_USBCMD		USBH3_REG32(0x140)	/* USB command register */
+#define UH3_USBSTS		USBH3_REG32(0x144)	/* USB status register */
+#define UH3_USBINTR		USBH3_REG32(0x148)	/* interrupt enable register */
+#define UH3_FRINDEX		USBH3_REG32(0x14c)	/* USB frame index */
+/*      segment                            (0x150)	   addr bits 63:32 if needed */
+#define UH3_PERIODICLISTBASE	USBH3_REG32(0x154)	/* host crtlr frame list base addr */
+#define UH3_ASYNCLISTADDR	USBH3_REG32(0x158)	/* host ctrlr nest async addr */
+#define UH3_BURSTSIZE		USBH3_REG32(0x160)	/* host ctrlr embedded TT async buf status */
+#define UH3_TXFILLTUNING	USBH3_REG32(0x164)	/* TX FIFO fill tuning */
+#define UH3_ULPIVIEW		USBH3_REG32(0x170)	/* ULPI viewport */
+/*      configured_flag                    (0x180)	   configflag (supports HS) */
+#define UH3_PORTSC1		USBH3_REG32(0x184)	/* port status and control */
+/* end EHCI registers */
+#define UH3_USBMODE		USBH3_REG32(0x1a8)	/* USB device mode */
 
 /*
  * other regs (not part of ARC core)
@@ -189,6 +246,7 @@ extern void __iomem *imx_otg_base;
 #define PORTSC_PTS_SERIAL		(3 << 30)	/* serial */
 #define PORTSC_STS			(1 << 29)	/* serial xcvr select */
 #define PORTSC_PTW                      (1 << 28)       /* UTMI width */
+#define PORTSC_HSIC_MODE                (1 << 25)       /* Only for HSIC */
 #define PORTSC_PHCD                     (1 << 23)       /* Low Power Suspend */
 #define PORTSC_PORT_POWER		(1 << 12)	/* port power */
 #define PORTSC_LS_MASK			(3 << 10)	/* Line State mask */

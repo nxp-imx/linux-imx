@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # Linux/arm 2.6.38 Kernel Configuration
-# Wed Nov  2 16:21:15 2011
+# Fri Nov  4 11:06:29 2011
 #
 CONFIG_ARM=y
 CONFIG_HAVE_PWM=y
@@ -897,8 +897,7 @@ CONFIG_SMSC911X=y
 # CONFIG_KS8851 is not set
 # CONFIG_KS8851_MLL is not set
 CONFIG_FEC=y
-# CONFIG_FEC_158 is not set
-# CONFIG_OUT_OF_BAND is not set
+# CONFIG_FEC_1588 is not set
 # CONFIG_NETDEV_1000 is not set
 # CONFIG_NETDEV_10000 is not set
 CONFIG_WLAN=y
@@ -1608,6 +1607,7 @@ CONFIG_USB_SUSPEND=y
 CONFIG_USB_EHCI_HCD=y
 CONFIG_USB_EHCI_ARC=y
 CONFIG_USB_EHCI_ARC_OTG=y
+# CONFIG_USB_EHCI_ARC_HSIC is not set
 # CONFIG_USB_STATIC_IRAM is not set
 CONFIG_USB_EHCI_ROOT_HUB_TT=y
 # CONFIG_USB_EHCI_TT_NEWSCHED is not set
