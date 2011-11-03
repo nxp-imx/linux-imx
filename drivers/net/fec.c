@@ -432,7 +432,6 @@ fec_enet_tx(struct net_device *dev)
 	struct  fec_ptp_private *fpp;
 	struct bufdesc *bdp;
 	unsigned short status;
-	unsigned long  estatus;
 	struct	sk_buff	*skb;
 
 	fep = netdev_priv(dev);
@@ -478,8 +477,7 @@ fec_enet_tx(struct net_device *dev)
 
 #if defined(CONFIG_ENHANCED_BD)
 		if (fep->ptimer_present) {
-			estatus = bdp->cbd_esc;
-			if (estatus & BD_ENET_TX_TS)
+			if (bdp->cbd_esc & BD_ENET_TX_TS)
 				fec_ptp_store_txstamp(fpp, skb, bdp);
 		}
 #elif defined(CONFIG_IN_BAND)
