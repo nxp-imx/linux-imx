@@ -28,6 +28,7 @@
 #define PORT_PTS_UTMI		(0<<30)
 #define PORT_PTS_ULPI		(2<<30)
 #define	PORT_PTS_SERIAL		(3<<30)
+#define	PORT_PTS_HSIC		(1<<25)
 #define PORT_PTS_PTW		(1<<28)
 #define PORT_PTS_PHCD		(1<<23)
 #define FSL_SOC_USB_PORTSC2	0x188
