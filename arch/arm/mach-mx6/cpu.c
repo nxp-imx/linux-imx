@@ -91,6 +91,13 @@ static int __init post_cpu_init(void)
 		reg |= 0x20;
 		__raw_writel(reg, base);
 	}
+
+	/* Disable SRC warm reset to work aound system reboot issue */
+	base = IO_ADDRESS(SRC_BASE_ADDR);
+	reg = __raw_readl(base);
+	reg &= ~0x1;
+	__raw_writel(reg, base);
+
 	/* Allocate IRAM for WAIT code. */
 	/* Move wait routine into iRAM */
 	cpaddr = (unsigned long)iram_alloc(SZ_4K, &iram_paddr);
