@@ -467,12 +467,13 @@
 /* bit 0 - bit 6 is reserved at mx6q */
 
 /* Host2/3 HSIC Ctrl */
-#define H2_CLK_VLD		(1 << 31)	/* Indicating whether Host2 HSIC clock is valid */
-#define H2_HSIC_EN		(1 << 12)	/* Host2 HSIC enable */
-#define H2_HSIC_CLK_ON		(1 << 11)	/* Force Host2 HSIC module 480M clock on,
-						 * even when in Host 2 is in suspend mode
+#define CLK_VLD		(1 << 31)	/* Indicating whether HSIC clock is valid */
+#define HSIC_EN		(1 << 12)	/* HSIC enable */
+#define HSIC_CLK_ON		(1 << 11)	/* Force HSIC module 480M clock on,
+						 * even when in Host is in suspend mode
 						 */
 /* OTG/HOST1 Phy Ctrl */
 #define PHY_UTMI_CLK_VLD	(1 << 31)	/* Indicating whether OTG UTMI PHY Clock Valida */
 
+#define NOP_XCVR		(0xffffffff)	/* Indicate it is no usb phy */
 #endif /* __ARCH_ARM___USBPHY_H */
