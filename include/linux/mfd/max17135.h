@@ -154,6 +154,7 @@ struct max17135 {
 	int gpio_pmic_pwrgood;
 	int gpio_pmic_vcom_ctrl;
 	int gpio_pmic_wakeup;
+	int gpio_pmic_v3p3;
 	int gpio_pmic_intr;
 
 	/* MAX17135 part variables */
@@ -181,6 +182,7 @@ enum {
     MAX17135_VCOM,
     MAX17135_VNEG,
     MAX17135_VPOS,
+    MAX17135_V3P3,
     MAX17135_NUM_REGULATORS,
 };
 
@@ -201,6 +203,7 @@ struct max17135_platform_data {
 	int gpio_pmic_pwrgood;
 	int gpio_pmic_vcom_ctrl;
 	int gpio_pmic_wakeup;
+	int gpio_pmic_v3p3;
 	int gpio_pmic_intr;
 	int pass_num;
 	int vcom_uV;
