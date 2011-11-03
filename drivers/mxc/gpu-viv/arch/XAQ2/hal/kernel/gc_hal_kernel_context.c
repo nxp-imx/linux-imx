@@ -417,7 +417,7 @@ _InitializeContextBuffer(
 
     /* Front End states. */
 	fe2vsCount = 12;
-	if ((((((gctUINT32) (Context->hardware->chipMinorFeatures1)) >> (0 ? 23:23)) & ((gctUINT32) ((((1 ? 23:23) - (0 ? 23:23) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 23:23) - (0 ? 23:23) + 1)))))) ))
+	if ((((((gctUINT32) (Context->hardware->identity.chipMinorFeatures1)) >> (0 ? 23:23)) & ((gctUINT32) ((((1 ? 23:23) - (0 ? 23:23) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 23:23) - (0 ? 23:23) + 1)))))) ))
 	{
 		fe2vsCount = 16;
 	}
@@ -515,7 +515,7 @@ _InitializeContextBuffer(
     index += _State(Context, index, 0x02740 >> 2, 0x00000000, 12, gcvFALSE, gcvTRUE);
     index += _CLOSE_RANGE();
 
-    if ((((((gctUINT32) (Context->hardware->chipMinorFeatures2)) >> (0 ? 11:11)) & ((gctUINT32) ((((1 ? 11:11) - (0 ? 11:11) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 11:11) - (0 ? 11:11) + 1)))))) ))
+    if ((((((gctUINT32) (Context->hardware->identity.chipMinorFeatures2)) >> (0 ? 11:11)) & ((gctUINT32) ((((1 ? 11:11) - (0 ? 11:11) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 11:11) - (0 ? 11:11) + 1)))))) ))
     {
         /* New texture block. */
         index += _State(Context, index, 0x10000 >> 2, 0x00000000, 32, gcvFALSE, gcvFALSE);
@@ -565,7 +565,7 @@ _InitializeContextBuffer(
     index += _State(Context, index, 0x0091C >> 2, 0x00000000, 1, gcvFALSE, gcvFALSE);
     index += _CLOSE_RANGE();
 
-	if (Context->hardware->instructionCount >= 2048)
+	if (Context->hardware->identity.instructionCount >= 2048)
 	{
 		/* New Shader instruction memory. */
 		index += _State(Context, index, 0x0085C >> 2, 0x00000000, 1, gcvFALSE, gcvFALSE);
@@ -579,7 +579,7 @@ _InitializeContextBuffer(
 			index += _CLOSE_RANGE();
 		}
 	}
-	else if (Context->hardware->instructionCount >= 1024)
+	else if (Context->hardware->identity.instructionCount >= 1024)
 	{
 		/* VX instruction memory. */
 		for (i = 0; i < 4096; i += 1024)
@@ -617,16 +617,16 @@ _InitializeContextBuffer(
     /* Composition states. */
     index += _State(Context, index, 0x03008 >> 2, 0x00000000, 1, gcvFALSE, gcvFALSE);
 
-    if (Context->hardware->pixelPipes == 1)
+    if (Context->hardware->identity.pixelPipes == 1)
     {
         index += _State(Context, index, 0x01430 >> 2, 0x00000000, 1, gcvFALSE, gcvTRUE);
         index += _State(Context, index, 0x01410 >> 2, 0x00000000, 1, gcvFALSE, gcvTRUE);
     }
     else
     {
-        index += _State(Context, index, ((0x01460 >> 2) + (0 << 3)), 0x00000000, Context->hardware->pixelPipes , gcvFALSE, gcvTRUE);
+        index += _State(Context, index, ((0x01460 >> 2) + (0 << 3)), 0x00000000, Context->hardware->identity.pixelPipes , gcvFALSE, gcvTRUE);
 
-        index += _State(Context, index, ((0x01480 >> 2) + (0 << 3)), 0x00000000, Context->hardware->pixelPipes , gcvFALSE, gcvTRUE);
+        index += _State(Context, index, ((0x01480 >> 2) + (0 << 3)), 0x00000000, Context->hardware->identity.pixelPipes , gcvFALSE, gcvTRUE);
     }
 
     index += _State(Context, index, 0x01434 >> 2, 0x00000000, 1, gcvFALSE, gcvFALSE);
@@ -1401,7 +1401,7 @@ gckCONTEXT_Update(
             gctUINT32_PTR nop;
             gctUINT fe2vsCount = 12;
 
-            if ((((((gctUINT32) (Context->hardware->chipMinorFeatures1)) >> (0 ? 23:23)) & ((gctUINT32) ((((1 ? 23:23) - (0 ? 23:23) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 23:23) - (0 ? 23:23) + 1)))))) ))
+            if ((((((gctUINT32) (Context->hardware->identity.chipMinorFeatures1)) >> (0 ? 23:23)) & ((gctUINT32) ((((1 ? 23:23) - (0 ? 23:23) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 23:23) - (0 ? 23:23) + 1)))))) ))
             {
                 fe2vsCount = 16;
             }

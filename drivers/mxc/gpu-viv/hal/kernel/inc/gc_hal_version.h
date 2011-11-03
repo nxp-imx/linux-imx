@@ -26,11 +26,11 @@
 
 #define gcvVERSION_MAJOR        4
 
-#define gcvVERSION_MINOR        5
+#define gcvVERSION_MINOR        6
 
-#define gcvVERSION_PATCH        0
+#define gcvVERSION_PATCH        2
 
-#define gcvVERSION_BUILD        1190
+#define gcvVERSION_BUILD        1251
 
 #define gcvVERSION_DATE      __DATE__
 

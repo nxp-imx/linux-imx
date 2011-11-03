@@ -1,7 +1,6 @@
 /****************************************************************************
 *
 *    Copyright (C) 2005 - 2011 by Vivante Corp.
-*    Copyright (C) 2011 Freescale Semiconductor, Inc. 
 *
 *    This program is free software; you can redistribute it and/or modify
 *    it under the terms of the GNU General Public License as published by
@@ -28,10 +27,6 @@
 #ifdef __QNXNTO__
 #include <atomic.h>
 #include "gc_hal_kernel_qnx.h"
-#endif
-
-#ifdef LINUX
-#include <asm/atomic.h>
 #endif
 
 #define _GC_OBJ_ZONE                    gcvZONE_EVENT
@@ -206,6 +201,48 @@ OnError:
 #endif
 
 static gceSTATUS
+_TryToIdleGPU(
+    IN gckEVENT Event
+)
+{
+#ifndef __QNXNTO__
+    gceSTATUS status;
+    gctBOOL empty = gcvFALSE, idle = gcvFALSE;
+
+    gcmkHEADER_ARG("Event=0x%x", Event);
+
+    /* Verify the arguments. */
+    gcmkVERIFY_OBJECT(Event, gcvOBJ_EVENT);
+
+    /* Check whether the event queue is empty. */
+    gcmkONERROR(gckEVENT_IsEmpty(Event, &empty));
+
+    if (empty)
+    {
+        /* Query whether the hardware is idle. */
+        gcmkONERROR(gckHARDWARE_QueryIdle(Event->kernel->hardware, &idle));
+
+        if (idle)
+        {
+            /* Inform the system of idle GPU. */
+            gcmkONERROR(gckOS_Broadcast(Event->os,
+                                        Event->kernel->hardware,
+                                        gcvBROADCAST_GPU_IDLE));
+        }
+    }
+
+    gcmkFOOTER_NO();
+    return gcvSTATUS_OK;
+
+OnError:
+    gcmkFOOTER();
+    return status;
+#else
+    return gcvSTATUS_OK;
+#endif
+}
+
+static gceSTATUS
 __RemoveRecordFromProcessDB(
     IN gckEVENT Event,
     IN gcsEVENT_PTR Record
@@ -258,62 +295,6 @@ __RemoveRecordFromProcessDB(
     }
     gcmkFOOTER_NO();
     return gcvSTATUS_OK;
-}
-
-static gceSTATUS
-_IsEmpty(
-    IN gckEVENT Event,
-    OUT gctBOOL_PTR IsEmpty
-    )
-{
-    gceSTATUS status;
-    gctSIZE_T i;
-
-    gcmkHEADER_ARG("Event=0x%x", Event);
-
-    /* Verify the arguments. */
-    gcmkVERIFY_OBJECT(Event, gcvOBJ_EVENT);
-    gcmkVERIFY_ARGUMENT(IsEmpty != gcvNULL);
-
-    /* Assume the event queue is empty. */
-    *IsEmpty = gcvTRUE;
-
-    /* Walk the event queue. */
-    for (i = 0; i < gcmCOUNTOF(Event->queues); ++i)
-    {
-        /* Check whether this event is in use. */
-        if (Event->queues[i].head != gcvNULL)
-        {
-            /* The event is in use, hence the queue is not empty. */
-            *IsEmpty = gcvFALSE;
-            break;
-        }
-    }
-
-    /* Try acquiring the mutex. */
-    status = gckOS_AcquireMutex(Event->os, Event->eventQueueMutex, 0);
-    if (status == gcvSTATUS_TIMEOUT)
-    {
-        /* Timeout - queue is no longer empty. */
-        *IsEmpty = gcvFALSE;
-    }
-    else
-    {
-        /* Bail out on error. */
-        gcmkONERROR(status);
-
-        /* Release the mutex. */
-        gcmkVERIFY_OK(gckOS_ReleaseMutex(Event->os, Event->eventQueueMutex));
-    }
-
-    /* Success. */
-    gcmkFOOTER_ARG("*IsEmpty=%d", gcmOPT_VALUE(IsEmpty));
-    return gcvSTATUS_OK;
-
-OnError:
-    /* Return the status. */
-    gcmkFOOTER();
-    return status;
 }
 
 /******************************************************************************\
@@ -404,6 +385,10 @@ gckEVENT_Construct(
                               eventObj->freeAtom,
                               gcmCOUNTOF(eventObj->queues)));
 
+#if gcdSMP
+    gcmkONERROR(gckOS_AtomConstruct(os, &eventObj->pending));
+#endif
+
     /* Return pointer to the gckEVENT object. */
     *Event = eventObj;
 
@@ -443,6 +428,12 @@ OnError:
             gcmkVERIFY_OK(gckOS_AtomDestroy(os, eventObj->freeAtom));
         }
 
+#if gcdSMP
+        if (eventObj->pending != gcvNULL)
+        {
+            gcmkVERIFY_OK(gckOS_AtomDestroy(os, eventObj->pending));
+        }
+#endif
         gcmkVERIFY_OK(gcmkOS_SAFE_FREE(os, eventObj));
     }
 
@@ -537,6 +528,9 @@ gckEVENT_Destroy(
     /* Delete the atom. */
     gcmkVERIFY_OK(gckOS_AtomDestroy(Event->os, Event->freeAtom));
 
+#if gcdSMP
+    gcmkVERIFY_OK(gckOS_AtomDestroy(Event->os, Event->pending));
+#endif
     /* Mark the gckEVENT object as unknown. */
     Event->object.type = gcvOBJ_UNKNOWN;
 
@@ -582,7 +576,6 @@ gckEVENT_GetEvent(
     gctINT i, id;
     gceSTATUS status;
     gctBOOL acquired = gcvFALSE;
-    gctBOOL suspended = gcvFALSE;
     gctINT32 free;
 
 #if gcdGPU_TIMEOUT
@@ -675,18 +668,9 @@ gckEVENT_GetEvent(
 
         if (timer == gcdGPU_TIMEOUT)
         {
-            /* Suspend interrupts. */
-            gcmkONERROR(gckOS_SuspendInterrupt(Event->os));
-            suspended = gcvTRUE;
-
             /* Try to call any outstanding events. */
             gcmkONERROR(gckHARDWARE_Interrupt(Event->kernel->hardware,
                                               gcvTRUE));
-
-            /* Resume interrupts. */
-            gcmkONERROR(gckOS_ResumeInterrupt(Event->os));
-            suspended = gcvFALSE;
-
         }
         else if (timer > gcdGPU_TIMEOUT)
         {
@@ -713,12 +697,6 @@ OnError:
     {
         /* Release the queue mutex. */
         gcmkVERIFY_OK(gckOS_ReleaseMutex(Event->os, Event->eventQueueMutex));
-    }
-    
-    if (suspended)
-    {
-        /* Resume interrupts. */
-        gcmkVERIFY_OK(gckOS_ResumeInterrupt(Event->os));
     }
 
     /* Return the status. */
@@ -914,7 +892,7 @@ gckEVENT_AddList(
         queue->head   = gcvNULL;
         queue->next   = gcvNULL;
 
-        /* Attach it to the list of alloicated queues. */
+        /* Attach it to the list of allocated queues. */
         if (Event->queueTail == gcvNULL)
         {
             Event->queueHead =
@@ -1309,29 +1287,24 @@ gckEVENT_Submit(
     gctUINT8 id = 0xFF;
     gcsEVENT_QUEUE_PTR queue;
     gctBOOL acquired = gcvFALSE;
-
+    gckCOMMAND command = gcvNULL;
+    gctBOOL commitEntered = gcvFALSE;
 #if !gcdNULL_DRIVER
     gctSIZE_T bytes;
     gctPOINTER buffer;
-    gckCOMMAND command = gcvNULL;
-    gctBOOL commitEntered = gcvFALSE;
 #endif
 
     gcmkHEADER_ARG("Event=0x%x Wait=%d", Event, Wait);
 
-#if !gcdNULL_DRIVER
     /* Get gckCOMMAND object. */
     command = Event->kernel->command;
-#endif
 
     /* Are there event queues? */
     if (Event->queueHead != gcvNULL)
     {
-#if !gcdNULL_DRIVER
         /* Acquire the command queue. */
         gcmkONERROR(gckCOMMAND_EnterCommit(command, FromPower));
         commitEntered = gcvTRUE;
-#endif
 
         /* Process all queues. */
         while (Event->queueHead != gcvNULL)
@@ -1404,10 +1377,12 @@ gckEVENT_Submit(
 #endif
         }
 
-#if !gcdNULL_DRIVER
         /* Release the command queue. */
         gcmkONERROR(gckCOMMAND_ExitCommit(command, FromPower));
         commitEntered = gcvFALSE;
+
+#if !gcdNULL_DRIVER
+        gcmkVERIFY_OK(_TryToIdleGPU(Event));
 #endif
     }
 
@@ -1416,13 +1391,11 @@ gckEVENT_Submit(
     return gcvSTATUS_OK;
 
 OnError:
-#if !gcdNULL_DRIVER
     if (commitEntered)
     {
         /* Release the command queue mutex. */
         gcmkVERIFY_OK(gckCOMMAND_ExitCommit(command, FromPower));
     }
-#endif
 
     if (acquired)
     {
@@ -1660,7 +1633,7 @@ gckEVENT_Compose(
     /* Start composition. */
     gcmkONERROR(gckHARDWARE_Compose(
         Event->kernel->hardware, processID,
-        Info->size, Info->physical, Info->logical, id
+        Info->physical, Info->logical, Info->offset, Info->size, id
         ));
 
     /* Success. */
@@ -1704,20 +1677,12 @@ gckEVENT_Interrupt(
     gcmkVERIFY_OBJECT(Event, gcvOBJ_EVENT);
 
     /* Combine current interrupt status with pending flags. */
-#ifdef __QNXNTO__
+#if gcdSMP
+    gckOS_AtomSetMask(Event->pending, Data);
+#elif defined(__QNXNTO__)
     atomic_set(&Event->pending, Data);
 #else
-#ifdef LINUX
-    {
-        gctUINT32 oldVal,newVal;
-        do{
-            oldVal = Event->pending;
-            newVal = oldVal| Data;
-        }while(atomic_cmpxchg((atomic_t *)&Event->pending,oldVal,newVal)!=oldVal);    
-    }
-#else
     Event->pending |= Data;
-#endif
 #endif
 
     /* Success. */
@@ -1756,10 +1721,9 @@ gckEVENT_Notify(
 #endif
     gctUINT pending;
     gctBOOL suspended = gcvFALSE;
-#ifndef __QNXNTO__
-    gctBOOL empty = gcvFALSE, idle = gcvFALSE;
+#if gcmIS_DEBUG(gcdDEBUG_TRACE)
+    gctINT eventNumber = 0;
 #endif
-    gcmDEBUG_ONLY(gctINT eventNumber = 0;)
     gctINT32 free;
 #if gcdSECURE_USER
     gcskSECURE_CACHE_PTR cache;
@@ -1794,7 +1758,11 @@ gckEVENT_Notify(
         suspended = gcvTRUE;
 
         /* Get current interrupts. */
+#if gcdSMP
+        gckOS_AtomGet(Event->os, Event->pending, &pending);
+#else
         pending = Event->pending;
+#endif
 
         /* Resume interrupts. */
         gcmkONERROR(gckOS_ResumeInterruptEx(Event->os, Event->kernel->core));
@@ -1845,7 +1813,9 @@ gckEVENT_Notify(
                 {
                     queue = &Event->queues[i];
                     mask  = 1 << i;
-                    gcmDEBUG_ONLY(eventNumber = i);
+#if gcmIS_DEBUG(gcdDEBUG_TRACE)
+                    eventNumber = i;
+#endif
                 }
             }
         }
@@ -1864,20 +1834,12 @@ gckEVENT_Notify(
             suspended = gcvTRUE;
 
             /* Mark pending interrupts as handled. */
-#ifdef __QNXNTO__
-            atomic_clr(&Event->pending, pending);
-#else
-#ifdef LINUX
-            {
-                gctUINT32 oldVal,newVal;
-                do{
-                    oldVal = Event->pending;
-                    newVal = oldVal & (~pending);
-                }while(atomic_cmpxchg((atomic_t *)&Event->pending,oldVal,newVal)!=oldVal);    
-            }
+#if gcdSMP
+            gckOS_AtomClearMask(Event->pending, pending);
+#elif defined(__QNXNTO__)
+            atomic_set(&Event->pending, pending);
 #else
             Event->pending &= ~pending;
-#endif
 #endif
 
             /* Resume interrupts. */
@@ -1921,9 +1883,10 @@ gckEVENT_Notify(
         }
 
         /* Walk all events for this interrupt. */
-        while (1)
+        for (;;)
         {
-            gcsEVENT_PTR record,record_next;
+            gcsEVENT_PTR record;
+            gcsEVENT_PTR recordNext = gcvNULL;
 #ifndef __QNXNTO__
             gctPOINTER logical;
 #endif
@@ -1939,11 +1902,11 @@ gckEVENT_Notify(
 
             /* Grab the event head. */
             record = queue->head;
-            record_next = gcvNULL;
+
             if (record != gcvNULL)
             {
-                record_next = record->next;
-                queue->head = record_next;
+                queue->head = record->next;
+                recordNext = record->next;
             }
 
             /* Release the mutex queue. */
@@ -2272,11 +2235,10 @@ gckEVENT_Notify(
                 gcmkVERIFY_OK(gckEVENT_FreeRecord(Event, record));
             }
 
-            //Can't use queue->head to check, as the value may be updated while it equals to NULL.
-            //So use the shadow value to check.
-            if(record_next == gcvNULL)
+            if (recordNext == gcvNULL)
+            {
                 break;
-
+            }
         }
 
         /* Increase the number of free events. */
@@ -2290,15 +2252,9 @@ gckEVENT_Notify(
         suspended = gcvTRUE;
 
         /* Mark pending interrupt as handled. */
-#ifdef LINUX
-        {
-            gctUINT32 oldVal,newVal;
-            do{
-                oldVal = Event->pending;
-                newVal = oldVal & (~mask);
-            }while(atomic_cmpxchg((atomic_t *)&Event->pending,oldVal,newVal)!=oldVal);    
-        }
-#elif defined __QNXNTO__
+#if gcdSMP
+        gckOS_AtomClearMask(Event->pending, mask);
+#elif defined(__QNXNTO__)
         atomic_clr(&Event->pending, mask);
 #else
         Event->pending &= ~mask;
@@ -2309,25 +2265,10 @@ gckEVENT_Notify(
         suspended = gcvFALSE;
     }
 
-#ifndef __QNXNTO__
-
-    /* Check whether the event queue is empty. */
-    gcmkONERROR(gckEVENT_IsEmpty(Event, &empty));
-
-    if (empty && (IDs == 0))
+    if (IDs == 0)
     {
-        /* Query whether the hardware is idle. */
-        gcmkONERROR(gckHARDWARE_QueryIdle(Event->kernel->hardware, &idle));
-
-        if (idle)
-        {
-            /* Inform the system of idle GPU. */
-            gcmkONERROR(gckOS_Broadcast(Event->os,
-                                        Event->kernel->hardware,
-                                        gcvBROADCAST_GPU_IDLE));
-        }
+        gcmkONERROR(_TryToIdleGPU(Event));
     }
-#endif
 
     /* Success. */
     gcmkFOOTER_NO();
@@ -2379,7 +2320,6 @@ gckEVENT_FreeProcess(
     gcsEVENT_PTR record, next;
     gceSTATUS status;
     gcsEVENT_PTR deleteHead, deleteTail;
-    gctBOOL empty, idle;
 
     gcmkHEADER_ARG("Event=0x%x ProcessID=%d", Event, ProcessID);
 
@@ -2454,22 +2394,7 @@ gckEVENT_FreeProcess(
         }
     }
 
-    /*Check whether the event queue is empty.*/
-    gcmkONERROR(_IsEmpty(Event, &empty));
-
-    if (empty)
-    {
-        /* Query whether the hardware is idle. */
-        gcmkONERROR(gckHARDWARE_QueryIdle(Event->kernel->hardware, &idle));
-
-        if (idle)
-        {
-            /* Inform the system of idle GPU. */
-            gcmkONERROR(gckOS_Broadcast(Event->os,
-                                        Event->kernel->hardware,
-                                        gcvBROADCAST_GPU_IDLE));
-        }
-    }
+    gcmkONERROR(_TryToIdleGPU(Event));
 
     /* Success. */
     gcmkFOOTER_NO();
