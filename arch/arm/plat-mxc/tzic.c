@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2004-2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2004-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * The code contained herein is licensed under the GNU General Public
  * License. You may obtain a copy of the GNU General Public License
@@ -167,8 +167,10 @@ int tzic_enable_wake(int is_idle)
 	unsigned int i, v;
 
 	__raw_writel(1, TZIC_DSMINT);
-	if (unlikely(__raw_readl(TZIC_DSMINT) == 0))
+	if (unlikely(__raw_readl(TZIC_DSMINT) == 0)) {
+		printk(KERN_INFO "tzic: can't enter suspend when still have Interrupt!\n");
 		return -EAGAIN;
+	}
 
 	if (likely(is_idle)) {
 		for (i = 0; i < 4; i++) {
