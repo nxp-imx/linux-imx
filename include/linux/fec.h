@@ -18,6 +18,7 @@
 
 struct fec_platform_data {
 	int (*init) (struct phy_device *);
+	int (*power_hibernate) (struct phy_device *);
 	phy_interface_t phy;
 	unsigned char mac[ETH_ALEN];
 };
