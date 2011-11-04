@@ -114,7 +114,6 @@ static struct delayed_work dvfs_core_handler;
  */
 static struct clk *pll1_sw_clk;
 static struct clk *cpu_clk;
-static struct clk *gpu_clk;
 static struct clk *dvfs_clk;
 
 static int cpu_op_nr;
@@ -574,7 +573,6 @@ static irqreturn_t dvfs_irq(int irq, void *dev_id)
 	return IRQ_HANDLED;
 }
 
-extern int clk_get_usecount(struct clk *clk);
 static void dvfs_core_work_handler(struct work_struct *work)
 {
 	u32 fsvai;
@@ -582,7 +580,6 @@ static void dvfs_core_work_handler(struct work_struct *work)
 	u32 curr_cpu = 0;
 	int ret = 0;
 	int low_freq_bus_ready = 0;
-	int disable_dvfs_irq = 0;
 	int bus_incr = 0, cpu_dcr = 0;
 	int cpu;
 
@@ -597,28 +594,6 @@ static void dvfs_core_work_handler(struct work_struct *work)
 		goto END;
 	}
 	curr_cpu = clk_get_rate(cpu_clk);
-
-	if (clk_get_usecount(gpu_clk)) {
-		maxf = 1;
-		if (curr_cpu != cpu_wp_tbl[0].cpu_rate) {
-			curr_wp = 0;
-			minf = 0;
-			dvfs_load_config(0);
-			if (!high_bus_freq_mode)
-				set_high_bus_freq(1);
-			set_cpu_freq(curr_wp);
-		}
-		/* If we enable DVFS's irq, the irq will keep coming,
-		 * and will consume about 3-40% cpu usage, we disable
-		 * dvfs 's irq here, and let it check the status every
-		 * 100 msecs.  If gpu clk have count to 0, it will
-		 * enable dvfs's irq let it do what it want.*/
-		schedule_delayed_work(&dvfs_core_handler, msecs_to_jiffies(100));
-		disable_dvfs_irq = 1;
-		goto END;
-	} else
-		disable_dvfs_irq = 0;
-
 	/* If FSVAI indicate freq down,
 	   check arm-clk is not in lowest frequency*/
 	if (fsvai == FSVAI_FREQ_DECREASE) {
@@ -703,10 +678,8 @@ END:
 
 	/* Enable DVFS interrupt */
 	/* FSVAIM=0 */
-	if (!disable_dvfs_irq) {
-		reg = (reg & ~MXC_DVFSCNTR_FSVAIM);
-		reg |= FSVAI_FREQ_NOCHANGE;
-	}
+	reg = (reg & ~MXC_DVFSCNTR_FSVAIM);
+	reg |= FSVAI_FREQ_NOCHANGE;
 	/* LBFL=1 */
 	reg = (reg & ~MXC_DVFSCNTR_LBFL);
 	reg |= MXC_DVFSCNTR_LBFL;
