@@ -54,6 +54,7 @@ static void __iomem *gpc_base = IO_ADDRESS(GPC_BASE_ADDR);
 extern void (*mx6_wait_in_iram)(void *ccm_base);
 extern void mx6_wait(void);
 extern void *mx6_wait_in_iram_base;
+extern bool enable_wait_mode;
 
 void gpc_set_wakeup(unsigned int irq[4])
 {
@@ -144,10 +145,12 @@ void mxc_cpu_lp_set(enum mxc_cpu_pwr_mode mode)
 
 void arch_idle(void)
 {
-	if ((num_online_cpus() == num_present_cpus())
-		&& mx6_wait_in_iram != NULL) {
-		mxc_cpu_lp_set(WAIT_UNCLOCKED_POWER_OFF);
-		mx6_wait_in_iram(MXC_CCM_BASE);
+	if (enable_wait_mode) {
+		if ((num_online_cpus() == num_present_cpus())
+			&& mx6_wait_in_iram != NULL) {
+			mxc_cpu_lp_set(WAIT_UNCLOCKED_POWER_OFF);
+			mx6_wait_in_iram(MXC_CCM_BASE);
+		}
 	} else
 		cpu_do_idle();
 }
