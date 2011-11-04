@@ -125,6 +125,7 @@ typedef union {
 	struct {
 		uint32_t csi;
 		uint32_t mipi_id;
+		uint32_t mipi_vc;
 		bool mipi_en;
 		bool interlaced;
 	} csi_mem;
