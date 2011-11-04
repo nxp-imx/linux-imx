@@ -497,8 +497,23 @@ static int mx6q_arm2_fec_phy_init(struct phy_device *phydev)
 	return 0;
 }
 
+static int mx6q_arm2_fec_power_hibernate(struct phy_device *phydev)
+{
+	unsigned short val;
+
+	/*set AR8031 debug reg 0xb to hibernate power*/
+	phy_write(phydev, 0x1d, 0xb);
+	val = phy_read(phydev, 0x1e);
+
+	val |= 0x8000;
+	phy_write(phydev, 0x1e, val);
+
+	return 0;
+}
+
 static struct fec_platform_data fec_data __initdata = {
 	.init = mx6q_arm2_fec_phy_init,
+	.power_hibernate = mx6q_arm2_fec_power_hibernate,
 	.phy = PHY_INTERFACE_MODE_RGMII,
 };
 
