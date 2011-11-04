@@ -592,6 +592,16 @@ struct imx_mipi_dsi_data {
 struct platform_device *__init imx_add_mipi_dsi(
 		const struct imx_mipi_dsi_data *data,
 		const struct mipi_dsi_platform_data *pdata);
+
+#include <mach/mipi_csi2.h>
+struct imx_mipi_csi2_data {
+	int id;
+	resource_size_t iobase;
+	resource_size_t iosize;
+};
+struct platform_device *__init imx_add_mipi_csi2(
+		const struct imx_mipi_csi2_data *data,
+		const struct mipi_csi2_platform_data *pdata);
 struct platform_device *__init imx_add_dcp(
 
 struct imx_fsl_usb2_otg_data {
