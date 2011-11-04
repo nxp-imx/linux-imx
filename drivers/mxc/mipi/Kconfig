@@ -1,0 +1,13 @@
+#
+# MIPI configuration
+#
+
+menu "MXC MIPI Support"
+
+config MXC_MIPI_CSI2
+	tristate "MIPI CSI2 support"
+	depends on ARCH_MX6
+	---help---
+         Say Y to get the MIPI CSI2 support.
+
+endmenu
