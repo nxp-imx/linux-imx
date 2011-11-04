@@ -33,8 +33,10 @@
 #include <linux/dma-mapping.h>
 #include <linux/io.h>
 #include <linux/kthread.h>
-#include <asm/cacheflush.h>
+#include <linux/vmalloc.h>
 #include <mach/ipu-v3.h>
+#include <asm/outercache.h>
+#include <asm/cacheflush.h>
 
 #include "ipu_prv.h"
 #include "ipu_regs.h"
@@ -81,6 +83,8 @@ struct stripe_setting {
 	u32 o_right_pos;
 	u32 o_top_pos;
 	u32 o_bottom_pos;
+	u32 rl_split_line;
+	u32 ud_split_line;
 };
 
 struct task_set {
@@ -143,6 +147,8 @@ struct ipu_split_task {
 	bool could_finish;
 	wait_queue_head_t waitq;
 	int ret;
+
+	u32 task_no;
 };
 
 struct ipu_task_entry {
@@ -162,8 +168,9 @@ struct ipu_task_entry {
 	struct task_set set;
 	struct completion comp;
 	ipu_state_t state;
-};
 
+	u32 task_no;
+};
 struct ipu_alloc_list {
 	struct list_head list;
 	dma_addr_t phy_addr;
@@ -173,9 +180,12 @@ struct ipu_alloc_list {
 LIST_HEAD(ipu_alloc_list);
 
 static int major;
+static u32 frame_no;
 static struct class *ipu_class;
 static struct device *ipu_dev;
-
+static char *vditmpbuf[2];
+static bool buf1filled, buf0filled;
+static u32 old_save_lines, old_size;
 int ipu_queue_sp_task(struct ipu_split_task *sp_task);
 
 static bool deinterlace_3_field(struct ipu_task_entry *t)
@@ -478,6 +488,7 @@ static void dump_task_info(struct ipu_task_entry *t)
 	dev_dbg(t->dev, "[0x%p]\tIC_MODE = 0x%x\n", (void *)t, IC_MODE);
 	dev_dbg(t->dev, "[0x%p]\tROT_MODE = 0x%x\n", (void *)t, ROT_MODE);
 	dev_dbg(t->dev, "[0x%p]\tVDI_MODE = 0x%x\n", (void *)t, VDI_MODE);
+	dev_dbg(t->dev, "[0x%p]\tTask_no = 0x%x\n\n\n", (void *)t, t->task_no);
 }
 
 static void dump_check_err(struct device *dev, int err)
@@ -942,6 +953,8 @@ static int create_split_task(
 	struct ipu_task *task = &(sp_task->task);
 	struct ipu_task_entry *t = sp_task->parent_task;
 
+	sp_task->task_no |= stripe;
+
 	task->input = t->input;
 	task->output = t->output;
 	task->overlay_en = t->overlay_en;
@@ -960,9 +973,14 @@ static int create_split_task(
 	if (t->output.rotate >= IPU_ROTATE_90_RIGHT) {
 		task->output.crop.w = t->set.sp_setting.oh;
 		task->output.crop.h = t->set.sp_setting.ow;
+		t->set.sp_setting.rl_split_line = t->set.sp_setting.o_bottom_pos;
+		t->set.sp_setting.ud_split_line = t->set.sp_setting.o_right_pos;
+
 	} else {
 		task->output.crop.w = t->set.sp_setting.ow;
 		task->output.crop.h = t->set.sp_setting.oh;
+		t->set.sp_setting.rl_split_line = t->set.sp_setting.o_right_pos;
+		t->set.sp_setting.ud_split_line = t->set.sp_setting.o_bottom_pos;
 	}
 
 	if (stripe & LEFT_STRIPE)
@@ -1103,11 +1121,16 @@ static int create_split_task(
 		break;
 	}
 
-	sp_task->thread = kthread_run(split_task_thread, sp_task,
+	/*check split task deinterlace enable*/
+	if (t->input.deinterlace.enable) {
+		sp_task->ret = ipu_queue_sp_task(sp_task);
+	} else {
+		sp_task->thread = kthread_run(split_task_thread, sp_task,
 					"ipu_split_task");
-	if (IS_ERR(sp_task->thread)) {
-		dev_err(t->dev, "split thread can not create\n");
-		return PTR_ERR(sp_task->thread);
+		if (IS_ERR(sp_task->thread)) {
+			dev_err(t->dev, "split thread can not create\n");
+			return PTR_ERR(sp_task->thread);
+		}
 	}
 
 	return 0;
@@ -1130,6 +1153,7 @@ static int queue_split_task(struct ipu_task_entry *t)
 		init_waitqueue_head(&(sp_task[i].waitq));
 		sp_task[i].could_finish = false;
 		sp_task[i].parent_task = t;
+		sp_task[i].task_no = t->task_no;
 	}
 
 	if (t->set.split_mode == RL_SPLIT) {
@@ -1140,24 +1164,28 @@ static int queue_split_task(struct ipu_task_entry *t)
 		create_split_task(DOWN_STRIPE, &sp_task[1]);
 	} else {
 		create_split_task(LEFT_STRIPE | UP_STRIPE, &sp_task[0]);
-		create_split_task(RIGHT_STRIPE | UP_STRIPE, &sp_task[1]);
-		create_split_task(LEFT_STRIPE | DOWN_STRIPE, &sp_task[2]);
+		create_split_task(LEFT_STRIPE | DOWN_STRIPE, &sp_task[1]);
+		create_split_task(RIGHT_STRIPE | UP_STRIPE, &sp_task[2]);
 		create_split_task(RIGHT_STRIPE | DOWN_STRIPE, &sp_task[3]);
 	}
 
-	for (i = 0; i < size; i++) {
-		sp_task[i].could_finish = true;
-		wake_up_interruptible(&sp_task[i].waitq);
-		kthread_stop(sp_task[i].thread);
-		if (sp_task[i].ret < 0) {
-			ret = sp_task[i].ret;
-			dev_err(t->dev,
-				"split task %d fail with ret %d\n",
-				i, ret);
+	/*check split task deinterlace enable*/
+	if (t->input.deinterlace.enable) {
+		return ret;
+	} else {
+		for (i = 0; i < size; i++) {
+			sp_task[i].could_finish = true;
+			wake_up_interruptible(&sp_task[i].waitq);
+			kthread_stop(sp_task[i].thread);
+			if (sp_task[i].ret < 0) {
+				ret = sp_task[i].ret;
+				dev_err(t->dev,
+					"split task %d fail with ret %d\n",
+					i, ret);
+			}
 		}
+		return ret;
 	}
-
-	return ret;
 }
 
 static struct ipu_task_entry *create_task_entry(struct ipu_task *task)
@@ -1216,11 +1244,12 @@ int ipu_queue_sp_task(struct ipu_split_task *sp_task)
 	if (IS_ERR(tsk))
 		return PTR_ERR(tsk);
 
+	tsk->task_no = sp_task->task_no;
+
 	ret = prepare_task(tsk);
 	if (ret < 0)
 		goto done;
 
-	tsk->set.sp_setting = sp_task->parent_task->set.sp_setting;
 	tsk->set.sp_setting = sp_task->parent_task->set.sp_setting;
 
 	ret = queue_task(tsk);
@@ -1233,6 +1262,7 @@ int ipu_queue_task(struct ipu_task *task)
 {
 	struct ipu_task_entry *tsk;
 	int ret;
+	u32 tmp_task_no;
 
 	tsk = create_task_entry(task);
 	if (IS_ERR(tsk))
@@ -1241,6 +1271,10 @@ int ipu_queue_task(struct ipu_task *task)
 	ret = prepare_task(tsk);
 	if (ret < 0)
 		goto done;
+
+	/* task_no last for bits for split task type*/
+	tmp_task_no = frame_no++ % 1024;
+	tsk->task_no = tmp_task_no << 4;
 
 	if (need_split(tsk))
 		ret = queue_split_task(tsk);
@@ -1609,6 +1643,181 @@ static irqreturn_t task_irq_handler(int irq, void *dev_id)
 	return IRQ_HANDLED;
 }
 
+/* Fix deinterlace up&down split mode medium line */
+static void vdi_split_process(struct ipu_soc *ipu, struct ipu_task_entry *t)
+{
+	u32 vdi_size;
+	u32 vdi_save_lines;
+	u32 stripe_mode;
+	u32 task_no;
+	u32 i, offset_addr;
+	unsigned char  *base_off;
+
+	stripe_mode = t->task_no & 0xf;
+	task_no = t->task_no >> 4;
+
+	base_off = (char *) __va(t->output.paddr);
+	if (base_off == NULL) {
+		dev_err(t->dev, "[0x%p]Falied get vitual address\n", (void *)t);
+		return;
+	}
+
+	vdi_save_lines = (t->output.crop.h - t->set.sp_setting.ud_split_line)/2 ;
+	vdi_size = vdi_save_lines * t->output.crop.w * 2;
+
+	if (vdi_save_lines <= 0) {
+		dev_err(t->dev, "[0x%p] vdi_save_line error\n", (void *)t);
+		return;
+	}
+
+	/*check vditmpbuf buffer have alloced or buffer size is changed */
+	if ((vdi_save_lines != old_save_lines) || (vdi_size != old_size)) {
+		if (vditmpbuf[0] != NULL)
+			kfree(vditmpbuf[0]);
+		if (vditmpbuf[1] != NULL)
+			kfree(vditmpbuf[1]);
+
+		vditmpbuf[0] = (char *)kmalloc(vdi_size, GFP_KERNEL);
+		if (vditmpbuf[0] == NULL) {
+			dev_err(t->dev,
+					"[0x%p]Falied Alloc vditmpbuf[0]\n", (void *)t);
+			return;
+		}
+		memset(vditmpbuf[0], 0, vdi_size);
+
+		vditmpbuf[1] = (char *)kmalloc(vdi_size, GFP_KERNEL);
+		if (vditmpbuf[1] == NULL) {
+			dev_err(t->dev,
+					"[0x%p]Falied Alloc vditmpbuf[1]\n", (void *)t);
+			return;
+		}
+		memset(vditmpbuf[1], 0, vdi_size);
+
+		old_save_lines = vdi_save_lines;
+		old_size = vdi_size;
+	}
+
+	/* UP stripe or UP&LEFT stripe */
+	if ((stripe_mode == UP_STRIPE) ||
+			(stripe_mode == (UP_STRIPE | LEFT_STRIPE))) {
+		if (!buf0filled) {
+
+			offset_addr = t->set.o_off +
+				t->set.sp_setting.ud_split_line*t->set.ostride;
+			dmac_flush_range(base_off + offset_addr,
+					base_off + offset_addr + vdi_size);
+			outer_flush_range(t->output.paddr + offset_addr,
+					t->output.paddr + offset_addr + vdi_size);
+
+			for (i = 0; i < vdi_save_lines; i++)
+				memcpy(vditmpbuf[0] + i*t->output.crop.w*2,
+						base_off + offset_addr + i*t->set.ostride,
+						t->output.crop.w*2);
+			buf0filled = true;
+		} else {
+			offset_addr = t->set.o_off +
+					(t->output.crop.h - vdi_save_lines)*t->set.ostride;
+			for (i = 0; i < vdi_save_lines; i++)
+				memcpy(base_off + offset_addr + i*t->set.ostride,
+						vditmpbuf[0] + i*t->output.crop.w*2,
+						t->output.crop.w*2);
+
+			dmac_flush_range(base_off + offset_addr,
+					base_off + offset_addr + i*t->set.ostride);
+			outer_flush_range(t->output.paddr + offset_addr,
+					t->output.paddr + offset_addr + i*t->set.ostride);
+			buf0filled = false;
+		}
+	}
+	/*Down stripe or Down&Left stripe*/
+	else if ((stripe_mode == DOWN_STRIPE) ||
+			(stripe_mode == (DOWN_STRIPE | LEFT_STRIPE))) {
+		if (!buf0filled) {
+			offset_addr = t->set.o_off + vdi_save_lines*t->set.ostride;
+			dmac_flush_range(base_off + offset_addr,
+					base_off + offset_addr + vdi_size);
+			outer_flush_range(t->output.paddr + offset_addr,
+					t->output.paddr + offset_addr + vdi_size);
+
+			for (i = 0; i < vdi_save_lines; i++)
+				memcpy(vditmpbuf[0] + i*t->output.crop.w*2,
+						base_off + offset_addr + i*t->set.ostride,
+						t->output.crop.w*2);
+			buf0filled = true;
+		} else {
+			offset_addr = t->set.o_off;
+			for (i = 0; i < vdi_save_lines; i++)
+				memcpy(base_off + offset_addr + i*t->set.ostride,
+						vditmpbuf[0] + i*t->output.crop.w*2,
+						t->output.crop.w*2);
+
+			dmac_flush_range(base_off + offset_addr,
+					base_off + offset_addr + i*t->set.ostride);
+			outer_flush_range(t->output.paddr + offset_addr,
+					t->output.paddr + offset_addr + i*t->set.ostride);
+			buf0filled = false;
+		}
+	}
+	/*Up&Right stripe*/
+	else if (stripe_mode == (UP_STRIPE | RIGHT_STRIPE)) {
+		if (!buf1filled) {
+			offset_addr = t->set.o_off +
+				t->set.sp_setting.ud_split_line*t->set.ostride;
+			dmac_flush_range(base_off + offset_addr,
+					base_off + offset_addr + vdi_size);
+			outer_flush_range(t->output.paddr + offset_addr,
+					t->output.paddr + offset_addr + vdi_size);
+
+			for (i = 0; i < vdi_save_lines; i++)
+				memcpy(vditmpbuf[1] + i*t->output.crop.w*2,
+						base_off + offset_addr + i*t->set.ostride,
+						t->output.crop.w*2);
+			buf1filled = true;
+		} else {
+			offset_addr = t->set.o_off +
+				(t->output.crop.h - vdi_save_lines)*t->set.ostride;
+			for (i = 0; i < vdi_save_lines; i++)
+				memcpy(base_off + offset_addr + i*t->set.ostride,
+						vditmpbuf[1] + i*t->output.crop.w*2,
+						t->output.crop.w*2);
+
+			dmac_flush_range(base_off + offset_addr,
+					base_off + offset_addr + i*t->set.ostride);
+			outer_flush_range(t->output.paddr + offset_addr,
+					t->output.paddr + offset_addr + i*t->set.ostride);
+			buf1filled = false;
+		}
+	}
+	/*Down stripe or Down&Right stript*/
+	else if (stripe_mode == (DOWN_STRIPE | RIGHT_STRIPE)) {
+		if (!buf1filled) {
+			offset_addr = t->set.o_off + vdi_save_lines*t->set.ostride;
+			dmac_flush_range(base_off + offset_addr,
+					base_off + offset_addr + vdi_save_lines*t->set.ostride);
+			outer_flush_range(t->output.paddr + offset_addr,
+					t->output.paddr + offset_addr + vdi_save_lines*t->set.ostride);
+
+			for (i = 0; i < vdi_save_lines; i++)
+				memcpy(vditmpbuf[1] + i*t->output.crop.w*2,
+						base_off + offset_addr + i*t->set.ostride,
+						t->output.crop.w*2);
+			buf1filled = true;
+		} else {
+			offset_addr = t->set.o_off;
+			for (i = 0; i < vdi_save_lines; i++)
+				memcpy(base_off + offset_addr + i*t->set.ostride,
+						vditmpbuf[1] + i*t->output.crop.w*2,
+						t->output.crop.w*2);
+
+			dmac_flush_range(base_off + offset_addr,
+					base_off + offset_addr + vdi_save_lines*t->set.ostride);
+			outer_flush_range(t->output.paddr + offset_addr,
+					t->output.paddr + offset_addr + vdi_save_lines*t->set.ostride);
+			buf1filled = false;
+		}
+	}
+}
+
 static void do_task(struct ipu_soc *ipu, struct ipu_task_entry *t)
 {
 	struct completion comp;
@@ -1783,6 +1992,11 @@ static void do_task(struct ipu_soc *ipu, struct ipu_task_entry *t)
 	ret = wait_for_completion_timeout(&comp, msecs_to_jiffies(t->timeout));
 	if (ret == 0)
 		t->state = STATE_IRQ_TIMEOUT;
+
+	/* split mode and VDI mode */
+	if (t->input.deinterlace.enable &&
+			(t->task_no & (UP_STRIPE | DOWN_STRIPE)))
+		vdi_split_process(ipu, t);
 
 	ipu_free_irq(ipu, irq, &comp);
 
