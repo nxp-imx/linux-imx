@@ -624,7 +624,6 @@ struct fsl_udc {
 	struct completion *done;	/* to make sure release() is done */
 	u32 iram_buffer[IRAM_PPH_NTD];
 	void *iram_buffer_v[IRAM_PPH_NTD];
-	struct work_struct gadget_work;
 	struct delayed_work gadget_delay_work;
 };
 

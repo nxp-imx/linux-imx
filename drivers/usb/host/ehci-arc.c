@@ -469,7 +469,6 @@ static int ehci_fsl_bus_resume(struct usb_hcd *hcd)
 	if (pdata->platform_resume)
 		pdata->platform_resume(pdata);
 
-	ehci->command = pdata->pm_command;
 	ret = ehci_bus_resume(hcd);
 	if (ret)
 		return ret;
@@ -691,8 +690,8 @@ static int ehci_fsl_drv_suspend(struct platform_device *pdev,
 
 	port_status = ehci_readl(ehci, &ehci->regs->port_status[0]);
 	/* save EHCI registers */
-/*	pdata->pm_command = ehci_readl(ehci, &ehci->regs->command); */
-/*	pdata->pm_command &= ~CMD_RUN; */
+	pdata->pm_command = ehci_readl(ehci, &ehci->regs->command);
+	pdata->pm_command &= ~CMD_RUN;
 	pdata->pm_status  = ehci_readl(ehci, &ehci->regs->status);
 	pdata->pm_intr_enable  = ehci_readl(ehci, &ehci->regs->intr_enable);
 	pdata->pm_frame_index  = ehci_readl(ehci, &ehci->regs->frame_index);
