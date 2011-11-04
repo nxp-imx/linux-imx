@@ -82,11 +82,15 @@
 static inline void __arch_adjust_zones(unsigned long *zone_size,
 		unsigned long *zhole_size)
 {
+#ifdef CONFIG_ZONE_DMA
 	/* Create separate zone to reserve memory for DMA */
-	zone_size[1] = zone_size[0] - MXC_DMA_ZONE_SIZE;
-	zone_size[0] = MXC_DMA_ZONE_SIZE;
-	zhole_size[1] = zhole_size[0];
-	zhole_size[0] = 0;
+	if ((zone_size[0] - zhole_size[0]) > MXC_DMA_ZONE_SIZE) {
+		zone_size[1] = zone_size[0] - MXC_DMA_ZONE_SIZE;
+		zone_size[0] = MXC_DMA_ZONE_SIZE;
+		zhole_size[1] = zhole_size[0];
+		zhole_size[0] = 0;
+	}
+#endif
 }
 
 #define arch_adjust_zones(size, holes) \
