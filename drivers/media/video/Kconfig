@@ -630,6 +630,7 @@ source "drivers/media/video/mxc/capture/Kconfig"
 config VIDEO_MXC_OUTPUT
         tristate "MXC Video For Linux Video Output"
         depends on VIDEO_DEV && ARCH_MXC
+	select VIDEOBUF_DMA_CONTIG
         default y
         ---help---
           This is the video4linux2 output driver based on MXC IPU/eMMA module.
