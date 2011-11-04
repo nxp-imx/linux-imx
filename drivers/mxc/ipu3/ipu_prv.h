@@ -132,6 +132,11 @@ struct ipu_soc {
 	struct mutex task_lock[2];
 	wait_queue_head_t waitq[2];
 	struct task_struct *thread[2];
+	struct rot_mem {
+		void *vaddr;
+		dma_addr_t paddr;
+		int size;
+	} rot_dma[2];
 };
 
 struct ipu_channel {
