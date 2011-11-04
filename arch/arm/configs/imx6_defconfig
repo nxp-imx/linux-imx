@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # Linux/arm 2.6.38 Kernel Configuration
-# Fri Nov  4 11:06:29 2011
+# Fri Nov  4 16:16:41 2011
 #
 CONFIG_ARM=y
 CONFIG_HAVE_PWM=y
@@ -590,7 +590,7 @@ CONFIG_CAN_FLEXCAN=y
 # CONFIG_CAN_EMS_USB is not set
 # CONFIG_CAN_ESD_USB2 is not set
 # CONFIG_CAN_SOFTING is not set
-CONFIG_CAN_DEBUG_DEVICES=y
+# CONFIG_CAN_DEBUG_DEVICES is not set
 # CONFIG_IRDA is not set
 CONFIG_BT=y
 CONFIG_BT_L2CAP=y
