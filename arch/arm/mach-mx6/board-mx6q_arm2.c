@@ -64,6 +64,7 @@
 #include <mach/mxc_hdmi.h>
 #include <mach/mxc_asrc.h>
 #include <mach/mipi_dsi.h>
+#include <mach/mipi_csi2.h>
 
 #include <asm/irq.h>
 #include <asm/setup.h>
@@ -268,6 +269,10 @@ static iomux_v3_cfg_t mx6q_arm2_pads[] = {
 	MX6Q_PAD_GPIO_19__GPIO_4_5,
 	/* camera powerdown */
 	MX6Q_PAD_CSI0_DAT5__GPIO_5_23,
+
+#ifdef CONFIG_MXC_CAMERA_OV5640_MIPI
+	MX6Q_PAD_CSI0_MCLK__CCM_CLKO,
+#endif
 
 	MX6Q_PAD_EIM_D24__GPIO_3_24,
 
@@ -588,7 +593,7 @@ static int max7310_u48_setup(struct i2c_client *client,
 	void *context)
 {
 	int max7310_gpio_value[] = {
-		0, 1, 1, 1, 0, 0, 0, 0,
+		1, 1, 1, 1, 0, 0, 0, 0,
 	};
 
 	int n;
@@ -641,6 +646,12 @@ static struct fsl_mxc_camera_platform_data camera_data = {
 	.csi = 0,
 };
 
+static struct fsl_mxc_camera_platform_data ov5640_mipi_data = {
+	.mclk = 24000000,
+	.csi = 0,
+};
+
+
 static struct i2c_board_info mxc_i2c0_board_info[] __initdata = {
 	{
 		I2C_BOARD_INFO("cs42888", 0x48),
@@ -687,6 +698,10 @@ static struct i2c_board_info mxc_i2c1_board_info[] __initdata = {
 	},
 	{
 		I2C_BOARD_INFO("mxc_hdmi_i2c", 0x50),
+	},
+	{
+		I2C_BOARD_INFO("ov5640_mipi", 0x3c),
+		.platform_data = (void *)&ov5640_mipi_data,
 	},
 };
 
@@ -958,6 +973,15 @@ static const struct flexcan_platform_data
 	}, {
 		.transceiver_switch = mx6q_flexcan1_switch,
 	}
+};
+
+static struct mipi_csi2_platform_data mipi_csi2_pdata = {
+	.ipu_id	 = 0,
+	.csi_id = 0,
+	.v_channel = 0,
+	.lanes = 2,
+	.dphy_clk = "mipi_pllref_clk",
+	.pixel_clk = "emi_clk",
 };
 
 static void arm2_suspend_enter(void)
@@ -1355,6 +1379,7 @@ static void __init mx6_board_init(void)
 
 	gp_reg_id = arm2_dvfscore_data.reg_id;
 	mx6q_arm2_init_uart();
+	imx6q_add_mipi_csi2(&mipi_csi2_pdata);
 	imx6q_add_mxc_hdmi_core(&hdmi_core_data);
 
 	imx6q_add_ipuv3(0, &ipu_data[0]);
@@ -1407,7 +1432,9 @@ static void __init mx6_board_init(void)
 	imx_asrc_data.asrc_audio_clk = clk_get(NULL, "asrc_serial_clk");
 	imx6q_add_asrc(&imx_asrc_data);
 
+#ifndef CONFIG_MXC_CAMERA_OV5640_MIPI
 	mx6q_csi0_io_init();
+#endif
 	/* DISP0 Detect */
 	gpio_request(MX6Q_ARM2_DISP0_DET_INT, "disp0-detect");
 	gpio_direction_input(MX6Q_ARM2_DISP0_DET_INT);
