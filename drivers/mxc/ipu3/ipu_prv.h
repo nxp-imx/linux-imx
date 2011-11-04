@@ -319,6 +319,7 @@ int _ipu_ic_idma_init(struct ipu_soc *ipu, int dma_chan, uint16_t width, uint16_
 		      int burst_size, ipu_rotate_mode_t rot);
 void _ipu_vdi_toggle_top_field_man(struct ipu_soc *ipu);
 int _ipu_csi_init(struct ipu_soc *ipu, ipu_channel_t channel, uint32_t csi);
+int _ipu_csi_set_mipi_di(struct ipu_soc *ipu, uint32_t num, uint32_t di_val, uint32_t csi);
 void ipu_csi_set_test_generator(struct ipu_soc *ipu, bool active, uint32_t r_value,
 		uint32_t g_value, uint32_t b_value,
 		uint32_t pix_clk, uint32_t csi);
