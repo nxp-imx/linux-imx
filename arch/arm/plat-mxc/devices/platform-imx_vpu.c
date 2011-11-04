@@ -110,9 +110,30 @@ const struct imx_vpu_data imx53_vpu_data __initconst =
 #endif
 
 #ifdef CONFIG_SOC_IMX6Q
+void mx6q_vpu_reset(void)
+{
+	u32 reg;
+	void __iomem *src_base;
+
+	src_base = ioremap(SRC_BASE_ADDR, PAGE_SIZE);
+
+	/* mask interrupt due to vpu passed reset */
+	reg = __raw_readl(src_base + 0x18);
+	reg |= 0x02;
+	 __raw_writel(reg, src_base + 0x18);
+
+	reg = __raw_readl(src_base);
+	reg |= 0x5;    /* warm reset vpu */
+	__raw_writel(reg, src_base);
+	while (__raw_readl(src_base) & 0x04)
+		;
+
+	iounmap(src_base);
+}
+
 const struct imx_vpu_data imx6q_vpu_data __initconst =
 			imx6_vpu_data_entry_single(MX6Q,
-			true, 0x21000, NULL, NULL);
+			true, 0x21000, mx6q_vpu_reset, NULL);
 #endif
 
 struct platform_device *__init imx_add_vpu(

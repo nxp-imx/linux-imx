@@ -245,6 +245,26 @@ gcoCL_CreateTexture(
 
 /*******************************************************************************
 **
+**  gcoCL_DestroyTexture
+**
+**  Destroy an gcoTEXTURE object.
+**
+**  INPUT:
+**
+**      gcoTEXTURE Texture
+**          Pointer to an gcoTEXTURE object.
+**
+**  OUTPUT:
+**
+**      Nothing.
+*/
+gceSTATUS
+gcoCL_DestroyTexture(
+    IN gcoTEXTURE Texture
+    );
+
+/*******************************************************************************
+**
 **  gcoCL_QueryDeviceInfo
 **
 **  Query the OpenCL capabilities of the device.

@@ -243,6 +243,68 @@ typedef struct _gcsHAL_LIMITS
 #endif
 
 /******************************************************************************\
+*********** Generic Memory Allocation Optimization Using Containers ************
+\******************************************************************************/
+
+/* Generic container definition. */
+typedef struct _gcsCONTAINER_LINK * gcsCONTAINER_LINK_PTR;
+typedef struct _gcsCONTAINER_LINK
+{
+    /* Points to the next container. */
+    gcsCONTAINER_LINK_PTR           next;
+}
+gcsCONTAINER_LINK;
+
+typedef struct _gcsCONTAINER_RECORD * gcsCONTAINER_RECORD_PTR;
+typedef struct _gcsCONTAINER_RECORD
+{
+    gcsCONTAINER_RECORD_PTR         prev;
+    gcsCONTAINER_RECORD_PTR         next;
+}
+gcsCONTAINER_RECORD;
+
+typedef struct _gcsCONTAINER * gcsCONTAINER_PTR;
+typedef struct _gcsCONTAINER
+{
+    gctUINT                         containerSize;
+    gctUINT                         recordSize;
+    gctUINT                         recordCount;
+    gcsCONTAINER_LINK_PTR           containers;
+    gcsCONTAINER_RECORD             freeList;
+    gcsCONTAINER_RECORD             allocList;
+}
+gcsCONTAINER;
+
+gceSTATUS
+gcsCONTAINER_Construct(
+    IN gcsCONTAINER_PTR Container,
+    gctUINT RecordsPerContainer,
+    gctUINT RecordSize
+    );
+
+gceSTATUS
+gcsCONTAINER_Destroy(
+    IN gcsCONTAINER_PTR Container
+    );
+
+gceSTATUS
+gcsCONTAINER_AllocateRecord(
+    IN gcsCONTAINER_PTR Container,
+    OUT gctPOINTER * Record
+    );
+
+gceSTATUS
+gcsCONTAINER_FreeRecord(
+    IN gcsCONTAINER_PTR Container,
+    IN gctPOINTER Record
+    );
+
+gceSTATUS
+gcsCONTAINER_FreeAll(
+    IN gcsCONTAINER_PTR Container
+    );
+
+/******************************************************************************\
 ********************************* gcoHAL Object *********************************
 \******************************************************************************/
 
@@ -1764,6 +1826,12 @@ gcoSURF_QueryOrientation(
     OUT gceORIENTATION * Orientation
     );
 
+gceSTATUS
+gcoSURF_SetOffset(
+    IN gcoSURF Surface,
+    IN gctUINT Offset
+    );
+
 /******************************************************************************\
 ********************************* gcoDUMP Object ********************************
 \******************************************************************************/
@@ -2160,22 +2228,28 @@ gcoOS_DebugTrace(
 #define gcvZONE_PARAMETERS      (1 << 21)
 
 /* API definitions. */
-#define gcvZONE_API_HAL         (0 << 28)
-#define gcvZONE_API_EGL         (1 << 28)
-#define gcvZONE_API_ES11        (2 << 28)
-#define gcvZONE_API_ES20        (3 << 28)
-#define gcvZONE_API_VG11        (4 << 28)
-#define gcvZONE_API_GL          (5 << 28)
-#define gcvZONE_API_DFB         (6 << 28)
-#define gcvZONE_API_GDI         (7 << 28)
-#define gcvZONE_API_D3D         (8 << 28)
+#define gcvZONE_API_HAL         (1 << 28)
+#define gcvZONE_API_EGL         (2 << 28)
+#define gcvZONE_API_ES11        (3 << 28)
+#define gcvZONE_API_ES20        (4 << 28)
+#define gcvZONE_API_VG11        (5 << 28)
+#define gcvZONE_API_GL          (6 << 28)
+#define gcvZONE_API_DFB         (7 << 28)
+#define gcvZONE_API_GDI         (8 << 28)
+#define gcvZONE_API_D3D         (9 << 28)
+
 
 #define gcmZONE_GET_API(zone)   ((zone) >> 28)
+/*Set gcdZONE_MASE like 0x0 | gcvZONE_API_EGL
+will enable print EGL module debug info*/
 #define gcdZONE_MASK            0x0FFFFFFF
 
 /* Handy zones. */
 #define gcvZONE_NONE            0
-#define gcvZONE_ALL             gcdZONE_MASK
+#define gcvZONE_ALL             0x0FFFFFFF
+
+/*Dump API depth set 1 for API, 2 for API and API behavior*/
+#define gcvDUMP_API_DEPTH       1
 
 /*******************************************************************************
 **
@@ -2325,6 +2399,7 @@ gcoOS_DebugTraceZone(
 \******************************************************************************/
 
 #define gcdHEADER_LEVEL             gcvLEVEL_VERBOSE
+
 
 #if gcdENABLE_PROFILING
 void

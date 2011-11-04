@@ -1560,7 +1560,7 @@ static int mxc_v4l_open(struct file *file)
 		pr_debug("On Open: Input to ipu size is %d x %d\n",
 				cam_fmt.fmt.pix.width, cam_fmt.fmt.pix.height);
 		ipu_csi_set_window_size(cam->ipu, cam->crop_current.width,
-					cam->crop_current.width,
+					cam->crop_current.height,
 					cam->csi);
 		ipu_csi_set_window_pos(cam->ipu, cam->crop_current.left,
 					cam->crop_current.top,
@@ -2454,7 +2454,7 @@ static void init_camera_struct(cam_data *cam, struct platform_device *pdev)
 	cam->ipu = ipu_get_soc(0);
 	if (cam->ipu == NULL)
 		pr_err("ERROR: v4l2 capture: failed to get ipu\n");
-	else if (cam->ipu == -ENODEV)
+	else if (cam->ipu == ERR_PTR(-ENODEV))
 		pr_err("ERROR: v4l2 capture: get invalid ipu\n");
 
 	init_MUTEX(&cam->param_lock);

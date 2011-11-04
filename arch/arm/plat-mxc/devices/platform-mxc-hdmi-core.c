@@ -34,7 +34,8 @@ const struct imx_mxc_hdmi_core_data imx6q_mxc_hdmi_core_data __initconst =
 #endif
 
 struct platform_device *__init imx_add_mxc_hdmi_core(
-	const struct imx_mxc_hdmi_core_data *data)
+		const struct imx_mxc_hdmi_core_data *data,
+		const struct fsl_mxc_hdmi_core_platform_data *pdata)
 {
 	struct resource res[] = {
 		{
@@ -45,6 +46,5 @@ struct platform_device *__init imx_add_mxc_hdmi_core(
 	};
 
 	return imx_add_platform_device_dmamask("mxc_hdmi_core", -1,
-					res, ARRAY_SIZE(res), NULL, 0,
-					DMA_BIT_MASK(32));
+		res, ARRAY_SIZE(res), pdata, sizeof(*pdata), DMA_BIT_MASK(32));
 }

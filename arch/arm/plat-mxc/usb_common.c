@@ -887,6 +887,10 @@ EXPORT_SYMBOL(usb_event_is_otg_wakeup);
 void fsl_platform_set_usb_phy_dis(struct fsl_usb2_platform_data *pdata,
 				  bool enable)
 {
+	/* for HSIC, we do not need to enable disconnect detection */
+	if (pdata->phy_mode == FSL_USB2_PHY_HSIC)
+		return;
+
 	if (enable)
 		__raw_writel(BM_USBPHY_CTRL_ENHOSTDISCONDETECT,
 			MX6_IO_ADDRESS(pdata->phy_regs) + HW_USBPHY_CTRL_SET);

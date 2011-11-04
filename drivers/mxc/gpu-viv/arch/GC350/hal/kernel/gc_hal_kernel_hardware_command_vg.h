@@ -232,6 +232,13 @@ struct _gckVGCOMMAND
 
     /* Current context ID. */
     gctUINT64                   currentContext;
+
+    /* Command queue power semaphore. */
+    gctPOINTER                  powerSemaphore;
+    gctINT32                    powerStallInt;
+    gcsCMDBUFFER_PTR            powerStallBuffer;
+    gctSIGNAL                   powerStallSignal;
+
 };
 
 /******************************************************************************\

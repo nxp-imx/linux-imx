@@ -139,9 +139,9 @@ static void _wake_up_enable(struct fsl_usb2_platform_data *pdata, bool enable)
 				| BM_USBPHY_CTRL_ENAUTOCLR_CLKGATE
 				| BM_USBPHY_CTRL_ENAUTOCLR_USBCLKGATE
 				| BM_USBPHY_CTRL_ENAUTO_PWRON_PLL , phy_reg + HW_USBPHY_CTRL_SET);
-		USB_H1_CTRL |= (UCTRL_OWIE | UCTRL_WKUP_ID_EN);
+		USB_H1_CTRL |= (UCTRL_OWIE);
 	} else {
-		USB_H1_CTRL &= ~(UCTRL_OWIE | UCTRL_WKUP_ID_EN);
+		USB_H1_CTRL &= ~(UCTRL_OWIE);
 		/* The interrupt must be disabled for at least 3
 		* cycles of the standby clock(32k Hz) , that is 0.094 ms*/
 		udelay(100);
@@ -189,22 +189,10 @@ static void _phy_lowpower_suspend(struct fsl_usb2_platform_data *pdata, bool ena
 static enum usb_wakeup_event _is_usbh1_wakeup(struct fsl_usb2_platform_data *pdata)
 {
 	u32 wakeup_req = USB_H1_CTRL & UCTRL_OWIR;
-	u32 otgsc = UOG_OTGSC;
 
-	if (wakeup_req) {
-		pr_debug("the otgsc is 0x%x, usbsts is 0x%x, portsc is 0x%x, wakeup_irq is 0x%x\n", UOG_OTGSC, UOG_USBSTS, UOG_PORTSC1, wakeup_req);
-	}
-	/* if ID change sts, it is a host wakeup event */
-	if (wakeup_req && (otgsc & OTGSC_IS_USB_ID)) {
-		pr_debug("otg host ID wakeup\n");
-		/* if host ID wakeup, we must clear the b session change sts */
-		otgsc &= (~OTGSC_IS_USB_ID);
-		return WAKEUP_EVENT_ID;
-	}
-	if (wakeup_req  && (!(otgsc & OTGSC_STS_USB_ID))) {
-		pr_debug("otg host Remote wakeup\n");
-		return WAKEUP_EVENT_DPDM;
-	}
+	if (wakeup_req)
+		return !WAKEUP_EVENT_INVALID;
+	pr_err("host1, %s, invalid wake up\n", __func__);
 	return WAKEUP_EVENT_INVALID;
 }
 
@@ -251,10 +239,11 @@ static struct fsl_usb2_wakeup_platform_data usbh1_wakeup_config = {
 
 void __init mx6_usb_h1_init(void)
 {
+	struct platform_device *pdev;
 	static void __iomem *anatop_base_addr = MX6_IO_ADDRESS(ANATOP_BASE_ADDR);
 	usbh1_config.wakeup_pdata = &usbh1_wakeup_config;
-	imx6q_add_fsl_ehci_hs(1, &usbh1_config);
-
+	pdev = imx6q_add_fsl_ehci_hs(1, &usbh1_config);
+	usbh1_wakeup_config.usb_pdata[0] = pdev->dev.platform_data;
 	imx6q_add_fsl_usb2_hs_wakeup(1, &usbh1_wakeup_config);
 	/* Some phy and power's special controls for host1
 	 * 1. The external charger detector needs to be disabled
@@ -266,10 +255,10 @@ void __init mx6_usb_h1_init(void)
 	__raw_writel(BM_ANADIG_USB2_CHRG_DETECT_EN_B  \
 			| BM_ANADIG_USB2_CHRG_DETECT_CHK_CHRG_B, \
 			anatop_base_addr + HW_ANADIG_USB2_CHRG_DETECT);
-
+	__raw_writel(BM_ANADIG_USB2_PLL_480_CTRL_BYPASS,
+			anatop_base_addr + HW_ANADIG_USB2_PLL_480_CTRL_CLR);
 	__raw_writel(BM_ANADIG_USB2_PLL_480_CTRL_ENABLE  \
 			| BM_ANADIG_USB2_PLL_480_CTRL_POWER \
 			| BM_ANADIG_USB2_PLL_480_CTRL_EN_USB_CLKS, \
 			anatop_base_addr + HW_ANADIG_USB2_PLL_480_CTRL_SET);
 }
-

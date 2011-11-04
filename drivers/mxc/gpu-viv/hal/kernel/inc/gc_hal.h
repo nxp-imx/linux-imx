@@ -544,6 +544,20 @@ gckOS_AtomicExchangePtr(
     OUT gctPOINTER * OldValue
     );
 
+#if gcdSMP
+gceSTATUS
+gckOS_AtomSetMask(
+    IN gctPOINTER Atom,
+    IN gctUINT32 Mask
+    );
+
+gceSTATUS
+gckOS_AtomClearMask(
+    IN gctPOINTER Atom,
+    IN gctUINT32 Mask
+    );
+#endif
+
 /*******************************************************************************
 **
 **  gckOS_AtomConstruct
@@ -1784,29 +1798,7 @@ gckHARDWARE_QueryMemory(
 gceSTATUS
 gckHARDWARE_QueryChipIdentity(
     IN gckHARDWARE Hardware,
-    OUT gceCHIPMODEL* ChipModel,
-    OUT gctUINT32* ChipRevision,
-    OUT gctUINT32* ChipFeatures,
-    OUT gctUINT32* ChipMinorFeatures,
-    OUT gctUINT32* ChipMinorFeatures1,
-    OUT gctUINT32* ChipMinorFeatures2,
-    OUT gctUINT32* ChipMinorFeatures3
-    );
-
-/* Query the specifications sof the hardware. */
-gceSTATUS
-gckHARDWARE_QueryChipSpecs(
-    IN gckHARDWARE Hardware,
-    OUT gctUINT32_PTR StreamCount,
-    OUT gctUINT32_PTR RegisterMax,
-    OUT gctUINT32_PTR ThreadCount,
-    OUT gctUINT32_PTR ShaderCoreCount,
-    OUT gctUINT32_PTR VertexCacheSize,
-    OUT gctUINT32_PTR VertexOutputBufferSize,
-    OUT gctUINT32_PTR PixelPipes,
-    OUT gctUINT32_PTR InstructionCount,
-    OUT gctUINT32_PTR NumConstants,
-    OUT gctUINT32_PTR BufferSize
+    OUT gcsHAL_QUERY_CHIP_IDENTITY_PTR Identity
     );
 
 /* Query the shader support. */
@@ -1946,6 +1938,20 @@ gckHARDWARE_QueryPowerManagementState(
     OUT gceCHIPPOWERSTATE* State
     );
 
+#if gcdPOWEROFF_TIMEOUT
+gceSTATUS
+gckHARDWARE_SetPowerOffTimeout(
+    IN gckHARDWARE  Hardware,
+    IN gctUINT32    Timeout
+);
+
+gceSTATUS
+gckHARDWARE_QueryPowerOffTimeout(
+    IN gckHARDWARE  Hardware,
+    OUT gctUINT32*  Timeout
+);
+#endif
+
 /* Profile 2D Engine. */
 gceSTATUS
 gckHARDWARE_ProfileEngine2D(
@@ -1978,9 +1984,10 @@ gceSTATUS
 gckHARDWARE_Compose(
     IN gckHARDWARE Hardware,
     IN gctUINT32 ProcessID,
-    IN gctSIZE_T Size,
     IN gctPHYS_ADDR Physical,
     IN gctPOINTER Logical,
+    IN gctSIZE_T Offset,
+    IN gctSIZE_T Size,
     IN gctUINT8 EventID
     );
 

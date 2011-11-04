@@ -249,23 +249,25 @@ static int imx_3stack_sgtl5000_init(struct snd_soc_pcm_runtime *rtd)
 	snd_soc_dapm_enable_pin(&codec->dapm, "Headphone Jack");
 	snd_soc_dapm_sync(&codec->dapm);
 
-	/* Jack detection API stuff */
-	ret = snd_soc_jack_new(codec, "Headphone Jack",
-			       SND_JACK_HEADPHONE, &hs_jack);
-	if (ret)
-		return ret;
+	if (hs_jack_gpios[0].gpio != -1) {
+		/* Jack detection API stuff */
+		ret = snd_soc_jack_new(codec, "Headphone Jack",
+				       SND_JACK_HEADPHONE, &hs_jack);
+		if (ret)
+			return ret;
 
-	ret = snd_soc_jack_add_pins(&hs_jack, ARRAY_SIZE(hs_jack_pins),
-				hs_jack_pins);
-	if (ret) {
-		printk(KERN_ERR "failed to call  snd_soc_jack_add_pins\n");
-		return ret;
+		ret = snd_soc_jack_add_pins(&hs_jack, ARRAY_SIZE(hs_jack_pins),
+					hs_jack_pins);
+		if (ret) {
+			printk(KERN_ERR "failed to call  snd_soc_jack_add_pins\n");
+			return ret;
+		}
+
+		ret = snd_soc_jack_add_gpios(&hs_jack,
+					ARRAY_SIZE(hs_jack_gpios), hs_jack_gpios);
+		if (ret)
+			printk(KERN_WARNING "failed to call snd_soc_jack_add_gpios\n");
 	}
-
-	ret = snd_soc_jack_add_gpios(&hs_jack, ARRAY_SIZE(hs_jack_gpios),
-				hs_jack_gpios);
-	if (ret)
-		printk(KERN_WARNING "failed to call snd_soc_jack_add_gpios\n");
 
 	return 0;
 }
@@ -361,12 +363,12 @@ static int __init imx_sgtl5000_init(void)
 	if (ret)
 		return -ENOMEM;
 
-	if (machine_is_mx35_3ds())
+	if (machine_is_mx35_3ds() || machine_is_mx6q_sabrelite())
 		imx_sgtl5000_dai[0].codec_name = "sgtl5000.0-000a";
 	else
 		imx_sgtl5000_dai[0].codec_name = "sgtl5000.1-000a";
 
-	imx_sgtl5000_snd_device = platform_device_alloc("soc-audio", -1);
+	imx_sgtl5000_snd_device = platform_device_alloc("soc-audio", 1);
 	if (!imx_sgtl5000_snd_device)
 		return -ENOMEM;
 
@@ -388,7 +390,7 @@ static void __exit imx_sgtl5000_exit(void)
 	platform_device_unregister(imx_sgtl5000_snd_device);
 }
 
-late_initcall(imx_sgtl5000_init);
+module_init(imx_sgtl5000_init);
 module_exit(imx_sgtl5000_exit);
 
 MODULE_AUTHOR("Sascha Hauer <s.hauer@pengutronix.de>");

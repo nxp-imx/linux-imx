@@ -48,7 +48,7 @@ config SND_SOC_PHYCORE_AC97
 
 config SND_SOC_IMX_SGTL5000
 	tristate "SoC Audio support for i.MX boards with sgtl5000"
-	depends on MACH_MX35_3DS || MACH_MX51_BABBAGE
+	depends on MACH_MX35_3DS || MACH_MX51_BABBAGE || MACH_MX6Q_SABRELITE
 	select SND_SOC_SGTL5000
 	select SND_MXC_SOC_MX2
 	help
@@ -57,7 +57,7 @@ config SND_SOC_IMX_SGTL5000
 
 config SND_SOC_IMX_CS42888
 	tristate "SoC Audio support for i.MX boards with cs42888"
-	depends on MACH_MX6Q_SABREAUTO || MACH_MX53_ARD
+	depends on MACH_MX6Q_ARM2 || MACH_MX53_ARD
 	select SND_SOC_CS42888
 	select SND_MXC_SOC_MX2
 	help
@@ -86,5 +86,13 @@ config SND_SOC_IMX_SPDIF
 	help
 	  Say Y if you want to add support for SoC audio on a IMX development
 	  board with S/PDIF.
+
+config SND_SOC_IMX_HDMI
+	tristate "SoC Audio support for IMX - HDMI"
+	default n
+	select SND_SOC_MXC_HDMI
+	select MFD_MXC_HDMI
+	help
+	  Say Y if you want to add support for SoC audio through IMX HDMI.
 
 endif	# SND_IMX_SOC

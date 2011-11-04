@@ -28,39 +28,51 @@
 #include <asm/system.h>
 #include "crm_regs.h"
 
-#define SCU_CTRL		0x00
-#define SCU_CONFIG		0x04
-#define SCU_CPU_STATUS		0x08
-#define SCU_INVALIDATE		0x0c
-#define SCU_FPGA_REVISION	0x10
-#define GPC_PGC_CPU_PDN_OFFSET	0x2a0
+#define SCU_CTRL					0x00
+#define SCU_CONFIG					0x04
+#define SCU_CPU_STATUS				0x08
+#define SCU_INVALIDATE				0x0c
+#define SCU_FPGA_REVISION			0x10
+#define GPC_CNTR_OFFSET				0x0
+#define GPC_PGC_GPU_PGCR_OFFSET		0x260
+#define GPC_PGC_CPU_PDN_OFFSET		0x2a0
 #define GPC_PGC_CPU_PUPSCR_OFFSET	0x2a4
 #define GPC_PGC_CPU_PDNSCR_OFFSET	0x2a8
+#define ANATOP_REG_2P5_OFFSET		0x130
+#define ANATOP_REG_CORE_OFFSET		0x140
 
 #define MODULE_CLKGATE		(1 << 30)
 #define MODULE_SFTRST		(1 << 31)
+/* static DEFINE_SPINLOCK(wfi_lock); */
 
 extern unsigned int gpc_wake_irq[4];
 
+/* static unsigned int cpu_idle_mask; */
+
+static void __iomem *gpc_base = IO_ADDRESS(GPC_BASE_ADDR);
+
+extern void (*mx6_wait_in_iram)(void *ccm_base);
+extern void mx6_wait(void);
+extern void *mx6_wait_in_iram_base;
+
 void gpc_set_wakeup(unsigned int irq[4])
 {
-	void __iomem *gpc_base = IO_ADDRESS(GPC_BASE_ADDR);
 	/* Mask all wake up source */
 	__raw_writel(~irq[0], gpc_base + 0x8);
 	__raw_writel(~irq[1], gpc_base + 0xc);
 	__raw_writel(~irq[2], gpc_base + 0x10);
 	__raw_writel(~irq[3], gpc_base + 0x14);
+
 	return;
 }
 /* set cpu low power mode before WFI instruction */
 void mxc_cpu_lp_set(enum mxc_cpu_pwr_mode mode)
 {
-	void __iomem *scu_base = IO_ADDRESS(SCU_BASE_ADDR);
-	void __iomem *gpc_base = IO_ADDRESS(GPC_BASE_ADDR);
-	u32 scu_cr, ccm_clpcr;
-	int stop_mode = 0;
 
-	scu_cr = __raw_readl(scu_base + SCU_CTRL);
+	int stop_mode = 0;
+	void __iomem *anatop_base = IO_ADDRESS(ANATOP_BASE_ADDR);
+	u32 ccm_clpcr, anatop_val;
+
 	ccm_clpcr = __raw_readl(MXC_CCM_CLPCR) & ~(MXC_CCM_CLPCR_LPM_MASK);
 
 	switch (mode) {
@@ -73,9 +85,10 @@ void mxc_cpu_lp_set(enum mxc_cpu_pwr_mode mode)
 	case STOP_POWER_OFF:
 	case ARM_POWER_OFF:
 		if (mode == WAIT_UNCLOCKED_POWER_OFF) {
-			ccm_clpcr |= 0x1 << MXC_CCM_CLPCR_LPM_OFFSET;
 			ccm_clpcr &= ~MXC_CCM_CLPCR_VSTBY;
 			ccm_clpcr &= ~MXC_CCM_CLPCR_SBYOS;
+			ccm_clpcr |= 0x1 << MXC_CCM_CLPCR_LPM_OFFSET;
+			ccm_clpcr |= MXC_CCM_CLPCR_BYP_MMDC_CH1_LPM_HS;
 			stop_mode = 0;
 		} else if (mode == STOP_POWER_OFF) {
 			ccm_clpcr |= 0x2 << MXC_CCM_CLPCR_LPM_OFFSET;
@@ -92,13 +105,10 @@ void mxc_cpu_lp_set(enum mxc_cpu_pwr_mode mode)
 			ccm_clpcr |= MXC_CCM_CLPCR_BYP_MMDC_CH1_LPM_HS;
 			stop_mode = 2;
 		}
-
-		/* scu standby enable, scu clk will be
-		 * off after all cpu enter WFI */
-		scu_cr |= 0x20;
 		break;
 	case STOP_POWER_ON:
 		ccm_clpcr |= 0x2 << MXC_CCM_CLPCR_LPM_OFFSET;
+
 		break;
 	default:
 		printk(KERN_WARNING "UNKNOWN cpu power mode: %d\n", mode);
@@ -112,17 +122,34 @@ void mxc_cpu_lp_set(enum mxc_cpu_pwr_mode mode)
 		__raw_writel(0xFFFFFFFF, gpc_base + GPC_PGC_CPU_PDNSCR_OFFSET);
 
 		/* dormant mode, need to power off the arm core */
-		if (stop_mode == 2)
-			__raw_writel(0x1, gpc_base + GPC_PGC_CPU_PDN_OFFSET);
+		if (stop_mode == 2) {
+			 __raw_writel(0x1, gpc_base + GPC_PGC_CPU_PDN_OFFSET);
+			__raw_writel(0x1, gpc_base + GPC_PGC_GPU_PGCR_OFFSET);
+			__raw_writel(0x1, gpc_base + GPC_CNTR_OFFSET);
+			/* Enable weak 2P5 linear regulator */
+			anatop_val = __raw_readl(anatop_base + ANATOP_REG_2P5_OFFSET);
+			anatop_val |= 1 << 18;
+			__raw_writel(anatop_val, anatop_base + ANATOP_REG_2P5_OFFSET);
+			/* Set ARM core power domain to 1V and PU domain set to off */
+			anatop_val = __raw_readl(anatop_base + ANATOP_REG_CORE_OFFSET);
+			anatop_val &= 0xfffc0000;
+			anatop_val |= 0xc;
+			__raw_writel(anatop_val, anatop_base + ANATOP_REG_CORE_OFFSET);
+			__raw_writel(__raw_readl(MXC_CCM_CCR) | MXC_CCM_CCR_RBC_EN, MXC_CCM_CCR);
+			ccm_clpcr |= MXC_CCM_CLPCR_WB_PER_AT_LPM;
+		}
 	}
-
-	__raw_writel(scu_cr, scu_base + SCU_CTRL);
 	__raw_writel(ccm_clpcr, MXC_CCM_CLPCR);
 }
 
 void arch_idle(void)
 {
-	cpu_do_idle();
+	if ((num_online_cpus() == num_present_cpus())
+		&& mx6_wait_in_iram != NULL) {
+		mxc_cpu_lp_set(WAIT_UNCLOCKED_POWER_OFF);
+		mx6_wait_in_iram(MXC_CCM_BASE);
+	} else
+		cpu_do_idle();
 }
 
 static int __mxs_reset_block(void __iomem *hwreg, int just_enable)

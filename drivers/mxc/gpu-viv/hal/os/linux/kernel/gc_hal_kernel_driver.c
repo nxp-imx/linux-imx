@@ -1022,16 +1022,21 @@ static int __devinit gpu_suspend(struct platform_device *dev, pm_message_t state
         if (device->kernels[i] != gcvNULL)
         {
 #if gcdENABLE_VG
-            if (i != gcvCORE_VG)
+            if (i == gcvCORE_VG)
+            {
+                status = gckVGHARDWARE_SetPowerManagementState(device->kernels[i]->vg->hardware, gcvPOWER_OFF);
+            }
+            else
 #endif
             {
                 status = gckHARDWARE_SetPowerManagementState(device->kernels[i]->hardware, gcvPOWER_OFF);
-
-                if (gcmIS_ERROR(status))
-                {
-                    return -1;
-                }
             }
+
+            if (gcmIS_ERROR(status))
+            {
+                return -1;
+            }
+
         }
     }
 
@@ -1051,15 +1056,19 @@ static int __devinit gpu_resume(struct platform_device *dev)
         if (device->kernels[i] != gcvNULL)
         {
 #if gcdENABLE_VG
-            if (i != gcvCORE_VG)
+            if (i == gcvCORE_VG)
+            {
+                status = gckVGHARDWARE_SetPowerManagementState(device->kernels[i]->vg->hardware, gcvPOWER_ON);
+            }
+            else
 #endif
             {
                 status = gckHARDWARE_SetPowerManagementState(device->kernels[i]->hardware, gcvPOWER_ON);
+            }
 
-                if (gcmIS_ERROR(status))
-                {
-                    return -1;
-                }
+            if (gcmIS_ERROR(status))
+            {
+                return -1;
             }
         }
     }

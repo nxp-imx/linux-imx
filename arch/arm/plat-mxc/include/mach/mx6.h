@@ -130,7 +130,7 @@
 #define ATZ2_BASE_ADDR              AIPS2_ARB_BASE_ADDR
 
 /* slots 0,7 of SDMA reserved, therefore left unused in IPMUX3 */
-#define SPDIF_BASE_ADDR             (ATZ1_BASE_ADDR + 0x04000) /* slot 1 */
+#define MX6Q_SPDIF_BASE_ADDR             (ATZ1_BASE_ADDR + 0x04000) /* slot 1 */
 #define MX6Q_ECSPI1_BASE_ADDR            (ATZ1_BASE_ADDR + 0x08000) /* slot 2 */
 #define MX6Q_ECSPI2_BASE_ADDR            (ATZ1_BASE_ADDR + 0x0C000) /* slot 3 */
 #define MX6Q_ECSPI3_BASE_ADDR            (ATZ1_BASE_ADDR + 0x10000) /* slot 4 */
@@ -138,9 +138,9 @@
 #define MX6Q_ECSPI5_BASE_ADDR            (ATZ1_BASE_ADDR + 0x18000) /* slot 6 */
 #define UART1_BASE_ADDR             (ATZ1_BASE_ADDR + 0x20000) /* slot 8 */
 #define ESAI1_BASE_ADDR             (ATZ1_BASE_ADDR + 0x24000) /* slot 9 */
-#define SSI1_BASE_ADDR              (ATZ1_BASE_ADDR + 0x28000) /* slot 10 */
-#define SSI2_BASE_ADDR              (ATZ1_BASE_ADDR + 0x2C000) /* slot 11 */
-#define SSI3_BASE_ADDR              (ATZ1_BASE_ADDR + 0x30000) /* slot 12 */
+#define MX6Q_SSI1_BASE_ADDR              (ATZ1_BASE_ADDR + 0x28000) /* slot 10 */
+#define MX6Q_SSI2_BASE_ADDR              (ATZ1_BASE_ADDR + 0x2C000) /* slot 11 */
+#define MX6Q_SSI3_BASE_ADDR              (ATZ1_BASE_ADDR + 0x30000) /* slot 12 */
 #define MX6Q_ASRC_BASE_ADDR	    (ATZ1_BASE_ADDR + 0x34000) /* slot 13 */
 #define SPBA_BASE_ADDR              (ATZ1_BASE_ADDR + 0x3C000) /* slot 15 */
 #define MX6Q_VPU_BASE_ADDR          (ATZ1_BASE_ADDR + 0x40000) /* slot 33,
@@ -152,12 +152,12 @@
 /* ATZ#1- Off Platform */
 #define AIPS1_OFF_BASE_ADDR             (ATZ1_BASE_ADDR + 0x80000)
 
-#define PWM1_BASE_ADDR              (AIPS1_OFF_BASE_ADDR + 0x0000)
-#define PWM2_BASE_ADDR              (AIPS1_OFF_BASE_ADDR + 0x4000)
-#define PWM3_BASE_ADDR              (AIPS1_OFF_BASE_ADDR + 0x8000)
-#define PWM4_BASE_ADDR              (AIPS1_OFF_BASE_ADDR + 0xC000)
-#define CAN1_BASE_ADDR              (AIPS1_OFF_BASE_ADDR + 0x10000)
-#define CAN2_BASE_ADDR              (AIPS1_OFF_BASE_ADDR + 0x14000)
+#define MX6Q_PWM1_BASE_ADDR              (AIPS1_OFF_BASE_ADDR + 0x0000)
+#define MX6Q_PWM2_BASE_ADDR              (AIPS1_OFF_BASE_ADDR + 0x4000)
+#define MX6Q_PWM3_BASE_ADDR              (AIPS1_OFF_BASE_ADDR + 0x8000)
+#define MX6Q_PWM4_BASE_ADDR              (AIPS1_OFF_BASE_ADDR + 0xC000)
+#define MX6Q_CAN1_BASE_ADDR              (AIPS1_OFF_BASE_ADDR + 0x10000)
+#define MX6Q_CAN2_BASE_ADDR              (AIPS1_OFF_BASE_ADDR + 0x14000)
 #define GPT_BASE_ADDR               (AIPS1_OFF_BASE_ADDR + 0x18000)
 #define GPIO1_BASE_ADDR             (AIPS1_OFF_BASE_ADDR + 0x1C000)
 #define GPIO2_BASE_ADDR             (AIPS1_OFF_BASE_ADDR + 0x20000)
@@ -182,6 +182,7 @@
 #define DCIC1_BASE_ADDR             (AIPS1_OFF_BASE_ADDR + 0x64000)
 #define DCIC2_BASE_ADDR             (AIPS1_OFF_BASE_ADDR + 0x68000)
 #define MX6Q_SDMA_BASE_ADDR			(AIPS1_OFF_BASE_ADDR + 0x6C000)
+#define MX6Q_DVFSCORE_BASE_ADDR	(GPC_BASE_ADDR + 0x180)
 
 /* ATZ#2- On Platform */
 #define AIPS2_ON_BASE_ADDR              (ATZ2_BASE_ADDR + 0x7C000)
@@ -193,9 +194,14 @@
 #define CAAM_BASE_ADDR              ATZ2_BASE_ADDR
 #define ARM_BASE_ADDR		        (ATZ2_BASE_ADDR + 0x40000)
 
+/* ARM Cortex A9 MPCore Platform */
+#define MX6Q_A9_PLATFRM_BASE		(ARM_BASE_ADDR + 0x20000)
+
 #define MX6Q_PL301_BASE_ADDR          (AIPS2_OFF_BASE_ADDR + 0x0000)
 #define MX6Q_USB_OTG_BASE_ADDR            (AIPS2_OFF_BASE_ADDR + 0x4000)
 #define MX6Q_USB_HS1_BASE_ADDR            (AIPS2_OFF_BASE_ADDR + 0x4200)
+#define MX6Q_USB_HS2_BASE_ADDR            (AIPS2_OFF_BASE_ADDR + 0x4400)
+#define MX6Q_USB_HS3_BASE_ADDR            (AIPS2_OFF_BASE_ADDR + 0x4600)
 #define ENET_BASE_ADDR                  (AIPS2_OFF_BASE_ADDR+0x8000)
 #define MLB_BASE_ADDR                   (AIPS2_OFF_BASE_ADDR+0xC000)
 
@@ -217,7 +223,7 @@
 #define IP2APB_PERFMON3_BASE_ADDR       (AIPS2_OFF_BASE_ADDR + 0x4C000)
 #define IP2APB_TZASC1_BASE_ADDR         (AIPS2_OFF_BASE_ADDR + 0x50000)
 #define IP2APB_TZASC2_BASE_ADDR         (AIPS2_OFF_BASE_ADDR + 0x54000)
-#define AUDMUX_BASE_ADDR                (AIPS2_OFF_BASE_ADDR + 0x58000)
+#define MX6Q_AUDMUX_BASE_ADDR           (AIPS2_OFF_BASE_ADDR + 0x58000)
 #define MIPI_CSI2_BASE_ADDR             (AIPS2_OFF_BASE_ADDR + 0x5C000)
 #define MIPI_DSI_BASE_ADDR              (AIPS2_OFF_BASE_ADDR + 0x60000)
 #define VDOA_BASE_ADDR                  (AIPS2_OFF_BASE_ADDR + 0x64000)
@@ -242,6 +248,7 @@
 #define MX6Q_UART3_BASE_ADDR UART3_BASE_ADDR
 #define MX6Q_UART4_BASE_ADDR UART4_BASE_ADDR
 #define MX6Q_FEC_BASE_ADDR	 ENET_BASE_ADDR
+#define MX6Q_MIPI_DSI_BASE_ADDR	 MIPI_DSI_BASE_ADDR
 
 /* define virtual address */
 #define PERIPBASE_VIRT 0xF2000000
@@ -251,6 +258,9 @@
 #define AIPS1_SIZE SZ_1M
 #define AIPS2_SIZE SZ_1M
 #define ARM_PERIPHBASE_SIZE (SZ_8K + SZ_4K)
+
+/* GPC offsets */
+#define MXC_GPC_CNTR_OFFSET		0x0
 
 #define MX6_IO_ADDRESS(x) (void __force __iomem *)((x)  + PERIPBASE_VIRT)
 
@@ -317,13 +327,19 @@
 #define MX6Q_INT_USB_OTG				75
 #define MX6Q_INT_USB_PHY0				76
 #define MX6Q_INT_USB_PHY1				77
-#define MXC_INT_SSI1                               78
-#define MXC_INT_SSI2                               79
-#define MXC_INT_SSI3                               80
+/*
+ * MX6Q_INT_USB_PHY2, MX6Q_INT_USB_PHY3 are dummy interrupts
+ * In order to compile pass for platform device's definition
+ */
+#define MX6Q_INT_USB_PHY2				73
+#define MX6Q_INT_USB_PHY3				74
+#define MX6Q_INT_SSI1                               78
+#define MX6Q_INT_SSI2                               79
+#define MX6Q_INT_SSI3                               80
 #define MXC_INT_ANATOP_TEMPSNSR                    81
 #define MX6Q_INT_ASRC                               82
 #define MXC_INT_ESAI                              83
-#define MXC_INT_SPDIF                              84
+#define MX6Q_INT_SPDIF                              84
 #define MXC_INT_MLB                                85
 #define MXC_INT_ANATOP_ANA1                        86
 #define MXC_INT_GPT                                87
@@ -354,13 +370,13 @@
 #define MXC_INT_WDOG1                              112
 #define MXC_INT_WDOG2                              113
 #define MXC_INT_KPP                                114
-#define MXC_INT_PWM1                               115
-#define MXC_INT_PWM2                               116
-#define MXC_INT_PWM3                               117
-#define MXC_INT_PWM4                               118
+#define MX6Q_INT_PWM1                               115
+#define MX6Q_INT_PWM2                               116
+#define MX6Q_INT_PWM3                               117
+#define MX6Q_INT_PWM4                               118
 #define MXC_INT_CCM_INT1_NUM                               119
 #define MXC_INT_CCM_INT2_NUM                               120
-#define MXC_INT_GPC_INT1_NUM                               121
+#define MX6Q_INT_GPC1                                 121
 #define MXC_INT_GPC_INT2_NUM                               122
 #define MXC_INT_SRC                                123
 #define MXC_INT_CHEETAH_L2                         124
@@ -381,8 +397,8 @@
 #define MXC_INT_INTERRUPT_139_NUM                          139
 #define MXC_INT_TZASC1                             140
 #define MXC_INT_TZASC2                             141
-#define MXC_INT_CAN1                               142
-#define MXC_INT_CAN2                               143
+#define MX6Q_INT_CAN1                               142
+#define MX6Q_INT_CAN2                               143
 #define MXC_INT_PERFMON1                           144
 #define MXC_INT_PERFMON2                           145
 #define MXC_INT_PERFMON3                           146
@@ -406,6 +422,7 @@
 #define MX6Q_INT_UART3	MXC_INT_UART3_ANDED
 #define MX6Q_INT_UART4	MXC_INT_UART4_ANDED
 #define MX6Q_INT_FEC	MXC_INT_ENET1
+#define MX6Q_INT_DSI	MXC_INT_DSI
 
 #define IRQ_LOCALTIMER				29
 

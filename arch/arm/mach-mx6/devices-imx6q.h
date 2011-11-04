@@ -88,6 +88,10 @@ extern const struct imx_ahci_data imx6q_ahci_data __initconst;
 #define imx6q_add_ahci(id, pdata)   \
 	imx_add_ahci(&imx6q_ahci_data, pdata)
 
+extern const struct imx_imx_ssi_data imx6_imx_ssi_data[] __initconst;
+#define imx6q_add_imx_ssi(id, pdata)            \
+	imx_add_imx_ssi(&imx6_imx_ssi_data[id], pdata)
+
 extern const struct imx_ipuv3_data imx6q_ipuv3_data[] __initconst;
 #define imx6q_add_ipuv3(id, pdata)	imx_add_ipuv3(id, &imx6q_ipuv3_data[id], pdata)
 #define imx6q_add_ipuv3fb(id, pdata)	imx_add_ipuv3_fb(id, pdata)
@@ -113,8 +117,8 @@ extern const struct imx_mxc_hdmi_data imx6q_mxc_hdmi_data __initconst;
 	imx_add_mxc_hdmi(&imx6q_mxc_hdmi_data, pdata)
 
 extern const struct imx_mxc_hdmi_core_data imx6q_mxc_hdmi_core_data __initconst;
-#define imx6q_add_mxc_hdmi_core()		\
-	imx_add_mxc_hdmi_core(&imx6q_mxc_hdmi_core_data)
+#define imx6q_add_mxc_hdmi_core(pdata)	\
+	imx_add_mxc_hdmi_core(&imx6q_mxc_hdmi_core_data, pdata)
 
 extern const struct imx_vpu_data imx6q_vpu_data __initconst;
 #define imx6q_add_vpu() imx_add_vpu(&imx6q_vpu_data)
@@ -138,3 +142,46 @@ extern const struct imx_pm_imx_data imx6q_pm_imx_data __initconst;
 extern const struct imx_imx_asrc_data imx6q_imx_asrc_data[] __initconst;
 #define imx6q_add_asrc(pdata)	\
 	imx_add_imx_asrc(imx6q_imx_asrc_data, pdata)
+
+extern const struct imx_spi_imx_data imx6q_ecspi_data[] __initconst;
+#define imx6q_add_ecspi(id, pdata)      \
+	imx_add_spi_imx(&imx6q_ecspi_data[id], pdata)
+
+extern const struct imx_dvfs_core_data imx6q_dvfs_core_data __initconst;
+#define imx6q_add_dvfs_core(pdata)	\
+	imx_add_dvfs_core(&imx6q_dvfs_core_data, pdata)
+
+extern const struct imx_viv_gpu_data imx6_gc2000_data __initconst;
+extern const struct imx_viv_gpu_data imx6_gc320_data __initconst;
+extern const struct imx_viv_gpu_data imx6_gc355_data __initconst;
+
+extern const struct imx_mxc_pwm_data imx6q_mxc_pwm_data[] __initconst;
+#define imx6q_add_mxc_pwm(id)	\
+	imx_add_mxc_pwm(&imx6q_mxc_pwm_data[id])
+
+#define imx6q_add_mxc_pwm_backlight(id, pdata)	   \
+	platform_device_register_resndata(NULL, "pwm-backlight",\
+			id, NULL, 0, pdata, sizeof(*pdata));
+
+extern const struct imx_spdif_data imx6q_imx_spdif_data __initconst;
+#define imx6q_add_spdif(pdata)	imx_add_spdif(&imx6q_imx_spdif_data, pdata)
+
+extern const struct imx_spdif_dai_data imx6q_spdif_dai_data __initconst;
+#define imx6q_add_spdif_dai()	imx_add_spdif_dai(&imx6q_spdif_dai_data)
+
+#define imx6q_add_spdif_audio_device(pdata)	imx_add_spdif_audio_device()
+
+#define imx6q_add_hdmi_soc() imx_add_hdmi_soc()
+extern const struct imx_hdmi_soc_data imx6q_imx_hdmi_soc_dai_data __initconst;
+#define imx6q_add_hdmi_soc_dai() \
+	imx_add_hdmi_soc_dai(&imx6q_imx_hdmi_soc_dai_data)
+
+extern const struct imx_mipi_dsi_data imx6q_mipi_dsi_data __initconst;
+#define imx6q_add_mipi_dsi(pdata)	\
+	imx_add_mipi_dsi(&imx6q_mipi_dsi_data, pdata)
+
+extern const struct imx_flexcan_data imx6q_flexcan_data[] __initconst;
+#define imx6q_add_flexcan(id, pdata)	\
+	imx_add_flexcan(&imx6q_flexcan_data[id], pdata)
+#define imx6q_add_flexcan0(pdata)	imx6q_add_flexcan(0, pdata)
+#define imx6q_add_flexcan1(pdata)	imx6q_add_flexcan(1, pdata)

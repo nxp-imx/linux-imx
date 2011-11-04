@@ -205,6 +205,13 @@ config REGULATOR_MC13892
 	  Say y here to support the regulators found on the Freescale MC13892
 	  PMIC.
 
+config REGULATOR_MC34708
+	tristate "Support regulators on Freescale MC34708 PMIC"
+	depends on I2C
+	help
+	  Say y here to support the regulators found on the Freescale MC34708
+	  PMIC.
+
 config REGULATOR_AB3100
 	tristate "ST-Ericsson AB3100 Regulator functions"
 	depends on AB3100_CORE
@@ -283,4 +290,12 @@ config REGULATOR_DA9052
 	help
 	  Say y here to support the BUCKs and LDOs regulators found on
 	  Dialog Semiconductor DA9052 PMIC.
+
+config REGULATOR_ANATOP
+	tristate "ANATOP LDO regulators"
+	depends on REGULATOR
+	depends on ARCH_MX6
+	default y
+	help
+	  Say y here to support ANATOP LDOs regulators.
 endif

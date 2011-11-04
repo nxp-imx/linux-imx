@@ -28,7 +28,7 @@ static const char *bank_reg_desc[BANKS][BANK_ITEMS] = {
 
 static const struct mxc_otp_platform_data imx50_otp_platform_data = {
 	.fuse_name = (char **)bank_reg_desc,
-	.clock_name = "ahb_clk",
+	.clock_name = "ocotp_ctrl_ahb_clk",
 	.fuse_num = BANKS * BANK_ITEMS,
 };
 
@@ -71,7 +71,7 @@ static const char *bank_reg_desc[BANKS][BANK_ITEMS] = {
 
 static const struct mxc_otp_platform_data imx6q_otp_platform_data = {
 	.fuse_name = (char **)bank_reg_desc,
-	.clock_name = "ipg_clk",
+	.clock_name = "iim_clk",
 	.fuse_num = BANKS * BANK_ITEMS,
 };
 

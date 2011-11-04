@@ -430,6 +430,7 @@ struct snd_soc_ops {
 	int (*hw_free)(struct snd_pcm_substream *);
 	int (*prepare)(struct snd_pcm_substream *);
 	int (*trigger)(struct snd_pcm_substream *, int);
+	int (*ioctl)(struct snd_pcm_substream *, unsigned int, void *);
 };
 
 /* SoC cache ops */
@@ -693,6 +694,7 @@ struct snd_soc_pcm_runtime  {
 	struct snd_soc_dai *cpu_dai;
 
 	struct delayed_work delayed_work;
+	struct snd_pcm_ops *ops;
 };
 
 /* mixer control */
