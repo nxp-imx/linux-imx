@@ -185,3 +185,7 @@ extern const struct imx_flexcan_data imx6q_flexcan_data[] __initconst;
 	imx_add_flexcan(&imx6q_flexcan_data[id], pdata)
 #define imx6q_add_flexcan0(pdata)	imx6q_add_flexcan(0, pdata)
 #define imx6q_add_flexcan1(pdata)	imx6q_add_flexcan(1, pdata)
+
+extern const struct imx_mipi_csi2_data imx6q_mipi_csi2_data __initconst;
+#define imx6q_add_mipi_csi2(pdata)	\
+	imx_add_mipi_csi2(&imx6q_mipi_csi2_data, pdata)
