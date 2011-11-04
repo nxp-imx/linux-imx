@@ -42,12 +42,6 @@
 
 /* Strucutures and variables for exporting MXC IPU as device*/
 typedef enum {
-	RGB_CS,
-	YUV_CS,
-	NULL_CS
-} cs_t;
-
-typedef enum {
 	STATE_OK = 0,
 	STATE_NO_IPU,
 	STATE_NO_IRQ,
@@ -190,7 +184,7 @@ static bool deinterlace_3_field(struct ipu_task_entry *t)
 		(t->input.deinterlace.motion != HIGH_MOTION));
 }
 
-static u32 fmt_to_bpp(u32 pixelformat)
+unsigned int fmt_to_bpp(unsigned int pixelformat)
 {
 	u32 bpp;
 
@@ -229,8 +223,9 @@ static u32 fmt_to_bpp(u32 pixelformat)
 	}
 	return bpp;
 }
+EXPORT_SYMBOL_GPL(fmt_to_bpp);
 
-static cs_t colorspaceofpixel(int fmt)
+cs_t colorspaceofpixel(int fmt)
 {
 	switch (fmt) {
 	case IPU_PIX_FMT_RGB565:
@@ -258,8 +253,9 @@ static cs_t colorspaceofpixel(int fmt)
 		return NULL_CS;
 	}
 }
+EXPORT_SYMBOL_GPL(colorspaceofpixel);
 
-static int need_csc(int ifmt, int ofmt)
+int need_csc(int ifmt, int ofmt)
 {
 	cs_t ics, ocs;
 
@@ -273,6 +269,7 @@ static int need_csc(int ifmt, int ofmt)
 
 	return 0;
 }
+EXPORT_SYMBOL_GPL(need_csc);
 
 static int soc_max_in_width(void)
 {
@@ -521,7 +518,7 @@ static void dump_check_err(struct device *dev, int err)
 		dev_err(dev, "split mode output height overflow\n");
 		break;
 	case IPU_CHECK_ERR_SPLIT_WITH_ROT:
-		dev_err(dev, "split mode with rotation\n");
+		dev_err(dev, "not support split mode with rotation\n");
 		break;
 	default:
 		break;
@@ -798,9 +795,11 @@ static int check_task(struct ipu_task_entry *t)
 			t->set.split_mode |= RL_SPLIT;
 		if (t->output.crop.h > soc_max_out_height())
 			t->set.split_mode |= UD_SPLIT;
-		ret = update_split_setting(t);
-		if (ret > IPU_CHECK_ERR_MIN)
-			goto done;
+		if (t->set.split_mode) {
+			ret = update_split_setting(t);
+			if (ret > IPU_CHECK_ERR_MIN)
+				goto done;
+		}
 	}
 
 	if (t->output.rotate >= IPU_ROTATE_90_RIGHT) {
@@ -1200,6 +1199,8 @@ int ipu_check_task(struct ipu_task *task)
 	task->output = tsk->output;
 	task->overlay = tsk->overlay;
 
+	dump_task_info(tsk);
+
 	kfree(tsk);
 
 	return ret;
@@ -1531,7 +1532,7 @@ static int init_rot(struct ipu_soc *ipu, struct ipu_task_entry *t)
 			in_fmt,
 			in_width,
 			in_height,
-			t->set.istride,
+			in_stride,
 			t->output.rotate,
 			inbuf,
 			0,
@@ -1611,7 +1612,6 @@ static irqreturn_t task_irq_handler(int irq, void *dev_id)
 static void do_task(struct ipu_soc *ipu, struct ipu_task_entry *t)
 {
 	struct completion comp;
-	void *r_vaddr;
 	int r_size;
 	int irq;
 	int ret;
@@ -1659,6 +1659,8 @@ static void do_task(struct ipu_soc *ipu, struct ipu_task_entry *t)
 		if (ret < 0)
 			goto chan_done;
 	} else if (ic_and_rot(t->set.mode)) {
+		int rot_idx = (t->task_id == IPU_TASK_ID_VF) ? 0 : 1;
+
 		dev_dbg(t->dev, "[0x%p]ic + rot mode\n", (void *)t);
 		t->set.r_fmt = t->output.format;
 		if (t->output.rotate >= IPU_ROTATE_90_RIGHT) {
@@ -1670,16 +1672,29 @@ static void do_task(struct ipu_soc *ipu, struct ipu_task_entry *t)
 		}
 		t->set.r_stride = t->set.r_width *
 			bytes_per_pixel(t->set.r_fmt);
-		r_size = t->set.r_width * t->set.r_height
-			* fmt_to_bpp(t->set.r_fmt)/8;
-		r_vaddr = dma_alloc_coherent(t->dev,
-					  r_size,
-					  &t->set.r_paddr,
-					  GFP_DMA | GFP_KERNEL);
-		if (r_vaddr == NULL) {
-			ret = -ENOMEM;
-			goto chan_done;
+		r_size = PAGE_ALIGN(t->set.r_width * t->set.r_height
+			* fmt_to_bpp(t->set.r_fmt)/8);
+
+		if (r_size > ipu->rot_dma[rot_idx].size) {
+			dev_dbg(t->dev, "[0x%p]realloc rot buffer\n", (void *)t);
+
+			if (ipu->rot_dma[rot_idx].vaddr)
+				dma_free_coherent(t->dev,
+					ipu->rot_dma[rot_idx].size,
+					ipu->rot_dma[rot_idx].vaddr,
+					ipu->rot_dma[rot_idx].paddr);
+
+			ipu->rot_dma[rot_idx].size = r_size;
+			ipu->rot_dma[rot_idx].vaddr = dma_alloc_coherent(t->dev,
+						r_size,
+						&ipu->rot_dma[rot_idx].paddr,
+						GFP_DMA | GFP_KERNEL);
+			if (ipu->rot_dma[rot_idx].vaddr == NULL) {
+				ret = -ENOMEM;
+				goto chan_done;
+			}
 		}
+		t->set.r_paddr = ipu->rot_dma[rot_idx].paddr;
 
 		dev_dbg(t->dev, "[0x%p]rotation:\n", (void *)t);
 		dev_dbg(t->dev, "[0x%p]\tformat = 0x%x\n", (void *)t, t->set.r_fmt);
@@ -1705,6 +1720,7 @@ static void do_task(struct ipu_soc *ipu, struct ipu_task_entry *t)
 		return;
 	}
 
+	/* channel setup */
 	/* irq setup */
 	irq = get_irq(t);
 	if (irq < 0) {
@@ -1757,11 +1773,11 @@ static void do_task(struct ipu_soc *ipu, struct ipu_task_entry *t)
 			if (t->overlay.alpha.mode == IPU_ALPHA_MODE_LOCAL)
 				ipu_select_buffer(ipu, t->set.ic_chan, IPU_ALPHA_IN_BUFFER, 0);
 		}
+		ipu_select_buffer(ipu, t->set.ic_chan, IPU_OUTPUT_BUFFER, 0);
 		if (deinterlace_3_field(t))
 			ipu_select_multi_vdi_buffer(ipu, 0);
 		else
 			ipu_select_buffer(ipu, t->set.ic_chan, IPU_INPUT_BUFFER, 0);
-		ipu_select_buffer(ipu, t->set.ic_chan, IPU_OUTPUT_BUFFER, 0);
 	}
 
 	ret = wait_for_completion_timeout(&comp, msecs_to_jiffies(t->timeout));
@@ -1779,12 +1795,13 @@ static void do_task(struct ipu_soc *ipu, struct ipu_task_entry *t)
 	} else if (only_rot(t->set.mode))
 		ipu_disable_channel(ipu, t->set.rot_chan, true);
 	else if (ic_and_rot(t->set.mode)) {
+		ipu_unlink_channels(ipu, t->set.ic_chan, t->set.rot_chan);
+		ipu_disable_channel(ipu, t->set.rot_chan, true);
 		ipu_disable_channel(ipu, t->set.ic_chan, true);
 		if (deinterlace_3_field(t)) {
 			ipu_disable_channel(ipu, t->set.vdi_ic_p_chan, true);
 			ipu_disable_channel(ipu, t->set.vdi_ic_n_chan, true);
 		}
-		ipu_disable_channel(ipu, t->set.rot_chan, true);
 	}
 
 chan_done:
@@ -1793,15 +1810,8 @@ chan_done:
 	else if (only_rot(t->set.mode))
 		uninit_rot(ipu, t);
 	else if (ic_and_rot(t->set.mode)) {
-		ipu_unlink_channels(ipu, t->set.ic_chan,
-			t->set.rot_chan);
 		uninit_ic(ipu, t);
 		uninit_rot(ipu, t);
-		if (r_vaddr)
-			dma_free_coherent(t->dev,
-					r_size,
-					r_vaddr,
-					t->set.r_paddr);
 	}
 	return;
 }
@@ -2010,7 +2020,7 @@ static struct file_operations mxc_ipu_fops = {
 
 int register_ipu_device(struct ipu_soc *ipu, int id)
 {
-	int ret = 0;
+	int i, ret = 0;
 
 	if (!major) {
 		major = register_chrdev(0, "mxc_ipu", &mxc_ipu_fops);
@@ -2037,12 +2047,14 @@ int register_ipu_device(struct ipu_soc *ipu, int id)
 		ipu_dev->coherent_dma_mask = DMA_BIT_MASK(32);
 	}
 
-	INIT_LIST_HEAD(&ipu->task_list[0]);
-	INIT_LIST_HEAD(&ipu->task_list[1]);
-	init_waitqueue_head(&ipu->waitq[0]);
-	init_waitqueue_head(&ipu->waitq[1]);
-	mutex_init(&ipu->task_lock[0]);
-	mutex_init(&ipu->task_lock[1]);
+	for (i = 0; i < 2; i++) {
+		INIT_LIST_HEAD(&ipu->task_list[i]);
+		init_waitqueue_head(&ipu->waitq[i]);
+		mutex_init(&ipu->task_lock[i]);
+
+		ipu->rot_dma[i].size = 0;
+	}
+
 	ipu->thread[0] = kthread_run(task_vf_thread, ipu,
 					"ipu%d_process-vf", id);
 	if (IS_ERR(ipu->thread[0])) {
@@ -2078,8 +2090,19 @@ register_cdev_fail:
 
 void unregister_ipu_device(struct ipu_soc *ipu, int id)
 {
+	int i;
+
 	kthread_stop(ipu->thread[0]);
 	kthread_stop(ipu->thread[1]);
+
+	for (i = 0; i < 2; i++) {
+		if (ipu->rot_dma[i].vaddr)
+			dma_free_coherent(ipu_dev,
+				ipu->rot_dma[i].size,
+				ipu->rot_dma[i].vaddr,
+				ipu->rot_dma[i].paddr);
+	}
+
 	if (major) {
 		device_destroy(ipu_class, MKDEV(major, 0));
 		class_destroy(ipu_class);
