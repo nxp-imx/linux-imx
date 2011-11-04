@@ -1235,7 +1235,7 @@ static struct platform_device sgtl5000_arm2_vddd_reg_devices = {
 
 #endif /* CONFIG_SND_SOC_SGTL5000 */
 
-static int imx6q_init_audio(void)
+static int __init imx6q_init_audio(void)
 {
 	struct clk *pll3_pfd, *esai_clk;
 	mxc_register_device(&sab_audio_device, &sab_audio_data);
