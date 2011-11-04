@@ -4836,6 +4836,9 @@ int __init mx6_clocks_init(unsigned long ckil, unsigned long osc,
 	clk_set_rate(&cko1_clk0, 22000000);
 	clk_enable(&cko1_clk0);
 
+	clk_set_parent(&emi_clk, &pll2_pfd_400M);
+	clk_set_rate(&emi_clk, 200000000);
+
 	clk_set_parent(&gpu3d_shader_clk, &pll2_pfd_594M);
 	clk_set_rate(&gpu3d_shader_clk, 594000000);
 	clk_set_parent(&gpu3d_core_clk[0], &mmdc_ch0_axi_clk[0]);
