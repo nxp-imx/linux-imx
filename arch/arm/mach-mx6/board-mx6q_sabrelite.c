@@ -48,6 +48,8 @@
 #include <linux/etherdevice.h>
 #include <linux/regulator/machine.h>
 #include <linux/regulator/fixed.h>
+#include <linux/android_pmem.h>
+#include <linux/usb/android_composite.h>
 
 #include <mach/common.h>
 #include <mach/hardware.h>
@@ -68,6 +70,7 @@
 #include <asm/mach/flash.h>
 
 #include "usb.h"
+#include "android.h"
 #include "devices-imx6q.h"
 #include "crm_regs.h"
 #include "cpu_op-mx6.h"
@@ -594,6 +597,84 @@ static void hdmi_init(int ipu_id, int disp_id)
 	mxc_iomux_set_gpr_register(3, 2, 2, hdmi_mux_setting);
 }
 
+static struct android_pmem_platform_data android_pmem_data = {
+       .name = "pmem_adsp",
+       .size = SZ_32M,
+};
+
+static struct android_pmem_platform_data android_pmem_gpu_data = {
+       .name = "pmem_gpu",
+       .size = SZ_128M,
+       .cached = 1,
+};
+
+static char *usb_functions_ums[] = {
+       "usb_mass_storage",
+};
+
+static char *usb_functions_ums_adb[] = {
+       "usb_mass_storage",
+       "adb",
+};
+
+static char *usb_functions_rndis[] = {
+       "rndis",
+};
+
+static char *usb_functions_rndis_adb[] = {
+       "rndis",
+       "adb",
+};
+
+static char *usb_functions_all[] = {
+       "rndis",
+       "usb_mass_storage",
+       "adb"
+};
+
+static struct android_usb_product usb_products[] = {
+       {
+	       .product_id     = 0x0c01,
+	       .num_functions  = ARRAY_SIZE(usb_functions_ums),
+	       .functions      = usb_functions_ums,
+       },
+       {
+	       .product_id     = 0x0c02,
+	       .num_functions  = ARRAY_SIZE(usb_functions_ums_adb),
+	       .functions      = usb_functions_ums_adb,
+       },
+       {
+	       .product_id     = 0x0c10,
+	       .num_functions  = ARRAY_SIZE(usb_functions_rndis),
+	       .functions      = usb_functions_rndis,
+       },
+};
+
+static struct usb_mass_storage_platform_data mass_storage_data = {
+       .nluns	       = 3,
+       .vendor	       = "Freescale",
+       .product	       = "MX53 SMD Android",
+       .release	       = 0x0100,
+};
+
+static struct usb_ether_platform_data rndis_data = {
+       .vendorID       = 0x15a2,
+       .vendorDescr    = "Freescale",
+};
+
+static struct android_usb_platform_data android_usb_data = {
+.vendor_id      = 0x15a2,
+       .product_id     = 0x0c01,
+       .version        = 0x0100,
+       .product_name   = "MX53 SMD Android",
+       .manufacturer_name = "Freescale",
+       .num_products = ARRAY_SIZE(usb_products),
+       .products = usb_products,
+       .num_functions = ARRAY_SIZE(usb_functions_all),
+       .functions = usb_functions_all,
+};
+
+
 static struct fsl_mxc_hdmi_platform_data hdmi_data = {
 	.init = hdmi_init,
 };
@@ -861,6 +942,14 @@ static void __init mx6_sabrelite_board_init(void)
 	imx6q_add_dma();
 
 	imx6q_add_dvfs_core(&sabrelite_dvfscore_data);
+
+	mxc_register_device(&mxc_android_pmem_device, &android_pmem_data);
+	mxc_register_device(&mxc_android_pmem_gpu_device,
+			    &android_pmem_gpu_data);
+	mxc_register_device(&usb_mass_storage_device, &mass_storage_data);
+	mxc_register_device(&usb_rndis_device, &rndis_data);
+	mxc_register_device(&android_usb_device, &android_usb_data);
+	mxc_register_device(&fake_pwrkey_device, NULL);
 }
 
 extern void __iomem *twd_base;
@@ -891,6 +980,22 @@ static void __init mx6q_sabrelite_reserve(void)
 		memblock_free(phys, imx6q_gpu_pdata.reserved_mem_size);
 		memblock_remove(phys, imx6q_gpu_pdata.reserved_mem_size);
 		imx6q_gpu_pdata.reserved_mem_base = phys;
+	}
+
+	if (android_pmem_data.size) {
+		phys = memblock_alloc_base(android_pmem_data.size,
+					   SZ_4K, SZ_1G);
+		memblock_free(phys, android_pmem_data.size);
+		memblock_remove(phys, android_pmem_data.size);
+		android_pmem_data.start = phys;
+	}
+
+	if (android_pmem_gpu_data.size) {
+		phys = memblock_alloc_base(android_pmem_gpu_data.size,
+					   SZ_4K, SZ_1G);
+		memblock_free(phys, android_pmem_gpu_data.size);
+		memblock_remove(phys, android_pmem_gpu_data.size);
+		android_pmem_gpu_data.start = phys;
 	}
 }
 

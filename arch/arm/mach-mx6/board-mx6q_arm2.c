@@ -50,6 +50,8 @@
 #include <linux/regulator/anatop-regulator.h>
 #include <linux/regulator/consumer.h>
 #include <linux/regulator/machine.h>
+#include <linux/android_pmem.h>
+#include <linux/usb/android_composite.h>
 #include <linux/regulator/fixed.h>
 
 #include <mach/common.h>
@@ -72,6 +74,7 @@
 #include <asm/mach/time.h>
 
 #include "usb.h"
+#include "android.h"
 #include "devices-imx6q.h"
 #include "crm_regs.h"
 #include "cpu_op-mx6.h"
@@ -882,6 +885,83 @@ static void hdmi_init(int ipu_id, int disp_id)
 	mxc_iomux_set_gpr_register(3, 2, 2, hdmi_mux_setting);
 }
 
+static struct android_pmem_platform_data android_pmem_data = {
+       .name = "pmem_adsp",
+       .size = SZ_32M,
+};
+
+static struct android_pmem_platform_data android_pmem_gpu_data = {
+       .name = "pmem_gpu",
+       .size = SZ_128M,
+       .cached = 1,
+};
+
+static char *usb_functions_ums[] = {
+       "usb_mass_storage",
+};
+
+static char *usb_functions_ums_adb[] = {
+       "usb_mass_storage",
+       "adb",
+};
+
+static char *usb_functions_rndis[] = {
+       "rndis",
+};
+
+static char *usb_functions_rndis_adb[] = {
+       "rndis",
+       "adb",
+};
+
+static char *usb_functions_all[] = {
+       "rndis",
+       "usb_mass_storage",
+       "adb"
+};
+
+static struct android_usb_product usb_products[] = {
+       {
+	       .product_id     = 0x0c01,
+	       .num_functions  = ARRAY_SIZE(usb_functions_ums),
+	       .functions      = usb_functions_ums,
+       },
+       {
+	       .product_id     = 0x0c02,
+	       .num_functions  = ARRAY_SIZE(usb_functions_ums_adb),
+	       .functions      = usb_functions_ums_adb,
+       },
+       {
+	       .product_id     = 0x0c10,
+	       .num_functions  = ARRAY_SIZE(usb_functions_rndis),
+	       .functions      = usb_functions_rndis,
+       },
+};
+
+static struct usb_mass_storage_platform_data mass_storage_data = {
+       .nluns	       = 3,
+       .vendor	       = "Freescale",
+       .product	       = "MX53 SMD Android",
+       .release	       = 0x0100,
+};
+
+static struct usb_ether_platform_data rndis_data = {
+       .vendorID       = 0x15a2,
+       .vendorDescr    = "Freescale",
+};
+
+static struct android_usb_platform_data android_usb_data = {
+       .vendor_id      = 0x15a2,
+       .product_id     = 0x0c01,
+       .version        = 0x0100,
+       .product_name   = "MX53 SMD Android",
+       .manufacturer_name = "Freescale",
+       .num_products = ARRAY_SIZE(usb_products),
+       .products = usb_products,
+       .num_functions = ARRAY_SIZE(usb_functions_all),
+       .functions = usb_functions_all,
+};
+
 static struct fsl_mxc_hdmi_platform_data hdmi_data = {
 	.init = hdmi_init,
 };
@@ -1409,8 +1489,8 @@ static void __init mx6_board_init(void)
 
 	mx6q_csi0_io_init();
 	/* DISP0 Detect */
-	gpio_request(MX6Q_ARM2_DISP0_DET_INT, "disp0-detect");
-	gpio_direction_input(MX6Q_ARM2_DISP0_DET_INT);
+	/* gpio_request(MX6Q_ARM2_DISP0_DET_INT, "disp0-detect"); */
+	/* gpio_direction_input(MX6Q_ARM2_DISP0_DET_INT); */
 
 	/* DISP0 Reset - Assert for i2c disabled mode */
 	gpio_request(MX6Q_ARM2_DISP0_RESET, "disp0-reset");
@@ -1432,6 +1512,14 @@ static void __init mx6_board_init(void)
 	imx6q_add_gpmi(&mx6q_gpmi_nfc_platform_data);
 
 	imx6q_add_dvfs_core(&arm2_dvfscore_data);
+
+	mxc_register_device(&mxc_android_pmem_device, &android_pmem_data);
+	mxc_register_device(&mxc_android_pmem_gpu_device,
+			    &android_pmem_gpu_data);
+	mxc_register_device(&usb_mass_storage_device, &mass_storage_data);
+	mxc_register_device(&usb_rndis_device, &rndis_data);
+	mxc_register_device(&android_usb_device, &android_usb_data);
+	mxc_register_device(&fake_pwrkey_device, NULL);
 
 	imx6q_add_mxc_pwm(0);
 	imx6q_add_mxc_pwm_backlight(0, &mx6_arm2_pwm_backlight_data);
@@ -1486,13 +1574,63 @@ static void __init mx6q_reserve(void)
 	}
 }
 
+static void __init fixup_android_board(struct machine_desc *desc,
+				       struct tag *tags,
+				      char **cmdline, struct meminfo *mi)
+{
+       char *str;
+       struct tag *t;
+       struct tag *mem_tag = 0;
+       int total_mem = SZ_2G;
+       int left_mem = 0, avali_mem = 0;
+       int pmem_gpu_size = android_pmem_gpu_data.size;
+       int pmem_adsp_size = android_pmem_data.size;
+
+       for_each_tag(t, tags) {
+	       if (t->hdr.tag == ATAG_CMDLINE) {
+		       str = t->u.cmdline.cmdline;
+		       str = strstr(str, "mem=");
+		       if (str != NULL) {
+			       str += 4;
+			       avali_mem = memparse(str, &str);
+		       }
+		       break;
+	       }
+       }
+
+       /* get total memory from TAGS */
+       for_each_tag(mem_tag, tags) {
+	       if (mem_tag->hdr.tag == ATAG_MEM) {
+		       total_mem = mem_tag->u.mem.size;
+		       left_mem = total_mem - pmem_gpu_size - pmem_adsp_size;
+		       break;
+	       }
+       }
+
+       if (avali_mem > 0 && avali_mem < left_mem)
+	       left_mem = avali_mem;
+
+       if (mem_tag) {
+	       android_pmem_data.start = mem_tag->u.mem.start
+		       + left_mem + pmem_gpu_size;
+	       android_pmem_gpu_data.start = mem_tag->u.mem.start + left_mem;
+	       mem_tag->u.mem.size = left_mem;
+       }
+
+       set_cpu_voltage = mx6_set_cpu_voltage;
+}
+
 /*
  * initialize __mach_desc_MX6Q_ARM2 data structure.
  */
 MACHINE_START(MX6Q_ARM2, "Freescale i.MX 6Quad Armadillo2 Board")
 	/* Maintainer: Freescale Semiconductor, Inc. */
 	.boot_params = MX6_PHYS_OFFSET + 0x100,
+#ifdef CONFIG_ANDROID_PMEM
+       .fixup = fixup_android_board,
+#else
 	.fixup = fixup_mxc_board,
+#endif
 	.map_io = mx6_map_io,
 	.init_irq = mx6_init_irq,
 	.init_machine = mx6_board_init,
