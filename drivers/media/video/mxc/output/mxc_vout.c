@@ -1412,7 +1412,7 @@ static int __init mxc_vout_setup_output(struct mxc_vout_dev *dev)
 	return ret;
 }
 
-static int __init mxc_vout_probe(struct platform_device *pdev)
+static int mxc_vout_probe(struct platform_device *pdev)
 {
 	int ret;
 	struct mxc_vout_dev *dev;
