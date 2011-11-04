@@ -28,6 +28,8 @@
 #include "devices-imx6q.h"
 #include "regs-anadig.h"
 #include "usb.h"
+
+
 static int usbotg_init_ext(struct platform_device *pdev);
 static void usbotg_uninit_ext(struct platform_device *pdev);
 static void usbotg_clock_gate(bool on);
@@ -38,6 +40,8 @@ static void usbotg_clock_gate(bool on);
  */
 static struct clk *usb_phy1_clk;
 static struct clk *usb_oh3_clk;
+static u8 otg_used;
+
 static void usbotg_wakeup_event_clear(void);
 extern int clk_get_usecount(struct clk *clk);
 
@@ -112,7 +116,6 @@ static int usb_phy_enable(struct fsl_usb2_platform_data *pdata)
 				, phy_reg + HW_USBPHY_CTRL_SET);
 	}
 
-
 	return 0;
 }
 /* Notes: configure USB clock*/
@@ -135,8 +138,16 @@ static int usbotg_init_ext(struct platform_device *pdev)
 		printk(KERN_ERR "otg init fails......\n");
 		return ret;
 	}
-	usbotg_internal_phy_clock_gate(true);
-	usb_phy_enable(pdev->dev.platform_data);
+	if (!otg_used) {
+		usbotg_internal_phy_clock_gate(true);
+		usb_phy_enable(pdev->dev.platform_data);
+		otg_used++;
+		/*after the phy reset,can not read the readingvalue for id/vbus at
+		* the register of otgsc ,cannot  read at once ,need delay 3 ms
+		*/
+		mdelay(3);
+	}
+
 	return ret;
 }
 
@@ -151,6 +162,7 @@ static void usbotg_uninit_ext(struct platform_device *pdev)
 	clk_put(usb_oh3_clk);
 
 	usbotg_uninit(pdata);
+	otg_used--;
 }
 
 static void usbotg_clock_gate(bool on)
@@ -413,7 +425,7 @@ static void device_wakeup_handler(struct fsl_usb2_platform_data *pdata)
 
 void __init mx6_usb_dr_init(void)
 {
-	struct platform_device *pdev;
+	struct platform_device *pdev, *pdev_wakeup;
 	static void __iomem *anatop_base_addr = MX6_IO_ADDRESS(ANATOP_BASE_ADDR);
 #ifdef CONFIG_USB_OTG
 	/* wake_up_enable is useless, just for usb_register_remote_wakeup execution*/
@@ -444,7 +456,10 @@ void __init mx6_usb_dr_init(void)
 	dr_wakeup_config.usb_pdata[2] = pdev->dev.platform_data;
 #endif
 	/* register wakeup device */
-	imx6q_add_fsl_usb2_otg_wakeup(&dr_wakeup_config);
+	pdev_wakeup = imx6q_add_fsl_usb2_otg_wakeup(&dr_wakeup_config);
+	((struct fsl_usb2_platform_data *)(pdev->dev.platform_data))->wakeup_pdata =
+		(struct fsl_usb2_wakeup_platform_data *)(pdev_wakeup->dev.platform_data);
+
 	/* Some phy and power's special controls for otg
 	 * 1. The external charger detector needs to be disabled
 	 * or the signal at DP will be poor
