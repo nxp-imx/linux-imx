@@ -92,7 +92,16 @@ static void sdhci_disable_clk(struct sdhci_host *host, int delay)
 			schedule_delayed_work(&host->clk_worker, delay);
 	}
 }
-
+void sdhci_clock_enable(struct mmc_host *mmc, unsigned int enable)
+{
+	struct sdhci_host *host;
+	host = mmc_priv(mmc);
+	if (enable)
+		sdhci_enable_clk(host);
+	else
+		sdhci_disable_clk(host, 0);
+}
+EXPORT_SYMBOL(sdhci_clock_enable);
 static void sdhci_dumpregs(struct sdhci_host *host)
 {
 	printk(KERN_DEBUG DRIVER_NAME ": =========== REGISTER DUMP (%s)===========\n",
