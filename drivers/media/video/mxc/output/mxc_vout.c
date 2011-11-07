@@ -1217,8 +1217,11 @@ static void release_disp_output(struct mxc_vout_output *vout)
 	console_unlock();
 
 	/* fix if ic bypass crack smem_start */
-	if (is_pp_bypass(vout))
+	if (is_pp_bypass(vout)) {
+		console_lock();
 		fbi->fix.smem_start = vout->disp_bufs[0];
+		console_unlock();
+	}
 
 	if (get_ipu_channel(fbi) == MEM_BG_SYNC) {
 		console_lock();
