@@ -653,6 +653,7 @@ static inline void _ipu_ch_offset_update(struct ipu_soc *ipu,
 {
 	uint32_t u_offset = 0;
 	uint32_t v_offset = 0;
+	uint32_t old_offset = 0;
 	uint32_t u_fix = 0;
 	uint32_t v_fix = 0;
 	int32_t sub_ch = 0;
@@ -788,14 +789,22 @@ static inline void _ipu_ch_offset_update(struct ipu_soc *ipu,
 		dev_warn(ipu->dev,
 			"IDMAC%d's V offset is not 8-byte aligned\n", ch);
 
-	ipu_ch_param_mod_field_io(ipu_ch_param_addr(ipu, ch), 0, 46, 22, u_offset / 8);
-	ipu_ch_param_mod_field_io(ipu_ch_param_addr(ipu, ch), 0, 68, 22, v_offset / 8);
+	old_offset = ipu_ch_param_read_field_io(ipu_ch_param_addr(ipu, ch), 0, 46, 22);
+	if (old_offset != u_offset / 8)
+		ipu_ch_param_mod_field_io(ipu_ch_param_addr(ipu, ch), 0, 46, 22, u_offset / 8);
+	old_offset = ipu_ch_param_read_field_io(ipu_ch_param_addr(ipu, ch), 0, 68, 22);
+	if (old_offset != v_offset / 8)
+		ipu_ch_param_mod_field_io(ipu_ch_param_addr(ipu, ch), 0, 68, 22, v_offset / 8);
 
 	sub_ch = __ipu_ch_get_third_buf_cpmem_num(ch);
 	if (sub_ch <= 0)
 		return;
-	ipu_ch_param_mod_field_io(ipu_ch_param_addr(ipu, sub_ch), 0, 46, 22, u_offset / 8);
-	ipu_ch_param_mod_field_io(ipu_ch_param_addr(ipu, sub_ch), 0, 68, 22, v_offset / 8);
+	old_offset = ipu_ch_param_read_field_io(ipu_ch_param_addr(ipu, sub_ch), 0, 46, 22);
+	if (old_offset != u_offset / 8)
+		ipu_ch_param_mod_field_io(ipu_ch_param_addr(ipu, sub_ch), 0, 46, 22, u_offset / 8);
+	old_offset = ipu_ch_param_read_field_io(ipu_ch_param_addr(ipu, sub_ch), 0, 68, 22);
+	if (old_offset != v_offset / 8)
+		ipu_ch_param_mod_field_io(ipu_ch_param_addr(ipu, sub_ch), 0, 68, 22, v_offset / 8);
 };
 
 static inline void _ipu_ch_params_set_alpha_width(struct ipu_soc *ipu, uint32_t ch, int alpha_width)

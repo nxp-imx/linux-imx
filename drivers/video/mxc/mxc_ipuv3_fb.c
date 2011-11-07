@@ -1234,15 +1234,16 @@ mxcfb_pan_display(struct fb_var_screeninfo *var, struct fb_info *info)
 		}
 
 		/* update u/v offset */
-		ipu_update_channel_offset(mxc_fbi->ipu, mxc_fbi->ipu_ch,
-				IPU_INPUT_BUFFER,
-				bpp_to_pixfmt(info),
-				info->var.xres_virtual,
-				info->var.yres_virtual,
-				info->var.xres_virtual,
-				0, 0,
-				var->yoffset,
-				var->xoffset);
+		if (info->var.xres_virtual > info->var.xres)
+			ipu_update_channel_offset(mxc_fbi->ipu, mxc_fbi->ipu_ch,
+					IPU_INPUT_BUFFER,
+					bpp_to_pixfmt(info),
+					info->var.xres_virtual,
+					info->var.yres_virtual,
+					info->var.xres_virtual,
+					0, 0,
+					var->yoffset,
+					var->xoffset);
 
 		ipu_select_buffer(mxc_fbi->ipu, mxc_fbi->ipu_ch, IPU_INPUT_BUFFER,
 				  mxc_fbi->cur_ipu_buf);
