@@ -36,7 +36,6 @@ extern void mx6_wait(void);
 
 
 struct cpu_op *(*get_cpu_op)(int *op);
-static void __iomem *arm_base = IO_ADDRESS(MX6Q_A9_PLATFRM_BASE);
 bool enable_wait_mode;
 
 void __iomem *gpc_base;
