@@ -107,7 +107,7 @@
 void __init early_console_setup(unsigned long base, struct clk *clk);
 static struct clk *sata_clk;
 static int esai_record;
-static int spdif_in;
+static int spdif_en;
 
 extern struct regulator *(*get_cpu_regulator)(void);
 extern void (*put_cpu_regulator)(void);
@@ -295,10 +295,20 @@ static iomux_v3_cfg_t mx6q_arm2_pads[] = {
 
 	/* USBOTG ID pin */
 	MX6Q_PAD_GPIO_1__USBOTG_ID,
+};
 
+static iomux_v3_cfg_t mx6q_arm2_i2c3_pads[] = {
+	MX6Q_PAD_GPIO_5__I2C3_SCL,
+	MX6Q_PAD_GPIO_16__I2C3_SDA,
+};
+
+static iomux_v3_cfg_t mx6q_arm2_spdif_pads[] = {
 	/* SPDIF */
+	MX6Q_PAD_GPIO_16__SPDIF_IN1,
 	MX6Q_PAD_GPIO_17__SPDIF_OUT1,
+};
 
+static iomux_v3_cfg_t mx6q_arm2_can_pads[] = {
 	/* CAN1 */
 	MX6Q_PAD_GPIO_7__CAN1_TXCAN,
 	MX6Q_PAD_KEY_ROW2__CAN1_RXCAN,
@@ -309,15 +319,6 @@ static iomux_v3_cfg_t mx6q_arm2_pads[] = {
 	MX6Q_PAD_KEY_COL4__CAN2_TXCAN,
 	MX6Q_PAD_KEY_ROW4__CAN2_RXCAN,
 	MX6Q_PAD_CSI0_DAT6__GPIO_5_24,	/* CAN2 EN */
-};
-
-static iomux_v3_cfg_t mx6q_arm2_i2c3_pads[] = {
-	MX6Q_PAD_GPIO_5__I2C3_SCL,
-	MX6Q_PAD_GPIO_16__I2C3_SDA,
-};
-
-static iomux_v3_cfg_t mx6q_arm2_spdif_in_pads[] = {
-	MX6Q_PAD_GPIO_16__SPDIF_IN1,
 };
 
 static iomux_v3_cfg_t mx6q_arm2_esai_record_pads[] = {
@@ -1333,11 +1334,11 @@ static inline void __init mx6q_csi0_io_init(void)
 
 static int __init early_enable_spdif(char *p)
 {
-	spdif_in = 1;
+	spdif_en = 1;
 	return 0;
 }
 
-early_param("spdif_in", early_enable_spdif);
+early_param("spdif", early_enable_spdif);
 
 static int spdif_clk_set_rate(struct clk *clk, unsigned long rate)
 {
@@ -1349,7 +1350,7 @@ static int spdif_clk_set_rate(struct clk *clk, unsigned long rate)
 
 static struct mxc_spdif_platform_data mxc_spdif_data = {
 	.spdif_tx = 1,		/* enable tx */
-	.spdif_rx = 0,		/* disable rx for now (see below) */
+	.spdif_rx = 1,		/* enable rx */
 	/*
 	 * spdif0_clk will be 454.7MHz divided by ccm dividers.
 	 *
@@ -1382,15 +1383,21 @@ static void __init mx6_board_init(void)
 	    mxc_iomux_v3_setup_multiple_pads(mx6q_arm2_esai_record_pads,
 			ARRAY_SIZE(mx6q_arm2_esai_record_pads));
 
-	/* S/PDIF in and i2c3 are mutually exclusive because both
-	 * use GPIO_17 */
-	if (spdif_in) {
-		mxc_iomux_v3_setup_multiple_pads(mx6q_arm2_spdif_in_pads,
-			ARRAY_SIZE(mx6q_arm2_spdif_in_pads));
-		mxc_spdif_data.spdif_rx = 1;
-	} else
+	/*
+	 * S/PDIF in and i2c3 are mutually exclusive because both
+	 * use GPIO_16.
+	 * S/PDIF out and can1 stby are mutually exclusive because both
+	 * use GPIO_17.
+	 */
+	if (spdif_en) {
+		mxc_iomux_v3_setup_multiple_pads(mx6q_arm2_spdif_pads,
+			ARRAY_SIZE(mx6q_arm2_spdif_pads));
+	} else {
 		mxc_iomux_v3_setup_multiple_pads(mx6q_arm2_i2c3_pads,
 			ARRAY_SIZE(mx6q_arm2_i2c3_pads));
+		mxc_iomux_v3_setup_multiple_pads(mx6q_arm2_can_pads,
+			ARRAY_SIZE(mx6q_arm2_can_pads));
+	}
 
 	gp_reg_id = arm2_dvfscore_data.reg_id;
 	mx6q_arm2_init_uart();
@@ -1417,7 +1424,7 @@ static void __init mx6_board_init(void)
 			ARRAY_SIZE(mxc_i2c0_board_info));
 	i2c_register_board_info(1, mxc_i2c1_board_info,
 			ARRAY_SIZE(mxc_i2c1_board_info));
-	if (!spdif_in) {
+	if (!spdif_en) {
 		imx6q_add_imx_i2c(2, &mx6q_arm2_i2c_data);
 		i2c_register_board_info(2, mxc_i2c2_board_info,
 				ARRAY_SIZE(mxc_i2c2_board_info));
@@ -1478,23 +1485,25 @@ static void __init mx6_board_init(void)
 	imx6q_add_mxc_pwm(0);
 	imx6q_add_mxc_pwm_backlight(0, &mx6_arm2_pwm_backlight_data);
 
-	mxc_spdif_data.spdif_core_clk = clk_get_sys("mxc_spdif.0", NULL);
-	clk_put(mxc_spdif_data.spdif_core_clk);
-	imx6q_add_spdif(&mxc_spdif_data);
-	imx6q_add_spdif_dai();
-	imx6q_add_spdif_audio_device();
+	if (spdif_en) {
+		mxc_spdif_data.spdif_core_clk = clk_get_sys("mxc_spdif.0", NULL);
+		clk_put(mxc_spdif_data.spdif_core_clk);
+		imx6q_add_spdif(&mxc_spdif_data);
+		imx6q_add_spdif_dai();
+		imx6q_add_spdif_audio_device();
+	} else {
+		ret = gpio_request_array(mx6q_flexcan_gpios,
+				ARRAY_SIZE(mx6q_flexcan_gpios));
+		if (ret) {
+			pr_err("failed to request flexcan-gpios: %d\n", ret);
+		} else {
+			imx6q_add_flexcan0(&mx6q_arm2_flexcan_pdata[0]);
+			imx6q_add_flexcan1(&mx6q_arm2_flexcan_pdata[1]);
+		}
+	}
 
 	imx6q_add_hdmi_soc();
 	imx6q_add_hdmi_soc_dai();
-
-	ret = gpio_request_array(mx6q_flexcan_gpios,
-			ARRAY_SIZE(mx6q_flexcan_gpios));
-	if (ret) {
-		pr_err("failed to request flexcan-gpios: %d\n", ret);
-	} else {
-		imx6q_add_flexcan0(&mx6q_arm2_flexcan_pdata[0]);
-		imx6q_add_flexcan1(&mx6q_arm2_flexcan_pdata[1]);
-	}
 }
 
 extern void __iomem *twd_base;
