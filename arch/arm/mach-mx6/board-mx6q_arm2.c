@@ -519,12 +519,6 @@ static struct fec_platform_data fec_data __initdata = {
 	.phy = PHY_INTERFACE_MODE_RGMII,
 };
 
-static inline void imx6q_init_fec(void)
-{
-	random_ether_addr(fec_data.mac);
-	imx6q_add_fec(&fec_data);
-}
-
 static int mx6q_arm2_spi_cs[] = {
 	MX6Q_ARM2_ECSPI1_CS0,
 	MX6Q_ARM2_ECSPI1_CS1,
@@ -1451,7 +1445,7 @@ static void __init mx6_board_init(void)
 	imx6q_add_anatop_thermal_imx(1, &mx6q_arm2_anatop_thermal_data);
 
 	if (!esai_record)
-		imx6q_init_fec();
+		imx6_init_fec(fec_data);
 
 	imx6q_add_pm_imx(0, &mx6q_arm2_pm_data);
 	imx6q_add_sdhci_usdhc_imx(3, &mx6q_arm2_sd4_data);

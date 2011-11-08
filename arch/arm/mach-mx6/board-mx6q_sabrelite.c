@@ -421,12 +421,6 @@ static struct fec_platform_data fec_data __initdata = {
 	.phy = PHY_INTERFACE_MODE_RGMII,
 };
 
-static inline void imx6q_init_fec(void)
-{
-	random_ether_addr(fec_data.mac);
-	imx6q_add_fec(&fec_data);
-}
-
 static int mx6q_sabrelite_spi_cs[] = {
 	MX6Q_SABRELITE_ECSPI1_CS1,
 };
@@ -875,7 +869,7 @@ static void __init mx6_sabrelite_board_init(void)
 	imx6q_add_mxc_hdmi(&hdmi_data);
 
 	imx6q_add_anatop_thermal_imx(1, &mx6q_sabrelite_anatop_thermal_data);
-	imx6q_init_fec();
+	imx6_init_fec(fec_data);
 	imx6q_add_pm_imx(0, &mx6q_sabrelite_pm_data);
 	imx6q_add_sdhci_usdhc_imx(3, &mx6q_sabrelite_sd4_data);
 	imx6q_add_sdhci_usdhc_imx(2, &mx6q_sabrelite_sd3_data);
