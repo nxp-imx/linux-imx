@@ -2190,9 +2190,6 @@ static irqreturn_t fsl_udc_irq(int irq, void *_udc)
 
 	spin_lock_irqsave(&udc->lock, flags);
 
-	if (try_wake_up_udc(udc) == false) {
-		goto irq_end;
-	}
 #ifdef CONFIG_USB_OTG
 	/* if no gadget register in this driver, we need do noting */
 	if (udc->transceiver->gadget == NULL) {
@@ -2203,6 +2200,9 @@ static irqreturn_t fsl_udc_irq(int irq, void *_udc)
 		goto irq_end;
 	}
 #endif
+	if (try_wake_up_udc(udc) == false) {
+		goto irq_end;
+	}
 	irq_src = fsl_readl(&dr_regs->usbsts) & fsl_readl(&dr_regs->usbintr);
 	/* Clear notification bits */
 	fsl_writel(irq_src, &dr_regs->usbsts);
@@ -2320,11 +2320,8 @@ int usb_gadget_probe_driver(struct usb_gadget_driver *driver,
 	}
 
 	if (udc_controller->transceiver) {
-		if (fsl_readl(&dr_regs->otgsc) & OTGSC_STS_USB_ID)
-			udc_controller->suspended = 1;
-		else
-			udc_controller->suspended = 0;
 		printk(KERN_INFO "Suspend udc for OTG auto detect\n");
+		udc_controller->suspended = 1;
 		dr_wake_up_enable(udc_controller, true);
 		dr_clk_gate(false);
 		/* export udc suspend/resume call to OTG */
