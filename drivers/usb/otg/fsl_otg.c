@@ -64,6 +64,7 @@
 
 #define TIMER_FREQ 1000 /* 1000 ms */
 #define IDLE_TIME  5000 /* 5000 ms */
+#define FSL_VBUS_CHANGE_TIMEOUT (msecs_to_jiffies(1000)) /* 1000 ms */
 
 MODULE_DESCRIPTION("Freescale USB OTG Driver");
 
@@ -157,6 +158,24 @@ static void fsl_otg_wait_dischrg_vbus(void)
 	fsl_otg_dischrg_vbus(1);
 	msleep(20);
 	fsl_otg_dischrg_vbus(0);
+	fsl_otg_clk_gate(false);
+}
+
+/* Wait for VBUS stable when change vbus true for rise false for fall*/
+static void fsl_otg_wait_stable_vbus(bool on)
+{
+	unsigned long timeout;
+	fsl_otg_clk_gate(true);
+	/* Wait for vbus change  to B_SESSION_VALID complete */
+	timeout = jiffies + FSL_VBUS_CHANGE_TIMEOUT;
+	while ((le32_to_cpu(usb_dr_regs->otgsc)&OTGSC_INTSTS_B_SESSION_VALID) == !on) {
+		if (time_after(jiffies, timeout)) {
+			printk(KERN_ERR"wait otg vbus change timeout! \n");
+			fsl_otg_clk_gate(false);
+			break;
+		}
+		msleep(10);
+	}
 	fsl_otg_clk_gate(false);
 }
 
@@ -600,7 +619,16 @@ static int fsl_otg_set_host(struct otg_transceiver *otg_p, struct usb_bus *host)
 		 * so suspend the host after a short delay.
 		 */
 		otg_dev->host_working = 1;
-		schedule_otg_work(&otg_dev->otg_event, 100);
+		if (otg_dev->fsm.id)
+			schedule_otg_work(&otg_dev->otg_event, 100);
+		else {
+			/* if the device is already at the port */
+			otg_drv_vbus(&otg_dev->fsm, 1);
+			fsl_otg_wait_stable_vbus(true);
+			b_session_irq_enable(false);
+			fsl_otg_start_host(&otg_dev->fsm, 1);
+		}
+
 		return 0;
 	} else {		/* host driver going away */
 
@@ -705,12 +733,14 @@ static void fsl_otg_event(struct work_struct *work)
 	if (fsm->id) {		/* switch to gadget */
 		fsl_otg_start_host(fsm, 0);
 		otg_drv_vbus(fsm, 0);
+		fsl_otg_wait_stable_vbus(false);
 		fsl_otg_wait_dischrg_vbus();
 		b_session_irq_enable(false);
 		fsl_otg_start_gadget(fsm, 1);
 	} else {			/* switch to host */
 		fsl_otg_start_gadget(fsm, 0);
 		otg_drv_vbus(fsm, 1);
+		fsl_otg_wait_stable_vbus(true);
 		b_session_irq_enable(false);
 		fsl_otg_start_host(fsm, 1);
 	}
