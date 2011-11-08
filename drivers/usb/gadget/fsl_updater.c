@@ -134,6 +134,7 @@ static ssize_t utp_file_write(struct file *file, const char __user *buf,
 	if (size < sizeof(uud->data))
 		return -EINVAL;
 	uud = utp_user_data_alloc(size);
+	if (uud == NULL)
 		return -ENOMEM;
 	if (copy_from_user(&uud->data, buf, size)) {
 		printk(KERN_INFO "[ %s ] copy error!\n", __func__);
