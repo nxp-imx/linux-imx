@@ -141,12 +141,12 @@ static int usbotg_init_ext(struct platform_device *pdev)
 	if (!otg_used) {
 		usbotg_internal_phy_clock_gate(true);
 		usb_phy_enable(pdev->dev.platform_data);
-		otg_used++;
 		/*after the phy reset,can not read the readingvalue for id/vbus at
 		* the register of otgsc ,cannot  read at once ,need delay 3 ms
 		*/
 		mdelay(3);
 	}
+	otg_used++;
 
 	return ret;
 }
@@ -457,8 +457,9 @@ void __init mx6_usb_dr_init(void)
 #endif
 	/* register wakeup device */
 	pdev_wakeup = imx6q_add_fsl_usb2_otg_wakeup(&dr_wakeup_config);
-	((struct fsl_usb2_platform_data *)(pdev->dev.platform_data))->wakeup_pdata =
-		(struct fsl_usb2_wakeup_platform_data *)(pdev_wakeup->dev.platform_data);
+	if (pdev != NULL)
+		((struct fsl_usb2_platform_data *)(pdev->dev.platform_data))->wakeup_pdata =
+			(struct fsl_usb2_wakeup_platform_data *)(pdev_wakeup->dev.platform_data);
 
 	/* Some phy and power's special controls for otg
 	 * 1. The external charger detector needs to be disabled
