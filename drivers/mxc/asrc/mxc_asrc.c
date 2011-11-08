@@ -36,6 +36,7 @@
 #include <linux/dma-mapping.h>
 #include <linux/mxc_asrc.h>
 #include <linux/fsl_devices.h>
+#include <linux/sched.h>
 #include <asm/irq.h>
 #include <asm/memory.h>
 #include <mach/dma.h>
