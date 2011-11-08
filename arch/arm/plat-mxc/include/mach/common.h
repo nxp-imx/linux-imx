@@ -72,6 +72,7 @@ extern int mx50_clocks_init(unsigned long ckil, unsigned long osc,
 			unsigned long ckih1);
 extern int mx6_clocks_init(unsigned long ckil, unsigned long osc,
 			unsigned long ckih1, unsigned long ckih2);
+extern void imx6_init_fec(struct fec_platform_data fec_data);
 extern int mxc91231_clocks_init(unsigned long fref);
 extern int mxc_register_gpios(void);
 extern int mxc_register_device(struct platform_device *pdev, void *data);
