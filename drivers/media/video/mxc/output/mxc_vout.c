@@ -1106,9 +1106,18 @@ static int mxc_vidioc_reqbufs(struct file *file, void *fh,
 static int mxc_vidioc_querybuf(struct file *file, void *fh,
 			struct v4l2_buffer *b)
 {
+	int ret;
 	struct mxc_vout_output *vout = fh;
 
-	return videobuf_querybuf(&vout->vbq, b);
+	ret = videobuf_querybuf(&vout->vbq, b);
+	if (!ret) {
+		/* return physical address */
+		struct videobuf_buffer *vb = vout->vbq.bufs[b->index];
+		if (b->flags & V4L2_BUF_FLAG_MAPPED)
+			b->m.offset = videobuf_to_dma_contig(vb);
+	}
+
+	return ret;
 }
 
 static int mxc_vidioc_qbuf(struct file *file, void *fh,
