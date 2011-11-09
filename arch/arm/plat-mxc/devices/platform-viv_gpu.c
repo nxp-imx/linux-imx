@@ -28,7 +28,7 @@ const struct imx_viv_gpu_data imx6_gpu_data __initconst = {
 	.iobase_2d = GPU_2D_ARB_BASE_ADDR,
 	.irq_2d = MXC_INT_GPU2D_IRQ,
 	.iobase_vg = OPENVG_ARB_BASE_ADDR,
-	.irq_vg = MXC_INT_OPENVG_XAQ2,
+	.irq_vg = -1 /*MXC_INT_OPENVG_XAQ2*/,
 };
 #endif
 
