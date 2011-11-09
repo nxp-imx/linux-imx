@@ -4808,12 +4808,14 @@ int __init mx6_clocks_init(unsigned long ckil, unsigned long osc,
 	pll2_pfd_352M.disable(&pll2_pfd_352M);
 	pll2_pfd_594M.disable(&pll2_pfd_594M);
 
+#if !defined(CONFIG_FEC_1588)
 	pll3_pfd_454M.disable(&pll3_pfd_454M);
 	pll3_pfd_508M.disable(&pll3_pfd_508M);
 	pll3_pfd_540M.disable(&pll3_pfd_540M);
 	pll3_pfd_720M.disable(&pll3_pfd_720M);
 
 	pll3_usb_otg_main_clk.disable(&pll3_usb_otg_main_clk);
+#endif
 	pll4_audio_main_clk.disable(&pll4_audio_main_clk);
 	pll5_video_main_clk.disable(&pll5_video_main_clk);
 	pll6_MLB_main_clk.disable(&pll6_MLB_main_clk);
