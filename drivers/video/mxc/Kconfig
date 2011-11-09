@@ -14,6 +14,11 @@ config FB_MXC
 	  If you plan to use the LCD display with your MXC system, say
 	  Y here.
 
+config FB_MXC_EDID
+	depends on FB_MXC && I2C
+	tristate "MXC EDID support"
+	default y
+
 config FB_MXC_SYNC_PANEL
 	depends on FB_MXC
 	tristate "Synchronous Panel Framebuffer"
@@ -52,7 +57,7 @@ config FB_MXC_SEIKO_WVGA_SYNC_PANEL
 	tristate "SEIKO WVGA Panel"
 
 config FB_MXC_SII902X
-	depends on FB_MXC_SYNC_PANEL
+	depends on FB_MXC_SYNC_PANEL && I2C
 	tristate "Si Image SII9022 DVI/HDMI Interface Chip"
 
 config FB_MXC_CH7026
