@@ -159,6 +159,27 @@ static iomux_v3_cfg_t mx50_rdp_pads[] __initdata = {
 	MX50_PAD_I2C2_SCL__I2C2_SCL,
 	MX50_PAD_I2C2_SDA__I2C2_SDA,
 
+	/* EPDC pins */
+	MX50_PAD_EPDC_PWRSTAT__GPIO_3_28,
+	MX50_PAD_EPDC_VCOM0__GPIO_4_21,
+	MX50_PAD_EPDC_PWRCTRL0__GPIO_3_29,
+
+	MX50_PAD_DISP_D8__DISP_D8,
+	MX50_PAD_DISP_D9__DISP_D9,
+	MX50_PAD_DISP_D10__DISP_D10,
+	MX50_PAD_DISP_D11__DISP_D11,
+	MX50_PAD_DISP_D12__DISP_D12,
+	MX50_PAD_DISP_D13__DISP_D13,
+	MX50_PAD_DISP_D14__DISP_D14,
+	MX50_PAD_DISP_D15__DISP_D15,
+	MX50_PAD_DISP_RS__ELCDIF_VSYNC,
+
+	/* EPD PMIC WAKEUP */
+	MX50_PAD_UART4_TXD__GPIO_6_16,
+
+	/* EPD PMIC intr */
+	MX50_PAD_UART4_RXD__GPIO_6_17,
+
 	MX50_PAD_EPITO__USBH1_PWR,
 	/* Need to comment below line if
 	 * one needs to debug owire.
@@ -257,6 +278,13 @@ static struct regulator_consumer_supply vcom_consumers[] = {
 	},
 };
 
+static struct regulator_consumer_supply v3p3_consumers[] = {
+	{
+		/* MAX17135 */
+		.supply = "V3P3",
+	},
+};
+
 static struct regulator_init_data max17135_init_data[] = {
 	{
 		.constraints = {
@@ -311,6 +339,13 @@ static struct regulator_init_data max17135_init_data[] = {
 			.min_uV = V_to_uV(15),
 			.max_uV = V_to_uV(15),
 		},
+	}, {
+		.constraints = {
+			.name = "V3P3",
+			.valid_ops_mask =  REGULATOR_CHANGE_STATUS,
+		},
+		.num_consumer_supplies = ARRAY_SIZE(v3p3_consumers),
+		.consumer_supplies = v3p3_consumers,
 	},
 };
 
@@ -331,6 +366,7 @@ static struct max17135_platform_data max17135_pdata __initdata = {
 	.gpio_pmic_pwrgood = MX50_RDP_EPDC_PWRSTAT,
 	.gpio_pmic_vcom_ctrl = MX50_RDP_EPDC_VCOM,
 	.gpio_pmic_wakeup = MX50_RDP_EPDC_PMIC_WAKE,
+	.gpio_pmic_v3p3 = MX50_RDP_EPDC_PWRCTRL0,
 	.gpio_pmic_intr = MX50_RDP_EPDC_PMIC_INT,
 	.regulator_init = max17135_init_data,
 	.init = max17135_regulator_init,
@@ -356,6 +392,7 @@ static int max17135_regulator_init(struct max17135 *max17135)
 	max17135->gpio_pmic_pwrgood = pdata->gpio_pmic_pwrgood;
 	max17135->gpio_pmic_vcom_ctrl = pdata->gpio_pmic_vcom_ctrl;
 	max17135->gpio_pmic_wakeup = pdata->gpio_pmic_wakeup;
+	max17135->gpio_pmic_v3p3 = pdata->gpio_pmic_v3p3;
 	max17135->gpio_pmic_intr = pdata->gpio_pmic_intr;
 
 	gpio_request(max17135->gpio_pmic_wakeup, "epdc-pmic-wake");
@@ -363,6 +400,9 @@ static int max17135_regulator_init(struct max17135 *max17135)
 
 	gpio_request(max17135->gpio_pmic_vcom_ctrl, "epdc-vcom");
 	gpio_direction_output(max17135->gpio_pmic_vcom_ctrl, 0);
+
+	gpio_request(max17135->gpio_pmic_v3p3, "epdc-v3p3");
+	gpio_direction_output(max17135->gpio_pmic_v3p3, 0);
 
 	gpio_request(max17135->gpio_pmic_intr, "epdc-pmic-int");
 	gpio_direction_input(max17135->gpio_pmic_intr);
@@ -373,7 +413,7 @@ static int max17135_regulator_init(struct max17135 *max17135)
 	max17135->vcom_setup = false;
 	max17135->init_done = false;
 
-	for (i = 0; i <= MAX17135_VPOS; i++) {
+	for (i = 0; i < MAX17135_NUM_REGULATORS; i++) {
 		ret = max17135_register_regulator(max17135, i,
 			&pdata->regulator_init[i]);
 		if (ret != 0) {
@@ -581,13 +621,13 @@ static struct fb_videomode e60_v220_mode = {
 	.refresh = 85,
 	.xres = 800,
 	.yres = 600,
-	.pixclock = 32000000,
+	.pixclock = 30000000,
 	.left_margin = 8,
-	.right_margin = 166,
+	.right_margin = 164,
 	.upper_margin = 4,
-	.lower_margin = 26,
-	.hsync_len = 20,
-	.vsync_len = 4,
+	.lower_margin = 8,
+	.hsync_len = 4,
+	.vsync_len = 1,
 	.sync = 0,
 	.vmode = FB_VMODE_NONINTERLACED,
 	.flag = 0,
@@ -631,10 +671,10 @@ static struct imx_epdc_fb_mode panel_modes[] = {
 		20,	/* sdoed_delay */
 		10,	/* sdoez_width */
 		20,	/* sdoez_delay */
-		428,	/* gdclk_hp_offs */
+		465,	/* gdclk_hp_offs */
 		20,	/* gdsp_offs */
 		0,	/* gdoe_offs */
-		1,	/* gdclk_offs */
+		9,	/* gdclk_offs */
 		1,	/* num_ce */
 	},
 	{
