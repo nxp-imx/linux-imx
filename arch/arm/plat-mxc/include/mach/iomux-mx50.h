@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2010-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -247,7 +247,8 @@
 #define MX50_PAD_UART4_TXD__WEIM_D14	IOMUX_PAD(0x358, 0xAC, 6, 0x824, 0, NO_PAD_CTRL)
 
 #define MX50_PAD_UART4_RXD__UART4_RXD	IOMUX_PAD(0x35C, 0xB0, 0, 0x7dc, 1, MX50_UART_PAD_CTRL)
-#define MX50_PAD_UART4_RXD__GPIO_6_17	IOMUX_PAD(0x35C, 0xB0, 1, 0x0, 0, NO_PAD_CTRL)
+/* Remove the default keeper from this pad (for EPD PMIC intr) */
+#define MX50_PAD_UART4_RXD__GPIO_6_17	IOMUX_PAD(0x35C, 0xB0, 1, 0x0, 0, 0)
 #define MX50_PAD_UART4_RXD__UART3_RTS	IOMUX_PAD(0x35C, 0xB0, 2, 0x7d0, 1, MX50_UART_PAD_CTRL)
 #define MX50_PAD_UART4_RXD__SD1_D7	IOMUX_PAD(0x35C, 0xB0, 3, 0x0, 0, MX50_SD_PAD_CTRL)
 #define MX50_PAD_UART4_RXD__SD4_D3	IOMUX_PAD(0x35C, 0xB0, 4, 0x75c, 0, MX50_SD_PAD_CTRL)
@@ -799,7 +800,8 @@
 #define MX50_PAD_EPDC_PWRCOM__AUD4_TXC		IOMUX_PAD(0x5B8, 0x21C, 4, 0x6d4, 1, NO_PAD_CTRL)
 
 #define MX50_PAD_EPDC_PWRSTAT__EPDC_PWRSTAT	IOMUX_PAD(0x5BC, 0x220, 0, 0x0, 0, NO_PAD_CTRL)
-#define MX50_PAD_EPDC_PWRSTAT__GPIO_3_28	IOMUX_PAD(0x5BC, 0x220, 1, 0x0, 0, NO_PAD_CTRL)
+/* Remove the default keeper from this pad (for EPD) */
+#define MX50_PAD_EPDC_PWRSTAT__GPIO_3_28	IOMUX_PAD(0x5BC, 0x220, 1, 0x0, 0, 0)
 #define MX50_PAD_EPDC_PWRSTAT__WEIM_D28		IOMUX_PAD(0x5BC, 0x220, 2, 0x0, 0, NO_PAD_CTRL)
 #define MX50_PAD_EPDC_PWRSTAT__ELCDIF_D12	IOMUX_PAD(0x5BC, 0x220, 3, 0x72c, 1, MX50_ELCDIF_PAD_CTRL)
 #define MX50_PAD_EPDC_PWRSTAT__AUD4_TXFS	IOMUX_PAD(0x5BC, 0x220, 4, 0x6d8, 1, NO_PAD_CTRL)
