@@ -108,6 +108,7 @@ void __init early_console_setup(unsigned long base, struct clk *clk);
 static struct clk *sata_clk;
 static int esai_record;
 static int spdif_en;
+static int mipi_sensor;
 
 extern struct regulator *(*get_cpu_regulator)(void);
 extern void (*put_cpu_regulator)(void);
@@ -270,10 +271,6 @@ static iomux_v3_cfg_t mx6q_arm2_pads[] = {
 	/* camera powerdown */
 	MX6Q_PAD_CSI0_DAT5__GPIO_5_23,
 
-#ifdef CONFIG_MXC_CAMERA_OV5640_MIPI
-	MX6Q_PAD_CSI0_MCLK__CCM_CLKO,
-#endif
-
 	MX6Q_PAD_EIM_D24__GPIO_3_24,
 
 	/* PWM1 */
@@ -325,6 +322,10 @@ static iomux_v3_cfg_t mx6q_arm2_esai_record_pads[] = {
 	MX6Q_PAD_ENET_RX_ER__ESAI1_HCKR,
 	MX6Q_PAD_ENET_MDIO__ESAI1_SCKR,
 	MX6Q_PAD_ENET_REF_CLK__ESAI1_FSR,
+};
+
+static iomux_v3_cfg_t mx6q_arm2_mipi_sensor_pads[] = {
+	MX6Q_PAD_CSI0_MCLK__CCM_CLKO,
 };
 
 #define MX6Q_USDHC_PAD_SETTING(id, speed)	\
@@ -1318,6 +1319,13 @@ static void __init fixup_mxc_board(struct machine_desc *desc, struct tag *tags,
 	set_cpu_voltage = mx6_arm2_set_cpu_voltage;
 }
 
+static int __init early_enable_mipi_sensor(char *p)
+{
+	mipi_sensor = 1;
+	return 0;
+}
+early_param("mipi_sensor", early_enable_mipi_sensor);
+
 static inline void __init mx6q_csi0_io_init(void)
 {
 	/* Camera reset */
@@ -1399,6 +1407,10 @@ static void __init mx6_board_init(void)
 			ARRAY_SIZE(mx6q_arm2_can_pads));
 	}
 
+	if (mipi_sensor)
+		mxc_iomux_v3_setup_multiple_pads(mx6q_arm2_mipi_sensor_pads,
+			ARRAY_SIZE(mx6q_arm2_mipi_sensor_pads));
+
 	gp_reg_id = arm2_dvfscore_data.reg_id;
 	mx6q_arm2_init_uart();
 	imx6q_add_mipi_csi2(&mipi_csi2_pdata);
@@ -1454,9 +1466,9 @@ static void __init mx6_board_init(void)
 	imx_asrc_data.asrc_audio_clk = clk_get(NULL, "asrc_serial_clk");
 	imx6q_add_asrc(&imx_asrc_data);
 
-#ifndef CONFIG_MXC_CAMERA_OV5640_MIPI
-	mx6q_csi0_io_init();
-#endif
+	if (!mipi_sensor)
+		mx6q_csi0_io_init();
+
 	/* DISP0 Detect */
 	gpio_request(MX6Q_ARM2_DISP0_DET_INT, "disp0-detect");
 	gpio_direction_input(MX6Q_ARM2_DISP0_DET_INT);
