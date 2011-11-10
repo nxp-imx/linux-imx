@@ -910,6 +910,11 @@ static int mxc_vidioc_s_crop(struct file *file, void *fh, struct v4l2_crop *crop
 	if (vout->vbq.streaming)
 		return -EBUSY;
 
+	if (crop->c.width == 0)
+		crop->c.width = b->width - b->left;
+	if (crop->c.height == 0)
+		crop->c.height = b->height - b->top;
+
 	if (crop->c.top < b->top)
 		crop->c.top = b->top;
 	if (crop->c.top >= b->top + b->height)
