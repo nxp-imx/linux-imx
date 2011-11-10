@@ -521,6 +521,7 @@ int fsl_usb_host_init(struct platform_device *pdev)
 			usbh1_set_utmi_xcvr();
 		}
 	} else {
+#ifdef CONFIG_ARCH_MX6
 		if (!strcmp("Host 1", pdata->name)) {
 			if (machine_is_mx6q_arm2())
 				USB_H1_CTRL &= ~UCTRL_OVER_CUR_POL;
@@ -528,6 +529,7 @@ int fsl_usb_host_init(struct platform_device *pdev)
 				USB_H1_CTRL |= UCTRL_OVER_CUR_POL;
 			USB_H1_CTRL |= UCTRL_OVER_CUR_DIS;
 		}
+#endif
 	}
 
 	pr_debug("%s: %s success\n", __func__, pdata->name);
@@ -836,11 +838,13 @@ int usbotg_init(struct platform_device *pdev)
 				otg_set_utmi_xcvr();
 			}
 		} else {
+#ifdef CONFIG_ARCH_MX6
 			if (machine_is_mx6q_arm2())
 				USB_OTG_CTRL &= ~UCTRL_OVER_CUR_POL;
 			else if (machine_is_mx6q_sabrelite())
 				USB_OTG_CTRL |= UCTRL_OVER_CUR_POL;
 			USB_OTG_CTRL |= UCTRL_OVER_CUR_DIS;
+#endif
 		}
 	}
 
