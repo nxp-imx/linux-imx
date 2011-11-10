@@ -80,6 +80,10 @@
 #define MX6Q_SABRELITE_CAP_TCH_INT1	IMX_GPIO_NR(1, 9)
 #define MX6Q_SABRELITE_USB_HUB_RESET	IMX_GPIO_NR(7, 12)
 
+#define MX6Q_SABRELITE_SD3_WP_PADCFG	(PAD_CTL_PKE | PAD_CTL_PUE |	\
+		PAD_CTL_PUS_22K_UP | PAD_CTL_SPEED_MED |	\
+		PAD_CTL_DSE_40ohm | PAD_CTL_HYS)
+
 void __init early_console_setup(unsigned long base, struct clk *clk);
 
 extern struct regulator *(*get_cpu_regulator)(void);
@@ -288,7 +292,7 @@ static iomux_v3_cfg_t mx6q_sabrelite_pads[] = {
 	MX6Q_PAD_SD3_DAT2__USDHC3_DAT2_50MHZ,
 	MX6Q_PAD_SD3_DAT3__USDHC3_DAT3_50MHZ,
 	MX6Q_PAD_SD3_DAT5__GPIO_7_0,		/* J18 - SD3_CD */
-	MX6Q_PAD_SD3_DAT4__GPIO_7_1,		/* J18 - SD3_WP */
+	NEW_PAD_CTRL(MX6Q_PAD_SD3_DAT4__GPIO_7_1, MX6Q_SABRELITE_SD3_WP_PADCFG),
 
 	/* USDHC4 */
 	MX6Q_PAD_SD4_CLK__USDHC4_CLK_50MHZ,
