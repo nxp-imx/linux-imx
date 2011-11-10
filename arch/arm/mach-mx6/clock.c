@@ -3394,7 +3394,22 @@ static unsigned long _clk_enet_get_rate(struct clk *clk)
 	div = (__raw_readl(PLL8_ENET_BASE_ADDR))
 		& ANADIG_PLL_ENET_DIV_SELECT_MASK;
 
-	return 500000000 / (div + 1);
+	switch (div) {
+	case 0:
+		div = 20;
+		break;
+	case 1:
+		div = 10;
+		break;
+	case 3:
+		div = 5;
+		break;
+	case 4:
+		div = 4;
+		break;
+	}
+
+	return 500000000 / div;
 }
 
 static struct clk enet_clk[] = {
