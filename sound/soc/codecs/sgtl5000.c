@@ -967,7 +967,9 @@ static int sgtl5000_pcm_hw_params(struct snd_pcm_substream *substream,
 		return -EINVAL;
 	}
 
-	snd_soc_update_bits(codec, SGTL5000_CHIP_I2S_CTRL, i2s_ctl, i2s_ctl);
+	snd_soc_update_bits(codec, SGTL5000_CHIP_I2S_CTRL,
+			SGTL5000_I2S_DLEN_MASK | SGTL5000_I2S_SCLKFREQ_MASK,
+			i2s_ctl);
 
 	return 0;
 }
@@ -1391,7 +1393,7 @@ static int sgtl5000_set_power_regs(struct snd_soc_codec *codec)
 		vag = (vag - SGTL5000_ANA_GND_BASE) / SGTL5000_ANA_GND_STP;
 
 	snd_soc_update_bits(codec, SGTL5000_CHIP_REF_CTRL,
-			vag << SGTL5000_ANA_GND_SHIFT,
+			SGTL5000_ANA_GND_MASK,
 			vag << SGTL5000_ANA_GND_SHIFT);
 
 	/* set line out VAG to vddio / 2, in range (0.8v, 1.675v) */
@@ -1406,9 +1408,8 @@ static int sgtl5000_set_power_regs(struct snd_soc_codec *codec)
 		    SGTL5000_LINE_OUT_GND_STP;
 
 	snd_soc_update_bits(codec, SGTL5000_CHIP_LINE_OUT_CTRL,
-			vag << SGTL5000_LINE_OUT_GND_SHIFT |
-			SGTL5000_LINE_OUT_CURRENT_360u <<
-				SGTL5000_LINE_OUT_CURRENT_SHIFT,
+			SGTL5000_LINE_OUT_GND_MASK |
+			SGTL5000_LINE_OUT_CURRENT_MASK,
 			vag << SGTL5000_LINE_OUT_GND_SHIFT |
 			SGTL5000_LINE_OUT_CURRENT_360u <<
 				SGTL5000_LINE_OUT_CURRENT_SHIFT);
