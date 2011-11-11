@@ -492,7 +492,7 @@ config PCH_PHUB
 
 config MXS_PERFMON
 	tristate "i.MX Performance Monitor"
-	depends on ARCH_MX50
+	depends on ARCH_MX50 || ARCH_MX6
 	default y
 
 source "drivers/misc/c2port/Kconfig"

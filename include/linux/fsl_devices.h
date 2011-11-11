@@ -369,6 +369,8 @@ struct mxs_perfmon_bit_config {
 struct mxs_platform_perfmon_data {
 	struct mxs_perfmon_bit_config *bit_config_tab;
 	int bit_config_cnt;
+	void (*plt_init) (void);
+	void (*plt_exit) (void);
 };
 
 #endif /* _FSL_DEVICE_H_ */
