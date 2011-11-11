@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # Linux/arm 2.6.38 Kernel Configuration
-# Wed Nov  9 15:44:43 2011
+# Fri Nov 11 09:57:21 2011
 #
 CONFIG_ARM=y
 CONFIG_HAVE_PWM=y
@@ -2249,7 +2249,7 @@ CONFIG_CRYPTO_WORKQUEUE=y
 # CONFIG_CRYPTO_CRYPTD is not set
 # CONFIG_CRYPTO_AUTHENC is not set
 CONFIG_CRYPTO_TEST=m
-CONFIG_CRYPTO_CRYPTODEV=y
+# CONFIG_CRYPTO_CRYPTODEV is not set
 
 #
 # Authenticated Encryption with Associated Data
