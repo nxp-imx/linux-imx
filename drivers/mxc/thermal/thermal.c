@@ -118,16 +118,18 @@
 #define TEMP_HOT				363 /* 90 C*/
 #define TEMP_ACTIVE				353 /* 80 C*/
 #define MEASURE_FREQ			327  /* 327 RTC clocks delay, 10ms */
-#define CONVER_CONST			14113  /* need calibration */
-#define CONVER_DIV				17259
 #define KELVIN_TO_CEL(t, off) (((t) - (off)))
 #define CEL_TO_KELVIN(t, off) (((t) + (off)))
-#define REG_VALUE_TO_CEL(val) (((CONVER_CONST - val * 10)\
-			* 1000) / CONVER_DIV);
-#define ANATOP_DEBUG	false
+#define DEFAULT_RATIO			145
+#define DEFAULT_N25C			1541
+#define REG_VALUE_TO_CEL(ratio, raw) ((raw_n25c - raw) * 100 / ratio - 25)
+#define ANATOP_DEBUG			false
+#define THERMAL_FUSE_NAME		"/sys/fsl_otp/HW_OCOTP_ANA1"
 
 /* variables */
 unsigned long anatop_base;
+unsigned int ratio;
+unsigned int raw_25c, raw_hot, hot_temp, raw_n25c;
 static bool full_run = true;
 bool cooling_cpuhotplug;
 bool cooling_device_disable;
@@ -143,6 +145,8 @@ static int anatop_thermal_remove(struct platform_device *pdev);
 static int anatop_thermal_suspend(struct platform_device *pdev,
 		pm_message_t state);
 static int anatop_thermal_resume(struct platform_device *pdev);
+static int anatop_thermal_get_calibration_data(unsigned int *fuse);
+static int anatop_thermal_counting_ratio(unsigned int fuse_data);
 
 /* struct */
 struct anatop_thermal_state {
@@ -198,7 +202,7 @@ struct anatop_thermal_flags {
 
 struct anatop_thermal {
 	struct anatop_device *device;
-	unsigned long temperature;
+	long temperature;
 	unsigned long last_temperature;
 	unsigned long polling_frequency;
 	volatile u8 zombie;
@@ -228,14 +232,27 @@ static int anatop_dump_temperature_register(void)
 	return 0;
 }
 static int anatop_thermal_get_temp(struct thermal_zone_device *thermal,
-			    unsigned long *temp)
+			    long *temp)
 {
 	struct anatop_thermal *tz = thermal->devdata;
 	unsigned int tmp;
 	unsigned int reg;
 	unsigned int i;
+
 	if (!tz)
 		return -EINVAL;
+#ifdef CONFIG_FSL_OTP
+	if (!ratio) {
+		anatop_thermal_get_calibration_data(&tmp);
+		*temp = KELVIN_TO_CEL(TEMP_ACTIVE, KELVIN_OFFSET);
+		return 0;
+	}
+#else
+	if (!cooling_device_disable)
+		pr_info("%s: can't get calibration data, disable cooling!!!\n", __func__);
+	cooling_device_disable = true;
+	ratio = DEFAULT_RATIO;
+#endif
 
 	tz->last_temperature = tz->temperature;
 
@@ -275,7 +292,10 @@ static int anatop_thermal_get_temp(struct thermal_zone_device *thermal,
 	}
 
 	tmp = tmp / 5;
-	tz->temperature = REG_VALUE_TO_CEL(tmp);
+	if (tmp <= raw_n25c)
+		tz->temperature = REG_VALUE_TO_CEL(ratio, tmp);
+	else
+		tz->temperature = -25;
 	pr_debug("Temperature is %lu C\n", tz->temperature);
 	/* power down anatop thermal sensor */
 	__raw_writel(BM_ANADIG_TEMPSENSE0_POWER_DOWN,
@@ -283,7 +303,8 @@ static int anatop_thermal_get_temp(struct thermal_zone_device *thermal,
 	__raw_writel(BM_ANADIG_ANA_MISC0_REFTOP_SELBIASOFF,
 			anatop_base + HW_ANADIG_ANA_MISC0_CLR);
 
-	*temp = tz->temperature;
+	*temp = (cooling_device_disable && tz->temperature >= KELVIN_TO_CEL(TEMP_CRITICAL, KELVIN_OFFSET)) ?
+			KELVIN_TO_CEL(TEMP_CRITICAL - 1, KELVIN_OFFSET) : tz->temperature;
 
 	return 0;
 }
@@ -769,13 +790,65 @@ static int __init anatop_thermal_cooling_device_disable(char *str)
 }
 __setup("no_cooling_device", anatop_thermal_cooling_device_disable);
 
+static int anatop_thermal_get_calibration_data(unsigned int *fuse)
+{
+	int ret = -EINVAL;
+	int fd;
+	char fuse_data[11];
+
+	if (fuse == NULL) {
+		printk(KERN_ERR "%s: NULL pointer!\n", __func__);
+		return ret;
+	}
+
+	fd = sys_open((const char __user __force *)THERMAL_FUSE_NAME,
+		O_RDWR, 0700);
+	if (fd < 0)
+		return ret;
+
+	sys_read(fd, fuse_data, sizeof(fuse_data));
+	pr_info("Thermal: fuse data %s\n", fuse_data);
+	sys_close(fd);
+	ret = 0;
+
+	*fuse = simple_strtol(fuse_data, NULL, 0);
+	anatop_thermal_counting_ratio(*fuse);
+
+	return ret;
+}
+static int anatop_thermal_counting_ratio(unsigned int fuse_data)
+{
+	int ret = -EINVAL;
+
+	if (fuse_data == 0 || fuse_data == 0xffffffff) {
+		pr_info("%s: invalid calibration data, disable cooling!!!\n", __func__);
+		cooling_device_disable = true;
+		ratio = DEFAULT_RATIO;
+		return ret;
+	}
+
+	ret = 0;
+	/* Fuse data layout:
+	 * [31:20] sensor value @ 25C
+	 * [19:8] sensor value of hot
+	 * [7:0] hot temperature value */
+	raw_25c = fuse_data >> 20;
+	raw_hot = (fuse_data & 0xfff00) >> 8;
+	hot_temp = fuse_data & 0xff;
+
+	ratio = ((raw_25c - raw_hot) * 100) / (hot_temp - 25);
+	raw_n25c = raw_25c + ratio / 2;
+
+	return ret;
+}
+
 static int anatop_thermal_probe(struct platform_device *pdev)
 {
 	int retval = 0;
 	struct resource *res;
 	void __iomem *base;
-
 	struct anatop_device *device;
+
 	device = kzalloc(sizeof(*device), GFP_KERNEL);
 	if (!device) {
 		retval = -ENOMEM;
@@ -797,6 +870,7 @@ static int anatop_thermal_probe(struct platform_device *pdev)
 		goto anatop_failed;
 	}
 	anatop_base = (unsigned long)base;
+	raw_n25c = DEFAULT_N25C;
 
 	anatop_thermal_add(device);
 	anatop_thermal_cpufreq_init();
