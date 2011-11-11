@@ -21,6 +21,7 @@
 #include <mach/hardware.h>
 #include <mach/devices-common.h>
 #include <linux/fsl_devices.h>
+#include <mach/iomux-v3.h>
 
 #ifdef CONFIG_SOC_IMX50
 static struct mxs_perfmon_bit_config
@@ -51,10 +52,95 @@ const struct imx_perfmon_data imx50_perfmon_data = {
 };
 #endif
 
+#ifdef CONFIG_SOC_IMX6Q
+static struct mxs_perfmon_bit_config
+mx6q_perfmon1_bit_config[] = {
+	{.field = (1 << 0),	.name = "MID0-GPU_3D" },
+	{.field = (1 << 1),	.name = "MID1-GPU_2D" },
+	{.field = (1 << 2),	.name = "MID2-VDOA" },
+	{.field = (1 << 3),	.name = "MID3-Unused" },
+	{.field = (1 << 4),	.name = "MID4-OPENVG" }
+};
+
+static struct mxs_perfmon_bit_config
+mx6q_perfmon2_bit_config[] = {
+	{.field = (1 << 0),	.name = "MID0-IPU1.ld00" },
+	{.field = (1 << 1),	.name = "MID1-IPU1.ld01" },
+	{.field = (1 << 2),	.name = "MID2-IPU1.ld10" },
+	{.field = (1 << 3),	.name = "MID3-IPU1.ld11" }
+};
+
+static struct mxs_perfmon_bit_config
+mx6q_perfmon3_bit_config[] = {
+	{.field = (1 << 0),	.name = "MID0-CORES" },
+	{.field = (1 << 1),	.name = "MID1-L2-BUF" },
+	{.field = (1 << 2),	.name = "MID2-Unused" },
+	{.field = (1 << 3),	.name = "MID3-L2-EVIC" },
+	{.field = (1 << 4),	.name = "MID4-Unused" }
+};
+
+static int init;
+
+static void platform_perfmon_init(void)
+{
+	if (init)
+		return;
+
+	/* GPR11 bit[16] is the clock enable bit for perfmon */
+	mxc_iomux_set_gpr_register(11, 16, 1, 1);
+	init = true;
+}
+
+static void platform_perfmon_exit(void)
+{
+	if (!init)
+		return;
+
+	/* GPR11 bit[16] is the clock enable bit for perfmon */
+	mxc_iomux_set_gpr_register(11, 16, 1, 0);
+	init = false;
+}
+
+struct mxs_platform_perfmon_data mxc_perfmon_data1 = {
+	.bit_config_tab = mx6q_perfmon1_bit_config,
+	.bit_config_cnt = ARRAY_SIZE(mx6q_perfmon1_bit_config),
+	.plt_init = platform_perfmon_init,
+	.plt_exit = platform_perfmon_exit,
+};
+
+struct mxs_platform_perfmon_data mxc_perfmon_data2 = {
+	.bit_config_tab = mx6q_perfmon2_bit_config,
+	.bit_config_cnt = ARRAY_SIZE(mx6q_perfmon2_bit_config),
+	.plt_init = platform_perfmon_init,
+};
+
+struct mxs_platform_perfmon_data mxc_perfmon_data3 = {
+	.bit_config_tab = mx6q_perfmon3_bit_config,
+	.bit_config_cnt = ARRAY_SIZE(mx6q_perfmon3_bit_config),
+	.plt_init = platform_perfmon_init,
+};
+
+const struct imx_perfmon_data imx6q_perfmon_data[3] = {
+	{
+		.iobase = IP2APB_PERFMON1_BASE_ADDR,
+		.pdata = &mxc_perfmon_data1,
+	},
+	{
+		.iobase = IP2APB_PERFMON2_BASE_ADDR,
+		.pdata = &mxc_perfmon_data2,
+	},
+	{
+		.iobase = IP2APB_PERFMON3_BASE_ADDR,
+		.pdata = &mxc_perfmon_data3,
+	}
+};
+#endif
 
 struct platform_device *__init imx_add_perfmon(
 		const struct imx_perfmon_data *data)
 {
+	static int id;
+
 	struct resource res[] = {
 		{
 			.start = data->iobase,
@@ -63,7 +149,7 @@ struct platform_device *__init imx_add_perfmon(
 		}
 	};
 
-	return imx_add_platform_device("mxs-perfmon", 0,
+	return imx_add_platform_device("mxs-perfmon", id++,
 			res, ARRAY_SIZE(res), data->pdata,
 			sizeof(struct mxs_platform_perfmon_data));
 }

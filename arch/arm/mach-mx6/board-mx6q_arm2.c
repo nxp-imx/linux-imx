@@ -1527,6 +1527,9 @@ static void __init mx6_board_init(void)
 
 	imx6q_add_hdmi_soc();
 	imx6q_add_hdmi_soc_dai();
+	imx6q_add_perfmon(0);
+	imx6q_add_perfmon(1);
+	imx6q_add_perfmon(2);
 }
 
 extern void __iomem *twd_base;

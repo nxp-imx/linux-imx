@@ -243,3 +243,4 @@ int mxs_reset_block(void __iomem *hwreg, int just_enable)
 	}
 	return r;
 }
+EXPORT_SYMBOL(mxs_reset_block);

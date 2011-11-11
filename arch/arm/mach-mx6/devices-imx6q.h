@@ -189,3 +189,8 @@ extern const struct imx_flexcan_data imx6q_flexcan_data[] __initconst;
 extern const struct imx_mipi_csi2_data imx6q_mipi_csi2_data __initconst;
 #define imx6q_add_mipi_csi2(pdata)	\
 	imx_add_mipi_csi2(&imx6q_mipi_csi2_data, pdata)
+
+extern const struct imx_perfmon_data imx6q_perfmon_data[] __initconst;
+#define imx6q_add_perfmon(id) \
+	imx_add_perfmon(&imx6q_perfmon_data[id])
+
