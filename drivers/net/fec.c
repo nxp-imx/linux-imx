@@ -238,7 +238,7 @@ struct fec_enet_private {
 #define FEC_MMFR_TA		(2 << 16)
 #define FEC_MMFR_DATA(v)	(v & 0xffff)
 
-#define FEC_MII_TIMEOUT		1000 /* us */
+#define FEC_MII_TIMEOUT		2000 /* us */
 
 /* Transmitter timeout */
 #define TX_TIMEOUT (2 * HZ)
@@ -885,9 +885,13 @@ static int fec_enet_mii_init(struct platform_device *pdev)
 	 */
 	fep->phy_speed = DIV_ROUND_UP(clk_get_rate(fep->clk), 5000000) << 1;
 
-	if (cpu_is_mx6q())
-		/* FIXME: hard code to 0x1a for clock issue */
-		fep->phy_speed = 0x11a;
+	if (cpu_is_mx6q()) {
+		/* FIXME: non-1588 MII clk: 66MHz, 1588 mode : 40MHz */
+		if (fep->ptimer_present)
+			fep->phy_speed = 0xe;
+		else
+			fep->phy_speed = 0x11a;
+	}
 
 	writel(fep->phy_speed, fep->hwp + FEC_MII_SPEED);
 
