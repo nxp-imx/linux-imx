@@ -19,6 +19,7 @@
 #ifndef __ASM_ARCH_MXC_COMMON_H__
 #define __ASM_ARCH_MXC_COMMON_H__
 
+struct fec_platform_data;
 struct platform_device;
 struct clk;
 
