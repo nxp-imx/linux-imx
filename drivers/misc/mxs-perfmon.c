@@ -27,6 +27,7 @@
 #include <linux/platform_device.h>
 #include <linux/sysfs.h>
 #include <linux/io.h>
+#include <linux/clk.h>
 #include <linux/fsl_devices.h>
 #include <mach/hardware.h>
 #include <asm/irq.h>
@@ -104,6 +105,7 @@ struct mxs_perfmon_data {
 	struct attribute_group attr_group;
 	unsigned int base;
 	unsigned int initial;
+	struct clk *clk;
 	/* attribute ** follow */
 	/* device_attribute follow */
 };
@@ -150,6 +152,7 @@ perfmon_show(struct device *dev, struct device_attribute *attr, char *buf)
 	int idx;
 	u32 val;
 	ssize_t result = 0;
+	struct mxs_platform_perfmon_data *pdata = pdev->dev.platform_data;
 
 	idx = attr - devattr;
 	if ((unsigned int)idx >= pd->count)
@@ -163,6 +166,11 @@ perfmon_show(struct device *dev, struct device_attribute *attr, char *buf)
 				[idx - pd->pdata->bit_config_cnt];
 
 	if (!pd->initial) {
+		if (pd->clk)
+			clk_enable(pd->clk);
+		if (pdata->plt_init)
+			pdata->plt_init();
+
 		mxs_reset_block((void *)pd->base, true);
 		pd->initial = true;
 	}
@@ -204,6 +212,7 @@ perfmon_store(struct device *dev, struct device_attribute *attr,
 	struct mxs_perfmon_bit_config *pb;
 	int idx, r;
 	unsigned long val, newval;
+	struct mxs_platform_perfmon_data *pdata = pdev->dev.platform_data;
 
 	idx = attr - devattr;
 	if ((unsigned int)idx >= pd->count)
@@ -220,6 +229,11 @@ perfmon_store(struct device *dev, struct device_attribute *attr,
 		[idx - pd->pdata->bit_config_cnt];
 
 	if (!pd->initial) {
+		if (pd->clk)
+			clk_enable(pd->clk);
+		if (pdata->plt_init)
+			pdata->plt_init();
+
 		mxs_reset_block((void *)pd->base, true);
 		pd->initial = true;
 	}
@@ -278,6 +292,7 @@ static int __devinit mxs_perfmon_probe(struct platform_device *pdev)
 	struct device_attribute *devattr;
 	int i, cnt, size;
 	int err;
+	struct device *dev = &pdev->dev;
 
 	pdata = pdev->dev.platform_data;
 	if (pdata == NULL)
@@ -301,6 +316,7 @@ static int __devinit mxs_perfmon_probe(struct platform_device *pdev)
 	pd->pdata_common = pdata_common;
 	pd->base =  (unsigned int)ioremap(res->start, res->end - res->start);
 	pd->initial = false;
+	pd->clk = clk_get(dev, "perfmon");
 
 	platform_set_drvdata(pdev, pd);
 	pd->count = cnt;
@@ -341,10 +357,21 @@ static int __devinit mxs_perfmon_probe(struct platform_device *pdev)
 static int __devexit mxs_perfmon_remove(struct platform_device *pdev)
 {
 	struct mxs_perfmon_data *pd;
+	struct mxs_platform_perfmon_data *pdata = pdev->dev.platform_data;;
 
 	pd = platform_get_drvdata(pdev);
 	sysfs_remove_group(&pdev->dev.kobj, &pd->attr_group);
 	platform_set_drvdata(pdev, NULL);
+
+	if (pdata->plt_exit)
+		pdata->plt_exit();
+
+	if (pd->clk) {
+		if (pd->initial)
+			clk_disable(pd->clk);
+		clk_put(pd->clk);
+	}
+
 	kfree(pd);
 
 	return 0;
