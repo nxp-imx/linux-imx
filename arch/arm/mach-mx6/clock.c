@@ -4630,6 +4630,33 @@ static struct clk clko_clk = {
 	.round_rate = _clk_clko_round_rate,
 };
 
+static struct clk perfmon0_clk = {
+	__INIT_CLK_DEBUG(perfmon0_clk)
+	.parent = &mmdc_ch0_axi_clk[0],
+	.enable = _clk_enable1,
+	.enable_reg = MXC_CCM_CCGR4,
+	.enable_shift = MXC_CCM_CCGRx_CG1_OFFSET,
+	.disable = _clk_disable1,
+};
+
+static struct clk perfmon1_clk = {
+	__INIT_CLK_DEBUG(perfmon1_clk)
+	.parent = &ipu1_clk,
+	.enable = _clk_enable1,
+	.enable_reg = MXC_CCM_CCGR4,
+	.enable_shift = MXC_CCM_CCGRx_CG2_OFFSET,
+	.disable = _clk_disable1,
+};
+
+static struct clk perfmon2_clk = {
+	__INIT_CLK_DEBUG(perfmon2_clk)
+	.parent = &mmdc_ch0_axi_clk[0],
+	.enable = _clk_enable1,
+	.enable_reg = MXC_CCM_CCGR4,
+	.enable_shift = MXC_CCM_CCGRx_CG3_OFFSET,
+	.disable = _clk_disable1,
+};
+
 static struct clk dummy_clk = {
 	.id = 0,
 };
@@ -4755,6 +4782,9 @@ static struct clk_lookup lookups[] = {
 	_REGISTER_CLOCK(NULL, NULL, aips_tz2_clk),
 	_REGISTER_CLOCK(NULL, NULL, aips_tz1_clk),
 	_REGISTER_CLOCK(NULL, "clko_clk", clko_clk),
+	_REGISTER_CLOCK("mxs-perfmon.0", "perfmon", perfmon0_clk),
+	_REGISTER_CLOCK("mxs-perfmon.1", "perfmon", perfmon1_clk),
+	_REGISTER_CLOCK("mxs-perfmon.2", "perfmon", perfmon2_clk),
 };
 
 
