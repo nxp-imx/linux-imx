@@ -170,7 +170,7 @@ static int mxcfb_set_fix(struct fb_info *info)
 	fix->type = FB_TYPE_PACKED_PIXELS;
 	fix->accel = FB_ACCEL_NONE;
 	fix->visual = FB_VISUAL_TRUECOLOR;
-	fix->xpanstep = 0;
+	fix->xpanstep = 1;
 	fix->ywrapstep = 1;
 	fix->ypanstep = 1;
 
@@ -1234,16 +1234,15 @@ mxcfb_pan_display(struct fb_var_screeninfo *var, struct fb_info *info)
 		}
 
 		/* update u/v offset */
-		if (info->var.xres_virtual > info->var.xres)
-			ipu_update_channel_offset(mxc_fbi->ipu, mxc_fbi->ipu_ch,
-					IPU_INPUT_BUFFER,
-					bpp_to_pixfmt(info),
-					info->var.xres_virtual,
-					info->var.yres_virtual,
-					info->var.xres_virtual,
-					0, 0,
-					var->yoffset,
-					var->xoffset);
+		ipu_update_channel_offset(mxc_fbi->ipu, mxc_fbi->ipu_ch,
+				IPU_INPUT_BUFFER,
+				bpp_to_pixfmt(info),
+				info->var.xres_virtual,
+				info->var.yres_virtual,
+				info->var.xres_virtual,
+				0, 0,
+				var->yoffset,
+				var->xoffset);
 
 		ipu_select_buffer(mxc_fbi->ipu, mxc_fbi->ipu_ch, IPU_INPUT_BUFFER,
 				  mxc_fbi->cur_ipu_buf);
