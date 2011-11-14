@@ -74,6 +74,8 @@ struct mxc_vout_output {
 	int ctrl_hflip;
 
 	dma_addr_t disp_bufs[FB_BUFS];
+
+	struct videobuf_buffer *pre_vb;
 };
 
 struct mxc_vout_dev {
@@ -451,15 +453,26 @@ static void disp_work_func(struct work_struct *work)
 			goto err;
 	}
 
-	show_buf(vout, vout->frame_count % FB_BUFS);
+	if (show_buf(vout, vout->frame_count % FB_BUFS) < 0)
+		goto err;
 
 	spin_lock_irqsave(q->irqlock, flags);
 
 	list_del(&vb->queue);
 
-	vb->state = VIDEOBUF_DONE;
+	/*
+	 * previous videobuf finish show, set VIDEOBUF_DONE state here
+	 * to avoid tearing issue, which make sure showing buffer will
+	 * not be dequeue to write new data. It also bring side-effect
+	 * that the last buffer can not be dequeue correctly, app need
+	 * take care about it.
+	 */
+	if (vout->pre_vb) {
+		vout->pre_vb->state = VIDEOBUF_DONE;
+		wake_up_interruptible(&vout->pre_vb->done);
+	}
 
-	wake_up_interruptible(&vb->done);
+	vout->pre_vb = vb;
 
 	vout->frame_count++;
 
@@ -627,10 +640,10 @@ static int mxc_vout_release(struct file *file)
 		return 0;
 
 	if (--vout->open_cnt == 0) {
-		destroy_workqueue(vout->v4l_wq);
 		q = &vout->vbq;
 		if (q->streaming)
 			ret = mxc_vidioc_streamoff(file, vout, vout->type);
+		destroy_workqueue(vout->v4l_wq);
 	}
 
 	return ret;
@@ -803,13 +816,13 @@ static int mxc_vout_try_format(struct mxc_vout_output *vout, struct v4l2_format 
 		rect = (struct v4l2_rect *)f->fmt.pix.priv;
 		vout->task.input.crop.pos.x = rect->left;
 		vout->task.input.crop.pos.y = rect->top;
-		vout->task.input.crop.w = rect->width;
-		vout->task.input.crop.h = rect->height;
+		vout->task.input.crop.w = rect->width - rect->width%8;
+		vout->task.input.crop.h = rect->height - rect->height%8;
 	} else {
 		vout->task.input.crop.pos.x = 0;
 		vout->task.input.crop.pos.y = 0;
-		vout->task.input.crop.w = f->fmt.pix.width;
-		vout->task.input.crop.h = f->fmt.pix.height;
+		vout->task.input.crop.w = f->fmt.pix.width - f->fmt.pix.width%8;
+		vout->task.input.crop.h = f->fmt.pix.height - f->fmt.pix.height%8;
 	}
 
 	/* assume task.output already set by S_CROP */
@@ -1277,6 +1290,8 @@ static int mxc_vidioc_streamon(struct file *file, void *fh, enum v4l2_buf_type i
 	vout->timer_stop = true;
 
 	vout->start_jiffies = jiffies;
+
+	vout->pre_vb = NULL;
 
 	ret = videobuf_streamon(q);
 done:
