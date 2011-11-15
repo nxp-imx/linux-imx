@@ -62,7 +62,7 @@ static struct clk usdhc3_clk;
 static struct cpu_op *cpu_op_tbl;
 static int cpu_op_nr;
 
-#define SPIN_DELAY	1000000 /* in nanoseconds */
+#define SPIN_DELAY	1200000 /* in nanoseconds */
 
 #define AUDIO_VIDEO_MIN_CLK_FREQ	650000000
 #define AUDIO_VIDEO_MAX_CLK_FREQ	1300000000
@@ -407,13 +407,8 @@ static void _clk_pll_disable(struct clk *clk)
 
 	reg = __raw_readl(pllbase);
 	reg |= ANADIG_PLL_BYPASS;
-	reg |= ANADIG_PLL_POWER_DOWN;
+	reg &= ~ANADIG_PLL_ENABLE;
 
-	/* The 480MHz PLLs, pll3 & pll7, have the opposite
-	 * definition for power bit.
-	 */
-	if (clk == &pll3_usb_otg_main_clk || clk == &pll7_usb_host_main_clk)
-		reg &= ~ANADIG_PLL_POWER_DOWN;
 	__raw_writel(reg, pllbase);
 }
 
