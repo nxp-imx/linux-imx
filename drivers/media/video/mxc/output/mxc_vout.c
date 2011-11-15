@@ -154,6 +154,8 @@ const static struct v4l2_fmtdesc mxc_formats[] = {
 static int mxc_vidioc_streamoff(struct file *file, void *fh, enum v4l2_buf_type i);
 
 static struct mxc_vout_fb g_fb_setting[MAX_FB_NUM];
+static int config_disp_output(struct mxc_vout_output *vout);
+static void release_disp_output(struct mxc_vout_output *vout);
 
 static ipu_channel_t get_ipu_channel(struct fb_info *fbi)
 {
@@ -430,6 +432,8 @@ static void disp_work_func(struct work_struct *work)
 
 	spin_unlock_irqrestore(q->irqlock, flags);
 
+	mutex_lock(&vout->task_lock);
+
 	if (vb->memory == V4L2_MEMORY_USERPTR)
 		vout->task.input.paddr = vb->baddr;
 	else
@@ -447,16 +451,18 @@ static void disp_work_func(struct work_struct *work)
 		}
 		vout->task.output.paddr =
 			vout->disp_bufs[vout->frame_count % FB_BUFS];
-		mutex_lock(&vout->task_lock);
 		ret = ipu_queue_task(&vout->task);
-		mutex_unlock(&vout->task_lock);
-		if (ret < 0)
+		if (ret < 0) {
+			mutex_unlock(&vout->task_lock);
 			goto err;
+		}
 	}
 
 	ret = show_buf(vout, vout->frame_count % FB_BUFS);
 	if (ret < 0)
 		v4l2_warn(vout->vfd->v4l2_dev, "show buf with ret %d\n", ret);
+
+	mutex_unlock(&vout->task_lock);
 
 	spin_lock_irqsave(q->irqlock, flags);
 
@@ -938,9 +944,6 @@ static int mxc_vidioc_s_crop(struct file *file, void *fh, struct v4l2_crop *crop
 	if (crop->c.width < 0 || crop->c.height < 0)
 		return -EINVAL;
 
-	if (vout->vbq.streaming)
-		return -EBUSY;
-
 	if (crop->c.width == 0)
 		crop->c.width = b->width - b->left;
 	if (crop->c.height == 0)
@@ -968,6 +971,9 @@ static int mxc_vidioc_s_crop(struct file *file, void *fh, struct v4l2_crop *crop
 
 	mutex_lock(&vout->task_lock);
 
+	if (vout->fmt_init && vout->vbq.streaming)
+		release_disp_output(vout);
+
 	if (vout->disp_support_windows) {
 		vout->task.output.crop.pos.x = 0;
 		vout->task.output.crop.pos.y = 0;
@@ -988,9 +994,24 @@ static int mxc_vidioc_s_crop(struct file *file, void *fh, struct v4l2_crop *crop
 	 * ipu task, it will check in S_FMT, after S_FMT, S_CROP should
 	 * check ipu task too.
 	 */
-	if (vout->fmt_init)
+	if (vout->fmt_init) {
 		ret = mxc_vout_try_task(vout);
+		if (ret < 0) {
+			v4l2_err(vout->vfd->v4l2_dev,
+					"vout check task failed\n");
+			goto done;
+		}
+		if (vout->vbq.streaming) {
+			ret = config_disp_output(vout);
+			if (ret < 0) {
+				v4l2_err(vout->vfd->v4l2_dev,
+						"Config display output failed\n");
+				goto done;
+			}
+		}
+	}
 
+done:
 	mutex_unlock(&vout->task_lock);
 
 	return ret;
