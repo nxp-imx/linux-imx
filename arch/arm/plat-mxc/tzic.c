@@ -167,10 +167,8 @@ int tzic_enable_wake(int is_idle)
 	unsigned int i, v;
 
 	__raw_writel(1, TZIC_DSMINT);
-	if (unlikely(__raw_readl(TZIC_DSMINT) == 0)) {
-		printk(KERN_INFO "tzic: can't enter suspend when still have Interrupt!\n");
+	if (unlikely(__raw_readl(TZIC_DSMINT) == 0))
 		return -EAGAIN;
-	}
 
 	if (likely(is_idle)) {
 		for (i = 0; i < 4; i++) {

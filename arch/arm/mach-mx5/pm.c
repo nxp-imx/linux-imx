@@ -85,8 +85,10 @@ static int mx5_suspend_enter(suspend_state_t state)
 		return -EINVAL;
 	}
 
-	if (tzic_enable_wake(0) != 0)
+	if (tzic_enable_wake(0) != 0) {
+		printk(KERN_INFO "tzic: can't enter suspend when still have Interrupt!\n");
 		return -EAGAIN;
+	}
 
 	if (state == PM_SUSPEND_MEM) {
 		if (!cpu_is_mx53()) {
