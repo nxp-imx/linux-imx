@@ -940,8 +940,9 @@ static int split_task_thread(void *data)
 
 	t->ret = ipu_queue_sp_task(t);
 
-	while (!kthread_should_stop())
-		wait_event_interruptible(t->waitq, t->could_finish);
+	t->could_finish = true;
+
+	wake_up_interruptible(&t->waitq);
 
 	return 0;
 }
@@ -1174,8 +1175,7 @@ static int queue_split_task(struct ipu_task_entry *t)
 		return ret;
 	} else {
 		for (i = 0; i < size; i++) {
-			sp_task[i].could_finish = true;
-			wake_up_interruptible(&sp_task[i].waitq);
+			wait_event_interruptible(sp_task[i].waitq, sp_task[i].could_finish);
 			kthread_stop(sp_task[i].thread);
 			if (sp_task[i].ret < 0) {
 				ret = sp_task[i].ret;
