@@ -242,8 +242,7 @@ imx_processor_set_cur_state(struct thermal_cooling_device *cdev,
 					break;
 				}
 			}
-		} else
-			printk(KERN_DEBUG "Temperature is about to reach hot point!\n");
+		}
 	} else {
 		if (!state) {
 			if (cpufreq_change_count < 0)
@@ -251,8 +250,7 @@ imx_processor_set_cur_state(struct thermal_cooling_device *cdev,
 			else if (cpufreq_change_count > 0)
 				anatop_thermal_cpufreq_down();
 			temperature_cooling = 0;
-		} else
-			printk(KERN_DEBUG "Temperature is about to reach hot point!\n");
+		}
 	}
 
 	return result;
