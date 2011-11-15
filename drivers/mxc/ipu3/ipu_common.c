@@ -999,7 +999,9 @@ void ipu_uninit_channel(ipu_channel_t channel)
 	__raw_writel(ipu_conf, IPU_CONF);
 
 	/* Restore IDMAC_LOCK_EN when we don't use dual display */
+	/* and the video mode for single display is not tough */
 	if (!(ipu_di_use_count[0] && ipu_di_use_count[1]) &&
+	    dmfc_type_setup != DMFC_HIGH_RESOLUTION_ONLY_DP &&
 	    _ipu_is_dmfc_chan(in_dma) && g_ipu_hw_rev == 3)
 		__raw_writel(0x003F0000, IDMAC_CH_LOCK_EN_1);
 
@@ -1818,8 +1820,10 @@ int32_t ipu_enable_channel(ipu_channel_t channel)
 	__raw_writel(ipu_conf, IPU_CONF);
 
 	/* Clear IDMAC_LOCK_EN to workaround black flash for dual display */
+	/* and for tough video mode of single display */
 	if (g_ipu_hw_rev == 3 && _ipu_is_dmfc_chan(in_dma)) {
-		if (ipu_di_use_count[1] && ipu_di_use_count[0])
+		if ((ipu_di_use_count[1] && ipu_di_use_count[0]) ||
+		    (dmfc_type_setup == DMFC_HIGH_RESOLUTION_ONLY_DP))
 			__raw_writel(0x0, IDMAC_CH_LOCK_EN_1);
 		else
 			__raw_writel(0x003F0000, IDMAC_CH_LOCK_EN_1);
