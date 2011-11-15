@@ -807,11 +807,11 @@ static int anatop_thermal_get_calibration_data(unsigned int *fuse)
 		return ret;
 
 	sys_read(fd, fuse_data, sizeof(fuse_data));
-	pr_info("Thermal: fuse data %s\n", fuse_data);
 	sys_close(fd);
 	ret = 0;
 
 	*fuse = simple_strtol(fuse_data, NULL, 0);
+	pr_info("Thermal: fuse data 0x%x\n", *fuse);
 	anatop_thermal_counting_ratio(*fuse);
 
 	return ret;
