@@ -1256,6 +1256,10 @@ static int config_disp_output(struct mxc_vout_output *vout)
 			"set display fb to %d %d\n",
 			var.xres, var.yres);
 
+	ret = set_window_position(vout);
+	if (ret < 0)
+		return ret;
+
 	/* Init display channel through fb API */
 	var.yoffset = 0;
 	var.activate |= FB_ACTIVATE_FORCE;
@@ -1270,10 +1274,6 @@ static int config_disp_output(struct mxc_vout_output *vout)
 	display_buf_size = fbi->fix.line_length * fbi->var.yres;
 	for (i = 0; i < fb_num; i++)
 		vout->disp_bufs[i] = fbi->fix.smem_start + i * display_buf_size;
-
-	ret = set_window_position(vout);
-	if (ret < 0)
-		return ret;
 
 	console_lock();
 	ret = fb_blank(fbi, FB_BLANK_UNBLANK);
