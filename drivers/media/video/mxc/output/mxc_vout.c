@@ -60,6 +60,7 @@ struct mxc_vout_output {
 	bool disp_support_windows;
 	bool disp_support_csc;
 
+	bool fmt_init;
 	struct ipu_task	task;
 
 	bool timer_stop;
@@ -401,7 +402,7 @@ static void disp_work_func(struct work_struct *work)
 	struct videobuf_queue *q = &vout->vbq;
 	struct videobuf_buffer *vb, *vb_next = NULL;
 	unsigned long flags = 0;
-	int ret;
+	int ret = 0;
 
 	spin_lock_irqsave(q->irqlock, flags);
 
@@ -453,8 +454,9 @@ static void disp_work_func(struct work_struct *work)
 			goto err;
 	}
 
-	if (show_buf(vout, vout->frame_count % FB_BUFS) < 0)
-		goto err;
+	ret = show_buf(vout, vout->frame_count % FB_BUFS);
+	if (ret < 0)
+		v4l2_warn(vout->vfd->v4l2_dev, "show buf with ret %d\n", ret);
 
 	spin_lock_irqsave(q->irqlock, flags);
 
@@ -491,7 +493,7 @@ static void disp_work_func(struct work_struct *work)
 
 	return;
 err:
-	v4l2_err(vout->vfd->v4l2_dev, "display work fail\n");
+	v4l2_err(vout->vfd->v4l2_dev, "display work fail ret = %d\n", ret);
 	vout->timer_stop = true;
 	vb->state = VIDEOBUF_ERROR;
 	return;
@@ -681,6 +683,7 @@ static int mxc_vout_open(struct file *file)
 		INIT_LIST_HEAD(&vout->queue_list);
 		INIT_LIST_HEAD(&vout->active_list);
 
+		vout->fmt_init = false;
 		vout->frame_count = 0;
 
 		vout->win_pos.x = 0;
@@ -777,6 +780,36 @@ again:
 	return ret;
 }
 
+static int mxc_vout_try_task(struct mxc_vout_output *vout)
+{
+	int ret = 0;
+
+	vout->task.input.crop.w -= vout->task.input.crop.w%8;
+	vout->task.input.crop.h -= vout->task.input.crop.h%8;
+
+	/* assume task.output already set by S_CROP */
+	if (is_pp_bypass(vout)) {
+		v4l2_info(vout->vfd->v4l2_dev, "Bypass IC.\n");
+		vout->task.output.format = vout->task.input.format;
+	} else {
+		/* if need CSC, choose IPU-DP or IPU_IC do it */
+		if (vout->disp_support_csc) {
+			if (colorspaceofpixel(vout->task.input.format) == YUV_CS)
+				vout->task.output.format = IPU_PIX_FMT_UYVY;
+			else
+				vout->task.output.format = IPU_PIX_FMT_RGB565;
+		} else {
+			if (colorspaceofpixel(vout->disp_fmt) == YUV_CS)
+				vout->task.output.format = IPU_PIX_FMT_UYVY;
+			else
+				vout->task.output.format = IPU_PIX_FMT_RGB565;
+		}
+		ret = ipu_try_task(&vout->task);
+	}
+
+	return ret;
+}
+
 static int mxc_vout_try_format(struct mxc_vout_output *vout, struct v4l2_format *f)
 {
 	int ret = 0;
@@ -816,41 +849,23 @@ static int mxc_vout_try_format(struct mxc_vout_output *vout, struct v4l2_format 
 		rect = (struct v4l2_rect *)f->fmt.pix.priv;
 		vout->task.input.crop.pos.x = rect->left;
 		vout->task.input.crop.pos.y = rect->top;
-		vout->task.input.crop.w = rect->width - rect->width%8;
-		vout->task.input.crop.h = rect->height - rect->height%8;
+		vout->task.input.crop.w = rect->width;
+		vout->task.input.crop.h = rect->height;
 	} else {
 		vout->task.input.crop.pos.x = 0;
 		vout->task.input.crop.pos.y = 0;
-		vout->task.input.crop.w = f->fmt.pix.width - f->fmt.pix.width%8;
-		vout->task.input.crop.h = f->fmt.pix.height - f->fmt.pix.height%8;
+		vout->task.input.crop.w = f->fmt.pix.width;
+		vout->task.input.crop.h = f->fmt.pix.height;
 	}
 
-	/* assume task.output already set by S_CROP */
-	if (is_pp_bypass(vout)) {
-		v4l2_info(vout->vfd->v4l2_dev, "Bypass IC.\n");
-		vout->task.output.format = vout->task.input.format;
-	} else {
-		/* if need CSC, choose IPU-DP or IPU_IC do it */
-		if (vout->disp_support_csc) {
-			if (colorspaceofpixel(vout->task.input.format) == YUV_CS)
-				vout->task.output.format = IPU_PIX_FMT_UYVY;
-			else
-				vout->task.output.format = IPU_PIX_FMT_RGB565;
+	ret = mxc_vout_try_task(vout);
+	if (!ret) {
+		if (rect) {
+			rect->width = vout->task.input.crop.w;
+			rect->height = vout->task.input.crop.h;
 		} else {
-			if (colorspaceofpixel(vout->disp_fmt) == YUV_CS)
-				vout->task.output.format = IPU_PIX_FMT_UYVY;
-			else
-				vout->task.output.format = IPU_PIX_FMT_RGB565;
-		}
-		ret = ipu_try_task(&vout->task);
-		if (!ret) {
-			if (rect) {
-				rect->width = vout->task.input.crop.w;
-				rect->height = vout->task.input.crop.h;
-			} else {
-				f->fmt.pix.width = vout->task.input.crop.w;
-				f->fmt.pix.height = vout->task.input.crop.h;
-			}
+			f->fmt.pix.width = vout->task.input.crop.w;
+			f->fmt.pix.height = vout->task.input.crop.h;
 		}
 	}
 
@@ -868,6 +883,8 @@ static int mxc_vidioc_s_fmt_vid_out(struct file *file, void *fh,
 
 	mutex_lock(&vout->task_lock);
 	ret = mxc_vout_try_format(vout, f);
+	if (ret >= 0)
+		vout->fmt_init = true;
 	mutex_unlock(&vout->task_lock);
 
 	return ret;
@@ -913,6 +930,7 @@ static int mxc_vidioc_s_crop(struct file *file, void *fh, struct v4l2_crop *crop
 {
 	struct mxc_vout_output *vout = fh;
 	struct v4l2_rect *b = &vout->crop_bounds;
+	int ret = 0;
 
 	if (crop->type != V4L2_BUF_TYPE_VIDEO_OUTPUT)
 		return -EINVAL;
@@ -965,9 +983,17 @@ static int mxc_vidioc_s_crop(struct file *file, void *fh, struct v4l2_crop *crop
 	vout->task.output.crop.w = crop->c.width;
 	vout->task.output.crop.h = crop->c.height;
 
+	/*
+	 * must S_CROP before S_FMT, for fist time S_CROP, will not check
+	 * ipu task, it will check in S_FMT, after S_FMT, S_CROP should
+	 * check ipu task too.
+	 */
+	if (vout->fmt_init)
+		ret = mxc_vout_try_task(vout);
+
 	mutex_unlock(&vout->task_lock);
 
-	return 0;
+	return ret;
 }
 
 static int mxc_vidioc_queryctrl(struct file *file, void *fh,
