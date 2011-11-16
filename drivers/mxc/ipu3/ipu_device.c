@@ -144,7 +144,7 @@ struct ipu_split_task {
 	struct ipu_task task;
 	struct ipu_task_entry *parent_task;
 	struct task_struct *thread;
-	bool could_finish;
+	volatile bool could_finish;
 	wait_queue_head_t waitq;
 	int ret;
 
@@ -944,7 +944,7 @@ static int split_task_thread(void *data)
 
 	wake_up_interruptible(&t->waitq);
 
-	return 0;
+	do_exit(0);
 }
 
 static int create_split_task(
@@ -1176,7 +1176,6 @@ static int queue_split_task(struct ipu_task_entry *t)
 	} else {
 		for (i = 0; i < size; i++) {
 			wait_event_interruptible(sp_task[i].waitq, sp_task[i].could_finish);
-			kthread_stop(sp_task[i].thread);
 			if (sp_task[i].ret < 0) {
 				ret = sp_task[i].ret;
 				dev_err(t->dev,
