@@ -435,10 +435,14 @@ static void do_state(struct net_device *dev,
 static int flexcan_poll_state(struct net_device *dev, u32 reg_esr)
 {
 	struct flexcan_priv *priv = netdev_priv(dev);
+	struct flexcan_regs __iomem *regs = priv->base;
 	struct sk_buff *skb;
 	struct can_frame *cf;
 	enum can_state new_state;
 	int flt;
+
+	/* clear state error if any (write 1 to clear)*/
+	writel(reg_esr, &regs->esr);
 
 	flt = reg_esr & FLEXCAN_ESR_FLT_CONF_MASK;
 	if (likely(flt == FLEXCAN_ESR_FLT_CONF_ACTIVE)) {
