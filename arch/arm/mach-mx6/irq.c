@@ -26,6 +26,7 @@
 
 int mx6q_register_gpios(void);
 unsigned int gpc_wake_irq[4];
+extern bool enable_wait_mode;
 
 static int mx6_gic_irq_set_wake(struct irq_data *d, unsigned int enable)
 {
@@ -60,9 +61,11 @@ void mx6_init_irq(void)
 	gic_init(0, 29, IO_ADDRESS(IC_DISTRIBUTOR_BASE_ADDR),
 		IO_ADDRESS(IC_INTERFACES_BASE_ADDR));
 
-	/* Mask the always pending interrupts - HW bug. */
-	__raw_writel(0x00400000, gpc_base + 0x0c);
-	__raw_writel(0x20000000, gpc_base + 0x10);
+	if (enable_wait_mode) {
+		/* Mask the always pending interrupts - HW bug. */
+		__raw_writel(0x00400000, gpc_base + 0x0c);
+		__raw_writel(0x20000000, gpc_base + 0x10);
+	}
 
 	for (i = MXC_INT_START; i <= MXC_INT_END; i++) {
 		desc = irq_to_desc(i);
