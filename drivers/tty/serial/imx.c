@@ -133,6 +133,7 @@
 #define  UFCR_RFDIV      (7<<7)  /* Reference freq divider mask */
 #define  UFCR_RFDIV_REG(x)	(((x) < 7 ? 6 - (x) : 6) << 7)
 #define  UFCR_TXTL_SHF   10      /* Transmitter trigger level shift */
+#define  UFCR_DCEDTE	 (1<<6)
 #define  USR1_PARITYERR  (1<<15) /* Parity error interrupt flag */
 #define  USR1_RTSS  	 (1<<14) /* RTS pin status */
 #define  USR1_TRDY  	 (1<<13) /* Transmitter ready interrupt/dma flag */
@@ -187,6 +188,7 @@ struct imx_port {
 	unsigned int		old_status;
 	int			txirq,rxirq,rtsirq;
 	unsigned int		have_rtscts:1;
+	unsigned int		use_dcedte:1;
 	unsigned int		use_irda:1;
 	unsigned int		irda_inv_rx:1;
 	unsigned int		irda_inv_tx:1;
@@ -926,6 +928,10 @@ imx_set_termios(struct uart_port *port, struct ktermios *termios,
 
 	ufcr = readl(sport->port.membase + UFCR);
 	ufcr = (ufcr & (~UFCR_RFDIV)) | UFCR_RFDIV_REG(div);
+
+	if (sport->use_dcedte)
+		ufcr |= UFCR_DCEDTE;
+
 	writel(ufcr, sport->port.membase + UFCR);
 
 	writel(num, sport->port.membase + UBIR);
@@ -1309,7 +1315,8 @@ static int serial_imx_probe(struct platform_device *pdev)
 	pdata = pdev->dev.platform_data;
 	if (pdata && (pdata->flags & IMXUART_HAVE_RTSCTS))
 		sport->have_rtscts = 1;
-
+	if (pdata && (pdata->flags & IMXUART_USE_DCEDTE))
+		sport->use_dcedte = 1;
 #ifdef CONFIG_IRDA
 	if (pdata && (pdata->flags & IMXUART_IRDA))
 		sport->use_irda = 1;
