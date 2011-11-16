@@ -273,11 +273,14 @@ static iomux_v3_cfg_t mx6q_arm2_pads[] = {
 
 	MX6Q_PAD_EIM_D24__GPIO_3_24,
 
+	/* UART2 */
+	MX6Q_PAD_EIM_D26__UART2_RXD,
+	MX6Q_PAD_EIM_D27__UART2_TXD,
+	MX6Q_PAD_EIM_D28__UART2_RTS,
+	MX6Q_PAD_EIM_D29__UART2_CTS,
+
 	/* PWM1 */
 	MX6Q_PAD_GPIO_9__PWM1_PWMO,
-
-	/* DISP0 I2C ENABLE*/
-	MX6Q_PAD_EIM_D28__GPIO_3_28,
 
 	/* DISP0 DET */
 	MX6Q_PAD_EIM_D31__GPIO_3_31,
@@ -469,10 +472,14 @@ static const struct anatop_thermal_platform_data
 	.name = "anatop_thermal",
 };
 
+static const struct imxuart_platform_data mx6q_uart1_data __initconst = {
+	.flags = IMXUART_HAVE_RTSCTS | IMXUART_USE_DCEDTE,
+};
+
 static inline void mx6q_arm2_init_uart(void)
 {
 	imx6q_add_imx_uart(0, NULL);
-	imx6q_add_imx_uart(1, NULL);
+	imx6q_add_imx_uart(1, &mx6q_uart1_data);
 	imx6q_add_imx_uart(3, NULL);
 }
 
