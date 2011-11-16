@@ -650,8 +650,11 @@ static int mxc_vout_release(struct file *file)
 	if (--vout->open_cnt == 0) {
 		q = &vout->vbq;
 		if (q->streaming)
-			ret = mxc_vidioc_streamoff(file, vout, vout->type);
+			mxc_vidioc_streamoff(file, vout, vout->type);
+		else
+			videobuf_queue_cancel(q);
 		destroy_workqueue(vout->v4l_wq);
+		ret = videobuf_mmap_free(q);
 	}
 
 	return ret;
@@ -917,16 +920,23 @@ static int mxc_vidioc_g_crop(struct file *file, void *fh, struct v4l2_crop *crop
 	if (crop->type != V4L2_BUF_TYPE_VIDEO_OUTPUT)
 		return -EINVAL;
 
-	if (vout->task.output.crop.w && vout->task.output.crop.h) {
-		crop->c.left = vout->task.output.crop.pos.x;
-		crop->c.top = vout->task.output.crop.pos.y;
-		crop->c.width = vout->task.output.crop.w;
-		crop->c.height = vout->task.output.crop.h;
-	} else {
-		crop->c.left = 0;
-		crop->c.top = 0;
+	if (vout->disp_support_windows) {
+		crop->c.left = vout->win_pos.x;
+		crop->c.top = vout->win_pos.y;
 		crop->c.width = vout->task.output.width;
 		crop->c.height = vout->task.output.height;
+	} else {
+		if (vout->task.output.crop.w && vout->task.output.crop.h) {
+			crop->c.left = vout->task.output.crop.pos.x;
+			crop->c.top = vout->task.output.crop.pos.y;
+			crop->c.width = vout->task.output.crop.w;
+			crop->c.height = vout->task.output.crop.h;
+		} else {
+			crop->c.left = 0;
+			crop->c.top = 0;
+			crop->c.width = vout->task.output.width;
+			crop->c.height = vout->task.output.height;
+		}
 	}
 
 	return 0;
@@ -1349,22 +1359,19 @@ static int mxc_vidioc_streamoff(struct file *file, void *fh, enum v4l2_buf_type 
 {
 	struct mxc_vout_output *vout = fh;
 	struct videobuf_queue *q = &vout->vbq;
-	int ret;
+	int ret = 0;
 
-	del_timer(&vout->timer);
+	if (q->streaming) {
+		del_timer(&vout->timer);
 
-	cancel_work_sync(&vout->disp_work);
-	flush_workqueue(vout->v4l_wq);
+		cancel_work_sync(&vout->disp_work);
+		flush_workqueue(vout->v4l_wq);
 
-	release_disp_output(vout);
+		release_disp_output(vout);
 
-	ret = videobuf_streamoff(&vout->vbq);
-	if (ret < 0)
-		goto err;
+		ret = videobuf_streamoff(&vout->vbq);
+	}
 
-	ret = videobuf_mmap_free(q);
-
-err:
 	return ret;
 }
 
