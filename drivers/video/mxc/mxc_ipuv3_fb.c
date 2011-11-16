@@ -1028,17 +1028,20 @@ static int mxcfb_ioctl(struct fb_info *fbi, unsigned int cmd, unsigned long arg)
 				break;
 			}
 
-			if (fbi->var.xres + pos.x > bg_fbi->var.xres) {
-				if (bg_fbi->var.xres < fbi->var.xres)
-					pos.x = 0;
-				else
-					pos.x = bg_fbi->var.xres - fbi->var.xres;
-			}
-			if (fbi->var.yres + pos.y > bg_fbi->var.yres) {
-				if (bg_fbi->var.yres < fbi->var.yres)
-					pos.y = 0;
-				else
-					pos.y = bg_fbi->var.yres - fbi->var.yres;
+			/* if fb is unblank, check if the pos fit the display */
+			if (mxc_fbi->cur_blank == FB_BLANK_UNBLANK) {
+				if (fbi->var.xres + pos.x > bg_fbi->var.xres) {
+					if (bg_fbi->var.xres < fbi->var.xres)
+						pos.x = 0;
+					else
+						pos.x = bg_fbi->var.xres - fbi->var.xres;
+				}
+				if (fbi->var.yres + pos.y > bg_fbi->var.yres) {
+					if (bg_fbi->var.yres < fbi->var.yres)
+						pos.y = 0;
+					else
+						pos.y = bg_fbi->var.yres - fbi->var.yres;
+				}
 			}
 
 			retval = ipu_disp_set_window_pos(mxc_fbi->ipu, mxc_fbi->ipu_ch,
