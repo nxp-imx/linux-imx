@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # Linux/arm 2.6.38 Kernel Configuration
-# Fri Nov 11 09:57:21 2011
+# Wed Nov 16 10:57:43 2011
 #
 CONFIG_ARM=y
 CONFIG_HAVE_PWM=y
@@ -1979,7 +1979,7 @@ CONFIG_MXC_ASRC=y
 #
 # MXC GPU support
 #
-CONFIG_MXC_GPU_VIV=y
+CONFIG_MXC_GPU_VIV=m
 
 #
 # ANATOP_THERMAL
