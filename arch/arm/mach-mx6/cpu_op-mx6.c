@@ -15,14 +15,16 @@
 #include <linux/kernel.h>
 #include <mach/hardware.h>
 #include <mach/mxc_dvfs.h>
+#include "cpu_op-mx6.h"
 
 extern struct cpu_op *(*get_cpu_op)(int *op);
 extern struct dvfs_op *(*get_dvfs_core_op)(int *wp);
 extern void (*set_num_cpu_op)(int num);
+extern u32 arm_max_freq;
 static int num_cpu_op;
 
 /* working point(wp): 0 - 1GHzMHz; 1 - 800MHz, 3 - 400MHz, 4  - 160MHz */
-static struct cpu_op mx6_cpu_op[] = {
+static struct cpu_op mx6_cpu_op_1G[] = {
 	{
 	 .pll_rate = 996000000,
 	 .cpu_rate = 996000000,
@@ -31,7 +33,7 @@ static struct cpu_op mx6_cpu_op[] = {
 	 .mfd = 11,
 	 .mfn = 5,
 	 .cpu_podf = 0,
-	 .cpu_voltage = 1150000,},
+	 .cpu_voltage = 1225000,},
 	{
 	 .pll_rate = 792000000,
 	 .cpu_rate = 792000000,
@@ -40,35 +42,72 @@ static struct cpu_op mx6_cpu_op[] = {
 	 .mfd = 2,
 	 .mfn = 1,
 	 .cpu_podf = 0,
-	 .cpu_voltage = 1150000,},
+	 .cpu_voltage = 1100000,},
 	 {
 	  .pll_rate = 792000000,
-	  .cpu_rate = 400000000,
+	  .cpu_rate = 396000000,
 	  .cpu_podf = 1,
-	  .cpu_voltage = 1050000,},
+	  .cpu_voltage = 950000,},
 	{
 	 .pll_rate = 792000000,
-	 .cpu_rate = 167000000,
-	 .cpu_podf = 4,
-	 .cpu_voltage = 900000,},
+	 .cpu_rate = 198000000,
+	 .cpu_podf = 3,
+	 .cpu_voltage = 850000,},
 };
 
-static struct dvfs_op dvfs_core_setpoint[] = {
+static struct cpu_op mx6_cpu_op[] = {
+	{
+	 .pll_rate = 792000000,
+	 .cpu_rate = 792000000,
+	 .pdf = 0,
+	 .mfi = 8,
+	 .mfd = 2,
+	 .mfn = 1,
+	 .cpu_podf = 0,
+	 .cpu_voltage = 1100000,},
+	 {
+	  .pll_rate = 792000000,
+	  .cpu_rate = 396000000,
+	  .cpu_podf = 1,
+	  .cpu_voltage = 950000,},
+	{
+	 .pll_rate = 792000000,
+	 .cpu_rate = 198000000,
+	 .cpu_podf = 3,
+	 .cpu_voltage = 850000,},
+};
+
+static struct dvfs_op dvfs_core_setpoint_1G[] = {
 	{33, 14, 33, 10, 10, 0x08}, /* 1GHz*/
 	{30, 12, 33, 10, 10, 0x08},   /* 800MHz */
 	{28, 8, 33, 10, 10, 0x08},   /* 400MHz */
-	{20, 0, 33, 20, 10, 0x08} };   /* 167MHz*/
+	{20, 0, 33, 20, 10, 0x08} };   /* 200MHz*/
+
+static struct dvfs_op dvfs_core_setpoint[] = {
+	{33, 14, 33, 10, 10, 0x08},   /* 800MHz */
+	{26, 8, 33, 10, 10, 0x08},   /* 400MHz */
+	{20, 0, 33, 20, 10, 0x08} };   /* 200MHz*/
 
 static struct dvfs_op *mx6_get_dvfs_core_table(int *wp)
 {
-	*wp = ARRAY_SIZE(dvfs_core_setpoint);
-	return dvfs_core_setpoint;
+	if (arm_max_freq == CPU_AT_1GHz) {
+		*wp = ARRAY_SIZE(dvfs_core_setpoint_1G);
+		return dvfs_core_setpoint_1G;
+	} else {
+		*wp = ARRAY_SIZE(dvfs_core_setpoint);
+		return dvfs_core_setpoint;
+	}
 }
 
 struct cpu_op *mx6_get_cpu_op(int *op)
 {
-	*op = num_cpu_op;
-	return mx6_cpu_op;
+	if (arm_max_freq == CPU_AT_1GHz) {
+		*op =  num_cpu_op = ARRAY_SIZE(mx6_cpu_op_1G);
+		return mx6_cpu_op_1G;
+	} else {
+		*op =  num_cpu_op = ARRAY_SIZE(mx6_cpu_op);
+		return mx6_cpu_op;
+	}
 }
 
 void mx6_set_num_cpu_op(int num)
@@ -82,7 +121,6 @@ void mx6_cpu_op_init(void)
 	get_cpu_op = mx6_get_cpu_op;
 	set_num_cpu_op = mx6_set_num_cpu_op;
 
-	num_cpu_op = ARRAY_SIZE(mx6_cpu_op);
 	get_dvfs_core_op = mx6_get_dvfs_core_table;
 }
 
