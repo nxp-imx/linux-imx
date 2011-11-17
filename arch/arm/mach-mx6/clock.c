@@ -4839,12 +4839,12 @@ int __init mx6_clocks_init(unsigned long ckil, unsigned long osc,
 	clk_set_rate(&gpu3d_core_clk[0], 528000000);
 
 	/*
-	 * FIXME: asrc needs to use asrc_serial(spdif1) clock to do sample rate convertion,
-	 * however we found it only works when set to 1.5M clock and the
-	 * parent is pll3_sw_clk.
+	 * FIXME: asrc needs to use asrc_serial(spdif1) clock to do sample
+	 * rate convertion and this clock frequency can not be too high, set
+	 * it to the minimum value 7.5Mhz to make asrc work properly.
 	 */
 	clk_set_parent(&asrc_clk[1], &pll3_sw_clk);
-	clk_set_rate(&asrc_clk[1], 1500000);
+	clk_set_rate(&asrc_clk[1], 7500000);
 
 	/* set the NAND to 11MHz. Too fast will cause dma timeout. */
 	clk_set_rate(&enfc_clk, enfc_clk.round_rate(&enfc_clk, 11000000));
