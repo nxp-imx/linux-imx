@@ -906,7 +906,7 @@ static int _clk_arm_set_rate(struct clk *clk, unsigned long rate)
 	int i;
 	u32 div;
 	u32 parent_rate;
-	struct clk *old_parent = pll1_sw_clk.parent;
+
 
 	for (i = 0; i < cpu_op_nr; i++) {
 		if (rate == cpu_op_tbl[i].cpu_rate)
@@ -915,23 +915,14 @@ static int _clk_arm_set_rate(struct clk *clk, unsigned long rate)
 	if (i >= cpu_op_nr)
 		return -EINVAL;
 
-	if (rate <= clk_get_rate(&pll2_pfd_400M)) {
-		/*
-		  * Move pll1_sw_clk to PLL2_PFD_400M
-		  * so that we can disable PLL1.
-		  */
-		if (pll2_pfd_400M.usecount == 0)
-			pll2_pfd_400M.enable(&pll2_pfd_400M);
-		pll1_sw_clk.set_parent(&pll1_sw_clk, &pll2_pfd_400M);
-		pll1_sw_clk.parent = &pll2_pfd_400M;
-	} else {
-		/* Rate is above 400MHz.  We may need to relock PLL1. */
-		pll1_sw_clk.set_parent(&pll1_sw_clk, &osc_clk);
-		if (pll1_sys_main_clk.usecount == 0)
-			pll1_sys_main_clk.enable(&pll1_sys_main_clk);
+	if (cpu_op_tbl[i].pll_rate != clk_get_rate(&pll1_sys_main_clk)) {
+		/* Change the PLL1 rate. */
+		if (pll2_pfd_400M.usecount != 0)
+			pll1_sw_clk.set_parent(&pll1_sw_clk, &pll2_pfd_400M);
+		else
+			pll1_sw_clk.set_parent(&pll1_sw_clk, &osc_clk);
 		pll1_sys_main_clk.set_rate(&pll1_sys_main_clk, cpu_op_tbl[i].pll_rate);
 		pll1_sw_clk.set_parent(&pll1_sw_clk, &pll1_sys_main_clk);
-		pll1_sw_clk.parent = &pll1_sys_main_clk;
 	}
 
 	parent_rate = clk_get_rate(clk->parent);
@@ -947,15 +938,6 @@ static int _clk_arm_set_rate(struct clk *clk, unsigned long rate)
 		return -1;
 
 	__raw_writel(div - 1, MXC_CCM_CACRR);
-
-	/* Increment current parent's usecount. */
-	pll1_sw_clk.parent->usecount++;
-
-	/* Decrement the current parent's usecount */
-	old_parent->usecount--;
-
-	if (old_parent->usecount == 0)
-		old_parent->disable(old_parent);
 
 	return 0;
 }
