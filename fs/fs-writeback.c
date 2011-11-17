@@ -1082,6 +1082,8 @@ void __mark_inode_dirty(struct inode *inode, int flags)
 		if (!was_dirty) {
 			bool wakeup_bdi = false;
 			bdi = inode_to_bdi(inode);
+			if (!bdi)
+				goto out;
 
 			if (bdi_cap_writeback_dirty(bdi)) {
 				WARN(!test_bit(BDI_registered, &bdi->state),
