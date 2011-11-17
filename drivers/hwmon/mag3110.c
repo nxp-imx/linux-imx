@@ -30,6 +30,7 @@
 #include <linux/input.h>
 #include <linux/wait.h>
 #include <linux/workqueue.h>
+#include <linux/earlysuspend.h>
 
 #define MAG3110_DRV_NAME       "mag3110"
 #define MAG3110_ID		0xC4
@@ -471,6 +472,39 @@ static int mag3110_resume(struct i2c_client *client)
 #define mag3110_resume         NULL
 #endif				/* CONFIG_PM */
 
+#ifdef CONFIG_HAS_EARLYSUSPEND
+static void mag3110_early_suspend(struct early_suspend *h)
+{
+	struct i2c_client *client;
+	pm_message_t state = { .event = PM_EVENT_SUSPEND };
+
+	if (!mag3110_pdata)
+		return -EINVAL;
+
+	client =  mag3110_pdata->client;
+	mag3110_suspend(client, state);
+	dev_info(&client->dev, "mag3110 early_syspend\n");
+}
+
+static void mag3110_later_resume(struct early_suspend *h)
+{
+	struct i2c_client *client;
+
+	if (!mag3110_pdata)
+		return -EINVAL;
+
+	client = mag3110_pdata->client;
+	mag3110_resume(client);
+	dev_info(&client->dev, "mag3110 late_resume\n");
+}
+
+struct early_suspend mag3110_earlysuspend = {
+      .level = EARLY_SUSPEND_LEVEL_DISABLE_FB,
+      .suspend = mag3110_early_suspend,
+      .resume = mag3110_later_resume,
+};
+#endif
+
 static const struct i2c_device_id mag3110_id[] = {
 	{MAG3110_DRV_NAME, 0},
 	{}
@@ -480,8 +514,10 @@ MODULE_DEVICE_TABLE(i2c, mag3110_id);
 static struct i2c_driver mag3110_driver = {
 	.driver = {.name = MAG3110_DRV_NAME,
 		   .owner = THIS_MODULE,},
+#ifndef CONFIG_HAS_EARLYSUSPEND
 	.suspend = mag3110_suspend,
 	.resume = mag3110_resume,
+#endif
 	.probe = mag3110_probe,
 	.remove = __devexit_p(mag3110_remove),
 	.shutdown = mag3110_shutdown,
@@ -490,11 +526,20 @@ static struct i2c_driver mag3110_driver = {
 
 static int __init mag3110_init(void)
 {
-	return i2c_add_driver(&mag3110_driver);
+	int ret;
+	ret = i2c_add_driver(&mag3110_driver);
+#ifdef CONFIG_HAS_EARLYSUSPEND
+	if (!ret)
+		register_early_suspend(&mag3110_earlysuspend);
+#endif
+	return ret;
 }
 
 static void __exit mag3110_exit(void)
 {
+#ifdef CONFIG_HAS_EARLYSUSPEND
+	unregister_early_suspend(&mag3110_earlysuspend);
+#endif
 	i2c_del_driver(&mag3110_driver);
 }
 
