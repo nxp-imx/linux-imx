@@ -108,6 +108,7 @@ void __init early_console_setup(unsigned long base, struct clk *clk);
 static struct clk *sata_clk;
 static int esai_record;
 static int spdif_en;
+static int flexcan_en;
 static int mipi_sensor;
 
 extern struct regulator *(*get_cpu_regulator)(void);
@@ -1349,6 +1350,14 @@ static int __init early_enable_spdif(char *p)
 
 early_param("spdif", early_enable_spdif);
 
+static int __init early_enable_can(char *p)
+{
+	flexcan_en = 1;
+	return 0;
+}
+
+early_param("flexcan", early_enable_can);
+
 static int spdif_clk_set_rate(struct clk *clk, unsigned long rate)
 {
 	unsigned long rate_actual;
@@ -1404,8 +1413,9 @@ static void __init mx6_board_init(void)
 	} else {
 		mxc_iomux_v3_setup_multiple_pads(mx6q_arm2_i2c3_pads,
 			ARRAY_SIZE(mx6q_arm2_i2c3_pads));
-		mxc_iomux_v3_setup_multiple_pads(mx6q_arm2_can_pads,
-			ARRAY_SIZE(mx6q_arm2_can_pads));
+		if (flexcan_en)
+			mxc_iomux_v3_setup_multiple_pads(mx6q_arm2_can_pads,
+				ARRAY_SIZE(mx6q_arm2_can_pads));
 	}
 
 	if (mipi_sensor)
@@ -1504,7 +1514,7 @@ static void __init mx6_board_init(void)
 		imx6q_add_spdif(&mxc_spdif_data);
 		imx6q_add_spdif_dai();
 		imx6q_add_spdif_audio_device();
-	} else {
+	} else if (flexcan_en) {
 		ret = gpio_request_array(mx6q_flexcan_gpios,
 				ARRAY_SIZE(mx6q_flexcan_gpios));
 		if (ret) {
