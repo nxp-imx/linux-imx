@@ -244,7 +244,8 @@ static int _setup_disp_channel2(struct fb_info *fbi)
 					 IPU_ROTATE_NONE,
 					 base,
 					 base,
-					 base,
+					 fbi->var.accel_flags &
+						FB_ACCEL_DOUBLE_FLAG ? 0 : base,
 					 0, 0);
 	if (retval) {
 		dev_err(fbi->device,
