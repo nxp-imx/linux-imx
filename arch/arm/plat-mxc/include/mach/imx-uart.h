@@ -21,6 +21,7 @@
 
 #define IMXUART_HAVE_RTSCTS (1<<0)
 #define IMXUART_IRDA        (1<<1)
+#define IMXUART_USE_DCEDTE  (1<<2)
 
 struct imxuart_platform_data {
 	int (*init)(struct platform_device *pdev);

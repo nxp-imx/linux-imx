@@ -171,7 +171,7 @@ static int mxcfb_set_fix(struct fb_info *info)
 	fix->type = FB_TYPE_PACKED_PIXELS;
 	fix->accel = FB_ACCEL_NONE;
 	fix->visual = FB_VISUAL_TRUECOLOR;
-	fix->xpanstep = 0;
+	fix->xpanstep = 1;
 	fix->ywrapstep = 1;
 	fix->ypanstep = 1;
 
@@ -245,8 +245,7 @@ static int _setup_disp_channel2(struct fb_info *fbi)
 					 IPU_ROTATE_NONE,
 					 base,
 					 base,
-					 (fbi->var.accel_flags ==
-					  FB_ACCEL_TRIPLE_FLAG) ? base : 0,
+					 base,
 					 0, 0);
 	if (retval) {
 		dev_err(fbi->device,
@@ -578,8 +577,7 @@ static int mxcfb_check_var(struct fb_var_screeninfo *var, struct fb_info *info)
 	if (var->xres_virtual < var->xres)
 		var->xres_virtual = var->xres;
 
-	/* Default Y virtual size is 3*yres */
-	if (var->yres_virtual < var->yres * 3)
+	if (var->yres_virtual < var->yres)
 		var->yres_virtual = var->yres * 3;
 
 	if ((var->bits_per_pixel != 32) && (var->bits_per_pixel != 24) &&
@@ -1031,17 +1029,20 @@ static int mxcfb_ioctl(struct fb_info *fbi, unsigned int cmd, unsigned long arg)
 				break;
 			}
 
-			if (fbi->var.xres + pos.x > bg_fbi->var.xres) {
-				if (bg_fbi->var.xres < fbi->var.xres)
-					pos.x = 0;
-				else
-					pos.x = bg_fbi->var.xres - fbi->var.xres;
-			}
-			if (fbi->var.yres + pos.y > bg_fbi->var.yres) {
-				if (bg_fbi->var.yres < fbi->var.yres)
-					pos.y = 0;
-				else
-					pos.y = bg_fbi->var.yres - fbi->var.yres;
+			/* if fb is unblank, check if the pos fit the display */
+			if (mxc_fbi->cur_blank == FB_BLANK_UNBLANK) {
+				if (fbi->var.xres + pos.x > bg_fbi->var.xres) {
+					if (bg_fbi->var.xres < fbi->var.xres)
+						pos.x = 0;
+					else
+						pos.x = bg_fbi->var.xres - fbi->var.xres;
+				}
+				if (fbi->var.yres + pos.y > bg_fbi->var.yres) {
+					if (bg_fbi->var.yres < fbi->var.yres)
+						pos.y = 0;
+					else
+						pos.y = bg_fbi->var.yres - fbi->var.yres;
+				}
 			}
 
 			retval = ipu_disp_set_window_pos(mxc_fbi->ipu, mxc_fbi->ipu_ch,
@@ -1235,6 +1236,17 @@ mxcfb_pan_display(struct fb_var_screeninfo *var, struct fb_info *info)
 					  IPU_ALPHA_IN_BUFFER,
 					  mxc_fbi->cur_ipu_alpha_buf);
 		}
+
+		/* update u/v offset */
+		ipu_update_channel_offset(mxc_fbi->ipu, mxc_fbi->ipu_ch,
+				IPU_INPUT_BUFFER,
+				bpp_to_pixfmt(info),
+				info->var.xres_virtual,
+				info->var.yres_virtual,
+				info->var.xres_virtual,
+				0, 0,
+				var->yoffset,
+				var->xoffset);
 
 		ipu_select_buffer(mxc_fbi->ipu, mxc_fbi->ipu_ch, IPU_INPUT_BUFFER,
 				  mxc_fbi->cur_ipu_buf);

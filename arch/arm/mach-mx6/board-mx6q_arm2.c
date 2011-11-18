@@ -66,6 +66,7 @@
 #include <mach/mxc_hdmi.h>
 #include <mach/mxc_asrc.h>
 #include <mach/mipi_dsi.h>
+#include <mach/mipi_csi2.h>
 
 #include <asm/irq.h>
 #include <asm/setup.h>
@@ -109,7 +110,8 @@
 void __init early_console_setup(unsigned long base, struct clk *clk);
 static struct clk *sata_clk;
 static int esai_record;
-static int spdif_in;
+static int spdif_en;
+static int mipi_sensor;
 
 extern struct regulator *(*get_cpu_regulator)(void);
 extern void (*put_cpu_regulator)(void);
@@ -274,11 +276,14 @@ static iomux_v3_cfg_t mx6q_arm2_pads[] = {
 
 	MX6Q_PAD_EIM_D24__GPIO_3_24,
 
+	/* UART2 */
+	MX6Q_PAD_EIM_D26__UART2_RXD,
+	MX6Q_PAD_EIM_D27__UART2_TXD,
+	MX6Q_PAD_EIM_D28__UART2_RTS,
+	MX6Q_PAD_EIM_D29__UART2_CTS,
+
 	/* PWM1 */
 	MX6Q_PAD_GPIO_9__PWM1_PWMO,
-
-	/* DISP0 I2C ENABLE*/
-	MX6Q_PAD_EIM_D28__GPIO_3_28,
 
 	/* DISP0 DET */
 	MX6Q_PAD_EIM_D31__GPIO_3_31,
@@ -293,10 +298,20 @@ static iomux_v3_cfg_t mx6q_arm2_pads[] = {
 
 	/* USBOTG ID pin */
 	MX6Q_PAD_GPIO_1__USBOTG_ID,
+};
 
+static iomux_v3_cfg_t mx6q_arm2_i2c3_pads[] = {
+	MX6Q_PAD_GPIO_5__I2C3_SCL,
+	MX6Q_PAD_GPIO_16__I2C3_SDA,
+};
+
+static iomux_v3_cfg_t mx6q_arm2_spdif_pads[] = {
 	/* SPDIF */
+	MX6Q_PAD_GPIO_16__SPDIF_IN1,
 	MX6Q_PAD_GPIO_17__SPDIF_OUT1,
+};
 
+static iomux_v3_cfg_t mx6q_arm2_can_pads[] = {
 	/* CAN1 */
 	MX6Q_PAD_GPIO_7__CAN1_TXCAN,
 	MX6Q_PAD_KEY_ROW2__CAN1_RXCAN,
@@ -309,19 +324,14 @@ static iomux_v3_cfg_t mx6q_arm2_pads[] = {
 	MX6Q_PAD_CSI0_DAT6__GPIO_5_24,	/* CAN2 EN */
 };
 
-static iomux_v3_cfg_t mx6q_arm2_i2c3_pads[] = {
-	MX6Q_PAD_GPIO_5__I2C3_SCL,
-	MX6Q_PAD_GPIO_16__I2C3_SDA,
-};
-
-static iomux_v3_cfg_t mx6q_arm2_spdif_in_pads[] = {
-	MX6Q_PAD_GPIO_16__SPDIF_IN1,
-};
-
 static iomux_v3_cfg_t mx6q_arm2_esai_record_pads[] = {
 	MX6Q_PAD_ENET_RX_ER__ESAI1_HCKR,
 	MX6Q_PAD_ENET_MDIO__ESAI1_SCKR,
 	MX6Q_PAD_ENET_REF_CLK__ESAI1_FSR,
+};
+
+static iomux_v3_cfg_t mx6q_arm2_mipi_sensor_pads[] = {
+	MX6Q_PAD_CSI0_MCLK__CCM_CLKO,
 };
 
 #define MX6Q_USDHC_PAD_SETTING(id, speed)	\
@@ -465,10 +475,14 @@ static const struct anatop_thermal_platform_data
 	.name = "anatop_thermal",
 };
 
+static const struct imxuart_platform_data mx6q_uart1_data __initconst = {
+	.flags = IMXUART_HAVE_RTSCTS | IMXUART_USE_DCEDTE,
+};
+
 static inline void mx6q_arm2_init_uart(void)
 {
 	imx6q_add_imx_uart(0, NULL);
-	imx6q_add_imx_uart(1, NULL);
+	imx6q_add_imx_uart(1, &mx6q_uart1_data);
 	imx6q_add_imx_uart(3, NULL);
 }
 
@@ -495,16 +509,25 @@ static int mx6q_arm2_fec_phy_init(struct phy_device *phydev)
 	return 0;
 }
 
+static int mx6q_arm2_fec_power_hibernate(struct phy_device *phydev)
+{
+	unsigned short val;
+
+	/*set AR8031 debug reg 0xb to hibernate power*/
+	phy_write(phydev, 0x1d, 0xb);
+	val = phy_read(phydev, 0x1e);
+
+	val |= 0x8000;
+	phy_write(phydev, 0x1e, val);
+
+	return 0;
+}
+
 static struct fec_platform_data fec_data __initdata = {
 	.init = mx6q_arm2_fec_phy_init,
+	.power_hibernate = mx6q_arm2_fec_power_hibernate,
 	.phy = PHY_INTERFACE_MODE_RGMII,
 };
-
-static inline void imx6q_init_fec(void)
-{
-	random_ether_addr(fec_data.mac);
-	imx6q_add_fec(&fec_data);
-}
 
 static int mx6q_arm2_spi_cs[] = {
 	MX6Q_ARM2_ECSPI1_CS0,
@@ -591,7 +614,7 @@ static int max7310_u48_setup(struct i2c_client *client,
 	void *context)
 {
 	int max7310_gpio_value[] = {
-		0, 1, 1, 1, 0, 0, 0, 0,
+		1, 1, 1, 1, 0, 0, 0, 0,
 	};
 
 	int n;
@@ -644,6 +667,12 @@ static struct fsl_mxc_camera_platform_data camera_data = {
 	.csi = 0,
 };
 
+static struct fsl_mxc_camera_platform_data ov5640_mipi_data = {
+	.mclk = 24000000,
+	.csi = 0,
+};
+
+
 static struct i2c_board_info mxc_i2c0_board_info[] __initdata = {
 	{
 		I2C_BOARD_INFO("cs42888", 0x48),
@@ -690,6 +719,10 @@ static struct i2c_board_info mxc_i2c1_board_info[] __initdata = {
 	},
 	{
 		I2C_BOARD_INFO("mxc_hdmi_i2c", 0x50),
+	},
+	{
+		I2C_BOARD_INFO("ov5640_mipi", 0x3c),
+		.platform_data = (void *)&ov5640_mipi_data,
 	},
 };
 
@@ -1024,10 +1057,10 @@ static void mx6q_flexcan1_switch(int enable)
 {
 	if (enable) {
 		gpio_set_value(MX6Q_ARM2_CAN2_EN, 1);
-		gpio_set_value(MX6Q_ARM2_CAN2_STBY, 1);
+		gpio_set_value_cansleep(MX6Q_ARM2_CAN2_STBY, 1);
 	} else {
 		gpio_set_value(MX6Q_ARM2_CAN2_EN, 0);
-		gpio_set_value(MX6Q_ARM2_CAN2_STBY, 0);
+		gpio_set_value_cansleep(MX6Q_ARM2_CAN2_STBY, 0);
 	}
 }
 
@@ -1038,6 +1071,15 @@ static const struct flexcan_platform_data
 	}, {
 		.transceiver_switch = mx6q_flexcan1_switch,
 	}
+};
+
+static struct mipi_csi2_platform_data mipi_csi2_pdata = {
+	.ipu_id	 = 0,
+	.csi_id = 0,
+	.v_channel = 0,
+	.lanes = 2,
+	.dphy_clk = "mipi_pllref_clk",
+	.pixel_clk = "emi_clk",
 };
 
 static void arm2_suspend_enter(void)
@@ -1276,7 +1318,7 @@ static struct platform_device sgtl5000_arm2_vddd_reg_devices = {
 
 #endif /* CONFIG_SND_SOC_SGTL5000 */
 
-static int imx6q_init_audio(void)
+static int __init imx6q_init_audio(void)
 {
 	struct clk *pll3_pfd, *esai_clk;
 	mxc_register_device(&sab_audio_device, &sab_audio_data);
@@ -1358,6 +1400,13 @@ static void __init fixup_mxc_board(struct machine_desc *desc, struct tag *tags,
 	set_cpu_voltage = mx6_arm2_set_cpu_voltage;
 }
 
+static int __init early_enable_mipi_sensor(char *p)
+{
+	mipi_sensor = 1;
+	return 0;
+}
+early_param("mipi_sensor", early_enable_mipi_sensor);
+
 static inline void __init mx6q_csi0_io_init(void)
 {
 	/* Camera reset */
@@ -1374,11 +1423,11 @@ static inline void __init mx6q_csi0_io_init(void)
 
 static int __init early_enable_spdif(char *p)
 {
-	spdif_in = 1;
+	spdif_en = 1;
 	return 0;
 }
 
-early_param("spdif_in", early_enable_spdif);
+early_param("spdif", early_enable_spdif);
 
 static int spdif_clk_set_rate(struct clk *clk, unsigned long rate)
 {
@@ -1390,7 +1439,7 @@ static int spdif_clk_set_rate(struct clk *clk, unsigned long rate)
 
 static struct mxc_spdif_platform_data mxc_spdif_data = {
 	.spdif_tx = 1,		/* enable tx */
-	.spdif_rx = 0,		/* disable rx for now (see below) */
+	.spdif_rx = 1,		/* enable rx */
 	/*
 	 * spdif0_clk will be 454.7MHz divided by ccm dividers.
 	 *
@@ -1423,18 +1472,29 @@ static void __init mx6_board_init(void)
 	    mxc_iomux_v3_setup_multiple_pads(mx6q_arm2_esai_record_pads,
 			ARRAY_SIZE(mx6q_arm2_esai_record_pads));
 
-	/* S/PDIF in and i2c3 are mutually exclusive because both
-	 * use GPIO_17 */
-	if (spdif_in) {
-		mxc_iomux_v3_setup_multiple_pads(mx6q_arm2_spdif_in_pads,
-			ARRAY_SIZE(mx6q_arm2_spdif_in_pads));
-		mxc_spdif_data.spdif_rx = 1;
-	} else
+	/*
+	 * S/PDIF in and i2c3 are mutually exclusive because both
+	 * use GPIO_16.
+	 * S/PDIF out and can1 stby are mutually exclusive because both
+	 * use GPIO_17.
+	 */
+	if (spdif_en) {
+		mxc_iomux_v3_setup_multiple_pads(mx6q_arm2_spdif_pads,
+			ARRAY_SIZE(mx6q_arm2_spdif_pads));
+	} else {
 		mxc_iomux_v3_setup_multiple_pads(mx6q_arm2_i2c3_pads,
 			ARRAY_SIZE(mx6q_arm2_i2c3_pads));
+		mxc_iomux_v3_setup_multiple_pads(mx6q_arm2_can_pads,
+			ARRAY_SIZE(mx6q_arm2_can_pads));
+	}
+
+	if (mipi_sensor)
+		mxc_iomux_v3_setup_multiple_pads(mx6q_arm2_mipi_sensor_pads,
+			ARRAY_SIZE(mx6q_arm2_mipi_sensor_pads));
 
 	gp_reg_id = arm2_dvfscore_data.reg_id;
 	mx6q_arm2_init_uart();
+	imx6q_add_mipi_csi2(&mipi_csi2_pdata);
 	imx6q_add_mxc_hdmi_core(&hdmi_core_data);
 
 	imx6q_add_ipuv3(0, &ipu_data[0]);
@@ -1457,7 +1517,7 @@ static void __init mx6_board_init(void)
 			ARRAY_SIZE(mxc_i2c0_board_info));
 	i2c_register_board_info(1, mxc_i2c1_board_info,
 			ARRAY_SIZE(mxc_i2c1_board_info));
-	if (!spdif_in) {
+	if (!spdif_en) {
 		imx6q_add_imx_i2c(2, &mx6q_arm2_i2c_data);
 		i2c_register_board_info(2, mxc_i2c2_board_info,
 				ARRAY_SIZE(mxc_i2c2_board_info));
@@ -1472,7 +1532,7 @@ static void __init mx6_board_init(void)
 	imx6q_add_anatop_thermal_imx(1, &mx6q_arm2_anatop_thermal_data);
 
 	if (!esai_record)
-		imx6q_init_fec();
+		imx6_init_fec(fec_data);
 
 	imx6q_add_pm_imx(0, &mx6q_arm2_pm_data);
 	imx6q_add_sdhci_usdhc_imx(3, &mx6q_arm2_sd4_data);
@@ -1487,7 +1547,9 @@ static void __init mx6_board_init(void)
 	imx_asrc_data.asrc_audio_clk = clk_get(NULL, "asrc_serial_clk");
 	imx6q_add_asrc(&imx_asrc_data);
 
-	mx6q_csi0_io_init();
+	if (!mipi_sensor)
+		mx6q_csi0_io_init();
+
 	/* DISP0 Detect */
 	/* gpio_request(MX6Q_ARM2_DISP0_DET_INT, "disp0-detect"); */
 	/* gpio_direction_input(MX6Q_ARM2_DISP0_DET_INT); */
@@ -1524,23 +1586,25 @@ static void __init mx6_board_init(void)
 	imx6q_add_mxc_pwm(0);
 	imx6q_add_mxc_pwm_backlight(0, &mx6_arm2_pwm_backlight_data);
 
-	mxc_spdif_data.spdif_core_clk = clk_get_sys("mxc_spdif.0", NULL);
-	clk_put(mxc_spdif_data.spdif_core_clk);
-	imx6q_add_spdif(&mxc_spdif_data);
-	imx6q_add_spdif_dai();
-	imx6q_add_spdif_audio_device();
+	if (spdif_en) {
+		mxc_spdif_data.spdif_core_clk = clk_get_sys("mxc_spdif.0", NULL);
+		clk_put(mxc_spdif_data.spdif_core_clk);
+		imx6q_add_spdif(&mxc_spdif_data);
+		imx6q_add_spdif_dai();
+		imx6q_add_spdif_audio_device();
+	} else {
+		ret = gpio_request_array(mx6q_flexcan_gpios,
+				ARRAY_SIZE(mx6q_flexcan_gpios));
+		if (ret) {
+			pr_err("failed to request flexcan-gpios: %d\n", ret);
+		} else {
+			imx6q_add_flexcan0(&mx6q_arm2_flexcan_pdata[0]);
+			imx6q_add_flexcan1(&mx6q_arm2_flexcan_pdata[1]);
+		}
+	}
 
 	imx6q_add_hdmi_soc();
 	imx6q_add_hdmi_soc_dai();
-
-	ret = gpio_request_array(mx6q_flexcan_gpios,
-			ARRAY_SIZE(mx6q_flexcan_gpios));
-	if (ret) {
-		pr_err("failed to request flexcan-gpios: %d\n", ret);
-	} else {
-		imx6q_add_flexcan0(&mx6q_arm2_flexcan_pdata[0]);
-		imx6q_add_flexcan1(&mx6q_arm2_flexcan_pdata[1]);
-	}
 }
 
 extern void __iomem *twd_base;

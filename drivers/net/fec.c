@@ -42,6 +42,7 @@
 #include <linux/io.h>
 #include <linux/irq.h>
 #include <linux/clk.h>
+#include <mach/clock.h>
 #include <linux/platform_device.h>
 #include <linux/phy.h>
 #include <linux/fec.h>
@@ -697,6 +698,7 @@ static void fec_enet_adjust_link(struct net_device *dev)
 {
 	struct fec_enet_private *fep = netdev_priv(dev);
 	struct phy_device *phy_dev = fep->phy_dev;
+	struct fec_platform_data *pdata = fep->pdev->dev.platform_data;
 	unsigned long flags;
 
 	int status_change = 0;
@@ -711,6 +713,8 @@ static void fec_enet_adjust_link(struct net_device *dev)
 
 	/* Duplex link change */
 	if (phy_dev->link) {
+		if (!clk_get_usecount(fep->clk))
+			clk_enable(fep->clk);
 		if (fep->full_duplex != phy_dev->duplex) {
 			fec_restart(dev, phy_dev->duplex);
 			status_change = 1;
@@ -730,8 +734,11 @@ static void fec_enet_adjust_link(struct net_device *dev)
 spin_unlock:
 	spin_unlock_irqrestore(&fep->hw_lock, flags);
 
-	if (status_change)
+	if (status_change) {
+		if (!phy_dev->link && phy_dev && pdata && pdata->power_hibernate)
+			pdata->power_hibernate(phy_dev);
 		phy_print_status(phy_dev);
+	}
 }
 
 static int fec_enet_mdio_read(struct mii_bus *bus, int mii_id, int regnum)
@@ -1086,6 +1093,8 @@ fec_enet_open(struct net_device *dev)
 	 * a simple way to do that.
 	 */
 
+	if (!clk_get_usecount(fep->clk))
+		clk_enable(fep->clk);
 	ret = fec_enet_alloc_buffers(dev);
 	if (ret)
 		return ret;
@@ -1122,6 +1131,10 @@ fec_enet_close(struct net_device *dev)
 		phy_disconnect(fep->phy_dev);
 
         fec_enet_free_buffers(dev);
+
+	/* Clock gate close for saving power */
+	if (clk_get_usecount(fep->clk))
+		clk_disable(fep->clk);
 
 	return 0;
 }

@@ -239,12 +239,14 @@ static struct fsl_usb2_wakeup_platform_data usbh1_wakeup_config = {
 
 void __init mx6_usb_h1_init(void)
 {
-	struct platform_device *pdev;
+	struct platform_device *pdev, *pdev_wakeup;
 	static void __iomem *anatop_base_addr = MX6_IO_ADDRESS(ANATOP_BASE_ADDR);
 	usbh1_config.wakeup_pdata = &usbh1_wakeup_config;
 	pdev = imx6q_add_fsl_ehci_hs(1, &usbh1_config);
 	usbh1_wakeup_config.usb_pdata[0] = pdev->dev.platform_data;
-	imx6q_add_fsl_usb2_hs_wakeup(1, &usbh1_wakeup_config);
+	pdev_wakeup = imx6q_add_fsl_usb2_hs_wakeup(1, &usbh1_wakeup_config);
+	((struct fsl_usb2_platform_data *)(pdev->dev.platform_data))->wakeup_pdata =
+		(struct fsl_usb2_wakeup_platform_data *)(pdev_wakeup->dev.platform_data);
 	/* Some phy and power's special controls for host1
 	 * 1. The external charger detector needs to be disabled
 	 * or the signal at DP will be poor

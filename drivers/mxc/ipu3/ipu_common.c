@@ -661,8 +661,10 @@ int32_t ipu_init_channel(struct ipu_soc *ipu, ipu_channel_t channel, ipu_channel
 		if (params->csi_mem.mipi_en) {
 			ipu_conf |= (1 << (IPU_CONF_CSI0_DATA_SOURCE_OFFSET +
 				params->csi_mem.csi));
-			_ipu_smfc_init(ipu, channel, params->csi_mem.mipi_id,
+			_ipu_smfc_init(ipu, channel, params->csi_mem.mipi_vc,
 				params->csi_mem.csi);
+			_ipu_csi_set_mipi_di(ipu, params->csi_mem.mipi_vc,
+				params->csi_mem.mipi_id, params->csi_mem.csi);
 		} else {
 			ipu_conf &= ~(1 << (IPU_CONF_CSI0_DATA_SOURCE_OFFSET +
 				params->csi_mem.csi));
@@ -2779,8 +2781,9 @@ bool ipu_pixel_format_has_alpha(uint32_t fmt)
 	return false;
 }
 
-static int ipu_suspend(struct platform_device *pdev, pm_message_t state)
+static int ipu_suspend_noirq(struct device *dev)
 {
+	struct platform_device *pdev = to_platform_device(dev);
 	struct imx_ipuv3_platform_data *plat_data = pdev->dev.platform_data;
 	struct ipu_soc *ipu = platform_get_drvdata(pdev);
 
@@ -2849,6 +2852,8 @@ static int ipu_suspend(struct platform_device *pdev, pm_message_t state)
 		ipu->buf_ready_reg[7] = ipu_cm_read(ipu, IPU_ALT_CHA_BUF1_RDY(32));
 		ipu->buf_ready_reg[8] = ipu_cm_read(ipu, IPU_CHA_BUF2_RDY(0));
 		ipu->buf_ready_reg[9] = ipu_cm_read(ipu, IPU_CHA_BUF2_RDY(32));
+
+		clk_disable(ipu->ipu_clk);
 	}
 
 	if (plat_data->pg)
@@ -2857,8 +2862,9 @@ static int ipu_suspend(struct platform_device *pdev, pm_message_t state)
 	return 0;
 }
 
-static int ipu_resume(struct platform_device *pdev)
+static int ipu_resume_noirq(struct device *dev)
 {
+	struct platform_device *pdev = to_platform_device(dev);
 	struct imx_ipuv3_platform_data *plat_data = pdev->dev.platform_data;
 	struct ipu_soc *ipu = platform_get_drvdata(pdev);
 
@@ -2866,6 +2872,8 @@ static int ipu_resume(struct platform_device *pdev)
 		plat_data->pg(0);
 
 	if (atomic_read(&ipu->ipu_use_count)) {
+		clk_enable(ipu->ipu_clk);
+
 		/* restore buf ready regs */
 		ipu_cm_write(ipu, ipu->buf_ready_reg[0], IPU_CHA_BUF0_RDY(0));
 		ipu_cm_write(ipu, ipu->buf_ready_reg[1], IPU_CHA_BUF0_RDY(32));
@@ -2916,17 +2924,21 @@ static int ipu_resume(struct platform_device *pdev)
 	return 0;
 }
 
+static const struct dev_pm_ops mxcipu_pm_ops = {
+	.suspend_noirq = ipu_suspend_noirq,
+	.resume_noirq = ipu_resume_noirq,
+};
+
 /*!
  * This structure contains pointers to the power management callback functions.
  */
 static struct platform_driver mxcipu_driver = {
 	.driver = {
 		   .name = "imx-ipuv3",
+		   .pm = &mxcipu_pm_ops,
 		   },
 	.probe = ipu_probe,
 	.remove = ipu_remove,
-	.suspend = ipu_suspend,
-	.resume = ipu_resume,
 };
 
 int32_t __init ipu_gen_init(void)

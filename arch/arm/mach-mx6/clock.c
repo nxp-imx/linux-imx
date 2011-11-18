@@ -62,7 +62,7 @@ static struct clk usdhc3_clk;
 static struct cpu_op *cpu_op_tbl;
 static int cpu_op_nr;
 
-#define SPIN_DELAY	1000000 /* in nanoseconds */
+#define SPIN_DELAY	1200000 /* in nanoseconds */
 
 #define AUDIO_VIDEO_MIN_CLK_FREQ	650000000
 #define AUDIO_VIDEO_MAX_CLK_FREQ	1300000000
@@ -407,13 +407,8 @@ static void _clk_pll_disable(struct clk *clk)
 
 	reg = __raw_readl(pllbase);
 	reg |= ANADIG_PLL_BYPASS;
-	reg |= ANADIG_PLL_POWER_DOWN;
+	reg &= ~ANADIG_PLL_ENABLE;
 
-	/* The 480MHz PLLs, pll3 & pll7, have the opposite
-	 * definition for power bit.
-	 */
-	if (clk == &pll3_usb_otg_main_clk || clk == &pll7_usb_host_main_clk)
-		reg &= ~ANADIG_PLL_POWER_DOWN;
 	__raw_writel(reg, pllbase);
 }
 
@@ -1539,7 +1534,7 @@ static int _clk_gpu2d_axi_set_parent(struct clk *clk, struct clk *parent)
 static struct clk gpu2d_axi_clk = {
 	__INIT_CLK_DEBUG(gpu2d_axi_clk)
 	.parent = &axi_clk,
-	.secondary = &mmdc_ch0_axi_clk[0],
+	.secondary = &openvg_axi_clk,
 	.set_parent = _clk_gpu2d_axi_set_parent,
 };
 
@@ -3394,7 +3389,22 @@ static unsigned long _clk_enet_get_rate(struct clk *clk)
 	div = (__raw_readl(PLL8_ENET_BASE_ADDR))
 		& ANADIG_PLL_ENET_DIV_SELECT_MASK;
 
-	return 500000000 / (div + 1);
+	switch (div) {
+	case 0:
+		div = 20;
+		break;
+	case 1:
+		div = 10;
+		break;
+	case 3:
+		div = 5;
+		break;
+	case 4:
+		div = 4;
+		break;
+	}
+
+	return 500000000 / div;
 }
 
 static struct clk enet_clk[] = {
@@ -4222,7 +4232,7 @@ static struct clk gpu2d_core_clk[] = {
 	.set_rate = _clk_gpu2d_core_set_rate,
 	.get_rate = _clk_gpu2d_core_get_rate,
 	.round_rate = _clk_gpu2d_core_round_rate,
-	.secondary = &gpu2d_core_clk[0],
+	.secondary = &gpu2d_core_clk[1],
 	.flags = AHB_HIGH_SET_POINT | CPU_FREQ_TRIG_UPDATE,
 	},
 	{
@@ -4808,12 +4818,14 @@ int __init mx6_clocks_init(unsigned long ckil, unsigned long osc,
 	pll2_pfd_352M.disable(&pll2_pfd_352M);
 	pll2_pfd_594M.disable(&pll2_pfd_594M);
 
+#if !defined(CONFIG_FEC_1588)
 	pll3_pfd_454M.disable(&pll3_pfd_454M);
 	pll3_pfd_508M.disable(&pll3_pfd_508M);
 	pll3_pfd_540M.disable(&pll3_pfd_540M);
 	pll3_pfd_720M.disable(&pll3_pfd_720M);
 
 	pll3_usb_otg_main_clk.disable(&pll3_usb_otg_main_clk);
+#endif
 	pll4_audio_main_clk.disable(&pll4_audio_main_clk);
 	pll5_video_main_clk.disable(&pll5_video_main_clk);
 	pll6_MLB_main_clk.disable(&pll6_MLB_main_clk);
@@ -4835,6 +4847,9 @@ int __init mx6_clocks_init(unsigned long ckil, unsigned long osc,
 	clk_set_parent(&cko1_clk0, &ipg_clk);
 	clk_set_rate(&cko1_clk0, 22000000);
 	clk_enable(&cko1_clk0);
+
+	clk_set_parent(&emi_clk, &pll2_pfd_400M);
+	clk_set_rate(&emi_clk, 200000000);
 
 	clk_set_parent(&gpu3d_shader_clk, &pll2_pfd_594M);
 	clk_set_rate(&gpu3d_shader_clk, 594000000);

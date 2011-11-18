@@ -16,7 +16,6 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-
 #include <linux/types.h>
 #include <linux/sched.h>
 #include <linux/delay.h>
@@ -30,6 +29,7 @@
 #include <linux/platform_device.h>
 #include <linux/fsl_devices.h>
 #include <linux/spi/spi.h>
+#include <linux/spi/flash.h>
 #include <linux/i2c.h>
 #include <linux/i2c/pca953x.h>
 #include <linux/ata.h>
@@ -46,6 +46,8 @@
 #include <linux/memblock.h>
 #include <linux/gpio.h>
 #include <linux/etherdevice.h>
+#include <linux/regulator/anatop-regulator.h>
+#include <linux/regulator/consumer.h>
 #include <linux/regulator/machine.h>
 #include <linux/regulator/fixed.h>
 #include <linux/android_pmem.h>
@@ -67,7 +69,6 @@
 #include <asm/mach-types.h>
 #include <asm/mach/arch.h>
 #include <asm/mach/time.h>
-#include <asm/mach/flash.h>
 
 #include "usb.h"
 #include "android.h"
@@ -83,12 +84,18 @@
 #define MX6Q_SABRELITE_CAP_TCH_INT1	IMX_GPIO_NR(1, 9)
 #define MX6Q_SABRELITE_USB_HUB_RESET	IMX_GPIO_NR(7, 12)
 
+#define MX6Q_SABRELITE_SD3_WP_PADCFG	(PAD_CTL_PKE | PAD_CTL_PUE |	\
+		PAD_CTL_PUS_22K_UP | PAD_CTL_SPEED_MED |	\
+		PAD_CTL_DSE_40ohm | PAD_CTL_HYS)
+
 void __init early_console_setup(unsigned long base, struct clk *clk);
 
 extern struct regulator *(*get_cpu_regulator)(void);
 extern void (*put_cpu_regulator)(void);
 extern int (*set_cpu_voltage)(u32 volt);
 extern int mx6_set_cpu_voltage(u32 cpu_volt);
+static struct regulator *cpu_regulator;
+static char *gp_reg_id;
 
 static iomux_v3_cfg_t mx6q_sabrelite_pads[] = {
 	/* AUDMUX */
@@ -112,6 +119,7 @@ static iomux_v3_cfg_t mx6q_sabrelite_pads[] = {
 	MX6Q_PAD_EIM_D17__ECSPI1_MISO,
 	MX6Q_PAD_EIM_D18__ECSPI1_MOSI,
 	MX6Q_PAD_EIM_D16__ECSPI1_SCLK,
+	MX6Q_PAD_EIM_D19__GPIO_3_19,	/*SS1*/
 
 	/* ENET */
 	MX6Q_PAD_ENET_MDIO__ENET_MDIO,
@@ -184,13 +192,6 @@ static iomux_v3_cfg_t mx6q_sabrelite_pads[] = {
 	/* GPIO7 */
 	MX6Q_PAD_GPIO_17__GPIO_7_12,	/* USB Hub Reset */
 	MX6Q_PAD_GPIO_18__GPIO_7_13,	/* J14 - Volume Up */
-
-	/* HDMI */
-	MX6Q_PAD_EIM_EB2__HDMI_TX_DDC_SCL,
-	MX6Q_PAD_EIM_D16__HDMI_TX_DDC_SDA,
-	MX6Q_PAD_EIM_A25__HDMI_TX_CEC_LINE,
-	MX6Q_PAD_SD1_DAT1__HDMI_TX_OPHYDTB_0,
-	MX6Q_PAD_SD1_DAT0__HDMI_TX_OPHYDTB_1,
 
 	/* I2C1, SGTL5000 */
 	MX6Q_PAD_EIM_D21__I2C1_SCL,	/* GPIO3[21] */
@@ -285,6 +286,10 @@ static iomux_v3_cfg_t mx6q_sabrelite_pads[] = {
 	/* USBOTG ID pin */
 	MX6Q_PAD_GPIO_1__USBOTG_ID,
 
+	/* USB OC pin */
+	MX6Q_PAD_KEY_COL4__USBOH3_USBOTG_OC,
+	MX6Q_PAD_EIM_D30__USBOH3_USBH1_OC,
+
 	/* USDHC3 */
 	MX6Q_PAD_SD3_CLK__USDHC3_CLK_50MHZ,
 	MX6Q_PAD_SD3_CMD__USDHC3_CMD_50MHZ,
@@ -293,7 +298,7 @@ static iomux_v3_cfg_t mx6q_sabrelite_pads[] = {
 	MX6Q_PAD_SD3_DAT2__USDHC3_DAT2_50MHZ,
 	MX6Q_PAD_SD3_DAT3__USDHC3_DAT3_50MHZ,
 	MX6Q_PAD_SD3_DAT5__GPIO_7_0,		/* J18 - SD3_CD */
-	MX6Q_PAD_SD3_DAT4__GPIO_7_1,		/* J18 - SD3_WP */
+	NEW_PAD_CTRL(MX6Q_PAD_SD3_DAT4__GPIO_7_1, MX6Q_SABRELITE_SD3_WP_PADCFG),
 
 	/* USDHC4 */
 	MX6Q_PAD_SD4_CLK__USDHC4_CLK_50MHZ,
@@ -430,12 +435,6 @@ static struct fec_platform_data fec_data __initdata = {
 	.phy = PHY_INTERFACE_MODE_RGMII,
 };
 
-static inline void imx6q_init_fec(void)
-{
-	random_ether_addr(fec_data.mac);
-	imx6q_add_fec(&fec_data);
-}
-
 static int mx6q_sabrelite_spi_cs[] = {
 	MX6Q_SABRELITE_ECSPI1_CS1,
 };
@@ -444,6 +443,46 @@ static const struct spi_imx_master mx6q_sabrelite_spi_data __initconst = {
 	.chipselect     = mx6q_sabrelite_spi_cs,
 	.num_chipselect = ARRAY_SIZE(mx6q_sabrelite_spi_cs),
 };
+
+#if defined(CONFIG_MTD_M25P80) || defined(CONFIG_MTD_M25P80_MODULE)
+static struct mtd_partition imx6_sabrelite_spi_nor_partitions[] = {
+	{
+	 .name = "bootloader",
+	 .offset = 0,
+	 .size = 0x00040000,
+	},
+	{
+	 .name = "kernel",
+	 .offset = MTDPART_OFS_APPEND,
+	 .size = MTDPART_SIZ_FULL,
+	},
+};
+
+static struct flash_platform_data imx6_sabrelite__spi_flash_data = {
+	.name = "m25p80",
+	.parts = imx6_sabrelite_spi_nor_partitions,
+	.nr_parts = ARRAY_SIZE(imx6_sabrelite_spi_nor_partitions),
+	.type = "sst25vf016b",
+};
+#endif
+
+static struct spi_board_info imx6_sabrelite_spi_nor_device[] __initdata = {
+#if defined(CONFIG_MTD_M25P80)
+	{
+		.modalias = "m25p80",
+		.max_speed_hz = 20000000, /* max spi clock (SCK) speed in HZ */
+		.bus_num = 0,
+		.chip_select = 0,
+		.platform_data = &imx6_sabrelite__spi_flash_data,
+	},
+#endif
+};
+
+static void spi_device_init(void)
+{
+	spi_register_board_info(imx6_sabrelite_spi_nor_device,
+				ARRAY_SIZE(imx6_sabrelite_spi_nor_device));
+}
 
 static struct mxc_audio_platform_data mx6_sabrelite_audio_data;
 
@@ -871,7 +910,15 @@ static struct mxc_dvfs_platform_data sabrelite_dvfscore_data = {
 
 static int mx6_sabre_set_cpu_voltage(u32 cpu_volt)
 {
-	return mx6_set_cpu_voltage(cpu_volt);
+	int ret = -EINVAL;
+
+	if (cpu_regulator == NULL)
+		cpu_regulator = regulator_get(NULL, gp_reg_id);
+
+	if (!IS_ERR(cpu_regulator))
+		ret = regulator_set_voltage(cpu_regulator,
+						    cpu_volt, cpu_volt);
+	return ret;
 }
 
 static void __init fixup_mxc_board(struct machine_desc *desc, struct tag *tags,
@@ -915,10 +962,14 @@ static void __init mx6_sabrelite_board_init(void)
 	i2c_register_board_info(2, mxc_i2c2_board_info,
 			ARRAY_SIZE(mxc_i2c2_board_info));
 
+	/* SPI */
+	imx6q_add_ecspi(0, &mx6q_sabrelite_spi_data);
+	spi_device_init();
+
 	imx6q_add_mxc_hdmi(&hdmi_data);
 
 	imx6q_add_anatop_thermal_imx(1, &mx6q_sabrelite_anatop_thermal_data);
-	imx6q_init_fec();
+	imx6_init_fec(fec_data);
 	imx6q_add_pm_imx(0, &mx6q_sabrelite_pm_data);
 	imx6q_add_sdhci_usdhc_imx(3, &mx6q_sabrelite_sd4_data);
 	imx6q_add_sdhci_usdhc_imx(2, &mx6q_sabrelite_sd3_data);
@@ -950,6 +1001,9 @@ static void __init mx6_sabrelite_board_init(void)
 	mxc_register_device(&usb_rndis_device, &rndis_data);
 	mxc_register_device(&android_usb_device, &android_usb_data);
 	mxc_register_device(&fake_pwrkey_device, NULL);
+
+	imx6q_add_hdmi_soc();
+	imx6q_add_hdmi_soc_dai();
 }
 
 extern void __iomem *twd_base;

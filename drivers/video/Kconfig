@@ -2385,7 +2385,7 @@ source "drivers/video/mxc/Kconfig"
 endif
 
 config FB_MXC_HDMI
-	depends on FB_MXC_SYNC_PANEL
+	depends on FB_MXC_SYNC_PANEL && I2C
 	tristate "MXC HDMI driver support"
 	select MFD_MXC_HDMI
 	help
