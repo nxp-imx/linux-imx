@@ -480,14 +480,13 @@ static const struct anatop_thermal_platform_data
 };
 
 static const struct imxuart_platform_data mx6q_uart1_data __initconst = {
-	.flags = IMXUART_HAVE_RTSCTS | IMXUART_USE_DCEDTE,
+	.flags = IMXUART_HAVE_RTSCTS | IMXUART_USE_DCEDTE | IMXUART_SDMA,
 };
 
 static inline void mx6q_arm2_init_uart(void)
 {
 	imx6q_add_imx_uart(0, NULL);
 	imx6q_add_imx_uart(1, &mx6q_uart1_data);
-	imx6q_add_imx_uart(3, NULL);
 }
 
 static int mx6q_arm2_fec_phy_init(struct phy_device *phydev)
