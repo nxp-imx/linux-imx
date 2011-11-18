@@ -1128,10 +1128,6 @@ static int fsl_ep_dequeue(struct usb_ep *_ep, struct usb_request *_req)
 	spin_lock_irqsave(&ep->udc->lock, flags);
 	stopped = ep->stopped;
 	udc = ep->udc;
-	if (!udc->driver || udc->gadget.speed == USB_SPEED_UNKNOWN) {
-		spin_unlock_irqrestore(&ep->udc->lock, flags);
-		return -ESHUTDOWN;
-	}
 
 	/* Stop the ep before we deal with the queue */
 	ep->stopped = 1;
@@ -2047,8 +2043,10 @@ static int reset_queues(struct fsl_udc *udc)
 	for (pipe = 0; pipe < udc->max_pipes; pipe++)
 		udc_reset_ep_queue(udc, pipe);
 
+	spin_unlock(&udc->lock);
 	/* report disconnect; the driver is already quiesced */
 	udc->driver->disconnect(&udc->gadget);
+	spin_lock(&udc->lock);
 
 	return 0;
 }
@@ -2091,22 +2089,79 @@ static void reset_irq(struct fsl_udc *udc)
 	udc->usb_state = USB_STATE_DEFAULT;
 }
 
-static void fsl_gadget_event(struct work_struct *work)
+#define FSL_DP_CHANGE_TIMEOUT (msecs_to_jiffies(1000)) /* 1000 ms */
+static void gadget_wait_line_to_se0(void)
+{
+	unsigned long timeout;
+	timeout = jiffies + FSL_DP_CHANGE_TIMEOUT;
+	/* Wait for DP to SE0 */
+	while (!((fsl_readl(&dr_regs->portsc1) &
+		(u32)((1 << 10) | (1 << 11))) == PORTSCX_LINE_STATUS_SE0)) {
+		if (time_after(jiffies, timeout)) {
+			pr_warning(KERN_ERR "wait dp to SE0 timeout, please check"
+					" your hardware design!\n");
+			break;
+		}
+		msleep(10);
+	}
+}
+
+#define FSL_WAIT_CLASS_DRIVER_TIMEOUT (msecs_to_jiffies(3000)) /* 3s */
+static void gadget_wait_class_driver_finish(void)
+{
+	unsigned long timeout;
+	struct fsl_udc *udc = udc_controller;
+	struct fsl_ep *ep;
+	int i = 2;
+	timeout = jiffies + FSL_WAIT_CLASS_DRIVER_TIMEOUT;
+	/* for non-control endpoints */
+	while (i < (int)(udc_controller->max_ep)) {
+		ep = &udc->eps[i++];
+		if (ep->stopped == 0) {
+			if (time_after(timeout, jiffies)) {
+				i = 2;
+				msleep(10);
+				continue;
+			} else {
+				pr_warning(KERN_WARNING "We have waited 3s, but the class driver"
+						" has still not finishes!\n");
+				break;
+			}
+		}
+	}
+}
+
+static void fsl_gadget_disconnect_event(struct work_struct *work)
 {
 	struct fsl_udc *udc = udc_controller;
 	unsigned long flags;
+	struct fsl_usb2_platform_data *pdata;
 	u32 tmp;
 
-	if (udc->driver)
-		udc->driver->disconnect(&udc->gadget);
-	spin_lock_irqsave(&udc->lock, flags);
-	/* update port status */
-	fsl_udc_speed_update(udc);
-	spin_unlock_irqrestore(&udc->lock, flags);
+	pdata = udc->pdata;
 
-	udc->stopped = 1;
-	/* enable wake up */
-	dr_wake_up_enable(udc, true);
+	/* enable pulldown dp */
+	if (pdata->gadget_discharge_dp)
+		pdata->gadget_discharge_dp(true);
+	/*
+	 * Some boards are very slow change line state from J to SE0 for DP,
+	 * So, we need to discharge DP, otherwise there is a wakeup interrupt
+	 * after we enable the wakeup function.
+	 */
+	gadget_wait_line_to_se0();
+
+	/* Disable pulldown dp */
+	if (pdata->gadget_discharge_dp)
+		pdata->gadget_discharge_dp(false);
+
+	/*
+	 * Wait class drivers finish, an well-behaviour class driver should
+	 * call ep_disable when it is notified to be disconnected.
+	 */
+	gadget_wait_class_driver_finish();
+
+	spin_lock_irqsave(&udc->lock, flags);
+
 	/* here we need to enable the B_SESSION_IRQ
 	 * to enable the following device attach
 	 */
@@ -2114,6 +2169,10 @@ static void fsl_gadget_event(struct work_struct *work)
 	if (!(tmp & (OTGSC_B_SESSION_VALID_IRQ_EN)))
 		fsl_writel(tmp | (OTGSC_B_SESSION_VALID_IRQ_EN),
 				&dr_regs->otgsc);
+	udc->stopped = 1;
+	/* enable wake up */
+	dr_wake_up_enable(udc, true);
+	spin_unlock_irqrestore(&udc->lock, flags);
 	/* close USB PHY clock */
 	dr_phy_low_power_mode(udc, true);
 	/* close dr controller clock */
@@ -2163,11 +2222,14 @@ bool try_wake_up_udc(struct fsl_udc *udc)
 				fsl_writel(tmp &
 					   (~OTGSC_B_SESSION_VALID_IRQ_EN),
 					   &dr_regs->otgsc);
-			/*here we need delay 30 ms for avoid exception usb vbus falling interrupt
-			Once we clear the RS bit, D+ D- need about 20 ms to SE0 modet ,during this period
-			we can not enable device wake up
-			*/
-			schedule_delayed_work(&udc->gadget_delay_work, msecs_to_jiffies(30));
+
+			/* update port status */
+			fsl_udc_speed_update(udc);
+			spin_unlock(&udc->lock);
+			if (udc->driver)
+				udc->driver->disconnect(&udc->gadget);
+			spin_lock(&udc->lock);
+			schedule_work(&udc->gadget_disconnect_schedule);
 			return false;
 		}
 	}
@@ -2776,7 +2838,15 @@ static int __init struct_ep_setup(struct fsl_udc *udc, unsigned char index,
 	ep->ep.name = ep->name;
 
 	ep->ep.ops = &fsl_ep_ops;
-	ep->stopped = 0;
+	/*
+	 * For ep0, the endpoint is enabled after controller initialization
+	 * For non-ep0, the endpoint is stopped default, and will be enabled
+	 * by class driver when needed.
+	 */
+	if (index)
+		ep->stopped = 1;
+	else
+		ep->stopped = 0;
 
 	/* for ep0: maxP defined in desc
 	 * for other eps, maxP is set by epautoconfig() called by gadget layer
@@ -2953,7 +3023,7 @@ static int __devinit fsl_udc_probe(struct platform_device *pdev)
 		}
 	}
 
-	INIT_DELAYED_WORK(&udc_controller->gadget_delay_work, fsl_gadget_event);
+	INIT_WORK(&udc_controller->gadget_disconnect_schedule, fsl_gadget_disconnect_event);
 #ifdef POSTPONE_FREE_LAST_DTD
 	last_free_td = NULL;
 #endif
