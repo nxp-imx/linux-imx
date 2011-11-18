@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2004-2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2004-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -63,7 +63,7 @@
 #else
 
 #ifdef CONFIG_ARCH_MX5
-#define CONSISTENT_DMA_SIZE	(96 * SZ_1M)
+#define CONSISTENT_DMA_SIZE	(112 * SZ_1M)
 #else
 #define CONSISTENT_DMA_SIZE	(32 * SZ_1M)
 #endif
