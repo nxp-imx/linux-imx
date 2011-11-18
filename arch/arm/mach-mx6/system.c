@@ -133,8 +133,7 @@ void mxc_cpu_lp_set(enum mxc_cpu_pwr_mode mode)
 			__raw_writel(anatop_val, anatop_base + ANATOP_REG_2P5_OFFSET);
 			/* Set ARM core power domain to 1V and PU domain set to off */
 			anatop_val = __raw_readl(anatop_base + ANATOP_REG_CORE_OFFSET);
-			anatop_val &= 0xfffc0000;
-			anatop_val |= 0xc;
+			anatop_val &= 0xfffc001f;
 			__raw_writel(anatop_val, anatop_base + ANATOP_REG_CORE_OFFSET);
 			__raw_writel(__raw_readl(MXC_CCM_CCR) | MXC_CCM_CCR_RBC_EN, MXC_CCM_CCR);
 			ccm_clpcr |= MXC_CCM_CLPCR_WB_PER_AT_LPM;
