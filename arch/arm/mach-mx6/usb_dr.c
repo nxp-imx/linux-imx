@@ -365,6 +365,19 @@ static void host_wakeup_handler(struct fsl_usb2_platform_data *pdata)
 
 #ifdef CONFIG_USB_GADGET_ARC
 /* Beginning of device related operation for DR port */
+static void _gadget_discharge_dp(bool enable)
+{
+	void __iomem *phy_reg = MX6_IO_ADDRESS(USB_PHY0_BASE_ADDR);
+	if (enable) {
+		__raw_writel(BF_USBPHY_DEBUG_ENHSTPULLDOWN(0x2), phy_reg + HW_USBPHY_DEBUG_SET);
+		__raw_writel(BF_USBPHY_DEBUG_HSTPULLDOWN(0x2), phy_reg + HW_USBPHY_DEBUG_SET);
+	} else {
+		__raw_writel(BF_USBPHY_DEBUG_ENHSTPULLDOWN(0x2), phy_reg + HW_USBPHY_DEBUG_CLR);
+		__raw_writel(BF_USBPHY_DEBUG_HSTPULLDOWN(0x2), phy_reg + HW_USBPHY_DEBUG_CLR);
+	}
+
+}
+
 static void _device_phy_lowpower_suspend(struct fsl_usb2_platform_data *pdata, bool enable)
 {
 	__phy_lowpower_suspend(pdata, enable, ENABLED_BY_DEVICE);
@@ -450,6 +463,7 @@ void __init mx6_usb_dr_init(void)
 	dr_utmi_config.wake_up_enable = _device_wakeup_enable;
 	dr_utmi_config.phy_lowpower_suspend = _device_phy_lowpower_suspend;
 	dr_utmi_config.is_wakeup_event = _is_device_wakeup;
+	dr_utmi_config.gadget_discharge_dp = _gadget_discharge_dp;
 	dr_utmi_config.wakeup_pdata = &dr_wakeup_config;
 	dr_utmi_config.wakeup_handler = device_wakeup_handler;
 	pdev = imx6q_add_fsl_usb2_udc(&dr_utmi_config);
