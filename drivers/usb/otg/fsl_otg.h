@@ -385,6 +385,8 @@ struct fsl_otg {
 	/*used for usb host */
 	struct work_struct work_wq;
 	u8	host_working;
+	/*Used for host init call,we need to avoid  discharge Vbus when usb cable connect to PC*/
+	bool host_first_call;
 
 	int irq;
 };
