@@ -232,8 +232,8 @@ struct usb_sys_interface {
 
 /* bit 11-10 are line status */
 #define  PORTSCX_LINE_STATUS_SE0              (0x00000000)
-#define  PORTSCX_LINE_STATUS_JSTATE           (0x00000400)
-#define  PORTSCX_LINE_STATUS_KSTATE           (0x00000800)
+#define  PORTSCX_LINE_STATUS_KSTATE           (0x00000400)
+#define  PORTSCX_LINE_STATUS_JSTATE           (0x00000800)
 #define  PORTSCX_LINE_STATUS_UNDEF            (0x00000C00)
 #define  PORTSCX_LINE_STATUS_BIT_POS          (10)
 
@@ -624,7 +624,7 @@ struct fsl_udc {
 	struct completion *done;	/* to make sure release() is done */
 	u32 iram_buffer[IRAM_PPH_NTD];
 	void *iram_buffer_v[IRAM_PPH_NTD];
-	struct delayed_work gadget_delay_work;
+	struct work_struct gadget_disconnect_schedule;
 };
 
 /*-------------------------------------------------------------------------*/
