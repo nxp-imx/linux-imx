@@ -483,8 +483,8 @@ static int da9052_rtc_setalarm(struct device *dev, struct rtc_wkalrm *alrm)
 
 	if (ret)
 		return ret;
-
-	ret = da9052_rtc_enable_alarm(da9052, 1);
+	/* don't enable rtc-alarm when set the alram */
+	ret = da9052_rtc_enable_alarm(da9052, 0);
 
 	return ret;
 }
@@ -553,7 +553,7 @@ static int __devinit da9052_rtc_probe(struct platform_device *pdev)
 		goto err_register_alarm;
 
 	priv->is_min_alarm = 1;
-	priv->enable_tick_alarm = 1;
+	priv->enable_tick_alarm = 0;
 	priv->enable_clk_buffer = 1;
 	priv->set_osc_trim_freq = 5;
 	/* Enable/Disable TICK Alarm */
@@ -635,6 +635,8 @@ static int __devinit da9052_rtc_probe(struct platform_device *pdev)
 		goto err_ssc_comm;
 	}
 	da9052_unlock(priv->da9052);
+	/* disable rtc-alarm */
+	da9052_rtc_enable_alarm(priv->da9052, 0);
 
 	priv->rtc = rtc_device_register(pdev->name,
 			&pdev->dev, &da9052_rtc_ops, THIS_MODULE);
