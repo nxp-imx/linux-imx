@@ -124,16 +124,17 @@ void mxc_cpu_lp_set(enum mxc_cpu_pwr_mode mode)
 
 		/* dormant mode, need to power off the arm core */
 		if (stop_mode == 2) {
-			 __raw_writel(0x1, gpc_base + GPC_PGC_CPU_PDN_OFFSET);
+			__raw_writel(0x1, gpc_base + GPC_PGC_CPU_PDN_OFFSET);
 			__raw_writel(0x1, gpc_base + GPC_PGC_GPU_PGCR_OFFSET);
 			__raw_writel(0x1, gpc_base + GPC_CNTR_OFFSET);
 			/* Enable weak 2P5 linear regulator */
 			anatop_val = __raw_readl(anatop_base + ANATOP_REG_2P5_OFFSET);
 			anatop_val |= 1 << 18;
 			__raw_writel(anatop_val, anatop_base + ANATOP_REG_2P5_OFFSET);
-			/* Set ARM core power domain to 1V and PU domain set to off */
+			/* Make sure ARM and SOC domain has same voltage and PU domain off */
 			anatop_val = __raw_readl(anatop_base + ANATOP_REG_CORE_OFFSET);
-			anatop_val &= 0xfffc001f;
+			anatop_val &= 0xff83001f;
+			anatop_val |= (anatop_val & 0x1f) << 18;
 			__raw_writel(anatop_val, anatop_base + ANATOP_REG_CORE_OFFSET);
 			__raw_writel(__raw_readl(MXC_CCM_CCR) | MXC_CCM_CCR_RBC_EN, MXC_CCM_CCR);
 			ccm_clpcr |= MXC_CCM_CLPCR_WB_PER_AT_LPM;
