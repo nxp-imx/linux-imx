@@ -820,7 +820,7 @@ void dump_dvfs_core_regs()
 			__raw_readl(dvfs_data->membase
 				    + MXC_DVFSCORE_THRS + 0x40));
 }
-
+#if 0
 static ssize_t downthreshold_show(struct device *dev,
 				struct device_attribute *attr, char *buf)
 {
@@ -856,7 +856,7 @@ static ssize_t downcount_store(struct device *dev,
 
 	return size;
 }
-
+#endif
 
 static ssize_t dvfs_enable_show(struct device *dev,
 				struct device_attribute *attr, char *buf)
