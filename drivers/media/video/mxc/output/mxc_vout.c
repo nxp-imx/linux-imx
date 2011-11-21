@@ -61,6 +61,7 @@ struct mxc_vout_output {
 	bool disp_support_csc;
 
 	bool fmt_init;
+	bool bypass_pp;
 	struct ipu_task	task;
 
 	bool timer_stop;
@@ -367,7 +368,8 @@ static void setup_buf_timer(struct mxc_vout_output *vout,
 			"timer handler next schedule: %lu\n", timeout);
 }
 
-static int show_buf(struct mxc_vout_output *vout, int idx)
+static int show_buf(struct mxc_vout_output *vout, int idx,
+	struct ipu_pos *ipos)
 {
 	struct fb_info *fbi = vout->fbi;
 	struct fb_var_screeninfo var;
@@ -375,16 +377,16 @@ static int show_buf(struct mxc_vout_output *vout, int idx)
 
 	memcpy(&var, &fbi->var, sizeof(var));
 
-	if (is_pp_bypass(vout)) {
+	if (vout->bypass_pp) {
 		/*
 		 * crack fb base
 		 * NOTE: should not do other fb operation during v4l2
 		 */
 		console_lock();
 		fbi->fix.smem_start = vout->task.output.paddr;
-		fbi->var.yoffset = vout->task.input.crop.pos.y + 1;
-		var.xoffset = vout->task.input.crop.pos.x;
-		var.yoffset = vout->task.input.crop.pos.y;
+		fbi->var.yoffset = ipos->y + 1;
+		var.xoffset = ipos->x;
+		var.yoffset = ipos->y;
 		ret = fb_pan_display(fbi, &var);
 		console_unlock();
 	} else {
@@ -404,7 +406,10 @@ static void disp_work_func(struct work_struct *work)
 	struct videobuf_queue *q = &vout->vbq;
 	struct videobuf_buffer *vb, *vb_next = NULL;
 	unsigned long flags = 0;
+	struct ipu_pos ipos;
 	int ret = 0;
+
+	v4l2_dbg(1, debug, vout->vfd->v4l2_dev, "disp work begin one frame\n");
 
 	spin_lock_irqsave(q->irqlock, flags);
 
@@ -439,9 +444,11 @@ static void disp_work_func(struct work_struct *work)
 	else
 		vout->task.input.paddr = videobuf_to_dma_contig(vb);
 
-	if (is_pp_bypass(vout))
+	if (vout->bypass_pp) {
 		vout->task.output.paddr = vout->task.input.paddr;
-	else {
+		ipos.x = vout->task.input.crop.pos.x;
+		ipos.y = vout->task.input.crop.pos.y;
+	} else {
 		if (deinterlace_3_field(vout)) {
 			if (vb->memory == V4L2_MEMORY_USERPTR)
 				vout->task.input.paddr_n = vb_next->baddr;
@@ -458,11 +465,11 @@ static void disp_work_func(struct work_struct *work)
 		}
 	}
 
-	ret = show_buf(vout, vout->frame_count % FB_BUFS);
+	mutex_unlock(&vout->task_lock);
+
+	ret = show_buf(vout, vout->frame_count % FB_BUFS, &ipos);
 	if (ret < 0)
 		v4l2_dbg(1, debug, vout->vfd->v4l2_dev, "show buf with ret %d\n", ret);
-
-	mutex_unlock(&vout->task_lock);
 
 	spin_lock_irqsave(q->irqlock, flags);
 
@@ -470,17 +477,23 @@ static void disp_work_func(struct work_struct *work)
 
 	/*
 	 * previous videobuf finish show, set VIDEOBUF_DONE state here
-	 * to avoid tearing issue, which make sure showing buffer will
-	 * not be dequeue to write new data. It also bring side-effect
-	 * that the last buffer can not be dequeue correctly, app need
-	 * take care about it.
+	 * to avoid tearing issue in pp bypass case, which make sure
+	 * showing buffer will not be dequeue to write new data. It also
+	 * bring side-effect that the last buffer can not be dequeue
+	 * correctly, app need take care about it.
 	 */
 	if (vout->pre_vb) {
 		vout->pre_vb->state = VIDEOBUF_DONE;
 		wake_up_interruptible(&vout->pre_vb->done);
 	}
 
-	vout->pre_vb = vb;
+	if (vout->bypass_pp)
+		vout->pre_vb = vb;
+	else {
+		vout->pre_vb = NULL;
+		vb->state = VIDEOBUF_DONE;
+		wake_up_interruptible(&vb->done);
+	}
 
 	vout->frame_count++;
 
@@ -651,8 +664,10 @@ static int mxc_vout_release(struct file *file)
 		q = &vout->vbq;
 		if (q->streaming)
 			mxc_vidioc_streamoff(file, vout, vout->type);
-		else
+		else {
+			release_disp_output(vout);
 			videobuf_queue_cancel(q);
+		}
 		destroy_workqueue(vout->v4l_wq);
 		ret = videobuf_mmap_free(q);
 	}
@@ -799,9 +814,11 @@ static int mxc_vout_try_task(struct mxc_vout_output *vout)
 	/* assume task.output already set by S_CROP */
 	if (is_pp_bypass(vout)) {
 		v4l2_info(vout->vfd->v4l2_dev, "Bypass IC.\n");
+		vout->bypass_pp = true;
 		vout->task.output.format = vout->task.input.format;
 	} else {
 		/* if need CSC, choose IPU-DP or IPU_IC do it */
+		vout->bypass_pp = false;
 		if (vout->disp_support_csc) {
 			if (colorspaceofpixel(vout->task.input.format) == YUV_CS)
 				vout->task.output.format = IPU_PIX_FMT_UYVY;
@@ -979,10 +996,26 @@ static int mxc_vidioc_s_crop(struct file *file, void *fh, struct v4l2_crop *crop
 	crop->c.height -= crop->c.height % 8;
 	crop->c.width -= crop->c.width % 8;
 
-	mutex_lock(&vout->task_lock);
+	/* the same setting, return */
+	if (vout->disp_support_windows) {
+		if ((vout->win_pos.x == crop->c.left) &&
+			(vout->win_pos.y == crop->c.top) &&
+			(vout->task.output.crop.w == crop->c.width) &&
+			(vout->task.output.crop.h == crop->c.height))
+			return 0;
+	} else {
+		if ((vout->task.output.crop.pos.x == crop->c.left) &&
+			(vout->task.output.crop.pos.y == crop->c.top) &&
+			(vout->task.output.crop.w == crop->c.width) &&
+			(vout->task.output.crop.h == crop->c.height))
+			return 0;
+	}
 
-	if (vout->fmt_init && vout->vbq.streaming)
-		release_disp_output(vout);
+	/* wait current work finish */
+	if (vout->vbq.streaming)
+		cancel_work_sync(&vout->disp_work);
+
+	mutex_lock(&vout->task_lock);
 
 	if (vout->disp_support_windows) {
 		vout->task.output.crop.pos.x = 0;
@@ -1005,6 +1038,9 @@ static int mxc_vidioc_s_crop(struct file *file, void *fh, struct v4l2_crop *crop
 	 * check ipu task too.
 	 */
 	if (vout->fmt_init) {
+		if (vout->vbq.streaming)
+			release_disp_output(vout);
+
 		ret = mxc_vout_try_task(vout);
 		if (ret < 0) {
 			v4l2_err(vout->vfd->v4l2_dev,
@@ -1125,6 +1161,10 @@ static int mxc_vidioc_s_ctrl(struct file *file, void *fh, struct v4l2_control *c
 	int ret = 0;
 	struct mxc_vout_output *vout = fh;
 
+	/* wait current work finish */
+	if (vout->vbq.streaming)
+		cancel_work_sync(&vout->disp_work);
+
 	mutex_lock(&vout->task_lock);
 	switch (ctrl->id) {
 	case V4L2_CID_ROTATE:
@@ -1154,8 +1194,32 @@ static int mxc_vidioc_s_ctrl(struct file *file, void *fh, struct v4l2_control *c
 	}
 	default:
 		ret = -EINVAL;
+		goto done;
 	}
+
+	if (vout->fmt_init) {
+		if (vout->vbq.streaming)
+			release_disp_output(vout);
+
+		ret = mxc_vout_try_task(vout);
+		if (ret < 0) {
+			v4l2_err(vout->vfd->v4l2_dev,
+					"vout check task failed\n");
+			goto done;
+		}
+		if (vout->vbq.streaming) {
+			ret = config_disp_output(vout);
+			if (ret < 0) {
+				v4l2_err(vout->vfd->v4l2_dev,
+						"Config display output failed\n");
+				goto done;
+			}
+		}
+	}
+
+done:
 	mutex_unlock(&vout->task_lock);
+
 	return ret;
 }
 
@@ -1216,7 +1280,7 @@ static int mxc_vidioc_dqbuf(struct file *file, void *fh, struct v4l2_buffer *b)
 		return videobuf_dqbuf(&vout->vbq, (struct v4l2_buffer *)b, 0);
 }
 
-static int set_window_position(struct mxc_vout_output *vout)
+static int set_window_position(struct mxc_vout_output *vout, struct mxcfb_pos *pos)
 {
 	struct fb_info *fbi = vout->fbi;
 	mm_segment_t old_fs;
@@ -1226,7 +1290,7 @@ static int set_window_position(struct mxc_vout_output *vout)
 		old_fs = get_fs();
 		set_fs(KERNEL_DS);
 		ret = fbi->fbops->fb_ioctl(fbi, MXCFB_SET_OVERLAY_POS,
-				(unsigned long)&vout->win_pos);
+				(unsigned long)pos);
 		set_fs(old_fs);
 	}
 
@@ -1243,7 +1307,7 @@ static int config_disp_output(struct mxc_vout_output *vout)
 
 	var.xres = vout->task.output.width;
 	var.yres = vout->task.output.height;
-	if (is_pp_bypass(vout)) {
+	if (vout->bypass_pp) {
 		fb_num = 1;
 		/* input crop */
 		if (vout->task.input.width > vout->task.output.width)
@@ -1267,7 +1331,7 @@ static int config_disp_output(struct mxc_vout_output *vout)
 			"set display fb to %d %d\n",
 			var.xres, var.yres);
 
-	ret = set_window_position(vout);
+	ret = set_window_position(vout, &vout->win_pos);
 	if (ret < 0)
 		return ret;
 
@@ -1296,13 +1360,19 @@ static int config_disp_output(struct mxc_vout_output *vout)
 static void release_disp_output(struct mxc_vout_output *vout)
 {
 	struct fb_info *fbi = vout->fbi;
+	struct mxcfb_pos pos;
 
 	console_lock();
 	fb_blank(fbi, FB_BLANK_POWERDOWN);
 	console_unlock();
 
+	/* restore pos to 0,0 avoid fb pan display hang? */
+	pos.x = 0;
+	pos.y = 0;
+	set_window_position(vout, &pos);
+
 	/* fix if ic bypass crack smem_start */
-	if (is_pp_bypass(vout)) {
+	if (vout->bypass_pp) {
 		console_lock();
 		fbi->fix.smem_start = vout->disp_bufs[0];
 		console_unlock();
@@ -1363,10 +1433,10 @@ static int mxc_vidioc_streamoff(struct file *file, void *fh, enum v4l2_buf_type 
 	int ret = 0;
 
 	if (q->streaming) {
-		del_timer_sync(&vout->timer);
-
 		cancel_work_sync(&vout->disp_work);
 		flush_workqueue(vout->v4l_wq);
+
+		del_timer_sync(&vout->timer);
 
 		release_disp_output(vout);
 
