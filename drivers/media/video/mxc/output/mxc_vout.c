@@ -1351,7 +1351,9 @@ static int config_disp_output(struct mxc_vout_output *vout)
 		vout->disp_bufs[i] = fbi->fix.smem_start + i * display_buf_size;
 
 	console_lock();
+	fbi->flags |= FBINFO_MISC_USEREVENT;
 	ret = fb_blank(fbi, FB_BLANK_UNBLANK);
+	fbi->flags &= ~FBINFO_MISC_USEREVENT;
 	console_unlock();
 
 	return ret;
@@ -1363,7 +1365,9 @@ static void release_disp_output(struct mxc_vout_output *vout)
 	struct mxcfb_pos pos;
 
 	console_lock();
+	fbi->flags |= FBINFO_MISC_USEREVENT;
 	fb_blank(fbi, FB_BLANK_POWERDOWN);
+	fbi->flags &= ~FBINFO_MISC_USEREVENT;
 	console_unlock();
 
 	/* restore pos to 0,0 avoid fb pan display hang? */
@@ -1380,7 +1384,9 @@ static void release_disp_output(struct mxc_vout_output *vout)
 
 	if (get_ipu_channel(fbi) == MEM_BG_SYNC) {
 		console_lock();
+		fbi->flags |= FBINFO_MISC_USEREVENT;
 		fb_blank(fbi, FB_BLANK_UNBLANK);
+		fbi->flags &= ~FBINFO_MISC_USEREVENT;
 		console_unlock();
 	}
 }
