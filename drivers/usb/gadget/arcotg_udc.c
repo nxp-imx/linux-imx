@@ -865,8 +865,13 @@ static int fsl_queue_td(struct fsl_ep *ep, struct fsl_req *req)
 		? (1 << (ep_index(ep) + 16))
 		: (1 << (ep_index(ep)));
 
-	/* check if the pipe is empty */
-	if (!(list_empty(&ep->queue))) {
+	/*
+	 * check if
+	 * - the request is empty, and
+	 * - the request is not the status request for ep0
+	 */
+	if (!(list_empty(&ep->queue)) &&
+		!((ep_index(ep) == 0) && (req->req.length == 0))) {
 		/* Add td to the end */
 		struct fsl_req *lastreq;
 		lastreq = list_entry(ep->queue.prev, struct fsl_req, queue);
