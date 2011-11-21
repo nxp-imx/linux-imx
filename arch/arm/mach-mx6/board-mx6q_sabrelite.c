@@ -580,8 +580,14 @@ static void __init imx6q_sabrelite_init_usb(void)
 	mx6_usb_dr_init();
 	mx6_usb_h1_init();
 }
+
 static struct viv_gpu_platform_data imx6q_gpu_pdata __initdata = {
 	.reserved_mem_size = SZ_128M,
+};
+
+static struct imx_asrc_platform_data imx_asrc_data = {
+	.channel_bits = 4,
+	.clk_map_ver = 2,
 };
 
 static struct ipuv3_fb_platform_data sabrelite_fb_data[] = {
@@ -897,6 +903,10 @@ static void __init mx6_sabrelite_board_init(void)
 	imx6q_add_vpu();
 	imx6q_init_audio();
 	platform_device_register(&sabrelite_vmmc_reg_devices);
+	imx_asrc_data.asrc_core_clk = clk_get(NULL, "asrc_clk");
+	imx_asrc_data.asrc_audio_clk = clk_get(NULL, "asrc_serial_clk");
+	imx6q_add_asrc(&imx_asrc_data);
+
 	/* release USB Hub reset */
 	gpio_set_value(MX6Q_SABRELITE_USB_HUB_RESET, 1);
 
