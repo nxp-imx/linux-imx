@@ -475,6 +475,7 @@ static int esdhc_pltfm_init(struct sdhci_host *host, struct sdhci_pltfm_data *pd
 		host->tuning_max = SDHCI_TUNE_CTRL_MAX;
 		host->tuning_step = SDHCI_TUNE_CTRL_STEP;
 		host->clk_mgr_en = true;
+		host->mmc->pm_caps = MMC_PM_KEEP_POWER;
 	}
 
 	/* disable card interrupt enable bit, and clear status bit
