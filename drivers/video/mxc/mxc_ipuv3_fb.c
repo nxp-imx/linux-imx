@@ -241,7 +241,7 @@ static int _setup_disp_channel2(struct fb_info *fbi)
 					 bpp_to_pixfmt(fbi),
 					 fbi->var.xres, fbi->var.yres,
 					 fb_stride,
-					 IPU_ROTATE_NONE,
+					 fbi->var.rotate,
 					 base,
 					 base,
 					 fbi->var.accel_flags &
@@ -259,7 +259,7 @@ static int _setup_disp_channel2(struct fb_info *fbi)
 						 IPU_PIX_FMT_GENERIC,
 						 fbi->var.xres, fbi->var.yres,
 						 fbi->var.xres,
-						 IPU_ROTATE_NONE,
+						 fbi->var.rotate,
 						 mxc_fbi->alpha_phy_addr1,
 						 mxc_fbi->alpha_phy_addr0,
 						 0,
@@ -573,6 +573,9 @@ static int mxcfb_check_var(struct fb_var_screeninfo *var, struct fb_info *info)
 		if ((var->yres + pos_y) > bg_yres)
 			var->yres = bg_yres - pos_y;
 	}
+
+	if (var->rotate > IPU_ROTATE_VERT_FLIP)
+		var->rotate = IPU_ROTATE_NONE;
 
 	if (var->xres_virtual < var->xres)
 		var->xres_virtual = var->xres;
