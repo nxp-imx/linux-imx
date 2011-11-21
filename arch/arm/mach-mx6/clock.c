@@ -4199,8 +4199,8 @@ static int _clk_gpu2d_core_set_rate(struct clk *clk, unsigned long rate)
 		return -EINVAL;
 
 	reg = __raw_readl(MXC_CCM_CBCMR);
-	reg &= ~MXC_CCM_CBCMR_GPU3D_CORE_PODF_MASK;
-	reg |= (div - 1) << MXC_CCM_CBCMR_GPU3D_CORE_PODF_OFFSET;
+	reg &= ~MXC_CCM_CBCMR_GPU2D_CORE_PODF_MASK;
+	reg |= (div - 1) << MXC_CCM_CBCMR_GPU2D_CORE_PODF_OFFSET;
 	__raw_writel(reg, MXC_CCM_CBCMR);
 
 	return 0;
