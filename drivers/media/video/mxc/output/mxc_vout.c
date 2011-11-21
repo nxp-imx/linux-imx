@@ -318,7 +318,7 @@ static bool is_pp_bypass(struct mxc_vout_output *vout)
 		(vout->task.input.height == vout->task.output.height) &&
 		(vout->task.input.crop.w == vout->task.output.crop.w) &&
 		(vout->task.input.crop.h == vout->task.output.crop.h) &&
-		(vout->task.output.rotate < IPU_ROTATE_90_RIGHT) &&
+		(vout->task.output.rotate < IPU_ROTATE_HORIZ_FLIP) &&
 		!vout->task.input.deinterlace.enable) {
 		if (vout->disp_support_csc)
 			return true;
@@ -329,7 +329,7 @@ static bool is_pp_bypass(struct mxc_vout_output *vout)
 			(vout->task.output.crop.w == vout->task.output.width) &&
 			(vout->task.input.crop.h == vout->task.output.crop.h) &&
 			(vout->task.output.crop.h == vout->task.output.height) &&
-			(vout->task.output.rotate < IPU_ROTATE_90_RIGHT) &&
+			(vout->task.output.rotate < IPU_ROTATE_HORIZ_FLIP) &&
 			!vout->task.input.deinterlace.enable) {
 		if (vout->disp_support_csc)
 			return true;
@@ -460,7 +460,7 @@ static void disp_work_func(struct work_struct *work)
 
 	ret = show_buf(vout, vout->frame_count % FB_BUFS);
 	if (ret < 0)
-		v4l2_warn(vout->vfd->v4l2_dev, "show buf with ret %d\n", ret);
+		v4l2_dbg(1, debug, vout->vfd->v4l2_dev, "show buf with ret %d\n", ret);
 
 	mutex_unlock(&vout->task_lock);
 
@@ -1254,6 +1254,7 @@ static int config_disp_output(struct mxc_vout_output *vout)
 			var.yres_virtual = vout->task.input.height;
 		else
 			var.yres_virtual = var.yres;
+		var.rotate = vout->task.output.rotate;
 	} else {
 		fb_num = FB_BUFS;
 		var.xres_virtual = var.xres;
@@ -1362,7 +1363,7 @@ static int mxc_vidioc_streamoff(struct file *file, void *fh, enum v4l2_buf_type 
 	int ret = 0;
 
 	if (q->streaming) {
-		del_timer(&vout->timer);
+		del_timer_sync(&vout->timer);
 
 		cancel_work_sync(&vout->disp_work);
 		flush_workqueue(vout->v4l_wq);
