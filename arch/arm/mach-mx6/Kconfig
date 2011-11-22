@@ -86,6 +86,7 @@ config MACH_MX6Q_SABRELITE
 	select IMX_HAVE_PLATFORM_IMX_PM
 	select IMX_HAVE_PLATFORM_MXC_HDMI
 	select IMX_HAVE_PLATFORM_IMX_ASRC
+	select IMX_HAVE_PLATFORM_FLEXCAN
 	help
 	  Include support for i.MX 6Quad SABRE Lite platform. This includes specific
 	  configurations for the board and its peripherals.
