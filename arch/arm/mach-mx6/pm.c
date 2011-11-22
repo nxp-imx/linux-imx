@@ -136,11 +136,11 @@ static int mx6_suspend_enter(suspend_state_t state)
 	wake_irq_isr[0] = __raw_readl(gpc_base +
 			GPC_ISR1_OFFSET) & gpc_wake_irq[0];
 	wake_irq_isr[1] = __raw_readl(gpc_base +
-			GPC_ISR1_OFFSET) & gpc_wake_irq[1];
+			GPC_ISR2_OFFSET) & gpc_wake_irq[1];
 	wake_irq_isr[2] = __raw_readl(gpc_base +
-			GPC_ISR1_OFFSET) & gpc_wake_irq[2];
+			GPC_ISR3_OFFSET) & gpc_wake_irq[2];
 	wake_irq_isr[3] = __raw_readl(gpc_base +
-			GPC_ISR1_OFFSET) & gpc_wake_irq[3];
+			GPC_ISR4_OFFSET) & gpc_wake_irq[3];
 	if (wake_irq_isr[0] | wake_irq_isr[1] |
 			wake_irq_isr[2] | wake_irq_isr[3]) {
 		printk(KERN_INFO "There are wakeup irq pending,system resume!\n");
