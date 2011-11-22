@@ -1264,6 +1264,9 @@ static int mxc_v4l2_s_param(cam_data *cam, struct v4l2_streamparm *parm)
 			currentparm.parm.capture.timeperframe.denominator,
 			parm->parm.capture.timeperframe.denominator);
 
+	if (parm->parm.capture.capturemode == currentparm.parm.capture.capturemode) {
+		return 0;
+	}
 	/* This will change any camera settings needed. */
 	ipu_csi_enable_mclk_if(CSI_MCLK_I2C, cam->csi, true, true);
 	err = vidioc_int_s_parm(cam->sensor, parm);

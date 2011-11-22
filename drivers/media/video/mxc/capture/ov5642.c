@@ -101,20 +101,37 @@ struct sensor {
 	int csi;
 } ov5642_data;
 
-static struct reg_value ov5642_rotate_none[] = {
-	{0x3818, 0x00, 0x60, 0x00}, {0x3621, 0x20, 0x20, 0x00},
+static struct reg_value ov5642_rotate_none_VGA[] = {
+	{0x3818, 0xc1, 0x00, 0x00}, {0x3621, 0x87, 0x00, 0x00},
 };
 
-static struct reg_value ov5642_rotate_vert_flip[] = {
-	{0x3818, 0x20, 0x60, 0x00}, {0x3621, 0x20, 0x20, 0x00},
+static struct reg_value ov5642_rotate_vert_flip_VGA[] = {
+	{0x3818, 0x20, 0xbf, 0x00}, {0x3621, 0x20, 0xff, 0x00},
 };
 
-static struct reg_value ov5642_rotate_horiz_flip[] = {
-	{0x3818, 0x40, 0x60, 0x00}, {0x3621, 0x00, 0x20, 0x00},
+static struct reg_value ov5642_rotate_horiz_flip_VGA[] = {
+	{0x3818, 0x81, 0x00, 0x01}, {0x3621, 0xa7, 0x00, 0x00},
 };
 
-static struct reg_value ov5642_rotate_180[] = {
-	{0x3818, 0x60, 0x60, 0x00}, {0x3621, 0x00, 0x20, 0x00},
+static struct reg_value ov5642_rotate_180_VGA[] = {
+	{0x3818, 0x60, 0xff, 0x00}, {0x3621, 0x00, 0xdf, 0x00},
+};
+
+
+static struct reg_value ov5642_rotate_none_FULL[] = {
+	{0x3818, 0xc0, 0x00, 0x00}, {0x3621, 0x09, 0x00, 0x00},
+};
+
+static struct reg_value ov5642_rotate_vert_flip_FULL[] = {
+	{0x3818, 0x20, 0xbf, 0x01}, {0x3621, 0x20, 0xff, 0x00},
+};
+
+static struct reg_value ov5642_rotate_horiz_flip_FULL[] = {
+	{0x3818, 0x80, 0x00, 0x01}, {0x3621, 0x29, 0x00, 0x00},
+};
+
+static struct reg_value ov5642_rotate_180_FULL[] = {
+	{0x3818, 0x60, 0xff, 0x00}, {0x3621, 0x00, 0xdf, 0x00},
 };
 
 
@@ -649,6 +666,40 @@ static struct reg_value ov5642_setting_15fps_QSXGA_2592_1944[] = {
 	{0x501f, 0x00, 0, 0}, {0x3002, 0x1c, 0, 0}, {0x3819, 0x80, 0, 0},
 	{0x5002, 0xe0, 0, 0}, {0x530a, 0x01, 0, 0}, {0x530d, 0x10, 0, 0},
 	{0x530c, 0x04, 0, 0}, {0x5312, 0x20, 0, 0}, {0x5282, 0x01, 0, 0},
+};
+
+static struct reg_value ov5642_setting_VGA_2_VGA[] = {
+	{0x3825, 0xb4, 0, 0}, {0x3827, 0x08, 0, 0}, {0x3804, 0x05, 0, 0},
+	{0x3805, 0x00, 0, 0}, {0x5682, 0x05, 0, 0}, {0x5683, 0x00, 0, 0},
+	{0x3806, 0x03, 0, 0}, {0x3807, 0xc0, 0, 0}, {0x5686, 0x03, 0, 0},
+	{0x5687, 0xc0, 0, 0}, {0x3808, 0x02, 0, 0}, {0x3809, 0x80, 0, 0},
+	{0x380a, 0x01, 0, 0}, {0x380b, 0xe0, 0, 0},
+};
+
+static struct reg_value ov5642_setting_QSXGA_2_VGA[] = {
+	{0x3503, 0x00, 0, 0}, {0x3000, 0x00, 0, 0}, {0x3001, 0x00, 0, 0},
+	{0x3002, 0x5c, 0, 0}, {0x3003, 0x00, 0, 0}, {0x3004, 0xff, 0, 0},
+	{0x3005, 0xff, 0, 0}, {0x3006, 0x43, 0, 0}, {0x3007, 0x37, 0, 0},
+	{0x3010, 0x00, 0, 0}, {0x3818, 0xc1, 0, 0}, {0x3621, 0x87, 0, 0},
+	{0x350c, 0x03, 0, 0}, {0x350d, 0xe8, 0, 0}, {0x3602, 0xfc, 0, 0},
+	{0x3612, 0xff, 0, 0}, {0x3613, 0x00, 0, 0}, {0x3622, 0x60, 0, 0},
+	{0x3623, 0x01, 0, 0}, {0x3604, 0x48, 0, 0}, {0x3705, 0xdb, 0, 0},
+	{0x370a, 0x81, 0, 0}, {0x3801, 0x50, 0, 0}, {0x3803, 0x08, 0, 0},
+	{0x3804, 0x05, 0, 0}, {0x3805, 0x00, 0, 0}, {0x3806, 0x03, 0, 0},
+	{0x3807, 0xc0, 0, 0}, {0x3808, 0x02, 0, 0}, {0x3809, 0x80, 0, 0},
+	{0x380a, 0x01, 0, 0}, {0x380b, 0xe0, 0, 0}, {0x380c, 0x0c, 0, 0},
+	{0x380d, 0x80, 0, 0}, {0x380e, 0x03, 0, 0}, {0x380f, 0xe8, 0, 0},
+	{0x3810, 0x40, 0, 0}, {0x3815, 0x04, 0, 0}, {0x3824, 0x11, 0, 0},
+	{0x3825, 0xb4, 0, 0}, {0x3827, 0x08, 0, 0}, {0x3a00, 0x78, 0, 0},
+	{0x3a0d, 0x04, 0, 0}, {0x3a0e, 0x03, 0, 0}, {0x5682, 0x05, 0, 0},
+	{0x5683, 0x00, 0, 0}, {0x5686, 0x03, 0, 0}, {0x5687, 0xbc, 0, 0},
+	{0x5001, 0xff, 0, 0}, {0x589b, 0x04, 0, 0}, {0x589a, 0xc5, 0, 0},
+	{0x4407, 0x0c, 0, 0}, {0x3008, 0x02, 0, 0}, {0x460b, 0x37, 0, 0},
+	{0x460c, 0x22, 0, 0}, {0x471d, 0x05, 0, 0}, {0x4713, 0x02, 0, 0},
+	{0x471c, 0xd0, 0, 0}, {0x3815, 0x04, 0, 0}, {0x501f, 0x00, 0, 0},
+	{0x3002, 0x5c, 0, 0}, {0x3819, 0x80, 0, 0}, {0x5002, 0xe0, 0, 0},
+	{0x530a, 0x01, 0, 0}, {0x530d, 0x0c, 0, 0}, {0x530c, 0x00, 0, 0},
+	{0x5312, 0x40, 0, 0}, {0x5282, 0x00, 0, 0},
 };
 
 static struct reg_value ov5642_setting_30fps_VGA_640_480[] = {
@@ -1807,10 +1858,87 @@ static int ov5642_set_rotate_mode(struct reg_value *rotate_mode)
 		RegAddr = rotate_mode->u16RegAddr;
 		Val = rotate_mode->u8Val;
 		Mask = rotate_mode->u8Mask;
+
 		if (Mask) {
 			retval = ov5642_read_reg(RegAddr, &RegVal);
-			if (retval < 0)
+			if (retval < 0) {
+				pr_err("%s, read reg 0x%x failed\n", __FUNCTION__, RegAddr);
 				goto err;
+			}
+
+			Val |= RegVal;
+			Val &= Mask;
+		}
+
+		retval = ov5642_write_reg(RegAddr, Val);
+		if (retval < 0) {
+			pr_err("%s, write reg 0x%x failed\n", __FUNCTION__, RegAddr);
+			goto err;
+		}
+
+		if (Delay_ms)
+			mdelay(Delay_ms);
+	}
+err:
+	return retval;
+}
+static int ov5642_init_mode(enum ov5642_frame_rate frame_rate,
+		enum ov5642_mode mode);
+static int ov5642_change_mode(enum ov5642_frame_rate frame_rate,
+		enum ov5642_mode new_mode,  enum ov5642_mode orig_mode)
+{
+	struct reg_value *pModeSetting = NULL;
+	s32 i = 0;
+	s32 iModeSettingArySize = 0;
+	register u32 Delay_ms = 0;
+	register u16 RegAddr = 0;
+	register u8 Mask = 0;
+	register u8 Val = 0;
+	u8 RegVal = 0;
+	int retval = 0;
+
+	if (new_mode > ov5642_mode_MAX || new_mode < ov5642_mode_MIN) {
+		pr_err("Wrong ov5642 mode detected!\n");
+		return -1;
+	}
+
+	if (new_mode == ov5642_mode_VGA_640_480 && orig_mode == ov5642_mode_VGA_640_480) {
+		pModeSetting = ov5642_setting_VGA_2_VGA;
+		iModeSettingArySize = ARRAY_SIZE(ov5642_setting_VGA_2_VGA);
+		ov5642_data.pix.width = 640;
+		ov5642_data.pix.height = 480;
+		return 0;
+	} else if (new_mode == ov5642_mode_QSXGA_2592_1944 && orig_mode == ov5642_mode_VGA_640_480) {
+		pModeSetting = ov5642_setting_15fps_QSXGA_2592_1944;
+		iModeSettingArySize = ARRAY_SIZE(ov5642_setting_15fps_QSXGA_2592_1944);
+		ov5642_data.pix.width = 2592;
+		ov5642_data.pix.height = 1944;
+	} else if (new_mode == ov5642_mode_VGA_640_480 && orig_mode == ov5642_mode_QSXGA_2592_1944) {
+		pModeSetting = ov5642_setting_QSXGA_2_VGA;
+		iModeSettingArySize = ARRAY_SIZE(ov5642_setting_QSXGA_2_VGA);
+		ov5642_data.pix.width = 640;
+		ov5642_data.pix.height = 480;
+	} else {
+		retval = ov5642_init_mode(frame_rate, new_mode);
+		goto err;
+	}
+
+	if (ov5642_data.pix.width == 0 || ov5642_data.pix.height == 0 ||
+			pModeSetting == NULL || iModeSettingArySize == 0)
+		return -EINVAL;
+
+	for (i = 0; i < iModeSettingArySize; ++i, ++pModeSetting) {
+		Delay_ms = pModeSetting->u32Delay_ms;
+		RegAddr = pModeSetting->u16RegAddr;
+		Val = pModeSetting->u8Val;
+		Mask = pModeSetting->u8Mask;
+
+		if (Mask) {
+			retval = ov5642_read_reg(RegAddr, &RegVal);
+			if (retval < 0) {
+				pr_err("read reg error addr=0x%x", RegAddr);
+				goto err;
+			}
 
 			RegVal &= ~(u8)Mask;
 			Val &= Mask;
@@ -1818,8 +1946,10 @@ static int ov5642_set_rotate_mode(struct reg_value *rotate_mode)
 		}
 
 		retval = ov5642_write_reg(RegAddr, Val);
-		if (retval < 0)
+		if (retval < 0) {
+			pr_err("write reg error addr=0x%x", RegAddr);
 			goto err;
+		}
 
 		if (Delay_ms)
 			msleep(Delay_ms);
@@ -1827,7 +1957,6 @@ static int ov5642_set_rotate_mode(struct reg_value *rotate_mode)
 err:
 	return retval;
 }
-
 static int ov5642_init_mode(enum ov5642_frame_rate frame_rate,
 			    enum ov5642_mode mode)
 {
@@ -1865,8 +1994,10 @@ static int ov5642_init_mode(enum ov5642_frame_rate frame_rate,
 
 		if (Mask) {
 			retval = ov5642_read_reg(RegAddr, &RegVal);
-			if (retval < 0)
+			if (retval < 0) {
+				pr_err("read reg error addr=0x%x", RegAddr);
 				goto err;
+			}
 
 			RegVal &= ~(u8)Mask;
 			Val &= Mask;
@@ -1874,8 +2005,10 @@ static int ov5642_init_mode(enum ov5642_frame_rate frame_rate,
 		}
 
 		retval = ov5642_write_reg(RegAddr, Val);
-		if (retval < 0)
+		if (retval < 0) {
+			pr_err("write reg error addr=0x%x", RegAddr);
 			goto err;
+		}
 
 		if (Delay_ms)
 			msleep(Delay_ms);
@@ -2159,16 +2292,10 @@ static int ioctl_s_parm(struct v4l2_int_device *s, struct v4l2_streamparm *a)
 			return -EINVAL;
 		}
 
+		ret =  ov5642_change_mode(frame_rate, a->parm.capture.capturemode, sensor->streamcap.capturemode);
 		sensor->streamcap.timeperframe = *timeperframe;
 		sensor->streamcap.capturemode =
 				(u32)a->parm.capture.capturemode;
-		if (frame_rate == ov5642_15_fps &&
-			sensor->streamcap.capturemode == ov5642_mode_QSXGA_2592_1944) {
-			ret =  ov5642_write_snapshot_para();
-		} else {
-			ret = ov5642_init_mode(frame_rate,
-				       sensor->streamcap.capturemode);
-		}
 		break;
 
 	/* These are all the possible cases. */
@@ -2264,6 +2391,8 @@ static int ioctl_g_ctrl(struct v4l2_int_device *s, struct v4l2_control *vc)
 static int ioctl_s_ctrl(struct v4l2_int_device *s, struct v4l2_control *vc)
 {
 	int retval = 0;
+	struct sensor *sensor = s->priv;
+	__u32 captureMode = sensor->streamcap.capturemode;
 
 	pr_debug("In ov5642:ioctl_s_ctrl %d\n",
 		 vc->id);
@@ -2301,20 +2430,40 @@ static int ioctl_s_ctrl(struct v4l2_int_device *s, struct v4l2_control *vc)
 	case V4L2_CID_MXC_VF_ROT:
 		switch (vc->value) {
 		case V4L2_MXC_CAM_ROTATE_NONE:
-			if (ov5642_set_rotate_mode(ov5642_rotate_none))
-				retval = -EPERM;
+			if (captureMode == ov5642_mode_QSXGA_2592_1944) {
+				if (ov5642_set_rotate_mode(ov5642_rotate_none_FULL))
+					retval = -EPERM;
+			} else {
+				if (ov5642_set_rotate_mode(ov5642_rotate_none_VGA))
+					retval = -EPERM;
+			}
 			break;
 		case V4L2_MXC_CAM_ROTATE_VERT_FLIP:
-			if (ov5642_set_rotate_mode(ov5642_rotate_vert_flip))
-				retval = -EPERM;
+			if (captureMode == ov5642_mode_QSXGA_2592_1944) {
+				if (ov5642_set_rotate_mode(ov5642_rotate_vert_flip_FULL))
+					retval = -EPERM;
+			} else {
+				if (ov5642_set_rotate_mode(ov5642_rotate_vert_flip_VGA))
+					retval = -EPERM;
+			}
 			break;
 		case V4L2_MXC_CAM_ROTATE_HORIZ_FLIP:
-			if (ov5642_set_rotate_mode(ov5642_rotate_horiz_flip))
-				retval = -EPERM;
+			if (captureMode == ov5642_mode_QSXGA_2592_1944) {
+				if (ov5642_set_rotate_mode(ov5642_rotate_horiz_flip_FULL))
+					retval = -EPERM;
+			} else {
+				if (ov5642_set_rotate_mode(ov5642_rotate_horiz_flip_VGA))
+					retval = -EPERM;
+			}
 			break;
 		case V4L2_MXC_CAM_ROTATE_180:
-			if (ov5642_set_rotate_mode(ov5642_rotate_180))
-				retval = -EPERM;
+			if (captureMode == ov5642_mode_QSXGA_2592_1944) {
+				if (ov5642_set_rotate_mode(ov5642_rotate_180_FULL))
+					retval = -EPERM;
+			} else {
+				if (ov5642_set_rotate_mode(ov5642_rotate_180_VGA))
+					retval = -EPERM;
+			}
 			break;
 		default:
 			retval = -EPERM;
