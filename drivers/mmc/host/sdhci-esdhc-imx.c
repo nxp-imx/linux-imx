@@ -469,13 +469,14 @@ static int esdhc_pltfm_init(struct sdhci_host *host, struct sdhci_pltfm_data *pd
 		host->ocr_avail_sd |= MMC_VDD_165_195;
 	if (boarddata->support_8bit)
 		host->mmc->caps |= MMC_CAP_8_BIT_DATA;
+	if (boarddata->keep_power_at_suspend)
+		host->mmc->pm_caps |= MMC_PM_KEEP_POWER;
 	if (cpu_is_mx6q()) {
 		host->mmc->caps |= MMC_CAP_1_8V_DDR;
 		host->tuning_min = SDHCI_TUNE_CTRL_MIN;
 		host->tuning_max = SDHCI_TUNE_CTRL_MAX;
 		host->tuning_step = SDHCI_TUNE_CTRL_STEP;
 		host->clk_mgr_en = true;
-		host->mmc->pm_caps = MMC_PM_KEEP_POWER;
 	}
 
 	/* disable card interrupt enable bit, and clear status bit
