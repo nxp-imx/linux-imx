@@ -138,6 +138,8 @@ struct mxc_hdmi {
 
 struct i2c_client *hdmi_i2c;
 
+extern const struct fb_videomode mxc_cea_mode[64];
+
 /*!
  * this submodule is responsible for the video data synchronization.
  * for example, for RGB 4:4:4 input, the data map is defined as
@@ -1226,6 +1228,9 @@ static int mxc_hdmi_read_edid(struct mxc_hdmi *hdmi,
 	ret = mxc_edid_read(hdmi_i2c->adapter, hdmi_i2c->addr,
 				hdmi->edid, &hdmi->edid_cfg, fbi);
 
+	if (ret < 0)
+		return ret;
+
 	if (!memcmp(edid_old, hdmi->edid, HDMI_EDID_LEN))
 		ret = -2;
 	return ret;
@@ -1298,9 +1303,27 @@ static void mxc_hdmi_disable(struct mxc_hdmi *hdmi)
 	clk_disable(hdmi->hdmi_iahb_clk);
 }
 
+static void  mxc_hdmi_default_modelist(struct mxc_hdmi *hdmi)
+{
+	u32 i;
+	const struct fb_videomode *mode;
+
+	fb_destroy_modelist(&hdmi->fbi->modelist);
+
+	for (i = 0; i < ARRAY_SIZE(mxc_cea_mode); i++) {
+		mode = &mxc_cea_mode[i];
+		if ((mode->xres == hdmi->fbi->var.xres) &&
+			(mode->yres ==  hdmi->fbi->var.yres) &&
+			!(mode->vmode & FB_VMODE_INTERLACED))
+			fb_add_videomode(mode,	&hdmi->fbi->modelist);
+	}
+}
+
 static int mxc_hdmi_cable_connected(struct mxc_hdmi *hdmi)
 {
 	int ret;
+	struct fb_videomode m;
+	const struct fb_videomode *mode;
 
 	dev_dbg(&hdmi->pdev->dev, "cable connected\n");
 
@@ -1308,14 +1331,10 @@ static int mxc_hdmi_cable_connected(struct mxc_hdmi *hdmi)
 
 	/* edid read */
 	ret = mxc_hdmi_read_edid(hdmi, hdmi->fbi);
-	if (ret == -1)
-		dev_err(&hdmi->pdev->dev, "read edid fail\n");
-	else if (ret == -2)
+	if (ret == -2)
 		dev_info(&hdmi->pdev->dev, "same edid\n");
 	else if (hdmi->fbi->monspecs.modedb_len > 0) {
 		int i;
-		const struct fb_videomode *mode;
-		struct fb_videomode m;
 
 		fb_destroy_modelist(&hdmi->fbi->modelist);
 
@@ -1343,8 +1362,19 @@ static int mxc_hdmi_cable_connected(struct mxc_hdmi *hdmi)
 
 		fb_videomode_to_var(&hdmi->fbi->var, mode);
 		hdmi->need_mode_change = true;
-	} else
+	} else {
+		/* If not EDID data readed, setup default modelist  */
 		dev_info(&hdmi->pdev->dev, "No modes read from edid\n");
+		mxc_hdmi_default_modelist(hdmi);
+
+		fb_var_to_videomode(&m, &hdmi->fbi->var);
+		mode = fb_find_nearest_mode(&m,
+				&hdmi->fbi->modelist);
+
+		fb_videomode_to_var(&hdmi->fbi->var, mode);
+		hdmi->need_mode_change = true;
+	}
+
 
 	return 0;
 }
@@ -1593,6 +1623,9 @@ static int mxc_hdmi_disp_init(struct mxc_dispdrv_entry *disp)
 	int irq = platform_get_irq(hdmi->pdev, 0);
 	bool found = false;
 	u8 val;
+	const struct fb_videomode *mode;
+	struct fb_videomode m;
+	struct fb_var_screeninfo var;
 
 	if (!plat || irq < 0)
 		return -ENODEV;
@@ -1658,13 +1691,19 @@ static int mxc_hdmi_disp_init(struct mxc_dispdrv_entry *disp)
 
 	/* try to read edid */
 	ret = mxc_hdmi_read_edid(hdmi, hdmi->fbi);
-	if (ret < 0)
-		dev_warn(&hdmi->pdev->dev, "Can not read edid\n");
-	else if (hdmi->fbi->monspecs.modedb_len > 0) {
+	if (ret < 0) {
+		/* If not EDID data readed, setup default modelist  */
+		dev_info(&hdmi->pdev->dev, "No modes read from edid\n");
+		mxc_hdmi_default_modelist(hdmi);
+
+		fb_var_to_videomode(&m, &hdmi->fbi->var);
+		mode = fb_find_nearest_mode(&m,
+				&hdmi->fbi->modelist);
+
+		fb_videomode_to_var(&hdmi->fbi->var, mode);
+		hdmi->need_mode_change = true;
+	} else if (hdmi->fbi->monspecs.modedb_len > 0) {
 		int i;
-		const struct fb_videomode *mode;
-		struct fb_videomode m;
-		struct fb_var_screeninfo var;
 
 		for (i = 0; i < hdmi->fbi->monspecs.modedb_len; i++) {
 			/*
