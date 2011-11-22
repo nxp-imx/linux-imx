@@ -420,6 +420,7 @@ static const struct esdhc_platform_data mx6q_arm2_sd3_data __initconst = {
 	.wp_gpio = MX6Q_ARM2_SD3_WP,
 	.support_18v = 1,
 	.support_8bit = 1,
+	.keep_power_at_suspend = 1,
 	.delay_line = 0,
 	.platform_pad_change = plt_sd3_pad_change,
 };
@@ -428,6 +429,7 @@ static const struct esdhc_platform_data mx6q_arm2_sd3_data __initconst = {
 static const struct esdhc_platform_data mx6q_arm2_sd4_data __initconst = {
 	.always_present = 1,
 	.support_8bit = 1,
+	.keep_power_at_suspend = 1,
 	.platform_pad_change = plt_sd4_pad_change,
 };
 
