@@ -80,6 +80,8 @@
 #define MX6Q_SABRELITE_USB_OTG_PWR	IMX_GPIO_NR(3, 22)
 #define MX6Q_SABRELITE_CAP_TCH_INT1	IMX_GPIO_NR(1, 9)
 #define MX6Q_SABRELITE_USB_HUB_RESET	IMX_GPIO_NR(7, 12)
+#define MX6Q_SABRELITE_CAN1_STBY	IMX_GPIO_NR(1, 25)
+#define MX6Q_SABRELITE_CAN1_EN		IMX_GPIO_NR(1, 27)
 
 #define MX6Q_SABRELITE_SD3_WP_PADCFG	(PAD_CTL_PKE | PAD_CTL_PUE |	\
 		PAD_CTL_PUS_22K_UP | PAD_CTL_SPEED_MED |	\
@@ -581,6 +583,27 @@ static void __init imx6q_sabrelite_init_usb(void)
 	mx6_usb_h1_init();
 }
 
+static struct gpio mx6q_sabrelite_flexcan_gpios[] = {
+	{ MX6Q_SABRELITE_CAN1_EN, GPIOF_OUT_INIT_LOW, "flexcan1-en" },
+	{ MX6Q_SABRELITE_CAN1_STBY, GPIOF_OUT_INIT_LOW, "flexcan1-stby" },
+};
+
+static void mx6q_sabrelite_flexcan0_switch(int enable)
+{
+	if (enable) {
+		gpio_set_value(MX6Q_SABRELITE_CAN1_EN, 1);
+		gpio_set_value(MX6Q_SABRELITE_CAN1_STBY, 1);
+	} else {
+		gpio_set_value(MX6Q_SABRELITE_CAN1_EN, 0);
+		gpio_set_value(MX6Q_SABRELITE_CAN1_STBY, 0);
+	}
+}
+
+static const struct flexcan_platform_data
+	mx6q_sabrelite_flexcan0_pdata __initconst = {
+	.transceiver_switch = mx6q_sabrelite_flexcan0_switch,
+};
+
 static struct viv_gpu_platform_data imx6q_gpu_pdata __initdata = {
 	.reserved_mem_size = SZ_128M,
 };
@@ -858,6 +881,7 @@ static void __init fixup_mxc_board(struct machine_desc *desc, struct tag *tags,
 static void __init mx6_sabrelite_board_init(void)
 {
 	int i;
+	int ret;
 
 	mxc_iomux_v3_setup_multiple_pads(mx6q_sabrelite_pads,
 					ARRAY_SIZE(mx6q_sabrelite_pads));
@@ -925,6 +949,13 @@ static void __init mx6_sabrelite_board_init(void)
 
 	imx6q_add_hdmi_soc();
 	imx6q_add_hdmi_soc_dai();
+
+	ret = gpio_request_array(mx6q_sabrelite_flexcan_gpios,
+			ARRAY_SIZE(mx6q_sabrelite_flexcan_gpios));
+	if (ret)
+		pr_err("failed to request flexcan1-gpios: %d\n", ret);
+	else
+		imx6q_add_flexcan0(&mx6q_sabrelite_flexcan0_pdata);
 }
 
 extern void __iomem *twd_base;
