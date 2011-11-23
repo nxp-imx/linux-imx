@@ -772,9 +772,10 @@ static int mxc_vidioc_g_fmt_vid_out(struct file *file, void *fh,
 	return 0;
 }
 
-static inline int ipu_try_task(struct ipu_task *task)
+static inline int ipu_try_task(struct mxc_vout_output *vout)
 {
 	int ret;
+	struct ipu_task *task = &vout->task;
 
 again:
 	ret = ipu_check_task(task);
@@ -789,11 +790,19 @@ again:
 				goto again;
 			}
 			if (ret == IPU_CHECK_ERR_SPLIT_OUTPUTW_OVER) {
-				task->output.crop.w -= 8;
+				if (vout->disp_support_windows) {
+					task->output.width -= 8;
+					task->output.crop.w = task->output.width;
+				} else
+					task->output.crop.w -= 8;
 				goto again;
 			}
 			if (ret == IPU_CHECK_ERR_SPLIT_OUTPUTH_OVER) {
-				task->output.crop.h -= 8;
+				if (vout->disp_support_windows) {
+					task->output.height -= 8;
+					task->output.crop.h = task->output.height;
+				} else
+					task->output.crop.h -= 8;
 				goto again;
 			}
 			ret = -EINVAL;
@@ -830,7 +839,7 @@ static int mxc_vout_try_task(struct mxc_vout_output *vout)
 			else
 				vout->task.output.format = IPU_PIX_FMT_RGB565;
 		}
-		ret = ipu_try_task(&vout->task);
+		ret = ipu_try_task(vout);
 	}
 
 	return ret;
