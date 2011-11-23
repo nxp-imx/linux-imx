@@ -60,6 +60,8 @@ as the normal setting on Da9053 */
 #define DA9052_GPIO0809_SMD_SET 0x18
 #define DA9052_ID1415_SMD_SET   0x1
 #define DA9052_GPI9_IRQ_MASK    0x2
+#define DA9052_ALARM_IRQ_EN     (0x1<<6)
+#define DA9052_SEQ_RDY_IRQ_MASK (0x1<<6)
 
 static u8 volt_settings[DA9052_LDO10_REG - DA9052_BUCKCORE_REG + 1];
 extern int pm_i2c_imx_xfer(struct i2c_msg *msgs, int num);
@@ -185,6 +187,15 @@ int da9053_suspend_cmd_hw(void)
 	pm_da9053_read_reg(DA9052_IRQMASKD_REG, &data);
 	data |= DA9052_GPI9_IRQ_MASK;
 	pm_da9053_write_reg(DA9052_IRQMASKD_REG, data);
+#ifdef CONFIG_RTC_DRV_DA9052
+	pm_da9053_read_reg(DA9052_ALARMY_REG, &data);
+	data |= DA9052_ALARM_IRQ_EN;
+	pm_da9053_write_reg(DA9052_ALARMY_REG, data);
+#endif
+	/* Mask SEQ_RDY_IRQ to avoid some suspend/resume issues */
+	pm_da9053_read_reg(DA9052_IRQMASKD_REG, &data);
+	data |= DA9052_SEQ_RDY_IRQ_MASK;
+	pm_da9053_write_reg(DA9052_IRQMASKA_REG, data);
 
 	pm_da9053_read_reg(DA9052_ID1415_REG, &data);
 	data &= 0xf0;
