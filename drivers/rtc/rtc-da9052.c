@@ -1,5 +1,6 @@
 /*
  * Copyright(c) 2009 Dialog Semiconductor Ltd.
+ * Copyright 2010-2011 Freescale Semiconductor, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -310,7 +311,6 @@ static int da9052_alarm_settime(struct da9052 *da9052, struct rtc_time *rtc_tm)
 
 	msg.data = msg.data & ~(DA9052_ALARMY_ALARMYEAR);
 
-
 	msg.data |= rtc_tm->tm_year;
 	msg_arr[loop_index].addr = DA9052_ALARMY_REG;
 	msg_arr[loop_index].data = 0;
@@ -422,8 +422,9 @@ static ssize_t da9052_rtc_unmask_irq(struct da9052 *da9052)
 		return ret;
 	}
 
-	data = ret;
-	ssc_msg.data = data &= ~DA9052_IRQMASKA_MALRAM;
+	ssc_msg.data &= ~DA9052_IRQMASKA_MALRAM;
+	ssc_msg.data |= DA9052_IRQMASKA_MSEQRDY;
+	pr_debug("%s: write REG10 0x%x\n", __func__, ssc_msg.data);
 
 	ret = da9052->write(da9052, &ssc_msg);
 	if (ret != 0) {
@@ -483,8 +484,9 @@ static int da9052_rtc_setalarm(struct device *dev, struct rtc_wkalrm *alrm)
 
 	if (ret)
 		return ret;
-	/* don't enable rtc-alarm when set the alram */
-	ret = da9052_rtc_enable_alarm(da9052, 0);
+	/* enable rtc-alarm when set the alram */
+	ret = da9052_rtc_enable_alarm(da9052, 1);
+	ret = da9052_rtc_unmask_irq(da9052);
 
 	return ret;
 }
@@ -501,6 +503,8 @@ static int da9052_rtc_update_irq_enable(struct device *dev,
 						(priv->da9052);
 
 	da9052_unlock(priv->da9052);
+	/* enable rtc-alarm */
+	da9052_rtc_enable_alarm(priv->da9052, 1);
 
 	return ret;
 }

@@ -2,7 +2,7 @@
  * da9052-core.c  --  Device access for Dialog DA9052
  *
  * Copyright(c) 2009 Dialog Semiconductor Ltd.
- *
+ * Copyright 2010-2011 Freescale Semiconductor, Inc.
  * Author: Dialog Semiconductor Ltd <dchen@diasemi.com>
  *
  *  This program is free software; you can redistribute  it and/or modify it
@@ -310,8 +310,10 @@ void eh_workqueue_isr(struct work_struct *work)
 	}
 
 	/* Collect all events */
-	for (cnt = 0; cnt < 4; cnt++)
-		events_sts |= (eve_data[cnt].data << (8 * cnt));
+	for (cnt = 0; cnt < 4; cnt++) {
+		pr_debug(" reg[%d]: %x\n", cnt+5, eve_data[cnt].data);
+		events_sts |= ((eve_data[cnt].data&0x00ff) << (8 * cnt));
+	}
 
 	/* Check if we really got any event */
 	if (events_sts == 0) {
