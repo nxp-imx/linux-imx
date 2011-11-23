@@ -25,7 +25,7 @@
 #include <asm/mach/arch.h>
 #include "devices-imx6q.h"
 
-#define HW_OCOTP_MACn(n)        (0x00000250 + (n) * 0x10)
+#define HW_OCOTP_MACn(n)        (0x00000620 + (n) * 0x10)
 
 static int fec_get_mac_addr(unsigned char *mac)
 {
