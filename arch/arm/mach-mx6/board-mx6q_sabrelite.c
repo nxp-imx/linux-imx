@@ -637,7 +637,7 @@ static void hdmi_init(int ipu_id, int disp_id)
 
 static struct android_pmem_platform_data android_pmem_data = {
        .name = "pmem_adsp",
-       .size = SZ_32M,
+       .size = SZ_64M,
 };
 
 static struct android_pmem_platform_data android_pmem_gpu_data = {
@@ -856,6 +856,26 @@ static int mx6_sabre_set_cpu_voltage(u32 cpu_volt)
 static void __init fixup_mxc_board(struct machine_desc *desc, struct tag *tags,
 				   char **cmdline, struct meminfo *mi)
 {
+	char *str;
+	struct tag *t;
+
+	for_each_tag(t, tags) {
+		if (t->hdr.tag == ATAG_CMDLINE) {
+			str = t->u.cmdline.cmdline;
+			str = strstr(str, "pmem=");
+			if (str != NULL) {
+				str += 5;
+				android_pmem_gpu_data.size = memparse(str, &str);
+				if (*str == ',') {
+					str++;
+					android_pmem_data.size = memparse(str, &str);
+				}
+			}
+
+			break;
+		}
+	}
+
 	set_cpu_voltage = mx6_sabre_set_cpu_voltage;
 }
 
