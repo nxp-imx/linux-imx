@@ -131,9 +131,9 @@ void mxc_cpu_lp_set(enum mxc_cpu_pwr_mode mode)
 			anatop_val = __raw_readl(anatop_base + ANATOP_REG_2P5_OFFSET);
 			anatop_val |= 1 << 18;
 			__raw_writel(anatop_val, anatop_base + ANATOP_REG_2P5_OFFSET);
-			/* Make sure ARM and SOC domain has same voltage and PU domain off */
+			/* Make sure ARM and SOC domain has same voltage */
 			anatop_val = __raw_readl(anatop_base + ANATOP_REG_CORE_OFFSET);
-			anatop_val &= 0xff83001f;
+			anatop_val &= ~(0x1f << 18);
 			anatop_val |= (anatop_val & 0x1f) << 18;
 			__raw_writel(anatop_val, anatop_base + ANATOP_REG_CORE_OFFSET);
 			__raw_writel(__raw_readl(MXC_CCM_CCR) | MXC_CCM_CCR_RBC_EN, MXC_CCM_CCR);
