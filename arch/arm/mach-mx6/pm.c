@@ -11,6 +11,7 @@
  * http://www.gnu.org/copyleft/gpl.html
  */
 #include <linux/module.h>
+#include <linux/delay.h>
 #include <linux/init.h>
 #include <linux/io.h>
 #include <linux/kernel.h>
@@ -46,6 +47,7 @@
 #define GPC_ISR2_OFFSET				0x1c
 #define GPC_ISR3_OFFSET				0x20
 #define GPC_ISR4_OFFSET				0x24
+#define GPC_CNTR_OFFSET				0x0
 #define GPC_PGC_GPU_PGCR_OFFSET		0x260
 #define GPC_PGC_CPU_PDN_OFFSET		0x2a0
 #define GPC_PGC_CPU_PUPSCR_OFFSET	0x2a4
@@ -87,8 +89,51 @@ static void (*suspend_in_iram)(suspend_state_t state,
 static unsigned long iram_paddr, cpaddr;
 
 static u32 ccm_ccr, ccm_clpcr, scu_ctrl;
-static u32 gpc_imr[4], gpc_cpu_pup, gpc_cpu_pdn, gpc_cpu, gpc_gpu_pgcr;
-static u32 anatop[2];
+static u32 gpc_imr[4], gpc_cpu_pup, gpc_cpu_pdn, gpc_cpu, gpc_ctr;
+static u32 anatop[2], ccgr1, ccgr6;
+
+static void gpu_power_down(void)
+{
+	int reg;
+
+	/* enable power down request */
+	reg = __raw_readl(gpc_base + GPC_PGC_GPU_PGCR_OFFSET);
+	__raw_writel(reg | 0x1, gpc_base + GPC_PGC_GPU_PGCR_OFFSET);
+	/* power down request */
+	reg = __raw_readl(gpc_base + GPC_CNTR_OFFSET);
+	__raw_writel(reg | 0x1, gpc_base + GPC_CNTR_OFFSET);
+	/* disable clocks */
+	__raw_writel(ccgr1 & 0xf0ffffff, MXC_CCM_CCGR1);
+	__raw_writel(ccgr6 & 0x00003fff, MXC_CCM_CCGR6);
+	/* power off pu */
+	reg = __raw_readl(anatop_base + ANATOP_REG_CORE_OFFSET);
+	reg &= ~0x0003fe00;
+	__raw_writel(reg, anatop_base + ANATOP_REG_CORE_OFFSET);
+}
+
+static void gpu_power_up(void)
+{
+	int reg;
+	/* power on pu */
+	reg = __raw_readl(anatop_base + ANATOP_REG_CORE_OFFSET);
+	reg &= ~0x0003fe00;
+	reg |= 0x10 << 9; /* 1.1v */
+	__raw_writel(reg, anatop_base + ANATOP_REG_CORE_OFFSET);
+	mdelay(10);
+
+	/* enable clocks */
+	__raw_writel(ccgr1 | 0x0f000000, MXC_CCM_CCGR1);
+	__raw_writel(ccgr6 | 0x0000c000, MXC_CCM_CCGR6);
+
+	/* enable power up request */
+	reg = __raw_readl(gpc_base + GPC_PGC_GPU_PGCR_OFFSET);
+	__raw_writel(reg | 0x1, gpc_base + GPC_PGC_GPU_PGCR_OFFSET);
+	/* power up request */
+	reg = __raw_readl(gpc_base + GPC_CNTR_OFFSET);
+	__raw_writel(reg | 0x2, gpc_base + GPC_CNTR_OFFSET);
+	udelay(10);
+}
+
 
 
 static void mx6_suspend_store(void)
@@ -96,6 +141,8 @@ static void mx6_suspend_store(void)
 	/* save some settings before suspend */
 	ccm_ccr = __raw_readl(MXC_CCM_CCR);
 	ccm_clpcr = __raw_readl(MXC_CCM_CLPCR);
+	ccgr1 = __raw_readl(MXC_CCM_CCGR1);
+	ccgr6 = __raw_readl(MXC_CCM_CCGR6);
 	scu_ctrl = __raw_readl(scu_base + SCU_CTRL_OFFSET);
 	gpc_imr[0] = __raw_readl(gpc_base + GPC_IMR1_OFFSET);
 	gpc_imr[1] = __raw_readl(gpc_base + GPC_IMR2_OFFSET);
@@ -104,7 +151,7 @@ static void mx6_suspend_store(void)
 	gpc_cpu_pup = __raw_readl(gpc_base + GPC_PGC_CPU_PUPSCR_OFFSET);
 	gpc_cpu_pdn = __raw_readl(gpc_base + GPC_PGC_CPU_PDNSCR_OFFSET);
 	gpc_cpu = __raw_readl(gpc_base + GPC_PGC_CPU_PDN_OFFSET);
-	gpc_gpu_pgcr = __raw_readl(gpc_base + GPC_PGC_GPU_PGCR_OFFSET);
+	gpc_ctr = __raw_readl(gpc_base + GPC_CNTR_OFFSET);
 	anatop[0] = __raw_readl(anatop_base + ANATOP_REG_2P5_OFFSET);
 	anatop[1] = __raw_readl(anatop_base + ANATOP_REG_CORE_OFFSET);
 }
@@ -112,6 +159,9 @@ static void mx6_suspend_store(void)
 static void mx6_suspend_restore(void)
 {
 	/* restore settings after suspend */
+	__raw_writel(anatop[0], anatop_base + ANATOP_REG_2P5_OFFSET);
+	__raw_writel(anatop[1], anatop_base + ANATOP_REG_CORE_OFFSET);
+	udelay(50);
 	__raw_writel(ccm_ccr, MXC_CCM_CCR);
 	__raw_writel(ccm_clpcr, MXC_CCM_CLPCR);
 	__raw_writel(scu_ctrl, scu_base + SCU_CTRL_OFFSET);
@@ -122,9 +172,9 @@ static void mx6_suspend_restore(void)
 	__raw_writel(gpc_cpu_pup, gpc_base + GPC_PGC_CPU_PUPSCR_OFFSET);
 	__raw_writel(gpc_cpu_pdn, gpc_base + GPC_PGC_CPU_PDNSCR_OFFSET);
 	__raw_writel(gpc_cpu, gpc_base + GPC_PGC_CPU_PDN_OFFSET);
-	__raw_writel(gpc_gpu_pgcr, gpc_base + GPC_PGC_GPU_PGCR_OFFSET);
-	__raw_writel(anatop[0], anatop_base + ANATOP_REG_2P5_OFFSET);
-	__raw_writel(anatop[1], anatop_base + ANATOP_REG_CORE_OFFSET);
+
+	__raw_writel(ccgr1, MXC_CCM_CCGR1);
+	__raw_writel(ccgr6, MXC_CCM_CCGR6);
 }
 
 static int mx6_suspend_enter(suspend_state_t state)
@@ -149,11 +199,11 @@ static int mx6_suspend_enter(suspend_state_t state)
 				wake_irq_isr[2], wake_irq_isr[3]);
 		return 0;
 	}
-
 	mx6_suspend_store();
 
 	switch (state) {
 	case PM_SUSPEND_MEM:
+		gpu_power_down();
 		mxc_cpu_lp_set(ARM_POWER_OFF);
 		break;
 	case PM_SUSPEND_STANDBY:
@@ -183,6 +233,7 @@ static int mx6_suspend_enter(suspend_state_t state)
 			/* restore gic registers */
 			restore_gic_dist_state(0, &gds);
 			restore_gic_cpu_state(0, &gcs);
+			gpu_power_up();
 		}
 		mx6_suspend_restore();
 
