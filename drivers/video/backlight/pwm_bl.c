@@ -67,7 +67,10 @@ static int pwm_backlight_check_fb(struct backlight_device *bl,
 					struct fb_info *info)
 {
 	char *id = info->fix.id;
-	if (!strcmp(id, "DISP3 BG"))
+	if (!strcmp(id, "DISP3 BG") ||
+		!strcmp(id, "DISP3 BG - DI1") ||
+		!strcmp(id, "DISP4 BG") ||
+		!strcmp(id, "DISP4 BG - DI1"))
 	    return 1;
 	else
 	return 0;
