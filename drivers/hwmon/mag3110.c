@@ -74,6 +74,7 @@ struct mag3110_data {
 	struct device *hwmon_dev;
 	wait_queue_head_t waitq;
 	bool data_ready;
+	bool stop_polling;
 	u8 ctl_reg1;
 };
 
@@ -186,7 +187,8 @@ static void report_abs(void)
 
 static void mag3110_dev_poll(struct input_polled_dev *dev)
 {
-	report_abs();
+	if (!mag3110_pdata->stop_polling)
+		report_abs();
 }
 
 static irqreturn_t mag3110_irq_handler(int irq, void *dev_id)
@@ -340,6 +342,7 @@ static int __devinit mag3110_probe(struct i2c_client *client,
 	init_waitqueue_head(&data->waitq);
 
 	data->hwmon_dev = hwmon_device_register(&client->dev);
+	data->stop_polling = false;
 	if (IS_ERR(data->hwmon_dev)) {
 		dev_err(&client->dev, "hwmon register failed!\n");
 		ret = PTR_ERR(data->hwmon_dev);
@@ -400,17 +403,28 @@ error_kfree:
 	return ret;
 }
 
+static int mag3110_stop_chip(struct i2c_client *client)
+{
+	u8 tmp;
+	tmp = mag3110_read_reg(client, MAG3110_CTRL_REG1);
+	return mag3110_write_reg(client,
+				 MAG3110_CTRL_REG1,
+				 tmp & ~MAG3110_AC_MASK);
+}
+
+static void mag3110_shutdown(struct i2c_client *client)
+{
+	mag3110_pdata->stop_polling = true;
+	mag3110_stop_chip(client);
+}
+
 static int __devexit mag3110_remove(struct i2c_client *client)
 {
 	struct mag3110_data *data;
 	int ret;
 
 	data = i2c_get_clientdata(client);
-
-	data->ctl_reg1 = mag3110_read_reg(client, MAG3110_CTRL_REG1);
-	ret = mag3110_write_reg(client, MAG3110_CTRL_REG1,
-				    data->ctl_reg1 & ~MAG3110_AC_MASK);
-
+	ret = mag3110_stop_chip(client);
 	free_irq(client->irq, data);
 	input_unregister_polled_device(data->poll_dev);
 	input_free_polled_device(data->poll_dev);
@@ -470,6 +484,7 @@ static struct i2c_driver mag3110_driver = {
 	.resume = mag3110_resume,
 	.probe = mag3110_probe,
 	.remove = __devexit_p(mag3110_remove),
+	.shutdown = mag3110_shutdown,
 	.id_table = mag3110_id,
 };
 

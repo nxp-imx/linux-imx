@@ -117,6 +117,7 @@ enum {
 struct mma8451_status {
 	u8 mode;
 	u8 ctl_reg1;
+	bool stop_poll;
 };
 
 static struct mma8451_status mma_status;
@@ -213,6 +214,8 @@ out:
 
 static void mma8451_dev_poll(struct input_polled_dev *dev)
 {
+	if (!mma_status.stop_poll)
+		report_abs();
 	report_abs();
 }
 
@@ -224,6 +227,8 @@ static int __devinit mma8451_probe(struct i2c_client *client,
 	struct i2c_adapter *adapter;
 
 	mma8451_i2c_client = client;
+	mma_status.stop_poll = false;
+
 	adapter = to_i2c_adapter(client->dev.parent);
 	result = i2c_check_functionality(adapter,
 					 I2C_FUNC_SMBUS_BYTE |
@@ -308,6 +313,21 @@ static int __devexit mma8451_remove(struct i2c_client *client)
 	return ret;
 }
 
+void mma8451_shutdown(struct i2c_client *client)
+{
+       int ret;
+
+       /* first, stop polling since this chip will pull sda low if
+	* reboot during poweroff/reboot, add stop function here to
+	* prevent this
+	*/
+       mma_status.stop_poll = true;
+
+       ret = mma8451_stop_chip(client);
+       if (ret < 0)
+		dev_err(&client->dev, "stop chip failed:%d\n", ret);
+}
+
 #ifdef CONFIG_PM_SLEEP
 static int mma8451_suspend(struct device *dev)
 {
@@ -339,6 +359,7 @@ static struct i2c_driver mma8451_driver = {
 		   },
 	.probe = mma8451_probe,
 	.remove = __devexit_p(mma8451_remove),
+	.shutdown = mma8451_shutdown,
 	.id_table = mma8451_id,
 };
 

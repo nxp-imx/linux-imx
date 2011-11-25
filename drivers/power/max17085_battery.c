@@ -358,12 +358,21 @@ static int max17085_bat_remove(struct platform_device *pdev)
 	return 0;
 }
 
+static void max17085_bat_shutdown(struct platform_device *pdev)
+{
+       struct max17085_chip *chip = platform_get_drvdata(pdev);
+
+       cancel_delayed_work_sync(&chip->work);
+}
+
 static struct platform_driver max17085_bat_driver = {
 	.driver = {
 		   .name = "max17085_bat",
 		   },
 	.probe = max17085_bat_probe,
 	.remove = max17085_bat_remove,
+	.shutdown = max17085_bat_shutdown,
+
 };
 
 static int __devinit max17085_bat_init(void)
