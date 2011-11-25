@@ -925,7 +925,6 @@ static struct android_pmem_platform_data android_pmem_data = {
 static struct android_pmem_platform_data android_pmem_gpu_data = {
        .name = "pmem_gpu",
        .size = SZ_128M,
-       .cached = 1,
 };
 
 static struct fsl_mxc_hdmi_platform_data hdmi_data = {
