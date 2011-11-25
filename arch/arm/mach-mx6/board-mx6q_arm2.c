@@ -1585,22 +1585,21 @@ static void __init mx6q_reserve(void)
 		memblock_remove(phys, imx6q_gpu_pdata.reserved_mem_size);
 		imx6q_gpu_pdata.reserved_mem_base = phys;
 	}
-
+#ifdef CONFIG_ANDROID_PMEM
 	if (android_pmem_data.size) {
-		phys = memblock_alloc_base(android_pmem_data.size,
-					   SZ_4K, SZ_2G);
+		phys = memblock_alloc(android_pmem_data.size, SZ_4K);
 		memblock_free(phys, android_pmem_data.size);
 		memblock_remove(phys, android_pmem_data.size);
 		android_pmem_data.start = phys;
 	}
 
 	if (android_pmem_gpu_data.size) {
-		phys = memblock_alloc_base(android_pmem_gpu_data.size,
-					   SZ_4K, SZ_2G);
+		phys = memblock_alloc(android_pmem_gpu_data.size, SZ_4K);
 		memblock_free(phys, android_pmem_gpu_data.size);
 		memblock_remove(phys, android_pmem_gpu_data.size);
 		android_pmem_gpu_data.start = phys;
 	}
+#endif
 }
 
 /*
