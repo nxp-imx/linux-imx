@@ -104,6 +104,8 @@
 #define MX6Q_SMD_CSI0_RST		IMX_GPIO_NR(4, 5)
 #define MX6Q_SMD_CSI0_PWN		IMX_GPIO_NR(5, 23)
 
+#define BMCR_PDOWN      	0x0800 /* PHY Powerdown */
+
 void __init early_console_setup(unsigned long base, struct clk *clk);
 static struct clk *sata_clk;
 static int esai_record;
@@ -506,6 +508,10 @@ static int mx6q_arm2_fec_phy_init(struct phy_device *phydev)
 	val |= 0x0100;
 	phy_write(phydev, 0x1e, val);
 
+	/*check phy power*/
+	val = phy_read(phydev, 0x0);
+	if (val & BMCR_PDOWN)
+		phy_write(phydev, 0x0, (val & ~BMCR_PDOWN));
 	return 0;
 }
 
