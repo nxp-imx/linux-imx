@@ -21,6 +21,7 @@
 #include <linux/dma-mapping.h>
 #include <linux/fb.h>
 #include <linux/ipu.h>
+#include <mach/mipi_csi2.h>
 #include "mxc_v4l2_capture.h"
 #include "ipu_prp_sw.h"
 
@@ -87,6 +88,11 @@ static int prpvf_start(void *private)
 	u32 offset;
 	u32 bpp, size = 3;
 	int err = 0;
+#ifdef CONFIG_MXC_MIPI_CSI2
+	void *mipi_csi2_info;
+	int ipu_id;
+	int csi_id;
+#endif
 
 	if (!cam) {
 		printk(KERN_ERR "private is NULL\n");
@@ -136,6 +142,39 @@ static int prpvf_start(void *private)
 	}
 	vf.csi_prp_vf_mem.out_pixel_fmt = format;
 	size = cam->win.w.width * cam->win.w.height * size;
+
+#ifdef CONFIG_MXC_MIPI_CSI2
+	mipi_csi2_info = mipi_csi2_get_info();
+
+	if (mipi_csi2_info) {
+		if (mipi_csi2_get_status(mipi_csi2_info)) {
+			ipu_id = mipi_csi2_get_bind_ipu(mipi_csi2_info);
+			csi_id = mipi_csi2_get_bind_csi(mipi_csi2_info);
+
+			if (cam->ipu == ipu_get_soc(ipu_id)
+				&& cam->csi == csi_id) {
+				vf.csi_prp_vf_mem.mipi_en = true;
+				vf.csi_prp_vf_mem.mipi_vc =
+				mipi_csi2_get_virtual_channel(mipi_csi2_info);
+				vf.csi_prp_vf_mem.mipi_id =
+				mipi_csi2_get_datatype(mipi_csi2_info);
+
+				mipi_csi2_pixelclk_enable(mipi_csi2_info);
+			} else {
+				vf.csi_prp_vf_mem.mipi_en = false;
+				vf.csi_prp_vf_mem.mipi_vc = 0;
+				vf.csi_prp_vf_mem.mipi_id = 0;
+			}
+		} else {
+			vf.csi_prp_vf_mem.mipi_en = false;
+			vf.csi_prp_vf_mem.mipi_vc = 0;
+			vf.csi_prp_vf_mem.mipi_id = 0;
+		}
+	} else {
+		printk(KERN_ERR "Fail to get mipi_csi2_info!\n");
+		return -EPERM;
+	}
+#endif
 
 	err = ipu_init_channel(cam->ipu, CSI_PRP_VF_MEM, &vf);
 	if (err != 0)
@@ -304,6 +343,11 @@ static int prpvf_start(void *private)
 static int prpvf_stop(void *private)
 {
 	cam_data *cam = (cam_data *) private;
+#ifdef CONFIG_MXC_MIPI_CSI2
+	void *mipi_csi2_info;
+	int ipu_id;
+	int csi_id;
+#endif
 
 	if (cam->overlay_active == false)
 		return 0;
@@ -316,6 +360,25 @@ static int prpvf_stop(void *private)
 	ipu_disable_channel(cam->ipu, MEM_ROT_VF_MEM, true);
 	ipu_uninit_channel(cam->ipu, CSI_PRP_VF_MEM);
 	ipu_uninit_channel(cam->ipu, MEM_ROT_VF_MEM);
+
+#ifdef CONFIG_MXC_MIPI_CSI2
+	mipi_csi2_info = mipi_csi2_get_info();
+
+	if (mipi_csi2_info) {
+		if (mipi_csi2_get_status(mipi_csi2_info)) {
+			ipu_id = mipi_csi2_get_bind_ipu(mipi_csi2_info);
+			csi_id = mipi_csi2_get_bind_csi(mipi_csi2_info);
+
+			if (cam->ipu == ipu_get_soc(ipu_id)
+				&& cam->csi == csi_id)
+				mipi_csi2_pixelclk_disable(mipi_csi2_info);
+		}
+	} else {
+		printk(KERN_ERR "Fail to get mipi_csi2_info!\n");
+		return -EPERM;
+	}
+#endif
+
 	ipu_csi_enable_mclk_if(cam->ipu, CSI_MCLK_VF, cam->csi, false, false);
 
 	if (cam->vf_bufs_vaddr[0]) {

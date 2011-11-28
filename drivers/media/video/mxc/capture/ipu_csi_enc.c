@@ -131,15 +131,34 @@ static int csi_enc_setup(cam_data *cam)
 
 #ifdef CONFIG_MXC_MIPI_CSI2
 	mipi_csi2_info = mipi_csi2_get_info();
-	ipu_id = mipi_csi2_get_bind_ipu(mipi_csi2_info);
-	csi_id = mipi_csi2_get_bind_csi(mipi_csi2_info);
 
-	if (cam->ipu == ipu_get_soc(ipu_id) && cam->csi == csi_id) {
-		params.csi_mem.mipi_en = true;
-		params.csi_mem.mipi_vc = mipi_csi2_get_virtual_channel(mipi_csi2_info);
-		params.csi_mem.mipi_id = mipi_csi2_get_datatype(mipi_csi2_info);
+	if (mipi_csi2_info) {
+		if (mipi_csi2_get_status(mipi_csi2_info)) {
+			ipu_id = mipi_csi2_get_bind_ipu(mipi_csi2_info);
+			csi_id = mipi_csi2_get_bind_csi(mipi_csi2_info);
 
-		mipi_csi2_pixelclk_enable(mipi_csi2_info);
+			if (cam->ipu == ipu_get_soc(ipu_id)
+				&& cam->csi == csi_id) {
+				params.csi_mem.mipi_en = true;
+				params.csi_mem.mipi_vc =
+				mipi_csi2_get_virtual_channel(mipi_csi2_info);
+				params.csi_mem.mipi_id =
+				mipi_csi2_get_datatype(mipi_csi2_info);
+
+				mipi_csi2_pixelclk_enable(mipi_csi2_info);
+			} else {
+				params.csi_mem.mipi_en = false;
+				params.csi_mem.mipi_vc = 0;
+				params.csi_mem.mipi_id = 0;
+			}
+		} else {
+			params.csi_mem.mipi_en = false;
+			params.csi_mem.mipi_vc = 0;
+			params.csi_mem.mipi_id = 0;
+		}
+	} else {
+		printk(KERN_ERR "Fail to get mipi_csi2_info!\n");
+		return -EPERM;
 	}
 #endif
 
@@ -275,13 +294,23 @@ static int csi_enc_disabling_tasks(void *private)
 				  cam->dummy_frame.paddress);
 		cam->dummy_frame.vaddress = 0;
 	}
+
 #ifdef CONFIG_MXC_MIPI_CSI2
 	mipi_csi2_info = mipi_csi2_get_info();
-	ipu_id = mipi_csi2_get_bind_ipu(mipi_csi2_info);
-	csi_id = mipi_csi2_get_bind_csi(mipi_csi2_info);
 
-	if (cam->ipu == ipu_get_soc(ipu_id) && cam->csi == csi_id)
-		mipi_csi2_pixelclk_disable(mipi_csi2_info);
+	if (mipi_csi2_info) {
+		if (mipi_csi2_get_status(mipi_csi2_info)) {
+			ipu_id = mipi_csi2_get_bind_ipu(mipi_csi2_info);
+			csi_id = mipi_csi2_get_bind_csi(mipi_csi2_info);
+
+			if (cam->ipu == ipu_get_soc(ipu_id)
+				&& cam->csi == csi_id)
+				mipi_csi2_pixelclk_disable(mipi_csi2_info);
+		}
+	} else {
+		printk(KERN_ERR "Fail to get mipi_csi2_info!\n");
+		return -EPERM;
+	}
 #endif
 
 	ipu_csi_enable_mclk_if(cam->ipu, CSI_MCLK_ENC, cam->csi, false, false);
