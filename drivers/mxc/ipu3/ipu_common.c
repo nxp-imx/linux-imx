@@ -688,9 +688,16 @@ int32_t ipu_init_channel(struct ipu_soc *ipu, ipu_channel_t channel, ipu_channel
 		ipu->ic_use_count++;
 		ipu->csi_channel[params->csi_prp_enc_mem.csi] = channel;
 
-		/*Without SMFC, CSI only support parallel data source*/
-		ipu_conf &= ~(1 << (IPU_CONF_CSI0_DATA_SOURCE_OFFSET +
-			params->csi_prp_enc_mem.csi));
+		if (params->csi_prp_enc_mem.mipi_en) {
+			ipu_conf |= (1 << (IPU_CONF_CSI0_DATA_SOURCE_OFFSET +
+				params->csi_prp_enc_mem.csi));
+			_ipu_csi_set_mipi_di(ipu,
+				params->csi_prp_enc_mem.mipi_vc,
+				params->csi_prp_enc_mem.mipi_id,
+				params->csi_prp_enc_mem.csi);
+		} else
+			ipu_conf &= ~(1 << (IPU_CONF_CSI0_DATA_SOURCE_OFFSET +
+				params->csi_prp_enc_mem.csi));
 
 		/*CSI0/1 feed into IC*/
 		ipu_conf &= ~IPU_CONF_IC_INPUT;
@@ -721,9 +728,16 @@ int32_t ipu_init_channel(struct ipu_soc *ipu, ipu_channel_t channel, ipu_channel
 		ipu->ic_use_count++;
 		ipu->csi_channel[params->csi_prp_vf_mem.csi] = channel;
 
-		/*Without SMFC, CSI only support parallel data source*/
-		ipu_conf &= ~(1 << (IPU_CONF_CSI0_DATA_SOURCE_OFFSET +
-			params->csi_prp_vf_mem.csi));
+		if (params->csi_prp_vf_mem.mipi_en) {
+			ipu_conf |= (1 << (IPU_CONF_CSI0_DATA_SOURCE_OFFSET +
+				params->csi_prp_vf_mem.csi));
+			_ipu_csi_set_mipi_di(ipu,
+				params->csi_prp_vf_mem.mipi_vc,
+				params->csi_prp_vf_mem.mipi_id,
+				params->csi_prp_vf_mem.csi);
+		} else
+			ipu_conf &= ~(1 << (IPU_CONF_CSI0_DATA_SOURCE_OFFSET +
+				params->csi_prp_vf_mem.csi));
 
 		/*CSI0/1 feed into IC*/
 		ipu_conf &= ~IPU_CONF_IC_INPUT;

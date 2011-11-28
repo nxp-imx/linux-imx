@@ -17,6 +17,9 @@
  */
 
 #include <linux/types.h>
+#include <linux/interrupt.h>
+#include <linux/irq.h>
+#include <linux/irqdesc.h>
 #include <linux/init.h>
 #include <linux/platform_device.h>
 #include <linux/err.h>
@@ -24,14 +27,10 @@
 #include <linux/console.h>
 #include <linux/io.h>
 #include <linux/bitops.h>
-#include <linux/ipu.h>
-#include <linux/mxcfb.h>
-#include <linux/regulator/consumer.h>
-#include <linux/backlight.h>
-#include <linux/spinlock.h>
 #include <linux/delay.h>
 #include <linux/fsl_devices.h>
 
+#include <mach/devices-common.h>
 #include <mach/hardware.h>
 #include <mach/clock.h>
 #include <mach/mipi_csi2.h>
@@ -39,6 +38,18 @@
 #include "mxc_mipi_csi2.h"
 
 static struct mipi_csi2_info *gmipi_csi2;
+
+void _mipi_csi2_lock(struct mipi_csi2_info *info)
+{
+	if (!in_irq() && !in_softirq())
+		mutex_lock(&info->mutex_lock);
+}
+
+void _mipi_csi2_unlock(struct mipi_csi2_info *info)
+{
+	if (!in_irq() && !in_softirq())
+		mutex_unlock(&info->mutex_lock);
+}
 
 static inline void mipi_csi2_write(struct mipi_csi2_info *info, unsigned value, unsigned offset)
 {
@@ -51,6 +62,76 @@ static inline unsigned int mipi_csi2_read(struct mipi_csi2_info *info, unsigned 
 }
 
 /*!
+ * This function is called to enable the mipi csi2 interface.
+ *
+ * @param	info		mipi csi2 hander
+ * @return      Returns setted value
+ */
+bool mipi_csi2_enable(struct mipi_csi2_info *info)
+{
+	bool status;
+
+	_mipi_csi2_lock(info);
+
+	if (!info->mipi_en) {
+		info->mipi_en = true;
+		clk_enable(info->dphy_clk);
+	} else
+		mipi_dbg("mipi csi2 already enabled!\n");
+
+	status = info->mipi_en;
+
+	_mipi_csi2_unlock(info);
+
+	return status;
+}
+EXPORT_SYMBOL(mipi_csi2_enable);
+
+/*!
+ * This function is called to disable the mipi csi2 interface.
+ *
+ * @param	info		mipi csi2 hander
+ * @return      Returns setted value
+ */
+bool mipi_csi2_disable(struct mipi_csi2_info *info)
+{
+	bool status;
+
+	_mipi_csi2_lock(info);
+
+	if (info->mipi_en) {
+		info->mipi_en = false;
+		clk_disable(info->dphy_clk);
+	} else
+		mipi_dbg("mipi csi2 already disabled!\n");
+
+	status = info->mipi_en;
+
+	_mipi_csi2_unlock(info);
+
+	return status;
+}
+EXPORT_SYMBOL(mipi_csi2_disable);
+
+/*!
+ * This function is called to get mipi csi2 disable/enable status.
+ *
+ * @param	info		mipi csi2 hander
+ * @return      Returns mipi csi2 status
+ */
+bool mipi_csi2_get_status(struct mipi_csi2_info *info)
+{
+	bool status;
+
+	_mipi_csi2_lock(info);
+	status = info->mipi_en;
+	_mipi_csi2_unlock(info);
+
+	return status;
+}
+EXPORT_SYMBOL(mipi_csi2_get_status);
+
+/*!
  * This function is called to set mipi lanes.
  *
  * @param	info		mipi csi2 hander
@@ -58,9 +139,14 @@ static inline unsigned int mipi_csi2_read(struct mipi_csi2_info *info, unsigned 
  */
 unsigned int mipi_csi2_set_lanes(struct mipi_csi2_info *info)
 {
-	mipi_csi2_write(info, info->lanes - 1, CSI2_N_LANES);
+	unsigned int lanes;
 
-	return mipi_csi2_read(info, CSI2_N_LANES);
+	_mipi_csi2_lock(info);
+	mipi_csi2_write(info, info->lanes - 1, CSI2_N_LANES);
+	lanes = mipi_csi2_read(info, CSI2_N_LANES);
+	_mipi_csi2_unlock(info);
+
+	return lanes;
 }
 EXPORT_SYMBOL(mipi_csi2_set_lanes);
 
@@ -71,11 +157,16 @@ EXPORT_SYMBOL(mipi_csi2_set_lanes);
  * @return      Returns setted value
  */
 unsigned int mipi_csi2_set_datatype(struct mipi_csi2_info *info,
-										unsigned int datatype)
+					unsigned int datatype)
 {
-	info->datatype = datatype;
+	unsigned int dtype;
 
-	return info->datatype;
+	_mipi_csi2_lock(info);
+	info->datatype = datatype;
+	dtype = info->datatype;
+	_mipi_csi2_unlock(info);
+
+	return dtype;
 }
 EXPORT_SYMBOL(mipi_csi2_set_datatype);
 
@@ -87,7 +178,13 @@ EXPORT_SYMBOL(mipi_csi2_set_datatype);
  */
 unsigned int mipi_csi2_get_datatype(struct mipi_csi2_info *info)
 {
-	return info->datatype;
+	unsigned int dtype;
+
+	_mipi_csi2_lock(info);
+	dtype = info->datatype;
+	_mipi_csi2_unlock(info);
+
+	return dtype;
 }
 EXPORT_SYMBOL(mipi_csi2_get_datatype);
 
@@ -99,7 +196,13 @@ EXPORT_SYMBOL(mipi_csi2_get_datatype);
  */
 unsigned int mipi_csi2_dphy_status(struct mipi_csi2_info *info)
 {
-	return mipi_csi2_read(info, CSI2_PHY_STATE);
+	unsigned int status;
+
+	_mipi_csi2_lock(info);
+	status = mipi_csi2_read(info, CSI2_PHY_STATE);
+	_mipi_csi2_unlock(info);
+
+	return status;
 }
 EXPORT_SYMBOL(mipi_csi2_dphy_status);
 
@@ -111,7 +214,13 @@ EXPORT_SYMBOL(mipi_csi2_dphy_status);
  */
 unsigned int mipi_csi2_get_error1(struct mipi_csi2_info *info)
 {
-	return mipi_csi2_read(info, CSI2_ERR1);
+	unsigned int err1;
+
+	_mipi_csi2_lock(info);
+	err1 = mipi_csi2_read(info, CSI2_ERR1);
+	_mipi_csi2_unlock(info);
+
+	return err1;
 }
 EXPORT_SYMBOL(mipi_csi2_get_error1);
 
@@ -123,7 +232,13 @@ EXPORT_SYMBOL(mipi_csi2_get_error1);
  */
 unsigned int mipi_csi2_get_error2(struct mipi_csi2_info *info)
 {
-	return mipi_csi2_read(info, CSI2_ERR2);
+	unsigned int err2;
+
+	_mipi_csi2_lock(info);
+	err2 = mipi_csi2_read(info, CSI2_ERR2);
+	_mipi_csi2_unlock(info);
+
+	return err2;
 }
 EXPORT_SYMBOL(mipi_csi2_get_error2);
 
@@ -159,6 +274,8 @@ EXPORT_SYMBOL(mipi_csi2_pixelclk_disable);
  */
 int mipi_csi2_reset(struct mipi_csi2_info *info)
 {
+	_mipi_csi2_lock(info);
+
 	mipi_csi2_write(info, 0x0, CSI2_PHY_SHUTDOWNZ);
 	mipi_csi2_write(info, 0x0, CSI2_DPHY_RSTZ);
 	mipi_csi2_write(info, 0x0, CSI2_RESETN);
@@ -176,6 +293,8 @@ int mipi_csi2_reset(struct mipi_csi2_info *info)
 	mipi_csi2_write(info, 0xffffffff, CSI2_PHY_SHUTDOWNZ);
 	mipi_csi2_write(info, 0xffffffff, CSI2_DPHY_RSTZ);
 	mipi_csi2_write(info, 0xffffffff, CSI2_RESETN);
+
+	_mipi_csi2_unlock(info);
 
 	return 0;
 }
@@ -199,7 +318,13 @@ EXPORT_SYMBOL(mipi_csi2_get_info);
  */
 int mipi_csi2_get_bind_ipu(struct mipi_csi2_info *info)
 {
-	return info->ipu_id;
+	int ipu_id;
+
+	_mipi_csi2_lock(info);
+	ipu_id = info->ipu_id;
+	_mipi_csi2_unlock(info);
+
+	return ipu_id;
 }
 EXPORT_SYMBOL(mipi_csi2_get_bind_ipu);
 
@@ -210,7 +335,13 @@ EXPORT_SYMBOL(mipi_csi2_get_bind_ipu);
  */
 unsigned int mipi_csi2_get_bind_csi(struct mipi_csi2_info *info)
 {
-	return info->csi_id;
+	unsigned int csi_id;
+
+	_mipi_csi2_lock(info);
+	csi_id = info->csi_id;
+	_mipi_csi2_unlock(info);
+
+	return csi_id;
 }
 EXPORT_SYMBOL(mipi_csi2_get_bind_csi);
 
@@ -221,7 +352,13 @@ EXPORT_SYMBOL(mipi_csi2_get_bind_csi);
  */
 unsigned int mipi_csi2_get_virtual_channel(struct mipi_csi2_info *info)
 {
-	return info->v_channel;
+	unsigned int v_channel;
+
+	_mipi_csi2_lock(info);
+	v_channel = info->v_channel;
+	_mipi_csi2_unlock(info);
+
+	return v_channel;
 }
 EXPORT_SYMBOL(mipi_csi2_get_virtual_channel);
 
@@ -254,8 +391,12 @@ static int mipi_csi2_probe(struct platform_device *pdev)
 		goto alloc_failed;
 	}
 
+	/* initialize mutex */
+	mutex_init(&gmipi_csi2->mutex_lock);
+
 	/* get mipi csi2 informaiton */
 	gmipi_csi2->pdev = pdev;
+	gmipi_csi2->mipi_en = false;
 	gmipi_csi2->ipu_id = plat_data->ipu_id;
 	gmipi_csi2->csi_id = plat_data->csi_id;
 	gmipi_csi2->v_channel = plat_data->v_channel;
@@ -295,6 +436,8 @@ static int mipi_csi2_probe(struct platform_device *pdev)
 	/* get mipi csi2 dphy version */
 	mipi_csi2_dphy_ver = mipi_csi2_read(gmipi_csi2, CSI2_VERSION);
 
+	clk_disable(gmipi_csi2->dphy_clk);
+
 	platform_set_drvdata(pdev, gmipi_csi2);
 
 	dev_info(&pdev->dev, "i.MX MIPI CSI2 driver probed\n");
@@ -320,7 +463,6 @@ static int __devexit mipi_csi2_remove(struct platform_device *pdev)
 	iounmap(gmipi_csi2->mipi_csi2_base);
 
 	/* disable mipi dphy clk */
-	clk_disable(gmipi_csi2->dphy_clk);
 	clk_put(gmipi_csi2->dphy_clk);
 
 	clk_put(gmipi_csi2->pixel_clk);
@@ -360,7 +502,7 @@ static void __exit mipi_csi2_cleanup(void)
 	platform_driver_unregister(&mipi_csi2_driver);
 }
 
-module_init(mipi_csi2_init);
+subsys_initcall(mipi_csi2_init);
 module_exit(mipi_csi2_cleanup);
 
 MODULE_AUTHOR("Freescale Semiconductor, Inc.");
