@@ -475,15 +475,26 @@ static int ov5640_init_mode(enum ov5640_frame_rate frame_rate,
 
 	/* initial mipi dphy */
 	if (mipi_csi2_info) {
-		mipi_csi2_set_lanes(mipi_csi2_info);
-		mipi_csi2_reset(mipi_csi2_info);
+		if (!mipi_csi2_get_status(mipi_csi2_info))
+			mipi_csi2_enable(mipi_csi2_info);
 
-		if (ov5640_data.pix.pixelformat == V4L2_PIX_FMT_YUYV)
-			mipi_csi2_set_datatype(mipi_csi2_info, MIPI_DT_YUV422);
-		else if (ov5640_data.pix.pixelformat == V4L2_PIX_FMT_RGB565)
-			mipi_csi2_set_datatype(mipi_csi2_info, MIPI_DT_RGB565);
-		else
-			pr_err("currently this sensor format can not be supported!\n");
+		if (mipi_csi2_get_status(mipi_csi2_info)) {
+			mipi_csi2_set_lanes(mipi_csi2_info);
+			mipi_csi2_reset(mipi_csi2_info);
+
+			if (ov5640_data.pix.pixelformat == V4L2_PIX_FMT_YUYV)
+				mipi_csi2_set_datatype(mipi_csi2_info, MIPI_DT_YUV422);
+			else if (ov5640_data.pix.pixelformat == V4L2_PIX_FMT_RGB565)
+				mipi_csi2_set_datatype(mipi_csi2_info, MIPI_DT_RGB565);
+			else
+				pr_err("currently this sensor format can not be supported!\n");
+		} else {
+			pr_err("Can not enable mipi csi2 driver!\n");
+			return -1;
+		}
+	} else {
+		printk(KERN_ERR "Fail to get mipi_csi2_info!\n");
+		return -1;
 	}
 
 	pModeSetting = ov5640_mode_info_data[frame_rate][mode].init_data_ptr;
@@ -522,15 +533,37 @@ static int ov5640_init_mode(enum ov5640_frame_rate frame_rate,
 	}
 
 	if (mipi_csi2_info) {
+		unsigned int i;
+
+		i = 0;
+
 		/* wait for mipi sensor ready */
 		mipi_reg = mipi_csi2_dphy_status(mipi_csi2_info);
-		while (mipi_reg == 0x200)
+		while ((mipi_reg == 0x200) && (i < 10)) {
 			mipi_reg = mipi_csi2_dphy_status(mipi_csi2_info);
+			i++;
+			msleep(10);
+		}
+
+		if (i >= 10) {
+			pr_err("mipi csi2 can not receive sensor clk!\n");
+			return -1;
+		}
+
+		i = 0;
 
 		/* wait for mipi stable */
 		mipi_reg = mipi_csi2_get_error1(mipi_csi2_info);
-		while (mipi_reg != 0x0)
+		while ((mipi_reg != 0x0) && (i < 10)) {
 			mipi_reg = mipi_csi2_get_error1(mipi_csi2_info);
+			i++;
+			msleep(10);
+		}
+
+		if (i >= 10) {
+			pr_err("mipi csi2 can not reveive data correctly!\n");
+			return -1;
+		}
 	}
 err:
 	return retval;
@@ -924,6 +957,7 @@ static int ioctl_dev_init(struct v4l2_int_device *s)
 	u32 tgt_fps;	/* target frames per secound */
 	int ret;
 	enum ov5640_frame_rate frame_rate;
+	void *mipi_csi2_info;
 
 	ov5640_data.on = true;
 
@@ -947,6 +981,16 @@ static int ioctl_dev_init(struct v4l2_int_device *s)
 	else
 		return -EINVAL; /* Only support 15fps or 30fps now. */
 
+	mipi_csi2_info = mipi_csi2_get_info();
+
+	/* enable mipi csi2 */
+	if (mipi_csi2_info)
+		mipi_csi2_enable(mipi_csi2_info);
+	else {
+		printk(KERN_ERR "Fail to get mipi_csi2_info!\n");
+		return -EPERM;
+	}
+
 	ret = ov5640_init_mode(frame_rate,
 				sensor->streamcap.capturemode);
 
@@ -961,6 +1005,15 @@ static int ioctl_dev_init(struct v4l2_int_device *s)
  */
 static int ioctl_dev_exit(struct v4l2_int_device *s)
 {
+	void *mipi_csi2_info;
+
+	mipi_csi2_info = mipi_csi2_get_info();
+
+	/* disable mipi csi2 */
+	if (mipi_csi2_info)
+		if (mipi_csi2_get_status(mipi_csi2_info))
+			mipi_csi2_disable(mipi_csi2_info);
+
 	return 0;
 }
 
@@ -1181,7 +1234,7 @@ module_init(ov5640_init);
 module_exit(ov5640_clean);
 
 MODULE_AUTHOR("Freescale Semiconductor, Inc.");
-MODULE_DESCRIPTION("OV5640 Camera Driver");
+MODULE_DESCRIPTION("OV5640 MIPI Camera Driver");
 MODULE_LICENSE("GPL");
 MODULE_VERSION("1.0");
 MODULE_ALIAS("CSI");
