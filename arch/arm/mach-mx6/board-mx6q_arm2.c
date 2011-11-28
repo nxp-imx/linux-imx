@@ -826,12 +826,23 @@ static int mx6q_arm2_sata_init(struct device *dev, void __iomem *addr)
 
 	sata_init(addr, tmpdata);
 
+	/* Release resources when there is no device on the port */
+	msleep(200);
+	if ((readl(addr + PORT_SATA_SR) & 0xF) == 0) {
+		dev_info(dev, "NO sata disk.\n");
+		ret = -ENODEV;
+		goto release_sata_clk;
+	}
+
 	return ret;
 
 release_sata_clk:
 	clk_disable(sata_clk);
 put_sata_clk:
 	clk_put(sata_clk);
+	/* Disable SATA PWR CTRL_0 of MAX7310 */
+	gpio_request(MX6Q_ARM2_MAX7310_1_BASE_ADDR, "SATA_PWR_EN");
+	gpio_direction_output(MX6Q_ARM2_MAX7310_1_BASE_ADDR, 0);
 
 	return ret;
 }
