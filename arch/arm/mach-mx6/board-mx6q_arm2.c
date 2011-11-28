@@ -877,19 +877,19 @@ static struct ipuv3_fb_platform_data sabr_fb_data[] = {
 	.disp_dev = "ldb",
 	.interface_pix_fmt = IPU_PIX_FMT_RGB666,
 	.mode_str = "LDB-XGA",
-	.default_bpp = 16,
+	.default_bpp = 32,
 	.int_clk = false,
 	}, {
 	.disp_dev = "lcd",
 	.interface_pix_fmt = IPU_PIX_FMT_RGB565,
 	.mode_str = "CLAA-WVGA",
-	.default_bpp = 16,
+	.default_bpp = 32,
 	.int_clk = false,
 	}, {
 	.disp_dev = "ldb",
 	.interface_pix_fmt = IPU_PIX_FMT_RGB666,
 	.mode_str = "LDB-XGA",
-	.default_bpp = 16,
+	.default_bpp = 32,
 	.int_clk = false,
 	},
 };
