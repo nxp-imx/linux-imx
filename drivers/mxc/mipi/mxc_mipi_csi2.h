@@ -28,15 +28,18 @@
 
 /* driver private data */
 struct mipi_csi2_info {
-	int				ipu_id;
+	bool		mipi_en;
+	int		ipu_id;
 	unsigned int	csi_id;
 	unsigned int	v_channel;
 	unsigned int	lanes;
 	unsigned int	datatype;
-	struct clk			*dphy_clk;
-	struct clk			*pixel_clk;
-	unsigned int		*mipi_csi2_base;
-	struct platform_device		*pdev;
+	struct clk	*dphy_clk;
+	struct clk	*pixel_clk;
+	unsigned int	*mipi_csi2_base;
+	struct platform_device	*pdev;
+
+	struct mutex mutex_lock;
 };
 
 #endif
