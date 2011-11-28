@@ -136,7 +136,12 @@ typedef union {
 		uint32_t out_width;
 		uint32_t out_height;
 		uint32_t out_pixel_fmt;
+		uint32_t outh_resize_ratio;
+		uint32_t outv_resize_ratio;
 		uint32_t csi;
+		uint32_t mipi_id;
+		uint32_t mipi_vc;
+		bool mipi_en;
 	} csi_prp_enc_mem;
 	struct {
 		uint32_t in_width;
@@ -163,10 +168,21 @@ typedef union {
 		uint32_t out_width;
 		uint32_t out_height;
 		uint32_t out_pixel_fmt;
+		uint32_t outh_resize_ratio;
+		uint32_t outv_resize_ratio;
 		bool graphics_combine_en;
 		bool global_alpha_en;
 		bool key_color_en;
+		uint32_t in_g_pixel_fmt;
+		uint8_t alpha;
+		uint32_t key_color;
+		bool alpha_chan_en;
+		ipu_motion_sel motion_sel;
+		enum v4l2_field field_fmt;
 		uint32_t csi;
+		uint32_t mipi_id;
+		uint32_t mipi_vc;
+		bool mipi_en;
 	} csi_prp_vf_mem;
 	struct {
 		uint32_t in_width;
