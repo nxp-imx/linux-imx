@@ -886,6 +886,7 @@ static void __init mx6_sabrelite_board_init(void)
 	mxc_iomux_v3_setup_multiple_pads(mx6q_sabrelite_pads,
 					ARRAY_SIZE(mx6q_sabrelite_pads));
 
+	gp_reg_id = sabrelite_dvfscore_data.reg_id;
 	mx6q_sabrelite_init_uart();
 	imx6q_add_mxc_hdmi_core(&hdmi_core_data);
 
