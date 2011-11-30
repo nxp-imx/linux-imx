@@ -1359,9 +1359,10 @@ static int mxc_hdmi_cable_connected(struct mxc_hdmi *hdmi)
 		fb_var_to_videomode(&m, &hdmi->fbi->var);
 		mode = fb_find_nearest_mode(&m,
 				&hdmi->fbi->modelist);
+		if (mode)
+			fb_videomode_to_var(&hdmi->fbi->var, mode);
 
-		fb_videomode_to_var(&hdmi->fbi->var, mode);
-		hdmi->need_mode_change = true;
+		hdmi->need_mode_change = mode ? true : false;
 	} else {
 		/* If not EDID data readed, setup default modelist  */
 		dev_info(&hdmi->pdev->dev, "No modes read from edid\n");
@@ -1370,9 +1371,10 @@ static int mxc_hdmi_cable_connected(struct mxc_hdmi *hdmi)
 		fb_var_to_videomode(&m, &hdmi->fbi->var);
 		mode = fb_find_nearest_mode(&m,
 				&hdmi->fbi->modelist);
+		if (mode)
+			fb_videomode_to_var(&hdmi->fbi->var, mode);
 
-		fb_videomode_to_var(&hdmi->fbi->var, mode);
-		hdmi->need_mode_change = true;
+		hdmi->need_mode_change = mode ? true : false;
 	}
 
 
