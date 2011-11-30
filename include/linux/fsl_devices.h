@@ -259,6 +259,7 @@ struct fsl_mxc_camera_platform_data {
 	u32 mclk;
 	u32 csi;
 	void (*pwdn)(int pwdn);
+	void (*io_init)(void);
 };
 
 struct mpc8xx_pcmcia_ops {
