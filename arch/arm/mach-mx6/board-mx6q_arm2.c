@@ -816,7 +816,7 @@ static struct viv_gpu_platform_data imx6q_gpu_pdata __initdata = {
 static int mx6q_arm2_sata_init(struct device *dev, void __iomem *addr)
 {
 	u32 tmpdata;
-	int ret = 0;
+	int ret = 0, iterations = 20;
 	struct clk *clk;
 
 	/* Enable SATA PWR CTRL_0 of MAX7310 */
@@ -868,12 +868,18 @@ static int mx6q_arm2_sata_init(struct device *dev, void __iomem *addr)
 	sata_init(addr, tmpdata);
 
 	/* Release resources when there is no device on the port */
-	msleep(200);
-	if ((readl(addr + PORT_SATA_SR) & 0xF) == 0) {
-		dev_info(dev, "NO sata disk.\n");
-		ret = -ENODEV;
-		goto release_sata_clk;
-	}
+	do {
+		if ((readl(addr + PORT_SATA_SR) & 0xF) == 0)
+			msleep(25);
+		else
+			break;
+
+		if (iterations == 0) {
+			dev_info(dev, "NO sata disk.\n");
+			ret = -ENODEV;
+			goto release_sata_clk;
+		}
+	} while (iterations-- > 0);
 
 	return ret;
 
