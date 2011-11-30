@@ -932,7 +932,7 @@ static struct fsl_mxc_hdmi_platform_data hdmi_data = {
 };
 
 static struct fsl_mxc_hdmi_core_platform_data hdmi_core_data = {
-	.ipu_id = 0,
+	.ipu_id = 1,
 	.disp_id = 0,
 };
 
