@@ -111,7 +111,6 @@ static struct clk *sata_clk;
 static int esai_record;
 static int spdif_en;
 static int flexcan_en;
-static int mipi_sensor;
 
 extern struct regulator *(*get_cpu_regulator)(void);
 extern void (*put_cpu_regulator)(void);
@@ -257,23 +256,6 @@ static iomux_v3_cfg_t mx6q_arm2_pads[] = {
 	MX6Q_PAD_DISP0_DAT22__IPU1_DISP0_DAT_22,
 	MX6Q_PAD_DISP0_DAT23__IPU1_DISP0_DAT_23,
 
-	/* ipu1 csi0 */
-	MX6Q_PAD_CSI0_DAT12__IPU1_CSI0_D_12,
-	MX6Q_PAD_CSI0_DAT13__IPU1_CSI0_D_13,
-	MX6Q_PAD_CSI0_DAT14__IPU1_CSI0_D_14,
-	MX6Q_PAD_CSI0_DAT15__IPU1_CSI0_D_15,
-	MX6Q_PAD_CSI0_DAT16__IPU1_CSI0_D_16,
-	MX6Q_PAD_CSI0_DAT17__IPU1_CSI0_D_17,
-	MX6Q_PAD_CSI0_DAT18__IPU1_CSI0_D_18,
-	MX6Q_PAD_CSI0_DAT19__IPU1_CSI0_D_19,
-	MX6Q_PAD_CSI0_VSYNC__IPU1_CSI0_VSYNC,
-	MX6Q_PAD_CSI0_MCLK__IPU1_CSI0_HSYNC,
-	MX6Q_PAD_CSI0_PIXCLK__IPU1_CSI0_PIXCLK,
-	/* camera reset */
-	MX6Q_PAD_GPIO_19__GPIO_4_5,
-	/* camera powerdown */
-	MX6Q_PAD_CSI0_DAT5__GPIO_5_23,
-
 	MX6Q_PAD_EIM_D24__GPIO_3_24,
 
 	/* UART2 */
@@ -328,6 +310,26 @@ static iomux_v3_cfg_t mx6q_arm2_esai_record_pads[] = {
 	MX6Q_PAD_ENET_RX_ER__ESAI1_HCKR,
 	MX6Q_PAD_ENET_MDIO__ESAI1_SCKR,
 	MX6Q_PAD_ENET_REF_CLK__ESAI1_FSR,
+};
+
+static iomux_v3_cfg_t mx6q_arm2_csi0_sensor_pads[] = {
+	MX6Q_PAD_GPIO_0__CCM_CLKO,
+	/* ipu1 csi0 */
+	MX6Q_PAD_CSI0_DAT12__IPU1_CSI0_D_12,
+	MX6Q_PAD_CSI0_DAT13__IPU1_CSI0_D_13,
+	MX6Q_PAD_CSI0_DAT14__IPU1_CSI0_D_14,
+	MX6Q_PAD_CSI0_DAT15__IPU1_CSI0_D_15,
+	MX6Q_PAD_CSI0_DAT16__IPU1_CSI0_D_16,
+	MX6Q_PAD_CSI0_DAT17__IPU1_CSI0_D_17,
+	MX6Q_PAD_CSI0_DAT18__IPU1_CSI0_D_18,
+	MX6Q_PAD_CSI0_DAT19__IPU1_CSI0_D_19,
+	MX6Q_PAD_CSI0_VSYNC__IPU1_CSI0_VSYNC,
+	MX6Q_PAD_CSI0_MCLK__IPU1_CSI0_HSYNC,
+	MX6Q_PAD_CSI0_PIXCLK__IPU1_CSI0_PIXCLK,
+	/* camera reset */
+	MX6Q_PAD_GPIO_19__GPIO_4_5,
+	/* camera powerdown */
+	MX6Q_PAD_CSI0_DAT5__GPIO_5_23,
 };
 
 static iomux_v3_cfg_t mx6q_arm2_mipi_sensor_pads[] = {
@@ -666,18 +668,57 @@ static struct fsl_mxc_dvi_platform_data sabr_ddc_dvi_data = {
 	.update = ddc_dvi_update,
 };
 
+static void mx6q_csi0_io_init(void)
+{
+	mxc_iomux_v3_setup_multiple_pads(mx6q_arm2_csi0_sensor_pads,
+			ARRAY_SIZE(mx6q_arm2_csi0_sensor_pads));
+
+	/* Camera reset */
+	gpio_request(MX6Q_SMD_CSI0_RST, "cam-reset");
+	gpio_direction_output(MX6Q_SMD_CSI0_RST, 1);
+
+	/* Camera power down */
+	gpio_request(MX6Q_SMD_CSI0_PWN, "cam-pwdn");
+	gpio_direction_output(MX6Q_SMD_CSI0_PWN, 1);
+	msleep(1);
+	gpio_set_value(MX6Q_SMD_CSI0_PWN, 0);
+
+	/* For MX6Q GPR1 bit19 and bit20 meaning:
+	 * Bit19:       0 - Enable mipi to IPU1 CSI0
+	 *                      virtual channel is fixed to 0
+	 *              1 - Enable parallel interface to IPU1 CSI0
+	 * Bit20:       0 - Enable mipi to IPU2 CSI1
+	 *                      virtual channel is fixed to 3
+	 *              1 - Enable parallel interface to IPU2 CSI1
+	 * IPU1 CSI1 directly connect to mipi csi2,
+	 *      virtual channel is fixed to 1
+	 * IPU2 CSI0 directly connect to mipi csi2,
+	 *      virtual channel is fixed to 2
+	 */
+	mxc_iomux_set_gpr_register(1, 19, 1, 1);
+}
+
 static struct fsl_mxc_camera_platform_data camera_data = {
 	.analog_regulator = "DA9052_LDO7",
 	.core_regulator = "DA9052_LDO9",
 	.mclk = 24000000,
 	.csi = 0,
+	.io_init = mx6q_csi0_io_init,
 };
+
+static void mx6q_mipi_sensor_io_init(void)
+{
+	mxc_iomux_v3_setup_multiple_pads(mx6q_arm2_mipi_sensor_pads,
+			ARRAY_SIZE(mx6q_arm2_mipi_sensor_pads));
+
+	mxc_iomux_set_gpr_register(1, 19, 1, 0);
+}
 
 static struct fsl_mxc_camera_platform_data ov5640_mipi_data = {
 	.mclk = 24000000,
 	.csi = 0,
+	.io_init = mx6q_mipi_sensor_io_init,
 };
-
 
 static struct i2c_board_info mxc_i2c0_board_info[] __initdata = {
 	{
@@ -1340,27 +1381,6 @@ static void __init fixup_mxc_board(struct machine_desc *desc, struct tag *tags,
 	set_cpu_voltage = mx6_arm2_set_cpu_voltage;
 }
 
-static int __init early_enable_mipi_sensor(char *p)
-{
-	mipi_sensor = 1;
-	return 0;
-}
-early_param("mipi_sensor", early_enable_mipi_sensor);
-
-static inline void __init mx6q_csi0_io_init(void)
-{
-	/* Camera reset */
-	gpio_request(MX6Q_SMD_CSI0_RST, "cam-reset");
-	gpio_direction_output(MX6Q_SMD_CSI0_RST, 1);
-
-	/* Camera power down */
-	gpio_request(MX6Q_SMD_CSI0_PWN, "cam-pwdn");
-	gpio_direction_output(MX6Q_SMD_CSI0_PWN, 1);
-	msleep(1);
-	gpio_set_value(MX6Q_SMD_CSI0_PWN, 0);
-	mxc_iomux_set_gpr_register(1, 19, 1, 1);
-}
-
 static int __init early_enable_spdif(char *p)
 {
 	spdif_en = 1;
@@ -1437,10 +1457,6 @@ static void __init mx6_board_init(void)
 				ARRAY_SIZE(mx6q_arm2_can_pads));
 	}
 
-	if (mipi_sensor)
-		mxc_iomux_v3_setup_multiple_pads(mx6q_arm2_mipi_sensor_pads,
-			ARRAY_SIZE(mx6q_arm2_mipi_sensor_pads));
-
 	gp_reg_id = arm2_dvfscore_data.reg_id;
 	mx6q_arm2_init_uart();
 	imx6q_add_mipi_csi2(&mipi_csi2_pdata);
@@ -1495,9 +1511,6 @@ static void __init mx6_board_init(void)
 	imx_asrc_data.asrc_core_clk = clk_get(NULL, "asrc_clk");
 	imx_asrc_data.asrc_audio_clk = clk_get(NULL, "asrc_serial_clk");
 	imx6q_add_asrc(&imx_asrc_data);
-
-	if (!mipi_sensor)
-		mx6q_csi0_io_init();
 
 	/* DISP0 Detect */
 	gpio_request(MX6Q_ARM2_DISP0_DET_INT, "disp0-detect");
