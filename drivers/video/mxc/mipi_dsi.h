@@ -61,18 +61,20 @@ struct mipi_dsi_match_lcd {
 
 /* driver private data */
 struct mipi_dsi_info {
+	struct platform_device		*pdev;
+	void __iomem			*mmio_base;
+	int				dsi_power_on;
+	int				lcd_inited;
+	u32				dphy_pll_config;
 	int				ipu_id;
 	int				disp_id;
 	char				*lcd_panel;
 	int				irq;
-	u32				dphy_pll_config;
 	struct clk			*dphy_clk;
-	void __iomem			*mmio_base;
-	struct platform_device		*pdev;
 	struct mxc_dispdrv_handle	*disp_mipi;
-	struct notifier_block		nb;
 	struct  fb_videomode		*mode;
 	struct  mipi_lcd_config		*lcd_config;
+	struct notifier_block		nb;
 	/* board related power control */
 	struct backlight_device		*bl;
 	struct regulator		*io_regulator;
