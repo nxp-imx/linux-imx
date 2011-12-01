@@ -50,6 +50,8 @@
 #define PHY_HS2LP_MAXTIME		(0x40)
 #define	PHY_STOP_WAIT_TIME		(0x20)
 #define	DSI_CLKMGR_CFG_CLK_DIV		(0x107)
+#define	MIPI_MUX_CTRL(v)		(((v) & 0x3) << 4)
+#define	IOMUXC_GPR3_OFFSET		(0xc)
 #define	MIPI_LCD_SLEEP_MODE_DELAY	(120)
 
 static struct mipi_dsi_match_lcd mipi_dsi_lcd_db[] = {
@@ -95,7 +97,6 @@ static const struct _mipi_dsi_phy_pll_clk mipi_dsi_phy_pll_clk_table[] = {
 	{180,  0x24}, /*  160-180MHz	*/
 	{160,  0x04}, /*  150-160MHz	*/
 };
-static int dsi_power_on;
 
 static int valid_mode(int pixel_fmt)
 {
@@ -119,18 +120,8 @@ static inline void mipi_dsi_write_register(struct mipi_dsi_info *mipi_dsi,
 				u32 reg, u32 val)
 {
 	iowrite32(val, mipi_dsi->mmio_base + reg);
-	msleep(1);
 	dev_dbg(&mipi_dsi->pdev->dev, "\t\twrite_reg:0x%02x, val:0x%08x.\n",
 			reg, val);
-}
-
-static void mipi_dsi_dump_registers(struct mipi_dsi_info *mipi_dsi)
-{
-	int i;
-	u32 val;
-
-	for (i = MIPI_DSI_VERSION; i <= MIPI_DSI_PHY_TST_CTRL1; i += 4)
-		mipi_dsi_read_register(mipi_dsi, i, &val);
 }
 
 int mipi_dsi_pkt_write(struct mipi_dsi_info *mipi_dsi,
@@ -200,7 +191,7 @@ int mipi_dsi_pkt_read(struct mipi_dsi_info *mipi_dsi,
 	int		read_len = 0;
 
 	if (!len) {
-		mipi_dbg("%s,%d: error!\n", __func__, __LINE__);
+		mipi_dbg("%s, len = 0 invalid error!\n", __func__);
 		return -EINVAL;
 	}
 
@@ -387,11 +378,6 @@ static void mipi_dsi_enable_controller(struct mipi_dsi_info *mipi_dsi,
 
 		mipi_dsi_dphy_init(mipi_dsi, DSI_PHY_CLK_INIT_COMMAND,
 					mipi_dsi->dphy_pll_config);
-
-		val = DSI_VID_MODE_CFG_EN | DSI_VID_MODE_CFG_EN_BURSTMODE |
-				DSI_VID_MODE_CFG_EN_LP_MODE;
-		mipi_dsi_write_register(mipi_dsi, MIPI_DSI_VID_MODE_CFG, val);
-		dsi_power_on = 1;
 	} else {
 		mipi_dsi_dphy_init(mipi_dsi, DSI_PHY_CLK_INIT_COMMAND,
 					mipi_dsi->dphy_pll_config);
@@ -429,12 +415,44 @@ static irqreturn_t mipi_dsi_irq_handler(int irq, void *data)
 	return IRQ_HANDLED;
 }
 
-static void mipi_dsi_power_on(struct mipi_dsi_info *mipi_dsi)
+static inline void mipi_dsi_set_mode(struct mipi_dsi_info *mipi_dsi,
+	bool cmd_mode)
+{
+	u32	val;
+
+	if (cmd_mode) {
+		mipi_dsi_write_register(mipi_dsi, MIPI_DSI_PWR_UP,
+			DSI_PWRUP_RESET);
+		mipi_dsi_read_register(mipi_dsi, MIPI_DSI_CMD_MODE_CFG, &val);
+		val |= MIPI_DSI_CMD_MODE_CFG_EN_CMD_MODE;
+		mipi_dsi_write_register(mipi_dsi, MIPI_DSI_CMD_MODE_CFG, val);
+		mipi_dsi_write_register(mipi_dsi, MIPI_DSI_VID_MODE_CFG, 0);
+		mipi_dsi_write_register(mipi_dsi, MIPI_DSI_PWR_UP,
+			DSI_PWRUP_POWERUP);
+	} else {
+		mipi_dsi_write_register(mipi_dsi, MIPI_DSI_PWR_UP,
+			DSI_PWRUP_RESET);
+		 /* Disable Command mode when tranfering video data */
+		mipi_dsi_read_register(mipi_dsi, MIPI_DSI_CMD_MODE_CFG, &val);
+		val &= ~MIPI_DSI_CMD_MODE_CFG_EN_CMD_MODE;
+		mipi_dsi_write_register(mipi_dsi, MIPI_DSI_CMD_MODE_CFG, val);
+		val = DSI_VID_MODE_CFG_EN | DSI_VID_MODE_CFG_EN_BURSTMODE |
+				DSI_VID_MODE_CFG_EN_LP_MODE;
+		mipi_dsi_write_register(mipi_dsi, MIPI_DSI_VID_MODE_CFG, val);
+		mipi_dsi_write_register(mipi_dsi, MIPI_DSI_PWR_UP,
+			DSI_PWRUP_POWERUP);
+		mipi_dsi_write_register(mipi_dsi, MIPI_DSI_PHY_IF_CTRL,
+				DSI_PHY_IF_CTRL_TX_REQ_CLK_HS);
+	}
+}
+
+static int mipi_dsi_power_on(struct mxc_dispdrv_handle *disp)
 {
 	int err;
-	u32 val;
+	struct mipi_dsi_info *mipi_dsi = mxc_dispdrv_getdata(disp);
 
-	if (!dsi_power_on) {
+	if (!mipi_dsi->dsi_power_on) {
+		clk_enable(mipi_dsi->dphy_clk);
 		mipi_dsi_enable_controller(mipi_dsi, false);
 		err = mipi_dsi_dcs_cmd(mipi_dsi, MIPI_DCS_EXIT_SLEEP_MODE,
 			NULL, 0);
@@ -443,46 +461,38 @@ static void mipi_dsi_power_on(struct mipi_dsi_info *mipi_dsi)
 				"MIPI DSI DCS Command sleep-in error!\n");
 		}
 		msleep(MIPI_LCD_SLEEP_MODE_DELAY);
+		mipi_dsi_set_mode(mipi_dsi, false);
+		mipi_dsi->dsi_power_on = 1;
 	}
-	dsi_power_on = 1;
-	 /* Disable Command mode when tranfering video data */
-	mipi_dsi_read_register(mipi_dsi, MIPI_DSI_CMD_MODE_CFG, &val);
-	val &= ~MIPI_DSI_CMD_MODE_CFG_EN_CMD_MODE;
-	mipi_dsi_write_register(mipi_dsi, MIPI_DSI_CMD_MODE_CFG, val);
 
-	mipi_dsi_read_register(mipi_dsi, MIPI_DSI_VID_MODE_CFG, &val);
-	val |= DSI_VID_MODE_CFG_EN;
-	mipi_dsi_write_register(mipi_dsi, MIPI_DSI_VID_MODE_CFG, val);
-
-	mipi_dsi_write_register(mipi_dsi, MIPI_DSI_PHY_IF_CTRL,
-				DSI_PHY_IF_CTRL_TX_REQ_CLK_HS);
-
-	mipi_dsi_dump_registers(mipi_dsi);
+	return 0;
 }
 
-static void mipi_dsi_power_off(struct mipi_dsi_info *mipi_dsi)
+void mipi_dsi_power_off(struct mxc_dispdrv_handle *disp)
 {
 	int err;
-	u32	val;
+	struct mipi_dsi_info *mipi_dsi = mxc_dispdrv_getdata(disp);
 
-	if (dsi_power_on) {
-		mipi_dsi_read_register(mipi_dsi, MIPI_DSI_CMD_MODE_CFG, &val);
-		val |= MIPI_DSI_CMD_MODE_CFG_EN_CMD_MODE;
-		mipi_dsi_write_register(mipi_dsi, MIPI_DSI_CMD_MODE_CFG, val);
-		mipi_dsi_read_register(mipi_dsi, MIPI_DSI_VID_MODE_CFG, &val);
-		val &= ~DSI_VID_MODE_CFG_EN;
-		mipi_dsi_write_register(mipi_dsi, MIPI_DSI_VID_MODE_CFG, val);
-
+	if (mipi_dsi->dsi_power_on) {
+		mipi_dsi_set_mode(mipi_dsi, true);
 		err = mipi_dsi_dcs_cmd(mipi_dsi, MIPI_DCS_ENTER_SLEEP_MODE,
 			NULL, 0);
 		if (err) {
 			dev_err(&mipi_dsi->pdev->dev,
 				"MIPI DSI DCS Command display on error!\n");
 		}
+		/* To allow time for the supply voltages
+		 * and clock circuits to stabilize.
+		 */
+		msleep(5);
+		/* video stream timing on */
+		mipi_dsi_set_mode(mipi_dsi, false);
 		msleep(MIPI_LCD_SLEEP_MODE_DELAY);
 
+		mipi_dsi_set_mode(mipi_dsi, true);
 		mipi_dsi_disable_controller(mipi_dsi);
-		dsi_power_on = 0;
+		mipi_dsi->dsi_power_on = 0;
+		clk_disable(mipi_dsi->dphy_clk);
 	}
 }
 
@@ -550,16 +560,6 @@ static int mipi_dsi_lcd_init(struct mipi_dsi_info *mipi_dsi,
 	dev_dbg(dev, "dphy_pll_config:0x%x.\n", mipi_dsi->dphy_pll_config);
 
 	mipi_dsi_enable_controller(mipi_dsi, true);
-
-	err = mipi_dsi->lcd_callback->mipi_lcd_setup(mipi_dsi);
-	if (err < 0) {
-		dev_err(dev, "failed to init mipi lcd.\n");
-		return err;
-	}
-
-	mipi_dsi_write_register(mipi_dsi, MIPI_DSI_PHY_IF_CTRL,
-				DSI_PHY_IF_CTRL_TX_REQ_CLK_HS);
-
 	return 0;
 }
 
@@ -569,16 +569,36 @@ static int mipi_dsi_fb_event(struct notifier_block *nb,
 	struct mipi_dsi_info *mipi_dsi =
 		container_of(nb, struct mipi_dsi_info, nb);
 	struct fb_event *fbevent = data;
+	struct fb_info *fbi = fbevent->info;
+	char *id_di[] = {
+		 "DISP4 BG",
+		 "DISP4 BG - DI1",
+		};
+	char *id;
+	int err;
+
+	id = id_di[mipi_dsi->disp_id];
+	*(id + 4) = mipi_dsi->ipu_id ? '4' : '3';
+	if (strcmp(id_di[mipi_dsi->disp_id], fbi->fix.id))
+		return 0;
 
 	switch (event) {
-	case FB_EVENT_FB_REGISTERED:
-		break;
-
 	case FB_EVENT_BLANK:
-		if (*((int *)fbevent->data) == FB_BLANK_UNBLANK)
-			mipi_dsi_power_on(mipi_dsi);
-		else
-			mipi_dsi_power_off(mipi_dsi);
+		if (*((int *)fbevent->data) == FB_BLANK_UNBLANK) {
+			if (!mipi_dsi->lcd_inited) {
+				err = mipi_dsi->lcd_callback->mipi_lcd_setup(
+					mipi_dsi);
+				if (err < 0) {
+					dev_err(&mipi_dsi->pdev->dev,
+						"failed to init mipi lcd.");
+					return err;
+				}
+				mipi_dsi_set_mode(mipi_dsi, false);
+				mipi_dsi->dsi_power_on = 1;
+				mipi_dsi->lcd_inited = 1;
+			}
+			mipi_dsi_power_on(mipi_dsi->disp_mipi);
+		}
 		break;
 
 	default:
@@ -592,6 +612,8 @@ static int mipi_dsi_disp_init(struct mxc_dispdrv_handle *disp,
 	struct mxc_dispdrv_setting *setting)
 {
 	int	   err;
+	void __iomem *reg_base;
+	u32    val;
 	char   dphy_clk[] = "mipi_pllref_clk";
 	struct resource *res;
 	struct resource *res_irq;
@@ -611,6 +633,9 @@ static int mipi_dsi_disp_init(struct mxc_dispdrv_handle *disp,
 		return -EINVAL;
 	}
 
+	if ((1 != pdata->ipu_id) || (1 != pdata->disp_id))
+		dev_warn(dev, "only work bidirection mode on IPU1-DI1\n");
+
 	mipi_dsi->lcd_panel = kstrdup(pdata->lcd_panel, GFP_KERNEL);
 	if (!mipi_dsi->lcd_panel)
 		return -ENOMEM;
@@ -623,14 +648,14 @@ static int mipi_dsi_disp_init(struct mxc_dispdrv_handle *disp,
 
 	res = platform_get_resource(mipi_dsi->pdev, IORESOURCE_MEM, 0);
 	if (!res) {
-		mipi_dbg("%s,%d: error!\n", __func__, __LINE__);
+		dev_err(dev, "get platform resource 0 error\n");
 		return -ENODEV;
 	}
 
 	res = request_mem_region(res->start, resource_size(res),
 				mipi_dsi->pdev->name);
 	if (!res) {
-		mipi_dbg("%s,%d: error!\n", __func__, __LINE__);
+		dev_err(dev, "request mem region error\n");
 		return -EBUSY;
 	}
 	mipi_dsi->mmio_base = ioremap(res->start, resource_size(res));
@@ -639,6 +664,24 @@ static int mipi_dsi_disp_init(struct mxc_dispdrv_handle *disp,
 		err = -EIO;
 		goto err_ioremap;
 	}
+
+	res = platform_get_resource(mipi_dsi->pdev, IORESOURCE_MEM, 1);
+	if (!res) {
+		dev_err(dev, "get platform resource 1 error\n");
+		err = -ENODEV;
+		goto err_get_res1;
+	}
+
+	reg_base = ioremap(res->start, resource_size(res));
+	if (!reg_base) {
+		dev_err(dev, "Cannot map iomuxc registers\n");
+		err = -EIO;
+		goto err_ioremap_iomuxc;
+	}
+	val = ioread32(reg_base + IOMUXC_GPR3_OFFSET);
+	val |= MIPI_MUX_CTRL((pdata->ipu_id << 1) | (pdata->disp_id));
+	iowrite32(val, reg_base + IOMUXC_GPR3_OFFSET);
+	iounmap(reg_base);
 
 	res_irq = platform_get_resource(mipi_dsi->pdev, IORESOURCE_IRQ, 0);
 	if (!res_irq) {
@@ -656,7 +699,7 @@ static int mipi_dsi_disp_init(struct mxc_dispdrv_handle *disp,
 	}
 	err = clk_enable(mipi_dsi->dphy_clk);
 	if (err)
-		mipi_dbg("%s,%d: error!\n", __func__, __LINE__);
+		dev_err(dev, "clk_enable error:%d!\n", err);
 
 	dev_dbg(dev, "got resources: regs %p, irq:%d\n",
 				mipi_dsi->mmio_base, mipi_dsi->irq);
@@ -799,6 +842,8 @@ err_ioreg:
 	clk_put(mipi_dsi->dphy_clk);
 err_clk:
 err_get_irq:
+err_get_res1:
+err_ioremap_iomuxc:
 	iounmap(mipi_dsi->mmio_base);
 err_ioremap:
 	release_mem_region(res->start, resource_size(res));
@@ -816,7 +861,7 @@ static void mipi_dsi_disp_deinit(struct mxc_dispdrv_handle *disp)
 
 	disable_irq(mipi_dsi->irq);
 	free_irq(mipi_dsi->irq, mipi_dsi);
-	mipi_dsi_power_off(mipi_dsi);
+	mipi_dsi_power_off(mipi_dsi->disp_mipi);
 	fb_unregister_client(&mipi_dsi->nb);
 	if (mipi_dsi->bl)
 		backlight_device_unregister(mipi_dsi->bl);
@@ -826,7 +871,6 @@ static void mipi_dsi_disp_deinit(struct mxc_dispdrv_handle *disp)
 		regulator_put(mipi_dsi->core_regulator);
 	if (mipi_dsi->io_regulator)
 		regulator_put(mipi_dsi->io_regulator);
-	clk_disable(mipi_dsi->dphy_clk);
 	clk_put(mipi_dsi->dphy_clk);
 	iounmap(mipi_dsi->mmio_base);
 	release_mem_region(res->start, resource_size(res));
@@ -836,6 +880,8 @@ static struct mxc_dispdrv_driver mipi_dsi_drv = {
 	.name	= DISPDRV_MIPI,
 	.init	= mipi_dsi_disp_init,
 	.deinit	= mipi_dsi_disp_deinit,
+	.enable = mipi_dsi_power_on,
+	.disable = mipi_dsi_power_off,
 };
 
 /**
@@ -861,7 +907,8 @@ static int mipi_dsi_probe(struct platform_device *pdev)
 	mipi_dsi->pdev = pdev;
 	mipi_dsi->disp_mipi = mxc_dispdrv_register(&mipi_dsi_drv);
 	if (IS_ERR(mipi_dsi->disp_mipi)) {
-		mipi_dbg("%s,%d: error!\n", __func__, __LINE__);
+		dev_err(&pdev->dev, "mxc_dispdrv_register error:%ld!\n",
+			PTR_ERR(mipi_dsi->disp_mipi));
 		ret = -ENOMEM;
 		goto register_failed;
 	}
@@ -882,7 +929,7 @@ static void mipi_dsi_shutdown(struct platform_device *pdev)
 {
 	struct mipi_dsi_info *mipi_dsi = dev_get_drvdata(&pdev->dev);
 
-	mipi_dsi_power_off(mipi_dsi);
+	mipi_dsi_power_off(mipi_dsi->disp_mipi);
 	if (mipi_dsi->lcd_power)
 		mipi_dsi->lcd_power(false);
 	if (mipi_dsi->backlight_power)
