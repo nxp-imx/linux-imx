@@ -12,13 +12,10 @@
  */
 #ifndef __MXC_DISPDRV_H__
 #define __MXC_DISPDRV_H__
+#include <linux/fb.h>
 
-struct mxc_dispdrv_entry;
-
-struct mxc_dispdrv_driver {
-	const char *name;
-	int (*init) (struct mxc_dispdrv_entry *);
-	void (*deinit) (struct mxc_dispdrv_entry *);
+struct mxc_dispdrv_handle {
+	struct mxc_dispdrv_driver *drv;
 };
 
 struct mxc_dispdrv_setting {
@@ -33,11 +30,23 @@ struct mxc_dispdrv_setting {
 	int disp_id;
 };
 
-struct mxc_dispdrv_entry *mxc_dispdrv_register(struct mxc_dispdrv_driver *drv);
-int mxc_dispdrv_unregister(struct mxc_dispdrv_entry *entry);
-int mxc_dispdrv_init(char *name, struct mxc_dispdrv_setting *setting);
-int mxc_dispdrv_setdata(struct mxc_dispdrv_entry *entry, void *data);
-void *mxc_dispdrv_getdata(struct mxc_dispdrv_entry *entry);
-struct mxc_dispdrv_setting
-	*mxc_dispdrv_getsetting(struct mxc_dispdrv_entry *entry);
+struct mxc_dispdrv_driver {
+	const char *name;
+	int (*init) (struct mxc_dispdrv_handle *, struct mxc_dispdrv_setting *);
+	void (*deinit) (struct mxc_dispdrv_handle *);
+	/* display driver enable function for extension */
+	int (*enable) (struct mxc_dispdrv_handle *);
+	/* display driver disable function, called at early part of fb_blank */
+	void (*disable) (struct mxc_dispdrv_handle *);
+	/* display driver setup function, called at early part of fb_set_par */
+	int (*setup) (struct mxc_dispdrv_handle *, struct fb_info *fbi);
+};
+
+struct mxc_dispdrv_handle *mxc_dispdrv_register(struct mxc_dispdrv_driver *drv);
+int mxc_dispdrv_unregister(struct mxc_dispdrv_handle *handle);
+struct mxc_dispdrv_handle *mxc_dispdrv_gethandle(char *name,
+	struct mxc_dispdrv_setting *setting);
+void mxc_dispdrv_puthandle(struct mxc_dispdrv_handle *handle);
+int mxc_dispdrv_setdata(struct mxc_dispdrv_handle *handle, void *data);
+void *mxc_dispdrv_getdata(struct mxc_dispdrv_handle *handle);
 #endif

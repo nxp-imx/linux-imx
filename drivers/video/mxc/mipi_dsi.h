@@ -69,7 +69,7 @@ struct mipi_dsi_info {
 	struct clk			*dphy_clk;
 	void __iomem			*mmio_base;
 	struct platform_device		*pdev;
-	struct mxc_dispdrv_entry	*disp_mipi;
+	struct mxc_dispdrv_handle	*disp_mipi;
 	struct notifier_block		nb;
 	struct  fb_videomode		*mode;
 	struct  mipi_lcd_config		*lcd_config;

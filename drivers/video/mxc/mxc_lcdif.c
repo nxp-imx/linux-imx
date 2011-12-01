@@ -21,7 +21,7 @@
 
 struct mxc_lcdif_data {
 	struct platform_device *pdev;
-	struct mxc_dispdrv_entry *disp_lcdif;
+	struct mxc_dispdrv_handle *disp_lcdif;
 };
 
 #define DISPDRV_LCD	"lcd"
@@ -42,11 +42,11 @@ static struct fb_videomode lcdif_modedb[] = {
 };
 static int lcdif_modedb_sz = ARRAY_SIZE(lcdif_modedb);
 
-static int lcdif_init(struct mxc_dispdrv_entry *disp)
+static int lcdif_init(struct mxc_dispdrv_handle *disp,
+	struct mxc_dispdrv_setting *setting)
 {
 	int ret, i;
 	struct mxc_lcdif_data *lcdif = mxc_dispdrv_getdata(disp);
-	struct mxc_dispdrv_setting *setting = mxc_dispdrv_getsetting(disp);
 	struct fsl_mxc_lcd_platform_data *plat_data
 			= lcdif->pdev->dev.platform_data;
 	struct fb_videomode *modedb = lcdif_modedb;
@@ -77,7 +77,7 @@ static int lcdif_init(struct mxc_dispdrv_entry *disp)
 	return ret;
 }
 
-void lcdif_deinit(struct mxc_dispdrv_entry *disp)
+void lcdif_deinit(struct mxc_dispdrv_handle *disp)
 {
 	/*TODO*/
 }
@@ -113,6 +113,7 @@ static int mxc_lcdif_remove(struct platform_device *pdev)
 {
 	struct mxc_lcdif_data *lcdif = dev_get_drvdata(&pdev->dev);
 
+	mxc_dispdrv_puthandle(lcdif->disp_lcdif);
 	mxc_dispdrv_unregister(lcdif->disp_lcdif);
 	kfree(lcdif);
 	return 0;
