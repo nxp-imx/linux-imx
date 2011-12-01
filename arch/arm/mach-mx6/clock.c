@@ -70,6 +70,12 @@ static int cpu_op_nr;
 #define AUDIO_VIDEO_MIN_CLK_FREQ	650000000
 #define AUDIO_VIDEO_MAX_CLK_FREQ	1300000000
 
+/* We need to check the exp status again after timer expiration,
+ * as there might be interrupt coming between the first time exp
+ * and the time reading, then the time reading may be several ms
+ * after the exp checking due to the irq handle, so we need to
+ * check it to make sure the exp return the right value after
+ * timer expiration. */
 #define WAIT(exp, timeout) \
 ({ \
 	struct timespec nstimeofday; \
@@ -79,7 +85,8 @@ static int cpu_op_nr;
 	while (!(exp)) { \
 		getnstimeofday(&curtime); \
 		if ((curtime.tv_nsec - nstimeofday.tv_nsec) > (timeout)) { \
-			result = 0; \
+			if (!(exp)) \
+				result = 0; \
 			break; \
 		} \
 	} \
