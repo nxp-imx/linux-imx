@@ -188,7 +188,7 @@
 struct sii902x_data {
 	struct platform_device *pdev;
 	struct i2c_client *client;
-	struct mxc_dispdrv_entry *disp_hdmi;
+	struct mxc_dispdrv_handle *disp_hdmi;
 	struct regulator *io_reg;
 	struct regulator *analog_reg;
 	struct delayed_work det_work;
@@ -1064,11 +1064,11 @@ static int sii902x_TPI_init(struct i2c_client *client)
 	return 0;
 }
 
-static int sii902x_disp_init(struct mxc_dispdrv_entry *disp)
+static int sii902x_disp_init(struct mxc_dispdrv_handle *disp,
+	struct mxc_dispdrv_setting *setting)
 {
 	int ret = 0;
 	struct sii902x_data *sii902x = mxc_dispdrv_getdata(disp);
-	struct mxc_dispdrv_setting *setting = mxc_dispdrv_getsetting(disp);
 	struct fsl_mxc_lcd_platform_data *plat = sii902x->client->dev.platform_data;
 	bool found = false;
 	static bool inited;
@@ -1215,7 +1215,7 @@ register_pltdev_failed:
 	return ret;
 }
 
-static void sii902x_disp_deinit(struct mxc_dispdrv_entry *disp)
+static void sii902x_disp_deinit(struct mxc_dispdrv_handle *disp)
 {
 	struct sii902x_data *sii902x = mxc_dispdrv_getdata(disp);
 	struct fsl_mxc_lcd_platform_data *plat = sii902x->client->dev.platform_data;
@@ -1273,6 +1273,7 @@ static int __devexit sii902x_remove(struct i2c_client *client)
 {
 	struct sii902x_data *sii902x = i2c_get_clientdata(client);
 
+	mxc_dispdrv_puthandle(sii902x->disp_hdmi);
 	mxc_dispdrv_unregister(sii902x->disp_hdmi);
 	kfree(sii902x);
 	return 0;

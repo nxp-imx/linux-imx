@@ -80,7 +80,7 @@
 
 struct ldb_data {
 	struct platform_device *pdev;
-	struct mxc_dispdrv_entry *disp_ldb;
+	struct mxc_dispdrv_handle *disp_ldb;
 	uint32_t *reg;
 	uint32_t *control_reg;
 	uint32_t *gpr3_reg;
@@ -209,6 +209,55 @@ static int find_ldb_setting(struct ldb_data *ldb, struct fb_info *fbi)
 	return -EINVAL;
 }
 
+static int ldb_disp_setup(struct mxc_dispdrv_handle *disp, struct fb_info *fbi)
+{
+	uint32_t reg;
+	uint32_t pixel_clk, rounded_pixel_clk;
+	struct clk *ldb_clk_parent;
+	struct ldb_data *ldb = mxc_dispdrv_getdata(disp);
+	int setting_idx, di;
+
+	setting_idx = find_ldb_setting(ldb, fbi);
+	if (setting_idx < 0)
+		return setting_idx;
+
+	di = ldb->setting[setting_idx].di;
+
+	/* vsync setup */
+	reg = readl(ldb->control_reg);
+	if (fbi->var.sync & FB_SYNC_VERT_HIGH_ACT) {
+		if (di == 0)
+			reg = (reg & ~LDB_DI0_VS_POL_MASK)
+				| LDB_DI0_VS_POL_ACT_HIGH;
+		else
+			reg = (reg & ~LDB_DI1_VS_POL_MASK)
+				| LDB_DI1_VS_POL_ACT_HIGH;
+	} else {
+		if (di == 0)
+			reg = (reg & ~LDB_DI0_VS_POL_MASK)
+				| LDB_DI0_VS_POL_ACT_LOW;
+		else
+			reg = (reg & ~LDB_DI1_VS_POL_MASK)
+				| LDB_DI1_VS_POL_ACT_LOW;
+	}
+	writel(reg, ldb->control_reg);
+
+	/* clk setup */
+	pixel_clk = (PICOS2KHZ(fbi->var.pixclock)) * 1000UL;
+	ldb_clk_parent = clk_get_parent(ldb->ldb_di_clk[di]);
+	if ((ldb->mode == LDB_SPL_DI0) || (ldb->mode == LDB_SPL_DI1))
+		clk_set_rate(ldb_clk_parent, pixel_clk * 7 / 2);
+	else
+		clk_set_rate(ldb_clk_parent, pixel_clk * 7);
+	rounded_pixel_clk = clk_round_rate(ldb->ldb_di_clk[di],
+			pixel_clk);
+	clk_set_rate(ldb->ldb_di_clk[di], rounded_pixel_clk);
+	clk_enable(ldb->ldb_di_clk[di]);
+	ldb->setting[setting_idx].clk_en = true;
+
+	return 0;
+}
+
 int ldb_fb_event(struct notifier_block *nb, unsigned long val, void *v)
 {
 	struct ldb_data *ldb = container_of(nb, struct ldb_data, nb);
@@ -237,45 +286,6 @@ int ldb_fb_event(struct notifier_block *nb, unsigned long val, void *v)
 	}
 
 	switch (val) {
-	case FB_EVENT_PREMODE_CHANGE:
-	{
-		uint32_t reg;
-		uint32_t pixel_clk, rounded_pixel_clk;
-		struct clk *ldb_clk_parent;
-
-		/* vsync setup */
-		reg = readl(ldb->control_reg);
-		if (fbi->var.sync & FB_SYNC_VERT_HIGH_ACT) {
-			if (di == 0)
-				reg = (reg & ~LDB_DI0_VS_POL_MASK)
-					| LDB_DI0_VS_POL_ACT_HIGH;
-			else
-				reg = (reg & ~LDB_DI1_VS_POL_MASK)
-					| LDB_DI1_VS_POL_ACT_HIGH;
-		} else {
-			if (di == 0)
-				reg = (reg & ~LDB_DI0_VS_POL_MASK)
-					| LDB_DI0_VS_POL_ACT_LOW;
-			else
-				reg = (reg & ~LDB_DI1_VS_POL_MASK)
-					| LDB_DI1_VS_POL_ACT_LOW;
-		}
-		writel(reg, ldb->control_reg);
-
-		/* clk setup */
-		pixel_clk = (PICOS2KHZ(fbi->var.pixclock)) * 1000UL;
-		ldb_clk_parent = clk_get_parent(ldb->ldb_di_clk[di]);
-		if ((ldb->mode == LDB_SPL_DI0) || (ldb->mode == LDB_SPL_DI1))
-			clk_set_rate(ldb_clk_parent, pixel_clk * 7 / 2);
-		else
-			clk_set_rate(ldb_clk_parent, pixel_clk * 7);
-		rounded_pixel_clk = clk_round_rate(ldb->ldb_di_clk[di],
-				pixel_clk);
-		clk_set_rate(ldb->ldb_di_clk[di], rounded_pixel_clk);
-		clk_enable(ldb->ldb_di_clk[di]);
-		ldb->setting[setting_idx].clk_en = true;
-		break;
-	}
 	case FB_EVENT_BLANK:
 	{
 		if (*((int *)event->data) == FB_BLANK_UNBLANK) {
@@ -406,11 +416,11 @@ static int ldb_ipu_ldb_route(int ipu, int di, struct ldb_data *ldb)
 	return 0;
 }
 
-static int ldb_disp_init(struct mxc_dispdrv_entry *disp)
+static int ldb_disp_init(struct mxc_dispdrv_handle *disp,
+	struct mxc_dispdrv_setting *setting)
 {
 	int ret = 0, i;
 	struct ldb_data *ldb = mxc_dispdrv_getdata(disp);
-	struct mxc_dispdrv_setting *setting = mxc_dispdrv_getsetting(disp);
 	struct fsl_mxc_ldb_platform_data *plat_data = ldb->pdev->dev.platform_data;
 	struct resource *res;
 	uint32_t base_addr;
@@ -687,7 +697,7 @@ static int ldb_disp_init(struct mxc_dispdrv_entry *disp)
 	return ret;
 }
 
-static void ldb_disp_deinit(struct mxc_dispdrv_entry *disp)
+static void ldb_disp_deinit(struct mxc_dispdrv_handle *disp)
 {
 	struct ldb_data *ldb = mxc_dispdrv_getdata(disp);
 	int i;
@@ -708,6 +718,7 @@ static struct mxc_dispdrv_driver ldb_drv = {
 	.name 	= DISPDRV_LDB,
 	.init 	= ldb_disp_init,
 	.deinit	= ldb_disp_deinit,
+	.setup = ldb_disp_setup,
 };
 
 /*!
@@ -744,6 +755,7 @@ static int ldb_remove(struct platform_device *pdev)
 {
 	struct ldb_data *ldb = dev_get_drvdata(&pdev->dev);
 
+	mxc_dispdrv_puthandle(ldb->disp_ldb);
 	mxc_dispdrv_unregister(ldb->disp_ldb);
 	kfree(ldb);
 	return 0;

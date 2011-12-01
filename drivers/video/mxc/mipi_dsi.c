@@ -486,7 +486,8 @@ static void mipi_dsi_power_off(struct mipi_dsi_info *mipi_dsi)
 	}
 }
 
-static int mipi_dsi_lcd_init(struct mipi_dsi_info *mipi_dsi)
+static int mipi_dsi_lcd_init(struct mipi_dsi_info *mipi_dsi,
+	struct mxc_dispdrv_setting *setting)
 {
 	int		err;
 	int		size;
@@ -494,9 +495,7 @@ static int mipi_dsi_lcd_init(struct mipi_dsi_info *mipi_dsi)
 	struct  fb_videomode *mipi_lcd_modedb;
 	struct  fb_videomode mode;
 	struct  device		 *dev = &mipi_dsi->pdev->dev;
-	struct  mxc_dispdrv_setting	  *setting;
 
-	setting = mxc_dispdrv_getsetting(mipi_dsi->disp_mipi);
 	for (i = 0; i < ARRAY_SIZE(mipi_dsi_lcd_db); i++) {
 		if (!strcmp(mipi_dsi->lcd_panel,
 			mipi_dsi_lcd_db[i].lcd_panel)) {
@@ -589,7 +588,8 @@ static int mipi_dsi_fb_event(struct notifier_block *nb,
 	return 0;
 }
 
-static int mipi_dsi_disp_init(struct mxc_dispdrv_entry *disp)
+static int mipi_dsi_disp_init(struct mxc_dispdrv_handle *disp,
+	struct mxc_dispdrv_setting *setting)
 {
 	int	   err;
 	char   dphy_clk[] = "mipi_pllref_clk";
@@ -597,12 +597,10 @@ static int mipi_dsi_disp_init(struct mxc_dispdrv_entry *disp)
 	struct resource *res_irq;
 	struct device	*dev;
 	struct mipi_dsi_info		  *mipi_dsi;
-	struct mxc_dispdrv_setting	  *setting;
 	struct mipi_dsi_platform_data *pdata;
 
 	mipi_dsi = mxc_dispdrv_getdata(disp);
-	setting = mxc_dispdrv_getsetting(disp);
-	if (IS_ERR(mipi_dsi) || IS_ERR(setting)) {
+	if (IS_ERR(mipi_dsi)) {
 		pr_err("failed to get dispdrv data\n");
 		return -EINVAL;
 	}
@@ -768,7 +766,7 @@ static int mipi_dsi_disp_init(struct mxc_dispdrv_entry *disp)
 		goto err_req_irq;
 	}
 
-	err = mipi_dsi_lcd_init(mipi_dsi);
+	err = mipi_dsi_lcd_init(mipi_dsi, setting);
 	if (err < 0) {
 		dev_err(dev, "failed to init mipi dsi lcd\n");
 		goto err_dsi_lcd;
@@ -808,7 +806,7 @@ err_ioremap:
 	return err;
 }
 
-static void mipi_dsi_disp_deinit(struct mxc_dispdrv_entry *disp)
+static void mipi_dsi_disp_deinit(struct mxc_dispdrv_handle *disp)
 {
 	struct mipi_dsi_info    *mipi_dsi;
 	struct resource			*res;
@@ -895,6 +893,7 @@ static int __devexit mipi_dsi_remove(struct platform_device *pdev)
 {
 	struct mipi_dsi_info *mipi_dsi = dev_get_drvdata(&pdev->dev);
 
+	mxc_dispdrv_puthandle(mipi_dsi->disp_mipi);
 	mxc_dispdrv_unregister(mipi_dsi->disp_mipi);
 	kfree(mipi_dsi);
 	dev_set_drvdata(&pdev->dev, NULL);
