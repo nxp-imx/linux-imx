@@ -932,8 +932,8 @@ static void mx6q_sabreauto_reset_mipi_dsi(void)
 }
 
 static struct mipi_dsi_platform_data mipi_dsi_pdata = {
-	.ipu_id	 = 0,
-	.disp_id = 0,
+	.ipu_id	 = 1,
+	.disp_id = 1,
 	.lcd_panel = "TRULY-WVGA",
 	.reset   = mx6q_sabreauto_reset_mipi_dsi,
 };
@@ -946,10 +946,10 @@ static struct ipuv3_fb_platform_data sabr_fb_data[] = {
 	.default_bpp = 16,
 	.int_clk = false,
 	}, {
-	.disp_dev = "lcd",
-	.interface_pix_fmt = IPU_PIX_FMT_RGB565,
-	.mode_str = "CLAA-WVGA",
-	.default_bpp = 16,
+	.disp_dev = "mipi_dsi",
+	.interface_pix_fmt = IPU_PIX_FMT_RGB24,
+	.mode_str = "TRULY-WVGA",
+	.default_bpp = 24,
 	.int_clk = false,
 	}, {
 	.disp_dev = "ldb",
@@ -957,7 +957,13 @@ static struct ipuv3_fb_platform_data sabr_fb_data[] = {
 	.mode_str = "LDB-XGA",
 	.default_bpp = 16,
 	.int_clk = false,
-	},
+	}, {
+	.disp_dev = "lcd",
+	.interface_pix_fmt = IPU_PIX_FMT_RGB565,
+	.mode_str = "CLAA-WVGA",
+	.default_bpp = 16,
+	.int_clk = false,
+	}
 };
 
 static void hdmi_init(int ipu_id, int disp_id)
@@ -1004,7 +1010,7 @@ static struct fsl_mxc_ldb_platform_data ldb_data = {
 	.ext_ref = 1,
 	.mode = LDB_SEP0,
 	.sec_ipu_id = 1,
-	.sec_disp_id = 1,
+	.sec_disp_id = 0,
 };
 
 static struct imx_ipuv3_platform_data ipu_data[] = {
