@@ -53,7 +53,7 @@
 struct mxc_dvi_data {
 	struct i2c_client *client;
 	struct platform_device *pdev;
-	struct mxc_dispdrv_entry *disp_dvi;
+	struct mxc_dispdrv_handle *disp_dvi;
 	struct delayed_work det_work;
 	struct fb_info *fbi;
 	struct mxc_edid_cfg edid_cfg;
@@ -179,11 +179,11 @@ static irqreturn_t mxc_dvi_detect_handler(int irq, void *data)
 	return IRQ_HANDLED;
 }
 
-static int dvi_init(struct mxc_dispdrv_entry *disp)
+static int dvi_init(struct mxc_dispdrv_handle *disp,
+	struct mxc_dispdrv_setting *setting)
 {
 	int ret = 0;
 	struct mxc_dvi_data *dvi = mxc_dispdrv_getdata(disp);
-	struct mxc_dispdrv_setting *setting = mxc_dispdrv_getsetting(disp);
 	struct fsl_mxc_dvi_platform_data *plat = dvi->client->dev.platform_data;
 
 	setting->dev_id = dvi->ipu = plat->ipu_id;
@@ -282,7 +282,7 @@ err:
 	return ret;
 }
 
-static void dvi_deinit(struct mxc_dispdrv_entry *disp)
+static void dvi_deinit(struct mxc_dispdrv_handle *disp)
 {
 	struct mxc_dvi_data *dvi = mxc_dispdrv_getdata(disp);
 
@@ -340,6 +340,7 @@ static int __devexit mxc_dvi_remove(struct i2c_client *client)
 {
 	struct mxc_dvi_data *dvi = i2c_get_clientdata(client);
 
+	mxc_dispdrv_puthandle(dvi->disp_dvi);
 	mxc_dispdrv_unregister(dvi->disp_dvi);
 	platform_device_unregister(dvi->pdev);
 	kfree(dvi);
