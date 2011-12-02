@@ -1905,6 +1905,13 @@ gckCOMMAND_Commit(
         EventQueue = nextEventRecord;
     }
 
+    if (Command->kernel->eventObj->queueHead == gcvNULL)
+    {
+        /* Commit done event by which work thread knows all jobs done. */
+        gcmkVERIFY_OK(
+            gckEVENT_CommitDone(Command->kernel->eventObj, gcvKERNEL_PIXEL));
+    }
+
     /* Submit events. */
     gcmkONERROR(gckEVENT_Submit(Command->kernel->eventObj, gcvTRUE, gcvFALSE));
 

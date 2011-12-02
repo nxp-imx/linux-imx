@@ -2116,6 +2116,12 @@ gckEVENT_Unlock(
     );
 
 gceSTATUS
+gckEVENT_CommitDone(
+    IN gckEVENT Event,
+    IN gceKERNEL_WHERE FromWhere
+    );
+
+gceSTATUS
 gckEVENT_Submit(
     IN gckEVENT Event,
     IN gctBOOL Wait,
