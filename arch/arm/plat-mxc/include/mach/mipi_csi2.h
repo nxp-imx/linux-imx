@@ -37,13 +37,20 @@
 #define	CSI2_SFT_RESET					(0xf00/4)
 
 /* mipi data type */
-#define MIPI_DT_YUV422					0x1e
-#define MIPI_DT_RGB444					0x20
-#define MIPI_DT_RGB555					0x21
-#define MIPI_DT_RGB565					0x22
-#define MIPI_DT_RGB888					0x24
-#define MIPI_DT_RAW8					0x2a
-#define MIPI_DT_RAW10					0x2b
+#define MIPI_DT_YUV420		0x18 /* YYY.../UYVY.... */
+#define MIPI_DT_YUV420_LEGACY	0x1a /* UYY.../VYY...   */
+#define MIPI_DT_YUV422		0x1e /* UYVY...		*/
+#define MIPI_DT_RGB444		0x20
+#define MIPI_DT_RGB555		0x21
+#define MIPI_DT_RGB565		0x22
+#define MIPI_DT_RGB666		0x23
+#define MIPI_DT_RGB888		0x24
+#define MIPI_DT_RAW6		0x28
+#define MIPI_DT_RAW7		0x29
+#define MIPI_DT_RAW8		0x2a
+#define MIPI_DT_RAW10		0x2b
+#define MIPI_DT_RAW12		0x2c
+#define MIPI_DT_RAW14		0x2d
 
 
 struct mipi_csi2_info;
