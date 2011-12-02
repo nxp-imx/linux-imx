@@ -902,7 +902,9 @@ static int imx_startup(struct uart_port *port)
 	unsigned long flags, temp;
 	struct tty_struct *tty;
 
+#ifndef CONFIG_SERIAL_CORE_CONSOLE
 	imx_setup_ufcr(sport, 0);
+#endif
 
 	/* disable the DREN bit (Data Ready interrupt enable) before
 	 * requesting IRQs
@@ -976,6 +978,7 @@ static int imx_startup(struct uart_port *port)
 		INIT_WORK(&sport->tsk_dma_rx, dma_rx_work);
 	}
 
+	spin_lock_irqsave(&sport->port.lock, flags);
 	/*
 	 * Finally, clear and enable interrupts
 	 */
@@ -1040,7 +1043,6 @@ static int imx_startup(struct uart_port *port)
 	/*
 	 * Enable modem status interrupts
 	 */
-	spin_lock_irqsave(&sport->port.lock,flags);
 	imx_enable_ms(&sport->port);
 	spin_unlock_irqrestore(&sport->port.lock,flags);
 
@@ -1074,10 +1076,13 @@ static void imx_shutdown(struct uart_port *port)
 {
 	struct imx_port *sport = (struct imx_port *)port;
 	unsigned long temp;
+	unsigned long flags;
 
+	spin_lock_irqsave(&sport->port.lock, flags);
 	temp = readl(sport->port.membase + UCR2);
 	temp &= ~(UCR2_TXEN);
 	writel(temp, sport->port.membase + UCR2);
+	spin_unlock_irqrestore(&sport->port.lock, flags);
 
 	if (USE_IRDA(sport)) {
 		struct imxuart_platform_data *pdata;
@@ -1106,12 +1111,15 @@ static void imx_shutdown(struct uart_port *port)
 	 * Disable all interrupts, port and break condition.
 	 */
 
+	spin_lock_irqsave(&sport->port.lock, flags);
 	temp = readl(sport->port.membase + UCR1);
 	temp &= ~(UCR1_TXMPTYEN | UCR1_RRDYEN | UCR1_RTSDEN | UCR1_UARTEN);
 	if (USE_IRDA(sport))
 		temp &= ~(UCR1_IREN);
 
 	writel(temp, sport->port.membase + UCR1);
+	spin_unlock_irqrestore(&sport->port.lock, flags);
+
 	if (sport->enable_dma)
 		imx_uart_dma_exit(sport);
 }
@@ -1272,6 +1280,7 @@ imx_set_termios(struct uart_port *port, struct ktermios *termios,
 
 	if (UART_ENABLE_MS(&sport->port, termios->c_cflag))
 		imx_enable_ms(&sport->port);
+
 }
 
 static const char *imx_type(struct uart_port *port)
@@ -1392,7 +1401,9 @@ imx_console_write(struct console *co, const char *s, unsigned int count)
 {
 	struct imx_port *sport = imx_ports[co->index];
 	unsigned int old_ucr1, old_ucr2, ucr1;
+	unsigned long flags;
 
+	spin_lock_irqsave(&sport->port.lock, flags);
 	/*
 	 *	First, save UCR1/2 and then disable interrupts
 	 */
@@ -1418,6 +1429,7 @@ imx_console_write(struct console *co, const char *s, unsigned int count)
 
 	writel(old_ucr1, sport->port.membase + UCR1);
 	writel(old_ucr2, sport->port.membase + UCR2);
+	spin_unlock_irqrestore(&sport->port.lock, flags);
 }
 
 /*
