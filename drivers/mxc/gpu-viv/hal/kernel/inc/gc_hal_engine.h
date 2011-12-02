@@ -330,25 +330,10 @@ gcoSURF_ExportRenderTarget(
     IN gcoSURF SrcSurface
 );
 
-/* Export render target by given key. */
-gceSTATUS
-gcoSURF_ExportRenderTargetByKey(
-    IN gcoSURF Key,
-    IN gcoSURF SrcSurface
-);
-
 /* Import the render target. */
 gceSTATUS
 gcoSURF_ImportRenderTarget(
     IN gctUINT32 Pid,
-    IN gcoSURF SrcSurface
-);
-
-/* Import the render target by given key. */
-gceSTATUS
-gcoSURF_ImportRenderTargetByKey(
-    IN gctUINT32 Pid,
-    IN gcoSURF Key,
     IN gcoSURF SrcSurface
 );
 
@@ -361,6 +346,13 @@ gcoSURF_PrepareRemoteResolveRect(
     IN gcsPOINT_PTR RectSize
     );
 
+/* Resolve using the rectangle info previously saved in the vid mem node. */
+gceSTATUS
+gcoSURF_ResolveFromStoredRect(
+    IN gcoSURF SrcSurface,
+    IN gcoSURF DestSurface
+    );
+
 /* Using the info that Process Pid saved to do resolve. */
 gceSTATUS
 gcoSURF_RemoteResolveRect(
@@ -369,8 +361,7 @@ gcoSURF_RemoteResolveRect(
     IN gctBOOL *resolveDiscarded
     );
 
-/*
-  Return the "resolve submitted indicator" signal. */
+/* Return the "resolve submitted indicator" signal. */
 gceSTATUS
 gcoSURF_GetRTSignal(
     IN gcoSURF RTSurface,
@@ -398,14 +389,6 @@ gcoSURF_SetResolvability(
 gceSTATUS
 gcoSURF_CPUCacheOperation(
     IN gcoSURF Surface,
-    IN gceCACHEOPERATION Operation
-    );
-
-gceSTATUS
-gcoSURF_NODE_Cache(
-    IN gcsSURF_NODE_PTR Node,
-    IN gctPOINTER Logical,
-    IN gctSIZE_T Bytes,
     IN gceCACHEOPERATION Operation
     );
 
@@ -1843,7 +1826,8 @@ gcoHAL_GetSharedInfo(
     OUT gctUINT8_PTR Data,
     IN gctSIZE_T Bytes,
     IN gcuVIDMEM_NODE_PTR Node,
-    OUT gctUINT8_PTR NodeData
+    OUT gctUINT8_PTR NodeData,
+    IN gceVIDMEM_NODE_SHARED_INFO_TYPE SharedInfoType
     );
 
 gceSTATUS
@@ -1852,7 +1836,8 @@ gcoHAL_SetSharedInfo(
     IN gctUINT8_PTR Data,
     IN gctSIZE_T Bytes,
     IN gcuVIDMEM_NODE_PTR Node,
-    IN gctUINT8_PTR NodeData
+    IN gctUINT8_PTR NodeData,
+    IN gceVIDMEM_NODE_SHARED_INFO_TYPE SharedInfoType
     );
 
 #ifdef __cplusplus

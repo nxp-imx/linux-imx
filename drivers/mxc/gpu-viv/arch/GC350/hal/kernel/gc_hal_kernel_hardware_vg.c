@@ -1792,7 +1792,7 @@ gckVGHARDWARE_SetPowerManagementState(
         gcmkONERROR(gckOS_ReleaseSemaphore(os, Hardware->idleSemaphore));
     }
         /* Reset power off time */
-    gcmkONERROR(gckOS_GetTicks(&currentTime));
+    gcmkVERIFY_OK(gckOS_GetTicks(&currentTime));
     Hardware->powerOffTime = currentTime + Hardware->powerOffTimeout;
 
     if (commitMutex)

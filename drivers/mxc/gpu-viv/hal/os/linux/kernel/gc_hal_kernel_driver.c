@@ -511,6 +511,13 @@ long drv_ioctl(
         }
     }
 
+    /* Redo system call after pending signal is handled. */
+    if (status == gcvSTATUS_INTERRUPTED)
+    {
+        gcmkFOOTER();
+        return -ERESTARTSYS;
+    }
+
     if (gcmIS_SUCCESS(status) && (iface.command == gcvHAL_LOCK_VIDEO_MEMORY))
     {
         /* Special case for mapped memory. */

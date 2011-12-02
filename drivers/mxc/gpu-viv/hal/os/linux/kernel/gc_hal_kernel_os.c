@@ -5468,6 +5468,7 @@ outer_func(
     return gcvSTATUS_OK;
 }
 
+#if gcdENABLE_OUTER_CACHE_PATCH
 /*******************************************************************************
 **  _HandleOuterCache
 **
@@ -5561,6 +5562,7 @@ OnError:
     return status;
 }
 #endif
+#endif
 
 /*******************************************************************************
 **  gckOS_CacheClean
@@ -5619,7 +5621,11 @@ gckOS_CacheClean(
 
 #if defined(CONFIG_OUTER_CACHE)
     /* Outer cache. */
+#if gcdENABLE_OUTER_CACHE_PATCH
     _HandleOuterCache(Os, ProcessID, Handle, Physical, Logical, Bytes, gcvCACHE_CLEAN);
+#else
+    outer_clean_range((unsigned long) Handle, (unsigned long) Handle + Bytes);
+#endif
 #endif
 
 #elif defined(CONFIG_MIPS)
@@ -5694,7 +5700,11 @@ gckOS_CacheInvalidate(
 
 #if defined(CONFIG_OUTER_CACHE)
     /* Outer cache. */
+#if gcdENABLE_OUTER_CACHE_PATCH
     _HandleOuterCache(Os, ProcessID, Handle, Physical, Logical, Bytes, gcvCACHE_INVALIDATE);
+#else
+    outer_inv_range((unsigned long) Handle, (unsigned long) Handle + Bytes);
+#endif
 #endif
 
 #elif defined(CONFIG_MIPS)
@@ -5762,7 +5772,11 @@ gckOS_CacheFlush(
 
 #if defined(CONFIG_OUTER_CACHE)
     /* Outer cache. */
+#if gcdENABLE_OUTER_CACHE_PATCH
     _HandleOuterCache(Os, ProcessID, Handle, Physical, Logical, Bytes, gcvCACHE_FLUSH);
+#else
+    outer_flush_range((unsigned long) Handle, (unsigned long) Handle + Bytes);
+#endif
 #endif
 
 #elif defined(CONFIG_MIPS)

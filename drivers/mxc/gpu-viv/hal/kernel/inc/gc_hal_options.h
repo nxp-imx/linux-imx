@@ -524,17 +524,6 @@
 #   define gcdENABLE_TS_DOUBLE_BUFFER           1
 #endif
 
-
-/*
-    gcdENABLE_SHARED_INFO
-
-        When non-zero, enable process store some shared data in kernel
-        which can be got by other processes
- */
-#ifndef gcdENABLE_SHARED_INFO
-#   define gcdENABLE_SHARED_INFO                1
-#endif
-
 /*
     gcd6000_SUPPORT
 
@@ -624,16 +613,46 @@
 #endif
 
 /*
-    gcdSYNC_CPU_APP_WITH_COMPOSITOR
+    gcdCOPYBLT_OPTIMIZATION
 
-        Synchronize access to a linear buffer between CPU app and compositor (i.e. GPU - 2D, 3D or CE).
+        Combine dirty areas resulting from Android's copyBlt.
 */
-#ifndef gcdSYNC_CPU_APP_WITH_COMPOSITOR
-#   define gcdSYNC_CPU_APP_WITH_COMPOSITOR      0
+#ifndef gcdCOPYBLT_OPTIMIZATION
+#   define gcdCOPYBLT_OPTIMIZATION              0
 #endif
 
+/*
+    gcdGPU_LINEAR_BUFFER_ENABLED
+
+        Use linear buffer for GPU apps so HWC can do 2D composition.
+*/
+#ifndef gcdGPU_LINEAR_BUFFER_ENABLED
+#   define gcdGPU_LINEAR_BUFFER_ENABLED         0
+#endif
+
+/*
+    gcdSHARED_RESOLVE_BUFFER_ENABLED
+
+        Use shared resolve buffer for all app buffers.
+*/
+#ifndef gcdSHARED_RESOLVE_BUFFER_ENABLED
+#   define gcdSHARED_RESOLVE_BUFFER_ENABLED         0
+#endif
+
+/*
+     gcdUSE_TRIANGLE_STRIP_PATCH
+ */
 #ifndef gcdUSE_TRIANGLE_STRIP_PATCH
-#   define gcdUSE_TRIANGLE_STRIP_PATCH			1
+#   define gcdUSE_TRIANGLE_STRIP_PATCH            1
+#endif
+
+/*
+    gcdENABLE_OUTER_CACHE_PATCH
+
+        Enable the outer cache patch.
+*/
+#ifndef gcdENABLE_OUTER_CACHE_PATCH
+#   define gcdENABLE_OUTER_CACHE_PATCH          0
 #endif
 
 #endif /* __gc_hal_options_h_ */
