@@ -393,9 +393,9 @@ static void disable_pwm1_pad(void)
 {
 	mxc_iomux_v3_setup_pad(mx53_ard_pwm_pads[2]);
 
-	gpio_request(ARD_PWM2_OFF, "pwm2-off");
-	gpio_direction_output(ARD_PWM2_OFF, 1);
-	gpio_free(ARD_PWM2_OFF);
+	gpio_request(ARD_PWM1_OFF, "pwm1-off");
+	gpio_direction_output(ARD_PWM1_OFF, 1);
+	gpio_free(ARD_PWM1_OFF);
 }
 
 static struct mxc_pwm_platform_data mxc_pwm1_platform_data = {
