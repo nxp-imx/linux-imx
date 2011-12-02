@@ -681,13 +681,6 @@ gckKERNEL_Dispatch(
     /* Get the current process ID. */
     gcmkONERROR(gckOS_GetProcessID(&processID));
 
-#ifdef UNDER_CE
-	if (!FromUser)
-	{
-        gcmkONERROR(gckOS_GetCurrentProcessID(&processID));
-	}
-#endif
-
 #if gcdSECURE_USER
     gcmkONERROR(gckKERNEL_GetProcessDBCache(Kernel, processID, &cache));
 #endif
@@ -1566,23 +1559,81 @@ gckKERNEL_Dispatch(
 
         if ((node = Interface->u.GetSharedInfo.node) != gcvNULL)
         {
-            if (node->VidMem.memory->object.type == gcvOBJ_VIDMEM)
-            {
-                data = &node->VidMem.sharedInfo;
-            }
-            else
-            {
-                data = &node->Virtual.sharedInfo;
-            }
+            switch (Interface->u.GetSharedInfo.infoType)
+                {
+                case gcvVIDMEM_INFO_GENERIC:
+                    { /* Generic data stored */
+                        if (node->VidMem.memory->object.type == gcvOBJ_VIDMEM)
+                        {
+                            data = &node->VidMem.sharedInfo;
 
-            gcmkONERROR(gckOS_CopyToUserData(
-                Kernel->os,
-                data,
-                Interface->u.GetSharedInfo.nodeData,
-                sizeof(gcsVIDMEM_NODE_SHARED_INFO)
-                ));
+                        }
+                        else
+                        {
+                            data = &node->Virtual.sharedInfo;
+                        }
+
+                         gcmkONERROR(gckOS_CopyToUserData(
+                             Kernel->os,
+                             data,
+                             Interface->u.GetSharedInfo.nodeData,
+                             sizeof(gcsVIDMEM_NODE_SHARED_INFO)
+                             ));
+                    }
+                    break;
+
+                case gcvVIDMEM_INFO_DIRTY_RECTANGLE:
+                    { /* Dirty rectangle stored */
+                        gcsVIDMEM_NODE_SHARED_INFO *storedSharedInfo;
+                        gcsVIDMEM_NODE_SHARED_INFO alignedSharedInfo;
+
+                        if (node->VidMem.memory->object.type == gcvOBJ_VIDMEM)
+                        {
+                            storedSharedInfo = &node->VidMem.sharedInfo;
+                        }
+                        else
+                        {
+                            storedSharedInfo = &node->Virtual.sharedInfo;
+                        }
+
+                        /* Stored shared info holds the unaligned dirty rectangle.
+                           Align it first.                                         */
+
+                        /* Hardware requires 64-byte aligned address, and 16x4 pixel aligned rectsize.
+                           We simply align to 32 pixels which covers both 16- and 32-bpp formats. */
+
+                        /* Make sure we have a legit rectangle. */
+                        gcmkASSERT((storedSharedInfo->RectSize.width != 0) && (storedSharedInfo->RectSize.height != 0));
+
+                        alignedSharedInfo.SrcOrigin.x = gcmALIGN_BASE(storedSharedInfo->SrcOrigin.x, 32);
+                        alignedSharedInfo.RectSize.width = gcmALIGN((storedSharedInfo->RectSize.width + (storedSharedInfo->SrcOrigin.x - alignedSharedInfo.SrcOrigin.x)), 16);
+
+                        alignedSharedInfo.SrcOrigin.y = gcmALIGN_BASE(storedSharedInfo->SrcOrigin.y, 4);
+                        alignedSharedInfo.RectSize.height = gcmALIGN((storedSharedInfo->RectSize.height + (storedSharedInfo->SrcOrigin.y - alignedSharedInfo.SrcOrigin.y)), 4);
+
+                        gcmkONERROR(gckOS_CopyToUserData(
+                            Kernel->os,
+                            &alignedSharedInfo,
+                            Interface->u.GetSharedInfo.nodeData,
+                            sizeof(gcsVIDMEM_NODE_SHARED_INFO)
+                            ));
+
+                        gcmkTRACE_ZONE(gcvLEVEL_VERBOSE, gcvZONE_KERNEL,
+                                        "Node = %p, unaligned rectangle (l=%d, t=%d, w=%d, h=%d) aligned to (l=%d, t=%d, w=%d, h=%d)", node,
+                                        storedSharedInfo->SrcOrigin.x, storedSharedInfo->SrcOrigin.y,
+                                        storedSharedInfo->RectSize.width, storedSharedInfo->RectSize.height,
+                                        alignedSharedInfo.SrcOrigin.x, alignedSharedInfo.SrcOrigin.y,
+                                        alignedSharedInfo.RectSize.width, alignedSharedInfo.RectSize.height);
+
+                        /* Rectangle */
+                        storedSharedInfo->SrcOrigin.x =
+                        storedSharedInfo->SrcOrigin.y =
+                        storedSharedInfo->RectSize.width =
+                        storedSharedInfo->RectSize.height = 0;
+                    }
+                    break;
+                }
         }
-
         break;
 
     case gcvHAL_SET_SHARED_INFO:
@@ -1637,21 +1688,86 @@ gckKERNEL_Dispatch(
 
         if ((node = Interface->u.SetSharedInfo.node) != gcvNULL)
         {
-            if (node->VidMem.memory->object.type == gcvOBJ_VIDMEM)
-            {
-                data = &node->VidMem.sharedInfo;
-            }
-            else
-            {
-                data = &node->Virtual.sharedInfo;
-            }
+            switch (Interface->u.SetSharedInfo.infoType)
+                {
+                case gcvVIDMEM_INFO_GENERIC:
+                    { /* Generic data stored */
+                        if (node->VidMem.memory->object.type == gcvOBJ_VIDMEM)
+                        {
+                            data = &node->VidMem.sharedInfo;
+                        }
+                        else
+                        {
+                            data = &node->Virtual.sharedInfo;
+                        }
 
-            gcmkONERROR(gckOS_CopyFromUserData(
-                Kernel->os,
-                data,
-                Interface->u.SetSharedInfo.nodeData,
-                sizeof(gcsVIDMEM_NODE_SHARED_INFO)
-                ));
+                        gcmkONERROR(gckOS_CopyFromUserData(
+                            Kernel->os,
+                            data,
+                            Interface->u.SetSharedInfo.nodeData,
+                            sizeof(gcsVIDMEM_NODE_SHARED_INFO)
+                            ));
+                    }
+                    break;
+
+                case gcvVIDMEM_INFO_DIRTY_RECTANGLE:
+                    { /* Dirty rectangle stored */
+                        gcsVIDMEM_NODE_SHARED_INFO newSharedInfo;
+                        gcsVIDMEM_NODE_SHARED_INFO *currentSharedInfo;
+                        gctINT dirtyX, dirtyY, right, bottom;
+
+                        /* Expand the dirty rectangle stored in the node to include the rectangle passed in. */
+                        gcmkONERROR(gckOS_CopyFromUserData(
+                            Kernel->os,
+                            &newSharedInfo,
+                            Interface->u.SetSharedInfo.nodeData,
+                            gcmSIZEOF(gcsVIDMEM_NODE_SHARED_INFO)
+                            ));
+
+                        if (node->VidMem.memory->object.type == gcvOBJ_VIDMEM)
+                        {
+                            currentSharedInfo = &node->VidMem.sharedInfo;
+                        }
+                        else
+                        {
+                            currentSharedInfo = &node->Virtual.sharedInfo;
+                        }
+
+                        gcmkTRACE_ZONE(gcvLEVEL_VERBOSE, gcvZONE_KERNEL, "Node = %p Stored rectangle (l=%d, t=%d, w=%d, h=%d)", node,
+                                        currentSharedInfo->SrcOrigin.x, currentSharedInfo->SrcOrigin.y,
+                                        currentSharedInfo->RectSize.width, currentSharedInfo->RectSize.height);
+
+                        gcmkTRACE_ZONE(gcvLEVEL_VERBOSE, gcvZONE_KERNEL, "To combine with (l=%d, t=%d, w=%d, h=%d)",
+                                        newSharedInfo.SrcOrigin.x, newSharedInfo.SrcOrigin.y,
+                                        newSharedInfo.RectSize.width, newSharedInfo.RectSize.height);
+
+                        if ((currentSharedInfo->RectSize.width == 0) || (currentSharedInfo->RectSize.height == 0))
+                        { /* Setting it for the first time */
+                            currentSharedInfo->SrcOrigin.x = newSharedInfo.SrcOrigin.x;
+                            currentSharedInfo->SrcOrigin.y = newSharedInfo.SrcOrigin.y;
+                            currentSharedInfo->RectSize.width = newSharedInfo.RectSize.width;
+                            currentSharedInfo->RectSize.height = newSharedInfo.RectSize.height;
+                        }
+                        else
+                        {
+                            /* Expand the stored rectangle to include newly locked rectangle */
+                            dirtyX = (newSharedInfo.SrcOrigin.x < currentSharedInfo->SrcOrigin.x) ? newSharedInfo.SrcOrigin.x : currentSharedInfo->SrcOrigin.x;
+                            right = gcmMAX((currentSharedInfo->SrcOrigin.x + currentSharedInfo->RectSize.width), (newSharedInfo.SrcOrigin.x + newSharedInfo.RectSize.width));
+                            currentSharedInfo->RectSize.width = right - dirtyX;
+                            currentSharedInfo->SrcOrigin.x = dirtyX;
+
+                            dirtyY = (newSharedInfo.SrcOrigin.y < currentSharedInfo->SrcOrigin.y) ? newSharedInfo.SrcOrigin.y : currentSharedInfo->SrcOrigin.y;
+                            bottom = gcmMAX((currentSharedInfo->SrcOrigin.y + currentSharedInfo->RectSize.height), (newSharedInfo.SrcOrigin.y + newSharedInfo.RectSize.height));
+                            currentSharedInfo->RectSize.height = bottom - dirtyY;
+                            currentSharedInfo->SrcOrigin.y = dirtyY;
+                        }
+
+                        gcmkTRACE_ZONE(gcvLEVEL_VERBOSE, gcvZONE_KERNEL, "Combined rectangle (l=%d, t=%d, w=%d, h=%d)",
+                                       currentSharedInfo->SrcOrigin.x, currentSharedInfo->SrcOrigin.y,
+                                       currentSharedInfo->RectSize.width, currentSharedInfo->RectSize.height);
+                    }
+                    break;
+                }
         }
 
         break;

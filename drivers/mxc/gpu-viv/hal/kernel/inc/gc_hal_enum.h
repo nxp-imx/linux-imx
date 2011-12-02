@@ -128,6 +128,7 @@ typedef enum _gceFEATURE
     gcvFEATURE_TEXTURE_FLOAT_HALF_FLOAT,
 	gcvFEATURE_2D_ROTATION_STALL_FIX,
     gcvFEATURE_2D_MULTI_SOURCE_BLT_EX,
+	gcvFEATURE_BUG_FIXES10,
 }
 gceFEATURE;
 
@@ -159,6 +160,13 @@ typedef enum _gceCACHEOPERATION
     gcvCACHE_FLUSH      = gcvCACHE_CLEAN  | gcvCACHE_INVALIDATE
 }
 gceCACHEOPERATION;
+
+typedef enum _gceVIDMEM_NODE_SHARED_INFO_TYPE
+{
+    gcvVIDMEM_INFO_GENERIC,
+    gcvVIDMEM_INFO_DIRTY_RECTANGLE
+}
+gceVIDMEM_NODE_SHARED_INFO_TYPE;
 
 /* Surface types. */
 typedef enum _gceSURF_TYPE
@@ -204,6 +212,14 @@ typedef enum _gceSURF_TYPE
                                          | gcvSURF_CACHEABLE
 }
 gceSURF_TYPE;
+
+typedef enum _gceSURF_USAGE
+{
+    gcvSURF_USAGE_UNKNOWN,
+    gcvSURF_USAGE_RESOLVE_AFTER_CPU,
+    gcvSURF_USAGE_RESOLVE_AFTER_3D
+}
+gceSURF_USAGE;
 
 typedef enum _gceSURF_COLOR_TYPE
 {

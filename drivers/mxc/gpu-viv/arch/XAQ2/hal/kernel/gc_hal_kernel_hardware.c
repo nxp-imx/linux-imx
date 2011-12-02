@@ -715,15 +715,15 @@ gckHARDWARE_InitializeHardware(
                                       0x00418,
                                       baseAddress));
 
+    gcmkONERROR(gckOS_WriteRegisterEx(Hardware->os,
+                                      Hardware->core,
+                                      0x00428,
+                                      baseAddress));
+
 #ifndef VIVANTE_NO_3D
     gcmkONERROR(gckOS_WriteRegisterEx(Hardware->os,
                                       Hardware->core,
                                       0x00420,
-                                      baseAddress));
-
-    gcmkONERROR(gckOS_WriteRegisterEx(Hardware->os,
-                                      Hardware->core,
-                                      0x00428,
                                       baseAddress));
 
     gcmkONERROR(gckOS_WriteRegisterEx(Hardware->os,
@@ -3684,6 +3684,22 @@ gckHARDWARE_SetPowerManagementState(
                                            Hardware->powerMutex,
                                            gcvINFINITE));
             mutexAcquired = gcvTRUE;
+
+            /* chipPowerState may be changed by external world during the time
+            ** we give up powerMutex, so updating flag now is necessary. */
+            flag = flags[Hardware->chipPowerState][State];
+
+            if (flag == 0)
+            {
+                gcmkONERROR(gckOS_ReleaseSemaphore(os, Hardware->globalSemaphore));
+                globalAcquired = gcvFALSE;
+
+                gcmkONERROR(gckOS_ReleaseMutex(os, Hardware->powerMutex));
+                mutexAcquired = gcvFALSE;
+
+                gcmkFOOTER_NO();
+                return gcvSTATUS_OK;
+            }
         }
         else
         {
@@ -3694,6 +3710,40 @@ gckHARDWARE_SetPowerManagementState(
         /* Release the global semaphore again. */
         gcmkONERROR(gckOS_ReleaseSemaphore(os, Hardware->globalSemaphore));
         globalAcquired = gcvFALSE;
+    }
+    else
+    {
+        if (State == gcvPOWER_OFF || State == gcvPOWER_SUSPEND || State == gcvPOWER_IDLE)
+        {
+            /* Acquire the global semaphore if it has not been acquired. */
+            status = gckOS_TryAcquireSemaphore(os, Hardware->globalSemaphore);
+            if (status == gcvSTATUS_OK)
+            {
+                globalAcquired = gcvTRUE;
+            }
+            else if (status != gcvSTATUS_TIMEOUT)
+            {
+                /* Other errors. */
+                gcmkONERROR(status);
+            }
+            /* Ignore gcvSTATUS_TIMEOUT and leave globalAcquired as gcvFALSE.
+            ** gcvSTATUS_TIMEOUT means global semaphore has already
+            ** been acquired before this operation, so even if we fail,
+            ** we should not release it in our error handling. It should be
+            ** released by the next successful global gcvPOWER_ON. */
+        }
+
+        /* Global power management can't be aborted, so sync with
+        ** proceeding last commit. */
+        if (flag & gcvPOWER_FLAG_ACQUIRE)
+        {
+            /* Acquire the power management semaphore. */
+            gcmkONERROR(gckOS_AcquireSemaphore(os, command->powerSemaphore));
+            acquired = gcvTRUE;
+
+            /* avoid acquiring again. */
+            flag &= ~gcvPOWER_FLAG_ACQUIRE;
+        }
     }
 
     if (flag & (gcvPOWER_FLAG_INITIALIZE | gcvPOWER_FLAG_CLOCK_ON))
@@ -3714,15 +3764,20 @@ gckHARDWARE_SetPowerManagementState(
         gctBOOL idle;
         gctINT32 atomValue;
 
-        /* Check commit atom. */
-        gcmkONERROR(gckOS_AtomGet(os, command->atomCommit, &atomValue));
-
-        if (atomValue > 0)
+        /* For global operation, all pending commits have already been
+        ** blocked by globalSemaphore or powerSemaphore.*/
+        if (!global)
         {
-            /* Commits are pending - abort power management. */
-            status = broadcast ? gcvSTATUS_CHIP_NOT_READY
-                               : gcvSTATUS_MORE_DATA;
-            goto OnError;
+            /* Check commit atom. */
+            gcmkONERROR(gckOS_AtomGet(os, command->atomCommit, &atomValue));
+
+            if (atomValue > 0)
+            {
+                /* Commits are pending - abort power management. */
+                status = broadcast ? gcvSTATUS_CHIP_NOT_READY
+                                   : gcvSTATUS_MORE_DATA;
+                goto OnError;
+            }
         }
 
         if (broadcast)
@@ -3780,13 +3835,6 @@ gckHARDWARE_SetPowerManagementState(
         /* Acquire the power management semaphore. */
         gcmkONERROR(gckOS_AcquireSemaphore(os, command->powerSemaphore));
         acquired = gcvTRUE;
-
-        if (global)
-        {
-            /* Acquire the global semaphore. */
-            gcmkONERROR(gckOS_AcquireSemaphore(os, Hardware->globalSemaphore));
-            globalAcquired = gcvTRUE;
-        }
     }
 
     if (flag & gcvPOWER_FLAG_STOP)
@@ -3796,7 +3844,7 @@ gckHARDWARE_SetPowerManagementState(
 
         /* Stop the Isr. */
         gcmkONERROR(Hardware->stopIsr(Hardware->isrContext));
-   }
+    }
 
     /* Get time until stopped. */
     gcmkPROFILE_QUERY(time, stopTime);
@@ -3883,6 +3931,18 @@ gckHARDWARE_SetPowerManagementState(
 
         if (global)
         {
+            /* Verify global semaphore has been acquired already before
+            ** we release it.
+            ** If it was acquired, gckOS_TryAcquireSemaphore will return
+            ** gcvSTATUS_TIMEOUT and we release it. Otherwise, global
+            ** semaphore will be acquried now, but it still is released
+            ** immediately. */
+            status = gckOS_TryAcquireSemaphore(os, Hardware->globalSemaphore);
+            if (status != gcvSTATUS_TIMEOUT)
+            {
+                gcmkONERROR(status);
+            }
+
             /* Release the global semaphore. */
             gcmkONERROR(gckOS_ReleaseSemaphore(os, Hardware->globalSemaphore));
             globalAcquired = gcvFALSE;

@@ -266,6 +266,9 @@ gckVIDMEM_ConstructVirtual(
 #endif
 
     node->Virtual.freed         = gcvFALSE;
+
+    gcmkONERROR(gckOS_ZeroMemory(&node->Virtual.sharedInfo, gcmSIZEOF(gcsVIDMEM_NODE_SHARED_INFO)));
+
     /* Create the mutex. */
     gcmkONERROR(
         gckOS_CreateMutex(os, &node->Virtual.mutex));
@@ -513,6 +516,8 @@ gckVIDMEM_Construct(
         node->VidMem.pool      = gcvPOOL_UNKNOWN;
 
         node->VidMem.locked    = 0;
+
+        gcmkONERROR(gckOS_ZeroMemory(&node->VidMem.sharedInfo, gcmSIZEOF(gcsVIDMEM_NODE_SHARED_INFO)));
 
 #ifdef __QNXNTO__
 #if gcdUSE_VIDMEM_PER_PID

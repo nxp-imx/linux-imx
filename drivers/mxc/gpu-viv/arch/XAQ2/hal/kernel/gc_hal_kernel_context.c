@@ -67,6 +67,14 @@
         gcvFALSE, gcvFALSE                                                     \
         )
 
+#define _STATE_MIRROR(reg, mirror)                                             \
+    _StateMirror(\
+        Context, \
+        reg ## _Address >> 2, \
+        reg ## _Count, \
+        mirror ## _Address >> 2                                                \
+        )
+
 #define _STATE_HINT(reg)                                                       \
     _State(\
         Context, index, \
@@ -353,6 +361,32 @@ _State(
     /* Return number of slots required. */
     return Size;
 }
+
+static gctSIZE_T
+_StateMirror(
+    IN gckCONTEXT Context,
+    IN gctUINT32 Address,
+    IN gctSIZE_T Size,
+    IN gctUINT32 AddressMirror
+    )
+{
+    gctSIZE_T i;
+
+    /* Process when buffer is set. */
+    if (Context->buffer != gcvNULL)
+    {
+        /* Walk all states. */
+        for (i = 0; i < Size; i++)
+        {
+            /* Copy the mapping address. */
+            Context->map[Address + i].index =
+                Context->map[AddressMirror + i].index;
+        }
+    }
+
+    /* Return the number of required maps. */
+    return Size;
+}
 #endif
 
 static gceSTATUS
@@ -565,7 +599,7 @@ _InitializeContextBuffer(
     index += _State(Context, index, 0x0091C >> 2, 0x00000000, 1, gcvFALSE, gcvFALSE);
     index += _CLOSE_RANGE();
 
-	if (Context->hardware->identity.instructionCount >= 2048)
+	if (Context->hardware->identity.instructionCount > 1024)
 	{
 		/* New Shader instruction memory. */
 		index += _State(Context, index, 0x0085C >> 2, 0x00000000, 1, gcvFALSE, gcvFALSE);
@@ -579,7 +613,7 @@ _InitializeContextBuffer(
 			index += _CLOSE_RANGE();
 		}
 	}
-	else if (Context->hardware->identity.instructionCount >= 1024)
+	else if (Context->hardware->identity.instructionCount > 256)
 	{
 		/* VX instruction memory. */
 		for (i = 0; i < 4096; i += 1024)
@@ -588,11 +622,7 @@ _InitializeContextBuffer(
 			index += _CLOSE_RANGE();
 		}
 
-		for (i = 0; i < 4096; i += 1024)
-		{
-			index += _State(Context, index, (0x08000 >> 2) + i, 0x00000000, 1024, gcvFALSE, gcvFALSE);
-			index += _CLOSE_RANGE();
-		}
+		index += _StateMirror(Context, (0x08000 >> 2), 4096, 0x0C000 >> 2);
 	}
 
     /* Store the index of the "XD" entry. */
