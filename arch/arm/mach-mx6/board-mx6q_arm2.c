@@ -481,6 +481,8 @@ static const struct anatop_thermal_platform_data
 
 static const struct imxuart_platform_data mx6q_uart1_data __initconst = {
 	.flags = IMXUART_HAVE_RTSCTS | IMXUART_USE_DCEDTE | IMXUART_SDMA,
+	.dma_req_rx = MX6Q_DMA_REQ_UART2_RX,
+	.dma_req_tx = MX6Q_DMA_REQ_UART2_TX,
 };
 
 static inline void mx6q_arm2_init_uart(void)
