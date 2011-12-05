@@ -741,7 +741,9 @@ static void dma_rx_work(struct work_struct *w)
 		tty_flip_buffer_push(tty);
 		sport->rx_bytes = 0;
 	}
-	start_rx_dma(sport);
+
+	if (sport->dma_is_rxing)
+		start_rx_dma(sport);
 }
 
 /*
