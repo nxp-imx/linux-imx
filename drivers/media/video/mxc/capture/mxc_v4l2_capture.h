@@ -36,7 +36,7 @@
 
 #include <media/v4l2-dev.h>
 
-#define FRAME_NUM 3
+#define FRAME_NUM 10
 
 /*!
  * v4l2 frame structure.
