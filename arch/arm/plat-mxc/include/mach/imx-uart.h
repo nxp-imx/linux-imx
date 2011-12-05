@@ -32,6 +32,8 @@ struct imxuart_platform_data {
 	unsigned int irda_inv_rx:1;
 	unsigned int irda_inv_tx:1;
 	unsigned short transceiver_delay;
+	unsigned int dma_req_rx;
+	unsigned int dma_req_tx;
 };
 
 #endif
