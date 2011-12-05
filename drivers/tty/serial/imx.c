@@ -205,10 +205,11 @@ struct imx_port {
 	int			enable_dma;
 	struct imx_dma_data	dma_data;
 	struct dma_chan		*dma_chan_rx, *dma_chan_tx;
-	struct scatterlist	rx_sgl, tx_sgl;
-	void			*rx_buf, *tx_buf;
-	unsigned int		rx_bytes;
+	struct scatterlist	rx_sgl, tx_sgl[2];
+	void			*rx_buf;
+	unsigned int		rx_bytes, tx_bytes;
 	struct work_struct	tsk_dma_rx, tsk_dma_tx;
+	unsigned int		dma_tx_nents;
 	bool			dma_is_rxing;
 };
 
@@ -362,10 +363,16 @@ static inline void imx_transmit_buffer(struct imx_port *sport)
 static void dma_tx_callback(void *data)
 {
 	struct imx_port *sport = data;
-	struct scatterlist *sgl = &sport->tx_sgl;
+	struct scatterlist *sgl = &sport->tx_sgl[0];
 	struct circ_buf *xmit = &sport->port.state->xmit;
 
-	dma_unmap_sg(sport->port.dev, sgl, 1, DMA_TO_DEVICE);
+	dma_unmap_sg(sport->port.dev, sgl, sport->dma_tx_nents, DMA_TO_DEVICE);
+
+	/* update the stat */
+	spin_lock(&sport->port.lock);
+	xmit->tail = (xmit->tail + sport->tx_bytes) & (UART_XMIT_SIZE - 1);
+	sport->port.icount.tx += sport->tx_bytes;
+	spin_unlock(&sport->port.lock);
 
 	if (uart_circ_chars_pending(xmit) < WAKEUP_CHARS)
 		uart_write_wakeup(&sport->port);
@@ -376,12 +383,11 @@ static void dma_tx_work(struct work_struct *w)
 {
 	struct imx_port *sport = container_of(w, struct imx_port, tsk_dma_tx);
 	struct circ_buf *xmit = &sport->port.state->xmit;
-	struct scatterlist *sgl = &sport->tx_sgl;
+	struct scatterlist *sgl = &sport->tx_sgl[0];
 	struct dma_async_tx_descriptor *desc;
 	struct dma_chan	*chan = sport->dma_chan_tx;
 	enum dma_status status;
 	unsigned long flags;
-	int tx_num;
 	int ret;
 
 	status = chan->device->device_tx_status(chan, (dma_cookie_t)NULL, NULL);
@@ -389,29 +395,29 @@ static void dma_tx_work(struct work_struct *w)
 		return;
 
 	spin_lock_irqsave(&sport->port.lock, flags);
-	tx_num = uart_circ_chars_pending(xmit);
-	if (tx_num > 0) {
+	sport->tx_bytes = uart_circ_chars_pending(xmit);
+	if (sport->tx_bytes > 0) {
 		if (xmit->tail > xmit->head) {
-			memcpy(sport->tx_buf, xmit->buf + xmit->tail,
-			       UART_XMIT_SIZE - xmit->tail);
-			memcpy(sport->tx_buf + (UART_XMIT_SIZE - xmit->tail),
-				xmit->buf, xmit->head);
-		} else
-			memcpy(sport->tx_buf, xmit->buf + xmit->tail, tx_num);
-
-		/* update the tail. */
-		xmit->tail = (xmit->tail + tx_num) & (UART_XMIT_SIZE - 1);
-		sport->port.icount.tx += tx_num;
+			sport->dma_tx_nents = 2;
+			sg_init_table(sgl, 2);
+			sg_set_buf(sgl, xmit->buf + xmit->tail,
+					UART_XMIT_SIZE - xmit->tail);
+			sg_set_buf(&sgl[1], xmit->buf, xmit->head);
+		} else {
+			sport->dma_tx_nents = 1;
+			sg_init_one(sgl, xmit->buf + xmit->tail,
+					sport->tx_bytes);
+		}
 		spin_unlock_irqrestore(&sport->port.lock, flags);
 
-		sg_init_one(sgl, sport->tx_buf, tx_num);
-		ret = dma_map_sg(sport->port.dev, sgl, 1, DMA_TO_DEVICE);
+		ret = dma_map_sg(sport->port.dev, sgl,
+				sport->dma_tx_nents, DMA_TO_DEVICE);
 		if (ret == 0) {
 			pr_err("DMA mapping error for TX.\n");
 			return;
 		}
-		desc = chan->device->device_prep_slave_sg(chan,
-					sgl, 1, DMA_TO_DEVICE, 0);
+		desc = chan->device->device_prep_slave_sg(chan, sgl,
+				sport->dma_tx_nents, DMA_TO_DEVICE, 0);
 		if (!desc) {
 			pr_err("We cannot prepare for the TX slave dma!\n");
 			return;
@@ -815,9 +821,6 @@ static void imx_uart_dma_exit(struct imx_port *sport)
 	if (sport->dma_chan_tx) {
 		dma_release_channel(sport->dma_chan_tx);
 		sport->dma_chan_tx = NULL;
-
-		kfree(sport->tx_buf);
-		sport->tx_buf = NULL;
 	}
 }
 
@@ -881,12 +884,6 @@ static int imx_uart_dma_init(struct imx_port *sport)
 		goto err;
 	}
 
-	sport->tx_buf = kzalloc(PAGE_SIZE, GFP_DMA);
-	if (!sport->tx_buf) {
-		pr_err("cannot alloc DMA buffer.\n");
-		ret = -ENOMEM;
-		goto err;
-	}
 	return 0;
 err:
 	imx_uart_dma_exit(sport);
