@@ -32,8 +32,6 @@
 #define CLK32_FREQ	32768
 #define NANOSECOND	(1000 * 1000 * 1000)
 
-int cpufreq_trig_needed;
-
 static int cpu_freq_khz_min;
 static int cpu_freq_khz_max;
 
@@ -122,12 +120,10 @@ static int mxc_set_target(struct cpufreq_policy *policy,
 	if (policy->cpu > num_cpus)
 		return 0;
 
-#ifdef CONFIG_ARCH_MX5
 	if (dvfs_core_is_active) {
 		printk(KERN_DEBUG"DVFS-CORE is active, cannot change frequency using CPUFREQ\n");
 		return ret;
 	}
-#endif
 
 	cpufreq_frequency_table_target(policy, imx_freq_table,
 			target_freq, relation, &index);
