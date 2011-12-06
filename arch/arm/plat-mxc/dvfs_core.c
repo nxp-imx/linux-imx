@@ -84,6 +84,7 @@
 #define CCM_CDCR_ARM_FREQ_SHIFT_DIVIDER		0x4
 #define CCM_CDHIPR_ARM_PODF_BUSY		0x10000
 
+int cpufreq_trig_needed;
 int dvfs_core_is_active;
 static struct mxc_dvfs_platform_data *dvfs_data;
 static struct device *dvfs_dev;
@@ -98,7 +99,6 @@ static int maxf;
 static int minf;
 
 extern void setup_pll(void);
-extern int cpufreq_trig_needed;
 extern int (*set_cpu_voltage)(u32 cpu_volt);
 
 struct timeval core_prev_intr;
@@ -485,12 +485,12 @@ static int start_dvfs(void)
 	reg = __raw_readl(dvfs_data->membase + MXC_DVFSCORE_CNTR);
 	/* FSVAIM=0 */
 	reg = (reg & ~MXC_DVFSCNTR_FSVAIM);
+
 	/* Set MAXF, MINF */
-	if (!cpu_is_mx6q()) {
-		reg = (reg & ~(MXC_DVFSCNTR_MAXF_MASK
-					| MXC_DVFSCNTR_MINF_MASK));
-		reg |= 1 << MXC_DVFSCNTR_MAXF_OFFSET;
-	}
+	reg = (reg & ~(MXC_DVFSCNTR_MAXF_MASK
+				| MXC_DVFSCNTR_MINF_MASK));
+	reg |= 1 << MXC_DVFSCNTR_MAXF_OFFSET;
+
 	/* Select ARM domain */
 	reg |= MXC_DVFSCNTR_DVFIS;
 	/* Enable DVFS frequency adjustment interrupt */
@@ -526,7 +526,6 @@ static int start_dvfs(void)
 	spin_unlock_irqrestore(&mxc_dvfs_core_lock, flags);
 
 	printk(KERN_DEBUG "DVFS is started\n");
-
 	return 0;
 }
 
@@ -667,6 +666,11 @@ END:
 			dvfs_cpu_jiffies(old_loops_per_jiffy,
 				curr_cpu/1000, clk_get_rate(cpu_clk) / 1000);
 #endif
+#if defined (CONFIG_CPU_FREQ)
+		/* Fix CPU frequency for CPUFREQ. */
+		for (cpu = 0; cpu < num_online_cpus(); cpu++)
+			cpufreq_get(cpu);
+#endif
 		cpufreq_trig_needed = 0;
 	}
 
@@ -734,6 +738,11 @@ void stop_dvfs(void)
 				curr_cpu/1000, clk_get_rate(cpu_clk) / 1000);
 #endif
 
+#if defined (CONFIG_CPU_FREQ)
+			/* Fix CPU frequency for CPUFREQ. */
+			for (cpu = 0; cpu < num_online_cpus(); cpu++)
+				cpufreq_get(cpu);
+#endif
 		}
 		spin_lock_irqsave(&mxc_dvfs_core_lock, flags);
 
