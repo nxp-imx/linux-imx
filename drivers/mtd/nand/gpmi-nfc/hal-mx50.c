@@ -339,7 +339,7 @@ static int init(struct gpmi_nfc_data *this)
 	clk_enable(resources->clock);
 
 	/* Reset the GPMI block. */
-	mxs_reset_block(resources->gpmi_regs + HW_GPMI_CTRL0, true);
+	mxs_reset_block(resources->gpmi_regs + HW_GPMI_CTRL0, false);
 
 	/* Choose NAND mode. */
 	__raw_writel(BM_GPMI_CTRL1_GPMI_MODE,
