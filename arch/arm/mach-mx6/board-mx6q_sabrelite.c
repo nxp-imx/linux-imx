@@ -58,6 +58,7 @@
 #include <mach/iomux-mx6q.h>
 #include <mach/imx-uart.h>
 #include <mach/viv_gpu.h>
+#include <mach/ahci_sata.h>
 #include <mach/ipu-v3.h>
 #include <mach/mxc_hdmi.h>
 #include <mach/mxc_asrc.h>
@@ -72,6 +73,7 @@
 #include "devices-imx6q.h"
 #include "crm_regs.h"
 #include "cpu_op-mx6.h"
+
 #define MX6Q_SABRELITE_SD3_CD		IMX_GPIO_NR(7, 0)
 #define MX6Q_SABRELITE_SD3_WP		IMX_GPIO_NR(7, 1)
 #define MX6Q_SABRELITE_SD4_CD		IMX_GPIO_NR(2, 6)
@@ -88,6 +90,7 @@
 		PAD_CTL_DSE_40ohm | PAD_CTL_HYS)
 
 void __init early_console_setup(unsigned long base, struct clk *clk);
+static struct clk *sata_clk;
 
 extern struct regulator *(*get_cpu_regulator)(void);
 extern void (*put_cpu_regulator)(void);
@@ -583,6 +586,92 @@ static void __init imx6q_sabrelite_init_usb(void)
 	mx6_usb_h1_init();
 }
 
+/* HW Initialization, if return 0, initialization is successful. */
+static int mx6q_sabrelite_sata_init(struct device *dev, void __iomem *addr)
+{
+	u32 tmpdata;
+	int ret = 0, iterations = 20;
+	struct clk *clk;
+
+	sata_clk = clk_get(dev, "imx_sata_clk");
+	if (IS_ERR(sata_clk)) {
+		dev_err(dev, "no sata clock.\n");
+		return PTR_ERR(sata_clk);
+	}
+	ret = clk_enable(sata_clk);
+	if (ret) {
+		dev_err(dev, "can't enable sata clock.\n");
+		goto put_sata_clk;
+	}
+
+	/* Set PHY Paremeters, two steps to configure the GPR13,
+	 * one write for rest of parameters, mask of first write is 0x07FFFFFD,
+	 * and the other one write for setting the mpll_clk_off_b
+	 *.rx_eq_val_0(iomuxc_gpr13[26:24]),
+	 *.los_lvl(iomuxc_gpr13[23:19]),
+	 *.rx_dpll_mode_0(iomuxc_gpr13[18:16]),
+	 *.sata_speed(iomuxc_gpr13[15]),
+	 *.mpll_ss_en(iomuxc_gpr13[14]),
+	 *.tx_atten_0(iomuxc_gpr13[13:11]),
+	 *.tx_boost_0(iomuxc_gpr13[10:7]),
+	 *.tx_lvl(iomuxc_gpr13[6:2]),
+	 *.mpll_ck_off(iomuxc_gpr13[1]),
+	 *.tx_edgerate_0(iomuxc_gpr13[0]),
+	 */
+	tmpdata = readl(IOMUXC_GPR13);
+	writel(((tmpdata & ~0x07FFFFFD) | 0x0593A044), IOMUXC_GPR13);
+
+	/* enable SATA_PHY PLL */
+	tmpdata = readl(IOMUXC_GPR13);
+	writel(((tmpdata & ~0x2) | 0x2), IOMUXC_GPR13);
+
+	/* Get the AHB clock rate, and configure the TIMER1MS reg later */
+	clk = clk_get(NULL, "ahb");
+	if (IS_ERR(clk)) {
+		dev_err(dev, "no ahb clock.\n");
+		ret = PTR_ERR(clk);
+		goto release_sata_clk;
+	}
+	tmpdata = clk_get_rate(clk) / 1000;
+	clk_put(clk);
+
+	sata_init(addr, tmpdata);
+
+	/* Release resources when there is no device on the port */
+	do {
+		if ((readl(addr + PORT_SATA_SR) & 0xF) == 0)
+			msleep(25);
+		else
+			break;
+
+		if (iterations == 0) {
+			dev_info(dev, "NO sata disk.\n");
+			ret = -ENODEV;
+			goto release_sata_clk;
+		}
+	} while (iterations-- > 0);
+
+	return ret;
+
+release_sata_clk:
+	clk_disable(sata_clk);
+put_sata_clk:
+	clk_put(sata_clk);
+
+	return ret;
+}
+
+static void mx6q_sabrelite_sata_exit(struct device *dev)
+{
+	clk_disable(sata_clk);
+	clk_put(sata_clk);
+}
+
+static struct ahci_platform_data mx6q_sabrelite_sata_data = {
+	.init = mx6q_sabrelite_sata_init,
+	.exit = mx6q_sabrelite_sata_exit,
+};
+
 static struct gpio mx6q_sabrelite_flexcan_gpios[] = {
 	{ MX6Q_SABRELITE_CAN1_EN, GPIOF_OUT_INIT_LOW, "flexcan1-en" },
 	{ MX6Q_SABRELITE_CAN1_STBY, GPIOF_OUT_INIT_LOW, "flexcan1-stby" },
@@ -925,6 +1014,7 @@ static void __init mx6_sabrelite_board_init(void)
 	imx6q_add_sdhci_usdhc_imx(2, &mx6q_sabrelite_sd3_data);
 	imx_add_viv_gpu(&imx6_gpu_data, &imx6q_gpu_pdata);
 	imx6q_sabrelite_init_usb();
+	imx6q_add_ahci(0, &mx6q_sabrelite_sata_data);
 	imx6q_add_vpu();
 	imx6q_init_audio();
 	platform_device_register(&sabrelite_vmmc_reg_devices);
