@@ -742,8 +742,13 @@ gckEVENT_AllocateRecord(
     gcmkVERIFY_OBJECT(Event, gcvOBJ_EVENT);
     gcmkVERIFY_ARGUMENT(Record != gcvNULL);
 
+    /* Acquire the mutex. */
+    gcmkONERROR(gckOS_AcquireMutex(Event->os, Event->freeEventMutex, gcvINFINITE));
+    acquired = gcvTRUE;
+
     /* Test if we are below the allocation threshold. */
-    if (AllocateAllowed && (Event->freeEventCount < gcdEVENT_MIN_THRESHOLD))
+    if ( (AllocateAllowed && (Event->freeEventCount < gcdEVENT_MIN_THRESHOLD)) ||
+         (Event->freeEventCount == 0) )
     {
         /* Allocate a bunch of records. */
         for (i = 0; i < gcdEVENT_ALLOCATION_COUNT; i += 1)
@@ -755,24 +760,12 @@ gckEVENT_AllocateRecord(
 
             record = pointer;
 
-            /* Acquire the mutex. */
-            gcmkONERROR(gckOS_AcquireMutex(Event->os, Event->freeEventMutex, gcvINFINITE));
-            acquired = gcvTRUE;
-
             /* Push it on the free list. */
             record->next           = Event->freeEventList;
             Event->freeEventList   = record;
             Event->freeEventCount += 1;
-
-            /* Release the mutex. */
-            gcmkONERROR(gckOS_ReleaseMutex(Event->os, Event->freeEventMutex));
-            acquired = gcvFALSE;
         }
     }
-
-    /* Acquire the mutex. */
-    gcmkONERROR(gckOS_AcquireMutex(Event->os, Event->freeEventMutex, gcvINFINITE));
-    acquired = gcvTRUE;
 
     *Record                = Event->freeEventList;
     Event->freeEventList   = Event->freeEventList->next;
@@ -852,6 +845,7 @@ gckEVENT_AddList(
         || (Interface->command == gcvHAL_SIGNAL)
         || (Interface->command == gcvHAL_UNMAP_USER_MEMORY)
         || (Interface->command == gcvHAL_TIMESTAMP)
+        || (Interface->command == gcvHAL_COMMIT_DONE)
         );
 
     /* Validate the source. */
@@ -1251,6 +1245,52 @@ OnError:
     return status;
 }
 
+/*******************************************************************************
+**
+**  gckEVENT_CommitDone
+**
+**  Schedule an event to wake up work thread when commit is done by GPU.
+**
+**  INPUT:
+**
+**      gckEVENT Event
+**          Pointer to an gckEVENT object.
+**
+**      gceKERNEL_WHERE FromWhere
+**          Place in the pipe where the event needs to be generated.
+**
+**  OUTPUT:
+**
+**      Nothing.
+*/
+gceSTATUS
+gckEVENT_CommitDone(
+    IN gckEVENT Event,
+    IN gceKERNEL_WHERE FromWhere
+    )
+{
+    gceSTATUS status;
+    gcsHAL_INTERFACE iface;
+
+    gcmkHEADER_ARG("Event=0x%x FromWhere=%d", Event, FromWhere);
+
+    /* Verify the arguments. */
+    gcmkVERIFY_OBJECT(Event, gcvOBJ_EVENT);
+
+    iface.command = gcvHAL_COMMIT_DONE;
+
+    /* Append it to the queue. */
+    gcmkONERROR(gckEVENT_AddList(Event, &iface, FromWhere, gcvFALSE));
+
+    /* Success. */
+    gcmkFOOTER_NO();
+    return gcvSTATUS_OK;
+
+OnError:
+    /* Return the status. */
+    gcmkFOOTER();
+    return status;
+}
 /*******************************************************************************
 **
 **  gckEVENT_Submit
@@ -2206,6 +2246,9 @@ gckEVENT_Notify(
                         status = gcvSTATUS_INVALID_ARGUMENT;
                         break;
                     }
+                    break;
+
+                case gcvHAL_COMMIT_DONE:
                     break;
 
                 default:

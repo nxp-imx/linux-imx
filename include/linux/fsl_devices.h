@@ -119,6 +119,7 @@ struct fsl_usb2_platform_data {
 	enum usb_wakeup_event (*is_wakeup_event)(struct fsl_usb2_platform_data *);
 	void (*wakeup_handler)(struct fsl_usb2_platform_data *);
 	void (*hsic_post_ops)(void);
+	void (*gadget_discharge_dp) (bool);
 
 	struct fsl_usb2_wakeup_platform_data *wakeup_pdata;
 	struct platform_device *pdev;
@@ -253,6 +254,7 @@ struct fsl_mxc_camera_platform_data {
 	u32 mclk;
 	u32 csi;
 	void (*pwdn)(int pwdn);
+	void (*io_init)(void);
 };
 
 struct mpc8xx_pcmcia_ops {
@@ -363,6 +365,8 @@ struct mxs_perfmon_bit_config {
 struct mxs_platform_perfmon_data {
 	struct mxs_perfmon_bit_config *bit_config_tab;
 	int bit_config_cnt;
+	void (*plt_init) (void);
+	void (*plt_exit) (void);
 };
 
 #endif /* _FSL_DEVICE_H_ */

@@ -104,7 +104,7 @@ static u32 esdhc_readl_le(struct sdhci_host *host, int reg)
 		if (boarddata && gpio_is_valid(boarddata->cd_gpio)
 				&& gpio_get_value(boarddata->cd_gpio))
 			/* no card, if a valid gpio says so... */
-			val &= SDHCI_CARD_PRESENT;
+			val &= ~SDHCI_CARD_PRESENT;
 		else
 			/* ... in all other cases assume card is present */
 			val |= SDHCI_CARD_PRESENT;
@@ -469,6 +469,8 @@ static int esdhc_pltfm_init(struct sdhci_host *host, struct sdhci_pltfm_data *pd
 		host->ocr_avail_sd |= MMC_VDD_165_195;
 	if (boarddata->support_8bit)
 		host->mmc->caps |= MMC_CAP_8_BIT_DATA;
+	if (boarddata->keep_power_at_suspend)
+		host->mmc->pm_caps |= MMC_PM_KEEP_POWER;
 	if (cpu_is_mx6q()) {
 		host->mmc->caps |= MMC_CAP_1_8V_DDR;
 		host->tuning_min = SDHCI_TUNE_CTRL_MIN;

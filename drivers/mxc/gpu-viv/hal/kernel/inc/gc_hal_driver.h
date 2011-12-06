@@ -147,7 +147,9 @@ typedef enum _gceHAL_COMMAND_CODES
     /* Shared info for each process */
     gcvHAL_GET_SHARED_INFO,
     gcvHAL_SET_SHARED_INFO,
-    gcvHAL_QUERY_COMMAND_BUFFER
+    gcvHAL_QUERY_COMMAND_BUFFER,
+
+    gcvHAL_COMMIT_DONE,
 }
 gceHAL_COMMAND_CODES;
 
@@ -859,7 +861,6 @@ typedef struct _gcsHAL_INTERFACE
 
 #endif
 
-#if gcdENABLE_SHARED_INFO
         struct _gcsHAL_GET_SHARED_INFO
         {
             IN gctUINT32            pid;
@@ -869,6 +870,7 @@ typedef struct _gcsHAL_INTERFACE
             /* fix size */
             OUT gctUINT8_PTR        nodeData;
             gctSIZE_T               size;
+            IN gceVIDMEM_NODE_SHARED_INFO_TYPE infoType;
         }
         GetSharedInfo;
 
@@ -879,9 +881,9 @@ typedef struct _gcsHAL_INTERFACE
             IN gctUINT8_PTR         data;
             IN gctUINT8_PTR         nodeData;
             IN gctSIZE_T            size;
+            IN gceVIDMEM_NODE_SHARED_INFO_TYPE infoType;
         }
         SetSharedInfo;
-#endif
     }
     u;
 }

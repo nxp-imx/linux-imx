@@ -29,6 +29,8 @@
 #include <asm/mach/map.h>
 
 #include "crm_regs.h"
+#include "cpu_op-mx6.h"
+
 
 void *mx6_wait_in_iram_base;
 void (*mx6_wait_in_iram)(void *ccm_base);
@@ -37,6 +39,7 @@ extern void mx6_wait(void);
 
 struct cpu_op *(*get_cpu_op)(int *op);
 bool enable_wait_mode;
+u32 arm_max_freq = CPU_AT_1GHz;
 
 void __iomem *gpc_base;
 void __iomem *ccm_base;
@@ -127,4 +130,19 @@ static int __init enable_wait(char *p)
 	return 0;
 }
 early_param("enable_wait_mode", enable_wait);
+
+static int __init arm_core_max(char *p)
+{
+	if (memcmp(p, "1000", 4) == 0) {
+		arm_max_freq = CPU_AT_1GHz;
+		p += 4;
+	} else if (memcmp(p, "800", 3) == 0) {
+		arm_max_freq = CPU_AT_800MHz;
+		p += 3;
+	}
+	return 0;
+}
+
+early_param("arm_freq", arm_core_max);
+
 

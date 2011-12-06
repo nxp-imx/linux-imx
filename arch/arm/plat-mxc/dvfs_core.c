@@ -820,7 +820,7 @@ void dump_dvfs_core_regs()
 			__raw_readl(dvfs_data->membase
 				    + MXC_DVFSCORE_THRS + 0x40));
 }
-
+#if 0
 static ssize_t downthreshold_show(struct device *dev,
 				struct device_attribute *attr, char *buf)
 {
@@ -856,7 +856,7 @@ static ssize_t downcount_store(struct device *dev,
 
 	return size;
 }
-
+#endif
 
 static ssize_t dvfs_enable_show(struct device *dev,
 				struct device_attribute *attr, char *buf)
@@ -903,9 +903,6 @@ static DEVICE_ATTR(enable, S_IRUGO | S_IWUSR,
 				dvfs_enable_show, dvfs_enable_store);
 static DEVICE_ATTR(show_regs, S_IRUGO, dvfs_regs_show,
 				dvfs_regs_store);
-static DEVICE_ATTR(down_threshold, 0644, downthreshold_show,
-						downthreshold_store);
-static DEVICE_ATTR(down_count, 0644, downcount_show, downcount_store);
 
 /*!
  * This is the probe routine for the DVFS driver.
@@ -990,20 +987,6 @@ static int __devinit mxc_dvfs_core_probe(struct platform_device *pdev)
 	}
 
 	err = sysfs_create_file(&dvfs_dev->kobj, &dev_attr_show_regs.attr);
-	if (err) {
-		printk(KERN_ERR
-		       "DVFS: Unable to register sysdev entry for DVFS");
-		goto err3;
-	}
-
-	err = sysfs_create_file(&dvfs_dev->kobj, &dev_attr_down_threshold.attr);
-	if (err) {
-		printk(KERN_ERR
-		       "DVFS: Unable to register sysdev entry for DVFS");
-		goto err3;
-	}
-
-	err = sysfs_create_file(&dvfs_dev->kobj, &dev_attr_down_count.attr);
 	if (err) {
 		printk(KERN_ERR
 		       "DVFS: Unable to register sysdev entry for DVFS");

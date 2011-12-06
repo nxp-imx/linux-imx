@@ -37,8 +37,11 @@
 #define __INIT_CLK_DEBUG(n)
 #endif
 
+extern u32 arm_max_freq;
 extern int mxc_jtag_enabled;
 extern struct cpu_op *(*get_cpu_op)(int *op);
+extern int mx6_set_cpu_voltage(u32 cpu_volt);
+
 extern int lp_high_freq;
 extern int lp_med_freq;
 
@@ -67,6 +70,12 @@ static int cpu_op_nr;
 #define AUDIO_VIDEO_MIN_CLK_FREQ	650000000
 #define AUDIO_VIDEO_MAX_CLK_FREQ	1300000000
 
+/* We need to check the exp status again after timer expiration,
+ * as there might be interrupt coming between the first time exp
+ * and the time reading, then the time reading may be several ms
+ * after the exp checking due to the irq handle, so we need to
+ * check it to make sure the exp return the right value after
+ * timer expiration. */
 #define WAIT(exp, timeout) \
 ({ \
 	struct timespec nstimeofday; \
@@ -76,7 +85,8 @@ static int cpu_op_nr;
 	while (!(exp)) { \
 		getnstimeofday(&curtime); \
 		if ((curtime.tv_nsec - nstimeofday.tv_nsec) > (timeout)) { \
-			result = 0; \
+			if (!(exp)) \
+				result = 0; \
 			break; \
 		} \
 	} \
@@ -906,7 +916,7 @@ static int _clk_arm_set_rate(struct clk *clk, unsigned long rate)
 	int i;
 	u32 div;
 	u32 parent_rate;
-	struct clk *old_parent = pll1_sw_clk.parent;
+
 
 	for (i = 0; i < cpu_op_nr; i++) {
 		if (rate == cpu_op_tbl[i].cpu_rate)
@@ -915,23 +925,14 @@ static int _clk_arm_set_rate(struct clk *clk, unsigned long rate)
 	if (i >= cpu_op_nr)
 		return -EINVAL;
 
-	if (rate <= clk_get_rate(&pll2_pfd_400M)) {
-		/*
-		  * Move pll1_sw_clk to PLL2_PFD_400M
-		  * so that we can disable PLL1.
-		  */
-		if (pll2_pfd_400M.usecount == 0)
-			pll2_pfd_400M.enable(&pll2_pfd_400M);
-		pll1_sw_clk.set_parent(&pll1_sw_clk, &pll2_pfd_400M);
-		pll1_sw_clk.parent = &pll2_pfd_400M;
-	} else {
-		/* Rate is above 400MHz.  We may need to relock PLL1. */
-		pll1_sw_clk.set_parent(&pll1_sw_clk, &osc_clk);
-		if (pll1_sys_main_clk.usecount == 0)
-			pll1_sys_main_clk.enable(&pll1_sys_main_clk);
+	if (cpu_op_tbl[i].pll_rate != clk_get_rate(&pll1_sys_main_clk)) {
+		/* Change the PLL1 rate. */
+		if (pll2_pfd_400M.usecount != 0)
+			pll1_sw_clk.set_parent(&pll1_sw_clk, &pll2_pfd_400M);
+		else
+			pll1_sw_clk.set_parent(&pll1_sw_clk, &osc_clk);
 		pll1_sys_main_clk.set_rate(&pll1_sys_main_clk, cpu_op_tbl[i].pll_rate);
 		pll1_sw_clk.set_parent(&pll1_sw_clk, &pll1_sys_main_clk);
-		pll1_sw_clk.parent = &pll1_sys_main_clk;
 	}
 
 	parent_rate = clk_get_rate(clk->parent);
@@ -947,15 +948,6 @@ static int _clk_arm_set_rate(struct clk *clk, unsigned long rate)
 		return -1;
 
 	__raw_writel(div - 1, MXC_CCM_CACRR);
-
-	/* Increment current parent's usecount. */
-	pll1_sw_clk.parent->usecount++;
-
-	/* Decrement the current parent's usecount */
-	old_parent->usecount--;
-
-	if (old_parent->usecount == 0)
-		old_parent->disable(old_parent);
 
 	return 0;
 }
@@ -4214,8 +4206,8 @@ static int _clk_gpu2d_core_set_rate(struct clk *clk, unsigned long rate)
 		return -EINVAL;
 
 	reg = __raw_readl(MXC_CCM_CBCMR);
-	reg &= ~MXC_CCM_CBCMR_GPU3D_CORE_PODF_MASK;
-	reg |= (div - 1) << MXC_CCM_CBCMR_GPU3D_CORE_PODF_OFFSET;
+	reg &= ~MXC_CCM_CBCMR_GPU2D_CORE_PODF_MASK;
+	reg |= (div - 1) << MXC_CCM_CBCMR_GPU2D_CORE_PODF_OFFSET;
 	__raw_writel(reg, MXC_CCM_CBCMR);
 
 	return 0;
@@ -4645,6 +4637,33 @@ static struct clk clko_clk = {
 	.round_rate = _clk_clko_round_rate,
 };
 
+static struct clk perfmon0_clk = {
+	__INIT_CLK_DEBUG(perfmon0_clk)
+	.parent = &mmdc_ch0_axi_clk[0],
+	.enable = _clk_enable1,
+	.enable_reg = MXC_CCM_CCGR4,
+	.enable_shift = MXC_CCM_CCGRx_CG1_OFFSET,
+	.disable = _clk_disable1,
+};
+
+static struct clk perfmon1_clk = {
+	__INIT_CLK_DEBUG(perfmon1_clk)
+	.parent = &ipu1_clk,
+	.enable = _clk_enable1,
+	.enable_reg = MXC_CCM_CCGR4,
+	.enable_shift = MXC_CCM_CCGRx_CG2_OFFSET,
+	.disable = _clk_disable1,
+};
+
+static struct clk perfmon2_clk = {
+	__INIT_CLK_DEBUG(perfmon2_clk)
+	.parent = &mmdc_ch0_axi_clk[0],
+	.enable = _clk_enable1,
+	.enable_reg = MXC_CCM_CCGR4,
+	.enable_shift = MXC_CCM_CCGRx_CG3_OFFSET,
+	.disable = _clk_disable1,
+};
+
 static struct clk dummy_clk = {
 	.id = 0,
 };
@@ -4770,6 +4789,9 @@ static struct clk_lookup lookups[] = {
 	_REGISTER_CLOCK(NULL, NULL, aips_tz2_clk),
 	_REGISTER_CLOCK(NULL, NULL, aips_tz1_clk),
 	_REGISTER_CLOCK(NULL, "clko_clk", clko_clk),
+	_REGISTER_CLOCK("mxs-perfmon.0", "perfmon", perfmon0_clk),
+	_REGISTER_CLOCK("mxs-perfmon.1", "perfmon", perfmon1_clk),
+	_REGISTER_CLOCK("mxs-perfmon.2", "perfmon", perfmon2_clk),
 };
 
 
@@ -4857,12 +4879,12 @@ int __init mx6_clocks_init(unsigned long ckil, unsigned long osc,
 	clk_set_rate(&gpu3d_core_clk[0], 528000000);
 
 	/*
-	 * FIXME: asrc needs to use asrc_serial(spdif1) clock to do sample rate convertion,
-	 * however we found it only works when set to 1.5M clock and the
-	 * parent is pll3_sw_clk.
+	 * FIXME: asrc needs to use asrc_serial(spdif1) clock to do sample
+	 * rate convertion and this clock frequency can not be too high, set
+	 * it to the minimum value 7.5Mhz to make asrc work properly.
 	 */
 	clk_set_parent(&asrc_clk[1], &pll3_sw_clk);
-	clk_set_rate(&asrc_clk[1], 1500000);
+	clk_set_rate(&asrc_clk[1], 7500000);
 
 	/* set the NAND to 11MHz. Too fast will cause dma timeout. */
 	clk_set_rate(&enfc_clk, enfc_clk.round_rate(&enfc_clk, 11000000));
@@ -4908,6 +4930,10 @@ int __init mx6_clocks_init(unsigned long ckil, unsigned long osc,
 
 	base = ioremap(GPT_BASE_ADDR, SZ_4K);
 	mxc_timer_init(&gpt_clk[0], base, MXC_INT_GPT);
+
+	/* Set the core to max frequency requested. */
+	mx6_set_cpu_voltage(cpu_op_tbl[0].cpu_voltage);
+	clk_set_rate(&cpu_clk, cpu_op_tbl[0].pll_rate);
 
 	lp_high_freq = 0;
 	lp_med_freq = 0;

@@ -428,6 +428,7 @@ gceUNIFORM_FLAGS;
 #define gcdUNIFORM_KERNEL_ARG_MASK  (gcvUNIFORM_KERNEL_ARG         | \
                                      gcvUNIFORM_KERNEL_ARG_LOCAL   | \
 									 gcvUNIFORM_KERNEL_ARG_SAMPLER | \
+									 gcvUNIFORM_KERNEL_ARG_PRIVATE | \
 									 gcvUNIFORM_KERNEL_ARG_CONSTANT)
 
 /*******************************************************************************

@@ -82,6 +82,8 @@
 #define MX6Q_SABRELITE_USB_OTG_PWR	IMX_GPIO_NR(3, 22)
 #define MX6Q_SABRELITE_CAP_TCH_INT1	IMX_GPIO_NR(1, 9)
 #define MX6Q_SABRELITE_USB_HUB_RESET	IMX_GPIO_NR(7, 12)
+#define MX6Q_SABRELITE_CAN1_STBY	IMX_GPIO_NR(1, 2)
+#define MX6Q_SABRELITE_CAN1_EN		IMX_GPIO_NR(1, 4)
 
 #define MX6Q_SABRELITE_SD3_WP_PADCFG	(PAD_CTL_PKE | PAD_CTL_PUE |	\
 		PAD_CTL_PUS_22K_UP | PAD_CTL_SPEED_MED |	\
@@ -106,9 +108,9 @@ static iomux_v3_cfg_t mx6q_sabrelite_pads[] = {
 	/* CAN1  */
 	MX6Q_PAD_KEY_ROW2__CAN1_RXCAN,
 	MX6Q_PAD_KEY_COL2__CAN1_TXCAN,
-	MX6Q_PAD_ENET_CRS_DV__GPIO_1_25,	/* STNDBY */
-	MX6Q_PAD_ENET_RXD1__GPIO_1_26,		/* NERR */
-	MX6Q_PAD_ENET_RXD0__GPIO_1_27,		/* Enable */
+	MX6Q_PAD_GPIO_2__GPIO_1_2,		/* STNDBY */
+	MX6Q_PAD_GPIO_7__GPIO_1_7,		/* NERR */
+	MX6Q_PAD_GPIO_4__GPIO_1_4,		/* Enable */
 
 	/* CCM  */
 	MX6Q_PAD_GPIO_0__CCM_CLKO,		/* SGTL500 sys_mclk */
@@ -582,8 +584,35 @@ static void __init imx6q_sabrelite_init_usb(void)
 	mx6_usb_dr_init();
 	mx6_usb_h1_init();
 }
+
+static struct gpio mx6q_sabrelite_flexcan_gpios[] = {
+	{ MX6Q_SABRELITE_CAN1_EN, GPIOF_OUT_INIT_LOW, "flexcan1-en" },
+	{ MX6Q_SABRELITE_CAN1_STBY, GPIOF_OUT_INIT_LOW, "flexcan1-stby" },
+};
+
+static void mx6q_sabrelite_flexcan0_switch(int enable)
+{
+	if (enable) {
+		gpio_set_value(MX6Q_SABRELITE_CAN1_EN, 1);
+		gpio_set_value(MX6Q_SABRELITE_CAN1_STBY, 1);
+	} else {
+		gpio_set_value(MX6Q_SABRELITE_CAN1_EN, 0);
+		gpio_set_value(MX6Q_SABRELITE_CAN1_STBY, 0);
+	}
+}
+
+static const struct flexcan_platform_data
+	mx6q_sabrelite_flexcan0_pdata __initconst = {
+	.transceiver_switch = mx6q_sabrelite_flexcan0_switch,
+};
+
 static struct viv_gpu_platform_data imx6q_gpu_pdata __initdata = {
 	.reserved_mem_size = SZ_128M,
+};
+
+static struct imx_asrc_platform_data imx_asrc_data = {
+	.channel_bits = 4,
+	.clk_map_ver = 2,
 };
 
 static struct ipuv3_fb_platform_data sabrelite_fb_data[] = {
@@ -885,10 +914,12 @@ static void __init fixup_mxc_board(struct machine_desc *desc, struct tag *tags,
 static void __init mx6_sabrelite_board_init(void)
 {
 	int i;
+	int ret;
 
 	mxc_iomux_v3_setup_multiple_pads(mx6q_sabrelite_pads,
 					ARRAY_SIZE(mx6q_sabrelite_pads));
 
+	gp_reg_id = sabrelite_dvfscore_data.reg_id;
 	mx6q_sabrelite_init_uart();
 	imx6q_add_mxc_hdmi_core(&hdmi_core_data);
 
@@ -930,6 +961,10 @@ static void __init mx6_sabrelite_board_init(void)
 	imx6q_add_vpu();
 	imx6q_init_audio();
 	platform_device_register(&sabrelite_vmmc_reg_devices);
+	imx_asrc_data.asrc_core_clk = clk_get(NULL, "asrc_clk");
+	imx_asrc_data.asrc_audio_clk = clk_get(NULL, "asrc_serial_clk");
+	imx6q_add_asrc(&imx_asrc_data);
+
 	/* release USB Hub reset */
 	gpio_set_value(MX6Q_SABRELITE_USB_HUB_RESET, 1);
 
@@ -953,6 +988,13 @@ static void __init mx6_sabrelite_board_init(void)
 
 	imx6q_add_hdmi_soc();
 	imx6q_add_hdmi_soc_dai();
+
+	ret = gpio_request_array(mx6q_sabrelite_flexcan_gpios,
+			ARRAY_SIZE(mx6q_sabrelite_flexcan_gpios));
+	if (ret)
+		pr_err("failed to request flexcan1-gpios: %d\n", ret);
+	else
+		imx6q_add_flexcan0(&mx6q_sabrelite_flexcan0_pdata);
 }
 
 extern void __iomem *twd_base;

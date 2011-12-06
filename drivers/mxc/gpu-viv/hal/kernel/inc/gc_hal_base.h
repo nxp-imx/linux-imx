@@ -118,6 +118,7 @@ typedef struct _gcsTLS
     gcoHARDWARE                 hardware2D;
 #if gcdENABLE_VG
     gcoVGHARDWARE               vg;
+    gcoVG                       engineVG;
 #endif /* gcdENABLE_VG */
     gctPOINTER                  context;
     gctTLS_DESTRUCTOR           destructor;
@@ -1620,6 +1621,20 @@ gcoSURF_QueryVidMemNode(
     OUT gctUINT_PTR Bytes
     );
 
+/*  Set usage attribute of a surface. */
+gceSTATUS
+gcoSURF_SetUsage(
+    IN gcoSURF Surface,
+    IN gceSURF_USAGE Usage
+    );
+
+/*  Return usage attribute of a surface. */
+gceSTATUS
+gcoSURF_QueryUsage(
+    IN gcoSURF Surface,
+    OUT gceSURF_USAGE *Usage
+    );
+
 /* Set the color type of the surface. */
 gceSTATUS
 gcoSURF_SetColorType(
@@ -1830,6 +1845,14 @@ gceSTATUS
 gcoSURF_SetOffset(
     IN gcoSURF Surface,
     IN gctUINT Offset
+    );
+
+gceSTATUS
+gcoSURF_NODE_Cache(
+    IN gcsSURF_NODE_PTR Node,
+    IN gctPOINTER Logical,
+    IN gctSIZE_T Bytes,
+    IN gceCACHEOPERATION Operation
     );
 
 /******************************************************************************\

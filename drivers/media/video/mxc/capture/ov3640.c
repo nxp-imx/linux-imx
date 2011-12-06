@@ -1391,6 +1391,9 @@ static int ov3640_probe(struct i2c_client *client,
 			gpo_regulator = NULL;
 	}
 
+	if (plat_data->io_init)
+		plat_data->io_init();
+
 	if (plat_data->pwdn)
 		plat_data->pwdn(0);
 

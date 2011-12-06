@@ -85,7 +85,7 @@ struct mxcfb_info {
 	u32 pseudo_palette[16];
 
 	bool mode_found;
-	bool wait4vsync;
+	volatile bool wait4vsync;
 	struct semaphore flip_sem;
 	struct semaphore alpha_flip_sem;
 	struct completion vsync_complete;
@@ -233,8 +233,7 @@ static int _setup_disp_channel2(struct fb_info *fbi)
 	}
 	fbi->var.xoffset = 0;
 
-	base = (fbi->var.yoffset * fbi->var.xres_virtual + fbi->var.xoffset);
-	base = (fbi->var.bits_per_pixel) * base / 8;
+	base = (fbi->var.yoffset * fb_stride + fbi->var.xoffset);
 	base += fbi->fix.smem_start;
 
 	retval = ipu_init_channel_buffer(mxc_fbi->ipu,
@@ -242,10 +241,11 @@ static int _setup_disp_channel2(struct fb_info *fbi)
 					 bpp_to_pixfmt(fbi),
 					 fbi->var.xres, fbi->var.yres,
 					 fb_stride,
-					 IPU_ROTATE_NONE,
+					 fbi->var.rotate,
 					 base,
 					 base,
-					 base,
+					 fbi->var.accel_flags &
+						FB_ACCEL_DOUBLE_FLAG ? 0 : base,
 					 0, 0);
 	if (retval) {
 		dev_err(fbi->device,
@@ -259,7 +259,7 @@ static int _setup_disp_channel2(struct fb_info *fbi)
 						 IPU_PIX_FMT_GENERIC,
 						 fbi->var.xres, fbi->var.yres,
 						 fbi->var.xres,
-						 IPU_ROTATE_NONE,
+						 fbi->var.rotate,
 						 mxc_fbi->alpha_phy_addr1,
 						 mxc_fbi->alpha_phy_addr0,
 						 0,
@@ -573,6 +573,9 @@ static int mxcfb_check_var(struct fb_var_screeninfo *var, struct fb_info *info)
 		if ((var->yres + pos_y) > bg_yres)
 			var->yres = bg_yres - pos_y;
 	}
+
+	if (var->rotate > IPU_ROTATE_VERT_FLIP)
+		var->rotate = IPU_ROTATE_NONE;
 
 	if (var->xres_virtual < var->xres)
 		var->xres_virtual = var->xres;
@@ -928,7 +931,7 @@ static int mxcfb_ioctl(struct fb_info *fbi, unsigned int cmd, unsigned long arg)
 			init_completion(&mxc_fbi->vsync_complete);
 
 			ipu_clear_irq(mxc_fbi->ipu, mxc_fbi->ipu_ch_irq);
-			mxc_fbi->wait4vsync = 1;
+			mxc_fbi->wait4vsync = true;
 			ipu_enable_irq(mxc_fbi->ipu, mxc_fbi->ipu_ch_irq);
 			retval = wait_for_completion_interruptible_timeout(
 				&mxc_fbi->vsync_complete, 1 * HZ);
@@ -936,7 +939,7 @@ static int mxcfb_ioctl(struct fb_info *fbi, unsigned int cmd, unsigned long arg)
 				dev_err(fbi->device,
 					"MXCFB_WAIT_FOR_VSYNC: timeout %d\n",
 					retval);
-				mxc_fbi->wait4vsync = 0;
+				mxc_fbi->wait4vsync = false;
 				retval = -ETIME;
 			} else if (retval > 0) {
 				retval = 0;
@@ -1155,6 +1158,7 @@ mxcfb_pan_display(struct fb_var_screeninfo *var, struct fb_info *info)
 	u_int y_bottom;
 	unsigned long base, active_alpha_phy_addr = 0;
 	bool loc_alpha_en = false;
+	int fb_stride;
 	int i;
 
 	if (info->var.yoffset == var->yoffset)
@@ -1184,8 +1188,20 @@ mxcfb_pan_display(struct fb_var_screeninfo *var, struct fb_info *info)
 	if (y_bottom > info->var.yres_virtual)
 		return -EINVAL;
 
-	base = (var->yoffset * var->xres_virtual + var->xoffset);
-	base = (var->bits_per_pixel) * base / 8;
+	switch (bpp_to_pixfmt(info)) {
+	case IPU_PIX_FMT_YUV420P2:
+	case IPU_PIX_FMT_YVU420P:
+	case IPU_PIX_FMT_NV12:
+	case IPU_PIX_FMT_YUV422P:
+	case IPU_PIX_FMT_YVU422P:
+	case IPU_PIX_FMT_YUV420P:
+		fb_stride = info->var.xres_virtual;
+		break;
+	default:
+		fb_stride = info->fix.line_length;
+	}
+
+	base = (var->yoffset * fb_stride + var->xoffset);
 	base += info->fix.smem_start;
 
 	/* Check if DP local alpha is enabled and find the graphic fb */
@@ -1361,7 +1377,7 @@ static irqreturn_t mxcfb_irq_handler(int irq, void *dev_id)
 	if (mxc_fbi->wait4vsync) {
 		complete(&mxc_fbi->vsync_complete);
 		ipu_disable_irq(mxc_fbi->ipu, irq);
-		mxc_fbi->wait4vsync = 0;
+		mxc_fbi->wait4vsync = false;
 	} else {
 		up(&mxc_fbi->flip_sem);
 		ipu_disable_irq(mxc_fbi->ipu, irq);
