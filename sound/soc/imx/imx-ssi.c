@@ -99,10 +99,6 @@ static int imx_ssi_set_dai_fmt(struct snd_soc_dai *cpu_dai, unsigned int fmt)
 	case SND_SOC_DAIFMT_I2S:
 		/* data on rising edge of bclk, frame low 1clk before data */
 		strcr |= SSI_STCR_TFSI | SSI_STCR_TEFS | SSI_STCR_TXBIT0;
-		if (ssi->flags & IMX_SSI_USE_I2S_SLAVE) {
-			scr &= ~SSI_I2S_MODE_MASK;
-			scr |= SSI_SCR_I2S_MODE_SLAVE;
-		}
 		break;
 	case SND_SOC_DAIFMT_LEFT_J:
 		/* data on rising edge of bclk, frame high with data */
@@ -138,10 +134,21 @@ static int imx_ssi_set_dai_fmt(struct snd_soc_dai *cpu_dai, unsigned int fmt)
 
 	/* DAI clock master masks */
 	switch (fmt & SND_SOC_DAIFMT_MASTER_MASK) {
+	case SND_SOC_DAIFMT_CBS_CFS:
+		strcr |= SSI_STCR_TFDIR | SSI_STCR_TXDIR;
+		if ((fmt & SND_SOC_DAIFMT_FORMAT_MASK) == SND_SOC_DAIFMT_I2S) {
+			scr &= ~SSI_I2S_MODE_MASK;
+			scr |= SSI_SCR_I2S_MODE_MSTR;
+		}
+		break;
 	case SND_SOC_DAIFMT_CBM_CFM:
+		strcr &= ~(SSI_STCR_TFDIR | SSI_STCR_TXDIR);
+		if ((fmt & SND_SOC_DAIFMT_FORMAT_MASK) == SND_SOC_DAIFMT_I2S) {
+			scr &= ~SSI_I2S_MODE_MASK;
+			scr |= SSI_SCR_I2S_MODE_SLAVE;
+		}
 		break;
 	default:
-		/* Master mode not implemented, needs handling of clocks. */
 		return -EINVAL;
 	}
 
@@ -279,9 +286,10 @@ static int imx_ssi_hw_params(struct snd_pcm_substream *substream,
 
 	scr = readl(ssi->base + SSI_SCR);
 
-	if (channels == 1)
+	if (channels == 1) {
 		scr &= ~SSI_SCR_NET;
-	else
+		scr &= ~SSI_I2S_MODE_MASK;
+	} else
 		scr |= SSI_SCR_NET;
 
 	writel(scr, ssi->base + SSI_SCR);
