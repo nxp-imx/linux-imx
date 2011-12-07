@@ -123,7 +123,6 @@ struct fsl_usb2_platform_data {
 	enum usb_wakeup_event (*is_wakeup_event)(struct fsl_usb2_platform_data *);
 	void (*wakeup_handler)(struct fsl_usb2_platform_data *);
 	void (*hsic_post_ops)(void);
-	void (*gadget_discharge_dp) (bool);
 
 	struct fsl_usb2_wakeup_platform_data *wakeup_pdata;
 	struct platform_device *pdev;
