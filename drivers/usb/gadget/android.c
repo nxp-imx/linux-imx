@@ -822,6 +822,7 @@ static ssize_t enable_store(struct device *pdev, struct device_attribute *attr,
 	struct android_dev *dev = dev_get_drvdata(pdev);
 	struct usb_composite_dev *cdev = dev->cdev;
 	int enabled = 0;
+	unsigned long flags;
 
 	sscanf(buff, "%d", &enabled);
 	if (enabled && !dev->enabled) {
@@ -835,12 +836,23 @@ static ssize_t enable_store(struct device *pdev, struct device_attribute *attr,
 		cdev->desc.bDeviceProtocol = device_desc.bDeviceProtocol;
 		usb_add_config(cdev, &android_config_driver,
 					android_bind_config);
-		usb_gadget_connect(cdev->gadget);
+		spin_lock_irqsave(&cdev->lock, flags);
+		if (dev->connected) {
+			usb_gadget_disconnect(cdev->gadget);
+			mdelay(10);
+			usb_gadget_connect(cdev->gadget);
+			usb_gadget_vbus_connect(cdev->gadget);
+		}
+		spin_unlock_irqrestore(&cdev->lock, flags);
 		dev->enabled = true;
 	} else if (!enabled && dev->enabled) {
-		usb_gadget_disconnect(cdev->gadget);
-		/* Cancel pending control requests */
-		usb_ep_dequeue(cdev->gadget->ep0, cdev->req);
+		spin_lock_irqsave(&cdev->lock, flags);
+		if (dev->connected) {
+			/* Cancel pending control requests */
+			usb_gadget_disconnect(cdev->gadget);
+			usb_ep_dequeue(cdev->gadget->ep0, cdev->req);
+		}
+		spin_unlock_irqrestore(&cdev->lock, flags);
 		usb_remove_config(cdev, &android_config_driver);
 		dev->enabled = false;
 	} else {
