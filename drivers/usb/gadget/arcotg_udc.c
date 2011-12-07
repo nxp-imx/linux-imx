@@ -2009,20 +2009,10 @@ static void port_change_irq(struct fsl_udc *udc)
 /* Process suspend interrupt */
 static void suspend_irq(struct fsl_udc *udc)
 {
-	u32 otgsc = 0;
-
 	pr_debug("%s begins\n", __func__);
 
 	udc->resume_state = udc->usb_state;
 	udc->usb_state = USB_STATE_SUSPENDED;
-
-	/* Set discharge vbus */
-	otgsc = fsl_readl(&dr_regs->otgsc);
-	otgsc &= ~(OTGSC_INTSTS_MASK);
-	otgsc |= OTGSC_CTRL_VBUS_DISCHARGE;
-	fsl_writel(otgsc, &dr_regs->otgsc);
-
-
 	/* report suspend to the driver, serial.c does not support this */
 	if (udc->driver->suspend)
 		udc->driver->suspend(&udc->gadget);
@@ -2107,7 +2097,7 @@ static void gadget_wait_line_to_se0(void)
 					" your hardware design!\n");
 			break;
 		}
-		msleep(10);
+		msleep(1);
 	}
 }
 
@@ -2144,20 +2134,12 @@ static void fsl_gadget_disconnect_event(struct work_struct *work)
 	u32 tmp;
 
 	pdata = udc->pdata;
-
-	/* enable pulldown dp */
-	if (pdata->gadget_discharge_dp)
-		pdata->gadget_discharge_dp(true);
 	/*
 	 * Some boards are very slow change line state from J to SE0 for DP,
 	 * So, we need to discharge DP, otherwise there is a wakeup interrupt
 	 * after we enable the wakeup function.
 	 */
 	gadget_wait_line_to_se0();
-
-	/* Disable pulldown dp */
-	if (pdata->gadget_discharge_dp)
-		pdata->gadget_discharge_dp(false);
 
 	/*
 	 * Wait class drivers finish, an well-behaviour class driver should
@@ -2216,6 +2198,7 @@ bool try_wake_up_udc(struct fsl_udc *udc)
 			fsl_writel(tmp | USB_CMD_RUN_STOP, &dr_regs->usbcmd);
 			printk(KERN_DEBUG "%s: udc out low power mode\n", __func__);
 		} else {
+			printk(KERN_INFO "USB device disconnected\n");
 			fsl_writel(tmp & ~USB_CMD_RUN_STOP, &dr_regs->usbcmd);
 			/* here we need disable B_SESSION_IRQ, after
 			 * schedule_work finished, it need to be enabled again.
