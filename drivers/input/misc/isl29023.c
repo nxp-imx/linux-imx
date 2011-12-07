@@ -29,6 +29,7 @@
 #include <linux/delay.h>
 #include <linux/isl29023.h>
 #include <linux/fsl_devices.h>
+#include <linux/earlysuspend.h>
 
 #define ISL29023_DRV_NAME	"isl29023"
 #define DRIVER_VERSION		"1.0"
@@ -70,6 +71,7 @@ struct isl29023_data {
 	u16 rext;
 };
 
+static struct isl29023_data *isl29023_pdata;
 static int gain_range[] = {
 	1000, 4000, 16000, 64000
 };
@@ -923,6 +925,7 @@ static int __devinit isl29023_probe(struct i2c_client *client,
 		goto exit_free_interrupt;
 	}
 
+	isl29023_pdata = data;
 	dev_info(&client->dev, "driver version %s enabled\n", DRIVER_VERSION);
 	return 0;
 
@@ -932,6 +935,7 @@ exit_free_input:
 	input_free_device(input_dev);
 exit_kfree:
 	kfree(data);
+	isl29023_pdata = NULL;
 	return err;
 }
 
@@ -947,6 +951,7 @@ static int __devexit isl29023_remove(struct i2c_client *client)
 	sysfs_remove_group(&client->dev.kobj, &isl29023_attr_group);
 	isl29023_set_power_state(client, 0);
 	kfree(i2c_get_clientdata(client));
+	isl29023_pdata = NULL;
 
 	return 0;
 }
@@ -978,6 +983,39 @@ static int isl29023_resume(struct i2c_client *client)
 #define isl29023_resume		NULL
 #endif /* CONFIG_PM */
 
+#ifdef CONFIG_HAS_EARLYSUSPEND
+static void isl29023_early_suspend(struct early_suspend *h)
+{
+	struct i2c_client *client;
+	pm_message_t state = { .event = PM_EVENT_SUSPEND };
+
+	if (!isl29023_pdata)
+		return -EINVAL;
+
+	client =  isl29023_pdata->client;
+	isl29023_suspend(client, state);
+	dev_info(&client->dev, "isl29023 early_syspend\n");
+}
+
+static void isl29023_later_resume(struct early_suspend *h)
+{
+	struct i2c_client *client;
+
+	if (!isl29023_pdata)
+		return -EINVAL;
+
+	client = isl29023_pdata->client;
+	isl29023_resume(client);
+	dev_info(&client->dev, "isl29023 late_resume\n");
+}
+
+struct early_suspend isl29023_earlysuspend = {
+      .level = EARLY_SUSPEND_LEVEL_DISABLE_FB,
+      .suspend = isl29023_early_suspend,
+      .resume = isl29023_later_resume,
+};
+#endif
+
 static const struct i2c_device_id isl29023_id[] = {
 	{ ISL29023_DRV_NAME, 0 },
 	{}
@@ -989,8 +1027,10 @@ static struct i2c_driver isl29023_driver = {
 		.name	= ISL29023_DRV_NAME,
 		.owner	= THIS_MODULE,
 	},
+#ifndef CONFIG_HAS_EARLYSUSPEND
 	.suspend = isl29023_suspend,
 	.resume	= isl29023_resume,
+#endif
 	.probe	= isl29023_probe,
 	.remove	= __devexit_p(isl29023_remove),
 	.id_table = isl29023_id,
@@ -998,11 +1038,20 @@ static struct i2c_driver isl29023_driver = {
 
 static int __init isl29023_init(void)
 {
-	return i2c_add_driver(&isl29023_driver);
+	int ret;
+	ret = i2c_add_driver(&isl29023_driver);
+#ifdef CONFIG_HAS_EARLYSUSPEND
+	if (!ret)
+		register_early_suspend(&isl29023_earlysuspend);
+#endif
+	return ret;
 }
 
 static void __exit isl29023_exit(void)
 {
+#ifdef CONFIG_HAS_EARLYSUSPEND
+	unregister_early_suspend(&isl29023_earlysuspend);
+#endif
 	i2c_del_driver(&isl29023_driver);
 }
 
