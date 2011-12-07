@@ -74,45 +74,48 @@ static irqreturn_t egalax_ts_interrupt(int irq, void *dev_id)
 	u8 state;
 
 	do {
-		ret = i2c_master_recv(client, buf, MAX_I2C_DATA_LEN);
-	} while (ret == -EAGAIN && tries++ < EGALAX_MAX_TRIES);
+		do {
+			ret = i2c_master_recv(client, buf, MAX_I2C_DATA_LEN);
+		} while (ret == -EAGAIN && tries++ < EGALAX_MAX_TRIES);
 
-	if (ret < 0)
-		return IRQ_HANDLED;
+		if (ret < 0)
+			return IRQ_HANDLED;
 
-	if (buf[0] != REPORT_MODE_MTTOUCH) {
-		/* ignore mouse events and vendor events */
-		return IRQ_HANDLED;
-	}
+		if (buf[0] != REPORT_MODE_MTTOUCH) {
+			/* ignore mouse events and vendor events */
+			return IRQ_HANDLED;
+		}
 
-	state = buf[1];
-	x = (buf[3] << 8) | buf[2];
-	y = (buf[5] << 8) | buf[4];
-	z = (buf[7] << 8) | buf[6];
+		state = buf[1];
+		x = (buf[3] << 8) | buf[2];
+		y = (buf[5] << 8) | buf[4];
+		z = (buf[7] << 8) | buf[6];
 
-	valid = state & EVENT_VALID_MASK;
-	id = (state & EVENT_ID_MASK) >> EVENT_ID_OFFSET;
-	down = state & EVENT_DOWN_UP;
+		valid = state & EVENT_VALID_MASK;
+		id = (state & EVENT_ID_MASK) >> EVENT_ID_OFFSET;
+		down = state & EVENT_DOWN_UP;
 
-	if (!valid || id > MAX_SUPPORT_POINTS) {
-		dev_dbg(&client->dev, "point invalid\n");
-		return IRQ_HANDLED;
-	}
+		if (!valid || id > MAX_SUPPORT_POINTS) {
+			dev_dbg(&client->dev, "point invalid\n");
+			return IRQ_HANDLED;
+		}
 
-	input_mt_slot(input_dev, id);
-	input_mt_report_slot_state(input_dev, MT_TOOL_FINGER, down);
+		input_mt_slot(input_dev, id);
+		input_mt_report_slot_state(input_dev, MT_TOOL_FINGER, down);
 
-	dev_dbg(&client->dev, "%s id:%d x:%d y:%d z:%d",
-		(down ? "down" : "up"), id, x, y, z);
+		dev_dbg(&client->dev, "%s id:%d x:%d y:%d z:%d",
+			(down ? "down" : "up"), id, x, y, z);
 
-	if (down) {
-		input_report_abs(input_dev, ABS_MT_POSITION_X, x);
-		input_report_abs(input_dev, ABS_MT_POSITION_Y, y);
-		input_report_abs(input_dev, ABS_MT_PRESSURE, z);
-	}
+		if (down) {
+			input_report_abs(input_dev, ABS_MT_POSITION_X, x);
+			input_report_abs(input_dev, ABS_MT_POSITION_Y, y);
+			input_report_abs(input_dev, ABS_MT_PRESSURE, z);
+		}
 
-	input_mt_report_pointer_emulation(input_dev, true);
-	input_sync(input_dev);
+		input_mt_report_pointer_emulation(input_dev, true);
+		input_sync(input_dev);
+	} while (gpio_get_value(irq_to_gpio(client->irq)) == 0);
+
 	return IRQ_HANDLED;
 }
 
