@@ -28,6 +28,7 @@
 
 #define FB_VMODE_ASPECT_4_3	0x10
 #define FB_VMODE_ASPECT_16_9	0x20
+#define FB_VMODE_ASPECT_MASK	(FB_VMODE_ASPECT_4_3 | FB_VMODE_ASPECT_16_9)
 
 struct mxc_edid_cfg {
 	bool cea_underscan;
