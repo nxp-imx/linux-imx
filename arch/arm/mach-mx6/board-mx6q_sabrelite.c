@@ -84,6 +84,12 @@
 #define MX6Q_SABRELITE_USB_HUB_RESET	IMX_GPIO_NR(7, 12)
 #define MX6Q_SABRELITE_CAN1_STBY	IMX_GPIO_NR(1, 2)
 #define MX6Q_SABRELITE_CAN1_EN		IMX_GPIO_NR(1, 4)
+#define MX6Q_SABRELITE_MENU_KEY		IMX_GPIO_NR(2, 1)
+#define MX6Q_SABRELITE_BACK_KEY		IMX_GPIO_NR(2, 2)
+#define MX6Q_SABRELITE_ONOFF_KEY	IMX_GPIO_NR(2, 3)
+#define MX6Q_SABRELITE_HOME_KEY		IMX_GPIO_NR(2, 4)
+#define MX6Q_SABRELITE_VOL_UP_KEY	IMX_GPIO_NR(7, 13)
+#define MX6Q_SABRELITE_VOL_DOWN_KEY	IMX_GPIO_NR(4, 5)
 
 #define MX6Q_SABRELITE_SD3_WP_PADCFG	(PAD_CTL_PKE | PAD_CTL_PUE |	\
 		PAD_CTL_PUS_22K_UP | PAD_CTL_SPEED_MED |	\
@@ -783,6 +789,48 @@ static const struct pm_platform_data mx6q_sabrelite_pm_data __initconst = {
 	.suspend_exit = sabrelite_suspend_exit,
 };
 
+#if defined(CONFIG_KEYBOARD_GPIO) || defined(CONFIG_KEYBOARD_GPIO_MODULE)
+#define GPIO_BUTTON(gpio_num, ev_code, act_low, descr, wake)	\
+{								\
+	.gpio		= gpio_num,				\
+	.type		= EV_KEY,				\
+	.code		= ev_code,				\
+	.active_low	= act_low,				\
+	.desc		= "btn " descr,				\
+	.wakeup		= wake,					\
+}
+
+static struct gpio_keys_button sabrelite_buttons[] = {
+	GPIO_BUTTON(MX6Q_SABRELITE_ONOFF_KEY, KEY_POWER, 1, "key-power", 1),
+	GPIO_BUTTON(MX6Q_SABRELITE_MENU_KEY, KEY_MENU, 1, "key-memu", 0),
+	GPIO_BUTTON(MX6Q_SABRELITE_HOME_KEY, KEY_HOME, 1, "key-home", 0),
+	GPIO_BUTTON(MX6Q_SABRELITE_BACK_KEY, KEY_BACK, 1, "key-back", 0),
+	GPIO_BUTTON(MX6Q_SABRELITE_VOL_UP_KEY, KEY_VOLUMEUP, 1, "volume-up", 0),
+	GPIO_BUTTON(MX6Q_SABRELITE_VOL_DOWN_KEY, KEY_VOLUMEDOWN, 1, "volume-down", 0),
+};
+
+static struct gpio_keys_platform_data sabrelite_button_data = {
+	.buttons	= sabrelite_buttons,
+	.nbuttons	= ARRAY_SIZE(sabrelite_buttons),
+};
+
+static struct platform_device sabrelite_button_device = {
+	.name		= "gpio-keys",
+	.id		= -1,
+	.num_resources  = 0,
+	.dev		= {
+		.platform_data = &sabrelite_button_data,
+	}
+};
+
+static void __init sabrelite_add_device_buttons(void)
+{
+	platform_device_register(&sabrelite_button_device);
+}
+#else
+static void __init sabrelite_add_device_buttons(void) {}
+#endif
+
 static struct regulator_consumer_supply sabrelite_vmmc_consumers[] = {
 	REGULATOR_SUPPLY("vmmc", "sdhci-esdhc-imx.2"),
 	REGULATOR_SUPPLY("vmmc", "sdhci-esdhc-imx.3"),
@@ -1009,6 +1057,8 @@ static void __init mx6_sabrelite_board_init(void)
 
 	imx6q_add_dvfs_core(&sabrelite_dvfscore_data);
 	mx6_cpu_regulator_init();
+
+	sabrelite_add_device_buttons();
 
 	imx6q_add_hdmi_soc();
 	imx6q_add_hdmi_soc_dai();
