@@ -942,7 +942,7 @@ static struct imx_ipuv3_platform_data ipu_data[] = {
 	},
 };
 
-static struct platform_pwm_backlight_data mx6_arm2_pwm_backlight_data = {
+static struct platform_pwm_backlight_data mx6_sabreauto_pwm_backlight_data = {
 	.pwm_id = 0,
 	.max_brightness = 255,
 	.dft_brightness = 128,
@@ -995,19 +995,19 @@ static struct mipi_csi2_platform_data mipi_csi2_pdata = {
 	.pixel_clk = "emi_clk",
 };
 
-static void arm2_suspend_enter(void)
+static void sabreauto_suspend_enter(void)
 {
 	/* suspend preparation */
 }
 
-static void arm2_suspend_exit(void)
+static void sabreauto_suspend_exit(void)
 {
 	/* resmue resore */
 }
 static const struct pm_platform_data mx6q_sabreauto_pm_data __initconst = {
 	.name = "imx_pm",
-	.suspend_enter = arm2_suspend_enter,
-	.suspend_exit = arm2_suspend_exit,
+	.suspend_enter = sabreauto_suspend_enter,
+	.suspend_exit = sabreauto_suspend_exit,
 };
 
 static struct mxc_audio_platform_data sab_audio_data = {
@@ -1022,131 +1022,131 @@ static struct imx_esai_platform_data sab_esai_pdata = {
 	.flags = IMX_ESAI_NET,
 };
 
-static struct regulator_consumer_supply arm2_vmmc_consumers[] = {
+static struct regulator_consumer_supply sabreauto_vmmc_consumers[] = {
 	REGULATOR_SUPPLY("vmmc", "sdhci-esdhc-imx.1"),
 	REGULATOR_SUPPLY("vmmc", "sdhci-esdhc-imx.2"),
 	REGULATOR_SUPPLY("vmmc", "sdhci-esdhc-imx.3"),
 };
 
-static struct regulator_init_data arm2_vmmc_init = {
-	.num_consumer_supplies = ARRAY_SIZE(arm2_vmmc_consumers),
-	.consumer_supplies = arm2_vmmc_consumers,
+static struct regulator_init_data sabreauto_vmmc_init = {
+	.num_consumer_supplies = ARRAY_SIZE(sabreauto_vmmc_consumers),
+	.consumer_supplies = sabreauto_vmmc_consumers,
 };
 
-static struct fixed_voltage_config arm2_vmmc_reg_config = {
+static struct fixed_voltage_config sabreauto_vmmc_reg_config = {
 	.supply_name		= "vmmc",
 	.microvolts		= 3300000,
 	.gpio			= -1,
-	.init_data		= &arm2_vmmc_init,
+	.init_data		= &sabreauto_vmmc_init,
 };
 
-static struct platform_device arm2_vmmc_reg_devices = {
+static struct platform_device sabreauto_vmmc_reg_devices = {
 	.name	= "reg-fixed-voltage",
 	.id	= 0,
 	.dev	= {
-		.platform_data = &arm2_vmmc_reg_config,
+		.platform_data = &sabreauto_vmmc_reg_config,
 	},
 };
 
 #ifdef CONFIG_SND_SOC_CS42888
 
-static struct regulator_consumer_supply cs42888_arm2_consumer_va = {
+static struct regulator_consumer_supply cs42888_sabreauto_consumer_va = {
 	.supply = "VA",
 	.dev_name = "0-0048",
 };
 
-static struct regulator_consumer_supply cs42888_arm2_consumer_vd = {
+static struct regulator_consumer_supply cs42888_sabreauto_consumer_vd = {
 	.supply = "VD",
 	.dev_name = "0-0048",
 };
 
-static struct regulator_consumer_supply cs42888_arm2_consumer_vls = {
+static struct regulator_consumer_supply cs42888_sabreauto_consumer_vls = {
 	.supply = "VLS",
 	.dev_name = "0-0048",
 };
 
-static struct regulator_consumer_supply cs42888_arm2_consumer_vlc = {
+static struct regulator_consumer_supply cs42888_sabreauto_consumer_vlc = {
 	.supply = "VLC",
 	.dev_name = "0-0048",
 };
 
-static struct regulator_init_data cs42888_arm2_va_reg_initdata = {
+static struct regulator_init_data cs42888_sabreauto_va_reg_initdata = {
 	.num_consumer_supplies = 1,
-	.consumer_supplies = &cs42888_arm2_consumer_va,
+	.consumer_supplies = &cs42888_sabreauto_consumer_va,
 };
 
-static struct regulator_init_data cs42888_arm2_vd_reg_initdata = {
+static struct regulator_init_data cs42888_sabreauto_vd_reg_initdata = {
 	.num_consumer_supplies = 1,
-	.consumer_supplies = &cs42888_arm2_consumer_vd,
+	.consumer_supplies = &cs42888_sabreauto_consumer_vd,
 };
 
-static struct regulator_init_data cs42888_arm2_vls_reg_initdata = {
+static struct regulator_init_data cs42888_sabreauto_vls_reg_initdata = {
 	.num_consumer_supplies = 1,
-	.consumer_supplies = &cs42888_arm2_consumer_vls,
+	.consumer_supplies = &cs42888_sabreauto_consumer_vls,
 };
 
-static struct regulator_init_data cs42888_arm2_vlc_reg_initdata = {
+static struct regulator_init_data cs42888_sabreauto_vlc_reg_initdata = {
 	.num_consumer_supplies = 1,
-	.consumer_supplies = &cs42888_arm2_consumer_vlc,
+	.consumer_supplies = &cs42888_sabreauto_consumer_vlc,
 };
 
-static struct fixed_voltage_config cs42888_arm2_va_reg_config = {
+static struct fixed_voltage_config cs42888_sabreauto_va_reg_config = {
 	.supply_name		= "VA",
 	.microvolts		= 2800000,
 	.gpio			= -1,
-	.init_data		= &cs42888_arm2_va_reg_initdata,
+	.init_data		= &cs42888_sabreauto_va_reg_initdata,
 };
 
-static struct fixed_voltage_config cs42888_arm2_vd_reg_config = {
+static struct fixed_voltage_config cs42888_sabreauto_vd_reg_config = {
 	.supply_name		= "VD",
 	.microvolts		= 2800000,
 	.gpio			= -1,
-	.init_data		= &cs42888_arm2_vd_reg_initdata,
+	.init_data		= &cs42888_sabreauto_vd_reg_initdata,
 };
 
-static struct fixed_voltage_config cs42888_arm2_vls_reg_config = {
+static struct fixed_voltage_config cs42888_sabreauto_vls_reg_config = {
 	.supply_name		= "VLS",
 	.microvolts		= 2800000,
 	.gpio			= -1,
-	.init_data		= &cs42888_arm2_vls_reg_initdata,
+	.init_data		= &cs42888_sabreauto_vls_reg_initdata,
 };
 
-static struct fixed_voltage_config cs42888_arm2_vlc_reg_config = {
+static struct fixed_voltage_config cs42888_sabreauto_vlc_reg_config = {
 	.supply_name		= "VLC",
 	.microvolts		= 2800000,
 	.gpio			= -1,
-	.init_data		= &cs42888_arm2_vlc_reg_initdata,
+	.init_data		= &cs42888_sabreauto_vlc_reg_initdata,
 };
 
-static struct platform_device cs42888_arm2_va_reg_devices = {
+static struct platform_device cs42888_sabreauto_va_reg_devices = {
 	.name	= "reg-fixed-voltage",
 	.id	= 3,
 	.dev	= {
-		.platform_data = &cs42888_arm2_va_reg_config,
+		.platform_data = &cs42888_sabreauto_va_reg_config,
 	},
 };
 
-static struct platform_device cs42888_arm2_vd_reg_devices = {
+static struct platform_device cs42888_sabreauto_vd_reg_devices = {
 	.name	= "reg-fixed-voltage",
 	.id	= 4,
 	.dev	= {
-		.platform_data = &cs42888_arm2_vd_reg_config,
+		.platform_data = &cs42888_sabreauto_vd_reg_config,
 	},
 };
 
-static struct platform_device cs42888_arm2_vls_reg_devices = {
+static struct platform_device cs42888_sabreauto_vls_reg_devices = {
 	.name	= "reg-fixed-voltage",
 	.id	= 5,
 	.dev	= {
-		.platform_data = &cs42888_arm2_vls_reg_config,
+		.platform_data = &cs42888_sabreauto_vls_reg_config,
 	},
 };
 
-static struct platform_device cs42888_arm2_vlc_reg_devices = {
+static struct platform_device cs42888_sabreauto_vlc_reg_devices = {
 	.name	= "reg-fixed-voltage",
 	.id	= 6,
 	.dev	= {
-		.platform_data = &cs42888_arm2_vlc_reg_config,
+		.platform_data = &cs42888_sabreauto_vlc_reg_config,
 	},
 };
 
@@ -1154,78 +1154,78 @@ static struct platform_device cs42888_arm2_vlc_reg_devices = {
 
 #ifdef CONFIG_SND_SOC_SGTL5000
 
-static struct regulator_consumer_supply sgtl5000_arm2_consumer_vdda = {
+static struct regulator_consumer_supply sgtl5000_sabreauto_consumer_vdda = {
 	.supply = "VDDA",
 	.dev_name = "0-000a",
 };
 
-static struct regulator_consumer_supply sgtl5000_arm2_consumer_vddio = {
+static struct regulator_consumer_supply sgtl5000_sabreauto_consumer_vddio = {
 	.supply = "VDDIO",
 	.dev_name = "0-000a",
 };
 
-static struct regulator_consumer_supply sgtl5000_arm2_consumer_vddd = {
+static struct regulator_consumer_supply sgtl5000_sabreauto_consumer_vddd = {
 	.supply = "VDDD",
 	.dev_name = "0-000a",
 };
 
-static struct regulator_init_data sgtl5000_arm2_vdda_reg_initdata = {
+static struct regulator_init_data sgtl5000_sabreauto_vdda_reg_initdata = {
 	.num_consumer_supplies = 1,
-	.consumer_supplies = &sgtl5000_arm2_consumer_vdda,
+	.consumer_supplies = &sgtl5000_sabreauto_consumer_vdda,
 };
 
-static struct regulator_init_data sgtl5000_arm2_vddio_reg_initdata = {
+static struct regulator_init_data sgtl5000_sabreauto_vddio_reg_initdata = {
 	.num_consumer_supplies = 1,
-	.consumer_supplies = &sgtl5000_arm2_consumer_vddio,
+	.consumer_supplies = &sgtl5000_sabreauto_consumer_vddio,
 };
 
-static struct regulator_init_data sgtl5000_arm2_vddd_reg_initdata = {
+static struct regulator_init_data sgtl5000_sabreauto_vddd_reg_initdata = {
 	.num_consumer_supplies = 1,
-	.consumer_supplies = &sgtl5000_arm2_consumer_vddd,
+	.consumer_supplies = &sgtl5000_sabreauto_consumer_vddd,
 };
 
-static struct fixed_voltage_config sgtl5000_arm2_vdda_reg_config = {
+static struct fixed_voltage_config sgtl5000_sabreauto_vdda_reg_config = {
 	.supply_name		= "VDDA",
 	.microvolts		= 1800000,
 	.gpio			= -1,
-	.init_data		= &sgtl5000_arm2_vdda_reg_initdata,
+	.init_data		= &sgtl5000_sabreauto_vdda_reg_initdata,
 };
 
-static struct fixed_voltage_config sgtl5000_arm2_vddio_reg_config = {
+static struct fixed_voltage_config sgtl5000_sabreauto_vddio_reg_config = {
 	.supply_name		= "VDDIO",
 	.microvolts		= 3300000,
 	.gpio			= -1,
-	.init_data		= &sgtl5000_arm2_vddio_reg_initdata,
+	.init_data		= &sgtl5000_sabreauto_vddio_reg_initdata,
 };
 
-static struct fixed_voltage_config sgtl5000_arm2_vddd_reg_config = {
+static struct fixed_voltage_config sgtl5000_sabreauto_vddd_reg_config = {
 	.supply_name		= "VDDD",
 	.microvolts		= 0,
 	.gpio			= -1,
-	.init_data		= &sgtl5000_arm2_vddd_reg_initdata,
+	.init_data		= &sgtl5000_sabreauto_vddd_reg_initdata,
 };
 
-static struct platform_device sgtl5000_arm2_vdda_reg_devices = {
+static struct platform_device sgtl5000_sabreauto_vdda_reg_devices = {
 	.name	= "reg-fixed-voltage",
 	.id	= 7,
 	.dev	= {
-		.platform_data = &sgtl5000_arm2_vdda_reg_config,
+		.platform_data = &sgtl5000_sabreauto_vdda_reg_config,
 	},
 };
 
-static struct platform_device sgtl5000_arm2_vddio_reg_devices = {
+static struct platform_device sgtl5000_sabreauto_vddio_reg_devices = {
 	.name	= "reg-fixed-voltage",
 	.id	= 8,
 	.dev	= {
-		.platform_data = &sgtl5000_arm2_vddio_reg_config,
+		.platform_data = &sgtl5000_sabreauto_vddio_reg_config,
 	},
 };
 
-static struct platform_device sgtl5000_arm2_vddd_reg_devices = {
+static struct platform_device sgtl5000_sabreauto_vddd_reg_devices = {
 	.name	= "reg-fixed-voltage",
 	.id	= 9,
 	.dev	= {
-		.platform_data = &sgtl5000_arm2_vddd_reg_config,
+		.platform_data = &sgtl5000_sabreauto_vddd_reg_config,
 	},
 };
 
@@ -1249,16 +1249,16 @@ static int __init imx6q_init_audio(void)
 	clk_set_rate(esai_clk, 101647058);
 
 #ifdef CONFIG_SND_SOC_SGTL5000
-	platform_device_register(&sgtl5000_arm2_vdda_reg_devices);
-	platform_device_register(&sgtl5000_arm2_vddio_reg_devices);
-	platform_device_register(&sgtl5000_arm2_vddd_reg_devices);
+	platform_device_register(&sgtl5000_sabreauto_vdda_reg_devices);
+	platform_device_register(&sgtl5000_sabreauto_vddio_reg_devices);
+	platform_device_register(&sgtl5000_sabreauto_vddd_reg_devices);
 #endif
 
 #ifdef CONFIG_SND_SOC_CS42888
-	platform_device_register(&cs42888_arm2_va_reg_devices);
-	platform_device_register(&cs42888_arm2_vd_reg_devices);
-	platform_device_register(&cs42888_arm2_vls_reg_devices);
-	platform_device_register(&cs42888_arm2_vlc_reg_devices);
+	platform_device_register(&cs42888_sabreauto_va_reg_devices);
+	platform_device_register(&cs42888_sabreauto_vd_reg_devices);
+	platform_device_register(&cs42888_sabreauto_vls_reg_devices);
+	platform_device_register(&cs42888_sabreauto_vlc_reg_devices);
 #endif
 	return 0;
 }
@@ -1271,7 +1271,7 @@ static int __init early_use_esai_record(char *p)
 
 early_param("esai_record", early_use_esai_record);
 
-static struct mxc_dvfs_platform_data arm2_dvfscore_data = {
+static struct mxc_dvfs_platform_data sabreauto_dvfscore_data = {
 	.reg_id = "cpu_vddgp",
 	.clk1_id = "cpu_clk",
 	.clk2_id = "gpc_dvfs_clk",
@@ -1294,7 +1294,7 @@ static struct mxc_dvfs_platform_data arm2_dvfscore_data = {
 	.delay_time = 80,
 };
 
-static int mx6_arm2_set_cpu_voltage(u32 cpu_volt)
+static int mx6_sabreauto_set_cpu_voltage(u32 cpu_volt)
 {
 	int ret = -EINVAL;
 
@@ -1310,7 +1310,7 @@ static int mx6_arm2_set_cpu_voltage(u32 cpu_volt)
 static void __init fixup_mxc_board(struct machine_desc *desc, struct tag *tags,
 				   char **cmdline, struct meminfo *mi)
 {
-	set_cpu_voltage = mx6_arm2_set_cpu_voltage;
+	set_cpu_voltage = mx6_sabreauto_set_cpu_voltage;
 }
 
 static int __init early_enable_mipi_sensor(char *p)
@@ -1406,7 +1406,7 @@ static void __init mx6_board_init(void)
 			mx6q_sabreauto_mipi_sensor_pads,
 			ARRAY_SIZE(mx6q_sabreauto_mipi_sensor_pads));
 
-	gp_reg_id = arm2_dvfscore_data.reg_id;
+	gp_reg_id = sabreauto_dvfscore_data.reg_id;
 	mx6q_sabreauto_init_uart();
 	imx6q_add_mipi_csi2(&mipi_csi2_pdata);
 	imx6q_add_mxc_hdmi_core(&hdmi_core_data);
@@ -1456,7 +1456,7 @@ static void __init mx6_board_init(void)
 	imx6q_add_ahci(0, &mx6q_sabreauto_sata_data);
 	imx6q_add_vpu();
 	imx6q_init_audio();
-	platform_device_register(&arm2_vmmc_reg_devices);
+	platform_device_register(&sabreauto_vmmc_reg_devices);
 	imx_asrc_data.asrc_core_clk = clk_get(NULL, "asrc_clk");
 	imx_asrc_data.asrc_audio_clk = clk_get(NULL, "asrc_serial_clk");
 	imx6q_add_asrc(&imx_asrc_data);
@@ -1487,10 +1487,10 @@ static void __init mx6_board_init(void)
 	imx6q_add_dma();
 	imx6q_add_gpmi(&mx6q_gpmi_nfc_platform_data);
 
-	imx6q_add_dvfs_core(&arm2_dvfscore_data);
+	imx6q_add_dvfs_core(&sabreauto_dvfscore_data);
 
 	imx6q_add_mxc_pwm(0);
-	imx6q_add_mxc_pwm_backlight(0, &mx6_arm2_pwm_backlight_data);
+	imx6q_add_mxc_pwm_backlight(0, &mx6_sabreauto_pwm_backlight_data);
 
 	if (spdif_en) {
 		mxc_spdif_data.spdif_core_clk = clk_get_sys("mxc_spdif.0",
