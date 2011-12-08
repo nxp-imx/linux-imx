@@ -72,10 +72,40 @@ u8 hdmi_readb(unsigned int reg)
 	return value;
 }
 
+#ifdef DEBUG
+static bool overflow_lo;
+static bool overflow_hi;
+
+bool hdmi_check_overflow(void)
+{
+	u8 val, lo, hi;
+
+	val = hdmi_readb(HDMI_IH_FC_STAT2);
+	lo = (val & HDMI_IH_FC_STAT2_LOW_PRIORITY_OVERFLOW) != 0;
+	hi = (val & HDMI_IH_FC_STAT2_HIGH_PRIORITY_OVERFLOW) != 0;
+
+	if ((lo != overflow_lo) || (hi != overflow_hi)) {
+		pr_debug("%s LowPriority=%d HighPriority=%d  <=======================\n",
+			__func__, lo, hi);
+		overflow_lo = lo;
+		overflow_hi = hi;
+		return true;
+	}
+	return false;
+}
+#else
+bool hdmi_check_overflow(void)
+{
+	return false;
+}
+#endif
+
 void hdmi_writeb(u8 value, unsigned int reg)
 {
+	hdmi_check_overflow();
 	pr_debug("hdmi wr: 0x%04x = 0x%02x\n", reg, value);
 	__raw_writeb(value, hdmi_base + reg);
+	hdmi_check_overflow();
 }
 
 void hdmi_mask_writeb(u8 data, unsigned int reg, u8 shift, u8 mask)
@@ -170,6 +200,23 @@ static void initialize_hdmi_ih_mutes(void)
 
 	hdmi_writeb(ih_mute, HDMI_IH_MUTE);
 
+	/* by default mask all interrupts */
+	hdmi_writeb(0xff, HDMI_VP_MASK);
+	hdmi_writeb(0xff, HDMI_FC_MASK0);
+	hdmi_writeb(0xff, HDMI_FC_MASK1);
+	hdmi_writeb(0xff, HDMI_FC_MASK2);
+	hdmi_writeb(0xff, HDMI_PHY_MASK0);
+	hdmi_writeb(0xff, HDMI_PHY_I2CM_INT_ADDR);
+	hdmi_writeb(0xff, HDMI_PHY_I2CM_CTLINT_ADDR);
+	hdmi_writeb(0xff, HDMI_AUD_INT);
+	hdmi_writeb(0xff, HDMI_AUD_SPDIFINT);
+	hdmi_writeb(0xff, HDMI_AUD_HBR_MASK);
+	hdmi_writeb(0xff, HDMI_GP_MASK);
+	hdmi_writeb(0xff, HDMI_A_APIINTMSK);
+	hdmi_writeb(0xff, HDMI_CEC_MASK);
+	hdmi_writeb(0xff, HDMI_I2CM_INT);
+	hdmi_writeb(0xff, HDMI_I2CM_CTLINT);
+
 	/* Disable interrupts in the IH_MUTE_* registers */
 	hdmi_writeb(0xff, HDMI_IH_MUTE_FC_STAT0);
 	hdmi_writeb(0xff, HDMI_IH_MUTE_FC_STAT1);
@@ -190,13 +237,27 @@ static void initialize_hdmi_ih_mutes(void)
 
 static void hdmi_set_clock_regenerator_n(unsigned int value)
 {
+	u8 val;
+
 	hdmi_writeb(value & 0xff, HDMI_AUD_N1);
 	hdmi_writeb((value >> 8) & 0xff, HDMI_AUD_N2);
-	hdmi_writeb((value >> 16) & 0xff, HDMI_AUD_N3);
+	hdmi_writeb((value >> 16) & 0x0f, HDMI_AUD_N3);
+
+	/* nshift factor = 0 */
+	val = hdmi_readb(HDMI_AUD_CTS3);
+	val &= ~HDMI_AUD_CTS3_N_SHIFT_MASK;
+	hdmi_writeb(val, HDMI_AUD_CTS3);
 }
 
 static void hdmi_set_clock_regenerator_cts(unsigned int cts)
 {
+	u8 val;
+
+	/* Must be set/cleared first */
+	val = hdmi_readb(HDMI_AUD_CTS3);
+	val &= ~HDMI_AUD_CTS3_CTS_MANUAL;
+	hdmi_writeb(val, HDMI_AUD_CTS3);
+
 	hdmi_writeb(cts & 0xff, HDMI_AUD_CTS1);
 	hdmi_writeb((cts >> 8) & 0xff, HDMI_AUD_CTS2);
 	hdmi_writeb(((cts >> 16) & HDMI_AUD_CTS3_AUDCTS19_16_MASK) |
@@ -339,6 +400,7 @@ static unsigned int hdmi_compute_cts(unsigned int freq, unsigned long pixel_clk,
 static void hdmi_get_pixel_clk(void)
 {
 	struct ipu_soc *ipu;
+	unsigned long rate;
 
 	if (pixel_clk == NULL) {
 		ipu = ipu_get_soc(mxc_hdmi_ipu_id);
@@ -349,28 +411,20 @@ static void hdmi_get_pixel_clk(void)
 		}
 	}
 
-	pixel_clk_rate = clk_get_rate(pixel_clk);
+	rate = clk_get_rate(pixel_clk);
+	if (rate != 0)
+		pixel_clk_rate = rate;
 }
 
-/*
- * input:  audio sample rate and video pixel rate
- * output: N and cts written to the HDMI regs.
- */
-void hdmi_set_clk_regenerator(void)
+static void hdmi_set_clk_regenerator(void)
 {
 	unsigned int clk_n, clk_cts;
-
-	/* Get pixel clock from ipu */
-	hdmi_get_pixel_clk();
-
-	pr_debug("%s: sample rate is %d ; ratio is %d ; pixel clk is %d\n",
-		__func__, sample_rate, hdmi_ratio, (int)pixel_clk_rate);
 
 	clk_n = hdmi_compute_n(sample_rate, pixel_clk_rate, hdmi_ratio);
 	clk_cts = hdmi_compute_cts(sample_rate, pixel_clk_rate, hdmi_ratio);
 
 	if (clk_cts == 0) {
-		pr_err("%s: pixel clock not supported: %d\n",
+		pr_debug("%s: pixel clock not supported: %d\n",
 			__func__, (int)pixel_clk_rate);
 		return;
 	}
@@ -378,11 +432,32 @@ void hdmi_set_clk_regenerator(void)
 	clk_enable(isfr_clk);
 	clk_enable(iahb_clk);
 
+	pr_debug("%s: samplerate=%d  ratio=%d  pixelclk=%d  N=%d  cts=%d\n",
+		__func__, sample_rate, hdmi_ratio, (int)pixel_clk_rate,
+		clk_n, clk_cts);
+
 	hdmi_set_clock_regenerator_n(clk_n);
 	hdmi_set_clock_regenerator_cts(clk_cts);
 
 	clk_disable(iahb_clk);
 	clk_disable(isfr_clk);
+}
+
+/* Need to run this before phy is enabled the first time to prevent
+ * overflow condition in HDMI_IH_FC_STAT2 */
+void hdmi_init_clk_regenerator(void)
+{
+	if (pixel_clk_rate == 0) {
+		pixel_clk_rate = 74250000;
+		hdmi_set_clk_regenerator();
+	}
+}
+
+void hdmi_clk_regenerator_update_pixel_clock(void)
+{
+	/* Get pixel clock from ipu */
+	hdmi_get_pixel_clk();
+	hdmi_set_clk_regenerator();
 }
 
 void hdmi_set_sample_rate(unsigned int rate)
@@ -398,6 +473,10 @@ static int mxc_hdmi_core_probe(struct platform_device *pdev)
 	struct resource *res;
 	int ret = 0;
 
+#ifdef DEBUG
+	overflow_lo = false;
+	overflow_hi = false;
+#endif
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	if (!res)
 		return -ENOENT;
@@ -411,7 +490,7 @@ static int mxc_hdmi_core_probe(struct platform_device *pdev)
 
 	pixel_clk = NULL;
 	sample_rate = 48000;
-	pixel_clk_rate = 74250000;
+	pixel_clk_rate = 0;
 	hdmi_ratio = 100;
 
 	irq_enable_cnt = 0;

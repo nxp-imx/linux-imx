@@ -138,9 +138,17 @@ const struct fb_videomode mxc_cea_mode[64] = {
  * pixclock, since for many CEA modes, 2 frequencies are supported
  * e.g. 640x480 @ 60Hz or 59.94Hz
  */
-int mxc_edid_fb_mode_is_equal(const struct fb_videomode *mode1,
-		     const struct fb_videomode *mode2)
+int mxc_edid_fb_mode_is_equal(bool use_aspect,
+			const struct fb_videomode *mode1,
+			const struct fb_videomode *mode2)
 {
+	u32 mask;
+
+	if (use_aspect)
+		mask = ~0;
+	else
+		mask = ~FB_VMODE_ASPECT_MASK;
+
 	return (mode1->xres         == mode2->xres &&
 		mode1->yres         == mode2->yres &&
 		mode1->hsync_len    == mode2->hsync_len &&
@@ -150,7 +158,7 @@ int mxc_edid_fb_mode_is_equal(const struct fb_videomode *mode1,
 		mode1->upper_margin == mode2->upper_margin &&
 		mode1->lower_margin == mode2->lower_margin &&
 		mode1->sync         == mode2->sync &&
-		mode1->vmode        == mode2->vmode);
+		(mode1->vmode & mask) == (mode2->vmode & mask));
 }
 
 static void get_detailed_timing(unsigned char *block,
@@ -450,7 +458,7 @@ int mxc_edid_var_to_vic(struct fb_var_screeninfo *var)
 
 	for (i = 0; i < ARRAY_SIZE(mxc_cea_mode); i++) {
 		fb_var_to_videomode(&m, var);
-		if (mxc_edid_fb_mode_is_equal(&m, &mxc_cea_mode[i]))
+		if (mxc_edid_fb_mode_is_equal(false, &m, &mxc_cea_mode[i]))
 			break;
 	}
 
@@ -465,9 +473,10 @@ EXPORT_SYMBOL(mxc_edid_var_to_vic);
 int mxc_edid_mode_to_vic(const struct fb_videomode *mode)
 {
 	int i;
+	bool use_aspect = (mode->vmode & FB_VMODE_ASPECT_MASK);
 
 	for (i = 0; i < ARRAY_SIZE(mxc_cea_mode); i++) {
-		if (mxc_edid_fb_mode_is_equal(mode, &mxc_cea_mode[i]))
+		if (mxc_edid_fb_mode_is_equal(use_aspect, mode, &mxc_cea_mode[i]))
 			break;
 	}
 
