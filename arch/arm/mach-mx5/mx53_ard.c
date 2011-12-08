@@ -455,6 +455,7 @@ static void flexcan_xcvr_enable(int id, int en)
 static struct flexcan_platform_data flexcan0_data = {
 	.core_reg = NULL,
 	.io_reg = NULL,
+	.root_clk_id = "lp_apm",
 	.xcvr_enable = flexcan_xcvr_enable,
 	.br_clksrc = 1,
 	.br_rjw = 2,
@@ -472,6 +473,7 @@ static struct flexcan_platform_data flexcan0_data = {
 static struct flexcan_platform_data flexcan1_data = {
 	.core_reg = NULL,
 	.io_reg = NULL,
+	.root_clk_id = "lp_apm",
 	.xcvr_enable = flexcan_xcvr_enable,
 	.br_clksrc = 1,
 	.br_rjw = 2,
