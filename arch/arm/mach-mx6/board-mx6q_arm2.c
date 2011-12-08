@@ -731,12 +731,16 @@ static struct i2c_board_info mxc_i2c0_board_info[] __initdata = {
 	},
 };
 
-static struct imxi2c_platform_data mx6q_arm2_i2c_data = {
-	.bitrate = 400000,
-};
-
 static struct imxi2c_platform_data mx6q_arm2_i2c0_data = {
 	.bitrate = 100000,
+};
+
+static struct imxi2c_platform_data mx6q_arm2_i2c1_data = {
+	.bitrate = 100000,
+};
+
+static struct imxi2c_platform_data mx6q_arm2_i2c2_data = {
+	.bitrate = 400000,
 };
 
 static struct i2c_board_info mxc_i2c2_board_info[] __initdata = {
@@ -1490,13 +1494,13 @@ static void __init mx6_board_init(void)
 	imx6q_add_imx_snvs_rtc();
 
 	imx6q_add_imx_i2c(0, &mx6q_arm2_i2c0_data);
-	imx6q_add_imx_i2c(1, &mx6q_arm2_i2c_data);
+	imx6q_add_imx_i2c(1, &mx6q_arm2_i2c1_data);
 	i2c_register_board_info(0, mxc_i2c0_board_info,
 			ARRAY_SIZE(mxc_i2c0_board_info));
 	i2c_register_board_info(1, mxc_i2c1_board_info,
 			ARRAY_SIZE(mxc_i2c1_board_info));
 	if (!spdif_en) {
-		imx6q_add_imx_i2c(2, &mx6q_arm2_i2c_data);
+		imx6q_add_imx_i2c(2, &mx6q_arm2_i2c2_data);
 		i2c_register_board_info(2, mxc_i2c2_board_info,
 				ARRAY_SIZE(mxc_i2c2_board_info));
 	}
