@@ -19,6 +19,7 @@
  * the .codec_dai field of your machine driver's snd_soc_dai_link structure.
  */
 extern struct snd_soc_dai_driver cs42888_dai;
+#define CS42888_RST 235
 
 /*
  * The ASoC codec device structure for the CS42888.  Assign this structure
