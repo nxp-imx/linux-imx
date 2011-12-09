@@ -20,6 +20,7 @@
 #include <linux/delay.h>
 #include <linux/regulator/consumer.h>
 #include <linux/fsl_devices.h>
+#include <linux/gpio.h>
 #include <sound/core.h>
 #include <sound/pcm.h>
 #include <sound/soc.h>
@@ -33,7 +34,6 @@
 #include "imx-esai.h"
 #include "../codecs/cs42888.h"
 
-
 struct imx_priv_state {
 	int hw;
 };
@@ -45,8 +45,13 @@ static int imx_3stack_startup(struct snd_pcm_substream *substream)
 {
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
-	if (!cpu_dai->active)
+
+	if (!cpu_dai->active) {
 		hw_state.hw = 0;
+		gpio_direction_output(CS42888_RST, 0);
+		msleep(100);
+		gpio_direction_output(CS42888_RST, 1);
+	}
 
 	return 0;
 }
