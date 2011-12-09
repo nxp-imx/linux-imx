@@ -2589,6 +2589,14 @@ static void init_camera_struct(cam_data *cam, struct platform_device *pdev)
 	init_waitqueue_head(&cam->power_queue);
 	spin_lock_init(&cam->queue_int_lock);
 	spin_lock_init(&cam->dqueue_int_lock);
+
+	cam->dummy_frame.vaddress = dma_alloc_coherent(0,
+			       SZ_8M, &cam->dummy_frame.paddress,
+			       GFP_DMA | GFP_KERNEL);
+	if (cam->dummy_frame.vaddress == 0)
+		pr_err("ERROR: v4l2 capture: Allocate dummy frame "
+		       "failed.\n");
+	cam->dummy_frame.buffer.length = SZ_8M;
 }
 
 static ssize_t show_streaming(struct device *dev,
