@@ -99,6 +99,7 @@
 #define MX6Q_SABREAUTO_CAN1_EN         IMX_GPIO_NR(7, 13)
 #define MX6Q_SABREAUTO_CAN2_STBY       MX6Q_SABREAUTO_IO_EXP_GPIO2(1)
 #define MX6Q_SABREAUTO_CAN2_EN         IMX_GPIO_NR(5, 24)
+#define MX6Q_SABREAUTO_I2C_EXP_RST     IMX_GPIO_NR(1, 15)
 
 #define MX6Q_SMD_CSI0_RST		IMX_GPIO_NR(4, 5)
 #define MX6Q_SMD_CSI0_PWN		IMX_GPIO_NR(5, 23)
@@ -159,7 +160,7 @@ static iomux_v3_cfg_t mx6q_sabreauto_pads[] = {
 	/* SD2 */
 	MX6Q_PAD_SD2_CLK__USDHC2_CLK,
 	MX6Q_PAD_SD2_CMD__USDHC2_CMD,
-	MX6Q_PAD_SD2_DAT0__USDHC2_DAT0,
+	MX6Q_PAD_SD2_DAT0__GPIO_1_15,
 	MX6Q_PAD_SD2_DAT1__USDHC2_DAT1,
 	MX6Q_PAD_SD2_DAT2__USDHC2_DAT2,
 	MX6Q_PAD_SD2_DAT3__USDHC2_DAT3,
@@ -217,7 +218,7 @@ static iomux_v3_cfg_t mx6q_sabreauto_pads[] = {
 	MX6Q_PAD_CSI0_DAT9__I2C1_SCL,
 
 	/* I2C2 */
-	MX6Q_PAD_KEY_COL3__I2C2_SCL,
+	MX6Q_PAD_EIM_EB2__I2C2_SCL,
 	MX6Q_PAD_KEY_ROW3__I2C2_SDA,
 
 	/* DISPLAY */
@@ -293,7 +294,7 @@ static iomux_v3_cfg_t mx6q_sabreauto_pads[] = {
 };
 
 static iomux_v3_cfg_t mx6q_sabreauto_i2c3_pads[] = {
-	MX6Q_PAD_GPIO_5__I2C3_SCL,
+	MX6Q_PAD_GPIO_3__I2C3_SCL,
 	MX6Q_PAD_GPIO_16__I2C3_SDA,
 };
 
@@ -675,11 +676,11 @@ static struct imxi2c_platform_data mx6q_sabreauto_i2c0_data = {
 
 static struct i2c_board_info mxc_i2c2_board_info[] __initdata = {
 	{
-		I2C_BOARD_INFO("max7310", 0x1F),
+		I2C_BOARD_INFO("max7310", 0x30),
 		.platform_data = &max7310_platdata,
 	},
 	{
-		I2C_BOARD_INFO("max7310", 0x1B),
+		I2C_BOARD_INFO("max7310", 0x32),
 		.platform_data = &max7310_u48_platdata,
 	},
 	{
@@ -1351,6 +1352,10 @@ static void __init mx6_board_init(void)
 			ARRAY_SIZE(mx6q_sabreauto_i2c3_pads));
 	mxc_iomux_v3_setup_multiple_pads(mx6q_sabreauto_can_pads,
 			ARRAY_SIZE(mx6q_sabreauto_can_pads));
+
+	/* assert i2c-rst  */
+	gpio_request(MX6Q_SABREAUTO_I2C_EXP_RST, "i2c-rst");
+	gpio_direction_output(MX6Q_SABREAUTO_I2C_EXP_RST, 1);
 
 	if (mipi_sensor)
 		mxc_iomux_v3_setup_multiple_pads(
