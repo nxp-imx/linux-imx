@@ -1075,6 +1075,12 @@ static int __init dvfs_init(void)
 
 	dvfs_core_is_active = 0;
 	printk(KERN_INFO "DVFS driver module loaded\n");
+
+	/* Enable DVFS by default. */
+	if (start_dvfs() != 0)
+		printk(KERN_ERR "Failed to start DVFS\n");
+	printk(KERN_INFO "DVFS driver Enabled\n");
+
 	return 0;
 }
 
@@ -1099,7 +1105,7 @@ static void __exit dvfs_cleanup(void)
 
 }
 
-module_init(dvfs_init);
+late_initcall(dvfs_init);
 module_exit(dvfs_cleanup);
 
 MODULE_AUTHOR("Freescale Semiconductor, Inc.");
