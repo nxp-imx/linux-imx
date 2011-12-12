@@ -92,12 +92,11 @@
 void __init early_console_setup(unsigned long base, struct clk *clk);
 static struct clk *sata_clk;
 
+extern char *gp_reg_id;
+
 extern struct regulator *(*get_cpu_regulator)(void);
 extern void (*put_cpu_regulator)(void);
-extern int (*set_cpu_voltage)(u32 volt);
-extern int mx6_set_cpu_voltage(u32 cpu_volt);
-static struct regulator *cpu_regulator;
-static char *gp_reg_id;
+extern void mx6_cpu_regulator_init(void);
 
 static iomux_v3_cfg_t mx6q_sabrelite_pads[] = {
 	/* AUDMUX */
@@ -945,23 +944,9 @@ static struct mxc_dvfs_platform_data sabrelite_dvfscore_data = {
 	.delay_time = 80,
 };
 
-static int mx6_sabre_set_cpu_voltage(u32 cpu_volt)
-{
-	int ret = -EINVAL;
-
-	if (cpu_regulator == NULL)
-		cpu_regulator = regulator_get(NULL, gp_reg_id);
-
-	if (!IS_ERR(cpu_regulator))
-		ret = regulator_set_voltage(cpu_regulator,
-						    cpu_volt, cpu_volt);
-	return ret;
-}
-
 static void __init fixup_mxc_board(struct machine_desc *desc, struct tag *tags,
 				   char **cmdline, struct meminfo *mi)
 {
-	set_cpu_voltage = mx6_sabre_set_cpu_voltage;
 }
 
 /*!
@@ -1037,6 +1022,7 @@ static void __init mx6_sabrelite_board_init(void)
 	imx6q_add_dma();
 
 	imx6q_add_dvfs_core(&sabrelite_dvfscore_data);
+	mx6_cpu_regulator_init();
 
 	imx6q_add_hdmi_soc();
 	imx6q_add_hdmi_soc_dai();

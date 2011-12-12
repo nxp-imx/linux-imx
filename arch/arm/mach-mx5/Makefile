@@ -4,7 +4,7 @@
 
 # Object file lists.
 obj-y   := cpu.o mm.o devices.o ehci.o bus_freq.o sdram_autogating.o  \
-pm.o system.o suspend.o usb_dr.o usb_h1.o usb_h2.o
+pm.o system.o suspend.o usb_dr.o usb_h1.o usb_h2.o cpu_regulator-mx5.o
 
 obj-$(CONFIG_SOC_IMX50) += clock_mx50.o mm-mx50.o mx50_wfi.o mx50_suspend.o mx50_freq.o mx50_ddr_freq.o
 obj-$(CONFIG_SOC_IMX51) += clock.o
