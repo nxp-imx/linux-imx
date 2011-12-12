@@ -33,7 +33,7 @@
 
 
 void *mx6_wait_in_iram_base;
-void (*mx6_wait_in_iram)(void *ccm_base);
+void (*mx6_wait_in_iram)();
 extern void mx6_wait(void);
 
 

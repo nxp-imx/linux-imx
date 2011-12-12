@@ -46,12 +46,13 @@
 /* static DEFINE_SPINLOCK(wfi_lock); */
 
 extern unsigned int gpc_wake_irq[4];
+extern int mx6q_revision(void);
 
 /* static unsigned int cpu_idle_mask; */
 
 static void __iomem *gpc_base = IO_ADDRESS(GPC_BASE_ADDR);
 
-extern void (*mx6_wait_in_iram)(void *ccm_base);
+extern void (*mx6_wait_in_iram)();
 extern void mx6_wait(void);
 extern void *mx6_wait_in_iram_base;
 extern bool enable_wait_mode;
@@ -143,13 +144,17 @@ void mxc_cpu_lp_set(enum mxc_cpu_pwr_mode mode)
 	__raw_writel(ccm_clpcr, MXC_CCM_CLPCR);
 }
 
-void arch_idle(void)
+ void arch_idle(void)
 {
 	if (enable_wait_mode) {
 		if ((num_online_cpus() == num_present_cpus())
 			&& mx6_wait_in_iram != NULL) {
 			mxc_cpu_lp_set(WAIT_UNCLOCKED_POWER_OFF);
-			mx6_wait_in_iram(MXC_CCM_BASE);
+			if (smp_processor_id() == 0 &&
+				(mx6q_revision() <= IMX_CHIP_REVISION_1_0))
+				mx6_wait_in_iram();
+			else
+				cpu_do_idle();
 		}
 	} else
 		cpu_do_idle();
