@@ -93,15 +93,10 @@
 #define MX50_RDP_SD3_WP		IMX_GPIO_NR(5, 28) 	/*GPIO_5_28 */
 #define MX50_RDP_USB_OTG_PWR	IMX_GPIO_NR(6, 25)	/*GPIO_6_25*/
 
-extern int (*set_cpu_voltage)(u32 volt);
-extern int mx5_set_cpu_voltage(struct regulator *gp_reg, u32 cpu_volt);
-
 extern int mx50_rdp_init_mc13892(void);
-
+extern void mx5_cpu_regulator_init(void);
 extern char *lp_reg_id;
-
-static char *gp_reg_id;
-static struct regulator *cpu_regulator;
+extern char *gp_reg_id;
 static int max17135_regulator_init(struct max17135 *max17135);
 
 static iomux_v3_cfg_t mx50_rdp_pads[] __initdata = {
@@ -795,18 +790,6 @@ static struct mxc_regulator_platform_data rdp_regulator_data = {
 	.vcc_reg_id = "lp_vcc",
 };
 
-static int mx50_rdp_set_cpu_voltage(u32 cpu_volt)
-{
-	int ret = -EINVAL;
-
-	if (cpu_regulator == NULL)
-		cpu_regulator = regulator_get(NULL, gp_reg_id);
-	if (!IS_ERR(cpu_regulator))
-		ret = mx5_set_cpu_voltage(cpu_regulator, cpu_volt);
-
-	return ret;
-}
-
 static const struct esdhc_platform_data mx50_rdp_sd1_data __initconst = {
 	.cd_gpio = MX50_RDP_SD1_CD,
 	.wp_gpio = MX50_RDP_SD1_WP,
@@ -825,7 +808,6 @@ static const struct esdhc_platform_data mx50_rdp_sd3_data __initconst = {
 static void __init fixup_mxc_board(struct machine_desc *desc, struct tag *tags,
 				   char **cmdline, struct meminfo *mi)
 {
-	set_cpu_voltage = mx50_rdp_set_cpu_voltage;
 }
 
 static void mx50_rdp_usbotg_vbus(bool on)
@@ -900,6 +882,8 @@ static void __init mx50_rdp_board_init(void)
 	imx50_add_busfreq();
 
 	mx50_rdp_init_usb();
+
+	mx5_cpu_regulator_init();
 }
 
 static void __init mx50_rdp_timer_init(void)
