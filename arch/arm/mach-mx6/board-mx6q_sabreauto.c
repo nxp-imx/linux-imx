@@ -37,7 +37,6 @@
 #include <linux/mtd/mtd.h>
 #include <linux/mtd/map.h>
 #include <linux/mtd/partitions.h>
-#include <linux/regulator/consumer.h>
 #include <linux/pmic_external.h>
 #include <linux/pmic_status.h>
 #include <linux/ipu.h>
@@ -112,10 +111,8 @@ static int mipi_sensor;
 
 extern struct regulator *(*get_cpu_regulator)(void);
 extern void (*put_cpu_regulator)(void);
-extern int (*set_cpu_voltage)(u32 volt);
-extern int mx6_set_cpu_voltage(u32 cpu_volt);
-static struct regulator *cpu_regulator;
-static char *gp_reg_id;
+extern char *gp_reg_id;
+extern void mx6_cpu_regulator_init(void);
 
 static iomux_v3_cfg_t mx6q_sabreauto_pads[] = {
 
@@ -1294,23 +1291,9 @@ static struct mxc_dvfs_platform_data sabreauto_dvfscore_data = {
 	.delay_time = 80,
 };
 
-static int mx6_sabreauto_set_cpu_voltage(u32 cpu_volt)
-{
-	int ret = -EINVAL;
-
-	if (cpu_regulator == NULL)
-		cpu_regulator = regulator_get(NULL, gp_reg_id);
-
-	if (!IS_ERR(cpu_regulator))
-		ret = regulator_set_voltage(cpu_regulator,
-						    cpu_volt, cpu_volt);
-	return ret;
-}
-
 static void __init fixup_mxc_board(struct machine_desc *desc, struct tag *tags,
 				   char **cmdline, struct meminfo *mi)
 {
-	set_cpu_voltage = mx6_sabreauto_set_cpu_voltage;
 }
 
 static int __init early_enable_mipi_sensor(char *p)
@@ -1457,6 +1440,7 @@ static void __init mx6_board_init(void)
 	imx6q_add_vpu();
 	imx6q_init_audio();
 	platform_device_register(&sabreauto_vmmc_reg_devices);
+	mx6_cpu_regulator_init();
 	imx_asrc_data.asrc_core_clk = clk_get(NULL, "asrc_clk");
 	imx_asrc_data.asrc_audio_clk = clk_get(NULL, "asrc_serial_clk");
 	imx6q_add_asrc(&imx_asrc_data);
