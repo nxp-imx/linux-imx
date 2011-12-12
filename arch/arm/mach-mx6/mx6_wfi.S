@@ -27,28 +27,14 @@
  */
 ENTRY(mx6_wait)
 
-	stmfd   sp!, {r3,r4,r5,r6,r7}     @ Save registers
+	dsb
 
 	wfi
 
-	/*Wait for 170ns due to L2 cache errata (TKT065875) */
-	/*System is more stable only if the wait is closer to ~380ns */
-	/* Each IO read takes about 76ns. */
+ 	isb
+	isb
 
-	ldr   r6, [r0]
-	ldr   r6, [r0, #4]
-	ldr   r6, [r0, #8]
-	ldr   r6, [r0, #0xc]
-	ldr   r6, [r0, #0x10]
-	ldr   r6, [r0, #0x14]
-	ldr   r6, [r0, #0x18]
-	ldr   r6, [r0, #0x1c]
-	ldr   r6, [r0, #0x20]
-	ldr   r6, [r0, #0x24]
-
-    /* Restore registers */
-    ldmfd sp!, {r3,r4,r5,r6,r7}
-    mov     pc, lr
+      mov     pc, lr
 
     .type   mx6_do_wait, #object
 ENTRY(mx6_do_wait)
