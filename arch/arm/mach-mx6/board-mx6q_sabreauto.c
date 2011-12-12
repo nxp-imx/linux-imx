@@ -756,12 +756,8 @@ static struct viv_gpu_platform_data imx6q_gpu_pdata __initdata = {
 static int mx6q_sabreauto_sata_init(struct device *dev, void __iomem *addr)
 {
 	u32 tmpdata;
-	int ret = 0;
+	int ret = 0, iterations = 20;
 	struct clk *clk;
-
-	/* Enable SATA PWR CTRL_0 of MAX7310 */
-	gpio_request(MX6Q_SABREAUTO_MAX7310_1_BASE_ADDR, "SATA_PWR_EN");
-	gpio_direction_output(MX6Q_SABREAUTO_MAX7310_1_BASE_ADDR, 1);
 
 	sata_clk = clk_get(dev, "imx_sata_clk");
 	if (IS_ERR(sata_clk)) {
@@ -807,6 +803,19 @@ static int mx6q_sabreauto_sata_init(struct device *dev, void __iomem *addr)
 
 	sata_init(addr, tmpdata);
 
+	/* Release resources when there is no device on the port */
+	do {
+		if ((readl(addr + PORT_SATA_SR) & 0xF) == 0)
+			msleep(25);
+		else
+			break;
+
+		if (iterations == 0) {
+			dev_info(dev, "NO sata disk.\n");
+			ret = -ENODEV;
+			goto release_sata_clk;
+		}
+	} while (iterations-- > 0);
 	return ret;
 
 release_sata_clk:
@@ -821,10 +830,6 @@ static void mx6q_sabreauto_sata_exit(struct device *dev)
 {
 	clk_disable(sata_clk);
 	clk_put(sata_clk);
-
-	/* Disable SATA PWR CTRL_0 of MAX7310 */
-	gpio_request(MX6Q_SABREAUTO_MAX7310_1_BASE_ADDR, "SATA_PWR_EN");
-	gpio_direction_output(MX6Q_SABREAUTO_MAX7310_1_BASE_ADDR, 0);
 
 }
 
