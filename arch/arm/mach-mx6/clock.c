@@ -23,6 +23,7 @@
 #include <linux/clk.h>
 #include <linux/io.h>
 #include <linux/clkdev.h>
+#include <linux/regulator/consumer.h>
 #include <asm/div64.h>
 #include <mach/hardware.h>
 #include <mach/common.h>
@@ -39,9 +40,8 @@
 
 extern u32 arm_max_freq;
 extern int mxc_jtag_enabled;
+extern struct regulator *cpu_regulator;
 extern struct cpu_op *(*get_cpu_op)(int *op);
-extern int mx6_set_cpu_voltage(u32 cpu_volt);
-
 extern int lp_high_freq;
 extern int lp_med_freq;
 
@@ -4934,10 +4934,6 @@ int __init mx6_clocks_init(unsigned long ckil, unsigned long osc,
 
 	base = ioremap(GPT_BASE_ADDR, SZ_4K);
 	mxc_timer_init(&gpt_clk[0], base, MXC_INT_GPT);
-
-	/* Set the core to max frequency requested. */
-	mx6_set_cpu_voltage(cpu_op_tbl[0].cpu_voltage);
-	clk_set_rate(&cpu_clk, cpu_op_tbl[0].pll_rate);
 
 	lp_high_freq = 0;
 	lp_med_freq = 0;

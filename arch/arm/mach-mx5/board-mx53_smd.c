@@ -84,13 +84,10 @@
 static struct clk *sata_clk, *sata_ref_clk;
 
 extern char *lp_reg_id;
-extern int (*set_cpu_voltage)(u32 volt);
-extern int mx5_set_cpu_voltage(struct regulator *gp_reg, u32 cpu_volt);
-
+extern char *gp_reg_id;
+extern void mx5_cpu_regulator_init(void);
 extern int mx53_smd_init_da9052(void);
-
-static struct regulator *cpu_regulator;
-static char *gp_reg_id;
+extern void mx5_cpu_regulator_init(void);
 
 static iomux_v3_cfg_t mx53_smd_pads[] = {
 	MX53_PAD_CSI0_DAT10__UART1_TXD_MUX,
@@ -745,22 +742,9 @@ static struct mxc_regulator_platform_data smd_regulator_data = {
 	.cpu_reg_id = "DA9052_BUCK_CORE",
 };
 
-static int mx53_smd_set_cpu_voltage(u32 cpu_volt)
-{
-	int ret = -EINVAL;
-
-	if (cpu_regulator == NULL)
-		cpu_regulator = regulator_get(NULL, gp_reg_id);
-	if (!IS_ERR(cpu_regulator))
-		ret = mx5_set_cpu_voltage(cpu_regulator, cpu_volt);
-
-	return ret;
-}
-
 static void __init fixup_mxc_board(struct machine_desc *desc, struct tag *tags,
 				   char **cmdline, struct meminfo *mi)
 {
-	set_cpu_voltage = mx53_smd_set_cpu_voltage;
 }
 
 static void __init mx53_smd_board_init(void)
@@ -848,6 +832,8 @@ static void __init mx53_smd_board_init(void)
 	  * during boot, even if SCC2 driver is not part of the image
 	  */
 	imx53_add_mxc_scc2();
+
+	mx5_cpu_regulator_init();
 }
 
 static void __init mx53_smd_timer_init(void)

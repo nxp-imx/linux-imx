@@ -61,12 +61,9 @@
 #define ARD_SSI_STEERING		(MAX7310_BASE_ADDR + 6)
 #define ARD_GPS_RST_B			(MAX7310_BASE_ADDR + 7)
 
-static struct regulator *cpu_regulator;
-static char *gp_reg_id;
-
+extern char *gp_reg_id;
 extern char *lp_reg_id;
-extern void (*set_cpu_voltage)(u32 volt);
-extern int mx5_set_cpu_voltage(struct regulator *gp_reg, u32 cpu_volt);
+extern void mx5_cpu_regulator_init(void);
 
 static iomux_v3_cfg_t mx53_ard_pads[] = {
 	/* UART */
@@ -354,22 +351,9 @@ static struct mxc_regulator_platform_data ard_regulator_data = {
 	.cpu_reg_id = "SW1",
 };
 
-static int mx53_ard_set_cpu_voltage(u32 cpu_volt)
-{
-	int ret = -EINVAL;
-
-	if (cpu_regulator == NULL)
-		cpu_regulator = regulator_get(NULL, gp_reg_id);
-	if (!IS_ERR(cpu_regulator))
-		ret = mx5_set_cpu_voltage(cpu_regulator, cpu_volt);
-
-	return ret;
-}
-
 static void __init fixup_mxc_board(struct machine_desc *desc, struct tag *tags,
 				   char **cmdline, struct meminfo *mi)
 {
-	set_cpu_voltage = mx53_ard_set_cpu_voltage;
 }
 
 static inline void mx53_ard_init_uart(void)
@@ -500,6 +484,8 @@ static void __init mx53_ard_board_init(void)
 				ARRAY_SIZE(mxc_i2c2_board_info));
 
 	imx53_init_audio();
+
+	mx5_cpu_regulator_init();
 
 	/* this call required to release SCC RAM partition held by ROM
 	  * during boot, even if SCC2 driver is not part of the image

@@ -99,7 +99,7 @@ static int maxf;
 static int minf;
 
 extern void setup_pll(void);
-extern int (*set_cpu_voltage)(u32 cpu_volt);
+extern struct regulator *cpu_regulator;
 
 struct timeval core_prev_intr;
 
@@ -118,7 +118,6 @@ static struct clk *dvfs_clk;
 
 static int cpu_op_nr;
 extern struct cpu_op *(*get_cpu_op)(int *op);
-extern int (*set_cpu_voltage)(u32 cpu_volt);
 
 static inline unsigned long dvfs_cpu_jiffies(unsigned long old, u_int div, u_int mult)
 {
@@ -211,7 +210,8 @@ static int mx5_set_cpu_freq(int op)
 
 		/*Set the voltage for the GP domain. */
 		if (rate > org_cpu_rate) {
-			ret = set_cpu_voltage(gp_volt);
+			ret = regulator_set_voltage(cpu_regulator, gp_volt,
+						    gp_volt);
 			if (ret < 0) {
 				printk(KERN_DEBUG "COULD NOT SET GP VOLTAGE\n");
 				return ret;
@@ -258,7 +258,8 @@ static int mx5_set_cpu_freq(int op)
 		spin_unlock_irqrestore(&mxc_dvfs_core_lock, flags);
 
 		if (rate < org_cpu_rate) {
-			ret = set_cpu_voltage(gp_volt);
+			ret = regulator_set_voltage(cpu_regulator, gp_volt,
+						    gp_volt);
 			if (ret < 0) {
 				printk(KERN_DEBUG
 				       "COULD NOT SET GP VOLTAGE!!!!\n");
@@ -299,7 +300,8 @@ static int mx5_set_cpu_freq(int op)
 		}
 		/* Check if FSVAI indicate freq up */
 		if (podf < arm_podf) {
-			ret = set_cpu_voltage(gp_volt);
+			ret = regulator_set_voltage(cpu_regulator, gp_volt,
+						    gp_volt);
 			if (ret < 0) {
 				printk(KERN_DEBUG
 				       "COULD NOT SET GP VOLTAGE!!!!\n");
@@ -359,7 +361,8 @@ static int mx5_set_cpu_freq(int op)
 		spin_unlock_irqrestore(&mxc_dvfs_core_lock, flags);
 
 		if (vinc == 0) {
-			ret = set_cpu_voltage(gp_volt);
+			ret = regulator_set_voltage(cpu_regulator, gp_volt,
+						    gp_volt);
 			if (ret < 0) {
 				printk(KERN_DEBUG
 				       "COULD NOT SET GP VOLTAGE\n!!!");
@@ -393,7 +396,8 @@ static int mx6_set_cpu_freq(int op)
 
 	if (rate > org_cpu_rate) {
 		/* Increase voltage first. */
-		ret = set_cpu_voltage(gp_volt);
+		ret = regulator_set_voltage(cpu_regulator, gp_volt,
+					    gp_volt);
 		if (ret < 0) {
 			printk(KERN_DEBUG "COULD NOT INCREASE GP VOLTAGE!!!!\n");
 			return ret;
@@ -408,7 +412,8 @@ static int mx6_set_cpu_freq(int op)
 
 	if (rate < org_cpu_rate) {
 		/* Increase voltage first. */
-		ret = set_cpu_voltage(gp_volt);
+		ret = regulator_set_voltage(cpu_regulator, gp_volt,
+					    gp_volt);
 		if (ret < 0) {
 			printk(KERN_DEBUG "COULD NOT INCREASE GP VOLTAGE!!!!\n");
 			return ret;

@@ -84,11 +84,8 @@
 #define	MX51_USB_PLL_DIV_24_MHZ	0x02
 
 extern char *lp_reg_id;
-extern int (*set_cpu_voltage)(u32 volt);
-extern int mx5_set_cpu_voltage(struct regulator *gp_reg, u32 cpu_volt);
-
-static struct regulator *cpu_regulator;
-static char *gp_reg_id;
+extern char *gp_reg_id;
+extern void mx5_cpu_regulator_init(void);
 
 static struct gpio_keys_button babbage_buttons[] = {
 	{
@@ -562,19 +559,6 @@ static struct i2c_board_info mxc_i2c_hs_board_info[] __initdata = {
 
 static struct mxc_gpu_platform_data gpu_data __initdata;
 
-static int mx51_bbg_set_cpu_voltage(u32 cpu_volt)
-{
-	int ret = -EINVAL;
-
-	if (cpu_regulator == NULL)
-		cpu_regulator = regulator_get(NULL, gp_reg_id);
-	if (!IS_ERR(cpu_regulator))
-		ret = mx5_set_cpu_voltage(cpu_regulator, cpu_volt);
-
-	return ret;
-
-}
-
 static void __init fixup_mxc_board(struct machine_desc *desc, struct tag *tags,
 				   char **cmdline, struct meminfo *mi)
 {
@@ -585,8 +569,6 @@ static void __init fixup_mxc_board(struct machine_desc *desc, struct tag *tags,
 	int gpu_mem = SZ_64M;
 	int fb_mem = 0;
 	char *str;
-
-	set_cpu_voltage = mx51_bbg_set_cpu_voltage;
 
 	for_each_tag(mem_tag, tags) {
 		if (mem_tag->hdr.tag == ATAG_MEM) {
@@ -826,6 +808,7 @@ static void __init mx51_babbage_init(void)
 
 	imx51_add_dvfs_core(&bbg_dvfscore_data);
 	imx51_add_busfreq();
+	mx5_cpu_regulator_init();
 }
 
 static void __init mx51_babbage_timer_init(void)

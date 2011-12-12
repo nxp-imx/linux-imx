@@ -172,18 +172,6 @@ static int get_mx50_srev(void)
 	return 0;
 }
 
-int mx5_set_cpu_voltage(struct regulator *gp_reg, u32 cpu_volt)
-{
-	u32 ret = 0;
-
-	if (!IS_ERR(gp_reg)) {
-		ret = regulator_set_voltage(gp_reg, cpu_volt, cpu_volt);
-		if (ret < 0)
-			printk(KERN_DEBUG "COULD NOT SET GP VOLTAGE!!!!\n");
-	}
-	return ret;
-}
-
 /*
  * Returns:
  *	the silicon revision of the cpu
