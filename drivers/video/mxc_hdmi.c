@@ -117,7 +117,7 @@ struct hdmi_data_info {
 struct mxc_hdmi {
 	struct platform_device *pdev;
 	struct platform_device *core_pdev;
-	struct mxc_dispdrv_entry *disp_mxc_hdmi;
+	struct mxc_dispdrv_handle *disp_mxc_hdmi;
 	struct fb_info *fbi;
 	struct clk *hdmi_isfr_clk;
 	struct clk *hdmi_iahb_clk;
@@ -1616,11 +1616,11 @@ static int mxc_hdmi_fb_event(struct notifier_block *nb,
 	return 0;
 }
 
-static int mxc_hdmi_disp_init(struct mxc_dispdrv_entry *disp)
+static int mxc_hdmi_disp_init(struct mxc_dispdrv_handle *disp,
+	struct mxc_dispdrv_setting *setting)
 {
 	int ret = 0;
 	struct mxc_hdmi *hdmi = mxc_dispdrv_getdata(disp);
-	struct mxc_dispdrv_setting *setting = mxc_dispdrv_getsetting(disp);
 	struct fsl_mxc_hdmi_platform_data *plat = hdmi->pdev->dev.platform_data;
 	int irq = platform_get_irq(hdmi->pdev, 0);
 	bool found = false;
@@ -1810,7 +1810,7 @@ egetpins:
 	return ret;
 }
 
-static void mxc_hdmi_disp_deinit(struct mxc_dispdrv_entry *disp)
+static void mxc_hdmi_disp_deinit(struct mxc_dispdrv_handle *disp)
 {
 	struct mxc_hdmi *hdmi = mxc_dispdrv_getdata(disp);
 	struct fsl_mxc_hdmi_platform_data *plat = hdmi->pdev->dev.platform_data;
@@ -1892,6 +1892,8 @@ static int mxc_hdmi_remove(struct platform_device *pdev)
 
 	fb_unregister_client(&hdmi->nb);
 
+	mxc_dispdrv_puthandle(hdmi->disp_mxc_hdmi);
+	mxc_dispdrv_unregister(hdmi->disp_mxc_hdmi);
 	/* No new work will be scheduled, wait for running ISR */
 	free_irq(irq, hdmi);
 	kfree(hdmi);

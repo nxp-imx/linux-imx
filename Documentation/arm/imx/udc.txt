@@ -1,0 +1,16 @@
+How to test remote wakeup (Make sure connecting to usb host and gadget is loaded)
+1. Prepare a usb host which featured with remote wakeup
+alternatively, You can use another i.mx board (like mx50 rdp, or mx6q)
+2. Boot up both boards, and connect two boards with usb cable
+3. At device side, do below commands:
+- modprobe g_file_storage file=/dev/mmcblk0p1 (other gadgets are also ok)
+- echo 1 > /sys/devices/platform/fsl-usb2-udc/gadget/remote_wakeup
+4. At host side, do below command:
+- echo enabled > /sys/devices/platform/fsl-ehci.1/power/wakeup
+- echo standby > /sys/power/state
+5. Send Remote wakeup to wake up host
+At device side, do below command:
+echo 1 > /sys/devices/platform/fsl-usb2-udc/gadget/start_remote_wakeup
+6. The expected behaviour is: host is waked up, and there is
+not re-enumeration happens.
+

@@ -1562,6 +1562,9 @@ static void ch9getstatus(struct fsl_udc *udc, u8 request_type, u16 value,
 		ERR("Can't respond to getstatus request \n");
 		goto stall;
 	}
+	/* Status phase */
+	if (ep0_prime_status(udc, EP_DIR_OUT))
+		ep0stall(udc);
 	return;
 stall:
 	ep0stall(udc);
@@ -1633,6 +1636,12 @@ static void setup_received_irq(struct fsl_udc *udc,
 			 * This will be set when OTG support is added */
 			if (setup->wValue == USB_DEVICE_TEST_MODE)
 				ptc = setup->wIndex >> 8;
+			else if (setup->wValue == USB_DEVICE_REMOTE_WAKEUP) {
+				if (setup->bRequest == USB_REQ_SET_FEATURE)
+					udc->remote_wakeup = 1;
+				else
+					udc->remote_wakeup = 0;
+			}
 			else if (gadget_is_otg(&udc->gadget)) {
 				if (setup->bRequest ==
 				    USB_DEVICE_B_HNP_ENABLE)
@@ -2009,20 +2018,10 @@ static void port_change_irq(struct fsl_udc *udc)
 /* Process suspend interrupt */
 static void suspend_irq(struct fsl_udc *udc)
 {
-	u32 otgsc = 0;
-
 	pr_debug("%s begins\n", __func__);
 
 	udc->resume_state = udc->usb_state;
 	udc->usb_state = USB_STATE_SUSPENDED;
-
-	/* Set discharge vbus */
-	otgsc = fsl_readl(&dr_regs->otgsc);
-	otgsc &= ~(OTGSC_INTSTS_MASK);
-	otgsc |= OTGSC_CTRL_VBUS_DISCHARGE;
-	fsl_writel(otgsc, &dr_regs->otgsc);
-
-
 	/* report suspend to the driver, serial.c does not support this */
 	if (udc->driver->suspend)
 		udc->driver->suspend(&udc->gadget);
@@ -2107,7 +2106,7 @@ static void gadget_wait_line_to_se0(void)
 					" your hardware design!\n");
 			break;
 		}
-		msleep(10);
+		msleep(1);
 	}
 }
 
@@ -2144,20 +2143,12 @@ static void fsl_gadget_disconnect_event(struct work_struct *work)
 	u32 tmp;
 
 	pdata = udc->pdata;
-
-	/* enable pulldown dp */
-	if (pdata->gadget_discharge_dp)
-		pdata->gadget_discharge_dp(true);
 	/*
 	 * Some boards are very slow change line state from J to SE0 for DP,
 	 * So, we need to discharge DP, otherwise there is a wakeup interrupt
 	 * after we enable the wakeup function.
 	 */
 	gadget_wait_line_to_se0();
-
-	/* Disable pulldown dp */
-	if (pdata->gadget_discharge_dp)
-		pdata->gadget_discharge_dp(false);
 
 	/*
 	 * Wait class drivers finish, an well-behaviour class driver should
@@ -2216,6 +2207,7 @@ bool try_wake_up_udc(struct fsl_udc *udc)
 			fsl_writel(tmp | USB_CMD_RUN_STOP, &dr_regs->usbcmd);
 			printk(KERN_DEBUG "%s: udc out low power mode\n", __func__);
 		} else {
+			printk(KERN_INFO "USB device disconnected\n");
 			fsl_writel(tmp & ~USB_CMD_RUN_STOP, &dr_regs->usbcmd);
 			/* here we need disable B_SESSION_IRQ, after
 			 * schedule_work finished, it need to be enabled again.
@@ -2754,6 +2746,109 @@ static int fsl_proc_read(char *page, char **start, off_t off, int count,
 
 #endif				/* CONFIG_USB_GADGET_DEBUG_FILES */
 
+/* sys entries for device control */
+static ssize_t fsl_udc_remote_wakeup_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	return sprintf(buf, "%d\n", udc_controller->remote_wakeup);
+}
+
+static ssize_t fsl_udc_remote_wakeup_store(struct device *dev, struct device_attribute *attr,
+			 const char *buf, size_t count)
+{
+	int value;
+	unsigned long flags;
+	struct fsl_udc *udc = udc_controller;
+
+	spin_lock_irqsave(&udc->lock, flags);
+	if (udc_controller->stopped) {
+		pr_warning(KERN_ERR "Controller has already stopped, Quit.\n"
+				"Please make sure usb is online, and controller"
+				" is not stopped.\n");
+		spin_unlock_irqrestore(&udc->lock, flags);
+		return -ESHUTDOWN;
+	}
+
+	if (sscanf(buf, "%d", &value) != 1) {
+		printk(KERN_ERR "Only numeric 0/1 is valid\n");
+		spin_unlock_irqrestore(&udc->lock, flags);
+		return -EINVAL;
+	}
+	if (value == 0 || value == 1)
+		udc_controller->remote_wakeup = value;
+	else {
+		printk(KERN_ERR "Only numeric 0/1 is valid\n");
+		spin_unlock_irqrestore(&udc->lock, flags);
+		return -EINVAL;
+	}
+
+	spin_unlock_irqrestore(&udc->lock, flags);
+
+	return count;
+}
+
+static DEVICE_ATTR(remote_wakeup, S_IRUGO | S_IWUGO, fsl_udc_remote_wakeup_show,
+		fsl_udc_remote_wakeup_store);
+
+static ssize_t fsl_udc_start_remote_wakeup_store(struct device *dev, struct device_attribute *attr,
+			 const char *buf, size_t count)
+{
+	int value;
+	unsigned long flags;
+	struct fsl_udc *udc = udc_controller;
+
+	spin_lock_irqsave(&udc->lock, flags);
+	if (udc_controller->stopped) {
+		pr_warning(KERN_ERR "Controller has already stopped, Quit.\n"
+				"Please make sure usb is online, and controller"
+				" is not stopped.\n");
+		spin_unlock_irqrestore(&udc->lock, flags);
+		return -ESHUTDOWN;
+	}
+
+	if (sscanf(buf, "%d", &value) != 1) {
+		printk(KERN_ERR "Only numeric 1 is valid\n");
+		spin_unlock_irqrestore(&udc->lock, flags);
+		return -EINVAL;
+	}
+
+	if (value != 1) {
+		printk(KERN_ERR "Only numeric 1 is valid\n");
+		spin_unlock_irqrestore(&udc->lock, flags);
+		return -EINVAL;
+	}
+
+	if (udc_controller->remote_wakeup == 1) {
+		u32 temp;
+		printk(KERN_INFO "Send Resume signal\n");
+		temp = fsl_readl(&dr_regs->portsc1);
+		temp |= PORTSCX_PORT_FORCE_RESUME;
+		fsl_writel(temp, &dr_regs->portsc1);
+	} else
+		printk(KERN_WARNING "udc remote wakeup has not enabled\n");
+
+	spin_unlock_irqrestore(&udc->lock, flags);
+
+	return count;
+}
+
+static DEVICE_ATTR(start_remote_wakeup, S_IWUGO, NULL,
+		fsl_udc_start_remote_wakeup_store);
+
+static struct attribute *fsl_udc_attrs[] = {
+	&dev_attr_remote_wakeup.attr,
+	&dev_attr_start_remote_wakeup.attr,
+	NULL,
+};
+
+static const struct attribute_group fsl_udc_attr_group = {
+	.attrs = fsl_udc_attrs,
+};
+
+static const struct attribute_group *fsl_udc_attr_groups[] = {
+	&fsl_udc_attr_group,
+	NULL,
+};
 /*-------------------------------------------------------------------------*/
 
 /* Release udc structures */
@@ -2984,6 +3079,7 @@ static int __devinit fsl_udc_probe(struct platform_device *pdev)
 	dev_set_name(&udc_controller->gadget.dev, "gadget");
 	udc_controller->gadget.dev.release = fsl_udc_release;
 	udc_controller->gadget.dev.parent = &pdev->dev;
+	udc_controller->gadget.dev.groups = fsl_udc_attr_groups;
 	ret = device_register(&udc_controller->gadget.dev);
 	if (ret < 0)
 		goto err3;
@@ -3056,6 +3152,7 @@ static int __devinit fsl_udc_probe(struct platform_device *pdev)
 	dr_clk_gate(false);
 
 	create_proc_file();
+
 	return 0;
 
 err4:

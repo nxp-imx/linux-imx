@@ -33,6 +33,7 @@
 	[_id] = imx_mipi_dsi_data_entry_single(soc, _id, _hwid, _size)
 
 #ifdef CONFIG_SOC_IMX6Q
+#define SOC_IOMUXC_BASE_ADDR MX6Q_IOMUXC_BASE_ADDR
 const struct imx_mipi_dsi_data imx6q_mipi_dsi_data __initconst =
 			imx_mipi_dsi_data_entry_single(MX6Q, 0, , SZ_4K);
 #endif
@@ -45,6 +46,10 @@ struct platform_device *__init imx_add_mipi_dsi(
 		{
 			.start = data->iobase,
 			.end = data->iobase + data->iosize - 1,
+			.flags = IORESOURCE_MEM,
+		}, {
+			.start = SOC_IOMUXC_BASE_ADDR,
+			.end = SOC_IOMUXC_BASE_ADDR + SZ_4K - 1,
 			.flags = IORESOURCE_MEM,
 		}, {
 			.start = data->irq,

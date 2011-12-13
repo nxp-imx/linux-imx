@@ -44,21 +44,6 @@ u32 arm_max_freq = CPU_AT_1GHz;
 void __iomem *gpc_base;
 void __iomem *ccm_base;
 
-int mx6_set_cpu_voltage(u32 cpu_volt)
-{
-	u32 reg, val;
-
-	val = (cpu_volt - 725000) / 25000;
-
-	reg = __raw_readl(ANADIG_REG_CORE);
-	reg &= ~(ANADIG_REG_TARGET_MASK << ANADIG_REG0_CORE_TARGET_OFFSET);
-	reg |= ((val + 1) << ANADIG_REG0_CORE_TARGET_OFFSET);
-
-	__raw_writel(reg, ANADIG_REG_CORE);
-
-	return 0;
-}
-
 static int __init post_cpu_init(void)
 {
 	unsigned int reg;

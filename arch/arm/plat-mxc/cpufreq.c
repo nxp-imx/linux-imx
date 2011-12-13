@@ -32,8 +32,6 @@
 #define CLK32_FREQ	32768
 #define NANOSECOND	(1000 * 1000 * 1000)
 
-int cpufreq_trig_needed;
-
 static int cpu_freq_khz_min;
 static int cpu_freq_khz_max;
 
@@ -44,9 +42,9 @@ static int cpu_op_nr;
 static struct cpu_op *cpu_op_tbl;
 static u32 pre_suspend_rate;
 
+extern struct regulator *cpu_regulator;
 extern int dvfs_core_is_active;
 extern struct cpu_op *(*get_cpu_op)(int *op);
-extern int (*set_cpu_voltage)(u32 cpu_volt);
 
 int set_cpu_freq(int freq)
 {
@@ -68,7 +66,8 @@ int set_cpu_freq(int freq)
 
 	/*Set the voltage for the GP domain. */
 	if (freq > org_cpu_rate) {
-		ret = set_cpu_voltage(gp_volt);
+		ret = regulator_set_voltage(cpu_regulator, gp_volt,
+					    gp_volt);
 		if (ret < 0) {
 			printk(KERN_DEBUG "COULD NOT SET GP VOLTAGE!!!!\n");
 			return ret;
@@ -83,7 +82,8 @@ int set_cpu_freq(int freq)
 	}
 
 	if (freq < org_cpu_rate) {
-		ret = set_cpu_voltage(gp_volt);
+		ret = regulator_set_voltage(cpu_regulator, gp_volt,
+					    gp_volt);
 		if (ret < 0) {
 			printk(KERN_DEBUG "COULD NOT SET GP VOLTAGE!!!!\n");
 			return ret;
@@ -122,12 +122,10 @@ static int mxc_set_target(struct cpufreq_policy *policy,
 	if (policy->cpu > num_cpus)
 		return 0;
 
-#ifdef CONFIG_ARCH_MX5
 	if (dvfs_core_is_active) {
 		printk(KERN_DEBUG"DVFS-CORE is active, cannot change frequency using CPUFREQ\n");
 		return ret;
 	}
-#endif
 
 	cpufreq_frequency_table_target(policy, imx_freq_table,
 			target_freq, relation, &index);

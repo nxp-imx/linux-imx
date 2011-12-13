@@ -352,9 +352,15 @@ static int mipid_bl_get_brightness(struct backlight_device *bl)
 	return hx8369bl_brightness;
 }
 
+static int mipi_bl_check_fb(struct backlight_device *bl, struct fb_info *fbi)
+{
+	return 0;
+}
+
 static const struct backlight_ops mipid_lcd_bl_ops = {
 	.update_status = mipid_bl_update_status,
 	.get_brightness = mipid_bl_get_brightness,
+	.check_fb = mipi_bl_check_fb,
 };
 
 static int mipid_init_backlight(struct mipi_dsi_info *mipi_dsi)

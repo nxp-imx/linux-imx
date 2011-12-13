@@ -23,6 +23,7 @@
 #include <linux/clk.h>
 #include <linux/io.h>
 #include <linux/clkdev.h>
+#include <linux/regulator/consumer.h>
 #include <asm/div64.h>
 #include <mach/hardware.h>
 #include <mach/common.h>
@@ -39,9 +40,8 @@
 
 extern u32 arm_max_freq;
 extern int mxc_jtag_enabled;
+extern struct regulator *cpu_regulator;
 extern struct cpu_op *(*get_cpu_op)(int *op);
-extern int mx6_set_cpu_voltage(u32 cpu_volt);
-
 extern int lp_high_freq;
 extern int lp_med_freq;
 
@@ -4794,7 +4794,6 @@ static struct clk_lookup lookups[] = {
 	_REGISTER_CLOCK("mxs-perfmon.2", "perfmon", perfmon2_clk),
 };
 
-
 static void clk_tree_init(void)
 
 {
@@ -4886,8 +4885,13 @@ int __init mx6_clocks_init(unsigned long ckil, unsigned long osc,
 	clk_set_parent(&asrc_clk[1], &pll3_sw_clk);
 	clk_set_rate(&asrc_clk[1], 7500000);
 
-	/* set the NAND to 11MHz. Too fast will cause dma timeout. */
+	/* set the GPMI clock to : 11MHz */
 	clk_set_rate(&enfc_clk, enfc_clk.round_rate(&enfc_clk, 11000000));
+
+#ifdef CONFIG_MTD_NAND_GPMI_NFC
+	/* set the DMA clock */
+	clk_set_rate(&usdhc3_clk, usdhc3_clk.round_rate(&usdhc3_clk, 11000000));
+#endif
 
 	mx6_cpu_op_init();
 	cpu_op_tbl = get_cpu_op(&cpu_op_nr);
@@ -4930,10 +4934,6 @@ int __init mx6_clocks_init(unsigned long ckil, unsigned long osc,
 
 	base = ioremap(GPT_BASE_ADDR, SZ_4K);
 	mxc_timer_init(&gpt_clk[0], base, MXC_INT_GPT);
-
-	/* Set the core to max frequency requested. */
-	mx6_set_cpu_voltage(cpu_op_tbl[0].cpu_voltage);
-	clk_set_rate(&cpu_clk, cpu_op_tbl[0].pll_rate);
 
 	lp_high_freq = 0;
 	lp_med_freq = 0;

@@ -84,6 +84,7 @@
 #define CCM_CDCR_ARM_FREQ_SHIFT_DIVIDER		0x4
 #define CCM_CDHIPR_ARM_PODF_BUSY		0x10000
 
+int cpufreq_trig_needed;
 int dvfs_core_is_active;
 static struct mxc_dvfs_platform_data *dvfs_data;
 static struct device *dvfs_dev;
@@ -98,8 +99,7 @@ static int maxf;
 static int minf;
 
 extern void setup_pll(void);
-extern int cpufreq_trig_needed;
-extern int (*set_cpu_voltage)(u32 cpu_volt);
+extern struct regulator *cpu_regulator;
 
 struct timeval core_prev_intr;
 
@@ -118,7 +118,6 @@ static struct clk *dvfs_clk;
 
 static int cpu_op_nr;
 extern struct cpu_op *(*get_cpu_op)(int *op);
-extern int (*set_cpu_voltage)(u32 cpu_volt);
 
 static inline unsigned long dvfs_cpu_jiffies(unsigned long old, u_int div, u_int mult)
 {
@@ -211,7 +210,8 @@ static int mx5_set_cpu_freq(int op)
 
 		/*Set the voltage for the GP domain. */
 		if (rate > org_cpu_rate) {
-			ret = set_cpu_voltage(gp_volt);
+			ret = regulator_set_voltage(cpu_regulator, gp_volt,
+						    gp_volt);
 			if (ret < 0) {
 				printk(KERN_DEBUG "COULD NOT SET GP VOLTAGE\n");
 				return ret;
@@ -258,7 +258,8 @@ static int mx5_set_cpu_freq(int op)
 		spin_unlock_irqrestore(&mxc_dvfs_core_lock, flags);
 
 		if (rate < org_cpu_rate) {
-			ret = set_cpu_voltage(gp_volt);
+			ret = regulator_set_voltage(cpu_regulator, gp_volt,
+						    gp_volt);
 			if (ret < 0) {
 				printk(KERN_DEBUG
 				       "COULD NOT SET GP VOLTAGE!!!!\n");
@@ -299,7 +300,8 @@ static int mx5_set_cpu_freq(int op)
 		}
 		/* Check if FSVAI indicate freq up */
 		if (podf < arm_podf) {
-			ret = set_cpu_voltage(gp_volt);
+			ret = regulator_set_voltage(cpu_regulator, gp_volt,
+						    gp_volt);
 			if (ret < 0) {
 				printk(KERN_DEBUG
 				       "COULD NOT SET GP VOLTAGE!!!!\n");
@@ -359,7 +361,8 @@ static int mx5_set_cpu_freq(int op)
 		spin_unlock_irqrestore(&mxc_dvfs_core_lock, flags);
 
 		if (vinc == 0) {
-			ret = set_cpu_voltage(gp_volt);
+			ret = regulator_set_voltage(cpu_regulator, gp_volt,
+						    gp_volt);
 			if (ret < 0) {
 				printk(KERN_DEBUG
 				       "COULD NOT SET GP VOLTAGE\n!!!");
@@ -393,7 +396,8 @@ static int mx6_set_cpu_freq(int op)
 
 	if (rate > org_cpu_rate) {
 		/* Increase voltage first. */
-		ret = set_cpu_voltage(gp_volt);
+		ret = regulator_set_voltage(cpu_regulator, gp_volt,
+					    gp_volt);
 		if (ret < 0) {
 			printk(KERN_DEBUG "COULD NOT INCREASE GP VOLTAGE!!!!\n");
 			return ret;
@@ -408,7 +412,8 @@ static int mx6_set_cpu_freq(int op)
 
 	if (rate < org_cpu_rate) {
 		/* Increase voltage first. */
-		ret = set_cpu_voltage(gp_volt);
+		ret = regulator_set_voltage(cpu_regulator, gp_volt,
+					    gp_volt);
 		if (ret < 0) {
 			printk(KERN_DEBUG "COULD NOT INCREASE GP VOLTAGE!!!!\n");
 			return ret;
@@ -485,12 +490,12 @@ static int start_dvfs(void)
 	reg = __raw_readl(dvfs_data->membase + MXC_DVFSCORE_CNTR);
 	/* FSVAIM=0 */
 	reg = (reg & ~MXC_DVFSCNTR_FSVAIM);
+
 	/* Set MAXF, MINF */
-	if (!cpu_is_mx6q()) {
-		reg = (reg & ~(MXC_DVFSCNTR_MAXF_MASK
-					| MXC_DVFSCNTR_MINF_MASK));
-		reg |= 1 << MXC_DVFSCNTR_MAXF_OFFSET;
-	}
+	reg = (reg & ~(MXC_DVFSCNTR_MAXF_MASK
+				| MXC_DVFSCNTR_MINF_MASK));
+	reg |= 1 << MXC_DVFSCNTR_MAXF_OFFSET;
+
 	/* Select ARM domain */
 	reg |= MXC_DVFSCNTR_DVFIS;
 	/* Enable DVFS frequency adjustment interrupt */
@@ -526,7 +531,6 @@ static int start_dvfs(void)
 	spin_unlock_irqrestore(&mxc_dvfs_core_lock, flags);
 
 	printk(KERN_DEBUG "DVFS is started\n");
-
 	return 0;
 }
 
@@ -667,6 +671,11 @@ END:
 			dvfs_cpu_jiffies(old_loops_per_jiffy,
 				curr_cpu/1000, clk_get_rate(cpu_clk) / 1000);
 #endif
+#if defined (CONFIG_CPU_FREQ)
+		/* Fix CPU frequency for CPUFREQ. */
+		for (cpu = 0; cpu < num_online_cpus(); cpu++)
+			cpufreq_get(cpu);
+#endif
 		cpufreq_trig_needed = 0;
 	}
 
@@ -734,6 +743,11 @@ void stop_dvfs(void)
 				curr_cpu/1000, clk_get_rate(cpu_clk) / 1000);
 #endif
 
+#if defined (CONFIG_CPU_FREQ)
+			/* Fix CPU frequency for CPUFREQ. */
+			for (cpu = 0; cpu < num_online_cpus(); cpu++)
+				cpufreq_get(cpu);
+#endif
 		}
 		spin_lock_irqsave(&mxc_dvfs_core_lock, flags);
 
@@ -1066,6 +1080,12 @@ static int __init dvfs_init(void)
 
 	dvfs_core_is_active = 0;
 	printk(KERN_INFO "DVFS driver module loaded\n");
+
+	/* Enable DVFS by default. */
+	if (start_dvfs() != 0)
+		printk(KERN_ERR "Failed to start DVFS\n");
+	printk(KERN_INFO "DVFS driver Enabled\n");
+
 	return 0;
 }
 
@@ -1090,7 +1110,7 @@ static void __exit dvfs_cleanup(void)
 
 }
 
-module_init(dvfs_init);
+late_initcall(dvfs_init);
 module_exit(dvfs_cleanup);
 
 MODULE_AUTHOR("Freescale Semiconductor, Inc.");

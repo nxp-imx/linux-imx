@@ -342,6 +342,10 @@ enum ipu_irq_line {
 	IPU_IRQ_BG_ALPHA_SYNC_EOF = 51,
 	IPU_IRQ_BG_ALPHA_ASYNC_EOF = 52,
 
+	IPU_IRQ_BG_SYNC_NFACK = 64 + 23,
+	IPU_IRQ_FG_SYNC_NFACK = 64 + 27,
+	IPU_IRQ_DC_SYNC_NFACK = 64 + 28,
+
 	IPU_IRQ_DP_SF_START = 448 + 2,
 	IPU_IRQ_DP_SF_END = 448 + 3,
 	IPU_IRQ_BG_SF_END = IPU_IRQ_DP_SF_END,
@@ -712,8 +716,8 @@ struct ipuv3_fb_platform_data {
 	bool				int_clk;
 
 	/* reserved mem */
-	resource_size_t 		res_base;
-	resource_size_t 		res_size;
+	resource_size_t 		res_base[2];
+	resource_size_t 		res_size[2];
 };
 
 struct imx_ipuv3_platform_data {

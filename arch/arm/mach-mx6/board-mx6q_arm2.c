@@ -37,7 +37,6 @@
 #include <linux/mtd/mtd.h>
 #include <linux/mtd/map.h>
 #include <linux/mtd/partitions.h>
-#include <linux/regulator/consumer.h>
 #include <linux/pmic_external.h>
 #include <linux/pmic_status.h>
 #include <linux/ipu.h>
@@ -116,10 +115,8 @@ static int flexcan_en;
 
 extern struct regulator *(*get_cpu_regulator)(void);
 extern void (*put_cpu_regulator)(void);
-extern int (*set_cpu_voltage)(u32 volt);
-extern int mx6_set_cpu_voltage(u32 cpu_volt);
-static struct regulator *cpu_regulator;
-static char *gp_reg_id;
+extern char *gp_reg_id;
+extern void mx6_cpu_regulator_init(void);
 
 static iomux_v3_cfg_t mx6q_arm2_pads[] = {
 
@@ -733,12 +730,16 @@ static struct i2c_board_info mxc_i2c0_board_info[] __initdata = {
 	},
 };
 
-static struct imxi2c_platform_data mx6q_arm2_i2c_data = {
-	.bitrate = 400000,
-};
-
 static struct imxi2c_platform_data mx6q_arm2_i2c0_data = {
 	.bitrate = 100000,
+};
+
+static struct imxi2c_platform_data mx6q_arm2_i2c1_data = {
+	.bitrate = 100000,
+};
+
+static struct imxi2c_platform_data mx6q_arm2_i2c2_data = {
+	.bitrate = 400000,
 };
 
 static struct i2c_board_info mxc_i2c2_board_info[] __initdata = {
@@ -934,8 +935,8 @@ static void mx6q_sabreauto_reset_mipi_dsi(void)
 }
 
 static struct mipi_dsi_platform_data mipi_dsi_pdata = {
-	.ipu_id	 = 0,
-	.disp_id = 0,
+	.ipu_id	 = 1,
+	.disp_id = 1,
 	.lcd_panel = "TRULY-WVGA",
 	.reset   = mx6q_sabreauto_reset_mipi_dsi,
 };
@@ -948,10 +949,10 @@ static struct ipuv3_fb_platform_data sabr_fb_data[] = {
 	.default_bpp = 32,
 	.int_clk = false,
 	}, {
-	.disp_dev = "lcd",
-	.interface_pix_fmt = IPU_PIX_FMT_RGB565,
-	.mode_str = "CLAA-WVGA",
-	.default_bpp = 32,
+	.disp_dev = "mipi_dsi",
+	.interface_pix_fmt = IPU_PIX_FMT_RGB24,
+	.mode_str = "TRULY-WVGA",
+	.default_bpp = 24,
 	.int_clk = false,
 	}, {
 	.disp_dev = "ldb",
@@ -959,7 +960,13 @@ static struct ipuv3_fb_platform_data sabr_fb_data[] = {
 	.mode_str = "LDB-XGA",
 	.default_bpp = 32,
 	.int_clk = false,
-	},
+	}, {
+	.disp_dev = "lcd",
+	.interface_pix_fmt = IPU_PIX_FMT_RGB565,
+	.mode_str = "CLAA-WVGA",
+	.default_bpp = 16,
+	.int_clk = false,
+	}
 };
 
 static void hdmi_init(int ipu_id, int disp_id)
@@ -1016,7 +1023,7 @@ static struct fsl_mxc_ldb_platform_data ldb_data = {
 	.ext_ref = 1,
 	.mode = LDB_SEP0,
 	.sec_ipu_id = 1,
-	.sec_disp_id = 1,
+	.sec_disp_id = 0,
 };
 
 static struct imx_ipuv3_platform_data ipu_data[] = {
@@ -1381,19 +1388,6 @@ static struct mxc_dvfs_platform_data arm2_dvfscore_data = {
 	.delay_time = 80,
 };
 
-static int mx6_arm2_set_cpu_voltage(u32 cpu_volt)
-{
-	int ret = -EINVAL;
-
-	if (cpu_regulator == NULL)
-		cpu_regulator = regulator_get(NULL, gp_reg_id);
-
-	if (!IS_ERR(cpu_regulator))
-		ret = regulator_set_voltage(cpu_regulator,
-						    cpu_volt, cpu_volt);
-	return ret;
-}
-
 static void __init fixup_mxc_board(struct machine_desc *desc, struct tag *tags,
 				   char **cmdline, struct meminfo *mi)
 {
@@ -1416,8 +1410,6 @@ static void __init fixup_mxc_board(struct machine_desc *desc, struct tag *tags,
 			break;
 		}
 	}
-
-	set_cpu_voltage = mx6_arm2_set_cpu_voltage;
 }
 
 static int __init early_enable_spdif(char *p)
@@ -1516,13 +1508,13 @@ static void __init mx6_board_init(void)
 	imx6q_add_imx_snvs_rtc();
 
 	imx6q_add_imx_i2c(0, &mx6q_arm2_i2c0_data);
-	imx6q_add_imx_i2c(1, &mx6q_arm2_i2c_data);
+	imx6q_add_imx_i2c(1, &mx6q_arm2_i2c1_data);
 	i2c_register_board_info(0, mxc_i2c0_board_info,
 			ARRAY_SIZE(mxc_i2c0_board_info));
 	i2c_register_board_info(1, mxc_i2c1_board_info,
 			ARRAY_SIZE(mxc_i2c1_board_info));
 	if (!spdif_en) {
-		imx6q_add_imx_i2c(2, &mx6q_arm2_i2c_data);
+		imx6q_add_imx_i2c(2, &mx6q_arm2_i2c2_data);
 		i2c_register_board_info(2, mxc_i2c2_board_info,
 				ARRAY_SIZE(mxc_i2c2_board_info));
 	}
@@ -1547,6 +1539,8 @@ static void __init mx6_board_init(void)
 	imx6q_add_vpu();
 	imx6q_init_audio();
 	platform_device_register(&arm2_vmmc_reg_devices);
+	mx6_cpu_regulator_init();
+
 	imx_asrc_data.asrc_core_clk = clk_get(NULL, "asrc_clk");
 	imx_asrc_data.asrc_audio_clk = clk_get(NULL, "asrc_serial_clk");
 	imx6q_add_asrc(&imx_asrc_data);

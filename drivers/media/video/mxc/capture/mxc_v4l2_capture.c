@@ -382,6 +382,12 @@ static int mxc_streamon(cam_data *cam)
 			"queued yet\n");
 		return -EINVAL;
 	}
+	if (cam->enc_update_eba &&
+		cam->ready_q.prev == cam->ready_q.next) {
+		pr_err("ERROR: v4l2 capture: mxc_streamon buffer need ping pong "
+			"at least two buffers\n");
+		return -EINVAL;
+	}
 
 	cam->capture_pid = current->pid;
 
