@@ -347,7 +347,7 @@ static int dac_info_volsw(struct snd_kcontrol *kcontrol,
 	uinfo->type = SNDRV_CTL_ELEM_TYPE_INTEGER;
 	uinfo->count = 2;
 	uinfo->value.integer.min = 0;
-	uinfo->value.integer.max = 0xfc - 0x3c;
+	uinfo->value.integer.max = 0xfc - 0x60;
 	return 0;
 }
 
@@ -390,9 +390,9 @@ static int dac_get_volsw(struct snd_kcontrol *kcontrol,
 	/* get right channel volume */
 	r = (reg & SGTL5000_DAC_VOL_RIGHT_MASK) >> SGTL5000_DAC_VOL_RIGHT_SHIFT;
 
-	/* make sure value fall in (0x3c,0xfc) */
-	l = clamp(l, 0x3c, 0xfc);
-	r = clamp(r, 0x3c, 0xfc);
+	/* make sure value fall in (0x60,0xfc) */
+	l = clamp(l, 0x60, 0xfc);
+	r = clamp(r, 0x60, 0xfc);
 
 	/* invert it and map to userspace value */
 	l = 0xfc - l;
@@ -438,9 +438,9 @@ static int dac_put_volsw(struct snd_kcontrol *kcontrol,
 	l = ucontrol->value.integer.value[0];
 	r = ucontrol->value.integer.value[1];
 
-	/* make sure userspace volume fall in (0, 0xfc-0x3c) */
-	l = clamp(l, 0, 0xfc - 0x3c);
-	r = clamp(r, 0, 0xfc - 0x3c);
+	/* make sure userspace volume fall in (0, 0xfc-0x60) */
+	l = clamp(l, 0, 0xfc - 0x60);
+	r = clamp(r, 0, 0xfc - 0x60);
 
 	/* invert it, get the value can be set to register */
 	l = 0xfc - l;
@@ -1602,6 +1602,11 @@ static int sgtl5000_probe(struct snd_soc_codec *codec)
 			SGTL5000_ADC_ZCD_EN);
 
 	snd_soc_write(codec, SGTL5000_CHIP_MIC_CTRL, 0);
+
+	snd_soc_write(codec, SGTL5000_CHIP_DAC_VOL, 0x6060);
+	snd_soc_write(codec, SGTL5000_CHIP_ANA_ADC_CTRL,
+		(0xf << SGTL5000_ADC_VOL_LEFT_SHIFT) |\
+		(0xf << SGTL5000_ADC_VOL_RIGHT_SHIFT));
 
 	/*
 	 * disable DAP
