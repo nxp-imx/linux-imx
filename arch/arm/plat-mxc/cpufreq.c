@@ -29,6 +29,9 @@
 #include <mach/hardware.h>
 #include <mach/clock.h>
 
+#define dprintk(msg...) cpufreq_debug_printk(CPUFREQ_DEBUG_CORE, \
+						"cpufreq-core", msg)
+
 #define CLK32_FREQ	32768
 #define NANOSECOND	(1000 * 1000 * 1000)
 
@@ -123,7 +126,16 @@ static int mxc_set_target(struct cpufreq_policy *policy,
 		return 0;
 
 	if (dvfs_core_is_active) {
-		printk(KERN_DEBUG"DVFS-CORE is active, cannot change frequency using CPUFREQ\n");
+		struct cpufreq_freqs freqs;
+
+		freqs.old = policy->cur;
+		freqs.new = clk_get_rate(cpu_clk) / 1000;
+		freqs.cpu = policy->cpu;
+		freqs.flags = 0;
+		cpufreq_notify_transition(&freqs, CPUFREQ_PRECHANGE);
+		cpufreq_notify_transition(&freqs, CPUFREQ_POSTCHANGE);
+
+		dprintk("DVFS core is active, cannot change FREQ using CPUFREQ\n");
 		return ret;
 	}
 
