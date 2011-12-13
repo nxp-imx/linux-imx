@@ -559,8 +559,11 @@ use_ttbr0:
 	bx	r1
 mmu_on_label:
 	mov 	r8, lr
+	push	{r0}
+
 	/* Set up the per-CPU stacks */
 	bl	cpu_init
+	pop	{r0}
 
 #ifdef CONFIG_CACHE_L2X0
 	ldr r2, =L2_BASE_ADDR
