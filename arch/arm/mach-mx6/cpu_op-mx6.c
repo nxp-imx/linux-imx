@@ -78,14 +78,14 @@ static struct cpu_op mx6_cpu_op[] = {
 };
 
 static struct dvfs_op dvfs_core_setpoint_1G[] = {
-	{33, 14, 33, 10, 10, 0x08}, /* 1GHz*/
-	{30, 12, 33, 10, 10, 0x08},   /* 800MHz */
-	{28, 8, 33, 10, 10, 0x08},   /* 400MHz */
-	{20, 0, 33, 20, 10, 0x08} };   /* 200MHz*/
+	{33, 14, 33, 10, 128, 0x10}, /* 1GHz*/
+	{30, 12, 33, 100, 200, 0x10},   /* 800MHz */
+	{28, 8, 33, 100, 200, 0x10},   /* 400MHz */
+	{20, 0, 33, 20, 10, 0x10} };   /* 200MHz*/
 
 static struct dvfs_op dvfs_core_setpoint[] = {
-	{33, 14, 33, 10, 10, 0x08},   /* 800MHz */
-	{26, 8, 33, 10, 10, 0x08},   /* 400MHz */
+	{33, 14, 33, 10, 128, 0x08},   /* 800MHz */
+	{26, 8, 33, 100, 200, 0x08},   /* 400MHz */
 	{20, 0, 33, 20, 10, 0x08} };   /* 200MHz*/
 
 static struct dvfs_op *mx6_get_dvfs_core_table(int *wp)
