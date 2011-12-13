@@ -66,7 +66,9 @@
 #define CONSISTENT_DMA_SIZE SZ_4M
 #else
 
-#if defined(CONFIG_ARCH_MX5) || defined(CONFIG_ARCH_MX6)
+#ifndef CONFIG_ZONE_DMA
+#define CONSISTENT_DMA_SIZE     (64 * SZ_1M)
+#elif defined(CONFIG_ARCH_MX5) || defined(CONFIG_ARCH_MX6)
 #define CONSISTENT_DMA_SIZE     (184 * SZ_1M)
 #else
 #define CONSISTENT_DMA_SIZE     (32 * SZ_1M)
@@ -76,6 +78,7 @@
 
 #ifndef __ASSEMBLY__
 
+#ifdef CONFIG_ZONE_DMA
 #ifdef CONFIG_DMA_ZONE_SIZE
 #define MXC_DMA_ZONE_SIZE       ((CONFIG_DMA_ZONE_SIZE * SZ_1M) >> PAGE_SHIFT)
 #else
@@ -85,7 +88,6 @@
 static inline void __arch_adjust_zones(unsigned long *zone_size,
 		unsigned long *zhole_size)
 {
-#ifdef CONFIG_ZONE_DMA
 	/* Create separate zone to reserve memory for DMA */
 	if ((zone_size[0] - zhole_size[0]) > MXC_DMA_ZONE_SIZE) {
 		zone_size[1] = zone_size[0] - MXC_DMA_ZONE_SIZE;
@@ -93,11 +95,12 @@ static inline void __arch_adjust_zones(unsigned long *zone_size,
 		zhole_size[1] = zhole_size[0];
 		zhole_size[0] = 0;
 	}
-#endif
 }
 
 #define arch_adjust_zones(size, holes) \
 	__arch_adjust_zones(size, holes)
+
+#endif
 
 #endif
 

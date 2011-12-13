@@ -153,6 +153,7 @@ config CLK_DEBUG
 
 config DMA_ZONE_SIZE
         int "DMA memory zone size"
+        depends on ZONE_DMA
         range 0 184
         default 24
         help
