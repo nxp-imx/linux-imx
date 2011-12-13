@@ -210,11 +210,15 @@ struct platform_device *__init imx_add_ipuv3_fb(
 		const int id,
 		const struct ipuv3_fb_platform_data *pdata)
 {
-	if (pdata->res_size > 0) {
+	if (pdata->res_size[0] > 0) {
 		struct resource res[] = {
 			{
-				.start = pdata->res_base,
-				.end = pdata->res_base + pdata->res_size - 1,
+				.start = pdata->res_base[0],
+				.end = pdata->res_base[0] + pdata->res_size[0] - 1,
+				.flags = IORESOURCE_MEM,
+			}, {
+				.start = pdata->res_base[1],
+				.end = pdata->res_base[1] + pdata->res_size[1] - 1,
 				.flags = IORESOURCE_MEM,
 			},
 		};

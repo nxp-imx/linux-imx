@@ -716,8 +716,8 @@ struct ipuv3_fb_platform_data {
 	bool				int_clk;
 
 	/* reserved mem */
-	resource_size_t 		res_base;
-	resource_size_t 		res_size;
+	resource_size_t 		res_base[2];
+	resource_size_t 		res_size[2];
 };
 
 struct imx_ipuv3_platform_data {
