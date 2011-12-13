@@ -1010,6 +1010,8 @@ static void __init fixup_mxc_board(struct machine_desc *desc, struct tag *tags,
 {
 	char *str;
 	struct tag *t;
+	int i = 0;
+	struct ipuv3_fb_platform_data *pdata_fb = sabrelite_fb_data;
 
 	for_each_tag(t, tags) {
 		if (t->hdr.tag == ATAG_CMDLINE) {
@@ -1024,6 +1026,17 @@ static void __init fixup_mxc_board(struct machine_desc *desc, struct tag *tags,
 				}
 			}
 
+			str = t->u.cmdline.cmdline;
+			str = strstr(str, "fbmem=");
+			if (str != NULL) {
+				str += 6;
+				pdata_fb[i++].res_size[0] = memparse(str, &str);
+				while (*str == ',' &&
+					i < ARRAY_SIZE(sabrelite_fb_data)) {
+					str++;
+					pdata_fb[i++].res_size[0] = memparse(str, &str);
+				}
+			}
 			break;
 		}
 	}
@@ -1139,9 +1152,11 @@ static struct sys_timer mx6_sabrelite_timer = {
 	.init   = mx6_sabrelite_timer_init,
 };
 
+#define SZ_TRIPLE_1080P	ALIGN((1920*ALIGN(1080, 128)*2*3), SZ_4K)
 static void __init mx6q_sabrelite_reserve(void)
 {
 	phys_addr_t phys;
+	int i;
 
 	if (imx6q_gpu_pdata.reserved_mem_size) {
 		phys = memblock_alloc_base(imx6q_gpu_pdata.reserved_mem_size,
@@ -1165,6 +1180,23 @@ static void __init mx6q_sabrelite_reserve(void)
 		android_pmem_gpu_data.start = phys;
 	}
 #endif
+
+	for (i = 0; i < ARRAY_SIZE(sabrelite_fb_data); i++)
+		if (sabrelite_fb_data[i].res_size[0]) {
+			/* reserve for background buffer */
+			phys = memblock_alloc(sabrelite_fb_data[i].res_size[0],
+						SZ_4K);
+			memblock_free(phys, sabrelite_fb_data[i].res_size[0]);
+			memblock_remove(phys, sabrelite_fb_data[i].res_size[0]);
+			sabrelite_fb_data[i].res_base[0] = phys;
+
+			/* reserve for overlay buffer */
+			phys = memblock_alloc(SZ_TRIPLE_1080P, SZ_4K);
+			memblock_free(phys, SZ_TRIPLE_1080P);
+			memblock_remove(phys, SZ_TRIPLE_1080P);
+			sabrelite_fb_data[i].res_base[1] = phys;
+			sabrelite_fb_data[i].res_size[1] = SZ_TRIPLE_1080P;
+		}
 }
 
 /*
