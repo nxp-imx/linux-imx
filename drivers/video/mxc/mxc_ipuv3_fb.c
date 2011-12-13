@@ -1874,7 +1874,7 @@ static void mxcfb_unregister(struct fb_info *fbi)
 }
 
 static int mxcfb_setup_overlay(struct platform_device *pdev,
-		struct fb_info *fbi_bg)
+		struct fb_info *fbi_bg, struct resource *res)
 {
 	struct fb_info *ovfbi;
 	struct mxcfb_info *mxcfbi_bg = (struct mxcfb_info *)fbi_bg->par;
@@ -1906,6 +1906,14 @@ static int mxcfb_setup_overlay(struct platform_device *pdev,
 	/* Need dummy values until real panel is configured */
 	ovfbi->var.xres = 240;
 	ovfbi->var.yres = 320;
+
+	if (res && res->end) {
+		ovfbi->fix.smem_len = res->end - res->start + 1;
+		ovfbi->fix.smem_start = res->start;
+		ovfbi->screen_base = ioremap(
+					ovfbi->fix.smem_start,
+					ovfbi->fix.smem_len);
+	}
 
 	ret = mxcfb_register(ovfbi);
 	if (ret < 0)
@@ -1995,6 +2003,7 @@ static int mxcfb_probe(struct platform_device *pdev)
 		fbi->fix.smem_len = res->end - res->start + 1;
 		fbi->fix.smem_start = res->start;
 		fbi->screen_base = ioremap(fbi->fix.smem_start, fbi->fix.smem_len);
+		memset(fbi->screen_base, 0, fbi->fix.smem_len);
 	}
 
 	mxcfbi->ipu = ipu_get_soc(mxcfbi->ipu_id);
@@ -2018,7 +2027,9 @@ static int mxcfb_probe(struct platform_device *pdev)
 		if (ret < 0)
 			goto mxcfb_register_failed;
 
-		ret = mxcfb_setup_overlay(pdev, fbi);
+		res = platform_get_resource(pdev, IORESOURCE_MEM, 1);
+		ret = mxcfb_setup_overlay(pdev, fbi, res);
+
 		if (ret < 0) {
 			mxcfb_unregister(fbi);
 			goto mxcfb_setupoverlay_failed;
