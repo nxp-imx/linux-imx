@@ -31,20 +31,15 @@
 /* VENDOR SPEC register */
 #define SDHCI_VENDOR_SPEC		0xC0
 #define  SDHCI_VENDOR_SPEC_SDIO_QUIRK	0x00000002
-
-#define SDHCI_MIX_CTRL_EXE_TUNE		(1 << 22)
-#define SDHCI_MIX_CTRL_SMPCLK_SEL	(1 << 23)
-#define SDHCI_MIX_CTRL_AUTO_TUNE	(1 << 24)
-#define SDHCI_MIX_CTRL_FBCLK_SEL	(1 << 25)
-
-#define SDHCI_DLL_CTRL			0x60
-#define SDHCI_DLL_OVERRIDE_OFFSET	0x9
-#define SDHCI_DLL_OVERRIDE_EN_OFFSET	0x8
-
+#define SDHCI_MIX_CTRL			0x48
 #define SDHCI_TUNE_CTRL_STATUS		0x68
 #define SDHCI_TUNE_CTRL_STEP		0x1
 #define SDHCI_TUNE_CTRL_MIN		0x0
 #define SDHCI_TUNE_CTRL_MAX		((1 << 7) - 1)
+
+#define SDHCI_MIX_CTRL_EXE_TUNE		(1 << 22)
+#define SDHCI_MIX_CTRL_SMPCLK_SEL	(1 << 23)
+#define SDHCI_MIX_CTRL_FBCLK_SEL	(1 << 25)
 
 #define  SDHCI_VENDOR_SPEC_VSELECT	(1 << 1)
 #define  SDHCI_VENDOR_SPEC_FRC_SDCLK_ON	(1 << 8)
@@ -56,12 +51,6 @@
 #define ESDHC_FLAG_GPIO_FOR_CD_WP	(1 << 0)
 
 #define	SDHCI_CTRL_D3CD			0x08
-
-#define SDHCI_PROT_CTRL_DTW		(3 << 1)
-#define SDHCI_PROT_CTRL_8BIT		(2 << 1)
-#define SDHCI_PROT_CTRL_4BIT		(1 << 1)
-#define SDHCI_PROT_CTRL_1BIT		(0 << 1)
-
 /*
  * The CMDTYPE of the CMD register (offset 0xE) should be set to
  * "11" when the STOP CMD12 is issued on imx53 to abort one
@@ -235,12 +224,7 @@ static void esdhc_writew_le(struct sdhci_host *host, u16 val, int reg)
 		writel(0x08800880, host->ioaddr + SDHCI_CAPABILITIES_1);
 		if (cpu_is_mx6q()) {
 			imx_data->scratchpad |= \
-			(readl(host->ioaddr + SDHCI_MIX_CTRL) & \
-				(SDHCI_MIX_CTRL_EXE_TUNE | \
-				SDHCI_MIX_CTRL_SMPCLK_SEL | \
-				SDHCI_MIX_CTRL_AUTO_TUNE | \
-				SDHCI_MIX_CTRL_FBCLK_SEL | \
-				SDHCI_MIX_CTRL_DDREN));
+			(readl(host->ioaddr + SDHCI_MIX_CTRL) & (0xf << 22));
 
 			writel(imx_data->scratchpad,
 				host->ioaddr + SDHCI_MIX_CTRL);
@@ -297,7 +281,6 @@ static void esdhc_writeb_le(struct sdhci_host *host, u8 val, int reg)
 		/* FSL messed up here, so we can just keep those three */
 		new_val = val & (SDHCI_CTRL_LED | \
 				SDHCI_CTRL_4BITBUS | \
-				SDHCI_CTRL_HISPD | \
 				SDHCI_CTRL_D3CD);
 		/* ensure the endianess */
 		new_val |= ESDHC_HOST_CONTROL_LE;
@@ -334,65 +317,6 @@ static unsigned int esdhc_pltfm_get_ro(struct sdhci_host *host)
 		return -ENOSYS;
 }
 
-static int plt_ddr_mode(struct sdhci_host *host, int mode)
-{
-	u32 reg = sdhci_readl(host, SDHCI_MIX_CTRL);
-	struct esdhc_platform_data *boarddata =
-				host->mmc->parent->platform_data;
-
-	if (mode == MMC_1_8V_DDR_MODE)
-		reg |= SDHCI_MIX_CTRL_DDREN;
-	else if (mode == MMC_SDR_MODE)
-		reg &= ~SDHCI_MIX_CTRL_DDREN;
-
-	sdhci_writel(host, reg, SDHCI_MIX_CTRL);
-
-	/* set clock frequency again */
-	esdhc_set_clock(host, host->clock);
-
-	/* delay line setting */
-	if (!boarddata->delay_line)
-		return 0;
-
-	if (mode == MMC_1_8V_DDR_MODE)
-		sdhci_writel(host,
-			(boarddata->delay_line << SDHCI_DLL_OVERRIDE_OFFSET) |
-			(1 << SDHCI_DLL_OVERRIDE_EN_OFFSET), SDHCI_DLL_CTRL);
-	else
-		sdhci_writel(host, 0, SDHCI_DLL_CTRL);
-
-	return 0;
-}
-
-static int plt_8bit_width(struct sdhci_host *host, int width)
-{
-	u32 reg = sdhci_readl(host, SDHCI_HOST_CONTROL);
-
-	reg &= ~SDHCI_PROT_CTRL_DTW;
-
-	if (width == MMC_BUS_WIDTH_8)
-		reg |= SDHCI_PROT_CTRL_8BIT;
-	else if (width == MMC_BUS_WIDTH_4)
-		reg |= SDHCI_PROT_CTRL_4BIT;
-
-	sdhci_writel(host, reg, SDHCI_HOST_CONTROL);
-
-	return 0;
-}
-
-static void plt_clk_ctrl(struct sdhci_host *host, bool enable)
-{
-	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
-
-	if (enable) {
-		clk_enable(pltfm_host->clk);
-		host->clk_status = true;
-	} else {
-		clk_disable(pltfm_host->clk);
-		host->clk_status = false;
-	}
-}
-
 static struct sdhci_ops sdhci_esdhc_ops = {
 	.read_l = esdhc_readl_le,
 	.read_w = esdhc_readw_le,
@@ -403,22 +327,14 @@ static struct sdhci_ops sdhci_esdhc_ops = {
 	.get_max_clock = esdhc_pltfm_get_max_clock,
 	.get_min_clock = esdhc_pltfm_get_min_clock,
 	.pre_tuning = esdhc_prepare_tuning,
-	.platform_8bit_width = plt_8bit_width,
-	.platform_ddr_mode = plt_ddr_mode,
-	.platform_clk_ctrl = plt_clk_ctrl,
 };
 
 static irqreturn_t cd_irq(int irq, void *data)
 {
 	struct sdhci_host *sdhost = (struct sdhci_host *)data;
-	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(sdhost);
-	struct pltfm_imx_data *imx_data = pltfm_host->priv;
 
 	sdhci_writel(sdhost, 0, SDHCI_MIX_CTRL);
 	sdhci_writel(sdhost, 0, SDHCI_TUNE_CTRL_STATUS);
-
-	if (cpu_is_mx6q())
-		imx_data->scratchpad &= ~SDHCI_MIX_CTRL_DDREN;
 	tasklet_schedule(&sdhost->card_tasklet);
 	return IRQ_HANDLED;
 };
@@ -460,39 +376,6 @@ static int esdhc_pltfm_init(struct sdhci_host *host, struct sdhci_pltfm_data *pd
 	if (!(cpu_is_mx25() || cpu_is_mx35() || cpu_is_mx51() || cpu_is_mx6q()))
 		imx_data->flags |= ESDHC_FLAG_MULTIBLK_NO_INT;
 
-	host->ocr_avail_sd = MMC_VDD_29_30 | MMC_VDD_30_31 | \
-			MMC_VDD_32_33 | MMC_VDD_33_34;
-	host->ocr_avail_mmc = MMC_VDD_29_30 | MMC_VDD_30_31 | \
-			MMC_VDD_32_33 | MMC_VDD_33_34;
-
-	if (boarddata->support_18v)
-		host->ocr_avail_sd |= MMC_VDD_165_195;
-	if (boarddata->support_8bit)
-		host->mmc->caps |= MMC_CAP_8_BIT_DATA;
-	if (boarddata->keep_power_at_suspend)
-		host->mmc->pm_caps |= MMC_PM_KEEP_POWER;
-	if (cpu_is_mx6q()) {
-		host->mmc->caps |= MMC_CAP_1_8V_DDR;
-		host->tuning_min = SDHCI_TUNE_CTRL_MIN;
-		host->tuning_max = SDHCI_TUNE_CTRL_MAX;
-		host->tuning_step = SDHCI_TUNE_CTRL_STEP;
-		host->clk_mgr_en = true;
-	}
-
-	/* disable card interrupt enable bit, and clear status bit
-	 * the default value of this enable bit is 1, but it should
-	 * be 0 regarding to standard host controller spec 2.1.3.
-	 * if this bit is 1, it may cause some problems.
-	 * there's dat1 glitch when some cards inserting into the slot,
-	 * thus wrongly generate a card interrupt that will cause
-	 * system panic because it lacks of sdio handler
-	 * following code will solve the problem.
-	 */
-	reg = sdhci_readl(host, SDHCI_INT_ENABLE);
-	reg &= ~SDHCI_INT_CARD_INT;
-	sdhci_writel(host, reg, SDHCI_INT_ENABLE);
-	sdhci_writel(host, SDHCI_INT_CARD_INT, SDHCI_INT_STATUS);
-
 	if (boarddata) {
 		/* Device is always present, e.x, populated emmc device */
 		if (boarddata->always_present) {
@@ -529,8 +412,16 @@ static int esdhc_pltfm_init(struct sdhci_host *host, struct sdhci_pltfm_data *pd
 		/* Now we have a working card_detect again */
 		host->quirks &= ~SDHCI_QUIRK_BROKEN_CARD_DETECTION;
 	}
-	if (host->clk_mgr_en)
-		clk_disable(pltfm_host->clk);
+	host->ocr_avail_sd = MMC_VDD_29_30 | MMC_VDD_30_31 | \
+			MMC_VDD_32_33 | MMC_VDD_33_34;
+
+	if (boarddata->support_18v)
+		host->ocr_avail_sd |= MMC_VDD_165_195;
+
+	host->tuning_min = SDHCI_TUNE_CTRL_MIN;
+	host->tuning_max = SDHCI_TUNE_CTRL_MAX;
+	host->tuning_step = SDHCI_TUNE_CTRL_STEP;
+
 	return 0;
 
  no_card_detect_irq:
