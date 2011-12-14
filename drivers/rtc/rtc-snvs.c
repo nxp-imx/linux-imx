@@ -483,6 +483,7 @@ static int snvs_rtc_probe(struct platform_device *pdev)
 	pdata->ioaddr = ioremap(pdata->baseaddr, 0xC00);
 	ioaddr = pdata->ioaddr;
 	pdata->irq = platform_get_irq(pdev, 0);
+	platform_set_drvdata(pdev, pdata);
 
 	/* initialize glitch detect */
 	__raw_writel(SNVS_LPPGDR_INIT, ioaddr + SNVS_LPPGDR);
@@ -520,7 +521,6 @@ static int snvs_rtc_probe(struct platform_device *pdev)
 	}
 
 	pdata->rtc = rtc;
-	platform_set_drvdata(pdev, pdata);
 
 	tv.tv_nsec = 0;
 	tv.tv_sec = rtc_read_lp_counter(ioaddr + SNVS_LPSRTCMR);

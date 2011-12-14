@@ -27,7 +27,6 @@
 #include <linux/ioport.h>
 #include <linux/sched.h>
 #include <linux/slab.h>
-#include <linux/smp_lock.h>
 #include <linux/proc_fs.h>
 #include <linux/errno.h>
 #include <linux/init.h>
@@ -802,9 +801,9 @@ irqreturn_t fsl_otg_isr_gpio(int irq, void *dev_id)
 	value = gpio_get_value(pdata->id_gpio) ? 1 : 0;
 
 	if (value)
-		set_irq_type(gpio_to_irq(pdata->id_gpio), IRQ_TYPE_LEVEL_LOW);
+		irq_set_irq_type(gpio_to_irq(pdata->id_gpio), IRQ_TYPE_LEVEL_LOW);
 	else
-		set_irq_type(gpio_to_irq(pdata->id_gpio), IRQ_TYPE_LEVEL_HIGH);
+		irq_set_irq_type(gpio_to_irq(pdata->id_gpio), IRQ_TYPE_LEVEL_HIGH);
 
 
 	if (value == f_otg->fsm.id)
@@ -1082,10 +1081,10 @@ int usb_otg_start(struct platform_device *pdev)
 	if (pdata->id_gpio != 0) {
 		p_otg->fsm.id = gpio_get_value(pdata->id_gpio) ? 1 : 0;
 		if (p_otg->fsm.id)
-			set_irq_type(gpio_to_irq(pdata->id_gpio),
+			irq_set_irq_type(gpio_to_irq(pdata->id_gpio),
 				IRQ_TYPE_LEVEL_LOW);
 		else
-			set_irq_type(gpio_to_irq(pdata->id_gpio),
+			irq_set_irq_type(gpio_to_irq(pdata->id_gpio),
 				IRQ_TYPE_LEVEL_HIGH);
 	}
 	p_otg->otg.state = p_otg->fsm.id ? OTG_STATE_UNDEFINED :
