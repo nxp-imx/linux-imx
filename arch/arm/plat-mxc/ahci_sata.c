@@ -22,6 +22,7 @@
 #include <linux/clk.h>
 #include <linux/kernel.h>
 #include <linux/delay.h>
+#include <asm/errno.h>
 #include <mach/ahci_sata.h>
 
 int write_phy_ctl_ack_polling(u32 data, void __iomem *mmio,
@@ -37,7 +38,7 @@ int write_phy_ctl_ack_polling(u32 data, void __iomem *mmio,
 		if (val == exp_val)
 			return 0;
 		if (i == max_iterations) {
-			printk(KERN_ERR "Wait for CR ACK error!\n");
+			pr_err("Wait for CR ACK error!\n");
 			return 1;
 		}
 		usleep_range(100, 200);
@@ -137,6 +138,7 @@ int sata_phy_cr_read(u32 *data, void __iomem *mmio)
 int sata_init(void __iomem *addr, unsigned long timer1ms)
 {
 	u32 tmpdata;
+	int iterations = 20;
 
 	/* Reset HBA */
 	writel(HOST_RESET, addr + HOST_CTL);
@@ -146,7 +148,7 @@ int sata_init(void __iomem *addr, unsigned long timer1ms)
 	while (readl(addr + HOST_VERSIONR) == 0) {
 		tmpdata++;
 		if (tmpdata > 100000) {
-			printk(KERN_ERR "Can't recover from RESET HBA!\n");
+			pr_err("Can't recover from RESET HBA!\n");
 			break;
 		}
 	}
@@ -163,6 +165,23 @@ int sata_init(void __iomem *addr, unsigned long timer1ms)
 			addr + HOST_PORTS_IMPL);
 
 	writel(timer1ms, addr + HOST_TIMER1MS);
+
+	/* Release resources when there is no device on the port */
+	do {
+		if ((readl(addr + PORT_SATA_SR) & 0xF) == 0)
+			msleep(25);
+		else
+			break;
+
+		if (iterations == 0) {
+			pr_info("No sata disk.\n");
+			/* Enter into PDDQ mode, save power */
+			tmpdata = readl(addr + PORT_PHY_CTL);
+			writel(tmpdata | PORT_PHY_CTL_PDDQ_LOC,
+					addr + PORT_PHY_CTL);
+			return -ENODEV;
+		}
+	} while (iterations-- > 0);
 
 	return 0;
 }
