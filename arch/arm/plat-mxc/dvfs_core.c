@@ -1081,10 +1081,12 @@ static int __init dvfs_init(void)
 	dvfs_core_is_active = 0;
 	printk(KERN_INFO "DVFS driver module loaded\n");
 
+#if 0 /* disable dvfs by default on android */
 	/* Enable DVFS by default. */
 	if (start_dvfs() != 0)
 		printk(KERN_ERR "Failed to start DVFS\n");
 	printk(KERN_INFO "DVFS driver Enabled\n");
+#endif
 
 	return 0;
 }
