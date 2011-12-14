@@ -24,13 +24,14 @@
 #include <linux/smp.h>
 #include <linux/io.h>
 #include <asm/cacheflush.h>
-#include <mach/hardware.h>
 #include <asm/mach-types.h>
 #include <asm/localtimer.h>
 #include <asm/smp_scu.h>
-#include <mach/mx6.h>
-#include "src-reg.h"
 #include <asm/io.h>
+#include <mach/hardware.h>
+#include <mach/mx6.h>
+#include <mach/smp.h>
+#include "src-reg.h"
 
 static DEFINE_SPINLOCK(boot_lock);
 

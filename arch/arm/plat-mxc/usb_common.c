@@ -740,11 +740,6 @@ static void otg_set_utmi_xcvr(void)
 		/* Set the PHY clock to 19.2MHz */
 		USB_PHY_CTR_FUNC2 &= ~USB_UTMI_PHYCTRL2_PLLDIV_MASK;
 		USB_PHY_CTR_FUNC2 |= 0x01;
-	} else if (machine_is_mx37_3ds()) {
-		/* Reference voltage for HS disconnect envelope detector */
-		/* adjust the Squelch level */
-		USB_PHY_CTR_FUNC2 &= ~(USB_UTMI_PHYCTRL2_HSDEVSEL_MASK <<
-			USB_UTMI_PHYCTRL2_HSDEVSEL_SHIFT);
 	}
 
 	/* Workaround an IC issue for ehci driver:
