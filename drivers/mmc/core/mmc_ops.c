@@ -397,7 +397,6 @@ int mmc_switch(struct mmc_card *card, u8 set, u8 index, u8 value,
 	err = mmc_wait_for_cmd(card->host, &cmd, MMC_CMD_RETRIES);
 	if (err)
 		return err;
-	mdelay(1);
 
 	/* Must check status to be sure of no errors */
 	do {
