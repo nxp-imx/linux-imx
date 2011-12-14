@@ -290,6 +290,9 @@ config REGULATOR_DB8500_PRCMU
 
 config REGULATOR_TPS6586X
 	tristate "TI TPS6586X Power regulators"
+	depends on MFD_TPS6586X
+	help
+	  This driver supports TPS6586X voltage regulator chips.
 
 config REGULATOR_ANATOP
 	tristate "ANATOP LDO regulators"
@@ -298,9 +301,6 @@ config REGULATOR_ANATOP
 	default y
 	help
 	  Say y here to support ANATOP LDOs regulators.
-	depends on MFD_TPS6586X
-	help
-	  This driver supports TPS6586X voltage regulator chips.
 
 config REGULATOR_TPS6524X
 	tristate "TI TPS6524X Power regulators"
