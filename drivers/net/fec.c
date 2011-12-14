@@ -57,7 +57,7 @@
 #include "fec.h"
 #include "fec_1588.h"
 
-#if defined(CONFIG_ARM)
+#if defined(CONFIG_ARCH_MXC) || defined(CONFIG_SOC_IMX28)
 #define FEC_ALIGNMENT	0xf
 #else
 #define FEC_ALIGNMENT	0x3
@@ -167,7 +167,8 @@ MODULE_PARM_DESC(macaddr, "FEC Ethernet MAC address");
  * account when setting it.
  */
 #if defined(CONFIG_M523x) || defined(CONFIG_M527x) || defined(CONFIG_M528x) || \
-    defined(CONFIG_M520x) || defined(CONFIG_M532x) || defined(CONFIG_ARM)
+    defined(CONFIG_M520x) || defined(CONFIG_M532x) || \
+    defined(CONFIG_ARCH_MXC) || defined(CONFIG_SOC_IMX28)
 #define	OPT_FRAME_SIZE	(PKT_MAXBUF_SIZE << 16)
 #else
 #define	OPT_FRAME_SIZE	0
@@ -228,6 +229,13 @@ struct fec_enet_private {
 	struct  fec_ptp_private *ptp_priv;
 	uint    ptimer_present;
 };
+
+static irqreturn_t fec_enet_interrupt(int irq, void * dev_id);
+static void fec_enet_tx(struct net_device *dev);
+static void fec_enet_rx(struct net_device *dev);
+static int fec_enet_close(struct net_device *dev);
+static void fec_restart(struct net_device *dev, int duplex);
+static void fec_stop(struct net_device *dev);
 
 /* FEC MII MMFR bits definition */
 #define FEC_MMFR_ST		(1 << 30)
@@ -301,7 +309,7 @@ fec_enet_start_xmit(struct sk_buff *skb, struct net_device *ndev)
 	if (((unsigned long) bufaddr) & FEC_ALIGNMENT) {
 		unsigned int index;
 		index = bdp - fep->tx_bd_base;
-		memcpy(fep->tx_bounce[index], skb->data, skb->len);
+		memcpy(fep->tx_bounce[index], (void *)skb->data, skb->len);
 		bufaddr = fep->tx_bounce[index];
 	}
 
@@ -558,7 +566,7 @@ fec_enet_rx(struct net_device *ndev)
 			/* 1588 messeage TS handle */
 			if (fep->ptimer_present)
 				fec_ptp_store_rxstamp(fpp, skb, bdp);
-			skb->protocol = eth_type_trans(skb, dev);
+			skb->protocol = eth_type_trans(skb, ndev);
 			netif_rx(skb);
 		}
 
@@ -819,7 +827,7 @@ static int fec_enet_mii_probe(struct net_device *ndev)
 	}
 
 	snprintf(phy_name, MII_BUS_ID_SIZE, PHY_ID_FMT, mdio_bus_id, phy_id);
-	phy_dev = phy_connect(dev, phy_name, &fec_enet_adjust_link, 0,
+	phy_dev = phy_connect(ndev, phy_name, &fec_enet_adjust_link, 0,
 		fep->phy_interface);
 
 	if (IS_ERR(phy_dev)) {
@@ -1084,7 +1092,7 @@ fec_enet_open(struct net_device *ndev)
 
 	if (!clk_get_usecount(fep->clk))
 		clk_enable(fep->clk);
-	ret = fec_enet_alloc_buffers(dev);
+	ret = fec_enet_alloc_buffers(ndev);
 	if (ret)
 		return ret;
 

@@ -275,6 +275,7 @@ struct sdhci_ops {
 	int	(*set_uhs_signaling)(struct sdhci_host *host, unsigned int uhs);
 
 	void		(*pre_tuning)(struct sdhci_host *host, u32 val);
+	void		(*platform_clk_ctrl)(struct sdhci_host *host, bool enable);
 };
 
 #ifdef CONFIG_MMC_SDHCI_IO_ACCESSORS
