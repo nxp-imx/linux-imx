@@ -558,9 +558,9 @@ static int mx53_smd_sata_init(struct device *dev, void __iomem *addr)
 	tmpdata = clk_get_rate(clk) / 1000;
 	clk_put(clk);
 
-	sata_init(addr, tmpdata);
-
-	return ret;
+	ret = sata_init(addr, tmpdata);
+	if (ret == 0)
+		return ret;
 
 release_sata_ref_clk:
 	clk_disable(sata_ref_clk);
