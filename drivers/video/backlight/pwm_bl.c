@@ -164,6 +164,19 @@ static int pwm_backlight_suspend(struct platform_device *pdev,
 	return 0;
 }
 
+static int pwm_backlight_shutdown(struct platform_device *pdev)
+{
+	struct backlight_device *bl = platform_get_drvdata(pdev);
+	struct pwm_bl_data *pb = dev_get_drvdata(&bl->dev);
+
+	if (pb->notify)
+		pb->notify(pb->dev, 0);
+	pwm_config(pb->pwm, 0, pb->period);
+	pwm_disable(pb->pwm);
+	pr_debug("shutdown mxc backlight\n");
+	return 0;
+}
+
 static int pwm_backlight_resume(struct platform_device *pdev)
 {
 	struct backlight_device *bl = platform_get_drvdata(pdev);
@@ -174,6 +187,7 @@ static int pwm_backlight_resume(struct platform_device *pdev)
 #else
 #define pwm_backlight_suspend	NULL
 #define pwm_backlight_resume	NULL
+#define pwm_backlight_shutdown	NULL
 #endif
 
 static struct platform_driver pwm_backlight_driver = {
@@ -185,6 +199,7 @@ static struct platform_driver pwm_backlight_driver = {
 	.remove		= pwm_backlight_remove,
 	.suspend	= pwm_backlight_suspend,
 	.resume		= pwm_backlight_resume,
+	.shutdown	= pwm_backlight_shutdown,
 };
 
 static int __init pwm_backlight_init(void)
