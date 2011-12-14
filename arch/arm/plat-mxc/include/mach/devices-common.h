@@ -199,7 +199,7 @@ struct imx_imx_udc_data {
 struct platform_device *__init imx_add_imx_udc(
 		const struct imx_imx_udc_data *data,
 		const struct imxusb_platform_data *pdata);
-
+#if 0
 #include <mach/ipu.h>
 #include <mach/mx3fb.h>
 #include <mach/mx3_camera.h>
@@ -217,7 +217,7 @@ struct platform_device *__init imx_alloc_mx3_camera(
 struct platform_device *__init imx_add_mx3_sdc_fb(
 		const struct imx_ipu_core_data *data,
 		struct mx3fb_platform_data *pdata);
-
+#endif
 #include <mach/mx1_camera.h>
 struct imx_mx1_camera_data {
 	resource_size_t iobase;
@@ -412,6 +412,8 @@ struct imx_mxc_gpu_data {
 
 struct platform_device *__init imx_add_mxc_gpu(
 		const struct imx_mxc_gpu_data *data,
+		const struct mxc_gpu_platform_data *pdata);
+
 struct imx_perfmon_data {
 	resource_size_t iobase;
 	struct mxs_platform_perfmon_data *pdata;
@@ -438,11 +440,6 @@ struct imx_mxc_scc2_data {
 
 struct platform_device *__init imx_add_mxc_scc2(
 		const struct imx_mxc_scc2_data *data);
-
-struct imx_perfmon_data {
-	resource_size_t iobase;
-	struct mxs_platform_perfmon_data *pdata;
-};
 
 struct imx_pxp_data {
     resource_size_t iobase;
@@ -503,9 +500,7 @@ struct imx_anatop_thermal_imx_data {
 struct platform_device *__init imx_add_anatop_thermal_imx(
 		const struct imx_anatop_thermal_imx_data *data,
 		const struct anatop_thermal_platform_data *pdata);
-struct platform_device *__init imx_add_perfmon(
-		const struct imx_perfmon_data *data);
-		const struct mxc_gpu_platform_data *pdata);
+
 struct imx_otp_data {
 	resource_size_t iobase;
 	struct mxc_otp_platform_data *pdata;
@@ -602,7 +597,9 @@ struct imx_mipi_csi2_data {
 struct platform_device *__init imx_add_mipi_csi2(
 		const struct imx_mipi_csi2_data *data,
 		const struct mipi_csi2_platform_data *pdata);
+
 struct platform_device *__init imx_add_dcp(
+		const struct imx_dcp_data *data);
 
 struct imx_fsl_usb2_otg_data {
 	resource_size_t iobase;
@@ -620,7 +617,6 @@ struct imx_fsl_usb2_wakeup_data {
 struct platform_device *__init imx_add_fsl_usb2_wakeup(
 		const struct imx_fsl_usb2_wakeup_data *data,
 		const struct fsl_usb2_wakeup_platform_data *pdata);
-		const struct imx_dcp_data *data);
 
 /* gpmi-nfc */
 #include <mach/gpmi-nfc.h>

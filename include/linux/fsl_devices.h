@@ -107,7 +107,6 @@ struct fsl_usb2_platform_data {
 	u32		phy_regs;	/* usb phy register base */
 	u32 		xcvr_type;	/* PORTSC_PTS_* */
 	char 		*transceiver;	/* transceiver name */
-	unsigned 	power_budget;	/* for hcd->power_budget */
 	u32		id_gpio;
 
 	struct fsl_xcvr_ops *xcvr_ops;

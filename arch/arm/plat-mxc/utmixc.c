@@ -60,19 +60,6 @@ static void set_power(struct fsl_xcvr_ops *this,
 	struct device *dev = &pdata->pdev->dev;
 
 	pr_debug("real %s(on=%d) pdata=0x%p\n", __func__, on, pdata);
-	if (machine_is_mx37_3ds()) {
-		if (on) {
-			if (!board_is_rev(IMX_BOARD_REV_2))
-				usbotg_regux = regulator_get(dev, "DCDC2");
-			else
-				usbotg_regux = regulator_get(dev, "SWBST");
-
-			regulator_enable(usbotg_regux);
-		} else {
-			regulator_disable(usbotg_regux);
-			regulator_put(usbotg_regux);
-		}
-	}
 	if (pdata && pdata->platform_driver_vbus)
 		pdata->platform_driver_vbus(on);
 }
