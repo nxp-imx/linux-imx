@@ -283,9 +283,6 @@ struct _mmc_csd {
 #define EXT_CSD_SEC_ERASE_MULT		230	/* RO */
 #define EXT_CSD_SEC_FEATURE_SUPPORT	231	/* RO */
 #define EXT_CSD_TRIM_MULT		232	/* RO */
-#define EXT_CSD_BOOT_CONFIG 		179	/* R/W */
-#define EXT_CSD_BOOT_SIZE_MULT		226	/* RO, 1 bytes */
-#define EXT_CSD_BOOT_INFO		228	/* RO, 1 bytes */
 
 /*
  * EXT_CSD field definitions
@@ -320,8 +317,6 @@ struct _mmc_csd {
 #define EXT_CSD_SEC_ER_EN	BIT(0)
 #define EXT_CSD_SEC_BD_BLK_EN	BIT(2)
 #define EXT_CSD_SEC_GB_CL_EN	BIT(4)
-
-#define EXT_CSD_BOOT_PARTITION_ACCESS_MASK      (0x3)
 
 /*
  * MMC_SWITCH access modes
