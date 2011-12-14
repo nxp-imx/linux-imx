@@ -81,7 +81,6 @@ struct mmc_ext_csd {
 	unsigned char		boot_info;
 	unsigned char		boot_size_mult;
 	unsigned char		boot_config;
-	unsigned char		boot_bus_width;
 };
 
 struct sd_scr {
