@@ -142,6 +142,8 @@ void __init smp_init_cpus(void)
 
 	for (i = 0; i < ncores; i++)
 		set_cpu_possible(i, true);
+
+	set_smp_cross_call(gic_raise_softirq);
 }
 static void __init wakeup_secondary(void)
 {
