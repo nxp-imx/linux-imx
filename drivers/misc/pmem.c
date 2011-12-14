@@ -105,8 +105,10 @@ struct pmem_info {
 	struct miscdevice dev;
 	/* physical start address of the remaped pmem space */
 	unsigned long base;
+#ifdef PMEM_VADDR_SUPPORT
 	/* vitual start address of the remaped pmem space */
 	unsigned char __iomem *vbase;
+#endif
 	/* total size of the pmem space */
 	unsigned long size;
 	/* number of entries in the pmem space */
@@ -471,10 +473,17 @@ static unsigned long pmem_start_addr(int id, struct pmem_data *data)
 
 }
 
+#ifdef PMEM_VADDR_SUPPORT
 static void *pmem_start_vaddr(int id, struct pmem_data *data)
 {
 	return pmem_start_addr(id, data) - pmem[id].base + pmem[id].vbase;
 }
+#else
+static void *pmem_start_vaddr(int id, struct pmem_data *data)
+{
+	return 0;
+}
+#endif
 
 static unsigned long pmem_len(int id, struct pmem_data *data)
 {
@@ -1273,6 +1282,7 @@ int pmem_setup(struct android_pmem_platform_data *pdata,
 		}
 	}
 
+#ifdef PMEM_VADDR_SUPPORT
 	if (pmem[id].cached)
 		pmem[id].vbase = ioremap_cached(pmem[id].base,
 						pmem[id].size);
@@ -1286,6 +1296,7 @@ int pmem_setup(struct android_pmem_platform_data *pdata,
 
 	if (pmem[id].vbase == 0)
 		goto error_cant_remap;
+#endif
 
 	pmem[id].garbage_pfn = page_to_pfn(alloc_page(GFP_KERNEL));
 	if (pmem[id].no_allocator)
