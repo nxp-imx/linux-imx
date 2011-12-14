@@ -213,6 +213,7 @@ static int _setup_disp_channel2(struct fb_info *fbi)
 	struct mxcfb_info *mxc_fbi = (struct mxcfb_info *)fbi->par;
 	int fb_stride;
 	unsigned long base;
+	unsigned int fr_xoff, fr_yoff, fr_w, fr_h;
 
 	switch (bpp_to_pixfmt(fbi)) {
 	case IPU_PIX_FMT_YUV420P2:
@@ -227,16 +228,28 @@ static int _setup_disp_channel2(struct fb_info *fbi)
 		fb_stride = fbi->fix.line_length;
 	}
 
+	base = fbi->fix.smem_start;
+	fr_xoff = fbi->var.xoffset;
+	fr_w = fbi->var.xres_virtual;
+	if (!(fbi->var.vmode & FB_VMODE_YWRAP)) {
+		dev_dbg(fbi->device, "Y wrap disabled\n");
+		fr_yoff = fbi->var.yoffset % fbi->var.yres;
+		fr_h = fbi->var.yres;
+		base += fbi->fix.line_length * fbi->var.yres *
+			(fbi->var.yoffset / fbi->var.yres);
+	} else {
+		dev_dbg(fbi->device, "Y wrap enabled\n");
+		fr_yoff = fbi->var.yoffset;
+		fr_h = fbi->var.yres_virtual;
+	}
+	base += fr_yoff * fb_stride + fr_xoff;
+
 	mxc_fbi->cur_ipu_buf = 2;
 	sema_init(&mxc_fbi->flip_sem, 1);
 	if (mxc_fbi->alpha_chan_en) {
 		mxc_fbi->cur_ipu_alpha_buf = 1;
 		sema_init(&mxc_fbi->alpha_flip_sem, 1);
 	}
-	fbi->var.xoffset = 0;
-
-	base = (fbi->var.yoffset * fb_stride + fbi->var.xoffset);
-	base += fbi->fix.smem_start;
 
 	retval = ipu_init_channel_buffer(mxc_fbi->ipu,
 					 mxc_fbi->ipu_ch, IPU_INPUT_BUFFER,
@@ -253,6 +266,17 @@ static int _setup_disp_channel2(struct fb_info *fbi)
 		dev_err(fbi->device,
 			"ipu_init_channel_buffer error %d\n", retval);
 	}
+
+	/* update u/v offset */
+	ipu_update_channel_offset(mxc_fbi->ipu, mxc_fbi->ipu_ch,
+			IPU_INPUT_BUFFER,
+			bpp_to_pixfmt(fbi),
+			fr_w,
+			fr_h,
+			fr_w,
+			0, 0,
+			fr_yoff,
+			fr_xoff);
 
 	if (mxc_fbi->alpha_chan_en) {
 		retval = ipu_init_channel_buffer(mxc_fbi->ipu,
@@ -1192,6 +1216,7 @@ mxcfb_pan_display(struct fb_var_screeninfo *var, struct fb_info *info)
 	struct mxcfb_info *mxc_fbi = (struct mxcfb_info *)info->par,
 			  *mxc_graphic_fbi = NULL;
 	u_int y_bottom;
+	unsigned int fr_xoff, fr_yoff, fr_w, fr_h;
 	unsigned long base, active_alpha_phy_addr = 0;
 	bool loc_alpha_en = false;
 	int fb_stride;
@@ -1218,9 +1243,6 @@ mxcfb_pan_display(struct fb_var_screeninfo *var, struct fb_info *info)
 
 	y_bottom = var->yoffset;
 
-	if (!(var->vmode & FB_VMODE_YWRAP))
-		y_bottom += var->yres;
-
 	if (y_bottom > info->var.yres_virtual)
 		return -EINVAL;
 
@@ -1237,8 +1259,21 @@ mxcfb_pan_display(struct fb_var_screeninfo *var, struct fb_info *info)
 		fb_stride = info->fix.line_length;
 	}
 
-	base = (var->yoffset * fb_stride + var->xoffset);
-	base += info->fix.smem_start;
+	base = info->fix.smem_start;
+	fr_xoff = var->xoffset;
+	fr_w = info->var.xres_virtual;
+	if (!(var->vmode & FB_VMODE_YWRAP)) {
+		dev_dbg(info->device, "Y wrap disabled\n");
+		fr_yoff = var->yoffset % info->var.yres;
+		fr_h = info->var.yres;
+		base += info->fix.line_length * info->var.yres *
+			(var->yoffset / info->var.yres);
+	} else {
+		dev_dbg(info->device, "Y wrap enabled\n");
+		fr_yoff = var->yoffset;
+		fr_h = info->var.yres_virtual;
+	}
+	base += fr_yoff * fb_stride + fr_xoff;
 
 	/* Check if DP local alpha is enabled and find the graphic fb */
 	if (mxc_fbi->ipu_ch == MEM_BG_SYNC || mxc_fbi->ipu_ch == MEM_FG_SYNC) {
@@ -1293,12 +1328,12 @@ mxcfb_pan_display(struct fb_var_screeninfo *var, struct fb_info *info)
 		ipu_update_channel_offset(mxc_fbi->ipu, mxc_fbi->ipu_ch,
 				IPU_INPUT_BUFFER,
 				bpp_to_pixfmt(info),
-				info->var.xres_virtual,
-				info->var.yres_virtual,
-				info->var.xres_virtual,
+				fr_w,
+				fr_h,
+				fr_w,
 				0, 0,
-				var->yoffset,
-				var->xoffset);
+				fr_yoff,
+				fr_xoff);
 
 		ipu_select_buffer(mxc_fbi->ipu, mxc_fbi->ipu_ch, IPU_INPUT_BUFFER,
 				  mxc_fbi->cur_ipu_buf);
