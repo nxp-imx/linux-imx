@@ -1134,85 +1134,6 @@ static struct platform_device cs42888_sabreauto_vlc_reg_devices = {
 
 #endif /* CONFIG_SND_SOC_CS42888 */
 
-#ifdef CONFIG_SND_SOC_SGTL5000
-
-static struct regulator_consumer_supply sgtl5000_sabreauto_consumer_vdda = {
-	.supply = "VDDA",
-	.dev_name = "0-000a",
-};
-
-static struct regulator_consumer_supply sgtl5000_sabreauto_consumer_vddio = {
-	.supply = "VDDIO",
-	.dev_name = "0-000a",
-};
-
-static struct regulator_consumer_supply sgtl5000_sabreauto_consumer_vddd = {
-	.supply = "VDDD",
-	.dev_name = "0-000a",
-};
-
-static struct regulator_init_data sgtl5000_sabreauto_vdda_reg_initdata = {
-	.num_consumer_supplies = 1,
-	.consumer_supplies = &sgtl5000_sabreauto_consumer_vdda,
-};
-
-static struct regulator_init_data sgtl5000_sabreauto_vddio_reg_initdata = {
-	.num_consumer_supplies = 1,
-	.consumer_supplies = &sgtl5000_sabreauto_consumer_vddio,
-};
-
-static struct regulator_init_data sgtl5000_sabreauto_vddd_reg_initdata = {
-	.num_consumer_supplies = 1,
-	.consumer_supplies = &sgtl5000_sabreauto_consumer_vddd,
-};
-
-static struct fixed_voltage_config sgtl5000_sabreauto_vdda_reg_config = {
-	.supply_name		= "VDDA",
-	.microvolts		= 1800000,
-	.gpio			= -1,
-	.init_data		= &sgtl5000_sabreauto_vdda_reg_initdata,
-};
-
-static struct fixed_voltage_config sgtl5000_sabreauto_vddio_reg_config = {
-	.supply_name		= "VDDIO",
-	.microvolts		= 3300000,
-	.gpio			= -1,
-	.init_data		= &sgtl5000_sabreauto_vddio_reg_initdata,
-};
-
-static struct fixed_voltage_config sgtl5000_sabreauto_vddd_reg_config = {
-	.supply_name		= "VDDD",
-	.microvolts		= 0,
-	.gpio			= -1,
-	.init_data		= &sgtl5000_sabreauto_vddd_reg_initdata,
-};
-
-static struct platform_device sgtl5000_sabreauto_vdda_reg_devices = {
-	.name	= "reg-fixed-voltage",
-	.id	= 7,
-	.dev	= {
-		.platform_data = &sgtl5000_sabreauto_vdda_reg_config,
-	},
-};
-
-static struct platform_device sgtl5000_sabreauto_vddio_reg_devices = {
-	.name	= "reg-fixed-voltage",
-	.id	= 8,
-	.dev	= {
-		.platform_data = &sgtl5000_sabreauto_vddio_reg_config,
-	},
-};
-
-static struct platform_device sgtl5000_sabreauto_vddd_reg_devices = {
-	.name	= "reg-fixed-voltage",
-	.id	= 9,
-	.dev	= {
-		.platform_data = &sgtl5000_sabreauto_vddd_reg_config,
-	},
-};
-
-#endif /* CONFIG_SND_SOC_SGTL5000 */
-
 static int __init imx6q_init_audio(void)
 {
 	struct clk *pll3_pfd, *esai_clk;
@@ -1229,12 +1150,6 @@ static int __init imx6q_init_audio(void)
 
 	clk_set_parent(esai_clk, pll3_pfd);
 	clk_set_rate(esai_clk, 101647058);
-
-#ifdef CONFIG_SND_SOC_SGTL5000
-	platform_device_register(&sgtl5000_sabreauto_vdda_reg_devices);
-	platform_device_register(&sgtl5000_sabreauto_vddio_reg_devices);
-	platform_device_register(&sgtl5000_sabreauto_vddd_reg_devices);
-#endif
 
 #ifdef CONFIG_SND_SOC_CS42888
 	platform_device_register(&cs42888_sabreauto_va_reg_devices);
