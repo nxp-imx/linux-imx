@@ -366,11 +366,11 @@ static int config_buf(struct usb_configuration *config,
 		while ((descriptor = *descriptors++) != NULL) {
 			intf = (struct usb_interface_descriptor *)dest;
 			if (intf->bDescriptorType == USB_DT_INTERFACE) {
-				/* don't increment bInterfaceNumber for alternate settings */
-				if (intf->bAlternateSetting == 0)
-					intf->bInterfaceNumber = interfaceCount++;
-				else
-					intf->bInterfaceNumber = interfaceCount - 1;
+				int i;
+				/* assign the correct interface number */
+				for (i = 0; i < MAX_CONFIG_INTERFACES; i++)
+					if (config->interface[i] == f)
+						intf->bInterfaceNumber = i;
 			}
 			dest += intf->bLength;
 		}
