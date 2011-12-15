@@ -44,6 +44,49 @@ u32 arm_max_freq = CPU_AT_1GHz;
 void __iomem *gpc_base;
 void __iomem *ccm_base;
 
+static int cpu_silicon_rev = -1;
+#define SI_REV_OFFSET 	0x48
+
+static int get_mx6q_srev(void)
+{
+	void __iomem *romcp = ioremap(BOOT_ROM_BASE_ADDR, SZ_8K);
+	u32 rev;
+
+	if (!romcp) {
+		cpu_silicon_rev = -EINVAL;
+		return 0;
+	}
+
+	rev = __raw_readl(romcp + SI_REV_OFFSET);
+	rev &= 0xff;
+
+	iounmap(romcp);
+	if (rev == 0x10)
+		return IMX_CHIP_REVISION_1_0;
+	else if (rev == 0x11)
+		return IMX_CHIP_REVISION_1_1;
+	else if (rev == 0x20)
+		return IMX_CHIP_REVISION_2_0;
+	return 0;
+}
+
+/*
+ * Returns:
+ *	the silicon revision of the cpu
+ *	-EINVAL - not a mx50
+ */
+int mx6q_revision(void)
+{
+	if (!cpu_is_mx6q())
+		return -EINVAL;
+
+	if (cpu_silicon_rev == -1)
+		cpu_silicon_rev = get_mx6q_srev();
+
+	return cpu_silicon_rev;
+}
+EXPORT_SYMBOL(mx6q_revision);
+
 static int __init post_cpu_init(void)
 {
 	unsigned int reg;

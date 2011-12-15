@@ -36,6 +36,11 @@
  */
 static struct map_desc mx6_io_desc[] __initdata = {
 	{
+	.virtual = BOOT_ROM_BASE_ADDR_VIRT,
+	.pfn = __phys_to_pfn(BOOT_ROM_BASE_ADDR),
+	.length = ROMCP_SIZE,
+	.type = MT_DEVICE},
+	{
 	.virtual = AIPS1_BASE_ADDR_VIRT,
 	.pfn = __phys_to_pfn(AIPS1_ARB_BASE_ADDR),
 	.length = AIPS1_SIZE,
