@@ -648,6 +648,10 @@ static void ddc_dvi_init(void)
 {
 	/* enable DVI I2C */
 	gpio_set_value(MX6Q_ARM2_DISP0_I2C_EN, 1);
+
+	/* DISP0 Detect */
+	gpio_request(MX6Q_ARM2_DISP0_DET_INT, "disp0-detect");
+	gpio_direction_input(MX6Q_ARM2_DISP0_DET_INT);
 }
 
 static int ddc_dvi_update(void)
@@ -1499,10 +1503,6 @@ static void __init mx6_board_init(void)
 	imx_asrc_data.asrc_core_clk = clk_get(NULL, "asrc_clk");
 	imx_asrc_data.asrc_audio_clk = clk_get(NULL, "asrc_serial_clk");
 	imx6q_add_asrc(&imx_asrc_data);
-
-	/* DISP0 Detect */
-	gpio_request(MX6Q_ARM2_DISP0_DET_INT, "disp0-detect");
-	gpio_direction_input(MX6Q_ARM2_DISP0_DET_INT);
 
 	/* DISP0 Reset - Assert for i2c disabled mode */
 	gpio_request(MX6Q_ARM2_DISP0_RESET, "disp0-reset");
