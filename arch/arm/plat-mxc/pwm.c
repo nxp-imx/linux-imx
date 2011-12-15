@@ -86,7 +86,11 @@ int pwm_config(struct pwm_device *pwm, int duty_ns, int period_ns)
 		prescale = period_cycles / 0x10000 + 1;
 
 		period_cycles /= prescale;
-		c = (unsigned long long)period_cycles * duty_ns;
+		/* the chip document says the counter counts up to
+		 * period_cycles + 1 and then is reset to 0, so the
+		 *  actual period of the PWM wave is period_cycles + 2
+		 */
+		c = (unsigned long long)(period_cycles + 2) * duty_ns;
 		do_div(c, period_ns);
 		duty_cycles = c;
 
