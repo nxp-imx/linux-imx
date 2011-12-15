@@ -45,6 +45,8 @@
 
 #include <mach/mxc_vpu.h>
 
+#define MAX_BITWORK_SIZE	SZ_1M
+
 struct vpu_priv {
 	struct fasync_struct *async_queue;
 	struct work_struct work;
@@ -669,6 +671,11 @@ static int vpu_dev_probe(struct platform_device *pdev)
 
 	vpu_data.workqueue = create_workqueue("vpu_wq");
 	INIT_WORK(&vpu_data.work, vpu_worker_callback);
+
+	bitwork_mem.size = MAX_BITWORK_SIZE;
+	if (vpu_alloc_dma_buffer(&bitwork_mem) == -1)
+		goto err_out_class;
+
 	printk(KERN_INFO "VPU initialized\n");
 	goto out;
 
