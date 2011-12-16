@@ -2193,7 +2193,10 @@ int32_t ipu_disable_channel(struct ipu_soc *ipu, ipu_channel_t channel, bool wai
 				}
 			}
 		}
-	} else if (wait_for_stop) {
+	} else if ((channel == CSI_MEM0) || (channel == CSI_MEM1) ||
+			(channel == CSI_MEM2) || (channel == CSI_MEM3))
+		_ipu_csi_wait4eof(ipu, channel);
+	else if (wait_for_stop) {
 		while (idma_is_set(ipu, IDMAC_CHA_BUSY, in_dma) ||
 		       idma_is_set(ipu, IDMAC_CHA_BUSY, out_dma) ||
 			(ipu->sec_chan_en[IPU_CHAN_ID(channel)] &&
