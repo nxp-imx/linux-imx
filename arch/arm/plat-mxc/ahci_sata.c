@@ -156,7 +156,7 @@ static int sata_init(struct device *dev)
 {
 	void __iomem *mmio;
 	u32 tmpdata;
-	int ret = 0;
+	int ret = 0, iterations = 20;
 	struct clk *clk;
 
 	sata_clk = clk_get(dev, "imx_sata_clk");
@@ -281,14 +281,28 @@ static int sata_init(struct device *dev)
 
 	if (AHCI_SAVE_PWR_WITHOUT_HOTPLUG) {
 		/* Release resources when there is no device on the port */
-		if ((readl(mmio + PORT_SATA_SR) & 0xF) == 0) {
-			ret = -ENODEV;
-			if (machine_is_mx53_smd() || machine_is_mx53_loco()
-				|| board_is_mx53_ard_b())
-				goto no_device;
+		do {
+			if ((readl(mmio + PORT_SATA_SR) & 0xF) == 0)
+				msleep(25);
 			else
-				goto release_mem;
-		}
+				break;
+
+			if (iterations == 0) {
+				pr_info("No sata disk.\n");
+				ret = -ENODEV;
+				/* Enter into PDDQ mode, save power */
+				tmpdata = readl(mmio + PORT_PHY_CTL);
+				writel(tmpdata | PORT_PHY_CTL_PDDQ_LOC,
+							mmio + PORT_PHY_CTL);
+
+				if (machine_is_mx53_smd()
+					|| machine_is_mx53_loco()
+					|| board_is_mx53_ard_b())
+					goto no_device;
+				else
+					goto release_mem;
+			}
+		} while (iterations-- > 0);
 	}
 
 	iounmap(mmio);
