@@ -38,7 +38,7 @@ extern void mx6_wait(void);
 
 
 struct cpu_op *(*get_cpu_op)(int *op);
-bool enable_wait_mode;
+bool enable_wait_mode = true;
 u32 arm_max_freq = CPU_AT_1GHz;
 
 void __iomem *gpc_base;
@@ -154,7 +154,13 @@ postcore_initcall(post_cpu_init);
 
 static int __init enable_wait(char *p)
 {
-	enable_wait_mode = true;
+	if (memcmp(p, "on", 2) == 0) {
+		enable_wait_mode = true;
+		p += 2;
+	} else if (memcmp(p, "off", 3) == 0) {
+		enable_wait_mode = false;
+		p += 3;
+	}
 	return 0;
 }
 early_param("enable_wait_mode", enable_wait);
