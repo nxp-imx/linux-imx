@@ -117,6 +117,7 @@ struct ipu_soc {
 	bool color_key_4rgb;
 	bool dc_swap;
 	struct completion dc_comp;
+	struct completion csi_comp;
 
 	/* for power gating */
 	u32 ipu_conf_reg;
@@ -325,6 +326,7 @@ void ipu_csi_set_test_generator(struct ipu_soc *ipu, bool active, uint32_t r_val
 		uint32_t pix_clk, uint32_t csi);
 void _ipu_csi_ccir_err_detection_enable(struct ipu_soc *ipu, uint32_t csi);
 void _ipu_csi_ccir_err_detection_disable(struct ipu_soc *ipu, uint32_t csi);
+void _ipu_csi_wait4eof(struct ipu_soc *ipu, ipu_channel_t channel);
 void _ipu_smfc_init(struct ipu_soc *ipu, ipu_channel_t channel, uint32_t mipi_id, uint32_t csi);
 void _ipu_smfc_set_burst_size(struct ipu_soc *ipu, ipu_channel_t channel, uint32_t bs);
 void _ipu_dp_set_csc_coefficients(struct ipu_soc *ipu, ipu_channel_t channel, int32_t param[][3]);
