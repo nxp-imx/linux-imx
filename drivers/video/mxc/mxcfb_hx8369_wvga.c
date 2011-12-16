@@ -374,6 +374,7 @@ static int mipid_init_backlight(struct mipi_dsi_info *mipi_dsi)
 	}
 	memset(&props, 0, sizeof(struct backlight_properties));
 	props.max_brightness = HX8369BL_MAX_BRIGHT;
+	props.type = BACKLIGHT_RAW;
 	bl = backlight_device_register("mipid-bl", &mipi_dsi->pdev->dev,
 		mipi_dsi, &mipid_lcd_bl_ops, &props);
 	if (IS_ERR(bl)) {
