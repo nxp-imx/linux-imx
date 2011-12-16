@@ -161,6 +161,10 @@ static void mx6_suspend_restore(void)
 	/* restore settings after suspend */
 	__raw_writel(anatop[0], anatop_base + ANATOP_REG_2P5_OFFSET);
 	__raw_writel(anatop[1], anatop_base + ANATOP_REG_CORE_OFFSET);
+	/* Per spec, the count needs to be zeroed and reconfigured on exit from
+	 * low power mode
+	 */
+	__raw_writel(ccm_ccr & ~MXC_CCM_CCR_REG_BYPASS_CNT_MASK, MXC_CCM_CCR);
 	udelay(50);
 	__raw_writel(ccm_ccr, MXC_CCM_CCR);
 	__raw_writel(ccm_clpcr, MXC_CCM_CLPCR);
