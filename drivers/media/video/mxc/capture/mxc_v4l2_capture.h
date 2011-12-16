@@ -29,7 +29,6 @@
 
 #include <asm/uaccess.h>
 #include <linux/list.h>
-#include <linux/smp_lock.h>
 #include <linux/ipu.h>
 #include <linux/mxc_v4l2.h>
 #include <mach/ipu-v3.h>

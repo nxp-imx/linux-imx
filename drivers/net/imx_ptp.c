@@ -27,7 +27,6 @@
 #include <linux/ioport.h>
 #include <linux/sched.h>
 #include <linux/slab.h>
-#include <linux/smp_lock.h>
 #include <linux/proc_fs.h>
 #include <linux/errno.h>
 #include <linux/init.h>
