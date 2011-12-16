@@ -88,14 +88,20 @@
 #define MX6Q_SABREAUTO_USB_OTG_PWR	IMX_GPIO_NR(3, 22)
 #define MX6Q_SABREAUTO_SD1_CD	IMX_GPIO_NR(1, 1)
 #define MX6Q_SABREAUTO_SD1_WP	IMX_GPIO_NR(5, 20)
+#define MX6Q_SABREAUTO_USB_HOST1_OC	IMX_GPIO_NR(5, 0)
+#define MX6Q_SABREAUTO_USB_OTG_OC	IMX_GPIO_NR(2, 8)
+
 #define MX6Q_SABREAUTO_MAX7310_1_BASE_ADDR	IMX_GPIO_NR(8, 0)
 #define MX6Q_SABREAUTO_MAX7310_2_BASE_ADDR	IMX_GPIO_NR(8, 8)
+#define MX6Q_SABREAUTO_MAX7310_3_BASE_ADDR	IMX_GPIO_NR(8, 16)
 #define MX6Q_SABREAUTO_CAP_TCH_INT	IMX_GPIO_NR(2, 28)
 
 #define MX6Q_SABREAUTO_IO_EXP_GPIO1(x) \
 		(MX6Q_SABREAUTO_MAX7310_1_BASE_ADDR + (x))
 #define MX6Q_SABREAUTO_IO_EXP_GPIO2(x) \
 		(MX6Q_SABREAUTO_MAX7310_2_BASE_ADDR + (x))
+#define MX6Q_SABREAUTO_IO_EXP_GPIO3(x) \
+		(MX6Q_SABREAUTO_MAX7310_3_BASE_ADDR + (x))
 
 #define MX6Q_SABREAUTO_CAN1_STBY       IMX_GPIO_NR(7, 12)
 #define MX6Q_SABREAUTO_CAN1_EN         IMX_GPIO_NR(7, 13)
@@ -104,6 +110,9 @@
 #define MX6Q_SABREAUTO_I2C_EXP_RST     IMX_GPIO_NR(1, 15)
 #define MX6Q_SABREAUTO_ESAI_INT        IMX_GPIO_NR(1, 10)
 #define MX6Q_SABREAUTO_PER_RST         MX6Q_SABREAUTO_IO_EXP_GPIO1(3)
+
+#define MX6Q_SABREAUTO_USB_HOST1_PWR	MX6Q_SABREAUTO_IO_EXP_GPIO2(7)
+#define MX6Q_SABREAUTO_USB_OTG_PWR	MX6Q_SABREAUTO_IO_EXP_GPIO3(2)
 
 #define MX6Q_SMD_CSI0_RST		IMX_GPIO_NR(4, 5)
 #define MX6Q_SMD_CSI0_PWN		IMX_GPIO_NR(5, 23)
@@ -279,8 +288,15 @@ static iomux_v3_cfg_t mx6q_sabreauto_pads[] = {
 
 	/*  SPDIF */
 	MX6Q_PAD_KEY_COL3__SPDIF_IN1,
+
 	/* Touchscreen interrupt */
 	MX6Q_PAD_EIM_EB0__GPIO_2_28,
+
+	/* USBOTG ID pin */
+	MX6Q_PAD_ENET_RX_ER__ENET_RX_ER,
+	/*USBs OC pin */
+	MX6Q_PAD_EIM_WAIT__GPIO_5_0,  /*HOST1_OC*/
+	MX6Q_PAD_SD4_DAT0__GPIO_2_8,  /*OTG_OC*/
 };
 
 static iomux_v3_cfg_t mx6q_sabreauto_i2c3_pads[] = {
@@ -556,12 +572,36 @@ static int max7310_u516_setup(struct i2c_client *client,
 	/* 7 USB_H1_PWR */
 
 	int max7310_gpio_value[] = {
-		0, 0, 0, 0, 0, 0, 0, 0,
+		0, 0, 0, 0, 0, 0, 0, 1,
+
 	};
 
 	int n;
 
-	 for (n = 0; n < ARRAY_SIZE(max7310_gpio_value); ++n) {
+	for (n = 0; n < ARRAY_SIZE(max7310_gpio_value); ++n) {
+		gpio_request(gpio_base + n, "MAX7310 U48 GPIO Expander");
+		if (max7310_gpio_value[n] < 0)
+			gpio_direction_input(gpio_base + n);
+		else
+			gpio_direction_output(gpio_base + n,
+						max7310_gpio_value[n]);
+		gpio_export(gpio_base + n, 0);
+	}
+
+	return 0;
+}
+
+static int max7310_u39_setup(struct i2c_client *client,
+	unsigned gpio_base, unsigned ngpio,
+	void *context)
+{
+	int max7310_gpio_value[] = {
+		0, 1, 0, 1, 0, 1, 1, 1,
+	};
+
+	int n;
+
+	for (n = 0; n < ARRAY_SIZE(max7310_gpio_value); ++n) {
 		gpio_request(gpio_base + n, "MAX7310 U48 GPIO Expander");
 		if (max7310_gpio_value[n] < 0)
 			gpio_direction_input(gpio_base + n);
@@ -578,6 +618,12 @@ static struct pca953x_platform_data max7310_u516_platdata = {
 	.gpio_base	= MX6Q_SABREAUTO_MAX7310_2_BASE_ADDR,
 	.invert		= 0,
 	.setup		= max7310_u516_setup,
+};
+
+static struct pca953x_platform_data max7310_u39_platdata = {
+	.gpio_base	= MX6Q_SABREAUTO_MAX7310_3_BASE_ADDR,
+	.invert		= 0,
+	.setup		= max7310_u39_setup,
 };
 
 static void ddc_dvi_init(void)
@@ -640,6 +686,10 @@ static struct i2c_board_info mxc_i2c2_board_info[] __initdata = {
 		.platform_data = &max7310_u516_platdata,
 	},
 	{
+		I2C_BOARD_INFO("max7310", 0x34),
+		.platform_data = &max7310_u39_platdata,
+	},
+	{
 		I2C_BOARD_INFO("mxc_dvi", 0x50),
 		.platform_data = &sabr_ddc_dvi_data,
 		.irq = gpio_to_irq(MX6Q_SABREAUTO_DISP0_DET_INT),
@@ -666,31 +716,44 @@ static struct i2c_board_info mxc_i2c1_board_info[] __initdata = {
 static void imx6q_sabreauto_usbotg_vbus(bool on)
 {
 	if (on)
-		gpio_set_value(MX6Q_SABREAUTO_USB_OTG_PWR, 1);
+		gpio_set_value_cansleep(MX6Q_SABREAUTO_USB_OTG_PWR, 1);
 	else
-		gpio_set_value(MX6Q_SABREAUTO_USB_OTG_PWR, 0);
+		gpio_set_value_cansleep(MX6Q_SABREAUTO_USB_OTG_PWR, 0);
+}
+
+static void imx6q_sabreauto_usbhost1_vbus(bool on)
+{
+	if (on)
+		gpio_set_value_cansleep(MX6Q_SABREAUTO_USB_HOST1_PWR, 1);
+	else
+		gpio_set_value_cansleep(MX6Q_SABREAUTO_USB_HOST1_PWR, 0);
 }
 
 static void __init imx6q_sabreauto_init_usb(void)
 {
 	int ret = 0;
-
 	imx_otg_base = MX6_IO_ADDRESS(MX6Q_USB_OTG_BASE_ADDR);
-	/* disable external charger detect,
-	 * or it will affect signal quality at dp.
-	 */
 
-	ret = gpio_request(MX6Q_SABREAUTO_USB_OTG_PWR, "usb-pwr");
+	ret = gpio_request(MX6Q_SABREAUTO_USB_OTG_OC, "otg-oc");
 	if (ret) {
-		printk(KERN_ERR"failed to get GPIO MX6Q_SABREAUTO_USB_OTG_PWR:"
+		printk(KERN_ERR"failed to get GPIO MX6Q_SABREAUTO_USB_OTG_OC:"
 			" %d\n", ret);
 		return;
 	}
-	gpio_direction_output(MX6Q_SABREAUTO_USB_OTG_PWR, 0);
-	mxc_iomux_set_gpr_register(1, 13, 1, 1);
+	gpio_direction_input(MX6Q_SABREAUTO_USB_OTG_OC);
 
+	ret = gpio_request(MX6Q_SABREAUTO_USB_HOST1_OC, "usbh1-oc");
+	if (ret) {
+		printk(KERN_ERR"failed to get MX6Q_SABREAUTO_USB_HOST1_OC:"
+			" %d\n", ret);
+		return;
+	}
+	gpio_direction_input(MX6Q_SABREAUTO_USB_HOST1_OC);
+
+	mxc_iomux_set_gpr_register(1, 13, 1, 1);
 	mx6_set_otghost_vbus_func(imx6q_sabreauto_usbotg_vbus);
 	mx6_usb_dr_init();
+	mx6_set_host1_vbus_func(imx6q_sabreauto_usbhost1_vbus);
 	mx6_usb_h1_init();
 #ifdef CONFIG_USB_EHCI_ARC_HSIC
 	mx6_usb_h2_init();
