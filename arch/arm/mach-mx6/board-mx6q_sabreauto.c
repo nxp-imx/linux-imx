@@ -88,7 +88,7 @@
 #define MX6Q_SABREAUTO_USB_OTG_PWR	IMX_GPIO_NR(3, 22)
 #define MX6Q_SABREAUTO_MAX7310_1_BASE_ADDR	IMX_GPIO_NR(8, 0)
 #define MX6Q_SABREAUTO_MAX7310_2_BASE_ADDR	IMX_GPIO_NR(8, 8)
-#define MX6Q_SABREAUTO_CAP_TCH_INT	IMX_GPIO_NR(3, 31)
+#define MX6Q_SABREAUTO_CAP_TCH_INT	IMX_GPIO_NR(2, 28)
 
 #define MX6Q_SABREAUTO_IO_EXP_GPIO1(x) \
 		(MX6Q_SABREAUTO_MAX7310_1_BASE_ADDR + (x))
@@ -291,6 +291,8 @@ static iomux_v3_cfg_t mx6q_sabreauto_pads[] = {
 	MX6Q_PAD_GPIO_1__USBOTG_ID,
 	/*  SPDIF */
 	MX6Q_PAD_KEY_COL3__SPDIF_IN1,
+	/* Touchscreen interrupt */
+	MX6Q_PAD_EIM_EB0__GPIO_2_28,
 };
 
 static iomux_v3_cfg_t mx6q_sabreauto_i2c3_pads[] = {
@@ -688,16 +690,11 @@ static struct i2c_board_info mxc_i2c2_board_info[] __initdata = {
 		.platform_data = &sabr_ddc_dvi_data,
 		.irq = gpio_to_irq(MX6Q_SABREAUTO_DISP0_DET_INT),
 	},
-	{
-		I2C_BOARD_INFO("egalax_ts", 0x4),
-		.irq = gpio_to_irq(MX6Q_SABREAUTO_CAP_TCH_INT),
-	},
-
 };
 
 static struct i2c_board_info mxc_i2c1_board_info[] __initdata = {
 	{
-		I2C_BOARD_INFO("egalax_ts", 0x4),
+		I2C_BOARD_INFO("egalax_ts", 0x04),
 		.irq = gpio_to_irq(MX6Q_SABREAUTO_CAP_TCH_INT),
 	},
 	{
