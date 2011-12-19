@@ -100,6 +100,8 @@
 #define MX6Q_SABREAUTO_CAN2_STBY       MX6Q_SABREAUTO_IO_EXP_GPIO2(1)
 #define MX6Q_SABREAUTO_CAN2_EN         IMX_GPIO_NR(5, 24)
 #define MX6Q_SABREAUTO_I2C_EXP_RST     IMX_GPIO_NR(1, 15)
+#define MX6Q_SABREAUTO_ESAI_INT        IMX_GPIO_NR(1, 10)
+#define MX6Q_SABREAUTO_PER_RST         MX6Q_SABREAUTO_IO_EXP_GPIO1(3)
 
 #define MX6Q_SMD_CSI0_RST		IMX_GPIO_NR(4, 5)
 #define MX6Q_SMD_CSI0_PWN		IMX_GPIO_NR(5, 23)
@@ -203,14 +205,13 @@ static iomux_v3_cfg_t mx6q_sabreauto_pads[] = {
 	MX6Q_PAD_EIM_D19__GPIO_3_19,	/*SS1*/
 
 	/* ESAI */
-	MX6Q_PAD_ENET_RXD0__ESAI1_HCKT,
 	MX6Q_PAD_ENET_CRS_DV__ESAI1_SCKT,
 	MX6Q_PAD_ENET_RXD1__ESAI1_FST,
 	MX6Q_PAD_ENET_TX_EN__ESAI1_TX3_RX2,
-	MX6Q_PAD_ENET_TXD1__ESAI1_TX2_RX3,
+	MX6Q_PAD_GPIO_5__ESAI1_TX2_RX3,
 	MX6Q_PAD_ENET_TXD0__ESAI1_TX4_RX1,
 	MX6Q_PAD_ENET_MDC__ESAI1_TX5_RX0,
-	MX6Q_PAD_NANDF_CS2__ESAI1_TX0,
+	MX6Q_PAD_GPIO_17__ESAI1_TX0,
 	MX6Q_PAD_NANDF_CS3__ESAI1_TX1,
 
 	/* I2C1 */
@@ -270,9 +271,6 @@ static iomux_v3_cfg_t mx6q_sabreauto_pads[] = {
 
 	MX6Q_PAD_EIM_D24__GPIO_3_24,
 
-	/* PWM1 */
-	MX6Q_PAD_GPIO_9__PWM1_PWMO,
-
 	/* DISP0 I2C ENABLE*/
 	MX6Q_PAD_EIM_D28__GPIO_3_28,
 
@@ -314,9 +312,8 @@ static iomux_v3_cfg_t mx6q_sabreauto_can_pads[] = {
 };
 
 static iomux_v3_cfg_t mx6q_sabreauto_esai_record_pads[] = {
-	MX6Q_PAD_ENET_RX_ER__ESAI1_HCKR,
 	MX6Q_PAD_ENET_MDIO__ESAI1_SCKR,
-	MX6Q_PAD_ENET_REF_CLK__ESAI1_FSR,
+	MX6Q_PAD_GPIO_9__ESAI1_FSR,
 };
 
 static iomux_v3_cfg_t mx6q_sabreauto_mipi_sensor_pads[] = {
@@ -660,9 +657,6 @@ static struct fsl_mxc_camera_platform_data ov5640_mipi_data = {
 
 static struct i2c_board_info mxc_i2c0_board_info[] __initdata = {
 	{
-		I2C_BOARD_INFO("cs42888", 0x48),
-	},
-	{
 		I2C_BOARD_INFO("ov3640", 0x3c),
 		.platform_data = (void *)&camera_data,
 	},
@@ -703,6 +697,9 @@ static struct i2c_board_info mxc_i2c1_board_info[] __initdata = {
 	{
 		I2C_BOARD_INFO("ov5640_mipi", 0x3c),
 		.platform_data = (void *)&ov5640_mipi_data,
+	},
+	{
+		I2C_BOARD_INFO("cs42888", 0x48),
 	},
 };
 
@@ -994,6 +991,8 @@ static const struct pm_platform_data mx6q_sabreauto_pm_data __initconst = {
 
 static struct mxc_audio_platform_data sab_audio_data = {
 	.sysclk = 16934400,
+	.rst_gpio = MX6Q_SABREAUTO_PER_RST,
+	.codec_name = "cs42888.1-0048",
 };
 
 static struct platform_device sab_audio_device = {
@@ -1030,26 +1029,24 @@ static struct platform_device sabreauto_vmmc_reg_devices = {
 	},
 };
 
-#ifdef CONFIG_SND_SOC_CS42888
-
 static struct regulator_consumer_supply cs42888_sabreauto_consumer_va = {
 	.supply = "VA",
-	.dev_name = "0-0048",
+	.dev_name = "1-0048",
 };
 
 static struct regulator_consumer_supply cs42888_sabreauto_consumer_vd = {
 	.supply = "VD",
-	.dev_name = "0-0048",
+	.dev_name = "1-0048",
 };
 
 static struct regulator_consumer_supply cs42888_sabreauto_consumer_vls = {
 	.supply = "VLS",
-	.dev_name = "0-0048",
+	.dev_name = "1-0048",
 };
 
 static struct regulator_consumer_supply cs42888_sabreauto_consumer_vlc = {
 	.supply = "VLC",
-	.dev_name = "0-0048",
+	.dev_name = "1-0048",
 };
 
 static struct regulator_init_data cs42888_sabreauto_va_reg_initdata = {
@@ -1132,13 +1129,14 @@ static struct platform_device cs42888_sabreauto_vlc_reg_devices = {
 	},
 };
 
-#endif /* CONFIG_SND_SOC_CS42888 */
-
 static int __init imx6q_init_audio(void)
 {
 	struct clk *pll3_pfd, *esai_clk;
 	mxc_register_device(&sab_audio_device, &sab_audio_data);
 	imx6q_add_imx_esai(0, &sab_esai_pdata);
+
+	gpio_request(MX6Q_SABREAUTO_ESAI_INT, "esai-int");
+	gpio_direction_input(MX6Q_SABREAUTO_ESAI_INT);
 
 	esai_clk = clk_get(NULL, "esai_clk");
 	if (IS_ERR(esai_clk))
@@ -1151,12 +1149,10 @@ static int __init imx6q_init_audio(void)
 	clk_set_parent(esai_clk, pll3_pfd);
 	clk_set_rate(esai_clk, 101647058);
 
-#ifdef CONFIG_SND_SOC_CS42888
 	platform_device_register(&cs42888_sabreauto_va_reg_devices);
 	platform_device_register(&cs42888_sabreauto_vd_reg_devices);
 	platform_device_register(&cs42888_sabreauto_vls_reg_devices);
 	platform_device_register(&cs42888_sabreauto_vlc_reg_devices);
-#endif
 	return 0;
 }
 
