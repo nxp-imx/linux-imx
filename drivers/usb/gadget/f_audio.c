@@ -29,9 +29,16 @@ static int audio_buf_size = 48000;
 module_param(audio_buf_size, int, S_IRUGO);
 MODULE_PARM_DESC(audio_buf_size, "Audio buffer size");
 
+/* The first usb audio buf to alsa playback */
+static int first_audio_buf_size = 65500;
+module_param(first_audio_buf_size, int, S_IRUGO);
+MODULE_PARM_DESC(first_audio_buf_size, "First Audio buffer size");
+
 static int generic_set_cmd(struct usb_audio_control *con, u8 cmd, int value);
 static int generic_get_cmd(struct usb_audio_control *con, u8 cmd);
 
+/* Flag to use buffer with first_audio_buf_size to asla */
+static int first_copy_audio_buffer = 1;
 /*
  * DESCRIPTORS ... most are static, but strings and full
  * configuration descriptors are built on demand.
@@ -329,13 +336,27 @@ static int f_audio_out_ep_complete(struct usb_ep *ep, struct usb_request *req)
 	if (!copy_buf)
 		return -EINVAL;
 
+	if (!first_copy_audio_buffer) {
 	/* Copy buffer is full, add it to the play_queue */
-	if (audio_buf_size - copy_buf->actual < req->actual) {
-		list_add_tail(&copy_buf->list, &audio->play_queue);
-		schedule_work(&audio->playback_work);
-		copy_buf = f_audio_buffer_alloc(audio_buf_size);
-		if (IS_ERR(copy_buf))
-			return -ENOMEM;
+		if (audio_buf_size - copy_buf->actual < req->actual) {
+			list_add_tail(&copy_buf->list, &audio->play_queue);
+			schedule_work(&audio->playback_work);
+			copy_buf = f_audio_buffer_alloc(audio_buf_size);
+
+			if (IS_ERR(copy_buf))
+				return -ENOMEM;
+		}
+	} else {
+		if (first_audio_buf_size - copy_buf->actual < req->actual) {
+			list_add_tail(&copy_buf->list, &audio->play_queue);
+			schedule_work(&audio->playback_work);
+			copy_buf = f_audio_buffer_alloc(audio_buf_size);
+
+			if (IS_ERR(copy_buf))
+				return -ENOMEM;
+
+			first_copy_audio_buffer = 0;
+		}
 	}
 
 	memcpy(copy_buf->buf + copy_buf->actual, req->buf, req->actual);
@@ -577,7 +598,7 @@ static int f_audio_set_alt(struct usb_function *f, unsigned intf, unsigned alt)
 		if (alt == 1) {
 			usb_ep_enable(out_ep, audio->out_desc);
 			out_ep->driver_data = audio;
-			audio->copy_buf = f_audio_buffer_alloc(audio_buf_size);
+			audio->copy_buf = f_audio_buffer_alloc(first_audio_buf_size);
 			if (IS_ERR(audio->copy_buf))
 				return -ENOMEM;
 
@@ -614,6 +635,7 @@ static int f_audio_set_alt(struct usb_function *f, unsigned intf, unsigned alt)
 						&audio->play_queue);
 				schedule_work(&audio->playback_work);
 			}
+			first_copy_audio_buffer = 1;
 		}
 	}
 
