@@ -40,6 +40,7 @@ struct imx_priv_state {
 
 static struct imx_priv_state hw_state;
 unsigned int mclk_freq;
+int rst_gpio;
 
 static int imx_3stack_startup(struct snd_pcm_substream *substream)
 {
@@ -48,9 +49,15 @@ static int imx_3stack_startup(struct snd_pcm_substream *substream)
 
 	if (!cpu_dai->active) {
 		hw_state.hw = 0;
-		gpio_direction_output(CS42888_RST, 0);
-		msleep(100);
-		gpio_direction_output(CS42888_RST, 1);
+		if (rst_gpio) {
+			gpio_direction_output(rst_gpio, 0);
+			msleep(100);
+			gpio_direction_output(rst_gpio, 1);
+		} else {
+			gpio_direction_output(CS42888_RST, 0);
+			msleep(100);
+			gpio_direction_output(CS42888_RST, 1);
+		}
 	}
 
 	return 0;
@@ -254,7 +261,13 @@ static struct snd_soc_card snd_soc_card_imx_3stack = {
 static int __devinit imx_3stack_cs42888_probe(struct platform_device *pdev)
 {
 	struct mxc_audio_platform_data *plat_data = pdev->dev.platform_data;
+
+	if (!plat_data) {
+		dev_err(&pdev->dev, "plat_data is missing\n");
+		return -EINVAL;
+	}
 	mclk_freq = plat_data->sysclk;
+	rst_gpio = plat_data->rst_gpio;
 	return 0;
 }
 
