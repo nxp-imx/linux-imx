@@ -39,6 +39,10 @@ static char *fn_cntl = FILE_CONTROL;
 module_param(fn_cntl, charp, S_IRUGO);
 MODULE_PARM_DESC(fn_cntl, "Control device file name");
 
+static int audio_sample_rate = 48000;
+module_param(audio_sample_rate, int, S_IRUGO);
+MODULE_PARM_DESC(audio_sample_rate, "Audio Sample Rate");
+
 /*-------------------------------------------------------------------------*/
 
 /**
@@ -122,13 +126,23 @@ static int playback_default_hw_params(struct gaudio_snd_dev *snd)
 	snd->access = SNDRV_PCM_ACCESS_RW_INTERLEAVED;
 	snd->format = SNDRV_PCM_FORMAT_S16_LE;
 	snd->channels = 2;
-	snd->rate = 48000;
+	if (audio_sample_rate == 44100)
+		snd->rate = 44100;
+	else if (audio_sample_rate == 48000)
+		snd->rate = 48000;
 
 	params = kzalloc(sizeof(*params), GFP_KERNEL);
 	if (!params)
 		return -ENOMEM;
 
 	_snd_pcm_hw_params_any(params);
+
+	if (audio_sample_rate == 44100) {
+		_snd_pcm_hw_param_set(params, SNDRV_PCM_HW_PARAM_PERIOD_SIZE, \
+					       2*1024, 0);
+		_snd_pcm_hw_param_set(params, SNDRV_PCM_HW_PARAM_BUFFER_SIZE, \
+						       16*1024, 0);
+	}
 	_snd_pcm_hw_param_set(params, SNDRV_PCM_HW_PARAM_ACCESS,
 			snd->access, 0);
 	_snd_pcm_hw_param_set(params, SNDRV_PCM_HW_PARAM_FORMAT,
@@ -193,6 +207,7 @@ try_again:
 	set_fs(KERNEL_DS);
 	result = snd_pcm_lib_write(snd->substream, buf, frames);
 	if (result != frames) {
+		msleep_interruptible(2);
 		ERROR(card, "Playback error: %d\n", (int)result);
 		set_fs(old_fs);
 		goto try_again;
