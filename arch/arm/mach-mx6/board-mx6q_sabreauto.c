@@ -106,6 +106,8 @@
 #define MX6Q_SMD_CSI0_RST		IMX_GPIO_NR(4, 5)
 #define MX6Q_SMD_CSI0_PWN		IMX_GPIO_NR(5, 23)
 
+#define MX6Q_SABREAUTO_PMIC_INT		IMX_GPIO_NR(5, 16)
+
 void __init early_console_setup(unsigned long base, struct clk *clk);
 static struct clk *sata_clk;
 static int esai_record;
@@ -115,6 +117,7 @@ extern struct regulator *(*get_cpu_regulator)(void);
 extern void (*put_cpu_regulator)(void);
 extern char *gp_reg_id;
 extern void mx6_cpu_regulator_init(void);
+extern int __init mx6q_sabreauto_init_pfuze100(u32 int_gpio);
 
 static iomux_v3_cfg_t mx6q_sabreauto_pads[] = {
 
@@ -196,7 +199,6 @@ static iomux_v3_cfg_t mx6q_sabreauto_pads[] = {
 	MX6Q_PAD_SD4_DAT7__USDHC4_DAT7_50MHZ,
 	MX6Q_PAD_NANDF_ALE__USDHC4_RST,
 	/* eCSPI1 */
-	MX6Q_PAD_EIM_EB2__ECSPI1_SS0,
 	MX6Q_PAD_EIM_D16__ECSPI1_SCLK,
 	MX6Q_PAD_EIM_D17__ECSPI1_MISO,
 	MX6Q_PAD_EIM_D18__ECSPI1_MOSI,
@@ -249,8 +251,9 @@ static iomux_v3_cfg_t mx6q_sabreauto_pads[] = {
 	MX6Q_PAD_DISP0_DAT19__IPU1_DISP0_DAT_19,
 	MX6Q_PAD_DISP0_DAT20__IPU1_DISP0_DAT_20,
 	MX6Q_PAD_DISP0_DAT21__IPU1_DISP0_DAT_21,
-	MX6Q_PAD_DISP0_DAT22__IPU1_DISP0_DAT_22,
 	MX6Q_PAD_DISP0_DAT23__IPU1_DISP0_DAT_23,
+	/*PMIC INT*/
+	MX6Q_PAD_DISP0_DAT22__GPIO_5_16,
 
 	/* ipu1 csi0 */
 	MX6Q_PAD_CSI0_DAT12__IPU1_CSI0_D_12,
@@ -512,7 +515,6 @@ static struct fec_platform_data fec_data __initdata = {
 };
 
 static int mx6q_sabreauto_spi_cs[] = {
-	MX6Q_SABREAUTO_ECSPI1_CS0,
 	MX6Q_SABREAUTO_ECSPI1_CS1,
 };
 
@@ -1299,6 +1301,14 @@ static void __init mx6_board_init(void)
 	i2c_register_board_info(2, mxc_i2c2_board_info,
 			ARRAY_SIZE(mxc_i2c2_board_info));
 
+	ret = gpio_request(MX6Q_SABREAUTO_PMIC_INT, "pFUZE-int");
+	if (ret) {
+		printk(KERN_ERR"request pFUZE-int error!!\n");
+		return;
+	} else {
+		gpio_direction_input(MX6Q_SABREAUTO_PMIC_INT);
+		mx6q_sabreauto_init_pfuze100(MX6Q_SABREAUTO_PMIC_INT);
+	}
 	/* SPI */
 	imx6q_add_ecspi(0, &mx6q_sabreauto_spi_data);
 	spi_device_init();
