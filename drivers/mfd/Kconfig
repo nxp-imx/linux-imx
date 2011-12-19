@@ -521,7 +521,12 @@ config MFD_MC34708
 	select MFD_MC_PMIC
 	help
 	  Support for the Freescale's PMIC MC34708
-
+config MFD_PFUZE
+	tristate "Support for Freescale's PMIC PFUZE"
+	depends on I2C
+	select MFD_CORE
+	help
+	 Support for Freescale's PMIC: PFUZE100
 config PCF50633_ADC
 	tristate "Support for NXP PCF50633 ADC"
 	depends on MFD_PCF50633
