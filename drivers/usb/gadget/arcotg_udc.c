@@ -846,6 +846,9 @@ static void update_qh(struct fsl_req *req)
 			     | EP_QUEUE_HEAD_STATUS_HALT));
 	dQH->size_ioc_int_sts &= temp;
 
+#ifdef CONFIG_ARM_DMA_MEM_BUFFERABLE
+	wmb();
+#endif
 	/* Prime endpoint by writing 1 to ENDPTPRIME */
 	temp = ep_is_in(ep)
 	    ? (1 << (ep_index(ep) + 16))
@@ -1061,7 +1064,7 @@ fsl_ep_queue(struct usb_ep *_ep, struct usb_request *_req, gfp_t gfp_flags)
 		spin_unlock_irqrestore(&udc->lock, flags);
 		return -EINVAL;
 	}
-	if (ep->desc->bmAttributes == USB_ENDPOINT_XFER_ISOC) {
+	if (usb_endpoint_xfer_isoc(ep->desc)) {
 		if (req->req.length > ep->ep.maxpacket) {
 			spin_unlock_irqrestore(&udc->lock, flags);
 			return -EMSGSIZE;
@@ -1168,8 +1171,8 @@ static int fsl_ep_dequeue(struct usb_ep *_ep, struct usb_request *_req)
 			next_req = list_entry(req->queue.next, struct fsl_req,
 					queue);
 
-			/* Point the QH to the first TD of next request */
-			fsl_writel((u32) next_req->head, &qh->curr_dtd_ptr);
+			/* prime with dTD of next request */
+			update_qh(next_req);
 		}
 
 		/* The request hasn't been processed, patch up the TD chain */
@@ -1177,9 +1180,10 @@ static int fsl_ep_dequeue(struct usb_ep *_ep, struct usb_request *_req)
 		struct fsl_req *prev_req;
 
 		prev_req = list_entry(req->queue.prev, struct fsl_req, queue);
-		fsl_writel(fsl_readl(&req->tail->next_td_ptr),
-				&prev_req->tail->next_td_ptr);
-
+		prev_req->tail->next_td_ptr = req->tail->next_td_ptr;
+	#ifdef CONFIG_ARM_DMA_MEM_BUFFERABLE
+		wmb();
+	#endif
 	}
 
 	done(ep, req, -ECONNRESET);
@@ -1224,7 +1228,7 @@ static int fsl_ep_set_halt(struct usb_ep *_ep, int value)
 		goto out;
 	}
 
-	if (ep->desc->bmAttributes == USB_ENDPOINT_XFER_ISOC) {
+	if (usb_endpoint_xfer_isoc(ep->desc)) {
 		status = -EOPNOTSUPP;
 		goto out;
 	}
@@ -1619,7 +1623,7 @@ static void setup_received_irq(struct fsl_udc *udc,
 			int pipe = get_pipe_by_windex(wIndex);
 			struct fsl_ep *ep;
 
-			if (wValue != 0 || wLength != 0 || pipe > udc->max_ep)
+			if (wValue != 0 || wLength != 0 || pipe >= (udc->max_ep / 2))
 				break;
 			ep = get_ep_by_pipe(udc, pipe);
 
@@ -1928,7 +1932,7 @@ static void dtd_complete_irq(struct fsl_udc *udc)
 	if (!bit_pos)
 		return;
 
-	for (i = 0; i < udc->max_ep * 2; i++) {
+	for (i = 0; i < udc->max_ep; i++) {
 		ep_num = i >> 1;
 		direction = i % 2;
 
