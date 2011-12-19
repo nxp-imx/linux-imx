@@ -27,8 +27,6 @@
 #include <mach/arc_otg.h>
 #include <asm/mach-types.h>
 
-static struct regulator *usbotg_regux;
-
 static void usb_utmi_init(struct fsl_xcvr_ops *this)
 {
 #if defined(CONFIG_MXC_PMIC_MC13892_MODULE) || defined(CONFIG_MXC_PMIC_MC13892)
@@ -57,8 +55,6 @@ static void usb_utmi_uninit(struct fsl_xcvr_ops *this)
 static void set_power(struct fsl_xcvr_ops *this,
 		      struct fsl_usb2_platform_data *pdata, int on)
 {
-	struct device *dev = &pdata->pdev->dev;
-
 	pr_debug("real %s(on=%d) pdata=0x%p\n", __func__, on, pdata);
 	if (pdata && pdata->platform_driver_vbus)
 		pdata->platform_driver_vbus(on);

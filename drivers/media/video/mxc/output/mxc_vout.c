@@ -678,7 +678,7 @@ static int mxc_vout_release(struct file *file)
 static int mxc_vout_open(struct file *file)
 {
 	struct mxc_vout_output *vout = NULL;
-	int ret;
+	int ret = 0;
 
 	vout = video_drvdata(file);
 

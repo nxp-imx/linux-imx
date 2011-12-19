@@ -1200,7 +1200,7 @@ static struct snd_soc_dai_driver sgtl5000_dai = {
 	.symmetric_rates = 1,
 };
 
-static int sgtl5000_volatile_register(unsigned int reg)
+static int sgtl5000_volatile_register(struct snd_soc_codec *codec, unsigned int reg)
 {
 	switch (reg) {
 	case SGTL5000_CHIP_ID:
