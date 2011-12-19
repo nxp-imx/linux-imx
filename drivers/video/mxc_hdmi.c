@@ -182,6 +182,52 @@ static void dump_fb_videomode(struct fb_videomode *m)
 {}
 #endif
 
+static ssize_t mxc_hdmi_show_name(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct mxc_hdmi *hdmi = dev_get_drvdata(dev);
+
+	strcpy(buf, hdmi->fbi->fix.id);
+	sprintf(buf+strlen(buf), "\n");
+
+	return strlen(buf);
+}
+
+static DEVICE_ATTR(fb_name, S_IRUGO, mxc_hdmi_show_name, NULL);
+
+static ssize_t mxc_hdmi_show_state(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct mxc_hdmi *hdmi = dev_get_drvdata(dev);
+
+	if (hdmi->cable_plugin == false)
+		strcpy(buf, "plugout\n");
+	else
+		strcpy(buf, "plugin\n");
+
+	return strlen(buf);
+}
+
+static DEVICE_ATTR(cable_state, S_IRUGO, mxc_hdmi_show_state, NULL);
+
+static ssize_t mxc_hdmi_show_edid(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct mxc_hdmi *hdmi = dev_get_drvdata(dev);
+	int i, j, len = 0;
+
+	for (j = 0; j < HDMI_EDID_LEN/16; j++) {
+		for (i = 0; i < 16; i++)
+			len += sprintf(buf+len, "0x%02X ",
+					hdmi->edid[j*16 + i]);
+		len += sprintf(buf+len, "\n");
+	}
+
+	return len;
+}
+
+static DEVICE_ATTR(edid, S_IRUGO, mxc_hdmi_show_edid, NULL);
+
 /*!
  * this submodule is responsible for the video data synchronization.
  * for example, for RGB 4:4:4 input, the data map is defined as
@@ -1610,6 +1656,8 @@ static void hotplug_worker(struct work_struct *work)
 	bool hdmi_disable = false;
 	int irq = platform_get_irq(hdmi->pdev, 0);
 	unsigned long flags;
+    char event_string[16];
+    char *envp[] = { event_string, NULL };
 
 	if (!hdmi->irq_enabled) {
 		/* Enable clock long enough to do a few register accesses */
@@ -1660,6 +1708,10 @@ static void hotplug_worker(struct work_struct *work)
 			val = hdmi_readb(HDMI_PHY_POL0);
 			val &= ~HDMI_PHY_HPD;
 			hdmi_writeb(val, HDMI_PHY_POL0);
+
+			sprintf(event_string, "EVENT=plugin");
+			kobject_uevent_env(&hdmi->pdev->dev.kobj, KOBJ_CHANGE, envp);
+
 		} else if (!(phy_int_pol & HDMI_PHY_HPD)) {
 			/*
 			 * Plugout event = assume that iahb clock was enabled.
@@ -1672,6 +1724,10 @@ static void hotplug_worker(struct work_struct *work)
 			val = hdmi_readb(HDMI_PHY_POL0);
 			val |= HDMI_PHY_HPD;
 			hdmi_writeb(val, HDMI_PHY_POL0);
+
+			sprintf(event_string, "EVENT=plugout");
+			kobject_uevent_env(&hdmi->pdev->dev.kobj, KOBJ_CHANGE, envp);
+
 		} else
 			dev_dbg(&hdmi->pdev->dev, "EVENT=none?\n");
 	}
@@ -2074,6 +2130,19 @@ static int mxc_hdmi_disp_init(struct mxc_dispdrv_handle *disp,
 			"Unable to request irq: %d\n", ret);
 		goto ereqirq;
 	}
+
+	ret = device_create_file(&hdmi->pdev->dev, &dev_attr_fb_name);
+	if (ret < 0)
+		dev_warn(&hdmi->pdev->dev,
+			"cound not create sys node for fb name\n");
+	ret = device_create_file(&hdmi->pdev->dev, &dev_attr_cable_state);
+	if (ret < 0)
+		dev_warn(&hdmi->pdev->dev,
+			"cound not create sys node for cable state\n");
+	ret = device_create_file(&hdmi->pdev->dev, &dev_attr_edid);
+	if (ret < 0)
+		dev_warn(&hdmi->pdev->dev,
+			"cound not create sys node for edid\n");
 
 	dev_dbg(&hdmi->pdev->dev, "%s exit\n", __func__);
 
