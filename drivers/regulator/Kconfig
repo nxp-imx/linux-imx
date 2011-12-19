@@ -220,7 +220,12 @@ config REGULATOR_MC34708
 	help
 	  Say y here to support the regulators found on the Freescale MC34708
 	  PMIC.
-
+config REGULATOR_PFUZE100
+	tristate "Support regulators on Freescale PFUZE100 PMIC"
+	depends on MFD_PFUZE
+	help
+	Say y here to support the regulators found on the Freescale PFUZE100
+	  PMIC.
 config REGULATOR_AB3100
 	tristate "ST-Ericsson AB3100 Regulator functions"
 	depends on AB3100_CORE
