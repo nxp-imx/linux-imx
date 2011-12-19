@@ -312,6 +312,7 @@ struct mxc_audio_platform_data {
 	int hp_active_low;	/* headphone irq is active loaw */
 
 	int sysclk;
+	int rst_gpio;
 
 	int (*init) (void);	/* board specific init */
 	int (*amp_enable) (int enable);
