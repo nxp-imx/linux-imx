@@ -268,6 +268,8 @@ static int __devinit imx_3stack_cs42888_probe(struct platform_device *pdev)
 	}
 	mclk_freq = plat_data->sysclk;
 	rst_gpio = plat_data->rst_gpio;
+	if (plat_data->codec_name)
+		imx_3stack_dai[0].codec_name = plat_data->codec_name;
 	return 0;
 }
 
