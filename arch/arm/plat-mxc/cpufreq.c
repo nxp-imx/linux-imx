@@ -160,8 +160,7 @@ static int mxc_set_target(struct cpufreq_policy *policy,
 	return ret;
 }
 
-static int mxc_cpufreq_suspend(struct cpufreq_policy *policy,
-				 pm_message_t state)
+static int mxc_cpufreq_suspend(struct cpufreq_policy *policy)
 {
 	pre_suspend_rate = clk_get_rate(cpu_clk);
 	/* Set to max freq and voltage */
