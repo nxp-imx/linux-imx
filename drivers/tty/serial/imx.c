@@ -635,10 +635,10 @@ static irqreturn_t imx_int(int irq, void *dev_id)
 
 	if (sts & USR1_RTSD)
 		imx_rtsint(irq, dev_id);
-#ifdef CONFIG_PM
+
 	if (sts & USR1_AWAKE)
 		writel(USR1_AWAKE, sport->port.membase + USR1);
-#endif
+
 	return IRQ_HANDLED;
 }
 
@@ -1072,9 +1072,7 @@ static int imx_startup(struct uart_port *port)
 	}
 
 	tty = sport->port.state->port.tty;
-#ifdef CONFIG_PM
-	device_set_wakeup_enable(tty->dev, 1);
-#endif
+
 	return 0;
 
 error_out3:
@@ -1571,17 +1569,11 @@ static int serial_imx_suspend(struct platform_device *dev, pm_message_t state)
 	struct imx_port *sport = platform_get_drvdata(dev);
 	unsigned int val;
 
-	if (device_may_wakeup(&dev->dev)) {
-		enable_irq_wake(sport->rxirq);
-#ifdef CONFIG_PM
-		if (sport->port.line == 0) {
-			/* enable awake for MX6 */
-			val = readl(sport->port.membase + UCR3);
-			val |= UCR3_AWAKEN;
-			writel(val, sport->port.membase + UCR3);
-		}
-#endif
-	}
+	/* Enable i.MX UART wakeup */
+	val = readl(sport->port.membase + UCR3);
+	val |= UCR3_AWAKEN;
+	writel(val, sport->port.membase + UCR3);
+
 	if (sport)
 		uart_suspend_port(&imx_reg, &sport->port);
 
@@ -1596,16 +1588,11 @@ static int serial_imx_resume(struct platform_device *dev)
 	if (sport)
 		uart_resume_port(&imx_reg, &sport->port);
 
-	if (device_may_wakeup(&dev->dev)) {
-#ifdef CONFIG_PM
-		if (sport->port.line == 0) {
-			val = readl(sport->port.membase + UCR3);
-			val &= ~UCR3_AWAKEN;
-			writel(val, sport->port.membase + UCR3);
-		}
-#endif
-		disable_irq_wake(sport->rxirq);
-	}
+	/* Disable i.MX UART wakeup */
+	val = readl(sport->port.membase + UCR3);
+	val &= ~UCR3_AWAKEN;
+	writel(val, sport->port.membase + UCR3);
+
 	return 0;
 }
 
@@ -1685,9 +1672,6 @@ static int serial_imx_probe(struct platform_device *pdev)
 		goto deinit;
 	platform_set_drvdata(pdev, &sport->port);
 
-#ifdef CONFIG_PM
-	device_init_wakeup(&pdev->dev, 1);
-#endif
 	return 0;
 deinit:
 	if (pdata && pdata->exit)
