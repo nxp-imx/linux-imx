@@ -995,10 +995,10 @@ static char *usb_functions_accessory_adb[] = {
 };
 
 static char *usb_functions_all[] = {
+	"usb_mass_storage",
+	"adb",
 	"rndis",
 	"accessory",
-	"usb_mass_storage",
-	"adb"
 };
 
 static struct android_usb_product usb_products[] = {
