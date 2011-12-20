@@ -323,6 +323,7 @@ static int config_buf(struct usb_configuration *config,
 	struct usb_function		*f;
 	int				status;
 	int				interfaceCount = 0;
+	int				lastIf = 0;
 	u8 *dest;
 
 	/* write the config descriptor */
@@ -368,9 +369,17 @@ static int config_buf(struct usb_configuration *config,
 			if (intf->bDescriptorType == USB_DT_INTERFACE) {
 				int i;
 				/* assign the correct interface number */
-				for (i = 0; i < MAX_CONFIG_INTERFACES; i++)
-					if (config->interface[i] == f)
-						intf->bInterfaceNumber = i;
+				if (intf->bAlternateSetting != 0)
+					intf->bInterfaceNumber = lastIf;
+				else {
+					for (i = 0; i < MAX_CONFIG_INTERFACES; i++)
+						if (config->interface[i] == f) {
+							intf->bInterfaceNumber = i;
+							lastIf = i;
+							break;
+						}
+					interfaceCount++;
+				}
 			}
 			dest += intf->bLength;
 		}
