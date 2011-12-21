@@ -136,7 +136,6 @@
 #define  UCR4_OREN  	 (1<<1)  /* Receiver overrun interrupt enable */
 #define  UCR4_DREN  	 (1<<0)  /* Recv data ready interrupt enable */
 #define  UFCR_RXTL_SHF   0       /* Receiver trigger level shift */
-#define  UFCR_RXTL_MASK  0x3f    /* RX FIFO is 6 bits wide */
 #define  UFCR_RFDIV      (7<<7)  /* Reference freq divider mask */
 #define  UFCR_RFDIV_REG(x)	(((x) < 7 ? 6 - (x) : 6) << 7)
 #define  UFCR_TXTL_SHF   10      /* Transmitter trigger level shift */
@@ -188,8 +187,6 @@
 #define DRIVER_NAME "IMX-uart"
 
 #define UART_NR 8
-
-#define UART_RX_SIZE (16)
 
 struct imx_port {
 	struct uart_port	port;
@@ -599,12 +596,6 @@ static void imx_dma_rxint(struct imx_port *sport)
 	if ((temp & USR2_RDR) && !sport->dma_is_rxing) {
 		sport->dma_is_rxing = true;
 
-		/* increase the RX FIFO threthold. */
-		temp = readl(sport->port.membase + UFCR);
-		temp &= ~(UFCR_RXTL_MASK << UFCR_RXTL_SHF);
-		temp |= UART_RX_SIZE;
-		writel(temp, sport->port.membase + UFCR);
-
 		/* disable the `Recerver Ready Interrrupt` */
 		temp = readl(sport->port.membase + UCR1);
 		temp &= ~(UCR1_RRDYEN);
@@ -790,12 +781,6 @@ static void dma_rx_callback(void *data)
 		temp |= UCR1_RRDYEN;
 		writel(temp, sport->port.membase + UCR1);
 		sport->dma_is_rxing = false;
-
-		/* decrease the RX FIFO threthold. */
-		temp = readl(sport->port.membase + UFCR);
-		temp &= ~(UFCR_RXTL_MASK << UFCR_RXTL_SHF);
-		temp |= RXTL;
-		writel(temp, sport->port.membase + UFCR);
 	}
 }
 
@@ -867,7 +852,7 @@ static int imx_uart_dma_init(struct imx_port *sport)
 	slave_config.direction = DMA_FROM_DEVICE;
 	slave_config.src_addr = sport->port.mapbase + URXD0;
 	slave_config.src_addr_width = DMA_SLAVE_BUSWIDTH_1_BYTE;
-	slave_config.src_maxburst = UART_RX_SIZE;
+	slave_config.src_maxburst = RXTL; /* fix me */
 	ret = dmaengine_slave_config(sport->dma_chan_rx, &slave_config);
 	if (ret) {
 		pr_err("error in RX dma configuration.\n");
