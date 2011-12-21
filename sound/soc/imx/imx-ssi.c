@@ -359,6 +359,31 @@ static int imx_ssi_trigger(struct snd_pcm_substream *substream, int cmd,
 	return 0;
 }
 
+static int imx_ssi_startup(struct snd_pcm_substream *substream,
+			   struct snd_soc_dai *cpu_dai)
+{
+	struct imx_ssi *ssi = snd_soc_dai_get_drvdata(cpu_dai);
+
+	if (cpu_dai->playback_active || cpu_dai->capture_active)
+		return 0;
+
+	clk_enable(ssi->clk);
+
+	return 0;
+}
+
+static void imx_ssi_shutdown(struct snd_pcm_substream *substream,
+			     struct snd_soc_dai *cpu_dai)
+{
+	struct imx_ssi *ssi = snd_soc_dai_get_drvdata(cpu_dai);
+
+	/* shutdown SSI if neither Tx or Rx is active */
+	if (cpu_dai->playback_active || cpu_dai->capture_active)
+		return;
+
+	clk_disable(ssi->clk);
+}
+
 static struct snd_soc_dai_ops imx_ssi_pcm_dai_ops = {
 	.hw_params	= imx_ssi_hw_params,
 	.set_fmt	= imx_ssi_set_dai_fmt,
@@ -366,6 +391,8 @@ static struct snd_soc_dai_ops imx_ssi_pcm_dai_ops = {
 	.set_sysclk	= imx_ssi_set_dai_sysclk,
 	.set_tdm_slot	= imx_ssi_set_dai_tdm_slot,
 	.trigger	= imx_ssi_trigger,
+	.startup	= imx_ssi_startup,
+	.shutdown	= imx_ssi_shutdown,
 };
 
 int snd_imx_pcm_mmap(struct snd_pcm_substream *substream,
@@ -470,8 +497,25 @@ static int imx_ssi_dai_probe(struct snd_soc_dai *dai)
 	return 0;
 }
 
+#ifdef CONFIG_PM
+static int imx_ssi_dai_suspend(struct snd_soc_dai *dai)
+{
+	return 0;
+}
+
+static int imx_ssi_dai_resume(struct snd_soc_dai *dai)
+{
+	return 0;
+}
+#else
+#define imx_ssi_suspend	NULL
+#define imx_ssi_resume	NULL
+#endif
+
 static struct snd_soc_dai_driver imx_ssi_dai = {
 	.probe = imx_ssi_dai_probe,
+	.suspend = imx_ssi_dai_suspend,
+	.resume = imx_ssi_dai_resume,
 	.playback = {
 		.channels_min = 1,
 		.channels_max = 2,
