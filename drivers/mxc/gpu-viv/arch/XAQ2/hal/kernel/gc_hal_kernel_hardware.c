@@ -2463,6 +2463,7 @@ gckHARDWARE_Interrupt(
 
         if (data & 0x80000000)
         {
+		gckOS_Print("!!!!!!!!!!!!! AXI BUS ERROR !!!!!!!!!!!!!\n");
             gcmkTRACE_ZONE(gcvLEVEL_ERROR, gcvZONE_HARDWARE, "AXI BUS ERROR");
         }
 
