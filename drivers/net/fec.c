@@ -401,7 +401,8 @@ fec_enet_tx(struct net_device *ndev)
 		if (bdp == fep->cur_tx && fep->tx_full == 0)
 			break;
 
-		dma_unmap_single(&fep->pdev->dev, bdp->cbd_bufaddr,
+		if (bdp->cbd_bufaddr)
+			dma_unmap_single(&fep->pdev->dev, bdp->cbd_bufaddr,
 				FEC_ENET_TX_FRSIZE, DMA_TO_DEVICE);
 		bdp->cbd_bufaddr = 0;
 
@@ -542,7 +543,8 @@ fec_enet_rx(struct net_device *ndev)
 		ndev->stats.rx_bytes += pkt_len;
 		data = (__u8*)__va(bdp->cbd_bufaddr);
 
-		dma_unmap_single(&fep->pdev->dev, bdp->cbd_bufaddr,
+		if (bdp->cbd_bufaddr)
+			dma_unmap_single(&fep->pdev->dev, bdp->cbd_bufaddr,
 				FEC_ENET_TX_FRSIZE, DMA_FROM_DEVICE);
 
 		if (id_entry->driver_data & FEC_QUIRK_SWAP_FRAME)
@@ -1089,7 +1091,6 @@ fec_enet_open(struct net_device *ndev)
 	/* I should reset the ring buffers here, but I don't yet know
 	 * a simple way to do that.
 	 */
-
 	if (!clk_get_usecount(fep->clk))
 		clk_enable(fep->clk);
 	ret = fec_enet_alloc_buffers(ndev);
@@ -1290,6 +1291,7 @@ static int fec_enet_init(struct net_device *ndev)
 
 		/* Initialize the BD for every fragment in the page. */
 		bdp->cbd_sc = 0;
+		bdp->cbd_bufaddr = 0;
 		bdp++;
 	}
 
