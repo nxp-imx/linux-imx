@@ -168,7 +168,7 @@ static struct regulator_ops pfuze100_sw_regulator_ops;
 #define PFUZE100_SW1AVOL_VSEL_M	(0x3f<<0)
 
 #define PFUZE100_SW1ASTANDBY	33
-#define PFUZE100_SW1ASTANDBY_STBY_VAL	(0x0)
+#define PFUZE100_SW1ASTANDBY_STBY_VAL	(0x14)
 #define PFUZE100_SW1ASTANDBY_STBY_M	(0x3f<<0)
 
 #define PFUZE100_SW1AOFF	34
@@ -197,7 +197,7 @@ static struct regulator_ops pfuze100_sw_regulator_ops;
 #define PFUZE100_SW1BVOL_VSEL_M	(0x3f<<0)
 
 #define PFUZE100_SW1BSTANDBY	40
-#define PFUZE100_SW1BSTANDBY_STBY_VAL	0x0
+#define PFUZE100_SW1BSTANDBY_STBY_VAL	(0x14)
 #define PFUZE100_SW1BSTANDBY_STBY_M	(0x3f<<0)
 
 #define PFUZE100_SW1BOFF	41
@@ -226,7 +226,7 @@ static struct regulator_ops pfuze100_sw_regulator_ops;
 #define PFUZE100_SW1CVOL_VSEL_M	(0x3f<<0)
 
 #define PFUZE100_SW1CSTANDBY	47
-#define PFUZE100_SW1CSTANDBY_STBY_VAL	0x0
+#define PFUZE100_SW1CSTANDBY_STBY_VAL	(0x14)
 #define PFUZE100_SW1CSTANDBY_STBY_M	(0x3f<<0)
 
 #define PFUZE100_SW1COFF	48
@@ -634,7 +634,7 @@ static int __devinit pfuze100_regulator_probe(struct platform_device *pdev)
 	    dev_get_platdata(&pdev->dev);
 	struct pfuze_regulator_init_data *init_data;
 	int i, ret;
-	struct regulator *test_regulator;
+	struct regulator *enabled_regulator;
 
 	priv = kzalloc(sizeof(*priv) +
 		       pdata->num_regulators * sizeof(priv->regulators[0]),
@@ -647,6 +647,21 @@ static int __devinit pfuze100_regulator_probe(struct platform_device *pdev)
 	ret = pfuze_reg_rmw(pfuze100, PFUZE100_SWBSTCON1,
 			    PFUZE100_SWBSTCON1_SWBSTMOD_M,
 			    PFUZE100_SWBSTCON1_SWBSTMOD_VAL);
+	if (ret)
+		goto err_free;
+	ret = pfuze_reg_rmw(pfuze100, PFUZE100_SW1ASTANDBY,
+			    PFUZE100_SW1ASTANDBY_STBY_M,
+			    PFUZE100_SW1ASTANDBY_STBY_VAL);
+	if (ret)
+		goto err_free;
+	ret = pfuze_reg_rmw(pfuze100, PFUZE100_SW1BSTANDBY,
+			    PFUZE100_SW1BSTANDBY_STBY_M,
+			    PFUZE100_SW1BSTANDBY_STBY_VAL);
+	if (ret)
+		goto err_free;
+	ret = pfuze_reg_rmw(pfuze100, PFUZE100_SW1CSTANDBY,
+			    PFUZE100_SW1CSTANDBY_STBY_M,
+			    PFUZE100_SW1CSTANDBY_STBY_VAL);
 	if (ret)
 		goto err_free;
 	pfuze_unlock(pfuze100);
@@ -662,13 +677,14 @@ static int __devinit pfuze100_regulator_probe(struct platform_device *pdev)
 			goto err;
 		}
 	}
+
+	enabled_regulator = regulator_get(&pdev->dev, "P1V325_VDDARM_SW1AB");
+	if (enabled_regulator)
+		regulator_set_voltage(enabled_regulator, 1325000, 1325000);
+	enabled_regulator = regulator_get(&pdev->dev, "P1V325_VDDSOC_SW1C");
+	if (enabled_regulator)
+		regulator_set_voltage(enabled_regulator, 1325000, 1325000);
 #if 0
-	test_regulator = regulator_get(&pdev->dev, "P1V325_VDDARM_SW1AB");
-	if (test_regulator)
-		regulator_set_voltage(test_regulator, 1325000, 1325000);
-	test_regulator = regulator_get(&pdev->dev, "P1V325_VDDSOC_SW1C");
-	if (test_regulator)
-		regulator_set_voltage(test_regulator, 1325000, 1325000);
 	test_regulator = regulator_get(&pdev->dev, "P3V0_VDDHIGH_SW2");
 	if (test_regulator)
 		regulator_set_voltage(test_regulator, 3000000, 3000000);
