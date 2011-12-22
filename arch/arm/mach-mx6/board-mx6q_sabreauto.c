@@ -132,6 +132,7 @@ void __init early_console_setup(unsigned long base, struct clk *clk);
 static struct clk *sata_clk;
 static int esai_record;
 static int mipi_sensor;
+static int uart2_en;
 
 extern struct regulator *(*get_cpu_regulator)(void);
 extern void (*put_cpu_regulator)(void);
@@ -319,7 +320,21 @@ static iomux_v3_cfg_t mx6q_sabreauto_pads[] = {
 
 	/* VIDEO adv7180 INTRQ */
 	MX6Q_PAD_ENET_RXD0__GPIO_1_27,
+	/* UART 2 */
+	MX6Q_PAD_GPIO_7__UART2_TXD,
+	MX6Q_PAD_GPIO_8__UART2_RXD,
+	MX6Q_PAD_SD4_DAT6__UART2_CTS,
+	MX6Q_PAD_SD4_DAT5__UART2_RTS,
+
 };
+
+static int __init uart2_enable(char *p)
+{
+	uart2_en = 1;
+	return 0;
+}
+early_param("uart2", uart2_enable);
+
 
 static iomux_v3_cfg_t mx6q_sabreauto_i2c3_pads[] = {
 	MX6Q_PAD_GPIO_3__I2C3_SCL,
@@ -1378,7 +1393,8 @@ static void __init mx6_board_init(void)
 
 	mxc_iomux_v3_setup_multiple_pads(mx6q_sabreauto_i2c3_pads,
 			ARRAY_SIZE(mx6q_sabreauto_i2c3_pads));
-	mxc_iomux_v3_setup_multiple_pads(mx6q_sabreauto_can_pads,
+	if (!uart2_en)
+		mxc_iomux_v3_setup_multiple_pads(mx6q_sabreauto_can_pads,
 			ARRAY_SIZE(mx6q_sabreauto_can_pads));
 
 	/* assert i2c-rst  */
