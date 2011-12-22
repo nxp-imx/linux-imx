@@ -3031,7 +3031,7 @@ hub_port_init (struct usb_hub *hub, struct usb_device *udev, int port1,
 	}
 #ifdef MX6_USB_HOST_HACK
 	{	/*Must enable HOSTDISCONDETECT after second reset*/
-		if (port1 == 1) {
+		if ((port1 == 1) && (udev->level == 1)) {
 			if (udev->speed == USB_SPEED_HIGH) {
 				struct device *dev = hcd->self.controller;
 				struct fsl_usb2_platform_data *pdata;
@@ -3185,11 +3185,11 @@ static void hub_port_connect_change(struct usb_hub *hub, int port1,
 		struct fsl_usb2_platform_data *pdata;
 
 		pdata = (struct fsl_usb2_platform_data *)dev->platform_data;
-		if (dev->parent && dev->type) {
+		if (dev->parent && (hdev->level == 0) && dev->type) {
 			if (port1 == 1 && pdata->init)
 				pdata->init(NULL);
 		}
-		if (port1 == 1) {
+		if ((port1 == 1) && (hdev->level == 0)) {
 			if (!(portstatus&USB_PORT_STAT_CONNECTION)) {
 				/* Must clear HOSTDISCONDETECT when disconnect*/
 				fsl_platform_set_usb_phy_dis(pdata, 0);
