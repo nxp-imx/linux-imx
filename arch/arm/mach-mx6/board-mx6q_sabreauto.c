@@ -119,6 +119,12 @@
 
 #define MX6Q_SABREAUTO_PMIC_INT		IMX_GPIO_NR(5, 16)
 
+#define ARD_ANDROID_HOME		IMX_GPIO_NR(1, 11)
+#define ARD_ANDROID_BACK                IMX_GPIO_NR(1, 12)
+#define ARD_ANDROID_MENU                IMX_GPIO_NR(2, 12)
+#define ARD_ANDROID_VOLUP               IMX_GPIO_NR(2, 15)
+#define ARD_ANDROID_VOLDOWN             IMX_GPIO_NR(5, 14)
+
 void __init early_console_setup(unsigned long base, struct clk *clk);
 static struct clk *sata_clk;
 static int esai_record;
@@ -169,6 +175,13 @@ static iomux_v3_cfg_t mx6q_sabreauto_pads[] = {
 	/*MX6Q_PAD_GPIO_3__CCM_CLKO2,i*/
 	MX6Q_PAD_GPIO_3__I2C3_SCL,
 	MX6Q_PAD_GPIO_3__I2C3_SCL,
+
+	/* Android GPIO keys */
+	MX6Q_PAD_SD2_CMD__GPIO_1_11, /* home */
+	MX6Q_PAD_SD2_DAT3__GPIO_1_12, /* back */
+	MX6Q_PAD_SD4_DAT4__GPIO_2_12, /* prog */
+	MX6Q_PAD_SD4_DAT7__GPIO_2_15, /* vol up */
+	MX6Q_PAD_DISP0_DAT20__GPIO_5_14, /* vol down */
 
 	/* SD1 */
 	MX6Q_PAD_SD1_CLK__USDHC1_CLK,
@@ -247,7 +260,6 @@ static iomux_v3_cfg_t mx6q_sabreauto_pads[] = {
 	MX6Q_PAD_DISP0_DAT17__IPU1_DISP0_DAT_17,
 	MX6Q_PAD_DISP0_DAT18__IPU1_DISP0_DAT_18,
 	MX6Q_PAD_DISP0_DAT19__IPU1_DISP0_DAT_19,
-	MX6Q_PAD_DISP0_DAT20__IPU1_DISP0_DAT_20,
 	MX6Q_PAD_DISP0_DAT21__IPU1_DISP0_DAT_21,
 	MX6Q_PAD_DISP0_DAT23__IPU1_DISP0_DAT_23,
 	/*PMIC INT*/
@@ -356,6 +368,49 @@ enum sd_pad_mode {
 	SD_PAD_MODE_MED_SPEED,
 	SD_PAD_MODE_HIGH_SPEED,
 };
+
+#if defined(CONFIG_KEYBOARD_GPIO) || defined(CONFIG_KEYBOARD_GPIO_MODULE)
+#define GPIO_BUTTON(gpio_num, ev_code, act_low, descr, wake)	\
+{								\
+	.gpio		= gpio_num,				\
+	.type		= EV_KEY,				\
+	.code		= ev_code,				\
+	.active_low	= act_low,				\
+	.desc		= "btn " descr,				\
+	.wakeup		= wake,					\
+}
+
+static struct gpio_keys_button ard_buttons[] = {
+	GPIO_BUTTON(ARD_ANDROID_HOME, KEY_HOME, 1, "home", 0),
+	GPIO_BUTTON(ARD_ANDROID_BACK, KEY_BACK, 1, "back", 0),
+	GPIO_BUTTON(ARD_ANDROID_MENU, KEY_MENU, 1, "menu", 0),
+	GPIO_BUTTON(ARD_ANDROID_VOLUP, KEY_VOLUMEUP, 1, "volume-up", 0),
+	GPIO_BUTTON(ARD_ANDROID_VOLDOWN, KEY_VOLUMEDOWN, 1, "volume-down", 0),
+};
+
+static struct gpio_keys_platform_data ard_android_button_data = {
+	.buttons	= ard_buttons,
+	.nbuttons	= ARRAY_SIZE(ard_buttons),
+};
+
+static struct platform_device ard_android_button_device = {
+	.name		= "gpio-keys",
+	.id		= -1,
+	.num_resources  = 0,
+	.dev		= {
+	.platform_data = &ard_android_button_data,
+	}
+};
+
+static void __init imx6q_add_android_device_buttons(void)
+{
+	platform_device_register(&ard_android_button_device);
+}
+#else
+static void __init imx6q_add_android_device_buttons(void) {}
+#endif
+
+
 
 static int plt_sd3_pad_change(int clock)
 {
@@ -1337,6 +1392,7 @@ static void __init mx6_board_init(void)
 	imx6q_add_ldb(&ldb_data);
 	imx6q_add_v4l2_output(0);
 	imx6q_add_v4l2_capture(0);
+	imx6q_add_android_device_buttons();
 
 	imx6q_add_imx_snvs_rtc();
 
