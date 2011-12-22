@@ -28,6 +28,7 @@
 #include "../core/usb.h"
 #include "ehci-fsl.h"
 #include <mach/fsl_usb.h>
+
 extern void usb_host_set_wakeup(struct device *wkup_dev, bool para);
 static void fsl_usb_lowpower_mode(struct fsl_usb2_platform_data *pdata, bool enable)
 {
@@ -123,7 +124,7 @@ void fsl_usb_recover_hcd(struct platform_device *pdev)
 	 * CMDRUN bit in 20ms to keep port status.
 	 */
 	cmd = ehci_readl(ehci, &ehci->regs->command);
-	if (!(cmd & CMD_RUN)) {
+	if (!(cmd & CMD_RUN) || (hcd->state == HC_STATE_SUSPENDED)) {
 		ehci_writel(ehci, ehci->command, &ehci->regs->command);
 		/* Resume root hub here? */
 		usb_hcd_resume_root_hub(hcd);
@@ -410,6 +411,7 @@ static int ehci_fsl_bus_suspend(struct usb_hcd *hcd)
 {
 	int ret = 0;
 	struct fsl_usb2_platform_data *pdata;
+	u32 tmp, portsc, cmd;
 	struct ehci_hcd *ehci = hcd_to_ehci(hcd);
 	unsigned long flags;
 
@@ -421,13 +423,23 @@ static int ehci_fsl_bus_suspend(struct usb_hcd *hcd)
 		return 0;
 	}
 
+	portsc = ehci_readl(ehci, &ehci->regs->port_status[0]);
 	ret = ehci_bus_suspend(hcd);
 	if (ret != 0)
 		return ret;
 
+	cmd = ehci_readl(ehci, &ehci->regs->command);
+	if ((portsc & PORT_CONNECT) && ((cmd & CMD_RUN) == 0)) {
+		tmp = ehci_readl(ehci, &ehci->regs->command);
+		tmp |= CMD_RUN;
+		ehci_writel(ehci, tmp, &ehci->regs->command);
+		/* on MX6Q, it need a short delay between set RUNSTOP
+		 * and set PHCD
+		 */
+		udelay(100);
+	}
 	if (pdata->platform_suspend)
 		pdata->platform_suspend(pdata);
-
 	usb_host_set_wakeup(hcd->self.controller, true);
 	spin_lock_irqsave(&ehci->lock, flags);
 	fsl_usb_lowpower_mode(pdata, true);
