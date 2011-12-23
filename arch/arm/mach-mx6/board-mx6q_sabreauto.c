@@ -88,7 +88,7 @@
 #define MX6Q_SABREAUTO_USB_OTG_PWR	IMX_GPIO_NR(3, 22)
 #define MX6Q_SABREAUTO_MAX7310_1_BASE_ADDR	IMX_GPIO_NR(8, 0)
 #define MX6Q_SABREAUTO_MAX7310_2_BASE_ADDR	IMX_GPIO_NR(8, 8)
-#define MX6Q_SABREAUTO_CAP_TCH_INT	IMX_GPIO_NR(3, 31)
+#define MX6Q_SABREAUTO_CAP_TCH_INT	IMX_GPIO_NR(2, 28)
 
 #define MX6Q_SABREAUTO_IO_EXP_GPIO1(x) \
 		(MX6Q_SABREAUTO_MAX7310_1_BASE_ADDR + (x))
@@ -99,20 +99,25 @@
 #define MX6Q_SABREAUTO_CAN1_EN         IMX_GPIO_NR(7, 13)
 #define MX6Q_SABREAUTO_CAN2_STBY       MX6Q_SABREAUTO_IO_EXP_GPIO2(1)
 #define MX6Q_SABREAUTO_CAN2_EN         IMX_GPIO_NR(5, 24)
+#define MX6Q_SABREAUTO_I2C_EXP_RST     IMX_GPIO_NR(1, 15)
+#define MX6Q_SABREAUTO_ESAI_INT        IMX_GPIO_NR(1, 10)
+#define MX6Q_SABREAUTO_PER_RST         MX6Q_SABREAUTO_IO_EXP_GPIO1(3)
 
 #define MX6Q_SMD_CSI0_RST		IMX_GPIO_NR(4, 5)
 #define MX6Q_SMD_CSI0_PWN		IMX_GPIO_NR(5, 23)
 
+#define MX6Q_SABREAUTO_PMIC_INT		IMX_GPIO_NR(5, 16)
+
 void __init early_console_setup(unsigned long base, struct clk *clk);
 static struct clk *sata_clk;
 static int esai_record;
-static int spdif_en;
 static int mipi_sensor;
 
 extern struct regulator *(*get_cpu_regulator)(void);
 extern void (*put_cpu_regulator)(void);
 extern char *gp_reg_id;
 extern void mx6_cpu_regulator_init(void);
+extern int __init mx6q_sabreauto_init_pfuze100(u32 int_gpio);
 
 static iomux_v3_cfg_t mx6q_sabreauto_pads[] = {
 
@@ -160,7 +165,7 @@ static iomux_v3_cfg_t mx6q_sabreauto_pads[] = {
 	/* SD2 */
 	MX6Q_PAD_SD2_CLK__USDHC2_CLK,
 	MX6Q_PAD_SD2_CMD__USDHC2_CMD,
-	MX6Q_PAD_SD2_DAT0__USDHC2_DAT0,
+	MX6Q_PAD_SD2_DAT0__GPIO_1_15,
 	MX6Q_PAD_SD2_DAT1__USDHC2_DAT1,
 	MX6Q_PAD_SD2_DAT2__USDHC2_DAT2,
 	MX6Q_PAD_SD2_DAT3__USDHC2_DAT3,
@@ -194,7 +199,6 @@ static iomux_v3_cfg_t mx6q_sabreauto_pads[] = {
 	MX6Q_PAD_SD4_DAT7__USDHC4_DAT7_50MHZ,
 	MX6Q_PAD_NANDF_ALE__USDHC4_RST,
 	/* eCSPI1 */
-	MX6Q_PAD_EIM_EB2__ECSPI1_SS0,
 	MX6Q_PAD_EIM_D16__ECSPI1_SCLK,
 	MX6Q_PAD_EIM_D17__ECSPI1_MISO,
 	MX6Q_PAD_EIM_D18__ECSPI1_MOSI,
@@ -203,14 +207,13 @@ static iomux_v3_cfg_t mx6q_sabreauto_pads[] = {
 	MX6Q_PAD_EIM_D19__GPIO_3_19,	/*SS1*/
 
 	/* ESAI */
-	MX6Q_PAD_ENET_RXD0__ESAI1_HCKT,
 	MX6Q_PAD_ENET_CRS_DV__ESAI1_SCKT,
 	MX6Q_PAD_ENET_RXD1__ESAI1_FST,
 	MX6Q_PAD_ENET_TX_EN__ESAI1_TX3_RX2,
-	MX6Q_PAD_ENET_TXD1__ESAI1_TX2_RX3,
+	MX6Q_PAD_GPIO_5__ESAI1_TX2_RX3,
 	MX6Q_PAD_ENET_TXD0__ESAI1_TX4_RX1,
 	MX6Q_PAD_ENET_MDC__ESAI1_TX5_RX0,
-	MX6Q_PAD_NANDF_CS2__ESAI1_TX0,
+	MX6Q_PAD_GPIO_17__ESAI1_TX0,
 	MX6Q_PAD_NANDF_CS3__ESAI1_TX1,
 
 	/* I2C1 */
@@ -218,7 +221,7 @@ static iomux_v3_cfg_t mx6q_sabreauto_pads[] = {
 	MX6Q_PAD_CSI0_DAT9__I2C1_SCL,
 
 	/* I2C2 */
-	MX6Q_PAD_KEY_COL3__I2C2_SCL,
+	MX6Q_PAD_EIM_EB2__I2C2_SCL,
 	MX6Q_PAD_KEY_ROW3__I2C2_SDA,
 
 	/* DISPLAY */
@@ -248,8 +251,9 @@ static iomux_v3_cfg_t mx6q_sabreauto_pads[] = {
 	MX6Q_PAD_DISP0_DAT19__IPU1_DISP0_DAT_19,
 	MX6Q_PAD_DISP0_DAT20__IPU1_DISP0_DAT_20,
 	MX6Q_PAD_DISP0_DAT21__IPU1_DISP0_DAT_21,
-	MX6Q_PAD_DISP0_DAT22__IPU1_DISP0_DAT_22,
 	MX6Q_PAD_DISP0_DAT23__IPU1_DISP0_DAT_23,
+	/*PMIC INT*/
+	MX6Q_PAD_DISP0_DAT22__GPIO_5_16,
 
 	/* ipu1 csi0 */
 	MX6Q_PAD_CSI0_DAT12__IPU1_CSI0_D_12,
@@ -270,9 +274,6 @@ static iomux_v3_cfg_t mx6q_sabreauto_pads[] = {
 
 	MX6Q_PAD_EIM_D24__GPIO_3_24,
 
-	/* PWM1 */
-	MX6Q_PAD_GPIO_9__PWM1_PWMO,
-
 	/* DISP0 I2C ENABLE*/
 	MX6Q_PAD_EIM_D28__GPIO_3_28,
 
@@ -289,17 +290,15 @@ static iomux_v3_cfg_t mx6q_sabreauto_pads[] = {
 
 	/* USBOTG ID pin */
 	MX6Q_PAD_GPIO_1__USBOTG_ID,
+	/*  SPDIF */
+	MX6Q_PAD_KEY_COL3__SPDIF_IN1,
+	/* Touchscreen interrupt */
+	MX6Q_PAD_EIM_EB0__GPIO_2_28,
 };
 
 static iomux_v3_cfg_t mx6q_sabreauto_i2c3_pads[] = {
-	MX6Q_PAD_GPIO_5__I2C3_SCL,
+	MX6Q_PAD_GPIO_3__I2C3_SCL,
 	MX6Q_PAD_GPIO_16__I2C3_SDA,
-};
-
-static iomux_v3_cfg_t mx6q_sabreauto_spdif_pads[] = {
-	/* SPDIF */
-	MX6Q_PAD_GPIO_16__SPDIF_IN1,
-	MX6Q_PAD_GPIO_17__SPDIF_OUT1,
 };
 
 static iomux_v3_cfg_t mx6q_sabreauto_can_pads[] = {
@@ -316,9 +315,8 @@ static iomux_v3_cfg_t mx6q_sabreauto_can_pads[] = {
 };
 
 static iomux_v3_cfg_t mx6q_sabreauto_esai_record_pads[] = {
-	MX6Q_PAD_ENET_RX_ER__ESAI1_HCKR,
 	MX6Q_PAD_ENET_MDIO__ESAI1_SCKR,
-	MX6Q_PAD_ENET_REF_CLK__ESAI1_FSR,
+	MX6Q_PAD_GPIO_9__ESAI1_FSR,
 };
 
 static iomux_v3_cfg_t mx6q_sabreauto_mipi_sensor_pads[] = {
@@ -517,7 +515,6 @@ static struct fec_platform_data fec_data __initdata = {
 };
 
 static int mx6q_sabreauto_spi_cs[] = {
-	MX6Q_SABREAUTO_ECSPI1_CS0,
 	MX6Q_SABREAUTO_ECSPI1_CS1,
 };
 
@@ -662,9 +659,6 @@ static struct fsl_mxc_camera_platform_data ov5640_mipi_data = {
 
 static struct i2c_board_info mxc_i2c0_board_info[] __initdata = {
 	{
-		I2C_BOARD_INFO("cs42888", 0x48),
-	},
-	{
 		I2C_BOARD_INFO("ov3640", 0x3c),
 		.platform_data = (void *)&camera_data,
 	},
@@ -680,11 +674,11 @@ static struct imxi2c_platform_data mx6q_sabreauto_i2c0_data = {
 
 static struct i2c_board_info mxc_i2c2_board_info[] __initdata = {
 	{
-		I2C_BOARD_INFO("max7310", 0x1F),
+		I2C_BOARD_INFO("max7310", 0x30),
 		.platform_data = &max7310_platdata,
 	},
 	{
-		I2C_BOARD_INFO("max7310", 0x1B),
+		I2C_BOARD_INFO("max7310", 0x32),
 		.platform_data = &max7310_u48_platdata,
 	},
 	{
@@ -692,16 +686,11 @@ static struct i2c_board_info mxc_i2c2_board_info[] __initdata = {
 		.platform_data = &sabr_ddc_dvi_data,
 		.irq = gpio_to_irq(MX6Q_SABREAUTO_DISP0_DET_INT),
 	},
-	{
-		I2C_BOARD_INFO("egalax_ts", 0x4),
-		.irq = gpio_to_irq(MX6Q_SABREAUTO_CAP_TCH_INT),
-	},
-
 };
 
 static struct i2c_board_info mxc_i2c1_board_info[] __initdata = {
 	{
-		I2C_BOARD_INFO("egalax_ts", 0x4),
+		I2C_BOARD_INFO("egalax_ts", 0x04),
 		.irq = gpio_to_irq(MX6Q_SABREAUTO_CAP_TCH_INT),
 	},
 	{
@@ -710,6 +699,9 @@ static struct i2c_board_info mxc_i2c1_board_info[] __initdata = {
 	{
 		I2C_BOARD_INFO("ov5640_mipi", 0x3c),
 		.platform_data = (void *)&ov5640_mipi_data,
+	},
+	{
+		I2C_BOARD_INFO("cs42888", 0x48),
 	},
 };
 
@@ -756,12 +748,8 @@ static struct viv_gpu_platform_data imx6q_gpu_pdata __initdata = {
 static int mx6q_sabreauto_sata_init(struct device *dev, void __iomem *addr)
 {
 	u32 tmpdata;
-	int ret = 0;
+	int ret = 0, iterations = 20;
 	struct clk *clk;
-
-	/* Enable SATA PWR CTRL_0 of MAX7310 */
-	gpio_request(MX6Q_SABREAUTO_MAX7310_1_BASE_ADDR, "SATA_PWR_EN");
-	gpio_direction_output(MX6Q_SABREAUTO_MAX7310_1_BASE_ADDR, 1);
 
 	sata_clk = clk_get(dev, "imx_sata_clk");
 	if (IS_ERR(sata_clk)) {
@@ -805,9 +793,9 @@ static int mx6q_sabreauto_sata_init(struct device *dev, void __iomem *addr)
 	tmpdata = clk_get_rate(clk) / 1000;
 	clk_put(clk);
 
-	sata_init(addr, tmpdata);
-
-	return ret;
+	ret = sata_init(addr, tmpdata);
+	if (ret == 0)
+		return ret;
 
 release_sata_clk:
 	clk_disable(sata_clk);
@@ -821,10 +809,6 @@ static void mx6q_sabreauto_sata_exit(struct device *dev)
 {
 	clk_disable(sata_clk);
 	clk_put(sata_clk);
-
-	/* Disable SATA PWR CTRL_0 of MAX7310 */
-	gpio_request(MX6Q_SABREAUTO_MAX7310_1_BASE_ADDR, "SATA_PWR_EN");
-	gpio_direction_output(MX6Q_SABREAUTO_MAX7310_1_BASE_ADDR, 0);
 
 }
 
@@ -1009,6 +993,8 @@ static const struct pm_platform_data mx6q_sabreauto_pm_data __initconst = {
 
 static struct mxc_audio_platform_data sab_audio_data = {
 	.sysclk = 16934400,
+	.rst_gpio = MX6Q_SABREAUTO_PER_RST,
+	.codec_name = "cs42888.1-0048",
 };
 
 static struct platform_device sab_audio_device = {
@@ -1045,26 +1031,24 @@ static struct platform_device sabreauto_vmmc_reg_devices = {
 	},
 };
 
-#ifdef CONFIG_SND_SOC_CS42888
-
 static struct regulator_consumer_supply cs42888_sabreauto_consumer_va = {
 	.supply = "VA",
-	.dev_name = "0-0048",
+	.dev_name = "1-0048",
 };
 
 static struct regulator_consumer_supply cs42888_sabreauto_consumer_vd = {
 	.supply = "VD",
-	.dev_name = "0-0048",
+	.dev_name = "1-0048",
 };
 
 static struct regulator_consumer_supply cs42888_sabreauto_consumer_vls = {
 	.supply = "VLS",
-	.dev_name = "0-0048",
+	.dev_name = "1-0048",
 };
 
 static struct regulator_consumer_supply cs42888_sabreauto_consumer_vlc = {
 	.supply = "VLC",
-	.dev_name = "0-0048",
+	.dev_name = "1-0048",
 };
 
 static struct regulator_init_data cs42888_sabreauto_va_reg_initdata = {
@@ -1147,92 +1131,14 @@ static struct platform_device cs42888_sabreauto_vlc_reg_devices = {
 	},
 };
 
-#endif /* CONFIG_SND_SOC_CS42888 */
-
-#ifdef CONFIG_SND_SOC_SGTL5000
-
-static struct regulator_consumer_supply sgtl5000_sabreauto_consumer_vdda = {
-	.supply = "VDDA",
-	.dev_name = "0-000a",
-};
-
-static struct regulator_consumer_supply sgtl5000_sabreauto_consumer_vddio = {
-	.supply = "VDDIO",
-	.dev_name = "0-000a",
-};
-
-static struct regulator_consumer_supply sgtl5000_sabreauto_consumer_vddd = {
-	.supply = "VDDD",
-	.dev_name = "0-000a",
-};
-
-static struct regulator_init_data sgtl5000_sabreauto_vdda_reg_initdata = {
-	.num_consumer_supplies = 1,
-	.consumer_supplies = &sgtl5000_sabreauto_consumer_vdda,
-};
-
-static struct regulator_init_data sgtl5000_sabreauto_vddio_reg_initdata = {
-	.num_consumer_supplies = 1,
-	.consumer_supplies = &sgtl5000_sabreauto_consumer_vddio,
-};
-
-static struct regulator_init_data sgtl5000_sabreauto_vddd_reg_initdata = {
-	.num_consumer_supplies = 1,
-	.consumer_supplies = &sgtl5000_sabreauto_consumer_vddd,
-};
-
-static struct fixed_voltage_config sgtl5000_sabreauto_vdda_reg_config = {
-	.supply_name		= "VDDA",
-	.microvolts		= 1800000,
-	.gpio			= -1,
-	.init_data		= &sgtl5000_sabreauto_vdda_reg_initdata,
-};
-
-static struct fixed_voltage_config sgtl5000_sabreauto_vddio_reg_config = {
-	.supply_name		= "VDDIO",
-	.microvolts		= 3300000,
-	.gpio			= -1,
-	.init_data		= &sgtl5000_sabreauto_vddio_reg_initdata,
-};
-
-static struct fixed_voltage_config sgtl5000_sabreauto_vddd_reg_config = {
-	.supply_name		= "VDDD",
-	.microvolts		= 0,
-	.gpio			= -1,
-	.init_data		= &sgtl5000_sabreauto_vddd_reg_initdata,
-};
-
-static struct platform_device sgtl5000_sabreauto_vdda_reg_devices = {
-	.name	= "reg-fixed-voltage",
-	.id	= 7,
-	.dev	= {
-		.platform_data = &sgtl5000_sabreauto_vdda_reg_config,
-	},
-};
-
-static struct platform_device sgtl5000_sabreauto_vddio_reg_devices = {
-	.name	= "reg-fixed-voltage",
-	.id	= 8,
-	.dev	= {
-		.platform_data = &sgtl5000_sabreauto_vddio_reg_config,
-	},
-};
-
-static struct platform_device sgtl5000_sabreauto_vddd_reg_devices = {
-	.name	= "reg-fixed-voltage",
-	.id	= 9,
-	.dev	= {
-		.platform_data = &sgtl5000_sabreauto_vddd_reg_config,
-	},
-};
-
-#endif /* CONFIG_SND_SOC_SGTL5000 */
-
 static int __init imx6q_init_audio(void)
 {
 	struct clk *pll3_pfd, *esai_clk;
 	mxc_register_device(&sab_audio_device, &sab_audio_data);
 	imx6q_add_imx_esai(0, &sab_esai_pdata);
+
+	gpio_request(MX6Q_SABREAUTO_ESAI_INT, "esai-int");
+	gpio_direction_input(MX6Q_SABREAUTO_ESAI_INT);
 
 	esai_clk = clk_get(NULL, "esai_clk");
 	if (IS_ERR(esai_clk))
@@ -1245,18 +1151,10 @@ static int __init imx6q_init_audio(void)
 	clk_set_parent(esai_clk, pll3_pfd);
 	clk_set_rate(esai_clk, 101647058);
 
-#ifdef CONFIG_SND_SOC_SGTL5000
-	platform_device_register(&sgtl5000_sabreauto_vdda_reg_devices);
-	platform_device_register(&sgtl5000_sabreauto_vddio_reg_devices);
-	platform_device_register(&sgtl5000_sabreauto_vddd_reg_devices);
-#endif
-
-#ifdef CONFIG_SND_SOC_CS42888
 	platform_device_register(&cs42888_sabreauto_va_reg_devices);
 	platform_device_register(&cs42888_sabreauto_vd_reg_devices);
 	platform_device_register(&cs42888_sabreauto_vls_reg_devices);
 	platform_device_register(&cs42888_sabreauto_vlc_reg_devices);
-#endif
 	return 0;
 }
 
@@ -1317,14 +1215,6 @@ static inline void __init mx6q_csi0_io_init(void)
 	mxc_iomux_set_gpr_register(1, 19, 1, 1);
 }
 
-static int __init early_enable_spdif(char *p)
-{
-	spdif_en = 1;
-	return 0;
-}
-
-early_param("spdif", early_enable_spdif);
-
 static int spdif_clk_set_rate(struct clk *clk, unsigned long rate)
 {
 	unsigned long rate_actual;
@@ -1334,7 +1224,7 @@ static int spdif_clk_set_rate(struct clk *clk, unsigned long rate)
 }
 
 static struct mxc_spdif_platform_data mxc_spdif_data = {
-	.spdif_tx = 1,		/* enable tx */
+	.spdif_tx = 0,		/* disable tx */
 	.spdif_rx = 1,		/* enable rx */
 	/*
 	 * spdif0_clk will be 454.7MHz divided by ccm dividers.
@@ -1368,21 +1258,14 @@ static void __init mx6_board_init(void)
 	    mxc_iomux_v3_setup_multiple_pads(mx6q_sabreauto_esai_record_pads,
 			ARRAY_SIZE(mx6q_sabreauto_esai_record_pads));
 
-	/*
-	 * S/PDIF in and i2c3 are mutually exclusive because both
-	 * use GPIO_16.
-	 * S/PDIF out and can1 stby are mutually exclusive because both
-	 * use GPIO_17.
-	 */
-	if (spdif_en) {
-		mxc_iomux_v3_setup_multiple_pads(mx6q_sabreauto_spdif_pads,
-			ARRAY_SIZE(mx6q_sabreauto_spdif_pads));
-	} else {
-		mxc_iomux_v3_setup_multiple_pads(mx6q_sabreauto_i2c3_pads,
+	mxc_iomux_v3_setup_multiple_pads(mx6q_sabreauto_i2c3_pads,
 			ARRAY_SIZE(mx6q_sabreauto_i2c3_pads));
-		mxc_iomux_v3_setup_multiple_pads(mx6q_sabreauto_can_pads,
+	mxc_iomux_v3_setup_multiple_pads(mx6q_sabreauto_can_pads,
 			ARRAY_SIZE(mx6q_sabreauto_can_pads));
-	}
+
+	/* assert i2c-rst  */
+	gpio_request(MX6Q_SABREAUTO_I2C_EXP_RST, "i2c-rst");
+	gpio_direction_output(MX6Q_SABREAUTO_I2C_EXP_RST, 1);
 
 	if (mipi_sensor)
 		mxc_iomux_v3_setup_multiple_pads(
@@ -1414,12 +1297,18 @@ static void __init mx6_board_init(void)
 			ARRAY_SIZE(mxc_i2c0_board_info));
 	i2c_register_board_info(1, mxc_i2c1_board_info,
 			ARRAY_SIZE(mxc_i2c1_board_info));
-	if (!spdif_en) {
-		imx6q_add_imx_i2c(2, &mx6q_sabreauto_i2c_data);
-		i2c_register_board_info(2, mxc_i2c2_board_info,
-				ARRAY_SIZE(mxc_i2c2_board_info));
-	}
+	imx6q_add_imx_i2c(2, &mx6q_sabreauto_i2c_data);
+	i2c_register_board_info(2, mxc_i2c2_board_info,
+			ARRAY_SIZE(mxc_i2c2_board_info));
 
+	ret = gpio_request(MX6Q_SABREAUTO_PMIC_INT, "pFUZE-int");
+	if (ret) {
+		printk(KERN_ERR"request pFUZE-int error!!\n");
+		return;
+	} else {
+		gpio_direction_input(MX6Q_SABREAUTO_PMIC_INT);
+		mx6q_sabreauto_init_pfuze100(MX6Q_SABREAUTO_PMIC_INT);
+	}
 	/* SPI */
 	imx6q_add_ecspi(0, &mx6q_sabreauto_spi_data);
 	spi_device_init();
@@ -1476,22 +1365,19 @@ static void __init mx6_board_init(void)
 	imx6q_add_mxc_pwm(0);
 	imx6q_add_mxc_pwm_backlight(0, &mx6_sabreauto_pwm_backlight_data);
 
-	if (spdif_en) {
-		mxc_spdif_data.spdif_core_clk = clk_get_sys("mxc_spdif.0",
-			NULL);
-		clk_put(mxc_spdif_data.spdif_core_clk);
-		imx6q_add_spdif(&mxc_spdif_data);
-		imx6q_add_spdif_dai();
-		imx6q_add_spdif_audio_device();
-	} else {
-		ret = gpio_request_array(mx6q_flexcan_gpios,
+	mxc_spdif_data.spdif_core_clk = clk_get_sys("mxc_spdif.0", NULL);
+	clk_put(mxc_spdif_data.spdif_core_clk);
+	imx6q_add_spdif(&mxc_spdif_data);
+	imx6q_add_spdif_dai();
+	imx6q_add_spdif_audio_device();
+
+	ret = gpio_request_array(mx6q_flexcan_gpios,
 				ARRAY_SIZE(mx6q_flexcan_gpios));
-		if (ret) {
-			pr_err("failed to request flexcan-gpios: %d\n", ret);
-		} else {
-			imx6q_add_flexcan0(&mx6q_sabreauto_flexcan_pdata[0]);
-			imx6q_add_flexcan1(&mx6q_sabreauto_flexcan_pdata[1]);
-		}
+	if (ret) {
+		pr_err("failed to request flexcan-gpios: %d\n", ret);
+	} else {
+		imx6q_add_flexcan0(&mx6q_sabreauto_flexcan_pdata[0]);
+		imx6q_add_flexcan1(&mx6q_sabreauto_flexcan_pdata[1]);
 	}
 
 	imx6q_add_hdmi_soc();

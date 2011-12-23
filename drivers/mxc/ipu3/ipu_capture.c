@@ -744,3 +744,56 @@ int _ipu_csi_init(struct ipu_soc *ipu, ipu_channel_t channel, uint32_t csi)
 err:
 	return retval;
 }
+
+/*!
+ * csi_irq_handler
+ *
+ * @param	irq		interrupt id
+ * @param	dev_id		pointer to ipu handler
+ *
+ * @return	Returns if irq is handled
+ */
+static irqreturn_t csi_irq_handler(int irq, void *dev_id)
+{
+	struct ipu_soc *ipu = dev_id;
+	struct completion *comp = &ipu->csi_comp;
+
+	complete(comp);
+	return IRQ_HANDLED;
+}
+
+/*!
+ * _ipu_csi_wait4eof
+ *
+ * @param	ipu		ipu handler
+ * @param	channel      IDMAC channel
+ *
+ */
+void _ipu_csi_wait4eof(struct ipu_soc *ipu, ipu_channel_t channel)
+{
+	int ret;
+	int irq = 0;
+
+	if (channel == CSI_MEM0)
+		irq = IPU_IRQ_CSI0_OUT_EOF;
+	else if (channel == CSI_MEM1)
+		irq = IPU_IRQ_CSI1_OUT_EOF;
+	else if (channel == CSI_MEM2)
+		irq = IPU_IRQ_CSI2_OUT_EOF;
+	else if (channel == CSI_MEM3)
+		irq = IPU_IRQ_CSI3_OUT_EOF;
+	else{
+		dev_err(ipu->dev, "Not a CSI SMFC channel\n");
+		return;
+	}
+
+	init_completion(&ipu->csi_comp);
+	ret = ipu_request_irq(ipu, irq, csi_irq_handler, 0, NULL, ipu);
+	if (ret < 0) {
+		dev_err(ipu->dev, "CSI irq %d in use\n", irq);
+		return;
+	}
+	ret = wait_for_completion_timeout(&ipu->csi_comp, msecs_to_jiffies(50));
+	ipu_free_irq(ipu, irq, ipu);
+	dev_dbg(ipu->dev, "CSI stop timeout - %d * 10ms\n", 5 - ret);
+}

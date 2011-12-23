@@ -138,6 +138,7 @@
 #define  UCR4_OREN  	 (1<<1)  /* Receiver overrun interrupt enable */
 #define  UCR4_DREN  	 (1<<0)  /* Recv data ready interrupt enable */
 #define  UFCR_RXTL_SHF   0       /* Receiver trigger level shift */
+#define  UFCR_RXTL_MASK  0x3f    /* RX FIFO is 6 bits wide */
 #define  UFCR_RFDIV      (7<<7)  /* Reference freq divider mask */
 #define  UFCR_RFDIV_REG(x)	(((x) < 7 ? 6 - (x) : 6) << 7)
 #define  UFCR_TXTL_SHF   10      /* Transmitter trigger level shift */
@@ -189,6 +190,8 @@
 #define DRIVER_NAME "IMX-uart"
 
 #define UART_NR 8
+
+#define UART_RX_SIZE (16)
 
 struct imx_port {
 	struct uart_port	port;
@@ -598,6 +601,12 @@ static void imx_dma_rxint(struct imx_port *sport)
 	if ((temp & USR2_RDR) && !sport->dma_is_rxing) {
 		sport->dma_is_rxing = true;
 
+		/* increase the RX FIFO threthold. */
+		temp = readl(sport->port.membase + UFCR);
+		temp &= ~(UFCR_RXTL_MASK << UFCR_RXTL_SHF);
+		temp |= UART_RX_SIZE;
+		writel(temp, sport->port.membase + UFCR);
+
 		/* disable the `Recerver Ready Interrrupt` */
 		temp = readl(sport->port.membase + UCR1);
 		temp &= ~(UCR1_RRDYEN);
@@ -628,10 +637,10 @@ static irqreturn_t imx_int(int irq, void *dev_id)
 
 	if (sts & USR1_RTSD)
 		imx_rtsint(irq, dev_id);
-#ifdef CONFIG_PM
+
 	if (sts & USR1_AWAKE)
 		writel(USR1_AWAKE, sport->port.membase + USR1);
-#endif
+
 	return IRQ_HANDLED;
 }
 
@@ -783,6 +792,12 @@ static void dma_rx_callback(void *data)
 		temp |= UCR1_RRDYEN;
 		writel(temp, sport->port.membase + UCR1);
 		sport->dma_is_rxing = false;
+
+		/* decrease the RX FIFO threthold. */
+		temp = readl(sport->port.membase + UFCR);
+		temp &= ~(UFCR_RXTL_MASK << UFCR_RXTL_SHF);
+		temp |= RXTL;
+		writel(temp, sport->port.membase + UFCR);
 	}
 }
 
@@ -854,7 +869,7 @@ static int imx_uart_dma_init(struct imx_port *sport)
 	slave_config.direction = DMA_FROM_DEVICE;
 	slave_config.src_addr = sport->port.mapbase + URXD0;
 	slave_config.src_addr_width = DMA_SLAVE_BUSWIDTH_1_BYTE;
-	slave_config.src_maxburst = RXTL; /* fix me */
+	slave_config.src_maxburst = UART_RX_SIZE;
 	ret = dmaengine_slave_config(sport->dma_chan_rx, &slave_config);
 	if (ret) {
 		pr_err("error in RX dma configuration.\n");
@@ -1059,9 +1074,7 @@ static int imx_startup(struct uart_port *port)
 	}
 
 	tty = sport->port.state->port.tty;
-#ifdef CONFIG_PM
-	device_set_wakeup_enable(tty->dev, 1);
-#endif
+
 	return 0;
 
 error_out3:
@@ -1558,17 +1571,11 @@ static int serial_imx_suspend(struct platform_device *dev, pm_message_t state)
 	struct imx_port *sport = platform_get_drvdata(dev);
 	unsigned int val;
 
-	if (device_may_wakeup(&dev->dev)) {
-		enable_irq_wake(sport->rxirq);
-#ifdef CONFIG_PM
-		if (sport->port.line == 0) {
-			/* enable awake for MX6 */
-			val = readl(sport->port.membase + UCR3);
-			val |= UCR3_AWAKEN;
-			writel(val, sport->port.membase + UCR3);
-		}
-#endif
-	}
+	/* Enable i.MX UART wakeup */
+	val = readl(sport->port.membase + UCR3);
+	val |= UCR3_AWAKEN;
+	writel(val, sport->port.membase + UCR3);
+
 	if (sport)
 		uart_suspend_port(&imx_reg, &sport->port);
 
@@ -1583,16 +1590,11 @@ static int serial_imx_resume(struct platform_device *dev)
 	if (sport)
 		uart_resume_port(&imx_reg, &sport->port);
 
-	if (device_may_wakeup(&dev->dev)) {
-#ifdef CONFIG_PM
-		if (sport->port.line == 0) {
-			val = readl(sport->port.membase + UCR3);
-			val &= ~UCR3_AWAKEN;
-			writel(val, sport->port.membase + UCR3);
-		}
-#endif
-		disable_irq_wake(sport->rxirq);
-	}
+	/* Disable i.MX UART wakeup */
+	val = readl(sport->port.membase + UCR3);
+	val &= ~UCR3_AWAKEN;
+	writel(val, sport->port.membase + UCR3);
+
 	return 0;
 }
 
@@ -1672,9 +1674,6 @@ static int serial_imx_probe(struct platform_device *pdev)
 		goto deinit;
 	platform_set_drvdata(pdev, &sport->port);
 
-#ifdef CONFIG_PM
-	device_init_wakeup(&pdev->dev, 1);
-#endif
 	return 0;
 deinit:
 	if (pdata && pdata->exit)

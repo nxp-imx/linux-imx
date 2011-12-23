@@ -1328,10 +1328,12 @@ static int config_disp_output(struct mxc_vout_output *vout)
 		else
 			var.yres_virtual = var.yres;
 		var.rotate = vout->task.output.rotate;
+		var.vmode |= FB_VMODE_YWRAP;
 	} else {
 		fb_num = FB_BUFS;
 		var.xres_virtual = var.xres;
 		var.yres_virtual = fb_num * var.yres;
+		var.vmode &= ~FB_VMODE_YWRAP;
 	}
 	var.bits_per_pixel = fmt_to_bpp(vout->task.output.format);
 	var.nonstd = vout->task.output.format;

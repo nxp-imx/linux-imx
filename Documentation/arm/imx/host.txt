@@ -1,0 +1,29 @@
+How to test USB HOST Video device:
+Required HW:
+1. A USB camera that is supported in the UVC class. A list
+of these cameras can be found at this URL: http://linux-uvc.berlios.de/
+2. The test system should have a display of some type(DVI, VGA, or LCD).
+
+Required SW:
+ 1. The Linux kernel must have CONFIG_USB_VIDEO_CLASS and CONFIG_USB_EHCI_HCD selected.
+ 2. The rootfs should a Ubuntu 9.04 or later.
+
+Test Procedure:
+1. Boot up the Linux kernel with the Ubuntu file system.
+2. Use the Apps search tool to download and install  the webcam application :cheese.
+3. Plug in the webcam into a USB host port on the development system.
+4. Launch the webcam application and use the viewfinder. The application should find the USB webcam automatically.
+5. Press the "Take a photo" button ,the pictures will be saved in the /Pictures/Webcam/ folder.
+
+How to test USB HOST Audio device:
+Required HW:
+1. A USB USB Sound Card that is supported in the Audio class.
+
+Required SW:
+ 1. The Linux kernel must have CONFIG_SND_USB_AUDIO and CONFIG_USB_EHCI_HCD selected.
+
+Test Procedure:
+1. Boot up the Board.
+2. Plug in the USB Sound Card into a USB host port on the development system.
+3. Use "aplay -l" commond to check the USB Sound Card is load success.
+4  Use "aplay -Dhw:x,0 /unit_tests/audio8k16S.wav",to check the USB sound Card can play wave file.

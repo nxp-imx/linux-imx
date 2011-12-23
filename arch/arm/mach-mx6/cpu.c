@@ -33,16 +33,59 @@
 
 
 void *mx6_wait_in_iram_base;
-void (*mx6_wait_in_iram)(void *ccm_base);
+void (*mx6_wait_in_iram)();
 extern void mx6_wait(void);
 
 
 struct cpu_op *(*get_cpu_op)(int *op);
-bool enable_wait_mode;
+bool enable_wait_mode = true;
 u32 arm_max_freq = CPU_AT_1GHz;
 
 void __iomem *gpc_base;
 void __iomem *ccm_base;
+
+static int cpu_silicon_rev = -1;
+#define SI_REV_OFFSET 	0x48
+
+static int get_mx6q_srev(void)
+{
+	void __iomem *romcp = ioremap(BOOT_ROM_BASE_ADDR, SZ_8K);
+	u32 rev;
+
+	if (!romcp) {
+		cpu_silicon_rev = -EINVAL;
+		return 0;
+	}
+
+	rev = __raw_readl(romcp + SI_REV_OFFSET);
+	rev &= 0xff;
+
+	iounmap(romcp);
+	if (rev == 0x10)
+		return IMX_CHIP_REVISION_1_0;
+	else if (rev == 0x11)
+		return IMX_CHIP_REVISION_1_1;
+	else if (rev == 0x20)
+		return IMX_CHIP_REVISION_2_0;
+	return 0;
+}
+
+/*
+ * Returns:
+ *	the silicon revision of the cpu
+ *	-EINVAL - not a mx50
+ */
+int mx6q_revision(void)
+{
+	if (!cpu_is_mx6q())
+		return -EINVAL;
+
+	if (cpu_silicon_rev == -1)
+		cpu_silicon_rev = get_mx6q_srev();
+
+	return cpu_silicon_rev;
+}
+EXPORT_SYMBOL(mx6q_revision);
 
 static int __init post_cpu_init(void)
 {
@@ -111,7 +154,13 @@ postcore_initcall(post_cpu_init);
 
 static int __init enable_wait(char *p)
 {
-	enable_wait_mode = true;
+	if (memcmp(p, "on", 2) == 0) {
+		enable_wait_mode = true;
+		p += 2;
+	} else if (memcmp(p, "off", 3) == 0) {
+		enable_wait_mode = false;
+		p += 3;
+	}
 	return 0;
 }
 early_param("enable_wait_mode", enable_wait);

@@ -480,9 +480,9 @@ static int mx53_loco_sata_init(struct device *dev, void __iomem *addr)
 	tmpdata = clk_get_rate(clk) / 1000;
 	clk_put(clk);
 
-	sata_init(addr, tmpdata);
-
-	return ret;
+	ret = sata_init(addr, tmpdata);
+	if (ret == 0)
+		return ret;
 
 release_sata_ref_clk:
 	clk_disable(sata_ref_clk);
@@ -650,9 +650,9 @@ static void __init fixup_mxc_board(struct machine_desc *desc, struct tag *tags,
 		gpu_data.reserved_mem_size = gpu_mem;
 
 		/* reserver memory for fb */
-		loco_fb_data[0].res_base = gpu_data.reserved_mem_base
+		loco_fb_data[0].res_base[0] = gpu_data.reserved_mem_base
 					+ gpu_data.reserved_mem_size;
-		loco_fb_data[0].res_size = fb_mem;
+		loco_fb_data[0].res_size[0] = fb_mem;
 	}
 }
 

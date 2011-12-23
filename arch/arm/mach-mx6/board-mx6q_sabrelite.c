@@ -597,7 +597,7 @@ static void __init imx6q_sabrelite_init_usb(void)
 static int mx6q_sabrelite_sata_init(struct device *dev, void __iomem *addr)
 {
 	u32 tmpdata;
-	int ret = 0, iterations = 20;
+	int ret = 0;
 	struct clk *clk;
 
 	sata_clk = clk_get(dev, "imx_sata_clk");
@@ -642,23 +642,9 @@ static int mx6q_sabrelite_sata_init(struct device *dev, void __iomem *addr)
 	tmpdata = clk_get_rate(clk) / 1000;
 	clk_put(clk);
 
-	sata_init(addr, tmpdata);
-
-	/* Release resources when there is no device on the port */
-	do {
-		if ((readl(addr + PORT_SATA_SR) & 0xF) == 0)
-			msleep(25);
-		else
-			break;
-
-		if (iterations == 0) {
-			dev_info(dev, "NO sata disk.\n");
-			ret = -ENODEV;
-			goto release_sata_clk;
-		}
-	} while (iterations-- > 0);
-
-	return ret;
+	ret = sata_init(addr, tmpdata);
+	if (ret == 0)
+		return ret;
 
 release_sata_clk:
 	clk_disable(sata_clk);
@@ -1160,7 +1146,7 @@ static void __init mx6q_sabrelite_reserve(void)
 
 	if (imx6q_gpu_pdata.reserved_mem_size) {
 		phys = memblock_alloc_base(imx6q_gpu_pdata.reserved_mem_size,
-					   SZ_4K, SZ_2G);
+					   SZ_4K, SZ_1G);
 		memblock_free(phys, imx6q_gpu_pdata.reserved_mem_size);
 		memblock_remove(phys, imx6q_gpu_pdata.reserved_mem_size);
 		imx6q_gpu_pdata.reserved_mem_base = phys;

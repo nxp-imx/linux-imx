@@ -4957,16 +4957,8 @@ OnError:
 
         for (i = 0; i < pageCount; i++)
         {
-            /* Flush(clean) the data cache. */
-#if !defined(ANDROID)
-            dma_sync_single_for_device(
-                        gcvNULL,
-                        page_to_phys(pages[i]),
-                        PAGE_SIZE,
-                        DMA_TO_DEVICE);
-#else
-            flush_dcache_page(pages[i]);
-#endif
+            unsigned long paddr = page_to_phys(pages[i]);
+            outer_clean_range(paddr, paddr + PAGE_SIZE);
         }
 
 #if gcdENABLE_VG
@@ -5267,6 +5259,8 @@ OnError:
         /* Release the page cache. */
         for (i = 0; i < pageCount; i++)
         {
+            unsigned long paddr = page_to_phys(pages[i]);
+
             gcmkTRACE_ZONE(
                 gcvLEVEL_INFO, gcvZONE_OS,
                 "%s(%d): pages[%d]: 0x%X.",
@@ -5279,14 +5273,10 @@ OnError:
                 SetPageDirty(pages[i]);
             }
 
-#if !defined(ANDROID)
-            /* Invalidate the data cache. */
-            dma_sync_single_for_device(
-                        gcvNULL,
-                        page_to_phys(pages[i]),
-                        PAGE_SIZE,
-                        DMA_FROM_DEVICE);
-#endif
+            flush_dcache_page(pages[i]);
+
+            outer_inv_range(paddr, paddr + PAGE_SIZE);
+
             page_cache_release(pages[i]);
         }
 
