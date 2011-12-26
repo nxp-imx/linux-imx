@@ -1,7 +1,7 @@
 /*
  * sgtl5000.c  --  SGTL5000 ALSA SoC Audio driver
  *
- * Copyright 2010-2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2010-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -105,9 +105,6 @@ static int mic_bias_event(struct snd_soc_dapm_widget *w,
 		snd_soc_update_bits(w->codec, SGTL5000_CHIP_MIC_CTRL,
 			SGTL5000_BIAS_R_MASK,
 			SGTL5000_BIAS_R_4k << SGTL5000_BIAS_R_SHIFT);
-
-		snd_soc_update_bits(w->codec, SGTL5000_CHIP_ANA_POWER,
-			SGTL5000_VAG_POWERUP, SGTL5000_VAG_POWERUP);
 		break;
 
 	case SND_SOC_DAPM_PRE_PMD:
@@ -118,9 +115,6 @@ static int mic_bias_event(struct snd_soc_dapm_widget *w,
 		snd_soc_update_bits(w->codec, SGTL5000_CHIP_MIC_CTRL,
 			SGTL5000_BIAS_R_MASK,
 			SGTL5000_BIAS_R_off << SGTL5000_BIAS_R_SHIFT);
-
-		snd_soc_update_bits(w->codec, SGTL5000_CHIP_ANA_POWER,
-			SGTL5000_VAG_POWERUP, 0);
 		break;
 	}
 	return 0;
@@ -136,14 +130,9 @@ static int small_pop_event(struct snd_soc_dapm_widget *w,
 {
 	switch (event) {
 	case SND_SOC_DAPM_PRE_PMU:
-		snd_soc_update_bits(w->codec, SGTL5000_CHIP_ANA_POWER,
-			SGTL5000_VAG_POWERUP, SGTL5000_VAG_POWERUP);
 		break;
 
 	case SND_SOC_DAPM_PRE_PMD:
-		snd_soc_update_bits(w->codec, SGTL5000_CHIP_ANA_POWER,
-			SGTL5000_VAG_POWERUP, 0);
-		msleep(400);
 		break;
 	default:
 		break;
@@ -1098,9 +1087,24 @@ static int sgtl5000_set_bias_level(struct snd_soc_codec *codec,
 	int ret;
 	struct sgtl5000_priv *sgtl5000 = snd_soc_codec_get_drvdata(codec);
 
+	if (codec->dapm.bias_level == level)
+		return 0;
+
 	switch (level) {
 	case SND_SOC_BIAS_ON:
+
+		ret = snd_soc_update_bits(codec, SGTL5000_CHIP_ANA_POWER,
+				SGTL5000_VAG_POWERUP, SGTL5000_VAG_POWERUP);
+		if (ret)
+			msleep(400);
+		break;
+
 	case SND_SOC_BIAS_PREPARE:
+		ret = snd_soc_update_bits(codec, SGTL5000_CHIP_ANA_POWER,
+				SGTL5000_VAG_POWERUP, 0);
+		if (ret)
+			msleep(600);
+
 		break;
 	case SND_SOC_BIAS_STANDBY:
 		if (codec->dapm.bias_level == SND_SOC_BIAS_OFF) {
@@ -1112,8 +1116,17 @@ static int sgtl5000_set_bias_level(struct snd_soc_codec *codec,
 			udelay(10);
 		}
 
+		ret = snd_soc_update_bits(codec, SGTL5000_CHIP_ANA_POWER,
+				SGTL5000_VAG_POWERUP, 0);
+		if (ret)
+			msleep(600);
 		break;
 	case SND_SOC_BIAS_OFF:
+		ret = snd_soc_update_bits(codec, SGTL5000_CHIP_ANA_POWER,
+				SGTL5000_VAG_POWERUP, 0);
+		if (ret)
+			msleep(600);
+
 		regulator_bulk_disable(ARRAY_SIZE(sgtl5000->supplies),
 					sgtl5000->supplies);
 		break;
