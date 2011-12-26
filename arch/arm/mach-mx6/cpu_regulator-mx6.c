@@ -32,6 +32,8 @@ static int cpu_op_nr;
 static struct cpu_op *cpu_op_tbl;
 extern struct cpu_op *(*get_cpu_op)(int *op);
 
+extern unsigned long loops_per_jiffy;
+
 static inline unsigned long mx6_cpu_jiffies(unsigned long old, u_int div,
 					      u_int mult)
 {
