@@ -111,10 +111,6 @@ module_param(showArgs, int, 0644);
     module_param(coreClock, ulong, 0644);
 #endif
 
-static struct clk * clk_3d_core;
-static struct clk * clk_3d_shader;
-static struct clk * clk_2d_core;
-
 static int drv_open(
     struct inode* inode,
     struct file* filp
@@ -709,38 +705,6 @@ static int drv_init(void)
 #if defined(CONFIG_PXA_DVFM) && (LINUX_VERSION_CODE > KERNEL_VERSION(2,6,29))
         gc_pwr(1);
 #   endif
-# else
-    if (irqLine != -1) {
-        clk_3d_core = clk_get(NULL, "gpu3d_clk");
-        if (!IS_ERR(clk_3d_core)) {
-            clk_3d_shader = clk_get(NULL, "gpu3d_shader_clk");
-            if (!IS_ERR(clk_3d_shader)) {
-                clk_enable(clk_3d_core);
-                clk_enable(clk_3d_shader);
-            } else {
-                irqLine = -1;
-                clk_put(clk_3d_core);
-                clk_3d_core = NULL;
-                clk_3d_shader = NULL;
-                printk(KERN_ERR "galcore: clk_get gpu3d_shader_clk failed, disable 3d!\n");
-            }
-        } else {
-            irqLine = -1;
-            clk_3d_core = NULL;
-            printk(KERN_ERR "galcore: clk_get gpu3d_clk failed, disable 3d!\n");
-        }
-    }
-    if ((irqLine2D != -1) || (irqLineVG != -1)) {
-        clk_2d_core = clk_get(NULL, "gpu2d_clk");
-        if (IS_ERR(clk_2d_core)) {
-            irqLine2D = -1;
-            irqLineVG = -1;
-            clk_2d_core = NULL;
-            printk(KERN_ERR "galcore: clk_get 2d clock failed, disable 2d/vg!\n");
-        } else {
-            clk_enable(clk_2d_core);
-        }
-    }
 # endif
     }
 #endif
@@ -913,22 +877,6 @@ static void drv_exit(void)
 #endif
         clk = clk_get(NULL, "GCCLK");
         clk_disable(clk);
-# else
-    if (clk_3d_core) {
-       clk_disable(clk_3d_core);
-       clk_put(clk_3d_core);
-       clk_3d_core = NULL;
-    }
-    if (clk_3d_shader) {
-       clk_disable(clk_3d_shader);
-       clk_put(clk_3d_shader);
-       clk_3d_shader = NULL;
-    }
-    if (clk_2d_core) {
-        clk_disable(clk_2d_core);
-        clk_put(clk_2d_core);
-        clk_2d_core = NULL;
-    }
 # endif
     }
 #endif
@@ -1038,7 +986,8 @@ static int __devinit gpu_suspend(struct platform_device *dev, pm_message_t state
             {
                 status = gckHARDWARE_SetPowerManagementState(device->kernels[i]->hardware, gcvPOWER_OFF);
             }
-
+            /*gpu clock must be turned on before power down*/
+            gckOS_SetGPUPower(device->os, i, gcvTRUE, gcvFALSE);
             if (gcmIS_ERROR(status))
             {
                 return -1;

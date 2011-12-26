@@ -421,7 +421,7 @@ gckHARDWARE_Construct(
     gcmkVERIFY_ARGUMENT(Hardware != gcvNULL);
 
     /* Enable the GPU. */
-    gcmkONERROR(gckOS_SetGPUPower(Os, gcvTRUE, gcvTRUE));
+    gcmkONERROR(gckOS_SetGPUPower(Os, Core, gcvTRUE, gcvTRUE));
     gcmkONERROR(gckOS_WriteRegisterEx(Os, Core, 0x00000, 0));
 
     status = _ResetGPU(Os, Core);
@@ -527,7 +527,7 @@ OnError:
     if (hardware != gcvNULL)
     {
         /* Turn off the power. */
-        gcmkVERIFY_OK(gckOS_SetGPUPower(Os, gcvFALSE, gcvFALSE));
+        gcmkVERIFY_OK(gckOS_SetGPUPower(Os, hardware->core, gcvFALSE, gcvFALSE));
 
         if (hardware->globalSemaphore != gcvNULL)
         {
@@ -585,7 +585,7 @@ gckHARDWARE_Destroy(
     gcmkVERIFY_OBJECT(Hardware, gcvOBJ_HARDWARE);
 
     /* Turn off the power. */
-    gcmkVERIFY_OK(gckOS_SetGPUPower(Hardware->os, gcvFALSE, gcvFALSE));
+    gcmkVERIFY_OK(gckOS_SetGPUPower(Hardware->os, Hardware->core, gcvFALSE, gcvFALSE));
 
     /* Destroy the power semaphore. */
     gcmkVERIFY_OK(gckOS_DestroySemaphore(Hardware->os,
@@ -3749,7 +3749,7 @@ gckHARDWARE_SetPowerManagementState(
     if (flag & (gcvPOWER_FLAG_INITIALIZE | gcvPOWER_FLAG_CLOCK_ON))
     {
         /* Turn on the power. */
-        gcmkONERROR(gckOS_SetGPUPower(os, gcvTRUE, gcvTRUE));
+        gcmkONERROR(gckOS_SetGPUPower(os, Hardware->core, gcvTRUE, gcvTRUE));
 
         /* Mark clock and power as enabled. */
         Hardware->clockState = gcvTRUE;
@@ -3896,6 +3896,7 @@ gckHARDWARE_SetPowerManagementState(
         /* Turn off the GPU power. */
         gcmkONERROR(
             gckOS_SetGPUPower(os,
+                              Hardware->core,
                               (flag & gcvPOWER_FLAG_CLOCK_OFF) ? gcvFALSE
                                                                : gcvTRUE,
                               (flag & gcvPOWER_FLAG_POWER_OFF) ? gcvFALSE
