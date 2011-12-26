@@ -18,6 +18,7 @@
 #define _FSL_DEVICE_H_
 
 #include <linux/types.h>
+#include <linux/cdev.h>
 
 /*
  * Some conventions on how we handle peripherals on Freescale chips
@@ -166,6 +167,17 @@ struct fsl_usb2_wakeup_platform_data {
 #define FSL_USB2_PORT1_ENABLED	0x00000002
 
 #define FLS_USB2_WORKAROUND_ENGCM09152	(1 << 0)
+
+struct mxc_mlb_platform_data {
+	struct device *dev;
+	u32 buf_addr;
+	u32 phy_addr;
+	char *reg_nvcc;
+	char *mlb_clk;
+	char *mlb_pll_clk;
+	void (*fps_sel)(int mlbfs);
+	struct cdev cdev;
+};
 
 struct spi_device;
 
