@@ -17,6 +17,7 @@
 #define _MXC_MLB_H
 
 /* define IOCTL command */
+#define MLB_DBG_RUNTIME		_IO('S', 0x09)
 #define MLB_SET_FPS		_IOW('S', 0x10, unsigned int)
 #define MLB_GET_VER		_IOR('S', 0x11, unsigned long)
 #define MLB_SET_DEVADDR		_IOR('S', 0x12, unsigned char)
