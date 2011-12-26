@@ -194,3 +194,7 @@ extern const struct imx_perfmon_data imx6q_perfmon_data[] __initconst;
 #define imx6q_add_perfmon(id) \
 	imx_add_perfmon(&imx6q_perfmon_data[id])
 
+extern const struct imx_mxc_mlb_data imx6q_mxc_mlb150_data __initconst;
+#define imx6q_add_mlb150(pdata)        \
+	imx_add_mlb(pdata)
+

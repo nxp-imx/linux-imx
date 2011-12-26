@@ -51,6 +51,8 @@ struct platform_device *__init imx_add_flexcan(
 		const struct flexcan_platform_data *pdata);
 
 #include <linux/fsl_devices.h>
+struct platform_device *__init imx_add_mlb(
+		const struct mxc_mlb_platform_data *pdata);
 struct imx_fsl_usb2_udc_data {
 	resource_size_t iobase;
 	resource_size_t irq;
