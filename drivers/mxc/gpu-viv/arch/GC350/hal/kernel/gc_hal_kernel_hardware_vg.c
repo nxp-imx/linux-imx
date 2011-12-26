@@ -246,7 +246,7 @@ gckVGHARDWARE_Construct(
 
         hardware->powerMutex            = gcvNULL;
         hardware->idleSemaphore         = gcvNULL;
-        hardware->chipPowerState        = gcvPOWER_ON;
+        hardware->chipPowerState        = gcvPOWER_OFF;
         hardware->chipPowerStateGlobal  = gcvPOWER_ON;
         hardware->clockState            = gcvTRUE;
         hardware->powerState            = gcvTRUE;
@@ -1678,7 +1678,7 @@ gckVGHARDWARE_SetPowerManagementState(
     if (flag & (gcvPOWER_FLAG_INITIALIZE | gcvPOWER_FLAG_CLOCK_ON))
     {
         /* Turn on the power. */
-        gcmkONERROR(gckOS_SetGPUPower(os, gcvTRUE, gcvTRUE));
+        gcmkONERROR(gckOS_SetGPUPower(os, gcvCORE_VG , gcvTRUE, gcvTRUE));
 
         /* Mark clock and power as enabled. */
         Hardware->clockState = gcvTRUE;
@@ -1749,6 +1749,7 @@ gckVGHARDWARE_SetPowerManagementState(
         /* Turn off the GPU power. */
         gcmkONERROR(
             gckOS_SetGPUPower(os,
+                              gcvCORE_VG,
                               (flag & gcvPOWER_FLAG_CLOCK_OFF) ? gcvFALSE
                                                                : gcvTRUE,
                               (flag & gcvPOWER_FLAG_POWER_OFF) ? gcvFALSE
