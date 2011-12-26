@@ -1243,6 +1243,9 @@ gckOS_BroadcastCalibrateSpeed(
 **      gckOS Os
 **          Pointer to a gckOS object.ß
 **
+**      gceCORE Core
+**          Core type.
+**
 **      gctBOOL Clock
 **          gcvTRUE to turn on the clock, or gcvFALSE to turn off the clock.
 **
@@ -1256,6 +1259,7 @@ gckOS_BroadcastCalibrateSpeed(
 gceSTATUS
 gckOS_SetGPUPower(
     IN gckOS Os,
+    IN gceCORE Core,
     IN gctBOOL Clock,
     IN gctBOOL Power
     );

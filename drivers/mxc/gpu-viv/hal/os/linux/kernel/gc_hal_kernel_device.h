@@ -82,6 +82,12 @@ typedef struct _gckGALDEVICE
     /* Core mapping */
     gceCORE             coreMapping[8];
 
+    /* Clock management.*/
+    struct clk         *clk_3d_core;
+    struct clk         *clk_3d_shader;
+    struct clk         *clk_2d_core;
+    gctBOOL clk_flag[gcdCORE_COUNT];
+
 #if gcdPOWEROFF_TIMEOUT
     struct task_struct  *pmThreadCtxts;
     gctBOOL             pmThreadInitializeds;
