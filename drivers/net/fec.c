@@ -246,7 +246,7 @@ static void fec_stop(struct net_device *dev);
 #define FEC_MMFR_TA		(2 << 16)
 #define FEC_MMFR_DATA(v)	(v & 0xffff)
 
-#define FEC_MII_TIMEOUT		2000 /* us */
+#define FEC_MII_TIMEOUT		30 /* ms */
 
 /* Transmitter timeout */
 #define TX_TIMEOUT (2 * HZ)
@@ -753,7 +753,7 @@ static int fec_enet_mdio_read(struct mii_bus *bus, int mii_id, int regnum)
 
 	/* wait for end of transfer */
 	time_left = wait_for_completion_timeout(&fep->mdio_done,
-			usecs_to_jiffies(FEC_MII_TIMEOUT));
+			msecs_to_jiffies(FEC_MII_TIMEOUT));
 	if (time_left == 0) {
 		fep->mii_timeout = 1;
 		printk(KERN_ERR "FEC: MDIO read timeout, mii_id=%d\n", mii_id);
@@ -781,7 +781,7 @@ static int fec_enet_mdio_write(struct mii_bus *bus, int mii_id, int regnum,
 
 	/* wait for end of transfer */
 	time_left = wait_for_completion_timeout(&fep->mdio_done,
-			usecs_to_jiffies(FEC_MII_TIMEOUT));
+			msecs_to_jiffies(FEC_MII_TIMEOUT));
 	if (time_left == 0) {
 		fep->mii_timeout = 1;
 		printk(KERN_ERR "FEC: MDIO write timeout, mii_id=%d\n", mii_id);
