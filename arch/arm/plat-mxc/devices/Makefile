@@ -1,4 +1,5 @@
 obj-$(CONFIG_IMX_HAVE_PLATFORM_DMA) += platform-dma.o
+obj-$(CONFIG_IMX_HAVE_PLATFORM_MXC_MLB) += platform-mxc_mlb.o
 obj-$(CONFIG_IMX_HAVE_PLATFORM_FEC) += platform-fec.o
 obj-$(CONFIG_IMX_HAVE_PLATFORM_FLEXCAN) += platform-flexcan.o
 obj-$(CONFIG_IMX_HAVE_PLATFORM_FSL_USB2_UDC) += platform-fsl-usb2-udc.o

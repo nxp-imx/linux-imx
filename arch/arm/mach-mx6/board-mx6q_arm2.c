@@ -277,6 +277,11 @@ static iomux_v3_cfg_t mx6q_arm2_pads[] = {
 
 	/* USBOTG ID pin */
 	MX6Q_PAD_GPIO_1__USBOTG_ID,
+
+	/* MLB150 */
+	MX6Q_PAD_GPIO_3__MLB_MLBCLK,
+	MX6Q_PAD_GPIO_6__MLB_MLBSIG,
+	MX6Q_PAD_GPIO_2__MLB_MLBDAT,
 };
 
 static iomux_v3_cfg_t mx6q_arm2_i2c3_pads[] = {
@@ -620,7 +625,7 @@ static int max7310_u48_setup(struct i2c_client *client,
 	void *context)
 {
 	int max7310_gpio_value[] = {
-		1, 1, 1, 1, 0, 0, 0, 0,
+		1, 1, 1, 1, 0, 1, 0, 0,
 	};
 
 	int n;
@@ -1343,6 +1348,12 @@ static int __init early_use_esai_record(char *p)
 
 early_param("esai_record", early_use_esai_record);
 
+static struct mxc_mlb_platform_data mx6q_arm2_mlb150_data = {
+	.reg_nvcc = NULL,
+	.mlb_clk = "mlb150_clk",
+	.mlb_pll_clk = "pll6",
+};
+
 static struct mxc_dvfs_platform_data arm2_dvfscore_data = {
 	.reg_id = "cpu_vddgp",
 	.clk1_id = "cpu_clk",
@@ -1550,6 +1561,7 @@ static void __init mx6_board_init(void)
 	imx6q_add_perfmon(0);
 	imx6q_add_perfmon(1);
 	imx6q_add_perfmon(2);
+	imx6q_add_mlb150(&mx6q_arm2_mlb150_data);
 }
 
 extern void __iomem *twd_base;
