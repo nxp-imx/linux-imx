@@ -52,7 +52,7 @@ static struct clk pll2_pfd_400M;
 static struct clk pll3_usb_otg_main_clk;
 static struct clk pll4_audio_main_clk;
 static struct clk pll5_video_main_clk;
-static struct clk pll6_MLB_main_clk;
+static struct clk pll6_mlb150_main_clk;
 static struct clk pll7_usb_host_main_clk;
 static struct clk pll8_enet_main_clk;
 static struct clk apbh_dma_clk;
@@ -208,7 +208,7 @@ static inline void __iomem *_get_pll_base(struct clk *pll)
 		return PLL4_AUDIO_BASE_ADDR;
 	else if (pll == &pll5_video_main_clk)
 		return PLL5_VIDEO_BASE_ADDR;
-	else if (pll == &pll6_MLB_main_clk)
+	else if (pll == &pll6_mlb150_main_clk)
 		return PLL6_MLB_BASE_ADDR;
 	else if (pll == &pll7_usb_host_main_clk)
 		return PLL7_480_USB2_BASE_ADDR;
@@ -844,10 +844,31 @@ static struct clk pll5_video_main_clk = {
 	.round_rate = _clk_audio_video_round_rate,
 };
 
-static struct clk pll6_MLB_main_clk = {
-	__INIT_CLK_DEBUG(pll6_MLB_main_clk)
+static int _clk_pll_mlb_main_enable(struct clk *clk)
+{
+	unsigned int reg;
+	void __iomem *pllbase;
+
+	pllbase = _get_pll_base(clk);
+
+	reg = __raw_readl(pllbase);
+	reg &= ~ANADIG_PLL_BYPASS;
+
+	reg = 0x0da20000;
+	__raw_writel(reg, pllbase);
+
+	/* Wait for PLL to lock */
+	if (!WAIT(__raw_readl(pllbase) & ANADIG_PLL_LOCK,
+		SPIN_DELAY))
+		panic("pll enable failed\n");
+
+	return 0;
+}
+
+static struct clk pll6_mlb150_main_clk = {
+	__INIT_CLK_DEBUG(pll6_mlb150_main_clk)
 	.parent = &osc_clk,
-	.enable = _clk_pll_enable,
+	.enable = _clk_pll_mlb_main_enable,
 	.disable = _clk_pll_disable,
 };
 
@@ -4520,6 +4541,16 @@ static struct clk usboh3_clk[] = {
 	},
 };
 
+static struct clk mlb150_clk = {
+	__INIT_CLK_DEBUG(mlb150_clk)
+	.id = 0,
+	.parent = &ipg_clk,
+	.enable_reg = MXC_CCM_CCGR3,
+	.enable_shift = MXC_CCM_CCGRx_CG9_OFFSET,
+	.enable = _clk_enable,
+	.disable = _clk_disable,
+};
+
 static int _clk_enable1(struct clk *clk)
 {
 	u32 reg;
@@ -4699,7 +4730,7 @@ static struct clk_lookup lookups[] = {
 	_REGISTER_CLOCK(NULL, "pll3_120M", pll3_60M),
 	_REGISTER_CLOCK(NULL, "pll4", pll4_audio_main_clk),
 	_REGISTER_CLOCK(NULL, "pll5", pll5_video_main_clk),
-	_REGISTER_CLOCK(NULL, "pll4", pll6_MLB_main_clk),
+	_REGISTER_CLOCK(NULL, "pll6", pll6_mlb150_main_clk),
 	_REGISTER_CLOCK(NULL, "pll3", pll7_usb_host_main_clk),
 	_REGISTER_CLOCK(NULL, "pll4", pll8_enet_main_clk),
 	_REGISTER_CLOCK(NULL, "cpu_clk", cpu_clk),
@@ -4792,6 +4823,7 @@ static struct clk_lookup lookups[] = {
 	_REGISTER_CLOCK("mxs-perfmon.0", "perfmon", perfmon0_clk),
 	_REGISTER_CLOCK("mxs-perfmon.1", "perfmon", perfmon1_clk),
 	_REGISTER_CLOCK("mxs-perfmon.2", "perfmon", perfmon2_clk),
+	_REGISTER_CLOCK(NULL, "mlb150_clk", mlb150_clk),
 };
 
 static void clk_tree_init(void)
@@ -4849,7 +4881,7 @@ int __init mx6_clocks_init(unsigned long ckil, unsigned long osc,
 #endif
 	pll4_audio_main_clk.disable(&pll4_audio_main_clk);
 	pll5_video_main_clk.disable(&pll5_video_main_clk);
-	pll6_MLB_main_clk.disable(&pll6_MLB_main_clk);
+	pll6_mlb150_main_clk.disable(&pll6_mlb150_main_clk);
 	pll7_usb_host_main_clk.disable(&pll7_usb_host_main_clk);
 	pll8_enet_main_clk.disable(&pll8_enet_main_clk);
 
