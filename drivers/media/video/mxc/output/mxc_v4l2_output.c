@@ -2162,7 +2162,8 @@ mxc_v4l2out_do_ioctl(struct file *file,
 		{
 			struct v4l2_requestbuffers *req = arg;
 			if ((req->type != V4L2_BUF_TYPE_VIDEO_OUTPUT) ||
-			    (req->memory != V4L2_MEMORY_MMAP)) {
+			    (req->memory != V4L2_MEMORY_MMAP &&
+			     req->memory != V4L2_MEMORY_USERPTR)) {
 				dev_dbg(&vdev->dev,
 					"VIDIOC_REQBUFS: incorrect buffer type\n");
 				retval = -EINVAL;
@@ -2173,7 +2174,8 @@ mxc_v4l2out_do_ioctl(struct file *file,
 				mxc_v4l2out_streamoff(vout);
 
 			if (vout->state == STATE_STREAM_OFF) {
-				if (vout->queue_buf_paddr[0] != 0) {
+				if (vout->queue_buf_paddr[0] != 0 &&
+				    req->memory == V4L2_MEMORY_MMAP) {
 					mxc_free_buffers(vout->queue_buf_paddr,
 							 vout->queue_buf_vaddr,
 							 vout->buffer_cnt,
@@ -2198,15 +2200,18 @@ mxc_v4l2out_do_ioctl(struct file *file,
 				req->count = MAX_FRAME_NUM;
 			}
 			vout->buffer_cnt = req->count;
-			vout->queue_buf_size =
-			    PAGE_ALIGN(vout->v2f.fmt.pix.sizeimage);
 
-			retval = mxc_allocate_buffers(vout->queue_buf_paddr,
-						      vout->queue_buf_vaddr,
-						      vout->buffer_cnt,
-						      vout->queue_buf_size);
-			if (retval < 0)
-				break;
+			if (req->memory == V4L2_MEMORY_MMAP) {
+				vout->queue_buf_size =
+				    PAGE_ALIGN(vout->v2f.fmt.pix.sizeimage);
+
+				retval = mxc_allocate_buffers(vout->queue_buf_paddr,
+							      vout->queue_buf_vaddr,
+							      vout->buffer_cnt,
+							      vout->queue_buf_size);
+				if (retval < 0)
+					break;
+			}
 
 			/* Init buffer queues */
 			vout->done_q.head = 0;
@@ -2218,14 +2223,15 @@ mxc_v4l2out_do_ioctl(struct file *file,
 				memset(&(vout->v4l2_bufs[i]), 0,
 				       sizeof(vout->v4l2_bufs[i]));
 				vout->v4l2_bufs[i].flags = 0;
-				vout->v4l2_bufs[i].memory = V4L2_MEMORY_MMAP;
+				vout->v4l2_bufs[i].memory = req->memory;
 				vout->v4l2_bufs[i].index = i;
 				vout->v4l2_bufs[i].type =
 				    V4L2_BUF_TYPE_VIDEO_OUTPUT;
 				vout->v4l2_bufs[i].length =
 				    PAGE_ALIGN(vout->v2f.fmt.pix.sizeimage);
-				vout->v4l2_bufs[i].m.offset =
-				    (unsigned long)vout->queue_buf_paddr[i];
+				if (req->memory == V4L2_MEMORY_MMAP)
+					vout->v4l2_bufs[i].m.offset =
+					(unsigned long)vout->queue_buf_paddr[i];
 				vout->v4l2_bufs[i].timestamp.tv_sec = 0;
 				vout->v4l2_bufs[i].timestamp.tv_usec = 0;
 			}
@@ -2252,25 +2258,67 @@ mxc_v4l2out_do_ioctl(struct file *file,
 	case VIDIOC_QBUF:
 		{
 			struct v4l2_buffer *buf = arg;
-			int index = buf->index;
+			int index = 0, i = 0;
 			unsigned long lock_flags;
 			int param[5][3];
 
-			if ((buf->type != V4L2_BUF_TYPE_VIDEO_OUTPUT) ||
-			    (index >= vout->buffer_cnt)) {
+			if (buf->type != V4L2_BUF_TYPE_VIDEO_OUTPUT) {
+				dev_err(&vdev->dev,
+					"VIDIOC_QBUF: wrong buf type\n");
 				retval = -EINVAL;
 				break;
 			}
 
-			dev_dbg(&vdev->dev, "VIDIOC_QBUF: %d field = %d\n", buf->index, buf->field);
+			if (buf->memory == V4L2_MEMORY_MMAP) {
+				index = buf->index;
+				if (index >= vout->buffer_cnt) {
+					dev_err(&vdev->dev, "VIDIOC_QBUF: "
+						"too big mmap buf index %d\n",
+						index);
+					retval = -EINVAL;
+					break;
+				}
 
-			/* mmapped buffers are L1 WB cached,
-			 * so we need to clean them */
-			if (buf->memory & V4L2_MEMORY_MMAP) {
+				dev_dbg(&vdev->dev, "VIDIOC_QBUF: MMAP buf %d "
+					"field = %d\n", buf->index, buf->field);
+
+				/* mmapped buffers are L1 WB cached,
+				 * so we need to clean them */
 				flush_cache_all();
 			}
 
 			spin_lock_irqsave(&g_lock, lock_flags);
+
+			if (buf->memory == V4L2_MEMORY_USERPTR) {
+				if (buf->m.userptr == 0) {
+					dev_err(&vdev->dev, "VIDIOC_QBUF: "
+						"user buffer wrong ptr\n");
+					retval = -EINVAL;
+					spin_unlock_irqrestore(&g_lock,
+								lock_flags);
+					break;
+				}
+
+				for (i = 0; i < vout->buffer_cnt; i++) {
+					index = i;
+					if (vout->v4l2_bufs[i].m.userptr ==
+					    buf->m.userptr ||
+					    vout->v4l2_bufs[i].m.userptr == 0)
+						break;
+				}
+
+				if (i == vout->buffer_cnt) {
+					dev_err(&vdev->dev, "VIDIOC_QBUF: "
+						"user buffer num overflows\n");
+					spin_unlock_irqrestore(&g_lock,
+								lock_flags);
+					retval = -EINVAL;
+					break;
+				}
+
+				dev_dbg(&vdev->dev, "VIDIOC_QBUF: USER buf %d "
+					"field = %d\n", index, buf->field);
+			}
 
 			memcpy(&(vout->v4l2_bufs[index]), buf, sizeof(*buf));
 			vout->v4l2_bufs[index].flags |= V4L2_BUF_FLAG_QUEUED;
