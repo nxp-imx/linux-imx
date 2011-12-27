@@ -2033,11 +2033,11 @@ static void mxc_hdmi_fb_registered(struct mxc_hdmi *hdmi)
 	if (hdmi->fb_reg)
 		return;
 
+	clk_enable(hdmi->hdmi_iahb_clk);
+
 	spin_lock_irqsave(&hdmi->irq_lock, flags);
 
 	dev_dbg(&hdmi->pdev->dev, "%s\n", __func__);
-
-	clk_enable(hdmi->hdmi_iahb_clk);
 
 	hdmi_writeb(HDMI_PHY_I2CM_INT_ADDR_DONE_POL,
 		    HDMI_PHY_I2CM_INT_ADDR);
@@ -2057,9 +2057,9 @@ static void mxc_hdmi_fb_registered(struct mxc_hdmi *hdmi)
 
 	hdmi->fb_reg = true;
 
-	clk_disable(hdmi->hdmi_iahb_clk);
-
 	spin_unlock_irqrestore(&hdmi->irq_lock, flags);
+
+	clk_disable(hdmi->hdmi_iahb_clk);
 }
 
 static int mxc_hdmi_fb_event(struct notifier_block *nb,
