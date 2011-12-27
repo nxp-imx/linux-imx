@@ -65,7 +65,11 @@ static void __clk_disable(struct clk *clk)
 {
 	if (clk == NULL || IS_ERR(clk))
 		return;
-	WARN_ON(!clk->usecount);
+
+	if (!clk->usecount) {
+		WARN(1, "clock enable/disable mismatch!\n");
+		return;
+	}
 
 	if (!(--clk->usecount)) {
 		if (clk->disable)
