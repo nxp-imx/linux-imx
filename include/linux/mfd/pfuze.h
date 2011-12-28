@@ -105,6 +105,6 @@ struct pfuze_platform_data {
 #define PFUZE_USE_REGULATOR	(1 << 0)
 	unsigned int flags;
 	int num_regulators;
-	struct fuze_regulator_init_data *regulators;
+	struct pfuze_regulator_init_data *regulators;
 };
 #endif
