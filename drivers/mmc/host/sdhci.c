@@ -50,7 +50,6 @@ static void sdhci_finish_command(struct sdhci_host *);
 
 static void sdhci_clk_worker(struct work_struct *work)
 {
-	unsigned long flags;
 	struct sdhci_host *host =
 		container_of(work, struct sdhci_host, clk_worker.work);
 
@@ -1751,7 +1750,7 @@ int sdhci_resume_host(struct sdhci_host *host)
 	int ret;
 
 	if (host->vmmc) {
-		int ret = regulator_enable(host->vmmc);
+		ret = regulator_enable(host->vmmc);
 		if (ret)
 			goto out;
 	}
