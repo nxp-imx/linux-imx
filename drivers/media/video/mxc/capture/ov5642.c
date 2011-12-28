@@ -1881,6 +1881,7 @@ err:
 }
 static int ov5642_init_mode(enum ov5642_frame_rate frame_rate,
 		enum ov5642_mode mode);
+static int ov5642_write_snapshot_para(void);
 static int ov5642_change_mode(enum ov5642_frame_rate frame_rate,
 		enum ov5642_mode new_mode,  enum ov5642_mode orig_mode)
 {
@@ -1906,10 +1907,10 @@ static int ov5642_change_mode(enum ov5642_frame_rate frame_rate,
 		ov5642_data.pix.height = 480;
 		return 0;
 	} else if (new_mode == ov5642_mode_QSXGA_2592_1944 && orig_mode == ov5642_mode_VGA_640_480) {
-		pModeSetting = ov5642_setting_15fps_QSXGA_2592_1944;
-		iModeSettingArySize = ARRAY_SIZE(ov5642_setting_15fps_QSXGA_2592_1944);
 		ov5642_data.pix.width = 2592;
 		ov5642_data.pix.height = 1944;
+		retval = ov5642_write_snapshot_para();
+		return retval;
 	} else if (new_mode == ov5642_mode_VGA_640_480 && orig_mode == ov5642_mode_QSXGA_2592_1944) {
 		pModeSetting = ov5642_setting_QSXGA_2_VGA;
 		iModeSettingArySize = ARRAY_SIZE(ov5642_setting_QSXGA_2_VGA);
