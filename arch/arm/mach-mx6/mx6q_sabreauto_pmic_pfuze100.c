@@ -363,7 +363,7 @@ static struct regulator_init_data vgen6_init = {
 	.consumer_supplies = vgen6_consumers,
 };
 
-static struct pfuze_regulator_init_data mx6q_arm2_pfuze100_regulators[] = {
+static struct pfuze_regulator_init_data mx6q_sabreauto_pfuze100_regulators[] = {
 	{.id = PFUZE100_SW1A,	.init_data = &sw1a_init},
 	{.id = PFUZE100_SW1B,	.init_data = &sw1b_init},
 	{.id = PFUZE100_SW1C,	.init_data = &sw1c_init},
@@ -384,8 +384,8 @@ static struct pfuze_regulator_init_data mx6q_arm2_pfuze100_regulators[] = {
 
 static struct pfuze_platform_data pfuze100_plat = {
 	.flags = PFUZE_USE_REGULATOR,
-	.num_regulators = ARRAY_SIZE(mx6q_arm2_pfuze100_regulators),
-	.regulators = mx6q_arm2_pfuze100_regulators,
+	.num_regulators = ARRAY_SIZE(mx6q_sabreauto_pfuze100_regulators),
+	.regulators = mx6q_sabreauto_pfuze100_regulators,
 };
 
 static struct i2c_board_info __initdata pfuze100_i2c_device = {
