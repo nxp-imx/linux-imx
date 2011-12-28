@@ -748,7 +748,7 @@ static struct viv_gpu_platform_data imx6q_gpu_pdata __initdata = {
 static int mx6q_sabreauto_sata_init(struct device *dev, void __iomem *addr)
 {
 	u32 tmpdata;
-	int ret = 0, iterations = 20;
+	int ret = 0;
 	struct clk *clk;
 
 	sata_clk = clk_get(dev, "imx_sata_clk");
