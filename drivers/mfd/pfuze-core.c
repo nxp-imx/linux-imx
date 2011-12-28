@@ -409,11 +409,6 @@ static int pfuze_add_subdevice_pdata(struct mc_pfuze *mc_pfuze,
 			       0);
 }
 
-static int pfuze_add_subdevice(struct mc_pfuze *mc_pfuze, const char *format)
-{
-	return pfuze_add_subdevice_pdata(mc_pfuze, format, NULL, 0);
-}
-
 static ssize_t pfuze_show(struct device *dev,
 			  struct device_attribute *attr, char *buf)
 {
