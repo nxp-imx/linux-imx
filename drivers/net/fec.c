@@ -246,7 +246,7 @@ static void fec_stop(struct net_device *dev);
 #define FEC_MMFR_TA		(2 << 16)
 #define FEC_MMFR_DATA(v)	(v & 0xffff)
 
-#define FEC_MII_TIMEOUT		2000 /* us */
+#define FEC_MII_TIMEOUT		30 /* ms */
 
 /* Transmitter timeout */
 #define TX_TIMEOUT (2 * HZ)
@@ -444,7 +444,9 @@ fec_enet_tx(struct net_device *dev)
 		if (bdp == fep->cur_tx && fep->tx_full == 0)
 			break;
 
-		dma_unmap_single(&dev->dev, bdp->cbd_bufaddr, FEC_ENET_TX_FRSIZE, DMA_TO_DEVICE);
+		if (bdp->cbd_bufaddr)
+			dma_unmap_single(&dev->dev, bdp->cbd_bufaddr,
+			FEC_ENET_TX_FRSIZE, DMA_TO_DEVICE);
 		bdp->cbd_bufaddr = 0;
 
 		skb = fep->tx_skbuff[fep->skb_dirty];
@@ -584,8 +586,9 @@ fec_enet_rx(struct net_device *dev)
 		dev->stats.rx_bytes += pkt_len;
 		data = (__u8*)__va(bdp->cbd_bufaddr);
 
-	        dma_unmap_single(NULL, bdp->cbd_bufaddr, bdp->cbd_datlen,
-        			DMA_FROM_DEVICE);
+		if (bdp->cbd_bufaddr)
+			dma_unmap_single(&dev->dev, bdp->cbd_bufaddr,
+				FEC_ENET_RX_FRSIZE, DMA_FROM_DEVICE);
 
 		if (id_entry->driver_data & FEC_QUIRK_SWAP_FRAME)
 			swap_buffer(data, pkt_len);
@@ -612,8 +615,8 @@ fec_enet_rx(struct net_device *dev)
 			netif_rx(skb);
 		}
 
-        	bdp->cbd_bufaddr = dma_map_single(NULL, data, bdp->cbd_datlen,
-			DMA_FROM_DEVICE);
+		bdp->cbd_bufaddr = dma_map_single(&dev->dev, data,
+				FEC_ENET_RX_FRSIZE, DMA_FROM_DEVICE);
 rx_processing_done:
 		/* Clear the status flags for this buffer */
 		status &= ~BD_ENET_RX_STATS;
@@ -756,7 +759,7 @@ static int fec_enet_mdio_read(struct mii_bus *bus, int mii_id, int regnum)
 
 	/* wait for end of transfer */
 	time_left = wait_for_completion_timeout(&fep->mdio_done,
-			usecs_to_jiffies(FEC_MII_TIMEOUT));
+			msecs_to_jiffies(FEC_MII_TIMEOUT));
 	if (time_left == 0) {
 		fep->mii_timeout = 1;
 		printk(KERN_ERR "FEC: MDIO read timeout, mii_id=%d\n", mii_id);
@@ -784,7 +787,7 @@ static int fec_enet_mdio_write(struct mii_bus *bus, int mii_id, int regnum,
 
 	/* wait for end of transfer */
 	time_left = wait_for_completion_timeout(&fep->mdio_done,
-			usecs_to_jiffies(FEC_MII_TIMEOUT));
+			msecs_to_jiffies(FEC_MII_TIMEOUT));
 	if (time_left == 0) {
 		fep->mii_timeout = 1;
 		printk(KERN_ERR "FEC: MDIO write timeout, mii_id=%d\n", mii_id);
@@ -1096,7 +1099,6 @@ fec_enet_open(struct net_device *dev)
 	/* I should reset the ring buffers here, but I don't yet know
 	 * a simple way to do that.
 	 */
-
 	if (!clk_get_usecount(fep->clk))
 		clk_enable(fep->clk);
 	ret = fec_enet_alloc_buffers(dev);
@@ -1296,6 +1298,7 @@ static int fec_enet_init(struct net_device *dev)
 
 		/* Initialize the BD for every fragment in the page. */
 		bdp->cbd_sc = 0;
+		bdp->cbd_bufaddr = 0;
 		bdp++;
 	}
 

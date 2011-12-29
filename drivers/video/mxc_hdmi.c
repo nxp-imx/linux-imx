@@ -75,7 +75,7 @@
 #define YCBCR444		1
 #define YCBCR422_16BITS		2
 #define YCBCR422_8BITS		3
-#define XVYCC444		4
+#define XVYCC444            4
 
 /*
  * We follow a flowchart which is in the "Synopsys DesignWare Courses
@@ -94,6 +94,19 @@ static const struct fb_videomode vga_mode = {
 	/* 640x480 @ 60 Hz, 31.5 kHz hsync */
 	NULL, 60, 640, 480, 39721, 48, 16, 33, 10, 96, 2, 0,
 	FB_VMODE_NONINTERLACED | FB_VMODE_ASPECT_4_3, 0,
+};
+
+static const struct fb_videomode xga_mode = {
+	/* 13 1024x768-60 VESA */
+	NULL, 60, 1024, 768, 15384, 160, 24, 29, 3, 136, 6,
+	0, FB_VMODE_NONINTERLACED, FB_MODE_IS_VESA
+};
+
+static const struct fb_videomode sxga_mode = {
+	/* 20 1280x1024-60 VESA */
+	NULL, 60, 1280, 1024, 9259, 248, 48, 38, 1, 112, 3,
+	FB_SYNC_HOR_HIGH_ACT | FB_SYNC_VERT_HIGH_ACT,
+	FB_VMODE_NONINTERLACED, FB_MODE_IS_VESA
 };
 
 enum hdmi_datamap {
@@ -251,7 +264,7 @@ static void hdmi_video_sample(struct mxc_hdmi *hdmi)
 			color_format = 0x07;
 		else
 			return;
-	} else if (hdmi->hdmi_data.enc_in_format == XVYCC444) {
+	} else if (hdmi->hdmi_data.enc_in_format == YCBCR444) {
 		if (hdmi->hdmi_data.enc_color_depth == 8)
 			color_format = 0x09;
 		else if (hdmi->hdmi_data.enc_color_depth == 10)
@@ -301,14 +314,14 @@ static int isColorSpaceDecimation(struct mxc_hdmi *hdmi)
 {
 	return ((hdmi->hdmi_data.enc_out_format == YCBCR422_8BITS) &&
 		(hdmi->hdmi_data.enc_in_format == RGB ||
-		hdmi->hdmi_data.enc_in_format == XVYCC444));
+		hdmi->hdmi_data.enc_in_format == YCBCR444));
 }
 
 static int isColorSpaceInterpolation(struct mxc_hdmi *hdmi)
 {
 	return ((hdmi->hdmi_data.enc_in_format == YCBCR422_8BITS) &&
 		(hdmi->hdmi_data.enc_out_format == RGB
-		|| hdmi->hdmi_data.enc_out_format == XVYCC444));
+		|| hdmi->hdmi_data.enc_out_format == YCBCR444));
 }
 
 /*!
@@ -489,7 +502,7 @@ static void hdmi_video_csc(struct mxc_hdmi *hdmi)
 	if (isColorSpaceInterpolation(hdmi))
 		interpolation = HDMI_CSC_CFG_INTMODE_CHROMA_INT_FORMULA1;
 	else if (isColorSpaceDecimation(hdmi))
-		decimation = HDMI_CSC_CFG_DECMODE_CHROMA_INT_FORMULA1;
+		decimation = HDMI_CSC_CFG_DECMODE_CHROMA_INT_FORMULA3;
 
 	if (hdmi->hdmi_data.enc_color_depth == 8)
 		color_depth = HDMI_CSC_SCALE_CSC_COLORDE_PTH_24BPP;
@@ -813,7 +826,7 @@ static void mxc_hdmi_phy_sel_interface_control(u8 enable)
 static int hdmi_phy_configure(struct mxc_hdmi *hdmi, unsigned char pRep,
 			      unsigned char cRes, int cscOn)
 {
-	u8 val;
+	u8 val, clkdis;
 
 	dev_dbg(&hdmi->pdev->dev, "%s\n", __func__);
 
@@ -832,6 +845,13 @@ static int hdmi_phy_configure(struct mxc_hdmi *hdmi, unsigned char pRep,
 		val = HDMI_MC_FLOWCTRL_FEED_THROUGH_OFF_CSC_BYPASS;
 
 	hdmi_writeb(val, HDMI_MC_FLOWCTRL);
+
+	/* Enable csc path */
+	if (cscOn) {
+		clkdis = hdmi_readb(HDMI_MC_CLKDIS);
+		clkdis &= ~HDMI_MC_CLKDIS_CSCCLK_DISABLE;
+		hdmi_writeb(clkdis, HDMI_MC_CLKDIS);
+	}
 
 	/* gen2 tx power off */
 	mxc_hdmi_phy_gen2_txpwron(0);
@@ -1057,8 +1077,13 @@ static int hdmi_phy_configure(struct mxc_hdmi *hdmi, unsigned char pRep,
 static void mxc_hdmi_phy_init(struct mxc_hdmi *hdmi)
 {
 	int i;
+	bool cscon = false;
 
 	dev_dbg(&hdmi->pdev->dev, "%s\n", __func__);
+
+	/*check csc whether needed activated in HDMI mode */
+	cscon = (isColorSpaceConversion(hdmi) &&
+			!hdmi->hdmi_data.video_mode.mDVI);
 
 	/* HDMI Phy spec says to do the phy initialization sequence twice */
 	for (i = 0 ; i < 2 ; i++) {
@@ -1067,8 +1092,8 @@ static void mxc_hdmi_phy_init(struct mxc_hdmi *hdmi)
 		mxc_hdmi_phy_enable_tmds(0);
 		mxc_hdmi_phy_enable_power(0);
 
-		/* TODO: Enable CSC */
-		hdmi_phy_configure(hdmi, 0, 8, false);
+		/* Enable CSC */
+		hdmi_phy_configure(hdmi, 0, 8, cscon);
 	}
 
 	hdmi->phy_enabled = true;
@@ -1104,6 +1129,7 @@ static void hdmi_config_AVI(struct mxc_hdmi *hdmi)
 {
 	u8 val;
 	u8 pix_fmt;
+	u8 under_scan;
 	u8 act_ratio, coded_ratio, colorimetry, ext_colorimetry;
 	struct fb_videomode mode;
 	const struct fb_videomode *edid_mode;
@@ -1125,21 +1151,25 @@ static void hdmi_config_AVI(struct mxc_hdmi *hdmi)
 	/********************************************
 	 * AVI Data Byte 1
 	 ********************************************/
-	if (hdmi->edid_cfg.cea_ycbcr444)
+	if (hdmi->hdmi_data.enc_out_format == YCBCR444)
 		pix_fmt = HDMI_FC_AVICONF0_PIX_FMT_YCBCR444;
-	else if (hdmi->edid_cfg.cea_ycbcr422)
+	else if (hdmi->hdmi_data.enc_out_format == YCBCR422_8BITS)
 		pix_fmt = HDMI_FC_AVICONF0_PIX_FMT_YCBCR422;
 	else
 		pix_fmt = HDMI_FC_AVICONF0_PIX_FMT_RGB;
 
+	if (hdmi->edid_cfg.cea_underscan)
+		under_scan = HDMI_FC_AVICONF0_SCAN_INFO_UNDERSCAN;
+	else
+		under_scan =  HDMI_FC_AVICONF0_SCAN_INFO_NODATA;
+
 	/*
 	 * Active format identification data is present in the AVI InfoFrame.
-	 * No scan info, no bar data
+	 * Under scan info, no bar data
 	 */
-	val = pix_fmt |
+	val = pix_fmt | under_scan |
 		HDMI_FC_AVICONF0_ACTIVE_FMT_INFO_PRESENT |
-		HDMI_FC_AVICONF0_BAR_DATA_NO_DATA |
-		HDMI_FC_AVICONF0_SCAN_INFO_NODATA;
+		HDMI_FC_AVICONF0_BAR_DATA_NO_DATA;
 
 	hdmi_writeb(val, HDMI_FC_AVICONF0);
 
@@ -1207,7 +1237,7 @@ static void hdmi_config_AVI(struct mxc_hdmi *hdmi)
 	hdmi_writeb(val, HDMI_FC_PRCONF);
 
 	/* IT Content and quantization range = don't care */
-	val = HDMI_FC_AVICONF2_IT_CONTENT_TYPE_GRAPHICS |
+	val = HDMI_FC_AVICONF3_IT_CONTENT_TYPE_GRAPHICS |
 		HDMI_FC_AVICONF3_QUANT_RANGE_LIMITED;
 	hdmi_writeb(val, HDMI_FC_AVICONF3);
 
@@ -1513,10 +1543,12 @@ static void mxc_hdmi_edid_rebuild_modelist(struct mxc_hdmi *hdmi)
 				FB_VMODE_INTERLACED)) {
 			dev_dbg(&hdmi->pdev->dev, "Added mode %d:", i);
 			dev_dbg(&hdmi->pdev->dev,
-				"xres = %d, yres = %d, freq = %d\n",
+				"xres = %d, yres = %d, freq = %d, vmode = %d, flag = %d\n",
 				hdmi->fbi->monspecs.modedb[i].xres,
 				hdmi->fbi->monspecs.modedb[i].yres,
-				hdmi->fbi->monspecs.modedb[i].refresh);
+				hdmi->fbi->monspecs.modedb[i].refresh,
+				hdmi->fbi->monspecs.modedb[i].vmode,
+				hdmi->fbi->monspecs.modedb[i].flag);
 
 			fb_add_videomode(&hdmi->fbi->monspecs.modedb[i],
 					 &hdmi->fbi->modelist);
@@ -1553,11 +1585,13 @@ static void  mxc_hdmi_default_modelist(struct mxc_hdmi *hdmi)
 {
 	u32 i;
 	const struct fb_videomode *mode;
+	struct fb_videomode m;
 
 	dev_dbg(&hdmi->pdev->dev, "%s\n", __func__);
 
 	/* If not EDID data read, set up default modelist  */
 	dev_info(&hdmi->pdev->dev, "No modes read from edid\n");
+	dev_info(&hdmi->pdev->dev, "create default modelist\n");
 
 	/* Set the default mode only once. */
 	if (!hdmi->dft_mode_set) {
@@ -1577,17 +1611,30 @@ static void  mxc_hdmi_default_modelist(struct mxc_hdmi *hdmi)
 
 	fb_destroy_modelist(&hdmi->fbi->modelist);
 
+	/*Add all no interlaced CEA mode to default modelist */
 	for (i = 0; i < ARRAY_SIZE(mxc_cea_mode); i++) {
 		mode = &mxc_cea_mode[i];
-		if ((mode->xres == hdmi->fbi->var.xres) &&
-		    (mode->yres == hdmi->fbi->var.yres) &&
-		    !(mode->vmode & FB_VMODE_INTERLACED))
+		if (!(mode->vmode & FB_VMODE_INTERLACED) && (mode->xres != 0))
 			fb_add_videomode(mode, &hdmi->fbi->modelist);
 	}
 
+	/*Add XGA and SXGA to default modelist */
+	fb_add_videomode(&xga_mode, &hdmi->fbi->modelist);
+	fb_add_videomode(&sxga_mode, &hdmi->fbi->modelist);
+
 	console_unlock();
 
-	mxc_hdmi_notify_fb(hdmi);
+	fb_var_to_videomode(&m, &hdmi->fbi->var);
+	dump_fb_videomode(&m);
+	mode = fb_find_nearest_mode(&m, &hdmi->fbi->modelist);
+	if (mode) {
+		fb_videomode_to_var(&hdmi->fbi->var, mode);
+		dump_fb_videomode((struct fb_videomode *)mode);
+		dev_warn(&hdmi->pdev->dev,
+			"Default modelist,the video mode may not support by monitor.\n");
+		mxc_hdmi_notify_fb(hdmi);
+	} else
+		pr_err("%s: could not find mode in default modelist\n", __func__);
 }
 
 static void mxc_hdmi_set_mode_to_vga_dvi(struct mxc_hdmi *hdmi)
@@ -1886,12 +1933,14 @@ static void mxc_hdmi_setup(struct mxc_hdmi *hdmi)
 	hdmi->hdmi_data.enc_in_format = RGB;
 
 	hdmi->hdmi_data.enc_out_format = RGB;
-	if (hdmi->edid_cfg.hdmi_cap) {
-		if (hdmi->edid_cfg.cea_ycbcr444)
-			hdmi->hdmi_data.enc_out_format = YCBCR444;
-		else if (hdmi->edid_cfg.cea_ycbcr422)
-			hdmi->hdmi_data.enc_out_format = YCBCR422_8BITS;
-	}
+	/*DVI mode not support non-RGB */
+	if (!hdmi->hdmi_data.video_mode.mDVI)
+		if (hdmi->edid_cfg.hdmi_cap) {
+			if (hdmi->edid_cfg.cea_ycbcr444)
+				hdmi->hdmi_data.enc_out_format = YCBCR444;
+			else if (hdmi->edid_cfg.cea_ycbcr422)
+				hdmi->hdmi_data.enc_out_format = YCBCR422_8BITS;
+		}
 
 	hdmi->hdmi_data.enc_color_depth = 8;
 	hdmi->hdmi_data.pix_repet_factor = 0;

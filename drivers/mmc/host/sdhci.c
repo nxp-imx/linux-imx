@@ -50,14 +50,11 @@ static void sdhci_finish_command(struct sdhci_host *);
 
 static void sdhci_clk_worker(struct work_struct *work)
 {
-	unsigned long flags;
 	struct sdhci_host *host =
 		container_of(work, struct sdhci_host, clk_worker.work);
 
-	spin_lock_irqsave(&host->lock, flags);
 	if (host->ops->platform_clk_ctrl && host->clk_status)
 		host->ops->platform_clk_ctrl(host, false);
-	spin_unlock_irqrestore(&host->lock, flags);
 }
 
 static inline bool sdhci_is_sdio_attached(struct sdhci_host *host)
@@ -290,16 +287,16 @@ static void sdhci_led_control(struct led_classdev *led,
 	struct sdhci_host *host = container_of(led, struct sdhci_host, led);
 	unsigned long flags;
 
-	spin_lock_irqsave(&host->lock, flags);
 	sdhci_enable_clk(host);
+	spin_lock_irqsave(&host->lock, flags);
 
 	if (brightness == LED_OFF)
 		sdhci_deactivate_led(host);
 	else
 		sdhci_activate_led(host);
 
-	sdhci_disable_clk(host, CLK_TIMEOUT);
 	spin_unlock_irqrestore(&host->lock, flags);
+	sdhci_disable_clk(host, CLK_TIMEOUT);
 }
 #endif
 
@@ -1182,6 +1179,7 @@ static void sdhci_request(struct mmc_host *mmc, struct mmc_request *mrq)
 
 	host = mmc_priv(mmc);
 
+	sdhci_enable_clk(host);
 	spin_lock_irqsave(&host->lock, flags);
 
 	WARN_ON(host->mrq != NULL);
@@ -1197,7 +1195,6 @@ static void sdhci_request(struct mmc_host *mmc, struct mmc_request *mrq)
 	}
 
 	host->mrq = mrq;
-	sdhci_enable_clk(host);
 
 	/* If polling, assume that the card is always present. */
 	if (host->quirks & SDHCI_QUIRK_BROKEN_CARD_DETECTION)
@@ -1224,8 +1221,8 @@ static void sdhci_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
 
 	host = mmc_priv(mmc);
 
-	spin_lock_irqsave(&host->lock, flags);
 	sdhci_enable_clk(host);
+	spin_lock_irqsave(&host->lock, flags);
 
 	if (host->flags & SDHCI_DEVICE_DEAD)
 		goto out;
@@ -1301,10 +1298,10 @@ static void sdhci_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
 
 out:
 	mmiowb();
+	spin_unlock_irqrestore(&host->lock, flags);
+
 	if (ios->power_mode == MMC_POWER_OFF)
 		sdhci_disable_clk(host, 0);
-
-	spin_unlock_irqrestore(&host->lock, flags);
 }
 
 static int sdhci_get_ro(struct mmc_host *mmc)
@@ -1315,8 +1312,8 @@ static int sdhci_get_ro(struct mmc_host *mmc)
 
 	host = mmc_priv(mmc);
 
-	spin_lock_irqsave(&host->lock, flags);
 	sdhci_enable_clk(host);
+	spin_lock_irqsave(&host->lock, flags);
 
 	if (host->flags & SDHCI_DEVICE_DEAD)
 		is_readonly = 0;
@@ -1327,6 +1324,7 @@ static int sdhci_get_ro(struct mmc_host *mmc)
 				& SDHCI_WRITE_PROTECT);
 
 	spin_unlock_irqrestore(&host->lock, flags);
+	sdhci_disable_clk(host, CLK_TIMEOUT);
 
 	/* This quirk needs to be replaced by a callback-function later */
 	return host->quirks & SDHCI_QUIRK_INVERTED_WRITE_PROTECT ?
@@ -1340,8 +1338,8 @@ static void sdhci_enable_sdio_irq(struct mmc_host *mmc, int enable)
 
 	host = mmc_priv(mmc);
 
-	spin_lock_irqsave(&host->lock, flags);
 	sdhci_enable_clk(host);
+	spin_lock_irqsave(&host->lock, flags);
 
 	if (host->flags & SDHCI_DEVICE_DEAD)
 		goto out;
@@ -1450,8 +1448,8 @@ static void sdhci_tasklet_finish(unsigned long param)
 #endif
 
 	mmiowb();
-	sdhci_disable_clk(host, CLK_TIMEOUT);
 	spin_unlock_irqrestore(&host->lock, flags);
+	sdhci_disable_clk(host, CLK_TIMEOUT);
 
 	mmc_request_done(host->mmc, mrq);
 }
@@ -1731,6 +1729,8 @@ int sdhci_suspend_host(struct sdhci_host *host, pm_message_t state)
 {
 	int ret;
 
+	mmc_claim_host(host->mmc);
+
 	sdhci_enable_clk(host);
 	sdhci_disable_card_detection(host);
 
@@ -1759,9 +1759,9 @@ int sdhci_resume_host(struct sdhci_host *host)
 	int ret;
 
 	if (host->vmmc) {
-		int ret = regulator_enable(host->vmmc);
+		ret = regulator_enable(host->vmmc);
 		if (ret)
-			return ret;
+			goto out;
 	}
 
 	sdhci_enable_clk(host);
@@ -1788,6 +1788,7 @@ out:
 	/* sync worker */
 	sdhci_disable_clk(host, 0);
 
+	mmc_release_host(host->mmc);
 	return ret;
 }
 
@@ -2157,6 +2158,8 @@ void sdhci_remove_host(struct sdhci_host *host, int dead)
 {
 	unsigned long flags;
 
+	sdhci_enable_clk(host);
+
 	if (dead) {
 		spin_lock_irqsave(&host->lock, flags);
 
@@ -2167,7 +2170,6 @@ void sdhci_remove_host(struct sdhci_host *host, int dead)
 				" transfer!\n", mmc_hostname(host->mmc));
 
 			host->mrq->cmd->error = -ENOMEDIUM;
-			sdhci_enable_clk(host);
 			tasklet_schedule(&host->finish_tasklet);
 		}
 

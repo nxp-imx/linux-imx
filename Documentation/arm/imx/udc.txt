@@ -1,4 +1,4 @@
-How to test remote wakeup (Make sure connecting to usb host and gadget is loaded)
+* How to test remote wakeup (Make sure connecting to usb host and gadget is loaded)
 1. Prepare a usb host which featured with remote wakeup
 alternatively, You can use another i.mx board (like mx50 rdp, or mx6q)
 2. Boot up both boards, and connect two boards with usb cable
@@ -13,4 +13,23 @@ At device side, do below command:
 echo 1 > /sys/devices/platform/fsl-usb2-udc/gadget/start_remote_wakeup
 6. The expected behaviour is: host is waked up, and there is
 not re-enumeration happens.
+
+* How to test usb audio gadget
+1. Test Condition
+- Host PC, only Macbook Pro (Mac OS 10.6.5+) & Ubuntu 10.10 (Linux 2.6.38+)
+are supported, Windows OS are not supported now.
+- One USB MicroAB cable and one earphone
+2. Test procedure
+- Power up the board
+- Login in rootfs, load usb audio module with below commands:
+modprobe g_audio req_count=20 audio_buf_size=8192 audio_sample_rate=44100
+- Connect board with PC using MicroAB cable
+- For Ubuntu PC, you can use aplay -l to get the sound card num for this
+usb audio gadget, usually the number is 1. For Macbook, you need to choose
+"Linux USB Audio Gadget" on the "Sound"->"Output" tab of System Preferences.
+- Choose several 44.1Khz wav file to play, you can use aplay or iTune according
+to different PCs.
+3. Constraints
+Since there is no feedback at current usb audio framework,
+it may have pop noise/no sound after play some minutes.
 

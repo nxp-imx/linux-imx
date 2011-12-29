@@ -376,6 +376,34 @@ gckGALDEVICE_Construct(
 
     memset(device, 0, sizeof(struct _gckGALDEVICE));
 
+    /*Initialize the clock structure*/
+    if (IrqLine != -1) {
+        device->clk_3d_core = clk_get(NULL, "gpu3d_clk");
+        if (!IS_ERR(device->clk_3d_core)) {
+            device->clk_3d_shader = clk_get(NULL, "gpu3d_shader_clk");
+            if (IS_ERR(device->clk_3d_shader)) {
+                IrqLine = -1;
+                clk_put(device->clk_3d_core);
+                device->clk_3d_core = NULL;
+                device->clk_3d_shader = NULL;
+                gckOS_Print("galcore: clk_get gpu3d_shader_clk failed, disable 3d!\n");
+            }
+        } else {
+            IrqLine = -1;
+            device->clk_3d_core = NULL;
+            gckOS_Print("galcore: clk_get gpu3d_clk failed, disable 3d!\n");
+        }
+    }
+    if ((IrqLine2D != -1) || (IrqLineVG != -1)) {
+        device->clk_2d_core = clk_get(NULL, "gpu2d_clk");
+        if (IS_ERR(device->clk_2d_core)) {
+            IrqLine2D = -1;
+            IrqLineVG = -1;
+            device->clk_2d_core = NULL;
+            gckOS_Print("galcore: clk_get 2d clock failed, disable 2d/vg!\n");
+        }
+    }
+
     if (IrqLine != -1)
     {
         device->requestedRegisterMemBases[gcvCORE_MAJOR]    = RegisterMemBase;
@@ -939,6 +967,23 @@ gckGALDEVICE_Destroy(
                 Device->requestedRegisterMemBases[i] = 0;
                 Device->requestedRegisterMemSizes[i] = 0;
             }
+        }
+
+        /*Disable clock*/
+        if (Device->clk_3d_core) {
+           clk_disable(Device->clk_3d_core);
+           clk_put(Device->clk_3d_core);
+           Device->clk_3d_core = NULL;
+        }
+        if (Device->clk_3d_shader) {
+           clk_disable(Device->clk_3d_shader);
+           clk_put(Device->clk_3d_shader);
+           Device->clk_3d_shader = NULL;
+        }
+        if (Device->clk_2d_core) {
+           clk_disable(Device->clk_2d_core);
+           clk_put(Device->clk_2d_core);
+           Device->clk_2d_core = NULL;
         }
 
         /* Destroy the gckOS object. */

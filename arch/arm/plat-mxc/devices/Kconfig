@@ -1,6 +1,9 @@
 config IMX_HAVE_PLATFORM_DMA
 	bool
 
+config IMX_HAVE_PLATFORM_MXC_MLB
+	bool
+
 config IMX_HAVE_PLATFORM_FEC
 	bool
 

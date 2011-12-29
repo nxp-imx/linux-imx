@@ -138,7 +138,6 @@
 #define  UCR4_OREN  	 (1<<1)  /* Receiver overrun interrupt enable */
 #define  UCR4_DREN  	 (1<<0)  /* Recv data ready interrupt enable */
 #define  UFCR_RXTL_SHF   0       /* Receiver trigger level shift */
-#define  UFCR_RXTL_MASK  0x3f    /* RX FIFO is 6 bits wide */
 #define  UFCR_RFDIV      (7<<7)  /* Reference freq divider mask */
 #define  UFCR_RFDIV_REG(x)	(((x) < 7 ? 6 - (x) : 6) << 7)
 #define  UFCR_TXTL_SHF   10      /* Transmitter trigger level shift */
@@ -191,8 +190,6 @@
 
 #define UART_NR 8
 
-#define UART_RX_SIZE (16)
-
 struct imx_port {
 	struct uart_port	port;
 	struct timer_list	timer;
@@ -216,6 +213,7 @@ struct imx_port {
 	struct work_struct	tsk_dma_rx, tsk_dma_tx;
 	unsigned int		dma_tx_nents;
 	bool			dma_is_rxing;
+	wait_queue_head_t	dma_wait;
 };
 
 #ifdef CONFIG_IRDA
@@ -330,6 +328,13 @@ static void imx_stop_rx(struct uart_port *port)
 {
 	struct imx_port *sport = (struct imx_port *)port;
 	unsigned long temp;
+
+	/*
+	 * We are in SMP now, so if the DMA RX thread is running,
+	 * we have to wait for it to finish.
+	 */
+	if (sport->enable_dma && sport->dma_is_rxing)
+		return;
 
 	temp = readl(sport->port.membase + UCR2);
 	writel(temp &~ UCR2_RXEN, sport->port.membase + UCR2);
@@ -601,12 +606,6 @@ static void imx_dma_rxint(struct imx_port *sport)
 	if ((temp & USR2_RDR) && !sport->dma_is_rxing) {
 		sport->dma_is_rxing = true;
 
-		/* increase the RX FIFO threthold. */
-		temp = readl(sport->port.membase + UFCR);
-		temp &= ~(UFCR_RXTL_MASK << UFCR_RXTL_SHF);
-		temp |= UART_RX_SIZE;
-		writel(temp, sport->port.membase + UFCR);
-
 		/* disable the `Recerver Ready Interrrupt` */
 		temp = readl(sport->port.membase + UCR1);
 		temp &= ~(UCR1_RRDYEN);
@@ -757,10 +756,28 @@ static void dma_rx_work(struct work_struct *w)
 		start_rx_dma(sport);
 }
 
+static void imx_finish_dma(struct imx_port *sport)
+{
+	unsigned long temp;
+
+	/* Enable the interrupt when the RXFIFO is not empty. */
+	temp = readl(sport->port.membase + UCR1);
+	temp |= UCR1_RRDYEN;
+	writel(temp, sport->port.membase + UCR1);
+
+	sport->dma_is_rxing = false;
+	if (waitqueue_active(&sport->dma_wait))
+		wake_up(&sport->dma_wait);
+}
+
 /*
- * There are two kinds RX DMA interrupts:
+ * There are three kinds of RX DMA interrupts:
  *   [1] the RX DMA buffer is full.
- *   [2] the Aging timer reached its final value(enabled the UCR4_IDDMAEN).
+ *   [2] the Aging timer expires(wait for 8 bytes long)
+ *   [3] the Idle Condition Detect(enabled the UCR4_IDDMAEN).
+ *
+ * The [2] and [3] are similar, but [3] is better.
+ * [3] can wait for 32 bytes long, so we do not use [2].
  */
 static void dma_rx_callback(void *data)
 {
@@ -778,27 +795,20 @@ static void dma_rx_callback(void *data)
 	/* unmap it first */
 	dma_unmap_sg(sport->port.dev, sgl, 1, DMA_FROM_DEVICE);
 
+	/* If we have finish the reading. we will not accept any more data. */
+	if (tty->closing) {
+		imx_finish_dma(sport);
+		return;
+	}
+
 	status = chan->device->device_tx_status(chan,
 					(dma_cookie_t)NULL, &state);
 	count = RX_BUF_SIZE - state.residue;
 	if (count) {
 		sport->rx_bytes = count;
 		schedule_work(&sport->tsk_dma_rx);
-	} else {
-		unsigned long temp;
-
-		/* Enable the interrupt when the RXFIFO is not empty. */
-		temp = readl(sport->port.membase + UCR1);
-		temp |= UCR1_RRDYEN;
-		writel(temp, sport->port.membase + UCR1);
-		sport->dma_is_rxing = false;
-
-		/* decrease the RX FIFO threthold. */
-		temp = readl(sport->port.membase + UFCR);
-		temp &= ~(UFCR_RXTL_MASK << UFCR_RXTL_SHF);
-		temp |= RXTL;
-		writel(temp, sport->port.membase + UFCR);
-	}
+	} else
+		imx_finish_dma(sport);
 }
 
 static int start_rx_dma(struct imx_port *sport)
@@ -869,7 +879,7 @@ static int imx_uart_dma_init(struct imx_port *sport)
 	slave_config.direction = DMA_FROM_DEVICE;
 	slave_config.src_addr = sport->port.mapbase + URXD0;
 	slave_config.src_addr_width = DMA_SLAVE_BUSWIDTH_1_BYTE;
-	slave_config.src_maxburst = UART_RX_SIZE;
+	slave_config.src_maxburst = RXTL; /* fix me */
 	ret = dmaengine_slave_config(sport->dma_chan_rx, &slave_config);
 	if (ret) {
 		pr_err("error in RX dma configuration.\n");
@@ -993,6 +1003,7 @@ static int imx_startup(struct uart_port *port)
 		sport->port.flags |= UPF_LOW_LATENCY;
 		INIT_WORK(&sport->tsk_dma_tx, dma_tx_work);
 		INIT_WORK(&sport->tsk_dma_rx, dma_rx_work);
+		init_waitqueue_head(&sport->dma_wait);
 	}
 
 	spin_lock_irqsave(&sport->port.lock, flags);
@@ -1004,7 +1015,7 @@ static int imx_startup(struct uart_port *port)
 	temp = readl(sport->port.membase + UCR1);
 	temp |= UCR1_RRDYEN | UCR1_RTSDEN | UCR1_UARTEN;
 	if (sport->enable_dma) {
-		temp |= UCR1_RDMAEN | UCR1_TDMAEN | UCR1_ATDMAEN;
+		temp |= UCR1_RDMAEN | UCR1_TDMAEN;
 		/* ICD, wait for more than 32 frames, but it still to short. */
 		temp |= UCR1_ICD_REG(3);
 	}
@@ -1093,6 +1104,13 @@ static void imx_shutdown(struct uart_port *port)
 	unsigned long temp;
 	unsigned long flags;
 
+	if (sport->enable_dma) {
+		/* We have to wait for the DMA to finish. */
+		wait_event(sport->dma_wait, !sport->dma_is_rxing);
+		imx_stop_rx(port);
+		imx_uart_dma_exit(sport);
+	}
+
 	spin_lock_irqsave(&sport->port.lock, flags);
 	temp = readl(sport->port.membase + UCR2);
 	temp &= ~(UCR2_TXEN);
@@ -1131,12 +1149,16 @@ static void imx_shutdown(struct uart_port *port)
 	temp &= ~(UCR1_TXMPTYEN | UCR1_RRDYEN | UCR1_RTSDEN | UCR1_UARTEN);
 	if (USE_IRDA(sport))
 		temp &= ~(UCR1_IREN);
-
-	writel(temp, sport->port.membase + UCR1);
-	spin_unlock_irqrestore(&sport->port.lock, flags);
-
 	if (sport->enable_dma)
-		imx_uart_dma_exit(sport);
+		temp &= ~(UCR1_RDMAEN | UCR1_TDMAEN);
+	writel(temp, sport->port.membase + UCR1);
+
+	if (sport->enable_dma) {
+		temp = readl(sport->port.membase + UCR4);
+		temp &= ~UCR4_IDDMAEN;
+		writel(temp, sport->port.membase + UCR4);
+	}
+	spin_unlock_irqrestore(&sport->port.lock, flags);
 }
 
 static void

@@ -52,7 +52,7 @@ extern int mx6q_revision(void);
 
 static void __iomem *gpc_base = IO_ADDRESS(GPC_BASE_ADDR);
 
-extern void (*mx6_wait_in_iram)();
+extern void (*mx6_wait_in_iram)(void);
 extern void mx6_wait(void);
 extern void *mx6_wait_in_iram_base;
 extern bool enable_wait_mode;
