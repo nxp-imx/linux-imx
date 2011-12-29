@@ -78,6 +78,10 @@
 #define	SSM_ST_NON_SECURE	0xB
 #define	CNTR_TO_SECS_SH	15	/* Converts 47-bit counter to 32-bit seconds */
 
+#define RTC_READ_TIME_47BIT	_IOR('p', 0x20, unsigned long long)
+/* blocks until LPSCMR is set, returns difference */
+#define RTC_WAIT_TIME_SET	_IOR('p', 0x21, int64_t)
+
 struct rtc_drv_data {
 	struct rtc_device *rtc;
 	void __iomem *ioaddr;
@@ -89,6 +93,8 @@ struct rtc_drv_data {
 static unsigned long rtc_status;
 
 static DEFINE_SPINLOCK(rtc_lock);
+DECLARE_COMPLETION(snvs_completion);
+static int64_t time_diff;
 
 /*!
  * LP counter register reads should always use this function.
@@ -294,10 +300,15 @@ static int snvs_rtc_set_time(struct device *dev, struct rtc_time *tm)
 	unsigned long time;
 	int ret;
 	u32 lp_cr;
+	u64 old_time_47bit, new_time_47bit;
 
 	ret = rtc_tm_to_time(tm, &time);
 	if (ret != 0)
 		return ret;
+
+	old_time_47bit = (((u64) (__raw_readl(ioaddr + SNVS_LPSRTCMR) &
+		((0x1 << CNTR_TO_SECS_SH) - 1)) << 32) |
+		((u64) __raw_readl(ioaddr + SNVS_LPSRTCLR)));
 
 	/* Disable RTC first */
 	lp_cr = __raw_readl(ioaddr + SNVS_LPCR) & ~SNVS_LPCR_SRTC_ENV;
@@ -314,6 +325,22 @@ static int snvs_rtc_set_time(struct device *dev, struct rtc_time *tm)
 	while (!(__raw_readl(ioaddr + SNVS_LPCR) & SNVS_LPCR_SRTC_ENV))
 		;
 
+	rtc_write_sync_lp(ioaddr);
+
+	new_time_47bit = (((u64) (__raw_readl(ioaddr + SNVS_LPSRTCMR) &
+		((0x1 << CNTR_TO_SECS_SH) - 1)) << 32) |
+		((u64) __raw_readl(ioaddr + SNVS_LPSRTCLR)));
+
+	time_diff = new_time_47bit - old_time_47bit;
+
+	/* signal all waiting threads that time changed */
+	complete_all(&snvs_completion);
+
+	/* allow signalled threads to handle the time change notification */
+	schedule();
+
+	/* reinitialize completion variable */
+	INIT_COMPLETION(snvs_completion);
 	return 0;
 }
 
@@ -447,6 +474,58 @@ static int snvs_rtc_alarm_irq_enable(struct device *dev, unsigned int enable)
 }
 
 /*!
+ * This function is used to support some ioctl calls directly.
+ * Other ioctl calls are supported indirectly through the
+ * arm/common/rtctime.c file.
+ *
+ * @param  cmd          ioctl command as defined in include/linux/rtc.h
+ * @param  arg          value for the ioctl command
+ *
+ * @return  0 if successful or negative value otherwise.
+ */
+static int snvs_rtc_ioctl(struct device *dev, unsigned int cmd,
+			 unsigned long arg)
+{
+	struct rtc_drv_data *pdata = dev_get_drvdata(dev);
+	void __iomem *ioaddr = pdata->ioaddr;
+	u64 time_47bit;
+	int retVal;
+
+	switch (cmd) {
+	case RTC_READ_TIME_47BIT:
+		time_47bit = (((u64) (__raw_readl(ioaddr + SNVS_LPSRTCMR) &
+			((0x1 << CNTR_TO_SECS_SH) - 1)) << 32) |
+			((u64) __raw_readl(ioaddr + SNVS_LPSRTCLR)));
+
+		if (arg && copy_to_user((u64 *) arg, &time_47bit, sizeof(u64)))
+			return -EFAULT;
+
+		return 0;
+
+	/* This IOCTL to be used by processes to be notified of time changes */
+	case RTC_WAIT_TIME_SET:
+		/* don't block without releasing mutex first */
+		mutex_unlock(&pdata->rtc->ops_lock);
+
+		/* sleep until awakened by SRTC driver when LPSCMR is changed */
+		wait_for_completion(&snvs_completion);
+
+		/* relock mutex because rtc_dev_ioctl will unlock again */
+		retVal = mutex_lock_interruptible(&pdata->rtc->ops_lock);
+
+		/* copy the new time difference = new time - previous time
+		  * to the user param. The difference is a signed value */
+		if (arg && copy_to_user((int64_t *) arg, &time_diff,
+			sizeof(int64_t)))
+			return -EFAULT;
+
+		return retVal;
+
+	}
+
+	return -ENOIOCTLCMD;
+}
+/*!
  * The RTC driver structure
  */
 static struct rtc_class_ops snvs_rtc_ops = {
@@ -457,6 +536,7 @@ static struct rtc_class_ops snvs_rtc_ops = {
 	.read_alarm = snvs_rtc_read_alarm,
 	.set_alarm = snvs_rtc_set_alarm,
 	.proc = snvs_rtc_proc,
+	.ioctl = snvs_rtc_ioctl,
 	.alarm_irq_enable = snvs_rtc_alarm_irq_enable,
 };
 
