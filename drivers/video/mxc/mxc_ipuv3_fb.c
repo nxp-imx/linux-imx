@@ -1225,6 +1225,9 @@ static int mxcfb_blank(int blank, struct fb_info *info)
 
 	dev_dbg(info->device, "blank = %d\n", blank);
 
+	if (mxc_fbi->fb_suspended)
+		return -EAGAIN;
+
 	if (mxc_fbi->cur_blank == blank)
 		return 0;
 
