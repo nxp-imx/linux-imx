@@ -826,7 +826,7 @@ static void mxc_hdmi_phy_sel_interface_control(u8 enable)
 static int hdmi_phy_configure(struct mxc_hdmi *hdmi, unsigned char pRep,
 			      unsigned char cRes, int cscOn)
 {
-	u8 val, clkdis;
+	u8 val;
 
 	dev_dbg(&hdmi->pdev->dev, "%s\n", __func__);
 
@@ -839,19 +839,13 @@ static int hdmi_phy_configure(struct mxc_hdmi *hdmi, unsigned char pRep,
 	else if (cRes != 8 && cRes != 12)
 		return false;
 
+	/* Enable csc path */
 	if (cscOn)
 		val = HDMI_MC_FLOWCTRL_FEED_THROUGH_OFF_CSC_IN_PATH;
 	else
 		val = HDMI_MC_FLOWCTRL_FEED_THROUGH_OFF_CSC_BYPASS;
 
 	hdmi_writeb(val, HDMI_MC_FLOWCTRL);
-
-	/* Enable csc path */
-	if (cscOn) {
-		clkdis = hdmi_readb(HDMI_MC_CLKDIS);
-		clkdis &= ~HDMI_MC_CLKDIS_CSCCLK_DISABLE;
-		hdmi_writeb(clkdis, HDMI_MC_CLKDIS);
-	}
 
 	/* gen2 tx power off */
 	mxc_hdmi_phy_gen2_txpwron(0);
@@ -1438,6 +1432,12 @@ static void mxc_hdmi_enable_video_path(struct mxc_hdmi *hdmi)
 
 	clkdis &= ~HDMI_MC_CLKDIS_TMDSCLK_DISABLE;
 	hdmi_writeb(clkdis, HDMI_MC_CLKDIS);
+
+	/* Enable csc path */
+	if (isColorSpaceConversion(hdmi)) {
+		clkdis &= ~HDMI_MC_CLKDIS_CSCCLK_DISABLE;
+		hdmi_writeb(clkdis, HDMI_MC_CLKDIS);
+	}
 }
 
 static void hdmi_enable_audio_clk(struct mxc_hdmi *hdmi)
