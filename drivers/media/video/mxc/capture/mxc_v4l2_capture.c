@@ -1203,6 +1203,7 @@ static int mxc_v4l2_s_param(cam_data *cam, struct v4l2_streamparm *parm)
 	struct v4l2_format cam_fmt;
 	struct v4l2_streamparm currentparm;
 	ipu_csi_signal_cfg_t csi_param;
+	u32 current_fps, parm_fps;
 	int err = 0;
 
 	pr_debug("In mxc_v4l2_s_param\n");
@@ -1227,16 +1228,21 @@ static int mxc_v4l2_s_param(cam_data *cam, struct v4l2_streamparm *parm)
 		goto exit;
 	}
 
+	current_fps = currentparm.parm.capture.timeperframe.denominator
+			/ currentparm.parm.capture.timeperframe.numerator;
+	parm_fps = parm->parm.capture.timeperframe.denominator
+			/ parm->parm.capture.timeperframe.numerator;
+
 	pr_debug("   Current capabilities are %x\n",
 			currentparm.parm.capture.capability);
 	pr_debug("   Current capturemode is %d  change to %d\n",
 			currentparm.parm.capture.capturemode,
 			parm->parm.capture.capturemode);
 	pr_debug("   Current framerate is %d  change to %d\n",
-			currentparm.parm.capture.timeperframe.denominator,
-			parm->parm.capture.timeperframe.denominator);
+			current_fps, parm_fps);
 
-	if (parm->parm.capture.capturemode == currentparm.parm.capture.capturemode) {
+	if ((parm->parm.capture.capturemode == currentparm.parm.capture.capturemode)
+		&& (current_fps == parm_fps)) {
 		return 0;
 	}
 
