@@ -461,15 +461,6 @@ are running with MMU off.
 ****************************************************************/
 resume:
 	ldr	r0, =SRC_BASE_ADDR
-	/* Due to the L2 cache errata(TKT065875)
-	, need to wait at least 170ns, each IO read
-	takes about 76ns, but the actual wait time
-	to make system more stable is about 380ns */
-	ldr	r1, [r0]
-	ldr	r1, [r0, #0x4]
-	ldr	r1, [r0, #0x8]
-	ldr	r1, [r0, #0xc]
-	ldr	r1, [r0, #0x10]
 	mov	r1, #0x0
 	str	r1, [r0, #SRC_GPR1_OFFSET] /* clear SRC_GPR1 */
 	ldr	r0, [r0, #SRC_GPR2_OFFSET]
