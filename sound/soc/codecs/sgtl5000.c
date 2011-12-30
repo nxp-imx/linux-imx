@@ -1193,7 +1193,7 @@ static struct snd_soc_dai_driver sgtl5000_dai = {
 	.name = "sgtl5000",
 	.playback = {
 		.stream_name = "Playback",
-		.channels_min = 1,
+		.channels_min = 2,
 		.channels_max = 2,
 		/*
 		 * only support 8~48K + 96K,
@@ -1204,7 +1204,7 @@ static struct snd_soc_dai_driver sgtl5000_dai = {
 	},
 	.capture = {
 		.stream_name = "Capture",
-		.channels_min = 1,
+		.channels_min = 2,
 		.channels_max = 2,
 		.rates = SNDRV_PCM_RATE_8000_48000 | SNDRV_PCM_RATE_96000,
 		.formats = SGTL5000_FORMATS,
