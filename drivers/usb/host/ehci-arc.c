@@ -155,6 +155,16 @@ static irqreturn_t ehci_fsl_pre_irq(int irq, void *dev)
 		pdata->wakeup_event = 0;
 		fsl_usb_recover_hcd(pdev);
 		return IRQ_HANDLED;
+	} else {
+		u32 portsc = 0;
+		struct ehci_hcd *ehci = hcd_to_ehci(hcd);
+		portsc = ehci_readl(ehci, &ehci->regs->port_status[0]);
+		/* PORT_USB11 macro is used to judge line state K*/
+		if ((PORT_USB11(portsc)) && (portsc & PORT_SUSPEND)) {
+			pdata = hcd->self.controller->platform_data;
+			if (pdata->platform_resume)
+				pdata->platform_resume(pdata);
+		}
 	}
 	return IRQ_NONE;
 }
