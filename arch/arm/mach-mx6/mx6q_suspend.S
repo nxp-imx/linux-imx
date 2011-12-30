@@ -460,8 +460,10 @@ when SOC exit stop mode, arm core restart from here, currently
 are running with MMU off.
 ****************************************************************/
 resume:
+	/* Invalidate L1 I-cache first */
+	mov	r1,	#0x0
+	mcr p15, 0, r1, c7, c5, 0 @ Invalidate I-Cache
 	ldr	r0, =SRC_BASE_ADDR
-	mov	r1, #0x0
 	str	r1, [r0, #SRC_GPR1_OFFSET] /* clear SRC_GPR1 */
 	ldr	r0, [r0, #SRC_GPR2_OFFSET]
 
