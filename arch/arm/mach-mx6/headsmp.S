@@ -115,6 +115,9 @@ ENTRY(mx6_secondary_startup)
 	offset is passed from GPR parameter, currently we store
 	it at r8, future code change should avoid using r8.
 *****************************************************************************/
+	/* Invalidate L1 I-cache first */
+	mov	r1,	#0x0
+	mcr p15, 0, r1, c7, c5, 0 @ Invalidate I-Cache
 	/* count the offset value and store it in r8 */
 	ldr r3, =mx6_secondary_startup
 	mrc	p15, 0, r0, c0, c0, 5
