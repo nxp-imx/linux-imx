@@ -148,6 +148,36 @@ static void _wake_up_enable(struct fsl_usb2_platform_data *pdata, bool enable)
 	}
 }
 
+static void usbh1_platform_suspend(struct fsl_usb2_platform_data *pdata)
+{
+	void __iomem *phy_reg = MX6_IO_ADDRESS(USB_PHY1_BASE_ADDR);
+	u32 tmp;
+
+	tmp = (BM_USBPHY_PWD_TXPWDFS
+		| BM_USBPHY_PWD_TXPWDIBIAS
+		| BM_USBPHY_PWD_TXPWDV2I
+		| BM_USBPHY_PWD_RXPWDENV
+		| BM_USBPHY_PWD_RXPWD1PT1
+		| BM_USBPHY_PWD_RXPWDDIFF
+		| BM_USBPHY_PWD_RXPWDRX);
+	__raw_writel(tmp, phy_reg + HW_USBPHY_PWD_SET);
+}
+
+static void usbh1_platform_resume(struct fsl_usb2_platform_data *pdata)
+{
+	void __iomem *phy_reg = MX6_IO_ADDRESS(USB_PHY1_BASE_ADDR);
+	u32 tmp;
+
+	tmp = (BM_USBPHY_PWD_TXPWDFS
+		| BM_USBPHY_PWD_TXPWDIBIAS
+		| BM_USBPHY_PWD_TXPWDV2I
+		| BM_USBPHY_PWD_RXPWDENV
+		| BM_USBPHY_PWD_RXPWD1PT1
+		| BM_USBPHY_PWD_RXPWDDIFF
+		| BM_USBPHY_PWD_RXPWDRX);
+	__raw_writel(tmp, phy_reg + HW_USBPHY_PWD_CLR);
+}
+
 static void _phy_lowpower_suspend(struct fsl_usb2_platform_data *pdata, bool enable)
 {
 	u32 tmp;
@@ -224,6 +254,8 @@ static struct fsl_usb2_platform_data usbh1_config = {
 	.power_budget = 500,	/* 500 mA max power */
 	.wake_up_enable = _wake_up_enable,
 	.usb_clock_for_pm  = usbh1_clock_gate,
+	.platform_suspend  = usbh1_platform_suspend,
+	.platform_resume   = usbh1_platform_resume,
 	.phy_lowpower_suspend = _phy_lowpower_suspend,
 	.is_wakeup_event = _is_usbh1_wakeup,
 	.wakeup_handler = h1_wakeup_handler,
