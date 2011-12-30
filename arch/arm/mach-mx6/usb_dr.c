@@ -310,6 +310,36 @@ static void usbotg_wakeup_event_clear(void)
 
 #ifdef CONFIG_USB_EHCI_ARC_OTG
 /* Beginning of host related operation for DR port */
+static void _host_platform_suspend(struct fsl_usb2_platform_data *pdata)
+{
+	void __iomem *phy_reg = MX6_IO_ADDRESS(USB_PHY0_BASE_ADDR);
+	u32 tmp;
+
+	tmp = (BM_USBPHY_PWD_TXPWDFS
+		| BM_USBPHY_PWD_TXPWDIBIAS
+		| BM_USBPHY_PWD_TXPWDV2I
+		| BM_USBPHY_PWD_RXPWDENV
+		| BM_USBPHY_PWD_RXPWD1PT1
+		| BM_USBPHY_PWD_RXPWDDIFF
+		| BM_USBPHY_PWD_RXPWDRX);
+	__raw_writel(tmp, phy_reg + HW_USBPHY_PWD_SET);
+}
+
+static void _host_platform_resume(struct fsl_usb2_platform_data *pdata)
+{
+	void __iomem *phy_reg = MX6_IO_ADDRESS(USB_PHY0_BASE_ADDR);
+	u32 tmp;
+
+	tmp = (BM_USBPHY_PWD_TXPWDFS
+		| BM_USBPHY_PWD_TXPWDIBIAS
+		| BM_USBPHY_PWD_TXPWDV2I
+		| BM_USBPHY_PWD_RXPWDENV
+		| BM_USBPHY_PWD_RXPWD1PT1
+		| BM_USBPHY_PWD_RXPWDDIFF
+		| BM_USBPHY_PWD_RXPWDRX);
+	__raw_writel(tmp, phy_reg + HW_USBPHY_PWD_CLR);
+}
+
 static void _host_phy_lowpower_suspend(struct fsl_usb2_platform_data *pdata, bool enable)
 {
 	__phy_lowpower_suspend(pdata, enable, ENABLED_BY_HOST);
@@ -438,6 +468,8 @@ void __init mx6_usb_dr_init(void)
 #ifdef CONFIG_USB_EHCI_ARC_OTG
 	dr_utmi_config.operating_mode = DR_HOST_MODE;
 	dr_utmi_config.wake_up_enable = _host_wakeup_enable;
+	dr_utmi_config.platform_suspend = _host_platform_suspend;
+	dr_utmi_config.platform_resume  = _host_platform_resume;
 	dr_utmi_config.phy_lowpower_suspend = _host_phy_lowpower_suspend;
 	dr_utmi_config.is_wakeup_event = _is_host_wakeup;
 	dr_utmi_config.wakeup_pdata = &dr_wakeup_config;
@@ -448,6 +480,8 @@ void __init mx6_usb_dr_init(void)
 #ifdef CONFIG_USB_GADGET_ARC
 	dr_utmi_config.operating_mode = DR_UDC_MODE;
 	dr_utmi_config.wake_up_enable = _device_wakeup_enable;
+	dr_utmi_config.platform_suspend = NULL;
+	dr_utmi_config.platform_resume  = NULL;
 	dr_utmi_config.phy_lowpower_suspend = _device_phy_lowpower_suspend;
 	dr_utmi_config.is_wakeup_event = _is_device_wakeup;
 	dr_utmi_config.wakeup_pdata = &dr_wakeup_config;
