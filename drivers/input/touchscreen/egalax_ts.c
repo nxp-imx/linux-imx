@@ -91,7 +91,7 @@ retry:
 
 	dev_dbg(&client->dev, "recv ret:%d", ret);
 	for (i = 0; i < MAX_I2C_DATA_LEN; i++)
-		printk(KERN_DEBUG " %x ", buf[i]);
+		dev_dbg(&client->dev, " %x ", buf[i]);
 
 	if (buf[0] != REPORT_MODE_VENDOR
 	    && buf[0] != REPORT_MODE_SINGLE
