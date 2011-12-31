@@ -644,6 +644,10 @@ static int f_audio_set_alt(struct usb_function *f, unsigned intf, unsigned alt)
 
 static void f_audio_disable(struct usb_function *f)
 {
+	struct f_audio		*audio = func_to_audio(f);
+
+	usb_ep_disable(audio->out_ep);
+
 	return;
 }
 
