@@ -38,6 +38,10 @@
 #include <mach/clock.h>
 #include <mach/hardware.h>
 
+#ifdef CONFIG_ARCH_MXC
+#include <mach/iomux-v3.h>
+#endif
+
 #define DRV_NAME			"flexcan"
 
 /* 8 for RX fifo and 2 error handling */
@@ -573,6 +577,13 @@ static irqreturn_t flexcan_irq(int irq, void *dev_id)
 	reg_esr = readl(&regs->esr);
 	writel(FLEXCAN_ESR_ERR_INT, &regs->esr);	/* ACK err IRQ */
 
+	if (reg_esr & FLEXCAN_ESR_WAK_INT) {
+		/* first clear stop request then wakeup irq status */
+		if (priv->version >= FLEXCAN_VER_10_0_12)
+			mxc_iomux_set_gpr_register(13, 28, 1, 0);
+		writel(FLEXCAN_ESR_WAK_INT, &regs->esr);
+	}
+
 	/*
 	 * schedule NAPI in case of:
 	 * - rx IRQ
@@ -691,12 +702,14 @@ static int flexcan_chip_start(struct net_device *dev)
 	 * only supervisor access
 	 * enable warning int
 	 * choose format C
+	 * enable self wakeup
 	 *
 	 */
 	reg_mcr = readl(&regs->mcr);
 	reg_mcr |= FLEXCAN_MCR_FRZ | FLEXCAN_MCR_FEN | FLEXCAN_MCR_HALT |
 		FLEXCAN_MCR_SUPV | FLEXCAN_MCR_WRN_EN |
-		FLEXCAN_MCR_IDAM_C;
+		FLEXCAN_MCR_IDAM_C | FLEXCAN_MCR_WAK_MSK |
+		FLEXCAN_MCR_SLF_WAK;
 	dev_dbg(dev->dev.parent, "%s: writing mcr=0x%08x", __func__, reg_mcr);
 	writel(reg_mcr, &regs->mcr);
 
@@ -1045,11 +1058,63 @@ static int __devexit flexcan_remove(struct platform_device *pdev)
 	return 0;
 }
 
+#ifdef CONFIG_PM
+static int flexcan_suspend(struct platform_device *pdev, pm_message_t state)
+{
+	struct net_device *dev = platform_get_drvdata(pdev);
+	struct flexcan_priv *priv = netdev_priv(dev);
+	int ret;
+
+	if (netif_running(dev)) {
+		netif_stop_queue(dev);
+		netif_device_detach(dev);
+	}
+
+	priv->can.state = CAN_STATE_SLEEPING;
+
+	/* enable stop request for wakeup */
+	if (priv->version >= FLEXCAN_VER_10_0_12)
+		mxc_iomux_set_gpr_register(13, 28, 1, 1);
+
+	ret = set_irq_wake(dev->irq, 1);
+	if (ret)
+		return ret;
+
+	return 0;
+}
+
+static int flexcan_resume(struct platform_device *pdev)
+{
+	struct net_device *dev = platform_get_drvdata(pdev);
+	struct flexcan_priv *priv = netdev_priv(dev);
+	int ret;
+
+	ret = set_irq_wake(dev->irq, 0);
+	if (ret)
+		return ret;
+
+	priv->can.state = CAN_STATE_ERROR_ACTIVE;
+
+	if (netif_running(dev)) {
+		netif_device_attach(dev);
+		netif_start_queue(dev);
+	}
+
+	return 0;
+}
+#else
+#define flexcan_suspend NULL
+#define flexcan_resume NULL
+#endif
+
+
 static struct platform_driver flexcan_driver = {
 	.driver.name = DRV_NAME,
 	.probe = flexcan_probe,
 	.id_table = flexcan_devtype,
 	.remove = __devexit_p(flexcan_remove),
+	.suspend = flexcan_suspend,
+	.resume = flexcan_resume,
 };
 
 static int __init flexcan_init(void)
