@@ -150,6 +150,8 @@ static iomux_v3_cfg_t mx6q_sabreauto_pads[] = {
 	MX6Q_PAD_RGMII_RD2__ENET_RGMII_RD2,
 	MX6Q_PAD_RGMII_RD3__ENET_RGMII_RD3,
 	MX6Q_PAD_RGMII_RX_CTL__ENET_RGMII_RX_CTL,
+	/*RGMII Phy Interrupt */
+	MX6Q_PAD_GPIO_19__GPIO_4_5,
 #endif
 	/* MCLK for csi0 */
 	MX6Q_PAD_GPIO_0__CCM_CLKO,
@@ -473,38 +475,23 @@ static inline void mx6q_sabreauto_init_uart(void)
 
 static int mx6q_sabreauto_fec_phy_init(struct phy_device *phydev)
 {
-	unsigned short val;
+/* prefer master mode, 1000 Base-T capable */
+	phy_write(phydev, 0x9, 0x0f00);
 
-	/* To enable AR8031 ouput a 125MHz clk from CLK_25M */
-	phy_write(phydev, 0xd, 0x7);
-	phy_write(phydev, 0xe, 0x8016);
-	phy_write(phydev, 0xd, 0x4007);
-	val = phy_read(phydev, 0xe);
+	/* min rx data delay */
+	phy_write(phydev, 0x0b, 0x8105);
+	phy_write(phydev, 0x0c, 0x0000);
 
-	val &= 0xffe3;
-	val |= 0x18;
-	phy_write(phydev, 0xe, val);
-
-	/* introduce tx clock delay */
-	phy_write(phydev, 0x1d, 0x5);
-	val = phy_read(phydev, 0x1e);
-	val |= 0x0100;
-	phy_write(phydev, 0x1e, val);
+	/* max rx/tx clock delay, min rx/tx control delay */
+	phy_write(phydev, 0x0b, 0x8104);
+	phy_write(phydev, 0x0c, 0xf0f0);
+	phy_write(phydev, 0x0b, 0x104);
 
 	return 0;
 }
 
 static int mx6q_sabreauto_fec_power_hibernate(struct phy_device *phydev)
 {
-	unsigned short val;
-
-	/*set AR8031 debug reg 0xb to hibernate power*/
-	phy_write(phydev, 0x1d, 0xb);
-	val = phy_read(phydev, 0x1e);
-
-	val |= 0x8000;
-	phy_write(phydev, 0x1e, val);
-
 	return 0;
 }
 
@@ -568,8 +555,17 @@ static int max7310_1_setup(struct i2c_client *client,
 	unsigned gpio_base, unsigned ngpio,
 	void *context)
 {
+	/* 0 BACKLITE_ON */
+	/* 1 SAT_SHUTDN_B */
+	/* 2 CPU_PER_RST_B */
+	/* 3 MAIN_PER_RST_B */
+	/* 4 IPOD_RST_B */
+	/* 5 MLB_RST_B */
+	/* 6 SSI_STEERING */
+	/* 7 GPS_RST_B */
+
 	int max7310_gpio_value[] = {
-		0, 1, 0, 1, 0, 0, 0, 0,
+		0, 1, 1, 1, 0, 0, 0, 0,
 	};
 
 	int n;
@@ -593,12 +589,21 @@ static struct pca953x_platform_data max7310_platdata = {
 	.setup		= max7310_1_setup,
 };
 
-static int max7310_u48_setup(struct i2c_client *client,
+static int max7310_u516_setup(struct i2c_client *client,
 	unsigned gpio_base, unsigned ngpio,
 	void *context)
 {
+	/* 0 not use  */
+	/* 1 GPS_PWREN */
+	/* 2 VIDEO_ADC_PWRDN_B */
+	/* 3 ENET_CAN1_STEER */
+	/* 4 EIMD30_BTUART3_STEER */
+	/* 5 CAN_STBY */
+	/* 6 CAN_EN */
+	/* 7 USB_H1_PWR */
+
 	int max7310_gpio_value[] = {
-		1, 1, 1, 1, 0, 0, 0, 0,
+		0, 0, 0, 0, 0, 0, 0, 0,
 	};
 
 	int n;
@@ -616,10 +621,10 @@ static int max7310_u48_setup(struct i2c_client *client,
 	return 0;
 }
 
-static struct pca953x_platform_data max7310_u48_platdata = {
+static struct pca953x_platform_data max7310_u516_platdata = {
 	.gpio_base	= MX6Q_SABREAUTO_MAX7310_2_BASE_ADDR,
 	.invert		= 0,
-	.setup		= max7310_u48_setup,
+	.setup		= max7310_u516_setup,
 };
 
 static void ddc_dvi_init(void)
@@ -679,7 +684,7 @@ static struct i2c_board_info mxc_i2c2_board_info[] __initdata = {
 	},
 	{
 		I2C_BOARD_INFO("max7310", 0x32),
-		.platform_data = &max7310_u48_platdata,
+		.platform_data = &max7310_u516_platdata,
 	},
 	{
 		I2C_BOARD_INFO("mxc_dvi", 0x50),
