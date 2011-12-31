@@ -2285,8 +2285,6 @@ int sdhci_suspend_host(struct sdhci_host *host, pm_message_t state)
 {
 	int ret;
 
-	mmc_claim_host(host->mmc);
-
 	sdhci_enable_clk(host);
 	sdhci_disable_card_detection(host);
 
@@ -2324,7 +2322,7 @@ int sdhci_resume_host(struct sdhci_host *host)
 	if (host->vmmc) {
 		ret = regulator_enable(host->vmmc);
 		if (ret)
-			goto out;
+			return ret;
 	}
 
 	sdhci_enable_clk(host);
@@ -2356,7 +2354,6 @@ out:
 	    (host->tuning_mode == SDHCI_TUNING_MODE_1))
 		host->flags |= SDHCI_NEEDS_RETUNING;
 
-	mmc_release_host(host->mmc);
 	return ret;
 }
 
