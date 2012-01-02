@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2004-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -24,6 +24,7 @@
 #include <linux/device.h>
 #include <linux/clk.h>
 #include <mach/hardware.h>
+#include <asm/mach-types.h>
 
 #if defined(CONFIG_MXC_IPU_V1) || defined(CONFIG_VIDEO_MXC_EMMA_CAMERA) \
 			       || defined(CONFIG_VIDEO_MXC_CSI_CAMERA_MODULE) \
@@ -72,7 +73,10 @@ void set_mclk_rate(uint32_t *p_mclk_freq, uint32_t csi)
 		}
 	} else if (cpu_is_mx6q()) {
 		if (csi == 0) {
-			mclk = "cko1_clk0";
+			if (machine_is_mx6q_sabrelite())
+				mclk = "clko2_clk";
+			else
+				mclk = "cko1_clk0";
 		} else {
 			pr_err("invalid csi num %d\n", csi);
 			return;
