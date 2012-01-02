@@ -90,6 +90,8 @@
 #define MX6Q_SABRELITE_HOME_KEY		IMX_GPIO_NR(2, 4)
 #define MX6Q_SABRELITE_VOL_UP_KEY	IMX_GPIO_NR(7, 13)
 #define MX6Q_SABRELITE_VOL_DOWN_KEY	IMX_GPIO_NR(4, 5)
+#define MX6Q_SABRELITE_CSI0_RST		IMX_GPIO_NR(1, 8)
+#define MX6Q_SABRELITE_CSI0_PWN		IMX_GPIO_NR(1, 6)
 
 #define MX6Q_SABRELITE_SD3_WP_PADCFG	(PAD_CTL_PKE | PAD_CTL_PUE |	\
 		PAD_CTL_PUS_22K_UP | PAD_CTL_SPEED_MED |	\
@@ -212,29 +214,6 @@ static iomux_v3_cfg_t mx6q_sabrelite_pads[] = {
 	MX6Q_PAD_GPIO_5__I2C3_SCL,	/* GPIO1[5] - J7 - Display card */
 	MX6Q_PAD_GPIO_16__I2C3_SDA,	/* GPIO7[11] - J15 - RGB connector */
 
-	/* IPU1 Camera */
-	MX6Q_PAD_CSI0_DAT8__IPU1_CSI0_D_8,
-	MX6Q_PAD_CSI0_DAT9__IPU1_CSI0_D_9,
-	MX6Q_PAD_CSI0_DAT10__IPU1_CSI0_D_10,
-	MX6Q_PAD_CSI0_DAT11__IPU1_CSI0_D_11,
-	MX6Q_PAD_CSI0_DAT12__IPU1_CSI0_D_12,
-	MX6Q_PAD_CSI0_DAT13__IPU1_CSI0_D_13,
-	MX6Q_PAD_CSI0_DAT14__IPU1_CSI0_D_14,
-	MX6Q_PAD_CSI0_DAT15__IPU1_CSI0_D_15,
-	MX6Q_PAD_CSI0_DAT16__IPU1_CSI0_D_16,
-	MX6Q_PAD_CSI0_DAT17__IPU1_CSI0_D_17,
-	MX6Q_PAD_CSI0_DAT18__IPU1_CSI0_D_18,
-	MX6Q_PAD_CSI0_DAT19__IPU1_CSI0_D_19,
-	MX6Q_PAD_CSI0_DATA_EN__IPU1_CSI0_DATA_EN,
-	MX6Q_PAD_CSI0_MCLK__IPU1_CSI0_HSYNC,
-	MX6Q_PAD_CSI0_PIXCLK__IPU1_CSI0_PIXCLK,
-	MX6Q_PAD_CSI0_VSYNC__IPU1_CSI0_VSYNC,
-	MX6Q_PAD_GPIO_6__GPIO_1_6,		/* J5 - Camera GP */
-	MX6Q_PAD_GPIO_8__GPIO_1_8,		/* J5 - Camera Reset */
-	MX6Q_PAD_SD1_DAT0__GPIO_1_16,		/* J5 - Camera GP */
-	MX6Q_PAD_NANDF_D5__GPIO_2_5,		/* J16 - MIPI GP */
-	MX6Q_PAD_NANDF_WP_B__GPIO_6_9,		/* J16 - MIPI GP */
-
 	/* DISPLAY */
 	MX6Q_PAD_DI0_DISP_CLK__IPU1_DI0_DISP_CLK,
 	MX6Q_PAD_DI0_PIN15__IPU1_DI0_PIN15,		/* DE */
@@ -316,6 +295,31 @@ static iomux_v3_cfg_t mx6q_sabrelite_pads[] = {
 	MX6Q_PAD_SD4_DAT3__USDHC4_DAT3_50MHZ,
 	MX6Q_PAD_NANDF_D6__GPIO_2_6,		/* J20 - SD4_CD */
 	MX6Q_PAD_NANDF_D7__GPIO_2_7,		/* SD4_WP */
+};
+
+static iomux_v3_cfg_t mx6q_sabrelite_csi0_sensor_pads[] = {
+	/* IPU1 Camera */
+	MX6Q_PAD_CSI0_DAT8__IPU1_CSI0_D_8,
+	MX6Q_PAD_CSI0_DAT9__IPU1_CSI0_D_9,
+	MX6Q_PAD_CSI0_DAT10__IPU1_CSI0_D_10,
+	MX6Q_PAD_CSI0_DAT11__IPU1_CSI0_D_11,
+	MX6Q_PAD_CSI0_DAT12__IPU1_CSI0_D_12,
+	MX6Q_PAD_CSI0_DAT13__IPU1_CSI0_D_13,
+	MX6Q_PAD_CSI0_DAT14__IPU1_CSI0_D_14,
+	MX6Q_PAD_CSI0_DAT15__IPU1_CSI0_D_15,
+	MX6Q_PAD_CSI0_DAT16__IPU1_CSI0_D_16,
+	MX6Q_PAD_CSI0_DAT17__IPU1_CSI0_D_17,
+	MX6Q_PAD_CSI0_DAT18__IPU1_CSI0_D_18,
+	MX6Q_PAD_CSI0_DAT19__IPU1_CSI0_D_19,
+	MX6Q_PAD_CSI0_DATA_EN__IPU1_CSI0_DATA_EN,
+	MX6Q_PAD_CSI0_MCLK__IPU1_CSI0_HSYNC,
+	MX6Q_PAD_CSI0_PIXCLK__IPU1_CSI0_PIXCLK,
+	MX6Q_PAD_CSI0_VSYNC__IPU1_CSI0_VSYNC,
+	MX6Q_PAD_GPIO_6__GPIO_1_6,		/* J5 - Camera GP */
+	MX6Q_PAD_GPIO_8__GPIO_1_8,		/* J5 - Camera Reset */
+	MX6Q_PAD_SD1_DAT0__GPIO_1_16,		/* J5 - Camera GP */
+	MX6Q_PAD_NANDF_D5__GPIO_2_5,		/* J16 - MIPI GP */
+	MX6Q_PAD_NANDF_WP_B__GPIO_6_9,		/* J16 - MIPI GP */
 };
 
 #define MX6Q_USDHC_PAD_SETTING(id, speed)	\
@@ -550,9 +554,54 @@ static struct i2c_board_info mxc_i2c0_board_info[] __initdata = {
 	},
 };
 
+
+static void mx6q_csi0_io_init(void)
+{
+	mxc_iomux_v3_setup_multiple_pads(mx6q_sabrelite_csi0_sensor_pads,
+			ARRAY_SIZE(mx6q_sabrelite_csi0_sensor_pads));
+
+	/* Camera power down */
+	gpio_request(MX6Q_SABRELITE_CSI0_PWN, "cam-pwdn");
+	gpio_direction_output(MX6Q_SABRELITE_CSI0_PWN, 1);
+	msleep(1);
+	gpio_set_value(MX6Q_SABRELITE_CSI0_PWN, 0);
+
+	/* Camera reset */
+	gpio_request(MX6Q_SABRELITE_CSI0_RST, "cam-reset");
+	gpio_direction_output(MX6Q_SABRELITE_CSI0_RST, 1);
+
+	gpio_set_value(MX6Q_SABRELITE_CSI0_RST, 0);
+	msleep(1);
+	gpio_set_value(MX6Q_SABRELITE_CSI0_RST, 1);
+
+	/* For MX6Q GPR1 bit19 and bit20 meaning:
+	 * Bit19:       0 - Enable mipi to IPU1 CSI0
+	 *                      virtual channel is fixed to 0
+	 *              1 - Enable parallel interface to IPU1 CSI0
+	 * Bit20:       0 - Enable mipi to IPU2 CSI1
+	 *                      virtual channel is fixed to 3
+	 *              1 - Enable parallel interface to IPU2 CSI1
+	 * IPU1 CSI1 directly connect to mipi csi2,
+	 *      virtual channel is fixed to 1
+	 * IPU2 CSI0 directly connect to mipi csi2,
+	 *      virtual channel is fixed to 2
+	 */
+	mxc_iomux_set_gpr_register(1, 19, 1, 1);
+}
+
+static struct fsl_mxc_camera_platform_data camera_data = {
+	.mclk = 24000000,
+	.csi = 0,
+	.io_init = mx6q_csi0_io_init,
+};
+
 static struct i2c_board_info mxc_i2c1_board_info[] __initdata = {
 	{
 		I2C_BOARD_INFO("mxc_hdmi_i2c", 0x50),
+	},
+	{
+		I2C_BOARD_INFO("ov5642", 0x3c),
+		.platform_data = (void *)&camera_data,
 	},
 };
 
@@ -771,8 +820,10 @@ static struct fsl_mxc_ldb_platform_data ldb_data = {
 static struct imx_ipuv3_platform_data ipu_data[] = {
 	{
 	.rev = 4,
+	.csi_clk[0] = "clko2_clk",
 	}, {
 	.rev = 4,
+	.csi_clk[0] = "clko2_clk",
 	},
 };
 
@@ -985,6 +1036,15 @@ static void __init fixup_mxc_board(struct machine_desc *desc, struct tag *tags,
 {
 }
 
+static struct mipi_csi2_platform_data mipi_csi2_pdata = {
+	.ipu_id	 = 0,
+	.csi_id = 0,
+	.v_channel = 0,
+	.lanes = 2,
+	.dphy_clk = "mipi_pllref_clk",
+	.pixel_clk = "emi_clk",
+};
+
 /*!
  * Board specific initialization.
  */
@@ -992,6 +1052,9 @@ static void __init mx6_sabrelite_board_init(void)
 {
 	int i;
 	int ret;
+	struct clk *clko2;
+	struct clk *new_parent;
+	int rate;
 
 	mxc_iomux_v3_setup_multiple_pads(mx6q_sabrelite_pads,
 					ARRAY_SIZE(mx6q_sabrelite_pads));
@@ -1009,7 +1072,8 @@ static void __init mx6_sabrelite_board_init(void)
 	imx6q_add_lcdif(&lcdif_data);
 	imx6q_add_ldb(&ldb_data);
 	imx6q_add_v4l2_output(0);
-
+	imx6q_add_v4l2_capture(0);
+	imx6q_add_mipi_csi2(&mipi_csi2_pdata);
 	imx6q_add_imx_snvs_rtc();
 
 	imx6q_add_imx_i2c(0, &mx6q_sabrelite_i2c_data);
@@ -1071,6 +1135,19 @@ static void __init mx6_sabrelite_board_init(void)
 		pr_err("failed to request flexcan1-gpios: %d\n", ret);
 	else
 		imx6q_add_flexcan0(&mx6q_sabrelite_flexcan0_pdata);
+
+	clko2 = clk_get(NULL, "clko2_clk");
+	if (IS_ERR(clko2))
+		pr_err("can't get CLKO2 clock.\n");
+
+	new_parent = clk_get(NULL, "osc_clk");
+	if (!IS_ERR(new_parent)) {
+		clk_set_parent(clko2, new_parent);
+		clk_put(new_parent);
+	}
+	rate = clk_round_rate(clko2, 24000000);
+	clk_set_rate(clko2, rate);
+	clk_enable(clko2);
 }
 
 extern void __iomem *twd_base;

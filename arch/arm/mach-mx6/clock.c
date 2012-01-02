@@ -1,6 +1,6 @@
 
 /*
- * Copyright (C) 2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2012 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -4655,6 +4655,100 @@ static unsigned long _clk_clko_round_rate(struct clk *clk,
 	return parent_rate / div;
 }
 
+static int _clk_clko2_set_parent(struct clk *clk, struct clk *parent)
+{
+	u32 sel, reg;
+
+	if (parent == &mmdc_ch0_axi_clk[0])
+		sel = 0;
+	else if (parent == &mmdc_ch1_axi_clk[0])
+		sel = 1;
+	else if (parent == &usdhc4_clk)
+		sel = 2;
+	else if (parent == &usdhc1_clk)
+		sel = 3;
+	else if (parent == &gpu2d_axi_clk)
+		sel = 4;
+	else if (parent == &ecspi_clk[0])
+		sel = 6;
+	else if (parent == &gpu3d_axi_clk)
+		sel = 7;
+	else if (parent == &usdhc3_clk)
+		sel = 8;
+	else if (parent == &pcie_clk[0])
+		sel = 9;
+	else if (parent == &ipu1_clk)
+		sel = 11;
+	else if (parent == &ipu2_clk)
+		sel = 12;
+	else if (parent == &vdo_axi_clk)
+		sel = 13;
+	else if (parent == &osc_clk)
+		sel = 14;
+	else if (parent == &gpu2d_core_clk[0])
+		sel = 15;
+	else if (parent == &gpu3d_core_clk[0])
+		sel = 16;
+	else if (parent == &usdhc2_clk)
+		sel = 17;
+	else if (parent == &ssi1_clk)
+		sel = 18;
+	else if (parent == &ssi2_clk)
+		sel = 19;
+	else if (parent == &ssi3_clk)
+		sel = 20;
+	else if (parent == &gpu3d_shader_clk)
+		sel = 21;
+	else if (parent == &can_clk_root)
+		sel = 23;
+	else if (parent == &ldb_di0_clk)
+		sel = 24;
+	else if (parent == &ldb_di1_clk)
+		sel = 25;
+	else if (parent == &esai_clk)
+		sel = 26;
+	else if (parent == &uart_clk[0])
+		sel = 28;
+	else if (parent == &spdif0_clk[0])
+		sel = 29;
+	else if (parent == &hsi_tx_clk[0])
+		sel = 31;
+	else
+		return -EINVAL;
+
+	reg = __raw_readl(MXC_CCM_CCOSR);
+	reg &= ~MXC_CCM_CCOSR_CKO2_SEL_MASK;
+	reg |= sel << MXC_CCM_CCOSR_CKO2_SEL_OFFSET;
+	__raw_writel(reg, MXC_CCM_CCOSR);
+	return 0;
+}
+
+static unsigned long _clk_clko2_get_rate(struct clk *clk)
+{
+	u32 reg = __raw_readl(MXC_CCM_CCOSR);
+	u32 div = ((reg & MXC_CCM_CCOSR_CKO2_DIV_MASK) >>
+			MXC_CCM_CCOSR_CKO2_DIV_OFFSET) + 1;
+	return clk_get_rate(clk->parent) / div;
+}
+
+static int _clk_clko2_set_rate(struct clk *clk, unsigned long rate)
+{
+	u32 reg;
+	u32 parent_rate = clk_get_rate(clk->parent);
+	u32 div = parent_rate / rate;
+
+	if (div == 0)
+		div++;
+	if (((parent_rate / div) != rate) || (div > 8))
+		return -EINVAL;
+
+	reg = __raw_readl(MXC_CCM_CCOSR);
+	reg &= ~MXC_CCM_CCOSR_CKO2_DIV_MASK;
+	reg |= (div - 1) << MXC_CCM_CCOSR_CKO2_DIV_OFFSET;
+	__raw_writel(reg, MXC_CCM_CCOSR);
+	return 0;
+}
+
 static struct clk clko_clk = {
 	__INIT_CLK_DEBUG(clko_clk)
 	.parent = &pll2_528_bus_main_clk,
@@ -4665,6 +4759,19 @@ static struct clk clko_clk = {
 	.set_parent = _clk_clko_set_parent,
 	.set_rate = _clk_clko_set_rate,
 	.get_rate = _clk_clko_get_rate,
+	.round_rate = _clk_clko_round_rate,
+};
+
+static struct clk clko2_clk = {
+	__INIT_CLK_DEBUG(clko2_clk)
+	.parent = &usdhc4_clk,
+	.enable = _clk_enable1,
+	.enable_reg = MXC_CCM_CCOSR,
+	.enable_shift = MXC_CCM_CCOSR_CKO2_EN_OFFSET,
+	.disable = _clk_disable1,
+	.set_parent = _clk_clko2_set_parent,
+	.set_rate = _clk_clko2_set_rate,
+	.get_rate = _clk_clko2_get_rate,
 	.round_rate = _clk_clko_round_rate,
 };
 
@@ -4820,6 +4927,7 @@ static struct clk_lookup lookups[] = {
 	_REGISTER_CLOCK(NULL, NULL, aips_tz2_clk),
 	_REGISTER_CLOCK(NULL, NULL, aips_tz1_clk),
 	_REGISTER_CLOCK(NULL, "clko_clk", clko_clk),
+	_REGISTER_CLOCK(NULL, "clko2_clk", clko2_clk),
 	_REGISTER_CLOCK("mxs-perfmon.0", "perfmon", perfmon0_clk),
 	_REGISTER_CLOCK("mxs-perfmon.1", "perfmon", perfmon1_clk),
 	_REGISTER_CLOCK("mxs-perfmon.2", "perfmon", perfmon2_clk),
@@ -4908,6 +5016,10 @@ int __init mx6_clocks_init(unsigned long ckil, unsigned long osc,
 	clk_set_rate(&gpu3d_shader_clk, 594000000);
 	clk_set_parent(&gpu3d_core_clk[0], &mmdc_ch0_axi_clk[0]);
 	clk_set_rate(&gpu3d_core_clk[0], 528000000);
+
+	/* PCLK camera - J5 */
+	clk_set_parent(&clko2_clk, &osc_clk);
+	clk_set_rate(&clko2_clk, 2400000);
 
 	/*
 	 * FIXME: asrc needs to use asrc_serial(spdif1) clock to do sample

@@ -1,5 +1,5 @@
 /*
- * Copyright 2008-2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2008-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * The code contained herein is licensed under the GNU General Public
  * License. You may obtain a copy of the GNU General Public License
@@ -448,7 +448,7 @@
 #define MXC_CCM_CIMR_MASK_LRF_PLL			(1)
 
 /* Define the bits in register CCOSR */
-#define MXC_CCM_CCOSR_CKO2_EN_OFFSET		(1 << 24)
+#define MXC_CCM_CCOSR_CKO2_EN_OFFSET		(24)
 #define MXC_CCM_CCOSR_CKO2_DIV_MASK		(0x7 << 21)
 #define MXC_CCM_CCOSR_CKO2_DIV_OFFSET		(21)
 #define MXC_CCM_CCOSR_CKO2_SEL_OFFSET		(16)
