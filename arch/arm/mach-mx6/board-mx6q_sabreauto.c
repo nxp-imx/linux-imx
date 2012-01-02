@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2011-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -86,6 +86,8 @@
 #define MX6Q_SABREAUTO_SD3_CD	IMX_GPIO_NR(6, 15)
 #define MX6Q_SABREAUTO_SD3_WP	IMX_GPIO_NR(1, 13)
 #define MX6Q_SABREAUTO_USB_OTG_PWR	IMX_GPIO_NR(3, 22)
+#define MX6Q_SABREAUTO_SD1_CD	IMX_GPIO_NR(1, 1)
+#define MX6Q_SABREAUTO_SD1_WP	IMX_GPIO_NR(5, 20)
 #define MX6Q_SABREAUTO_MAX7310_1_BASE_ADDR	IMX_GPIO_NR(8, 0)
 #define MX6Q_SABREAUTO_MAX7310_2_BASE_ADDR	IMX_GPIO_NR(8, 8)
 #define MX6Q_SABREAUTO_CAP_TCH_INT	IMX_GPIO_NR(2, 28)
@@ -164,13 +166,11 @@ static iomux_v3_cfg_t mx6q_sabreauto_pads[] = {
 	MX6Q_PAD_SD1_DAT1__USDHC1_DAT1,
 	MX6Q_PAD_SD1_DAT2__USDHC1_DAT2,
 	MX6Q_PAD_SD1_DAT3__USDHC1_DAT3,
-	/* SD2 */
-	MX6Q_PAD_SD2_CLK__USDHC2_CLK,
-	MX6Q_PAD_SD2_CMD__USDHC2_CMD,
-	MX6Q_PAD_SD2_DAT0__GPIO_1_15,
-	MX6Q_PAD_SD2_DAT1__USDHC2_DAT1,
-	MX6Q_PAD_SD2_DAT2__USDHC2_DAT2,
-	MX6Q_PAD_SD2_DAT3__USDHC2_DAT3,
+
+	/* SD1_CD and SD1_WP */
+	MX6Q_PAD_GPIO_1__GPIO_1_1,
+	MX6Q_PAD_CSI0_DATA_EN__GPIO_5_20,
+
 	/* SD3 */
 	MX6Q_PAD_SD3_CLK__USDHC3_CLK_50MHZ,
 	MX6Q_PAD_SD3_CMD__USDHC3_CMD_50MHZ,
@@ -182,24 +182,13 @@ static iomux_v3_cfg_t mx6q_sabreauto_pads[] = {
 	MX6Q_PAD_SD3_DAT5__USDHC3_DAT5_50MHZ,
 	MX6Q_PAD_SD3_DAT6__USDHC3_DAT6_50MHZ,
 	MX6Q_PAD_SD3_DAT7__USDHC3_DAT7_50MHZ,
-	/* MX6Q_PAD_SD3_RST__USDHC3_RST, */
+
 	/* SD3 VSelect */
 	MX6Q_PAD_GPIO_18__USDHC3_VSELECT,
 	/* SD3_CD and SD3_WP */
 	MX6Q_PAD_NANDF_CS2__GPIO_6_15,
 	MX6Q_PAD_SD2_DAT2__GPIO_1_13,
-	/* SD4 */
-	MX6Q_PAD_SD4_CLK__USDHC4_CLK_50MHZ,
-	MX6Q_PAD_SD4_CMD__USDHC4_CMD_50MHZ,
-	MX6Q_PAD_SD4_DAT0__USDHC4_DAT0_50MHZ,
-	MX6Q_PAD_SD4_DAT1__USDHC4_DAT1_50MHZ,
-	MX6Q_PAD_SD4_DAT2__USDHC4_DAT2_50MHZ,
-	MX6Q_PAD_SD4_DAT3__USDHC4_DAT3_50MHZ,
-	MX6Q_PAD_SD4_DAT4__USDHC4_DAT4_50MHZ,
-	MX6Q_PAD_SD4_DAT5__USDHC4_DAT5_50MHZ,
-	MX6Q_PAD_SD4_DAT6__USDHC4_DAT6_50MHZ,
-	MX6Q_PAD_SD4_DAT7__USDHC4_DAT7_50MHZ,
-	MX6Q_PAD_NANDF_ALE__USDHC4_RST,
+
 	/* eCSPI1 */
 	MX6Q_PAD_EIM_D16__ECSPI1_SCLK,
 	MX6Q_PAD_EIM_D17__ECSPI1_MISO,
@@ -287,11 +276,7 @@ static iomux_v3_cfg_t mx6q_sabreauto_pads[] = {
 
 	/* HDMI */
 	MX6Q_PAD_EIM_A25__HDMI_TX_CEC_LINE,
-	MX6Q_PAD_SD1_DAT1__HDMI_TX_OPHYDTB_0,
-	MX6Q_PAD_SD1_DAT0__HDMI_TX_OPHYDTB_1,
 
-	/* USBOTG ID pin */
-	MX6Q_PAD_GPIO_1__USBOTG_ID,
 	/*  SPDIF */
 	MX6Q_PAD_KEY_COL3__SPDIF_IN1,
 	/* Touchscreen interrupt */
@@ -342,9 +327,6 @@ mx6q_sd##id##_##speed##mhz[] = {		\
 static iomux_v3_cfg_t MX6Q_USDHC_PAD_SETTING(3, 50);
 static iomux_v3_cfg_t MX6Q_USDHC_PAD_SETTING(3, 100);
 static iomux_v3_cfg_t MX6Q_USDHC_PAD_SETTING(3, 200);
-static iomux_v3_cfg_t MX6Q_USDHC_PAD_SETTING(4, 50);
-static iomux_v3_cfg_t MX6Q_USDHC_PAD_SETTING(4, 100);
-static iomux_v3_cfg_t MX6Q_USDHC_PAD_SETTING(4, 200);
 
 enum sd_pad_mode {
 	SD_PAD_MODE_LOW_SPEED,
@@ -380,33 +362,6 @@ static int plt_sd3_pad_change(int clock)
 	}
 }
 
-static int plt_sd4_pad_change(int clock)
-{
-	static enum sd_pad_mode pad_mode = SD_PAD_MODE_LOW_SPEED;
-
-	if (clock > 100000000) {
-		if (pad_mode == SD_PAD_MODE_HIGH_SPEED)
-			return 0;
-
-		pad_mode = SD_PAD_MODE_HIGH_SPEED;
-		return mxc_iomux_v3_setup_multiple_pads(mx6q_sd4_200mhz,
-					ARRAY_SIZE(mx6q_sd4_200mhz));
-	} else if (clock > 52000000) {
-		if (pad_mode == SD_PAD_MODE_MED_SPEED)
-			return 0;
-
-		pad_mode = SD_PAD_MODE_MED_SPEED;
-		return mxc_iomux_v3_setup_multiple_pads(mx6q_sd4_100mhz,
-					ARRAY_SIZE(mx6q_sd4_100mhz));
-	} else {
-		if (pad_mode == SD_PAD_MODE_LOW_SPEED)
-			return 0;
-
-		pad_mode = SD_PAD_MODE_LOW_SPEED;
-		return mxc_iomux_v3_setup_multiple_pads(mx6q_sd4_50mhz,
-					ARRAY_SIZE(mx6q_sd4_50mhz));
-	}
-}
 
 static const struct esdhc_platform_data mx6q_sabreauto_sd3_data __initconst = {
 	.cd_gpio = MX6Q_SABREAUTO_SD3_CD,
@@ -417,11 +372,9 @@ static const struct esdhc_platform_data mx6q_sabreauto_sd3_data __initconst = {
 	.platform_pad_change = plt_sd3_pad_change,
 };
 
-/* No card detect signal for SD4 */
-static const struct esdhc_platform_data mx6q_sabreauto_sd4_data __initconst = {
-	.always_present = 1,
-	.support_8bit = 1,
-	.platform_pad_change = plt_sd4_pad_change,
+static const struct esdhc_platform_data mx6q_sabreauto_sd1_data __initconst = {
+	.cd_gpio = MX6Q_SABREAUTO_SD1_CD,
+	.wp_gpio = MX6Q_SABREAUTO_SD1_WP,
 };
 
 /* The GPMI is conflicted with SD3, so init this in the driver. */
@@ -1326,8 +1279,10 @@ static void __init mx6_board_init(void)
 		imx6_init_fec(fec_data);
 
 	imx6q_add_pm_imx(0, &mx6q_sabreauto_pm_data);
-	/* imx6q_add_sdhci_usdhc_imx(3, &mx6q_sabreauto_sd4_data); */
+
 	imx6q_add_sdhci_usdhc_imx(2, &mx6q_sabreauto_sd3_data);
+	imx6q_add_sdhci_usdhc_imx(0, &mx6q_sabreauto_sd1_data);
+
 	imx_add_viv_gpu(&imx6_gpu_data, &imx6q_gpu_pdata);
 	imx6q_sabreauto_init_usb();
 	imx6q_add_ahci(0, &mx6q_sabreauto_sata_data);
