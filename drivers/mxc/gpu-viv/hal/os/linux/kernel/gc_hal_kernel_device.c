@@ -367,7 +367,7 @@ gckGALDEVICE_Construct(
                    PhysBaseAddr, PhysSize, Signal);
 
     /* Allocate device structure. */
-    device = kmalloc(sizeof(struct _gckGALDEVICE), GFP_KERNEL);
+    device = kmalloc(sizeof(struct _gckGALDEVICE), GFP_KERNEL | __GFP_NOWARN);
 
     if (!device)
     {
@@ -564,11 +564,19 @@ gckGALDEVICE_Construct(
         /* Start the command queue. */
         gcmkONERROR(gckCOMMAND_Start(device->kernels[gcvCORE_2D]->command));
 #endif
+
+#if gcdMULTICORE_MAPPING
+        device->kernels[gcvCORE_2D]->anotherKernel = device->kernels[gcvCORE_MAJOR];
+#endif
     }
     else
     {
         device->kernels[gcvCORE_2D] = gcvNULL;
     }
+
+#if gcdMULTICORE_MAPPING
+    device->kernels[gcvCORE_MAJOR]->anotherKernel = device->kernels[gcvCORE_2D];
+#endif
 
     if (IrqLineVG != -1)
     {
@@ -807,6 +815,7 @@ gckGALDEVICE_Construct(
                 device->requestedContiguousBase  = ContiguousBase;
                 device->requestedContiguousSize  = ContiguousSize;
 
+#if !gcdDYNAMIC_MAP_RESERVED_MEMORY && gcdENABLE_VG
                 if (gcmIS_CORE_PRESENT(device, gcvCORE_VG))
                 {
                     device->contiguousBase
@@ -823,6 +832,7 @@ gckGALDEVICE_Construct(
                         gcmkONERROR(gcvSTATUS_OUT_OF_RESOURCES);
                     }
                 }
+#endif
 
                 device->contiguousPhysical = (gctPHYS_ADDR) ContiguousBase;
                 device->contiguousSize     = ContiguousSize;
@@ -921,8 +931,13 @@ gckGALDEVICE_Destroy(
             {
                 if (Device->contiguousMapped)
                 {
-                    /* Unmap the contiguous memory. */
-                    iounmap(Device->contiguousBase);
+#if !gcdDYNAMIC_MAP_RESERVED_MEMORY && gcdENABLE_VG
+                    if (Device->contiguousBase)
+                    {
+                        /* Unmap the contiguous memory. */
+                        iounmap(Device->contiguousBase);
+                    }
+#endif
                 }
                 else
                 {
@@ -1524,7 +1539,7 @@ gckGALDEVICE_Start(
 
         /* Switch to SUSPEND power state. */
         gcmkONERROR(gckHARDWARE_SetPowerManagementState(
-            Device->kernels[gcvCORE_MAJOR]->hardware, gcvPOWER_SUSPEND_ATPOWERON
+            Device->kernels[gcvCORE_MAJOR]->hardware, gcvPOWER_OFF_BROADCAST
             ));
     }
 
@@ -1535,7 +1550,7 @@ gckGALDEVICE_Start(
 
         /* Switch to SUSPEND power state. */
         gcmkONERROR(gckHARDWARE_SetPowerManagementState(
-            Device->kernels[gcvCORE_2D]->hardware, gcvPOWER_SUSPEND_ATPOWERON
+            Device->kernels[gcvCORE_2D]->hardware, gcvPOWER_OFF_BROADCAST
             ));
     }
 
