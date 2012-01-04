@@ -971,17 +971,14 @@ gckGALDEVICE_Destroy(
 
         /*Disable clock*/
         if (Device->clk_3d_core) {
-           clk_disable(Device->clk_3d_core);
            clk_put(Device->clk_3d_core);
            Device->clk_3d_core = NULL;
         }
         if (Device->clk_3d_shader) {
-           clk_disable(Device->clk_3d_shader);
            clk_put(Device->clk_3d_shader);
            Device->clk_3d_shader = NULL;
         }
         if (Device->clk_2d_core) {
-           clk_disable(Device->clk_2d_core);
            clk_put(Device->clk_2d_core);
            Device->clk_2d_core = NULL;
         }
