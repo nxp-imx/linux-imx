@@ -828,8 +828,12 @@ gckEVENT_AddList(
     gcsEVENT_PTR record = gcvNULL;
     gcsEVENT_QUEUE_PTR queue;
 
-    gcmkHEADER_ARG("Event=0x%x Interface=0x%x FromWhere=%d AllocateAllowed=%d",
-                   Event, Interface, FromWhere, AllocateAllowed);
+    gcmkHEADER_ARG("Event=0x%x Interface=0x%x",
+                   Event, Interface);
+
+    gcmkTRACE_ZONE(gcvLEVEL_VERBOSE, _GC_OBJ_ZONE,
+                    "FromWhere=%d AllocateAllowed=%d",
+                    FromWhere, AllocateAllowed);
 
     /* Verify the arguments. */
     gcmkVERIFY_OBJECT(Event, gcvOBJ_EVENT);
@@ -1799,7 +1803,7 @@ gckEVENT_Notify(
 
         /* Get current interrupts. */
 #if gcdSMP
-        gckOS_AtomGet(Event->os, Event->pending, &pending);
+        gckOS_AtomGet(Event->os, Event->pending, (gctINT32_PTR)&pending);
 #else
         pending = Event->pending;
 #endif
@@ -1877,7 +1881,7 @@ gckEVENT_Notify(
 #if gcdSMP
             gckOS_AtomClearMask(Event->pending, pending);
 #elif defined(__QNXNTO__)
-            atomic_set(&Event->pending, pending);
+            atomic_clr((gctUINT32_PTR)&Event->pending, pending);
 #else
             Event->pending &= ~pending;
 #endif

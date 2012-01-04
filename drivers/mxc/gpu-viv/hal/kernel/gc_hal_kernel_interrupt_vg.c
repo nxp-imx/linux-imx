@@ -759,10 +759,19 @@ gckVGINTERRUPT_Disable(
 **      Nothing.
 */
 
+#ifndef __QNXNTO__
 gceSTATUS
 gckVGINTERRUPT_Enque(
     IN gckVGINTERRUPT Interrupt
     )
+#else
+gceSTATUS
+gckVGINTERRUPT_Enque(
+    IN gckVGINTERRUPT Interrupt,
+    OUT gckOS *Os,
+    OUT gctSEMAPHORE *Semaphore
+    )
+#endif
 {
     gceSTATUS status;
     gctUINT32 triggered;
@@ -771,6 +780,11 @@ gckVGINTERRUPT_Enque(
 
     /* Verify the arguments. */
     gcmkVERIFY_OBJECT(Interrupt, gcvOBJ_INTERRUPT);
+
+#ifdef __QNXNTO__
+    *Os = gcvNULL;
+    *Semaphore = gcvNULL;
+#endif
 
     do
     {
@@ -815,10 +829,15 @@ gckVGINTERRUPT_Enque(
             /* Set the new value. */
             Interrupt->fifo[Interrupt->head] = triggered;
 
+#ifndef __QNXNTO__
             /* Increment the FIFO semaphore. */
             gcmkERR_BREAK(gckOS_IncrementSemaphore(
                 Interrupt->os, Interrupt->fifoValid
                 ));
+#else
+            *Os = Interrupt->os;
+            *Semaphore = Interrupt->fifoValid;
+#endif
 
             /* Windows kills our threads prematurely when the application
                exists. Verify here that the thread is still alive. */

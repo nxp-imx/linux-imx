@@ -385,13 +385,6 @@ gcoSURF_SetResolvability(
     IN gctBOOL Resolvable
     );
 
-/* Perform CPU cache operation on surface */
-gceSTATUS
-gcoSURF_CPUCacheOperation(
-    IN gcoSURF Surface,
-    IN gceCACHEOPERATION Operation
-    );
-
 /******************************************************************************\
 ******************************** gcoINDEX Object *******************************
 \******************************************************************************/

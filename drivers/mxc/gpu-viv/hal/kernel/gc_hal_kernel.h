@@ -36,6 +36,34 @@
 extern "C" {
 #endif
 
+
+/*******************************************************************************
+***** New MMU Defination *******************************************************/
+#define gcdMMU_MTLB_SHIFT           22
+#define gcdMMU_STLB_4K_SHIFT        12
+#define gcdMMU_STLB_64K_SHIFT       16
+
+#define gcdMMU_MTLB_BITS            (32 - gcdMMU_MTLB_SHIFT)
+#define gcdMMU_PAGE_4K_BITS         gcdMMU_STLB_4K_SHIFT
+#define gcdMMU_STLB_4K_BITS         (32 - gcdMMU_MTLB_BITS - gcdMMU_PAGE_4K_BITS)
+#define gcdMMU_PAGE_64K_BITS        gcdMMU_STLB_64K_SHIFT
+#define gcdMMU_STLB_64K_BITS        (32 - gcdMMU_MTLB_BITS - gcdMMU_PAGE_64K_BITS)
+
+#define gcdMMU_MTLB_ENTRY_NUM       (1 << gcdMMU_MTLB_BITS)
+#define gcdMMU_MTLB_SIZE            (gcdMMU_MTLB_ENTRY_NUM << 2)
+#define gcdMMU_STLB_4K_ENTRY_NUM    (1 << gcdMMU_STLB_4K_BITS)
+#define gcdMMU_STLB_4K_SIZE         (gcdMMU_STLB_4K_ENTRY_NUM << 2)
+#define gcdMMU_PAGE_4K_SIZE         (1 << gcdMMU_STLB_4K_SHIFT)
+#define gcdMMU_STLB_64K_ENTRY_NUM   (1 << gcdMMU_STLB_64K_BITS)
+#define gcdMMU_STLB_64K_SIZE        (gcdMMU_STLB_64K_ENTRY_NUM << 2)
+#define gcdMMU_PAGE_64K_SIZE        (1 << gcdMMU_STLB_64K_SHIFT)
+
+#define gcdMMU_MTLB_MASK            (~((1U << gcdMMU_MTLB_SHIFT)-1))
+#define gcdMMU_STLB_4K_MASK         ((~0U << gcdMMU_STLB_4K_SHIFT) ^ gcdMMU_MTLB_MASK)
+#define gcdMMU_PAGE_4K_MASK         (gcdMMU_PAGE_4K_SIZE - 1)
+#define gcdMMU_STLB_64K_MASK        ((~((1U << gcdMMU_STLB_64K_SHIFT)-1)) ^ gcdMMU_MTLB_MASK)
+#define gcdMMU_PAGE_64K_MASK        (gcdMMU_PAGE_64K_SIZE - 1)
+
 /*******************************************************************************
 ***** Process Secure Cache ****************************************************/
 
@@ -311,6 +339,10 @@ struct _gckKERNEL
 #if gcdENABLE_VG
     gckVGKERNEL                 vg;
 #endif
+
+#if gcdMULTICORE_MAPPING
+    gckKERNEL                   anotherKernel;
+#endif
 };
 
 /* gckCOMMAND object. */
@@ -552,6 +584,10 @@ typedef union _gcuVIDMEM_NODE
 
         /* */
         gcsVIDMEM_NODE_SHARED_INFO sharedInfo;
+
+#if gcdDYNAMIC_MAP_RESERVED_MEMORY && gcdENABLE_VG
+        gctPOINTER              kernelVirtual;
+#endif
     }
     VidMem;
 

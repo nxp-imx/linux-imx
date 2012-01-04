@@ -468,6 +468,25 @@
 #endif
 
 /*
+    gcdDYNAMIC_MAP_RESERVED_MEMORY
+
+        When gcvPOOL_SYSTEM is constructed from RESERVED memory,
+        driver can map the whole reserved memory to kernel space
+        at the beginning, or just map a piece of memory when need
+        to access.
+
+        Notice:
+        -  It's only for the 2D openVG. For other cores, there is
+           _NO_ need to map reserved memory to kernel.
+        -  It's meaningless when memory is allocated by
+           gckOS_AllocateContiguous, in that case, memory is always
+           mapped by system when allocated.
+*/
+#ifndef gcdDYNAMIC_MAP_RESERVED_MEMORY
+#   define gcdDYNAMIC_MAP_RESERVED_MEMORY      0
+#endif
+
+/*
    gcdPAGED_MEMORY_CACHEABLE
 
         When non-zero, paged memory will be cacheable.
@@ -653,6 +672,15 @@
 */
 #ifndef gcdENABLE_OUTER_CACHE_PATCH
 #   define gcdENABLE_OUTER_CACHE_PATCH          0
+#endif
+
+/*
+    gcdMULTICORE_MAPPING
+
+        Make different cores own same VA
+*/
+#ifndef gcdMULTICORE_MAPPING
+#   define gcdMULTICORE_MAPPING                 1
 #endif
 
 #endif /* __gc_hal_options_h_ */

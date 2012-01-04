@@ -249,10 +249,22 @@ typedef gctTHREADFUNCRESULT (gctTHREADFUNCTYPE * gctTHREADFUNC) (
 )
 
 /* some platforms need to fix the physical address for HW to access*/
+#if (defined(__QNXNTO__) && defined(IMX6X))
+
+#define gcmFIXADDRESS(address) \
+(\
+    ((address) + 0x10000000)\
+)
+
+#else
+
 #define gcmFIXADDRESS(address) \
 (\
     (address)\
 )
+
+#endif
+
 /******************************************************************************\
 ****************************** Kernel Debug Macro ******************************
 \******************************************************************************/
@@ -376,6 +388,21 @@ gckKERNEL_QueryCommandBuffer(
     IN gckKERNEL Kernel,
     OUT gcsCOMMAND_BUFFER_INFO_PTR Information
     );
+
+#if gcdDYNAMIC_MAP_RESERVED_MEMORY
+gceSTATUS
+gckOS_MapReservedMemoryToKernel(
+    IN gckOS Os,
+    IN gctUINT32 Physical,
+    IN gctINT Bytes,
+    IN OUT gctPOINTER *Virtual
+    );
+
+gceSTATUS
+gckOS_UnmapReservedMemoryFromKernel(
+    IN gctPOINTER Virtual
+    );
+#endif
 
 /******************************************************************************\
 ******************************* gckVGHARDWARE Object ******************************
@@ -643,6 +670,9 @@ typedef struct _gcsVGCONTEXT
     /* State map/mod buffer. */
     gctSIZE_T                   mapFirst;
     gctSIZE_T                   mapLast;
+#ifdef __QNXNTO__
+    gctSIZE_T                   mapContainerSize;
+#endif
     gcsVGCONTEXT_MAP_PTR            mapContainer;
     gcsVGCONTEXT_MAP_PTR            mapPrev;
     gcsVGCONTEXT_MAP_PTR            mapCurr;
@@ -700,6 +730,11 @@ typedef struct _gcsTASK_MASTER_TABLE
 
     /* The total size of event data in bytes. */
     gctUINT                     size;
+
+#if defined(__QNXNTO__)
+    gctINT32                    coid;
+    gctINT32                    rcvid;
+#endif
 }
 gcsTASK_MASTER_TABLE;
 
@@ -737,10 +772,23 @@ gckVGINTERRUPT_Disable(
     IN gctINT32 Id
     );
 
+#ifndef __QNXNTO__
+
 gceSTATUS
 gckVGINTERRUPT_Enque(
     IN gckVGINTERRUPT Interrupt
     );
+
+#else
+
+gceSTATUS
+gckVGINTERRUPT_Enque(
+    IN gckVGINTERRUPT Interrupt,
+    OUT gckOS *Os,
+    OUT gctSEMAPHORE *Semaphore
+    );
+
+#endif
 
 gceSTATUS
 gckVGINTERRUPT_DumpState(

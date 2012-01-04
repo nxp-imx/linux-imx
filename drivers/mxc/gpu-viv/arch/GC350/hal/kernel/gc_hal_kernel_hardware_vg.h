@@ -57,7 +57,7 @@ struct _gckVGHARDWARE
     gctBOOL                     clockState;
     gctBOOL                     powerState;
     gctPOINTER                  powerMutex;
-    gctSIGNAL                   idleSignal;
+    gctSEMAPHORE                idleSemaphore;
     gctUINT32                   powerProcess;
     gctUINT32                   powerThread;
     gceCHIPPOWERSTATE           chipPowerState;
