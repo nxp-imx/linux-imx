@@ -1,5 +1,5 @@
 /*
- * Copyright 2006-2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2006-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -66,6 +66,8 @@ struct iram_setting {
 
 static DEFINE_SPINLOCK(vpu_lock);
 static LIST_HEAD(head);
+
+static int vpu_inited;
 
 static int vpu_major;
 static int vpu_clk_usercount;
@@ -431,6 +433,7 @@ static int vpu_ioctl(struct inode *inode, struct file *filp, u_int cmd,
 				    copy_to_user((void __user *)arg,
 						 &bitwork_mem,
 						 sizeof(struct vpu_mem_desc));
+				vpu_inited = 1;
 				break;
 			} else {
 				if (copy_from_user(&bitwork_mem,
@@ -445,6 +448,8 @@ static int vpu_ioctl(struct inode *inode, struct file *filp, u_int cmd,
 						      sizeof(struct
 							     vpu_mem_desc)))
 					ret = -EFAULT;
+				if (ret != -EFAULT)
+					vpu_inited = 1;
 			}
 			break;
 		}
@@ -669,6 +674,8 @@ static int vpu_dev_probe(struct platform_device *pdev)
 	if (err)
 		goto err_out_class;
 
+	vpu_inited = 0;
+
 	vpu_data.workqueue = create_workqueue("vpu_wq");
 	INIT_WORK(&vpu_data.work, vpu_worker_callback);
 
@@ -729,8 +736,8 @@ static int vpu_suspend(struct platform_device *pdev, pm_message_t state)
 		clk_disable(vpu_clk);
 
 	if (cpu_is_mx51()) {
-		clk_enable(vpu_clk);
-		if (bitwork_mem.cpu_addr != 0) {
+		if (bitwork_mem.cpu_addr != 0 && vpu_inited) {
+			clk_enable(vpu_clk);
 			SAVE_WORK_REGS;
 			SAVE_CTRL_REGS;
 			SAVE_RDWR_PTR_REGS;
@@ -740,8 +747,8 @@ static int vpu_suspend(struct platform_device *pdev, pm_message_t state)
 			WRITE_REG(VPU_SLEEP_REG_VALUE, BIT_RUN_COMMAND);
 			while (READ_REG(BIT_BUSY_FLAG))
 				;
+			clk_disable(vpu_clk);
 		}
-		clk_disable(vpu_clk);
 
 		mxc_pg_enable(pdev);
 	}
@@ -763,12 +770,13 @@ static int vpu_resume(struct platform_device *pdev)
 
 	mxc_pg_disable(pdev);
 
-	clk_enable(vpu_clk);
-	if (bitwork_mem.cpu_addr != 0) {
+	if (bitwork_mem.cpu_addr != 0 && vpu_inited) {
 		u32 *p = (u32 *) bitwork_mem.cpu_addr;
 		u32 data;
 		u16 data_hi;
 		u16 data_lo;
+
+		clk_enable(vpu_clk);
 
 		RESTORE_WORK_REGS;
 
@@ -812,8 +820,9 @@ static int vpu_resume(struct platform_device *pdev)
 		WRITE_REG(VPU_WAKE_REG_VALUE, BIT_RUN_COMMAND);
 		while (READ_REG(BIT_BUSY_FLAG))
 			;
+
+		clk_disable(vpu_clk);
 	}
-	clk_disable(vpu_clk);
 
 recover_clk:
 	/* Recover vpu clock */
