@@ -2272,6 +2272,8 @@ static int ioctl_s_parm(struct v4l2_int_device *s, struct v4l2_streamparm *a)
 		}
 
 		ret =  ov5642_change_mode(frame_rate, a->parm.capture.capturemode, sensor->streamcap.capturemode);
+		if (ret < 0)
+			return ret;
 		sensor->streamcap.timeperframe = *timeperframe;
 		sensor->streamcap.capturemode =
 				(u32)a->parm.capture.capturemode;
