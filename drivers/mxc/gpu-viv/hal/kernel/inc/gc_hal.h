@@ -1895,7 +1895,8 @@ gckHARDWARE_SetMMUv2(
     IN gctBOOL Enable,
     IN gctPOINTER MtlbAddress,
     IN gceMMU_MODE Mode,
-    IN gctPOINTER SafeAddress
+    IN gctPOINTER SafeAddress,
+    IN gctBOOL FromPower
     );
 
 /* Get idle register. */

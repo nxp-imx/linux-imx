@@ -40,6 +40,15 @@ typedef struct _LINUX_MDL
     gctINT                  pid;
     char *                  addr;
 
+    union _pages
+    {
+        /* Pointer to a array of pages. */
+        struct page *       contiguousPages;
+        /* Pointer to a array of pointers to page. */
+        struct page **      nonContiguousPages;
+    }
+    u;
+
 #ifdef NO_DMA_COHERENT
     gctPOINTER              kaddr;
 #endif /* NO_DMA_COHERENT */
