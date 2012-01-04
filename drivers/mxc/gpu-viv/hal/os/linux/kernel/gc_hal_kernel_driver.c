@@ -163,7 +163,7 @@ int drv_open(
         gcmkONERROR(gcvSTATUS_INVALID_ARGUMENT);
     }
 
-    data = kmalloc(sizeof(gcsHAL_PRIVATE_DATA), GFP_KERNEL);
+    data = kmalloc(sizeof(gcsHAL_PRIVATE_DATA), GFP_KERNEL | __GFP_NOWARN);
 
     if (data == gcvNULL)
     {

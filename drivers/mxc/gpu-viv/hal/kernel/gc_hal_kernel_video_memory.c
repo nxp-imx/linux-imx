@@ -788,7 +788,15 @@ _FindNode(
 #if gcdENABLE_BANK_ALIGNMENT
     gctUINT32 bankAlignment;
     gceSTATUS status;
+#endif
 
+    if (Memory->sentinel[Bank].VidMem.nextFree == gcvNULL)
+    {
+        /* No free nodes left. */
+        return gcvNULL;
+    }
+
+#if gcdENABLE_BANK_ALIGNMENT
     /* Walk all free nodes until we have one that is big enough or we have
     ** reached the sentinel. */
     for (node = Memory->sentinel[Bank].VidMem.nextFree;
@@ -1077,6 +1085,10 @@ gckVIDMEM_AllocateLinear(
 
     node->VidMem.freePending = gcvFALSE;
 
+#if gcdDYNAMIC_MAP_RESERVED_MEMORY && gcdENABLE_VG
+    node->VidMem.kernelVirtual = gcvNULL;
+#endif
+
     /* Release the mutex. */
     gcmkVERIFY_OK(gckOS_ReleaseMutex(Memory->os, Memory->mutex));
 
@@ -1182,6 +1194,18 @@ gckVIDMEM_Free(
         )
 #endif
         {
+#if gcdDYNAMIC_MAP_RESERVED_MEMORY && gcdENABLE_VG
+            if (Node->VidMem.kernelVirtual)
+            {
+                gcmkTRACE_ZONE(gcvLEVEL_INFO, gcvZONE_VIDMEM,
+                        "%s(%d) Unmap %x from kernel space.",
+                        __FUNCTION__, __LINE__,
+                        Node->VidMem.kernelVirtual);
+
+                gckOS_UnmapReservedMemoryFromKernel(Node->VidMem.kernelVirtual);
+                Node->VidMem.kernelVirtual = gcvNULL;
+            }
+#endif
             /* Update the number of free bytes. */
             memory->freeBytes += Node->VidMem.bytes;
 
@@ -1410,6 +1434,87 @@ OnError:
 
 /*******************************************************************************
 **
+** _NeedVirtualMapping
+**
+**  Whether setup GPU page table for video node.
+**
+**  INPUT:
+**      gckKERNEL Kernel
+**          Pointer to an gckKERNEL object.
+**
+**      gcuVIDMEM_NODE_PTR Node
+**          Pointer to a gcuVIDMEM_NODE union.
+**
+**      gceCORE  Core
+**          Id of current GPU.
+**
+**  OUTPUT:
+**      gctBOOL * NeedMapping
+**          A pointer hold the result whether Node should be mapping.
+*/
+static gceSTATUS
+_NeedVirtualMapping(
+    IN gckKERNEL Kernel,
+    IN gceCORE  Core,
+    IN gcuVIDMEM_NODE_PTR Node,
+    OUT gctBOOL * NeedMapping
+)
+{
+    gceSTATUS status;
+    gctUINT32 phys;
+    gctUINT32 end;
+    gcePOOL pool;
+    gctUINT32 offset;
+
+    gcmkHEADER_ARG("Node=0x%X", Node);
+
+    /* Verify the arguments. */
+    gcmkVERIFY_ARGUMENT(Kernel != gcvNULL);
+    gcmkVERIFY_ARGUMENT(Node != gcvNULL);
+    gcmkVERIFY_ARGUMENT(NeedMapping != gcvNULL);
+    gcmkVERIFY_ARGUMENT(Core < gcdCORE_COUNT);
+
+    if (Node->Virtual.contiguous)
+    {
+#if gcdENABLE_VG
+        if (Core == gcvCORE_VG)
+        {
+            *NeedMapping = gcvFALSE;
+        }
+        else
+#endif
+        {
+            /* For cores which can't access all physical address. */
+            gcmkONERROR(gckOS_GetPhysicalAddress(Kernel->os,
+                        Node->Virtual.logical,
+                        &phys));
+
+            /* If part of region is belong to gcvPOOL_VIRTUAL,
+            ** whole region has to be mapped. */
+            end = phys + Node->Virtual.bytes - 1;
+
+            gcmkONERROR(gckHARDWARE_SplitMemory(
+                        Kernel->hardware, end, &pool, &offset
+                        ));
+
+            *NeedMapping = (pool == gcvPOOL_VIRTUAL);
+        }
+    }
+    else
+    {
+        *NeedMapping = gcvTRUE;
+    }
+
+    gcmkFOOTER_ARG("*NeedMapping=%d", *NeedMapping);
+    return gcvSTATUS_OK;
+
+OnError:
+    gcmkFOOTER();
+    return status;
+}
+
+/*******************************************************************************
+**
 **  gckVIDMEM_Lock
 **
 **  Lock a video memory node and return its hardware specific address.
@@ -1439,6 +1544,7 @@ gckVIDMEM_Lock(
     gctBOOL acquired = gcvFALSE;
     gctBOOL locked = gcvFALSE;
     gckOS os = gcvNULL;
+    gctBOOL needMapping;
 
     gcmkHEADER_ARG("Node=0x%x", Node);
 
@@ -1527,7 +1633,9 @@ gckVIDMEM_Lock(
 
             locked = gcvTRUE;
 
-            if (Node->Virtual.contiguous)
+            gcmkONERROR(_NeedVirtualMapping(Kernel, Kernel->core, Node, &needMapping));
+
+            if (needMapping == gcvFALSE)
             {
                 /* Get physical address directly */
                  gcmkONERROR(gckOS_GetPhysicalAddress(os,
@@ -1549,33 +1657,66 @@ gckVIDMEM_Lock(
                 else
 #endif
                 {
-                    /* Allocate pages inside the MMU. */
-                    gcmkONERROR(
-                        gckMMU_AllocatePages(Kernel->mmu,
-                                             Node->Virtual.pageCount,
-                                             &Node->Virtual.pageTables[Kernel->core],
-                                             &Node->Virtual.addresses[Kernel->core]));
-                }
+                    if (Node->Virtual.pageTables[Kernel->core] == gcvNULL)
+                    {
+#if gcdMULTICORE_MAPPING
+                        gckKERNEL anotherKernel = Kernel->anotherKernel;
+#endif
 
-                Node->Virtual.lockKernels[Kernel->core] = Kernel;
+                        /* Allocate pages inside the MMU. */
+                        gcmkONERROR(
+                                gckMMU_AllocatePages(Kernel->mmu,
+                                    Node->Virtual.pageCount,
+                                    &Node->Virtual.pageTables[Kernel->core],
+                                    &Node->Virtual.addresses[Kernel->core]));
 
-                /* Map the pages. */
+                        Node->Virtual.lockKernels[Kernel->core] = Kernel;
+
+#if gcdMULTICORE_MAPPING
+                        if (anotherKernel)
+                        {
+                            gcmkONERROR(
+                                    gckMMU_AllocatePages(anotherKernel->mmu,
+                                        Node->Virtual.pageCount,
+                                        &Node->Virtual.pageTables[anotherKernel->core],
+                                        &Node->Virtual.addresses[anotherKernel->core]));
+
+                            Node->Virtual.lockKernels[anotherKernel->core] = Kernel;
+                        }
+#endif
+
+                        /* Map the pages. */
 #ifdef __QNXNTO__
-                gcmkONERROR(
-                    gckOS_MapPagesEx(os,
+                        gcmkONERROR(
+                                gckOS_MapPagesEx(os,
                                      Kernel->core,
                                      Node->Virtual.physical,
                                      Node->Virtual.logical,
                                      Node->Virtual.pageCount,
                                      Node->Virtual.pageTables[Kernel->core]));
 #else
-                gcmkONERROR(
-                    gckOS_MapPagesEx(os,
-                                     Kernel->core,
-                                     Node->Virtual.physical,
-                                     Node->Virtual.pageCount,
-                                     Node->Virtual.pageTables[Kernel->core]));
+
+                        gcmkONERROR(
+                                gckOS_MapPagesEx(os,
+                                    Kernel->core,
+                                    Node->Virtual.physical,
+                                    Node->Virtual.pageCount,
+                                    Node->Virtual.pageTables[Kernel->core]));
+
+#if gcdMULTICORE_MAPPING
+                        if (anotherKernel)
+                        {
+                            gcmkONERROR(
+                                    gckOS_MapPagesEx(os,
+                                        anotherKernel->core,
+                                        Node->Virtual.physical,
+                                        Node->Virtual.pageCount,
+                                        Node->Virtual.pageTables[anotherKernel->core]));
+                        }
 #endif
+#endif
+                    }
+                }
             }
 
             gcmkTRACE_ZONE(gcvLEVEL_INFO, gcvZONE_VIDMEM,
@@ -1728,6 +1869,21 @@ gckVIDMEM_Unlock(
                       Node,
                       Node->VidMem.locked);
 
+#ifdef __QNXNTO__
+        /* Unmap the video memory */
+        if ((Node->VidMem.locked == 0) && (Node->VidMem.logical != gcvNULL))
+        {
+            if (Kernel->core == gcvCORE_VG)
+            {
+                gckKERNEL_UnmapVideoMemory(Kernel,
+                                           Node->VidMem.logical,
+                                           Node->VidMem.processID,
+                                           Node->VidMem.bytes);
+                Node->VidMem.logical = gcvNULL;
+            }
+        }
+#endif /* __QNXNTO__ */
+
         if (Node->VidMem.freePending && (Node->VidMem.locked == 0))
         {
             /* Client has unlocked node previously attempted to be freed by compositor. Free now. */
@@ -1785,18 +1941,12 @@ gckVIDMEM_Unlock(
                             gckVGMMU_FreePages(Kernel->vg->mmu,
                                              Node->Virtual.pageTables[Kernel->core],
                                              Node->Virtual.pageCount));
+
+                        /* Mark page table as freed. */
+                        Node->Virtual.pageTables[Kernel->core] = gcvNULL;
+                        Node->Virtual.lockKernels[Kernel->core] = gcvNULL;
                     }
-                    else
 #endif
-                    {
-                        gcmkONERROR(
-                            gckMMU_FreePages(Kernel->mmu,
-                                             Node->Virtual.pageTables[Kernel->core],
-                                             Node->Virtual.pageCount));
-                    }
-                    /* Mark page table as freed. */
-                    Node->Virtual.pageTables[Kernel->core] = gcvNULL;
-                    Node->Virtual.lockKernels[Kernel->core] = gcvNULL;
                 }
 
 #ifdef __QNXNTO__
@@ -1812,6 +1962,39 @@ gckVIDMEM_Unlock(
 
             if (totalLocked == 0)
             {
+                if (Node->Virtual.pageTables[Kernel->core] != gcvNULL)
+                {
+#if gcdMULTICORE_MAPPING
+                    gckKERNEL anotherKernel = Kernel->anotherKernel;
+#endif
+                    gcmkONERROR(
+                        gckMMU_FreePages(Kernel->mmu,
+                                         Node->Virtual.pageTables[Kernel->core],
+                                         Node->Virtual.pageCount));
+
+#if gcdMULTICORE_MAPPING
+                    if (anotherKernel)
+                    {
+                        gcmkONERROR(
+                                gckMMU_FreePages(anotherKernel->mmu,
+                                    Node->Virtual.pageTables[anotherKernel->core],
+                                    Node->Virtual.pageCount));
+                    }
+#endif
+
+                    /* Mark page table as freed. */
+                    Node->Virtual.pageTables[Kernel->core] = gcvNULL;
+                    Node->Virtual.lockKernels[Kernel->core] = gcvNULL;
+
+#if gcdMULTICORE_MAPPING
+                    if (anotherKernel)
+                    {
+                        Node->Virtual.pageTables[anotherKernel->core] = gcvNULL;
+                        Node->Virtual.lockKernels[anotherKernel->core] = gcvNULL;
+                    }
+#endif
+                }
+
                 /* Owner have already freed this node
                 ** and we are the last one to unlock, do
                 ** real free */

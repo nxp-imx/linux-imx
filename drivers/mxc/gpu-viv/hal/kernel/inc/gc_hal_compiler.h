@@ -37,6 +37,10 @@
 extern "C" {
 #endif
 
+#ifndef GC_ENABLE_LOADTIME_OPT
+#define GC_ENABLE_LOADTIME_OPT      0
+#endif
+
 /******************************* IR VERSION ******************/
 #define gcdSL_IR_VERSION gcmCC('\0','\0','\0','\1')
 
@@ -104,33 +108,33 @@ typedef enum _gcSL_OPCODE
 	gcSL_LOAD,							/* 0x36 */
 	gcSL_STORE,							/* 0x37 */
 	gcSL_BARRIER,						/* 0x38 */
-	gcSL_SIN_CL,						/* 0x39 */
-	gcSL_COS_CL,						/* 0x3A */
-	gcSL_TAN_CL,						/* 0x3B */
-	gcSL_ACOS_CL,						/* 0x3C */
-	gcSL_ASIN_CL,						/* 0x3D */
-	gcSL_ATAN_CL,						/* 0x3E */
-	gcSL_SINH_CL,						/* 0x3F */
-	gcSL_COSH_CL,						/* 0x40 */
-	gcSL_TANH_CL,						/* 0x41 */
-	gcSL_ASINH_CL,						/* 0x42 */
-	gcSL_ACOSH_CL,						/* 0x43 */
-	gcSL_ATANH_CL,						/* 0x44 */
-	gcSL_SINPI_CL,						/* 0x45 */
-	gcSL_COSPI_CL,						/* 0x46 */
-	gcSL_TANPI_CL,						/* 0x47 */
-	gcSL_ASINPI_CL,						/* 0x48 */
-	gcSL_ACOSPI_CL,						/* 0x49 */
-	gcSL_ATANPI_CL,						/* 0x4A */
-	gcSL_ATAN2_CL,						/* 0x4B */
-	gcSL_ATAN2PI_CL,					/* 0x4C */
-	gcSL_POW_CL,						/* 0x4D */
-	gcSL_RSQ_CL,						/* 0x4E */
-	gcSL_LOG_CL,						/* 0x4F */
-	gcSL_EXP_CL,						/* 0x50 */
-	gcSL_SQRT_CL,						/* 0x51 */
-	gcSL_CBRT_CL,						/* 0x52 */
-	gcSL_ADDLO,							/* 0x53 */  /* Float only. */
+	gcSL_STORE1,						/* 0x39 */
+	/*gcSL_COS_CL,						 0x3A */
+	/*gcSL_TAN_CL,						 0x3B */
+	/*gcSL_ACOS_CL,						 0x3C */
+	/*gcSL_ASIN_CL,						 0x3D */
+	/*gcSL_ATAN_CL,						 0x3E */
+	/*gcSL_SINH_CL,						 0x3F */
+	/*gcSL_COSH_CL,						 0x40 */
+	/*gcSL_TANH_CL,						 0x41 */
+	/*gcSL_ASINH_CL,						 0x42 */
+	/*gcSL_ACOSH_CL,						 0x43 */
+	/*gcSL_ATANH_CL,						 0x44 */
+	/*gcSL_SINPI_CL,						 0x45 */
+	/*gcSL_COSPI_CL,						 0x46 */
+	/*gcSL_TANPI_CL,						 0x47 */
+	/*gcSL_ASINPI_CL,						 0x48 */
+	/*gcSL_ACOSPI_CL,						 0x49 */
+	/*gcSL_ATANPI_CL,						 0x4A */
+	/*gcSL_ATAN2_CL,						 0x4B */
+	/*gcSL_ATAN2PI_CL,					 0x4C */
+	/*gcSL_POW_CL,						 0x4D */
+	/*gcSL_RSQ_CL,						 0x4E */
+	/*gcSL_LOG_CL,						 0x4F */
+	/*gcSL_EXP_CL,						 0x50 */
+	/*gcSL_SQRT_CL,						 0x51 */
+	/*gcSL_CBRT_CL,						 0x52 */
+	gcSL_ADDLO = 0x53,							/* 0x53 */  /* Float only. */
 	gcSL_MULLO,							/* 0x54 */  /* Float only. */
 	gcSL_CONV,							/* 0x55 */
 	gcSL_GETEXP,						/* 0x56 */
@@ -169,6 +173,7 @@ gcSL_FORMAT;
 /* Destination write enable bits. */
 typedef enum _gcSL_ENABLE
 {
+    gcSL_ENABLE_NONE                    = 0x0,     /* none is enabled, error/uninitialized state */
 	gcSL_ENABLE_X						= 0x1,
 	gcSL_ENABLE_Y						= 0x2,
 	gcSL_ENABLE_Z						= 0x4,
@@ -264,22 +269,40 @@ typedef enum _gcSL_SWIZZLE
 	gcSL_SWIZZLE_XXYZ = gcmSWIZZLE(X, X, Y, Z),
 	gcSL_SWIZZLE_XYZW = gcmSWIZZLE(X, Y, Z, W),
 	gcSL_SWIZZLE_XYXY = gcmSWIZZLE(X, Y, X, Y),
+	gcSL_SWIZZLE_YYZZ = gcmSWIZZLE(Y, Y, Z, Z),
+	gcSL_SWIZZLE_YYWW = gcmSWIZZLE(Y, Y, W, W),
+	gcSL_SWIZZLE_ZZZW = gcmSWIZZLE(Z, Z, Z, W),
+	gcSL_SWIZZLE_XZZW = gcmSWIZZLE(X, Z, Z, W),
+	gcSL_SWIZZLE_YYZW = gcmSWIZZLE(Y, Y, Z, W),
 
     gcSL_SWIZZLE_INVALID = 0x7FFFFFFF
 }
 gcSL_SWIZZLE;
 
+typedef enum _gcSL_COMPONENT
+{
+	gcSL_COMPONENT_X,               /* 0x0 */
+	gcSL_COMPONENT_Y,               /* 0x1 */
+	gcSL_COMPONENT_Z,               /* 0x2 */
+	gcSL_COMPONENT_W,               /* 0x3 */
+    gcSL_COMPONENT_COUNT            /* 0x4 */
+} gcSL_COMPONENT;
+
+#define gcmIsComponentEnabled(Enable, Component) (((Enable) & (1 << (Component))) != 0)
 
 /******************************************************************************\
 |*********************************** SHADERS **********************************|
 \******************************************************************************/
 
 /* Shader types. */
-#define gcSHADER_TYPE_UNKNOWN			0
-#define gcSHADER_TYPE_VERTEX			1
-#define gcSHADER_TYPE_FRAGMENT			2
-#define gcSHADER_TYPE_CL			3
-#define gcSHADER_TYPE_PRECOMPILED		4
+typedef enum _gcSHADER_KIND {
+    gcSHADER_TYPE_UNKNOWN = 0,
+    gcSHADER_TYPE_VERTEX,
+    gcSHADER_TYPE_FRAGMENT,
+    gcSHADER_TYPE_CL,
+    gcSHADER_TYPE_PRECOMPILED,
+    gcSHADER_KIND_COUNT
+} gcSHADER_KIND;
 
 #define gcm
 /* gcSHADER objects. */
@@ -372,9 +395,48 @@ typedef enum _gcSHADER_TYPE
 	gcSHADER_USAMPLER_3D,			/* 0x24 */
 	gcSHADER_USAMPLER_CUBIC,		/* 0x25 */
 	gcSHADER_SAMPLER_EXTERNAL_OES,		/* 0x26 */
-
+    gcSHADER_TYPE_COUNT
 }
 gcSHADER_TYPE;
+
+#if GC_ENABLE_LOADTIME_OPT
+
+typedef struct _gcSHADER_TYPE_INFO
+{
+    gcSHADER_TYPE    type;        /* eg. gcSHADER_FLOAT_2X3 is the type */
+    gctCONST_STRING  name;        /* the name of the type: "gcSHADER_FLOAT_2X3" */
+    gcSHADER_TYPE    baseType;    /* its base type is gcSHADER_FLOAT_2 */
+    gctINT           components;  /* it has 2 components */
+    gctINT           rows;        /* and 3 rows */
+    gctINT           size;        /* the size in byte */
+} gcSHADER_TYPE_INFO;
+
+enum gceLTCDumpOption {
+    gceLTC_DUMP_UNIFORM      = 0x0001,
+    gceLTC_DUMP_EVALUATION   = 0x0002,
+    gceLTC_DUMP_EXPESSION    = 0x0004,
+};
+
+gctBOOL _dumpOption(gctINT Opt);
+
+extern gcSHADER_TYPE_INFO shader_type_info[];
+
+#endif /* GC_ENABLE_LOADTIME_OPT */
+
+
+#define IS_MATRIX_TYPE(type) \
+    (((type >= gcSHADER_FLOAT_2X2) && (type <= gcSHADER_FLOAT_4X4)) || \
+     ((type >= gcSHADER_FLOAT_2X3) && (type <= gcSHADER_FLOAT_4X3)))
+
+/* gcSHADER_PRECISION enumeration. */
+typedef enum _gcSHADER_PRECISION
+{
+	gcSHADER_PRECISION_DEFAULT,				/* 0x00 */
+	gcSHADER_PRECISION_HIGH,				/* 0x01 */
+	gcSHADER_PRECISION_MEDIUM,				/* 0x02 */
+	gcSHADER_PRECISION_LOW,				    /* 0x03 */
+}
+gcSHADER_PRECISION;
 
 /* Shader flags. */
 typedef enum _gceSHADER_FLAGS
@@ -386,6 +448,7 @@ typedef enum _gceSHADER_FLAGS
 	gcvSHADER_USE_GL_POSITION			= 0x10,
 	gcvSHADER_USE_GL_FACE				= 0x20,
 	gcvSHADER_USE_GL_POINT_COORD		= 0x40,
+	gcvSHADER_LOADTIME_OPTIMIZER		= 0x80,
 }
 gceSHADER_FLAGS;
 
@@ -420,8 +483,9 @@ typedef enum _gceUNIFORM_FLAGS
 	gcvUNIFORM_GLOBAL_OFFSET		= 0x200,
 	gcvUNIFORM_WORK_DIM			= 0x400,
 	gcvUNIFORM_KERNEL_ARG_CONSTANT		= 0x800,
- 	gcvUNIFORM_KERNEL_ARG_LOCAL_MEM_SIZE	= 0x1000,
+	gcvUNIFORM_KERNEL_ARG_LOCAL_MEM_SIZE	= 0x1000,
 	gcvUNIFORM_KERNEL_ARG_PRIVATE		= 0x2000,
+	gcvUNIFORM_LOADTIME_CONSTANT		= 0x4000,
 }
 gceUNIFORM_FLAGS;
 
@@ -906,6 +970,45 @@ gcSHADER_AddUniform(
 	OUT gcUNIFORM * Uniform
 	);
 
+
+/*******************************************************************************
+**							   gcSHADER_AddUniformEx
+********************************************************************************
+**
+**	Add an uniform to a gcSHADER object.
+**
+**	INPUT:
+**
+**		gcSHADER Shader
+**			Pointer to a gcSHADER object.
+**
+**		gctCONST_STRING Name
+**			Name of the uniform to add.
+**
+**		gcSHADER_TYPE Type
+**			Type of the uniform to add.
+**
+**      gcSHADER_PRECISION precision
+**          Precision of the uniform to add.
+**
+**		gctSIZE_T Length
+**			Array length of the uniform to add.  'Length' must be at least 1.
+**
+**	OUTPUT:
+**
+**		gcUNIFORM * Uniform
+**			Pointer to a variable receiving the gcUNIFORM object pointer.
+*/
+gceSTATUS
+gcSHADER_AddUniformEx(
+	IN gcSHADER Shader,
+	IN gctCONST_STRING Name,
+	IN gcSHADER_TYPE Type,
+    IN gcSHADER_PRECISION precision,
+	IN gctSIZE_T Length,
+	OUT gcUNIFORM * Uniform
+	);
+
 /*******************************************************************************
 **                          gcSHADER_GetUniformCount
 ********************************************************************************
@@ -1114,6 +1217,37 @@ gceSTATUS
 gcSHADER_GetOutput(
 	IN gcSHADER Shader,
 	IN gctUINT Index,
+	OUT gcOUTPUT * Output
+	);
+
+
+/*******************************************************************************
+**							   gcSHADER_GetOutputByName
+********************************************************************************
+**
+**	Get the gcOUTPUT object pointer for this shader by output name.
+**
+**	INPUT:
+**
+**		gcSHADER Shader
+**			Pointer to a gcSHADER object.
+**
+**		gctSTRING name
+**			Name of output to retrieve.
+**
+**      gctSIZE_T nameLength
+**          Length of name to retrieve
+**
+**	OUTPUT:
+**
+**		gcOUTPUT * Output
+**			Pointer to a variable receiving the gcOUTPUT object pointer.
+*/
+gceSTATUS
+gcSHADER_GetOutputByName(
+	IN gcSHADER Shader,
+	IN gctSTRING name,
+    IN gctSIZE_T nameLength,
 	OUT gcOUTPUT * Output
 	);
 
@@ -2160,6 +2294,41 @@ gcUNIFORM_GetType(
 	);
 
 /*******************************************************************************
+**                              gcUNIFORM_GetTypeEx
+********************************************************************************
+**
+**	Get the type and array length of a gcUNIFORM object.
+**
+**	INPUT:
+**
+**		gcUNIFORM Uniform
+**			Pointer to a gcUNIFORM object.
+**
+**	OUTPUT:
+**
+**		gcSHADER_TYPE * Type
+**			Pointer to a variable receiving the type of the uniform.  'Type' can
+**			be gcvNULL, in which case no type will be returned.
+**
+**		gcSHADER_PRECISION * Precision
+**			Pointer to a variable receiving the precision of the uniform.  'Precision' can
+**			be gcvNULL, in which case no type will be returned.
+**
+**		gctSIZE_T * ArrayLength
+**			Pointer to a variable receiving the length of the array if the
+**			uniform was declared as an array.  If the uniform was not declared
+**			as an array, the array length will be 1.  'ArrayLength' can be gcvNULL,
+**			in which case no array length will be returned.
+*/
+gceSTATUS
+gcUNIFORM_GetTypeEx(
+	IN gcUNIFORM Uniform,
+	OUT gcSHADER_TYPE * Type,
+    OUT gcSHADER_PRECISION * Precision,
+	OUT gctSIZE_T * ArrayLength
+	);
+
+/*******************************************************************************
 **                              gcUNIFORM_GetFlags
 ********************************************************************************
 **
@@ -3033,6 +3202,7 @@ gceSTATUS
 gcInvokeThreadWalker(
     IN gcsTHREAD_WALKER_INFO_PTR Info
     );
+
 
 #ifdef __cplusplus
 }

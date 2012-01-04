@@ -123,6 +123,11 @@ typedef struct _gcsTLS
     gctPOINTER                  context;
     gctTLS_DESTRUCTOR           destructor;
     gctBOOL                     ProcessExiting;
+
+#ifndef VIVANTE_NO_3D
+	gco3D						engine3D;
+#endif
+	gco2D						engine2D;
 }
 gcsTLS;
 
@@ -337,6 +342,32 @@ gcoHAL_Get3DEngine(
     IN gcoHAL Hal,
     OUT gco3D * Engine
     );
+
+gceSTATUS
+gcoHAL_Query3DEngine(
+    IN gcoHAL Hal,
+    OUT gco3D * Engine
+    );
+
+gceSTATUS
+gcoHAL_Set3DEngine(
+    IN gcoHAL Hal,
+    IN gco3D Engine
+    );
+
+gceSTATUS
+gcoHAL_Get3DHardware(
+    IN gcoHAL Hal,
+    OUT gcoHARDWARE * Hardware
+    );
+
+gceSTATUS
+gcoHAL_Set3DHardware(
+    IN gcoHAL Hal,
+    IN gcoHARDWARE Hardware
+    );
+
+
 #endif /* VIVANTE_NO_3D */
 
 /* Verify whether the specified feature is available in hardware. */
@@ -1852,6 +1883,13 @@ gcoSURF_NODE_Cache(
     IN gcsSURF_NODE_PTR Node,
     IN gctPOINTER Logical,
     IN gctSIZE_T Bytes,
+    IN gceCACHEOPERATION Operation
+    );
+
+/* Perform CPU cache operation on surface */
+gceSTATUS
+gcoSURF_CPUCacheOperation(
+    IN gcoSURF Surface,
     IN gceCACHEOPERATION Operation
     );
 

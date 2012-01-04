@@ -697,6 +697,8 @@ _ScheduleTasks(
                 /* Copy tasks. */
                 do
                 {
+                    gcsTASK_HEADER_PTR taskHeader = (gcsTASK_HEADER_PTR) (userTask + 1);
+
                     gcmkTRACE_ZONE(
                         gcvLEVEL_VERBOSE, gcvZONE_COMMAND,
                         "    task ID = %d, size = %d\n",
@@ -704,9 +706,16 @@ _ScheduleTasks(
                         userTask->size
                         );
 
+#ifdef __QNXNTO__
+                    if (taskHeader->id == gcvTASK_SIGNAL)
+                    {
+                        ((gcsTASK_SIGNAL_PTR)taskHeader)->coid  = TaskTable->coid;
+                        ((gcsTASK_SIGNAL_PTR)taskHeader)->rcvid = TaskTable->rcvid;
+                    }
+#endif /* __QNXNTO__ */
                     /* Copy the task data. */
                     gcmkVERIFY_OK(gckOS_MemCopy(
-                        kernelTask, userTask + 1, userTask->size
+                        kernelTask, taskHeader, userTask->size
                         ));
 
                     /* Advance to the next task. */
@@ -791,10 +800,34 @@ _HardwareToKernel(
     gceSTATUS status;
     gckVIDMEM memory;
     gctUINT32 offset;
+#if gcdDYNAMIC_MAP_RESERVED_MEMORY
+    gctUINT32 nodePhysical;
+#endif
 
     /* Assume a non-virtual node and get the pool manager object. */
     memory = Node->VidMem.memory;
 
+#if gcdDYNAMIC_MAP_RESERVED_MEMORY
+    nodePhysical = memory->baseAddress
+                 + Node->VidMem.offset
+                 + Node->VidMem.alignment;
+
+    if (Node->VidMem.kernelVirtual == gcvNULL)
+    {
+        status = gckOS_MapReservedMemoryToKernel(Os,
+                        nodePhysical,
+                        Node->VidMem.bytes,
+                        (gctPOINTER *)&Node->VidMem.kernelVirtual);
+
+        if (gcmkIS_ERROR(status))
+        {
+            return status;
+        }
+    }
+
+    offset = Address - nodePhysical;
+    *KernelPointer = Node->VidMem.kernelVirtual + offset;
+#else
     /* Determine the header offset within the pool it is allocated in. */
     offset = Address - memory->baseAddress;
 
@@ -805,6 +838,7 @@ _HardwareToKernel(
         offset,
         KernelPointer
         );
+#endif
 
     /* Return status. */
     return status;
@@ -3306,6 +3340,11 @@ gckVGCOMMAND_Commit(
     gcmkVERIFY_ARGUMENT(Context != gcvNULL);
     gcmkVERIFY_ARGUMENT(Queue != gcvNULL);
     gcmkVERIFY_ARGUMENT(EntryCount > 1);
+
+#ifdef __QNXNTO__
+    TaskTable->coid     = Context->coid;
+    TaskTable->rcvid    = Context->rcvid;
+#endif /* __QNXNTO__ */
 
     do
     {
