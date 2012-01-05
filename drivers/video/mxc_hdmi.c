@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011 Freescale Semiconductor, Inc.
+ * Copyright (C) 2011-2012 Freescale Semiconductor, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -827,6 +827,7 @@ static int hdmi_phy_configure(struct mxc_hdmi *hdmi, unsigned char pRep,
 			      unsigned char cRes, int cscOn)
 {
 	u8 val;
+	u8 msec;
 
 	dev_dbg(&hdmi->pdev->dev, "%s\n", __func__);
 
@@ -1055,15 +1056,17 @@ static int hdmi_phy_configure(struct mxc_hdmi *hdmi, unsigned char pRep,
 	mxc_hdmi_phy_gen2_txpwron(1);
 	mxc_hdmi_phy_gen2_pddq(0);
 
-	udelay(1000);
-
-	/* wait for the phy PLL to lock */
-	while ((hdmi_readb(HDMI_PHY_STAT0) & HDMI_PHY_TX_PHY_LOCK) == 0)
-		;
-
-	/* Has the PHY PLL locked? */
-	if ((hdmi_readb(HDMI_PHY_STAT0) & HDMI_PHY_TX_PHY_LOCK) == 0)
-		return false;
+	/*Wait for PHY PLL lock */
+	msec = 4;
+	val = hdmi_readb(HDMI_PHY_STAT0) & HDMI_PHY_TX_PHY_LOCK;
+	while (val == 0) {
+		udelay(1000);
+		if (msec-- == 0) {
+			dev_err(&hdmi->pdev->dev, "PHY PLL not locked\n");
+			return false;
+		}
+		val = hdmi_readb(HDMI_PHY_STAT0) & HDMI_PHY_TX_PHY_LOCK;
+	}
 
 	return true;
 }
