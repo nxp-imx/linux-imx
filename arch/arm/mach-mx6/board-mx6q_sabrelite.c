@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2011-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -400,12 +400,14 @@ static int plt_sd4_pad_change(int clock)
 static const struct esdhc_platform_data mx6q_sabrelite_sd3_data __initconst = {
 	.cd_gpio = MX6Q_SABRELITE_SD3_CD,
 	.wp_gpio = MX6Q_SABRELITE_SD3_WP,
+	.keep_power_at_suspend = 1,
 	.platform_pad_change = plt_sd3_pad_change,
 };
 
 static const struct esdhc_platform_data mx6q_sabrelite_sd4_data __initconst = {
 	.cd_gpio = MX6Q_SABRELITE_SD4_CD,
 	.wp_gpio = MX6Q_SABRELITE_SD4_WP,
+	.keep_power_at_suspend = 1,
 	.platform_pad_change = plt_sd4_pad_change,
 };
 
