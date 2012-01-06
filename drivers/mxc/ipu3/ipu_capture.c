@@ -1,5 +1,5 @@
 /*
- * Copyright 2008-2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2008-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -29,6 +29,36 @@
 
 #include "ipu_prv.h"
 #include "ipu_regs.h"
+
+/*!
+ * _ipu_csi_mclk_set
+ *
+ * @param	ipu		ipu handler
+ * @param	pixel_clk   desired pixel clock frequency in Hz
+ * @param	csi         csi 0 or csi 1
+ *
+ * @return	Returns 0 on success or negative error code on fail
+ */
+int _ipu_csi_mclk_set(struct ipu_soc *ipu, uint32_t pixel_clk, uint32_t csi)
+{
+	uint32_t temp;
+	uint32_t div_ratio;
+
+	div_ratio = (clk_get_rate(ipu->ipu_clk) / pixel_clk) - 1;
+
+	if (div_ratio > 0xFF || div_ratio < 0) {
+		dev_dbg(ipu->dev, "value of pixel_clk extends normal range\n");
+		return -EINVAL;
+	}
+
+	temp = ipu_csi_read(ipu, csi, CSI_SENS_CONF);
+	temp &= ~CSI_SENS_CONF_DIVRATIO_MASK;
+	ipu_csi_write(ipu, csi, temp |
+			(div_ratio << CSI_SENS_CONF_DIVRATIO_SHIFT),
+			CSI_SENS_CONF);
+
+	return 0;
+}
 
 /*!
  * ipu_csi_init_interface
@@ -98,6 +128,10 @@ ipu_csi_init_interface(struct ipu_soc *ipu, uint16_t width, uint16_t height,
 	_ipu_lock(ipu);
 
 	ipu_csi_write(ipu, csi, data, CSI_SENS_CONF);
+
+	/* Setup the mclk */
+	if (cfg_param.mclk > 0)
+		_ipu_csi_mclk_set(ipu, cfg_param.mclk, csi);
 
 	/* Setup sensor frame size */
 	ipu_csi_write(ipu, csi, (width - 1) | (height - 1) << 16, CSI_SENS_FRM_SIZE);
@@ -185,35 +219,6 @@ int32_t ipu_csi_get_sensor_protocol(struct ipu_soc *ipu, uint32_t csi)
 		CSI_SENS_CONF_SENS_PRTCL_SHIFT;
 }
 EXPORT_SYMBOL(ipu_csi_get_sensor_protocol);
-
-/*!
- * _ipu_csi_mclk_set
- *
- * @param	ipu		ipu handler
- * @param	pixel_clk   desired pixel clock frequency in Hz
- * @param	csi         csi 0 or csi 1
- *
- * @return	Returns 0 on success or negative error code on fail
- */
-int _ipu_csi_mclk_set(struct ipu_soc *ipu, uint32_t pixel_clk, uint32_t csi)
-{
-	uint32_t temp;
-	uint32_t div_ratio;
-
-	div_ratio = (clk_get_rate(ipu->ipu_clk) / pixel_clk) - 1;
-
-	if (div_ratio > 0xFF || div_ratio < 0) {
-		dev_dbg(ipu->dev, "The value of pixel_clk extends normal range\n");
-		return -EINVAL;
-	}
-
-	temp = ipu_csi_read(ipu, csi, CSI_SENS_CONF);
-	temp &= ~CSI_SENS_CONF_DIVRATIO_MASK;
-	ipu_csi_write(ipu, csi, temp | (div_ratio << CSI_SENS_CONF_DIVRATIO_SHIFT),
-			CSI_SENS_CONF);
-
-	return 0;
-}
 
 /*!
  * ipu_csi_enable_mclk
