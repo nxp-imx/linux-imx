@@ -100,7 +100,7 @@ config MXC_CAMERA_OV5642
 
 config MXC_TVIN_ADV7180
 	tristate "Analog Device adv7180 TV Decoder Input support"
-	depends on (MACH_MX35_3DS || MACH_MX51_3DS)
+	depends on (MACH_MX35_3DS || MACH_MX51_3DS || MACH_MX6Q_SABREAUTO)
 	---help---
 	  If you plan to use the adv7180 video decoder with your MXC system, say Y here.
 

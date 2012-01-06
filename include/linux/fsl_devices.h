@@ -6,7 +6,7 @@
  *
  * Maintainer: Kumar Gala <galak@kernel.crashing.org>
  *
- * Copyright 2004-2011 Freescale Semiconductor, Inc.
+ * Copyright 2004-2012 Freescale Semiconductor, Inc.
  *
  * This program is free software; you can redistribute  it and/or modify it
  * under  the terms of  the GNU General  Public License as published by the
@@ -238,6 +238,23 @@ struct fsl_mxc_lcd_platform_data {
 	int default_ifmt;
 	int ipu_id;
 	int disp_id;
+};
+
+struct fsl_mxc_tvout_platform_data {
+	char *io_reg;
+	char *core_reg;
+	char *analog_reg;
+	u32 detect_line;
+};
+
+struct fsl_mxc_tvin_platform_data {
+	char *dvddio_reg;
+	char *dvdd_reg;
+	char *avdd_reg;
+	char *pvdd_reg;
+	void (*pwdn) (int pwdn);
+	void (*reset) (void);
+	bool cvbs;
 };
 
 struct fsl_mxc_dvi_platform_data {

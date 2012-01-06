@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2004-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -1241,11 +1241,6 @@ static int mxc_v4l2_s_param(cam_data *cam, struct v4l2_streamparm *parm)
 	pr_debug("   Current framerate is %d  change to %d\n",
 			current_fps, parm_fps);
 
-	if ((parm->parm.capture.capturemode == currentparm.parm.capture.capturemode)
-		&& (current_fps == parm_fps)) {
-		return 0;
-	}
-
 	/* This will change any camera settings needed. */
 	ipu_csi_enable_mclk_if(cam->ipu, CSI_MCLK_I2C, cam->csi, true, true);
 	err = vidioc_int_s_parm(cam->sensor, parm);
@@ -1275,10 +1270,16 @@ static int mxc_v4l2_s_param(cam_data *cam, struct v4l2_streamparm *parm)
 	csi_param.csi = 0;
 	csi_param.mclk = 0;
 
-	/* This may not work on other platforms. Check when adding a new one.*/
+	/*This may not work on other platforms. Check when adding a new one.*/
+	/*The mclk clock was never set correclty in the ipu register*/
+	/*for now we are going to use this mclk as pixel clock*/
+	/*to set csi0_data_dest register.*/
+	/*This is a workaround which should be fixed*/
 	pr_debug("   clock_curr=mclk=%d\n", ifparm.u.bt656.clock_curr);
 	if (ifparm.u.bt656.clock_curr == 0) {
 		csi_param.clk_mode = IPU_CSI_CLK_MODE_CCIR656_INTERLACED;
+		/*protocol bt656 use 27Mhz pixel clock */
+		csi_param.mclk = 27000000;
 	} else {
 		csi_param.clk_mode = IPU_CSI_CLK_MODE_GATED_CLK;
 	}
@@ -1351,7 +1352,7 @@ exit:
  */
 static int mxc_v4l2_s_std(cam_data *cam, v4l2_std_id e)
 {
-	pr_debug("In mxc_v4l2_s_std %Lx\n", e);
+	printk(KERN_ERR "In mxc_v4l2_s_std %Lx\n", e);
 	if (e == V4L2_STD_PAL) {
 		pr_debug("   Setting standard to PAL %Lx\n", V4L2_STD_PAL);
 		cam->standard.id = V4L2_STD_PAL;
@@ -1548,6 +1549,7 @@ static int mxc_v4l_open(struct file *file)
 		csi_param.pack_tight = 0;
 		csi_param.force_eof = 0;
 		csi_param.data_en_pol = 0;
+
 		csi_param.mclk = ifparm.u.bt656.clock_curr;
 
 		csi_param.pixclk_pol = ifparm.u.bt656.latch_clk_inv;

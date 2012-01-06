@@ -1,5 +1,5 @@
 /*
- * Copyright 2005-2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2005-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -25,6 +25,7 @@
 #include <linux/ctype.h>
 #include <linux/types.h>
 #include <linux/delay.h>
+#include <linux/semaphore.h>
 #include <linux/device.h>
 #include <linux/i2c.h>
 #include <linux/wait.h>
@@ -40,7 +41,7 @@ static struct regulator *dvddio_regulator;
 static struct regulator *dvdd_regulator;
 static struct regulator *avdd_regulator;
 static struct regulator *pvdd_regulator;
-static struct mxc_tvin_platform_data *tvin_plat;
+static struct fsl_mxc_tvin_platform_data *tvin_plat;
 
 extern void gpio_sensor_active(void);
 extern void gpio_sensor_inactive(void);
@@ -67,7 +68,7 @@ static struct i2c_driver adv7180_i2c_driver = {
 };
 
 /*!
- * Maintains the information on the current state of the sesor.
+ * Maintains the information on the current state of the sensor.
  */
 struct sensor {
 	struct v4l2_int_device *v4l2_int_device;
@@ -152,7 +153,7 @@ static video_fmt_idx video_idx = ADV7180_PAL;
  *  read/write access to the globally accessible data structures
  *  and variables that were defined above.
  */
-static DECLARE_MUTEX(mutex);
+static DEFINE_SEMAPHORE(semaphore);
 
 #define IF_NAME                    "adv7180"
 #define ADV7180_INPUT_CTL              0x00	/* Input Control */
@@ -255,7 +256,7 @@ static void adv7180_get_std(v4l2_std_id *std)
 	/* Read the AD_RESULT to get the detect output video standard */
 	tmp = adv7180_read(ADV7180_STATUS_1) & 0x70;
 
-	down(&mutex);
+	down(&semaphore);
 	if (tmp == 0x40) {
 		/* PAL */
 		*std = V4L2_STD_PAL;
@@ -268,9 +269,9 @@ static void adv7180_get_std(v4l2_std_id *std)
 		*std = V4L2_STD_ALL;
 		idx = ADV7180_NOT_LOCKED;
 		dev_dbg(&adv7180_data.i2c_client->dev,
-			"Got invalid video standard! \n");
+			"Got invalid video standard!\n");
 	}
-	up(&mutex);
+	up(&semaphore);
 
 	/* This assumes autodetect which this device uses. */
 	if (*std != adv7180_data.std_id) {
@@ -314,6 +315,7 @@ static int ioctl_g_ifparm(struct v4l2_int_device *s, struct v4l2_ifparm *p)
 	p->if_type = V4L2_IF_TYPE_BT656; /* This is the only possibility. */
 	p->u.bt656.mode = V4L2_IF_TYPE_BT656_MODE_NOBT_8BIT;
 	p->u.bt656.nobt_hs_inv = 1;
+	p->u.bt656.bt_sync_correct = 1;
 
 	/* ADV7180 has a dedicated clock so no clock settings needed. */
 
@@ -846,7 +848,7 @@ static int adv7180_probe(struct i2c_client *client,
 	int ret = 0;
 	tvin_plat = client->dev.platform_data;
 
-	dev_dbg(&adv7180_data.i2c_client->dev, "In adv7180_probe\n");
+	pr_debug("In adv7180_probe\n");
 
 	if (tvin_plat->dvddio_reg) {
 		dvddio_regulator =
@@ -948,10 +950,12 @@ static int adv7180_probe(struct i2c_client *client,
  */
 static int adv7180_detach(struct i2c_client *client)
 {
-	struct mxc_tvin_platform_data *plat_data = client->dev.platform_data;
+	struct fsl_mxc_tvin_platform_data *plat_data;
+
+	plat_data = client->dev.platform_data;
 
 	dev_dbg(&adv7180_data.i2c_client->dev,
-		"%s:Removing %s video decoder @ 0x%02X from adapter %s \n",
+		"%s:Removing %s video decoder @ 0x%02X from adapter %s\n",
 		__func__, IF_NAME, client->addr << 1, client->adapter->name);
 
 	if (plat_data->pwdn)
@@ -992,7 +996,7 @@ static __init int adv7180_init(void)
 {
 	u8 err = 0;
 
-	dev_dbg(&adv7180_data.i2c_client->dev, "In adv7180_init\n");
+	pr_debug("In adv7180_init\n");
 
 	/* Tells the i2c driver what functions to call for this driver. */
 	err = i2c_add_driver(&adv7180_i2c_driver);
