@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2010-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -28,9 +28,6 @@
 
 #include <mach/hardware.h>
 #include <mach/clock.h>
-
-#define dprintk(msg...) cpufreq_debug_printk(CPUFREQ_DEBUG_CORE, \
-						"cpufreq-core", msg)
 
 #define CLK32_FREQ	32768
 #define NANOSECOND	(1000 * 1000 * 1000)
@@ -135,7 +132,7 @@ static int mxc_set_target(struct cpufreq_policy *policy,
 		cpufreq_notify_transition(&freqs, CPUFREQ_PRECHANGE);
 		cpufreq_notify_transition(&freqs, CPUFREQ_POSTCHANGE);
 
-		dprintk("DVFS core is active, cannot change FREQ using CPUFREQ\n");
+		pr_debug("DVFS core is active, cannot change FREQ using CPUFREQ\n");
 		return ret;
 	}
 
