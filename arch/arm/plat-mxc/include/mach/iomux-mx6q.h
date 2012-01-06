@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2012 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -3909,7 +3909,7 @@ typedef enum iomux_config {
 #define  MX6Q_PAD_EIM_D16__GPIO_3_16		\
 		(_MX6Q_PAD_EIM_D16__GPIO_3_16 | MUX_PAD_CTRL(NO_PAD_CTRL))
 #define  MX6Q_PAD_EIM_D16__I2C2_SDA		\
-		(_MX6Q_PAD_EIM_D16__I2C2_SDA | MUX_PAD_CTRL(NO_PAD_CTRL))
+		(_MX6Q_PAD_EIM_D16__I2C2_SDA | MUX_PAD_CTRL(MX6Q_I2C_PAD_CTRL))
 
 #define  MX6Q_PAD_EIM_D17__WEIM_WEIM_D_17		\
 		(_MX6Q_PAD_EIM_D17__WEIM_WEIM_D_17 | MUX_PAD_CTRL(NO_PAD_CTRL))

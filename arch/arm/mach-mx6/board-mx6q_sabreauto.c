@@ -85,7 +85,6 @@
 #define MX6Q_SABREAUTO_DISP0_RESET	IMX_GPIO_NR(5, 0)
 #define MX6Q_SABREAUTO_SD3_CD	IMX_GPIO_NR(6, 15)
 #define MX6Q_SABREAUTO_SD3_WP	IMX_GPIO_NR(1, 13)
-#define MX6Q_SABREAUTO_USB_OTG_PWR	IMX_GPIO_NR(3, 22)
 #define MX6Q_SABREAUTO_SD1_CD	IMX_GPIO_NR(1, 1)
 #define MX6Q_SABREAUTO_SD1_WP	IMX_GPIO_NR(5, 20)
 #define MX6Q_SABREAUTO_USB_HOST1_OC	IMX_GPIO_NR(5, 0)
@@ -106,6 +105,7 @@
 #define MX6Q_SABREAUTO_CAN1_STBY       IMX_GPIO_NR(7, 12)
 #define MX6Q_SABREAUTO_CAN1_EN         IMX_GPIO_NR(7, 13)
 #define MX6Q_SABREAUTO_CAN2_STBY       MX6Q_SABREAUTO_IO_EXP_GPIO2(1)
+#define MX6Q_SABREAUTO_VIDEOIN_PWR     MX6Q_SABREAUTO_IO_EXP_GPIO2(2)
 #define MX6Q_SABREAUTO_CAN2_EN         IMX_GPIO_NR(5, 24)
 #define MX6Q_SABREAUTO_I2C_EXP_RST     IMX_GPIO_NR(1, 15)
 #define MX6Q_SABREAUTO_ESAI_INT        IMX_GPIO_NR(1, 10)
@@ -166,7 +166,9 @@ static iomux_v3_cfg_t mx6q_sabreauto_pads[] = {
 #endif
 	/* MCLK for csi0 */
 	MX6Q_PAD_GPIO_0__CCM_CLKO,
-	MX6Q_PAD_GPIO_3__CCM_CLKO2,
+	/*MX6Q_PAD_GPIO_3__CCM_CLKO2,i*/
+	MX6Q_PAD_GPIO_3__I2C3_SCL,
+	MX6Q_PAD_GPIO_3__I2C3_SCL,
 
 	/* SD1 */
 	MX6Q_PAD_SD1_CLK__USDHC1_CLK,
@@ -216,10 +218,6 @@ static iomux_v3_cfg_t mx6q_sabreauto_pads[] = {
 	MX6Q_PAD_GPIO_17__ESAI1_TX0,
 	MX6Q_PAD_NANDF_CS3__ESAI1_TX1,
 
-	/* I2C1 */
-	MX6Q_PAD_CSI0_DAT8__I2C1_SDA,
-	MX6Q_PAD_CSI0_DAT9__I2C1_SCL,
-
 	/* I2C2 */
 	MX6Q_PAD_EIM_EB2__I2C2_SCL,
 	MX6Q_PAD_KEY_ROW3__I2C2_SDA,
@@ -256,6 +254,14 @@ static iomux_v3_cfg_t mx6q_sabreauto_pads[] = {
 	MX6Q_PAD_DISP0_DAT22__GPIO_5_16,
 
 	/* ipu1 csi0 */
+	MX6Q_PAD_CSI0_DAT4__IPU1_CSI0_D_4,
+	MX6Q_PAD_CSI0_DAT5__IPU1_CSI0_D_5,
+	MX6Q_PAD_CSI0_DAT6__IPU1_CSI0_D_6,
+	MX6Q_PAD_CSI0_DAT7__IPU1_CSI0_D_7,
+	MX6Q_PAD_CSI0_DAT8__IPU1_CSI0_D_8,
+	MX6Q_PAD_CSI0_DAT9__IPU1_CSI0_D_9,
+	MX6Q_PAD_CSI0_DAT10__IPU1_CSI0_D_10,
+	MX6Q_PAD_CSI0_DAT11__IPU1_CSI0_D_11,
 	MX6Q_PAD_CSI0_DAT12__IPU1_CSI0_D_12,
 	MX6Q_PAD_CSI0_DAT13__IPU1_CSI0_D_13,
 	MX6Q_PAD_CSI0_DAT14__IPU1_CSI0_D_14,
@@ -269,8 +275,6 @@ static iomux_v3_cfg_t mx6q_sabreauto_pads[] = {
 	MX6Q_PAD_CSI0_PIXCLK__IPU1_CSI0_PIXCLK,
 	/* camera reset */
 	MX6Q_PAD_GPIO_19__GPIO_4_5,
-	/* camera powerdown */
-	MX6Q_PAD_CSI0_DAT5__GPIO_5_23,
 
 	MX6Q_PAD_EIM_D24__GPIO_3_24,
 
@@ -297,6 +301,9 @@ static iomux_v3_cfg_t mx6q_sabreauto_pads[] = {
 	/*USBs OC pin */
 	MX6Q_PAD_EIM_WAIT__GPIO_5_0,  /*HOST1_OC*/
 	MX6Q_PAD_SD4_DAT0__GPIO_2_8,  /*OTG_OC*/
+
+	/* VIDEO adv7180 INTRQ */
+	MX6Q_PAD_ENET_RXD0__GPIO_1_27,
 };
 
 static iomux_v3_cfg_t mx6q_sabreauto_i2c3_pads[] = {
@@ -572,13 +579,12 @@ static int max7310_u516_setup(struct i2c_client *client,
 	/* 7 USB_H1_PWR */
 
 	int max7310_gpio_value[] = {
-		0, 0, 0, 0, 0, 0, 0, 1,
-
+		1, 1, 1, 0, 0, 1, 1, 1,
 	};
 
 	int n;
 
-	for (n = 0; n < ARRAY_SIZE(max7310_gpio_value); ++n) {
+	 for (n = 0; n < ARRAY_SIZE(max7310_gpio_value); ++n) {
 		gpio_request(gpio_base + n, "MAX7310 U48 GPIO Expander");
 		if (max7310_gpio_value[n] < 0)
 			gpio_direction_input(gpio_base + n);
@@ -614,6 +620,7 @@ static int max7310_u39_setup(struct i2c_client *client,
 	return 0;
 }
 
+
 static struct pca953x_platform_data max7310_u516_platdata = {
 	.gpio_base	= MX6Q_SABREAUTO_MAX7310_2_BASE_ADDR,
 	.invert		= 0,
@@ -625,6 +632,7 @@ static struct pca953x_platform_data max7310_u39_platdata = {
 	.invert		= 0,
 	.setup		= max7310_u39_setup,
 };
+
 
 static void ddc_dvi_init(void)
 {
@@ -641,13 +649,6 @@ static int ddc_dvi_update(void)
 		return 0;
 }
 
-static struct fsl_mxc_dvi_platform_data sabr_ddc_dvi_data = {
-	.ipu_id = 0,
-	.disp_id = 0,
-	.init = ddc_dvi_init,
-	.update = ddc_dvi_update,
-};
-
 static struct fsl_mxc_camera_platform_data camera_data = {
 	.analog_regulator = "DA9052_LDO7",
 	.core_regulator = "DA9052_LDO9",
@@ -660,6 +661,29 @@ static struct fsl_mxc_camera_platform_data ov5640_mipi_data = {
 	.csi = 0,
 };
 
+static void adv7180_pwdn(int pwdn)
+{
+	int status = -1;
+
+	status = gpio_request(MX6Q_SABREAUTO_VIDEOIN_PWR, "tvin-pwr");
+
+	if (pwdn)
+		gpio_direction_output(MX6Q_SABREAUTO_VIDEOIN_PWR, 0);
+	else
+		gpio_direction_output(MX6Q_SABREAUTO_VIDEOIN_PWR, 1);
+
+	gpio_free(MX6Q_SABREAUTO_VIDEOIN_PWR);
+}
+
+static struct fsl_mxc_tvin_platform_data adv7180_data = {
+	.dvddio_reg = NULL,
+	.dvdd_reg = NULL,
+	.avdd_reg = NULL,
+	.pvdd_reg = NULL,
+	.pwdn = adv7180_pwdn,
+	.reset = NULL,
+	.cvbs = true,
+};
 
 static struct i2c_board_info mxc_i2c0_board_info[] __initdata = {
 	{
@@ -690,10 +714,14 @@ static struct i2c_board_info mxc_i2c2_board_info[] __initdata = {
 		.platform_data = &max7310_u39_platdata,
 	},
 	{
-		I2C_BOARD_INFO("mxc_dvi", 0x50),
-		.platform_data = &sabr_ddc_dvi_data,
-		.irq = gpio_to_irq(MX6Q_SABREAUTO_DISP0_DET_INT),
+		I2C_BOARD_INFO("max7310", 0x34),
+		.platform_data = &max7310_u39_platdata,
 	},
+	{
+		I2C_BOARD_INFO("adv7180", 0x21),
+		.platform_data = (void *)&adv7180_data,
+	},
+
 };
 
 static struct i2c_board_info mxc_i2c1_board_info[] __initdata = {
