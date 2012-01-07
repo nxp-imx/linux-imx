@@ -80,6 +80,7 @@ struct mmc_ext_csd {
 #define MMC_DDR_MODE_MASK	(0x3<<2)
 	unsigned char		boot_info;
 	unsigned char		boot_config;
+	unsigned char		boot_bus_width;
 };
 
 struct sd_scr {
