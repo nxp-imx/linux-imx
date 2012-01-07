@@ -77,6 +77,9 @@ struct mmc_ext_csd {
 	u8			raw_sec_feature_support;/* 231 */
 	u8			raw_trim_mult;		/* 232 */
 	u8			raw_sectors[4];		/* 212 - 4 bytes */
+#define MMC_DDR_MODE_MASK	(0x3<<2)
+	unsigned char		boot_info;
+	unsigned char		boot_config;
 };
 
 struct sd_scr {
