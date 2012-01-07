@@ -281,6 +281,10 @@ static int mmc_read_ext_csd(struct mmc_card *card, u8 *ext_csd)
 		if (card->ext_csd.sectors > (2u * 1024 * 1024 * 1024) / 512)
 			mmc_card_set_blockaddr(card);
 	}
+
+	card->ext_csd.boot_info = ext_csd[EXT_CSD_BOOT_INFO];
+	card->ext_csd.boot_config = ext_csd[EXT_CSD_PART_CONFIG];
+
 	card->ext_csd.raw_card_type = ext_csd[EXT_CSD_CARD_TYPE];
 	switch (ext_csd[EXT_CSD_CARD_TYPE] & EXT_CSD_CARD_TYPE_MASK) {
 	case EXT_CSD_CARD_TYPE_DDR_52 | EXT_CSD_CARD_TYPE_52 |
@@ -484,6 +488,101 @@ out:
 	return err;
 }
 
+/* switch the partitions */
+static ssize_t
+switch_partitions(struct device *dev, struct device_attribute *attr,
+		const char *buf, size_t count)
+{
+	int err;
+	u32 part, new_part;
+	u8 *ext_csd, boot_config;
+	struct mmc_card *card = container_of(dev, struct mmc_card, dev);
+
+	BUG_ON(!card);
+
+	mmc_claim_host(card->host);
+	sscanf(buf, "%d\n", &part);
+
+	/* partition must be -
+	 * 0 - user area
+	 * 1 - boot partition 1
+	 * 2 - boot partition 2
+	 */
+	if (part > 2) {
+		printk(KERN_ERR "%s: wrong partition id"
+			" 0 (user area), 1 (boot1), 2 (boot2)\n",
+			mmc_hostname(card->host));
+		return -EINVAL;
+	}
+
+	if (card->csd.mmca_vsn < CSD_SPEC_VER_4) {
+		printk(KERN_ERR "%s: invalid mmc version"
+			" mmc version is below version 4!)\n",
+			mmc_hostname(card->host));
+		return -EINVAL;
+	}
+
+	/* it's a normal SD/MMC but user request to configure boot partition */
+	if (card->ext_csd.boot_size <= 0) {
+		printk(KERN_ERR "%s: this is a normal SD/MMC card"
+			" but you request to access boot partition!\n",
+			mmc_hostname(card->host));
+		return -EINVAL;
+	}
+
+	ext_csd = kmalloc(512, GFP_KERNEL);
+	if (!ext_csd) {
+		printk(KERN_ERR "%s: could not allocate a buffer to "
+			"receive the ext_csd.\n", mmc_hostname(card->host));
+		return -ENOMEM;
+	}
+
+	err = mmc_send_ext_csd(card, ext_csd);
+	if (err) {
+		printk(KERN_ERR "%s: unable to read EXT_CSD.\n",
+			mmc_hostname(card->host));
+		goto err_rtn;
+	}
+
+	/* Send SWITCH command to change partition for access */
+	boot_config = (ext_csd[EXT_CSD_PART_CONFIG] &
+			~EXT_CSD_BOOT_PARTITION_ACCESS_MASK) | part;
+	err = mmc_switch(card, EXT_CSD_CMD_SET_NORMAL,
+		EXT_CSD_PART_CONFIG, boot_config, card->ext_csd.part_time);
+	if (err) {
+		printk(KERN_ERR "%s: fail to send SWITCH command"
+				" to card to swich partition for access!\n",
+			mmc_hostname(card->host));
+		goto err_rtn;
+	}
+
+	/* Now check whether it works */
+	err = mmc_send_ext_csd(card, ext_csd);
+	if (err) {
+		printk(KERN_ERR "%s: %d unable to read EXT_CSD.\n",
+			mmc_hostname(card->host), err);
+		goto err_rtn;
+	}
+
+	new_part = ext_csd[EXT_CSD_PART_CONFIG] &
+		EXT_CSD_BOOT_PARTITION_ACCESS_MASK;
+	if (part != new_part) {
+		printk(KERN_ERR "%s: after SWITCH, current part id %d is not"
+				" same as requested partition %d!\n",
+			mmc_hostname(card->host), new_part, part);
+		goto err_rtn;
+	}
+	card->ext_csd.boot_config = ext_csd[EXT_CSD_PART_CONFIG];
+
+err_rtn:
+	mmc_release_host(card->host);
+	kfree(ext_csd);
+	if (err)
+		return err;
+	else
+		return count;
+}
+
 MMC_DEV_ATTR(cid, "%08x%08x%08x%08x\n", card->raw_cid[0], card->raw_cid[1],
 	card->raw_cid[2], card->raw_cid[3]);
 MMC_DEV_ATTR(csd, "%08x%08x%08x%08x\n", card->raw_csd[0], card->raw_csd[1],
@@ -497,6 +596,10 @@ MMC_DEV_ATTR(manfid, "0x%06x\n", card->cid.manfid);
 MMC_DEV_ATTR(name, "%s\n", card->cid.prod_name);
 MMC_DEV_ATTR(oemid, "0x%04x\n", card->cid.oemid);
 MMC_DEV_ATTR(serial, "0x%08x\n", card->cid.serial);
+MMC_DEV_ATTR(boot_info, "Info:0x%02x;Size:0x%02xMB;Part:0x%02x\n",
+	card->ext_csd.boot_info, card->ext_csd.boot_size / 8,
+	card->ext_csd.boot_config);
+DEVICE_ATTR(boot_config, S_IWUGO, NULL, switch_partitions);
 MMC_DEV_ATTR(enhanced_area_offset, "%llu\n",
 		card->ext_csd.enhanced_area_offset);
 MMC_DEV_ATTR(enhanced_area_size, "%u\n", card->ext_csd.enhanced_area_size);
@@ -513,6 +616,8 @@ static struct attribute *mmc_std_attrs[] = {
 	&dev_attr_name.attr,
 	&dev_attr_oemid.attr,
 	&dev_attr_serial.attr,
+	&dev_attr_boot_info.attr,
+	&dev_attr_boot_config.attr,
 	&dev_attr_enhanced_area_offset.attr,
 	&dev_attr_enhanced_area_size.attr,
 	NULL,
