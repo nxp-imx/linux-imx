@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2011-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -100,8 +100,9 @@
 #define MX6Q_ARM2_CAN2_STBY       MX6Q_ARM2_IO_EXP_GPIO2(1)
 #define MX6Q_ARM2_CAN2_EN         IMX_GPIO_NR(5, 24)
 
-#define MX6Q_SMD_CSI0_RST		IMX_GPIO_NR(4, 5)
-#define MX6Q_SMD_CSI0_PWN		IMX_GPIO_NR(5, 23)
+#define MX6Q_ARM2_CSI0_RST		IMX_GPIO_NR(4, 5)
+#define MX6Q_ARM2_CSI0_PWN		IMX_GPIO_NR(5, 23)
+#define MX6Q_ARM2_CSI0_RST_TVIN		IMX_GPIO_NR(5, 25)
 
 #define BMCR_PDOWN      	0x0800 /* PHY Powerdown */
 
@@ -330,6 +331,25 @@ static iomux_v3_cfg_t mx6q_arm2_csi0_sensor_pads[] = {
 	MX6Q_PAD_CSI0_PIXCLK__IPU1_CSI0_PIXCLK,
 	/* camera reset */
 	MX6Q_PAD_GPIO_19__GPIO_4_5,
+	/* camera powerdown */
+	MX6Q_PAD_CSI0_DAT5__GPIO_5_23,
+};
+
+static iomux_v3_cfg_t mx6q_arm2_csi0_tvin_pads[] = {
+	/* ipu1 csi0 */
+	MX6Q_PAD_CSI0_DAT12__IPU1_CSI0_D_12,
+	MX6Q_PAD_CSI0_DAT13__IPU1_CSI0_D_13,
+	MX6Q_PAD_CSI0_DAT14__IPU1_CSI0_D_14,
+	MX6Q_PAD_CSI0_DAT15__IPU1_CSI0_D_15,
+	MX6Q_PAD_CSI0_DAT16__IPU1_CSI0_D_16,
+	MX6Q_PAD_CSI0_DAT17__IPU1_CSI0_D_17,
+	MX6Q_PAD_CSI0_DAT18__IPU1_CSI0_D_18,
+	MX6Q_PAD_CSI0_DAT19__IPU1_CSI0_D_19,
+	MX6Q_PAD_CSI0_VSYNC__IPU1_CSI0_VSYNC,
+	MX6Q_PAD_CSI0_MCLK__IPU1_CSI0_HSYNC,
+	MX6Q_PAD_CSI0_PIXCLK__IPU1_CSI0_PIXCLK,
+	/* camera reset */
+	MX6Q_PAD_CSI0_DAT7__GPIO_5_25,
 	/* camera powerdown */
 	MX6Q_PAD_CSI0_DAT5__GPIO_5_23,
 };
@@ -681,14 +701,14 @@ static void mx6q_csi0_io_init(void)
 			ARRAY_SIZE(mx6q_arm2_csi0_sensor_pads));
 
 	/* Camera reset */
-	gpio_request(MX6Q_SMD_CSI0_RST, "cam-reset");
-	gpio_direction_output(MX6Q_SMD_CSI0_RST, 1);
+	gpio_request(MX6Q_ARM2_CSI0_RST, "cam-reset");
+	gpio_direction_output(MX6Q_ARM2_CSI0_RST, 1);
 
 	/* Camera power down */
-	gpio_request(MX6Q_SMD_CSI0_PWN, "cam-pwdn");
-	gpio_direction_output(MX6Q_SMD_CSI0_PWN, 1);
+	gpio_request(MX6Q_ARM2_CSI0_PWN, "cam-pwdn");
+	gpio_direction_output(MX6Q_ARM2_CSI0_PWN, 1);
 	msleep(1);
-	gpio_set_value(MX6Q_SMD_CSI0_PWN, 0);
+	gpio_set_value(MX6Q_ARM2_CSI0_PWN, 0);
 
 	/* For MX6Q GPR1 bit19 and bit20 meaning:
 	 * Bit19:       0 - Enable mipi to IPU1 CSI0
@@ -713,6 +733,29 @@ static struct fsl_mxc_camera_platform_data camera_data = {
 	.io_init = mx6q_csi0_io_init,
 };
 
+static void mx6q_csi0_tvin_io_init(void)
+{
+	mxc_iomux_v3_setup_multiple_pads(mx6q_arm2_csi0_tvin_pads,
+			ARRAY_SIZE(mx6q_arm2_csi0_tvin_pads));
+
+	/* Tvin reset */
+	gpio_request(MX6Q_ARM2_CSI0_RST_TVIN, "tvin-reset");
+	gpio_direction_output(MX6Q_ARM2_CSI0_RST_TVIN, 1);
+
+	/* Tvin power down */
+	gpio_request(MX6Q_ARM2_CSI0_PWN, "cam-pwdn");
+	gpio_direction_output(MX6Q_ARM2_CSI0_PWN, 0);
+	msleep(1);
+	gpio_set_value(MX6Q_ARM2_CSI0_PWN, 1);
+
+	mxc_iomux_set_gpr_register(1, 19, 1, 1);
+}
+
+static struct fsl_mxc_tvin_platform_data tvin_data = {
+	.io_init = mx6q_csi0_tvin_io_init,
+	.cvbs = false,
+};
+
 static void mx6q_mipi_sensor_io_init(void)
 {
 	mxc_iomux_v3_setup_multiple_pads(mx6q_arm2_mipi_sensor_pads,
@@ -734,6 +777,10 @@ static struct i2c_board_info mxc_i2c0_board_info[] __initdata = {
 	{
 		I2C_BOARD_INFO("ov5640", 0x3c),
 		.platform_data = (void *)&camera_data,
+	},
+	{
+		I2C_BOARD_INFO("adv7180", 0x21),
+		.platform_data = (void *)&tvin_data,
 	},
 };
 
