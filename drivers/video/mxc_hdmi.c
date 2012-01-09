@@ -1791,7 +1791,7 @@ static void hotplug_worker(struct work_struct *work)
 	phy_int_mask &= ~HDMI_PHY_HPD;
 	hdmi_writeb(phy_int_mask, HDMI_PHY_MASK0);
 
-	if (hdmi_readb(HDMI_FC_INT2) & HDMI_FC_INT2_OVERFLOW_MASK)
+	if (hdmi_readb(HDMI_IH_FC_STAT2) & HDMI_IH_FC_STAT2_OVERFLOW_MASK)
 		mxc_hdmi_clear_overflow();
 
 	/* We keep the iahb clock enabled only if we are plugged in. */
@@ -1822,7 +1822,8 @@ static irqreturn_t mxc_hdmi_hotplug(int irq, void *data)
 	 */
 	ret = hdmi_irq_disable(irq);
 	if (ret == IRQ_DISABLE_FAIL) {
-		if (hdmi_readb(HDMI_FC_INT2) & HDMI_FC_INT2_OVERFLOW_MASK) {
+		if (hdmi_readb(HDMI_IH_FC_STAT2) &
+				HDMI_IH_FC_STAT2_OVERFLOW_MASK) {
 			mxc_hdmi_clear_overflow();
 
 			/* clear irq status */
