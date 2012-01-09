@@ -130,12 +130,6 @@ static const unsigned char asrc_process_table[][8][2] = {
 	{{2, 2}, {2, 2}, {2, 2}, {2, 1}, {2, 1}, {2, 1}, {2, 1}, {2, 1},},
 };
 
-static const unsigned char asrc_divider_table[] = {
-/*5500Hz 8kHz 11025Hz 16kHz 22050kHz 32kHz 44.1kHz 48kHz 64kHz 88.2kHz 96kHz 176400Hz 192kHz*/
-	0x07, 0x15, 0x06, 0x14, 0x05, 0x13, 0x04, 0x04, 0x12, 0x03, 0x03, 0x02,
-	0x02,
-};
-
 static struct asrc_data *g_asrc_data;
 static struct proc_dir_entry *proc_asrc;
 static unsigned long asrc_vrt_base_addr;
@@ -294,54 +288,29 @@ static int asrc_set_process_configuration(enum asrc_pair_index index,
 	return 0;
 }
 
-static int asrc_get_asrck_clock_divider(int sample_rate)
+static int asrc_get_asrck_clock_divider(int samplerate)
 {
-	int i = 0;
-	switch (sample_rate) {
-	case 5500:
-		i = 0;
-		break;
-	case 8000:
-		i = 1;
-		break;
-	case 11025:
-		i = 2;
-		break;
-	case 16000:
-		i = 3;
-		break;
-	case 22050:
-		i = 4;
-		break;
-	case 32000:
-		i = 5;
-		break;
-	case 44100:
-		i = 6;
-		break;
-	case 48000:
-		i = 7;
-		break;
-	case 64000:
-		i = 8;
-		break;
-	case 88200:
-		i = 9;
-		break;
-	case 96000:
-		i = 10;
-		break;
-	case 176400:
-		i = 11;
-		break;
-	case 192000:
-		i = 12;
-		break;
-	default:
-		return -1;
-	}
+	unsigned int prescaler, divider;
+	unsigned int i;
+	unsigned int ratio, ra;
+	unsigned long bitclk =  clk_get_rate(mxc_asrc_data->asrc_audio_clk);
 
-	return asrc_divider_table[i];
+	ra = bitclk/samplerate;
+	ratio = ra;
+	/*calculate the prescaler*/
+	i = 0;
+	while (ratio > 8) {
+		i++;
+		ratio = ratio >> 1;
+	}
+	prescaler = i;
+	/*calculate the divider*/
+	if (i >= 1)
+		divider = ((ra + (1 << (i - 1)) - 1) >> i) - 1;
+	else
+		divider = ra - 1;
+	/*the totally divider is (2^prescaler)*divider*/
+	return (divider << 3) + prescaler;
 }
 
 int asrc_req_pair(int chn_num, enum asrc_pair_index *index)
