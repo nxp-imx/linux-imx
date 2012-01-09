@@ -3,7 +3,7 @@
  * Copyright 2008 Juergen Beisert, kernel@pengutronix.de
  *
  * Based on code from Freescale,
- * Copyright (C) 2004-2011 Freescale Semiconductor, Inc.
+ * Copyright (C) 2004-2012 Freescale Semiconductor, Inc.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -26,6 +26,7 @@
 #include <linux/gpio.h>
 #include <mach/hardware.h>
 #include <asm-generic/bug.h>
+#include <asm/mach/irq.h>
 
 static struct mxc_gpio_port *mxc_gpio_ports;
 static int gpio_table_size;
@@ -176,15 +177,16 @@ static void mx3_gpio_irq_handler(u32 irq, struct irq_desc *desc)
 {
 	u32 irq_stat;
 	struct mxc_gpio_port *port = irq_get_handler_data(irq);
+	struct irq_chip *chip = irq_get_chip(irq);
 
-#ifndef CONFIG_MXC_TZIC
-	desc->irq_data.chip->irq_ack(&desc->irq_data);
-#endif
+	chained_irq_enter(chip, desc);
 
 	irq_stat = __raw_readl(port->base + GPIO_ISR) &
 			__raw_readl(port->base + GPIO_IMR);
 
 	mxc_gpio_irq_handler(port, irq_stat);
+
+	chained_irq_exit(chip, desc);
 }
 
 /* MX2 has one interrupt *for all* gpio ports */
