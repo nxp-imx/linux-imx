@@ -1,7 +1,7 @@
 /*
  * Freescale GPMI NFC NAND Flash Driver
  *
- * Copyright (C) 2010-2011 Freescale Semiconductor, Inc.
+ * Copyright (C) 2010-2012 Freescale Semiconductor, Inc.
  * Copyright (C) 2008 Embedded Alley Solutions, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
@@ -524,6 +524,10 @@ static void begin(struct gpmi_nfc_data *this)
 	if (ahb_max_clk)
 		clk_enable(ahb_max_clk);
 	clk_enable(resources->clock);
+
+	/* set ready/busy timeout */
+	writel(BF_GPMI_TIMING1_DEVICE_BUSY_TIMEOUT(0x500),
+		resources->gpmi_regs + HW_GPMI_TIMING1);
 
 	/* Get the timing information we need. */
 	nfc->clock_frequency_in_hz = clk_get_rate(resources->clock);
