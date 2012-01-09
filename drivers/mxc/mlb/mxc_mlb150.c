@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2011-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -36,6 +36,7 @@
 #include <linux/fsl_devices.h>
 #include <linux/delay.h>
 #include <linux/spinlock.h>
+#include <linux/sched.h>
 
 #define DRIVER_NAME "mxc_mlb150"
 
