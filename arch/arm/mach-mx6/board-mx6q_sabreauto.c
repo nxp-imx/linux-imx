@@ -102,11 +102,14 @@
 #define MX6Q_SABREAUTO_IO_EXP_GPIO3(x) \
 		(MX6Q_SABREAUTO_MAX7310_3_BASE_ADDR + (x))
 
-#define MX6Q_SABREAUTO_CAN1_STBY       IMX_GPIO_NR(7, 12)
-#define MX6Q_SABREAUTO_CAN1_EN         IMX_GPIO_NR(7, 13)
-#define MX6Q_SABREAUTO_CAN2_STBY       MX6Q_SABREAUTO_IO_EXP_GPIO2(1)
+/*  CAN2 STBY and EN lines are the same as the CAN1. These lines are not
+ *  independent.
+ */
+#define MX6Q_SABREAUTO_CAN1_STEER       MX6Q_SABREAUTO_IO_EXP_GPIO2(3)
+#define MX6Q_SABREAUTO_CAN_STBY         MX6Q_SABREAUTO_IO_EXP_GPIO2(5)
+#define MX6Q_SABREAUTO_CAN_EN           MX6Q_SABREAUTO_IO_EXP_GPIO2(6)
+
 #define MX6Q_SABREAUTO_VIDEOIN_PWR     MX6Q_SABREAUTO_IO_EXP_GPIO2(2)
-#define MX6Q_SABREAUTO_CAN2_EN         IMX_GPIO_NR(5, 24)
 #define MX6Q_SABREAUTO_I2C_EXP_RST     IMX_GPIO_NR(1, 15)
 #define MX6Q_SABREAUTO_ESAI_INT        IMX_GPIO_NR(1, 10)
 #define MX6Q_SABREAUTO_PER_RST         MX6Q_SABREAUTO_IO_EXP_GPIO1(3)
@@ -325,15 +328,12 @@ static iomux_v3_cfg_t mx6q_sabreauto_i2c3_pads[] = {
 
 static iomux_v3_cfg_t mx6q_sabreauto_can_pads[] = {
 	/* CAN1 */
-	MX6Q_PAD_GPIO_7__CAN1_TXCAN,
+	MX6Q_PAD_KEY_COL2__CAN1_TXCAN,
 	MX6Q_PAD_KEY_ROW2__CAN1_RXCAN,
-	MX6Q_PAD_GPIO_17__GPIO_7_12,	/* CAN1 STBY */
-	MX6Q_PAD_GPIO_18__GPIO_7_13,	/* CAN1 EN */
 
 	/* CAN2 */
 	MX6Q_PAD_KEY_COL4__CAN2_TXCAN,
 	MX6Q_PAD_KEY_ROW4__CAN2_RXCAN,
-	MX6Q_PAD_CSI0_DAT6__GPIO_5_24,	/* CAN2 EN */
 };
 
 static iomux_v3_cfg_t mx6q_sabreauto_esai_record_pads[] = {
@@ -1033,33 +1033,47 @@ static struct platform_pwm_backlight_data mx6_sabreauto_pwm_backlight_data = {
 	.dft_brightness = 128,
 	.pwm_period_ns = 50000,
 };
+static int flexcan0_en;
+static int flexcan1_en;
 
-static struct gpio mx6q_flexcan_gpios[] = {
-	{ MX6Q_SABREAUTO_CAN1_EN, GPIOF_OUT_INIT_LOW, "flexcan1-en" },
-	{ MX6Q_SABREAUTO_CAN1_STBY, GPIOF_OUT_INIT_LOW, "flexcan1-stby" },
-	{ MX6Q_SABREAUTO_CAN2_EN, GPIOF_OUT_INIT_LOW, "flexcan2-en" },
-};
+static void mx6q_flexcan_switch(void)
+{
+  if (flexcan0_en || flexcan1_en) {
+	gpio_set_value_cansleep(MX6Q_SABREAUTO_CAN_EN, 1);
+	gpio_set_value_cansleep(MX6Q_SABREAUTO_CAN_STBY, 1);
+	/* Enable STEER pin if CAN1 interface is required.
+	 * STEER pin is used to switch between ENET_MDC
+	 * and CAN1_TX functionality. By default ENET_MDC
+	 * is active after reset.
+	 */
+	if (flexcan0_en)
+		gpio_set_value_cansleep(MX6Q_SABREAUTO_CAN1_STEER, 1);
 
+  } else {
+    /* avoid to disable CAN xcvr if any of the CAN interfaces
+    * are down. XCRV will be disabled only if both CAN2
+    * interfaces are DOWN.
+    */
+    if (!flexcan0_en && !flexcan1_en) {
+	gpio_set_value_cansleep(MX6Q_SABREAUTO_CAN_EN, 0);
+	gpio_set_value_cansleep(MX6Q_SABREAUTO_CAN_STBY, 0);
+    }
+    /* turn down STEER pin only if CAN1 is DOWN */
+    if (!flexcan0_en)
+	gpio_set_value_cansleep(MX6Q_SABREAUTO_CAN1_STEER, 0);
+
+  }
+}
 static void mx6q_flexcan0_switch(int enable)
 {
-	if (enable) {
-		gpio_set_value(MX6Q_SABREAUTO_CAN1_EN, 1);
-		gpio_set_value(MX6Q_SABREAUTO_CAN1_STBY, 1);
-	} else {
-		gpio_set_value(MX6Q_SABREAUTO_CAN1_EN, 0);
-		gpio_set_value(MX6Q_SABREAUTO_CAN1_STBY, 0);
-	}
+    flexcan0_en = enable;
+    mx6q_flexcan_switch();
 }
 
 static void mx6q_flexcan1_switch(int enable)
 {
-	if (enable) {
-		gpio_set_value(MX6Q_SABREAUTO_CAN2_EN, 1);
-		gpio_set_value(MX6Q_SABREAUTO_CAN2_STBY, 1);
-	} else {
-		gpio_set_value(MX6Q_SABREAUTO_CAN2_EN, 0);
-		gpio_set_value(MX6Q_SABREAUTO_CAN2_STBY, 0);
-	}
+    flexcan1_en = enable;
+    mx6q_flexcan_switch();
 }
 
 static const struct flexcan_platform_data
@@ -1353,7 +1367,7 @@ static struct mxc_spdif_platform_data mxc_spdif_data = {
 static void __init mx6_board_init(void)
 {
 	int i;
-	int ret;
+    int ret;
 
 	mxc_iomux_v3_setup_multiple_pads(mx6q_sabreauto_pads,
 					ARRAY_SIZE(mx6q_sabreauto_pads));
@@ -1478,14 +1492,8 @@ static void __init mx6_board_init(void)
 	imx6q_add_spdif_dai();
 	imx6q_add_spdif_audio_device();
 
-	ret = gpio_request_array(mx6q_flexcan_gpios,
-				ARRAY_SIZE(mx6q_flexcan_gpios));
-	if (ret) {
-		pr_err("failed to request flexcan-gpios: %d\n", ret);
-	} else {
-		imx6q_add_flexcan0(&mx6q_sabreauto_flexcan_pdata[0]);
-		imx6q_add_flexcan1(&mx6q_sabreauto_flexcan_pdata[1]);
-	}
+	imx6q_add_flexcan0(&mx6q_sabreauto_flexcan_pdata[0]);
+	imx6q_add_flexcan1(&mx6q_sabreauto_flexcan_pdata[1]);
 
 	imx6q_add_hdmi_soc();
 	imx6q_add_hdmi_soc_dai();
