@@ -1,5 +1,5 @@
 /* Copyright (c) 2008-2010, Advanced Micro Devices. All rights reserved.
- * Copyright (C) 2008-2011 Freescale Semiconductor, Inc.
+ * Copyright (C) 2008-2012 Freescale Semiconductor, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -18,7 +18,7 @@
  */
 
 /*
- * Copyright (C) 2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2010-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 #include "gsl_hal.h"
@@ -49,6 +49,7 @@ extern int gmem_size;
 extern phys_addr_t gpu_reserved_mem;
 extern int gpu_reserved_mem_size;
 extern int gpu_2d_irq, gpu_3d_irq;
+extern int enable_mmu;
 
 
 KGSLHAL_API int
@@ -121,8 +122,7 @@ kgsl_hal_init(void)
 	hal->has_z160 = 0;
     }
 
-    /* there is still some problem to enable mmu currently */
-    gsl_driver.enable_mmu = 0;
+    gsl_driver.enable_mmu = enable_mmu;
 
     /* setup register space */
     if (hal->has_z430) {
@@ -160,6 +160,7 @@ kgsl_hal_init(void)
     }
 
     if (gsl_driver.enable_mmu) {
+	printk(KERN_INFO "gpu mmu enabled\n");
 	totalsize = GSL_HAL_SHMEM_SIZE_EMEM2_MMU + GSL_HAL_SHMEM_SIZE_PHYS_MMU;
 	mem1size = GSL_HAL_SHMEM_SIZE_EMEM1_MMU;
 	if (gpu_reserved_mem && gpu_reserved_mem_size >= totalsize) {
@@ -173,6 +174,7 @@ kgsl_hal_init(void)
 	    va = (unsigned int)dma_alloc_coherent(0, totalsize, (dma_addr_t *)&pa, GFP_DMA | GFP_KERNEL);
 	}
     } else {
+	printk(KERN_INFO "gpu mmu disabled\n");
 	if (gpu_reserved_mem && gpu_reserved_mem_size >= SZ_8M) {
 	    totalsize = gpu_reserved_mem_size;
 	    pa = gpu_reserved_mem;

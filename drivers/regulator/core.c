@@ -1126,6 +1126,12 @@ static struct regulator *_regulator_get(struct device *dev, const char *id,
 		}
 	}
 
+	list_for_each_entry(rdev, &regulator_list, list) {
+		if (strcmp(rdev->desc->name, id) == 0) {
+			goto found;
+		}
+	}
+
 	if (board_wants_dummy_regulator) {
 		rdev = dummy_regulator_rdev;
 		goto found;

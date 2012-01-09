@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2010-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -207,7 +207,7 @@ static int __devinit mpr_touchkey_probe(struct i2c_client *client,
 		data->keycodes[i] = pdata->matrix[i];
 	}
 
-	input_set_capability(input_dev, EV_MSC, MSC_SCAN);
+	input_set_capability(input_dev, EV_KEY, MSC_SCAN);
 	input_set_drvdata(input_dev, data);
 
 	error = request_threaded_irq(client->irq, NULL,

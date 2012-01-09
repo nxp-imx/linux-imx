@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2010-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -38,7 +38,7 @@ typedef struct _gsl_autogate_t {
 } gsl_autogate_t;
 
 static gsl_autogate_t *g_autogate[2];
-static DEFINE_SEMAPHORE(sem_dev);
+static DEFINE_MUTEX(sem_dev);
 
 #define KGSL_DEVICE_IDLE_TIMEOUT 2000	/* unit ms */
 
@@ -79,10 +79,10 @@ static int _kgsl_device_active(gsl_device_t *dev, int all)
 		int index;
 		index = autogate->dev->id == GSL_DEVICE_G12 ? GSL_DEVICE_YAMATO - 1 :
 			GSL_DEVICE_G12 - 1;
-		down(&sem_dev);
+		mutex_lock(&sem_dev);
 		if (g_autogate[index])
 			_kgsl_device_active(g_autogate[index]->dev, 0);
-		up(&sem_dev);
+		mutex_unlock(&sem_dev);
 	}
 	return 0;
 }
@@ -137,7 +137,7 @@ int kgsl_device_autogate_init(gsl_device_t *dev)
 		printk(KERN_ERR "%s: out of memory!\n", __func__);
 		return -ENOMEM;
 	}
-	down(&sem_dev);
+	mutex_lock(&sem_dev);
 	autogate->dev = dev;
 	autogate->active = 1;
 	spin_lock_init(&autogate->lock);
@@ -150,7 +150,7 @@ int kgsl_device_autogate_init(gsl_device_t *dev)
 	INIT_WORK(&autogate->dis_task, clk_disable_task);
 	dev->autogate = autogate;
 	g_autogate[dev->id - 1] = autogate;
-	up(&sem_dev);
+	mutex_unlock(&sem_dev);
 	return 0;
 }
 
@@ -159,13 +159,13 @@ void kgsl_device_autogate_exit(gsl_device_t *dev)
 	gsl_autogate_t *autogate = dev->autogate;
 
 //	printk(KERN_ERR "%s:%d id %d active %d\n", __func__, __LINE__, dev->id,  autogate->active);
-	down(&sem_dev);
+	mutex_lock(&sem_dev);
 	del_timer_sync(&autogate->timer);
 	if (!autogate->active)
 		kgsl_clock(autogate->dev->id, 1);
 	flush_work(&autogate->dis_task);
 	g_autogate[dev->id - 1] = NULL;
-	up(&sem_dev);
+	mutex_unlock(&sem_dev);
 	kfree(autogate);
 	dev->autogate = NULL;
 }

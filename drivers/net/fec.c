@@ -19,7 +19,7 @@
  * Copyright (c) 2004-2006 Macq Electronique SA.
  *
  * Support for FEC IEEE 1588.
- * Copyright (C) 2010-2011 Freescale Semiconductor, Inc.
+ * Copyright (C) 2010-2012 Freescale Semiconductor, Inc.
  */
 
 #include <linux/module.h>
@@ -1417,6 +1417,7 @@ fec_restart(struct net_device *dev, int duplex)
 			val |= (1 << 9);
 
 		writel(val, fep->hwp + FEC_R_CNTRL);
+	}
 
 		if (fep->ptimer_present) {
 			/* Set Timer count */
@@ -1450,7 +1451,6 @@ fec_restart(struct net_device *dev, int duplex)
 			writel(2, fep->hwp + FEC_MIIGSK_ENR);
 		}
 #endif
-	}
 
 	/* ENET enable */
 	val = reg | (0x1 << 1);

@@ -1,5 +1,5 @@
 /*
- * Copyright 2005-2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2005-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -489,6 +489,10 @@ static int __devinit ipu_probe(struct platform_device *pdev)
 
 	/* Set sync refresh channels and CSI->mem channel as high priority */
 	ipu_idmac_write(ipu, 0x18800001L, IDMAC_CHA_PRI(0));
+
+	/* AXI burst setting for sync refresh channels */
+	if (g_ipu_hw_rev == 3)
+		ipu_idmac_write(ipu, 0x003F0000, IDMAC_CH_LOCK_EN_1);
 
 	/* Set MCU_T to divide MCU access window into 2 */
 	ipu_cm_write(ipu, 0x00400000L | (IPU_MCU_T_DEFAULT << 18), IPU_DISP_GEN);
@@ -1095,6 +1099,13 @@ void ipu_uninit_channel(struct ipu_soc *ipu, ipu_channel_t channel)
 
 	ipu->channel_init_mask &= ~(1L << IPU_CHAN_ID(channel));
 
+	/* Restore IDMAC_LOCK_EN when we don't use dual display */
+	/* and the video mode for single display is not tough */
+	if (!(ipu->di_use_count[0] && ipu->di_use_count[1]) &&
+	    dmfc_type_setup != DMFC_HIGH_RESOLUTION_ONLY_DP &&
+	    _ipu_is_dmfc_chan(in_dma) && g_ipu_hw_rev == 3)
+		ipu_idmac_write(ipu, 0x003F0000, IDMAC_CH_LOCK_EN_1);
+
 	_ipu_unlock(ipu);
 
 	_ipu_put(ipu);
@@ -1259,7 +1270,7 @@ int32_t ipu_init_channel_buffer(struct ipu_soc *ipu, ipu_channel_t channel,
 	if (idma_is_set(ipu, IDMAC_CHA_PRI, dma_chan)) {
 		unsigned reg = IDMAC_CH_LOCK_EN_1;
 		uint32_t value = 0;
-		if (cpu_is_mx53() || cpu_is_mx6q()) {
+		if (cpu_is_mx6q()) {
 			_ipu_ch_param_set_axi_id(ipu, dma_chan, 0);
 			switch (dma_chan) {
 			case 5:
@@ -1985,6 +1996,16 @@ int32_t ipu_enable_channel(struct ipu_soc *ipu, ipu_channel_t channel)
 		ipu_conf |= IPU_CONF_SMFC_EN;
 	ipu_cm_write(ipu, ipu_conf, IPU_CONF);
 
+	/* Clear IDMAC_LOCK_EN to workaround black flash for dual display */
+	/* and for tough video mode of single display */
+	if (g_ipu_hw_rev == 3 && _ipu_is_dmfc_chan(in_dma)) {
+		if ((ipu->di_use_count[1] && ipu->di_use_count[0]) ||
+		    (dmfc_type_setup == DMFC_HIGH_RESOLUTION_ONLY_DP))
+			ipu_idmac_write(ipu, 0x0, IDMAC_CH_LOCK_EN_1);
+		else
+			ipu_idmac_write(ipu, 0x003F0000, IDMAC_CH_LOCK_EN_1);
+	}
+
 	if (idma_is_valid(in_dma)) {
 		reg = ipu_idmac_read(ipu, IDMAC_CHA_EN(in_dma));
 		ipu_idmac_write(ipu, reg | idma_mask(in_dma), IDMAC_CHA_EN(in_dma));
@@ -2095,15 +2116,22 @@ void _ipu_clear_buffer_ready(struct ipu_soc *ipu, ipu_channel_t channel, ipu_buf
 		return;
 
 	ipu_cm_write(ipu, 0xF0300000, IPU_GPR); /* write one to clear */
-	if (bufNum == 0)
-		ipu_cm_write(ipu, idma_mask(dma_ch),
+	if (bufNum == 0) {
+		if (idma_is_set(ipu, IPU_CHA_BUF0_RDY, dma_ch)) {
+			ipu_cm_write(ipu, idma_mask(dma_ch),
 				IPU_CHA_BUF0_RDY(dma_ch));
-	else if (bufNum == 1)
-		ipu_cm_write(ipu, idma_mask(dma_ch),
+		}
+	} else if (bufNum == 1) {
+		if (idma_is_set(ipu, IPU_CHA_BUF1_RDY, dma_ch)) {
+			ipu_cm_write(ipu, idma_mask(dma_ch),
 				IPU_CHA_BUF1_RDY(dma_ch));
-	else
-		ipu_cm_write(ipu, idma_mask(dma_ch),
+		}
+	} else {
+		if (idma_is_set(ipu, IPU_CHA_BUF2_RDY, dma_ch)) {
+			ipu_cm_write(ipu, idma_mask(dma_ch),
 				IPU_CHA_BUF2_RDY(dma_ch));
+		}
+	}
 	ipu_cm_write(ipu, 0x0, IPU_GPR); /* write one to set */
 }
 
@@ -2935,6 +2963,11 @@ static int ipu_resume_noirq(struct device *dev)
 		_ipu_init_dc_mappings(ipu);
 		/* Set sync refresh channels as high priority */
 		ipu_idmac_write(ipu, 0x18800001L, IDMAC_CHA_PRI(0));
+
+		/* AXI burst setting for sync refresh channels */
+		if (g_ipu_hw_rev == 3)
+			ipu_idmac_write(ipu, 0x003F0000, IDMAC_CH_LOCK_EN_1);
+
 		_ipu_put(ipu);
 	}
 

@@ -220,7 +220,6 @@ kgsl_g12_setpagetable(gsl_device_t *device, unsigned int reg_ptbase, gpuaddr_t p
 #else
     (void)device;
     (void)reg_ptbase;
-    (void)reg_varange;
 #endif
     return (GSL_SUCCESS);
 }
