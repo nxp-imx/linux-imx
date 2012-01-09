@@ -346,7 +346,6 @@ static int esdhc_pltfm_init(struct sdhci_host *host, struct sdhci_pltfm_data *pd
 	struct clk *clk;
 	int err;
 	struct pltfm_imx_data *imx_data;
-	u32 reg;
 
 	clk = clk_get(mmc_dev(host->mmc), NULL);
 	if (IS_ERR(clk)) {
