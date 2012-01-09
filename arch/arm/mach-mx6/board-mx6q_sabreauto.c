@@ -76,7 +76,8 @@
 #include "crm_regs.h"
 #include "cpu_op-mx6.h"
 
-#define MX6Q_SABREAUTO_LDB_BACKLIGHT	IMX_GPIO_NR(1, 9)
+#define MX6Q_SABREAUTO_LDB_BACKLIGHT3	IMX_GPIO_NR(2, 9)
+#define MX6Q_SABREAUTO_LDB_BACKLIGHT4	IMX_GPIO_NR(2, 10)
 #define MX6Q_SABREAUTO_ECSPI1_CS0	IMX_GPIO_NR(2, 30)
 #define MX6Q_SABREAUTO_ECSPI1_CS1	IMX_GPIO_NR(3, 19)
 #define MX6Q_SABREAUTO_DISP0_PWR	IMX_GPIO_NR(3, 24)
@@ -293,6 +294,10 @@ static iomux_v3_cfg_t mx6q_sabreauto_pads[] = {
 	MX6Q_PAD_GPIO_19__GPIO_4_5,
 
 	MX6Q_PAD_EIM_D24__GPIO_3_24,
+
+	/* PWM3 and PMW4 */
+	MX6Q_PAD_SD4_DAT1__PWM3_PWMO,
+	MX6Q_PAD_SD4_DAT2__PWM4_PWMO,
 
 	/* DISP0 I2C ENABLE*/
 	MX6Q_PAD_EIM_D28__GPIO_3_28,
@@ -1042,8 +1047,17 @@ static struct imx_ipuv3_platform_data ipu_data[] = {
 	},
 };
 
-static struct platform_pwm_backlight_data mx6_sabreauto_pwm_backlight_data = {
-	.pwm_id = 0,
+/* Backlight PWM for CPU board lvds*/
+static struct platform_pwm_backlight_data mx6_arm2_pwm_backlight_data3 = {
+	.pwm_id = 2,
+	.max_brightness = 255,
+	.dft_brightness = 128,
+	.pwm_period_ns = 50000,
+};
+
+/* Backlight PWM for Main board lvds*/
+static struct platform_pwm_backlight_data mx6_arm2_pwm_backlight_data4 = {
+	.pwm_id = 3,
 	.max_brightness = 255,
 	.dft_brightness = 128,
 	.pwm_period_ns = 50000,
@@ -1489,8 +1503,10 @@ static void __init mx6_board_init(void)
 	gpio_request(MX6Q_SABREAUTO_DISP0_PWR, "disp0-pwr");
 	gpio_direction_output(MX6Q_SABREAUTO_DISP0_PWR, 1);
 
-	gpio_request(MX6Q_SABREAUTO_LDB_BACKLIGHT, "ldb-backlight");
-	gpio_direction_output(MX6Q_SABREAUTO_LDB_BACKLIGHT, 1);
+	gpio_request(MX6Q_SABREAUTO_LDB_BACKLIGHT3, "ldb-backlight3");
+	gpio_direction_output(MX6Q_SABREAUTO_LDB_BACKLIGHT3, 1);
+	gpio_request(MX6Q_SABREAUTO_LDB_BACKLIGHT4, "ldb-backlight4");
+	gpio_direction_output(MX6Q_SABREAUTO_LDB_BACKLIGHT4, 1);
 	imx6q_add_otp();
 	imx6q_add_viim();
 	imx6q_add_imx2_wdt(0, NULL);
@@ -1499,8 +1515,10 @@ static void __init mx6_board_init(void)
 
 	imx6q_add_dvfs_core(&sabreauto_dvfscore_data);
 
-	imx6q_add_mxc_pwm(0);
-	imx6q_add_mxc_pwm_backlight(0, &mx6_sabreauto_pwm_backlight_data);
+	imx6q_add_mxc_pwm(2);
+	imx6q_add_mxc_pwm(3);
+	imx6q_add_mxc_pwm_backlight(2, &mx6_arm2_pwm_backlight_data3);
+	imx6q_add_mxc_pwm_backlight(3, &mx6_arm2_pwm_backlight_data4);
 
 	mxc_spdif_data.spdif_core_clk = clk_get_sys("mxc_spdif.0", NULL);
 	clk_put(mxc_spdif_data.spdif_core_clk);
