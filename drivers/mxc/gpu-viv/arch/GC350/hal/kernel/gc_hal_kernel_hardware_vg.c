@@ -139,20 +139,15 @@ _TimeIdleThread(
     /* Cast the object. */
     gckVGHARDWARE hardware = (gckVGHARDWARE) ThreadParameter;
 
-    gcmkVERIFY_OK(gckOS_AcquireSemaphore(
-        hardware->os,
-        hardware->idleSemaphore));
-
     while(gcvTRUE)
     {
+        gcmkVERIFY_OK(gckOS_WaitSignal(hardware->os,
+            hardware->idleSignal, gcvINFINITE));
+
         if (hardware->killThread)
         {
             break;
         }
-
-        gcmkVERIFY_OK(gckOS_AcquireSemaphore(
-            hardware->os,
-            hardware->idleSemaphore));
 
         do
         {
@@ -245,7 +240,7 @@ gckVGHARDWARE_Construct(
         hardware->chipMinorFeatures2 = chipMinorFeatures2;
 
         hardware->powerMutex            = gcvNULL;
-        hardware->idleSemaphore         = gcvNULL;
+        hardware->idleSignal            = gcvNULL;
         hardware->chipPowerState        = gcvPOWER_OFF;
         hardware->chipPowerStateGlobal  = gcvPOWER_ON;
         hardware->clockState            = gcvTRUE;
@@ -270,8 +265,7 @@ gckVGHARDWARE_Construct(
         gcmkVERIFY_OK(gckVGHARDWARE_SetFastClear(hardware, -1));
 
         gcmkERR_BREAK(gckOS_CreateMutex(Os, &hardware->powerMutex));
-
-        gcmkERR_BREAK(gckOS_CreateSemaphore(Os, &hardware->idleSemaphore));
+        gcmkERR_BREAK(gckOS_CreateSignal(Os, gcvFALSE, &hardware->idleSignal));
 #if gcdPOWER_MANAGEMENT
         gcmkERR_BREAK(gckOS_StartThread(
             hardware->os,
@@ -326,6 +320,7 @@ gckVGHARDWARE_Destroy(
 
 #if gcdPOWER_MANAGEMENT
     Hardware->killThread  = gcvTRUE;
+    gcmkVERIFY_OK(gckOS_Signal(Hardware->os, Hardware->idleSignal, gcvTRUE));
     gcmkVERIFY_OK(gckOS_StopThread(Hardware->os, Hardware->timeIdleThread));
 #endif
     /* Mark the object as unknown. */
@@ -337,10 +332,10 @@ gckVGHARDWARE_Destroy(
             Hardware->os, Hardware->powerMutex));
     }
 
-    if (Hardware->idleSemaphore != gcvNULL)
+    if (Hardware->idleSignal != gcvNULL)
     {
-        gcmkVERIFY_OK(gckOS_DestroySemaphore(
-            Hardware->os, Hardware->idleSemaphore));
+        gcmkVERIFY_OK(gckOS_DestroySignal(
+            Hardware->os, Hardware->idleSignal));
     }
 
     /* Free the object. */
@@ -1790,7 +1785,7 @@ gckVGHARDWARE_SetPowerManagementState(
 
     if (State == gcvPOWER_IDLE)
     {
-        gcmkONERROR(gckOS_ReleaseSemaphore(os, Hardware->idleSemaphore));
+        gcmkVERIFY_OK(gckOS_Signal(os, Hardware->idleSignal, gcvTRUE));
     }
         /* Reset power off time */
     gcmkVERIFY_OK(gckOS_GetTicks(&currentTime));
