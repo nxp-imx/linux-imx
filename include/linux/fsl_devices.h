@@ -247,16 +247,6 @@ struct fsl_mxc_tvout_platform_data {
 	u32 detect_line;
 };
 
-struct fsl_mxc_tvin_platform_data {
-	char *dvddio_reg;
-	char *dvdd_reg;
-	char *avdd_reg;
-	char *pvdd_reg;
-	void (*pwdn) (int pwdn);
-	void (*reset) (void);
-	bool cvbs;
-};
-
 struct fsl_mxc_dvi_platform_data {
 	void (*init) (void);
 	int (*update) (void);
@@ -287,6 +277,17 @@ struct fsl_mxc_camera_platform_data {
 	u32 csi;
 	void (*pwdn)(int pwdn);
 	void (*io_init)(void);
+};
+
+struct fsl_mxc_tvin_platform_data {
+	char *dvddio_reg;
+	char *dvdd_reg;
+	char *avdd_reg;
+	char *pvdd_reg;
+	void (*pwdn)(int pwdn);
+	void (*reset)(void);
+	void (*io_init)(void);
+	bool cvbs;
 };
 
 struct mpc8xx_pcmcia_ops {
