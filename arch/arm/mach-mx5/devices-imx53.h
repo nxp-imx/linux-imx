@@ -49,6 +49,10 @@ extern const struct imx_ipuv3_data imx53_ipuv3_data __initconst;
 extern const struct imx_vpu_data imx53_vpu_data __initconst;
 #define imx53_add_vpu()	imx_add_vpu(&imx53_vpu_data)
 
+extern const struct imx_imx_asrc_data imx53_imx_asrc_data[] __initconst;
+#define imx53_add_asrc(pdata)	\
+	imx_add_imx_asrc(imx53_imx_asrc_data, pdata)
+
 extern const struct imx_tve_data imx53_tve_data __initconst;
 #define imx53_add_tve(pdata)	\
 	imx_add_tve(&imx53_tve_data, pdata)
@@ -87,7 +91,7 @@ extern const struct imx_iim_data imx53_imx_iim_data __initconst;
 #define imx53_add_iim(pdata) \
 	imx_add_iim(&imx53_imx_iim_data, pdata)
 
-extern const struct imx_mxc_gpu_data imx53_gpu_data __initconst;
+extern struct imx_mxc_gpu_data imx53_gpu_data __initconst;
 #define imx53_add_mxc_gpu(pdata) \
 	imx_add_mxc_gpu(&imx53_gpu_data, pdata)
 

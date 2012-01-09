@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2010-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -93,8 +93,7 @@ static struct regulator_init_data da9052_regulators_init[] = {
 		DA9052_BUCK_PERI_VOLT_LOWER, "DA9052_BUCK_PERI", 2500)
 };
 
-
-#define MX53_SMD_WiFi_BT_PWR_EN		(2*32 + 10)	/*GPIO_3_10 */
+#define MX53_SMD_WiFi_BT_PWR_EN		IMX_GPIO_NR(3, 10)	/*GPIO_3_10 */
 struct regulator_init_data wifi_bt_reg_initdata = {
 	.constraints = {
 		.valid_ops_mask = REGULATOR_CHANGE_STATUS,

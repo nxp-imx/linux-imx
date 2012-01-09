@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2011-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -645,14 +645,16 @@ static void __init fixup_mxc_board(struct machine_desc *desc, struct tag *tags,
 		mem_tag->u.mem.size = left_mem;
 
 		/* reserve memory for gpu */
-		gpu_data.reserved_mem_base =
+		/*gpu_data.reserved_mem_base =
 				mem_tag->u.mem.start + left_mem;
 		gpu_data.reserved_mem_size = gpu_mem;
+		*/
 
 		/* reserver memory for fb */
-		loco_fb_data[0].res_base = gpu_data.reserved_mem_base
+		/*loco_fb_data[0].res_base = gpu_data.reserved_mem_base
 					+ gpu_data.reserved_mem_size;
 		loco_fb_data[0].res_size = fb_mem;
+		*/
 	}
 }
 

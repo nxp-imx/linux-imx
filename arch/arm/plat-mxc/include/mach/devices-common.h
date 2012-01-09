@@ -381,6 +381,8 @@ struct imx_mxc_gpu_data {
 	resource_size_t iobase_3d;
 	resource_size_t gmem_base;
 	resource_size_t gmem_size;
+	resource_size_t gmem_reserved_base;
+	resource_size_t gmem_reserved_size;
 };
 
 struct platform_device *__init imx_add_mxc_gpu(

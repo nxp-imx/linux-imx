@@ -186,6 +186,7 @@ config MACH_MX53_SMD
 	select IMX_HAVE_PLATFORM_MXC_GPU
 	select IMX_HAVE_PLATFORM_SDHCI_ESDHC_IMX
 	select IMX_HAVE_PLATFORM_IMX_SRTC
+	select IMX_HAVE_PLATFORM_IMX_ASRC
 	select IMX_HAVE_PLATFORM_AHCI
 	help
 	  Include support for MX53 SMD platform. This includes specific

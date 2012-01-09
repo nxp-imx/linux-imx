@@ -1,6 +1,6 @@
 /*
  * Copyright 2009 Amit Kucheria <amit.kucheria@canonical.com>
- * Copyright (C) 2010-2011 Freescale Semiconductor, Inc.
+ * Copyright (C) 2010-2012 Freescale Semiconductor, Inc.
  *
  * The code contained herein is licensed under the GNU General Public
  * License. You may obtain a copy of the GNU General Public License
@@ -16,6 +16,16 @@
 #include <mach/hardware.h>
 #include <mach/imx-uart.h>
 #include <mach/irqs.h>
+
+struct platform_device mxc_android_pmem_device = {
+	.name = "android_pmem",
+	.id = 0,
+};
+
+struct platform_device mxc_android_pmem_gpu_device = {
+	.name = "android_pmem",
+	.id = 1,
+};
 
 static struct resource mxc_hsi2c_resources[] = {
 	{
@@ -103,7 +113,7 @@ static struct resource usbotg_wakeup_resources[] = {
 };
 
 struct platform_device mxc_usbdr_wakeup_device = {
-	.name = "usb_wakeup",
+	.name = "usb-wakeup",
 	.id   = 0,
 	.num_resources = ARRAY_SIZE(usbotg_wakeup_resources),
 	.resource = usbotg_wakeup_resources,

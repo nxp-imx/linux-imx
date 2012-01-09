@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2011-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -30,6 +30,8 @@
 		.iobase_2d = soc ## _GPU2D_BASE_ADDR,			\
 		.gmem_base = soc ## _GPU_GMEM_BASE_ADDR,		\
 		.gmem_size = soc ## _GPU_GMEM_SIZE,			\
+		.gmem_reserved_base = 0,				\
+		.gmem_reserved_size = SZ_128M,				\
 	}
 
 #define imx_mxc_gpu_entry_2d(soc)					\
@@ -54,7 +56,7 @@ const struct imx_mxc_gpu_data imx51_gpu_data __initconst =
 #endif
 
 #ifdef CONFIG_SOC_IMX53
-const struct imx_mxc_gpu_data imx53_gpu_data __initconst =
+struct imx_mxc_gpu_data imx53_gpu_data __initconst =
 	imx_mxc_gpu_entry_3d_2d(MX53);
 #endif
 
@@ -91,6 +93,13 @@ struct platform_device *__init imx_add_mxc_gpu(
 			.start = data->gmem_base,
 			.end = data->gmem_base + data->gmem_size - 1,
 			.name = "gpu_graphics_mem",
+			.flags = IORESOURCE_MEM,
+		},
+		{
+			.start = data->gmem_reserved_base,
+			.end = data->gmem_reserved_base +
+					data->gmem_reserved_size - 1,
+			.name = "gpu_reserved_mem",
 			.flags = IORESOURCE_MEM,
 		},
 	};

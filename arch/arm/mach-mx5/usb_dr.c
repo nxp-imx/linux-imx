@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2005-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -60,7 +60,6 @@ static int usbotg_init_ext(struct platform_device *pdev)
 	struct clk *usb_clk;
 
 	/* the usb_ahb_clk will be enabled in usb_otg_init */
-	usb_ahb_clk = clk_get(NULL, "usb_ahb_clk");
 
 	usb_clk = clk_get(NULL, "usboh3_clk");
 	clk_enable(usb_clk);
@@ -85,7 +84,6 @@ static void usbotg_uninit_ext(struct platform_device *pdev)
 
 	/* usb_ahb_clk will be disabled at usb_common.c */
 	usbotg_uninit(pdata);
-	clk_put(usb_ahb_clk);
 }
 
 /* Below two macros are used at otg mode to indicate usb mode*/
@@ -142,13 +140,11 @@ static void usbotg_clock_gate(bool on)
 {
 	pr_debug("%s: on is %d\n", __func__, on);
 	if (on) {
-		clk_enable(usb_ahb_clk);
 		clk_enable(usb_oh3_clk);
 		clk_enable(usb_phy1_clk);
 	} else {
 		clk_disable(usb_phy1_clk);
 		clk_disable(usb_oh3_clk);
-		clk_disable(usb_ahb_clk);
 	}
 	pr_debug("usb_ahb_ref_count:%d, usb_phy_clk1_ref_count:%d\n", clk_get_usecount(usb_ahb_clk), clk_get_usecount(usb_phy1_clk));
 }

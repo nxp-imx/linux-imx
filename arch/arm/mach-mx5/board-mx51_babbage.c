@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2011 Freescale Semiconductor, Inc.
+ * Copyright (C) 2009-2012 Freescale Semiconductor, Inc.
  * Copyright (C) 2009-2010 Amit Kucheria <amit.kucheria@canonical.com>
  *
  * The code contained herein is licensed under the GNU General Public
@@ -609,14 +609,16 @@ static void __init fixup_mxc_board(struct machine_desc *desc, struct tag *tags,
 		mem_tag->u.mem.size = left_mem;
 
 		/*reserve memory for gpu*/
-		gpu_data.reserved_mem_base =
+		/*gpu_data.reserved_mem_base =
 				mem_tag->u.mem.start + left_mem;
 		gpu_data.reserved_mem_size = gpu_mem;
+		*/
 
 		/* reserver memory for fb */
-		bbg_fb_data[0].res_base = gpu_data.reserved_mem_base
+		/*bbg_fb_data[0].res_base = gpu_data.reserved_mem_base
 					+ gpu_data.reserved_mem_size;
 		bbg_fb_data[0].res_size = fb_mem;
+		*/
 	}
 }
 
