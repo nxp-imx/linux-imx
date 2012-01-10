@@ -56,7 +56,7 @@ const struct imx_mxc_gpu_data imx51_gpu_data __initconst =
 #endif
 
 #ifdef CONFIG_SOC_IMX53
-struct imx_mxc_gpu_data imx53_gpu_data __initconst =
+struct imx_mxc_gpu_data imx53_gpu_data =
 	imx_mxc_gpu_entry_3d_2d(MX53);
 #endif
 
