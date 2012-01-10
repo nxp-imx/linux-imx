@@ -1,5 +1,5 @@
 /*
- * Copyright 2005-2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2005-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -507,7 +507,6 @@ static void dump_check_err(struct device *dev, int err)
 		dev_err(dev, "input over limitation\n");
 		break;
 	case IPU_CHECK_ERR_OVERLAY_WITH_VDI:
-		dev_err(dev, "do not support overlay with deinterlace\n");
 		break;
 	case IPU_CHECK_ERR_OV_OUT_NO_FIT:
 		dev_err(dev,
@@ -517,19 +516,14 @@ static void dump_check_err(struct device *dev, int err)
 		dev_err(dev, "no ipu processing need\n");
 		break;
 	case IPU_CHECK_ERR_SPLIT_INPUTW_OVER:
-		dev_err(dev, "split mode input width overflow\n");
 		break;
 	case IPU_CHECK_ERR_SPLIT_INPUTH_OVER:
-		dev_err(dev, "split mode input height overflow\n");
 		break;
 	case IPU_CHECK_ERR_SPLIT_OUTPUTW_OVER:
-		dev_err(dev, "split mode output width overflow\n");
 		break;
 	case IPU_CHECK_ERR_SPLIT_OUTPUTH_OVER:
-		dev_err(dev, "split mode output height overflow\n");
 		break;
 	case IPU_CHECK_ERR_SPLIT_WITH_ROT:
-		dev_err(dev, "not support split mode with rotation\n");
 		break;
 	default:
 		break;
