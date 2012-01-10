@@ -1292,13 +1292,15 @@ int snd_soc_resume(struct device *dev)
 		struct snd_soc_dai *cpu_dai = card->rtd[i].cpu_dai;
 		ac97_control |= cpu_dai->driver->ac97_control;
 	}
-	if (ac97_control) {
-		dev_dbg(dev, "Resuming AC97 immediately\n");
-		soc_resume_deferred(&card->deferred_resume_work);
-	} else {
-		dev_dbg(dev, "Scheduling resume work\n");
-		if (!schedule_work(&card->deferred_resume_work))
-			dev_err(dev, "resume work item may be lost\n");
+	if (card->num_rtd) {
+		if (ac97_control) {
+			dev_dbg(dev, "Resuming AC97 immediately\n");
+			soc_resume_deferred(&card->deferred_resume_work);
+		} else {
+			dev_dbg(dev, "Scheduling resume work\n");
+			if (!schedule_work(&card->deferred_resume_work))
+				dev_err(dev, "resume work item may be lost\n");
+		}
 	}
 
 	return 0;
