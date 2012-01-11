@@ -181,7 +181,6 @@ static iomux_v3_cfg_t mx6q_sabreauto_pads[] = {
 	MX6Q_PAD_GPIO_0__CCM_CLKO,
 	/*MX6Q_PAD_GPIO_3__CCM_CLKO2,i*/
 	MX6Q_PAD_GPIO_3__I2C3_SCL,
-	MX6Q_PAD_GPIO_3__I2C3_SCL,
 
 	/* Android GPIO keys */
 	MX6Q_PAD_SD2_CMD__GPIO_1_11, /* home */
@@ -719,22 +718,6 @@ static struct pca953x_platform_data max7310_u43_platdata = {
 	.setup		= max7310_u43_setup,
 };
 
-
-static void ddc_dvi_init(void)
-{
-	/* enable DVI I2C */
-	gpio_set_value(MX6Q_SABREAUTO_DISP0_I2C_EN, 1);
-}
-
-static int ddc_dvi_update(void)
-{
-	/* DVI cable state */
-	if (gpio_get_value(MX6Q_SABREAUTO_DISP0_DET_INT) == 1)
-		return 1;
-	else
-		return 0;
-}
-
 static struct fsl_mxc_camera_platform_data camera_data = {
 	.analog_regulator = "DA9052_LDO7",
 	.core_regulator = "DA9052_LDO9",
@@ -796,14 +779,9 @@ static struct i2c_board_info mxc_i2c2_board_info[] __initdata = {
 		.platform_data = &max7310_u39_platdata,
 	},
 	{
-		I2C_BOARD_INFO("max7310", 0x34),
-		.platform_data = &max7310_u43_platdata,
-	},
-	{
 		I2C_BOARD_INFO("adv7180", 0x21),
 		.platform_data = (void *)&adv7180_data,
 	},
-
 };
 
 static struct i2c_board_info mxc_i2c1_board_info[] __initdata = {
