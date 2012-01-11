@@ -23,7 +23,7 @@ extern void (*set_num_cpu_op)(int num);
 extern u32 arm_max_freq;
 static int num_cpu_op;
 
-/* working point(wp): 0 - 1GHzMHz; 1 - 800MHz, 3 - 400MHz, 4  - 200MHz */
+/* working point(wp): 0 - 1GHzMHz; 1 - 800MHz, 2 - 624MHz 3 - 400MHz, 4  - 200MHz */
 static struct cpu_op mx6_cpu_op_1G[] = {
 	{
 	 .pll_rate = 996000000,
@@ -43,6 +43,10 @@ static struct cpu_op mx6_cpu_op_1G[] = {
 	 .mfn = 1,
 	 .cpu_podf = 0,
 	 .cpu_voltage = 1100000,},
+	{
+	 .pll_rate = 624000000,
+	 .cpu_rate = 624000000,
+	 .cpu_voltage = 11000000,},
 	 {
 	  .pll_rate = 792000000,
 	  .cpu_rate = 396000000,
