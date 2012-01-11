@@ -826,6 +826,15 @@ static int ehci_hub_control (
 				msleep(5);/* wait to leave low-power mode */
 				spin_lock_irqsave(&ehci->lock, flags);
 			}
+			#ifdef MX6_USB_HOST_HACK
+			{
+				struct fsl_usb2_platform_data *pdata;
+				pdata = hcd->self.controller->platform_data;
+				if (pdata->platform_resume)
+					pdata->platform_resume(pdata);
+			}
+			#endif
+
 			/* resume signaling for 20 msec */
 			temp &= ~(PORT_RWC_BITS | PORT_WAKE_BITS);
 			ehci_writel(ehci, temp | PORT_RESUME, status_reg);
