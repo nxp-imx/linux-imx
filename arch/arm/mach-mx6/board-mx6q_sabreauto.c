@@ -129,11 +129,13 @@
 #define ARD_ANDROID_VOLUP               IMX_GPIO_NR(2, 15)
 #define ARD_ANDROID_VOLDOWN             IMX_GPIO_NR(5, 14)
 
+
 void __init early_console_setup(unsigned long base, struct clk *clk);
 static struct clk *sata_clk;
 static int esai_record;
 static int mipi_sensor;
 static int uart2_en;
+static int can0_enable;
 
 extern struct regulator *(*get_cpu_regulator)(void);
 extern void (*put_cpu_regulator)(void);
@@ -239,6 +241,7 @@ static iomux_v3_cfg_t mx6q_sabreauto_pads[] = {
 	/* I2C2 */
 	MX6Q_PAD_EIM_EB2__I2C2_SCL,
 	MX6Q_PAD_KEY_ROW3__I2C2_SDA,
+	MX6Q_PAD_SD2_DAT0__GPIO_1_15,
 
 	/* DISPLAY */
 	MX6Q_PAD_DI0_DISP_CLK__IPU1_DI0_DISP_CLK,
@@ -346,11 +349,14 @@ static iomux_v3_cfg_t mx6q_sabreauto_i2c3_pads[] = {
 	MX6Q_PAD_GPIO_16__I2C3_SDA,
 };
 
-static iomux_v3_cfg_t mx6q_sabreauto_can_pads[] = {
+static iomux_v3_cfg_t mx6q_sabreauto_can0_pads[] = {
 	/* CAN1 */
 	MX6Q_PAD_KEY_COL2__CAN1_TXCAN,
 	MX6Q_PAD_KEY_ROW2__CAN1_RXCAN,
+};
 
+
+static iomux_v3_cfg_t mx6q_sabreauto_can1_pads[] = {
 	/* CAN2 */
 	MX6Q_PAD_KEY_COL4__CAN2_TXCAN,
 	MX6Q_PAD_KEY_ROW4__CAN2_RXCAN,
@@ -640,7 +646,7 @@ static struct pca953x_platform_data max7310_platdata = {
 	.setup		= max7310_1_setup,
 };
 
-static int max7310_u516_setup(struct i2c_client *client,
+static int max7310_u39_setup(struct i2c_client *client,
 	unsigned gpio_base, unsigned ngpio,
 	void *context)
 {
@@ -654,13 +660,13 @@ static int max7310_u516_setup(struct i2c_client *client,
 	/* 7 USB_H1_PWR */
 
 	int max7310_gpio_value[] = {
-		1, 1, 1, 0, 0, 1, 1, 1,
+		0, 1, 0, 0, 0, 1, 1, 1,
 	};
 
 	int n;
 
 	 for (n = 0; n < ARRAY_SIZE(max7310_gpio_value); ++n) {
-		gpio_request(gpio_base + n, "MAX7310 U48 GPIO Expander");
+		gpio_request(gpio_base + n, "MAX7310 U39 GPIO Expander");
 		if (max7310_gpio_value[n] < 0)
 			gpio_direction_input(gpio_base + n);
 		else
@@ -672,18 +678,23 @@ static int max7310_u516_setup(struct i2c_client *client,
 	return 0;
 }
 
-static int max7310_u39_setup(struct i2c_client *client,
+static int max7310_u43_setup(struct i2c_client *client,
 	unsigned gpio_base, unsigned ngpio,
 	void *context)
 {
+	/*0 PORT_EXP_C0*/
+	/*1 USB_OTG_PWR_ON  */
+	/*2 SAT_RST_B*/
+	/*3 NAND_BT_WIFI_STEER*/
+
 	int max7310_gpio_value[] = {
-		0, 1, 0, 1, 0, 1, 1, 1,
+		0, 1, 0, 1, 0, 0, 0, 0,
 	};
 
 	int n;
 
 	for (n = 0; n < ARRAY_SIZE(max7310_gpio_value); ++n) {
-		gpio_request(gpio_base + n, "MAX7310 U48 GPIO Expander");
+		gpio_request(gpio_base + n, "MAX7310 U43 GPIO Expander");
 		if (max7310_gpio_value[n] < 0)
 			gpio_direction_input(gpio_base + n);
 		else
@@ -696,16 +707,16 @@ static int max7310_u39_setup(struct i2c_client *client,
 }
 
 
-static struct pca953x_platform_data max7310_u516_platdata = {
+static struct pca953x_platform_data max7310_u39_platdata = {
 	.gpio_base	= MX6Q_SABREAUTO_MAX7310_2_BASE_ADDR,
 	.invert		= 0,
-	.setup		= max7310_u516_setup,
+	.setup		= max7310_u39_setup,
 };
 
-static struct pca953x_platform_data max7310_u39_platdata = {
+static struct pca953x_platform_data max7310_u43_platdata = {
 	.gpio_base	= MX6Q_SABREAUTO_MAX7310_3_BASE_ADDR,
 	.invert		= 0,
-	.setup		= max7310_u39_setup,
+	.setup		= max7310_u43_setup,
 };
 
 
@@ -782,15 +793,11 @@ static struct i2c_board_info mxc_i2c2_board_info[] __initdata = {
 	},
 	{
 		I2C_BOARD_INFO("max7310", 0x32),
-		.platform_data = &max7310_u516_platdata,
-	},
-	{
-		I2C_BOARD_INFO("max7310", 0x34),
 		.platform_data = &max7310_u39_platdata,
 	},
 	{
 		I2C_BOARD_INFO("max7310", 0x34),
-		.platform_data = &max7310_u39_platdata,
+		.platform_data = &max7310_u43_platdata,
 	},
 	{
 		I2C_BOARD_INFO("adv7180", 0x21),
@@ -1348,6 +1355,13 @@ static int __init early_enable_mipi_sensor(char *p)
 }
 early_param("mipi_sensor", early_enable_mipi_sensor);
 
+static int __init early_enable_can0(char *p)
+{
+	can0_enable = 1;
+	return 0;
+}
+early_param("can0", early_enable_can0);
+
 static inline void __init mx6q_csi0_io_init(void)
 {
 	/* Camera reset */
@@ -1407,9 +1421,15 @@ static void __init mx6_board_init(void)
 
 	mxc_iomux_v3_setup_multiple_pads(mx6q_sabreauto_i2c3_pads,
 			ARRAY_SIZE(mx6q_sabreauto_i2c3_pads));
-	if (!uart2_en)
-		mxc_iomux_v3_setup_multiple_pads(mx6q_sabreauto_can_pads,
-			ARRAY_SIZE(mx6q_sabreauto_can_pads));
+	if (!uart2_en) {
+		if (can0_enable) {
+			mxc_iomux_v3_setup_multiple_pads(
+				mx6q_sabreauto_can0_pads,
+				ARRAY_SIZE(mx6q_sabreauto_can0_pads));
+		}
+		mxc_iomux_v3_setup_multiple_pads(mx6q_sabreauto_can1_pads,
+			ARRAY_SIZE(mx6q_sabreauto_can1_pads));
+	}
 
 	/* assert i2c-rst  */
 	gpio_request(MX6Q_SABREAUTO_I2C_EXP_RST, "i2c-rst");
@@ -1466,7 +1486,7 @@ static void __init mx6_board_init(void)
 
 	imx6q_add_anatop_thermal_imx(1, &mx6q_sabreauto_anatop_thermal_data);
 
-	if (!esai_record)
+	if (!esai_record && !can0_enable)
 		imx6_init_fec(fec_data);
 
 	imx6q_add_pm_imx(0, &mx6q_sabreauto_pm_data);
@@ -1526,9 +1546,9 @@ static void __init mx6_board_init(void)
 	imx6q_add_spdif_dai();
 	imx6q_add_spdif_audio_device();
 
-	imx6q_add_flexcan0(&mx6q_sabreauto_flexcan_pdata[0]);
+	if (can0_enable)
+		imx6q_add_flexcan0(&mx6q_sabreauto_flexcan_pdata[0]);
 	imx6q_add_flexcan1(&mx6q_sabreauto_flexcan_pdata[1]);
-
 	imx6q_add_hdmi_soc();
 	imx6q_add_hdmi_soc_dai();
 }
