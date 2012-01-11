@@ -1404,8 +1404,14 @@ static void mxc_hdmi_phy_disable(struct mxc_hdmi *hdmi)
 	if (!hdmi->phy_enabled)
 		return;
 
+	/* Setting PHY to reset status */
+	hdmi_writeb(HDMI_MC_PHYRSTZ_DEASSERT, HDMI_MC_PHYRSTZ);
+
+	/* Power down PHY */
 	mxc_hdmi_phy_enable_tmds(0);
 	mxc_hdmi_phy_enable_power(0);
+	mxc_hdmi_phy_gen2_txpwron(0);
+	mxc_hdmi_phy_gen2_pddq(1);
 
 	hdmi->phy_enabled = false;
 	dev_dbg(&hdmi->pdev->dev, "%s - exit\n", __func__);
@@ -2054,10 +2060,13 @@ static int mxc_hdmi_fb_event(struct notifier_block *nb,
 			dev_dbg(&hdmi->pdev->dev,
 				"event=FB_EVENT_BLANK - UNBLANK\n");
 			mxc_hdmi_enable_pins(hdmi);
+			if (hdmi->fb_reg && hdmi->cable_plugin)
+				mxc_hdmi_setup(hdmi);
 		} else {
 			dev_dbg(&hdmi->pdev->dev,
 				"event=FB_EVENT_BLANK - BLANK\n");
 			mxc_hdmi_disable_pins(hdmi);
+			mxc_hdmi_phy_disable(hdmi);
 		}
 		break;
 	}
