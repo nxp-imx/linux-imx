@@ -428,8 +428,8 @@ static inline void mx6q_sabrelite_init_uart(void)
 
 static int mx6q_sabrelite_fec_phy_init(struct phy_device *phydev)
 {
-	/* prefer master mode, 1000 Base-T capable */
-	phy_write(phydev, 0x9, 0x0f00);
+	/* prefer master mode, disable 1000 Base-T capable */
+	phy_write(phydev, 0x9, 0x1c00);
 
 	/* min rx data delay */
 	phy_write(phydev, 0x0b, 0x8105);
