@@ -1,5 +1,5 @@
 /*
- * Copyright 2005-2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2005-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -41,6 +41,8 @@
 #include "ipu_prv.h"
 #include "ipu_regs.h"
 #include "ipu_param_mem.h"
+
+#undef TIME_CALC
 
 /* Strucutures and variables for exporting MXC IPU as device*/
 typedef enum {
@@ -1262,6 +1264,13 @@ int ipu_queue_task(struct ipu_task *task)
 	struct ipu_task_entry *tsk;
 	int ret;
 	u32 tmp_task_no;
+#ifdef TIME_CALC
+	struct timespec begin;
+	struct timespec end;
+	long time_per_frame;
+
+	getnstimeofday(&begin);
+#endif
 
 	tsk = create_task_entry(task);
 	if (IS_ERR(tsk))
@@ -1279,6 +1288,17 @@ int ipu_queue_task(struct ipu_task *task)
 		ret = queue_split_task(tsk);
 	else
 		ret = queue_task(tsk);
+
+#ifdef TIME_CALC
+	getnstimeofday(&end);
+	if (end.tv_sec > begin.tv_sec) {
+		time_per_frame = (end.tv_sec - begin.tv_sec) * NSEC_PER_SEC;
+		time_per_frame += end.tv_nsec;
+	} else
+		time_per_frame = end.tv_nsec;
+	time_per_frame -= begin.tv_nsec;
+	dev_info(tsk->dev, "task take time %ld us\n", time_per_frame/1000);
+#endif
 done:
 	kfree(tsk);
 	return ret;
