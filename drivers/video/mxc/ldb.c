@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2012 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -84,16 +84,19 @@ struct ldb_data {
 	uint32_t *reg;
 	uint32_t *control_reg;
 	uint32_t *gpr3_reg;
+	uint32_t control_reg_data;
 	struct regulator *lvds_bg_reg;
 	int mode;
 	bool inited;
-	struct clk *di_clk[2];
-	struct clk *ldb_di_clk[2];
 	struct ldb_setting {
+		struct clk *di_clk;
+		struct clk *ldb_di_clk;
 		bool active;
 		bool clk_en;
 		int ipu;
 		int di;
+		uint32_t ch_mask;
+		uint32_t ch_val;
 	} setting[2];
 	struct notifier_block nb;
 };
@@ -211,7 +214,7 @@ static int find_ldb_setting(struct ldb_data *ldb, struct fb_info *fbi)
 
 static int ldb_disp_setup(struct mxc_dispdrv_handle *disp, struct fb_info *fbi)
 {
-	uint32_t reg;
+	uint32_t reg, val;
 	uint32_t pixel_clk, rounded_pixel_clk;
 	struct clk *ldb_clk_parent;
 	struct ldb_data *ldb = mxc_dispdrv_getdata(disp);
@@ -222,6 +225,11 @@ static int ldb_disp_setup(struct mxc_dispdrv_handle *disp, struct fb_info *fbi)
 		return setting_idx;
 
 	di = ldb->setting[setting_idx].di;
+
+	/* restore channel mode setting */
+	val = readl(ldb->control_reg);
+	val |= ldb->setting[setting_idx].ch_val;
+	writel(val, ldb->control_reg);
 
 	/* vsync setup */
 	reg = readl(ldb->control_reg);
@@ -243,17 +251,20 @@ static int ldb_disp_setup(struct mxc_dispdrv_handle *disp, struct fb_info *fbi)
 	writel(reg, ldb->control_reg);
 
 	/* clk setup */
+	if (ldb->setting[setting_idx].clk_en)
+		clk_disable(ldb->setting[setting_idx].ldb_di_clk);
 	pixel_clk = (PICOS2KHZ(fbi->var.pixclock)) * 1000UL;
-	ldb_clk_parent = clk_get_parent(ldb->ldb_di_clk[di]);
+	ldb_clk_parent = clk_get_parent(ldb->setting[setting_idx].ldb_di_clk);
 	if ((ldb->mode == LDB_SPL_DI0) || (ldb->mode == LDB_SPL_DI1))
 		clk_set_rate(ldb_clk_parent, pixel_clk * 7 / 2);
 	else
 		clk_set_rate(ldb_clk_parent, pixel_clk * 7);
-	rounded_pixel_clk = clk_round_rate(ldb->ldb_di_clk[di],
+	rounded_pixel_clk = clk_round_rate(ldb->setting[setting_idx].ldb_di_clk,
 			pixel_clk);
-	clk_set_rate(ldb->ldb_di_clk[di], rounded_pixel_clk);
-	clk_enable(ldb->ldb_di_clk[di]);
-	ldb->setting[setting_idx].clk_en = true;
+	clk_set_rate(ldb->setting[setting_idx].ldb_di_clk, rounded_pixel_clk);
+	clk_enable(ldb->setting[setting_idx].ldb_di_clk);
+	if (!ldb->setting[setting_idx].clk_en)
+		ldb->setting[setting_idx].clk_en = true;
 
 	return 0;
 }
@@ -263,13 +274,12 @@ int ldb_fb_event(struct notifier_block *nb, unsigned long val, void *v)
 	struct ldb_data *ldb = container_of(nb, struct ldb_data, nb);
 	struct fb_event *event = v;
 	struct fb_info *fbi = event->info;
-	int setting_idx, di;
+	int index;
+	uint32_t data;
 
-	setting_idx = find_ldb_setting(ldb, fbi);
-	if (setting_idx < 0)
+	index = find_ldb_setting(ldb, fbi);
+	if (index < 0)
 		return 0;
-
-	di = ldb->setting[setting_idx].di;
 
 	fbi->mode = (struct fb_videomode *)fb_match_mode(&fbi->var,
 			&fbi->modelist);
@@ -278,9 +288,12 @@ int ldb_fb_event(struct notifier_block *nb, unsigned long val, void *v)
 		dev_warn(&ldb->pdev->dev,
 				"LDB: can not find mode for xres=%d, yres=%d\n",
 				fbi->var.xres, fbi->var.yres);
-		if (ldb->setting[setting_idx].clk_en) {
-			clk_disable(ldb->ldb_di_clk[di]);
-			ldb->setting[setting_idx].clk_en = false;
+		if (ldb->setting[index].clk_en) {
+			clk_disable(ldb->setting[index].ldb_di_clk);
+			ldb->setting[index].clk_en = false;
+			data = readl(ldb->control_reg);
+			data &= ~ldb->setting[index].ch_mask;
+			writel(data, ldb->control_reg);
 		}
 		return 0;
 	}
@@ -289,14 +302,17 @@ int ldb_fb_event(struct notifier_block *nb, unsigned long val, void *v)
 	case FB_EVENT_BLANK:
 	{
 		if (*((int *)event->data) == FB_BLANK_UNBLANK) {
-			if (!ldb->setting[setting_idx].clk_en) {
-				clk_enable(ldb->ldb_di_clk[di]);
-				ldb->setting[setting_idx].clk_en = true;
+			if (!ldb->setting[index].clk_en) {
+				clk_enable(ldb->setting[index].ldb_di_clk);
+				ldb->setting[index].clk_en = true;
 			}
 		} else {
-			if (ldb->setting[setting_idx].clk_en) {
-				clk_disable(ldb->ldb_di_clk[di]);
-				ldb->setting[setting_idx].clk_en = false;
+			if (ldb->setting[index].clk_en) {
+				clk_disable(ldb->setting[index].ldb_di_clk);
+				ldb->setting[index].clk_en = false;
+				data = readl(ldb->control_reg);
+				data &= ~ldb->setting[index].ch_mask;
+				writel(data, ldb->control_reg);
 			}
 		}
 	}
@@ -306,67 +322,38 @@ int ldb_fb_event(struct notifier_block *nb, unsigned long val, void *v)
 	return 0;
 }
 
-#define LVDS0_MUX_CTL_MASK	(3 << 6)
-#define LVDS1_MUX_CTL_MASK	(3 << 8)
+#define LVDS_MUX_CTL_WIDTH	2
+#define LVDS_MUX_CTL_MASK	3
 #define LVDS0_MUX_CTL_OFFS	6
 #define LVDS1_MUX_CTL_OFFS	8
-#define ROUTE_IPU0_DI0		0
-#define ROUTE_IPU0_DI1		1
-#define ROUTE_IPU1_DI0		2
-#define ROUTE_IPU1_DI1		3
+#define LVDS0_MUX_CTL_MASK	(LVDS_MUX_CTL_MASK << 6)
+#define LVDS1_MUX_CTL_MASK	(LVDS_MUX_CTL_MASK << 8)
+#define ROUTE_IPU_DI(ipu, di)	(((ipu << 1) | di) & LVDS_MUX_CTL_MASK)
 static int ldb_ipu_ldb_route(int ipu, int di, struct ldb_data *ldb)
 {
 	uint32_t reg;
+	int channel;
+	int shift;
 	int mode = ldb->mode;
 
 	reg = readl(ldb->gpr3_reg);
-	if ((mode == LDB_SPL_DI0) || (mode == LDB_DUL_DI0)) {
+	if (mode < LDB_SIN0) {
 		reg &= ~(LVDS0_MUX_CTL_MASK | LVDS1_MUX_CTL_MASK);
-		if (ipu == 0)
-			reg |= (ROUTE_IPU0_DI0 << LVDS0_MUX_CTL_OFFS) |
-				(ROUTE_IPU0_DI0 << LVDS1_MUX_CTL_OFFS);
-		else
-			reg |= (ROUTE_IPU1_DI0 << LVDS0_MUX_CTL_OFFS) |
-				(ROUTE_IPU1_DI0 << LVDS1_MUX_CTL_OFFS);
+		reg |= (ROUTE_IPU_DI(ipu, di) << LVDS0_MUX_CTL_OFFS) |
+			(ROUTE_IPU_DI(ipu, di) << LVDS1_MUX_CTL_OFFS);
 		dev_dbg(&ldb->pdev->dev,
-			"Dual/Split mode both channels route to IPU%d-DI0\n", ipu);
-	} else if ((mode == LDB_SPL_DI1) || (mode == LDB_DUL_DI1)) {
+			"Dual/Split mode both channels route to IPU%d-DI%d\n",
+			ipu, di);
+	} else if ((mode == LDB_SIN0) || (mode == LDB_SIN1)) {
 		reg &= ~(LVDS0_MUX_CTL_MASK | LVDS1_MUX_CTL_MASK);
-		if (ipu == 0)
-			reg |= (ROUTE_IPU0_DI1 << LVDS0_MUX_CTL_OFFS) |
-				(ROUTE_IPU0_DI1 << LVDS1_MUX_CTL_OFFS);
-		else
-			reg |= (ROUTE_IPU1_DI1 << LVDS0_MUX_CTL_OFFS) |
-				(ROUTE_IPU1_DI1 << LVDS1_MUX_CTL_OFFS);
+		channel = mode - LDB_SIN0;
+		shift = LVDS0_MUX_CTL_OFFS + channel * LVDS_MUX_CTL_WIDTH;
+		reg |= ROUTE_IPU_DI(ipu, di) << shift;
 		dev_dbg(&ldb->pdev->dev,
-			"Dual/Split mode both channels route to IPU%d-DI1\n", ipu);
-	} else if (mode == LDB_SIN0) {
-		reg &= ~LVDS0_MUX_CTL_MASK;
-		if ((ipu == 0) && (di == 0))
-			reg |= ROUTE_IPU0_DI0 << LVDS0_MUX_CTL_OFFS;
-		else if ((ipu == 0) && (di == 1))
-			reg |= ROUTE_IPU0_DI1 << LVDS0_MUX_CTL_OFFS;
-		else if ((ipu == 1) && (di == 0))
-			reg |= ROUTE_IPU1_DI0 << LVDS0_MUX_CTL_OFFS;
-		else
-			reg |= ROUTE_IPU1_DI1 << LVDS0_MUX_CTL_OFFS;
-		dev_dbg(&ldb->pdev->dev,
-			"Single mode channel 0 route to IPU%d-DI%d\n", ipu, di);
-	} else if (mode == LDB_SIN1) {
-		reg &= ~LVDS1_MUX_CTL_MASK;
-		if ((ipu == 0) && (di == 0))
-			reg |= ROUTE_IPU0_DI0 << LVDS1_MUX_CTL_OFFS;
-		else if ((ipu == 0) && (di == 1))
-			reg |= ROUTE_IPU0_DI1 << LVDS1_MUX_CTL_OFFS;
-		else if ((ipu == 1) && (di == 0))
-			reg |= ROUTE_IPU1_DI0 << LVDS1_MUX_CTL_OFFS;
-		else
-			reg |= ROUTE_IPU1_DI1 << LVDS1_MUX_CTL_OFFS;
-		dev_dbg(&ldb->pdev->dev,
-			"Single mode channel 1 route to IPU%d-DI%d\n", ipu, di);
+			"Single mode channel %d route to IPU%d-DI%d\n",
+				channel, ipu, di);
 	} else {
 		static bool first = true;
-		int channel;
 
 		if (first) {
 			if (mode == LDB_SEP0) {
@@ -387,29 +374,12 @@ static int ldb_ipu_ldb_route(int ipu, int di, struct ldb_data *ldb)
 			}
 		}
 
-		if ((ipu == 0) && (di == 0)) {
-			if (channel == 0)
-				reg |= ROUTE_IPU0_DI0 << LVDS0_MUX_CTL_OFFS;
-			else
-				reg |= ROUTE_IPU0_DI0 << LVDS1_MUX_CTL_OFFS;
-		} else if ((ipu == 0) && (di == 1)) {
-			if (channel == 0)
-				reg |= ROUTE_IPU0_DI1 << LVDS0_MUX_CTL_OFFS;
-			else
-				reg |= ROUTE_IPU0_DI1 << LVDS1_MUX_CTL_OFFS;
-		} else if ((ipu == 1) && (di == 0)) {
-			if (channel == 0)
-				reg |= ROUTE_IPU1_DI0 << LVDS0_MUX_CTL_OFFS;
-			else
-				reg |= ROUTE_IPU1_DI0 << LVDS1_MUX_CTL_OFFS;
-		} else {
-			if (channel == 0)
-				reg |= ROUTE_IPU1_DI1 << LVDS0_MUX_CTL_OFFS;
-			else
-				reg |= ROUTE_IPU1_DI1 << LVDS1_MUX_CTL_OFFS;
-		}
+		shift = LVDS0_MUX_CTL_OFFS + channel * LVDS_MUX_CTL_WIDTH;
+		reg |= ROUTE_IPU_DI(ipu, di) << shift;
 
-		dev_dbg(&ldb->pdev->dev, "Separate mode channel %d route to IPU%d-DI%d\n", channel, ipu, di);
+		dev_dbg(&ldb->pdev->dev,
+			"Separate mode channel %d route to IPU%d-DI%d\n",
+			channel, ipu, di);
 	}
 	writel(reg, ldb->gpr3_reg);
 
@@ -425,6 +395,7 @@ static int ldb_disp_init(struct mxc_dispdrv_handle *disp,
 	struct resource *res;
 	uint32_t base_addr;
 	uint32_t reg, setting_idx;
+	uint32_t ch_mask = 0, ch_val = 0;
 
 	/* if input format not valid, make RGB666 as default*/
 	if (!valid_mode(setting->if_fmt)) {
@@ -438,6 +409,7 @@ static int ldb_disp_init(struct mxc_dispdrv_handle *disp,
 		char ldb_clk[] = "ldb_di0_clk";
 		int lvds_channel = 0;
 
+		setting_idx = 0;
 		res = platform_get_resource(ldb->pdev, IORESOURCE_MEM, 0);
 		if (IS_ERR(res))
 			return -ENOMEM;
@@ -506,6 +478,8 @@ static int ldb_disp_init(struct mxc_dispdrv_handle *disp,
 				reg |= LDB_CH0_MODE_EN_TO_DI0;
 			else
 				reg |= LDB_CH0_MODE_EN_TO_DI1;
+			ch_mask = LDB_CH0_MODE_MASK;
+			ch_val = reg & LDB_CH0_MODE_MASK;
 		} else if (ldb->mode == LDB_SIN1) {
 			reg &= ~LDB_SPLIT_MODE_EN;
 			setting->disp_id = plat_data->disp_id;
@@ -513,6 +487,8 @@ static int ldb_disp_init(struct mxc_dispdrv_handle *disp,
 				reg |= LDB_CH1_MODE_EN_TO_DI0;
 			else
 				reg |= LDB_CH1_MODE_EN_TO_DI1;
+			ch_mask = LDB_CH1_MODE_MASK;
+			ch_val = reg & LDB_CH1_MODE_MASK;
 		} else { /* separate mode*/
 			setting->disp_id = plat_data->disp_id;
 
@@ -532,6 +508,9 @@ static int ldb_disp_init(struct mxc_dispdrv_handle *disp,
 				reg |= LDB_CH1_MODE_EN_TO_DI0;
 			else
 				reg |= LDB_CH1_MODE_EN_TO_DI1;
+			ch_mask = lvds_channel ? LDB_CH1_MODE_MASK :
+					LDB_CH0_MODE_MASK;
+			ch_val = reg & ch_mask;
 
 			if (bits_per_pixel(setting->if_fmt) == 24) {
 				if (lvds_channel == 0)
@@ -547,6 +526,10 @@ static int ldb_disp_init(struct mxc_dispdrv_handle *disp,
 		}
 
 		writel(reg, ldb->control_reg);
+		if (ldb->mode <  LDB_SIN0) {
+			ch_mask = LDB_CH0_MODE_MASK | LDB_CH1_MODE_MASK;
+			ch_val = reg & (LDB_CH0_MODE_MASK | LDB_CH1_MODE_MASK);
+		}
 
 		/* clock setting */
 		if (cpu_is_mx6q() &&
@@ -554,19 +537,21 @@ static int ldb_disp_init(struct mxc_dispdrv_handle *disp,
 			ldb_clk[6] += lvds_channel;
 		else
 			ldb_clk[6] += setting->disp_id;
-		ldb->ldb_di_clk[0] = clk_get(&ldb->pdev->dev, ldb_clk);
-		if (IS_ERR(ldb->ldb_di_clk[0])) {
+		ldb->setting[setting_idx].ldb_di_clk = clk_get(&ldb->pdev->dev,
+								ldb_clk);
+		if (IS_ERR(ldb->setting[setting_idx].ldb_di_clk)) {
 			dev_err(&ldb->pdev->dev, "get ldb clk0 failed\n");
 			iounmap(ldb->reg);
-			return PTR_ERR(ldb->ldb_di_clk[0]);
+			return PTR_ERR(ldb->setting[setting_idx].ldb_di_clk);
 		}
 		di_clk[3] += setting->dev_id;
 		di_clk[7] += setting->disp_id;
-		ldb->di_clk[0] = clk_get(&ldb->pdev->dev, di_clk);
-		if (IS_ERR(ldb->di_clk[0])) {
+		ldb->setting[setting_idx].di_clk = clk_get(&ldb->pdev->dev,
+								di_clk);
+		if (IS_ERR(ldb->setting[setting_idx].di_clk)) {
 			dev_err(&ldb->pdev->dev, "get di clk0 failed\n");
 			iounmap(ldb->reg);
-			return PTR_ERR(ldb->di_clk[0]);
+			return PTR_ERR(ldb->setting[setting_idx].di_clk);
 		}
 
 		dev_dbg(&ldb->pdev->dev, "ldb_clk to di clk: %s -> %s\n", ldb_clk, di_clk);
@@ -579,7 +564,6 @@ static int ldb_disp_init(struct mxc_dispdrv_handle *disp,
 			return ret;
 		}
 
-		setting_idx = 0;
 		ldb->inited = true;
 	} else { /* second time for separate mode */
 		char di_clk[] = "ipu1_di0_clk";
@@ -597,12 +581,18 @@ static int ldb_disp_init(struct mxc_dispdrv_handle *disp,
 			return -EINVAL;
 		}
 
+		setting_idx = 1;
 		if (cpu_is_mx6q()) {
 			setting->dev_id = plat_data->sec_ipu_id;
 			setting->disp_id = plat_data->sec_disp_id;
 		} else {
 			setting->dev_id = plat_data->ipu_id;
 			setting->disp_id = !plat_data->disp_id;
+		}
+		if (setting->disp_id == ldb->setting[0].di) {
+			dev_err(&ldb->pdev->dev, "Err: for second ldb disp in"
+				"separate mode, DI should be different!\n");
+			return -EINVAL;
 		}
 
 		/* second output is LVDS0 or LVDS1 */
@@ -620,6 +610,9 @@ static int ldb_disp_init(struct mxc_dispdrv_handle *disp,
 			reg |= LDB_CH1_MODE_EN_TO_DI0;
 		else
 			reg |= LDB_CH1_MODE_EN_TO_DI1;
+		ch_mask = lvds_channel ?  LDB_CH1_MODE_MASK :
+				LDB_CH0_MODE_MASK;
+		ch_val = reg & ch_mask;
 
 		if (bits_per_pixel(setting->if_fmt) == 24) {
 			if (lvds_channel == 0)
@@ -639,29 +632,38 @@ static int ldb_disp_init(struct mxc_dispdrv_handle *disp,
 			ldb_clk[6] += lvds_channel;
 		else
 			ldb_clk[6] += setting->disp_id;
-		ldb->ldb_di_clk[1] = clk_get(&ldb->pdev->dev, ldb_clk);
-		if (IS_ERR(ldb->ldb_di_clk[1])) {
+		ldb->setting[setting_idx].ldb_di_clk = clk_get(&ldb->pdev->dev,
+								ldb_clk);
+		if (IS_ERR(ldb->setting[setting_idx].ldb_di_clk)) {
 			dev_err(&ldb->pdev->dev, "get ldb clk1 failed\n");
-			return PTR_ERR(ldb->ldb_di_clk[1]);
+			return PTR_ERR(ldb->setting[setting_idx].ldb_di_clk);
 		}
 		di_clk[3] += setting->dev_id;
 		di_clk[7] += setting->disp_id;
-		ldb->di_clk[1] = clk_get(&ldb->pdev->dev, di_clk);
-		if (IS_ERR(ldb->di_clk[1])) {
+		ldb->setting[setting_idx].di_clk = clk_get(&ldb->pdev->dev,
+								di_clk);
+		if (IS_ERR(ldb->setting[setting_idx].di_clk)) {
 			dev_err(&ldb->pdev->dev, "get di clk1 failed\n");
-			return PTR_ERR(ldb->di_clk[1]);
+			return PTR_ERR(ldb->setting[setting_idx].di_clk);
 		}
 
 		dev_dbg(&ldb->pdev->dev, "ldb_clk to di clk: %s -> %s\n", ldb_clk, di_clk);
-
-		setting_idx = 1;
 	}
 
+	ldb->setting[setting_idx].ch_mask = ch_mask;
+	ldb->setting[setting_idx].ch_val = ch_val;
+
 	if (cpu_is_mx6q()) {
-		reg = readl(ldb->control_reg);
-		reg &= ~(LDB_CH0_MODE_MASK | LDB_CH1_MODE_MASK);
-		reg |= LDB_CH0_MODE_EN_TO_DI0 | LDB_CH1_MODE_EN_TO_DI1;
-		writel(reg, ldb->control_reg);
+		if ((ldb->mode == LDB_SEP0) || (ldb->mode == LDB_SEP1)) {
+			reg = readl(ldb->control_reg);
+			reg &= ~(LDB_CH0_MODE_MASK | LDB_CH1_MODE_MASK);
+			reg |= LDB_CH0_MODE_EN_TO_DI0 | LDB_CH1_MODE_EN_TO_DI1;
+			writel(reg, ldb->control_reg);
+			ldb->setting[setting_idx].ch_mask = setting->disp_id ?
+					LDB_CH1_MODE_MASK : LDB_CH0_MODE_MASK;
+			ldb->setting[setting_idx].ch_val = setting->disp_id ?
+				LDB_CH1_MODE_EN_TO_DI1 : LDB_CH0_MODE_EN_TO_DI0;
+		}
 		ldb_ipu_ldb_route(setting->dev_id, setting->disp_id, ldb);
 	}
 
@@ -669,8 +671,8 @@ static int ldb_disp_init(struct mxc_dispdrv_handle *disp,
 	 * ldb_di0_clk -> ipux_di0_clk
 	 * ldb_di1_clk -> ipux_di1_clk
 	 */
-	clk_set_parent(ldb->di_clk[setting_idx],
-			ldb->ldb_di_clk[setting_idx]);
+	clk_set_parent(ldb->setting[setting_idx].di_clk,
+			ldb->setting[setting_idx].ldb_di_clk);
 
 	/* must use spec video mode defined by driver */
 	ret = fb_find_mode(&setting->fbi->var, setting->fbi, setting->dft_mode_str,
@@ -705,8 +707,8 @@ static void ldb_disp_deinit(struct mxc_dispdrv_handle *disp)
 	writel(0, ldb->control_reg);
 
 	for (i = 0; i < 2; i++) {
-		clk_disable(ldb->ldb_di_clk[i]);
-		clk_put(ldb->ldb_di_clk[i]);
+		clk_disable(ldb->setting[i].ldb_di_clk);
+		clk_put(ldb->setting[i].ldb_di_clk);
 	}
 
 	fb_unregister_client(&ldb->nb);
@@ -721,6 +723,27 @@ static struct mxc_dispdrv_driver ldb_drv = {
 	.setup = ldb_disp_setup,
 };
 
+static int ldb_suspend(struct platform_device *pdev, pm_message_t state)
+{
+	struct ldb_data *ldb = dev_get_drvdata(&pdev->dev);
+	uint32_t	data;
+
+	data = readl(ldb->control_reg);
+	ldb->control_reg_data = data;
+	data &= ~(LDB_CH0_MODE_MASK | LDB_CH1_MODE_MASK);
+	writel(data, ldb->control_reg);
+
+	return 0;
+}
+
+static int ldb_resume(struct platform_device *pdev)
+{
+	struct ldb_data *ldb = dev_get_drvdata(&pdev->dev);
+
+	writel(ldb->control_reg_data, ldb->control_reg);
+
+	return 0;
+}
 /*!
  * This function is called by the driver framework to initialize the LDB
  * device.
@@ -767,6 +790,8 @@ static struct platform_driver mxcldb_driver = {
 		   },
 	.probe = ldb_probe,
 	.remove = ldb_remove,
+	.suspend = ldb_suspend,
+	.resume = ldb_resume,
 };
 
 static int __init ldb_init(void)
