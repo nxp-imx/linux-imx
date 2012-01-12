@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2004-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -60,8 +60,9 @@ struct vpu_mem_desc {
 
 #define BIT_CODE_RUN			0x000
 #define BIT_CODE_DOWN			0x004
-#define	BIT_INT_CLEAR			0x00C
-#define	BIT_INT_STATUS			0x010
+#define BIT_INT_CLEAR			0x00C
+#define BIT_INT_STATUS			0x010
+#define BIT_CUR_PC			0x018
 #define BIT_INT_REASON			0x174
 
 #define MJPEG_PIC_STATUS_REG		0x3004
