@@ -779,6 +779,10 @@ static struct i2c_board_info mxc_i2c2_board_info[] __initdata = {
 		.platform_data = &max7310_u39_platdata,
 	},
 	{
+		I2C_BOARD_INFO("max7310", 0x34),
+		.platform_data = &max7310_u43_platdata,
+	},
+	{
 		I2C_BOARD_INFO("adv7180", 0x21),
 		.platform_data = (void *)&adv7180_data,
 	},
