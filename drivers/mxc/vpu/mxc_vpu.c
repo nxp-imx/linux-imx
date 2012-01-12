@@ -1,5 +1,5 @@
 /*
- * Copyright 2006-2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2006-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -90,11 +90,6 @@ static int irq_status;
 static int codec_done;
 static wait_queue_head_t vpu_queue;
 
-static u32 workctrl_regsave[6];
-static u32 rd_ptr_regsave[4];
-static u32 wr_ptr_regsave[4];
-static u32 dis_flag_regsave[4];
-
 #ifdef CONFIG_SOC_IMX6Q
 #define MXC_VPU_HAS_JPU
 #endif
@@ -103,54 +98,10 @@ static u32 dis_flag_regsave[4];
 static int vpu_jpu_irq;
 #endif
 
+static unsigned int regBk[64];
+
 #define	READ_REG(x)		__raw_readl(vpu_base + x)
 #define	WRITE_REG(val, x)	__raw_writel(val, vpu_base + x)
-#define	SAVE_WORK_REGS	do {					\
-	int i;							\
-	for (i = 0; i < ARRAY_SIZE(workctrl_regsave)/2; i++)	\
-		workctrl_regsave[i] = READ_REG(BIT_WORK_CTRL_BUF_REG(i));\
-} while (0)
-#define	RESTORE_WORK_REGS	do {				\
-	int i;							\
-	for (i = 0; i < ARRAY_SIZE(workctrl_regsave)/2; i++)	\
-		WRITE_REG(workctrl_regsave[i], BIT_WORK_CTRL_BUF_REG(i));\
-} while (0)
-#define	SAVE_CTRL_REGS	do {					\
-	int i;							\
-	for (i = ARRAY_SIZE(workctrl_regsave)/2;		\
-			i < ARRAY_SIZE(workctrl_regsave); i++)		\
-		workctrl_regsave[i] = READ_REG(BIT_WORK_CTRL_BUF_REG(i));\
-} while (0)
-#define	RESTORE_CTRL_REGS	do {				\
-	int i;							\
-	for (i = ARRAY_SIZE(workctrl_regsave)/2;		\
-			i < ARRAY_SIZE(workctrl_regsave); i++)		\
-		WRITE_REG(workctrl_regsave[i], BIT_WORK_CTRL_BUF_REG(i));\
-} while (0)
-#define	SAVE_RDWR_PTR_REGS	do {					\
-	int i;								\
-	for (i = 0; i < ARRAY_SIZE(rd_ptr_regsave); i++)		\
-		rd_ptr_regsave[i] = READ_REG(BIT_RD_PTR_REG(i));	\
-	for (i = 0; i < ARRAY_SIZE(wr_ptr_regsave); i++)		\
-		wr_ptr_regsave[i] = READ_REG(BIT_WR_PTR_REG(i));	\
-} while (0)
-#define	RESTORE_RDWR_PTR_REGS	do {					\
-	int i;								\
-	for (i = 0; i < ARRAY_SIZE(rd_ptr_regsave); i++)		\
-		WRITE_REG(rd_ptr_regsave[i], BIT_RD_PTR_REG(i));	\
-	for (i = 0; i < ARRAY_SIZE(wr_ptr_regsave); i++)		\
-		WRITE_REG(wr_ptr_regsave[i], BIT_WR_PTR_REG(i));	\
-} while (0)
-#define	SAVE_DIS_FLAG_REGS	do {					\
-	int i;								\
-	for (i = 0; i < ARRAY_SIZE(dis_flag_regsave); i++)		\
-		dis_flag_regsave[i] = READ_REG(BIT_FRM_DIS_FLG_REG(i));	\
-} while (0)
-#define	RESTORE_DIS_FLAG_REGS	do {					\
-	int i;								\
-	for (i = 0; i < ARRAY_SIZE(dis_flag_regsave); i++)		\
-		WRITE_REG(dis_flag_regsave[i], BIT_FRM_DIS_FLG_REG(i));	\
-} while (0)
 
 /*!
  * Private function to alloc dma buffer
@@ -772,23 +723,18 @@ static int vpu_suspend(struct platform_device *pdev, pm_message_t state)
 	for (i = 0; i < vpu_clk_usercount; i++)
 		clk_disable(vpu_clk);
 
-	if (cpu_is_mx51()) {
-		clk_enable(vpu_clk);
-		if (bitwork_mem.cpu_addr != 0) {
-			SAVE_WORK_REGS;
-			SAVE_CTRL_REGS;
-			SAVE_RDWR_PTR_REGS;
-			SAVE_DIS_FLAG_REGS;
+	if (cpu_is_mx53())
+		return 0;
 
-			WRITE_REG(0x1, BIT_BUSY_FLAG);
-			WRITE_REG(VPU_SLEEP_REG_VALUE, BIT_RUN_COMMAND);
-			while (READ_REG(BIT_BUSY_FLAG))
-				;
-		}
+	if (bitwork_mem.cpu_addr != 0) {
+		clk_enable(vpu_clk);
+		/* Save 64 registers from BIT_CODE_BUF_ADDR */
+		for (i = 0; i < 64; i++)
+			regBk[i] = READ_REG(BIT_CODE_BUF_ADDR + (i * 4));
 		clk_disable(vpu_clk);
 	}
 
-	if (cpu_is_mx51() && vpu_plat->pg)
+	if (vpu_plat->pg)
 		vpu_plat->pg(1);
 
 	return 0;
@@ -803,20 +749,29 @@ static int vpu_resume(struct platform_device *pdev)
 {
 	int i;
 
-	if (!cpu_is_mx51())
+	if (cpu_is_mx53())
 		goto recover_clk;
 
 	if (vpu_plat->pg)
 		vpu_plat->pg(0);
 
-	clk_enable(vpu_clk);
 	if (bitwork_mem.cpu_addr != 0) {
 		u32 *p = (u32 *) bitwork_mem.cpu_addr;
-		u32 data;
+		u32 data, pc;
 		u16 data_hi;
 		u16 data_lo;
 
-		RESTORE_WORK_REGS;
+		clk_enable(vpu_clk);
+
+		pc = READ_REG(BIT_CUR_PC);
+		if (pc) {
+			clk_disable(vpu_clk);
+			goto recover_clk;
+		}
+
+		/* Restore registers */
+		for (i = 0; i < 64; i++)
+			WRITE_REG(regBk[i], BIT_CODE_BUF_ADDR + (i * 4));
 
 		WRITE_REG(0x0, BIT_RESET_CTRL);
 		WRITE_REG(0x0, BIT_CODE_RUN);
@@ -842,24 +797,12 @@ static int vpu_resume(struct platform_device *pdev)
 				  BIT_CODE_DOWN);
 		}
 
-		RESTORE_CTRL_REGS;
-
-		WRITE_REG(BITVAL_PIC_RUN, BIT_INT_ENABLE);
-
 		WRITE_REG(0x1, BIT_BUSY_FLAG);
 		WRITE_REG(0x1, BIT_CODE_RUN);
 		while (READ_REG(BIT_BUSY_FLAG))
 			;
-
-		RESTORE_RDWR_PTR_REGS;
-		RESTORE_DIS_FLAG_REGS;
-
-		WRITE_REG(0x1, BIT_BUSY_FLAG);
-		WRITE_REG(VPU_WAKE_REG_VALUE, BIT_RUN_COMMAND);
-		while (READ_REG(BIT_BUSY_FLAG))
-			;
+		clk_disable(vpu_clk);
 	}
-	clk_disable(vpu_clk);
 
 recover_clk:
 	/* Recover vpu clock */
