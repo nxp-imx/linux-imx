@@ -272,7 +272,7 @@ static int threadRoutinePM(void *ctxt)
     {
         /* wait for idle */
         gcmkVERIFY_OK(
-            gckOS_AcquireMutex(device->os, hardware->powerOffSema, gcvINFINITE));
+            gckOS_WaitSignal(device->os, hardware->powerOffSignal, gcvINFINITE));
 
         /* We try to power off every 200 ms, until GPU is not idle */
         do
@@ -1487,7 +1487,7 @@ gckGALDEVICE_Stop_Threads(
     {
         gckHARDWARE hardware = Device->kernels[gcvCORE_MAJOR]->hardware;
         Device->killThread = gcvTRUE;
-        gckOS_ReleaseSemaphore(Device->os, hardware->powerOffSema);
+        gckOS_Signal(Device->os, hardware->powerOffSignal, gcvTRUE);
 
         kthread_stop(Device->pmThreadCtxts);
         Device->pmThreadCtxts        = gcvNULL;

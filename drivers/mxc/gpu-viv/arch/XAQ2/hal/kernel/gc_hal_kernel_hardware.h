@@ -78,7 +78,7 @@ struct _gckHARDWARE
 
 #if gcdPOWEROFF_TIMEOUT
     gctUINT32                   powerOffTime;
-    gctPOINTER                  powerOffSema;
+    gctSIGNAL                   powerOffSignal;
     gctUINT32                   powerOffTimeout;
 #endif
 };

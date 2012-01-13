@@ -510,8 +510,7 @@ gckHARDWARE_Construct(
     gcmkONERROR(gckOS_CreateSemaphore(Os, &hardware->globalSemaphore));
 
 #if gcdPOWEROFF_TIMEOUT
-    gcmkONERROR(gckOS_CreateMutex(Os, &hardware->powerOffSema));
-    gcmkONERROR(gckOS_AcquireMutex(Os, hardware->powerOffSema, gcvINFINITE));
+    gcmkONERROR(gckOS_CreateSignal(Os, gcvFALSE, &hardware->powerOffSignal));
     hardware->powerOffTimeout = gcdPOWEROFF_TIMEOUT;
 #endif
 
@@ -543,9 +542,9 @@ OnError:
         }
 
 #if gcdPOWEROFF_TIMEOUT
-        if (hardware->powerOffSema != gcvNULL)
+        if (hardware->powerOffSignal != gcvNULL)
         {
-            gcmkVERIFY_OK(gckOS_DeleteMutex(Os, &hardware->powerOffSema));
+            gcmkVERIFY_OK(gckOS_DestroySignal(Os, hardware->powerOffSignal));
         }
 #endif
 
@@ -595,7 +594,7 @@ gckHARDWARE_Destroy(
     gcmkVERIFY_OK(gckOS_DeleteMutex(Hardware->os, Hardware->powerMutex));
 
 #if gcdPOWEROFF_TIMEOUT
-    gcmkVERIFY_OK(gckOS_DeleteMutex(Hardware->os, Hardware->powerOffSema));
+    gcmkVERIFY_OK(gckOS_DestroySignal(Hardware->os, Hardware->powerOffSignal));
 #endif
 
     /* Mark the object as unknown. */
@@ -4054,7 +4053,7 @@ gckHARDWARE_SetPowerManagementState(
 
     if (State == gcvPOWER_IDLE)
     {
-        gcmkONERROR(gckOS_ReleaseMutex(os, Hardware->powerOffSema));
+        gcmkONERROR(gckOS_Signal(os, Hardware->powerOffSignal, gcvTRUE));
     }
 #endif
 
