@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2004-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -265,6 +265,7 @@ static int _setup_disp_channel2(struct fb_info *fbi)
 	if (retval) {
 		dev_err(fbi->device,
 			"ipu_init_channel_buffer error %d\n", retval);
+		return retval;
 	}
 
 	/* update u/v offset */
@@ -442,8 +443,10 @@ static int mxcfb_set_par(struct fb_info *fbi)
 	}
 
 	retval = _setup_disp_channel2(fbi);
-	if (retval)
+	if (retval) {
+		ipu_uninit_channel(mxc_fbi->ipu, mxc_fbi->ipu_ch);
 		return retval;
+	}
 
 	ipu_enable_channel(mxc_fbi->ipu, mxc_fbi->ipu_ch);
 
@@ -1174,6 +1177,7 @@ static int mxcfb_ioctl(struct fb_info *fbi, unsigned int cmd, unsigned long arg)
 static int mxcfb_blank(int blank, struct fb_info *info)
 {
 	struct mxcfb_info *mxc_fbi = (struct mxcfb_info *)info->par;
+	int ret = 0;
 
 	dev_dbg(info->device, "blank = %d\n", blank);
 
@@ -1195,11 +1199,12 @@ static int mxcfb_blank(int blank, struct fb_info *info)
 		ipu_uninit_channel(mxc_fbi->ipu, mxc_fbi->ipu_ch);
 		break;
 	case FB_BLANK_UNBLANK:
-		mxcfb_set_par(info);
+		ret = mxcfb_set_par(info);
 		break;
 	}
-	mxc_fbi->cur_blank = blank;
-	return 0;
+	if (!ret)
+		mxc_fbi->cur_blank = blank;
+	return ret;
 }
 
 /*
