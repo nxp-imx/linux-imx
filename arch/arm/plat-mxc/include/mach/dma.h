@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2004-2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2004-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -81,6 +81,8 @@ struct mxs_dma_data {
 	int chan_irq;
 };
 
+#define MXS_DMA_F_APPEND	(1 << 0)
+#define MXS_DMA_F_WAIT4END	(1 << 1)
 static inline int mxs_dma_is_apbh(struct dma_chan *chan)
 {
 	return !strcmp(dev_name(chan->device->dev), "mxs-dma-apbh");
