@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2004-2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2004-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -607,9 +607,6 @@ static int sdma_load_context(int channel, dma_channel_params *p)
 				context.per_addr = ep->per_address2;
 			iapi_IoCtl(sdma_data[channel].cd,
 				   IAPI_CHANGE_PERIPHADDR, p->per_address);
-		} else {
-			BUG(); /* Need a real address, not the beginning of RAM
-			context.wml = M3_BASE_ADDRESS; */
 		}
 
 		sdma_data[channel].transfer_type = p->transfer_type;
