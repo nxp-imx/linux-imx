@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2009-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -24,6 +24,7 @@
 #include <mach/hardware.h>
 #include <mach/device.h>
 #include <mach/irqs.h>
+#include <mach/system.h>
 
 #include "regs-icoll.h"
 
@@ -73,21 +74,7 @@ void __init avic_init_irq(void __iomem *base, int nr_irqs)
 	int i;
 	g_icoll_base = base;
 
-	/* Reset icoll */
-	__raw_writel(BM_ICOLL_CTRL_SFTRST, g_icoll_base + HW_ICOLL_CTRL_CLR);
-
-	for (i = 0; i < 100000; i++) {
-		if (!(__raw_readl(g_icoll_base + HW_ICOLL_CTRL) &
-		      BM_ICOLL_CTRL_SFTRST))
-			break;
-		udelay(2);
-	}
-	if (i >= 100000) {
-		printk(KERN_ERR "%s:%d timeout when enableing\n",
-		       __func__, __LINE__);
-		return;
-	}
-	__raw_writel(BM_ICOLL_CTRL_CLKGATE, g_icoll_base + HW_ICOLL_CTRL_CLR);
+	mxs_reset_block(base + HW_ICOLL_CTRL, 0);
 
 	for (i = 0; i < nr_irqs; i++) {
 		__raw_writel(0, g_icoll_base + HW_ICOLL_INTERRUPTn(i));
