@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2011-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * Refer to drivers/dma/imx-sdma.c
  *
@@ -381,7 +381,7 @@ static void mxs_dma_free_chan_resources(struct dma_chan *chan)
 static struct dma_async_tx_descriptor *mxs_dma_prep_slave_sg(
 		struct dma_chan *chan, struct scatterlist *sgl,
 		unsigned int sg_len, enum dma_data_direction direction,
-		unsigned long append)
+		unsigned long flags)
 {
 	struct mxs_dma_chan *mxs_chan = to_mxs_dma_chan(chan);
 	struct mxs_dma_engine *mxs_dma = mxs_chan->mxs_dma;
@@ -390,6 +390,7 @@ static struct dma_async_tx_descriptor *mxs_dma_prep_slave_sg(
 	int i, j;
 	u32 *pio;
 	static int idx;
+	bool append = flags & MXS_DMA_F_APPEND;
 
 	if (mxs_chan->status == DMA_IN_PROGRESS && !append)
 		return NULL;
@@ -415,7 +416,6 @@ static struct dma_async_tx_descriptor *mxs_dma_prep_slave_sg(
 		ccw->bits |= CCW_CHAIN;
 		ccw->bits &= ~CCW_IRQ;
 		ccw->bits &= ~CCW_DEC_SEM;
-		ccw->bits &= ~CCW_WAIT4END;
 	} else {
 		idx = 0;
 	}
@@ -430,7 +430,8 @@ static struct dma_async_tx_descriptor *mxs_dma_prep_slave_sg(
 		ccw->bits = 0;
 		ccw->bits |= CCW_IRQ;
 		ccw->bits |= CCW_DEC_SEM;
-		ccw->bits |= CCW_WAIT4END;
+		if (flags & MXS_DMA_F_WAIT4END)
+			ccw->bits |= CCW_WAIT4END;
 		ccw->bits |= CCW_HALT_ON_TERM;
 		ccw->bits |= CCW_TERM_FLUSH;
 		ccw->bits |= BF_CCW(sg_len, PIO_NUM);
@@ -461,7 +462,8 @@ static struct dma_async_tx_descriptor *mxs_dma_prep_slave_sg(
 				ccw->bits &= ~CCW_CHAIN;
 				ccw->bits |= CCW_IRQ;
 				ccw->bits |= CCW_DEC_SEM;
-				ccw->bits |= CCW_WAIT4END;
+				if (flags & MXS_DMA_F_WAIT4END)
+					ccw->bits |= CCW_WAIT4END;
 			}
 		}
 	}
