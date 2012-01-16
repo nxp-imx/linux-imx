@@ -177,7 +177,7 @@ static struct resource usbh1_wakeup_resources[] = {
 };
 
 struct platform_device mxc_usbh1_wakeup_device = {
-	.name = "usb_wakeup",
+	.name = "usb-wakeup",
 	.id   = 1,
 	.num_resources = ARRAY_SIZE(usbh1_wakeup_resources),
 	.resource = usbh1_wakeup_resources,
@@ -218,7 +218,7 @@ static struct resource usbh2_wakeup_resources[] = {
 };
 
 struct platform_device mxc_usbh2_wakeup_device = {
-	.name = "usb_wakeup",
+	.name = "usb-wakeup",
 	.id   = 2,
 	.num_resources = ARRAY_SIZE(usbh2_wakeup_resources),
 	.resource = usbh2_wakeup_resources,
