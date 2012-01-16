@@ -616,7 +616,8 @@ static int send_command(struct gpmi_nfc_data *this)
 	sg_init_one(sgl, mil->cmd_buffer, mil->command_length);
 	dma_map_sg(this->dev, sgl, 1, DMA_TO_DEVICE);
 	desc = channel->device->device_prep_slave_sg(channel,
-					sgl, 1, DMA_TO_DEVICE, 1);
+					sgl, 1, DMA_TO_DEVICE,
+					MXS_DMA_F_APPEND | MXS_DMA_F_WAIT4END);
 	if (!desc) {
 		pr_info("error");
 		return -1;
@@ -658,7 +659,8 @@ static int send_data(struct gpmi_nfc_data *this)
 	/* [2]  send DMA request */
 	prepare_data_dma(this, DMA_TO_DEVICE);
 	desc = channel->device->device_prep_slave_sg(channel, &mil->data_sgl,
-						1, DMA_TO_DEVICE, 1);
+					1, DMA_TO_DEVICE,
+					MXS_DMA_F_APPEND | MXS_DMA_F_WAIT4END);
 	if (!desc) {
 		pr_info("step 2 error");
 		return -1;
@@ -694,7 +696,8 @@ static int read_data(struct gpmi_nfc_data *this)
 	/* [2] : send DMA request */
 	prepare_data_dma(this, DMA_FROM_DEVICE);
 	desc = channel->device->device_prep_slave_sg(channel, &mil->data_sgl,
-						1, DMA_FROM_DEVICE, 1);
+					1, DMA_FROM_DEVICE,
+					MXS_DMA_F_APPEND | MXS_DMA_F_WAIT4END);
 	if (!desc) {
 		pr_info("step 2 error");
 		return -1;
@@ -753,7 +756,8 @@ static int send_page(struct gpmi_nfc_data *this,
 
 	desc = channel->device->device_prep_slave_sg(channel,
 					(struct scatterlist *)pio,
-					ARRAY_SIZE(pio), DMA_NONE, 0);
+					ARRAY_SIZE(pio), DMA_NONE,
+					MXS_DMA_F_APPEND | MXS_DMA_F_WAIT4END);
 	if (!desc) {
 		pr_info("step 2 error");
 		return -1;
@@ -826,7 +830,8 @@ static int read_page(struct gpmi_nfc_data *this,
 	pio[5] = auxiliary;
 	desc = channel->device->device_prep_slave_sg(channel,
 					(struct scatterlist *)pio,
-					ARRAY_SIZE(pio), DMA_NONE, 1);
+					ARRAY_SIZE(pio), DMA_NONE,
+					MXS_DMA_F_APPEND | MXS_DMA_F_WAIT4END);
 	if (!desc) {
 		pr_info("step 2 error");
 		return -1;
@@ -842,8 +847,10 @@ static int read_page(struct gpmi_nfc_data *this,
 		| BF_GPMI_CTRL0_ADDRESS(address)
 		| BF_GPMI_CTRL0_XFER_COUNT(page_size);
 	pio[1] = 0;
+	pio[2] = 0;
 	desc = channel->device->device_prep_slave_sg(channel,
-				(struct scatterlist *)pio, 2, DMA_NONE, 1);
+				(struct scatterlist *)pio, 3, DMA_NONE,
+				MXS_DMA_F_APPEND | MXS_DMA_F_WAIT4END);
 	if (!desc) {
 		pr_info("step 3 error");
 		return -1;
