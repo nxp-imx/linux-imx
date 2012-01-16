@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2010-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -870,7 +870,7 @@
 #define _MX53_PAD_PATA_DMACK__USBPHY2_DATAOUT_3	IOMUX_PAD(0x5F4, 0x274, 7, 0x0, 0, 0)
 #define _MX53_PAD_PATA_DMARQ__PATA_DMARQ		IOMUX_PAD(0x5F8, 0x278, 0, 0x0, 0, 0)
 #define _MX53_PAD_PATA_DMARQ__GPIO7_0		IOMUX_PAD(0x5F8, 0x278, 1, 0x0, 0, 0)
-#define _MX53_PAD_PATA_DMARQ__UART2_TXD_MUX	IOMUX_PAD(0x5F8, 0x278, 3, 0x880, 2, 0)
+#define _MX53_PAD_PATA_DMARQ__UART2_TXD_MUX  IOMUX_PAD(0x5F8, 0x278, 3, 0, 0, 0)
 #define _MX53_PAD_PATA_DMARQ__CCM_CCM_OUT_0	IOMUX_PAD(0x5F8, 0x278, 5, 0x0, 0, 0)
 #define _MX53_PAD_PATA_DMARQ__USBPHY2_DATAOUT_4	IOMUX_PAD(0x5F8, 0x278, 7, 0x0, 0, 0)
 #define _MX53_PAD_PATA_BUFFER_EN__PATA_BUFFER_EN	IOMUX_PAD(0x5FC, 0x27C, 0, 0x0, 0, 0)

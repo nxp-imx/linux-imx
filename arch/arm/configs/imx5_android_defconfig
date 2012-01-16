@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # Linux/arm 2.6.38 Kernel Configuration
-# Wed Dec 28 21:56:17 2011
+# Thu Jan 12 13:48:58 2012
 #
 CONFIG_ARM=y
 CONFIG_HAVE_PWM=y
@@ -1318,7 +1318,8 @@ CONFIG_SERIAL_CORE_CONSOLE=y
 # CONFIG_SERIAL_IFX6X60 is not set
 CONFIG_UNIX98_PTYS=y
 # CONFIG_DEVPTS_MULTIPLE_INSTANCES is not set
-# CONFIG_LEGACY_PTYS is not set
+CONFIG_LEGACY_PTYS=y
+CONFIG_LEGACY_PTY_COUNT=256
 # CONFIG_TTY_PRINTK is not set
 # CONFIG_FSL_OTP is not set
 # CONFIG_HVC_DCC is not set
