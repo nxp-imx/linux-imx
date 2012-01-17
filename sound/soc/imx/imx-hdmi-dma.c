@@ -1,7 +1,7 @@
 /*
  * imx-hdmi-dma.c  --  HDMI DMA driver for ALSA Soc Audio Layer
  *
- * Copyright (C) 2011 Freescale Semiconductor, Inc.
+ * Copyright (C) 2011-2012 Freescale Semiconductor, Inc.
  *
  * based on imx-pcm-dma-mx2.c
  * Copyright 2009 Sascha Hauer <s.hauer@pengutronix.de>
@@ -540,6 +540,7 @@ static int hdmi_dma_trigger(struct snd_pcm_substream *substream, int cmd)
 	case SNDRV_PCM_TRIGGER_PAUSE_RELEASE:
 		rtd->frame_idx = 0;
 		dumpregs();
+		hdmi_dma_irq_mask(0);
 		hdmi_dma_start();
 		break;
 
@@ -547,6 +548,7 @@ static int hdmi_dma_trigger(struct snd_pcm_substream *substream, int cmd)
 	case SNDRV_PCM_TRIGGER_SUSPEND:
 	case SNDRV_PCM_TRIGGER_PAUSE_PUSH:
 		hdmi_dma_stop();
+		hdmi_dma_irq_mask(1);
 		break;
 
 	default:
