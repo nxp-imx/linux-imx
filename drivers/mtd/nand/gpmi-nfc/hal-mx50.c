@@ -757,7 +757,7 @@ static int send_page(struct gpmi_nfc_data *this,
 	desc = channel->device->device_prep_slave_sg(channel,
 					(struct scatterlist *)pio,
 					ARRAY_SIZE(pio), DMA_NONE,
-					MXS_DMA_F_APPEND | MXS_DMA_F_WAIT4END);
+					MXS_DMA_F_WAIT4END);
 	if (!desc) {
 		pr_info("step 2 error");
 		return -1;
