@@ -181,6 +181,7 @@ static iomux_v3_cfg_t mx6q_sabreauto_pads[] = {
 	MX6Q_PAD_GPIO_0__CCM_CLKO,
 	/*MX6Q_PAD_GPIO_3__CCM_CLKO2,i*/
 	MX6Q_PAD_GPIO_3__I2C3_SCL,
+	MX6Q_PAD_GPIO_16__I2C3_SDA,
 
 	/* Android GPIO keys */
 	MX6Q_PAD_SD2_CMD__GPIO_1_11, /* home */
@@ -341,12 +342,6 @@ static int __init uart2_enable(char *p)
 	return 0;
 }
 early_param("uart2", uart2_enable);
-
-
-static iomux_v3_cfg_t mx6q_sabreauto_i2c3_pads[] = {
-	MX6Q_PAD_GPIO_3__I2C3_SCL,
-	MX6Q_PAD_GPIO_16__I2C3_SDA,
-};
 
 static iomux_v3_cfg_t mx6q_sabreauto_can0_pads[] = {
 	/* CAN1 */
@@ -705,7 +700,6 @@ static int max7310_u43_setup(struct i2c_client *client,
 	return 0;
 }
 
-
 static struct pca953x_platform_data max7310_u39_platdata = {
 	.gpio_base	= MX6Q_SABREAUTO_MAX7310_2_BASE_ADDR,
 	.invert		= 0,
@@ -754,18 +748,11 @@ static struct fsl_mxc_tvin_platform_data adv7180_data = {
 	.cvbs = true,
 };
 
-static struct i2c_board_info mxc_i2c0_board_info[] __initdata = {
-	{
-		I2C_BOARD_INFO("ov3640", 0x3c),
-		.platform_data = (void *)&camera_data,
-	},
-};
-
-static struct imxi2c_platform_data mx6q_sabreauto_i2c_data = {
+static struct imxi2c_platform_data mx6q_sabreauto_i2c2_data = {
 	.bitrate = 400000,
 };
 
-static struct imxi2c_platform_data mx6q_sabreauto_i2c0_data = {
+static struct imxi2c_platform_data mx6q_sabreauto_i2c1_data = {
 	.bitrate = 100000,
 };
 
@@ -785,6 +772,10 @@ static struct i2c_board_info mxc_i2c2_board_info[] __initdata = {
 	{
 		I2C_BOARD_INFO("adv7180", 0x21),
 		.platform_data = (void *)&adv7180_data,
+	},
+	{
+		I2C_BOARD_INFO("ov3640", 0x3c),
+		.platform_data = (void *)&camera_data,
 	},
 };
 
@@ -1400,9 +1391,6 @@ static void __init mx6_board_init(void)
 	if (esai_record)
 	    mxc_iomux_v3_setup_multiple_pads(mx6q_sabreauto_esai_record_pads,
 			ARRAY_SIZE(mx6q_sabreauto_esai_record_pads));
-
-	mxc_iomux_v3_setup_multiple_pads(mx6q_sabreauto_i2c3_pads,
-			ARRAY_SIZE(mx6q_sabreauto_i2c3_pads));
 	if (!uart2_en) {
 		if (can0_enable) {
 			mxc_iomux_v3_setup_multiple_pads(
@@ -1442,13 +1430,10 @@ static void __init mx6_board_init(void)
 
 	imx6q_add_imx_snvs_rtc();
 
-	imx6q_add_imx_i2c(0, &mx6q_sabreauto_i2c0_data);
-	imx6q_add_imx_i2c(1, &mx6q_sabreauto_i2c_data);
-	i2c_register_board_info(0, mxc_i2c0_board_info,
-			ARRAY_SIZE(mxc_i2c0_board_info));
+	imx6q_add_imx_i2c(1, &mx6q_sabreauto_i2c1_data);
 	i2c_register_board_info(1, mxc_i2c1_board_info,
 			ARRAY_SIZE(mxc_i2c1_board_info));
-	imx6q_add_imx_i2c(2, &mx6q_sabreauto_i2c_data);
+	imx6q_add_imx_i2c(2, &mx6q_sabreauto_i2c2_data);
 	i2c_register_board_info(2, mxc_i2c2_board_info,
 			ARRAY_SIZE(mxc_i2c2_board_info));
 
