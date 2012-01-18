@@ -1,7 +1,7 @@
 /*
  * Freescale GPMI NAND Flash Driver
  *
- * Copyright (C) 2008-2011 Freescale Semiconductor, Inc.
+ * Copyright (C) 2008-2012 Freescale Semiconductor, Inc.
  * Copyright (C) 2008 Embedded Alley Solutions, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
@@ -849,7 +849,9 @@ int gpmi_send_command(struct gpmi_nand_data *this)
 	sg_init_one(sgl, this->cmd_buffer, this->command_length);
 	dma_map_sg(this->dev, sgl, 1, DMA_TO_DEVICE);
 	desc = channel->device->device_prep_slave_sg(channel,
-					sgl, 1, DMA_MEM_TO_DEV, 1);
+				sgl, 1, DMA_MEM_TO_DEV,
+				DMA_PREP_INTERRUPT | DMA_CTRL_ACK);
+
 	if (!desc) {
 		pr_err("step 2 error\n");
 		return -1;
@@ -891,7 +893,8 @@ int gpmi_send_data(struct gpmi_nand_data *this)
 	/* [2] send DMA request */
 	prepare_data_dma(this, DMA_TO_DEVICE);
 	desc = channel->device->device_prep_slave_sg(channel, &this->data_sgl,
-						1, DMA_MEM_TO_DEV, 1);
+					1, DMA_MEM_TO_DEV,
+					DMA_PREP_INTERRUPT | DMA_CTRL_ACK);
 	if (!desc) {
 		pr_err("step 2 error\n");
 		return -1;
@@ -927,7 +930,8 @@ int gpmi_read_data(struct gpmi_nand_data *this)
 	/* [2] : send DMA request */
 	prepare_data_dma(this, DMA_FROM_DEVICE);
 	desc = channel->device->device_prep_slave_sg(channel, &this->data_sgl,
-						1, DMA_DEV_TO_MEM, 1);
+					1, DMA_DEV_TO_MEM,
+					DMA_PREP_INTERRUPT | DMA_CTRL_ACK);
 	if (!desc) {
 		pr_err("step 2 error\n");
 		return -1;
@@ -974,7 +978,8 @@ int gpmi_send_page(struct gpmi_nand_data *this,
 
 	desc = channel->device->device_prep_slave_sg(channel,
 					(struct scatterlist *)pio,
-					ARRAY_SIZE(pio), DMA_TRANS_NONE, 0);
+					ARRAY_SIZE(pio), DMA_TRANS_NONE,
+					DMA_CTRL_ACK);
 	if (!desc) {
 		pr_err("step 2 error\n");
 		return -1;
@@ -994,6 +999,7 @@ int gpmi_read_page(struct gpmi_nand_data *this,
 	struct dma_async_tx_descriptor *desc;
 	struct dma_chan *channel = get_dma_chan(this);
 	int chip = this->current_chip;
+	unsigned long flags;
 	u32 pio[6];
 
 	/* [1] Wait for the chip to report ready. */
@@ -1036,9 +1042,14 @@ int gpmi_read_page(struct gpmi_nand_data *this,
 	pio[3] = geo->page_size;
 	pio[4] = payload;
 	pio[5] = auxiliary;
+
+	/* Set DMA_CTRL_ACK for MX6Q which uses the new GPMI. */
+	flags = DMA_PREP_INTERRUPT;
+	if (GPMI_IS_MX6Q(this))
+		flags |= DMA_CTRL_ACK;
 	desc = channel->device->device_prep_slave_sg(channel,
 					(struct scatterlist *)pio,
-					ARRAY_SIZE(pio), DMA_TRANS_NONE, 1);
+					ARRAY_SIZE(pio), DMA_TRANS_NONE, flags);
 	if (!desc) {
 		pr_err("step 2 error\n");
 		return -1;
@@ -1055,9 +1066,11 @@ int gpmi_read_page(struct gpmi_nand_data *this,
 		| BF_GPMI_CTRL0_ADDRESS(address)
 		| BF_GPMI_CTRL0_XFER_COUNT(geo->page_size);
 	pio[1] = 0;
+	pio[2] = 0; /* set GPMI_HW_GPMI_ECCCTRL, disable the BCH */
 	desc = channel->device->device_prep_slave_sg(channel,
-				(struct scatterlist *)pio, 2,
-				DMA_TRANS_NONE, 1);
+				(struct scatterlist *)pio, 3,
+				DMA_TRANS_NONE,
+				DMA_PREP_INTERRUPT | DMA_CTRL_ACK);
 	if (!desc) {
 		pr_err("step 3 error\n");
 		return -1;
