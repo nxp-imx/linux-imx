@@ -44,6 +44,7 @@ extern struct regulator *cpu_regulator;
 extern struct cpu_op *(*get_cpu_op)(int *op);
 extern int lp_high_freq;
 extern int lp_med_freq;
+extern int mx6q_revision(void);
 
 void __iomem *apll_base;
 static struct clk pll1_sys_main_clk;
@@ -763,17 +764,40 @@ static unsigned long  _clk_audio_video_get_rate(struct clk *clk)
 	unsigned long rate;
 	unsigned int parent_rate = clk_get_rate(clk->parent);
 	void __iomem *pllbase;
+	int rev = mx6q_revision();
+	unsigned int test_div_sel, control3, post_div = 1;
 
 	if (clk == &pll4_audio_main_clk)
 		pllbase = PLL4_AUDIO_BASE_ADDR;
 	else
 		pllbase = PLL5_VIDEO_BASE_ADDR;
 
+	if (rev >= IMX_CHIP_REVISION_1_1) {
+		test_div_sel = (__raw_readl(pllbase)
+			& ANADIG_PLL_AV_TEST_DIV_SEL_MASK)
+			>> ANADIG_PLL_AV_TEST_DIV_SEL_OFFSET;
+		if (test_div_sel == 0)
+			post_div = 4;
+		else if (test_div_sel == 1)
+			post_div = 2;
+
+		if (clk == &pll5_video_main_clk) {
+			control3 = (__raw_readl(ANA_MISC2_BASE_ADDR)
+				& ANADIG_ANA_MISC2_CONTROL3_MASK)
+				>> ANADIG_ANA_MISC2_CONTROL3_OFFSET;
+			if (control3 == 1)
+				post_div *= 2;
+			else if (control3 == 3)
+				post_div *= 4;
+		}
+	}
+
 	div = __raw_readl(pllbase) & ANADIG_PLL_SYS_DIV_SELECT_MASK;
 	mfn = __raw_readl(pllbase + PLL_NUM_DIV_OFFSET);
 	mfd = __raw_readl(pllbase + PLL_DENOM_DIV_OFFSET);
 
 	rate = (parent_rate * div) + ((parent_rate / mfd) * mfn);
+	rate = rate / post_div;
 
 	return rate;
 }
@@ -785,9 +809,19 @@ static int _clk_audio_video_set_rate(struct clk *clk, unsigned long rate)
 	s64 temp64;
 	unsigned int parent_rate = clk_get_rate(clk->parent);
 	void __iomem *pllbase;
+	unsigned long min_clk_rate, pre_div_rate;
+	int rev = mx6q_revision();
+	u32 test_div_sel = 2;
+	u32 control3 = 0;
 
-	if ((rate < AUDIO_VIDEO_MIN_CLK_FREQ) ||
-		(rate > AUDIO_VIDEO_MAX_CLK_FREQ))
+	if (rev < IMX_CHIP_REVISION_1_1)
+		min_clk_rate = AUDIO_VIDEO_MIN_CLK_FREQ;
+	else if (clk == &pll4_audio_main_clk)
+		min_clk_rate = AUDIO_VIDEO_MIN_CLK_FREQ / 4;
+	else
+		min_clk_rate = AUDIO_VIDEO_MIN_CLK_FREQ / 16;
+
+	if ((rate < min_clk_rate) || (rate > AUDIO_VIDEO_MAX_CLK_FREQ))
 		return -EINVAL;
 
 	if (clk == &pll4_audio_main_clk)
@@ -795,17 +829,52 @@ static int _clk_audio_video_set_rate(struct clk *clk, unsigned long rate)
 	else
 		pllbase = PLL5_VIDEO_BASE_ADDR;
 
-	div = rate / parent_rate ;
-	temp64 = (u64) (rate - (div * parent_rate));
+	pre_div_rate = rate;
+	if (rev >= IMX_CHIP_REVISION_1_1) {
+		while (pre_div_rate < AUDIO_VIDEO_MIN_CLK_FREQ) {
+			pre_div_rate *= 2;
+			/*
+			 * test_div_sel field values:
+			 * 2 -> Divide by 1
+			 * 1 -> Divide by 2
+			 * 0 -> Divide by 4
+			 *
+			 * control3 field values:
+			 * 0 -> Divide by 1
+			 * 1 -> Divide by 2
+			 * 3 -> Divide by 4
+			 */
+			if (test_div_sel != 0)
+				test_div_sel--;
+			else {
+				control3++;
+				if (control3 == 2)
+					control3++;
+			}
+		}
+	}
+
+	div = pre_div_rate / parent_rate;
+	temp64 = (u64) (pre_div_rate - (div * parent_rate));
 	temp64 *= mfd;
 	do_div(temp64, parent_rate);
 	mfn = temp64;
 
-	reg = __raw_readl(pllbase) & ~ANADIG_PLL_SYS_DIV_SELECT_MASK;
-	reg |= div;
+	reg = __raw_readl(pllbase)
+			& ~ANADIG_PLL_SYS_DIV_SELECT_MASK
+			& ~ANADIG_PLL_AV_TEST_DIV_SEL_MASK;
+	reg |= div |
+		(test_div_sel << ANADIG_PLL_AV_TEST_DIV_SEL_OFFSET);
 	__raw_writel(reg, pllbase);
 	__raw_writel(mfn, pllbase + PLL_NUM_DIV_OFFSET);
 	__raw_writel(mfd, pllbase + PLL_DENOM_DIV_OFFSET);
+
+	if (rev >= IMX_CHIP_REVISION_1_1) {
+		reg = __raw_readl(ANA_MISC2_BASE_ADDR)
+			& ~ANADIG_ANA_MISC2_CONTROL3_MASK;
+		reg |= control3 << ANADIG_ANA_MISC2_CONTROL3_OFFSET;
+		__raw_writel(reg, ANA_MISC2_BASE_ADDR);
+	}
 
 	return 0;
 }
@@ -813,13 +882,55 @@ static int _clk_audio_video_set_rate(struct clk *clk, unsigned long rate)
 static unsigned long _clk_audio_video_round_rate(struct clk *clk,
 						unsigned long rate)
 {
-	if (rate < AUDIO_VIDEO_MIN_CLK_FREQ)
-		return AUDIO_VIDEO_MIN_CLK_FREQ;
+	unsigned long min_clk_rate;
+	unsigned int div, post_div = 1;
+	unsigned int mfn, mfd = 1000000;
+	s64 temp64;
+	unsigned int parent_rate = clk_get_rate(clk->parent);
+	unsigned long pre_div_rate;
+	u32 test_div_sel = 2;
+	u32 control3 = 0;
+	unsigned long final_rate;
+	int rev = mx6q_revision();
+
+	if (rev < IMX_CHIP_REVISION_1_1)
+		min_clk_rate = AUDIO_VIDEO_MIN_CLK_FREQ;
+	else if (clk == &pll4_audio_main_clk)
+		min_clk_rate = AUDIO_VIDEO_MIN_CLK_FREQ / 4;
+	else
+		min_clk_rate = AUDIO_VIDEO_MIN_CLK_FREQ / 16;
+
+	if (rate < min_clk_rate)
+		return min_clk_rate;
 
 	if (rate > AUDIO_VIDEO_MAX_CLK_FREQ)
 		return AUDIO_VIDEO_MAX_CLK_FREQ;
 
-	return rate;
+	pre_div_rate = rate;
+	if (rev >= IMX_CHIP_REVISION_1_1) {
+		while (pre_div_rate < AUDIO_VIDEO_MIN_CLK_FREQ) {
+			pre_div_rate *= 2;
+			post_div *= 2;
+			if (test_div_sel != 0)
+				test_div_sel--;
+			else {
+				control3++;
+				if (control3 == 2)
+					control3++;
+			}
+		}
+	}
+
+	div = pre_div_rate / parent_rate;
+	temp64 = (u64) (pre_div_rate - (div * parent_rate));
+	temp64 *= mfd;
+	do_div(temp64, parent_rate);
+	mfn = temp64;
+
+	final_rate = (parent_rate * div) + ((parent_rate / mfd) * mfn);
+	final_rate = final_rate / post_div;
+
+	return final_rate;
 }
 
 
@@ -2687,6 +2798,9 @@ static unsigned long _clk_ipu_di_round_rate(struct clk *clk,
 		return parent_rate;
 
 	div = parent_rate / rate;
+	/* Round to closest divisor */
+	if ((parent_rate % rate) > (rate / 2))
+		div++;
 
 	/* Make sure rate is not greater than the maximum value for the clock.
 	 * Also prevent a div of 0.
