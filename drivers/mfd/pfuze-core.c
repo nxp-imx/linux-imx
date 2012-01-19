@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2011-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -398,7 +398,7 @@ static int pfuze_add_subdevice_pdata(struct mc_pfuze *mc_pfuze,
 	const char *name = pfuze_get_chipname(mc_pfuze);
 	struct mfd_cell cell = {
 		.platform_data = pdata,
-		.data_size = pdata_size,
+		.pdata_size = pdata_size,
 	};
 	if (snprintf(buf, sizeof(buf), format, name) > sizeof(buf))
 		return -E2BIG;
