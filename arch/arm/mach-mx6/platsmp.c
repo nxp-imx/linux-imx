@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2011-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -44,6 +44,7 @@ void __cpuinit platform_secondary_init(unsigned int cpu)
 {
 	trace_hardirqs_off();
 
+	spin_lock(&boot_lock);
 	/*
 	* if any interrupts are already enabled for the primary
 	* core (e.g. timer irq), then they will not have been enabled
@@ -54,7 +55,7 @@ void __cpuinit platform_secondary_init(unsigned int cpu)
 	/*
 	* Synchronise with the boot thread.
 	*/
-	spin_lock(&boot_lock);
+
 	spin_unlock(&boot_lock);
 
 }
@@ -63,7 +64,6 @@ int __cpuinit boot_secondary(unsigned int cpu, struct task_struct *idle)
 {
 	unsigned long boot_entry;
 	void __iomem *src_base = IO_ADDRESS(SRC_BASE_ADDR);
-	void *boot_iram_base;
 	unsigned int val;
 
 	 /*
@@ -72,15 +72,11 @@ int __cpuinit boot_secondary(unsigned int cpu, struct task_struct *idle)
 	  */
 	spin_lock(&boot_lock);
 
-	/* boot entry is at the last 4K iRAM, from 0x93f000 */
-	boot_entry = MX6Q_IRAM_BASE_ADDR + MX6Q_IRAM_SIZE;
-	boot_iram_base = (void *)ioremap(boot_entry, SZ_4K);
-	memcpy((void *)boot_iram_base, mx6_secondary_startup, SZ_1K);
-
 	/* set entry point for cpu1-cpu3*/
+	boot_entry = virt_to_phys(mx6_secondary_startup);
+
 	writel(boot_entry, src_base + SRC_GPR1_OFFSET + 4 * 2 * cpu);
-	writel(virt_to_phys(mx6_secondary_startup),
-			src_base + SRC_GPR1_OFFSET + 4 * 2 * cpu + 4);
+	writel(0, src_base + SRC_GPR1_OFFSET + 4 * 2 * cpu + 4);
 
 	smp_wmb();
 	dsb();
@@ -92,21 +88,6 @@ int __cpuinit boot_secondary(unsigned int cpu, struct task_struct *idle)
 	val |= 1 << (BP_SRC_SCR_CORES_DBG_RST + cpu);
 	writel(val, src_base + SRC_SCR_OFFSET);
 
-	val = jiffies;
-	/* wait cpu<n> boot up and clear boot_entry, timeout is 500ms */
-	while (__raw_readl(src_base + SRC_GPR1_OFFSET + 4 * 2 * cpu) != 0) {
-		if (time_after(jiffies, (unsigned long)(val + HZ / 2))) {
-			printk(KERN_WARNING "cpu %d: boot up failed!\n", cpu);
-			break;
-		}
-	}
-
-	/* let cpu<n> out of loop, call secondary_startup function*/
-	writel(0, src_base + SRC_GPR1_OFFSET + 4 * 2 * cpu + 4);
-	smp_send_reschedule(cpu);
-
-	/* unmap iram base */
-	iounmap(boot_iram_base);
 	/*
 	* now the secondary core is starting up let it run its
 	* calibrations, then wait for it to finish
