@@ -1076,7 +1076,7 @@ static int flexcan_suspend(struct platform_device *pdev, pm_message_t state)
 	if (priv->version >= FLEXCAN_VER_10_0_12)
 		mxc_iomux_set_gpr_register(13, 28, 1, 1);
 
-	ret = set_irq_wake(dev->irq, 1);
+	ret = irq_set_irq_wake(dev->irq, 1);
 	if (ret)
 		return ret;
 
@@ -1089,7 +1089,7 @@ static int flexcan_resume(struct platform_device *pdev)
 	struct flexcan_priv *priv = netdev_priv(dev);
 	int ret;
 
-	ret = set_irq_wake(dev->irq, 0);
+	ret = irq_set_irq_wake(dev->irq, 0);
 	if (ret)
 		return ret;
 
