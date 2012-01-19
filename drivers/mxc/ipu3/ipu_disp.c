@@ -1,5 +1,5 @@
 /*
- * Copyright 2005-2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2005-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -60,6 +60,7 @@ static unsigned long _ipu_pixel_clk_get_rate(struct clk *clk)
 {
 	struct ipu_soc *ipu = pixelclk2ipu(clk);
 	u32 div;
+	u64 final_rate = clk_get_rate(clk->parent) * 16;
 
 	_ipu_get(ipu);
 	div = ipu_di_read(ipu, clk->id, DI_BS_CLKGEN0);
@@ -67,20 +68,25 @@ static unsigned long _ipu_pixel_clk_get_rate(struct clk *clk)
 
 	if (div == 0)
 		return 0;
-	return  (clk_get_rate(clk->parent) * 16) / div;
+	do_div(final_rate, div);
+	return (unsigned long)final_rate;
 }
 
 static unsigned long _ipu_pixel_clk_round_rate(struct clk *clk, unsigned long rate)
 {
-	u32 div;
-	u32 parent_rate = clk_get_rate(clk->parent) * 16;
+	u64 div, final_rate;
+	u32 remainder;
+	u64 parent_rate = (unsigned long long)clk_get_rate(clk->parent) * 16;
 	/*
 	 * Calculate divider
 	 * Fractional part is 4 bits,
 	 * so simply multiply by 2^4 to get fractional part.
 	 */
-	div = parent_rate / rate;
-
+	div = parent_rate;
+	remainder = do_div(div, rate);
+	/* Round the divider value */
+	if (remainder > (rate/2))
+		div++;
 	if (div < 0x10)            /* Min DI disp clock divider is 1 */
 		div = 0x10;
 	if (div & ~0xFEF)
@@ -92,13 +98,23 @@ static unsigned long _ipu_pixel_clk_round_rate(struct clk *clk, unsigned long ra
 			div &= ~0xF;
 		}
 	}
-	return parent_rate / div;
+	final_rate = parent_rate;
+	do_div(final_rate, div);
+	return final_rate;
 }
 
 static int _ipu_pixel_clk_set_rate(struct clk *clk, unsigned long rate)
 {
+	u64 div, parent_rate;
+	u32 remainder;
 	struct ipu_soc *ipu = pixelclk2ipu(clk);
-	u32 div = (clk_get_rate(clk->parent) * 16) / rate;
+
+	parent_rate = (unsigned long long)clk_get_rate(clk->parent) * 16;
+	div = parent_rate;
+	remainder = do_div(div, rate);
+	/* Round the divider value */
+	if (remainder > (rate/2))
+		div++;
 
 	/* Round up divider if it gets us closer to desired pix clk */
 	if ((div & 0xC) == 0xC) {
@@ -106,12 +122,12 @@ static int _ipu_pixel_clk_set_rate(struct clk *clk, unsigned long rate)
 		div &= ~0xF;
 	}
 
-	ipu_di_write(ipu, clk->id, div, DI_BS_CLKGEN0);
+	ipu_di_write(ipu, clk->id, (u32)div, DI_BS_CLKGEN0);
 
 	/* Setup pixel clock timing */
 	/* FIXME: needs to be more flexible */
 	/* Down time is half of period */
-	ipu_di_write(ipu, clk->id, (div / 16) << 16, DI_BS_CLKGEN1);
+	ipu_di_write(ipu, clk->id, ((u32)div / 16) << 16, DI_BS_CLKGEN1);
 
 	return 0;
 }
