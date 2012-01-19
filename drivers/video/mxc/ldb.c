@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2011-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -433,7 +433,7 @@ static int ldb_fb_pre_setup(struct fb_info *fbi)
 {
 	int ipu_di = 0;
 	struct clk *di_clk, *ldb_clk_parent;
-	unsigned long ldb_clk_prate = 455000000;
+	unsigned long ldb_clk_prate = 455000000, pclk = 0;
 
 	fbi->mode = (struct fb_videomode *)fb_match_mode(&fbi->var,
 			&fbi->modelist);
@@ -442,6 +442,8 @@ static int ldb_fb_pre_setup(struct fb_info *fbi)
 				fbi->var.xres, fbi->var.yres);
 		return 0;
 	}
+
+	pclk = (PICOS2KHZ(fbi->mode->pixclock)) * 1000UL;
 
 	if (fbi->fbops->fb_ioctl) {
 		mm_segment_t old_fs;
@@ -489,7 +491,12 @@ static int ldb_fb_pre_setup(struct fb_info *fbi)
 			}
 		}
 
-		/* TODO:Set the correct pll4 rate for all situations */
+		if (ldb.chan_mode_opt == LDB_SPL_DI0 ||
+		    ldb.chan_mode_opt == LDB_SPL_DI1)
+			ldb_clk_prate = 7*pclk/2;
+		else
+			ldb_clk_prate = 7*pclk;
+
 		if (ipu_di == 1) {
 			ldb.ldb_di_clk[1] =
 				clk_get(g_ldb_dev, "ldb_di1_clk");
@@ -1058,8 +1065,11 @@ static int mxc_ldb_ioctl(struct inode *inode, struct file *file,
 	case LDB_CHAN_MODE:
 		{
 		ldb_chan_mode_parm parm;
-		struct clk *pll4_clk;
-		unsigned long pll4_rate = 0;
+		struct clk *di_clk, *ldb_clk_parent;
+		unsigned long ldb_clk_prate = 0, pclk = 0;
+		int i;
+		bool fbi_found = false;
+		struct fb_info *fbi = NULL;
 
 		if (copy_from_user(&parm, (ldb_chan_mode_parm *) arg,
 				   sizeof(ldb_chan_mode_parm)))
@@ -1067,12 +1077,54 @@ static int mxc_ldb_ioctl(struct inode *inode, struct file *file,
 
 		spin_lock(&ldb_lock);
 
-		/* TODO:Set the correct pll4 rate for all situations */
-		pll4_clk = clk_get(g_ldb_dev, "pll4");
-		pll4_rate = clk_get_rate(pll4_clk);
-		pll4_rate = 455000000;
-		clk_set_rate(pll4_clk, pll4_rate);
-		clk_put(pll4_clk);
+		for (i = 0; i < num_registered_fb; i++) {
+			if (parm.di == 0)
+				fbi_found = !strcmp(registered_fb[i]->fix.id,
+							"DISP3 BG");
+			else
+				fbi_found = !strcmp(registered_fb[i]->fix.id,
+							"DISP3 BG - DI1");
+
+			if (fbi_found) {
+				fbi = registered_fb[i];
+				break;
+			}
+		}
+
+		if (!fbi_found) {
+			ret = -ENODEV;
+			spin_unlock(&ldb_lock);
+			break;
+		}
+
+		pclk = (PICOS2KHZ(fbi->mode->pixclock)) * 1000UL;
+
+		if (parm.channel_mode == LDB_CHAN_MODE_SPL)
+			ldb_clk_prate = 7*pclk/2;
+		else
+			ldb_clk_prate = 7*pclk;
+
+		if (parm.di == 1) {
+			ldb.ldb_di_clk[1] =
+				clk_get(g_ldb_dev, "ldb_di1_clk");
+			di_clk = clk_get(g_ldb_dev, "ipu_di1_clk");
+			ldb_clk_parent =
+				clk_get_parent(ldb.ldb_di_clk[1]);
+			clk_set_rate(ldb_clk_parent, ldb_clk_prate);
+			clk_set_parent(di_clk, ldb.ldb_di_clk[1]);
+			clk_put(di_clk);
+			clk_put(ldb.ldb_di_clk[1]);
+		} else {
+			ldb.ldb_di_clk[0] =
+				clk_get(g_ldb_dev, "ldb_di0_clk");
+			di_clk = clk_get(g_ldb_dev, "ipu_di0_clk");
+			ldb_clk_parent =
+				clk_get_parent(ldb.ldb_di_clk[0]);
+			clk_set_rate(ldb_clk_parent, ldb_clk_prate);
+			clk_set_parent(di_clk, ldb.ldb_di_clk[0]);
+			clk_put(di_clk);
+			clk_put(ldb.ldb_di_clk[0]);
+		}
 
 		reg = __raw_readl(ldb.control_reg);
 		switch (parm.channel_mode) {
@@ -1082,7 +1134,7 @@ static int mxc_ldb_ioctl(struct inode *inode, struct file *file,
 
 				ldb.ldb_di_clk[0] = clk_get(g_ldb_dev,
 							    "ldb_di0_clk");
-				clk_set_rate(ldb.ldb_di_clk[0], pll4_rate/7);
+				clk_set_rate(ldb.ldb_di_clk[0], ldb_clk_prate/7);
 				clk_put(ldb.ldb_di_clk[0]);
 
 				__raw_writel((reg & ~LDB_CH0_MODE_MASK) |
@@ -1093,7 +1145,7 @@ static int mxc_ldb_ioctl(struct inode *inode, struct file *file,
 
 				ldb.ldb_di_clk[1] = clk_get(g_ldb_dev,
 							    "ldb_di1_clk");
-				clk_set_rate(ldb.ldb_di_clk[1], pll4_rate/7);
+				clk_set_rate(ldb.ldb_di_clk[1], ldb_clk_prate/7);
 				clk_put(ldb.ldb_di_clk[1]);
 
 				__raw_writel((reg & ~LDB_CH1_MODE_MASK) |
@@ -1105,10 +1157,10 @@ static int mxc_ldb_ioctl(struct inode *inode, struct file *file,
 			ldb.chan_mode_opt = LDB_SEP;
 
 			ldb.ldb_di_clk[0] = clk_get(g_ldb_dev, "ldb_di0_clk");
-			clk_set_rate(ldb.ldb_di_clk[0], pll4_rate/7);
+			clk_set_rate(ldb.ldb_di_clk[0], ldb_clk_prate/7);
 			clk_put(ldb.ldb_di_clk[0]);
 			ldb.ldb_di_clk[1] = clk_get(g_ldb_dev, "ldb_di1_clk");
-			clk_set_rate(ldb.ldb_di_clk[1], pll4_rate/7);
+			clk_set_rate(ldb.ldb_di_clk[1], ldb_clk_prate/7);
 			clk_put(ldb.ldb_di_clk[1]);
 
 			__raw_writel((reg & ~(LDB_CH0_MODE_MASK |
@@ -1125,13 +1177,13 @@ static int mxc_ldb_ioctl(struct inode *inode, struct file *file,
 				if (parm.channel_mode == LDB_CHAN_MODE_DUL) {
 					ldb.chan_mode_opt = LDB_DUL_DI0;
 					clk_set_rate(ldb.ldb_di_clk[0],
-						     pll4_rate/7);
+						     ldb_clk_prate/7);
 				} else {
 					ldb.chan_mode_opt = LDB_SPL_DI0;
 					clk_set_rate(ldb.ldb_di_clk[0],
-						     2*pll4_rate/7);
+						     2*ldb_clk_prate/7);
 					clk_set_rate(ldb.ldb_di_clk[1],
-						     2*pll4_rate/7);
+						     2*ldb_clk_prate/7);
 					reg = __raw_readl(ldb.control_reg);
 					__raw_writel(reg | LDB_SPLIT_MODE_EN,
 						      ldb.control_reg);
@@ -1147,13 +1199,13 @@ static int mxc_ldb_ioctl(struct inode *inode, struct file *file,
 				if (parm.channel_mode == LDB_CHAN_MODE_DUL) {
 					ldb.chan_mode_opt = LDB_DUL_DI1;
 					clk_set_rate(ldb.ldb_di_clk[1],
-						     pll4_rate/7);
+						     ldb_clk_prate/7);
 				} else {
 					ldb.chan_mode_opt = LDB_SPL_DI1;
 					clk_set_rate(ldb.ldb_di_clk[0],
-						     2*pll4_rate/7);
+						     2*ldb_clk_prate/7);
 					clk_set_rate(ldb.ldb_di_clk[1],
-						     2*pll4_rate/7);
+						     2*ldb_clk_prate/7);
 					reg = __raw_readl(ldb.control_reg);
 					__raw_writel(reg | LDB_SPLIT_MODE_EN,
 						      ldb.control_reg);
