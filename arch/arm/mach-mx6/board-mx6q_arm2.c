@@ -109,6 +109,7 @@
 void __init early_console_setup(unsigned long base, struct clk *clk);
 static struct clk *sata_clk;
 static int esai_record;
+static int sgtl5000_en;
 static int spdif_en;
 static int flexcan_en;
 
@@ -356,6 +357,15 @@ static iomux_v3_cfg_t mx6q_arm2_csi0_tvin_pads[] = {
 
 static iomux_v3_cfg_t mx6q_arm2_mipi_sensor_pads[] = {
 	MX6Q_PAD_CSI0_MCLK__CCM_CLKO,
+};
+
+static iomux_v3_cfg_t mx6q_arm2_audmux_pads[] = {
+
+	/* AUDMUX */
+	MX6Q_PAD_CSI0_DAT4__AUDMUX_AUD3_TXC,
+	MX6Q_PAD_CSI0_DAT5__AUDMUX_AUD3_TXD,
+	MX6Q_PAD_CSI0_DAT6__AUDMUX_AUD3_TXFS,
+	MX6Q_PAD_CSI0_DAT7__AUDMUX_AUD3_RXD,
 };
 
 #define MX6Q_USDHC_PAD_SETTING(id, speed)	\
@@ -697,9 +707,10 @@ static struct fsl_mxc_dvi_platform_data sabr_ddc_dvi_data = {
 
 static void mx6q_csi0_io_init(void)
 {
-	mxc_iomux_v3_setup_multiple_pads(mx6q_arm2_csi0_sensor_pads,
+	if (0 == sgtl5000_en) {
+		mxc_iomux_v3_setup_multiple_pads(mx6q_arm2_csi0_sensor_pads,
 			ARRAY_SIZE(mx6q_arm2_csi0_sensor_pads));
-
+	}
 	/* Camera reset */
 	gpio_request(MX6Q_ARM2_CSI0_RST, "cam-reset");
 	gpio_direction_output(MX6Q_ARM2_CSI0_RST, 1);
@@ -735,9 +746,10 @@ static struct fsl_mxc_camera_platform_data camera_data = {
 
 static void mx6q_csi0_tvin_io_init(void)
 {
-	mxc_iomux_v3_setup_multiple_pads(mx6q_arm2_csi0_tvin_pads,
+	if (0 == sgtl5000_en) {
+		mxc_iomux_v3_setup_multiple_pads(mx6q_arm2_csi0_tvin_pads,
 			ARRAY_SIZE(mx6q_arm2_csi0_tvin_pads));
-
+	}
 	/* Tvin reset */
 	gpio_request(MX6Q_ARM2_CSI0_RST_TVIN, "tvin-reset");
 	gpio_direction_output(MX6Q_ARM2_CSI0_RST_TVIN, 1);
@@ -828,6 +840,9 @@ static struct i2c_board_info mxc_i2c1_board_info[] __initdata = {
 	{
 		I2C_BOARD_INFO("ov5640_mipi", 0x3c),
 		.platform_data = (void *)&ov5640_mipi_data,
+	},
+	{
+		I2C_BOARD_INFO("sgtl5000", 0x0a),
 	},
 };
 
@@ -1280,17 +1295,17 @@ static struct platform_device cs42888_arm2_vlc_reg_devices = {
 
 static struct regulator_consumer_supply sgtl5000_arm2_consumer_vdda = {
 	.supply = "VDDA",
-	.dev_name = "0-000a",
+	.dev_name = "1-000a",
 };
 
 static struct regulator_consumer_supply sgtl5000_arm2_consumer_vddio = {
 	.supply = "VDDIO",
-	.dev_name = "0-000a",
+	.dev_name = "1-000a",
 };
 
 static struct regulator_consumer_supply sgtl5000_arm2_consumer_vddd = {
 	.supply = "VDDD",
-	.dev_name = "0-000a",
+	.dev_name = "1-000a",
 };
 
 static struct regulator_init_data sgtl5000_arm2_vdda_reg_initdata = {
@@ -1355,6 +1370,32 @@ static struct platform_device sgtl5000_arm2_vddd_reg_devices = {
 
 #endif /* CONFIG_SND_SOC_SGTL5000 */
 
+static struct mxc_audio_platform_data mx6_arm2_audio_data;
+
+static int mx6_arm2_sgtl5000_init(void)
+{
+
+	mx6_arm2_audio_data.sysclk = 12000000;
+
+	return 0;
+}
+
+static struct imx_ssi_platform_data mx6_arm2_ssi_pdata = {
+	.flags = IMX_SSI_DMA | IMX_SSI_SYN,
+};
+
+static struct mxc_audio_platform_data mx6_arm2_audio_data = {
+	.ssi_num = 1,
+	.src_port = 2,
+	.ext_port = 3,
+	.init = mx6_arm2_sgtl5000_init,
+	.hp_gpio = -1,
+};
+
+static struct platform_device mx6_arm2_audio_device = {
+	.name = "imx-sgtl5000",
+};
+
 static int __init imx6q_init_audio(void)
 {
 	struct clk *pll3_pfd, *esai_clk;
@@ -1372,18 +1413,29 @@ static int __init imx6q_init_audio(void)
 	clk_set_parent(esai_clk, pll3_pfd);
 	clk_set_rate(esai_clk, 101647058);
 
+#ifdef CONFIG_SND_SOC_CS42888
+		platform_device_register(&cs42888_arm2_va_reg_devices);
+		platform_device_register(&cs42888_arm2_vd_reg_devices);
+		platform_device_register(&cs42888_arm2_vls_reg_devices);
+		platform_device_register(&cs42888_arm2_vlc_reg_devices);
+#endif
+
+	if (sgtl5000_en) {
+		/* SSI audio init part */
+		mxc_register_device(&mx6_arm2_audio_device,
+				&mx6_arm2_audio_data);
+		imx6q_add_imx_ssi(1, &mx6_arm2_ssi_pdata);
+
+		mxc_iomux_v3_setup_multiple_pads(mx6q_arm2_audmux_pads,
+			ARRAY_SIZE(mx6q_arm2_audmux_pads));
+
 #ifdef CONFIG_SND_SOC_SGTL5000
 	platform_device_register(&sgtl5000_arm2_vdda_reg_devices);
 	platform_device_register(&sgtl5000_arm2_vddio_reg_devices);
 	platform_device_register(&sgtl5000_arm2_vddd_reg_devices);
 #endif
+	}
 
-#ifdef CONFIG_SND_SOC_CS42888
-	platform_device_register(&cs42888_arm2_va_reg_devices);
-	platform_device_register(&cs42888_arm2_vd_reg_devices);
-	platform_device_register(&cs42888_arm2_vls_reg_devices);
-	platform_device_register(&cs42888_arm2_vlc_reg_devices);
-#endif
 	return 0;
 }
 
@@ -1428,6 +1480,14 @@ static void __init fixup_mxc_board(struct machine_desc *desc, struct tag *tags,
 				   char **cmdline, struct meminfo *mi)
 {
 }
+
+static int __init early_enable_sgtl5000(char *p)
+{
+	sgtl5000_en = 1;
+	return 0;
+}
+
+early_param("sgtl5000", early_enable_sgtl5000);
 
 static int __init early_enable_spdif(char *p)
 {

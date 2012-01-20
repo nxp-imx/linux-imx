@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010 Pengutronix
+ * Copyright (C) 2010-2012 Pengutronix
  * Uwe Kleine-Koenig <u.kleine-koenig@pengutronix.de>
  *
  * This program is free software; you can redistribute it and/or modify it under
@@ -94,7 +94,7 @@ const struct imx_imx_ssi_data imx6_imx_ssi_data[] __initconst = {
 	imx6q_imx_ssi_data_entry(1, 2),
 	imx6q_imx_ssi_data_entry(2, 3),
 };
-#endif /* ifdef CONFIG_SOC_IMX53 */
+#endif /* ifdef CONFIG_SOC_IMX6Q */
 
 struct platform_device *__init imx_add_imx_ssi(
 		const struct imx_imx_ssi_data *data,
