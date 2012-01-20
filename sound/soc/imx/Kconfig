@@ -52,7 +52,8 @@ config SND_SOC_PHYCORE_AC97
 
 config SND_SOC_IMX_SGTL5000
 	tristate "SoC Audio support for i.MX boards with sgtl5000"
-	depends on I2C && (MACH_MX35_3DS || MACH_MX51_BABBAGE || MACH_MX6Q_SABRELITE)
+	depends on I2C && (MACH_MX35_3DS || MACH_MX51_BABBAGE \
+			|| MACH_MX6Q_SABRELITE || MACH_MX6Q_ARM2)
 	select SND_SOC_SGTL5000
 	select SND_MXC_SOC_MX2
 	help
