@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2011-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -456,7 +456,7 @@ static int usb_register_remote_wakeup(struct platform_device *pdev)
 		return -ENODEV;
 	}
 	irq = res->start;
-	pdev->dev.power.can_wakeup = 1;
+	device_set_wakeup_capable(&pdev->dev, true);
 	enable_irq_wake(irq);
 
 	return 0;
