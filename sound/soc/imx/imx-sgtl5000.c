@@ -43,7 +43,12 @@ static struct snd_soc_jack_pin hs_jack_pins[] = {
 		.pin = "Headphone Jack",
 		.mask = SND_JACK_HEADPHONE,
 	},
-};
+	{
+		.pin = "Ext Spk",
+		.mask = SND_JACK_HEADPHONE,
+		.invert = 1,
+	},
+ };
 
 /* Headphones jack detection gpios */
 static struct snd_soc_jack_gpio hs_jack_gpios[] = {
@@ -264,7 +269,8 @@ static int imx_3stack_sgtl5000_init(struct snd_soc_pcm_runtime *rtd)
 	snd_soc_dapm_add_routes(&codec->dapm, audio_map, ARRAY_SIZE(audio_map));
 
 	snd_soc_dapm_disable_pin(&codec->dapm, "Line In Jack");
-	snd_soc_dapm_enable_pin(&codec->dapm, "Headphone Jack");
+	snd_soc_dapm_disable_pin(&codec->dapm, "Headphone Jack");
+	snd_soc_dapm_enable_pin(&codec->dapm, "Ext Spk");
 	snd_soc_dapm_sync(&codec->dapm);
 
 	if (hs_jack_gpios[0].gpio != -1) {
