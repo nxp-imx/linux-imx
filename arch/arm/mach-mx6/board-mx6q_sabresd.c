@@ -86,6 +86,7 @@
 #define MX6Q_SABRESD_CAN1_EN		IMX_GPIO_NR(1, 4)
 #define MX6Q_SABRESD_CSI0_RST		IMX_GPIO_NR(1, 8)
 #define MX6Q_SABRESD_CSI0_PWN		IMX_GPIO_NR(1, 6)
+#define MX6Q_SABRESD_PFUZE_INT	IMX_GPIO_NR(7, 13)
 
 void __init early_console_setup(unsigned long base, struct clk *clk);
 static struct clk *sata_clk;
@@ -95,6 +96,7 @@ extern char *gp_reg_id;
 extern struct regulator *(*get_cpu_regulator)(void);
 extern void (*put_cpu_regulator)(void);
 extern void mx6_cpu_regulator_init(void);
+extern int __init mx6q_sabresd_init_pfuze100(u32 int_gpio);
 
 static iomux_v3_cfg_t mx6q_sabresd_pads[] = {
 	/* AUDMUX */
@@ -974,6 +976,14 @@ static void __init mx6_sabresd_board_init(void)
 			ARRAY_SIZE(mxc_i2c1_board_info));
 	i2c_register_board_info(2, mxc_i2c2_board_info,
 			ARRAY_SIZE(mxc_i2c2_board_info));
+	ret = gpio_request(MX6Q_SABRESD_PFUZE_INT, "pFUZE-int");
+	if (ret) {
+		printk(KERN_ERR"request pFUZE-int error!!\n");
+		return;
+	} else {
+		gpio_direction_input(MX6Q_SABRESD_PFUZE_INT);
+		mx6q_sabresd_init_pfuze100(MX6Q_SABRESD_PFUZE_INT);
+	}
 
 	/* SPI */
 	imx6q_add_ecspi(0, &mx6q_sabresd_spi_data);
