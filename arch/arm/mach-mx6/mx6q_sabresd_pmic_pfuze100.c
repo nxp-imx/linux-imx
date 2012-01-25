@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011-2012 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2012 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -38,17 +38,16 @@
 #define PFUZE100_I2C_DEVICE_NAME  "pfuze100"
 /* 7-bit I2C bus slave address */
 #define PFUZE100_I2C_ADDR         (0x08)
-
  /*SWBST*/
-#define PFUZE100_SW1ASTANDBY    33
-#define PFUZE100_SW1ASTANDBY_STBY_VAL   (0x14)
-#define PFUZE100_SW1ASTANDBY_STBY_M     (0x3f<<0)
+#define PFUZE100_SW1ASTANDBY	33
+#define PFUZE100_SW1ASTANDBY_STBY_VAL	(0x14)
+#define PFUZE100_SW1ASTANDBY_STBY_M	(0x3f<<0)
 #define PFUZE100_SW1BSTANDBY   40
 #define PFUZE100_SW1BSTANDBY_STBY_VAL  (0x14)
 #define PFUZE100_SW1BSTANDBY_STBY_M    (0x3f<<0)
-#define PFUZE100_SW1CSTANDBY    47
-#define PFUZE100_SW1CSTANDBY_STBY_VAL   (0x14)
-#define PFUZE100_SW1CSTANDBY_STBY_M     (0x3f<<0)
+#define PFUZE100_SW1CSTANDBY	47
+#define PFUZE100_SW1CSTANDBY_STBY_VAL	(0x14)
+#define PFUZE100_SW1CSTANDBY_STBY_M	(0x3f<<0)
 #define PFUZE100_SW2STANDBY     54
 #define PFUZE100_SW2STANDBY_STBY_VAL    0x0
 #define PFUZE100_SW2STANDBY_STBY_M      (0x3f<<0)
@@ -61,91 +60,55 @@
 #define PFUZE100_SW4STANDBY     75
 #define PFUZE100_SW4STANDBY_STBY_VAL    0
 #define PFUZE100_SW4STANDBY_STBY_M      (0x3f<<0)
-#define PFUZE100_SWBSTCON1      102
-#define PFUZE100_SWBSTCON1_SWBSTMOD_VAL (0x1<<2)
-#define PFUZE100_SWBSTCON1_SWBSTMOD_M   (0x3<<2)
+#define PFUZE100_SWBSTCON1	102
+#define PFUZE100_SWBSTCON1_SWBSTMOD_VAL	(0x1<<2)
+#define PFUZE100_SWBSTCON1_SWBSTMOD_M	(0x3<<2)
 
-static struct regulator_consumer_supply sw1a_consumers[] = {
-	{
-	 .supply = "P1V325_VDDARM_SW1AB",
-	 }
-};
-
-static struct regulator_consumer_supply sw1c_consumers[] = {
-	{
-	 .supply = "P1V325_VDDSOC_SW1C",
-	 }
-};
 
 static struct regulator_consumer_supply sw2_consumers[] = {
-	{
-	 .supply = "P3V0_VDDHIGH_SW2",
-	 }
+       {
+	.supply = "GEN_3V3",
+	}
 };
-
-static struct regulator_consumer_supply sw3_consumers[] = {
-	{
-	 .supply = "P1V5_DDR_SW3",
-	 }
-};
-
 static struct regulator_consumer_supply sw4_consumers[] = {
-	{
-	 .supply = "P1V8_SW4",
-	 }
+       {
+	.supply = "AUD_1V8",
+	}
 };
-
 static struct regulator_consumer_supply swbst_consumers[] = {
-	{
-	 .supply = "P5V0_SWBST",
-	 }
+       {
+	.supply = "SWBST_5V",
+	}
 };
-
-static struct regulator_consumer_supply vsnvs_consumers[] = {
-	{
-	 .supply = "P3V0_STBY",
-	 }
-};
-
 static struct regulator_consumer_supply vgen1_consumers[] = {
-	{
-	 .supply = "P1V2_VGEN1",
-	 }
+       {
+	.supply = "VGEN1_1V5",
+	}
 };
-
 static struct regulator_consumer_supply vgen2_consumers[] = {
-	{
-	 .supply = "P1V5_VGEN2",
-	 }
+       {
+	.supply = "VGEN2_1V5",
+	}
 };
-
-static struct regulator_consumer_supply vgen3_consumers[] = {
-	{
-	 .supply = "P1V8_VGEN3",
-	 }
-};
-
 static struct regulator_consumer_supply vgen4_consumers[] = {
-	{
-	 .supply = "P1V8_VGEN4",
-	 }
+       {
+	.supply = "VGEN4_1V8",
+	}
 };
-
 static struct regulator_consumer_supply vgen5_consumers[] = {
-	{
-	 .supply = "P2V5_VGEN5",
-	 }
+       {
+	.supply = "VGEN5_2V8",
+	}
 };
-
 static struct regulator_consumer_supply vgen6_consumers[] = {
-	{
-	 .supply = "P2V8_VGEN6",
-	 }
+       {
+	.supply = "VGEN6_3V3",
+	}
 };
 
 static struct regulator_init_data sw1a_init = {
 	.constraints = {
-			.name = "SW1A",
+			.name = "PFUZE100_SW1A",
 #ifdef PFUZE100_FIRST_VERSION
 			.min_uV = 650000,
 			.max_uV = 1437500,
@@ -158,13 +121,11 @@ static struct regulator_init_data sw1a_init = {
 			.boot_on = 1,
 			.always_on = 1,
 			},
-	.num_consumer_supplies = ARRAY_SIZE(sw1a_consumers),
-	.consumer_supplies = sw1a_consumers,
 };
 
 static struct regulator_init_data sw1b_init = {
 	.constraints = {
-			.name = "SW1B",
+			.name = "PFUZE100_SW1B",
 			.min_uV = 300000,
 			.max_uV = 1875000,
 			.valid_ops_mask = REGULATOR_CHANGE_VOLTAGE,
@@ -176,7 +137,7 @@ static struct regulator_init_data sw1b_init = {
 
 static struct regulator_init_data sw1c_init = {
 	.constraints = {
-			.name = "SW1C",
+			.name = "PFUZE100_SW1C",
 			.min_uV = 300000,
 			.max_uV = 1875000,
 			.valid_ops_mask = REGULATOR_CHANGE_VOLTAGE,
@@ -184,13 +145,11 @@ static struct regulator_init_data sw1c_init = {
 			.always_on = 1,
 			.boot_on = 1,
 			},
-	.num_consumer_supplies = ARRAY_SIZE(sw1c_consumers),
-	.consumer_supplies = sw1c_consumers,
 };
 
 static struct regulator_init_data sw2_init = {
 	.constraints = {
-			.name = "SW2",
+			.name = "PFUZE100_SW2",
 #if PFUZE100_SW2_VOL6
 			.min_uV = 800000,
 			.max_uV = 3950000,
@@ -209,7 +168,7 @@ static struct regulator_init_data sw2_init = {
 
 static struct regulator_init_data sw3a_init = {
 	.constraints = {
-			.name = "SW3A",
+			.name = "PFUZE100_SW3A",
 #if PFUZE100_SW3_VOL6
 			.min_uV = 800000,
 			.max_uV = 3950000,
@@ -222,13 +181,11 @@ static struct regulator_init_data sw3a_init = {
 			.always_on = 1,
 			.boot_on = 1,
 			},
-	.num_consumer_supplies = ARRAY_SIZE(sw3_consumers),
-	.consumer_supplies = sw3_consumers,
 };
 
 static struct regulator_init_data sw3b_init = {
 	.constraints = {
-			.name = "SW3B",
+			.name = "PFUZE100_SW3B",
 #if PFUZE100_SW3_VOL6
 			.min_uV = 800000,
 			.max_uV = 3950000,
@@ -245,7 +202,7 @@ static struct regulator_init_data sw3b_init = {
 
 static struct regulator_init_data sw4_init = {
 	.constraints = {
-			.name = "SW4",
+			.name = "PFUZE100_SW4",
 #if PFUZE100_SW4_VOL6
 			.min_uV = 800000,
 			.max_uV = 3950000,
@@ -262,13 +219,13 @@ static struct regulator_init_data sw4_init = {
 
 static struct regulator_init_data swbst_init = {
 	.constraints = {
-			.name = "SWBST",
+			.name = "PFUZE100_SWBST",
 			.min_uV = 5000000,
 			.max_uV = 5150000,
 			.valid_ops_mask = REGULATOR_CHANGE_VOLTAGE,
 			.valid_modes_mask = 0,
-			.always_on = 0,
-			.boot_on = 0,
+			.always_on = 1,
+			.boot_on = 1,
 			},
 	.num_consumer_supplies = ARRAY_SIZE(swbst_consumers),
 	.consumer_supplies = swbst_consumers,
@@ -276,7 +233,7 @@ static struct regulator_init_data swbst_init = {
 
 static struct regulator_init_data vsnvs_init = {
 	.constraints = {
-			.name = "VSNVS",
+			.name = "PFUZE100_VSNVS",
 			.min_uV = 1200000,
 			.max_uV = 3000000,
 			.valid_ops_mask = REGULATOR_CHANGE_VOLTAGE,
@@ -284,13 +241,11 @@ static struct regulator_init_data vsnvs_init = {
 			.always_on = 1,
 			.boot_on = 1,
 			},
-	.num_consumer_supplies = ARRAY_SIZE(vsnvs_consumers),
-	.consumer_supplies = vsnvs_consumers,
 };
 
 static struct regulator_init_data vrefddr_init = {
 	.constraints = {
-			.name = "VREFDDR",
+			.name = "PFUZE100_VREFDDR",
 			.always_on = 1,
 			.boot_on = 1,
 			},
@@ -298,7 +253,7 @@ static struct regulator_init_data vrefddr_init = {
 
 static struct regulator_init_data vgen1_init = {
 	.constraints = {
-			.name = "VGEN1",
+			.name = "PFUZE100_VGEN1",
 #ifdef PFUZE100_FIRST_VERSION
 			.min_uV = 1200000,
 			.max_uV = 1550000,
@@ -318,7 +273,7 @@ static struct regulator_init_data vgen1_init = {
 
 static struct regulator_init_data vgen2_init = {
 	.constraints = {
-			.name = "VGEN2",
+			.name = "PFUZE100_VGEN2",
 #ifdef PFUZE100_FIRST_VERSION
 			.min_uV = 1200000,
 			.max_uV = 1550000,
@@ -337,7 +292,7 @@ static struct regulator_init_data vgen2_init = {
 
 static struct regulator_init_data vgen3_init = {
 	.constraints = {
-			.name = "VGEN3",
+			.name = "PFUZE100_VGEN3",
 			.min_uV = 1800000,
 			.max_uV = 3300000,
 			.valid_ops_mask = REGULATOR_CHANGE_VOLTAGE |
@@ -346,13 +301,11 @@ static struct regulator_init_data vgen3_init = {
 			.always_on = 0,
 			.boot_on = 0,
 			},
-	.num_consumer_supplies = ARRAY_SIZE(vgen3_consumers),
-	.consumer_supplies = vgen3_consumers,
 };
 
 static struct regulator_init_data vgen4_init = {
 	.constraints = {
-			.name = "VGEN4",
+			.name = "PFUZE100_VGEN4",
 			.min_uV = 1800000,
 			.max_uV = 3300000,
 			.valid_ops_mask = REGULATOR_CHANGE_VOLTAGE |
@@ -365,7 +318,7 @@ static struct regulator_init_data vgen4_init = {
 
 static struct regulator_init_data vgen5_init = {
 	.constraints = {
-			.name = "VGEN5",
+			.name = "PFUZE100_VGEN5",
 			.min_uV = 1800000,
 			.max_uV = 3300000,
 			.valid_ops_mask = REGULATOR_CHANGE_VOLTAGE |
@@ -378,7 +331,7 @@ static struct regulator_init_data vgen5_init = {
 
 static struct regulator_init_data vgen6_init = {
 	.constraints = {
-			.name = "VGEN6",
+			.name = "PFUZE100_VGEN6",
 			.min_uV = 1800000,
 			.max_uV = 3300000,
 			.valid_ops_mask = REGULATOR_CHANGE_VOLTAGE |
@@ -442,7 +395,6 @@ static struct pfuze_platform_data pfuze100_plat = {
 	.num_regulators = ARRAY_SIZE(mx6q_sabreauto_pfuze100_regulators),
 	.regulators = mx6q_sabreauto_pfuze100_regulators,
 	.pfuze_init = pfuze100_init,
-
 };
 
 static struct i2c_board_info __initdata pfuze100_i2c_device = {
@@ -450,7 +402,7 @@ static struct i2c_board_info __initdata pfuze100_i2c_device = {
 	.platform_data = &pfuze100_plat,
 };
 
-int __init mx6q_sabreauto_init_pfuze100(u32 int_gpio)
+int __init mx6q_sabresd_init_pfuze100(u32 int_gpio)
 {
 	pfuze100_i2c_device.irq = gpio_to_irq(int_gpio); /*update INT gpio */
 	return i2c_register_board_info(1, &pfuze100_i2c_device, 1);
