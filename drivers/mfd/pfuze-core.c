@@ -348,8 +348,9 @@ static int pfuze_identify(struct mc_pfuze *mc_pfuze, enum pfuze_id *id)
 	ret = pfuze_reg_read(mc_pfuze, PFUZE_REG_REVISION_ID, &value);
 	if (ret)
 		return ret;
-	dev_info(&mc_pfuze->i2c_client->dev, "Full lay: %x ,Metal lay: %x\n",
-		 (value & 0xf0) >> 4, value & 0x0f);
+	dev_info(&mc_pfuze->i2c_client->dev,
+		 "ID: %d,Full lay: %x ,Metal lay: %x\n",
+		 *id, (value & 0xf0) >> 4, value & 0x0f);
 	ret = pfuze_reg_read(mc_pfuze, PFUZE_REG_FAB_ID, &value);
 	if (ret)
 		return ret;
@@ -516,6 +517,7 @@ static int pfuze_probe(struct i2c_client *client,
 		struct pfuze_regulator_platform_data regulator_pdata = {
 			.num_regulators = pdata->num_regulators,
 			.regulators = pdata->regulators,
+			.pfuze_init = pdata->pfuze_init,
 		};
 		pfuze_add_subdevice_pdata(mc_pfuze, "%s-regulator",
 					  &regulator_pdata,
