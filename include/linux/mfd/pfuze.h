@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2011-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -95,10 +95,10 @@ struct pfuze_regulator_init_data {
 	int id;
 	struct regulator_init_data *init_data;
 };
-
 struct pfuze_regulator_platform_data {
 	int num_regulators;
 	struct pfuze_regulator_init_data *regulators;
+	int (*pfuze_init)(struct mc_pfuze *pfuze);
 };
 
 struct pfuze_platform_data {
@@ -106,5 +106,6 @@ struct pfuze_platform_data {
 	unsigned int flags;
 	int num_regulators;
 	struct pfuze_regulator_init_data *regulators;
+	int (*pfuze_init)(struct mc_pfuze *pfuze);
 };
 #endif
