@@ -1,5 +1,5 @@
 /*
- * Copyright 2009-2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2009-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -26,9 +26,30 @@
 #ifndef MXC_EDID_H
 #define MXC_EDID_H
 
+#include <linux/fb.h>
+
 #define FB_VMODE_ASPECT_4_3	0x10
 #define FB_VMODE_ASPECT_16_9	0x20
 #define FB_VMODE_ASPECT_MASK	(FB_VMODE_ASPECT_4_3 | FB_VMODE_ASPECT_16_9)
+
+enum cea_audio_coding_types {
+	AUDIO_CODING_TYPE_REF_STREAM_HEADER	=  0,
+	AUDIO_CODING_TYPE_LPCM			=  1,
+	AUDIO_CODING_TYPE_AC3			=  2,
+	AUDIO_CODING_TYPE_MPEG1			=  3,
+	AUDIO_CODING_TYPE_MP3			=  4,
+	AUDIO_CODING_TYPE_MPEG2			=  5,
+	AUDIO_CODING_TYPE_AACLC			=  6,
+	AUDIO_CODING_TYPE_DTS			=  7,
+	AUDIO_CODING_TYPE_ATRAC			=  8,
+	AUDIO_CODING_TYPE_SACD			=  9,
+	AUDIO_CODING_TYPE_EAC3			= 10,
+	AUDIO_CODING_TYPE_DTS_HD		= 11,
+	AUDIO_CODING_TYPE_MLP			= 12,
+	AUDIO_CODING_TYPE_DST			= 13,
+	AUDIO_CODING_TYPE_WMAPRO		= 14,
+	AUDIO_CODING_TYPE_RESERVED		= 15,
+};
 
 struct mxc_edid_cfg {
 	bool cea_underscan;
@@ -43,6 +64,10 @@ struct mxc_edid_cfg {
 	bool vsd_dc_30bit;
 	bool vsd_dc_y444;
 	bool vsd_dvi_dual;
+
+	u8 max_channels;
+	u8 sample_sizes;
+	u8 sample_rates;
 };
 
 int mxc_edid_var_to_vic(struct fb_var_screeninfo *var);
