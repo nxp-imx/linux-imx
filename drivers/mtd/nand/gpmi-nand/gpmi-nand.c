@@ -1493,6 +1493,8 @@ static int __devinit gpmi_nfc_init(struct gpmi_nand_data *this)
 	chip->ecc.mode		= NAND_ECC_HW;
 	chip->ecc.size		= 1;
 	chip->ecc.layout	= &gpmi_hw_ecclayout;
+	if (pdata->enable_bbt)
+		chip->options |= NAND_BBT_USE_FLASH | NAND_USE_FLASH_BBT_NO_OOB;
 
 	/* Allocate a temporary DMA buffer for reading ID in the nand_scan() */
 	this->bch_geometry.payload_size = 1024;

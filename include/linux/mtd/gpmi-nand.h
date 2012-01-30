@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2011-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -51,6 +51,7 @@
  * @partitions:              An optional pointer to an array of partition
  *                           descriptions.
  * @partition_count:         The number of elements in the partitions array.
+ * @enable_bbt:              Enable the BBT or not.
  */
 struct gpmi_nand_platform_data {
 	/* SoC hardware information. */
@@ -64,5 +65,6 @@ struct gpmi_nand_platform_data {
 	/* Medium information. */
 	struct		mtd_partition *partitions;
 	unsigned	partition_count;
+	unsigned int	enable_bbt:1;
 };
 #endif
