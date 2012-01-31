@@ -613,19 +613,45 @@ static int mmc_sd_init_uhs_card(struct mmc_card *card)
 	if (err)
 		goto out;
 
-	/* Set bus speed mode of the card */
-	err = sd_set_bus_speed_mode(card, status);
-	if (err)
-		goto out;
-
 	/* Set current limit for the card */
 	err = sd_set_current_limit(card, status);
 	if (err)
 		goto out;
 
+	/* Set bus speed mode of the card */
+	err = sd_set_bus_speed_mode(card, status);
+	if (err)
+		goto out;
+
 	/* SPI mode doesn't define CMD19 */
+#ifdef CONFIG_MMC_SDHCI_ESDHC_IMX
+	if (!mmc_host_is_spi(card->host)) {
+		int min, max, avg;
+
+		min = card->host->tuning_min;
+		while (min < card->host->tuning_max) {
+			mmc_set_tuning(card->host, min);
+			if (!mmc_send_tuning_cmd(card))
+				break;
+			min += card->host->tuning_step;
+		}
+
+		max = min;
+		while (max < card->host->tuning_max) {
+			mmc_set_tuning(card->host, max);
+			if (!mmc_send_tuning_cmd(card))
+				break;
+			max += card->host->tuning_step;
+		}
+
+		avg = (min + max) / 2;
+		mmc_set_tuning(card->host, avg);
+		mmc_send_tuning_cmd(card);
+	}
+#else
 	if (!mmc_host_is_spi(card->host) && card->host->ops->execute_tuning)
 		err = card->host->ops->execute_tuning(card->host);
+#endif
 
 out:
 	kfree(status);
