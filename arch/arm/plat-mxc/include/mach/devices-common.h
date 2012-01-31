@@ -9,6 +9,7 @@
 #include <linux/kernel.h>
 #include <linux/platform_device.h>
 #include <linux/init.h>
+#include <linux/dma-mapping.h>
 
 struct platform_device *imx_add_platform_device_dmamask(
 		const char *name, int id,
