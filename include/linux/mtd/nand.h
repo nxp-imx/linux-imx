@@ -224,6 +224,8 @@ typedef enum {
  * This option is passed to the default bad block table function.
  */
 #define NAND_USE_FLASH_BBT	0x00010000
+#define NAND_BBT_USE_FLASH	NAND_USE_FLASH_BBT
+
 /* This option skips the bbt scan during initialization. */
 #define NAND_SKIP_BBTSCAN	0x00020000
 /*
