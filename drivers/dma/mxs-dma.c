@@ -27,7 +27,7 @@
 #include <mach/mxs.h>
 #include <mach/dma.h>
 #include <mach/common.h>
-#if defined(CONFIG_SOC_IMX50) || defined(CONFIG_SOC_IMX6Q)
+#ifdef CONFIG_SOC_IMX50
 #include <mach/system.h>
 #endif
 
@@ -587,7 +587,7 @@ static int __init mxs_dma_init(struct mxs_dma_engine *mxs_dma)
 
 #if defined(CONFIG_SOC_IMX23) || defined(CONFIG_SOC_IMX28)
 	ret = mxs_reset_block(mxs_dma->base);
-#elif defined(CONFIG_SOC_IMX50) || defined(CONFIG_SOC_IMX6Q)
+#elif defined(CONFIG_SOC_IMX50)
 	ret = mxs_reset_block(mxs_dma->base, true);
 #endif
 
