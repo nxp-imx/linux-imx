@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2012 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -423,12 +423,17 @@ static enum usb_wakeup_event _is_device_wakeup(struct fsl_usb2_platform_data *pd
 	pr_debug("%s\n", __func__);
 
 	/* if ID=1, it is a device wakeup event */
-	if (wakeup_req && (UOG_OTGSC & OTGSC_STS_USB_ID) && (UOG_PORTSC1 & PORTSC_PORT_FORCE_RESUME)) {
-		printk(KERN_INFO "otg udc wakeup, host sends resume signal\n");
-		return true;
-	}
 	if (wakeup_req && (UOG_OTGSC & OTGSC_STS_USB_ID) && (UOG_USBSTS & USBSTS_URI)) {
 		printk(KERN_INFO "otg udc wakeup, host sends reset signal\n");
+		return true;
+	}
+	if (wakeup_req && (UOG_OTGSC & OTGSC_STS_USB_ID) &&  \
+		((UOG_USBSTS & USBSTS_PCI) || (UOG_PORTSC1 & PORTSC_PORT_FORCE_RESUME))) {
+		/*
+		 * When the line state from J to K, the Port Change Detect bit
+		 * in the USBSTS register is also set to '1'.
+		 */
+		printk(KERN_INFO "otg udc wakeup, host sends resume signal\n");
 		return true;
 	}
 	if (wakeup_req && (UOG_OTGSC & OTGSC_STS_USB_ID) && (UOG_OTGSC & OTGSC_STS_A_VBUS_VALID) \
