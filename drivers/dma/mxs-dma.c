@@ -27,9 +27,6 @@
 #include <mach/mxs.h>
 #include <mach/dma.h>
 #include <mach/common.h>
-#ifdef CONFIG_SOC_IMX50
-#include <mach/system.h>
-#endif
 
 /*
  * NOTE: The term "PIO" throughout the mxs-dma implementation means
@@ -585,12 +582,7 @@ static int __init mxs_dma_init(struct mxs_dma_engine *mxs_dma)
 	if (ret)
 		goto err_out;
 
-#if defined(CONFIG_SOC_IMX23) || defined(CONFIG_SOC_IMX28)
 	ret = mxs_reset_block(mxs_dma->base);
-#elif defined(CONFIG_SOC_IMX50)
-	ret = mxs_reset_block(mxs_dma->base, true);
-#endif
-
 	if (ret)
 		goto err_out;
 
