@@ -39,6 +39,7 @@
 
 #define SDHCI_MIX_CTRL_EXE_TUNE		(1 << 22)
 #define SDHCI_MIX_CTRL_SMPCLK_SEL	(1 << 23)
+#define SDHCI_MIX_CTRL_AUTOTUNE_EN	(1 << 24)
 #define SDHCI_MIX_CTRL_FBCLK_SEL	(1 << 25)
 
 #define  SDHCI_VENDOR_SPEC_VSELECT	(1 << 1)
@@ -67,6 +68,8 @@
 struct pltfm_imx_data {
 	int flags;
 	u32 scratchpad;
+	/* uhs mode for sdhc host control2 */
+	unsigned char uhs_mode;
 };
 
 static inline void esdhc_clrset_le(struct sdhci_host *host, u32 mask, u32 val, int reg)
@@ -99,7 +102,7 @@ static u32 esdhc_readl_le(struct sdhci_host *host, int reg)
 			val |= SDHCI_CARD_PRESENT;
 	}
 
-	if (reg == SDHCI_INT_STATUS && cpu_is_mx6q())
+	if (reg == SDHCI_INT_STATUS && cpu_is_mx6q()) {
 		/*
 		 * on mx6q, there is low possibility that
 		 * DATA END interrupt comes ealier than DMA
@@ -110,6 +113,32 @@ static u32 esdhc_readl_le(struct sdhci_host *host, int reg)
 		if ((val & SDHCI_INT_DATA_END) && \
 			!(val & SDHCI_INT_DMA_END))
 			val = readl(host->ioaddr + reg);
+	} else if (reg == SDHCI_CAPABILITIES_1 && cpu_is_mx6q()) {
+		/*
+		 * on mx6q, no cap_1 available, fake one.
+		 */
+		val = SDHCI_SUPPORT_DDR50 | SDHCI_SUPPORT_SDR104 | \
+			  SDHCI_SUPPORT_SDR50;
+	} else if (reg == SDHCI_MAX_CURRENT && cpu_is_mx6q()) {
+		/*
+		 * on mx6q, no max current available, fake one.
+		 */
+		val = 0;
+		val |= 0xFF << SDHCI_MAX_CURRENT_330_SHIFT;
+		val |= 0xFF << SDHCI_MAX_CURRENT_300_SHIFT;
+		val |= 0xFF << SDHCI_MAX_CURRENT_180_SHIFT;
+	}
+
+	if (reg == SDHCI_PRESENT_STATE && cpu_is_mx6q()) {
+		u32 fsl_prss = readl(host->ioaddr + SDHCI_PRESENT_STATE);
+		/* save the least 20 bits */
+		val = fsl_prss & 0x000FFFFF;
+		/* move dat[0-3] line signal bits */
+		val |= (fsl_prss & 0x0F000000) >> 4;
+		/* move cmd line signal bits */
+		val |= (fsl_prss & 0x00800000) << 1;
+	}
+
 	return val;
 }
 
@@ -174,8 +203,33 @@ static void esdhc_writel_le(struct sdhci_host *host, u32 val, int reg)
 
 static u16 esdhc_readw_le(struct sdhci_host *host, int reg)
 {
+	u16 ret;
+	u32 val;
+	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
+	struct pltfm_imx_data *imx_data = pltfm_host->priv;
+
 	if (unlikely(reg == SDHCI_HOST_VERSION))
 		reg ^= 2;
+
+	switch (reg) {
+	case SDHCI_HOST_CONTROL2:
+		ret = 0;
+		/* collect bit info from several regs */
+		val = readl(host->ioaddr + SDHCI_VENDOR_SPEC);
+		ret |= (val & SDHCI_VENDOR_SPEC_VSELECT)
+			? SDHCI_CTRL_VDD_180 : 0;
+
+		val = readl(host->ioaddr + SDHCI_MIX_CTRL);
+		ret |= (val & SDHCI_MIX_CTRL_EXE_TUNE)
+			? SDHCI_CTRL_EXEC_TUNING : 0;
+		ret |= (val & SDHCI_MIX_CTRL_SMPCLK_SEL)
+			? 0 : SDHCI_CTRL_TUNED_CLK ;
+		ret |= SDHCI_CTRL_UHS_MASK & imx_data->uhs_mode;
+		/* no preset enable available  */
+		ret &= ~SDHCI_CTRL_PRESET_VAL_ENABLE;
+
+		return ret;
+	}
 
 	return readw(host->ioaddr + reg);
 }
@@ -187,6 +241,7 @@ void esdhc_prepare_tuning(struct sdhci_host *host, u32 val)
 	reg = sdhci_readl(host, SDHCI_MIX_CTRL);
 	reg |= SDHCI_MIX_CTRL_EXE_TUNE | \
 		SDHCI_MIX_CTRL_SMPCLK_SEL | \
+		SDHCI_MIX_CTRL_AUTOTUNE_EN | \
 		SDHCI_MIX_CTRL_FBCLK_SEL;
 	sdhci_writel(host, reg, SDHCI_MIX_CTRL);
 	sdhci_writel(host, (val << 8), SDHCI_TUNE_CTRL_STATUS);
@@ -197,8 +252,50 @@ static void esdhc_writew_le(struct sdhci_host *host, u16 val, int reg)
 {
 	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
 	struct pltfm_imx_data *imx_data = pltfm_host->priv;
+	u32 orig_reg;
 
 	switch (reg) {
+	case SDHCI_CLOCK_CONTROL:
+		orig_reg = readl(host->ioaddr + SDHCI_VENDOR_SPEC);
+		if (val & SDHCI_CLOCK_CARD_EN) {
+			writel(orig_reg | SDHCI_VENDOR_SPEC_FRC_SDCLK_ON, \
+				host->ioaddr + SDHCI_VENDOR_SPEC);
+		} else {
+			writel(orig_reg & ~SDHCI_VENDOR_SPEC_FRC_SDCLK_ON, \
+				host->ioaddr + SDHCI_VENDOR_SPEC);
+		}
+
+		return;
+	case SDHCI_HOST_CONTROL2:
+		orig_reg = readl(host->ioaddr + SDHCI_VENDOR_SPEC);
+		if (val & SDHCI_CTRL_VDD_180) {
+			orig_reg |= SDHCI_VENDOR_SPEC_VSELECT;
+			writel(orig_reg, host->ioaddr + SDHCI_VENDOR_SPEC);
+		} else {
+			orig_reg &= ~SDHCI_VENDOR_SPEC_VSELECT;
+			writel(orig_reg, host->ioaddr + SDHCI_VENDOR_SPEC);
+		}
+
+		/*
+		 * FSL sdhc controls bus and signal voltage via one bit
+		 * VSELECT in VENDOR_SPEC, which has been set in
+		 * SDHCI_POWER_CONTROL. So we skip the SDHCI_CTRL_VDD_180
+		 * here.
+		 *
+		 * ignore exec_tuning flag written to SDHCI_HOST_CONTROL2,
+		 * tuning will be handled differently for FSL SDHC ip.
+		 */
+		orig_reg = readl(host->ioaddr + SDHCI_MIX_CTRL);
+		orig_reg &= ~SDHCI_MIX_CTRL_SMPCLK_SEL;
+
+		orig_reg |= (val & SDHCI_CTRL_TUNED_CLK)
+			? 0 : SDHCI_MIX_CTRL_SMPCLK_SEL;
+
+		writel(orig_reg, host->ioaddr + SDHCI_MIX_CTRL);
+
+		imx_data->uhs_mode = val & SDHCI_CTRL_UHS_MASK;
+
+		return;
 	case SDHCI_TRANSFER_MODE:
 		/*
 		 * Postpone this write, we must do it together with a
