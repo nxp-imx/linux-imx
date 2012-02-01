@@ -1,7 +1,7 @@
 /*
  * Freescale GPMI NAND Flash Driver
  *
- * Copyright (C) 2010-2011 Freescale Semiconductor, Inc.
+ * Copyright (C) 2010-2012 Freescale Semiconductor, Inc.
  * Copyright (C) 2008 Embedded Alley Solutions, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
@@ -1582,6 +1582,9 @@ static const struct platform_device_id gpmi_ids[] = {
 	}, {
 		.name = "imx28-gpmi-nand",
 		.driver_data = IS_MX28,
+	}, {
+		.name = "imx6q-gpmi-nand",
+		.driver_data = IS_MX6Q,
 	}, {},
 };
 
