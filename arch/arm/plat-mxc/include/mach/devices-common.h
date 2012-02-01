@@ -621,10 +621,10 @@ struct platform_device *__init imx_add_fsl_usb2_wakeup(
 		const struct imx_fsl_usb2_wakeup_data *data,
 		const struct fsl_usb2_wakeup_platform_data *pdata);
 
-/* gpmi-nfc */
-#include <mach/gpmi-nfc.h>
+/* gpmi-nand*/
+#include <linux/mtd/gpmi-nand.h>
 struct platform_device *__init imx_add_gpmi(
-		const struct gpmi_nfc_platform_data *data);
+		const struct gpmi_nand_platform_data *data);
 
 struct imx_rngb_data {
 	resource_size_t iobase;

@@ -492,15 +492,15 @@ static iomux_v3_cfg_t mx6q_gpmi_nand[] __initdata = {
 	MX6Q_PAD_NANDF_WP_B__RAWNAND_RESETN,
 };
 
-static int gpmi_nfc_platform_init(void)
+static int gpmi_nand_platform_init(void)
 {
 	return mxc_iomux_v3_setup_multiple_pads(mx6q_gpmi_nand,
 					ARRAY_SIZE(mx6q_gpmi_nand));
 }
 
-static const struct gpmi_nfc_platform_data
-mx6q_gpmi_nfc_platform_data __initconst = {
-	.platform_init           = gpmi_nfc_platform_init,
+static const struct gpmi_nand_platform_data
+mx6q_gpmi_nand_platform_data __initconst = {
+	.platform_init           = gpmi_nand_platform_init,
 	.min_prop_delay_in_ns    = 5,
 	.max_prop_delay_in_ns    = 9,
 	.max_chip_count          = 1,
@@ -1639,7 +1639,7 @@ static void __init mx6_board_init(void)
 	imx6q_add_viim();
 	imx6q_add_imx2_wdt(0, NULL);
 	imx6q_add_dma();
-	imx6q_add_gpmi(&mx6q_gpmi_nfc_platform_data);
+	imx6q_add_gpmi(&mx6q_gpmi_nand_platform_data);
 
 	imx6q_add_dvfs_core(&arm2_dvfscore_data);
 

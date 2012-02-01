@@ -4478,11 +4478,11 @@ static struct clk gpu3d_shader_clk = {
 };
 
 /* set the parent by the ipcg table */
-static struct clk gpmi_nfc_clk[] = {
+static struct clk gpmi_nand_clk[] = {
 	{	/* gpmi_io_clk */
 	__INIT_CLK_DEBUG(gpmi_io_clk)
 	.parent = &enfc_clk,
-	.secondary = &gpmi_nfc_clk[1],
+	.secondary = &gpmi_nand_clk[1],
 	.enable = _clk_enable,
 	.enable_reg = MXC_CCM_CCGR4,
 	.enable_shift = MXC_CCM_CCGRx_CG14_OFFSET,
@@ -4491,7 +4491,7 @@ static struct clk gpmi_nfc_clk[] = {
 	{	/* gpmi_apb_clk */
 	__INIT_CLK_DEBUG(gpmi_apb_clk)
 	.parent = &usdhc3_clk,
-	.secondary = &gpmi_nfc_clk[2],
+	.secondary = &gpmi_nand_clk[2],
 	.enable = _clk_enable,
 	.enable_reg = MXC_CCM_CCGR4,
 	.enable_shift = MXC_CCM_CCGRx_CG15_OFFSET,
@@ -4500,7 +4500,7 @@ static struct clk gpmi_nfc_clk[] = {
 	{	/* bch_clk */
 	__INIT_CLK_DEBUG(gpmi_bch_clk)
 	.parent = &usdhc4_clk,
-	.secondary = &gpmi_nfc_clk[3],
+	.secondary = &gpmi_nand_clk[3],
 	.enable = _clk_enable,
 	.enable_reg = MXC_CCM_CCGR4,
 	.enable_shift = MXC_CCM_CCGRx_CG13_OFFSET,
@@ -4509,7 +4509,7 @@ static struct clk gpmi_nfc_clk[] = {
 	{	/* bch_apb_clk */
 	__INIT_CLK_DEBUG(gpmi_bch_apb_clk)
 	.parent = &usdhc3_clk,
-	.secondary = &gpmi_nfc_clk[4],
+	.secondary = &gpmi_nand_clk[4],
 	.enable = _clk_enable,
 	.enable_reg = MXC_CCM_CCGR4,
 	.enable_shift = MXC_CCM_CCGRx_CG12_OFFSET,
@@ -5044,11 +5044,11 @@ static struct clk_lookup lookups[] = {
 	_REGISTER_CLOCK(NULL, "gpu2d_clk", gpu2d_core_clk[0]),
 	_REGISTER_CLOCK(NULL, "gpu3d_shader_clk", gpu3d_shader_clk),
 	_REGISTER_CLOCK(NULL, "gpt", gpt_clk[0]),
-	_REGISTER_CLOCK("imx6q-gpmi-nfc.0", NULL, gpmi_nfc_clk[0]),
-	_REGISTER_CLOCK(NULL, "gpmi-apb", gpmi_nfc_clk[1]),
-	_REGISTER_CLOCK(NULL, "bch", gpmi_nfc_clk[2]),
-	_REGISTER_CLOCK(NULL, "bch-apb", gpmi_nfc_clk[3]),
-	_REGISTER_CLOCK(NULL, "pl301_mx6qperl-bch", gpmi_nfc_clk[4]),
+	_REGISTER_CLOCK("imx6q-gpmi-nand.0", NULL, gpmi_nand_clk[0]),
+	_REGISTER_CLOCK(NULL, "gpmi-apb", gpmi_nand_clk[1]),
+	_REGISTER_CLOCK(NULL, "bch", gpmi_nand_clk[2]),
+	_REGISTER_CLOCK(NULL, "bch-apb", gpmi_nand_clk[3]),
+	_REGISTER_CLOCK(NULL, "pl301_mx6qperl-bch", gpmi_nand_clk[4]),
 	_REGISTER_CLOCK("mxc_pwm.0", NULL, pwm_clk[0]),
 	_REGISTER_CLOCK("mxc_pwm.1", NULL, pwm_clk[1]),
 	_REGISTER_CLOCK("mxc_pwm.2", NULL, pwm_clk[2]),
