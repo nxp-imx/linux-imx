@@ -43,12 +43,12 @@
 
 #define MODULE_CLKGATE		(1 << 30)
 #define MODULE_SFTRST		(1 << 31)
-/* static DEFINE_SPINLOCK(wfi_lock); */
+static DEFINE_SPINLOCK(wfi_lock);
 
 extern unsigned int gpc_wake_irq[4];
 extern int mx6q_revision(void);
 
-/* static unsigned int cpu_idle_mask; */
+static unsigned int cpu_idle_mask;
 
 static void __iomem *gpc_base = IO_ADDRESS(GPC_BASE_ADDR);
 
@@ -145,8 +145,7 @@ void mxc_cpu_lp_set(enum mxc_cpu_pwr_mode mode)
 		if ((num_online_cpus() == num_present_cpus())
 			&& mx6_wait_in_iram != NULL) {
 			mxc_cpu_lp_set(WAIT_UNCLOCKED_POWER_OFF);
-			if (smp_processor_id() == 0 &&
-				(mx6q_revision() <= IMX_CHIP_REVISION_1_0))
+			if (smp_processor_id() == 0)
 				mx6_wait_in_iram();
 			else
 				cpu_do_idle();
