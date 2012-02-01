@@ -87,4 +87,5 @@ extern int mx53_revision(void);
 extern int mx50_revision(void);
 extern int mx53_display_revision(void);
 extern unsigned long mx6_timer_rate(void);
+extern int mxs_reset_block(void __iomem *);
 #endif
