@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2010 Pengutronix
+ * Copyright (C) 2009-2012 Pengutronix
  * Uwe Kleine-Koenig <u.kleine-koenig@pengutronix.de>
  *
  * This program is free software; you can redistribute it and/or modify it under
@@ -130,10 +130,10 @@ const struct imx_imx_uart_1irq_data imx53_imx_uart_data[] __initconst = {
 const struct imx_imx_uart_1irq_data imx6q_imx_uart_data[] __initconst = {
 #define imx6q_imx_uart_data_entry(_id, _hwid)				\
 	imx_imx_uart_1irq_data_entry(MX6Q, _id, _hwid, SZ_4K)
-	imx6q_imx_uart_data_entry(0, 4),
+	imx6q_imx_uart_data_entry(0, 1),
 	imx6q_imx_uart_data_entry(1, 2),
 	imx6q_imx_uart_data_entry(2, 3),
-	imx6q_imx_uart_data_entry(3, 1),
+	imx6q_imx_uart_data_entry(3, 4),
 };
 #endif /* ifdef CONFIG_SOC_IMX6Q */
 
