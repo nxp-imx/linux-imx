@@ -58,7 +58,13 @@
 #define V2_TCTL_WAITEN		(1 << 3) /* Wait enable mode */
 #define V2_TCTL_CLK_IPG		(1 << 6)
 #define V2_TCTL_CLK_PER		(2 << 6)
-#define V2_TCTL_FRR		(1 << 9)
+#define V2_TCTL_CLK_OSC_DIV8	 (5 << 6)
+#define V2_TCTL_CLK_OSC		(7 << 6)
+#define V2_TCTL_FRR			(1 << 9)
+#define V2_TCTL_ENABLE24M	(1 << 10)
+#define V2_TPRER_PRE24M_DIV8	7
+#define V2_TPRER_PRE24M_MASK	0xF
+#define V2_TPRER_PRE24M_OFFSET	12
 #define V2_IR			0x0c
 #define V2_TSTAT		0x08
 #define V2_TSTAT_OF1		(1 << 0)
@@ -72,6 +78,10 @@ static struct clock_event_device clockevent_mxc;
 static enum clock_event_mode clockevent_mode = CLOCK_EVT_MODE_UNUSED;
 
 static void __iomem *timer_base;
+
+#ifdef CONFIG_ARCH_MX6
+extern int mx6q_revision(void);
+#endif
 
 static inline void gpt_irq_disable(void)
 {
@@ -289,9 +299,38 @@ static int __init mxc_clockevent_init(struct clk *timer_clk)
 	return 0;
 }
 
+#ifdef CONFIG_ARCH_MX6
+unsigned long mx6_timer_rate()
+{
+	struct clk *osc_clk = clk_get(NULL, "osc");
+	u32 parent_rate = clk_get_rate(osc_clk);
+
+	u32 reg = __raw_readl(timer_base + MXC_TCTL);
+	u32 div;
+
+	clk_put(osc_clk);
+
+	if ((reg & V2_TCTL_CLK_OSC_DIV8) == V2_TCTL_CLK_OSC_DIV8) {
+		if (cpu_is_mx6q())
+			/* For MX6Q, only options are 24MHz or 24MHz/8*/
+			return parent_rate / 8;
+		else {
+			/* For MX6DLS and MX6Solo, the rate is based on the
+			  * divider value set in prescalar register. */
+			div = __raw_readl(timer_base + MXC_TPRER);
+			div = (div >> V2_TPRER_PRE24M_OFFSET) &
+					V2_TPRER_PRE24M_MASK;
+			return parent_rate / (div + 1);
+		}
+	}
+	return 0;
+}
+#endif
+
 void __init mxc_timer_init(struct clk *timer_clk, void __iomem *base, int irq)
 {
 	uint32_t tctl_val;
+	u32 reg;
 
 	clk_enable(timer_clk);
 
@@ -304,9 +343,24 @@ void __init mxc_timer_init(struct clk *timer_clk, void __iomem *base, int irq)
 	__raw_writel(0, timer_base + MXC_TCTL);
 	__raw_writel(0, timer_base + MXC_TPRER); /* see datasheet note */
 
-	if (timer_is_v2())
-		tctl_val = V2_TCTL_CLK_PER | V2_TCTL_FRR | V2_TCTL_WAITEN | MXC_TCTL_TEN;
-	else
+	if (timer_is_v2()) {
+		if (cpu_is_mx5() ||
+			mx6q_revision() == IMX_CHIP_REVISION_1_0)
+			tctl_val = V2_TCTL_CLK_PER | V2_TCTL_FRR |
+						V2_TCTL_WAITEN | MXC_TCTL_TEN;
+		else {
+			tctl_val = V2_TCTL_CLK_OSC_DIV8 | V2_TCTL_FRR |
+						V2_TCTL_WAITEN | MXC_TCTL_TEN;
+			if (!cpu_is_mx6q()) {
+				reg = __raw_readl(timer_base + MXC_TPRER);
+				reg |= (V2_TPRER_PRE24M_DIV8 <<
+							V2_TPRER_PRE24M_OFFSET);
+				__raw_writel(reg, timer_base + MXC_TPRER);
+				/* Enable the 24MHz input clock. */
+				tctl_val |= V2_TCTL_ENABLE24M;
+			}
+		}
+	} else
 		tctl_val = MX1_2_TCTL_FRR | MX1_2_TCTL_CLK_PCLK1 | MXC_TCTL_TEN;
 
 	__raw_writel(tctl_val, timer_base + MXC_TCTL);
