@@ -18,6 +18,7 @@
 
 #include <linux/kernel.h>
 #include <linux/clk.h>
+#include <linux/delay.h>
 #include <linux/platform_device.h>
 #include <linux/regulator/consumer.h>
 #include <linux/pmic_external.h>
@@ -27,6 +28,7 @@
 #include <asm/proc-fns.h>
 #include <asm/system.h>
 #include "crm_regs.h"
+#include "regs-anadig.h"
 
 #define SCU_CTRL					0x00
 #define SCU_CONFIG					0x04
@@ -38,17 +40,12 @@
 #define GPC_PGC_CPU_PDN_OFFSET		0x2a0
 #define GPC_PGC_CPU_PUPSCR_OFFSET	0x2a4
 #define GPC_PGC_CPU_PDNSCR_OFFSET	0x2a8
-#define ANATOP_REG_2P5_OFFSET		0x130
-#define ANATOP_REG_CORE_OFFSET		0x140
 
 #define MODULE_CLKGATE		(1 << 30)
 #define MODULE_SFTRST		(1 << 31)
-static DEFINE_SPINLOCK(wfi_lock);
 
 extern unsigned int gpc_wake_irq[4];
 extern int mx6q_revision(void);
-
-static unsigned int cpu_idle_mask;
 
 static void __iomem *gpc_base = IO_ADDRESS(GPC_BASE_ADDR);
 
@@ -129,10 +126,27 @@ void mxc_cpu_lp_set(enum mxc_cpu_pwr_mode mode)
 			__raw_writel(0x1, gpc_base + GPC_PGC_GPU_PGCR_OFFSET);
 			__raw_writel(0x1, gpc_base + GPC_CNTR_OFFSET);
 			/* Enable weak 2P5 linear regulator */
-			anatop_val = __raw_readl(anatop_base + ANATOP_REG_2P5_OFFSET);
-			anatop_val |= 1 << 18;
-			__raw_writel(anatop_val, anatop_base + ANATOP_REG_2P5_OFFSET);
-			__raw_writel(__raw_readl(MXC_CCM_CCR) | MXC_CCM_CCR_RBC_EN, MXC_CCM_CCR);
+			anatop_val = __raw_readl(anatop_base +
+				HW_ANADIG_REG_2P5);
+			anatop_val |= BM_ANADIG_REG_2P5_ENABLE_WEAK_LINREG;
+			__raw_writel(anatop_val, anatop_base +
+				HW_ANADIG_REG_2P5);
+			if (mx6q_revision() != IMX_CHIP_REVISION_1_0) {
+				/* Enable fet_odrive */
+				anatop_val = __raw_readl(anatop_base +
+					HW_ANADIG_REG_CORE);
+				anatop_val |= BM_ANADIG_REG_CORE_FET_ODRIVE;
+				__raw_writel(anatop_val, anatop_base +
+					HW_ANADIG_REG_CORE);
+			}
+			__raw_writel(__raw_readl(MXC_CCM_CCR) |
+				MXC_CCM_CCR_RBC_EN, MXC_CCM_CCR);
+			/* Make sure we clear WB_COUNT and re-config it */
+			__raw_writel(__raw_readl(MXC_CCM_CCR) &
+				(~MXC_CCM_CCR_WB_COUNT_MASK), MXC_CCM_CCR);
+			udelay(50);
+			__raw_writel(__raw_readl(MXC_CCM_CCR) | (0x1 <<
+				MXC_CCM_CCR_WB_COUNT_OFFSET), MXC_CCM_CCR);
 			ccm_clpcr |= MXC_CCM_CLPCR_WB_PER_AT_LPM;
 		}
 	}
