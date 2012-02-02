@@ -102,9 +102,10 @@ static u32 esdhc_readl_le(struct sdhci_host *host, int reg)
 			val |= SDHCI_CARD_PRESENT;
 	}
 
-	if (reg == SDHCI_INT_STATUS && cpu_is_mx6q()) {
+	if (reg == SDHCI_INT_STATUS && cpu_is_mx6q()
+		&& mx6q_revision() == IMX_CHIP_REVISION_1_0) {
 		/*
-		 * on mx6q, there is low possibility that
+		 * on mx6q TO1.0, there is low possibility that
 		 * DATA END interrupt comes ealier than DMA
 		 * END interrupt which is conflict with standard
 		 * host controller spec. In this case, read the
@@ -157,10 +158,11 @@ static void esdhc_writel_le(struct sdhci_host *host, u32 val, int reg)
 			val &= ~(SDHCI_INT_CARD_REMOVE | \
 				SDHCI_INT_CARD_INSERT);
 
-		if (!(val & SDHCI_INT_CARD_INT) && cpu_is_mx6q())
+		if (!(val & SDHCI_INT_CARD_INT) && cpu_is_mx6q()
+			&& mx6q_revision() == IMX_CHIP_REVISION_1_0)
 			/*
 			 * write 1 to clear card interrupt status bit
-			 * (only applied to mx6q)
+			 * (only applied to mx6q TO1.0)
 			 * uSDHC used for mx6q has such problem which is
 			 * not consistant with standard host controller
 			 * definition.
