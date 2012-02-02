@@ -89,6 +89,7 @@
 #define MX6Q_SABRESD_CSI0_PWN		IMX_GPIO_NR(1, 16)
 #define MX6Q_SABRESD_MIPICSI_RST	IMX_GPIO_NR(1, 20)
 #define MX6Q_SABRESD_MIPICSI_PWN	IMX_GPIO_NR(1, 19)
+#define MX6Q_SABRESD_AUX_5V_EN		IMX_GPIO_NR(6, 10)
 
 void __init early_console_setup(unsigned long base, struct clk *clk);
 static struct clk *sata_clk;
@@ -192,6 +193,7 @@ static iomux_v3_cfg_t mx6q_sabresd_pads[] = {
 
 	/* GPIO6 */
 	MX6Q_PAD_EIM_A23__GPIO_6_6,	/* J12 - Boot Mode Select */
+	MX6Q_PAD_NANDF_RB0__GPIO_6_10, /* AUX_5V Enable */
 
 	/* GPIO7 */
 	MX6Q_PAD_GPIO_17__GPIO_7_12,	/* USB Hub Reset */
@@ -792,11 +794,15 @@ static struct imx_ipuv3_platform_data ipu_data[] = {
 static void sabresd_suspend_enter(void)
 {
 	/* suspend preparation */
+	/* Disable AUX 5V */
+	gpio_set_value(MX6Q_SABRESD_AUX_5V_EN, 0);
 }
 
 static void sabresd_suspend_exit(void)
 {
 	/* resume restore */
+	/* Enable AUX 5V */
+	gpio_set_value(MX6Q_SABRESD_AUX_5V_EN, 1);
 }
 static const struct pm_platform_data mx6q_sabresd_pm_data __initconst = {
 	.name = "imx_pm",
@@ -923,7 +929,7 @@ static int imx6q_init_audio(void)
 }
 
 static struct platform_pwm_backlight_data mx6_sabresd_pwm_backlight_data = {
-	.pwm_id = 3,
+	.pwm_id = 0,
 	.max_brightness = 255,
 	.dft_brightness = 128,
 	.pwm_period_ns = 50000,
@@ -1044,7 +1050,7 @@ static void __init mx6_sabresd_board_init(void)
 	imx6q_add_mxc_pwm(1);
 	imx6q_add_mxc_pwm(2);
 	imx6q_add_mxc_pwm(3);
-	imx6q_add_mxc_pwm_backlight(3, &mx6_sabresd_pwm_backlight_data);
+	imx6q_add_mxc_pwm_backlight(0, &mx6_sabresd_pwm_backlight_data);
 
 	imx6q_add_otp();
 	imx6q_add_viim();
@@ -1076,6 +1082,11 @@ static void __init mx6_sabresd_board_init(void)
 	rate = clk_round_rate(clko2, 24000000);
 	clk_set_rate(clko2, rate);
 	clk_enable(clko2);
+
+	/* Enable Aux_5V */
+	gpio_request(MX6Q_SABRESD_AUX_5V_EN, "aux_5v_en");
+	gpio_direction_output(MX6Q_SABRESD_AUX_5V_EN, 1);
+	gpio_set_value(MX6Q_SABRESD_AUX_5V_EN, 1);
 }
 
 extern void __iomem *twd_base;
