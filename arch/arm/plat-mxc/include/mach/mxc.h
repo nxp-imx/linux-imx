@@ -90,11 +90,6 @@ extern unsigned int system_rev;
 	board_is_rev(IMX_BOARD_REV_2))
 #define board_is_mx6q_sabre_auto() (cpu_is_mx6q() && \
 	board_is_rev(IMX_BOARD_REV_3))
-
-#ifndef __ASSEMBLY__
-extern int mx6q_revision(void);
-#endif
-
 #endif
 
 #ifndef __ASSEMBLY__
@@ -227,8 +222,18 @@ extern unsigned int __mxc_cpu_type;
 
 #ifdef CONFIG_SOC_IMX6Q
 #define cpu_is_mx6q()		(1)
+
+#ifndef __ASSEMBLY__
+extern int mx6q_revision(void);
+#endif
+
 #else
 #define cpu_is_mx6q()		(0)
+
+#ifndef __ASSEMBLY__
+#define mx6q_revision(void)	(0)
+#endif
+
 #endif
 
 struct cpu_op {
