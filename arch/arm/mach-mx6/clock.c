@@ -1732,15 +1732,31 @@ static struct clk vdoa_clk = {
 	.disable = _clk_disable,
 };
 
+static unsigned long _clk_gpt_get_rate(struct clk *clk)
+{
+	u32 reg;
+	unsigned long rate;
+
+	if (mx6q_revision() == IMX_CHIP_REVISION_1_0)
+		return clk_get_rate(clk->parent);
+
+	rate = mx6_timer_rate();
+	if (!rate)
+		return clk_get_rate(clk->parent);
+
+	return rate;
+}
+
 static struct clk gpt_clk[] = {
 	{
 	__INIT_CLK_DEBUG(gpt_clk)
-	 .parent = &ipg_perclk,
+	 .parent = &osc_clk,
 	 .id = 0,
 	 .enable_reg = MXC_CCM_CCGR1,
 	 .enable_shift = MXC_CCM_CCGRx_CG10_OFFSET,
 	 .enable = _clk_enable,
 	 .disable = _clk_disable,
+	 .get_rate = _clk_gpt_get_rate,
 	 .secondary = &gpt_clk[1],
 	 },
 	{
@@ -5184,6 +5200,11 @@ int __init mx6_clocks_init(unsigned long ckil, unsigned long osc,
 
 	/* S/PDIF */
 	clk_set_parent(&spdif0_clk[0], &pll3_pfd_454M);
+
+	if (mx6q_revision() == IMX_CHIP_REVISION_1_0) {
+		gpt_clk[0].parent = &ipg_perclk;
+		gpt_clk[0].get_rate = NULL;
+		}
 
 	base = ioremap(GPT_BASE_ADDR, SZ_4K);
 	mxc_timer_init(&gpt_clk[0], base, MXC_INT_GPT);
