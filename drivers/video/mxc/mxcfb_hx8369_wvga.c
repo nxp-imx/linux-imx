@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2011-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -317,7 +317,10 @@ int mipid_hx8369_lcd_setup(struct mipi_dsi_info *mipi_dsi)
 	buf[0] = MIPI_DCS_EXIT_SLEEP_MODE;
 	mipi_dsi_pkt_write(mipi_dsi, MIPI_DSI_GENERIC_SHORT_WRITE_1_PARAM,
 		buf, 0);
-
+	/* To allow time for the supply voltages
+	 * and clock circuits to stabilize.
+	 */
+	msleep(5);
 	buf[0] = MIPI_DCS_SET_DISPLAY_ON;
 	mipi_dsi_pkt_write(mipi_dsi, MIPI_DSI_GENERIC_SHORT_WRITE_1_PARAM,
 		buf, 0);
