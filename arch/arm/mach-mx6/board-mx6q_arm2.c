@@ -45,6 +45,7 @@
 #include <linux/fec.h>
 #include <linux/memblock.h>
 #include <linux/gpio.h>
+#include <linux/android_pmem.h>
 #include <linux/etherdevice.h>
 #include <linux/regulator/anatop-regulator.h>
 #include <linux/regulator/consumer.h>
@@ -75,6 +76,7 @@
 #include "devices-imx6q.h"
 #include "crm_regs.h"
 #include "cpu_op-mx6.h"
+#include "android.h"
 
 #define MX6Q_ARM2_LDB_BACKLIGHT	IMX_GPIO_NR(1, 9)
 #define MX6Q_ARM2_ECSPI1_CS0	IMX_GPIO_NR(2, 30)
@@ -1001,7 +1003,7 @@ static struct ipuv3_fb_platform_data sabr_fb_data[] = {
 	.disp_dev = "ldb",
 	.interface_pix_fmt = IPU_PIX_FMT_RGB666,
 	.mode_str = "LDB-XGA",
-	.default_bpp = 16,
+	.default_bpp = 32,
 	.int_clk = false,
 	}, {
 	.disp_dev = "mipi_dsi",
@@ -1013,7 +1015,7 @@ static struct ipuv3_fb_platform_data sabr_fb_data[] = {
 	.disp_dev = "ldb",
 	.interface_pix_fmt = IPU_PIX_FMT_RGB666,
 	.mode_str = "LDB-XGA",
-	.default_bpp = 16,
+	.default_bpp = 32,
 	.int_clk = false,
 	}, {
 	.disp_dev = "lcd",
@@ -1086,6 +1088,16 @@ static struct platform_pwm_backlight_data mx6_arm2_pwm_backlight_data = {
 	.max_brightness = 255,
 	.dft_brightness = 128,
 	.pwm_period_ns = 50000,
+};
+
+static struct android_pmem_platform_data android_pmem_data = {
+       .name = "pmem_adsp",
+       .size = SZ_64M,
+};
+
+static struct android_pmem_platform_data android_pmem_gpu_data = {
+       .name = "pmem_gpu",
+       .size = SZ_32M,
 };
 
 static struct gpio mx6q_flexcan_gpios[] = {
@@ -1479,6 +1491,25 @@ static struct mxc_dvfs_platform_data arm2_dvfscore_data = {
 static void __init fixup_mxc_board(struct machine_desc *desc, struct tag *tags,
 				   char **cmdline, struct meminfo *mi)
 {
+	char *str;
+	struct tag *t;
+
+	for_each_tag(t, tags) {
+		if (t->hdr.tag == ATAG_CMDLINE) {
+			str = t->u.cmdline.cmdline;
+			str = strstr(str, "pmem=");
+			if (str != NULL) {
+				str += 5;
+				android_pmem_gpu_data.size = memparse(str, &str);
+				if (*str == ',') {
+					str++;
+					android_pmem_data.size = memparse(str, &str);
+				}
+			}
+
+			break;
+		}
+	}
 }
 
 static int __init early_enable_sgtl5000(char *p)
@@ -1643,6 +1674,10 @@ static void __init mx6_board_init(void)
 
 	imx6q_add_dvfs_core(&arm2_dvfscore_data);
 
+	mxc_register_device(&mxc_android_pmem_device, &android_pmem_data);
+	mxc_register_device(&mxc_android_pmem_gpu_device,
+			    &android_pmem_gpu_data);
+
 	imx6q_add_mxc_pwm(0);
 	imx6q_add_mxc_pwm_backlight(0, &mx6_arm2_pwm_backlight_data);
 
@@ -1699,6 +1734,20 @@ static void __init mx6q_reserve(void)
 		memblock_free(phys, imx6q_gpu_pdata.reserved_mem_size);
 		memblock_remove(phys, imx6q_gpu_pdata.reserved_mem_size);
 		imx6q_gpu_pdata.reserved_mem_base = phys;
+	}
+
+	if (android_pmem_data.size) {
+		phys = memblock_alloc(android_pmem_data.size, SZ_4K);
+		memblock_free(phys, android_pmem_data.size);
+		memblock_remove(phys, android_pmem_data.size);
+		android_pmem_data.start = phys;
+	}
+
+	if (android_pmem_gpu_data.size) {
+		phys = memblock_alloc(android_pmem_gpu_data.size, SZ_4K);
+		memblock_free(phys, android_pmem_gpu_data.size);
+		memblock_remove(phys, android_pmem_gpu_data.size);
+		android_pmem_gpu_data.start = phys;
 	}
 }
 

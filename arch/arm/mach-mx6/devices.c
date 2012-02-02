@@ -32,6 +32,16 @@
 #include <mach/hardware.h>
 #include <mach/gpio.h>
 
+struct platform_device mxc_android_pmem_device = {
+	.name = "android_pmem",
+	.id = 0,
+};
+
+struct platform_device mxc_android_pmem_gpu_device = {
+	.name = "android_pmem",
+	.id = 1,
+};
+
 static struct mxc_gpio_port mxc_gpio_ports[] = {
 	{
 		.chip.label = "gpio-0",
