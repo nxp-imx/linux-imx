@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2011-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -454,6 +454,10 @@ static int mipi_dsi_power_on(struct mxc_dispdrv_handle *disp)
 	if (!mipi_dsi->dsi_power_on) {
 		clk_enable(mipi_dsi->dphy_clk);
 		mipi_dsi_enable_controller(mipi_dsi, false);
+		mipi_dsi_set_mode(mipi_dsi, false);
+		/* host send pclk/hsync/vsync for two frames before sleep-out */
+		msleep((1000/mipi_dsi->mode->refresh + 1) << 1);
+		mipi_dsi_set_mode(mipi_dsi, true);
 		err = mipi_dsi_dcs_cmd(mipi_dsi, MIPI_DCS_EXIT_SLEEP_MODE,
 			NULL, 0);
 		if (err) {
