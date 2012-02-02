@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2007, 2011 Freescale Semiconductor, Inc.
+ * Copyright 2004-2007, 2012 Freescale Semiconductor, Inc.
  * Copyright (C) 2008 Juergen Beisert (kernel@pengutronix.de)
  *
  * This program is free software; you can redistribute it and/or
@@ -90,6 +90,11 @@ extern unsigned int system_rev;
 	board_is_rev(IMX_BOARD_REV_2))
 #define board_is_mx6q_sabre_auto() (cpu_is_mx6q() && \
 	board_is_rev(IMX_BOARD_REV_3))
+
+#ifndef __ASSEMBLY__
+extern int mx6q_revision(void);
+#endif
+
 #endif
 
 #ifndef __ASSEMBLY__
