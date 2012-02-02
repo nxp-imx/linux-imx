@@ -519,7 +519,7 @@ static const struct imxuart_platform_data mx6q_uart1_data __initconst = {
 
 static inline void mx6q_arm2_init_uart(void)
 {
-	imx6q_add_imx_uart(0, NULL);
+	imx6q_add_imx_uart(3, NULL);
 	imx6q_add_imx_uart(1, &mx6q_uart1_data);
 }
 
