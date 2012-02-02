@@ -39,6 +39,7 @@
 #include <linux/slab.h>
 #include <linux/bitops.h>
 #include <linux/input/mt.h>
+#include <linux/earlysuspend.h>
 
 /* Mouse Mode: some panel may configure the controller to mouse mode,
  * which can only report one point at a given time.
@@ -71,6 +72,7 @@
 struct egalax_ts {
 	struct i2c_client		*client;
 	struct input_dev		*input_dev;
+	struct early_suspend		es_handler;
 };
 
 static irqreturn_t egalax_ts_interrupt(int irq, void *dev_id)
@@ -161,6 +163,9 @@ static int egalax_firmware_version(struct i2c_client *client)
 	return 0;
 }
 
+static void egalax_early_suspend(struct early_suspend *h);
+static void egalax_later_resume(struct early_suspend *h);
+
 static int __devinit egalax_ts_probe(struct i2c_client *client,
 				       const struct i2c_device_id *id)
 {
@@ -223,6 +228,14 @@ static int __devinit egalax_ts_probe(struct i2c_client *client,
 	if (ret < 0)
 		goto err_free_irq;
 	i2c_set_clientdata(client, data);
+
+	/* register this client's earlysuspend */
+	data->es_handler.level = EARLY_SUSPEND_LEVEL_DISABLE_FB;
+	data->es_handler.suspend = egalax_early_suspend;
+	data->es_handler.resume = egalax_later_resume;
+	data->es_handler.data = (void *)client;
+	register_early_suspend(&data->es_handler);
+
 	return 0;
 
 err_free_irq:
@@ -239,6 +252,7 @@ static __devexit int egalax_ts_remove(struct i2c_client *client)
 {
 	struct egalax_ts *data = i2c_get_clientdata(client);
 
+	unregister_early_suspend(&data->es_handler);
 	free_irq(client->irq, data);
 	input_free_device(data->input_dev);
 	input_unregister_device(data->input_dev);
@@ -275,12 +289,40 @@ static SIMPLE_DEV_PM_OPS(egalax_ts_pm_ops, egalax_ts_suspend, egalax_ts_resume);
 static struct i2c_driver egalax_ts_driver = {
 	.driver = {
 		.name = "egalax_ts",
+#ifndef CONFIG_HAS_EARLYSUSPEND
 		.pm	= &egalax_ts_pm_ops,
+#endif
 	},
 	.id_table	= egalax_ts_id,
 	.probe		= egalax_ts_probe,
 	.remove		= __devexit_p(egalax_ts_remove),
 };
+
+#ifdef CONFIG_HAS_EARLYSUSPEND
+static void egalax_early_suspend(struct early_suspend *h)
+{
+	u8 suspend_cmd[MAX_I2C_DATA_LEN] = {0x3, 0x6, 0xa, 0x3, 0x36,
+					    0x3f, 0x2, 0, 0, 0};
+
+	if (h->data == NULL)
+		return;
+	i2c_master_send((struct i2c_client *)h->data,
+				suspend_cmd, MAX_I2C_DATA_LEN);
+}
+
+static void egalax_later_resume(struct early_suspend *h)
+{
+	if (h->data)
+		egalax_wake_up_device((struct i2c_client *)h->data);
+}
+#else
+static void egalax_early_suspend(struct early_suspend *h)
+{
+}
+static void egalax_later_resume(struct early_suspend *h)
+{
+}
+#endif
 
 static int __init egalax_ts_init(void)
 {

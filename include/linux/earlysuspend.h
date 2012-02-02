@@ -39,6 +39,7 @@ struct early_suspend {
 #ifdef CONFIG_HAS_EARLYSUSPEND
 	struct list_head link;
 	int level;
+	void *data;
 	void (*suspend)(struct early_suspend *h);
 	void (*resume)(struct early_suspend *h);
 #endif
