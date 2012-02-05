@@ -128,6 +128,13 @@ config BATTERY_DA9030
 	  Say Y here to enable support for batteries charger integrated into
 	  DA9030 PMIC.
 
+config BATTERY_MAX17085
+	tristate "Maxim MAX17085 charger"
+	depends on PMIC_DA9052 && SENSORS_DA9052
+	help
+	  Say Y to include support for the battery on the MAX17085. This
+	  is dependent on DA9052 sensor.
+
 config BATTERY_MAX17040
 	tristate "Maxim MAX17040 Fuel Gauge"
 	depends on I2C

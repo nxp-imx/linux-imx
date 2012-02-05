@@ -2,7 +2,7 @@
  * da9052-core.c  --  Device access for Dialog DA9052
  *
  * Copyright(c) 2009 Dialog Semiconductor Ltd.
- *
+ * Copyright 2010-2012 Freescale Semiconductor, Inc.
  * Author: Dialog Semiconductor Ltd <dchen@diasemi.com>
  *
  *  This program is free software; you can redistribute  it and/or modify it
@@ -34,6 +34,7 @@ struct da9052_eh_nb eve_nb_array[EVE_CNT];
 static struct da9052_ssc_ops ssc_ops;
 struct mutex manconv_lock;
 static struct semaphore eve_nb_array_lock;
+static struct da9052 *da9052_data;
 
 void da9052_lock(struct da9052 *da9052)
 {
@@ -248,17 +249,16 @@ static int process_events(struct da9052 *da9052, int events_sts)
 		/* Check if interrupt is received for this event */
 		if (!((tmp_events_sts >> cnt) & 0x1))
 			/* Event bit is not set for this event */
-			/* Move to next event */
+			/* Move to next priority event */
 			continue;
 
 		if (event == PEN_DOWN_EVE) {
 			if (list_empty(&(eve_nb_array[event].nb_list)))
 				continue;
 		}
-
 		/* Event bit is set, execute all registered call backs */
 		if (down_interruptible(&eve_nb_array_lock)){
-			printk(KERN_CRIT "Can't acquire eve_nb_array_lock \n");
+			printk(KERN_CRIT "Can't acquire eve_nb_array_lock\n");
 			return -EIO;
 		}
 
@@ -281,14 +281,11 @@ void eh_workqueue_isr(struct work_struct *work)
 		container_of(work, struct da9052, eh_isr_work);
 
 	struct da9052_ssc_msg eve_data[4];
-	struct da9052_ssc_msg eve_mask_data[4];
 	int events_sts, ret;
-	u32 mask;
 	unsigned char cnt = 0;
 
 	/* nIRQ is asserted, read event registeres to know what happened */
 	events_sts = 0;
-	mask = 0;
 
 	/* Prepare ssc message to read all four event registers */
 	for (cnt = 0; cnt < DA9052_EVE_REGISTERS; cnt++) {
@@ -296,13 +293,7 @@ void eh_workqueue_isr(struct work_struct *work)
 		eve_data[cnt].data = 0;
 	}
 
-	/* Prepare ssc message to read all four event registers */
-	for (cnt = 0; cnt < DA9052_EVE_REGISTERS; cnt++) {
-		eve_mask_data[cnt].addr = (DA9052_IRQMASKA_REG + cnt);
-		eve_mask_data[cnt].data = 0;
-	}
-
-	/* Now read all event and mask registers */
+	/* Now read all event registers */
 	da9052_lock(da9052);
 
 	ret = da9052_ssc_read_many(da9052,eve_data, DA9052_EVE_REGISTERS);
@@ -312,22 +303,10 @@ void eh_workqueue_isr(struct work_struct *work)
 		return;
 	}
 
-	ret = da9052_ssc_read_many(da9052,eve_mask_data, DA9052_EVE_REGISTERS);
-	if (ret) {
-		enable_irq(da9052->irq);
-		da9052_unlock(da9052);
-		return;
-	}
 	/* Collect all events */
 	for (cnt = 0; cnt < DA9052_EVE_REGISTERS; cnt++)
 		events_sts |= (eve_data[cnt].data << (DA9052_EVE_REGISTER_SIZE
 							* cnt));
-	/* Collect all mask */
-	for (cnt = 0; cnt < DA9052_EVE_REGISTERS; cnt++)
-		mask |= (eve_mask_data[cnt].data << (DA9052_EVE_REGISTER_SIZE
-						* cnt));
-	events_sts &= ~mask;
-	da9052_unlock(da9052);
 
 	/* Check if we really got any event */
 	if (events_sts == 0) {
@@ -335,6 +314,7 @@ void eh_workqueue_isr(struct work_struct *work)
 		da9052_unlock(da9052);
 		return;
 	}
+	da9052_unlock(da9052);
 
 	/* Process all events occurred */
 	process_events(da9052, events_sts);
@@ -399,6 +379,7 @@ static int add_da9052_devices(struct da9052 *da9052)
 	};
 
 	struct da9052_tsi_platform_data tsi_data = *(pdata->tsi_data);
+	struct da9052_bat_platform_data bat_data = *(pdata->bat_data);
 
 	if (pdata && pdata->init) {
 		ret = pdata->init(da9052);
@@ -448,7 +429,8 @@ static int add_da9052_devices(struct da9052 *da9052)
 	if (ret)
 		return ret;
 
-	ret = da9052_add_subdevice(da9052, "da9052-bat");
+	ret = da9052_add_subdevice_pdata(da9052, "da9052-bat",
+				&bat_data, sizeof(bat_data));
 	if (ret)
 		return ret;
 
@@ -492,6 +474,7 @@ int da9052_ssc_init(struct da9052 *da9052)
 		ssc_ops.read_many = da9052_i2c_read_many;
 	} else
 		return -1;
+
 	/* Assign the EH notifier block register/de-register functions */
 	da9052->register_event_notifier = eh_register_nb;
 	da9052->unregister_event_notifier = eh_unregister_nb;
@@ -503,17 +486,35 @@ int da9052_ssc_init(struct da9052 *da9052)
 	add_da9052_devices(da9052);
 
 	INIT_WORK(&da9052->eh_isr_work, eh_workqueue_isr);
+
 	ssc_msg.addr = DA9052_IRQMASKA_REG;
 	ssc_msg.data = 0xff;
 	da9052->write(da9052, &ssc_msg);
 	ssc_msg.addr = DA9052_IRQMASKC_REG;
 	ssc_msg.data = 0xff;
 	da9052->write(da9052, &ssc_msg);
+
+	/* read chip version */
+	ssc_msg.addr = DA9052_CHIPID_REG;
+	da9052->read(da9052, &ssc_msg);
+	pr_info("DA9053 chip ID reg read=0x%x ", ssc_msg.data);
+	if ((ssc_msg.data & DA9052_CHIPID_MRC) == 0x80) {
+		da9052->chip_version = DA9053_VERSION_AA;
+		pr_info("AA version probed\n");
+	} else if ((ssc_msg.data & DA9052_CHIPID_MRC) == 0xa0) {
+		da9052->chip_version = DA9053_VERSION_BB;
+		pr_info("BB version probed\n");
+	} else {
+		da9052->chip_version = 0;
+		pr_info("unknown chip version\n");
+	}
+
 	if (request_irq(da9052->irq, da9052_eh_isr, IRQ_TYPE_LEVEL_LOW,
 		DA9052_EH_DEVICE_NAME, da9052))
 		return -EIO;
 	enable_irq_wake(da9052->irq);
- 
+	da9052_data = da9052;
+
 	return 0;
 }
 
@@ -527,6 +528,27 @@ void da9052_ssc_exit(struct da9052 *da9052)
 	mutex_destroy(&da9052->ssc_lock);
 	mutex_destroy(&da9052->eve_nb_lock);
 	return;
+}
+
+void da9053_power_off(void)
+{
+	struct da9052_ssc_msg ssc_msg;
+	struct da9052_ssc_msg ssc_msg_dummy[2];
+	if (!da9052_data)
+		return;
+
+	ssc_msg.addr = DA9052_CONTROLB_REG;
+	da9052_data->read(da9052_data, &ssc_msg);
+	ssc_msg_dummy[0].addr = DA9052_CONTROLB_REG;
+	ssc_msg_dummy[0].data = ssc_msg.data | DA9052_CONTROLB_SHUTDOWN;
+	ssc_msg_dummy[1].addr = DA9052_GPID9_REG;
+	ssc_msg_dummy[1].data = 0;
+	da9052_data->write_many(da9052_data, &ssc_msg_dummy[0], 2);
+}
+
+int da9053_get_chip_version(void)
+{
+	return da9052_data->chip_version;
 }
 
 MODULE_AUTHOR("Dialog Semiconductor Ltd <dchen@diasemi.com>");

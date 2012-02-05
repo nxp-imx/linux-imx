@@ -2,6 +2,7 @@
  *  linux/drivers/serial/imx.c
  *
  *  Driver for Motorola IMX serial ports
+ *  Copyright 2010-2012 Freescale Semiconductor, Inc.
  *
  *  Based on drivers/char/serial.c, by Linus Torvalds, Theodore Ts'o.
  *
@@ -257,7 +258,7 @@ static void imx_timeout(unsigned long data)
 	struct imx_port *sport = (struct imx_port *)data;
 	unsigned long flags;
 
-	if (sport->port.state) {
+	if ((&sport->port) && (sport->port.state)) {
 		spin_lock_irqsave(&sport->port.lock, flags);
 		imx_mctrl_check(sport);
 		spin_unlock_irqrestore(&sport->port.lock, flags);

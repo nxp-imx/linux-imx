@@ -75,6 +75,9 @@
 #define DA9052_SSC_I2C_REPEAT_WRITE_MODE	1
 #define DA9052_SSC_I2C_WRITE_MODE		DA9052_SSC_I2C_REPEAT_WRITE_MODE
 
+#define DA9053_VERSION_AA 1
+#define DA9053_VERSION_BB 2
+
 struct da9052_ssc_msg {
 	unsigned char	data;
 	unsigned char	addr;
@@ -95,7 +98,6 @@ struct da9052_eh_nb{
 struct da9052_regulator_init_data {
 	struct regulator_init_data *init_data;
 	int id;
-
 };
 
 struct da9052_regulator_platform_data {
@@ -113,6 +115,25 @@ struct da9052_tsi_platform_data {
 	u16	max_tsi_skip_slot;
 };
 
+
+struct da9052_bat_platform_data {
+	u16	sw_temp_control_en;
+	u16	monitoring_interval;
+	u16	sw_bat_temp_threshold;
+	u16	sw_junc_temp_threshold;
+	u16	hysteresis_window_size;
+	u16	current_monitoring_window;
+	u16	bat_with_no_resistor;
+	u16	bat_capacity_limit_low;
+	u16	bat_capacity_full;
+	u16	bat_capacity_limit_high;
+	u16	chg_hysteresis_const;
+	u16	hysteresis_reading_interval;
+	u16	hysteresis_no_of_reading;
+	u16	filter_size;
+	u16	bat_volt_cutoff;
+	u16	vbat_first_valid_detect_iteration;
+};
 
 struct da9052 {
 	struct mutex ssc_lock;
@@ -143,8 +164,8 @@ struct da9052 {
 	struct device *dev;
 	struct i2c_adapter *adapter;
 	unsigned char	slave_addr;
+	int chip_version;
 };
-
 
 struct da9052_platform_data {
 	int (*init)(struct da9052 *da9052);
@@ -156,6 +177,7 @@ struct da9052_platform_data {
 	struct regulator_init_data *regulators;
 	struct da9052_leds_platform_data *led_data;
 	struct da9052_tsi_platform_data *tsi_data;
+	struct da9052_bat_platform_data *bat_data;
 };
 
 struct da9052_ssc_ops {
@@ -206,4 +228,6 @@ int eh_register_nb(struct da9052 *da9052, struct da9052_eh_nb *nb);
 int eh_unregister_nb(struct da9052 *da9052, struct da9052_eh_nb *nb);
 int da9052_manual_read(struct da9052 *da9052,
 		unsigned char channel);
+void da9053_power_off(void);
+int da9053_get_chip_version(void);
 #endif /* __LINUX_MFD_DA9052_DA9052_H */

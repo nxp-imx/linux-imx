@@ -1,3 +1,15 @@
+/*
+ * Copyright(c) 2009 Dialog Semiconductor Ltd.
+ * Copyright 2010-2012 Freescale Semiconductor, Inc.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * da9052_onkey.c: Onkey driver for DA9052
+ */
+
 #include <linux/module.h>
 #include <linux/init.h>
 #include <linux/input.h>
@@ -13,6 +25,9 @@ struct da9052_onkey_data {
 	struct da9052_eh_nb eh_data;
 	struct input_dev *input;
 };
+
+/* Flag to enable key events during suspend */
+static bool enable_onkey_events;
 
 static void da9052_onkey_report_event(struct da9052_eh_nb *eh_data,
 				unsigned int event)
@@ -33,9 +48,12 @@ static void da9052_onkey_report_event(struct da9052_eh_nb *eh_data,
 	da9052_unlock(da9052_onkey->da9052);
 	msg.data = msg.data & DA9052_EVENTB_ENONKEY;
 
-	input_report_key(da9052_onkey->input, KEY_POWER, msg.data);
-	input_sync(da9052_onkey->input);
-	printk(KERN_INFO "DA9052 ONKEY EVENT REPORTED \n");
+	/* We need onkey events only in suspend mode */
+	if (enable_onkey_events) {
+		input_report_key(da9052_onkey->input, KEY_POWER, msg.data);
+		input_sync(da9052_onkey->input);
+	}
+	pr_debug("DA9052 ONKEY EVENT REPORTED\n");
 }
 
 static int __devinit da9052_onkey_probe(struct platform_device *pdev)
@@ -105,12 +123,34 @@ static int __devexit da9052_onkey_remove(struct platform_device *pdev)
 	return 0;
 }
 
+#ifdef CONFIG_PM
+static int da9052_onkey_suspend(struct device *dev)
+{
+	enable_onkey_events = true;
+	return 0;
+}
+
+static int da9052_onkey_resume(struct device *dev)
+{
+	enable_onkey_events = false;
+	return 0;
+}
+
+static const struct dev_pm_ops da9052_onkey_pm_ops = {
+	.suspend	= da9052_onkey_suspend,
+	.resume		= da9052_onkey_resume,
+};
+#else
+static const struct dev_pm_ops da9052_onkey_pm_ops = {};
+#endif
+
 static struct platform_driver da9052_onkey_driver = {
 	.probe		= da9052_onkey_probe,
 	.remove		= __devexit_p(da9052_onkey_remove),
 	.driver		= {
 		.name	= "da9052-onkey",
 		.owner	= THIS_MODULE,
+		.pm	= &da9052_onkey_pm_ops,
 	}
 };
 
