@@ -1,7 +1,7 @@
 /*
  * Copyright (C) 1999 ARM Limited
  * Copyright (C) 2000 Deep Blue Solutions Ltd
- * Copyright 2006-2011 Freescale Semiconductor, Inc.
+ * Copyright (C) 2006-2012 Freescale Semiconductor, Inc.
  * Copyright 2008 Juergen Beisert, kernel@pengutronix.de
  * Copyright 2009 Ilya Yanok, Emcraft Systems Ltd, yanok@emcraft.com
  *
@@ -14,6 +14,10 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
 #include <linux/kernel.h>
@@ -21,17 +25,22 @@
 #include <linux/io.h>
 #include <linux/err.h>
 #include <linux/delay.h>
+
+#include <asm/mach-types.h>
+#include <mach/iomux-mx53.h>
 #include <mach/hardware.h>
 #include <mach/common.h>
 #include <asm/proc-fns.h>
 #include <asm/system.h>
+
 #ifdef CONFIG_SMP
 #include <linux/smp.h>
 #endif
 #include <asm/mach-types.h>
 
 static void __iomem *wdog_base;
-
+extern int dvfs_core_is_active;
+extern void stop_dvfs(void);
 /*
  * Reset the system. It is called by machine_restart().
  */
@@ -68,6 +77,21 @@ void arch_reset(char mode, const char *cmd)
 		mx51_efikamx_reset();
 		return;
 	}
+#endif
+#ifdef CONFIG_ARCH_MX51
+	/* Workaround to reset NFC_CONFIG3 register
+	 * due to the chip warm reset does not reset it
+	 */
+	 if (cpu_is_mx53())
+		__raw_writel(0x20600, MX53_IO_ADDRESS(MX53_NFC_BASE_ADDR)+0x28);
+	 if (cpu_is_mx51())
+		__raw_writel(0x20600, MX51_IO_ADDRESS(MX51_NFC_BASE_ADDR)+0x28);
+#endif
+
+#ifdef CONFIG_ARCH_MX5
+	/* Stop DVFS-CORE before reboot. */
+	if (dvfs_core_is_active)
+		stop_dvfs();
 #endif
 
 	if (cpu_is_mx1()) {

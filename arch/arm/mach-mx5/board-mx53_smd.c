@@ -34,6 +34,7 @@
 #include <linux/ipu.h>
 #include <linux/spi/spi.h>
 #include <linux/spi/flash.h>
+#include <linux/mfd/da9052/da9052.h>
 
 #include <linux/mtd/mtd.h>
 #include <linux/mtd/map.h>
@@ -408,7 +409,7 @@ static iomux_v3_cfg_t mx53_smd_pads[] = {
 };
 
 #if defined(CONFIG_KEYBOARD_GPIO) || defined(CONFIG_KEYBOARD_GPIO_MODULE)
-#define GPIO_BUTTON(gpio_num, ev_code, act_low, descr, wake)    \
+#define GPIO_BUTTON(gpio_num, ev_code, act_low, descr, wake, debounce_ms) \
 {                                                               \
 	.gpio           = gpio_num,                             \
 	.type           = EV_KEY,                               \
@@ -416,12 +417,13 @@ static iomux_v3_cfg_t mx53_smd_pads[] = {
 	.active_low     = act_low,                              \
 	.desc           = "btn " descr,                         \
 	.wakeup         = wake,                                 \
+	.debounce_interval = debounce_ms,                       \
 }
 
 static struct gpio_keys_button smd_buttons[] = {
-	GPIO_BUTTON(MX53_SMD_PMIC_ON_OFF_REQ, KEY_POWER, 1, "power", 0),
-	GPIO_BUTTON(MX53_SMD_UI1, KEY_VOLUMEUP, 1, "volume-up", 0),
-	GPIO_BUTTON(MX53_SMD_UI2, KEY_VOLUMEDOWN, 1, "volume-down", 0),
+	GPIO_BUTTON(MX53_SMD_PMIC_ON_OFF_REQ, KEY_POWER, 0, "power", 0, 100),
+	GPIO_BUTTON(MX53_SMD_UI1, KEY_VOLUMEUP, 1, "volume-up", 0, 0),
+	GPIO_BUTTON(MX53_SMD_UI2, KEY_VOLUMEDOWN, 1, "volume-down", 0, 0),
 };
 
 static struct gpio_keys_platform_data smd_button_data = {
@@ -502,6 +504,7 @@ static const struct esdhc_platform_data mx53_smd_sd1_data __initconst = {
 
 static const struct esdhc_platform_data mx53_smd_sd2_data __initconst = {
 	.always_present = 1,
+	.keep_power_at_suspend = 1,
 };
 
 static const struct esdhc_platform_data mx53_smd_sd3_data __initconst = {
@@ -958,6 +961,50 @@ static struct mxc_regulator_platform_data smd_regulator_data = {
 	.vcc_reg_id = "DA9052_BUCK_PRO",
 };
 
+#if defined(CONFIG_BATTERY_MAX17085) || defined(CONFIG_BATTERY_MAX17085_MODULE)
+static struct resource smd_batt_resource[] = {
+	{
+	.flags = IORESOURCE_IO,
+	.name = "pwr-good",
+	.start = MX53_SMD_PWR_GOOD,
+	.end = MX53_SMD_PWR_GOOD,
+	},
+	{
+	.flags = IORESOURCE_IO,
+	.name = "ac-in",
+	.start = MX53_SMD_AC_IN,
+	.end = MX53_SMD_AC_IN,
+	},
+	{
+	.flags = IORESOURCE_IO,
+	.name = "charge-now",
+	.start = MX53_SMD_CHRG_OR_CMOS,
+	.end = MX53_SMD_CHRG_OR_CMOS,
+	},
+	{
+	.flags = IORESOURCE_IO,
+	.name = "charge-done",
+	.start = MX53_SMD_USER_DEG_CHG_NONE,
+	.end = MX53_SMD_USER_DEG_CHG_NONE,
+	},
+};
+
+static struct platform_device smd_battery_device = {
+	.name           = "max17085_bat",
+	.resource	= smd_batt_resource,
+	.num_resources  = ARRAY_SIZE(smd_batt_resource),
+};
+
+static void __init smd_add_device_battery(void)
+{
+	platform_device_register(&smd_battery_device);
+}
+#else
+static void __init smd_add_device_battery(void)
+{
+}
+#endif
+
 extern struct imx_mxc_gpu_data imx53_gpu_data;
 
 static void __init fixup_mxc_board(struct machine_desc *desc, struct tag *tags,
@@ -1007,6 +1054,21 @@ static void __init fixup_mxc_board(struct machine_desc *desc, struct tag *tags,
 		}
 	}
 }
+
+static void mx53_smd_power_off(void)
+{
+	/* power off by sending shutdown command to da9053*/
+	da9053_power_off();
+}
+
+static int __init mx53_smd_power_init(void)
+{
+	if (machine_is_mx53_smd())
+		pm_power_off = mx53_smd_power_off;
+
+	return 0;
+}
+late_initcall(mx53_smd_power_init);
 
 static void __init mx53_smd_board_init(void)
 {
@@ -1154,6 +1216,7 @@ static void __init mx53_smd_board_init(void)
 	imx53_add_mxc_scc2();
 
 	mx5_cpu_regulator_init();
+	smd_add_device_battery();
 }
 
 static void __init mx53_smd_timer_init(void)

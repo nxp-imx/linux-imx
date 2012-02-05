@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2008-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -4414,6 +4414,10 @@ static struct clk asrc_clk[] = {
 	},
 };
 
+static struct clk dummy_clk = {
+	.id = 0,
+};
+
 #define _REGISTER_CLOCK(d, n, c) \
 	{ \
 		.dev_id = d, \
@@ -4494,6 +4498,8 @@ static struct clk_lookup lookups[] = {
 	_REGISTER_CLOCK(NULL, "gpt", gpt_clk[0]),
 	_REGISTER_CLOCK("fec.0", NULL, fec_clk[0]),
 	_REGISTER_CLOCK("mxc_w1.0", NULL, owire_clk),
+	_REGISTER_CLOCK("imx2-wdt.0", NULL, dummy_clk),
+	_REGISTER_CLOCK("imx2-wdt.1", NULL, dummy_clk),
 };
 
 static struct clk_lookup mx51_lookups[] = {
@@ -4594,7 +4600,6 @@ static void clk_tree_init(void)
 
 int __init mx51_clocks_init(unsigned long ckil, unsigned long osc, unsigned long ckih1, unsigned long ckih2)
 {
-	__iomem void *base;
 	struct clk *tclk;
 	int i = 0, j = 0, reg;
 	int op_cnt = 0;
@@ -4896,9 +4901,8 @@ int __init mx51_clocks_init(unsigned long ckil, unsigned long osc, unsigned long
 
 int __init mx53_clocks_init(unsigned long ckil, unsigned long osc, unsigned long ckih1, unsigned long ckih2)
 {
-	__iomem void *base;
 	struct clk *tclk;
-	int i = 0, j = 0, reg;
+	int i = 0, reg;
 	u32 pll1_rate;
 
 	pll1_base = MX53_DPLL1_BASE;
