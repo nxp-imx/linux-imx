@@ -80,7 +80,8 @@
 #define MX6Q_SABRESD_SD3_WP		IMX_GPIO_NR(2, 1)
 #define MX6Q_SABRESD_ECSPI1_CS1	IMX_GPIO_NR(3, 19)
 #define MX6Q_SABRESD_USB_OTG_PWR	IMX_GPIO_NR(3, 22)
-#define MX6Q_SABRESD_CAP_TCH_INT1	IMX_GPIO_NR(1, 9)
+#define MX6Q_SABRESD_CAP_TCH_INT1	IMX_GPIO_NR(6, 7)
+#define MX6Q_SABRESD_CAP_TCH_INT0       IMX_GPIO_NR(6, 8)
 #define MX6Q_SABRESD_USB_HUB_RESET	IMX_GPIO_NR(7, 12)
 #define MX6Q_SABRESD_CAN1_STBY	IMX_GPIO_NR(1, 2)
 #define MX6Q_SABRESD_CAN1_EN		IMX_GPIO_NR(1, 4)
@@ -207,8 +208,8 @@ static iomux_v3_cfg_t mx6q_sabresd_pads[] = {
 	MX6Q_PAD_KEY_ROW3__I2C2_SDA,	/* GPIO4[13] */
 
 	/* I2C3 */
-	MX6Q_PAD_GPIO_5__I2C3_SCL,	/* GPIO1[5] - J7 - Display card */
-	MX6Q_PAD_GPIO_16__I2C3_SDA,	/* GPIO7[11] - J15 - RGB connector */
+	MX6Q_PAD_GPIO_3__I2C3_SCL,	/* GPIO1[3] */
+	MX6Q_PAD_GPIO_16__I2C3_SDA,	/* GPIO7[11]*/
 
 	/* DISPLAY */
 	MX6Q_PAD_DI0_DISP_CLK__IPU1_DI0_DISP_CLK,
@@ -566,6 +567,10 @@ static struct i2c_board_info mxc_i2c1_board_info[] __initdata = {
 	{
 		I2C_BOARD_INFO("ov5640_mipi", 0x3c),
 		.platform_data = (void *)&mipi_csi2_data,
+	},
+	{
+		I2C_BOARD_INFO("egalax_ts", 0x4),
+		.irq = gpio_to_irq(MX6Q_SABRESD_CAP_TCH_INT0),
 	},
 };
 
