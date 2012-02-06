@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2004-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -29,7 +29,8 @@
 #define V4L2_CID_MXC_ROT		(V4L2_CID_PRIVATE_BASE + 0)
 #define V4L2_CID_MXC_FLASH		(V4L2_CID_PRIVATE_BASE + 1)
 #define V4L2_CID_MXC_VF_ROT		(V4L2_CID_PRIVATE_BASE + 2)
-#define V4L2_CID_MXC_MOTION     (V4L2_CID_PRIVATE_BASE + 3)
+#define V4L2_CID_MXC_MOTION		(V4L2_CID_PRIVATE_BASE + 3)
+#define  V4L2_CID_MXC_SWITCH_CAM        (V4L2_CID_PRIVATE_BASE + 6)
 
 #define V4L2_MXC_ROTATE_NONE			0
 #define V4L2_MXC_ROTATE_VERT_FLIP		1

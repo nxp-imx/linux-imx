@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2004-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -194,9 +194,34 @@ typedef struct _cam_data {
 
 	/* camera sensor interface */
 	struct camera_sensor *cam_sensor; 	/* old version */
+	struct v4l2_int_device *all_sensors[2];
 	struct v4l2_int_device *sensor;
 	void *ipu;
 } cam_data;
+
+struct sensor_data {
+	const struct ov5642_platform_data *platform_data;
+	struct v4l2_int_device *v4l2_int_device;
+	struct i2c_client *i2c_client;
+	struct v4l2_pix_format pix;
+	struct v4l2_captureparm streamcap;
+	bool on;
+
+	/* control settings */
+	int brightness;
+	int hue;
+	int contrast;
+	int saturation;
+	int red;
+	int green;
+	int blue;
+	int ae_mode;
+
+	u32 mclk;
+	int csi;
+
+	void (*io_init)(void);
+};
 
 #if defined(CONFIG_MXC_IPU_V1) || defined(CONFIG_VIDEO_MXC_EMMA_CAMERA) \
 			       || defined(CONFIG_VIDEO_MXC_CSI_CAMERA_MODULE) \
