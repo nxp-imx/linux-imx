@@ -5182,6 +5182,9 @@ int __init mx6_clocks_init(unsigned long ckil, unsigned long osc,
 	/* Lower the ipg_perclk frequency to 8.25MHz. */
 	clk_set_rate(&ipg_perclk, 8250000);
 
+	/* Set pll2_pfd_352M frequency to 528M for gpu2d core clock */
+	clk_set_rate(&pll2_pfd_352M, 528000000);
+
 	/* S/PDIF */
 	clk_set_parent(&spdif0_clk[0], &pll3_pfd_454M);
 
