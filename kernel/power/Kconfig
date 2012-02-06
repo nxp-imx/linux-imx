@@ -49,6 +49,13 @@ config HAS_WAKELOCK
 config HAS_EARLYSUSPEND
 	bool
 
+config CPUFREQ_GOV_ON_EARLYSUPSEND
+	bool "Use conservative cpu frequency governor when device enters early suspend"
+	depends on HAS_EARLYSUSPEND && CPU_FREQ
+	default n
+	help
+	 Also will restore to original cpu frequency governor when device is resumed
+
 config WAKELOCK
 	bool "Wake lock"
 	depends on PM && RTC_CLASS
