@@ -486,6 +486,14 @@ static struct platform_device mx6_sabresd_audio_device = {
 	.name = "imx-sgtl5000",
 };
 
+static void mx6q_csi0_cam_powerdown(int powerdown)
+{
+	if (powerdown)
+		gpio_set_value(MX6Q_SABRESD_CSI0_PWN, 1);
+	else
+		gpio_set_value(MX6Q_SABRESD_CSI0_PWN, 0);
+}
+
 static void mx6q_csi0_io_init(void)
 {
 	mxc_iomux_v3_setup_multiple_pads(mx6q_sabresd_csi0_sensor_pads,
@@ -520,7 +528,16 @@ static struct fsl_mxc_camera_platform_data camera_data = {
 	.mclk = 24000000,
 	.csi = 0,
 	.io_init = mx6q_csi0_io_init,
+	.pwdn = mx6q_csi0_cam_powerdown,
 };
+
+static void mx6q_mipi_powerdown(int powerdown)
+{
+	if (powerdown)
+		gpio_set_value(MX6Q_SABRESD_MIPICSI_PWN, 1);
+	else
+		gpio_set_value(MX6Q_SABRESD_MIPICSI_PWN, 0);
+}
 
 static void mx6q_mipi_sensor_io_init(void)
 {
@@ -544,6 +561,7 @@ static struct fsl_mxc_camera_platform_data mipi_csi2_data = {
 	.mclk = 24000000,
 	.csi = 0,
 	.io_init = mx6q_mipi_sensor_io_init,
+	.pwdn = mx6q_mipi_powerdown,
 };
 
 static struct imxi2c_platform_data mx6q_sabresd_i2c_data = {
@@ -555,7 +573,7 @@ static struct i2c_board_info mxc_i2c0_board_info[] __initdata = {
 		I2C_BOARD_INFO("sgtl5000", 0x0a),
 	},
 	{
-		I2C_BOARD_INFO("ov5640", 0x3c),
+		I2C_BOARD_INFO("ov5642", 0x3c),
 		.platform_data = (void *)&camera_data,
 	},
 };
