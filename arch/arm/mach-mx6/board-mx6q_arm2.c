@@ -2051,6 +2051,8 @@ static void __init mx6_arm2_init(void)
 
 	gp_reg_id = arm2_dvfscore_data.reg_id;
 	mx6_arm2_init_uart();
+
+
 	imx6q_add_mipi_csi2(&mipi_csi2_pdata);
 	imx6q_add_mxc_hdmi_core(&hdmi_core_data);
 
@@ -2177,6 +2179,7 @@ static void __init mx6_arm2_init(void)
 		imx6dl_add_imx_epdc(&epdc_data);
 	}
 	imx6q_add_pcie(&mx6_arm2_pcie_data);
+	imx6q_add_busfreq();
 }
 
 extern void __iomem *twd_base;

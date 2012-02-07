@@ -67,7 +67,7 @@ static void __clk_disable(struct clk *clk)
 		return;
 
 	if (!clk->usecount) {
-		WARN(1, "clock enable/disable mismatch!\n");
+		WARN(1, "clock enable/disable mismatch! clk  %s\n", clk->name);
 		return;
 	}
 
@@ -111,6 +111,11 @@ int clk_enable(struct clk *clk)
 	if (clk == NULL || IS_ERR(clk))
 		return -EINVAL;
 
+	if (clk->flags & AHB_HIGH_SET_POINT)
+		lp_high_freq++;
+	else if (clk->flags & AHB_MED_SET_POINT)
+		lp_med_freq++;
+
 	if ((clk->flags & CPU_FREQ_TRIG_UPDATE)
 			&& (clk_get_usecount(clk) == 0)) {
 		if (!(clk->flags &
@@ -130,7 +135,6 @@ int clk_enable(struct clk *clk)
 				set_high_bus_freq(1);
 		}
 	}
-
 	mutex_lock(&clocks_mutex);
 	ret = __clk_enable(clk);
 	mutex_unlock(&clocks_mutex);
@@ -155,6 +159,11 @@ void clk_disable(struct clk *clk)
 
 	if (clk == NULL || IS_ERR(clk))
 		return;
+
+	if (clk->flags & AHB_HIGH_SET_POINT)
+		lp_high_freq--;
+	else if (clk->flags & AHB_MED_SET_POINT)
+		lp_med_freq--;
 
 	mutex_lock(&clocks_mutex);
 	__clk_disable(clk);

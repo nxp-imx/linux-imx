@@ -1664,6 +1664,7 @@ static void __init mx6_sabresd_board_init(void)
 	/* Register charger chips */
 	platform_device_register(&sabresd_max8903_charger_1);
 	pm_power_off = mx6_snvs_poweroff;
+	imx6q_add_busfreq();
 
 	imx6q_add_pcie(&mx6_sabresd_pcie_data);
 }

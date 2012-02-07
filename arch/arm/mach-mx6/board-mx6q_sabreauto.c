@@ -1497,6 +1497,7 @@ static void __init mx6_board_init(void)
 	mxc_register_device(&si4763_codec_device, NULL);
 	mxc_register_device(&mxc_si4763_audio_device, &si4763_audio_data);
 
+	imx6q_add_busfreq();
 }
 
 extern void __iomem *twd_base;
