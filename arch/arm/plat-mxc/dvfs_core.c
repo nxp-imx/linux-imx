@@ -1,5 +1,5 @@
 /*
- * Copyright 2008-2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2008-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -427,7 +427,7 @@ static int set_cpu_freq(int op)
 {
 	int ret = 0;
 
-	if (cpu_is_mx6q())
+	if (cpu_is_mx6q() || cpu_is_mx6dl())
 		ret = mx6_set_cpu_freq(op);
 	else
 		ret = mx5_set_cpu_freq(op);
@@ -476,7 +476,7 @@ static int start_dvfs(void)
 	/* GPCIRQ=1, select ARM IRQ */
 	reg |= MXC_GPCCNTR_GPCIRQ_ARM;
 	/* ADU=1, select ARM domain */
-	if (!cpu_is_mx6q())
+	if (!(cpu_is_mx6q() || cpu_is_mx6dl()))
 		reg |= MXC_GPCCNTR_ADU;
 	__raw_writel(reg, gpc_base + dvfs_data->gpc_cntr_offset);
 
@@ -509,7 +509,7 @@ static int start_dvfs(void)
 	__raw_writel(reg, dvfs_data->membase + MXC_DVFSCORE_CNTR);
 
 	/* Enable DVFS */
-	if (cpu_is_mx6q()) {
+	if (cpu_is_mx6q() || cpu_is_mx6dl()) {
 		unsigned long cpu_wfi = 0;
 		int num_cpus = num_possible_cpus();
 		reg = __raw_readl(dvfs_data->membase + MXC_DVFSCORE_EMAC);
@@ -947,7 +947,7 @@ static int __devinit mxc_dvfs_core_probe(struct platform_device *pdev)
 		printk(KERN_ERR "%s: failed to get cpu clock\n", __func__);
 		return PTR_ERR(cpu_clk);
 	}
-	if (!cpu_is_mx6q()) {
+	if (!(cpu_is_mx6q() || cpu_is_mx6dl())) {
 		dvfs_clk = clk_get(NULL, dvfs_data->clk2_id);
 		if (IS_ERR(dvfs_clk)) {
 			printk(KERN_ERR "%s: failed to get dvfs clock\n", __func__);
