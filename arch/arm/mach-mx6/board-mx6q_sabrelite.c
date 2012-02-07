@@ -1162,6 +1162,7 @@ static void __init mx6_sabrelite_board_init(void)
 	rate = clk_round_rate(clko2, 24000000);
 	clk_set_rate(clko2, rate);
 	clk_enable(clko2);
+	imx6q_add_busfreq();
 }
 
 extern void __iomem *twd_base;

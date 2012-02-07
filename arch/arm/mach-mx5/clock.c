@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2008-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -148,11 +148,6 @@ static int _clk_enable(struct clk *clk)
 	reg |= MXC_CCM_CCGRx_CG_MASK << clk->enable_shift;
 	__raw_writel(reg, clk->enable_reg);
 
-	if (clk->flags & AHB_HIGH_SET_POINT)
-		lp_high_freq++;
-	else if (clk->flags & AHB_MED_SET_POINT)
-		lp_med_freq++;
-
 	return 0;
 }
 
@@ -173,11 +168,6 @@ static void _clk_disable(struct clk *clk)
 	reg = __raw_readl(clk->enable_reg);
 	reg &= ~(MXC_CCM_CCGRx_CG_MASK << clk->enable_shift);
 	__raw_writel(reg, clk->enable_reg);
-
-	if (clk->flags & AHB_HIGH_SET_POINT)
-		lp_high_freq--;
-	else if (clk->flags & AHB_MED_SET_POINT)
-		lp_med_freq--;
 }
 
 static void _clk_disable_inwait(struct clk *clk)

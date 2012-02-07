@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2011-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -43,58 +43,36 @@
 #include <asm/mach-types.h>
 #include <asm/cacheflush.h>
 #include <asm/tlb.h>
+#include "crm_regs.h"
 
-#define LP_LOW_VOLTAGE		1050000
-#define LP_NORMAL_VOLTAGE		1250000
-#define LP_APM_CLK			24000000
-#define NAND_LP_APM_CLK			12000000
-#define AXI_A_NORMAL_CLK		166250000
-#define AXI_A_CLK_NORMAL_DIV		4
-#define AXI_B_CLK_NORMAL_DIV		5
-#define AHB_CLK_NORMAL_DIV		AXI_B_CLK_NORMAL_DIV
-#define EMI_SLOW_CLK_NORMAL_DIV		AXI_B_CLK_NORMAL_DIV
-#define NFC_CLK_NORMAL_DIV		4
-#define SPIN_DELAY	1000000 /* in nanoseconds */
-#define DDR_TYPE_DDR3		0x0
-#define DDR_TYPE_DDR2		0x1
+
+#define LPAPM_CLK	24000000
+#define DDR_MED_CLK	400000000
+#define DDR3_NORMAL_CLK	528000000
 
 DEFINE_SPINLOCK(ddr_freq_lock);
 
-unsigned long lp_normal_rate;
-unsigned long lp_med_rate;
-unsigned long ddr_normal_rate;
-unsigned long ddr_med_rate;
-unsigned long ddr_low_rate;
-
-struct regulator *pll_regulator;
-
-struct regulator *lp_regulator;
 int low_bus_freq_mode;
 int high_bus_freq_mode;
 int med_bus_freq_mode;
 
 int bus_freq_scaling_initialized;
-char *lp_reg_id;
-
 static struct device *busfreq_dev;
 static int busfreq_suspended;
 
 /* True if bus_frequency is scaled not using DVFS-PER */
 int bus_freq_scaling_is_active;
 
-int cpu_op_nr;
 int lp_high_freq;
 int lp_med_freq;
-
-struct workqueue_struct *voltage_wq;
-struct completion voltage_change_cmpl;
+unsigned int ddr_low_rate;
+unsigned int ddr_med_rate;
+unsigned int ddr_normal_rate;
 
 int low_freq_bus_used(void);
 void set_ddr_freq(int ddr_freq);
 
 extern struct cpu_op *(*get_cpu_op)(int *op);
-extern void __iomem *ccm_base;
-extern void __iomem *databahn_base;
 extern int update_ddr_freq(int ddr_rate);
 
 
@@ -103,29 +81,140 @@ struct mutex bus_freq_mutex;
 struct timeval start_time;
 struct timeval end_time;
 
+static int cpu_op_nr;
+static struct cpu_op *cpu_op_tbl;
+static struct clk *pll2_400;
+static struct clk *cpu_clk;
+static unsigned int org_ldo;
+static struct clk *pll3;
+
+static struct delayed_work low_bus_freq_handler;
+
+static void reduce_bus_freq_handler(struct work_struct *work)
+{
+	unsigned long reg;
+
+	if (low_bus_freq_mode || !low_freq_bus_used())
+		return;
+
+	while (!mutex_trylock(&bus_freq_mutex))
+		msleep(1);
+
+	/* PLL3 is used in the DDR freq change process, enable it. */
+
+	if (low_bus_freq_mode || !low_freq_bus_used()) {
+		mutex_unlock(&bus_freq_mutex);
+		return;
+	}
+	clk_enable(pll3);
+
+
+	update_ddr_freq(24000000);
+
+	if (med_bus_freq_mode)
+		clk_disable(pll2_400);
+
+	low_bus_freq_mode = 1;
+	high_bus_freq_mode = 0;
+	med_bus_freq_mode = 0;
+
+	/* Power gate the PU LDO. */
+	org_ldo = reg = __raw_readl(ANADIG_REG_CORE);
+	reg &= ~(ANADIG_REG_TARGET_MASK << ANADIG_REG1_PU_TARGET_OFFSET);
+	__raw_writel(reg, ANADIG_REG_CORE);
+
+	mutex_unlock(&bus_freq_mutex);
+	clk_disable(pll3);
+
+
+}
+
+/* Set the DDR, AHB to 24MHz.
+  * This mode will be activated only when none of the modules that
+  * need a higher DDR or AHB frequency are active.
+  */
 int set_low_bus_freq(void)
 {
+	if (busfreq_suspended)
+		return 0;
+
+	if (!bus_freq_scaling_initialized || !bus_freq_scaling_is_active)
+		return 0;
+
+	/* Don't lower the frequency immediately. Instead scheduled a delayed work
+	  * and drop the freq if the conditions still remain the same.
+	  */
+	schedule_delayed_work(&low_bus_freq_handler, usecs_to_jiffies(3000000));
 	return 0;
 }
 
+/* Set the DDR to either 528MHz or 400MHz for MX6q
+ * or 400MHz for MX6DL.
+ */
 int set_high_bus_freq(int high_bus_freq)
 {
+	if (busfreq_suspended)
+		return 0;
+
+	if (!bus_freq_scaling_initialized || !bus_freq_scaling_is_active)
+		return 0;
+
+	if (high_bus_freq_mode && high_bus_freq)
+		return 0;
+
+	if (med_bus_freq_mode && !high_bus_freq)
+		return 0;
+
+	while (!mutex_trylock(&bus_freq_mutex))
+		msleep(1);
+
+	if ((high_bus_freq_mode && (high_bus_freq || lp_high_freq)) ||
+		(med_bus_freq_mode && !high_bus_freq && lp_med_freq && !lp_high_freq)) {
+		mutex_unlock(&bus_freq_mutex);
+		return 0;
+	}
+	clk_enable(pll3);
+
+	/* Enable the PU LDO */
+	if (low_bus_freq_mode)
+		__raw_writel(org_ldo, ANADIG_REG_CORE);
+
+	if (high_bus_freq) {
+		update_ddr_freq(ddr_normal_rate);
+		if (med_bus_freq_mode)
+			clk_disable(pll2_400);
+		low_bus_freq_mode = 0;
+		high_bus_freq_mode = 1;
+		med_bus_freq_mode = 0;
+	} else {
+		clk_enable(pll2_400);
+		update_ddr_freq(ddr_med_rate);
+		low_bus_freq_mode = 0;
+		high_bus_freq_mode = 0;
+		med_bus_freq_mode = 1;
+	}
+
+	mutex_unlock(&bus_freq_mutex);
+	clk_disable(pll3);
+
 	return 0;
 }
 
-void exit_lpapm_mode_mx6q(int high_bus_freq)
-{
-
-}
-
-
-void set_ddr_freq(int ddr_rate)
-{
-
-}
 
 int low_freq_bus_used(void)
 {
+	if (!bus_freq_scaling_initialized)
+		return 0;
+
+	/* We only go the lowest setpoint if ARM is also
+	 * at the lowest setpoint.
+	 */
+	if ((clk_get_rate(cpu_clk) >
+			cpu_op_tbl[cpu_op_nr - 1].cpu_rate)
+		|| (cpu_op_nr == 1)) {
+		return 0;
+	}
+
 	if ((lp_high_freq == 0)
 	    && (lp_med_freq == 0))
 		return 1;
@@ -150,6 +239,14 @@ static ssize_t bus_freq_scaling_enable_store(struct device *dev,
 				 struct device_attribute *attr,
 				 const char *buf, size_t size)
 {
+	if (strncmp(buf, "1", 1) == 0) {
+		bus_freq_scaling_is_active = 1;
+		set_high_bus_freq(0);
+	} else if (strncmp(buf, "0", 1) == 0) {
+		if (bus_freq_scaling_is_active)
+			set_high_bus_freq(1);
+		bus_freq_scaling_is_active = 0;
+	}
 	return size;
 }
 
@@ -180,6 +277,54 @@ static DEVICE_ATTR(enable, 0644, bus_freq_scaling_enable_show,
  */
 static int __devinit busfreq_probe(struct platform_device *pdev)
 {
+	u32 err;
+
+	busfreq_dev = &pdev->dev;
+
+	pll2_400 = clk_get(NULL, "pll2_pfd_400M");
+	if (IS_ERR(pll2_400)) {
+		printk(KERN_DEBUG "%s: failed to get axi_clk\n",
+		       __func__);
+		return PTR_ERR(pll2_400);
+	}
+
+	cpu_clk = clk_get(NULL, "cpu_clk");
+	if (IS_ERR(cpu_clk)) {
+		printk(KERN_DEBUG "%s: failed to get cpu_clk\n",
+		       __func__);
+		return PTR_ERR(cpu_clk);
+	}
+
+	pll3 = clk_get(NULL, "pll3_main_clk");
+
+	err = sysfs_create_file(&busfreq_dev->kobj, &dev_attr_enable.attr);
+	if (err) {
+		printk(KERN_ERR
+		       "Unable to register sysdev entry for BUSFREQ");
+		return err;
+	}
+
+	cpu_op_tbl = get_cpu_op(&cpu_op_nr);
+	low_bus_freq_mode = 0;
+	high_bus_freq_mode = 1;
+	med_bus_freq_mode = 0;
+	bus_freq_scaling_is_active = 0;
+	bus_freq_scaling_initialized = 1;
+
+	if (cpu_is_mx6q()) {
+		ddr_low_rate = LPAPM_CLK;
+		ddr_med_rate = DDR_MED_CLK;
+		ddr_normal_rate = DDR3_NORMAL_CLK;
+	}
+	if (cpu_is_mx6dl()) {
+		ddr_low_rate = LPAPM_CLK;
+		ddr_normal_rate = ddr_med_rate = DDR_MED_CLK;
+	}
+
+	INIT_DELAYED_WORK(&low_bus_freq_handler, reduce_bus_freq_handler);
+
+	mutex_init(&bus_freq_mutex);
+
 	return 0;
 }
 
@@ -218,7 +363,7 @@ static void __exit busfreq_cleanup(void)
 	bus_freq_scaling_initialized = 0;
 }
 
-module_init(busfreq_init);
+late_initcall(busfreq_init);
 module_exit(busfreq_cleanup);
 
 MODULE_AUTHOR("Freescale Semiconductor, Inc.");
