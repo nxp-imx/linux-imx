@@ -80,7 +80,8 @@
 #define MX6Q_SABRESD_SD3_WP		IMX_GPIO_NR(2, 1)
 #define MX6Q_SABRESD_ECSPI1_CS1	IMX_GPIO_NR(3, 19)
 #define MX6Q_SABRESD_USB_OTG_PWR	IMX_GPIO_NR(3, 22)
-#define MX6Q_SABRESD_CAP_TCH_INT1	IMX_GPIO_NR(1, 9)
+#define MX6Q_SABRESD_CAP_TCH_INT1	IMX_GPIO_NR(6, 7)
+#define MX6Q_SABRESD_CAP_TCH_INT0       IMX_GPIO_NR(6, 8)
 #define MX6Q_SABRESD_USB_HUB_RESET	IMX_GPIO_NR(7, 12)
 #define MX6Q_SABRESD_CAN1_STBY	IMX_GPIO_NR(1, 2)
 #define MX6Q_SABRESD_CAN1_EN		IMX_GPIO_NR(1, 4)
@@ -89,6 +90,7 @@
 #define MX6Q_SABRESD_CSI0_PWN		IMX_GPIO_NR(1, 16)
 #define MX6Q_SABRESD_MIPICSI_RST	IMX_GPIO_NR(1, 20)
 #define MX6Q_SABRESD_MIPICSI_PWN	IMX_GPIO_NR(1, 19)
+#define MX6Q_SABRESD_AUX_5V_EN		IMX_GPIO_NR(6, 10)
 
 void __init early_console_setup(unsigned long base, struct clk *clk);
 static struct clk *sata_clk;
@@ -192,6 +194,7 @@ static iomux_v3_cfg_t mx6q_sabresd_pads[] = {
 
 	/* GPIO6 */
 	MX6Q_PAD_EIM_A23__GPIO_6_6,	/* J12 - Boot Mode Select */
+	MX6Q_PAD_NANDF_RB0__GPIO_6_10, /* AUX_5V Enable */
 
 	/* GPIO7 */
 	MX6Q_PAD_GPIO_17__GPIO_7_12,	/* USB Hub Reset */
@@ -205,8 +208,8 @@ static iomux_v3_cfg_t mx6q_sabresd_pads[] = {
 	MX6Q_PAD_KEY_ROW3__I2C2_SDA,	/* GPIO4[13] */
 
 	/* I2C3 */
-	MX6Q_PAD_GPIO_5__I2C3_SCL,	/* GPIO1[5] - J7 - Display card */
-	MX6Q_PAD_GPIO_16__I2C3_SDA,	/* GPIO7[11] - J15 - RGB connector */
+	MX6Q_PAD_GPIO_3__I2C3_SCL,	/* GPIO1[3] */
+	MX6Q_PAD_GPIO_16__I2C3_SDA,	/* GPIO7[11]*/
 
 	/* DISPLAY */
 	MX6Q_PAD_DI0_DISP_CLK__IPU1_DI0_DISP_CLK,
@@ -360,7 +363,7 @@ static const struct anatop_thermal_platform_data
 static inline void mx6q_sabresd_init_uart(void)
 {
 	imx6q_add_imx_uart(2, NULL);
-	imx6q_add_imx_uart(3, NULL);
+	imx6q_add_imx_uart(0, NULL);
 }
 
 static int mx6q_sabresd_fec_phy_init(struct phy_device *phydev)
@@ -564,6 +567,10 @@ static struct i2c_board_info mxc_i2c1_board_info[] __initdata = {
 	{
 		I2C_BOARD_INFO("ov5640_mipi", 0x3c),
 		.platform_data = (void *)&mipi_csi2_data,
+	},
+	{
+		I2C_BOARD_INFO("egalax_ts", 0x4),
+		.irq = gpio_to_irq(MX6Q_SABRESD_CAP_TCH_INT0),
 	},
 };
 
@@ -792,11 +799,15 @@ static struct imx_ipuv3_platform_data ipu_data[] = {
 static void sabresd_suspend_enter(void)
 {
 	/* suspend preparation */
+	/* Disable AUX 5V */
+	gpio_set_value(MX6Q_SABRESD_AUX_5V_EN, 0);
 }
 
 static void sabresd_suspend_exit(void)
 {
 	/* resume restore */
+	/* Enable AUX 5V */
+	gpio_set_value(MX6Q_SABRESD_AUX_5V_EN, 1);
 }
 static const struct pm_platform_data mx6q_sabresd_pm_data __initconst = {
 	.name = "imx_pm",
@@ -923,7 +934,7 @@ static int imx6q_init_audio(void)
 }
 
 static struct platform_pwm_backlight_data mx6_sabresd_pwm_backlight_data = {
-	.pwm_id = 3,
+	.pwm_id = 0,
 	.max_brightness = 255,
 	.dft_brightness = 128,
 	.pwm_period_ns = 50000,
@@ -1044,7 +1055,7 @@ static void __init mx6_sabresd_board_init(void)
 	imx6q_add_mxc_pwm(1);
 	imx6q_add_mxc_pwm(2);
 	imx6q_add_mxc_pwm(3);
-	imx6q_add_mxc_pwm_backlight(3, &mx6_sabresd_pwm_backlight_data);
+	imx6q_add_mxc_pwm_backlight(0, &mx6_sabresd_pwm_backlight_data);
 
 	imx6q_add_otp();
 	imx6q_add_viim();
@@ -1076,6 +1087,11 @@ static void __init mx6_sabresd_board_init(void)
 	rate = clk_round_rate(clko2, 24000000);
 	clk_set_rate(clko2, rate);
 	clk_enable(clko2);
+
+	/* Enable Aux_5V */
+	gpio_request(MX6Q_SABRESD_AUX_5V_EN, "aux_5v_en");
+	gpio_direction_output(MX6Q_SABRESD_AUX_5V_EN, 1);
+	gpio_set_value(MX6Q_SABRESD_AUX_5V_EN, 1);
 }
 
 extern void __iomem *twd_base;

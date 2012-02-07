@@ -31,6 +31,7 @@
 #include <mach/mxc_dvfs.h>
 #include "crm_regs.h"
 #include "cpu_op-mx6.h"
+#include "regs-anadig.h"
 
 #ifdef CONFIG_CLK_DEBUG
 #define __INIT_CLK_DEBUG(n)	.name = #n,
@@ -396,6 +397,10 @@ static int _clk_pll_enable(struct clk *clk)
 
 	__raw_writel(reg, pllbase);
 
+	/* It will power on pll3 */
+	if (clk == &pll3_usb_otg_main_clk)
+		__raw_writel(BM_ANADIG_ANA_MISC2_CONTROL0, apll_base + HW_ANADIG_ANA_MISC2_CLR);
+
 	/* Wait for PLL to lock */
 	if (!WAIT(__raw_readl(pllbase) & ANADIG_PLL_LOCK,
 				SPIN_DELAY))
@@ -421,6 +426,13 @@ static void _clk_pll_disable(struct clk *clk)
 	reg &= ~ANADIG_PLL_ENABLE;
 
 	__raw_writel(reg, pllbase);
+
+	/*
+	 * It will power off PLL3's power, it is the TO1.1 fix
+	 * Please see TKT064178 for detail.
+	 */
+	if (clk == &pll3_usb_otg_main_clk)
+		__raw_writel(BM_ANADIG_ANA_MISC2_CONTROL0, apll_base + HW_ANADIG_ANA_MISC2_SET);
 }
 
 static unsigned long  _clk_pll1_main_get_rate(struct clk *clk)
@@ -1732,15 +1744,31 @@ static struct clk vdoa_clk = {
 	.disable = _clk_disable,
 };
 
+static unsigned long _clk_gpt_get_rate(struct clk *clk)
+{
+	u32 reg;
+	unsigned long rate;
+
+	if (mx6q_revision() == IMX_CHIP_REVISION_1_0)
+		return clk_get_rate(clk->parent);
+
+	rate = mx6_timer_rate();
+	if (!rate)
+		return clk_get_rate(clk->parent);
+
+	return rate;
+}
+
 static struct clk gpt_clk[] = {
 	{
 	__INIT_CLK_DEBUG(gpt_clk)
-	 .parent = &ipg_perclk,
+	 .parent = &osc_clk,
 	 .id = 0,
 	 .enable_reg = MXC_CCM_CCGR1,
 	 .enable_shift = MXC_CCM_CCGRx_CG10_OFFSET,
 	 .enable = _clk_enable,
 	 .disable = _clk_disable,
+	 .get_rate = _clk_gpt_get_rate,
 	 .secondary = &gpt_clk[1],
 	 },
 	{
@@ -5187,6 +5215,11 @@ int __init mx6_clocks_init(unsigned long ckil, unsigned long osc,
 
 	/* S/PDIF */
 	clk_set_parent(&spdif0_clk[0], &pll3_pfd_454M);
+
+	if (mx6q_revision() == IMX_CHIP_REVISION_1_0) {
+		gpt_clk[0].parent = &ipg_perclk;
+		gpt_clk[0].get_rate = NULL;
+		}
 
 	base = ioremap(GPT_BASE_ADDR, SZ_4K);
 	mxc_timer_init(&gpt_clk[0], base, MXC_INT_GPT);

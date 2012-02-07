@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ *  Copyright (C) 2011-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -164,7 +164,8 @@ static void mx6_suspend_restore(void)
 	/* Per spec, the count needs to be zeroed and reconfigured on exit from
 	 * low power mode
 	 */
-	__raw_writel(ccm_ccr & ~MXC_CCM_CCR_REG_BYPASS_CNT_MASK, MXC_CCM_CCR);
+	__raw_writel(ccm_ccr & ~MXC_CCM_CCR_REG_BYPASS_CNT_MASK &
+		~MXC_CCM_CCR_WB_COUNT_MASK, MXC_CCM_CCR);
 	udelay(50);
 	__raw_writel(ccm_ccr, MXC_CCM_CCR);
 	__raw_writel(ccm_clpcr, MXC_CCM_CLPCR);
