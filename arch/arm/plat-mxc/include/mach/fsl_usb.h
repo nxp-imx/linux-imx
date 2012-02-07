@@ -1,5 +1,5 @@
 /*
- * Copyright 2005-2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2005-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -98,7 +98,7 @@ static inline void fsl_platform_set_ahb_burst(struct usb_hcd *hcd)
 	}
 
 	/* Increase TX fifo threshold for in Hostx */
-	if (cpu_is_mx6q()) {
+	if (cpu_is_mx6()) {
 		temp = readl(hcd->regs + FSL_SOC_USB_TXFILLTUNING);
 		/* Change TX FIFO threshold to be 0x08 */
 		writel((temp & (~(0x3f << 16))) | (0x08 << 16),

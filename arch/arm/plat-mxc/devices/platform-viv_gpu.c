@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2011-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -36,6 +36,7 @@ struct platform_device *__init imx_add_viv_gpu(
 		const struct imx_viv_gpu_data *data,
 		const struct viv_gpu_platform_data *pdata)
 {
+	u32 res_count = 0;
 	struct resource res[] = {
 		{
 			.name = "iobase_3d",
@@ -70,8 +71,15 @@ struct platform_device *__init imx_add_viv_gpu(
 		},
 	};
 
+	if (cpu_is_mx6q())
+		res_count = ARRAY_SIZE(res);
+	else if (cpu_is_mx6dl())
+		/* No openVG on i.mx6 Solo/DL */
+		res_count = ARRAY_SIZE(res) - 2;
+	BUG_ON(!res_count);
+
 	return imx_add_platform_device_dmamask("galcore", 0,
-			res, ARRAY_SIZE(res),
+			res, res_count,
 			pdata, sizeof(*pdata),
 			DMA_BIT_MASK(32));
 }
