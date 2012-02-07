@@ -27,7 +27,7 @@
  */
 
 /*
- * Copyright (C) 2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2012 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 #ifndef __GSL__BUILDCONFIG_H
@@ -49,7 +49,7 @@
 
 /* #define GSL_MMU_PAGETABLE_PERPROCESS */
 
-#define GSL_CALLER_PROCESS_MAX      10
+#define GSL_CALLER_PROCESS_MAX      64
 #define GSL_SHMEM_MAX_APERTURES     3
 
 #endif /* __GSL__BUILDCONFIG_H */
