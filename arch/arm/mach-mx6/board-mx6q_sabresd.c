@@ -50,6 +50,7 @@
 #include <linux/regulator/consumer.h>
 #include <linux/regulator/machine.h>
 #include <linux/regulator/fixed.h>
+#include <linux/android_pmem.h>
 
 #include <mach/common.h>
 #include <mach/hardware.h>
@@ -70,6 +71,7 @@
 #include <asm/mach/time.h>
 
 #include "usb.h"
+#include "android.h"
 #include "devices-imx6q.h"
 #include "crm_regs.h"
 #include "cpu_op-mx6.h"
@@ -718,7 +720,7 @@ static struct ipuv3_fb_platform_data sabresd_fb_data[] = {
 	.disp_dev = "ldb",
 	.interface_pix_fmt = IPU_PIX_FMT_RGB666,
 	.mode_str = "LDB-XGA",
-	.default_bpp = 16,
+	.default_bpp = 32,
 	.int_clk = false,
 	}, {
 	.disp_dev = "lcd",
@@ -730,13 +732,13 @@ static struct ipuv3_fb_platform_data sabresd_fb_data[] = {
 	.disp_dev = "ldb",
 	.interface_pix_fmt = IPU_PIX_FMT_RGB666,
 	.mode_str = "LDB-SVGA",
-	.default_bpp = 16,
+	.default_bpp = 32,
 	.int_clk = false,
 	}, {
 	.disp_dev = "ldb",
 	.interface_pix_fmt = IPU_PIX_FMT_RGB666,
 	.mode_str = "LDB-VGA",
-	.default_bpp = 16,
+	.default_bpp = 32,
 	.int_clk = false,
 	},
 };
@@ -794,6 +796,16 @@ static struct imx_ipuv3_platform_data ipu_data[] = {
 	.rev = 4,
 	.csi_clk[0] = "cko1_clk0",
 	},
+};
+
+static struct android_pmem_platform_data android_pmem_data = {
+       .name = "pmem_adsp",
+       .size = SZ_64M,
+};
+
+static struct android_pmem_platform_data android_pmem_gpu_data = {
+       .name = "pmem_gpu",
+       .size = SZ_32M,
 };
 
 static void sabresd_suspend_enter(void)
@@ -966,6 +978,38 @@ static struct mxc_dvfs_platform_data sabresd_dvfscore_data = {
 static void __init fixup_mxc_board(struct machine_desc *desc, struct tag *tags,
 				   char **cmdline, struct meminfo *mi)
 {
+	char *str;
+	struct tag *t;
+	int i = 0;
+	struct ipuv3_fb_platform_data *pdata_fb = sabresd_fb_data;
+
+	for_each_tag(t, tags) {
+		if (t->hdr.tag == ATAG_CMDLINE) {
+			str = t->u.cmdline.cmdline;
+			str = strstr(str, "pmem=");
+			if (str != NULL) {
+				str += 5;
+				android_pmem_gpu_data.size = memparse(str, &str);
+				if (*str == ',') {
+					str++;
+					android_pmem_data.size = memparse(str, &str);
+				}
+			}
+
+			str = t->u.cmdline.cmdline;
+			str = strstr(str, "fbmem=");
+			if (str != NULL) {
+				str += 6;
+				pdata_fb[i++].res_size[0] = memparse(str, &str);
+				while (*str == ',' &&
+					i < ARRAY_SIZE(sabresd_fb_data)) {
+					str++;
+					pdata_fb[i++].res_size[0] = memparse(str, &str);
+				}
+			}
+			break;
+		}
+	}
 }
 
 static struct mipi_csi2_platform_data mipi_csi2_pdata = {
@@ -1065,6 +1109,10 @@ static void __init mx6_sabresd_board_init(void)
 	imx6q_add_dvfs_core(&sabresd_dvfscore_data);
 	mx6_cpu_regulator_init();
 
+	mxc_register_device(&mxc_android_pmem_device, &android_pmem_data);
+	mxc_register_device(&mxc_android_pmem_gpu_device,
+			    &android_pmem_gpu_data);
+
 	imx6q_add_hdmi_soc();
 	imx6q_add_hdmi_soc_dai();
 
@@ -1112,9 +1160,11 @@ static struct sys_timer mx6_sabresd_timer = {
 	.init   = mx6_sabresd_timer_init,
 };
 
+#define SZ_TRIPLE_1080P	ALIGN((1920*ALIGN(1080, 128)*2*3), SZ_4K)
 static void __init mx6q_sabresd_reserve(void)
 {
 	phys_addr_t phys;
+	int i;
 
 	if (imx6q_gpu_pdata.reserved_mem_size) {
 		phys = memblock_alloc_base(imx6q_gpu_pdata.reserved_mem_size,
@@ -1123,6 +1173,39 @@ static void __init mx6q_sabresd_reserve(void)
 		memblock_remove(phys, imx6q_gpu_pdata.reserved_mem_size);
 		imx6q_gpu_pdata.reserved_mem_base = phys;
 	}
+
+#ifdef CONFIG_ANDROID_PMEM
+	if (android_pmem_data.size) {
+		phys = memblock_alloc(android_pmem_data.size, SZ_4K);
+		memblock_free(phys, android_pmem_data.size);
+		memblock_remove(phys, android_pmem_data.size);
+		android_pmem_data.start = phys;
+	}
+
+	if (android_pmem_gpu_data.size) {
+		phys = memblock_alloc(android_pmem_gpu_data.size, SZ_4K);
+		memblock_free(phys, android_pmem_gpu_data.size);
+		memblock_remove(phys, android_pmem_gpu_data.size);
+		android_pmem_gpu_data.start = phys;
+	}
+#endif
+
+	for (i = 0; i < ARRAY_SIZE(sabresd_fb_data); i++)
+		if (sabresd_fb_data[i].res_size[0]) {
+			/* reserve for background buffer */
+			phys = memblock_alloc(sabresd_fb_data[i].res_size[0],
+						SZ_4K);
+			memblock_free(phys, sabresd_fb_data[i].res_size[0]);
+			memblock_remove(phys, sabresd_fb_data[i].res_size[0]);
+			sabresd_fb_data[i].res_base[0] = phys;
+
+			/* reserve for overlay buffer */
+			phys = memblock_alloc(SZ_TRIPLE_1080P, SZ_4K);
+			memblock_free(phys, SZ_TRIPLE_1080P);
+			memblock_remove(phys, SZ_TRIPLE_1080P);
+			sabresd_fb_data[i].res_base[1] = phys;
+			sabresd_fb_data[i].res_size[1] = SZ_TRIPLE_1080P;
+		}
 }
 
 /*
