@@ -273,6 +273,7 @@ mx6_gpmi_nand_platform_data __initconst = {
 	.min_prop_delay_in_ns    = 5,
 	.max_prop_delay_in_ns    = 9,
 	.max_chip_count          = 1,
+	.enable_bbt              = 1,
 };
 
 static const struct anatop_thermal_platform_data
