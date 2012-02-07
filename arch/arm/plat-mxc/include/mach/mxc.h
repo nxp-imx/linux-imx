@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2007, 2012 Freescale Semiconductor, Inc.
+ * Copyright 2004-2007, 2011-2012 Freescale Semiconductor, Inc.
  * Copyright (C) 2008 Juergen Beisert (kernel@pengutronix.de)
  *
  * This program is free software; you can redistribute it and/or
@@ -36,6 +36,8 @@
 #define MXC_CPU_MX50		50
 #define MXC_CPU_MX51		51
 #define MXC_CPU_MX53		53
+#define MXC_CPU_MX6Q		63
+#define MXC_CPU_MX6DL		61
 
 #define IMX_CHIP_REVISION_1_0		0x10
 #define IMX_CHIP_REVISION_1_1		0x11
@@ -218,22 +220,20 @@ extern unsigned int __mxc_cpu_type;
 # define cpu_is_mx53()		(0)
 #endif
 
-#ifndef __ASSEMBLY__
-
 #ifdef CONFIG_SOC_IMX6Q
-#define cpu_is_mx6q()		(1)
-
-#ifndef __ASSEMBLY__
-extern int mx6q_revision(void);
-#endif
-
+#  define mxc_cpu_type __mxc_cpu_type
+# define cpu_is_mx6q()		(mxc_cpu_type == MXC_CPU_MX6Q)
+# define cpu_is_mx6dl()		(mxc_cpu_type == MXC_CPU_MX6DL)
 #else
-#define cpu_is_mx6q()		(0)
-
-#ifndef __ASSEMBLY__
-#define mx6q_revision(void)	(0)
+# define cpu_is_mx6q()		(0)
+# define cpu_is_mx6dl()		(0)
 #endif
 
+#ifndef __ASSEMBLY__
+#ifdef CONFIG_SOC_IMX6Q
+extern int mx6q_revision(void);
+#else
+#define mx6q_revision(void)    (0)
 #endif
 
 struct cpu_op {
@@ -274,6 +274,7 @@ extern int tzic_enable_wake(int is_idle);
 #define cpu_is_mx5()    (cpu_is_mx51() || cpu_is_mx53() || cpu_is_mx50())
 #define cpu_is_mx3()	(cpu_is_mx31() || cpu_is_mx35())
 #define cpu_is_mx2()	(cpu_is_mx21() || cpu_is_mx27())
+#define cpu_is_mx6()	(cpu_is_mx6q() || cpu_is_mx6dl())
 
 #define MXC_PGCR_PCR		1
 #define MXC_SRPGCR_PCR		1
