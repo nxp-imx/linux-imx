@@ -345,7 +345,8 @@ int mxc_gpio_init(struct mxc_gpio_port *port, int cnt)
 			BUG_ON(gpiochip_add(&port[i].chip) < 0);
 
 		if (cpu_is_mx1() || cpu_is_mx3() || cpu_is_mx25() ||
-			cpu_is_mx51() || cpu_is_mx53() || cpu_is_mx6q()) {
+			cpu_is_mx51() || cpu_is_mx53() || cpu_is_mx6q() ||
+			cpu_is_mx6dl()) {
 			/* setup one handler for each entry */
 			irq_set_chained_handler(port[i].irq,
 						mx3_gpio_irq_handler);
