@@ -259,7 +259,7 @@ static int __init imxXX_add_imx_dma(void)
 	} else
 #endif
 #if defined(CONFIG_SOC_IMX6Q)
-	if (cpu_is_mx6q()) {
+	if (cpu_is_mx6q() || cpu_is_mx6dl()) {
 		int to_version = 1;
 		imx6q_imx_sdma_data.pdata.to_version = to_version;
 		if (to_version == 1)
