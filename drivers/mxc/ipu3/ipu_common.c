@@ -1,5 +1,5 @@
 /*
- * Copyright 2005-2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2005-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -1259,7 +1259,7 @@ int32_t ipu_init_channel_buffer(struct ipu_soc *ipu, ipu_channel_t channel,
 	if (idma_is_set(ipu, IDMAC_CHA_PRI, dma_chan)) {
 		unsigned reg = IDMAC_CH_LOCK_EN_1;
 		uint32_t value = 0;
-		if (cpu_is_mx53() || cpu_is_mx6q()) {
+		if (cpu_is_mx53() || cpu_is_mx6q() || cpu_is_mx6dl()) {
 			_ipu_ch_param_set_axi_id(ipu, dma_chan, 0);
 			switch (dma_chan) {
 			case 5:
@@ -1327,7 +1327,7 @@ int32_t ipu_init_channel_buffer(struct ipu_soc *ipu, ipu_channel_t channel,
 		} else
 			_ipu_ch_param_set_axi_id(ipu, dma_chan, 1);
 	} else {
-		if (cpu_is_mx6q())
+		if (cpu_is_mx6q() || cpu_is_mx6dl())
 			_ipu_ch_param_set_axi_id(ipu, dma_chan, 1);
 	}
 

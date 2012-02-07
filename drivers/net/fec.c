@@ -19,7 +19,7 @@
  * Copyright (c) 2004-2006 Macq Electronique SA.
  *
  * Support for FEC IEEE 1588.
- * Copyright (C) 2010-2011 Freescale Semiconductor, Inc.
+ * Copyright (C) 2010-2012 Freescale Semiconductor, Inc.
  */
 
 #include <linux/module.h>
@@ -838,7 +838,7 @@ static int fec_enet_mii_probe(struct net_device *ndev)
 	}
 
 	/* mask with MAC supported features */
-	if (cpu_is_mx6q())
+	if (cpu_is_mx6q() || cpu_is_mx6dl())
 		phy_dev->supported &= PHY_GBIT_FEATURES;
 	else
 		phy_dev->supported &= PHY_BASIC_FEATURES;
@@ -895,7 +895,7 @@ static int fec_enet_mii_init(struct platform_device *pdev)
 	 */
 	fep->phy_speed = DIV_ROUND_UP(clk_get_rate(fep->clk), 5000000) << 1;
 
-	if (cpu_is_mx6q()) {
+	if (cpu_is_mx6q() || cpu_is_mx6dl()) {
 		/* FIXME: non-1588 MII clk: 66MHz, 1588 mode : 40MHz */
 		if (fep->ptimer_present)
 			fep->phy_speed = 0xe;
@@ -1458,7 +1458,7 @@ fec_restart(struct net_device *dev, int duplex)
 		fep->phy_dev->speed == SPEED_1000)
 		val |= (0x1 << 5);
 
-	if (cpu_is_mx6q()) {
+	if (cpu_is_mx6q() || cpu_is_mx6dl()) {
 		/* enable endian swap */
 		val |= (0x1 << 8);
 		/* enable ENET store and forward mode */
@@ -1489,7 +1489,7 @@ fec_stop(struct net_device *dev)
 	writel(1, fep->hwp + FEC_ECNTRL);
 	udelay(10);
 
-	if (cpu_is_mx6q())
+	if (cpu_is_mx6q() || cpu_is_mx6dl())
 		/* FIXME: we have to enable enet to keep mii interrupt works. */
 		writel(2, fep->hwp + FEC_ECNTRL);
 

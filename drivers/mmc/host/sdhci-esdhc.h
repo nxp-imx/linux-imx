@@ -1,7 +1,7 @@
 /*
  * Freescale eSDHC controller driver generics for OF and pltfm.
  *
- * Copyright (C) 2007, 2011 Freescale Semiconductor, Inc.
+ * Copyright (C) 2007, 2011, 2012 Freescale Semiconductor, Inc.
  * Copyright (c) 2009 MontaVista Software, Inc.
  * Copyright (c) 2010 Pengutronix e.K.
  *   Author: Wolfram Sang <w.sang@pengutronix.de>
@@ -54,7 +54,7 @@ static inline void esdhc_set_clock(struct sdhci_host *host, unsigned int clock)
 	int ddr_mode = 0;
 
 	boarddata = host->mmc->parent->platform_data;
-	if (cpu_is_mx6q()) {
+	if (cpu_is_mx6q() || cpu_is_mx6dl()) {
 		pre_div = 1;
 		if (readl(host->ioaddr + SDHCI_MIX_CTRL) &
 				SDHCI_MIX_CTRL_DDREN) {
