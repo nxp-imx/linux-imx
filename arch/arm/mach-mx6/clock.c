@@ -5116,7 +5116,7 @@ int __init mx6_clocks_init(unsigned long ckil, unsigned long osc,
 
 	clk_tree_init();
 
-	if (pll2_pfd_400M.usecount == 0)
+	if (pll2_pfd_400M.usecount == 0 && cpu_is_mx6q())
 		pll2_pfd_400M.disable(&pll2_pfd_400M);
 	pll2_pfd_352M.disable(&pll2_pfd_352M);
 	pll2_pfd_594M.disable(&pll2_pfd_594M);
