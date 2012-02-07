@@ -189,7 +189,7 @@ static int mxc_audmux_v2_init(void)
 	int ret;
 
 #if defined(CONFIG_ARCH_MX6)
-	if (cpu_is_mx6q()) {
+	if (cpu_is_mx6q() || cpu_is_mx6dl()) {
 		audmux_base = MX6_IO_ADDRESS(MX6Q_AUDMUX_BASE_ADDR);
 		ret = 0;
 	}
