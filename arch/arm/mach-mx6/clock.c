@@ -170,11 +170,6 @@ static int _clk_enable(struct clk *clk)
 	reg |= MXC_CCM_CCGRx_CG_MASK << clk->enable_shift;
 	__raw_writel(reg, clk->enable_reg);
 
-	if (clk->flags & AHB_HIGH_SET_POINT)
-		lp_high_freq++;
-	else if (clk->flags & AHB_MED_SET_POINT)
-		lp_med_freq++;
-
 	return 0;
 }
 
@@ -184,11 +179,6 @@ static void _clk_disable(struct clk *clk)
 	reg = __raw_readl(clk->enable_reg);
 	reg &= ~(MXC_CCM_CCGRx_CG_MASK << clk->enable_shift);
 	__raw_writel(reg, clk->enable_reg);
-
-	if (clk->flags & AHB_HIGH_SET_POINT)
-		lp_high_freq--;
-	else if (clk->flags & AHB_MED_SET_POINT)
-		lp_med_freq--;
 }
 
 static void _clk_disable_inwait(struct clk *clk)
@@ -2228,7 +2218,6 @@ static struct clk ipu2_clk = {
 static struct clk usdhc_dep_clk = {
 	.parent = &mmdc_ch0_axi_clk[0],
 	.secondary = &mx6per1_clk,
-	.flags = AHB_HIGH_SET_POINT | CPU_FREQ_TRIG_UPDATE,
 	};
 
 static unsigned long _clk_usdhc_round_rate(struct clk *clk,
@@ -2306,7 +2295,6 @@ static struct clk usdhc1_clk = {
 	.round_rate = _clk_usdhc_round_rate,
 	.set_rate = _clk_usdhc1_set_rate,
 	.get_rate = _clk_usdhc1_get_rate,
-	.flags = AHB_HIGH_SET_POINT | CPU_FREQ_TRIG_UPDATE,
 };
 
 static int _clk_usdhc2_set_parent(struct clk *clk, struct clk *parent)
@@ -2364,7 +2352,6 @@ static struct clk usdhc2_clk = {
 	.round_rate = _clk_usdhc_round_rate,
 	.set_rate = _clk_usdhc2_set_rate,
 	.get_rate = _clk_usdhc2_get_rate,
-	.flags = AHB_HIGH_SET_POINT | CPU_FREQ_TRIG_UPDATE,
 };
 
 static int _clk_usdhc3_set_parent(struct clk *clk, struct clk *parent)
@@ -2423,7 +2410,6 @@ static struct clk usdhc3_clk = {
 	.round_rate = _clk_usdhc_round_rate,
 	.set_rate = _clk_usdhc3_set_rate,
 	.get_rate = _clk_usdhc3_get_rate,
-	.flags = AHB_HIGH_SET_POINT | CPU_FREQ_TRIG_UPDATE,
 };
 
 static int _clk_usdhc4_set_parent(struct clk *clk, struct clk *parent)
@@ -2482,7 +2468,6 @@ static struct clk usdhc4_clk = {
 	.round_rate = _clk_usdhc_round_rate,
 	.set_rate = _clk_usdhc4_set_rate,
 	.get_rate = _clk_usdhc4_get_rate,
-	.flags = AHB_HIGH_SET_POINT | CPU_FREQ_TRIG_UPDATE,
 };
 
 static unsigned long _clk_ssi_round_rate(struct clk *clk,
@@ -5144,7 +5129,7 @@ int __init mx6_clocks_init(unsigned long ckil, unsigned long osc,
 	unsigned long ckih1, unsigned long ckih2)
 {
 	__iomem void *base;
-	int i;
+	int i, reg;
 
 	external_low_reference = ckil;
 	external_high_reference = ckih1;
@@ -5278,8 +5263,8 @@ int __init mx6_clocks_init(unsigned long ckil, unsigned long osc,
 
 	__raw_writel(0, MXC_CCM_CCGR6);
 
-	/* Lower the ipg_perclk frequency to 8.25MHz. */
-	clk_set_rate(&ipg_perclk, 8250000);
+	/* Lower the ipg_perclk frequency to 6MHz. */
+	clk_set_rate(&ipg_perclk, 6000000);
 
 	/* S/PDIF */
 	clk_set_parent(&spdif0_clk[0], &pll3_pfd_454M);
@@ -5309,6 +5294,33 @@ int __init mx6_clocks_init(unsigned long ckil, unsigned long osc,
 
 	lp_high_freq = 0;
 	lp_med_freq = 0;
+
+	/* Turn OFF all unnecessary PHYs. */
+	/* Turn off SATA PHY. */
+	base = ioremap(MX6Q_SATA_BASE_ADDR, SZ_8K);
+	reg = __raw_readl(base + PORT_PHY_CTL);
+	__raw_writel(reg | PORT_PHY_CTL_PDDQ_LOC, base + PORT_PHY_CTL);
+
+	/* Turn off HDMI PHY. */
+	base = ioremap(MX6Q_HDMI_ARB_BASE_ADDR, SZ_128K);
+	reg = __raw_readb(base + HDMI_PHY_CONF0);
+	__raw_writeb(reg | HDMI_PHY_CONF0_GEN2_PDDQ_MASK, base + HDMI_PHY_CONF0);
+
+	reg = __raw_readb(base + HDMI_MC_PHYRSTZ);
+	__raw_writeb(reg | HDMI_MC_PHYRSTZ_DEASSERT, base + HDMI_MC_PHYRSTZ);
+
+	iounmap(base);
+
+	base = ioremap(MX6Q_IOMUXC_BASE_ADDR, SZ_4K);
+	/* Close PLL inside SATA PHY. */
+	reg = __raw_readl(base + 0x34);
+	__raw_writel(reg | (1 << 1), base + 0x34);
+
+	/* Close PCIE PHY. */
+	reg = __raw_readl(base + 0x04);
+	reg |= (1 << 18);
+	__raw_writel(reg, base + 0x04);
+	iounmap(base);
 
 	return 0;
 
