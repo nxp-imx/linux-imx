@@ -102,7 +102,7 @@ static u32 esdhc_readl_le(struct sdhci_host *host, int reg)
 			val |= SDHCI_CARD_PRESENT;
 	}
 
-	if (reg == SDHCI_INT_STATUS && cpu_is_mx6q()
+	if (reg == SDHCI_INT_STATUS && cpu_is_mx6()
 		&& mx6q_revision() == IMX_CHIP_REVISION_1_0) {
 		/*
 		 * on mx6q TO1.0, there is low possibility that
@@ -114,13 +114,13 @@ static u32 esdhc_readl_le(struct sdhci_host *host, int reg)
 		if ((val & SDHCI_INT_DATA_END) && \
 			!(val & SDHCI_INT_DMA_END))
 			val = readl(host->ioaddr + reg);
-	} else if (reg == SDHCI_CAPABILITIES_1 && cpu_is_mx6q()) {
+	} else if (reg == SDHCI_CAPABILITIES_1 && cpu_is_mx6()) {
 		/*
 		 * on mx6q, no cap_1 available, fake one.
 		 */
 		val = SDHCI_SUPPORT_DDR50 | SDHCI_SUPPORT_SDR104 | \
 			  SDHCI_SUPPORT_SDR50;
-	} else if (reg == SDHCI_MAX_CURRENT && cpu_is_mx6q()) {
+	} else if (reg == SDHCI_MAX_CURRENT && cpu_is_mx6()) {
 		/*
 		 * on mx6q, no max current available, fake one.
 		 */
@@ -130,7 +130,7 @@ static u32 esdhc_readl_le(struct sdhci_host *host, int reg)
 		val |= 0xFF << SDHCI_MAX_CURRENT_180_SHIFT;
 	}
 
-	if (reg == SDHCI_PRESENT_STATE && cpu_is_mx6q()) {
+	if (reg == SDHCI_PRESENT_STATE && cpu_is_mx6()) {
 		u32 fsl_prss = readl(host->ioaddr + SDHCI_PRESENT_STATE);
 		/* save the least 20 bits */
 		val = fsl_prss & 0x000FFFFF;
@@ -158,7 +158,7 @@ static void esdhc_writel_le(struct sdhci_host *host, u32 val, int reg)
 			val &= ~(SDHCI_INT_CARD_REMOVE | \
 				SDHCI_INT_CARD_INSERT);
 
-		if (!(val & SDHCI_INT_CARD_INT) && cpu_is_mx6q()
+		if (!(val & SDHCI_INT_CARD_INT) && cpu_is_mx6()
 			&& mx6q_revision() == IMX_CHIP_REVISION_1_0)
 			/*
 			 * write 1 to clear card interrupt status bit
@@ -172,7 +172,7 @@ static void esdhc_writel_le(struct sdhci_host *host, u32 val, int reg)
 			writel(SDHCI_INT_CARD_INT, \
 				host->ioaddr + SDHCI_INT_STATUS);
 
-		if (val & SDHCI_INT_CARD_INT && (!cpu_is_mx6q())) {
+		if (val & SDHCI_INT_CARD_INT && !cpu_is_mx6()) {
 			/*
 			 * clear D3CD bit and set D3CD bit to avoid
 			 * losing card interrupt
@@ -321,7 +321,7 @@ static void esdhc_writew_le(struct sdhci_host *host, u16 val, int reg)
 			val |= SDHCI_CMD_ABORTCMD;
 
 		writel(0x08800880, host->ioaddr + SDHCI_CAPABILITIES_1);
-		if (cpu_is_mx6q()) {
+		if (cpu_is_mx6()) {
 			imx_data->scratchpad |= \
 			(readl(host->ioaddr + SDHCI_MIX_CTRL) & (0xf << 22));
 
@@ -471,7 +471,7 @@ static int esdhc_pltfm_init(struct sdhci_host *host, struct sdhci_pltfm_data *pd
 	/* write_protect can't be routed to controller, use gpio */
 	sdhci_esdhc_ops.get_ro = esdhc_pltfm_get_ro;
 
-	if (!(cpu_is_mx25() || cpu_is_mx35() || cpu_is_mx51() || cpu_is_mx6q()))
+	if (!(cpu_is_mx25() || cpu_is_mx35() || cpu_is_mx51() || cpu_is_mx6()))
 		imx_data->flags |= ESDHC_FLAG_MULTIBLK_NO_INT;
 
 	if (boarddata) {

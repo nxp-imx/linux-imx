@@ -1,6 +1,6 @@
 /*
  * cs42888.c  -- CS42888 ALSA SoC Audio Driver
- * Copyright (C) 2010-2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2010-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 /*
  * The code contained herein is licensed under the GNU General Public
@@ -807,7 +807,7 @@ static int cs42888_probe(struct snd_soc_codec *codec)
 		dev_err(codec->dev, "Failed to set cache I/O: %d\n", ret);
 		return ret;
 	}
-	if (cpu_is_mx6q()) {
+	if (cpu_is_mx6q() || cpu_is_mx6dl()) {
 		for (i = 0; i < ARRAY_SIZE(cs42888->supplies); i++)
 			cs42888->supplies[i].supply = cs42888_supply_names[i];
 
