@@ -167,6 +167,8 @@ static const struct dev_pm_ops mmc_bus_pm_ops = {
 	.runtime_suspend	= mmc_runtime_suspend,
 	.runtime_resume		= mmc_runtime_resume,
 	.runtime_idle		= mmc_runtime_idle,
+	.suspend		= mmc_bus_suspend,
+	.resume			= mmc_bus_resume,
 };
 
 #define MMC_PM_OPS_PTR	(&mmc_bus_pm_ops)
