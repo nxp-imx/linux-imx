@@ -1,7 +1,7 @@
 /*
  * drivers/net/fec_1588.h
  *
- * Copyright (C) 2011 Freescale Semiconductor, Inc.
+ * Copyright (C) 2011-2012 Freescale Semiconductor, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -42,12 +42,10 @@
 #define FEC_T_INC_CORR_OFFSET		8
 
 
-#define FEC_T_INC_40MHZ			25
-#define FEC_ATIME_40MHZ			40000000
-/*
-#define FEC_T_INC_40MHZ			15
-#define FEC_ATIME_40MHZ			66000000
-*/
+#define FEC_T_INC_50MHZ			20
+#define FEC_ATIME_50MHZ			50000000
+#define FEC_T_INC_CLK			FEC_T_INC_50MHZ
+#define FEC_ATIME_CLK			FEC_ATIME_50MHZ
 
 #define FEC_T_PERIOD_ONE_SEC		0x3B9ACA00
 
