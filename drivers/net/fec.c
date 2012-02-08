@@ -145,6 +145,8 @@ MODULE_PARM_DESC(macaddr, "FEC Ethernet MAC address");
 #define FEC_ENET_EBERR	((uint)0x00400000)	/* SDMA bus error */
 #define FEC_ENET_TS_AVAIL       ((uint)0x00010000)
 #define FEC_ENET_TS_TIMER       ((uint)0x00008000)
+#define FEC_ENET_MII_CLK       ((uint)2500000)
+#define FEC_ENET_HOLD_TIME     ((uint)0x100)  /* 2 internal clock cycle*/
 
 #if defined(CONFIG_FEC_1588) && (defined(CONFIG_ARCH_MX28) || \
 				defined(CONFIG_ARCH_MX6))
@@ -608,6 +610,7 @@ fec_enet_interrupt(int irq, void *dev_id)
 {
 	struct net_device *ndev = dev_id;
 	struct fec_enet_private *fep = netdev_priv(ndev);
+	struct fec_ptp_private *fpp = fep->ptp_priv;
 	uint int_events;
 	irqreturn_t ret = IRQ_NONE;
 
@@ -627,6 +630,12 @@ fec_enet_interrupt(int irq, void *dev_id)
 		if (int_events & FEC_ENET_TXF) {
 			ret = IRQ_HANDLED;
 			fec_enet_tx(ndev);
+		}
+
+		if (int_events & FEC_ENET_TS_TIMER) {
+			ret = IRQ_HANDLED;
+			if (fep->ptimer_present && fpp)
+				fpp->prtc++;
 		}
 
 		if (int_events & FEC_ENET_MII) {
@@ -838,7 +847,7 @@ static int fec_enet_mii_probe(struct net_device *ndev)
 	}
 
 	/* mask with MAC supported features */
-	if (cpu_is_mx6q() || cpu_is_mx6dl())
+	if (cpu_is_mx6())
 		phy_dev->supported &= PHY_GBIT_FEATURES;
 	else
 		phy_dev->supported &= PHY_BASIC_FEATURES;
@@ -893,15 +902,12 @@ static int fec_enet_mii_init(struct platform_device *pdev)
 	/*
 	 * Set MII speed to 2.5 MHz (= clk_get_rate() / 2 * phy_speed)
 	 */
-	fep->phy_speed = DIV_ROUND_UP(clk_get_rate(fep->clk), 5000000) << 1;
+	fep->phy_speed = DIV_ROUND_UP(clk_get_rate(fep->clk),
+					(FEC_ENET_MII_CLK << 2)) << 1;
 
-	if (cpu_is_mx6q() || cpu_is_mx6dl()) {
-		/* FIXME: non-1588 MII clk: 66MHz, 1588 mode : 40MHz */
-		if (fep->ptimer_present)
-			fep->phy_speed = 0xe;
-		else
-			fep->phy_speed = 0x11a;
-	}
+	/* set hold time to 2 internal clock cycle */
+	if (cpu_is_mx6())
+		fep->phy_speed |= FEC_ENET_HOLD_TIME;
 
 	writel(fep->phy_speed, fep->hwp + FEC_MII_SPEED);
 
@@ -1458,7 +1464,7 @@ fec_restart(struct net_device *dev, int duplex)
 		fep->phy_dev->speed == SPEED_1000)
 		val |= (0x1 << 5);
 
-	if (cpu_is_mx6q() || cpu_is_mx6dl()) {
+	if (cpu_is_mx6()) {
 		/* enable endian swap */
 		val |= (0x1 << 8);
 		/* enable ENET store and forward mode */
@@ -1489,7 +1495,7 @@ fec_stop(struct net_device *dev)
 	writel(1, fep->hwp + FEC_ECNTRL);
 	udelay(10);
 
-	if (cpu_is_mx6q() || cpu_is_mx6dl())
+	if (cpu_is_mx6())
 		/* FIXME: we have to enable enet to keep mii interrupt works. */
 		writel(2, fep->hwp + FEC_ECNTRL);
 
