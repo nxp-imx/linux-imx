@@ -1,7 +1,7 @@
 /*
  * MXC HDMI ALSA Soc Codec Driver
  *
- * Copyright (C) 2011 Freescale Semiconductor, Inc.
+ * Copyright (C) 2011-2012 Freescale Semiconductor, Inc.
  */
 
 /*
@@ -42,6 +42,7 @@
 #include <mach/hardware.h>
 
 #include <linux/mfd/mxc-hdmi-core.h>
+#include <mach/mxc_edid.h>
 #include <mach/mxc_hdmi.h>
 #include "../imx/imx-hdmi.h"
 
@@ -52,6 +53,16 @@ struct mxc_hdmi_priv {
 	struct clk *isfr_clk;
 	struct clk *iahb_clk;
 };
+
+static struct mxc_edid_cfg edid_cfg;
+
+static unsigned int playback_rates[HDMI_MAX_RATES];
+static unsigned int playback_sample_size[HDMI_MAX_SAMPLE_SIZE];
+static unsigned int playback_channels[HDMI_MAX_CHANNEL_CONSTRAINTS];
+
+static struct snd_pcm_hw_constraint_list playback_constraint_rates;
+static struct snd_pcm_hw_constraint_list playback_constraint_bits;
+static struct snd_pcm_hw_constraint_list playback_constraint_channels;
 
 #ifdef DEBUG
 static void dumpregs(void)
@@ -100,19 +111,126 @@ static void hdmi_set_audio_infoframe(void)
 	hdmi_writeb(0x00, HDMI_FC_AUDICONF2);
 }
 
-static unsigned int hdmi_playback_rates[] = { 32000, 44100, 48000, 88200, 96000 };
-
-static struct snd_pcm_hw_constraint_list playback_rate_constraints = {
-	.count = ARRAY_SIZE(hdmi_playback_rates),
-	.list = hdmi_playback_rates,
-	.mask = 0,
+static int cea_audio_rates[HDMI_MAX_RATES] = {
+	32000,
+	44100,
+	48000,
+	88200,
+	96000,
+	176400,
+	192000,
 };
+
+static void mxc_hdmi_get_playback_rates(void)
+{
+	int i, count = 0;
+	u8 rates;
+
+	/* always assume basic audio support */
+	rates = edid_cfg.sample_rates | 0x7;
+
+	for (i = 0 ; i < HDMI_MAX_RATES ; i++)
+		if ((rates & (1 << i)) != 0)
+			playback_rates[count++] = cea_audio_rates[i];
+
+	playback_constraint_rates.list = playback_rates;
+	playback_constraint_rates.count = count;
+
+#ifdef DEBUG
+	for (i = 0 ; i < playback_constraint_rates.count ; i++)
+		pr_debug("%s: constraint = %d Hz\n", __func__,
+			 playback_rates[i]);
+#endif
+}
+
+static void mxc_hdmi_get_playback_sample_size(void)
+{
+	int i = 0;
+
+	/* always assume basic audio support */
+	playback_sample_size[i++] = 16;
+
+	if (edid_cfg.sample_sizes & 0x2)
+		playback_sample_size[i++] = 20;
+
+	if (edid_cfg.sample_sizes & 0x4)
+		playback_sample_size[i++] = 24;
+
+	playback_constraint_bits.list = playback_sample_size;
+	playback_constraint_bits.count = i;
+
+#ifdef DEBUG
+	for (i = 0 ; i < playback_constraint_bits.count ; i++)
+		pr_debug("%s: constraint = %d bits\n", __func__,
+			 playback_sample_size[i]);
+#endif
+}
+
+static void mxc_hdmi_get_playback_channels(void)
+{
+	int channels = 2, i = 0;
+
+	/* always assume basic audio support */
+	playback_channels[i++] = channels;
+	channels += 2;
+
+	while ((i < HDMI_MAX_CHANNEL_CONSTRAINTS) &&
+		(channels <= edid_cfg.max_channels)) {
+		playback_channels[i++] = channels;
+		channels += 2;
+	}
+
+	playback_constraint_channels.list = playback_channels;
+	playback_constraint_channels.count = i;
+
+#ifdef DEBUG
+	for (i = 0 ; i < playback_constraint_channels.count ; i++)
+		pr_debug("%s: constraint = %d channels\n", __func__,
+			 playback_channels[i]);
+#endif
+}
+
+static int mxc_hdmi_update_constraints(struct mxc_hdmi_priv *priv,
+				       struct snd_pcm_substream *substream)
+{
+	struct snd_pcm_runtime *runtime = substream->runtime;
+	int ret;
+
+	hdmi_get_edid_cfg(&edid_cfg);
+
+	mxc_hdmi_get_playback_rates();
+	ret = snd_pcm_hw_constraint_list(substream->runtime, 0,
+					SNDRV_PCM_HW_PARAM_RATE,
+					&playback_constraint_rates);
+	if (ret < 0)
+		return ret;
+
+	mxc_hdmi_get_playback_sample_size();
+	ret = snd_pcm_hw_constraint_list(substream->runtime, 0,
+					SNDRV_PCM_HW_PARAM_SAMPLE_BITS,
+					&playback_constraint_bits);
+	if (ret < 0)
+		return ret;
+
+	mxc_hdmi_get_playback_channels();
+	ret = snd_pcm_hw_constraint_list(runtime, 0,
+					SNDRV_PCM_HW_PARAM_CHANNELS,
+					&playback_constraint_channels);
+	if (ret < 0)
+		return ret;
+
+	ret = snd_pcm_hw_constraint_integer(substream->runtime,
+			SNDRV_PCM_HW_PARAM_PERIODS);
+	if (ret < 0)
+		return ret;
+
+	return 0;
+}
 
 static int mxc_hdmi_codec_startup(struct snd_pcm_substream *substream,
 				  struct snd_soc_dai *dai)
 {
 	struct mxc_hdmi_priv *hdmi_priv = snd_soc_dai_get_drvdata(dai);
-	struct snd_pcm_runtime *runtime = substream->runtime;
 	int ret;
 
 	clk_enable(hdmi_priv->isfr_clk);
@@ -122,14 +240,7 @@ static int mxc_hdmi_codec_startup(struct snd_pcm_substream *substream,
 		(int)clk_get_rate(hdmi_priv->isfr_clk),
 		(int)clk_get_rate(hdmi_priv->iahb_clk));
 
-	ret = snd_pcm_hw_constraint_list(runtime, 0,
-					 SNDRV_PCM_HW_PARAM_RATE,
-					 &playback_rate_constraints);
-	if (ret < 0)
-		return ret;
-
-	ret = snd_pcm_hw_constraint_integer(runtime,
-					SNDRV_PCM_HW_PARAM_PERIODS);
+	ret = mxc_hdmi_update_constraints(hdmi_priv, substream);
 	if (ret < 0)
 		return ret;
 
