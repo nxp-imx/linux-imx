@@ -1,5 +1,5 @@
 /*
- * Copyright 2005-2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2005-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -72,27 +72,7 @@ struct ov3640_mode_info {
 /*!
  * Maintains the information on the current state of the sesor.
  */
-struct sensor {
-	const struct ov3640_platform_data *platform_data;
-	struct v4l2_int_device *v4l2_int_device;
-	struct i2c_client *i2c_client;
-	struct v4l2_pix_format pix;
-	struct v4l2_captureparm streamcap;
-	bool on;
-
-	/* control settings */
-	int brightness;
-	int hue;
-	int contrast;
-	int saturation;
-	int red;
-	int green;
-	int blue;
-	int ae_mode;
-
-	u32 mclk;
-	int csi;
-} ov3640_data;
+struct sensor_data ov3640_data;
 
 static struct reg_value ov3640_setting_15fps_QXGA_2048_1536[] = {
 #if 0
@@ -1005,7 +985,7 @@ static int ioctl_g_ifparm(struct v4l2_int_device *s, struct v4l2_ifparm *p)
  */
 static int ioctl_s_power(struct v4l2_int_device *s, int on)
 {
-	struct sensor *sensor = s->priv;
+	struct sensor_data *sensor = s->priv;
 
 	if (on && !sensor->on) {
 		if (io_regulator)
@@ -1033,6 +1013,9 @@ static int ioctl_s_power(struct v4l2_int_device *s, int on)
 			regulator_disable(io_regulator);
 		if (gpo_regulator)
 			regulator_disable(gpo_regulator);
+
+		if (camera_plat->pwdn)
+			camera_plat->pwdn(1);
 	}
 
 	sensor->on = on;
@@ -1049,7 +1032,7 @@ static int ioctl_s_power(struct v4l2_int_device *s, int on)
  */
 static int ioctl_g_parm(struct v4l2_int_device *s, struct v4l2_streamparm *a)
 {
-	struct sensor *sensor = s->priv;
+	struct sensor_data *sensor = s->priv;
 	struct v4l2_captureparm *cparm = &a->parm.capture;
 	int ret = 0;
 
@@ -1094,7 +1077,7 @@ static int ioctl_g_parm(struct v4l2_int_device *s, struct v4l2_streamparm *a)
  */
 static int ioctl_s_parm(struct v4l2_int_device *s, struct v4l2_streamparm *a)
 {
-	struct sensor *sensor = s->priv;
+	struct sensor_data *sensor = s->priv;
 	struct v4l2_fract *timeperframe = &a->parm.capture.timeperframe;
 	u32 tgt_fps;	/* target frames per secound */
 	enum ov3640_frame_rate frame_rate;
@@ -1178,7 +1161,7 @@ static int ioctl_s_parm(struct v4l2_int_device *s, struct v4l2_streamparm *a)
  */
 static int ioctl_g_fmt_cap(struct v4l2_int_device *s, struct v4l2_format *f)
 {
-	struct sensor *sensor = s->priv;
+	struct sensor_data *sensor = s->priv;
 
 	f->fmt.pix = sensor->pix;
 
@@ -1357,7 +1340,7 @@ static int ioctl_enum_fmt_cap(struct v4l2_int_device *s,
  */
 static int ioctl_dev_init(struct v4l2_int_device *s)
 {
-	struct sensor *sensor = s->priv;
+	struct sensor_data *sensor = s->priv;
 	u32 tgt_xclk;	/* target xclk */
 	u32 tgt_fps;	/* target frames per secound */
 	enum ov3640_frame_rate frame_rate;
@@ -1460,6 +1443,7 @@ static int ov3640_probe(struct i2c_client *client,
 	ov3640_data.mclk = 24000000; /* 6 - 54 MHz, typical 24MHz */
 	ov3640_data.mclk = plat_data->mclk;
 	ov3640_data.csi = plat_data->csi;
+	ov3640_data.io_init = plat_data->io_init;
 
 	ov3640_data.i2c_client = client;
 	ov3640_data.pix.pixelformat = V4L2_PIX_FMT_UYVY;
@@ -1546,9 +1530,6 @@ static int ov3640_probe(struct i2c_client *client,
 
 	if (plat_data->io_init)
 		plat_data->io_init();
-
-	if (plat_data->pwdn)
-		plat_data->pwdn(0);
 
 	camera_plat = plat_data;
 
