@@ -4565,7 +4565,48 @@ static int _clk_pcie_enable(struct clk *clk)
 {
 	unsigned int reg;
 
-	/* Enable SATA ref clock */
+	/* Clear Power Down and Enable PLLs */
+	reg = __raw_readl(PLL8_ENET_BASE_ADDR);
+	reg &= ~ANADIG_PLL_ENET_POWER_DOWN;
+	__raw_writel(reg, PLL8_ENET_BASE_ADDR);
+
+	reg = __raw_readl(PLL8_ENET_BASE_ADDR);
+	reg |= ANADIG_PLL_ENET_EN;
+	__raw_writel(reg, PLL8_ENET_BASE_ADDR);
+
+	/* Waiting for the PLL is locked */
+	if (!WAIT(ANADIG_PLL_ENET_LOCK & __raw_readl(PLL8_ENET_BASE_ADDR),
+				SPIN_DELAY))
+		panic("pll8 lock failed\n");
+
+	/* Disable the bypass */
+	reg = __raw_readl(PLL8_ENET_BASE_ADDR);
+	reg &= ~ANADIG_PLL_ENET_BYPASS;
+	__raw_writel(reg, PLL8_ENET_BASE_ADDR);
+
+	/*
+	 * Enable SATA ref clock.
+	 * PCIe needs both sides to have the same source of refernce clock,
+	 * The SATA reference clock is taken out on clk out
+	 */
+	reg = __raw_readl(PLL8_ENET_BASE_ADDR);
+	reg |= ANADIG_PLL_ENET_EN_SATA;
+	__raw_writel(reg, PLL8_ENET_BASE_ADDR);
+
+	/* Activate LVDS CLK1 (the MiniPCIe slot clock input) */
+	reg = __raw_readl(ANADIG_MISC1_REG);
+	reg &= ~ANATOP_LVDS_CLK1_IBEN_MASK;
+	__raw_writel(reg, ANADIG_MISC1_REG);
+
+	reg = __raw_readl(ANADIG_MISC1_REG);
+	reg |= ANATOP_LVDS_CLK1_SRC_SATA;
+	__raw_writel(reg, ANADIG_MISC1_REG);
+
+	reg = __raw_readl(ANADIG_MISC1_REG);
+	reg |= ANATOP_LVDS_CLK1_OBEN_MASK;
+	__raw_writel(reg, ANADIG_MISC1_REG);
+
+	/* Enable PCIE ref clock */
 	reg = __raw_readl(PLL8_ENET_BASE_ADDR);
 	reg |= ANADIG_PLL_ENET_EN_PCIE;
 	__raw_writel(reg, PLL8_ENET_BASE_ADDR);
