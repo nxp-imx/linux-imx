@@ -163,4 +163,8 @@ config MACH_MX6Q_SABREAUTO
 
 comment "MX6 Options:"
 
+config IMX_PCIE
+	bool "PCI Express support"
+	select PCI
+
 endif
