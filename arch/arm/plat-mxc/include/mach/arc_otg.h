@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2005-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -248,6 +248,8 @@ extern void __iomem *imx_otg_base;
 #define PORTSC_PTW                      (1 << 28)       /* UTMI width */
 #define PORTSC_HSIC_MODE                (1 << 25)       /* Only for HSIC */
 #define PORTSC_PHCD                     (1 << 23)       /* Low Power Suspend */
+#define PORTSC_WKDC			(1 << 21)	/* wakeup on discnt*/
+#define PORTSC_WKCN			(1 << 20)	/* wakeup on connect*/
 #define PORTSC_PORT_POWER		(1 << 12)	/* port power */
 #define PORTSC_LS_MASK			(3 << 10)	/* Line State mask */
 #define PORTSC_LS_SE0			(0 << 10)	/* SE0     */
