@@ -450,6 +450,15 @@ static int mxcfb_set_par(struct fb_info *fbi)
 
 	ipu_enable_channel(mxc_fbi->ipu, mxc_fbi->ipu_ch);
 
+	if (mxc_fbi->dispdrv && mxc_fbi->dispdrv->drv->enable) {
+		retval = mxc_fbi->dispdrv->drv->enable(mxc_fbi->dispdrv);
+		if (retval < 0) {
+			dev_err(fbi->device, "enable error, dispdrv:%s.\n",
+					mxc_fbi->dispdrv->drv->name);
+			return -EINVAL;
+		}
+	}
+
 	return retval;
 }
 
