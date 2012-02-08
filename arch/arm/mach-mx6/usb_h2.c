@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2011-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -43,11 +43,17 @@ static struct fsl_usb2_platform_data usbh2_config;
 static void usbh2_internal_phy_clock_gate(bool on)
 {
 	if (on) {
+		/* must turn on the 480M clock, otherwise
+		 * there will be a 10ms delay before host
+		 * controller send out resume signal*/
 		USB_H2_CTRL |= UCTRL_UTMI_ON_CLOCK;
 		USB_UH2_HSIC_CTRL |= HSIC_CLK_ON;
 	} else {
 		USB_UH2_HSIC_CTRL &= ~HSIC_CLK_ON;
-		USB_H2_CTRL &= ~UCTRL_UTMI_ON_CLOCK;
+		/* can't turn off this clock, otherwise
+		 * there will be a 10ms delay before host
+		 * controller send out resume signal*/
+		/*USB_H2_CTRL &= ~UCTRL_UTMI_ON_CLOCK*/;
 	}
 }
 
@@ -113,6 +119,10 @@ void mx6_set_host2_vbus_func(driver_vbus_func driver_vbus)
 static void _wake_up_enable(struct fsl_usb2_platform_data *pdata, bool enable)
 {
 	pr_debug("host2, %s, enable is %d\n", __func__, enable);
+	/* for HSIC, no disconnect nor connect
+	 * we need to disable the WKDS, WKCN */
+	UH2_PORTSC1 &= ~(PORTSC_WKDC | PORTSC_WKCN);
+
 	if (enable) {
 		USB_H2_CTRL |= (UCTRL_OWIE);
 	} else {
@@ -172,6 +182,13 @@ static void hsic_start(void)
 	mxc_iomux_v3_setup_pad(MX6Q_PAD_RGMII_TX_CTL__USBOH3_H2_STROBE_START);
 }
 
+static void hsic_device_connected(void)
+{
+	pr_debug("%s\n", __func__);
+	if (!(USB_UH2_HSIC_CTRL & HSIC_DEV_CONN))
+		USB_UH2_HSIC_CTRL |= HSIC_DEV_CONN;
+}
+
 static struct fsl_usb2_platform_data usbh2_config = {
 	.name		= "Host 2",
 	.init		= fsl_usb_host_init_ext,
@@ -186,6 +203,7 @@ static struct fsl_usb2_platform_data usbh2_config = {
 	.wakeup_handler = h2_wakeup_handler,
 	.transceiver = "hsic_xcvr",
 	.hsic_post_ops = hsic_start,
+	.hsic_device_connected = hsic_device_connected,
 };
 
 static struct fsl_usb2_wakeup_platform_data usbh2_wakeup_config = {
@@ -211,4 +229,8 @@ void __init mx6_usb_h2_init(void)
 	 */
 	__raw_writel(BM_ANADIG_USB1_PLL_480_CTRL_EN_USB_CLKS,
 			anatop_base_addr + HW_ANADIG_USB1_PLL_480_CTRL_SET);
+	/* must change the clkgate delay to 2 or 3 to avoid
+	 * 24M OSCI clock not stable issue */
+	__raw_writel(BF_ANADIG_ANA_MISC0_CLKGATE_DELAY(3),
+			anatop_base_addr + HW_ANADIG_ANA_MISC0);
 }
