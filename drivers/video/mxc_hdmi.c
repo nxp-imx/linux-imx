@@ -1364,6 +1364,9 @@ static int mxc_hdmi_read_edid(struct mxc_hdmi *hdmi)
 	if (ret < 0)
 		return HDMI_EDID_FAIL;
 
+	/* Save edid cfg for audio driver */
+	hdmi_set_edid_cfg(&hdmi->edid_cfg);
+
 	if (!memcmp(edid_old, hdmi->edid, HDMI_EDID_LEN)) {
 		dev_info(&hdmi->pdev->dev, "same edid\n");
 		return HDMI_EDID_SAME;

@@ -1,7 +1,7 @@
 /*
  * MXC HDMI ALSA Soc Codec Driver
  *
- * Copyright (C) 2011 Freescale Semiconductor, Inc.
+ * Copyright (C) 2011-2012 Freescale Semiconductor, Inc.
  */
 
 /*
@@ -31,11 +31,17 @@ struct imx_hdmi {
 	struct platform_device *soc_platform_pdev;
 };
 
+#define HDMI_MAX_RATES 7
+#define HDMI_MAX_SAMPLE_SIZE 3
+#define HDMI_MAX_CHANNEL_CONSTRAINTS 4
+
 #define MXC_HDMI_RATES_PLAYBACK			(SNDRV_PCM_RATE_32000 | \
 						 SNDRV_PCM_RATE_44100 | \
 						 SNDRV_PCM_RATE_48000 | \
 						 SNDRV_PCM_RATE_88200 | \
-						 SNDRV_PCM_RATE_96000)
+						 SNDRV_PCM_RATE_96000 | \
+						 SNDRV_PCM_RATE_176400 | \
+						 SNDRV_PCM_RATE_192000)
 
 #define MXC_HDMI_FORMATS_PLAYBACK		(SNDRV_PCM_FMTBIT_S16_LE | \
 						 SNDRV_PCM_FMTBIT_S24_LE)

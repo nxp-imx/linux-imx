@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2011-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,6 +19,8 @@
 #ifndef __LINUX_MXC_HDMI_CORE_H_
 #define __LINUX_MXC_HDMI_CORE_H_
 
+#include <mach/mxc_edid.h>
+
 #define IRQ_DISABLE_SUCCEED	0
 #define IRQ_DISABLE_FAIL	1
 
@@ -37,6 +39,9 @@ unsigned int hdmi_irq_disable(int irq);
 void hdmi_set_sample_rate(unsigned int rate);
 void hdmi_init_clk_regenerator(void);
 void hdmi_clk_regenerator_update_pixel_clock(void);
+
+void hdmi_set_edid_cfg(struct mxc_edid_cfg *cfg);
+void hdmi_get_edid_cfg(struct mxc_edid_cfg *cfg);
 
 extern int mxc_hdmi_ipu_id;
 extern int mxc_hdmi_disp_id;

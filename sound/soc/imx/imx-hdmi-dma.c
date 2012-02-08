@@ -649,14 +649,6 @@ static struct snd_pcm_hardware snd_imx_hardware = {
 	.fifo_size = 0,
 };
 
-static unsigned int hw_channels[] = {2, 4, 6, 8};
-
-static struct snd_pcm_hw_constraint_list hw_constraint_channels = {
-	.count = ARRAY_SIZE(hw_channels),
-	.list = hw_channels,
-	.mask = 0,
-};
-
 static void hdmi_dma_irq_enable(struct imx_hdmi_dma_runtime_data *rtd)
 {
 	unsigned long flags;
@@ -709,12 +701,6 @@ static int hdmi_dma_open(struct snd_pcm_substream *substream)
 
 	ret = snd_pcm_hw_constraint_integer(substream->runtime,
 			SNDRV_PCM_HW_PARAM_PERIODS);
-	if (ret < 0)
-		return ret;
-
-	ret = snd_pcm_hw_constraint_list(runtime, 0,
-					SNDRV_PCM_HW_PARAM_CHANNELS,
-					&hw_constraint_channels);
 	if (ret < 0)
 		return ret;
 

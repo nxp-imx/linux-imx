@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011 Freescale Semiconductor, Inc.
+ * Copyright (C) 2011-2012 Freescale Semiconductor, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -36,6 +36,7 @@
 #include <mach/clock.h>
 #include <mach/mxc_hdmi.h>
 #include <mach/ipu-v3.h>
+#include <mach/mxc_edid.h>
 #include "../mxc/ipu3/ipu_prv.h"
 #include <linux/mfd/mxc-hdmi-core.h>
 #include <linux/fsl_devices.h>
@@ -48,18 +49,20 @@ struct mxc_hdmi_data {
 };
 
 static unsigned long hdmi_base;
-struct clk *isfr_clk;
-struct clk *iahb_clk;
+static struct clk *isfr_clk;
+static struct clk *iahb_clk;
 static unsigned int irq_enable_cnt;
-spinlock_t irq_spinlock;
-bool irq_initialized;
-bool irq_enabled;
-unsigned int sample_rate;
-unsigned long pixel_clk_rate;
-struct clk *pixel_clk;
-int hdmi_ratio;
+static spinlock_t irq_spinlock;
+static spinlock_t edid_spinlock;
+static bool irq_initialized;
+static bool irq_enabled;
+static unsigned int sample_rate;
+static unsigned long pixel_clk_rate;
+static struct clk *pixel_clk;
+static int hdmi_ratio;
 int mxc_hdmi_ipu_id;
 int mxc_hdmi_disp_id;
+static struct mxc_edid_cfg hdmi_core_edid_cfg;
 
 u8 hdmi_readb(unsigned int reg)
 {
@@ -466,6 +469,24 @@ void hdmi_set_sample_rate(unsigned int rate)
 	hdmi_set_clk_regenerator();
 }
 
+void hdmi_set_edid_cfg(struct mxc_edid_cfg *cfg)
+{
+	unsigned long flags;
+
+	spin_lock_irqsave(&edid_spinlock, flags);
+	memcpy(&hdmi_core_edid_cfg, cfg, sizeof(struct mxc_edid_cfg));
+	spin_unlock_irqrestore(&edid_spinlock, flags);
+}
+
+void hdmi_get_edid_cfg(struct mxc_edid_cfg *cfg)
+{
+	unsigned long flags;
+
+	spin_lock_irqsave(&edid_spinlock, flags);
+	memcpy(cfg, &hdmi_core_edid_cfg, sizeof(struct mxc_edid_cfg));
+	spin_unlock_irqrestore(&edid_spinlock, flags);
+}
+
 static int mxc_hdmi_core_probe(struct platform_device *pdev)
 {
 	struct fsl_mxc_hdmi_core_platform_data *pdata = pdev->dev.platform_data;
@@ -497,6 +518,7 @@ static int mxc_hdmi_core_probe(struct platform_device *pdev)
 	irq_initialized = false;
 	irq_enabled = true;
 	spin_lock_init(&irq_spinlock);
+	spin_lock_init(&edid_spinlock);
 
 	isfr_clk = clk_get(&hdmi_data->pdev->dev, "hdmi_isfr_clk");
 	if (IS_ERR(isfr_clk)) {
