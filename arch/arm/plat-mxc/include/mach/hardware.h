@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2011 Freescale Semiconductor, Inc.
+ * Copyright 2004-2012 Freescale Semiconductor, Inc.
  * Copyright 2008 Juergen Beisert, kernel@pengutronix.de
  *
  * This program is free software; you can redistribute it and/or
@@ -137,5 +137,10 @@
 	.length = soc ## _ ## name ## _SIZE,				\
 	.type = _type,							\
 }
+
+/* macro to get at IO space when running virtually */
+#define PCIBIOS_MIN_IO		0x00000000
+#define PCIBIOS_MIN_MEM		0x00000000
+#define pcibios_assign_all_busses()	0
 
 #endif /* __ASM_ARCH_MXC_HARDWARE_H__ */
