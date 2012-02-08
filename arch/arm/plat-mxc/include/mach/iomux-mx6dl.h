@@ -2380,7 +2380,7 @@
 #define MX6DL_PAD_GPIO_16__ENET_1588_EVENT2_IN                                 \
 		IOMUX_PAD(0x05E4, 0x0214, 1, 0x0000, 0, NO_PAD_CTRL)
 #define MX6DL_PAD_GPIO_16__ENET_ANATOP_ETHERNET_REF_OUT                        \
-		IOMUX_PAD(0x05E4, 0x0214, 2, 0x080C, 0, NO_PAD_CTRL)
+		IOMUX_PAD(0x05E4, 0x0214, 0x12, 0x080C, 0, NO_PAD_CTRL)
 #define MX6DL_PAD_GPIO_16__USDHC1_LCTL                                         \
 		IOMUX_PAD(0x05E4, 0x0214, 3, 0x0000, 0, MX6DL_USDHC_PAD_CTRL)
 #define MX6DL_PAD_GPIO_16__SPDIF_IN1                                           \
