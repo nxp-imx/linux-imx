@@ -3489,7 +3489,7 @@ static int _clk_enet_enable(struct clk *clk)
 	/* Enable ENET ref clock */
 	reg = __raw_readl(PLL8_ENET_BASE_ADDR);
 	reg &= ~ANADIG_PLL_BYPASS;
-	reg &= ~ANADIG_PLL_ENABLE;
+	reg |= ANADIG_PLL_ENABLE;
 	__raw_writel(reg, PLL8_ENET_BASE_ADDR);
 
 	_clk_enable(clk);
@@ -3505,7 +3505,7 @@ static void _clk_enet_disable(struct clk *clk)
 	/* Enable ENET ref clock */
 	reg = __raw_readl(PLL8_ENET_BASE_ADDR);
 	reg |= ANADIG_PLL_BYPASS;
-	reg |= ANADIG_PLL_ENABLE;
+	reg &= ~ANADIG_PLL_ENABLE;
 	__raw_writel(reg, PLL8_ENET_BASE_ADDR);
 }
 
