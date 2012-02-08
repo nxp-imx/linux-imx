@@ -1,7 +1,7 @@
 /*
  * drivers/net/fec_1588.c
  *
- * Copyright (C) 2011 Freescale Semiconductor, Inc.
+ * Copyright (C) 2011-2012 Freescale Semiconductor, Inc.
  * Copyright (C) 2009 IXXAT Automation, GmbH
  *
  * FEC Ethernet Driver -- IEEE 1588 interface functionality
@@ -164,7 +164,7 @@ int fec_ptp_start(struct fec_ptp_private *priv)
 	 * enable FEC1 timer's slave mode. */
 	if ((fpp == ptp_private[0]) || !(ptp_private[0]->ptp_active)) {
 		writel(FEC_T_CTRL_RESTART, fpp->hwp + FEC_ATIME_CTRL);
-		writel(FEC_T_INC_40MHZ << FEC_T_INC_OFFSET,
+		writel(FEC_T_INC_CLK << FEC_T_INC_OFFSET,
 				fpp->hwp + FEC_ATIME_INC);
 		writel(FEC_T_PERIOD_ONE_SEC, fpp->hwp + FEC_ATIME_EVT_PERIOD);
 		/* start counter */
@@ -180,7 +180,7 @@ int fec_ptp_start(struct fec_ptp_private *priv)
 			fpp->prtc = ptp_private[1]->prtc;
 			writel(FEC_T_CTRL_RESTART,
 					ptp_private[1]->hwp + FEC_ATIME_CTRL);
-			writel(FEC_T_INC_40MHZ << FEC_T_INC_OFFSET,
+			writel(FEC_T_INC_CLK << FEC_T_INC_OFFSET,
 					ptp_private[1]->hwp + FEC_ATIME_INC);
 			/* Set the timer as slave mode */
 			writel(FEC_T_CTRL_SLAVE,
@@ -190,7 +190,7 @@ int fec_ptp_start(struct fec_ptp_private *priv)
 		}
 		#endif
 	} else {
-		writel(FEC_T_INC_40MHZ << FEC_T_INC_OFFSET,
+		writel(FEC_T_INC_CLK << FEC_T_INC_OFFSET,
 				fpp->hwp + FEC_ATIME_INC);
 		/* Set the timer as slave mode */
 		writel(FEC_T_CTRL_SLAVE, fpp->hwp + FEC_ATIME_CTRL);
@@ -584,18 +584,18 @@ static void fec_handle_ptpdrift(struct ptp_set_comp *comp,
 		ptc->corr_inc = 0;
 		ptc->corr_period = 0;
 		return;
-	} else if (ndrift >= FEC_ATIME_40MHZ) {
-		ptc->corr_inc = (u32)(ndrift / FEC_ATIME_40MHZ);
+	} else if (ndrift >= FEC_ATIME_CLK) {
+		ptc->corr_inc = (u32)(ndrift / FEC_ATIME_CLK);
 		ptc->corr_period = 1;
 		return;
 	} else {
 		tmp_winner = 0xFFFFFFFF;
 		adj_inc = 1;
 
-		if (ndrift > (FEC_ATIME_40MHZ / FEC_T_INC_40MHZ)) {
-			adj_inc = FEC_T_INC_40MHZ / 2;
-		} else if (ndrift > (FEC_ATIME_40MHZ / (FEC_T_INC_40MHZ * 4))) {
-			adj_inc = FEC_T_INC_40MHZ / 4;
+		if (ndrift > (FEC_ATIME_CLK / FEC_T_INC_CLK)) {
+			adj_inc = FEC_T_INC_CLK / 2;
+		} else if (ndrift > (FEC_ATIME_CLK / (FEC_T_INC_CLK * 4))) {
+			adj_inc = FEC_T_INC_CLK / 4;
 			adj_period = 2;
 		} else {
 			adj_inc = 4;
@@ -603,15 +603,15 @@ static void fec_handle_ptpdrift(struct ptp_set_comp *comp,
 		}
 
 		for (i = 1; i < adj_inc; i++) {
-			tmp_current = (FEC_ATIME_40MHZ * i) % ndrift;
+			tmp_current = (FEC_ATIME_CLK * i) % ndrift;
 			if (tmp_current == 0) {
 				ptc->corr_inc = i;
-				ptc->corr_period = (u32)((FEC_ATIME_40MHZ *
+				ptc->corr_period = (u32)((FEC_ATIME_CLK *
 						adj_period * i)	/ ndrift);
 				break;
 			} else if (tmp_current < tmp_winner) {
 				ptc->corr_inc = i;
-				ptc->corr_period = (u32)((FEC_ATIME_40MHZ *
+				ptc->corr_period = (u32)((FEC_ATIME_CLK *
 						adj_period * i)	/ ndrift);
 				tmp_winner = tmp_current;
 			}
@@ -632,9 +632,9 @@ static void fec_set_drift(struct fec_ptp_private *priv,
 		return;
 
 	if (comp->o_ops == TRUE)
-		corr_ns = FEC_T_INC_40MHZ + tc.corr_inc;
+		corr_ns = FEC_T_INC_CLK + tc.corr_inc;
 	else
-		corr_ns = FEC_T_INC_40MHZ - tc.corr_inc;
+		corr_ns = FEC_T_INC_CLK - tc.corr_inc;
 
 	if (!priv->ptp_slave)
 		fpp = priv;
