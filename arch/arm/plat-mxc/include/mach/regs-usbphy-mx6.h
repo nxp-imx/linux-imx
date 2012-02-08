@@ -1,7 +1,7 @@
 /*
  * Freescale USBPHY Register Definitions
  *
- * Copyright 2008-2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2008-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -468,6 +468,7 @@
 
 /* Host2/3 HSIC Ctrl */
 #define CLK_VLD		(1 << 31)	/* Indicating whether HSIC clock is valid */
+#define HSIC_DEV_CONN		(1 << 21)	/* set after device connected */
 #define HSIC_EN		(1 << 12)	/* HSIC enable */
 #define HSIC_CLK_ON		(1 << 11)	/* Force HSIC module 480M clock on,
 						 * even when in Host is in suspend mode
