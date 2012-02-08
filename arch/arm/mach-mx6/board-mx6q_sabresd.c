@@ -96,6 +96,7 @@
 #define MX6Q_SABRESD_MIPICSI_RST	IMX_GPIO_NR(1, 20)
 #define MX6Q_SABRESD_MIPICSI_PWN	IMX_GPIO_NR(1, 19)
 #define MX6Q_SABRESD_AUX_5V_EN		IMX_GPIO_NR(6, 10)
+#define MX6Q_SABRESD_SENSOR_EN		IMX_GPIO_NR(2, 31)
 
 void __init early_console_setup(unsigned long base, struct clk *clk);
 static struct clk *sata_clk;
@@ -562,6 +563,9 @@ static struct i2c_board_info mxc_i2c0_board_info[] __initdata = {
 	{
 		I2C_BOARD_INFO("ov5640", 0x3c),
 		.platform_data = (void *)&camera_data,
+	},
+	{
+		I2C_BOARD_INFO("mma8451", 0x1c),
 	},
 };
 
@@ -1155,6 +1159,9 @@ static void __init mx6_sabresd_board_init(void)
 	mxc_register_device(&mxc_android_pmem_gpu_device,
 			    &android_pmem_gpu_data);
 	imx6q_add_device_buttons();
+	/* enable sensor 3v3 and 1v8 */
+	gpio_request(MX6Q_SABRESD_SENSOR_EN, "sensor-en");
+	gpio_direction_output(MX6Q_SABRESD_SENSOR_EN, 1);
 
 	imx6q_add_hdmi_soc();
 	imx6q_add_hdmi_soc_dai();
