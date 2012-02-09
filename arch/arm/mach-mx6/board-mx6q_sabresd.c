@@ -46,6 +46,7 @@
 #include <linux/memblock.h>
 #include <linux/gpio.h>
 #include <linux/etherdevice.h>
+#include <linux/power/max8903_charger.h>
 #include <linux/regulator/anatop-regulator.h>
 #include <linux/regulator/consumer.h>
 #include <linux/regulator/machine.h>
@@ -97,6 +98,13 @@
 #define MX6Q_SABRESD_MIPICSI_PWN	IMX_GPIO_NR(1, 19)
 #define MX6Q_SABRESD_AUX_5V_EN		IMX_GPIO_NR(6, 10)
 #define MX6Q_SABRESD_SENSOR_EN		IMX_GPIO_NR(2, 31)
+
+#define MX6Q_SABRESD_CHARGE_FLT_1_B	IMX_GPIO_NR(5, 2)
+#define MX6Q_SABRESD_CHARGE_CHG_1_B	IMX_GPIO_NR(3, 23)
+#define MX6Q_SABRESD_CHARGE_FLT_2_B	IMX_GPIO_NR(3, 14)
+#define MX6Q_SABRESD_CHARGE_CHG_2_B	IMX_GPIO_NR(3, 13)
+#define MX6Q_SABRESD_CHARGE_UOK_B	IMX_GPIO_NR(1, 27)
+#define MX6Q_SABRESD_CHARGE_DOK_B	IMX_GPIO_NR(2, 24)
 
 void __init early_console_setup(unsigned long base, struct clk *clk);
 static struct clk *sata_clk;
@@ -308,6 +316,15 @@ static iomux_v3_cfg_t mx6q_sabresd_pads[] = {
 	MX6Q_PAD_SD4_DAT5__USDHC4_DAT5_50MHZ,
 	MX6Q_PAD_SD4_DAT6__USDHC4_DAT6_50MHZ,
 	MX6Q_PAD_SD4_DAT7__USDHC4_DAT7_50MHZ,
+
+	/* Charge */
+	MX6Q_PAD_EIM_A25__GPIO_5_2,  /* FLT_1_B */
+	MX6Q_PAD_EIM_D23__GPIO_3_23, /* CHG_1_B */
+	MX6Q_PAD_EIM_DA13__GPIO_3_13, /* CHG_2_B  */
+	MX6Q_PAD_EIM_DA14__GPIO_3_14, /* FLT_2_B */
+
+	MX6Q_PAD_ENET_RXD0__GPIO_1_27, /* UOK_B */
+	MX6Q_PAD_EIM_CS1__GPIO_2_24,   /* DOK_B */
 };
 
 static iomux_v3_cfg_t mx6q_sabresd_csi0_sensor_pads[] = {
@@ -795,6 +812,24 @@ static struct fsl_mxc_ldb_platform_data ldb_data = {
 	.sec_disp_id = 1,
 };
 
+static struct max8903_pdata charger1_data = {
+	.dok = MX6Q_SABRESD_CHARGE_DOK_B,
+	.uok = MX6Q_SABRESD_CHARGE_UOK_B,
+	.chg = MX6Q_SABRESD_CHARGE_CHG_1_B,
+	.flt = MX6Q_SABRESD_CHARGE_FLT_1_B,
+	.dcm_always_high = true,
+	.dc_valid = true,
+	.usb_valid = true,
+};
+
+static struct platform_device sabresd_max8903_charger_1 = {
+	.name	= "max8903-charger",
+	.id	= 1,
+	.dev	= {
+		.platform_data = &charger1_data,
+	},
+};
+
 static struct imx_ipuv3_platform_data ipu_data[] = {
 	{
 	.rev = 4,
@@ -1192,6 +1227,9 @@ static void __init mx6_sabresd_board_init(void)
 	gpio_request(MX6Q_SABRESD_AUX_5V_EN, "aux_5v_en");
 	gpio_direction_output(MX6Q_SABRESD_AUX_5V_EN, 1);
 	gpio_set_value(MX6Q_SABRESD_AUX_5V_EN, 1);
+
+	/* Register charger chips */
+	platform_device_register(&sabresd_max8903_charger_1);
 }
 
 extern void __iomem *twd_base;
