@@ -5083,7 +5083,8 @@ static void clk_tree_init(void)
 
 	reg = __raw_readl(MMDC_MDMISC_OFFSET);
 	if ((reg & MMDC_MDMISC_DDR_TYPE_MASK) ==
-		(0x1 << MMDC_MDMISC_DDR_TYPE_OFFSET)) {
+		(0x1 << MMDC_MDMISC_DDR_TYPE_OFFSET) ||
+		cpu_is_mx6dl()) {
 		clk_set_parent(&periph_clk, &pll2_pfd_400M);
 		printk(KERN_INFO "Set periph_clk's parent to pll2_pfd_400M!\n");
 	}
