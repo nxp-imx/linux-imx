@@ -30,6 +30,7 @@
 #include <mach/arc_otg.h>
 #include <mach/hardware.h>
 #include <mach/iomux-mx6q.h>
+#include <mach/iomux-mx6dl.h>
 #include "devices-imx6q.h"
 #include "regs-anadig.h"
 #include "usb.h"
@@ -180,7 +181,12 @@ static void hsic_start(void)
 {
 	pr_debug("%s", __func__);
 	/* strobe 47K pull up */
-	mxc_iomux_v3_setup_pad(MX6Q_PAD_RGMII_RXC__USBOH3_H3_STROBE_START);
+	if (cpu_is_mx6q())
+		mxc_iomux_v3_setup_pad(
+				MX6Q_PAD_RGMII_RXC__USBOH3_H3_STROBE_START);
+	else if (cpu_is_mx6dl())
+		mxc_iomux_v3_setup_pad(
+				MX6DL_PAD_RGMII_RXC__USBOH3_H3_STROBE_START);
 }
 
 static void hsic_device_connected(void)
