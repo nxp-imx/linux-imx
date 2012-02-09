@@ -99,6 +99,21 @@ static int cpu_op_nr;
 static unsigned long external_high_reference, external_low_reference;
 static unsigned long oscillator_reference, ckih2_reference;
 
+/* For MX 6DL/S, Video PLL may be used by synchronous display devices,
+ * such as HDMI or LVDS, and also by the EPDC.  If EPDC is in use,
+ * it must use the Video PLL to achieve the clock frequencies it needs.
+ * So if EPDC is in use, the "epdc" string should be added to kernel
+ * parameters, in order to set the EPDC parent clock to the Video PLL.
+ * This will have an impact on the behavior of HDMI and LVDS.
+ */
+static int epdc_use_video_pll;
+static int __init epdc_clk_setup(char *__unused)
+{
+	epdc_use_video_pll = 1;
+	return 1;
+}
+__setup("epdc", epdc_clk_setup);
+
 static void __calc_pre_post_dividers(u32 max_podf, u32 div, u32 *pre, u32 *post)
 {
 	u32 min_pre, temp_pre, old_err, err;
@@ -781,7 +796,7 @@ static unsigned long  _clk_audio_video_get_rate(struct clk *clk)
 	else
 		pllbase = PLL5_VIDEO_BASE_ADDR;
 
-	if (rev >= IMX_CHIP_REVISION_1_1) {
+	if ((rev >= IMX_CHIP_REVISION_1_1) || cpu_is_mx6dl()) {
 		test_div_sel = (__raw_readl(pllbase)
 			& ANADIG_PLL_AV_TEST_DIV_SEL_MASK)
 			>> ANADIG_PLL_AV_TEST_DIV_SEL_OFFSET;
@@ -823,7 +838,7 @@ static int _clk_audio_video_set_rate(struct clk *clk, unsigned long rate)
 	u32 test_div_sel = 2;
 	u32 control3 = 0;
 
-	if (rev < IMX_CHIP_REVISION_1_1)
+	if ((rev < IMX_CHIP_REVISION_1_1) && !cpu_is_mx6dl())
 		min_clk_rate = AUDIO_VIDEO_MIN_CLK_FREQ;
 	else if (clk == &pll4_audio_main_clk)
 		min_clk_rate = AUDIO_VIDEO_MIN_CLK_FREQ / 4;
@@ -839,7 +854,7 @@ static int _clk_audio_video_set_rate(struct clk *clk, unsigned long rate)
 		pllbase = PLL5_VIDEO_BASE_ADDR;
 
 	pre_div_rate = rate;
-	if (rev >= IMX_CHIP_REVISION_1_1) {
+	if ((rev >= IMX_CHIP_REVISION_1_1) || cpu_is_mx6dl()) {
 		while (pre_div_rate < AUDIO_VIDEO_MIN_CLK_FREQ) {
 			pre_div_rate *= 2;
 			/*
@@ -902,7 +917,7 @@ static unsigned long _clk_audio_video_round_rate(struct clk *clk,
 	unsigned long final_rate;
 	int rev = mx6q_revision();
 
-	if (rev < IMX_CHIP_REVISION_1_1)
+	if ((rev < IMX_CHIP_REVISION_1_1) && !cpu_is_mx6dl())
 		min_clk_rate = AUDIO_VIDEO_MIN_CLK_FREQ;
 	else if (clk == &pll4_audio_main_clk)
 		min_clk_rate = AUDIO_VIDEO_MIN_CLK_FREQ / 4;
@@ -916,7 +931,7 @@ static unsigned long _clk_audio_video_round_rate(struct clk *clk,
 		return AUDIO_VIDEO_MAX_CLK_FREQ;
 
 	pre_div_rate = rate;
-	if (rev >= IMX_CHIP_REVISION_1_1) {
+	if ((rev >= IMX_CHIP_REVISION_1_1) || cpu_is_mx6dl()) {
 		while (pre_div_rate < AUDIO_VIDEO_MIN_CLK_FREQ) {
 			pre_div_rate *= 2;
 			post_div *= 2;
@@ -5111,6 +5126,8 @@ static struct clk_lookup lookups[] = {
 	_REGISTER_CLOCK(NULL, "clko_clk", clko_clk),
 	_REGISTER_CLOCK(NULL, "clko2_clk", clko2_clk),
 	_REGISTER_CLOCK(NULL, "pxp_axi", ipu2_clk),
+	_REGISTER_CLOCK(NULL, "epdc_axi", ipu2_clk),
+	_REGISTER_CLOCK(NULL, "epdc_pix", ipu2_di_clk[1]),
 	_REGISTER_CLOCK("mxs-perfmon.0", "perfmon", perfmon0_clk),
 	_REGISTER_CLOCK("mxs-perfmon.1", "perfmon", perfmon1_clk),
 	_REGISTER_CLOCK("mxs-perfmon.2", "perfmon", perfmon2_clk),
@@ -5270,6 +5287,13 @@ int __init mx6_clocks_init(unsigned long ckil, unsigned long osc,
 		gpt_clk[0].parent = &ipg_perclk;
 		gpt_clk[0].get_rate = NULL;
 		}
+
+	if (cpu_is_mx6dl()) {
+		if (epdc_use_video_pll)
+			clk_set_parent(&ipu2_di_clk[1], &pll5_video_main_clk);
+		else
+			clk_set_parent(&ipu2_di_clk[1], &pll3_pfd_540M);
+	}
 
 	base = ioremap(GPT_BASE_ADDR, SZ_4K);
 	mxc_timer_init(&gpt_clk[0], base, MXC_INT_GPT);
