@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2011-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -22,7 +22,7 @@
 #include <mach/hardware.h>
 #include <mach/devices-common.h>
 
-#define imx5_epdc_data_entry_single(soc, size)	\
+#define imx_epdc_data_entry_single(soc, size)	\
 	{								\
 		.iobase = soc ## _EPDC_BASE_ADDR,			\
 		.irq = soc ## _INT_EPDC,				\
@@ -31,7 +31,12 @@
 
 #ifdef CONFIG_SOC_IMX50
 const struct imx_epdc_data imx50_epdc_data __initconst =
-			imx5_epdc_data_entry_single(MX50, SZ_4K);
+			imx_epdc_data_entry_single(MX50, SZ_4K);
+#endif
+
+#ifdef CONFIG_SOC_IMX6Q
+const struct imx_epdc_data imx6dl_epdc_data __initconst =
+			imx_epdc_data_entry_single(MX6DL, SZ_16K);
 #endif
 
 struct platform_device *__init imx_add_imx_epdc(
