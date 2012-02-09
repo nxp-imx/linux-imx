@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2010-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -23,7 +23,7 @@ extern void (*set_num_cpu_op)(int num);
 extern u32 arm_max_freq;
 static int num_cpu_op;
 
-/* working point(wp): 0 - 1GHzMHz; 1 - 800MHz, 3 - 400MHz, 4  - 160MHz */
+/* working point(wp): 0 - 1GHzMHz; 1 - 800MHz, 3 - 400MHz, 4  - 200MHz */
 static struct cpu_op mx6_cpu_op_1G[] = {
 	{
 	 .pll_rate = 996000000,
@@ -77,6 +77,60 @@ static struct cpu_op mx6_cpu_op[] = {
 	 .cpu_voltage = 850000,},
 };
 
+/* working point(wp): 0 - 1GHzMHz; 1 - 800MHz, 3 - 400MHz, 4  - 200MHz */
+static struct cpu_op mx6dl_cpu_op_1G[] = {
+	{
+	 .pll_rate = 996000000,
+	 .cpu_rate = 996000000,
+	 .pdf = 0,
+	 .mfi = 10,
+	 .mfd = 11,
+	 .mfn = 5,
+	 .cpu_podf = 0,
+	 .cpu_voltage = 1225000,},
+	{
+	 .pll_rate = 792000000,
+	 .cpu_rate = 792000000,
+	 .pdf = 0,
+	 .mfi = 8,
+	 .mfd = 2,
+	 .mfn = 1,
+	 .cpu_podf = 0,
+	 .cpu_voltage = 1100000,},
+	 {
+	  .pll_rate = 792000000,
+	  .cpu_rate = 396000000,
+	  .cpu_podf = 1,
+	  .cpu_voltage = 1000000,},
+	{
+	 .pll_rate = 792000000,
+	 .cpu_rate = 198000000,
+	 .cpu_podf = 3,
+	 .cpu_voltage = 1000000,},
+};
+
+static struct cpu_op mx6dl_cpu_op[] = {
+	{
+	 .pll_rate = 792000000,
+	 .cpu_rate = 792000000,
+	 .pdf = 0,
+	 .mfi = 8,
+	 .mfd = 2,
+	 .mfn = 1,
+	 .cpu_podf = 0,
+	 .cpu_voltage = 1100000,},
+	 {
+	  .pll_rate = 792000000,
+	  .cpu_rate = 396000000,
+	  .cpu_podf = 1,
+	  .cpu_voltage = 1000000,},
+	{
+	 .pll_rate = 792000000,
+	 .cpu_rate = 198000000,
+	 .cpu_podf = 3,
+	 .cpu_voltage = 1000000,},
+};
+
 static struct dvfs_op dvfs_core_setpoint_1G[] = {
 	{33, 14, 33, 10, 128, 0x10}, /* 1GHz*/
 	{30, 12, 33, 100, 200, 0x10},   /* 800MHz */
@@ -101,12 +155,22 @@ static struct dvfs_op *mx6_get_dvfs_core_table(int *wp)
 
 struct cpu_op *mx6_get_cpu_op(int *op)
 {
-	if (arm_max_freq == CPU_AT_1GHz) {
-		*op =  num_cpu_op = ARRAY_SIZE(mx6_cpu_op_1G);
-		return mx6_cpu_op_1G;
+	if (cpu_is_mx6dl()) {
+		if (arm_max_freq == CPU_AT_1GHz) {
+			*op =  num_cpu_op = ARRAY_SIZE(mx6dl_cpu_op_1G);
+			return mx6dl_cpu_op_1G;
+		} else {
+			*op =  num_cpu_op = ARRAY_SIZE(mx6dl_cpu_op);
+			return mx6dl_cpu_op;
+		}
 	} else {
-		*op =  num_cpu_op = ARRAY_SIZE(mx6_cpu_op);
-		return mx6_cpu_op;
+		if (arm_max_freq == CPU_AT_1GHz) {
+			*op =  num_cpu_op = ARRAY_SIZE(mx6_cpu_op_1G);
+			return mx6_cpu_op_1G;
+		} else {
+			*op =  num_cpu_op = ARRAY_SIZE(mx6_cpu_op);
+			return mx6_cpu_op;
+		}
 	}
 }
 
