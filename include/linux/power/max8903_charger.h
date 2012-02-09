@@ -38,6 +38,10 @@ struct max8903_pdata {
 	int dcm;	/* Current-Limit Mode input (1: DC, 2: USB) */
 	int usus;	/* USB Suspend Input (1: suspended) */
 
+    /* DCM wired to Logic High
+       Set this true when DCM pin connect to Logic high.*/
+	bool dcm_always_high;
+
 	/*
 	 * DC(Adapter/TA) is wired
 	 * When dc_valid is true,
