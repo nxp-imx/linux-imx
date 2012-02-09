@@ -102,6 +102,7 @@ static int udc_suspend(struct fsl_udc *udc);
 static int fsl_udc_suspend(struct platform_device *pdev, pm_message_t state);
 static int fsl_udc_resume(struct platform_device *pdev);
 static void fsl_ep_fifo_flush(struct usb_ep *_ep);
+static void gadget_wait_line_to_se0(void);
 
 #ifdef CONFIG_USB_OTG
 /* Get platform resource from OTG driver */
@@ -294,6 +295,23 @@ static void nuke(struct fsl_ep *ep, int status)
 /*------------------------------------------------------------------
 	Internal Hardware related function
  ------------------------------------------------------------------*/
+static void dr_discharge_dp(struct fsl_usb2_platform_data *pdata)
+{
+	/* enable pulldown dp */
+	if (pdata->gadget_discharge_dp)
+		pdata->gadget_discharge_dp(true);
+	/*
+	 * Some boards are very slow change line state from J to SE0 for DP,
+	 * So, we need to discharge DP, otherwise there is a wakeup interrupt
+	 * after we enable the wakeup function.
+	 */
+	gadget_wait_line_to_se0();
+
+	/* Disable pulldown dp */
+	if (pdata->gadget_discharge_dp)
+		pdata->gadget_discharge_dp(false);
+}
+
 static inline void
 dr_wake_up_enable(struct fsl_udc *udc, bool enable)
 {
@@ -381,6 +399,8 @@ static int dr_controller_setup(struct fsl_udc *udc)
 	if (pdata->es)
 		tmp |= USB_MODE_ES;
 	fsl_writel(tmp, &dr_regs->usbmode);
+	/* wait dp to 0v */
+	dr_discharge_dp(pdata);
 
 	fsl_platform_set_device_mode(pdata);
 
@@ -2149,19 +2169,8 @@ static void fsl_gadget_disconnect_event(struct work_struct *work)
 
 	pdata = udc->pdata;
 
-	/* enable pulldown dp */
-	if (pdata->gadget_discharge_dp)
-		pdata->gadget_discharge_dp(true);
-	/*
-	 * Some boards are very slow change line state from J to SE0 for DP,
-	 * So, we need to discharge DP, otherwise there is a wakeup interrupt
-	 * after we enable the wakeup function.
-	 */
-	gadget_wait_line_to_se0();
-
-	/* Disable pulldown dp */
-	if (pdata->gadget_discharge_dp)
-		pdata->gadget_discharge_dp(false);
+	/* wait dp to 0v */
+	dr_discharge_dp(pdata);
 
 	/*
 	 * Wait class drivers finish, an well-behaviour class driver should
