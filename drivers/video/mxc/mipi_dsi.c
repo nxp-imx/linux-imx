@@ -884,7 +884,6 @@ static struct mxc_dispdrv_driver mipi_dsi_drv = {
 	.name	= DISPDRV_MIPI,
 	.init	= mipi_dsi_disp_init,
 	.deinit	= mipi_dsi_disp_deinit,
-	.enable = mipi_dsi_power_on,
 	.disable = mipi_dsi_power_off,
 };
 
