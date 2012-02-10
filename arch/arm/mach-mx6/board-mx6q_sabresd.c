@@ -100,7 +100,7 @@
 #define MX6Q_SABRESD_SENSOR_EN		IMX_GPIO_NR(2, 31)
 #define MX6Q_SABRESD_eCOMPASS_INT	IMX_GPIO_NR(3, 16)
 #define MX6Q_SABRESD_ALS_INT		IMX_GPIO_NR(3, 9)
-
+#define MX6Q_SABRESD_MPCIE_3V3_EN	IMX_GPIO_NR(1, 6)
 #define MX6Q_SABRESD_CHARGE_FLT_1_B	IMX_GPIO_NR(5, 2)
 #define MX6Q_SABRESD_CHARGE_CHG_1_B	IMX_GPIO_NR(3, 23)
 #define MX6Q_SABRESD_CHARGE_FLT_2_B	IMX_GPIO_NR(3, 14)
@@ -169,6 +169,8 @@ static iomux_v3_cfg_t mx6q_sabresd_pads[] = {
 	/* MX6Q_PAD_NANDF_D2__GPIO_2_2,*/	/* J14 - Back Button */
 	/* MX6Q_PAD_NANDF_D3__GPIO_2_3,*/	/* J14 - Search Button */
 	/* MX6Q_PAD_NANDF_D4__GPIO_2_4,*/	/* J14 - Home Button */
+	MX6Q_PAD_NANDF_ALE__GPIO_6_8,  /* eGlax INT0 */
+	MX6Q_PAD_NANDF_CLE__GPIO_6_7,  /* eGlax INT1 */
 	MX6Q_PAD_EIM_A22__GPIO_2_16,	/* J12 - Boot Mode Select */
 	MX6Q_PAD_EIM_A21__GPIO_2_17,	/* J12 - Boot Mode Select */
 	MX6Q_PAD_EIM_A20__GPIO_2_18,	/* J12 - Boot Mode Select */
@@ -331,6 +333,8 @@ static iomux_v3_cfg_t mx6q_sabresd_pads[] = {
 
 	MX6Q_PAD_ENET_RXD0__GPIO_1_27, /* UOK_B */
 	MX6Q_PAD_EIM_CS1__GPIO_2_24,   /* DOK_B */
+	/* MPCIE_3V3 Enable */
+	MX6Q_PAD_GPIO_6__GPIO_1_6,
 };
 
 static iomux_v3_cfg_t mx6q_sabresd_csi0_sensor_pads[] = {
@@ -1025,6 +1029,18 @@ static int imx6q_init_audio(void)
 #endif
 	return 0;
 }
+static void mpcie_3v3_power(bool on)
+{
+	/* Enable/disable MPCIE_3V3 */
+	gpio_request(MX6Q_SABRESD_MPCIE_3V3_EN, "mpcie_3v3_en");
+	gpio_direction_output(MX6Q_SABRESD_MPCIE_3V3_EN, 1);
+
+	if (on)
+		gpio_set_value(MX6Q_SABRESD_MPCIE_3V3_EN, 1);
+	else
+		gpio_set_value(MX6Q_SABRESD_MPCIE_3V3_EN, 0);
+
+}
 
 #if defined(CONFIG_KEYBOARD_GPIO) || defined(CONFIG_KEYBOARD_GPIO_MODULE)
 #define GPIO_BUTTON(gpio_num, ev_code, act_low, descr, wake)	\
@@ -1273,6 +1289,8 @@ static void __init mx6_sabresd_board_init(void)
 	gpio_request(MX6Q_SABRESD_AUX_5V_EN, "aux_5v_en");
 	gpio_direction_output(MX6Q_SABRESD_AUX_5V_EN, 1);
 	gpio_set_value(MX6Q_SABRESD_AUX_5V_EN, 1);
+
+	mpcie_3v3_power(true);
 
 	/* Register charger chips */
 	platform_device_register(&sabresd_max8903_charger_1);
