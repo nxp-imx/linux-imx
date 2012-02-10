@@ -99,6 +99,7 @@
 #define MX6Q_SABRESD_AUX_5V_EN		IMX_GPIO_NR(6, 10)
 #define MX6Q_SABRESD_SENSOR_EN		IMX_GPIO_NR(2, 31)
 #define MX6Q_SABRESD_eCOMPASS_INT	IMX_GPIO_NR(3, 16)
+#define MX6Q_SABRESD_ALS_INT		IMX_GPIO_NR(3, 9)
 
 #define MX6Q_SABRESD_CHARGE_FLT_1_B	IMX_GPIO_NR(5, 2)
 #define MX6Q_SABRESD_CHARGE_CHG_1_B	IMX_GPIO_NR(3, 23)
@@ -596,6 +597,10 @@ static struct imxi2c_platform_data mx6q_sabresd_i2c_data = {
 	.bitrate = 100000,
 };
 
+static struct fsl_mxc_lightsensor_platform_data ls_data = {
+	.rext = 499,	/* calibration: 499K->700K */
+};
+
 static struct i2c_board_info mxc_i2c0_board_info[] __initdata = {
 	{
 		I2C_BOARD_INFO("sgtl5000", 0x0a),
@@ -633,6 +638,11 @@ static struct i2c_board_info mxc_i2c2_board_info[] __initdata = {
 		I2C_BOARD_INFO("mag3110", 0x0e),
 		.irq = gpio_to_irq(MX6Q_SABRESD_eCOMPASS_INT),
 		.platform_data = (void *)&mag3110_position,
+	},
+	{
+		I2C_BOARD_INFO("isl29023", 0x44),
+		.irq  = gpio_to_irq(MX6Q_SABRESD_ALS_INT),
+		.platform_data = &ls_data,
 	},
 };
 
@@ -1230,6 +1240,9 @@ static void __init mx6_sabresd_board_init(void)
 	/* enable ecompass intr */
 	gpio_request(MX6Q_SABRESD_eCOMPASS_INT, "ecompass-int");
 	gpio_direction_input(MX6Q_SABRESD_eCOMPASS_INT);
+	/* enable light sensor intr */
+	gpio_request(MX6Q_SABRESD_ALS_INT, "als-int");
+	gpio_direction_input(MX6Q_SABRESD_ALS_INT);
 
 	imx6q_add_hdmi_soc();
 	imx6q_add_hdmi_soc_dai();
