@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2011-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  * Jason Chen <jason.chen@freescale.com>
  *
  * This program is free software; you can redistribute it and/or modify it under
@@ -166,6 +166,9 @@ struct platform_device *__init imx_add_vpu(
 	pdata.pg = data->pg;
 	pdata.iram_enable = data->iram_enable;
 	pdata.iram_size = data->iram_size;
+
+	if (cpu_is_mx6dl())
+		pdata.iram_enable = false;
 
 	return imx_add_platform_device("mxc_vpu", -1,
 			res, ARRAY_SIZE(res), &pdata, sizeof(pdata));
