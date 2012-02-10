@@ -72,7 +72,9 @@
 struct egalax_ts {
 	struct i2c_client		*client;
 	struct input_dev		*input_dev;
+#ifdef CONFIG_EARLYSUSPEND
 	struct early_suspend		es_handler;
+#endif
 };
 
 static irqreturn_t egalax_ts_interrupt(int irq, void *dev_id)
@@ -229,12 +231,14 @@ static int __devinit egalax_ts_probe(struct i2c_client *client,
 		goto err_free_irq;
 	i2c_set_clientdata(client, data);
 
+#ifdef CONFIG_EARLYSUSPEND
 	/* register this client's earlysuspend */
 	data->es_handler.level = EARLY_SUSPEND_LEVEL_DISABLE_FB;
 	data->es_handler.suspend = egalax_early_suspend;
 	data->es_handler.resume = egalax_later_resume;
 	data->es_handler.data = (void *)client;
 	register_early_suspend(&data->es_handler);
+#endif
 
 	return 0;
 
@@ -251,8 +255,9 @@ err_free_data:
 static __devexit int egalax_ts_remove(struct i2c_client *client)
 {
 	struct egalax_ts *data = i2c_get_clientdata(client);
-
+#ifdef CONFIG_EARLYSUSPEND
 	unregister_early_suspend(&data->es_handler);
+#endif
 	free_irq(client->irq, data);
 	input_free_device(data->input_dev);
 	input_unregister_device(data->input_dev);
