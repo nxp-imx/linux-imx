@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2011-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -866,7 +866,7 @@ static int __devinit isl29023_probe(struct i2c_client *client,
 	if (!data)
 		return -ENOMEM;
 
-	ls_data = (struct mxc_lightsensor_platform_data *)
+	ls_data = (struct fsl_mxc_lightsensor_platform_data *)
 	    (client->dev).platform_data;
 
 	data->client = client;
@@ -906,7 +906,7 @@ static int __devinit isl29023_probe(struct i2c_client *client,
 		goto exit_free_input;
 
 	/* set irq type to edge falling */
-	set_irq_type(client->irq, IRQF_TRIGGER_FALLING);
+	irq_set_irq_type(client->irq, IRQF_TRIGGER_FALLING);
 	err = request_irq(client->irq, isl29023_irq_handler, 0,
 			  client->dev.driver->name, data);
 	if (err < 0) {
