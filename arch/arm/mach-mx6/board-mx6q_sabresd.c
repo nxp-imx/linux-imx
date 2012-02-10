@@ -85,6 +85,9 @@
 #define MX6Q_SABRESD_USB_HUB_RESET	IMX_GPIO_NR(7, 12)
 #define MX6Q_SABRESD_CAN1_STBY	IMX_GPIO_NR(1, 2)
 #define MX6Q_SABRESD_CAN1_EN		IMX_GPIO_NR(1, 4)
+#define MX6Q_SABRESD_VOLUME_UP		IMX_GPIO_NR(1, 4)
+#define MX6Q_SABRESD_VOLUME_DN		IMX_GPIO_NR(1, 5)
+#define MX6Q_SABRESD_POWER_OFF		IMX_GPIO_NR(3, 29)
 #define MX6Q_SABRESD_PFUZE_INT	IMX_GPIO_NR(7, 13)
 #define MX6Q_SABRESD_CSI0_RST		IMX_GPIO_NR(1, 17)
 #define MX6Q_SABRESD_CSI0_PWN		IMX_GPIO_NR(1, 16)
@@ -119,7 +122,6 @@ static iomux_v3_cfg_t mx6q_sabresd_pads[] = {
 	MX6Q_PAD_KEY_COL2__CAN1_TXCAN,
 	MX6Q_PAD_GPIO_2__GPIO_1_2,		/* STNDBY */
 	MX6Q_PAD_GPIO_7__GPIO_1_7,		/* NERR */
-	MX6Q_PAD_GPIO_4__GPIO_1_4,		/* Enable */
 
 	/* CCM  */
 	MX6Q_PAD_GPIO_0__CCM_CLKO,		/* SGTL500 sys_mclk */
@@ -188,9 +190,10 @@ static iomux_v3_cfg_t mx6q_sabresd_pads[] = {
 	MX6Q_PAD_EIM_DA14__GPIO_3_14,	/* J12 - Boot Mode Select */
 	MX6Q_PAD_EIM_DA15__GPIO_3_15,	/* J12 - Boot Mode Select */
 
-	/* SW4 & SW5 */
+	/* SW4 , SW5 & SW1 */
 	MX6Q_PAD_GPIO_4__GPIO_1_4,	/* Volume Up */
 	MX6Q_PAD_GPIO_5__GPIO_1_5,	/* Volume Down */
+	MX6Q_PAD_EIM_D29__GPIO_3_29,	/* power off */
 
 	/* eCompass int */
 	MX6Q_PAD_EIM_D16__GPIO_3_16,
@@ -976,6 +979,45 @@ static int imx6q_init_audio(void)
 	return 0;
 }
 
+#if defined(CONFIG_KEYBOARD_GPIO) || defined(CONFIG_KEYBOARD_GPIO_MODULE)
+#define GPIO_BUTTON(gpio_num, ev_code, act_low, descr, wake)	\
+{								\
+	.gpio		= gpio_num,				\
+	.type		= EV_KEY,				\
+	.code		= ev_code,				\
+	.active_low	= act_low,				\
+	.desc		= "btn " descr,				\
+	.wakeup		= wake,					\
+}
+
+static struct gpio_keys_button imx6q_buttons[] = {
+	GPIO_BUTTON(MX6Q_SABRESD_VOLUME_UP, KEY_VOLUMEUP, 1, "volume-up", 0),
+	GPIO_BUTTON(MX6Q_SABRESD_VOLUME_DN, KEY_VOLUMEDOWN, 1, "volume-down", 0),
+	GPIO_BUTTON(MX6Q_SABRESD_POWER_OFF, KEY_POWER, 1, "power", 1),
+};
+
+static struct gpio_keys_platform_data imx6q_button_data = {
+	.buttons	= imx6q_buttons,
+	.nbuttons	= ARRAY_SIZE(imx6q_buttons),
+};
+
+static struct platform_device imx6q_button_device = {
+	.name		= "gpio-keys",
+	.id		= -1,
+	.num_resources  = 0,
+	.dev		= {
+		.platform_data = &imx6q_button_data,
+	}
+};
+
+static void __init imx6q_add_device_buttons(void)
+{
+	platform_device_register(&imx6q_button_device);
+}
+#else
+static void __init imx6q_add_device_buttons(void) {}
+#endif
+
 static struct platform_pwm_backlight_data mx6_sabresd_pwm_backlight_data = {
 	.pwm_id = 0,
 	.max_brightness = 255,
@@ -1107,6 +1149,8 @@ static void __init mx6_sabresd_board_init(void)
 
 	imx6q_add_dvfs_core(&sabresd_dvfscore_data);
 	mx6_cpu_regulator_init();
+
+	imx6q_add_device_buttons();
 
 	/* enable sensor 3v3 and 1v8 */
 	gpio_request(MX6Q_SABRESD_SENSOR_EN, "sensor-en");
