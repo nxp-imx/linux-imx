@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2011-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -86,8 +86,11 @@ static void platform_perfmon_init(void)
 	if (init)
 		return;
 
-	/* GPR11 bit[16] is the clock enable bit for perfmon */
-	mxc_iomux_set_gpr_register(11, 16, 1, 1);
+	if (mx6q_revision() == IMX_CHIP_REVISION_1_0)
+		/* GPR11 bit[16] must be set for TO1.0, it's a bug */
+		mxc_iomux_set_gpr_register(11, 16, 1, 1);
+
+	mxc_iomux_set_gpr_register(11, 0, 1, 1);
 	init = true;
 }
 
@@ -96,8 +99,7 @@ static void platform_perfmon_exit(void)
 	if (!init)
 		return;
 
-	/* GPR11 bit[16] is the clock enable bit for perfmon */
-	mxc_iomux_set_gpr_register(11, 16, 1, 0);
+	mxc_iomux_set_gpr_register(11, 0, 1, 0);
 	init = false;
 }
 
