@@ -2109,7 +2109,9 @@ CONFIG_USB_STORAGE=y
 #
 # USB port drivers
 #
-# CONFIG_USB_SERIAL is not set
+CONFIG_USB_SERIAL=y
+CONFIG_USB_SERIAL_WWAN=y
+CONFIG_USB_SERIAL_OPTION=y
 
 #
 # USB Miscellaneous drivers
