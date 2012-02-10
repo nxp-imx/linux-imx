@@ -98,6 +98,7 @@
 #define MX6Q_SABRESD_MIPICSI_PWN	IMX_GPIO_NR(1, 19)
 #define MX6Q_SABRESD_AUX_5V_EN		IMX_GPIO_NR(6, 10)
 #define MX6Q_SABRESD_SENSOR_EN		IMX_GPIO_NR(2, 31)
+#define MX6Q_SABRESD_eCOMPASS_INT	IMX_GPIO_NR(3, 16)
 
 #define MX6Q_SABRESD_CHARGE_FLT_1_B	IMX_GPIO_NR(5, 2)
 #define MX6Q_SABRESD_CHARGE_CHG_1_B	IMX_GPIO_NR(3, 23)
@@ -108,6 +109,8 @@
 
 void __init early_console_setup(unsigned long base, struct clk *clk);
 static struct clk *sata_clk;
+static int mma8451_position = 3;
+static int mag3110_position;
 
 extern char *gp_reg_id;
 
@@ -136,7 +139,6 @@ static iomux_v3_cfg_t mx6q_sabresd_pads[] = {
 	/* ECSPI1 */
 	MX6Q_PAD_EIM_D17__ECSPI1_MISO,
 	MX6Q_PAD_EIM_D18__ECSPI1_MOSI,
-	MX6Q_PAD_EIM_D16__ECSPI1_SCLK,
 	MX6Q_PAD_EIM_D19__GPIO_3_19,	/*SS1*/
 
 	/* ENET */
@@ -201,6 +203,9 @@ static iomux_v3_cfg_t mx6q_sabresd_pads[] = {
 	MX6Q_PAD_GPIO_4__GPIO_1_4,	/* Volume Up */
 	MX6Q_PAD_GPIO_5__GPIO_1_5,	/* Volume Down */
 	MX6Q_PAD_EIM_D29__GPIO_3_29,	/* power off */
+
+	/* eCompass int */
+	MX6Q_PAD_EIM_D16__GPIO_3_16,
 
 	/* GPIO5 */
 	MX6Q_PAD_EIM_WAIT__GPIO_5_0,	/* J12 - Boot Mode Select */
@@ -583,6 +588,7 @@ static struct i2c_board_info mxc_i2c0_board_info[] __initdata = {
 	},
 	{
 		I2C_BOARD_INFO("mma8451", 0x1c),
+		.platform_data = (void *)&mma8451_position,
 	},
 };
 
@@ -604,6 +610,11 @@ static struct i2c_board_info mxc_i2c2_board_info[] __initdata = {
 	{
 		I2C_BOARD_INFO("egalax_ts", 0x4),
 		.irq = gpio_to_irq(MX6Q_SABRESD_CAP_TCH_INT1),
+	},
+	{
+		I2C_BOARD_INFO("mag3110", 0x0e),
+		.irq = gpio_to_irq(MX6Q_SABRESD_eCOMPASS_INT),
+		.platform_data = (void *)&mag3110_position,
 	},
 };
 
@@ -1197,6 +1208,10 @@ static void __init mx6_sabresd_board_init(void)
 	/* enable sensor 3v3 and 1v8 */
 	gpio_request(MX6Q_SABRESD_SENSOR_EN, "sensor-en");
 	gpio_direction_output(MX6Q_SABRESD_SENSOR_EN, 1);
+
+	/* enable ecompass intr */
+	gpio_request(MX6Q_SABRESD_eCOMPASS_INT, "ecompass-int");
+	gpio_direction_input(MX6Q_SABRESD_eCOMPASS_INT);
 
 	imx6q_add_hdmi_soc();
 	imx6q_add_hdmi_soc_dai();
