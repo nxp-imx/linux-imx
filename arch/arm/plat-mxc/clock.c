@@ -4,7 +4,7 @@
  * Copyright (C) 2004 - 2005 Nokia corporation
  * Written by Tuukka Tikkanen <tuukka.tikkanen@elektrobit.com>
  * Modified for omap shared clock framework by Tony Lindgren <tony@atomide.com>
- * Copyright 2007-2011 Freescale Semiconductor, Inc.
+ * Copyright 2007-2012 Freescale Semiconductor, Inc.
  * Copyright 2008 Juergen Beisert, kernel@pengutronix.de
  *
  * This program is free software; you can redistribute it and/or
@@ -362,7 +362,7 @@ static int clk_debug_register_one(struct clk *clk)
 
 	clk->dentry = d;
 
-	d = debugfs_create_u8("enable_count", S_IRUGO, clk->dentry,
+	d = debugfs_create_u8("usecount", S_IRUGO, clk->dentry,
 			(u8 *)&clk->usecount);
 	if (!d) {
 		err = -ENOMEM;
