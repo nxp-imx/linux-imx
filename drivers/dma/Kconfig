@@ -145,10 +145,14 @@ config MXC_PXP
     bool "MXC PxP support"
     select DMA_ENGINE
 
+config MXC_PXP_V2
+    bool "MXC PxP V2 support"
+    select DMA_ENGINE
+
 config MXC_PXP_CLIENT_DEVICE
     bool "MXC PxP Client Device"
     default y
-    depends on MXC_PXP
+    depends on MXC_PXP || MXC_PXP_V2
 
 config TXX9_DMAC
 	tristate "Toshiba TXx9 SoC DMA support"
