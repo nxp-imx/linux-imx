@@ -4337,10 +4337,13 @@ static int _clk_gpu2d_core_set_parent(struct clk *clk, struct clk *parent)
 	u32 reg = __raw_readl(MXC_CCM_CBCMR) &
 				~MXC_CCM_CBCMR_GPU2D_CLK_SEL_MASK;
 
-	mux = _get_mux6(parent, &axi_clk, &pll3_usb_otg_main_clk,
-		&pll2_pfd_352M, &pll2_pfd_400M, NULL, NULL);
-	reg |= (mux << MXC_CCM_CBCMR_GPU2D_CLK_SEL_OFFSET);
-	__raw_writel(reg, MXC_CCM_CBCMR);
+	/*on mx6dl, 2d core clock sources from 3d shader core clock*/
+	if (!cpu_is_mx6dl()) {
+		mux = _get_mux6(parent, &axi_clk, &pll3_usb_otg_main_clk,
+			&pll2_pfd_352M, &pll2_pfd_400M, NULL, NULL);
+		reg |= (mux << MXC_CCM_CBCMR_GPU2D_CLK_SEL_OFFSET);
+		__raw_writel(reg, MXC_CCM_CBCMR);
+	}
 
 	return 0;
 }
@@ -5199,6 +5202,11 @@ int __init mx6_clocks_init(unsigned long ckil, unsigned long osc,
 	clk_set_rate(&gpu3d_shader_clk, 594000000);
 	clk_set_parent(&gpu3d_core_clk[0], &mmdc_ch0_axi_clk[0]);
 	clk_set_rate(&gpu3d_core_clk[0], 528000000);
+	if (cpu_is_mx6dl()) {
+		/*on mx6dl, 2d core clock sources from 3d shader core clock*/
+		clk_set_parent(&gpu2d_core_clk[0], &gpu3d_shader_clk);
+		gpu2d_axi_clk.secondary = NULL;
+	}
 
 	/* PCLK camera - J5 */
 	clk_set_parent(&clko2_clk, &osc_clk);
