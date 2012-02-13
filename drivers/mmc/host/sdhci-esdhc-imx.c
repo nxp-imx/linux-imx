@@ -260,6 +260,7 @@ void esdhc_prepare_tuning(struct sdhci_host *host, u32 val)
 	reg = readl(host->ioaddr + SDHCI_MIX_CTRL);
 	reg |= SDHCI_MIX_CTRL_EXE_TUNE | \
 		SDHCI_MIX_CTRL_SMPCLK_SEL | \
+		SDHCI_MIX_CTRL_AUTO_TUNE | \
 		SDHCI_MIX_CTRL_FBCLK_SEL;
 	writel(reg, host->ioaddr + SDHCI_MIX_CTRL);
 	writel((val << 8), host->ioaddr + SDHCI_TUNE_CTRL_STATUS);
