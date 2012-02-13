@@ -5113,6 +5113,7 @@ static struct clk_lookup lookups[] = {
 	_REGISTER_CLOCK(NULL, NULL, aips_tz1_clk),
 	_REGISTER_CLOCK(NULL, "clko_clk", clko_clk),
 	_REGISTER_CLOCK(NULL, "clko2_clk", clko2_clk),
+	_REGISTER_CLOCK(NULL, "pxp_axi", ipu2_clk),
 	_REGISTER_CLOCK("mxs-perfmon.0", "perfmon", perfmon0_clk),
 	_REGISTER_CLOCK("mxs-perfmon.1", "perfmon", perfmon1_clk),
 	_REGISTER_CLOCK("mxs-perfmon.2", "perfmon", perfmon2_clk),
@@ -5261,6 +5262,10 @@ int __init mx6_clocks_init(unsigned long ckil, unsigned long osc,
 
 	/* S/PDIF */
 	clk_set_parent(&spdif0_clk[0], &pll3_pfd_454M);
+
+	/* pxp & epdc */
+	clk_set_parent(&ipu2_clk, &pll2_pfd_400M);
+	clk_set_rate(&ipu2_clk, 200000000);
 
 	if (mx6q_revision() == IMX_CHIP_REVISION_1_0) {
 		gpt_clk[0].parent = &ipg_perclk;

@@ -1560,6 +1560,11 @@ static void __init mx6_arm2_init(void)
 	imx6q_add_perfmon(1);
 	imx6q_add_perfmon(2);
 	imx6q_add_mlb150(&mx6_arm2_mlb150_data);
+
+	if (cpu_is_mx6dl()) {
+		imx6dl_add_imx_pxp();
+		imx6dl_add_imx_pxp_client();
+	}
 }
 
 extern void __iomem *twd_base;
