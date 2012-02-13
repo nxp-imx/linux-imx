@@ -534,7 +534,7 @@ static void mx6q_csi0_io_init(void)
 
 	/* Camera reset */
 	gpio_request(MX6Q_SABRESD_CSI0_RST, "cam-reset");
-	gpio_direction_output(MX6Q_SABRESD_MIPICSI_RST, 1);
+	gpio_direction_output(MX6Q_SABRESD_CSI0_RST, 1);
 
 	/* Camera power down */
 	gpio_request(MX6Q_SABRESD_CSI0_PWN, "cam-pwdn");
@@ -1055,7 +1055,7 @@ static void mpcie_3v3_power(bool on)
 
 static struct gpio_keys_button imx6q_buttons[] = {
 	GPIO_BUTTON(MX6Q_SABRESD_VOLUME_UP, KEY_VOLUMEUP, 1, "volume-up", 0),
-	GPIO_BUTTON(MX6Q_SABRESD_VOLUME_DN, KEY_VOLUMEDOWN, 1, "volume-down", 0),
+	GPIO_BUTTON(MX6Q_SABRESD_VOLUME_DN, KEY_POWER, 1, "volume-down", 1),
 	GPIO_BUTTON(MX6Q_SABRESD_POWER_OFF, KEY_POWER, 1, "power", 1),
 };
 
