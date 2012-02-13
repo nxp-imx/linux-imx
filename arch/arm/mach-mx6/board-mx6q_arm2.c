@@ -575,7 +575,7 @@ static void mx6_mipi_sensor_io_init(void)
 
 	if (cpu_is_mx6q()) {
 		mipi_sensor_pads = mx6q_arm2_mipi_sensor_pads;
-		mipi_sensor_pads_cnt = ARRAY_SIZE(mx6dl_gpmi_nand);
+		mipi_sensor_pads_cnt = ARRAY_SIZE(mx6q_arm2_mipi_sensor_pads);
 	} else if (cpu_is_mx6dl()) {
 		mipi_sensor_pads = mx6dl_arm2_mipi_sensor_pads;
 		mipi_sensor_pads_cnt = ARRAY_SIZE(mx6dl_arm2_mipi_sensor_pads);
