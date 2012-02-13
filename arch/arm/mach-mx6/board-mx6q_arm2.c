@@ -394,7 +394,7 @@ static int max7310_1_setup(struct i2c_client *client,
 	unsigned gpio_base, unsigned ngpio,
 	void *context)
 {
-	int max7310_gpio_value[] = { 0, 1, 1, 1, 0, 0, 0, 0 };
+	int max7310_gpio_value[] = { 0, 1, 0, 1, 0, 0, 0, 0 };
 
 	int n;
 
