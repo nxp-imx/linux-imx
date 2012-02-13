@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2010-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -24,9 +24,13 @@
 #include <linux/uaccess.h>
 #include <linux/delay.h>
 #include <linux/dmaengine.h>
+#include <linux/dma-mapping.h>
+#include <linux/sched.h>
 #include <linux/pxp_dma.h>
 
 #include <linux/atomic.h>
+
+#include <mach/dma.h>
 
 static atomic_t open_count = ATOMIC_INIT(0);
 
@@ -237,6 +241,14 @@ static int pxp_device_mmap(struct file *file, struct vm_area_struct *vma)
 			       request_size, vma->vm_page_prot) ? -EAGAIN : 0;
 }
 
+static bool chan_filter(struct dma_chan *chan, void *arg)
+{
+	if (imx_dma_is_pxp(chan))
+		return true;
+	else
+		return false;
+}
+
 static long pxp_device_ioctl(struct file *filp,
 			    unsigned int cmd, unsigned long arg)
 {
@@ -258,7 +270,7 @@ static long pxp_device_ioctl(struct file *filp,
 			dma_cap_zero(mask);
 			dma_cap_set(DMA_SLAVE, mask);
 			dma_cap_set(DMA_PRIVATE, mask);
-			info->dma_chan = dma_request_channel(mask, NULL, NULL);
+			info->dma_chan = dma_request_channel(mask, chan_filter, NULL);
 			if (!info->dma_chan) {
 				pr_err("Unsccessfully received channel!\n");
 				kfree(info);
