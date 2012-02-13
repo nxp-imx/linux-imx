@@ -455,12 +455,30 @@ static int mxc_streamoff(cam_data *cam)
 	if (cam->capture_on == false)
 		return 0;
 
-	if (cam->enc_disable)
-		err = cam->enc_disable(cam);
-	if (cam->enc_disable_csi) {
-		err = cam->enc_disable_csi(cam);
-		if (err != 0)
-			return err;
+	if (strcmp(mxc_capture_inputs[cam->current_input].name,
+			"CSI MEM") == 0) {
+		if (cam->enc_disable_csi) {
+			err = cam->enc_disable_csi(cam);
+			if (err != 0)
+				return err;
+		}
+		if (cam->enc_disable) {
+			err = cam->enc_disable(cam);
+			if (err != 0)
+				return err;
+		}
+	} else if (strcmp(mxc_capture_inputs[cam->current_input].name,
+			  "CSI IC MEM") == 0) {
+		if (cam->enc_disable) {
+			err = cam->enc_disable(cam);
+			if (err != 0)
+				return err;
+		}
+		if (cam->enc_disable_csi) {
+			err = cam->enc_disable_csi(cam);
+			if (err != 0)
+				return err;
+		}
 	}
 
 	mxc_free_frames(cam);
@@ -620,9 +638,11 @@ static int start_preview(cam_data *cam)
 	if (err != 0)
 		return err;
 
-	err = cam->vf_start_sdc(cam);
-	if (err != 0)
-		return err;
+	if (cam->vf_start_sdc) {
+		err = cam->vf_start_sdc(cam);
+		if (err != 0)
+			return err;
+	}
 
 	if (cam->vf_enable_csi)
 		err = cam->vf_enable_csi(cam);
@@ -654,18 +674,22 @@ static int stop_preview(cam_data *cam)
 {
 	int err = 0;
 
-	pr_debug("MVC: stop preview\n");
-
-	if (cam->v4l2_fb.flags == V4L2_FBUF_FLAG_OVERLAY)
-		err = prp_vf_sdc_deselect(cam);
-	else if (cam->v4l2_fb.flags == V4L2_FBUF_FLAG_PRIMARY)
-		err = prp_vf_sdc_deselect_bg(cam);
+	if (cam->vf_stop_sdc) {
+		err = cam->vf_stop_sdc(cam);
+		if (err != 0)
+			return err;
+	}
 
 	if (cam->vf_disable_csi) {
 		err = cam->vf_disable_csi(cam);
 		if (err != 0)
 			return err;
 	}
+
+	if (cam->v4l2_fb.flags == V4L2_FBUF_FLAG_OVERLAY)
+		err = prp_vf_sdc_deselect(cam);
+	else if (cam->v4l2_fb.flags == V4L2_FBUF_FLAG_PRIMARY)
+		err = prp_vf_sdc_deselect_bg(cam);
 
 	return err;
 }
@@ -1677,7 +1701,7 @@ static int mxc_v4l_close(struct file *file)
 	}
 
 	/* for the case somebody hit the ctrl C */
-	if (cam->overlay_pid == current->pid) {
+	if (cam->overlay_pid == current->pid && cam->overlay_on) {
 		err = stop_preview(cam);
 		cam->overlay_on = false;
 	}
