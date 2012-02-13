@@ -86,8 +86,8 @@ static void platform_perfmon_init(void)
 	if (init)
 		return;
 
-	if (mx6q_revision() == IMX_CHIP_REVISION_1_0)
-		/* GPR11 bit[16] must be set for TO1.0, it's a bug */
+	if (mx6q_revision() == IMX_CHIP_REVISION_1_0 || cpu_is_mx6dl())
+		/* GPR11 bit[16] must be set for TO1.0(6q & 6dl), it's a bug */
 		mxc_iomux_set_gpr_register(11, 16, 1, 1);
 
 	mxc_iomux_set_gpr_register(11, 0, 1, 1);
