@@ -1746,7 +1746,6 @@ static struct clk vdoa_clk = {
 
 static unsigned long _clk_gpt_get_rate(struct clk *clk)
 {
-	u32 reg;
 	unsigned long rate;
 
 	if (mx6q_revision() == IMX_CHIP_REVISION_1_0)
