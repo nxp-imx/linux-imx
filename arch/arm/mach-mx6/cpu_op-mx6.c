@@ -28,19 +28,11 @@ static struct cpu_op mx6_cpu_op_1G[] = {
 	{
 	 .pll_rate = 996000000,
 	 .cpu_rate = 996000000,
-	 .pdf = 0,
-	 .mfi = 10,
-	 .mfd = 11,
-	 .mfn = 5,
 	 .cpu_podf = 0,
 	 .cpu_voltage = 1225000,},
 	{
 	 .pll_rate = 792000000,
 	 .cpu_rate = 792000000,
-	 .pdf = 0,
-	 .mfi = 8,
-	 .mfd = 2,
-	 .mfn = 1,
 	 .cpu_podf = 0,
 	 .cpu_voltage = 1100000,},
 	{
@@ -63,10 +55,6 @@ static struct cpu_op mx6_cpu_op[] = {
 	{
 	 .pll_rate = 792000000,
 	 .cpu_rate = 792000000,
-	 .pdf = 0,
-	 .mfi = 8,
-	 .mfd = 2,
-	 .mfn = 1,
 	 .cpu_podf = 0,
 	 .cpu_voltage = 1100000,},
 	 {
@@ -86,19 +74,11 @@ static struct cpu_op mx6dl_cpu_op_1G[] = {
 	{
 	 .pll_rate = 996000000,
 	 .cpu_rate = 996000000,
-	 .pdf = 0,
-	 .mfi = 10,
-	 .mfd = 11,
-	 .mfn = 5,
 	 .cpu_podf = 0,
 	 .cpu_voltage = 1225000,},
 	{
 	 .pll_rate = 792000000,
 	 .cpu_rate = 792000000,
-	 .pdf = 0,
-	 .mfi = 8,
-	 .mfd = 2,
-	 .mfn = 1,
 	 .cpu_podf = 0,
 	 .cpu_voltage = 1100000,},
 	 {
@@ -117,10 +97,6 @@ static struct cpu_op mx6dl_cpu_op[] = {
 	{
 	 .pll_rate = 792000000,
 	 .cpu_rate = 792000000,
-	 .pdf = 0,
-	 .mfi = 8,
-	 .mfd = 2,
-	 .mfn = 1,
 	 .cpu_podf = 0,
 	 .cpu_voltage = 1100000,},
 	 {
