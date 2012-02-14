@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2011 Freescale Semiconductor, Inc.
+ * Copyright (C) 2010-2012 Freescale Semiconductor, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -49,6 +49,7 @@
 #include <linux/fsl_devices.h>
 #include <linux/bitops.h>
 #include <mach/epdc.h>
+#include <mach/dma.h>
 
 #include "epdc_regs.h"
 
@@ -59,9 +60,13 @@
 /*#define DEFAULT_PANEL_HW_INIT*/
 
 #define NUM_SCREENS_MIN	2
-#define EPDC_NUM_LUTS 16
-#define EPDC_MAX_NUM_UPDATES 20
-#define INVALID_LUT -1
+
+#define EPDC_V1_NUM_LUTS	16
+#define EPDC_V1_MAX_NUM_UPDATES 20
+#define EPDC_V2_NUM_LUTS	64
+#define EPDC_V2_MAX_NUM_UPDATES 64
+#define INVALID_LUT		(-1)
+#define DRY_RUN_NO_LUT		100
 
 #define DEFAULT_TEMP_INDEX	0
 #define DEFAULT_TEMP		20 /* room temp in deg Celsius */
@@ -84,6 +89,7 @@ struct update_marker_data {
 	u32 update_marker;
 	struct completion update_completion;
 	int lut_num;
+	bool collision_test;
 	bool waiting;
 };
 
@@ -91,6 +97,7 @@ struct update_desc_list {
 	struct list_head list;
 	struct mxcfb_update_data upd_data;/* Update parameters */
 	u32 epdc_offs;		/* Added to buffer ptr to resolve alignment */
+	u32 epdc_stride;	/* Depends on rotation & whether we skip PxP */
 	struct list_head upd_marker_list; /* List of markers for this update */
 	u32 update_order;	/* Numeric ordering value for update */
 };
@@ -100,12 +107,12 @@ struct update_desc_list {
  * update processing task, and the update description (mode, region, etc.) */
 struct update_data_list {
 	struct list_head list;
-	dma_addr_t phys_addr;		/* Pointer to phys address of processed Y buf */
+	dma_addr_t phys_addr;	/* Pointer to phys address of processed Y buf */
 	void *virt_addr;
 	struct update_desc_list *update_desc;
-	int lut_num;			/* Assigned before update is processed into working buffer */
-	int collision_mask;		/* Set when update results in collision */
-					/* Represents other LUTs that we collide with */
+	int lut_num;		/* Assigned before update is processed into working buffer */
+	u64 collision_mask;	/* Set when update creates collision */
+				/* Mask of the LUTs the update collides with */
 };
 
 struct mxc_epdc_fb_data {
@@ -137,8 +144,11 @@ struct mxc_epdc_fb_data {
 	struct regulator *vcom_regulator;
 	struct regulator *v3p3_regulator;
 	bool fw_default_load;
+	int rev;
 
 	/* FB elements related to EPDC updates */
+	int num_luts;
+	int max_num_updates;
 	bool in_init;
 	bool hw_ready;
 	bool waiting_for_idle;
@@ -154,6 +164,7 @@ struct mxc_epdc_fb_data {
 	int temp_index;
 	u8 *temp_range_bounds;
 	struct mxcfb_waveform_modes wv_modes;
+	bool wv_modes_update;
 	u32 *waveform_buffer_virt;
 	u32 waveform_buffer_phys;
 	u32 waveform_buffer_size;
@@ -164,8 +175,9 @@ struct mxc_epdc_fb_data {
 	void *virt_addr_copybuf;	/* Used for PxP SW workaround */
 	u32 order_cnt;
 	struct list_head full_marker_list;
-	u32 lut_update_order[EPDC_NUM_LUTS];
-	u32 luts_complete_wb;
+	u32 *lut_update_order;		/* Array size = number of luts */
+	u64 epdc_colliding_luts;
+	u64 luts_complete_wb;
 	struct completion updates_done;
 	struct delayed_work epdc_done_work;
 	struct workqueue_struct *epdc_submit_workqueue;
@@ -313,11 +325,13 @@ static void dump_epdc_reg(void)
 	printk(KERN_DEBUG "EPDC_FORMAT 0x%x\n", __raw_readl(EPDC_FORMAT));
 	printk(KERN_DEBUG "EPDC_FIFOCTRL 0x%x\n", __raw_readl(EPDC_FIFOCTRL));
 	printk(KERN_DEBUG "EPDC_UPD_ADDR 0x%x\n", __raw_readl(EPDC_UPD_ADDR));
+	printk(KERN_DEBUG "EPDC_UPD_STRIDE 0x%x\n", __raw_readl(EPDC_UPD_STRIDE));
 	printk(KERN_DEBUG "EPDC_UPD_FIXED 0x%x\n", __raw_readl(EPDC_UPD_FIXED));
 	printk(KERN_DEBUG "EPDC_UPD_CORD 0x%x\n", __raw_readl(EPDC_UPD_CORD));
 	printk(KERN_DEBUG "EPDC_UPD_SIZE 0x%x\n", __raw_readl(EPDC_UPD_SIZE));
 	printk(KERN_DEBUG "EPDC_UPD_CTRL 0x%x\n", __raw_readl(EPDC_UPD_CTRL));
 	printk(KERN_DEBUG "EPDC_TEMP 0x%x\n", __raw_readl(EPDC_TEMP));
+	printk(KERN_DEBUG "EPDC_AUTOWV_LUT 0x%x\n", __raw_readl(EPDC_AUTOWV_LUT));
 	printk(KERN_DEBUG "EPDC_TCE_CTRL 0x%x\n", __raw_readl(EPDC_TCE_CTRL));
 	printk(KERN_DEBUG "EPDC_TCE_SDCFG 0x%x\n", __raw_readl(EPDC_TCE_SDCFG));
 	printk(KERN_DEBUG "EPDC_TCE_GDCFG 0x%x\n", __raw_readl(EPDC_TCE_GDCFG));
@@ -329,29 +343,33 @@ static void dump_epdc_reg(void)
 	printk(KERN_DEBUG "EPDC_TCE_TIMING1 0x%x\n", __raw_readl(EPDC_TCE_TIMING1));
 	printk(KERN_DEBUG "EPDC_TCE_TIMING2 0x%x\n", __raw_readl(EPDC_TCE_TIMING2));
 	printk(KERN_DEBUG "EPDC_TCE_TIMING3 0x%x\n", __raw_readl(EPDC_TCE_TIMING3));
+	printk(KERN_DEBUG "EPDC_PIGEON_CTRL0 0x%x\n", __raw_readl(EPDC_PIGEON_CTRL0));
+	printk(KERN_DEBUG "EPDC_PIGEON_CTRL1 0x%x\n", __raw_readl(EPDC_PIGEON_CTRL1));
+	printk(KERN_DEBUG "EPDC_IRQ_MASK1 0x%x\n", __raw_readl(EPDC_IRQ_MASK1));
+	printk(KERN_DEBUG "EPDC_IRQ_MASK2 0x%x\n", __raw_readl(EPDC_IRQ_MASK2));
+	printk(KERN_DEBUG "EPDC_IRQ1 0x%x\n", __raw_readl(EPDC_IRQ1));
+	printk(KERN_DEBUG "EPDC_IRQ2 0x%x\n", __raw_readl(EPDC_IRQ2));
 	printk(KERN_DEBUG "EPDC_IRQ_MASK 0x%x\n", __raw_readl(EPDC_IRQ_MASK));
 	printk(KERN_DEBUG "EPDC_IRQ 0x%x\n", __raw_readl(EPDC_IRQ));
 	printk(KERN_DEBUG "EPDC_STATUS_LUTS 0x%x\n", __raw_readl(EPDC_STATUS_LUTS));
+	printk(KERN_DEBUG "EPDC_STATUS_LUTS2 0x%x\n", __raw_readl(EPDC_STATUS_LUTS2));
 	printk(KERN_DEBUG "EPDC_STATUS_NEXTLUT 0x%x\n", __raw_readl(EPDC_STATUS_NEXTLUT));
-	printk(KERN_DEBUG "EPDC_STATUS_COL 0x%x\n", __raw_readl(EPDC_STATUS_COL));
+	printk(KERN_DEBUG "EPDC_STATUS_COL1 0x%x\n", __raw_readl(EPDC_STATUS_COL));
+	printk(KERN_DEBUG "EPDC_STATUS_COL2 0x%x\n", __raw_readl(EPDC_STATUS_COL2));
 	printk(KERN_DEBUG "EPDC_STATUS 0x%x\n", __raw_readl(EPDC_STATUS));
+	printk(KERN_DEBUG "EPDC_UPD_COL_CORD 0x%x\n", __raw_readl(EPDC_UPD_COL_CORD));
+	printk(KERN_DEBUG "EPDC_UPD_COL_SIZE 0x%x\n", __raw_readl(EPDC_UPD_COL_SIZE));
 	printk(KERN_DEBUG "EPDC_DEBUG 0x%x\n", __raw_readl(EPDC_DEBUG));
-	printk(KERN_DEBUG "EPDC_DEBUG_LUT0 0x%x\n", __raw_readl(EPDC_DEBUG_LUT0));
-	printk(KERN_DEBUG "EPDC_DEBUG_LUT1 0x%x\n", __raw_readl(EPDC_DEBUG_LUT1));
-	printk(KERN_DEBUG "EPDC_DEBUG_LUT2 0x%x\n", __raw_readl(EPDC_DEBUG_LUT2));
-	printk(KERN_DEBUG "EPDC_DEBUG_LUT3 0x%x\n", __raw_readl(EPDC_DEBUG_LUT3));
-	printk(KERN_DEBUG "EPDC_DEBUG_LUT4 0x%x\n", __raw_readl(EPDC_DEBUG_LUT4));
-	printk(KERN_DEBUG "EPDC_DEBUG_LUT5 0x%x\n", __raw_readl(EPDC_DEBUG_LUT5));
-	printk(KERN_DEBUG "EPDC_DEBUG_LUT6 0x%x\n", __raw_readl(EPDC_DEBUG_LUT6));
-	printk(KERN_DEBUG "EPDC_DEBUG_LUT7 0x%x\n", __raw_readl(EPDC_DEBUG_LUT7));
-	printk(KERN_DEBUG "EPDC_DEBUG_LUT8 0x%x\n", __raw_readl(EPDC_DEBUG_LUT8));
-	printk(KERN_DEBUG "EPDC_DEBUG_LUT9 0x%x\n", __raw_readl(EPDC_DEBUG_LUT9));
-	printk(KERN_DEBUG "EPDC_DEBUG_LUT10 0x%x\n", __raw_readl(EPDC_DEBUG_LUT10));
-	printk(KERN_DEBUG "EPDC_DEBUG_LUT11 0x%x\n", __raw_readl(EPDC_DEBUG_LUT11));
-	printk(KERN_DEBUG "EPDC_DEBUG_LUT12 0x%x\n", __raw_readl(EPDC_DEBUG_LUT12));
-	printk(KERN_DEBUG "EPDC_DEBUG_LUT13 0x%x\n", __raw_readl(EPDC_DEBUG_LUT13));
-	printk(KERN_DEBUG "EPDC_DEBUG_LUT14 0x%x\n", __raw_readl(EPDC_DEBUG_LUT14));
-	printk(KERN_DEBUG "EPDC_DEBUG_LUT15 0x%x\n", __raw_readl(EPDC_DEBUG_LUT15));
+	printk(KERN_DEBUG "EPDC_DEBUG_LUT 0x%x\n", __raw_readl(EPDC_DEBUG_LUT));
+	printk(KERN_DEBUG "EPDC_HIST1_PARAM 0x%x\n", __raw_readl(EPDC_HIST1_PARAM));
+	printk(KERN_DEBUG "EPDC_HIST2_PARAM 0x%x\n", __raw_readl(EPDC_HIST2_PARAM));
+	printk(KERN_DEBUG "EPDC_HIST4_PARAM 0x%x\n", __raw_readl(EPDC_HIST4_PARAM));
+	printk(KERN_DEBUG "EPDC_HIST8_PARAM0 0x%x\n", __raw_readl(EPDC_HIST8_PARAM0));
+	printk(KERN_DEBUG "EPDC_HIST8_PARAM1 0x%x\n", __raw_readl(EPDC_HIST8_PARAM1));
+	printk(KERN_DEBUG "EPDC_HIST16_PARAM0 0x%x\n", __raw_readl(EPDC_HIST16_PARAM0));
+	printk(KERN_DEBUG "EPDC_HIST16_PARAM1 0x%x\n", __raw_readl(EPDC_HIST16_PARAM1));
+	printk(KERN_DEBUG "EPDC_HIST16_PARAM2 0x%x\n", __raw_readl(EPDC_HIST16_PARAM2));
+	printk(KERN_DEBUG "EPDC_HIST16_PARAM3 0x%x\n", __raw_readl(EPDC_HIST16_PARAM3));
 	printk(KERN_DEBUG "EPDC_GPIO 0x%x\n", __raw_readl(EPDC_GPIO));
 	printk(KERN_DEBUG "EPDC_VERSION 0x%x\n", __raw_readl(EPDC_VERSION));
 	printk(KERN_DEBUG "\n\n");
@@ -362,7 +380,7 @@ static void dump_update_data(struct device *dev,
 {
 	dev_info(dev,
 		"X = %d, Y = %d, Width = %d, Height = %d, WaveMode = %d, "
-		"LUT = %d, Coll Mask = 0x%x, order = %d\n",
+		"LUT = %d, Coll Mask = 0x%llx, order = %d\n",
 		upd_data_list->update_desc->upd_data.update_region.left,
 		upd_data_list->update_desc->upd_data.update_region.top,
 		upd_data_list->update_desc->upd_data.update_region.width,
@@ -467,12 +485,29 @@ static inline void dump_all_updates(struct mxc_epdc_fb_data *fb_data) {}
  * Start Low-Level EPDC Functions
  ********************************************************/
 
-static inline void epdc_lut_complete_intr(u32 lut_num, bool enable)
+static inline void epdc_lut_complete_intr(int rev, u32 lut_num, bool enable)
 {
-	if (enable)
-		__raw_writel(1 << lut_num, EPDC_IRQ_MASK_SET);
-	else
-		__raw_writel(1 << lut_num, EPDC_IRQ_MASK_CLEAR);
+	if (rev < 20) {
+		if (enable)
+			__raw_writel(1 << lut_num, EPDC_IRQ_MASK_SET);
+		else
+			__raw_writel(1 << lut_num, EPDC_IRQ_MASK_CLEAR);
+	} else {
+		if (enable) {
+			if (lut_num < 32)
+				__raw_writel(1 << lut_num, EPDC_IRQ_MASK1_SET);
+			else
+				__raw_writel(1 << (lut_num - 32),
+					EPDC_IRQ_MASK2_SET);
+		} else {
+			if (lut_num < 32)
+				__raw_writel(1 << lut_num,
+					EPDC_IRQ_MASK1_CLEAR);
+			else
+				__raw_writel(1 << (lut_num - 32),
+					EPDC_IRQ_MASK2_CLEAR);
+		}
+	}
 }
 
 static inline void epdc_working_buf_intr(bool enable)
@@ -536,8 +571,40 @@ static inline void epdc_set_update_dimensions(u32 width, u32 height)
 	__raw_writel(val, EPDC_UPD_SIZE);
 }
 
+static void epdc_set_update_waveform(struct mxcfb_waveform_modes *wv_modes)
+{
+	u32 val;
+
+	/* Configure the auto-waveform look-up table based on waveform modes */
+
+	/* Entry 1 = DU, 2 = GC4, 3 = GC8, etc. */
+	val = (wv_modes->mode_du << EPDC_AUTOWV_LUT_DATA_OFFSET) |
+		(0 << EPDC_AUTOWV_LUT_ADDR_OFFSET);
+	__raw_writel(val, EPDC_AUTOWV_LUT);
+	val = (wv_modes->mode_du << EPDC_AUTOWV_LUT_DATA_OFFSET) |
+		(1 << EPDC_AUTOWV_LUT_ADDR_OFFSET);
+	__raw_writel(val, EPDC_AUTOWV_LUT);
+	val = (wv_modes->mode_gc4 << EPDC_AUTOWV_LUT_DATA_OFFSET) |
+		(2 << EPDC_AUTOWV_LUT_ADDR_OFFSET);
+	__raw_writel(val, EPDC_AUTOWV_LUT);
+	val = (wv_modes->mode_gc8 << EPDC_AUTOWV_LUT_DATA_OFFSET) |
+		(3 << EPDC_AUTOWV_LUT_ADDR_OFFSET);
+	__raw_writel(val, EPDC_AUTOWV_LUT);
+	val = (wv_modes->mode_gc16 << EPDC_AUTOWV_LUT_DATA_OFFSET) |
+		(4 << EPDC_AUTOWV_LUT_ADDR_OFFSET);
+	__raw_writel(val, EPDC_AUTOWV_LUT);
+	val = (wv_modes->mode_gc32 << EPDC_AUTOWV_LUT_DATA_OFFSET) |
+		(5 << EPDC_AUTOWV_LUT_ADDR_OFFSET);
+	__raw_writel(val, EPDC_AUTOWV_LUT);
+}
+
+static void epdc_set_update_stride(u32 stride)
+{
+	__raw_writel(stride, EPDC_UPD_STRIDE);
+}
+
 static void epdc_submit_update(u32 lut_num, u32 waveform_mode, u32 update_mode,
-			       bool use_test_mode, u32 np_val)
+			       bool use_dry_run, bool use_test_mode, u32 np_val)
 {
 	u32 reg_val = 0;
 
@@ -553,40 +620,74 @@ static void epdc_submit_update(u32 lut_num, u32 waveform_mode, u32 update_mode,
 		__raw_writel(reg_val, EPDC_UPD_FIXED);
 	}
 
-	reg_val |=
+	if (waveform_mode == WAVEFORM_MODE_AUTO)
+		reg_val |= EPDC_UPD_CTRL_AUTOWV;
+	else
+		reg_val |= ((waveform_mode <<
+				EPDC_UPD_CTRL_WAVEFORM_MODE_OFFSET) &
+				EPDC_UPD_CTRL_WAVEFORM_MODE_MASK);
+
+	reg_val |= (use_dry_run ? EPDC_UPD_CTRL_DRY_RUN : 0) |
 	    ((lut_num << EPDC_UPD_CTRL_LUT_SEL_OFFSET) &
 	     EPDC_UPD_CTRL_LUT_SEL_MASK) |
-	    ((waveform_mode << EPDC_UPD_CTRL_WAVEFORM_MODE_OFFSET) &
-	     EPDC_UPD_CTRL_WAVEFORM_MODE_MASK) |
 	    update_mode;
 
 	__raw_writel(reg_val, EPDC_UPD_CTRL);
 }
 
-static inline bool epdc_is_lut_complete(u32 lut_num)
+static inline bool epdc_is_lut_complete(int rev, u32 lut_num)
 {
-	u32 val = __raw_readl(EPDC_IRQ);
-	bool is_compl = val & (1 << lut_num) ? true : false;
+	u32 val;
+	bool is_compl;
+	if (rev < 20) {
+		val = __raw_readl(EPDC_IRQ);
+		is_compl = val & (1 << lut_num) ? true : false;
+	} else if (lut_num < 32) {
+		val = __raw_readl(EPDC_IRQ1);
+		is_compl = val & (1 << lut_num) ? true : false;
+	} else {
+		val = __raw_readl(EPDC_IRQ2);
+		is_compl = val & (1 << (lut_num - 32)) ? true : false;
+	}
 
 	return is_compl;
 }
 
-static inline void epdc_clear_lut_complete_irq(u32 lut_num)
+static inline void epdc_clear_lut_complete_irq(int rev, u32 lut_num)
 {
-	__raw_writel(1 << lut_num, EPDC_IRQ_CLEAR);
+	if (rev < 20)
+		__raw_writel(1 << lut_num, EPDC_IRQ_CLEAR);
+	else if (lut_num < 32)
+		__raw_writel(1 << lut_num, EPDC_IRQ1_CLEAR);
+	else
+		__raw_writel(1 << (lut_num - 32), EPDC_IRQ2_CLEAR);
 }
 
 static inline bool epdc_is_lut_active(u32 lut_num)
 {
-	u32 val = __raw_readl(EPDC_STATUS_LUTS);
-	bool is_active = val & (1 << lut_num) ? true : false;
+	u32 val;
+	bool is_active;
+
+	if (lut_num < 32) {
+		val = __raw_readl(EPDC_STATUS_LUTS);
+		is_active = val & (1 << lut_num) ? true : false;
+	} else {
+		val = __raw_readl(EPDC_STATUS_LUTS2);
+		is_active = val & (1 << (lut_num - 32)) ? true : false;
+	}
 
 	return is_active;
 }
 
-static inline bool epdc_any_luts_active(void)
+static inline bool epdc_any_luts_active(int rev)
 {
-	bool any_active = __raw_readl(EPDC_STATUS_LUTS) ? true : false;
+	bool any_active;
+
+	if (rev < 20)
+		any_active = __raw_readl(EPDC_STATUS_LUTS) ? true : false;
+	else
+		any_active = (__raw_readl(EPDC_STATUS_LUTS) |
+			__raw_readl(EPDC_STATUS_LUTS2))	? true : false;
 
 	return any_active;
 }
@@ -607,14 +708,63 @@ static inline int epdc_get_next_lut(void)
 	return val;
 }
 
-static int epdc_choose_next_lut(int *next_lut)
+static int epdc_choose_next_lut(int rev, int *next_lut)
 {
-	u32 luts_status = __raw_readl(EPDC_STATUS_LUTS);
+	u64 luts_status, unprocessed_luts;
+	bool next_lut_found = false;
 
-	*next_lut = fls(luts_status & 0xFFFF);
+	luts_status = __raw_readl(EPDC_STATUS_LUTS);
+	if (rev < 20)
+		luts_status &= 0xFFFF;
+	else
+		luts_status |= ((u64)__raw_readl(EPDC_STATUS_LUTS2) << 32);
 
-	if (*next_lut > 15)
-		*next_lut = ffz(luts_status & 0xFFFF);
+	if (rev < 20)
+		unprocessed_luts = __raw_readl(EPDC_IRQ) & 0xFFFF;
+	else
+		unprocessed_luts = __raw_readl(EPDC_IRQ1) |
+			((u64)__raw_readl(EPDC_IRQ2) << 32);
+
+	while (!next_lut_found) {
+		/*
+		 * Selecting a LUT to minimize incidence of TCE Underrun Error
+		 * --------------------------------------------------------
+		 * We want to find the lowest order LUT that is of greater
+		 * order than all other active LUTs.  If highest order LUT
+		 * is active, then we want to choose the lowest order
+		 * available LUT.
+		 *
+		 * NOTE: For EPDC version 2.0 and later, TCE Underrun error
+		 *       bug is fixed, so it doesn't matter which LUT is used.
+		 */
+		*next_lut = fls64(luts_status);
+
+		if (rev < 20) {
+			if (*next_lut > 15)
+				*next_lut = ffz(luts_status);
+		} else {
+			if (*next_lut > 63) {
+				*next_lut = ffz((u32)luts_status);
+				if (*next_lut == -1)
+					*next_lut =
+						ffz((u32)(luts_status >> 32));
+			}
+		}
+
+		/*
+		 * Note on unprocessed_luts: There is a race condition
+		 * where a LUT completes, but has not been processed by
+		 * IRQ handler workqueue, and then a new update request
+		 * attempts to use that LUT.  We prevent that here by
+		 * ensuring that the LUT we choose doesn't have its IRQ
+		 * bit set (indicating it has completed but not yet been
+		 * processed).
+		 */
+		if ((1 << *next_lut) & unprocessed_luts)
+			luts_status |= (1 << *next_lut);
+		else
+			next_lut_found = true;
+	}
 
 	if (luts_status & 0x8000)
 		return 1;
@@ -638,15 +788,25 @@ static inline bool epdc_is_working_buffer_complete(void)
 	return is_compl;
 }
 
+static inline bool epdc_is_lut_cancelled(void)
+{
+	u32 val = __raw_readl(EPDC_STATUS);
+	bool is_void = (val & EPDC_STATUS_UPD_VOID) ? true : false;
+
+	return is_void;
+}
+
 static inline bool epdc_is_collision(void)
 {
 	u32 val = __raw_readl(EPDC_IRQ);
 	return (val & EPDC_IRQ_LUT_COL_IRQ) ? true : false;
 }
 
-static inline int epdc_get_colliding_luts(void)
+static inline u64 epdc_get_colliding_luts(int rev)
 {
 	u32 val = __raw_readl(EPDC_STATUS_COL);
+	if (rev >= 20)
+		val |= (u64)__raw_readl(EPDC_STATUS_COL2) << 32;
 	return val;
 }
 
@@ -687,6 +847,7 @@ void epdc_init_settings(struct mxc_epdc_fb_data *fb_data)
 	struct fb_var_screeninfo *screeninfo = &fb_data->epdc_fb_var;
 	u32 reg_val;
 	int num_ce;
+	int i;
 
 	/* Reset */
 	__raw_writel(EPDC_CTRL_SFTRST, EPDC_CTRL_SET);
@@ -729,6 +890,12 @@ void epdc_init_settings(struct mxc_epdc_fb_data *fb_data)
 
 	/* EPDC_RES */
 	epdc_set_screen_res(epdc_mode->vmode->xres, epdc_mode->vmode->yres);
+
+	/* EPDC_AUTOWV_LUT */
+	/* Initialize all auto-wavefrom look-up values to 2 - GC16 */
+	for (i = 0; i < 8; i++)
+		__raw_writel((2 << EPDC_AUTOWV_LUT_DATA_OFFSET) |
+			(i << EPDC_AUTOWV_LUT_ADDR_OFFSET), EPDC_AUTOWV_LUT);
 
 	/*
 	 * EPDC_TCE_CTRL
@@ -1091,11 +1258,9 @@ static int mxc_epdc_fb_setcmap(struct fb_cmap *cmap, struct fb_info *info)
 	return 0;
 }
 
-static void adjust_coordinates(struct mxc_epdc_fb_data *fb_data,
+static void adjust_coordinates(u32 xres, u32 yres, u32 rotation,
 	struct mxcfb_rect *update_region, struct mxcfb_rect *adj_update_region)
 {
-	struct fb_var_screeninfo *screeninfo = &fb_data->epdc_fb_var;
-	u32 rotation = fb_data->epdc_fb_var.rotate;
 	u32 temp;
 
 	/* If adj_update_region == NULL, pass result back in update_region */
@@ -1110,7 +1275,7 @@ static void adjust_coordinates(struct mxc_epdc_fb_data *fb_data,
 			break;
 		case FB_ROTATE_CW:
 			adj_update_region->top = update_region->left;
-			adj_update_region->left = screeninfo->yres -
+			adj_update_region->left = yres -
 				(update_region->top + update_region->height);
 			adj_update_region->width = update_region->height;
 			adj_update_region->height = update_region->width;
@@ -1118,14 +1283,14 @@ static void adjust_coordinates(struct mxc_epdc_fb_data *fb_data,
 		case FB_ROTATE_UD:
 			adj_update_region->width = update_region->width;
 			adj_update_region->height = update_region->height;
-			adj_update_region->top = screeninfo->yres -
+			adj_update_region->top = yres -
 				(update_region->top + update_region->height);
-			adj_update_region->left = screeninfo->xres -
+			adj_update_region->left = xres -
 				(update_region->left + update_region->width);
 			break;
 		case FB_ROTATE_CCW:
 			adj_update_region->left = update_region->top;
-			adj_update_region->top = screeninfo->xres -
+			adj_update_region->top = xres -
 				(update_region->left + update_region->width);
 			adj_update_region->width = update_region->height;
 			adj_update_region->height = update_region->width;
@@ -1139,22 +1304,22 @@ static void adjust_coordinates(struct mxc_epdc_fb_data *fb_data,
 		case FB_ROTATE_CW:
 			temp = update_region->top;
 			update_region->top = update_region->left;
-			update_region->left = screeninfo->yres -
+			update_region->left = yres -
 				(temp + update_region->height);
 			temp = update_region->width;
 			update_region->width = update_region->height;
 			update_region->height = temp;
 			break;
 		case FB_ROTATE_UD:
-			update_region->top = screeninfo->yres -
+			update_region->top = yres -
 				(update_region->top + update_region->height);
-			update_region->left = screeninfo->xres -
+			update_region->left = xres -
 				(update_region->left + update_region->width);
 			break;
 		case FB_ROTATE_CCW:
 			temp = update_region->left;
 			update_region->left = update_region->top;
-			update_region->top = screeninfo->xres -
+			update_region->top = xres -
 				(temp + update_region->width);
 			temp = update_region->width;
 			update_region->width = update_region->height;
@@ -1495,7 +1660,15 @@ void mxc_epdc_fb_set_waveform_modes(struct mxcfb_waveform_modes *modes,
 	struct mxc_epdc_fb_data *fb_data = info ?
 		(struct mxc_epdc_fb_data *)info:g_fb_data;
 
+	mutex_lock(&fb_data->queue_mutex);
+
 	memcpy(&fb_data->wv_modes, modes, sizeof(struct mxcfb_waveform_modes));
+
+	/* Set flag to ensure that new waveform modes
+	 * are programmed into EPDC before next update */
+	fb_data->wv_modes_update = true;
+
+	mutex_unlock(&fb_data->queue_mutex);
 }
 EXPORT_SYMBOL(mxc_epdc_fb_set_waveform_modes);
 
@@ -1674,6 +1847,7 @@ static int epdc_process_update(struct update_data_list *upd_data_list,
 	/*
 	 * Gotta do a whole bunch of buffer ptr manipulation to
 	 * work around HW restrictions for PxP & EPDC
+	 * Note: Applies to pre-2.0 versions of EPDC/PxP
 	 */
 
 	/*
@@ -1693,7 +1867,7 @@ static int epdc_process_update(struct update_data_list *upd_data_list,
 	bytes_per_pixel = fb_data->epdc_fb_var.bits_per_pixel/8;
 
 	/*
-	 * SW workaround for PxP limitation
+	 * SW workaround for PxP limitation (for pre-v2.0 HW)
 	 *
 	 * There are 3 cases where we cannot process the update data
 	 * directly from the input buffer:
@@ -1738,9 +1912,9 @@ static int epdc_process_update(struct update_data_list *upd_data_list,
 	 * to copybuf in addition to the PxP structures */
 	mutex_lock(&fb_data->pxp_mutex);
 
-	if (((width_unaligned || height_unaligned || input_unaligned) &&
+	if ((((width_unaligned || height_unaligned || input_unaligned) &&
 		(upd_desc_list->upd_data.waveform_mode == WAVEFORM_MODE_AUTO))
-		|| line_overflow) {
+		|| line_overflow) && (fb_data->rev < 20)) {
 
 		dev_dbg(fb_data->dev, "Copying update before processing.\n");
 
@@ -1764,34 +1938,42 @@ static int epdc_process_update(struct update_data_list *upd_data_list,
 	}
 
 	/*
-	 * Compute buffer offset to account for
-	 * PxP limitation (input must be 32-bit aligned)
+	 * For pre-2.0 HW, input address must be 32-bit aligned
+	 * Compute buffer offset to account for this PxP limitation
 	 */
 	offset_from_4 = src_upd_region->left & 0x3;
 	input_unaligned = ((offset_from_4 * bytes_per_pixel % 4) != 0) ?
 				true : false;
-	if (input_unaligned) {
+	if ((fb_data->rev < 20) && input_unaligned) {
 		/* Leave a gap between PxP input addr and update region pixels */
 		pxp_input_offs =
 			(src_upd_region->top * src_width + src_upd_region->left)
 			* bytes_per_pixel & 0xFFFFFFFC;
-		/* Update region should change to reflect relative position to input ptr */
-		pxp_upd_region.top = 0;
+		/* Update region left changes to reflect relative position to input ptr */
 		pxp_upd_region.left = (offset_from_4 * bytes_per_pixel % 4)
 					/ bytes_per_pixel;
 	} else {
 		pxp_input_offs =
 			(src_upd_region->top * src_width + src_upd_region->left)
 			* bytes_per_pixel;
-		/* Update region should change to reflect relative position to input ptr */
-		pxp_upd_region.top = 0;
 		pxp_upd_region.left = 0;
 	}
 
-	/* Update region dimensions to meet 8x8 pixel requirement */
-	pxp_upd_region.width =
-		ALIGN(src_upd_region->width + pxp_upd_region.left, 8);
-	pxp_upd_region.height = ALIGN(src_upd_region->height, 8);
+	pxp_upd_region.top = 0;
+
+	/*
+	 * For version 2.0 and later of EPDC & PxP, if no rotation, we don't
+	 * need to align width & height (rotation always requires 8-pixel
+	 * width & height alignment, per PxP limitations)
+	 */
+	if ((fb_data->epdc_fb_var.rotate == 0) && (fb_data->rev >= 20)) {
+		pxp_upd_region.width = src_upd_region->width;
+		pxp_upd_region.height = src_upd_region->height;
+	} else {
+		/* Update region dimensions to meet 8x8 pixel requirement */
+		pxp_upd_region.width = ALIGN(src_upd_region->width + pxp_upd_region.left, 8);
+		pxp_upd_region.height = ALIGN(src_upd_region->height, 8);
+	}
 
 	switch (fb_data->epdc_fb_var.rotate) {
 	case FB_ROTATE_UR:
@@ -1821,13 +2003,23 @@ static int epdc_process_update(struct update_data_list *upd_data_list,
 	pxp_upd_region.top &= ~0x7;
 	pxp_upd_region.left &= ~0x7;
 
-	pxp_output_shift = ALIGN(post_rotation_xcoord, 8)
-		- post_rotation_xcoord;
+	if (fb_data->rev < 20) {
+		pxp_output_shift = ALIGN(post_rotation_xcoord, 8)
+			- post_rotation_xcoord;
 
-	pxp_output_offs = post_rotation_ycoord * width_pxp_blocks
-		+ pxp_output_shift;
+		pxp_output_offs = post_rotation_ycoord * width_pxp_blocks
+			+ pxp_output_shift;
 
-	upd_desc_list->epdc_offs = ALIGN(pxp_output_offs, 8);
+		upd_desc_list->epdc_offs = ALIGN(pxp_output_offs, 8);
+	} else {
+		pxp_output_shift = 0;
+		pxp_output_offs = post_rotation_ycoord * width_pxp_blocks
+			+ post_rotation_xcoord;
+
+		upd_desc_list->epdc_offs = pxp_output_offs;
+	}
+
+	upd_desc_list->epdc_stride = width_pxp_blocks;
 
 	/* Source address either comes from alternate buffer
 	   provided in update data, or from the framebuffer. */
@@ -1864,10 +2056,9 @@ static int epdc_process_update(struct update_data_list *upd_data_list,
 	if (upd_desc_list->upd_data.flags & EPDC_FLAG_FORCE_MONOCHROME)
 		fb_data->pxp_conf.proc_data.lut_transform |=
 			PXP_LUT_BLACK_WHITE;
-	if (upd_desc_list->upd_data.flags & EPDC_FLAG_USE_CMAP) {
+	if (upd_desc_list->upd_data.flags & EPDC_FLAG_USE_CMAP)
 		fb_data->pxp_conf.proc_data.lut_transform |=
 			PXP_LUT_USE_CMAP;
-	}
 
 	/*
 	 * Toggle inversion processing if 8-bit
@@ -1902,7 +2093,8 @@ static int epdc_process_update(struct update_data_list *upd_data_list,
 	mutex_unlock(&fb_data->pxp_mutex);
 
 	/* Update waveform mode from PxP histogram results */
-	if (upd_desc_list->upd_data.waveform_mode == WAVEFORM_MODE_AUTO) {
+	if ((fb_data->rev <= 20) &&
+		(upd_desc_list->upd_data.waveform_mode == WAVEFORM_MODE_AUTO)) {
 		if (hist_stat & 0x1)
 			upd_desc_list->upd_data.waveform_mode =
 				fb_data->wv_modes.mode_du;
@@ -1924,7 +2116,6 @@ static int epdc_process_update(struct update_data_list *upd_data_list,
 	}
 
 	return 0;
-
 }
 
 static int epdc_submit_merge(struct update_desc_list *upd_desc_list,
@@ -1939,6 +2130,11 @@ static int epdc_submit_merge(struct update_desc_list *upd_desc_list,
 	b = &update_to_merge->upd_data;
 	arect = &upd_desc_list->upd_data.update_region;
 	brect = &update_to_merge->upd_data.update_region;
+
+	/* Do not merge a dry-run collision test update */
+	if ((a->flags & EPDC_FLAG_TEST_COLLISION) ||
+		(b->flags & EPDC_FLAG_TEST_COLLISION))
+		return MERGE_BLOCK;
 
 	/*
 	 * Updates with different flags must be executed sequentially.
@@ -2008,8 +2204,10 @@ static void epdc_submit_work_func(struct work_struct *work)
 	struct mxc_epdc_fb_data *fb_data =
 		container_of(work, struct mxc_epdc_fb_data, epdc_submit_work);
 	struct update_data_list *upd_data_list = NULL;
-	struct mxcfb_rect adj_update_region;
+	struct mxcfb_rect adj_update_region, *upd_region;
 	bool end_merge = false;
+	bool is_transform;
+	u32 update_addr;
 	int ret;
 
 	/* Protect access to buffer queues and to update HW */
@@ -2138,36 +2336,79 @@ static void epdc_submit_work_func(struct work_struct *work)
 		}
 	}
 
-	/* Release buffer queues */
-	mutex_unlock(&fb_data->queue_mutex);
-
 	/* Is update list empty? */
-	if (!upd_data_list)
-		return;
-
-	/* Perform PXP processing - EPDC power will also be enabled */
-	if (epdc_process_update(upd_data_list, fb_data)) {
-		dev_dbg(fb_data->dev, "PXP processing error.\n");
-		/* Protect access to buffer queues and to update HW */
-		mutex_lock(&fb_data->queue_mutex);
-		list_del_init(&upd_data_list->update_desc->list);
-		kfree(upd_data_list->update_desc);
-		upd_data_list->update_desc = NULL;
-		/* Add to free buffer list */
-		list_add_tail(&upd_data_list->list,
-			&fb_data->upd_buf_free_list);
-		/* Release buffer queues */
+	if (!upd_data_list) {
 		mutex_unlock(&fb_data->queue_mutex);
 		return;
 	}
 
+	/*
+	 * If no processing required, skip update processing
+	 * No processing means:
+	 *   - FB unrotated
+	 *   - FB pixel format = 8-bit grayscale
+	 *   - No look-up transformations (inversion, posterization, etc.)
+	 *
+	 * Note: A bug with EPDC stride prevents us from skipping
+	 * PxP in versions 2.0 and earlier of EPDC.
+	 */
+	is_transform = upd_data_list->update_desc->upd_data.flags &
+		(EPDC_FLAG_ENABLE_INVERSION |
+		EPDC_FLAG_FORCE_MONOCHROME | EPDC_FLAG_USE_CMAP) ?
+		true : false;
+	if ((fb_data->epdc_fb_var.rotate == FB_ROTATE_UR) &&
+		(fb_data->epdc_fb_var.grayscale == GRAYSCALE_8BIT) &&
+		!is_transform && (fb_data->rev > 20)) {
+
+		/* If needed, enable EPDC HW while ePxP is processing */
+		if ((fb_data->power_state == POWER_STATE_OFF)
+			|| fb_data->powering_down)
+			epdc_powerup(fb_data);
+
+		/*
+		 * Set update buffer pointer to the start of
+		 * the update region in the frame buffer.
+		 */
+		upd_region = &upd_data_list->update_desc->upd_data.update_region;
+		update_addr = fb_data->info.fix.smem_start +
+			((upd_region->top * fb_data->info.var.xres_virtual) +
+			upd_region->left) * fb_data->info.var.bits_per_pixel/8;
+
+		upd_data_list->update_desc->epdc_stride =
+					fb_data->info.var.xres_virtual *
+					fb_data->info.var.bits_per_pixel/8;
+	} else {
+		/* Release buffer queues */
+		mutex_unlock(&fb_data->queue_mutex);
+
+		/* Perform PXP processing - EPDC power will also be enabled */
+		if (epdc_process_update(upd_data_list, fb_data)) {
+			dev_dbg(fb_data->dev, "PXP processing error.\n");
+			/* Protect access to buffer queues and to update HW */
+			mutex_lock(&fb_data->queue_mutex);
+			list_del_init(&upd_data_list->update_desc->list);
+			kfree(upd_data_list->update_desc);
+			upd_data_list->update_desc = NULL;
+			/* Add to free buffer list */
+			list_add_tail(&upd_data_list->list,
+				&fb_data->upd_buf_free_list);
+			/* Release buffer queues */
+			mutex_unlock(&fb_data->queue_mutex);
+			return;
+		}
+
+		/* Protect access to buffer queues and to update HW */
+		mutex_lock(&fb_data->queue_mutex);
+
+		update_addr = upd_data_list->phys_addr
+				+ upd_data_list->update_desc->epdc_offs;
+	}
+
 	/* Get rotation-adjusted coordinates */
-	adjust_coordinates(fb_data,
+	adjust_coordinates(fb_data->epdc_fb_var.xres,
+		fb_data->epdc_fb_var.yres, fb_data->epdc_fb_var.rotate,
 		&upd_data_list->update_desc->upd_data.update_region,
 		&adj_update_region);
-
-	/* Protect access to buffer queues and to update HW */
-	mutex_lock(&fb_data->queue_mutex);
 
 	/*
 	 * Is the working buffer idle?
@@ -2207,13 +2448,13 @@ static void epdc_submit_work_func(struct work_struct *work)
 		mutex_lock(&fb_data->queue_mutex);
 	}
 
-	ret = epdc_choose_next_lut(&upd_data_list->lut_num);
+	ret = epdc_choose_next_lut(fb_data->rev, &upd_data_list->lut_num);
 	/*
-	 * If LUT15 is in use:
+	 * If LUT15 is in use (for pre-EPDC v2.0 hardware):
 	 *   - Wait for LUT15 to complete is if TCE underrun prevent is enabled
 	 *   - If we go ahead with update, sync update submission with EOF
 	 */
-	if (ret && fb_data->tce_prevent) {
+	if (ret && fb_data->tce_prevent && (fb_data->rev < 20)) {
 		dev_dbg(fb_data->dev, "Waiting for LUT15\n");
 
 		/* Initialize event signalling that lut15 is free */
@@ -2226,8 +2467,8 @@ static void epdc_submit_work_func(struct work_struct *work)
 		wait_for_completion(&fb_data->lut15_free);
 		mutex_lock(&fb_data->queue_mutex);
 
-		epdc_choose_next_lut(&upd_data_list->lut_num);
-	} else if (ret) {
+		epdc_choose_next_lut(fb_data->rev, &upd_data_list->lut_num);
+	} else if (ret && (fb_data->rev < 20)) {
 		/* Synchronize update submission time to reduce
 		   chances of TCE underrun */
 		init_completion(&fb_data->eof_event);
@@ -2253,18 +2494,25 @@ static void epdc_submit_work_func(struct work_struct *work)
 	/* Reset mask for LUTS that have completed during WB processing */
 	fb_data->luts_complete_wb = 0;
 
-	/* Associate LUT with update marker */
-	list_for_each_entry_safe(next_marker, temp_marker,
-		&upd_data_list->update_desc->upd_marker_list, upd_list)
-		next_marker->lut_num = fb_data->cur_update->lut_num;
+	/* If we are just testing for collision, we don't assign a LUT,
+	 * so we don't need to update LUT-related resources. */
+	if (!(upd_data_list->update_desc->upd_data.flags
+		& EPDC_FLAG_TEST_COLLISION)) {
+		/* Associate LUT with update marker */
+		list_for_each_entry_safe(next_marker, temp_marker,
+			&upd_data_list->update_desc->upd_marker_list, upd_list)
+			next_marker->lut_num = fb_data->cur_update->lut_num;
 
-	/* Mark LUT with order */
-	fb_data->lut_update_order[upd_data_list->lut_num] =
-		upd_data_list->update_desc->update_order;
+		/* Mark LUT with order */
+		fb_data->lut_update_order[upd_data_list->lut_num] =
+			upd_data_list->update_desc->update_order;
+
+		epdc_lut_complete_intr(fb_data->rev, upd_data_list->lut_num,
+					true);
+	}
 
 	/* Enable Collision and WB complete IRQs */
 	epdc_working_buf_intr(true);
-	epdc_lut_complete_intr(upd_data_list->lut_num, true);
 
 	/* Program EPDC update to process buffer */
 	if (upd_data_list->update_desc->upd_data.temp != TEMP_USE_AMBIENT) {
@@ -2273,14 +2521,24 @@ static void epdc_submit_work_func(struct work_struct *work)
 		epdc_set_temp(temp_index);
 	} else
 		epdc_set_temp(fb_data->temp_index);
-	epdc_set_update_addr(upd_data_list->phys_addr
-				+ upd_data_list->update_desc->epdc_offs);
+	epdc_set_update_addr(update_addr);
 	epdc_set_update_coord(adj_update_region.left, adj_update_region.top);
 	epdc_set_update_dimensions(adj_update_region.width,
 				   adj_update_region.height);
+	if (fb_data->rev > 20)
+		epdc_set_update_stride(upd_data_list->update_desc->epdc_stride);
+	if (fb_data->wv_modes_update &&
+		(upd_data_list->update_desc->upd_data.waveform_mode
+			== WAVEFORM_MODE_AUTO)) {
+		epdc_set_update_waveform(&fb_data->wv_modes);
+		fb_data->wv_modes_update = false;
+	}
+
 	epdc_submit_update(upd_data_list->lut_num,
 			   upd_data_list->update_desc->upd_data.waveform_mode,
 			   upd_data_list->update_desc->upd_data.update_mode,
+			   (upd_data_list->update_desc->upd_data.flags
+				& EPDC_FLAG_TEST_COLLISION) ? true : false,
 			   false, 0);
 
 	/* Release buffer queues */
@@ -2433,7 +2691,10 @@ int mxc_epdc_fb_send_update(struct mxcfb_update_data *upd_data,
 		list_add_tail(&marker_data->upd_list,
 			&upd_desc->upd_marker_list);
 		marker_data->update_marker = upd_data->update_marker;
-		marker_data->lut_num = INVALID_LUT;
+		if (upd_desc->upd_data.flags & EPDC_FLAG_TEST_COLLISION)
+			marker_data->lut_num = DRY_RUN_NO_LUT;
+		else
+			marker_data->lut_num = INVALID_LUT;
 		init_completion(&marker_data->update_completion);
 		/* Add marker to master marker list */
 		list_add_tail(&marker_data->full_list,
@@ -2476,8 +2737,9 @@ int mxc_epdc_fb_send_update(struct mxcfb_update_data *upd_data,
 	upd_data->waveform_mode = upd_desc->upd_data.waveform_mode;
 
 	/* Get rotation-adjusted coordinates */
-	adjust_coordinates(fb_data, &upd_desc->upd_data.update_region,
-		NULL);
+	adjust_coordinates(fb_data->epdc_fb_var.xres,
+		fb_data->epdc_fb_var.yres, fb_data->epdc_fb_var.rotate,
+		&upd_desc->upd_data.update_region, NULL);
 
 	/* Grab lock for queue manipulation and update submission */
 	mutex_lock(&fb_data->queue_mutex);
@@ -2497,8 +2759,8 @@ int mxc_epdc_fb_send_update(struct mxcfb_update_data *upd_data,
 	}
 
 	/* LUTs are available, so we get one here */
-	ret = epdc_choose_next_lut(&upd_data_list->lut_num);
-	if (ret && fb_data->tce_prevent) {
+	ret = epdc_choose_next_lut(fb_data->rev, &upd_data_list->lut_num);
+	if (ret && fb_data->tce_prevent && (fb_data->rev < 20)) {
 		dev_dbg(fb_data->dev, "Must wait for LUT15\n");
 		/* Add processed Y buffer to update list */
 		list_add_tail(&upd_data_list->list, &fb_data->upd_buf_queue);
@@ -2508,47 +2770,64 @@ int mxc_epdc_fb_send_update(struct mxcfb_update_data *upd_data,
 		return 0;
 	}
 
-	/* Save current update */
-	fb_data->cur_update = upd_data_list;
+	if (!(upd_data_list->update_desc->upd_data.flags
+		& EPDC_FLAG_TEST_COLLISION)) {
 
-	/* Reset mask for LUTS that have completed during WB processing */
-	fb_data->luts_complete_wb = 0;
+		/* Save current update */
+		fb_data->cur_update = upd_data_list;
 
-	/* Associate LUT with update marker */
-	list_for_each_entry_safe(next_marker, temp_marker,
-		&upd_data_list->update_desc->upd_marker_list, upd_list)
-		next_marker->lut_num = upd_data_list->lut_num;
+		/* Reset mask for LUTS that have completed during WB processing */
+		fb_data->luts_complete_wb = 0;
 
-	/* Mark LUT as containing new update */
-	fb_data->lut_update_order[upd_data_list->lut_num] =
-		upd_desc->update_order;
+		/* Associate LUT with update marker */
+		list_for_each_entry_safe(next_marker, temp_marker,
+			&upd_data_list->update_desc->upd_marker_list, upd_list)
+			next_marker->lut_num = upd_data_list->lut_num;
+
+		/* Mark LUT as containing new update */
+		fb_data->lut_update_order[upd_data_list->lut_num] =
+			upd_desc->update_order;
+
+		epdc_lut_complete_intr(fb_data->rev, upd_data_list->lut_num,
+					true);
+	}
 
 	/* Clear status and Enable LUT complete and WB complete IRQs */
 	epdc_working_buf_intr(true);
-	epdc_lut_complete_intr(upd_data_list->lut_num, true);
 
 	/* Program EPDC update to process buffer */
 	epdc_set_update_addr(upd_data_list->phys_addr + upd_desc->epdc_offs);
 	epdc_set_update_coord(screen_upd_region->left, screen_upd_region->top);
 	epdc_set_update_dimensions(screen_upd_region->width,
 		screen_upd_region->height);
+	if (fb_data->rev > 20)
+		epdc_set_update_stride(upd_desc->epdc_stride);
 	if (upd_desc->upd_data.temp != TEMP_USE_AMBIENT) {
 		temp_index = mxc_epdc_fb_get_temp_index(fb_data,
 			upd_desc->upd_data.temp);
 		epdc_set_temp(temp_index);
 	} else
 		epdc_set_temp(fb_data->temp_index);
+	if (fb_data->wv_modes_update &&
+		(upd_desc->upd_data.waveform_mode == WAVEFORM_MODE_AUTO)) {
+		epdc_set_update_waveform(&fb_data->wv_modes);
+		fb_data->wv_modes_update = false;
+	}
 
 	epdc_submit_update(upd_data_list->lut_num,
 			   upd_desc->upd_data.waveform_mode,
-			   upd_desc->upd_data.update_mode, false, 0);
+			   upd_desc->upd_data.update_mode,
+			   (upd_desc->upd_data.flags
+				& EPDC_FLAG_TEST_COLLISION) ? true : false,
+			   false, 0);
 
 	mutex_unlock(&fb_data->queue_mutex);
 	return 0;
 }
 EXPORT_SYMBOL(mxc_epdc_fb_send_update);
 
-int mxc_epdc_fb_wait_update_complete(u32 update_marker, struct fb_info *info)
+int mxc_epdc_fb_wait_update_complete(struct mxcfb_update_marker_data *marker_data,
+						struct fb_info *info)
 {
 	struct mxc_epdc_fb_data *fb_data = info ?
 		(struct mxc_epdc_fb_data *)info:g_fb_data;
@@ -2558,7 +2837,7 @@ int mxc_epdc_fb_wait_update_complete(u32 update_marker, struct fb_info *info)
 	int ret = 0;
 
 	/* 0 is an invalid update_marker value */
-	if (update_marker == 0)
+	if (marker_data->update_marker == 0)
 		return -EINVAL;
 
 	/*
@@ -2572,9 +2851,9 @@ int mxc_epdc_fb_wait_update_complete(u32 update_marker, struct fb_info *info)
 
 	list_for_each_entry_safe(next_marker, temp,
 		&fb_data->full_marker_list, full_list) {
-		if (next_marker->update_marker == update_marker) {
+		if (next_marker->update_marker == marker_data->update_marker) {
 			dev_dbg(fb_data->dev, "Waiting for marker %d\n",
-				update_marker);
+				marker_data->update_marker);
 			next_marker->waiting = true;
 			marker_found = true;
 			break;
@@ -2597,6 +2876,8 @@ int mxc_epdc_fb_wait_update_complete(u32 update_marker, struct fb_info *info)
 			"Timed out waiting for update completion\n");
 		return -ETIMEDOUT;
 	}
+
+	marker_data->collision_test = next_marker->collision_test;
 
 	/* Free update marker object */
 	kfree(next_marker);
@@ -2683,11 +2964,18 @@ static int mxc_epdc_fb_ioctl(struct fb_info *info, unsigned int cmd,
 		}
 	case MXCFB_WAIT_FOR_UPDATE_COMPLETE:
 		{
-			u32 update_marker = 0;
-			if (!get_user(update_marker, (__u32 __user *) arg))
-				ret =
-				    mxc_epdc_fb_wait_update_complete(update_marker,
-					info);
+			struct mxcfb_update_marker_data upd_marker_data;
+			if (!copy_from_user(&upd_marker_data, argp,
+				sizeof(upd_marker_data))) {
+				ret = mxc_epdc_fb_wait_update_complete(
+					&upd_marker_data, info);
+				if (copy_to_user(argp, &upd_marker_data,
+					sizeof(upd_marker_data)))
+					ret = -EFAULT;
+			} else {
+				ret = -EFAULT;
+			}
+
 			break;
 		}
 
@@ -2946,7 +3234,7 @@ static bool is_free_list_full(struct mxc_epdc_fb_data *fb_data)
 		count++;
 
 	/* Check to see if all buffers are in this list */
-	if (count == EPDC_MAX_NUM_UPDATES)
+	if (count == fb_data->max_num_updates)
 		return true;
 	else
 		return false;
@@ -2955,7 +3243,7 @@ static bool is_free_list_full(struct mxc_epdc_fb_data *fb_data)
 static irqreturn_t mxc_epdc_irq_handler(int irq, void *dev_id)
 {
 	struct mxc_epdc_fb_data *fb_data = dev_id;
-	u32 ints_fired;
+	u32 ints_fired, luts1_ints_fired, luts2_ints_fired;
 
 	/*
 	 * If we just completed one-time panel init, bypass
@@ -2968,9 +3256,9 @@ static irqreturn_t mxc_epdc_irq_handler(int irq, void *dev_id)
 			dev_dbg(fb_data->dev, "Cleared WB for init update\n");
 		}
 
-		if (epdc_is_lut_complete(0)) {
-			epdc_lut_complete_intr(0, false);
-			epdc_clear_lut_complete_irq(0);
+		if (epdc_is_lut_complete(fb_data->rev, 0)) {
+			epdc_lut_complete_intr(fb_data->rev, 0, false);
+			epdc_clear_lut_complete_irq(fb_data->rev, 0);
 			fb_data->in_init = false;
 			dev_dbg(fb_data->dev, "Cleared LUT complete for init update\n");
 		}
@@ -2978,7 +3266,16 @@ static irqreturn_t mxc_epdc_irq_handler(int irq, void *dev_id)
 		return IRQ_HANDLED;
 	}
 
-	if (!(__raw_readl(EPDC_IRQ_MASK) & __raw_readl(EPDC_IRQ)))
+	ints_fired = __raw_readl(EPDC_IRQ_MASK) & __raw_readl(EPDC_IRQ);
+	if (fb_data->rev < 20) {
+		luts1_ints_fired = 0;
+		luts2_ints_fired = 0;
+	} else {
+		luts1_ints_fired = __raw_readl(EPDC_IRQ_MASK1) & __raw_readl(EPDC_IRQ1);
+		luts2_ints_fired = __raw_readl(EPDC_IRQ_MASK2) & __raw_readl(EPDC_IRQ2);
+	}
+
+	if (!(ints_fired || luts1_ints_fired || luts2_ints_fired))
 		return IRQ_HANDLED;
 
 	if (__raw_readl(EPDC_IRQ) & EPDC_IRQ_TCE_UNDERRUN_IRQ) {
@@ -2995,9 +3292,28 @@ static irqreturn_t mxc_epdc_irq_handler(int irq, void *dev_id)
 		complete(&fb_data->eof_event);
 	}
 
+	/*
+	 * Workaround for EPDC v2.0/v2.1 errata: Must read collision status
+	 * before clearing IRQ, or else collision status for bits 16:63
+	 * will be automatically cleared.  So we read it here, and there is
+	 * no conflict with using it in epdc_intr_work_func since the
+	 * working buffer processing flow is strictly sequential (i.e.,
+	 * only one WB processing done at a time, so the data grabbed
+	 * here should be up-to-date and accurate when the WB processing
+	 * completes.  Also, note that there is no impact to other versions
+	 * of EPDC by reading LUT status here.
+	 */
+	if (fb_data->cur_update != NULL)
+		fb_data->epdc_colliding_luts = epdc_get_colliding_luts(fb_data->rev);
+
 	/* Clear the interrupt mask for any interrupts signalled */
-	ints_fired = __raw_readl(EPDC_IRQ_MASK) & __raw_readl(EPDC_IRQ);
 	__raw_writel(ints_fired, EPDC_IRQ_MASK_CLEAR);
+	__raw_writel(luts1_ints_fired, EPDC_IRQ_MASK1_CLEAR);
+	__raw_writel(luts2_ints_fired, EPDC_IRQ_MASK2_CLEAR);
+
+	dev_dbg(fb_data->dev, "EPDC interrupts fired = 0x%x, "
+		"LUTS1 fired = 0x%x, LUTS2 fired = 0x%x\n",
+		ints_fired, luts1_ints_fired, luts2_ints_fired);
 
 	queue_work(fb_data->epdc_intr_workqueue,
 		&fb_data->epdc_intr_work);
@@ -3014,37 +3330,46 @@ static void epdc_intr_work_func(struct work_struct *work)
 	struct update_marker_data *next_marker;
 	struct update_marker_data *temp;
 	int temp_index;
-	u32 temp_mask;
+	u64 temp_mask;
 	u32 lut;
 	bool ignore_collision = false;
 	int i;
 	bool wb_lut_done = false;
 	bool free_update = true;
-	int next_lut;
-	u32 epdc_irq_stat, epdc_luts_active, epdc_wb_busy, epdc_luts_avail;
-	u32 epdc_collision, epdc_colliding_luts, epdc_next_lut_15;
+	int next_lut, epdc_next_lut_15;
+	u32 epdc_luts_active, epdc_wb_busy, epdc_luts_avail, epdc_lut_cancelled;
+	u32 epdc_collision;
+	u64 epdc_irq_stat;
+	bool epdc_waiting_on_wb;
+	u32 coll_coord, coll_size;
+	struct mxcfb_rect coll_region;
 
 	/* Capture EPDC status one time up front to prevent race conditions */
-	epdc_luts_active = epdc_any_luts_active();
+	epdc_luts_active = epdc_any_luts_active(fb_data->rev);
 	epdc_wb_busy = epdc_is_working_buffer_busy();
+	epdc_lut_cancelled = epdc_is_lut_cancelled();
 	epdc_luts_avail = epdc_any_luts_available();
 	epdc_collision = epdc_is_collision();
-	epdc_colliding_luts = epdc_get_colliding_luts();
-	epdc_next_lut_15 = epdc_choose_next_lut(&next_lut);
-	epdc_irq_stat = __raw_readl(EPDC_IRQ);
+	if (fb_data->rev < 20)
+		epdc_irq_stat = __raw_readl(EPDC_IRQ);
+	else
+		epdc_irq_stat = (u64)__raw_readl(EPDC_IRQ1) |
+			((u64)__raw_readl(EPDC_IRQ2) << 32);
+	epdc_waiting_on_wb = (fb_data->cur_update != NULL) ? true : false;
+
 
 	/* Protect access to buffer queues and to update HW */
 	mutex_lock(&fb_data->queue_mutex);
 
 	/* Free any LUTs that have completed */
-	for (i = 0; i < EPDC_NUM_LUTS; i++) {
-		if (!(epdc_irq_stat & (1 << i)))
+	for (i = 0; i < fb_data->num_luts; i++) {
+		if ((epdc_irq_stat & (1ULL << i)) == 0)
 			continue;
 
-		dev_dbg(fb_data->dev, "\nLUT %d completed\n", i);
+		dev_dbg(fb_data->dev, "LUT %d completed\n", i);
 
 		/* Disable IRQ for completed LUT */
-		epdc_lut_complete_intr(i, false);
+		epdc_lut_complete_intr(fb_data->rev, i, false);
 
 		/*
 		 * Go through all updates in the collision list and
@@ -3057,7 +3382,7 @@ static void epdc_intr_work_func(struct work_struct *work)
 			    collision_update->collision_mask & ~(1 << i);
 		}
 
-		epdc_clear_lut_complete_irq(i);
+		epdc_clear_lut_complete_irq(fb_data->rev, i);
 
 		fb_data->luts_complete_wb |= 1 << i;
 
@@ -3140,27 +3465,154 @@ static void epdc_intr_work_func(struct work_struct *work)
 	 * Were we waiting on working buffer?
 	 * If so, update queues and check for collisions
 	 */
-	if (fb_data->cur_update != NULL) {
+	if (epdc_waiting_on_wb) {
 		dev_dbg(fb_data->dev, "\nWorking buffer completed\n");
 
 		/* Signal completion if submit workqueue was waiting on WB */
 		if (fb_data->waiting_for_wb) {
 			complete(&fb_data->update_res_free);
-			fb_data->waiting_for_lut = false;
+			fb_data->waiting_for_wb = false;
 		}
 
-		/* Was there a collision? */
-		if (epdc_collision) {
+		if (fb_data->cur_update->update_desc->upd_data.flags
+			& EPDC_FLAG_TEST_COLLISION) {
+			/* This was a dry run to test for collision */
+
+			/* Signal marker */
+			list_for_each_entry_safe(next_marker, temp,
+				&fb_data->full_marker_list,
+				full_list) {
+				if (next_marker->lut_num != DRY_RUN_NO_LUT)
+					continue;
+
+				if (epdc_collision)
+					next_marker->collision_test = true;
+				else
+					next_marker->collision_test = false;
+
+				dev_dbg(fb_data->dev,
+					"In IRQ, collision_test = %d\n",
+					next_marker->collision_test);
+
+				/* Found marker to signal - remove from list */
+				list_del_init(&next_marker->full_list);
+
+				/* Signal completion of update */
+				dev_dbg(fb_data->dev, "Signaling marker "
+					"for dry-run - %d\n",
+					next_marker->update_marker);
+				complete(&next_marker->update_completion);
+			}
+		} else if (epdc_lut_cancelled) {
+			/* Clear LUT status (might be set if no AUTOWV used) */
+
+			/*
+			 * Disable and clear IRQ for the LUT used.
+			 * Even though LUT is cancelled in HW, the LUT
+			 * complete bit may be set if AUTOWV not used.
+			 */
+			epdc_lut_complete_intr(fb_data->rev, i, false);
+			epdc_clear_lut_complete_irq(fb_data->rev, i);
+
+			fb_data->lut_update_order[i] = 0;
+
+			/* Signal completion if submit workqueue needs a LUT */
+			if (fb_data->waiting_for_lut) {
+				complete(&fb_data->update_res_free);
+				fb_data->waiting_for_lut = false;
+			}
+
+			list_for_each_entry_safe(next_marker, temp,
+				&fb_data->cur_update->update_desc->upd_marker_list,
+				upd_list) {
+
+				/* Del from per-update & full list */
+				list_del_init(&next_marker->upd_list);
+				list_del_init(&next_marker->full_list);
+
+				/* Signal completion of update */
+				dev_dbg(fb_data->dev,
+					"Signaling marker (cancelled) %d\n",
+					next_marker->update_marker);
+				if (next_marker->waiting)
+					complete(&next_marker->update_completion);
+				else
+					kfree(next_marker);
+			}
+		} else if (epdc_collision) {
+			/* Real update (no dry-run), collision occurred */
+
 			/* Check list of colliding LUTs, and add to our collision mask */
 			fb_data->cur_update->collision_mask =
-			    epdc_colliding_luts;
+			    fb_data->epdc_colliding_luts;
 
 			/* Clear collisions that completed since WB began */
 			fb_data->cur_update->collision_mask &=
 				~fb_data->luts_complete_wb;
 
-			dev_dbg(fb_data->dev, "Collision mask = 0x%x\n",
-			       epdc_colliding_luts);
+			dev_dbg(fb_data->dev, "Collision mask = 0x%llx\n",
+			       fb_data->epdc_colliding_luts);
+
+			/* For EPDC 2.0 and later, minimum collision bounds
+			   are provided by HW.  Recompute new bounds here. */
+			if ((fb_data->upd_scheme != UPDATE_SCHEME_SNAPSHOT)
+				&& (fb_data->rev >= 20)) {
+				u32 xres, yres, rotate;
+				struct mxcfb_rect *cur_upd_rect =
+					&fb_data->cur_update->update_desc->upd_data.update_region;
+
+				/* Get collision region coords from EPDC */
+				coll_coord = __raw_readl(EPDC_UPD_COL_CORD);
+				coll_size = __raw_readl(EPDC_UPD_COL_SIZE);
+				coll_region.left =
+					(coll_coord & EPDC_UPD_COL_CORD_XCORD_MASK)
+						>> EPDC_UPD_COL_CORD_XCORD_OFFSET;
+				coll_region.top =
+					(coll_coord & EPDC_UPD_COL_CORD_YCORD_MASK)
+						>> EPDC_UPD_COL_CORD_YCORD_OFFSET;
+				coll_region.width =
+					(coll_size & EPDC_UPD_COL_SIZE_WIDTH_MASK)
+						>> EPDC_UPD_COL_SIZE_WIDTH_OFFSET;
+				coll_region.height =
+					(coll_size & EPDC_UPD_COL_SIZE_HEIGHT_MASK)
+						>> EPDC_UPD_COL_SIZE_HEIGHT_OFFSET;
+				dev_dbg(fb_data->dev, "Coll region: l = %d, "
+					"t = %d, w = %d, h = %d\n",
+					coll_region.left, coll_region.top,
+					coll_region.width, coll_region.height);
+
+				/* Convert coords back to orig orientation */
+				switch (fb_data->epdc_fb_var.rotate) {
+				case FB_ROTATE_CW:
+					xres = fb_data->epdc_fb_var.yres;
+					yres = fb_data->epdc_fb_var.xres;
+					rotate = FB_ROTATE_CCW;
+					break;
+				case FB_ROTATE_UD:
+					xres = fb_data->epdc_fb_var.xres;
+					yres = fb_data->epdc_fb_var.yres;
+					rotate = FB_ROTATE_UD;
+					break;
+				case FB_ROTATE_CCW:
+					xres = fb_data->epdc_fb_var.yres;
+					yres = fb_data->epdc_fb_var.xres;
+					rotate = FB_ROTATE_CW;
+					break;
+				default:
+					xres = fb_data->epdc_fb_var.xres;
+					yres = fb_data->epdc_fb_var.yres;
+					rotate = FB_ROTATE_UR;
+					break;
+				}
+				adjust_coordinates(xres, yres, rotate,
+						&coll_region, cur_upd_rect);
+
+				dev_dbg(fb_data->dev, "Adj coll region: l = %d, "
+					"t = %d, w = %d, h = %d\n",
+					cur_upd_rect->left, cur_upd_rect->top,
+					cur_upd_rect->width,
+					cur_upd_rect->height);
+			}
 
 			/*
 			 * If we collide with newer updates, then
@@ -3202,6 +3654,7 @@ static void epdc_intr_work_func(struct work_struct *work)
 			}
 		}
 
+		/* Do we need to free the current update descriptor? */
 		if (free_update) {
 			/* Handle condition where WB & LUT are both complete */
 			if (wb_lut_done)
@@ -3215,7 +3668,7 @@ static void epdc_intr_work_func(struct work_struct *work)
 
 					/* Signal completion of update */
 					dev_dbg(fb_data->dev,
-						"Signaling marker %d\n",
+						"Signaling marker (wb) %d\n",
 						next_marker->update_marker);
 					if (next_marker->waiting)
 						complete(&next_marker->update_completion);
@@ -3229,6 +3682,33 @@ static void epdc_intr_work_func(struct work_struct *work)
 			/* Add to free buffer list */
 			list_add_tail(&fb_data->cur_update->list,
 				 &fb_data->upd_buf_free_list);
+
+			/* Check to see if all updates have completed */
+			if (list_empty(&fb_data->upd_pending_list) &&
+				is_free_list_full(fb_data) &&
+				!epdc_luts_active) {
+
+				fb_data->updates_active = false;
+
+				if (fb_data->pwrdown_delay !=
+						FB_POWERDOWN_DISABLE) {
+					/*
+					 * Set variable to prevent overlapping
+					 * enable/disable requests
+					 */
+					fb_data->powering_down = true;
+
+					/* Schedule EPDC disable */
+					schedule_delayed_work(&fb_data->epdc_done_work,
+						msecs_to_jiffies(fb_data->pwrdown_delay));
+
+					/* Reset counter to reduce chance of overflow */
+					fb_data->order_cnt = 0;
+				}
+
+				if (fb_data->waiting_for_idle)
+					complete(&fb_data->updates_done);
+			}
 		}
 
 		/* Clear current update */
@@ -3262,8 +3742,9 @@ static void epdc_intr_work_func(struct work_struct *work)
 		return;
 	}
 
+	epdc_next_lut_15 = epdc_choose_next_lut(fb_data->rev, &next_lut);
 	/* Check to see if there is a valid LUT to use */
-	if (epdc_next_lut_15 && fb_data->tce_prevent) {
+	if (epdc_next_lut_15 && fb_data->tce_prevent && (fb_data->rev < 20)) {
 		dev_dbg(fb_data->dev, "Must wait for LUT15\n");
 		mutex_unlock(&fb_data->queue_mutex);
 		return;
@@ -3327,7 +3808,7 @@ static void epdc_intr_work_func(struct work_struct *work)
 
 	/* Enable Collision and WB complete IRQs */
 	epdc_working_buf_intr(true);
-	epdc_lut_complete_intr(fb_data->cur_update->lut_num, true);
+	epdc_lut_complete_intr(fb_data->rev, fb_data->cur_update->lut_num, true);
 
 	/* Program EPDC update to process buffer */
 	next_upd_region =
@@ -3344,11 +3825,19 @@ static void epdc_intr_work_func(struct work_struct *work)
 	epdc_set_update_coord(next_upd_region->left, next_upd_region->top);
 	epdc_set_update_dimensions(next_upd_region->width,
 				   next_upd_region->height);
+	if (fb_data->rev > 20)
+		epdc_set_update_stride(fb_data->cur_update->update_desc->epdc_stride);
+	if (fb_data->wv_modes_update &&
+		(fb_data->cur_update->update_desc->upd_data.waveform_mode
+			== WAVEFORM_MODE_AUTO)) {
+		epdc_set_update_waveform(&fb_data->wv_modes);
+		fb_data->wv_modes_update = false;
+	}
 
 	epdc_submit_update(fb_data->cur_update->lut_num,
 			   fb_data->cur_update->update_desc->upd_data.waveform_mode,
 			   fb_data->cur_update->update_desc->upd_data.update_mode,
-			   false, 0);
+			   false, false, 0);
 
 	/* Release buffer queues */
 	mutex_unlock(&fb_data->queue_mutex);
@@ -3366,7 +3855,7 @@ static void draw_mode0(struct mxc_epdc_fb_data *fb_data)
 	upd_buf_ptr = (u32 *)fb_data->info.screen_base;
 
 	epdc_working_buf_intr(true);
-	epdc_lut_complete_intr(0, true);
+	epdc_lut_complete_intr(fb_data->rev, 0, true);
 
 	/* Use unrotated (native) width/height */
 	if ((screeninfo->rotate == FB_ROTATE_CW) ||
@@ -3382,7 +3871,10 @@ static void draw_mode0(struct mxc_epdc_fb_data *fb_data)
 	epdc_set_update_addr(fb_data->phys_start);
 	epdc_set_update_coord(0, 0);
 	epdc_set_update_dimensions(xres, yres);
-	epdc_submit_update(0, fb_data->wv_modes.mode_init, UPDATE_MODE_FULL, true, 0xFF);
+	if (fb_data->rev > 20)
+		epdc_set_update_stride(0);
+	epdc_submit_update(0, fb_data->wv_modes.mode_init, UPDATE_MODE_FULL,
+		false, true, 0xFF);
 
 	dev_dbg(fb_data->dev, "Mode0 update - Waiting for LUT to complete...\n");
 
@@ -3411,8 +3903,12 @@ static void mxc_epdc_fb_fw_handler(const struct firmware *fw,
 	int wv_data_offs;
 	int i;
 	struct mxcfb_update_data update;
+	struct mxcfb_update_marker_data upd_marker_data;
 	struct fb_var_screeninfo *screeninfo = &fb_data->epdc_fb_var;
 	u32 xres, yres;
+	struct clk *epdc_parent;
+	unsigned long rounded_parent_rate, epdc_pix_rate,
+			rounded_pix_clk, target_pix_clk;
 
 	if (fw == NULL) {
 		/* If default FW file load failed, we give up */
@@ -3470,9 +3966,32 @@ static void mxc_epdc_fb_fw_handler(const struct firmware *fw,
 	/* Enable clocks to access EPDC regs */
 	clk_enable(fb_data->epdc_clk_axi);
 
+	target_pix_clk = fb_data->cur_mode->vmode->pixclock;
 	/* Enable pix clk for EPDC */
 	clk_enable(fb_data->epdc_clk_pix);
-	clk_set_rate(fb_data->epdc_clk_pix, fb_data->cur_mode->vmode->pixclock);
+	rounded_pix_clk = clk_round_rate(fb_data->epdc_clk_pix, target_pix_clk);
+
+	if (((rounded_pix_clk >= target_pix_clk + target_pix_clk/200) ||
+		(rounded_pix_clk <= target_pix_clk - target_pix_clk/200))) {
+		/* Can't get close enough without changing parent clk */
+		epdc_parent = clk_get_parent(fb_data->epdc_clk_pix);
+		rounded_parent_rate = clk_round_rate(epdc_parent, target_pix_clk);
+
+		epdc_pix_rate = target_pix_clk;
+		while (epdc_pix_rate < rounded_parent_rate)
+			epdc_pix_rate *= 2;
+		clk_set_rate(epdc_parent, epdc_pix_rate);
+
+		rounded_pix_clk = clk_round_rate(fb_data->epdc_clk_pix, target_pix_clk);
+		if (((rounded_pix_clk >= target_pix_clk + target_pix_clk/200) ||
+			(rounded_pix_clk <= target_pix_clk - target_pix_clk/200)))
+			/* Still can't get a good clock, provide warning */
+			dev_err(fb_data->dev, "Unable to get an accurate EPDC pix clk"
+				"desired = %lu, actual = %lu\n", target_pix_clk,
+				rounded_pix_clk);
+	}
+
+	clk_set_rate(fb_data->epdc_clk_pix, rounded_pix_clk);
 
 	epdc_init_sequence(fb_data);
 
@@ -3502,10 +4021,12 @@ static void mxc_epdc_fb_fw_handler(const struct firmware *fw,
 	update.temp = TEMP_USE_AMBIENT;
 	update.flags = 0;
 
+	upd_marker_data.update_marker = update.update_marker;
+
 	mxc_epdc_fb_send_update(&update, &fb_data->info);
 
 	/* Block on initial update */
-	ret = mxc_epdc_fb_wait_update_complete(update.update_marker,
+	ret = mxc_epdc_fb_wait_update_complete(&upd_marker_data,
 		&fb_data->info);
 	if (ret < 0)
 		dev_err(fb_data->dev,
@@ -3594,8 +4115,10 @@ int __devinit mxc_epdc_fb_probe(struct platform_device *pdev)
 	struct update_data_list *plist, *temp_list;
 	int i;
 	unsigned long x_mem_size = 0;
+	u32 val;
 #ifdef CONFIG_FRAMEBUFFER_CONSOLE
 	struct mxcfb_update_data update;
+	struct mxcfb_update_marker_data upd_marker_data;
 #endif
 
 	fb_data = (struct mxc_epdc_fb_data *)framebuffer_alloc(
@@ -3822,6 +4345,38 @@ int __devinit mxc_epdc_fb_probe(struct platform_device *pdev)
 	fb_data->fb_offset = 0;
 	fb_data->eof_sync_period = 0;
 
+	fb_data->epdc_clk_axi = clk_get(fb_data->dev, "epdc_axi");
+	if (IS_ERR(fb_data->epdc_clk_axi)) {
+		dev_err(&pdev->dev, "Unable to get EPDC AXI clk."
+			"err = 0x%x\n", (int)fb_data->epdc_clk_axi);
+		ret = -ENODEV;
+		goto out_dma_fb;
+	}
+	fb_data->epdc_clk_pix = clk_get(fb_data->dev, "epdc_pix");
+	if (IS_ERR(fb_data->epdc_clk_pix)) {
+		dev_err(&pdev->dev, "Unable to get EPDC pix clk."
+			"err = 0x%x\n", (int)fb_data->epdc_clk_pix);
+		ret = -ENODEV;
+		goto out_dma_fb;
+	}
+
+	clk_enable(fb_data->epdc_clk_axi);
+	val = __raw_readl(EPDC_VERSION);
+	clk_disable(fb_data->epdc_clk_axi);
+	fb_data->rev = ((val & EPDC_VERSION_MAJOR_MASK) >>
+				EPDC_VERSION_MAJOR_OFFSET) * 10
+			+ ((val & EPDC_VERSION_MINOR_MASK) >>
+				EPDC_VERSION_MINOR_OFFSET);
+	dev_dbg(&pdev->dev, "EPDC version = %d\n", fb_data->rev);
+
+	if (fb_data->rev < 20) {
+		fb_data->num_luts = EPDC_V1_NUM_LUTS;
+		fb_data->max_num_updates = EPDC_V1_MAX_NUM_UPDATES;
+	} else {
+		fb_data->num_luts = EPDC_V2_NUM_LUTS;
+		fb_data->max_num_updates = EPDC_V2_MAX_NUM_UPDATES;
+	}
+
 	/*
 	 * Initialize lists for pending updates,
 	 * active update requests, update collisions,
@@ -3833,7 +4388,7 @@ int __devinit mxc_epdc_fb_probe(struct platform_device *pdev)
 	INIT_LIST_HEAD(&fb_data->upd_buf_collision_list);
 
 	/* Allocate update buffers and add them to the list */
-	for (i = 0; i < EPDC_MAX_NUM_UPDATES; i++) {
+	for (i = 0; i < fb_data->max_num_updates; i++) {
 		upd_list = kzalloc(sizeof(*upd_list), GFP_KERNEL);
 		if (upd_list == NULL) {
 			ret = -ENOMEM;
@@ -3889,21 +4444,6 @@ int __devinit mxc_epdc_fb_probe(struct platform_device *pdev)
 	if (fb_data->pdata->get_pins)
 		fb_data->pdata->get_pins();
 
-	fb_data->epdc_clk_axi = clk_get(fb_data->dev, "epdc_axi");
-	if (IS_ERR(fb_data->epdc_clk_axi)) {
-		dev_err(&pdev->dev, "Unable to get EPDC AXI clk."
-			"err = 0x%x\n", (int)fb_data->epdc_clk_axi);
-		ret = -ENODEV;
-		goto out_copybuffer;
-	}
-	fb_data->epdc_clk_pix = clk_get(fb_data->dev, "epdc_pix");
-	if (IS_ERR(fb_data->epdc_clk_pix)) {
-		dev_err(&pdev->dev, "Unable to get EPDC pix clk."
-			"err = 0x%x\n", (int)fb_data->epdc_clk_pix);
-		ret = -ENODEV;
-		goto out_copybuffer;
-	}
-
 	fb_data->in_init = false;
 
 	fb_data->hw_ready = false;
@@ -3918,12 +4458,15 @@ int __devinit mxc_epdc_fb_probe(struct platform_device *pdev)
 	fb_data->wv_modes.mode_gc8 = 2;
 	fb_data->wv_modes.mode_gc16 = 2;
 	fb_data->wv_modes.mode_gc32 = 2;
+	fb_data->wv_modes_update = true;
 
 	/* Initialize marker list */
 	INIT_LIST_HEAD(&fb_data->full_marker_list);
 
 	/* Initialize all LUTs to inactive */
-	for (i = 0; i < EPDC_NUM_LUTS; i++)
+	fb_data->lut_update_order =
+		kzalloc(fb_data->num_luts * sizeof(u32 *), GFP_KERNEL);
+	for (i = 0; i < fb_data->num_luts; i++)
 		fb_data->lut_update_order[i] = 0;
 
 	INIT_DELAYED_WORK(&fb_data->epdc_done_work, epdc_done_work_func);
@@ -4055,6 +4598,7 @@ int __devinit mxc_epdc_fb_probe(struct platform_device *pdev)
 	 */
 	pxp_conf->out_param.width = fb_data->info.var.xres;
 	pxp_conf->out_param.height = fb_data->info.var.yres;
+	pxp_conf->out_param.stride = pxp_conf->out_param.width;
 	pxp_conf->out_param.pixel_fmt = PXP_PIX_FMT_GREY;
 
 	/* Initialize color map for conversion of 8-bit gray pixels */
@@ -4131,7 +4675,9 @@ int __devinit mxc_epdc_fb_probe(struct platform_device *pdev)
 
 	mxc_epdc_fb_send_update(&update, info);
 
-	ret = mxc_epdc_fb_wait_update_complete(update.update_marker, info);
+	upd_marker_data.update_marker = update.update_marker;
+
+	ret = mxc_epdc_fb_wait_update_complete(&upd_marker_data, info);
 	if (ret < 0)
 		dev_err(fb_data->dev,
 			"Wait for update complete failed.  Error = 0x%x", ret);
@@ -4286,6 +4832,14 @@ static void pxp_dma_done(void *arg)
 	complete(&fb_data->pxp_tx_cmpl);
 }
 
+static bool chan_filter(struct dma_chan *chan, void *arg)
+{
+	if (imx_dma_is_pxp(chan))
+		return true;
+	else
+		return false;
+}
+
 /* Function to request PXP DMA channel */
 static int pxp_chan_init(struct mxc_epdc_fb_data *fb_data)
 {
@@ -4298,16 +4852,13 @@ static int pxp_chan_init(struct mxc_epdc_fb_data *fb_data)
 	dma_cap_zero(mask);
 	dma_cap_set(DMA_SLAVE, mask);
 	dma_cap_set(DMA_PRIVATE, mask);
-	chan = dma_request_channel(mask, NULL, NULL);
+	chan = dma_request_channel(mask, chan_filter, NULL);
 	if (!chan) {
 		dev_err(fb_data->dev, "Unsuccessfully received channel!!!!\n");
 		return -EBUSY;
 	}
 
-	dev_dbg(fb_data->dev, "Successfully received channel.\n");
-
 	fb_data->pxp_chan = to_pxp_channel(chan);
-
 	fb_data->pxp_chan->client = fb_data;
 
 	init_completion(&fb_data->pxp_tx_cmpl);
@@ -4360,9 +4911,6 @@ static int pxp_process_update(struct mxc_epdc_fb_data *fb_data,
 	 */
 	init_completion(&fb_data->pxp_tx_cmpl);
 
-	dev_dbg(fb_data->dev, "sg[0] = 0x%x, sg[1] = 0x%x\n",
-		sg_dma_address(&sg[0]), sg_dma_address(&sg[1]));
-
 	dma_chan = &fb_data->pxp_chan->dma_chan;
 
 	txd = dma_chan->device->device_prep_slave_sg(dma_chan, sg, 2,
@@ -4406,6 +4954,17 @@ static int pxp_process_update(struct mxc_epdc_fb_data *fb_data,
 	pxp_conf->out_param.width = update_region->width;
 	pxp_conf->out_param.height = update_region->height;
 
+	if ((proc_data->rotate == 90) || (proc_data->rotate == 270))
+		pxp_conf->out_param.stride = update_region->height;
+	else
+		pxp_conf->out_param.stride = update_region->width;
+
+	/* For EPDC v2.0, we need output to be 64-bit
+	 * aligned since EPDC stride does not work. */
+	if (fb_data->rev <= 20)
+		pxp_conf->out_param.stride = ALIGN(pxp_conf->out_param.stride, 8);
+
+
 	desc = to_tx_desc(txd);
 	length = desc->len;
 	for (i = 0; i < length; i++) {
@@ -4426,8 +4985,6 @@ static int pxp_process_update(struct mxc_epdc_fb_data *fb_data,
 
 	/* Submitting our TX starts the PxP processing task */
 	cookie = txd->tx_submit(txd);
-	dev_dbg(fb_data->info.device, "%d: Submit %p #%d\n", __LINE__, txd,
-		cookie);
 	if (cookie < 0) {
 		dev_err(fb_data->info.device, "Error sending FB through PxP\n");
 		return -EIO;
