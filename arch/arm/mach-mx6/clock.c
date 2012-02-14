@@ -5203,6 +5203,8 @@ int __init mx6_clocks_init(unsigned long ckil, unsigned long osc,
 	if (cpu_is_mx6dl()) {
 		/*on mx6dl, 2d core clock sources from 3d shader core clock*/
 		clk_set_parent(&gpu2d_core_clk[0], &gpu3d_shader_clk);
+		/* on mx6dl gpu2d_axi_clk source from mmdc0 directly */
+		clk_set_parent(&gpu2d_axi_clk, &mmdc_ch0_axi_clk[0]);
 		gpu2d_axi_clk.secondary = NULL;
 	}
 
