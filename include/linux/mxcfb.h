@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2004-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -88,6 +88,8 @@ struct mxcfb_rect {
 #define EPDC_FLAG_FORCE_MONOCHROME		0x02
 #define EPDC_FLAG_USE_CMAP			0x04
 #define EPDC_FLAG_USE_ALT_BUFFER		0x100
+#define EPDC_FLAG_TEST_COLLISION		0x200
+#define EPDC_FLAG_GROUP_UPDATE			0x400
 
 #define FB_POWERDOWN_DISABLE			-1
 
@@ -106,6 +108,11 @@ struct mxcfb_update_data {
 	int temp;
 	uint flags;
 	struct mxcfb_alt_buffer_data alt_buffer_data;
+};
+
+struct mxcfb_update_marker_data {
+	__u32 update_marker;
+	__u32 collision_test;
 };
 
 /*
@@ -139,7 +146,7 @@ struct mxcfb_waveform_modes {
 #define MXCFB_SET_TEMPERATURE		_IOW('F', 0x2C, int32_t)
 #define MXCFB_SET_AUTO_UPDATE_MODE	_IOW('F', 0x2D, __u32)
 #define MXCFB_SEND_UPDATE		_IOW('F', 0x2E, struct mxcfb_update_data)
-#define MXCFB_WAIT_FOR_UPDATE_COMPLETE	_IOW('F', 0x2F, __u32)
+#define MXCFB_WAIT_FOR_UPDATE_COMPLETE	_IOWR('F', 0x2F, struct mxcfb_update_marker_data)
 #define MXCFB_SET_PWRDOWN_DELAY		_IOW('F', 0x30, int32_t)
 #define MXCFB_GET_PWRDOWN_DELAY		_IOR('F', 0x31, int32_t)
 #define MXCFB_SET_UPDATE_SCHEME		_IOW('F', 0x32, __u32)

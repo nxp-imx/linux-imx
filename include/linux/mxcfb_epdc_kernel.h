@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2010-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -25,7 +25,9 @@ int mxc_epdc_fb_set_temperature(int temperature, struct fb_info *info);
 int mxc_epdc_fb_set_auto_update(u32 auto_mode, struct fb_info *info);
 int mxc_epdc_fb_send_update(struct mxcfb_update_data *upd_data,
 				   struct fb_info *info);
-int mxc_epdc_fb_wait_update_complete(u32 update_marker, struct fb_info *info);
+int mxc_epdc_fb_wait_update_complete(
+				struct mxcfb_update_marker_data *marker_data,
+				struct fb_info *info);
 int mxc_epdc_fb_set_pwrdown_delay(u32 pwrdown_delay,
 					    struct fb_info *info);
 int mxc_epdc_get_pwrdown_delay(struct fb_info *info);

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2010-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -27,13 +27,13 @@ extern void __iomem *epdc_base;
 
 #define EPDC_CTRL			(epdc_base + 0x000)
 #define EPDC_CTRL_SET			(epdc_base + 0x004)
-#define EPDC_CTRL_CLEAR		(epdc_base + 0x008)
+#define EPDC_CTRL_CLEAR			(epdc_base + 0x008)
 #define EPDC_CTRL_TOGGLE		(epdc_base + 0x00C)
 #define EPDC_WVADDR			(epdc_base + 0x020)
 #define EPDC_WB_ADDR			(epdc_base + 0x030)
 #define EPDC_RES			(epdc_base + 0x040)
 #define EPDC_FORMAT			(epdc_base + 0x050)
-#define EPDC_FORMAT_SET		(epdc_base + 0x054)
+#define EPDC_FORMAT_SET			(epdc_base + 0x054)
 #define EPDC_FORMAT_CLEAR		(epdc_base + 0x058)
 #define EPDC_FORMAT_TOGGLE		(epdc_base + 0x05C)
 #define EPDC_FIFOCTRL			(epdc_base + 0x0A0)
@@ -41,22 +41,42 @@ extern void __iomem *epdc_base;
 #define EPDC_FIFOCTRL_CLEAR		(epdc_base + 0x0A8)
 #define EPDC_FIFOCTRL_TOGGLE		(epdc_base + 0x0AC)
 #define EPDC_UPD_ADDR			(epdc_base + 0x100)
+#define EPDC_UPD_STRIDE			(epdc_base + 0x110)
 #define EPDC_UPD_CORD			(epdc_base + 0x120)
 #define EPDC_UPD_SIZE			(epdc_base + 0x140)
 #define EPDC_UPD_CTRL			(epdc_base + 0x160)
 #define EPDC_UPD_FIXED			(epdc_base + 0x180)
 #define EPDC_TEMP			(epdc_base + 0x1A0)
+#define EPDC_AUTOWV_LUT			(epdc_base + 0x1C0)
 #define EPDC_TCE_CTRL			(epdc_base + 0x200)
 #define EPDC_TCE_SDCFG			(epdc_base + 0x220)
 #define EPDC_TCE_GDCFG			(epdc_base + 0x240)
-#define EPDC_TCE_HSCAN1		(epdc_base + 0x260)
-#define EPDC_TCE_HSCAN2		(epdc_base + 0x280)
+#define EPDC_TCE_HSCAN1			(epdc_base + 0x260)
+#define EPDC_TCE_HSCAN2			(epdc_base + 0x280)
 #define EPDC_TCE_VSCAN			(epdc_base + 0x2A0)
 #define EPDC_TCE_OE			(epdc_base + 0x2C0)
 #define EPDC_TCE_POLARITY		(epdc_base + 0x2E0)
 #define EPDC_TCE_TIMING1		(epdc_base + 0x300)
 #define EPDC_TCE_TIMING2		(epdc_base + 0x310)
 #define EPDC_TCE_TIMING3		(epdc_base + 0x320)
+#define EPDC_PIGEON_CTRL0		(epdc_base + 0x380)
+#define EPDC_PIGEON_CTRL1		(epdc_base + 0x390)
+#define EPDC_IRQ_MASK1			(epdc_base + 0x3C0)
+#define EPDC_IRQ_MASK1_SET		(epdc_base + 0x3C4)
+#define EPDC_IRQ_MASK1_CLEAR		(epdc_base + 0x3C8)
+#define EPDC_IRQ_MASK1_TOGGLE		(epdc_base + 0x3CC)
+#define EPDC_IRQ_MASK2			(epdc_base + 0x3D0)
+#define EPDC_IRQ_MASK2_SET		(epdc_base + 0x3D4)
+#define EPDC_IRQ_MASK2_CLEAR		(epdc_base + 0x3D8)
+#define EPDC_IRQ_MASK2_TOGGLE		(epdc_base + 0x3DC)
+#define EPDC_IRQ1			(epdc_base + 0x3E0)
+#define EPDC_IRQ1_SET			(epdc_base + 0x3E4)
+#define EPDC_IRQ1_CLEAR			(epdc_base + 0x3E8)
+#define EPDC_IRQ1_TOGGLE		(epdc_base + 0x3EC)
+#define EPDC_IRQ2			(epdc_base + 0x3F0)
+#define EPDC_IRQ2_SET			(epdc_base + 0x3F4)
+#define EPDC_IRQ2_CLEAR			(epdc_base + 0x3F8)
+#define EPDC_IRQ2_TOGGLE		(epdc_base + 0x3FC)
 #define EPDC_IRQ_MASK			(epdc_base + 0x400)
 #define EPDC_IRQ_MASK_SET		(epdc_base + 0x404)
 #define EPDC_IRQ_MASK_CLEAR		(epdc_base + 0x408)
@@ -64,36 +84,88 @@ extern void __iomem *epdc_base;
 #define EPDC_IRQ			(epdc_base + 0x420)
 #define EPDC_IRQ_SET			(epdc_base + 0x424)
 #define EPDC_IRQ_CLEAR			(epdc_base + 0x428)
-#define EPDC_IRQ_TOGGLE		(epdc_base + 0x42C)
+#define EPDC_IRQ_TOGGLE			(epdc_base + 0x42C)
 #define EPDC_STATUS_LUTS		(epdc_base + 0x440)
-#define EPDC_STATUS_LUTS_SET	(epdc_base + 0x444)
-#define EPDC_STATUS_LUTS_CLEAR	(epdc_base + 0x448)
-#define EPDC_STATUS_LUTS_TOGGLE	(epdc_base + 0x44C)
+#define EPDC_STATUS_LUTS_SET		(epdc_base + 0x444)
+#define EPDC_STATUS_LUTS_CLEAR		(epdc_base + 0x448)
+#define EPDC_STATUS_LUTS_TOGGLE		(epdc_base + 0x44C)
+#define EPDC_STATUS_LUTS2		(epdc_base + 0x450)
+#define EPDC_STATUS_LUTS2_SET		(epdc_base + 0x454)
+#define EPDC_STATUS_LUTS2_CLEAR		(epdc_base + 0x458)
+#define EPDC_STATUS_LUTS2_TOGGLE	(epdc_base + 0x45C)
 #define EPDC_STATUS_NEXTLUT		(epdc_base + 0x460)
-#define EPDC_STATUS_COL		(epdc_base + 0x480)
+#define EPDC_STATUS_COL			(epdc_base + 0x480)
+#define EPDC_STATUS_COL2		(epdc_base + 0x490)
 #define EPDC_STATUS			(epdc_base + 0x4A0)
-#define EPDC_STATUS_SET		(epdc_base + 0x4A4)
+#define EPDC_STATUS_SET			(epdc_base + 0x4A4)
 #define EPDC_STATUS_CLEAR		(epdc_base + 0x4A8)
 #define EPDC_STATUS_TOGGLE		(epdc_base + 0x4AC)
+#define EPDC_UPD_COL_CORD		(epdc_base + 0x4C0)
+#define EPDC_UPD_COL_SIZE		(epdc_base + 0x4E0)
 #define EPDC_DEBUG			(epdc_base + 0x500)
-#define EPDC_DEBUG_LUT0		(epdc_base + 0x540)
-#define EPDC_DEBUG_LUT1		(epdc_base + 0x550)
-#define EPDC_DEBUG_LUT2		(epdc_base + 0x560)
-#define EPDC_DEBUG_LUT3		(epdc_base + 0x570)
-#define EPDC_DEBUG_LUT4		(epdc_base + 0x580)
-#define EPDC_DEBUG_LUT5		(epdc_base + 0x590)
-#define EPDC_DEBUG_LUT6		(epdc_base + 0x5A0)
-#define EPDC_DEBUG_LUT7		(epdc_base + 0x5B0)
-#define EPDC_DEBUG_LUT8		(epdc_base + 0x5C0)
-#define EPDC_DEBUG_LUT9		(epdc_base + 0x5D0)
-#define EPDC_DEBUG_LUT10		(epdc_base + 0x5E0)
-#define EPDC_DEBUG_LUT11		(epdc_base + 0x5F0)
-#define EPDC_DEBUG_LUT12		(epdc_base + 0x600)
-#define EPDC_DEBUG_LUT13		(epdc_base + 0x610)
-#define EPDC_DEBUG_LUT14		(epdc_base + 0x620)
-#define EPDC_DEBUG_LUT15		(epdc_base + 0x630)
+#define EPDC_DEBUG_LUT			(epdc_base + 0x530)
+#define EPDC_HIST1_PARAM		(epdc_base + 0x600)
+#define EPDC_HIST2_PARAM		(epdc_base + 0x610)
+#define EPDC_HIST4_PARAM		(epdc_base + 0x620)
+#define EPDC_HIST8_PARAM0		(epdc_base + 0x630)
+#define EPDC_HIST8_PARAM1		(epdc_base + 0x640)
+#define EPDC_HIST16_PARAM0		(epdc_base + 0x650)
+#define EPDC_HIST16_PARAM1		(epdc_base + 0x660)
+#define EPDC_HIST16_PARAM2		(epdc_base + 0x670)
+#define EPDC_HIST16_PARAM3		(epdc_base + 0x680)
 #define EPDC_GPIO			(epdc_base + 0x700)
 #define EPDC_VERSION			(epdc_base + 0x7F0)
+#define EPDC_PIGEON_0_0			(epdc_base + 0x800)
+#define EPDC_PIGEON_0_1			(epdc_base + 0x810)
+#define EPDC_PIGEON_0_2			(epdc_base + 0x820)
+#define EPDC_PIGEON_1_0			(epdc_base + 0x840)
+#define EPDC_PIGEON_1_1			(epdc_base + 0x850)
+#define EPDC_PIGEON_1_2			(epdc_base + 0x860)
+#define EPDC_PIGEON_2_0			(epdc_base + 0x880)
+#define EPDC_PIGEON_2_1			(epdc_base + 0x890)
+#define EPDC_PIGEON_2_2			(epdc_base + 0x8A0)
+#define EPDC_PIGEON_3_0			(epdc_base + 0x8C0)
+#define EPDC_PIGEON_3_1			(epdc_base + 0x8D0)
+#define EPDC_PIGEON_3_2			(epdc_base + 0x8E0)
+#define EPDC_PIGEON_4_0			(epdc_base + 0x900)
+#define EPDC_PIGEON_4_1			(epdc_base + 0x910)
+#define EPDC_PIGEON_4_2			(epdc_base + 0x920)
+#define EPDC_PIGEON_5_0			(epdc_base + 0x940)
+#define EPDC_PIGEON_5_1			(epdc_base + 0x950)
+#define EPDC_PIGEON_5_2			(epdc_base + 0x960)
+#define EPDC_PIGEON_6_0			(epdc_base + 0x980)
+#define EPDC_PIGEON_6_1			(epdc_base + 0x990)
+#define EPDC_PIGEON_6_2			(epdc_base + 0x9A0)
+#define EPDC_PIGEON_7_0			(epdc_base + 0x9C0)
+#define EPDC_PIGEON_7_1			(epdc_base + 0x9D0)
+#define EPDC_PIGEON_7_2			(epdc_base + 0x9E0)
+#define EPDC_PIGEON_8_0			(epdc_base + 0xA00)
+#define EPDC_PIGEON_8_1			(epdc_base + 0xA10)
+#define EPDC_PIGEON_8_2			(epdc_base + 0xA20)
+#define EPDC_PIGEON_9_0			(epdc_base + 0xA40)
+#define EPDC_PIGEON_9_1			(epdc_base + 0xA50)
+#define EPDC_PIGEON_9_2			(epdc_base + 0xA60)
+#define EPDC_PIGEON_10_0		(epdc_base + 0xA80)
+#define EPDC_PIGEON_10_1		(epdc_base + 0xA90)
+#define EPDC_PIGEON_10_2		(epdc_base + 0xAA0)
+#define EPDC_PIGEON_11_0		(epdc_base + 0xAC0)
+#define EPDC_PIGEON_11_1		(epdc_base + 0xAD0)
+#define EPDC_PIGEON_11_2		(epdc_base + 0xAE0)
+#define EPDC_PIGEON_12_0		(epdc_base + 0xB00)
+#define EPDC_PIGEON_12_1		(epdc_base + 0xB10)
+#define EPDC_PIGEON_12_2		(epdc_base + 0xB20)
+#define EPDC_PIGEON_13_0		(epdc_base + 0xB40)
+#define EPDC_PIGEON_13_1		(epdc_base + 0xB50)
+#define EPDC_PIGEON_13_2		(epdc_base + 0xB60)
+#define EPDC_PIGEON_14_0		(epdc_base + 0xB80)
+#define EPDC_PIGEON_14_1		(epdc_base + 0xB90)
+#define EPDC_PIGEON_14_2		(epdc_base + 0xBA0)
+#define EPDC_PIGEON_15_0		(epdc_base + 0xBC0)
+#define EPDC_PIGEON_15_1		(epdc_base + 0xBD0)
+#define EPDC_PIGEON_15_2		(epdc_base + 0xBE0)
+#define EPDC_PIGEON_16_0		(epdc_base + 0xC00)
+#define EPDC_PIGEON_16_1		(epdc_base + 0xC10)
+#define EPDC_PIGEON_16_2		(epdc_base + 0xC20)
 
 /*
  * Register field definitions
@@ -159,10 +231,13 @@ enum {
 
 /* EPDC_UPD_CTRL field values */
 	EPDC_UPD_CTRL_USE_FIXED = 0x80000000,
-	EPDC_UPD_CTRL_LUT_SEL_MASK = 0xF0000,
+	EPDC_UPD_CTRL_LUT_SEL_MASK = 0x3F0000,
 	EPDC_UPD_CTRL_LUT_SEL_OFFSET = 16,
 	EPDC_UPD_CTRL_WAVEFORM_MODE_MASK = 0xFF00,
 	EPDC_UPD_CTRL_WAVEFORM_MODE_OFFSET = 8,
+	EPDC_UPD_CTRL_AUTOWV_PAUSE = 0x8,
+	EPDC_UPD_CTRL_AUTOWV = 0x4,
+	EPDC_UPD_CTRL_DRY_RUN = 0x2,
 	EPDC_UPD_CTRL_UPDATE_MODE_FULL = 0x1,
 
 /* EPDC_UPD_FIXED field values */
@@ -172,6 +247,12 @@ enum {
 	EPDC_UPD_FIXED_FIXNP_OFFSET = 8,
 	EPDC_UPD_FIXED_FIXCP_MASK = 0xFF,
 	EPDC_UPD_FIXED_FIXCP_OFFSET = 0,
+
+/* EPDC_AUTOWV_LUT field values */
+	EPDC_AUTOWV_LUT_DATA_MASK = 0xFF0000,
+	EPDC_AUTOWV_LUT_DATA_OFFSET = 16,
+	EPDC_AUTOWV_LUT_ADDR_MASK = 0xFF,
+	EPDC_AUTOWV_LUT_ADDR_OFFSET = 0,
 
 /* EPDC_TCE_CTRL field values */
 	EPDC_TCE_CTRL_VSCAN_HOLDOFF_MASK = 0x1FF0000,
@@ -275,20 +356,73 @@ enum {
 	EPDC_IRQ_FRAME_END_IRQ = 0x80000,
 	EPDC_IRQ_BUS_ERROR_IRQ = 0x100000,
 	EPDC_IRQ_TCE_IDLE_IRQ = 0x200000,
+	EPDC_IRQ_UPD_DONE_IRQ = 0x400000,
+	EPDC_IRQ_PWR_IRQ = 0x800000,
 
 /* EPDC_STATUS_NEXTLUT field values */
 	EPDC_STATUS_NEXTLUT_NEXT_LUT_VALID = 0x100,
-	EPDC_STATUS_NEXTLUT_NEXT_LUT_MASK = 0xF,
+	EPDC_STATUS_NEXTLUT_NEXT_LUT_MASK = 0x3F,
 	EPDC_STATUS_NEXTLUT_NEXT_LUT_OFFSET = 0,
 
 /* EPDC_STATUS field values */
+	EPDC_STATUS_HISTOGRAM_CP_MASK = 0x1F0000,
+	EPDC_STATUS_HISTOGRAM_CP_OFFSET = 16,
+	EPDC_STATUS_HISTOGRAM_NP_MASK = 0x1F00,
+	EPDC_STATUS_HISTOGRAM_NP_OFFSET = 8,
+	EPDC_STATUS_UPD_VOID = 0x8,
 	EPDC_STATUS_LUTS_UNDERRUN = 0x4,
 	EPDC_STATUS_LUTS_BUSY = 0x2,
 	EPDC_STATUS_WB_BUSY = 0x1,
 
+/* EPDC_UPD_COL_CORD field values */
+	EPDC_UPD_COL_CORD_YCORD_MASK = 0x1FFF0000,
+	EPDC_UPD_COL_CORD_YCORD_OFFSET = 16,
+	EPDC_UPD_COL_CORD_XCORD_MASK = 0x1FFF,
+	EPDC_UPD_COL_CORD_XCORD_OFFSET = 0,
+
+/* EPDC_UPD_COL_SIZE field values */
+	EPDC_UPD_COL_SIZE_HEIGHT_MASK = 0x1FFF0000,
+	EPDC_UPD_COL_SIZE_HEIGHT_OFFSET = 16,
+	EPDC_UPD_COL_SIZE_WIDTH_MASK = 0x1FFF,
+	EPDC_UPD_COL_SIZE_WIDTH_OFFSET = 0,
+
 /* EPDC_DEBUG field values */
 	EPDC_DEBUG_UNDERRUN_RECOVER = 0x2,
 	EPDC_DEBUG_COLLISION_OFF = 0x1,
+
+/* EPDC_HISTx_PARAM field values */
+	EPDC_HIST_PARAM_VALUE0_MASK = 0x1F,
+	EPDC_HIST_PARAM_VALUE0_OFFSET = 0,
+	EPDC_HIST_PARAM_VALUE1_MASK = 0x1F00,
+	EPDC_HIST_PARAM_VALUE1_OFFSET = 8,
+	EPDC_HIST_PARAM_VALUE2_MASK = 0x1F0000,
+	EPDC_HIST_PARAM_VALUE2_OFFSET = 16,
+	EPDC_HIST_PARAM_VALUE3_MASK = 0x1F000000,
+	EPDC_HIST_PARAM_VALUE3_OFFSET = 24,
+	EPDC_HIST_PARAM_VALUE4_MASK = 0x1F,
+	EPDC_HIST_PARAM_VALUE4_OFFSET = 0,
+	EPDC_HIST_PARAM_VALUE5_MASK = 0x1F00,
+	EPDC_HIST_PARAM_VALUE5_OFFSET = 8,
+	EPDC_HIST_PARAM_VALUE6_MASK = 0x1F0000,
+	EPDC_HIST_PARAM_VALUE6_OFFSET = 16,
+	EPDC_HIST_PARAM_VALUE7_MASK = 0x1F000000,
+	EPDC_HIST_PARAM_VALUE7_OFFSET = 24,
+	EPDC_HIST_PARAM_VALUE8_MASK = 0x1F,
+	EPDC_HIST_PARAM_VALUE8_OFFSET = 0,
+	EPDC_HIST_PARAM_VALUE9_MASK = 0x1F00,
+	EPDC_HIST_PARAM_VALUE9_OFFSET = 8,
+	EPDC_HIST_PARAM_VALUE10_MASK = 0x1F0000,
+	EPDC_HIST_PARAM_VALUE10_OFFSET = 16,
+	EPDC_HIST_PARAM_VALUE11_MASK = 0x1F000000,
+	EPDC_HIST_PARAM_VALUE11_OFFSET = 24,
+	EPDC_HIST_PARAM_VALUE12_MASK = 0x1F,
+	EPDC_HIST_PARAM_VALUE12_OFFSET = 0,
+	EPDC_HIST_PARAM_VALUE13_MASK = 0x1F00,
+	EPDC_HIST_PARAM_VALUE13_OFFSET = 8,
+	EPDC_HIST_PARAM_VALUE14_MASK = 0x1F0000,
+	EPDC_HIST_PARAM_VALUE14_OFFSET = 16,
+	EPDC_HIST_PARAM_VALUE15_MASK = 0x1F000000,
+	EPDC_HIST_PARAM_VALUE15_OFFSET = 24,
 
 /* EPDC_GPIO field values */
 	EPDC_GPIO_PWRCOM = 0x40,
@@ -296,6 +430,14 @@ enum {
 	EPDC_GPIO_PWRCTRL_OFFSET = 2,
 	EPDC_GPIO_BDR_MASK = 0x3,
 	EPDC_GPIO_BDR_OFFSET = 0,
+
+/* EPDC_VERSION field values */
+	EPDC_VERSION_MAJOR_MASK = 0xFF000000,
+	EPDC_VERSION_MAJOR_OFFSET = 24,
+	EPDC_VERSION_MINOR_MASK = 0xFF0000,
+	EPDC_VERSION_MINOR_OFFSET = 16,
+	EPDC_VERSION_STEP_MASK = 0xFFFF,
+	EPDC_VERSION_STEP_OFFSET = 0,
 };
 
 #endif	/* __EPDC_REGS_INCLUDED__ */
