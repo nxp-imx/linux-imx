@@ -212,7 +212,11 @@ static iomux_v3_cfg_t mx6q_sabrelite_pads[] = {
 
 	/* I2C3 */
 	MX6Q_PAD_GPIO_5__I2C3_SCL,	/* GPIO1[5] - J7 - Display card */
+#ifdef CONFIG_FEC_1588
+	MX6Q_PAD_GPIO_16__ENET_ANATOP_ETHERNET_REF_OUT,
+#else
 	MX6Q_PAD_GPIO_16__I2C3_SDA,	/* GPIO7[11] - J15 - RGB connector */
+#endif
 
 	/* DISPLAY */
 	MX6Q_PAD_DI0_DISP_CLK__IPU1_DI0_DISP_CLK,
@@ -1058,6 +1062,15 @@ static void __init mx6_sabrelite_board_init(void)
 
 	mxc_iomux_v3_setup_multiple_pads(mx6q_sabrelite_pads,
 					ARRAY_SIZE(mx6q_sabrelite_pads));
+
+#ifdef CONFIG_FEC_1588
+	/* Set GPIO_16 input for IEEE-1588 ts_clk and RMII reference clock
+	 * For MX6 GPR1 bit21 meaning:
+	 * Bit21:       0 - GPIO_16 pad output
+	 *              1 - GPIO_16 pad input
+	 */
+	mxc_iomux_set_gpr_register(1, 21, 1, 1);
+#endif
 
 	gp_reg_id = sabrelite_dvfscore_data.reg_id;
 	mx6q_sabrelite_init_uart();
