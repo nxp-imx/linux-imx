@@ -45,6 +45,10 @@
 
 #include <mach/mxc_vpu.h>
 
+/* Define one new pgprot which combined uncached and XN(never executable) */
+#define pgprot_noncachedxn(prot) \
+	__pgprot_modify(prot, L_PTE_MT_MASK, L_PTE_MT_UNCACHED | L_PTE_XN)
+
 struct vpu_priv {
 	struct fasync_struct *async_queue;
 	struct work_struct work;
@@ -511,7 +515,13 @@ static int vpu_map_hwregs(struct file *fp, struct vm_area_struct *vm)
 	unsigned long pfn;
 
 	vm->vm_flags |= VM_IO | VM_RESERVED;
-	vm->vm_page_prot = pgprot_noncached(vm->vm_page_prot);
+	/*
+	 * Since vpu registers have been mapped with ioremap() at probe
+	 * which L_PTE_XN is 1, and the same physical address must be
+	 * mapped multiple times with same type, so set L_PTE_XN to 1 here.
+	 * Otherwise, there may be unexpected result in video codec.
+	 */
+	vm->vm_page_prot = pgprot_noncachedxn(vm->vm_page_prot);
 	pfn = phy_vpu_base_addr >> PAGE_SHIFT;
 	pr_debug("size=0x%x,  page no.=0x%x\n",
 		 (int)(vm->vm_end - vm->vm_start), (int)pfn);
