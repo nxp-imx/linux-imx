@@ -344,9 +344,6 @@ static int pfd_set_rate(struct clk *clk, unsigned long rate)
 	__raw_writel(frac << clk->enable_shift,
 			(int)clk->enable_reg + 4);
 
-	tmp = (u64)clk_get_rate(clk->parent) * 18;
-	do_div(tmp, frac);
-
 	if (apbh_dma_clk.usecount == 0)
 		apbh_dma_clk.disable(&apbh_dma_clk);
 	return 0;
