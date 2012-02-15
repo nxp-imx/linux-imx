@@ -93,6 +93,13 @@
 #define  PCIE_CONF_BUS(b)		(((b) & 0xFF) << 16)
 #define  PCIE_CONF_DEV(d)		(((d) & 0x1F) << 11)
 #define  PCIE_CONF_FUNC(f)		(((f) & 0x7) << 8)
+#define  PCIE_CONF_REG(r)		((r) & ~0x3)
+
+#define MX6_ARM2_PCIE_PWR_EN		(IMX_GPIO_NR(8, 0) + 2)
+#define MX6_ARM2_PCIE_RESET		(IMX_GPIO_NR(8, 8) + 2)
+
+static void __iomem *base;
+static void __iomem *dbi_base;
 
 enum {
 	MemRdWr = 0,
@@ -130,7 +137,7 @@ static struct imx_pcie_port *bus_to_port(int bus)
 
 	for (i = num_pcie_ports - 1; i >= 0; i--) {
 		int rbus = imx_pcie_port[i].root_bus_nr;
-		if (rbus != -1 && rbus <= bus)
+		if (rbus != -1 && rbus == bus)
 			break;
 	}
 
@@ -156,7 +163,7 @@ static int __init imx_pcie_setup(int nr, struct pci_sys_data *sys)
 	pp->res[0].name = pp->io_space_name;
 	if (pp->index == 0) {
 		pp->res[0].start = PCIE_ARB_BASE_ADDR;
-		pp->res[0].end = pp->res[0].start + SZ_64K - 1;
+		pp->res[0].end = pp->res[0].start + SZ_1M - 1;
 	}
 	pp->res[0].flags = IORESOURCE_IO;
 	if (request_resource(&ioport_resource, &pp->res[0]))
@@ -171,8 +178,8 @@ static int __init imx_pcie_setup(int nr, struct pci_sys_data *sys)
 	pp->mem_space_name[sizeof(pp->mem_space_name) - 1] = 0;
 	pp->res[1].name = pp->mem_space_name;
 	if (pp->index == 0) {
-		pp->res[1].start = PCIE_ARB_BASE_ADDR + SZ_64K;
-		pp->res[1].end = pp->res[1].start + SZ_16M - SZ_128K - 1;
+		pp->res[1].start = PCIE_ARB_BASE_ADDR + SZ_1M;
+		pp->res[1].end = pp->res[1].start + SZ_16M - SZ_2M - 1;
 	}
 	pp->res[1].flags = IORESOURCE_MEM;
 	if (request_resource(&iomem_resource, &pp->res[1]))
@@ -182,11 +189,6 @@ static int __init imx_pcie_setup(int nr, struct pci_sys_data *sys)
 	sys->resource[2] = NULL;
 
 	return 1;
-}
-
-static void __init imx_pcie_preinit(void)
-{
-	pcibios_setup("debug");
 }
 
 static int imx_pcie_link_up(void __iomem *dbi_base)
@@ -199,30 +201,13 @@ static int imx_pcie_link_up(void __iomem *dbi_base)
 		rc = readl(dbi_base + DB_R1) & (0x1 << (36-32)) ;
 		iterations--;
 		if ((iterations % 0x100000) == 0)
-			pr_info("link up failed!\n");
+			pr_info("link up failed, DB_R0:0x%08x, DB_R1:0x%08x!\n"
+					, readl(dbi_base + DB_R0)
+					, readl(dbi_base + DB_R1));
 	} while (!rc && iterations);
 
 	if (!rc)
 		return 0;
-	return 1;
-}
-
-static int pcie_valid_config(struct imx_pcie_port *pp, int bus_num, int dev)
-{
-	/*If there is no link, then there is no device*/
-	if (bus_num != pp->root_bus_nr) {
-		if (!imx_pcie_link_up(pp->dbi_base))
-			return 0;
-	}
-
-	/*
-	 * Don't go out when trying to access nonexisting devices
-	 * on the local bus.
-	 * We have only one slot on the root port.
-	 */
-	if (bus_num == pp->root_bus_nr && dev > 0)
-		return 0;
-
 	return 1;
 }
 
@@ -235,9 +220,9 @@ static void imx_pcie_regions_setup(void __iomem *dbi_base)
 	 * split and defined into different regions by iATU,
 	 * with sizes and offsets as follows:
 	 *
-	 * 0x0100_0000 --- 0x0100_FFFF 64KB IORESOURCE_IO
-	 * 0x0101_0000 --- 0x01FE_FFFF 16MB - 128KB IORESOURCE_MEM
-	 * 0x01FF_0000 --- 0x01FF_FFFF 64KB Cfg + Registers
+	 * 0x0100_0000 --- 0x010F_FFFF 1MB IORESOURCE_IO
+	 * 0x0110_0000 --- 0x01EF_FFFF 14MB IORESOURCE_MEM
+	 * 0x01F0_0000 --- 0x01FF_FFFF 1MB Cfg + Registers
 	 */
 
 	/* CMD reg:I/O space, MEM space, and Bus Master Enable */
@@ -246,40 +231,23 @@ static void imx_pcie_regions_setup(void __iomem *dbi_base)
 			| PCI_COMMAND_MEMORY
 			| PCI_COMMAND_MASTER,
 			dbi_base + PCI_COMMAND);
+
+	/* Set the CLASS_REV of RC CFG header to PCI_CLASS_BRIDGE_PCI */
+	writel(readl(dbi_base + PCI_CLASS_REVISION)
+			| (PCI_CLASS_BRIDGE_PCI << 16),
+			dbi_base + PCI_CLASS_REVISION);
+
 	/*
 	 * region0 outbound used to access target cfg
 	 */
 	writel(0, dbi_base + ATU_VIEWPORT_R);
-	writel(PCIE_ARB_END_ADDR - SZ_64K + 1, dbi_base + ATU_REGION_LOWBASE_R);
-	writel(0, dbi_base + ATU_REGION_UPBASE_R);
+	writel(PCIE_ARB_END_ADDR - SZ_1M + 1, dbi_base + ATU_REGION_LOWBASE_R);
 	writel(PCIE_ARB_END_ADDR, dbi_base + ATU_REGION_LIMIT_ADDR_R);
+	writel(0, dbi_base + ATU_REGION_UPBASE_R);
+
 	writel(0, dbi_base + ATU_REGION_LOW_TRGT_ADDR_R);
 	writel(0, dbi_base + ATU_REGION_UP_TRGT_ADDR_R);
 	writel(CfgRdWr0, dbi_base + ATU_REGION_CTRL1_R);
-	writel((1<<31), dbi_base + ATU_REGION_CTRL2_R);
-
-	/*
-	 * region1 outbound used to as IORESOURCE_IO
-	 */
-	writel(1, dbi_base + ATU_VIEWPORT_R);
-	writel(0, dbi_base + ATU_REGION_LOWBASE_R);
-	writel(0, dbi_base + ATU_REGION_UPBASE_R);
-	writel(SZ_64K - 1, dbi_base + ATU_REGION_LIMIT_ADDR_R);
-	writel(0, dbi_base + ATU_REGION_LOW_TRGT_ADDR_R);
-	writel(0, dbi_base + ATU_REGION_UP_TRGT_ADDR_R);
-	writel(IORdWr, dbi_base + ATU_REGION_CTRL1_R);
-	writel((1<<31), dbi_base + ATU_REGION_CTRL2_R);
-
-	/*
-	 * region2 outbound used to as IORESOURCE_MEM
-	 */
-	writel(2, dbi_base + ATU_VIEWPORT_R);
-	writel(0, dbi_base + ATU_REGION_LOWBASE_R);
-	writel(0, dbi_base + ATU_REGION_UPBASE_R);
-	writel(SZ_16M - SZ_128K - 1, dbi_base + ATU_REGION_LIMIT_ADDR_R);
-	writel(0, dbi_base + ATU_REGION_LOW_TRGT_ADDR_R);
-	writel(0, dbi_base + ATU_REGION_UP_TRGT_ADDR_R);
-	writel(MemRdWr, dbi_base + ATU_REGION_CTRL1_R);
 	writel((1<<31), dbi_base + ATU_REGION_CTRL2_R);
 }
 
@@ -287,22 +255,20 @@ static int imx_pcie_rd_conf(struct pci_bus *bus, u32 devfn, int where,
 			int size, u32 *val)
 {
 	struct imx_pcie_port *pp = bus_to_port(bus->number);
-	unsigned long flags;
 	u32 va_address;
 
-	if (pcie_valid_config(pp, bus->number, PCI_SLOT(devfn)) == 0) {
-		*val = 0xFFFFFFFF;
-		return PCIBIOS_DEVICE_NOT_FOUND;
-	}
+	if (pp) {
+		if (devfn != 0) {
+			*val = 0xffffffff;
+			return PCIBIOS_DEVICE_NOT_FOUND;
+		}
 
-
-	spin_lock_irqsave(&pp->conf_lock, flags);
-
-	va_address = (u32)pp->base +
-		PCIE_CONF_BUS(bus->number) +
-		PCIE_CONF_DEV(PCI_SLOT(devfn)) +
-		PCIE_CONF_FUNC(PCI_FUNC(devfn)) +
-		(where & ~0x3);
+		va_address = (u32)dbi_base + (where & ~0x3);
+	} else
+		va_address = (u32)base + (PCIE_CONF_BUS(bus->number - 1) +
+					  PCIE_CONF_DEV(PCI_SLOT(devfn)) +
+					  PCIE_CONF_FUNC(PCI_FUNC(devfn)) +
+					  PCIE_CONF_REG(where));
 
 	*val = readl(va_address);
 
@@ -311,8 +277,6 @@ static int imx_pcie_rd_conf(struct pci_bus *bus, u32 devfn, int where,
 	else if (size == 2)
 		*val = (*val >> (8 * (where & 3))) & 0xFFFF;
 
-	spin_unlock_irqrestore(&pp->conf_lock, flags);
-
 	return PCIBIOS_SUCCESSFUL;
 }
 
@@ -320,20 +284,19 @@ static int imx_pcie_wr_conf(struct pci_bus *bus, u32 devfn,
 			int where, int size, u32 val)
 {
 	struct imx_pcie_port *pp = bus_to_port(bus->number);
-	unsigned long flags;
 	u32 va_address = 0, mask = 0, tmp = 0;
 	int ret = PCIBIOS_SUCCESSFUL;
 
-	if (pcie_valid_config(pp, bus->number, PCI_SLOT(devfn)) == 0)
-		return PCIBIOS_DEVICE_NOT_FOUND;
+	if (pp) {
+		if (devfn != 0)
+			return PCIBIOS_DEVICE_NOT_FOUND;
 
-	spin_lock_irqsave(&pp->conf_lock, flags);
-
-	va_address = (u32)pp->base +
-		PCIE_CONF_BUS(bus->number) +
-		PCIE_CONF_DEV(PCI_SLOT(devfn)) +
-		PCIE_CONF_FUNC(PCI_FUNC(devfn)) +
-		(where & ~0x3);
+		va_address = (u32)dbi_base + (where & ~0x3);
+	} else
+		va_address = (u32)base + (PCIE_CONF_BUS(bus->number - 1) +
+					  PCIE_CONF_DEV(PCI_SLOT(devfn)) +
+					  PCIE_CONF_FUNC(PCI_FUNC(devfn)) +
+					  PCIE_CONF_REG(where));
 
 	if (size == 4) {
 		writel(val, va_address);
@@ -351,7 +314,6 @@ static int imx_pcie_wr_conf(struct pci_bus *bus, u32 devfn,
 	tmp |= val << ((where & 0x3) * 8);
 	writel(tmp, va_address);
 exit:
-	spin_unlock_irqrestore(&pp->conf_lock, flags);
 
 	return ret;
 }
@@ -378,14 +340,13 @@ imx_pcie_scan_bus(int nr, struct pci_sys_data *sys)
 
 static int __init imx_pcie_map_irq(struct pci_dev *dev, u8 slot, u8 pin)
 {
-	return MXC_INT_PCIE_0;
+	return MXC_INT_PCIE_3;
 }
 
 static struct hw_pci imx_pci __initdata = {
 	.nr_controllers	= 1,
 	.swizzle	= pci_std_swizzle,
 	.setup		= imx_pcie_setup,
-	.preinit	= imx_pcie_preinit,
 	.scan		= imx_pcie_scan_bus,
 	.map_irq	= imx_pcie_map_irq,
 };
@@ -394,6 +355,11 @@ static void imx_pcie_enable_controller(void)
 {
 	struct clk *pcie_clk;
 
+	/* PCIE PWR_EN: EXP_IO2 of MAX7310_1 */
+	gpio_request(MX6_ARM2_PCIE_PWR_EN, "PCIE POWER_EN");
+
+	/* activate PCIE_PWR_EN CTRL_2 */
+	gpio_direction_output(MX6_ARM2_PCIE_PWR_EN, 1);
 	imx_pcie_clrset(iomuxc_gpr1_test_powerdown, 0 << 18, IOMUXC_GPR1);
 
 	/* enable the clks */
@@ -409,7 +375,17 @@ static void imx_pcie_enable_controller(void)
 
 static void card_reset(void)
 {
+	/* PCIE RESET: EXP_IO2 of MAX7310_2 */
+	gpio_request(MX6_ARM2_PCIE_RESET, "PCIE RESET");
+
+	/* activate PERST_B */
+	gpio_direction_output(MX6_ARM2_PCIE_RESET, 0);
+
 	/* Add one reset to the pcie external device */
+	msleep(100);
+
+	/* deactive PERST_B */
+	gpio_direction_output(MX6_ARM2_PCIE_RESET, 1);
 }
 
 static void __init add_pcie_port(void __iomem *base, void __iomem *dbi_base)
@@ -431,9 +407,7 @@ static void __init add_pcie_port(void __iomem *base, void __iomem *dbi_base)
 
 static int __init imx_pcie_init(void)
 {
-	void __iomem *base, *dbi_base;
-
-	base = ioremap_nocache(PCIE_ARB_END_ADDR - SZ_64K + 1, SZ_32K);
+	base = ioremap_nocache(PCIE_ARB_END_ADDR - SZ_1M + 1, SZ_1M - SZ_16K);
 	if (!base) {
 		pr_err("error with ioremap in function %s\n", __func__);
 		return -EIO;
@@ -467,18 +441,17 @@ static int __init imx_pcie_init(void)
 	/* togle the external card's reset */
 	card_reset() ;
 
-	usleep_range(3000, 4000);
-	imx_pcie_regions_setup(dbi_base);
-	usleep_range(3000, 4000);
-
 	/* start link up */
 	imx_pcie_clrset(iomuxc_gpr12_app_ltssm_enable, 1 << 10, IOMUXC_GPR12);
 
 	/* add the pcie port */
 	add_pcie_port(base, dbi_base);
 
+	usleep_range(3000, 4000);
+	imx_pcie_regions_setup(dbi_base);
+	usleep_range(3000, 4000);
+
 	pci_common_init(&imx_pci);
-	pr_info("pcie init successful\n");
 	return 0;
 }
-subsys_initcall(imx_pcie_init);
+device_initcall(imx_pcie_init);
