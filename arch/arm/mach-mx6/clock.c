@@ -5224,6 +5224,8 @@ int __init mx6_clocks_init(unsigned long ckil, unsigned long osc,
 		clk_set_parent(&gpu2d_axi_clk, &mmdc_ch0_axi_clk[0]);
 		gpu2d_axi_clk.secondary = NULL;
 	}
+	if (cpu_is_mx6q())
+		clk_set_parent(&gpu2d_core_clk[0], &pll3_usb_otg_main_clk);
 
 	/* PCLK camera - J5 */
 	clk_set_parent(&clko2_clk, &osc_clk);
