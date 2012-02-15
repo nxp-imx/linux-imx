@@ -3467,33 +3467,6 @@ static struct clk esai_clk = {
 	 .round_rate = _clk_esai_round_rate,
 };
 
-static int _clk_enet_enable(struct clk *clk)
-{
-	unsigned int reg;
-
-	/* Enable ENET ref clock */
-	reg = __raw_readl(PLL8_ENET_BASE_ADDR);
-	reg &= ~ANADIG_PLL_BYPASS;
-	reg |= ANADIG_PLL_ENABLE;
-	__raw_writel(reg, PLL8_ENET_BASE_ADDR);
-
-	_clk_enable(clk);
-	return 0;
-}
-
-static void _clk_enet_disable(struct clk *clk)
-{
-	unsigned int reg;
-
-	_clk_disable(clk);
-
-	/* Enable ENET ref clock */
-	reg = __raw_readl(PLL8_ENET_BASE_ADDR);
-	reg |= ANADIG_PLL_BYPASS;
-	reg &= ~ANADIG_PLL_ENABLE;
-	__raw_writel(reg, PLL8_ENET_BASE_ADDR);
-}
-
 static int _clk_enet_set_rate(struct clk *clk, unsigned long rate)
 {
 	unsigned int reg, div = 1;
@@ -3554,8 +3527,8 @@ static struct clk enet_clk[] = {
 	 .parent = &pll8_enet_main_clk,
 	 .enable_reg = MXC_CCM_CCGR1,
 	 .enable_shift = MXC_CCM_CCGRx_CG5_OFFSET,
-	 .enable = _clk_enet_enable,
-	 .disable = _clk_enet_disable,
+	 .enable = _clk_enable,
+	 .disable = _clk_disable,
 	 .set_rate = _clk_enet_set_rate,
 	 .get_rate = _clk_enet_get_rate,
 	.secondary = &enet_clk[1],
@@ -4549,37 +4522,56 @@ static struct clk pwm_clk[] = {
 	 },
 };
 
-static int _clk_pcie_enable(struct clk *clk)
+static int _clk_sata_enable(struct clk *clk)
 {
 	unsigned int reg;
 
-	/* Clear Power Down and Enable PLLs */
-	reg = __raw_readl(PLL8_ENET_BASE_ADDR);
-	reg &= ~ANADIG_PLL_ENET_POWER_DOWN;
-	__raw_writel(reg, PLL8_ENET_BASE_ADDR);
-
-	reg = __raw_readl(PLL8_ENET_BASE_ADDR);
-	reg |= ANADIG_PLL_ENET_EN;
-	__raw_writel(reg, PLL8_ENET_BASE_ADDR);
-
-	/* Waiting for the PLL is locked */
-	if (!WAIT(ANADIG_PLL_ENET_LOCK & __raw_readl(PLL8_ENET_BASE_ADDR),
-				SPIN_DELAY))
-		panic("pll8 lock failed\n");
-
-	/* Disable the bypass */
-	reg = __raw_readl(PLL8_ENET_BASE_ADDR);
-	reg &= ~ANADIG_PLL_ENET_BYPASS;
-	__raw_writel(reg, PLL8_ENET_BASE_ADDR);
-
-	/*
-	 * Enable SATA ref clock.
-	 * PCIe needs both sides to have the same source of refernce clock,
-	 * The SATA reference clock is taken out on clk out
-	 */
+	/* Enable SATA ref clock */
 	reg = __raw_readl(PLL8_ENET_BASE_ADDR);
 	reg |= ANADIG_PLL_ENET_EN_SATA;
 	__raw_writel(reg, PLL8_ENET_BASE_ADDR);
+
+	_clk_enable(clk);
+
+	return 0;
+}
+
+static void _clk_sata_disable(struct clk *clk)
+{
+	unsigned int reg;
+
+	_clk_disable(clk);
+
+	/* Disable SATA ref clock */
+	reg = __raw_readl(PLL8_ENET_BASE_ADDR);
+	reg &= ~ANADIG_PLL_ENET_EN_SATA;
+	__raw_writel(reg, PLL8_ENET_BASE_ADDR);
+}
+
+static struct clk sata_clk[] = {
+	{
+	__INIT_CLK_DEBUG(sata_clk)
+	.parent = &pll8_enet_main_clk,
+	.enable = _clk_sata_enable,
+	.enable_reg = MXC_CCM_CCGR5,
+	.enable_shift = MXC_CCM_CCGRx_CG2_OFFSET,
+	.disable = _clk_sata_disable,
+	.secondary = &sata_clk[1],
+	.flags = AHB_HIGH_SET_POINT | CPU_FREQ_TRIG_UPDATE,
+	},
+	{
+	.parent = &ipg_clk,
+	.secondary = &sata_clk[2],
+	},
+	{
+	.parent = &mmdc_ch0_axi_clk[0],
+	.secondary = &mx6per1_clk,
+	},
+};
+
+static int _clk_pcie_enable(struct clk *clk)
+{
+	unsigned int reg;
 
 	/* Activate LVDS CLK1 (the MiniPCIe slot clock input) */
 	reg = __raw_readl(ANADIG_MISC1_REG);
@@ -4610,7 +4602,20 @@ static void _clk_pcie_disable(struct clk *clk)
 
 	_clk_disable(clk);
 
-	/* Disable SATA ref clock */
+	/* De-activate LVDS CLK1 (the MiniPCIe slot clock input) */
+	reg = __raw_readl(ANADIG_MISC1_REG);
+	reg &= ~ANATOP_LVDS_CLK1_IBEN_MASK;
+	__raw_writel(reg, ANADIG_MISC1_REG);
+
+	reg = __raw_readl(ANADIG_MISC1_REG);
+	reg &= ~ANATOP_LVDS_CLK1_SRC_SATA;
+	__raw_writel(reg, ANADIG_MISC1_REG);
+
+	reg = __raw_readl(ANADIG_MISC1_REG);
+	reg &= ~ANATOP_LVDS_CLK1_OBEN_MASK;
+	__raw_writel(reg, ANADIG_MISC1_REG);
+
+	/* Disable PCIE ref clock */
 	reg = __raw_readl(PLL8_ENET_BASE_ADDR);
 	reg &= ~ANADIG_PLL_ENET_EN_PCIE;
 	__raw_writel(reg, PLL8_ENET_BASE_ADDR);
@@ -4628,71 +4633,18 @@ static struct clk pcie_clk[] = {
 	.flags = AHB_HIGH_SET_POINT | CPU_FREQ_TRIG_UPDATE,
 	},
 	{
+	/*
+	 * Enable SATA ref clock.
+	 * PCIe needs both sides to have the same source of refernce clock,
+	 * The SATA reference clock is taken out to link partner.
+	 */
+	.parent = &sata_clk[0],
+	.secondary = &pcie_clk[2],
+	},
+	{
 	.parent = &mmdc_ch0_axi_clk[0],
 	.secondary = &mx6fast1_clk,
 	},
-};
-
-static int _clk_sata_enable(struct clk *clk)
-{
-	unsigned int reg;
-
-	/* Clear Power Down and Enable PLLs */
-	reg = __raw_readl(PLL8_ENET_BASE_ADDR);
-	reg &= ~ANADIG_PLL_ENET_POWER_DOWN;
-	__raw_writel(reg, PLL8_ENET_BASE_ADDR);
-
-	reg = __raw_readl(PLL8_ENET_BASE_ADDR);
-	reg |= ANADIG_PLL_ENET_EN;
-	__raw_writel(reg, PLL8_ENET_BASE_ADDR);
-
-	/* Waiting for the PLL is locked */
-	if (!WAIT(ANADIG_PLL_ENET_LOCK & __raw_readl(PLL8_ENET_BASE_ADDR),
-				SPIN_DELAY))
-		panic("pll8 lock failed\n");
-
-	/* Disable the bypass */
-	reg = __raw_readl(PLL8_ENET_BASE_ADDR);
-	reg &= ~ANADIG_PLL_ENET_BYPASS;
-	__raw_writel(reg, PLL8_ENET_BASE_ADDR);
-
-	/* Enable SATA ref clock */
-	reg = __raw_readl(PLL8_ENET_BASE_ADDR);
-	reg |= ANADIG_PLL_ENET_EN_SATA;
-	__raw_writel(reg, PLL8_ENET_BASE_ADDR);
-
-	_clk_enable(clk);
-
-	return 0;
-}
-
-static void _clk_sata_disable(struct clk *clk)
-{
-	unsigned int reg;
-
-	_clk_disable(clk);
-
-	/* Disable SATA ref clock */
-	reg = __raw_readl(PLL8_ENET_BASE_ADDR);
-	reg &= ~ANADIG_PLL_ENET_EN_SATA;
-	__raw_writel(reg, PLL8_ENET_BASE_ADDR);
-}
-
-static struct clk sata_clk[] = {
-	{
-	__INIT_CLK_DEBUG(sata_clk)
-	.parent = &ipg_clk,
-	.enable = _clk_sata_enable,
-	.enable_reg = MXC_CCM_CCGR5,
-	.enable_shift = MXC_CCM_CCGRx_CG2_OFFSET,
-	.disable = _clk_sata_disable,
-	.secondary = &sata_clk[1],
-	.flags = AHB_HIGH_SET_POINT | CPU_FREQ_TRIG_UPDATE,
-	},
-	{
-	.parent = &mmdc_ch0_axi_clk[0],
-	.secondary = &mx6per1_clk,
-	}
 };
 
 static struct clk usboh3_clk[] = {
