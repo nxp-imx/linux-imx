@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2011-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -57,6 +57,19 @@ static struct map_desc mx6_io_desc[] __initdata = {
 	.type = MT_DEVICE},
 };
 
+static void mx6_set_cpu_type(void)
+{
+	u32 cpu_type = readl(IO_ADDRESS(ANATOP_BASE_ADDR + 0x260));
+
+	cpu_type >>= 16;
+	if (cpu_type == 0x63)
+		mxc_set_cpu_type(MXC_CPU_MX6Q);
+	else if (cpu_type == 0x61)
+		mxc_set_cpu_type(MXC_CPU_MX6DL);
+	else
+		pr_err("Unknown CPU type: %x\n", cpu_type);
+}
+
 /*!
  * This function initializes the memory map. It is called during the
  * system startup to create static physical to virtual memory map for
@@ -67,6 +80,7 @@ void __init mx6_map_io(void)
 	iotable_init(mx6_io_desc, ARRAY_SIZE(mx6_io_desc));
 	mxc_iomux_v3_init(IO_ADDRESS(MX6Q_IOMUXC_BASE_ADDR));
 	mxc_arch_reset_init(IO_ADDRESS(MX6Q_WDOG1_BASE_ADDR));
+	mx6_set_cpu_type();
 }
 #ifdef CONFIG_CACHE_L2X0
 int mxc_init_l2x0(void)

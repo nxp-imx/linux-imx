@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2004-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -472,8 +472,6 @@ int prp_vf_sdc_select_bg(void *private)
 int prp_vf_sdc_deselect_bg(void *private)
 {
 	cam_data *cam = (cam_data *) private;
-	int err = 0;
-	err = prpvf_stop(private);
 
 	if (cam) {
 		cam->vf_start_sdc = NULL;
@@ -481,7 +479,7 @@ int prp_vf_sdc_deselect_bg(void *private)
 		cam->vf_enable_csi = NULL;
 		cam->vf_disable_csi = NULL;
 	}
-	return err;
+	return 0;
 }
 
 /*!

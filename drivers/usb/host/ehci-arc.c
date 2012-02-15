@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2005 MontaVista Software
- * Copyright (C) 2011-2012 Freescale Semiconductor, Inc.
+ * Copyright (C) 2012 Freescale Semiconductor, Inc.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -521,9 +521,6 @@ static int ehci_fsl_setup(struct usb_hcd *hcd)
 	struct ehci_hcd *ehci = hcd_to_ehci(hcd);
 	int retval;
 
-	/* overwrite the default wakeup strategy */
-	device_set_wakeup_enable(&hcd->self.root_hub->dev, false);
-
 	/* EHCI registers start at offset 0x100 */
 	ehci->caps = hcd->regs + 0x100;
 	ehci->regs = hcd->regs + 0x100 +
@@ -551,6 +548,19 @@ static int ehci_fsl_setup(struct usb_hcd *hcd)
 
 	retval = ehci_fsl_reinit(ehci);
 	return retval;
+}
+
+/* called after hcd send port_reset cmd */
+static int ehci_fsl_reset_device(struct usb_hcd *hcd, struct usb_device *udev)
+{
+	struct fsl_usb2_platform_data *pdata;
+
+	pdata = hcd->self.controller->platform_data;
+
+	if (pdata->hsic_device_connected)
+		pdata->hsic_device_connected();
+
+	return 0;
 }
 
 static const struct hc_driver ehci_fsl_hc_driver = {
@@ -596,6 +606,7 @@ static const struct hc_driver ehci_fsl_hc_driver = {
 	.port_handed_over = ehci_port_handed_over,
 
 	.clear_tt_buffer_complete = ehci_clear_tt_buffer_complete,
+	.reset_device = ehci_fsl_reset_device,
 };
 
 static int ehci_fsl_drv_probe(struct platform_device *pdev)

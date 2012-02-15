@@ -532,7 +532,7 @@ static int ldb_disp_init(struct mxc_dispdrv_handle *disp,
 		}
 
 		/* clock setting */
-		if (cpu_is_mx6q() &&
+		if ((cpu_is_mx6q() || cpu_is_mx6dl()) &&
 			((ldb->mode == LDB_SEP0) || (ldb->mode == LDB_SEP1)))
 			ldb_clk[6] += lvds_channel;
 		else
@@ -582,7 +582,7 @@ static int ldb_disp_init(struct mxc_dispdrv_handle *disp,
 		}
 
 		setting_idx = 1;
-		if (cpu_is_mx6q()) {
+		if (cpu_is_mx6q() || cpu_is_mx6dl()) {
 			setting->dev_id = plat_data->sec_ipu_id;
 			setting->disp_id = plat_data->sec_disp_id;
 		} else {
@@ -628,7 +628,7 @@ static int ldb_disp_init(struct mxc_dispdrv_handle *disp,
 		writel(reg, ldb->control_reg);
 
 		/* clock setting */
-		if (cpu_is_mx6q())
+		if (cpu_is_mx6q() || cpu_is_mx6dl())
 			ldb_clk[6] += lvds_channel;
 		else
 			ldb_clk[6] += setting->disp_id;
@@ -653,7 +653,7 @@ static int ldb_disp_init(struct mxc_dispdrv_handle *disp,
 	ldb->setting[setting_idx].ch_mask = ch_mask;
 	ldb->setting[setting_idx].ch_val = ch_val;
 
-	if (cpu_is_mx6q()) {
+	if (cpu_is_mx6q() || cpu_is_mx6dl()) {
 		if ((ldb->mode == LDB_SEP0) || (ldb->mode == LDB_SEP1)) {
 			reg = readl(ldb->control_reg);
 			reg &= ~(LDB_CH0_MODE_MASK | LDB_CH1_MODE_MASK);

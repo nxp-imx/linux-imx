@@ -101,6 +101,7 @@
 #define MX6Q_SABRESD_eCOMPASS_INT	IMX_GPIO_NR(3, 16)
 #define MX6Q_SABRESD_ALS_INT		IMX_GPIO_NR(3, 9)
 #define MX6Q_SABRESD_MPCIE_3V3_EN	IMX_GPIO_NR(1, 6)
+
 #define MX6Q_SABRESD_CHARGE_FLT_1_B	IMX_GPIO_NR(5, 2)
 #define MX6Q_SABRESD_CHARGE_CHG_1_B	IMX_GPIO_NR(3, 23)
 #define MX6Q_SABRESD_CHARGE_FLT_2_B	IMX_GPIO_NR(3, 14)
@@ -1249,6 +1250,7 @@ static void __init mx6_sabresd_board_init(void)
 	mxc_register_device(&mxc_android_pmem_gpu_device,
 			    &android_pmem_gpu_data);
 	imx6q_add_device_buttons();
+
 	/* enable sensor 3v3 and 1v8 */
 	gpio_request(MX6Q_SABRESD_SENSOR_EN, "sensor-en");
 	gpio_direction_output(MX6Q_SABRESD_SENSOR_EN, 1);

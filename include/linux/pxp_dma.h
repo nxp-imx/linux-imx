@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2010-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -109,6 +109,7 @@ struct rect {
 struct pxp_layer_param {
 	unsigned short width;
 	unsigned short height;
+	unsigned short stride; /* aka pitch */
 	unsigned int pixel_fmt;
 
 	/* layers combining parameters

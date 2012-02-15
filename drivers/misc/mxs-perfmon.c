@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2011-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -171,7 +171,7 @@ perfmon_show(struct device *dev, struct device_attribute *attr, char *buf)
 		if (pdata->plt_init)
 			pdata->plt_init();
 
-		mxs_reset_block((void *)pd->base, true);
+		mxs_reset_block((void *)pd->base);
 		pd->initial = true;
 	}
 
@@ -234,7 +234,7 @@ perfmon_store(struct device *dev, struct device_attribute *attr,
 		if (pdata->plt_init)
 			pdata->plt_init();
 
-		mxs_reset_block((void *)pd->base, true);
+		mxs_reset_block((void *)pd->base);
 		pd->initial = true;
 	}
 

@@ -344,9 +344,6 @@ static int pfd_set_rate(struct clk *clk, unsigned long rate)
 	__raw_writel(frac << clk->enable_shift,
 			(int)clk->enable_reg + 4);
 
-	tmp = (u64)clk_get_rate(clk->parent) * 18;
-	do_div(tmp, frac);
-
 	if (apbh_dma_clk.usecount == 0)
 		apbh_dma_clk.disable(&apbh_dma_clk);
 	return 0;
@@ -1746,7 +1743,6 @@ static struct clk vdoa_clk = {
 
 static unsigned long _clk_gpt_get_rate(struct clk *clk)
 {
-	u32 reg;
 	unsigned long rate;
 
 	if (mx6q_revision() == IMX_CHIP_REVISION_1_0)
@@ -3489,7 +3485,7 @@ static int _clk_enet_enable(struct clk *clk)
 	/* Enable ENET ref clock */
 	reg = __raw_readl(PLL8_ENET_BASE_ADDR);
 	reg &= ~ANADIG_PLL_BYPASS;
-	reg &= ~ANADIG_PLL_ENABLE;
+	reg |= ANADIG_PLL_ENABLE;
 	__raw_writel(reg, PLL8_ENET_BASE_ADDR);
 
 	_clk_enable(clk);
@@ -3505,7 +3501,7 @@ static void _clk_enet_disable(struct clk *clk)
 	/* Enable ENET ref clock */
 	reg = __raw_readl(PLL8_ENET_BASE_ADDR);
 	reg |= ANADIG_PLL_BYPASS;
-	reg |= ANADIG_PLL_ENABLE;
+	reg &= ~ANADIG_PLL_ENABLE;
 	__raw_writel(reg, PLL8_ENET_BASE_ADDR);
 }
 
@@ -4338,10 +4334,13 @@ static int _clk_gpu2d_core_set_parent(struct clk *clk, struct clk *parent)
 	u32 reg = __raw_readl(MXC_CCM_CBCMR) &
 				~MXC_CCM_CBCMR_GPU2D_CLK_SEL_MASK;
 
-	mux = _get_mux6(parent, &axi_clk, &pll3_usb_otg_main_clk,
-		&pll2_pfd_352M, &pll2_pfd_400M, NULL, NULL);
-	reg |= (mux << MXC_CCM_CBCMR_GPU2D_CLK_SEL_OFFSET);
-	__raw_writel(reg, MXC_CCM_CBCMR);
+	/*on mx6dl, 2d core clock sources from 3d shader core clock*/
+	if (!cpu_is_mx6dl()) {
+		mux = _get_mux6(parent, &axi_clk, &pll3_usb_otg_main_clk,
+			&pll2_pfd_352M, &pll2_pfd_400M, NULL, NULL);
+		reg |= (mux << MXC_CCM_CBCMR_GPU2D_CLK_SEL_OFFSET);
+		__raw_writel(reg, MXC_CCM_CBCMR);
+	}
 
 	return 0;
 }
@@ -4478,11 +4477,11 @@ static struct clk gpu3d_shader_clk = {
 };
 
 /* set the parent by the ipcg table */
-static struct clk gpmi_nfc_clk[] = {
+static struct clk gpmi_nand_clk[] = {
 	{	/* gpmi_io_clk */
 	__INIT_CLK_DEBUG(gpmi_io_clk)
 	.parent = &enfc_clk,
-	.secondary = &gpmi_nfc_clk[1],
+	.secondary = &gpmi_nand_clk[1],
 	.enable = _clk_enable,
 	.enable_reg = MXC_CCM_CCGR4,
 	.enable_shift = MXC_CCM_CCGRx_CG14_OFFSET,
@@ -4491,7 +4490,7 @@ static struct clk gpmi_nfc_clk[] = {
 	{	/* gpmi_apb_clk */
 	__INIT_CLK_DEBUG(gpmi_apb_clk)
 	.parent = &usdhc3_clk,
-	.secondary = &gpmi_nfc_clk[2],
+	.secondary = &gpmi_nand_clk[2],
 	.enable = _clk_enable,
 	.enable_reg = MXC_CCM_CCGR4,
 	.enable_shift = MXC_CCM_CCGRx_CG15_OFFSET,
@@ -4500,7 +4499,7 @@ static struct clk gpmi_nfc_clk[] = {
 	{	/* bch_clk */
 	__INIT_CLK_DEBUG(gpmi_bch_clk)
 	.parent = &usdhc4_clk,
-	.secondary = &gpmi_nfc_clk[3],
+	.secondary = &gpmi_nand_clk[3],
 	.enable = _clk_enable,
 	.enable_reg = MXC_CCM_CCGR4,
 	.enable_shift = MXC_CCM_CCGRx_CG13_OFFSET,
@@ -4509,7 +4508,7 @@ static struct clk gpmi_nfc_clk[] = {
 	{	/* bch_apb_clk */
 	__INIT_CLK_DEBUG(gpmi_bch_apb_clk)
 	.parent = &usdhc3_clk,
-	.secondary = &gpmi_nfc_clk[4],
+	.secondary = &gpmi_nand_clk[4],
 	.enable = _clk_enable,
 	.enable_reg = MXC_CCM_CCGR4,
 	.enable_shift = MXC_CCM_CCGRx_CG12_OFFSET,
@@ -4565,7 +4564,48 @@ static int _clk_pcie_enable(struct clk *clk)
 {
 	unsigned int reg;
 
-	/* Enable SATA ref clock */
+	/* Clear Power Down and Enable PLLs */
+	reg = __raw_readl(PLL8_ENET_BASE_ADDR);
+	reg &= ~ANADIG_PLL_ENET_POWER_DOWN;
+	__raw_writel(reg, PLL8_ENET_BASE_ADDR);
+
+	reg = __raw_readl(PLL8_ENET_BASE_ADDR);
+	reg |= ANADIG_PLL_ENET_EN;
+	__raw_writel(reg, PLL8_ENET_BASE_ADDR);
+
+	/* Waiting for the PLL is locked */
+	if (!WAIT(ANADIG_PLL_ENET_LOCK & __raw_readl(PLL8_ENET_BASE_ADDR),
+				SPIN_DELAY))
+		panic("pll8 lock failed\n");
+
+	/* Disable the bypass */
+	reg = __raw_readl(PLL8_ENET_BASE_ADDR);
+	reg &= ~ANADIG_PLL_ENET_BYPASS;
+	__raw_writel(reg, PLL8_ENET_BASE_ADDR);
+
+	/*
+	 * Enable SATA ref clock.
+	 * PCIe needs both sides to have the same source of refernce clock,
+	 * The SATA reference clock is taken out on clk out
+	 */
+	reg = __raw_readl(PLL8_ENET_BASE_ADDR);
+	reg |= ANADIG_PLL_ENET_EN_SATA;
+	__raw_writel(reg, PLL8_ENET_BASE_ADDR);
+
+	/* Activate LVDS CLK1 (the MiniPCIe slot clock input) */
+	reg = __raw_readl(ANADIG_MISC1_REG);
+	reg &= ~ANATOP_LVDS_CLK1_IBEN_MASK;
+	__raw_writel(reg, ANADIG_MISC1_REG);
+
+	reg = __raw_readl(ANADIG_MISC1_REG);
+	reg |= ANATOP_LVDS_CLK1_SRC_SATA;
+	__raw_writel(reg, ANADIG_MISC1_REG);
+
+	reg = __raw_readl(ANADIG_MISC1_REG);
+	reg |= ANATOP_LVDS_CLK1_OBEN_MASK;
+	__raw_writel(reg, ANADIG_MISC1_REG);
+
+	/* Enable PCIE ref clock */
 	reg = __raw_readl(PLL8_ENET_BASE_ADDR);
 	reg |= ANADIG_PLL_ENET_EN_PCIE;
 	__raw_writel(reg, PLL8_ENET_BASE_ADDR);
@@ -5044,11 +5084,11 @@ static struct clk_lookup lookups[] = {
 	_REGISTER_CLOCK(NULL, "gpu2d_clk", gpu2d_core_clk[0]),
 	_REGISTER_CLOCK(NULL, "gpu3d_shader_clk", gpu3d_shader_clk),
 	_REGISTER_CLOCK(NULL, "gpt", gpt_clk[0]),
-	_REGISTER_CLOCK("imx6q-gpmi-nfc.0", NULL, gpmi_nfc_clk[0]),
-	_REGISTER_CLOCK(NULL, "gpmi-apb", gpmi_nfc_clk[1]),
-	_REGISTER_CLOCK(NULL, "bch", gpmi_nfc_clk[2]),
-	_REGISTER_CLOCK(NULL, "bch-apb", gpmi_nfc_clk[3]),
-	_REGISTER_CLOCK(NULL, "pl301_mx6qperl-bch", gpmi_nfc_clk[4]),
+	_REGISTER_CLOCK("imx6q-gpmi-nand.0", NULL, gpmi_nand_clk[0]),
+	_REGISTER_CLOCK(NULL, "gpmi-apb", gpmi_nand_clk[1]),
+	_REGISTER_CLOCK(NULL, "bch", gpmi_nand_clk[2]),
+	_REGISTER_CLOCK(NULL, "bch-apb", gpmi_nand_clk[3]),
+	_REGISTER_CLOCK(NULL, "pl301_mx6qperl-bch", gpmi_nand_clk[4]),
 	_REGISTER_CLOCK("mxc_pwm.0", NULL, pwm_clk[0]),
 	_REGISTER_CLOCK("mxc_pwm.1", NULL, pwm_clk[1]),
 	_REGISTER_CLOCK("mxc_pwm.2", NULL, pwm_clk[2]),
@@ -5070,6 +5110,7 @@ static struct clk_lookup lookups[] = {
 	_REGISTER_CLOCK(NULL, NULL, aips_tz1_clk),
 	_REGISTER_CLOCK(NULL, "clko_clk", clko_clk),
 	_REGISTER_CLOCK(NULL, "clko2_clk", clko2_clk),
+	_REGISTER_CLOCK(NULL, "pxp_axi", ipu2_clk),
 	_REGISTER_CLOCK("mxs-perfmon.0", "perfmon", perfmon0_clk),
 	_REGISTER_CLOCK("mxs-perfmon.1", "perfmon", perfmon1_clk),
 	_REGISTER_CLOCK("mxs-perfmon.2", "perfmon", perfmon2_clk),
@@ -5083,7 +5124,8 @@ static void clk_tree_init(void)
 
 	reg = __raw_readl(MMDC_MDMISC_OFFSET);
 	if ((reg & MMDC_MDMISC_DDR_TYPE_MASK) ==
-		(0x1 << MMDC_MDMISC_DDR_TYPE_OFFSET)) {
+		(0x1 << MMDC_MDMISC_DDR_TYPE_OFFSET) ||
+		cpu_is_mx6dl()) {
 		clk_set_parent(&periph_clk, &pll2_pfd_400M);
 		printk(KERN_INFO "Set periph_clk's parent to pll2_pfd_400M!\n");
 	}
@@ -5116,7 +5158,7 @@ int __init mx6_clocks_init(unsigned long ckil, unsigned long osc,
 
 	clk_tree_init();
 
-	if (pll2_pfd_400M.usecount == 0)
+	if (pll2_pfd_400M.usecount == 0 && cpu_is_mx6q())
 		pll2_pfd_400M.disable(&pll2_pfd_400M);
 	pll2_pfd_352M.disable(&pll2_pfd_352M);
 	pll2_pfd_594M.disable(&pll2_pfd_594M);
@@ -5158,6 +5200,13 @@ int __init mx6_clocks_init(unsigned long ckil, unsigned long osc,
 	clk_set_rate(&gpu3d_shader_clk, 594000000);
 	clk_set_parent(&gpu3d_core_clk[0], &mmdc_ch0_axi_clk[0]);
 	clk_set_rate(&gpu3d_core_clk[0], 528000000);
+	if (cpu_is_mx6dl()) {
+		/*on mx6dl, 2d core clock sources from 3d shader core clock*/
+		clk_set_parent(&gpu2d_core_clk[0], &gpu3d_shader_clk);
+		/* on mx6dl gpu2d_axi_clk source from mmdc0 directly */
+		clk_set_parent(&gpu2d_axi_clk, &mmdc_ch0_axi_clk[0]);
+		gpu2d_axi_clk.secondary = NULL;
+	}
 
 	/* PCLK camera - J5 */
 	clk_set_parent(&clko2_clk, &osc_clk);
@@ -5215,6 +5264,10 @@ int __init mx6_clocks_init(unsigned long ckil, unsigned long osc,
 
 	/* S/PDIF */
 	clk_set_parent(&spdif0_clk[0], &pll3_pfd_454M);
+
+	/* pxp & epdc */
+	clk_set_parent(&ipu2_clk, &pll2_pfd_400M);
+	clk_set_rate(&ipu2_clk, 200000000);
 
 	if (mx6q_revision() == IMX_CHIP_REVISION_1_0) {
 		gpt_clk[0].parent = &ipg_perclk;

@@ -40,6 +40,8 @@
 #include "ipu_prp_sw.h"
 
 #define init_MUTEX(sem)         sema_init(sem, 1)
+#define MXC_SENSOR_NUM 2
+static int sensor_index;
 
 static int video_nr = -1, local_buf_num;
 static cam_data *g_cam;
@@ -453,12 +455,30 @@ static int mxc_streamoff(cam_data *cam)
 	if (cam->capture_on == false)
 		return 0;
 
-	if (cam->enc_disable)
-		err = cam->enc_disable(cam);
-	if (cam->enc_disable_csi) {
-		err = cam->enc_disable_csi(cam);
-		if (err != 0)
-			return err;
+	if (strcmp(mxc_capture_inputs[cam->current_input].name,
+			"CSI MEM") == 0) {
+		if (cam->enc_disable_csi) {
+			err = cam->enc_disable_csi(cam);
+			if (err != 0)
+				return err;
+		}
+		if (cam->enc_disable) {
+			err = cam->enc_disable(cam);
+			if (err != 0)
+				return err;
+		}
+	} else if (strcmp(mxc_capture_inputs[cam->current_input].name,
+			  "CSI IC MEM") == 0) {
+		if (cam->enc_disable) {
+			err = cam->enc_disable(cam);
+			if (err != 0)
+				return err;
+		}
+		if (cam->enc_disable_csi) {
+			err = cam->enc_disable_csi(cam);
+			if (err != 0)
+				return err;
+		}
 	}
 
 	mxc_free_frames(cam);
@@ -618,9 +638,11 @@ static int start_preview(cam_data *cam)
 	if (err != 0)
 		return err;
 
-	err = cam->vf_start_sdc(cam);
-	if (err != 0)
-		return err;
+	if (cam->vf_start_sdc) {
+		err = cam->vf_start_sdc(cam);
+		if (err != 0)
+			return err;
+	}
 
 	if (cam->vf_enable_csi)
 		err = cam->vf_enable_csi(cam);
@@ -652,18 +674,22 @@ static int stop_preview(cam_data *cam)
 {
 	int err = 0;
 
-	pr_debug("MVC: stop preview\n");
-
-	if (cam->v4l2_fb.flags == V4L2_FBUF_FLAG_OVERLAY)
-		err = prp_vf_sdc_deselect(cam);
-	else if (cam->v4l2_fb.flags == V4L2_FBUF_FLAG_PRIMARY)
-		err = prp_vf_sdc_deselect_bg(cam);
+	if (cam->vf_stop_sdc) {
+		err = cam->vf_stop_sdc(cam);
+		if (err != 0)
+			return err;
+	}
 
 	if (cam->vf_disable_csi) {
 		err = cam->vf_disable_csi(cam);
 		if (err != 0)
 			return err;
 	}
+
+	if (cam->v4l2_fb.flags == V4L2_FBUF_FLAG_OVERLAY)
+		err = prp_vf_sdc_deselect(cam);
+	else if (cam->v4l2_fb.flags == V4L2_FBUF_FLAG_PRIMARY)
+		err = prp_vf_sdc_deselect_bg(cam);
 
 	return err;
 }
@@ -1009,8 +1035,9 @@ static int mxc_v4l2_g_ctrl(cam_data *cam, struct v4l2_control *c)
  */
 static int mxc_v4l2_s_ctrl(cam_data *cam, struct v4l2_control *c)
 {
-	int ret = 0;
+	int i, ret = 0;
 	int tmp_rotation = IPU_ROTATE_NONE;
+	struct sensor_data *sensor_data;
 
 	pr_debug("In MVC:mxc_v4l2_s_ctrl\n");
 
@@ -1178,6 +1205,25 @@ static int mxc_v4l2_s_ctrl(cam_data *cam, struct v4l2_control *c)
 #ifdef CONFIG_MXC_IPU_V1
 		ipu_csi_flash_strobe(true);
 #endif
+		break;
+	case V4L2_CID_MXC_SWITCH_CAM:
+		if (cam->sensor != cam->all_sensors[c->value]) {
+			/* power down other cameraes before enable new one */
+			for (i = 0; i < sensor_index; i++) {
+				if (i != c->value) {
+					vidioc_int_dev_exit(cam->all_sensors[i]);
+					vidioc_int_s_power(cam->all_sensors[i], 0);
+				}
+			}
+			sensor_data = cam->all_sensors[c->value]->priv;
+			if (sensor_data->io_init)
+				sensor_data->io_init();
+			cam->sensor = cam->all_sensors[c->value];
+			ipu_csi_enable_mclk_if(cam->ipu, CSI_MCLK_I2C, cam->csi, true, true);
+			vidioc_int_s_power(cam->sensor, 1);
+			vidioc_int_dev_init(cam->sensor);
+			ipu_csi_enable_mclk_if(cam->ipu, CSI_MCLK_I2C, cam->csi, false, false);
+		}
 		break;
 	default:
 		pr_debug("   default case\n");
@@ -1655,7 +1701,7 @@ static int mxc_v4l_close(struct file *file)
 	}
 
 	/* for the case somebody hit the ctrl C */
-	if (cam->overlay_pid == current->pid) {
+	if (cam->overlay_pid == current->pid && cam->overlay_on) {
 		err = stop_preview(cam);
 		cam->overlay_on = false;
 	}
@@ -2794,15 +2840,30 @@ static int mxc_v4l2_master_attach(struct v4l2_int_device *slave)
 {
 	cam_data *cam = slave->u.slave->master->priv;
 	struct v4l2_format cam_fmt;
+	int i;
 
 	pr_debug("In MVC: mxc_v4l2_master_attach\n");
 	pr_debug("   slave.name = %s\n", slave->name);
 	pr_debug("   master.name = %s\n", slave->u.slave->master->name);
 
-	cam->sensor = slave;
 	if (slave == NULL) {
 		pr_err("ERROR: v4l2 capture: slave parameter not valid.\n");
 		return -1;
+	}
+
+	cam->sensor = slave;
+
+	if (sensor_index < MXC_SENSOR_NUM) {
+		cam->all_sensors[sensor_index] = slave;
+		sensor_index++;
+	} else {
+		pr_err("ERROR: v4l2 capture: slave number exceeds the maximum.\n");
+		return -1;
+	}
+
+	for (i = 0; i < sensor_index - 1; i++) {
+		vidioc_int_dev_exit(cam->all_sensors[i]);
+		vidioc_int_s_power(cam->all_sensors[i], 0);
 	}
 
 	ipu_csi_enable_mclk_if(cam->ipu, CSI_MCLK_I2C, cam->csi, true, true);

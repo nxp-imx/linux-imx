@@ -1,5 +1,5 @@
 /*
- * Copyright 2008-2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2008-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -890,14 +890,19 @@ static void asrc_output_dma_callback(void *data)
 static void mxc_free_dma_buf(struct asrc_pair_params *params)
 {
 	int i;
-	for (i = 0; i < ASRC_DMA_BUFFER_NUM; i++) {
-		if (params->input_dma[i].dma_vaddr != NULL) {
-			kfree(params->input_dma[i].dma_vaddr);
+
+	if (params->input_dma[0].dma_vaddr != NULL) {
+		kfree(params->input_dma[0].dma_vaddr);
+		for (i = 0; i < ASRC_DMA_BUFFER_NUM; i++) {
 			params->input_dma[i].dma_vaddr = NULL;
+			params->input_dma[i].dma_paddr = 0;
 		}
-		if (params->output_dma[i].dma_vaddr != NULL) {
-			kfree(params->output_dma[i].dma_vaddr);
+	}
+	if (params->output_dma[0].dma_vaddr != NULL) {
+		kfree(params->output_dma[0].dma_vaddr);
+		for (i = 0; i < ASRC_DMA_BUFFER_NUM; i++) {
 			params->output_dma[i].dma_vaddr = NULL;
+			params->output_dma[i].dma_paddr = 0;
 		}
 	}
 
@@ -907,9 +912,23 @@ static void mxc_free_dma_buf(struct asrc_pair_params *params)
 static int mxc_allocate_dma_buf(struct asrc_pair_params *params)
 {
 	int i;
+
+	params->input_dma[0].dma_vaddr = NULL;
+	params->input_dma[0].dma_vaddr =
+		kzalloc(params->input_buffer_size * ASRC_DMA_BUFFER_NUM,
+				GFP_KERNEL);
+
+	if (!params->input_dma[0].dma_vaddr) {
+		mxc_free_dma_buf(params);
+		pr_info("can't allocate buff\n");
+		return -ENOBUFS;
+	}
+
 	for (i = 0; i < ASRC_DMA_BUFFER_NUM; i++) {
 		params->input_dma[i].dma_vaddr =
-			kzalloc(params->input_buffer_size, GFP_KERNEL);
+			(unsigned char *)
+			((unsigned long)params->input_dma[0].dma_vaddr +
+					i * params->input_buffer_size);
 		params->input_dma[i].dma_paddr =
 			virt_to_dma(NULL, params->input_dma[i].dma_vaddr);
 		if (params->input_dma[i].dma_vaddr == NULL) {
@@ -918,17 +937,30 @@ static int mxc_allocate_dma_buf(struct asrc_pair_params *params)
 			return -ENOBUFS;
 		}
 	}
+
+	params->output_dma[0].dma_vaddr = NULL;
+	params->output_dma[0].dma_vaddr =
+		kzalloc(params->output_buffer_size * ASRC_DMA_BUFFER_NUM,
+				GFP_KERNEL);
+	if (!params->output_dma[0].dma_vaddr) {
+		mxc_free_dma_buf(params);
+		pr_info("can't allocate buff\n");
+		return -ENOBUFS;
+	}
+
 	for (i = 0; i < ASRC_DMA_BUFFER_NUM; i++) {
 		params->output_dma[i].dma_vaddr =
-			kzalloc(params->output_buffer_size, GFP_KERNEL);
+			(unsigned char *)
+			((unsigned long)params->output_dma[0].dma_vaddr +
+						i * params->output_buffer_size);
 		params->output_dma[i].dma_paddr =
 			virt_to_dma(NULL, params->output_dma[i].dma_vaddr);
 		if (params->output_dma[i].dma_vaddr == NULL) {
 			mxc_free_dma_buf(params);
+			pr_info("can't allocate buff\n");
 			return -ENOBUFS;
 		}
 	}
-
 	return 0;
 }
 

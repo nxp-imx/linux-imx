@@ -243,7 +243,7 @@ static int __mxs_reset_block(void __iomem *hwreg, int just_enable)
 	return 0;
 }
 
-int mxs_reset_block(void __iomem *hwreg, int just_enable)
+static int _mxs_reset_block(void __iomem *hwreg, int just_enable)
 {
 	int try = 10;
 	int r;
@@ -255,5 +255,10 @@ int mxs_reset_block(void __iomem *hwreg, int just_enable)
 		pr_debug("%s: try %d failed\n", __func__, 10 - try);
 	}
 	return r;
+}
+
+int mxs_reset_block(void __iomem *hwreg)
+{
+	return _mxs_reset_block(hwreg, false);
 }
 EXPORT_SYMBOL(mxs_reset_block);

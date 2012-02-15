@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2011-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -198,3 +198,13 @@ extern const struct imx_mxc_mlb_data imx6q_mxc_mlb150_data __initconst;
 #define imx6q_add_mlb150(pdata)        \
 	imx_add_mlb(pdata)
 
+extern const struct imx_pxp_data imx6dl_pxp_data __initconst;
+#define imx6dl_add_imx_pxp()   \
+	imx_add_imx_pxp(&imx6dl_pxp_data)
+
+#define imx6dl_add_imx_pxp_client()   \
+	imx_add_imx_pxp_client()
+
+extern const struct imx_epdc_data imx6dl_epdc_data __initconst;
+#define imx6dl_add_imx_epdc(pdata)	\
+	imx_add_imx_epdc(&imx6dl_epdc_data, pdata)

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2010-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -117,7 +117,7 @@ static int imx_3stack_surround_hw_params(struct snd_pcm_substream *substream,
 			pr_info("Rate not support.\n");
 			return -EINVAL;;
 		}
-	} else if (cpu_is_mx6q()) {
+	} else if (cpu_is_mx6q() || cpu_is_mx6dl()) {
 		switch (rate) {
 		case 32000:
 			lrclk_ratio = 5;
@@ -163,7 +163,7 @@ static int imx_3stack_surround_hw_params(struct snd_pcm_substream *substream,
 	if (cpu_is_mx53()) {
 		snd_soc_dai_set_sysclk(cpu_dai, ESAI_CLK_EXTAL,
 			mclk_freq, SND_SOC_CLOCK_OUT);
-	} else if (cpu_is_mx6q()) {
+	} else if (cpu_is_mx6q() || cpu_is_mx6dl()) {
 		snd_soc_dai_set_sysclk(cpu_dai, ESAI_CLK_EXTAL_DIV,
 			mclk_freq, SND_SOC_CLOCK_OUT);
 	}
@@ -171,14 +171,14 @@ static int imx_3stack_surround_hw_params(struct snd_pcm_substream *substream,
 	snd_soc_dai_set_clkdiv(cpu_dai, ESAI_TX_DIV_PSR, 1);
 	if (cpu_is_mx53())
 		snd_soc_dai_set_clkdiv(cpu_dai, ESAI_TX_DIV_PM, 0);
-	else if (cpu_is_mx6q())
+	else if (cpu_is_mx6q() || cpu_is_mx6dl())
 		snd_soc_dai_set_clkdiv(cpu_dai, ESAI_TX_DIV_PM, 2);
 	snd_soc_dai_set_clkdiv(cpu_dai, ESAI_TX_DIV_FP, lrclk_ratio);
 
 	snd_soc_dai_set_clkdiv(cpu_dai, ESAI_RX_DIV_PSR, 1);
 	if (cpu_is_mx53())
 		snd_soc_dai_set_clkdiv(cpu_dai, ESAI_RX_DIV_PM, 0);
-	else if (cpu_is_mx6q())
+	else if (cpu_is_mx6q() || cpu_is_mx6dl())
 		snd_soc_dai_set_clkdiv(cpu_dai, ESAI_RX_DIV_PM, 2);
 	snd_soc_dai_set_clkdiv(cpu_dai, ESAI_RX_DIV_FP, lrclk_ratio);
 
