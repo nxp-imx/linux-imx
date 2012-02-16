@@ -529,10 +529,13 @@ static struct fsl_mxc_lightsensor_platform_data ls_data = {
 	.rext = 700,    /* calibration: 499K->700K */
 };
 
+static int mma8451_position = 3;
+
 static struct i2c_board_info mxc_i2c0_board_info[] __initdata = {
 	{
 	.type = "mma8451",
 	.addr = 0x1C,
+	.platform_data = (void *)&mma8451_position,
 	},
 	{
 	.type = "ov5642",
@@ -552,6 +555,8 @@ static struct mpr121_platform_data mpr121_keyboard_platdata = {
 	.matrix = smd_touchkey_martix,
 };
 
+static int mag3110_position;
+
 static struct i2c_board_info mxc_i2c1_board_info[] __initdata = {
 	{
 	 .type = "sgtl5000",
@@ -567,6 +572,7 @@ static struct i2c_board_info mxc_i2c1_board_info[] __initdata = {
 	.type = "mag3110",
 	.addr = 0x0e,
 	.irq = gpio_to_irq(MX53_SMD_eCOMPASS_INT),
+	.platform_data = (void *)&mag3110_position,
 	},
 };
 
@@ -1207,13 +1213,14 @@ static void __init mx53_smd_board_init(void)
 
 	if (fs_in_sdcard == 1) {
 		imx53_add_sdhci_esdhc_imx(0, &mx53_smd_sd1_data);
+		imx53_add_sdhci_esdhc_imx(1, &mx53_smd_sd2_data);
 		imx53_add_sdhci_esdhc_imx(2, &mx53_smd_sd3_data);
 	} else {
 		imx53_add_sdhci_esdhc_imx(2, &mx53_smd_sd3_data);
+		imx53_add_sdhci_esdhc_imx(1, &mx53_smd_sd2_data);
 		imx53_add_sdhci_esdhc_imx(0, &mx53_smd_sd1_data);
 	}
 
-	imx53_add_sdhci_esdhc_imx(1, &mx53_smd_sd2_data);
 	imx53_add_ahci(0, &mx53_smd_sata_data);
 	mxc_register_device(&imx_ahci_device_hwmon, NULL);
 	mx53_smd_init_usb();
