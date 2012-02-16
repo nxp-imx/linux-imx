@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2011-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -169,12 +169,16 @@ static void max17085_get_health(struct max17085_chip *chip)
 }
 
 extern int da9052_adc_read(unsigned char channel);
-#define VOLT_REG_TO_MV(val) ((val * 2500) / 1024)
+#define VOLT_REG_TO_MV(val)	((val * 2500) / 1024)
 #define BATT_TO_ADC_SCALE	11
+#define DA9052_ADCMAN_ADCIN6	6
 static void max17085_get_volt(struct max17085_chip *chip)
 {
 	int val;
-	val = da9052_adc_read(6);
+	val = da9052_adc_read(DA9052_ADCMAN_ADCIN6);
+
+	/* Ignore lower 2 bits out of 10 bits due to noise */
+	val = val & 0x3fc;
 	if (val > 0)
 		chip->voltage_uV = VOLT_REG_TO_MV(val)*1000*BATT_TO_ADC_SCALE;
 	else
@@ -182,7 +186,7 @@ static void max17085_get_volt(struct max17085_chip *chip)
 }
 
 #define BATT_EMPTY_MV		9955
-#define BATT_FULL_MV		11500
+#define BATT_FULL_MV		12000
 static void max17085_get_cap(struct max17085_chip *chip)
 {
 	int old_cap = chip->cap;
@@ -360,18 +364,20 @@ static int max17085_bat_remove(struct platform_device *pdev)
 
 static void max17085_bat_shutdown(struct platform_device *pdev)
 {
-       struct max17085_chip *chip = platform_get_drvdata(pdev);
+	struct max17085_chip *chip = platform_get_drvdata(pdev);
 
-       cancel_delayed_work_sync(&chip->work);
+	cancel_delayed_work_sync(&chip->work);
+	gpio_set_value(chip->charge_now, 0);
+	gpio_set_value(chip->charge_done, 0);
 }
 
 static struct platform_driver max17085_bat_driver = {
-	.driver = {
-		   .name = "max17085_bat",
-		   },
 	.probe = max17085_bat_probe,
 	.remove = max17085_bat_remove,
 	.shutdown = max17085_bat_shutdown,
+	.driver = {
+		.name = "max17085_bat",
+	},
 
 };
 
