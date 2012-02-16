@@ -5293,7 +5293,11 @@ int __init mx6_clocks_init(unsigned long ckil, unsigned long osc,
 	if (mx6q_revision() == IMX_CHIP_REVISION_1_0) {
 		gpt_clk[0].parent = &ipg_perclk;
 		gpt_clk[0].get_rate = NULL;
-		}
+	} else {
+		/* Here we use OSC 24M as GPT's clock source, no need to
+		enable gpt serial clock*/
+		gpt_clk[0].secondary = NULL;
+	}
 
 	if (cpu_is_mx6dl()) {
 		if (epdc_use_video_pll)
