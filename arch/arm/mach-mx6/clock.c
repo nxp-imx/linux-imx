@@ -5223,6 +5223,11 @@ int __init mx6_clocks_init(unsigned long ckil, unsigned long osc,
 		/* on mx6dl gpu2d_axi_clk source from mmdc0 directly */
 		clk_set_parent(&gpu2d_axi_clk, &mmdc_ch0_axi_clk[0]);
 		gpu2d_axi_clk.secondary = NULL;
+
+		/* on mx6dl, max ipu clock is 274M */
+		clk_set_parent(&ipu1_clk, &pll3_pfd_540M);
+		clk_set_parent(&ldb_di0_clk, &pll2_pfd_352M);
+		clk_set_parent(&ldb_di1_clk, &pll2_pfd_352M);
 	}
 	if (cpu_is_mx6q())
 		clk_set_parent(&gpu2d_core_clk[0], &pll3_usb_otg_main_clk);
