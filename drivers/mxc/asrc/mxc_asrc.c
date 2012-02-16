@@ -51,6 +51,7 @@ static struct class *asrc_class;
 DEFINE_SPINLOCK(data_lock);
 DEFINE_SPINLOCK(input_int_lock);
 DEFINE_SPINLOCK(output_int_lock);
+DEFINE_SPINLOCK(asrc_clock_lock);
 
 #define AICPA		0	/* Input Clock Divider A Offset */
 #define AICDA		3	/* Input Clock Prescaler A Offset */
@@ -609,7 +610,6 @@ void asrc_start_conv(enum asrc_pair_index index)
 	reg = __raw_readl(asrc_vrt_base_addr + ASRC_ASRCTR_REG);
 	if ((reg & 0x0E) == 0)
 		clk_enable(mxc_asrc_data->asrc_audio_clk);
-
 	reg |= (1 << (1 + index));
 	__raw_writel(reg, asrc_vrt_base_addr + ASRC_ASRCTR_REG);
 
@@ -1399,7 +1399,6 @@ static long asrc_ioctl(struct file *file,
 				err = -EFAULT;
 				break;
 			}
-
 			spin_lock_irqsave(&input_int_lock, lock_flags);
 			if (params->input_queue_empty == 0) {
 				err = -EFAULT;
@@ -1524,6 +1523,13 @@ static int mxc_asrc_open(struct inode *inode, struct file *file)
 {
 	int err = 0;
 	struct asrc_pair_params *pair_params;
+	unsigned long lock_flags;
+
+	spin_lock_irqsave(&asrc_clock_lock, lock_flags);
+	g_asrc_data->counter++;
+	clk_enable(mxc_asrc_data->asrc_core_clk);
+	spin_unlock_irqrestore(&asrc_clock_lock, lock_flags);
+
 	if (signal_pending(current))
 		return -EINTR;
 	pair_params = kzalloc(sizeof(struct asrc_pair_params), GFP_KERNEL);
@@ -1548,7 +1554,9 @@ static int mxc_asrc_open(struct inode *inode, struct file *file)
 static int mxc_asrc_close(struct inode *inode, struct file *file)
 {
 	struct asrc_pair_params *pair_params;
+	unsigned long lock_flags;
 	pair_params = file->private_data;
+
 	if (pair_params->asrc_active == 1) {
 		dmaengine_terminate_all(pair_params->input_dma_channel);
 		dmaengine_terminate_all(pair_params->output_dma_channel);
@@ -1562,8 +1570,15 @@ static int mxc_asrc_close(struct inode *inode, struct file *file)
 		mxc_free_dma_buf(pair_params);
 		asrc_release_pair(pair_params->index);
 	}
+
 	kfree(pair_params);
 	file->private_data = NULL;
+
+	spin_lock_irqsave(&asrc_clock_lock, lock_flags);
+	g_asrc_data->counter--;
+	if (g_asrc_data->counter == 0)
+		clk_disable(mxc_asrc_data->asrc_core_clk);
+	spin_unlock_irqrestore(&asrc_clock_lock, lock_flags);
 	return 0;
 }
 
@@ -1713,6 +1728,7 @@ static int mxc_asrc_probe(struct platform_device *pdev)
 	g_asrc_data->asrc_pair[0].overload_error = 0;
 	g_asrc_data->asrc_pair[1].overload_error = 0;
 	g_asrc_data->asrc_pair[2].overload_error = 0;
+	g_asrc_data->counter = 0;
 
 	asrc_major = register_chrdev(asrc_major, "mxc_asrc", &asrc_fops);
 	if (asrc_major < 0) {
@@ -1740,6 +1756,7 @@ static int mxc_asrc_probe(struct platform_device *pdev)
 
 	mxc_asrc_data =
 	    (struct imx_asrc_platform_data *)pdev->dev.platform_data;
+
 	clk_enable(mxc_asrc_data->asrc_core_clk);
 
 	switch (mxc_asrc_data->clk_map_ver) {
@@ -1786,7 +1803,7 @@ static int mxc_asrc_probe(struct platform_device *pdev)
 	err = mxc_init_asrc();
 	if (err < 0)
 		goto err_out_class;
-
+	clk_disable(mxc_asrc_data->asrc_core_clk);
 	goto out;
 
       err_out_class:
