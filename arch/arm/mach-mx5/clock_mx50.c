@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2010-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -3407,9 +3407,7 @@ static void clk_tree_init(void)
 int __init mx50_clocks_init(unsigned long ckil, unsigned long osc, unsigned long ckih1)
 {
 	__iomem void *base;
-	int i = 0, j = 0, reg;
-	int wp_cnt = 0;
-	u32 pll1_rate;
+	int i = 0, reg;
 
 	pll1_base = MX50_DPLL1_BASE;
 	pll2_base = MX50_DPLL2_BASE;

@@ -109,6 +109,8 @@ static int imx_bt_rfkill_probe(struct platform_device *dev)
 		goto error_rfk_alloc;
 	}
 
+	rfkill_set_led_trigger_name(rfk, "mxc_bt");
+
 	rc = rfkill_register(rfk);
 	if (rc)
 		goto error_rfkill;

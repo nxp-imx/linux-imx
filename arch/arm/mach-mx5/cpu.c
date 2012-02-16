@@ -1,5 +1,5 @@
 /*
- * Copyright 2008-2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2008-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * The code contained herein is licensed under the GNU General Public
  * License. You may obtain a copy of the GNU General Public License
@@ -118,7 +118,7 @@ late_initcall(mx51_neon_fixup);
 
 static int get_mx53_srev(void)
 {
-	void __iomem *iim_base = MX51_IO_ADDRESS(MX53_IIM_BASE_ADDR);
+	void __iomem *iim_base = MX53_IO_ADDRESS(MX53_IIM_BASE_ADDR);
 	u32 rev = readl(iim_base + IIM_SREV) & 0xff;
 
 	switch (rev) {
@@ -259,6 +259,17 @@ static int __init post_cpu_init(void)
 	/* Set ALP bits to 000. Set ALP_EN bit in Arm Memory Controller reg. */
 	reg = 0x8;
 	__raw_writel(reg, arm_plat_base + CORTEXA8_PLAT_AMC);
+
+	if (cpu_is_mx53()) {
+		/*Allow for automatic gating of the EMI internal clock.
+		 * If this is done, emi_intr CCGR bits should be set to 11.
+		 */
+		base = ioremap(MX53_M4IF_BASE_ADDR, SZ_4K);
+		reg = __raw_readl(base + 0x8c);
+		reg &= ~0x1;
+		__raw_writel(reg, base + 0x8c);
+		iounmap(base);
+	}
 
 	if (cpu_is_mx50())
 		init_ddr_settings();

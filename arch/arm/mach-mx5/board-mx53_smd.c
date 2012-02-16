@@ -49,6 +49,8 @@
 #include <mach/ahci_sata.h>
 #include <mach/imx_rfkill.h>
 #include <mach/mxc_asrc.h>
+#include <mach/mxc_dvfs.h>
+#include <mach/check_fuse.h>
 
 #include <asm/mach-types.h>
 #include <asm/mach/arch.h>
@@ -135,12 +137,12 @@
 
 void __init early_console_setup(unsigned long base, struct clk *clk);
 static struct clk *sata_clk, *sata_ref_clk;
+static int fs_in_sdcard;
 
 extern char *lp_reg_id;
 extern char *gp_reg_id;
 extern void mx5_cpu_regulator_init(void);
 extern int mx53_smd_init_da9052(void);
-extern void mx5_cpu_regulator_init(void);
 
 static iomux_v3_cfg_t mx53_smd_pads[] = {
 	/* DI_VGA_HSYNC */
@@ -450,6 +452,8 @@ static void __init smd_add_device_buttons(void) {}
 
 static const struct imxuart_platform_data mx53_smd_uart_data __initconst = {
 	.flags = IMXUART_HAVE_RTSCTS,
+	.dma_req_rx = MX53_DMA_REQ_UART3_RX,
+	.dma_req_tx = MX53_DMA_REQ_UART3_TX,
 };
 
 static inline void mx53_smd_init_uart(void)
@@ -496,19 +500,22 @@ static struct mxc_pm_platform_data smd_pm_data = {
 	.suspend_exit = smd_suspend_exit,
 };
 
-
+/* SDIO Card Slot */
 static const struct esdhc_platform_data mx53_smd_sd1_data __initconst = {
 	.cd_gpio = MX53_SMD_SD1_CD,
 	.wp_gpio = MX53_SMD_SD1_WP,
 };
 
+/* SDIO Wifi */
 static const struct esdhc_platform_data mx53_smd_sd2_data __initconst = {
 	.always_present = 1,
 	.keep_power_at_suspend = 1,
 };
 
+/* SDIO Internal eMMC */
 static const struct esdhc_platform_data mx53_smd_sd3_data __initconst = {
 	.always_present = 1,
+	.support_8bit = 1,
 };
 
 static struct fsl_mxc_camera_platform_data camera_data = {
@@ -754,9 +761,9 @@ static int mx53_smd_sata_init(struct device *dev, void __iomem *addr)
 	tmpdata = clk_get_rate(clk) / 1000;
 	clk_put(clk);
 
-	sata_init(addr, tmpdata);
-
-	return ret;
+	ret = sata_init(addr, tmpdata);
+	if (ret == 0)
+		return ret;
 
 release_sata_ref_clk:
 	clk_disable(sata_ref_clk);
@@ -906,7 +913,7 @@ static struct ipuv3_fb_platform_data smd_fb_data[] = {
 	{
 	.disp_dev = "ldb",
 	.interface_pix_fmt = IPU_PIX_FMT_RGB666,
-	.mode_str = "XGA",
+	.mode_str = "LDB-XGA",
 	.default_bpp = 16,
 	.int_clk = false,
 	}, {
@@ -956,9 +963,32 @@ static struct mxc_spdif_platform_data mxc_spdif_data = {
 	.spdif_clk = NULL,	/* spdif bus clk */
 };
 
+static struct mxc_dvfs_platform_data smd_dvfs_core_data = {
+	.reg_id = "cpu_vddgp",
+	.clk1_id = "cpu_clk",
+	.clk2_id = "gpc_dvfs_clk",
+	.gpc_cntr_offset = MXC_GPC_CNTR_OFFSET,
+	.gpc_vcr_offset = MXC_GPC_VCR_OFFSET,
+	.ccm_cdcr_offset = MXC_CCM_CDCR_OFFSET,
+	.ccm_cacrr_offset = MXC_CCM_CACRR_OFFSET,
+	.ccm_cdhipr_offset = MXC_CCM_CDHIPR_OFFSET,
+	.prediv_mask = 0x1F800,
+	.prediv_offset = 11,
+	.prediv_val = 3,
+	.div3ck_mask = 0xE0000000,
+	.div3ck_offset = 29,
+	.div3ck_val = 2,
+	.emac_val = 0x08,
+	.upthr_val = 25,
+	.dnthr_val = 9,
+	.pncthr_val = 33,
+	.upcnt_val = 10,
+	.dncnt_val = 10,
+	.delay_time = 30,
+};
+
 static struct mxc_regulator_platform_data smd_regulator_data = {
-	.cpu_reg_id = "DA9052_BUCK_CORE",
-	.vcc_reg_id = "DA9052_BUCK_PRO",
+	.cpu_reg_id = "cpu_vddgp",
 };
 
 #if defined(CONFIG_BATTERY_MAX17085) || defined(CONFIG_BATTERY_MAX17085_MODULE)
@@ -1050,6 +1080,13 @@ static void __init fixup_mxc_board(struct machine_desc *desc, struct tag *tags,
 				imx53_gpu_data.gmem_reserved_size =
 						memparse(str, &str);
 			}
+
+			str = t->u.cmdline.cmdline;
+			str = strstr(str, "fs_sdcard=");
+			if (str != NULL) {
+				str += 10;
+				fs_in_sdcard = memparse(str, &str);
+			}
 			break;
 		}
 	}
@@ -1063,6 +1100,10 @@ static void mx53_smd_power_off(void)
 
 static int __init mx53_smd_power_init(void)
 {
+	/* cpu get regulator needs to be in lateinit so that
+	   regulator list gets updated for i2c da9052 regulators */
+	mx5_cpu_regulator_init();
+
 	if (machine_is_mx53_smd())
 		pm_power_off = mx53_smd_power_off;
 
@@ -1156,15 +1197,23 @@ static void __init mx53_smd_board_init(void)
 	for (i = 0; i < ARRAY_SIZE(smd_fb_data); i++)
 		imx53_add_ipuv3fb(i, &smd_fb_data[i]);
 	imx53_add_lcdif(&lcdif_data);
-	imx53_add_vpu();
+	if (!mxc_fuse_get_vpu_status())
+		imx53_add_vpu();
 	imx53_add_ldb(&ldb_data);
 	imx53_add_v4l2_output(0);
 	imx53_add_v4l2_capture(0);
 	imx53_add_mxc_pwm(1);
 	imx53_add_mxc_pwm_backlight(0, &mxc_pwm_backlight_data);
-	imx53_add_sdhci_esdhc_imx(0, &mx53_smd_sd1_data);
+
+	if (fs_in_sdcard == 1) {
+		imx53_add_sdhci_esdhc_imx(0, &mx53_smd_sd1_data);
+		imx53_add_sdhci_esdhc_imx(2, &mx53_smd_sd3_data);
+	} else {
+		imx53_add_sdhci_esdhc_imx(2, &mx53_smd_sd3_data);
+		imx53_add_sdhci_esdhc_imx(0, &mx53_smd_sd1_data);
+	}
+
 	imx53_add_sdhci_esdhc_imx(1, &mx53_smd_sd2_data);
-	imx53_add_sdhci_esdhc_imx(2, &mx53_smd_sd3_data);
 	imx53_add_ahci(0, &mx53_smd_sata_data);
 	mxc_register_device(&imx_ahci_device_hwmon, NULL);
 	mx53_smd_init_usb();
@@ -1208,15 +1257,17 @@ static void __init mx53_smd_board_init(void)
 	else
 		mx53_smd_gpu_pdata.z160_revision = 0;
 
-	imx53_add_mxc_gpu(&mx53_smd_gpu_pdata);
+	if (!mxc_fuse_get_gpu_status())
+		imx53_add_mxc_gpu(&mx53_smd_gpu_pdata);
 
 	/* this call required to release SCC RAM partition held by ROM
 	  * during boot, even if SCC2 driver is not part of the image
 	  */
 	imx53_add_mxc_scc2();
-
-	mx5_cpu_regulator_init();
 	smd_add_device_battery();
+
+	imx53_add_dvfs_core(&smd_dvfs_core_data);
+	imx53_add_busfreq();
 }
 
 static void __init mx53_smd_timer_init(void)

@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2008-2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ *  Copyright (C) 2008-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -46,9 +46,13 @@ static struct cpu_op *cpu_op_tbl;
 static int cpu_op_nr;
 static struct clk *cpu_clk;
 static struct mxc_pm_platform_data *pm_data;
+static int databahn_mode;
+
+static void __iomem *pll1_base;
 
 #if defined(CONFIG_CPU_FREQ)
 static int org_freq;
+extern int cpufreq_suspended;
 extern int set_cpu_freq(int wp);
 #endif
 
@@ -58,6 +62,7 @@ struct clk *gpc_dvfs_clk;
 extern void cpu_do_suspend_workaround(u32 sdclk_iomux_addr);
 extern void mx50_suspend(u32 databahn_addr);
 extern struct cpu_op *(*get_cpu_op)(int *wp);
+extern void __iomem *ccm_base;
 extern void __iomem *databahn_base;
 extern void da9053_suspend_cmd(void);
 extern void da9053_resume_dump(void);
@@ -65,7 +70,7 @@ extern void pm_da9053_i2c_init(u32 base_addr);
 
 extern int iram_ready;
 void *suspend_iram_base;
-void (*suspend_in_iram)(void *sdclk_iomux_addr) = NULL;
+void (*suspend_in_iram)(void *param1, void *param2, void* param3) = NULL;
 void __iomem *suspend_param1;
 
 #define TZIC_WAKEUP0_OFFSET            0x0E00
@@ -73,23 +78,6 @@ void __iomem *suspend_param1;
 #define TZIC_WAKEUP2_OFFSET            0x0E08
 #define TZIC_WAKEUP3_OFFSET            0x0E0C
 #define GPIO7_0_11_IRQ_BIT		(0x1<<11)
-
-static void mx53_smd_loco_irq_wake_fixup(void)
-{
-	void __iomem *tzic_base;
-	tzic_base = ioremap(MX53_TZIC_BASE_ADDR, SZ_4K);
-	if (NULL == tzic_base) {
-		pr_err("fail to map MX53_TZIC_BASE_ADDR\n");
-		return;
-	}
-	__raw_writel(0, tzic_base + TZIC_WAKEUP0_OFFSET);
-	__raw_writel(0, tzic_base + TZIC_WAKEUP1_OFFSET);
-	__raw_writel(0, tzic_base + TZIC_WAKEUP2_OFFSET);
-	/* only enable irq wakeup for da9053 */
-	__raw_writel(GPIO7_0_11_IRQ_BIT, tzic_base + TZIC_WAKEUP3_OFFSET);
-	iounmap(tzic_base);
-	pr_debug("only da9053 irq is wakeup-enabled\n");
-}
 
 static int mx5_suspend_enter(suspend_state_t state)
 {
@@ -112,14 +100,38 @@ static int mx5_suspend_enter(suspend_state_t state)
 		return -EAGAIN;
 
 	if (state == PM_SUSPEND_MEM) {
-		local_flush_tlb_all();
-		flush_cache_all();
+		if (!cpu_is_mx53()) {
+			local_flush_tlb_all();
+			flush_cache_all();
+		}
 
 		if (pm_data && pm_data->suspend_enter)
 			pm_data->suspend_enter();
+		if (cpu_is_mx51() || cpu_is_mx53()) {
+			/* Run the suspend code from iRAM. */
+			suspend_in_iram(suspend_param1, NULL, NULL);
 
-		suspend_in_iram(suspend_param1);
+			if (!cpu_is_mx53()) {
+				/*clear the EMPGC0/1 bits */
+				__raw_writel(0, MXC_SRPG_EMPGC0_SRPGCR);
+				__raw_writel(0, MXC_SRPG_EMPGC1_SRPGCR);
+			}
+		} else {
+			if (cpu_is_mx50()) {
+				/* Store the LPM mode of databanhn */
+				databahn_mode = __raw_readl(
+					databahn_base + DATABAHN_CTL_REG20);
 
+				/* Suspend now. */
+				suspend_in_iram(databahn_base,
+						ccm_base, pll1_base);
+
+				/* Restore the LPM databahn_mode. */
+				__raw_writel(databahn_mode,
+					databahn_base + DATABAHN_CTL_REG20);
+
+			}
+		}
 		if (pm_data && pm_data->suspend_exit)
 			pm_data->suspend_exit();
 	} else {
@@ -137,7 +149,7 @@ static int mx5_suspend_enter(suspend_state_t state)
 static int mx5_suspend_prepare(void)
 {
 #if defined(CONFIG_CPU_FREQ)
-#define MX53_SUSPEND_CPU_WP 1000000000
+#define MX53_SUSPEND_CPU_WP 400000000
 	struct cpufreq_freqs freqs;
 	u32 suspend_wp = 0;
 	org_freq = clk_get_rate(cpu_clk);
@@ -155,6 +167,7 @@ static int mx5_suspend_prepare(void)
 	freqs.cpu = 0;
 	freqs.flags = 0;
 
+	cpufreq_suspended = 1;
 	if (clk_get_rate(cpu_clk) != cpu_op_tbl[suspend_wp].cpu_rate) {
 		set_cpu_freq(cpu_op_tbl[suspend_wp].cpu_rate);
 		cpufreq_notify_transition(&freqs, CPUFREQ_PRECHANGE);
@@ -177,6 +190,7 @@ static void mx5_suspend_finish(void)
 	freqs.cpu = 0;
 	freqs.flags = 0;
 
+	cpufreq_suspended = 0;
 
 	if (org_freq != clk_get_rate(cpu_clk)) {
 		set_cpu_freq(org_freq);
@@ -221,34 +235,49 @@ static struct platform_driver mx5_pm_driver = {
 	.probe = mx5_pm_probe,
 };
 
+#define SUSPEND_ID_MX51 1
+#define SUSPEND_ID_MX53 3
+#define SUSPEND_ID_NONE 4
 static int __init pm_init(void)
 {
-	unsigned long iram_paddr, cpaddr;
+	unsigned long iram_paddr;
+	void *cpaddr;
 
 	pr_info("Static Power Management for Freescale i.MX5\n");
 	if (platform_driver_register(&mx5_pm_driver) != 0) {
 		printk(KERN_ERR "mx5_pm_driver register failed\n");
 		return -ENODEV;
 	}
+	if (cpu_is_mx51())
+		pll1_base = MX51_IO_ADDRESS(MX51_PLL1_BASE_ADDR);
+	else if (cpu_is_mx53())
+		pll1_base = MX53_IO_ADDRESS(MX53_PLL1_BASE_ADDR);
+	else if (cpu_is_mx50())
+		pll1_base = MX50_IO_ADDRESS(MX50_PLL1_BASE_ADDR);
+
+	suspend_param1 = 0;
 	suspend_set_ops(&mx5_suspend_ops);
 	/* Move suspend routine into iRAM */
 	cpaddr = iram_alloc(SZ_4K, &iram_paddr);
 	/* Need to remap the area here since we want the memory region
 		 to be executable. */
 	suspend_iram_base = __arm_ioremap(iram_paddr, SZ_4K,
-					  MT_HIGH_VECTORS);
-	pr_info("cpaddr = %x suspend_iram_base=%x\n", cpaddr, suspend_iram_base);
+					  MT_MEMORY_NONCACHED);
+	pr_info("cpaddr = %x suspend_iram_base=%x\n", (unsigned int)cpaddr,
+					(unsigned int)suspend_iram_base);
 
 	if (cpu_is_mx51() || cpu_is_mx53()) {
-		suspend_param1 = MX51_IO_ADDRESS(MX51_IOMUXC_BASE_ADDR + 0x4b8);
-		memcpy(cpaddr, cpu_do_suspend_workaround,
+		suspend_param1 =
+			cpu_is_mx51() ? (void *)SUSPEND_ID_MX51: \
+					(void *)SUSPEND_ID_MX53;
+		memcpy(suspend_iram_base, cpu_do_suspend_workaround,
 			SZ_4K);
 	} else if (cpu_is_mx50()) {
 		/*
 		 * Need to run the suspend code from IRAM as the DDR needs
 		 * to be put into self refresh mode manually.
 		 */
-		memcpy(cpaddr, mx50_suspend, SZ_4K);
+		memcpy(suspend_iram_base, mx50_suspend, SZ_4K);
 
 		suspend_param1 = databahn_base;
 	}

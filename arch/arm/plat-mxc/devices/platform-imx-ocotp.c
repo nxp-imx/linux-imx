@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2011-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify it under
  * the terms of the GNU General Public License version 2 as published by the
@@ -26,7 +26,7 @@ static const char *bank_reg_desc[BANKS][BANK_ITEMS] = {
 	BANK(SJC0, SJC1, MAC0, MAC1, HWCAP0, HWCAP1, HWCAP2, SWCAP),
 };
 
-static const struct mxc_otp_platform_data imx50_otp_platform_data = {
+static struct mxc_otp_platform_data imx50_otp_platform_data = {
 	.fuse_name = (char **)bank_reg_desc,
 	.clock_name = "ocotp_ctrl_ahb_clk",
 	.fuse_num = BANKS * BANK_ITEMS,
