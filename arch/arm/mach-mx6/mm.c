@@ -81,6 +81,7 @@ void __init mx6_map_io(void)
 	mxc_iomux_v3_init(IO_ADDRESS(MX6Q_IOMUXC_BASE_ADDR));
 	mxc_arch_reset_init(IO_ADDRESS(MX6Q_WDOG1_BASE_ADDR));
 	mx6_set_cpu_type();
+	mxc_cpu_lp_set(WAIT_CLOCKED);
 }
 #ifdef CONFIG_CACHE_L2X0
 int mxc_init_l2x0(void)
