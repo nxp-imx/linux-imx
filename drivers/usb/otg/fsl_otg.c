@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2005-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * Author: Li Yang <LeoLi@freescale.com>
  *         Jerry Huang <Chang-Ming.Huang@freescale.com>
@@ -722,6 +722,8 @@ static void fsl_otg_event(struct work_struct *work)
 	struct fsl_otg *og = container_of(work, struct fsl_otg, otg_event.work);
 	struct otg_fsm *fsm = &og->fsm;
 	struct otg_transceiver *otg = &og->otg;
+	struct fsl_usb2_platform_data *pdata;
+	pdata = og->otg.dev->platform_data;
 
 	mutex_lock(&pm_mutex);
 	b_session_irq_enable(false);
@@ -749,6 +751,9 @@ static void fsl_otg_event(struct work_struct *work)
 		fsl_otg_wait_stable_vbus(true);
 		b_session_irq_enable(false);
 		fsl_otg_start_host(fsm, 1);
+		if (pdata->dr_discharge_line)
+			pdata->dr_discharge_line(false);
+
 	}
 	mutex_unlock(&pm_mutex);
 }
