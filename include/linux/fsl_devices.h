@@ -358,6 +358,12 @@ struct mxc_audio_platform_data {
 	void *priv;		/* used by board specific functions */
 };
 
+/* Generic parameters for audio codecs
+ */
+struct mxc_audio_codec_platform_data {
+	int rates; /* codec platform data */
+};
+
 struct mxc_pwm_platform_data {
 	int pwmo_invert;
 	void (*enable_pwm_pad) (void);
