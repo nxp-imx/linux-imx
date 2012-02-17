@@ -1,6 +1,6 @@
 /****************************************************************************
 *
-*    Copyright (C) 2005 - 2011 by Vivante Corp.
+*    Copyright (C) 2005 - 2012 by Vivante Corp.
 *    Copyright (C) 2011 Freescale Semiconductor, Inc.
 *
 *    This program is free software; you can redistribute it and/or modify
@@ -479,6 +479,20 @@ long drv_ioctl(
     }
     else
     {
+        if (iface.command == gcvHAL_CACHE)
+        {
+            if (device->contiguousMapped
+                && iface.u.Cache.node->VidMem.memory->object.type == gcvOBJ_VIDMEM)
+            {
+                iface.u.Cache.physical = (gctPOINTER)device->contiguousVidMem->baseAddress
+                                       + (iface.u.Cache.logical - data->mappedMemory);
+            }
+            else
+            {
+                iface.u.Cache.physical = 0;
+            }
+        }
+
         if (iface.hardwareType < 0 || iface.hardwareType > 7)
         {
             gcmkTRACE_ZONE(
@@ -976,6 +990,23 @@ static int __devinit gpu_suspend(struct platform_device *dev, pm_message_t state
     {
         if (device->kernels[i] != gcvNULL)
         {
+            /* Store states. */
+#if gcdENABLE_VG
+            if (i == gcvCORE_VG)
+            {
+                status = gckVGHARDWARE_QueryPowerManagementState(device->kernels[i]->vg->hardware, &device->statesStored[i]);
+            }
+            else
+#endif
+            {
+                status = gckHARDWARE_QueryPowerManagementState(device->kernels[i]->hardware, &device->statesStored[i]);
+            }
+
+            if (gcmIS_ERROR(status))
+            {
+                return -1;
+            }
+
 #if gcdENABLE_VG
             if (i == gcvCORE_VG)
             {
@@ -1004,6 +1035,7 @@ static int __devinit gpu_resume(struct platform_device *dev)
     gceSTATUS status;
     gckGALDEVICE device;
     gctINT i;
+    gceCHIPPOWERSTATE   statesStored;
 
     device = platform_get_drvdata(dev);
 
@@ -1020,6 +1052,43 @@ static int __devinit gpu_resume(struct platform_device *dev)
 #endif
             {
                 status = gckHARDWARE_SetPowerManagementState(device->kernels[i]->hardware, gcvPOWER_ON);
+            }
+
+            if (gcmIS_ERROR(status))
+            {
+                return -1;
+            }
+
+            /* Convert global state to crossponding internal state. */
+            switch(device->statesStored[i])
+            {
+            case gcvPOWER_OFF:
+                statesStored = gcvPOWER_OFF_BROADCAST;
+                break;
+            case gcvPOWER_IDLE:
+                statesStored = gcvPOWER_IDLE_BROADCAST;
+                break;
+            case gcvPOWER_SUSPEND:
+                statesStored = gcvPOWER_SUSPEND_BROADCAST;
+                break;
+            case gcvPOWER_ON:
+                statesStored = gcvPOWER_ON_AUTO;
+                break;
+            default:
+                statesStored = device->statesStored[i];
+                break;
+        }
+
+            /* Restore states. */
+#if gcdENABLE_VG
+            if (i == gcvCORE_VG)
+            {
+                status = gckVGHARDWARE_SetPowerManagementState(device->kernels[i]->vg->hardware, statesStored);
+    }
+            else
+#endif
+            {
+                status = gckHARDWARE_SetPowerManagementState(device->kernels[i]->hardware, statesStored);
             }
 
             if (gcmIS_ERROR(status))

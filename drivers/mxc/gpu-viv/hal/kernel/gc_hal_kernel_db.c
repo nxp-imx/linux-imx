@@ -1,6 +1,6 @@
 /****************************************************************************
 *
-*    Copyright (C) 2005 - 2011 by Vivante Corp.
+*    Copyright (C) 2005 - 2012 by Vivante Corp.
 *
 *    This program is free software; you can redistribute it and/or modify
 *    it under the terms of the GNU General Public License as published by
@@ -558,7 +558,7 @@ gckKERNEL_FindRecord(
 {
     gceSTATUS status;
     gctBOOL acquired = gcvFALSE;
-    gcsDATABASE_RECORD_PTR record, previous;
+    gcsDATABASE_RECORD_PTR record;
 
     gcmkHEADER_ARG("Kernel=0x%x Database=0x%x Type=%d Data=0x%x",
                    Kernel, Database, Type, Data);
@@ -569,7 +569,7 @@ gckKERNEL_FindRecord(
     acquired = gcvTRUE;
 
     /* Scan the database for this record. */
-    for (record = Database->list, previous = gcvNULL;
+    for (record = Database->list;
          record != gcvNULL;
          record = record->next
     )
@@ -581,8 +581,6 @@ gckKERNEL_FindRecord(
             /* Found it! */
             break;
         }
-
-        previous = record;
     }
 
     if (record == gcvNULL)

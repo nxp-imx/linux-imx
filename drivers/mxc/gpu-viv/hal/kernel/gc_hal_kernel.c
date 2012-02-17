@@ -1,6 +1,6 @@
 /****************************************************************************
 *
-*    Copyright (C) 2005 - 2011 by Vivante Corp.
+*    Copyright (C) 2005 - 2012 by Vivante Corp.
 *
 *    This program is free software; you can redistribute it and/or modify
 *    it under the terms of the GNU General Public License as published by
@@ -1308,8 +1308,7 @@ gckKERNEL_Dispatch(
 
     case gcvHAL_RESET:
         /* Reset the hardware. */
-        gcmkONERROR(
-            gckHARDWARE_Reset(Kernel->hardware));
+        gckKERNEL_Recovery(Kernel);
         break;
 
     case gcvHAL_DEBUG:
@@ -1352,6 +1351,7 @@ gckKERNEL_Dispatch(
         {
             /* Video memory has no physical handles. */
             physical = gcvNULL;
+            paddr = Interface->u.Cache.physical;
         }
         else
         {
@@ -2501,11 +2501,19 @@ gckKERNEL_Recovery(
     gcmkVERIFY_OBJECT(hardware, gcvOBJ_HARDWARE);
 
     /* Handle all outstanding events now. */
+#if gcdSMP
+    gcmkONERROR(gckOS_AtomSet(Kernel->os, eventObj->pending, ~0U));
+#else
     eventObj->pending = ~0U;
+#endif
     gcmkONERROR(gckEVENT_Notify(eventObj, 1));
 
     /* Again in case more events got submitted. */
+#if gcdSMP
+    gcmkONERROR(gckOS_AtomSet(Kernel->os, eventObj->pending, ~0U));
+#else
     eventObj->pending = ~0U;
+#endif
     gcmkONERROR(gckEVENT_Notify(eventObj, 2));
 
 #if gcdSECURE_USER

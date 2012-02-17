@@ -1,6 +1,6 @@
 /****************************************************************************
 *
-*    Copyright (C) 2005 - 2011 by Vivante Corp.
+*    Copyright (C) 2005 - 2012 by Vivante Corp.
 *
 *    This program is free software; you can redistribute it and/or modify
 *    it under the terms of the GNU General Public License as published by
@@ -730,7 +730,7 @@ typedef struct _gcsHAL_INTERFACE
         struct _gcsHAL_CACHE
         {
             IN gceCACHEOPERATION        operation;
-            IN gctHANDLE                process;
+            IN gctPOINTER               physical;
             IN gctPOINTER               logical;
             IN gctSIZE_T                bytes;
             IN gcuVIDMEM_NODE_PTR       node;
