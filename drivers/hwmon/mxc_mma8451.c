@@ -36,13 +36,15 @@
 #define MMA8451_DRV_NAME	"mma8451"
 #define MMA8451_I2C_ADDR	0x1C
 #define MMA8451_ID		0x1A
+#define MMA8452_ID		0x2A
+#define MMA8453_ID		0x3A
 
 #define POLL_INTERVAL_MIN	10
 #define POLL_INTERVAL_MAX	500
 #define POLL_INTERVAL		100
 #define INPUT_FUZZ		32
 #define INPUT_FLAT		32
-#define MODE_CHANGE_DELAY_MS	10
+#define MODE_CHANGE_DELAY_MS	100
 
 #define MMA8451_STATUS_ZYXDR	0x08
 #define MMA8451_BUF_SIZE	6
@@ -114,8 +116,8 @@ enum {
 };
 
 /* The sensitivity is represented in counts/g. In 2g mode the
-sensitivity is 1024 counts/g. In 4g mode the sensitivity is 512
-counts/g and in 8g mode the sensitivity is 256 counts/g.
+   sensitivity is 1024 counts/g. In 4g mode the sensitivity is 512
+   counts/g and in 8g mode the sensitivity is 256 counts/g.
  */
 enum {
 	MODE_2G = 0,
@@ -123,11 +125,17 @@ enum {
 	MODE_8G,
 };
 
+enum {
+	MMA_STANDBY = 0,
+	MMA_ACTIVED,
+};
+
 /* mma8451 status */
 struct mma8451_status {
 	u8 mode;
 	u8 ctl_reg1;
-	bool stop_poll;
+	int active;
+	int position;
 };
 
 static struct mma8451_status mma_status;
@@ -136,7 +144,41 @@ static struct device *hwmon_dev;
 static struct i2c_client *mma8451_i2c_client;
 
 static int senstive_mode = MODE_2G;
+static int ACCHAL[8][3][3] = {
+	{{ 0, -1,  0}, { 1,  0,	0}, {0, 0, 1} },
+	{{-1,  0,  0}, { 0, -1,	0}, {0, 0, 1} },
+	{{ 0,  1,  0}, {-1,  0,	0}, {0, 0, 1} },
+	{{ 1,  0,  0}, { 0,  1,	0}, {0, 0, 1} },
+
+	{{ 0, -1,  0}, {-1,  0,	0}, {0, 0, -1} },
+	{{-1,  0,  0}, { 0,  1,	0}, {0, 0, -1} },
+	{{ 0,  1,  0}, { 1,  0,	0}, {0, 0, -1} },
+	{{ 1,  0,  0}, { 0, -1,	0}, {0, 0, -1} },
+};
+
 static DEFINE_MUTEX(mma8451_lock);
+static int mma8451_adjust_position(short *x, short *y, short *z)
+{
+	short rawdata[3], data[3];
+	int i, j;
+	int position = mma_status.position;
+	if (position < 0 || position > 7)
+		position = 0;
+
+	rawdata[0] = *x;
+	rawdata[1] = *y;
+	rawdata[2] = *z;
+
+	for (i = 0; i < 3 ; i++) {
+		data[i] = 0;
+		for (j = 0; j < 3; j++)
+			data[i] += rawdata[j] * ACCHAL[position][i][j];
+	}
+	*x = data[0];
+	*y = data[1];
+	*z = data[2];
+	return 0;
+}
 
 static int mma8451_change_mode(struct i2c_client *client, int mode)
 {
@@ -145,22 +187,23 @@ static int mma8451_change_mode(struct i2c_client *client, int mode)
 	/* Put sensor into Standby Mode by clearing the Active bit */
 	mma_status.ctl_reg1 = 0x00;
 	result = i2c_smbus_write_byte_data(client, MMA8451_CTRL_REG1,
-				      mma_status.ctl_reg1);
+			mma_status.ctl_reg1);
 	if (result < 0)
 		goto out;
 
 	/* Write the 2g dynamic range value */
 	mma_status.mode = mode;
 	result = i2c_smbus_write_byte_data(client, MMA8451_XYZ_DATA_CFG,
-				      mma_status.mode);
+			mma_status.mode);
 	if (result < 0)
 		goto out;
 
 	/* Set the Active bit and Data rate in CTRL Reg 1 */
-	mma_status.ctl_reg1 |= 0x1;
+	mma_status.active = MMA_STANDBY;
+
 	mma_status.ctl_reg1 |= (DR_80_0MS<<3);
 	result = i2c_smbus_write_byte_data(client, MMA8451_CTRL_REG1,
-				      mma_status.ctl_reg1);
+			mma_status.ctl_reg1);
 	if (result < 0)
 		goto out;
 
@@ -179,7 +222,7 @@ static int mma8451_read_data(short *x, short *y, short *z)
 
 	/* Read 14-bit XYZ results using 6 byte */
 	ret = i2c_smbus_read_i2c_block_data(mma8451_i2c_client,
-				MMA8451_OUT_X_MSB, MMA8451_BUF_SIZE, tmp_data);
+			MMA8451_OUT_X_MSB, MMA8451_BUF_SIZE, tmp_data);
 	if (ret < MMA8451_BUF_SIZE) {
 		dev_err(&mma8451_i2c_client->dev, "i2c block read failed\n");
 		return -EIO;
@@ -189,22 +232,6 @@ static int mma8451_read_data(short *x, short *y, short *z)
 	*x = ((tmp_data[0] << 8) & 0xff00) | tmp_data[1];
 	*y = ((tmp_data[2] << 8) & 0xff00) | tmp_data[3];
 	*z = ((tmp_data[4] << 8) & 0xff00) | tmp_data[5];
-
-	/* Drop the lower 2 bits as its 14-bit sample */
-	*x = (short)(*x) >> 2;
-	*y = (short)(*y) >> 2;
-	*z = (short)(*z) >> 2;
-
-	if (mma_status.mode == MODE_4G) {
-		(*x) = (*x) << 1;
-		(*y) = (*y) << 1;
-		(*z) = (*z) << 1;
-	} else if (mma_status.mode == MODE_8G) {
-		(*x) = (*x) << 2;
-		(*y) = (*y) << 2;
-		(*z) = (*z) << 2;
-	}
-
 	return 0;
 }
 
@@ -214,7 +241,8 @@ static void report_abs(void)
 	int result;
 
 	mutex_lock(&mma8451_lock);
-
+	if (mma_status.active == MMA_STANDBY)
+		goto out;
 	/* Read Status register */
 	result = i2c_smbus_read_byte_data(mma8451_i2c_client, MMA8451_STATUS);
 
@@ -227,7 +255,7 @@ static void report_abs(void)
 	/* Read XYZ data */
 	if (mma8451_read_data(&x, &y, &z) != 0)
 		goto out;
-
+	mma8451_adjust_position(&x, &y, &z);
 	/* Report XYZ data */
 	input_report_abs(mma8451_idev->input, ABS_X, x);
 	input_report_abs(mma8451_idev->input, ABS_Y, y);
@@ -239,33 +267,118 @@ out:
 
 static void mma8451_dev_poll(struct input_polled_dev *dev)
 {
-	if (!mma_status.stop_poll)
-		report_abs();
+	report_abs();
 }
 
-static int __devinit mma8451_probe(struct i2c_client *client,
-				   const struct i2c_device_id *id)
+static ssize_t mma8451_enable_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
 {
-	int result;
+	struct i2c_client *client;
+	u8 val;
+	int enable;
+
+	mutex_lock(&mma8451_lock);
+	client = mma8451_i2c_client;
+	val = i2c_smbus_read_byte_data(client, MMA8451_CTRL_REG1);
+	if ((val & 0x01) && mma_status.active == MMA_ACTIVED)
+		enable = 1;
+	else
+		enable = 0;
+	mutex_unlock(&mma8451_lock);
+	return sprintf(buf, "%d\n", enable);
+}
+
+static ssize_t mma8451_enable_store(struct device *dev,
+		struct device_attribute *attr,
+		const char *buf, size_t count)
+{
+	struct i2c_client *client;
+	int ret;
+	unsigned long enable;
+	u8 val = 0;
+	enable = simple_strtoul(buf, NULL, 10);
+	mutex_lock(&mma8451_lock);
+	client = mma8451_i2c_client;
+	enable = (enable > 0) ? 1 : 0;
+	if (enable && mma_status.active == MMA_STANDBY)	{
+		val = i2c_smbus_read_byte_data(client, MMA8451_CTRL_REG1);
+		ret = i2c_smbus_write_byte_data(client, MMA8451_CTRL_REG1,
+								val|0x01);
+		if (!ret) {
+			mma_status.active = MMA_ACTIVED;
+			printk(KERN_DEBUG "mma enable setting active\n");
+		}
+	} else if (enable == 0  && mma_status.active == MMA_ACTIVED) {
+		val = i2c_smbus_read_byte_data(client, MMA8451_CTRL_REG1);
+		ret = i2c_smbus_write_byte_data(client, MMA8451_CTRL_REG1,
+								val & 0xFE);
+		if (!ret) {
+			mma_status.active = MMA_STANDBY;
+			printk(KERN_DEBUG "mma enable setting inactive\n");
+		}
+	}
+	mutex_unlock(&mma8451_lock);
+	return count;
+}
+static ssize_t mma8451_position_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	int position = 0;
+	mutex_lock(&mma8451_lock);
+	position = mma_status.position ;
+	mutex_unlock(&mma8451_lock);
+	return sprintf(buf, "%d\n", position);
+}
+
+static ssize_t mma8451_position_store(struct device *dev,
+		struct device_attribute *attr,
+		const char *buf, size_t count)
+{
+	int  position;
+	position = simple_strtoul(buf, NULL, 10);
+	mutex_lock(&mma8451_lock);
+	mma_status.position = position;
+	mutex_unlock(&mma8451_lock);
+	return count;
+}
+
+static DEVICE_ATTR(enable, S_IWUSR | S_IRUGO,
+		mma8451_enable_show, mma8451_enable_store);
+static DEVICE_ATTR(position, S_IWUSR | S_IRUGO,
+		mma8451_position_show, mma8451_position_store);
+
+static struct attribute *mma8451_attributes[] = {
+	&dev_attr_enable.attr,
+	&dev_attr_position.attr,
+	NULL
+};
+
+static const struct attribute_group mma8451_attr_group = {
+	.attrs = mma8451_attributes,
+};
+
+static int __devinit mma8451_probe(struct i2c_client *client,
+		const struct i2c_device_id *id)
+{
+	int result, client_id;
 	struct input_dev *idev;
 	struct i2c_adapter *adapter;
 
 	mma8451_i2c_client = client;
-	mma_status.stop_poll = false;
-
 	adapter = to_i2c_adapter(client->dev.parent);
 	result = i2c_check_functionality(adapter,
-					 I2C_FUNC_SMBUS_BYTE |
-					 I2C_FUNC_SMBUS_BYTE_DATA);
+			I2C_FUNC_SMBUS_BYTE |
+			I2C_FUNC_SMBUS_BYTE_DATA);
 	if (!result)
 		goto err_out;
 
-	result = i2c_smbus_read_byte_data(client, MMA8451_WHO_AM_I);
+	client_id = i2c_smbus_read_byte_data(client, MMA8451_WHO_AM_I);
 
-	if (result != MMA8451_ID) {
+	if (client_id != MMA8451_ID && client_id != MMA8452_ID &&
+					client_id != MMA8453_ID) {
 		dev_err(&client->dev,
-			"read chip ID 0x%x is not equal to 0x%x!\n", result,
-			MMA8451_ID);
+				"read chip ID 0x%x is not equal to 0x%x \
+				or 0x%x!\n", result, MMA8451_ID, MMA8452_ID);
 		result = -EINVAL;
 		goto err_out;
 	}
@@ -274,7 +387,7 @@ static int __devinit mma8451_probe(struct i2c_client *client,
 	result = mma8451_change_mode(client, senstive_mode);
 	if (result) {
 		dev_err(&client->dev,
-			"error when init mma8451 chip:(%d)\n", result);
+				"error when init mma8451 chip:(%d)\n", result);
 		goto err_out;
 	}
 
@@ -282,7 +395,7 @@ static int __devinit mma8451_probe(struct i2c_client *client,
 	if (!hwmon_dev) {
 		result = -ENOMEM;
 		dev_err(&client->dev,
-			"error when register hwmon device\n");
+				"error when register hwmon device\n");
 		goto err_out;
 	}
 
@@ -310,7 +423,13 @@ static int __devinit mma8451_probe(struct i2c_client *client,
 		dev_err(&client->dev, "register poll device failed!\n");
 		goto err_register_polled_device;
 	}
-
+	result = sysfs_create_group(&idev->dev.kobj, &mma8451_attr_group);
+	if (result) {
+		dev_err(&client->dev, "create device file failed!\n");
+		result = -EINVAL;
+		goto err_register_polled_device;
+	}
+	mma_status.position = *(int *)client->dev.platform_data;
 	return 0;
 err_register_polled_device:
 	input_free_polled_device(mma8451_idev);
@@ -322,10 +441,14 @@ err_out:
 
 static int mma8451_stop_chip(struct i2c_client *client)
 {
-	mma_status.ctl_reg1 = i2c_smbus_read_byte_data(client,
-						       MMA8451_CTRL_REG1);
-	return i2c_smbus_write_byte_data(client, MMA8451_CTRL_REG1,
-					   mma_status.ctl_reg1 & 0xFE);
+	int ret = 0;
+	if (mma_status.active == MMA_ACTIVED) {
+		mma_status.ctl_reg1 = i2c_smbus_read_byte_data(client,
+				MMA8451_CTRL_REG1);
+		ret = i2c_smbus_write_byte_data(client, MMA8451_CTRL_REG1,
+				mma_status.ctl_reg1 & 0xFE);
+	}
+	return ret;
 }
 
 static int __devexit mma8451_remove(struct i2c_client *client)
@@ -335,21 +458,6 @@ static int __devexit mma8451_remove(struct i2c_client *client)
 	hwmon_device_unregister(hwmon_dev);
 
 	return ret;
-}
-
-void mma8451_shutdown(struct i2c_client *client)
-{
-       int ret;
-
-       /* first, stop polling since this chip will pull sda low if
-	* reboot during poweroff/reboot, add stop function here to
-	* prevent this
-	*/
-       mma_status.stop_poll = true;
-
-       ret = mma8451_stop_chip(client);
-       if (ret < 0)
-		dev_err(&client->dev, "stop chip failed:%d\n", ret);
 }
 
 #ifdef CONFIG_PM_SLEEP
@@ -362,10 +470,13 @@ static int mma8451_suspend(struct device *dev)
 
 static int mma8451_resume(struct device *dev)
 {
+	int ret = 0;
 	struct i2c_client *client = to_i2c_client(dev);
+	if (mma_status.active == MMA_ACTIVED)
+		ret = i2c_smbus_write_byte_data(client, MMA8451_CTRL_REG1,
+				mma_status.ctl_reg1);
+	return ret;
 
-	return i2c_smbus_write_byte_data(client, MMA8451_CTRL_REG1,
-					 mma_status.ctl_reg1);
 }
 #endif
 
@@ -377,13 +488,12 @@ MODULE_DEVICE_TABLE(i2c, mma8451_id);
 static SIMPLE_DEV_PM_OPS(mma8451_pm_ops, mma8451_suspend, mma8451_resume);
 static struct i2c_driver mma8451_driver = {
 	.driver = {
-		   .name = MMA8451_DRV_NAME,
-		   .owner = THIS_MODULE,
-		   .pm = &mma8451_pm_ops,
-		   },
+		.name = MMA8451_DRV_NAME,
+		.owner = THIS_MODULE,
+		.pm = &mma8451_pm_ops,
+	},
 	.probe = mma8451_probe,
 	.remove = __devexit_p(mma8451_remove),
-	.shutdown = mma8451_shutdown,
 	.id_table = mma8451_id,
 };
 
