@@ -132,7 +132,6 @@
 
 void __init early_console_setup(unsigned long base, struct clk *clk);
 static struct clk *sata_clk;
-static int esai_record;
 static int mipi_sensor;
 static int uart2_en;
 static int can0_enable;
@@ -237,6 +236,10 @@ static iomux_v3_cfg_t mx6q_sabreauto_pads[] = {
 	MX6Q_PAD_ENET_MDC__ESAI1_TX5_RX0,
 	MX6Q_PAD_GPIO_17__ESAI1_TX0,
 	MX6Q_PAD_NANDF_CS3__ESAI1_TX1,
+	MX6Q_PAD_ENET_MDIO__ESAI1_SCKR,
+	MX6Q_PAD_GPIO_9__ESAI1_FSR,
+	/* esai interrupt */
+	MX6Q_PAD_SD2_CLK__GPIO_1_10,
 
 	/* I2C2 */
 	MX6Q_PAD_EIM_EB2__I2C2_SCL,
@@ -354,11 +357,6 @@ static iomux_v3_cfg_t mx6q_sabreauto_can1_pads[] = {
 	/* CAN2 */
 	MX6Q_PAD_KEY_COL4__CAN2_TXCAN,
 	MX6Q_PAD_KEY_ROW4__CAN2_RXCAN,
-};
-
-static iomux_v3_cfg_t mx6q_sabreauto_esai_record_pads[] = {
-	MX6Q_PAD_ENET_MDIO__ESAI1_SCKR,
-	MX6Q_PAD_GPIO_9__ESAI1_FSR,
 };
 
 static iomux_v3_cfg_t mx6q_sabreauto_mipi_sensor_pads[] = {
@@ -1285,14 +1283,6 @@ static int __init imx6q_init_audio(void)
 	return 0;
 }
 
-static int __init early_use_esai_record(char *p)
-{
-	esai_record = 1;
-	return 0;
-}
-
-early_param("esai_record", early_use_esai_record);
-
 static struct mxc_dvfs_platform_data sabreauto_dvfscore_data = {
 	.reg_id = "cpu_vddgp",
 	.clk1_id = "cpu_clk",
@@ -1367,9 +1357,6 @@ static void __init mx6_board_init(void)
 	mxc_iomux_v3_setup_multiple_pads(mx6q_sabreauto_pads,
 					ARRAY_SIZE(mx6q_sabreauto_pads));
 
-	if (esai_record)
-	    mxc_iomux_v3_setup_multiple_pads(mx6q_sabreauto_esai_record_pads,
-			ARRAY_SIZE(mx6q_sabreauto_esai_record_pads));
 	if (!uart2_en) {
 		if (can0_enable) {
 			mxc_iomux_v3_setup_multiple_pads(
@@ -1432,7 +1419,7 @@ static void __init mx6_board_init(void)
 
 	imx6q_add_anatop_thermal_imx(1, &mx6q_sabreauto_anatop_thermal_data);
 
-	if (!esai_record && !can0_enable)
+	if (!can0_enable)
 		imx6_init_fec(fec_data);
 
 	imx6q_add_pm_imx(0, &mx6q_sabreauto_pm_data);
