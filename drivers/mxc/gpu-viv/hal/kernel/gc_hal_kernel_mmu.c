@@ -1,6 +1,6 @@
 /****************************************************************************
 *
-*    Copyright (C) 2005 - 2011 by Vivante Corp.
+*    Copyright (C) 2005 - 2012 by Vivante Corp.
 *
 *    This program is free software; you can redistribute it and/or modify
 *    it under the terms of the GNU General Public License as published by
@@ -50,6 +50,140 @@ typedef struct _gcsMMU_STLB
 } gcsMMU_STLB;
 
 #define gcvMMU_STLB_SIZE gcmALIGN(sizeof(gcsMMU_STLB), 4)
+
+#if gcdSHARED_PAGETABLE
+typedef struct _gcsSharedPageTable * gcsSharedPageTable_PTR;
+typedef struct _gcsSharedPageTable
+{
+    /* Logical of shared pagetable. */
+    gctPOINTER      logical;
+
+    /* Physical of shared pagetable. */
+    gctPHYS_ADDR    physical;
+
+    /* Number of cores use this shared pagetable. */
+    gctUINT32       reference;
+
+    /* Mutex to protect this shared pagetable. */
+    gctPOINTER      mutex;
+
+    /* Hardwares which use this shared pagetable. */
+    gckHARDWARE     hardwares[gcdCORE_COUNT];
+
+    /* flat mapping flags. Only useful for new MMU. */
+    gctBOOL         flatMappingSetup;
+}
+gcsSharedPageTable;
+
+static gcsSharedPageTable_PTR sharedPageTable = gcvNULL;
+
+static gceSTATUS
+_Free(
+    IN gckMMU Mmu
+    )
+{
+    sharedPageTable->reference--;
+
+    if (sharedPageTable->reference == 0)
+    {
+        if (sharedPageTable->logical)
+        {
+            gcmkVERIFY_OK(
+                    gckOS_FreeContiguous(Mmu->os,
+                        sharedPageTable->physical,
+                        (gctPOINTER) sharedPageTable->logical,
+                        Mmu->pageTableSize));
+        }
+
+        if (sharedPageTable->mutex)
+        {
+            gcmkVERIFY_OK(gckOS_DeleteMutex(Mmu->os, sharedPageTable->mutex));
+        }
+
+        gcmkVERIFY_OK(gcmkOS_SAFE_FREE(Mmu->os, sharedPageTable));
+    }
+
+    return gcvSTATUS_OK;
+}
+
+static gceSTATUS
+_Construct(
+    IN gckMMU Mmu
+    )
+{
+    gceSTATUS status;
+    gctPOINTER pointer;
+    gctPHYS_ADDR physical;
+
+    gcmkHEADER_ARG("Mmu=%lu", Mmu);
+
+    if (sharedPageTable == gcvNULL)
+    {
+        gcmkONERROR(
+                gckOS_Allocate(Mmu->os,
+                               sizeof(struct _gcsSharedPageTable),
+                               &pointer));
+        sharedPageTable = pointer;
+
+        gcmkONERROR(
+                gckOS_ZeroMemory(sharedPageTable,
+                                 sizeof(struct _gcsSharedPageTable)));
+
+        /* Create shared page table. */
+        gcmkONERROR(
+                gckOS_AllocateContiguous(Mmu->os,
+                    gcvFALSE,
+                    &Mmu->pageTableSize,
+                    &physical,
+                    &pointer));
+
+        sharedPageTable->logical = pointer;
+        sharedPageTable->physical = physical;
+
+        /* Create the page table mutex. */
+        gcmkONERROR(gckOS_CreateMutex(Mmu->os, &sharedPageTable->mutex));
+
+        /* Invalid all the entries. */
+        gcmkONERROR(
+            gckOS_ZeroMemory(sharedPageTable->logical, Mmu->pageTableSize));
+    }
+
+    Mmu->pageTableLogical = sharedPageTable->logical;
+    Mmu->pageTablePhysical = sharedPageTable->physical;
+    Mmu->pageTableMutex = sharedPageTable->mutex;
+
+    sharedPageTable->hardwares[sharedPageTable->reference] = Mmu->hardware;
+
+    sharedPageTable->reference++;
+
+    gcmkFOOTER_ARG("sharedPageTable->reference=%lu", sharedPageTable->reference);
+    return gcvSTATUS_OK;
+
+OnError:
+    if (sharedPageTable)
+    {
+        if (sharedPageTable->logical)
+        {
+            gcmkVERIFY_OK(
+                    gckOS_FreeContiguous(Mmu->os,
+                        sharedPageTable->physical,
+                        (gctPOINTER) sharedPageTable->logical,
+                        Mmu->pageTableSize));
+        }
+
+        if (sharedPageTable->mutex)
+        {
+            gcmkVERIFY_OK(gckOS_DeleteMutex(Mmu->os, sharedPageTable->mutex));
+        }
+
+        gcmkVERIFY_OK(gcmkOS_SAFE_FREE(Mmu->os, sharedPageTable));
+    }
+
+    gcmkFOOTER();
+    return status;
+}
+
+#endif
 
 static gceSTATUS
 _Link(
@@ -301,6 +435,15 @@ _FillFlatMapping(
     gctUINT32 sStart = (start & gcdMMU_STLB_64K_MASK) >> gcdMMU_STLB_64K_SHIFT;
     gctUINT32 sEnd = (end & gcdMMU_STLB_64K_MASK) >> gcdMMU_STLB_64K_SHIFT;
 
+#if gcdSHARED_PAGETABLE
+    if (sharedPageTable->flatMappingSetup == gcvTRUE)
+    {
+        gcmkTRACE_ZONE(gcvLEVEL_INFO, gcvZONE_MMU,
+                       "flat mapping has been created by another core");
+        return gcvSTATUS_OK;
+    }
+#endif
+
     /* Grab the mutex. */
     gcmkONERROR(gckOS_AcquireMutex(Mmu->os, Mmu->pageTableMutex, gcvINFINITE));
     mutex = gcvTRUE;
@@ -419,6 +562,9 @@ _FillFlatMapping(
     /* Release the mutex. */
     gcmkVERIFY_OK(gckOS_ReleaseMutex(Mmu->os, Mmu->pageTableMutex));
 
+#if gcdSHARED_PAGETABLE
+    sharedPageTable->flatMappingSetup = gcvTRUE;
+#endif
     return gcvSTATUS_OK;
 
 OnError:
@@ -522,8 +668,10 @@ gckMMU_Construct(
     mmu->nodeMutex        = gcvNULL;
 #endif
 
+#if !gcdSHARED_PAGETABLE
     /* Create the page table mutex. */
     gcmkONERROR(gckOS_CreateMutex(os, &mmu->pageTableMutex));
+#endif
 
 #ifdef __QNXNTO__
     /* Create the node list mutex. */
@@ -534,6 +682,10 @@ gckMMU_Construct(
     {
         /* Allocate the page table (not more than 256 kB). */
         mmu->pageTableSize = gcmMIN(MmuSize, 256 << 10);
+
+#if gcdSHARED_PAGETABLE
+        _Construct(mmu);
+#else
         gcmkONERROR(
             gckOS_AllocateContiguous(os,
                                      gcvFALSE,
@@ -542,6 +694,7 @@ gckMMU_Construct(
                                      &pointer));
 
         mmu->pageTableLogical = pointer;
+#endif
 
         /* Compute number of entries in page table. */
         mmu->pageTableEntries = mmu->pageTableSize / sizeof(gctUINT32);
@@ -562,6 +715,9 @@ gckMMU_Construct(
         /* Allocate the 4K mode MTLB table. */
         mmu->pageTableSize = gcdMMU_MTLB_SIZE + 64;
 
+#if gcdSHARED_PAGETABLE
+        _Construct(mmu);
+#else
         gcmkONERROR(
             gckOS_AllocateContiguous(os,
                                      gcvFALSE,
@@ -574,6 +730,7 @@ gckMMU_Construct(
         /* Invalid all the entries. */
         gcmkONERROR(
             gckOS_ZeroMemory(pointer, mmu->pageTableSize));
+#endif
     }
 
     /* Return the gckMMU object pointer. */
@@ -590,11 +747,16 @@ OnError:
         if (mmu->pageTableLogical != gcvNULL)
         {
             /* Free the page table. */
+#if gcdSHARED_PAGETABLE
+            _Free(mmu);
+#else
             gcmkVERIFY_OK(
                 gckOS_FreeContiguous(os,
                                      mmu->pageTablePhysical,
                                      (gctPOINTER) mmu->pageTableLogical,
                                      mmu->pageTableSize));
+#endif
+
         }
 
         if (mmu->pageTableMutex != gcvNULL)
@@ -692,19 +854,25 @@ gckMMU_Destroy(
     }
 
     /* Free the page table. */
+#if gcdSHARED_PAGETABLE
+    _Free(Mmu);
+#else
     gcmkVERIFY_OK(
         gckOS_FreeContiguous(Mmu->os,
                              Mmu->pageTablePhysical,
                              (gctPOINTER) Mmu->pageTableLogical,
                              Mmu->pageTableSize));
+#endif
 
 #ifdef __QNXNTO__
     /* Delete the node list mutex. */
     gcmkVERIFY_OK(gckOS_DeleteMutex(Mmu->os, Mmu->nodeMutex));
 #endif
 
+#if !gcdSHARED_PAGETABLE
     /* Delete the page table mutex. */
     gcmkVERIFY_OK(gckOS_DeleteMutex(Mmu->os, Mmu->pageTableMutex));
+#endif
 
     /* Mark the gckMMU object as unknown. */
     Mmu->object.type = gcvOBJ_UNKNOWN;
@@ -976,9 +1144,11 @@ gckMMU_AllocatePages(
                      | (gcvMMU_STLB_SIZE << 10);
         }
 
+#if !gcdSHARED_PAGETABLE
         /* Flush the MMU cache. */
         gcmkONERROR(
             gckHARDWARE_FlushMMU(Mmu->hardware));
+#endif
 
         /* Success. */
         gcmkFOOTER_ARG("*PageTable=0x%x *Address=%08x",
@@ -1084,10 +1254,6 @@ gckMMU_FreePages(
         {
             gcmkONERROR(gcvSTATUS_INVALID_ARGUMENT);
         }
-
-        /* Flush the MMU cache. */
-        gcmkONERROR(
-            gckHARDWARE_FlushMMU(Mmu->hardware));
 
         /* Grab the mutex. */
         gcmkONERROR(gckOS_AcquireMutex(Mmu->os, Mmu->pageTableMutex, gcvINFINITE));
@@ -1330,6 +1496,31 @@ OnError:
     }
 
     gcmkFOOTER();
+    return status;
+}
+#endif
+
+#if gcdSHARED_PAGETABLE
+gceSTATUS
+gckMMU_FlushAllMmuCache(
+    void
+    )
+{
+    gceSTATUS status;
+    gctINT i;
+    for (i = 0; i < gcdCORE_COUNT; i++)
+    {
+        if (sharedPageTable->hardwares[i])
+        {
+            gcmkTRACE_ZONE(gcvLEVEL_INFO, gcvZONE_MMU,
+                           "Flush MMU Cache for hardware=0x%x",
+                           sharedPageTable->hardwares[i]);
+            gcmkONERROR(gckHARDWARE_FlushMMU(sharedPageTable->hardwares[i]));
+        }
+    }
+
+    return gcvSTATUS_OK;
+OnError:
     return status;
 }
 #endif

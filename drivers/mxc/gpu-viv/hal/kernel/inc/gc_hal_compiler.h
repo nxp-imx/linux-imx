@@ -1,6 +1,6 @@
 /****************************************************************************
 *
-*    Copyright (C) 2005 - 2011 by Vivante Corp.
+*    Copyright (C) 2005 - 2012 by Vivante Corp.
 *
 *    This program is free software; you can redistribute it and/or modify
 *    it under the terms of the GNU General Public License as published by
@@ -109,32 +109,32 @@ typedef enum _gcSL_OPCODE
 	gcSL_STORE,							/* 0x37 */
 	gcSL_BARRIER,						/* 0x38 */
 	gcSL_STORE1,						/* 0x39 */
-	/*gcSL_COS_CL,						 0x3A */
-	/*gcSL_TAN_CL,						 0x3B */
-	/*gcSL_ACOS_CL,						 0x3C */
-	/*gcSL_ASIN_CL,						 0x3D */
-	/*gcSL_ATAN_CL,						 0x3E */
-	/*gcSL_SINH_CL,						 0x3F */
-	/*gcSL_COSH_CL,						 0x40 */
-	/*gcSL_TANH_CL,						 0x41 */
-	/*gcSL_ASINH_CL,						 0x42 */
-	/*gcSL_ACOSH_CL,						 0x43 */
-	/*gcSL_ATANH_CL,						 0x44 */
-	/*gcSL_SINPI_CL,						 0x45 */
-	/*gcSL_COSPI_CL,						 0x46 */
-	/*gcSL_TANPI_CL,						 0x47 */
-	/*gcSL_ASINPI_CL,						 0x48 */
-	/*gcSL_ACOSPI_CL,						 0x49 */
-	/*gcSL_ATANPI_CL,						 0x4A */
-	/*gcSL_ATAN2_CL,						 0x4B */
-	/*gcSL_ATAN2PI_CL,					 0x4C */
-	/*gcSL_POW_CL,						 0x4D */
-	/*gcSL_RSQ_CL,						 0x4E */
-	/*gcSL_LOG_CL,						 0x4F */
-	/*gcSL_EXP_CL,						 0x50 */
-	/*gcSL_SQRT_CL,						 0x51 */
-	/*gcSL_CBRT_CL,						 0x52 */
-	gcSL_ADDLO = 0x53,							/* 0x53 */  /* Float only. */
+	gcSL_ATOMADD,						/* 0x3A */
+	gcSL_ATOMSUB,						/* 0x3B */
+	gcSL_ATOMXCHG,						/* 0x3C */
+	gcSL_ATOMCMPXCHG,					/* 0x3D */
+	gcSL_ATOMMIN,						/* 0x3E */
+	gcSL_ATOMMAX,						/* 0x3F */
+	gcSL_ATOMOR,						/* 0x40 */
+	gcSL_ATOMAND,						/* 0x41 */
+	gcSL_ATOMXOR,						/* 0x42 */
+	/*gcSL_UNUSED,						 0x43 */
+	/*gcSL_UNUSED,						 0x44 */
+	/*gcSL_UNUSED,						 0x45 */
+	/*gcSL_UNUSED,						 0x46 */
+	/*gcSL_UNUSED,						 0x47 */
+	/*gcSL_UNUSED,						 0x48 */
+	/*gcSL_UNUSED,						 0x49 */
+	/*gcSL_UNUSED,						 0x4A */
+	/*gcSL_UNUSED,						 0x4B */
+	/*gcSL_UNUSED,					 	 0x4C */
+	/*gcSL_UNUSED,						 0x4D */
+	/*gcSL_UNUSED,						 0x4E */
+	/*gcSL_UNUSED,						 0x4F */
+	/*gcSL_UNUSED,						 0x50 */
+	/*gcSL_UNUSED,						 0x51 */
+	/*gcSL_UNUSED,						 0x52 */
+	gcSL_ADDLO = 0x53,					/* 0x53 */  /* Float only. */
 	gcSL_MULLO,							/* 0x54 */  /* Float only. */
 	gcSL_CONV,							/* 0x55 */
 	gcSL_GETEXP,						/* 0x56 */

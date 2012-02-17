@@ -1,6 +1,6 @@
 /****************************************************************************
 *
-*    Copyright (C) 2005 - 2011 by Vivante Corp.
+*    Copyright (C) 2005 - 2012 by Vivante Corp.
 *
 *    This program is free software; you can redistribute it and/or modify
 *    it under the terms of the GNU General Public License as published by
@@ -129,6 +129,13 @@ typedef enum _gceFEATURE
 	gcvFEATURE_2D_ROTATION_STALL_FIX,
     gcvFEATURE_2D_MULTI_SOURCE_BLT_EX,
 	gcvFEATURE_BUG_FIXES10,
+    gcvFEATURE_2D_MINOR_TILING,
+    /* Supertiled compressed textures are supported. */
+    gcvFEATURE_TEX_COMPRRESSION_SUPERTILED,
+    gcvFEATURE_FAST_MSAA,
+    gcvFEATURE_BUG_FIXED_INDEXED_TRIANGLE_STRIP,
+    gcvFEATURE_TEXTURE_TILED_READ,
+    gcvFEATURE_DEPTH_BIAS_FIX
 }
 gceFEATURE;
 
@@ -190,6 +197,9 @@ typedef enum _gceSURF_TYPE
     gcvSURF_NO_VIDMEM      = 0x200, /* Used to allocate surfaces with no underlying vidmem node.
                                        In Android, vidmem node is allocated by another process. */
     gcvSURF_CACHEABLE      = 0x400, /* Used to allocate a cacheable surface */
+#if gcdANDROID_UNALIGNED_LINEAR_COMPOSITION_ADJUST
+    gcvSURF_FLIP           = 0x800, /* The Resolve Target the will been flip resolve from RT */
+#endif
 
     gcvSURF_RENDER_TARGET_NO_TILE_STATUS = gcvSURF_RENDER_TARGET
                                          | gcvSURF_NO_TILE_STATUS,
@@ -209,7 +219,12 @@ typedef enum _gceSURF_TYPE
                                          | gcvSURF_CACHEABLE,
 
     gcvSURF_CACHEABLE_BITMAP             = gcvSURF_BITMAP
-                                         | gcvSURF_CACHEABLE
+                                         | gcvSURF_CACHEABLE,
+
+#if gcdANDROID_UNALIGNED_LINEAR_COMPOSITION_ADJUST
+    gcvSURF_FLIP_BITMAP                  = gcvSURF_BITMAP
+                                         | gcvSURF_FLIP,
+#endif
 }
 gceSURF_TYPE;
 
@@ -380,6 +395,7 @@ typedef enum _gceSURF_FORMAT
     gcvSURF_G32R32,
     gcvSURF_X32G32R32,
     gcvSURF_A32R32,
+    gcvSURF_RG16,
 
     /* Floating point formats. */
     gcvSURF_R16F                = 1200,
@@ -666,6 +682,7 @@ typedef enum _gceTILING
     gcvSUPERTILED,
     gcvMULTI_TILED,
     gcvMULTI_SUPERTILED,
+    gcvMINORTILED,
 }
 gceTILING;
 

@@ -1,6 +1,6 @@
 /****************************************************************************
 *
-*    Copyright (C) 2005 - 2011 by Vivante Corp.
+*    Copyright (C) 2005 - 2012 by Vivante Corp.
 *
 *    This program is free software; you can redistribute it and/or modify
 *    it under the terms of the GNU General Public License as published by
@@ -206,7 +206,16 @@ _IdentifyHardware(
     Identity->chipMinorFeatures
         = ((((gctUINT32) (Identity->chipMinorFeatures)) & ~(((gctUINT32) (((gctUINT32) ((((1 ? 27:27) - (0 ? 27:27) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 27:27) - (0 ? 27:27) + 1))))))) << (0 ? 27:27))) | (((gctUINT32) (0x0 & ((gctUINT32) ((((1 ? 27:27) - (0 ? 27:27) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 27:27) - (0 ? 27:27) + 1))))))) << (0 ? 27:27)));
 
-#if gcdSUPPORT_SWAP_RECTANGLE
+    if (Identity->chipModel == gcv2000 && Identity->chipRevision == 0x5108)
+    {
+        /* Disable DXT. */
+        Identity->chipFeatures = ((((gctUINT32) (Identity->chipFeatures)) & ~(((gctUINT32) (((gctUINT32) ((((1 ? 3:3) - (0 ? 3:3) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 3:3) - (0 ? 3:3) + 1))))))) << (0 ? 3:3))) | (((gctUINT32) (0x0 & ((gctUINT32) ((((1 ? 3:3) - (0 ? 3:3) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 3:3) - (0 ? 3:3) + 1))))))) << (0 ? 3:3)));
+
+        /* Disable ETC1. */
+        Identity->chipFeatures = ((((gctUINT32) (Identity->chipFeatures)) & ~(((gctUINT32) (((gctUINT32) ((((1 ? 10:10) - (0 ? 10:10) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 10:10) - (0 ? 10:10) + 1))))))) << (0 ? 10:10))) | (((gctUINT32) (0x0 & ((gctUINT32) ((((1 ? 10:10) - (0 ? 10:10) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 10:10) - (0 ? 10:10) + 1))))))) << (0 ? 10:10)));
+    }
+
+#if 0//gcdSUPPORT_SWAP_RECTANGLE
     Identity->chipMinorFeatures = Identity->chipMinorFeatures & (~(1 << 12));
 #endif
 
@@ -794,54 +803,6 @@ gckHARDWARE_InitializeHardware(
                                       data));
         }
 
-        /* Disable SE clock gating on imx6 (bug #3383). */
-        if ((Hardware->identity.chipModel == gcv2000)
-        &&  (Hardware->identity.chipRevision  == 0x5108))
-        {
-            gcmkONERROR(
-                gckOS_ReadRegisterEx(Hardware->os,
-                                     Hardware->core,
-                                     Hardware->powerBaseAddress
-                                     + 0x00104,
-                                     &data));
-
-            /* Disable RA clock gating. */
-            data = ((((gctUINT32) (data)) & ~(((gctUINT32) (((gctUINT32) ((((1 ? 6:6) - (0 ? 6:6) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 6:6) - (0 ? 6:6) + 1))))))) << (0 ? 6:6))) | (((gctUINT32) ((gctUINT32) (1) & ((gctUINT32) ((((1 ? 6:6) - (0 ? 6:6) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 6:6) - (0 ? 6:6) + 1))))))) << (0 ? 6:6)));
-
-            /* Disable PE clock gating. */
-           data = ((((gctUINT32) (data)) & ~(((gctUINT32) (((gctUINT32) ((((1 ? 2:2) - (0 ? 2:2) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 2:2) - (0 ? 2:2) + 1))))))) << (0 ? 2:2))) | (((gctUINT32) ((gctUINT32) (1) & ((gctUINT32) ((((1 ? 2:2) - (0 ? 2:2) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 2:2) - (0 ? 2:2) + 1))))))) << (0 ? 2:2)));
-
-            /* Disable TX clock gating. */
-            data = ((((gctUINT32) (data)) & ~(((gctUINT32) (((gctUINT32) ((((1 ? 7:7) - (0 ? 7:7) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 7:7) - (0 ? 7:7) + 1))))))) << (0 ? 7:7))) | (((gctUINT32) ((gctUINT32) (1) & ((gctUINT32) ((((1 ? 7:7) - (0 ? 7:7) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 7:7) - (0 ? 7:7) + 1))))))) << (0 ? 7:7)));
-
-            gcmkONERROR(
-                gckOS_WriteRegisterEx(Hardware->os,
-                                      Hardware->core,
-                                      Hardware->powerBaseAddress
-                                      + 0x00104,
-                                      data));
-
-            gcmkONERROR(
-                gckOS_ReadRegisterEx(Hardware->os,
-                                     Hardware->core,
-                                     Hardware->powerBaseAddress
-                                     + 0x00100,
-                                     &data));
-
-            /* change turnon counter value to 1. */
-            data = ((((gctUINT32) (data)) & ~(((gctUINT32) (((gctUINT32) ((((1 ? 7:4) - (0 ? 7:4) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 7:4) - (0 ? 7:4) + 1))))))) << (0 ? 7:4))) | (((gctUINT32) ((gctUINT32) (1) & ((gctUINT32) ((((1 ? 7:4) - (0 ? 7:4) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 7:4) - (0 ? 7:4) + 1))))))) << (0 ? 7:4)));
-
-            /* change turnoff counter value to 1. */
-            data = ((((gctUINT32) (data)) & ~(((gctUINT32) (((gctUINT32) ((((1 ? 31:16) - (0 ? 31:16) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 31:16) - (0 ? 31:16) + 1))))))) << (0 ? 31:16))) | (((gctUINT32) ((gctUINT32) (1) & ((gctUINT32) ((((1 ? 31:16) - (0 ? 31:16) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 31:16) - (0 ? 31:16) + 1))))))) << (0 ? 31:16)));
-
-            gcmkONERROR(
-                gckOS_WriteRegisterEx(Hardware->os,
-                                      Hardware->core,
-                                      Hardware->powerBaseAddress
-                                      + 0x00100,
-                                      data));
-
-        }
 #endif
     }
 #endif
@@ -2164,6 +2125,7 @@ gckHARDWARE_Link(
     gceSTATUS status;
     gctSIZE_T bytes;
     gctUINT32 address;
+    gctUINT32 link;
     gctUINT32_PTR logical = (gctUINT32_PTR) Logical;
 
     gcmkHEADER_ARG("Hardware=0x%x Logical=0x%x FetchAddress=0x%x FetchSize=%lu "
@@ -2187,7 +2149,8 @@ gckHARDWARE_Link(
         gcmkONERROR(
             gckHARDWARE_ConvertLogical(Hardware, FetchAddress, &address));
 
-        logical[1] = address;
+        gcmkONERROR(
+            gckOS_WriteMemory(Hardware->os, logical + 1, address));
 
         /* Make sure the address got written before the LINK command. */
         gcmkONERROR(
@@ -2197,8 +2160,11 @@ gckHARDWARE_Link(
         bytes = gcmALIGN(address + FetchSize, 64) - address;
 
         /* Append LINK(bytes / 8), FetchAddress. */
-        logical[0] = ((((gctUINT32) (0)) & ~(((gctUINT32) (((gctUINT32) ((((1 ? 31:27) - (0 ? 31:27) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 31:27) - (0 ? 31:27) + 1))))))) << (0 ? 31:27))) | (((gctUINT32) (0x08 & ((gctUINT32) ((((1 ? 31:27) - (0 ? 31:27) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 31:27) - (0 ? 31:27) + 1))))))) << (0 ? 31:27)))
+        link = ((((gctUINT32) (0)) & ~(((gctUINT32) (((gctUINT32) ((((1 ? 31:27) - (0 ? 31:27) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 31:27) - (0 ? 31:27) + 1))))))) << (0 ? 31:27))) | (((gctUINT32) (0x08 & ((gctUINT32) ((((1 ? 31:27) - (0 ? 31:27) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 31:27) - (0 ? 31:27) + 1))))))) << (0 ? 31:27)))
                    | ((((gctUINT32) (0)) & ~(((gctUINT32) (((gctUINT32) ((((1 ? 15:0) - (0 ? 15:0) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 15:0) - (0 ? 15:0) + 1))))))) << (0 ? 15:0))) | (((gctUINT32) ((gctUINT32) (bytes >> 3) & ((gctUINT32) ((((1 ? 15:0) - (0 ? 15:0) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 15:0) - (0 ? 15:0) + 1))))))) << (0 ? 15:0)));
+
+        gcmkONERROR(
+            gckOS_WriteMemory(Hardware->os, logical, link));
 
         /* Memory barrier. */
         gcmkONERROR(
@@ -2927,6 +2893,8 @@ gckHARDWARE_FlushMMU(
     /* Release the command queue. */
     gcmkONERROR(gckCOMMAND_ExitCommit(command, gcvFALSE));
     commitEntered = gcvFALSE;
+
+    gcmkONERROR(gckEVENT_Submit(Hardware->kernel->eventObj, gcvTRUE, gcvFALSE));
 
     /* Success. */
     gcmkFOOTER_NO();
@@ -3929,7 +3897,7 @@ gckHARDWARE_SetPowerManagementState(
     if (flag & gcvPOWER_FLAG_STOP)
     {
         /* Stop the command parser. */
-        gcmkONERROR(gckCOMMAND_Stop(command));
+        gcmkONERROR(gckCOMMAND_Stop(command, gcvFALSE));
 
         /* Stop the Isr. */
         gcmkONERROR(Hardware->stopIsr(Hardware->isrContext));
@@ -4654,7 +4622,42 @@ gckHARDWARE_Reset(
     )
     {
         /* Stop the command processor. */
-        gcmkONERROR(gckCOMMAND_Stop(command));
+        gcmkONERROR(gckCOMMAND_Stop(command, gcvTRUE));
+    }
+
+    /* Stop isr, we will start it again when power on GPU. */
+    gcmkONERROR(Hardware->stopIsr(Hardware->isrContext));
+
+    if (Hardware->identity.chipModel == gcv4000
+    && Hardware->identity.chipRevision == 0x5208)
+    {
+        gctUINT32 control;
+        control = ((((gctUINT32) (0x01590880)) & ~(((gctUINT32) (((gctUINT32) ((((1 ? 17:17) - (0 ? 17:17) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 17:17) - (0 ? 17:17) + 1))))))) << (0 ? 17:17))) | (((gctUINT32) ((gctUINT32) (1) & ((gctUINT32) ((((1 ? 17:17) - (0 ? 17:17) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 17:17) - (0 ? 17:17) + 1))))))) << (0 ? 17:17)));
+
+        gcmkONERROR(gckOS_WriteRegisterEx(Hardware->os,
+                    Hardware->core,
+                    0x0010C,
+                    control));
+
+        gcmkONERROR(gckOS_WriteRegisterEx(Hardware->os,
+                    Hardware->core,
+                    0x0010C,
+                    ((((gctUINT32) (control)) & ~(((gctUINT32) (((gctUINT32) ((((1 ? 0:0) - (0 ? 0:0) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 0:0) - (0 ? 0:0) + 1))))))) << (0 ? 0:0))) | (((gctUINT32) ((gctUINT32) (1) & ((gctUINT32) ((((1 ? 0:0) - (0 ? 0:0) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 0:0) - (0 ? 0:0) + 1))))))) << (0 ? 0:0)))));
+
+        gcmkONERROR(gckOS_WriteRegisterEx(Hardware->os,
+                    Hardware->core,
+                    0x0010C,
+                    control));
+
+        gcmkONERROR(gckOS_WriteRegisterEx(Hardware->os,
+                    Hardware->core,
+                    0x00000,
+                    ((((gctUINT32) (0x00000100)) & ~(((gctUINT32) (((gctUINT32) ((((1 ? 9:9) - (0 ? 9:9) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 9:9) - (0 ? 9:9) + 1))))))) << (0 ? 9:9))) | (((gctUINT32) ((gctUINT32) (1) & ((gctUINT32) ((((1 ? 9:9) - (0 ? 9:9) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 9:9) - (0 ? 9:9) + 1))))))) << (0 ? 9:9)))));
+
+        gcmkONERROR(gckOS_WriteRegisterEx(Hardware->os,
+                    Hardware->core,
+                    0x00000,
+                    0x00000100));
     }
 
     gcmkONERROR(_ResetGPU(Hardware->os, Hardware->core));
