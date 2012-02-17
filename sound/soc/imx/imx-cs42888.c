@@ -30,6 +30,7 @@
 
 #include <mach/hardware.h>
 #include <mach/clock.h>
+#include <asm/mach-types.h>
 
 #include "imx-esai.h"
 #include "../codecs/cs42888.h"
@@ -50,9 +51,9 @@ static int imx_3stack_startup(struct snd_pcm_substream *substream)
 	if (!cpu_dai->active) {
 		hw_state.hw = 0;
 		if (rst_gpio) {
-			gpio_direction_output(rst_gpio, 0);
+			gpio_set_value_cansleep(rst_gpio, 0);
 			msleep(100);
-			gpio_direction_output(rst_gpio, 1);
+			gpio_set_value_cansleep(rst_gpio, 1);
 		} else {
 			gpio_direction_output(CS42888_RST, 0);
 			msleep(100);
@@ -84,7 +85,7 @@ static int imx_3stack_surround_hw_params(struct snd_pcm_substream *substream,
 	if (hw_state.hw)
 		return 0;
 	hw_state.hw = 1;
-	if (cpu_is_mx53()) {
+	if (cpu_is_mx53() || machine_is_mx6q_sabreauto()) {
 		switch (rate) {
 		case 32000:
 			lrclk_ratio = 3;
@@ -160,7 +161,7 @@ static int imx_3stack_surround_hw_params(struct snd_pcm_substream *substream,
 	/* set i.MX active slot mask */
 	snd_soc_dai_set_tdm_slot(cpu_dai, 0x3, 0x3, 2, 32);
 	/* set the ESAI system clock as output */
-	if (cpu_is_mx53()) {
+	if (cpu_is_mx53() || machine_is_mx6q_sabreauto()) {
 		snd_soc_dai_set_sysclk(cpu_dai, ESAI_CLK_EXTAL,
 			mclk_freq, SND_SOC_CLOCK_OUT);
 	} else if (cpu_is_mx6q() || cpu_is_mx6dl()) {
@@ -169,14 +170,14 @@ static int imx_3stack_surround_hw_params(struct snd_pcm_substream *substream,
 	}
 	/* set the ratio */
 	snd_soc_dai_set_clkdiv(cpu_dai, ESAI_TX_DIV_PSR, 1);
-	if (cpu_is_mx53())
+	if (cpu_is_mx53() || machine_is_mx6q_sabreauto())
 		snd_soc_dai_set_clkdiv(cpu_dai, ESAI_TX_DIV_PM, 0);
 	else if (cpu_is_mx6q() || cpu_is_mx6dl())
 		snd_soc_dai_set_clkdiv(cpu_dai, ESAI_TX_DIV_PM, 2);
 	snd_soc_dai_set_clkdiv(cpu_dai, ESAI_TX_DIV_FP, lrclk_ratio);
 
 	snd_soc_dai_set_clkdiv(cpu_dai, ESAI_RX_DIV_PSR, 1);
-	if (cpu_is_mx53())
+	if (cpu_is_mx53() || machine_is_mx6q_sabreauto())
 		snd_soc_dai_set_clkdiv(cpu_dai, ESAI_RX_DIV_PM, 0);
 	else if (cpu_is_mx6q() || cpu_is_mx6dl())
 		snd_soc_dai_set_clkdiv(cpu_dai, ESAI_RX_DIV_PM, 2);
