@@ -1,7 +1,7 @@
 /*
  * ASoC HDMI Transmitter driver for IMX development boards
  *
- * Copyright (C) 2011 Freescale Semiconductor, Inc.
+ * Copyright (C) 2011-2012 Freescale Semiconductor, Inc.
  *
  * based on stmp3780_devb_spdif.c
  *
@@ -56,6 +56,9 @@ static struct platform_device *imx_hdmi_snd_device;
 static int __init imx_hdmi_init(void)
 {
 	int ret = 0;
+
+	if (!hdmi_get_registered())
+		return -ENOMEM;
 
 	imx_hdmi_snd_device = platform_device_alloc("soc-audio", 4);
 	if (!imx_hdmi_snd_device) {

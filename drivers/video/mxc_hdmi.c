@@ -2060,11 +2060,13 @@ static int mxc_hdmi_fb_event(struct notifier_block *nb,
 	case FB_EVENT_FB_REGISTERED:
 		dev_dbg(&hdmi->pdev->dev, "event=FB_EVENT_FB_REGISTERED\n");
 		mxc_hdmi_fb_registered(hdmi);
+		hdmi_set_registered(1);
 		break;
 
 	case FB_EVENT_FB_UNREGISTERED:
 		dev_dbg(&hdmi->pdev->dev, "event=FB_EVENT_FB_UNREGISTERED\n");
 		hdmi->fb_reg = false;
+		hdmi_set_registered(0);
 		break;
 
 	case FB_EVENT_MODE_CHANGE:
