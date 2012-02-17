@@ -310,16 +310,11 @@ static irqreturn_t hdmi_dma_isr(int irq, void *dev_id)
 
 	spin_lock_irqsave(&rtd->irq_lock, flags);
 
-	if (!rtd->tx_active) {
-		spin_unlock_irqrestore(&rtd->irq_lock, flags);
-		return IRQ_HANDLED;
-	}
-
 	hdmi_dma_irq_mute(1);
 	status = hdmi_dma_get_irq_status();
 	hdmi_dma_clear_irq_status(status);
 
-	if (status & HDMI_IH_AHBDMAAUD_STAT0_DONE) {
+	if (runtime->dma_area && rtd->tx_active && (status & HDMI_IH_AHBDMAAUD_STAT0_DONE)) {
 		rtd->offset += rtd->period_bytes;
 		rtd->offset %= rtd->period_bytes * rtd->periods;
 
@@ -605,12 +600,14 @@ static int hdmi_dma_trigger(struct snd_pcm_substream *substream, int cmd)
 		}
 		dumpregs();
 		hdmi_dma_irq_mask(0);
+		hdmi_dma_priv->tx_active = true;
 		hdmi_dma_start();
 		break;
 
 	case SNDRV_PCM_TRIGGER_STOP:
 	case SNDRV_PCM_TRIGGER_SUSPEND:
 	case SNDRV_PCM_TRIGGER_PAUSE_PUSH:
+		hdmi_dma_priv->tx_active = false;
 		hdmi_dma_stop();
 		hdmi_dma_irq_mask(1);
 		break;
@@ -662,7 +659,6 @@ static void hdmi_dma_irq_enable(struct imx_hdmi_dma_runtime_data *rtd)
 	hdmi_irq_enable(hdmi_dma_priv->irq);
 	hdmi_dma_irq_mute(0);
 	hdmi_dma_irq_mask(0);
-	hdmi_dma_priv->tx_active = true;
 
 	spin_unlock_irqrestore(&hdmi_dma_priv->irq_lock, flags);
 
@@ -678,7 +674,6 @@ static void hdmi_dma_irq_disable(struct imx_hdmi_dma_runtime_data *rtd)
 	hdmi_dma_irq_mute(1);
 	hdmi_irq_disable(rtd->irq);
 	hdmi_dma_clear_irq_status(0xff);
-	rtd->tx_active = false;
 
 	spin_unlock_irqrestore(&rtd->irq_lock, flags);
 }
