@@ -953,13 +953,13 @@ static struct ipuv3_fb_platform_data sabr_fb_data[] = {
 	.disp_dev = "ldb",
 	.interface_pix_fmt = IPU_PIX_FMT_RGB666,
 	.mode_str = "LDB-XGA",
-	.default_bpp = 16,
+	.default_bpp = 32,
 	.int_clk = false,
 	}, {
 	.disp_dev = "lcd",
 	.interface_pix_fmt = IPU_PIX_FMT_RGB565,
 	.mode_str = "CLAA-WVGA",
-	.default_bpp = 16,
+	.default_bpp = 32,
 	.int_clk = false,
 	}, {
 	.disp_dev = "ldb",
@@ -1033,6 +1033,16 @@ static struct platform_pwm_backlight_data mx6_arm2_pwm_backlight_data3 = {
 	.max_brightness = 255,
 	.dft_brightness = 128,
 	.pwm_period_ns = 50000,
+};
+
+static struct android_pmem_platform_data android_pmem_data = {
+       .name = "pmem_adsp",
+       .size = SZ_64M,
+};
+
+static struct android_pmem_platform_data android_pmem_gpu_data = {
+       .name = "pmem_gpu",
+       .size = SZ_32M,
 };
 
 /* Backlight PWM for Main board lvds*/
@@ -1319,6 +1329,25 @@ static struct mxc_dvfs_platform_data sabreauto_dvfscore_data = {
 static void __init fixup_mxc_board(struct machine_desc *desc, struct tag *tags,
 				   char **cmdline, struct meminfo *mi)
 {
+	char *str;
+	struct tag *t;
+
+	for_each_tag(t, tags) {
+		if (t->hdr.tag == ATAG_CMDLINE) {
+			str = t->u.cmdline.cmdline;
+			str = strstr(str, "pmem=");
+			if (str != NULL) {
+				str += 5;
+				android_pmem_gpu_data.size = memparse(str, &str);
+				if (*str == ',') {
+					str++;
+					android_pmem_data.size = memparse(str, &str);
+				}
+			}
+
+			break;
+		}
+	}
 }
 
 static int __init early_enable_mipi_sensor(char *p)
@@ -1481,6 +1510,9 @@ static void __init mx6_board_init(void)
 
 	imx6q_add_dvfs_core(&sabreauto_dvfscore_data);
 
+	mxc_register_device(&mxc_android_pmem_device, &android_pmem_data);
+	mxc_register_device(&mxc_android_pmem_gpu_device,
+			    &android_pmem_gpu_data);
 	imx6q_add_mxc_pwm(2);
 	imx6q_add_mxc_pwm(3);
 	imx6q_add_mxc_pwm_backlight(2, &mx6_arm2_pwm_backlight_data3);
@@ -1527,6 +1559,19 @@ static void __init mx6q_reserve(void)
 		memblock_free(phys, imx6q_gpu_pdata.reserved_mem_size);
 		memblock_remove(phys, imx6q_gpu_pdata.reserved_mem_size);
 		imx6q_gpu_pdata.reserved_mem_base = phys;
+	}
+	if (android_pmem_data.size) {
+		phys = memblock_alloc(android_pmem_data.size, SZ_4K);
+		memblock_free(phys, android_pmem_data.size);
+		memblock_remove(phys, android_pmem_data.size);
+		android_pmem_data.start = phys;
+	}
+
+	if (android_pmem_gpu_data.size) {
+		phys = memblock_alloc(android_pmem_gpu_data.size, SZ_4K);
+		memblock_free(phys, android_pmem_gpu_data.size);
+		memblock_remove(phys, android_pmem_gpu_data.size);
+		android_pmem_gpu_data.start = phys;
 	}
 }
 
