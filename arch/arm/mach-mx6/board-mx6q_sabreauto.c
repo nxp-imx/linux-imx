@@ -1125,7 +1125,7 @@ static const struct pm_platform_data mx6q_sabreauto_pm_data __initconst = {
 };
 
 static struct mxc_audio_platform_data sab_audio_data = {
-	.sysclk = 16934400,
+	.sysclk = 24576000,
 	.rst_gpio = MX6Q_SABREAUTO_PER_RST,
 	.codec_name = "cs42888.1-0048",
 };
@@ -1266,23 +1266,31 @@ static struct platform_device cs42888_sabreauto_vlc_reg_devices = {
 
 static int __init imx6q_init_audio(void)
 {
-	struct clk *pll3_pfd, *esai_clk;
+	struct clk *pll4_clk, *esai_clk, *anaclk_2;
+
 	mxc_register_device(&sab_audio_device, &sab_audio_data);
 	imx6q_add_imx_esai(0, &sab_esai_pdata);
 
 	gpio_request(MX6Q_SABREAUTO_ESAI_INT, "esai-int");
 	gpio_direction_input(MX6Q_SABREAUTO_ESAI_INT);
 
+	anaclk_2 = clk_get(NULL, "anaclk_2");
+	if (IS_ERR(anaclk_2))
+		return PTR_ERR(anaclk_2);
+	clk_set_rate(anaclk_2, 24576000);
+
 	esai_clk = clk_get(NULL, "esai_clk");
 	if (IS_ERR(esai_clk))
 		return PTR_ERR(esai_clk);
 
-	pll3_pfd = clk_get(NULL, "pll3_pfd_508M");
-	if (IS_ERR(pll3_pfd))
-		return PTR_ERR(pll3_pfd);
+	pll4_clk = clk_get(NULL, "pll4");
+	if (IS_ERR(pll4_clk))
+		return PTR_ERR(pll4_clk);
 
-	clk_set_parent(esai_clk, pll3_pfd);
-	clk_set_rate(esai_clk, 101647058);
+	clk_set_parent(pll4_clk, anaclk_2);
+	clk_set_parent(esai_clk, pll4_clk);
+	clk_set_rate(pll4_clk, 786432000);
+	clk_set_rate(esai_clk, 24576000);
 
 	platform_device_register(&cs42888_sabreauto_va_reg_devices);
 	platform_device_register(&cs42888_sabreauto_vd_reg_devices);
