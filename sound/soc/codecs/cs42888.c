@@ -155,6 +155,7 @@ struct cs42888_private {
 	unsigned int slave_mode;
 	unsigned int manual_mute;
 	struct regulator_bulk_data supplies[CS42888_NUM_SUPPLIES];
+	struct mxc_audio_codec_platform_data pdata;
 };
 
 /**
@@ -759,28 +760,16 @@ struct snd_soc_dai_driver cs42888_dai = {
 		.stream_name = "Playback",
 		.channels_min = 1,
 		.channels_max = 8,
-#ifdef CONFIG_SOC_IMX53
-		.rates = (SNDRV_PCM_RATE_48000 | SNDRV_PCM_RATE_96000 |\
+		.rates = (SNDRV_PCM_RATE_48000 | SNDRV_PCM_RATE_96000 |
 			SNDRV_PCM_RATE_192000),
-#endif
-#ifdef CONFIG_SOC_IMX6Q
-		.rates = (SNDRV_PCM_RATE_44100 | SNDRV_PCM_RATE_88200 |\
-			SNDRV_PCM_RATE_176400),
-#endif
 		.formats = CS42888_FORMATS,
 	},
 	.capture = {
 		.stream_name = "Capture",
 		.channels_min = 1,
 		.channels_max = 4,
-#ifdef CONFIG_SOC_IMX53
-		.rates = (SNDRV_PCM_RATE_48000 | SNDRV_PCM_RATE_96000 |\
+		.rates = (SNDRV_PCM_RATE_48000 | SNDRV_PCM_RATE_96000 |
 			SNDRV_PCM_RATE_192000),
-#endif
-#ifdef CONFIG_SOC_IMX6Q
-		.rates = (SNDRV_PCM_RATE_44100 | SNDRV_PCM_RATE_88200 |\
-			SNDRV_PCM_RATE_176400),
-#endif
 		.formats = CS42888_FORMATS,
 	},
 	.ops = &cs42888_dai_ops,
@@ -938,6 +927,13 @@ static int cs42888_i2c_probe(struct i2c_client *i2c_client,
 	if (!cs42888) {
 		dev_err(&i2c_client->dev, "could not allocate codec\n");
 		return -ENOMEM;
+	}
+
+	if (i2c_client->dev.platform_data) {
+		memcpy(&cs42888->pdata, i2c_client->dev.platform_data,
+				sizeof(cs42888->pdata));
+		cs42888_dai.playback.rates = cs42888->pdata.rates;
+		cs42888_dai.capture.rates = cs42888->pdata.rates;
 	}
 
 	i2c_set_clientdata(i2c_client, cs42888);
