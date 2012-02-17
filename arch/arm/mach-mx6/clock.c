@@ -98,6 +98,7 @@ static int cpu_op_nr;
 /* External clock values passed-in by the board code */
 static unsigned long external_high_reference, external_low_reference;
 static unsigned long oscillator_reference, ckih2_reference;
+static unsigned long anaclk_1_reference, anaclk_2_reference;
 
 /* For MX 6DL/S, Video PLL may be used by synchronous display devices,
  * such as HDMI or LVDS, and also by the EPDC.  If EPDC is in use,
@@ -281,6 +282,28 @@ static unsigned long get_ckih2_reference_clock_rate(struct clk *clk)
 	return ckih2_reference;
 }
 
+static unsigned long _clk_anaclk_1_get_rate(struct clk *clk)
+{
+	return anaclk_1_reference;
+}
+
+static int _clk_anaclk_1_set_rate(struct clk *clk, unsigned long rate)
+{
+	anaclk_1_reference = rate;
+	return 0;
+}
+
+static unsigned long _clk_anaclk_2_get_rate(struct clk *clk)
+{
+	return anaclk_2_reference;
+}
+
+static int _clk_anaclk_2_set_rate(struct clk *clk, unsigned long rate)
+{
+	anaclk_2_reference = rate;
+	return 0;
+}
+
 /* External high frequency clock */
 static struct clk ckih_clk = {
 	__INIT_CLK_DEBUG(ckih_clk)
@@ -301,6 +324,18 @@ static struct clk osc_clk = {
 static struct clk ckil_clk = {
 	__INIT_CLK_DEBUG(ckil_clk)
 	.get_rate = get_low_reference_clock_rate,
+};
+
+static struct clk anaclk_1 = {
+	__INIT_CLK_DEBUG(anaclk_1)
+	.get_rate = _clk_anaclk_1_get_rate,
+	.set_rate = _clk_anaclk_1_set_rate,
+};
+
+static struct clk anaclk_2 = {
+	__INIT_CLK_DEBUG(anaclk_2)
+	.get_rate = _clk_anaclk_2_get_rate,
+	.set_rate = _clk_anaclk_2_set_rate,
 };
 
 static unsigned long pfd_round_rate(struct clk *clk, unsigned long rate)
@@ -957,6 +992,38 @@ static unsigned long _clk_audio_video_round_rate(struct clk *clk,
 	return final_rate;
 }
 
+static int _clk_audio_video_set_parent(struct clk *clk, struct clk *parent)
+{
+	u32 reg;
+	int mux;
+	void __iomem *pllbase;
+
+	if (clk == &pll4_audio_main_clk)
+		pllbase = PLL4_AUDIO_BASE_ADDR;
+	else
+		pllbase = PLL5_VIDEO_BASE_ADDR;
+
+	reg = __raw_readl(pllbase) & ~ANADIG_PLL_BYPASS_CLK_SRC_MASK;
+	mux = _get_mux6(parent, &osc_clk, &anaclk_1, &anaclk_2,
+				NULL, NULL, NULL);
+	reg |= mux << ANADIG_PLL_BYPASS_CLK_SRC_OFFSET;
+	__raw_writel(reg, pllbase);
+
+	/* Set anaclk_x as input */
+	if (parent == &anaclk_1) {
+		reg = __raw_readl(ANADIG_MISC1_REG);
+		reg |= (ANATOP_LVDS_CLK1_IBEN_MASK &
+				~ANATOP_LVDS_CLK1_OBEN_MASK);
+		__raw_writel(reg, ANADIG_MISC1_REG);
+	} else if (parent == &anaclk_2) {
+		reg = __raw_readl(ANADIG_MISC1_REG);
+		reg |= (ANATOP_LVDS_CLK2_IBEN_MASK &
+				~ANATOP_LVDS_CLK2_OBEN_MASK);
+		__raw_writel(reg, ANADIG_MISC1_REG);
+	}
+
+	return 0;
+}
 
 static struct clk pll4_audio_main_clk = {
 	__INIT_CLK_DEBUG(pll4_audio_main_clk)
@@ -966,8 +1033,8 @@ static struct clk pll4_audio_main_clk = {
 	.set_rate = _clk_audio_video_set_rate,
 	.get_rate = _clk_audio_video_get_rate,
 	.round_rate = _clk_audio_video_round_rate,
+	.set_parent = _clk_audio_video_set_parent,
 };
-
 
 static struct clk pll5_video_main_clk = {
 	__INIT_CLK_DEBUG(pll5_video_main_clk)
@@ -977,6 +1044,7 @@ static struct clk pll5_video_main_clk = {
 	.set_rate = _clk_audio_video_set_rate,
 	.get_rate = _clk_audio_video_get_rate,
 	.round_rate = _clk_audio_video_round_rate,
+	.set_parent = _clk_audio_video_set_parent,
 };
 
 static int _clk_pll_mlb_main_enable(struct clk *clk)
@@ -5136,6 +5204,8 @@ static struct clk_lookup lookups[] = {
 	_REGISTER_CLOCK("mxs-perfmon.1", "perfmon", perfmon1_clk),
 	_REGISTER_CLOCK("mxs-perfmon.2", "perfmon", perfmon2_clk),
 	_REGISTER_CLOCK(NULL, "mlb150_clk", mlb150_clk),
+	_REGISTER_CLOCK(NULL, "anaclk_1", anaclk_1),
+	_REGISTER_CLOCK(NULL, "anaclk_2", anaclk_2),
 };
 
 static void clk_tree_init(void)
