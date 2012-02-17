@@ -1,7 +1,7 @@
 /*
  * ALSA SoC HDMI Audio Layer for MXS
  *
- * Copyright (C) 2011 Freescale Semiconductor, Inc.
+ * Copyright (C) 2011-2012 Freescale Semiconductor, Inc.
  *
  * Based on stmp3xxx_spdif_dai.c
  * Vladimir Barinov <vbarinov@embeddedalley.com>
@@ -41,6 +41,9 @@ static int imx_hdmi_dai_probe(struct platform_device *pdev)
 {
 	struct imx_hdmi *hdmi_data;
 	int ret = 0;
+
+	if (!hdmi_get_registered())
+		return -ENOMEM;
 
 	hdmi_data = kzalloc(sizeof(*hdmi_data), GFP_KERNEL);
 	if (!hdmi_data)
