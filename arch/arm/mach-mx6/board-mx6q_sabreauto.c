@@ -50,6 +50,7 @@
 #include <linux/regulator/consumer.h>
 #include <linux/regulator/machine.h>
 #include <linux/regulator/fixed.h>
+#include <sound/pcm.h>
 
 #include <mach/common.h>
 #include <mach/hardware.h>
@@ -754,6 +755,12 @@ static struct imxi2c_platform_data mx6q_sabreauto_i2c1_data = {
 	.bitrate = 100000,
 };
 
+static struct mxc_audio_codec_platform_data cs42888_data = {
+	.rates = (SNDRV_PCM_RATE_48000 |
+			SNDRV_PCM_RATE_96000 |
+			SNDRV_PCM_RATE_192000),
+};
+
 static struct i2c_board_info mxc_i2c2_board_info[] __initdata = {
 	{
 		I2C_BOARD_INFO("max7310", 0x30),
@@ -791,6 +798,7 @@ static struct i2c_board_info mxc_i2c1_board_info[] __initdata = {
 	},
 	{
 		I2C_BOARD_INFO("cs42888", 0x48),
+		.platform_data = (void *)&cs42888_data,
 	},
 };
 
