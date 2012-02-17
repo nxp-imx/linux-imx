@@ -348,6 +348,9 @@ static int mxc_hdmi_codec_soc_probe(struct snd_soc_codec *codec)
 	struct mxc_hdmi_priv *hdmi_priv;
 	int ret = 0;
 
+	if (!hdmi_get_registered())
+		return -ENOMEM;
+
 	hdmi_priv = kzalloc(sizeof(struct mxc_hdmi_priv), GFP_KERNEL);
 	if (hdmi_priv == NULL)
 		return -ENOMEM;
