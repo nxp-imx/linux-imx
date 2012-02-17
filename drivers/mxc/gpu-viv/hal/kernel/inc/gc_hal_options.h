@@ -1,6 +1,6 @@
 /****************************************************************************
 *
-*    Copyright (C) 2005 - 2011 by Vivante Corp.
+*    Copyright (C) 2005 - 2012 by Vivante Corp.
 *
 *    This program is free software; you can redistribute it and/or modify
 *    it under the terms of the GNU General Public License as published by
@@ -395,12 +395,42 @@
     gcdENABLE_BANK_ALIGNMENT
 
     When enabled, video memory is allocated bank aligned. The vendor can modify
-    gckOS_GetSurfaceBankAlignment() and gcoOS_GetBankOffsetBytes() to define how
+    _GetSurfaceBankAlignment() and gcoSURF_GetBankOffsetBytes() to define how
     different types of allocations are bank and channel aligned.
     When disabled (default), no bank alignment is done.
 */
 #ifndef gcdENABLE_BANK_ALIGNMENT
 #   define gcdENABLE_BANK_ALIGNMENT             0
+#endif
+
+/*
+    gcdBANK_BIT_START
+
+    Specifies the start bit of the bank (inclusive).
+*/
+#ifndef gcdBANK_BIT_START
+#   define gcdBANK_BIT_START                    12
+#endif
+
+/*
+    gcdBANK_BIT_END
+
+    Specifies the end bit of the bank (inclusive).
+*/
+#ifndef gcdBANK_BIT_END
+#   define gcdBANK_BIT_END                      14
+#endif
+
+/*
+    gcdBANK_CHANNEL_BIT
+
+    When set, video memory when allocated bank aligned is allocated such that
+    render and depth buffer addresses alternate on the channel bit specified.
+    This option has an effect only when gcdENABLE_BANK_ALIGNMENT is enabled.
+    When disabled (default), no alteration is done.
+*/
+#ifndef gcdBANK_CHANNEL_BIT
+#   define gcdBANK_CHANNEL_BIT                  7
 #endif
 
 /*
@@ -584,7 +614,7 @@
         This define enables the recovery code.
 */
 #ifndef gcdENABLE_RECOVERY
-#   define gcdENABLE_RECOVERY                   0
+#   define gcdENABLE_RECOVERY                   1
 #endif
 
 /*
@@ -674,13 +704,22 @@
 #   define gcdENABLE_OUTER_CACHE_PATCH          0
 #endif
 
-/*
-    gcdMULTICORE_MAPPING
+#ifndef gcdANDROID_UNALIGNED_LINEAR_COMPOSITION_ADJUST
+#   define  gcdANDROID_UNALIGNED_LINEAR_COMPOSITION_ADJUST    0
+#endif
 
-        Make different cores own same VA
-*/
-#ifndef gcdMULTICORE_MAPPING
-#   define gcdMULTICORE_MAPPING                 1
+#ifndef gcdSHARED_PAGETABLE
+#   define gcdSHARED_PAGETABLE                  1
+#endif
+
+/*
+    gcdBLOB_CACHE_ENABLED
+        When non-zero, Android blob cache extension will be enabled.
+        Otherwise, caching will be by-passed.
+ */
+
+#ifndef gcdBLOB_CACHE_ENABLED
+#   define gcdBLOB_CACHE_ENABLED                0
 #endif
 
 #endif /* __gc_hal_options_h_ */

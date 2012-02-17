@@ -1,6 +1,6 @@
 /****************************************************************************
 *
-*    Copyright (C) 2005 - 2011 by Vivante Corp.
+*    Copyright (C) 2005 - 2012 by Vivante Corp.
 *
 *    This program is free software; you can redistribute it and/or modify
 *    it under the terms of the GNU General Public License as published by
@@ -22,7 +22,7 @@
 
 
 #include "gc_hal_kernel_linux.h"
-#include <linux/pagemap.h>
+/*#include <linux/pagemap.h>*/
 #include <linux/seq_file.h>
 #include <linux/mm.h>
 #include <linux/mman.h>
@@ -136,9 +136,9 @@ static int threadRoutine(void *ctxt)
 
     for (;;)
     {
-        static int down;
-
+        int down;
         down = down_interruptible(&device->semas[gcvCORE_MAJOR]);
+        if (down);
         device->dataReadys[gcvCORE_MAJOR] = gcvFALSE;
 
         if (device->killThread == gcvTRUE)
@@ -188,9 +188,10 @@ static int threadRoutine2D(void *ctxt)
 
     for (;;)
     {
-        static int down;
+        int down;
 
         down = down_interruptible(&device->semas[gcvCORE_2D]);
+        if (down);
         device->dataReadys[gcvCORE_2D] = gcvFALSE;
 
         if (device->killThread == gcvTRUE)
@@ -238,9 +239,10 @@ static int threadRoutineVG(void *ctxt)
 
     for (;;)
     {
-        static int down;
+        int down;
 
         down = down_interruptible(&device->semas[gcvCORE_VG]);
+        if (down);
         device->dataReadys[gcvCORE_VG] = gcvFALSE;
 
         if (device->killThread == gcvTRUE)
@@ -564,19 +566,11 @@ gckGALDEVICE_Construct(
         /* Start the command queue. */
         gcmkONERROR(gckCOMMAND_Start(device->kernels[gcvCORE_2D]->command));
 #endif
-
-#if gcdMULTICORE_MAPPING
-        device->kernels[gcvCORE_2D]->anotherKernel = device->kernels[gcvCORE_MAJOR];
-#endif
     }
     else
     {
         device->kernels[gcvCORE_2D] = gcvNULL;
     }
-
-#if gcdMULTICORE_MAPPING
-    device->kernels[gcvCORE_MAJOR]->anotherKernel = device->kernels[gcvCORE_2D];
-#endif
 
     if (IrqLineVG != -1)
     {

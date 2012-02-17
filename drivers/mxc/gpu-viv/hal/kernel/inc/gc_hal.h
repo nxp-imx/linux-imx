@@ -1,6 +1,6 @@
 /****************************************************************************
 *
-*    Copyright (C) 2005 - 2011 by Vivante Corp.
+*    Copyright (C) 2005 - 2012 by Vivante Corp.
 *
 *    This program is free software; you can redistribute it and/or modify
 *    it under the terms of the GNU General Public License as published by
@@ -919,16 +919,6 @@ gckOS_DeviceControl(
     OUT gctPOINTER OutputBuffer,
     IN gctSIZE_T OutputBufferSize
     );
-
-#if gcdENABLE_BANK_ALIGNMENT
-gceSTATUS
-gckOS_GetSurfaceBankAlignment(
-    IN gckOS Os,
-    IN gceSURF_TYPE Type,
-    IN gctUINT32 BaseAddress,
-    OUT gctUINT32_PTR Alignment
-    );
-#endif
 
 /*******************************************************************************
 **
@@ -2203,7 +2193,8 @@ gckCOMMAND_Start(
 /* Stop the command queue. */
 gceSTATUS
 gckCOMMAND_Stop(
-    IN gckCOMMAND Command
+    IN gckCOMMAND Command,
+    IN gctBOOL FromRecovery
     );
 
 /* Commit a buffer to the command queue. */
@@ -2327,6 +2318,13 @@ gckMMU_FreeHandleMemory(
     IN gckKERNEL Kernel,
     IN gckMMU Mmu,
     IN gctUINT32 Pid
+    );
+#endif
+
+#if gcdSHARED_PAGETABLE
+gceSTATUS
+gckMMU_FlushAllMmuCache(
+    void
     );
 #endif
 

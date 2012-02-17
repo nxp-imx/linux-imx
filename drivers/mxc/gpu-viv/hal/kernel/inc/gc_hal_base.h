@@ -1,6 +1,6 @@
 /****************************************************************************
 *
-*    Copyright (C) 2005 - 2011 by Vivante Corp.
+*    Copyright (C) 2005 - 2012 by Vivante Corp.
 *
 *    This program is free software; you can redistribute it and/or modify
 *    it under the terms of the GNU General Public License as published by
@@ -28,6 +28,7 @@
 #include "gc_hal_types.h"
 
 #include "gc_hal_dump.h"
+#include "gc_hal_md5.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -692,8 +693,8 @@ gcoOS_FreeContiguous(
 
 #if gcdENABLE_BANK_ALIGNMENT
 gceSTATUS
-gcoOS_GetBankOffsetBytes(
-    IN gcoOS Os,
+gcoSURF_GetBankOffsetBytes(
+    IN gcoSURF Surfce,
     IN gceSURF_TYPE Type,
     IN gctUINT32 Stride,
     IN gctUINT32_PTR Bytes
@@ -1893,6 +1894,13 @@ gcoSURF_CPUCacheOperation(
     IN gceCACHEOPERATION Operation
     );
 
+
+gceSTATUS
+gcoSURF_SetLinearResolveAddress(
+    IN gcoSURF Surface,
+    IN gctUINT32 Address,
+    IN gctPOINTER Memory
+    );
 /******************************************************************************\
 ********************************* gcoDUMP Object ********************************
 \******************************************************************************/

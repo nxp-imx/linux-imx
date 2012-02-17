@@ -1,6 +1,6 @@
 /****************************************************************************
 *
-*    Copyright (C) 2005 - 2011 by Vivante Corp.
+*    Copyright (C) 2005 - 2012 by Vivante Corp.
 *
 *    This program is free software; you can redistribute it and/or modify
 *    it under the terms of the GNU General Public License as published by
@@ -67,11 +67,11 @@
         gcvFALSE, gcvFALSE                                                     \
         )
 
-#define _STATE_MIRROR(reg, mirror)                                             \
+#define _STATE_MIRROR_COUNT(reg, mirror, count)                                \
     _StateMirror(\
         Context, \
         reg ## _Address >> 2, \
-        reg ## _Count, \
+        count, \
         mirror ## _Address >> 2                                                \
         )
 
@@ -124,7 +124,7 @@
 \******************************************************************************/
 
 #define gcdSTATE_MASK \
-    (((((gctUINT32) (0)) & ~(((gctUINT32) (((gctUINT32) ((((1 ? 31:27) - (0 ? 31:27) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 31:27) - (0 ? 31:27) + 1))))))) << (0 ? 31:27))) | (((gctUINT32) (0x03 & ((gctUINT32) ((((1 ? 31:27) - (0 ? 31:27) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 31:27) - (0 ? 31:27) + 1))))))) << (0 ? 31:27))) | 0xC0FFEE)
+    (((((gctUINT32) (0)) & ~(((gctUINT32) (((gctUINT32) ((((1 ? 31:27) - (0 ? 31:27) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 31:27) - (0 ? 31:27) + 1))))))) << (0 ? 31:27))) | (((gctUINT32) (0x03) | 0xC0FFEE & ((gctUINT32) ((((1 ? 31:27) - (0 ? 31:27) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 31:27) - (0 ? 31:27) + 1))))))) << (0 ? 31:27)))
 
 #if !defined(VIVANTE_NO_3D)
 static gctSIZE_T
@@ -398,7 +398,7 @@ _InitializeContextBuffer(
     gctSIZE_T index;
 
 #if !defined(VIVANTE_NO_3D)
-    gctINT i;
+    gctUINT i;
     gctUINT vertexUniforms, fragmentUniforms;
     gctUINT fe2vsCount;
 #endif
@@ -448,6 +448,9 @@ _InitializeContextBuffer(
     index += _State(Context, index, 0x03820 >> 2, 0x00000000, 1, gcvFALSE, gcvFALSE);
     index += _State(Context, index, 0x03828 >> 2, 0x00000000, 1, gcvFALSE, gcvFALSE);
     index += _State(Context, index, 0x0382C >> 2, 0x00000000, 1, gcvFALSE, gcvFALSE);
+    index += _State(Context, index, 0x03834 >> 2, 0x00000000, 1, gcvFALSE, gcvFALSE);
+    index += _State(Context, index, 0x03838 >> 2, 0x00000000, 1, gcvFALSE, gcvFALSE);
+    index += _State(Context, index, 0x0384C >> 2, 0x00000000, 1, gcvFALSE, gcvFALSE);
 
     /* Front End states. */
 	fe2vsCount = 12;
@@ -465,6 +468,12 @@ _InitializeContextBuffer(
     index += _State(Context, index, 0x00680 >> 2, 0x00000000, 8, gcvFALSE, gcvTRUE);
     index += _State(Context, index, 0x006A0 >> 2, 0x00000000, 8, gcvFALSE, gcvFALSE);
     index += _State(Context, index, 0x00670 >> 2, 0x00000000, 1, gcvFALSE, gcvFALSE);
+    index += _State(Context, index, 0x00678 >> 2, 0x00000000, 1, gcvFALSE, gcvFALSE);
+    index += _State(Context, index, 0x0067C >> 2, 0xFFFFFFFF, 1, gcvFALSE, gcvFALSE);
+    index += _State(Context, index, 0x006C0 >> 2, 0x00000000, 16, gcvFALSE, gcvFALSE);
+    index += _State(Context, index, 0x00700 >> 2, 0x00000000, 16, gcvFALSE, gcvFALSE);
+    index += _State(Context, index, 0x00740 >> 2, 0x00000000, 16, gcvFALSE, gcvFALSE);
+    index += _State(Context, index, 0x00780 >> 2, 0x3F800000, 16, gcvFALSE, gcvFALSE);
 
     /* Vertex Shader states. */
     index += _State(Context, index, 0x00800 >> 2, 0x00000000, 1, gcvFALSE, gcvFALSE);
@@ -475,13 +484,13 @@ _InitializeContextBuffer(
     index += _State(Context, index, 0x00820 >> 2, 0x00000000, 4, gcvFALSE, gcvFALSE);
     index += _State(Context, index, 0x00830 >> 2, 0x00000000, 1, gcvFALSE, gcvFALSE);
     index += _State(Context, index, 0x00838 >> 2, 0x00000000, 1, gcvFALSE, gcvFALSE);
-    index += _State(Context, index, 0x04000 >> 2, 0x00000000, 1024, gcvFALSE, gcvFALSE);
+    if (Context->hardware->identity.instructionCount <= 256)
+    {
+        index += _State(Context, index, 0x04000 >> 2, 0x00000000, 1024, gcvFALSE, gcvFALSE);
+    }
 
     index += _CLOSE_RANGE();
     index += _State(Context, index, 0x05000 >> 2, 0x00000000, vertexUniforms * 4, gcvFALSE, gcvFALSE);
-
-    index += _State(Context, index, 0x00850 >> 2, 0x000003E8, 1, gcvFALSE, gcvFALSE);
-    index += _State(Context, index, 0x00854 >> 2, 0x00000100, 1, gcvFALSE, gcvFALSE);
 
     /* Primitive Assembly states. */
     index += _State(Context, index, 0x00A00 >> 2, 0x00000000, 1, gcvTRUE, gcvFALSE);
@@ -497,6 +506,10 @@ _InitializeContextBuffer(
     index += _State(Context, index, 0x00A30 >> 2, 0x00000000, 1, gcvFALSE, gcvFALSE);
     index += _State(Context, index, 0x00A40 >> 2, 0x00000000, 10, gcvFALSE, gcvFALSE);
     index += _State(Context, index, 0x00A34 >> 2, 0x00000000, 1, gcvFALSE, gcvFALSE);
+    index += _State(Context, index, 0x00A38 >> 2, 0x00000000, 1, gcvFALSE, gcvFALSE);
+    index += _State(Context, index, 0x00A3C >> 2, 0x00000000, 1, gcvFALSE, gcvFALSE);
+    index += _State(Context, index, 0x00A80 >> 2, 0x00000000, 1, gcvFALSE, gcvFALSE);
+    index += _State(Context, index, 0x00A84 >> 2, 0x00000000, 1, gcvFALSE, gcvFALSE);
 
     /* Setup states. */
     index += _State(Context, index, 0x00C00 >> 2, 0x00000000, 1, gcvTRUE, gcvFALSE);
@@ -506,6 +519,9 @@ _InitializeContextBuffer(
     index += _State(Context, index, 0x00C10 >> 2, 0x00000000, 1, gcvFALSE, gcvFALSE);
     index += _State(Context, index, 0x00C14 >> 2, 0x00000000, 1, gcvFALSE, gcvFALSE);
     index += _State(Context, index, 0x00C18 >> 2, 0x00000000, 1, gcvFALSE, gcvFALSE);
+    index += _State(Context, index, 0x00C1C >> 2, 0x42000000, 1, gcvFALSE, gcvFALSE);
+    index += _State(Context, index, 0x00C20 >> 2, 0x00000000, 1, gcvFALSE, gcvFALSE);
+    index += _State(Context, index, 0x00C24 >> 2, 0x00000000, 1, gcvFALSE, gcvFALSE);
 
     /* Raster states. */
     index += _State(Context, index, 0x00E00 >> 2, 0x00000001, 1, gcvFALSE, gcvFALSE);
@@ -521,36 +537,45 @@ _InitializeContextBuffer(
     index += _State(Context, index, 0x0100C >> 2, 0x00000000, 1, gcvFALSE, gcvFALSE);
     index += _State(Context, index, 0x01010 >> 2, 0x00000000, 1, gcvFALSE, gcvFALSE);
     index += _State(Context, index, 0x01018 >> 2, 0x01000000, 1, gcvFALSE, gcvFALSE);
-    index += _State(Context, index, 0x06000 >> 2, 0x00000000, 1024, gcvFALSE, gcvFALSE);
+    if (Context->hardware->identity.instructionCount <= 256)
+    {
+        index += _State(Context, index, 0x06000 >> 2, 0x00000000, 1024, gcvFALSE, gcvFALSE);
+    }
 
     index += _CLOSE_RANGE();
     index += _State(Context, index, 0x07000 >> 2, 0x00000000, fragmentUniforms * 4, gcvFALSE, gcvFALSE);
 
     /* Texture states. */
-    index += _State(Context, index, 0x02000 >> 2, 0x00000000, 16, gcvFALSE, gcvFALSE);
-    index += _State(Context, index, 0x02040 >> 2, 0x00000000, 16, gcvFALSE, gcvFALSE);
+    index += _State(Context, index, 0x02000 >> 2, 0x00000000, 12, gcvFALSE, gcvFALSE);
+    index += _State(Context, index, 0x02040 >> 2, 0x00000000, 12, gcvFALSE, gcvFALSE);
     index += _State(Context, index, 0x02080 >> 2, 0x00000000, 12, gcvFALSE, gcvFALSE);
     index += _State(Context, index, 0x020C0 >> 2, 0x00000000, 12, gcvFALSE, gcvFALSE);
     index += _State(Context, index, 0x02100 >> 2, 0x00000000, 12, gcvFALSE, gcvFALSE);
-    index += _State(Context, index, 0x02140 >> 2, 0x00000000, 16, gcvFALSE, gcvFALSE);
-    index += _State(Context, index, 0x02400 >> 2, 0x00000000, 12, gcvFALSE, gcvTRUE);
-    index += _State(Context, index, 0x02440 >> 2, 0x00000000, 12, gcvFALSE, gcvTRUE);
-    index += _State(Context, index, 0x02480 >> 2, 0x00000000, 12, gcvFALSE, gcvTRUE);
-    index += _State(Context, index, 0x024C0 >> 2, 0x00000000, 12, gcvFALSE, gcvTRUE);
-    index += _State(Context, index, 0x02500 >> 2, 0x00000000, 12, gcvFALSE, gcvTRUE);
-    index += _State(Context, index, 0x02540 >> 2, 0x00000000, 12, gcvFALSE, gcvTRUE);
-    index += _State(Context, index, 0x02580 >> 2, 0x00000000, 12, gcvFALSE, gcvTRUE);
-    index += _State(Context, index, 0x025C0 >> 2, 0x00000000, 12, gcvFALSE, gcvTRUE);
-    index += _State(Context, index, 0x02600 >> 2, 0x00000000, 12, gcvFALSE, gcvTRUE);
-    index += _State(Context, index, 0x02640 >> 2, 0x00000000, 12, gcvFALSE, gcvTRUE);
-    index += _State(Context, index, 0x02680 >> 2, 0x00000000, 12, gcvFALSE, gcvTRUE);
-    index += _State(Context, index, 0x026C0 >> 2, 0x00000000, 12, gcvFALSE, gcvTRUE);
-    index += _State(Context, index, 0x02700 >> 2, 0x00000000, 12, gcvFALSE, gcvTRUE);
-    index += _State(Context, index, 0x02740 >> 2, 0x00000000, 12, gcvFALSE, gcvTRUE);
+    index += _State(Context, index, 0x02140 >> 2, 0x00000000, 12, gcvFALSE, gcvFALSE);
+    index += _State(Context, index, 0x02180 >> 2, 0x00000000, 12, gcvFALSE, gcvFALSE);
+    index += _State(Context, index, 0x021C0 >> 2, 0x00321000, 12, gcvFALSE, gcvFALSE);
+    index += _State(Context, index, 0x02200 >> 2, 0x00000000, 12, gcvFALSE, gcvFALSE);
+    index += _State(Context, index, 0x02240 >> 2, 0x00000000, 12, gcvFALSE, gcvFALSE);
+    index += _State(Context, index, ((0x02400 >> 2) + (0 << 4)), 0x00000000, 12, gcvFALSE, gcvTRUE);
+    index += _State(Context, index, ((0x02440 >> 2) + (0 << 4)), 0x00000000, 12, gcvFALSE, gcvTRUE);
+    index += _State(Context, index, ((0x02480 >> 2) + (0 << 4)), 0x00000000, 12, gcvFALSE, gcvTRUE);
+    index += _State(Context, index, ((0x024C0 >> 2) + (0 << 4)), 0x00000000, 12, gcvFALSE, gcvTRUE);
+    index += _State(Context, index, ((0x02500 >> 2) + (0 << 4)), 0x00000000, 12, gcvFALSE, gcvTRUE);
+    index += _State(Context, index, ((0x02540 >> 2) + (0 << 4)), 0x00000000, 12, gcvFALSE, gcvTRUE);
+    index += _State(Context, index, ((0x02580 >> 2) + (0 << 4)), 0x00000000, 12, gcvFALSE, gcvTRUE);
+    index += _State(Context, index, ((0x025C0 >> 2) + (0 << 4)), 0x00000000, 12, gcvFALSE, gcvTRUE);
+    index += _State(Context, index, ((0x02600 >> 2) + (0 << 4)), 0x00000000, 12, gcvFALSE, gcvTRUE);
+    index += _State(Context, index, ((0x02640 >> 2) + (0 << 4)), 0x00000000, 12, gcvFALSE, gcvTRUE);
+    index += _State(Context, index, ((0x02680 >> 2) + (0 << 4)), 0x00000000, 12, gcvFALSE, gcvTRUE);
+    index += _State(Context, index, ((0x026C0 >> 2) + (0 << 4)), 0x00000000, 12, gcvFALSE, gcvTRUE);
+    index += _State(Context, index, ((0x02700 >> 2) + (0 << 4)), 0x00000000, 12, gcvFALSE, gcvTRUE);
+    index += _State(Context, index, ((0x02740 >> 2) + (0 << 4)), 0x00000000, 12, gcvFALSE, gcvTRUE);
     index += _CLOSE_RANGE();
 
     if ((((((gctUINT32) (Context->hardware->identity.chipMinorFeatures2)) >> (0 ? 11:11)) & ((gctUINT32) ((((1 ? 11:11) - (0 ? 11:11) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 11:11) - (0 ? 11:11) + 1)))))) ))
     {
+        gctUINT texBlockCount;
+
         /* New texture block. */
         index += _State(Context, index, 0x10000 >> 2, 0x00000000, 32, gcvFALSE, gcvFALSE);
         index += _State(Context, index, 0x10080 >> 2, 0x00000000, 32, gcvFALSE, gcvFALSE);
@@ -562,10 +587,23 @@ _InitializeContextBuffer(
         index += _State(Context, index, 0x10380 >> 2, 0x00321000, 32, gcvFALSE, gcvFALSE);
         index += _State(Context, index, 0x10400 >> 2, 0x00000000, 32, gcvFALSE, gcvFALSE);
         index += _State(Context, index, 0x10480 >> 2, 0x00000000, 32, gcvFALSE, gcvFALSE);
-        index += _State(Context, index, 0x12000 >> 2, 0x00000000, 256, gcvFALSE, gcvFALSE);
-        index += _State(Context, index, 0x12400 >> 2, 0x00000000, 256, gcvFALSE, gcvFALSE);
 
-        for (i = 0; i < (512 >> (4)); i += 1)
+        if ((((((gctUINT32) (Context->hardware->identity.chipMinorFeatures2)) >> (0 ? 15:15)) & ((gctUINT32) ((((1 ? 15:15) - (0 ? 15:15) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 15:15) - (0 ? 15:15) + 1)))))) ))
+        {
+            index += _State(Context, index, 0x12000 >> 2, 0x00000000, 256, gcvFALSE, gcvFALSE);
+            index += _State(Context, index, 0x12400 >> 2, 0x00000000, 256, gcvFALSE, gcvFALSE);
+        }
+
+        if ((Context->hardware->identity.chipModel == gcv2000)
+         && (Context->hardware->identity.chipRevision == 0x5108))
+        {
+            texBlockCount = 12;
+        }
+        else
+        {
+            texBlockCount = (512 >> (4));
+        }
+        for (i = 0; i < texBlockCount; i += 1)
         {
             index += _State(Context, index, ((0x10800 >> 2) + (i << 4)), 0x00000000, 14, gcvFALSE, gcvTRUE);
         }
@@ -582,10 +620,6 @@ _InitializeContextBuffer(
     index += _State(Context, index, 0x01694 >> 2, 0x00000000, 1, gcvFALSE, gcvFALSE);
     index += _State(Context, index, 0x01698 >> 2, 0x00000000, 1, gcvFALSE, gcvTRUE);
     index += _State(Context, index, 0x0169C >> 2, 0x00000000, 1, gcvFALSE, gcvFALSE);
-    index += _CLOSE_RANGE();
-
-    index += _State(Context, index, 0x016A4 >> 2, 0x00000000, 1, gcvFALSE, gcvTRUE);
-    index += _State(Context, index, 0x016A8 >> 2, 0x00000000, 1, gcvFALSE, gcvFALSE);
     index += _CLOSE_RANGE();
 
     /* Thread walker states. */
@@ -607,22 +641,28 @@ _InitializeContextBuffer(
 		index += _State(Context, index, 0x00860 >> 2, 0x00000000, 1, gcvFALSE, gcvFALSE);
 		index += _CLOSE_RANGE();
 
-		for (i = 0; i < 8192; i += 1024)
+		for (i = 0;
+		     i < Context->hardware->identity.instructionCount << 2;
+		     i += 256 << 2
+		     )
 		{
-			index += _State(Context, index, (0x20000 >> 2) + i, 0x00000000, 1024, gcvFALSE, gcvFALSE);
+			index += _State(Context, index, (0x20000 >> 2) + i, 0x00000000, 256 << 2, gcvFALSE, gcvFALSE);
 			index += _CLOSE_RANGE();
 		}
 	}
 	else if (Context->hardware->identity.instructionCount > 256)
 	{
 		/* VX instruction memory. */
-		for (i = 0; i < 4096; i += 1024)
+		for (i = 0;
+		     i < Context->hardware->identity.instructionCount << 2;
+		     i += 256 << 2
+		     )
 		{
-			index += _State(Context, index, (0x0C000 >> 2) + i, 0x00000000, 1024, gcvFALSE, gcvFALSE);
+			index += _State(Context, index, (0x0C000 >> 2) + i, 0x00000000, 256 << 2, gcvFALSE, gcvFALSE);
 			index += _CLOSE_RANGE();
 		}
 
-		index += _StateMirror(Context, (0x08000 >> 2), 4096, 0x0C000 >> 2);
+		_StateMirror(Context, (0x08000 >> 2), Context->hardware->identity.instructionCount << 2 , 0x0C000 >> 2);
 	}
 
     /* Store the index of the "XD" entry. */
@@ -635,7 +675,6 @@ _InitializeContextBuffer(
     index += _State(Context, index, 0x01404 >> 2, 0x00000000, 1, gcvFALSE, gcvFALSE);
     index += _State(Context, index, 0x01408 >> 2, 0x00000000, 1, gcvFALSE, gcvFALSE);
     index += _State(Context, index, 0x0140C >> 2, 0x00000000, 1, gcvFALSE, gcvFALSE);
-
     index += _State(Context, index, 0x01414 >> 2, 0x00000000, 1, gcvFALSE, gcvFALSE);
     index += _State(Context, index, 0x01418 >> 2, 0x00000000, 1, gcvFALSE, gcvFALSE);
     index += _State(Context, index, 0x0141C >> 2, 0x00000000, 1, gcvFALSE, gcvFALSE);
@@ -643,6 +682,17 @@ _InitializeContextBuffer(
     index += _State(Context, index, 0x01424 >> 2, 0x00000000, 1, gcvFALSE, gcvFALSE);
     index += _State(Context, index, 0x01428 >> 2, 0x00000000, 1, gcvFALSE, gcvFALSE);
     index += _State(Context, index, 0x0142C >> 2, 0x00000000, 1, gcvFALSE, gcvFALSE);
+    index += _State(Context, index, 0x01434 >> 2, 0x00000000, 1, gcvFALSE, gcvFALSE);
+    index += _State(Context, index, 0x01454 >> 2, 0x00000000, 1, gcvFALSE, gcvFALSE);
+    index += _State(Context, index, 0x01458 >> 2, 0x00000000, 1, gcvFALSE, gcvTRUE);
+    index += _State(Context, index, 0x0145C >> 2, 0x00000010, 1, gcvFALSE, gcvFALSE);
+    index += _State(Context, index, 0x014A0 >> 2, 0x00000000, 1, gcvFALSE, gcvFALSE);
+    index += _State(Context, index, 0x014A8 >> 2, 0xFFFFFFFF, 1, gcvFALSE, gcvFALSE);
+    index += _State(Context, index, 0x014AC >> 2, 0xFFFFFFFF, 1, gcvFALSE, gcvFALSE);
+    index += _State(Context, index, 0x014B0 >> 2, 0x00000000, 1, gcvFALSE, gcvFALSE);
+    index += _State(Context, index, 0x014B4 >> 2, 0x00000000, 1, gcvFALSE, gcvFALSE);
+    index += _State(Context, index, 0x014A4 >> 2, 0x000E400C, 1, gcvFALSE, gcvFALSE);
+    index += _State(Context, index, 0x01580 >> 2, 0x00000000, 3, gcvFALSE, gcvFALSE);
 
     /* Composition states. */
     index += _State(Context, index, 0x03008 >> 2, 0x00000000, 1, gcvFALSE, gcvFALSE);
@@ -654,17 +704,15 @@ _InitializeContextBuffer(
     }
     else
     {
-        index += _State(Context, index, ((0x01460 >> 2) + (0 << 3)), 0x00000000, Context->hardware->identity.pixelPipes , gcvFALSE, gcvTRUE);
+        index += _State(Context, index, ((0x01460 >> 2) + (0 << 3)), 0x00000000, Context->hardware->identity.pixelPipes, gcvFALSE, gcvTRUE);
 
-        index += _State(Context, index, ((0x01480 >> 2) + (0 << 3)), 0x00000000, Context->hardware->identity.pixelPipes , gcvFALSE, gcvTRUE);
+        index += _State(Context, index, ((0x01480 >> 2) + (0 << 3)), 0x00000000, Context->hardware->identity.pixelPipes, gcvFALSE, gcvTRUE);
+
+        for (i = 0; i < 2; i++)
+        {
+            index += _State(Context, index, ((0x01500 >> 2) + (i << 3)), 0x00000000, Context->hardware->identity.pixelPipes, gcvFALSE, gcvTRUE);
+        }
     }
-
-    index += _State(Context, index, 0x01434 >> 2, 0x00000000, 1, gcvFALSE, gcvFALSE);
-    index += _State(Context, index, 0x01454 >> 2, 0x00000000, 1, gcvFALSE, gcvFALSE);
-    index += _State(Context, index, 0x01458 >> 2, 0x00000000, 1, gcvFALSE, gcvTRUE);
-    index += _State(Context, index, 0x0145C >> 2, 0x00000010, 1, gcvFALSE, gcvFALSE);
-    index += _State(Context, index, 0x014A8 >> 2, 0xFFFFFFFF, 1, gcvFALSE, gcvFALSE);
-    index += _State(Context, index, 0x014AC >> 2, 0xFFFFFFFF, 1, gcvFALSE, gcvFALSE);
 
     /* Resolve states. */
     index += _State(Context, index, 0x01604 >> 2, 0x00000000, 1, gcvFALSE, gcvFALSE);
@@ -677,24 +725,33 @@ _InitializeContextBuffer(
     index += _State(Context, index, 0x01640 >> 2, 0x00000000, 4, gcvFALSE, gcvFALSE);
     index += _State(Context, index, 0x0163C >> 2, 0x00000000, 1, gcvFALSE, gcvFALSE);
     index += _State(Context, index, 0x016A0 >> 2, 0x00000000, 1, gcvFALSE, gcvFALSE);
+    index += _State(Context, index, 0x016B4 >> 2, 0x00000000, 1, gcvFALSE, gcvFALSE);
     index += _CLOSE_RANGE();
+
+    if (Context->hardware->identity.pixelPipes > 1)
+    {
+        index += _State(Context, index, ((0x016C0 >> 2) + (0 << 3)), 0x00000000, Context->hardware->identity.pixelPipes, gcvFALSE, gcvTRUE);
+
+        index += _State(Context, index, ((0x016E0 >> 2) + (0 << 3)), 0x00000000, Context->hardware->identity.pixelPipes, gcvFALSE, gcvTRUE);
+
+        index += _State(Context, index, 0x01700 >> 2, 0x00000000, Context->hardware->identity.pixelPipes, gcvFALSE, gcvFALSE);
+    }
 
     /* Tile status. */
     index += _State(Context, index, 0x01654 >> 2, 0x00200000, 1, gcvFALSE, gcvFALSE);
 
     index += _CLOSE_RANGE();
     index += _State(Context, index, 0x01658 >> 2, 0x00000000, 1, gcvFALSE, gcvTRUE);
-
-    index += _CLOSE_RANGE();
     index += _State(Context, index, 0x0165C >> 2, 0x00000000, 1, gcvFALSE, gcvTRUE);
     index += _State(Context, index, 0x01660 >> 2, 0x00000000, 1, gcvFALSE, gcvFALSE);
-
-    index += _CLOSE_RANGE();
     index += _State(Context, index, 0x01664 >> 2, 0x00000000, 1, gcvFALSE, gcvTRUE);
-
-    index += _CLOSE_RANGE();
     index += _State(Context, index, 0x01668 >> 2, 0x00000000, 1, gcvFALSE, gcvTRUE);
     index += _State(Context, index, 0x0166C >> 2, 0x00000000, 1, gcvFALSE, gcvFALSE);
+    index += _State(Context, index, 0x016A4 >> 2, 0x00000000, 1, gcvFALSE, gcvTRUE);
+    index += _State(Context, index, 0x016A8 >> 2, 0x00000000, 1, gcvFALSE, gcvFALSE);
+    index += _State(Context, index, 0x01720 >> 2, 0x00000000, 8, gcvFALSE, gcvFALSE);
+    index += _State(Context, index, 0x01740 >> 2, 0x00000000, 8, gcvFALSE, gcvTRUE);
+    index += _State(Context, index, 0x01760 >> 2, 0x00000000, 8, gcvFALSE, gcvFALSE);
     index += _CLOSE_RANGE();
 #endif
 
@@ -922,7 +979,7 @@ gckCONTEXT_Construct(
     context->exitPipe  = gcvPIPE_3D;
 #else
     context->entryPipe
-        = (((((gctUINT32) (context->hardware->chipFeatures)) >> (0 ? 9:9)) & ((gctUINT32) ((((1 ? 9:9) - (0 ? 9:9) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 9:9) - (0 ? 9:9) + 1)))))) )
+        = (((((gctUINT32) (context->hardware->identity.chipFeatures)) >> (0 ? 9:9)) & ((gctUINT32) ((((1 ? 9:9) - (0 ? 9:9) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 9:9) - (0 ? 9:9) + 1)))))) )
             ? gcvPIPE_2D
             : gcvPIPE_3D;
     context->exitPipe = gcvPIPE_3D;
@@ -1316,6 +1373,11 @@ gckCONTEXT_Update(
             /* Merge all pending states. */
             for (j = 0; j < kDelta->recordCount; j += 1)
             {
+                if (j >= Context->stateCount)
+                {
+                    break;
+                }
+
                 /* Get the current state record. */
                 record = &recordArray[j];
 
@@ -1454,6 +1516,11 @@ gckCONTEXT_Update(
             /* Fill the unused space with NOPs. */
             for (i = 0; i < nopCount; i += 1)
             {
+                if (nop >= buffer->logical + Context->totalSize)
+                {
+                    break;
+                }
+
                 /* Generate a NOP command. */
                 *nop = ((((gctUINT32) (0)) & ~(((gctUINT32) (((gctUINT32) ((((1 ? 31:27) - (0 ? 31:27) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 31:27) - (0 ? 31:27) + 1))))))) << (0 ? 31:27))) | (((gctUINT32) (0x03 & ((gctUINT32) ((((1 ? 31:27) - (0 ? 31:27) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 31:27) - (0 ? 31:27) + 1))))))) << (0 ? 31:27)));
 
