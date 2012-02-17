@@ -4362,11 +4362,15 @@ static int _clk_gpu2d_core_set_parent(struct clk *clk, struct clk *parent)
 
 static unsigned long _clk_gpu2d_core_get_rate(struct clk *clk)
 {
-	u32 reg, div;
+	u32 reg, div = 1;
 
 	reg = __raw_readl(MXC_CCM_CBCMR);
-	div = ((reg & MXC_CCM_CBCMR_GPU2D_CORE_PODF_MASK) >>
-			MXC_CCM_CBCMR_GPU2D_CORE_PODF_OFFSET) + 1;
+	if (cpu_is_mx6q())
+		div = ((reg & MXC_CCM_CBCMR_GPU2D_CORE_PODF_MASK) >>
+				MXC_CCM_CBCMR_GPU2D_CORE_PODF_OFFSET) + 1;
+	else if (cpu_is_mx6dl())
+		/* on i.mx6dl, gpu2d_core_clk source from gpu3d_shader_clk */
+		return clk_get_rate(clk->parent);
 
 	return clk_get_rate(clk->parent) / div;
 }
@@ -5220,9 +5224,14 @@ int __init mx6_clocks_init(unsigned long ckil, unsigned long osc,
 	if (cpu_is_mx6dl()) {
 		/*on mx6dl, 2d core clock sources from 3d shader core clock*/
 		clk_set_parent(&gpu2d_core_clk[0], &gpu3d_shader_clk);
+		/* on mx6dl gpu3d_axi_clk source from mmdc0 directly */
+		clk_set_parent(&gpu3d_axi_clk, &mmdc_ch0_axi_clk[0]);
 		/* on mx6dl gpu2d_axi_clk source from mmdc0 directly */
 		clk_set_parent(&gpu2d_axi_clk, &mmdc_ch0_axi_clk[0]);
 		gpu2d_axi_clk.secondary = NULL;
+
+		/* set axi_clk parent to pll3_pfd_540M */
+		clk_set_parent(&axi_clk, &pll3_pfd_540M);
 
 		/* on mx6dl, max ipu clock is 274M */
 		clk_set_parent(&ipu1_clk, &pll3_pfd_540M);
