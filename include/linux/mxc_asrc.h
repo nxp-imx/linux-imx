@@ -197,7 +197,6 @@ struct asrc_pair_params {
 
 struct asrc_data {
 	struct asrc_pair asrc_pair[3];
-	unsigned int     counter;
 };
 
 extern int asrc_req_pair(int chn_num, enum asrc_pair_index *index);
