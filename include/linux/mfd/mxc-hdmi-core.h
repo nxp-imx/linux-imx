@@ -46,4 +46,7 @@ void hdmi_get_edid_cfg(struct mxc_edid_cfg *cfg);
 extern int mxc_hdmi_ipu_id;
 extern int mxc_hdmi_disp_id;
 
+void hdmi_set_registered(int registered);
+int hdmi_get_registered(void);
+
 #endif
