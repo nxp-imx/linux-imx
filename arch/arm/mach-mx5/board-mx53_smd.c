@@ -529,7 +529,7 @@ static struct fsl_mxc_lightsensor_platform_data ls_data = {
 	.rext = 700,    /* calibration: 499K->700K */
 };
 
-static int mma8451_position = 3;
+static int mma8451_position = 4;
 
 static struct i2c_board_info mxc_i2c0_board_info[] __initdata = {
 	{
@@ -555,7 +555,7 @@ static struct mpr121_platform_data mpr121_keyboard_platdata = {
 	.matrix = smd_touchkey_martix,
 };
 
-static int mag3110_position;
+static int mag3110_position = 2;
 
 static struct i2c_board_info mxc_i2c1_board_info[] __initdata = {
 	{
