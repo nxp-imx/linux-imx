@@ -750,11 +750,6 @@ static struct ahci_platform_data mx6q_sabresd_sata_data = {
 	.exit = mx6q_sabresd_sata_exit,
 };
 
-static struct gpio mx6q_sabresd_flexcan_gpios[] = {
-	{ MX6Q_SABRESD_CAN1_EN, GPIOF_OUT_INIT_LOW, "flexcan1-en" },
-	{ MX6Q_SABRESD_CAN1_STBY, GPIOF_OUT_INIT_LOW, "flexcan1-stby" },
-};
-
 static void mx6q_sabresd_flexcan0_switch(int enable)
 {
 	if (enable) {
