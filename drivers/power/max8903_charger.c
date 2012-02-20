@@ -185,7 +185,7 @@ static __devinit int max8903_probe(struct platform_device *pdev)
 	struct device *dev = &pdev->dev;
 	struct max8903_pdata *pdata = pdev->dev.platform_data;
 	int ret = 0;
-	int gpio;
+	int gpio = 0;
 	int ta_in = 0;
 	int usb_in = 0;
 
