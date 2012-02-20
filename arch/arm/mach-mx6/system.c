@@ -125,22 +125,25 @@ void mxc_cpu_lp_set(enum mxc_cpu_pwr_mode mode)
 			__raw_writel(0x1, gpc_base + GPC_PGC_CPU_PDN_OFFSET);
 			__raw_writel(0x1, gpc_base + GPC_PGC_GPU_PGCR_OFFSET);
 			__raw_writel(0x1, gpc_base + GPC_CNTR_OFFSET);
-			/* Enable weak 2P5 linear regulator */
-			anatop_val = __raw_readl(anatop_base +
-				HW_ANADIG_REG_2P5);
-			anatop_val |= BM_ANADIG_REG_2P5_ENABLE_WEAK_LINREG;
-			__raw_writel(anatop_val, anatop_base +
-				HW_ANADIG_REG_2P5);
-			if (mx6q_revision() != IMX_CHIP_REVISION_1_0) {
-				/* Enable fet_odrive */
+			if (cpu_is_mx6q()) {
+				/* Enable weak 2P5 linear regulator */
 				anatop_val = __raw_readl(anatop_base +
-					HW_ANADIG_REG_CORE);
-				anatop_val |= BM_ANADIG_REG_CORE_FET_ODRIVE;
+					HW_ANADIG_REG_2P5);
+				anatop_val |= BM_ANADIG_REG_2P5_ENABLE_WEAK_LINREG;
 				__raw_writel(anatop_val, anatop_base +
-					HW_ANADIG_REG_CORE);
+					HW_ANADIG_REG_2P5);
+				if (mx6q_revision() != IMX_CHIP_REVISION_1_0) {
+					/* Enable fet_odrive */
+					anatop_val = __raw_readl(anatop_base +
+						HW_ANADIG_REG_CORE);
+					anatop_val |= BM_ANADIG_REG_CORE_FET_ODRIVE;
+					__raw_writel(anatop_val, anatop_base +
+						HW_ANADIG_REG_CORE);
+				}
 			}
-			__raw_writel(__raw_readl(MXC_CCM_CCR) |
-				MXC_CCM_CCR_RBC_EN, MXC_CCM_CCR);
+			if (cpu_is_mx6q())
+				__raw_writel(__raw_readl(MXC_CCM_CCR) |
+					MXC_CCM_CCR_RBC_EN, MXC_CCM_CCR);
 			/* Make sure we clear WB_COUNT and re-config it */
 			__raw_writel(__raw_readl(MXC_CCM_CCR) &
 				(~MXC_CCM_CCR_WB_COUNT_MASK), MXC_CCM_CCR);
