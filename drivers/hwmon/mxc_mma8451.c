@@ -201,12 +201,6 @@ static int mma8451_change_mode(struct i2c_client *client, int mode)
 	/* Set the Active bit and Data rate in CTRL Reg 1 */
 	mma_status.active = MMA_STANDBY;
 
-	mma_status.ctl_reg1 |= (DR_80_0MS<<3);
-	result = i2c_smbus_write_byte_data(client, MMA8451_CTRL_REG1,
-			mma_status.ctl_reg1);
-	if (result < 0)
-		goto out;
-
 	mdelay(MODE_CHANGE_DELAY_MS);
 
 	return 0;
@@ -300,10 +294,14 @@ static ssize_t mma8451_enable_store(struct device *dev,
 	mutex_lock(&mma8451_lock);
 	client = mma8451_i2c_client;
 	enable = (enable > 0) ? 1 : 0;
+
 	if (enable && mma_status.active == MMA_STANDBY)	{
 		val = i2c_smbus_read_byte_data(client, MMA8451_CTRL_REG1);
+		/* Set the Active bit and Data rate in CTRL Reg 1 */
+		val |= (DR_80_0MS<<3);
+		val |= 1;
 		ret = i2c_smbus_write_byte_data(client, MMA8451_CTRL_REG1,
-								val|0x01);
+								val);
 		if (!ret) {
 			mma_status.active = MMA_ACTIVED;
 			printk(KERN_DEBUG "mma enable setting active\n");
@@ -410,7 +408,7 @@ static int __devinit mma8451_probe(struct i2c_client *client,
 	mma8451_idev->poll_interval_min = POLL_INTERVAL_MIN;
 	mma8451_idev->poll_interval_max = POLL_INTERVAL_MAX;
 	idev = mma8451_idev->input;
-	idev->name = MMA8451_DRV_NAME;
+	idev->name = "mma845x";
 	idev->id.bustype = BUS_I2C;
 	idev->evbit[0] = BIT_MASK(EV_ABS);
 
