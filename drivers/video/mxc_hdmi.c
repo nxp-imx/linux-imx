@@ -2098,6 +2098,8 @@ static int mxc_hdmi_disp_init(struct mxc_dispdrv_handle *disp,
 			      struct mxc_dispdrv_setting *setting)
 {
 	int ret = 0;
+	u32 i;
+	const struct fb_videomode *mode;
 	struct mxc_hdmi *hdmi = mxc_dispdrv_getdata(disp);
 	struct fsl_mxc_hdmi_platform_data *plat = hdmi->pdev->dev.platform_data;
 	int irq = platform_get_irq(hdmi->pdev, 0);
@@ -2186,8 +2188,27 @@ static int mxc_hdmi_disp_init(struct mxc_dispdrv_handle *disp,
 
 	spin_lock_init(&hdmi->irq_lock);
 
-	fb_add_videomode(&vga_mode, &hdmi->fbi->modelist);
-	fb_videomode_to_var(&hdmi->fbi->var, &vga_mode);
+	/* Set the default mode and modelist when disp init. */
+	fb_find_mode(&hdmi->fbi->var, hdmi->fbi,
+		     hdmi->dft_mode_str, NULL, 0, NULL,
+		     hdmi->default_bpp);
+
+	console_lock();
+
+	fb_destroy_modelist(&hdmi->fbi->modelist);
+
+	/*Add all no interlaced CEA mode to default modelist */
+	for (i = 0; i < ARRAY_SIZE(mxc_cea_mode); i++) {
+		mode = &mxc_cea_mode[i];
+		if (!(mode->vmode & FB_VMODE_INTERLACED) && (mode->xres != 0))
+			fb_add_videomode(mode, &hdmi->fbi->modelist);
+	}
+
+	/*Add XGA and SXGA to default modelist */
+	fb_add_videomode(&xga_mode, &hdmi->fbi->modelist);
+	fb_add_videomode(&sxga_mode, &hdmi->fbi->modelist);
+
+	console_unlock();
 
 	INIT_DELAYED_WORK(&hdmi->hotplug_work, hotplug_worker);
 
