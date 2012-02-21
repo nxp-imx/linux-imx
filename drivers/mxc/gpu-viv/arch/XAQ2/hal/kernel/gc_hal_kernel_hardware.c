@@ -23,6 +23,7 @@
 
 #include "gc_hal.h"
 #include "gc_hal_kernel.h"
+#include <mach/hardware.h>
 
 #define _GC_OBJ_ZONE    gcvZONE_HARDWARE
 
@@ -498,6 +499,16 @@ gckHARDWARE_Construct(
     }
 
 #endif
+
+    if(cpu_is_mx6dl())
+    {
+        /*set outstanding limit on mx6dl*/
+        gctUINT32 data;
+
+        gcmkONERROR(gckOS_ReadRegisterEx(Os, Core, 0x00414, &data));
+        data = (data & (~0xFF)) | 0x10;
+        gcmkONERROR(gckOS_WriteRegisterEx(Os, Core, 0x00414, data));
+    }
 
     /* Set power state to ON. */
     hardware->chipPowerState  = gcvPOWER_ON;
