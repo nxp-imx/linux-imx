@@ -51,6 +51,7 @@
 #include <linux/regulator/machine.h>
 #include <linux/regulator/fixed.h>
 #include <linux/mfd/max17135.h>
+#include <sound/pcm.h>
 
 #include <mach/common.h>
 #include <mach/hardware.h>
@@ -643,6 +644,12 @@ static struct fsl_mxc_camera_platform_data ov5640_mipi_data = {
 	.io_init	= mx6_mipi_sensor_io_init,
 };
 
+static struct mxc_audio_codec_platform_data cs42888_data = {
+	.rates = (SNDRV_PCM_RATE_44100 |
+			SNDRV_PCM_RATE_88200 |
+			SNDRV_PCM_RATE_176400),
+};
+
 #define mV_to_uV(mV) (mV * 1000)
 #define uV_to_mV(uV) (uV / 1000)
 #define V_to_uV(V) (mV_to_uV(V * 1000))
@@ -815,6 +822,7 @@ static int __init max17135_regulator_init(struct max17135 *max17135)
 static struct i2c_board_info mxc_i2c0_board_info[] __initdata = {
 	{
 		I2C_BOARD_INFO("cs42888", 0x48),
+		.platform_data = (void *)&cs42888_data,
 	}, {
 		I2C_BOARD_INFO("ov5640", 0x3c),
 		.platform_data = (void *)&camera_data,
