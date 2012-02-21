@@ -102,6 +102,7 @@ struct ldb_data {
 };
 
 static int g_ldb_mode;
+static struct i2c_client *ldb_i2c_client[2];
 
 static struct fb_videomode ldb_modedb[] = {
 	{
@@ -392,6 +393,7 @@ static int ldb_disp_init(struct mxc_dispdrv_handle *disp,
 	int ret = 0, i;
 	struct ldb_data *ldb = mxc_dispdrv_getdata(disp);
 	struct fsl_mxc_ldb_platform_data *plat_data = ldb->pdev->dev.platform_data;
+	struct i2c_client *i2c_dev;
 	struct resource *res;
 	uint32_t base_addr;
 	uint32_t reg, setting_idx;
@@ -565,6 +567,9 @@ static int ldb_disp_init(struct mxc_dispdrv_handle *disp,
 		}
 
 		ldb->inited = true;
+
+		i2c_dev = ldb_i2c_client[0];
+
 	} else { /* second time for separate mode */
 		char di_clk[] = "ipu1_di0_clk";
 		char ldb_clk[] = "ldb_di0_clk";
@@ -647,8 +652,15 @@ static int ldb_disp_init(struct mxc_dispdrv_handle *disp,
 			return PTR_ERR(ldb->setting[setting_idx].di_clk);
 		}
 
+		i2c_dev = ldb_i2c_client[1];
+
 		dev_dbg(&ldb->pdev->dev, "ldb_clk to di clk: %s -> %s\n", ldb_clk, di_clk);
 	}
+
+	if (i2c_dev)
+		mxc_dispdrv_setdev(ldb->disp_ldb, &i2c_dev->dev);
+	else
+		mxc_dispdrv_setdev(ldb->disp_ldb, NULL);
 
 	ldb->setting[setting_idx].ch_mask = ch_mask;
 	ldb->setting[setting_idx].ch_val = ch_val;
@@ -744,6 +756,107 @@ static int ldb_resume(struct platform_device *pdev)
 
 	return 0;
 }
+
+static int mxc_ldb_edidread(struct i2c_adapter *adp)
+{
+	int ret = 0;
+	u8 edid[512];
+	unsigned char regaddr = 0;
+	struct i2c_msg msg[2] = {
+		{
+		.addr	= 0x50,
+		.flags	= 0,
+		.len	= 1,
+		.buf	= &regaddr,
+		}, {
+		.addr	= 0x50,
+		.flags	= I2C_M_RD,
+		.len	= 512,
+		.buf	= edid,
+		},
+	};
+
+	ret = i2c_transfer(adp, msg, ARRAY_SIZE(msg));
+	if (ret != ARRAY_SIZE(msg)) {
+		return -EIO;
+	}
+
+	return ret;
+}
+
+static ssize_t mxc_ldb_show_state(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	int ret;
+	struct i2c_client *client = to_i2c_client(dev);
+
+	ret = mxc_ldb_edidread(client->adapter);
+	if (ret < 0)
+		strcpy(buf, "plugout\n");
+	else
+		strcpy(buf, "plugin\n");
+
+	return strlen(buf);
+}
+
+static DEVICE_ATTR(cable_state, S_IRUGO, mxc_ldb_show_state, NULL);
+
+static int __devinit mxc_ldb_i2c_probe(struct i2c_client *client,
+		const struct i2c_device_id *id)
+{
+	int ret;
+	int ldb_id = (int)client->dev.platform_data;
+
+	if (!i2c_check_functionality(client->adapter,
+				I2C_FUNC_SMBUS_BYTE | I2C_FUNC_I2C))
+		return -ENODEV;
+
+	ldb_i2c_client[ldb_id] = client;
+
+	ret = device_create_file(&client->dev, &dev_attr_cable_state);
+	if (ret < 0)
+		dev_warn(&client->dev,
+			"cound not create sys node for cable state\n");
+
+
+	return 0;
+}
+
+static int __devexit mxc_ldb_i2c_remove(struct i2c_client *client)
+{
+	int ldb_id = (int)client->dev.platform_data;
+	ldb_i2c_client[ldb_id] = NULL;
+	return 0;
+}
+
+static const struct i2c_device_id mxc_ldb_i2c_id[] = {
+	{ "mxc_ldb_i2c", 0 },
+	{},
+};
+MODULE_DEVICE_TABLE(i2c, mxc_ldb_i2c_id);
+
+static struct i2c_driver mxc_ldb_i2c_driver = {
+	.driver = {
+		   .name = "mxc_ldb_i2c",
+		   },
+	.probe = mxc_ldb_i2c_probe,
+	.remove = mxc_ldb_i2c_remove,
+	.id_table = mxc_ldb_i2c_id,
+};
+
+static int __init mxc_ldb_i2c_init(void)
+{
+	return i2c_add_driver(&mxc_ldb_i2c_driver);
+}
+
+static void __exit mxc_ldb_i2c_exit(void)
+{
+	i2c_del_driver(&mxc_ldb_i2c_driver);
+}
+
+module_init(mxc_ldb_i2c_init);
+module_exit(mxc_ldb_i2c_exit);
+
 /*!
  * This function is called by the driver framework to initialize the LDB
  * device.
@@ -769,8 +882,6 @@ static int ldb_probe(struct platform_device *pdev)
 	mxc_dispdrv_setdata(ldb->disp_ldb, ldb);
 
 	dev_set_drvdata(&pdev->dev, ldb);
-
-	mxc_dispdrv_setdev(ldb->disp_ldb, &pdev->dev);
 
 alloc_failed:
 	return ret;
