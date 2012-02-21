@@ -493,6 +493,7 @@
 #define MXC_CCM_CCGRx_CG10_MASK			(0x3 << 20)
 #define MXC_CCM_CCGRx_CG9_MASK			(0x3 << 18)
 #define MXC_CCM_CCGRx_CG8_MASK			(0x3 << 16)
+#define MXC_CCM_CCGRx_CG7_MASK			(0x3 << 14)
 #define MXC_CCM_CCGRx_CG5_MASK			(0x3 << 10)
 #define MXC_CCM_CCGRx_CG4_MASK			(0x3 << 8)
 #define MXC_CCM_CCGRx_CG3_MASK			(0x3 << 6)
