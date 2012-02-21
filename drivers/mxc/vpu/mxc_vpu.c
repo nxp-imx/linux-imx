@@ -53,6 +53,7 @@ struct vpu_priv {
 	struct fasync_struct *async_queue;
 	struct work_struct work;
 	struct workqueue_struct *workqueue;
+	struct mutex lock;
 };
 
 /* To track the allocated memory buffer */
@@ -66,7 +67,6 @@ struct iram_setting {
 	u32 end;
 };
 
-static DEFINE_SPINLOCK(vpu_lock);
 static LIST_HEAD(head);
 
 static int vpu_major;
@@ -224,10 +224,10 @@ static irqreturn_t vpu_jpu_irq_handler(int irq, void *dev_id)
  */
 static int vpu_open(struct inode *inode, struct file *filp)
 {
-	spin_lock(&vpu_lock);
+	mutex_lock(&vpu_data.lock);
 	open_count++;
 	filp->private_data = (void *)(&vpu_data);
-	spin_unlock(&vpu_lock);
+	mutex_unlock(&vpu_data.lock);
 	return 0;
 }
 
@@ -276,9 +276,9 @@ static long vpu_ioctl(struct file *filp, u_int cmd,
 				break;
 			}
 
-			spin_lock(&vpu_lock);
+			mutex_lock(&vpu_data.lock);
 			list_add(&rec->list, &head);
-			spin_unlock(&vpu_lock);
+			mutex_unlock(&vpu_data.lock);
 
 			break;
 		}
@@ -299,7 +299,7 @@ static long vpu_ioctl(struct file *filp, u_int cmd,
 				vpu_free_dma_buffer(&vpu_mem);
 			}
 
-			spin_lock(&vpu_lock);
+			mutex_lock(&vpu_data.lock);
 			list_for_each_entry_safe(rec, n, &head, list) {
 				if (rec->mem.cpu_addr == vpu_mem.cpu_addr) {
 					/* delete from list */
@@ -308,7 +308,7 @@ static long vpu_ioctl(struct file *filp, u_int cmd,
 					break;
 				}
 			}
-			spin_unlock(&vpu_lock);
+			mutex_unlock(&vpu_data.lock);
 
 			break;
 		}
@@ -354,18 +354,18 @@ static long vpu_ioctl(struct file *filp, u_int cmd,
 		}
 	case VPU_IOC_GET_SHARE_MEM:
 		{
-			spin_lock(&vpu_lock);
+			mutex_lock(&vpu_data.lock);
 			if (share_mem.cpu_addr != 0) {
 				ret = copy_to_user((void __user *)arg,
 						   &share_mem,
 						   sizeof(struct vpu_mem_desc));
-				spin_unlock(&vpu_lock);
+				mutex_unlock(&vpu_data.lock);
 				break;
 			} else {
 				if (copy_from_user(&share_mem,
 						   (struct vpu_mem_desc *)arg,
 						 sizeof(struct vpu_mem_desc))) {
-					spin_unlock(&vpu_lock);
+					mutex_unlock(&vpu_data.lock);
 					return -EFAULT;
 				}
 				if (vpu_alloc_dma_buffer(&share_mem) == -1)
@@ -378,24 +378,24 @@ static long vpu_ioctl(struct file *filp, u_int cmd,
 						ret = -EFAULT;
 				}
 			}
-			spin_unlock(&vpu_lock);
+			mutex_unlock(&vpu_data.lock);
 			break;
 		}
 	case VPU_IOC_REQ_VSHARE_MEM:
 		{
-			spin_lock(&vpu_lock);
+			mutex_lock(&vpu_data.lock);
 			if (vshare_mem.cpu_addr != 0) {
 				ret = copy_to_user((void __user *)arg,
 						   &vshare_mem,
 						   sizeof(struct vpu_mem_desc));
-				spin_unlock(&vpu_lock);
+				mutex_unlock(&vpu_data.lock);
 				break;
 			} else {
 				if (copy_from_user(&vshare_mem,
 						   (struct vpu_mem_desc *)arg,
 						   sizeof(struct
 							  vpu_mem_desc))) {
-					spin_unlock(&vpu_lock);
+					mutex_unlock(&vpu_data.lock);
 					return -EFAULT;
 				}
 				/* vmalloc shared memory if not allocated */
@@ -408,7 +408,7 @@ static long vpu_ioctl(struct file *filp, u_int cmd,
 				     sizeof(struct vpu_mem_desc)))
 					ret = -EFAULT;
 			}
-			spin_unlock(&vpu_lock);
+			mutex_unlock(&vpu_data.lock);
 			break;
 		}
 	case VPU_IOC_GET_WORK_ADDR:
@@ -481,7 +481,7 @@ static long vpu_ioctl(struct file *filp, u_int cmd,
  */
 static int vpu_release(struct inode *inode, struct file *filp)
 {
-	spin_lock(&vpu_lock);
+	mutex_lock(&vpu_data.lock);
 	if (open_count > 0 && !(--open_count)) {
 		vpu_free_buffers();
 
@@ -491,7 +491,7 @@ static int vpu_release(struct inode *inode, struct file *filp)
 		vfree((void *)vshare_mem.cpu_addr);
 		vshare_mem.cpu_addr = 0;
 	}
-	spin_unlock(&vpu_lock);
+	mutex_unlock(&vpu_data.lock);
 
 	return 0;
 }
@@ -558,10 +558,8 @@ static int vpu_map_vshare_mem(struct file *fp, struct vm_area_struct *vm)
 {
 	int ret = -EINVAL;
 
-	spin_lock(&vpu_lock);
 	ret = remap_vmalloc_range(vm, (void *)(vm->vm_pgoff << PAGE_SHIFT), 0);
 	vm->vm_flags |= VM_IO;
-	spin_unlock(&vpu_lock);
 
 	return ret;
 }
@@ -678,6 +676,7 @@ static int vpu_dev_probe(struct platform_device *pdev)
 
 	vpu_data.workqueue = create_workqueue("vpu_wq");
 	INIT_WORK(&vpu_data.work, vpu_worker_callback);
+	mutex_init(&vpu_data.lock);
 	printk(KERN_INFO "VPU initialized\n");
 	goto out;
 
