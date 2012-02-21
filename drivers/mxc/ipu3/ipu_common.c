@@ -1270,7 +1270,7 @@ int32_t ipu_init_channel_buffer(struct ipu_soc *ipu, ipu_channel_t channel,
 	if (idma_is_set(ipu, IDMAC_CHA_PRI, dma_chan)) {
 		unsigned reg = IDMAC_CH_LOCK_EN_1;
 		uint32_t value = 0;
-		if (cpu_is_mx6q()) {
+		if (cpu_is_mx53() || cpu_is_mx6q()) {
 			_ipu_ch_param_set_axi_id(ipu, dma_chan, 0);
 			switch (dma_chan) {
 			case 5:
@@ -2116,22 +2116,15 @@ void _ipu_clear_buffer_ready(struct ipu_soc *ipu, ipu_channel_t channel, ipu_buf
 		return;
 
 	ipu_cm_write(ipu, 0xF0300000, IPU_GPR); /* write one to clear */
-	if (bufNum == 0) {
-		if (idma_is_set(ipu, IPU_CHA_BUF0_RDY, dma_ch)) {
-			ipu_cm_write(ipu, idma_mask(dma_ch),
+	if (bufNum == 0)
+		ipu_cm_write(ipu, idma_mask(dma_ch),
 				IPU_CHA_BUF0_RDY(dma_ch));
-		}
-	} else if (bufNum == 1) {
-		if (idma_is_set(ipu, IPU_CHA_BUF1_RDY, dma_ch)) {
-			ipu_cm_write(ipu, idma_mask(dma_ch),
+	else if (bufNum == 1)
+		ipu_cm_write(ipu, idma_mask(dma_ch),
 				IPU_CHA_BUF1_RDY(dma_ch));
-		}
-	} else {
-		if (idma_is_set(ipu, IPU_CHA_BUF2_RDY, dma_ch)) {
-			ipu_cm_write(ipu, idma_mask(dma_ch),
+	else
+		ipu_cm_write(ipu, idma_mask(dma_ch),
 				IPU_CHA_BUF2_RDY(dma_ch));
-		}
-	}
 	ipu_cm_write(ipu, 0x0, IPU_GPR); /* write one to set */
 }
 
