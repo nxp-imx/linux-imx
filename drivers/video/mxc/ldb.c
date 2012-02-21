@@ -770,6 +770,8 @@ static int ldb_probe(struct platform_device *pdev)
 
 	dev_set_drvdata(&pdev->dev, ldb);
 
+	mxc_dispdrv_setdev(ldb->disp_ldb, &pdev->dev);
+
 alloc_failed:
 	return ret;
 }

@@ -2022,6 +2022,7 @@ static int mxcfb_probe(struct platform_device *pdev)
 	struct fb_info *fbi;
 	struct mxcfb_info *mxcfbi;
 	struct resource *res;
+	struct device *disp_dev;
 	int ret = 0;
 
 	/*
@@ -2103,6 +2104,15 @@ static int mxcfb_probe(struct platform_device *pdev)
 	ret = device_create_file(fbi->dev, &dev_attr_fsl_disp_property);
 	if (ret)
 		dev_err(&pdev->dev, "Error %d on creating file\n", ret);
+
+	disp_dev = mxc_dispdrv_getdev(mxcfbi->dispdrv);
+	if (disp_dev) {
+		ret = sysfs_create_link(&fbi->dev->kobj,
+				&disp_dev->kobj, "disp_dev");
+		if (ret)
+			dev_err(&pdev->dev,
+				"Error %d on creating file\n", ret);
+	}
 
 #ifdef CONFIG_LOGO
 	fb_prepare_logo(fbi, 0);

@@ -2329,6 +2329,8 @@ static int __devinit mxc_hdmi_probe(struct platform_device *pdev)
 
 	platform_set_drvdata(pdev, hdmi);
 
+	mxc_dispdrv_setdev(hdmi->disp_mxc_hdmi, &pdev->dev);
+
 	return 0;
 edispdrv:
 	platform_device_put(hdmi->core_pdev);
