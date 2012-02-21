@@ -50,6 +50,7 @@
 #include <linux/regulator/consumer.h>
 #include <linux/regulator/machine.h>
 #include <linux/regulator/fixed.h>
+#include <linux/android_pmem.h>
 
 #include <mach/common.h>
 #include <mach/hardware.h>
@@ -75,6 +76,7 @@
 #include "devices-imx6q.h"
 #include "crm_regs.h"
 #include "cpu_op-mx6.h"
+#include "android.h"
 
 #define MX6Q_SABREAUTO_LDB_BACKLIGHT3	IMX_GPIO_NR(2, 9)
 #define MX6Q_SABREAUTO_LDB_BACKLIGHT4	IMX_GPIO_NR(2, 10)
