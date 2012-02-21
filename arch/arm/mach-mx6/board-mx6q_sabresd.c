@@ -653,6 +653,10 @@ static struct i2c_board_info mxc_i2c2_board_info[] __initdata = {
 		.irq  = gpio_to_irq(MX6Q_SABRESD_ALS_INT),
 		.platform_data = &ls_data,
 	},
+	{
+		I2C_BOARD_INFO("mxc_ldb_i2c", 0x50),
+		.platform_data = (void *)0,
+	},
 };
 
 static void imx6q_sabresd_usbotg_vbus(bool on)
@@ -853,11 +857,11 @@ static struct fsl_mxc_lcd_platform_data lcdif_data = {
 
 static struct fsl_mxc_ldb_platform_data ldb_data = {
 	.ipu_id = 1,
-	.disp_id = 0,
+	.disp_id = 1,
 	.ext_ref = 1,
-	.mode = LDB_SEP0,
+	.mode = LDB_SEP1,
 	.sec_ipu_id = 1,
-	.sec_disp_id = 1,
+	.sec_disp_id = 0,
 };
 
 static struct max8903_pdata charger1_data = {
