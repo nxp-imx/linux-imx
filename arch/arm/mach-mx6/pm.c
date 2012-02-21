@@ -90,7 +90,8 @@ static unsigned long iram_paddr, cpaddr;
 
 static u32 ccm_ccr, ccm_clpcr, scu_ctrl;
 static u32 gpc_imr[4], gpc_cpu_pup, gpc_cpu_pdn, gpc_cpu, gpc_ctr;
-static u32 anatop[2], ccgr1, ccgr6;
+static u32 anatop[2], ccgr1, ccgr2, ccgr3, ccgr6;
+static u32 ccm_analog_pfd528;
 
 static void gpu_power_down(void)
 {
@@ -103,8 +104,11 @@ static void gpu_power_down(void)
 	reg = __raw_readl(gpc_base + GPC_CNTR_OFFSET);
 	__raw_writel(reg | 0x1, gpc_base + GPC_CNTR_OFFSET);
 	/* disable clocks */
-	__raw_writel(ccgr1 & 0xf0ffffff, MXC_CCM_CCGR1);
-	__raw_writel(ccgr6 & 0x00003fff, MXC_CCM_CCGR6);
+	__raw_writel(ccgr1 &
+		     ~MXC_CCM_CCGRx_CG12_MASK &
+		     ~MXC_CCM_CCGRx_CG13_MASK, MXC_CCM_CCGR1);
+	__raw_writel(ccgr3 & ~MXC_CCM_CCGRx_CG15_MASK, MXC_CCM_CCGR3);
+	__raw_writel(ccgr6 & ~MXC_CCM_CCGRx_CG7_MASK, MXC_CCM_CCGR6);
 	/* power off pu */
 	reg = __raw_readl(anatop_base + ANATOP_REG_CORE_OFFSET);
 	reg &= ~0x0003fe00;
@@ -122,8 +126,24 @@ static void gpu_power_up(void)
 	mdelay(10);
 
 	/* enable clocks */
-	__raw_writel(ccgr1 | 0x0f000000, MXC_CCM_CCGR1);
-	__raw_writel(ccgr6 | 0x0000c000, MXC_CCM_CCGR6);
+	/* PLL2 PFD0 and PFD1 clock enable */
+	__raw_writel(ccm_analog_pfd528 &
+		     ~ANADIG_PFD0_CLKGATE &
+		     ~ANADIG_PFD1_CLKGATE, PFD_528_BASE_ADDR);
+	/* gpu3d and gpu2d clock enable */
+	__raw_writel(ccgr1 |
+		     MXC_CCM_CCGRx_CG12_MASK |
+		     MXC_CCM_CCGRx_CG13_MASK, MXC_CCM_CCGR1);
+	/* tzasrc1 clock enable for gpu3d core clock */
+	__raw_writel(ccgr2 | MXC_CCM_CCGRx_CG11_MASK, MXC_CCM_CCGR2);
+	/* openvgaxi clock enable, mmdc_core_ipg_clk_p0 clock and
+	mmdc_core_aclk_fast_core_p0 clock enable for gpu3d core clock */
+	__raw_writel(ccgr3 |
+		     MXC_CCM_CCGRx_CG15_MASK |
+		     MXC_CCM_CCGRx_CG12_MASK |
+		     MXC_CCM_CCGRx_CG10_MASK, MXC_CCM_CCGR3);
+	/* vpu clock enable */
+	__raw_writel(ccgr6 | MXC_CCM_CCGRx_CG7_MASK, MXC_CCM_CCGR6);
 
 	/* enable power up request */
 	reg = __raw_readl(gpc_base + GPC_PGC_GPU_PGCR_OFFSET);
@@ -141,7 +161,10 @@ static void mx6_suspend_store(void)
 	/* save some settings before suspend */
 	ccm_ccr = __raw_readl(MXC_CCM_CCR);
 	ccm_clpcr = __raw_readl(MXC_CCM_CLPCR);
+	ccm_analog_pfd528 = __raw_readl(PFD_528_BASE_ADDR);
 	ccgr1 = __raw_readl(MXC_CCM_CCGR1);
+	ccgr2 = __raw_readl(MXC_CCM_CCGR2);
+	ccgr3 = __raw_readl(MXC_CCM_CCGR3);
 	ccgr6 = __raw_readl(MXC_CCM_CCGR6);
 	scu_ctrl = __raw_readl(scu_base + SCU_CTRL_OFFSET);
 	gpc_imr[0] = __raw_readl(gpc_base + GPC_IMR1_OFFSET);
@@ -179,7 +202,10 @@ static void mx6_suspend_restore(void)
 	__raw_writel(gpc_cpu, gpc_base + GPC_PGC_CPU_PDN_OFFSET);
 
 	__raw_writel(ccgr1, MXC_CCM_CCGR1);
+	__raw_writel(ccgr2, MXC_CCM_CCGR2);
+	__raw_writel(ccgr3, MXC_CCM_CCGR3);
 	__raw_writel(ccgr6, MXC_CCM_CCGR6);
+	__raw_writel(ccm_analog_pfd528, PFD_528_BASE_ADDR);
 }
 
 static int mx6_suspend_enter(suspend_state_t state)
