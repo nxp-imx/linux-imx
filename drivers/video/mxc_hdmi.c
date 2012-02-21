@@ -1701,7 +1701,8 @@ static void mxc_hdmi_cable_connected(struct mxc_hdmi *hdmi)
 static int mxc_hdmi_power_on(struct mxc_dispdrv_handle *disp)
 {
 	struct mxc_hdmi *hdmi = mxc_dispdrv_getdata(disp);
-	mxc_hdmi_phy_init(hdmi);
+	if (hdmi->fb_reg && hdmi->cable_plugin)
+		mxc_hdmi_phy_init(hdmi);
 	return 0;
 }
 
