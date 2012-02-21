@@ -314,7 +314,8 @@ static irqreturn_t hdmi_dma_isr(int irq, void *dev_id)
 	status = hdmi_dma_get_irq_status();
 	hdmi_dma_clear_irq_status(status);
 
-	if (runtime->dma_area && rtd->tx_active && (status & HDMI_IH_AHBDMAAUD_STAT0_DONE)) {
+	if (runtime && runtime->dma_area && rtd->tx_active &&
+	    (status & HDMI_IH_AHBDMAAUD_STAT0_DONE)) {
 		rtd->offset += rtd->period_bytes;
 		rtd->offset %= rtd->period_bytes * rtd->periods;
 
