@@ -124,7 +124,12 @@ struct fsl_usb2_platform_data {
 	void (*wakeup_handler)(struct fsl_usb2_platform_data *);
 	void (*hsic_post_ops)(void);
 	void (*hsic_device_connected)(void);
-	void (*gadget_discharge_dp) (bool);
+	/*
+	 * Some platforms, like i.mx6x needs to discharge dp/dm at device mode
+	 * or there is wakeup interrupt caused by dp/dm change when the cable
+	 * is disconnected with Host.
+	 */
+	void (*dr_discharge_line) (bool);
 
 	struct fsl_usb2_wakeup_platform_data *wakeup_pdata;
 	struct platform_device *pdev;
