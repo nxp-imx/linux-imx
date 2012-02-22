@@ -162,6 +162,7 @@ static int flexcan_en;
 extern struct regulator *(*get_cpu_regulator)(void);
 extern void (*put_cpu_regulator)(void);
 extern char *gp_reg_id;
+extern int epdc_enabled;
 extern void mx6_cpu_regulator_init(void);
 static int max17135_regulator_init(struct max17135 *max17135);
 
@@ -767,6 +768,12 @@ static int __init max17135_regulator_init(struct max17135 *max17135)
 {
 	struct max17135_platform_data *pdata = &max17135_pdata;
 	int i, ret;
+
+	if (!epdc_enabled) {
+		printk(KERN_DEBUG
+			"max17135_regulator_init abort: EPDC not enabled\n");
+		return 0;
+	}
 
 	max17135->gvee_pwrup = pdata->gvee_pwrup;
 	max17135->vneg_pwrup = pdata->vneg_pwrup;
@@ -2090,7 +2097,7 @@ static void __init mx6_arm2_init(void)
 	imx6q_add_perfmon(2);
 	imx6q_add_mlb150(&mx6_arm2_mlb150_data);
 
-	if (cpu_is_mx6dl()) {
+	if (cpu_is_mx6dl() && epdc_enabled) {
 		imx6dl_add_imx_pxp();
 		imx6dl_add_imx_pxp_client();
 		mxc_register_device(&max17135_sensor_device, NULL);
