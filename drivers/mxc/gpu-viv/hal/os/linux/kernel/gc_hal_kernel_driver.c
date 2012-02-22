@@ -1,7 +1,7 @@
 /****************************************************************************
 *
 *    Copyright (C) 2005 - 2012 by Vivante Corp.
-*    Copyright (C) 2011 Freescale Semiconductor, Inc.
+*    Copyright (C) 2011-2012 Freescale Semiconductor, Inc.
 *
 *    This program is free software; you can redistribute it and/or modify
 *    it under the terms of the GNU General Public License as published by
