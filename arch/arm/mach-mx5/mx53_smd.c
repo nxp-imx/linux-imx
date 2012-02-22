@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2010-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -500,7 +500,7 @@ static struct platform_pwm_backlight_data mxc_pwm_backlight_data = {
 	.pwm_id = 1,
 	.max_brightness = 255,
 	.dft_brightness = 128,
-	.pwm_period_ns = 50000,
+	.pwm_period_ns = 45454,
 };
 
 extern void mx5_ipu_reset(void);
