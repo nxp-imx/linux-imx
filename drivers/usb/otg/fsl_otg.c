@@ -729,6 +729,7 @@ static void fsl_otg_event(struct work_struct *work)
 	struct otg_fsm *fsm = &og->fsm;
 	struct otg_transceiver *otg = &og->otg;
 	struct fsl_usb2_platform_data *pdata;
+	int ret;
 	pdata = og->otg.dev->platform_data;
 	BUG_ON(!pdata);
 
@@ -758,7 +759,14 @@ static void fsl_otg_event(struct work_struct *work)
 			pdata->wake_up_enable(pdata, true);
 		fsl_otg_start_gadget(fsm, 1);
 	} else {			/* switch to host */
-		fsl_otg_start_gadget(fsm, 0);
+		ret = fsl_otg_start_gadget(fsm, 0);
+		if (ret == -ENODEV) {
+			/* Still at host mode, when vbus on, there will
+			 * have PCD interrupt, but host core still at
+			 * suspend.
+			 */
+			writel(0x0, &usb_dr_regs->usbintr);
+		}
 		if (pdata->wake_up_enable)
 			pdata->wake_up_enable(pdata, false);
 		otg_drv_vbus(fsm, 1);

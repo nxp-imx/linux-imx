@@ -28,7 +28,6 @@
 #include "../core/usb.h"
 #include "ehci-fsl.h"
 #include <mach/fsl_usb.h>
-
 extern void usb_host_set_wakeup(struct device *wkup_dev, bool para);
 static void fsl_usb_lowpower_mode(struct fsl_usb2_platform_data *pdata, bool enable)
 {
@@ -148,11 +147,11 @@ static irqreturn_t ehci_fsl_pre_irq(int irq, void *dev)
 	pdata = hcd->self.controller->platform_data;
 
 	if (!test_bit(HCD_FLAG_HW_ACCESSIBLE, &hcd->flags)) {
-		if (pdata->irq_delay || !pdata->wakeup_event)
+		if (pdata->irq_delay || pdata->wakeup_event != WAKEUP_EVENT_DPDM)
 			return IRQ_NONE;
 
 		pr_debug("%s\n", __func__);
-		pdata->wakeup_event = 0;
+		pdata->wakeup_event = WAKEUP_EVENT_INVALID;
 		fsl_usb_recover_hcd(pdev);
 		return IRQ_HANDLED;
 	} else {
@@ -674,17 +673,9 @@ static int ehci_fsl_drv_suspend(struct platform_device *pdev,
 		if (!test_bit(HCD_FLAG_HW_ACCESSIBLE, &hcd->flags))
 			fsl_usb_clk_gate(hcd->self.controller->platform_data, true);
 
-		ehci_prepare_ports_for_controller_suspend(hcd_to_ehci(hcd),
-				device_may_wakeup(&(pdev->dev)));
-		if (!host_can_wakeup_system(pdev)) {
-			int mask;
-
-			mask = ehci_readl(ehci, &ehci->regs->intr_enable);
-			mask &= ~STS_PCD;
-			ehci_writel(ehci, mask, &ehci->regs->intr_enable);
-
+		if (!host_can_wakeup_system(pdev))
 			usb_host_set_wakeup(hcd->self.controller, false);
-		}
+
 		fsl_usb_clk_gate(hcd->self.controller->platform_data, false);
 		printk(KERN_DEBUG "host suspend ends\n");
 		return 0;
@@ -772,17 +763,6 @@ static int ehci_fsl_drv_resume(struct platform_device *pdev)
 	if (pdata->pmflags == 0) {
 		printk(KERN_DEBUG "%s,pm event, wait for wakeup irq if needed\n", __func__);
 		wait_event_interruptible(wake_up_pdata->wq, !wake_up_pdata->usb_wakeup_is_pending);
-		if (!test_bit(HCD_FLAG_HW_ACCESSIBLE, &hcd->flags)) {
-			fsl_usb_clk_gate(hcd->self.controller->platform_data, true);
-		}
-		if (!host_can_wakeup_system(pdev)) {
-			usb_host_set_wakeup(hcd->self.controller, true);
-
-		}
-		ehci_prepare_ports_for_controller_resume(hcd_to_ehci(hcd));
-		if (!test_bit(HCD_FLAG_HW_ACCESSIBLE, &hcd->flags)) {
-			fsl_usb_clk_gate(hcd->self.controller->platform_data, false);
-		}
 		return 0;
 	}
 	if (!test_bit(HCD_FLAG_HW_ACCESSIBLE, &hcd->flags)) {
@@ -794,6 +774,7 @@ static int ehci_fsl_drv_resume(struct platform_device *pdev)
 		spin_unlock_irqrestore(&ehci->lock, flags);
 	}
 
+	spin_lock_irqsave(&ehci->lock, flags);
 	/* set host mode */
 	fsl_platform_set_host_mode(hcd);
 
@@ -812,6 +793,7 @@ static int ehci_fsl_drv_resume(struct platform_device *pdev)
 	tmp = ehci_readl(ehci, &ehci->regs->command);
 	tmp |= CMD_RUN;
 	ehci_writel(ehci, tmp, &ehci->regs->command);
+	spin_unlock_irqrestore(&ehci->lock, flags);
 
 	if ((hcd->state & HC_STATE_SUSPENDED)) {
 		printk(KERN_DEBUG "will resume roothub and its children\n");
