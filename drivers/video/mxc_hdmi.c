@@ -2090,6 +2090,20 @@ static int mxc_hdmi_fb_event(struct notifier_block *nb,
 			mxc_hdmi_phy_disable(hdmi);
 		}
 		break;
+
+	case FB_EVENT_SUSPEND:
+		dev_dbg(&hdmi->pdev->dev,
+			"event=FB_EVENT_SUSPEND\n");
+		mxc_hdmi_phy_disable(hdmi);
+		break;
+
+	case FB_EVENT_RESUME:
+		dev_dbg(&hdmi->pdev->dev,
+			"event=FB_EVENT_RESUME\n");
+		if (hdmi->fb_reg && hdmi->cable_plugin)
+			mxc_hdmi_phy_init(hdmi);
+		break;
+
 	}
 	return 0;
 }
