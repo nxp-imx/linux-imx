@@ -630,7 +630,10 @@ static int esdhc_pltfm_init(struct sdhci_host *host, struct sdhci_pltfm_data *pd
 		host->clk_mgr_en = true;
 	}
 
-	reg = readl(host->ioaddr + SDHCI_MIX_CTRL);
+	writel(0, host->ioaddr + SDHCI_MIX_CTRL);
+	reg = readl(host->ioaddr + SDHCI_VENDOR_SPEC);
+	reg &= ~SDHCI_VENDOR_SPEC_VSELECT;
+	writel(reg, host->ioaddr + SDHCI_VENDOR_SPEC);
 	/* disable card interrupt enable bit, and clear status bit
 	 * the default value of this enable bit is 1, but it should
 	 * be 0 regarding to standard host controller spec 2.1.3.
