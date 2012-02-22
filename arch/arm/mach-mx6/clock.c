@@ -107,13 +107,13 @@ static unsigned long anaclk_1_reference, anaclk_2_reference;
  * parameters, in order to set the EPDC parent clock to the Video PLL.
  * This will have an impact on the behavior of HDMI and LVDS.
  */
-static int epdc_use_video_pll;
-static int __init epdc_clk_setup(char *__unused)
+int epdc_enabled;
+static int __init epdc_setup(char *__unused)
 {
-	epdc_use_video_pll = 1;
+	epdc_enabled = 1;
 	return 1;
 }
-__setup("epdc", epdc_clk_setup);
+__setup("epdc", epdc_setup);
 
 static void __calc_pre_post_dividers(u32 max_podf, u32 div, u32 *pre, u32 *post)
 {
@@ -5379,7 +5379,7 @@ int __init mx6_clocks_init(unsigned long ckil, unsigned long osc,
 	}
 
 	if (cpu_is_mx6dl()) {
-		if (epdc_use_video_pll)
+		if (epdc_enabled)
 			clk_set_parent(&ipu2_di_clk[1], &pll5_video_main_clk);
 		else
 			clk_set_parent(&ipu2_di_clk[1], &pll3_pfd_540M);
