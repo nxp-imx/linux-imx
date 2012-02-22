@@ -105,6 +105,8 @@
 #define MX6Q_SABRESD_CHARGE_CHG_2_B	IMX_GPIO_NR(3, 13)
 #define MX6Q_SABRESD_CHARGE_UOK_B	IMX_GPIO_NR(1, 27)
 #define MX6Q_SABRESD_CHARGE_DOK_B	IMX_GPIO_NR(2, 24)
+#define MX6Q_SABRESD_GPS_EN             IMX_GPIO_NR(3, 0)
+#define MX6Q_SABRESD_AUX_3V15_EN        IMX_GPIO_NR(6, 9)
 
 void __init early_console_setup(unsigned long base, struct clk *clk);
 static struct clk *sata_clk;
@@ -333,6 +335,9 @@ static iomux_v3_cfg_t mx6q_sabresd_pads[] = {
 
 	MX6Q_PAD_ENET_RXD0__GPIO_1_27, /* UOK_B */
 	MX6Q_PAD_EIM_CS1__GPIO_2_24,   /* DOK_B */
+
+	/*GPS AUX_3V15_EN*/
+	MX6Q_PAD_NANDF_WP_B__GPIO_6_9,
 };
 
 static iomux_v3_cfg_t mx6q_sabresd_csi0_sensor_pads[] = {
@@ -1013,6 +1018,20 @@ static int imx6q_init_audio(void)
 	return 0;
 }
 
+static void gps_power_on(bool on)
+{
+	/* Enable/disable aux_3v15 */
+	gpio_request(MX6Q_SABRESD_AUX_3V15_EN, "aux_3v15_en");
+	gpio_direction_output(MX6Q_SABRESD_AUX_3V15_EN, 1);
+	gpio_set_value(MX6Q_SABRESD_AUX_3V15_EN, on);
+	gpio_free(MX6Q_SABRESD_AUX_3V15_EN);
+	/*Enable/disable gps_en*/
+	gpio_request(MX6Q_SABRESD_GPS_EN, "gps_en");
+	gpio_direction_output(MX6Q_SABRESD_GPS_EN, 1);
+	gpio_set_value(MX6Q_SABRESD_GPS_EN, on);
+	gpio_free(MX6Q_SABRESD_GPS_EN);
+
+}
 #if defined(CONFIG_KEYBOARD_GPIO) || defined(CONFIG_KEYBOARD_GPIO_MODULE)
 #define GPIO_BUTTON(gpio_num, ev_code, act_low, descr, wake)	\
 {								\
@@ -1236,6 +1255,7 @@ static void __init mx6_sabresd_board_init(void)
 	gpio_direction_output(MX6Q_SABRESD_AUX_5V_EN, 1);
 	gpio_set_value(MX6Q_SABRESD_AUX_5V_EN, 1);
 
+	gps_power_on(true);
 	/* Register charger chips */
 	platform_device_register(&sabresd_max8903_charger_1);
 }
@@ -1258,7 +1278,7 @@ static struct sys_timer mx6_sabresd_timer = {
 	.init   = mx6_sabresd_timer_init,
 };
 
-static void __init mx6q_sabresd_reserve(void)
+static void __init mx6q_sabresd_reserve()
 {
 	phys_addr_t phys;
 
