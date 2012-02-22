@@ -63,7 +63,7 @@
 
 #define TIMER_FREQ 1000 /* 1000 ms */
 #define IDLE_TIME  5000 /* 5000 ms */
-#define FSL_VBUS_CHANGE_TIMEOUT (msecs_to_jiffies(1000)) /* 1000 ms */
+#define FSL_VBUS_CHANGE_TIMEOUT (msecs_to_jiffies(3000)) /* 3000 ms */
 
 MODULE_DESCRIPTION("Freescale USB OTG Driver");
 
@@ -150,14 +150,21 @@ void fsl_otg_dischrg_vbus(int on)
 				 ~OTGSC_CTRL_VBUS_DISCHARGE));
 }
 
-/* Wait for VBUS discharge after set VBUS lower */
-static void fsl_otg_wait_dischrg_vbus(void)
+/*
+ * Wait for VBUS discharge after set VBUS low
+ * It may be useless for most of platforms, only
+ * open need_discharge_vbus flag when the vbus lower
+ * very slow during the OTG switch.
+ */
+static void fsl_otg_wait_dischrg_vbus(struct fsl_usb2_platform_data *pdata)
 {
-	fsl_otg_clk_gate(true);
-	fsl_otg_dischrg_vbus(1);
-	msleep(20);
-	fsl_otg_dischrg_vbus(0);
-	fsl_otg_clk_gate(false);
+	if (pdata->need_discharge_vbus) {
+		fsl_otg_clk_gate(true);
+		fsl_otg_dischrg_vbus(1);
+		msleep(20);
+		fsl_otg_dischrg_vbus(0);
+		fsl_otg_clk_gate(false);
+	}
 }
 
 /* Wait for VBUS stable when change vbus true for rise false for fall*/
@@ -690,7 +697,6 @@ static int fsl_otg_set_peripheral(struct otg_transceiver *otg_p,
 	if (otg_dev->fsm.id == 1) {
 		fsl_otg_start_host(&otg_dev->fsm, 0);
 		otg_drv_vbus(&otg_dev->fsm, 0);
-		fsl_otg_wait_dischrg_vbus();
 		fsl_otg_start_gadget(&otg_dev->fsm, 1);
 	}
 
@@ -724,8 +730,10 @@ static void fsl_otg_event(struct work_struct *work)
 	struct otg_transceiver *otg = &og->otg;
 	struct fsl_usb2_platform_data *pdata;
 	pdata = og->otg.dev->platform_data;
+	BUG_ON(!pdata);
 
 	mutex_lock(&pm_mutex);
+	fsl_otg_clk_gate(true);
 	b_session_irq_enable(false);
 	otg->default_a = (fsm->id == 0);
 	/* clear conn information */
@@ -736,25 +744,33 @@ static void fsl_otg_event(struct work_struct *work)
 
 	if (fsm->id) {		/* switch to gadget */
 		fsl_otg_start_host(fsm, 0);
+		if (pdata->wake_up_enable)
+			pdata->wake_up_enable(pdata, false);
 		otg_drv_vbus(fsm, 0);
 		if (og->host_first_call == false) {
-			fsl_otg_wait_dischrg_vbus();
+			fsl_otg_wait_dischrg_vbus(pdata);
 			fsl_otg_wait_stable_vbus(false);
 		} else {
 			og->host_first_call = false;
 		}
 		b_session_irq_enable(false);
+		if (pdata->wake_up_enable)
+			pdata->wake_up_enable(pdata, true);
 		fsl_otg_start_gadget(fsm, 1);
 	} else {			/* switch to host */
 		fsl_otg_start_gadget(fsm, 0);
+		if (pdata->wake_up_enable)
+			pdata->wake_up_enable(pdata, false);
 		otg_drv_vbus(fsm, 1);
 		fsl_otg_wait_stable_vbus(true);
 		b_session_irq_enable(false);
+		if (pdata->wake_up_enable)
+			pdata->wake_up_enable(pdata, true);
 		fsl_otg_start_host(fsm, 1);
 		if (pdata->dr_discharge_line)
 			pdata->dr_discharge_line(false);
-
 	}
+	fsl_otg_clk_gate(false);
 	mutex_unlock(&pm_mutex);
 }
 
@@ -1068,7 +1084,9 @@ int usb_otg_start(struct platform_device *pdev)
 	/* disable all interrupt and clear all OTGSC status */
 	temp = readl(&p_otg->dr_mem_map->otgsc);
 	temp &= ~OTGSC_INTERRUPT_ENABLE_BITS_MASK;
-	temp |= OTGSC_INTERRUPT_STATUS_BITS_MASK | OTGSC_CTRL_VBUS_DISCHARGE;
+	temp |= OTGSC_INTERRUPT_STATUS_BITS_MASK;
+	if (pdata->need_discharge_vbus)
+		temp |= OTGSC_CTRL_VBUS_DISCHARGE;
 	writel(temp, &p_otg->dr_mem_map->otgsc);
 
 
@@ -1101,7 +1119,9 @@ int usb_otg_start(struct platform_device *pdev)
 	temp = readl(&p_otg->dr_mem_map->otgsc);
 	if (!pdata->id_gpio)
 		temp |= OTGSC_INTR_USB_ID_EN;
-	temp &= ~(OTGSC_CTRL_VBUS_DISCHARGE | OTGSC_INTR_1MS_TIMER_EN);
+	temp &= ~OTGSC_INTR_1MS_TIMER_EN;
+	if (pdata->need_discharge_vbus)
+		temp &= ~OTGSC_CTRL_VBUS_DISCHARGE;
 
 	writel(temp, &p_otg->dr_mem_map->otgsc);
 
