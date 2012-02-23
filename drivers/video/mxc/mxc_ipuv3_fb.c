@@ -1956,7 +1956,7 @@ static int mxcfb_setup_overlay(struct platform_device *pdev,
 	ovfbi->var.xres = 240;
 	ovfbi->var.yres = 320;
 
-	if (res && res->end) {
+	if (res && res->start && res->end) {
 		ovfbi->fix.smem_len = res->end - res->start + 1;
 		ovfbi->fix.smem_start = res->start;
 		ovfbi->screen_base = ioremap(
@@ -2048,7 +2048,7 @@ static int mxcfb_probe(struct platform_device *pdev)
 	}
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
-	if (res && res->end) {
+	if (res && res->start && res->end) {
 		fbi->fix.smem_len = res->end - res->start + 1;
 		fbi->fix.smem_start = res->start;
 		fbi->screen_base = ioremap(fbi->fix.smem_start, fbi->fix.smem_len);
