@@ -106,3 +106,6 @@ void set_mclk_rate(uint32_t *p_mclk_freq, uint32_t csi)
 
 /* Exported symbols for modules. */
 EXPORT_SYMBOL(set_mclk_rate);
+MODULE_AUTHOR("Freescale Semiconductor, Inc.");
+MODULE_DESCRIPTION("Camera Sensor clock");
+MODULE_LICENSE("GPL");
