@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2011-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -44,7 +44,7 @@ static int get_voltage(struct anatop_regulator *sreg)
 	struct anatop_regulator_data *rdata = sreg->rdata;
 
 	if (sreg->rdata->control_reg) {
-		u32 val = (__raw_readl(rdata->control_reg) <<
+		u32 val = (__raw_readl(rdata->control_reg) >>
 			   rdata->vol_bit_shift) & rdata->vol_bit_mask;
 		uv = rdata->min_voltage + (val - rdata->min_bit_val) * 25000;
 		pr_debug("vddio = %d, val=%u\n", uv, val);

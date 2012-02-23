@@ -63,6 +63,7 @@ static int hdmi_ratio;
 int mxc_hdmi_ipu_id;
 int mxc_hdmi_disp_id;
 static struct mxc_edid_cfg hdmi_core_edid_cfg;
+static int hdmi_core_init;
 
 u8 hdmi_readb(unsigned int reg)
 {
@@ -487,6 +488,16 @@ void hdmi_get_edid_cfg(struct mxc_edid_cfg *cfg)
 	spin_unlock_irqrestore(&edid_spinlock, flags);
 }
 
+void hdmi_set_registered(int registered)
+{
+	hdmi_core_init = registered;
+}
+
+int hdmi_get_registered(void)
+{
+	return hdmi_core_init;
+}
+
 static int mxc_hdmi_core_probe(struct platform_device *pdev)
 {
 	struct fsl_mxc_hdmi_core_platform_data *pdata = pdev->dev.platform_data;
@@ -498,6 +509,9 @@ static int mxc_hdmi_core_probe(struct platform_device *pdev)
 	overflow_lo = false;
 	overflow_hi = false;
 #endif
+
+	hdmi_core_init = 0;
+
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	if (!res)
 		return -ENOENT;

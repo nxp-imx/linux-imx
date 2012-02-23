@@ -295,21 +295,21 @@ static void nuke(struct fsl_ep *ep, int status)
 /*------------------------------------------------------------------
 	Internal Hardware related function
  ------------------------------------------------------------------*/
-static void dr_discharge_dp(struct fsl_usb2_platform_data *pdata)
+static void dr_discharge_line(struct fsl_usb2_platform_data *pdata, bool enable)
 {
-	/* enable pulldown dp */
-	if (pdata->gadget_discharge_dp)
-		pdata->gadget_discharge_dp(true);
+	/* enable/disable pulldown dp and dm */
+	if (pdata->dr_discharge_line) {
+		pdata->dr_discharge_line(enable);
 	/*
-	 * Some boards are very slow change line state from J to SE0 for DP,
-	 * So, we need to discharge DP, otherwise there is a wakeup interrupt
+	 * Some platforms, like mx6x,  are very slow change line state
+	 * to SE0 for dp and dm.
+	 * So, we need to discharge dp and dm, otherwise there is a wakeup interrupt
 	 * after we enable the wakeup function.
 	 */
-	gadget_wait_line_to_se0();
+	if (enable)
+		gadget_wait_line_to_se0();
+	}
 
-	/* Disable pulldown dp */
-	if (pdata->gadget_discharge_dp)
-		pdata->gadget_discharge_dp(false);
 }
 
 static inline void
@@ -400,7 +400,7 @@ static int dr_controller_setup(struct fsl_udc *udc)
 		tmp |= USB_MODE_ES;
 	fsl_writel(tmp, &dr_regs->usbmode);
 	/* wait dp to 0v */
-	dr_discharge_dp(pdata);
+	dr_discharge_line(pdata, true);
 
 	fsl_platform_set_device_mode(pdata);
 
@@ -506,6 +506,8 @@ static void dr_controller_run(struct fsl_udc *udc)
 		/* Clear stopped bit */
 		udc->stopped = 0;
 
+		/* disable pulldown dp and dm */
+		dr_discharge_line(udc->pdata, false);
 		/* The usb line has already been connected to pc */
 		temp = fsl_readl(&dr_regs->usbcmd);
 		temp |= USB_CMD_RUN_STOP;
@@ -2169,8 +2171,8 @@ static void fsl_gadget_disconnect_event(struct work_struct *work)
 
 	pdata = udc->pdata;
 
-	/* wait dp to 0v */
-	dr_discharge_dp(pdata);
+	/* wait line to se0 */
+	dr_discharge_line(pdata, true);
 
 	/*
 	 * Wait class drivers finish, an well-behaviour class driver should
@@ -2226,6 +2228,8 @@ bool try_wake_up_udc(struct fsl_udc *udc)
 			if (udc->suspended) /*let the system pm resume the udc */
 				return true;
 			udc->stopped = 0;
+			/* disable pulldown dp and dm */
+			dr_discharge_line(pdata, false);
 			fsl_writel(tmp | USB_CMD_RUN_STOP, &dr_regs->usbcmd);
 			printk(KERN_DEBUG "%s: udc out low power mode\n", __func__);
 		} else {

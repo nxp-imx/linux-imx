@@ -1701,7 +1701,8 @@ static void mxc_hdmi_cable_connected(struct mxc_hdmi *hdmi)
 static int mxc_hdmi_power_on(struct mxc_dispdrv_handle *disp)
 {
 	struct mxc_hdmi *hdmi = mxc_dispdrv_getdata(disp);
-	mxc_hdmi_phy_init(hdmi);
+	if (hdmi->fb_reg && hdmi->cable_plugin)
+		mxc_hdmi_phy_init(hdmi);
 	return 0;
 }
 
@@ -2060,11 +2061,13 @@ static int mxc_hdmi_fb_event(struct notifier_block *nb,
 	case FB_EVENT_FB_REGISTERED:
 		dev_dbg(&hdmi->pdev->dev, "event=FB_EVENT_FB_REGISTERED\n");
 		mxc_hdmi_fb_registered(hdmi);
+		hdmi_set_registered(1);
 		break;
 
 	case FB_EVENT_FB_UNREGISTERED:
 		dev_dbg(&hdmi->pdev->dev, "event=FB_EVENT_FB_UNREGISTERED\n");
 		hdmi->fb_reg = false;
+		hdmi_set_registered(0);
 		break;
 
 	case FB_EVENT_MODE_CHANGE:
@@ -2096,6 +2099,8 @@ static int mxc_hdmi_disp_init(struct mxc_dispdrv_handle *disp,
 			      struct mxc_dispdrv_setting *setting)
 {
 	int ret = 0;
+	u32 i;
+	const struct fb_videomode *mode;
 	struct mxc_hdmi *hdmi = mxc_dispdrv_getdata(disp);
 	struct fsl_mxc_hdmi_platform_data *plat = hdmi->pdev->dev.platform_data;
 	int irq = platform_get_irq(hdmi->pdev, 0);
@@ -2184,8 +2189,27 @@ static int mxc_hdmi_disp_init(struct mxc_dispdrv_handle *disp,
 
 	spin_lock_init(&hdmi->irq_lock);
 
-	fb_add_videomode(&vga_mode, &hdmi->fbi->modelist);
-	fb_videomode_to_var(&hdmi->fbi->var, &vga_mode);
+	/* Set the default mode and modelist when disp init. */
+	fb_find_mode(&hdmi->fbi->var, hdmi->fbi,
+		     hdmi->dft_mode_str, NULL, 0, NULL,
+		     hdmi->default_bpp);
+
+	console_lock();
+
+	fb_destroy_modelist(&hdmi->fbi->modelist);
+
+	/*Add all no interlaced CEA mode to default modelist */
+	for (i = 0; i < ARRAY_SIZE(mxc_cea_mode); i++) {
+		mode = &mxc_cea_mode[i];
+		if (!(mode->vmode & FB_VMODE_INTERLACED) && (mode->xres != 0))
+			fb_add_videomode(mode, &hdmi->fbi->modelist);
+	}
+
+	/*Add XGA and SXGA to default modelist */
+	fb_add_videomode(&xga_mode, &hdmi->fbi->modelist);
+	fb_add_videomode(&sxga_mode, &hdmi->fbi->modelist);
+
+	console_unlock();
 
 	INIT_DELAYED_WORK(&hdmi->hotplug_work, hotplug_worker);
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2011-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -38,7 +38,7 @@ extern void mx6_wait(void);
 
 
 struct cpu_op *(*get_cpu_op)(int *op);
-bool enable_wait_mode = true;
+bool enable_wait_mode;
 u32 arm_max_freq = CPU_AT_1GHz;
 
 void __iomem *gpc_base;

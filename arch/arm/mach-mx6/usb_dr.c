@@ -33,6 +33,7 @@
 static int usbotg_init_ext(struct platform_device *pdev);
 static void usbotg_uninit_ext(struct platform_device *pdev);
 static void usbotg_clock_gate(bool on);
+static void _dr_discharge_line(bool enable);
 
 /* The usb_phy1_clk do not have enable/disable function at clock.c
  * and PLL output for usb1's phy should be always enabled.
@@ -61,6 +62,7 @@ static struct fsl_usb2_platform_data dr_utmi_config = {
 	.usb_clock_for_pm  = usbotg_clock_gate,
 	.transceiver       = "utmi",
 	.phy_regs = USB_PHY0_BASE_ADDR,
+	.dr_discharge_line = _dr_discharge_line,
 };
 
 /* Platform data for wakeup operation */
@@ -182,6 +184,20 @@ void mx6_set_otghost_vbus_func(driver_vbus_func driver_vbus)
 {
 	dr_utmi_config.platform_driver_vbus = driver_vbus;
 }
+
+static void _dr_discharge_line(bool enable)
+{
+	void __iomem *phy_reg = MX6_IO_ADDRESS(USB_PHY0_BASE_ADDR);
+	if (enable) {
+		__raw_writel(BF_USBPHY_DEBUG_ENHSTPULLDOWN(0x3), phy_reg + HW_USBPHY_DEBUG_SET);
+		__raw_writel(BF_USBPHY_DEBUG_HSTPULLDOWN(0x3), phy_reg + HW_USBPHY_DEBUG_SET);
+	} else {
+		__raw_writel(BF_USBPHY_DEBUG_ENHSTPULLDOWN(0x3), phy_reg + HW_USBPHY_DEBUG_CLR);
+		__raw_writel(BF_USBPHY_DEBUG_HSTPULLDOWN(0x3), phy_reg + HW_USBPHY_DEBUG_CLR);
+	}
+
+}
+
 /* Below two macros are used at otg mode to indicate usb mode*/
 #define ENABLED_BY_HOST   (0x1 << 0)
 #define ENABLED_BY_DEVICE (0x1 << 1)
@@ -395,19 +411,6 @@ static void host_wakeup_handler(struct fsl_usb2_platform_data *pdata)
 
 #ifdef CONFIG_USB_GADGET_ARC
 /* Beginning of device related operation for DR port */
-static void _gadget_discharge_dp(bool enable)
-{
-	void __iomem *phy_reg = MX6_IO_ADDRESS(USB_PHY0_BASE_ADDR);
-	if (enable) {
-		__raw_writel(BF_USBPHY_DEBUG_ENHSTPULLDOWN(0x2), phy_reg + HW_USBPHY_DEBUG_SET);
-		__raw_writel(BF_USBPHY_DEBUG_HSTPULLDOWN(0x2), phy_reg + HW_USBPHY_DEBUG_SET);
-	} else {
-		__raw_writel(BF_USBPHY_DEBUG_ENHSTPULLDOWN(0x2), phy_reg + HW_USBPHY_DEBUG_CLR);
-		__raw_writel(BF_USBPHY_DEBUG_HSTPULLDOWN(0x2), phy_reg + HW_USBPHY_DEBUG_CLR);
-	}
-
-}
-
 static void _device_phy_lowpower_suspend(struct fsl_usb2_platform_data *pdata, bool enable)
 {
 	__phy_lowpower_suspend(pdata, enable, ENABLED_BY_DEVICE);
@@ -502,7 +505,6 @@ void __init mx6_usb_dr_init(void)
 	dr_utmi_config.platform_resume  = NULL;
 	dr_utmi_config.phy_lowpower_suspend = _device_phy_lowpower_suspend;
 	dr_utmi_config.is_wakeup_event = _is_device_wakeup;
-	dr_utmi_config.gadget_discharge_dp = _gadget_discharge_dp;
 	dr_utmi_config.wakeup_pdata = &dr_wakeup_config;
 	dr_utmi_config.wakeup_handler = device_wakeup_handler;
 	pdev = imx6q_add_fsl_usb2_udc(&dr_utmi_config);
