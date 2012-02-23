@@ -1328,6 +1328,12 @@ static void sdhci_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
 	if (host->flags & SDHCI_DEVICE_DEAD)
 		goto out;
 
+	if (ios->finish_tuning_flag) {
+		if (host->ops->post_tuning)
+			host->ops->post_tuning(host);
+		goto out;
+	}
+
 	if (ios->tuning_flag) {
 		/* means this request is for tuning only */
 		if (host->ops->pre_tuning)
