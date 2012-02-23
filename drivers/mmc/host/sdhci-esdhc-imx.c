@@ -253,6 +253,18 @@ static u16 esdhc_readw_le(struct sdhci_host *host, int reg)
 	return readw(host->ioaddr + reg);
 }
 
+void esdhc_post_tuning(struct sdhci_host *host)
+{
+	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
+	struct pltfm_imx_data *imx_data = pltfm_host->priv;
+	u32 reg;
+
+	imx_data->scratchpad &= ~SDHCI_MIX_CTRL_EXE_TUNE;
+	reg = readl(host->ioaddr + SDHCI_MIX_CTRL);
+	reg &= ~SDHCI_MIX_CTRL_EXE_TUNE;
+	writel(reg, host->ioaddr + SDHCI_MIX_CTRL);
+}
+
 void esdhc_prepare_tuning(struct sdhci_host *host, u32 val)
 {
 	u32 reg;
@@ -367,6 +379,7 @@ static void esdhc_writew_le(struct sdhci_host *host, u16 val, int reg)
 
 			writel(imx_data->scratchpad,
 				host->ioaddr + SDHCI_MIX_CTRL);
+
 			writel(val << 16,
 				host->ioaddr + SDHCI_TRANSFER_MODE);
 		} else {
@@ -555,6 +568,7 @@ static struct sdhci_ops sdhci_esdhc_ops = {
 	.get_max_clock = esdhc_pltfm_get_max_clock,
 	.get_min_clock = esdhc_pltfm_get_min_clock,
 	.pre_tuning = esdhc_prepare_tuning,
+	.post_tuning = esdhc_post_tuning,
 	.platform_8bit_width = plt_8bit_width,
 	.platform_clk_ctrl = plt_clk_ctrl,
 };
@@ -630,10 +644,9 @@ static int esdhc_pltfm_init(struct sdhci_host *host, struct sdhci_pltfm_data *pd
 		host->clk_mgr_en = true;
 	}
 
-	writel(0, host->ioaddr + SDHCI_MIX_CTRL);
-	reg = readl(host->ioaddr + SDHCI_VENDOR_SPEC);
-	reg &= ~SDHCI_VENDOR_SPEC_VSELECT;
-	writel(reg, host->ioaddr + SDHCI_VENDOR_SPEC);
+	reg = readl(host->ioaddr + SDHCI_MIX_CTRL);
+	reg &= ~SDHCI_MIX_CTRL_DDREN;
+	writel(reg, host->ioaddr + SDHCI_MIX_CTRL);
 	/* disable card interrupt enable bit, and clear status bit
 	 * the default value of this enable bit is 1, but it should
 	 * be 0 regarding to standard host controller spec 2.1.3.
