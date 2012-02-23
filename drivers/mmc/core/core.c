@@ -662,6 +662,13 @@ void mmc_set_clock(struct mmc_host *host, unsigned int hz)
 	mmc_host_clk_release(host);
 }
 
+void mmc_finish_tuning(struct mmc_host *host)
+{
+	host->ios.finish_tuning_flag = 1;
+	mmc_set_ios(host);
+	host->ios.finish_tuning_flag = 0;
+}
+
 void mmc_set_tuning(struct mmc_host *host, unsigned int tuning)
 {
 	WARN_ON(tuning < host->tuning_min);
