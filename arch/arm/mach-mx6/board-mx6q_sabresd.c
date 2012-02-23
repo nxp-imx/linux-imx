@@ -199,6 +199,8 @@ static int disable_ldb;
 
 extern char *gp_reg_id;
 extern int epdc_enabled;
+extern volatile int num_cpu_idle_lock;
+
 static int max17135_regulator_init(struct max17135 *max17135);
 
 static const struct esdhc_platform_data mx6q_sabresd_sd2_data __initconst = {
@@ -1485,9 +1487,11 @@ static void __init mx6_sabresd_board_init(void)
 	if (cpu_is_mx6q())
 		mxc_iomux_v3_setup_multiple_pads(mx6q_sabresd_pads,
 			ARRAY_SIZE(mx6q_sabresd_pads));
-	else if (cpu_is_mx6dl())
+	else if (cpu_is_mx6dl()) {
 		mxc_iomux_v3_setup_multiple_pads(mx6dl_sabresd_pads,
 			ARRAY_SIZE(mx6dl_sabresd_pads));
+		num_cpu_idle_lock = 0xffff0000;
+	}
 
 #ifdef CONFIG_FEC_1588
 	/* Set GPIO_16 input for IEEE-1588 ts_clk and RMII reference clock
