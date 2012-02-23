@@ -648,6 +648,7 @@ static int mmc_sd_init_uhs_card(struct mmc_card *card)
 		avg = (min + max) / 2;
 		mmc_set_tuning(card->host, avg);
 		mmc_send_tuning_cmd(card);
+		mmc_finish_tuning(card->host);
 	}
 #else
 	if (!mmc_host_is_spi(card->host) && card->host->ops->execute_tuning)
