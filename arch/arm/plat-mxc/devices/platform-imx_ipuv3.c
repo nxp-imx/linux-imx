@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2011-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -217,11 +217,17 @@ struct platform_device *__init imx_add_ipuv3_fb(
 				.end = pdata->res_base[0] + pdata->res_size[0] - 1,
 				.flags = IORESOURCE_MEM,
 			}, {
-				.start = pdata->res_base[1],
-				.end = pdata->res_base[1] + pdata->res_size[1] - 1,
+				.start = 0,
+				.end = 0,
 				.flags = IORESOURCE_MEM,
 			},
 		};
+
+		if (pdata->res_size[1] > 0) {
+			res[1].start = pdata->res_base[1];
+			res[1].end = pdata->res_base[1] +
+					pdata->res_size[1] - 1;
+		}
 
 		return imx_add_platform_device_dmamask("mxc_sdc_fb",
 				id, res, ARRAY_SIZE(res), pdata,
