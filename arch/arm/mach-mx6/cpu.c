@@ -31,11 +31,7 @@
 #include "crm_regs.h"
 #include "cpu_op-mx6.h"
 
-
-void *mx6_wait_in_iram_base;
-void (*mx6_wait_in_iram)(void);
-extern void mx6_wait(void);
-
+extern unsigned int num_cpu_idle_lock;
 
 struct cpu_op *(*get_cpu_op)(int *op);
 bool enable_wait_mode;
@@ -128,25 +124,10 @@ static int __init post_cpu_init(void)
 	reg &= ~0x1;
 	__raw_writel(reg, base);
 
-	/* Allocate IRAM for WAIT code. */
-	/* Move wait routine into iRAM */
-	cpaddr = (unsigned long)iram_alloc(SZ_4K, &iram_paddr);
-	/* Need to remap the area here since we want the memory region
-		 to be executable. */
-	mx6_wait_in_iram_base = __arm_ioremap(iram_paddr, SZ_4K,
-					  MT_MEMORY_NONCACHED);
-	pr_info("cpaddr = %x wait_iram_base=%x\n",
-		(unsigned int)cpaddr, (unsigned int)mx6_wait_in_iram_base);
-
-	/*
-	 * Need to run the suspend code from IRAM as the DDR needs
-	 * to be put into low power mode manually.
-	 */
-	memcpy((void *)cpaddr, mx6_wait, SZ_4K);
-	mx6_wait_in_iram = (void *)mx6_wait_in_iram_base;
-
 	gpc_base = MX6_IO_ADDRESS(GPC_BASE_ADDR);
 	ccm_base = MX6_IO_ADDRESS(CCM_BASE_ADDR);
+
+	num_cpu_idle_lock = 0x0;
 
 	return 0;
 }

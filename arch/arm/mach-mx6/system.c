@@ -49,9 +49,10 @@ extern int mx6q_revision(void);
 
 static void __iomem *gpc_base = IO_ADDRESS(GPC_BASE_ADDR);
 
-extern void (*mx6_wait_in_iram)(void);
-extern void mx6_wait(void);
-extern void *mx6_wait_in_iram_base;
+volatile unsigned int num_cpu_idle;
+volatile unsigned int num_cpu_idle_lock = 0x0;
+
+extern void mx6_wait(void *num_cpu_idle_lock, void *num_cpu_idle);
 extern bool enable_wait_mode;
 
 void gpc_set_wakeup(unsigned int irq[4])
@@ -159,14 +160,9 @@ void mxc_cpu_lp_set(enum mxc_cpu_pwr_mode mode)
  void arch_idle(void)
 {
 	if (enable_wait_mode) {
-		if ((num_online_cpus() == num_present_cpus())
-			&& mx6_wait_in_iram != NULL) {
-			mxc_cpu_lp_set(WAIT_UNCLOCKED_POWER_OFF);
-			if (smp_processor_id() == 0)
-				mx6_wait_in_iram();
-			else
-				cpu_do_idle();
-		}
+		*((char *)(&num_cpu_idle_lock) + smp_processor_id()) = 0x0;
+		mxc_cpu_lp_set(WAIT_UNCLOCKED_POWER_OFF);
+		mx6_wait((void *)&num_cpu_idle_lock, (void *)&num_cpu_idle);
 	} else
 		cpu_do_idle();
 }

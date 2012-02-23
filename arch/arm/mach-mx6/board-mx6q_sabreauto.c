@@ -138,6 +138,7 @@ static int mipi_sensor;
 static int can0_enable;
 static int uart3_en;
 static int tuner_en;
+extern volatile int num_cpu_idle_lock;
 
 static int __init uart3_enable(char *p)
 {
@@ -1317,6 +1318,7 @@ static void __init mx6_board_init(void)
 			i2c3_pads = mx6dl_i2c3_pads_rev_b;
 			i2c3_pads_cnt = ARRAY_SIZE(mx6dl_i2c3_pads_rev_b);
 		}
+		num_cpu_idle_lock = 0xffff0000;
 	}
 
 	BUG_ON(!common_pads);
