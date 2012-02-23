@@ -1216,7 +1216,6 @@ static struct sys_timer mx6_sabrelite_timer = {
 	.init   = mx6_sabrelite_timer_init,
 };
 
-#define SZ_TRIPLE_1080P	ALIGN((1920*ALIGN(1080, 128)*2*3), SZ_4K)
 static void __init mx6q_sabrelite_reserve(void)
 {
 	phys_addr_t phys;
@@ -1254,13 +1253,6 @@ static void __init mx6q_sabrelite_reserve(void)
 			memblock_free(phys, sabrelite_fb_data[i].res_size[0]);
 			memblock_remove(phys, sabrelite_fb_data[i].res_size[0]);
 			sabrelite_fb_data[i].res_base[0] = phys;
-
-			/* reserve for overlay buffer */
-			phys = memblock_alloc(SZ_TRIPLE_1080P, SZ_4K);
-			memblock_free(phys, SZ_TRIPLE_1080P);
-			memblock_remove(phys, SZ_TRIPLE_1080P);
-			sabrelite_fb_data[i].res_base[1] = phys;
-			sabrelite_fb_data[i].res_size[1] = SZ_TRIPLE_1080P;
 		}
 }
 
