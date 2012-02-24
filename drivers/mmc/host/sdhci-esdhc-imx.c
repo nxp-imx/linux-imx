@@ -324,8 +324,13 @@ static void esdhc_writew_le(struct sdhci_host *host, u16 val, int reg)
 		orig_reg |= (val & SDHCI_CTRL_TUNED_CLK)
 			? 0 : SDHCI_MIX_CTRL_SMPCLK_SEL;
 
-		orig_reg |= (val & SDHCI_CTRL_UHS_DDR50)
-			? SDHCI_MIX_CTRL_DDREN : 0;
+		if (val & SDHCI_CTRL_UHS_DDR50) {
+			orig_reg |= SDHCI_MIX_CTRL_DDREN;
+			imx_data->scratchpad |= SDHCI_MIX_CTRL_DDREN;
+		} else {
+			orig_reg &= ~SDHCI_MIX_CTRL_DDREN;
+			imx_data->scratchpad &= ~SDHCI_MIX_CTRL_DDREN;
+		}
 		writel(orig_reg, host->ioaddr + SDHCI_MIX_CTRL);
 
 		/* set clock frequency again */
@@ -537,8 +542,6 @@ static int plt_8bit_width(struct sdhci_host *host, int width)
 		reg |= SDHCI_PROT_CTRL_8BIT;
 	else if (width == MMC_BUS_WIDTH_4)
 		reg |= SDHCI_PROT_CTRL_4BIT;
-	else if (width == MMC_BUS_WIDTH_1)
-		host->mmc->ios.ddr = 0;
 
 	writel(reg, host->ioaddr + SDHCI_HOST_CONTROL);
 	return 0;
