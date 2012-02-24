@@ -27,6 +27,7 @@
 #include <linux/mm.h>
 #include <linux/mman.h>
 #include <linux/slab.h>
+#include <mach/hardware.h>
 
 #define _GC_OBJ_ZONE    gcvZONE_DEVICE
 
@@ -382,13 +383,15 @@ gckGALDEVICE_Construct(
     if (IrqLine != -1) {
         device->clk_3d_core = clk_get(NULL, "gpu3d_clk");
         if (!IS_ERR(device->clk_3d_core)) {
-            device->clk_3d_shader = clk_get(NULL, "gpu3d_shader_clk");
-            if (IS_ERR(device->clk_3d_shader)) {
-                IrqLine = -1;
-                clk_put(device->clk_3d_core);
-                device->clk_3d_core = NULL;
-                device->clk_3d_shader = NULL;
-                gckOS_Print("galcore: clk_get gpu3d_shader_clk failed, disable 3d!\n");
+            if (cpu_is_mx6q()) {
+	            device->clk_3d_shader = clk_get(NULL, "gpu3d_shader_clk");
+	            if (IS_ERR(device->clk_3d_shader)) {
+	                IrqLine = -1;
+	                clk_put(device->clk_3d_core);
+	                device->clk_3d_core = NULL;
+	                device->clk_3d_shader = NULL;
+	                gckOS_Print("galcore: clk_get gpu3d_shader_clk failed, disable 3d!\n");
+	            }
             }
         } else {
             IrqLine = -1;
