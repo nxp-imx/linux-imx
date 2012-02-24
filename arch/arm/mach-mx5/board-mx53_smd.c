@@ -940,7 +940,7 @@ static struct platform_pwm_backlight_data mxc_pwm_backlight_data = {
 	.pwm_id = 1,
 	.max_brightness = 255,
 	.dft_brightness = 128,
-	.pwm_period_ns = 50000,
+	.pwm_period_ns = 45454,
 };
 
 static struct mxc_gpu_platform_data mx53_smd_gpu_pdata __initdata = {
