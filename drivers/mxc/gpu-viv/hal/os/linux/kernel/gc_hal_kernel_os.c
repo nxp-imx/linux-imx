@@ -31,6 +31,7 @@
 #include <asm/atomic.h>
 #include <linux/dma-mapping.h>
 #include <linux/slab.h>
+#include <mach/hardware.h>
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2,6,23)
 #include <linux/math64.h>
 #endif
@@ -6854,7 +6855,8 @@ gckOS_SetGPUPower(
         case gcvCORE_MAJOR:
             if (!Os->device->clk_flag[gcvCORE_MAJOR]) {
                 clk_enable(clk_3dcore);
-                clk_enable(clk_3dshader);
+                if (cpu_is_mx6q())
+                    clk_enable(clk_3dshader);
             }
             Os->device->clk_flag[gcvCORE_MAJOR] = gcvTRUE;
             break;
@@ -6877,7 +6879,8 @@ gckOS_SetGPUPower(
         switch (Core) {
         case gcvCORE_MAJOR:
             if (Os->device->clk_flag[gcvCORE_MAJOR]) {
-                clk_disable(clk_3dshader);
+                if (cpu_is_mx6q())
+                    clk_disable(clk_3dshader);
                 clk_disable(clk_3dcore);
             }
             Os->device->clk_flag[gcvCORE_MAJOR] = gcvFALSE;
