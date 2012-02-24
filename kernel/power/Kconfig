@@ -56,6 +56,13 @@ config CPUFREQ_GOV_ON_EARLYSUPSEND
 	help
 	 Also will restore to original cpu frequency governor when device is resumed
 
+config CPUHOTPLUG_EARLYSUSPEND
+	bool "hotplug cpu when device enters early suspend"
+	depends on HAS_EARLYSUSPEND && SMP
+	default n
+	help
+	 Will restore to original cpu nums online when device is resumed
+
 config WAKELOCK
 	bool "Wake lock"
 	depends on PM && RTC_CLASS
