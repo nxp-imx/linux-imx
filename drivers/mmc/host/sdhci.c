@@ -1864,8 +1864,79 @@ static void sdhci_enable_preset_value(struct mmc_host *mmc, bool enable)
 	spin_unlock_irqrestore(&host->lock, flags);
 }
 
+static void sdhci_post_req(struct mmc_host *mmc, struct mmc_request *mrq,
+				int err)
+{
+	struct sdhci_host *host = mmc_priv(mmc);
+	struct mmc_data *data = mrq->data;
+
+	if (host->flags & SDHCI_REQ_USE_DMA) {
+		dma_unmap_sg(mmc_dev(host->mmc), data->sg, data->sg_len,
+			     data->flags & MMC_DATA_WRITE ? \
+			     DMA_TO_DEVICE : DMA_FROM_DEVICE);
+		data->host_cookie = 0;
+	}
+}
+
+static int sdhci_pre_dma_transfer(struct sdhci_host *host,
+				       struct mmc_data *data,
+				       struct sdhci_host_next *next)
+{
+	int dma_len;
+
+	if (!next && data->host_cookie &&
+	    data->host_cookie != host->next_data.cookie) {
+		printk(KERN_WARNING "[%s] invalid cookie: data->host_cookie %d"
+		       " host->next_data.cookie %d\n",
+		       __func__, data->host_cookie, host->next_data.cookie);
+		data->host_cookie = 0;
+	}
+
+	/* Check if next job is already prepared */
+	if (next ||
+	    (!next && data->host_cookie != host->next_data.cookie)) {
+		dma_len = dma_map_sg(mmc_dev(host->mmc), data->sg,
+				     data->sg_len,
+				     data->flags & MMC_DATA_WRITE ? \
+				     DMA_TO_DEVICE : DMA_FROM_DEVICE);
+
+	} else {
+		dma_len = host->next_data.dma_len;
+		host->next_data.dma_len = 0;
+	}
+
+
+	if (dma_len == 0)
+		return -EINVAL;
+
+	if (next) {
+		next->dma_len = dma_len;
+		data->host_cookie = ++next->cookie < 0 ? 1 : next->cookie;
+	}
+
+	return 0;
+}
+
+static void sdhci_pre_req(struct mmc_host *mmc, struct mmc_request *mrq,
+			       bool is_first_req)
+{
+	struct sdhci_host *host = mmc_priv(mmc);
+
+	if (mrq->data->host_cookie) {
+		mrq->data->host_cookie = 0;
+		return ;
+	}
+
+	if (host->flags & SDHCI_REQ_USE_DMA)
+		if (sdhci_pre_dma_transfer(host, mrq->data,
+						&host->next_data))
+			mrq->data->host_cookie = 0;
+}
+
 static const struct mmc_host_ops sdhci_ops = {
 	.request	= sdhci_request,
+	.post_req	= sdhci_post_req,
+	.pre_req	= sdhci_pre_req,
 	.set_ios	= sdhci_set_ios,
 	.get_ro		= sdhci_get_ro,
 	.enable_sdio_irq = sdhci_enable_sdio_irq,
