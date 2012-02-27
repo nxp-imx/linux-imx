@@ -728,6 +728,8 @@ static int ldb_suspend(struct platform_device *pdev, pm_message_t state)
 	struct ldb_data *ldb = dev_get_drvdata(&pdev->dev);
 	uint32_t	data;
 
+	if (!ldb->inited)
+		return 0;
 	data = readl(ldb->control_reg);
 	ldb->control_reg_data = data;
 	data &= ~(LDB_CH0_MODE_MASK | LDB_CH1_MODE_MASK);
@@ -740,6 +742,8 @@ static int ldb_resume(struct platform_device *pdev)
 {
 	struct ldb_data *ldb = dev_get_drvdata(&pdev->dev);
 
+	if (!ldb->inited)
+		return 0;
 	writel(ldb->control_reg_data, ldb->control_reg);
 
 	return 0;
@@ -778,6 +782,8 @@ static int ldb_remove(struct platform_device *pdev)
 {
 	struct ldb_data *ldb = dev_get_drvdata(&pdev->dev);
 
+	if (!ldb->inited)
+		return 0;
 	mxc_dispdrv_puthandle(ldb->disp_ldb);
 	mxc_dispdrv_unregister(ldb->disp_ldb);
 	kfree(ldb);
