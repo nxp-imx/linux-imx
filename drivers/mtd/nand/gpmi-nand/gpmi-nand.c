@@ -1001,6 +1001,19 @@ exit_auxiliary:
 	}
 }
 
+#define MAX_PAGESIZE 8192
+static uint8_t verify_buf[MAX_PAGESIZE];
+
+static int gpmi_verify_buf(struct mtd_info *mtd, const uint8_t * buf, int len)
+{
+	struct nand_chip *nand = mtd->priv;
+
+	gpmi_ecc_read_page(mtd, nand, verify_buf, len);
+	if (memcmp(buf, verify_buf, len))
+		return -EFAULT;
+	return 0;
+}
+
 /*
  * There are several places in this driver where we have to handle the OOB and
  * block marks. This is the function where things are the most complicated, so
@@ -1482,6 +1495,7 @@ static int __devinit gpmi_nfc_init(struct gpmi_nand_data *this)
 	chip->read_byte		= gpmi_read_byte;
 	chip->read_buf		= gpmi_read_buf;
 	chip->write_buf		= gpmi_write_buf;
+	chip->verify_buf	= gpmi_verify_buf;
 	chip->ecc.read_page	= gpmi_ecc_read_page;
 	chip->ecc.write_page	= gpmi_ecc_write_page;
 	chip->ecc.read_oob	= gpmi_ecc_read_oob;
