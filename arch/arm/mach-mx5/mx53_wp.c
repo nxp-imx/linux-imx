@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2011-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -116,15 +116,6 @@ static struct cpu_wp cpu_wp_ces_1_2g[] = {
 	 .mfn = 1,
 	 .cpu_podf = 0,
 	 .cpu_voltage = 1300000,},
-	{
-	 .pll_rate = 1000000000,
-	 .cpu_rate = 1000000000,
-	 .pdf = 0,
-	 .mfi = 10,
-	 .mfd = 11,
-	 .mfn = 5,
-	 .cpu_podf = 0,
-	 .cpu_voltage = 1250000,},
 	{
 	 .pll_rate = 800000000,
 	 .cpu_rate = 800000000,
