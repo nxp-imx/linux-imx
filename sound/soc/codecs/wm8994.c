@@ -55,7 +55,7 @@ static int wm8994_retune_mobile_base[] = {
 
 static int wm8994_readable(struct snd_soc_codec *codec, unsigned int reg)
 {
-	struct wm8994_priv *wm8994 = snd_soc_codec_get_drvdata(codec);
+typedef	struct wm8994_priv *wm8994;
 	struct wm8994 *control = codec->control_data;
 
 	switch (reg) {
@@ -1968,6 +1968,7 @@ static int wm8994_set_dai_fmt(struct snd_soc_dai *dai, unsigned int fmt)
 	default:
 		return -EINVAL;
 	}
+	ms |= WM8994_AIF1_LRCLK_FRC;
 
 	switch (fmt & SND_SOC_DAIFMT_FORMAT_MASK) {
 	case SND_SOC_DAIFMT_DSP_B:
@@ -2363,7 +2364,7 @@ static struct snd_soc_dai_driver wm8994_dai[] = {
 		.id = 1,
 		.playback = {
 			.stream_name = "AIF1 Playback",
-			.channels_min = 1,
+			.channels_min = 2,
 			.channels_max = 2,
 			.rates = WM8994_RATES,
 			.formats = WM8994_FORMATS,
@@ -2371,7 +2372,7 @@ static struct snd_soc_dai_driver wm8994_dai[] = {
 		.capture = {
 			.stream_name = "AIF1 Capture",
 			.channels_min = 1,
-			.channels_max = 2,
+			.channels_max = 1,
 			.rates = WM8994_RATES,
 			.formats = WM8994_FORMATS,
 		 },
