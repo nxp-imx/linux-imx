@@ -2371,8 +2371,8 @@ static struct snd_soc_dai_driver wm8994_dai[] = {
 		},
 		.capture = {
 			.stream_name = "AIF1 Capture",
-			.channels_min = 1,
-			.channels_max = 1,
+			.channels_min = 2,
+			.channels_max = 2,
 			.rates = WM8994_RATES,
 			.formats = WM8994_FORMATS,
 		 },
