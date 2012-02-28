@@ -1607,7 +1607,9 @@ static int asrc_read_proc_attr(char *page, char **start, off_t off,
 {
 	unsigned long reg;
 	int len = 0;
+	clk_enable(mxc_asrc_data->asrc_core_clk);
 	reg = __raw_readl(asrc_vrt_base_addr + ASRC_ASRCNCR_REG);
+	clk_disable(mxc_asrc_data->asrc_core_clk);
 
 	len += sprintf(page, "ANCA: %d\n",
 		       (int)(reg &
@@ -1647,7 +1649,9 @@ static int asrc_write_proc_attr(struct file *file, const char *buffer,
 		return -EFAULT;
 	}
 
+	clk_enable(mxc_asrc_data->asrc_core_clk);
 	reg = __raw_readl(asrc_vrt_base_addr + ASRC_ASRCNCR_REG);
+	clk_disable(mxc_asrc_data->asrc_core_clk);
 	sscanf(buf, "ANCA: %d\nANCB: %d\nANCC: %d", &na, &nb, &nc);
 	if (mxc_asrc_data->channel_bits > 3)
 		total = 10;
@@ -1660,7 +1664,9 @@ static int asrc_write_proc_attr(struct file *file, const char *buffer,
 	reg = na | (nb << mxc_asrc_data->
 		    channel_bits) | (nc << (mxc_asrc_data->channel_bits * 2));
 
+	clk_enable(mxc_asrc_data->asrc_core_clk);
 	__raw_writel(reg, asrc_vrt_base_addr + ASRC_ASRCNCR_REG);
+	clk_disable(mxc_asrc_data->asrc_core_clk);
 
 	return count;
 }
