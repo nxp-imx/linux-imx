@@ -60,6 +60,15 @@ config SND_SOC_IMX_SGTL5000
 	  Say Y if you want to add support for SoC audio on an i.MX board with
 	  a sgtl5000 codec.
 
+config SND_SOC_IMX_WM8958
+	tristate "SoC Audio support for IMX boards with WM8958"
+	depends on MFD_WM8994
+	select SND_MXC_SOC_MX2
+	select SND_SOC_WM8994
+	help
+	  Say Y if you want to add support for SoC audio on an i.MX board with
+	  a WM8958 codec.
+
 config SND_SOC_IMX_CS42888
 	tristate "SoC Audio support for i.MX boards with cs42888"
 	depends on I2C && (MACH_MX6Q_ARM2 || MACH_MX6Q_SABREAUTO || MACH_MX53_ARD)
