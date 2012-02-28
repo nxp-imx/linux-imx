@@ -51,6 +51,8 @@
 #include <linux/regulator/consumer.h>
 #include <linux/regulator/machine.h>
 #include <linux/regulator/fixed.h>
+#include <linux/mfd/wm8994/pdata.h>
+#include <linux/mfd/wm8994/gpio.h>
 
 #include <mach/common.h>
 #include <mach/hardware.h>
@@ -105,6 +107,8 @@
 #define MX6Q_SABRESD_CHARGE_CHG_2_B	IMX_GPIO_NR(3, 13)
 #define MX6Q_SABRESD_CHARGE_UOK_B	IMX_GPIO_NR(1, 27)
 #define MX6Q_SABRESD_CHARGE_DOK_B	IMX_GPIO_NR(2, 24)
+#define MX6Q_SABRESD_WM8958_4V2_EN	IMX_GPIO_NR(4, 10)
+#define MX6Q_SABRESD_WM8958_HP_DET	IMX_GPIO_NR(7, 8)
 #define MX6Q_SABRESD_GPS_EN             IMX_GPIO_NR(3, 0)
 #define MX6Q_SABRESD_AUX_3V15_EN        IMX_GPIO_NR(6, 9)
 
@@ -122,14 +126,14 @@ extern int __init mx6q_sabresd_init_pfuze100(u32 int_gpio);
 
 static iomux_v3_cfg_t mx6q_sabresd_pads[] = {
 	/* AUDMUX */
-	MX6Q_PAD_SD2_DAT0__AUDMUX_AUD4_RXD,
-	MX6Q_PAD_SD2_DAT3__AUDMUX_AUD4_TXC,
-	MX6Q_PAD_SD2_DAT2__AUDMUX_AUD4_TXD,
-	MX6Q_PAD_SD2_DAT1__AUDMUX_AUD4_TXFS,
+	MX6Q_PAD_CSI0_DAT4__AUDMUX_AUD3_TXC,
+	MX6Q_PAD_CSI0_DAT5__AUDMUX_AUD3_TXD,
+	MX6Q_PAD_CSI0_DAT6__AUDMUX_AUD3_TXFS,
+	MX6Q_PAD_CSI0_DAT7__AUDMUX_AUD3_RXD,
 
 	/* CAN1  */
 	MX6Q_PAD_KEY_ROW2__CAN1_RXCAN,
-	MX6Q_PAD_KEY_COL2__CAN1_TXCAN,
+	/* MX6Q_PAD_KEY_COL2__CAN1_TXCAN, */
 	MX6Q_PAD_GPIO_2__GPIO_1_2,		/* STNDBY */
 	MX6Q_PAD_GPIO_7__GPIO_1_7,		/* NERR */
 
@@ -219,7 +223,7 @@ static iomux_v3_cfg_t mx6q_sabresd_pads[] = {
 	/* GPIO7 */
 	MX6Q_PAD_GPIO_17__GPIO_7_12,	/* USB Hub Reset */
 
-	/* I2C1, SGTL5000 */
+	/* I2C1, WM8958 */
 	MX6Q_PAD_CSI0_DAT8__I2C1_SDA,
 	MX6Q_PAD_CSI0_DAT9__I2C1_SCL,
 
@@ -335,6 +339,10 @@ static iomux_v3_cfg_t mx6q_sabresd_pads[] = {
 
 	MX6Q_PAD_ENET_RXD0__GPIO_1_27, /* UOK_B */
 	MX6Q_PAD_EIM_CS1__GPIO_2_24,   /* DOK_B */
+
+	/* WM8958 */
+	MX6Q_PAD_KEY_COL2__GPIO_4_10,		/* CODEC_PWR_EN */
+	MX6Q_PAD_SD3_RST__GPIO_7_8,			/* HEADPHONE_DET */
 
 	/*GPS AUX_3V15_EN*/
 	MX6Q_PAD_NANDF_WP_B__GPIO_6_9,
@@ -473,11 +481,38 @@ static void spi_device_init(void)
 				ARRAY_SIZE(imx6_sabresd_spi_nor_device));
 }
 
-static struct mxc_audio_platform_data mx6_sabresd_audio_data;
+static struct imx_ssi_platform_data mx6_sabresd_ssi_pdata = {
+	.flags = IMX_SSI_DMA | IMX_SSI_SYN,
+};
 
-static int mx6_sabresd_sgtl5000_init(void)
+static struct platform_device mx6_sabresd_audio_device = {
+	.name = "imx-wm8958",
+};
+
+static struct mxc_audio_platform_data wm8958_data = {
+	.ssi_num = 1,
+	.src_port = 2,
+	.ext_port = 3,
+	.hp_gpio = -1,
+};
+
+static struct wm8994_pdata wm8958_pdata = {
+	.gpio_defaults = {
+		[0] = WM8994_GP_FN_GPIO | WM8994_GPN_DB,
+		[1] = WM8994_GP_FN_GPIO | WM8994_GPN_DB | WM8994_GPN_PD,
+		[2] = WM8994_GP_FN_GPIO | WM8994_GPN_DB | WM8994_GPN_PD,
+		[3] = WM8994_GP_FN_GPIO | WM8994_GPN_DB | WM8994_GPN_PD,
+		[4] = WM8994_GP_FN_GPIO | WM8994_GPN_DB | WM8994_GPN_PD,
+		[5] = WM8994_GP_FN_GPIO | WM8994_GPN_DB | WM8994_GPN_PD,
+		[7] = WM8994_GP_FN_GPIO | WM8994_GPN_DB | WM8994_GPN_PD,
+		[8] = WM8994_GP_FN_GPIO | WM8994_GPN_DB | WM8994_GPN_PD,
+		[9] = WM8994_GP_FN_GPIO | WM8994_GPN_DB | WM8994_GPN_PD,
+		[10] = WM8994_GP_FN_GPIO | WM8994_GPN_DB | WM8994_GPN_PD,
+	},
+};
+
+static int mxc_wm8958_init(void)
 {
-/*
 	struct clk *clko;
 	struct clk *new_parent;
 	int rate;
@@ -487,40 +522,30 @@ static int mx6_sabresd_sgtl5000_init(void)
 		pr_err("can't get CLKO clock.\n");
 		return PTR_ERR(clko);
 	}
-	new_parent = clk_get(NULL, "ahb");
+	new_parent = clk_get(NULL, "ipg_perclk");
 	if (!IS_ERR(new_parent)) {
 		clk_set_parent(clko, new_parent);
 		clk_put(new_parent);
 	}
-	rate = clk_round_rate(clko, 16000000);
-	if (rate < 8000000 || rate > 27000000) {
-		pr_err("Error:SGTL5000 mclk freq %d out of range!\n", rate);
+	rate = clk_round_rate(clko, 8250000);
+	if (rate < 4000000 || rate > 12500000) {
+		pr_err("Error:WM8958 mclk1 freq %d out of range!\n", rate);
 		clk_put(clko);
 		return -1;
 	}
 
-	mx6_sabresd_audio_data.sysclk = rate;
+	wm8958_data.sysclk = rate;
 	clk_set_rate(clko, rate);
 	clk_enable(clko);
-*/
+
+	/* enable wm8958 4.2v power supply */
+	gpio_request(MX6Q_SABRESD_WM8958_4V2_EN, "aud_4v2");
+	gpio_direction_output(MX6Q_SABRESD_WM8958_4V2_EN, 1);
+	msleep(1);
+	gpio_set_value(MX6Q_SABRESD_WM8958_4V2_EN, 1);
+
 	return 0;
 }
-
-static struct imx_ssi_platform_data mx6_sabresd_ssi_pdata = {
-	.flags = IMX_SSI_DMA | IMX_SSI_SYN,
-};
-
-static struct mxc_audio_platform_data mx6_sabresd_audio_data = {
-	.ssi_num = 1,
-	.src_port = 2,
-	.ext_port = 4,
-	.init = mx6_sabresd_sgtl5000_init,
-	.hp_gpio = -1,
-};
-
-static struct platform_device mx6_sabresd_audio_device = {
-	.name = "imx-sgtl5000",
-};
 
 static void mx6q_csi0_cam_powerdown(int powerdown)
 {
@@ -610,7 +635,8 @@ static struct fsl_mxc_lightsensor_platform_data ls_data = {
 
 static struct i2c_board_info mxc_i2c0_board_info[] __initdata = {
 	{
-		I2C_BOARD_INFO("sgtl5000", 0x0a),
+		I2C_BOARD_INFO("wm8958", 0x1a),
+		.platform_data = &wm8958_pdata,
 	},
 	{
 		I2C_BOARD_INFO("ov5642", 0x3c),
@@ -926,95 +952,13 @@ static struct platform_device sabresd_vmmc_reg_devices = {
 	},
 };
 
-#ifdef CONFIG_SND_SOC_SGTL5000
-
-static struct regulator_consumer_supply sgtl5000_sabresd_consumer_vdda = {
-	.supply = "VDDA",
-	.dev_name = "0-000a",
-};
-
-static struct regulator_consumer_supply sgtl5000_sabresd_consumer_vddio = {
-	.supply = "VDDIO",
-	.dev_name = "0-000a",
-};
-
-static struct regulator_consumer_supply sgtl5000_sabresd_consumer_vddd = {
-	.supply = "VDDD",
-	.dev_name = "0-000a",
-};
-
-static struct regulator_init_data sgtl5000_sabresd_vdda_reg_initdata = {
-	.num_consumer_supplies = 1,
-	.consumer_supplies = &sgtl5000_sabresd_consumer_vdda,
-};
-
-static struct regulator_init_data sgtl5000_sabresd_vddio_reg_initdata = {
-	.num_consumer_supplies = 1,
-	.consumer_supplies = &sgtl5000_sabresd_consumer_vddio,
-};
-
-static struct regulator_init_data sgtl5000_sabresd_vddd_reg_initdata = {
-	.num_consumer_supplies = 1,
-	.consumer_supplies = &sgtl5000_sabresd_consumer_vddd,
-};
-
-static struct fixed_voltage_config sgtl5000_sabresd_vdda_reg_config = {
-	.supply_name		= "VDDA",
-	.microvolts		= 2500000,
-	.gpio			= -1,
-	.init_data		= &sgtl5000_sabresd_vdda_reg_initdata,
-};
-
-static struct fixed_voltage_config sgtl5000_sabresd_vddio_reg_config = {
-	.supply_name		= "VDDIO",
-	.microvolts		= 3300000,
-	.gpio			= -1,
-	.init_data		= &sgtl5000_sabresd_vddio_reg_initdata,
-};
-
-static struct fixed_voltage_config sgtl5000_sabresd_vddd_reg_config = {
-	.supply_name		= "VDDD",
-	.microvolts		= 0,
-	.gpio			= -1,
-	.init_data		= &sgtl5000_sabresd_vddd_reg_initdata,
-};
-
-static struct platform_device sgtl5000_sabresd_vdda_reg_devices = {
-	.name	= "reg-fixed-voltage",
-	.id	= 0,
-	.dev	= {
-		.platform_data = &sgtl5000_sabresd_vdda_reg_config,
-	},
-};
-
-static struct platform_device sgtl5000_sabresd_vddio_reg_devices = {
-	.name	= "reg-fixed-voltage",
-	.id	= 1,
-	.dev	= {
-		.platform_data = &sgtl5000_sabresd_vddio_reg_config,
-	},
-};
-
-static struct platform_device sgtl5000_sabresd_vddd_reg_devices = {
-	.name	= "reg-fixed-voltage",
-	.id	= 2,
-	.dev	= {
-		.platform_data = &sgtl5000_sabresd_vddd_reg_config,
-	},
-};
-
-#endif /* CONFIG_SND_SOC_SGTL5000 */
-
 static int imx6q_init_audio(void)
 {
 	mxc_register_device(&mx6_sabresd_audio_device,
-			    &mx6_sabresd_audio_data);
+			    &wm8958_data);
 	imx6q_add_imx_ssi(1, &mx6_sabresd_ssi_pdata);
-#ifdef CONFIG_SND_SOC_SGTL5000
-	platform_device_register(&sgtl5000_sabresd_vdda_reg_devices);
-	platform_device_register(&sgtl5000_sabresd_vddio_reg_devices);
-	platform_device_register(&sgtl5000_sabresd_vddd_reg_devices);
-#endif
+
+	mxc_wm8958_init();
 	return 0;
 }
 
