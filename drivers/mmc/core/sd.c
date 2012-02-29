@@ -637,11 +637,13 @@ static int mmc_sd_init_uhs_card(struct mmc_card *card)
 			min += card->host->tuning_step;
 		}
 
-		max = min;
+		max = min + card->host->tuning_step;
 		while (max < card->host->tuning_max) {
 			mmc_set_tuning(card->host, max);
-			if (!mmc_send_tuning_cmd(card))
+			if (mmc_send_tuning_cmd(card)) {
+				max -= card->host->tuning_step;
 				break;
+			}
 			max += card->host->tuning_step;
 		}
 
