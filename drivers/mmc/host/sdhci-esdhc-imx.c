@@ -37,6 +37,9 @@
 #define SDHCI_MIX_CTRL_AUTO_TUNE	(1 << 24)
 #define SDHCI_MIX_CTRL_FBCLK_SEL	(1 << 25)
 
+#define SDHCI_SYS_CTRL			0x2C
+#define SDHCI_SYS_CTRL_RSTA_LSH 24
+
 #define SDHCI_DLL_CTRL			0x60
 #define SDHCI_DLL_OVERRIDE_OFFSET	0x9
 #define SDHCI_DLL_OVERRIDE_EN_OFFSET	0x8
@@ -265,14 +268,41 @@ void esdhc_post_tuning(struct sdhci_host *host)
 	writel(reg, host->ioaddr + SDHCI_MIX_CTRL);
 }
 
+static void esdhc_reset(struct sdhci_host *host)
+{
+	unsigned long timeout;
+	u32 reg;
+
+	reg = readl(host->ioaddr + SDHCI_SYS_CTRL);
+	reg |= 1 << SDHCI_SYS_CTRL_RSTA_LSH;
+	writel(reg, host->ioaddr + SDHCI_SYS_CTRL);
+
+	/* Wait max 100ms */
+	timeout = 100;
+
+	/* hw clears the bit when it's done */
+	while (readl(host->ioaddr + SDHCI_SYS_CTRL)
+			& (1 << SDHCI_SYS_CTRL_RSTA_LSH)) {
+		if (timeout == 0) {
+			printk(KERN_ERR "%s: Reset never completed.\n",
+					mmc_hostname(host->mmc));
+			return;
+		}
+		timeout--;
+		mdelay(1);
+	}
+}
+
 void esdhc_prepare_tuning(struct sdhci_host *host, u32 val)
 {
 	u32 reg;
 
+	esdhc_reset(host);
+	mdelay(1);
+
 	reg = readl(host->ioaddr + SDHCI_MIX_CTRL);
 	reg |= SDHCI_MIX_CTRL_EXE_TUNE | \
 		SDHCI_MIX_CTRL_SMPCLK_SEL | \
-		SDHCI_MIX_CTRL_AUTO_TUNE | \
 		SDHCI_MIX_CTRL_FBCLK_SEL;
 	writel(reg, host->ioaddr + SDHCI_MIX_CTRL);
 	writel((val << 8), host->ioaddr + SDHCI_TUNE_CTRL_STATUS);
@@ -585,8 +615,15 @@ static irqreturn_t cd_irq(int irq, void *data)
 	writel(0, sdhost->ioaddr + SDHCI_MIX_CTRL);
 	writel(0, sdhost->ioaddr + SDHCI_TUNE_CTRL_STATUS);
 
-	if (cpu_is_mx6())
+	if (cpu_is_mx6()) {
 		imx_data->scratchpad &= ~SDHCI_MIX_CTRL_DDREN;
+		imx_data->scratchpad &= ~SDHCI_MIX_CTRL_FBCLK_SEL;
+		imx_data->scratchpad &= ~SDHCI_MIX_CTRL_SMPCLK_SEL;
+	}
+
+	esdhc_reset(sdhost);
+	mdelay(1);
+
 	tasklet_schedule(&sdhost->card_tasklet);
 	return IRQ_HANDLED;
 };
