@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2010 Sascha Hauer <s.hauer@pengutronix.de>
- * Copyright (C) 2011 Freescale Semiconductor, Inc.
+ * Copyright (C) 2011-2012 Freescale Semiconductor, Inc.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -616,6 +616,7 @@ uint32_t ipu_get_cur_buffer_idx(struct ipu_soc *ipu, ipu_channel_t channel, ipu_
 int32_t ipu_enable_channel(struct ipu_soc *ipu, ipu_channel_t channel);
 int32_t ipu_disable_channel(struct ipu_soc *ipu, ipu_channel_t channel, bool wait_for_stop);
 int32_t ipu_swap_channel(struct ipu_soc *ipu, ipu_channel_t from_ch, ipu_channel_t to_ch);
+uint32_t ipu_channel_status(struct ipu_soc *ipu, ipu_channel_t channel);
 
 int32_t ipu_enable_csi(struct ipu_soc *ipu, uint32_t csi);
 int32_t ipu_disable_csi(struct ipu_soc *ipu, uint32_t csi);
