@@ -928,7 +928,7 @@ void ipu_uninit_channel(struct ipu_soc *ipu, ipu_channel_t channel)
 	_ipu_lock(ipu);
 
 	if ((ipu->channel_init_mask & (1L << IPU_CHAN_ID(channel))) == 0) {
-		dev_err(ipu->dev, "Channel already uninitialized %d\n",
+		dev_dbg(ipu->dev, "Channel already uninitialized %d\n",
 			IPU_CHAN_ID(channel));
 		_ipu_unlock(ipu);
 		return;
@@ -2152,7 +2152,7 @@ int32_t ipu_disable_channel(struct ipu_soc *ipu, ipu_channel_t channel, bool wai
 	_ipu_lock(ipu);
 
 	if ((ipu->channel_enable_mask & (1L << IPU_CHAN_ID(channel))) == 0) {
-		dev_err(ipu->dev, "Channel already disabled %d\n",
+		dev_dbg(ipu->dev, "Channel already disabled %d\n",
 			IPU_CHAN_ID(channel));
 		_ipu_unlock(ipu);
 		return -EACCES;
@@ -2700,6 +2700,29 @@ uint32_t _ipu_channel_status(struct ipu_soc *ipu, ipu_channel_t channel)
 	}
 	return stat;
 }
+
+/*!
+ * This function check for  a logical channel status
+ *
+ * @param	ipu		ipu handler
+ * @param	channel         Input parameter for the logical channel ID.
+ *
+ * @return      This function returns 0 on idle and 1 on busy.
+ *
+ */
+uint32_t ipu_channel_status(struct ipu_soc *ipu, ipu_channel_t channel)
+{
+	uint32_t dma_status;
+
+	_ipu_lock(ipu);
+	dma_status = ipu_is_channel_busy(ipu, channel);
+	_ipu_unlock(ipu);
+
+	dev_dbg(ipu->dev, "%s, dma_status:%d.\n", __func__, dma_status);
+
+	return dma_status;
+}
+EXPORT_SYMBOL(ipu_channel_status);
 
 int32_t ipu_swap_channel(struct ipu_soc *ipu, ipu_channel_t from_ch, ipu_channel_t to_ch)
 {
