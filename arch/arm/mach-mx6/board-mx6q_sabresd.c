@@ -500,7 +500,7 @@ static struct mxc_audio_platform_data wm8958_data = {
 	.ssi_num = 1,
 	.src_port = 2,
 	.ext_port = 3,
-	.hp_gpio = -1,
+	.hp_gpio = MX6Q_SABRESD_WM8958_HP_DET,
 };
 
 static struct wm8994_pdata wm8958_pdata = {
@@ -520,30 +520,11 @@ static struct wm8994_pdata wm8958_pdata = {
 
 static int mxc_wm8958_init(void)
 {
-	struct clk *clko;
-	struct clk *new_parent;
 	int rate;
 
-	clko = clk_get(NULL, "clko_clk");
-	if (IS_ERR(clko)) {
-		pr_err("can't get CLKO clock.\n");
-		return PTR_ERR(clko);
-	}
-	new_parent = clk_get(NULL, "ipg_perclk");
-	if (!IS_ERR(new_parent)) {
-		clk_set_parent(clko, new_parent);
-		clk_put(new_parent);
-	}
-	rate = clk_round_rate(clko, 8250000);
-	if (rate < 4000000 || rate > 12500000) {
-		pr_err("Error:WM8958 mclk1 freq %d out of range!\n", rate);
-		clk_put(clko);
-		return -1;
-	}
+	rate = 22000000;
 
 	wm8958_data.sysclk = rate;
-	clk_set_rate(clko, rate);
-	clk_enable(clko);
 
 	/* enable wm8958 4.2v power supply */
 	gpio_request(MX6Q_SABRESD_WM8958_4V2_EN, "aud_4v2");
