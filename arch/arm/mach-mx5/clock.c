@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2008-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -2911,6 +2911,7 @@ static struct clk esai_clk[] = {
 	{
 	 .id = 0,
 	 .parent = &ipg_clk,
+	 .secondary = &spba_clk,
 	 .enable_reg = MXC_CCM_CCGR6,
 	 .enable_shift = MXC_CCM_CCGRx_CG8_OFFSET,
 	 .enable = _clk_enable,
@@ -3720,6 +3721,7 @@ static struct clk spdif0_clk[] = {
 	{
 	.id = 0,
 	.parent = &pll3_sw_clk,
+	.secondary = &spdif0_clk[1],
 	.set_parent = _clk_spdif0_set_parent,
 	.get_rate = _clk_spdif0_get_rate,
 	.enable = _clk_enable,
@@ -3777,6 +3779,7 @@ static struct clk spdif1_clk[] = {
 	{
 	.id = 1,
 	.parent = &pll3_sw_clk,
+	.secondary = &spdif1_clk[1],
 	.set_parent = _clk_spdif1_set_parent,
 	.get_rate = _clk_spdif1_get_rate,
 	.enable = _clk_enable,
@@ -4268,6 +4271,7 @@ static struct clk asrc_clk[] = {
 	{
 	.id = 0,
 	.parent = &ipg_clk,
+	.secondary = &spba_clk,
 	.enable_reg = MXC_CCM_CCGR7,
 	.enable_shift = MXC_CCM_CCGRx_CG0_OFFSET,
 	.enable = _clk_enable,
