@@ -2198,7 +2198,7 @@ static int epdc_submit_merge(struct update_desc_list *upd_desc_list,
 	/* Merged update should take on the earliest order */
 	upd_desc_list->update_order =
 		(upd_desc_list->update_order > update_to_merge->update_order) ?
-		upd_desc_list->update_order : update_to_merge->update_order;
+		update_to_merge->update_order : upd_desc_list->update_order;
 
 	return MERGE_OK;
 }
@@ -3113,7 +3113,7 @@ void mxc_epdc_fb_flush_updates(struct mxc_epdc_fb_data *fb_data)
 		mutex_unlock(&fb_data->queue_mutex);
 		/* Wait for any currently active updates to complete */
 		ret = wait_for_completion_timeout(&fb_data->updates_done,
-						msecs_to_jiffies(5000));
+						msecs_to_jiffies(8000));
 		if (!ret)
 			dev_err(fb_data->dev,
 				"Flush updates timeout! ret = 0x%x\n", ret);
@@ -3378,7 +3378,10 @@ static void epdc_intr_work_func(struct work_struct *work)
 	u32 coll_coord, coll_size;
 	struct mxcfb_rect coll_region;
 
-	/* Capture EPDC status one time up front to prevent race conditions */
+	/* Protect access to buffer queues and to update HW */
+	mutex_lock(&fb_data->queue_mutex);
+
+	/* Capture EPDC status one time to limit exposure to race conditions */
 	epdc_luts_active = epdc_any_luts_active(fb_data->rev);
 	epdc_wb_busy = epdc_is_working_buffer_busy();
 	epdc_lut_cancelled = epdc_is_lut_cancelled();
@@ -3390,10 +3393,6 @@ static void epdc_intr_work_func(struct work_struct *work)
 		epdc_irq_stat = (u64)__raw_readl(EPDC_IRQ1) |
 			((u64)__raw_readl(EPDC_IRQ2) << 32);
 	epdc_waiting_on_wb = (fb_data->cur_update != NULL) ? true : false;
-
-
-	/* Protect access to buffer queues and to update HW */
-	mutex_lock(&fb_data->queue_mutex);
 
 	/* Free any LUTs that have completed */
 	for (i = 0; i < fb_data->num_luts; i++) {
@@ -3418,7 +3417,7 @@ static void epdc_intr_work_func(struct work_struct *work)
 
 		epdc_clear_lut_complete_irq(fb_data->rev, i);
 
-		fb_data->luts_complete_wb |= 1 << i;
+		fb_data->luts_complete_wb |= 1ULL << i;
 
 		fb_data->lut_update_order[i] = 0;
 
@@ -3436,7 +3435,7 @@ static void epdc_intr_work_func(struct work_struct *work)
 
 		/* Detect race condition where WB and its LUT complete
 		   (i.e. full update completes) in one swoop */
-		if (fb_data->cur_update &&
+		if (epdc_waiting_on_wb &&
 			(i == fb_data->cur_update->lut_num))
 			wb_lut_done = true;
 
@@ -3464,7 +3463,7 @@ static void epdc_intr_work_func(struct work_struct *work)
 	/* Check to see if all updates have completed */
 	if (list_empty(&fb_data->upd_pending_list) &&
 		is_free_list_full(fb_data) &&
-		(fb_data->cur_update == NULL) &&
+		!epdc_waiting_on_wb &&
 		!epdc_luts_active) {
 
 		fb_data->updates_active = false;
@@ -3545,10 +3544,12 @@ static void epdc_intr_work_func(struct work_struct *work)
 			 * Even though LUT is cancelled in HW, the LUT
 			 * complete bit may be set if AUTOWV not used.
 			 */
-			epdc_lut_complete_intr(fb_data->rev, i, false);
-			epdc_clear_lut_complete_irq(fb_data->rev, i);
+			epdc_lut_complete_intr(fb_data->rev,
+					fb_data->cur_update->lut_num, false);
+			epdc_clear_lut_complete_irq(fb_data->rev,
+					fb_data->cur_update->lut_num);
 
-			fb_data->lut_update_order[i] = 0;
+			fb_data->lut_update_order[fb_data->cur_update->lut_num] = 0;
 
 			/* Signal completion if submit workqueue needs a LUT */
 			if (fb_data->waiting_for_lut) {
@@ -4512,11 +4513,13 @@ int __devinit mxc_epdc_fb_probe(struct platform_device *pdev)
 		fb_data->lut_update_order[i] = 0;
 
 	INIT_DELAYED_WORK(&fb_data->epdc_done_work, epdc_done_work_func);
-	fb_data->epdc_submit_workqueue = alloc_workqueue("EPDC Submit", WQ_MEM_RECLAIM |
-					 WQ_HIGHPRI | WQ_CPU_INTENSIVE, 0);
+	fb_data->epdc_submit_workqueue = alloc_workqueue("EPDC Submit",
+					WQ_MEM_RECLAIM | WQ_HIGHPRI |
+					WQ_CPU_INTENSIVE | WQ_UNBOUND, 1);
 	INIT_WORK(&fb_data->epdc_submit_work, epdc_submit_work_func);
-	fb_data->epdc_intr_workqueue = alloc_workqueue("EPDC Interrupt", WQ_MEM_RECLAIM |
-					 WQ_HIGHPRI | WQ_CPU_INTENSIVE, 0);
+	fb_data->epdc_intr_workqueue = alloc_workqueue("EPDC Interrupt",
+					WQ_MEM_RECLAIM | WQ_HIGHPRI |
+					WQ_CPU_INTENSIVE | WQ_UNBOUND, 1);
 	INIT_WORK(&fb_data->epdc_intr_work, epdc_intr_work_func);
 
 	/* Retrieve EPDC IRQ num */
