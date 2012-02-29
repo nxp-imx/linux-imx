@@ -151,6 +151,7 @@ struct mxc_epdc_fb_data {
 	int max_num_updates;
 	bool in_init;
 	bool hw_ready;
+	bool hw_initializing;
 	bool waiting_for_idle;
 	u32 auto_mode;
 	u32 upd_scheme;
@@ -1488,6 +1489,8 @@ static int mxc_epdc_fb_set_par(struct fb_info *info)
 		screeninfo->hsync_len = mode.hsync_len;
 		screeninfo->vsync_len = mode.vsync_len;
 
+		fb_data->hw_initializing = true;
+
 		/* Initialize EPDC settings and init panel */
 		ret =
 		    mxc_epdc_fb_init_hw((struct fb_info *)fb_data);
@@ -2560,8 +2563,10 @@ int mxc_epdc_fb_send_update(struct mxcfb_update_data *upd_data,
 
 	/* Has EPDC HW been initialized? */
 	if (!fb_data->hw_ready) {
-		dev_err(fb_data->dev, "Display HW not properly initialized."
-			"  Aborting update.\n");
+		/* Throw message if we are not mid-initialization */
+		if (!fb_data->hw_initializing)
+			dev_err(fb_data->dev, "Display HW not properly"
+				"initialized. Aborting update.\n");
 		return -EPERM;
 	}
 
@@ -4000,6 +4005,7 @@ static void mxc_epdc_fb_fw_handler(const struct firmware *fw,
 	clk_disable(fb_data->epdc_clk_pix);
 
 	fb_data->hw_ready = true;
+	fb_data->hw_initializing = false;
 
 	/* Use unrotated (native) width/height */
 	if ((screeninfo->rotate == FB_ROTATE_CW) ||
@@ -4116,10 +4122,6 @@ int __devinit mxc_epdc_fb_probe(struct platform_device *pdev)
 	int i;
 	unsigned long x_mem_size = 0;
 	u32 val;
-#ifdef CONFIG_FRAMEBUFFER_CONSOLE
-	struct mxcfb_update_data update;
-	struct mxcfb_update_marker_data upd_marker_data;
-#endif
 
 	fb_data = (struct mxc_epdc_fb_data *)framebuffer_alloc(
 			sizeof(struct mxc_epdc_fb_data), &pdev->dev);
@@ -4447,6 +4449,7 @@ int __devinit mxc_epdc_fb_probe(struct platform_device *pdev)
 	fb_data->in_init = false;
 
 	fb_data->hw_ready = false;
+	fb_data->hw_initializing = false;
 
 	/*
 	 * Set default waveform mode values.
@@ -4515,7 +4518,7 @@ int __devinit mxc_epdc_fb_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "Unable to get VCOM regulator."
 			"err = 0x%x\n", (int)fb_data->vcom_regulator);
 		ret = -ENODEV;
-		goto out_irq;
+		goto out_regulator1;
 	}
 	fb_data->v3p3_regulator = regulator_get(NULL, "V3P3");
 	if (IS_ERR(fb_data->v3p3_regulator)) {
@@ -4524,7 +4527,7 @@ int __devinit mxc_epdc_fb_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "Unable to get V3P3 regulator."
 			"err = 0x%x\n", (int)fb_data->vcom_regulator);
 		ret = -ENODEV;
-		goto out_irq;
+		goto out_regulator2;
 	}
 
 	if (device_create_file(info->dev, &fb_attrs[0]))
@@ -4535,9 +4538,6 @@ int __devinit mxc_epdc_fb_probe(struct platform_device *pdev)
 	mutex_init(&fb_data->queue_mutex);
 	mutex_init(&fb_data->pxp_mutex);
 	mutex_init(&fb_data->power_mutex);
-
-	/* PxP DMA interface */
-	dmaengine_get();
 
 	/*
 	 * Fill out PxP config data structure based on FB info and
@@ -4606,7 +4606,7 @@ int __devinit mxc_epdc_fb_probe(struct platform_device *pdev)
 	if (fb_data->pxp_conf.proc_data.lut_map == NULL) {
 		dev_err(&pdev->dev, "Can't allocate mem for lut map!\n");
 		ret = -ENOMEM;
-		goto out_dmaengine;
+		goto out_regulator3;
 	}
 	for (i = 0; i < 256; i++)
 		fb_data->pxp_conf.proc_data.lut_map[i] = i;
@@ -4649,7 +4649,7 @@ int __devinit mxc_epdc_fb_probe(struct platform_device *pdev)
 	if (ret) {
 		dev_err(&pdev->dev,
 			"register_framebuffer failed with error %d\n", ret);
-		goto out_dmaengine;
+		goto out_lutmap;
 	}
 
 	g_fb_data = fb_data;
@@ -4661,32 +4661,16 @@ int __devinit mxc_epdc_fb_probe(struct platform_device *pdev)
 	}
 #endif
 
-#ifdef CONFIG_FRAMEBUFFER_CONSOLE
-	/* If FB console included, update display to show logo */
-	update.update_region.left = 0;
-	update.update_region.width = info->var.xres;
-	update.update_region.top = 0;
-	update.update_region.height = info->var.yres;
-	update.update_mode = UPDATE_MODE_PARTIAL;
-	update.waveform_mode = WAVEFORM_MODE_AUTO;
-	update.update_marker = INIT_UPDATE_MARKER;
-	update.temp = TEMP_USE_AMBIENT;
-	update.flags = 0;
-
-	mxc_epdc_fb_send_update(&update, info);
-
-	upd_marker_data.update_marker = update.update_marker;
-
-	ret = mxc_epdc_fb_wait_update_complete(&upd_marker_data, info);
-	if (ret < 0)
-		dev_err(fb_data->dev,
-			"Wait for update complete failed.  Error = 0x%x", ret);
-#endif
-
 	goto out;
 
-out_dmaengine:
-	dmaengine_put();
+out_lutmap:
+	kfree(fb_data->pxp_conf.proc_data.lut_map);
+out_regulator3:
+	regulator_put(fb_data->v3p3_regulator);
+out_regulator2:
+	regulator_put(fb_data->vcom_regulator);
+out_regulator1:
+	regulator_put(fb_data->display_regulator);
 out_irq:
 	free_irq(fb_data->epdc_irq, fb_data);
 out_dma_work_buf:
@@ -4770,8 +4754,6 @@ static int mxc_epdc_fb_remove(struct platform_device *pdev)
 	/* Release PxP-related resources */
 	if (fb_data->pxp_chan != NULL)
 		dma_release_channel(&fb_data->pxp_chan->dma_chan);
-
-	dmaengine_put();
 
 	iounmap(epdc_base);
 
