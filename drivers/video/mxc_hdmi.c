@@ -166,6 +166,7 @@ struct mxc_hdmi {
 	u8 edid[HDMI_EDID_LEN];
 	bool fb_reg;
 	bool cable_plugin;
+	u8  blank;
 	bool dft_mode_set;
 	char *dft_mode_str;
 	int default_bpp;
@@ -1080,6 +1081,14 @@ static void mxc_hdmi_phy_init(struct mxc_hdmi *hdmi)
 
 	dev_dbg(&hdmi->pdev->dev, "%s\n", __func__);
 
+	/* Never do phy init if pixel clock is gated.
+	 * Otherwise HDMI PHY will get messed up and generate an overflow
+	 * interrupt that can't be cleared or detected by accessing the
+	 * status register. */
+	if (!hdmi->fb_reg || !hdmi->cable_plugin
+			|| (hdmi->blank != FB_BLANK_UNBLANK))
+		return;
+
 	/*check csc whether needed activated in HDMI mode */
 	cscon = (isColorSpaceConversion(hdmi) &&
 			!hdmi->hdmi_data.video_mode.mDVI);
@@ -1701,8 +1710,7 @@ static void mxc_hdmi_cable_connected(struct mxc_hdmi *hdmi)
 static int mxc_hdmi_power_on(struct mxc_dispdrv_handle *disp)
 {
 	struct mxc_hdmi *hdmi = mxc_dispdrv_getdata(disp);
-	if (hdmi->fb_reg && hdmi->cable_plugin)
-		mxc_hdmi_phy_init(hdmi);
+	mxc_hdmi_phy_init(hdmi);
 	return 0;
 }
 
@@ -1889,7 +1897,7 @@ static irqreturn_t mxc_hdmi_hotplug(int irq, void *data)
 	return IRQ_HANDLED;
 }
 
-static void mxc_hdmi_setup(struct mxc_hdmi *hdmi)
+static void mxc_hdmi_setup(struct mxc_hdmi *hdmi, unsigned long event)
 {
 	struct fb_videomode m;
 	const struct fb_videomode *edid_mode;
@@ -1899,16 +1907,16 @@ static void mxc_hdmi_setup(struct mxc_hdmi *hdmi)
 	fb_var_to_videomode(&m, &hdmi->fbi->var);
 	dump_fb_videomode(&m);
 
-	/* Exit the setup if we are already set to this video mode */
-	if (fb_mode_is_equal(&hdmi->previous_mode, &m)) {
+	/* Exit the setup if we get mode change and are already set to
+	 * this video mode */
+	if ((event == FB_EVENT_MODE_CHANGE) &&
+		fb_mode_is_equal(&hdmi->previous_mode, &m)) {
 		dev_dbg(&hdmi->pdev->dev,
 			"%s video mode did not change.\n", __func__);
 		mxc_hdmi_phy_init(hdmi);
 		return;
 	}
 	dev_dbg(&hdmi->pdev->dev, "%s - video mode changed\n", __func__);
-
-	hdmi_disable_overflow_interrupts();
 
 	/* Save mode as 'previous_mode' so that we can know if mode changed. */
 	memcpy(&hdmi->previous_mode, &m, sizeof(struct fb_videomode));
@@ -1919,7 +1927,6 @@ static void mxc_hdmi_setup(struct mxc_hdmi *hdmi)
 		 * vga default. */
 		memcpy(&hdmi->previous_non_vga_mode, &m,
 		       sizeof(struct fb_videomode));
-
 		if (!list_empty(&hdmi->fbi->modelist)) {
 			edid_mode = fb_find_nearest_mode(&m, &hdmi->fbi->modelist);
 			pr_debug("edid mode ");
@@ -1927,6 +1934,12 @@ static void mxc_hdmi_setup(struct mxc_hdmi *hdmi)
 			hdmi->vic = mxc_edid_mode_to_vic(edid_mode);
 		}
 	}
+
+	/* Exit the setup if HDMI cable plugout or display blank */
+	if (!hdmi->cable_plugin || (hdmi->blank != FB_BLANK_UNBLANK))
+		return;
+
+	hdmi_disable_overflow_interrupts();
 
 	if (hdmi->vic == 0) {
 		dev_dbg(&hdmi->pdev->dev, "Non-CEA mode used in HDMI\n");
@@ -2005,7 +2018,8 @@ static void mxc_hdmi_setup(struct mxc_hdmi *hdmi)
 	hdmi_tx_hdcp_config(hdmi);
 
 	mxc_hdmi_clear_overflow();
-	if (hdmi->cable_plugin && !hdmi->hdmi_data.video_mode.mDVI)
+
+	if (!hdmi->hdmi_data.video_mode.mDVI)
 		hdmi_enable_overflow_interrupts();
 
 	dev_dbg(&hdmi->pdev->dev, "%s exit\n\n", __func__);
@@ -2073,16 +2087,17 @@ static int mxc_hdmi_fb_event(struct notifier_block *nb,
 	case FB_EVENT_MODE_CHANGE:
 		dev_dbg(&hdmi->pdev->dev, "event=FB_EVENT_MODE_CHANGE\n");
 		if (hdmi->fb_reg)
-			mxc_hdmi_setup(hdmi);
+			mxc_hdmi_setup(hdmi, val);
 		break;
 
 	case FB_EVENT_BLANK:
-		if (*((int *)event->data) == FB_BLANK_UNBLANK) {
+		hdmi->blank = *((int *)event->data);
+		if (hdmi->blank == FB_BLANK_UNBLANK) {
 			dev_dbg(&hdmi->pdev->dev,
 				"event=FB_EVENT_BLANK - UNBLANK\n");
 			mxc_hdmi_enable_pins(hdmi);
 			if (hdmi->fb_reg && hdmi->cable_plugin)
-				mxc_hdmi_setup(hdmi);
+				mxc_hdmi_setup(hdmi, val);
 		} else {
 			dev_dbg(&hdmi->pdev->dev,
 				"event=FB_EVENT_BLANK - BLANK\n");
@@ -2100,8 +2115,7 @@ static int mxc_hdmi_fb_event(struct notifier_block *nb,
 	case FB_EVENT_RESUME:
 		dev_dbg(&hdmi->pdev->dev,
 			"event=FB_EVENT_RESUME\n");
-		if (hdmi->fb_reg && hdmi->cable_plugin)
-			mxc_hdmi_phy_init(hdmi);
+		mxc_hdmi_phy_init(hdmi);
 		break;
 
 	}
