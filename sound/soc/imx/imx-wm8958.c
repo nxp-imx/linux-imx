@@ -26,6 +26,7 @@
 #include <linux/io.h>
 #include <linux/fsl_devices.h>
 #include <linux/slab.h>
+#include <linux/gpio.h>
 #include <sound/core.h>
 #include <sound/pcm.h>
 #include <sound/pcm_params.h>
@@ -45,6 +46,8 @@ struct imx_priv {
 	int sysclk;         /*mclk from the outside*/
 	int codec_sysclk;
 	int dai_hifi;
+	int hp_status;
+	int hp_irq;
 	struct platform_device *pdev;
 	struct wm8994 *wm8958;
 };
@@ -141,7 +144,7 @@ static int imx_hifi_hw_params(struct snd_pcm_substream *substream,
 static const struct snd_soc_dapm_widget imx_dapm_widgets[] = {
 	SND_SOC_DAPM_MIC("Headset Mic", NULL),
 	SND_SOC_DAPM_MIC("Main Mic", NULL),
-	SND_SOC_DAPM_HP("Headset Phone", NULL),
+	SND_SOC_DAPM_HP("Headphone Jack", NULL),
 	SND_SOC_DAPM_SPK("Ext Spk", NULL),
 };
 
@@ -159,8 +162,8 @@ static const struct snd_soc_dapm_route audio_map[] = {
 
 	/* ----output------------------- */
 	/* HP_OUT --> Headphone Jack */
-	{"Headset Phone", NULL, "HPOUT1L"},
-	{"Headset Phone", NULL, "HPOUT1R"},
+	{"Headphone Jack", NULL, "HPOUT1L"},
+	{"Headphone Jack", NULL, "HPOUT1R"},
 
 	/* LINE_OUT --> Ext Speaker */
 	{"Ext Spk", NULL, "SPKOUTLP"},
@@ -170,10 +173,75 @@ static const struct snd_soc_dapm_route audio_map[] = {
 
 };
 
+static void headphone_detect_handler(struct work_struct *wor)
+{
+
+	struct imx_priv *priv = &card_priv;
+	struct platform_device *pdev = priv->pdev;
+	struct mxc_audio_platform_data *plat = pdev->dev.platform_data;
+	char *envp[3];
+	char *buf;
+
+	/*sysfs_notify(&pdev->dev.kobj, NULL, "headphone");*/
+	priv->hp_status = gpio_get_value(plat->hp_gpio);
+
+	/* setup a message for userspace headphone in */
+	buf = kmalloc(32, GFP_ATOMIC);
+	if (!buf) {
+		pr_err("%s kmalloc failed\n", __func__);
+		return;
+	}
+
+	if (priv->hp_status == 0)
+		snprintf(buf, 32, "STATE=%d", 2);
+	else
+		snprintf(buf, 32, "STATE=%d", 0);
+
+	envp[0] = "NAME=headphone";
+	envp[1] = buf;
+	envp[2] = NULL;
+	kobject_uevent_env(&pdev->dev.kobj, KOBJ_CHANGE, envp);
+	kfree(buf);
+
+	enable_irq(priv->hp_irq);
+
+	return;
+}
+
+static DECLARE_DELAYED_WORK(hp_event, headphone_detect_handler);
+
+static irqreturn_t imx_headphone_detect_handler(int irq, void *data)
+{
+	disable_irq_nosync(irq);
+	schedule_delayed_work(&hp_event, msecs_to_jiffies(200));
+	return IRQ_HANDLED;
+}
+
+static ssize_t show_headphone(struct device_driver *dev, char *buf)
+{
+	struct imx_priv *priv = &card_priv;
+	struct platform_device *pdev = priv->pdev;
+	struct mxc_audio_platform_data *plat = pdev->dev.platform_data;
+
+	/* determine whether hp is plugged in */
+	priv->hp_status = gpio_get_value(plat->hp_gpio);
+
+	if (priv->hp_status)
+		strcpy(buf, "speaker\n");
+	else
+		strcpy(buf, "headphone\n");
+
+	/*pr_info("show_headphone hp_status = %d \r",priv->hp_status);*/
+
+	return strlen(buf);
+}
+
+static DRIVER_ATTR(headphone, S_IRUGO | S_IWUSR, show_headphone, NULL);
+
 static int imx_wm8958_init(struct snd_soc_pcm_runtime *rtd)
 {
 	struct snd_soc_codec *codec = rtd->codec;
-	int ret;
+	int ret, i;
 
 /* Add imx specific widgets */
 	snd_soc_dapm_new_controls(&codec->dapm, imx_dapm_widgets,
@@ -182,12 +250,11 @@ static int imx_wm8958_init(struct snd_soc_pcm_runtime *rtd)
 	/* Set up imx specific audio path audio_map */
 	snd_soc_dapm_add_routes(&codec->dapm, audio_map, ARRAY_SIZE(audio_map));
 
-	snd_soc_dapm_enable_pin(&codec->dapm, "Headset Phone");
-
 	snd_soc_dapm_sync(&codec->dapm);
 
+/*headphone detection conflict with the headphone jack*/
+/*
 	if (hs_jack_gpios[0].gpio != -1) {
-		/* Jack detection API stuff */
 		ret = snd_soc_jack_new(codec, "Headphone Jack",
 					   SND_JACK_HEADPHONE, &hs_jack);
 		if (ret)
@@ -205,7 +272,7 @@ static int imx_wm8958_init(struct snd_soc_pcm_runtime *rtd)
 		if (ret)
 			printk(KERN_WARNING "failed to call snd_soc_jack_add_gpios\n");
 	}
-
+*/
 	return 0;
 }
 
@@ -268,6 +335,7 @@ static int __devinit imx_wm8958_probe(struct platform_device *pdev)
 
 	priv->pdev = pdev;
 	priv->wm8958 = wm8958;
+	priv->hp_irq = gpio_to_irq(plat->hp_gpio);
 
 	imx_audmux_config(plat->src_port, plat->ext_port);
 
@@ -277,8 +345,22 @@ static int __devinit imx_wm8958_probe(struct platform_device *pdev)
 	}
 
 	priv->sysclk = plat->sysclk;
+
+	ret = driver_create_file(pdev->dev.driver, &driver_attr_headphone);
+	if (ret < 0) {
+		ret = -EINVAL;
+		return ret;
+	}
+
 	hs_jack_gpios[0].gpio = plat->hp_gpio;
 	hs_jack_gpios[0].invert = plat->hp_active_low;
+
+	if (plat->hp_gpio != -1) {
+		ret = request_irq(priv->hp_irq,
+				  imx_headphone_detect_handler,
+				  IRQ_TYPE_EDGE_BOTH, pdev->name, priv);
+	}
+
 
 	return ret;
 }
