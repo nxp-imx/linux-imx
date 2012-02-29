@@ -34,6 +34,7 @@
 #include <linux/io.h>
 #include <linux/kthread.h>
 #include <linux/vmalloc.h>
+#include <linux/cpumask.h>
 #include <mach/ipu-v3.h>
 #include <asm/outercache.h>
 #include <asm/cacheflush.h>
@@ -42,18 +43,98 @@
 #include "ipu_regs.h"
 #include "ipu_param_mem.h"
 
-#undef TIME_CALC
+#define CHECK_RETCODE(cont, str, err, label, ret)			\
+do {									\
+	if (cont) {							\
+		dev_err(t->dev, "ERR:[0x%p]-no:0x%x "#str" ret:%d,"	\
+				"line:%d\n", t, t->task_no, ret, __LINE__);\
+		if (ret != -EACCES) {					\
+			t->state = err;					\
+			goto label;					\
+		}							\
+	}								\
+} while (0)
+
+#define CHECK_RETCODE_CONT(cont, str, err, ret)				\
+do {									\
+	if (cont) {							\
+		dev_err(t->dev, "ERR:[0x%p]-no:0x%x"#str" ret:%d,"	\
+				"line:%d\n", t, t->task_no, ret, __LINE__);\
+		if (ret != -EACCES) {					\
+			if (t->state == STATE_OK)			\
+				t->state = err;				\
+		}							\
+	}								\
+} while (0)
+
+#undef DBG_IPU_PERF
+#ifdef DBG_IPU_PERF
+#define CHECK_PERF(ts)							\
+do {									\
+	getnstimeofday(ts);						\
+} while (0)
+
+#define DECLARE_PERF_VAR						\
+	struct timespec ts_queue;					\
+	struct timespec ts_dotask;					\
+	struct timespec ts_waitirq;					\
+	struct timespec ts_sche;					\
+	struct timespec ts_rel;						\
+	struct timespec ts_frame
+
+#define PRINT_TASK_STATISTICS						\
+do {									\
+	ts_queue = timespec_sub(tsk->ts_dotask, tsk->ts_queue);		\
+	ts_dotask = timespec_sub(tsk->ts_waitirq, tsk->ts_dotask);	\
+	ts_waitirq = timespec_sub(tsk->ts_inirq, tsk->ts_waitirq);	\
+	ts_sche = timespec_sub(tsk->ts_wakeup, tsk->ts_inirq);		\
+	ts_rel = timespec_sub(tsk->ts_rel, tsk->ts_wakeup);		\
+	ts_frame = timespec_sub(tsk->ts_rel, tsk->ts_queue);		\
+	dev_dbg(tsk->dev, "[0x%p] no-0x%x, ts_q:%ldus, ts_do:%ldus,"	\
+		"ts_waitirq:%ldus,ts_sche:%ldus, ts_rel:%ldus,"		\
+		"ts_frame: %ldus\n", tsk, tsk->task_no,			\
+	ts_queue.tv_nsec / NSEC_PER_USEC + ts_queue.tv_sec * USEC_PER_SEC,\
+	ts_dotask.tv_nsec / NSEC_PER_USEC + ts_dotask.tv_sec * USEC_PER_SEC,\
+	ts_waitirq.tv_nsec / NSEC_PER_USEC + ts_waitirq.tv_sec * USEC_PER_SEC,\
+	ts_sche.tv_nsec / NSEC_PER_USEC + ts_sche.tv_sec * USEC_PER_SEC,\
+	ts_rel.tv_nsec / NSEC_PER_USEC + ts_rel.tv_sec * USEC_PER_SEC,\
+	ts_frame.tv_nsec / NSEC_PER_USEC + ts_frame.tv_sec * USEC_PER_SEC); \
+	if ((ts_frame.tv_nsec/NSEC_PER_USEC + ts_frame.tv_sec*USEC_PER_SEC) > \
+		80000)	\
+		dev_dbg(tsk->dev, "ts_frame larger than 80ms [0x%p] no-0x%x.\n"\
+				, tsk, tsk->task_no);	\
+} while (0)
+#else
+#define CHECK_PERF(ts)
+#define DECLARE_PERF_VAR
+#define PRINT_TASK_STATISTICS
+#endif
+
+#define	IPU_PP_CH_VF	(IPU_TASK_ID_VF - 1)
+#define	IPU_PP_CH_PP	(IPU_TASK_ID_PP - 1)
+#define MAX_PP_CH	(IPU_TASK_ID_MAX - 1)
 
 /* Strucutures and variables for exporting MXC IPU as device*/
 typedef enum {
 	STATE_OK = 0,
+	STATE_QUEUE,
+	STATE_IN_PROGRESS,
+	STATE_ERR,
+	STATE_TIMEOUT,
+	STATE_RES_TIMEOUT,
 	STATE_NO_IPU,
 	STATE_NO_IRQ,
+	STATE_IPU_BUSY,
 	STATE_IRQ_FAIL,
 	STATE_IRQ_TIMEOUT,
+	STATE_ENABLE_CHAN_FAIL,
+	STATE_DISABLE_CHAN_FAIL,
+	STATE_SEL_BUF_FAIL,
 	STATE_INIT_CHAN_FAIL,
 	STATE_LINK_CHAN_FAIL,
+	STATE_UNLINK_CHAN_FAIL,
 	STATE_INIT_CHAN_BUF_FAIL,
+	STATE_SYS_NO_MEM,
 } ipu_state_t;
 
 struct ipu_state_msg {
@@ -61,13 +142,24 @@ struct ipu_state_msg {
 	char *msg;
 } state_msg[] = {
 	{STATE_OK, "ok"},
+	{STATE_QUEUE, "split queue"},
+	{STATE_IN_PROGRESS, "split in progress"},
+	{STATE_ERR, "error"},
+	{STATE_TIMEOUT, "split task timeout"},
+	{STATE_RES_TIMEOUT, "wait resource timeout"},
 	{STATE_NO_IPU, "no ipu found"},
 	{STATE_NO_IRQ, "no irq found for task"},
+	{STATE_IPU_BUSY, "ipu busy"},
 	{STATE_IRQ_FAIL, "request irq failed"},
 	{STATE_IRQ_TIMEOUT, "wait for irq timeout"},
+	{STATE_ENABLE_CHAN_FAIL, "ipu enable channel fail"},
+	{STATE_DISABLE_CHAN_FAIL, "ipu disable channel fail"},
+	{STATE_SEL_BUF_FAIL, "ipu select buf fail"},
 	{STATE_INIT_CHAN_FAIL, "ipu init channel fail"},
 	{STATE_LINK_CHAN_FAIL, "ipu link channel fail"},
+	{STATE_UNLINK_CHAN_FAIL, "ipu unlink channel fail"},
 	{STATE_INIT_CHAN_BUF_FAIL, "ipu init channel buffer fail"},
+	{STATE_SYS_NO_MEM, "sys no mem: -ENOMEM"},
 };
 
 struct stripe_setting {
@@ -138,6 +230,7 @@ struct task_set {
 #define RIGHT_STRIPE	0x2
 #define UP_STRIPE	0x4
 #define DOWN_STRIPE	0x8
+#define SPLIT_MASK	0xF
 	u8 split_mode;
 	struct stripe_setting sp_setting;
 };
@@ -145,11 +238,7 @@ struct task_set {
 struct ipu_split_task {
 	struct ipu_task task;
 	struct ipu_task_entry *parent_task;
-	struct task_struct *thread;
-	volatile bool could_finish;
-	wait_queue_head_t waitq;
-	int ret;
-
+	struct ipu_task_entry *child_task;
 	u32 task_no;
 };
 
@@ -159,41 +248,113 @@ struct ipu_task_entry {
 
 	bool overlay_en;
 	struct ipu_overlay overlay;
-
-	u8	priority;
-	u8	task_id;
 #define DEF_TIMEOUT_MS	1000
+#define DEF_DELAY_MS 20
 	int	timeout;
+	int	irq;
+
+	u8	task_id;
+	u8	ipu_id;
+	u8	task_in_list;
+	u8	split_done;
+	struct mutex split_lock;
+	wait_queue_head_t split_waitq;
 
 	struct list_head node;
+	struct list_head split_list;
+	struct ipu_soc *ipu;
 	struct device *dev;
 	struct task_set set;
-	struct completion comp;
+	wait_queue_head_t task_waitq;
+	struct completion irq_comp;
+	struct kref refcount;
 	ipu_state_t state;
-
 	u32 task_no;
+	atomic_t done;
+	atomic_t res_free;
+	atomic_t res_get;
+
+	struct ipu_task_entry *parent;
+	char *vditmpbuf[2];
+	bool buf1filled;
+	bool buf0filled;
+	u32 old_save_lines;
+	u32 old_size;
+
+#ifdef DBG_IPU_PERF
+	struct timespec ts_queue;
+	struct timespec ts_dotask;
+	struct timespec ts_waitirq;
+	struct timespec ts_inirq;
+	struct timespec ts_wakeup;
+	struct timespec ts_rel;
+#endif
 };
+
+struct ipu_channel_tabel {
+	struct mutex	lock;
+	u8		used[MXC_IPU_MAX_NUM][MAX_PP_CH];
+};
+
+struct ipu_thread_data {
+	struct ipu_soc *ipu;
+	u32	id;
+	u32	is_vdoa;
+};
+
 struct ipu_alloc_list {
 	struct list_head list;
 	dma_addr_t phy_addr;
 	void *cpu_addr;
 	u32 size;
 };
-LIST_HEAD(ipu_alloc_list);
 
+static LIST_HEAD(ipu_alloc_list);
+static DEFINE_MUTEX(ipu_alloc_lock);
+static struct ipu_channel_tabel	ipu_ch_tbl;
+static LIST_HEAD(ipu_task_list);
+static DEFINE_SPINLOCK(ipu_task_list_lock);
+static DECLARE_WAIT_QUEUE_HEAD(thread_waitq);
+static DECLARE_WAIT_QUEUE_HEAD(res_waitq);
+static atomic_t req_cnt;
 static int major;
-static u32 frame_no;
+static int thread_id;
+static atomic_t frame_no;
 static struct class *ipu_class;
 static struct device *ipu_dev;
-static char *vditmpbuf[2];
-static bool buf1filled, buf0filled;
-static u32 old_save_lines, old_size;
-int ipu_queue_sp_task(struct ipu_split_task *sp_task);
+static int debug;
+module_param(debug, int, 0600);
+#ifdef DBG_IPU_PERF
+static struct timespec ts_frame_max;
+static u32 ts_frame_avg;
+static atomic_t frame_cnt;
+#endif
 
 static bool deinterlace_3_field(struct ipu_task_entry *t)
 {
 	return ((t->set.mode & VDI_MODE) &&
 		(t->input.deinterlace.motion != HIGH_MOTION));
+}
+
+static bool only_ic(u8 mode)
+{
+	return ((mode == IC_MODE) || (mode == VDI_MODE));
+}
+
+static bool only_rot(u8 mode)
+{
+	return (mode == ROT_MODE);
+}
+
+static bool ic_and_rot(u8 mode)
+{
+	return ((mode == (IC_MODE | ROT_MODE)) ||
+		 (mode == (VDI_MODE | ROT_MODE)));
+}
+
+static bool need_split(struct ipu_task_entry *t)
+{
+	return ((t->set.split_mode != NO_SPLIT) || (t->task_no & SPLIT_MASK));
 }
 
 unsigned int fmt_to_bpp(unsigned int pixelformat)
@@ -305,97 +466,10 @@ static int soc_max_out_height(void)
 	return 1024;
 }
 
-static int list_size(struct list_head *head)
-{
-	struct list_head *p, *n;
-	int size = 0;
-
-	list_for_each_safe(p, n, head)
-		size++;
-
-	return size;
-}
-
-static int get_task_size(struct ipu_soc *ipu, int id)
-{
-	struct list_head *task_list;
-
-	if (id == IPU_TASK_ID_VF)
-		task_list = &ipu->task_list[0];
-	else if (id == IPU_TASK_ID_PP)
-		task_list = &ipu->task_list[1];
-	else {
-		printk(KERN_ERR "query error task id\n");
-		return -EINVAL;
-	}
-
-	return list_size(task_list);
-}
-
-static struct ipu_soc *most_free_ipu_task(struct ipu_task_entry *t)
-{
-	unsigned int task_num[2][2] = {
-		{0xffffffff, 0xffffffff},
-		{0xffffffff, 0xffffffff} };
-	struct ipu_soc *ipu;
-	int ipu_idx, task_id;
-	int i;
-
-	/* decide task_id */
-	if (t->task_id >= IPU_TASK_ID_MAX)
-		t->task_id %= IPU_TASK_ID_MAX;
-	/* must use task_id VF for VDI task*/
-	if ((t->set.mode & VDI_MODE) &&
-		(t->task_id != IPU_TASK_ID_VF))
-		t->task_id = IPU_TASK_ID_VF;
-
-	for (i = 0; i < MXC_IPU_MAX_NUM; i++) {
-		ipu = ipu_get_soc(i);
-		if (!IS_ERR(ipu)) {
-			task_num[i][0] = get_task_size(ipu, IPU_TASK_ID_VF);
-			task_num[i][1] = get_task_size(ipu, IPU_TASK_ID_PP);
-		}
-	}
-
-	task_id = t->task_id;
-	if (t->task_id == IPU_TASK_ID_VF) {
-		if (task_num[0][0] < task_num[1][0])
-			ipu_idx = 0;
-		else
-			ipu_idx = 1;
-	} else if (t->task_id == IPU_TASK_ID_PP) {
-		if (task_num[0][1] < task_num[1][1])
-			ipu_idx = 0;
-		else
-			ipu_idx = 1;
-	} else {
-		unsigned int min;
-		ipu_idx = 0;
-		task_id = IPU_TASK_ID_VF;
-		min = task_num[0][0];
-		if (task_num[0][1] < min) {
-			min = task_num[0][1];
-			task_id = IPU_TASK_ID_PP;
-		}
-		if (task_num[1][0] < min) {
-			min = task_num[1][0];
-			ipu_idx = 1;
-			task_id = IPU_TASK_ID_VF;
-		}
-		if (task_num[1][1] < min) {
-			ipu_idx = 1;
-			task_id = IPU_TASK_ID_PP;
-		}
-	}
-
-	t->task_id = task_id;
-	ipu = ipu_get_soc(ipu_idx);
-
-	return ipu;
-}
-
 static void dump_task_info(struct ipu_task_entry *t)
 {
+	if (!debug)
+		return;
 	dev_dbg(t->dev, "[0x%p]input:\n", (void *)t);
 	dev_dbg(t->dev, "[0x%p]\tformat = 0x%x\n", (void *)t, t->input.format);
 	dev_dbg(t->dev, "[0x%p]\twidth = %d\n", (void *)t, t->input.width);
@@ -698,6 +772,7 @@ static int check_task(struct ipu_task_entry *t)
 {
 	int tmp;
 	int ret = IPU_CHECK_OK;
+	int timeout;
 
 	/* check input */
 	ret = set_crop(&t->input.crop, t->input.width, t->input.height);
@@ -809,6 +884,14 @@ static int check_task(struct ipu_task_entry *t)
 		if (t->output.crop.h > soc_max_out_height())
 			t->set.split_mode |= UD_SPLIT;
 		if (t->set.split_mode) {
+			if ((t->set.split_mode == RL_SPLIT) ||
+				 (t->set.split_mode == UD_SPLIT))
+				timeout = DEF_TIMEOUT_MS * 2 + DEF_DELAY_MS;
+			else
+				timeout = DEF_TIMEOUT_MS * 4 + DEF_DELAY_MS;
+			if (t->timeout < timeout)
+				t->timeout = timeout;
+
 			ret = update_split_setting(t);
 			if (ret > IPU_CHECK_ERR_MIN)
 				goto done;
@@ -836,10 +919,12 @@ static int check_task(struct ipu_task_entry *t)
 
 done:
 	/* dump msg */
-	if (ret > IPU_CHECK_ERR_MIN)
-		dump_check_err(t->dev, ret);
-	else if (ret != IPU_CHECK_OK)
-		dump_check_warn(t->dev, ret);
+	if (debug) {
+		if (ret > IPU_CHECK_ERR_MIN)
+			dump_check_err(t->dev, ret);
+		else if (ret != IPU_CHECK_OK)
+			dump_check_warn(t->dev, ret);
+	}
 
 	return ret;
 }
@@ -852,101 +937,252 @@ static int prepare_task(struct ipu_task_entry *t)
 	if (ret > IPU_CHECK_ERR_MIN)
 		return -EINVAL;
 
+	if (t->set.mode & VDI_MODE) {
+		if (t->task_id != IPU_TASK_ID_VF)
+			t->task_id = IPU_TASK_ID_VF;
+		t->set.task = VDI_VF;
+		if (t->set.mode & ROT_MODE)
+			t->set.task |= ROT_VF;
+	}
+
 	dump_task_info(t);
 
 	return ret;
 }
 
-/* should call from a process context */
-static int queue_task(struct ipu_task_entry *t)
+static uint32_t ipu_vf_pp_is_busy(struct ipu_soc *ipu, bool is_vf)
+{
+	uint32_t	status;
+	uint32_t	status_vf;
+	uint32_t	status_rot;
+
+	if (is_vf) {
+		status = ipu_channel_status(ipu, MEM_VDI_PRP_VF_MEM);
+		status_vf = ipu_channel_status(ipu, MEM_PRP_VF_MEM);
+		status_rot = ipu_channel_status(ipu, MEM_ROT_VF_MEM);
+		return status || status_vf || status_rot;
+	} else {
+		status = ipu_channel_status(ipu, MEM_PP_MEM);
+		status_rot = ipu_channel_status(ipu, MEM_ROT_PP_MEM);
+		return status || status_rot;
+	}
+}
+
+static void put_ipu_res(struct ipu_task_entry *tsk)
+{
+	int ret;
+	struct ipu_channel_tabel	*tbl = &ipu_ch_tbl;
+
+	if (!tsk)
+		BUG();
+	mutex_lock(&tbl->lock);
+	if (tsk) {
+		tbl->used[tsk->ipu_id][tsk->task_id - 1] = 0;
+		ret = atomic_inc_return(&tsk->res_free);
+		if (ret == 2)
+			BUG();
+	}
+	mutex_unlock(&tbl->lock);
+}
+
+static int get_ipu_res(struct ipu_task_entry *t)
+{
+	int		i;
+	struct ipu_soc	*ipu;
+	u8		*used;
+	uint32_t	found = 0;
+	struct ipu_channel_tabel	*tbl = &ipu_ch_tbl;
+
+	mutex_lock(&tbl->lock);
+	for (i = 0; i < MXC_IPU_MAX_NUM; i++) {
+		ipu = ipu_get_soc(i);
+		if (IS_ERR(ipu))
+			BUG();
+
+		used = &tbl->used[i][IPU_PP_CH_VF];
+		if (t->set.mode & VDI_MODE) {
+			if (0 == *used) {
+				*used = 1;
+				found = 1;
+				break;
+			}
+		} else if ((t->set.mode & IC_MODE) || only_rot(t->set.mode)) {
+			if (0 == *used) {
+				t->task_id = IPU_TASK_ID_VF;
+				if (t->set.mode & IC_MODE)
+					t->set.task |= IC_VF;
+				if (t->set.mode & ROT_MODE)
+					t->set.task |= ROT_VF;
+				*used = 1;
+				found = 1;
+				break;
+			}
+		} else
+			BUG();
+	}
+	if (found)
+		goto next;
+
+	for (i = 0; i < MXC_IPU_MAX_NUM; i++) {
+		ipu = ipu_get_soc(i);
+		if (IS_ERR(ipu))
+			BUG();
+
+		used = &tbl->used[i][IPU_PP_CH_PP];
+		if ((t->set.mode & IC_MODE) || only_rot(t->set.mode)) {
+			if (0 == *used) {
+				t->task_id = IPU_TASK_ID_PP;
+				if (t->set.mode & IC_MODE)
+					t->set.task |= IC_PP;
+				if (t->set.mode & ROT_MODE)
+					t->set.task |= ROT_PP;
+				*used = 1;
+				found = 1;
+				break;
+			}
+		}
+	}
+
+next:
+	if (found) {
+		t->ipu = ipu;
+		t->ipu_id = i;
+		t->dev = ipu->dev;
+		if (atomic_inc_return(&t->res_get) == 2)
+			BUG();
+	}
+	mutex_unlock(&tbl->lock);
+
+	return found;
+}
+
+static void put_vdoa_ipu_res(struct ipu_task_entry *tsk)
+{
+	put_ipu_res(tsk);
+}
+
+static int get_vdoa_ipu_res(struct ipu_task_entry *t)
+{
+	int		ret;
+	uint32_t	found = 0;
+
+	found = get_ipu_res(t);
+	if (!found) {
+		t->ipu_id = -1;
+		t->ipu = NULL;
+		/* blocking to get resource */
+		ret = atomic_inc_return(&req_cnt);
+		dev_dbg(t->dev,
+			"wait_res:no:0x%x,req_cnt:%d\n", t->task_no, ret);
+		ret = wait_event_timeout(res_waitq, get_ipu_res(t),
+				 msecs_to_jiffies(t->timeout - DEF_DELAY_MS));
+		if (ret == 0) {
+			dev_err(t->dev, "ERR[0x%p,no-0x%x] wait_res timeout:%dms!\n",
+					 t, t->task_no, t->timeout - DEF_DELAY_MS);
+			ret = -ETIMEDOUT;
+			t->state = STATE_RES_TIMEOUT;
+			goto out;
+		} else {
+			if (!t->ipu)
+				BUG();
+			ret = atomic_read(&req_cnt);
+			if (ret > 0)
+				ret = atomic_dec_return(&req_cnt);
+			else
+				BUG();
+			dev_dbg(t->dev, "no-0x%x,[0x%p],req_cnt:%d, got_res!\n",
+						t->task_no, t, ret);
+			found = 1;
+		}
+	}
+
+out:
+	return found;
+}
+
+static struct ipu_task_entry *create_task_entry(struct ipu_task *task)
+{
+	struct ipu_task_entry *tsk;
+
+	tsk = kzalloc(sizeof(struct ipu_task_entry), GFP_KERNEL);
+	if (!tsk)
+		return ERR_PTR(-ENOMEM);
+
+	kref_init(&tsk->refcount);
+	tsk->state = -EINVAL;
+	tsk->ipu_id = -1;
+	tsk->dev = ipu_dev;
+	tsk->input = task->input;
+	tsk->output = task->output;
+	tsk->overlay_en = task->overlay_en;
+	if (tsk->overlay_en)
+		tsk->overlay = task->overlay;
+	if (tsk->timeout && (tsk->timeout > DEF_TIMEOUT_MS))
+		tsk->timeout = task->timeout;
+	else
+		tsk->timeout = DEF_TIMEOUT_MS;
+
+	return tsk;
+}
+
+static void task_mem_free(struct kref *ref)
+{
+	struct ipu_task_entry *tsk =
+			container_of(ref, struct ipu_task_entry, refcount);
+
+	memset(tsk, 0, sizeof(*tsk));
+	kfree(tsk);
+}
+
+int ipu_queue_sp_task(struct ipu_split_task *sp_task)
 {
 	int ret = 0;
-	struct ipu_soc *ipu;
-	struct list_head *task_list = NULL;
-	struct mutex *task_lock = NULL;
-	wait_queue_head_t *waitq = NULL;
+	struct ipu_task_entry *tsk;
 
-	ipu = most_free_ipu_task(t);
-	t->dev = ipu->dev;
+	tsk = create_task_entry(&sp_task->task);
+	if (IS_ERR(tsk))
+		return PTR_ERR(tsk);
 
-	dev_dbg(t->dev, "[0x%p]Queue task: id %d\n", (void *)t, t->task_id);
+	sp_task->child_task = tsk;
+	tsk->task_no = sp_task->task_no;
 
-	init_completion(&t->comp);
+	ret = prepare_task(tsk);
+	if (ret < 0)
+		goto err;
 
-	t->set.task = 0;
-	switch (t->task_id) {
-	case IPU_TASK_ID_VF:
-		task_list = &ipu->task_list[0];
-		task_lock = &ipu->task_lock[0];
-		waitq = &ipu->waitq[0];
-		if (t->set.mode & IC_MODE)
-			t->set.task |= IC_VF;
-		else if (t->set.mode & VDI_MODE)
-			t->set.task |= VDI_VF;
-		if (t->set.mode & ROT_MODE)
-			t->set.task |= ROT_VF;
-		break;
-	case IPU_TASK_ID_PP:
-		task_list = &ipu->task_list[1];
-		task_lock = &ipu->task_lock[1];
-		waitq = &ipu->waitq[1];
-		if (t->set.mode & IC_MODE)
-			t->set.task |= IC_PP;
-		if (t->set.mode & ROT_MODE)
-			t->set.task |= ROT_PP;
-		break;
-	default:
-		dev_err(t->dev, "[0x%p]should never come here\n", (void *)t);
-	}
+	tsk->parent = sp_task->parent_task;
+	tsk->set.sp_setting = sp_task->parent_task->set.sp_setting;
 
-	dev_dbg(t->dev, "[0x%p]choose task_id[%d] mode[0x%x]\n",
-			(void *)t, t->task_id, t->set.task);
-	dev_dbg(t->dev, "[0x%p]\tIPU_TASK_ID_VF = %d\n",
-				(void *)t, IPU_TASK_ID_VF);
-	dev_dbg(t->dev, "[0x%p]\tIPU_TASK_ID_PP = %d\n",
-				(void *)t, IPU_TASK_ID_PP);
-	dev_dbg(t->dev, "[0x%p]\tIC_VF = 0x%x\n", (void *)t, IC_VF);
-	dev_dbg(t->dev, "[0x%p]\tIC_PP = 0x%x\n", (void *)t, IC_PP);
-	dev_dbg(t->dev, "[0x%p]\tROT_VF = 0x%x\n", (void *)t, ROT_VF);
-	dev_dbg(t->dev, "[0x%p]\tROT_PP = 0x%x\n", (void *)t, ROT_PP);
-	dev_dbg(t->dev, "[0x%p]\tVDI_VF = 0x%x\n", (void *)t, VDI_VF);
-
-	/* add and wait task */
-	mutex_lock(task_lock);
-	list_add_tail(&t->node, task_list);
-	mutex_unlock(task_lock);
-
-	wake_up_interruptible(waitq);
-
-	wait_for_completion(&t->comp);
-
-	dev_dbg(t->dev, "[0x%p]Queue task finished\n", (void *)t);
-
-	if (t->state != STATE_OK) {
-		dev_err(t->dev, "[0x%p]state %d: %s\n",
-			(void *)t, t->state, state_msg[t->state].msg);
-		ret = -ECANCELED;
-	}
-
+	list_add(&tsk->node, &tsk->parent->split_list);
+	dev_dbg(tsk->dev, "[0x%p] sp_tsk Q list,no-0x%x\n", tsk, tsk->task_no);
+	tsk->state = STATE_QUEUE;
+	CHECK_PERF(&tsk->ts_queue);
+err:
 	return ret;
 }
 
-static bool need_split(struct ipu_task_entry *t)
+static inline int sp_task_check_done(struct ipu_split_task *sp_task,
+			struct ipu_task_entry *parent, int num, int *idx)
 {
-	return (t->set.split_mode != NO_SPLIT);
-}
+	int i;
+	int ret = 0;
+	struct ipu_task_entry *tsk;
+	struct mutex *lock = &parent->split_lock;
 
-static int split_task_thread(void *data)
-{
-	struct ipu_split_task *t = data;
+	*idx = -EINVAL;
+	mutex_lock(lock);
+	for (i = 0; i < num; i++) {
+		tsk = sp_task[i].child_task;
+		if (tsk && tsk->split_done) {
+			*idx = i;
+			ret = 1;
+			goto out;
+		}
+	}
 
-	t->ret = ipu_queue_sp_task(t);
-
-	t->could_finish = true;
-
-	wake_up_interruptible(&t->waitq);
-
-	do_exit(0);
+out:
+	mutex_unlock(lock);
+	return ret;
 }
 
 static int create_split_task(
@@ -955,6 +1191,7 @@ static int create_split_task(
 {
 	struct ipu_task *task = &(sp_task->task);
 	struct ipu_task_entry *t = sp_task->parent_task;
+	int ret;
 
 	sp_task->task_no |= stripe;
 
@@ -963,9 +1200,12 @@ static int create_split_task(
 	task->overlay_en = t->overlay_en;
 	if (task->overlay_en)
 		task->overlay = t->overlay;
-	task->priority = t->priority;
 	task->task_id = t->task_id;
-	task->timeout = t->timeout;
+	if ((t->set.split_mode == RL_SPLIT) ||
+		 (t->set.split_mode == UD_SPLIT))
+		task->timeout = t->timeout / 2;
+	else
+		task->timeout = t->timeout / 4;
 
 	task->input.crop.w = t->set.sp_setting.iw;
 	task->input.crop.h = t->set.sp_setting.ih;
@@ -1120,205 +1360,97 @@ static int create_split_task(
 					- t->set.sp_setting.o_right_pos - t->set.sp_setting.ow;
 		break;
 	default:
-		dev_err(t->dev, "should not be here\n");
+		dev_err(t->dev, "ERR:should not be here\n");
 		break;
 	}
 
-	/*check split task deinterlace enable*/
-	if (t->input.deinterlace.enable) {
-		sp_task->ret = ipu_queue_sp_task(sp_task);
-	} else {
-		sp_task->thread = kthread_run(split_task_thread, sp_task,
-					"ipu_split_task");
-		if (IS_ERR(sp_task->thread)) {
-			dev_err(t->dev, "split thread can not create\n");
-			return PTR_ERR(sp_task->thread);
-		}
-	}
-
-	return 0;
+	ret = ipu_queue_sp_task(sp_task);
+	if (ret < 0)
+		dev_err(t->dev, "ERR:ipu_queue_sp_task() ret:%d\n", ret);
+	return ret;
 }
 
-static int queue_split_task(struct ipu_task_entry *t)
+static int queue_split_task(struct ipu_task_entry *t,
+				struct ipu_split_task *sp_task, uint32_t size)
 {
-	struct ipu_split_task sp_task[4];
-	int i, ret = 0, size;
+	int err[4];
+	int ret = 0;
+	int i, j;
+	struct ipu_task_entry *tsk = NULL;
+	struct mutex *lock = &t->split_lock;
 
-	dev_dbg(t->dev, "Split task 0x%p\n", (void *)t);
-
-	if ((t->set.split_mode == RL_SPLIT) || (t->set.split_mode == UD_SPLIT))
-		size = 2;
-	else
-		size = 4;
-
-	for (i = 0; i < size; i++) {
-		memset(&sp_task[i], 0, sizeof(struct ipu_split_task));
-		init_waitqueue_head(&(sp_task[i].waitq));
-		sp_task[i].could_finish = false;
-		sp_task[i].parent_task = t;
-		sp_task[i].task_no = t->task_no;
+	dev_dbg(t->dev, "Split task 0x%p, no-0x%x, size:%d\n",
+			 t, t->task_no, size);
+	mutex_init(lock);
+	init_waitqueue_head(&t->split_waitq);
+	INIT_LIST_HEAD(&t->split_list);
+	for (j = 0; j < size; j++) {
+		memset(&sp_task[j], 0, sizeof(*sp_task));
+		sp_task[j].parent_task = t;
+		sp_task[j].task_no = t->task_no;
 	}
 
 	if (t->set.split_mode == RL_SPLIT) {
-		create_split_task(LEFT_STRIPE, &sp_task[0]);
-		create_split_task(RIGHT_STRIPE, &sp_task[1]);
+		i = 0;
+		err[i] = create_split_task(RIGHT_STRIPE, &sp_task[i]);
+		if (err[i] < 0)
+			goto err_start;
+		i = 1;
+		err[i] = create_split_task(LEFT_STRIPE, &sp_task[i]);
 	} else if (t->set.split_mode == UD_SPLIT) {
-		create_split_task(UP_STRIPE, &sp_task[0]);
-		create_split_task(DOWN_STRIPE, &sp_task[1]);
+		i = 0;
+		err[i] = create_split_task(DOWN_STRIPE, &sp_task[i]);
+		if (err[i] < 0)
+			goto err_start;
+		i = 1;
+		err[i] = create_split_task(UP_STRIPE, &sp_task[i]);
 	} else {
-		create_split_task(LEFT_STRIPE | UP_STRIPE, &sp_task[0]);
-		create_split_task(LEFT_STRIPE | DOWN_STRIPE, &sp_task[1]);
-		create_split_task(RIGHT_STRIPE | UP_STRIPE, &sp_task[2]);
-		create_split_task(RIGHT_STRIPE | DOWN_STRIPE, &sp_task[3]);
+		i = 0;
+		err[i] = create_split_task(RIGHT_STRIPE | DOWN_STRIPE, &sp_task[i]);
+		if (err[i] < 0)
+			goto err_start;
+		i = 1;
+		err[i] = create_split_task(LEFT_STRIPE | DOWN_STRIPE, &sp_task[i]);
+		if (err[i] < 0)
+			goto err_start;
+		i = 2;
+		err[i] = create_split_task(RIGHT_STRIPE | UP_STRIPE, &sp_task[i]);
+		if (err[i] < 0)
+			goto err_start;
+		i = 3;
+		err[i] = create_split_task(LEFT_STRIPE | UP_STRIPE, &sp_task[i]);
 	}
 
-	/*check split task deinterlace enable*/
-	if (t->input.deinterlace.enable) {
-		return ret;
-	} else {
-		for (i = 0; i < size; i++) {
-			wait_event_interruptible(sp_task[i].waitq, sp_task[i].could_finish);
-			if (sp_task[i].ret < 0) {
-				ret = sp_task[i].ret;
+err_start:
+	for (j = 0; j < (i + 1); j++) {
+		if (err[j] < 0) {
+			if (sp_task[j].child_task)
 				dev_err(t->dev,
-					"split task %d fail with ret %d\n",
-					i, ret);
-			}
+				 "sp_task[%d],no-0x%x state:%d, Q err:%d.\n",
+				j, sp_task[j].child_task->task_no,
+				sp_task[j].child_task->state, err[j]);
+			goto err_exit;
 		}
-		return ret;
+		dev_dbg(t->dev, "sp_tsk[%d], no-0x%x state:%s, queue ret:%d.\n",
+			j, sp_task[j].child_task->task_no,
+			state_msg[sp_task[j].child_task->state].msg, err[j]);
 	}
-}
-
-static struct ipu_task_entry *create_task_entry(struct ipu_task *task)
-{
-	struct ipu_task_entry *tsk;
-
-	tsk = kzalloc(sizeof(struct ipu_task_entry), GFP_KERNEL);
-	if (!tsk)
-		return ERR_PTR(-ENOMEM);
-
-	tsk->dev = ipu_dev;
-	tsk->input = task->input;
-	tsk->output = task->output;
-	tsk->overlay_en = task->overlay_en;
-	if (tsk->overlay_en)
-		tsk->overlay = task->overlay;
-	tsk->priority = task->priority;
-	tsk->task_id = task->task_id;
-	if (task->timeout && (task->timeout > DEF_TIMEOUT_MS))
-		tsk->timeout = task->timeout;
-	else
-		tsk->timeout = DEF_TIMEOUT_MS;
-
-	return tsk;
-}
-
-int ipu_check_task(struct ipu_task *task)
-{
-	struct ipu_task_entry *tsk;
-	int ret = 0;
-
-	tsk = create_task_entry(task);
-	if (IS_ERR(tsk))
-		return PTR_ERR(tsk);
-
-	ret = check_task(tsk);
-
-	task->input = tsk->input;
-	task->output = tsk->output;
-	task->overlay = tsk->overlay;
-
-	dump_task_info(tsk);
-
-	kfree(tsk);
 
 	return ret;
-}
-EXPORT_SYMBOL_GPL(ipu_check_task);
 
-int ipu_queue_sp_task(struct ipu_split_task *sp_task)
-{
-	struct ipu_task_entry *tsk;
-	int ret;
-
-	tsk = create_task_entry(&sp_task->task);
-	if (IS_ERR(tsk))
-		return PTR_ERR(tsk);
-
-	tsk->task_no = sp_task->task_no;
-
-	ret = prepare_task(tsk);
-	if (ret < 0)
-		goto done;
-
-	tsk->set.sp_setting = sp_task->parent_task->set.sp_setting;
-
-	ret = queue_task(tsk);
-done:
-	kfree(tsk);
+err_exit:
+	for (j = 0; j < (i + 1); j++) {
+		if (err[j] < 0 && !ret)
+			ret = err[j];
+		tsk = sp_task[j].child_task;
+		if (!tsk)
+			continue;
+		kfree(tsk);
+		memset(tsk, 0, sizeof(*tsk));
+	}
+	t->state = STATE_ERR;
 	return ret;
-}
 
-int ipu_queue_task(struct ipu_task *task)
-{
-	struct ipu_task_entry *tsk;
-	int ret;
-	u32 tmp_task_no;
-#ifdef TIME_CALC
-	struct timespec begin;
-	struct timespec end;
-	long time_per_frame;
-
-	getnstimeofday(&begin);
-#endif
-
-	tsk = create_task_entry(task);
-	if (IS_ERR(tsk))
-		return PTR_ERR(tsk);
-
-	ret = prepare_task(tsk);
-	if (ret < 0)
-		goto done;
-
-	/* task_no last for bits for split task type*/
-	tmp_task_no = frame_no++ % 1024;
-	tsk->task_no = tmp_task_no << 4;
-
-	if (need_split(tsk))
-		ret = queue_split_task(tsk);
-	else
-		ret = queue_task(tsk);
-
-#ifdef TIME_CALC
-	getnstimeofday(&end);
-	if (end.tv_sec > begin.tv_sec) {
-		time_per_frame = (end.tv_sec - begin.tv_sec) * NSEC_PER_SEC;
-		time_per_frame += end.tv_nsec;
-	} else
-		time_per_frame = end.tv_nsec;
-	time_per_frame -= begin.tv_nsec;
-	dev_info(tsk->dev, "task take time %ld us\n", time_per_frame/1000);
-#endif
-done:
-	kfree(tsk);
-	return ret;
-}
-EXPORT_SYMBOL_GPL(ipu_queue_task);
-
-static bool only_ic(u8 mode)
-{
-	return ((mode == IC_MODE) || (mode == VDI_MODE));
-}
-
-static bool only_rot(u8 mode)
-{
-	return (mode == ROT_MODE);
-}
-
-static bool ic_and_rot(u8 mode)
-{
-	return ((mode == (IC_MODE | ROT_MODE)) ||
-		 (mode == (VDI_MODE | ROT_MODE)));
 }
 
 static int init_ic(struct ipu_soc *ipu, struct ipu_task_entry *t)
@@ -1657,8 +1789,13 @@ static int get_irq(struct ipu_task_entry *t)
 
 static irqreturn_t task_irq_handler(int irq, void *dev_id)
 {
-	struct completion *comp = dev_id;
-	complete(comp);
+	struct ipu_task_entry *prev_tsk = dev_id;
+
+	CHECK_PERF(&prev_tsk->ts_inirq);
+	complete(&prev_tsk->irq_comp);
+	dev_dbg(prev_tsk->dev, "[0x%p] no-0x%x in-irq!",
+				 prev_tsk, prev_tsk->task_no);
+
 	return IRQ_HANDLED;
 }
 
@@ -1671,17 +1808,20 @@ static void vdi_split_process(struct ipu_soc *ipu, struct ipu_task_entry *t)
 	u32 task_no;
 	u32 i, offset_addr;
 	unsigned char  *base_off;
+	struct ipu_task_entry *parent = t->parent;
 
+	if (!parent)
+		BUG();
 	stripe_mode = t->task_no & 0xf;
 	task_no = t->task_no >> 4;
 
 	base_off = (char *) __va(t->output.paddr);
 	if (base_off == NULL) {
-		dev_err(t->dev, "[0x%p]Falied get vitual address\n", (void *)t);
+		dev_err(t->dev, "ERR[0x%p]Falied get vitual address\n", t);
 		return;
 	}
 
-	vdi_save_lines = (t->output.crop.h - t->set.sp_setting.ud_split_line)/2 ;
+	vdi_save_lines = (t->output.crop.h - t->set.sp_setting.ud_split_line)/2;
 	vdi_size = vdi_save_lines * t->output.crop.w * 2;
 
 	if (vdi_save_lines <= 0) {
@@ -1690,68 +1830,68 @@ static void vdi_split_process(struct ipu_soc *ipu, struct ipu_task_entry *t)
 	}
 
 	/*check vditmpbuf buffer have alloced or buffer size is changed */
-	if ((vdi_save_lines != old_save_lines) || (vdi_size != old_size)) {
-		if (vditmpbuf[0] != NULL)
-			kfree(vditmpbuf[0]);
-		if (vditmpbuf[1] != NULL)
-			kfree(vditmpbuf[1]);
+	if ((vdi_save_lines != parent->old_save_lines) ||
+		(vdi_size != parent->old_size)) {
+		if (parent->vditmpbuf[0] != NULL)
+			kfree(parent->vditmpbuf[0]);
+		if (parent->vditmpbuf[1] != NULL)
+			kfree(parent->vditmpbuf[1]);
 
-		vditmpbuf[0] = (char *)kmalloc(vdi_size, GFP_KERNEL);
-		if (vditmpbuf[0] == NULL) {
+		parent->vditmpbuf[0] = kmalloc(vdi_size, GFP_KERNEL);
+		if (parent->vditmpbuf[0] == NULL) {
 			dev_err(t->dev,
-					"[0x%p]Falied Alloc vditmpbuf[0]\n", (void *)t);
+				"[0x%p]Falied Alloc vditmpbuf[0]\n", (void *)t);
 			return;
 		}
-		memset(vditmpbuf[0], 0, vdi_size);
+		memset(parent->vditmpbuf[0], 0, vdi_size);
 
-		vditmpbuf[1] = (char *)kmalloc(vdi_size, GFP_KERNEL);
-		if (vditmpbuf[1] == NULL) {
+		parent->vditmpbuf[1] = kmalloc(vdi_size, GFP_KERNEL);
+		if (parent->vditmpbuf[1] == NULL) {
 			dev_err(t->dev,
-					"[0x%p]Falied Alloc vditmpbuf[1]\n", (void *)t);
+				"[0x%p]Falied Alloc vditmpbuf[1]\n", (void *)t);
 			return;
 		}
-		memset(vditmpbuf[1], 0, vdi_size);
+		memset(parent->vditmpbuf[1], 0, vdi_size);
 
-		old_save_lines = vdi_save_lines;
-		old_size = vdi_size;
+		parent->old_save_lines = vdi_save_lines;
+		parent->old_size = vdi_size;
 	}
 
 	/* UP stripe or UP&LEFT stripe */
 	if ((stripe_mode == UP_STRIPE) ||
 			(stripe_mode == (UP_STRIPE | LEFT_STRIPE))) {
-		if (!buf0filled) {
-
+		if (!parent->buf0filled) {
 			offset_addr = t->set.o_off +
 				t->set.sp_setting.ud_split_line*t->set.ostride;
 			dmac_flush_range(base_off + offset_addr,
 					base_off + offset_addr + vdi_size);
 			outer_flush_range(t->output.paddr + offset_addr,
-					t->output.paddr + offset_addr + vdi_size);
+				t->output.paddr + offset_addr + vdi_size);
 
 			for (i = 0; i < vdi_save_lines; i++)
-				memcpy(vditmpbuf[0] + i*t->output.crop.w*2,
-						base_off + offset_addr + i*t->set.ostride,
-						t->output.crop.w*2);
-			buf0filled = true;
+				memcpy(parent->vditmpbuf[0] + i*t->output.crop.w*2,
+					base_off + offset_addr +
+					i*t->set.ostride, t->output.crop.w*2);
+			parent->buf0filled = true;
 		} else {
-			offset_addr = t->set.o_off +
-					(t->output.crop.h - vdi_save_lines)*t->set.ostride;
+			offset_addr = t->set.o_off + (t->output.crop.h -
+					vdi_save_lines) * t->set.ostride;
 			for (i = 0; i < vdi_save_lines; i++)
 				memcpy(base_off + offset_addr + i*t->set.ostride,
-						vditmpbuf[0] + i*t->output.crop.w*2,
+						parent->vditmpbuf[0] + i*t->output.crop.w*2,
 						t->output.crop.w*2);
 
 			dmac_flush_range(base_off + offset_addr,
 					base_off + offset_addr + i*t->set.ostride);
 			outer_flush_range(t->output.paddr + offset_addr,
 					t->output.paddr + offset_addr + i*t->set.ostride);
-			buf0filled = false;
+			parent->buf0filled = false;
 		}
 	}
 	/*Down stripe or Down&Left stripe*/
 	else if ((stripe_mode == DOWN_STRIPE) ||
 			(stripe_mode == (DOWN_STRIPE | LEFT_STRIPE))) {
-		if (!buf0filled) {
+		if (!parent->buf0filled) {
 			offset_addr = t->set.o_off + vdi_save_lines*t->set.ostride;
 			dmac_flush_range(base_off + offset_addr,
 					base_off + offset_addr + vdi_size);
@@ -1759,27 +1899,27 @@ static void vdi_split_process(struct ipu_soc *ipu, struct ipu_task_entry *t)
 					t->output.paddr + offset_addr + vdi_size);
 
 			for (i = 0; i < vdi_save_lines; i++)
-				memcpy(vditmpbuf[0] + i*t->output.crop.w*2,
+				memcpy(parent->vditmpbuf[0] + i*t->output.crop.w*2,
 						base_off + offset_addr + i*t->set.ostride,
 						t->output.crop.w*2);
-			buf0filled = true;
+			parent->buf0filled = true;
 		} else {
 			offset_addr = t->set.o_off;
 			for (i = 0; i < vdi_save_lines; i++)
 				memcpy(base_off + offset_addr + i*t->set.ostride,
-						vditmpbuf[0] + i*t->output.crop.w*2,
+						parent->vditmpbuf[0] + i*t->output.crop.w*2,
 						t->output.crop.w*2);
 
 			dmac_flush_range(base_off + offset_addr,
 					base_off + offset_addr + i*t->set.ostride);
 			outer_flush_range(t->output.paddr + offset_addr,
 					t->output.paddr + offset_addr + i*t->set.ostride);
-			buf0filled = false;
+			parent->buf0filled = false;
 		}
 	}
 	/*Up&Right stripe*/
 	else if (stripe_mode == (UP_STRIPE | RIGHT_STRIPE)) {
-		if (!buf1filled) {
+		if (!parent->buf1filled) {
 			offset_addr = t->set.o_off +
 				t->set.sp_setting.ud_split_line*t->set.ostride;
 			dmac_flush_range(base_off + offset_addr,
@@ -1788,28 +1928,28 @@ static void vdi_split_process(struct ipu_soc *ipu, struct ipu_task_entry *t)
 					t->output.paddr + offset_addr + vdi_size);
 
 			for (i = 0; i < vdi_save_lines; i++)
-				memcpy(vditmpbuf[1] + i*t->output.crop.w*2,
+				memcpy(parent->vditmpbuf[1] + i*t->output.crop.w*2,
 						base_off + offset_addr + i*t->set.ostride,
 						t->output.crop.w*2);
-			buf1filled = true;
+			parent->buf1filled = true;
 		} else {
 			offset_addr = t->set.o_off +
 				(t->output.crop.h - vdi_save_lines)*t->set.ostride;
 			for (i = 0; i < vdi_save_lines; i++)
 				memcpy(base_off + offset_addr + i*t->set.ostride,
-						vditmpbuf[1] + i*t->output.crop.w*2,
+						parent->vditmpbuf[1] + i*t->output.crop.w*2,
 						t->output.crop.w*2);
 
 			dmac_flush_range(base_off + offset_addr,
 					base_off + offset_addr + i*t->set.ostride);
 			outer_flush_range(t->output.paddr + offset_addr,
 					t->output.paddr + offset_addr + i*t->set.ostride);
-			buf1filled = false;
+			parent->buf1filled = false;
 		}
 	}
 	/*Down stripe or Down&Right stript*/
 	else if (stripe_mode == (DOWN_STRIPE | RIGHT_STRIPE)) {
-		if (!buf1filled) {
+		if (!parent->buf1filled) {
 			offset_addr = t->set.o_off + vdi_save_lines*t->set.ostride;
 			dmac_flush_range(base_off + offset_addr,
 					base_off + offset_addr + vdi_save_lines*t->set.ostride);
@@ -1817,39 +1957,107 @@ static void vdi_split_process(struct ipu_soc *ipu, struct ipu_task_entry *t)
 					t->output.paddr + offset_addr + vdi_save_lines*t->set.ostride);
 
 			for (i = 0; i < vdi_save_lines; i++)
-				memcpy(vditmpbuf[1] + i*t->output.crop.w*2,
+				memcpy(parent->vditmpbuf[1] + i*t->output.crop.w*2,
 						base_off + offset_addr + i*t->set.ostride,
 						t->output.crop.w*2);
-			buf1filled = true;
+			parent->buf1filled = true;
 		} else {
 			offset_addr = t->set.o_off;
 			for (i = 0; i < vdi_save_lines; i++)
 				memcpy(base_off + offset_addr + i*t->set.ostride,
-						vditmpbuf[1] + i*t->output.crop.w*2,
+						parent->vditmpbuf[1] + i*t->output.crop.w*2,
 						t->output.crop.w*2);
 
 			dmac_flush_range(base_off + offset_addr,
 					base_off + offset_addr + vdi_save_lines*t->set.ostride);
 			outer_flush_range(t->output.paddr + offset_addr,
 					t->output.paddr + offset_addr + vdi_save_lines*t->set.ostride);
-			buf1filled = false;
+			parent->buf1filled = false;
 		}
 	}
 }
 
-static void do_task(struct ipu_soc *ipu, struct ipu_task_entry *t)
+static void do_task_release(struct ipu_task_entry *t, int fail)
 {
-	struct completion comp;
+	int ret;
+	struct ipu_soc *ipu = t->ipu;
+
+	if (t->input.deinterlace.enable && !fail &&
+			(t->task_no & (UP_STRIPE | DOWN_STRIPE)))
+		vdi_split_process(ipu, t);
+
+	ipu_free_irq(ipu, t->irq, t);
+
+	if (only_ic(t->set.mode)) {
+		ret = ipu_disable_channel(ipu, t->set.ic_chan, true);
+		CHECK_RETCODE_CONT(ret < 0, "ipu_disable_ch only_ic",
+				STATE_DISABLE_CHAN_FAIL, ret);
+		if (deinterlace_3_field(t)) {
+			ret = ipu_disable_channel(ipu, t->set.vdi_ic_p_chan,
+							true);
+			CHECK_RETCODE_CONT(ret < 0, "ipu_disable_ch only_ic_p",
+					STATE_DISABLE_CHAN_FAIL, ret);
+			ret = ipu_disable_channel(ipu, t->set.vdi_ic_n_chan,
+							true);
+			CHECK_RETCODE_CONT(ret < 0, "ipu_disable_ch only_ic_n",
+					STATE_DISABLE_CHAN_FAIL, ret);
+		}
+	} else if (only_rot(t->set.mode)) {
+		ret = ipu_disable_channel(ipu, t->set.rot_chan, true);
+		CHECK_RETCODE_CONT(ret < 0, "ipu_disable_ch only_rot",
+				STATE_DISABLE_CHAN_FAIL, ret);
+	} else if (ic_and_rot(t->set.mode)) {
+		ret = ipu_unlink_channels(ipu, t->set.ic_chan, t->set.rot_chan);
+		CHECK_RETCODE_CONT(ret < 0, "ipu_unlink_ch",
+				STATE_UNLINK_CHAN_FAIL, ret);
+		ret = ipu_disable_channel(ipu, t->set.rot_chan, true);
+		CHECK_RETCODE_CONT(ret < 0, "ipu_disable_ch ic_and_rot-rot",
+				STATE_DISABLE_CHAN_FAIL, ret);
+		ret = ipu_disable_channel(ipu, t->set.ic_chan, true);
+		CHECK_RETCODE_CONT(ret < 0, "ipu_disable_ch ic_and_rot-ic",
+				STATE_DISABLE_CHAN_FAIL, ret);
+		if (deinterlace_3_field(t)) {
+			ret = ipu_disable_channel(ipu, t->set.vdi_ic_p_chan,
+							true);
+			CHECK_RETCODE_CONT(ret < 0, "ipu_disable_ch icrot-ic-p",
+					STATE_DISABLE_CHAN_FAIL, ret);
+			ret = ipu_disable_channel(ipu, t->set.vdi_ic_n_chan,
+							true);
+			CHECK_RETCODE_CONT(ret < 0, "ipu_disable_ch icrot-ic-n",
+					STATE_DISABLE_CHAN_FAIL, ret);
+		}
+	}
+
+	if (only_ic(t->set.mode))
+		uninit_ic(ipu, t);
+	else if (only_rot(t->set.mode))
+		uninit_rot(ipu, t);
+	else if (ic_and_rot(t->set.mode)) {
+		uninit_ic(ipu, t);
+		uninit_rot(ipu, t);
+	}
+
+	t->state = STATE_OK;
+	CHECK_PERF(&t->ts_rel);
+	return;
+}
+
+static void do_task(struct ipu_task_entry *t)
+{
 	int r_size;
 	int irq;
 	int ret;
+	uint32_t busy;
+	struct ipu_soc *ipu = t->ipu;
 
+	CHECK_PERF(&t->ts_dotask);
 	if (!ipu) {
 		t->state = STATE_NO_IPU;
 		return;
 	}
 
-	dev_dbg(ipu->dev, "[0x%p]Do task: id %d\n", (void *)t, t->task_id);
+	dev_dbg(ipu->dev, "[0x%p]Do task no:0x%x: id %d\n", (void *)t,
+		 t->task_no, t->task_id);
 	dump_task_info(t);
 
 	if (t->set.task & IC_PP) {
@@ -1875,17 +2083,38 @@ static void do_task(struct ipu_soc *ipu, struct ipu_task_entry *t)
 		dev_dbg(ipu->dev, "[0x%p]rot channel MEM_ROT_VF_MEM\n", (void *)t);
 	}
 
+	if (t->task_id == IPU_TASK_ID_VF)
+		busy = ipu_vf_pp_is_busy(ipu, true);
+	else if (t->task_id == IPU_TASK_ID_PP)
+		busy = ipu_vf_pp_is_busy(ipu, false);
+	else
+		BUG();
+	if (busy) {
+		dev_err(ipu->dev, "ERR[0x%p-no:0x%x]ipu task_id:%d busy!\n",
+				(void *)t, t->task_no, t->task_id);
+		t->state = STATE_IPU_BUSY;
+		BUG();
+		return;
+	}
+
+	irq = get_irq(t);
+	if (irq < 0) {
+		t->state = STATE_NO_IRQ;
+		return;
+	}
+	t->irq = irq;
+
 	/* channel setup */
 	if (only_ic(t->set.mode)) {
 		dev_dbg(t->dev, "[0x%p]only ic mode\n", (void *)t);
 		ret = init_ic(ipu, t);
-		if (ret < 0)
-			goto chan_done;
+		CHECK_RETCODE(ret < 0, "init_ic only_ic",
+				t->state, chan_setup, ret);
 	} else if (only_rot(t->set.mode)) {
 		dev_dbg(t->dev, "[0x%p]only rot mode\n", (void *)t);
 		ret = init_rot(ipu, t);
-		if (ret < 0)
-			goto chan_done;
+		CHECK_RETCODE(ret < 0, "init_rot only_rot",
+				t->state, chan_setup, ret);
 	} else if (ic_and_rot(t->set.mode)) {
 		int rot_idx = (t->task_id == IPU_TASK_ID_VF) ? 0 : 1;
 
@@ -1917,10 +2146,9 @@ static void do_task(struct ipu_soc *ipu, struct ipu_task_entry *t)
 						r_size,
 						&ipu->rot_dma[rot_idx].paddr,
 						GFP_DMA | GFP_KERNEL);
-			if (ipu->rot_dma[rot_idx].vaddr == NULL) {
-				ret = -ENOMEM;
-				goto chan_done;
-			}
+			CHECK_RETCODE(ipu->rot_dma[rot_idx].vaddr == NULL,
+					"ic_and_rot", STATE_SYS_NO_MEM,
+					chan_setup, STATE_SYS_NO_MEM);
 		}
 		t->set.r_paddr = ipu->rot_dma[rot_idx].paddr;
 
@@ -1932,180 +2160,562 @@ static void do_task(struct ipu_soc *ipu, struct ipu_task_entry *t)
 		dev_dbg(t->dev, "[0x%p]\trstride = %d\n", (void *)t, t->set.r_stride);
 
 		ret = init_ic(ipu, t);
-		if (ret < 0)
-			goto chan_done;
+		CHECK_RETCODE(ret < 0, "init_ic ic_and_rot",
+				t->state, chan_setup, ret);
 		ret = init_rot(ipu, t);
-		if (ret < 0)
-			goto chan_done;
+		CHECK_RETCODE(ret < 0, "init_rot ic_and_rot",
+				t->state, chan_setup, ret);
 		ret = ipu_link_channels(ipu, t->set.ic_chan,
 				t->set.rot_chan);
-		if (ret < 0) {
-			t->state = STATE_LINK_CHAN_FAIL;
-			goto chan_done;
-		}
+		CHECK_RETCODE(ret < 0, "ipu_link_ch ic_and_rot",
+				STATE_LINK_CHAN_FAIL, chan_setup, ret);
 	} else {
-		dev_err(t->dev, "[0x%p]do_task: should not be here\n", (void *)t);
+		dev_err(t->dev, "ERR [0x%p]do task: should not be here\n", t);
+		t->state = STATE_ERR;
+		BUG();
 		return;
 	}
 
-	/* channel setup */
-	/* irq setup */
-	irq = get_irq(t);
-	if (irq < 0) {
-		t->state = STATE_NO_IRQ;
-		goto chan_done;
-	}
-
-	dev_dbg(t->dev, "[0x%p]task irq is %d\n", (void *)t, irq);
-
-	init_completion(&comp);
-	ret = ipu_request_irq(ipu, irq, task_irq_handler, 0, NULL, &comp);
-	if (ret < 0) {
-		t->state = STATE_IRQ_FAIL;
-		goto chan_done;
-	}
+	ret = ipu_request_irq(ipu, irq, task_irq_handler, 0, NULL, t);
+	CHECK_RETCODE(ret < 0, "ipu_req_irq",
+			STATE_IRQ_FAIL, chan_setup, ret);
 
 	/* enable/start channel */
 	if (only_ic(t->set.mode)) {
-		ipu_enable_channel(ipu, t->set.ic_chan);
+		ret = ipu_enable_channel(ipu, t->set.ic_chan);
+		CHECK_RETCODE(ret < 0, "ipu_enable_ch only_ic",
+				STATE_ENABLE_CHAN_FAIL, chan_en, ret);
 		if (deinterlace_3_field(t)) {
-			ipu_enable_channel(ipu, t->set.vdi_ic_p_chan);
-			ipu_enable_channel(ipu, t->set.vdi_ic_n_chan);
+			ret = ipu_enable_channel(ipu, t->set.vdi_ic_p_chan);
+			CHECK_RETCODE(ret < 0, "ipu_enable_ch only_ic_p",
+					STATE_ENABLE_CHAN_FAIL, chan_en, ret);
+			ret = ipu_enable_channel(ipu, t->set.vdi_ic_n_chan);
+			CHECK_RETCODE(ret < 0, "ipu_enable_ch only_ic_n",
+					STATE_ENABLE_CHAN_FAIL, chan_en, ret);
 		}
 
-		ipu_select_buffer(ipu, t->set.ic_chan, IPU_OUTPUT_BUFFER, 0);
+		ret = ipu_select_buffer(ipu, t->set.ic_chan, IPU_OUTPUT_BUFFER,
+					0);
+		CHECK_RETCODE(ret < 0, "ipu_sel_buf only_ic",
+				STATE_SEL_BUF_FAIL, chan_buf, ret);
 		if (t->overlay_en) {
-			ipu_select_buffer(ipu, t->set.ic_chan, IPU_GRAPH_IN_BUFFER, 0);
-			if (t->overlay.alpha.mode == IPU_ALPHA_MODE_LOCAL)
-				ipu_select_buffer(ipu, t->set.ic_chan, IPU_ALPHA_IN_BUFFER, 0);
+			ret = ipu_select_buffer(ipu, t->set.ic_chan,
+						IPU_GRAPH_IN_BUFFER, 0);
+			CHECK_RETCODE(ret < 0, "ipu_sel_buf only_ic_g",
+					STATE_SEL_BUF_FAIL, chan_buf, ret);
+			if (t->overlay.alpha.mode == IPU_ALPHA_MODE_LOCAL) {
+				ret = ipu_select_buffer(ipu, t->set.ic_chan,
+							IPU_ALPHA_IN_BUFFER, 0);
+				CHECK_RETCODE(ret < 0, "ipu_sel_buf only_ic_a",
+						STATE_SEL_BUF_FAIL, chan_buf,
+						ret);
+			}
 		}
 		if (deinterlace_3_field(t))
 			ipu_select_multi_vdi_buffer(ipu, 0);
-		else
-			ipu_select_buffer(ipu, t->set.ic_chan, IPU_INPUT_BUFFER, 0);
+		else {
+			ret = ipu_select_buffer(ipu, t->set.ic_chan,
+						IPU_INPUT_BUFFER, 0);
+			CHECK_RETCODE(ret < 0, "ipu_sel_buf only_ic_i",
+					STATE_SEL_BUF_FAIL, chan_buf, ret);
+		}
 	} else if (only_rot(t->set.mode)) {
-		ipu_enable_channel(ipu, t->set.rot_chan);
-		ipu_select_buffer(ipu, t->set.rot_chan, IPU_OUTPUT_BUFFER, 0);
-		ipu_select_buffer(ipu, t->set.rot_chan, IPU_INPUT_BUFFER, 0);
+		ret = ipu_enable_channel(ipu, t->set.rot_chan);
+		CHECK_RETCODE(ret < 0, "ipu_enable_ch only_rot",
+				STATE_ENABLE_CHAN_FAIL, chan_en, ret);
+		ret = ipu_select_buffer(ipu, t->set.rot_chan,
+						IPU_OUTPUT_BUFFER, 0);
+		CHECK_RETCODE(ret < 0, "ipu_sel_buf only_rot_o",
+				STATE_SEL_BUF_FAIL, chan_buf, ret);
+		ret = ipu_select_buffer(ipu, t->set.rot_chan,
+						IPU_INPUT_BUFFER, 0);
+		CHECK_RETCODE(ret < 0, "ipu_sel_buf only_rot_i",
+				STATE_SEL_BUF_FAIL, chan_buf, ret);
 	} else if (ic_and_rot(t->set.mode)) {
-		ipu_enable_channel(ipu, t->set.rot_chan);
-		ipu_enable_channel(ipu, t->set.ic_chan);
+		ret = ipu_enable_channel(ipu, t->set.rot_chan);
+		CHECK_RETCODE(ret < 0, "ipu_enable_ch ic_and_rot-rot",
+				STATE_ENABLE_CHAN_FAIL, chan_en, ret);
+		ret = ipu_enable_channel(ipu, t->set.ic_chan);
+		CHECK_RETCODE(ret < 0, "ipu_enable_ch ic_and_rot-ic",
+				STATE_ENABLE_CHAN_FAIL, chan_en, ret);
 		if (deinterlace_3_field(t)) {
-			ipu_enable_channel(ipu, t->set.vdi_ic_p_chan);
-			ipu_enable_channel(ipu, t->set.vdi_ic_n_chan);
+			ret = ipu_enable_channel(ipu, t->set.vdi_ic_p_chan);
+			CHECK_RETCODE(ret < 0, "ipu_enable_ch ic_and_rot-p",
+					STATE_ENABLE_CHAN_FAIL, chan_en, ret);
+			ret = ipu_enable_channel(ipu, t->set.vdi_ic_n_chan);
+			CHECK_RETCODE(ret < 0, "ipu_enable_ch ic_and_rot-n",
+					STATE_ENABLE_CHAN_FAIL, chan_en, ret);
 		}
 
-		ipu_select_buffer(ipu, t->set.rot_chan, IPU_OUTPUT_BUFFER, 0);
+		ret = ipu_select_buffer(ipu, t->set.rot_chan,
+						IPU_OUTPUT_BUFFER, 0);
+		CHECK_RETCODE(ret < 0, "ipu_sel_buf ic_and_rot-rot-o",
+				STATE_SEL_BUF_FAIL, chan_buf, ret);
 		if (t->overlay_en) {
-			ipu_select_buffer(ipu, t->set.ic_chan, IPU_GRAPH_IN_BUFFER, 0);
-			if (t->overlay.alpha.mode == IPU_ALPHA_MODE_LOCAL)
-				ipu_select_buffer(ipu, t->set.ic_chan, IPU_ALPHA_IN_BUFFER, 0);
+			ret = ipu_select_buffer(ipu, t->set.ic_chan,
+							IPU_GRAPH_IN_BUFFER, 0);
+			CHECK_RETCODE(ret < 0, "ipu_sel_buf ic_and_rot-ic-g",
+					STATE_SEL_BUF_FAIL, chan_buf, ret);
+			if (t->overlay.alpha.mode == IPU_ALPHA_MODE_LOCAL) {
+				ret = ipu_select_buffer(ipu, t->set.ic_chan,
+							IPU_ALPHA_IN_BUFFER, 0);
+				CHECK_RETCODE(ret < 0, "ipu_sel_buf icrot-ic-a",
+						STATE_SEL_BUF_FAIL,
+						chan_buf, ret);
+			}
 		}
-		ipu_select_buffer(ipu, t->set.ic_chan, IPU_OUTPUT_BUFFER, 0);
+		ret = ipu_select_buffer(ipu, t->set.ic_chan,
+						IPU_OUTPUT_BUFFER, 0);
+		CHECK_RETCODE(ret < 0, "ipu_sel_buf ic_and_rot-ic-o",
+				STATE_SEL_BUF_FAIL, chan_buf, ret);
 		if (deinterlace_3_field(t))
 			ipu_select_multi_vdi_buffer(ipu, 0);
-		else
-			ipu_select_buffer(ipu, t->set.ic_chan, IPU_INPUT_BUFFER, 0);
-	}
-
-	ret = wait_for_completion_timeout(&comp, msecs_to_jiffies(t->timeout));
-	if (ret == 0)
-		t->state = STATE_IRQ_TIMEOUT;
-
-	/* split mode and VDI mode */
-	if (t->input.deinterlace.enable &&
-			(t->task_no & (UP_STRIPE | DOWN_STRIPE)))
-		vdi_split_process(ipu, t);
-
-	ipu_free_irq(ipu, irq, &comp);
-
-	if (only_ic(t->set.mode)) {
-		ipu_disable_channel(ipu, t->set.ic_chan, true);
-		if (deinterlace_3_field(t)) {
-			ipu_disable_channel(ipu, t->set.vdi_ic_p_chan, true);
-			ipu_disable_channel(ipu, t->set.vdi_ic_n_chan, true);
-		}
-	} else if (only_rot(t->set.mode))
-		ipu_disable_channel(ipu, t->set.rot_chan, true);
-	else if (ic_and_rot(t->set.mode)) {
-		ipu_unlink_channels(ipu, t->set.ic_chan, t->set.rot_chan);
-		ipu_disable_channel(ipu, t->set.rot_chan, true);
-		ipu_disable_channel(ipu, t->set.ic_chan, true);
-		if (deinterlace_3_field(t)) {
-			ipu_disable_channel(ipu, t->set.vdi_ic_p_chan, true);
-			ipu_disable_channel(ipu, t->set.vdi_ic_n_chan, true);
+		else {
+			ret = ipu_select_buffer(ipu, t->set.ic_chan,
+							IPU_INPUT_BUFFER, 0);
+			CHECK_RETCODE(ret < 0, "ipu_sel_buf ic_and_rot-ic-i",
+					STATE_SEL_BUF_FAIL, chan_buf, ret);
 		}
 	}
 
-chan_done:
-	if (only_ic(t->set.mode))
-		uninit_ic(ipu, t);
-	else if (only_rot(t->set.mode))
-		uninit_rot(ipu, t);
-	else if (ic_and_rot(t->set.mode)) {
-		uninit_ic(ipu, t);
-		uninit_rot(ipu, t);
-	}
+	if (need_split(t))
+		t->state = STATE_IN_PROGRESS;
+
+	CHECK_PERF(&t->ts_waitirq);
+	ret = wait_for_completion_timeout(&t->irq_comp,
+				 msecs_to_jiffies(t->timeout - DEF_DELAY_MS));
+	CHECK_PERF(&t->ts_wakeup);
+	CHECK_RETCODE(ret == 0, "wait_for_comp_timeout",
+			STATE_IRQ_TIMEOUT, chan_rel, ret);
+	dev_dbg(t->dev, "[0x%p] no-0x%x ipu irq done!", t, t->task_no);
+
+chan_rel:
+chan_buf:
+chan_en:
+chan_setup:
+	do_task_release(t, t->state >= STATE_ERR);
 	return;
 }
 
-static int thread_loop(struct ipu_soc *ipu, int id)
+static void get_res_do_task(struct ipu_task_entry *t)
 {
-	struct ipu_task_entry *tsk;
-	struct list_head *task_list = &ipu->task_list[id];
-	struct mutex *task_lock = &ipu->task_lock[id];
-	int ret;
+	uint32_t	found;
+	uint32_t	split_child;
+	struct mutex	*lock;
 
-	while (!kthread_should_stop()) {
-		int found = 0;
+	init_completion(&t->irq_comp);
 
-		ret = wait_event_interruptible(ipu->waitq[id], !list_empty(task_list));
-		if (0 != ret)
-			continue;
-
-		mutex_lock(task_lock);
-
-		list_for_each_entry(tsk, task_list, node) {
-			if (tsk->priority == IPU_TASK_PRIORITY_HIGH) {
-				found = 1;
-				break;
-			}
-		}
-
-		if (!found)
-			tsk = list_first_entry(task_list, struct ipu_task_entry, node);
-
-		mutex_unlock(task_lock);
-
-		do_task(ipu, tsk);
-
-		mutex_lock(task_lock);
-		list_del(&tsk->node);
-		mutex_unlock(task_lock);
-
-		complete(&tsk->comp);
+	found = get_vdoa_ipu_res(t);
+	if (!found) {
+		BUG();
+	} else {
+		do_task(t);
+		put_vdoa_ipu_res(t);
 	}
 
-	return 0;
+	if (t->state != STATE_OK) {
+		dev_err(t->dev, "ERR:[0x%p] no-0x%x state: %s\n",
+			t, t->task_no, state_msg[t->state].msg);
+	}
+
+	split_child = need_split(t) && t->parent;
+	if (split_child) {
+		lock = &t->parent->split_lock;
+		mutex_lock(lock);
+		t->split_done = 1;
+		mutex_unlock(lock);
+		wake_up(&t->parent->split_waitq);
+	}
+
+	return;
 }
 
-static int task_vf_thread(void *data)
+static void wait_split_task_complete(struct ipu_task_entry *parent,
+				struct ipu_split_task *sp_task, uint32_t size)
 {
-	struct ipu_soc *ipu = data;
+	struct ipu_task_entry *tsk = NULL;
+	int ret = 0, rc;
+	int j, idx = -1;
+	unsigned long flags;
+	struct mutex *lock = &parent->split_lock;
+	int k, busy_vf, busy_pp;
+	struct ipu_soc *ipu;
+	DECLARE_PERF_VAR;
 
-	thread_loop(ipu, 0);
+	for (j = 0; j < size; j++) {
+		rc = wait_event_timeout(
+			parent->split_waitq,
+			sp_task_check_done(sp_task, parent, size, &idx),
+			msecs_to_jiffies(parent->timeout - DEF_DELAY_MS));
+		if (!rc) {
+			dev_err(parent->dev,
+				"ERR:[0x%p] no-0x%x, split_task timeout,j:%d,"
+				"size:%d.\n",
+				 parent, parent->task_no, j, size);
+			ret = -ETIMEDOUT;
+			goto out;
+		} else {
+			if (idx < 0)
+				BUG();
+			tsk = sp_task[idx].child_task;
+			mutex_lock(lock);
+			if (!tsk->split_done || !tsk->ipu)
+				BUG();
+			tsk->split_done = 0;
+			mutex_unlock(lock);
 
-	return 0;
+			dev_dbg(tsk->dev,
+				"[0x%p] no-0x%x sp_tsk[%d] done,state:%d.\n",
+				 tsk, tsk->task_no, idx, tsk->state);
+			#ifdef DBG_IPU_PERF
+				CHECK_PERF(&tsk->ts_rel);
+				PRINT_TASK_STATISTICS;
+			#endif
+		}
+	}
+
+out:
+	if (ret == -ETIMEDOUT) {
+		/* debug */
+		for (k = 0; k < MXC_IPU_MAX_NUM; k++) {
+			ipu = ipu_get_soc(k);
+			if (IS_ERR(ipu)) {
+				BUG();
+			} else {
+				busy_vf = ipu_vf_pp_is_busy(ipu, true);
+				busy_pp = ipu_vf_pp_is_busy(ipu, false);
+				dev_err(parent->dev,
+					"ERR:ipu[%d] busy_vf:%d, busy_pp:%d.\n",
+					k, busy_vf, busy_pp);
+			}
+		}
+		for (k = 0; k < size; k++) {
+			tsk = sp_task[k].child_task;
+			if (!tsk)
+				continue;
+			dev_err(parent->dev,
+				"ERR: sp_task[%d][0x%p] no-0x%x done:%d,"
+				 "state:%s,on_list:%d, ipu:0x%p,timeout!\n",
+				 k, tsk, tsk->task_no, tsk->split_done,
+				 state_msg[tsk->state].msg, tsk->task_in_list,
+				 tsk->ipu);
+		}
+	}
+
+	for (j = 0; j < size; j++) {
+		tsk = sp_task[j].child_task;
+		if (!tsk)
+			continue;
+		spin_lock_irqsave(&ipu_task_list_lock, flags);
+		if (tsk->task_in_list) {
+			list_del(&tsk->node);
+			tsk->task_in_list = 0;
+			dev_dbg(tsk->dev,
+				"no-0x%x,id:%d sp_tsk timeout list_del.\n",
+				 tsk->task_no, tsk->task_id);
+		}
+		spin_unlock_irqrestore(&ipu_task_list_lock, flags);
+		if (!tsk->ipu)
+			continue;
+		if (STATE_IN_PROGRESS == tsk->state) {
+			do_task_release(tsk, 1);
+			put_vdoa_ipu_res(tsk);
+		}
+		if (tsk->state != STATE_OK) {
+			dev_err(tsk->dev,
+				"ERR:[0x%p] no-0x%x,id:%d, sp_tsk state: %s\n",
+					tsk, tsk->task_no, tsk->task_id,
+					state_msg[tsk->state].msg);
+		}
+		kref_put(&tsk->refcount, task_mem_free);
+	}
+
+	kfree(parent->vditmpbuf[0]);
+	kfree(parent->vditmpbuf[1]);
+
+	if (ret < 0)
+		parent->state = STATE_TIMEOUT;
+	else
+		parent->state = STATE_OK;
+	return;
 }
 
-static int task_pp_thread(void *data)
+static inline int find_task(struct ipu_task_entry **t, int thread_id)
 {
-	struct ipu_soc *ipu = data;
+	int found;
+	unsigned long flags;
+	struct ipu_task_entry *tsk;
+	struct list_head *task_list = &ipu_task_list;
 
-	thread_loop(ipu, 1);
+	*t = NULL;
+	spin_lock_irqsave(&ipu_task_list_lock, flags);
+	found = !list_empty(task_list);
+	if (found) {
+		tsk = list_first_entry(task_list, struct ipu_task_entry, node);
+		if (tsk->task_in_list) {
+			list_del(&tsk->node);
+			tsk->task_in_list = 0;
+			*t = tsk;
+			kref_get(&tsk->refcount);
+			dev_dbg(tsk->dev,
+			"thread_id:%d,[0x%p] task_no:0x%x,mode:0x%x list_del\n",
+			thread_id, tsk, tsk->task_no, tsk->set.mode);
+		} else
+			BUG();
+	}
+	spin_unlock_irqrestore(&ipu_task_list_lock, flags);
 
+	return found;
+}
+
+static int ipu_task_thread(void *argv)
+{
+	struct ipu_task_entry *tsk;
+	struct ipu_task_entry *sp_tsk0;
+	struct ipu_split_task sp_task[4];
+	/* priority lower than irq_thread */
+	const struct sched_param param = {
+		.sched_priority = MAX_USER_RT_PRIO/2 - 1,
+	};
+	int ret;
+	int curr_thread_id;
+	uint32_t size;
+	unsigned long flags;
+	unsigned int cpu;
+	struct cpumask cpu_mask;
+	struct ipu_thread_data *data = (struct ipu_thread_data *)argv;
+
+	thread_id++;
+	curr_thread_id = thread_id;
+	sched_setscheduler(current, SCHED_FIFO, &param);
+
+	if (!data->is_vdoa) {
+		cpu = cpumask_first(cpu_online_mask);
+		cpumask_set_cpu(cpu, &cpu_mask);
+		ret = sched_setaffinity(data->ipu->thread[data->id]->pid,
+			&cpu_mask);
+		if (ret < 0) {
+			pr_err("%s: sched_setaffinity fail:%d.\n", __func__, ret);
+			BUG();
+		}
+		pr_debug("%s: sched_setaffinity cpu:%d.\n", __func__, cpu);
+	}
+
+	while (!kthread_should_stop()) {
+		int split_fail = 0;
+		int split_parent;
+		int split_child;
+
+		wait_event(thread_waitq, find_task(&tsk, curr_thread_id));
+
+		if (!tsk)
+			BUG();
+
+		/* note: other threads run split child task */
+		split_parent = need_split(tsk) && !tsk->parent;
+		split_child = need_split(tsk) && tsk->parent;
+		if (split_parent) {
+			if ((tsk->set.split_mode == RL_SPLIT) ||
+				 (tsk->set.split_mode == UD_SPLIT))
+				size = 2;
+			else
+				size = 4;
+			ret = queue_split_task(tsk, sp_task, size);
+			if (ret < 0) {
+				split_fail = 1;
+			} else {
+				struct list_head *pos;
+
+				spin_lock_irqsave(&ipu_task_list_lock, flags);
+
+				sp_tsk0 = list_first_entry(&tsk->split_list,
+						struct ipu_task_entry, node);
+				list_del(&sp_tsk0->node);
+
+				list_for_each(pos, &tsk->split_list) {
+					struct ipu_task_entry *tmp;
+
+					tmp = list_entry(pos,
+						struct ipu_task_entry, node);
+					tmp->task_in_list = 1;
+					dev_dbg(tmp->dev,
+						"[0x%p] no-0x%x,id:%d sp_tsk "
+						"add_to_list.\n", tmp,
+						tmp->task_no, tmp->task_id);
+				}
+				/* add to global list */
+				list_splice(&tsk->split_list, &ipu_task_list);
+
+				spin_unlock_irqrestore(&ipu_task_list_lock,
+									flags);
+				/* let the parent thread do the first sp_task */
+				/* note: ensure the correct sequence for split
+					4size: 5/6->9/a*/
+				if (!sp_tsk0)
+					BUG();
+				wake_up(&thread_waitq);
+				get_res_do_task(sp_tsk0);
+				dev_dbg(sp_tsk0->dev,
+					"thread:%d complete tsk no:0x%x.\n",
+					curr_thread_id, sp_tsk0->task_no);
+				ret = atomic_read(&req_cnt);
+				if (ret > 0) {
+					wake_up(&res_waitq);
+					dev_dbg(sp_tsk0->dev,
+					"sp_tsk0 sche thread:%d no:0x%x,"
+					"req_cnt:%d\n", curr_thread_id,
+					sp_tsk0->task_no, ret);
+					/* For other threads to get_res */
+					schedule();
+				}
+			}
+		} else
+			get_res_do_task(tsk);
+
+		/* wait for all 4 sp_task finished here or timeout
+			and then release all resources */
+		if (split_parent && !split_fail)
+			wait_split_task_complete(tsk, sp_task, size);
+
+		if (!split_child) {
+			atomic_inc(&tsk->done);
+			wake_up(&tsk->task_waitq);
+		}
+
+		dev_dbg(tsk->dev, "thread:%d complete tsk no:0x%x-[0x%p].\n",
+				curr_thread_id, tsk->task_no, tsk);
+		ret = atomic_read(&req_cnt);
+		if (ret > 0) {
+			wake_up(&res_waitq);
+			dev_dbg(tsk->dev, "sche thread:%d no:0x%x,req_cnt:%d\n",
+				curr_thread_id, tsk->task_no, ret);
+			/* note: give cpu to other threads to get_res */
+			schedule();
+		}
+
+		kref_put(&tsk->refcount, task_mem_free);
+	}
+
+	pr_info("%s exit.\n", __func__);
+	BUG();
 	return 0;
 }
+
+int ipu_check_task(struct ipu_task *task)
+{
+	struct ipu_task_entry *tsk;
+	int ret = 0;
+
+	tsk = create_task_entry(task);
+	if (IS_ERR(tsk))
+		return PTR_ERR(tsk);
+
+	ret = check_task(tsk);
+
+	task->input = tsk->input;
+	task->output = tsk->output;
+	task->overlay = tsk->overlay;
+
+	dump_task_info(tsk);
+
+	kref_put(&tsk->refcount, task_mem_free);
+
+	return ret;
+}
+EXPORT_SYMBOL_GPL(ipu_check_task);
+
+int ipu_queue_task(struct ipu_task *task)
+{
+	struct ipu_task_entry *tsk;
+	unsigned long flags;
+	int ret;
+	u32 tmp_task_no;
+	DECLARE_PERF_VAR;
+
+	tsk = create_task_entry(task);
+	if (IS_ERR(tsk))
+		return PTR_ERR(tsk);
+
+	CHECK_PERF(&tsk->ts_queue);
+	ret = prepare_task(tsk);
+	if (ret < 0)
+		goto done;
+
+	if (need_split(tsk)) {
+		CHECK_PERF(&tsk->ts_dotask);
+		CHECK_PERF(&tsk->ts_waitirq);
+		CHECK_PERF(&tsk->ts_inirq);
+		CHECK_PERF(&tsk->ts_wakeup);
+	}
+
+	/* task_no last four bits for split task type*/
+	tmp_task_no = atomic_inc_return(&frame_no);
+	tsk->task_no = tmp_task_no << 4;
+	init_waitqueue_head(&tsk->task_waitq);
+
+	spin_lock_irqsave(&ipu_task_list_lock, flags);
+	list_add_tail(&tsk->node, &ipu_task_list);
+	tsk->task_in_list = 1;
+	dev_dbg(tsk->dev, "[0x%p,no-0x%x] list_add_tail\n", tsk, tsk->task_no);
+	spin_unlock_irqrestore(&ipu_task_list_lock, flags);
+	wake_up(&thread_waitq);
+
+	ret = wait_event_timeout(tsk->task_waitq, atomic_read(&tsk->done),
+						msecs_to_jiffies(tsk->timeout));
+	if (0 == ret) {
+		/* note: the timeout should larger than the internal timeout!*/
+		ret = -ETIMEDOUT;
+		dev_err(tsk->dev, "ERR: [0x%p] no-0x%x, timeout:%dms!\n",
+				tsk, tsk->task_no, tsk->timeout);
+	} else {
+		if (STATE_OK != tsk->state) {
+			dev_err(tsk->dev, "ERR: [0x%p] no-0x%x,state %d: %s\n",
+				tsk, tsk->task_no, tsk->state,
+				state_msg[tsk->state].msg);
+			ret = -ECANCELED;
+		} else
+			ret = 0;
+	}
+
+	spin_lock_irqsave(&ipu_task_list_lock, flags);
+	if (tsk->task_in_list) {
+		list_del(&tsk->node);
+		tsk->task_in_list = 0;
+		dev_dbg(tsk->dev, "[0x%p] no:0x%x list_del\n",
+				tsk, tsk->task_no);
+	}
+	spin_unlock_irqrestore(&ipu_task_list_lock, flags);
+
+#ifdef DBG_IPU_PERF
+	CHECK_PERF(&tsk->ts_rel);
+	PRINT_TASK_STATISTICS;
+	if (ts_frame_avg == 0)
+		ts_frame_avg = ts_frame.tv_nsec / NSEC_PER_USEC +
+				ts_frame.tv_sec * USEC_PER_SEC;
+	else
+		ts_frame_avg = (ts_frame_avg + ts_frame.tv_nsec / NSEC_PER_USEC
+				+ ts_frame.tv_sec * USEC_PER_SEC)/2;
+	if (timespec_compare(&ts_frame, &ts_frame_max) > 0)
+		ts_frame_max = ts_frame;
+
+	atomic_inc(&frame_cnt);
+
+	if ((atomic_read(&frame_cnt) %  1000) == 0)
+		pr_debug("ipu_dev: max frame time:%ldus, avg frame time:%dus,"
+			"frame_cnt:%d\n", ts_frame_max.tv_nsec / NSEC_PER_USEC
+			+ ts_frame_max.tv_sec * USEC_PER_SEC,
+			ts_frame_avg, atomic_read(&frame_cnt));
+#endif
+done:
+	if (ret < 0)
+		dev_err(tsk->dev, "ERR: no-0x%x,ipu_queue_task err:%d\n",
+				tsk->task_no, ret);
+
+	kref_put(&tsk->refcount, task_mem_free);
+
+	return ret;
+}
+EXPORT_SYMBOL_GPL(ipu_queue_task);
 
 static int mxc_ipu_open(struct inode *inode, struct file *file)
 {
@@ -2165,8 +2775,9 @@ static long mxc_ipu_ioctl(struct file *file,
 				kfree(mem);
 				return -ENOMEM;
 			}
-
+			mutex_lock(&ipu_alloc_lock);
 			list_add(&mem->list, &ipu_alloc_list);
+			mutex_unlock(&ipu_alloc_lock);
 
 			dev_dbg(ipu_dev, "allocated %d bytes @ 0x%08X\n",
 				mem->size, mem->phy_addr);
@@ -2185,6 +2796,7 @@ static long mxc_ipu_ioctl(struct file *file,
 				return -EFAULT;
 
 			ret = -EINVAL;
+			mutex_lock(&ipu_alloc_lock);
 			list_for_each_entry(mem, &ipu_alloc_list, list) {
 				if (mem->phy_addr == offset) {
 					list_del(&mem->list);
@@ -2197,6 +2809,10 @@ static long mxc_ipu_ioctl(struct file *file,
 					break;
 				}
 			}
+			mutex_unlock(&ipu_alloc_lock);
+			if (0 == ret)
+				dev_dbg(ipu_dev, "free %d bytes @ 0x%08X\n",
+					mem->size, mem->phy_addr);
 
 			break;
 		}
@@ -2213,6 +2829,7 @@ static int mxc_ipu_mmap(struct file *file, struct vm_area_struct *vma)
 	unsigned long offset = vma->vm_pgoff << PAGE_SHIFT;
 	struct ipu_alloc_list *mem;
 
+	mutex_lock(&ipu_alloc_lock);
 	list_for_each_entry(mem, &ipu_alloc_list, list) {
 		if (offset == mem->phy_addr) {
 			found = true;
@@ -2220,6 +2837,7 @@ static int mxc_ipu_mmap(struct file *file, struct vm_area_struct *vma)
 			break;
 		}
 	}
+	mutex_unlock(&ipu_alloc_lock);
 	if (!found)
 		return -EINVAL;
 
@@ -2253,7 +2871,9 @@ static struct file_operations mxc_ipu_fops = {
 
 int register_ipu_device(struct ipu_soc *ipu, int id)
 {
-	int i, ret = 0;
+	int ret = 0;
+	static int idx;
+	static struct ipu_thread_data thread_data[5];
 
 	if (!major) {
 		major = register_chrdev(0, "mxc_ipu", &mxc_ipu_fops);
@@ -2278,29 +2898,32 @@ int register_ipu_device(struct ipu_soc *ipu, int id)
 		ipu_dev->dma_mask = kmalloc(sizeof(*ipu_dev->dma_mask), GFP_KERNEL);
 		*ipu_dev->dma_mask = DMA_BIT_MASK(32);
 		ipu_dev->coherent_dma_mask = DMA_BIT_MASK(32);
+
+		mutex_init(&ipu_ch_tbl.lock);
 	}
+	ipu->rot_dma[0].size = 0;
+	ipu->rot_dma[1].size = 0;
 
-	for (i = 0; i < 2; i++) {
-		INIT_LIST_HEAD(&ipu->task_list[i]);
-		init_waitqueue_head(&ipu->waitq[i]);
-		mutex_init(&ipu->task_lock[i]);
-
-		ipu->rot_dma[i].size = 0;
-	}
-
-	ipu->thread[0] = kthread_run(task_vf_thread, ipu,
-					"ipu%d_process-vf", id);
+	thread_data[idx].ipu = ipu;
+	thread_data[idx].id = 0;
+	thread_data[idx].is_vdoa = 0;
+	ipu->thread[0] = kthread_run(ipu_task_thread, &thread_data[idx++],
+					"ipu%d_task", id);
 	if (IS_ERR(ipu->thread[0])) {
 		ret = PTR_ERR(ipu->thread[0]);
 		goto kthread0_fail;
 	}
 
-	ipu->thread[1] = kthread_run(task_pp_thread, ipu,
-				"ipu%d_process-pp", id);
+	thread_data[idx].ipu = ipu;
+	thread_data[idx].id = 1;
+	thread_data[idx].is_vdoa = 0;
+	ipu->thread[1] = kthread_run(ipu_task_thread, &thread_data[idx++],
+				"ipu%d_task", id);
 	if (IS_ERR(ipu->thread[1])) {
 		ret = PTR_ERR(ipu->thread[1]);
 		goto kthread1_fail;
 	}
+
 
 	return ret;
 
@@ -2312,7 +2935,6 @@ kthread0_fail:
 dev_create_fail:
 	if (id == 0) {
 		class_destroy(ipu_class);
-		unregister_chrdev(major, "mxc_ipu");
 	}
 ipu_class_fail:
 	if (id == 0)
@@ -2327,7 +2949,6 @@ void unregister_ipu_device(struct ipu_soc *ipu, int id)
 
 	kthread_stop(ipu->thread[0]);
 	kthread_stop(ipu->thread[1]);
-
 	for (i = 0; i < 2; i++) {
 		if (ipu->rot_dma[i].vaddr)
 			dma_free_coherent(ipu_dev,
