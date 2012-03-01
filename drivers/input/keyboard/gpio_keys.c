@@ -414,6 +414,16 @@ static int __devinit gpio_keys_setup_key(struct platform_device *pdev,
 	 */
 	if (!button->can_disable)
 		irqflags |= IRQF_SHARED;
+	/*
+	 * If platform has specified that the button can wake up the system,
+	 * for example, the power key which usually use to wake up the system
+	 * from suspend, we add the IRQF_EARLY_RESUME flag to this irq, so
+	 * that the power key press can be handled and reported as early as
+	 * possible. Some platform like Android need to get the power key
+	 * event early to reume some devcies like framebuffer and etc.
+	 */
+	if (button->wakeup)
+		irqflags |= IRQF_EARLY_RESUME;
 
 	error = request_any_context_irq(irq, gpio_keys_isr, irqflags, desc, bdata);
 	if (error < 0) {
