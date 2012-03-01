@@ -30,7 +30,11 @@
 #include <linux/fsl_devices.h>
 #include <linux/smsc911x.h>
 #include <linux/spi/spi.h>
+#if defined(CONFIG_MTD_M25P80) || defined(CONFIG_MTD_M25P80_MODULE)
 #include <linux/spi/flash.h>
+#else
+#include <linux/mtd/physmap.h>
+#endif
 #include <linux/i2c.h>
 #include <linux/i2c/pca953x.h>
 #include <linux/ata.h>
@@ -220,14 +224,6 @@ static iomux_v3_cfg_t mx6q_sabreauto_pads[] = {
 	MX6Q_PAD_NANDF_CS2__GPIO_6_15,
 	MX6Q_PAD_SD2_DAT2__GPIO_1_13,
 
-	/* eCSPI1 */
-	MX6Q_PAD_EIM_D16__ECSPI1_SCLK,
-	MX6Q_PAD_EIM_D17__ECSPI1_MISO,
-	MX6Q_PAD_EIM_D18__ECSPI1_MOSI,
-	MX6Q_PAD_EIM_D19__ECSPI1_SS1,
-	MX6Q_PAD_EIM_EB2__GPIO_2_30,	/*SS0*/
-	MX6Q_PAD_EIM_D19__GPIO_3_19,	/*SS1*/
-
 	/* ESAI */
 	MX6Q_PAD_ENET_CRS_DV__ESAI1_SCKT,
 	MX6Q_PAD_ENET_RXD1__ESAI1_FST,
@@ -297,14 +293,34 @@ static iomux_v3_cfg_t mx6q_sabreauto_pads[] = {
 	MX6Q_PAD_CSI0_VSYNC__IPU1_CSI0_VSYNC,
 	MX6Q_PAD_CSI0_MCLK__IPU1_CSI0_HSYNC,
 	MX6Q_PAD_CSI0_PIXCLK__IPU1_CSI0_PIXCLK,
-	/* camera reset */
-	MX6Q_PAD_GPIO_19__GPIO_4_5,
-
-	MX6Q_PAD_EIM_D24__GPIO_3_24,
 
 	/* PWM3 and PMW4 */
 	MX6Q_PAD_SD4_DAT1__PWM3_PWMO,
 	MX6Q_PAD_SD4_DAT2__PWM4_PWMO,
+
+	/* DISP0 RESET */
+	MX6Q_PAD_EIM_WAIT__GPIO_5_0,
+
+	/*  SPDIF */
+	MX6Q_PAD_KEY_COL3__SPDIF_IN1,
+
+	/* Touchscreen interrupt */
+	MX6Q_PAD_EIM_EB0__GPIO_2_28,
+
+	/* USBOTG ID pin */
+	MX6Q_PAD_ENET_RX_ER__ENET_RX_ER,
+
+	/* VIDEO adv7180 INTRQ */
+	MX6Q_PAD_ENET_RXD0__GPIO_1_27,
+	/* UART 2 */
+	MX6Q_PAD_GPIO_7__UART2_TXD,
+	MX6Q_PAD_GPIO_8__UART2_RXD,
+	MX6Q_PAD_SD4_DAT6__UART2_CTS,
+	MX6Q_PAD_SD4_DAT5__UART2_RTS,
+#if defined(CONFIG_MTD_M25P80) || defined(CONFIG_MTD_M25P80_MODULE)
+	/*USBs OC pin */
+	MX6Q_PAD_EIM_WAIT__GPIO_5_0,  /*HOST1_OC*/
+	MX6Q_PAD_SD4_DAT0__GPIO_2_8,  /*OTG_OC*/
 
 	/* DISP0 I2C ENABLE*/
 	MX6Q_PAD_EIM_D28__GPIO_3_28,
@@ -318,26 +334,72 @@ static iomux_v3_cfg_t mx6q_sabreauto_pads[] = {
 	/* HDMI */
 	MX6Q_PAD_EIM_A25__HDMI_TX_CEC_LINE,
 
-	/*  SPDIF */
-	MX6Q_PAD_KEY_COL3__SPDIF_IN1,
+	/* camera reset */
+	MX6Q_PAD_GPIO_19__GPIO_4_5,
+	MX6Q_PAD_EIM_D24__GPIO_3_24,
 
-	/* Touchscreen interrupt */
-	MX6Q_PAD_EIM_EB0__GPIO_2_28,
+	/* eCSPI1 */
+	MX6Q_PAD_EIM_D16__ECSPI1_SCLK,
+	MX6Q_PAD_EIM_D17__ECSPI1_MISO,
+	MX6Q_PAD_EIM_D18__ECSPI1_MOSI,
+	MX6Q_PAD_EIM_D19__ECSPI1_SS1,
+	MX6Q_PAD_EIM_EB2__GPIO_2_30,	/*SS0*/
+	MX6Q_PAD_EIM_D19__GPIO_3_19,	/*SS1*/
+#else
+	/* Parallel NOR */
+	MX6Q_PAD_EIM_OE__WEIM_WEIM_OE,
+	MX6Q_PAD_EIM_RW__WEIM_WEIM_RW,
+	MX6Q_PAD_EIM_WAIT__WEIM_WEIM_WAIT,
+	MX6Q_PAD_EIM_CS0__WEIM_WEIM_CS_0,
 
-	/* USBOTG ID pin */
-	MX6Q_PAD_ENET_RX_ER__ENET_RX_ER,
-	/*USBs OC pin */
-	MX6Q_PAD_EIM_WAIT__GPIO_5_0,  /*HOST1_OC*/
-	MX6Q_PAD_SD4_DAT0__GPIO_2_8,  /*OTG_OC*/
+	MX6Q_PAD_EIM_LBA__WEIM_WEIM_LBA,
+	MX6Q_PAD_EIM_BCLK__WEIM_WEIM_BCLK,
+	/* Parallel Nor Data Bus */
+	MX6Q_PAD_EIM_D16__WEIM_WEIM_D_16,
+	MX6Q_PAD_EIM_D17__WEIM_WEIM_D_17,
+	MX6Q_PAD_EIM_D18__WEIM_WEIM_D_18,
+	MX6Q_PAD_EIM_D19__WEIM_WEIM_D_19,
+	MX6Q_PAD_EIM_D20__WEIM_WEIM_D_20,
+	MX6Q_PAD_EIM_D21__WEIM_WEIM_D_21,
+	MX6Q_PAD_EIM_D22__WEIM_WEIM_D_22,
+	MX6Q_PAD_EIM_D23__WEIM_WEIM_D_23,
+	MX6Q_PAD_EIM_D24__WEIM_WEIM_D_24,
+	MX6Q_PAD_EIM_D25__WEIM_WEIM_D_25,
+	MX6Q_PAD_EIM_D26__WEIM_WEIM_D_26,
+	MX6Q_PAD_EIM_D27__WEIM_WEIM_D_27,
+	MX6Q_PAD_EIM_D28__WEIM_WEIM_D_28,
+	MX6Q_PAD_EIM_D29__WEIM_WEIM_D_29,
+	MX6Q_PAD_EIM_D30__WEIM_WEIM_D_30,
+	MX6Q_PAD_EIM_D31__WEIM_WEIM_D_31,
 
-	/* VIDEO adv7180 INTRQ */
-	MX6Q_PAD_ENET_RXD0__GPIO_1_27,
-	/* UART 2 */
-	MX6Q_PAD_GPIO_7__UART2_TXD,
-	MX6Q_PAD_GPIO_8__UART2_RXD,
-	MX6Q_PAD_SD4_DAT6__UART2_CTS,
-	MX6Q_PAD_SD4_DAT5__UART2_RTS,
+	/* Parallel Nor 25 bit Address Bus */
+	MX6Q_PAD_EIM_A24__WEIM_WEIM_A_24,
+	MX6Q_PAD_EIM_A23__WEIM_WEIM_A_23,
+	MX6Q_PAD_EIM_A22__WEIM_WEIM_A_22,
+	MX6Q_PAD_EIM_A21__WEIM_WEIM_A_21,
+	MX6Q_PAD_EIM_A20__WEIM_WEIM_A_20,
+	MX6Q_PAD_EIM_A19__WEIM_WEIM_A_19,
+	MX6Q_PAD_EIM_A18__WEIM_WEIM_A_18,
+	MX6Q_PAD_EIM_A17__WEIM_WEIM_A_17,
+	MX6Q_PAD_EIM_A16__WEIM_WEIM_A_16,
 
+	MX6Q_PAD_EIM_DA15__WEIM_WEIM_DA_A_15,
+	MX6Q_PAD_EIM_DA14__WEIM_WEIM_DA_A_14,
+	MX6Q_PAD_EIM_DA13__WEIM_WEIM_DA_A_13,
+	MX6Q_PAD_EIM_DA12__WEIM_WEIM_DA_A_12,
+	MX6Q_PAD_EIM_DA11__WEIM_WEIM_DA_A_11,
+	MX6Q_PAD_EIM_DA10__WEIM_WEIM_DA_A_10,
+	MX6Q_PAD_EIM_DA9__WEIM_WEIM_DA_A_9,
+	MX6Q_PAD_EIM_DA8__WEIM_WEIM_DA_A_8,
+	MX6Q_PAD_EIM_DA7__WEIM_WEIM_DA_A_7,
+	MX6Q_PAD_EIM_DA6__WEIM_WEIM_DA_A_6,
+	MX6Q_PAD_EIM_DA5__WEIM_WEIM_DA_A_5,
+	MX6Q_PAD_EIM_DA4__WEIM_WEIM_DA_A_4,
+	MX6Q_PAD_EIM_DA3__WEIM_WEIM_DA_A_3,
+	MX6Q_PAD_EIM_DA2__WEIM_WEIM_DA_A_2,
+	MX6Q_PAD_EIM_DA1__WEIM_WEIM_DA_A_1,
+	MX6Q_PAD_EIM_DA0__WEIM_WEIM_DA_A_0,
+#endif
 };
 
 static int __init uart2_enable(char *p)
@@ -580,7 +642,6 @@ static struct flash_platform_data m25p32_spi_flash_data = {
 	.nr_parts = ARRAY_SIZE(m25p32_partitions),
 	.type = "m25p32",
 };
-#endif
 
 static struct spi_board_info m25p32_spi0_board_info[] __initdata = {
 #if defined(CONFIG_MTD_M25P80)
@@ -594,12 +655,62 @@ static struct spi_board_info m25p32_spi0_board_info[] __initdata = {
 	},
 #endif
 };
-
 static void spi_device_init(void)
 {
 	spi_register_board_info(m25p32_spi0_board_info,
 				ARRAY_SIZE(m25p32_spi0_board_info));
 }
+#else
+static struct mtd_partition mxc_nor_partitions[] = {
+	{
+	.name = "Bootloader",
+	.offset = 0,
+	.size =  0x00080000,
+	}, {
+	.name = "nor.Kernel",
+	.offset = MTDPART_OFS_APPEND,
+	.size = MTDPART_SIZ_FULL,
+	},
+};
+static struct resource nor_flash_resource = {
+	.start = CS0_BASE_ADDR,
+	.end = CS0_BASE_ADDR  +  0x02000000 - 1,
+	.flags = IORESOURCE_MEM,
+};
+
+static struct physmap_flash_data nor_flash_data = {
+	.probe_type = "cfi_probe",
+	.width = 2,
+	.parts = mxc_nor_partitions,
+	.nr_parts = ARRAY_SIZE(mxc_nor_partitions),
+};
+
+static struct platform_device physmap_flash_device = {
+	.name   = "physmap-flash",
+	.id     = 0,
+	.dev    = {
+	.platform_data  = &nor_flash_data,
+	},
+	.resource = &nor_flash_resource,
+	.num_resources = 1,
+};
+
+static void mx6q_setup_weimcs(void)
+{
+	unsigned int reg;
+	void __iomem *nor_reg = MX6_IO_ADDRESS(WEIM_BASE_ADDR);
+	void __iomem *ccm_reg = MX6_IO_ADDRESS(CCM_BASE_ADDR);
+
+	/*CCM_BASE_ADDR + CLKCTL_CCGR6*/
+	reg = readl(ccm_reg + 0x80);
+	reg |= 0x00000C00;
+	writel(reg, ccm_reg + 0x80);
+
+	__raw_writel(0x00620081, nor_reg);
+	__raw_writel(0x1C022000, nor_reg + 0x00000008);
+	__raw_writel(0x0804a240, nor_reg + 0x00000010);
+}
+#endif
 
 static int max7310_1_setup(struct i2c_client *client,
 	unsigned gpio_base, unsigned ngpio,
@@ -1429,8 +1540,12 @@ static void __init mx6_board_init(void)
 	}
 	/* SPI */
 	imx6q_add_ecspi(0, &mx6q_sabreauto_spi_data);
+#if defined(CONFIG_MTD_M25P80) || defined(CONFIG_MTD_M25P80_MODULE)
 	spi_device_init();
-
+#else
+	mx6q_setup_weimcs();
+	platform_device_register(&physmap_flash_device);
+#endif
 	imx6q_add_mxc_hdmi(&hdmi_data);
 
 	imx6q_add_anatop_thermal_imx(1, &mx6q_sabreauto_anatop_thermal_data);
