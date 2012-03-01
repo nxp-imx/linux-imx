@@ -26,6 +26,7 @@
 #include <linux/io.h>
 #include <linux/fsl_devices.h>
 #include <linux/slab.h>
+#include <linux/clk.h>
 #include <sound/core.h>
 #include <sound/pcm.h>
 #include <sound/pcm_params.h>
@@ -50,7 +51,7 @@ struct imx_priv {
 };
 static struct imx_priv card_priv;
 static struct snd_soc_card snd_soc_card_imx;
-
+struct clk *codec_mclk;
 static struct snd_soc_jack hs_jack;
 
 /* Headphones jack detection DAPM pins */
@@ -73,11 +74,23 @@ static struct snd_soc_jack_gpio hs_jack_gpios[] = {
 
 static int imx_hifi_startup(struct snd_pcm_substream *substream)
 {
+	struct snd_soc_pcm_runtime *rtd = substream->private_data;
+	struct snd_soc_dai *codec_dai = rtd->codec_dai;
+
+	if (!codec_dai->active)
+		clk_enable(codec_mclk);
+
 	return 0;
 }
 
 static void imx_hifi_shutdown(struct snd_pcm_substream *substream)
 {
+	struct snd_soc_pcm_runtime *rtd = substream->private_data;
+	struct snd_soc_dai *codec_dai = rtd->codec_dai;
+
+	if (!codec_dai->active)
+		clk_disable(codec_mclk);
+
 	return;
 }
 
@@ -141,7 +154,7 @@ static int imx_hifi_hw_params(struct snd_pcm_substream *substream,
 static const struct snd_soc_dapm_widget imx_dapm_widgets[] = {
 	SND_SOC_DAPM_MIC("Headset Mic", NULL),
 	SND_SOC_DAPM_MIC("Main Mic", NULL),
-	SND_SOC_DAPM_HP("Headset Phone", NULL),
+	SND_SOC_DAPM_HP("Headphone Jack", NULL),
 	SND_SOC_DAPM_SPK("Ext Spk", NULL),
 };
 
@@ -159,8 +172,8 @@ static const struct snd_soc_dapm_route audio_map[] = {
 
 	/* ----output------------------- */
 	/* HP_OUT --> Headphone Jack */
-	{"Headset Phone", NULL, "HPOUT1L"},
-	{"Headset Phone", NULL, "HPOUT1R"},
+	{"Headphone Jack", NULL, "HPOUT1L"},
+	{"Headphone Jack", NULL, "HPOUT1R"},
 
 	/* LINE_OUT --> Ext Speaker */
 	{"Ext Spk", NULL, "SPKOUTLP"},
@@ -182,7 +195,7 @@ static int imx_wm8958_init(struct snd_soc_pcm_runtime *rtd)
 	/* Set up imx specific audio path audio_map */
 	snd_soc_dapm_add_routes(&codec->dapm, audio_map, ARRAY_SIZE(audio_map));
 
-	snd_soc_dapm_enable_pin(&codec->dapm, "Headset Phone");
+	snd_soc_dapm_enable_pin(&codec->dapm, "Headphone Jack");
 
 	snd_soc_dapm_sync(&codec->dapm);
 
@@ -266,6 +279,12 @@ static int __devinit imx_wm8958_probe(struct platform_device *pdev)
 	struct wm8994 *wm8958 = plat->priv;
 	int ret = 0;
 
+	codec_mclk = clk_get(NULL, "clko_clk");
+	if (IS_ERR(codec_mclk)) {
+		printk(KERN_ERR "can't get CLKO clock.\n");
+		return PTR_ERR(codec_mclk);
+	}
+
 	priv->pdev = pdev;
 	priv->wm8958 = wm8958;
 
@@ -289,6 +308,9 @@ static int __devexit imx_wm8958_remove(struct platform_device *pdev)
 
 	if (plat->finit)
 		plat->finit();
+
+	clk_disable(codec_mclk);
+	clk_put(codec_mclk);
 
 	return 0;
 }
