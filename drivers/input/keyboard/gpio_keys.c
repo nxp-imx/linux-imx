@@ -414,6 +414,14 @@ static int __devinit gpio_keys_setup_key(struct platform_device *pdev,
 	 */
 	if (!button->can_disable)
 		irqflags |= IRQF_SHARED;
+	/*
+	 * Resume power key early during syscore instead of at device
+	 * resume time.
+	 * Some platform like Android need to konw the power key is pressed
+	 * then to reume the other devcies
+	 */
+	if (button->wakeup)
+		irqflags |= IRQF_EARLY_RESUME;
 
 	error = request_any_context_irq(irq, gpio_keys_isr, irqflags, desc, bdata);
 	if (error < 0) {
