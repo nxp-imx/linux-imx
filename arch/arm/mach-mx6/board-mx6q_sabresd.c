@@ -493,7 +493,8 @@ static struct mxc_audio_platform_data wm8958_data = {
 	.ssi_num = 1,
 	.src_port = 2,
 	.ext_port = 3,
-	.hp_gpio = -1,
+	.hp_gpio = MX6Q_SABRESD_WM8958_HP_DET,
+	.hp_active_low = 1,
 };
 
 static struct wm8994_pdata wm8958_pdata = {
@@ -514,7 +515,6 @@ static struct wm8994_pdata wm8958_pdata = {
 static int mxc_wm8958_init(void)
 {
 	struct clk *clko;
-	struct clk *new_parent;
 	int rate;
 
 	clko = clk_get(NULL, "clko_clk");
@@ -522,21 +522,11 @@ static int mxc_wm8958_init(void)
 		pr_err("can't get CLKO clock.\n");
 		return PTR_ERR(clko);
 	}
-	new_parent = clk_get(NULL, "ipg_perclk");
-	if (!IS_ERR(new_parent)) {
-		clk_set_parent(clko, new_parent);
-		clk_put(new_parent);
-	}
-	rate = clk_round_rate(clko, 8250000);
-	if (rate < 4000000 || rate > 12500000) {
-		pr_err("Error:WM8958 mclk1 freq %d out of range!\n", rate);
-		clk_put(clko);
-		return -1;
-	}
+	/* both audio codec and comera use CLKO clk*/
+	rate = clk_round_rate(clko, 22000000);
 
 	wm8958_data.sysclk = rate;
 	clk_set_rate(clko, rate);
-	clk_enable(clko);
 
 	/* enable wm8958 4.2v power supply */
 	gpio_request(MX6Q_SABRESD_WM8958_4V2_EN, "aud_4v2");
@@ -586,7 +576,7 @@ static void mx6q_csi0_io_init(void)
 }
 
 static struct fsl_mxc_camera_platform_data camera_data = {
-	.mclk = 24000000,
+	.mclk = 22000000,
 	.csi = 0,
 	.io_init = mx6q_csi0_io_init,
 	.pwdn = mx6q_csi0_cam_powerdown,
@@ -900,10 +890,10 @@ static struct platform_device sabresd_max8903_charger_1 = {
 static struct imx_ipuv3_platform_data ipu_data[] = {
 	{
 	.rev = 4,
-	.csi_clk[0] = "cko1_clk0",
+	.csi_clk[0] = "clko_clk",
 	}, {
 	.rev = 4,
-	.csi_clk[0] = "cko1_clk0",
+	.csi_clk[0] = "clko_clk",
 	},
 };
 
