@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2011 Freescale Semiconductor, Inc.
+ * Copyright (C) 2010-2012 Freescale Semiconductor, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -2137,12 +2137,14 @@ static void epdc_submit_work_func(struct work_struct *work)
 		}
 	}
 
+	/* Is update list empty? */
+	if (!upd_data_list) {
+		mutex_unlock(&fb_data->queue_mutex);
+		return;
+	}
+
 	/* Release buffer queues */
 	mutex_unlock(&fb_data->queue_mutex);
-
-	/* Is update list empty? */
-	if (!upd_data_list)
-		return;
 
 	/* Perform PXP processing - EPDC power will also be enabled */
 	if (epdc_process_update(upd_data_list, fb_data)) {
@@ -2160,13 +2162,13 @@ static void epdc_submit_work_func(struct work_struct *work)
 		return;
 	}
 
+	/* Protect access to buffer queues and to update HW */
+	mutex_lock(&fb_data->queue_mutex);
+
 	/* Get rotation-adjusted coordinates */
 	adjust_coordinates(fb_data,
 		&upd_data_list->update_desc->upd_data.update_region,
 		&adj_update_region);
-
-	/* Protect access to buffer queues and to update HW */
-	mutex_lock(&fb_data->queue_mutex);
 
 	/*
 	 * Is the working buffer idle?
@@ -3022,6 +3024,10 @@ static void epdc_intr_work_func(struct work_struct *work)
 	int next_lut;
 	u32 epdc_irq_stat, epdc_luts_active, epdc_wb_busy, epdc_luts_avail;
 	u32 epdc_collision, epdc_colliding_luts, epdc_next_lut_15;
+	bool epdc_waiting_on_wb;
+
+	/* Protect access to buffer queues and to update HW */
+	mutex_lock(&fb_data->queue_mutex);
 
 	/* Capture EPDC status one time up front to prevent race conditions */
 	epdc_luts_active = epdc_any_luts_active();
@@ -3029,11 +3035,8 @@ static void epdc_intr_work_func(struct work_struct *work)
 	epdc_luts_avail = epdc_any_luts_available();
 	epdc_collision = epdc_is_collision();
 	epdc_colliding_luts = epdc_get_colliding_luts();
-	epdc_next_lut_15 = epdc_choose_next_lut(&next_lut);
 	epdc_irq_stat = __raw_readl(EPDC_IRQ);
-
-	/* Protect access to buffer queues and to update HW */
-	mutex_lock(&fb_data->queue_mutex);
+	epdc_waiting_on_wb = (fb_data->cur_update != NULL) ? true : false;
 
 	/* Free any LUTs that have completed */
 	for (i = 0; i < EPDC_NUM_LUTS; i++) {
@@ -3139,13 +3142,13 @@ static void epdc_intr_work_func(struct work_struct *work)
 	 * Were we waiting on working buffer?
 	 * If so, update queues and check for collisions
 	 */
-	if (fb_data->cur_update != NULL) {
+	if (epdc_waiting_on_wb) {
 		dev_dbg(fb_data->dev, "\nWorking buffer completed\n");
 
 		/* Signal completion if submit workqueue was waiting on WB */
 		if (fb_data->waiting_for_wb) {
 			complete(&fb_data->update_res_free);
-			fb_data->waiting_for_lut = false;
+			fb_data->waiting_for_wb = false;
 		}
 
 		/* Was there a collision? */
@@ -3261,6 +3264,7 @@ static void epdc_intr_work_func(struct work_struct *work)
 		return;
 	}
 
+	epdc_next_lut_15 = epdc_choose_next_lut(&next_lut);
 	/* Check to see if there is a valid LUT to use */
 	if (epdc_next_lut_15 && fb_data->tce_prevent) {
 		dev_dbg(fb_data->dev, "Must wait for LUT15\n");
