@@ -76,7 +76,7 @@ void set_mclk_rate(uint32_t *p_mclk_freq, uint32_t csi)
 			if (machine_is_mx6q_sabrelite())
 				mclk = "clko2_clk";
 			else
-				mclk = "cko1_clk0";
+				mclk = "clko_clk";
 		} else {
 			pr_err("invalid csi num %d\n", csi);
 			return;
