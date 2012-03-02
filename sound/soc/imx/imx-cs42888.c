@@ -41,7 +41,6 @@ struct imx_priv_state {
 
 static struct imx_priv_state hw_state;
 unsigned int mclk_freq;
-int rst_gpio;
 
 static int imx_3stack_startup(struct snd_pcm_substream *substream)
 {
@@ -50,15 +49,6 @@ static int imx_3stack_startup(struct snd_pcm_substream *substream)
 
 	if (!cpu_dai->active) {
 		hw_state.hw = 0;
-		if (rst_gpio) {
-			gpio_set_value_cansleep(rst_gpio, 0);
-			msleep(100);
-			gpio_set_value_cansleep(rst_gpio, 1);
-		} else {
-			gpio_direction_output(CS42888_RST, 0);
-			msleep(100);
-			gpio_direction_output(CS42888_RST, 1);
-		}
 	}
 
 	return 0;
@@ -154,7 +144,6 @@ static int imx_3stack_surround_hw_params(struct snd_pcm_substream *substream,
 	}
 	dai_format = SND_SOC_DAIFMT_LEFT_J | SND_SOC_DAIFMT_NB_NF |
 	    SND_SOC_DAIFMT_CBS_CFS;
-
 
 	/* set cpu DAI configuration */
 	snd_soc_dai_set_fmt(cpu_dai, dai_format);
@@ -268,7 +257,6 @@ static int __devinit imx_3stack_cs42888_probe(struct platform_device *pdev)
 		return -EINVAL;
 	}
 	mclk_freq = plat_data->sysclk;
-	rst_gpio = plat_data->rst_gpio;
 	if (plat_data->codec_name)
 		imx_3stack_dai[0].codec_name = plat_data->codec_name;
 	return 0;
