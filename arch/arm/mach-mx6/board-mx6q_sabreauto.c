@@ -1237,7 +1237,6 @@ static const struct pm_platform_data mx6q_sabreauto_pm_data __initconst = {
 
 static struct mxc_audio_platform_data sab_audio_data = {
 	.sysclk = 24576000,
-	.rst_gpio = MX6Q_SABREAUTO_PER_RST,
 	.codec_name = "cs42888.1-0048",
 };
 
