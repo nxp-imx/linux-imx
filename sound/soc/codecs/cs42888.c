@@ -446,21 +446,36 @@ SND_SOC_DAPM_INPUT("AIN1L"),
 SND_SOC_DAPM_INPUT("AIN1R"),
 SND_SOC_DAPM_INPUT("AIN2L"),
 SND_SOC_DAPM_INPUT("AIN2R"),
+
+SND_SOC_DAPM_PGA_E("PWR", CS42888_PWRCTL, 0, 1, NULL, 0,
+			NULL, 0),
 };
 
 static const struct snd_soc_dapm_route audio_map[] = {
 	/* Playback */
-	{ "AOUT1L", NULL, "DAC1" },
-	{ "AOUT1R", NULL, "DAC1" },
+	{ "PWR", NULL, "DAC1" },
+	{ "PWR", NULL, "DAC1" },
 
-	{ "AOUT2L", NULL, "DAC2" },
-	{ "AOUT2R", NULL, "DAC2" },
+	{ "PWR", NULL, "DAC2" },
+	{ "PWR", NULL, "DAC2" },
 
-	{ "AOUT3L", NULL, "DAC3" },
-	{ "AOUT3R", NULL, "DAC3" },
+	{ "PWR", NULL, "DAC3" },
+	{ "PWR", NULL, "DAC3" },
 
-	{ "AOUT4L", NULL, "DAC4" },
-	{ "AOUT4R", NULL, "DAC4" },
+	{ "PWR", NULL, "DAC4" },
+	{ "PWR", NULL, "DAC4" },
+
+	{ "AOUT1L", NULL, "PWR" },
+	{ "AOUT1R", NULL, "PWR" },
+
+	{ "AOUT2L", NULL, "PWR" },
+	{ "AOUT2R", NULL, "PWR" },
+
+	{ "AOUT3L", NULL, "PWR" },
+	{ "AOUT3R", NULL, "PWR" },
+
+	{ "AOUT4L", NULL, "PWR" },
+	{ "AOUT4R", NULL, "PWR" },
 
 	/* Capture */
 	{ "ADC1", NULL, "AIN1L" },
@@ -683,15 +698,6 @@ static int cs42888_hw_params(struct snd_pcm_substream *substream,
 		return ret;
 	}
 
-	/* Out of low power state */
-	val = snd_soc_read(codec, CS42888_PWRCTL);
-	val &= ~CS42888_PWRCTL_PDN_MASK;
-	ret = snd_soc_write(codec, CS42888_PWRCTL, val);
-	if (ret < 0) {
-		pr_err("i2c write failed\n");
-		return ret;
-	}
-
 	/* Unmute all the channels */
 	val = snd_soc_read(codec, CS42888_MUTE);
 	val &= ~CS42888_MUTE_ALL;
@@ -738,12 +744,6 @@ static void cs42888_shutdown(struct snd_pcm_substream *substream,
 	if (ret < 0)
 		pr_err("i2c write failed\n");
 
-	/* Enter low power state */
-	val = snd_soc_read(codec, CS42888_PWRCTL);
-	val |= CS42888_PWRCTL_PDN_MASK;
-	ret = snd_soc_write(codec, CS42888_PWRCTL, val);
-	if (ret < 0)
-		pr_err("i2c write failed\n");
 }
 
 static struct snd_soc_dai_ops cs42888_dai_ops = {
