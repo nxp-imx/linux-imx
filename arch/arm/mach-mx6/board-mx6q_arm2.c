@@ -1416,10 +1416,10 @@ static struct fsl_mxc_ldb_platform_data ldb_data = {
 static struct imx_ipuv3_platform_data ipu_data[] = {
 	{
 	.rev		= 4,
-	.csi_clk[0]	= "ccm_clk0",
+	.csi_clk[0]	= "clko_clk",
 	}, {
 	.rev		= 4,
-	.csi_clk[0]	= "ccm_clk0",
+	.csi_clk[0]	= "clko_clk",
 	},
 };
 
