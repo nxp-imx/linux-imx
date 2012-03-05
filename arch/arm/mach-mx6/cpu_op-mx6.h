@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2010-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -11,7 +11,8 @@
  * http://www.gnu.org/copyleft/gpl.html
  */
 
-#define CPU_AT_800MHz	0
-#define CPU_AT_1GHz		1
+#define CPU_AT_800MHz		0
+#define CPU_AT_1GHz			1
+#define CPU_AT_1_2GHz		2
 
 void mx6_cpu_op_init(void);
