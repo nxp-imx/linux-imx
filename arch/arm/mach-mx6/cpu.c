@@ -167,7 +167,10 @@ early_param("enable_wait_mode", enable_wait);
 
 static int __init arm_core_max(char *p)
 {
-	if (memcmp(p, "1000", 4) == 0) {
+	if (memcmp(p, "1200", 4) == 0) {
+		arm_max_freq = CPU_AT_1_2GHz;
+		p += 4;
+	} else if (memcmp(p, "1000", 4) == 0) {
 		arm_max_freq = CPU_AT_1GHz;
 		p += 4;
 	} else if (memcmp(p, "800", 3) == 0) {
