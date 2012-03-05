@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2011-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -25,13 +25,18 @@
 #include <mach/hardware.h>
 
 
+extern bool enable_wait_mode;
 /*
  * Setup the local clock events for a CPU.
  */
-void __cpuinit local_timer_setup(struct clock_event_device *evt)
+int __cpuinit local_timer_setup(struct clock_event_device *evt)
 {
 #ifdef CONFIG_LOCAL_TIMERS
-	evt->irq = IRQ_LOCALTIMER;
-	twd_timer_setup(evt);
+	if (!enable_wait_mode) {
+		evt->irq = IRQ_LOCALTIMER;
+		twd_timer_setup(evt);
+		return 0;
+	}
 #endif
+	return -1;
 }
