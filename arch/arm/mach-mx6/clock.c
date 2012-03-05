@@ -1181,6 +1181,17 @@ static struct clk cpu_clk = {
 	.get_rate = _clk_arm_get_rate,
 };
 
+static unsigned long _clk_twd_get_rate(struct clk *clk)
+{
+	return clk_get_rate(clk->parent) / 2;
+}
+
+static struct clk twd_clk = {
+	__INIT_CLK_DEBUG(twd_clk)
+	.parent = &cpu_clk,
+	.get_rate = _clk_twd_get_rate,
+};
+
 static int _clk_periph_set_parent(struct clk *clk, struct clk *parent)
 {
 	u32 reg;
@@ -4991,6 +5002,7 @@ static struct clk_lookup lookups[] = {
 	_REGISTER_CLOCK(NULL, "pll3", pll7_usb_host_main_clk),
 	_REGISTER_CLOCK(NULL, "pll4", pll8_enet_main_clk),
 	_REGISTER_CLOCK(NULL, "cpu_clk", cpu_clk),
+	_REGISTER_CLOCK("smp_twd", NULL, twd_clk),
 	_REGISTER_CLOCK(NULL, "periph_clk", periph_clk),
 	_REGISTER_CLOCK(NULL, "axi_clk", axi_clk),
 	_REGISTER_CLOCK(NULL, "mmdc_ch0_axi", mmdc_ch0_axi_clk[0]),
