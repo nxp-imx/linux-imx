@@ -2425,6 +2425,8 @@ static int wm8994_suspend(struct snd_soc_codec *codec, pm_message_t state)
 	struct wm8994 *control = codec->control_data;
 	int i, ret;
 
+	pm_runtime_disable(codec->dev);
+
 	switch (control->type) {
 	case WM8994:
 		snd_soc_update_bits(codec, WM8994_MICBIAS, WM8994_MICD_ENA, 0);
@@ -2503,6 +2505,8 @@ static int wm8994_resume(struct snd_soc_codec *codec)
 					    WM8958_MICD_ENA, WM8958_MICD_ENA);
 		break;
 	}
+
+	pm_runtime_enable(codec->dev);
 
 	return 0;
 }
