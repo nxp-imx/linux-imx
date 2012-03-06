@@ -1,5 +1,6 @@
 /*
  * Copyright(c) 2009 Dialog Semiconductor Ltd.
+ * Copyright 2010-2012 Freescale Semiconductor, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -49,7 +50,6 @@ void da9052_rtc_notifier(struct da9052_eh_nb *eh_data, unsigned int event)
 	}
 
 	da9052_unlock(rtc->da9052);
-
 
 	if (msg.data & DA9052_ALARMMI_ALARMTYPE) {
 		da9052_rtc_enable_alarm(rtc->da9052, 0);
@@ -261,8 +261,6 @@ static int da9052_alarm_settime(struct da9052 *da9052, struct rtc_time *rtc_tm)
 	unsigned char loop_index = 0;
 	int ret = 0;
 
-	rtc_tm->tm_sec = 0;
-
 	/* System compatability */
 	rtc_tm->tm_year -= 100;
 	rtc_tm->tm_mon += 1;
@@ -279,6 +277,24 @@ static int da9052_alarm_settime(struct da9052 *da9052, struct rtc_time *rtc_tm)
 	if (ret != 0) {
 		da9052_unlock(da9052);
 		return ret;
+	}
+
+	/* Since DA9053 does support seconds timer, go to next mins boundary */
+	if (rtc_tm->tm_sec) {
+		rtc_tm->tm_min = rtc_tm->tm_min + 1;
+		rtc_tm->tm_sec = 0;
+
+		/* If minutes rolls over the boundary */
+		if (rtc_tm->tm_min > 59) {
+			rtc_tm->tm_hour = rtc_tm->tm_hour + 1;
+			rtc_tm->tm_min = 0;
+
+			/* If hours rolls over the boundary */
+			if (rtc_tm->tm_hour > 23) {
+				rtc_tm->tm_mday = rtc_tm->tm_mday + 1;
+				rtc_tm->tm_hour = 0;
+			}
+		}
 	}
 
 	msg.data = msg.data & ~(DA9052_ALARMMI_ALARMMIN);
@@ -309,9 +325,8 @@ static int da9052_alarm_settime(struct da9052 *da9052, struct rtc_time *rtc_tm)
 	}
 
 	msg.data = msg.data & ~(DA9052_ALARMY_ALARMYEAR);
-
-
 	msg.data |= rtc_tm->tm_year;
+
 	msg_arr[loop_index].addr = DA9052_ALARMY_REG;
 	msg_arr[loop_index].data = 0;
 	msg_arr[loop_index++].data = msg.data;
@@ -336,8 +351,8 @@ static int da9052_rtc_get_alarm_status(struct da9052 *da9052)
 	da9052_lock(da9052);
 	ret = da9052->read(da9052, &msg);
 	if (ret != 0) {
-			da9052_unlock(da9052);
-	return ret;
+		da9052_unlock(da9052);
+		return ret;
 	}
 
 	da9052_unlock(da9052);
@@ -370,45 +385,14 @@ static int da9052_rtc_enable_alarm(struct da9052 *da9052, unsigned char flag)
 		da9052_unlock(da9052);
 		return ret;
 	}
+
 	da9052_unlock(da9052);
 
 	return 0;
 }
-
-
-static ssize_t da9052_rtc_mask_irq(struct da9052 *da9052)
- {
-	unsigned char data = 0;
-	ssize_t ret = 0;
-	struct da9052_ssc_msg ssc_msg;
-
-	ssc_msg.addr = DA9052_IRQMASKA_REG;
-	ssc_msg.data = 0;
-
-	da9052_lock(da9052);
-	ret = da9052->read(da9052, &ssc_msg);
-	if (ret != 0) {
-		da9052_unlock(da9052);
-		return ret;
-	}
-
-	data = ret;
-	ssc_msg.data = data |= DA9052_IRQMASKA_MALRAM;
-
-	ret = da9052->write(da9052, &ssc_msg);
-	if (ret != 0) {
-		da9052_unlock(da9052);
-		return ret;
-	}
-
-	da9052_unlock(da9052);
-	return 0;
-}
-
 
 static ssize_t da9052_rtc_unmask_irq(struct da9052 *da9052)
 {
-	unsigned char data = 0;
 	ssize_t ret = 0;
 	struct da9052_ssc_msg ssc_msg;
 
@@ -422,8 +406,8 @@ static ssize_t da9052_rtc_unmask_irq(struct da9052 *da9052)
 		return ret;
 	}
 
-	data = ret;
-	ssc_msg.data = data &= ~DA9052_IRQMASKA_MALRAM;
+	ssc_msg.data &= ~DA9052_IRQMASKA_MALRAM;
+	ssc_msg.data |= DA9052_IRQMASKA_MSEQRDY;
 
 	ret = da9052->write(da9052, &ssc_msg);
 	if (ret != 0) {
@@ -462,6 +446,7 @@ static int da9052_rtc_readalarm(struct device *dev, struct rtc_wkalrm *alrm)
 	int ret;
 	struct rtc_time *tm = &alrm->time;
 	struct da9052 *da9052 = dev_get_drvdata(dev->parent);
+
 	ret = da9052_alarm_gettime(da9052, tm);
 
 	if (ret)
@@ -479,29 +464,19 @@ static int da9052_rtc_setalarm(struct device *dev, struct rtc_wkalrm *alrm)
 	struct rtc_time *tm = &alrm->time;
 	struct da9052 *da9052 = dev_get_drvdata(dev->parent);
 
-	ret = da9052_alarm_settime(da9052, tm);
+	ret = da9052_rtc_enable_alarm(da9052, 0);
+	if (ret)
+		return ret;
 
+	ret = da9052_alarm_settime(da9052, tm);
 	if (ret)
 		return ret;
 
 	ret = da9052_rtc_enable_alarm(da9052, 1);
+	if (ret)
+		return ret;
 
-	return ret;
-}
-
-static int da9052_rtc_update_irq_enable(struct device *dev,
-		unsigned int enabled)
-{
-	struct da9052_rtc *priv = dev_get_drvdata(dev);
-	int ret = -ENODATA;
-
-	da9052_lock(priv->da9052);
-
-	ret = (enabled ? da9052_rtc_unmask_irq : da9052_rtc_mask_irq)
-						(priv->da9052);
-
-	da9052_unlock(priv->da9052);
-
+	ret = da9052_rtc_unmask_irq(da9052);
 	return ret;
 }
 
@@ -510,10 +485,7 @@ static int da9052_rtc_alarm_irq_enable(struct device *dev,
 {
 	struct da9052_rtc *priv = dev_get_drvdata(dev);
 
-	if (enabled)
-		return da9052_rtc_enable_alarm(priv->da9052, enabled);
-	else
-		return da9052_rtc_enable_alarm(priv->da9052, enabled);
+	return da9052_rtc_enable_alarm(priv->da9052, enabled);
 }
 
 static const struct rtc_class_ops da9052_rtc_ops = {
@@ -521,10 +493,7 @@ static const struct rtc_class_ops da9052_rtc_ops = {
 	.set_time	= da9052_rtc_class_ops_settime,
 	.read_alarm	= da9052_rtc_readalarm,
 	.set_alarm	= da9052_rtc_setalarm,
-#if 0
-	.update_irq_enable = da9052_rtc_update_irq_enable,
 	.alarm_irq_enable = da9052_rtc_alarm_irq_enable,
-#endif
 };
 
 
@@ -553,7 +522,7 @@ static int __devinit da9052_rtc_probe(struct platform_device *pdev)
 		goto err_register_alarm;
 
 	priv->is_min_alarm = 1;
-	priv->enable_tick_alarm = 1;
+	priv->enable_tick_alarm = 0;
 	priv->enable_clk_buffer = 1;
 	priv->set_osc_trim_freq = 5;
 	/* Enable/Disable TICK Alarm */
@@ -635,6 +604,8 @@ static int __devinit da9052_rtc_probe(struct platform_device *pdev)
 		goto err_ssc_comm;
 	}
 	da9052_unlock(priv->da9052);
+	/* disable rtc-alarm */
+	da9052_rtc_enable_alarm(priv->da9052, 0);
 
 	priv->rtc = rtc_device_register(pdev->name,
 			&pdev->dev, &da9052_rtc_ops, THIS_MODULE);

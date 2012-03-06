@@ -305,8 +305,8 @@ void eh_workqueue_isr(struct work_struct *work)
 
 	/* Collect all events */
 	for (cnt = 0; cnt < DA9052_EVE_REGISTERS; cnt++)
-		events_sts |= (eve_data[cnt].data << (DA9052_EVE_REGISTER_SIZE
-							* cnt));
+		events_sts |= ((eve_data[cnt].data&0xff) <<
+				(DA9052_EVE_REGISTER_SIZE * cnt));
 
 	/* Check if we really got any event */
 	if (events_sts == 0) {
