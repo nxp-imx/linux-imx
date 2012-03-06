@@ -492,16 +492,22 @@ static unsigned long  _clk_pll1_main_get_rate(struct clk *clk)
 
 static int _clk_pll1_main_set_rate(struct clk *clk, unsigned long rate)
 {
-	unsigned int reg,  div;
+	unsigned int reg, div;
 
 	if (rate < AUDIO_VIDEO_MIN_CLK_FREQ || rate > AUDIO_VIDEO_MAX_CLK_FREQ)
 		return -EINVAL;
 
-	div = (rate * 2) / clk_get_rate(clk->parent) ;
+	div = (rate * 2) / clk_get_rate(clk->parent);
 
+	/* Update div */
 	reg = __raw_readl(PLL1_SYS_BASE_ADDR) & ~ANADIG_PLL_SYS_DIV_SELECT_MASK;
 	reg |= div;
 	__raw_writel(reg, PLL1_SYS_BASE_ADDR);
+
+	/* Wait for PLL1 to lock */
+	if (!WAIT(__raw_readl(PLL1_SYS_BASE_ADDR) & ANADIG_PLL_LOCK,
+				SPIN_DELAY))
+		panic("pll1 enable failed\n");
 
 	return 0;
 }
