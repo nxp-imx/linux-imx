@@ -139,7 +139,7 @@ struct fsl_usb2_platform_data {
 	unsigned	ahb_burst_mode:3;
 	unsigned	lowpower:1;
 	unsigned	irq_delay:1;
-	unsigned	wakeup_event:1;
+	enum usb_wakeup_event	wakeup_event;
 	u32		pmflags;	/* PM from otg or system */
 
 	/* register save area for suspend/resume */
