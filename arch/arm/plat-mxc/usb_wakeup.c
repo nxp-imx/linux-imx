@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2011-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -118,6 +118,7 @@ static void wakeup_event_handler(struct wakeup_ctrl *ctrl)
 
 			usb_pdata->irq_delay = 0;
 			wakeup_evt = is_wakeup(usb_pdata);
+			usb_pdata->wakeup_event = wakeup_evt;
 			if (wakeup_evt != WAKEUP_EVENT_INVALID) {
 				if (usb2_is_in_lowpower(ctrl))
 					if (usb_pdata->usb_clock_for_pm)
