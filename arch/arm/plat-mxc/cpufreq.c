@@ -178,19 +178,11 @@ static int mxc_set_target(struct cpufreq_policy *policy,
 static int mxc_cpufreq_suspend(struct cpufreq_policy *policy,
 				 pm_message_t state)
 {
-	pre_suspend_rate = clk_get_rate(cpu_clk);
-	/* Set to max freq and voltage */
-	if (pre_suspend_rate != (imx_freq_table[0].frequency * 1000))
-		set_cpu_freq(imx_freq_table[0].frequency);
-
 	return 0;
 }
 
 static int mxc_cpufreq_resume(struct cpufreq_policy *policy)
 {
-	if (clk_get_rate(cpu_clk) != pre_suspend_rate)
-		set_cpu_freq(pre_suspend_rate);
-
 	return 0;
 }
 

@@ -112,7 +112,6 @@ void __iomem *databahn;
 
 extern int mxc_jtag_enabled;
 extern int uart_at_24;
-extern int cpufreq_trig_needed;
 extern int low_bus_freq_mode;
 extern int med_bus_freq_mode;
 
@@ -3599,8 +3598,5 @@ static int cpu_clk_set_op(int wp)
 	__raw_writel(reg, MXC_CCM_CACRR);
 	cpu_curr_op = wp;
 
-#if defined(CONFIG_CPU_FREQ)
-	cpufreq_trig_needed = 1;
-#endif
 	return 0;
 }

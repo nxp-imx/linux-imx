@@ -117,15 +117,6 @@ static struct cpu_op cpu_op_ces_1_2g[] = {
 	 .cpu_podf = 0,
 	 .cpu_voltage = 1300000,},
 	{
-	 .pll_rate = 1000000000,
-	 .cpu_rate = 1000000000,
-	 .pdf = 0,
-	 .mfi = 10,
-	 .mfd = 11,
-	 .mfn = 5,
-	 .cpu_podf = 0,
-	 .cpu_voltage = 1250000,},
-	{
 	 .pll_rate = 800000000,
 	 .cpu_rate = 800000000,
 	 .pdf = 0,

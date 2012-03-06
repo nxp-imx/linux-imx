@@ -84,7 +84,7 @@
 #define CCM_CDCR_ARM_FREQ_SHIFT_DIVIDER		0x4
 #define CCM_CDHIPR_ARM_PODF_BUSY		0x10000
 
-int cpufreq_trig_needed;
+static int cpufreq_trig_needed;
 int dvfs_core_is_active;
 static struct mxc_dvfs_platform_data *dvfs_data;
 static struct device *dvfs_dev;
@@ -259,6 +259,7 @@ static int mx5_set_cpu_freq(int op)
 			udelay(10);
 		spin_unlock_irqrestore(&mxc_dvfs_core_lock, flags);
 
+		clk_set_rate(cpu_clk, rate);
 		if (rate < org_cpu_rate) {
 			ret = regulator_set_voltage(cpu_regulator, gp_volt,
 						    gp_volt);
@@ -273,7 +274,6 @@ static int mx5_set_cpu_freq(int op)
 		reg = __raw_readl(ccm_base + dvfs_data->ccm_cdcr_offset);
 		reg &= ~(CCM_CDCR_SW_DVFS_EN);
 		reg |= en_sw_dvfs;
-		clk_set_rate(cpu_clk, rate);
 	} else {
 		podf = cpu_op_tbl[op].cpu_podf;
 		gp_volt = cpu_op_tbl[op].cpu_voltage;
@@ -786,6 +786,8 @@ void stop_dvfs(void)
 			for (cpu = 0; cpu < num_online_cpus(); cpu++)
 				cpufreq_get(cpu);
 #endif
+			if (cpufreq_trig_needed == 1)
+				cpufreq_trig_needed = 0;
 		}
 		spin_lock_irqsave(&mxc_dvfs_core_lock, flags);
 

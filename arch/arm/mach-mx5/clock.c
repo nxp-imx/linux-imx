@@ -103,7 +103,6 @@ extern int dvfs_core_is_active;
 
 extern int mxc_jtag_enabled;
 extern int uart_at_24;
-extern int cpufreq_trig_needed;
 extern int low_bus_freq_mode;
 
 static int cpu_clk_set_op(int op);
@@ -5266,8 +5265,5 @@ static int cpu_clk_set_op(int op)
 		cpu_curr_op = op;
 	}
 
-#if defined(CONFIG_CPU_FREQ)
-	cpufreq_trig_needed = 1;
-#endif
 	return 0;
 }

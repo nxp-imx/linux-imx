@@ -748,7 +748,7 @@ static iomux_v3_cfg_t mx50_gpmi_nand[] __initdata = {
 	MX50_PIN_SD3_WP__NANDF_RESETN,
 };
 
-static int gpmi_nfc_platform_init(void)
+static int __init gpmi_nfc_platform_init(void)
 {
 	return mxc_iomux_v3_setup_multiple_pads(mx50_gpmi_nand,
 					ARRAY_SIZE(mx50_gpmi_nand));
