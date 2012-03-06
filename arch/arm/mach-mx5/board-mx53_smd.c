@@ -555,7 +555,7 @@ static struct mpr121_platform_data mpr121_keyboard_platdata = {
 	.matrix = smd_touchkey_martix,
 };
 
-static int mag3110_position = 2;
+static int mag3110_position = 6;
 
 static struct i2c_board_info mxc_i2c1_board_info[] __initdata = {
 	{
