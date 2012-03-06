@@ -5252,10 +5252,10 @@ static int cpu_clk_set_op(int op)
 		getnstimeofday(&nstimeofday);
 		do {
 			getnstimeofday(&curtime);
-			if ((curtime.tv_nsec - nstimeofday.tv_nsec) > SPIN_DELAY)
-				panic("pll1 relock failed\n");
 			stat = __raw_readl(pll1_base + MXC_PLL_DP_CTL) &
 			    MXC_PLL_DP_CTL_LRF;
+			if (((curtime.tv_nsec - nstimeofday.tv_nsec) > SPIN_DELAY) && (!stat))
+				panic("pll1 relock failed\n");
 		} while (!stat);
 
 		reg = __raw_readl(MXC_CCM_CCSR);

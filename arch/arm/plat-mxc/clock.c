@@ -4,7 +4,7 @@
  * Copyright (C) 2004 - 2005 Nokia corporation
  * Written by Tuukka Tikkanen <tuukka.tikkanen@elektrobit.com>
  * Modified for omap shared clock framework by Tony Lindgren <tony@atomide.com>
- * Copyright 2007-2011 Freescale Semiconductor, Inc.
+ * Copyright 2007-2012 Freescale Semiconductor, Inc.
  * Copyright 2008 Juergen Beisert, kernel@pengutronix.de
  *
  * This program is free software; you can redistribute it and/or
@@ -56,6 +56,7 @@ extern int low_freq_bus_used(void);
 
 static LIST_HEAD(clocks);
 static DEFINE_MUTEX(clocks_mutex);
+static DEFINE_SPINLOCK(clockfw_lock);
 
 /*-------------------------------------------------------------------------
  * Standard clock functions defined in include/linux/clk.h
@@ -70,8 +71,9 @@ static void __clk_disable(struct clk *clk)
 	if (!(--clk->usecount)) {
 		if (clk->disable)
 			clk->disable(clk);
-		__clk_disable(clk->parent);
+
 		__clk_disable(clk->secondary);
+		__clk_disable(clk->parent);
 	}
 }
 
@@ -95,7 +97,7 @@ static int __clk_enable(struct clk *clk)
  */
 int clk_enable(struct clk *clk)
 {
-	/* unsigned long flags; */
+	unsigned long flags;
 	int ret = 0;
 
 	if (in_interrupt()) {
@@ -127,9 +129,9 @@ int clk_enable(struct clk *clk)
 		}
 	}
 
-	mutex_lock(&clocks_mutex);
+	spin_lock_irqsave(&clockfw_lock, flags);
 	ret = __clk_enable(clk);
-	mutex_unlock(&clocks_mutex);
+	spin_unlock_irqrestore(&clockfw_lock, flags);
 
 	return ret;
 }
@@ -141,7 +143,7 @@ EXPORT_SYMBOL(clk_enable);
  */
 void clk_disable(struct clk *clk)
 {
-	/* unsigned long flags; */
+	unsigned long flags;
 
 	if (in_interrupt()) {
 		printk(KERN_ERR " clk_disable cannot be called in an interrupt context\n");
@@ -152,9 +154,10 @@ void clk_disable(struct clk *clk)
 	if (clk == NULL || IS_ERR(clk))
 		return;
 
-	mutex_lock(&clocks_mutex);
+	spin_lock_irqsave(&clockfw_lock, flags);
 	__clk_disable(clk);
-	mutex_unlock(&clocks_mutex);
+	spin_unlock_irqrestore(&clockfw_lock, flags);
+
 	if ((clk->flags & CPU_FREQ_TRIG_UPDATE)
 			&& (clk_get_usecount(clk) == 0)) {
 		if (low_freq_bus_used() && !low_bus_freq_mode)
@@ -221,14 +224,15 @@ EXPORT_SYMBOL(clk_round_rate);
  */
 int clk_set_rate(struct clk *clk, unsigned long rate)
 {
+	unsigned long flags;
 	int ret = -EINVAL;
 
 	if (clk == NULL || IS_ERR(clk) || clk->set_rate == NULL || rate == 0)
 		return ret;
 
-	mutex_lock(&clocks_mutex);
+	spin_lock_irqsave(&clockfw_lock, flags);
 	ret = clk->set_rate(clk, rate);
-	mutex_unlock(&clocks_mutex);
+	spin_unlock_irqrestore(&clockfw_lock, flags);
 
 	return ret;
 }
@@ -237,6 +241,7 @@ EXPORT_SYMBOL(clk_set_rate);
 /* Set the clock's parent to another clock source */
 int clk_set_parent(struct clk *clk, struct clk *parent)
 {
+	unsigned long flags;
 	int ret = -EINVAL;
 	struct clk *old;
 
@@ -247,7 +252,7 @@ int clk_set_parent(struct clk *clk, struct clk *parent)
 	if (clk->usecount)
 		clk_enable(parent);
 
-	mutex_lock(&clocks_mutex);
+	spin_lock_irqsave(&clockfw_lock, flags);
 	ret = clk->set_parent(clk, parent);
 	if (ret == 0) {
 		old = clk->parent;
@@ -255,7 +260,7 @@ int clk_set_parent(struct clk *clk, struct clk *parent)
 	} else {
 		old = parent;
 	}
-	mutex_unlock(&clocks_mutex);
+	spin_unlock_irqrestore(&clockfw_lock, flags);
 
 	if (clk->usecount)
 		clk_disable(old);
