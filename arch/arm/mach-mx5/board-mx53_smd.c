@@ -62,6 +62,7 @@
 #include "devices.h"
 #include "usb.h"
 #include "android.h"
+#include "pmic.h"
 
 /* MX53 SMD GPIO PIN configurations */
 #define MX53_SMD_KEY_RESET	IMX_GPIO_NR(1, 2)
@@ -134,6 +135,12 @@
 #define MX53_SMD_CABC_EN1	IMX_GPIO_NR(7, 10)
 #define MX53_SMD_PMIC_INT	IMX_GPIO_NR(7, 11)
 #define MX53_SMD_CAP_TCH_FUN1	IMX_GPIO_NR(7, 13)
+
+#define TZIC_WAKEUP0_OFFSET	0x0E00
+#define TZIC_WAKEUP1_OFFSET	0x0E04
+#define TZIC_WAKEUP2_OFFSET	0x0E08
+#define TZIC_WAKEUP3_OFFSET	0x0E0C
+#define GPIO7_0_11_IRQ_BIT	(0x1<<11)
 
 void __init early_console_setup(unsigned long base, struct clk *clk);
 static struct clk *sata_clk, *sata_ref_clk;
@@ -487,12 +494,38 @@ static const struct imxi2c_platform_data mx53_smd_i2c_data __initconst = {
 	.bitrate = 100000,
 };
 
+extern void __iomem *tzic_base;
+static void smd_da9053_irq_wakeup_only_fixup(void)
+{
+	if (NULL == tzic_base) {
+		pr_err("fail to map MX53_TZIC_BASE_ADDR\n");
+		return;
+	}
+	__raw_writel(0, tzic_base + TZIC_WAKEUP0_OFFSET);
+	__raw_writel(0, tzic_base + TZIC_WAKEUP1_OFFSET);
+	__raw_writel(0, tzic_base + TZIC_WAKEUP2_OFFSET);
+	/* only enable irq wakeup for da9053 */
+	__raw_writel(GPIO7_0_11_IRQ_BIT, tzic_base + TZIC_WAKEUP3_OFFSET);
+	pr_info("only da9053 irq is wakeup-enabled\n");
+}
+
 static void smd_suspend_enter(void)
 {
+	if (board_is_rev(IMX_BOARD_REV_4)) {
+		smd_da9053_irq_wakeup_only_fixup();
+		da9053_suspend_cmd_sw();
+	} else {
+		if (da9053_get_chip_version() != DA9053_VERSION_BB)
+			smd_da9053_irq_wakeup_only_fixup();
+
+		da9053_suspend_cmd_hw();
+	}
 }
 
 static void smd_suspend_exit(void)
 {
+	if (da9053_get_chip_version())
+		da9053_restore_volt_settings();
 }
 
 static struct mxc_pm_platform_data smd_pm_data = {
@@ -1272,6 +1305,7 @@ static void __init mx53_smd_board_init(void)
 	  */
 	imx53_add_mxc_scc2();
 	smd_add_device_battery();
+	pm_i2c_init(MX53_I2C1_BASE_ADDR);
 
 	imx53_add_dvfs_core(&smd_dvfs_core_data);
 	imx53_add_busfreq();

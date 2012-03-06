@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2007, 2011 Freescale Semiconductor, Inc.
+ * Copyright 2004-2012 Freescale Semiconductor, Inc.
  * Copyright (C) 2008 Juergen Beisert (kernel@pengutronix.de)
  *
  * This program is free software; you can redistribute it and/or
@@ -70,6 +70,7 @@
 #define IMX_BOARD_REV_2		0x100
 #define IMX_BOARD_REV_3		0x200
 #define IMX_BOARD_REV_4		0x300
+#define IMX_BOARD_REV_5		0x400
 
 #ifndef __ASSEMBLY__
 extern unsigned int system_rev;

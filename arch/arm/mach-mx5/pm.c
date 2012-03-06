@@ -73,12 +73,6 @@ void *suspend_iram_base;
 void (*suspend_in_iram)(void *param1, void *param2, void* param3) = NULL;
 void __iomem *suspend_param1;
 
-#define TZIC_WAKEUP0_OFFSET            0x0E00
-#define TZIC_WAKEUP1_OFFSET            0x0E04
-#define TZIC_WAKEUP2_OFFSET            0x0E08
-#define TZIC_WAKEUP3_OFFSET            0x0E0C
-#define GPIO7_0_11_IRQ_BIT		(0x1<<11)
-
 static int mx5_suspend_enter(suspend_state_t state)
 {
 	if (gpc_dvfs_clk == NULL)
