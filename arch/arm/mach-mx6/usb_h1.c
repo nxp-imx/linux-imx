@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2011-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -221,7 +221,7 @@ static enum usb_wakeup_event _is_usbh1_wakeup(struct fsl_usb2_platform_data *pda
 	u32 wakeup_req = USB_H1_CTRL & UCTRL_OWIR;
 
 	if (wakeup_req)
-		return !WAKEUP_EVENT_INVALID;
+		return WAKEUP_EVENT_DPDM;
 	pr_err("host1, %s, invalid wake up\n", __func__);
 	return WAKEUP_EVENT_INVALID;
 }
@@ -230,7 +230,6 @@ static void h1_wakeup_handler(struct fsl_usb2_platform_data *pdata)
 {
 	_wake_up_enable(pdata, false);
 	_phy_lowpower_suspend(pdata, false);
-	pdata->wakeup_event = 1;
 }
 
 static void usbh1_wakeup_event_clear(void)
