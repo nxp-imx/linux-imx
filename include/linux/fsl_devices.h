@@ -130,6 +130,8 @@ struct fsl_usb2_platform_data {
 	 * is disconnected with Host.
 	 */
 	void (*dr_discharge_line) (bool);
+	/* only set it when vbus lower very slow during OTG switch */
+	bool need_discharge_vbus;
 
 	struct fsl_usb2_wakeup_platform_data *wakeup_pdata;
 	struct platform_device *pdev;
