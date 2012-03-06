@@ -149,7 +149,7 @@ static enum usb_wakeup_event _is_usbh2_wakeup(struct fsl_usb2_platform_data *pda
 	u32 wakeup_req = USB_H2_CTRL & UCTRL_OWIR;
 
 	if (wakeup_req)
-		return !WAKEUP_EVENT_INVALID;
+		return WAKEUP_EVENT_DPDM;
 	pr_err("host2, %s, invalid wake up\n", __func__);
 	return WAKEUP_EVENT_INVALID;
 }
@@ -158,7 +158,6 @@ static void h2_wakeup_handler(struct fsl_usb2_platform_data *pdata)
 {
 	_wake_up_enable(pdata, false);
 	_phy_lowpower_suspend(pdata, false);
-	pdata->wakeup_event = 1;
 }
 
 static void usbh2_wakeup_event_clear(void)
