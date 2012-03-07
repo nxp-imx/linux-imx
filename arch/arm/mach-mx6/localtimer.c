@@ -31,12 +31,7 @@ extern bool enable_wait_mode;
  */
 int __cpuinit local_timer_setup(struct clock_event_device *evt)
 {
-#ifdef CONFIG_LOCAL_TIMERS
-	if (!enable_wait_mode) {
-		evt->irq = IRQ_LOCALTIMER;
-		twd_timer_setup(evt);
-		return 0;
-	}
-#endif
-	return -1;
+	evt->irq = IRQ_LOCALTIMER;
+	twd_timer_setup(evt);
+	return 0;
 }
