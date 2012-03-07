@@ -32,10 +32,7 @@
 
 #ifdef CONFIG_ARCH_MX6
 #define MX6_USB_HOST_HACK
-
 #include <linux/fsl_devices.h>
-extern void fsl_platform_set_usb_phy_dis(struct fsl_usb2_platform_data *pdata,
-					 bool enable);
 #endif
 /* if we are in debug mode, always announce new devices */
 #ifdef DEBUG
@@ -2540,6 +2537,17 @@ int usb_port_resume(struct usb_device *udev, pm_message_t msg)
 				(msg.event & PM_EVENT_AUTO ? "auto-" : ""));
 		msleep(25);
 
+#ifdef MX6_USB_HOST_HACK
+		if (hub->hdev->parent == NULL) {
+			struct usb_device *hdev = hub->hdev;
+			struct usb_hcd *hcd = bus_to_hcd(hdev->bus);
+			struct fsl_usb2_platform_data *pdata;
+			pdata = hcd->self.controller->platform_data;
+			if (pdata->platform_rh_resume)
+				pdata->platform_rh_resume(pdata);
+		}
+#endif
+
 		/* Virtual root hubs can trigger on GET_PORT_STATUS to
 		 * stop resume signaling.  Then finish the resume
 		 * sequence.
@@ -2551,6 +2559,16 @@ int usb_port_resume(struct usb_device *udev, pm_message_t msg)
 	}
 
  SuspendCleared:
+#ifdef MX6_USB_HOST_HACK
+	if (hub->hdev->parent == NULL) {
+		struct usb_device *hdev = hub->hdev;
+		struct usb_hcd *hcd = bus_to_hcd(hdev->bus);
+		struct fsl_usb2_platform_data *pdata;
+		pdata = hcd->self.controller->platform_data;
+		if (pdata->platform_rh_resume)
+			pdata->platform_rh_resume(pdata);
+	}
+#endif
 	if (status == 0) {
 		if (hub_is_superspeed(hub->hdev)) {
 			if (portchange & USB_PORT_STAT_C_LINK_STATE)
@@ -3037,7 +3055,8 @@ hub_port_init (struct usb_hub *hub, struct usb_device *udev, int port1,
 				struct fsl_usb2_platform_data *pdata;
 				pdata = (struct fsl_usb2_platform_data *)
 					 dev->platform_data;
-				fsl_platform_set_usb_phy_dis(pdata, 1);
+				if (pdata && pdata->platform_set_disconnect_det)
+					pdata->platform_set_disconnect_det(pdata, 1);
 			}
 		}
 	}
@@ -3190,9 +3209,10 @@ static void hub_port_connect_change(struct usb_hub *hub, int port1,
 				pdata->init(NULL);
 		}
 		if ((port1 == 1) && (hdev->level == 0)) {
-			if (!(portstatus&USB_PORT_STAT_CONNECTION)) {
+			if (!(portstatus & USB_PORT_STAT_CONNECTION)) {
 				/* Must clear HOSTDISCONDETECT when disconnect*/
-				fsl_platform_set_usb_phy_dis(pdata, 0);
+				if (pdata->platform_set_disconnect_det)
+					pdata->platform_set_disconnect_det(pdata, 0);
 			}
 		}
 	}
