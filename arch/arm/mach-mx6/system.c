@@ -22,6 +22,7 @@
 #include <linux/platform_device.h>
 #include <linux/regulator/consumer.h>
 #include <linux/pmic_external.h>
+#include <linux/clockchips.h>
 #include <asm/io.h>
 #include <mach/hardware.h>
 #include <mach/clock.h>
@@ -158,12 +159,24 @@ void mxc_cpu_lp_set(enum mxc_cpu_pwr_mode mode)
 	__raw_writel(ccm_clpcr, MXC_CCM_CLPCR);
 }
 
- void arch_idle(void)
+extern int tick_broadcast_oneshot_active(void);
+
+void arch_idle(void)
 {
 	if (enable_wait_mode) {
 		if (num_online_cpus() == num_present_cpus()) {
+#ifdef CONFIG_LOCAL_TIMERS
+			int cpu = smp_processor_id();
+			if (!tick_broadcast_oneshot_active())
+				return;
+
+			clockevents_notify(CLOCK_EVT_NOTIFY_BROADCAST_ENTER, &cpu);
+#endif
 			mxc_cpu_lp_set(WAIT_UNCLOCKED_POWER_OFF);
 			mx6_wait(&num_cpu_idle_lock, &num_cpu_idle);
+#ifdef CONFIG_LOCAL_TIMERS
+			clockevents_notify(CLOCK_EVT_NOTIFY_BROADCAST_EXIT, &cpu);
+#endif
 		}
 	} else
 		cpu_do_idle();
