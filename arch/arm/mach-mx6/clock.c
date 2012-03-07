@@ -29,6 +29,8 @@
 #include <mach/common.h>
 #include <mach/clock.h>
 #include <mach/mxc_dvfs.h>
+#include <mach/ahci_sata.h>
+#include <mach/mxc_hdmi.h>
 #include "crm_regs.h"
 #include "cpu_op-mx6.h"
 #include "regs-anadig.h"
@@ -51,6 +53,9 @@ void __iomem *apll_base;
 static struct clk pll1_sys_main_clk;
 static struct clk pll2_528_bus_main_clk;
 static struct clk pll2_pfd_400M;
+static struct clk pll2_pfd_352M;
+static struct clk pll3_pfd_540M;
+static struct clk pll2_pfd_594M;
 static struct clk pll3_usb_otg_main_clk;
 static struct clk pll4_audio_main_clk;
 static struct clk pll5_video_main_clk;
@@ -64,11 +69,14 @@ static struct clk usdhc3_clk;
 
 static struct cpu_op *cpu_op_tbl;
 static int cpu_op_nr;
+static bool pll1_enabled;
+static bool arm_needs_pll2_400;
 
 #define SPIN_DELAY	1200000 /* in nanoseconds */
 
 #define AUDIO_VIDEO_MIN_CLK_FREQ	650000000
 #define AUDIO_VIDEO_MAX_CLK_FREQ	1300000000
+DEFINE_SPINLOCK(clk_lock);
 
 /* We need to check the exp status again after timer expiration,
  * as there might be interrupt coming between the first time exp
@@ -191,6 +199,7 @@ static void _clk_disable_inwait(struct clk *clk)
 	reg |= 1 << clk->enable_shift;
 	__raw_writel(reg, clk->enable_reg);
 }
+
 
 /*
  * For the 4-to-1 muxed input clock
@@ -512,13 +521,25 @@ static int _clk_pll1_main_set_rate(struct clk *clk, unsigned long rate)
 	return 0;
 }
 
+static void _clk_pll1_disable(struct clk *clk)
+{
+	pll1_enabled = false;
+	_clk_pll_disable(clk);
+}
+
+static int _clk_pll1_enable(struct clk *clk)
+{
+	_clk_pll_enable(clk);
+	pll1_enabled = true;
+}
+
 static struct clk pll1_sys_main_clk = {
 	__INIT_CLK_DEBUG(pll1_sys_main_clk)
 	.parent = &osc_clk,
 	.get_rate = _clk_pll1_main_get_rate,
 	.set_rate = _clk_pll1_main_set_rate,
-	.enable = _clk_pll_enable,
-	.disable = _clk_pll_disable,
+	.enable = _clk_pll1_enable,
+	.disable = _clk_pll1_disable,
 };
 
 static int _clk_pll1_sw_set_parent(struct clk *clk, struct clk *parent)
@@ -545,7 +566,6 @@ static int _clk_pll1_sw_set_parent(struct clk *clk, struct clk *parent)
 			reg = __raw_readl(MXC_CCM_CCSR);
 			reg |= MXC_CCM_CCSR_STEP_SEL;
 			__raw_writel(reg, MXC_CCM_CCSR);
-
 		}
 		reg = __raw_readl(MXC_CCM_CCSR);
 		reg |= MXC_CCM_CCSR_PLL1_SW_CLK_SEL;
@@ -610,13 +630,19 @@ static struct clk pll2_528_bus_main_clk = {
 	.disable = _clk_pll_disable,
 };
 
+static void _clk_pll2_pfd_400M_disable(struct clk *clk)
+{
+	if (!arm_needs_pll2_400)
+		_clk_pfd_disable(clk);
+}
+
 static struct clk pll2_pfd_400M = {
 	__INIT_CLK_DEBUG(pll2_pfd_400M)
 	.parent = &pll2_528_bus_main_clk,
 	.enable_reg = (void *)PFD_528_BASE_ADDR,
 	.enable_shift = ANADIG_PFD2_FRAC_OFFSET,
 	.enable = _clk_pfd_enable,
-	.disable = _clk_pfd_disable,
+	.disable = _clk_pll2_pfd_400M_disable,
 	.get_rate = pfd_get_rate,
 	.set_rate = pfd_set_rate,
 	.get_rate = pfd_get_rate,
@@ -1152,8 +1178,8 @@ static int _clk_arm_set_rate(struct clk *clk, unsigned long rate)
 {
 	int i;
 	u32 div;
-	u32 parent_rate;
-
+	unsigned long parent_rate;
+	unsigned long flags;
 
 	for (i = 0; i < cpu_op_nr; i++) {
 		if (rate == cpu_op_tbl[i].cpu_rate)
@@ -1162,29 +1188,66 @@ static int _clk_arm_set_rate(struct clk *clk, unsigned long rate)
 	if (i >= cpu_op_nr)
 		return -EINVAL;
 
-	if (cpu_op_tbl[i].pll_rate != clk_get_rate(&pll1_sys_main_clk)) {
-		/* Change the PLL1 rate. */
-		if (pll2_pfd_400M.usecount != 0)
-			pll1_sw_clk.set_parent(&pll1_sw_clk, &pll2_pfd_400M);
-		else
-			pll1_sw_clk.set_parent(&pll1_sw_clk, &osc_clk);
-		pll1_sys_main_clk.set_rate(&pll1_sys_main_clk, cpu_op_tbl[i].pll_rate);
-		pll1_sw_clk.set_parent(&pll1_sw_clk, &pll1_sys_main_clk);
-	}
+	spin_lock_irqsave(&clk_lock, flags);
 
+	if (rate <= clk_get_rate(&pll2_pfd_400M)) {
+		/* Source pll1_sw_clk from step_clk which is sourced from
+		  * PLL2_PFD_400M.
+		  */
+		if (pll1_sw_clk.parent != &pll2_pfd_400M) {
+			pll2_pfd_400M.enable(&pll2_pfd_400M);
+			arm_needs_pll2_400 = true;
+			pll1_sw_clk.set_parent(&pll1_sw_clk, &pll2_pfd_400M);
+			pll1_sw_clk.parent = &pll2_pfd_400M;
+		}
+	} else {
+		if (pll1_sw_clk.parent != &pll1_sys_main_clk) {
+			/* pll1_sw_clk was being sourced from pll2_400M. */
+			/* Enable PLL1 and set pll1_sw_clk parent as PLL1 */
+			if (!pll1_enabled)
+				pll1_sys_main_clk.enable(&pll1_sys_main_clk);
+			pll1_sw_clk.set_parent(&pll1_sw_clk, &pll1_sys_main_clk);
+			pll1_sw_clk.parent = &pll1_sys_main_clk;
+			arm_needs_pll2_400 = false;
+			if (pll2_pfd_400M.usecount == 0)
+				pll2_pfd_400M.disable(&pll2_pfd_400M);
+		}
+		if (cpu_op_tbl[i].pll_rate != clk_get_rate(&pll1_sys_main_clk)) {
+			/* Change the PLL1 rate. */
+			if (pll2_pfd_400M.usecount != 0)
+				pll1_sw_clk.set_parent(&pll1_sw_clk, &pll2_pfd_400M);
+			else
+				pll1_sw_clk.set_parent(&pll1_sw_clk, &osc_clk);
+			pll1_sys_main_clk.set_rate(&pll1_sys_main_clk, cpu_op_tbl[i].pll_rate);
+			pll1_sw_clk.set_parent(&pll1_sw_clk, &pll1_sys_main_clk);
+		}
+	}
 	parent_rate = clk_get_rate(clk->parent);
 	div = parent_rate / rate;
-
 	if (div == 0)
 		div = 1;
 
 	if ((parent_rate / div) > rate)
 		div++;
 
-	if (div > 8)
+	if (div > 8) {
+		spin_unlock_irqrestore(&clk_lock, flags);
 		return -1;
+	}
+
+	/* Need PLL1-MAIN to be ON to write to ARM-PODF bit. */
+	if (!pll1_enabled)
+		pll1_sys_main_clk.enable(&pll1_sys_main_clk);
 
 	__raw_writel(div - 1, MXC_CCM_CACRR);
+
+	while (__raw_readl(MXC_CCM_CDHIPR))
+		;
+
+	if (pll1_sys_main_clk.usecount == 1 && arm_needs_pll2_400)
+		pll1_sys_main_clk.disable(&pll1_sys_main_clk);
+
+	spin_unlock_irqrestore(&clk_lock, flags);
 
 	return 0;
 }
@@ -1871,7 +1934,6 @@ static struct clk gpt_clk[] = {
 	 .enable = _clk_enable,
 	 .disable = _clk_disable,
 	 .get_rate = _clk_gpt_get_rate,
-	 .secondary = &gpt_clk[1],
 	 },
 	{
 	__INIT_CLK_DEBUG(gpt_serial_clk)
@@ -2007,6 +2069,7 @@ static struct clk vpu_clk[] = {
 	.set_rate = _clk_vpu_axi_set_rate,
 	.get_rate = _clk_vpu_axi_get_rate,
 	.secondary = &vpu_clk[1],
+	.flags = AHB_MED_SET_POINT | CPU_FREQ_TRIG_UPDATE,
 	},
 	{
 	.parent =  &mmdc_ch0_axi_clk[0],
@@ -2016,7 +2079,6 @@ static struct clk vpu_clk[] = {
 	.parent =  &mx6fast1_clk,
 	.secondary = &ocram_clk,
 	},
-
 };
 
 static int _clk_ipu1_set_parent(struct clk *clk, struct clk *parent)
@@ -2097,7 +2159,7 @@ static struct clk ipu1_clk = {
 	.round_rate = _clk_ipu_round_rate,
 	.set_rate = _clk_ipu1_set_rate,
 	.get_rate = _clk_ipu1_get_rate,
-	.flags = AHB_HIGH_SET_POINT | CPU_FREQ_TRIG_UPDATE,
+	.flags = AHB_MED_SET_POINT | CPU_FREQ_TRIG_UPDATE,
 };
 
 static int _clk_ipu2_set_parent(struct clk *clk, struct clk *parent)
@@ -2158,7 +2220,7 @@ static struct clk ipu2_clk = {
 	.round_rate = _clk_ipu_round_rate,
 	.set_rate = _clk_ipu2_set_rate,
 	.get_rate = _clk_ipu2_get_rate,
-	.flags = AHB_HIGH_SET_POINT | CPU_FREQ_TRIG_UPDATE,
+	.flags = AHB_MED_SET_POINT | CPU_FREQ_TRIG_UPDATE,
 };
 
 static struct clk usdhc_dep_clk = {
@@ -2729,7 +2791,7 @@ static struct clk ldb_di0_clk = {
 	.set_rate = _clk_ldb_di0_set_rate,
 	.round_rate = _clk_ldb_di_round_rate,
 	.get_rate = _clk_ldb_di0_get_rate,
-	.flags = AHB_HIGH_SET_POINT | CPU_FREQ_TRIG_UPDATE,
+	.flags = AHB_MED_SET_POINT | CPU_FREQ_TRIG_UPDATE,
 };
 
 static unsigned long _clk_ldb_di1_get_rate(struct clk *clk)
@@ -2796,7 +2858,7 @@ static struct clk ldb_di1_clk = {
 	.set_rate = _clk_ldb_di1_set_rate,
 	.round_rate = _clk_ldb_di_round_rate,
 	.get_rate = _clk_ldb_di1_get_rate,
-	.flags = AHB_HIGH_SET_POINT | CPU_FREQ_TRIG_UPDATE,
+	.flags = AHB_MED_SET_POINT | CPU_FREQ_TRIG_UPDATE,
 };
 
 
@@ -2989,7 +3051,7 @@ static struct clk ipu1_di_clk[] = {
 	.set_rate = _clk_ipu1_di0_set_rate,
 	.round_rate = _clk_ipu_di_round_rate,
 	.get_rate = _clk_ipu1_di0_get_rate,
-	.flags = AHB_HIGH_SET_POINT | CPU_FREQ_TRIG_UPDATE,
+	.flags = AHB_MED_SET_POINT | CPU_FREQ_TRIG_UPDATE,
 	},
 	{
 	 __INIT_CLK_DEBUG(ipu1_di_clk_1)
@@ -3003,7 +3065,7 @@ static struct clk ipu1_di_clk[] = {
 	.set_rate = _clk_ipu1_di1_set_rate,
 	.round_rate = _clk_ipu_di_round_rate,
 	.get_rate = _clk_ipu1_di1_get_rate,
-	.flags = AHB_HIGH_SET_POINT | CPU_FREQ_TRIG_UPDATE,
+	.flags = AHB_MED_SET_POINT | CPU_FREQ_TRIG_UPDATE,
 	},
 };
 
@@ -3166,7 +3228,7 @@ static struct clk ipu2_di_clk[] = {
 	.set_rate = _clk_ipu2_di0_set_rate,
 	.round_rate = _clk_ipu_di_round_rate,
 	.get_rate = _clk_ipu2_di0_get_rate,
-	.flags = AHB_HIGH_SET_POINT | CPU_FREQ_TRIG_UPDATE,
+	.flags = AHB_MED_SET_POINT | CPU_FREQ_TRIG_UPDATE,
 	},
 	{
 	 __INIT_CLK_DEBUG(ipu2_di_clk_1)
@@ -3180,7 +3242,7 @@ static struct clk ipu2_di_clk[] = {
 	.set_rate = _clk_ipu2_di1_set_rate,
 	.round_rate = _clk_ipu_di_round_rate,
 	.get_rate = _clk_ipu2_di1_get_rate,
-	.flags = AHB_HIGH_SET_POINT | CPU_FREQ_TRIG_UPDATE,
+	.flags = AHB_MED_SET_POINT | CPU_FREQ_TRIG_UPDATE,
 	},
 };
 
@@ -4254,9 +4316,9 @@ static struct clk gpu3d_core_clk[] = {
 	__INIT_CLK_DEBUG(gpu3d_core_clk)
 	.parent = &pll2_pfd_594M,
 	.enable = _clk_enable,
+	.disable = _clk_disable,
 	.enable_reg = MXC_CCM_CCGR1,
 	.enable_shift = MXC_CCM_CCGRx_CG13_OFFSET,
-	.disable = _clk_disable,
 	.set_parent = _clk_gpu3d_core_set_parent,
 	.set_rate = _clk_gpu3d_core_set_rate,
 	.get_rate = _clk_gpu3d_core_get_rate,
@@ -4656,7 +4718,7 @@ static struct clk usboh3_clk[] = {
 	.enable_shift = MXC_CCM_CCGRx_CG0_OFFSET,
 	.disable = _clk_disable,
 	.secondary = &usboh3_clk[1],
-	.flags = AHB_HIGH_SET_POINT | CPU_FREQ_TRIG_UPDATE,
+	.flags = AHB_MED_SET_POINT | CPU_FREQ_TRIG_UPDATE,
 	},
 	{
 	.parent = &mmdc_ch0_axi_clk[0],
@@ -5084,6 +5146,7 @@ int __init mx6_clocks_init(unsigned long ckil, unsigned long osc,
 	unsigned long ckih1, unsigned long ckih2)
 {
 	__iomem void *base;
+	unsigned int reg;
 	int i;
 
 	external_low_reference = ckil;
@@ -5201,9 +5264,9 @@ int __init mx6_clocks_init(unsigned long ckil, unsigned long osc,
 		     3 << MXC_CCM_CCGRx_CG9_OFFSET |
 		     3 << MXC_CCM_CCGRx_CG8_OFFSET, MXC_CCM_CCGR2);
 	__raw_writel(1 << MXC_CCM_CCGRx_CG14_OFFSET |
-		     3 << MXC_CCM_CCGRx_CG13_OFFSET |
+		     1 << MXC_CCM_CCGRx_CG13_OFFSET |
 		     3 << MXC_CCM_CCGRx_CG12_OFFSET |
-		     3 << MXC_CCM_CCGRx_CG11_OFFSET |
+		     1 << MXC_CCM_CCGRx_CG11_OFFSET |
 		     3 << MXC_CCM_CCGRx_CG10_OFFSET, MXC_CCM_CCGR3);
 	__raw_writel(3 << MXC_CCM_CCGRx_CG7_OFFSET |
 			1 << MXC_CCM_CCGRx_CG6_OFFSET |
