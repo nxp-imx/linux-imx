@@ -3385,7 +3385,7 @@
 #define MX6DL_PAD_SD3_CMD__USDHC3_CMD_100MHZ                                   \
 		IOMUX_PAD(0x06F8, 0x0310, 0 | IOMUX_CONFIG_SION, 0x0000, 0, MX6DL_USDHC_PAD_CTRL_100MHZ)
 #define MX6DL_PAD_SD3_CMD__USDHC3_CMD_200MHZ                                   \
-		IOMUX_PAD(0x06F8, 0x0310, 0 | IOMUX_CONFIG_SION, 0x0000, 0, MX6DL_USDHC_PAD_CTRL_200MHZ)
+		IOMUX_PAD(0x06F8, 0x0310, 0, 0x0000, 0, MX6DL_USDHC_PAD_CTRL_200MHZ)
 #define MX6DL_PAD_SD3_CMD__UART2_CTS                                           \
 		IOMUX_PAD(0x06F8, 0x0310, 1, 0x0000, 0, MX6DL_UART_PAD_CTRL)
 #define MXSDL_PAD_SD3_CMD__UART2_RTS                                          \
