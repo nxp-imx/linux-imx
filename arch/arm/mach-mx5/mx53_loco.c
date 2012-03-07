@@ -835,6 +835,28 @@ static void __init fixup_mxc_board(struct machine_desc *desc, struct tag *tags,
 	}
 }
 
+static struct gpio_led gpio_leds[] = {
+	{
+		.name			= "USR",
+		.default_trigger	= "heartbeat",
+		.active_low		= 0,
+		.gpio			= USER_LED_EN,
+	},
+};
+
+static struct gpio_led_platform_data gpio_led_info = {
+	.leds		= gpio_leds,
+	.num_leds	= ARRAY_SIZE(gpio_leds),
+};
+
+static struct platform_device leds_gpio = {
+	.name	= "leds-gpio",
+	.id	= -1,
+	.dev	= {
+		.platform_data	= &gpio_led_info,
+	},
+};
+
 static void __init mx53_loco_io_init(void)
 {
 	mxc_iomux_v3_setup_multiple_pads(mx53_loco_pads,
@@ -865,6 +887,10 @@ static void __init mx53_loco_io_init(void)
 	gpio_request(DISP0_POWER_EN, "disp0-power-en");
 	gpio_direction_output(DISP0_POWER_EN, 1);
 
+	/* USR LED */
+	gpio_request(USER_LED_EN, "user-led-en");
+	gpio_direction_output(USER_LED_EN, 1);
+	gpio_free(USER_LED_EN);
 }
 
 /*!
@@ -979,6 +1005,7 @@ static void __init mxc_board_init(void)
 	loco_add_device_buttons();
 	pm_power_off = da9053_power_off;
 	pm_i2c_init(I2C1_BASE_ADDR - MX53_OFFSET);
+	platform_device_register(&leds_gpio);
 }
 
 static void __init mx53_loco_timer_init(void)
