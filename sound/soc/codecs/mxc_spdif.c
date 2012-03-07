@@ -1,7 +1,7 @@
 /*
  * MXC SPDIF ALSA Soc Codec Driver
  *
- * Copyright (C) 2007-2011 Freescale Semiconductor, Inc.
+ * Copyright (C) 2007-2012 Freescale Semiconductor, Inc.
  */
 
 /*
@@ -329,20 +329,46 @@ static void spdif_softreset(void)
 		value = __raw_readl(spdif_base_addr + SPDIF_REG_SCR) & 0x1000;
 }
 
-/*
- * Set clock accuracy information in consumer channel status.
- */
-static int spdif_set_clk_accuracy(enum spdif_clk_accuracy level)
+static void spdif_set_clk_accuracy(u8 level)
 {
-	unsigned long value;
+	mxc_spdif_control.ch_status[3] &= ~IEC958_AES3_CON_CLOCK;
+	mxc_spdif_control.ch_status[3] |= level & IEC958_AES3_CON_CLOCK;
+}
 
-	value = __raw_readl(SPDIF_REG_STCSCL + spdif_base_addr) & 0xffffcf;
-	value |= (level << 4);
-	__raw_writel(value, SPDIF_REG_STCSCL + spdif_base_addr);
+static void spdif_set_cstatus_fs(u8 cstatus_fs)
+{
+	/* set fs field in consumer channel status */
+	mxc_spdif_control.ch_status[3] &= ~IEC958_AES3_CON_FS;
+	mxc_spdif_control.ch_status[3] |= cstatus_fs & IEC958_AES3_CON_FS;
+}
 
-	pr_debug("STCSCL: 0x%08x\n", __raw_readl(spdif_base_addr + SPDIF_REG_STCSCL));
+static u8 reverse_bits(u8 input)
+{
+	u8 i, output = 0;
+	for (i = 8 ; i > 0 ; i--) {
+		output <<= 1;
+		output |= input & 0x01;
+		input >>= 1;
+	}
+	return output;
+}
 
-	return 0;
+static void spdif_write_channel_status(void)
+{
+	unsigned int ch_status;
+
+	ch_status =
+		(reverse_bits(mxc_spdif_control.ch_status[0]) << 16) |
+		(reverse_bits(mxc_spdif_control.ch_status[1]) << 8) |
+		reverse_bits(mxc_spdif_control.ch_status[2]);
+
+	__raw_writel(ch_status, SPDIF_REG_STCSCH + spdif_base_addr);
+
+	ch_status = reverse_bits(mxc_spdif_control.ch_status[3]) << 16;
+	__raw_writel(ch_status, SPDIF_REG_STCSCL + spdif_base_addr);
+
+	pr_debug("STCSCH: 0x%06x\n", __raw_readl(spdif_base_addr + SPDIF_REG_STCSCH));
+	pr_debug("STCSCL: 0x%06x\n", __raw_readl(spdif_base_addr + SPDIF_REG_STCSCL));
 }
 
 /*
@@ -403,7 +429,7 @@ static int spdif_set_sample_rate(struct snd_soc_codec *codec, int sample_rate)
 {
 	struct mxc_spdif_priv *spdif_priv = snd_soc_codec_get_drvdata(codec);
 	struct mxc_spdif_platform_data *plat_data = spdif_priv->plat_data;
-	unsigned long cstatus, stc, clk = -1, div = 1, cstatus_fs = 0;
+	unsigned long stc, clk = -1, div = 1, cstatus_fs = 0;
 	int clk_fs;
 
 	switch (sample_rate) {
@@ -411,14 +437,14 @@ static int spdif_set_sample_rate(struct snd_soc_codec *codec, int sample_rate)
 		clk_fs = 44100;
 		clk = plat_data->spdif_clk_44100;
 		div = plat_data->spdif_div_44100;
-		cstatus_fs = 0;
+		cstatus_fs = IEC958_AES3_CON_FS_44100;
 		break;
 
 	case 48000:
 		clk_fs = 48000;
 		clk = plat_data->spdif_clk_48000;
 		div = plat_data->spdif_div_48000;
-		cstatus_fs = 0x04;
+		cstatus_fs = IEC958_AES3_CON_FS_48000;
 		break;
 
 	case 32000:
@@ -426,7 +452,7 @@ static int spdif_set_sample_rate(struct snd_soc_codec *codec, int sample_rate)
 		clk_fs = 48000;
 		clk = plat_data->spdif_clk_48000;
 		div = plat_data->spdif_div_32000;
-		cstatus_fs = 0x0c;
+		cstatus_fs = IEC958_AES3_CON_FS_32000;
 		break;
 
 	default:
@@ -455,25 +481,13 @@ static int spdif_set_sample_rate(struct snd_soc_codec *codec, int sample_rate)
 		(int)clk_get_rate(plat_data->spdif_clk));
 #endif
 
-	/* set fs field in consumer channel status */
-	cstatus = __raw_readl(SPDIF_REG_STCSCL + spdif_base_addr) & 0xfffff0;
-	cstatus |= cstatus_fs;
-	__raw_writel(cstatus, SPDIF_REG_STCSCL + spdif_base_addr);
+	spdif_set_cstatus_fs(cstatus_fs);
 
 	/* select clock source and divisor */
 	stc = __raw_readl(SPDIF_REG_STC + spdif_base_addr) & ~0x7FF;
 	stc |= STC_TXCLK_SRC_EN | (clk << STC_TXCLK_SRC_OFFSET) | (div - 1);
 	__raw_writel(stc, SPDIF_REG_STC + spdif_base_addr);
 	pr_debug("set sample rate to %d\n", sample_rate);
-
-	pr_debug("STCSCL: 0x%08x\n", __raw_readl(spdif_base_addr + SPDIF_REG_STCSCL));
-
-	return 0;
-}
-
-static int spdif_set_channel_status(int value, unsigned long reg)
-{
-	__raw_writel(value & 0xffffff, reg + spdif_base_addr);
 
 	return 0;
 }
@@ -537,7 +551,6 @@ static int mxc_spdif_playback_prepare(struct snd_pcm_substream *substream,
 	struct mxc_spdif_priv *spdif_priv = snd_soc_codec_get_drvdata(codec);
 	struct mxc_spdif_platform_data *plat_data = spdif_priv->plat_data;
 	struct snd_pcm_runtime *runtime = substream->runtime;
-	unsigned int ch_status;
 	unsigned long regval;
 	int err;
 
@@ -555,26 +568,19 @@ static int mxc_spdif_playback_prepare(struct snd_pcm_substream *substream,
 	   sample rate */
 	__raw_writel(0x07, SPDIF_REG_STC + spdif_base_addr);
 
-	ch_status = ((mxc_spdif_control.ch_status[2] << 16) |
-		     (mxc_spdif_control.ch_status[1] << 8) |
-		     mxc_spdif_control.ch_status[0]);
-	spdif_set_channel_status(ch_status, SPDIF_REG_STCSCH);
-	ch_status = mxc_spdif_control.ch_status[3];
-	spdif_set_channel_status(ch_status, SPDIF_REG_STCSCL);
 	spdif_intr_enable(INT_TXFIFO_RESYNC, 1);
+
 	err = spdif_set_sample_rate(codec, runtime->rate);
 	if (err < 0) {
 		pr_info("%s - err < 0\n", __func__);
 		return err;
 	}
-	spdif_set_clk_accuracy(SPDIF_CLK_ACCURACY_LEV2);
+	spdif_set_clk_accuracy(IEC958_AES3_CON_CLOCK_1000PPM);
+	spdif_write_channel_status();
 
 	pr_debug("SCR: 0x%08x\n", __raw_readl(spdif_base_addr + SPDIF_REG_SCR));
 	pr_debug("SIE: 0x%08x\n", __raw_readl(spdif_base_addr + SPDIF_REG_SIE));
 	pr_debug("STC: 0x%08x\n", __raw_readl(spdif_base_addr + SPDIF_REG_STC));
-
-	pr_debug("STCSCH: 0x%08x\n", __raw_readl(spdif_base_addr + SPDIF_REG_STCSCH));
-	pr_debug("STCSCL: 0x%08x\n", __raw_readl(spdif_base_addr + SPDIF_REG_STCSCL));
 
 	regval = __raw_readl(SPDIF_REG_SCR + spdif_base_addr);
 	regval |= SCR_DMA_TX_EN;
@@ -771,21 +777,12 @@ static int mxc_pb_spdif_get(struct snd_kcontrol *kcontrol,
 static int mxc_pb_spdif_put(struct snd_kcontrol *kcontrol,
 			    struct snd_ctl_elem_value *uvalue)
 {
-	unsigned int ch_status;
 	mxc_spdif_control.ch_status[0] = uvalue->value.iec958.status[0];
 	mxc_spdif_control.ch_status[1] = uvalue->value.iec958.status[1];
 	mxc_spdif_control.ch_status[2] = uvalue->value.iec958.status[2];
 	mxc_spdif_control.ch_status[3] = uvalue->value.iec958.status[3];
-	ch_status =
-	    ((mxc_spdif_control.ch_status[2] << 16) |
-	     (mxc_spdif_control.ch_status[1] << 8) |
-	     mxc_spdif_control.ch_status[0]);
-	spdif_set_channel_status(ch_status, SPDIF_REG_STCSCH);
-	ch_status = mxc_spdif_control.ch_status[3];
-	spdif_set_channel_status(ch_status, SPDIF_REG_STCSCL);
 
-	pr_debug("STCSCH: 0x%08x\n", __raw_readl(spdif_base_addr + SPDIF_REG_STCSCH));
-	pr_debug("STCSCL: 0x%08x\n", __raw_readl(spdif_base_addr + SPDIF_REG_STCSCL));
+	spdif_write_channel_status();
 
 	return 0;
 }

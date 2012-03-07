@@ -1,7 +1,7 @@
 /*
  * ALSA SoC MXC SPDIF codec driver
  *
- * Copyright (C) 2008-2011 Freescale Semiconductor, Inc.
+ * Copyright (C) 2008-2012 Freescale Semiconductor, Inc.
  *
  * Based on stmp3xxx_spdif.h by:
  * Vladimir Barinov <vbarinov@embeddedalley.com>
@@ -115,13 +115,6 @@ enum spdif_gainsel {
 #define SPDIF_CSTATUS_BYTE	6
 #define SPDIF_UBITS_SIZE	96
 #define SPDIF_QSUB_SIZE		(SPDIF_UBITS_SIZE/8)
-
-enum spdif_clk_accuracy {
-	SPDIF_CLK_ACCURACY_LEV2 = 0,
-	SPDIF_CLK_ACCURACY_LEV1 = 2,
-	SPDIF_CLK_ACCURACY_LEV3 = 1,
-	SPDIF_CLK_ACCURACY_RESV = 3
-};
 
 /* SPDIF clock source */
 enum spdif_clk_src {
