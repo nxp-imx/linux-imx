@@ -19,7 +19,7 @@
  * Copyright (c) 2004-2006 Macq Electronique SA.
  *
  * Support for FEC IEEE 1588.
- * Copyright (C) 2010-2011 Freescale Semiconductor, Inc.
+ * Copyright (C) 2010-2012 Freescale Semiconductor, Inc.
  */
 
 #include <linux/module.h>
@@ -61,6 +61,7 @@
 
 #if defined(CONFIG_ARCH_MXC) || defined(CONFIG_ARCH_MXS)
 #define FEC_ALIGNMENT	0xf
+#define FEC_RX_FIFO_BR  0x480
 #else
 #define FEC_ALIGNMENT	0x3
 #endif
@@ -199,7 +200,17 @@ struct fec_enet_private {
 
 	struct	fec_ptp_private *ptp_priv;
 	uint	ptimer_present;
+
+	struct napi_struct napi;
+	int     napi_weight;
+	bool    use_napi;
 };
+#define FEC_NAPI_WEIGHT 64
+#ifdef CONFIG_FEC_NAPI
+#define FEC_NAPI_ENABLE TRUE
+#else
+#define FEC_NAPI_ENABLE FALSE
+#endif
 
 /*
  * Define the fixed address of the FEC hardware.
@@ -210,6 +221,7 @@ static struct mii_bus *fec_mii_bus;
 static irqreturn_t fec_enet_interrupt(int irq, void * dev_id);
 static void fec_enet_tx(struct net_device *dev);
 static void fec_enet_rx(struct net_device *dev);
+static int fec_rx_poll(struct napi_struct *napi, int budget);
 static int fec_enet_close(struct net_device *dev);
 static void fec_restart(struct net_device *dev, int duplex);
 static void fec_stop(struct net_device *dev);
@@ -357,6 +369,20 @@ fec_timeout(struct net_device *dev)
 	netif_wake_queue(dev);
 }
 
+static void
+fec_rx_int_enable(struct net_device *dev, bool enabled)
+{
+	struct fec_enet_private *fep = netdev_priv(dev);
+	uint    int_events;
+
+	int_events = readl(fep->hwp + FEC_IMASK);
+	if (enabled)
+		int_events |= FEC_ENET_RXF;
+	else
+		int_events &= ~FEC_ENET_RXF;
+	writel(int_events, fep->hwp + FEC_IMASK);
+}
+
 static irqreturn_t
 fec_enet_interrupt(int irq, void * dev_id)
 {
@@ -365,6 +391,7 @@ fec_enet_interrupt(int irq, void * dev_id)
 	struct fec_ptp_private *fpp = fep->ptp_priv;
 	uint	int_events;
 	irqreturn_t ret = IRQ_NONE;
+	ulong   flags;
 
 	do {
 		int_events = readl(fep->hwp + FEC_IEVENT);
@@ -372,7 +399,18 @@ fec_enet_interrupt(int irq, void * dev_id)
 
 		if (int_events & FEC_ENET_RXF) {
 			ret = IRQ_HANDLED;
-			fec_enet_rx(dev);
+			spin_lock_irqsave(&fep->hw_lock, flags);
+
+			if (fep->use_napi) {
+				/* Disable the RX interrupt */
+				if (napi_schedule_prep(&fep->napi)) {
+					fec_rx_int_enable(dev, false);
+					__napi_schedule(&fep->napi);
+				}
+			} else
+				fec_enet_rx(dev);
+
+			spin_unlock_irqrestore(&fep->hw_lock, flags);
 		}
 
 		/* Transmit OK, or non-fatal error. Update the buffer
@@ -399,6 +437,14 @@ fec_enet_interrupt(int irq, void * dev_id)
 	return ret;
 }
 
+#ifdef CONFIG_NET_POLL_CONTROLLER
+static void fec_enet_netpoll(struct net_device *dev)
+{
+       disable_irq(dev->irq);
+       fec_enet_interrupt(dev->irq, dev);
+       enable_irq(dev->irq);
+}
+#endif
 
 static void
 fec_enet_tx(struct net_device *dev)
@@ -486,6 +532,142 @@ fec_enet_tx(struct net_device *dev)
 	spin_unlock(&fep->hw_lock);
 }
 
+/*NAPI polling Receive packets */
+static int fec_rx_poll(struct napi_struct *napi, int budget)
+{
+	struct  fec_enet_private *fep =
+		container_of(napi, struct fec_enet_private, napi);
+	struct net_device *dev = napi->dev;
+	struct  fec_ptp_private *fpp = fep->ptp_priv;
+	int pkt_received = 0;
+	struct bufdesc *bdp;
+	unsigned short status;
+	struct  sk_buff *skb;
+	ushort  pkt_len;
+	__u8 *data;
+
+	if (fep->use_napi)
+		WARN_ON(!budget);
+
+#ifdef CONFIG_M532x
+	flush_cache_all();
+#endif
+
+/* First, grab all of the stats for the incoming packet.
+ * These get messed up if we get called due to a busy condition.
+ */
+	bdp = fep->cur_rx;
+
+	while (!((status = bdp->cbd_sc) & BD_ENET_RX_EMPTY)) {
+		if (pkt_received >= budget)
+			break;
+		pkt_received++;
+
+		/* Since we have allocated space to hold a complete frame,
+		 * the last indicator should be set.
+		*/
+		if ((status & BD_ENET_RX_LAST) == 0)
+			printk(KERN_ERR "FEC ENET: rcv is not +last\n");
+
+		if (!fep->opened)
+			goto rx_processing_done;
+
+		/* Check for errors. */
+		if (status & (BD_ENET_RX_LG | BD_ENET_RX_SH | BD_ENET_RX_NO |
+			BD_ENET_RX_CR | BD_ENET_RX_OV)) {
+			dev->stats.rx_errors++;
+			if (status & (BD_ENET_RX_LG | BD_ENET_RX_SH)) {
+				/* Frame too long or too short. */
+				dev->stats.rx_length_errors++;
+			}
+			if (status & BD_ENET_RX_NO)     /* Frame alignment */
+				dev->stats.rx_frame_errors++;
+			if (status & BD_ENET_RX_CR)     /* CRC Error */
+				dev->stats.rx_crc_errors++;
+			if (status & BD_ENET_RX_OV)     /* FIFO overrun */
+				dev->stats.rx_fifo_errors++;
+		}
+
+		/* Report late collisions as a frame error.
+		 * On this error, the BD is closed, but we don't know what we
+		 * have in the buffer.  So, just drop this frame on the floor.
+		 */
+		if (status & BD_ENET_RX_CL) {
+			dev->stats.rx_errors++;
+			dev->stats.rx_frame_errors++;
+			goto rx_processing_done;
+		}
+
+		/* Process the incoming frame. */
+		dev->stats.rx_packets++;
+		pkt_len = bdp->cbd_datlen;
+		dev->stats.rx_bytes += pkt_len;
+		data = (__u8 *)__va(bdp->cbd_bufaddr);
+
+		if (bdp->cbd_bufaddr)
+			dma_unmap_single(&dev->dev, bdp->cbd_bufaddr,
+				FEC_ENET_RX_FRSIZE, DMA_FROM_DEVICE);
+#ifdef CONFIG_ARCH_MXS
+		swap_buffer(data, pkt_len);
+#endif
+
+		/* This does 16 byte alignment, exactly what we need.
+		 * The packet length includes FCS, but we don't want to
+		 * include that when passing upstream as it messes up
+		 * bridging applications.
+		 */
+		skb = dev_alloc_skb(pkt_len - 4 + NET_IP_ALIGN);
+
+		if (unlikely(!skb)) {
+			printk(KERN_ERR "%s: Memory squeeze, dropping packet.\n",
+				dev->name);
+			dev->stats.rx_dropped++;
+		} else {
+			skb_reserve(skb, NET_IP_ALIGN);
+			skb_put(skb, pkt_len - 4);      /* Make room */
+			skb_copy_to_linear_data(skb, data, pkt_len - 4);
+			/* 1588 messeage TS handle */
+			if (fep->ptimer_present)
+				fec_ptp_store_rxstamp(fpp, skb, bdp);
+			skb->protocol = eth_type_trans(skb, dev);
+			netif_receive_skb(skb);
+		}
+
+		bdp->cbd_bufaddr = dma_map_single(&dev->dev, data,
+				FEC_ENET_RX_FRSIZE, DMA_FROM_DEVICE);
+rx_processing_done:
+		/* Clear the status flags for this buffer */
+		status &= ~BD_ENET_RX_STATS;
+
+		/* Mark the buffer empty */
+		status |= BD_ENET_RX_EMPTY;
+		bdp->cbd_sc = status;
+#ifdef CONFIG_ENHANCED_BD
+		bdp->cbd_esc = BD_ENET_RX_INT;
+		bdp->cbd_prot = 0;
+		bdp->cbd_bdu = 0;
+#endif
+
+		/* Update BD pointer to next entry */
+		if (status & BD_ENET_RX_WRAP)
+			bdp = fep->rx_bd_base;
+		else
+			bdp++;
+		/* Doing this here will keep the FEC running while we process
+		* incoming frames.  On a heavily loaded network, we should be
+		* able to keep up at the expense of system resources.
+		*/
+		writel(0, fep->hwp + FEC_R_DES_ACTIVE);
+	}
+	fep->cur_rx = bdp;
+
+	if (pkt_received < budget) {
+		napi_complete(napi);
+		fec_rx_int_enable(dev, true);
+	}
+
+       return pkt_received;
+}
 
 /* During a receive, the cur_rx points to the current incoming buffer.
  * When we update through the ring, if the next incoming buffer has
@@ -506,8 +688,6 @@ fec_enet_rx(struct net_device *dev)
 #ifdef CONFIG_M532x
 	flush_cache_all();
 #endif
-
-	spin_lock(&fep->hw_lock);
 
 	/* First, grab all of the stats for the incoming packet.
 	 * These get messed up if we get called due to a busy condition.
@@ -611,8 +791,6 @@ rx_processing_done:
 		writel(0, fep->hwp + FEC_R_DES_ACTIVE);
 	}
 	fep->cur_rx = bdp;
-
-	spin_unlock(&fep->hw_lock);
 }
 
 /* ------------------------------------------------------------------------- */
@@ -1021,6 +1199,9 @@ fec_enet_open(struct net_device *dev)
 	struct fec_enet_private *fep = netdev_priv(dev);
 	int ret;
 
+	if (fep->use_napi)
+		napi_enable(&fep->napi);
+
 	/* I should reset the ring buffers here, but I don't yet know
 	 * a simple way to do that.
 	 */
@@ -1169,6 +1350,9 @@ static const struct net_device_ops fec_netdev_ops = {
 	.ndo_tx_timeout		= fec_timeout,
 	.ndo_set_mac_address	= fec_set_mac_address,
 	.ndo_do_ioctl           = fec_enet_ioctl,
+#ifdef CONFIG_NET_POLL_CONTROLLER
+       .ndo_poll_controller    = fec_enet_netpoll,
+#endif
 };
 
 static int fec_mac_addr_setup(char *mac_addr)
@@ -1233,6 +1417,13 @@ static int fec_enet_init(struct net_device *dev, int index)
 	dev->watchdog_timeo = TX_TIMEOUT;
 	dev->netdev_ops = &fec_netdev_ops;
 	dev->ethtool_ops = &fec_enet_ethtool_ops;
+
+	fep->use_napi = FEC_NAPI_ENABLE;
+	fep->napi_weight = FEC_NAPI_WEIGHT;
+	if (fep->use_napi) {
+		fec_rx_int_enable(dev, false);
+		netif_napi_add(dev, &fep->napi, fec_rx_poll, fep->napi_weight);
+	}
 
 	/* Initialize the receive buffer descriptors. */
 	bdp = fep->rx_bd_base;
