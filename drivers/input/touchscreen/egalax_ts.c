@@ -147,6 +147,7 @@ static int egalax_wake_up_device(struct i2c_client *client)
 		return ret;
 	}
 	/* wake up controller via an falling edge on IRQ gpio. */
+	gpio_direction_output(gpio, 1);
 	gpio_direction_output(gpio, 0);
 	gpio_set_value(gpio, 1);
 	/* controller should be waken up, return irq.  */
@@ -192,6 +193,10 @@ static int __devinit egalax_ts_probe(struct i2c_client *client,
 	data->input_dev = input_dev;
 	/* controller may be in sleep, wake it up. */
 	egalax_wake_up_device(client);
+	msleep(10);
+	/* the controller needs some time to wakeup, otherwise the
+	 * following firmware version read will be failed.
+	 */
 	ret = egalax_firmware_version(client);
 	if (ret < 0) {
 		dev_err(&client->dev,
