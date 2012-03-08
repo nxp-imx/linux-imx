@@ -81,25 +81,25 @@
 #include "crm_regs.h"
 #include "cpu_op-mx6.h"
 
-#define MX6Q_SABREAUTO_LDB_BACKLIGHT3	IMX_GPIO_NR(2, 9)
-#define MX6Q_SABREAUTO_LDB_BACKLIGHT4	IMX_GPIO_NR(2, 10)
-#define MX6Q_SABREAUTO_ECSPI1_CS0	IMX_GPIO_NR(2, 30)
-#define MX6Q_SABREAUTO_ECSPI1_CS1	IMX_GPIO_NR(3, 19)
-#define MX6Q_SABREAUTO_DISP0_PWR	IMX_GPIO_NR(3, 24)
-#define MX6Q_SABREAUTO_DISP0_I2C_EN	IMX_GPIO_NR(3, 28)
-#define MX6Q_SABREAUTO_DISP0_DET_INT	IMX_GPIO_NR(3, 31)
-#define MX6Q_SABREAUTO_DISP0_RESET	IMX_GPIO_NR(5, 0)
-#define MX6Q_SABREAUTO_SD3_CD	IMX_GPIO_NR(6, 15)
-#define MX6Q_SABREAUTO_SD3_WP	IMX_GPIO_NR(1, 13)
-#define MX6Q_SABREAUTO_SD1_CD	IMX_GPIO_NR(1, 1)
-#define MX6Q_SABREAUTO_SD1_WP	IMX_GPIO_NR(5, 20)
-#define MX6Q_SABREAUTO_USB_HOST1_OC	IMX_GPIO_NR(5, 0)
-#define MX6Q_SABREAUTO_USB_OTG_OC	IMX_GPIO_NR(2, 8)
+#define MX6Q_SABREAUTO_LDB_BACKLIGHT3		IMX_GPIO_NR(2, 9)
+#define MX6Q_SABREAUTO_LDB_BACKLIGHT4		IMX_GPIO_NR(2, 10)
+#define MX6Q_SABREAUTO_ECSPI1_CS0		IMX_GPIO_NR(2, 30)
+#define MX6Q_SABREAUTO_ECSPI1_CS1		IMX_GPIO_NR(3, 19)
+#define MX6Q_SABREAUTO_DISP0_PWR		IMX_GPIO_NR(3, 24)
+#define MX6Q_SABREAUTO_DISP0_I2C_EN		IMX_GPIO_NR(3, 28)
+#define MX6Q_SABREAUTO_DISP0_DET_INT		IMX_GPIO_NR(3, 31)
+#define MX6Q_SABREAUTO_DISP0_RESET		IMX_GPIO_NR(5, 0)
+#define MX6Q_SABREAUTO_SD3_CD			IMX_GPIO_NR(6, 15)
+#define MX6Q_SABREAUTO_SD3_WP			IMX_GPIO_NR(1, 13)
+#define MX6Q_SABREAUTO_SD1_CD			IMX_GPIO_NR(1, 1)
+#define MX6Q_SABREAUTO_SD1_WP			IMX_GPIO_NR(5, 20)
+#define MX6Q_SABREAUTO_USB_HOST1_OC		IMX_GPIO_NR(5, 0)
+#define MX6Q_SABREAUTO_USB_OTG_OC		IMX_GPIO_NR(2, 8)
 
 #define MX6Q_SABREAUTO_MAX7310_1_BASE_ADDR	IMX_GPIO_NR(8, 0)
 #define MX6Q_SABREAUTO_MAX7310_2_BASE_ADDR	IMX_GPIO_NR(8, 8)
 #define MX6Q_SABREAUTO_MAX7310_3_BASE_ADDR	IMX_GPIO_NR(8, 16)
-#define MX6Q_SABREAUTO_CAP_TCH_INT	IMX_GPIO_NR(2, 28)
+#define MX6Q_SABREAUTO_CAP_TCH_INT		IMX_GPIO_NR(2, 28)
 
 #define MX6Q_SABREAUTO_IO_EXP_GPIO1(x) \
 		(MX6Q_SABREAUTO_MAX7310_1_BASE_ADDR + (x))
@@ -108,17 +108,18 @@
 #define MX6Q_SABREAUTO_IO_EXP_GPIO3(x) \
 		(MX6Q_SABREAUTO_MAX7310_3_BASE_ADDR + (x))
 
-/*  CAN2 STBY and EN lines are the same as the CAN1. These lines are not
- *  independent.
+/*
+ * CAN2 STBY and EN lines are the same as the CAN1. These lines are not
+ * independent.
  */
-#define MX6Q_SABREAUTO_CAN1_STEER       MX6Q_SABREAUTO_IO_EXP_GPIO2(3)
-#define MX6Q_SABREAUTO_CAN_STBY         MX6Q_SABREAUTO_IO_EXP_GPIO2(5)
-#define MX6Q_SABREAUTO_CAN_EN           MX6Q_SABREAUTO_IO_EXP_GPIO2(6)
+#define MX6Q_SABREAUTO_CAN1_STEER	MX6Q_SABREAUTO_IO_EXP_GPIO2(3)
+#define MX6Q_SABREAUTO_CAN_STBY		MX6Q_SABREAUTO_IO_EXP_GPIO2(5)
+#define MX6Q_SABREAUTO_CAN_EN		MX6Q_SABREAUTO_IO_EXP_GPIO2(6)
 
-#define MX6Q_SABREAUTO_VIDEOIN_PWR     MX6Q_SABREAUTO_IO_EXP_GPIO2(2)
-#define MX6Q_SABREAUTO_I2C_EXP_RST     IMX_GPIO_NR(1, 15)
-#define MX6Q_SABREAUTO_ESAI_INT        IMX_GPIO_NR(1, 10)
-#define MX6Q_SABREAUTO_PER_RST         MX6Q_SABREAUTO_IO_EXP_GPIO1(3)
+#define MX6Q_SABREAUTO_VIDEOIN_PWR	MX6Q_SABREAUTO_IO_EXP_GPIO2(2)
+#define MX6Q_SABREAUTO_I2C_EXP_RST	IMX_GPIO_NR(1, 15)
+#define MX6Q_SABREAUTO_ESAI_INT		IMX_GPIO_NR(1, 10)
+#define MX6Q_SABREAUTO_PER_RST		MX6Q_SABREAUTO_IO_EXP_GPIO1(3)
 
 #define MX6Q_SABREAUTO_USB_HOST1_PWR	MX6Q_SABREAUTO_IO_EXP_GPIO2(7)
 #define MX6Q_SABREAUTO_USB_OTG_PWR	MX6Q_SABREAUTO_IO_EXP_GPIO3(2)
@@ -462,10 +463,10 @@ enum sd_pad_mode {
 }
 
 static struct gpio_keys_button ard_buttons[] = {
-	GPIO_BUTTON(ARD_ANDROID_HOME, KEY_HOME, 1, "home", 0),
-	GPIO_BUTTON(ARD_ANDROID_BACK, KEY_BACK, 1, "back", 0),
-	GPIO_BUTTON(ARD_ANDROID_MENU, KEY_MENU, 1, "menu", 0),
-	GPIO_BUTTON(ARD_ANDROID_VOLUP, KEY_VOLUMEUP, 1, "volume-up", 0),
+	GPIO_BUTTON(ARD_ANDROID_HOME,    KEY_HOME,       1, "home",        0),
+	GPIO_BUTTON(ARD_ANDROID_BACK,    KEY_BACK,       1, "back",        0),
+	GPIO_BUTTON(ARD_ANDROID_MENU,    KEY_MENU,       1, "menu",        0),
+	GPIO_BUTTON(ARD_ANDROID_VOLUP,   KEY_VOLUMEUP,   1, "volume-up",   0),
 	GPIO_BUTTON(ARD_ANDROID_VOLDOWN, KEY_VOLUMEDOWN, 1, "volume-down", 0),
 };
 
@@ -479,7 +480,7 @@ static struct platform_device ard_android_button_device = {
 	.id		= -1,
 	.num_resources  = 0,
 	.dev		= {
-	.platform_data = &ard_android_button_data,
+		.platform_data = &ard_android_button_data,
 	}
 };
 
@@ -523,12 +524,12 @@ static int plt_sd3_pad_change(int clock)
 
 
 static const struct esdhc_platform_data mx6q_sabreauto_sd3_data __initconst = {
-	.cd_gpio = MX6Q_SABREAUTO_SD3_CD,
-	.wp_gpio = MX6Q_SABREAUTO_SD3_WP,
-	.support_18v = 1,
-	.support_8bit = 1,
-	.delay_line = 0,
-	.platform_pad_change = plt_sd3_pad_change,
+	.cd_gpio		= MX6Q_SABREAUTO_SD3_CD,
+	.wp_gpio		= MX6Q_SABREAUTO_SD3_WP,
+	.support_18v		= 1,
+	.support_8bit		= 1,
+	.delay_line		= 0,
+	.platform_pad_change	= plt_sd3_pad_change,
 };
 
 static const struct esdhc_platform_data mx6q_sabreauto_sd1_data __initconst = {
@@ -574,7 +575,7 @@ mx6q_gpmi_nand_platform_data __initconst = {
 };
 
 static const struct anatop_thermal_platform_data
-	mx6q_sabreauto_anatop_thermal_data __initconst = {
+mx6q_sabreauto_anatop_thermal_data __initconst = {
 	.name = "anatop_thermal",
 };
 
@@ -608,9 +609,9 @@ static int mx6q_sabreauto_fec_power_hibernate(struct phy_device *phydev)
 }
 
 static struct fec_platform_data fec_data __initdata = {
-	.init = mx6q_sabreauto_fec_phy_init,
-	.power_hibernate = mx6q_sabreauto_fec_power_hibernate,
-	.phy = PHY_INTERFACE_MODE_RGMII,
+	.init			= mx6q_sabreauto_fec_phy_init,
+	.power_hibernate	= mx6q_sabreauto_fec_power_hibernate,
+	.phy			= PHY_INTERFACE_MODE_RGMII,
 };
 
 static int mx6q_sabreauto_spi_cs[] = {
@@ -625,33 +626,32 @@ static const struct spi_imx_master mx6q_sabreauto_spi_data __initconst = {
 #if defined(CONFIG_MTD_M25P80) || defined(CONFIG_MTD_M25P80_MODULE)
 static struct mtd_partition m25p32_partitions[] = {
 	{
-		.name = "bootloader",
-		.offset = 0,
-		.size = 0x00040000,
-	},
-	{
-		.name = "kernel",
-		.offset = MTDPART_OFS_APPEND,
-		.size = MTDPART_SIZ_FULL,
+		.name	= "bootloader",
+		.offset	= 0,
+		.size	= 0x00040000,
+	}, {
+		.name	= "kernel",
+		.offset	= MTDPART_OFS_APPEND,
+		.size	= MTDPART_SIZ_FULL,
 	},
 };
 
 static struct flash_platform_data m25p32_spi_flash_data = {
-	.name = "m25p32",
-	.parts = m25p32_partitions,
-	.nr_parts = ARRAY_SIZE(m25p32_partitions),
-	.type = "m25p32",
+	.name		= "m25p32",
+	.parts		= m25p32_partitions,
+	.nr_parts 	= ARRAY_SIZE(m25p32_partitions),
+	.type		= "m25p32",
 };
 
 static struct spi_board_info m25p32_spi0_board_info[] __initdata = {
 #if defined(CONFIG_MTD_M25P80)
 	{
 		/* The modalias must be the same as spi device driver name */
-		.modalias = "m25p80",
-		.max_speed_hz = 20000000,
-		.bus_num = 0,
-		.chip_select = 0,
-		.platform_data = &m25p32_spi_flash_data,
+		.modalias	= "m25p80",
+		.max_speed_hz	= 20000000,
+		.bus_num	= 0,
+		.chip_select	= 0,
+		.platform_data	= &m25p32_spi_flash_data,
 	},
 #endif
 };
@@ -663,36 +663,36 @@ static void spi_device_init(void)
 #else
 static struct mtd_partition mxc_nor_partitions[] = {
 	{
-	.name = "Bootloader",
-	.offset = 0,
-	.size =  0x00080000,
+		.name	= "Bootloader",
+		.offset	= 0,
+		.size	=  0x00080000,
 	}, {
-	.name = "nor.Kernel",
-	.offset = MTDPART_OFS_APPEND,
-	.size = MTDPART_SIZ_FULL,
+		.name	= "nor.Kernel",
+		.offset	= MTDPART_OFS_APPEND,
+		.size	= MTDPART_SIZ_FULL,
 	},
 };
 static struct resource nor_flash_resource = {
-	.start = CS0_BASE_ADDR,
-	.end = CS0_BASE_ADDR  +  0x02000000 - 1,
-	.flags = IORESOURCE_MEM,
+	.start		= CS0_BASE_ADDR,
+	.end		= CS0_BASE_ADDR  +  0x02000000 - 1,
+	.flags		= IORESOURCE_MEM,
 };
 
 static struct physmap_flash_data nor_flash_data = {
-	.probe_type = "cfi_probe",
-	.width = 2,
-	.parts = mxc_nor_partitions,
-	.nr_parts = ARRAY_SIZE(mxc_nor_partitions),
+	.probe_type	= "cfi_probe",
+	.width		= 2,
+	.parts		= mxc_nor_partitions,
+	.nr_parts	= ARRAY_SIZE(mxc_nor_partitions),
 };
 
 static struct platform_device physmap_flash_device = {
-	.name   = "physmap-flash",
-	.id     = 0,
-	.dev    = {
-	.platform_data  = &nor_flash_data,
+	.name	= "physmap-flash",
+	.id	= 0,
+	.dev	= {
+		.platform_data = &nor_flash_data,
 	},
-	.resource = &nor_flash_resource,
-	.num_resources = 1,
+	.resource	= &nor_flash_resource,
+	.num_resources	= 1,
 };
 
 static void mx6q_setup_weimcs(void)
@@ -823,15 +823,15 @@ static struct pca953x_platform_data max7310_u43_platdata = {
 };
 
 static struct fsl_mxc_camera_platform_data camera_data = {
-	.analog_regulator = "DA9052_LDO7",
-	.core_regulator = "DA9052_LDO9",
-	.mclk = 24000000,
-	.csi = 0,
+	.analog_regulator	= "DA9052_LDO7",
+	.core_regulator		= "DA9052_LDO9",
+	.mclk			= 24000000,
+	.csi			= 0,
 };
 
 static struct fsl_mxc_camera_platform_data ov5640_mipi_data = {
-	.mclk = 24000000,
-	.csi = 0,
+	.mclk	= 24000000,
+	.csi	= 0,
 };
 
 static void adv7180_pwdn(int pwdn)
@@ -849,25 +849,26 @@ static void adv7180_pwdn(int pwdn)
 }
 
 static struct fsl_mxc_tvin_platform_data adv7180_data = {
-	.dvddio_reg = NULL,
-	.dvdd_reg = NULL,
-	.avdd_reg = NULL,
-	.pvdd_reg = NULL,
-	.pwdn = adv7180_pwdn,
-	.reset = NULL,
-	.cvbs = true,
+	.dvddio_reg	= NULL,
+	.dvdd_reg	= NULL,
+	.avdd_reg	= NULL,
+	.pvdd_reg	= NULL,
+	.pwdn		= adv7180_pwdn,
+	.reset		= NULL,
+	.cvbs		= true,
 };
 
 static struct imxi2c_platform_data mx6q_sabreauto_i2c2_data = {
-	.bitrate = 400000,
+	.bitrate	= 400000,
 };
 
 static struct imxi2c_platform_data mx6q_sabreauto_i2c1_data = {
-	.bitrate = 100000,
+	.bitrate	= 100000,
 };
 
 static struct mxc_audio_codec_platform_data cs42888_data = {
-	.rates = (SNDRV_PCM_RATE_48000 |
+	.rates = (
+			SNDRV_PCM_RATE_48000 |
 			SNDRV_PCM_RATE_96000 |
 			SNDRV_PCM_RATE_192000),
 };
@@ -876,20 +877,16 @@ static struct i2c_board_info mxc_i2c2_board_info[] __initdata = {
 	{
 		I2C_BOARD_INFO("max7310", 0x30),
 		.platform_data = &max7310_platdata,
-	},
-	{
+	}, {
 		I2C_BOARD_INFO("max7310", 0x32),
 		.platform_data = &max7310_u39_platdata,
-	},
-	{
+	}, {
 		I2C_BOARD_INFO("max7310", 0x34),
 		.platform_data = &max7310_u43_platdata,
-	},
-	{
+	}, {
 		I2C_BOARD_INFO("adv7180", 0x21),
 		.platform_data = (void *)&adv7180_data,
-	},
-	{
+	}, {
 		I2C_BOARD_INFO("ov3640", 0x3c),
 		.platform_data = (void *)&camera_data,
 	},
@@ -899,15 +896,12 @@ static struct i2c_board_info mxc_i2c1_board_info[] __initdata = {
 	{
 		I2C_BOARD_INFO("egalax_ts", 0x04),
 		.irq = gpio_to_irq(MX6Q_SABREAUTO_CAP_TCH_INT),
-	},
-	{
+	}, {
 		I2C_BOARD_INFO("mxc_hdmi_i2c", 0x50),
-	},
-	{
+	}, {
 		I2C_BOARD_INFO("ov5640_mipi", 0x3c),
 		.platform_data = (void *)&ov5640_mipi_data,
-	},
-	{
+	}, {
 		I2C_BOARD_INFO("cs42888", 0x48),
 		.platform_data = (void *)&cs42888_data,
 	},
@@ -1039,8 +1033,8 @@ static struct ahci_platform_data mx6q_sabreauto_sata_data = {
 };
 
 static struct imx_asrc_platform_data imx_asrc_data = {
-	.channel_bits = 4,
-	.clk_map_ver = 2,
+	.channel_bits	= 4,
+	.clk_map_ver	= 2,
 };
 
 static void mx6q_sabreauto_reset_mipi_dsi(void)
@@ -1059,31 +1053,31 @@ static void mx6q_sabreauto_reset_mipi_dsi(void)
 }
 
 static struct mipi_dsi_platform_data mipi_dsi_pdata = {
-	.ipu_id	 = 0,
-	.disp_id = 0,
-	.lcd_panel = "TRULY-WVGA",
-	.reset   = mx6q_sabreauto_reset_mipi_dsi,
+	.ipu_id		= 0,
+	.disp_id	= 0,
+	.lcd_panel	= "TRULY-WVGA",
+	.reset		= mx6q_sabreauto_reset_mipi_dsi,
 };
 
 static struct ipuv3_fb_platform_data sabr_fb_data[] = {
 	{ /*fb0*/
-	.disp_dev = "ldb",
-	.interface_pix_fmt = IPU_PIX_FMT_RGB666,
-	.mode_str = "LDB-XGA",
-	.default_bpp = 16,
-	.int_clk = false,
+		.disp_dev		= "ldb",
+		.interface_pix_fmt	= IPU_PIX_FMT_RGB666,
+		.mode_str		= "LDB-XGA",
+		.default_bpp		= 16,
+		.int_clk		= false,
 	}, {
-	.disp_dev = "lcd",
-	.interface_pix_fmt = IPU_PIX_FMT_RGB565,
-	.mode_str = "CLAA-WVGA",
-	.default_bpp = 16,
-	.int_clk = false,
+		.disp_dev		= "lcd",
+		.interface_pix_fmt	= IPU_PIX_FMT_RGB565,
+		.mode_str		= "CLAA-WVGA",
+		.default_bpp		= 16,
+		.int_clk		= false,
 	}, {
-	.disp_dev = "ldb",
-	.interface_pix_fmt = IPU_PIX_FMT_RGB666,
-	.mode_str = "LDB-XGA",
-	.default_bpp = 16,
-	.int_clk = false,
+		.disp_dev		= "ldb",
+		.interface_pix_fmt	= IPU_PIX_FMT_RGB666,
+		.mode_str		= "LDB-XGA",
+		.default_bpp		= 16,
+		.int_clk		= false,
 	},
 };
 
@@ -1115,49 +1109,49 @@ static struct fsl_mxc_hdmi_platform_data hdmi_data = {
 };
 
 static struct fsl_mxc_hdmi_core_platform_data hdmi_core_data = {
-	.ipu_id = 0,
-	.disp_id = 0,
+	.ipu_id		= 0,
+	.disp_id	= 0,
 };
 
 static struct fsl_mxc_lcd_platform_data lcdif_data = {
-	.ipu_id = 0,
-	.disp_id = 0,
-	.default_ifmt = IPU_PIX_FMT_RGB565,
+	.ipu_id		= 0,
+	.disp_id	= 0,
+	.default_ifmt	= IPU_PIX_FMT_RGB565,
 };
 
 static struct fsl_mxc_ldb_platform_data ldb_data = {
-	.ipu_id = 1,
-	.disp_id = 0,
-	.ext_ref = 1,
-	.mode = LDB_SEP0,
-	.sec_ipu_id = 1,
-	.sec_disp_id = 1,
+	.ipu_id		= 1,
+	.disp_id	= 0,
+	.ext_ref	= 1,
+	.mode 		= LDB_SEP0,
+	.sec_ipu_id	= 1,
+	.sec_disp_id	= 1,
 };
 
 static struct imx_ipuv3_platform_data ipu_data[] = {
 	{
-	.rev = 4,
-	.csi_clk[0] = "ccm_clk0",
+		.rev		= 4,
+		.csi_clk[0]	= "ccm_clk0",
 	}, {
-	.rev = 4,
-	.csi_clk[0] = "ccm_clk0",
+		.rev		= 4,
+		.csi_clk[0]	= "ccm_clk0",
 	},
 };
 
 /* Backlight PWM for CPU board lvds*/
 static struct platform_pwm_backlight_data mx6_arm2_pwm_backlight_data3 = {
-	.pwm_id = 2,
-	.max_brightness = 255,
-	.dft_brightness = 128,
-	.pwm_period_ns = 50000,
+	.pwm_id			= 2,
+	.max_brightness		= 255,
+	.dft_brightness		= 128,
+	.pwm_period_ns		= 50000,
 };
 
 /* Backlight PWM for Main board lvds*/
 static struct platform_pwm_backlight_data mx6_arm2_pwm_backlight_data4 = {
-	.pwm_id = 3,
-	.max_brightness = 255,
-	.dft_brightness = 128,
-	.pwm_period_ns = 50000,
+	.pwm_id			= 3,
+	.max_brightness		= 255,
+	.dft_brightness		= 128,
+	.pwm_period_ns		= 50000,
 };
 static int flexcan0_en;
 static int flexcan1_en;
@@ -1212,12 +1206,12 @@ static const struct flexcan_platform_data
 };
 
 static struct mipi_csi2_platform_data mipi_csi2_pdata = {
-	.ipu_id	 = 0,
-	.csi_id = 0,
-	.v_channel = 0,
-	.lanes = 2,
-	.dphy_clk = "mipi_pllref_clk",
-	.pixel_clk = "emi_clk",
+	.ipu_id		= 0,
+	.csi_id		= 0,
+	.v_channel	= 0,
+	.lanes		= 2,
+	.dphy_clk	= "mipi_pllref_clk",
+	.pixel_clk	= "emi_clk",
 };
 
 static void sabreauto_suspend_enter(void)
@@ -1230,22 +1224,22 @@ static void sabreauto_suspend_exit(void)
 	/* resmue resore */
 }
 static const struct pm_platform_data mx6q_sabreauto_pm_data __initconst = {
-	.name = "imx_pm",
-	.suspend_enter = sabreauto_suspend_enter,
-	.suspend_exit = sabreauto_suspend_exit,
+	.name		= "imx_pm",
+	.suspend_enter	= sabreauto_suspend_enter,
+	.suspend_exit	= sabreauto_suspend_exit,
 };
 
 static struct mxc_audio_platform_data sab_audio_data = {
-	.sysclk = 24576000,
-	.codec_name = "cs42888.1-0048",
+	.sysclk		= 24576000,
+	.codec_name	= "cs42888.1-0048",
 };
 
 static struct platform_device sab_audio_device = {
-	.name = "imx-cs42888",
+	.name		= "imx-cs42888",
 };
 
 static struct imx_esai_platform_data sab_esai_pdata = {
-	.flags = IMX_ESAI_NET,
+	.flags		= IMX_ESAI_NET,
 };
 
 static struct regulator_consumer_supply sabreauto_vmmc_consumers[] = {
@@ -1260,58 +1254,58 @@ static struct regulator_init_data sabreauto_vmmc_init = {
 };
 
 static struct fixed_voltage_config sabreauto_vmmc_reg_config = {
-	.supply_name		= "vmmc",
-	.microvolts		= 3300000,
-	.gpio			= -1,
-	.init_data		= &sabreauto_vmmc_init,
+	.supply_name	= "vmmc",
+	.microvolts	= 3300000,
+	.gpio		= -1,
+	.init_data	= &sabreauto_vmmc_init,
 };
 
 static struct platform_device sabreauto_vmmc_reg_devices = {
-	.name	= "reg-fixed-voltage",
-	.id	= 0,
-	.dev	= {
-		.platform_data = &sabreauto_vmmc_reg_config,
+	.name		= "reg-fixed-voltage",
+	.id		= 0,
+	.dev		= {
+				.platform_data = &sabreauto_vmmc_reg_config,
 	},
 };
 
 static struct regulator_consumer_supply cs42888_sabreauto_consumer_va = {
-	.supply = "VA",
-	.dev_name = "1-0048",
+	.supply		= "VA",
+	.dev_name	= "1-0048",
 };
 
 static struct regulator_consumer_supply cs42888_sabreauto_consumer_vd = {
-	.supply = "VD",
-	.dev_name = "1-0048",
+	.supply		= "VD",
+	.dev_name	= "1-0048",
 };
 
 static struct regulator_consumer_supply cs42888_sabreauto_consumer_vls = {
-	.supply = "VLS",
-	.dev_name = "1-0048",
+	.supply		= "VLS",
+	.dev_name	= "1-0048",
 };
 
 static struct regulator_consumer_supply cs42888_sabreauto_consumer_vlc = {
-	.supply = "VLC",
-	.dev_name = "1-0048",
+	.supply		= "VLC",
+	.dev_name	= "1-0048",
 };
 
 static struct regulator_init_data cs42888_sabreauto_va_reg_initdata = {
-	.num_consumer_supplies = 1,
-	.consumer_supplies = &cs42888_sabreauto_consumer_va,
+	.num_consumer_supplies	= 1,
+	.consumer_supplies	= &cs42888_sabreauto_consumer_va,
 };
 
 static struct regulator_init_data cs42888_sabreauto_vd_reg_initdata = {
-	.num_consumer_supplies = 1,
-	.consumer_supplies = &cs42888_sabreauto_consumer_vd,
+	.num_consumer_supplies	= 1,
+	.consumer_supplies	= &cs42888_sabreauto_consumer_vd,
 };
 
 static struct regulator_init_data cs42888_sabreauto_vls_reg_initdata = {
-	.num_consumer_supplies = 1,
-	.consumer_supplies = &cs42888_sabreauto_consumer_vls,
+	.num_consumer_supplies	= 1,
+	.consumer_supplies	= &cs42888_sabreauto_consumer_vls,
 };
 
 static struct regulator_init_data cs42888_sabreauto_vlc_reg_initdata = {
-	.num_consumer_supplies = 1,
-	.consumer_supplies = &cs42888_sabreauto_consumer_vlc,
+	.num_consumer_supplies	= 1,
+	.consumer_supplies	= &cs42888_sabreauto_consumer_vlc,
 };
 
 static struct fixed_voltage_config cs42888_sabreauto_va_reg_config = {
@@ -1410,26 +1404,26 @@ static int __init imx6q_init_audio(void)
 }
 
 static struct mxc_dvfs_platform_data sabreauto_dvfscore_data = {
-	.reg_id = "cpu_vddgp",
-	.clk1_id = "cpu_clk",
-	.clk2_id = "gpc_dvfs_clk",
-	.gpc_cntr_offset = MXC_GPC_CNTR_OFFSET,
-	.ccm_cdcr_offset = MXC_CCM_CDCR_OFFSET,
-	.ccm_cacrr_offset = MXC_CCM_CACRR_OFFSET,
-	.ccm_cdhipr_offset = MXC_CCM_CDHIPR_OFFSET,
-	.prediv_mask = 0x1F800,
-	.prediv_offset = 11,
-	.prediv_val = 3,
-	.div3ck_mask = 0xE0000000,
-	.div3ck_offset = 29,
-	.div3ck_val = 2,
-	.emac_val = 0x08,
-	.upthr_val = 25,
-	.dnthr_val = 9,
-	.pncthr_val = 33,
-	.upcnt_val = 10,
-	.dncnt_val = 10,
-	.delay_time = 80,
+	.reg_id			= "cpu_vddgp",
+	.clk1_id		= "cpu_clk",
+	.clk2_id 		= "gpc_dvfs_clk",
+	.gpc_cntr_offset 	= MXC_GPC_CNTR_OFFSET,
+	.ccm_cdcr_offset 	= MXC_CCM_CDCR_OFFSET,
+	.ccm_cacrr_offset 	= MXC_CCM_CACRR_OFFSET,
+	.ccm_cdhipr_offset 	= MXC_CCM_CDHIPR_OFFSET,
+	.prediv_mask 		= 0x1F800,
+	.prediv_offset 		= 11,
+	.prediv_val 		= 3,
+	.div3ck_mask 		= 0xE0000000,
+	.div3ck_offset 		= 29,
+	.div3ck_val 		= 2,
+	.emac_val 		= 0x08,
+	.upthr_val 		= 25,
+	.dnthr_val 		= 9,
+	.pncthr_val 		= 33,
+	.upcnt_val 		= 10,
+	.dncnt_val 		= 10,
+	.delay_time 		= 80,
 };
 
 static void __init fixup_mxc_board(struct machine_desc *desc, struct tag *tags,
@@ -1466,10 +1460,10 @@ static inline void __init mx6q_csi0_io_init(void)
 }
 
 static struct mxc_spdif_platform_data mxc_spdif_data = {
-	.spdif_tx = 0,		/* disable tx */
-	.spdif_rx = 1,		/* enable rx */
-	.spdif_rx_clk = 0,	/* rx clk from spdif stream */
-	.spdif_clk = NULL,	/* spdif bus clk */
+	.spdif_tx	= 0,	/* disable tx */
+	.spdif_rx	= 1,	/* enable rx */
+	.spdif_rx_clk	= 0,	/* rx clk from spdif stream */
+	.spdif_clk	= NULL,	/* spdif bus clk */
 };
 
 /*!
@@ -1631,7 +1625,7 @@ static void __init mx6_timer_init(void)
 }
 
 static struct sys_timer mxc_timer = {
-	.init   = mx6_timer_init,
+	.init = mx6_timer_init,
 };
 
 static void __init mx6q_reserve(void)
@@ -1652,11 +1646,11 @@ static void __init mx6q_reserve(void)
  */
 MACHINE_START(MX6Q_SABREAUTO, "Freescale i.MX 6Quad Sabre Auto Board")
 	/* Maintainer: Freescale Semiconductor, Inc. */
-	.boot_params = MX6_PHYS_OFFSET + 0x100,
-	.fixup = fixup_mxc_board,
-	.map_io = mx6_map_io,
-	.init_irq = mx6_init_irq,
-	.init_machine = mx6_board_init,
-	.timer = &mxc_timer,
-	.reserve = mx6q_reserve,
+	.boot_params	= MX6_PHYS_OFFSET + 0x100,
+	.fixup		= fixup_mxc_board,
+	.map_io		= mx6_map_io,
+	.init_irq	= mx6_init_irq,
+	.init_machine	= mx6_board_init,
+	.timer		= &mxc_timer,
+	.reserve	= mx6q_reserve,
 MACHINE_END
