@@ -127,17 +127,10 @@
 #define SABREAUTO_USB_HOST1_PWR		SABREAUTO_IO_EXP_GPIO2(7)
 #define SABREAUTO_USB_OTG_PWR		SABREAUTO_IO_EXP_GPIO3(2)
 
-void __init early_console_setup(unsigned long base, struct clk *clk);
 static struct clk *sata_clk;
 static int mipi_sensor;
 static int uart2_en;
 static int can0_enable;
-
-extern struct regulator *(*get_cpu_regulator)(void);
-extern void (*put_cpu_regulator)(void);
-extern char *gp_reg_id;
-extern void mx6_cpu_regulator_init(void);
-extern int __init mx6q_sabreauto_init_pfuze100(u32 int_gpio);
 
 static iomux_v3_cfg_t mx6q_sabreauto_pads[] = {
 
