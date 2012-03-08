@@ -81,60 +81,51 @@
 #include "crm_regs.h"
 #include "cpu_op-mx6.h"
 
-#define MX6Q_SABREAUTO_LDB_BACKLIGHT3		IMX_GPIO_NR(2, 9)
-#define MX6Q_SABREAUTO_LDB_BACKLIGHT4		IMX_GPIO_NR(2, 10)
-#define MX6Q_SABREAUTO_ECSPI1_CS0		IMX_GPIO_NR(2, 30)
-#define MX6Q_SABREAUTO_ECSPI1_CS1		IMX_GPIO_NR(3, 19)
-#define MX6Q_SABREAUTO_DISP0_PWR		IMX_GPIO_NR(3, 24)
-#define MX6Q_SABREAUTO_DISP0_I2C_EN		IMX_GPIO_NR(3, 28)
-#define MX6Q_SABREAUTO_DISP0_DET_INT		IMX_GPIO_NR(3, 31)
-#define MX6Q_SABREAUTO_DISP0_RESET		IMX_GPIO_NR(5, 0)
-#define MX6Q_SABREAUTO_SD3_CD			IMX_GPIO_NR(6, 15)
-#define MX6Q_SABREAUTO_SD3_WP			IMX_GPIO_NR(1, 13)
-#define MX6Q_SABREAUTO_SD1_CD			IMX_GPIO_NR(1, 1)
-#define MX6Q_SABREAUTO_SD1_WP			IMX_GPIO_NR(5, 20)
-#define MX6Q_SABREAUTO_USB_HOST1_OC		IMX_GPIO_NR(5, 0)
-#define MX6Q_SABREAUTO_USB_OTG_OC		IMX_GPIO_NR(2, 8)
+/* sorted by GPIO_NR */
+#define SABREAUTO_SD1_CD		IMX_GPIO_NR(1, 1)
+#define SABREAUTO_ESAI_INT		IMX_GPIO_NR(1, 10)
+#define SABREAUTO_ANDROID_HOME		IMX_GPIO_NR(1, 11)
+#define SABREAUTO_ANDROID_BACK		IMX_GPIO_NR(1, 12)
+#define SABREAUTO_SD3_WP		IMX_GPIO_NR(1, 13)
+#define SABREAUTO_I2C_EXP_RST		IMX_GPIO_NR(1, 15)
+#define SABREAUTO_USB_OTG_OC		IMX_GPIO_NR(2, 8)
+#define SABREAUTO_LDB_BACKLIGHT3	IMX_GPIO_NR(2, 9)
+#define SABREAUTO_LDB_BACKLIGHT4	IMX_GPIO_NR(2, 10)
+#define SABREAUTO_ANDROID_MENU		IMX_GPIO_NR(2, 12)
+#define SABREAUTO_ANDROID_VOLUP		IMX_GPIO_NR(2, 15)
+#define SABREAUTO_CAP_TCH_INT		IMX_GPIO_NR(2, 28)
+#define SABREAUTO_ECSPI1_CS1		IMX_GPIO_NR(3, 19)
+#define SABREAUTO_DISP0_PWR		IMX_GPIO_NR(3, 24)
+#define SABREAUTO_DISP0_I2C_EN		IMX_GPIO_NR(3, 28)
+#define SABREAUTO_DISP0_DET_INT		IMX_GPIO_NR(3, 31)
+#define SABREAUTO_CSI0_RST		IMX_GPIO_NR(4, 5)
+#define SABREAUTO_DISP0_RESET		IMX_GPIO_NR(5, 0)
+#define SABREAUTO_ANDROID_VOLDOWN	IMX_GPIO_NR(5, 14)
+#define SABREAUTO_PMIC_INT		IMX_GPIO_NR(5, 16)
+#define SABREAUTO_SD1_WP		IMX_GPIO_NR(5, 20)
+#define SABREAUTO_CSI0_PWN		IMX_GPIO_NR(5, 23)
+#define SABREAUTO_USB_HOST1_OC		IMX_GPIO_NR(5, 0)
+#define SABREAUTO_SD3_CD		IMX_GPIO_NR(6, 15)
 
-#define MX6Q_SABREAUTO_MAX7310_1_BASE_ADDR	IMX_GPIO_NR(8, 0)
-#define MX6Q_SABREAUTO_MAX7310_2_BASE_ADDR	IMX_GPIO_NR(8, 8)
-#define MX6Q_SABREAUTO_MAX7310_3_BASE_ADDR	IMX_GPIO_NR(8, 16)
-#define MX6Q_SABREAUTO_CAP_TCH_INT		IMX_GPIO_NR(2, 28)
+#define SABREAUTO_MAX7310_1_BASE_ADDR	IMX_GPIO_NR(8, 0)
+#define SABREAUTO_MAX7310_2_BASE_ADDR	IMX_GPIO_NR(8, 8)
+#define SABREAUTO_MAX7310_3_BASE_ADDR	IMX_GPIO_NR(8, 16)
 
-#define MX6Q_SABREAUTO_IO_EXP_GPIO1(x) \
-		(MX6Q_SABREAUTO_MAX7310_1_BASE_ADDR + (x))
-#define MX6Q_SABREAUTO_IO_EXP_GPIO2(x) \
-		(MX6Q_SABREAUTO_MAX7310_2_BASE_ADDR + (x))
-#define MX6Q_SABREAUTO_IO_EXP_GPIO3(x) \
-		(MX6Q_SABREAUTO_MAX7310_3_BASE_ADDR + (x))
+#define SABREAUTO_IO_EXP_GPIO1(x)	(SABREAUTO_MAX7310_1_BASE_ADDR + (x))
+#define SABREAUTO_IO_EXP_GPIO2(x)	(SABREAUTO_MAX7310_2_BASE_ADDR + (x))
+#define SABREAUTO_IO_EXP_GPIO3(x)	(SABREAUTO_MAX7310_3_BASE_ADDR + (x))
 
 /*
  * CAN2 STBY and EN lines are the same as the CAN1. These lines are not
  * independent.
  */
-#define MX6Q_SABREAUTO_CAN1_STEER	MX6Q_SABREAUTO_IO_EXP_GPIO2(3)
-#define MX6Q_SABREAUTO_CAN_STBY		MX6Q_SABREAUTO_IO_EXP_GPIO2(5)
-#define MX6Q_SABREAUTO_CAN_EN		MX6Q_SABREAUTO_IO_EXP_GPIO2(6)
-
-#define MX6Q_SABREAUTO_VIDEOIN_PWR	MX6Q_SABREAUTO_IO_EXP_GPIO2(2)
-#define MX6Q_SABREAUTO_I2C_EXP_RST	IMX_GPIO_NR(1, 15)
-#define MX6Q_SABREAUTO_ESAI_INT		IMX_GPIO_NR(1, 10)
-#define MX6Q_SABREAUTO_PER_RST		MX6Q_SABREAUTO_IO_EXP_GPIO1(3)
-
-#define MX6Q_SABREAUTO_USB_HOST1_PWR	MX6Q_SABREAUTO_IO_EXP_GPIO2(7)
-#define MX6Q_SABREAUTO_USB_OTG_PWR	MX6Q_SABREAUTO_IO_EXP_GPIO3(2)
-
-#define MX6Q_SMD_CSI0_RST		IMX_GPIO_NR(4, 5)
-#define MX6Q_SMD_CSI0_PWN		IMX_GPIO_NR(5, 23)
-
-#define MX6Q_SABREAUTO_PMIC_INT		IMX_GPIO_NR(5, 16)
-
-#define ARD_ANDROID_HOME		IMX_GPIO_NR(1, 11)
-#define ARD_ANDROID_BACK                IMX_GPIO_NR(1, 12)
-#define ARD_ANDROID_MENU                IMX_GPIO_NR(2, 12)
-#define ARD_ANDROID_VOLUP               IMX_GPIO_NR(2, 15)
-#define ARD_ANDROID_VOLDOWN             IMX_GPIO_NR(5, 14)
-
+#define SABREAUTO_PER_RST		SABREAUTO_IO_EXP_GPIO1(3)
+#define SABREAUTO_VIDEOIN_PWR		SABREAUTO_IO_EXP_GPIO2(2)
+#define SABREAUTO_CAN1_STEER		SABREAUTO_IO_EXP_GPIO2(3)
+#define SABREAUTO_CAN_STBY		SABREAUTO_IO_EXP_GPIO2(5)
+#define SABREAUTO_CAN_EN		SABREAUTO_IO_EXP_GPIO2(6)
+#define SABREAUTO_USB_HOST1_PWR		SABREAUTO_IO_EXP_GPIO2(7)
+#define SABREAUTO_USB_OTG_PWR		SABREAUTO_IO_EXP_GPIO3(2)
 
 void __init early_console_setup(unsigned long base, struct clk *clk);
 static struct clk *sata_clk;
@@ -463,11 +454,11 @@ enum sd_pad_mode {
 }
 
 static struct gpio_keys_button ard_buttons[] = {
-	GPIO_BUTTON(ARD_ANDROID_HOME,    KEY_HOME,       1, "home",        0),
-	GPIO_BUTTON(ARD_ANDROID_BACK,    KEY_BACK,       1, "back",        0),
-	GPIO_BUTTON(ARD_ANDROID_MENU,    KEY_MENU,       1, "menu",        0),
-	GPIO_BUTTON(ARD_ANDROID_VOLUP,   KEY_VOLUMEUP,   1, "volume-up",   0),
-	GPIO_BUTTON(ARD_ANDROID_VOLDOWN, KEY_VOLUMEDOWN, 1, "volume-down", 0),
+	GPIO_BUTTON(SABREAUTO_ANDROID_HOME,    KEY_HOME,       1, "home",        0),
+	GPIO_BUTTON(SABREAUTO_ANDROID_BACK,    KEY_BACK,       1, "back",        0),
+	GPIO_BUTTON(SABREAUTO_ANDROID_MENU,    KEY_MENU,       1, "menu",        0),
+	GPIO_BUTTON(SABREAUTO_ANDROID_VOLUP,   KEY_VOLUMEUP,   1, "volume-up",   0),
+	GPIO_BUTTON(SABREAUTO_ANDROID_VOLDOWN, KEY_VOLUMEDOWN, 1, "volume-down", 0),
 };
 
 static struct gpio_keys_platform_data ard_android_button_data = {
@@ -524,8 +515,8 @@ static int plt_sd3_pad_change(int clock)
 
 
 static const struct esdhc_platform_data mx6q_sabreauto_sd3_data __initconst = {
-	.cd_gpio		= MX6Q_SABREAUTO_SD3_CD,
-	.wp_gpio		= MX6Q_SABREAUTO_SD3_WP,
+	.cd_gpio		= SABREAUTO_SD3_CD,
+	.wp_gpio		= SABREAUTO_SD3_WP,
 	.support_18v		= 1,
 	.support_8bit		= 1,
 	.delay_line		= 0,
@@ -533,8 +524,8 @@ static const struct esdhc_platform_data mx6q_sabreauto_sd3_data __initconst = {
 };
 
 static const struct esdhc_platform_data mx6q_sabreauto_sd1_data __initconst = {
-	.cd_gpio = MX6Q_SABREAUTO_SD1_CD,
-	.wp_gpio = MX6Q_SABREAUTO_SD1_WP,
+	.cd_gpio = SABREAUTO_SD1_CD,
+	.wp_gpio = SABREAUTO_SD1_WP,
 };
 
 /* The GPMI is conflicted with SD3, so init this in the driver. */
@@ -615,7 +606,7 @@ static struct fec_platform_data fec_data __initdata = {
 };
 
 static int mx6q_sabreauto_spi_cs[] = {
-	MX6Q_SABREAUTO_ECSPI1_CS1,
+	SABREAUTO_ECSPI1_CS1,
 };
 
 static const struct spi_imx_master mx6q_sabreauto_spi_data __initconst = {
@@ -745,7 +736,7 @@ static int max7310_1_setup(struct i2c_client *client,
 }
 
 static struct pca953x_platform_data max7310_platdata = {
-	.gpio_base	= MX6Q_SABREAUTO_MAX7310_1_BASE_ADDR,
+	.gpio_base	= SABREAUTO_MAX7310_1_BASE_ADDR,
 	.invert		= 0,
 	.setup		= max7310_1_setup,
 };
@@ -811,13 +802,13 @@ static int max7310_u43_setup(struct i2c_client *client,
 }
 
 static struct pca953x_platform_data max7310_u39_platdata = {
-	.gpio_base	= MX6Q_SABREAUTO_MAX7310_2_BASE_ADDR,
+	.gpio_base	= SABREAUTO_MAX7310_2_BASE_ADDR,
 	.invert		= 0,
 	.setup		= max7310_u39_setup,
 };
 
 static struct pca953x_platform_data max7310_u43_platdata = {
-	.gpio_base	= MX6Q_SABREAUTO_MAX7310_3_BASE_ADDR,
+	.gpio_base	= SABREAUTO_MAX7310_3_BASE_ADDR,
 	.invert		= 0,
 	.setup		= max7310_u43_setup,
 };
@@ -838,14 +829,14 @@ static void adv7180_pwdn(int pwdn)
 {
 	int status = -1;
 
-	status = gpio_request(MX6Q_SABREAUTO_VIDEOIN_PWR, "tvin-pwr");
+	status = gpio_request(SABREAUTO_VIDEOIN_PWR, "tvin-pwr");
 
 	if (pwdn)
-		gpio_direction_output(MX6Q_SABREAUTO_VIDEOIN_PWR, 0);
+		gpio_direction_output(SABREAUTO_VIDEOIN_PWR, 0);
 	else
-		gpio_direction_output(MX6Q_SABREAUTO_VIDEOIN_PWR, 1);
+		gpio_direction_output(SABREAUTO_VIDEOIN_PWR, 1);
 
-	gpio_free(MX6Q_SABREAUTO_VIDEOIN_PWR);
+	gpio_free(SABREAUTO_VIDEOIN_PWR);
 }
 
 static struct fsl_mxc_tvin_platform_data adv7180_data = {
@@ -895,7 +886,7 @@ static struct i2c_board_info mxc_i2c2_board_info[] __initdata = {
 static struct i2c_board_info mxc_i2c1_board_info[] __initdata = {
 	{
 		I2C_BOARD_INFO("egalax_ts", 0x04),
-		.irq = gpio_to_irq(MX6Q_SABREAUTO_CAP_TCH_INT),
+		.irq = gpio_to_irq(SABREAUTO_CAP_TCH_INT),
 	}, {
 		I2C_BOARD_INFO("mxc_hdmi_i2c", 0x50),
 	}, {
@@ -910,17 +901,17 @@ static struct i2c_board_info mxc_i2c1_board_info[] __initdata = {
 static void imx6q_sabreauto_usbotg_vbus(bool on)
 {
 	if (on)
-		gpio_set_value_cansleep(MX6Q_SABREAUTO_USB_OTG_PWR, 1);
+		gpio_set_value_cansleep(SABREAUTO_USB_OTG_PWR, 1);
 	else
-		gpio_set_value_cansleep(MX6Q_SABREAUTO_USB_OTG_PWR, 0);
+		gpio_set_value_cansleep(SABREAUTO_USB_OTG_PWR, 0);
 }
 
 static void imx6q_sabreauto_usbhost1_vbus(bool on)
 {
 	if (on)
-		gpio_set_value_cansleep(MX6Q_SABREAUTO_USB_HOST1_PWR, 1);
+		gpio_set_value_cansleep(SABREAUTO_USB_HOST1_PWR, 1);
 	else
-		gpio_set_value_cansleep(MX6Q_SABREAUTO_USB_HOST1_PWR, 0);
+		gpio_set_value_cansleep(SABREAUTO_USB_HOST1_PWR, 0);
 }
 
 static void __init imx6q_sabreauto_init_usb(void)
@@ -928,21 +919,21 @@ static void __init imx6q_sabreauto_init_usb(void)
 	int ret = 0;
 	imx_otg_base = MX6_IO_ADDRESS(MX6Q_USB_OTG_BASE_ADDR);
 
-	ret = gpio_request(MX6Q_SABREAUTO_USB_OTG_OC, "otg-oc");
+	ret = gpio_request(SABREAUTO_USB_OTG_OC, "otg-oc");
 	if (ret) {
-		printk(KERN_ERR"failed to get GPIO MX6Q_SABREAUTO_USB_OTG_OC:"
+		printk(KERN_ERR"failed to get GPIO SABREAUTO_USB_OTG_OC:"
 			" %d\n", ret);
 		return;
 	}
-	gpio_direction_input(MX6Q_SABREAUTO_USB_OTG_OC);
+	gpio_direction_input(SABREAUTO_USB_OTG_OC);
 
-	ret = gpio_request(MX6Q_SABREAUTO_USB_HOST1_OC, "usbh1-oc");
+	ret = gpio_request(SABREAUTO_USB_HOST1_OC, "usbh1-oc");
 	if (ret) {
-		printk(KERN_ERR"failed to get MX6Q_SABREAUTO_USB_HOST1_OC:"
+		printk(KERN_ERR"failed to get SABREAUTO_USB_HOST1_OC:"
 			" %d\n", ret);
 		return;
 	}
-	gpio_direction_input(MX6Q_SABREAUTO_USB_HOST1_OC);
+	gpio_direction_input(SABREAUTO_USB_HOST1_OC);
 
 	mxc_iomux_set_gpr_register(1, 13, 1, 1);
 	mx6_set_otghost_vbus_func(imx6q_sabreauto_usbotg_vbus);
@@ -1039,12 +1030,12 @@ static struct imx_asrc_platform_data imx_asrc_data = {
 
 static void mx6q_sabreauto_reset_mipi_dsi(void)
 {
-	gpio_set_value(MX6Q_SABREAUTO_DISP0_PWR, 1);
-	gpio_set_value(MX6Q_SABREAUTO_DISP0_RESET, 1);
+	gpio_set_value(SABREAUTO_DISP0_PWR, 1);
+	gpio_set_value(SABREAUTO_DISP0_RESET, 1);
 	udelay(10);
-	gpio_set_value(MX6Q_SABREAUTO_DISP0_RESET, 0);
+	gpio_set_value(SABREAUTO_DISP0_RESET, 0);
 	udelay(50);
-	gpio_set_value(MX6Q_SABREAUTO_DISP0_RESET, 1);
+	gpio_set_value(SABREAUTO_DISP0_RESET, 1);
 
 	/*
 	 * it needs to delay 120ms minimum for reset complete
@@ -1159,15 +1150,15 @@ static int flexcan1_en;
 static void mx6q_flexcan_switch(void)
 {
   if (flexcan0_en || flexcan1_en) {
-	gpio_set_value_cansleep(MX6Q_SABREAUTO_CAN_EN, 1);
-	gpio_set_value_cansleep(MX6Q_SABREAUTO_CAN_STBY, 1);
+	gpio_set_value_cansleep(SABREAUTO_CAN_EN, 1);
+	gpio_set_value_cansleep(SABREAUTO_CAN_STBY, 1);
 	/* Enable STEER pin if CAN1 interface is required.
 	 * STEER pin is used to switch between ENET_MDC
 	 * and CAN1_TX functionality. By default ENET_MDC
 	 * is active after reset.
 	 */
 	if (flexcan0_en)
-		gpio_set_value_cansleep(MX6Q_SABREAUTO_CAN1_STEER, 1);
+		gpio_set_value_cansleep(SABREAUTO_CAN1_STEER, 1);
 
   } else {
     /* avoid to disable CAN xcvr if any of the CAN interfaces
@@ -1175,12 +1166,12 @@ static void mx6q_flexcan_switch(void)
     * interfaces are DOWN.
     */
     if (!flexcan0_en && !flexcan1_en) {
-	gpio_set_value_cansleep(MX6Q_SABREAUTO_CAN_EN, 0);
-	gpio_set_value_cansleep(MX6Q_SABREAUTO_CAN_STBY, 0);
+	gpio_set_value_cansleep(SABREAUTO_CAN_EN, 0);
+	gpio_set_value_cansleep(SABREAUTO_CAN_STBY, 0);
     }
     /* turn down STEER pin only if CAN1 is DOWN */
     if (!flexcan0_en)
-	gpio_set_value_cansleep(MX6Q_SABREAUTO_CAN1_STEER, 0);
+	gpio_set_value_cansleep(SABREAUTO_CAN1_STEER, 0);
 
   }
 }
@@ -1375,8 +1366,8 @@ static int __init imx6q_init_audio(void)
 	mxc_register_device(&sab_audio_device, &sab_audio_data);
 	imx6q_add_imx_esai(0, &sab_esai_pdata);
 
-	gpio_request(MX6Q_SABREAUTO_ESAI_INT, "esai-int");
-	gpio_direction_input(MX6Q_SABREAUTO_ESAI_INT);
+	gpio_request(SABREAUTO_ESAI_INT, "esai-int");
+	gpio_direction_input(SABREAUTO_ESAI_INT);
 
 	anaclk_2 = clk_get(NULL, "anaclk_2");
 	if (IS_ERR(anaclk_2))
@@ -1448,14 +1439,14 @@ early_param("can0", early_enable_can0);
 static inline void __init mx6q_csi0_io_init(void)
 {
 	/* Camera reset */
-	gpio_request(MX6Q_SMD_CSI0_RST, "cam-reset");
-	gpio_direction_output(MX6Q_SMD_CSI0_RST, 1);
+	gpio_request(SABREAUTO_CSI0_RST, "cam-reset");
+	gpio_direction_output(SABREAUTO_CSI0_RST, 1);
 
 	/* Camera power down */
-	gpio_request(MX6Q_SMD_CSI0_PWN, "cam-pwdn");
-	gpio_direction_output(MX6Q_SMD_CSI0_PWN, 1);
+	gpio_request(SABREAUTO_CSI0_PWN, "cam-pwdn");
+	gpio_direction_output(SABREAUTO_CSI0_PWN, 1);
 	msleep(1);
-	gpio_set_value(MX6Q_SMD_CSI0_PWN, 0);
+	gpio_set_value(SABREAUTO_CSI0_PWN, 0);
 	mxc_iomux_set_gpr_register(1, 19, 1, 1);
 }
 
@@ -1488,8 +1479,8 @@ static void __init mx6_board_init(void)
 	}
 
 	/* assert i2c-rst  */
-	gpio_request(MX6Q_SABREAUTO_I2C_EXP_RST, "i2c-rst");
-	gpio_direction_output(MX6Q_SABREAUTO_I2C_EXP_RST, 1);
+	gpio_request(SABREAUTO_I2C_EXP_RST, "i2c-rst");
+	gpio_direction_output(SABREAUTO_I2C_EXP_RST, 1);
 
 	if (mipi_sensor)
 		mxc_iomux_v3_setup_multiple_pads(
@@ -1523,13 +1514,13 @@ static void __init mx6_board_init(void)
 	i2c_register_board_info(2, mxc_i2c2_board_info,
 			ARRAY_SIZE(mxc_i2c2_board_info));
 
-	ret = gpio_request(MX6Q_SABREAUTO_PMIC_INT, "pFUZE-int");
+	ret = gpio_request(SABREAUTO_PMIC_INT, "pFUZE-int");
 	if (ret) {
 		printk(KERN_ERR"request pFUZE-int error!!\n");
 		return;
 	} else {
-		gpio_direction_input(MX6Q_SABREAUTO_PMIC_INT);
-		mx6q_sabreauto_init_pfuze100(MX6Q_SABREAUTO_PMIC_INT);
+		gpio_direction_input(SABREAUTO_PMIC_INT);
+		mx6q_sabreauto_init_pfuze100(SABREAUTO_PMIC_INT);
 	}
 	/* SPI */
 	imx6q_add_ecspi(0, &mx6q_sabreauto_spi_data);
@@ -1566,24 +1557,24 @@ static void __init mx6_board_init(void)
 		mx6q_csi0_io_init();
 
 	/* DISP0 Detect */
-	gpio_request(MX6Q_SABREAUTO_DISP0_DET_INT, "disp0-detect");
-	gpio_direction_input(MX6Q_SABREAUTO_DISP0_DET_INT);
+	gpio_request(SABREAUTO_DISP0_DET_INT, "disp0-detect");
+	gpio_direction_input(SABREAUTO_DISP0_DET_INT);
 
 	/* DISP0 Reset - Assert for i2c disabled mode */
-	gpio_request(MX6Q_SABREAUTO_DISP0_RESET, "disp0-reset");
-	gpio_direction_output(MX6Q_SABREAUTO_DISP0_RESET, 0);
+	gpio_request(SABREAUTO_DISP0_RESET, "disp0-reset");
+	gpio_direction_output(SABREAUTO_DISP0_RESET, 0);
 
 	/* DISP0 I2C enable */
-	gpio_request(MX6Q_SABREAUTO_DISP0_I2C_EN, "disp0-i2c");
-	gpio_direction_output(MX6Q_SABREAUTO_DISP0_I2C_EN, 0);
+	gpio_request(SABREAUTO_DISP0_I2C_EN, "disp0-i2c");
+	gpio_direction_output(SABREAUTO_DISP0_I2C_EN, 0);
 
-	gpio_request(MX6Q_SABREAUTO_DISP0_PWR, "disp0-pwr");
-	gpio_direction_output(MX6Q_SABREAUTO_DISP0_PWR, 1);
+	gpio_request(SABREAUTO_DISP0_PWR, "disp0-pwr");
+	gpio_direction_output(SABREAUTO_DISP0_PWR, 1);
 
-	gpio_request(MX6Q_SABREAUTO_LDB_BACKLIGHT3, "ldb-backlight3");
-	gpio_direction_output(MX6Q_SABREAUTO_LDB_BACKLIGHT3, 1);
-	gpio_request(MX6Q_SABREAUTO_LDB_BACKLIGHT4, "ldb-backlight4");
-	gpio_direction_output(MX6Q_SABREAUTO_LDB_BACKLIGHT4, 1);
+	gpio_request(SABREAUTO_LDB_BACKLIGHT3, "ldb-backlight3");
+	gpio_direction_output(SABREAUTO_LDB_BACKLIGHT3, 1);
+	gpio_request(SABREAUTO_LDB_BACKLIGHT4, "ldb-backlight4");
+	gpio_direction_output(SABREAUTO_LDB_BACKLIGHT4, 1);
 	imx6q_add_otp();
 	imx6q_add_viim();
 	imx6q_add_imx2_wdt(0, NULL);
@@ -1641,11 +1632,7 @@ static void __init mx6q_reserve(void)
 	}
 }
 
-/*
- * initialize __mach_desc_MX6Q_SABREAUTO data structure.
- */
-MACHINE_START(MX6Q_SABREAUTO, "Freescale i.MX 6Quad Sabre Auto Board")
-	/* Maintainer: Freescale Semiconductor, Inc. */
+MACHINE_START(MX6Q_SABREAUTO, "Freescale i.MX 6Quad/DualLite/Solo Sabre Auto Board")
 	.boot_params	= MX6_PHYS_OFFSET + 0x100,
 	.fixup		= fixup_mxc_board,
 	.map_io		= mx6_map_io,
