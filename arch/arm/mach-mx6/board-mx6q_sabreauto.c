@@ -81,6 +81,7 @@
 #include "crm_regs.h"
 #include "cpu_op-mx6.h"
 #include "board-mx6q_sabreauto.h"
+#include "board-mx6solo_sabreauto.h"
 
 /* sorted by GPIO_NR */
 #define SABREAUTO_SD1_CD		IMX_GPIO_NR(1, 1)
@@ -191,30 +192,55 @@ static int plt_sd3_pad_change(int clock)
 {
 	static enum sd_pad_mode pad_mode = SD_PAD_MODE_LOW_SPEED;
 
+	iomux_v3_cfg_t *sd3_pads_200mhz = NULL;
+	iomux_v3_cfg_t *sd3_pads_100mhz = NULL;
+	iomux_v3_cfg_t *sd3_pads_50mhz = NULL;
+
+	u32 sd3_pads_200mhz_cnt;
+	u32 sd3_pads_100mhz_cnt;
+	u32 sd3_pads_50mhz_cnt;
+
+	if (cpu_is_mx6q()) {
+		sd3_pads_200mhz = mx6q_sd3_200mhz;
+		sd3_pads_100mhz = mx6q_sd3_100mhz;
+		sd3_pads_50mhz = mx6q_sd3_50mhz;
+
+		sd3_pads_200mhz_cnt = ARRAY_SIZE(mx6q_sd3_200mhz);
+		sd3_pads_100mhz_cnt = ARRAY_SIZE(mx6q_sd3_100mhz);
+		sd3_pads_50mhz_cnt = ARRAY_SIZE(mx6q_sd3_50mhz);
+	} else if (cpu_is_mx6dl()) {
+		sd3_pads_200mhz = mx6dl_sd3_200mhz;
+		sd3_pads_100mhz = mx6dl_sd3_100mhz;
+		sd3_pads_50mhz = mx6dl_sd3_50mhz;
+
+		sd3_pads_200mhz_cnt = ARRAY_SIZE(mx6dl_sd3_200mhz);
+		sd3_pads_100mhz_cnt = ARRAY_SIZE(mx6dl_sd3_100mhz);
+		sd3_pads_50mhz_cnt = ARRAY_SIZE(mx6dl_sd3_50mhz);
+	}
+
 	if (clock > 100000000) {
 		if (pad_mode == SD_PAD_MODE_HIGH_SPEED)
 			return 0;
-
+		BUG_ON(!sd3_pads_200mhz);
 		pad_mode = SD_PAD_MODE_HIGH_SPEED;
-		return mxc_iomux_v3_setup_multiple_pads(mx6q_sd3_200mhz,
-					ARRAY_SIZE(mx6q_sd3_200mhz));
+		return mxc_iomux_v3_setup_multiple_pads(sd3_pads_200mhz,
+							sd3_pads_200mhz_cnt);
 	} else if (clock > 52000000) {
 		if (pad_mode == SD_PAD_MODE_MED_SPEED)
 			return 0;
-
+		BUG_ON(!sd3_pads_100mhz);
 		pad_mode = SD_PAD_MODE_MED_SPEED;
-		return mxc_iomux_v3_setup_multiple_pads(mx6q_sd3_100mhz,
-					ARRAY_SIZE(mx6q_sd3_100mhz));
+		return mxc_iomux_v3_setup_multiple_pads(sd3_pads_100mhz,
+							sd3_pads_100mhz_cnt);
 	} else {
 		if (pad_mode == SD_PAD_MODE_LOW_SPEED)
 			return 0;
-
+		BUG_ON(!sd3_pads_50mhz);
 		pad_mode = SD_PAD_MODE_LOW_SPEED;
-		return mxc_iomux_v3_setup_multiple_pads(mx6q_sd3_50mhz,
-					ARRAY_SIZE(mx6q_sd3_50mhz));
+		return mxc_iomux_v3_setup_multiple_pads(sd3_pads_50mhz,
+							sd3_pads_50mhz_cnt);
 	}
 }
-
 
 static const struct esdhc_platform_data mx6q_sabreauto_sd3_data __initconst = {
 	.cd_gpio		= SABREAUTO_SD3_CD,
@@ -233,8 +259,19 @@ static const struct esdhc_platform_data mx6q_sabreauto_sd1_data __initconst = {
 
 static int gpmi_nand_platform_init(void)
 {
-	return mxc_iomux_v3_setup_multiple_pads(mx6q_gpmi_nand,
-					ARRAY_SIZE(mx6q_gpmi_nand));
+	iomux_v3_cfg_t *nand_pads = NULL;
+	u32 nand_pads_cnt;
+
+	if (cpu_is_mx6q()) {
+		nand_pads = mx6q_gpmi_nand;
+		nand_pads_cnt = ARRAY_SIZE(mx6q_gpmi_nand);
+	} else if (cpu_is_mx6dl()) {
+		nand_pads = mx6dl_gpmi_nand;
+		nand_pads_cnt = ARRAY_SIZE(mx6dl_gpmi_nand);
+
+	}
+	BUG_ON(!nand_pads);
+	return mxc_iomux_v3_setup_multiple_pads(nand_pads, nand_pads_cnt);
 }
 
 static const struct gpmi_nand_platform_data
@@ -1143,29 +1180,61 @@ static struct mxc_spdif_platform_data mxc_spdif_data = {
 static void __init mx6_board_init(void)
 {
 	int i;
-    int ret;
+	int ret;
+	iomux_v3_cfg_t *common_pads = NULL;
+	iomux_v3_cfg_t *can0_pads = NULL;
+	iomux_v3_cfg_t *can1_pads = NULL;
+	iomux_v3_cfg_t *mipi_sensor_pads = NULL;
 
-	mxc_iomux_v3_setup_multiple_pads(mx6q_sabreauto_pads,
-					ARRAY_SIZE(mx6q_sabreauto_pads));
+	int common_pads_cnt;
+	int can0_pads_cnt;
+	int can1_pads_cnt;
+	int mipi_sensor_pads_cnt;
+
+	if (cpu_is_mx6q()) {
+		common_pads = mx6q_sabreauto_pads;
+		can0_pads = mx6q_sabreauto_can0_pads;
+		can1_pads = mx6q_sabreauto_can1_pads;
+		mipi_sensor_pads = mx6q_sabreauto_mipi_sensor_pads;
+
+		common_pads_cnt = ARRAY_SIZE(mx6q_sabreauto_pads);
+		can0_pads_cnt = ARRAY_SIZE(mx6q_sabreauto_can0_pads);
+		can1_pads_cnt = ARRAY_SIZE(mx6q_sabreauto_can1_pads);
+		mipi_sensor_pads_cnt = ARRAY_SIZE(mx6q_sabreauto_mipi_sensor_pads);
+	} else if (cpu_is_mx6dl()) {
+		common_pads = mx6dl_sabreauto_pads;
+		can0_pads = mx6dl_sabreauto_can0_pads;
+		can1_pads = mx6dl_sabreauto_can1_pads;
+		mipi_sensor_pads = mx6dl_sabreauto_mipi_sensor_pads;
+
+		common_pads_cnt = ARRAY_SIZE(mx6dl_sabreauto_pads);
+		can0_pads_cnt = ARRAY_SIZE(mx6dl_sabreauto_can0_pads);
+		can1_pads_cnt = ARRAY_SIZE(mx6dl_sabreauto_can1_pads);
+		mipi_sensor_pads_cnt = ARRAY_SIZE(mx6dl_sabreauto_mipi_sensor_pads);
+	}
+
+	BUG_ON(!common_pads);
+	mxc_iomux_v3_setup_multiple_pads(common_pads, common_pads_cnt);
 
 	if (!uart2_en) {
 		if (can0_enable) {
-			mxc_iomux_v3_setup_multiple_pads(
-				mx6q_sabreauto_can0_pads,
-				ARRAY_SIZE(mx6q_sabreauto_can0_pads));
+			BUG_ON(!can0_pads);
+			mxc_iomux_v3_setup_multiple_pads(can0_pads,
+							can0_pads_cnt);
 		}
-		mxc_iomux_v3_setup_multiple_pads(mx6q_sabreauto_can1_pads,
-			ARRAY_SIZE(mx6q_sabreauto_can1_pads));
+		BUG_ON(!can1_pads);
+		mxc_iomux_v3_setup_multiple_pads(can1_pads, can1_pads_cnt);
 	}
 
 	/* assert i2c-rst  */
 	gpio_request(SABREAUTO_I2C_EXP_RST, "i2c-rst");
 	gpio_direction_output(SABREAUTO_I2C_EXP_RST, 1);
 
-	if (mipi_sensor)
-		mxc_iomux_v3_setup_multiple_pads(
-			mx6q_sabreauto_mipi_sensor_pads,
-			ARRAY_SIZE(mx6q_sabreauto_mipi_sensor_pads));
+	if (mipi_sensor) {
+		BUG_ON(!mipi_sensor_pads);
+		mxc_iomux_v3_setup_multiple_pads(mipi_sensor_pads,
+						mipi_sensor_pads_cnt);
+	}
 
 	gp_reg_id = sabreauto_dvfscore_data.reg_id;
 	mx6q_sabreauto_init_uart();
@@ -1173,10 +1242,19 @@ static void __init mx6_board_init(void)
 	imx6q_add_mxc_hdmi_core(&hdmi_core_data);
 
 	imx6q_add_ipuv3(0, &ipu_data[0]);
-	imx6q_add_ipuv3(1, &ipu_data[1]);
+	if (cpu_is_mx6q())
+		imx6q_add_ipuv3(1, &ipu_data[1]);
 
-	for (i = 0; i < ARRAY_SIZE(sabr_fb_data); i++)
-		imx6q_add_ipuv3fb(i, &sabr_fb_data[i]);
+	if (cpu_is_mx6dl()) {
+		mipi_dsi_pdata.ipu_id = 0;
+		mipi_dsi_pdata.disp_id = 1;
+		ldb_data.ipu_id = 0;
+		ldb_data.disp_id = 0;
+		for (i = 0; i < ARRAY_SIZE(sabr_fb_data) / 2; i++)
+			imx6q_add_ipuv3fb(i, &sabr_fb_data[i]);
+	} else
+		for (i = 0; i < ARRAY_SIZE(sabr_fb_data); i++)
+			imx6q_add_ipuv3fb(i, &sabr_fb_data[i]);
 
 	imx6q_add_mipi_dsi(&mipi_dsi_pdata);
 	imx6q_add_lcdif(&lcdif_data);
@@ -1224,7 +1302,8 @@ static void __init mx6_board_init(void)
 
 	imx_add_viv_gpu(&imx6_gpu_data, &imx6q_gpu_pdata);
 	imx6q_sabreauto_init_usb();
-	imx6q_add_ahci(0, &mx6q_sabreauto_sata_data);
+	if (cpu_is_mx6q())
+		imx6q_add_ahci(0, &mx6q_sabreauto_sata_data);
 	imx6q_add_vpu();
 	imx6q_init_audio();
 	platform_device_register(&sabreauto_vmmc_reg_devices);
